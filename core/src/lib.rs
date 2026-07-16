@@ -11,13 +11,13 @@
 //! TASK-5.1/6.x が依存する契約）
 //!
 //! 1. `Node::Text` の内容・`Element` の属性値は `render()` 内で必ず
-//!    [`escape_html`] / [`escape_html_into`]（[`escape`] モジュール）を経由して
+//!    [`escape_html`] / [`escape_html_into`]（`escape` モジュール）を経由して
 //!    出力する。
 //! 2. エスケープを迂回できる経路は `Node::RawHtml`（コンストラクタ
 //!    [`raw_html`]）のみとする。新たな迂回経路を追加しない。
 //! 3. `format!("<div>{}</div>", user_input)` のような HTML 文字列の直接組み立て
-//!    を内部にも作らない。タグの書き出しは [`render_into`] の構造化した手順の
-//!    みで行う。
+//!    を内部にも作らない。タグの書き出しは `render_into`（内部実装）の構造化
+//!    した手順のみで行う。
 //! 4. 属性名はフレームワーク利用者コード由来の動的文字列になり得るため、出力前
 //!    にホワイトリスト検証を行う。不正な属性名（空白・`=`・`"` 等の注入形）は
 //!    panic させず出力からスキップする（ライブラリコードでの panic 回避規約）。
@@ -42,6 +42,7 @@
 //! では扱わない。前者 2 つは TASK-5.1・TASK-6.2 系で追加予定。
 
 #![forbid(unsafe_code)]
+#![warn(missing_docs)]
 
 use std::fmt::Write as _;
 
@@ -56,10 +57,16 @@ pub use escape::{escape_html, escape_html_into};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Node {
     /// 要素ノード。タグ名は `&'static str` に固定し、動的文字列によるタグ名
-    /// 注入を型で防ぐ。属性値・子ノードは [`render_into`] で再帰的に処理する。
+    /// 注入を型で防ぐ。属性値・子ノードは `render_into`（内部実装）で再帰的に処理する。
     Element {
+        /// タグ名。`&'static str` に固定し動的文字列を受け付けない（不変条件 5）。
+        /// 出力前にホワイトリスト検証（`is_valid_tag_name`、内部実装）も通す多層防御。
         tag: &'static str,
+        /// `(属性名, 属性値)` のペア列。属性値は出力時に必ずエスケープされ、
+        /// 属性名はホワイトリスト検証（`is_valid_attr_name`、内部実装）を通過したもの
+        /// だけが書き出される（不変条件 4）。
         attrs: Vec<(String, String)>,
+        /// 子ノード列。`render_into` が出現順に再帰的に処理する。
         children: Vec<Node>,
     },
     /// テキストノード。`render()` 時に必ず [`escape_html_into`] を経由する
@@ -73,9 +80,18 @@ pub enum Node {
 
 /// 要素ノードを組み立てる素の Rust 関数（マクロではない）。
 ///
-/// `attrs` は `(属性名, 属性値)` のペア列。属性値は [`render_into`] が
+/// `attrs` は `(属性名, 属性値)` のペア列。属性値は `render_into`（内部実装）が
 /// [`escape_html_into`] を経由して出力する。属性名は出力時にホワイトリスト検証を
 /// 通過したものだけが書き出される（不変条件 4）。
+///
+/// # Examples
+///
+/// ```
+/// use rws_core::{el, text, render};
+///
+/// let node = el("p", vec![("class", "greeting")], vec![text("hello")]);
+/// assert_eq!(render(&node), r#"<p class="greeting">hello</p>"#);
+/// ```
 pub fn el(tag: &'static str, attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
     Node::Element {
         tag,
@@ -89,6 +105,15 @@ pub fn el(tag: &'static str, attrs: Vec<(&str, &str)>, children: Vec<Node>) -> N
 
 /// テキストノードを組み立てる。レンダリング時に既定でエスケープされる
 /// （REQ-1 が要求する「テキスト補間は既定エスケープ」の入口 API）。
+///
+/// # Examples
+///
+/// ```
+/// use rws_core::{el, text, render};
+///
+/// let node = el("p", vec![], vec![text("<script>alert(1)</script>")]);
+/// assert_eq!(render(&node), "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>");
+/// ```
 pub fn text(s: impl Into<String>) -> Node {
     Node::Text(s.into())
 }
@@ -101,6 +126,16 @@ pub fn text(s: impl Into<String>) -> Node {
 /// 信頼できない外部入力（ユーザー入力・外部 API のレスポンス等）を
 /// このまま渡すと XSS を招く。信頼できる固定文字列・別途サニタイズ済みの
 /// 文字列のみを渡すこと。
+///
+/// # Examples
+///
+/// ```
+/// use rws_core::{el, raw_html, render};
+///
+/// // 信頼できる固定文字列のみを渡す（ユーザー入力を直接渡さない）。
+/// let node = el("div", vec![], vec![raw_html("<b>bold</b>")]);
+/// assert_eq!(render(&node), "<div><b>bold</b></div>");
+/// ```
 pub fn raw_html(s: impl Into<String>) -> Node {
     Node::RawHtml(s.into())
 }
@@ -150,6 +185,18 @@ fn is_valid_tag_name(name: &str) -> bool {
 /// （ブラウザで `innerHTML` に設定）のいずれも**この関数を共通で使う**モード
 /// 非依存レンダラ。出力は既定エスケープ済みであることを呼び出し側の各層が
 /// 前提とする（クレート冒頭の契約を参照）。
+///
+/// # Examples
+///
+/// ```
+/// use rws_core::{el, text, render, Node};
+///
+/// let tree = el("ul", vec![], vec![el("li", vec![], vec![text("item")])]);
+/// assert_eq!(render(&tree), "<ul><li>item</li></ul>");
+///
+/// // Node::Text 単体を要素で包まず直接レンダリングすることもできる。
+/// assert_eq!(render(&Node::Text("<b>".to_string())), "&lt;b&gt;");
+/// ```
 pub fn render(node: &Node) -> String {
     let mut out = String::new();
     render_into(node, &mut out);
@@ -286,5 +333,106 @@ mod tests {
         );
         let html = render(&tree);
         assert_eq!(html, "<ul><li>item1</li><li>item2</li></ul>");
+    }
+
+    /// 属性値コンテキストで 5 文字すべてがエスケープされることを一括で固定する
+    /// （テキストコンテキストと同一規則を適用する不変条件 1 の属性側網羅）。
+    #[test]
+    fn attribute_value_escapes_all_five_target_characters() {
+        let node = el("div", vec![("data-payload", "\"'<>&")], vec![]);
+        let html = render(&node);
+        assert_eq!(
+            html,
+            "<div data-payload=\"&quot;&#x27;&lt;&gt;&amp;\"></div>"
+        );
+    }
+
+    /// 属性名ホワイトリストの許可側境界: 英数字に加えて `-` `_` `:` を含む
+    /// 実運用上の代表的な属性名（`data-*`・スネークケース・名前空間付き）が
+    /// スキップされず出力されることを確認する。
+    #[test]
+    fn valid_attr_names_with_hyphen_underscore_colon_are_rendered() {
+        let node = el(
+            "input",
+            vec![("data-id", "1"), ("foo_bar", "2"), ("xml:lang", "ja")],
+            vec![],
+        );
+        let html = render(&node);
+        assert!(html.contains("data-id=\"1\""));
+        assert!(html.contains("foo_bar=\"2\""));
+        assert!(html.contains("xml:lang=\"ja\""));
+    }
+
+    /// 属性名ホワイトリストの拒否側境界: 空文字列の属性名は
+    /// `is_valid_attr_name` が `!name.is_empty()` で拒否し、panic せず
+    /// 出力からスキップされることを確認する。
+    #[test]
+    fn empty_attr_name_is_skipped_without_panic() {
+        let node = el("div", vec![("", "value"), ("class", "safe")], vec![]);
+        let html = render(&node);
+        assert_eq!(html, "<div class=\"safe\"></div>");
+    }
+
+    /// タグ名検証の境界: 先頭が ASCII 英字以外（数字・`-`）のタグ名は
+    /// `is_valid_tag_name` の `chars.next()` 判定で拒否され、要素全体が
+    /// 出力からスキップされることを確認する。空文字列タグ名も同様に拒否する。
+    #[test]
+    fn tag_name_validation_boundaries() {
+        assert_eq!(render(&el("1tag", vec![], vec![text("x")])), "");
+        assert_eq!(render(&el("-tag", vec![], vec![text("x")])), "");
+        assert_eq!(render(&el("", vec![], vec![text("x")])), "");
+    }
+
+    /// 大文字を含むタグ名は `is_valid_tag_name` が `is_ascii_alphabetic` /
+    /// `is_ascii_alphanumeric` で判定するため許可される（HTML の小文字化は
+    /// 本クレートの責務外であることを現状の実装どおり固定する）。
+    #[test]
+    fn uppercase_tag_name_is_rendered_as_is() {
+        let node = el("DIV", vec![], vec![text("x")]);
+        assert_eq!(render(&node), "<DIV>x</DIV>");
+    }
+
+    /// `raw_html` の非エスケープが兄弟の `text` ノードへ波及しないことを
+    /// 確認する（`raw_html` は唯一の非エスケープ出力点だが、その効果は
+    /// 当該ノードに閉じており、木全体を非エスケープ化しない）。
+    #[test]
+    fn text_and_raw_html_siblings_render_independently() {
+        let node = el(
+            "div",
+            vec![],
+            vec![text("<script>"), raw_html("<b>ok</b>"), text("<script>")],
+        );
+        let html = render(&node);
+        assert_eq!(html, "<div>&lt;script&gt;<b>ok</b>&lt;script&gt;</div>");
+    }
+
+    /// 要素で包まない `Node::Text` 単体を直接 `render` に渡すケース。
+    /// `render`/`render_into` が `Node::Element` を経由しなくても
+    /// エスケープ経路を通ることを確認する。
+    #[test]
+    fn render_text_node_directly() {
+        assert_eq!(render(&Node::Text("<b>".to_string())), "&lt;b&gt;");
+    }
+
+    /// 空 children の要素は開始・終了タグのみをレンダリングすることを確認する。
+    #[test]
+    fn empty_element_renders_open_and_close_tags() {
+        let node = el("div", vec![], vec![]);
+        assert_eq!(render(&node), "<div></div>");
+    }
+
+    /// 深いネスト（10 段）でもスタックオーバーフローや panic なく再帰的に
+    /// レンダリングできることを確認する（`render_into` の再帰呼び出しの
+    /// 健全性を回帰的に担保する）。
+    #[test]
+    fn deeply_nested_tree_renders_without_panic() {
+        let mut node = text("leaf");
+        for _ in 0..10 {
+            node = el("div", vec![], vec![node]);
+        }
+        let html = render(&node);
+        assert_eq!(html.matches("<div>").count(), 10);
+        assert_eq!(html.matches("</div>").count(), 10);
+        assert!(html.contains("leaf"));
     }
 }
