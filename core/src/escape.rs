@@ -22,6 +22,29 @@
 //! `&` を先頭で処理することで、他の文字が生成するエンティティ（`&lt;` 等）自体が
 //! 再度 `&` として二重エスケープされることを防ぐ。処理順序はテストで固定する。
 //!
+//! # 再エスケープ仕様（入力が既にエンティティ化されている場合）
+//!
+//! 本モジュールは呼び出し時点で入力が「既にエスケープ済みかどうか」を判定
+//! **しない**。既にエンティティ化された文字列（例: `"&amp;"`）を再度渡すと、
+//! その `&` も対象文字として扱い `"&amp;amp;"` になる（素朴な 1 パス走査の
+//! 結果として二重エスケープが発生する）。これは不具合ではなく製品仕様として
+//! 固定する契約である。「賢く」既エスケープ済みかを判定して二重エスケープを
+//! 回避する機能は意図的に持たない。理由:
+//!
+//! - 判定ロジック自体が誤判定（本来無害な `&amp;` というリテラル文字列を
+//!   ユーザーが意図的に表示したい場合など）の余地を生み、エスケープの
+//!   予測可能性を損なう
+//!   （REQ-1 が求めるのは「常に同じ規則でエスケープされる」という保証であり、
+//!   「入力の状態に応じて挙動が変わる」は不変条件と相容れない）
+//! - 呼び出し側（[`crate::render`] 経由のノード木 API）は「ノードに渡した
+//!   文字列は常に 1 回だけこの関数を通る」ことを前提として設計されており、
+//!   二重に `escape_html` を適用する呼び出し側コードのバグを本関数が
+//!   黙って吸収するべきではない
+//!
+//! このため、同一文字列に対して本関数を 2 回適用すると出力が変化する
+//! （冪等ではない）。呼び出し元は「エスケープは 1 回だけ適用する」契約を
+//! 守る責務を負う。
+//!
 //! # 契約（レンダリング側 = TASK-1.1b が前提とする不変条件）
 //!
 //! - 属性値は常に二重引用符（`"`）で囲むことをレンダリング側の責務とする。
@@ -157,5 +180,69 @@ mod tests {
         let mut buf = String::from("prefix:");
         escape_html_into("<b>&\"'</b>", &mut buf);
         assert_eq!(buf, "prefix:&lt;b&gt;&amp;&quot;&#x27;&lt;/b&gt;");
+    }
+
+    /// 対象文字が連続する境界ケース。`char_indices` を使った区間コピー実装
+    /// （`last_end` の更新）が連続する置換文字の間で 1 文字も取りこぼさない
+    /// ことを固定する。
+    #[test]
+    fn escapes_consecutive_special_characters() {
+        assert_eq!(
+            escape_html("<<>>&&\"\"''"),
+            "&lt;&lt;&gt;&gt;&amp;&amp;&quot;&quot;&#x27;&#x27;"
+        );
+    }
+
+    /// 対象文字が入力の先頭・末尾に位置する境界ケース。区間コピーの開始位置
+    /// （`last_end = 0`）・終了位置（走査末尾の `out.push_str(&input[last_end..])`）
+    /// が正しく機能することを固定する。
+    #[test]
+    fn escapes_special_characters_at_string_boundaries() {
+        assert_eq!(escape_html("<start"), "&lt;start");
+        assert_eq!(escape_html("end>"), "end&gt;");
+        assert_eq!(escape_html("&"), "&amp;");
+    }
+
+    /// 対象文字がマルチバイト UTF-8 文字（日本語・絵文字）に隣接する境界ケース。
+    /// `ch.len_utf8()` によるバイトオフセット計算が対象文字の前後にある
+    /// マルチバイト文字の境界を破壊しない（パニックしない・文字化けしない）
+    /// ことを確認する。
+    #[test]
+    fn escapes_special_characters_adjacent_to_multibyte() {
+        assert_eq!(escape_html("日<本>語"), "日&lt;本&gt;語");
+        assert_eq!(escape_html("🎉&🎉"), "🎉&amp;🎉");
+        assert_eq!(escape_html("<日本語>"), "&lt;日本語&gt;");
+    }
+
+    /// 再エスケープ仕様（本モジュール rustdoc 参照）を固定する: 既にエンティティ
+    /// 化された入力を渡すと、その `&` も対象文字として扱われ二重エスケープ
+    /// される。「賢い」既エスケープ判定は行わない設計を回帰的に保証する。
+    #[test]
+    fn re_escapes_already_escaped_input() {
+        assert_eq!(escape_html("&amp;"), "&amp;amp;");
+        assert_eq!(escape_html("&lt;"), "&amp;lt;");
+    }
+
+    /// 5 文字すべてが 1 つのペイロードに混在するケースを一括で固定する
+    /// （実際の XSS ペイロードに近い、属性脱出＋タグ注入の混在パターン）。
+    #[test]
+    fn escapes_all_five_targets_in_mixed_payload() {
+        let payload = "\"'<script>&</script>'\"";
+        let escaped = escape_html(payload);
+        assert_eq!(
+            escaped,
+            "&quot;&#x27;&lt;script&gt;&amp;&lt;/script&gt;&#x27;&quot;"
+        );
+    }
+
+    /// 制御文字（改行・タブ・復帰）は対象外文字として変更されず透過することを
+    /// 確認する（対象文字は上表 5 種のみという仕様の反対側の境界）。
+    #[test]
+    fn passes_through_control_characters_unchanged() {
+        assert_eq!(
+            escape_html("line1\nline2\ttab\rcr"),
+            "line1\nline2\ttab\rcr"
+        );
+        assert_eq!(escape_html("<a\n&b>"), "&lt;a\n&amp;b&gt;");
     }
 }
