@@ -20,7 +20,7 @@ jobs:
   # 同時に外された場合でも、コマンドラインからの forbid はソース側の allow で上書きできない）
   #
   # ファイル名は汎用の ci.yml とし、ジョブ名を目的特化の forbid-unsafe とする。
-  # 後続の CI 系タスク（fmt/clippy・依存グラフ計測・CSR XSS 回帰等）は同一ファイルへ
+  # 後続の CI 系タスク（fmt/clippy・依存グラフ計測等）は同一ファイルへ
   # ジョブを追加していく前提の拡張可能な構成とする。
   forbid-unsafe:
     name: Forbid unsafe in core crates
@@ -47,4 +47,26 @@ jobs:
         run: RUSTFLAGS='-F unsafe_code' cargo check --workspace --locked
 
       - name: workspace 全テスト（XSS 回帰・エスケープ仕様テストを含む）
+        run: cargo test --workspace --locked
+
+  # TASK-1.2b（#10）: XSS 回帰テスト（REQ-1）を含む Rust テスト CI。
+  # forbid-unsafe ジョブ（self-hosted）とは別に ubuntu-latest 環境でも
+  # workspace テストを実行し、クロスプラットフォームの回帰を検知する。
+  test:
+    name: Rust workspace tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2。docs/spec/ サブモジュールはテストに不要なため
+        # submodules: false でチェックアウト面を最小化する（サプライチェーン対策）。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+
+      - name: XSS regression tests (REQ-1)
+        # REQ-1（既定エスケープ）の受け入れ基準を担保するゲート。
+        # SSR/SSG/CSR 経路の XSS 回帰テストを独立ステップとして可視化する。
+        run: cargo test -p rws-core --test xss_escape --locked
+
+      - name: Workspace tests
         run: cargo test --workspace --locked
