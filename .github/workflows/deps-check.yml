@@ -2,6 +2,11 @@ name: deps-check
 
 # REQ-3（依存グラフ上限: 標準サーバー構成で依存パッケージ 60 件以内・深さ 6 以内、
 # docs/spec/04-requirements.md）を CI で強制するワークフロー（TASK-3.1c）。
+# 加えて TASK-3.2b で、同じ依存グラフ内の build.rs 保有クレート一覧
+# （xtask list-build-scripts、TASK-3.2a）を監査ログとして Step Summary に出力する。
+# こちらは security.md「依存追加時は build.rs の有無を確認する」の可視化が目的で
+# あり、PASS/FAIL 判定を持たない（build.rs の存在自体は違反ではない。禁止クレートの
+# ブロックは cargo-deny 系タスク（TASK-4.x）のスコープ）。
 #
 # しきい値運用の原則:
 # - しきい値の正は xtask/src/check_deps.rs の MAX_PACKAGES（60）/ MAX_DEPTH（6）定数のみ。
@@ -52,7 +57,7 @@ jobs:
           set -o pipefail
           cargo run --locked -p xtask -- check-deps --package rws-core --package xtask | tee deps-check.log
 
-      - name: Publish summary
+      - name: Publish deps-check summary
         if: always()
         # format_report（xtask/src/check_deps.rs）の 1 行サマリ契約
         # 「deps-check: packages=<n>/<limit> depth=<n>/<limit> result=<PASS|FAIL>」を
@@ -63,5 +68,29 @@ jobs:
             echo '## deps-check (REQ-3)'
             echo '```'
             grep '^deps-check:' deps-check.log || echo 'deps-check: no summary line found'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run xtask list-build-scripts
+        # TASK-3.2b: build.rs 保有クレート列挙（TASK-3.2a, xtask/src/list_build_scripts.rs）
+        # の CI 出力統合。deps-check と同じ理由（子プロセスの終了コード伝播・
+        # Cargo.lock drift 防止）で pipefail・tee・--locked を用いる。
+        # ゲートではないため、この列挙自体が「count > 0」で CI を落とすことはない
+        # （非 0 終了は cargo metadata 失敗・指定パッケージ未検出時のみ。fail-closed）。
+        run: |
+          set -o pipefail
+          cargo run --locked -p xtask -- list-build-scripts --package rws-core --package xtask | tee build-scripts.log
+
+      - name: Publish build-scripts summary
+        if: always()
+        # format_report（xtask/src/list_build_scripts.rs）の明細行・1 行サマリ契約
+        # （`build-script: <crate-name>@<version>` / `build-scripts: package=<root> count=<n>`）
+        # を Step Summary に転記する。この契約はテストで固定される
+        # （xtask/tests/cli_list_build_scripts.rs）。監査ログであり PASS/FAIL の概念はない。
+        run: |
+          {
+            echo '## build-scripts (REQ-3, audit log — not a gate)'
+            echo '```'
+            grep -E '^(build-scripts:|build-script:)' build-scripts.log || echo 'build-scripts: no summary line found'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

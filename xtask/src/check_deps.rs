@@ -299,6 +299,12 @@ fn host_triple() -> Result<String, CheckDepsError> {
 /// `cargo metadata --format-version 1 --filter-platform <host-triple>` を実行し、
 /// 標準出力を返す。
 ///
+/// `pub(crate)`: 同一 `cargo metadata` 実行結果を `list_build_scripts`（TASK-3.2）モジュール
+/// からも再利用する（`build.rs` 保有クレート列挙は本モジュールと同じ依存グラフ定義
+/// （[`DepGraph`] / [`reachable_ids`]）に依拠するため、`cargo metadata` を 2 回実行して
+/// 重複パースするのは無駄。`fetch_dep_graph` 経由ではなく生の JSON 出力も必要とする
+/// （パッケージのバージョン・`targets` を見るため）ので、この関数を直接公開する）。
+///
 /// `$CARGO`（cargo サブコマンドとして起動された場合に cargo が設定する環境変数）を
 /// 優先し、無ければ `cargo` を PATH から解決する。シェル経由の文字列連結は行わず、
 /// 固定引数のみを渡す（A03 インジェクション対策、security.md 準拠）。
@@ -314,7 +320,7 @@ fn host_triple() -> Result<String, CheckDepsError> {
 /// が `Cargo.lock` を暗黙に書き換え、コミット済みの依存集合ではなく再解決後の
 /// グラフを計測してしまい REQ-3 判定の対象がずれる
 /// （Bugbot 指摘: metadata run omits locked mode）。
-fn run_cargo_metadata() -> Result<String, CheckDepsError> {
+pub(crate) fn run_cargo_metadata() -> Result<String, CheckDepsError> {
     let cargo_bin = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
     let target = host_triple()?;
     let output = Command::new(cargo_bin)
@@ -462,7 +468,34 @@ pub fn measure(
     let root_id = find_root_id(graph, root_name)?;
     let allowed: HashSet<DepKind> = kinds_filter.iter().copied().collect();
 
-    // 件数: BFS で到達集合を求める（ルート自身は含めない）。
+    // 件数: reachable_ids の到達集合（ルート自身は含めない）の大きさ。
+    let package_count = reachable_ids(graph, root_name, kinds_filter)?.len();
+
+    // 深さ: メモ化 DFS で最長経路長を求める。防御的にサイクル検出（灰色ノード再訪問）を行う。
+    let max_depth = longest_path(graph, &root_id, &allowed)?;
+
+    Ok(DepsMeasurement {
+        root: root_name.to_string(),
+        package_count,
+        max_depth,
+    })
+}
+
+/// `root_name` から `kinds_filter` に含まれる辺のみを辿って到達可能な package_id 集合を
+/// 返す（ルート自身は含めない）。
+///
+/// `measure` の件数計測（REQ-3）と `list_build_scripts`（TASK-3.2）の依存グラフ走査は
+/// 「どの辺を辿って到達可能とみなすか」の定義を共有する必要があるため、この BFS を
+/// 独立した公開関数として切り出す。`DepGraph` のフィールドはモジュール外に公開して
+/// いないため、他モジュールから到達集合を得るにはこの関数を経由する。
+pub fn reachable_ids(
+    graph: &DepGraph,
+    root_name: &str,
+    kinds_filter: &[DepKind],
+) -> Result<HashSet<String>, CheckDepsError> {
+    let root_id = find_root_id(graph, root_name)?;
+    let allowed: HashSet<DepKind> = kinds_filter.iter().copied().collect();
+
     let mut visited: HashSet<String> = HashSet::new();
     let mut queue: std::collections::VecDeque<String> = std::collections::VecDeque::new();
     queue.push_back(root_id.clone());
@@ -482,16 +515,7 @@ pub fn measure(
             }
         }
     }
-    let package_count = visited.len();
-
-    // 深さ: メモ化 DFS で最長経路長を求める。防御的にサイクル検出（灰色ノード再訪問）を行う。
-    let max_depth = longest_path(graph, &root_id, &allowed)?;
-
-    Ok(DepsMeasurement {
-        root: root_name.to_string(),
-        package_count,
-        max_depth,
-    })
+    Ok(visited)
 }
 
 /// ノードの探索状態。サイクル検出（[`CheckDepsError::CycleDetected`]）に使う。
