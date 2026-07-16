@@ -1,0 +1,62 @@
+name: deps-check
+
+# REQ-3（依存グラフ上限: 標準サーバー構成で依存パッケージ 60 件以内・深さ 6 以内、
+# docs/spec/04-requirements.md）を CI で強制するワークフロー（TASK-3.1c）。
+#
+# しきい値運用の原則:
+# - しきい値の正は xtask/src/check_deps.rs の MAX_PACKAGES（60）/ MAX_DEPTH（6）定数のみ。
+#   このワークフローには緩和用の input・環境変数・continue-on-error を一切設けない
+#   （迂回経路を作らない設計。しきい値変更はコード定数の変更 = レビュー必須の PR のみ）。
+# - 上限超過時の原則対応は依存削減。上限値自体の見直しは frontend-framework-spec
+#   リポジトリでの仕様変更を経る。
+# - 運用ドキュメント本体は TASK-3.3（docs/dependency-graph-policy.md 相当）で整備予定。
+#   本ワークフローはあくまで CI 組み込みの実体。
+#
+# 計測対象パッケージ:
+# - 現時点の workspace members である rws-core（外部依存ゼロ契約。ディレクトリは
+#   core/ だがパッケージ名は Cargo.toml 上 rws-core）と xtask（外部依存ゼロ契約）
+#   を対象とする。標準サーバー構成（rws-server）実装後は
+#   REQ-3 の本来の計測対象として `--package server` を追加すること
+#   （server クレート導入イシュー側の対応事項）。
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deps-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deps-check:
+    name: REQ-3 dependency graph limits (60 packages / depth 6)
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        # actions/checkout v6.0.3（.github/workflows/update-external.yml と同一コミットに固定）。
+        # docs/spec submodule は本ジョブの計測に不要なため取得しない（submodules 既定 false）。
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+
+      - name: Run xtask check-deps
+        # xtask check-deps の終了コードをそのまま CI の成否に伝播させる（fail-closed）。
+        # set -o pipefail を明示し、tee 経由でも cargo run の終了コードが失われないようにする。
+        run: |
+          set -o pipefail
+          cargo run -p xtask -- check-deps --package rws-core --package xtask | tee deps-check.log
+
+      - name: Publish summary
+        if: always()
+        # format_report（xtask/src/check_deps.rs）の 1 行サマリ契約
+        # 「deps-check: packages=<n>/<limit> depth=<n>/<limit> result=<PASS|FAIL>」を
+        # Step Summary に転記する。この契約はテストで固定される
+        # （xtask/tests/cli_check_deps.rs）。
+        run: |
+          {
+            echo '## deps-check (REQ-3)'
+            echo '```'
+            grep '^deps-check:' deps-check.log || echo 'deps-check: no summary line found'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
