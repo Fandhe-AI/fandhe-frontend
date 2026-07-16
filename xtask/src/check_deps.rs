@@ -262,6 +262,50 @@ pub struct DepGraph {
     edges: HashMap<String, Vec<(String, DepKind)>>,
 }
 
+impl DepGraph {
+    /// `root_id` から `allowed` に含まれる辺のみを辿って到達可能な package_id 集合を
+    /// BFS で求める（`root_id` 自身を含む）。
+    ///
+    /// TASK-3.2a（`list_build_scripts`）の到達可能集合計算から利用される。
+    /// `measure()` の件数計測（ルート自身を除いた件数を要求）とは戻り値の解釈が
+    /// 異なるが、BFS 本体は共通の [`bfs_reachable_inclusive`] を使い回す
+    /// （ルート自身を含めるか除くかという 1 点のみが異なるため、BFS 実装自体を
+    /// 二重管理しない。reviewer 指摘: `reachable_from` と `measure` 内 BFS の重複）。
+    pub(crate) fn reachable_from(&self, root_id: &str, allowed: &[DepKind]) -> HashSet<String> {
+        let allowed: HashSet<DepKind> = allowed.iter().copied().collect();
+        bfs_reachable_inclusive(&self.edges, root_id, &allowed)
+    }
+}
+
+/// `root_id` から `allowed` に含まれる辺のみを辿って到達可能な package_id 集合を
+/// BFS で求める共通実装（`root_id` 自身を含む）。
+///
+/// [`DepGraph::reachable_from`]（TASK-3.2a の列挙: ルート自身を含めたい）と
+/// [`measure`]（TASK-3.1a の件数計測: ルート自身を除きたい）の双方が内部で使う。
+/// 「含める/除く」の違いは呼び出し側で `visited.len() - 1` するか等で吸収し、
+/// BFS ロジック自体は 1 箇所にまとめる。
+fn bfs_reachable_inclusive(
+    edges: &HashMap<String, Vec<(String, DepKind)>>,
+    root_id: &str,
+    allowed: &HashSet<DepKind>,
+) -> HashSet<String> {
+    let mut visited: HashSet<String> = HashSet::new();
+    visited.insert(root_id.to_string());
+    let mut queue: std::collections::VecDeque<String> = std::collections::VecDeque::new();
+    queue.push_back(root_id.to_string());
+    while let Some(current) = queue.pop_front() {
+        let Some(neighbors) = edges.get(&current) else {
+            continue;
+        };
+        for (dep_id, kind) in neighbors {
+            if allowed.contains(kind) && visited.insert(dep_id.clone()) {
+                queue.push_back(dep_id.clone());
+            }
+        }
+    }
+    visited
+}
+
 /// `rustc -vV` の `host:` 行からホストの target triple を取得する。
 ///
 /// `cargo metadata --filter-platform <triple>` に渡すために必要。追加の依存クレートを
@@ -299,12 +343,6 @@ fn host_triple() -> Result<String, CheckDepsError> {
 /// `cargo metadata --format-version 1 --filter-platform <host-triple>` を実行し、
 /// 標準出力を返す。
 ///
-/// `pub(crate)`: 同一 `cargo metadata` 実行結果を `list_build_scripts`（TASK-3.2）モジュール
-/// からも再利用する（`build.rs` 保有クレート列挙は本モジュールと同じ依存グラフ定義
-/// （[`DepGraph`] / [`reachable_ids`]）に依拠するため、`cargo metadata` を 2 回実行して
-/// 重複パースするのは無駄。`fetch_dep_graph` 経由ではなく生の JSON 出力も必要とする
-/// （パッケージのバージョン・`targets` を見るため）ので、この関数を直接公開する）。
-///
 /// `$CARGO`（cargo サブコマンドとして起動された場合に cargo が設定する環境変数）を
 /// 優先し、無ければ `cargo` を PATH から解決する。シェル経由の文字列連結は行わず、
 /// 固定引数のみを渡す（A03 インジェクション対策、security.md 準拠）。
@@ -320,7 +358,7 @@ fn host_triple() -> Result<String, CheckDepsError> {
 /// が `Cargo.lock` を暗黙に書き換え、コミット済みの依存集合ではなく再解決後の
 /// グラフを計測してしまい REQ-3 判定の対象がずれる
 /// （Bugbot 指摘: metadata run omits locked mode）。
-pub(crate) fn run_cargo_metadata() -> Result<String, CheckDepsError> {
+fn run_cargo_metadata() -> Result<String, CheckDepsError> {
     let cargo_bin = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
     let target = host_triple()?;
     let output = Command::new(cargo_bin)
@@ -446,7 +484,10 @@ fn parse_dep_kinds(dep_kinds: &[Json]) -> Result<Vec<DepKind>, CheckDepsError> {
 }
 
 /// `root_name`（`Cargo.toml` の `package.name`）に一致する package_id を探す。
-fn find_root_id(graph: &DepGraph, root_name: &str) -> Result<String, CheckDepsError> {
+///
+/// `list_build_scripts`（TASK-3.2a）からも同一ルート解決ロジックとして再利用するため
+/// `pub(crate)` とする（重複実装を避ける）。
+pub(crate) fn find_root_id(graph: &DepGraph, root_name: &str) -> Result<String, CheckDepsError> {
     graph
         .names
         .iter()
@@ -468,8 +509,10 @@ pub fn measure(
     let root_id = find_root_id(graph, root_name)?;
     let allowed: HashSet<DepKind> = kinds_filter.iter().copied().collect();
 
-    // 件数: reachable_ids の到達集合（ルート自身は含めない）の大きさ。
-    let package_count = reachable_ids(graph, root_name, kinds_filter)?.len();
+    // 件数: 共通 BFS（bfs_reachable_inclusive、ルート自身を含む）を使い回し、
+    // ルート自身の 1 件を除いた数を件数計測値とする（PoC-3 の「ルート除く」定義と整合）。
+    let reachable = bfs_reachable_inclusive(&graph.edges, &root_id, &allowed);
+    let package_count = reachable.len() - 1;
 
     // 深さ: メモ化 DFS で最長経路長を求める。防御的にサイクル検出（灰色ノード再訪問）を行う。
     let max_depth = longest_path(graph, &root_id, &allowed)?;
@@ -479,43 +522,6 @@ pub fn measure(
         package_count,
         max_depth,
     })
-}
-
-/// `root_name` から `kinds_filter` に含まれる辺のみを辿って到達可能な package_id 集合を
-/// 返す（ルート自身は含めない）。
-///
-/// `measure` の件数計測（REQ-3）と `list_build_scripts`（TASK-3.2）の依存グラフ走査は
-/// 「どの辺を辿って到達可能とみなすか」の定義を共有する必要があるため、この BFS を
-/// 独立した公開関数として切り出す。`DepGraph` のフィールドはモジュール外に公開して
-/// いないため、他モジュールから到達集合を得るにはこの関数を経由する。
-pub fn reachable_ids(
-    graph: &DepGraph,
-    root_name: &str,
-    kinds_filter: &[DepKind],
-) -> Result<HashSet<String>, CheckDepsError> {
-    let root_id = find_root_id(graph, root_name)?;
-    let allowed: HashSet<DepKind> = kinds_filter.iter().copied().collect();
-
-    let mut visited: HashSet<String> = HashSet::new();
-    let mut queue: std::collections::VecDeque<String> = std::collections::VecDeque::new();
-    queue.push_back(root_id.clone());
-    let mut seen_from_root: HashSet<String> = HashSet::new();
-    seen_from_root.insert(root_id.clone());
-    while let Some(current) = queue.pop_front() {
-        let Some(neighbors) = graph.edges.get(&current) else {
-            continue;
-        };
-        for (dep_id, kind) in neighbors {
-            if !allowed.contains(kind) {
-                continue;
-            }
-            if seen_from_root.insert(dep_id.clone()) {
-                visited.insert(dep_id.clone());
-                queue.push_back(dep_id.clone());
-            }
-        }
-    }
-    Ok(visited)
 }
 
 /// ノードの探索状態。サイクル検出（[`CheckDepsError::CycleDetected`]）に使う。
@@ -566,6 +572,19 @@ fn dfs_depth(
     Ok(best)
 }
 
+/// `cargo metadata` を実行し、標準出力を JSON としてパースするところまでを行う。
+///
+/// `check_deps`（依存グラフ計測）と `list_build_scripts`（TASK-3.2a: build.rs
+/// 保有クレート列挙）の双方が同じ `cargo metadata` 出力を必要とするための共有層。
+/// [`build_graph`] は依存グラフ用に、`list_build_scripts::collect_build_script_flags`
+/// は `packages[].targets[]` 用に、同一の [`Json`] 値をそれぞれ別の視点で参照する
+/// （`cargo metadata` の実行・パースを 1 回に集約し、Bugbot 指摘「metadata rerun
+/// per package」と同種の重複実行を避ける）。
+pub(crate) fn fetch_metadata_json() -> Result<Json, CheckDepsError> {
+    let output = run_cargo_metadata()?;
+    parse(&output).map_err(CheckDepsError::InvalidJson)
+}
+
 /// `cargo metadata` を 1 度だけ実行して [`DepGraph`] を構築する。
 ///
 /// 複数パッケージを計測する場合は本関数を 1 回だけ呼び、得たグラフを
@@ -574,8 +593,7 @@ fn dfs_depth(
 /// 無駄な重複処理であり、CI での複数クレート計測時に顕著な非効率を生む
 /// （Bugbot 指摘: metadata rerun per package）。
 pub fn fetch_dep_graph() -> Result<DepGraph, CheckDepsError> {
-    let output = run_cargo_metadata()?;
-    let metadata = parse(&output).map_err(CheckDepsError::InvalidJson)?;
+    let metadata = fetch_metadata_json()?;
     build_graph(&metadata)
 }
 

@@ -1,83 +1,68 @@
-//! TASK-3.2（#19）: 依存グラフから `build.rs` を持つクレートを機械的に列挙する。
+//! REQ-3（依存グラフ上限とともにサプライチェーン監査可能性を担う、
+//! `docs/spec/04-requirements.md` / PoC-2 脅威モデル）のうち、`build.rs` を
+//! 保有するクレートの機械的列挙を担うモジュール（TASK-3.2a、親タスク TASK-3.2
+//! / イシュー #19）。
 //!
-//! - TASK-3.2a（本ファイル）: `cargo metadata` の出力から `build.rs` 保有クレートを
-//!   列挙する本体ロジック（[`list_build_scripts_many`] / [`format_report`]）
-//! - TASK-3.2b: CI（`.github/workflows/deps-check.yml`）への出力統合。xtask CLI 側
-//!   （`xtask/src/main.rs` の `run_list_build_scripts`）と本モジュールの
-//!   [`format_report`] が定めるサマリ書式に依拠する。CLI 契約の回帰テストは
-//!   `xtask/tests/cli_list_build_scripts.rs`。
+//! `build.rs`（カスタムビルドスクリプト）はビルド時に任意コードを実行できるため、
+//! 標準構成の依存グラフに含まれる build.rs 保有クレートを可視化することが
+//! サプライチェーン監査の前提になる。本モジュールは列挙ロジック本体と CLI 向けの
+//! 整形を提供する（TASK-3.2a）。CI ワークフロー（`.github/workflows/deps-check.yml`）
+//! への組み込みは TASK-3.2b（イシュー #21）で、本モジュールが定める
+//! [`format_inventory`] の 1 行サマリ書式（`build-scripts: target=<name> count=<n>`）
+//! に依拠して実装済み。CLI 契約の回帰テストは `xtask/tests/cli_list_build_scripts.rs`。
 //!
-//! # 目的
+//! # 検出方式
 //!
-//! `security.md`「依存追加は脅威面の拡大。上限（60 件・深さ 6）とともに `build.rs`
-//! の有無を確認する」を機械化し、PR ごとに恒常的に可視化する。列挙対象は
-//! `check_deps`（REQ-3）と同じ依存グラフ定義（[`check_deps::DepGraph`] /
-//! [`check_deps::reachable_ids`]、`DepKind::Normal` のみ・dev 依存を除外）を再利用し、
-//! 「REQ-3 が数えている依存グラフの中に `build.rs` 保有クレートが何件あるか」を示す。
+//! `cargo metadata --format-version 1` の `packages[].targets[]` に
+//! `kind: ["custom-build"]` を持つターゲットが含まれるかで判定する
+//! （cargo が `build.rs` をこの形で表現する仕様。ファイルシステム走査より確実で、
+//! `build = "custom_name.rs"` 指定にも追従する）。
 //!
-//! # ゲートにしない
+//! # 列挙対象（辿る辺）
 //!
-//! `build.rs` の存在自体は違反ではない（禁止クレートのブロックは cargo-deny 系
-//! タスク（TASK-4.x）のスコープ）。したがって [`format_report`] は PASS/FAIL を
-//! 持たず、件数のみを報告する監査ログとして設計する。ただし計測失敗
-//! （`cargo metadata` 失敗・ルート未検出等）は fail-closed とし、空リストで
-//! 「build.rs なし」に見せかけない（呼び出し元の `xtask/src/main.rs` が非 0 終了で扱う）。
+//! `--package` で指定したルートから到達可能な解決済みグラフ上のパッケージ集合を
+//! 対象とする。辿る辺は [`DepKind::Normal`] + [`DepKind::Build`]（build-dependencies
+//! もビルド時にコンパイル・実行されるため監査対象。`check_deps::DepKind::Build` の
+//! rustdoc に「TASK-3.2 で利用される想定」と明記済み）。dev 依存はリリース物の
+//! ビルドで実行されないため除外する（`check_deps` の `-e normal` 方針と整合）。
+//! **ルート自身も列挙対象に含める**（ルートパッケージが build.rs を持つ場合も
+//! 監査の抜けを作らない fail-closed 方針。[`DepGraph::reachable_from`] 参照）。
 //!
-//! # スコープ上の既知の限界（意図的な選択）
+//! # 契約
 //!
-//! `check_deps` と同じグラフ定義（[`DepKind::Normal`] のみ）を使うため、
-//! `build-dependencies` 経由でのみ到達するクレートの `build.rs` は列挙対象に
-//! **含まれない**。ビルド時に実行される `build.rs` という観点では
-//! build-dependencies も脅威面であり、これは REQ-3（依存件数上限の計測対象定義）
-//! との整合とは別の話である（REQ-3 は件数上限判定が目的、本機能は build.rs の
-//! セキュリティ監査が目的で、目的が異なるため単純な整合性論拠は弱い）。
-//! 本タスクでは「現行の依存グラフ列挙経路（`check_deps` の到達可能集合計算）を
-//! 再利用し、実装・保守コストを抑える」ことを優先して `DepKind::Normal` のみに
-//! 対象を揃える判断とした（現状 rws-core / xtask はいずれも外部依存ゼロのため
-//! 実害はない）。標準サーバー構成に `build-dependencies` を持つクレートが
-//! 導入された時点で、この対象範囲は監査の抜け穴になり得るため見直しが必要になる。
-//! build-dependencies 経由の `build.rs` も監査対象に含めるかは、別途スコープ外
-//! 事項として起票を検討する。
+//! 列挙関数は panic せず [`CheckDepsError`] を返す（想定外の metadata 構造・
+//! ルート未検出）。列挙結果が 0 件であること自体はエラーではない
+//! （「build.rs を持たない」は正常な計測結果）。
 
 use crate::check_deps::{self, CheckDepsError, DepGraph, DepKind};
 use crate::json::Json;
 use std::collections::HashMap;
 
-/// 列挙された 1 クレート（`build.rs` 保有）の名前・バージョン。
+/// 列挙結果 1 件: build.rs を保有するクレートの名前とバージョン。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildScriptCrate {
+    /// `Cargo.toml` の `package.name`。
     pub name: String,
+    /// `Cargo.toml` の `package.version`（同名クレートの多重解決を区別するため保持）。
     pub version: String,
 }
 
-/// 1 パッケージ（`--package` 指定 1 件分）の列挙結果。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BuildScriptReport {
-    /// 列挙起点となったパッケージ名（`--package` に指定した値）。
-    pub root: String,
-    /// `root` から REQ-3 と同じ到達可能集合内で見つかった `build.rs` 保有クレート。
-    /// クレート名・バージョンの辞書順に正規化済み（CI ログの diff 可能性のため）。
-    pub crates: Vec<BuildScriptCrate>,
-}
-
-/// `cargo metadata` の `packages[]` から抽出した 1 パッケージ分の情報。
-struct PackageInfo {
-    name: String,
-    version: String,
-    /// `packages[].targets[]` に `kind: ["custom-build"]` のターゲット
-    /// （`build-script-build`）が含まれるか。cargo はこのターゲットを、
-    /// 当該クレートが `build.rs` を持つ場合にのみ生成する。
-    has_build_script: bool,
-}
-
-/// `metadata` の `packages[]` を package_id -> [`PackageInfo`] の索引に変換する。
-fn index_packages(metadata: &Json) -> Result<HashMap<String, PackageInfo>, CheckDepsError> {
+/// `metadata` の `packages[].targets[]` を走査し、`build.rs`（`custom-build`
+/// ターゲット）を保有するパッケージのみを `package_id -> BuildScriptCrate` として返す。
+///
+/// 保有しないパッケージは戻り値に含めない（呼び出し側は到達可能集合との積を取る）。
+/// `targets` や `kind` の形状が想定と異なる場合は黙って除外せず
+/// [`CheckDepsError::UnexpectedShape`] を返す（「列挙できなかったのに成功扱いになる」
+/// 事故を避ける fail-closed 方針、security.md 参照）。
+pub(crate) fn collect_build_script_flags(
+    metadata: &Json,
+) -> Result<HashMap<String, BuildScriptCrate>, CheckDepsError> {
     let packages = metadata
         .get("packages")
         .and_then(Json::as_array)
         .ok_or_else(|| CheckDepsError::UnexpectedShape("missing `packages` array".to_string()))?;
 
-    let mut index = HashMap::new();
+    let mut flags = HashMap::new();
     for pkg in packages {
         let id = pkg
             .get("id")
@@ -90,148 +75,170 @@ fn index_packages(metadata: &Json) -> Result<HashMap<String, PackageInfo>, Check
         let version = pkg.get("version").and_then(Json::as_str).ok_or_else(|| {
             CheckDepsError::UnexpectedShape("package missing `version`".to_string())
         })?;
-        let has_build_script = pkg
-            .get("targets")
-            .and_then(Json::as_array)
-            .map(|targets| targets.iter().any(is_custom_build_target))
-            .unwrap_or(false);
+        let targets = pkg.get("targets").and_then(Json::as_array).ok_or_else(|| {
+            CheckDepsError::UnexpectedShape("package missing `targets` array".to_string())
+        })?;
 
-        index.insert(
-            id.to_string(),
-            PackageInfo {
-                name: name.to_string(),
-                version: version.to_string(),
-                has_build_script,
-            },
-        );
+        let mut has_build_script = false;
+        for target in targets {
+            let kinds = target.get("kind").and_then(Json::as_array).ok_or_else(|| {
+                CheckDepsError::UnexpectedShape("target missing `kind` array".to_string())
+            })?;
+            if kinds.iter().any(|k| k.as_str() == Some("custom-build")) {
+                has_build_script = true;
+                break;
+            }
+        }
+
+        if has_build_script {
+            flags.insert(
+                id.to_string(),
+                BuildScriptCrate {
+                    name: name.to_string(),
+                    version: version.to_string(),
+                },
+            );
+        }
     }
-    Ok(index)
+    Ok(flags)
 }
 
-/// `packages[].targets[]` の 1 要素が `custom-build`（`build.rs` 由来のターゲット）かを判定する。
-fn is_custom_build_target(target: &Json) -> bool {
-    target
-        .get("kind")
-        .and_then(Json::as_array)
-        .map(|kinds| kinds.iter().any(|k| k.as_str() == Some("custom-build")))
-        .unwrap_or(false)
-}
-
-/// `graph` / `index` を共有した状態で `root_name` 1 件分のレポートを組み立てる。
+/// `root_name` から到達可能な範囲（[`DepKind::Normal`] + [`DepKind::Build`]、
+/// ルート自身を含む）のうち、`build_flags` に含まれる（= build.rs を保有する）
+/// クレートを名前・バージョン順にソートして返す。
 ///
-/// 到達可能集合は `check_deps::reachable_ids` に委譲し、REQ-3（依存件数計測）と
-/// 同じグラフ定義を使う（`DepKind::Normal` のみ・dev 依存除外）。
-fn build_report_for_root(
+/// `graph` と `build_flags` は同一の `cargo metadata` 実行結果（同一の [`Json`]）
+/// から構築されたものである前提（[`list_many_from_cargo_metadata`] 参照）。
+pub fn list_build_scripts(
     graph: &DepGraph,
-    index: &HashMap<String, PackageInfo>,
+    build_flags: &HashMap<String, BuildScriptCrate>,
     root_name: &str,
-) -> Result<BuildScriptReport, CheckDepsError> {
-    let reachable = check_deps::reachable_ids(graph, root_name, &[DepKind::Normal])?;
+) -> Result<Vec<BuildScriptCrate>, CheckDepsError> {
+    let root_id = check_deps::find_root_id(graph, root_name)?;
+    let reachable = graph.reachable_from(&root_id, &[DepKind::Normal, DepKind::Build]);
 
-    let mut crates: Vec<BuildScriptCrate> = reachable
+    let mut result: Vec<BuildScriptCrate> = reachable
         .iter()
-        .filter_map(|id| index.get(id))
-        .filter(|info| info.has_build_script)
-        .map(|info| BuildScriptCrate {
-            name: info.name.clone(),
-            version: info.version.clone(),
-        })
+        .filter_map(|id| build_flags.get(id))
+        .cloned()
         .collect();
-    // クレート名・バージョンの辞書順に正規化する（HashSet 由来で順序不定になるのを防ぎ、
-    // CI ログの diff 可能性・再現性を保つ）。
-    crates.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.version.cmp(&b.version)));
-
-    Ok(BuildScriptReport {
-        root: root_name.to_string(),
-        crates,
-    })
+    result.sort_by(|a, b| {
+        a.name
+            .cmp(&b.name)
+            .then_with(|| version_sort_key(&a.version).cmp(&version_sort_key(&b.version)))
+    });
+    Ok(result)
 }
 
-/// [`list_build_scripts_many`] の戻り値要素: (パッケージ名, 個別の列挙結果)。
+/// `version`（`Cargo.toml` の `package.version`）を、表示順のための比較キーに変換する。
 ///
-/// `check_deps::NamedMeasurement` と同じ設計意図: `cargo metadata` 自体の失敗
-/// （外側の `Result`）と、個々のパッケージの列挙失敗（要素内の `Result`）を区別する。
-pub type NamedBuildScriptReport = (String, Result<BuildScriptReport, CheckDepsError>);
+/// 数値の各セグメント（`major.minor.patch`）を `u64` として比較することで、
+/// 単純な文字列（辞書式）比較では `"10.0.0"` が `"2.0.0"` より前に来てしまう問題を避ける
+/// （表示順のみに影響し、列挙結果自体（クレートの欠落・誤集計）には影響しない指摘）。
+/// プレリリース／ビルドメタデータ部分（`-` 以降）は数値化せず文字列のまま tie-break に使う。
+/// パース不能なセグメントは `0` にフォールバックする（表示順が多少崩れても panic せず
+/// fail-closed を優先する方針、security.md 参照）。`Cargo.toml` の `package.version` は
+/// 基本的に semver 準拠が前提のため、この単純化で実用上十分と判断する。
+fn version_sort_key(version: &str) -> (Vec<u64>, &str) {
+    let (numeric_part, rest) = version.split_once('-').unwrap_or((version, ""));
+    let numeric = numeric_part
+        .split('.')
+        .map(|segment| segment.parse::<u64>().unwrap_or(0))
+        .collect();
+    (numeric, rest)
+}
 
-/// 複数パッケージをまとめて列挙する。xtask CLI（`main.rs`）の
-/// `list-build-scripts --package` 複数指定時のエントリポイント。
+/// 人間可読な一覧と、CI ログから抽出可能な 1 行サマリを整形する。
 ///
-/// `cargo metadata` の実行・JSON パース・[`DepGraph`] 構築・パッケージ索引作成を
-/// 1 回に集約し、`root_names` の各要素について使い回す
-/// （`check_deps::measure_many_from_cargo_metadata` と同じ方針。TASK-3.1c で
-/// 指摘された「metadata rerun per package」非効率を最初から避ける）。
-pub fn list_build_scripts_many(
+/// 1 行サマリの書式（`build-scripts: target=<name> count=<n>`）は
+/// `.github/workflows/deps-check.yml`（TASK-3.2b）が `grep '^build-scripts:'` で
+/// 抽出する契約であり、`check_deps::format_report` の `deps-check:` 行と同様に
+/// 安易に変更しない。契約は `xtask/tests/cli_list_build_scripts.rs` で固定される。
+pub fn format_inventory(root_name: &str, crates: &[BuildScriptCrate]) -> String {
+    let mut out = String::new();
+    out.push_str(&format!(
+        "Build script inventory for target \"{root_name}\"\n"
+    ));
+    if crates.is_empty() {
+        out.push_str("  no packages with build scripts\n");
+    } else {
+        for c in crates {
+            out.push_str(&format!("  {} {}\n", c.name, c.version));
+        }
+    }
+    out.push_str(&format!(
+        "build-scripts: target={root_name} count={}\n",
+        crates.len()
+    ));
+    out
+}
+
+/// [`list_many_from_cargo_metadata`] の戻り値要素: (パッケージ名, 個別の列挙結果)。
+///
+/// `check_deps::NamedMeasurement` と同型の設計（`cargo metadata` 自体の失敗と
+/// 個々のパッケージの列挙失敗を区別する）。
+pub type NamedInventory = (String, Result<Vec<BuildScriptCrate>, CheckDepsError>);
+
+/// `cargo metadata` を 1 回だけ実行し、`root_names` の各要素について
+/// build.rs 保有クレートを列挙する。xtask CLI（`main.rs` の
+/// `list-build-scripts --package`）のエントリポイント。
+///
+/// `check_deps::measure_many_from_cargo_metadata` と同様、複数ルートに対して
+/// `cargo metadata` を再実行しない（同一 [`Json`] から [`DepGraph`] と
+/// build.rs フラグの双方を構築し使い回す）。各ルートの列挙は独立して成否を返す。
+pub fn list_many_from_cargo_metadata(
     root_names: &[String],
-) -> Result<Vec<NamedBuildScriptReport>, CheckDepsError> {
-    let output = check_deps::run_cargo_metadata()?;
-    let metadata = crate::json::parse(&output).map_err(CheckDepsError::InvalidJson)?;
+) -> Result<Vec<NamedInventory>, CheckDepsError> {
+    let metadata = check_deps::fetch_metadata_json()?;
     let graph = check_deps::build_graph(&metadata)?;
-    let index = index_packages(&metadata)?;
+    let flags = collect_build_script_flags(&metadata)?;
 
     Ok(root_names
         .iter()
         .map(|name| {
-            let result = build_report_for_root(&graph, &index, name);
+            let result = list_build_scripts(&graph, &flags, name);
             (name.clone(), result)
         })
         .collect())
 }
 
-/// 人間可読なレポートと、CI ログから機械抽出可能な明細行・1 行サマリを整形する。
-///
-/// この書式は `.github/workflows/deps-check.yml` と
-/// `xtask/tests/cli_list_build_scripts.rs` が依拠する契約であり、安易に変更しない
-/// （`check_deps::format_report` と同じ設計方針）。
-///
-/// - 明細行（検出クレートごとに 1 行）: `build-script: <crate-name>@<version>`
-/// - 1 行サマリ（`--package` 指定ごとに 1 行、`grep '^build-scripts:'` で抽出可能）:
-///   `build-scripts: package=<root> count=<n>`
-///
-/// PASS/FAIL 判定は持たない（`build.rs` の存在は違反ではないため。モジュール冒頭の
-/// rustdoc「ゲートにしない」参照）。
-pub fn format_report(report: &BuildScriptReport) -> String {
-    let mut out = String::new();
-    for c in &report.crates {
-        out.push_str(&format!("build-script: {}@{}\n", c.name, c.version));
-    }
-    out.push_str(&format!(
-        "build-scripts: package={} count={}\n",
-        report.root,
-        report.crates.len()
-    ));
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::check_deps::build_graph;
 
     /// テスト用に最小限の `cargo metadata` 形状の JSON 断片を組み立てるヘルパー。
-    /// `packages` は `(id, name, version, has_build_script)` のリスト。
-    /// `nodes` は `(id, [(依存先 id, kind)])` のリスト（kind は "normal"/"dev"/"build"）。
+    ///
+    /// `packages` は `(id, name, version, has_build_script)` のリスト、
+    /// `nodes` は `(id, [(依存先 id, kind)])` のリスト。kind は "normal"/"dev"/"build"。
     fn fixture(packages: &[(&str, &str, &str, bool)], nodes: &[(&str, &[(&str, &str)])]) -> Json {
         let packages_json = Json::Array(
             packages
                 .iter()
                 .map(|(id, name, version, has_build_script)| {
-                    let mut fields = vec![
-                        ("id".to_string(), Json::String((*id).to_string())),
-                        ("name".to_string(), Json::String((*name).to_string())),
-                        ("version".to_string(), Json::String((*version).to_string())),
-                    ];
                     let targets = if *has_build_script {
-                        Json::Array(vec![Json::Object(vec![(
-                            "kind".to_string(),
-                            Json::Array(vec![Json::String("custom-build".to_string())]),
-                        )])])
+                        Json::Array(vec![
+                            Json::Object(vec![(
+                                "kind".to_string(),
+                                Json::Array(vec![Json::String("lib".to_string())]),
+                            )]),
+                            Json::Object(vec![(
+                                "kind".to_string(),
+                                Json::Array(vec![Json::String("custom-build".to_string())]),
+                            )]),
+                        ])
                     } else {
                         Json::Array(vec![Json::Object(vec![(
                             "kind".to_string(),
                             Json::Array(vec![Json::String("lib".to_string())]),
                         )])])
                     };
-                    fields.push(("targets".to_string(), targets));
-                    Json::Object(fields)
+                    Json::Object(vec![
+                        ("id".to_string(), Json::String((*id).to_string())),
+                        ("name".to_string(), Json::String((*name).to_string())),
+                        ("version".to_string(), Json::String((*version).to_string())),
+                        ("targets".to_string(), targets),
+                    ])
                 })
                 .collect(),
         );
@@ -276,87 +283,217 @@ mod tests {
     }
 
     #[test]
-    fn no_build_script_crates_yields_empty_report() {
+    fn crate_with_custom_build_target_is_listed() {
         let json = fixture(
             &[
                 ("root#0.1.0", "root", "0.1.0", false),
-                ("a#0.1.0", "a", "0.1.0", false),
-            ],
-            &[("root#0.1.0", &[("a#0.1.0", "normal")]), ("a#0.1.0", &[])],
-        );
-        let graph = check_deps::build_graph(&json).unwrap();
-        let index = index_packages(&json).unwrap();
-        let report = build_report_for_root(&graph, &index, "root").unwrap();
-        assert_eq!(report.root, "root");
-        assert!(report.crates.is_empty());
-    }
-
-    #[test]
-    fn detects_build_script_crate_reachable_via_normal_dep() {
-        let json = fixture(
-            &[
-                ("root#0.1.0", "root", "0.1.0", false),
-                ("libz-sys#1.1.0", "libz-sys", "1.1.0", true),
+                ("has-build#1.0.0", "has-build", "1.0.0", true),
             ],
             &[
-                ("root#0.1.0", &[("libz-sys#1.1.0", "normal")]),
-                ("libz-sys#1.1.0", &[]),
+                ("root#0.1.0", &[("has-build#1.0.0", "normal")]),
+                ("has-build#1.0.0", &[]),
             ],
         );
-        let graph = check_deps::build_graph(&json).unwrap();
-        let index = index_packages(&json).unwrap();
-        let report = build_report_for_root(&graph, &index, "root").unwrap();
+        let graph = build_graph(&json).unwrap();
+        let flags = collect_build_script_flags(&json).unwrap();
+        let result = list_build_scripts(&graph, &flags, "root").unwrap();
         assert_eq!(
-            report.crates,
+            result,
             vec![BuildScriptCrate {
-                name: "libz-sys".to_string(),
-                version: "1.1.0".to_string(),
+                name: "has-build".to_string(),
+                version: "1.0.0".to_string(),
             }]
         );
     }
 
     #[test]
-    fn excludes_build_script_crate_only_reachable_via_dev_dependency() {
-        // dev 依存経由でしか到達できない build.rs 保有クレートは、REQ-3 の計測対象
-        // （check_deps）と同じ定義に揃え、列挙からも除外する。
+    fn crate_without_custom_build_target_is_not_listed() {
         let json = fixture(
             &[
                 ("root#0.1.0", "root", "0.1.0", false),
-                ("devonly#0.1.0", "devonly", "0.1.0", true),
+                ("plain#1.0.0", "plain", "1.0.0", false),
             ],
             &[
-                ("root#0.1.0", &[("devonly#0.1.0", "dev")]),
-                ("devonly#0.1.0", &[]),
+                ("root#0.1.0", &[("plain#1.0.0", "normal")]),
+                ("plain#1.0.0", &[]),
             ],
         );
-        let graph = check_deps::build_graph(&json).unwrap();
-        let index = index_packages(&json).unwrap();
-        let report = build_report_for_root(&graph, &index, "root").unwrap();
-        assert!(report.crates.is_empty());
+        let graph = build_graph(&json).unwrap();
+        let flags = collect_build_script_flags(&json).unwrap();
+        let result = list_build_scripts(&graph, &flags, "root").unwrap();
+        assert!(result.is_empty());
     }
 
     #[test]
-    fn output_is_sorted_by_name_then_version() {
+    fn dev_dependency_build_script_is_excluded() {
+        // dev 依存はリリース物のビルドで実行されないため列挙対象外
+        // （check_deps の `-e normal` 方針と整合、モジュール冒頭コメント参照）。
         let json = fixture(
             &[
                 ("root#0.1.0", "root", "0.1.0", false),
-                ("zeta#0.1.0", "zeta", "0.1.0", true),
-                ("alpha#0.1.0", "alpha", "0.1.0", true),
+                ("dev-build#1.0.0", "dev-build", "1.0.0", true),
+            ],
+            &[
+                ("root#0.1.0", &[("dev-build#1.0.0", "dev")]),
+                ("dev-build#1.0.0", &[]),
+            ],
+        );
+        let graph = build_graph(&json).unwrap();
+        let flags = collect_build_script_flags(&json).unwrap();
+        let result = list_build_scripts(&graph, &flags, "root").unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn build_dependency_build_script_is_included() {
+        // build-dependencies もビルド時に実行されるため監査対象に含める。
+        let json = fixture(
+            &[
+                ("root#0.1.0", "root", "0.1.0", false),
+                ("build-dep#1.0.0", "build-dep", "1.0.0", true),
+            ],
+            &[
+                ("root#0.1.0", &[("build-dep#1.0.0", "build")]),
+                ("build-dep#1.0.0", &[]),
+            ],
+        );
+        let graph = build_graph(&json).unwrap();
+        let flags = collect_build_script_flags(&json).unwrap();
+        let result = list_build_scripts(&graph, &flags, "root").unwrap();
+        assert_eq!(
+            result,
+            vec![BuildScriptCrate {
+                name: "build-dep".to_string(),
+                version: "1.0.0".to_string(),
+            }]
+        );
+    }
+
+    #[test]
+    fn root_itself_with_build_script_is_included() {
+        // ルート自身が build.rs を持つ場合も監査の抜けを作らないため列挙対象に含める。
+        let json = fixture(
+            &[("root#0.1.0", "root", "0.1.0", true)],
+            &[("root#0.1.0", &[])],
+        );
+        let graph = build_graph(&json).unwrap();
+        let flags = collect_build_script_flags(&json).unwrap();
+        let result = list_build_scripts(&graph, &flags, "root").unwrap();
+        assert_eq!(
+            result,
+            vec![BuildScriptCrate {
+                name: "root".to_string(),
+                version: "0.1.0".to_string(),
+            }]
+        );
+    }
+
+    #[test]
+    fn unreachable_package_is_not_listed() {
+        // グラフ上に存在するが root から辿れないパッケージ（別ワークスペースメンバー等）
+        // は列挙対象外。
+        let json = fixture(
+            &[
+                ("root#0.1.0", "root", "0.1.0", false),
+                ("unrelated#1.0.0", "unrelated", "1.0.0", true),
+            ],
+            &[("root#0.1.0", &[]), ("unrelated#1.0.0", &[])],
+        );
+        let graph = build_graph(&json).unwrap();
+        let flags = collect_build_script_flags(&json).unwrap();
+        let result = list_build_scripts(&graph, &flags, "root").unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn result_is_sorted_by_name_then_version() {
+        let json = fixture(
+            &[
+                ("root#0.1.0", "root", "0.1.0", false),
+                ("zeta#1.0.0", "zeta", "1.0.0", true),
+                ("alpha#2.0.0", "alpha", "2.0.0", true),
+                ("alpha#1.0.0", "alpha", "1.0.0", true),
             ],
             &[
                 (
                     "root#0.1.0",
-                    &[("zeta#0.1.0", "normal"), ("alpha#0.1.0", "normal")],
+                    &[
+                        ("zeta#1.0.0", "normal"),
+                        ("alpha#2.0.0", "normal"),
+                        ("alpha#1.0.0", "normal"),
+                    ],
                 ),
-                ("zeta#0.1.0", &[]),
-                ("alpha#0.1.0", &[]),
+                ("zeta#1.0.0", &[]),
+                ("alpha#2.0.0", &[]),
+                ("alpha#1.0.0", &[]),
             ],
         );
-        let graph = check_deps::build_graph(&json).unwrap();
-        let index = index_packages(&json).unwrap();
-        let report = build_report_for_root(&graph, &index, "root").unwrap();
-        let names: Vec<&str> = report.crates.iter().map(|c| c.name.as_str()).collect();
-        assert_eq!(names, vec!["alpha", "zeta"]);
+        let graph = build_graph(&json).unwrap();
+        let flags = collect_build_script_flags(&json).unwrap();
+        let result = list_build_scripts(&graph, &flags, "root").unwrap();
+        let names_versions: Vec<(&str, &str)> = result
+            .iter()
+            .map(|c| (c.name.as_str(), c.version.as_str()))
+            .collect();
+        assert_eq!(
+            names_versions,
+            vec![("alpha", "1.0.0"), ("alpha", "2.0.0"), ("zeta", "1.0.0")]
+        );
+    }
+
+    #[test]
+    fn result_is_sorted_by_semver_not_lexicographic_version() {
+        // "10.0.0" は文字列（辞書式）比較だと "2.0.0" より前に来てしまうが、
+        // semver 的には "2.0.0" < "10.0.0" が正しい表示順。
+        let json = fixture(
+            &[
+                ("root#0.1.0", "root", "0.1.0", false),
+                ("same#10.0.0", "same", "10.0.0", true),
+                ("same#2.0.0", "same", "2.0.0", true),
+            ],
+            &[
+                (
+                    "root#0.1.0",
+                    &[("same#10.0.0", "normal"), ("same#2.0.0", "normal")],
+                ),
+                ("same#10.0.0", &[]),
+                ("same#2.0.0", &[]),
+            ],
+        );
+        let graph = build_graph(&json).unwrap();
+        let flags = collect_build_script_flags(&json).unwrap();
+        let result = list_build_scripts(&graph, &flags, "root").unwrap();
+        let versions: Vec<&str> = result.iter().map(|c| c.version.as_str()).collect();
+        assert_eq!(versions, vec!["2.0.0", "10.0.0"]);
+    }
+
+    #[test]
+    fn multi_hop_build_dependency_is_reachable() {
+        // root -normal-> a -build-> b という多段の到達経路でも
+        // build.rs 保有クレート b が列挙されることを確認する（BFS が
+        // Normal + Build の混在辺を正しく辿ることの回帰テスト）。
+        let json = fixture(
+            &[
+                ("root#0.1.0", "root", "0.1.0", false),
+                ("a#1.0.0", "a", "1.0.0", false),
+                ("b#1.0.0", "b", "1.0.0", true),
+            ],
+            &[
+                ("root#0.1.0", &[("a#1.0.0", "normal")]),
+                ("a#1.0.0", &[("b#1.0.0", "build")]),
+                ("b#1.0.0", &[]),
+            ],
+        );
+        let graph = build_graph(&json).unwrap();
+        let flags = collect_build_script_flags(&json).unwrap();
+        let result = list_build_scripts(&graph, &flags, "root").unwrap();
+        assert_eq!(
+            result,
+            vec![BuildScriptCrate {
+                name: "b".to_string(),
+                version: "1.0.0".to_string(),
+            }]
+        );
     }
 
     #[test]
@@ -365,63 +502,88 @@ mod tests {
             &[("root#0.1.0", "root", "0.1.0", false)],
             &[("root#0.1.0", &[])],
         );
-        let graph = check_deps::build_graph(&json).unwrap();
-        let index = index_packages(&json).unwrap();
-        let err = build_report_for_root(&graph, &index, "missing").unwrap_err();
+        let graph = build_graph(&json).unwrap();
+        let flags = collect_build_script_flags(&json).unwrap();
+        let err = list_build_scripts(&graph, &flags, "missing").unwrap_err();
         assert!(matches!(err, CheckDepsError::RootNotFound(_)));
     }
 
     #[test]
-    fn format_report_empty_contains_zero_count_summary() {
-        let report = BuildScriptReport {
-            root: "rws-core".to_string(),
-            crates: Vec::new(),
-        };
-        let out = format_report(&report);
-        assert_eq!(out, "build-scripts: package=rws-core count=0\n");
+    fn missing_targets_field_is_unexpected_shape_error() {
+        let json = Json::Object(vec![(
+            "packages".to_string(),
+            Json::Array(vec![Json::Object(vec![
+                ("id".to_string(), Json::String("root#0.1.0".to_string())),
+                ("name".to_string(), Json::String("root".to_string())),
+                ("version".to_string(), Json::String("0.1.0".to_string())),
+                // `targets` フィールドを意図的に欠落させる。
+            ])]),
+        )]);
+        let err = collect_build_script_flags(&json).unwrap_err();
+        assert!(matches!(err, CheckDepsError::UnexpectedShape(_)));
     }
 
     #[test]
-    fn format_report_lists_detail_lines_before_summary() {
-        let report = BuildScriptReport {
-            root: "rws-server".to_string(),
-            crates: vec![
-                BuildScriptCrate {
-                    name: "alpha".to_string(),
-                    version: "0.1.0".to_string(),
-                },
-                BuildScriptCrate {
-                    name: "zeta".to_string(),
-                    version: "2.0.0".to_string(),
-                },
-            ],
-        };
-        let out = format_report(&report);
-        assert_eq!(
-            out,
-            "build-script: alpha@0.1.0\n\
-             build-script: zeta@2.0.0\n\
-             build-scripts: package=rws-server count=2\n"
-        );
+    fn format_inventory_empty_shows_none_and_zero_count() {
+        let out = format_inventory("rws-core", &[]);
+        assert!(out.contains("no packages with build scripts"));
+        assert!(out.contains("build-scripts: target=rws-core count=0"));
     }
 
     #[test]
-    fn integration_list_build_scripts_many_matches_check_deps_graph_definition() {
-        // 実ワークスペースに対する結合テスト: rws-core / xtask はともに REQ-3 上
-        // 外部依存ゼロが不変条件のため、build.rs 保有クレートも 0 件であるはず。
-        // cargo が使えない実行環境（オフライン CI 等）では明示メッセージで fail させる。
-        let names = vec!["rws-core".to_string(), "xtask".to_string()];
-        match list_build_scripts_many(&names) {
+    fn format_inventory_multiple_entries_lists_each_and_counts() {
+        let crates = vec![
+            BuildScriptCrate {
+                name: "alpha".to_string(),
+                version: "1.0.0".to_string(),
+            },
+            BuildScriptCrate {
+                name: "beta".to_string(),
+                version: "2.0.0".to_string(),
+            },
+        ];
+        let out = format_inventory("rws-server", &crates);
+        assert!(out.contains("alpha 1.0.0"));
+        assert!(out.contains("beta 2.0.0"));
+        assert!(out.contains("build-scripts: target=rws-server count=2"));
+    }
+
+    #[test]
+    fn integration_rws_core_has_no_build_scripts() {
+        // rws-core は依存ゼロかつ build.rs 非保有が不変条件（REQ-2/REQ-3）。
+        let names = vec!["rws-core".to_string()];
+        match list_many_from_cargo_metadata(&names) {
             Ok(results) => {
-                assert_eq!(results.len(), 2);
-                for (name, result) in results {
-                    match result {
-                        Ok(report) => assert!(
-                            report.crates.is_empty(),
-                            "{name} must keep zero build.rs-bearing dependencies (REQ-3 zero-dependency invariant)"
-                        ),
-                        Err(e) => panic!("failed to enumerate build scripts for {name}: {e}"),
-                    }
+                assert_eq!(results.len(), 1);
+                let (name, result) = &results[0];
+                assert_eq!(name, "rws-core");
+                match result {
+                    Ok(crates) => assert!(
+                        crates.is_empty(),
+                        "rws-core は build.rs を保有しない想定: {crates:?}"
+                    ),
+                    Err(e) => panic!("failed to list build scripts for rws-core: {e}"),
+                }
+            }
+            Err(e) => panic!("failed to run cargo metadata for integration test: {e}"),
+        }
+    }
+
+    #[test]
+    fn integration_xtask_has_no_build_scripts() {
+        // xtask 自身も build.rs 非保有（外部依存ゼロ・独自 JSON パーサのみで構成）。
+        let names = vec!["xtask".to_string()];
+        match list_many_from_cargo_metadata(&names) {
+            Ok(results) => {
+                assert_eq!(results.len(), 1);
+                let (name, result) = &results[0];
+                assert_eq!(name, "xtask");
+                match result {
+                    Ok(crates) => assert!(
+                        crates.is_empty(),
+                        "xtask は build.rs を保有しない想定: {crates:?}"
+                    ),
+                    Err(e) => panic!("failed to list build scripts for xtask: {e}"),
                 }
             }
             Err(e) => panic!("failed to run cargo metadata for integration test: {e}"),

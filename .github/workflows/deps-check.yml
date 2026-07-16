@@ -91,14 +91,14 @@ jobs:
 
       - name: Publish build-scripts summary
         if: always()
-        # format_report（xtask/src/list_build_scripts.rs）の明細行・1 行サマリ契約
-        # （`build-script: <crate-name>@<version>` / `build-scripts: package=<root> count=<n>`）
-        # を Step Summary に転記する。この契約はテストで固定される
-        # （xtask/tests/cli_list_build_scripts.rs）。監査ログであり PASS/FAIL の概念はない。
+        # format_inventory（xtask/src/list_build_scripts.rs）の 1 行サマリ契約
+        # （`build-scripts: target=<name> count=<n>`）を Step Summary に転記する。
+        # この契約はテストで固定される（`xtask/tests/cli_list_build_scripts.rs`）。
+        # 監査ログであり PASS/FAIL の概念はない。
         run: |
           {
             echo '## build-scripts (REQ-3, audit log — not a gate)'
             echo '```'
-            grep -E '^(build-scripts:|build-script:)' build-scripts.log || echo 'build-scripts: no summary line found'
+            grep '^build-scripts:' build-scripts.log || echo 'build-scripts: no summary line found'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

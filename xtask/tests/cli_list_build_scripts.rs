@@ -1,27 +1,26 @@
-//! `xtask list-build-scripts` の CLI 契約に対する回帰テスト（TASK-3.2b）。
+//! `xtask list-build-scripts` の CLI 契約に対する回帰テスト（TASK-3.2a / TASK-3.2b）。
 //!
-//! `.github/workflows/deps-check.yml` は本テストが固定する契約
-//! （終了コード・明細行・1 行サマリ書式）に依拠して build.rs 保有クレートの
-//! 監査ログを Step Summary へ転記する。すなわち本ファイルはワークフローの
-//! 実質的な単体保証であり、ここで固定した契約を崩す変更は CI ワークフローの
-//! 破壊に直結する（`xtask/tests/cli_check_deps.rs` と同じ設計方針）。
+//! `xtask/tests/cli_check_deps.rs` と同型の構成。`.github/workflows/deps-check.yml`
+//! （TASK-3.2b・イシュー #21）は本テストが固定する契約（終了コード・1 行サマリ書式）
+//! に依拠して build.rs 監査ログを Step Summary へ転記する。すなわち本ファイルは
+//! ワークフローの実質的な単体保証であり、ここで固定した契約を崩す変更は CI
+//! ワークフローの破壊に直結する。
 //!
 //! 契約（`xtask/src/main.rs` の `run_list_build_scripts` /
-//! `list_build_scripts::format_report` 参照）:
-//! - 終了コード 0: 指定パッケージすべての列挙に成功（`build.rs` 保有クレート
-//!   0 件を含む。ゲートではないため PASS/FAIL の概念はない）
-//! - 終了コード 1: 列挙失敗（`cargo metadata` 失敗・指定パッケージ未検出等。
-//!   fail-closed。CI はこれを失敗として扱う）
+//! `list_build_scripts::format_inventory` 参照）:
+//! - 終了コード 0: 指定パッケージすべてが列挙に成功（build.rs 保有クレートが
+//!   0 件でも成功。列挙自体は上限判定を伴わない）
+//! - 終了コード 1: `cargo metadata` の実行失敗・想定外の出力構造・ルート未検出
+//!   （fail-closed。「列挙できなかったのに成功扱い」になる経路を作らない。CI は
+//!   これを失敗として扱う）
 //! - 終了コード 2: 引数不備（`--package` 未指定・不明な引数）
-//! - stdout の明細行（検出クレートごとに 1 行）:
-//!   `build-script: <crate-name>@<version>`
-//! - stdout の 1 行サマリ（`--package` 指定ごとに 1 行、`grep '^build-scripts:'` で
-//!   抽出可能）: `build-scripts: package=<root> count=<n>`
+//! - stdout の 1 行サマリ書式（`--package` 指定ごとに 1 行、`grep '^build-scripts:'`
+//!   で抽出可能）: `build-scripts: target=<name> count=<n>`
+//!   （`list_build_scripts::format_inventory` のドキュメント参照）。
 //!
 //! 子プロセスとしてビルド済み xtask バイナリ（`CARGO_BIN_EXE_xtask`）を起動する。
 //! `cargo metadata` はさらにその子プロセスとして呼ばれるため、カレントディレクトリを
-//! workspace ルート（`CARGO_MANIFEST_DIR` の親）に設定する。`Cargo.lock` が
-//! 存在する前提でオフライン動作するため、ネットワークアクセスは発生しない。
+//! workspace ルート（`CARGO_MANIFEST_DIR` の親）に設定する。
 
 use std::path::PathBuf;
 use std::process::Command;
@@ -44,22 +43,20 @@ fn run_xtask(args: &[&str]) -> std::process::Output {
 }
 
 #[test]
-fn list_build_scripts_single_package_exits_zero_with_summary_line() {
-    // rws-core は REQ-3 上「外部依存ゼロ」が不変条件のため、build.rs 保有クレートも
-    // 決定的に 0 件である。
+fn list_build_scripts_single_package_with_no_build_scripts_exits_zero() {
     let output = run_xtask(&["list-build-scripts", "--package", "rws-core"]);
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     assert_eq!(
         output.status.code(),
         Some(0),
-        "rws-core は外部依存ゼロ契約のため列挙に成功する想定。stderr: {}",
+        "rws-core は build.rs 非保有かつ 0 件は正常終了扱いの想定。stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(
         stdout
             .lines()
-            .any(|line| line == "build-scripts: package=rws-core count=0"),
+            .any(|line| line.starts_with("build-scripts: ") && line.contains("count=0")),
         "1 行サマリ（count=0）が stdout に見つからない: {stdout}"
     );
 }
@@ -78,7 +75,7 @@ fn list_build_scripts_multiple_packages_emits_one_summary_line_per_package() {
     assert_eq!(
         output.status.code(),
         Some(0),
-        "rws-core / xtask はいずれも外部依存ゼロ契約。stderr: {}",
+        "rws-core / xtask はいずれも build.rs 非保有である想定。stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 
@@ -89,8 +86,7 @@ fn list_build_scripts_multiple_packages_emits_one_summary_line_per_package() {
     assert_eq!(
         summary_lines.len(),
         2,
-        "--package を 2 件指定した場合、CI が Step Summary へ転記する 1 行サマリも \
-         パッケージごとに 1 行ずつ出力される契約: {stdout}"
+        "--package を 2 件指定した場合、パッケージごとに 1 行サマリが出力される契約: {stdout}"
     );
 }
 
@@ -120,7 +116,6 @@ fn list_build_scripts_nonexistent_package_exits_one_fail_closed() {
     assert_eq!(
         output.status.code(),
         Some(1),
-        "workspace に存在しないパッケージの列挙失敗は fail-closed（終了コード 1）契約。\
-         CI（deps-check.yml）はこれを PR チェック失敗として扱う"
+        "workspace に存在しないパッケージの列挙失敗は fail-closed（終了コード 1）契約"
     );
 }
