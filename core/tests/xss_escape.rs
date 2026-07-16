@@ -18,7 +18,7 @@
 //! の両方を assert する。前者だけでは、たとえば出力が空文字列になる
 //! 偽陰性（何もレンダリングされずに PASS してしまう不具合）を見逃すため。
 
-use rws_core::{el, raw_html, render, text, Node};
+use rws_core::{el, escape_html, raw_html, render, text, Node};
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 が挙げる脅威パターンを核とした
 /// 共有ペイロード集合。SSR/SSG（#9）・CSR（本ファイル `mod csr`）の双方が
@@ -105,10 +105,22 @@ mod csr {
 
     /// [`csr_fragment_render_escapes_all_payloads`] の共通アサーション。
     ///
-    /// (1) ペイロードの生文字列が出力中に部分文字列として現れない
+    /// (1) ペイロードのエスケープ済み表現（[`escape_html`] が返す正解値）が
+    ///     出力中に実際に存在する（肯定的アサーション。これが無いと、
+    ///     `render()` が壊れてテキスト・属性の中身ごと出力しなくなる
+    ///     （例: `<p></p>`）リグレッションが、他の否定条件をすべて素通り
+    ///     させて偽陰性 PASS してしまう）、
+    /// (2) ペイロードの生文字列が出力中に部分文字列として現れない
     ///     （現れれば `<` `>` `&` 等がエスケープされずに透過した証拠）、
-    /// (2) `<script>` / `<img` の実タグ開始が出力に現れない、の 2 点を見る。
+    /// (3) `<script>` / `<img` の実タグ開始が出力に現れない、の 3 点を見る。
     fn assert_fragment_is_safe(payload: &str, html: &str, context_label: &str) {
+        let expected_escaped = escape_html(payload);
+        assert!(
+            html.contains(&expected_escaped),
+            "CSR 断片レンダリングの{context_label}で期待されるエスケープ済み表現が出力に見当たらない \
+             （render() が内容自体を出力しなくなる偽陰性リグレッションの疑い）: \
+             payload={payload:?}, expected_escaped={expected_escaped:?}, html={html}"
+        );
         assert!(
             !html.contains(payload),
             "CSR 断片レンダリングの{context_label}でペイロードが生のまま出力に含まれた（エスケープ漏れの疑い）: payload={payload:?}, html={html}"
@@ -215,6 +227,23 @@ mod csr {
                 vec![el("body", vec![], vec![fragment.clone()])],
             );
             let ssr_like_output = render(&ssr_page);
+
+            // 肯定的アサーション: 期待されるエスケープ済み表現が両出力に
+            // 実際に存在することを確認する。これが無いと、`render()` が
+            // 内容ごと出力しなくなる（空文字列化）リグレッションでも
+            // 以下の否定条件・部分一致条件のみでは検知できず偽陰性 PASS
+            // してしまう。
+            let expected_escaped = escape_html(payload);
+            assert!(
+                csr_like_output.contains(&expected_escaped),
+                "CSR 相当出力に期待されるエスケープ済み表現が見当たらない（空出力リグレッションの疑い）: \
+                 payload={payload:?}, expected_escaped={expected_escaped:?}, csr={csr_like_output}"
+            );
+            assert!(
+                ssr_like_output.contains(&expected_escaped),
+                "SSR 相当出力に期待されるエスケープ済み表現が見当たらない（空出力リグレッションの疑い）: \
+                 payload={payload:?}, expected_escaped={expected_escaped:?}, ssr={ssr_like_output}"
+            );
 
             assert!(
                 ssr_like_output.contains(&csr_like_output),
