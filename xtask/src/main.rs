@@ -13,6 +13,11 @@
 //! （`check_deps::measure_many_from_cargo_metadata` 参照。Bugbot 指摘
 //! 「metadata rerun per package」への対応）。
 //!
+//! - `list-build-scripts --package <NAME> [--package <NAME> ...]`: REQ-3
+//!   （サプライチェーン監査可能性、PoC-2 脅威モデル）のうち `build.rs` 保有クレートの
+//!   機械的列挙（TASK-3.2a、`list_build_scripts` モジュール）。CI ワークフローへの
+//!   組み込み・1 行サマリの最終契約確定は TASK-3.2b（イシュー #21）に委ねる。
+//!
 //! `core` / `interactive` と異なりプロセス起動（`std::process::Command`）を行うが、
 //! `unsafe` は使わない（REQ-2 は core/interactive 限定だが、xtask でも forbid する。
 //! core/tests/unsafe_boundary.rs の WASM/FFI 境界許可リストにも含まれない）。
@@ -21,6 +26,7 @@
 
 mod check_deps;
 mod json;
+mod list_build_scripts;
 
 use std::process::ExitCode;
 
@@ -28,6 +34,7 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(String::as_str) {
         Some("check-deps") => run_check_deps(&args[2..]),
+        Some("list-build-scripts") => run_list_build_scripts(&args[2..]),
         Some(other) => {
             eprintln!("xtask: unknown subcommand `{other}`");
             print_usage();
@@ -52,6 +59,9 @@ fn print_usage() {
     eprintln!("  check-deps --package <NAME> [--package <NAME> ...]");
     eprintln!("      Measure resolved dependency count and max depth for each package");
     eprintln!("      and judge them against the REQ-3 limits (60 packages / depth 6).");
+    eprintln!("  list-build-scripts --package <NAME> [--package <NAME> ...]");
+    eprintln!("      List crates with a custom build script (build.rs) reachable from");
+    eprintln!("      each package (REQ-3 supply-chain audit visibility).");
 }
 
 /// `check-deps` サブコマンド: `--package <NAME>` を 1 つ以上受け取り、
@@ -106,6 +116,68 @@ fn run_check_deps(args: &[String]) -> ExitCode {
             }
             Err(e) => {
                 eprintln!("xtask check-deps: failed to measure `{name}`: {e}");
+                had_failure = true;
+            }
+        }
+    }
+
+    if had_failure {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+/// `list-build-scripts` サブコマンド: `--package <NAME>` を 1 つ以上受け取り、
+/// それぞれについて到達可能な build.rs 保有クレートを列挙して stdout に表示する
+/// （TASK-3.2a、`list_build_scripts` モジュール）。
+///
+/// 列挙自体は上限判定を伴わないため、正常に列挙できれば件数（0 件含む）によらず
+/// 終了コード 0 を返す。`cargo metadata` の実行失敗・想定外の出力構造・ルート未検出は
+/// fail-closed で終了コード 1（「列挙できなかったのに成功扱い」になる経路を作らない）。
+/// 引数不備（`--package` 未指定・不明な引数）は `check-deps` と契約を統一し
+/// 終了コード 2 とする。
+fn run_list_build_scripts(args: &[String]) -> ExitCode {
+    let mut packages = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--package" => {
+                let Some(name) = args.get(i + 1) else {
+                    eprintln!("xtask list-build-scripts: `--package` requires a value");
+                    return ExitCode::from(2);
+                };
+                packages.push(name.clone());
+                i += 2;
+            }
+            other => {
+                eprintln!("xtask list-build-scripts: unknown argument `{other}`");
+                return ExitCode::from(2);
+            }
+        }
+    }
+
+    if packages.is_empty() {
+        eprintln!("xtask list-build-scripts: at least one `--package <NAME>` is required");
+        return ExitCode::from(2);
+    }
+
+    let results = match list_build_scripts::list_many_from_cargo_metadata(&packages) {
+        Ok(results) => results,
+        Err(e) => {
+            eprintln!("xtask list-build-scripts: failed to run cargo metadata: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let mut had_failure = false;
+    for (name, inventory) in results {
+        match inventory {
+            Ok(crates) => {
+                print!("{}", list_build_scripts::format_inventory(&name, &crates));
+            }
+            Err(e) => {
+                eprintln!("xtask list-build-scripts: failed to list `{name}`: {e}");
                 had_failure = true;
             }
         }
