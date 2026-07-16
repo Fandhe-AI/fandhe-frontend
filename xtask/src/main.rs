@@ -1,19 +1,25 @@
 //! `xtask`: このワークスペースの CI 計測・自己保守用ツール群のエントリポイント。
+//! 開発者用ツールであり、配布物（rws-* クレート）には含めない。
 //!
-//! `cargo run -p xtask -- <subcommand>` で起動する。REQ-3（依存グラフ上限:
-//! 60 件以内・深さ 6 以内、`docs/spec/04-requirements.md`）に関する計測は
-//! `check_deps` モジュールが担う。しきい値判定・CI 失敗化は TASK-3.1b/c（#17/#18）で
-//! 本ファイルのサブコマンド dispatch に積み増される想定。
+//! サブコマンド:
+//! - `check-deps --package <NAME> [--package <NAME> ...]`: REQ-3（依存グラフ上限
+//!   60 件以内・深さ 6 以内、`docs/spec/04-requirements.md`）の実測（`check_deps`
+//!   モジュールの TASK-3.1a 計測ロジック）と判定（TASK-3.1b の `judge`）を行い、
+//!   TASK-3.1c の CI が終了コードで PASS/FAIL を判定できるようにする。
+//!
+//! 複数 `--package` 指定時も `cargo metadata` は 1 回のみ実行する
+//! （`check_deps::measure_many_from_cargo_metadata` 参照。Bugbot 指摘
+//! 「metadata rerun per package」への対応）。
 //!
 //! `core` / `interactive` と異なりプロセス起動（`std::process::Command`）を行うが、
-//! `unsafe` は使わない（REQ-2 は core/interactive 限定だが、xtask でも forbid する）。
+//! `unsafe` は使わない（REQ-2 は core/interactive 限定だが、xtask でも forbid する。
+//! core/tests/unsafe_boundary.rs の WASM/FFI 境界許可リストにも含まれない）。
 
 #![forbid(unsafe_code)]
 
 mod check_deps;
 mod json;
 
-use check_deps::measure_from_cargo_metadata;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
@@ -23,11 +29,11 @@ fn main() -> ExitCode {
         Some(other) => {
             eprintln!("xtask: unknown subcommand `{other}`");
             print_usage();
-            ExitCode::from(2)
+            ExitCode::FAILURE
         }
         None => {
             print_usage();
-            ExitCode::from(2)
+            ExitCode::FAILURE
         }
     }
 }
@@ -37,15 +43,17 @@ fn print_usage() {
     eprintln!();
     eprintln!("Subcommands:");
     eprintln!("  check-deps --package <NAME> [--package <NAME> ...]");
-    eprintln!("      Measure resolved dependency count and max depth for each package.");
-    eprintln!("      (TASK-3.1a: measurement only; threshold enforcement is a follow-up task.)");
+    eprintln!("      Measure resolved dependency count and max depth for each package");
+    eprintln!("      and judge them against the REQ-3 limits (60 packages / depth 6).");
 }
 
 /// `check-deps` サブコマンド: `--package <NAME>` を 1 つ以上受け取り、
-/// それぞれについて依存件数・最大深さを計測して stdout に表示する。
+/// それぞれについて依存件数・最大深さを計測して上限判定し、結果を stdout に表示する。
 ///
-/// しきい値判定は行わない（TASK-3.1a のスコープ外、#17 が積み増す）。
-/// 引数不備・計測失敗時は終了コード 1 を返す。
+/// `cargo metadata` は全パッケージ分をまとめて 1 回だけ実行する
+/// （[`check_deps::measure_many_from_cargo_metadata`]）。
+/// 引数不備・計測失敗・上限超過（`CheckResult::Fail`）のいずれかがあれば
+/// 終了コード 1（fail-closed）を返す。
 fn run_check_deps(args: &[String]) -> ExitCode {
     let mut packages = Vec::new();
     let mut i = 0;
@@ -71,24 +79,33 @@ fn run_check_deps(args: &[String]) -> ExitCode {
         return ExitCode::from(2);
     }
 
-    let mut had_error = false;
-    for name in &packages {
-        match measure_from_cargo_metadata(name) {
+    let results = match check_deps::measure_many_from_cargo_metadata(&packages) {
+        Ok(results) => results,
+        Err(e) => {
+            eprintln!("xtask check-deps: failed to run cargo metadata: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let mut had_failure = false;
+    for (name, measurement) in results {
+        match measurement {
             Ok(m) => {
-                println!(
-                    "package {}: {} dependencies, max depth {}",
-                    m.root, m.package_count, m.max_depth
-                );
+                let check_result = check_deps::judge(m.into());
+                print!("{}", check_deps::format_report(&check_result));
+                if !check_result.is_pass() {
+                    had_failure = true;
+                }
             }
             Err(e) => {
                 eprintln!("xtask check-deps: failed to measure `{name}`: {e}");
-                had_error = true;
+                had_failure = true;
             }
         }
     }
 
-    if had_error {
-        ExitCode::from(1)
+    if had_failure {
+        ExitCode::FAILURE
     } else {
         ExitCode::SUCCESS
     }
