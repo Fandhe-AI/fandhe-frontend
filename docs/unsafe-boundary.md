@@ -57,7 +57,10 @@ grep -rnE '\bunsafe\s*(fn|impl|trait|\{)' core/src/
 grep -n "forbid(unsafe_code)" core/src/lib.rs
 ```
 
-TASK-2.1（`forbid` の CI 強制）がマージされた場合、CI 上でも同等の検証が自動化されます。
+TASK-2.1（`forbid` の CI 強制）により、`.github/workflows/ci.yml` の `forbid-unsafe` ジョブが
+PR・main への push のたびに上記と同等の検証を自動実行します（`cargo test -p rws-core --test
+unsafe_boundary` の実行に加え、`RUSTFLAGS='-F unsafe_code' cargo check --workspace` による
+ビルド時 lint 強制、`cargo test --workspace` による XSS 回帰テストの実行を含みます）。
 本ドキュメントの手動一覧は、CI による機械検証を補完するものであり、置き換えるものではありません。
 
 ## 4. FFI 依存クレートの残存リスク
@@ -85,6 +88,6 @@ TASK-2.1（`forbid` の CI 強制）がマージされた場合、CI 上でも�
    `// SAFETY:` コメントとして必ず記載する。
 3. **本ドキュメントへの追記**: 第 3 節の一覧テーブルに、ファイル・行・SAFETY 根拠概要・監査日・監査者を追記する。
 4. **レビュー必須**: security-auditor によるレビューを経ること（`.claude/rules/security.md` の PR 前必須チェック）。
-5. **CI 強制との関係**: TASK-2.1 で導入される CI 上の `forbid(unsafe_code)` 検証は、`core` / `interactive` への
-   `unsafe` 混入を自動的に検出する。本ドキュメントの一覧は、CI が対象としない `wasm-client` 等の許容領域における
-   人手の追跡台帳として機能する。
+5. **CI 強制との関係**: TASK-2.1 で導入した `.github/workflows/ci.yml` の `forbid-unsafe` ジョブが、
+   `core` / `interactive` への `unsafe` 混入を PR・main への push のたびに自動的に検出する。
+   本ドキュメントの一覧は、CI が対象としない `wasm-client` 等の許容領域における人手の追跡台帳として機能する。

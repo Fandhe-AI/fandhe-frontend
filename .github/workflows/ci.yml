@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # TASK-2.1 (REQ-2): コアクレートの unsafe 不使用を機械的に強制するジョブ。
+  # 一次防御 = #![forbid(unsafe_code)] 属性（ビルド時 lint、削除は下記テストが検知）
+  # 二次防御 = core/tests/unsafe_boundary.rs（属性の実在・unsafe トークン不在・core 外部依存ゼロ）
+  # 三次防御 = 本ジョブの RUSTFLAGS='-F unsafe_code' による cargo check（属性とテストが
+  # 同時に外された場合でも、コマンドラインからの forbid はソース側の allow で上書きできない）
+  #
+  # ファイル名は汎用の ci.yml とし、ジョブ名を目的特化の forbid-unsafe とする。
+  # 後続の CI 系タスク（fmt/clippy・依存グラフ計測・CSR XSS 回帰等）は同一ファイルへ
+  # ジョブを追加していく前提の拡張可能な構成とする。
+  forbid-unsafe:
+    name: Forbid unsafe in core crates
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        # actions/checkout v6.0.3（update-external.yml と同一 SHA に固定）
+        # docs/spec サブモジュールはテストに不要のため取得しない（既定で submodules: false）
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+
+      - name: Show toolchain
+        run: rustup show && cargo --version
+
+      - name: unsafe 境界の回帰テスト（forbid 属性・unsafe トークン・core 依存ゼロ）
+        run: cargo test -p rws-core --test unsafe_boundary --locked
+
+      # NOTE: -F (forbid) はソース側の #[allow(unsafe_code)] で上書きできないため、
+      # 属性が誤って削除された場合の独立した防御線になる。
+      # 現メンバー（core・xtask）はいずれも safe 域のため workspace 全体に適用可能。
+      # wasm-client/wasm-full/wasm-thin 等の FFI 境界クレートが追加された場合は
+      # `-p` 指定で safe 域クレートのみへ絞り込み、
+      # core/tests/unsafe_boundary.rs の UNSAFE_ALLOWED_MEMBERS と同期して更新すること。
+      - name: ビルド時 lint による強制（属性とテストの双方が同時に外された場合の三重防御）
+        run: RUSTFLAGS='-F unsafe_code' cargo check --workspace --locked
+
+      - name: workspace 全テスト（XSS 回帰・エスケープ仕様テストを含む）
+        run: cargo test --workspace --locked
