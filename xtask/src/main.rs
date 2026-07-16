@@ -5,7 +5,9 @@
 //! - `check-deps --package <NAME> [--package <NAME> ...]`: REQ-3（依存グラフ上限
 //!   60 件以内・深さ 6 以内、`docs/spec/04-requirements.md`）の実測（`check_deps`
 //!   モジュールの TASK-3.1a 計測ロジック）と判定（TASK-3.1b の `judge`）を行い、
-//!   TASK-3.1c の CI が終了コードで PASS/FAIL を判定できるようにする。
+//!   TASK-3.1c の CI（`.github/workflows/deps-check.yml`）が終了コードと
+//!   1 行サマリ（`check_deps::format_report` 参照）で PASS/FAIL を判定できるようにする。
+//!   CLI 契約の回帰テストは `xtask/tests/cli_check_deps.rs`。
 //!
 //! 複数 `--package` 指定時も `cargo metadata` は 1 回のみ実行する
 //! （`check_deps::measure_many_from_cargo_metadata` 参照。Bugbot 指摘
