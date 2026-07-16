@@ -77,6 +77,14 @@ jobs:
         # Cargo.lock drift 防止）で pipefail・tee・--locked を用いる。
         # ゲートではないため、この列挙自体が「count > 0」で CI を落とすことはない
         # （非 0 終了は cargo metadata 失敗・指定パッケージ未検出時のみ。fail-closed）。
+        # if: always() は「直前の Run xtask check-deps ステップが失敗（依存件数/深さ
+        # 超過）してもこの監査ログ出力自体は必ず実行する」ため。この監査ログは
+        # PASS/FAIL の概念を持たない常時可視化ログであり、依存超過で注目が集まる
+        # PR ほど build.rs 監査が欠落する、という意図と実挙動の齟齬を避ける
+        # （if: always() は本ステップの実行有無のみを制御し、cargo metadata 失敗時に
+        # 非 0 終了でジョブ全体を失敗させる fail-closed の挙動やゲートの成否判定には
+        # 影響しない）。
+        if: always()
         run: |
           set -o pipefail
           cargo run --locked -p xtask -- list-build-scripts --package rws-core --package xtask | tee build-scripts.log
