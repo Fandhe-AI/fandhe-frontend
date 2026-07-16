@@ -22,7 +22,10 @@
 //!    にホワイトリスト検証を行う。不正な属性名（空白・`=`・`"` 等の注入形）は
 //!    panic させず出力からスキップする（ライブラリコードでの panic 回避規約）。
 //! 5. タグ名は `&'static str` に限定し、動的文字列を受け付けない（型レベルで
-//!    のタグ名注入抑止）。
+//!    のタグ名注入抑止）。ただし `&'static str` は有効期間を保証するのみで
+//!    文字内容までは保証しないため、出力前にホワイトリスト検証
+//!    （`is_valid_tag_name`）も行う多層防御とする。不正なタグ名の要素は
+//!    panic させず出力全体をスキップする。
 //! 6. **`unsafe` コード禁止**: `#![forbid(unsafe_code)]` によりクレート全体で
 //!    機械的に禁止する。`unsafe` は WASM バインディング層・FFI 境界に限定され、
 //!    本クレートには含まれない。
@@ -119,6 +122,28 @@ fn is_valid_attr_name(name: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == ':')
 }
 
+/// タグ名として安全に出力してよいかを判定する。
+///
+/// `tag` は `&'static str` に限定される（不変条件 5）が、`&'static str` は
+/// 値の**有効期間**を保証するのみで文字内容までは保証しない。
+/// `Box::leak` 等で動的に生成した文字列を `'static` に昇格させれば、
+/// 空白・`=`・`<`・`>`・`/` のようなタグ名スロットからの breakout に使える
+/// 文字を含む値が型検査をすり抜けて `render_into` に届き得る。属性名の
+/// [`is_valid_attr_name`] と対になる防御として、タグ名にも出力前の
+/// ホワイトリスト検証を課す（型レベルの制約への多層防御であり、通常の
+/// リテラルタグ運用では常に true になる）。
+///
+/// 先頭 ASCII 英字 + 以降 ASCII 英数字・`-` のみを許可する
+/// （標準 HTML タグ名・カスタム要素名の両方を満たす最小限の文字集合）。
+fn is_valid_tag_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() => {}
+        _ => return false,
+    }
+    chars.all(|c| c.is_ascii_alphanumeric() || c == '-')
+}
+
 /// ノード木を HTML 文字列へレンダリングする。
 ///
 /// SSR（サーバーからのレスポンス送出）・SSG（ファイル書き出し）・CSR
@@ -146,6 +171,13 @@ fn render_into(node: &Node, out: &mut String) {
             attrs,
             children,
         } => {
+            if !is_valid_tag_name(tag) {
+                // 不正なタグ名は panic させず要素全体の出力をスキップする
+                // （タグ名スロット経由の breakout を防ぐ多層防御。ライブラリ
+                // コードでの panic 回避規約に従い、属性名検証と同様に
+                // 「不正なら出力しない」で安全側に倒す）。
+                return;
+            }
             let _ = write!(out, "<{}", tag);
             for (k, v) in attrs {
                 if !is_valid_attr_name(k) {
@@ -214,6 +246,32 @@ mod tests {
         let html = render(&node);
         assert!(!html.contains("onmouseover"));
         assert!(html.contains("class=\"safe\""));
+    }
+
+    #[test]
+    fn invalid_tag_name_is_skipped_without_panic() {
+        // 型（&'static str）は文字内容までは保証しないため、
+        // Box::leak で `'static` に昇格させたタグ名注入を模した入力を使う
+        // （PR #166 Bugbot 指摘の再現テスト）。
+        let malicious_tag: &'static str =
+            Box::leak(String::from("div><script>alert(1)</script").into_boxed_str());
+        let node = el(malicious_tag, vec![], vec![text("safe")]);
+        let html = render(&node);
+        assert!(
+            !html.contains("<script>"),
+            "不正なタグ名経由で breakout が発生した: {html}"
+        );
+        assert!(
+            html.is_empty(),
+            "不正なタグ名の要素は出力全体をスキップするべき: {html}"
+        );
+    }
+
+    #[test]
+    fn valid_custom_element_tag_name_renders_normally() {
+        let node = el("my-widget", vec![], vec![text("ok")]);
+        let html = render(&node);
+        assert_eq!(html, "<my-widget>ok</my-widget>");
     }
 
     #[test]
