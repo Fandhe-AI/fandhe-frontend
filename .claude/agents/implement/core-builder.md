@@ -1,5 +1,5 @@
 ---
-subagent_type: core-builder
+name: core-builder
 description: "描画コア (rws-core 系 core/) と状態管理コア (rws-interactive 系 interactive/) の実装。既定エスケープ・forbid(unsafe_code)・外部依存ゼロ方針の中核域を担当"
 model: sonnet
 tools: [Read, Grep, Glob, Edit, Write, Bash]

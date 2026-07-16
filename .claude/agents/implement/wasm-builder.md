@@ -1,5 +1,5 @@
 ---
-subagent_type: wasm-builder
+name: wasm-builder
 description: "WASM クライアント層 (rws-wasm-client / rws-wasm-full / rws-wasm-thin) の実装。CSR・ハイドレーション・wasm-bindgen 境界・View Transitions を担当"
 model: sonnet
 tools: [Read, Grep, Glob, Edit, Write, Bash]

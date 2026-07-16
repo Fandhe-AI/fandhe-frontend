@@ -1,5 +1,5 @@
 ---
-subagent_type: server-builder
+name: server-builder
 description: "アプリ層 (rws-app 系 app/) とサーバー層 (rws-server 系 server/) の実装。SSR / SSG / ルーティング・三モード描画のグラデーションを担当"
 model: sonnet
 tools: [Read, Grep, Glob, Edit, Write, Bash]

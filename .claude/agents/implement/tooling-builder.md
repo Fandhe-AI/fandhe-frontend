@@ -1,5 +1,5 @@
 ---
-subagent_type: tooling-builder
+name: tooling-builder
 description: "xtask / CI / Dockerfile / cargo-deny / 依存グラフ計測・単一バイナリ配布・AI 自己保守フック (impact/gate) などビルド・運用基盤の実装"
 model: sonnet
 tools: [Read, Grep, Glob, Edit, Write, Bash]

@@ -1,5 +1,5 @@
 ---
-subagent_type: reference-researcher
+name: reference-researcher
 description: "外部仕様調査。Rust / WASM (wasm-bindgen, web-sys) / Web 標準 (HTML, View Transitions) / axum / cargo-deny などの公式ドキュメントを調べて要約を返す"
 model: sonnet
 tools: [Read, WebFetch, WebSearch, Bash]

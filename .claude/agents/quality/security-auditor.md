@@ -1,5 +1,5 @@
 ---
-subagent_type: security-auditor
+name: security-auditor
 description: "セキュリティ監査。OWASP Top 10・XSS エスケープ保証・unsafe 境界・依存グラフ上限・cargo-deny・シークレット混入を読み取り専用で検査する"
 model: sonnet
 tools: [Read, Grep, Glob, Bash]

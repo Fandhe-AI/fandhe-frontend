@@ -1,5 +1,5 @@
 ---
-subagent_type: explorer
+name: explorer
 description: "コードベース・docs/spec/ 横断調査。実装状況・仕様・タスク依存関係の把握を行い、要約のみを返す読み取り専用 Agent"
 model: sonnet
 tools: [Read, Grep, Glob, Bash]

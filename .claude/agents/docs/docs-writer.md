@@ -1,5 +1,5 @@
 ---
-subagent_type: docs-writer
+name: docs-writer
 description: "ドキュメント更新。README / CLAUDE.md / docs/ 配下（spec サブモジュール除く）の日本語ドキュメント作成・更新を担当"
 model: haiku
 tools: [Read, Grep, Glob, Edit, Write]

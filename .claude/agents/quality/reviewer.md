@@ -1,5 +1,5 @@
 ---
-subagent_type: reviewer
+name: reviewer
 description: "コードレビュー。仕様 (docs/spec/) 準拠・アーキテクチャ整合・Rust イディオム・テストカバレッジの観点で読み取り専用レビューを行う"
 model: sonnet
 tools: [Read, Grep, Glob, Bash]

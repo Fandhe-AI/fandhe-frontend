@@ -1,5 +1,5 @@
 ---
-subagent_type: test-runner
+name: test-runner
 description: "cargo test / clippy / XSS 回帰テスト / wasm テストの実行と失敗分析。テスト結果の要約と修正方針の提案を返す"
 model: sonnet
 tools: [Read, Grep, Glob, Bash]

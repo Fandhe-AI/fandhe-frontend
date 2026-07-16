@@ -1,5 +1,5 @@
 ---
-subagent_type: linter
+name: linter
 description: "機械的チェック。rustfmt --check / cargo clippy / Markdown・frontmatter lint の実行と結果集計のみを行う軽量 Agent"
 model: haiku
 tools: [Read, Grep, Glob, Bash]
