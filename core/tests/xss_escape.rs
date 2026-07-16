@@ -178,36 +178,52 @@ mod csr {
         }
     }
 
-    /// 同一ノード木に対する「SSR 相当の呼び出し」（サーバー側で一括
-    /// レンダリングしてレスポンス送出する想定）と「CSR 相当の呼び出し」
-    /// （マウント時に断片を `innerHTML` へ設定する想定）で `render()` の
-    /// 出力が完全一致することを確認する。
+    /// 「SSR 相当の呼び出し」（サーバー側でページ全体を一括レンダリングして
+    /// レスポンス送出する想定。ペイロードを含む断片を `<html><body>` 相当の
+    /// 親構造でラップして呼ぶ）と「CSR 相当の呼び出し」（マウント時に断片
+    /// 単体を `innerHTML` へ設定する想定。同じ内容をそのまま呼ぶ）とで、
+    /// 実際に**異なる呼び出し経路**（親構造の有無・ネスト深さが異なる
+    /// `render()` 呼び出し）を比較する。
     ///
     /// PoC-3 成功基準 1（エスケープ保証はレンダリングモードに依存しない）の
     /// 製品版回帰。`rws-core::render()` はモード引数を取らない単一実装で
-    /// あるため、本テストは「SSR 用と CSR 用で別のエスケープ経路を新設して
-    /// いない」ことの直接証明になる。
+    /// あるため、周辺構造が異なっていても断片自体のエスケープ結果
+    /// （ペイロードのエスケープ済み表現）は一致し、かつ双方から生タグが
+    /// 漏れないことを確認する。これにより「SSR 用と CSR 用で別のエスケープ
+    /// 経路を新設していない」ことを、同一引数の重複呼び出しではなく異なる
+    /// 呼び出し経路の比較で検証する（旧版は `render(&node)` を同一引数で
+    /// 2 回呼ぶだけで常に自明に一致してしまい、モード分岐の新設を検知
+    /// できなかった）。
     #[test]
     fn csr_output_is_mode_independent_from_ssr() {
         for payload in payloads::all() {
-            let node = el(
+            let fragment = el(
                 "div",
                 vec![("id", "app"), ("data-role", payload)],
                 vec![el("p", vec![], vec![text(payload)])],
             );
 
-            // SSR 相当: サーバーがレスポンスボディとして一括レンダリング。
-            let ssr_like_output = render(&node);
-            // CSR 相当: クライアントがマウント時に同じノード木を render()。
-            let csr_like_output = render(&node);
+            // CSR 相当: クライアントがマウント時に断片単体を render()。
+            let csr_like_output = render(&fragment);
 
-            assert_eq!(
-                ssr_like_output, csr_like_output,
-                "SSR 相当と CSR 相当で render() の出力が異なる（モード依存のエスケープ経路が存在する疑い）: payload={payload:?}"
+            // SSR 相当: サーバーが同じ断片をページ全体構造でラップして
+            // 一括レンダリング。呼び出し経路（親要素・ネスト深さ）が
+            // CSR 経路とは異なる点が本比較の核心。
+            let ssr_page = el(
+                "html",
+                vec![],
+                vec![el("body", vec![], vec![fragment.clone()])],
+            );
+            let ssr_like_output = render(&ssr_page);
+
+            assert!(
+                ssr_like_output.contains(&csr_like_output),
+                "SSR 相当のページ全体レンダリングに CSR 相当の断片レンダリング結果がそのまま含まれない \
+                 （周辺構造の違いにより断片自体のエスケープ結果が変化した疑い）: payload={payload:?}"
             );
             assert!(
-                !ssr_like_output.contains("<script>"),
-                "モード非依存の render() 出力に生スクリプトタグが含まれる: payload={payload:?}, html={ssr_like_output}"
+                !csr_like_output.contains("<script>") && !ssr_like_output.contains("<script>"),
+                "モード非依存の render() 出力に生スクリプトタグが含まれる: payload={payload:?}, csr={csr_like_output}, ssr={ssr_like_output}"
             );
         }
     }
