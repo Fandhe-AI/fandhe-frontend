@@ -2,6 +2,11 @@ name: deps-check
 
 # REQ-3（依存グラフ上限: 標準サーバー構成で依存パッケージ 60 件以内・深さ 6 以内、
 # docs/spec/04-requirements.md）を CI で強制するワークフロー（TASK-3.1c）。
+# 加えて TASK-3.2b で、同じ依存グラフ内の build.rs 保有クレート一覧
+# （xtask list-build-scripts、TASK-3.2a）を監査ログとして Step Summary に出力する。
+# こちらは security.md「依存追加時は build.rs の有無を確認する」の可視化が目的で
+# あり、PASS/FAIL 判定を持たない（build.rs の存在自体は違反ではない。禁止クレートの
+# ブロックは cargo-deny 系タスク（TASK-4.x）のスコープ）。
 #
 # しきい値運用の原則:
 # - しきい値の正は xtask/src/check_deps.rs の MAX_PACKAGES（60）/ MAX_DEPTH（6）定数のみ。
@@ -52,7 +57,7 @@ jobs:
           set -o pipefail
           cargo run --locked -p xtask -- check-deps --package rws-core --package xtask | tee deps-check.log
 
-      - name: Publish summary
+      - name: Publish deps-check summary
         if: always()
         # format_report（xtask/src/check_deps.rs）の 1 行サマリ契約
         # 「deps-check: packages=<n>/<limit> depth=<n>/<limit> result=<PASS|FAIL>」を
@@ -63,5 +68,37 @@ jobs:
             echo '## deps-check (REQ-3)'
             echo '```'
             grep '^deps-check:' deps-check.log || echo 'deps-check: no summary line found'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run xtask list-build-scripts
+        # TASK-3.2b: build.rs 保有クレート列挙（TASK-3.2a, xtask/src/list_build_scripts.rs）
+        # の CI 出力統合。deps-check と同じ理由（子プロセスの終了コード伝播・
+        # Cargo.lock drift 防止）で pipefail・tee・--locked を用いる。
+        # ゲートではないため、この列挙自体が「count > 0」で CI を落とすことはない
+        # （非 0 終了は cargo metadata 失敗・指定パッケージ未検出時のみ。fail-closed）。
+        # if: always() は「直前の Run xtask check-deps ステップが失敗（依存件数/深さ
+        # 超過）してもこの監査ログ出力自体は必ず実行する」ため。この監査ログは
+        # PASS/FAIL の概念を持たない常時可視化ログであり、依存超過で注目が集まる
+        # PR ほど build.rs 監査が欠落する、という意図と実挙動の齟齬を避ける
+        # （if: always() は本ステップの実行有無のみを制御し、cargo metadata 失敗時に
+        # 非 0 終了でジョブ全体を失敗させる fail-closed の挙動やゲートの成否判定には
+        # 影響しない）。
+        if: always()
+        run: |
+          set -o pipefail
+          cargo run --locked -p xtask -- list-build-scripts --package rws-core --package xtask | tee build-scripts.log
+
+      - name: Publish build-scripts summary
+        if: always()
+        # format_inventory（xtask/src/list_build_scripts.rs）の 1 行サマリ契約
+        # （`build-scripts: target=<name> count=<n>`）を Step Summary に転記する。
+        # この契約はテストで固定される（`xtask/tests/cli_list_build_scripts.rs`）。
+        # 監査ログであり PASS/FAIL の概念はない。
+        run: |
+          {
+            echo '## build-scripts (REQ-3, audit log — not a gate)'
+            echo '```'
+            grep '^build-scripts:' build-scripts.log || echo 'build-scripts: no summary line found'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

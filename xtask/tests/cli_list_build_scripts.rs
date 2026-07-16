@@ -1,18 +1,21 @@
-//! `xtask list-build-scripts` の CLI 契約に対する回帰テスト（TASK-3.2a）。
+//! `xtask list-build-scripts` の CLI 契約に対する回帰テスト（TASK-3.2a / TASK-3.2b）。
 //!
-//! `xtask/tests/cli_check_deps.rs` と同型の構成。CI ワークフローへの組み込み
-//! （TASK-3.2b・イシュー #21）は本テストが固定する契約に依拠する見込みのため、
-//! ここで終了コードと出力書式を先に固定しておく。
+//! `xtask/tests/cli_check_deps.rs` と同型の構成。`.github/workflows/deps-check.yml`
+//! （TASK-3.2b・イシュー #21）は本テストが固定する契約（終了コード・1 行サマリ書式）
+//! に依拠して build.rs 監査ログを Step Summary へ転記する。すなわち本ファイルは
+//! ワークフローの実質的な単体保証であり、ここで固定した契約を崩す変更は CI
+//! ワークフローの破壊に直結する。
 //!
 //! 契約（`xtask/src/main.rs` の `run_list_build_scripts` /
 //! `list_build_scripts::format_inventory` 参照）:
 //! - 終了コード 0: 指定パッケージすべてが列挙に成功（build.rs 保有クレートが
 //!   0 件でも成功。列挙自体は上限判定を伴わない）
 //! - 終了コード 1: `cargo metadata` の実行失敗・想定外の出力構造・ルート未検出
-//!   （fail-closed。「列挙できなかったのに成功扱い」になる経路を作らない）
+//!   （fail-closed。「列挙できなかったのに成功扱い」になる経路を作らない。CI は
+//!   これを失敗として扱う）
 //! - 終了コード 2: 引数不備（`--package` 未指定・不明な引数）
-//! - stdout の 1 行サマリ書式は `build-scripts: target=<name> count=<n>`
-//!   （`--package` 指定ごとに 1 行）。ただし最終契約確定は TASK-3.2b（#21）に委ねる
+//! - stdout の 1 行サマリ書式（`--package` 指定ごとに 1 行、`grep '^build-scripts:'`
+//!   で抽出可能）: `build-scripts: target=<name> count=<n>`
 //!   （`list_build_scripts::format_inventory` のドキュメント参照）。
 //!
 //! 子プロセスとしてビルド済み xtask バイナリ（`CARGO_BIN_EXE_xtask`）を起動する。

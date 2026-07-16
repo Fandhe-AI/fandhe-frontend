@@ -6,8 +6,10 @@
 //! `build.rs`（カスタムビルドスクリプト）はビルド時に任意コードを実行できるため、
 //! 標準構成の依存グラフに含まれる build.rs 保有クレートを可視化することが
 //! サプライチェーン監査の前提になる。本モジュールは列挙ロジック本体と CLI 向けの
-//! 整形のみを提供し、CI ワークフローへの組み込み・1 行サマリ書式の最終契約確定は
-//! TASK-3.2b（イシュー #21）に委ねる（[`format_inventory`] のドキュメント参照）。
+//! 整形を提供する（TASK-3.2a）。CI ワークフロー（`.github/workflows/deps-check.yml`）
+//! への組み込みは TASK-3.2b（イシュー #21）で、本モジュールが定める
+//! [`format_inventory`] の 1 行サマリ書式（`build-scripts: target=<name> count=<n>`）
+//! に依拠して実装済み。CLI 契約の回帰テストは `xtask/tests/cli_list_build_scripts.rs`。
 //!
 //! # 検出方式
 //!
@@ -148,10 +150,10 @@ fn version_sort_key(version: &str) -> (Vec<u64>, &str) {
 
 /// 人間可読な一覧と、CI ログから抽出可能な 1 行サマリを整形する。
 ///
-/// 1 行サマリの書式（`build-scripts: target=<name> count=<n>`）は暫定であり、
-/// CI 統合時の最終契約確定は TASK-3.2b（イシュー #21）に委ねる。本モジュール単体では
-/// この書式を破壊的に変更しても回帰テストの対象にしていない点に注意する
-/// （`check_deps::format_report` の `deps-check:` 行のような CI 依存契約とは異なる）。
+/// 1 行サマリの書式（`build-scripts: target=<name> count=<n>`）は
+/// `.github/workflows/deps-check.yml`（TASK-3.2b）が `grep '^build-scripts:'` で
+/// 抽出する契約であり、`check_deps::format_report` の `deps-check:` 行と同様に
+/// 安易に変更しない。契約は `xtask/tests/cli_list_build_scripts.rs` で固定される。
 pub fn format_inventory(root_name: &str, crates: &[BuildScriptCrate]) -> String {
     let mut out = String::new();
     out.push_str(&format!(

@@ -15,8 +15,10 @@
 //!
 //! - `list-build-scripts --package <NAME> [--package <NAME> ...]`: REQ-3
 //!   （サプライチェーン監査可能性、PoC-2 脅威モデル）のうち `build.rs` 保有クレートの
-//!   機械的列挙（TASK-3.2a、`list_build_scripts` モジュール）。CI ワークフローへの
-//!   組み込み・1 行サマリの最終契約確定は TASK-3.2b（イシュー #21）に委ねる。
+//!   機械的列挙（TASK-3.2a、`list_build_scripts` モジュール）。CI ワークフロー
+//!   （`.github/workflows/deps-check.yml`）への組み込みは TASK-3.2b（イシュー #21）で、
+//!   1 行サマリ（`list_build_scripts::format_inventory` 参照）を Step Summary に
+//!   転記する。CLI 契約の回帰テストは `xtask/tests/cli_list_build_scripts.rs`。
 //!
 //! `core` / `interactive` と異なりプロセス起動（`std::process::Command`）を行うが、
 //! `unsafe` は使わない（REQ-2 は core/interactive 限定だが、xtask でも forbid する。
