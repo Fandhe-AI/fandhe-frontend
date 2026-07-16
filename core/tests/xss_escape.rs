@@ -190,6 +190,16 @@ fn ssr_response_body_escapes_attribute_payloads() {
             !html.contains(&format!("title=\"{payload}\"")),
             "属性値がエスケープされずそのまま出力された（payload: {payload:?}）: {html}"
         );
+        // 陰性チェック（原文が属性値としてそのまま出現しない）だけでは、
+        // `render()` が属性自体を丸ごと欠落させる・誤った形でエスケープする
+        // といった回帰を素通りさせてしまう（vacuous pass）。属性シリアライズ
+        // （`core/src/lib.rs` の `render_into`: ` {属性名}="{escape_html(値)}"`）が
+        // 期待どおりの完全エスケープ済み文字列を生成していることを陽性側でも固定する。
+        let expected_attr = format!("=\"{}\"", rws_core::escape_html(payload));
+        assert!(
+            html.contains(&expected_attr),
+            "escape_html の期待出力が title/data-value 属性値として render() 結果に含まれていない（payload: {payload:?}）: {html}"
+        );
     }
 }
 
@@ -208,6 +218,14 @@ fn ssg_file_output_escapes_text_and_attribute_payloads() {
         assert!(
             !attr_from_file.contains("<script>"),
             "SSG ファイル経由で属性値の breakout が発生した（payload: {payload:?}）: {attr_from_file}"
+        );
+        // SSR 側の陽性アサートと同様、陰性チェックのみでは属性の欠落・誤エスケープを
+        // 検知できない（vacuous pass）。SSG ファイル読み戻し内容にも escape_html の
+        // 期待出力がそのまま含まれることを陽性側で固定する。
+        let expected_attr = format!("=\"{}\"", rws_core::escape_html(payload));
+        assert!(
+            attr_from_file.contains(&expected_attr),
+            "escape_html の期待出力が SSG ファイル内の属性値として含まれていない（payload: {payload:?}）: {attr_from_file}"
         );
     }
 }
