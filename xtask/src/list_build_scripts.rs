@@ -120,8 +120,30 @@ pub fn list_build_scripts(
         .filter_map(|id| build_flags.get(id))
         .cloned()
         .collect();
-    result.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.version.cmp(&b.version)));
+    result.sort_by(|a, b| {
+        a.name
+            .cmp(&b.name)
+            .then_with(|| version_sort_key(&a.version).cmp(&version_sort_key(&b.version)))
+    });
     Ok(result)
+}
+
+/// `version`（`Cargo.toml` の `package.version`）を、表示順のための比較キーに変換する。
+///
+/// 数値の各セグメント（`major.minor.patch`）を `u64` として比較することで、
+/// 単純な文字列（辞書式）比較では `"10.0.0"` が `"2.0.0"` より前に来てしまう問題を避ける
+/// （表示順のみに影響し、列挙結果自体（クレートの欠落・誤集計）には影響しない指摘）。
+/// プレリリース／ビルドメタデータ部分（`-` 以降）は数値化せず文字列のまま tie-break に使う。
+/// パース不能なセグメントは `0` にフォールバックする（表示順が多少崩れても panic せず
+/// fail-closed を優先する方針、security.md 参照）。`Cargo.toml` の `package.version` は
+/// 基本的に semver 準拠が前提のため、この単純化で実用上十分と判断する。
+fn version_sort_key(version: &str) -> (Vec<u64>, &str) {
+    let (numeric_part, rest) = version.split_once('-').unwrap_or((version, ""));
+    let numeric = numeric_part
+        .split('.')
+        .map(|segment| segment.parse::<u64>().unwrap_or(0))
+        .collect();
+    (numeric, rest)
 }
 
 /// 人間可読な一覧と、CI ログから抽出可能な 1 行サマリを整形する。
@@ -414,6 +436,61 @@ mod tests {
         assert_eq!(
             names_versions,
             vec![("alpha", "1.0.0"), ("alpha", "2.0.0"), ("zeta", "1.0.0")]
+        );
+    }
+
+    #[test]
+    fn result_is_sorted_by_semver_not_lexicographic_version() {
+        // "10.0.0" は文字列（辞書式）比較だと "2.0.0" より前に来てしまうが、
+        // semver 的には "2.0.0" < "10.0.0" が正しい表示順。
+        let json = fixture(
+            &[
+                ("root#0.1.0", "root", "0.1.0", false),
+                ("same#10.0.0", "same", "10.0.0", true),
+                ("same#2.0.0", "same", "2.0.0", true),
+            ],
+            &[
+                (
+                    "root#0.1.0",
+                    &[("same#10.0.0", "normal"), ("same#2.0.0", "normal")],
+                ),
+                ("same#10.0.0", &[]),
+                ("same#2.0.0", &[]),
+            ],
+        );
+        let graph = build_graph(&json).unwrap();
+        let flags = collect_build_script_flags(&json).unwrap();
+        let result = list_build_scripts(&graph, &flags, "root").unwrap();
+        let versions: Vec<&str> = result.iter().map(|c| c.version.as_str()).collect();
+        assert_eq!(versions, vec!["2.0.0", "10.0.0"]);
+    }
+
+    #[test]
+    fn multi_hop_build_dependency_is_reachable() {
+        // root -normal-> a -build-> b という多段の到達経路でも
+        // build.rs 保有クレート b が列挙されることを確認する（BFS が
+        // Normal + Build の混在辺を正しく辿ることの回帰テスト）。
+        let json = fixture(
+            &[
+                ("root#0.1.0", "root", "0.1.0", false),
+                ("a#1.0.0", "a", "1.0.0", false),
+                ("b#1.0.0", "b", "1.0.0", true),
+            ],
+            &[
+                ("root#0.1.0", &[("a#1.0.0", "normal")]),
+                ("a#1.0.0", &[("b#1.0.0", "build")]),
+                ("b#1.0.0", &[]),
+            ],
+        );
+        let graph = build_graph(&json).unwrap();
+        let flags = collect_build_script_flags(&json).unwrap();
+        let result = list_build_scripts(&graph, &flags, "root").unwrap();
+        assert_eq!(
+            result,
+            vec![BuildScriptCrate {
+                name: "b".to_string(),
+                version: "1.0.0".to_string(),
+            }]
         );
     }
 

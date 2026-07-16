@@ -267,27 +267,43 @@ impl DepGraph {
     /// BFS で求める（`root_id` 自身を含む）。
     ///
     /// TASK-3.2a（`list_build_scripts`）の到達可能集合計算から利用される。
-    /// `measure()` の件数計測用 BFS（ルート自身を除く）とは用途が異なるため、
-    /// ここではルート自身を意図的に含める（「監査対象から漏らさない」fail-closed 方針。
-    /// ルート自身が `build.rs` を持つ場合も列挙対象に含める必要があるため）。
+    /// `measure()` の件数計測（ルート自身を除いた件数を要求）とは戻り値の解釈が
+    /// 異なるが、BFS 本体は共通の [`bfs_reachable_inclusive`] を使い回す
+    /// （ルート自身を含めるか除くかという 1 点のみが異なるため、BFS 実装自体を
+    /// 二重管理しない。reviewer 指摘: `reachable_from` と `measure` 内 BFS の重複）。
     pub(crate) fn reachable_from(&self, root_id: &str, allowed: &[DepKind]) -> HashSet<String> {
         let allowed: HashSet<DepKind> = allowed.iter().copied().collect();
-        let mut visited: HashSet<String> = HashSet::new();
-        visited.insert(root_id.to_string());
-        let mut queue: std::collections::VecDeque<String> = std::collections::VecDeque::new();
-        queue.push_back(root_id.to_string());
-        while let Some(current) = queue.pop_front() {
-            let Some(neighbors) = self.edges.get(&current) else {
-                continue;
-            };
-            for (dep_id, kind) in neighbors {
-                if allowed.contains(kind) && visited.insert(dep_id.clone()) {
-                    queue.push_back(dep_id.clone());
-                }
+        bfs_reachable_inclusive(&self.edges, root_id, &allowed)
+    }
+}
+
+/// `root_id` から `allowed` に含まれる辺のみを辿って到達可能な package_id 集合を
+/// BFS で求める共通実装（`root_id` 自身を含む）。
+///
+/// [`DepGraph::reachable_from`]（TASK-3.2a の列挙: ルート自身を含めたい）と
+/// [`measure`]（TASK-3.1a の件数計測: ルート自身を除きたい）の双方が内部で使う。
+/// 「含める/除く」の違いは呼び出し側で `visited.len() - 1` するか等で吸収し、
+/// BFS ロジック自体は 1 箇所にまとめる。
+fn bfs_reachable_inclusive(
+    edges: &HashMap<String, Vec<(String, DepKind)>>,
+    root_id: &str,
+    allowed: &HashSet<DepKind>,
+) -> HashSet<String> {
+    let mut visited: HashSet<String> = HashSet::new();
+    visited.insert(root_id.to_string());
+    let mut queue: std::collections::VecDeque<String> = std::collections::VecDeque::new();
+    queue.push_back(root_id.to_string());
+    while let Some(current) = queue.pop_front() {
+        let Some(neighbors) = edges.get(&current) else {
+            continue;
+        };
+        for (dep_id, kind) in neighbors {
+            if allowed.contains(kind) && visited.insert(dep_id.clone()) {
+                queue.push_back(dep_id.clone());
             }
         }
-        visited
     }
+    visited
 }
 
 /// `rustc -vV` の `host:` 行からホストの target triple を取得する。
@@ -493,27 +509,10 @@ pub fn measure(
     let root_id = find_root_id(graph, root_name)?;
     let allowed: HashSet<DepKind> = kinds_filter.iter().copied().collect();
 
-    // 件数: BFS で到達集合を求める（ルート自身は含めない）。
-    let mut visited: HashSet<String> = HashSet::new();
-    let mut queue: std::collections::VecDeque<String> = std::collections::VecDeque::new();
-    queue.push_back(root_id.clone());
-    let mut seen_from_root: HashSet<String> = HashSet::new();
-    seen_from_root.insert(root_id.clone());
-    while let Some(current) = queue.pop_front() {
-        let Some(neighbors) = graph.edges.get(&current) else {
-            continue;
-        };
-        for (dep_id, kind) in neighbors {
-            if !allowed.contains(kind) {
-                continue;
-            }
-            if seen_from_root.insert(dep_id.clone()) {
-                visited.insert(dep_id.clone());
-                queue.push_back(dep_id.clone());
-            }
-        }
-    }
-    let package_count = visited.len();
+    // 件数: 共通 BFS（bfs_reachable_inclusive、ルート自身を含む）を使い回し、
+    // ルート自身の 1 件を除いた数を件数計測値とする（PoC-3 の「ルート除く」定義と整合）。
+    let reachable = bfs_reachable_inclusive(&graph.edges, &root_id, &allowed);
+    let package_count = reachable.len() - 1;
 
     // 深さ: メモ化 DFS で最長経路長を求める。防御的にサイクル検出（灰色ノード再訪問）を行う。
     let max_depth = longest_path(graph, &root_id, &allowed)?;
