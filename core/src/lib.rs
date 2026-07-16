@@ -1,24 +1,32 @@
-//! rws-core: 描画コアクレート（TASK-1.1「rws-core 既定エスケープの製品化」）。
+//! `rws-core`: 描画コア（外部依存ゼロ）。
 //!
-//! 責務境界: ノード木 API（`Node` / `el` / `text` / `raw_html`）と、それを HTML
-//! 文字列へ変換するモード非依存レンダラ（`render`）を提供する。rws-server の
-//! SSR パス・SSG 出力・rws-wasm-client の CSR がいずれも本クレートの `render()`
-//! を共通で呼び出す前提であり、**その出力は既定エスケープ済みであることを
-//! 呼び出し側フレームワーク各層が前提とする**（REQ-1）。
+//! フロントエンドフレームワークの中核クレート。ノード木 API（`Node` / `el` /
+//! `text` / `raw_html`）と、それを HTML 文字列へ変換するモード非依存レンダラ
+//! （`render`）を提供する。`rws-server`（SSR/SSG）・`rws-wasm-client` /
+//! `rws-wasm-full`（CSR）など上位クレートが本クレートの `render()` を共通で
+//! 呼び出す前提であり、**その出力は既定エスケープ済みであることを呼び出し側
+//! フレームワーク各層が前提とする**（REQ-1）。
 //!
-//! セキュリティ不変条件（TASK-1.2 の XSS 回帰テスト・TASK-5.1/6.x が依存する契約）:
-//! 1. `Node::Text` の内容・`Element` の属性値は `render()` 内で必ず [`escape_html`]
-//!    を経由して出力する。
-//! 2. エスケープを迂回できる経路は `Node::RawHtml`（コンストラクタ [`raw_html`]）
-//!    のみとする。新たな迂回経路を追加しない。
+//! # 本クレートの不変条件（REQ-1・REQ-2、TASK-1.2 の XSS 回帰テスト・
+//! TASK-5.1/6.x が依存する契約）
+//!
+//! 1. `Node::Text` の内容・`Element` の属性値は `render()` 内で必ず
+//!    [`escape_html`] / [`escape_html_into`]（[`escape`] モジュール）を経由して
+//!    出力する。
+//! 2. エスケープを迂回できる経路は `Node::RawHtml`（コンストラクタ
+//!    [`raw_html`]）のみとする。新たな迂回経路を追加しない。
 //! 3. `format!("<div>{}</div>", user_input)` のような HTML 文字列の直接組み立て
-//!    を内部にも作らない。タグの書き出しは [`render_into`] の構造化した手順のみ
-//!    で行う。
-//! 4. 属性名はフレームワーク利用者コード由来の動的文字列になり得るため、出力前に
-//!    ホワイトリスト検証を行う。不正な属性名（空白・`=`・`"` 等の注入形）は
+//!    を内部にも作らない。タグの書き出しは [`render_into`] の構造化した手順の
+//!    みで行う。
+//! 4. 属性名はフレームワーク利用者コード由来の動的文字列になり得るため、出力前
+//!    にホワイトリスト検証を行う。不正な属性名（空白・`=`・`"` 等の注入形）は
 //!    panic させず出力からスキップする（ライブラリコードでの panic 回避規約）。
-//! 5. タグ名は `&'static str` に限定し、動的文字列を受け付けない（型レベルでの
-//!    タグ名注入抑止）。
+//! 5. タグ名は `&'static str` に限定し、動的文字列を受け付けない（型レベルで
+//!    のタグ名注入抑止）。
+//! 6. **`unsafe` コード禁止**: `#![forbid(unsafe_code)]` によりクレート全体で
+//!    機械的に禁止する。`unsafe` は WASM バインディング層・FFI 境界に限定され、
+//!    本クレートには含まれない。
+//! 7. **外部依存ゼロ**: `Cargo.toml` の `[dependencies]` は常に空を維持する。
 //!
 //! 本クレートは外部依存ゼロ（`core/Cargo.toml` 参照）。PoC-2 で判明した
 //! 「マクロ DSL が依存グラフを押し上げる」という知見を踏まえ、`view!`/`html!`
@@ -34,6 +42,10 @@
 
 use std::fmt::Write as _;
 
+mod escape;
+
+pub use escape::{escape_html, escape_html_into};
+
 /// HTML ノード木。マクロ DSL に依存しない素の Rust 値として組み立てる。
 ///
 /// 各腕のレンダリング時の扱いはセキュリティ不変条件そのものであるため、
@@ -47,7 +59,7 @@ pub enum Node {
         attrs: Vec<(String, String)>,
         children: Vec<Node>,
     },
-    /// テキストノード。`render()` 時に必ず [`escape_html`] を経由する
+    /// テキストノード。`render()` 時に必ず [`escape_html_into`] を経由する
     /// （既定安全 = REQ-1 の中核）。
     Text(String),
     /// 生 HTML ノード。`render()` 時にエスケープされない、唯一の明示的
@@ -59,7 +71,7 @@ pub enum Node {
 /// 要素ノードを組み立てる素の Rust 関数（マクロではない）。
 ///
 /// `attrs` は `(属性名, 属性値)` のペア列。属性値は [`render_into`] が
-/// [`escape_html`] を経由して出力する。属性名は出力時にホワイトリスト検証を
+/// [`escape_html_into`] を経由して出力する。属性名は出力時にホワイトリスト検証を
 /// 通過したものだけが書き出される（不変条件 4）。
 pub fn el(tag: &'static str, attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
     Node::Element {
@@ -90,30 +102,10 @@ pub fn raw_html(s: impl Into<String>) -> Node {
     Node::RawHtml(s.into())
 }
 
-/// HTML エンティティエスケープ（テキストノード・属性値の共通経路）。
-///
-/// 対象文字は `& < > " '` の 5 文字。[`render_into`] からのみ呼ばれる想定で、
-/// 呼び出し側（rws-server 等）がこの関数を経由せず独自にエスケープ処理を
-/// 行うことは想定しない（既定エスケープの一本化）。
-pub fn escape_html(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
-    for c in input.chars() {
-        match c {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
-            '\'' => out.push_str("&#x27;"),
-            _ => out.push(c),
-        }
-    }
-    out
-}
-
 /// 属性名として安全に出力してよいかを判定する。
 ///
 /// 属性名はフレームワーク利用者コードが動的に組み立てる可能性があり
-/// （例: コンポーネントのプロパティ経由）、`escape_html` は属性値にしか
+/// （例: コンポーネントのプロパティ経由）、[`escape_html_into`] は属性値にしか
 /// 適用されないため、属性名スロット経由の注入（`onerror=alert(1) x=` の
 /// ような追加属性の割り込み）を別途遮断する必要がある。
 ///
@@ -146,7 +138,7 @@ pub fn render(node: &Node) -> String {
 /// （不変条件 3）。
 fn render_into(node: &Node, out: &mut String) {
     match node {
-        Node::Text(s) => out.push_str(&escape_html(s)),
+        Node::Text(s) => escape_html_into(s, out),
         // ここが唯一の非エスケープ出力点（raw_html オプトイン境界）。
         Node::RawHtml(s) => out.push_str(s),
         Node::Element {
@@ -160,7 +152,9 @@ fn render_into(node: &Node, out: &mut String) {
                     // 不正な属性名は panic させず出力からスキップする（不変条件 4）。
                     continue;
                 }
-                let _ = write!(out, " {}=\"{}\"", k, escape_html(v));
+                let _ = write!(out, " {}=\"", k);
+                escape_html_into(v, out);
+                out.push('"');
             }
             out.push('>');
             // void 要素の自己終了処理は本クレートのスコープ外（常に終了タグを出す）。

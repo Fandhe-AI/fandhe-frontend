@@ -3,6 +3,11 @@ name = "rws-core"
 version = "0.1.0"
 edition = "2021"
 description = "rws-core: 描画コア（ノード木 API・既定エスケープレンダラ）。外部依存ゼロ。"
+license = "MIT OR Apache-2.0"
 publish = false
 
+# REQ-3 / coding-rust.md: core は外部依存ゼロを厳守する。
+# 新規クレートを追加する場合は事前にユーザー承認を得ること。
 [dependencies]
+
+[dev-dependencies]
