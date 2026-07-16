@@ -2,12 +2,14 @@
 name = "xtask"
 version = "0.1.0"
 edition = "2021"
-description = "xtask: CI 計測タスク（依存グラフ上限判定など）を実行する開発者用ツール。配布物には含めない。"
+description = "xtask: CI 計測用の開発者ツール（依存グラフ件数・深さ計測 / 上限判定）。配布物には含めない。外部依存ゼロ。"
 license = "MIT OR Apache-2.0"
 publish = false
 
-# REQ-3 / coding-rust.md: 依存クレートの追加はユーザー承認が必須。
-# 自動運転（承認取得不可）のため既定は「追加しない」側に倒し、std のみで実装する。
+# REQ-3 / coding-rust.md: 依存クレートの追加は事前に cargo metadata で影響を確認し
+# ユーザー承認を得ること。自動運転（承認取得不可）時は既定で「追加しない」側に倒す。
+# xtask 自身も依存グラフ上限の計測対象になり得るため、計測ツール自体が依存を
+# 増やして基準をぼかすことのないよう外部依存ゼロを維持する。
 [dependencies]
 
 [dev-dependencies]
