@@ -1,0 +1,116 @@
+# CLAUDE.md
+
+## Overview
+
+Rust 製フロントエンドフレームワーク。AI 時代のセキュリティリスク低減を目的に、プレーンな HTML / JavaScript / CSS を尊重しつつ SSR / SPA / SSG / トランジションなどモダン機能を網羅する。部分埋め込みの最小構成からフル機能構成までのグラデーションを持ち、単一実行ファイルでのデプロイ（Docker 想定）を目標とする。
+
+- 仕様書は [Fandhe-AI/frontend-framework-spec](https://github.com/Fandhe-AI/frontend-framework-spec) を `docs/spec/` サブモジュールとして取り込み管理
+- 開発は `docs/spec/06-roadmap.md` のマイルストーン MS-1〜MS-5 に従う（最初のタスクは TASK-1.1: `rws-core` 既定エスケープの製品化）
+- 計画クレート: `rws-core`（描画コア・外部依存ゼロ）/ `rws-app` / `rws-server`（SSR/SSG）/ `rws-wasm-client`・`rws-wasm-full`（WASM/CSR）/ `rws-interactive`（状態管理）/ `xtask`（CI 計測）
+
+## Repository Structure
+
+```
+frontend-framework/
+├── CLAUDE.md
+├── README.md
+├── skills-lock.json          # npx skills add の導入記録
+├── docs/
+│   └── spec/                 # 仕様サブモジュール (frontend-framework-spec)
+│       ├── 01-brainstorm.md
+│       ├── 02-poc-plan.md
+│       ├── 03-poc/           # PoC-1〜7 成果物（rendering-web-standards が中核）
+│       ├── 04-requirements.md  # MoSCoW 要件・受け入れ基準
+│       ├── 05-tasks.md         # タスク分解（依存・工数）
+│       └── 06-roadmap.md       # MS-1〜MS-5・着手判定
+└── .claude/
+    ├── agents/               # カテゴリ別 sub-agent 定義
+    ├── rules/                # 委譲・コーディング・セキュリティ規約
+    ├── skills/               # npx skills add 導入スキル
+    └── settings.json         # SessionStart / PostToolUse hooks
+```
+
+（実装着手後は `core/` `app/` `server/` `wasm-client/` `interactive/` `xtask/` 等の cargo workspace が加わる想定 — `docs/spec/05-tasks.md` 参照）
+
+## 委譲方針（必読）
+
+main セッションは**指揮・統合・ユーザー対話に専念**し、調査・実装・テスト・レビューは sub-agent へ委譲して main のコンテキスト消費を抑える。詳細は `.claude/rules/delegation.md`（調査・設計）と `.claude/rules/delegation-impl.md`（作成・編集）を参照。
+
+### パスベース切り替え表
+
+| 対象パス | 委譲先 Agent |
+|---------|-------------|
+| `core/` `interactive/` | core-builder |
+| `app/` `server/` | server-builder |
+| `wasm-client/` `wasm-full/` `wasm-thin/` `static/` | wasm-builder |
+| `xtask/` `.github/` `Dockerfile` `deny.toml` | tooling-builder |
+| `docs/`（spec 以外）・CLAUDE.md | docs-writer |
+| `docs/spec/`（読み取り調査） | explorer |
+| テスト実行・失敗分析 | test-runner |
+| レビュー | reviewer / security-auditor |
+
+### model 配分表
+
+| 用途 | model |
+|------|-------|
+| 複雑な横断判断・アーキテクチャ設計 | opus または fable（fable は特に大規模設計・横断判断の最上位 tier） |
+| 調査・生成・実装・レビュー | sonnet |
+| 機械的集計・lint・ドキュメント更新 | haiku |
+
+## Sub-agents
+
+`.claude/agents/<category>/<name>.md` に定義。
+
+| カテゴリ | subagent_type | model | 役割 |
+|---------|---------------|-------|------|
+| research | explorer | sonnet | コードベース・`docs/spec/` 横断調査（読み取り専用） |
+| research | reference-researcher | sonnet | 外部仕様（Rust / WASM / Web 標準 / 依存クレート）調査 |
+| implement | core-builder | sonnet | `core/` `interactive/` — 描画・状態管理コア（`forbid(unsafe_code)` 域） |
+| implement | server-builder | sonnet | `app/` `server/` — SSR / SSG / ルーティング |
+| implement | wasm-builder | sonnet | `wasm-client/` `wasm-full/` `wasm-thin/` `static/` — CSR / ハイドレーション / WASM |
+| implement | tooling-builder | sonnet | `xtask/` / CI / Dockerfile / cargo-deny / 単一バイナリ配布 / AI 自己保守フック |
+| testing | test-runner | sonnet | `cargo test` / XSS 回帰 / wasm テストの実行と失敗分析 |
+| quality | reviewer | sonnet | 仕様準拠・アーキテクチャ整合・Rust イディオムのレビュー |
+| quality | security-auditor | sonnet | OWASP・XSS エスケープ保証・`unsafe` 境界・依存監査 |
+| quality | linter | haiku | rustfmt / clippy / frontmatter の機械的チェック |
+| docs | docs-writer | haiku | README / CLAUDE.md / docs/（spec 除く）の更新 |
+
+## Rules
+
+`.claude/rules/` に定義。
+
+| ファイル | 内容 |
+|---------|------|
+| `delegation.md` | 調査・設計フェーズの委譲原則・パスベース切り替え |
+| `delegation-impl.md` | 作成・編集フェーズの委譲マッピング |
+| `coding-rust.md` | Rust 規約（既定エスケープ厳守・`forbid(unsafe_code)`・依存上限 60 件/深さ 6・core 外部依存ゼロ） |
+| `security.md` | OWASP Top 10・秘密情報混入防止・サプライチェーン対策 |
+| `japanese-style.md` | 日本語出力スタイル |
+| `conventional-commits.md` | Conventional Commits 詳細規約（scope 一覧含む） |
+| `code-comment-style.md` | コメント規約（役割・責務・呼び出し文脈・`// SAFETY:` を埋め込む） |
+| `out-of-scope-tracking.md` | 実装対象外の追跡規約（スコープ外事項を Issue 化して放置しない） |
+
+## Current Skills
+
+`npx skills add Fandhe-AI/agent-cli-skills` で導入（`skills-lock.json` で追跡）。
+
+- **コミット・PR**: create-commit / create-pr / implement-review / implement-review-pr
+- **Issue**: create-issue / create-issue-tree / update-issue-tree / implement-issue / implement-issue-tree
+- **計画・ドキュメント**: create-plan / update-docs / comment-code
+- **Project v2**: project-init / project-add-items / project-create-issues / project-update-items / project-view-status / project-sync-issues / project-archive-done
+- **.claude 体系**: init-claude / update-claude / sync-skills-lock / contribute-skill / update-reference
+- **リファレンス**: rust / github-docs / commitlint / lefthook / editorconfig
+
+## Conventions
+
+- **日本語**: やりとり・ドキュメント・コミット/PR 本文は日本語（`japanese-style.md`）
+- **Conventional Commits**: create-commit スキルを使用。`--no-verify` 禁止（`conventional-commits.md`）
+- **セキュリティレビュー**: コミット・PR 前に security-auditor による OWASP チェック必須（`security.md`）
+- **ユーザー承認フロー**: 実装は計画承認後（implement-issue）。依存クレート追加・Issue 起票は事前承認必須
+- **`docs/spec/` は編集禁止**: サブモジュール。仕様変更は frontend-framework-spec リポジトリで行う
+- **スコープ外事項**: 放置せず Issue 化を提案（`out-of-scope-tracking.md`）
+
+## hooks（settings.json）
+
+- **SessionStart**: 日本語・委譲・Conventional Commits・`--no-verify` 禁止・core 厳守事項のリマインダーを表示
+- **PostToolUse**（Edit|Write）: `.rs` ファイル編集後に `rustfmt` で自動整形（jq / rustfmt 不在時はスキップ）
