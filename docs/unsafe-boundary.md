@@ -46,8 +46,12 @@ PoC-2 の脅威モデルの結論は次のとおりです。コア（`rws-core` 
 以下のコマンドで、コード実態と本ドキュメントの記載が乖離していないか確認できます。
 
 ```bash
-# unsafe 使用箇所の網羅的検索（core・interactive 等、既存クレートを対象）
-grep -rn "unsafe" core/src/
+# 実際の unsafe コードブロック（unsafe fn / unsafe impl / unsafe trait / unsafe { ... }）の網羅的検索
+# （core・interactive 等、既存クレートを対象。素朴な `grep -rn "unsafe" core/src/` では
+# `#![forbid(unsafe_code)]` 属性行やドキュメンテーションコメント中の "unsafe" という語まで
+# ヒットしてしまい、本節の「0 件」という記述と字義通りには一致しないため、
+# 実コードとしての unsafe 使用箇所に絞り込んだパターンを使用する）
+grep -rnE '\bunsafe\s*(fn|impl|trait|\{)' core/src/
 
 # forbid(unsafe_code) 属性の存在確認
 grep -n "forbid(unsafe_code)" core/src/lib.rs
