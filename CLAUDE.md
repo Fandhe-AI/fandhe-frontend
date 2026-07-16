@@ -16,6 +16,7 @@ frontend-framework/
 ├── README.md
 ├── skills-lock.json          # npx skills add の導入記録
 ├── docs/
+│   ├── unsafe-boundary.md    # unsafe 境界ポリシー・使用箇所一覧（REQ-2 トレーサビリティ）
 │   └── spec/                 # 仕様サブモジュール (frontend-framework-spec)
 │       ├── 01-brainstorm.md
 │       ├── 02-poc-plan.md
