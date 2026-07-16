@@ -262,6 +262,34 @@ pub struct DepGraph {
     edges: HashMap<String, Vec<(String, DepKind)>>,
 }
 
+impl DepGraph {
+    /// `root_id` から `allowed` に含まれる辺のみを辿って到達可能な package_id 集合を
+    /// BFS で求める（`root_id` 自身を含む）。
+    ///
+    /// TASK-3.2a（`list_build_scripts`）の到達可能集合計算から利用される。
+    /// `measure()` の件数計測用 BFS（ルート自身を除く）とは用途が異なるため、
+    /// ここではルート自身を意図的に含める（「監査対象から漏らさない」fail-closed 方針。
+    /// ルート自身が `build.rs` を持つ場合も列挙対象に含める必要があるため）。
+    pub(crate) fn reachable_from(&self, root_id: &str, allowed: &[DepKind]) -> HashSet<String> {
+        let allowed: HashSet<DepKind> = allowed.iter().copied().collect();
+        let mut visited: HashSet<String> = HashSet::new();
+        visited.insert(root_id.to_string());
+        let mut queue: std::collections::VecDeque<String> = std::collections::VecDeque::new();
+        queue.push_back(root_id.to_string());
+        while let Some(current) = queue.pop_front() {
+            let Some(neighbors) = self.edges.get(&current) else {
+                continue;
+            };
+            for (dep_id, kind) in neighbors {
+                if allowed.contains(kind) && visited.insert(dep_id.clone()) {
+                    queue.push_back(dep_id.clone());
+                }
+            }
+        }
+        visited
+    }
+}
+
 /// `rustc -vV` の `host:` 行からホストの target triple を取得する。
 ///
 /// `cargo metadata --filter-platform <triple>` に渡すために必要。追加の依存クレートを
@@ -440,7 +468,10 @@ fn parse_dep_kinds(dep_kinds: &[Json]) -> Result<Vec<DepKind>, CheckDepsError> {
 }
 
 /// `root_name`（`Cargo.toml` の `package.name`）に一致する package_id を探す。
-fn find_root_id(graph: &DepGraph, root_name: &str) -> Result<String, CheckDepsError> {
+///
+/// `list_build_scripts`（TASK-3.2a）からも同一ルート解決ロジックとして再利用するため
+/// `pub(crate)` とする（重複実装を避ける）。
+pub(crate) fn find_root_id(graph: &DepGraph, root_name: &str) -> Result<String, CheckDepsError> {
     graph
         .names
         .iter()
@@ -542,6 +573,19 @@ fn dfs_depth(
     Ok(best)
 }
 
+/// `cargo metadata` を実行し、標準出力を JSON としてパースするところまでを行う。
+///
+/// `check_deps`（依存グラフ計測）と `list_build_scripts`（TASK-3.2a: build.rs
+/// 保有クレート列挙）の双方が同じ `cargo metadata` 出力を必要とするための共有層。
+/// [`build_graph`] は依存グラフ用に、`list_build_scripts::collect_build_script_flags`
+/// は `packages[].targets[]` 用に、同一の [`Json`] 値をそれぞれ別の視点で参照する
+/// （`cargo metadata` の実行・パースを 1 回に集約し、Bugbot 指摘「metadata rerun
+/// per package」と同種の重複実行を避ける）。
+pub(crate) fn fetch_metadata_json() -> Result<Json, CheckDepsError> {
+    let output = run_cargo_metadata()?;
+    parse(&output).map_err(CheckDepsError::InvalidJson)
+}
+
 /// `cargo metadata` を 1 度だけ実行して [`DepGraph`] を構築する。
 ///
 /// 複数パッケージを計測する場合は本関数を 1 回だけ呼び、得たグラフを
@@ -550,8 +594,7 @@ fn dfs_depth(
 /// 無駄な重複処理であり、CI での複数クレート計測時に顕著な非効率を生む
 /// （Bugbot 指摘: metadata rerun per package）。
 pub fn fetch_dep_graph() -> Result<DepGraph, CheckDepsError> {
-    let output = run_cargo_metadata()?;
-    let metadata = parse(&output).map_err(CheckDepsError::InvalidJson)?;
+    let metadata = fetch_metadata_json()?;
     build_graph(&metadata)
 }
 
