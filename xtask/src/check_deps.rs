@@ -308,6 +308,12 @@ fn host_triple() -> Result<String, CheckDepsError> {
 /// cargo 自身に解決させてグラフから除外する。これを付けない場合、ホスト以外の
 /// プラットフォーム向け依存が残留し件数・深さが PoC-3 のホスト限定計測より
 /// 過大に出て REQ-3 判定を誤らせる（Bugbot 指摘: cross-platform deps inflate counts）。
+///
+/// `--locked` を付与し、`Cargo.toml` と `Cargo.lock` に drift がある場合は
+/// レジストリ解決をやり直さずエラーで停止する。これを付けないと `cargo metadata`
+/// が `Cargo.lock` を暗黙に書き換え、コミット済みの依存集合ではなく再解決後の
+/// グラフを計測してしまい REQ-3 判定の対象がずれる
+/// （Bugbot 指摘: metadata run omits locked mode）。
 fn run_cargo_metadata() -> Result<String, CheckDepsError> {
     let cargo_bin = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
     let target = host_triple()?;
@@ -318,6 +324,7 @@ fn run_cargo_metadata() -> Result<String, CheckDepsError> {
             "1",
             "--filter-platform",
             &target,
+            "--locked",
         ])
         .output()
         .map_err(|e| CheckDepsError::CommandFailed(e.to_string()))?;

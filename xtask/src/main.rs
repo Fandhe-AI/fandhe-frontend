@@ -29,11 +29,16 @@ fn main() -> ExitCode {
         Some(other) => {
             eprintln!("xtask: unknown subcommand `{other}`");
             print_usage();
-            ExitCode::FAILURE
+            // `check-deps` の引数不備（`--package` 不足等）は終了コード 2 を
+            // 返す契約になっており、サブコマンド自体が不明・未指定の場合も
+            // 同じ「usage エラー」区分として揃える。ExitCode::FAILURE (1) の
+            // ままだと呼び出し元が判定失敗（1）と usage エラー（2）を区別
+            // できない（Bugbot 指摘: wrong exit code for usage errors）。
+            ExitCode::from(2)
         }
         None => {
             print_usage();
-            ExitCode::FAILURE
+            ExitCode::from(2)
         }
     }
 }
