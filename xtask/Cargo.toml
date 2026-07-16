@@ -1,0 +1,13 @@
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2021"
+description = "xtask: CI 計測タスク（依存グラフ上限判定など）を実行する開発者用ツール。配布物には含めない。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# REQ-3 / coding-rust.md: 依存クレートの追加はユーザー承認が必須。
+# 自動運転（承認取得不可）のため既定は「追加しない」側に倒し、std のみで実装する。
+[dependencies]
+
+[dev-dependencies]
