@@ -42,9 +42,10 @@ EOF
   chmod +x "${bin_dir}/npm"
 }
 
+# 各ケース共通のセットアップ・実行・後始末をまとめる。
+# 呼び出し元へは "tmp_dir|log_file|exit_code" を標準出力で返す
+# （tmp_dir はケース側で検証・削除の責任を持つ）。
 run_case() {
-  local case_name="$1"
-  shift
   local tmp_dir
   tmp_dir="$(mktemp -d)"
   local bin_dir="${tmp_dir}/bin"
@@ -60,19 +61,14 @@ run_case() {
     "$install_sh" "$@"
   ) > "${tmp_dir}/stdout.log" 2> "${tmp_dir}/stderr.log" || exit_code=$?
 
-  echo "${tmp_dir}|${log_file}|${exit_code}"
+  echo "${tmp_dir}|${log_file}|${project_dir}|${exit_code}"
 }
 
 # --- ケース1: package-lock.json なし → npm install --ignore-scripts ---
 {
-  tmp_dir="$(mktemp -d)"
-  bin_dir="${tmp_dir}/bin"
-  log_file="${tmp_dir}/npm.log"
-  project_dir="${tmp_dir}/project"
-  mkdir -p "$project_dir"
-  setup_fake_npm "$bin_dir" "$log_file"
-  exit_code=0
-  (PATH="${bin_dir}:${PATH}" "$install_sh" --dir "$project_dir") >/dev/null 2>&1 || exit_code=$?
+  case1_dir="$(mktemp -d)"
+  result="$(run_case --dir "$case1_dir")"
+  IFS='|' read -r tmp_dir log_file _ exit_code <<< "$result"
 
   if [[ $exit_code -eq 0 ]] && grep -q "^ARGS:install --ignore-scripts$" "$log_file"; then
     pass "case1: npm install --ignore-scripts invoked without lock file"
@@ -85,82 +81,64 @@ run_case() {
   else
     fail "case1: npm_config_ignore_scripts was not true in npm environment"
   fi
-  rm -rf "$tmp_dir"
+  rm -rf "$tmp_dir" "$case1_dir"
 }
 
 # --- ケース2: package-lock.json あり → npm ci --ignore-scripts ---
 {
-  tmp_dir="$(mktemp -d)"
-  bin_dir="${tmp_dir}/bin"
-  log_file="${tmp_dir}/npm.log"
-  project_dir="${tmp_dir}/project"
-  mkdir -p "$project_dir"
+  project_dir="$(mktemp -d)"
   echo '{}' > "${project_dir}/package-lock.json"
-  setup_fake_npm "$bin_dir" "$log_file"
-  exit_code=0
-  (PATH="${bin_dir}:${PATH}" "$install_sh" --dir "$project_dir") >/dev/null 2>&1 || exit_code=$?
+  result="$(run_case --dir "$project_dir")"
+  IFS='|' read -r tmp_dir log_file _ exit_code <<< "$result"
 
   if [[ $exit_code -eq 0 ]] && grep -q "^ARGS:ci --ignore-scripts$" "$log_file"; then
     pass "case2: npm ci --ignore-scripts invoked when package-lock.json present"
   else
     fail "case2: expected 'npm ci --ignore-scripts' (exit=$exit_code, log=$(cat "$log_file" 2>/dev/null || echo none))"
   fi
-  rm -rf "$tmp_dir"
+  rm -rf "$tmp_dir" "$project_dir"
 }
 
 # --- ケース3: 追加パッケージ指定 → npm install --ignore-scripts -- <spec>... ---
 {
-  tmp_dir="$(mktemp -d)"
-  bin_dir="${tmp_dir}/bin"
-  log_file="${tmp_dir}/npm.log"
-  project_dir="${tmp_dir}/project"
-  mkdir -p "$project_dir"
-  setup_fake_npm "$bin_dir" "$log_file"
-  exit_code=0
-  (PATH="${bin_dir}:${PATH}" "$install_sh" --dir "$project_dir" left-pad@1.3.0) >/dev/null 2>&1 || exit_code=$?
+  case3_dir="$(mktemp -d)"
+  result="$(run_case --dir "$case3_dir" left-pad@1.3.0)"
+  IFS='|' read -r tmp_dir log_file _ exit_code <<< "$result"
 
   if [[ $exit_code -eq 0 ]] && grep -q "^ARGS:install --ignore-scripts -- left-pad@1.3.0$" "$log_file"; then
     pass "case3: package spec passed through with --ignore-scripts"
   else
     fail "case3: expected package spec install (exit=$exit_code, log=$(cat "$log_file" 2>/dev/null || echo none))"
   fi
-  rm -rf "$tmp_dir"
+  rm -rf "$tmp_dir" "$case3_dir"
 }
 
 # --- ケース4: --ignore-scripts=false 等の迂回フラグ → 非0終了・npm 未呼び出し ---
 for bypass_flag in "--ignore-scripts=false" "--no-ignore-scripts" "--foreground-scripts" "--unknown-flag"; do
-  tmp_dir="$(mktemp -d)"
-  bin_dir="${tmp_dir}/bin"
-  log_file="${tmp_dir}/npm.log"
-  project_dir="${tmp_dir}/project"
-  mkdir -p "$project_dir"
-  setup_fake_npm "$bin_dir" "$log_file"
-  exit_code=0
-  (PATH="${bin_dir}:${PATH}" "$install_sh" --dir "$project_dir" "$bypass_flag") >/dev/null 2>&1 || exit_code=$?
+  case4_dir="$(mktemp -d)"
+  result="$(run_case --dir "$case4_dir" "$bypass_flag")"
+  IFS='|' read -r tmp_dir log_file _ exit_code <<< "$result"
 
   if [[ $exit_code -ne 0 ]] && [[ ! -s "$log_file" ]]; then
     pass "case4: '$bypass_flag' rejected with non-zero exit and npm not invoked"
   else
     fail "case4: '$bypass_flag' should be rejected (exit=$exit_code, log_exists=$(test -s "$log_file" && echo yes || echo no))"
   fi
-  rm -rf "$tmp_dir"
+  rm -rf "$tmp_dir" "$case4_dir"
 done
 
 # --- ケース5: --dir 不正（存在しないパス）→ 非0終了 ---
 {
-  tmp_dir="$(mktemp -d)"
-  bin_dir="${tmp_dir}/bin"
-  log_file="${tmp_dir}/npm.log"
-  setup_fake_npm "$bin_dir" "$log_file"
-  exit_code=0
-  (PATH="${bin_dir}:${PATH}" "$install_sh" --dir "${tmp_dir}/does-not-exist") >/dev/null 2>&1 || exit_code=$?
+  base_dir="$(mktemp -d)"
+  result="$(run_case --dir "${base_dir}/does-not-exist")"
+  IFS='|' read -r tmp_dir _ _ exit_code <<< "$result"
 
   if [[ $exit_code -ne 0 ]]; then
     pass "case5: nonexistent --dir rejected with non-zero exit"
   else
     fail "case5: nonexistent --dir should be rejected"
   fi
-  rm -rf "$tmp_dir"
+  rm -rf "$tmp_dir" "$base_dir"
 }
 
 echo ""
