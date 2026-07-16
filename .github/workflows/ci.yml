@@ -1,0 +1,42 @@
+name: CI
+
+# TASK-1.2b（#10）: XSS 回帰テスト（REQ-1）を含む Rust テスト CI の新設。
+# fmt / clippy / xtask check-deps / forbid(unsafe_code) 検証の CI 組み込みは
+# 別タスク（TASK-2.1・TASK-3.1c 系）のスコープであり、本ワークフローには
+# 含めない（out-of-scope-tracking.md に従い切り出し先を PR 本文に記載する）。
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+# 最小権限: このワークフローはテスト実行のみを行い、リポジトリへの書き込み
+# ・シークレット参照は不要なため contents: read のみを付与する。
+permissions:
+  contents: read
+
+# 同一 ref に対する古い実行を新しい push でキャンセルし、CI リソースの
+# 浪費を防ぐ（PR への連続 push で滞留させない）。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Rust workspace tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2。docs/spec/ サブモジュールはテストに不要なため
+        # submodules: false でチェックアウト面を最小化する（サプライチェーン対策）。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+
+      - name: XSS regression tests (REQ-1)
+        # REQ-1（既定エスケープ）の受け入れ基準を担保するゲート。
+        # SSR/SSG/CSR 経路の XSS 回帰テストを独立ステップとして可視化する。
+        run: cargo test -p rws-core --test xss_escape --locked
+
+      - name: Workspace tests
+        run: cargo test --workspace --locked
