@@ -43,9 +43,14 @@ jobs:
       - name: Run xtask check-deps
         # xtask check-deps の終了コードをそのまま CI の成否に伝播させる（fail-closed）。
         # set -o pipefail を明示し、tee 経由でも cargo run の終了コードが失われないようにする。
+        # `--locked` を付与し、この外側の cargo run が Cargo.lock を書き換えないことを保証する。
+        # 内部の cargo metadata（xtask/src/check_deps.rs）も --locked で計測しており、
+        # ここで --locked を外すとビルド時に Cargo.toml / Cargo.lock の drift で
+        # ロックファイルが書き換わり得て、計測対象と実際にビルドされたグラフが
+        # 一致しなくなる（fail-closed の前提が崩れる）ため必須。
         run: |
           set -o pipefail
-          cargo run -p xtask -- check-deps --package rws-core --package xtask | tee deps-check.log
+          cargo run --locked -p xtask -- check-deps --package rws-core --package xtask | tee deps-check.log
 
       - name: Publish summary
         if: always()
