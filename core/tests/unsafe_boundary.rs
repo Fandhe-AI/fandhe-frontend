@@ -48,14 +48,15 @@ fn workspace_root() -> PathBuf {
 /// TOML パーサを追加すると REQ-3（依存グラフ上限）・core 外部依存ゼロの
 /// 監査対象が増えるため、本テストでは正規表現・TOML クレートに頼らず
 /// `members = [...]` 行を文字列処理のみで読み取る。
+/// キーの探索は `find_members_key` により行頭一致で行い、
+/// `default-members` 等の複合キーへの部分文字列誤マッチを避ける。
 fn workspace_members() -> Vec<String> {
     let root = workspace_root();
     let manifest = fs::read_to_string(root.join("Cargo.toml"))
         .expect("workspace ルート Cargo.toml の読み取りに失敗した");
 
-    let start = manifest
-        .find("members")
-        .expect("[workspace] members が Cargo.toml に見つからない");
+    let start =
+        find_members_key(&manifest).expect("[workspace] members キーが Cargo.toml に見つからない");
     let after = &manifest[start..];
     let open = after
         .find('[')
@@ -69,6 +70,27 @@ fn workspace_members() -> Vec<String> {
         .map(|s| s.trim().trim_matches('"').trim_matches('\'').to_string())
         .filter(|s| !s.is_empty())
         .collect()
+}
+
+/// `members` キー（`default-members` 等、前方に別の文字が連結したキーは除外）が
+/// 行頭（前後空白許容）から始まり、直後（空白を挟んでよい）に `=` が続く箇所の
+/// バイトオフセットを返す。
+///
+/// 単純な部分文字列探索（`str::find("members")`）では `default-members = [...]`
+/// のような行にも誤ってマッチしてしまうため、行単位で先頭一致を確認する。
+fn find_members_key(manifest: &str) -> Option<usize> {
+    let mut offset = 0;
+    for line in manifest.split_inclusive('\n') {
+        let trimmed_start = line.trim_start();
+        let leading_ws = line.len() - trimmed_start.len();
+        if let Some(rest) = trimmed_start.strip_prefix("members") {
+            if rest.trim_start().starts_with('=') {
+                return Some(offset + leading_ws);
+            }
+        }
+        offset += line.len();
+    }
+    None
 }
 
 /// 指定ディレクトリ配下の `*.rs` ファイルを再帰列挙する（シンボリックリンクは辿らない）。
@@ -146,6 +168,9 @@ fn member_dir(root: &Path, member: &str) -> PathBuf {
 ///
 /// REQ-2 の境界不変条件を回帰的に担保するテスト。`#![forbid(unsafe_code)]` は
 /// クレート内で override 不能なため、本チェックのみで unsafe 不在の強い保証になる。
+/// `//!` ドキュメンテーションコメント中に同一文字列が書かれているだけの
+/// 偽陽性を避けるため、コメント除去後のソース（`strip_comments`）に対して
+/// 実際の属性構文（行頭で `#![forbid(unsafe_code)]` が閉じている）を確認する。
 /// wasm 系クレート追加時は `UNSAFE_ALLOWED_MEMBERS` を更新すること。
 #[test]
 fn safe_domain_crates_forbid_unsafe_code() {
@@ -168,11 +193,26 @@ fn safe_domain_crates_forbid_unsafe_code() {
         let src = fs::read_to_string(root_file)
             .unwrap_or_else(|e| panic!("{root_file:?} の読み取りに失敗した: {e}"));
         assert!(
-            src.contains("#![forbid(unsafe_code)]"),
+            contains_forbid_unsafe_code_attribute(&src),
             "safe 域クレート `{member}` のクレートルート {root_file:?} に \
-             `#![forbid(unsafe_code)]` が見つからない。REQ-2 違反の可能性がある"
+             実際の属性としての `#![forbid(unsafe_code)]` が見つからない \
+             （コメント内の言及のみは無効）。REQ-2 違反の可能性がある"
         );
     }
+}
+
+/// コメントを除去したソースの各行が `#![forbid(unsafe_code)]` 属性
+/// （空白の入り方に多少の揺れがあっても許容）そのものであるかを検証する。
+///
+/// `strip_comments` で `//` `/* */` コメントを除去した上で判定するため、
+/// `//! ... #![forbid(unsafe_code)] ...` のようなドキュメンテーションコメント
+/// 内の文字列の言及だけでは true にならない（クレートルート属性の実効性を担保する）。
+fn contains_forbid_unsafe_code_attribute(src: &str) -> bool {
+    let stripped = strip_comments(src);
+    stripped.lines().any(|line| {
+        let normalized: String = line.chars().filter(|c| !c.is_whitespace()).collect();
+        normalized == "#![forbid(unsafe_code)]"
+    })
 }
 
 /// 補助チェック: safe 域クレートのソース全体（コメント除去後）に
