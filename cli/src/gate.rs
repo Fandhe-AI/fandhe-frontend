@@ -351,7 +351,7 @@ fn default_escape_check(manifest: &StructureManifest, project_dir: &Path) -> Gat
     let output = if passed {
         "no unreviewed raw_html() calls found".to_string()
     } else {
-        violations.join("\n")
+        truncate_output(&violations.join("\n"))
     };
     GateCheck {
         name: "default_escape_check",
@@ -363,15 +363,29 @@ fn default_escape_check(manifest: &StructureManifest, project_dir: &Path) -> Gat
 /// `dir` 配下（再帰）の `*.rs` ファイルを走査する。I/O エラー（読み取り不可等）は
 /// 違反として計上せず黙って読み飛ばす想定外パスとし、スキャナ自体の堅牢性を
 /// 優先する（`fw gate` 全体としては他チェックの failed で fail-closed が働く）。
+///
+/// シンボリックリンク（ディレクトリ・ファイルいずれも）は辿らず無条件にスキップ
+/// する。`path.is_dir()`（メタデータ経由でリンクを辿る）ではなく
+/// `DirEntry::file_type()` の `is_symlink()` を明示チェックすることで、
+/// 自己参照リンクによる無限再帰（fail-closed の実行自体を阻害する DoS）と、
+/// プロジェクト外を指すリンクを辿ってのパストラバーサル（`.rs` ファイル内容が
+/// 絶対パス付きで JSON レポートへ漏えいする経路）を防ぐ。`cli/src/routes.rs`
+/// の `list_rs_files_inner`（レビュー指摘 #127 対応）と同一方針（OWASP A01/A05）。
 fn scan_dir_for_violations(dir: &Path, violations: &mut Vec<String>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
     for entry in entries.flatten() {
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if file_type.is_symlink() {
+            continue;
+        }
         let path = entry.path();
-        if path.is_dir() {
+        if file_type.is_dir() {
             scan_dir_for_violations(&path, violations);
-        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
+        } else if file_type.is_file() && path.extension().and_then(|e| e.to_str()) == Some("rs") {
             scan_file_for_violations(&path, violations);
         }
     }
@@ -640,6 +654,110 @@ mod tests {
             check.passed,
             "role=core directories must be excluded from the scan (core owns raw_html itself)"
         );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn scan_dir_for_violations_does_not_follow_symlinked_directory() {
+        // レビュー指摘: `src/loop -> src/` のような自己参照シンボリックリンクを
+        // 辿ると無限再帰でスタックオーバーフローする（fail-closed 自体を阻害する
+        // DoS）。`is_symlink()` による明示除外でリンクを一律スキップすることを
+        // 検証する。
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-escape-symlink-dir-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        // シンボリックリンクの走査先に violation を仕込み、辿られていれば
+        // 検出されてしまうことをもってテストの有効性を担保する。
+        let outside = std::env::temp_dir().join(format!(
+            "fw-gate-test-escape-symlink-outside-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&outside);
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::write(outside.join("lib.rs"), "raw_html(x);\n").unwrap();
+        std::os::unix::fs::symlink(&outside, dir.join("link_to_outside")).unwrap();
+        // 自己参照リンクも仕込み、無限再帰を誘発しないことを確認する。
+        std::os::unix::fs::symlink(&dir, dir.join("self_link")).unwrap();
+
+        let mut violations = Vec::new();
+        scan_dir_for_violations(&dir, &mut violations);
+        assert!(
+            violations.is_empty(),
+            "symlinked directory must not be followed: found {violations:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(&outside);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn scan_dir_for_violations_does_not_follow_symlinked_file() {
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-escape-symlink-file-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = std::env::temp_dir().join(format!(
+            "fw-gate-test-escape-symlink-target-{}.rs",
+            std::process::id()
+        ));
+        std::fs::write(&target, "raw_html(x);\n").unwrap();
+        std::os::unix::fs::symlink(&target, dir.join("link.rs")).unwrap();
+
+        let mut violations = Vec::new();
+        scan_dir_for_violations(&dir, &mut violations);
+        assert!(
+            violations.is_empty(),
+            "symlinked file must not be followed: found {violations:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_file(&target);
+    }
+
+    #[test]
+    fn default_escape_check_truncates_large_violation_output() {
+        // Low 指摘: escape check の出力も他チェック（type_check/lint/test/policy）
+        // と同様に `truncate_output` を通し、大量の未レビュー raw_html() 呼び出しが
+        // ある場合でも JSON レポートが際限なく肥大化しないことを保証する。
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-escape-truncate-{}",
+            std::process::id()
+        ));
+        let app_src = dir.join("app").join("src");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&app_src).unwrap();
+        // 1 呼び出しあたりの違反メッセージは十分短いため、大量の行を書き込んで
+        // 合計文字数が OUTPUT_TRUNCATE_CHARS を超えるようにする。
+        let mut content = String::new();
+        for _ in 0..(OUTPUT_TRUNCATE_CHARS / 4 + 10) {
+            content.push_str("raw_html(x);\n");
+        }
+        std::fs::write(app_src.join("lib.rs"), content).unwrap();
+
+        let manifest = StructureManifest {
+            version: 1,
+            directories: vec![structure::DirectoryEntry {
+                name: "app".to_string(),
+                role: Role::Component,
+                crate_name: Some("rws-app".to_string()),
+                description: "test".to_string(),
+                depends_on: Vec::new(),
+                allowed_dependents: Vec::new(),
+            }],
+            routing: None,
+        };
+
+        let check = default_escape_check(&manifest, &dir);
+        assert!(!check.passed);
+        assert!(check.output.chars().count() <= OUTPUT_TRUNCATE_CHARS);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
