@@ -22,6 +22,7 @@ PoC-2 の脅威モデルの結論は次のとおりです。コア（`rws-core` 
 | `app` / `server`（rws-app / rws-server） | 原則 `unsafe` 禁止（safe Rust で実装） | 未作成クレート。SSR/SSG/ルーティングはアプリケーション層であり、FFI 境界を持たない前提。作成時に `forbid(unsafe_code)` の要否を判断し本表へ追記する |
 | `wasm-client`（未作成） | フレームワーク自作コードは safe Rust。`unsafe` は wasm-bindgen 等の FFI 依存クレート内部・自動生成グルーコードに限定して許容 | ブラウザ DOM とのバインディングは `wasm-bindgen` の生成コードに委譲し、自作コード側で `unsafe` を新規に書かない方針とする |
 | `wasm-full`（rws-wasm-full。TASK-11.2b/#75 で作成済み） | フレームワーク自作コードは safe Rust（`wasm-full/src/` に自作 `unsafe` ブロック 0 件）。`unsafe` は `wasm-bindgen`/`web-sys` の FFI 依存クレート内部・自動生成グルーコードに限定して許容 | イベント委譲配線（`wasm-full/src/events.rs`）は `wasm_bindgen::closure::Closure::forget`（safe API）でリスナーを保持する方式を採り、`unsafe` ブロックを要しない。自作コードへの `#![forbid(unsafe_code)]` 設定はクレート雛形の統合（TASK-11.2d/#77）側で `mount()`/`hydrate()` 実装と合わせて判断する |
+| `wasm-thin`（rws-wasm-thin。TASK-11.3a/#79 で作成済み） | フレームワーク自作コードは safe Rust（`wasm-thin/src/` に自作 `unsafe` ブロック 0 件）。`unsafe` は `wasm-bindgen` の FFI 依存クレート内部・自動生成グルーコードに限定して許容。`web-sys` には依存しない（DOM 操作・イベント配線は JS グルー側の責務であり、WASM 側は文字列 in・文字列 out の純粋計算に限定する設計、REQ-11） | 汎用層 `ThinRuntime<C: Component>`（`wasm-thin/src/lib.rs`）は `wasm-bindgen`/`web-sys` 非依存の純粋 Rust。境界層 `demo` モジュールの `#[wasm_bindgen]` エクスポート（`thread_local!` + `RefCell` で状態保持）も自作 `unsafe` ブロックを要しない。`RUSTFLAGS='-F unsafe_code' cargo check --workspace`／`cargo check -p rws-wasm-thin --target wasm32-unknown-unknown` のいずれも自作コード側の `#![forbid(unsafe_code)]` 相当の制約下で通過することを確認済み（`#![forbid(unsafe_code)]` の明示設定自体は wasm-bindgen 生成コードとの整合を将来 CI 強制時に判断、`wasm-full` と同方針・#155 参照） |
 
 未作成のクレートについては、作成時にこの表へ実際の `forbid` 設定・依存クレートの実態を追記すること
 （本ドキュメントを「計画中」のまま放置しない）。
@@ -35,6 +36,9 @@ PoC-2 の脅威モデルの結論は次のとおりです。コア（`rws-core` 
 未作成のため、インベントリは空です。`wasm-full`（rws-wasm-full）は TASK-11.2b（#75）で作成済みですが、
 `grep -rnE '\bunsafe\s*(fn|impl|trait|\{)' wasm-full/src/` の結果は 0 件であり、自作コード側の `unsafe`
 ブロックはありません（`wasm-bindgen`/`web-sys` の FFI 依存クレート内部・自動生成コードのみが対象、第 4 節参照）。
+`wasm-thin`（rws-wasm-thin）は TASK-11.3a（#79）で作成済みですが、
+`grep -rnE '\bunsafe\s*(fn|impl|trait|\{)' wasm-thin/src/` の結果も同様に 0 件です
+（`wasm-bindgen` の FFI 依存クレート内部・自動生成コードのみが対象。`web-sys` には依存しない）。
 
 ### 一覧テーブル雛形
 
