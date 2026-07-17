@@ -154,7 +154,13 @@ jobs:
           # パストラバーサル拒否（routes.rs の既存単体テスト保証を配布バイナリ
           # 経路でも E2E 確認する、security.md A01）。--fail は 4xx/5xx で
           # 非 0 終了するため、ここでは意図的に付けず status を検査する。
-          traversal_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+          # --path-as-is: curl はデフォルトでリクエスト前に URL パスを正規化し
+          # `/static/../Cargo.toml` を `/Cargo.toml` に書き換えてしまう。これでは
+          # サーバー側のトラバーサル拒否ではなく単なる正規化後パス不在の 404 しか
+          # 検証できないため、`--path-as-is` で `../` を含む生パスをそのまま
+          # 送信し、サーバー実装（routes.rs）が拒否することを確認する
+          # （Cursor Bugbot 指摘 #256 対応）。
+          traversal_status="$(curl --silent --path-as-is --output /dev/null --write-out '%{http_code}' \
             http://127.0.0.1:3100/static/../Cargo.toml)"
           if [ "${traversal_status}" != "404" ]; then
             echo "::error::expected 404 for path traversal attempt, got ${traversal_status}" >&2
