@@ -17,9 +17,14 @@
 # Dockerfile の docker build・イメージサイズ計測は CI で継続実測される
 # 運用（#101 で startup failure・COPY 列挙不整合を解消し実効化済み）。
 #
-# WASM 資産のコンテナ内再ビルド統合（TASK-10.3・#114）は本 Dockerfile の
-# スコープ外。static/ はホスト側で事前ビルド済みの資産をそのまま埋め込む
-# 前提とする。
+# WASM 資産のコンテナ内再ビルド統合（TASK-10.3・#114、設計は
+# docs/docker-wasm-build-stage.md）はビルダーステージへ組み込み済み。
+# `COPY static ./static` は手書きアセット（CSS 等）のみを対象とし、
+# `/static/wasm/*`（WASM 生成物）はビルドコンテキストへ含めない。下段の
+# `cargo build -p rws-dist-server` 実行時に `dist-server/build.rs`
+# （TASK-10.2b・#110）がネスト `cargo build --target
+# wasm32-unknown-unknown` + `wasm-bindgen` を都度実行して `OUT_DIR` 側で
+# 再生成し埋め込む（ホスト側事前ビルド成果物には依存しない不変条件）。
 
 # --- build stage ---
 # バージョンをマイナーまで固定するだけでなく、レジストリ側でのタグ再割り当て
@@ -31,8 +36,13 @@
 # 更新時は同コマンドで最新ダイジェストを再取得しタグと合わせて差し替える。
 FROM rust:1.96-slim-bookworm@sha256:e18a79fc84dfcfc3ab5ba72290398a644c135c97eaa881447fddc354ee4701a3 AS builder
 
+# curl・ca-certificates は wasm-bindgen-cli の固定 URL からのダウンロードと
+# TLS 検証に必要（rust:1.96-slim-bookworm には既定で含まれない）。
+# builder ステージ限定の追加であり、最終イメージ（FROM scratch 以降）へは
+# マルチステージビルドの性質上漏れないため攻撃面は増えない（§7 セキュリティ
+# 考慮事項、docs/docker-wasm-build-stage.md 参照）。
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends musl-tools pkg-config \
+    && apt-get install -y --no-install-recommends musl-tools pkg-config curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # ビルドホストのアーキテクチャに合わせて musl ターゲットを切り替える
@@ -45,14 +55,41 @@ RUN case "$(uname -m)" in \
     esac \
     && rustup target add "$(cat /musl_target)"
 
-# TASK-10.2b（#110）: dist-server/build.rs は既定で WASM ビルドステージ
-# （ネスト cargo build --target wasm32-unknown-unknown + wasm-bindgen）を実行する。
-# 本ビルダーステージには wasm32 ターゲット・wasm-bindgen-cli を導入しておらず、
-# 導入するとイメージビルド時間・攻撃面（サプライチェーン）が増える。
-# コンテナ内 WASM 再ビルドの統合は TASK-10.3（#114）のスコープであり、それまでの
-# 暫定措置として本ステージでは明示的にオプトアウトする（static/ はホスト側で
-# 事前ビルド済みの資産をそのまま埋め込む前提、本ファイル冒頭コメント参照）。
-ENV RWS_WASM_BUILD=0
+# TASK-10.3b（#116、設計は docs/docker-wasm-build-stage.md §3.1）:
+# wasm32-unknown-unknown はピュア WASM ターゲットでありホストアーキ非依存の
+# ため、上段の musl ターゲット判定と異なりアーキ分岐は不要。
+RUN rustup target add wasm32-unknown-unknown
+
+# wasm-bindgen-cli をバージョン固定 + SHA256 チェックサム検証付きで導入する
+# （.github/workflows/ci.yml の test ジョブと同一パターン、A08 サプライ
+# チェーン対策）。dist-server/build.rs::expected_wasm_bindgen_version が
+# Cargo.lock 解決済み wasm-bindgen クレートとのバージョン完全一致を要求し
+# フェイルクローズで検証するため、ここで固定するバージョンは Cargo.lock の
+# wasm-bindgen エントリと同期させる必要がある（更新時は ci.yml の
+# WASM_BINDGEN_VERSION と本ブロックの x86_64/aarch64 双方の値を同時に
+# 更新すること）。ホストアーキごとに archive・チェックサムが異なるため、
+# 上段と同じ uname -m 判定軸でアーキ分岐させる。対応外アーキはフェイル
+# クローズ（署名未検証バイナリを黙って使わない）。
+RUN set -eux; \
+    WASM_BINDGEN_VERSION="0.2.126"; \
+    case "$(uname -m)" in \
+        x86_64) \
+            WASM_BINDGEN_ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"; \
+            WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"; \
+            ;; \
+        aarch64) \
+            WASM_BINDGEN_ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-aarch64-unknown-linux-musl.tar.gz"; \
+            WASM_BINDGEN_SHA256="2245120254a9f6c9a9adf3601f3d52bb31309219e9ceab7696e74e24885c440a"; \
+            ;; \
+        *) \
+            echo "unsupported arch for wasm-bindgen-cli: $(uname -m)" && exit 1 ;; \
+    esac; \
+    curl -sSfL -o "/tmp/${WASM_BINDGEN_ARCHIVE}" \
+        "https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${WASM_BINDGEN_ARCHIVE}"; \
+    echo "${WASM_BINDGEN_SHA256}  /tmp/${WASM_BINDGEN_ARCHIVE}" | sha256sum -c -; \
+    tar xzf "/tmp/${WASM_BINDGEN_ARCHIVE}" -C /tmp; \
+    install -m 755 "/tmp/wasm-bindgen-${WASM_BINDGEN_VERSION}-$(uname -m)-unknown-linux-musl/wasm-bindgen" /usr/local/bin/wasm-bindgen; \
+    rm -rf "/tmp/${WASM_BINDGEN_ARCHIVE}" "/tmp/wasm-bindgen-${WASM_BINDGEN_VERSION}-$(uname -m)-unknown-linux-musl"
 
 WORKDIR /work
 
@@ -79,7 +116,13 @@ COPY cli ./cli
 COPY static ./static
 
 # --locked で Cargo.lock 固定ビルドを強制し、依存解決の非決定性を排除する
-# （REQ-3・security.md のサプライチェーン対策）。
+# （REQ-3・security.md のサプライチェーン対策）。この単一コマンドの内部で
+# `dist-server/build.rs`（TASK-10.2b・#110）が既定（RWS_WASM_BUILD 未設定＝
+# 有効）で発火し、ネスト `cargo build -p rws-wasm-full --target
+# wasm32-unknown-unknown` + `wasm-bindgen` を実行して WASM 資産を
+# `OUT_DIR` へ生成・埋め込む。`docs/wasm-build-integration.md` §7 が定義する
+# 「単一コマンドでネイティブ + WASM 双方の成果物を生成する」構成をここで
+# 満たす（`ENV RWS_WASM_BUILD=0` によるオプトアウトは行わない）。
 RUN cargo build --release --locked --target "$(cat /musl_target)" -p rws-dist-server \
     && strip "target/$(cat /musl_target)/release/dist-server" \
     && cp "target/$(cat /musl_target)/release/dist-server" /dist-server-out

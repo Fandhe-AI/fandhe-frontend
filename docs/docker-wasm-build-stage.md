@@ -21,6 +21,18 @@
 > スコープ外（1 タスク 1 論理変更の原則）とし、当該ファイルには手を加えません。
 > #109・#111 のマージ後、本書と実装内容に乖離が生じた場合は実装・設計確定書を
 > 正として本書を追随更新してください。
+>
+> **TASK-10.3b（#116）実装時点（2026-07-17）の追随**: #109・#111 は
+> いずれも CLOSED（マージ済み）となり、§3.1 の設計前提（`build.rs` 方式の
+> 転換なし・キャッシュ制御の精緻化は本タスクの正しさに無関係）はそのまま
+> 有効であることを再確認済みです。§3.1 の設計どおり `Dockerfile` の
+> builder ステージを拡張し（`rustup target add wasm32-unknown-unknown`・
+> `wasm-bindgen-cli` バージョン固定 + SHA256 検証付き導入・`ENV
+> RWS_WASM_BUILD=0` の削除）、実装が完了しています。aarch64 archive は
+> 実在を確認できたため §3.1 のフォールバック（aarch64 での
+> `RWS_WASM_BUILD=0` 維持）は不採用とし、両アーキで WASM ビルドステージを
+> 有効化しました。以降の §2.2・§5 の「未整備」「TASK-10.3b で追加」という
+> 記述は実装済みを表すよう更新しています。
 
 ## 1. 目的とトレーサビリティ
 
@@ -71,19 +83,17 @@ TASK-10.3a の設計は「ゼロから WASM ビルドを Docker に組み込む�
   明示的に無効化できます（wasm ツールチェーン未整備環境向けの逃げ道。既定は
   有効＝フェイルクローズ）。
 
-### 2.2 Docker 側の現状（未整備）
+### 2.2 Docker 側の現状（TASK-10.3b で実装済み）
 
-- 現行 `Dockerfile` の builder ステージは `ENV RWS_WASM_BUILD=0` により
-  WASM ビルドステージを**明示的にオプトアウト**しています。理由は
-  ヘッダコメントに明記のとおり、(a) wasm32 ターゲット・`wasm-bindgen-cli`
-  を builder ステージに未導入、(b) 導入するとイメージビルド時間・
-  サプライチェーン攻撃面が増える、の 2 点です。
-- したがって現行 Docker イメージの `static/` には WASM 成果物が含まれず、
-  `static/` はホスト側で事前ビルド済みの資産をそのまま埋め込む前提のままです
-  （`Dockerfile` 冒頭コメント）。
-- TASK-10.3b（#116）はこのオプトアウトを解除し、builder ステージ内で
-  WASM ビルドステージが実際に発火する状態を作る実装タスクです。本書は
-  その実装方針を確定させます。
+- TASK-10.3b（#116）の実装により、`Dockerfile` の builder ステージへ
+  `rustup target add wasm32-unknown-unknown`・`wasm-bindgen-cli`
+  （バージョン固定 + SHA256 検証付き、x86_64/aarch64 双方）を導入し、
+  `ENV RWS_WASM_BUILD=0` によるオプトアウトを削除しました。
+- これにより `cargo build -p rws-dist-server` 実行時に `build.rs` の
+  WASM ビルドステージが実際に発火し、コンテナ内で生成された WASM 資産が
+  `/static/wasm/*` として埋め込まれます。`Dockerfile` の
+  `COPY static ./static` は手書きアセットのみを対象とする不変条件は
+  維持されています（§3.1・§4 参照）。
 
 ### 2.3 参考実装: `.github/workflows/ci.yml`
 
@@ -244,15 +254,12 @@ WASM ビルド経路の 2 系統が並存し、`docs/wasm-build-integration.md` 
   rws-wasm-full --target wasm32-unknown-unknown --release` が追加実行される
   ため、Docker イメージビルド全体の所要時間が増加します。実測は
   TASK-10.3c（#117）のスコープとし、本書では見積りを行いません。
-- **`image-size.yml` のトリガー paths 追加（TASK-10.3b の実装項目）**:
-  現行 `.github/workflows/image-size.yml` の `paths` は
-  `core/** app/** server/** dist-server/** static/** xtask/**` 等を含みますが、
-  `wasm-full/**`・`wasm-thin/**`・`interactive/**` を含んでいません。
-  §3.1 の変更後は、これらのクレートの変更がコンテナ内 WASM 再ビルド経由で
-  最終イメージの内容（サイズ）に影響するようになるため、TASK-10.3b の
-  実装範囲として `image-size.yml` の `paths` にこの 3 パスを追加することを
-  明記します（本書はこの追加が必要であるという設計判断のみを記録し、
-  ワークフローファイル自体の変更は #116 のスコープです）。
+- **`image-size.yml` のトリガー paths（実装済み）**: `.github/workflows/
+  image-size.yml` の `paths` は本書執筆時点で既に `wasm-full/**`・
+  `wasm-thin/**`・`interactive/**` を含んでいることを実装時に確認しました
+  （TASK-9.3b（#103）以降の別変更で先行して追加済み）。§3.1 の変更に
+  より、これらのクレートの変更がコンテナ内 WASM 再ビルド経由で最終
+  イメージの内容（サイズ）に影響する、という設計判断そのものは変わりません。
 
 ## 6. 検証方法（TASK-10.3c への引き継ぎ事項）
 
