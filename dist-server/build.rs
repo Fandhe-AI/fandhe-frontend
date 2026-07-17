@@ -141,6 +141,15 @@ fn main() {
         "cargo:rerun-if-changed={}",
         workspace_root.join("core/src").display()
     );
+    // `Cargo.lock` の変更（wasm-bindgen 等の依存バージョン更新）も再実行
+    // トリガーに含める。これを漏らすと、ロックファイルのみ更新された場合に
+    // 本 build.rs が再実行されず、`expected_wasm_bindgen_version` が古い
+    // バージョン整合性チェックのまま `/static/wasm/*` に stale な WASM 成果物
+    // を埋め込み続けてしまう（Cursor Bugbot 指摘、PR #217 review 4719879204）。
+    println!(
+        "cargo:rerun-if-changed={}",
+        workspace_root.join("Cargo.lock").display()
+    );
     println!("cargo:rerun-if-env-changed=RWS_WASM_BUILD");
 }
 
