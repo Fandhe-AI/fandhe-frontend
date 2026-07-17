@@ -1,0 +1,192 @@
+name: x86_64 musl startup smoke (REQ-9)
+
+# TASK-9.3（イシュー #160）: PoC-4（docs/spec/03-poc/single-binary-distribution/README.md
+# 151 行目）は Apple Silicon 環境で実施されたため、musl 静的リンクの実測は
+# aarch64-unknown-linux-musl のみで、ルート Dockerfile（TASK-9.3a、#102）の
+# x86_64-unknown-linux-musl 分岐で生成したバイナリが実際に起動しレスポンスを
+# 返すかは未検証のまま残っていた。本ワークフローはその欠落（機能検証、性能では
+# ない）を埋める GitHub-hosted ubuntu-latest（= x86_64）ランナー上の CI として、
+# 「ビルドできる」だけでなく「単一バイナリが起動してレスポンスを返す」ことを
+# ホスト直接起動・コンテナ起動の双方で確認する。
+#
+# 役割分担:
+# - image-size.yml（#103）: 同じ Dockerfile を ubuntu-latest でビルドするが、
+#   目的は REQ-9 の 50MB サイズ判定のみで、コンテナを起動しない。本ワークフロー
+#   とは docker build のコストが重複するが、失敗時の原因切り分け（サイズ超過 vs
+#   起動不可）を明確にするため意図的に専用ワークフローとして分離する。
+# - #99（TASK-9.2a、isolated_run.rs）: cargo test レベルの外部ファイル非依存
+#   起動検証。本ワークフローはアーキテクチャ特化の CI スモーク（実バイナリ・
+#   実コンテナ）であり、対象レイヤーが異なるため重複させない。
+# - #114（TASK-10.3、コンテナ内 WASM 再ビルド）: スコープ外。Dockerfile の
+#   RWS_WASM_BUILD=0（ホスト側事前ビルド前提）は変更しない。
+#
+# aarch64 側の CI 実測・イメージサイズや起動時間の性能再検証は本イシューの
+# 対象外（イシュー本文で明示的に除外）。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    # image-size.yml（#103）と同一のパスフィルタ（Dockerfile の COPY 列挙 =
+    # workspace members と同期。member 変更が docker build を壊すケースを
+    # 本ワークフローでも検出できるようにする）に、本ファイル自身を加える。
+    paths:
+      - "Dockerfile"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "core/**"
+      - "interactive/**"
+      - "app/**"
+      - "server/**"
+      - "wasm-client/**"
+      - "wasm-full/**"
+      - "wasm-thin/**"
+      - "cli/**"
+      - "dist-server/**"
+      - "static/**"
+      - "xtask/**"
+      - ".dockerignore"
+      - ".github/workflows/musl-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: musl-smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  musl-smoke:
+    name: x86_64 musl startup smoke (REQ-9)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2（image-size.yml / ci.yml と同一 SHA に固定）。
+        # docs/spec サブモジュールは本検証に不要のため取得しない。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+
+      - name: Assert runner architecture is x86_64
+        # 本ワークフローの前提（Dockerfile の x86_64-unknown-linux-musl 分岐が
+        # 実行されること）が GitHub-hosted ランナーの仕様変更等で崩れていないか
+        # を明示的に確認する（fail-closed。前提が崩れたまま以降のステップが
+        # 意図しないアーキテクチャを検証してしまう事態を防ぐ）。
+        run: |
+          set -euo pipefail
+          arch="$(uname -m)"
+          if [ "$arch" != "x86_64" ]; then
+            echo "::error::expected x86_64 runner, got ${arch}" >&2
+            exit 1
+          fi
+
+      - name: Build docker image
+        # ビルダーコンテナ内の `uname -m` も x86_64 となり、Dockerfile の
+        # x86_64-unknown-linux-musl 分岐（未検証だった側）を確実に実行させる。
+        # レジストリ push・ログインは行わず、ジョブローカルタグのみを使う
+        # （image-size.yml と同一の運用、security.md）。
+        run: docker build -t rws-dist-server:musl-smoke .
+
+      - name: Extract binary and verify static musl linkage
+        # scratch イメージ内にはシェル・file・readelf が存在しないため、
+        # docker cp でホスト側へバイナリを取り出してから検査する。
+        # 「x86_64 かつ静的リンク」であることをアーキテクチャ・リンク方式の
+        # 両観点から確認し、次段のホスト直接起動が「たまたま動いた」のではなく
+        # 単一バイナリの性質として動くことを裏付ける。
+        run: |
+          set -euo pipefail
+          container_id="$(docker create rws-dist-server:musl-smoke)"
+          docker cp "${container_id}:/dist-server" ./dist-server-extracted
+          docker rm "${container_id}" >/dev/null
+          chmod +x ./dist-server-extracted
+
+          # rustc の musl ターゲットは既定で static-pie（position-independent
+          # な静的リンク）を生成するため、`file` の出力は "statically linked"
+          # ではなく "static-pie linked" になる（実測で確認済み）。両表記を
+          # 許容し、動的リンク（shared object 依存あり）ではないことのみを
+          # 厳密に確認する。
+          file ./dist-server-extracted | tee file-output.log
+          grep -Eq "static-pie linked|statically linked" file-output.log
+
+          readelf -h ./dist-server-extracted | tee readelf-output.log
+          grep -q "Advanced Micro Devices X86-64" readelf-output.log
+
+      - name: Host direct startup smoke
+        # musl 静的リンクのバイナリは glibc ホスト上でもそのまま起動できる
+        # ことが単一バイナリ配布（REQ-9）の中核価値であり、これを最も直接的に
+        # 証明するステップ。コンテナを介さずホストの ubuntu-latest ランナー上で
+        # 直接プロセスとして起動し、応答を確認してから終了させる。
+        run: |
+          set -euo pipefail
+          RWS_BIND_ADDR=127.0.0.1:3101 ./dist-server-extracted &
+          server_pid=$!
+          # GitHub Actions の run: は既定で `bash -eo pipefail` のため、curl が
+          # 失敗すると trap 以外のクリーンアップは実行されない。バックグラウンド
+          # プロセスの確実な回収には trap EXIT を使う（ephemeral なランナー上
+          # では必須ではないが、ジョブ内の他ステップに影響させないための保険）。
+          trap 'kill "${server_pid}" 2>/dev/null || true; wait "${server_pid}" 2>/dev/null || true' EXIT
+
+          curl --fail --silent --show-error \
+            --retry 30 --retry-delay 1 --retry-connrefused \
+            http://127.0.0.1:3101/ > /dev/null
+
+      - name: Container startup smoke
+        # Dockerfile が生成する scratch ベースの実コンテナとして起動し、
+        # ルーティング（routes.rs）の主要契約 — ページ応答・埋め込みアセット
+        # 配信・パストラバーサル拒否 — が配布バイナリ経路でも成立することを
+        # 確認する。ポート公開はランナーのループバック限定
+        # （0.0.0.0 を外部公開しない、security.md A05）。
+        run: |
+          set -euo pipefail
+          docker run -d --rm -p 127.0.0.1:3100:3100 --name rws-musl-smoke rws-dist-server:musl-smoke
+
+          # readiness ポーリング: listening ログが出るまで待つ（起動直後の
+          # 接続拒否と本物の失敗を区別するため curl 自体にも --retry を使う）。
+          curl --fail --silent --show-error --output /tmp/root.html --dump-header /tmp/root.headers \
+            --retry 30 --retry-delay 1 --retry-connrefused \
+            http://127.0.0.1:3100/
+          grep -qi "^content-type: text/html" /tmp/root.headers
+
+          curl --fail --silent --show-error --output /dev/null \
+            http://127.0.0.1:3100/static/view-transitions.js
+
+          # パストラバーサル拒否（routes.rs の既存単体テスト保証を配布バイナリ
+          # 経路でも E2E 確認する、security.md A01）。--fail は 4xx/5xx で
+          # 非 0 終了するため、ここでは意図的に付けず status を検査する。
+          traversal_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            http://127.0.0.1:3100/static/../Cargo.toml)"
+          if [ "${traversal_status}" != "404" ]; then
+            echo "::error::expected 404 for path traversal attempt, got ${traversal_status}" >&2
+            exit 1
+          fi
+
+          # 起動ログの固定文言は dist-server/src/main.rs の契約
+          # （`rws-dist-server: listening on {addr}` / `rws-dist-server:
+          # assets={mode}`）に依存する。release ビルドでは active_mode() が
+          # 常に AssetMode::Embedded を返すため assets=embedded 固定。この
+          # 文言を main.rs 側が変更する場合は本ワークフローの grep も追随
+          # させること（他クレートとの契約、code-comment-style.md）。
+          docker logs rws-musl-smoke > /tmp/container.log 2>&1
+          grep -q "listening on 0.0.0.0:3100" /tmp/container.log
+          grep -q "assets=embedded" /tmp/container.log
+
+      - name: Stop container
+        if: always()
+        # 起動スモークが途中で失敗しても、ランナー破棄前にコンテナを明示停止
+        # し残置させない（image-size.yml のジョブローカル運用と同様、
+        # レジストリ push なしでランナーの破棄とともに揮発させる方針を維持）。
+        run: docker stop rws-musl-smoke 2>/dev/null || true
+
+      - name: Publish smoke summary
+        # 固定文言の 1 行サマリのみを出力し、ランナー内部パス等の機微情報は
+        # 含めない（security.md A09）。前段のいずれかが失敗すればこのステップ
+        # 自体が実行されず job は red のままになる（`if: always()` にしない
+        # ことで「途中まで失敗したのに all PASS と表示される」矛盾を避ける）。
+        run: |
+          {
+            echo '## x86_64 musl startup smoke (REQ-9, issue #160)'
+            echo '```'
+            echo "x86_64-musl-smoke: build=PASS startup(host)=PASS startup(container)=PASS"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
