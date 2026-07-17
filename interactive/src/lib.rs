@@ -188,20 +188,32 @@ fn unescape_item(s: &str) -> String {
 }
 
 /// 項目一覧を [`ITEM_SEP`] 区切りの 1 文字列へエンコードする（サーバー側責務）。
+///
+/// 各項目の**前**に [`ITEM_SEP`] を 1 つ付与する方式を採る（項目間の区切りではなく
+/// 項目ごとの前置区切りとすることで、区切り文字の出現数が常に項目数と一致する）。
+/// これにより空リスト（出力 `""`）と「空文字列 1 件のみを含むリスト」（出力 `"\u{1f}"`）
+/// が異なるエンコードになり、[`decode_items`] との往復で区別できる
+/// （Bugbot 指摘: 旧実装は `join` 方式のため両者が `""` に衝突していた）。
 fn encode_items(items: &[String]) -> String {
     items
         .iter()
-        .map(|s| escape_item(s))
-        .collect::<Vec<_>>()
-        .join(&ITEM_SEP.to_string())
+        .map(|s| format!("{ITEM_SEP}{}", escape_item(s)))
+        .collect()
 }
 
 /// [`encode_items`] の逆変換（クライアント側責務）。
+///
+/// 空文字列のみを空リストとして扱い、それ以外は先頭の区切り文字で区切って
+/// 各項目を復元する（`split` の最初の要素は先頭区切りより前の空文字列となるため読み捨てる）。
 fn decode_items(items_joined: &str) -> Vec<String> {
     if items_joined.is_empty() {
         Vec::new()
     } else {
-        items_joined.split(ITEM_SEP).map(unescape_item).collect()
+        items_joined
+            .split(ITEM_SEP)
+            .skip(1)
+            .map(unescape_item)
+            .collect()
     }
 }
 
@@ -481,6 +493,18 @@ mod tests {
         assert_eq!(restored, s);
     }
 
+    /// Bugbot 指摘の回帰テスト: 空リストと「空文字列 1 件のみを含むリスト」は
+    /// 旧実装では同一のエンコード（`""`）に衝突していた。両者が区別できることを確認する。
+    #[test]
+    fn hydration_roundtrip_distinguishes_empty_list_from_single_empty_item() {
+        let empty: Vec<String> = Vec::new();
+        let single_empty: Vec<String> = vec!["".to_string()];
+
+        assert_ne!(encode_items(&empty), encode_items(&single_empty));
+        assert_eq!(decode_items(&encode_items(&empty)), empty);
+        assert_eq!(decode_items(&encode_items(&single_empty)), single_empty);
+    }
+
     #[test]
     fn state_from_hydration_attrs_falls_back_on_invalid_counter() {
         // クライアント制御下になり得る属性値のパース失敗は panic せず
@@ -506,7 +530,9 @@ mod tests {
         s.increment();
         let ssr_html = render_html_for_hydration(&s);
         assert!(ssr_html.contains(r#"data-hydrate-counter="1""#));
-        assert!(ssr_html.contains(r#"data-hydrate-items="最初の項目""#));
+        // encode_items は各項目の前に ITEM_SEP（\u{1f}）を付与するため、
+        // 属性値は先頭に区切り文字を含む（「空リスト」との衝突回避、Bugbot 指摘対応）。
+        assert!(ssr_html.contains("data-hydrate-items=\"\u{1f}最初の項目\""));
 
         // ハイドレーション属性を除けば、CSR（render_html）と同一の DOM 構造を持つ
         // （サーバーが出す本文とクライアントが後で描画する本文が一致することの保証）。
@@ -514,7 +540,7 @@ mod tests {
         assert!(ssr_html.contains("カウント: 1"));
         assert_eq!(
             ssr_html.replace(
-                r#" data-hydrate-counter="1" data-hydrate-draft="" data-hydrate-items="最初の項目""#,
+                " data-hydrate-counter=\"1\" data-hydrate-draft=\"\" data-hydrate-items=\"\u{1f}最初の項目\"",
                 ""
             ),
             csr_html
