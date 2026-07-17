@@ -63,6 +63,14 @@ wasm-bindgen-test = "0.3"
 
 # Performance API（性能計測ハーネス専用）。製品面の [dependencies.web-sys] の
 # features には触れず、テスト専用の feature 拡張に閉じる。
+#
+# TASK-1.3b（#92）: `EventInit` を追加。`wasm-full/tests/xss_escape_wasm.rs` が
+# `wire_events`（events.rs）の委譲リスナーを合成 click イベントで発火させる際、
+# `bubbles: true` を指定した `web_sys::Event` を組み立てるために必要
+# （リスナーは root 要素へ登録されるため、子要素上の click がバブリングで
+# root まで届く前提。events.rs 冒頭コメント参照）。新規クレート追加ではなく
+# 既存 web-sys の feature 追加のみで、`cargo metadata` 実測（パッケージ数・
+# 依存グラフ深さ）に変化がないことを確認済み（PR 本文に記録）。
 [dev-dependencies.web-sys]
 version = "0.3"
-features = ["Performance", "NamedNodeMap", "Attr"]
+features = ["Performance", "NamedNodeMap", "Attr", "EventInit"]
