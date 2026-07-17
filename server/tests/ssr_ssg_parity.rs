@@ -55,19 +55,26 @@ include!("support/temp_dir.rs");
 fn request_path_for(out_dir: &Path, file_path: &Path) -> String {
     let relative = file_path
         .strip_prefix(out_dir)
-        .expect("generate() が返すパスは常に out_dir 配下であるはず")
-        .to_str()
-        .expect("生成されるパスは常に UTF-8");
+        .expect("generate() が返すパスは常に out_dir 配下であるはず");
 
-    if relative == "index.html" {
-        return "/".to_string();
+    // `to_str()` した文字列に対する `strip_prefix("items/")` /
+    // `strip_suffix("/index.html")` は Windows ではパス区切りが `\` に
+    // なるため成立しない（Cursor Bugbot 指摘、PR #237）。
+    // `Path::components()` で OS 非依存にセグメント単位で判定する。
+    let segments: Vec<&str> = relative
+        .components()
+        .map(|c| {
+            c.as_os_str()
+                .to_str()
+                .expect("生成されるパスセグメントは常に UTF-8")
+        })
+        .collect();
+
+    match segments.as_slice() {
+        ["index.html"] => "/".to_string(),
+        ["items", id, "index.html"] => format!("/items/{id}"),
+        _ => panic!("未知のファイルレイアウト: {relative:?}"),
     }
-
-    let id = relative
-        .strip_prefix("items/")
-        .and_then(|rest| rest.strip_suffix("/index.html"))
-        .unwrap_or_else(|| panic!("未知のファイルレイアウト: {relative}"));
-    format!("/items/{id}")
 }
 
 /// テスト観点 1: `generate()` の戻り値を起点に全ファイルを走査し、各ファイルの
