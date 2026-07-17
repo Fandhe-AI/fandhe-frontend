@@ -25,6 +25,9 @@ frontend-framework/
 │       ├── 04-requirements.md  # MoSCoW 要件・受け入れ基準
 │       ├── 05-tasks.md         # タスク分解（依存・工数）
 │       └── 06-roadmap.md       # MS-1〜MS-5・着手判定
+├── templates/
+│   └── default/
+│       └── deny.toml         # 標準プロジェクトテンプレート同梱の cargo-deny 設定（TASK-4.1 / REQ-4）
 └── .claude/
     ├── agents/               # カテゴリ別 sub-agent 定義
     ├── rules/                # 委譲・コーディング・セキュリティ規約
@@ -45,7 +48,7 @@ main セッションは**指揮・統合・ユーザー対話に専念**し、�
 | `core/` `interactive/` | core-builder |
 | `app/` `server/` | server-builder |
 | `wasm-client/` `wasm-full/` `wasm-thin/` `static/` | wasm-builder |
-| `xtask/` `cli/` `.github/` `Dockerfile` `deny.toml` | tooling-builder |
+| `xtask/` `cli/` `.github/` `Dockerfile` `deny.toml` `templates/` | tooling-builder |
 | `docs/`（spec 以外）・CLAUDE.md | docs-writer |
 | `docs/spec/`（読み取り調査） | explorer |
 | テスト実行・失敗分析 | test-runner |

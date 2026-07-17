@@ -1,0 +1,61 @@
+# cargo-deny 設定（TASK-4.1 / REQ-4: AI 生成コード・依存の検証フック）
+#
+# 役割: 本フレームワークで生成される標準プロジェクトテンプレートに既定同梱する
+# 依存ポリシー定義。AI エージェントが追加する依存パッケージに対し、許可外
+# ライセンス・禁止クレート・不審な取得元（unknown-registry / unknown-git）を
+# 機械的に検出しブロックするためのゲート（`cargo deny check`）が参照する。
+#
+# 由来: PoC-7（docs/spec/03-poc/ai-self-maintenance/target-project/deny.toml）で
+# `negative-banned-dependency` ケースにより `policy(cargo-deny bans/licenses)` の
+# ブロックを実測済みの設定を製品テンプレート向けに調整したもの。
+#
+# セキュリティ不変条件（security.md 準拠）:
+# - 本ファイルのポリシーを弱める変更（licenses.allow への追加・bans.deny からの
+#   削除・sources の deny → warn への緩和等）は人間の承認を必須とする。
+#   AI エージェントが自己判断で緩和方向の変更を行ってはならない。
+# - `xtask/tests/template_deny_config.rs` が本ファイルの必須ポリシー
+#   （bans/licenses/sources の主要項目）を静的検証し、弱体化を回帰検出する。
+
+[graph]
+# 検証対象のターゲット（プラットフォーム）を限定しない。
+# 空配列は「全ターゲットを対象にする」cargo-deny の既定動作。
+targets = []
+
+[bans]
+# 同一クレートの複数バージョン共存は許容しつつ warn で可視化する
+# （REQ-3: 依存グラフ上限 60 件/深さ 6 の運用と合わせて監視する）。
+multiple-versions = "warn"
+deny = [
+    # openssl-sys: ビルド時に C 実装 OpenSSL のリンク・ビルドスクリプト実行を
+    # 伴い、サプライチェーン面の攻撃面が広い（security.md の build.rs 監査対象）。
+    # 代替として rustls 系（rustls / rustls-native-certs 等）の採用を推奨する。
+    { name = "openssl-sys" },
+]
+
+[licenses]
+# 許可リスト方式（allow）。PoC-7 で実証済みの最小集合を維持し、緩和しない。
+allow = ["MIT", "Apache-2.0", "Unicode-3.0", "BSD-3-Clause"]
+
+[sources]
+# サプライチェーン対策（security.md）: 由来不明のレジストリ・Git 依存を
+# 検出した時点でブロックする。PoC-7 では可視化目的の "warn" だったが、
+# 製品テンプレートでは AI が意図せず未知の取得元を追加した際に確実に
+# 止めるため "deny" に強化する。
+unknown-registry = "deny"
+unknown-git = "deny"
+
+[advisories]
+# 既知脆弱性データベース（RustSec Advisory DB）照合設定。値は cargo-deny の
+# 既定値のまま（個別の除外なし）とし、ポリシーの手動緩和は行わない。
+#
+# 制約（PoC-7 の発見）: `cargo deny check advisories` は RustSec Advisory DB の
+# 取得・照合にネットワークアクセスを必要とし、オフライン環境では実行できない。
+# そのため本テンプレートを用いたローカルでのゲート実行（オフライン想定）は
+# 次の 3 チェックに限定する:
+#
+#     cargo deny check bans licenses sources
+#
+# `advisories` を含めたネットワークアクセス前提の CI 運用手順は
+# TASK-4.3（advisories オンライン CI 運用ドキュメント化）で別途文書化する。
+# CI ワークフローへの組み込み自体は TASK-4.2 のスコープ。
+ignore = []
