@@ -18,6 +18,18 @@
 //!   非 `/` 始まりパス）の非マッチ / マッチ挙動
 //! - `RouterError` 全変種が公開 API 経由で再現でき、`Display` 出力が
 //!   機微情報を含まないこと
+//!
+//! 以下はイシュー #57 で `docs/router-path-matching.md` §3 の仕様表と
+//! 既存カバレッジ（PR #239）を突き合わせて未固定と判明した観点を補う。
+//!
+//! - 「優先度規則なし・登録順の先勝ち」が、静的セグメントとパラメータが
+//!   競合するパターン間（`/items/:id` と `/items/new`）でも成り立つこと
+//!   （静的セグメント優先という暗黙規則が存在しないことの回帰）
+//! - パーセントエンコードされたセグメントがデコードされず生文字列のまま
+//!   保持されること（パストラバーサル再導入防止の回帰）
+//! - 複数パラメータルートの解決と `Params::iter()` が公開 API 経由でも
+//!   成り立つこと
+//! - クエリ文字列のエッジケース（ルート + クエリ・空クエリ）
 
 use rws_server::router::{Router, RouterError};
 use rws_server::ssr::respond;
@@ -179,4 +191,90 @@ fn router_error_variants_are_reachable_and_display_safely() {
     let display = duplicate_param.to_string();
     assert!(!display.contains("panic"));
     assert!(!display.to_lowercase().contains("backtrace"));
+}
+
+/// 登録順の先勝ち（`docs/router-path-matching.md` §3）は、静的セグメントと
+/// パラメータが競合するパターン間でも成り立つことを固定する。「静的セグメント
+/// を優先する」という暗黙の優先度規則は v1 に存在しないため、後から登録した
+/// 静的パターンが先に登録したパラメータパターンを上書きすることはない。
+#[test]
+fn registration_order_wins_over_static_vs_param_ambiguity() {
+    // パラメータパターンを先に登録した場合、"/items/new" もパラメータ側が勝つ。
+    let param_first: Router<&str> = Router::new()
+        .route("/items/:id", "item_detail")
+        .unwrap()
+        .route("/items/new", "item_new")
+        .unwrap();
+    let matched = param_first.resolve("/items/new").unwrap();
+    assert_eq!(*matched.handler, "item_detail");
+    assert_eq!(matched.params.get("id"), Some("new"));
+
+    // 登録順を逆にすると、静的パターンを先に登録した側が勝つ。
+    let static_first: Router<&str> = Router::new()
+        .route("/items/new", "item_new")
+        .unwrap()
+        .route("/items/:id", "item_detail")
+        .unwrap();
+    let matched = static_first.resolve("/items/new").unwrap();
+    assert_eq!(*matched.handler, "item_new");
+}
+
+/// パーセントエンコードされたセグメント（`%2F`・`%2e%2e%2f` 等）はデコードせず
+/// 生文字列のまま `Params` へ格納されることを固定する
+/// （`docs/router-path-matching.md` §3・§5、パストラバーサル再導入防止の回帰）。
+/// デコードするとセグメント数が変化しパストラバーサルの面が再導入され得るため、
+/// router が一切デコードしないことをここで固定する。
+#[test]
+fn percent_encoded_segments_are_not_decoded() {
+    let router: Router<&str> = Router::new().route("/items/:id", "item_detail").unwrap();
+
+    let matched = router
+        .resolve("/items/%2e%2e%2fsecret")
+        .expect("should match as a single opaque segment");
+    assert_eq!(matched.params.get("id"), Some("%2e%2e%2fsecret"));
+
+    let matched = router
+        .resolve("/items/a%2Fb")
+        .expect("%2F must not be decoded into an actual '/' separator");
+    assert_eq!(matched.params.get("id"), Some("a%2Fb"));
+}
+
+/// 複数パラメータルートの解決と `Params::iter()` の全ペア列挙を、
+/// unit テスト（`server/src/router.rs`）と重複させず公開 API 経由でも固定する。
+#[test]
+fn multi_param_route_and_params_iter_via_public_api() {
+    let router: Router<&str> = Router::new()
+        .route("/items/:id/reviews/:review_id", "review_detail")
+        .unwrap();
+
+    let matched = router.resolve("/items/2/reviews/9").expect("should match");
+    assert_eq!(*matched.handler, "review_detail");
+    assert_eq!(matched.params.get("id"), Some("2"));
+    assert_eq!(matched.params.get("review_id"), Some("9"));
+
+    let pairs: Vec<(&str, &str)> = matched.params.iter().collect();
+    assert_eq!(pairs, vec![("id", "2"), ("review_id", "9")]);
+}
+
+/// クエリ文字列のエッジケース（`docs/router-path-matching.md` §3）:
+/// ルートパス自身にクエリが付く場合、および空クエリ（`?` のみで値なし）の
+/// いずれも `?` 以降が切り落とされてマッチすることを固定する。
+#[test]
+fn query_string_edge_cases() {
+    let router: Router<&str> = Router::new()
+        .route("/", "home")
+        .unwrap()
+        .route("/items/:id", "item_detail")
+        .unwrap();
+
+    let root_with_query = router
+        .resolve("/?ref=x")
+        .expect("root path with query string should match");
+    assert_eq!(*root_with_query.handler, "home");
+
+    let empty_query = router
+        .resolve("/items/1?")
+        .expect("trailing '?' with no query value should still match");
+    assert_eq!(*empty_query.handler, "item_detail");
+    assert_eq!(empty_query.params.get("id"), Some("1"));
 }
