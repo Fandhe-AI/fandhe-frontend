@@ -25,8 +25,9 @@
 //! # 検証内容
 //!
 //! 1. `app/src/`（rws-app: コンポーネントロジックの実体）に `cfg(test)` 以外の
-//!    構成分岐属性（`#[cfg(...)]` / `cfg!(...)`）が存在しないこと、および
-//!    `app/Cargo.toml` に `[features]` セクションが存在しないこと。
+//!    構成分岐属性（`#[cfg(...)]` / `cfg!(...)` / `#[cfg_attr(...)]`）が存在
+//!    しないこと、および `app/Cargo.toml` に `[features]` セクションが存在
+//!    しないこと。
 //! 2. フルスタック側（`server/src/ssr.rs`）・最小埋め込み側
 //!    （`wasm-client/src/lib.rs`）の双方が、共通契約関数
 //!    （[`SHARED_PAGE_FUNCTIONS`]）を `rws_app::` 経由で参照し、かつ
@@ -126,9 +127,13 @@ fn read_stripped(path: &Path) -> String {
 /// かつ `app/Cargo.toml` に `[features]` セクションが存在しないことを確認する。
 ///
 /// `cfg(test)` はテストビルド判定であり最小埋め込み/フルスタックというモード
-/// 分岐ではないため唯一の許可対象とする。`feature =` / `target_arch` /
-/// `target_os` 等の他の cfg 条件はコンポーネントロジックへのモード分岐混入と
-/// みなし失敗させる。
+/// 分岐ではないため唯一の許可対象とする（`#[cfg_attr(test, ...)]` も同様に
+/// 許可する）。`feature =` / `target_arch` / `target_os` 等の他の cfg 条件は
+/// `#[cfg(...)]` / `cfg!(...)` に加え `#[cfg_attr(...)]` 経由の混入も含めて
+/// コンポーネントロジックへのモード分岐混入とみなし失敗させる。
+/// `#[cfg_attr(target_arch = "wasm32", path = "...")]` のようなモジュール差し
+/// 替えは REQ-7 が防ぎたい分岐そのものであり、`#[cfg(` の部分文字列一致だけ
+/// では見逃すため個別に検出する。
 #[test]
 fn app_component_logic_has_no_mode_branching_cfg() {
     let root = workspace_root();
@@ -144,16 +149,21 @@ fn app_component_logic_has_no_mode_branching_cfg() {
         let stripped = read_stripped(file);
         for (idx, line) in stripped.lines().enumerate() {
             let normalized: String = line.chars().filter(|c| !c.is_whitespace()).collect();
-            let has_cfg_attr = normalized.contains("#[cfg(") || normalized.contains("cfg!(");
+            let has_cfg_attr = normalized.contains("#[cfg(")
+                || normalized.contains("cfg!(")
+                || normalized.contains("#[cfg_attr(");
             if !has_cfg_attr {
                 continue;
             }
             let line_no = idx + 1;
             assert!(
-                normalized.contains("#[cfg(test)]") || normalized.contains("cfg!(test)"),
+                normalized.contains("#[cfg(test)]")
+                    || normalized.contains("cfg!(test)")
+                    || normalized.contains("#[cfg_attr(test,"),
                 "rws-app（コンポーネントロジック）{file:?}:{line_no} に \
-                 `cfg(test)` 以外の構成分岐属性が見つかった: {line:?}。REQ-7 は \
-                 コンポーネントロジックが構成間で分岐を持たないことを要求する"
+                 `cfg(test)` / `cfg_attr(test, ...)` 以外の構成分岐属性が \
+                 見つかった: {line:?}。REQ-7 はコンポーネントロジックが \
+                 構成間で分岐を持たないことを要求する"
             );
         }
     }
