@@ -155,10 +155,23 @@ fn isolated_get_item_detail_keeps_default_escaping() {
 
     // item id "2" は `dist-server/tests/routes.rs`
     // (`known_item_id_returns_200_and_unknown_id_returns_404`) が固定する
-    // 既知の item id と同一のものを使う。
+    // 既知の item id と同一のものを使う。`demo_items()[1]`（id "2"）の
+    // title は意図的な XSS ペイロード（`<script>...`）であり
+    // (`dist-server/src/routes.rs` 参照)、詳細ページでも既定エスケープ
+    // （REQ-1）が保たれることをここで固定する。ステータスコードのみの
+    // 検証では、詳細ページのレンダリング経路でエスケープが漏れる
+    // リグレッションを検知できない（Cursor Bugbot 指摘、PR #252）。
     let response = send_http_request(port, "GET", "/items/2");
 
     assert_eq!(status_code(&response), 200);
+    assert!(
+        response.contains("&lt;script&gt;"),
+        "isolated binary must escape the item detail XSS payload by default (REQ-1): {response}"
+    );
+    assert!(
+        !response.contains("<script>"),
+        "isolated binary must not serve the raw, unescaped item detail XSS payload (REQ-1 regression guard): {response}"
+    );
 }
 
 #[test]
