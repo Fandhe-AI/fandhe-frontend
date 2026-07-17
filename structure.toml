@@ -1,0 +1,76 @@
+# 機械可読なプロジェクト構造マニフェスト（TASK-13.1a, REQ-13）。
+#
+# 本リポジトリ自身の構成を宣言する参照マニフェストであり、`cli/src/structure.rs`
+# のスキーマ v1 の正例を兼ねる（TASK-13.1d, #131 のテストフィクスチャとしても
+# 利用予定）。スキーマの詳細・各フィールドの制約・PoC-7 からの差分理由は
+# `docs/structure-manifest.md` を参照。
+#
+# 本ファイルはワークスペース Cargo.toml の members と対応するが、cargo
+# メタデータとの機械的な突き合わせ（依存の実体検証）は TASK-13.1c（#130）の
+# スコープであり、本ファイル単体としては TASK-13.1a の `validate()`
+# （マニフェスト内部の宣言整合性のみ）の対象。
+
+[manifest]
+version = 1
+
+[directories.core]
+role = "core"
+crate = "rws-core"
+description = "外部依存ゼロのレンダリングコア（ノード木 API・render・既定エスケープ）"
+allowed_dependents = ["interactive", "app", "wasm-full", "wasm-thin", "dist-server"]
+
+[directories.interactive]
+role = "state"
+crate = "rws-interactive"
+description = "状態管理コア（forbid(unsafe_code) 域）"
+depends_on = ["core"]
+allowed_dependents = ["wasm-full", "wasm-thin"]
+
+[directories.app]
+role = "component"
+crate = "rws-app"
+description = "モード非依存の共通コンポーネント（SSR/CSR/SSG から共通利用）"
+depends_on = ["core"]
+allowed_dependents = ["dist-server"]
+
+[directories.server]
+role = "server-entrypoint"
+crate = "rws-server"
+description = "外部依存ゼロのパスマッチングルーティング（server/src/router.rs）。rws-core/rws-app への依存はテストコードのみ"
+allowed_dependents = ["dist-server"]
+
+[directories.wasm-full]
+role = "client-entrypoint"
+crate = "rws-wasm-full"
+description = "CSR/ハイドレーション フルセット構成（wasm32 ターゲット）"
+depends_on = ["core", "interactive"]
+
+[directories.wasm-thin]
+role = "client-entrypoint"
+crate = "rws-wasm-thin"
+description = "CSR/ハイドレーション 最小構成（wasm32 ターゲット）"
+depends_on = ["core", "interactive"]
+
+[directories.dist-server]
+role = "distribution"
+crate = "rws-dist-server"
+description = "単一実行ファイル配布サーバー（core/app/server を束ねる）"
+depends_on = ["core", "app", "server"]
+
+[directories.static]
+role = "asset"
+description = "静的アセット（HTML/CSS/JS グルー、対応クレートなし）"
+
+[directories.xtask]
+role = "tooling"
+crate = "xtask"
+description = "CI 計測用の開発者ツール（依存グラフ件数・深さ計測・上限判定等）。配布物には含めない"
+
+[directories.cli]
+role = "tooling"
+crate = "rws-cli"
+description = "AI 自己保守フック向け fw コマンド（structure.toml のスキーマ・パース・生成、REQ-13）"
+
+[routing]
+definition_dir = "server"
+extractor = "rws-router-v1"
