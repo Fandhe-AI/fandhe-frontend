@@ -14,7 +14,7 @@
 //! `.claude/rules/coding-rust.md` の規約により、本ファイルの XSS 回帰
 //! テストは以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
-use rws_interactive::{hydration_attrs, render_html, render_html_for_hydration, AppState};
+use rws_interactive::{render_html, render_html_for_hydration, AppState, Hydrate};
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系のペイロード集合。
 /// `core/tests/xss_escape.rs` の `mod payloads` と観点を揃える
@@ -149,7 +149,7 @@ fn render_and_render_for_hydration_share_same_dom_shape_under_malicious_input() 
     // 追加された 3 つのハイドレーション属性をこの順で連結した断片を
     // 組み立てる。属性値自体は render_html 側と同じくエスケープ済みの
     // 生 HTML 文字列として得られるため、単純な文字列除去で比較できる。
-    let attrs = hydration_attrs(&s);
+    let attrs = s.hydration_attrs();
     let hydrate_fragment: String = attrs
         .iter()
         .map(|(k, v)| format!(" {k}=\"{}\"", rws_core::escape_html(v)))

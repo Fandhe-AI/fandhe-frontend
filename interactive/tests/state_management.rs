@@ -11,7 +11,7 @@
 //! 依存クレートは追加しない（REQ-3・`interactive/Cargo.toml` は
 //! `rws-core`（path 依存）のみを維持する）。
 
-use rws_interactive::{dispatch, state_from_hydration_attrs, AppState};
+use rws_interactive::{dispatch, AppState, Hydrate};
 
 // --- AppState 既定値 -------------------------------------------------------
 
@@ -292,29 +292,33 @@ fn dispatch_remove_item_with_usize_max_is_noop_when_out_of_range() {
     assert_eq!(s.items, before);
 }
 
-// --- counter 境界（ハイドレーション経由の極端な復元値） ---------------------
+// --- counter 境界（ハイドレーション経由の極端な復元値、dispatch 経由） ------
 //
-// スコープ外事項（PR 本文に記載予定・Issue 化提案）:
-// `AppState::increment`/`decrement` は `i64` の素朴な `+=`/`-=` であり、
-// workspace の dev プロファイルは debug-assertions が有効なため、
-// `i64::MAX` を `increment` する、あるいは `i64::MIN` を `decrement` する
-// と debug ビルドでは overflow panic する（クライアント制御下の
-// ハイドレーション属性値がここまで到達し得るため、不変条件 4 の観点では
-// 望ましくない）。本タスク（TASK-11.1c）はテスト整備が責務であり、
-// `saturating_add`/`saturating_sub` 等への修正は実装変更のため
-// スコープ外とする。本テストでは「極端な値の復元」までを確認し、
-// 直接 overflow を踏む呼び出しはしない。
+// `AppState::increment`/`decrement` は `saturating_add`/`saturating_sub` を
+// 用いており、`i64::MAX` を `increment` する・`i64::MIN` を `decrement` する
+// 呼び出しでも overflow panic しない（本クレートの不変条件 4、DoS 耐性）。
+// クライアント制御下のハイドレーション属性値経由で極端な counter 値が
+// 復元されるケースは `hydration_codec.rs` 側で確認済みであり、本ファイルは
+// `dispatch` 経由での極端値からの状態遷移が panic しないことを固定する。
 
 #[test]
-fn state_from_hydration_attrs_restores_i64_max_counter() {
-    let restored = state_from_hydration_attrs(&i64::MAX.to_string(), "", "");
-    assert_eq!(restored.counter, i64::MAX);
+fn dispatch_increment_at_i64_max_saturates_without_panicking() {
+    let mut s = AppState {
+        counter: i64::MAX,
+        ..AppState::new()
+    };
+    dispatch(&mut s, "increment", "");
+    assert_eq!(s.counter, i64::MAX);
 }
 
 #[test]
-fn state_from_hydration_attrs_restores_i64_min_counter() {
-    let restored = state_from_hydration_attrs(&i64::MIN.to_string(), "", "");
-    assert_eq!(restored.counter, i64::MIN);
+fn dispatch_decrement_at_i64_min_saturates_without_panicking() {
+    let mut s = AppState {
+        counter: i64::MIN,
+        ..AppState::new()
+    };
+    dispatch(&mut s, "decrement", "");
+    assert_eq!(s.counter, i64::MIN);
 }
 
 #[test]
@@ -322,11 +326,30 @@ fn reset_counter_recovers_from_extreme_restored_value() {
     // 極端な値からの回復手段として reset_counter が overflow を経由せず
     // 常に 0 へ戻せることを確認する（decrement/increment を挟まない限り
     // 安全に使えるフォールバック操作であることの回帰）。
-    let mut restored = state_from_hydration_attrs(&i64::MAX.to_string(), "", "");
+    let mut restored = AppState {
+        counter: i64::MAX,
+        ..AppState::new()
+    };
     restored.reset_counter();
     assert_eq!(restored.counter, 0);
 
-    let mut restored_min = state_from_hydration_attrs(&i64::MIN.to_string(), "", "");
+    let mut restored_min = AppState {
+        counter: i64::MIN,
+        ..AppState::new()
+    };
     restored_min.reset_counter();
     assert_eq!(restored_min.counter, 0);
+}
+
+// --- hydration_attrs の Hydrate トレイト経由呼び出し（TASK-11.1a 追従確認） -
+
+#[test]
+fn hydrate_trait_import_allows_method_call_on_app_state() {
+    // `use rws_interactive::Hydrate` により、トレイトメソッドとして
+    // `hydration_attrs`/`from_hydration_attrs` を呼べることを確認する
+    // （具象の自由関数ではなくトレイト経由の呼び出しへ移行した契約）。
+    let s = AppState::new();
+    let attrs = s.hydration_attrs();
+    let restored = AppState::from_hydration_attrs(&attrs).unwrap();
+    assert_eq!(s, restored);
 }
