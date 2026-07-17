@@ -1,0 +1,15 @@
+# イシュー #157: `fw` が生成する新規プロジェクトにも、REQ-1（既定エスケープ）の
+# 検出ポリシーをルート workspace（`clippy.toml`）と同一内容で配布する。
+#
+# templates/default は root workspace から独立した配布用テンプレート
+# （Cargo.toml 末尾 `[workspace]` 参照）であり、workspace ルートの
+# `clippy.toml` を継承しない。本テンプレートを起点に生成されたプロジェクトが
+# `rws-core` に依存し `raw_html()` を使い始めた時点から検出が有効になるよう、
+# 生成直後の空プロジェクトの段階からポリシーを同梱しておく（依存追加を待って
+# 事後的に設定する運用だと、追加直後の一時的な検出漏れ窓が生まれるため）。
+#
+# 運用・オプトインの書式は docs/raw-html-review-gate.md、方式選定の背景は
+# docs/raw-html-lint-design.md を参照。
+disallowed-methods = [
+    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/raw-html-review-gate.md 参照）" },
+]
