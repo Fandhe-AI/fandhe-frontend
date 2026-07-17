@@ -20,7 +20,7 @@ PoC-2 の脅威モデルの結論は次のとおりです。コア（`rws-core` 
 | `core`（rws-core） | `unsafe` を全面禁止 | `#![forbid(unsafe_code)]` を `core/src/lib.rs` に設定済み。REQ-2 受け入れ基準の中核 |
 | `interactive`（rws-interactive） | `unsafe` を全面禁止 | `#![forbid(unsafe_code)]` を `interactive/src/lib.rs` に設定済み（TASK-11.1a 設計・TASK-11.1b で実装）。REQ-2 受け入れ基準を `core` と同様に満たす |
 | `app` / `server`（rws-app / rws-server） | 原則 `unsafe` 禁止（safe Rust で実装） | 未作成クレート。SSR/SSG/ルーティングはアプリケーション層であり、FFI 境界を持たない前提。作成時に `forbid(unsafe_code)` の要否を判断し本表へ追記する |
-| `wasm-client`（未作成） | フレームワーク自作コードは safe Rust。`unsafe` は wasm-bindgen 等の FFI 依存クレート内部・自動生成グルーコードに限定して許容 | ブラウザ DOM とのバインディングは `wasm-bindgen` の生成コードに委譲し、自作コード側で `unsafe` を新規に書かない方針とする |
+| `wasm-client`（rws-wasm-client。TASK-6.2b/#48 で作成済み） | フレームワーク自作コードは safe Rust（`wasm-client/src/` に自作 `unsafe` ブロック 0 件）。`#![deny(unsafe_code)]` を `wasm-client/src/lib.rs` に設定済み（`#[wasm_bindgen]` 展開コードが内部で `unsafe` を含むため `forbid` は不採用）。`unsafe` は `wasm-bindgen`/`web-sys` の FFI 依存クレート内部・自動生成グルーコードに限定して許容 | `hydrate()`（`wiring` モジュール）はクロージャの寿命管理に `closure.forget()` ではなく `thread_local!` レジストリ（`wasm-client/src/registry.rs`）を用いる方式を採り、`unsafe` ブロックを要しない。`docs/hydration-api.md` 第 4 節・判断 6 の設計どおり |
 | `wasm-full`（rws-wasm-full。TASK-11.2b/#75 で作成済み） | フレームワーク自作コードは safe Rust（`wasm-full/src/` に自作 `unsafe` ブロック 0 件）。`unsafe` は `wasm-bindgen`/`web-sys` の FFI 依存クレート内部・自動生成グルーコードに限定して許容 | イベント委譲配線（`wasm-full/src/events.rs`）は `wasm_bindgen::closure::Closure::forget`（safe API）でリスナーを保持する方式を採り、`unsafe` ブロックを要しない。自作コードへの `#![forbid(unsafe_code)]` 設定はクレート雛形の統合（TASK-11.2d/#77）側で `mount()`/`hydrate()` 実装と合わせて判断する |
 | `wasm-thin`（rws-wasm-thin。TASK-11.3a/#79 で作成済み） | フレームワーク自作コードは safe Rust（`wasm-thin/src/` に自作 `unsafe` ブロック 0 件）。`unsafe` は `wasm-bindgen` の FFI 依存クレート内部・自動生成グルーコードに限定して許容。`web-sys` には依存しない（DOM 操作・イベント配線は JS グルー側の責務であり、WASM 側は文字列 in・文字列 out の純粋計算に限定する設計、REQ-11） | 汎用層 `ThinRuntime<C: Component>`（`wasm-thin/src/lib.rs`）は `wasm-bindgen`/`web-sys` 非依存の純粋 Rust。境界層 `demo` モジュールの `#[wasm_bindgen]` エクスポート（`thread_local!` + `RefCell` で状態保持）も自作 `unsafe` ブロックを要しない。`RUSTFLAGS='-F unsafe_code' cargo check --workspace`／`cargo check -p rws-wasm-thin --target wasm32-unknown-unknown` のいずれも自作コード側の `#![forbid(unsafe_code)]` 相当の制約下で通過することを確認済み（`#![forbid(unsafe_code)]` の明示設定自体は wasm-bindgen 生成コードとの整合を将来 CI 強制時に判断、`wasm-full` と同方針・#155 参照） |
 
@@ -32,13 +32,18 @@ PoC-2 の脅威モデルの結論は次のとおりです。コア（`rws-core` 
 **現時点（2026-07-17 時点）: ワークスペース内の自作 `unsafe` 使用箇所は 0 件。**
 
 `core` / `interactive` に `#![forbid(unsafe_code)]` が設定されているため、両クレート内での `unsafe` 使用は
-コンパイルエラーとして機械的に禁止されています。`app` / `server` / `wasm-client` は本ドキュメント更新時点で
+コンパイルエラーとして機械的に禁止されています。`app` / `server` は本ドキュメント更新時点で
 未作成のため、インベントリは空です。`wasm-full`（rws-wasm-full）は TASK-11.2b（#75）で作成済みですが、
 `grep -rnE '\bunsafe\s*(fn|impl|trait|\{)' wasm-full/src/` の結果は 0 件であり、自作コード側の `unsafe`
 ブロックはありません（`wasm-bindgen`/`web-sys` の FFI 依存クレート内部・自動生成コードのみが対象、第 4 節参照）。
 `wasm-thin`（rws-wasm-thin）は TASK-11.3a（#79）で作成済みですが、
 `grep -rnE '\bunsafe\s*(fn|impl|trait|\{)' wasm-thin/src/` の結果も同様に 0 件です
 （`wasm-bindgen` の FFI 依存クレート内部・自動生成コードのみが対象。`web-sys` には依存しない）。
+`wasm-client`（rws-wasm-client）は TASK-6.2b（#48）で作成済みですが、
+`grep -rnE '\bunsafe\s*(fn|impl|trait|\{)' wasm-client/src/` の結果も同様に 0 件です
+（`wasm-bindgen`/`web-sys` の FFI 依存クレート内部・自動生成コードのみが対象。`core/tests/unsafe_boundary.rs`
+の `UNSAFE_ALLOWED_MEMBERS` に `wasm-client` が既に登録済みで、CI の `forbid-unsafe` ジョブは
+本クレート追加後も `RUSTFLAGS='-F unsafe_code' cargo check --workspace` の通過を維持している）。
 
 ### 一覧テーブル雛形
 
