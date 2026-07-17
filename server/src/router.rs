@@ -407,6 +407,21 @@ mod tests {
         assert!(escaped.contains("&lt;img"));
     }
 
+    /// `Params::iter()` が登録済みの全パスパラメータを `(name, value)` として
+    /// 走査できることを固定する（`get()` は他テストで網羅済みだが `iter()` 単体は
+    /// 未検証だったため補完する）。
+    #[test]
+    fn params_iter_yields_all_registered_pairs() {
+        let router: Router<&str> = Router::new()
+            .route("/items/:id/reviews/:review_id", "review_detail")
+            .unwrap();
+
+        let matched = router.resolve("/items/2/reviews/9").expect("should match");
+        let pairs: Vec<(&str, &str)> = matched.params.iter().collect();
+
+        assert_eq!(pairs, vec![("id", "2"), ("review_id", "9")]);
+    }
+
     #[test]
     fn duplicate_items_first_registration_wins() {
         let router: Router<&str> = Router::new()
