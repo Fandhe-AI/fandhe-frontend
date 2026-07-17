@@ -43,12 +43,21 @@
 //! 適用される）。網羅的なタグヘルパー群・インデント規約は既存 backlog
 //! （Issue #164）のスコープとし、本クレートでは追加しない。
 //!
+//! ## ハイドレーション支援（TASK-6.2b）
+//!
+//! [`find_attr_values`] / [`find_nav_targets`] は、`rws-wasm-client`
+//! （TASK-6.2 系）が既存 DOM 上でハイドレーション対象を特定するために
+//! 呼び出す **DOM 非依存の純粋関数**。引数に取るのは本クレート自身の
+//! ノード木（[`Node`]）であり、実 DOM 型（`web-sys::Node` 等）には一切
+//! 依存しない。そのため `core` の外部依存ゼロ契約（不変条件 7）を侵さず、
+//! wasm ビルドを介さないネイティブ環境でもテスト可能（`docs/hydration-api.md`
+//! 第 2〜3 節・判断 3 の設計どおり）。
+//!
 //! ## スコープ外
 //!
-//! ハイドレーション支援（`find_attr_values`/`find_nav_targets`）・void 要素の
-//! 自己終了処理は本クレートでは扱わない。前者は TASK-6.2 系で追加予定。
-//! 後者は `docs/component-api.md` 第 3 節に記載のとおり、v1 では常に終了タグを
-//! 出力する現行仕様を意図した挙動として凍結する。
+//! void 要素の自己終了処理は本クレートでは扱わない。`docs/component-api.md`
+//! 第 3 節に記載のとおり、v1 では常に終了タグを出力する現行仕様を意図した
+//! 挙動として凍結する。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -288,6 +297,74 @@ fn is_valid_tag_name(name: &str) -> bool {
         _ => return false,
     }
     chars.all(|c| c.is_ascii_alphanumeric() || c == '-')
+}
+
+/// 指定属性名を持つ子孫要素（自身を含む）の属性値を出現順に列挙する。
+///
+/// `rws-wasm-client`（TASK-6.2 系）が `hydrate()` 実行時にハイドレーション
+/// 対象を特定するために呼ぶ契約の関数。本関数は `node` が表す木構造のみを
+/// 辿る DOM 非依存の純粋関数であり、実 DOM（`web-sys::Node` 等）にはまだ
+/// 反映されていない/対応しない値を返しうる。呼び出し側（`wasm-client`）は、
+/// SSR/CSR いずれかで実際に描画した木と同値の [`Node`] に対して本関数を呼び、
+/// 得られた属性値をキーに `web-sys` 経由で実 DOM 要素を検索してイベント
+/// リスナーを後付けする（`docs/hydration-api.md` 第 3〜4 節・判断 3）。
+///
+/// `Node::Text` / `Node::RawHtml` は属性を持たないため無視する。同一要素に
+/// 同名属性が重複して渡された場合（[`el`] の `attrs` は生成時に重複除去
+/// しないため理論上あり得る）は、出現順にすべて列挙する（呼び出し側での
+/// 重複判定・除去は本関数の責務外）。
+///
+/// # Examples
+///
+/// ```
+/// use rws_core::{div, el, text, find_attr_values};
+///
+/// let tree = div(
+///     vec![],
+///     vec![el("button", vec![("data-hydrate", "like")], vec![text("いいね")])],
+/// );
+/// assert_eq!(find_attr_values(&tree, "data-hydrate"), vec!["like".to_string()]);
+/// ```
+pub fn find_attr_values(node: &Node, attr_name: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    collect_attr_values(node, attr_name, &mut out);
+    out
+}
+
+/// [`find_attr_values`] の内部再帰実装。
+fn collect_attr_values(node: &Node, attr_name: &str, out: &mut Vec<String>) {
+    if let Node::Element {
+        attrs, children, ..
+    } = node
+    {
+        for (k, v) in attrs {
+            if k == attr_name {
+                out.push(v.clone());
+            }
+        }
+        for child in children {
+            collect_attr_values(child, attr_name, out);
+        }
+    }
+}
+
+/// `data-nav` 属性値を列挙する [`find_attr_values`] のショートカット。
+///
+/// `rws_app::list_page` が各項目リンクへ付与する `data-nav` 属性
+///（`docs/app-api.md` 第 3 節）をクライアント側ルーティング配線の対象として
+/// 特定するために `wasm-client` が呼ぶ契約の関数（`docs/hydration-api.md`
+/// 第 3 節・公開 API 凍結表）。
+///
+/// # Examples
+///
+/// ```
+/// use rws_core::{a, text, find_nav_targets};
+///
+/// let tree = a(vec![("href", "/items/1"), ("data-nav", "/items/1")], vec![text("記事1")]);
+/// assert_eq!(find_nav_targets(&tree), vec!["/items/1".to_string()]);
+/// ```
+pub fn find_nav_targets(node: &Node) -> Vec<String> {
+    find_attr_values(node, "data-nav")
 }
 
 /// ノード木を HTML 文字列へレンダリングする。

@@ -338,6 +338,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rws-wasm-client"
+version = "0.1.0"
+dependencies = [
+ "rws-app",
+ "rws-core",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
 name = "rws-wasm-full"
 version = "0.1.0"
 dependencies = [

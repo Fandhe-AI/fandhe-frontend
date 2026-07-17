@@ -189,3 +189,32 @@ PoC-3（`docs/spec/03-poc/rendering-web-standards/core/src/lib.rs:131,152`）の
 - `docs/component-api.md` 第 2 節の「コンポーネントは通常の Rust 関数」規約は
   `rws_app` 側の契約であり、本書の `wasm-client` API 設計とは直接の依存関係を
   持たない。
+
+## 10. TASK-6.2b 実装後の追記（依存実測値・deps-check 判断）
+
+本節は第 2 節が指示する「依存の実追加時に `cargo metadata` 実測値を本書へ追記する」
+「`xtask` の deps-check 計測対象に `wasm-client` を独立枠として含めるか否かを判断し
+本書に追記する」を、TASK-6.2b（#48）の実装結果として反映したものである。
+
+- **依存追加の実測値**: `wasm-client/Cargo.toml` に `rws-core`・`rws-app`（path 依存）
+  ＋ `wasm-bindgen = "0.2"` ＋ `web-sys 0.3`（features: `Document` / `Element` /
+  `Event` / `EventTarget` / `Node` / `NodeList` / `Window` / `DomTokenList`）を追加した。
+  `cargo metadata` のパッケージ総数は追加前後で 71 件のまま変化していない
+  （`wasm-full`/`wasm-thin` 導入時に wasm-bindgen 0.2.126 / web-sys 0.3.103 が
+  既に解決済みのため、新規外部パッケージは増えていない）。dev-dependencies として
+  `wasm-bindgen-test = "0.3"` ＋ `web-sys`（`HtmlElement` / `EventInit` feature）を
+  追加したが、これも既存クレートの feature 拡張のみである。
+- **`RUSTFLAGS='-F unsafe_code' cargo check --workspace --locked` の実測**: `wasm-client`
+  追加後も**通過することを確認済み**（`wasm-full`/`wasm-thin` と同様、native ターゲット
+  では wasm-bindgen 展開コードが unsafe を発火させないため）。よって
+  `.github/workflows/ci.yml` の `forbid-unsafe` ジョブは `-p` 絞り込みへの変更を
+  **行わない**（第 7 節の記述はフォールバック方針として維持する）。
+- **deps-check 独立枠の判断**: `cargo tree -p rws-server -e normal --prefix none` の
+  結果に `rws-wasm-client` は含まれない（`rws-app`・`rws-core` のみ）ことを確認した。
+  すなわち標準サーバー構成（REQ-3 の 60 件/深さ 6 の対象）の依存グラフに
+  `wasm-client` 系統は含まれず、既存の `xtask check-deps --package rws-server` の
+  計測結果にも影響しない。したがって本 PR では `xtask` に `wasm-client` 専用の
+  独立しきい値枠を**新設しない**（安全側の判断として実測値の記録に留める）。
+  `wasm-client` 系統（`wasm-full`/`wasm-thin` を含むブラウザ配布ビルド全般）を
+  対象にした将来の独立計測枠の要否は、`out-of-scope-tracking.md` の手順に従い
+  別 Issue 化の是非をユーザーに確認する。
