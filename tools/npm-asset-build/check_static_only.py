@@ -267,10 +267,17 @@ def _is_js_entry(value: object) -> bool:
 
     拡張子なしのパスは Node.js の解決アルゴリズムにより暗黙に .js とみなされ得る
     ため、安全側に倒して JS エントリ扱いとする（見逃し回避を優先）。
+
+    ベース名が "." または ".." のパス（例: `"main": "."`）はディレクトリ参照
+    であり拡張子を持つファイル名ではないため、`"." in base` による拡張子判定
+    をすり抜けて false になってしまう抜け道を塞ぐ。Node の解決規則では
+    ディレクトリ参照は package.json の main 解決等を経て最終的に .js に
+    解決され得るため、これも拡張子なしパスと同様に安全側で JS エントリ扱い
+    とする。
     """
     if isinstance(value, str):
         base = value.rsplit("/", 1)[-1]
-        if "." not in base:
+        if base in (".", "..") or "." not in base:
             return True
         ext = "." + base.rsplit(".", 1)[-1].lower()
         return ext in JS_EXEC_EXTS
@@ -392,8 +399,13 @@ _SVG_SCRIPT_RE = re.compile(r"<script[\s>/]", re.IGNORECASE)
 _SVG_EVENT_ATTR_RE = re.compile(r"\bon[a-zA-Z]+\s*=", re.IGNORECASE)
 # href / xlink:href 属性値が javascript:/data: スキームで始まる場合を検出する
 # （<a>/<use>/<image> 等、SVG 内で href 系属性を持ちうる要素すべてが対象）。
+# クォート（"/'）は省略可能とする。HTML/SVG のパーサはクォートなし属性値
+# （例: `href=javascript:alert(1)`）も有効な属性として受理するため、クォート
+# ありの形式のみを要求すると、そのままクォートを外すだけで検査をすり抜けら
+# れてしまう（on*= のイベントハンドラ検出はクォートなしも受理しており、
+# ここだけ非対称になっていた）。
 _SVG_DANGEROUS_HREF_RE = re.compile(
-    r"(?:xlink:href|href)\s*=\s*[\"']\s*(?:javascript|data)\s*:", re.IGNORECASE
+    r"(?:xlink:href|href)\s*=\s*[\"']?\s*(?:javascript|data)\s*:", re.IGNORECASE
 )
 # <foreignObject> 要素自体の存在を違反とする（HTML/スクリプトの持ち込み経路）。
 _SVG_FOREIGN_OBJECT_RE = re.compile(r"<foreignObject[\s>/]", re.IGNORECASE)
@@ -662,6 +674,16 @@ def enumerate_packages(
     return all_packages, all_toplevel_violations
 
 
+def _escape_output_value(value: str) -> str:
+    """VIOLATION/EXEMPTED 出力行の `reason="..."` フィールドに埋め込む値を
+    エスケープする。reason 文字列（"bin" 等の拡張子・フィールド名を含む
+    メッセージ）には生の `"` が含まれ得るため、無エスケープで出力すると
+    `reason="..."` 契約（ダブルクォート区切り）を破壊し、下流の strict な
+    パーサを壊す（バックスラッシュ・ダブルクォートの双方を \\ でエスケープ
+    する最小限の実装）。"""
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
 def run(argv: list[str]) -> int:
     """スクリプト本体。exit code (0/1/2) を返す。main() から呼ばれ、CheckError は
     ここで exit 2 相当の戻り値に変換される。"""
@@ -687,7 +709,10 @@ def run(argv: list[str]) -> int:
         # R2-ext のハード拒否（実行コード拡張子）はいかなる免除エントリでも
         # 救済しない（docs/npm-static-asset-rules.md §3.4）。
         if detail is not None and detail[0] == "hard_deny":
-            print(f'VIOLATION package={name} rule={rule} file={file} reason="{reason}"')
+            print(
+                f'VIOLATION package={name} rule={rule} file={file} '
+                f'reason="{_escape_output_value(reason)}"'
+            )
             violation_count += 1
             continue
 
@@ -703,17 +728,29 @@ def run(argv: list[str]) -> int:
                 file_key
             )
             if reason_found is not None:
-                print(f'EXEMPTED package={name} rule={rule} reason="{reason_found}"')
+                print(
+                    f'EXEMPTED package={name} rule={rule} '
+                    f'reason="{_escape_output_value(reason_found)}"'
+                )
                 continue
-            print(f'VIOLATION package={name} rule={rule} file={file} reason="{reason}"')
+            print(
+                f'VIOLATION package={name} rule={rule} file={file} '
+                f'reason="{_escape_output_value(reason)}"'
+            )
             violation_count += 1
             continue
 
         key = (name, rule, None)
         if key in exemptions:
-            print(f'EXEMPTED package={name} rule={rule} reason="{exemptions[key]}"')
+            print(
+                f'EXEMPTED package={name} rule={rule} '
+                f'reason="{_escape_output_value(exemptions[key])}"'
+            )
             continue
-        print(f'VIOLATION package={name} rule={rule} file={file} reason="{reason}"')
+        print(
+            f'VIOLATION package={name} rule={rule} file={file} '
+            f'reason="{_escape_output_value(reason)}"'
+        )
         violation_count += 1
 
     return 1 if violation_count else 0

@@ -123,6 +123,16 @@ class TestRule1PackageJson(BaseFixtureTest):
         code, out = run_capture(["--node-modules", str(self.node_modules)])
         self.assertEqual(code, 0, out)
 
+    def test_main_dot_path_violates_r1_entry(self) -> None:
+        # 回帰: `"main": "."` はベース名が "." になり、素朴な "." in base 判定
+        # では「拡張子あり」と誤判定されて非 JS 拡張子を導出してしまい R1-entry
+        # をすり抜けていた（Node 解決規則の下ではディレクトリ参照も最終的に
+        # .js に解決され得るため fail closed で検出する必要がある）。
+        self.make_package("has-dot-main", {"main": "."})
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1, out)
+        self.assertIn("rule=R1-entry", out)
+
 
 class TestRule2Extension(BaseFixtureTest):
     def test_js_file_violates(self) -> None:
@@ -199,6 +209,26 @@ class TestRule3Filesystem(BaseFixtureTest):
         )
         code, out = run_capture(["--node-modules", str(self.node_modules)])
         self.assertEqual(code, 1)
+        self.assertIn("rule=R3-svg-script", out)
+
+    def test_svg_unquoted_href_javascript_scheme_violates(self) -> None:
+        # 回帰: クォートを要求する正規表現は `href=javascript:...`（クォート
+        # なし）を見逃していた。HTML/SVG パーサはクォートなし属性値を有効に
+        # 受理するため、イベントハンドラ検出（クォートなしも受理）との非対称
+        # を解消する。
+        pkg = self.make_package("has-svg-unquoted-href")
+        f = pkg / "icon.svg"
+        f.write_text('<svg><a href=javascript:alert(1)></a></svg>', encoding="utf-8")
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1, out)
+        self.assertIn("rule=R3-svg-script", out)
+
+    def test_svg_unquoted_xlink_href_data_scheme_violates(self) -> None:
+        pkg = self.make_package("has-svg-unquoted-xlink-href")
+        f = pkg / "icon.svg"
+        f.write_text('<svg><use xlink:href=data:text/html,x></use></svg>', encoding="utf-8")
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1, out)
         self.assertIn("rule=R3-svg-script", out)
 
     def test_svg_foreign_object_violates(self) -> None:
@@ -550,6 +580,25 @@ class TestExitCodeContract(BaseFixtureTest):
             line,
             r'^VIOLATION package=bad-pkg rule=R1-bin file=package\.json reason=".*"$',
         )
+
+    def test_reason_with_embedded_quotes_is_escaped_in_output(self) -> None:
+        # 回帰: R1-entry の reason 文字列は
+        # `f'"{field}" field resolves to a JS execution entry'` のように
+        # フィールド名を生のダブルクォートで囲んでいるため、無エスケープで
+        # `reason="..."` 契約に流し込むと途中でクォートが終端し、strict な
+        # パーサ（`reason="(?:[^"\\]|\\.)*"` 相当）を壊してしまう。エスケープ
+        # 後は埋め込まれた `"` が `\"` に変換され、契約上の 1 つの reason
+        # フィールドとして復元可能であることを確認する。
+        self.make_package("has-main-js", {"main": "index.js"})
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1, out)
+        line = out.strip()
+        self.assertIn('reason="\\"main\\" field resolves to a JS execution entry"', line)
+        # strict なパーサ相当の正規表現で reason フィールド全体を 1 つに復元できること。
+        match = __import__("re").search(r'reason="((?:[^"\\]|\\.)*)"$', line)
+        self.assertIsNotNone(match, line)
+        restored = match.group(1).replace('\\"', '"').replace("\\\\", "\\")
+        self.assertEqual(restored, '"main" field resolves to a JS execution entry')
 
 
 if __name__ == "__main__":
