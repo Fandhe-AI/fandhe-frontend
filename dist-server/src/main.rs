@@ -94,14 +94,27 @@ async fn run() -> ExitCode {
 /// しないことを型で保証する（`route_request` は `RouteResponse` を必ず返す
 /// 契約であり、パニックしない設計）。
 ///
+/// 実際のレスポンス組み立ては [`response_for`]（`hyper::Incoming` 等の
+/// 非同期・実 I/O 型に依存しない同期関数）に委譲する。本関数はその結果を
+/// `Ok` で包むだけの薄い非同期アダプタであり、`tokio::test` 等の非同期テスト
+/// 基盤（新規依存追加を要する）を導入しなくても `response_for` を直接
+/// ユニットテストできるようにするための分離である
+/// （`routes::route_request` と同じ「同期コア／非同期シェル」の分離方針）。
+async fn handle(req: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
+    let path = req.uri().path_and_query().map_or("/", |pq| pq.as_str());
+    Ok(response_for(req.method(), path))
+}
+
+/// `handle` の同期コア。メソッドとパスから `Response<Full<Bytes>>` を組み立てる。
+///
 /// `route_request` は GET 専用の SSR/静的配信を前提とした設計（`routes.rs`）
 /// のため、GET・HEAD 以外のメソッド（POST/PUT/DELETE 等）はページ本文を
 /// 組み立てず先に 405 で弾く（Review 指摘: メソッド無検証で全メソッドに
 /// 200 を返していたギャップの解消）。HEAD は GET と同じ本文を返してよい
 /// （hyper 側で HEAD のボディ送出有無は扱わないため、ここでは GET と同列に許可する）。
-async fn handle(req: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
-    if req.method() != Method::GET && req.method() != Method::HEAD {
-        let response = Response::builder()
+fn response_for(method: &Method, path: &str) -> Response<Full<Bytes>> {
+    if method != Method::GET && method != Method::HEAD {
+        return Response::builder()
             .status(405)
             .header(hyper::header::CONTENT_TYPE, "text/plain; charset=utf-8")
             .header(hyper::header::ALLOW, "GET, HEAD")
@@ -112,10 +125,9 @@ async fn handle(req: Request<hyper::body::Incoming>) -> Result<Response<Full<Byt
                     .body(Full::new(Bytes::from_static(b"500 Internal Server Error")))
                     .expect("fallback response with fixed, valid status/body must build")
             });
-        return Ok(response);
     }
 
-    let route_response = route_request(req.uri().path_and_query().map_or("/", |pq| pq.as_str()));
+    let route_response = route_request(path);
 
     let mut builder = Response::builder().status(route_response.status);
     if let Some(headers) = builder.headers_mut() {
@@ -132,14 +144,37 @@ async fn handle(req: Request<hyper::body::Incoming>) -> Result<Response<Full<Byt
     // `route_response.status` は本クレート内部で 200/404 のみを組み立てる
     // 定数的な値であるため `unwrap_or_else` でフォールバックし `panic!` は
     // しない（`coding-rust.md` のエラー処理規約）。
-    let response = builder
+    builder
         .body(Full::new(Bytes::from(route_response.body)))
         .unwrap_or_else(|_| {
             Response::builder()
                 .status(500)
                 .body(Full::new(Bytes::from_static(b"500 Internal Server Error")))
                 .expect("fallback response with fixed, valid status/body must build")
-        });
+        })
+}
 
-    Ok(response)
+#[cfg(test)]
+mod tests {
+    use super::{response_for, Method};
+
+    #[test]
+    fn get_and_head_are_routed_to_route_request() {
+        // GET: `/` は一覧ページ（200）を返す（`routes::route_request` の契約）。
+        assert_eq!(response_for(&Method::GET, "/").status(), 200);
+        // HEAD も GET と同列に許可され、`route_request` へ委譲される。
+        assert_eq!(response_for(&Method::HEAD, "/").status(), 200);
+    }
+
+    #[test]
+    fn non_get_head_methods_return_405_with_allow_header() {
+        for method in [Method::POST, Method::PUT, Method::DELETE, Method::PATCH] {
+            let response = response_for(&method, "/");
+            assert_eq!(response.status(), 405, "method={method}");
+            assert_eq!(
+                response.headers().get(hyper::header::ALLOW).unwrap(),
+                "GET, HEAD"
+            );
+        }
+    }
 }
