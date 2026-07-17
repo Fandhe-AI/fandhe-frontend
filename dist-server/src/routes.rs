@@ -17,37 +17,27 @@
 //!    応答には [`RouteResponse::cache_control`] に `Some("no-store")` を
 //!    設定し、ブラウザキャッシュがディスクの即時反映（REQ-10）を体感上
 //!    無効化しないようにする（TASK-10.1b、イシュー #107）。
-//! 2. それ以外は `rws_server::router::Router<PageRoute>`（REQ-7 共通コア）で
-//!    解決する。v1 の `Router` はワイルドカード（`*path`）に対応しないため、
-//!    1 の `/static/` 分岐で文字列プレフィックス判定を手動補完している
-//!    （`server/src/router.rs` のスコープ外事項、PR に記録）。
+//! 2. それ以外は [`rws_server::ssr::respond`]（TASK-6.1c の SSR コア）へ
+//!    委譲する。ページ解決・rws-app 呼び出しの実体は `rws-server` 側の
+//!    単一実装であり、本モジュールは HTTP レスポンス表現（[`RouteResponse`]）
+//!    への詰め替えのみを行う。`rws_server::ssr` 内部の `Router` は
+//!    ワイルドカード（`*path`）に対応しないため、1 の `/static/` 分岐で
+//!    文字列プレフィックス判定を手動補完している（`server/src/router.rs`
+//!    のスコープ外事項、PR に記録）。
 //! 3. いずれにも一致しなければ 404（本文は固定文言のみ。内部パス等を含めない
 //!    ＝機微情報露出の回避、`security.md`）。
 //!
 //! # 既定エスケープの引き継ぎ（REQ-1）
 //!
-//! ページ本文の生成は [`rws_app::list_page`] / [`rws_app::detail_page`] /
-//! [`rws_app::page_shell`]（いずれも `rws_core::text` 経由で既定エスケープ済み）
-//! のみを呼ぶ。本モジュールが独自に `format!` で HTML を組み立てることはない
+//! ページ本文の生成は [`rws_server::ssr::respond`] を経由して
+//! [`rws_app::list_page`] / [`rws_app::detail_page`] / [`rws_app::page_shell`]
+//! （いずれも `rws_core::text` 経由で既定エスケープ済み）のみを呼ぶ。
+//! 本モジュールが独自に `format!` で HTML を組み立てることはない
 //! （`coding-rust.md`「HTML 文字列の直接組み立て禁止」）。
 
 use crate::assets;
 use crate::mime::content_type_for_path;
-use rws_app::{demo_items, detail_page, list_page, page_shell, Item};
-use rws_server::router::Router;
-use std::sync::OnceLock;
-
-/// `rws_server::router::Router` に登録するページ種別。
-///
-/// ルーターはハンドラ型 `H` を不透明値として扱う契約（`server/src/router.rs`）
-/// のため、実際の描画処理は [`route_request`] 側が `match` で行う。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PageRoute {
-    /// `/` — 一覧画面。
-    List,
-    /// `/items/:id` — 詳細画面。
-    Detail,
-}
+use rws_server::ssr::respond;
 
 /// [`route_request`] の返り値。`main.rs` がこれを HTTP レスポンスへ変換する。
 pub struct RouteResponse {
@@ -70,37 +60,9 @@ pub struct RouteResponse {
     pub cache_control: Option<&'static str>,
 }
 
-/// `PageRoute` 用ルーターを構築する。
-///
-/// パターンは `docs/spec/04-requirements.md` REQ-9 受け入れ基準の
-/// `/`・`/items/:id` の 2 ルートのみ（`/search` は本タスクのスコープ外、
-/// PoC-3 の 3 ルート構成のうち未接続分は TASK-6.1c 以降で扱う）。
-/// パターン文字列はここでハードコードした開発者入力であり `unwrap` して良い
-/// （`coding-rust.md` のエラー処理規約はエンドユーザー入力由来の失敗を panic
-/// させないことを求めるものであり、コンパイル時定数の妥当性はこの限りでない）。
-fn build_page_router() -> Router<PageRoute> {
-    Router::new()
-        .route("/", PageRoute::List)
-        .expect("static pattern \"/\" is valid")
-        .route("/items/:id", PageRoute::Detail)
-        .expect("static pattern \"/items/:id\" is valid")
-}
-
-/// `build_page_router()` の結果をプロセス生存期間中 1 回だけ構築してキャッシュする。
-///
-/// `route_request` は hyper の 1 リクエストにつき 1 回呼ばれる
-/// （`main.rs` の `service_fn(handle)` 経由）ため、キャッシュなしでは毎リクエスト
-/// `Router` を再構築することになる。`Router` の登録内容は固定（開発者が
-/// ハードコードしたパターンのみ）であり実行時に変化しないため、`OnceLock`
-/// （`std` のみ・追加依存なし）で 1 度だけ構築して使い回す。
-fn page_router() -> &'static Router<PageRoute> {
-    static ROUTER: OnceLock<Router<PageRoute>> = OnceLock::new();
-    ROUTER.get_or_init(build_page_router)
-}
-
-/// リクエストパス（クエリ文字列を含んでよい。`Router::resolve` が `?` 以降を
-/// 切り落とす）を解決し、[`RouteResponse`] を返す。`main.rs` の hyper
-/// サービス関数から 1 リクエストにつき 1 回呼ばれる。
+/// リクエストパス（クエリ文字列を含んでよい。`rws_server::ssr::respond` 内部
+/// の `Router::resolve` が `?` 以降を切り落とす）を解決し、[`RouteResponse`]
+/// を返す。`main.rs` の hyper サービス関数から 1 リクエストにつき 1 回呼ばれる。
 pub fn route_request(path: &str) -> RouteResponse {
     if let Some(asset_path) = path.split('?').next().filter(|p| p.starts_with("/static/")) {
         // `assets::lookup` は `Cow<'static, [u8]>` を返す（埋め込みモードは
@@ -123,50 +85,15 @@ pub fn route_request(path: &str) -> RouteResponse {
         };
     }
 
-    let router = page_router();
-    match router.resolve(path) {
-        Some(route_match) => match route_match.handler {
-            PageRoute::List => {
-                let items = demo_items();
-                let html = page_shell("記事一覧", list_page(&items));
-                RouteResponse {
-                    status: 200,
-                    content_type: "text/html; charset=utf-8",
-                    body: html.into_bytes(),
-                    cache_control: None,
-                }
-            }
-            PageRoute::Detail => {
-                let items = demo_items();
-                // `Params::get` はルーター（`rws-server`）の契約どおり生文字列を
-                // 返す。ここでは `Item::id` との文字列一致に使うのみで HTML へは
-                // 出力しないため、既定エスケープの対象外（数値変換もしない、
-                // `id` は元々 `String` フィールド）。
-                let id = route_match.params.get("id");
-                let item = id.and_then(|id| items.iter().find(|it: &&Item| it.id == id));
-                match item {
-                    Some(item) => {
-                        let html = page_shell("記事詳細", detail_page(Some(item)));
-                        RouteResponse {
-                            status: 200,
-                            content_type: "text/html; charset=utf-8",
-                            body: html.into_bytes(),
-                            cache_control: None,
-                        }
-                    }
-                    None => {
-                        // 未知の id: `detail_page(None)` が返す 404 相当のノードを
-                        // そのまま描画し、HTML ボディとステータス 404 を一致させる。
-                        let html = page_shell("記事詳細", detail_page(None));
-                        RouteResponse {
-                            status: 404,
-                            content_type: "text/html; charset=utf-8",
-                            body: html.into_bytes(),
-                            cache_control: None,
-                        }
-                    }
-                }
-            }
+    // ページ解決の実体は `rws_server::ssr::respond`（TASK-6.1c の SSR コア）
+    // に一本化されている。本モジュールは HTTP レスポンス表現への詰め替えのみ
+    // 行い、`rws-app` のページ関数を直接呼ばない（重複実装の回避、REQ-6）。
+    match respond(path) {
+        Some(ssr_response) => RouteResponse {
+            status: ssr_response.status,
+            content_type: ssr_response.content_type,
+            body: ssr_response.body.into_bytes(),
+            cache_control: None,
         },
         None => not_found(),
     }

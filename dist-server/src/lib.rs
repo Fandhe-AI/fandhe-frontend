@@ -9,8 +9,8 @@
 //!   に応じて `static/` ディレクトリからの実行時読み込みと `build.rs` 生成
 //!   埋め込みテーブルの完全一致検索を切り替える（TASK-10.1a、イシュー #106）。
 //! - [`routes`]: HTTP に依存しないルート解決層（[`routes::route_request`]）。
-//!   `rws_server::router::Router`（REQ-7 共通コア）でページを、
-//!   `assets::lookup` で静的アセットを解決する。
+//!   ページ解決は `rws_server::ssr::respond`（TASK-6.1c の SSR コア）へ委譲し、
+//!   静的アセットは `assets::lookup` で解決する。
 //! - `main.rs`: hyper 接続処理（本ファイルには含めない。テスト容易性のため
 //!   HTTP 層と純粋なルーティング層を分離する）。起動時にアセット配信モードを
 //!   1 行ログ出力する（[`assets::active_mode`] 参照）。
