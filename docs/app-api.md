@@ -134,3 +134,39 @@ PoC-3 実績シグネチャをそのまま標準 API として凍結する。TAS
 - 本書第 5 節（ハイドレーション支援 API は TASK-6.2 系へ引き継ぎ）は
   `core/src/lib.rs` の rustdoc 記載（「ハイドレーション支援は TASK-6.2 系」）
   と整合する。TASK-6.1b は `rws-core` への API 追加を行わない。
+
+## 9. TASK-6.1c 実装時の乖離記録（axum 不採用・HTTP 配信の委譲）
+
+TASK-6.1c（#44）の実装により、第 2 節「axum / tokio 等のサーバー依存は
+`server/` 側に隔離する」という当初想定と、実際の実装との間に以下の乖離が
+生じた。乖離自体は「本書が正、実装との差異を指摘する」という本書の運用
+方針（冒頭のステータス節参照）に従い、ここに記録する。
+
+1. **axum を採用しない**: `dist-server/Cargo.toml` の実測コメント（TASK-9.1b
+   時点で先行記録済み）のとおり、axum の `"tokio"` feature は
+   `tokio-macros → syn → quote → proc-macro2 → unicode-ident` の連鎖を
+   無条件に要求し、依存グラフ深さ 7〜9 に達して REQ-3（60 件/深さ 6）に
+   構造的に違反する。この実測は本書（TASK-6.1a）確定より後に判明したため、
+   本書第 2 節の「サーバー依存は `server/` に隔離」は axum 前提のまま
+   残っていた。TASK-6.1c では axum を採用せず、`server/` は外部依存ゼロを
+   維持する。
+2. **SSR は「HTTP レスポンス文字列化」の純関数として実装する**:
+   `server/src/ssr.rs::respond(path: &str) -> Option<SsrResponse>` が
+   ステータス・Content-Type・既定エスケープ済み HTML 文字列を返す。
+   ソケット層（TCP リッスン・HTTP/1.1 解析等）は持たない。
+3. **HTTP 配信（ソケット層）は `rws-dist-server` に委譲する**:
+   `dist-server/src/routes.rs::route_request` は `rws_server::ssr::respond`
+   を呼び出し、その結果を `RouteResponse`（hyper 変換用の表現）へ詰め替える
+   のみとする。ページ解決・rws-app 呼び出しのロジックは `rws-server` 側の
+   単一実装に一本化し、`rws-dist-server` 側の重複実装を排除した。
+4. **SSG は SSR ボディの単純書き出し**: `server/src/ssg.rs::generate` は
+   `ssr::respond` が返す 200 応答ボディをそのまま `std::fs::write` する。
+   これにより SSR/SSG の出力文字列完全一致（REQ-6 受け入れ基準）は
+   実装レベルで自明になる（同一関数呼び出しの結果を書き出すのみのため）。
+5. **`/search` ルートは本タスクでも接続しない**: `rws-app` の凍結 API
+   （第 3 節）に search ページ相当のコンポーネントが存在しないため、
+   `server/src/ssr.rs` は `/`・`/items/:id` の 2 ルートのみを登録する。
+   `dist-server/src/routes.rs` に残っていた「`/search` は TASK-6.1c 以降で
+   扱う」という記述のスコープはここでは解消しない（`rws-app` 側に search
+   ページを追加する設計判断が必要なため、別 Issue 化をユーザーに提案する
+   スコープ外事項として PR 本文に記録する）。
