@@ -1,4 +1,4 @@
-# 依存グラフ上限値 運用ポリシー（草案）
+# 依存グラフ上限値 運用ポリシー
 
 ## 1. 目的とトレーサビリティ
 
@@ -7,15 +7,15 @@
 Conditional Go 条件 2（依存グラフ上限の要件化）に対応し、`docs/spec/05-tasks.md` の TASK-3.1〜TASK-3.3 系列のうち
 TASK-3.3（依存グラフ上限値運用ドキュメントの整備）を担います。
 
-TASK-3.3 は 2 段階に分割されています。
+TASK-3.3 は 2 段階に分割されていました。
 
-- **TASK-3.3a（本ドキュメント）**: 上限値の算出根拠・超過時の対応フロー・サプライチェーンリスクの限界を
-  明文化した**草案**の作成
-- **TASK-3.3b（Issue #24）**: 本草案のレビュー反映・確定。TASK-3.2（build.rs 保有クレートの機械的列挙）の
-  完了状況を踏まえた第 6 節の確定、および Conditional Go 条件 2 の解消判定は TASK-3.3b のスコープです
+- **TASK-3.3a（Issue #23・完了）**: 上限値の算出根拠・超過時の対応フロー・サプライチェーンリスクの限界を
+  明文化した草案の作成（PR #176、コミット 16eee26）
+- **TASK-3.3b（Issue #24・本更新で完了）**: 草案のレビュー反映・確定。TASK-3.2（build.rs 保有クレートの機械的列挙）の
+  完了状況を踏まえた第 6 節の確定、`rws-server` 実装後の実測値反映、WASM クライアントクレートのスコープ判断
+  （Issue #22 コメント由来）、および Conditional Go 条件 2 の解消判定
 
-**本文書のステータス**: 草案（TASK-3.3a）。第 6 節に記載のとおり前提タスク TASK-3.2 が未完了のため、
-一部の記述は「整備中」として TASK-3.3b に引き継ぎます。
+**本文書のステータス**: 確定（TASK-3.3b、Issue #22/#24）。第 8 節に解消判定の根拠を記録します。
 
 ## 2. 上限値と算出根拠
 
@@ -35,20 +35,27 @@ TASK-3.3 は 2 段階に分割されています。
 
 コアクレート（`rws-core` / `rws-interactive`）は外部依存パッケージ数 0 件であることを別途受け入れ基準としています
 （REQ-3 受け入れ基準 1 点目）。`core/Cargo.toml` への外部クレート追加は `.claude/rules/coding-rust.md` により禁止されています。
+この「0 件であること」自体は `check-deps`（60/6 判定）とは別に、`check-core-deps` ゲート（Issue #154）が
+`check_deps::ZERO_DEP_CRATES`（`rws-core` / `rws-interactive`）を対象に Normal/Dev/Build すべての辺で強制します。
 
-### 執筆時点の実測値（参考）
+### 現行実測値（TASK-3.3b 確定時点、origin/main 相当）
 
-本草案の執筆時点（2026-07-16、origin/main 相当）で `cargo run --locked -p xtask -- check-deps --package rws-core
---package xtask` を実行した結果は次のとおりです（両パッケージとも外部依存を持たないため 0/0）。
+`cargo run --locked -p xtask -- check-deps --package rws-core --package xtask --package rws-app
+--package rws-dist-server --package rws-server` の実行結果は次のとおりです。
 
 ```
-deps-check: packages=0/60 depth=0/6 result=PASS
-deps-check: packages=0/60 depth=0/6 result=PASS
+deps-check: packages=0/60 depth=0/6 result=PASS   (rws-core)
+deps-check: packages=0/60 depth=0/6 result=PASS   (xtask)
+deps-check: packages=1/60 depth=1/6 result=PASS   (rws-app)
+deps-check: packages=21/60 depth=5/6 result=PASS  (rws-dist-server)
+deps-check: packages=0/60 depth=0/6 result=PASS   (rws-server)
 ```
 
-`rws-server`（標準サーバー構成の本体）は本草案作成時点で未実装のため、REQ-3 が本来対象とする「標準サーバー構成」の
-実測値はまだ得られていません。`server` クレート実装後に計測対象へ追加し、実測値を本節に反映することが必要です
-（第 4 節参照）。
+`rws-dist-server`（`dist-server/`）は REQ-3 が本来対象とする「標準サーバー構成（SSR サーバー相当）」の実体です。
+`hyper` + `hyper-util` + `http-body-util` + `tokio` の直接構成を採用しており、`axum` / `rust-embed` はいずれも
+依存グラフ深さ上限（6）を構造的に超過するため不採用としました（実測根拠は `dist-server/Cargo.toml` のコメント参照）。
+`rws-server`（`server/`）はパスマッチングルーティングのみを担う外部依存ゼロのクレートで、SSR/SSG/単一バイナリ配布の
+各エントリから共通利用されます。
 
 ## 3. 計測の定義と「正」の所在
 
@@ -68,24 +75,57 @@ cargo run --locked -p xtask -- check-deps --package <NAME> [--package <NAME> ...
 - **プラットフォーム**: `--filter-platform` にホストの target triple を渡し、ホストで有効にならない
   cfg 条件付き依存（target-specific な normal edge）を計測から除外する
 
-しきい値の唯一の正は `xtask/src/check_deps.rs` の `MAX_PACKAGES`（60）・`MAX_DEPTH`（6）定数です。
-`--locked` 実行を必須とし、CLI 引数・環境変数・`continue-on-error` 等による緩和経路は意図的に設けません
-（迂回経路を作らない設計）。
+しきい値の唯一の正は `xtask/src/check_deps.rs` の `MAX_PACKAGES`（60）・`MAX_DEPTH`（6）・`ZERO_DEP_CRATES`
+（`rws-core` / `rws-interactive`。`check-core-deps` が参照）定数です。`--locked` 実行を必須とし、CLI 引数・
+環境変数・`continue-on-error` 等による緩和経路は意図的に設けません（迂回経路を作らない設計）。
 
 CI 組み込みは `.github/workflows/deps-check.yml` が担い、fail-closed（PASS/FAIL をそのまま CI の成否に伝播）で
 運用します。同ワークフローも `--locked` を必須とし、外側の `cargo run` が `Cargo.lock` を書き換えないことを
-保証しています。
+保証しています。`check-deps`（60/6 判定）・`check-core-deps`（コアクレート外部依存ゼロ判定、Issue #154）は
+それぞれ独立した PASS/FAIL 判定を持つ別ステップとして可視化されます（`format_report` / `format_zero_report` の
+1 行サマリ契約はテストで固定されています。`xtask/tests/cli_check_deps.rs` / `cli_check_core_deps.rs`）。
 
 ## 4. 計測対象パッケージ
 
-現時点の計測対象は次の 2 パッケージです（`.github/workflows/deps-check.yml` と一致）。
+現時点の計測対象は次の 5 パッケージです（`.github/workflows/deps-check.yml` と一致）。
 
 - `rws-core`（ディレクトリは `core/`。外部依存ゼロ契約）
 - `xtask`（外部依存ゼロ契約）
+- `rws-app`（ディレクトリは `app/`。`rws-core` への path 依存のみ）
+- `rws-dist-server`（ディレクトリは `dist-server/`。REQ-3 が対象とする「標準サーバー構成」の実体。
+  hyper 直接構成、実測 21 packages/depth 5）
+- `rws-server`（ディレクトリは `server/`。パスマッチングルーティングのみ、外部依存ゼロ）
 
-`rws-server`（標準サーバー構成の本体）が実装された後は、REQ-3 が本来意図する「標準サーバー構成」の計測対象として
-`--package server` を追加することが必須です。この追加は server クレート導入イシュー側の対応事項とし、
-本ドキュメントおよび `.github/workflows/deps-check.yml` のコメントに記載済みの引き継ぎ事項とします。
+`check-core-deps` は引数を取らず、`check_deps::ZERO_DEP_CRATES` と実 workspace メンバーの積集合を xtask 内部で
+自動解決します（`rws-interactive` 等の追加時もワークフロー変更は不要です）。
+
+### WASM クライアントクレートのスコープ（Issue #22 コメント由来の判断）
+
+`rws-wasm-full` / `rws-wasm-thin`（CSR・ハイドレーション用のクライアント側クレート）は本ゲートの計測対象に
+**含めません**。理由は次のとおりです。
+
+- REQ-3 の受け入れ基準は「標準サーバー構成（SSR サーバー相当）の解決済み依存パッケージ数・依存グラフ最大深さ」を
+  対象と明記しており（`docs/spec/04-requirements.md` REQ-3 受け入れ基準 2 点目）、クライアント側で実行される
+  WASM バインディング層はこの定義に含まれません
+- `wasm-bindgen` / `web-sys` に由来する依存グラフの深さは、ブラウザ API バインディングという領域の構造的特性
+  であり、`rws-dist-server` のように代替クレート選定で回避できる性質のものではありません
+- `unsafe` 境界としての監査は `docs/unsafe-boundary.md` のスコープであり、本ポリシーの 60/6 上限とは別の
+  観点で担保されます
+
+参考実測（TASK-3.3b 確定時点）:
+
+```
+deps-check: packages=20/60 depth=9/6 result=FAIL  (rws-wasm-full)
+deps-check: packages=13/60 depth=7/6 result=FAIL  (rws-wasm-thin)
+```
+
+（Issue #22 コメント記載の #48 時点実測「wasm-client 20 packages / depth 9」は、クレート再編後の
+`rws-wasm-full` の現行実測値と一致します。）
+
+この FAIL 表示はあくまで参考値であり、`deps-check` CI（`.github/workflows/deps-check.yml`）はこれらのクレートを
+計測対象に含めていないため CI 上の判定には影響しません。上限緩和・WASM 専用の別基準の新設は行わず、
+「WASM クライアント向け基準が別途必要か」は本リポジトリの判断で決めず、REQ-3 の対象定義自体の見直しとして
+`frontend-framework-spec` リポジトリへの提案事項に留めます（本リポジトリでは既存ゲートを一切緩和しません）。
 
 ## 5. 上限超過時の対応フロー
 
@@ -108,14 +148,29 @@ CI 組み込みは `.github/workflows/deps-check.yml` が担い、fail-closed（
 REQ-3 の受け入れ基準は「`build.rs` を持つ依存クレートの一覧が、ビルド成果物または CI ログとして機械的に
 列挙できること」を求めています。
 
-**本節のステータス: 整備中**。この機能は TASK-3.2（Issue #19 系列: #20 TASK-3.2a 列挙ロジック実装・
-#21 TASK-3.2b CI 出力統合）で `xtask` のサブコマンドとして実装される計画ですが、本草案の執筆時点
-（2026-07-16 時点の origin/main）では未着手であり、`xtask/src/main.rs` に `check-deps` 以外のサブコマンドは
-存在しません。`check_deps.rs` には `DepKind` の分類が定義されていますが、`build.rs` 保有クレートの列挙に
-特化したサブコマンド・出力形式は未実装です。
+この機能は TASK-3.2（Issue #19 系列: #20 TASK-3.2a 列挙ロジック実装・#21 TASK-3.2b CI 出力統合）で実装済みです。
+実体は `xtask` の `list-build-scripts` サブコマンド（`xtask/src/list_build_scripts.rs`）です。
 
-TASK-3.2 完了後、本節を実コマンド名・出力形式・CI 統合方法で確定記述に更新することを TASK-3.3b（Issue #24）
-へ引き継ぎます。
+```bash
+cargo run --locked -p xtask -- list-build-scripts --package <NAME> [--package <NAME> ...]
+```
+
+出力契約（`format_inventory`、`xtask/tests/cli_list_build_scripts.rs` で固定）は 1 行サマリ
+`build-scripts: target=<name> count=<n>` です。この列挙は PASS/FAIL の概念を持たない監査ログであり、
+`build.rs` の存在自体は違反ではありません（禁止クレートのブロックは `cargo-deny` 系タスク TASK-4.x のスコープ）。
+
+`.github/workflows/deps-check.yml` は `check-deps` / `check-core-deps` の成否に関わらず（`if: always()`）
+本コマンドを実行し、Step Summary に出力します。
+
+実行例（第 4 節の計測対象パッケージに対する実測）:
+
+```
+build-scripts: target=rws-core count=0
+build-scripts: target=xtask count=0
+build-scripts: target=rws-app count=0
+build-scripts: target=rws-dist-server count=3   (httparse, libc, rws-dist-server)
+build-scripts: target=rws-server count=0
+```
 
 ## 7. サプライチェーンリスクの限界（安全性主張のスコープ）
 
@@ -130,14 +185,27 @@ TASK-3.2 完了後、本節を実コマンド名・出力形式・CI 統合方�
 - メモリ安全性の保証範囲は `core` / `interactive`（`#![forbid(unsafe_code)]` を設定したクレート）に
   限定されます。WASM バインディング層・FFI 依存クレートの残存リスクは `docs/unsafe-boundary.md` の
   スコープです
+- 第 4 節で WASM クライアントクレートを本ゲートのスコープ外と記載していますが、これは既存ゲートの
+  緩和ではありません。`deps-check` は元々 WASM クレートを対象にしておらず、本ドキュメントはその事実を
+  明文化したに過ぎません
 
-## 8. 草案ステータスと TASK-3.3b への引き継ぎ
+## 8. Conditional Go 条件 2 の解消判定
 
-TASK-3.3b（Issue #24）で以下のレビュー観点を消化し、本ドキュメントを確定させ、Conditional Go 条件 2 の
-解消判定を行うことを想定しています。
+TASK-3.3b（Issue #22/#24）として、以下のレビュー観点を消化しました。
 
-- [ ] 算出根拠（第 2 節の数値表）が `docs/spec/04-requirements.md` の記述と一致しているか
-- [ ] 超過時の対応フロー（第 5 節）が実際の運用として実行可能か（依存追加承認フローとの整合を含む）
-- [ ] TASK-3.2（build.rs 列挙）完了後、第 6 節を実コマンド名・出力形式で確定記述に更新できているか
-- [ ] `rws-server` 実装後、第 2 節・第 4 節に標準サーバー構成の実測値を反映できているか
-- [ ] Conditional Go 条件 2（依存グラフ上限の要件化）の解消判定
+- [x] 算出根拠（第 2 節の数値表）が `docs/spec/04-requirements.md` の記述と一致していることを確認した
+- [x] 超過時の対応フロー（第 5 節）が実際の運用として実行可能であることを確認した（依存追加承認フロー
+      `.claude/rules/coding-rust.md` / `.claude/rules/security.md` との整合を含む）
+- [x] TASK-3.2（build.rs 列挙）完了を受け、第 6 節を実コマンド名・出力形式・実行例で確定記述に更新した
+- [x] `rws-server` 実装を受け、第 2 節・第 4 節に標準サーバー構成（`rws-dist-server` / `rws-server`）の
+      実測値を反映した（`.github/workflows/deps-check.yml` の計測対象にも `rws-server` を追加した）
+- [x] WASM クライアントクレート（`rws-wasm-full` / `rws-wasm-thin`）のスコープ判断（Issue #22 コメント由来）を
+      第 4 節に明文化した
+
+**判定**: Conditional Go 条件 2（依存グラフ上限の要件化）は運用として確立しました。しきい値の根拠（第 2 節）・
+fail-closed な CI 強制（`check-deps` / `check-core-deps`、第 3 節）・build.rs 監査ログ（`list-build-scripts`、
+第 6 節）・計測対象の妥当性（標準サーバー構成のみを対象とし WASM は明示的にスコープ外とする、第 4 節）が
+すべて実装・文書化・稼働済みであるためです。最終確認は `docs/spec/06-roadmap.md` が定める MS-1 完了時レビュー
+（レビューポイント節）で改めて行われます。
+
+**判定日**: 2026-07-17（TASK-3.3b 確定コミット時点）。

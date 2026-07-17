@@ -33,9 +33,14 @@ name: deps-check
 #   axum・rust-embed はいずれも依存グラフ深さ上限（6）を構造的に超過するため
 #   不採用とし、hyper + hyper-util + http-body-util + tokio の直接構成とした
 #   （実測根拠は `dist-server/Cargo.toml` のコメント参照）。
-#   rws-server（router のみ・外部依存ゼロ）自体は本ゲートの計測対象に
-#   `--package rws-server` を追加すること（server クレート導入イシュー側の
-#   対応事項として引き続き未着手）。
+#   TASK-3.3b（イシュー #22/#24）で rws-server（router のみ・外部依存ゼロ、
+#   server/）を計測対象に追加した。実測: packages=0/60 depth=0/6（PASS）。
+#   rws-wasm-full・rws-wasm-thin（CSR/ハイドレーション用クライアントクレート）は
+#   REQ-3 が対象と明記する「標準サーバー構成」に該当しないため、本ゲートの対象に
+#   含めない（docs/dependency-graph-policy.md 第 4 節参照）。参考実測: wasm-full
+#   20 packages/depth 9、wasm-thin 13 packages/depth 7（いずれも深さ上限 6 を
+#   超過するが、これは対象外の結果であって理由ではない。対象外の理由は上記の
+#   スコープ定義そのものであり、深さ超過を根拠に対象外化したわけではない）。
 # - `check-core-deps` は引数を取らず、`check_deps::ZERO_DEP_CRATES` と実 workspace
 #   メンバーの積集合を xtask 内部で自動解決する（`rws-interactive` 追加時も
 #   ワークフロー変更は不要）。
@@ -86,7 +91,7 @@ jobs:
         # 一致しなくなる（fail-closed の前提が崩れる）ため必須。
         run: |
           set -o pipefail
-          cargo run --locked -p xtask -- check-deps --package rws-core --package xtask --package rws-app --package rws-dist-server | tee deps-check.log
+          cargo run --locked -p xtask -- check-deps --package rws-core --package xtask --package rws-app --package rws-dist-server --package rws-server | tee deps-check.log
 
       - name: Publish deps-check summary
         if: always()
@@ -150,7 +155,7 @@ jobs:
         if: always()
         run: |
           set -o pipefail
-          cargo run --locked -p xtask -- list-build-scripts --package rws-core --package xtask --package rws-app --package rws-dist-server | tee build-scripts.log
+          cargo run --locked -p xtask -- list-build-scripts --package rws-core --package xtask --package rws-app --package rws-dist-server --package rws-server | tee build-scripts.log
 
       - name: Publish build-scripts summary
         if: always()
