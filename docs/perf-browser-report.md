@@ -133,4 +133,5 @@ PoC-5（Node.js 近似計測、目標比 300〜5,000 倍の余裕）と比較し
 - `wasm-full/tests/perf_browser.rs`（計測ハーネス本体）
 - `docs/spec/05-tasks.md` TASK-11.5（親タスク受け入れ基準）
 - `docs/spec/06-roadmap.md`（Conditional Go 条件 1・MS-3 完了ゲート）
-- Issue #85（親）・#86（ハーネス構築・クローズ済み）・#87（計測実行・オープン）
+- `docs/perf-browser-execution-87.md`（TASK-11.5b・#87 の独立再実行記録・再現性確認）
+- Issue #85（親）・#86（ハーネス構築・クローズ済み）・#87（計測実行・クローズ済み）
