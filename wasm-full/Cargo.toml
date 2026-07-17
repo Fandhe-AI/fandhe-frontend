@@ -2,30 +2,40 @@
 name = "rws-wasm-full"
 version = "0.1.0"
 edition = "2021"
-description = "rws-wasm-full: WASM 完全方式（イベント処理・DOM 更新を Rust/web-sys 側で行うクライアントランタイム）。docs/wasm-full-architecture.md 参照。"
+description = "rws-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
 publish = false
 
-# TASK-11.2c（#76）時点のスコープ限定に関する注記:
+# TASK-11.2b（#75）でイベント処理（events モジュール）・wasm-bindgen/web-sys
+# 依存を追加。TASK-11.2c（#76）は #75 マージ後の rebase により、DOM 非依存の
+# 純粋関数 `render_component_html`（dom モジュール、rws-core::render 呼び出し）を
+# 追加する。dom モジュールは lib.rs（本クレートの公開面）から呼ばれるため
+# rws-core は通常の [dependencies] とする（rws-interactive 経由で既に依存グラフに
+# 含まれており、REQ-3 依存上限には影響しない）。
 #
-# `docs/wasm-full-architecture.md` 第 2 節は crate-type を ["cdylib", "rlib"] とし、
-# 依存に `wasm-bindgen` / `web-sys`（Element 等）を加える設計を確定しているが、
-# それらの実追加と `events` モジュール・`Runtime<C>` 骨格の実装は
-# TASK-11.2b（#75）のスコープであり、本コミット時点（2026-07-17）で #75 は未マージ
-# （wasm-full/ crate 自体が存在しない状態）だった。
+# `docs/unsafe-boundary.md` 第 2 節のポリシー: 自作コードは safe Rust のみとし、
+# `unsafe` は wasm-bindgen / web-sys の FFI 境界（依存クレート内部・自動生成コード）
+# に限定して許容する。
 #
-# `.github/workflows/ci.yml` の forbid-unsafe ジョブは `cargo check --workspace`
-# を `-p` 絞り込みなしで実行しており、web-sys/wasm-bindgen（内部に unsafe を含む）
-# を依存に加えると本ジョブが即座に赤くなる。CI ジョブの `-p` 絞り込みは #75 の
-# スコープ（ci.yml 内コメント参照）であり、本タスク（#76）で先取りして変更しない。
-#
-# そのため本ファイルは `rws-core` / `rws-interactive`（path 依存のみ）で完結する
-# 純粋関数 `render_component_html`（dom モジュール）のみを提供する最小骨格とし、
-# `set_inner_html` を伴う `paint()` の実装（web-sys 依存）は #75 マージ後に
-# rebase して追加する（実装計画 §2 の安全側フォールバック方針）。
-# crate-type は rlib のみとし、cdylib 化・wasm-bindgen 依存の追加は #75 側で行う。
+# 依存追加は事前承認必須（.claude/rules/coding-rust.md, security.md）。
+# 本追加は Issue #73/#75 の計画（PoC-5 `wasm-full/Cargo.toml` と同一依存構成）を
+# もって承認済みとし、影響確認結果を PR 本文に記録する。
 [dependencies]
 rws-core = { path = "../core" }
 rws-interactive = { path = "../interactive" }
+wasm-bindgen = "0.2"
 
-[dev-dependencies]
+[dependencies.web-sys]
+version = "0.3"
+features = [
+  "Document",
+  "Element",
+  "Event",
+  "EventTarget",
+  "HtmlInputElement",
+  "Window",
+  "console",
+]
+
+[lib]
+crate-type = ["cdylib", "rlib"]

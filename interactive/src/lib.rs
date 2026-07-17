@@ -365,8 +365,15 @@ impl Component for AppState {
 
     fn update(&mut self, action: Action) {
         match action {
-            Action::Increment => self.counter += 1,
-            Action::Decrement => self.counter -= 1,
+            // `counter` はハイドレーション属性経由でクライアント制御下の
+            // 極端な値（i64::MAX/MIN）から復元されうる（`from_hydration_attrs`）。
+            // 素朴な `+`/`-` は debug ビルドで overflow panic するため、
+            // `saturating_add`/`saturating_sub` により不変条件 4 相当の
+            // 安全側フォールバック（panic しない）を維持する
+            // （interactive/tests/hydration_codec.rs・state_management.rs の
+            // 極端値回帰テスト参照）。
+            Action::Increment => self.counter = self.counter.saturating_add(1),
+            Action::Decrement => self.counter = self.counter.saturating_sub(1),
             Action::Reset => self.counter = 0,
             Action::SetDraft(value) => self.draft = value,
             Action::AddItem => {
@@ -386,7 +393,7 @@ impl Component for AppState {
     }
 
     fn view(&self) -> Node {
-        render_with_root_attrs(self, vec![])
+        render_with_root_attrs(self)
     }
 
     fn decode_action(name: &str, payload: &str) -> Option<Action> {
@@ -450,12 +457,18 @@ impl Hydrate for AppState {
     }
 }
 
-/// [`AppState::view`] / [`render_for_hydration`] 共通の木構築本体。
+/// [`AppState::view`] の木構築本体。
 ///
-/// `extra_root_attrs` はルート要素へ追加する属性（ハイドレーション属性）。
+/// ハイドレーション属性はここでは付与しない。SSR 側の付与は
+/// [`render_for_hydration`] が `Component::view` の戻り値（本関数の結果）を
+/// 受け取った後、ルート要素へ後付けで行う責務分離になっている
+/// （Bugbot 指摘: 旧実装は本関数に未使用の `extra_root_attrs` 引数を持ち、
+/// ハイドレーション属性共有経路であるかのような doc コメントを付けていたが、
+/// 唯一の呼び出し元（[`AppState::view`]）は常に空 vec を渡しており実質死んで
+/// いた。引数を削除し、責務分離の実態に合わせて doc コメントを修正する）。
 /// テキスト・属性値はすべて `rws_core::text`/`el` の attrs 経由で出力する
 /// ため、`rws_core::render` が既定エスケープを必ず適用する（不変条件 1）。
-fn render_with_root_attrs(state: &AppState, extra_root_attrs: Vec<(&str, &str)>) -> Node {
+fn render_with_root_attrs(state: &AppState) -> Node {
     let counter_section = el(
         "div",
         vec![("data-testid", "counter")],
@@ -532,11 +545,10 @@ fn render_with_root_attrs(state: &AppState, extra_root_attrs: Vec<(&str, &str)>)
         .collect();
     let list_section = ul(vec![("data-testid", "item-list")], items);
 
-    let mut root_attrs = vec![
+    let root_attrs = vec![
         ("id", "interactive-root"),
         ("data-testid", "interactive-root"),
     ];
-    root_attrs.extend(extra_root_attrs);
     el(
         "div",
         root_attrs,

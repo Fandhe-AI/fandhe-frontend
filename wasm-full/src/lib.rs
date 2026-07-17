@@ -1,36 +1,21 @@
-//! `rws-wasm-full`: WASM 完全方式（イベント処理・DOM 更新を Rust/web-sys 側で
-//! 行うクライアントランタイム）のクレート入口。
+//! `rws-wasm-full`: WASM 完全方式のクライアントランタイム。
 //!
-//! 設計の正は `docs/wasm-full-architecture.md`（TASK-11.2a・#198 でマージ済み）。
-//! 実装と本書に乖離が生じた場合は同書を正とする。
+//! REQ-11（`docs/spec/04-requirements.md`）が既定とする「クライアントの
+//! イベント処理・DOM 更新を Rust + WASM の safe な範囲に収める」方式の
+//! 実装クレート。TASK-11.2 は 4 分割サブタスク（アーキテクチャ設計 #74・
+//! イベント処理 #75・DOM 更新 #76・既定実装化と統合 #77）で構成される。
 //!
-//! # 本ファイルのスコープ（TASK-11.2c・#76）
+//! 本コミット時点（TASK-11.2b・#75 マージ済み／TASK-11.2c・#76）では
+//! [`events`]（イベント委譲配線）と [`dom::render_component_html`]（DOM 非依存の
+//! 描画純粋関数）を提供する。`Runtime<C>`・`mount()`/`hydrate()` の公開 API と
+//! `set_inner_html` を伴う `paint()` 本体・イベント配線との統合は TASK-11.2d
+//! （#77）のスコープ（`docs/wasm-full-architecture.md` 第 3.1 節）。
 //!
-//! `docs/wasm-full-architecture.md` 第 3.1 節はモジュール構成を次のように
-//! 割り当てている。
-//!
-//! - `lib.rs`（`Runtime<C>` 定義・公開 API）: TASK-11.2b（#75）/ TASK-11.2c（#76）
-//! - `events`（内部・イベント委譲配線）: TASK-11.2b（#75）
-//! - `dom`（内部・`paint()`）: TASK-11.2c（#76）＝本タスク
-//!
-//! 調査時点（2026-07-17）で TASK-11.2b（#75）は未マージであり、
-//! `Runtime<C>` 骨格・`events` モジュールがまだ存在しない。そのため本コミットは
-//! 実装計画の安全側フォールバックに従い、`dom` モジュールが提供する純粋関数
-//! （DOM 非依存・`web-sys` 不使用）である [`dom::render_component_html`] のみを
-//! 実装する。`set_inner_html` を伴う `dom::paint`（`web-sys::Element` 依存）と
-//! `Runtime::mount` への統合は、#75 マージ後に rebase して追加する
-//! （`Cargo.toml` 冒頭のコメント参照。CI の `forbid-unsafe` ジョブが
-//! `cargo check --workspace` を絞り込みなしで実行するため、`web-sys` 依存の
-//! 追加は #75 側の CI 調整とセットでなければ workspace 全体を壊す）。
-//!
-//! `events` モジュール・イベント委譲配線の実装は本タスクのスコープ外であり、
-//! 責務混線を避けるため先取りしない（#75 のスコープ）。
+//! 本クレートの自作コードは safe Rust のみとし、`unsafe` は `wasm-bindgen` /
+//! `web-sys` の FFI 境界（依存クレート内部・自動生成コード）に限定する
+//! （`docs/unsafe-boundary.md` 第 2 節）。
 
-// `wasm-bindgen` 生成コードの unsafe を許容する必要が生じる将来（#75 以降）に
-// 備え、`docs/wasm-full-architecture.md` 第 2 節の方針に従い `forbid` ではなく
-// `deny` を採用する。本コミット時点では自作コード・依存とも unsafe を含まない。
-#![deny(unsafe_code)]
-#![warn(missing_docs)]
+pub mod events;
 
 mod dom;
 

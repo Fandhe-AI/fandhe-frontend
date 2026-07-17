@@ -2,7 +2,8 @@
 //!
 //! 本モジュールは `paint()`（`rws_core::render()` 出力への `set_inner_html`
 //! 適用）の実装を TASK-11.2c（#76）として担当するが、`set_inner_html` を
-//! 呼び出す層（`web-sys::Element` 依存）は #75 マージ後に追加する
+//! 呼び出す層（`web-sys::Element` 依存）・イベント配線（[`crate::events`]）との
+//! 統合は TASK-11.2d（#77）のスコープとする
 //! （`wasm-full/Cargo.toml` 冒頭コメント・`lib.rs` モジュールコメント参照）。
 //!
 //! 現時点で提供するのは、DOM を一切参照しない**純粋関数**
@@ -29,7 +30,7 @@ use rws_interactive::Component;
 /// XSS 回帰・dispatch 後の再描画内容を検証できる
 /// （`wasm-full/tests/dom_update.rs` 参照）。
 ///
-/// 将来追加される `paint()`（#75 マージ後、`web-sys::Element::set_inner_html`
+/// 将来追加される `paint()`（TASK-11.2d・#77、`web-sys::Element::set_inner_html`
 /// を呼ぶ薄い層）は、この関数の戻り値をそのまま渡す想定であり、`paint()` 自体は
 /// 独自にエスケープや文字列組み立てを行わない。
 pub fn render_component_html<C: Component>(component: &C) -> String {

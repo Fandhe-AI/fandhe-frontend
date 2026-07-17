@@ -7,8 +7,7 @@
 //! （`docs/wasm-full-architecture.md` 第 5 節・テスト設計 §5 参照）。
 //!
 //! `set_inner_html` を伴う `paint()` の実ブラウザ検証は本コミット時点では
-//! 未実装（#75 マージ後に追加）であり、TASK-11.2d（#77）の統合テストへ
-//! 引き継ぐ（実装計画 §5-4）。
+//! 未実装であり、TASK-11.2d（#77）の統合テストへ引き継ぐ（実装計画 §5-4）。
 
 use rws_interactive::{dispatch, AppState};
 use rws_wasm_full::render_component_html;
