@@ -52,6 +52,34 @@ fn create_placeholder(document: &Document, id: &str) -> Element {
     container
 }
 
+/// テスト末尾でプレースホルダを document から確実に除去する RAII ガード
+/// （CI issue #73 で顕在化したテスト間 DOM 汚染の再発防止）。
+///
+/// `wasm-pack test --headless --chrome` は本ファイル内の全 `#[wasm_bindgen_test]`
+/// 関数を同一ページ（同一 `Document`）上で順に実行し、テスト間でページ
+/// リロードやイフレーム分離を行わない。一方 `AppState::view()`
+/// （`interactive/src/lib.rs`）が返すルート要素は常に固定 id
+/// `"interactive-root"` を持つため、`Runtime::mount` で描画した内容を
+/// 片付けずに残すと、後続テストの `document.get_element_by_id("interactive-root")`
+/// （`Runtime::hydrate` 内部、`wasm-full/src/lib.rs::Runtime::get_root`）が
+/// 意図せず過去のテストの残留要素にヒットし得る
+/// （`hydrate_restores_state_from_existing_dom_and_wires_events` が
+/// `mount_then_click_updates_state_and_dom`/`input_event_updates_state_without_repainting_dom`
+/// の残留要素を拾って誤って CSR フォールバックする実際の不具合として観測
+/// 済み。`Runtime::hydrate` 自体のロジックは単体では正しく、本ガードで
+/// 再現条件を断つのが正しい修正）。
+///
+/// 各テストの `placeholder`（トップレベルコンテナ）自身を除去すれば、
+/// その子孫として存在し得る `id="interactive-root"` の描画済み内容も
+/// まとめて document から取り除かれる。
+struct RemoveOnDrop(Element);
+
+impl Drop for RemoveOnDrop {
+    fn drop(&mut self) {
+        self.0.remove();
+    }
+}
+
 /// 合成 `click`/`input` イベントを生成する（`bubbles: true`）。
 ///
 /// `Runtime::mount`/`hydrate` はリスナーをルート要素へ登録するため、子要素上で
@@ -69,6 +97,7 @@ fn mount_then_click_updates_state_and_dom() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
     let placeholder = create_placeholder(&document, "runtime-mount-click-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
 
     let runtime =
         Runtime::mount("runtime-mount-click-root", AppState::new()).expect("mount must succeed");
@@ -153,6 +182,7 @@ fn input_event_updates_state_without_repainting_dom() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
     let placeholder = create_placeholder(&document, "runtime-mount-input-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
 
     let runtime =
         Runtime::mount("runtime-mount-input-root", AppState::new()).expect("mount must succeed");
@@ -209,6 +239,7 @@ fn hydrate_restores_state_from_existing_dom_and_wires_events() {
     seed_state.items.push("SSR済み項目".to_string());
 
     let placeholder = create_placeholder(&document, "interactive-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
     placeholder.set_inner_html(&rws_wasm_full::render_component_html(&seed_state));
     // render_component_html の出力は AppState::view() のルート div
     // （id="interactive-root"）そのものであり、`interactive-root` という id を
@@ -267,6 +298,7 @@ fn hydrate_falls_back_to_initial_state_csr_on_corrupted_attrs() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
     let placeholder = create_placeholder(&document, "runtime-hydrate-corrupted-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
 
     // 改ざん想定: counter に数値パース不能な値を設定する。
     placeholder
@@ -313,6 +345,7 @@ fn mount_with_xss_payload_state_produces_no_script_element_in_real_dom() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
     let placeholder = create_placeholder(&document, "runtime-mount-xss-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
 
     let mut state = AppState::new();
     state.draft = "<script>alert(1)</script>".to_string();
