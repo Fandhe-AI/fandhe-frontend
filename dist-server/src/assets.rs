@@ -15,11 +15,17 @@
 //! （`force-embed` フィーチャーで debug ビルドのまま本番相当の埋め込み経路を
 //! CI 検証できる、`dist-server/Cargo.toml` 参照）。
 //!
-//! `DevFilesystem` モードの [`lookup`] は `dev_fs::lookup` が `None`（未検出）を
-//! 返した場合に [`embedded_lookup`] へフォールバックする。WASM ビルド成果物
-//! （TASK-10.2b、イシュー #110。`dist-server/build.rs` 参照）はソースツリー
-//! `static/` に実体を持たず `OUT_DIR` 完結で埋め込まれるため、この
-//! フォールバックがないと dev モードで `/static/wasm/*` が 404 になる。
+//! `DevFilesystem` モードの [`lookup`] は、URL パスが [`WASM_PATH_PREFIX`]
+//! （`/static/wasm/`）で始まる場合に限り、`dev_fs::lookup` が `None`
+//! （未検出）を返したときに [`embedded_lookup`] へフォールバックする。WASM
+//! ビルド成果物（TASK-10.2b、イシュー #110。`dist-server/build.rs` 参照）は
+//! ソースツリー `static/` に実体を持たず `OUT_DIR` 完結で埋め込まれるため、
+//! この限定フォールバックがないと dev モードで `/static/wasm/*` が 404 に
+//! なる。フォールバックを `/static/wasm/*` 以外にも広げると、実際には
+//! ディスク上に存在しない（削除済み・未配置の）アセットがコンパイル時の
+//! 埋め込みテーブルから配信されてしまい、dev モード固有の「ディスクの
+//! 状態がそのまま反映される」ファイルシステム意味論を壊す（レビュー
+//! 指摘: PR #217）。
 //!
 //! # 即時反映の保証（REQ-10、TASK-10.1b、イシュー #107）
 //!
@@ -31,7 +37,9 @@
 //! `deleted_file_returns_none_immediately` が固定する契約。将来の最適化
 //! （内容キャッシュ等）を追加する際は REQ-10 を壊さないことを確認する）。
 //! ブラウザ側キャッシュ対策（`Cache-Control: no-store`）は `routes.rs` の
-//! `RouteResponse::cache_control` が担う。
+//! `RouteResponse::cache_control` が担う。この即時反映契約は `/static/wasm/*`
+//! 以外のパスにのみ適用される（`/static/wasm/*` は上記のとおり dev モード
+//! でも常に埋め込みテーブルから配信されるため、意図的に対象外）。
 //!
 //! # セキュリティ不変条件（パストラバーサル、REQ 系 OWASP A01）
 //!
@@ -90,6 +98,17 @@ pub fn embedded_lookup(url_path: &str) -> Option<&'static [u8]> {
         .map(|(_, bytes)| *bytes)
 }
 
+/// WASM ビルド成果物の URL パスプレフィックス。`dist-server/build.rs` が
+/// `OUT_DIR` に生成する埋め込みテーブルにのみ実体を持ち、ソースツリー
+/// `static/` には書き込まれない（TASK-10.2b、イシュー #110）。[`lookup`] の
+/// dev モードフォールバックをこのプレフィックスに限定する根拠となる定数。
+///
+/// [`AssetMode::Embedded`]（release / `force-embed`）では [`lookup`] が
+/// 常に [`embedded_lookup`] を使うため参照されず、dev モードの分岐にのみ
+/// 必要（未使用警告回避のため cfg で dev モードに限定する）。
+#[cfg(all(debug_assertions, not(feature = "force-embed")))]
+const WASM_PATH_PREFIX: &str = "/static/wasm/";
+
 /// URL パスからアセットのバイト列を引く（[`routes.rs`](crate::routes) の
 /// `/static/` プレフィックス分岐から呼ばれる公開入口）。
 ///
@@ -99,18 +118,37 @@ pub fn embedded_lookup(url_path: &str) -> Option<&'static [u8]> {
 /// モードでも同一シグネチャで扱える。
 #[cfg(all(debug_assertions, not(feature = "force-embed")))]
 pub fn lookup(url_path: &str) -> Option<Cow<'static, [u8]>> {
+    if let Some(bytes) = dev_fs::lookup(url_path) {
+        return Some(Cow::Owned(bytes));
+    }
+
     // WASM 成果物（TASK-10.2b、イシュー #110）はソースツリー `static/` へ
     // 書き込まれず `build.rs` の OUT_DIR で完結する（再ビルドループ回避、
     // `build.rs` 冒頭ドキュメント参照）。そのため dev モードでもファイル
     // システムに実体が存在せず、`dev_fs::lookup` は常に `None` を返す。
     // `embedded_lookup`（コンパイル時固定テーブルの完全一致検索のみ・実行時
-    // ファイルシステムアクセスなし）へフォールバックすることで、dev/release
-    // 双方で `/static/wasm/*` を配信できるようにする。このフォールバックは
-    // 既存のパストラバーサル不変条件（`embedded_lookup` は完全一致検索のみ）
-    // を変えない — 新しい実行時 FS アクセス経路を追加するわけではない。
-    dev_fs::lookup(url_path)
-        .map(Cow::Owned)
-        .or_else(|| embedded_lookup(url_path).map(Cow::Borrowed))
+    // ファイルシステムアクセスなし）へのフォールバックは `WASM_PATH_PREFIX`
+    // 配下に限定する（[`is_wasm_asset_path`] 参照）。ここを無条件にすると、
+    // コンパイル時には存在したが実行時にディスクから削除・変更された通常
+    // アセットまで埋め込みテーブルから配信されてしまい、REQ-10（即時反映。
+    // 上記モジュール doc 参照）が保証する「ディスクの状態がそのまま反映
+    // される」dev モードのファイルシステム意味論を壊す（レビュー指摘:
+    // PR #217）。
+    if is_wasm_asset_path(url_path) {
+        return embedded_lookup(url_path).map(Cow::Borrowed);
+    }
+
+    None
+}
+
+/// `url_path` が WASM ビルド成果物（[`WASM_PATH_PREFIX`] 配下）を指すか
+/// どうかを判定する。[`lookup`] の dev モードにおける [`embedded_lookup`]
+/// フォールバック可否を決める唯一の条件（ファイルシステムの状態に依存
+/// しない純粋な判定のため、フォールバック対象範囲を単体テストで直接固定
+/// できる）。
+#[cfg(all(debug_assertions, not(feature = "force-embed")))]
+fn is_wasm_asset_path(url_path: &str) -> bool {
+    url_path.starts_with(WASM_PATH_PREFIX)
 }
 
 /// [`lookup`] の本番（[`AssetMode::Embedded`]）実装。`dev_fs` を一切参照
@@ -442,5 +480,36 @@ mod tests {
     #[test]
     fn active_mode_is_embedded_in_release_or_force_embed_build() {
         assert_eq!(super::active_mode(), super::AssetMode::Embedded);
+    }
+
+    // 以下は dev モード（[`super::lookup`] が `dev_fs` フォールバック経路を
+    // 持つビルド構成）限定の回帰テスト。レビュー指摘（PR #217）: dev モードで
+    // `embedded_lookup` へのフォールバックが `/static/wasm/*` 以外にも
+    // 及んでいた（ディスクから削除・変更された通常アセットが埋め込み
+    // テーブルから配信され、REQ-10 の即時反映意味論を壊す）ため、
+    // フォールバック対象を `WASM_PATH_PREFIX` 配下に限定した。
+    #[cfg(all(debug_assertions, not(feature = "force-embed")))]
+    mod dev_mode_fallback_scope {
+        use super::super::is_wasm_asset_path;
+
+        #[test]
+        fn wasm_paths_are_recognized_as_fallback_eligible() {
+            assert!(is_wasm_asset_path("/static/wasm/app.wasm"));
+            assert!(is_wasm_asset_path("/static/wasm/app_bg.wasm"));
+        }
+
+        #[test]
+        fn non_wasm_paths_are_not_fallback_eligible() {
+            // `/static/wasm/*` 以外は、コンパイル時に埋め込みテーブルへ
+            // 収録されていても dev モードでは埋め込みへフォールバック
+            // しない（実行時にディスクから消えていれば 404 として扱う）。
+            assert!(!is_wasm_asset_path("/static/view-transitions.js"));
+            assert!(!is_wasm_asset_path("/static/does-not-exist.js"));
+            assert!(!is_wasm_asset_path("/static/"));
+            // プレフィックス自体は「配下」ではないため対象外
+            // （末尾に `/` を含む `WASM_PATH_PREFIX` と完全一致するのみで、
+            // ファイル名部分がない）。
+            assert!(!is_wasm_asset_path("/static/wasm"));
+        }
     }
 }
