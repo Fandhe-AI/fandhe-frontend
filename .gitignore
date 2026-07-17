@@ -1,6 +1,11 @@
 /target
 **/*.rs.bk
 
+# TASK-4.4: templates/default は root workspace の members に含まれない
+# 独立した cargo プロジェクトのため、ビルド成果物ディレクトリが root の
+# /target ルールでは無視されない。
+/templates/default/target
+
 # TASK-10.4a（イシュー #119）: rebuild_latency ベンチが static/ 配下へ書き込む
 # 一時プローブファイル。ベンチ終了時に Drop ガードで削除するが、強制終了時の
 # 残留に備えた保険（次回実行での自己回復とは独立の安全策）。
