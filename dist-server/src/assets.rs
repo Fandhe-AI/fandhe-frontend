@@ -110,12 +110,20 @@ mod dev_fs {
     /// `build.rs`（`dist-server/build.rs`）と同一の基準
     /// （`CARGO_MANIFEST_DIR` の親 + `static`）を用いる。開発ビルドは
     /// ソースツリー上での実行が前提であり、`CARGO_MANIFEST_DIR` は
-    /// コンパイル時に埋め込まれる定数のためリクエスト入力に依存しない。
+    /// コンパイル時に埋め込まれる定数のためリクエスト入力に依存しない
+    /// （`parent()` が `None` になるのは `CARGO_MANIFEST_DIR` がファイル
+    /// システムルートの場合のみで、cargo ワークスペース構成では実質
+    /// 到達不能）。ただし `coding-rust.md`「ライブラリコードでの
+    /// `unwrap()`/`expect()`/`panic!` を避ける」に従い、`parent()` 不在時も
+    /// パニックせず `static/`（カレントディレクトリ相対）へフォールバック
+    /// する。フォールバック時は本来の `static/` を指さない可能性があるが、
+    /// [`resolve_under_root`] が `canonicalize` 失敗を `None`（404）に丸める
+    /// ため安全側に倒れる。
     fn static_root() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
-            .expect("dist-server/ has a parent directory (workspace root)")
-            .join("static")
+            .map(|workspace_root| workspace_root.join("static"))
+            .unwrap_or_else(|| PathBuf::from("static"))
     }
 
     /// URL パスから `static/` ルート配下のファイルを読み込む。
