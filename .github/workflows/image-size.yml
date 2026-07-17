@@ -77,9 +77,19 @@ jobs:
           set -euo pipefail
           docker run -d --name rws-ci -p 3100:3100 rws-dist-server:ci
 
+          # curl の body 破棄先には `/dev/null` を使わない。GitHub Actions の
+          # ubuntu-latest ランナーでは、curl 8.x が `-o /dev/null` に対して
+          # 内部的な高速書き込みパス（sendfile 相当）を使おうとして
+          # 「curl: (23) Failure writing output to destination」を返す事例が
+          # 確認されている（HTTP レスポンスの内容とは無関係な、書き込み先が
+          # `/dev/null` であること自体に起因する問題）。実ファイルの一時パスを
+          # 破棄先にすることでこの書き込みエラーを回避する。
+          discard="$(mktemp)"
+          trap 'rm -f "$discard"' EXIT
+
           ready=0
           for _ in $(seq 1 30); do
-            if curl -fsS -o /dev/null http://127.0.0.1:3100/static/wasm/rws_wasm_full.js; then
+            if curl -fsS -o "$discard" http://127.0.0.1:3100/static/wasm/rws_wasm_full.js; then
               ready=1
               break
             fi
@@ -92,16 +102,16 @@ jobs:
             exit 1
           fi
 
-          js_status=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/static/wasm/rws_wasm_full.js)
-          js_type=$(curl -s -o /dev/null -w '%{content_type}' http://127.0.0.1:3100/static/wasm/rws_wasm_full.js)
+          js_status=$(curl -s -o "$discard" -w '%{http_code}' http://127.0.0.1:3100/static/wasm/rws_wasm_full.js)
+          js_type=$(curl -s -o "$discard" -w '%{content_type}' http://127.0.0.1:3100/static/wasm/rws_wasm_full.js)
           if [ "$js_status" != "200" ] || [ "${js_type#text/javascript}" = "$js_type" ]; then
             echo "::error::rws_wasm_full.js: expected 200 text/javascript, got status=${js_status} content_type=${js_type}" >&2
             docker rm -f rws-ci || true
             exit 1
           fi
 
-          wasm_status=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/static/wasm/rws_wasm_full_bg.wasm)
-          wasm_type=$(curl -s -o /dev/null -w '%{content_type}' http://127.0.0.1:3100/static/wasm/rws_wasm_full_bg.wasm)
+          wasm_status=$(curl -s -o "$discard" -w '%{http_code}' http://127.0.0.1:3100/static/wasm/rws_wasm_full_bg.wasm)
+          wasm_type=$(curl -s -o "$discard" -w '%{content_type}' http://127.0.0.1:3100/static/wasm/rws_wasm_full_bg.wasm)
           if [ "$wasm_status" != "200" ] || [ "$wasm_type" != "application/wasm" ]; then
             echo "::error::rws_wasm_full_bg.wasm: expected 200 application/wasm, got status=${wasm_status} content_type=${wasm_type}" >&2
             docker rm -f rws-ci || true
@@ -114,7 +124,7 @@ jobs:
             exit 1
           fi
 
-          not_found_status=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/static/wasm/does-not-exist.wasm)
+          not_found_status=$(curl -s -o "$discard" -w '%{http_code}' http://127.0.0.1:3100/static/wasm/does-not-exist.wasm)
           if [ "$not_found_status" != "404" ]; then
             echo "::error::unknown /static/wasm/ path expected 404, got ${not_found_status}" >&2
             docker rm -f rws-ci || true
