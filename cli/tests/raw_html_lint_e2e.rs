@@ -73,12 +73,18 @@ fn write_fixture_crate(dir: &Path, lib_rs_content: &str) {
 /// `--locked` の drift 検知契約ではないため、ネットワーク到達を防ぐ
 /// `--offline`（path 依存のみで解決可能）で足りる。
 ///
-/// `CARGO_TARGET_DIR` はフィクスチャ間で共有しない（各フィクスチャ配下の既定
-/// `target/` を使う）。全フィクスチャが同一パッケージ名を持つため、並列実行
-/// テスト間で `target` を共有するとキャッシュ/フィンガープリントが衝突し、
-/// 別フィクスチャの clippy 診断結果を誤って再利用してしまう競合を実測したため
-/// （偽陰性の温床になり「見逃しなし」方針に反するため、ビルド時間より正しさを
-/// 優先する）。
+/// `CARGO_TARGET_DIR` はフィクスチャ間で共有しない。各フィクスチャ配下の
+/// `target/` を明示指定し、プロセス環境から継承され得る値（self-hosted
+/// runner の `CARGO_TARGET_DIR=/cargo-target` 等）を上書きする。全フィクスチャが
+/// 同一パッケージ名 `raw-html-lint-fixture` を持つため、`CARGO_TARGET_DIR` が
+/// 環境側で共有設定されている場合、明示指定なしでは複数フィクスチャの
+/// ビルドキャッシュ/フィンガープリントが衝突し、後続フィクスチャの
+/// `cargo clippy` がキャッシュ命中で実際には再検査を行わないまま成功終了して
+/// しまう（PR #264 CI で実測、`cli/tests/negative_cases.rs::run_fw_gate` と
+/// 同一機構・同一修正）。以前はローカル既定 `target/` に依存すれば足りるという
+/// 想定だったが、CI 環境の `CARGO_TARGET_DIR` 継承までは考慮しておらず
+/// 不十分だったため、ここで明示上書きする（偽陰性の温床になり「見逃しなし」
+/// 方針に反するため、ビルド時間より正しさを優先する）。
 ///
 /// 起動自体に失敗した場合（`cargo`/`clippy` コンポーネント不在）は明示メッセージ
 /// 付きで `panic!` する（沈黙スキップしない。coding-rust.md のテスト規約）。
@@ -86,6 +92,7 @@ fn run_cargo_clippy_in(dir: &Path) -> (bool, String) {
     let output = Command::new("cargo")
         .args(["clippy", "--offline", "--", "-D", "warnings"])
         .current_dir(dir)
+        .env("CARGO_TARGET_DIR", dir.join("target"))
         .output()
         .unwrap_or_else(|e| {
             panic!(

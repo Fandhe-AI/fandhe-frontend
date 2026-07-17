@@ -52,7 +52,7 @@ jobs:
       - name: Show toolchain
         run: rustup show && cargo --version
 
-      - name: unsafe 境界の回帰テスト（safe 域: forbid 属性・unsafe トークン・core 依存ゼロ／wasm-full deny 域: deny 属性・unsafe トークン・allow 上書き不在、#155）
+      - name: "unsafe 境界の回帰テスト（safe 域: forbid 属性・unsafe トークン・core 依存ゼロ／wasm-full deny 域: deny 属性・unsafe トークン・allow 上書き不在、#155）"
         run: cargo test -p rws-core --test unsafe_boundary --locked
 
       # NOTE: -F (forbid) はソース側の #[allow(unsafe_code)] で上書きできないため、
@@ -675,6 +675,14 @@ jobs:
   clippy:
     name: REQ-1 raw_html() 検出（clippy disallowed_methods, issue #157）
     runs-on: ubuntu-latest
+    # forbid-unsafe ジョブと同じ理由で dist-server の WASM ネストビルドを
+    # オプトアウトする: `cargo clippy --workspace` は dist-server/build.rs 経由で
+    # ネストした cargo build + wasm-bindgen 起動を伴うが、本ジョブの runner には
+    # wasm32 ターゲット・wasm-bindgen-cli の常設保証がなく、build.rs 側の
+    # panic（wasm-bindgen-cli 不在）で本ジョブ本来の目的（raw_html() 検出）と
+    # 無関係に失敗する。統合ビルドの実証は別ジョブ（test 等）が担う。
+    env:
+      RWS_WASM_BUILD: "0"
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（test/loc-check ジョブと同一 SHA に固定）。

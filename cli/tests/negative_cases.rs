@@ -38,11 +38,23 @@ use std::process::Command;
 
 /// `fw` バイナリを `gate --project <dir>` で起動し、(終了コード, stdout, stderr)
 /// を返す（`gate_integration.rs` の `run_fw_gate` と同一パターン）。
+///
+/// `CARGO_TARGET_DIR` はフィクスチャ間で共有しない（`raw_html_lint_e2e.rs`
+/// と同一方針）。self-hosted runner では `CARGO_TARGET_DIR=/cargo-target` が
+/// プロセス環境に既定で設定されており、本テストの全フィクスチャは同名パッケージ
+/// `negative-fixture-app` のため、これを継承したまま `cargo` を起動すると
+/// フィクスチャ間でビルドキャッシュ/フィンガープリントが衝突し、直前に生成した
+/// 別フィクスチャの `type_check` 結果を誤って再利用してしまう（型エラーを
+/// 注入したはずのケースが再コンパイルされず誤って PASS する偽陰性）。
+/// ここで `project_dir` 配下の専用 `target/` を明示指定し、継承された値を
+/// 上書きすることで各フィクスチャを独立させる（`fw` から起動される `cargo`
+/// 子プロセスにも env は継承されるため、これで `gate.rs` 側の変更は不要）。
 fn run_fw_gate(project_dir: &Path) -> (i32, String, String) {
     let output = Command::new(env!("CARGO_BIN_EXE_fw"))
         .arg("gate")
         .arg("--project")
         .arg(project_dir)
+        .env("CARGO_TARGET_DIR", project_dir.join("target"))
         .output()
         .expect("failed to spawn `fw` binary");
     (
@@ -223,6 +235,22 @@ unknown-git = "deny"
         "[package]\nname = \"negative-fixture-app\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n",
     )
     .expect("app/Cargo.toml の書き込みに失敗した");
+
+    // イシュー #157/#263（`gate.rs::clippy_policy_check`）: `lint` チェックは
+    // `project_dir` 直下の `clippy.toml` に `disallowed-methods` の
+    // `rws_core::raw_html` エントリが存在することを fail-closed で前提とする
+    // （欠落時は cargo clippy を起動する前に `lint` を failed とする）。本フィクス
+    // チャはワークスペースルートの `clippy.toml` と同一ポリシーを配布する
+    // `templates/default/clippy.toml` と同内容を複製し、`baseline_fixture_passes_core_checks`
+    // 等の `lint` チェックを実体化させる。
+    fs::write(
+        dest.join("clippy.toml"),
+        r#"disallowed-methods = [
+    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/raw-html-review-gate.md 参照）" },
+]
+"#,
+    )
+    .expect("clippy.toml の書き込みに失敗した");
 
     fs::write(app_src.join("main.rs"), main_rs_content).expect("main.rs の書き込みに失敗した");
 
