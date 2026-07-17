@@ -139,20 +139,71 @@ fn template_deny_workflow_pins_action_refs_to_full_sha() {
     }
 }
 
+/// `run:` ステップの実コマンド部分のみを抽出する。
+///
+/// `non_comment_lines` はコメント行を除くだけで `name:` のような他フィールドを
+/// 含んだままにするため、`name: cargo deny check bans/licenses/sources` の
+/// ように *説明のためだけの文字列* を `run:` の実コマンドと誤認識しうる
+/// （Bugbot 指摘: name: 行の文言だけでテストが通り、run: を空にする骨抜きを
+/// 検知できない）。ここでは `run:` キー（インライン形式・`|`/`>` ブロック
+/// スカラー形式の両方）のみを対象にし、インデントで一致するブロック内容を
+/// 追跡することで、実行コマンド以外の行を混入させない。
+fn run_command_contents(contents: &str) -> String {
+    let lines = non_comment_lines(contents);
+    let mut result = String::new();
+    let mut i = 0;
+    while i < lines.len() {
+        let line = lines[i];
+        let trimmed = line.trim_start();
+        let indent = line.len() - trimmed.len();
+        if let Some(rest) = trimmed.strip_prefix("run:") {
+            let rest = rest.trim();
+            if rest.is_empty() || rest == "|" || rest == "|-" || rest == ">" || rest == ">-" {
+                // ブロックスカラー形式: 後続の、より深くインデントされた
+                // （または空の）行を実コマンドとして取り込む。
+                i += 1;
+                while i < lines.len() {
+                    let block_line = lines[i];
+                    let block_trimmed = block_line.trim_start();
+                    let block_indent = block_line.len() - block_trimmed.len();
+                    if block_trimmed.is_empty() || block_indent > indent {
+                        result.push_str(block_line);
+                        result.push('\n');
+                        i += 1;
+                    } else {
+                        break;
+                    }
+                }
+                continue;
+            }
+            // インライン形式: `run: <command>`
+            result.push_str(rest);
+            result.push('\n');
+        }
+        i += 1;
+    }
+    result
+}
+
 #[test]
 fn template_deny_workflow_runs_bans_licenses_sources_gate() {
     let contents = read_workflow();
-    let executable_contents = non_comment_lines(&contents).join("\n");
+    // `name:` フィールドの説明文言（例:
+    // 「Run cargo deny check (bans / licenses / sources)」）を誤って
+    // ゲート実行の証拠と扱わないよう、`run:` の実コマンドのみを検証する。
+    let run_contents = run_command_contents(&contents);
 
     assert!(
-        executable_contents.contains("cargo deny check"),
-        "cargo deny check の実行行が見つからない（ゲート本体が欠落している）"
+        run_contents.contains("cargo deny check"),
+        "cargo deny check の実行行（run:）が見つからない（ゲート本体が \
+         欠落している）"
     );
     for check in ["bans", "licenses", "sources"] {
         assert!(
-            executable_contents.contains(check),
-            "cargo deny check の対象から {check} が外れている（ポリシー \
-             ゲートの弱体化）"
+            run_contents.contains(check),
+            "cargo deny check の run: コマンドの対象から {check} が \
+             外れている（ポリシーゲートの弱体化。name: の説明文言だけを \
+             書き換えて run: を骨抜きにする回帰を検知するための検査）"
         );
     }
 }
