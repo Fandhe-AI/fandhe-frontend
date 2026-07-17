@@ -95,6 +95,6 @@ TASK-11.5b（#87）が `wasm-pack test --headless --chrome wasm-full --test perf
 
 - `docs/perf-browser-harness.md`（TASK-11.5a・出力契約・実行手順・CI 構成）
 - `wasm-full/tests/perf_browser.rs`（計測ハーネス本体）
-- `docs/spec/05-tasks.md` TASK-11.5・TASK-11.5（親タスク受け入れ基準）
+- `docs/spec/05-tasks.md` TASK-11.5（親タスク受け入れ基準）
 - `docs/spec/06-roadmap.md`（Conditional Go 条件 1・MS-3 完了ゲート）
 - Issue #85（親）・#86（ハーネス構築・クローズ済み）・#87（計測実行・オープン）
