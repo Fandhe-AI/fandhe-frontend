@@ -302,6 +302,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "rws-cli"
+version = "0.1.0"
+
+[[package]]
 name = "rws-core"
 version = "0.1.0"
 

@@ -1,0 +1,19 @@
+[package]
+name = "rws-cli"
+version = "0.1.0"
+edition = "2021"
+description = "rws-cli (fw): AI 自己保守・改修のためのフック・ゲート機構（REQ-13）。structure.toml のパース・検証、impact 解析、gate 判定を提供する。外部依存ゼロ。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[[bin]]
+name = "fw"
+path = "src/main.rs"
+
+# REQ-3 / coding-rust.md: 依存クレートの追加は事前に cargo metadata で影響を確認し
+# ユーザー承認を得ること。自動運転（承認取得不可）時は既定で「追加しない」側に倒す。
+# structure.toml のパースには toml クレートを採用せず、xtask/src/json.rs の
+# 前例（外部依存ゼロの最小パーサ自作）に倣い自作の TOML サブセットパーサを使う。
+[dependencies]
+
+[dev-dependencies]
