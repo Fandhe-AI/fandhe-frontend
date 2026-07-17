@@ -30,6 +30,14 @@
 //!   （`ZERO_DEP_CRATES` 参照。上限を弱める経路を作らない設計）。
 //!   CLI 契約の回帰テストは `xtask/tests/cli_check_core_deps.rs`。
 //!
+//! - `check-loc`（引数なし）: TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）。
+//!   `check_loc::LOC_CHECK_TARGETS`（`static/view-transitions.js`）について
+//!   コメント・空行を除いた実効 LOC を計測し、`check_loc::MAX_EFFECTIVE_LOC`
+//!   （10 行）以内かを判定する（`check_loc::judge`）。対象ファイルの不在・
+//!   読み取り失敗も超過と同様に fail-closed とする。判定対象・しきい値は
+//!   CLI 引数で差し替え不可。CLI 契約の回帰テストは
+//!   `xtask/tests/cli_check_loc.rs`。
+//!
 //! `core` / `interactive` と異なりプロセス起動（`std::process::Command`）を行うが、
 //! `unsafe` は使わない（REQ-2 は core/interactive 限定だが、xtask でも forbid する。
 //! core/tests/unsafe_boundary.rs の WASM/FFI 境界許可リストにも含まれない）。
@@ -37,6 +45,7 @@
 #![forbid(unsafe_code)]
 
 mod check_deps;
+mod check_loc;
 mod json;
 mod list_build_scripts;
 
@@ -48,6 +57,7 @@ fn main() -> ExitCode {
         Some("check-deps") => run_check_deps(&args[2..]),
         Some("list-build-scripts") => run_list_build_scripts(&args[2..]),
         Some("check-core-deps") => run_check_core_deps(&args[2..]),
+        Some("check-loc") => run_check_loc(&args[2..]),
         Some(other) => {
             eprintln!("xtask: unknown subcommand `{other}`");
             print_usage();
@@ -79,6 +89,11 @@ fn print_usage() {
     eprintln!("      Enforce zero external dependencies (normal/dev/build) for the core");
     eprintln!("      crates listed in check_deps::ZERO_DEP_CRATES (REQ-3 acceptance");
     eprintln!("      criterion 1, issue #154). Takes no arguments by design.");
+    eprintln!("  check-loc");
+    eprintln!("      Measure effective LOC (comments and blank lines excluded) for the");
+    eprintln!("      files in check_loc::LOC_CHECK_TARGETS and judge them against");
+    eprintln!("      check_loc::MAX_EFFECTIVE_LOC (REQ-8 acceptance criterion, issue #62).");
+    eprintln!("      Takes no arguments by design.");
 }
 
 /// `check-deps` サブコマンド: `--package <NAME>` を 1 つ以上受け取り、
@@ -250,6 +265,48 @@ fn run_list_build_scripts(args: &[String]) -> ExitCode {
             }
             Err(e) => {
                 eprintln!("xtask list-build-scripts: failed to list `{name}`: {e}");
+                had_failure = true;
+            }
+        }
+    }
+
+    if had_failure {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+/// `check-loc` サブコマンド（TASK-8.2b, イシュー #62, REQ-8 受け入れ基準）: 引数を
+/// 一切取らない。`check_loc::LOC_CHECK_TARGETS` に列挙されたファイルそれぞれについて
+/// 実効 LOC（コメント・空行を除く）を `check_loc::measure_file` で計測し、
+/// `check_loc::MAX_EFFECTIVE_LOC`（10 行）以内かを `check_loc::judge` で判定する。
+///
+/// 判定を弱める CLI 引数・環境変数は意図的に設けない（不明な引数は終了コード 2）。
+/// 対象ファイルの不在・読み取り失敗・しきい値超過のいずれも終了コード 1
+/// （fail-closed）とする。TASK-8.2a（イシュー #61）がマージされ
+/// `static/view-transitions.js` が存在するまでは、本サブコマンドは
+/// ファイル不在により意図的に FAIL する。
+fn run_check_loc(args: &[String]) -> ExitCode {
+    if let Some(unknown) = args.first() {
+        eprintln!(
+            "xtask check-loc: unknown argument `{unknown}` (this subcommand takes no arguments)"
+        );
+        return ExitCode::from(2);
+    }
+
+    let mut had_failure = false;
+    for &file in check_loc::LOC_CHECK_TARGETS {
+        match check_loc::measure_file(file) {
+            Ok(measurement) => {
+                let check_result = check_loc::judge(measurement);
+                print!("{}", check_loc::format_loc_report(&check_result));
+                if !check_result.is_pass() {
+                    had_failure = true;
+                }
+            }
+            Err(e) => {
+                eprintln!("xtask check-loc: failed to measure `{file}`: {e}");
                 had_failure = true;
             }
         }
