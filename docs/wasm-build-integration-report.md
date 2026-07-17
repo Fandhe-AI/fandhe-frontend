@@ -14,11 +14,15 @@
   - TASK-10.2d（#112・オープン）: `docs/wasm-build-integration.md` の作成
   - TASK-10.2e（本ドキュメント・#113）: 検証レポート作成・Conditional Go
     条件 3 解消判定
-- 判定基準の中核は REQ-10 受け入れ基準第 3 項（`docs/spec/04-requirements.md`
-  132〜134 行）「単一の `cargo build` でネイティブサーバーバイナリと WASM
-  クライアント成果物の双方が生成されること」。REQ-10 の他の受け入れ基準
-  （開発時アセット変更の即時反映＝TASK-10.1、本番差分反映 5 秒以内＝TASK-10.4、
-  Docker マルチステージビルド内 WASM 再ビルド＝TASK-10.3）は本レポートの
+- 判定基準の中核は REQ-10 受け入れ基準（`docs/spec/04-requirements.md`
+  136〜140 行）の第 3 項（139 行）「`cargo build`（単一コマンド、ビルド
+  スクリプトまたは統合ビルドツール経由）で、ネイティブサーバーバイナリと
+  WASM クライアント成果物の双方が生成されること」。同旨の文言は
+  `docs/spec/06-roadmap.md` 101 行にも「単一の `cargo build` でネイティブ
+  サーバーバイナリと WASM クライアント成果物の双方が生成されること」として
+  再掲されている。REQ-10 の他の受け入れ基準（開発時アセット変更の即時反映＝
+  TASK-10.1・137 行、本番差分反映 5 秒以内＝TASK-10.4・138 行、Docker
+  マルチステージビルド内 WASM 再ビルド＝TASK-10.3・140 行）は本レポートの
   スコープ外であり、第 3 節の判定基準表に項目化と担当タスク番号の明記のみ
   行う。
 - 条件 3 の最終確定は `docs/spec/06-roadmap.md` 156 行が定める MS-4 完了時の
@@ -56,8 +60,8 @@ TASK-10.2d（イシュー #109・#110・#111・#112）はすべてオープン�
 
 ## 3. 判定基準
 
-`docs/spec/04-requirements.md` REQ-10 節（132〜134 行）・`docs/spec/05-tasks.md`
-TASK-10.2（251〜256 行）に基づく。
+`docs/spec/04-requirements.md` REQ-10 節（132〜142 行、受け入れ基準は
+136〜140 行）・`docs/spec/05-tasks.md` TASK-10.2（251〜256 行）に基づく。
 
 | # | 判定項目 | 対応する受け入れ基準 | 担当タスク | 本レポートでの扱い |
 |---|---------|---------------------|-----------|-------------------|
@@ -183,7 +187,8 @@ Conditional Go 条件 3（WASM ビルドチェーンの cargo 統合）は **解
 - `dist-server/build.rs`（TASK-9.1b 由来の静的アセット埋め込み生成。WASM
   ビルド呼び出しは未統合）
 - `.github/workflows/ci.yml`（WASM 関連ジョブの現状構成）
-- `docs/spec/04-requirements.md` REQ-10（132〜134 行、受け入れ基準）
+- `docs/spec/04-requirements.md` REQ-10（132〜142 行、受け入れ基準は 136〜140 行、
+  第 3 項は 139 行）
 - `docs/spec/05-tasks.md` TASK-10.2（251〜256 行、親タスク受け入れ基準・
   17 行の条件 3 判定規定）
 - `docs/spec/06-roadmap.md`（13・101・156 行、Conditional Go 条件 3・MS-4
