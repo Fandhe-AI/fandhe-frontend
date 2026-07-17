@@ -53,8 +53,15 @@ fn spawn_and_wait_for_port() -> (ChildGuard, u16) {
         .expect("stderr must be piped for spawned child");
     let reader = BufReader::new(stderr);
 
+    // `read_listening_port` の呼び出し（タイムアウト・panic し得る）より前に
+    // `ChildGuard` でラップする。ラップを後回しにすると、その間に panic や
+    // 早期リターンが起きた場合、生の `Child` が guard で保護されないまま
+    // drop されてしまう（`std::process::Child` は drop 時に自動終了しない
+    // ため、子プロセスが起動したままゾンビ化・ポート占有し得る。レビュー指摘対応）。
+    let guard = ChildGuard(child);
+
     let port = read_listening_port(reader);
-    (ChildGuard(child), port)
+    (guard, port)
 }
 
 /// stderr から `"rws-dist-server: listening on 127.0.0.1:<port>"` 行を探し、
@@ -112,6 +119,31 @@ fn read_listening_port(reader: BufReader<std::process::ChildStderr>) -> u16 {
     }
 
     panic!("dist-server did not print a \"listening on\" line with a port within timeout");
+}
+
+/// `child.wait()` を無期限にブロックさせず、タイムアウト（5 秒）付きで
+/// 子プロセスの終了を待つ。
+///
+/// bind 失敗を検証するテスト用。bind 失敗のパスでは子プロセスは即座に
+/// 終了するはずだが、想定外に起動が停滞した場合でも `wait()` を無期限に
+/// 呼ぶとテストごと CI をハングさせてしまう（レビュー指摘対応）。
+/// `try_wait()` によるポーリングでデッドラインを実効化し、タイムアウト時は
+/// panic する（呼び出し元は `ChildGuard` でラップ済みであることが前提 —
+/// panic 後も `Drop` で子プロセスの kill/wait が保証される）。
+fn wait_with_timeout(child: &mut Child, timeout: Duration) -> std::process::ExitStatus {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if let Some(status) = child
+            .try_wait()
+            .expect("try_wait on dist-server child must not error")
+        {
+            return status;
+        }
+        if Instant::now() >= deadline {
+            panic!("dist-server did not exit within timeout after a bind conflict");
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
 }
 
 /// `"rws-dist-server: listening on 127.0.0.1:PORT"` 形式の 1 行から
@@ -220,7 +252,13 @@ fn bind_conflict_exits_non_zero_with_fixed_stderr_message() {
         stderr
     });
 
-    let status = child.wait().expect("dist-server process must exit");
+    // `wait_with_timeout` を呼ぶ前に `ChildGuard` でラップする。bind 失敗が
+    // 起きない、または起動が停滞して `wait_with_timeout` が panic した場合
+    // でも、guard の `Drop` が子プロセスの kill/wait を保証する（レビュー
+    // 指摘対応、`spawn_and_wait_for_port` と同様の方針）。
+    let mut guard = ChildGuard(child);
+
+    let status = wait_with_timeout(&mut guard.0, Duration::from_secs(5));
     assert!(
         !status.success(),
         "dist-server must exit non-zero when the bind address is already in use"
