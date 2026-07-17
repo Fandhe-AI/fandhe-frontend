@@ -11,7 +11,10 @@ publish = false
 # 純粋関数 `render_component_html`（dom モジュール、rws-core::render 呼び出し）を
 # 追加する。dom モジュールは lib.rs（本クレートの公開面）から呼ばれるため
 # rws-core は通常の [dependencies] とする（rws-interactive 経由で既に依存グラフに
-# 含まれており、REQ-3 依存上限には影響しない）。
+# 含まれており、REQ-3 依存上限には影響しない）。TASK-11.2d（#77）で
+# `Runtime<C>`（lib.rs）・`dom::paint`・`entry` モジュールを追加したが、新規
+# クレート追加は行っていない（既存 wasm-bindgen/web-sys のみで完結、
+# `cargo metadata` 実測結果は PR 本文に記録する）。
 #
 # `docs/unsafe-boundary.md` 第 2 節のポリシー: 自作コードは safe Rust のみとし、
 # `unsafe` は wasm-bindgen / web-sys の FFI 境界（依存クレート内部・自動生成コード）

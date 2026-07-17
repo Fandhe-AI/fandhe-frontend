@@ -65,7 +65,20 @@ async fn run() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    eprintln!("rws-dist-server: listening on {bind_addr}");
+    // `RWS_BIND_ADDR=127.0.0.1:0`（ポート 0 = OS 割当）で起動した場合、
+    // 設定文字列 `bind_addr` をそのままログに出すと実際に割り当てられた
+    // ポート番号が外部から分からない。`listener.local_addr()`（bind 済み
+    // ソケットの実アドレス）を使うことで、TASK-9.1c（イシュー #97）の
+    // 実プロセス起動検証テスト（`tests/boot.rs`）が stderr の当該行から
+    // 実ポートを取得できるようにする。`local_addr()` は bind 直後の
+    // ソケットに対しては OS 側の失敗要因がなく、実運用上失敗しないが、
+    // 万一失敗しても `panic!` はせず設定文字列にフォールバックする
+    // （`coding-rust.md` のエラー処理規約）。
+    let listening_addr = listener
+        .local_addr()
+        .map(|addr| addr.to_string())
+        .unwrap_or_else(|_| bind_addr.clone());
+    eprintln!("rws-dist-server: listening on {listening_addr}");
     // アセット配信モードを起動時に 1 行だけ出力する（TASK-10.1a、イシュー #106）。
     // 内部絶対パス（`static/` の実パス等）は含めない固定文言のみとし、
     // 機微情報を露出しない（`security.md`）。
