@@ -1,12 +1,10 @@
-# structure.toml スキーマ設計（TASK-13.1a）
+# structure.toml スキーマ設計と `fw structure`（TASK-13.1）
 
 > **本書のステータスと前提**: 本書は TASK-13.1（親イシュー #127）の 4h
-> 分割サブタスクのうち **スキーマ設計**（TASK-13.1a・本イシュー #128）の
-> 成果物です。兄弟サブタスクは TASK-13.1b（パーサ実装、#129）・
-> TASK-13.1c（マニフェスト生成、#130）・TASK-13.1d（テスト整備、#131）
-> であり、TOML テキストの実パース・`cargo metadata` との突き合わせ・
-> CI 組み込みはいずれも本書のスコープ外です（`docs/npm-static-asset-rules.md`
-> と同型の設計契約ドキュメント）。
+> 分割サブタスク全体（TASK-13.1a スキーマ設計・#128 / TASK-13.1b パーサ実装・
+> #129 / TASK-13.1c マニフェスト生成・#130 / TASK-13.1d テスト整備・#131）の
+> 成果物であり、すべて実装済みです。スキーマ設計の経緯・判断根拠（§2）に
+> 加え、実装の到達点（§4）・`fw structure` の使い方（§4 末尾）を記載します。
 >
 > TASK-13.1 は自動運転モードで実装されています。判断が必要な境界ケースは
 > すべて**安全側（fail-closed・未知キーはエラー・依存追加なし）**に倒して
@@ -139,29 +137,54 @@ PoC-7 は `role` を自由記述文字列としていたが、本スキーマで
 
 構成上の留意点:
 
-- `server` は本リポジトリの現行実装では `rws-core`/`rws-app` を
-  **テストコードでのみ**使用し、本番コード（`server/src/router.rs`）は
-  外部依存ゼロの自前実装である（`server/Cargo.toml` の
-  `[dependencies]` は空、`rws-core`/`rws-app` は `[dev-dependencies]`
-  のみ）。そのため `directories.server.depends_on` は宣言していない。
-  `core`/`app` への実質的な依存を束ねるのは `dist-server`
-  （`role = "distribution"`）である。
-- `[routing] definition_dir = "server"` は「ルートは `server/src/router.rs`
-  の `Router::route(...)` 呼び出しに定義される」という規約を宣言する。
-  実際の抽出処理（`rws-router-v1` 抽出器）は TASK-13.1c（#130）で実装する。
+- `server`（`rws-server`）は TASK-6.1c で `ssr.rs`/`ssg.rs` が `rws-app` の
+  ページ関数を呼ぶようになったため、`rws-core`/`rws-app` を
+  `server/Cargo.toml` の**通常依存**（`[dependencies]`、path 依存のみ・
+  外部クレート追加なし）に昇格済みである。`directories.server.depends_on`
+  はこれを反映して `["core", "app"]` を宣言する（TASK-13.1c の
+  `cargo metadata` 実体突き合わせが、この宣言と実際の path 依存の一致を
+  検証する）。
+- `[routing] definition_dir = "server"` は「ルートは `server/src/ssr.rs` の
+  `Router::route(...)` 呼び出しに定義される」という規約を宣言する。
+  実際の抽出処理（`rws-router-v1` 抽出器、`cli/src/routes.rs`）は
+  `definition_dir` 配下の `src/`（Cargo の慣例に基づき `tests/` 等の
+  integration test は対象外）を走査し、コメント・`#[cfg(test)]` 以降の
+  内部テストも除外したうえで抽出する（TASK-13.1c 実装済み）。
 
-## 4. スコープの境界（TASK-13.1b/c との責務分担）
+## 4. スコープの境界（TASK-13.1b/c との責務分担・実装状況）
 
-- 本書・TASK-13.1a のスコープ: スキーマの型定義（`cli/src/structure.rs`）と
+TASK-13.1（親 #127）の全サブタスクは実装済み。
+
+- TASK-13.1a（#128）: スキーマの型定義（`cli/src/structure.rs`）と
   マニフェスト**内部**の宣言整合性検証（`validate()`、§2.3）。
-- TASK-13.1b（#129）: `structure.toml` の TOML サブセット（§2.1）をパースし
-  `StructureManifest` を構築する。未知キー・サブセット外構文はエラーと
-  する。
-- TASK-13.1c（#130）: `cargo metadata` との連携、実ディレクトリ・実クレート
-  との突き合わせ（宣言と実体の差分検出）、`rws-router-v1` 抽出器の実装、
-  JSON 出力（`xtask/src/json.rs` の手書き JSON 方式を踏襲）。
-- TASK-13.1d（#131）: ルートの `structure.toml` をフィクスチャとした
-  統合テスト・負例テストの整備。
+- TASK-13.1b（#129）: `cli/src/toml.rs`（TOML サブセットパーサ）+
+  `cli/src/structure.rs` の `parse()`/`load()`（TOML → `StructureManifest`
+  への変換とセマンティック検証）。未知キー・サブセット外構文・未知 `role` は
+  すべてエラー（fail-closed）。
+- TASK-13.1c（#130）: `cli/src/metadata.rs`（`cargo metadata` 連携・
+  workspace member と path 依存の抽出）、`cli/src/routes.rs`
+  （`rws-router-v1` 抽出器）、`cli/src/component_boundary.rs`
+  （コンポーネント境界抽出）、`cli/src/json_out.rs`（4 要素の JSON 出力）。
+  `main.rs` の `run_structure` がこれらを結線し、宣言と実体の差分
+  （crate 実在・依存の宣言漏れ / 過剰宣言・ディレクトリ実在）を検出した
+  場合は非 0 終了で列挙する。
+- TASK-13.1d（#131）: `cli/tests/structure_integration.rs`
+  （ルートの `structure.toml` をフィクスチャとした `fw` バイナリ起動の
+  統合テスト・負例テスト）+ `cli/src/*.rs` 内の単体テスト。
+
+`fw structure`（引数省略時はカレントディレクトリ、`--project <dir>` で
+対象を指定）は、リポジトリルートで実行すると 4 要素
+（`directories` / `routes` / `component_boundary` / `dependencies`）を
+含む JSON を標準出力へ 1 行で出力し、終了コード 0 を返す:
+
+```console
+$ cargo run -p rws-cli --bin fw -- structure
+{"directories":[...],"routes":[...],"component_boundary":[...],"dependencies":{...}}
+```
+
+パース失敗・宣言整合性違反・実体との不一致のいずれかがあれば、検出した
+問題をすべて英語メッセージで標準エラーへ列挙し、終了コード 1 を返す
+（黙示的成功を返さない、`main.rs` の契約）。
 
 ## 5. スコープ外事項（本タスクでは対応しない）
 
