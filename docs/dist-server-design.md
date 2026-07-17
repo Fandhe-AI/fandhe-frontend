@@ -1,5 +1,10 @@
 # dist-server（rust-embed 統合）設計確定（TASK-9.1a）
 
+（本書が「確定」するのはアーキテクチャ・依存方針・アセット埋め込み方式・セキュリティ
+不変条件などの設計判断であり、`rust-embed`＋`axum` 一次設計と `include_dir`＋`hyper`
+フォールバック案のどちらを採用するかは 4.4 節のとおり TASK-9.1b 着手時点の状況に
+応じて選択する条件付きの決定として残る。）
+
 ## 1. 目的とトレーサビリティ
 
 本ドキュメントは REQ-9（`docs/spec/04-requirements.md` REQ-9 節「単一バイナリ配布と
@@ -316,7 +321,10 @@ PoC-4 は `axum::Router` で `/`・`/items/:id`・`/static/*path` を直接ル�
   `hyper`（`http1`/`server`）・`hyper-util`（`tokio`/`http1`/`server`）・
   `http-body-util`・`include_dir` の 5 クレート（推移的に 23 パッケージ・深さ 5）
   とする。**依存クレート追加はユーザー事前承認が必須**（`coding-rust.md`）であり、
-  本設計書のレビュー承認をもって上記 5 クレートの依存方針の承認と見なす。
+  本設計書のレビューはあくまで設計内容の技術的な妥当性確認であって、依存クレート
+  追加そのもののユーザー承認を兼ねるものではない。**TASK-9.1b で `dist-server/`
+  の `Cargo.toml` に上記 5 クレートを実際に追加する際、`cargo metadata` で影響を
+  確認したうえで改めてユーザーの明示的な承認を得ること**。
   `build.rs` 保有クレートの有無は TASK-9.1b 実装時に `xtask list-build-scripts`
   相当（`xtask/src/check_deps.rs` 内、TASK-3.2 系）で確認する。`cargo deny` 系
   ゲート（TASK-4.x）との関係は、`cargo deny check advisories` が別途 CI で

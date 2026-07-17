@@ -25,7 +25,7 @@
 
 ## scope
 
-クレート・領域名を使う: `core` / `interactive` / `app` / `server` / `wasm-client` / `wasm-full` / `xtask` / `spec` / `claude`（.claude 体系） / `global`（横断）
+クレート・領域名を使う: `core` / `interactive` / `app` / `server` / `dist-server`（rws-dist-server: 単一バイナリ配布サーバー） / `wasm-client` / `wasm-full` / `xtask` / `spec` / `claude`（.claude 体系） / `global`（横断）
 
 例:
 
