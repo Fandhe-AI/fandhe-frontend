@@ -227,7 +227,7 @@ PoC-5（`docs/spec/03-poc/wasm-runtime-split/README.md` 178 行目）は、
 | 用途 | ブラウザ配布・`dist-server` への埋め込み | `web-sys` 非依存クレート（`rws-wasm-thin` 系）のロジック確認・タイミング近似計測 |
 | 実行経路 | `cargo build -p rws-dist-server`（`run_wasm_build`・`run_wasm_bindgen` による自動実行、§4） | 開発者が手動で実行するオプトイン経路（下記コマンド例）。`build.rs` のビルドグラフ外 |
 | 出力先 | `OUT_DIR` 経由で埋め込みテーブル（`embedded_assets.rs`）へ合流 | `target/wasm-node/` 配下（`.gitignore` の `/target` により VCS 追跡外） |
-| 検証上の位置付け | 正式なブラウザ実証は `wasm-pack test --headless --chrome`（`docs/browser-testing.md`、CI の `browser-test`/`perf-browser-smoke` ジョブ） | ブラウザ実測の代替ではなく、`web-sys` を介さないロジックの高速な近似確認・補助（PoC-5 が明記する環境制約の踏襲） |
+| 検証上の位置付け | 正式なブラウザ実証は `wasm-pack test --headless --chrome`（`docs/browser-testing.md`、CI の `browser-test`/`perf-harness` ジョブ） | ブラウザ実測の代替ではなく、`web-sys` を介さないロジックの高速な近似確認・補助（PoC-5 が明記する環境制約の踏襲） |
 | ツール | `wasm-bindgen-cli`（§8 のバージョン固定 + チェックサム検証を適用） | 同一 CLI で両ターゲットを出力可能。追加導入は不要 |
 
 **開発時のコマンド例**（`rws-wasm-thin` のロジックを Node.js で素早く確認する
@@ -381,7 +381,7 @@ REQ-10（`docs/spec/04-requirements.md` 132〜142 行目）の受け入れ基準
 - **CI への nodejs ターゲットスモークテスト追加**: §6.4 の nodejs
   経路を CI ワークフロー（`.github/workflows/ci.yml`）で自動実行・検証する
   仕組みの追加。正式なブラウザ実証は既に `docs/browser-testing.md` の
-  `browser-test`/`perf-browser-smoke` ジョブで確立済みであり、nodejs 経路は
+  `browser-test`/`perf-harness` ジョブで確立済みであり、nodejs 経路は
   開発者手元での高速確認用途にとどまるため、本書では CI 組み込みの提案に
   留めます。
 - **条件 3（WASM ビルドチェーンの cargo 統合）解消の最終判定**:
