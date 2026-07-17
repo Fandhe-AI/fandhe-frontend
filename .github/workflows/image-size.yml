@@ -102,29 +102,70 @@ jobs:
             exit 1
           fi
 
-          js_status=$(curl -s -o "$discard" -w '%{http_code}' http://127.0.0.1:3100/static/wasm/rws_wasm_full.js)
-          js_type=$(curl -s -o "$discard" -w '%{content_type}' http://127.0.0.1:3100/static/wasm/rws_wasm_full.js)
+          # 破棄先を mktemp の実ファイルに変更した後も、GitHub Actions の
+          # ubuntu-latest ランナー上では curl 8.x が稀に
+          # `curl: (23) Failure writing output to destination` を返す事例が
+          # 観測されている（一過性）。`set -euo pipefail` 環境下で
+          # `x=$(curl ...)` の形のコマンド置換が非 0 終了すると、readiness
+          # ループとは異なり if/|| で保護されていない限りスクリプト全体が
+          # 即座に落ちてしまう。そのため以降の status/content-type/魔法バイト
+          # 取得はすべて `curl_retry` 経由に統一し、最大 3 回の再試行後も
+          # 失敗した場合のみ空文字列を返して（スクリプトは落とさず）後続の
+          # 明示的な比較チェックに失敗を委ねる（fail-closed は維持される）。
+          curl_retry() {
+            local out
+            local attempt
+            for attempt in 1 2 3; do
+              if out=$(curl "$@" 2>/dev/null); then
+                printf '%s' "$out"
+                return 0
+              fi
+              sleep 1
+            done
+            printf ''
+            return 0
+          }
+
+          js_status=$(curl_retry -s -o "$discard" -w '%{http_code}' http://127.0.0.1:3100/static/wasm/rws_wasm_full.js)
+          js_type=$(curl_retry -s -o "$discard" -w '%{content_type}' http://127.0.0.1:3100/static/wasm/rws_wasm_full.js)
           if [ "$js_status" != "200" ] || [ "${js_type#text/javascript}" = "$js_type" ]; then
             echo "::error::rws_wasm_full.js: expected 200 text/javascript, got status=${js_status} content_type=${js_type}" >&2
             docker rm -f rws-ci || true
             exit 1
           fi
 
-          wasm_status=$(curl -s -o "$discard" -w '%{http_code}' http://127.0.0.1:3100/static/wasm/rws_wasm_full_bg.wasm)
-          wasm_type=$(curl -s -o "$discard" -w '%{content_type}' http://127.0.0.1:3100/static/wasm/rws_wasm_full_bg.wasm)
+          wasm_status=$(curl_retry -s -o "$discard" -w '%{http_code}' http://127.0.0.1:3100/static/wasm/rws_wasm_full_bg.wasm)
+          wasm_type=$(curl_retry -s -o "$discard" -w '%{content_type}' http://127.0.0.1:3100/static/wasm/rws_wasm_full_bg.wasm)
           if [ "$wasm_status" != "200" ] || [ "$wasm_type" != "application/wasm" ]; then
             echo "::error::rws_wasm_full_bg.wasm: expected 200 application/wasm, got status=${wasm_status} content_type=${wasm_type}" >&2
             docker rm -f rws-ci || true
             exit 1
           fi
-          wasm_magic=$(curl -fsS http://127.0.0.1:3100/static/wasm/rws_wasm_full_bg.wasm | head -c 4 | od -An -tx1 | tr -d ' \n')
+          # magic bytes 取得専用の一時ファイルを使う（$discard を使い回すと、
+          # 全リトライ失敗時に直前のレスポンス内容を誤って読んでしまい
+          # fail-closed が効かなくなるため）。
+          magic_file="$(mktemp)"
+          trap 'rm -f "$discard" "$magic_file"' EXIT
+          magic_ok=0
+          for _ in 1 2 3; do
+            if curl -fsS -o "$magic_file" http://127.0.0.1:3100/static/wasm/rws_wasm_full_bg.wasm; then
+              magic_ok=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$magic_ok" -eq 1 ]; then
+            wasm_magic=$(od -An -tx1 -N 4 "$magic_file" | tr -d ' \n')
+          else
+            wasm_magic=""
+          fi
           if [ "$wasm_magic" != "0061736d" ]; then
             echo "::error::rws_wasm_full_bg.wasm: unexpected magic bytes ${wasm_magic} (expected \\0asm = 0061736d)" >&2
             docker rm -f rws-ci || true
             exit 1
           fi
 
-          not_found_status=$(curl -s -o "$discard" -w '%{http_code}' http://127.0.0.1:3100/static/wasm/does-not-exist.wasm)
+          not_found_status=$(curl_retry -s -o "$discard" -w '%{http_code}' http://127.0.0.1:3100/static/wasm/does-not-exist.wasm)
           if [ "$not_found_status" != "404" ]; then
             echo "::error::unknown /static/wasm/ path expected 404, got ${not_found_status}" >&2
             docker rm -f rws-ci || true
