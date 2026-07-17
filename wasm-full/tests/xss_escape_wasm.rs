@@ -45,12 +45,23 @@
 //!
 //! ペイロード集合は `core/tests/xss_escape.rs`（TASK-1.2・#8）と対応させる
 //! （`<script>` タグ注入・属性注入・`<img onerror>` の代表例）。
+//!
+//! # ハイドレーション経路の XSS 回帰（TASK-11.4c・#84、`docs/hydration-state-format.md`
+//! 第 6 節「XSS 回帰」）
+//!
+//! `render_for_hydration`（`interactive/src/lib.rs`）が付与する `data-hydrate-*`
+//! 属性も `rws_core::render` の既定エスケープ経路を通るため、ハイドレーション
+//! フォーマット層の追加が既存のエスケープ保証を弱めていないことを回帰確認する。
+//! `Runtime::hydrate`（`wasm-full/src/lib.rs`）で状態を復元 → 再描画した実 DOM
+//! に対し、上記の「テキストノード経由」「属性値経由」と同じ観点（生タグが
+//! 要素として生成されない・属性境界が破られない）を検証する。
 
 #![cfg(target_arch = "wasm32")]
 
-use rws_interactive::{dispatch, AppState, Component};
+use rws_interactive::{dispatch, render_for_hydration, AppState, Component};
 use rws_wasm_full::events::{wire_events, ActionRef};
 use rws_wasm_full::render_component_html;
+use rws_wasm_full::Runtime;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen_test::*;
@@ -99,6 +110,24 @@ fn bubbling_click_event() -> Event {
     Event::new_with_event_init_dict("click", &init).expect("Event::new must not fail for click")
 }
 
+/// テスト末尾でコンテナを document から確実に除去する RAII ガード。
+///
+/// `AppState::view`（`render_with_root_attrs`）が返すルート要素は固定 id
+/// `"interactive-root"` を持つため、後始末を怠ると同一ページ上で後から実行
+/// される別テスト（特に本ファイル末尾のハイドレーション経路テスト）の
+/// `document.get_element_by_id("interactive-root")`（`Runtime::hydrate` 内部）
+/// が本テストの残留要素を誤って拾う（`wasm-full/tests/runtime_browser.rs::RemoveOnDrop`
+/// と同じ理由、CI issue #73 の再発防止パターン）。本ファイルの全テストが
+/// `render_component_html`/`render_for_hydration` いずれかを経由して同じ
+/// 固定 id を出力するため、全テストで一貫してこのガードを使う。
+struct RemoveOnDrop(Element);
+
+impl Drop for RemoveOnDrop {
+    fn drop(&mut self) {
+        self.0.remove();
+    }
+}
+
 /// REQ-1 回帰（テキストノード経路・実 DOM）: `<script>` ペイロードを `items` へ
 /// 確定させ `set_inner_html` で実 DOM へ反映しても、
 ///
@@ -113,6 +142,7 @@ fn script_tag_payload_in_item_text_is_escaped_in_real_dom() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
     let container = create_container(&document, "xss-text-node-root");
+    let _cleanup = RemoveOnDrop(container.clone());
 
     let payload = "<script>alert(1)</script>";
     let state = state_with_item(payload);
@@ -167,6 +197,7 @@ fn attribute_injection_payload_in_draft_value_is_escaped_in_real_dom() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
     let container = create_container(&document, "xss-attr-injection-root");
+    let _cleanup = RemoveOnDrop(container.clone());
 
     let payload = "\" onmouseover=\"alert(1)\" data-x=\"'&";
     let mut state = AppState::new();
@@ -211,6 +242,7 @@ fn set_draft_via_wired_click_event_preserves_escape_guarantee() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
     let container = create_container(&document, "xss-event-wired-root");
+    let _cleanup = RemoveOnDrop(container.clone());
 
     let state = Rc::new(RefCell::new(AppState::new()));
 
@@ -301,6 +333,7 @@ fn ssr_equivalent_render_and_wasm_dom_path_agree_on_escape_guarantee() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
     let container = create_container(&document, "xss-cross-path-root");
+    let _cleanup = RemoveOnDrop(container.clone());
 
     let payload = "<img src=x onerror=alert(1)>";
     let state = state_with_item(payload);
@@ -329,5 +362,137 @@ fn ssr_equivalent_render_and_wasm_dom_path_agree_on_escape_guarantee() {
         !container.inner_html().contains("<img"),
         "inner_html に生の <img> タグが含まれてはならない: {}",
         container.inner_html()
+    );
+}
+
+/// REQ-1 回帰（ハイドレーション経路・実 DOM、TASK-11.4c・#84）: `render_for_hydration`
+/// が付与する `data-hydrate-*` 属性値に XSS ペイロードを含む状態を SSR 出力
+/// → 実 DOM 展開 → `Runtime::hydrate` で復元しても、
+///
+/// - 復元直後の既存 DOM（SSR 出力そのもの）に生の `<script>` 要素が存在しない
+/// - `draft-input` の `value` 属性の読み戻しがペイロード原文と一致する
+///   （ハイドレーション属性からの復元でも二重エスケープが起きない）
+///
+/// ことを確認する。ハイドレーション属性フォーマット層
+/// （`wasm-full/src/hydration.rs`）の追加が `render_for_hydration`
+/// （`rws_core::render` の既定エスケープ経路）を迂回していないことの回帰。
+#[wasm_bindgen_test]
+fn hydrate_restores_xss_payload_in_draft_without_escape_regression() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    let payload = "\" onmouseover=\"alert(1)\" data-x=\"'&";
+    let mut seed_state = AppState::new();
+    assert!(dispatch(&mut seed_state, "set_draft", payload));
+
+    // `render_for_hydration` は rws_core::render の既定エスケープ経路のみを
+    // 通す唯一の生成経路（`.claude/rules/coding-rust.md`: HTML 文字列直接
+    // 組み立て・raw_html() 禁止）。ルート要素（id="interactive-root"）へ
+    // hydration_attrs を後付けした Node を rws_core::render でそのまま文字列化する。
+    let ssr_html = rws_core::render(&render_for_hydration(&seed_state));
+
+    let container = create_container(&document, "xss-hydrate-draft-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+    container.set_inner_html(&ssr_html);
+
+    assert!(
+        container
+            .query_selector("script")
+            .expect("query_selector must not fail")
+            .is_none(),
+        "SSR 出力の実 DOM 展開時点で生の <script> 要素が生成されてはならない"
+    );
+
+    let runtime = Runtime::hydrate("interactive-root", AppState::new())
+        .expect("hydrate must succeed for well-formed SSR output containing an XSS payload");
+    assert_eq!(
+        runtime.component().draft,
+        payload,
+        "hydrate がハイドレーション属性からペイロード原文を復元すること（二重エスケープなし）"
+    );
+
+    let input = container
+        .query_selector("#draft-input")
+        .expect("query_selector must not fail")
+        .expect("draft-input must exist in the hydrated DOM");
+    assert!(
+        input.get_attribute("onmouseover").is_none(),
+        "ハイドレーション経由でも属性注入によって onmouseover 属性が実 DOM に生成されてはならない"
+    );
+    assert_eq!(
+        input.get_attribute("value").as_deref(),
+        Some(payload),
+        "value 属性の読み戻しがペイロード原文と一致すること（二重エスケープなし）"
+    );
+}
+
+/// REQ-1 回帰（ハイドレーション経路・再描画後の実 DOM、TASK-11.4c・#84）:
+/// `Runtime::hydrate` で XSS ペイロードを含む `draft` を復元した後、
+/// `add_item` により `items` へ確定 → イベント配線経由で再描画された DOM でも
+/// エスケープ保証が保たれること（`docs/hydration-state-format.md` 第 6 節
+/// 「XSS 回帰」が要求する「再描画した DOM」での検証）。
+#[wasm_bindgen_test]
+fn hydrate_then_repaint_via_wired_event_preserves_escape_guarantee_for_xss_payload() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    let payload = "<script>alert(1)</script>";
+    let mut seed_state = AppState::new();
+    assert!(dispatch(&mut seed_state, "set_draft", payload));
+
+    let ssr_html = rws_core::render(&render_for_hydration(&seed_state));
+
+    let container = create_container(&document, "xss-hydrate-repaint-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+    container.set_inner_html(&ssr_html);
+
+    let runtime = Runtime::hydrate("interactive-root", AppState::new())
+        .expect("hydrate must succeed for well-formed SSR output containing an XSS payload");
+    assert_eq!(runtime.component().draft, payload);
+
+    // `add-btn`（data-action="add_item"）をクリックし、draft を items へ確定
+    // させて再描画をトリガーする（events.rs: click は should_repaint=true）。
+    let add_button = container
+        .query_selector("[data-testid='add-btn']")
+        .expect("query_selector must not fail")
+        .expect("add-btn must exist in the hydrated DOM");
+    add_button
+        .dispatch_event(&bubbling_click_event())
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        runtime.component().items.iter().any(|item| item == payload),
+        "add_item により draft のペイロードが items へ確定していること: {:?}",
+        runtime.component().items
+    );
+
+    assert!(
+        container
+            .query_selector("script")
+            .expect("query_selector must not fail")
+            .is_none(),
+        "再描画後も生の <script> 要素が実 DOM に生成されてはならない"
+    );
+
+    let items_root = container
+        .query_selector("[data-testid='item-list']")
+        .expect("query_selector must not fail")
+        .expect("item-list container must exist after repaint");
+    assert!(
+        items_root
+            .text_content()
+            .unwrap_or_default()
+            .contains(payload),
+        "item-list 配下のテキストにペイロード原文が（エスケープ解除された形で）含まれること"
+    );
+
+    let inner = container.inner_html();
+    assert!(
+        !inner.contains("<script>alert(1)</script>"),
+        "再描画後の inner_html に生の <script> タグが含まれてはならない: {inner}"
+    );
+    assert!(
+        inner.contains("&lt;script&gt;"),
+        "再描画後の inner_html にエスケープ済みペイロードが含まれること: {inner}"
     );
 }
