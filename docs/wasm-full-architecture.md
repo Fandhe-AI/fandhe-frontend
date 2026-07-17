@@ -100,8 +100,16 @@ PoC-5（`docs/spec/03-poc/wasm-runtime-split/wasm-full/src/lib.rs`）で実証�
 - **アプリ側クレート（または TASK-11.2d/#77 の標準テンプレート）**: 具象
   `Component` 実装型（例: `CounterApp`）に対して `#[wasm_bindgen] pub fn
   mount() -> Result<(), JsValue>` / `#[wasm_bindgen] pub fn hydrate() ->
-  Result<(), JsValue>` を薄く書き出し、内部で `Runtime::<CounterApp>::mount(...)`
-  / `Runtime::<CounterApp>::hydrate(...)` を呼ぶ。
+  Result<(), JsValue>` を薄く書き出す。第 4 節・判断 2 のとおり `Runtime` は
+  `Closure` をフィールドとして所有し、セッション中（マウント中）は解放されない
+  設計であるため、`Runtime::<CounterApp>::mount(...)` /
+  `Runtime::<CounterApp>::hydrate(...)` の戻り値 `Runtime<CounterApp>` を
+  関数ローカル変数として破棄してはならない。ラッパー内で
+  `thread_local! { static RUNTIME: RefCell<Option<Runtime<CounterApp>>> = ... }`
+  等の形でモジュールスタティックに保持し、ラッパー関数を抜けたあとも
+  `Runtime`（＝ `Closure` を含む状態）がリークではなく意図した生存期間として
+  維持されるようにする。この保持責務はアプリ側クレート（薄いラッパー）が負い、
+  `rws-wasm-full` 自体は具象型を知らないためこの保持先を提供しない。
 
 この分離により、`rws-wasm-full` 自体はアプリ固有の状態型に依存しない再利用可能な
 ランタイムとして提供され、PoC-5 の具象実装（`mount` / `hydrate` がカウンター・
