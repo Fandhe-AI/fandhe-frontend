@@ -1,0 +1,71 @@
+name: deny
+
+# TASK-4.2（REQ-4: AI 生成コード・依存の検証フック）— 本テンプレートを使って
+# 生成されたプロジェクト（テンプレート利用者のリポジトリ）向けの CI ワークフロー。
+# `templates/` 配下にあるため本フレームワーク自身の CI としては発火しない
+# （本リポジトリ自身への cargo-deny 組み込みはスコープ外。PR 本文参照）。
+#
+# 役割: 同梱の `deny.toml`（TASK-4.1）が定義する禁止クレート・許可外ライセンス・
+# 不審な取得元のポリシーを、生成プロジェクトの CI で強制する。PoC-7
+# （docs/spec/03-poc/ai-self-maintenance）の `negative-banned-dependency` ケースで
+# 実測した `policy(cargo-deny bans/licenses)` の `BLOCKED` を、テンプレート利用者の
+# 実運用で再現するのが目的。
+#
+# セキュリティ不変条件（security.md 準拠）:
+# - ポリシーの正は `deny.toml` のみ。本ワークフローには継続を許す input・
+#   環境変数・`continue-on-error`・`|| true` を一切設けない（fail-closed）。
+#   AI エージェントが本ワークフロー側に緩和の迂回経路を作ってはならない。
+# - `advisories`（既知脆弱性 DB 照合）は本 PR のスコープ外として TASK-4.3 へ
+#   意図的に委譲する（bans/licenses/sources の 3 チェックに限定する。
+#   deny.toml 内コメント参照）。advisories を含めたオンライン CI 運用手順の
+#   文書化は TASK-4.3 で行う。
+# - 第三者製 Action（例: EmbarkStudios/cargo-deny-action）は採用しない。
+#   prebuilt バイナリ取得を伴う第三者 Action 経由よりも、crates.io からの
+#   `--locked`・バージョン固定インストールに限定する方がサプライチェーン面の
+#   攻撃面が狭いという安全側の判断。全 Action 参照はフル SHA 固定とする。
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deny-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deny:
+    name: REQ-4 banned dependency / license / source gate (cargo-deny)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # actions/checkout v6.0.3（本リポジトリの既存ワークフローと同一 SHA に固定）
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+
+      - name: Setup Rust toolchain
+        # dtolnay/rust-toolchain（本リポジトリの deps-check.yml と同一 SHA に固定）
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+
+      - name: Install cargo-deny
+        # crates.io から `--locked`・バージョン固定でインストールする
+        # （第三者 Action を経由しないサプライチェーン方針。上記コメント参照）。
+        # 既に同バージョンが導入済みのランナーでは再インストールをスキップし、
+        # ジョブを高速化する。
+        run: |
+          set -o pipefail
+          if cargo deny --version 2>/dev/null | grep -q "0.19.8"; then
+            echo "cargo-deny 0.19.8 は導入済みのためインストールをスキップする"
+          else
+            cargo install cargo-deny --locked --version 0.19.8
+          fi
+
+      - name: Run cargo deny check (bans / licenses / sources)
+        # fail-closed: 終了コードをそのまま CI の成否に伝播させる。
+        # advisories は TASK-4.3 へスコープ委譲のため対象外（上記コメント参照）。
+        # 禁止クレート追加時はここで非 0 終了しジョブが失敗する。
+        run: |
+          cargo deny check bans licenses sources --config deny.toml
