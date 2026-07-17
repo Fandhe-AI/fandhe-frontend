@@ -63,10 +63,15 @@ fn fw_gate_reports_blocked_for_missing_structure_manifest() {
 }
 
 /// 最小フィクスチャ: `structure.toml` 1 件（依存ゼロの小クレート）+
-/// 未レビュー `raw_html()` を含む `src/lib.rs` + `deny.toml` なし。
+/// 未レビュー `raw_html()` を含む `app/src/lib.rs` + `deny.toml` なし。
 ///
 /// `role = "component"`（`core` 以外）を選ぶことで `default_escape_check` の
-/// 走査対象に含める。
+/// 走査対象に含める。`default_escape_check`（`cli/src/gate.rs`）は
+/// `{project}/{directory.name}/src` のみを走査するため、`[directories.app]`
+/// を宣言する本フィクスチャでは違反ファイルを **`{project}/app/src/`** 配下に
+/// 置く必要がある（`{project}/src/` 直下に置くとスキャン対象外になり、
+/// 「unreviewed raw_html() call」を検出するはずのアサーションが実際には何も
+/// 検証しない偽陽性テストになる。Bugbot 指摘: PR #261 #1）。
 fn write_minimal_fixture_with_unreviewed_raw_html(dir: &Path) {
     std::fs::write(
         dir.join("structure.toml"),
@@ -82,17 +87,20 @@ description = "test fixture"
     )
     .unwrap();
 
+    let app_dir = dir.join("app");
+    std::fs::create_dir_all(&app_dir).unwrap();
+
     // `cargo check`/`clippy`/`test` チェックは fail-closed 経路のみを検証対象と
     // する本ファイルの方針では実際に PASS させる必要はないが、`cargo metadata`
     // 相当のツール呼び出し自体が異常終了で落ちないよう、成立する Cargo.toml を
     // 用意しておく（ワークスペースとしての体裁を保つ）。
     std::fs::write(
-        dir.join("Cargo.toml"),
+        app_dir.join("Cargo.toml"),
         "[package]\nname = \"gate-fixture-app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
     )
     .unwrap();
 
-    let src = dir.join("src");
+    let src = app_dir.join("src");
     std::fs::create_dir_all(&src).unwrap();
     // マーカーなしの `raw_html()` 呼び出し（REQ-1 迂回経路の未レビュー使用）。
     std::fs::write(

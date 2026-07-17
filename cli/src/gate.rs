@@ -235,9 +235,13 @@ fn run_cargo_check(runner: &dyn CommandRunner, project_dir: &Path, crates: &[&st
 }
 
 fn run_cargo_clippy(runner: &dyn CommandRunner, project_dir: &Path, crates: &[&str]) -> GateCheck {
+    // `--locked` はロックファイル逸脱（依存すり替え）検出のため `type_check` /
+    // `test`（`run_locked_cargo_subcommand`）と同様に常に付与する
+    // （security.md A06。Bugbot 指摘: PR #261 #2 — `lint` だけ `--locked` を
+    // 欠くと依存差し替え検知の抜け道になり得る）。
     // `-- -D warnings` は cargo 引数の後段（サブコマンド固有引数)として渡す
     // （coding-rust.md: `cargo clippy -- -D warnings` を通す規約と同一コマンド）。
-    let mut args: Vec<&str> = vec!["clippy"];
+    let mut args: Vec<&str> = vec!["clippy", "--locked"];
     for c in crates {
         args.push("-p");
         args.push(c);
