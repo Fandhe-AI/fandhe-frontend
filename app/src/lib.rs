@@ -175,9 +175,13 @@ pub fn detail_page(item: Option<&Item>) -> Node {
 /// [`rws_core::render`] 済みの文字列の前に結合するのみであり、新たな
 /// エスケープ迂回経路ではない。
 ///
-/// `<meta name="view-transition" content="same-origin">` は Cross-Document
-/// View Transitions（標準 HTML の meta タグ）を有効化する。フレームワーク
-/// 固有の JS ラッパーを必要としない（PoC-3 の検証結果を踏襲）。
+/// `@view-transition { navigation: auto; }`（CSS Level 2 の at-rule）は
+/// Cross-Document View Transitions を有効化する。過去の `<meta
+/// name="view-transition" content="same-origin">` は現行ブラウザ・仕様で
+/// 廃止扱いのため採用しない（Bugbot 指摘対応）。この CSS はユーザー入力を
+/// 含まない固定リテラルであり `text()` 経由で `<style>` 子ノードとして
+/// 出力するため、既定エスケープ経路を迂回しない。フレームワーク固有の
+/// JS ラッパーを必要としない（PoC-3 の検証結果を踏襲）。
 pub fn page_shell(title: &str, body: Node) -> String {
     let head = el(
         "head",
@@ -193,9 +197,9 @@ pub fn page_shell(title: &str, body: Node) -> String {
                 vec![],
             ),
             el(
-                "meta",
-                vec![("name", "view-transition"), ("content", "same-origin")],
+                "style",
                 vec![],
+                vec![text("@view-transition { navigation: auto; }")],
             ),
             el("title", vec![], vec![text(title)]),
             el(
@@ -284,12 +288,12 @@ mod tests {
     }
 
     #[test]
-    fn page_shell_includes_view_transition_meta_and_matches_across_ssr_and_ssg() {
+    fn page_shell_includes_view_transition_at_rule_and_matches_across_ssr_and_ssg() {
         let items = demo_items();
         let ssr_doc = page_shell("記事一覧", list_page(&items));
         let ssg_doc = page_shell("記事一覧", list_page(&items));
         assert_eq!(ssr_doc, ssg_doc);
-        assert!(ssr_doc.contains(r#"<meta name="view-transition" content="same-origin">"#));
+        assert!(ssr_doc.contains("<style>@view-transition { navigation: auto; }</style>"));
         assert!(ssr_doc.starts_with("<!DOCTYPE html>"));
     }
 
