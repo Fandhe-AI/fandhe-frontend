@@ -13,7 +13,10 @@
 //! 1. `/static/` プレフィックスは [`assets::lookup`] へ委譲（開発 / 本番
 //!    モードに応じてファイルシステム読み込み・コンパイル時埋め込みテーブル
 //!    検索を切り替える。いずれもパストラバーサル不能、`assets.rs` 参照
-//!    — TASK-10.1a、イシュー #106）。
+//!    — TASK-10.1a、イシュー #106）。開発モード（`DevFilesystem`）の 200
+//!    応答には [`RouteResponse::cache_control`] に `Some("no-store")` を
+//!    設定し、ブラウザキャッシュがディスクの即時反映（REQ-10）を体感上
+//!    無効化しないようにする（TASK-10.1b、イシュー #107）。
 //! 2. それ以外は `rws_server::router::Router<PageRoute>`（REQ-7 共通コア）で
 //!    解決する。v1 の `Router` はワイルドカード（`*path`）に対応しないため、
 //!    1 の `/static/` 分岐で文字列プレフィックス判定を手動補完している
@@ -54,6 +57,17 @@ pub struct RouteResponse {
     pub content_type: &'static str,
     /// レスポンスボディ（HTML は既定エスケープ済み UTF-8、アセットは埋め込み済みバイト列）。
     pub body: Vec<u8>,
+    /// `Some` のとき `main.rs` が `Cache-Control` ヘッダとして付与する固定文言。
+    ///
+    /// [`assets::AssetMode::DevFilesystem`] の静的アセット応答のみ
+    /// `Some("no-store")` を返し、ブラウザキャッシュにより「毎リクエストで
+    /// ディスクの最新内容を読む」（REQ-10 即時反映）が体感上無効化されるのを
+    /// 防ぐ（TASK-10.1b、イシュー #107）。ページ応答・404・
+    /// [`assets::AssetMode::Embedded`] の場合は `None` とし、本番のキャッシュ
+    /// 挙動を変更しない。値は必ず固定文言の `&'static str` のみとし、
+    /// リクエスト由来文字列をヘッダへ流さない（ヘッダインジェクション対策、
+    /// `security.md`）。
+    pub cache_control: Option<&'static str>,
 }
 
 /// `PageRoute` 用ルーターを構築する。
@@ -98,6 +112,12 @@ pub fn route_request(path: &str) -> RouteResponse {
                 status: 200,
                 content_type: content_type_for_path(asset_path),
                 body: bytes.into_owned(),
+                // 開発モード（DevFilesystem）の応答のみ no-store を付与し、
+                // ブラウザキャッシュ越しに古いアセットが表示され続けるのを防ぐ
+                // （`RouteResponse::cache_control` の doc 参照）。本番
+                // （Embedded）は既存どおりキャッシュ制御ヘッダを付けない。
+                cache_control: matches!(assets::active_mode(), assets::AssetMode::DevFilesystem)
+                    .then_some("no-store"),
             },
             None => not_found(),
         };
@@ -113,6 +133,7 @@ pub fn route_request(path: &str) -> RouteResponse {
                     status: 200,
                     content_type: "text/html; charset=utf-8",
                     body: html.into_bytes(),
+                    cache_control: None,
                 }
             }
             PageRoute::Detail => {
@@ -130,6 +151,7 @@ pub fn route_request(path: &str) -> RouteResponse {
                             status: 200,
                             content_type: "text/html; charset=utf-8",
                             body: html.into_bytes(),
+                            cache_control: None,
                         }
                     }
                     None => {
@@ -140,6 +162,7 @@ pub fn route_request(path: &str) -> RouteResponse {
                             status: 404,
                             content_type: "text/html; charset=utf-8",
                             body: html.into_bytes(),
+                            cache_control: None,
                         }
                     }
                 }
@@ -156,6 +179,7 @@ fn not_found() -> RouteResponse {
         status: 404,
         content_type: "text/plain; charset=utf-8",
         body: b"404 Not Found".to_vec(),
+        cache_control: None,
     }
 }
 
@@ -230,5 +254,35 @@ mod tests {
         let body = body_as_string(&response.body);
         assert!(!body.contains("Cargo"));
         assert!(!body.contains("/home/"));
+    }
+
+    #[test]
+    fn page_and_404_responses_never_set_cache_control() {
+        // ページ応答・404 応答は開発 / 本番モードによらず常に `None`
+        // （`Cache-Control` を付与するのは開発モードの静的アセット応答のみ、
+        // `RouteResponse::cache_control` の doc 参照）。
+        assert_eq!(route_request("/").cache_control, None);
+        assert_eq!(route_request("/items/1").cache_control, None);
+        assert_eq!(route_request("/items/999").cache_control, None);
+        assert_eq!(route_request("/no-such-page").cache_control, None);
+    }
+
+    // 静的アセット応答の `cache_control` はビルド構成（開発 / 本番モード）に
+    // よって固定値が変わるため、`assets.rs` の `active_mode_is_*` テストと
+    // 同じ cfg ゲートでモードごとに固定する（TASK-10.1b、イシュー #107）。
+    #[cfg(all(debug_assertions, not(feature = "force-embed")))]
+    #[test]
+    fn static_asset_response_sets_no_store_cache_control_in_dev_filesystem_mode() {
+        let response = route_request("/static/view-transitions.js");
+        assert_eq!(response.status, 200);
+        assert_eq!(response.cache_control, Some("no-store"));
+    }
+
+    #[cfg(not(all(debug_assertions, not(feature = "force-embed"))))]
+    #[test]
+    fn static_asset_response_has_no_cache_control_in_embedded_mode() {
+        let response = route_request("/static/view-transitions.js");
+        assert_eq!(response.status, 200);
+        assert_eq!(response.cache_control, None);
     }
 }
