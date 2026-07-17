@@ -73,11 +73,9 @@ fn template_deny_workflow_declares_required_triggers() {
 
 #[test]
 fn template_deny_workflow_declares_minimal_permissions() {
-    let contents = read_workflow();
-    let has_read_only_permissions = non_comment_lines(&contents)
-        .iter()
-        .any(|line| line.trim() == "permissions: contents: read")
-        || contents.contains("permissions:") && contents.contains("contents: read");
+    let non_comment = non_comment_lines(&read_workflow()).join("\n");
+    let has_read_only_permissions =
+        non_comment.contains("permissions:") && non_comment.contains("contents: read");
     assert!(
         has_read_only_permissions,
         "permissions: contents: read（最小権限）が見つからない"
@@ -89,7 +87,7 @@ fn template_deny_workflow_pins_action_refs_to_full_sha() {
     let contents = read_workflow();
     let uses_lines: Vec<&str> = non_comment_lines(&contents)
         .into_iter()
-        .filter(|line| line.trim_start().starts_with("uses:") || line.contains("uses:"))
+        .filter(|line| line.contains("uses:"))
         .collect();
 
     assert!(
