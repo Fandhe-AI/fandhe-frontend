@@ -56,6 +56,21 @@ jobs:
         # docs/spec submodule は本ジョブの計測に不要なため取得しない（submodules 既定 false）。
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
 
+      - name: Setup Rust toolchain
+        # self-hosted runner プールには cargo が PATH 上に存在しないインスタンスが
+        # 混在し得る（例: PR #196 CI 監視で判明した runner
+        # 'macbook-pro-runner-1-runner-6'。同一 workflow 内の他ジョブが割り当たる
+        # 'fandhe-server-*' 系インスタンスとは異なり cargo 未導入で
+        # `cargo: command not found`（exit 127）により本ジョブが決定論的に失敗した）。
+        # dtolnay/rust-toolchain（4cda84d5c5c54efe2404f9d843567869ab1699d4 に固定。
+        # actions/checkout と同様 SHA 固定でサプライチェーンリスクを抑える）は
+        # 既に rustup/cargo が導入済みなら何もせず、未導入の場合のみ
+        # rustup 経由でインストールする。これにより runner インスタンスの違いに
+        # 依存せず、以降のステップで cargo が確実に PATH 上に存在する状態にする。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+
       - name: Run xtask check-deps
         # xtask check-deps の終了コードをそのまま CI の成否に伝播させる（fail-closed）。
         # set -o pipefail を明示し、tee 経由でも cargo run の終了コードが失われないようにする。

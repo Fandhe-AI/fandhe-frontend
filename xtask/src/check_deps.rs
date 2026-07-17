@@ -63,9 +63,9 @@ pub const MAX_DEPTH: usize = 6;
 /// 対象クレートに対応する。CLI 引数・環境変数での差し替えは意図的に設けない
 /// （上限を弱める経路を作らない、coding-rust.md / security.md 参照）。
 ///
-/// `rws-interactive` は本実装時点では未作成（workspace 未参加）。
+/// `rws-interactive`（TASK-11.1b、`interactive/`）は workspace に参加済み。
 /// [`fetch_zero_dep_targets`] が `cargo metadata` の `workspace_members` との
-/// 積集合を取るため、追加後は CI 変更なしで自動的に検証対象へ入る。
+/// 積集合を取るため、追加後は CI 変更なしで自動的に検証対象へ入っている。
 pub const ZERO_DEP_CRATES: &[&str] = &["rws-core", "rws-interactive"];
 
 /// `cargo metadata` の `resolve.nodes[].deps[].dep_kinds[].kind` に対応する依存種別。
