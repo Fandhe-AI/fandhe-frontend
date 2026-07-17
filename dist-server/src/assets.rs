@@ -15,6 +15,12 @@
 //! （`force-embed` フィーチャーで debug ビルドのまま本番相当の埋め込み経路を
 //! CI 検証できる、`dist-server/Cargo.toml` 参照）。
 //!
+//! `DevFilesystem` モードの [`lookup`] は `dev_fs::lookup` が `None`（未検出）を
+//! 返した場合に [`embedded_lookup`] へフォールバックする。WASM ビルド成果物
+//! （TASK-10.2b、イシュー #110。`dist-server/build.rs` 参照）はソースツリー
+//! `static/` に実体を持たず `OUT_DIR` 完結で埋め込まれるため、この
+//! フォールバックがないと dev モードで `/static/wasm/*` が 404 になる。
+//!
 //! # セキュリティ不変条件（パストラバーサル、REQ 系 OWASP A01）
 //!
 //! - [`embedded_lookup`] はコンパイル時に確定した固定テーブルへの完全一致検索
@@ -80,7 +86,18 @@ pub fn embedded_lookup(url_path: &str) -> Option<&'static [u8]> {
 /// モードでも同一シグネチャで扱える。
 #[cfg(all(debug_assertions, not(feature = "force-embed")))]
 pub fn lookup(url_path: &str) -> Option<Cow<'static, [u8]>> {
-    dev_fs::lookup(url_path).map(Cow::Owned)
+    // WASM 成果物（TASK-10.2b、イシュー #110）はソースツリー `static/` へ
+    // 書き込まれず `build.rs` の OUT_DIR で完結する（再ビルドループ回避、
+    // `build.rs` 冒頭ドキュメント参照）。そのため dev モードでもファイル
+    // システムに実体が存在せず、`dev_fs::lookup` は常に `None` を返す。
+    // `embedded_lookup`（コンパイル時固定テーブルの完全一致検索のみ・実行時
+    // ファイルシステムアクセスなし）へフォールバックすることで、dev/release
+    // 双方で `/static/wasm/*` を配信できるようにする。このフォールバックは
+    // 既存のパストラバーサル不変条件（`embedded_lookup` は完全一致検索のみ）
+    // を変えない — 新しい実行時 FS アクセス経路を追加するわけではない。
+    dev_fs::lookup(url_path)
+        .map(Cow::Owned)
+        .or_else(|| embedded_lookup(url_path).map(Cow::Borrowed))
 }
 
 /// [`lookup`] の本番（[`AssetMode::Embedded`]）実装。`dev_fs` を一切参照

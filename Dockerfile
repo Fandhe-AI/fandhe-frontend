@@ -45,6 +45,15 @@ RUN case "$(uname -m)" in \
     esac \
     && rustup target add "$(cat /musl_target)"
 
+# TASK-10.2b（#110）: dist-server/build.rs は既定で WASM ビルドステージ
+# （ネスト cargo build --target wasm32-unknown-unknown + wasm-bindgen）を実行する。
+# 本ビルダーステージには wasm32 ターゲット・wasm-bindgen-cli を導入しておらず、
+# 導入するとイメージビルド時間・攻撃面（サプライチェーン）が増える。
+# コンテナ内 WASM 再ビルドの統合は TASK-10.3（#114）のスコープであり、それまでの
+# 暫定措置として本ステージでは明示的にオプトアウトする（static/ はホスト側で
+# 事前ビルド済みの資産をそのまま埋め込む前提、本ファイル冒頭コメント参照）。
+ENV RWS_WASM_BUILD=0
+
 WORKDIR /work
 
 # workspace 全体を明示 COPY する（`COPY . .` は使わない）。cargo は workspace
