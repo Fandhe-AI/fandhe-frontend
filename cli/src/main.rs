@@ -129,8 +129,17 @@ fn run_structure(args: &[String]) -> i32 {
                 return 1;
             }
 
-            let routes = collect_routes(&manifest, &project_dir);
-            let component_boundary = collect_component_boundary(&manifest, &project_dir);
+            let routes = collect_routes(&manifest, &project_dir, &mut problems);
+            let component_boundary =
+                collect_component_boundary(&manifest, &project_dir, &mut problems);
+
+            if !problems.is_empty() {
+                for p in &problems {
+                    eprintln!("fw structure: {p}");
+                }
+                return 1;
+            }
+
             let dependencies = collect_dependencies(&manifest, &ws);
 
             let output = json_out::StructureOutput {
@@ -208,9 +217,14 @@ fn check_crate_and_dependency_consistency(
 }
 
 /// `[routing]` が宣言されている場合のみ [`routes::extract_routes`] を実行する。
+///
+/// 抽出自体が失敗した場合（走査対象がワークスペースルート外を指す・I/O エラー等）は
+/// 空配列に握りつぶさず `problems` に積んで呼び出し元を非 0 終了させる（fail-closed。
+/// REQ-13・本ファイル冒頭の doc コメントが明記する「黙示的成功を返さない」契約）。
 fn collect_routes(
     manifest: &structure::StructureManifest,
     project_dir: &Path,
+    problems: &mut Vec<String>,
 ) -> Vec<(String, Vec<routes::ExtractedRoute>)> {
     let Some(routing) = &manifest.routing else {
         return Vec::new();
@@ -223,24 +237,41 @@ fn collect_routes(
     }
     match routes::extract_routes(project_dir, &routing.definition_dir) {
         Ok(found) => vec![(routing.definition_dir.clone(), found)],
-        Err(_) => Vec::new(),
+        Err(e) => {
+            problems.push(format!(
+                "routing.definition_dir `{}`: failed to extract routes: {e}",
+                routing.definition_dir
+            ));
+            Vec::new()
+        }
     }
 }
 
 /// `role = "component"` の各ディレクトリについてコンポーネント境界を抽出する。
+///
+/// 抽出失敗（走査対象がワークスペースルート外を指す・I/O エラー等）を空配列へ
+/// 握りつぶさず `problems` に積む（[`collect_routes`] と同じ fail-closed 契約）。
 fn collect_component_boundary(
     manifest: &structure::StructureManifest,
     project_dir: &Path,
+    problems: &mut Vec<String>,
 ) -> Vec<(String, Vec<component_boundary::PublicSymbol>)> {
     manifest
         .directories
         .iter()
         .filter(|d| matches!(d.role, structure::Role::Component))
-        .filter_map(|d| {
-            component_boundary::extract_public_symbols(project_dir, &d.name)
-                .ok()
-                .map(|symbols| (d.name.clone(), symbols))
-        })
+        .filter_map(
+            |d| match component_boundary::extract_public_symbols(project_dir, &d.name) {
+                Ok(symbols) => Some((d.name.clone(), symbols)),
+                Err(e) => {
+                    problems.push(format!(
+                        "directories.{}: failed to extract component boundary: {e}",
+                        d.name
+                    ));
+                    None
+                }
+            },
+        )
         .collect()
 }
 
@@ -309,5 +340,65 @@ mod tests {
             workspace_root.to_string_lossy().into_owned(),
         ]);
         assert_eq!(code, 0);
+    }
+
+    /// fail-closed 回帰テスト: `routes::extract_routes` が失敗した場合に
+    /// 「0 件でした」という虚偽の成功へフォールバックせず `problems` に積むこと
+    /// （レビュー指摘 #127: main.rs 冒頭の「黙示的成功を返さない」契約に反していた）。
+    #[test]
+    fn collect_routes_reports_problem_when_extraction_fails() {
+        let manifest = structure::StructureManifest {
+            version: 1,
+            directories: Vec::new(),
+            routing: Some(structure::RoutingConfig {
+                // ワークスペースルート直下に存在しないディレクトリ名。
+                // `structure::is_valid_directory_name` を満たす形式のまま
+                // 実体が欠落しているケース（I/O エラー相当）を模する。
+                definition_dir: "does-not-exist".to_string(),
+                extractor: "rws-router-v1".to_string(),
+            }),
+        };
+        let project_dir = std::env::temp_dir().join("fw-collect-routes-test-project");
+        let _ = std::fs::create_dir_all(&project_dir);
+
+        let mut problems: Vec<String> = Vec::new();
+        let routes = collect_routes(&manifest, &project_dir, &mut problems);
+
+        assert!(routes.is_empty());
+        assert_eq!(
+            problems.len(),
+            1,
+            "extraction failure must be reported, not silently treated as zero routes"
+        );
+    }
+
+    /// fail-closed 回帰テスト: `component_boundary::extract_public_symbols` が
+    /// 失敗した場合も同様に `problems` へ積むこと（上記と同一契約）。
+    #[test]
+    fn collect_component_boundary_reports_problem_when_extraction_fails() {
+        let manifest = structure::StructureManifest {
+            version: 1,
+            directories: vec![structure::DirectoryEntry {
+                name: "does-not-exist".to_string(),
+                role: structure::Role::Component,
+                crate_name: None,
+                description: "test".to_string(),
+                depends_on: Vec::new(),
+                allowed_dependents: Vec::new(),
+            }],
+            routing: None,
+        };
+        let project_dir = std::env::temp_dir().join("fw-collect-component-boundary-test-project");
+        let _ = std::fs::create_dir_all(&project_dir);
+
+        let mut problems: Vec<String> = Vec::new();
+        let component_boundary = collect_component_boundary(&manifest, &project_dir, &mut problems);
+
+        assert!(component_boundary.is_empty());
+        assert_eq!(
+            problems.len(),
+            1,
+            "extraction failure must be reported, not silently treated as zero symbols"
+        );
     }
 }

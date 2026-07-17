@@ -291,7 +291,9 @@ mod tests {
     fn fetch_reflects_real_workspace_members() {
         // 統合テスト: 実際にこのリポジトリで `cargo metadata` を起動する
         // （`cargo test` 実行環境ではネットワークアクセスなしで完結する想定。
-        // `--locked` により Cargo.lock 通りに解決されるため CI でも安定する）。
+        // `fetch()` は `--locked` を付与しない設計（上記 doc コメント参照）だが、
+        // このテストはコミット済み `Cargo.lock` を伴う in-tree ワークスペースに
+        // 対して実行するため、実質的に決定的な解決結果が得られ CI でも安定する）。
         let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .expect("cli/ has a parent workspace root");
