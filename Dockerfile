@@ -11,11 +11,11 @@
 # ファイルを COPY する必要はない。
 #
 # 参照先クレート `dist-server/`（パッケージ名 `rws-dist-server`、
-# `[[bin]] name = "dist-server"`）は TASK-9.1b（#96）で新設される想定であり、
+# `[[bin]] name = "dist-server"`）は TASK-9.1b（#96）でマージ済み。
 # 名前は docs/dist-server-design.md（TASK-9.1a 確定版）の 3 節を正とする。
-# #96 未マージの間は本 Dockerfile の `docker build` 完全検証はできないため、
-# TASK-9.3b（#103、CI でのイメージサイズ継続計測）実施時に #96 マージ後の
-# 実測を行う運用とする（PR 本文に明記）。
+# TASK-9.3b（#103）の `.github/workflows/image-size.yml` により、本
+# Dockerfile の docker build・イメージサイズ計測は CI で継続実測される
+# 運用（#101 で startup failure・COPY 列挙不整合を解消し実効化済み）。
 #
 # WASM 資産のコンテナ内再ビルド統合（TASK-10.3・#114）は本 Dockerfile の
 # スコープ外。static/ はホスト側で事前ビルド済みの資産をそのまま埋め込む
@@ -60,15 +60,22 @@ WORKDIR /work
 # 解決時に全 member の manifest とターゲットファイルを要求するため、
 # .dockerignore による除外だけに頼らずここで対象を列挙し、ビルドコンテキスト
 # 混入（.git・.env 等）を多重防御で防ぐ。
+#
+# 列挙はルート Cargo.toml の [workspace] members と同期必須。member 追加時は
+# 本列挙にも追加すること（不整合は image-size CI の docker build 失敗として
+# 検出される。#101 で wasm-client / cli の欠落による cargo workspace 解決
+# エラーを修正した経緯があるため、members を変更する際は必ずここも見直す）。
 COPY Cargo.toml Cargo.lock ./
 COPY core ./core
 COPY interactive ./interactive
 COPY app ./app
 COPY server ./server
+COPY wasm-client ./wasm-client
 COPY wasm-full ./wasm-full
 COPY wasm-thin ./wasm-thin
 COPY xtask ./xtask
 COPY dist-server ./dist-server
+COPY cli ./cli
 COPY static ./static
 
 # --locked で Cargo.lock 固定ビルドを強制し、依存解決の非決定性を排除する

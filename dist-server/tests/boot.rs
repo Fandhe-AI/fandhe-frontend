@@ -8,49 +8,35 @@
 //! ポート層）と `routes::route_request`（ルーティングコア）の結合が実際の
 //! プロセス境界を越えて機能することを固定する。
 //!
+//! プロセス起動・HTTP 送受信の共通ヘルパは `tests/support/mod.rs`
+//! （TASK-9.2a、イシュー #99 で `tests/isolated_run.rs` と共有するために
+//! 抽出）に切り出されている。本ファイルはソースツリー上のバイナリを
+//! 通常のカレントディレクトリ（`cwd = None`）で起動する従来どおりの
+//! シナリオのみを担う（隔離ディレクトリでの起動検証は `isolated_run.rs`）。
+//!
 //! 外部 dev-dependency（reqwest 等）は追加しない（`Cargo.toml` の
 //! `[dev-dependencies]` は空のまま — REQ-3 の趣旨、`dist-server/Cargo.toml`
 //! 冒頭コメント参照）。プロセス起動・HTTP 通信はすべて `std` のみで行う。
 //!
-//! プロセス起動・HTTP 送受信ヘルパー（`ChildGuard`・`spawn_and_wait_for_port`
-//! 等）は TASK-9.4（イシュー #104）で `tests/support/mod.rs` へ抽出し、
-//! `tests/xss_via_embedded_binary.rs` と共有している。`wait_with_timeout`
-//! （bind 競合検証専用）のみ本ファイルに残す。
+//! プロセス起動・HTTP 送受信ヘルパー（`ChildGuard`・`spawn_and_wait_for_port`・
+//! `wait_with_timeout` 等）は TASK-9.2a / TASK-9.4（イシュー #99 / #104）で
+//! `tests/support/mod.rs` へ集約され、`tests/isolated_run.rs`・
+//! `tests/xss_via_embedded_binary.rs` と共有している。
 
 mod support;
 
-use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
-use support::{send_http_request, spawn_and_wait_for_port, status_code, ChildGuard};
-
-/// `child.wait()` を無期限にブロックさせず、タイムアウト（5 秒）付きで
-/// 子プロセスの終了を待つ。
-///
-/// bind 失敗を検証するテスト用。bind 失敗のパスでは子プロセスは即座に
-/// 終了するはずだが、想定外に起動が停滞した場合でも `wait()` を無期限に
-/// 呼ぶとテストごと CI をハングさせてしまう（レビュー指摘対応）。
-/// `try_wait()` によるポーリングでデッドラインを実効化し、タイムアウト時は
-/// panic する（呼び出し元は `ChildGuard` でラップ済みであることが前提 —
-/// panic 後も `Drop` で子プロセスの kill/wait が保証される）。
-fn wait_with_timeout(child: &mut Child, timeout: Duration) -> std::process::ExitStatus {
-    let deadline = Instant::now() + timeout;
-    loop {
-        if let Some(status) = child
-            .try_wait()
-            .expect("try_wait on dist-server child must not error")
-        {
-            return status;
-        }
-        if Instant::now() >= deadline {
-            panic!("dist-server did not exit within timeout after a bind conflict");
-        }
-        std::thread::sleep(Duration::from_millis(20));
-    }
-}
+use std::process::{Command, Stdio};
+use std::time::Duration;
+use support::{
+    send_http_request, spawn_and_wait_for_port, status_code, wait_with_timeout, ChildGuard,
+};
 
 #[test]
 fn get_root_returns_200_with_escaped_xss_payload() {
-    let (_guard, port) = spawn_and_wait_for_port();
+    let (_guard, port) = spawn_and_wait_for_port(
+        std::path::Path::new(env!("CARGO_BIN_EXE_dist-server")),
+        None,
+    );
 
     let response = send_http_request(port, "GET", "/");
 
@@ -67,7 +53,10 @@ fn get_root_returns_200_with_escaped_xss_payload() {
 
 #[test]
 fn get_static_asset_returns_200() {
-    let (_guard, port) = spawn_and_wait_for_port();
+    let (_guard, port) = spawn_and_wait_for_port(
+        std::path::Path::new(env!("CARGO_BIN_EXE_dist-server")),
+        None,
+    );
 
     let response = send_http_request(port, "GET", "/static/view-transitions.js");
 
@@ -76,7 +65,10 @@ fn get_static_asset_returns_200() {
 
 #[test]
 fn path_traversal_against_static_assets_returns_404() {
-    let (_guard, port) = spawn_and_wait_for_port();
+    let (_guard, port) = spawn_and_wait_for_port(
+        std::path::Path::new(env!("CARGO_BIN_EXE_dist-server")),
+        None,
+    );
 
     let response = send_http_request(port, "GET", "/static/../Cargo.toml");
 

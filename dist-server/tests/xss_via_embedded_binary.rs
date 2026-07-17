@@ -55,7 +55,10 @@ const RAW_IMG_TAG: &str = "<img src=x onerror=alert(1)>";
 
 #[test]
 fn detail_page_via_binary_escapes_xss_payload() {
-    let (_guard, port) = spawn_and_wait_for_port();
+    let (_guard, port) = spawn_and_wait_for_port(
+        std::path::Path::new(env!("CARGO_BIN_EXE_dist-server")),
+        None,
+    );
 
     let response = send_http_request(port, "GET", "/items/2");
 
@@ -81,7 +84,10 @@ fn detail_page_via_binary_escapes_xss_payload() {
 
 #[test]
 fn list_page_via_binary_escapes_xss_payload() {
-    let (_guard, port) = spawn_and_wait_for_port();
+    let (_guard, port) = spawn_and_wait_for_port(
+        std::path::Path::new(env!("CARGO_BIN_EXE_dist-server")),
+        None,
+    );
 
     let response = send_http_request(port, "GET", "/");
 
@@ -112,7 +118,10 @@ fn list_page_via_binary_escapes_xss_payload() {
 /// 替えが余分な変換を挟まないことの回帰テスト）。
 #[test]
 fn http_body_matches_in_process_ssr_output_byte_for_byte() {
-    let (_guard, port) = spawn_and_wait_for_port();
+    let (_guard, port) = spawn_and_wait_for_port(
+        std::path::Path::new(env!("CARGO_BIN_EXE_dist-server")),
+        None,
+    );
 
     for path in ["/", "/items/2"] {
         let response = send_http_request(port, "GET", path);
@@ -140,7 +149,10 @@ fn http_body_matches_in_process_ssr_output_byte_for_byte() {
 /// 400 になり得るため、本テストは percent-encoded 形のみを送る。
 #[test]
 fn unknown_item_id_with_payload_is_not_reflected() {
-    let (_guard, port) = spawn_and_wait_for_port();
+    let (_guard, port) = spawn_and_wait_for_port(
+        std::path::Path::new(env!("CARGO_BIN_EXE_dist-server")),
+        None,
+    );
 
     let response = send_http_request(port, "GET", "/items/%3Cscript%3Ealert(1)%3C%2Fscript%3E");
 

@@ -1,22 +1,31 @@
-//! `dist-server/tests/` 配下の統合テストが共有するプロセス起動・HTTP 通信
-//! ヘルパー群（TASK-9.4、イシュー #104 でのリファクタで `boot.rs` から抽出）。
+//! `dist-server` の実プロセス起動検証（`tests/boot.rs`・`tests/isolated_run.rs`・
+//! `tests/xss_via_embedded_binary.rs`）が共有するヘルパ群
+//! （TASK-9.2a / TASK-9.4、イシュー #99 / #104）。
 //!
-//! `tests/` 直下に置いた `.rs` ファイルはそれぞれ独立したテストバイナリとして
-//! コンパイルされるため、`boot.rs` と `xss_via_embedded_binary.rs` の双方が
-//! 実プロセス起動（`env!("CARGO_BIN_EXE_dist-server")`）・素の `TcpStream`
-//! による HTTP 送受信を必要とする。Cargo の慣例（`tests/<name>/mod.rs` は
-//! テストターゲットとして扱われず、`mod support;` で明示的に取り込んだ場合
-//! のみコンパイルされる）に従い、本モジュールへヘルパーを一本化する。
+//! 元々は `tests/boot.rs`（TASK-9.1c、イシュー #97）に単体で実装されていたが、
+//! `isolated_run.rs`（隔離ディレクトリへコピーしたバイナリを起動する変種）・
+//! `xss_via_embedded_binary.rs`（単一バイナリ経由の XSS エスケープ維持検証）が
+//! 同じプロセス管理・HTTP 送受信の仕組みを必要としたため、共通部分をこの
+//! `tests/support/mod.rs` へ抽出した。各テストファイルからは `mod support;`
+//! （`#[path = "support/mod.rs"] mod support;` 不要 — ディレクトリ名がモジュール
+//! 名と一致するため通常の `mod` 宣言で解決される）で利用する。
 //!
-//! 外部 dev-dependency（reqwest 等）は依然として追加しない
-//! （`dist-server/Cargo.toml` の `[dev-dependencies]` は空のまま — REQ-3 の
-//! 趣旨）。プロセス起動・HTTP 通信はすべて `std` のみで行う。
+//! 外部 dev-dependency（reqwest 等）は追加しない（`dist-server/Cargo.toml` の
+//! `[dev-dependencies]` は空のまま — REQ-3 の趣旨）。プロセス起動・HTTP 通信は
+//! すべて `std` のみで行う。
 //!
-//! `wait_with_timeout`（bind 競合検証専用）は `boot.rs` 側にのみ必要なため
-//! 本モジュールには含めない。
+//! # integration test ハーネスの制約について
+//!
+//! `tests/` 配下の各 `.rs` ファイルは cargo によって独立したテストバイナリへ
+//! コンパイルされる。共通モジュールを `mod support;` で複数のテストバイナリ
+//! （`boot.rs`・`isolated_run.rs`・`xss_via_embedded_binary.rs`）から読み込むと、
+//! 本ファイル中の関数が個々のテストバイナリでは未使用になり得る（各バイナリが
+//! 使う関数の組み合わせが異なるため）。バイナリごとに未使用となり得る関数には
+//! 個別に `#[allow(dead_code)]` を付与する方針とする。
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
+use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
@@ -36,19 +45,28 @@ impl Drop for ChildGuard {
     }
 }
 
-/// `RWS_BIND_ADDR` にポート 0（OS 割当）を指定して `dist-server` を起動し、
-/// stderr の `listening on` 行から実際に割り当てられたポートを読み取る。
+/// `binary` を起動し、`RWS_BIND_ADDR=127.0.0.1:0`（OS 割当ポート）で bind
+/// させたうえで stderr の `listening on` 行から実際のポートを読み取る。
+///
+/// `cwd` を指定すると子プロセスの作業ディレクトリを固定する
+/// （`isolated_run.rs` がソースツリーと無関係な隔離ディレクトリを
+/// カレントディレクトリとして起動する用途）。`None` の場合は親プロセスの
+/// カレントディレクトリを継承する（`boot.rs` の従来動作と同一）。
 ///
 /// タイムアウト（5 秒）以内に当該行が出力されない場合は panic する
 /// （テストコードでの panic は `coding-rust.md` の対象外 — ライブラリコード
 /// のみ禁止）。
-pub fn spawn_and_wait_for_port() -> (ChildGuard, u16) {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_dist-server"))
+pub fn spawn_and_wait_for_port(binary: &Path, cwd: Option<&Path>) -> (ChildGuard, u16) {
+    let mut command = Command::new(binary);
+    command
         .env("RWS_BIND_ADDR", "127.0.0.1:0")
         .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("dist-server binary must spawn");
+        .stderr(Stdio::piped());
+    if let Some(dir) = cwd {
+        command.current_dir(dir);
+    }
+
+    let mut child = spawn_with_etxtbsy_retry(&mut command);
 
     let stderr = child
         .stderr
@@ -60,11 +78,46 @@ pub fn spawn_and_wait_for_port() -> (ChildGuard, u16) {
     // `ChildGuard` でラップする。ラップを後回しにすると、その間に panic や
     // 早期リターンが起きた場合、生の `Child` が guard で保護されないまま
     // drop されてしまう（`std::process::Child` は drop 時に自動終了しない
-    // ため、子プロセスが起動したままゾンビ化・ポート占有し得る。レビュー指摘対応）。
+    // ため、子プロセスが起動したままゾンビ化・ポート占有し得る）。
     let guard = ChildGuard(child);
 
     let port = read_listening_port(reader);
     (guard, port)
+}
+
+/// `Command::spawn` を、`ETXTBSY`（"Text file busy"）に限り短い待機を挟んで
+/// リトライする。
+///
+/// `isolated_run.rs` は「`fs::copy` でバイナリをコピー → 直後に spawn」を
+/// 各テストが並列（`cargo test` 既定のマルチスレッド実行）に行う。実測で、
+/// コピー先パスは呼び出しごとに一意（衝突なし）であるにもかかわらず、
+/// 別スレッドが同時に別のバイナリを fork+exec している最中だと、Linux の
+/// カーネルが無関係のパスに対して一時的に `ETXTBSY` を返すことがある
+/// （fork 直後・exec 前の書き込み可能な fd 継承に起因する既知の過渡的事象。
+/// Go の `exec_test.go` 等でも同種のリトライ対策が取られている）。
+/// 対象ファイル自体の破損やロックではなく一過性のカーネル挙動のため、
+/// 短い待機を挟んだ再試行で解消する。`ETXTBSY` 以外のエラーは即座に
+/// panic する（真の起動失敗を握り潰さないため）。
+fn spawn_with_etxtbsy_retry(command: &mut Command) -> Child {
+    const MAX_ATTEMPTS: u32 = 20;
+    const RETRY_DELAY: Duration = Duration::from_millis(25);
+
+    for attempt in 1..=MAX_ATTEMPTS {
+        match command.spawn() {
+            Ok(child) => return child,
+            Err(err) if err.kind() == std::io::ErrorKind::ExecutableFileBusy => {
+                if attempt == MAX_ATTEMPTS {
+                    panic!(
+                        "dist-server binary must spawn (still ETXTBSY after {MAX_ATTEMPTS} attempts): {err}"
+                    );
+                }
+                std::thread::sleep(RETRY_DELAY);
+            }
+            Err(err) => panic!("dist-server binary must spawn: {err}"),
+        }
+    }
+
+    unreachable!("loop above always returns or panics");
 }
 
 /// stderr から `"rws-dist-server: listening on 127.0.0.1:<port>"` 行を探し、
@@ -75,9 +128,9 @@ pub fn spawn_and_wait_for_port() -> (ChildGuard, u16) {
 /// 標準ライブラリにはない（`TcpStream::set_read_timeout` 相当が存在しない）。
 /// そのため実際の読み取りは別スレッドへ切り出し、本スレッドは
 /// `mpsc::Receiver::recv_timeout` でデッドラインまで待つことでタイムアウトを
-/// 実効化する（レビュー指摘: パイプ読み取りが無期限にブロックし CI がハング
-/// しうる問題への対応）。
-pub fn read_listening_port(reader: BufReader<std::process::ChildStderr>) -> u16 {
+/// 実効化する（パイプ読み取りが無期限にブロックし CI がハングしうる問題への
+/// 対応）。
+fn read_listening_port(reader: BufReader<std::process::ChildStderr>) -> u16 {
     let (tx, rx) = mpsc::channel::<String>();
 
     // 読み取りスレッドは検出後も本体側から join しない（detach する）。
@@ -122,6 +175,37 @@ pub fn read_listening_port(reader: BufReader<std::process::ChildStderr>) -> u16 
     }
 
     panic!("dist-server did not print a \"listening on\" line with a port within timeout");
+}
+
+/// `child.wait()` を無期限にブロックさせず、タイムアウト（5 秒）付きで
+/// 子プロセスの終了を待つ。
+///
+/// bind 失敗を検証するテスト用。bind 失敗のパスでは子プロセスは即座に
+/// 終了するはずだが、想定外に起動が停滞した場合でも `wait()` を無期限に
+/// 呼ぶとテストごと CI をハングさせてしまう。`try_wait()` によるポーリング
+/// でデッドラインを実効化し、タイムアウト時は panic する（呼び出し元は
+/// `ChildGuard` でラップ済みであることが前提 — panic 後も `Drop` で子
+/// プロセスの kill/wait が保証される）。
+///
+/// `isolated_run.rs`・`xss_via_embedded_binary.rs` のテストバイナリでは
+/// 未使用（bind 失敗検証は `boot.rs` の
+/// `bind_conflict_exits_non_zero_with_fixed_stderr_message` 専用のシナリオ）
+/// のため `#[allow(dead_code)]` で抑止する。
+#[allow(dead_code)]
+pub fn wait_with_timeout(child: &mut Child, timeout: Duration) -> std::process::ExitStatus {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if let Some(status) = child
+            .try_wait()
+            .expect("try_wait on dist-server child must not error")
+        {
+            return status;
+        }
+        if Instant::now() >= deadline {
+            panic!("dist-server did not exit within timeout after a bind conflict");
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
 }
 
 /// `"rws-dist-server: listening on 127.0.0.1:PORT"` 形式の 1 行から
@@ -172,15 +256,92 @@ pub fn status_code(response: &str) -> u16 {
 /// 最初の `\r\n\r\n` 分割でボディ全体を取り出せる
 /// （`xss_via_embedded_binary.rs` のバイト列完全一致検証で使用）。
 ///
-/// `boot.rs` は本関数を使わないため、そちらのテストバイナリでは未使用警告
-/// が出る。`tests/` 配下の各 `.rs` は独立のテストバイナリとしてコンパイル
-/// され、`mod support;` で取り込んだ関数のうち使わないものが出るのは
-/// 共有モジュール抽出の構造上避けられないため、`#[allow(dead_code)]` を
-/// 明示する（実装計画 3.2 参照）。
+/// `boot.rs`・`isolated_run.rs` は本関数を使わないため、そちらのテスト
+/// バイナリでは未使用警告が出る。`tests/` 配下の各 `.rs` は独立のテスト
+/// バイナリとしてコンパイルされ、`mod support;` で取り込んだ関数のうち
+/// 使わないものが出るのは共有モジュール抽出の構造上避けられないため、
+/// `#[allow(dead_code)]` を明示する。
 #[allow(dead_code)]
 pub fn response_body(response: &str) -> &str {
     response
         .split_once("\r\n\r\n")
         .map(|(_, body)| body)
         .expect("response must contain a header/body separator")
+}
+
+/// [`send_http_request`] のバイト列版。
+///
+/// WASM バイナリ（`.wasm`）の応答本文は有効な UTF-8 とは限らない
+/// （`\0asm` マジックナンバーを含む）ため、`send_http_request` の
+/// `read_to_string`（UTF-8 前提）では読み取りに失敗する。
+/// `isolated_run.rs` の WASM アセット検証はこちらを使う。
+///
+/// `tests/` 配下は各ファイルが独立したテストバイナリへコンパイルされる
+/// （`mod support;` を宣言するファイルごとに本モジュールが再コンパイル
+/// される）。`boot.rs`・`xss_via_embedded_binary.rs` はこの関数を呼ばない
+/// ため、それらのテストバイナリでは常に未使用になり `dead_code` 警告の
+/// 対象となる。実際には `isolated_run.rs`（`wasm_assets_embedded` cfg 有効
+/// 時）から使われるため `#[allow(dead_code)]` で抑止する。
+#[allow(dead_code)]
+pub fn send_http_request_bytes(port: u16, method: &str, path: &str) -> Vec<u8> {
+    let mut stream = TcpStream::connect(("127.0.0.1", port)).expect("must connect to dist-server");
+    stream
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .expect("set_read_timeout must succeed");
+
+    let request =
+        format!("{method} {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n");
+    stream
+        .write_all(request.as_bytes())
+        .expect("request must be written");
+
+    let mut response = Vec::new();
+    stream
+        .read_to_end(&mut response)
+        .expect("response must be readable");
+    response
+}
+
+/// バイト列レスポンスの先頭ステータス行からステータスコードを取り出す
+/// （[`status_code`] のバイト列版）。ステータス行自体は常に ASCII のため
+/// `str::from_utf8` で先頭行だけを取り出せば十分。
+///
+/// `boot.rs`・`xss_via_embedded_binary.rs` のテストバイナリでは未使用
+/// （`send_http_request_bytes` と同じ理由、上記 doc 参照）のため
+/// `#[allow(dead_code)]` で抑止する。
+#[allow(dead_code)]
+pub fn status_code_bytes(response: &[u8]) -> u16 {
+    let header_end = find_header_end(response).unwrap_or(response.len());
+    let header_bytes = &response[..header_end];
+    let header_str =
+        std::str::from_utf8(header_bytes).expect("HTTP header section must be ASCII/UTF-8");
+    header_str
+        .lines()
+        .next()
+        .and_then(|status_line| status_line.split_whitespace().nth(1))
+        .and_then(|code| code.parse().ok())
+        .expect("response must start with a valid HTTP status line")
+}
+
+/// バイト列レスポンスからヘッダ部分を除いた本文（ボディ）を取り出す。
+/// `Content-Length` は解釈せず、`Connection: close` 前提（本テスト群の
+/// リクエストは常に付与している）で接続断までを読み切った
+/// [`send_http_request_bytes`] の出力をヘッダ区切り（`\r\n\r\n`）で
+/// 単純分割するのみで十分。
+///
+/// `boot.rs`・`xss_via_embedded_binary.rs` のテストバイナリでは未使用
+/// （`send_http_request_bytes` と同じ理由、上記 doc 参照）のため
+/// `#[allow(dead_code)]` で抑止する。
+#[allow(dead_code)]
+pub fn response_body_bytes(response: &[u8]) -> &[u8] {
+    match find_header_end(response) {
+        Some(header_end) => &response[header_end + 4..],
+        None => &[],
+    }
+}
+
+/// `\r\n\r\n`（ヘッダ / ボディ区切り）の開始インデックスを探す。
+#[allow(dead_code)]
+fn find_header_end(response: &[u8]) -> Option<usize> {
+    response.windows(4).position(|window| window == b"\r\n\r\n")
 }
