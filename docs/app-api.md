@@ -80,7 +80,7 @@ PoC-3 実績シグネチャをそのまま標準 API として凍結する。TAS
 |---|------|------|
 | 1 | コンポーネントは「`Node` を返す通常の Rust 関数」として記述する | `docs/component-api.md` 第 2 節の標準規約を継承。マクロ・トレイト・特別な戻り値型は導入しない |
 | 2 | `page_shell` は静的テンプレート文字列 + `format!` による補間を許容する例外とする。許容条件は「補間値が `rws_core::escape_html(title)` と `rws_core::render(body)`（既定エスケープ済み出力）のみであること」とする | PoC-3 実装を踏襲しつつ、`format!("<div>{}</div>", user_input)` 型の直接組み立て禁止（`.claude/rules/coding-rust.md`）との関係を「未エスケープのユーザー入力を補間しない固定文書骨格」として整理する。この不変条件は rustdoc とテストで固定することを TASK-6.1b の要件とする |
-| 3 | 静的アセットパス（`/static/style.css`・`/static/hydrate.js`）と `<meta name="view-transition">` の既定同梱を v1 では固定値として凍結する | PoC-3 の実装をそのまま踏襲。パラメータ化は TASK-7.1/8.1 の設計余地として記録する |
+| 3 | 静的アセットパス（`/static/style.css`・`/static/hydrate.js`）と `<meta name="view-transition">` の既定同梱を v1 では固定値として凍結する | PoC-3 の実装をそのまま踏襲。パラメータ化は TASK-7.1/8.1 の設計余地として記録する。**追記（TASK-8.1・#59）**: `<meta name="view-transition">` は View Transitions Level 2 の標準化過程で廃止されたため、実装は `@view-transition { navigation: auto; }`（CSS at-rule）へ置換済み。採用経緯・標準テンプレートへの既定同梱の詳細は `docs/view-transitions.md` を参照 |
 | 4 | デモデータ（`items()`）を製品クレートに残し、`data` モジュールに隔離する | XSS 回帰テスト（REQ-1）・SSR/SSG 完全一致テスト（TASK-6.4）・三モード統合テスト（TASK-6.1d）の共通フィクスチャであるため v1 では公開のまま維持し、将来の feature 分離余地を記録する |
 | 5 | `server/src/main.rs`（SSR）・`server/src/bin/ssg.rs`（SSG）・`wasm-client`（CSR、TASK-6.2）は本クレートの同一関数を**分岐なく**呼び出す | REQ-6/REQ-7 受け入れ基準。SSG 出力 = SSR 出力の文字列完全一致（`ssg_output_equals_ssr_output_for_list_and_detail`）を TASK-6.1d・TASK-6.4 の回帰テスト対象として明記する |
 

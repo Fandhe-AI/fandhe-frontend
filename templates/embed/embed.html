@@ -28,6 +28,24 @@
       （.claude/rules/coding-rust.md「HTML 文字列の直接組み立て禁止」）。
   -->
   <title>既存ページへの部分埋め込みサンプル</title>
+  <!--
+    TASK-8.1（#59）: SSR ページ遷移（クロスドキュメントナビゲーション）を
+    JS 0 行で有効化する宣言的機構。`rws_app::page_shell()`（SSR/SSG 標準構成）が
+    既定同梱する at-rule と同一のものを、最小埋め込み構成側にも明示的に置く。
+
+    View Transitions Level 2 で標準化された `@view-transition` at-rule により
+    ブラウザ既定のクロスドキュメント遷移アニメーションが有効になる。
+    旧世代の meta タグベースの実験的構文は標準化過程で廃止されたため使用しない
+    （経緯は app/src/lib.rs の page_shell 実装・docs/view-transitions.md 参照）。
+
+    非対応ブラウザではこの at-rule は単に無視され、通常のナビゲーションへ
+    フォールバックする（graceful degradation、追加の JS 分岐は不要）。
+    同一文書内（SPA 的）の遷移は static/view-transitions.js の
+    withViewTransition() が別途担う（役割分担は docs/view-transitions.md）。
+    このページはフレームワーク管理外の静的 HTML のため、この <style> は
+    利用者がコピー後に削除しても構わない（責務境界は本ファイル冒頭のコメント参照）。
+  -->
+  <style>@view-transition { navigation: auto; }</style>
 </head>
 <body>
   <h1>既存の静的ページ（フレームワーク外で書かれた想定）</h1>
