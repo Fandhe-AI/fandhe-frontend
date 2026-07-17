@@ -165,6 +165,10 @@ fn get_root_returns_200_with_escaped_xss_payload() {
         response.contains("&lt;script&gt;"),
         "list page must escape the XSS payload by default (REQ-1): {response}"
     );
+    assert!(
+        !response.contains("<script>"),
+        "list page must not contain the raw, unescaped XSS payload (REQ-1 regression guard): {response}"
+    );
 }
 
 #[test]
@@ -199,19 +203,32 @@ fn bind_conflict_exits_non_zero_with_fixed_stderr_message() {
         .spawn()
         .expect("dist-server binary must spawn");
 
+    // stderr は `wait()` より先に（別スレッドで）ドレインする。子プロセスの
+    // 出力量がパイプバッファ（通常 64KB 程度）を超えた場合、`wait()` を先に
+    // 呼ぶと「子は書き込みブロック・親は wait 待ち」の典型的なデッドロックに
+    // 陥り得る（read_listening_port と同様の対策、レビュー指摘対応）。
+    let stderr_pipe = child
+        .stderr
+        .take()
+        .expect("stderr must be piped for spawned child");
+    let stderr_reader = std::thread::spawn(move || {
+        let mut stderr = String::new();
+        let mut stderr_pipe = stderr_pipe;
+        stderr_pipe
+            .read_to_string(&mut stderr)
+            .expect("stderr must be readable as UTF-8");
+        stderr
+    });
+
     let status = child.wait().expect("dist-server process must exit");
     assert!(
         !status.success(),
         "dist-server must exit non-zero when the bind address is already in use"
     );
 
-    let mut stderr = String::new();
-    child
-        .stderr
-        .take()
-        .expect("stderr must be piped for spawned child")
-        .read_to_string(&mut stderr)
-        .expect("stderr must be readable as UTF-8");
+    let stderr = stderr_reader
+        .join()
+        .expect("stderr reader thread must not panic");
 
     // 機微情報（内部パス・スタックトレース等）を含まない固定文言のみで
     // あることを確認する（`security.md` A09、`main.rs` の doc 参照）。
