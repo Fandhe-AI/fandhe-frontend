@@ -348,6 +348,74 @@ jobs:
       - name: Run WASM XSS escape regression (headless Chrome)
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-full --test xss_escape_wasm
 
+  # TASK-10.4a（イシュー #119、REQ-10）: 本番ビルドのアセット変更反映
+  # （差分ビルド）が 5 秒以内であることを継続計測するジョブ。
+  # `dist-server/benches/rebuild_latency.rs`（judge/format_summary_line は
+  # `dist-server/src/bench_support.rs` に分離しユニットテストで書式契約を
+  # 固定）を実行し、PoC-4 実測（0.571〜0.597 秒）を基準とした回帰を検知する。
+  #
+  # `test` ジョブと同じ環境構築パターン（wasm32 target・wasm-bindgen-cli
+  # バージョン固定 + SHA256 チェックサム検証）を踏襲する。本ベンチが起動する
+  # ネスト `cargo build -p rws-dist-server` は `dist-server/build.rs` の
+  # WASM ビルドステージ（既定有効）を経由するため、本ジョブは
+  # オプトアウトせず統合ビルドをそのまま計測に含める。
+  #
+  # しきい値運用の原則は deps-check/loc-check ジョブと同一: しきい値の正は
+  # `dist-server/src/bench_support.rs` の LIMIT_SECONDS（5.0）定数のみ。
+  # 緩和用の input・環境変数・continue-on-error は設けない。
+  rebuild-latency:
+    name: REQ-10 rebuild latency (5s limit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2（test ジョブと同一 SHA 固定）。
+        # docs/spec サブモジュールは本ジョブの計測に不要のため取得しない。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      # wasm-bindgen-cli はバージョン固定 + SHA256 チェックサム検証付きで
+      # 導入する（`test` ジョブと同一バージョン・同一チェックサム。
+      # `dist-server/build.rs` の expected_wasm_bindgen_version が Cargo.lock
+      # 解決済みバージョンとの完全一致を要求するため、更新時は両方を
+      # 合わせて更新すること）。
+      - name: Install wasm-bindgen-cli (pinned + checksum-verified)
+        run: |
+          set -euo pipefail
+          WASM_BINDGEN_VERSION="0.2.126"
+          WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
+          ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
+          curl -sSfL -o "${ARCHIVE}" "${URL}"
+          echo "${WASM_BINDGEN_SHA256}  ${ARCHIVE}" | sha256sum -c -
+          tar xzf "${ARCHIVE}"
+          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" /usr/local/bin/wasm-bindgen
+
+      - name: Run rebuild_latency bench
+        # xtask 系ジョブと同一の理由（子プロセス終了コード伝播・Cargo.lock
+        # drift 防止）で pipefail・tee・--locked を用いる。
+        run: |
+          set -o pipefail
+          cargo bench --locked -p rws-dist-server --bench rebuild_latency | tee rebuild-latency.log
+
+      - name: Publish rebuild-latency summary
+        if: always()
+        # format_summary_line（dist-server/src/bench_support.rs）の 1 行
+        # サマリ契約「rebuild-latency: samples=<n> s1=<x> ... max_s=<x>
+        # limit_s=<x> result=<PASS|FAIL>」を Step Summary に転記する
+        # （deps-check/loc-check ジョブと同一パターン）。
+        run: |
+          {
+            echo '## rebuild-latency (REQ-10, issue #119)'
+            echo '```'
+            grep '^rebuild-latency:' rebuild-latency.log || echo 'rebuild-latency: no summary line found'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   loc-check:
     name: REQ-8 view-transitions.js effective LOC limit (10 lines)
     runs-on: ubuntu-latest

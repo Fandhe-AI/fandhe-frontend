@@ -53,3 +53,16 @@ force-embed = []
 [[bin]]
 name = "dist-server"
 path = "src/main.rs"
+
+# TASK-10.4a（イシュー #119、REQ-10）: rebuild_latency ベンチマーク。
+#
+# criterion 等の外部 dev-dependency は追加しない（`[dev-dependencies]` は
+# 引き続き空。REQ-3 の趣旨・`deps-check` ジョブの計測対象を増やさないため）。
+# `harness = false` + `test = false` により、独自の `main()` を持つ std-only
+# 実装とし、`cargo test` からは実行されない（判定ロジックのユニットテストは
+# `src/bench_support.rs` 側に置く）。
+[[bench]]
+name = "rebuild_latency"
+path = "benches/rebuild_latency.rs"
+harness = false
+test = false
