@@ -203,9 +203,14 @@ allowlist（Rule 2）を通過したファイルであっても、以下に該�
 
 ## 5. スコープ外の明記
 
-- **CI ワークフローへの組み込み**: TASK-12.2c（#124）のスコープです。
-  現行 `.github/workflows/ci.yml` は本書執筆時点で
-  `tools/npm-asset-build/` のテストを実行していません。
+- **CI ワークフローへの組み込み**: TASK-12.2c（#124）で
+  `.github/workflows/ci.yml` の `npm-asset-build` ジョブとして統合済みです。
+  `test_install.sh`（TASK-12.1a）は無条件（fail-closed）で実行し、
+  `check_static_only.py`（TASK-12.2b・#123）本体は並列進行中のため、
+  同ジョブ内は存在ガード（browser-test ジョブと同型）で判定します。
+  未マージの間は該当ステップの fixture テストが `unittest.SkipTest` で
+  全件スキップされてジョブは空実行相当で成功し、#123 マージ後に
+  自動的に有効化されます。
 - **配布バイナリ・ブラウザ配信物側の NPM 非混入検証**: TASK-12.3（#125）
   のスコープです。
 - **過大な安全性主張の禁止**: 本検証はビルド時に取り込む静的アセットの
