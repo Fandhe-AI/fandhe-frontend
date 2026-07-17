@@ -52,6 +52,16 @@ features = [
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+# TASK-11.5b（#87）: `wasm-full/tests/perf_browser.rs` のしきい値アサーション
+# （`INITIAL_LOAD_BUDGET_MS`/`FRAME_BUDGET_MS`）を有効化するための feature。
+# 依存クレートの追加は行わない（既定 off、コード分岐のみ）。CI の
+# `perf-harness` ジョブは feature なしのまま実行し（スモークのみ・性能判定
+# しない方針を維持）、正式計測は統制されたローカル環境で
+# `--features perf-assert` を付けて実行する
+# （`docs/perf-browser-harness.md` 第 5 節）。
+[features]
+perf-assert = []
+
 # TASK-11.5a（#86）: 実ブラウザ性能計測ハーネス（wasm-full/tests/perf_browser.rs）の
 # 実行に必要な dev 依存。dev-dependency のため製品バイナリ・標準サーバー構成
 # （REQ-3 の 60 件/深さ 6 の対象）には影響しない。
