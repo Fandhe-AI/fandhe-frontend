@@ -148,12 +148,12 @@ fn app_component_logic_has_no_mode_branching_cfg() {
             if !has_cfg_attr {
                 continue;
             }
+            let line_no = idx + 1;
             assert!(
                 normalized.contains("#[cfg(test)]") || normalized.contains("cfg!(test)"),
-                "rws-app（コンポーネントロジック）{file:?}:{line} に \
+                "rws-app（コンポーネントロジック）{file:?}:{line_no} に \
                  `cfg(test)` 以外の構成分岐属性が見つかった: {line:?}。REQ-7 は \
-                 コンポーネントロジックが構成間で分岐を持たないことを要求する",
-                line = idx + 1
+                 コンポーネントロジックが構成間で分岐を持たないことを要求する"
             );
         }
     }
