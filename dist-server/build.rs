@@ -46,9 +46,12 @@
 //! する。本ステージが独自にキャッシュ制御を行うのは、その後段の
 //! `wasm-bindgen` 実行（[`run_wasm_bindgen`]）のみで、これはネストビルドが
 //! 生成した `.wasm` の**内容ハッシュ**と `wasm-bindgen-cli` の実バージョンを
-//! 束ねた fingerprint（[`compute_wasm_stage_fingerprint`]）を
+//! 束ねた fingerprint（`wasm_stage_cache::compute_wasm_stage_fingerprint`）を
 //! `OUT_DIR/wasm-stage.fingerprint` に保存し、次回以降の実行で前回値と完全一致
-//! する場合に限り再利用する（[`wasm_stage_cache_hit`]）。
+//! する場合に限り再利用する（`wasm_stage_cache::wasm_stage_cache_hit`）。
+//! これらキャッシュ判定の純粋関数は `src/wasm_stage_cache.rs` にソースレベルで
+//! 切り出しており、`cargo test -p rws-dist-server` でユニットテストされる
+//! （下記 `mod wasm_stage_cache` 宣言・当該ファイル冒頭コメント参照）。
 //!
 //! フェイルクローズ方針: fingerprint の読み取り失敗・欠落・不一致・成果物
 //! （`OUT_DIR/wasm-assets/` 配下の `.js`/`_bg.wasm`）の欠落のいずれでも
@@ -60,6 +63,15 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+// キャッシュ判定の純粋関数群（fingerprint 計算・成果物完全性チェック等）は
+// `src/wasm_stage_cache.rs` にソースレベルで切り出している。パッケージ自身の
+// lib クレートを `build-dependencies` にはできない（循環依存）ため `#[path]`
+// でこのファイルをそのまま取り込み、`cargo test -p rws-dist-server`
+// （`lib.rs` 経由の通常モジュールとして）でユニットテストできるようにする
+// （`bench_support.rs` と同型のパターン。詳細は当該ファイル冒頭コメント参照）。
+#[path = "src/wasm_stage_cache.rs"]
+mod wasm_stage_cache;
 
 fn main() {
     // `CARGO_MANIFEST_DIR` は `dist-server/` を指す。埋め込み対象の `static/` や
@@ -220,7 +232,7 @@ fn run_wasm_stage(workspace_root: &Path, out_dir: &Path) -> Result<Vec<(String, 
     let wasm_assets_dir = out_dir.join("wasm-assets");
     let fingerprint_path = out_dir.join("wasm-stage.fingerprint");
 
-    if wasm_stage_cache_hit(
+    if wasm_stage_cache::wasm_stage_cache_hit(
         &wasm_binary_path,
         &installed_version,
         &fingerprint_path,
@@ -241,7 +253,11 @@ fn run_wasm_stage(workspace_root: &Path, out_dir: &Path) -> Result<Vec<(String, 
         run_wasm_bindgen(&wasm_binary_path, &wasm_assets_dir)?;
         // fingerprint の書き込みは成果物確認後の最後の一手にする
         // （冒頭ドキュメンテーションコメントのフェイルクローズ方針参照）。
-        write_wasm_stage_fingerprint(&wasm_binary_path, &installed_version, &fingerprint_path)?;
+        wasm_stage_cache::write_wasm_stage_fingerprint(
+            &wasm_binary_path,
+            &installed_version,
+            &fingerprint_path,
+        )?;
     }
 
     let mut raw_entries = Vec::new();
@@ -409,7 +425,7 @@ fn run_wasm_build(workspace_root: &Path) -> Result<PathBuf, String> {
 /// イシュー #161 のスコープ。
 ///
 /// キャッシュ HIT 時（TASK-10.2c）は呼び出されない。呼び出し元が
-/// [`wasm_stage_cache_hit`] で再利用可否を判定する。
+/// `wasm_stage_cache::wasm_stage_cache_hit` で再利用可否を判定する。
 fn run_wasm_bindgen(wasm_binary_path: &Path, wasm_assets_dir: &Path) -> Result<(), String> {
     fs::create_dir_all(wasm_assets_dir)
         .map_err(|e| format!("failed to create {}: {e}", wasm_assets_dir.display()))?;
@@ -424,7 +440,7 @@ fn run_wasm_bindgen(wasm_binary_path: &Path, wasm_assets_dir: &Path) -> Result<(
         return Err("wasm-bindgen failed to generate JS bindings for rws-wasm-full".to_string());
     }
 
-    if !wasm_assets_look_complete(wasm_assets_dir, wasm_binary_path) {
+    if !wasm_stage_cache::wasm_assets_look_complete(wasm_assets_dir, wasm_binary_path) {
         // wasm-bindgen が成功ステータスを返したにも関わらず期待した成果物
         // （`<stem>.js`/`<stem>_bg.wasm`）が揃っていない異常系。fingerprint を
         // 書かず、次回ビルドで確実に再実行させる（フェイルクローズ）。
@@ -437,110 +453,12 @@ fn run_wasm_bindgen(wasm_binary_path: &Path, wasm_assets_dir: &Path) -> Result<(
     Ok(())
 }
 
-/// `wasm-bindgen` の再実行をスキップしてよいかを判定する（TASK-10.2c）。
-///
-/// 判定は次の全条件が揃った場合のみ `true`（HIT）を返す。1 つでも欠ければ
-/// `false`（MISS = 再実行）に倒すフェイルクローズ方針を取る。
-///
-/// - `fingerprint_path` に前回の fingerprint が保存されている（読めない・
-///   存在しない場合は即 MISS）
-/// - 現在の入力（ネストビルドが生成した `.wasm` の内容ハッシュ + インストール
-///   済み `wasm-bindgen-cli` の実バージョン）から計算した fingerprint と完全
-///   一致する
-/// - `wasm_assets_dir` に前回の成果物一式（`<stem>.js`/`<stem>_bg.wasm`）が
-///   実際に残っている（fingerprint だけ一致してディレクトリが空、という
-///   事故を防ぐ）
-fn wasm_stage_cache_hit(
-    wasm_binary_path: &Path,
-    installed_wasm_bindgen_version: &str,
-    fingerprint_path: &Path,
-    wasm_assets_dir: &Path,
-) -> bool {
-    let Some(stored) = fs::read_to_string(fingerprint_path).ok() else {
-        return false;
-    };
-    let Ok(current) =
-        compute_wasm_stage_fingerprint(wasm_binary_path, installed_wasm_bindgen_version)
-    else {
-        return false;
-    };
-    stored.trim() == current && wasm_assets_look_complete(wasm_assets_dir, wasm_binary_path)
-}
-
-/// 現在の WASM ステージ入力から fingerprint 文字列を計算する。
-///
-/// 構成要素は「ネストビルドが生成した `.wasm` の内容ハッシュ（FNV-1a）」と
-/// 「インストール済み `wasm-bindgen-cli` の実バージョン」。前者は wasm-full の
-/// ソース変更を、後者は CLI 入れ替え（stale なグルーコード再利用の防止、
-/// PR #217 review 4719879204 と同種の懸念）をそれぞれ捉える。
-/// `Cargo.lock` が解決する `wasm-bindgen` バージョンは `run_wasm_stage` の
-/// バージョン整合検証（`expected_wasm_bindgen_version` との突き合わせ）で
-/// 既に CLI 実バージョンと一致していることが保証されているため、fingerprint
-/// へ別途含める必要はない。
-fn compute_wasm_stage_fingerprint(
-    wasm_binary_path: &Path,
-    installed_wasm_bindgen_version: &str,
-) -> Result<String, String> {
-    let bytes = fs::read(wasm_binary_path).map_err(|e| {
-        format!(
-            "failed to read {} for fingerprinting: {e}",
-            wasm_binary_path.display()
-        )
-    })?;
-    let hash = fnv1a_hash(&bytes);
-    Ok(format!("{hash:016x}:{installed_wasm_bindgen_version}"))
-}
-
-/// fingerprint をファイルへ書き込む。呼び出しは [`run_wasm_stage`] の
-/// `wasm-bindgen` 成功パスからのみ行う（[`run_wasm_bindgen`] が成果物の存在を
-/// 確認済みであることが前提）。ここで初めて「次回はこの成果物を再利用して
-/// よい」という記録が残るため、書き込み順序を崩さないこと。
-fn write_wasm_stage_fingerprint(
-    wasm_binary_path: &Path,
-    installed_wasm_bindgen_version: &str,
-    fingerprint_path: &Path,
-) -> Result<(), String> {
-    let fingerprint =
-        compute_wasm_stage_fingerprint(wasm_binary_path, installed_wasm_bindgen_version)?;
-    fs::write(fingerprint_path, fingerprint)
-        .map_err(|e| format!("failed to write {}: {e}", fingerprint_path.display()))
-}
-
-/// `wasm_assets_dir` に、`wasm_binary_path` のファイル幹名（`file_stem`）から
-/// 想定される `wasm-bindgen --target web` の 2 大成果物
-/// （`<stem>.js`・`<stem>_bg.wasm`）が両方とも存在し、かつ空ファイルでないかを
-/// 確認する。キャッシュ HIT 判定・`run_wasm_bindgen` 成功確認の両方から使う
-/// 共通ガード。
-fn wasm_assets_look_complete(wasm_assets_dir: &Path, wasm_binary_path: &Path) -> bool {
-    let Some(stem) = wasm_binary_path.file_stem().and_then(|s| s.to_str()) else {
-        return false;
-    };
-    let js_path = wasm_assets_dir.join(format!("{stem}.js"));
-    let wasm_path = wasm_assets_dir.join(format!("{stem}_bg.wasm"));
-    is_non_empty_file(&js_path) && is_non_empty_file(&wasm_path)
-}
-
-fn is_non_empty_file(path: &Path) -> bool {
-    fs::metadata(path)
-        .map(|metadata| metadata.is_file() && metadata.len() > 0)
-        .unwrap_or(false)
-}
-
-/// std のみで完結する自前 FNV-1a（64bit）実装。`build-dependencies` へハッシュ
-/// 用クレートを追加しないための選択（REQ-3・冒頭ドキュメンテーションコメント
-/// 「外部依存ゼロの理由」参照）。暗号学的強度は不要（ビルド成果物の変化検知が
-/// 目的で、敵対的な衝突耐性は要求しない用途）。
-fn fnv1a_hash(bytes: &[u8]) -> u64 {
-    const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
-    const FNV_PRIME: u64 = 0x100000001b3;
-
-    let mut hash = FNV_OFFSET_BASIS;
-    for &byte in bytes {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(FNV_PRIME);
-    }
-    hash
-}
+// `wasm_stage_cache_hit` / `compute_wasm_stage_fingerprint` /
+// `write_wasm_stage_fingerprint` / `wasm_assets_look_complete` /
+// `fnv1a_hash` はいずれも `wasm_stage_cache` モジュール（`src/wasm_stage_cache.rs`
+// を `#[path]` でソースレベル共有、本ファイル冒頭の `mod` 宣言参照）へ移した。
+// ユニットテストは `cargo test -p rws-dist-server`（`src/wasm_stage_cache.rs`
+// の `#[cfg(test)]`）が担う。
 
 /// `dir` 以下を再帰的に走査し、`(URL パス, 絶対パス)` を `out` へ積む。
 ///
