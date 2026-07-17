@@ -348,6 +348,124 @@ jobs:
       - name: Run WASM XSS escape regression (headless Chrome)
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-full --test xss_escape_wasm
 
+  # TASK-12.2c（#124、REQ-12 受け入れ基準 2）: install.sh の --ignore-scripts
+  # 強制（前段、TASK-12.1a・#38・マージ済み）と check_static_only.py の
+  # 静的アセット判定（後段ゲート、TASK-12.2b・#123）の多層防御を CI で
+  # 回帰確認する。本ジョブは緩和用 input・環境変数・continue-on-error を
+  # 一切設けない（loc-check ジョブと同一の迂回経路禁止原則）。
+  #
+  # test_install.sh（TASK-12.1a の成果物）はこれまで CI 未統合だったため、
+  # 本ジョブで無条件（fail-closed）に実行する。
+  #
+  # check_static_only.py 本体は TASK-12.2b（#123、並列進行中）のスコープで
+  # あり本コミット時点では未マージ。browser-test/perf-harness ジョブと同型の
+  # 存在ガードパターンを踏襲し、未作成の間は該当ステップのみスキップして
+  # ジョブ自体は成功扱いとする（#123 完了までの直列化措置）。#123 マージ後、
+  # このガードは自動的に無効化されテストが有効化される。ガード撤去
+  # （fail-closed 化）は #123 マージ後のフォローアップとして扱う。
+  npm-asset-build:
+    name: NPM static asset gate (REQ-12)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。
+        # docs/spec サブモジュールは本ジョブに不要のため取得しない。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+
+      - name: install.sh offline regression tests (fail-closed)
+        run: bash tools/npm-asset-build/tests/test_install.sh
+
+      # check_static_only.py 存在ガード（TASK-6.3a #65 browser-test ジョブの
+      # パターン踏襲）。test_check_static_only.py 内部の unittest.SkipTest も
+      # 同一パス（tools/npm-asset-build/check_static_only.py）を判定条件と
+      # しており、本ステップと同時に有効化される。
+      - name: Check check_static_only.py existence
+        id: check
+        run: |
+          if [ -f "tools/npm-asset-build/check_static_only.py" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::tools/npm-asset-build/check_static_only.py not found yet (blocked on TASK-12.2b #123). Fixture tests will report as skipped (exit 0)."
+          fi
+
+      - name: check_static_only.py fixture regression tests
+        # スクリプト不在時も test_check_static_only.py 自体は実行する
+        # （内部の unittest.SkipTest により全件 skip・exit 0 となるため、
+        # ジョブとしては空実行相当で成功扱いになる。存在ガードの通知は
+        # 上記ステップの ::notice が担う）。
+        run: python3 tools/npm-asset-build/tests/test_check_static_only.py -v
+
+  # TASK-10.4a（イシュー #119、REQ-10）: 本番ビルドのアセット変更反映
+  # （差分ビルド）が 5 秒以内であることを継続計測するジョブ。
+  # `dist-server/benches/rebuild_latency.rs`（judge/format_summary_line は
+  # `dist-server/src/bench_support.rs` に分離しユニットテストで書式契約を
+  # 固定）を実行し、PoC-4 実測（0.571〜0.597 秒）を基準とした回帰を検知する。
+  #
+  # `test` ジョブと同じ環境構築パターン（wasm32 target・wasm-bindgen-cli
+  # バージョン固定 + SHA256 チェックサム検証）を踏襲する。本ベンチが起動する
+  # ネスト `cargo build -p rws-dist-server` は `dist-server/build.rs` の
+  # WASM ビルドステージ（既定有効）を経由するため、本ジョブは
+  # オプトアウトせず統合ビルドをそのまま計測に含める。
+  #
+  # しきい値運用の原則は deps-check/loc-check ジョブと同一: しきい値の正は
+  # `dist-server/src/bench_support.rs` の LIMIT_SECONDS（5.0）定数のみ。
+  # 緩和用の input・環境変数・continue-on-error は設けない。
+  rebuild-latency:
+    name: REQ-10 rebuild latency (5s limit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2（test ジョブと同一 SHA 固定）。
+        # docs/spec サブモジュールは本ジョブの計測に不要のため取得しない。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      # wasm-bindgen-cli はバージョン固定 + SHA256 チェックサム検証付きで
+      # 導入する（`test` ジョブと同一バージョン・同一チェックサム。
+      # `dist-server/build.rs` の expected_wasm_bindgen_version が Cargo.lock
+      # 解決済みバージョンとの完全一致を要求するため、更新時は両方を
+      # 合わせて更新すること）。
+      - name: Install wasm-bindgen-cli (pinned + checksum-verified)
+        run: |
+          set -euo pipefail
+          WASM_BINDGEN_VERSION="0.2.126"
+          WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
+          ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
+          curl -sSfL -o "${ARCHIVE}" "${URL}"
+          echo "${WASM_BINDGEN_SHA256}  ${ARCHIVE}" | sha256sum -c -
+          tar xzf "${ARCHIVE}"
+          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" /usr/local/bin/wasm-bindgen
+
+      - name: Run rebuild_latency bench
+        # xtask 系ジョブと同一の理由（子プロセス終了コード伝播・Cargo.lock
+        # drift 防止）で pipefail・tee・--locked を用いる。
+        run: |
+          set -o pipefail
+          cargo bench --locked -p rws-dist-server --bench rebuild_latency | tee rebuild-latency.log
+
+      - name: Publish rebuild-latency summary
+        if: always()
+        # format_summary_line（dist-server/src/bench_support.rs）の 1 行
+        # サマリ契約「rebuild-latency: samples=<n> s1=<x> ... max_s=<x>
+        # limit_s=<x> result=<PASS|FAIL>」を Step Summary に転記する
+        # （deps-check/loc-check ジョブと同一パターン）。
+        run: |
+          {
+            echo '## rebuild-latency (REQ-10, issue #119)'
+            echo '```'
+            grep '^rebuild-latency:' rebuild-latency.log || echo 'rebuild-latency: no summary line found'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   loc-check:
     name: REQ-8 view-transitions.js effective LOC limit (10 lines)
     runs-on: ubuntu-latest
