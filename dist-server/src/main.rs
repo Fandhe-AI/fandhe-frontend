@@ -149,6 +149,18 @@ fn response_for(method: &Method, path: &str) -> Response<Full<Bytes>> {
             // （ヘッダインジェクション対策、`security.md`）。
             hyper::header::HeaderValue::from_static(route_response.content_type),
         );
+        // 開発モード（DevFilesystem）の静的アセット応答のみ `cache_control`
+        // が `Some` になる（`routes::RouteResponse::cache_control` の doc・
+        // TASK-10.1b・イシュー #107 参照）。ブラウザキャッシュにより
+        // ディスクの即時反映が体感上無効化されるのを防ぐ。値は
+        // `route_request` 側で固定文言のみを設定する契約のため、ここでも
+        // リクエスト由来文字列をヘッダへ流し込むことはない。
+        if let Some(cache_control) = route_response.cache_control {
+            headers.insert(
+                hyper::header::CACHE_CONTROL,
+                hyper::header::HeaderValue::from_static(cache_control),
+            );
+        }
     }
 
     // `Response::builder()` はステータスコードが不正な場合のみ失敗するが、
@@ -187,5 +199,45 @@ mod tests {
                 "GET, HEAD"
             );
         }
+    }
+
+    #[test]
+    fn page_response_never_sets_cache_control_header() {
+        // ページ応答は開発 / 本番モードによらず `Cache-Control` を付与しない
+        // （`routes::RouteResponse::cache_control` の doc 参照）。
+        let response = response_for(&Method::GET, "/");
+        assert!(response
+            .headers()
+            .get(hyper::header::CACHE_CONTROL)
+            .is_none());
+    }
+
+    // 静的アセット応答への `Cache-Control: no-store` 付与はビルド構成
+    // （開発 / 本番モード）によって固定値が変わるため、`assets.rs` /
+    // `routes.rs` の `active_mode` 系テストと同じ cfg ゲートで固定する
+    // （TASK-10.1b、イシュー #107）。
+    #[cfg(all(debug_assertions, not(feature = "force-embed")))]
+    #[test]
+    fn static_asset_response_sets_no_store_cache_control_header_in_dev_filesystem_mode() {
+        let response = response_for(&Method::GET, "/static/view-transitions.js");
+        assert_eq!(response.status(), 200);
+        assert_eq!(
+            response
+                .headers()
+                .get(hyper::header::CACHE_CONTROL)
+                .unwrap(),
+            "no-store"
+        );
+    }
+
+    #[cfg(not(all(debug_assertions, not(feature = "force-embed"))))]
+    #[test]
+    fn static_asset_response_has_no_cache_control_header_in_embedded_mode() {
+        let response = response_for(&Method::GET, "/static/view-transitions.js");
+        assert_eq!(response.status(), 200);
+        assert!(response
+            .headers()
+            .get(hyper::header::CACHE_CONTROL)
+            .is_none());
     }
 }
