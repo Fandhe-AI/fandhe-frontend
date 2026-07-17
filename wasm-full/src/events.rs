@@ -3,8 +3,10 @@
 //! `rws-wasm-full` は REQ-11（WASM 完全方式）の既定実装であり、クライアントの
 //! イベント処理・DOM 更新を JS グルーへ漏らさず safe Rust の範囲に閉じ込める
 //! ことが目的である。本モジュールはその「イベント処理」区画を担当し、
-//! DOM 更新（TASK-11.2c、#76）・`mount()`/`hydrate()` の既定実装化（TASK-11.2d、
-//! #77）とは責務を分離する。
+//! DOM 更新（TASK-11.2c、#76）とは責務を分離する。`mount()`/`hydrate()` の
+//! 既定実装化（TASK-11.2d、#77）は `wasm-full/src/lib.rs` の `Runtime` が
+//! [`wire_events`] を呼び出す形で統合する（本モジュール自体は `Runtime` に
+//! 依存しない）。
 //!
 //! # 設計（PoC-5 `wasm-runtime-split/wasm-full/src/lib.rs` の一般化）
 //!
