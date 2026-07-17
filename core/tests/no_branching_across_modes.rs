@@ -123,6 +123,92 @@ fn read_stripped(path: &Path) -> String {
     strip_comments(&src)
 }
 
+/// HTML コメント（`<!-- ... -->`）を除去する簡易フィルタ。
+///
+/// Cursor Bugbot 指摘（PR #242, Medium）: `embed_template_entry_point_uses_shared_mount_csr`
+/// が HTML 全体（コメントを含む）に対する部分文字列一致で判定していたため、
+/// 長い解説コメント内の "mount_csr" という語だけで偽陽性になり得た
+/// （実際の `<script type="module">` から import/呼び出しが失われても検知できない）。
+/// このフィルタでコメントを除去してから検証することで、実際のスクリプト本文に
+/// `mount_csr` が残っていることのみを固定する。
+fn strip_html_comments(html: &str) -> String {
+    let mut out = String::with_capacity(html.len());
+    let mut rest = html;
+    loop {
+        match rest.find("<!--") {
+            Some(start) => {
+                out.push_str(&rest[..start]);
+                match rest[start..].find("-->") {
+                    Some(end_rel) => {
+                        rest = &rest[start + end_rel + "-->".len()..];
+                    }
+                    None => break,
+                }
+            }
+            None => {
+                out.push_str(rest);
+                break;
+            }
+        }
+    }
+    out
+}
+
+/// 識別子境界を考慮して `haystack` が `ident` を含むかを判定する。
+///
+/// `str::contains` による単純な部分文字列一致では、`list_page` に対して
+/// `list_page_extra` のような別識別子も誤って一致してしまう。前後が
+/// 識別子構成文字（英数字・`_`）でないことを確認し、意図した識別子のみを
+/// 検出する。
+fn contains_identifier(haystack: &str, ident: &str) -> bool {
+    fn is_ident_char(b: u8) -> bool {
+        b.is_ascii_alphanumeric() || b == b'_'
+    }
+
+    let bytes = haystack.as_bytes();
+    let mut search_from = 0usize;
+    while let Some(rel) = haystack[search_from..].find(ident) {
+        let start = search_from + rel;
+        let end = start + ident.len();
+        let before_ok = start == 0 || !is_ident_char(bytes[start - 1]);
+        let after_ok = end == bytes.len() || !is_ident_char(bytes[end]);
+        if before_ok && after_ok {
+            return true;
+        }
+        search_from = start + 1;
+    }
+    false
+}
+
+/// `use rws_app::{ ... };` 形式の named import ブロック（複数行にまたがる場合を
+/// 含む）を走査し、`func` が識別子としてブロック内に出現するかを判定する。
+///
+/// Cursor Bugbot 指摘（PR #242, Medium）:
+/// `both_call_sites_reference_shared_app_functions_without_redefining` の
+/// 旧実装は `line.contains("use rws_app::") && line.contains(func)` という
+/// 1 行完結の判定であったため、`server/src/ssr.rs` のような通常の複数行
+/// `use rws_app::{\n    list_page,\n    detail_page,\n};` 形式では
+/// `use rws_app::` と `func` が同一行に現れず偽陰性（誤って未参照と判定）に
+/// なり得た。`use rws_app::` の出現位置から対応する `;` までを 1 つの
+/// import ブロックとして切り出し、改行をまたいで検索する。
+fn contains_use_import(stripped: &str, func: &str) -> bool {
+    let mut search_from = 0usize;
+    while let Some(rel) = stripped[search_from..].find("use rws_app::") {
+        let start = search_from + rel;
+        let after = &stripped[start..];
+        let end = after
+            .find(';')
+            .map(|i| start + i + 1)
+            .unwrap_or(stripped.len());
+        let block = &stripped[start..end];
+        if contains_identifier(block, func) {
+            return true;
+        }
+        search_from = start + "use rws_app::".len();
+    }
+    false
+}
+
 /// 検証 1: `app/src/`（rws-app）に `cfg(test)` 以外の構成分岐属性が存在せず、
 /// かつ `app/Cargo.toml` に `[features]` セクションが存在しないことを確認する。
 ///
@@ -195,13 +281,11 @@ fn both_call_sites_reference_shared_app_functions_without_redefining() {
         for func in SHARED_PAGE_FUNCTIONS {
             let referenced_via_rws_app = stripped.contains(&format!("rws_app::{func}"))
                 || stripped.contains(&format!("rws_app :: {func}"));
-            let imported_via_use = {
-                // `use rws_app::{ ... , list_page, ... };` 形式の named import も
-                // 呼び出し面として許容する（server/src/ssr.rs の実装形）。
-                stripped
-                    .lines()
-                    .any(|line| line.contains("use rws_app::") && line.contains(func))
-            };
+            // `use rws_app::{ ... , list_page, ... };` 形式の named import も
+            // 呼び出し面として許容する（server/src/ssr.rs の実装形）。複数行に
+            // またがる import ブロックも検出するため [`contains_use_import`] を
+            // 使う（1 行完結判定による偽陰性の回避、Bugbot 指摘 #2 対応）。
+            let imported_via_use = contains_use_import(&stripped, func);
             assert!(
                 referenced_via_rws_app || imported_via_use,
                 "{path:?} が rws_app::{func}（共通契約関数）を経由して参照していない。\
@@ -230,9 +314,13 @@ fn embed_template_entry_point_uses_shared_mount_csr() {
     let embed_path = root.join("templates/embed/embed.html");
     let html = fs::read_to_string(&embed_path)
         .unwrap_or_else(|e| panic!("{embed_path:?} の読み取りに失敗した: {e}"));
+    // HTML コメント内の解説文に "mount_csr" という語が出現するため、コメントを
+    // 除去してから実際のスクリプト本文のみを検証する（Bugbot 指摘 #1 対応、
+    // 偽陽性の回避）。
+    let html_without_comments = strip_html_comments(&html);
 
     assert!(
-        html.contains("mount_csr"),
+        html_without_comments.contains("mount_csr"),
         "{embed_path:?} が mount_csr を参照していない。最小埋め込みの入口は \
          wasm-client の共通経路（rws_app 経由）に接続される契約（REQ-7）"
     );
