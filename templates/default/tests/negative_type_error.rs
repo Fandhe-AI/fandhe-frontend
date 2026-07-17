@@ -39,15 +39,43 @@ fn scratch_root() -> PathBuf {
         .unwrap_or_else(|_| std::env::temp_dir())
 }
 
+/// `write_case_project` が書き出した一時プロジェクトディレクトリを保持し、
+/// スコープを抜ける（各テスト関数が終了する）タイミングで自身を削除する
+/// ガード。
+///
+/// プロセス ID をパスに含めたことで並行実行時の衝突は避けられるが、
+/// その代わり `write_case_project` 冒頭の `remove_dir_all` は他プロセスの
+/// ディレクトリを回収できなくなる。`cargo check` 実行後に片付ける処理が
+/// ないと `CARGO_TARGET_TMPDIR` や OS 一時ディレクトリ配下に `target/` を
+/// 含むディレクトリが実行のたびに残り続けるため、`Drop` で確実に回収する
+/// （`server/tests/support/temp_dir.rs` の `TempDir` と同じ方針）。
+struct ScratchProject(PathBuf);
+
+impl std::ops::Deref for ScratchProject {
+    type Target = Path;
+
+    fn deref(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for ScratchProject {
+    fn drop(&mut self) {
+        // 削除失敗（他プロセスによるロック等）はテスト結果の正当性に
+        // 影響しないため、ベストエフォートとして無視する。
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
 /// テンプレートの `Cargo.toml`（および存在すれば `Cargo.lock`）をコピーし、
 /// `main_rs_content` を `src/main.rs` として書き出した一時プロジェクトを
 /// `scratch_root()/negative-type-error-<case_name>-<pid>` に構築する。
 ///
 /// プロセス ID をディレクトリ名に含めることで、`CARGO_TARGET_TMPDIR` や
 /// `temp_dir()` フォールバックを共有する並行 `cargo test` 実行間でパスが
-/// 衝突しないようにする（衝突すると後述の `remove_dir_all` が他プロセスの
-/// 一時ツリーを消し去り、`cargo check` が flake する）。
-fn write_case_project(case_name: &str, main_rs_content: &str) -> PathBuf {
+/// 衝突しないようにする。返り値の `ScratchProject` はテスト関数終了時に
+/// 自身のディレクトリを削除するため、呼び出し側で明示的な後片付けは不要。
+fn write_case_project(case_name: &str, main_rs_content: &str) -> ScratchProject {
     let dest = scratch_root().join(format!(
         "negative-type-error-{case_name}-{}",
         std::process::id()
@@ -64,7 +92,7 @@ fn write_case_project(case_name: &str, main_rs_content: &str) -> PathBuf {
     }
     fs::write(dest.join("src/main.rs"), main_rs_content).expect("main.rs の書き込みに失敗した");
 
-    dest
+    ScratchProject(dest)
 }
 
 /// 指定したプロジェクトディレクトリで `cargo check --offline` を実行する。
