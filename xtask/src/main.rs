@@ -30,13 +30,14 @@
 //!   （`ZERO_DEP_CRATES` 参照。上限を弱める経路を作らない設計）。
 //!   CLI 契約の回帰テストは `xtask/tests/cli_check_core_deps.rs`。
 //!
-//! - `check-loc`（引数なし）: TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）。
-//!   `check_loc::LOC_CHECK_TARGETS`（`static/view-transitions.js`）について
-//!   コメント・空行を除いた実効 LOC を計測し、`check_loc::MAX_EFFECTIVE_LOC`
-//!   （10 行）以内かを判定する（`check_loc::judge`）。対象ファイルの不在・
-//!   読み取り失敗も超過と同様に fail-closed とする。判定対象・しきい値は
-//!   CLI 引数で差し替え不可。CLI 契約の回帰テストは
-//!   `xtask/tests/cli_check_loc.rs`。
+//! - `check-loc`（引数なし）: TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）と
+//!   REQ-11 受け入れ基準 3（イシュー #156）の共用ゲート。
+//!   `check_loc::LOC_CHECK_TARGETS`（`static/view-transitions.js` /
+//!   `static/wasm-full-init.js`）について、それぞれコメント・空行を除いた
+//!   実効 LOC を計測し、`check_loc::MAX_EFFECTIVE_LOC`（10 行）以内かを判定
+//!   する（`check_loc::judge`）。対象ファイルの不在・読み取り失敗も超過と
+//!   同様に fail-closed とする。判定対象・しきい値は CLI 引数で差し替え
+//!   不可。CLI 契約の回帰テストは `xtask/tests/cli_check_loc.rs`。
 //!
 //! - `check-image-size --image <TAG> [--limit-mb <N>]`: TASK-9.3b（イシュー #103,
 //!   REQ-9 受け入れ基準）。`docker image inspect --format {{.Size}}` で対象イメージの
@@ -105,8 +106,8 @@ fn print_usage() {
     eprintln!("  check-loc");
     eprintln!("      Measure effective LOC (comments and blank lines excluded) for the");
     eprintln!("      files in check_loc::LOC_CHECK_TARGETS and judge them against");
-    eprintln!("      check_loc::MAX_EFFECTIVE_LOC (REQ-8 acceptance criterion, issue #62).");
-    eprintln!("      Takes no arguments by design.");
+    eprintln!("      check_loc::MAX_EFFECTIVE_LOC (REQ-8 acceptance criterion, issue #62;");
+    eprintln!("      REQ-11 acceptance criterion 3, issue #156). Takes no arguments by design.");
     eprintln!("  check-image-size --image <TAG> [--limit-mb <N>]");
     eprintln!("      Measure the uncompressed size of a docker image (via `docker image");
     eprintln!("      inspect`) and judge it against the REQ-9 limit (default 50MB, issue");
@@ -294,16 +295,15 @@ fn run_list_build_scripts(args: &[String]) -> ExitCode {
     }
 }
 
-/// `check-loc` サブコマンド（TASK-8.2b, イシュー #62, REQ-8 受け入れ基準）: 引数を
-/// 一切取らない。`check_loc::LOC_CHECK_TARGETS` に列挙されたファイルそれぞれについて
+/// `check-loc` サブコマンド（TASK-8.2b・イシュー #62・REQ-8 受け入れ基準、および
+/// REQ-11 受け入れ基準 3・イシュー #156 の共用ゲート）: 引数を一切取らない。
+/// `check_loc::LOC_CHECK_TARGETS` に列挙されたファイルそれぞれについて
 /// 実効 LOC（コメント・空行を除く）を `check_loc::measure_file` で計測し、
 /// `check_loc::MAX_EFFECTIVE_LOC`（10 行）以内かを `check_loc::judge` で判定する。
 ///
 /// 判定を弱める CLI 引数・環境変数は意図的に設けない（不明な引数は終了コード 2）。
 /// 対象ファイルの不在・読み取り失敗・しきい値超過のいずれも終了コード 1
-/// （fail-closed）とする。TASK-8.2a（イシュー #61）がマージされ
-/// `static/view-transitions.js` が存在するまでは、本サブコマンドは
-/// ファイル不在により意図的に FAIL する。
+/// （fail-closed）とする。
 fn run_check_loc(args: &[String]) -> ExitCode {
     if let Some(unknown) = args.first() {
         eprintln!(

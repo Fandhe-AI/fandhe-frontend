@@ -602,7 +602,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   loc-check:
-    name: REQ-8 view-transitions.js effective LOC limit (10 lines)
+    name: REQ-8/REQ-11 glue JS effective LOC limit (10 lines, issues #62/#156)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -629,7 +629,7 @@ jobs:
         # （xtask/tests/cli_check_loc.rs）。
         run: |
           {
-            echo '## loc-check (REQ-8, issue #62)'
+            echo '## loc-check (REQ-8 issue #62 / REQ-11 issue #156)'
             echo '```'
             grep '^loc-check:' loc-check.log || echo 'loc-check: no summary line found'
             echo '```'

@@ -39,6 +39,10 @@
 //!
 //! ハイドレーション（SSR 済み DOM を再利用する場合）は `mount` の代わりに
 //! `hydrate("app")` を呼ぶ。
+//!
+//! 上記の実効 LOC（10 行以内）は `static/wasm-full-init.js`（既定方式 =
+//! ハイドレーション経路の参照実装）として実ファイル化されており、
+//! `xtask check-loc`（イシュー #156）が CI で機械的に検証する。
 
 use rws_interactive::AppState;
 use std::cell::RefCell;
