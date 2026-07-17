@@ -128,16 +128,18 @@ fn script_tag_payload_in_item_text_is_escaped_in_real_dom() {
         "生の <script> 要素が実 DOM に生成されてはならない"
     );
 
+    // `data-testid="item-list"`（`ul`）は `interactive/src/lib.rs` の
+    // `render_with_root_attrs` が付与する固定 testid。
     let items_root = container
-        .query_selector("[data-testid='items']")
+        .query_selector("[data-testid='item-list']")
         .expect("query_selector must not fail")
-        .expect("items container must exist in rendered output");
+        .expect("item-list container must exist in rendered output");
     assert!(
         items_root
             .text_content()
             .unwrap_or_default()
             .contains(payload),
-        "items 配下のテキストにペイロード原文が（エスケープ解除された形で）含まれること"
+        "item-list 配下のテキストにペイロード原文が（エスケープ解除された形で）含まれること"
     );
 
     let inner = container.inner_html();
