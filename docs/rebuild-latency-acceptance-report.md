@@ -8,9 +8,17 @@
   基準に、本番ビルドのアセット変更反映（差分ビルド）が **5 秒以内**である
   ことを CI ベンチマークとして継続計測するタスク。
 - 2 分割サブタスクの内訳:
-  - TASK-10.4a（#119・オープン）: `dist-server/benches/rebuild_latency.rs`
-    のベンチ実装と CI 統合
-  - TASK-10.4b（本ドキュメント・#120）: 受け入れ基準の検証とレポート作成
+  - TASK-10.4a（#119・クローズ済み、PR #224 / commit 2389c9b）:
+    `dist-server/benches/rebuild_latency.rs` のベンチ実装
+    （`harness = false` / `test = false` の std-only ベンチ）と、判定ロジック
+    `dist-server/src/bench_support.rs`（`LIMIT_SECONDS = 5.0`、ユニット
+    テスト付き）・CI ジョブ `rebuild-latency`
+    （`.github/workflows/ci.yml` の「REQ-10 rebuild latency (5s limit)」）
+    による CI 統合
+  - TASK-10.4b（本ドキュメント・#120・クローズ済み、PR #222 /
+    commit 7b18df3）: 受け入れ基準の検証とレポート作成
+- 親イシュー #118 は上記 2 サブタスクの成果物を踏まえ、本レポート第 2 節の
+  判定を PENDING から確定（PASS）へ更新する最終検証を担う。
 - 判定基準の中核は REQ-10 受け入れ基準（`docs/spec/04-requirements.md`
   138 行）の第 2 項「本番ビルドのアセット変更反映（差分ビルド）が 5 秒以内
   であること（PoC-4 実績: 0.571〜0.597 秒）」。同旨の文言は
@@ -29,31 +37,32 @@
   反復（差分ビルド）には影響しない」と明記しており、クリーンビルドは受け
   入れ基準（5 秒以内）の対象外である。
 
-## 2. 判定ステータス: 保留（PENDING） — #119 未マージのため未判定
+## 2. 判定ステータス: 検証済み（PASS） — #118 実装時点で確定
 
-**本レポート作成時点（TASK-10.4b 着手時点）で、前提サブタスク
-TASK-10.4a（#119、状態: OPEN）は未完了であり、`origin/main` には
-`dist-server/benches/` ディレクトリ自体が存在しない**。したがって実測に
-基づく受け入れ判定は行えず、REQ-10 受け入れ基準第 2 項の解消判定は
-**保留**とする。
+TASK-10.4a（#119）が `origin/main` にマージ済みで
+`dist-server/benches/rebuild_latency.rs`（std-only ベンチ）・
+`dist-server/src/bench_support.rs`（判定ロジック、
+`LIMIT_SECONDS = 5.0`）・CI ジョブ `rebuild-latency`
+（`.github/workflows/ci.yml`「REQ-10 rebuild latency (5s limit)」）が
+存在することを確認した。第 3 節の判定基準 4 項目を突合し、いずれも Pass
+であることを第 5 節の実測結果とともに確認したため、REQ-10 受け入れ基準
+第 2 項の解消判定を **検証済み（PASS）** に確定する。
 
-以下は明確化のための重要な注記。
-
-- 本リポジトリ内（`origin/main` の `dist-server/` ツリー、`git ls-tree`
-  による探索）を確認したが、`dist-server/benches/rebuild_latency.rs` お
-  よび関連する CI ジョブ・実行ログは見つからなかった（`dist-server/` 配下
-  には `Cargo.toml`・`build.rs`・`src/`・`tests/` のみが存在し、`benches/`
-  はない）。
-- 先例（`docs/isolated-run-acceptance-report.md`・TASK-9.2b・PR #211、
-  `docs/wasm-build-integration-report.md`・TASK-10.2e・PR #219）と同様、
-  前提タスク未完了の状態で実測値を記録することはできないため、本レポートは
-  **数値・実行結果を捏造せず**、判定基盤（判定基準・検証手順の様式・結果
-  記録欄・確定運用）を整備し、TASK-10.4a（#119）の完了後に実行結果を
-  追記・確定する運用とする。
-- 依存タスク TASK-10.1（`dist-server` の開発/本番モード切り替え・
-  `force-embed` フィーチャー、#106・#107）は完了済みであり、`origin/main`
-  上の `dist-server/` クレート自体は存在する。未実装なのはベンチ本体
-  （`benches/rebuild_latency.rs`）と、それを CI に組み込むジョブのみである。
+- 「差分ビルド反映時間」: CI 実測（run 29579583291）で
+  `max_s=2.451`（5 秒閾値に対し約 2 倍のマージン）、ローカル再実測でも
+  `max_s=0.653` と、いずれも 5 秒以内を満たす。
+- 「反映の実効性」: `dist-server/benches/rebuild_latency.rs` のソースを
+  読み、各サンプル反復で `static/rebuild-latency-probe.txt` へ一意な
+  マーカーを書き込み→差分ビルド→`binary_contains_marker` で再ビルド後の
+  バイナリ（`include_bytes!` 経由で埋め込みテーブルへ焼き込まれる）に
+  当該マーカーが含まれるかを検査し、含まれない場合は fail-closed
+  （終了コード 1）で終了する実装であることを確認済み。しきい値判定側
+  （`bench_support::judge`）のユニットテストとは独立した確認である。
+- 「CI 統合」: `rebuild-latency` ジョブが `dist-server/` を含む push ごとに
+  自動実行されることを `.github/workflows/ci.yml` の定義で確認済み
+  （単発の手動計測ではない）。
+- 「計測環境差の扱い」: CI（ubuntu-latest）・ローカル環境の双方で 5 秒閾値
+  に対し十分なマージン（それぞれ約 2 倍・約 7〜8 倍）を確認済み。
 
 ## 3. 判定基準（REQ-10 受け入れ基準第 2 項の機械検証項目化）
 
@@ -102,42 +111,60 @@ PoC-4 実証手順（`docs/spec/03-poc/single-binary-distribution/README.md`
 6. **CI 組み込み**: 上記 1〜5 を CI（`.github/workflows/` のジョブ）に組み
    込み、`dist-server/` への変更ごとに自動実行する。
 
-## 5. 実測結果記録欄（TASK-10.4a 完了後に転記）
+## 5. 実測結果記録欄
 
-TASK-10.4a（#119）の完了後、実行結果を以下の表に転記する。
+### CI 実測（判定の正）
+
+CI run 29579583291（`.github/workflows/ci.yml` ジョブ「REQ-10 rebuild
+latency (5s limit)」、ubuntu-latest、commit `23255322`、
+2026-07-17T12:15Z 開始）のサマリ行:
+
+```
+rebuild-latency: samples=3 s1=2.451 s2=2.430 s3=2.427 max_s=2.451 limit_s=5.0 result=PASS
+```
 
 | 項目 | 結果（複数回計測） | 実行コミット SHA | 実行環境 | 5 秒閾値との比較 | 判定 |
 |------|-------------------|-----------------|---------|-----------------|------|
-| 差分ビルド反映時間 | (未実行) | (未実行) | (未実行) | (未実行) | 保留 |
-| 反映の実効性 | (未実行) | (未実行) | (未実行) | — | 保留 |
-| CI 統合 | (未実行) | (未実行) | (未実行) | — | 保留 |
+| 差分ビルド反映時間 | s1=2.451 s2=2.430 s3=2.427（max=2.451） | `23255322` | GitHub Actions ubuntu-latest（Ubuntu 24.04 イメージ） | 5.0 秒に対し約 2 倍のマージン | Pass |
+| 反映の実効性 | ベンチ内バイナリマーカー検査が fail-closed で実施され、3 サンプルとも成功 | `23255322` | 同上 | — | Pass |
+| CI 統合 | `rebuild-latency` ジョブが push ごとに自動実行（単発の手動実行ではない） | `23255322` | 同上 | — | Pass |
 
-- 「実行コミット SHA」は `rebuild_latency.rs` を実行した時点の
-  `dist-server/` を含むコミットハッシュを記録する。
-- 「実行環境」は OS・CPU アーキテクチャ・CI ランナー種別（例:
-  `ubuntu-latest` / self-hosted）の粒度で記録し、ユーザー名・内部ホスト名・
-  絶対パス等の機微情報は含めない。
-- 未実行の項目は必ず「保留」と明記し、実行済みの結果のみ Pass/Fail・実行
-  環境と併せて記録する（実測値・実行結果を捏造しない）。
+### ローカル参考値（追加確認）
 
-## 6. 確定運用
+本イシュー（#118）の最終検証時に、ワークツリー環境で
+`cargo bench --locked -p rws-dist-server --bench rebuild_latency` を
+CI と同一条件（`RWS_WASM_BUILD` 未設定、WASM ステージ込み）で実行し、
+以下のサマリ行を得た（実行環境情報は OS の粒度に留める）。
 
-1. TASK-10.4a（#119）がマージされ `dist-server/benches/rebuild_latency.rs`
-   が `origin/main` に存在することを確認する。
-2. ベンチを #119 が定めた起動方法（`cargo bench -p rws-dist-server` または
-   `cargo test --bench` 等、実装に従う）で複数回実行し、第 5 節の結果記録
-   欄に実測結果（コミット SHA・実行環境・所要時間・Pass/Fail）を転記する。
-3. CI 上でベンチが自動実行されるジョブが存在することを確認する（単発の
-   手動計測のみでは次項の確定を行わない）。
+```
+rebuild-latency: samples=3 s1=0.617 s2=0.599 s3=0.653 max_s=0.653 limit_s=5.0 result=PASS
+```
+
+- 実行環境: Linux（ローカル開発ワークツリー、CPU アーキテクチャ・ホスト名は
+  記載しない）
+- 5 秒閾値に対し約 7〜8 倍のマージン。CI 実測（ubuntu-latest、約 2 倍の
+  マージン）と方向性が一致し、判定を補強する参考値と位置付ける。
+- **判定の正は CI 実測（上表）とする**。ローカル値は環境依存のばらつきを
+  含むため参考情報に留める。
+
+## 6. 確定運用（実施済み）
+
+1. TASK-10.4a（#119、PR #224 / commit 2389c9b）がマージされ
+   `dist-server/benches/rebuild_latency.rs` が `origin/main` に存在する
+   ことを確認済み。
+2. CI 実測（run 29579583291）およびローカル参考実測を第 5 節の結果記録欄
+   に転記済み（コミット SHA・実行環境・所要時間・Pass/Fail）。
+3. CI 上でベンチが自動実行されるジョブ（`rebuild-latency`、
+   `.github/workflows/ci.yml`）が push ごとに自動実行されることを確認済み
+   （単発の手動計測のみではない）。
 4. 第 3 節の判定基準のうち「差分ビルド反映時間」「反映の実効性」「CI
-   統合」の 3 項目すべてが Pass の場合、本レポートの第 2 節を「検証済み
-   （PASS）」に更新し、REQ-10 受け入れ基準第 2 項を満たしたと判定する。
-5. 親イシュー #118 の受け入れ条件チェックボックス、および
-   `docs/spec/06-roadmap.md` 96 行のチェックボックスを本レポートの確定
-   結果に基づいて更新するかを判断する（roadmap は `docs/spec/` サブモ
-   ジュールであり本リポジトリでは編集禁止のため、更新が必要な場合は
-   frontend-framework-spec リポジトリへの起票を提案する。本レポート自体の
-   スコープ外）。
+   統合」の 3 項目すべてが Pass のため、本レポート第 2 節を「検証済み
+   （PASS）」に確定した（REQ-10 受け入れ基準第 2 項を満たすと判定）。
+5. 親イシュー #118 の受け入れ条件チェックボックスは本 PR のマージ後に
+   更新する。`docs/spec/06-roadmap.md` 96 行のチェックボックスは
+   `docs/spec/` サブモジュールであり本リポジトリでは編集禁止のため、
+   更新提案は frontend-framework-spec リポジトリへの起票として別途扱う
+   （本レポート自体のスコープ外、`out-of-scope-tracking.md`）。
 
 ## 7. セキュリティ・不変条件の確認
 
@@ -145,12 +172,11 @@ TASK-10.4a（#119）の完了後、実行結果を以下の表に転記する。
   （`.github/`）・依存構成（`Cargo.toml`）を一切変更しない。
 - 既定エスケープ（REQ-1）・`#![forbid(unsafe_code)]`（REQ-2、`core` /
   `interactive`）のいずれにも影響しない。
-- 依存グラフ上限（REQ-3、60 件/深さ 6）に対し、`dist-server` の現状実測値
-  は 21 件/深さ 5（`dist-server/Cargo.toml` コメント、2026-07-17 時点）で
-  あり、本レポートによる変更はない。TASK-10.4a のベンチ実装（開発時依存
-  `dev-dependencies` への追加が生じる場合）が REQ-3 に影響しないかは、
-  #119 側で `cargo metadata` による確認とユーザー承認が別途必要（本レポー
-  トのスコープ外、`.claude/rules/coding-rust.md` 該当）。
+- 依存グラフ上限（REQ-3、60 件/深さ 6）に対し、`cargo run -p xtask --
+  check-deps --package rws-dist-server` による再計測でも
+  `packages=21/60 depth=5/6 result=PASS` を確認し、本レポート確定時点でも
+  不変であることを確認した。`dist-server/Cargo.toml` の `[dev-dependencies]`
+  は空のままであり、TASK-10.4a のベンチ実装は依存追加を伴わない。
 
 ## 8. 参照
 
