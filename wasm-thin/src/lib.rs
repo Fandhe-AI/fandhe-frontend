@@ -150,10 +150,17 @@ pub mod demo {
     ///
     /// `names`/`values` は同じ添字が対応する 2 本の配列として渡す
     /// （`wasm_bindgen` がタプルの `Vec` を直接エクスポートできないための
-    /// 表現。JS 側は `Object.entries(dataset)` 等から 2 本の配列を組み立てて
-    /// 渡す想定）。長さが一致しない場合、または復元に失敗した場合は状態を
-    /// 変更せず `false` を返す（初期状態のまま CSR を継続する安全側
-    /// フォールバック。不変条件 3）。
+    /// 表現）。`rws_interactive::AppState::from_hydration_attrs` は
+    /// `data-hydrate-` プレフィックス付きの `data-*` 属性名（例:
+    /// `data-hydrate-counter`）でマッチするため、`names` にはこの
+    /// プレフィックス付きの属性名をそのまま渡すこと。`HTMLElement.dataset`
+    /// はプレフィックスを取り除き camelCase 化したキーを返す（例:
+    /// `data-hydrate-counter` → `dataset.hydrateCounter`）ため**使用しない**。
+    /// JS 側は `element.getAttributeNames()` を `data-hydrate-` で
+    /// フィルタするか、`element.attributes` を走査して `attr.name`/
+    /// `attr.value` から 2 本の配列を組み立てる想定。長さが一致しない場合、
+    /// または復元に失敗した場合は状態を変更せず `false` を返す（初期状態の
+    /// まま CSR を継続する安全側フォールバック。不変条件 3）。
     #[wasm_bindgen]
     pub fn hydrate_from_attrs(names: Vec<String>, values: Vec<String>) -> bool {
         if names.len() != values.len() {
