@@ -11,8 +11,9 @@
 //! - `rws_server::ssr::respond`（SSR エントリ）との結合（`/` → 200、
 //!   既知 `id` → 200、未知 `id` → 404）
 //! - XSS 回帰: パスパラメータに XSS ペイロードを与えても `Params` は生文字列の
-//!   ままであり、`respond` の 404 ボディに生の `<script>` 等が現れないこと
-//!   （既定エスケープ、REQ-1）
+//!   ままであること、および実際にルーティングされたパラメータが描画される
+//!   経路（`respond` の 200 分岐、`rws_app::demo_items()[1]` の XSS ペイロード
+//!   title）で生の `<script>` 等が現れないこと（既定エスケープ、REQ-1）
 //! - エッジケース（クエリ付きパス・末尾スラッシュ・連続スラッシュ・空パス・
 //!   非 `/` 始まりパス）の非マッチ / マッチ挙動
 //! - `RouterError` 全変種が公開 API 経由で再現でき、`Display` 出力が
@@ -61,11 +62,10 @@ fn respond_uses_router_resolution_for_status_codes() {
 }
 
 /// XSS 回帰（削除・弱体化禁止）: パスパラメータに XSS ペイロードを与えても
-/// `Router` は生文字列のまま `Params` へ格納する契約を公開 API 経由で固定し、
-/// `respond()` の 404 ボディ（`rws-app` の既定エスケープ経由）に生の
-/// ペイロード文字列が現れないことを確認する。
+/// `Router` は生文字列のまま `Params` へ格納する契約を公開 API 経由で固定する
+/// （router 自体はエスケープを行わない契約）。
 #[test]
-fn xss_payload_in_path_param_is_not_rendered_raw_by_respond() {
+fn xss_payload_in_path_param_is_captured_as_raw_string_by_router() {
     let router: Router<&str> = Router::new().route("/items/:id", "item_detail").unwrap();
 
     // パスセグメントは '/' で区切られるため、セグメント内に '/' を含まない
@@ -78,13 +78,26 @@ fn xss_payload_in_path_param_is_not_rendered_raw_by_respond() {
     let matched = router.resolve(&path).expect("should match");
     // router 自体は生文字列のまま返す契約（エスケープは呼び出し元の責務）。
     assert_eq!(matched.params.get("id"), Some(payload));
+}
 
-    // respond() は未知 id として 404 を返し、rws-app の既定エスケープ経由で
-    // ボディを組み立てる。ペイロードそのものはボディに含まれないため、
-    // 生の `<img` タグが混入しないことのみを確認する。
-    let response = respond(&path).expect("\"/items/:id\" pattern should match");
-    assert_eq!(response.status, 404);
-    assert!(!response.body.contains("<img src=x onerror"));
+/// XSS 回帰（削除・弱体化禁止）: `/items/:id` にルーティングされた
+/// パスパラメータが実際に既知アイテムとして解決・描画される経路
+/// （`rws_app::demo_items()[1]`, `id == "2"`、title に XSS ペイロードを含む）で、
+/// `respond()` の 200 ボディが `rws-app` の既定エスケープを経由し生の
+/// `<script>` タグを含まないことを確認する。
+///
+/// 前段の `xss_payload_in_path_param_is_captured_as_raw_string_by_router` は
+/// router 自体が生文字列を保持する契約のみを固定するのに対し、本テストは
+/// ルーティングされたパスパラメータが実際にレンダリングされる唯一の経路
+/// （`respond()` の 200 分岐）でエスケープが機能することを検証する
+/// （404 分岐は `detail_page(None)` の固定文言のみでパスパラメータを
+/// 一切含まないため、エスケープ検証としては空虚になる。Bugbot 指摘対応）。
+#[test]
+fn respond_escapes_xss_payload_carried_by_matched_route_param() {
+    let known_xss_item = respond("/items/2").expect("\"/items/2\" should match a known item");
+    assert_eq!(known_xss_item.status, 200);
+    assert!(!known_xss_item.body.contains("<script>alert"));
+    assert!(known_xss_item.body.contains("&lt;script&gt;alert"));
 }
 
 /// クエリ文字列は照合前に切り落とされる（`docs/router-path-matching.md` §3）。
