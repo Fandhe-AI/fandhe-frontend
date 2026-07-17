@@ -350,19 +350,15 @@ jobs:
 
   # TASK-12.2c（#124、REQ-12 受け入れ基準 2）: install.sh の --ignore-scripts
   # 強制（前段、TASK-12.1a・#38・マージ済み）と check_static_only.py の
-  # 静的アセット判定（後段ゲート、TASK-12.2b・#123）の多層防御を CI で
-  # 回帰確認する。本ジョブは緩和用 input・環境変数・continue-on-error を
+  # 静的アセット判定（後段ゲート、TASK-12.2b・#123・マージ済み）の多層防御を
+  # CI で回帰確認する。本ジョブは緩和用 input・環境変数・continue-on-error を
   # 一切設けない（loc-check ジョブと同一の迂回経路禁止原則）。
   #
-  # test_install.sh（TASK-12.1a の成果物）はこれまで CI 未統合だったため、
-  # 本ジョブで無条件（fail-closed）に実行する。
-  #
-  # check_static_only.py 本体は TASK-12.2b（#123、並列進行中）のスコープで
-  # あり本コミット時点では未マージ。browser-test/perf-harness ジョブと同型の
-  # 存在ガードパターンを踏襲し、未作成の間は該当ステップのみスキップして
-  # ジョブ自体は成功扱いとする（#123 完了までの直列化措置）。#123 マージ後、
-  # このガードは自動的に無効化されテストが有効化される。ガード撤去
-  # （fail-closed 化）は #123 マージ後のフォローアップとして扱う。
+  # test_install.sh（TASK-12.1a の成果物）・check_static_only.py（TASK-12.2b
+  # の成果物）はいずれも必須成果物であり、無条件（fail-closed）に実行する。
+  # 存在ガード（未作成時に該当ステップをスキップする措置）は TASK-12.2b
+  # マージ完了に伴い撤去済み（TASK-12.2・#121）。ファイル不在・失敗はいずれも
+  # 即 CI 失敗として扱う。
   npm-asset-build:
     name: NPM static asset gate (REQ-12)
     runs-on: ubuntu-latest
@@ -377,25 +373,11 @@ jobs:
       - name: install.sh offline regression tests (fail-closed)
         run: bash tools/npm-asset-build/tests/test_install.sh
 
-      # check_static_only.py 存在ガード（TASK-6.3a #65 browser-test ジョブの
-      # パターン踏襲）。test_check_static_only.py 内部の unittest.SkipTest も
-      # 同一パス（tools/npm-asset-build/check_static_only.py）を判定条件と
-      # しており、本ステップと同時に有効化される。
-      - name: Check check_static_only.py existence
-        id: check
-        run: |
-          if [ -f "tools/npm-asset-build/check_static_only.py" ]; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::tools/npm-asset-build/check_static_only.py not found yet (blocked on TASK-12.2b #123). Fixture tests will report as skipped (exit 0)."
-          fi
-
-      - name: check_static_only.py fixture regression tests
-        # スクリプト不在時も test_check_static_only.py 自体は実行する
-        # （内部の unittest.SkipTest により全件 skip・exit 0 となるため、
-        # ジョブとしては空実行相当で成功扱いになる。存在ガードの通知は
-        # 上記ステップの ::notice が担う）。
+      - name: check_static_only.py fixture regression tests (fail-closed)
+        # check_static_only.py（TASK-12.2b・#123 でマージ済み）本体を対象とした
+        # fixture 回帰テスト。スクリプト・テストファイルいずれかの不在や
+        # 失敗はここで即座にジョブ失敗となる（存在ガードによる skip は
+        # TASK-12.2b マージ完了に伴い撤去済み、TASK-12.2・#121）。
         run: python3 tools/npm-asset-build/tests/test_check_static_only.py -v
 
       - name: install.sh + check_static_only.py pipeline e2e tests (fail-closed)
