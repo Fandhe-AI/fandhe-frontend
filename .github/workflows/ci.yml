@@ -489,3 +489,32 @@ jobs:
             grep '^loc-check:' loc-check.log || echo 'loc-check: no summary line found'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # TASK-4.4（イシュー #28、REQ-4 受け入れ基準 3）: 標準プロジェクトテンプレート
+  # （templates/default）に対する「型的に不正な AI 生成コードが cargo check の
+  # 段階で機械的に弾かれること」の回帰テストを実行するジョブ。
+  # templates/default は root workspace の members に含まれない独立した
+  # cargo プロジェクトのため、manifest-path を明示して単独実行する。
+  template-negative-type-error:
+    name: TASK-4.4 templates/default 型不正コード機械的検出の受け入れ基準検証
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2（test/loc-check ジョブと同一 SHA に固定）。
+        # docs/spec サブモジュールは本ジョブの検証に不要なため取得しない。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+
+      - name: templates/default 単体テスト（正例 + 負例 E0277/E0308）
+        # --offline で子プロセス cargo check を実行するテスト（依存ゼロの
+        # ため事前フェッチ不要）。--locked はコミット済み Cargo.lock からの
+        # drift を検知する（deps-check 等の既存ジョブと同一の理由）。
+        run: cargo test --manifest-path templates/default/Cargo.toml --locked
+
+      - name: xtask 多層防御テスト（成果物の実在・必須要素の静的検証）
+        # templates/default は root workspace 外のため、cargo test --workspace
+        # だけでは成果物テストの削除・実行漏れを検知できない。xtask 側
+        # （workspace メンバー）からの静的検証で安全網を張る
+        # （TASK-4.1 の template_deny_config.rs と同一パターン）。
+        run: cargo test -p xtask --test template_negative_type_error --locked

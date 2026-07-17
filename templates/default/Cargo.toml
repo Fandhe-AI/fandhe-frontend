@@ -1,0 +1,21 @@
+[package]
+name = "rws-template-default"
+version = "0.1.0"
+edition = "2021"
+description = "rws フレームワークの標準プロジェクトテンプレート（最小骨格）。TASK-4.4 型不正コード検出テストの土台。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# REQ-3 / coding-rust.md: 標準テンプレートは配布先プロジェクトの依存グラフ
+# 上限に直結するため、外部クレートを追加しない。追加が必要になった場合は
+# 事前に `cargo metadata` で影響を確認し、ユーザー承認を得ること。
+[dependencies]
+
+[dev-dependencies]
+
+# root workspace（リポジトリ直下 Cargo.toml の members）から意図的に切り離す。
+# templates/default は「フレームワーク利用者へ配布される独立プロジェクトの
+# 雛形」であり、root workspace に巻き込まれると `cargo new` 直後の単体
+# プロジェクトとしての `cargo check` / `cargo test` の挙動を検証できなくなる
+# （TASK-4.4 の負例投入テストは、この独立性を前提に一時プロジェクトを構築する）。
+[workspace]
