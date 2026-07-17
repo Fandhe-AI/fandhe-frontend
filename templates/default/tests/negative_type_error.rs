@@ -138,7 +138,34 @@ fn baseline_template_passes_cargo_check() {
 #[test]
 fn type_mismatched_comparison_is_rejected_with_e0277() {
     let original = template_main_rs();
-    let injected = original.replace("it.id == target_id", "it.id == 42");
+
+    // 注入対象の実行可能コード（`find_item` 本体）に限定して検索・置換する。
+    // モジュールドキュメントコメント（`//!`）が `find_item` の実装詳細を
+    // 説明する中で同一の部分文字列 `it.id == target_id` を含んでいるため、
+    // ファイル全体に対して素朴な `replace` を行うと、ドキュメント内の文字列
+    // にもマッチしてしまう。その場合 `assert_ne!` は「変更があった」ことしか
+    // 見ないため、実際の比較式が改変・削除されていても見かけ上は前提チェックを
+    // すり抜けてしまい、REQ-4 受け入れ基準の検出漏れを見逃す。
+    // `fn find_item` 定義以降（ドキュメントコメントより後方）に絞ることで、
+    // 実行可能コードのみを対象にする。
+    let fn_marker = "fn find_item";
+    let fn_start = original.find(fn_marker).unwrap_or_else(|| {
+        panic!(
+            "関数定義 `{fn_marker}` がテンプレートに見つからない \
+             （main.rs のリファクタリングでこのテストの前提が崩れている）"
+        )
+    });
+    let (before_fn, from_fn) = original.split_at(fn_start);
+
+    let target = "it.id == target_id";
+    assert_eq!(
+        from_fn.matches(target).count(),
+        1,
+        "注入対象の比較式 `{target}` が `find_item` 本体に一意に見つからない \
+         （main.rs のリファクタリングでこのテストの前提が崩れている）"
+    );
+    let injected_from_fn = from_fn.replacen(target, "it.id == 42", 1);
+    let injected = format!("{before_fn}{injected_from_fn}");
     assert_ne!(
         original, injected,
         "注入対象の比較式 `it.id == target_id` がテンプレートに見つからない \
