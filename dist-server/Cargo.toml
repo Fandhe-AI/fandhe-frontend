@@ -39,6 +39,17 @@ tokio = { version = "1", default-features = false, features = ["rt-multi-thread"
 
 [dev-dependencies]
 
+# TASK-10.1a（イシュー #106）: 開発 / 本番モード切り替え用フラグ。
+#
+# `force-embed` はコード・依存を一切持たない空フィーチャーであり、`assets.rs` の
+# `cfg(all(debug_assertions, not(feature = "force-embed")))` 判定にのみ関与する
+# （有効化すると debug ビルドでも埋め込みモードへ固定し、release と同じ配信経路を
+# CI で検証できるようにする。PoC-4 の `rust-embed` `debug-embed` フィーチャーに
+# 相当する自前実装）。空フィーチャーのため REQ-3（依存グラフ上限）の実測値
+# （21 件/深さ 5、上記コメント参照）に影響しない。
+[features]
+force-embed = []
+
 [[bin]]
 name = "dist-server"
 path = "src/main.rs"
