@@ -1,23 +1,35 @@
-//! `unsafe` 境界（REQ-2）の回帰テスト（TASK-2.2a）。
+//! `unsafe` 境界（REQ-2）の回帰テスト（TASK-2.2a・#155 で deny 域チェックを追加）。
 //!
 //! `docs/spec/04-requirements.md` の REQ-2 は「コアロジックを safe Rust に収め、
 //! `unsafe` は WASM バインディング層・FFI 境界に限定する」ことを受け入れ基準とする。
-//! 本テストは workspace ルート `Cargo.toml` の `members` を読み取り、
-//! **unsafe 許可リスト**（`wasm-client` / `wasm-full` / `wasm-thin` —
-//! 仕様上 unsafe が許容される WASM/FFI 境界クレート）**以外**の全メンバーについて、
-//! (1) クレートルート（`lib.rs` / `main.rs`）に `#![forbid(unsafe_code)]` が
-//! 存在すること、(2) ソース中にコメントを除いた `unsafe` トークンが
-//! 出現しないこと、の 2 点を機械的に担保する。
+//! 本ファイルは 2 段階のポリシーで unsafe 境界を機械的に担保する。
+//!
+//! 1. **safe 域**（`UNSAFE_ALLOWED_MEMBERS` に **含まれない**全メンバー。`core` 等）:
+//!    (1) クレートルート（`lib.rs` / `main.rs`）に `#![forbid(unsafe_code)]` が
+//!    存在すること、(2) ソース中にコメントを除いた `unsafe` トークンが
+//!    出現しないこと、の 2 点を検証する（`safe_domain_crates_*` テスト）。
+//! 2. **deny 域**（`DENY_UNSAFE_FFI_MEMBERS`。`wasm-full` — REQ-11 の
+//!    wasm-bindgen/web-sys FFI 境界のため `forbid` ではなく `deny` を採用するが、
+//!    自作コード側の `unsafe` は 0 件を CI で強制する、#155）:
+//!    (a) クレートルートに `#![deny(unsafe_code)]` が存在すること、
+//!    (b) `src/` 配下の全 `.rs` にコメント除去後の `unsafe` トークンが出現しない
+//!    こと、(c) `#[allow(unsafe_code)]`／`#![allow(unsafe_code)]`（`cfg_attr` 経由も
+//!    含む）による deny の上書きが存在しないこと、の 3 点を検証する
+//!    （`ffi_deny_crates_*` テスト）。`UNSAFE_ALLOWED_MEMBERS`
+//!    （`wasm-client` / `wasm-thin`）はスコープ外（#155 参照）として引き続き
+//!    完全免除のままとし、両リストとも本ファイルの `safe_domain_crates_*` テスト
+//!    からは skip する。
 //!
 //! `#![forbid(unsafe_code)]` はクレート内で override 不可能な属性であるため、
-//! (1) の存在確認だけでも unsafe 不在の強い保証になる。(2) は forbid 属性の
-//! 削除と unsafe 追加が同一 PR で行われた場合の二重チェックとして機能する
-//! （ドキュメントコメント中の「unsafe」という語への言及は誤検知しないよう、
-//! コメント除去後にトークン走査する）。
+//! safe 域は存在確認だけでも unsafe 不在の強い保証になる。`#![deny(unsafe_code)]`
+//! はソース側の `#[allow(unsafe_code)]` で上書き可能なため、deny 域は
+//! 属性存在確認・unsafe トークン走査・allow 上書き検出の 3 点を組み合わせて
+//! forbid 相当の強制を実現する（ドキュメントコメント中の語句への言及は
+//! 誤検知しないよう、いずれもコメント除去後に判定する）。
 //!
-//! 将来 `wasm-client` 等の WASM/FFI 境界クレートが追加された場合は、本ファイルの
-//! `UNSAFE_ALLOWED_MEMBERS` を更新した上で `docs/unsafe-boundary.md`
-//! （TASK-2.2b、#14）に unsafe 使用箇所と安全性根拠（`// SAFETY:`）を追記する。
+//! 将来クレートを追加・移行する場合は、本ファイルの `UNSAFE_ALLOWED_MEMBERS` /
+//! `DENY_UNSAFE_FFI_MEMBERS` を更新した上で `docs/unsafe-boundary.md`
+//! （TASK-2.2b、#14／#155）に unsafe 使用箇所と安全性根拠（`// SAFETY:`）を追記する。
 //!
 //! ファイル走査は `CARGO_MANIFEST_DIR`（`core/`）の親（workspace ルート）配下に
 //! 限定し、シンボリックリンクは辿らない。
@@ -25,12 +37,22 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// 仕様上 unsafe の使用が許容される WASM/FFI 境界クレート名の許可リスト。
+/// 仕様上 unsafe の使用が許容され、CI 検証を完全免除する WASM/FFI 境界クレート
+/// 名の許可リスト（スコープ外・#155 参照）。
 ///
 /// このリストに **含まれないメンバー**（`core` 等の safe 域クレート）は
 /// `#![forbid(unsafe_code)]` を必須とする。クレート追加時は本リストと
 /// `docs/unsafe-boundary.md`（#14）を同時に更新する運用とする。
-const UNSAFE_ALLOWED_MEMBERS: &[&str] = &["wasm-client", "wasm-full", "wasm-thin"];
+const UNSAFE_ALLOWED_MEMBERS: &[&str] = &["wasm-client", "wasm-thin"];
+
+/// `#![deny(unsafe_code)]` を採用しつつ、自作コード側の `unsafe` を CI で
+/// forbid 相当に強制する WASM/FFI 境界クレート名のリスト（#155）。
+///
+/// `wasm-bindgen` 展開コードの内部 `unsafe` と衝突するため `forbid` は
+/// 採用しないが、`src/` 配下の自作コードには `unsafe` トークン・
+/// `allow(unsafe_code)` による deny の上書きのいずれも許可しない。
+/// クレート追加時は本リストと `docs/unsafe-boundary.md` を同時に更新する。
+const DENY_UNSAFE_FFI_MEMBERS: &[&str] = &["wasm-full"];
 
 /// workspace ルート（`core/` の親ディレクトリ）の絶対パスを返す。
 ///
@@ -182,7 +204,9 @@ fn safe_domain_crates_forbid_unsafe_code() {
     );
 
     for member in &members {
-        if UNSAFE_ALLOWED_MEMBERS.contains(&member.as_str()) {
+        if UNSAFE_ALLOWED_MEMBERS.contains(&member.as_str())
+            || DENY_UNSAFE_FFI_MEMBERS.contains(&member.as_str())
+        {
             continue;
         }
         let dir = member_dir(&root, member);
@@ -226,7 +250,9 @@ fn safe_domain_crates_contain_no_unsafe_token() {
     let members = workspace_members();
 
     for member in &members {
-        if UNSAFE_ALLOWED_MEMBERS.contains(&member.as_str()) {
+        if UNSAFE_ALLOWED_MEMBERS.contains(&member.as_str())
+            || DENY_UNSAFE_FFI_MEMBERS.contains(&member.as_str())
+        {
             continue;
         }
         let dir = member_dir(&root, member);
@@ -245,6 +271,151 @@ fn safe_domain_crates_contain_no_unsafe_token() {
                 !contains_unsafe_token(&content),
                 "safe 域クレート `{member}` のファイル {file:?} に `unsafe` トークンが \
                  検出された。REQ-2（unsafe は WASM/FFI 境界に限定）違反の可能性がある"
+            );
+        }
+    }
+}
+
+/// ソース中（コメント除去後）に `allow(unsafe_code)` による deny/forbid の
+/// 上書きが存在するかを判定する。
+///
+/// `#[allow(unsafe_code)]`・`#![allow(unsafe_code)]` に加え、`cfg_attr(...,
+/// allow(unsafe_code))` のように `cfg_attr` 経由で条件付き付与されるケースも
+/// まとめて検出する（空白の入り方に依存しないよう、判定前に空白を除去する）。
+/// `#[allow(dead_code, unsafe_code)]` のように他の lint 名とカンマ区切りで
+/// 併記された場合も見逃さないよう、`allow(...)` の括弧内をカンマ分割して
+/// 各要素が `unsafe_code` と完全一致するかを判定する（部分文字列の完全一致
+/// だけを見る単純な `contains` 判定では、この併記パターンを検出できない）。
+fn contains_unsafe_code_allow_override(src: &str) -> bool {
+    let stripped = strip_comments(src);
+    let normalized: String = stripped.chars().filter(|c| !c.is_whitespace()).collect();
+
+    // `allow(` の出現ごとに対応する閉じ括弧までを取り出し、カンマ区切りの
+    // lint 名リストの中に `unsafe_code` が単体で含まれるかを確認する。
+    let bytes = normalized.as_bytes();
+    let mut search_from = 0usize;
+    while let Some(rel_start) = normalized[search_from..].find("allow(") {
+        let paren_open = search_from + rel_start + "allow(".len() - 1;
+        // 対応する閉じ括弧をネスト深度を追いながら探す（`cfg_attr(target_os =
+        // "wasm32", allow(unsafe_code))` のように外側にも括弧があるケースを
+        // 誤って途中で打ち切らないため）。
+        let mut depth = 0i32;
+        let mut close_idx = None;
+        for (i, &b) in bytes.iter().enumerate().skip(paren_open) {
+            match b {
+                b'(' => depth += 1,
+                b')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        close_idx = Some(i);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let Some(close_idx) = close_idx else {
+            break;
+        };
+        let inner = &normalized[paren_open + 1..close_idx];
+        if inner.split(',').any(|lint| lint == "unsafe_code") {
+            return true;
+        }
+        search_from = paren_open + 1;
+    }
+    false
+}
+
+/// deny 域クレート（`DENY_UNSAFE_FFI_MEMBERS`）のクレートルートに
+/// `#![deny(unsafe_code)]` が実在することを検証する（#155）。
+///
+/// `wasm-full` は `#[wasm_bindgen]` 展開コードの内部 `unsafe` と衝突するため
+/// `forbid(unsafe_code)` ではなく `deny(unsafe_code)` を採用する方針
+/// （`wasm-full/src/lib.rs` 冒頭 doc コメント・`docs/unsafe-boundary.md` 第 2 節）。
+/// `deny` はソース側の `allow` で上書き可能なため、本テストは
+/// `ffi_deny_crates_contain_no_unsafe_token_nor_allow_override` と組み合わせて
+/// forbid 相当の強制を構成する一次防御を担う。
+#[test]
+fn ffi_deny_crates_have_deny_unsafe_code_attribute() {
+    let root = workspace_root();
+    let members = workspace_members();
+    assert!(
+        !members.is_empty(),
+        "workspace members が空。Cargo.toml のパースに失敗している可能性がある"
+    );
+
+    for member in DENY_UNSAFE_FFI_MEMBERS {
+        assert!(
+            members.iter().any(|m| m == member),
+            "DENY_UNSAFE_FFI_MEMBERS のクレート `{member}` が workspace members に \
+             見つからない。Cargo.toml との同期を確認すること"
+        );
+        let dir = member_dir(&root, member);
+        let candidates = [dir.join("src/lib.rs"), dir.join("src/main.rs")];
+        let root_file = candidates.iter().find(|p| p.exists()).unwrap_or_else(|| {
+            panic!("クレート `{member}` のクレートルート（lib.rs/main.rs）が見つからない: {dir:?}")
+        });
+        let src = fs::read_to_string(root_file)
+            .unwrap_or_else(|e| panic!("{root_file:?} の読み取りに失敗した: {e}"));
+        let stripped = strip_comments(&src);
+        let has_deny_attribute = stripped.lines().any(|line| {
+            let normalized: String = line.chars().filter(|c| !c.is_whitespace()).collect();
+            normalized == "#![deny(unsafe_code)]"
+        });
+        assert!(
+            has_deny_attribute,
+            "deny 域クレート `{member}` のクレートルート {root_file:?} に \
+             実際の属性としての `#![deny(unsafe_code)]` が見つからない \
+             （コメント内の言及のみは無効）。#155 の CI 強制が退行している可能性がある"
+        );
+    }
+}
+
+/// deny 域クレート（`DENY_UNSAFE_FFI_MEMBERS`）の `src/` 配下全 `.rs` に、
+/// (a) コメント除去後の `unsafe` トークンが 0 件、(b) `allow(unsafe_code)`
+/// による deny の上書きが 0 件、であることを検証する（#155）。
+///
+/// (a)+(b) を `ffi_deny_crates_have_deny_unsafe_code_attribute` の attribute
+/// 存在確認と組み合わせることで、「属性削除」「allow 上書き」「unsafe 直接追加」
+/// のいずれについても CI 失敗となり、forbid(unsafe_code) 相当の強制が成立する。
+/// 許容される unsafe は wasm-bindgen/web-sys の依存クレート内部・
+/// `#[wasm_bindgen]` マクロ展開の自動生成コードのみであり、いずれもここで
+/// 走査する自作ソース（`wasm-full/src/`）には現れない
+/// （`docs/unsafe-boundary.md` 第 2 節の許容 FFI 境界の記述を参照）。
+#[test]
+fn ffi_deny_crates_contain_no_unsafe_token_nor_allow_override() {
+    let root = workspace_root();
+    let members = workspace_members();
+
+    for member in DENY_UNSAFE_FFI_MEMBERS {
+        assert!(
+            members.iter().any(|m| m == member),
+            "DENY_UNSAFE_FFI_MEMBERS のクレート `{member}` が workspace members に \
+             見つからない。Cargo.toml との同期を確認すること"
+        );
+        let dir = member_dir(&root, member);
+        let src_dir = dir.join("src");
+        let mut files = Vec::new();
+        collect_rs_files(&src_dir, &mut files);
+        assert!(
+            !files.is_empty(),
+            "クレート `{member}` の src/ 配下に .rs ファイルが見つからない: {src_dir:?}"
+        );
+
+        for file in files {
+            let content = fs::read_to_string(&file)
+                .unwrap_or_else(|e| panic!("{file:?} の読み取りに失敗した: {e}"));
+            assert!(
+                !contains_unsafe_token(&content),
+                "deny 域クレート `{member}` のファイル {file:?} に自作コード側の \
+                 `unsafe` トークンが検出された。REQ-11 受け入れ基準 2（safe Rust に \
+                 収まること）違反の可能性がある（#155）"
+            );
+            assert!(
+                !contains_unsafe_code_allow_override(&content),
+                "deny 域クレート `{member}` のファイル {file:?} に \
+                 `allow(unsafe_code)` による deny の上書きが検出された。\
+                 #![deny(unsafe_code)] の実効性が失われている（#155）"
             );
         }
     }
@@ -272,5 +443,41 @@ fn core_has_zero_external_dependencies() {
         section.is_empty(),
         "core/Cargo.toml の [dependencies] が空でない: {section:?}。\
          core は外部依存ゼロが不変条件（依存追加には事前のユーザー承認が必要）"
+    );
+}
+
+/// `contains_unsafe_code_allow_override` が `allow(unsafe_code)` の単独指定
+/// だけでなく、他の lint 名とカンマ区切りで併記された場合（例:
+/// `#[allow(dead_code, unsafe_code)]`）も検出できることを確認する回帰テスト。
+///
+/// 部分文字列 `"allow(unsafe_code)"` の完全一致のみを見る単純な実装だと、
+/// この併記パターンで検出漏れが発生する（レビュー指摘、#155）。
+#[test]
+fn contains_unsafe_code_allow_override_detects_comma_separated_lint_list() {
+    assert!(
+        contains_unsafe_code_allow_override("#[allow(unsafe_code)]"),
+        "単独指定のケースを検出できていない"
+    );
+    assert!(
+        contains_unsafe_code_allow_override("#[allow(dead_code, unsafe_code)]"),
+        "unsafe_code が末尾に併記されたケースを検出できていない"
+    );
+    assert!(
+        contains_unsafe_code_allow_override("#[allow(unsafe_code, dead_code)]"),
+        "unsafe_code が先頭に併記されたケースを検出できていない"
+    );
+    assert!(
+        contains_unsafe_code_allow_override(
+            "#[cfg_attr(target_arch = \"wasm32\", allow(dead_code, unsafe_code))]"
+        ),
+        "cfg_attr 経由かつ併記のケースを検出できていない"
+    );
+    assert!(
+        !contains_unsafe_code_allow_override("#[allow(dead_code, unsafe_code_typo)]"),
+        "unsafe_code に類似する別 lint 名を誤検出している（部分一致の偽陽性）"
+    );
+    assert!(
+        !contains_unsafe_code_allow_override("#[allow(dead_code)]"),
+        "unsafe_code を含まない属性を誤検出している"
     );
 }

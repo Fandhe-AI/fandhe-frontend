@@ -19,11 +19,20 @@ jobs:
   # 三次防御 = 本ジョブの RUSTFLAGS='-F unsafe_code' による cargo check（属性とテストが
   # 同時に外された場合でも、コマンドラインからの forbid はソース側の allow で上書きできない）
   #
+  # #155 (REQ-11 受け入れ基準 2): 上記の safe 域（core/interactive 等、forbid 採用）に加え、
+  # `wasm-full`（deny 採用。#[wasm_bindgen] 展開コードの内部 unsafe と衝突するため forbid 不採用）
+  # のアプリロジック層（自作コード）にも forbid 相当の CI 強制を適用する。実体は下記
+  # `cargo test -p rws-core --test unsafe_boundary` に含まれる `ffi_deny_crates_*` テスト
+  # （core/tests/unsafe_boundary.rs の DENY_UNSAFE_FFI_MEMBERS）であり、本ジョブ自体に
+  # 追加のステップは不要（deny 域は `RUSTFLAGS='-F unsafe_code'` 適用外のまま、
+  # wasm-bindgen 展開コードの unsafe との衝突を避ける）。
+  # UNSAFE_ALLOWED_MEMBERS（wasm-client/wasm-thin）は引き続きスコープ外（#155 参照）。
+  #
   # ファイル名は汎用の ci.yml とし、ジョブ名を目的特化の forbid-unsafe とする。
   # 後続の CI 系タスク（fmt/clippy・依存グラフ計測等）は同一ファイルへ
   # ジョブを追加していく前提の拡張可能な構成とする。
   forbid-unsafe:
-    name: Forbid unsafe in core crates
+    name: Forbid unsafe in core crates (+ wasm-full deny boundary)
     runs-on: self-hosted
     # TASK-10.2b（#110）: dist-server/build.rs は既定で WASM ビルドステージ
     # （ネスト cargo build + wasm-bindgen）を実行するが、本ジョブは
@@ -43,15 +52,23 @@ jobs:
       - name: Show toolchain
         run: rustup show && cargo --version
 
-      - name: unsafe 境界の回帰テスト（forbid 属性・unsafe トークン・core 依存ゼロ）
+      - name: unsafe 境界の回帰テスト（safe 域: forbid 属性・unsafe トークン・core 依存ゼロ／wasm-full deny 域: deny 属性・unsafe トークン・allow 上書き不在、#155）
         run: cargo test -p rws-core --test unsafe_boundary --locked
 
       # NOTE: -F (forbid) はソース側の #[allow(unsafe_code)] で上書きできないため、
       # 属性が誤って削除された場合の独立した防御線になる。
-      # 現メンバー（core・app・xtask）はいずれも safe 域のため workspace 全体に適用可能。
-      # wasm-client/wasm-full/wasm-thin 等の FFI 境界クレートが追加された場合は
-      # `-p` 指定で safe 域クレートのみへ絞り込み、
-      # core/tests/unsafe_boundary.rs の UNSAFE_ALLOWED_MEMBERS と同期して更新すること。
+      # wasm-client/wasm-full/wasm-thin は #![deny(unsafe_code)] 採用クレートだが、
+      # native（このステップのデフォルトターゲット）ビルドでは各クレートの
+      # #[cfg(target_arch = "wasm32")] ゲート配下（wasm-full の entry/Runtime/
+      # dom::paint 等、#[wasm_bindgen] 展開を含む箇所）がコンパイル対象から
+      # 外れるため、`-F unsafe_code` を付けた `cargo check --workspace` は
+      # 実測どおり workspace 全体（wasm 系クレートを含む）で成功する
+      # （wasm32 ターゲット向けに同様のチェックを行うと wasm_bindgen 展開の
+      # unsafe と衝突して失敗するため、このステップは意図的に native のみ）。
+      # wasm32 ゲート配下の自作コードに対する forbid 相当の強制は、native の
+      # 本ステップではなく上記のソーステキスト走査テスト（DENY_UNSAFE_FFI_MEMBERS）
+      # が担う。クレート追加時は core/tests/unsafe_boundary.rs の
+      # UNSAFE_ALLOWED_MEMBERS / DENY_UNSAFE_FFI_MEMBERS と同期して更新すること。
       - name: ビルド時 lint による強制（属性とテストの双方が同時に外された場合の三重防御）
         run: RUSTFLAGS='-F unsafe_code' cargo check --workspace --locked
 

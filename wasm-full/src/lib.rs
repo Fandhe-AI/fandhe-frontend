@@ -31,7 +31,11 @@
 //! （`docs/unsafe-boundary.md` 第 2 節）。自作コードでの新規 `unsafe` 追加を
 //! ビルド時に検出するため `#![deny(unsafe_code)]` を採用する
 //! （`#[wasm_bindgen]` 展開コードが内部で `unsafe` を含むため `forbid` は不採用。
-//! `wasm-client` と同方針）。
+//! `wasm-client` と同方針）。この `deny` 属性はソース側の `#[allow(unsafe_code)]`
+//! で上書き可能なため、属性の実在・`unsafe` トークン不在・`allow` 上書き不在の
+//! 3 点を `core/tests/unsafe_boundary.rs`（`DENY_UNSAFE_FFI_MEMBERS`）が
+//! CI（`.github/workflows/ci.yml` の `forbid-unsafe` ジョブ）で機械的に強制し、
+//! アプリロジック層への forbid(unsafe_code) 相当の CI 強制を実現する（#155）。
 
 #![deny(unsafe_code)]
 
