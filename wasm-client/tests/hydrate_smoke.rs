@@ -13,6 +13,12 @@
 //! - `hydrate()` は既存 DOM（`data-hydrate="like"` を持つ要素）を破壊せず
 //!   （`set_inner_html` を呼ばない、不変条件 2）、`click` イベントで
 //!   `class_list`（`liked` クラス）のみを更新する（不変条件 3）。
+//! - 同一 root_id への再 `hydrate()` 呼び出しでも旧 DOM リスナーが孤立
+//!   （`registry::replace_handles` が `remove_event_listener_with_callback`
+//!   を呼ばずに `Closure` だけ破棄）しないこと（PR #236 Bugbot 指摘・
+//!   High severity の回帰テスト）。孤立した場合、ドロップ済み `Closure` が
+//!   紐付いたままの旧リスナーがクリック時に wasm-bindgen の
+//!   "closure invoked recursively or after being dropped" で異常終了する。
 
 #![cfg(target_arch = "wasm32")]
 
@@ -110,5 +116,40 @@ fn hydrate_wires_click_listener_without_rebuilding_existing_dom() {
         button.text_content(),
         text_before,
         "click ハンドラは class_list のみを更新し、テキスト内容を書き換えないこと"
+    );
+}
+
+/// PR #236 Bugbot 指摘（High severity）の回帰テスト:
+/// 同一 root_id へ `hydrate()` を再度呼んでも、旧クリックリスナーが
+/// DOM に孤立して残らないこと（`registry::replace_handles` が旧ハンドルの
+/// `remove_event_listener_with_callback` を呼ばずに `Closure` を破棄すると、
+/// 旧リスナーはドロップ済みクロージャを指したまま DOM に残り続け、次回
+/// クリック時に wasm-bindgen が異常終了する）。
+///
+/// 検証方法: `hydrate()` を 2 回呼んだ後、1 回だけクリックして
+/// `dispatch_event` が `Err` にならず（＝孤立リスナーが起動して
+/// panic/異常終了しない）、かつ `liked` クラスの付与が 1 回のトグル分
+/// （付与された状態）にとどまることを確認する。
+#[wasm_bindgen_test]
+fn re_hydrate_does_not_orphan_previous_click_listener() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let root = create_container(&document, "hydrate-smoke-root-rehydrate");
+    let button = append_like_button(&document, &root);
+
+    hydrate("hydrate-smoke-root-rehydrate")
+        .expect("first hydrate must succeed when root and target exist");
+    hydrate("hydrate-smoke-root-rehydrate")
+        .expect("second hydrate on the same root_id must succeed (re-hydration)");
+
+    // 孤立した旧リスナーが存在する場合、ここで dropped Closure の呼び出しに
+    // より wasm-bindgen が異常終了する（回帰時に検出できる）。
+    button
+        .dispatch_event(&bubbling_click_event())
+        .expect("dispatch_event must not fail even after re-hydrate");
+
+    assert!(
+        button.class_list().contains("liked"),
+        "re-hydrate 後も現行リスナーによる liked クラス付与が機能すること"
     );
 }

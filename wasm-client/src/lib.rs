@@ -220,10 +220,22 @@ mod wiring {
                 // （set_inner_html 等の再構築系 API を呼ばない不変条件 2・3）。
                 let _ = target_for_closure.class_list().toggle("liked");
             });
-            element
+            match element
                 .add_event_listener_with_callback("click", closure.as_ref().unchecked_ref())
-                .map_err(|_| JsValue::from_str("add_event_listener_with_callback failed"))?;
-            handles.push(closure);
+            {
+                Ok(()) => {
+                    handles.push(registry::Handle::new(element, "click", closure));
+                }
+                Err(_) => {
+                    // 部分失敗時の孤立防止: この呼び出し内で既に登録済みの
+                    // DOM リスナーをここで解除してから Err を返す
+                    // （ローカル handles の Drop だけに任せると、Closure は
+                    // 破棄されるのに DOM 側リスナーだけ残ってしまう）。
+                    // 既存レジストリ（前回までの hydrate() 分）には触れない。
+                    registry::rollback_partial_handles(handles);
+                    return Err(JsValue::from_str("add_event_listener_with_callback failed"));
+                }
+            }
         }
 
         registry::replace_handles(root_id, handles);
