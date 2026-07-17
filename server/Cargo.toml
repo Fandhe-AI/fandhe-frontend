@@ -1,0 +1,16 @@
+[package]
+name = "rws-server"
+version = "0.1.0"
+edition = "2021"
+description = "rws-server: v1 共通コアのパスマッチングルーティング（server/src/router.rs）。SSR/SSG/単一バイナリ配布の各エントリから共通利用する。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# REQ-3 / coding-rust.md: 依存クレート追加は事前承認が必要。
+# router.rs は外部依存ゼロの純 Rust 実装であり、本クレートに外部クレートを
+# 追加しない（rws-core/rws-app への path 依存もテストコード側でのみ使用）。
+[dependencies]
+
+[dev-dependencies]
+rws-core = { path = "../core" }
+rws-app = { path = "../app" }
