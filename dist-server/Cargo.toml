@@ -1,0 +1,44 @@
+[package]
+name = "rws-dist-server"
+version = "0.1.0"
+edition = "2021"
+description = "rws-dist-server: TASK-9.1b。rws-core / rws-app / rws-server を単一実行ファイルへ統合し、コンパイル時埋め込みの静的アセットと rws-app の SSR ページを配信する配布用サーバー。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# REQ-3（依存グラフ上限 60 件/深さ 6, docs/spec/04-requirements.md）実測根拠:
+#
+# TASK-9.1 の課題名は「rust-embed ベース単一バイナリサーバー」だが、
+# rust-embed は rust-embed -> rust-embed-impl -> rust-embed-utils -> sha2 -> digest
+# -> block-buffer -> hybrid-array -> typenum の非オプショナルな連鎖により
+# feature 削減不能な深さ 8 を要求し REQ-3 に構造的に違反する（実測: 66 件/深さ8）。
+# よって埋め込みは外部依存ゼロの自前実装（build.rs + include_bytes!、assets.rs 参照）
+# とする（docs/spec 側へのフィードバック事項として PR に記録）。
+#
+# HTTP サーバー層も同様の理由で axum を採用しない。axum の "tokio" feature（axum::serve
+# 相当を有効化する唯一の経路）は無条件に "tokio/macros" を要求し
+# tokio-macros -> syn -> quote -> proc-macro2 -> unicode-ident の連鎖で深さ 7〜9 に
+# 達する（実測）。さらに axum-core が無条件に依存する async-trait も同じ
+# syn/proc-macro2 連鎖を経由し、axum を経由する限り proc-macro 連鎖を避けられない。
+# そのため axum 自体を採用せず、hyper（1.x, "http1"+"server"）+ hyper-util
+# （0.1, "http1"+"server"+"tokio"。この "tokio" feature は tokio/rt・tokio/time のみを
+# 要求し macros を要求しない）+ http-body-util + tokio
+# （"rt-multi-thread"+"net"）の直接構成とする。ルーティングは rws-server::router
+# （外部依存ゼロ）が担うため、axum::Router 相当の機能は不要。
+#
+# 実測（2026-07-17、cargo metadata 経由、xtask check-deps と同じ定義）:
+#   packages: 21（上限 60）/ max depth: 5（上限 6）→ result: PASS
+[dependencies]
+rws-core = { path = "../core" }
+rws-app = { path = "../app" }
+rws-server = { path = "../server" }
+hyper = { version = "1", default-features = false, features = ["http1", "server"] }
+hyper-util = { version = "0.1", default-features = false, features = ["http1", "server", "tokio"] }
+http-body-util = { version = "0.1", default-features = false }
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "net"] }
+
+[dev-dependencies]
+
+[[bin]]
+name = "dist-server"
+path = "src/main.rs"

@@ -28,9 +28,14 @@ name: deps-check
 # - 現時点の workspace members である rws-core（外部依存ゼロ契約。ディレクトリは
 #   core/ だがパッケージ名は Cargo.toml 上 rws-core）・xtask（外部依存ゼロ契約）・
 #   rws-app（TASK-6.1b で追加。rws-core への path 依存のみ）を対象とする。
-#   標準サーバー構成（rws-server）実装後は
-#   REQ-3 の本来の計測対象として `--package server` を追加すること
-#   （server クレート導入イシュー側の対応事項）。
+#   TASK-9.1b（イシュー #96）で rws-dist-server（dist-server/、hyper 依存を持つ
+#   標準サーバー構成の実体）を追加した。実測: packages=21/60 depth=5/6（PASS）。
+#   axum・rust-embed はいずれも依存グラフ深さ上限（6）を構造的に超過するため
+#   不採用とし、hyper + hyper-util + http-body-util + tokio の直接構成とした
+#   （実測根拠は `dist-server/Cargo.toml` のコメント参照）。
+#   rws-server（router のみ・外部依存ゼロ）自体は本ゲートの計測対象に
+#   `--package rws-server` を追加すること（server クレート導入イシュー側の
+#   対応事項として引き続き未着手）。
 # - `check-core-deps` は引数を取らず、`check_deps::ZERO_DEP_CRATES` と実 workspace
 #   メンバーの積集合を xtask 内部で自動解決する（`rws-interactive` 追加時も
 #   ワークフロー変更は不要）。
@@ -81,7 +86,7 @@ jobs:
         # 一致しなくなる（fail-closed の前提が崩れる）ため必須。
         run: |
           set -o pipefail
-          cargo run --locked -p xtask -- check-deps --package rws-core --package xtask --package rws-app | tee deps-check.log
+          cargo run --locked -p xtask -- check-deps --package rws-core --package xtask --package rws-app --package rws-dist-server | tee deps-check.log
 
       - name: Publish deps-check summary
         if: always()
@@ -145,7 +150,7 @@ jobs:
         if: always()
         run: |
           set -o pipefail
-          cargo run --locked -p xtask -- list-build-scripts --package rws-core --package xtask --package rws-app | tee build-scripts.log
+          cargo run --locked -p xtask -- list-build-scripts --package rws-core --package xtask --package rws-app --package rws-dist-server | tee build-scripts.log
 
       - name: Publish build-scripts summary
         if: always()
