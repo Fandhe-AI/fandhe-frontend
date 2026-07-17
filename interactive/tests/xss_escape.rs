@@ -58,12 +58,29 @@ mod payloads {
 }
 
 /// ペイロードが実タグ・実イベントハンドラとして機能する構文で出力に
-/// 現れていないことを確認する共通アサーション。
+/// 現れていないこと、かつペイロードのエスケープ済み表現が実際に出力へ
+/// 含まれていることを確認する共通アサーション。
 ///
-/// `core/tests/xss_escape.rs` の方針と同様、「生のペイロード部分文字列が
-/// 含まれない」ことに加え、`<script>`/`<img` の実タグ開始が現れないこと
-/// も確認する（語の有無ではなく構文としての危険性の有無を見る）。
+/// `core/tests/xss_escape.rs`（`assert_fragment_is_safe`）の方針と揃え、
+/// 以下 3 点を見る。
+///
+/// 1. **肯定的アサーション（偽陰性防止）**: [`rws_core::escape_html`] が
+///    返す正解のエスケープ済み表現が出力中に実際に存在すること。これが
+///    無いと、ペイロードが出力へ丸ごと現れなくなる（例: 空文字列化・
+///    フィールドの取りこぼし）リグレッションを、後続の否定条件がすべて
+///    素通りさせて偽陰性 PASS してしまう。
+/// 2. 生のペイロード部分文字列が出力に含まれない（`<` `>` `&` `"` `'` が
+///    エスケープされずに透過していないこと）。
+/// 3. `<script>`/`<img` の実タグ開始が出力に含まれない（語の有無ではなく
+///    構文としての危険性の有無を見る）。
 fn assert_html_is_safe(payload: &str, html: &str, context_label: &str) {
+    let expected_escaped = rws_core::escape_html(payload);
+    assert!(
+        html.contains(&expected_escaped),
+        "{context_label}: 期待されるエスケープ済み表現が出力に見当たらない \
+         （render() がペイロードごと出力しなくなる偽陰性リグレッションの疑い）: \
+         payload={payload:?}, expected_escaped={expected_escaped:?}, html={html}"
+    );
     assert!(
         !html.contains(payload),
         "{context_label}: 生のペイロードがエスケープされずに出力へ透過している: \
