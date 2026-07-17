@@ -19,8 +19,9 @@ name: deps-check
 #
 # 計測対象パッケージ:
 # - 現時点の workspace members である rws-core（外部依存ゼロ契約。ディレクトリは
-#   core/ だがパッケージ名は Cargo.toml 上 rws-core）と xtask（外部依存ゼロ契約）
-#   を対象とする。標準サーバー構成（rws-server）実装後は
+#   core/ だがパッケージ名は Cargo.toml 上 rws-core）・xtask（外部依存ゼロ契約）・
+#   rws-app（TASK-6.1b で追加。rws-core への path 依存のみ）を対象とする。
+#   標準サーバー構成（rws-server）実装後は
 #   REQ-3 の本来の計測対象として `--package server` を追加すること
 #   （server クレート導入イシュー側の対応事項）。
 on:
@@ -55,7 +56,7 @@ jobs:
         # 一致しなくなる（fail-closed の前提が崩れる）ため必須。
         run: |
           set -o pipefail
-          cargo run --locked -p xtask -- check-deps --package rws-core --package xtask | tee deps-check.log
+          cargo run --locked -p xtask -- check-deps --package rws-core --package xtask --package rws-app | tee deps-check.log
 
       - name: Publish deps-check summary
         if: always()
@@ -87,7 +88,7 @@ jobs:
         if: always()
         run: |
           set -o pipefail
-          cargo run --locked -p xtask -- list-build-scripts --package rws-core --package xtask | tee build-scripts.log
+          cargo run --locked -p xtask -- list-build-scripts --package rws-core --package xtask --package rws-app | tee build-scripts.log
 
       - name: Publish build-scripts summary
         if: always()
