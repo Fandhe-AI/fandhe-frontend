@@ -39,7 +39,7 @@ jobs:
 
       # NOTE: -F (forbid) はソース側の #[allow(unsafe_code)] で上書きできないため、
       # 属性が誤って削除された場合の独立した防御線になる。
-      # 現メンバー（core・xtask）はいずれも safe 域のため workspace 全体に適用可能。
+      # 現メンバー（core・app・xtask）はいずれも safe 域のため workspace 全体に適用可能。
       # wasm-client/wasm-full/wasm-thin 等の FFI 境界クレートが追加された場合は
       # `-p` 指定で safe 域クレートのみへ絞り込み、
       # core/tests/unsafe_boundary.rs の UNSAFE_ALLOWED_MEMBERS と同期して更新すること。

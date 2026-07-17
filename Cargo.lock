@@ -3,6 +3,13 @@
 version = 4
 
 [[package]]
+name = "rws-app"
+version = "0.1.0"
+dependencies = [
+ "rws-core",
+]
+
+[[package]]
 name = "rws-core"
 version = "0.1.0"
 
