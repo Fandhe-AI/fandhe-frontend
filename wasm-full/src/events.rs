@@ -130,7 +130,11 @@ mod wiring {
     /// - `click`: `event.target()` から `closest("[data-action]")` で祖先方向に
     ///   `data-action` 属性を持つ要素を探索する（ボタン内の子要素クリックを
     ///   取りこぼさないための対策。PoC 版は `target()` 直接参照のため子要素
-    ///   クリックを取りこぼしていた）。`Element::closest` は呼び出し要素自身
+    ///   クリックを取りこぼしていた）。`event.target()` がテキストノード
+    ///   （`rws_core::text` が生成するボタン文言等）の場合は `Element` への
+    ///   キャストが失敗するため、`Node::parent_element()` で直近の親要素まで
+    ///   遡ってから `closest` を呼ぶ（テキストノードクリックの取りこぼし対策、
+    ///   PR #200 Cursor Bugbot 指摘）。`Element::closest` は呼び出し要素自身
     ///   から祖先方向へ辿るのみで文書全体は走査しないが、`root` より外側の
     ///   祖先に `data-action` 要素があれば理論上そこまで一致し得るため、本関数は
     ///   `contains` で「ヒットした要素が root の子孫（root 自身を含む）であること」
@@ -156,8 +160,26 @@ mod wiring {
             let Some(target) = event.target() else {
                 return;
             };
-            let Some(target_element) = target.dyn_ref::<Element>() else {
-                return;
+            // `event.target()` はクリックされた最も深いノードを指し、テキスト
+            // ノード（`rws_core::text` が生成する `data-action` ボタン内の文言
+            // 等）であることがある。テキストノードは `Element` ではないため
+            // `dyn_ref::<Element>()` は `None` を返すが、これは「フレームワーク
+            // 管轄外のクリック」ではなく「祖先探索の起点を要素まで遡る必要が
+            // ある」ケースである。`Node::parent_element()` で直近の親要素へ
+            // 遡ってから `closest` を呼ぶことで、テキストノードクリックでも
+            // `data-action` 祖先探索を取りこぼさないようにする（Cursor Bugbot
+            // 指摘、PR #200 review 4719004004）。
+            let target_element: Element = match target.dyn_ref::<Element>() {
+                Some(element) => element.clone(),
+                None => {
+                    let Some(node) = target.dyn_ref::<web_sys::Node>() else {
+                        return;
+                    };
+                    let Some(parent) = node.parent_element() else {
+                        return;
+                    };
+                    parent
+                }
             };
             // data-action を持つ祖先要素を探索する。探索失敗（None）・
             // クエリ不正（Err）はいずれもフレームワーク管轄外のクリックとして
