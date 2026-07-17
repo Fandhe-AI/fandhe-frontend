@@ -132,3 +132,51 @@ jobs:
       - name: Run browser tests (headless Chrome)
         if: steps.check.outputs.exists == 'true'
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-client
+
+  # TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）: 同一文書内更新向け
+  # ラッパー関数（`static/view-transitions.js` の `withViewTransition`、
+  # TASK-8.2a／イシュー #61）の実効 LOC（コメント・空行を除く）が
+  # 10 行以内であることを機械的に強制するジョブ。
+  #
+  # しきい値運用の原則は deps-check ジョブと同一: しきい値・対象ファイルの正は
+  # xtask/src/check_loc.rs の MAX_EFFECTIVE_LOC（10）/ LOC_CHECK_TARGETS 定数のみ。
+  # このジョブには緩和用の input・環境変数・continue-on-error を一切設けない
+  # （迂回経路を作らない設計。しきい値変更はコード定数の変更 = レビュー必須の PR のみ）。
+  #
+  # fail-closed: 対象ファイル（static/view-transitions.js）の不在・読み取り失敗も
+  # しきい値超過と同様に終了コード 1 として扱う（xtask/src/check_loc.rs 参照）。
+  # そのため TASK-8.2a（イシュー #61）のマージ前にこのジョブが実行されると
+  # 意図的に FAIL する。
+  loc-check:
+    name: REQ-8 view-transitions.js effective LOC limit (10 lines)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2（同一ファイル内の test ジョブと同一 SHA に固定）。
+        # docs/spec submodule は本ジョブの計測に不要なため取得しない。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+
+      - name: Run xtask check-loc
+        # xtask check-loc の終了コードをそのまま CI の成否に伝播させる（fail-closed）。
+        # set -o pipefail を明示し、tee 経由でも cargo run の終了コードが失われないようにする。
+        # --locked はこの外側の cargo run が Cargo.lock を書き換えないことを保証する
+        # （deps-check ジョブと同一の理由）。
+        run: |
+          set -o pipefail
+          cargo run --locked -p xtask -- check-loc | tee loc-check.log
+
+      - name: Publish loc-check summary
+        if: always()
+        # format_loc_report（xtask/src/check_loc.rs）の 1 行サマリ契約
+        # 「loc-check: file=<path> effective_loc=<n>/<limit> result=<PASS|FAIL>」を
+        # Step Summary に転記する。この契約はテストで固定される
+        # （xtask/tests/cli_check_loc.rs）。
+        run: |
+          {
+            echo '## loc-check (REQ-8, issue #62)'
+            echo '```'
+            grep '^loc-check:' loc-check.log || echo 'loc-check: no summary line found'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
