@@ -355,36 +355,47 @@ fn host_triple() -> Result<String, CheckDepsError> {
         })
 }
 
-/// `cargo metadata --format-version 1 --filter-platform <host-triple>` を実行し、
-/// 標準出力を返す。
+/// `cargo metadata --format-version 1 [--filter-platform <host-triple>] --locked` を
+/// 実行し、標準出力を返す。
 ///
 /// `$CARGO`（cargo サブコマンドとして起動された場合に cargo が設定する環境変数）を
 /// 優先し、無ければ `cargo` を PATH から解決する。シェル経由の文字列連結は行わず、
 /// 固定引数のみを渡す（A03 インジェクション対策、security.md 準拠）。
 ///
-/// `--filter-platform` にホストの target triple を明示することで、他プラットフォーム
-/// 向けの target-specific な normal edge（`target.'cfg(...)'dependencies` 等）を
-/// cargo 自身に解決させてグラフから除外する。これを付けない場合、ホスト以外の
-/// プラットフォーム向け依存が残留し件数・深さが PoC-3 のホスト限定計測より
-/// 過大に出て REQ-3 判定を誤らせる（Bugbot 指摘: cross-platform deps inflate counts）。
+/// `filter_platform` で `--filter-platform`（ホストの target triple）の付与有無を
+/// 切り替える:
+/// - `true`（[`fetch_dep_graph`] / `list_build_scripts` が使用）: cfg 条件付き依存
+///   （`target.'cfg(windows)'.dependencies` 等）のうちホストで有効にならない edge を
+///   cargo 自身に解決・除外させる。これを付けない場合、他プラットフォーム向けの
+///   target-specific な normal edge がグラフに残留し、件数・深さが PoC-3 の
+///   ホスト限定計測より過大に出て REQ-3（60/6 判定）を誤らせる
+///   （Bugbot 指摘: cross-platform deps inflate counts）。
+/// - `false`（[`fetch_zero_dep_targets`] が使用）: 全 target 分の依存を含めて
+///   解決する。`ZERO_DEP_CRATES` の「外部依存ゼロ」はホスト以外の target 向け
+///   （`target.'cfg(...)'.dependencies` 配下）の外部クレート宣言も対象とすべきで
+///   あり、`--filter-platform` を付けるとそれらがホストで無効な edge として
+///   cargo 自身に除外され、zero-dep ゲートが検出できずに PASS してしまう
+///   （Bugbot review 4718471860 指摘 2: non-host target-specific 外部依存の見落とし）。
 ///
 /// `--locked` を付与し、`Cargo.toml` と `Cargo.lock` に drift がある場合は
 /// レジストリ解決をやり直さずエラーで停止する。これを付けないと `cargo metadata`
 /// が `Cargo.lock` を暗黙に書き換え、コミット済みの依存集合ではなく再解決後の
 /// グラフを計測してしまい REQ-3 判定の対象がずれる
 /// （Bugbot 指摘: metadata run omits locked mode）。
-fn run_cargo_metadata() -> Result<String, CheckDepsError> {
+fn run_cargo_metadata(filter_platform: bool) -> Result<String, CheckDepsError> {
     let cargo_bin = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
-    let target = host_triple()?;
+    let mut args = vec![
+        "metadata".to_string(),
+        "--format-version".to_string(),
+        "1".to_string(),
+    ];
+    if filter_platform {
+        args.push("--filter-platform".to_string());
+        args.push(host_triple()?);
+    }
+    args.push("--locked".to_string());
     let output = Command::new(cargo_bin)
-        .args([
-            "metadata",
-            "--format-version",
-            "1",
-            "--filter-platform",
-            &target,
-            "--locked",
-        ])
+        .args(&args)
         .output()
         .map_err(|e| CheckDepsError::CommandFailed(e.to_string()))?;
     if !output.status.success() {
@@ -405,9 +416,13 @@ fn run_cargo_metadata() -> Result<String, CheckDepsError> {
 /// `deps[].dep_kinds[].kind` のみを参照する。想定外の構造は
 /// [`CheckDepsError::UnexpectedShape`] として返し panic しない。
 ///
-/// `--filter-platform` 済みの `resolve.nodes` を入力とする前提のため、
-/// `dep_kinds[].target` によるプラットフォームフィルタは行わない
-/// （cargo 側で既にホスト非該当の edge が取り除かれている）。
+/// `dep_kinds[].target` によるプラットフォームフィルタは行わない。呼び出し側
+/// （[`run_cargo_metadata`] の `filter_platform`）が `true`（60/6 判定・build.rs 監査）
+/// なら cargo 自身がホスト非該当の edge を `resolve.nodes` から取り除き済みであり、
+/// `false`（zero-dep 判定、[`fetch_zero_dep_targets`]）なら全 target 分の edge が
+/// 意図的に残ったまま渡ってくる。本関数はどちらの入力かを区別せず、与えられた
+/// `resolve.nodes` をそのままグラフ化する（プラットフォーム方針の決定は呼び出し側の
+/// 責務）。
 pub fn build_graph(metadata: &Json) -> Result<DepGraph, CheckDepsError> {
     let packages = metadata
         .get("packages")
@@ -640,8 +655,11 @@ fn dfs_depth(
 /// は `packages[].targets[]` 用に、同一の [`Json`] 値をそれぞれ別の視点で参照する
 /// （`cargo metadata` の実行・パースを 1 回に集約し、Bugbot 指摘「metadata rerun
 /// per package」と同種の重複実行を避ける）。
-pub(crate) fn fetch_metadata_json() -> Result<Json, CheckDepsError> {
-    let output = run_cargo_metadata()?;
+///
+/// `filter_platform` は [`run_cargo_metadata`] にそのまま渡す（60/6 判定・
+/// build.rs 監査はホスト限定の `true`、zero-dep 判定は全 target 対象の `false`）。
+pub(crate) fn fetch_metadata_json(filter_platform: bool) -> Result<Json, CheckDepsError> {
+    let output = run_cargo_metadata(filter_platform)?;
     parse(&output).map_err(CheckDepsError::InvalidJson)
 }
 
@@ -653,7 +671,9 @@ pub(crate) fn fetch_metadata_json() -> Result<Json, CheckDepsError> {
 /// 無駄な重複処理であり、CI での複数クレート計測時に顕著な非効率を生む
 /// （Bugbot 指摘: metadata rerun per package）。
 pub fn fetch_dep_graph() -> Result<DepGraph, CheckDepsError> {
-    let metadata = fetch_metadata_json()?;
+    // 60/6 判定（REQ-3 標準構成）はホスト構成での実測が契約のため
+    // filter_platform=true（既存の PoC-3 対応挙動を変えない）。
+    let metadata = fetch_metadata_json(true)?;
     build_graph(&metadata)
 }
 
@@ -711,8 +731,13 @@ pub fn workspace_member_names(metadata: &Json) -> Result<Vec<String>, CheckDepsE
 /// グラフ構築（[`build_graph`]）と workspace メンバー名解決（[`workspace_member_names`]）の
 /// 双方で使い回し、`cargo metadata` の再実行（Bugbot 指摘「metadata rerun per package」と
 /// 同種の重複）を避ける。
-pub fn fetch_workspace_graph() -> Result<(DepGraph, Vec<String>), CheckDepsError> {
-    let metadata = fetch_metadata_json()?;
+///
+/// `filter_platform` は [`fetch_metadata_json`] にそのまま渡す。呼び出し側
+/// （[`fetch_zero_dep_targets`]）は zero-dep 判定のため `false`（全 target 対象）を渡す。
+pub fn fetch_workspace_graph(
+    filter_platform: bool,
+) -> Result<(DepGraph, Vec<String>), CheckDepsError> {
+    let metadata = fetch_metadata_json(filter_platform)?;
     let graph = build_graph(&metadata)?;
     let members = workspace_member_names(&metadata)?;
     Ok((graph, members))
@@ -732,9 +757,17 @@ pub fn fetch_workspace_graph() -> Result<(DepGraph, Vec<String>), CheckDepsError
 /// パッケージを外部依存から除外する」際に使う（reviewer 指摘: `rws-interactive`
 /// から `rws-core` への path dependency のような第一者依存を外部依存として
 /// 誤カウントしないため）。
+///
+/// [`fetch_workspace_graph`] を `filter_platform=false` で呼び出し、全 target 分の
+/// `cargo metadata` 結果を使う。「外部依存ゼロ」（coding-rust.md「core は外部依存
+/// ゼロ」）はホスト以外の target 向け（`target.'cfg(...)'.dependencies` 配下）の
+/// 外部クレート宣言も対象とすべきであり、ホストでフィルタ済みの結果を使うと
+/// 非ホスト target 限定の外部依存が resolve.nodes から取り除かれてしまい、
+/// zero-dep ゲートが検出できずに PASS してしまう
+/// （Bugbot review 4718471860 指摘 2: non-host target-specific 外部依存の見落とし）。
 pub fn fetch_zero_dep_targets() -> Result<(DepGraph, Vec<String>, HashSet<String>), CheckDepsError>
 {
-    let (graph, members) = fetch_workspace_graph()?;
+    let (graph, members) = fetch_workspace_graph(false)?;
     let member_set: HashSet<String> = members.iter().cloned().collect();
     let targets: Vec<String> = ZERO_DEP_CRATES
         .iter()

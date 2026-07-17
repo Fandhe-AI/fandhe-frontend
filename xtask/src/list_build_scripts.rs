@@ -189,7 +189,9 @@ pub type NamedInventory = (String, Result<Vec<BuildScriptCrate>, CheckDepsError>
 pub fn list_many_from_cargo_metadata(
     root_names: &[String],
 ) -> Result<Vec<NamedInventory>, CheckDepsError> {
-    let metadata = check_deps::fetch_metadata_json()?;
+    // build.rs 監査（TASK-3.2b）はホスト構成での実測が対象のため filter_platform=true
+    // （check_deps::fetch_dep_graph と同じホスト限定挙動を踏襲する）。
+    let metadata = check_deps::fetch_metadata_json(true)?;
     let graph = check_deps::build_graph(&metadata)?;
     let flags = collect_build_script_flags(&metadata)?;
 

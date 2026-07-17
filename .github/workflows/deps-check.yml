@@ -88,6 +88,12 @@ jobs:
         # 引数は取らない契約（xtask/src/main.rs `run_check_core_deps` 参照。判定対象を
         # ワークフロー側の引数変更で弱められない設計）。
         # pipefail・tee・--locked の理由は直前の "Run xtask check-deps" ステップと同一。
+        # if: always()（Cursor Bugbot review 4718471860 指摘 1 対応）: 先行する
+        # "Run xtask check-deps" が失敗（60/6 超過）しても、この zero-dep ゲートは
+        # 独立した判定として必ず実行・報告する。if を付けないと直前ステップ失敗時に
+        # このステップ自体が skip され、コメントで謳う「独立したゲート」が実質的に
+        # 機能しなくなる（publish / list-build-scripts と同様の理由）。
+        if: always()
         run: |
           set -o pipefail
           cargo run --locked -p xtask -- check-core-deps | tee core-deps-check.log
