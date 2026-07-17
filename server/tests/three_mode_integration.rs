@@ -21,34 +21,12 @@ use rws_core::render;
 use rws_server::ssg::generate;
 use rws_server::ssr::respond;
 use std::fs;
-use std::path::PathBuf;
 
-/// `tempfile` 等の外部クレートを追加せず、`std::env::temp_dir()` +
-/// プロセス固有サフィックスで一時ディレクトリを代用する
-/// （REQ-3: `rws-server` は外部依存ゼロを維持する）。
-struct TempDir(PathBuf);
-
-impl TempDir {
-    fn new(tag: &str) -> Self {
-        let unique = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!(
-            "rws-server-three-mode-test-{tag}-{}-{unique}",
-            std::process::id()
-        ));
-        Self(path)
-    }
-}
-
-impl Drop for TempDir {
-    fn drop(&mut self) {
-        // 後片付け失敗はテスト失敗にしない（一時ディレクトリの残留は
-        // テスト結果の正当性に影響しない）。
-        let _ = fs::remove_dir_all(&self.0);
-    }
-}
+// `TempDir` は `server/src/ssg.rs` の unit test と重複実装しない共有ヘルパー。
+// unit test と integration test は別クレートとしてリンクされ `#[cfg(test)]`
+// アイテムを跨いで共有できないため、`include!` でソースを直接展開する
+// （`server/tests/support/temp_dir.rs` 参照）。
+include!("support/temp_dir.rs");
 
 /// REQ-6 受け入れ基準 1: SSR（`respond`）と SSG（`generate`）が同一ボディを
 /// 出力すること（バイト一致）。

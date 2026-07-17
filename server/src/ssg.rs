@@ -52,6 +52,17 @@ pub enum SsgError {
     /// [`crate::ssr::respond`] が `None` を返した（ルート定義との不整合。
     /// 通常到達しないが、固定ルート表の変更漏れを検知するために保持する）。
     RouteNotFound(String),
+    /// [`crate::ssr::respond`] が 200 以外のステータス（例: 404）を返した。
+    /// `generate()` は `demo_items()` 自身から導出したパスしか
+    /// `write_route` に渡さないため通常到達しないが、「200 応答ボディを
+    /// そのまま書き出す」という契約をコード上でも明示的に強制するために
+    /// 検証する（ルート表と `demo_items()` が将来ズレた場合の防御）。
+    UnexpectedStatus {
+        /// 対象のリクエストパス。
+        path: String,
+        /// `respond()` が実際に返したステータスコード。
+        status: u16,
+    },
 }
 
 impl fmt::Display for SsgError {
@@ -68,6 +79,12 @@ impl fmt::Display for SsgError {
             }
             SsgError::RouteNotFound(path) => {
                 write!(f, "no SSR route matched fixed path {path:?}")
+            }
+            SsgError::UnexpectedStatus { path, status } => {
+                write!(
+                    f,
+                    "SSR route {path:?} returned unexpected status {status} (expected 200)"
+                )
             }
         }
     }
@@ -90,9 +107,11 @@ fn is_safe_path_segment(id: &str) -> bool {
 /// `out_dir` 配下へ `/` と各 `demo_items()` の詳細ページを静的ファイルとして
 /// 書き出す。書き出したファイルの絶対パス一覧を返す。
 ///
-/// `respond()` の 200/404 ボディをそのまま書き出すため、SSR と SSG の出力は
-/// 構成上完全一致する（テストは `server/tests/three_mode_integration.rs` で
-/// バイト一致を固定）。
+/// `write_route` が各ルートの `respond()` 応答を 200 であることを検証した
+/// うえでボディをそのまま書き出すため、SSR と SSG の出力は構成上完全一致
+/// する（テストは `server/tests/three_mode_integration.rs` でバイト一致を
+/// 固定）。`generate()` が呼ぶルートは常に `demo_items()` 自身から導出した
+/// 存在確実なパスのため、実運用では 404 応答を書き出すことはない。
 pub fn generate(out_dir: &Path) -> Result<Vec<PathBuf>, SsgError> {
     let mut written = Vec::new();
 
@@ -111,6 +130,10 @@ pub fn generate(out_dir: &Path) -> Result<Vec<PathBuf>, SsgError> {
 }
 
 /// 1 ルート分を解決して `out_dir/relative_path` へ書き出す共通処理。
+///
+/// `respond()` が返した 200 応答ボディのみを書き出す契約であり、200 以外
+/// （`RouteNotFound`/`UnexpectedStatus`）はすべてエラーとして呼び出し元
+/// （[`generate`]）へ伝播し、ファイルを書き出さない。
 fn write_route(
     out_dir: &Path,
     request_path: &str,
@@ -118,6 +141,12 @@ fn write_route(
 ) -> Result<PathBuf, SsgError> {
     let response =
         respond(request_path).ok_or_else(|| SsgError::RouteNotFound(request_path.to_string()))?;
+    if response.status != 200 {
+        return Err(SsgError::UnexpectedStatus {
+            path: request_path.to_string(),
+            status: response.status,
+        });
+    }
 
     let file_path = out_dir.join(relative_path);
     if let Some(parent) = file_path.parent() {
@@ -140,33 +169,15 @@ mod tests {
     use crate::ssr::respond;
     use std::fs;
 
-    /// テスト専用の一時ディレクトリ。`tempfile` は追加せず
-    /// `std::env::temp_dir()` + プロセス固有サフィックスで代替する
-    /// （`coding-rust.md`: `core` は依存ゼロ、本クレートも外部依存を増やさない）。
-    struct TempDir(PathBuf);
-
-    impl TempDir {
-        fn new(tag: &str) -> Self {
-            let path = std::env::temp_dir().join(format!(
-                "rws-server-ssg-test-{tag}-{}-{}",
-                std::process::id(),
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_nanos())
-                    .unwrap_or(0)
-            ));
-            Self(path)
-        }
-    }
-
-    impl Drop for TempDir {
-        fn drop(&mut self) {
-            // 後片付け失敗はテスト失敗にしない（`fs::remove_dir_all` の
-            // エラーを握りつぶす。一時ディレクトリの残留はテスト結果の
-            // 正当性に影響しない）。
-            let _ = fs::remove_dir_all(&self.0);
-        }
-    }
+    // `TempDir` は integration test（`server/tests/three_mode_integration.rs`）
+    // と重複実装しない共有ヘルパー。unit test（本モジュール）と integration
+    // test は別クレートとしてリンクされ `#[cfg(test)]` アイテムを跨いで
+    // 共有できないため、`include!` でソースを直接展開する
+    // （`server/tests/support/temp_dir.rs` 参照）。
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/support/temp_dir.rs"
+    ));
 
     #[test]
     fn generate_writes_index_and_each_item_matching_ssr_bytes() {
@@ -195,5 +206,28 @@ mod tests {
         assert!(!is_safe_path_segment(""));
         assert!(is_safe_path_segment("1"));
         assert!(is_safe_path_segment("item-2_final"));
+    }
+
+    #[test]
+    fn write_route_rejects_non_200_ssr_response() {
+        // 存在しないアイテム id は `respond()` が 404 を返す固定ルートで、
+        // `write_route` がステータス検証で書き出しを拒否することを固定する
+        // （「200 応答ボディをそのまま書き出す」契約のコード上の担保）。
+        let dir = TempDir::new("unexpected-status");
+        let err = write_route(
+            &dir.0,
+            "/items/does-not-exist",
+            "items/does-not-exist/index.html",
+        )
+        .expect_err("404 route should be rejected before writing");
+
+        match err {
+            SsgError::UnexpectedStatus { path, status } => {
+                assert_eq!(path, "/items/does-not-exist");
+                assert_eq!(status, 404);
+            }
+            other => panic!("expected UnexpectedStatus, got {other:?}"),
+        }
+        assert!(!dir.0.join("items/does-not-exist/index.html").exists());
     }
 }
