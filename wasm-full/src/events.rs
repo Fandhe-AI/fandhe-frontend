@@ -1,0 +1,320 @@
+//! イベント委譲によるクリック/入力処理（TASK-11.2b、イシュー #75）。
+//!
+//! `rws-wasm-full` は REQ-11（WASM 完全方式）の既定実装であり、クライアントの
+//! イベント処理・DOM 更新を JS グルーへ漏らさず safe Rust の範囲に閉じ込める
+//! ことが目的である。本モジュールはその「イベント処理」区画を担当し、
+//! DOM 更新（TASK-11.2c、#76）・`mount()`/`hydrate()` の既定実装化（TASK-11.2d、
+//! #77）とは責務を分離する。
+//!
+//! # 設計（PoC-5 `wasm-runtime-split/wasm-full/src/lib.rs` の一般化）
+//!
+//! - ルート要素へ `click` / `input` リスナーを **マウント時に 1 回だけ** 委譲登録
+//!   する（[`wire_events`]）。再描画で子要素が入れ替わってもルートの
+//!   リスナーは保持されるため、再描画のたびにリスナーを張り直す必要がない。
+//! - リスナー登録は [`wasm_bindgen::closure::Closure::forget`] を click / input の
+//!   2 回に限定する。`forget` は safe API であり `unsafe` ブロックを要しないが、
+//!   登録回数を定数個に抑えることで無制限リーク（メモリ枯渇 DoS）を構造的に
+//!   回避する（A04: 安全でない設計への対策）。
+//! - 属性からのアクション判定ロジック（[`action_from_click`] / [`action_from_input`]）
+//!   は web-sys に依存しない純粋関数として切り出し、native の `cargo test` で
+//!   検証できるようにする（配線層のみ `#[cfg(target_arch = "wasm32")]` でゲート
+//!   し、native ビルドへ web-sys 依存を混入させない）。
+//!
+//! # 他クレート・他モジュールとの契約
+//!
+//! - [`ActionRef`] の `action` / `payload` は `rws_interactive::dispatch` の
+//!   `name` / `payload` 引数仕様と一致する（`data-action` / `data-payload` 属性、
+//!   `interactive/src/lib.rs` の `render_with_root_attrs` が出力する DOM 契約）。
+//! - [`wire_events`] は状態更新（`dispatch`）・再描画（DOM 更新、#76 のスコープ）を
+//!   直接呼ばず、すべて `on_action` コールバックへ委譲する。これにより本モジュールは
+//!   `rws-interactive` の具象状態にも DOM 更新実装にも結合しない。
+//! - 再描画出力は呼び出し側（#76/#77）が `rws_core::render()`（既定エスケープ）を
+//!   経由させる前提であり、本モジュールは HTML 文字列を一切組み立てない
+//!   （REQ-1 不変条件、`.claude/rules/coding-rust.md`）。
+
+/// クリック/入力イベントから判定した「dispatch すべきアクション」への参照。
+///
+/// `action` は `data-action` 属性値、`payload` は `data-payload`（クリック時）
+/// または入力値そのもの（input 時）に対応する。`rws_interactive::dispatch`
+/// （`interactive/src/lib.rs`）の `(name, payload)` 引数へそのまま渡せる形。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActionRef {
+    /// `data-action` 属性値（`rws_interactive::Component::decode_action` の `name`）。
+    pub action: String,
+    /// dispatch へ渡す payload（`rws_interactive::Component::decode_action` の `payload`）。
+    pub payload: String,
+    /// この操作の直後に再描画を要求してよいか。
+    ///
+    /// `input` イベント中（1 文字入力ごと）は `false` を返し、呼び出し側
+    /// （#76/#77）が再描画をスキップする前提とする。PoC-5 の知見（
+    /// `set_inner_html` を伴う再描画がフォーカス・キャレット位置を破壊する）を
+    /// 踏襲したフラグであり、本モジュールは実際の再描画処理を持たない。
+    pub should_repaint: bool,
+}
+
+/// イベントターゲット（祖先方向の探索結果を含む）の属性読み取り抽象。
+///
+/// `web_sys::Element` とテストダブルの双方が実装できるようにし、
+/// [`action_from_click`] を native の `cargo test` で検証可能にする。
+pub trait AttrSource {
+    /// 指定名の属性値を読む。属性が存在しなければ `None`。
+    fn attr(&self, name: &str) -> Option<String>;
+}
+
+/// click イベントのターゲット属性から dispatch すべきアクションを判定する。
+///
+/// `data-action` 属性が無ければフレームワーク管轄外のクリックとして `None`
+/// を返す（安全側 no-op）。`data-payload` が無い場合は空文字列を payload
+/// とする（`rws_interactive::Component::decode_action` 側が未知/不正な
+/// payload を no-op として扱う契約に委ねる、不変条件 4）。
+///
+/// 配線層（[`wire_events`]）は `target.closest("[data-action]")`
+/// （`web_sys::Element::closest`）で得た祖先要素を `target` として渡す想定
+/// であり、本関数自体は「渡された 1 要素の属性を読む」責務のみを持つ
+/// （祖先探索は DOM API 依存のため配線層の責務とし、ここでは扱わない）。
+pub fn action_from_click<T: AttrSource>(target: &T) -> Option<ActionRef> {
+    let action = target.attr("data-action")?;
+    let payload = target.attr("data-payload").unwrap_or_default();
+    Some(ActionRef {
+        action,
+        payload,
+        should_repaint: true,
+    })
+}
+
+/// input イベントから draft 更新アクションを判定する。
+///
+/// 対象は `id="draft-input"` の入力欄のみ（`interactive/src/lib.rs` の
+/// `render_with_root_attrs` が出力するフォーム入力欄の id 契約に合わせる）。
+/// 他 id の input イベントはフレームワーク管轄外として `None` を返す。
+///
+/// `should_repaint` は常に `false`: 入力中の再描画は `set_inner_html` による
+/// フォーカス・キャレット破壊を招くため、呼び出し側は状態更新のみ行い
+/// 再描画をスキップする（PoC-5 準拠）。
+pub fn action_from_input(id: &str, value: &str) -> Option<ActionRef> {
+    if id != "draft-input" {
+        return None;
+    }
+    Some(ActionRef {
+        action: "set_draft".to_string(),
+        payload: value.to_string(),
+        should_repaint: false,
+    })
+}
+
+// ---------------------------------------------------------------------
+// 配線層: web-sys 依存。wasm32 ターゲットでのみコンパイル対象とし、
+// native の `cargo test --workspace` に本層の DOM 依存コードを混入させない。
+// ---------------------------------------------------------------------
+#[cfg(target_arch = "wasm32")]
+mod wiring {
+    use super::{action_from_click, action_from_input, ActionRef, AttrSource};
+    use wasm_bindgen::closure::Closure;
+    use wasm_bindgen::{JsCast, JsValue};
+    use web_sys::{Element, Event, HtmlInputElement};
+
+    /// `web_sys::Element` を [`AttrSource`] に橋渡しする薄いラッパー。
+    ///
+    /// 配線層（本モジュール）専用のアダプタであり、純粋ロジック層
+    /// （[`action_from_click`]）を web-sys の具象型から独立させたまま保つ。
+    struct ElementAttrSource<'a>(&'a Element);
+
+    impl AttrSource for ElementAttrSource<'_> {
+        fn attr(&self, name: &str) -> Option<String> {
+            self.0.get_attribute(name)
+        }
+    }
+
+    /// ルート要素へ `click` / `input` の委譲リスナーをマウント時に 1 回だけ登録する。
+    ///
+    /// - `click`: `event.target()` から `closest("[data-action]")` で祖先方向に
+    ///   `data-action` 属性を持つ要素を探索する（ボタン内の子要素クリックを
+    ///   取りこぼさないための対策。PoC 版は `target()` 直接参照のため子要素
+    ///   クリックを取りこぼしていた）。`Element::closest` は呼び出し要素自身
+    ///   から祖先方向へ辿るのみで文書全体は走査しないが、`root` より外側の
+    ///   祖先に `data-action` 要素があれば理論上そこまで一致し得るため、本関数は
+    ///   `contains` で「ヒットした要素が root の子孫（root 自身を含む）であること」
+    ///   を確認してから採用する。
+    /// - `input`: `event.target()` を `HtmlInputElement` へキャストできた場合のみ
+    ///   [`action_from_input`] へ渡す。
+    ///
+    /// アクション判定に成功した場合のみ `on_action` を呼ぶ（状態更新・再描画は
+    /// 呼び出し側の責務。本関数は関知しない）。
+    ///
+    /// `Closure::forget` は click / input の 2 回のみに限定する。マウントは
+    /// アプリ生存期間に 1 度だけの前提であり、リーク数は定数個に収まる
+    /// （`forget` は safe API であり `unsafe` を要しない）。
+    pub fn wire_events(
+        root: Element,
+        on_action: impl FnMut(ActionRef) + 'static,
+    ) -> Result<(), JsValue> {
+        let click_root = root.clone();
+        let on_action_click = std::rc::Rc::new(std::cell::RefCell::new(on_action));
+        let on_action_input = on_action_click.clone();
+
+        let click_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            let Some(target) = event.target() else {
+                return;
+            };
+            let Some(target_element) = target.dyn_ref::<Element>() else {
+                return;
+            };
+            // data-action を持つ祖先要素を探索する。探索失敗（None）・
+            // クエリ不正（Err）はいずれもフレームワーク管轄外のクリックとして
+            // 無視する（安全側 no-op）。
+            let Ok(Some(matched)) = target_element.closest("[data-action]") else {
+                return;
+            };
+            // click_root の子孫でない要素（closest が別ツリーへ抜けた場合）は
+            // 採用しない。`contains` は自分自身も含むため matched == root の
+            // ケースも許容する。
+            if !click_root.contains(Some(&matched)) {
+                return;
+            }
+            let source = ElementAttrSource(&matched);
+            if let Some(action_ref) = action_from_click(&source) {
+                (on_action_click.borrow_mut())(action_ref);
+            }
+        });
+        root.add_event_listener_with_callback("click", click_closure.as_ref().unchecked_ref())?;
+        click_closure.forget();
+
+        let input_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            let Some(target) = event.target() else {
+                return;
+            };
+            let Some(input) = target.dyn_ref::<HtmlInputElement>() else {
+                return;
+            };
+            if let Some(action_ref) = action_from_input(&input.id(), &input.value()) {
+                (on_action_input.borrow_mut())(action_ref);
+            }
+        });
+        root.add_event_listener_with_callback("input", input_closure.as_ref().unchecked_ref())?;
+        input_closure.forget();
+
+        Ok(())
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub use wiring::wire_events;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    /// native `cargo test` 用のテストダブル。web-sys 非依存で
+    /// [`action_from_click`] の判定ロジックを検証する。
+    struct FakeElement {
+        attrs: HashMap<&'static str, &'static str>,
+    }
+
+    impl AttrSource for FakeElement {
+        fn attr(&self, name: &str) -> Option<String> {
+            self.attrs.get(name).map(|v| v.to_string())
+        }
+    }
+
+    fn element(attrs: &[(&'static str, &'static str)]) -> FakeElement {
+        FakeElement {
+            attrs: attrs.iter().copied().collect(),
+        }
+    }
+
+    #[test]
+    fn click_with_action_and_payload_dispatches() {
+        let target = element(&[("data-action", "remove_item"), ("data-payload", "2")]);
+        let action_ref = action_from_click(&target).expect("data-action present");
+        assert_eq!(action_ref.action, "remove_item");
+        assert_eq!(action_ref.payload, "2");
+        assert!(action_ref.should_repaint);
+    }
+
+    #[test]
+    fn click_without_data_action_is_ignored() {
+        let target = element(&[("data-testid", "some-div")]);
+        assert_eq!(action_from_click(&target), None);
+    }
+
+    #[test]
+    fn click_with_action_but_no_payload_uses_empty_payload() {
+        let target = element(&[("data-action", "increment")]);
+        let action_ref = action_from_click(&target).expect("data-action present");
+        assert_eq!(action_ref.action, "increment");
+        assert_eq!(action_ref.payload, "");
+    }
+
+    #[test]
+    fn click_with_unknown_action_still_produces_action_ref() {
+        // 未知アクション名の判定自体は本モジュールの責務ではない。
+        // no-op 化は rws_interactive::dispatch/decode_action 側の契約
+        // （不変条件 4）に委ねる。
+        let target = element(&[("data-action", "no_such_action")]);
+        let action_ref = action_from_click(&target).expect("data-action present");
+        assert_eq!(action_ref.action, "no_such_action");
+    }
+
+    #[test]
+    fn input_on_draft_input_dispatches_set_draft_without_repaint() {
+        let action_ref = action_from_input("draft-input", "hello").expect("draft-input matches");
+        assert_eq!(action_ref.action, "set_draft");
+        assert_eq!(action_ref.payload, "hello");
+        assert!(!action_ref.should_repaint);
+    }
+
+    #[test]
+    fn input_on_other_id_is_ignored() {
+        assert_eq!(action_from_input("other-input", "hello"), None);
+    }
+
+    /// REQ-1（既定エスケープ）の経路一貫性回帰テスト:
+    /// イベント判定 → dispatch → `rws_core::render` の一連の経路を通しても
+    /// 生タグが出力に現れないこと（`docs/spec/04-requirements.md` の
+    /// 「イベント処理・DOM 更新経由の出力にも同一のエスケープ保証」対応）。
+    #[test]
+    fn event_to_dispatch_to_render_roundtrip_escapes_script_payload() {
+        use rws_interactive::{dispatch, AppState, Component};
+
+        let target = element(&[
+            ("data-action", "set_draft"),
+            ("data-payload", "<script>alert(1)</script>"),
+        ]);
+        let action_ref = action_from_click(&target).expect("data-action present");
+
+        let mut state = AppState::new();
+        assert!(dispatch(
+            &mut state,
+            &action_ref.action,
+            &action_ref.payload
+        ));
+        // set_draft だけでは items へ反映されないため、描画確認用に add_item も
+        // dispatch して draft の内容を items へ確定させる。
+        assert!(dispatch(&mut state, "add_item", ""));
+
+        let html = rws_core::render(&state.view());
+        assert!(!html.contains("<script>alert"));
+        assert!(html.contains("&lt;script&gt;alert"));
+    }
+
+    /// `data-idx`/payload の数値パース失敗が panic しないこと
+    /// （`remove_item` は `rws_interactive::AppState::decode_action` 側で
+    /// `parse::<usize>()` の失敗を no-op とする契約、境界外・非数値入力）。
+    #[test]
+    fn remove_item_with_non_numeric_payload_is_noop_not_panic() {
+        use rws_interactive::{dispatch, AppState};
+
+        let target = element(&[
+            ("data-action", "remove_item"),
+            ("data-payload", "not-a-number"),
+        ]);
+        let action_ref = action_from_click(&target).expect("data-action present");
+
+        let mut state = AppState::new();
+        let before = state.clone();
+        let dispatched = dispatch(&mut state, &action_ref.action, &action_ref.payload);
+        assert!(!dispatched);
+        assert_eq!(state, before);
+    }
+}

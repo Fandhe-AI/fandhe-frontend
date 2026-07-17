@@ -1,0 +1,42 @@
+[package]
+name = "rws-wasm-full"
+version = "0.1.0"
+edition = "2021"
+description = "rws-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# TASK-11.2b（#75）時点で本クレートは新規作成。
+# `docs/unsafe-boundary.md` 第 2 節のポリシー: 自作コードは safe Rust のみとし、
+# `unsafe` は wasm-bindgen / web-sys の FFI 境界（依存クレート内部・自動生成コード）
+# に限定して許容する。本クレート自体に `#![forbid(unsafe_code)]` を設定できるかは
+# wasm-bindgen 生成コードとの整合を #74/#77 側で確認の上判断する（本タスクでは
+# events.rs 内の純粋ロジック層・配線層のいずれも unsafe ブロックを使用しない）。
+#
+# 依存追加は事前承認必須（.claude/rules/coding-rust.md, security.md）。
+# 本追加は Issue #73/#75 の計画（PoC-5 `wasm-full/Cargo.toml` と同一依存構成）を
+# もって承認済みとし、影響確認結果を PR 本文に記録する。
+[dependencies]
+rws-interactive = { path = "../interactive" }
+wasm-bindgen = "0.2"
+
+[dependencies.web-sys]
+version = "0.3"
+features = [
+  "Document",
+  "Element",
+  "Event",
+  "EventTarget",
+  "HtmlInputElement",
+  "Window",
+  "console",
+]
+
+[dev-dependencies]
+# events.rs のテスト（REQ-1 経路一貫性回帰）が dispatch 後の描画結果を
+# `rws_core::render` で直接検証するために必要（本体コードは rws-interactive
+# 経由でのみ rws-core に触れる想定であり、本クレートの通常依存には追加しない）。
+rws-core = { path = "../core" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]

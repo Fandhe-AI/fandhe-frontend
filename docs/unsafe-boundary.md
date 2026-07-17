@@ -20,18 +20,21 @@ PoC-2 の脅威モデルの結論は次のとおりです。コア（`rws-core` 
 | `core`（rws-core） | `unsafe` を全面禁止 | `#![forbid(unsafe_code)]` を `core/src/lib.rs` に設定済み。REQ-2 受け入れ基準の中核 |
 | `interactive`（rws-interactive） | `unsafe` を全面禁止 | `#![forbid(unsafe_code)]` を `interactive/src/lib.rs` に設定済み（TASK-11.1a/TASK-11.1b）。REQ-2 受け入れ基準を `core` と同様に満たす |
 | `app` / `server`（rws-app / rws-server） | 原則 `unsafe` 禁止（safe Rust で実装） | 未作成クレート。SSR/SSG/ルーティングはアプリケーション層であり、FFI 境界を持たない前提。作成時に `forbid(unsafe_code)` の要否を判断し本表へ追記する |
-| `wasm-client` / `wasm-full`（未作成） | フレームワーク自作コードは safe Rust。`unsafe` は wasm-bindgen 等の FFI 依存クレート内部・自動生成グルーコードに限定して許容 | ブラウザ DOM とのバインディングは `wasm-bindgen` の生成コードに委譲し、自作コード側で `unsafe` を新規に書かない方針とする |
+| `wasm-client`（未作成） | フレームワーク自作コードは safe Rust。`unsafe` は wasm-bindgen 等の FFI 依存クレート内部・自動生成グルーコードに限定して許容 | ブラウザ DOM とのバインディングは `wasm-bindgen` の生成コードに委譲し、自作コード側で `unsafe` を新規に書かない方針とする |
+| `wasm-full`（rws-wasm-full。TASK-11.2b/#75 で作成済み） | フレームワーク自作コードは safe Rust（`wasm-full/src/` に自作 `unsafe` ブロック 0 件）。`unsafe` は `wasm-bindgen`/`web-sys` の FFI 依存クレート内部・自動生成グルーコードに限定して許容 | イベント委譲配線（`wasm-full/src/events.rs`）は `wasm_bindgen::closure::Closure::forget`（safe API）でリスナーを保持する方式を採り、`unsafe` ブロックを要しない。自作コードへの `#![forbid(unsafe_code)]` 設定はクレート雛形の統合（TASK-11.2d/#77）側で `mount()`/`hydrate()` 実装と合わせて判断する |
 
 未作成のクレートについては、作成時にこの表へ実際の `forbid` 設定・依存クレートの実態を追記すること
 （本ドキュメントを「計画中」のまま放置しない）。
 
 ## 3. unsafe 使用箇所一覧（インベントリ）
 
-**現時点（2026-07-17 時点）: ワークスペース内の `unsafe` 使用箇所は 0 件。**
+**現時点（2026-07-17 時点）: ワークスペース内の自作 `unsafe` 使用箇所は 0 件。**
 
 `core` / `interactive` に `#![forbid(unsafe_code)]` が設定されているため、両クレート内での `unsafe` 使用は
-コンパイルエラーとして機械的に禁止されています。`app` / `server` / `wasm-client` / `wasm-full` は本ドキュメント
-更新時点で未作成のため、インベントリは空です。
+コンパイルエラーとして機械的に禁止されています。`app` / `server` / `wasm-client` は本ドキュメント更新時点で
+未作成のため、インベントリは空です。`wasm-full`（rws-wasm-full）は TASK-11.2b（#75）で作成済みですが、
+`grep -rnE '\bunsafe\s*(fn|impl|trait|\{)' wasm-full/src/` の結果は 0 件であり、自作コード側の `unsafe`
+ブロックはありません（`wasm-bindgen`/`web-sys` の FFI 依存クレート内部・自動生成コードのみが対象、第 4 節参照）。
 
 ### 一覧テーブル雛形
 
