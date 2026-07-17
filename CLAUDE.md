@@ -27,7 +27,10 @@ frontend-framework/
 │       └── 06-roadmap.md       # MS-1〜MS-5・着手判定
 ├── templates/
 │   └── default/
-│       └── deny.toml         # 標準プロジェクトテンプレート同梱の cargo-deny 設定（TASK-4.1 / REQ-4）
+│       ├── deny.toml         # 標準プロジェクトテンプレート同梱の cargo-deny 設定（TASK-4.1 / REQ-4）
+│       └── .github/
+│           └── workflows/
+│               └── deny.yml  # 禁止クレート追加を CI でブロックするテンプレートワークフロー（TASK-4.2 / REQ-4）
 └── .claude/
     ├── agents/               # カテゴリ別 sub-agent 定義
     ├── rules/                # 委譲・コーディング・セキュリティ規約
