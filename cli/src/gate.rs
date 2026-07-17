@@ -201,9 +201,24 @@ fn truncate_output(output: &str) -> String {
     }
 }
 
+/// `structure.toml` に宣言クレートが 1 つもない場合の fail-closed メッセージ。
+///
+/// `crates` が空のまま `cargo check`/`clippy`/`test` を `-p` なしで実行すると
+/// ワークスペース全体（宣言外クレート含む）を検証してしまい、「`structure.toml`
+/// を唯一の情報源として宣言クレートのみを検証する」契約が崩れる。宣言 0 件を
+/// 「検証対象なし＝ PASS」と黙って通す（過小検証）のでも、範囲不明なワーク
+/// スペース全体検証に暗黙にフォールバックする（範囲逸脱）のでもなく、設定不備
+/// として明示的に fail-closed する（security.md A05。Bugbot 指摘: PR #261 #2）。
+fn no_declared_crates_message() -> String {
+    "no crate declared in structure.toml (no directory sets `crate = \"...\"`); \
+refusing to fall back to whole-workspace verification, declare at least one crate"
+        .to_string()
+}
+
 /// `crates` を対象に `-p <crate>` を連ねて外部コマンドを実行する共通ヘルパー。
 /// `--locked` はロックファイル逸脱（依存すり替え）検出のため常に付与する
-/// （security.md A06）。
+/// （security.md A06）。`crates` が空の場合はワークスペース全体へのフォール
+/// バックを避け fail-closed する（[`no_declared_crates_message`] 参照）。
 fn run_locked_cargo_subcommand(
     runner: &dyn CommandRunner,
     project_dir: &Path,
@@ -211,6 +226,13 @@ fn run_locked_cargo_subcommand(
     subcommand_args: &[&str],
     crates: &[&str],
 ) -> GateCheck {
+    if crates.is_empty() {
+        return GateCheck {
+            name,
+            passed: false,
+            output: no_declared_crates_message(),
+        };
+    }
     let mut args: Vec<&str> = subcommand_args.to_vec();
     for c in crates {
         args.push("-p");
@@ -239,6 +261,17 @@ fn run_cargo_clippy(runner: &dyn CommandRunner, project_dir: &Path, crates: &[&s
     // `test`（`run_locked_cargo_subcommand`）と同様に常に付与する
     // （security.md A06。Bugbot 指摘: PR #261 #2 — `lint` だけ `--locked` を
     // 欠くと依存差し替え検知の抜け道になり得る）。
+    // `crates` が空の場合は他の 2 チェックと同様にワークスペース全体への
+    // フォールバックを避け fail-closed する（[`no_declared_crates_message`] 参照。
+    // Bugbot 指摘: PR #261 #2 — `lint` は `run_locked_cargo_subcommand` を介さず
+    // 独自に引数を組み立てるため、この分岐を個別に持つ必要がある）。
+    if crates.is_empty() {
+        return GateCheck {
+            name: "lint",
+            passed: false,
+            output: no_declared_crates_message(),
+        };
+    }
     // `-- -D warnings` は cargo 引数の後段（サブコマンド固有引数)として渡す
     // （coding-rust.md: `cargo clippy -- -D warnings` を通す規約と同一コマンド）。
     let mut args: Vec<&str> = vec!["clippy", "--locked"];
@@ -293,30 +326,39 @@ fn policy_check(runner: &dyn CommandRunner, project_dir: &Path) -> GateCheck {
     }
 }
 
-/// `raw_html` 呼び出しの後続 1 文字を確認するための状態機械の最小走査（正規表現
-/// クレートを使わず手書きで判定する。`cli` 外部依存ゼロ方針）。
+/// ファイル内容全体（複数行にまたがってよい）から `raw_html` 呼び出しの開始
+/// バイトオフセットを列挙する状態機械の最小走査（正規表現クレートを使わず
+/// 手書きで判定する。`cli` 外部依存ゼロ方針）。
 ///
-/// `line` 中の `raw_html` の各出現位置について、直後の空白（半角スペース・タブ）を
-/// 読み飛ばした先が `(` であれば呼び出しとみなす。コメント内の出現も検出対象と
-/// する（偽陽性は許容・偽陰性は不許容の保守側実装、計画 §3.2）。
-fn line_has_raw_html_call(line: &str) -> bool {
-    let bytes = line.as_bytes();
+/// `content` 中の `raw_html` の各出現位置について、直後の空白文字（半角
+/// スペース・タブ・改行を含む ASCII 空白）を読み飛ばした先が `(` であれば
+/// 呼び出しとみなす。コメント内の出現も検出対象とする（偽陽性は許容・
+/// 偽陰性は不許容の保守側実装、計画 §3.2）。
+///
+/// 行単位走査（旧 `line_has_raw_html_call`）では `raw_html` 識別子と `(` が
+/// 改行を挟んで別々の行に置かれた呼び出し（`raw_html\n    (user_input)` 等）
+/// を見逃していた（「見逃しなし」方針に反する検出漏れ、Bugbot 指摘:
+/// PR #261 #1）。空白の読み飛ばしを改行にも及ぼすことでこれを解消する。
+fn find_raw_html_call_positions(content: &str) -> Vec<usize> {
+    let bytes = content.as_bytes();
     let needle = b"raw_html";
+    let mut positions = Vec::new();
     let mut start = 0;
     while let Some(rel) = find_subslice(&bytes[start..], needle) {
-        let mut i = start + rel + needle.len();
-        while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
+        let match_start = start + rel;
+        let mut i = match_start + needle.len();
+        while i < bytes.len() && bytes[i].is_ascii_whitespace() {
             i += 1;
         }
         if i < bytes.len() && bytes[i] == b'(' {
-            return true;
+            positions.push(match_start);
         }
-        start += rel + 1;
+        start = match_start + 1;
         if start >= bytes.len() {
             break;
         }
     }
-    false
+    positions
 }
 
 fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
@@ -395,24 +437,45 @@ fn scan_dir_for_violations(dir: &Path, violations: &mut Vec<String>) {
     }
 }
 
+/// `path` の内容から未レビューの `raw_html()` 呼び出しを検出し `violations` へ
+/// `file:line` 形式で追記する。呼び出しが複数行にまたがる場合（識別子と `(` が
+/// 別行）も [`find_raw_html_call_positions`] により検出したうえで、その呼び出し
+/// 「開始行」を基準に同一行・直前行の `ESCAPE-REVIEWED:` マーカーの有無を判定
+/// する（マーカーは呼び出し全体ではなく開始位置に対して書かれる運用を想定）。
 fn scan_file_for_violations(path: &Path, violations: &mut Vec<String>) {
     let Ok(content) = std::fs::read_to_string(path) else {
         return;
     };
     let lines: Vec<&str> = content.lines().collect();
-    for (idx, line) in lines.iter().enumerate() {
-        if !line_has_raw_html_call(line) {
-            continue;
-        }
-        let reviewed_here = line.contains(ESCAPE_REVIEWED_MARKER);
-        let reviewed_prev = idx > 0 && lines[idx - 1].contains(ESCAPE_REVIEWED_MARKER);
+    // 各行の開始バイトオフセットを前計算し、マッチ位置 → 行番号の変換を
+    // 線形走査 1 回で済ませる（ファイルサイズに対して O(n) を維持し、
+    // マッチのたびに先頭から数え直す O(n^2) 化を避ける）。
+    let mut line_starts: Vec<usize> = Vec::with_capacity(lines.len());
+    let mut offset = 0usize;
+    for line in &lines {
+        line_starts.push(offset);
+        offset += line.len() + 1; // `\n` の 1 バイト分（末尾に改行がなくてもズレは許容範囲）。
+    }
+
+    for match_start in find_raw_html_call_positions(&content) {
+        let line_idx = match line_starts.binary_search(&match_start) {
+            Ok(i) => i,
+            Err(i) => i.saturating_sub(1),
+        };
+        let reviewed_here = lines
+            .get(line_idx)
+            .is_some_and(|l| l.contains(ESCAPE_REVIEWED_MARKER));
+        let reviewed_prev = line_idx > 0
+            && lines
+                .get(line_idx - 1)
+                .is_some_and(|l| l.contains(ESCAPE_REVIEWED_MARKER));
         if reviewed_here || reviewed_prev {
             continue;
         }
         violations.push(format!(
             "{}:{}: unreviewed raw_html() call",
             path.display(),
-            idx + 1
+            line_idx + 1
         ));
     }
 }
@@ -571,21 +634,81 @@ mod tests {
         assert_eq!(declared_crate_names(&manifest), vec!["rws-core"]);
     }
 
-    #[test]
-    fn line_has_raw_html_call_detects_direct_call() {
-        assert!(line_has_raw_html_call("let x = raw_html(user_input);"));
+    /// 呼ばれたら即座に panic するフェイク（「起動しないこと」自体を検証する
+    /// テスト専用。実行されればテスト失敗として顕在化する）。
+    struct PanicIfCalledRunner;
+
+    impl CommandRunner for PanicIfCalledRunner {
+        fn run(&self, program: &str, args: &[&str], _cwd: &Path) -> (bool, String) {
+            panic!("cargo must not be invoked when no crate is declared: {program} {args:?}");
+        }
     }
 
     #[test]
-    fn line_has_raw_html_call_detects_call_with_space_before_paren() {
-        assert!(line_has_raw_html_call("let x = raw_html (user_input);"));
+    fn run_locked_cargo_subcommand_fails_closed_when_no_crates_declared() {
+        // Bugbot 指摘: PR #261 #2 — 宣言クレートが 0 件のとき `-p` なしで
+        // ワークスペース全体を検証してしまってはならない。cargo を一切起動せず
+        // fail-closed することを検証する。
+        let dir = std::env::temp_dir();
+        let check =
+            run_locked_cargo_subcommand(&PanicIfCalledRunner, &dir, "type_check", &["check"], &[]);
+        assert!(!check.passed);
+        assert!(check.output.contains("no crate declared"));
     }
 
     #[test]
-    fn line_has_raw_html_call_ignores_non_call_occurrence() {
-        assert!(!line_has_raw_html_call(
-            "// see raw_html module docs for details"
-        ));
+    fn run_cargo_clippy_fails_closed_when_no_crates_declared() {
+        let dir = std::env::temp_dir();
+        let check = run_cargo_clippy(&PanicIfCalledRunner, &dir, &[]);
+        assert!(!check.passed);
+        assert!(check.output.contains("no crate declared"));
+    }
+
+    #[test]
+    fn run_locked_cargo_subcommand_runs_when_crates_declared() {
+        let dir = std::env::temp_dir();
+        let runner = FakeRunner {
+            responses: Mutex::new(vec![(true, "ok".to_string())]),
+        };
+        let check = run_locked_cargo_subcommand(
+            &runner,
+            &dir,
+            "type_check",
+            &["check", "--locked"],
+            &["rws-core"],
+        );
+        assert!(check.passed);
+    }
+
+    #[test]
+    fn find_raw_html_call_positions_detects_direct_call() {
+        assert_eq!(
+            find_raw_html_call_positions("let x = raw_html(user_input);").len(),
+            1
+        );
+    }
+
+    #[test]
+    fn find_raw_html_call_positions_detects_call_with_space_before_paren() {
+        assert_eq!(
+            find_raw_html_call_positions("let x = raw_html (user_input);").len(),
+            1
+        );
+    }
+
+    #[test]
+    fn find_raw_html_call_positions_ignores_non_call_occurrence() {
+        assert!(find_raw_html_call_positions("// see raw_html module docs for details").is_empty());
+    }
+
+    #[test]
+    fn find_raw_html_call_positions_detects_call_split_across_lines() {
+        // Bugbot 指摘: PR #261 #1 — 識別子と `(` が改行を挟んで別行に置かれた
+        // 呼び出しも見逃してはならない。
+        assert_eq!(
+            find_raw_html_call_positions("let x = raw_html\n    (user_input);").len(),
+            1
+        );
     }
 
     #[test]
@@ -599,6 +722,48 @@ mod tests {
         scan_file_for_violations(&file, &mut violations);
         assert_eq!(violations.len(), 1);
         assert!(violations[0].contains("lib.rs:2"));
+    }
+
+    #[test]
+    fn scan_file_reports_call_split_across_lines() {
+        // Bugbot 指摘: PR #261 #1 — 行単位走査だと `raw_html` 識別子と `(` が
+        // 別行にまたがる呼び出しを見逃す。`scan_file_for_violations` を通しても
+        // 検出できることを回帰として固定する。
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-escape-multiline-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("lib.rs");
+        std::fs::write(&file, "fn f() {\n    raw_html\n        (x);\n}\n").unwrap();
+
+        let mut violations = Vec::new();
+        scan_file_for_violations(&file, &mut violations);
+        assert_eq!(violations.len(), 1, "violations: {violations:?}");
+        assert!(violations[0].contains("lib.rs:2"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn scan_file_allows_marker_on_previous_line_for_split_call() {
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-escape-multiline-marker-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("lib.rs");
+        std::fs::write(
+            &file,
+            "fn f() {\n    // ESCAPE-REVIEWED: sanitized upstream\n    raw_html\n        (x);\n}\n",
+        )
+        .unwrap();
+
+        let mut violations = Vec::new();
+        scan_file_for_violations(&file, &mut violations);
+        assert!(violations.is_empty(), "violations: {violations:?}");
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
