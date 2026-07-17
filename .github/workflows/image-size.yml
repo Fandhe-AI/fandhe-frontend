@@ -10,30 +10,33 @@ name: Docker image size (REQ-9)
 # みであり、サイズ判定そのものに緩和用の input・continue-on-error は設けない
 # （ci.yml の loc-check ジョブと同一の運用原則）。
 #
-# ルート Dockerfile は #102 が別イシュー・別 PR として進行中で本ワークフローの
-# スコープ外のため（out-of-scope-tracking.md）、Dockerfile 不在時はビルド・
-# サイズ判定ステップ自体を `hashFiles('Dockerfile') != ''` でスキップし、
-# その旨をサマリに明記する（fail ではなく skip）。#102 マージ後は Dockerfile が
-# 存在するようになり、本ジョブは自動的に通常の fail-closed 判定へ切り替わる
-# （判定ロジックを緩めるわけではなく、前提条件が整うまで判定自体を保留する）。
+# ルート Dockerfile（#102）・Dockerfile の COPY 列挙と workspace members の
+# 整合（#101）はいずれもマージ済みであり、本ジョブは常時 fail-closed で
+# 判定する（skip 機構は撤去済み。#101 で「job レベル env の hashFiles 使用に
+# よる workflow 検証エラー（起動自体の失敗）」を解消した経緯を残す）。
 
 on:
   push:
     branches: [main]
   pull_request:
     # イメージサイズに影響し得る変更のみをトリガー対象にする。
-    # dist-server クレート（#96）・Dockerfile（#102）が増やすパスは
-    # マージ時に追随して更新すること。
+    # Dockerfile の COPY 列挙（本リポジトリの workspace members）と同期させる。
     paths:
       - "Dockerfile"
       - "Cargo.toml"
       - "Cargo.lock"
       - "core/**"
+      - "interactive/**"
       - "app/**"
       - "server/**"
+      - "wasm-client/**"
+      - "wasm-full/**"
+      - "wasm-thin/**"
+      - "cli/**"
       - "dist-server/**"
       - "static/**"
       - "xtask/**"
+      - ".dockerignore"
       - ".github/workflows/image-size.yml"
   workflow_dispatch:
 
@@ -48,10 +51,6 @@ jobs:
   image-size:
     name: Docker image size (REQ-9)
     runs-on: ubuntu-latest
-    env:
-      # Dockerfile 有無の判定を summary / fail 判定ステップ間で一致させるため
-      # job レベルで一度だけ評価する（inline hashFiles の重複記述を避ける）。
-      DOCKERFILE_HASH: ${{ hashFiles('Dockerfile') }}
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（ci.yml と同一 SHA に固定）。
@@ -61,12 +60,8 @@ jobs:
           submodules: false
 
       - name: Build docker image
-        # ルート Dockerfile は #102（別イシュー・別スコープ）が導入するまで存在しない。
-        # 存在しない間はビルド自体を skip する（fail ではない。#102 マージ後は
-        # hashFiles が非空になり、この工程から通常どおり実行される）。
         # push・レジストリログインは行わない。ジョブローカルのタグのみを使い、
         # 計測後は ubuntu-latest ランナーの破棄とともに揮発する。
-        if: hashFiles('Dockerfile') != ''
         run: docker build -t rws-dist-server:ci .
 
       - name: Run xtask check-image-size
@@ -74,9 +69,6 @@ jobs:
         # （fail-closed）。set -o pipefail を明示し、tee 経由でも cargo run の
         # 終了コードが失われないようにする（loc-check ジョブと同一パターン）。
         # --locked はこの外側の cargo run が Cargo.lock を書き換えないことを保証する。
-        # Dockerfile 不在時は前段の Build docker image と同じ条件で skip する
-        # （測定対象イメージが存在しないため）。
-        if: hashFiles('Dockerfile') != ''
         run: |
           set -o pipefail
           cargo run --locked -p xtask -- check-image-size --image rws-dist-server:ci | tee image-size.log
@@ -88,37 +80,29 @@ jobs:
         # Step Summary に転記する。この契約は xtask/tests/cli_check_image_size.rs と
         # xtask/src/check_image_size.rs の単体テストで固定される。
         #
-        # image-size.log が存在しないケースは 2 通りあり、区別してサマリに出す
-        # （Cursor Bugbot 指摘 #213 review thread: 同一の skip メッセージで
-        # 「Dockerfile 未追加」と「Dockerfile はあるがビルド/計測失敗」を
-        # 混同させない）。
-        #   1. Dockerfile がまだ存在しない（#102 待ち・前段 if 条件により
-        #      正当に skip） → green-with-explanation
-        #   2. Dockerfile は存在するのに前段（Build docker image /
-        #      Run xtask check-image-size）が失敗またはステップ自体が
-        #      実行されなかった → ログ欠落を隠さず fail 扱いにする
-        #      （fail-closed の原則を summary ステップでも維持する）
+        # image-size.log が存在しない場合は、前段（Build docker image /
+        # Run xtask check-image-size）が失敗またはステップ自体が実行されな
+        # かったことを意味する。ログ欠落を隠さず fail 扱いにする
+        # （fail-closed の原則を summary ステップでも維持する）。
         run: |
           {
             echo '## Docker image size (REQ-9, issue #103)'
             echo '```'
             if [ -f image-size.log ]; then
               grep '^image-size:' image-size.log || echo 'image-size: no summary line found'
-            elif [ -z "$DOCKERFILE_HASH" ]; then
-              echo 'image-size: skipped (Dockerfile not present yet; pending #102)'
             else
-              echo 'image-size: FAIL (Dockerfile is present but image-size.log is missing; build or check step failed or did not run — see earlier job steps)'
+              echo 'image-size: FAIL (image-size.log is missing; build or check step failed or did not run — see earlier job steps)'
             fi
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Fail if Dockerfile present but measurement missing
+      - name: Fail if measurement missing
         if: always()
-        # 上の summary ステップで「Dockerfile はあるが image-size.log が
-        # 欠落」と判定したケースを、実際に job 失敗として伝播させる
-        # （summary への記載のみでは CI が green のままになってしまうため）。
+        # 上の summary ステップで「image-size.log が欠落」と判定したケースを、
+        # 実際に job 失敗として伝播させる（summary への記載のみでは CI が
+        # green のままになってしまうため）。
         run: |
-          if [ -n "$DOCKERFILE_HASH" ] && [ ! -f image-size.log ]; then
-            echo "::error::Dockerfile is present but image-size.log is missing; the build or check-image-size step failed or did not run." >&2
+          if [ ! -f image-size.log ]; then
+            echo "::error::image-size.log is missing; the build or check-image-size step failed or did not run." >&2
             exit 1
           fi
