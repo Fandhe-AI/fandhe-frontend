@@ -29,5 +29,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "rws-wasm-full"
+version = "0.1.0"
+dependencies = [
+ "rws-core",
+ "rws-interactive",
+]
+
+[[package]]
 name = "xtask"
 version = "0.1.0"

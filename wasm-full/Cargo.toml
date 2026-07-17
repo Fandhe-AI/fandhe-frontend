@@ -1,0 +1,31 @@
+[package]
+name = "rws-wasm-full"
+version = "0.1.0"
+edition = "2021"
+description = "rws-wasm-full: WASM 完全方式（イベント処理・DOM 更新を Rust/web-sys 側で行うクライアントランタイム）。docs/wasm-full-architecture.md 参照。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# TASK-11.2c（#76）時点のスコープ限定に関する注記:
+#
+# `docs/wasm-full-architecture.md` 第 2 節は crate-type を ["cdylib", "rlib"] とし、
+# 依存に `wasm-bindgen` / `web-sys`（Element 等）を加える設計を確定しているが、
+# それらの実追加と `events` モジュール・`Runtime<C>` 骨格の実装は
+# TASK-11.2b（#75）のスコープであり、本コミット時点（2026-07-17）で #75 は未マージ
+# （wasm-full/ crate 自体が存在しない状態）だった。
+#
+# `.github/workflows/ci.yml` の forbid-unsafe ジョブは `cargo check --workspace`
+# を `-p` 絞り込みなしで実行しており、web-sys/wasm-bindgen（内部に unsafe を含む）
+# を依存に加えると本ジョブが即座に赤くなる。CI ジョブの `-p` 絞り込みは #75 の
+# スコープ（ci.yml 内コメント参照）であり、本タスク（#76）で先取りして変更しない。
+#
+# そのため本ファイルは `rws-core` / `rws-interactive`（path 依存のみ）で完結する
+# 純粋関数 `render_component_html`（dom モジュール）のみを提供する最小骨格とし、
+# `set_inner_html` を伴う `paint()` の実装（web-sys 依存）は #75 マージ後に
+# rebase して追加する（実装計画 §2 の安全側フォールバック方針）。
+# crate-type は rlib のみとし、cdylib 化・wasm-bindgen 依存の追加は #75 側で行う。
+[dependencies]
+rws-core = { path = "../core" }
+rws-interactive = { path = "../interactive" }
+
+[dev-dependencies]
