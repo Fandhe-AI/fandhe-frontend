@@ -539,6 +539,51 @@ pub fn measure(
     })
 }
 
+/// `root_name` を起点に、`kinds_filter` に含まれる辺のみを辿って到達可能な
+/// パッケージのうち、`workspace_member_names` に含まれる第一者（workspace 内）
+/// パッケージを除いた「真の外部依存」の件数を計測する（イシュー #154 レビュー対応）。
+///
+/// [`measure`] は到達可能な全パッケージ（workspace 内の path dependency も含む）を
+/// 件数計上するため、`rws-interactive -> rws-core` のような第一者依存同士の path
+/// dependency も「外部依存」として誤カウントしてしまう（`packages[].source` が
+/// path/workspace メンバーは `null`、crates.io 由来は `registry+...` である事実を
+/// 一切参照していなかったのが原因）。本関数は到達可能集合から
+/// `workspace_member_names` に一致するパッケージ名を除外してから件数を求める。
+///
+/// [`judge_zero`] は `package_count` のみを参照するため、深さ（`max_depth`）は
+/// 本関数では workspace メンバーを除外せず [`measure`] と同じ値
+/// （全到達可能パッケージに基づく最長経路長）をそのまま返す。
+pub fn measure_external_only(
+    graph: &DepGraph,
+    root_name: &str,
+    kinds_filter: &[DepKind],
+    workspace_member_names: &HashSet<String>,
+) -> Result<DepsMeasurement, CheckDepsError> {
+    let root_id = find_root_id(graph, root_name)?;
+    let allowed: HashSet<DepKind> = kinds_filter.iter().copied().collect();
+
+    let reachable = bfs_reachable_inclusive(&graph.edges, &root_id, &allowed);
+    let package_count = reachable
+        .iter()
+        .filter(|id| id.as_str() != root_id.as_str())
+        .filter(|id| {
+            graph
+                .names
+                .get(id.as_str())
+                .map(|name| !workspace_member_names.contains(name))
+                .unwrap_or(true)
+        })
+        .count();
+
+    let max_depth = longest_path(graph, &root_id, &allowed)?;
+
+    Ok(DepsMeasurement {
+        root: root_name.to_string(),
+        package_count,
+        max_depth,
+    })
+}
+
 /// ノードの探索状態。サイクル検出（[`CheckDepsError::CycleDetected`]）に使う。
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum VisitState {
@@ -674,19 +719,26 @@ pub fn fetch_workspace_graph() -> Result<(DepGraph, Vec<String>), CheckDepsError
 }
 
 /// [`ZERO_DEP_CRATES`] と実際の workspace メンバーとの積集合を求め、[`DepGraph`] と
-/// 併せて返す（イシュー #154。xtask CLI の `check-core-deps` サブコマンドのエントリ
-/// ポイントから利用）。
+/// 全 workspace メンバー名集合と併せて返す（イシュー #154。xtask CLI の
+/// `check-core-deps` サブコマンドのエントリポイントから利用）。
 ///
 /// 積集合が空（`ZERO_DEP_CRATES` の定数値がクレート改名等で陳腐化し、1 件も
 /// workspace に実在しない）場合は [`CheckDepsError::UnexpectedShape`] を返す
 /// fail-closed 設計。CLI 引数でクレートを指定させない設計と対で、判定対象が
 /// 静かに 0 件になり PASS 扱いされる事故を防ぐ。
-pub fn fetch_zero_dep_targets() -> Result<(DepGraph, Vec<String>), CheckDepsError> {
+///
+/// 戻り値の第 3 要素（全 workspace メンバー名集合）は、呼び出し側が
+/// [`measure_external_only`] で「到達可能パッケージのうち第一者（workspace 内）
+/// パッケージを外部依存から除外する」際に使う（reviewer 指摘: `rws-interactive`
+/// から `rws-core` への path dependency のような第一者依存を外部依存として
+/// 誤カウントしないため）。
+pub fn fetch_zero_dep_targets() -> Result<(DepGraph, Vec<String>, HashSet<String>), CheckDepsError>
+{
     let (graph, members) = fetch_workspace_graph()?;
-    let member_set: HashSet<&str> = members.iter().map(String::as_str).collect();
+    let member_set: HashSet<String> = members.iter().cloned().collect();
     let targets: Vec<String> = ZERO_DEP_CRATES
         .iter()
-        .filter(|name| member_set.contains(*name))
+        .filter(|name| member_set.contains(**name))
         .map(|name| (*name).to_string())
         .collect();
 
@@ -698,18 +750,20 @@ pub fn fetch_zero_dep_targets() -> Result<(DepGraph, Vec<String>), CheckDepsErro
         )));
     }
 
-    Ok((graph, targets))
+    Ok((graph, targets, member_set))
 }
 
 /// 実測値 `metrics` を「外部依存ゼロ」（イシュー #154 / REQ-3 受け入れ基準 1）に
 /// 照らして判定する純粋関数。I/O を一切行わない（[`judge`] と対称の設計）。
 ///
 /// 呼び出し側（[`fetch_zero_dep_targets`] の結果を使う xtask CLI）は
-/// `measure(graph, name, &[Normal, Dev, Build])` の結果を渡す想定であり、
-/// `Normal` / `Dev` / `Build` のいずれの辺も 1 件でも到達可能なら Fail とする
-/// （[`judge`] の Normal 限定判定とは意図的に異なる。coding-rust.md
-/// 「core/Cargo.toml に外部クレートを追加しない」は dev-dependencies も含むため）。
-/// 深さは件数が 0 なら必然的に 0 になるため、件数のみで判定する。
+/// `measure_external_only(graph, name, &[Normal, Dev, Build], &workspace_members)`
+/// の結果を渡す想定であり、`Normal` / `Dev` / `Build` のいずれの辺も 1 件でも
+/// 到達可能なら Fail とする（[`judge`] の Normal 限定判定とは意図的に異なる。
+/// coding-rust.md「core/Cargo.toml に外部クレートを追加しない」は
+/// dev-dependencies も含むため）。`measure_external_only` により workspace 内の
+/// 第一者パッケージ（path dependency）はあらかじめ除外されているため、
+/// `metrics.package_count` は「真の外部依存」件数のみを表す。
 pub fn judge_zero(metrics: DepsMetrics) -> CheckResult {
     if metrics.package_count > 0 {
         let violation = Violation::PackageCount {
@@ -1188,7 +1242,7 @@ mod tests {
         // ZERO_DEP_CRATES ∩ 実 workspace members が空でないこと
         // （定数の陳腐化を検知する fail-closed 契約の裏付け）。
         match fetch_zero_dep_targets() {
-            Ok((_, targets)) => {
+            Ok((_, targets, _)) => {
                 assert!(
                     targets.contains(&"rws-core".to_string()),
                     "rws-core must be present among zero-dep targets: {targets:?}"
@@ -1201,15 +1255,17 @@ mod tests {
     #[test]
     fn integration_rws_core_passes_judge_zero_in_real_workspace() {
         // rws-core は REQ-3 上「外部依存ゼロ」が不変条件。実ワークスペースに対して
-        // measure(.., &[Normal, Dev, Build]) を行い、judge_zero が PASS になることを
-        // 確認する（integration_rws_core_has_zero_dependencies の Normal 限定計測とは
+        // measure_external_only(.., &[Normal, Dev, Build], &workspace_members) を行い、
+        // judge_zero が PASS になることを確認する
+        // （integration_rws_core_has_zero_dependencies の Normal 限定計測とは
         // 別に、dev/build も含めた厳格な判定の回帰を担保する）。
-        let (graph, targets) = fetch_zero_dep_targets().expect("real workspace metadata");
+        let (graph, targets, members) = fetch_zero_dep_targets().expect("real workspace metadata");
         assert!(targets.contains(&"rws-core".to_string()));
-        let m = measure(
+        let m = measure_external_only(
             &graph,
             "rws-core",
             &[DepKind::Normal, DepKind::Dev, DepKind::Build],
+            &members,
         )
         .expect("measure rws-core");
         let result = judge_zero(m.into());
@@ -1217,5 +1273,63 @@ mod tests {
             result.is_pass(),
             "rws-core must keep zero external dependencies including dev/build (issue #154)"
         );
+    }
+
+    #[test]
+    fn measure_external_only_excludes_workspace_member_path_dependency() {
+        // reviewer 指摘の回帰テスト: `rws-interactive -> rws-core` のような
+        // workspace 内の第一者依存（path dependency）は「外部依存」として
+        // カウントされてはならない。root（interactive 相当）が到達できる
+        // 唯一の依存が workspace メンバー（core 相当）である場合、
+        // measure_external_only は package_count == 0 を返すこと。
+        let json = fixture(
+            &[("root#0.1.0", "interactive"), ("core#0.1.0", "core")],
+            &[
+                ("root#0.1.0", &[("core#0.1.0", "normal")]),
+                ("core#0.1.0", &[]),
+            ],
+        );
+        let graph = build_graph(&json).unwrap();
+        let workspace_members: HashSet<String> = ["interactive".to_string(), "core".to_string()]
+            .into_iter()
+            .collect();
+        let m = measure_external_only(
+            &graph,
+            "interactive",
+            &[DepKind::Normal, DepKind::Dev, DepKind::Build],
+            &workspace_members,
+        )
+        .unwrap();
+        assert_eq!(
+            m.package_count, 0,
+            "workspace 内の第一者依存は外部依存としてカウントしない"
+        );
+        let result = judge_zero(m.into());
+        assert!(result.is_pass());
+    }
+
+    #[test]
+    fn measure_external_only_still_counts_true_external_dependency() {
+        // workspace メンバーではない依存（真の外部依存）は引き続き 1 件として
+        // カウントされること（除外ロジックが過剰に働いていないことの確認）。
+        let json = fixture(
+            &[("root#0.1.0", "interactive"), ("ext#0.1.0", "serde")],
+            &[
+                ("root#0.1.0", &[("ext#0.1.0", "normal")]),
+                ("ext#0.1.0", &[]),
+            ],
+        );
+        let graph = build_graph(&json).unwrap();
+        let workspace_members: HashSet<String> = ["interactive".to_string()].into_iter().collect();
+        let m = measure_external_only(
+            &graph,
+            "interactive",
+            &[DepKind::Normal, DepKind::Dev, DepKind::Build],
+            &workspace_members,
+        )
+        .unwrap();
+        assert_eq!(m.package_count, 1);
+        let result = judge_zero(m.into());
+        assert!(!result.is_pass());
     }
 }

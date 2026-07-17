@@ -22,12 +22,13 @@
 //!
 //! - `check-core-deps`（引数なし）: イシュー #154（REQ-3 受け入れ基準 1）。
 //!   `check_deps::ZERO_DEP_CRATES` と実 workspace メンバーの積集合について
-//!   `Normal`/`Dev`/`Build` すべての辺を辿って外部依存が 1 件でも存在しないかを
-//!   判定する（`check_deps::judge_zero`）。`check-deps --package rws-core` の
-//!   60/6 判定とは別に「ゼロであること」を専用ゲートとして強制する。
-//!   判定対象は CLI 引数で差し替え不可（`ZERO_DEP_CRATES` 参照。上限を弱める
-//!   経路を作らない設計）。CLI 契約の回帰テストは
-//!   `xtask/tests/cli_check_core_deps.rs`。
+//!   `Normal`/`Dev`/`Build` すべての辺を辿り、workspace 内の第一者パッケージ
+//!   （path dependency）を除いた「真の外部依存」が 1 件でも存在しないかを
+//!   `check_deps::measure_external_only` で計測し判定する（`check_deps::judge_zero`）。
+//!   `check-deps --package rws-core` の 60/6 判定とは別に「ゼロであること」を
+//!   専用ゲートとして強制する。判定対象は CLI 引数で差し替え不可
+//!   （`ZERO_DEP_CRATES` 参照。上限を弱める経路を作らない設計）。
+//!   CLI 契約の回帰テストは `xtask/tests/cli_check_core_deps.rs`。
 //!
 //! `core` / `interactive` と異なりプロセス起動（`std::process::Command`）を行うが、
 //! `unsafe` は使わない（REQ-2 は core/interactive 限定だが、xtask でも forbid する。
@@ -147,8 +148,9 @@ fn run_check_deps(args: &[String]) -> ExitCode {
 /// `check-core-deps` サブコマンド（イシュー #154, REQ-3 受け入れ基準 1）: 引数を
 /// 一切取らない。`check_deps::ZERO_DEP_CRATES` と実 workspace メンバーの積集合
 /// （`check_deps::fetch_zero_dep_targets`）について、それぞれ `Normal`/`Dev`/`Build`
-/// すべての辺を辿った依存パッケージ数を計測し、1 件でもあれば Fail とする
-/// （`check_deps::judge_zero`）。
+/// すべての辺を辿り、workspace 内の第一者パッケージ（path dependency）を除いた
+/// 依存パッケージ数を `check_deps::measure_external_only` で計測し、1 件でも
+/// あれば Fail とする（`check_deps::judge_zero`）。
 ///
 /// 判定を弱める CLI 引数・環境変数は意図的に設けない（不明な引数は終了コード 2）。
 /// 積集合が空（`ZERO_DEP_CRATES` の定数値が陳腐化し workspace に 1 件も実在しない）
@@ -159,8 +161,8 @@ fn run_check_core_deps(args: &[String]) -> ExitCode {
         return ExitCode::from(2);
     }
 
-    let (graph, targets) = match check_deps::fetch_zero_dep_targets() {
-        Ok(pair) => pair,
+    let (graph, targets, workspace_members) = match check_deps::fetch_zero_dep_targets() {
+        Ok(triple) => triple,
         Err(e) => {
             eprintln!("xtask check-core-deps: failed to resolve zero-dep targets: {e}");
             return ExitCode::FAILURE;
@@ -174,7 +176,9 @@ fn run_check_core_deps(args: &[String]) -> ExitCode {
             check_deps::DepKind::Dev,
             check_deps::DepKind::Build,
         ];
-        match check_deps::measure(&graph, &name, &kinds) {
+        // 到達可能パッケージから workspace 内の第一者パッケージ（path dependency）を
+        // 除外し、真の外部依存のみを数える（reviewer 指摘: イシュー #154）。
+        match check_deps::measure_external_only(&graph, &name, &kinds, &workspace_members) {
             Ok(m) => {
                 let check_result = check_deps::judge_zero(m.into());
                 print!("{}", check_deps::format_zero_report(&check_result));
