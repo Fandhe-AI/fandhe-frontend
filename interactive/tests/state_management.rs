@@ -11,7 +11,7 @@
 //! 依存クレートは追加しない（REQ-3・`interactive/Cargo.toml` は
 //! `rws-core`（path 依存）のみを維持する）。
 
-use rws_interactive::{dispatch, AppState, Hydrate};
+use rws_interactive::{dispatch, Action, AppState, Component, Hydrate};
 
 // --- AppState 既定値 -------------------------------------------------------
 
@@ -35,13 +35,13 @@ fn default_state_has_zero_counter_empty_draft_and_one_seed_item() {
 #[test]
 fn increment_decrement_reset_sequence() {
     let mut s = AppState::new();
-    s.increment();
-    s.increment();
-    s.increment();
+    s.update(Action::Increment);
+    s.update(Action::Increment);
+    s.update(Action::Increment);
     assert_eq!(s.counter, 3);
-    s.decrement();
+    s.update(Action::Decrement);
     assert_eq!(s.counter, 2);
-    s.reset_counter();
+    s.update(Action::Reset);
     assert_eq!(s.counter, 0);
 }
 
@@ -49,17 +49,17 @@ fn increment_decrement_reset_sequence() {
 fn decrement_can_reach_negative_values() {
     // カウンターは正値専用ではない（UI 側に下限は設けられていない）。
     let mut s = AppState::new();
-    s.decrement();
-    s.decrement();
+    s.update(Action::Decrement);
+    s.update(Action::Decrement);
     assert_eq!(s.counter, -2);
 }
 
 #[test]
 fn reset_counter_from_negative_value() {
     let mut s = AppState::new();
-    s.decrement();
-    s.decrement();
-    s.reset_counter();
+    s.update(Action::Decrement);
+    s.update(Action::Decrement);
+    s.update(Action::Reset);
     assert_eq!(s.counter, 0);
 }
 
@@ -68,16 +68,16 @@ fn reset_counter_from_negative_value() {
 #[test]
 fn set_draft_replaces_previous_value() {
     let mut s = AppState::new();
-    s.set_draft("first");
-    s.set_draft("second");
+    s.update(Action::SetDraft("first".to_string()));
+    s.update(Action::SetDraft("second".to_string()));
     assert_eq!(s.draft, "second");
 }
 
 #[test]
 fn add_item_trims_ascii_whitespace_and_clears_draft() {
     let mut s = AppState::new();
-    s.set_draft("  new item  ");
-    s.add_item();
+    s.update(Action::SetDraft("  new item  ".to_string()));
+    s.update(Action::AddItem);
     assert_eq!(s.items.last().unwrap(), "new item");
     assert_eq!(s.draft, "");
 }
@@ -86,8 +86,8 @@ fn add_item_trims_ascii_whitespace_and_clears_draft() {
 fn add_item_ignores_empty_draft() {
     let mut s = AppState::new();
     let before = s.items.len();
-    s.set_draft("");
-    s.add_item();
+    s.update(Action::SetDraft(String::new()));
+    s.update(Action::AddItem);
     assert_eq!(s.items.len(), before);
 }
 
@@ -95,8 +95,8 @@ fn add_item_ignores_empty_draft() {
 fn add_item_ignores_ascii_whitespace_only_draft() {
     let mut s = AppState::new();
     let before = s.items.clone();
-    s.set_draft("   \t  ");
-    s.add_item();
+    s.update(Action::SetDraft("   \t  ".to_string()));
+    s.update(Action::AddItem);
     assert_eq!(s.items, before);
     // trim 失敗（空白のみ）の場合は draft をクリアしない仕様
     // （add_item の early return。lib.rs 参照）。
@@ -110,16 +110,16 @@ fn add_item_ignores_full_width_space_only_draft() {
     // 境界確認として明示的に固定する。
     let mut s = AppState::new();
     let before = s.items.len();
-    s.set_draft("\u{3000}\u{3000}");
-    s.add_item();
+    s.update(Action::SetDraft("\u{3000}\u{3000}".to_string()));
+    s.update(Action::AddItem);
     assert_eq!(s.items.len(), before);
 }
 
 #[test]
 fn add_item_preserves_internal_whitespace() {
     let mut s = AppState::new();
-    s.set_draft("  two words  ");
-    s.add_item();
+    s.update(Action::SetDraft("  two words  ".to_string()));
+    s.update(Action::AddItem);
     assert_eq!(s.items.last().unwrap(), "two words");
 }
 
@@ -129,7 +129,7 @@ fn add_item_preserves_internal_whitespace() {
 fn remove_item_removes_head() {
     let mut s = AppState::new();
     s.items = vec!["a".into(), "b".into(), "c".into()];
-    s.remove_item(0);
+    s.update(Action::RemoveItem(0));
     assert_eq!(s.items, vec!["b".to_string(), "c".to_string()]);
 }
 
@@ -137,7 +137,7 @@ fn remove_item_removes_head() {
 fn remove_item_removes_tail() {
     let mut s = AppState::new();
     s.items = vec!["a".into(), "b".into(), "c".into()];
-    s.remove_item(2);
+    s.update(Action::RemoveItem(2));
     assert_eq!(s.items, vec!["a".to_string(), "b".to_string()]);
 }
 
@@ -146,7 +146,7 @@ fn remove_item_out_of_range_is_noop() {
     let mut s = AppState::new();
     s.items = vec!["a".into(), "b".into()];
     let before = s.items.clone();
-    s.remove_item(5);
+    s.update(Action::RemoveItem(5));
     assert_eq!(s.items, before);
 }
 
@@ -156,7 +156,7 @@ fn remove_item_on_empty_list_is_noop_and_does_not_panic() {
     s.items.clear();
     // 空リストに対する remove_item は範囲外呼び出しと同様 no-op であり
     // panic しないこと（不変条件 4 相当の安全側フォールバック）を確認する。
-    s.remove_item(0);
+    s.update(Action::RemoveItem(0));
     assert!(s.items.is_empty());
 }
 
@@ -179,8 +179,8 @@ fn dispatch_decrement() {
 #[test]
 fn dispatch_reset() {
     let mut s = AppState::new();
-    s.increment();
-    s.increment();
+    s.update(Action::Increment);
+    s.update(Action::Increment);
     dispatch(&mut s, "reset", "");
     assert_eq!(s.counter, 0);
 }
@@ -197,7 +197,7 @@ fn dispatch_add_item_ignores_payload_and_uses_current_draft() {
     // `add_item` アクションは payload を使わず、現在の draft を確定する
     // （lib.rs の dispatch 実装参照）。payload を渡しても無視されることを固定する。
     let mut s = AppState::new();
-    s.set_draft("from draft");
+    s.update(Action::SetDraft("from draft".to_string()));
     dispatch(&mut s, "add_item", "ignored payload");
     assert_eq!(s.items.last().unwrap(), "from draft");
 }
@@ -330,14 +330,14 @@ fn reset_counter_recovers_from_extreme_restored_value() {
         counter: i64::MAX,
         ..AppState::new()
     };
-    restored.reset_counter();
+    restored.update(Action::Reset);
     assert_eq!(restored.counter, 0);
 
     let mut restored_min = AppState {
         counter: i64::MIN,
         ..AppState::new()
     };
-    restored_min.reset_counter();
+    restored_min.update(Action::Reset);
     assert_eq!(restored_min.counter, 0);
 }
 

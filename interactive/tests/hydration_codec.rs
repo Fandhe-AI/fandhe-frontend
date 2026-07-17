@@ -13,7 +13,7 @@
 //! `codec::encode_list`/`decode_list` は `codec` モジュール内の単体テストで
 //! 別途カバーする（`lib.rs` 参照）。
 
-use rws_interactive::{AppState, Hydrate, HydrateError};
+use rws_interactive::{Action, AppState, Component, Hydrate, HydrateError};
 use std::collections::HashMap;
 
 /// [`Hydrate::hydration_attrs`] の戻り値を `HashMap` へ変換し、キー名でアクセスできるようにする。
@@ -251,7 +251,7 @@ fn increment_from_extreme_restored_max_value_does_not_panic() {
     // （state_management.rs 側の dispatch 経由テストと対をなす回帰）。
     let attrs = attrs_with(&i64::MAX.to_string(), "", "");
     let mut restored = AppState::from_hydration_attrs(&attrs).unwrap();
-    restored.increment();
+    restored.update(Action::Increment);
     assert_eq!(restored.counter, i64::MAX);
 }
 
@@ -259,7 +259,7 @@ fn increment_from_extreme_restored_max_value_does_not_panic() {
 fn decrement_from_extreme_restored_min_value_does_not_panic() {
     let attrs = attrs_with(&i64::MIN.to_string(), "", "");
     let mut restored = AppState::from_hydration_attrs(&attrs).unwrap();
-    restored.decrement();
+    restored.update(Action::Decrement);
     assert_eq!(restored.counter, i64::MIN);
 }
 
@@ -267,12 +267,12 @@ fn decrement_from_extreme_restored_min_value_does_not_panic() {
 fn reset_counter_recovers_from_extreme_restored_value() {
     let attrs_max = attrs_with(&i64::MAX.to_string(), "", "");
     let mut restored = AppState::from_hydration_attrs(&attrs_max).unwrap();
-    restored.reset_counter();
+    restored.update(Action::Reset);
     assert_eq!(restored.counter, 0);
 
     let attrs_min = attrs_with(&i64::MIN.to_string(), "", "");
     let mut restored_min = AppState::from_hydration_attrs(&attrs_min).unwrap();
-    restored_min.reset_counter();
+    restored_min.update(Action::Reset);
     assert_eq!(restored_min.counter, 0);
 }
 

@@ -14,7 +14,24 @@
 //! `.claude/rules/coding-rust.md` の規約により、本ファイルの XSS 回帰
 //! テストは以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
-use rws_interactive::{render_html, render_html_for_hydration, AppState, Hydrate};
+use rws_interactive::{render_for_hydration, AppState, Component, Hydrate};
+
+/// `AppState::view()`（[`Component`] トレイト経由）を `rws_core::render()` に
+/// 通した CSR 相当の HTML 文字列を返すテスト用ヘルパ。
+///
+/// TASK-11.1a/TASK-11.1b で API が [`Component`]/[`Hydrate`] トレイトへ
+/// 一般化される前は `rws_interactive::render_html` という自由関数が
+/// 存在したが、現行 API では `view()` の呼び出しと `rws_core::render()` の
+/// 呼び出しを利用側が明示的に組み合わせる契約になっている（lib.rs 参照）。
+fn render_html(state: &AppState) -> String {
+    rws_core::render(&state.view())
+}
+
+/// [`render_for_hydration`] の結果を `rws_core::render()` に通した SSR 相当の
+/// HTML 文字列を返すテスト用ヘルパ（上記 `render_html` の SSR 版）。
+fn render_html_for_hydration(state: &AppState) -> String {
+    rws_core::render(&render_for_hydration(state))
+}
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系のペイロード集合。
 /// `core/tests/xss_escape.rs` の `mod payloads` と観点を揃える
@@ -92,7 +109,7 @@ fn render_html_escapes_all_payloads_injected_via_draft_value_attribute() {
     // breakout ペイロードが属性から脱出できないことが本テストの核心。
     for payload in payloads::all() {
         let mut s = AppState::new();
-        s.set_draft(payload);
+        s.draft = payload.to_string();
         let html = render_html(&s);
         assert_html_is_safe(payload, &html, "CSR draft value 属性コンテキスト");
 
@@ -115,7 +132,7 @@ fn render_html_for_hydration_escapes_draft_in_both_value_and_hydrate_attrs() {
     // いずれの属性値コンテキストでもエスケープが貫通することを確認する。
     for payload in payloads::all() {
         let mut s = AppState::new();
-        s.set_draft(payload);
+        s.draft = payload.to_string();
         let html = render_html_for_hydration(&s);
         assert_html_is_safe(payload, &html, "SSR draft（value + data-hydrate-draft）");
     }
@@ -137,7 +154,7 @@ fn render_and_render_for_hydration_share_same_dom_shape_under_malicious_input() 
         payloads::SCRIPT_TAG.to_string(),
         payloads::IMG_ONERROR.to_string(),
     ];
-    s.set_draft(payloads::DOUBLE_QUOTE_BREAKOUT);
+    s.draft = payloads::DOUBLE_QUOTE_BREAKOUT.to_string();
 
     let csr_html = render_html(&s);
     let ssr_html = render_html_for_hydration(&s);
@@ -172,7 +189,7 @@ fn render_and_render_for_hydration_share_same_dom_shape_under_malicious_input() 
 #[test]
 fn render_html_stays_safe_with_malicious_input_across_all_fields() {
     let mut s = AppState::new();
-    s.set_draft(payloads::SINGLE_QUOTE_BREAKOUT);
+    s.draft = payloads::SINGLE_QUOTE_BREAKOUT.to_string();
     s.items = payloads::all().iter().map(|p| p.to_string()).collect();
 
     let csr_html = render_html(&s);
