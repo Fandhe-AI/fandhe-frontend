@@ -23,11 +23,11 @@ REQ-12「NPM 互換（ビルド時静的アセット限定、実行時スコー�
 | タスク | イシュー | 内容 | PR |
 |--------|---------|------|-----|
 | TASK-12.1a | #38 | `--ignore-scripts` 既定の `install.sh` 実装 | #186 |
-| TASK-12.1b | #39（本書） | パイプライン e2e 検証・利用ガイド整備 | 本 PR |
+| TASK-12.1b | #39（本書） | パイプライン e2e 検証・利用ガイド整備 | #230 |
 | TASK-12.2a | #122 | 静的アセット判定ルール設計 | #223 |
 | TASK-12.2b | #123 | `check_static_only.py` 実装 | #226 |
 | TASK-12.2c | #124 | fixture テスト・CI 統合 | #225 |
-| TASK-12.3 | #125 | 配布バイナリ・Docker イメージへの NPM/Node 非混入の機械検証（`dist-server/tests/no_npm_runtime_in_binary.rs`） | 本 PR |
+| TASK-12.3 | #125 | 配布バイナリ・Docker イメージへの NPM/Node 非混入の機械検証（`dist-server/tests/no_npm_runtime_in_binary.rs`） | #255 |
 
 ## 2. パイプライン全体像
 
@@ -152,9 +152,9 @@ CI（`.github/workflows/ci.yml` の `npm-asset-build` ジョブ）は上記 3 �
 以下は本タスク（TASK-12.1b）のスコープ外として記録し、別途 Issue 化を
 検討します（`.claude/rules/out-of-scope-tracking.md` 準拠）。
 
-- `ci.yml` の `check_static_only.py` 存在ガード撤去（fail-closed 化）:
-  TASK-12.2b（#123）マージ済みによりガードは実質無効化されていますが、
-  ガードコード自体の撤去は別途フォローアップとして扱います
+- `ci.yml` の `check_static_only.py` 存在ガード撤去: TASK-12.2（#121）で
+  対応済みです。現行 `ci.yml` の `npm-asset-build` ジョブは存在ガードを
+  介さず fail-closed で 3 テストを実行するため、本項目は解消済みです
 - `install.sh` 本体の機能拡張（allowlist 連携の自動起動・`npm audit`
   統合等）: TASK-12.1 のスコープ（インストール入口の `--ignore-scripts`
   強制）を超えるため対象外です
