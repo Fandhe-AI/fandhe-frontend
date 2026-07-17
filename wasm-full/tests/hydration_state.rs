@@ -171,12 +171,45 @@ fn restore_state_ignores_unknown_hydrate_attr_and_restores_known_fields() {
     assert_eq!(restored, AppState::new());
 }
 
-/// 生の区切り文字（U+001F）を `items` 属性値の先頭以外へ直接注入しても、
-/// `codec::decode_list` のエスケープ規約により余分な項目境界が生まれない
-/// こと（区切り文字混入による項目数偽装の防止、`docs/hydration-state-format.md`
-/// 第 8 節・不変条件 2 の中核）。
+/// 正規の `codec::encode_list` エンコード経路を通す限り、項目文字列自体に
+/// 区切り文字（U+001F）が含まれていても `escape_item`/`unescape_item` に
+/// より余分な項目境界が生まれないこと（`docs/hydration-state-format.md`
+/// 第 8 節・不変条件 2「区切り文字混入による項目境界の偽装は codec の
+/// エスケープ規約により防がれる」の本体。防がれるのはあくまで正規の
+/// エンコード経路を経由した場合であり、以下の
+/// `restore_state_decodes_raw_separator_injection_by_separator_count`
+/// が示す通り、`encode_list` を経由しない生の属性値改ざんまでは保護しない）。
 #[test]
-fn restore_state_does_not_create_extra_items_from_raw_separator_injection() {
+fn restore_state_preserves_separator_char_embedded_via_legitimate_encode_path() {
+    let mut state = AppState::new();
+    state.items = vec!["a\u{1f}b".to_string(), "c".to_string()];
+
+    let restored = roundtrip(&state);
+    assert_eq!(
+        restored.items,
+        vec!["a\u{1f}b".to_string(), "c".to_string()]
+    );
+}
+
+/// 生の区切り文字（U+001F）を `codec::encode_list` を経由せず `items` 属性値へ
+/// 直接注入した場合の挙動を固定する回帰テスト。
+///
+/// Bugbot 指摘（PR #245）: 旧版は本テストで
+/// 「余分な項目境界が生まれないこと」を主張していたが、フィクスチャ
+/// `"\u{1f}legit\u{1f}\u{1f}extra"` は前置区切り方式のもとで実際には
+/// `["legit", "", "extra"]` の 3 項目（ベースラインの 2 項目より 1 つ多い）
+/// にデコードされ、主張と逆の結果を裏付けてしまっていた。
+///
+/// `codec` のエスケープ規約（不変条件 2）が防ぐのは「正規のエンコード経路
+/// （`encode_list`）を経由した場合に項目文字列中の区切り文字が境界として
+/// 誤認されないこと」であり、`encode_list` を経由しない生の属性値改ざんに
+/// 対して境界の真正性を検証する契約ではない（`docs/hydration-state-format.md`
+/// 第 4 節・判断 5: 属性値は改ざんされうるクライアント入力として扱い、
+/// `HydrateError` を返すか安全に処理することのみを保証する）。
+/// 本テストは「境界偽装が起きない」ことではなく、「区切り文字の出現数
+/// どおりに決定的にデコードされ panic しない」ことを保証する。
+#[test]
+fn restore_state_decodes_raw_separator_injection_by_separator_count() {
     // 正規の `codec::encode_list` を経由せず、区切り文字を手で 3 個仕込んだ
     // 生の属性値を直接与える（敵対的クライアント入力の模擬）。
     let tampered_items = "\u{1f}legit\u{1f}\u{1f}extra".to_string();
@@ -188,11 +221,13 @@ fn restore_state_does_not_create_extra_items_from_raw_separator_injection() {
 
     let restored = restore_state::<AppState>(&attrs).expect("decode_list must not panic");
     // 前置区切り方式（`codec::encode_list` 冒頭コメント）では区切り文字の
-    // 出現数が常に項目数と一致する。3 個の区切りが存在するため panic せず
-    // 3 項目として復元される（decode_list は「意味のある改ざん検知」は
-    // 行わない契約だが、項目数が区切り文字の個数と一致し続けること自体が
-    // 「境界偽装で余分な項目が生まれていない」ことの確認になる）。
-    assert_eq!(restored.items.len(), 3);
+    // 出現数が常に項目数と一致する。3 個の区切りが存在するため panic せず、
+    // 区切り文字混入によって実際に生まれる 3 項目（"legit", "", "extra"）を
+    // そのまま検証する。
+    assert_eq!(
+        restored.items,
+        vec!["legit".to_string(), String::new(), "extra".to_string()]
+    );
     assert_eq!(restored.counter, 0);
 }
 

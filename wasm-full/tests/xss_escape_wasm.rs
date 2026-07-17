@@ -486,13 +486,20 @@ fn hydrate_then_repaint_via_wired_event_preserves_escape_guarantee_for_xss_paylo
         "item-list 配下のテキストにペイロード原文が（エスケープ解除された形で）含まれること"
     );
 
-    let inner = container.inner_html();
+    // `container.inner_html()` は `dom::paint` が上書きしないルート要素自身の
+    // `data-hydrate-draft` 属性（SSR 時点でエスケープ済みのペイロードを保持
+    // したまま残存する）を含むため、そこを見ると repaint が実際にエスケープ
+    // したかどうかに関わらず判定が真になってしまう（Bugbot 指摘、repaint
+    // パスの検証が空洞化する）。repaint で書き換えられる `item-list` 配下
+    // （`items_root`）の `inner_html()` のみを見ることで、再描画されたテキスト
+    // ノードのエスケープを実際に検証する。
+    let items_inner = items_root.inner_html();
     assert!(
-        !inner.contains("<script>alert(1)</script>"),
-        "再描画後の inner_html に生の <script> タグが含まれてはならない: {inner}"
+        !items_inner.contains("<script>alert(1)</script>"),
+        "再描画後の item-list inner_html に生の <script> タグが含まれてはならない: {items_inner}"
     );
     assert!(
-        inner.contains("&lt;script&gt;"),
-        "再描画後の inner_html にエスケープ済みペイロードが含まれること: {inner}"
+        items_inner.contains("&lt;script&gt;"),
+        "再描画後の item-list inner_html にエスケープ済みペイロードが含まれること: {items_inner}"
     );
 }
