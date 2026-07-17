@@ -54,13 +54,24 @@ use rws_dist_server::bench_support::{format_summary_line, judge, Sample};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, ExitCode};
 use std::time::Instant;
 
 /// 計測サンプル数（PoC-4 の実測プロトコルに合わせた反復回数）。
 const SAMPLE_COUNT: usize = 3;
 
-fn main() {
+/// # 終了コードに `ExitCode` を用いる理由（Bugbot 指摘対応）
+///
+/// 以前は判定結果に応じて `std::process::exit` を呼んでいたが、これは
+/// スタック巻き戻し・デストラクタ実行をスキップするため、直前の
+/// `println!` が書き込んだ stdout バッファがフラッシュされない場合が
+/// ある。CI では stdout を `tee` にパイプしており（`.github/workflows/ci.yml`
+/// の `Run rebuild_latency bench` ステップ）、パイプ先はフルバッファリング
+/// となるため、Step Summary に転記する `rebuild-latency:` 行が欠落する
+/// リスクがあった。`main` の戻り値を `ExitCode` にすることで、正常終了
+/// 経路（Rust ランタイムの通常の巻き戻し）で stdout が確実にフラッシュ
+/// されるようにする（既存の他 xtask チェックと同じパターン）。
+fn main() -> ExitCode {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));
     let workspace_root = manifest_dir
         .parent()
@@ -84,7 +95,7 @@ fn main() {
     // 失敗した場合はこの時点で fail-closed とする。
     if let Err(message) = run_build(&cargo, &workspace_root, &bench_target_dir) {
         eprintln!("rebuild-latency: warm build failed: {message}");
-        std::process::exit(1);
+        return ExitCode::FAILURE;
     }
 
     let mut samples = Vec::with_capacity(SAMPLE_COUNT);
@@ -141,7 +152,7 @@ fn main() {
 
     if let Some(message) = failure {
         eprintln!("rebuild-latency: {message}");
-        std::process::exit(1);
+        return ExitCode::FAILURE;
     }
 
     let result = judge(&samples);
@@ -149,8 +160,9 @@ fn main() {
     println!("{}", format_summary_line(&result));
 
     if !is_pass {
-        std::process::exit(1);
+        return ExitCode::FAILURE;
     }
+    ExitCode::SUCCESS
 }
 
 /// `cargo build --release --locked -p rws-dist-server --target-dir
@@ -190,18 +202,19 @@ fn binary_contains_marker(binary_path: &Path, marker: &str) -> Result<bool, Stri
 }
 
 /// プローブファイルの RAII 削除ガード。書き込みから削除までのスコープを
-/// 1 箇所に閉じ込め、panic 経路（`std::process::exit` を除く通常の巻き戻し）
-/// でも `static/` 配下に一時ファイルを残さないようにする。
+/// 1 箇所に閉じ込め、panic 経路を含む通常のスタック巻き戻しでも
+/// `static/` 配下に一時ファイルを残さないようにする。
 ///
-/// # 注意（`std::process::exit` との相互作用）
+/// # 注意（`ExitCode` 採用との関係）
 ///
-/// `main` 内の `std::process::exit` はスタック巻き戻しを行わないため、
-/// exit 呼び出し時点で本ガードの `Drop` は実行されない。ただし exit を
-/// 呼ぶ経路（ビルド失敗・マーカー不在・しきい値超過）はいずれもループ内で
-/// ガードのスコープを抜けた後（`for` イテレーション終端で `_guard` が
-/// 明示的にドロップされた後）に到達するため、実運用上プローブファイルは
-/// 各イテレーション終了時点で既に削除済みである。次回実行時も上書き→削除の
-/// サイクルで自己回復する（実装計画「検証方法」3 節）。
+/// `main` は判定結果を `ExitCode` の戻り値として返す方式にしており
+/// （`std::process::exit` は使わない。理由は `main` 冒頭のドキュメント
+/// コメント参照）、失敗経路（ビルド失敗・マーカー不在・しきい値超過）は
+/// いずれもループ内でガードのスコープを抜けた後（`for` イテレーション
+/// 終端で `_guard` が明示的にドロップされた後）に到達するため、実運用上
+/// プローブファイルは各イテレーション終了時点で既に削除済みである。
+/// 次回実行時も上書き→削除のサイクルで自己回復する
+/// （実装計画「検証方法」3 節）。
 struct ProbeGuard {
     path: PathBuf,
 }
