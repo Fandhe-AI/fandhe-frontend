@@ -15,6 +15,7 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 use std::process::{Child, Command, Stdio};
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 /// 子プロセスを確実に終了させる Drop ガード。
@@ -50,28 +51,63 @@ fn spawn_and_wait_for_port() -> (ChildGuard, u16) {
         .stderr
         .take()
         .expect("stderr must be piped for spawned child");
-    let mut reader = BufReader::new(stderr);
+    let reader = BufReader::new(stderr);
 
-    let port = read_listening_port(&mut reader);
+    let port = read_listening_port(reader);
     (ChildGuard(child), port)
 }
 
 /// stderr から `"rws-dist-server: listening on 127.0.0.1:<port>"` 行を探し、
 /// `<port>` を返す。5 秒待っても見つからなければ panic する。
-fn read_listening_port(reader: &mut BufReader<std::process::ChildStderr>) -> u16 {
-    let deadline = Instant::now() + Duration::from_secs(5);
-    let mut line = String::new();
+///
+/// `BufReader::read_line` は子プロセスの `ChildStderr` パイプに対する
+/// ブロッキング呼び出しで、読み取り自体にタイムアウトを設定する手段が
+/// 標準ライブラリにはない（`TcpStream::set_read_timeout` 相当が存在しない）。
+/// そのため実際の読み取りは別スレッドへ切り出し、本スレッドは
+/// `mpsc::Receiver::recv_timeout` でデッドラインまで待つことでタイムアウトを
+/// 実効化する（レビュー指摘: パイプ読み取りが無期限にブロックし CI がハング
+/// しうる問題への対応）。
+fn read_listening_port(reader: BufReader<std::process::ChildStderr>) -> u16 {
+    let (tx, rx) = mpsc::channel::<String>();
 
-    while Instant::now() < deadline {
-        line.clear();
-        match reader.read_line(&mut line) {
-            Ok(0) => break, // EOF: プロセスが起動前に終了した
-            Ok(_) => {
+    // 読み取りスレッドは検出後も本体側から join しない（detach する）。
+    // 本関数はポートが見つかり次第 return するため、join すると子プロセスの
+    // 後続出力を待ち続けてしまい、タイムアウト対策そのものが無意味になる。
+    // 受信側が既に return してチャネルが閉じている場合は素直に終了する。
+    std::thread::spawn(move || {
+        let mut reader = reader;
+        let mut line = String::new();
+        loop {
+            line.clear();
+            match reader.read_line(&mut line) {
+                Ok(0) => break, // EOF: プロセスが起動前に終了した
+                Ok(_) => {
+                    if tx.send(line.clone()).is_err() {
+                        break; // 受信側は既に return 済み
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    });
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        match rx.recv_timeout(remaining) {
+            Ok(line) => {
                 if let Some(port) = parse_listening_port(line.trim_end()) {
                     return port;
                 }
             }
-            Err(_) => break,
+            // タイムアウト・読み取りスレッド終了（EOF/エラー）はいずれも
+            // 「該当行が見つからなかった」扱いとして panic へフォールスルーする。
+            Err(mpsc::RecvTimeoutError::Timeout) => break,
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
         }
     }
 
