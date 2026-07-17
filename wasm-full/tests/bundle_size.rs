@@ -153,11 +153,34 @@ fn wasm_build_enabled() -> bool {
 /// 本テストを実行している外側の `cargo test` プロセスが保持する `target/`
 /// ディレクトリロックとのデッドロックを避ける（`dist-server/build.rs::
 /// run_wasm_build` が `target/wasm-dist` を使う理由と同一）。
+///
+/// # 環境の分離（決定性確保、`dist-server/build.rs::run_wasm_build` と同一契約）
+///
+/// `Command::env_clear()` で外部環境を一旦すべて遮断し、ビルドに最低限必要な
+/// 変数（`PATH`/`HOME`/`CARGO_HOME`/`RUSTUP_HOME`/`RUSTUP_TOOLCHAIN`）のみを
+/// 明示的に許可リストで引き継ぐ。これを怠ると、本テストを起動した外側の
+/// `cargo test` プロセスの環境（例: CI の `RUSTFLAGS='-F unsafe_code'`）が
+/// ネストビルドへそのまま伝播し、ここで計測する `.wasm`/glue 成果物が
+/// `dist-server/build.rs`（REQ-11 サイズ計測の配布基準）が実際に生成する
+/// ものと異なりうる（Cursor Bugbot 指摘、PR #248）。
 fn build_wasm_full_release(workspace_root: &Path) -> PathBuf {
     let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
     let target_dir = workspace_root.join("target").join("bundle-size-check");
 
-    let status = Command::new(&cargo)
+    let mut command = Command::new(&cargo);
+    command.env_clear();
+    for key in [
+        "PATH",
+        "HOME",
+        "CARGO_HOME",
+        "RUSTUP_HOME",
+        "RUSTUP_TOOLCHAIN",
+    ] {
+        if let Ok(value) = env::var(key) {
+            command.env(key, value);
+        }
+    }
+    command
         .current_dir(workspace_root)
         .args([
             "build",
@@ -169,7 +192,9 @@ fn build_wasm_full_release(workspace_root: &Path) -> PathBuf {
             "--locked",
             "--target-dir",
         ])
-        .arg(&target_dir)
+        .arg(&target_dir);
+
+    let status = command
         .status()
         .expect("failed to spawn nested `cargo build -p rws-wasm-full`");
     assert!(
@@ -182,6 +207,90 @@ fn build_wasm_full_release(workspace_root: &Path) -> PathBuf {
         .join("wasm32-unknown-unknown")
         .join("release")
         .join("rws_wasm_full.wasm")
+}
+
+/// ワークスペースの `Cargo.lock` を std の文字列処理でパースし、解決済みの
+/// `wasm-bindgen` クレートのバージョンを取得する。
+///
+/// `dist-server/build.rs::expected_wasm_bindgen_version` と同一の実装（TOML
+/// パーサクレートを追加しない方針、`.claude/rules/coding-rust.md` の依存上限・
+/// `core` 外部依存ゼロの精神を本テストにも適用）。契約の変更時は両方を
+/// 合わせて更新すること。
+fn expected_wasm_bindgen_version(workspace_root: &Path) -> String {
+    let lock_path = workspace_root.join("Cargo.lock");
+    let content = fs::read_to_string(&lock_path)
+        .unwrap_or_else(|e| panic!("failed to read {}: {e}", lock_path.display()));
+
+    for block in content.split("[[package]]") {
+        let mut name = None;
+        let mut version = None;
+        for line in block.lines() {
+            let line = line.trim();
+            if let Some(value) = line.strip_prefix("name = ") {
+                name = Some(value.trim_matches('"'));
+            } else if let Some(value) = line.strip_prefix("version = ") {
+                version = Some(value.trim_matches('"'));
+            }
+            if name.is_some() && version.is_some() {
+                break;
+            }
+        }
+        if name == Some("wasm-bindgen") {
+            return version
+                .unwrap_or_else(|| {
+                    panic!("found a wasm-bindgen entry in Cargo.lock but it has no version field")
+                })
+                .to_string();
+        }
+    }
+
+    panic!(
+        "wasm-bindgen package not found in Cargo.lock (is wasm-full's dependency on it intact?)"
+    );
+}
+
+/// インストール済み `wasm-bindgen-cli` のバージョン文字列を返す
+/// （`dist-server/build.rs::installed_wasm_bindgen_cli_version` と同一実装）。
+fn installed_wasm_bindgen_cli_version() -> String {
+    let output = Command::new("wasm-bindgen")
+        .arg("--version")
+        .output()
+        .expect(
+            "wasm-bindgen-cli not found on PATH. Install it with: \
+             cargo install wasm-bindgen-cli --version <version-matching-Cargo.lock> --locked",
+        );
+    assert!(
+        output.status.success(),
+        "`wasm-bindgen --version` exited with a non-zero status"
+    );
+
+    // 出力形式は `wasm-bindgen <version>`。末尾トークンをバージョンとして扱う。
+    String::from_utf8_lossy(&output.stdout)
+        .trim()
+        .rsplit(' ')
+        .next()
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| panic!("unexpected `wasm-bindgen --version` output format"))
+        .to_string()
+}
+
+/// `Cargo.lock` が解決した `wasm-bindgen` バージョンと、PATH 上の
+/// `wasm-bindgen-cli` バージョンが一致することを検証する。
+///
+/// `dist-server/build.rs::run_wasm_stage` の同種チェックを再現し fail-closed
+/// にする（Cursor Bugbot 指摘、PR #248）: バージョン不一致のまま
+/// `wasm-bindgen` を実行すると、実際の製品ビルド（`dist-server/build.rs`）は
+/// ここで拒否するにもかかわらず、本テストはビルドを継続して 200KB ゲートを
+/// 通過させてしまいうる（＝計測対象と配布物が乖離した状態を見逃す）。
+fn verify_wasm_bindgen_version_matches_lockfile(workspace_root: &Path) {
+    let expected_version = expected_wasm_bindgen_version(workspace_root);
+    let installed_version = installed_wasm_bindgen_cli_version();
+    assert_eq!(
+        expected_version, installed_version,
+        "wasm-bindgen-cli version mismatch: Cargo.lock resolves wasm-bindgen {expected_version}, \
+         but `wasm-bindgen --version` reports {installed_version}. \
+         Install the matching CLI with: cargo install wasm-bindgen-cli --version {expected_version} --locked"
+    );
 }
 
 /// `wasm-bindgen --target web --no-typescript` を実行し、生成された JS グルー
@@ -328,6 +437,9 @@ fn wasm_full_bundle_gzip_size_within_req11_limit() {
     }
 
     let workspace_root = workspace_root();
+    // `dist-server/build.rs::run_wasm_stage` と同じく、glue コード生成に不整合が
+    // 出ないよう `wasm-bindgen` 実行前にバージョン一致を fail-closed で検証する。
+    verify_wasm_bindgen_version_matches_lockfile(&workspace_root);
     let wasm_binary_path = build_wasm_full_release(&workspace_root);
     let assets_dir = run_wasm_bindgen_for_bundle_size(&wasm_binary_path, &workspace_root);
 
