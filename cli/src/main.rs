@@ -12,6 +12,7 @@
 
 mod component_boundary;
 mod gate;
+mod impact;
 mod json;
 mod json_out;
 mod metadata;
