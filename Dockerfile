@@ -22,10 +22,14 @@
 # 前提とする。
 
 # --- build stage ---
-# バージョンをマイナーまで固定し、ビルダーイメージの暗黙の latest 更新に
-# よる再現性低下・サプライチェーンリスクを避ける（security.md「脆弱な依存」
-# 対策の一環）。
-FROM rust:1.96-slim-bookworm AS builder
+# バージョンをマイナーまで固定するだけでなく、レジストリ側でのタグ再割り当て
+# （同一タグに異なるイメージ内容を差し替えられるリスク）を排除するため、
+# マニフェストダイジェストでも固定する（security.md「脆弱な依存」対策の一環）。
+# ダイジェストは `docker buildx imagetools inspect rust:1.96-slim-bookworm` で
+# 取得したマルチプラットフォーム manifest index のものであり、linux/amd64・
+# linux/arm64 双方の実体を指すため、下段の arch 判定ロジックとの整合は保たれる。
+# 更新時は同コマンドで最新ダイジェストを再取得しタグと合わせて差し替える。
+FROM rust:1.96-slim-bookworm@sha256:e18a79fc84dfcfc3ab5ba72290398a644c135c97eaa881447fddc354ee4701a3 AS builder
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends musl-tools pkg-config \
