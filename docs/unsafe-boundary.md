@@ -18,7 +18,7 @@ PoC-2 の脅威モデルの結論は次のとおりです。コア（`rws-core` 
 | クレート | 方針 | 根拠 |
 |---------|------|------|
 | `core`（rws-core） | `unsafe` を全面禁止 | `#![forbid(unsafe_code)]` を `core/src/lib.rs` に設定済み。REQ-2 受け入れ基準の中核 |
-| `interactive`（rws-interactive） | `unsafe` を全面禁止 | TASK-11.1b で作成済み。`#![forbid(unsafe_code)]` を `interactive/src/lib.rs` に設定済み |
+| `interactive`（rws-interactive） | `unsafe` を全面禁止 | `#![forbid(unsafe_code)]` を `interactive/src/lib.rs` に設定済み（TASK-11.1a/TASK-11.1b）。REQ-2 受け入れ基準を `core` と同様に満たす |
 | `app` / `server`（rws-app / rws-server） | 原則 `unsafe` 禁止（safe Rust で実装） | 未作成クレート。SSR/SSG/ルーティングはアプリケーション層であり、FFI 境界を持たない前提。作成時に `forbid(unsafe_code)` の要否を判断し本表へ追記する |
 | `wasm-client` / `wasm-full`（未作成） | フレームワーク自作コードは safe Rust。`unsafe` は wasm-bindgen 等の FFI 依存クレート内部・自動生成グルーコードに限定して許容 | ブラウザ DOM とのバインディングは `wasm-bindgen` の生成コードに委譲し、自作コード側で `unsafe` を新規に書かない方針とする |
 

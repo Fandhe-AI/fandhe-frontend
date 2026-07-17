@@ -1,59 +1,325 @@
-//! `rws-interactive`: DOM / `wasm-bindgen` 非依存の状態管理コア。
+//! `rws-interactive`: 状態管理コア（外部依存は `rws-core` のみ）。
 //!
-//! `rws-core`（path 依存のみ）に依存し、アプリ状態の保持・アクション
-//! ディスパッチ・ハイドレーション属性コーデック・状態から `Node` への
-//! 純粋レンダリングを提供する。TASK-11.2（`rws-wasm-full`）・TASK-11.3
-//! （`rws-wasm-thin`）・TASK-11.4（ハイドレーション）が共通で利用する
-//! プラットフォーム非依存コアであり、DOM API・`web_sys`・`wasm-bindgen`
-//! を一切参照しない（ネイティブ環境でもそのままテスト・計測できる）。
+//! DOM/`wasm-bindgen` 非依存の状態機械とハイドレーション契約を提供する。
+//! `rws-wasm-full`（TASK-11.2、イベント→dispatch→再描画）と `rws-server`
+//! （SSR、ハイドレーション属性付き HTML 出力）が本クレートの型・トレイトを
+//! 共有して呼び出す前提であり、PoC-5
+//! （`docs/spec/03-poc/wasm-runtime-split/interactive/src/lib.rs`）の
+//! カウンター・フォーム・動的リスト固有の具象実装（`AppState`/`dispatch`/
+//! `hydration_attrs` 等）を、アプリ非依存の汎用 API へ一般化したものである。
 //!
-//! `docs/spec/03-poc/wasm-runtime-split/interactive/src/lib.rs`（PoC-5）の
-//! 状態構造・API 形状を製品版として引き継ぐ。TASK-11.1a（状態管理 API
-//! 設計確定書）がマージされた場合はそちらを正とし、本実装との乖離が
-//! あれば追従 PR で調整する。
+//! # 本クレートの不変条件（REQ-1・REQ-2・REQ-11、`docs/interactive-api.md` 第 6 節）
 //!
-//! # 本クレートの不変条件（REQ-1・REQ-2・REQ-11）
+//! 1. [`Component::view`] の出力は `rws_core::Node` のみであり、
+//!    `rws_core::render()` の既定エスケープを必ず経由する。**本クレート内では
+//!    `raw_html()` を使用しない**（新たなエスケープ迂回経路を作らない）。
+//! 2. ハイドレーション属性値はレンダリング時に `rws-core` の属性エスケープで
+//!    保護され、復元時（[`Hydrate::from_hydration_attrs`]）は「データ」として
+//!    のみ扱い HTML として解釈しない。
+//! 3. [`Hydrate::from_hydration_attrs`] は改ざんされうるクライアント入力を
+//!    前提に、panic せず [`Result`] で失敗（[`HydrateError`]）を返す。
+//! 4. 未知アクション名の dispatch は no-op とし、状態を変更しない（安全側
+//!    フォールバック）。
+//! 5. codec（`docs/interactive-api.md` 第 3 節、TASK-11.1b で実装）は区切り
+//!    文字・エスケープ文字を含む入力でもラウンドトリップが成立する方式
+//!    （Unit Separator + バックスラッシュエスケープ）を採用する。
+//! 6. **`unsafe` コード禁止**: `#![forbid(unsafe_code)]` によりクレート全体で
+//!    機械的に禁止する。
+//! 7. **外部依存は `rws-core`（path）のみ**: `interactive/Cargo.toml` の
+//!    `[dependencies]` にサードパーティクレートを追加しない。
 //!
-//! 1. HTML 出力はすべて `rws_core::el` / `text` のノード木 API を経由する。
-//!    `format!` 等による HTML 文字列の直接組み立て・独自エスケープ・
-//!    `rws_core::raw_html` 以外の迂回経路を新設しない（REQ-1 を弱めない）。
-//! 2. **`unsafe` コード禁止**: `#![forbid(unsafe_code)]` によりクレート全体で
-//!    機械的に禁止する（REQ-2）。`unsafe` は WASM バインディング層・FFI 境界
-//!    に限定され、本クレートには含まれない。
-//! 3. **外部依存ゼロ**: `Cargo.toml` の `[dependencies]` は `rws-core`（path
-//!    依存）のみを維持する。`rws-interactive -> rws-core` の第一者依存は
-//!    `xtask` の `check-core-deps` で外部依存に計上されない前提のクレート
-//!    構成（`xtask/src/check_deps.rs` の `ZERO_DEP_CRATES` 参照）。
-//! 4. ライブラリコードで `unwrap()` / `expect()` / `panic!` を使わない。
-//!    クライアント制御下になり得る入力（ハイドレーション属性値）のパース
-//!    失敗は既定値へフォールバックし、処理を止めない（DoS 耐性）。
+//! # 本ファイルのスコープ（TASK-11.1b）
 //!
-//! ## スコープ外
-//!
-//! 状態管理 API の設計確定（TASK-11.1a）・テストの本格網羅（TASK-11.1c）・
-//! `wasm-full`/`wasm-thin` からの実利用とイベント配線（TASK-11.2/11.3）・
-//! `wasm-full` 側のハイドレーション製品化（TASK-11.4）は本クレートでは
-//! 扱わない。本クレートに同梱するテストはスモーク水準にとどめる。
+//! 本ファイルは TASK-11.1a（#70、`docs/interactive-api.md`）が確定した
+//! [`Component`]・[`Hydrate`] トレイトと [`HYDRATE_ATTR_PREFIX`]・
+//! [`HydrateError`] の骨格に対し、`dispatch`・`codec` モジュールの関数本体・
+//! `render_for_hydration` の実装を追加し、PoC-5 のカウンター・フォーム・
+//! 動的リストコンポーネント（[`AppState`]）を [`Component`]/[`Hydrate`] の
+//! 具象実装として提供する（設計詳細は `docs/interactive-api.md` 第 3〜4 節）。
+//! テストスイートの本格網羅は TASK-11.1c（#72）のスコープ。本クレートに
+//! 同梱するテストはスモーク〜回帰確認水準にとどめる。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
 use rws_core::{el, li, text, ul, Node};
 
+/// アプリ状態と描画・遷移を結ぶ中核トレイト。
+///
+/// PoC-5 の `AppState`/`dispatch`/`render`（`docs/spec/03-poc/wasm-runtime-split/
+/// interactive/src/lib.rs`）を一般化したもの。`view()` は `rws-core` の
+/// ノード木 API のみを使う純粋関数として実装すること
+/// （`docs/component-api.md` REQ-5 の「コンポーネントは通常の Rust 関数」
+/// 規約と、本トレイトが導入する状態機械の抽象は独立した関心事であり、
+/// 矛盾しない。`docs/interactive-api.md` 第 3 節・第 4 節・判断 1 参照）。
+///
+/// `rws-wasm-full`（TASK-11.2）が呼ぶ最小面はここで確定する
+/// （`decode_action`/`update`/`view`）。
+pub trait Component {
+    /// 型付きアクション。WASM 境界の文字列 dispatch（`name`/`payload`）とは
+    /// [`Component::decode_action`] で接続する。
+    type Action;
+
+    /// アクションを適用して状態を遷移させる（純粋な状態遷移。panic しない）。
+    fn update(&mut self, action: Self::Action);
+
+    /// 状態から `rws_core::Node` 木を構築する純粋関数。
+    ///
+    /// `rws_core::render()` の既定エスケープを必ず経由させるため、
+    /// 戻り値は必ず `rws_core::Node` のみとし、HTML 文字列や DOM 型を
+    /// 直接返さない（本クレートの不変条件 1）。
+    fn view(&self) -> rws_core::Node;
+
+    /// WASM 境界の `(name, payload)` 文字列を型付きアクションへ復号する。
+    ///
+    /// 未知のアクション名は `None` を返す（安全側 no-op、本クレートの
+    /// 不変条件 4）。呼び出し元（[`dispatch`]）はこの結果を使って状態変更の
+    /// 要否を判断する。
+    fn decode_action(name: &str, payload: &str) -> Option<Self::Action>;
+}
+
+/// WASM 境界の `(name, payload)` 文字列 dispatch ヘルパ。
+///
+/// `component.decode_action` で型付きアクションへの復号を試み、成功時のみ
+/// `component.update` を呼んで状態を変更する。復号失敗（未知のアクション名）
+/// では状態を変更せず `false` を返す（本クレートの不変条件 4、安全側
+/// フォールバック）。`rws-wasm-full`/`rws-wasm-thin`（TASK-11.2/11.3）が
+/// ブラウザの `data-action`/`data-payload` 属性から受け取った文字列を
+/// そのまま渡す想定の境界関数。
+pub fn dispatch<C: Component>(component: &mut C, name: &str, payload: &str) -> bool {
+    match C::decode_action(name, payload) {
+        Some(action) => {
+            component.update(action);
+            true
+        }
+        None => false,
+    }
+}
+
+/// SSR ↔ WASM のハイドレーション契約。
+///
+/// `hydration_attrs` はサーバー側（SSR）の責務、`from_hydration_attrs` は
+/// クライアント側（WASM）の責務を表す。属性値はクライアント側で改ざん
+/// されうる信頼できない入力として扱い、`from_hydration_attrs` は panic
+/// せず [`Result`] で失敗を返す（本クレートの不変条件 3）。
+///
+/// [`Component`] とは独立したトレイトであり、SSR ハイドレーションを必要
+/// としないコンポーネントは本トレイトを実装しなくてよい
+/// （`docs/interactive-api.md` 第 3.1 節）。
+pub trait Hydrate: Sized {
+    /// 状態を `data-hydrate-*` 属性列へエンコードする（サーバー側責務）。
+    ///
+    /// 属性名は [`HYDRATE_ATTR_PREFIX`] を接頭辞とする規約に従うこと。
+    fn hydration_attrs(&self) -> Vec<(String, String)>;
+
+    /// 属性列から状態を復元する（クライアント側責務）。
+    ///
+    /// # Errors
+    ///
+    /// 属性が欠落している場合、または値の形式が不正な場合に
+    /// [`HydrateError`] を返す。panic しない。
+    fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError>;
+}
+
+/// ハイドレーション属性名の接頭辞規約。
+///
+/// PoC-5 実績（`data-hydrate-counter`/`data-hydrate-draft`/
+/// `data-hydrate-items`）を標準化したもの。個々の属性名はコンポーネント
+/// ごとに異なるため、共有すべき接頭辞のみを定数として公開する
+/// （`docs/interactive-api.md` 第 4 節・判断 3）。
+pub const HYDRATE_ATTR_PREFIX: &str = "data-hydrate-";
+
+/// [`Hydrate::from_hydration_attrs`] の失敗を表す。
+///
+/// クライアント側で改ざんされうる入力（DOM 属性値）を扱うための型であり、
+/// 呼び出し側は panic ではなくこの型を介してエラーハンドリングする
+/// （`.claude/rules/coding-rust.md` のエラーハンドリング規約）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HydrateError {
+    /// 復元に必要な属性が見つからなかった。値は欠落した属性名。
+    MissingAttr(String),
+    /// 属性は存在するが値の形式が不正だった（例: 数値パース失敗）。
+    InvalidValue {
+        /// 不正な値を持っていた属性名。
+        attr: String,
+        /// 不正と判定した理由（内部実装詳細・機微情報は含めない）。
+        reason: String,
+    },
+}
+
+impl core::fmt::Display for HydrateError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            HydrateError::MissingAttr(attr) => {
+                write!(f, "missing hydration attribute: {attr}")
+            }
+            HydrateError::InvalidValue { attr, reason } => {
+                write!(f, "invalid hydration attribute value for {attr}: {reason}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for HydrateError {}
+
+/// ハイドレーション属性値のエンコード/デコード（外部依存ゼロの codec）。
+///
+/// Unit Separator（`\u{1f}`）区切り＋バックスラッシュエスケープにより、
+/// JSON 等の追加クレートなしで複数値を 1 属性値へエンコードする
+/// （PoC-5 実証方式、REQ-11 受け入れ基準「追加の JSON 等の依存なしに
+/// 成立すること」）。
+pub mod codec {
+    /// リスト項目を 1 属性値へ結合する際の区切り文字。
+    ///
+    /// 通常のテキスト入力に混入しない ASCII 制御文字（Unit Separator）を使う
+    /// ことで、JSON 等の追加依存なしに複数項目をハイドレーション属性 1 個へ
+    /// エンコードできる（REQ-11 受け入れ基準・`rws-core` の「外部依存ゼロ」
+    /// 方針を本クレートでも踏襲する）。
+    const ITEM_SEP: char = '\u{1f}';
+    /// [`ITEM_SEP`] / [`ESCAPE_CHAR`] 自体が項目文字列に混入した場合のエスケープ文字。
+    const ESCAPE_CHAR: char = '\\';
+
+    /// アイテム文字列中の [`ESCAPE_CHAR`] と [`ITEM_SEP`] をエスケープする。
+    ///
+    /// 項目文字列自体に区切り文字・エスケープ文字が含まれていても、区切り文字
+    /// による項目境界の偽装（データ注入）が起きないようにするための内部処理。
+    fn escape_item(s: &str) -> String {
+        let mut out = String::with_capacity(s.len());
+        for c in s.chars() {
+            match c {
+                ESCAPE_CHAR => {
+                    out.push(ESCAPE_CHAR);
+                    out.push(ESCAPE_CHAR);
+                }
+                ITEM_SEP => {
+                    out.push(ESCAPE_CHAR);
+                    out.push('u');
+                }
+                other => out.push(other),
+            }
+        }
+        out
+    }
+
+    /// [`escape_item`] の逆変換。
+    fn unescape_item(s: &str) -> String {
+        let mut out = String::with_capacity(s.len());
+        let mut chars = s.chars();
+        while let Some(c) = chars.next() {
+            if c == ESCAPE_CHAR {
+                match chars.next() {
+                    Some(ESCAPE_CHAR) => out.push(ESCAPE_CHAR),
+                    Some('u') => out.push(ITEM_SEP),
+                    // 未知のエスケープシーケンスはそのまま残す（安全側フォールバック。panic しない）。
+                    Some(other) => {
+                        out.push(ESCAPE_CHAR);
+                        out.push(other);
+                    }
+                    None => out.push(ESCAPE_CHAR),
+                }
+            } else {
+                out.push(c);
+            }
+        }
+        out
+    }
+
+    /// 項目一覧を [`ITEM_SEP`] 区切りの 1 文字列へエンコードする（サーバー側責務）。
+    ///
+    /// 各項目の**前**に [`ITEM_SEP`] を 1 つ付与する方式を採る（項目間の区切りではなく
+    /// 項目ごとの前置区切りとすることで、区切り文字の出現数が常に項目数と一致する）。
+    /// これにより空リスト（出力 `""`）と「空文字列 1 件のみを含むリスト」（出力 `"\u{1f}"`）
+    /// が異なるエンコードになり、[`decode_list`] との往復で区別できる
+    /// （Bugbot 指摘: 旧実装は `join` 方式のため両者が `""` に衝突していた）。
+    pub fn encode_list(items: &[String]) -> String {
+        items
+            .iter()
+            .map(|s| format!("{ITEM_SEP}{}", escape_item(s)))
+            .collect()
+    }
+
+    /// [`encode_list`] の逆変換（クライアント側責務）。
+    ///
+    /// 空文字列のみを空リストとして扱い、それ以外は先頭の区切り文字で区切って
+    /// 各項目を復元する（`split` の最初の要素は先頭区切りより前の空文字列となるため読み捨てる）。
+    pub fn decode_list(joined: &str) -> Vec<String> {
+        if joined.is_empty() {
+            Vec::new()
+        } else {
+            joined.split(ITEM_SEP).skip(1).map(unescape_item).collect()
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn distinguishes_empty_list_from_single_empty_item() {
+            let empty: Vec<String> = Vec::new();
+            let single_empty: Vec<String> = vec!["".to_string()];
+
+            assert_ne!(encode_list(&empty), encode_list(&single_empty));
+            assert_eq!(decode_list(&encode_list(&empty)), empty);
+            assert_eq!(decode_list(&encode_list(&single_empty)), single_empty);
+        }
+
+        #[test]
+        fn roundtrip_survives_separator_and_backslash_in_item_text() {
+            let items = vec![
+                "separator:\u{1f}here".to_string(),
+                "backslash:\\here".to_string(),
+                "both:\\\u{1f}mixed".to_string(),
+                "plain item".to_string(),
+            ];
+            assert_eq!(decode_list(&encode_list(&items)), items);
+        }
+    }
+}
+
+/// [`Component::view`] のルート要素へ [`Hydrate::hydration_attrs`] を付与した
+/// `Node` を返す SSR 用ヘルパ。
+///
+/// ルート要素が `Node::Element` でない場合（`Text`/`RawHtml` を直接返す
+/// コンポーネント）は属性を付与できないため、`view()` の戻り値をそのまま
+/// 返す（属性欠落を panic で扱わない、`docs/interactive-api.md` 第 4 節・
+/// 判断 7）。
+pub fn render_for_hydration<C: Component + Hydrate>(component: &C) -> Node {
+    let view = component.view();
+    let attrs = component.hydration_attrs();
+    match view {
+        Node::Element {
+            tag,
+            attrs: mut existing,
+            children,
+        } => {
+            existing.extend(attrs);
+            Node::Element {
+                tag,
+                attrs: existing,
+                children,
+            }
+        }
+        other => other,
+    }
+}
+
 /// アプリ状態: カウンター・フォーム入力（下書き）・動的リスト。
 ///
 /// PoC-5 の最小インタラクティブコンポーネント（カウンター＋フォーム入力＋
-/// 動的リスト更新）をそのまま製品状態として引き継ぐ。TASK-11.1a の設計
-/// 確定書がマージされ次第、フィールド構成はそちらに従って調整する。
+/// 動的リスト更新）をそのまま製品状態として引き継ぐ。[`Component`]/
+/// [`Hydrate`] を実装し、`docs/interactive-api.md` が確定した API 表面の
+/// 具体例として機能する。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppState {
-    /// カウンター値。`increment`/`decrement`/`reset_counter` からのみ変更する。
+    /// カウンター値。[`Action::Increment`]/[`Action::Decrement`]/
+    /// [`Action::Reset`] からのみ変更する。
     pub counter: i64,
-    /// フォーム入力欄の下書き文字列。`add_item` 実行時に `items` へ確定し
-    /// クリアされる。
+    /// フォーム入力欄の下書き文字列。[`Action::AddItem`] 実行時に `items`
+    /// へ確定しクリアされる。
     pub draft: String,
-    /// 動的リストの項目群。ハイドレーション時は [`encode_items`] でリスト
-    /// 全体を 1 属性値へエンコードする。
+    /// 動的リストの項目群。ハイドレーション時は [`codec::encode_list`] で
+    /// リスト全体を 1 属性値へエンコードする。
     pub items: Vec<String>,
 }
 
@@ -72,211 +338,119 @@ impl AppState {
     pub fn new() -> Self {
         Self::default()
     }
+}
 
+/// [`AppState`] に対する型付きアクション。
+///
+/// WASM 境界の文字列 dispatch（`name`/`payload`）とは
+/// [`AppState::decode_action`] で接続する（[`Component::decode_action`] 実装）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Action {
     /// カウンターを 1 増やす。
-    pub fn increment(&mut self) {
-        self.counter += 1;
-    }
-
+    Increment,
     /// カウンターを 1 減らす。
-    pub fn decrement(&mut self) {
-        self.counter -= 1;
-    }
-
+    Decrement,
     /// カウンターを 0 へ戻す。
-    pub fn reset_counter(&mut self) {
-        self.counter = 0;
-    }
-
+    Reset,
     /// フォーム入力欄の下書きを置き換える。
-    pub fn set_draft(&mut self, value: &str) {
-        self.draft = value.to_string();
-    }
-
-    /// 下書きの前後空白を除去し、空でなければリストへ追加して下書きをクリアする。
-    pub fn add_item(&mut self) {
-        let trimmed = self.draft.trim();
-        if !trimmed.is_empty() {
-            self.items.push(trimmed.to_string());
-            self.draft.clear();
-        }
-    }
-
-    /// 指定インデックスの項目を削除する。範囲外の場合は何もしない（安全側フォールバック）。
-    pub fn remove_item(&mut self, index: usize) {
-        if index < self.items.len() {
-            self.items.remove(index);
-        }
-    }
+    SetDraft(String),
+    /// 下書きをリストへ追加する。
+    AddItem,
+    /// 指定インデックスの項目を削除する。
+    RemoveItem(usize),
 }
 
-/// アクション名と引数文字列から状態を更新する共通ディスパッチャ。
-///
-/// `wasm-full`（Rust 側イベントハンドラ）・`wasm-thin`（JS グルーが呼ぶ wasm
-/// 関数）・ネイティブ計測（`bench`）のいずれからも同一関数を呼び出す想定の
-/// 境界設計であり、追加のシリアライズ依存を必要としない（PoC-5 実証済み）。
-/// 未知のアクション名は無視する（panic させない）。
-pub fn dispatch(state: &mut AppState, action: &str, payload: &str) {
-    match action {
-        "increment" => state.increment(),
-        "decrement" => state.decrement(),
-        "reset" => state.reset_counter(),
-        "set_draft" => state.set_draft(payload),
-        "add_item" => state.add_item(),
-        "remove_item" => {
-            if let Ok(idx) = payload.parse::<usize>() {
-                state.remove_item(idx);
-            }
-        }
-        _ => {}
-    }
-}
+impl Component for AppState {
+    type Action = Action;
 
-/// リスト項目を 1 属性値へ結合する際の区切り文字。
-///
-/// 通常のテキスト入力に混入しない ASCII 制御文字（Unit Separator）を使う
-/// ことで、JSON 等の追加依存なしに複数項目をハイドレーション属性 1 個へ
-/// エンコードできる（REQ-11 受け入れ基準・`rws-core` の「外部依存ゼロ」
-/// 方針を本クレートでも踏襲する）。
-const ITEM_SEP: char = '\u{1f}';
-/// [`ITEM_SEP`] / [`ESCAPE_CHAR`] 自体が項目文字列に混入した場合のエスケープ文字。
-const ESCAPE_CHAR: char = '\\';
-
-/// アイテム文字列中の [`ESCAPE_CHAR`] と [`ITEM_SEP`] をエスケープする。
-///
-/// 項目文字列自体に区切り文字・エスケープ文字が含まれていても、区切り文字
-/// による項目境界の偽装（データ注入）が起きないようにするための内部処理。
-fn escape_item(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for c in s.chars() {
-        match c {
-            ESCAPE_CHAR => {
-                out.push(ESCAPE_CHAR);
-                out.push(ESCAPE_CHAR);
-            }
-            ITEM_SEP => {
-                out.push(ESCAPE_CHAR);
-                out.push('u');
-            }
-            other => out.push(other),
-        }
-    }
-    out
-}
-
-/// [`escape_item`] の逆変換。
-fn unescape_item(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut chars = s.chars();
-    while let Some(c) = chars.next() {
-        if c == ESCAPE_CHAR {
-            match chars.next() {
-                Some(ESCAPE_CHAR) => out.push(ESCAPE_CHAR),
-                Some('u') => out.push(ITEM_SEP),
-                // 未知のエスケープシーケンスはそのまま残す（安全側フォールバック。panic しない）。
-                Some(other) => {
-                    out.push(ESCAPE_CHAR);
-                    out.push(other);
+    fn update(&mut self, action: Action) {
+        match action {
+            Action::Increment => self.counter += 1,
+            Action::Decrement => self.counter -= 1,
+            Action::Reset => self.counter = 0,
+            Action::SetDraft(value) => self.draft = value,
+            Action::AddItem => {
+                let trimmed = self.draft.trim();
+                if !trimmed.is_empty() {
+                    self.items.push(trimmed.to_string());
+                    self.draft.clear();
                 }
-                None => out.push(ESCAPE_CHAR),
             }
-        } else {
-            out.push(c);
+            // 範囲外インデックスは何もしない（安全側フォールバック）。
+            Action::RemoveItem(index) => {
+                if index < self.items.len() {
+                    self.items.remove(index);
+                }
+            }
         }
     }
-    out
-}
 
-/// 項目一覧を [`ITEM_SEP`] 区切りの 1 文字列へエンコードする（サーバー側責務）。
-///
-/// 各項目の**前**に [`ITEM_SEP`] を 1 つ付与する方式を採る（項目間の区切りではなく
-/// 項目ごとの前置区切りとすることで、区切り文字の出現数が常に項目数と一致する）。
-/// これにより空リスト（出力 `""`）と「空文字列 1 件のみを含むリスト」（出力 `"\u{1f}"`）
-/// が異なるエンコードになり、[`decode_items`] との往復で区別できる
-/// （Bugbot 指摘: 旧実装は `join` 方式のため両者が `""` に衝突していた）。
-fn encode_items(items: &[String]) -> String {
-    items
-        .iter()
-        .map(|s| format!("{ITEM_SEP}{}", escape_item(s)))
-        .collect()
-}
+    fn view(&self) -> Node {
+        render_with_root_attrs(self, vec![])
+    }
 
-/// [`encode_items`] の逆変換（クライアント側責務）。
-///
-/// 空文字列のみを空リストとして扱い、それ以外は先頭の区切り文字で区切って
-/// 各項目を復元する（`split` の最初の要素は先頭区切りより前の空文字列となるため読み捨てる）。
-fn decode_items(items_joined: &str) -> Vec<String> {
-    if items_joined.is_empty() {
-        Vec::new()
-    } else {
-        items_joined
-            .split(ITEM_SEP)
-            .skip(1)
-            .map(unescape_item)
-            .collect()
+    fn decode_action(name: &str, payload: &str) -> Option<Action> {
+        match name {
+            "increment" => Some(Action::Increment),
+            "decrement" => Some(Action::Decrement),
+            "reset" => Some(Action::Reset),
+            "set_draft" => Some(Action::SetDraft(payload.to_string())),
+            "add_item" => Some(Action::AddItem),
+            // 未知のインデックス表現（パース失敗）は復号失敗として扱い、
+            // 呼び出し元（dispatch）で no-op になる（不変条件 4）。
+            "remove_item" => payload.parse::<usize>().ok().map(Action::RemoveItem),
+            _ => None,
+        }
     }
 }
 
-/// サーバー（SSR）側の責務: 状態をハイドレーション用の DOM 属性へエンコードする。
-///
-/// [`render_for_hydration`] がこの戻り値をルート要素の属性として埋め込む。
-/// 出力値は `el()` の attrs としてのみ利用される想定であり、呼び出し側が
-/// これを HTML 文字列へ直接埋め込むことは想定しない（不変条件 1 参照）。
-pub fn hydration_attrs(state: &AppState) -> Vec<(String, String)> {
-    vec![
-        (
-            "data-hydrate-counter".to_string(),
-            state.counter.to_string(),
-        ),
-        ("data-hydrate-draft".to_string(), state.draft.clone()),
-        ("data-hydrate-items".to_string(), encode_items(&state.items)),
-    ]
-}
+impl Hydrate for AppState {
+    fn hydration_attrs(&self) -> Vec<(String, String)> {
+        vec![
+            (
+                format!("{HYDRATE_ATTR_PREFIX}counter"),
+                self.counter.to_string(),
+            ),
+            (format!("{HYDRATE_ATTR_PREFIX}draft"), self.draft.clone()),
+            (
+                format!("{HYDRATE_ATTR_PREFIX}items"),
+                codec::encode_list(&self.items),
+            ),
+        ]
+    }
 
-/// クライアント（WASM）側の責務: ルート要素から読み取った属性値を状態へ復元する。
-///
-/// `wasm-full`/`wasm-thin` の `hydrate()`（TASK-11.2/11.3 のスコープ）から
-/// 呼ばれる想定。不正な `counter` 値（パース失敗）は `0` へフォールバック
-/// し、panic しない（クライアント制御下の入力に対する DoS 耐性）。
-pub fn state_from_hydration_attrs(counter: &str, draft: &str, items_joined: &str) -> AppState {
-    let counter = counter.parse::<i64>().unwrap_or(0);
-    let items = decode_items(items_joined);
-    AppState {
-        counter,
-        draft: draft.to_string(),
-        items,
+    fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
+        let find = |name: &str| -> Result<&str, HydrateError> {
+            attrs
+                .iter()
+                .find(|(k, _)| k == name)
+                .map(|(_, v)| v.as_str())
+                .ok_or_else(|| HydrateError::MissingAttr(name.to_string()))
+        };
+
+        let counter_attr = format!("{HYDRATE_ATTR_PREFIX}counter");
+        let draft_attr = format!("{HYDRATE_ATTR_PREFIX}draft");
+        let items_attr = format!("{HYDRATE_ATTR_PREFIX}items");
+
+        let counter_raw = find(&counter_attr)?;
+        let counter = counter_raw
+            .parse::<i64>()
+            .map_err(|_| HydrateError::InvalidValue {
+                attr: counter_attr.clone(),
+                reason: "not a valid integer".to_string(),
+            })?;
+        let draft = find(&draft_attr)?.to_string();
+        let items = codec::decode_list(find(&items_attr)?);
+
+        Ok(AppState {
+            counter,
+            draft,
+            items,
+        })
     }
 }
 
-/// 状態から `Node` 木を構築する（純粋関数、DOM 非依存）。
-///
-/// `rws_app` と同じ「モード非依存の共通レンダリング関数」という設計方針を
-/// インタラクティブコンポーネントにも適用したもの。SSR（[`render_html`]）
-/// と CSR 再描画の双方から同一関数を呼び、出力の同一性を保証する。
-pub fn render(state: &AppState) -> Node {
-    render_with_root_attrs(state, vec![])
-}
-
-/// SSR 用: [`render`] と同じ木に、ハイドレーション用の状態属性
-/// （[`hydration_attrs`]）をルート要素へ追加する。
-///
-/// クライアントはこの属性を読み取って WASM 内部状態を復元し、DOM を
-/// 作り直さずにイベント配線のみ行う想定（「最小ハイドレーション」方針）。
-pub fn render_for_hydration(state: &AppState) -> Node {
-    let attrs = hydration_attrs(state);
-    let extra: Vec<(&str, &str)> = attrs
-        .iter()
-        .map(|(k, v)| (k.as_str(), v.as_str()))
-        .collect();
-    render_with_root_attrs(state, extra)
-}
-
-/// [`render_for_hydration`] を経由して HTML 文字列を得るショートカット。
-pub fn render_html_for_hydration(state: &AppState) -> String {
-    rws_core::render(&render_for_hydration(state))
-}
-
-/// [`render`] / [`render_for_hydration`] 共通の木構築本体。
+/// [`AppState::view`] / [`render_for_hydration`] 共通の木構築本体。
 ///
 /// `extra_root_attrs` はルート要素へ追加する属性（ハイドレーション属性）。
 /// テキスト・属性値はすべて `rws_core::text`/`el` の attrs 経由で出力する
@@ -362,12 +536,6 @@ fn render_with_root_attrs(state: &AppState, extra_root_attrs: Vec<(&str, &str)>)
     )
 }
 
-/// [`render`] を経由して HTML 文字列を得るショートカット
-/// （`rws_core::render` との合成、各クレートでの重複を避ける）。
-pub fn render_html(state: &AppState) -> String {
-    rws_core::render(&render(state))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -375,26 +543,26 @@ mod tests {
     #[test]
     fn increment_and_decrement() {
         let mut s = AppState::new();
-        s.increment();
-        s.increment();
-        s.decrement();
+        s.update(Action::Increment);
+        s.update(Action::Increment);
+        s.update(Action::Decrement);
         assert_eq!(s.counter, 1);
     }
 
     #[test]
     fn reset_sets_counter_to_zero() {
         let mut s = AppState::new();
-        s.increment();
-        s.increment();
-        s.reset_counter();
+        s.update(Action::Increment);
+        s.update(Action::Increment);
+        s.update(Action::Reset);
         assert_eq!(s.counter, 0);
     }
 
     #[test]
     fn add_item_trims_and_clears_draft() {
         let mut s = AppState::new();
-        s.set_draft("  new item  ");
-        s.add_item();
+        s.update(Action::SetDraft("  new item  ".to_string()));
+        s.update(Action::AddItem);
         assert_eq!(s.items.last().unwrap(), "new item");
         assert_eq!(s.draft, "");
     }
@@ -403,8 +571,8 @@ mod tests {
     fn add_item_ignores_empty_draft() {
         let mut s = AppState::new();
         let before = s.items.len();
-        s.set_draft("   ");
-        s.add_item();
+        s.update(Action::SetDraft("   ".to_string()));
+        s.update(Action::AddItem);
         assert_eq!(s.items.len(), before);
     }
 
@@ -412,7 +580,7 @@ mod tests {
     fn remove_item_by_index() {
         let mut s = AppState::new();
         s.items.push("second".into());
-        s.remove_item(0);
+        s.update(Action::RemoveItem(0));
         assert_eq!(s.items, vec!["second".to_string()]);
     }
 
@@ -420,7 +588,7 @@ mod tests {
     fn remove_item_out_of_range_is_noop() {
         let mut s = AppState::new();
         let before = s.items.clone();
-        s.remove_item(99);
+        s.update(Action::RemoveItem(99));
         assert_eq!(s.items, before);
     }
 
@@ -438,15 +606,16 @@ mod tests {
     fn dispatch_ignores_unknown_action() {
         let mut s = AppState::new();
         let before = s.clone();
-        dispatch(&mut s, "no_such_action", "payload");
+        let dispatched = dispatch(&mut s, "no_such_action", "payload");
+        assert!(!dispatched);
         assert_eq!(s, before);
     }
 
     #[test]
     fn render_reflects_state() {
         let mut s = AppState::new();
-        s.increment();
-        let html = render_html(&s);
+        s.update(Action::Increment);
+        let html = rws_core::render(&s.view());
         assert!(html.contains("カウント: 1"));
         assert!(html.contains("最初の項目"));
     }
@@ -454,18 +623,13 @@ mod tests {
     #[test]
     fn hydration_roundtrip_preserves_state() {
         let mut s = AppState::new();
-        s.increment();
-        s.increment();
+        s.update(Action::Increment);
+        s.update(Action::Increment);
         s.items.push("second".to_string());
-        s.set_draft("draft text");
+        s.update(Action::SetDraft("draft text".to_string()));
 
-        let attrs = hydration_attrs(&s);
-        let map: std::collections::HashMap<_, _> = attrs.into_iter().collect();
-        let restored = state_from_hydration_attrs(
-            &map["data-hydrate-counter"],
-            &map["data-hydrate-draft"],
-            &map["data-hydrate-items"],
-        );
+        let attrs = s.hydration_attrs();
+        let restored = AppState::from_hydration_attrs(&attrs).expect("valid attrs");
         assert_eq!(restored, s);
     }
 
@@ -481,15 +645,10 @@ mod tests {
             "both:\\\u{1f}mixed".to_string(),
             "plain item".to_string(),
         ];
-        s.set_draft("draft");
+        s.update(Action::SetDraft("draft".to_string()));
 
-        let attrs = hydration_attrs(&s);
-        let map: std::collections::HashMap<_, _> = attrs.into_iter().collect();
-        let restored = state_from_hydration_attrs(
-            &map["data-hydrate-counter"],
-            &map["data-hydrate-draft"],
-            &map["data-hydrate-items"],
-        );
+        let attrs = s.hydration_attrs();
+        let restored = AppState::from_hydration_attrs(&attrs).expect("valid attrs");
         assert_eq!(restored, s);
     }
 
@@ -497,46 +656,72 @@ mod tests {
     /// 旧実装では同一のエンコード（`""`）に衝突していた。両者が区別できることを確認する。
     #[test]
     fn hydration_roundtrip_distinguishes_empty_list_from_single_empty_item() {
-        let empty: Vec<String> = Vec::new();
-        let single_empty: Vec<String> = vec!["".to_string()];
+        let mut empty_list_state = AppState::new();
+        empty_list_state.items = Vec::new();
+        let mut single_empty_state = AppState::new();
+        single_empty_state.items = vec!["".to_string()];
 
-        assert_ne!(encode_items(&empty), encode_items(&single_empty));
-        assert_eq!(decode_items(&encode_items(&empty)), empty);
-        assert_eq!(decode_items(&encode_items(&single_empty)), single_empty);
+        assert_ne!(
+            empty_list_state.hydration_attrs(),
+            single_empty_state.hydration_attrs()
+        );
+        assert_eq!(
+            AppState::from_hydration_attrs(&empty_list_state.hydration_attrs()).unwrap(),
+            empty_list_state
+        );
+        assert_eq!(
+            AppState::from_hydration_attrs(&single_empty_state.hydration_attrs()).unwrap(),
+            single_empty_state
+        );
     }
 
     #[test]
-    fn state_from_hydration_attrs_falls_back_on_invalid_counter() {
+    fn from_hydration_attrs_fails_on_invalid_counter() {
         // クライアント制御下になり得る属性値のパース失敗は panic せず
-        // 既定値へフォールバックする（不変条件 4）。
-        let restored = state_from_hydration_attrs("not-a-number", "", "");
-        assert_eq!(restored.counter, 0);
+        // HydrateError を返す（不変条件 3）。
+        let attrs = vec![
+            (
+                format!("{HYDRATE_ATTR_PREFIX}counter"),
+                "not-a-number".to_string(),
+            ),
+            (format!("{HYDRATE_ATTR_PREFIX}draft"), String::new()),
+            (format!("{HYDRATE_ATTR_PREFIX}items"), String::new()),
+        ];
+        let err = AppState::from_hydration_attrs(&attrs).unwrap_err();
+        assert!(matches!(err, HydrateError::InvalidValue { .. }));
+    }
+
+    #[test]
+    fn from_hydration_attrs_fails_on_missing_attr() {
+        let attrs: Vec<(String, String)> = Vec::new();
+        let err = AppState::from_hydration_attrs(&attrs).unwrap_err();
+        assert!(matches!(err, HydrateError::MissingAttr(_)));
     }
 
     #[test]
     fn render_escapes_item_text() {
         // REQ-1 の既定エスケープが本クレートでも維持されることを確認する。
         let mut s = AppState::new();
-        s.set_draft("<script>alert(1)</script>");
-        s.add_item();
-        let html = render_html(&s);
+        s.update(Action::SetDraft("<script>alert(1)</script>".to_string()));
+        s.update(Action::AddItem);
+        let html = rws_core::render(&s.view());
         assert!(!html.contains("<script>alert"));
         assert!(html.contains("&lt;script&gt;alert"));
     }
 
     #[test]
-    fn render_for_hydration_embeds_state_attrs_and_matches_render_dom() {
+    fn render_for_hydration_embeds_state_attrs_and_matches_view_dom() {
         let mut s = AppState::new();
-        s.increment();
-        let ssr_html = render_html_for_hydration(&s);
+        s.update(Action::Increment);
+        let ssr_html = rws_core::render(&render_for_hydration(&s));
         assert!(ssr_html.contains(r#"data-hydrate-counter="1""#));
-        // encode_items は各項目の前に ITEM_SEP（\u{1f}）を付与するため、
+        // encode_list は各項目の前に ITEM_SEP（\u{1f}）を付与するため、
         // 属性値は先頭に区切り文字を含む（「空リスト」との衝突回避、Bugbot 指摘対応）。
         assert!(ssr_html.contains("data-hydrate-items=\"\u{1f}最初の項目\""));
 
-        // ハイドレーション属性を除けば、CSR（render_html）と同一の DOM 構造を持つ
+        // ハイドレーション属性を除けば、CSR（view）と同一の DOM 構造を持つ
         // （サーバーが出す本文とクライアントが後で描画する本文が一致することの保証）。
-        let csr_html = render_html(&s);
+        let csr_html = rws_core::render(&s.view());
         assert!(ssr_html.contains("カウント: 1"));
         assert_eq!(
             ssr_html.replace(
@@ -545,5 +730,36 @@ mod tests {
             ),
             csr_html
         );
+    }
+
+    #[test]
+    fn render_for_hydration_returns_view_unchanged_for_non_element_root() {
+        // Component::view のルートが Node::Element でない場合、
+        // render_for_hydration は属性を付与できず view() をそのまま返す
+        // （panic しない、docs/interactive-api.md 第 4 節・判断 7）。
+        struct TextOnly;
+
+        impl Component for TextOnly {
+            type Action = ();
+            fn update(&mut self, _action: ()) {}
+            fn view(&self) -> Node {
+                text("plain text root")
+            }
+            fn decode_action(_name: &str, _payload: &str) -> Option<()> {
+                None
+            }
+        }
+
+        impl Hydrate for TextOnly {
+            fn hydration_attrs(&self) -> Vec<(String, String)> {
+                vec![("data-hydrate-x".to_string(), "1".to_string())]
+            }
+            fn from_hydration_attrs(_attrs: &[(String, String)]) -> Result<Self, HydrateError> {
+                Ok(TextOnly)
+            }
+        }
+
+        let node = render_for_hydration(&TextOnly);
+        assert_eq!(rws_core::render(&node), "plain text root");
     }
 }

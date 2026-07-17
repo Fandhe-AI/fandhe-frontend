@@ -2,12 +2,12 @@
 name = "rws-interactive"
 version = "0.1.0"
 edition = "2021"
-description = "rws-interactive: DOM/wasm-bindgen 非依存の状態管理コア（アクションディスパッチ・ハイドレーション属性コーデック・状態→Node 純粋レンダリング）。"
+description = "rws-interactive: 状態管理コア（DOM/wasm-bindgen 非依存の状態機械・ハイドレーション契約）。外部依存は rws-core のみ。"
 license = "MIT OR Apache-2.0"
 publish = false
 
-# REQ-3 / coding-rust.md: 依存クレート追加は事前承認が必要。
-# rws-interactive は rws-core（path 依存）のみを持ち、外部クレートは追加しない。
+# docs/interactive-api.md 第 2 節: 外部依存は rws-core（path）のみを厳守する。
+# 新規クレートを追加する場合は事前にユーザー承認を得ること（.claude/rules/coding-rust.md）。
 [dependencies]
 rws-core = { path = "../core" }
 
