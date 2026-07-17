@@ -1,0 +1,59 @@
+[package]
+name = "rws-wasm-client"
+version = "0.1.0"
+edition = "2021"
+description = "rws-wasm-client: REQ-6 最小ハイドレーション方式のクライアントランタイム。サーバー出力済み DOM を再構築せず、イベントリスナーを後付けする hydrate() と、SSR/SSG と同一関数を呼ぶ CSR 用 mount_csr() を提供する。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# TASK-6.2b（#48）で本クレートを新設。`docs/hydration-api.md`（TASK-6.2a・#47、
+# 凍結済み設計書）第 2 節の凍結内容に従う。実装と本書に乖離が生じた場合は
+# 本書を正とする。
+#
+# `docs/unsafe-boundary.md` 第 2 節のポリシー: 自作コードは safe Rust のみとし、
+# `unsafe` は wasm-bindgen / web-sys の FFI 境界（依存クレート内部・自動生成
+# グルーコード）に限定して許容する（`wasm-full`/`wasm-thin` と同方針）。
+#
+# 依存追加の事前承認整理（.claude/rules/coding-rust.md・security.md）:
+# wasm-bindgen / web-sys は `docs/hydration-api.md` 第 2 節・第 6 節（不変条件 6）
+# で計画済みであり、`wasm-full`（#75）と同一のバージョン系列（"0.2" / "0.3"）を
+# 指定する。Cargo.lock は既に wasm-bindgen 0.2.126 / web-sys 0.3.103 を解決済み
+# のため、本クレート追加で新規外部パッケージは増えない
+# （`cargo metadata` 実測: パッケージ総数 71 件のまま。PR 本文に記録）。
+[dependencies]
+rws-core = { path = "../core" }
+rws-app = { path = "../app" }
+wasm-bindgen = "0.2"
+
+[dependencies.web-sys]
+version = "0.3"
+features = [
+  "Document",
+  "Element",
+  "Event",
+  "EventTarget",
+  "Node",
+  "NodeList",
+  "Window",
+  "DomTokenList",
+]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# TASK-6.2c（#49）: CI の browser-test ジョブ（.github/workflows/ci.yml）が
+# 本クレート新設と同時に `wasm-pack test --headless --chrome wasm-client` を
+# 自動実行するため（存在ガード解除）、最小スモークテスト
+# （tests/hydrate_smoke.rs）に必要な dev 依存。`wasm-full`（#65 と同一運用）と
+# 同一バージョンを指定する。
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+# 合成 DOM 構築（テスト専用）に必要な追加 feature。製品面の
+# [dependencies.web-sys] の features には触れず、テスト専用の feature 拡張に
+# 閉じる（`wasm-full/Cargo.toml` の dev-dependencies.web-sys と同じ方針）。
+# `HtmlElement` は `Document::body()` の戻り値型、`EventInit` は合成 click
+# イベント（`bubbles: true`）の組み立てに必要。
+[dev-dependencies.web-sys]
+version = "0.3"
+features = ["HtmlElement", "EventInit"]
