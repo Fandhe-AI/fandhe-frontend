@@ -78,7 +78,7 @@
 
 | 受け入れ基準 | 対応 |
 |---|---|
-| PoC-3 相当の 3 ルート（`/`・`/items/:id`・`/search`）が解決できる | `server/src/router.rs` の unit テスト `resolves_req7_baseline_routes` で固定。`server/tests/router_resolution.rs`（TASK-7.2c）で公開 API 経由でも固定する |
+| PoC-3 相当の 3 ルート（`/`・`/items/:id`・`/search`）が解決できる | `server/src/router.rs` の unit テスト `resolves_req7_baseline_routes` で固定。`server/tests/router_resolution.rs`（TASK-7.2c・#57）の `resolves_req7_baseline_routes_via_public_api` で公開 API 経由でも固定済み |
 | 高度なルーティング機能（ワイルドカード・データローディング等）は対象外 | 本書 §4 に明記し、実装しない |
 
 ## 7. 備考: `/search` の配線状況
