@@ -105,19 +105,26 @@ PoC-7 は `role` を自由記述文字列としていたが、本スキーマで
    区切り文字を含む名前を拒否することで、TASK-13.1c 以降のファイル
    走査がワークスペース外へ出るパストラバーサル面を仕様段階で塞ぐ
    （OWASP A01 破損アクセス制御 / A05 セキュリティ設定ミス対策）。
-3. `depends_on` / `allowed_dependents` の各要素は宣言済み `directories`
+3. `directories` 内に同名のキーが複数存在してはならない
+   （`ValidationError::DuplicateDirectoryName`）。名前は参照解決の
+   過程で `HashSet<&str>` に集約されるため、重複を許すと 2 件目以降が
+   握りつぶされ、後続の参照検証・対称性検証が `find()` で最初に
+   一致した要素にのみ束縛される（内部一貫性が実際には保証されない）。
+4. `depends_on` / `allowed_dependents` の各要素は宣言済み `directories`
    キーを参照する（`ValidationError::UnknownReference`）。自己参照
    （`ValidationError::SelfReference`）・重複
    （`ValidationError::DuplicateReference`）は拒否する。
-4. `role = "core"` のエントリは `depends_on = []` を強制する
+5. `role = "core"` のエントリは `depends_on = []` を強制する
    （`ValidationError::CoreRoleHasDependencies`）。REQ-3 の core 外部
    依存ゼロ規約をマニフェスト宣言側にも反映する。
-5. 対称性: A の `depends_on` に B が含まれるなら、B の
-   `allowed_dependents` に A が含まれること
-   （`ValidationError::AsymmetricDependency`）。宣言の片落ちを検出する。
-6. `[routing] definition_dir` は宣言済み `directories` キーを参照する
+6. 対称性: A の `depends_on` に B が含まれるなら、B の
+   `allowed_dependents` に A が含まれること。逆方向（B の
+   `allowed_dependents` に A が含まれるなら、A の `depends_on` に B が
+   含まれること）も同様に検証する（`ValidationError::AsymmetricDependency`）。
+   両フィールドは宣言の双方向であるため、どちらの片落ちも見逃さない。
+7. `[routing] definition_dir` は宣言済み `directories` キーを参照する
    （`ValidationError::UnknownRoutingDefinitionDir`）。
-7. `validate()` は検出した違反を 1 件で打ち切らず、可能な限りすべて
+8. `validate()` は検出した違反を 1 件で打ち切らず、可能な限りすべて
    収集して返す（`Result<(), Vec<ValidationError>>`）。エラーメッセージは
    `japanese-style.md` の方針（ユーザー向け文字列は英語）に従い英語。
 

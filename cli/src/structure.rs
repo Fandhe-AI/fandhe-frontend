@@ -123,6 +123,13 @@ pub enum ValidationError {
     /// ディレクトリ名が `^[a-z0-9_-]+$` を満たさない
     /// （絶対パス・`..`・パス区切りを含む名前など）。
     InvalidDirectoryName(String),
+    /// `directories` に同名のエントリが複数宣言されている。
+    ///
+    /// 名前は参照解決で `HashSet<&str>` に集約されるため、重複したまま
+    /// 通すと `find()` が最初に一致した要素にのみ束縛され、参照検証・
+    /// 非対称性検証が意図しないエントリに対して判定される（内部一貫性が
+    /// 実際には保証されない）。そのため重複自体を明示的に拒否する。
+    DuplicateDirectoryName(String),
     /// `depends_on` / `allowed_dependents` が宣言済みキーを参照していない。
     UnknownReference {
         from: String,
@@ -159,6 +166,9 @@ impl std::fmt::Display for ValidationError {
                     "structure.toml: invalid directory name `{name}` (must match ^[a-z0-9_-]+$)"
                 )
             }
+            ValidationError::DuplicateDirectoryName(name) => {
+                write!(f, "structure.toml: duplicate `[directories.{name}]` entry")
+            }
             ValidationError::UnknownReference { from, field, target } => write!(
                 f,
                 "structure.toml: directories.{from}.{field} references unknown directory `{target}`"
@@ -177,7 +187,7 @@ impl std::fmt::Display for ValidationError {
             ),
             ValidationError::AsymmetricDependency { from, to } => write!(
                 f,
-                "structure.toml: directories.{from}.depends_on includes `{to}`, but directories.{to}.allowed_dependents does not include `{from}`"
+                "structure.toml: dependency between `{from}` and `{to}` is declared asymmetrically (directories.{from}.depends_on and directories.{to}.allowed_dependents disagree)"
             ),
             ValidationError::UnknownRoutingDefinitionDir(target) => write!(
                 f,
@@ -206,6 +216,18 @@ impl StructureManifest {
             errors.push(ValidationError::NoDirectories);
             // directories が空なら以降の参照検証は無意味なため打ち切る。
             return Err(errors);
+        }
+
+        // 重複ディレクトリ名検出: known_names（HashSet）に集約する前に検出する。
+        // 集約後は同名の 2 件目以降が握りつぶされ、以降の参照検証・非対称性検証が
+        // `find()` で最初に一致した要素にのみ束縛されてしまうため、ここで先に弾く。
+        {
+            let mut seen_names: std::collections::HashSet<&str> = std::collections::HashSet::new();
+            for dir in &self.directories {
+                if !seen_names.insert(dir.name.as_str()) {
+                    errors.push(ValidationError::DuplicateDirectoryName(dir.name.clone()));
+                }
+            }
         }
 
         let known_names: std::collections::HashSet<&str> =
@@ -239,8 +261,9 @@ impl StructureManifest {
         }
 
         // 対称性検証: depends_on と allowed_dependents は宣言の両面であり、
-        // 片方だけの宣言（片落ち）を見逃さないよう突き合わせる。
+        // 片方だけの宣言（片落ち）を見逃さないよう双方向に突き合わせる。
         for dir in &self.directories {
+            // depends_on → allowed_dependents 方向。
             for target in &dir.depends_on {
                 let Some(target_dir) = self.directories.iter().find(|d| &d.name == target) else {
                     // 未知参照は上の check_reference_list で既に記録済みのためスキップ。
@@ -250,6 +273,22 @@ impl StructureManifest {
                     errors.push(ValidationError::AsymmetricDependency {
                         from: dir.name.clone(),
                         to: target.clone(),
+                    });
+                }
+            }
+            // allowed_dependents → depends_on 方向（逆方向。片側だけの
+            // 欠落を見逃さないため、depends_on 側からの探索だけでなく
+            // allowed_dependents 側からも突き合わせる）。
+            for accessor in &dir.allowed_dependents {
+                let Some(accessor_dir) = self.directories.iter().find(|d| &d.name == accessor)
+                else {
+                    // 未知参照は上の check_reference_list で既に記録済みのためスキップ。
+                    continue;
+                };
+                if !accessor_dir.depends_on.iter().any(|n| n == &dir.name) {
+                    errors.push(ValidationError::AsymmetricDependency {
+                        from: accessor.clone(),
+                        to: dir.name.clone(),
                     });
                 }
             }
@@ -377,6 +416,20 @@ mod tests {
     }
 
     #[test]
+    fn duplicate_directory_name_is_rejected() {
+        let mut manifest = valid_manifest();
+        // "app" と同名のエントリを追加する（依存関係は空にして、この
+        // テストが検出したい重複名の検証のみを対象にする）。
+        manifest
+            .directories
+            .push(entry("app", Role::Component, Some("rws-app-dup"), &[], &[]));
+        let errors = manifest.validate().unwrap_err();
+        assert!(errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::DuplicateDirectoryName(n) if n == "app")));
+    }
+
+    #[test]
     fn unknown_reference_is_rejected() {
         let mut manifest = valid_manifest();
         manifest.directories[1].depends_on.push("ghost".to_string());
@@ -430,6 +483,27 @@ mod tests {
         assert!(errors.iter().any(|e| matches!(
             e,
             ValidationError::AsymmetricDependency { from, to } if from == "app" && to == "core"
+        )));
+    }
+
+    #[test]
+    fn asymmetric_dependency_is_rejected_from_allowed_dependents_side() {
+        // 逆方向（allowed_dependents にはあるが depends_on にない）の片落ちを検出できることを
+        // 確認する回帰テスト。forward 方向（depends_on 起点）は asymmetric_dependency_is_rejected
+        // で既にカバーしている。
+        let mut manifest = valid_manifest();
+        manifest
+            .directories
+            .push(entry("tool", Role::Tooling, None, &[], &[]));
+        // app が tool からの依存を許可すると宣言するが、tool.depends_on 側には
+        // 対応するエントリを追加しない（片落ち）。
+        manifest.directories[1]
+            .allowed_dependents
+            .push("tool".to_string());
+        let errors = manifest.validate().unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e,
+            ValidationError::AsymmetricDependency { from, to } if from == "tool" && to == "app"
         )));
     }
 
