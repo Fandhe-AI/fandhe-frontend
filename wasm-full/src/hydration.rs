@@ -117,7 +117,15 @@ mod wiring {
     /// `name()`/`value()` を読み取るのみで、`set_inner_html` 等の DOM
     /// **再構築** API は一切呼ばない（読み取り専用、`docs/hydration-state-format.md`
     /// 第 8 節・不変条件 1 の「新たな迂回経路を作らない」を DOM 操作面でも
-    /// 徹底する）。プレフィックス絞り込み・値長上限フィルタは
+    /// 徹底する）。
+    ///
+    /// `attr.name()` によるプレフィックス絞り込みを `attr.value()` 呼び出しの
+    /// **前**に行い、`data-hydrate-*` 以外の属性は値を一切読み取らない。
+    /// root には（改ざんされうる）任意の属性が付与され得るため、無関係な
+    /// 属性に巨大な値を仕込まれても Rust 側へコピーしない設計とし、
+    /// [`MAX_ATTR_VALUE_LEN`]（`super::MAX_ATTR_VALUE_LEN`）による DoS 耐性
+    /// （`docs/hydration-state-format.md` 第 8 節・不変条件 4）を値取得コスト
+    /// の面でも徹底する。値長上限フィルタ自体は
     /// [`filter_hydration_attrs`]（純粋ロジック層）へ委譲する。
     ///
     /// 復元本体は行わない（[`super::restore_state`] の責務）。
@@ -131,7 +139,13 @@ mod wiring {
             // 走査のため通常到達しないが、`unwrap()` による panic を避け
             // `if let` で防御的に扱う。
             if let Some(attr) = attrs.item(i) {
-                pairs.push((attr.name(), attr.value()));
+                let name = attr.name();
+                // `data-hydrate-*` 以外の属性は `value()` を呼ばずに読み飛ばす
+                // （Bugbot 指摘対応: フィルタ前の全属性値コピーによる DoS
+                // 制限バイパスを避ける）。
+                if name.starts_with(super::HYDRATE_ATTR_PREFIX) {
+                    pairs.push((name, attr.value()));
+                }
             }
         }
         filter_hydration_attrs(pairs.into_iter())
