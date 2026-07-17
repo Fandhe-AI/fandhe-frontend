@@ -15,6 +15,18 @@
 //! （`force-embed` フィーチャーで debug ビルドのまま本番相当の埋め込み経路を
 //! CI 検証できる、`dist-server/Cargo.toml` 参照）。
 //!
+//! # 即時反映の保証（REQ-10、TASK-10.1b、イシュー #107）
+//!
+//! [`dev_fs::lookup`] はリクエストのたびに `fs::read` でディスクから読み直し、
+//! 内容をキャッシュ・メモ化しない。これにより起動後の追加・更新・削除が
+//! リビルド・プロセス再起動なしで次リクエストから反映される（
+//! `dev_fs::tests` の `updated_file_content_is_reflected_on_next_lookup` /
+//! `file_created_after_startup_is_served_immediately` /
+//! `deleted_file_returns_none_immediately` が固定する契約。将来の最適化
+//! （内容キャッシュ等）を追加する際は REQ-10 を壊さないことを確認する）。
+//! ブラウザ側キャッシュ対策（`Cache-Control: no-store`）は `routes.rs` の
+//! `RouteResponse::cache_control` が担う。
+//!
 //! # セキュリティ不変条件（パストラバーサル、REQ 系 OWASP A01）
 //!
 //! - [`embedded_lookup`] はコンパイル時に確定した固定テーブルへの完全一致検索
@@ -41,8 +53,9 @@ pub enum AssetMode {
     /// アクセスは発生しない。
     Embedded,
     /// `static/` ディレクトリから実行時に読み込む（debug かつ `force-embed`
-    /// 無効時のみ）。開発時のリビルドなし反映を実現する（TASK-10.1b、
-    /// イシュー #107 のスコープ）。
+    /// 無効時のみ）。開発時のリビルドなし反映を実現する（キャッシュ・
+    /// メモ化しないことと `Cache-Control: no-store` 付与による即時反映保証は
+    /// TASK-10.1b、イシュー #107 で回帰テストとして固定済み）。
     DevFilesystem,
 }
 
@@ -193,6 +206,7 @@ mod dev_fs {
     #[cfg(test)]
     mod tests {
         use super::lookup;
+        use std::fs;
 
         #[test]
         fn reads_existing_static_file_matching_source_on_disk() {
@@ -259,7 +273,6 @@ mod dev_fs {
         #[test]
         #[cfg(unix)]
         fn symlink_escaping_static_root_is_rejected_by_canonicalize_check() {
-            use std::fs;
             use std::os::unix::fs::symlink;
 
             let temp_root = std::env::temp_dir().join(format!(
@@ -292,6 +305,89 @@ mod dev_fs {
             );
 
             let _ = fs::remove_dir_all(&temp_root);
+        }
+
+        /// 一時 `static/` ルートを 1 つ作り、後始末までまとめて面倒を見る
+        /// テストヘルパー。即時反映回帰テスト 3 種（下記）が共通して使う。
+        /// `static_root()`（`env!` 定数固定）に依存せず、
+        /// `resolve_under_root` へ直接ルートを注入して検証する
+        /// （既存の symlink テストと同じ手法）。
+        fn with_temp_static_root(test_name: &str, body: impl FnOnce(&std::path::Path)) {
+            let temp_root = std::env::temp_dir().join(format!(
+                "rws-dist-server-dev-fs-{test_name}-{}-{:?}",
+                std::process::id(),
+                std::thread::current().id()
+            ));
+            fs::create_dir_all(&temp_root).expect("create temp static/ root");
+
+            body(&temp_root);
+
+            let _ = fs::remove_dir_all(&temp_root);
+        }
+
+        /// REQ-10（アセット即時反映）の核心契約: [`super::resolve_under_root`]
+        /// はリクエストのたびにディスクを読み直し、内容をキャッシュ・
+        /// メモ化しない。将来の最適化でこの契約が静かに壊れるのを防ぐ回帰
+        /// テスト（TASK-10.1b、イシュー #107）。
+        #[test]
+        fn updated_file_content_is_reflected_on_next_lookup() {
+            with_temp_static_root("updated-file", |root| {
+                let file_path = root.join("style.css");
+                fs::write(&file_path, b"body { color: red; }").expect("write initial content");
+
+                let first = super::resolve_under_root(root, "/static/style.css")
+                    .expect("file exists after initial write");
+                assert_eq!(first, b"body { color: red; }");
+
+                fs::write(&file_path, b"body { color: blue; }").expect("overwrite content");
+
+                let second = super::resolve_under_root(root, "/static/style.css")
+                    .expect("file still exists after overwrite");
+                assert_eq!(
+                    second, b"body { color: blue; }",
+                    "lookup must return the latest on-disk content, not a cached copy"
+                );
+            });
+        }
+
+        /// 起動後に新規作成されたファイルが、リビルド・再起動なしで次の
+        /// リクエストから配信されることを固定する回帰テスト（REQ-10）。
+        #[test]
+        fn file_created_after_startup_is_served_immediately() {
+            with_temp_static_root("created-file", |root| {
+                let file_path = root.join("new-asset.js");
+
+                assert!(
+                    super::resolve_under_root(root, "/static/new-asset.js").is_none(),
+                    "file must not be servable before it is created"
+                );
+
+                fs::write(&file_path, b"console.log('new');").expect("create new file");
+
+                let bytes = super::resolve_under_root(root, "/static/new-asset.js")
+                    .expect("newly created file must be servable immediately");
+                assert_eq!(bytes, b"console.log('new');");
+            });
+        }
+
+        /// 配信済みファイルが削除された場合、stale なキャッシュを返さず即座に
+        /// `None`（404 相当）へ戻ることを固定する回帰テスト（REQ-10。
+        /// キャッシュ・メモ化していないことの裏返しの契約）。
+        #[test]
+        fn deleted_file_returns_none_immediately() {
+            with_temp_static_root("deleted-file", |root| {
+                let file_path = root.join("removed.txt");
+                fs::write(&file_path, b"temporary").expect("write file to be deleted");
+
+                assert!(super::resolve_under_root(root, "/static/removed.txt").is_some());
+
+                fs::remove_file(&file_path).expect("delete file");
+
+                assert!(
+                    super::resolve_under_root(root, "/static/removed.txt").is_none(),
+                    "deleted file must not remain servable via a stale cache"
+                );
+            });
         }
     }
 }

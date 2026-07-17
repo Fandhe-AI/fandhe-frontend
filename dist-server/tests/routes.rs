@@ -45,3 +45,26 @@ fn path_traversal_attempts_against_static_assets_return_404() {
 fn unmatched_path_returns_404() {
     assert_eq!(route_request("/totally/unknown/path").status, 404);
 }
+
+// 開発モードの静的アセット応答が `Cache-Control: no-store` 相当
+// （`cache_control == Some("no-store")`）を返すこと、本番相当
+// （`force-embed` / release）ではキャッシュヘッダを一切付与しないことを
+// 公開契約として固定する（TASK-10.1b、イシュー #107）。
+// `src/routes.rs` 内のユニットテストと同じ cfg ゲートを使い、通常の
+// `cargo test`（debug・force-embed 無効）と `--features force-embed` の
+// 両方でそれぞれ片方のみが有効になる。
+#[cfg(all(debug_assertions, not(feature = "force-embed")))]
+#[test]
+fn dev_mode_static_asset_response_sets_no_store_cache_control() {
+    let response = route_request("/static/view-transitions.js");
+    assert_eq!(response.status, 200);
+    assert_eq!(response.cache_control, Some("no-store"));
+}
+
+#[cfg(not(all(debug_assertions, not(feature = "force-embed"))))]
+#[test]
+fn embedded_mode_static_asset_response_has_no_cache_control() {
+    let response = route_request("/static/view-transitions.js");
+    assert_eq!(response.status, 200);
+    assert_eq!(response.cache_control, None);
+}
