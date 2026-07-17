@@ -22,14 +22,15 @@
 //! - `data-hydrate-*` 属性値は改ざんされうるクライアント入力として扱う。
 //!   復元は `restore_state` → `C::from_hydration_attrs` の `Result` 経路のみを
 //!   通し、`unwrap()`/`panic!` を使わない（不変条件 2・3）。
-//! - `Runtime::hydrate`（TASK-11.2d・#77）との結合: `docs/hydration-state-format.md`
-//!   第 5.1 節に従い、#77 マージ時点で `Runtime<C>` が存在すれば
+//! - `Runtime::hydrate`（`crate::Runtime::hydrate`、TASK-11.2d・#77 で実装済み）
+//!   との結合: `docs/hydration-state-format.md` 第 5.1 節どおり
 //!   `read_hydration_attrs` → `restore_state` の順に呼び出し、`Err` 時は引数の
 //!   `component`（初期状態）のまま CSR 再描画（`Runtime::mount` 相当）へ
-//!   フォールバックする契約とする。本モジュールは `Runtime` 型に一切依存しない
-//!   関数群として設計されているため、#77 の未マージ状態でも独立して成立する。
-//!   本コミット時点で `wasm-full/src/lib.rs` に `Runtime<C>` は未存在のため、
-//!   結合コード自体は #77・#83 のうち後にマージされる側が実装する（未着手）。
+//!   フォールバックする（`wasm-full/src/lib.rs` の `Runtime::hydrate` 実装参照）。
+//!   本モジュールは `Runtime` 型に依存しない関数群として設計されているため、
+//!   `Runtime::hydrate` からは `read_hydration_attrs`/`restore_state` を呼ぶ
+//!   だけの関係にとどまり、本モジュール自体に `Runtime` 固有のロジックは
+//!   持ち込まれていない。
 
 use rws_interactive::{Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 

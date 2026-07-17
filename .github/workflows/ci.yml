@@ -149,6 +149,13 @@ jobs:
   # wasm-client/ が存在しない間は環境整備のみ・実行はスキップする。
   # #48/#49 マージ後、後続タスク（TASK-6.3b #66 の hydration_browser.rs 等）が
   # 追加された時点で本ジョブは自動的に有効化される。
+  #
+  # TASK-11.2d（#77）: 上記と同じ存在ガードパターンで `wasm-full/`
+  # （`Runtime::mount`/`hydrate` の実ブラウザ統合テスト、
+  # `wasm-full/tests/runtime_browser.rs`）も本ジョブへ同居させる
+  # （`docs/wasm-full-architecture.md` 第 5 節の引き継ぎ）。xss-wasm-test・
+  # perf-harness ジョブ（同じ wasm-full クレートだが対象テストファイルが
+  # 異なる）はそのまま独立ジョブとして維持し、変更しない。
   browser-test:
     name: Browser tests (wasm-pack --headless --chrome)
     runs-on: ubuntu-latest
@@ -173,15 +180,33 @@ jobs:
             echo "::notice::wasm-client/ crate not found yet (blocked on TASK-6.2b #48). Skipping browser tests."
           fi
 
+      # wasm-full/ ディレクトリ存在ガード（TASK-11.2d・#77）。wasm-client と
+      # 同じ「存在ガードのみで直列化措置とし、未作成時はスキップして空実行で
+      # 成功扱いとする」パターンを踏襲する。本コミット時点では
+      # wasm-full/tests/runtime_browser.rs（`Runtime::mount`/`hydrate` の実
+      # ブラウザ統合テスト）が同一 PR で追加されるため通常は true になるが、
+      # 並列進行中の他イシューによる巻き戻り等、想定外の理由でファイルが
+      # 存在しない場合でもジョブを失敗させない（`docs/wasm-full-architecture.md`
+      # 第 5 節が引き継ぐ「browser-test ジョブへの wasm-full 存在ガード追加」）。
+      - name: Check wasm-full crate existence
+        id: check-wasm-full
+        run: |
+          if [ -f "wasm-full/Cargo.toml" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::wasm-full/ crate not found. Skipping wasm-full Runtime browser tests."
+          fi
+
       - name: Add wasm32 target
-        if: steps.check.outputs.exists == 'true'
+        if: steps.check.outputs.exists == 'true' || steps.check-wasm-full.outputs.exists == 'true'
         run: rustup target add wasm32-unknown-unknown
 
       # wasm-pack はバージョン固定 + SHA256 チェックサム検証付きで導入する
       # （実行時の chromedriver 自動ダウンロードと同様、未検証バイナリ取得を避けるサプライ
       # チェーン対策）。バージョンアップ時はチェックサムも合わせて更新すること。
       - name: Install wasm-pack (pinned + checksum-verified)
-        if: steps.check.outputs.exists == 'true'
+        if: steps.check.outputs.exists == 'true' || steps.check-wasm-full.outputs.exists == 'true'
         run: |
           set -euo pipefail
           WASM_PACK_VERSION="0.13.1"
@@ -199,6 +224,16 @@ jobs:
       - name: Run browser tests (headless Chrome)
         if: steps.check.outputs.exists == 'true'
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-client
+
+      # `Runtime::mount`/`Runtime::hydrate` の実ブラウザ統合テスト（TASK-11.2d・
+      # #77）。xss-wasm-test/perf-harness ジョブ（同じ wasm-full クレート）とは
+      # 対象テストファイルが異なる独立ステップとして本ジョブに同居させる
+      # （実装計画 §4-5: browser-test ジョブへの wasm-full 存在ガード追加は
+      # 本タスクのスコープと明記されているため、既存の xss-wasm-test/
+      # perf-harness ジョブ自体は変更しない）。
+      - name: Run wasm-full Runtime browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-full --test runtime_browser
 
   # TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）: 同一文書内更新向け
   # ラッパー関数（`static/view-transitions.js` の `withViewTransition`、
