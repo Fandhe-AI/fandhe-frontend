@@ -200,6 +200,25 @@ fn create_scenario_container(document: &Document, id: &str) -> Element {
     container
 }
 
+/// テスト内で生成したコンテナ要素を、スコープを抜ける際（`expect` 等からの
+/// panic による巻き戻し経由も含む）に確実に DOM から除去するための RAII
+/// ガード（`tests/runtime_browser.rs::RemoveOnDrop` と同じ意図・同じ実装）。
+///
+/// `run_initial_load`/`setup_dom_update_scenario` は `hydrate`/`mount` の
+/// `expect` が失敗しうる。手動の `remove()` 呼び出しのみに頼ると panic 時に
+/// それを迂回してしまい、`"interactive-root"` 等のコンテナが共有ページに
+/// 残留し後続のサンプル・テストを汚染する（`wasm-pack test --headless` は
+/// 本ファイル内の全テスト関数を同一ページ上で順に実行するため）。
+/// `wasm-bindgen-test` はテスト関数単位で panic を catch し巻き戻す
+/// （unwind）ため、`Drop` はその巻き戻し経路でも実行される。
+struct RemoveOnDrop(Element);
+
+impl Drop for RemoveOnDrop {
+    fn drop(&mut self) {
+        self.0.remove();
+    }
+}
+
 /// 合成 `click` イベントを生成する（`bubbles: true`）。
 ///
 /// `Runtime::mount`/`hydrate` はリスナーをルート要素へ登録するため、子要素上で
@@ -218,10 +237,13 @@ fn bubbling_click_event() -> Event {
 /// `wrapper_id` は呼び出しごとに一意な値を渡すこと。[`Runtime::hydrate`] が
 /// 読み取る `root_id`（`"interactive-root"`、[`rws_interactive::AppState::view`]
 /// 固定値）は SSR 出力のルート要素自身が持つため、サンプル間で前回の
-/// `wrapper` を `remove()` してから次サンプルを実行しないと
+/// `wrapper` を除去してから次サンプルを実行しないと
 /// `document.get_element_by_id("interactive-root")` が過去サンプルの残留要素に
-/// ヒットしうる（`tests/runtime_browser.rs::RemoveOnDrop` と同じ問題設定）。
-/// 本関数はその後始末まで含めて 1 サンプル分の責務とする。
+/// ヒットしうる。この後始末は [`RemoveOnDrop`] ガードで行うため、
+/// `Runtime::hydrate` の `expect` が panic した場合でもスコープを抜ける際に
+/// 確実に実行される（成功パスのみで `remove()` する場合に生じる panic-safety
+/// 上の問題を回避する）。本関数はその後始末まで含めて 1 サンプル分の責務と
+/// する。
 fn run_initial_load(document: &Document, wrapper_id: &str) -> f64 {
     let state = AppState::new();
 
@@ -232,6 +254,10 @@ fn run_initial_load(document: &Document, wrapper_id: &str) -> f64 {
     // 使用しない）。
     let html = rws_core::render(&rws_interactive::render_for_hydration(&state));
     let wrapper = create_scenario_container(document, wrapper_id);
+    // 以降で panic しても関数を抜ける際に `wrapper` を確実に除去する
+    // （成功パスのみの `remove()` 呼び出しでは `expect` の panic をすり抜けて
+    // しまい、`"interactive-root"` が共有ページに残留しうる）。
+    let _cleanup = RemoveOnDrop(wrapper.clone());
     wrapper.set_inner_html(&html);
 
     // クライアント側責務（計測対象）: 状態復元（`data-hydrate-*` 属性からの
@@ -242,13 +268,8 @@ fn run_initial_load(document: &Document, wrapper_id: &str) -> f64 {
     let start = now_ms();
     let _runtime = Runtime::hydrate("interactive-root", AppState::new())
         .expect("hydrate must succeed for well-formed SSR output");
-    let elapsed = now_ms() - start;
 
-    // 次サンプルとの id 衝突を防ぐため、このサンプルの DOM を撤去する
-    // （A04、関数冒頭のドキュメント参照）。
-    wrapper.remove();
-
-    elapsed
+    now_ms() - start
 }
 
 /// `initial_load` の [`INITIAL_LOAD_SAMPLES`] 回分を計測する。
@@ -270,10 +291,18 @@ fn run_initial_load_samples() -> Vec<f64> {
 /// `root_id` は呼び出しごとに一意な値を渡すこと（`Runtime::mount` は
 /// `root_id` 要素自身へ描画するため、`tests/runtime_browser.rs` の
 /// `create_placeholder` と同じ前提）。戻り値のコンテナは呼び出し元が
-/// 用途終了後に `remove()` すること。
+/// [`RemoveOnDrop`] で包み、用途終了後（後続のイベント発火が panic した
+/// 場合も含む）に確実に除去すること。
+///
+/// `Runtime::mount` の `expect` がこの関数内で panic した場合に備え、
+/// コンテナ生成直後から一時的に [`RemoveOnDrop`] で保護する。`mount` 成功後は
+/// 後始末の責務を呼び出し元へ引き継ぐため、ここでは `mem::forget` によって
+/// 早期の除去を防ぐ（二重 `remove()` を避ける）。
 fn setup_dom_update_scenario(document: &Document, root_id: &str) -> Element {
     let placeholder = create_scenario_container(document, root_id);
+    let cleanup = RemoveOnDrop(placeholder.clone());
     let _runtime = Runtime::mount(root_id, AppState::new()).expect("mount must succeed");
+    std::mem::forget(cleanup);
     placeholder
 }
 
@@ -304,6 +333,14 @@ fn run_dom_update_iteration(placeholder: &Element) -> f64 {
 /// が収集でき、各値が有限かつ非負であること・出力契約の 1 行サマリが期待
 /// 書式であることを検証する。性能予算に対するアサーションは
 /// feature `perf-assert` 有効時のみ行う（[`initial_load_meets_budget`]）。
+///
+/// `feature = "perf-assert"` 有効時は [`initial_load_meets_budget`] が
+/// 独立したサンプル実行から同一メトリクスの正式サマリ行を出力するため、
+/// 本テストの `console.log` はここでは行わない（`format_summary_line` の
+/// 書式検証自体は feature 無効時と同様に行う）。両者が同時に `console.log`
+/// すると「1 メトリクスにつき 1 行」という収集契約（ファイル冒頭 `//!`）が
+/// 崩れ、正式計測時に budget アサーションが評価したものと異なるサンプル
+/// セットの行が記録されてしまう。
 #[wasm_bindgen_test]
 fn initial_load_harness_produces_finite_nonnegative_samples() {
     let samples = run_initial_load_samples();
@@ -318,6 +355,7 @@ fn initial_load_harness_produces_finite_nonnegative_samples() {
     assert_eq!(stats.samples, INITIAL_LOAD_SAMPLES);
 
     let summary = format_summary_line("initial_load", stats);
+    #[cfg(not(feature = "perf-assert"))]
     web_sys::console::log_1(&summary.clone().into());
 
     assert!(
@@ -332,16 +370,24 @@ fn initial_load_harness_produces_finite_nonnegative_samples() {
 /// 有界であること・mean/p95/max がいずれも有限かつ非負であること・出力契約の
 /// 書式を満たすことを検証する（フレーム予算に対するアサーションは
 /// feature `perf-assert` 有効時のみ、[`dom_update_meets_frame_budget`]）。
+///
+/// `feature = "perf-assert"` 有効時は [`dom_update_meets_frame_budget`] が
+/// 独立したサンプル実行から同一メトリクスの正式サマリ行を出力するため、
+/// 本テストの `console.log` は行わない（[`initial_load_harness_produces_finite_nonnegative_samples`]
+/// と同じ重複回避方針）。
 #[wasm_bindgen_test]
 fn dom_update_harness_produces_bounded_finite_samples() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
     let placeholder = setup_dom_update_scenario(&document, "perf-dom-update-mount-root");
+    // 後続の `run_dom_update_iteration`（`dispatch_event`/`expect`）が panic
+    // しても `placeholder` を確実に除去する（成功パスのみの `remove()` 呼び
+    // 出しでは panic をすり抜けてしまう）。
+    let _cleanup = RemoveOnDrop(placeholder.clone());
 
     let samples: Vec<f64> = (0..DOM_UPDATE_SAMPLES)
         .map(|_| run_dom_update_iteration(&placeholder))
         .collect();
-    placeholder.remove();
 
     assert_eq!(samples.len(), DOM_UPDATE_SAMPLES);
     assert!(
@@ -353,6 +399,7 @@ fn dom_update_harness_produces_bounded_finite_samples() {
     assert_eq!(stats.samples, DOM_UPDATE_SAMPLES);
 
     let summary = format_summary_line("dom_update", stats);
+    #[cfg(not(feature = "perf-assert"))]
     web_sys::console::log_1(&summary.clone().into());
 
     assert!(
@@ -398,11 +445,14 @@ fn dom_update_meets_frame_budget() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
     let placeholder = setup_dom_update_scenario(&document, "perf-dom-update-budget-mount-root");
+    // 後続の `run_dom_update_iteration`（`dispatch_event`/`expect`）が panic
+    // しても `placeholder` を確実に除去する（成功パスのみの `remove()` 呼び
+    // 出しでは panic をすり抜けてしまう）。
+    let _cleanup = RemoveOnDrop(placeholder.clone());
 
     let samples: Vec<f64> = (0..DOM_UPDATE_SAMPLES)
         .map(|_| run_dom_update_iteration(&placeholder))
         .collect();
-    placeholder.remove();
 
     let stats = summarize(&samples);
     let overage_ratio = frame_overage_ratio(&samples);
