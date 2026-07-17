@@ -90,8 +90,18 @@ fn template_deny_toml_bans_deny_includes_openssl_sys() {
         .expect("templates/default/deny.toml の読み込みに失敗した");
 
     let bans_section = section_body(&contents, "[bans]");
+    // コメント行（`#` 始まり）にも "openssl-sys" という文字列が出現するため、
+    // 単純な部分文字列一致だと `{ name = "openssl-sys" }` エントリ自体を
+    // 削除してもコメントの残存だけでテストが pass してしまう
+    // （Bugbot 指摘: bans.deny に対する回帰防止テストの弱体化）。
+    // コメント行を除外したうえで、実際の deny エントリ
+    // `{ name = "openssl-sys" }` が存在することを行ベースで確認する。
+    let has_active_entry = bans_section
+        .lines()
+        .filter(|line| !line.trim_start().starts_with('#'))
+        .any(|line| line.contains("name") && line.contains("\"openssl-sys\""));
     assert!(
-        bans_section.contains("openssl-sys"),
+        has_active_entry,
         "bans.deny から openssl-sys の禁止が外れている（サプライチェーン \
          対策の後退）: {bans_section}"
     );
