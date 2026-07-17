@@ -8,8 +8,15 @@ name: deps-check
 # あり、PASS/FAIL 判定を持たない（build.rs の存在自体は違反ではない。禁止クレートの
 # ブロックは cargo-deny 系タスク（TASK-4.x）のスコープ）。
 #
+# さらにイシュー #154（REQ-3 受け入れ基準 1）で、`check-deps`（60/6 判定）とは独立に
+# `check-core-deps` ゲートを追加する。`check-deps --package rws-core` は「60 件以内」を
+# 見るのみで「ゼロであること」自体は強制しない。`check-core-deps` は
+# `check_deps::ZERO_DEP_CRATES`（rws-core / rws-interactive）について
+# Normal/Dev/Build すべての辺を対象に外部依存 0 件を専用ゲートとして強制する。
+#
 # しきい値運用の原則:
-# - しきい値の正は xtask/src/check_deps.rs の MAX_PACKAGES（60）/ MAX_DEPTH（6）定数のみ。
+# - しきい値の正は xtask/src/check_deps.rs の MAX_PACKAGES（60）/ MAX_DEPTH（6）/
+#   ZERO_DEP_CRATES（外部依存ゼロ強制対象）定数のみ。
 #   このワークフローには緩和用の input・環境変数・continue-on-error を一切設けない
 #   （迂回経路を作らない設計。しきい値変更はコード定数の変更 = レビュー必須の PR のみ）。
 # - 上限超過時の原則対応は依存削減。上限値自体の見直しは frontend-framework-spec
@@ -24,6 +31,9 @@ name: deps-check
 #   標準サーバー構成（rws-server）実装後は
 #   REQ-3 の本来の計測対象として `--package server` を追加すること
 #   （server クレート導入イシュー側の対応事項）。
+# - `check-core-deps` は引数を取らず、`check_deps::ZERO_DEP_CRATES` と実 workspace
+#   メンバーの積集合を xtask 内部で自動解決する（`rws-interactive` 追加時も
+#   ワークフロー変更は不要）。
 on:
   pull_request:
   push:
@@ -38,7 +48,7 @@ concurrency:
 
 jobs:
   deps-check:
-    name: REQ-3 dependency graph limits (60 packages / depth 6)
+    name: REQ-3 dependency graph limits (60 packages / depth 6, core zero-dep)
     runs-on: self-hosted
     steps:
       - name: Checkout
@@ -72,14 +82,46 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Run xtask check-core-deps
+        # イシュー #154（REQ-3 受け入れ基準 1）: core / interactive の外部依存ゼロを
+        # 専用ゲートとして強制する。check-deps（60/6 判定）とは別の PASS/FAIL 判定を
+        # 持つため独立したステップとして可視化する（Publish 用の summary も別ステップ）。
+        # 引数は取らない契約（xtask/src/main.rs `run_check_core_deps` 参照。判定対象を
+        # ワークフロー側の引数変更で弱められない設計）。
+        # pipefail・tee・--locked の理由は直前の "Run xtask check-deps" ステップと同一。
+        # if: always()（Cursor Bugbot review 4718471860 指摘 1 対応）: 先行する
+        # "Run xtask check-deps" が失敗（60/6 超過）しても、この zero-dep ゲートは
+        # 独立した判定として必ず実行・報告する。if を付けないと直前ステップ失敗時に
+        # このステップ自体が skip され、コメントで謳う「独立したゲート」が実質的に
+        # 機能しなくなる（publish / list-build-scripts と同様の理由）。
+        if: always()
+        run: |
+          set -o pipefail
+          cargo run --locked -p xtask -- check-core-deps | tee core-deps-check.log
+
+      - name: Publish check-core-deps summary
+        if: always()
+        # format_zero_report（xtask/src/check_deps.rs）の 1 行サマリ契約
+        # 「core-deps-check: package=<name> external=<n> result=<PASS|FAIL>」を
+        # Step Summary に転記する。この契約はテストで固定される
+        # （xtask/tests/cli_check_core_deps.rs）。
+        run: |
+          {
+            echo '## check-core-deps (REQ-3 acceptance criterion 1, issue #154)'
+            echo '```'
+            grep '^core-deps-check:' core-deps-check.log || echo 'core-deps-check: no summary line found'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Run xtask list-build-scripts
         # TASK-3.2b: build.rs 保有クレート列挙（TASK-3.2a, xtask/src/list_build_scripts.rs）
         # の CI 出力統合。deps-check と同じ理由（子プロセスの終了コード伝播・
         # Cargo.lock drift 防止）で pipefail・tee・--locked を用いる。
         # ゲートではないため、この列挙自体が「count > 0」で CI を落とすことはない
         # （非 0 終了は cargo metadata 失敗・指定パッケージ未検出時のみ。fail-closed）。
-        # if: always() は「直前の Run xtask check-deps ステップが失敗（依存件数/深さ
-        # 超過）してもこの監査ログ出力自体は必ず実行する」ため。この監査ログは
+        # if: always() は「直前の Run xtask check-deps / check-core-deps ステップが
+        # 失敗（依存件数/深さ超過・外部依存ゼロ違反）してもこの監査ログ出力自体は
+        # 必ず実行する」ため。この監査ログは
         # PASS/FAIL の概念を持たない常時可視化ログであり、依存超過で注目が集まる
         # PR ほど build.rs 監査が欠落する、という意図と実挙動の齟齬を避ける
         # （if: always() は本ステップの実行有無のみを制御し、cargo metadata 失敗時に
