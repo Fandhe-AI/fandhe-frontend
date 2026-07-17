@@ -15,30 +15,27 @@
   （`.github/workflows/ci.yml` の `browser-test` ジョブ・`docs/browser-testing.md`）を
   再利用する。
 
-## 2. 現状（本イシュー時点の重要な前提）
+## 2. 現状（TASK-11.5b・#87 で製品経路へ差し替え済み）
 
-`wasm-full/`（rws-wasm-full）は #75/#76 で作成済みだが、公開面は `events` モジュール
-（`ActionRef`/`action_from_click`/`action_from_input`/`wire_events`）と
-`render_component_html`（DOM 非依存の描画純粋関数）のみである。
-**`Runtime<C>`/`mount()`/`hydrate()`（`docs/wasm-full-architecture.md` 第 3.2 節）は
-本イシュー時点で未実装**（TASK-11.2d・#77、TASK-11.4b・#83 が並列進行中）。
-
-そのため本ハーネス（`wasm-full/tests/perf_browser.rs`）は、現行の公開面を組み合わせて
-製品経路（描画 → ハイドレーション属性からの状態復元 → イベント配線 → dispatch → 再描画）
-を近似する。
+`Runtime<C>`/`mount()`/`hydrate()`（`docs/wasm-full-architecture.md` 第 3.2 節、
+TASK-11.2d・#77、TASK-11.4b・#83 でマージ済み）を直接経由する製品経路で計測する
+（TASK-11.5a・#86 時点は `Runtime` 未実装のため近似計測だったが、TASK-11.5b・#87
+で差し替えを完了した）。
 
 - `initial_load`: `AppState::new()` → `rws_interactive::render_for_hydration()` →
-  `rws_core::render()`（既定エスケープ済み HTML）→ `set_inner_html` → 描画済み
-  root 要素の `data-hydrate-*` 属性から `Hydrate::from_hydration_attrs` で状態復元
-  → `rws_wasm_full::events::wire_events` によるイベント配線、までの合計時間
-- `dom_update`: 固定回数（`DOM_UPDATE_SAMPLES = 100`）の `dispatch("increment", "")`
-  ＋ 再描画（`render_component_html` → `set_inner_html`）を繰り返し、1 操作あたりの
-  所要時間サンプルを収集
+  `rws_core::render()`（既定エスケープ済み HTML）→ `set_inner_html`（サーバー側
+  責務相当・計測対象外）ののち、`rws_wasm_full::Runtime::hydrate` 呼び出し完了
+  までの経過時間を計測する（状態復元＋イベント配線という製品経路そのもの）。
+  有界サンプル数（`INITIAL_LOAD_SAMPLES = 30`）で mean/p95/max を算出する
+- `dom_update`: `rws_wasm_full::Runtime::mount` 済み DOM の
+  `[data-testid='inc-btn']` へ合成 `click` イベント（`bubbles: true`）を発火し、
+  その同期実行（イベント委譲 → `dispatch` → 条件付き `dom::paint`）を 1 操作として
+  固定回数（`DOM_UPDATE_SAMPLES = 100`）計測する
 
-`Runtime::mount`/`Runtime::hydrate` がマージされた後は、上記シナリオの内部実装
-（`run_initial_load`/`run_dom_update_iteration`、いずれも `perf_browser.rs` 内の
-非公開関数）を `Runtime` 経由へ差し替える継ぎ目として分離してある。差し替えの
-要否判断は TASK-11.5b（#87）で行う。
+id 衝突対策（`Runtime::hydrate` が読み取る root 要素 id `interactive-root` は
+`AppState::view` 固定値のため）として、`initial_load` はサンプルごとに一意な
+ラッパー要素を生成し、`Runtime::hydrate` 呼び出し後に `remove()` して撤去する
+（`perf_browser.rs::run_initial_load` 参照）。
 
 ## 3. 出力契約（機械可読 1 行サマリ）
 
@@ -56,17 +53,21 @@ perf-browser: metric=<name> samples=<n> mean_ms=<x> p95_ms=<x> max_ms=<x>
 （`tests::format_summary_line_matches_contract`）で固定される。TASK-11.5b（#87）・
 TASK-11.5c（#88）はこの行を収集して正式計測・レポートに用いる契約とする。
 
-## 4. 性能予算（REQ-11、本イシューでは未有効化）
+## 4. 性能予算（REQ-11、feature `perf-assert` で有効化）
 
 | 定数 | 値 | 対応する計測 |
 |------|-----|-------------|
-| `INITIAL_LOAD_BUDGET_MS` | 300.0 | `initial_load` |
-| `FRAME_BUDGET_MS` | 16.0 | `dom_update`（1 操作あたり） |
+| `INITIAL_LOAD_BUDGET_MS` | 300.0 | `initial_load`（`mean_ms` 基準） |
+| `FRAME_BUDGET_MS` | 16.0 | `dom_update`（`p95_ms` 基準、1 操作あたり） |
+| `FRAME_OVERAGE_RATIO_BUDGET` | 0.05 | `dom_update`（16ms 超過率の目安） |
 
-いずれも `perf_browser.rs` 内に定数として定義済みだが、**本イシューでは
-しきい値アサーションを有効化しない**（CI 共有ランナーのノイズで正式判定できない
-ため）。本イシューのテストはハーネス自己検証（サンプル数 > 0・値が有限かつ非負・
-出力行の形式）のみを行う。正式計測は TASK-11.5b（#87）で実行環境を統制して行う。
+CI 共有ランナーのノイズで正式判定できないため、**既定（feature 無効）では
+しきい値アサーションを有効化しない**。既定のテストはハーネス自己検証
+（サンプル数 > 0・値が有限かつ非負・出力行の形式）のみを行う。統制された
+ローカル環境でのみ `--features perf-assert` を付けて実行し、
+`initial_load_meets_budget`/`dom_update_meets_frame_budget` のしきい値
+アサーションを有効化する（第 5 節、TASK-11.5b・#87 で実施済み。実測値は
+`docs/perf-browser-report.md` 第 4 節を参照）。
 
 ## 5. ローカル実行手順
 
@@ -77,10 +78,13 @@ rustup target add wasm32-unknown-unknown
 # 2. wasm-pack の導入（未導入の場合）
 cargo install wasm-pack --locked
 
-# 3. ローカルの chromedriver パスを指定して実行
+# 3. ローカルの chromedriver パスを指定して実行（ハーネス自己検証のみ）
 # `-- --nocapture` を付けないと、テスト成功時に libtest が console 出力
 # （`perf-browser:` サマリ行）を握りつぶし出力契約が確認できない。
 CHROMEDRIVER=/path/to/chromedriver wasm-pack test --headless --chrome wasm-full --test perf_browser -- --nocapture
+
+# 4. 正式計測（しきい値アサーション有効化、統制されたローカル環境でのみ実行）
+CHROMEDRIVER=/path/to/chromedriver wasm-pack test --headless --chrome wasm-full --test perf_browser --features perf-assert -- --nocapture
 ```
 
 Chrome/Chromium と対応する chromedriver がローカルに必要（バージョン整合に注意、
@@ -109,14 +113,14 @@ Chrome/Chromium と対応する chromedriver がローカルに必要（バー�
 （`.claude/rules/out-of-scope-tracking.md` に従い、ユーザー承認なしに新規 Issue
 起票はしない）。
 
-## 7. TASK-11.5b/c への引き継ぎ表
+## 7. TASK-11.5b/c への引き継ぎ表（#87 消化により消し込み済み）
 
-| 事項 | 引き継ぎ先 |
-|------|-----------|
-| `INITIAL_LOAD_BUDGET_MS`/`FRAME_BUDGET_MS` に対するしきい値アサーションの有効化・正式計測の実行（統制環境） | TASK-11.5b（#87） |
-| `Runtime::mount`/`Runtime::hydrate`（#77/#83）マージ後の `run_initial_load`/`run_dom_update_iteration` 差し替え判断 | TASK-11.5b（#87） |
-| 計測レポート作成・Conditional Go 条件 1 解消判定 | TASK-11.5c（#88） |
-| `perf-harness` ジョブと `browser-test` ジョブの wasm-pack 導入ステップ統合 | #77 マージ後の整理事項（新規 Issue 起票は未承認のため未実施） |
+| 事項 | 状態 |
+|------|------|
+| `INITIAL_LOAD_BUDGET_MS`/`FRAME_BUDGET_MS` に対するしきい値アサーションの有効化・正式計測の実行（統制環境） | 完了（TASK-11.5b・#87。feature `perf-assert`、`docs/perf-browser-report.md` 第 4 節） |
+| `Runtime::mount`/`Runtime::hydrate`（#77/#83）マージ後の `run_initial_load`/`run_dom_update_iteration` 差し替え判断 | 完了（差し替え済み、第 2 節） |
+| 計測レポート作成・Conditional Go 条件 1 解消判定 | TASK-11.5c（#88）成果物（`docs/perf-browser-report.md`）を確定 |
+| `perf-harness` ジョブと `browser-test` ジョブの wasm-pack 導入ステップ統合 | 未着手（新規 Issue 起票は未承認のため未実施、`.claude/rules/out-of-scope-tracking.md`） |
 | バンドルサイズ CI 計測 | TASK-11.6（#89） |
 
 ## 8. セキュリティ考慮事項（OWASP Top 10 観点）
