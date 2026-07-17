@@ -282,10 +282,48 @@ fn safe_domain_crates_contain_no_unsafe_token() {
 /// `#[allow(unsafe_code)]`・`#![allow(unsafe_code)]` に加え、`cfg_attr(...,
 /// allow(unsafe_code))` のように `cfg_attr` 経由で条件付き付与されるケースも
 /// まとめて検出する（空白の入り方に依存しないよう、判定前に空白を除去する）。
+/// `#[allow(dead_code, unsafe_code)]` のように他の lint 名とカンマ区切りで
+/// 併記された場合も見逃さないよう、`allow(...)` の括弧内をカンマ分割して
+/// 各要素が `unsafe_code` と完全一致するかを判定する（部分文字列の完全一致
+/// だけを見る単純な `contains` 判定では、この併記パターンを検出できない）。
 fn contains_unsafe_code_allow_override(src: &str) -> bool {
     let stripped = strip_comments(src);
     let normalized: String = stripped.chars().filter(|c| !c.is_whitespace()).collect();
-    normalized.contains("allow(unsafe_code)")
+
+    // `allow(` の出現ごとに対応する閉じ括弧までを取り出し、カンマ区切りの
+    // lint 名リストの中に `unsafe_code` が単体で含まれるかを確認する。
+    let bytes = normalized.as_bytes();
+    let mut search_from = 0usize;
+    while let Some(rel_start) = normalized[search_from..].find("allow(") {
+        let paren_open = search_from + rel_start + "allow(".len() - 1;
+        // 対応する閉じ括弧をネスト深度を追いながら探す（`cfg_attr(target_os =
+        // "wasm32", allow(unsafe_code))` のように外側にも括弧があるケースを
+        // 誤って途中で打ち切らないため）。
+        let mut depth = 0i32;
+        let mut close_idx = None;
+        for (i, &b) in bytes.iter().enumerate().skip(paren_open) {
+            match b {
+                b'(' => depth += 1,
+                b')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        close_idx = Some(i);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let Some(close_idx) = close_idx else {
+            break;
+        };
+        let inner = &normalized[paren_open + 1..close_idx];
+        if inner.split(',').any(|lint| lint == "unsafe_code") {
+            return true;
+        }
+        search_from = paren_open + 1;
+    }
+    false
 }
 
 /// deny 域クレート（`DENY_UNSAFE_FFI_MEMBERS`）のクレートルートに
@@ -405,5 +443,41 @@ fn core_has_zero_external_dependencies() {
         section.is_empty(),
         "core/Cargo.toml の [dependencies] が空でない: {section:?}。\
          core は外部依存ゼロが不変条件（依存追加には事前のユーザー承認が必要）"
+    );
+}
+
+/// `contains_unsafe_code_allow_override` が `allow(unsafe_code)` の単独指定
+/// だけでなく、他の lint 名とカンマ区切りで併記された場合（例:
+/// `#[allow(dead_code, unsafe_code)]`）も検出できることを確認する回帰テスト。
+///
+/// 部分文字列 `"allow(unsafe_code)"` の完全一致のみを見る単純な実装だと、
+/// この併記パターンで検出漏れが発生する（レビュー指摘、#155）。
+#[test]
+fn contains_unsafe_code_allow_override_detects_comma_separated_lint_list() {
+    assert!(
+        contains_unsafe_code_allow_override("#[allow(unsafe_code)]"),
+        "単独指定のケースを検出できていない"
+    );
+    assert!(
+        contains_unsafe_code_allow_override("#[allow(dead_code, unsafe_code)]"),
+        "unsafe_code が末尾に併記されたケースを検出できていない"
+    );
+    assert!(
+        contains_unsafe_code_allow_override("#[allow(unsafe_code, dead_code)]"),
+        "unsafe_code が先頭に併記されたケースを検出できていない"
+    );
+    assert!(
+        contains_unsafe_code_allow_override(
+            "#[cfg_attr(target_arch = \"wasm32\", allow(dead_code, unsafe_code))]"
+        ),
+        "cfg_attr 経由かつ併記のケースを検出できていない"
+    );
+    assert!(
+        !contains_unsafe_code_allow_override("#[allow(dead_code, unsafe_code_typo)]"),
+        "unsafe_code に類似する別 lint 名を誤検出している（部分一致の偽陽性）"
+    );
+    assert!(
+        !contains_unsafe_code_allow_override("#[allow(dead_code)]"),
+        "unsafe_code を含まない属性を誤検出している"
     );
 }
