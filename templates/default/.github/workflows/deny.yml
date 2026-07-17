@@ -17,8 +17,8 @@ name: deny
 #   AI エージェントが本ワークフロー側に緩和の迂回経路を作ってはならない。
 # - `advisories`（既知脆弱性 DB 照合）は本 PR のスコープ外として TASK-4.3 へ
 #   意図的に委譲する（bans/licenses/sources の 3 チェックに限定する。
-#   deny.toml 内コメント参照）。advisories を含めたオンライン CI 運用手順の
-#   文書化は TASK-4.3 で行う。
+#   deny.toml 内コメント参照）。advisories を含めたオンライン CI 運用手順は
+#   `docs/cargo-deny-advisories.md`（TASK-4.3）に文書化されている。
 # - 第三者製 Action（例: EmbarkStudios/cargo-deny-action）は採用しない。
 #   prebuilt バイナリ取得を伴う第三者 Action 経由よりも、crates.io からの
 #   `--locked`・バージョン固定インストールに限定する方がサプライチェーン面の
@@ -65,7 +65,7 @@ jobs:
 
       - name: Run cargo deny check (bans / licenses / sources)
         # fail-closed: 終了コードをそのまま CI の成否に伝播させる。
-        # advisories は TASK-4.3 へスコープ委譲のため対象外（上記コメント参照）。
-        # 禁止クレート追加時はここで非 0 終了しジョブが失敗する。
+        # advisories は docs/cargo-deny-advisories.md（TASK-4.3）へスコープ委譲のため
+        # 対象外（上記コメント参照）。禁止クレート追加時はここで非 0 終了しジョブが失敗する。
         run: |
           cargo deny check bans licenses sources --config deny.toml
