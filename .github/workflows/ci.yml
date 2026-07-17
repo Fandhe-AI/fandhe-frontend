@@ -152,6 +152,19 @@ jobs:
         with:
           submodules: false
 
+      - name: Isolated run acceptance test (REQ-9)
+        # TASK-9.2（#98/#99）: REQ-9（単一バイナリ配布）の受け入れ基準
+        # 「外部ファイル・Node ランタイム・依存インストールなしで自己完結
+        # して動作すること」を固定する `tests/isolated_run.rs` を独立ステップ
+        # として可視化する（`docs/isolated-run-acceptance-report.md` 第 3 節
+        # 「CI 統合」）。同ファイルは
+        # `#![cfg(any(not(debug_assertions), feature = "force-embed"))]` で
+        # ゲートされており、本ジョブの `--features force-embed` 下でのみ
+        # コンパイル・実行される（下段の全体テストにも含まれるが、受け入れ
+        # 基準ゲートであることを CI 上で明示するため独立ステップとして
+        # 先に実行する）。
+        run: cargo test -p rws-dist-server --test isolated_run --features force-embed --locked
+
       - name: rws-dist-server tests (force-embed, Embedded mode)
         run: cargo test -p rws-dist-server --features force-embed --locked
 
