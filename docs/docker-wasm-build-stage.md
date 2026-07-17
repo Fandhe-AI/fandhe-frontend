@@ -100,7 +100,19 @@ TASK-10.3a の設計は「ゼロから WASM ビルドを Docker に組み込む�
 
 この `wasm-bindgen-cli` 導入手順は既に CI で実績があるため、TASK-10.3b は
 新規に手順を設計するのではなく、この既存パターンを Dockerfile の `RUN`
-命令へ移植する形を取ります。
+命令へ移植する形を取ります。ただし `ci.yml` は self-hosted x86_64 ランナー
+専用のため `x86_64-unknown-linux-musl` archive のみを固定しており、
+アーキテクチャ分岐を持ちません。一方 Dockerfile の builder ステージは
+既に §3.1 で示す `uname -m` 判定（`/musl_target` 選定）で
+aarch64/x86_64 を分岐させています（Apple Silicon の Docker Desktop が
+既定で `linux/arm64` イメージを使うための対応、`Dockerfile` 41〜46
+行目）。したがって `wasm-bindgen-cli` 導入手順は `ci.yml` パターンを
+そのまま移植するのではなく、既存のアーキ分岐に合わせて archive 名・
+チェックサムをアーキごとに切り替える形へ拡張して移植します（§3.1）。
+本書執筆時点で `wasm-bindgen` の GitHub Releases には
+`aarch64-unknown-linux-musl` 版の成果物が実在することを確認済みです
+（`wasm-bindgen-<version>-aarch64-unknown-linux-musl.tar.gz` および
+対応する `.sha256sum`）。
 
 ## 3. ステージ構成の設計判断
 
@@ -111,12 +123,28 @@ builder`）に、既存の musl ターゲット導入と同じ並びで次を追
 
 1. `rustup target add wasm32-unknown-unknown`（既存の
    `rustup target add "$(cat /musl_target)"` と同じステップ内、または
-   直後の独立 `RUN` として追加）。
+   直後の独立 `RUN` として追加。`wasm32-unknown-unknown` はピュア
+   WASM ターゲットでありホストアーキ非依存のため、この行自体には
+   アーキ分岐は不要）。
 2. `wasm-bindgen-cli` のバージョン固定 + SHA256 チェックサム検証付き導入
-   （§2.3 の `ci.yml` パターンをそのまま移植。musl 静的バイナリ版
-   （`wasm-bindgen-<version>-x86_64-unknown-linux-musl.tar.gz` 相当）を
-   使う。builder イメージが `slim-bookworm`（glibc）である点は
-   `wasm-bindgen-cli` 単体バイナリの実行には影響しない）。
+   （§2.3 の `ci.yml` パターンを移植するが、`ci.yml` と異なりホスト
+   アーキで archive を分岐させる。既存の `RUN case "$(uname -m)" in ...`
+   ブロック（`Dockerfile` 41〜46 行目、`/musl_target` を選定する処理）と
+   同じ判定軸を再利用し、次のように archive 名・チェックサムを選択する）:
+   - `x86_64`: `wasm-bindgen-<version>-x86_64-unknown-linux-musl.tar.gz`
+     （`ci.yml` と同一 archive・同一チェックサム）
+   - `aarch64`: `wasm-bindgen-<version>-aarch64-unknown-linux-musl.tar.gz`
+     （`ci.yml` には存在しない分岐だが、GitHub Releases に成果物が
+     実在することを確認済み。§2.3 参照）
+   - 上記いずれにも一致しないアーキでは、既存の `/musl_target` 判定と
+     同様に `RUN` を明示的に失敗させる（フェイルクローズ。未検証
+     アーキ向けの署名なしバイナリを黙って使わない）。
+   - バージョン・チェックサムはアーカイブ（＝アーキ）ごとに異なる値を
+     Dockerfile 側の `ARG`/`ENV` として両方保持し、選択した archive に
+     対応するチェックサムのみを `sha256sum -c -` へ渡す。
+   - builder イメージが `slim-bookworm`（glibc）である点は
+     `wasm-bindgen-cli` 単体バイナリ（musl 静的リンク）の実行には
+     影響しない。
 3. 既存の `ENV RWS_WASM_BUILD=0` を削除する（既定値＝有効のまま
    `cargo build --release --locked --target "$(cat /musl_target)" -p
    rws-dist-server` を実行し、ネスト WASM ビルドを発火させる）。
@@ -126,6 +154,17 @@ builder`）に、既存の musl ターゲット導入と同じ並びで次を追
 `docs/wasm-build-integration.md` §7 が定義した「`cargo build -p
 rws-dist-server` 単一コマンドを Docker ビルドステージ内でそのまま実行する」
 という境界と完全に一致します。
+
+**aarch64 成果物が将来 GitHub Releases から欠落した場合のフォールバック**:
+本書執筆時点では `aarch64-unknown-linux-musl` 版が存在しますが、将来
+バージョンで欠落する可能性を設計契約として排除できません。TASK-10.3b の
+実装では、選定したバージョンの aarch64 archive が存在しない場合、
+aarch64 ビルドホストでは `ENV RWS_WASM_BUILD=0`
+（現行 §2.2 のオプトアウトと同じ機構）を維持し、x86_64 ビルドホストでの
+み WASM ビルドステージを有効化するフォールバック方針を明記します。この
+場合、`docker build` はアーキによって最終イメージの WASM 同梱有無が
+異なることになるため、TASK-10.3c（#117）の検証観点にこの差異の確認を
+追加する必要があります（§6 参照）。
 
 ### 3.2 不採用案: WASM 専用ステージの分離
 
@@ -181,7 +220,10 @@ WASM ビルド経路の 2 系統が並存し、`docs/wasm-build-integration.md` 
   運用（`Cargo.lock` の `wasm-bindgen` 更新時に両方を同時に更新する）を
   TASK-10.3b の実装手順に含めます。ハードコードされた具体的バージョン
   番号は将来陳腐化するため、本書ではこの「同期運用が必要」という不変条件
-  のみを記載し、固定値そのものは記載しません。
+  のみを記載し、固定値そのものは記載しません。§3.1 のとおり
+  Dockerfile 側はアーキごと（x86_64 / aarch64）に異なる archive・
+  チェックサムを保持するため、この同期運用は `ci.yml` の 1 系統だけで
+  なく、Dockerfile 側の 2 アーキ分の固定値も含めて行う必要があります。
 - **「ホスト側事前ビルド成果物に依存しない」不変条件**: `Dockerfile` の
   `COPY static ./static` は手書きアセット（実測: 現状 `static/` 配下の
   静的ファイル）のみを対象とし、WASM 生成物（`/static/wasm/*`）は
@@ -229,6 +271,12 @@ TASK-10.3c（#117）が実施すべき検証観点として引き継ぎます。
    PASS すること。
 5. `image-size.yml` の `paths` 追加後、`wasm-full/`・`wasm-thin/`・
    `interactive/` の変更が正しくワークフローをトリガーすること。
+6. `docker build` を x86_64・aarch64 の両ビルドホスト（例: GitHub Actions
+   の x86_64 ランナーと Apple Silicon の Docker Desktop）で実行し、§3.1
+   のアーキ分岐（archive 名・チェックサム選択）が両方で成功すること。
+   aarch64 側で §3.1 のフォールバック（`RWS_WASM_BUILD=0`）を採用した
+   場合は、最終イメージに WASM 成果物が同梱されないことが期待どおりで
+   あることも確認する。
 
 ## 7. セキュリティ考慮事項（OWASP Top 10 観点）
 
@@ -313,5 +361,10 @@ TASK-10.3c（#117）が実施すべき検証観点として引き継ぎます。
 - 10.3b（#116）は本書と `ci.yml` の `wasm-bindgen-cli` 導入パターン
   （バージョン・チェックサム）の両方に依存します。`Cargo.lock` の
   `wasm-bindgen` バージョンが更新された場合、`ci.yml`・本書が参照する
-  固定値・Dockerfile 側の固定値の 3 箇所を同期させる運用が必要である旨を
-  #116 への引き継ぎコメントで明示します。
+  固定値・Dockerfile 側の固定値（x86_64・aarch64 の 2 アーキ分）の
+  同期が必要である旨を #116 への引き継ぎコメントで明示します。
+- TASK-10.3b 着手時に、選定した `wasm-bindgen` バージョンの
+  `aarch64-unknown-linux-musl` archive が GitHub Releases に実在することを
+  再確認する必要があります（バージョンごとに提供状況が変わり得るため）。
+  存在しない場合は §3.1 のフォールバック（aarch64 ホストでの
+  `RWS_WASM_BUILD=0` 維持）を採用します。
