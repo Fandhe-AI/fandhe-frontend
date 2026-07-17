@@ -1,16 +1,17 @@
 # WASM ビルドの cargo build 統合（TASK-10.2d）
 
 > **本書のステータスと前提**: 本書の執筆時点で、親タスク TASK-10.2（#108）の
-> 4h 分割サブタスクである TASK-10.2a（build.rs 方式の設計検討、#109）・
-> TASK-10.2b（WASM ビルド呼び出しの実装、#110）・TASK-10.2c（キャッシュ・
-> 再ビルド制御の実装、#111）はいずれも **OPEN（未マージ）** です。したがって
-> 本書に登場する統合方式・ビルドフロー・キャッシュ制御の記述は、実装済み
-> コードの引用ではなく、**REQ-10・`docs/spec/05-tasks.md` TASK-10.2 の要件と、
-> 既存の `dist-server/build.rs`（TASK-9.1b・PR #212、静的アセット埋め込み用の
-> 現行実装）の設計判断を土台にした設計契約**として提示しています
-> （`docs/embedding-guide.md` が確立した「並行タスク前提での docs 執筆」方式を
-> 踏襲）。#109〜#111 がマージされ本書の記述と実物に乖離が生じた場合は、
-> それぞれの実装・設計確定書を正として本書を追随更新してください。
+> 4h 分割サブタスクのうち TASK-10.2b（WASM ビルド呼び出しの実装、#110）は
+> **PR #217 としてマージ済み**（`dist-server/build.rs` の `run_wasm_build` /
+> `run_wasm_bindgen` 関数）です。TASK-10.2a（build.rs 方式の設計検討、#109）・
+> TASK-10.2c（キャッシュ・再ビルド制御の実装、#111）は依然 **OPEN（未マージ）**
+> です。したがって §4「ビルドフロー」は #110 のマージにより実装済みコードの
+> 引用に更新済みですが、§3「統合方式の設計判断」・§5「キャッシュ・再ビルド
+> 制御」は引き続き **REQ-10・`docs/spec/05-tasks.md` TASK-10.2 の要件を土台に
+> した設計契約**として提示しています（`docs/embedding-guide.md` が確立した
+> 「並行タスク前提での docs 執筆」方式を踏襲）。#109・#111 がマージされ本書の
+> 記述と実物に乖離が生じた場合は、それぞれの実装・設計確定書を正として本書を
+> 追随更新してください。
 
 ## 1. 目的とトレーサビリティ
 
@@ -108,13 +109,24 @@ Code が担当する」設計判断事項（担当: 共同）と位置づけて�
 
 以下は REQ-10 受け入れ基準「`cargo build`（単一コマンド）でネイティブサーバー
 バイナリと WASM クライアント成果物の双方が生成される」を満たすビルドフロー
-の設計契約です（#110・TASK-10.2b の実装により具体化される想定）。
+です。TASK-10.2b（#110・PR #217、マージ済み）により
+`dist-server/build.rs` の [`run_wasm_build`]・[`run_wasm_bindgen`] 関数として
+実装済みです。
+
+> **`--target web` は本番・埋め込みの唯一の経路**: `run_wasm_bindgen`
+> （`dist-server/build.rs`）は `wasm-bindgen --target web --no-typescript`
+> を固定で実行し、生成された ES module 形式の JS グルーコードのみを
+> 埋め込みテーブル（`OUT_DIR/embedded_assets.rs`）へ合流させます。
+> `--target nodejs`（§6.4 参照）はこのビルドグラフの**外側**にある開発者
+> オプトインの手動経路であり、`cargo build -p rws-dist-server` からは
+> 一切呼び出されません。本番配布物に `--target nodejs` の生成物（CommonJS
+> グルーコード）が混入することはありません（§8 の不変条件）。
 
 ```mermaid
 flowchart TD
     A["cargo build -p rws-dist-server"] --> B["dist-server/build.rs 起動"]
     B --> C["WASM ターゲットビルド\ncargo build --target wasm32-unknown-unknown\n(wasm-full / wasm-thin)"]
-    C --> D["wasm-bindgen 実行\n(--target web 相当)"]
+    C --> D["wasm-bindgen 実行\n(--target web 固定、run_wasm_bindgen)"]
     D --> E["生成物を static/ 相当の\n埋め込みテーブルへ合流"]
     B --> F["static/ 直下の既存アセット走査\n(TASK-9.1b から継続)"]
     E --> G["OUT_DIR/embedded_assets.rs 生成"]
@@ -201,6 +213,51 @@ cargo build -p rws-dist-server --release
 | WASM 成果物の変更が `cargo build` に反映されない | `cargo:rerun-if-changed` の対象パス漏れ | `build.rs` の `rerun-if-changed` 対象に該当パスが含まれているか確認（#111 の実装を参照） |
 | release ビルドで WASM 成果物が古いまま埋め込まれる | 開発/本番モード切り替え（TASK-10.1）の `force-embed` 判定誤り | §4 の開発/本番切り替え条件を確認 |
 
+### 6.4 wasm-bindgen 出力ターゲットの使い分け（web / nodejs）
+
+PoC-5（`docs/spec/03-poc/wasm-runtime-split/README.md` 178 行目）は、
+`wasm-bindgen` が生成できる出力ターゲットのうち `--target web`（本番）と
+`--target nodejs`（開発）を役割分担して使い分ける必要があることを確認して
+います（#161・TASK-10.2 系列の一部としての DX 設計）。本節はこの使い分けを
+文書化するもので、`dist-server/build.rs` のビルドグラフ（§4）には影響しま
+せん。
+
+| 観点 | `--target web`（本番） | `--target nodejs`（開発） |
+|------|------------------------|---------------------------|
+| 用途 | ブラウザ配布・`dist-server` への埋め込み | `web-sys` 非依存クレート（`rws-wasm-thin` 系）のロジック確認・タイミング近似計測 |
+| 実行経路 | `cargo build -p rws-dist-server`（`run_wasm_build`・`run_wasm_bindgen` による自動実行、§4） | 開発者が手動で実行するオプトイン経路（下記コマンド例）。`build.rs` のビルドグラフ外 |
+| 出力先 | `OUT_DIR` 経由で埋め込みテーブル（`embedded_assets.rs`）へ合流 | `target/wasm-node/` 配下（`.gitignore` の `/target` により VCS 追跡外） |
+| 検証上の位置付け | 正式なブラウザ実証は `wasm-pack test --headless --chrome`（`docs/browser-testing.md`、CI の `browser-test`/`perf-browser-smoke` ジョブ） | ブラウザ実測の代替ではなく、`web-sys` を介さないロジックの高速な近似確認・補助（PoC-5 が明記する環境制約の踏襲） |
+| ツール | `wasm-bindgen-cli`（§8 のバージョン固定 + チェックサム検証を適用） | 同一 CLI で両ターゲットを出力可能。追加導入は不要 |
+
+**開発時のコマンド例**（`rws-wasm-thin` のロジックを Node.js で素早く確認する
+場合。PoC-5 の実績コマンドを踏襲）:
+
+```sh
+# 1. wasm32 ターゲットへネイティブビルド（release でなくても可）
+cargo build --target wasm32-unknown-unknown -p rws-wasm-thin
+
+# 2. --target nodejs で CommonJS 形式のバインディングを生成
+#    出力先は target/ 配下（VCS 追跡外・本番埋め込み対象外）に限定する
+wasm-bindgen --target nodejs \
+  --out-dir target/wasm-node/thin \
+  target/wasm32-unknown-unknown/debug/rws_wasm_thin.wasm
+
+# 3. Node.js から require() して同期的にロジックを呼び出す
+node -e "const m = require('./target/wasm-node/thin'); console.log(m.some_exported_fn());"
+```
+
+**不変条件**（§8 のセキュリティ考慮と対になる開発ワークフロー上の制約）:
+
+- `--target nodejs` の生成物を `static/` や埋め込み入力ディレクトリへコピー・
+  配置しない（本番埋め込みへの混入防止）。
+- `--target nodejs` はブラウザ環境の実証を代替しない。ブラウザ挙動の正式な
+  検証は必ず `docs/browser-testing.md` の手順（実ブラウザ・ヘッドレス Chrome）
+  で行う。
+- 将来的に本節のコマンド列を `cargo xtask` サブコマンド化する案、および CI
+  への nodejs ターゲットのスモークテスト追加は、本書執筆時点ではスコープ外
+  です（§10 参照）。
+
 ## 7. TASK-10.3（Docker マルチステージ内再ビルド）との境界
 
 Docker マルチステージビルド内での WASM ターゲット再ビルド・CI 環境での
@@ -264,6 +321,14 @@ Docker マルチステージビルド内での WASM ターゲット再ビルド�
   #215/#216 が確立した既存の切り替え条件、`dist-server/Cargo.toml` の
   `force-embed` フィーチャーコメント参照）。WASM ビルド統合はこの切り替え
   条件を変更しません。
+  - **`--target nodejs` 生成物の本番混入防止**（§6.4）: `wasm-bindgen` の
+    出力ターゲットは ES module（`--target web`）と CommonJS（`--target
+    nodejs`）でバインディング形式が異なるのみで、開発用に生成した
+    `--target nodejs` の CommonJS グルーコードを `static/` や埋め込み入力
+    ディレクトリへ配置し `dist-server/build.rs` の埋め込みテーブルへ
+    混入させないことを不変条件とします。出力先は `target/` 配下（`.gitignore`
+    の `/target` により VCS 追跡外）に限定し、`run_wasm_build`/
+    `run_wasm_bindgen`（§4）のビルドグラフには一切含めません。
 - **機微情報**: 本書・関連コミットに API キー・トークン・実在の内部 URL 等を
   含めません。本書中のコマンド例・バージョン番号はいずれもプレースホルダ
   または一般公開されているツールの固定バージョン例であり、シークレットを
@@ -278,8 +343,16 @@ REQ-10（`docs/spec/04-requirements.md` 132〜142 行目）の受け入れ基準
 |---------------------|---------|------|
 | 開発時のアセット変更（CSS 等）が、リビルド・プロセス再起動なしで反映されること | TASK-10.1（#215/#216）でマージ済み。本書のスコープ外（§7 参照） | TASK-10.1（完了） |
 | 本番ビルドのアセット変更反映（差分ビルド）が 5 秒以内であること | §5「キャッシュ・再ビルド制御」が設計契約として言及。実測・維持確認は TASK-10.2c（#111）・TASK-10.4（#未採番、ベンチマーク） | TASK-10.2c / TASK-10.4 |
-| `cargo build`（単一コマンド）で、ネイティブサーバーバイナリと WASM クライアント成果物の双方が生成されること | §4「ビルドフロー」が設計契約として記述。統合方式の最終決定は TASK-10.2a（#109）、実装は TASK-10.2b（#110） | TASK-10.2a / TASK-10.2b（本書 §4） |
+| `cargo build`（単一コマンド）で、ネイティブサーバーバイナリと WASM クライアント成果物の双方が生成されること | §4「ビルドフロー」が実装済みコード（`run_wasm_build`/`run_wasm_bindgen`）として記述。TASK-10.2b（#110）は PR #217 でマージ済み。統合方式の設計判断（`build.rs` 自前実装 vs 統合ツール採用）の最終確定は引き続き TASK-10.2a（#109） | TASK-10.2a（設計確定） / TASK-10.2b（実装済み、本書 §4） |
 | Docker マルチステージビルド内で WASM ターゲットの再ビルドが行われ、CI 環境での再現性が担保されること | 本書スコープ外。TASK-10.3（#114）で対応（§7 参照） | TASK-10.3 |
+
+イシュー #161（wasm-bindgen 出力ターゲットの使い分け DX 設計）の受け入れ
+条件との対応:
+
+| #161 受け入れ条件 | 対応状況 |
+|-------------------|---------|
+| `--target web` / `--target nodejs` の使い分け設計が文書化されていること | §6.4 で使い分け表・利用手順・不変条件として記述済み |
+| ビルドフローへの反映 | §4 に「`--target web` は本番・埋め込みの唯一の経路」「`--target nodejs` はビルドグラフ外の開発用オプトイン経路」を明記済み（`dist-server/build.rs` の変更は不要。build.rs 側の実装は発生しない設計） |
 
 親イシュー #108 の受け入れ条件との対応:
 
@@ -300,9 +373,17 @@ REQ-10（`docs/spec/04-requirements.md` 132〜142 行目）の受け入れ基準
 - **本番差分ビルド反映時間の CI ベンチマーク実装**（`dist-server/benches/
   rebuild_latency.rs` 相当、`docs/spec/05-tasks.md` TASK-10.4）: 本書は
   受け入れ基準としての言及のみに留め、ベンチマーク実装自体は対象外。
-- **`--target web` / `--target nodejs` 等 `wasm-bindgen` 出力形式の使い分け
-  DX 設計**: 別イシュー（#161）のスコープ。本書は `--target web` 相当の
-  想定のみ記述し、出力形式選択の設計判断には立ち入りません。
+- **`cargo xtask` による nodejs ビルドサブコマンド実装**: §6.4 で示した
+  開発時コマンド列（`cargo build --target wasm32-unknown-unknown` →
+  `wasm-bindgen --target nodejs` → `node -e "require(...)"`）を
+  `xtask` のサブコマンドとして自動化する案。本書は手順の文書化までを
+  スコープとし、ツール化自体は対象外です。
+- **CI への nodejs ターゲットスモークテスト追加**: §6.4 の nodejs
+  経路を CI ワークフロー（`.github/workflows/ci.yml`）で自動実行・検証する
+  仕組みの追加。正式なブラウザ実証は既に `docs/browser-testing.md` の
+  `browser-test`/`perf-browser-smoke` ジョブで確立済みであり、nodejs 経路は
+  開発者手元での高速確認用途にとどまるため、本書では CI 組み込みの提案に
+  留めます。
 - **条件 3（WASM ビルドチェーンの cargo 統合）解消の最終判定**:
   TASK-10.2e（#113）のスコープ。本書は判定に用いる文書的裏付けの提供に
   留まり、判定そのものは行いません。
