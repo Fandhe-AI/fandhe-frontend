@@ -41,9 +41,17 @@ fn scratch_root() -> PathBuf {
 
 /// テンプレートの `Cargo.toml`（および存在すれば `Cargo.lock`）をコピーし、
 /// `main_rs_content` を `src/main.rs` として書き出した一時プロジェクトを
-/// `scratch_root()/negative-type-error-<case_name>` に構築する。
+/// `scratch_root()/negative-type-error-<case_name>-<pid>` に構築する。
+///
+/// プロセス ID をディレクトリ名に含めることで、`CARGO_TARGET_TMPDIR` や
+/// `temp_dir()` フォールバックを共有する並行 `cargo test` 実行間でパスが
+/// 衝突しないようにする（衝突すると後述の `remove_dir_all` が他プロセスの
+/// 一時ツリーを消し去り、`cargo check` が flake する）。
 fn write_case_project(case_name: &str, main_rs_content: &str) -> PathBuf {
-    let dest = scratch_root().join(format!("negative-type-error-{case_name}"));
+    let dest = scratch_root().join(format!(
+        "negative-type-error-{case_name}-{}",
+        std::process::id()
+    ));
     // 前回実行の残骸が残っていても内容を上書きできるよう再作成する。
     let _ = fs::remove_dir_all(&dest);
     fs::create_dir_all(dest.join("src")).expect("一時プロジェクトディレクトリの作成に失敗した");
