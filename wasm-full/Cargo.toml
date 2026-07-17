@@ -39,3 +39,21 @@ features = [
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+# TASK-11.5a（#86）: 実ブラウザ性能計測ハーネス（wasm-full/tests/perf_browser.rs）の
+# 実行に必要な dev 依存。dev-dependency のため製品バイナリ・標準サーバー構成
+# （REQ-3 の 60 件/深さ 6 の対象）には影響しない。
+#
+# 依存追加の承認整理（.claude/rules/coding-rust.md・security.md の事前承認要件）:
+# `wasm-bindgen-test` は docs/spec/05-tasks.md TASK-11.5 が成果物として明示する
+# `wasm-pack test --headless` の実行に必須であり、docs/browser-testing.md 第 7 節が
+# 実ブラウザテストの dev 依存として計画済み（#65 と同一の運用）。追加による影響
+# （パッケージ数・依存グラフ深さ・build.rs 有無）は PR 本文に実測値を記録する。
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+# Performance API（性能計測ハーネス専用）。製品面の [dependencies.web-sys] の
+# features には触れず、テスト専用の feature 拡張に閉じる。
+[dev-dependencies.web-sys]
+version = "0.3"
+features = ["Performance", "NamedNodeMap", "Attr"]
