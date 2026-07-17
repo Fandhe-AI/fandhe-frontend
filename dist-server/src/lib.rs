@@ -49,5 +49,10 @@
 #![warn(missing_docs)]
 
 pub mod assets;
+/// TASK-10.4a（イシュー #119、REQ-10）: `benches/rebuild_latency.rs` の判定・
+/// サマリ整形ロジック。ベンチ本体からのみ利用する内部ユーティリティのため
+/// `#[doc(hidden)]` とし、クレートの公開 API 面には含めない。
+#[doc(hidden)]
+pub mod bench_support;
 pub mod mime;
 pub mod routes;
