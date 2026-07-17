@@ -1,330 +1,604 @@
 #!/usr/bin/env python3
 """test_check_static_only.py
 
-役割: `check_static_only.py`（TASK-12.2b・#123、`install.sh` の後段ゲート）に
-対する fixture 回帰テスト。TASK-12.2c（本イシュー #124）は #123 と並列進行中で
-あり、本ファイルは #123 マージ前後のどちらでも CI が green であることを
-保証する形で書かれている（存在ガード、詳細は後述）。
+役割: check_static_only.py（TASK-12.2b）のオフライン回帰テスト。
+実 npm・ネットワークに依存せず、tempfile 上に node_modules フィクスチャを
+動的生成して各ルール（R0〜R3）・終了コード契約・allowlist 免除機構を検証する。
+XSS 回帰テスト同様、このテストを弱体化・skip でごまかさないこと
+（.claude/rules/coding-rust.md のテスト規約の精神を Python テストにも適用）。
 
-対象仕様: docs/npm-static-asset-rules.md（TASK-12.2a・#122）。
-本テストは同ドキュメント §4「実装インターフェース契約」のうち **確定
-（frozen）**な項目のみを厳密検証し、#123 の裁量に委ねられた項目
-（allowlist.toml の具体スキーマ・rule ID の語彙・symlink の具体的な扱い
-方法選択）は緩めに照合するか、明示的にスキップする。これは #123 が
-ドキュメントに反しない別実装を選んだ場合に本テストが誤ってレッドに
-なることを避けるため（フォールスノガティブよりフォールスポジティブの
-回避を優先。#123 マージ後に本ファイルの緩い部分を厳密化するのは自然な
-フォローアップとして許容する）。
-
-実行方法: python3 tools/npm-asset-build/tests/test_check_static_only.py -v
-（Python 3 標準ライブラリのみ使用。pip 依存追加なし。設計 §4 の実装制約と
-同じ方針を踏襲する。）
+呼び出し文脈: このテストは check_static_only.py の公開関数 run() を直接呼び出し、
+標準出力をキャプチャして VIOLATION/EXEMPTED 行のフォーマットと終了コードを検証する。
 """
 
 from __future__ import annotations
 
+import contextlib
+import importlib.util
+import io
 import json
 import os
-import re
 import stat
-import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-CHECK_SCRIPT = SCRIPT_DIR.parent / "check_static_only.py"
+SCRIPT_PATH = Path(__file__).resolve().parent.parent / "check_static_only.py"
 
-# VIOLATION 行フォーマットの契約（設計 §4）。
-# `VIOLATION package=<pkg> rule=<rule_id> file=<path> reason="<reason>"` の
-# キー集合・順序は確定事項として厳密照合する。rule_id の具体的な語彙
-# （例: "R1-bin"）は #123 の裁量であり、ここではドキュメントが例示した
-# 命名規則そのものを固定しない（\S+ で緩く受ける）。
-VIOLATION_LINE_RE = re.compile(
-    r'^VIOLATION package=(?P<package>\S+) rule=(?P<rule>\S+) '
-    r'file=(?P<file>\S+) reason="(?P<reason>[^"]*)"$'
-)
+# check_static_only.py は tools/ 配下の単体スクリプト（パッケージ化されていない）
+# のため、importlib で直接モジュールとして読み込む。
+_spec = importlib.util.spec_from_file_location("check_static_only", SCRIPT_PATH)
+assert _spec is not None and _spec.loader is not None
+check_static_only = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(check_static_only)
 
 
-def _make_package(root: Path, name: str, *, package_json: dict | None = None,
-                   files: dict[str, bytes] | None = None) -> Path:
-    """`root/node_modules/<name>/` にダミーパッケージを作成する。
-
-    fixture はリポジトリにコミットせず、呼び出し元の
-    tempfile.TemporaryDirectory() 配下に閉じて動的生成する（設計計画 §4
-    Step 1 の方針。`.js` や実行ビット付きファイルをリポジトリに常設すると
-    他の静的検査・レビューを撹乱するため）。
-    """
-    pkg_dir = root / "node_modules" / name
-    pkg_dir.mkdir(parents=True, exist_ok=True)
-    pj = {"name": name, "version": "1.0.0"}
-    if package_json:
-        pj.update(package_json)
-    (pkg_dir / "package.json").write_text(json.dumps(pj), encoding="utf-8")
-    for rel_path, content in (files or {}).items():
-        target = pkg_dir / rel_path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(content)
-    return pkg_dir
+def write_package_json(pkg_dir: Path, data: dict) -> None:
+    (pkg_dir / "package.json").write_text(json.dumps(data), encoding="utf-8")
 
 
-def _run_checker(node_modules_parent: Path) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        [sys.executable, str(CHECK_SCRIPT), "--node-modules",
-         str(node_modules_parent / "node_modules")],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
+def run_capture(args: list[str]) -> tuple[int, str]:
+    """check_static_only.run() を呼び出し、(exit_code, stdout) を返す。"""
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = check_static_only.run(args)
+    return code, buf.getvalue()
 
 
-@unittest.skipUnless(
-    CHECK_SCRIPT.is_file(),
-    # ::notice 相当の明示メッセージ。check_static_only.py 本体は
-    # TASK-12.2b（#123）のスコープであり、本 PR 時点では未マージ
-    # （#123 完了までの直列化措置）。#123 マージ後、本ファイルは
-    # 自動的に有効化される。
-    "check_static_only.py not found yet (blocked on TASK-12.2b #123). "
-    "Skipping fixture tests.",
-)
-class CheckStaticOnlyTests(unittest.TestCase):
-    """`check_static_only.py` の fixture 回帰テスト（設計 §4 テスト設計方針）。"""
-
+class BaseFixtureTest(unittest.TestCase):
     def setUp(self) -> None:
-        self._tmpdir = tempfile.TemporaryDirectory()
-        self.addCleanup(self._tmpdir.cleanup)
-        self.root = Path(self._tmpdir.name)
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.node_modules = Path(self._tmp.name) / "node_modules"
+        self.node_modules.mkdir()
 
-    # --- Rule 1: package.json メタデータ検査 -----------------------------
+    def make_package(self, name: str, package_json: dict | None = None) -> Path:
+        pkg_dir = self.node_modules / name
+        pkg_dir.mkdir(parents=True)
+        if package_json is not None:
+            write_package_json(pkg_dir, package_json)
+        return pkg_dir
 
-    def test_pass_static_only_package(self) -> None:
-        """許可拡張子のみのパッケージは合格（exit 0）。"""
-        _make_package(
-            self.root, "clean-pkg",
-            files={
-                "style.css": b"body{color:red}",
-                "font.woff2": b"\x00\x01",
-                "icon.svg": b"<svg xmlns='http://www.w3.org/2000/svg'></svg>",
-                "data.json": b"{}",
-                "LICENSE": b"MIT",
-            },
+
+class TestPassingCases(BaseFixtureTest):
+    def test_css_font_license_only_package_passes(self) -> None:
+        pkg = self.make_package("nice-css-pkg", {"name": "nice-css-pkg", "version": "1.0.0"})
+        (pkg / "style.css").write_text("body{color:red}", encoding="utf-8")
+        (pkg / "font.woff2").write_bytes(b"\x00\x01")
+        (pkg / "LICENSE").write_text("MIT", encoding="utf-8")
+        (pkg / "README.md").write_text("# readme", encoding="utf-8")
+
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out, "")
+
+    def test_scoped_package_passes(self) -> None:
+        pkg = self.make_package("@scope/nice-pkg", {"name": "@scope/nice-pkg"})
+        (pkg / "style.css").write_text("body{}", encoding="utf-8")
+
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 0, out)
+
+    def test_main_pointing_to_css_is_allowed(self) -> None:
+        self.make_package("css-only-main", {"main": "style.css"})
+        (self.node_modules / "css-only-main" / "style.css").write_text("a{}", encoding="utf-8")
+
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 0, out)
+
+
+class TestRule1PackageJson(BaseFixtureTest):
+    def test_bin_field_violates(self) -> None:
+        self.make_package("has-bin", {"bin": "./cli.js"})
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1)
+        self.assertIn("rule=R1-bin", out)
+        self.assertIn("package=has-bin", out)
+
+    def test_main_js_entry_violates(self) -> None:
+        self.make_package("has-main-js", {"main": "index.js"})
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1)
+        self.assertIn("rule=R1-entry", out)
+
+    def test_exports_nested_js_entry_violates(self) -> None:
+        self.make_package(
+            "has-exports",
+            {"exports": {".": {"import": "./esm/index.mjs", "default": "./style.css"}}},
         )
-        result = _run_checker(self.root)
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1)
+        self.assertIn("rule=R1-entry", out)
 
-    def test_violation_bin_field(self) -> None:
-        """`bin` フィールドが存在するパッケージは違反（Rule 1）。"""
-        _make_package(
-            self.root, "has-bin",
-            package_json={"bin": "./cli.js"},
-            files={"cli.js": b"#!/usr/bin/env node\n"},
+    def test_lifecycle_scripts_violate(self) -> None:
+        self.make_package("has-scripts", {"scripts": {"postinstall": "node setup.js"}})
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1)
+        self.assertIn("rule=R1-scripts", out)
+        self.assertIn("postinstall", out)
+
+    def test_non_lifecycle_script_does_not_violate_r1_scripts(self) -> None:
+        self.make_package("has-test-script", {"scripts": {"test": "echo ok"}})
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 0, out)
+
+    def test_main_dot_path_violates_r1_entry(self) -> None:
+        # 回帰: `"main": "."` はベース名が "." になり、素朴な "." in base 判定
+        # では「拡張子あり」と誤判定されて非 JS 拡張子を導出してしまい R1-entry
+        # をすり抜けていた（Node 解決規則の下ではディレクトリ参照も最終的に
+        # .js に解決され得るため fail closed で検出する必要がある）。
+        self.make_package("has-dot-main", {"main": "."})
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1, out)
+        self.assertIn("rule=R1-entry", out)
+
+
+class TestRule2Extension(BaseFixtureTest):
+    def test_js_file_violates(self) -> None:
+        pkg = self.make_package("has-js-file")
+        (pkg / "helper.js").write_text("console.log(1)", encoding="utf-8")
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1)
+        self.assertIn("rule=R2-ext", out)
+        self.assertIn("file=helper.js", out)
+
+    def test_dts_file_violates(self) -> None:
+        pkg = self.make_package("has-dts")
+        (pkg / "index.d.ts").write_text("export {}", encoding="utf-8")
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1)
+        self.assertIn("rule=R2-ext", out)
+
+    def test_min_js_file_violates(self) -> None:
+        pkg = self.make_package("has-min-js")
+        (pkg / "bundle.min.js").write_text("!function(){}()", encoding="utf-8")
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1)
+        self.assertIn("rule=R2-ext", out)
+
+
+class TestRule3Filesystem(BaseFixtureTest):
+    def test_shebang_violates(self) -> None:
+        pkg = self.make_package("has-shebang")
+        f = pkg / "script.sh"
+        f.write_text("#!/bin/sh\necho hi\n", encoding="utf-8")
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1)
+        self.assertIn("rule=R3-shebang", out)
+
+    def test_exec_bit_violates(self) -> None:
+        pkg = self.make_package("has-execbit")
+        f = pkg / "data.txt"
+        f.write_text("plain data", encoding="utf-8")
+        f.chmod(f.stat().st_mode | stat.S_IXUSR)
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1)
+        self.assertIn("rule=R3-execbit", out)
+
+    def test_svg_script_tag_violates(self) -> None:
+        pkg = self.make_package("has-svg-script")
+        f = pkg / "icon.svg"
+        f.write_text('<svg><script>alert(1)</script></svg>', encoding="utf-8")
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1)
+        self.assertIn("rule=R3-svg-script", out)
+
+    def test_svg_event_attribute_violates(self) -> None:
+        pkg = self.make_package("has-svg-onload")
+        f = pkg / "icon.svg"
+        f.write_text('<svg onload="alert(1)"></svg>', encoding="utf-8")
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1)
+        self.assertIn("rule=R3-svg-script", out)
+
+    def test_svg_xlink_href_javascript_scheme_violates(self) -> None:
+        pkg = self.make_package("has-svg-xlink-href")
+        f = pkg / "icon.svg"
+        f.write_text('<svg><use xlink:href="javascript:alert(1)"/></svg>', encoding="utf-8")
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1)
+        self.assertIn("rule=R3-svg-script", out)
+
+    def test_svg_href_data_scheme_violates(self) -> None:
+        pkg = self.make_package("has-svg-href-data")
+        f = pkg / "icon.svg"
+        f.write_text(
+            '<svg><a href="data:text/html,<script>alert(1)</script>"></a></svg>',
+            encoding="utf-8",
         )
-        result = _run_checker(self.root)
-        self.assertEqual(result.returncode, 1)
-        self._assert_violation_for_package(result.stdout, "has-bin")
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1)
+        self.assertIn("rule=R3-svg-script", out)
 
-    def test_violation_main_points_to_js(self) -> None:
-        """`main` が `.js` 実行エントリを指すパッケージは違反（Rule 1）。"""
-        _make_package(
-            self.root, "main-js",
-            package_json={"main": "index.js"},
-            files={"index.js": b"module.exports = {};\n"},
+    def test_svg_unquoted_href_javascript_scheme_violates(self) -> None:
+        # 回帰: クォートを要求する正規表現は `href=javascript:...`（クォート
+        # なし）を見逃していた。HTML/SVG パーサはクォートなし属性値を有効に
+        # 受理するため、イベントハンドラ検出（クォートなしも受理）との非対称
+        # を解消する。
+        pkg = self.make_package("has-svg-unquoted-href")
+        f = pkg / "icon.svg"
+        f.write_text('<svg><a href=javascript:alert(1)></a></svg>', encoding="utf-8")
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1, out)
+        self.assertIn("rule=R3-svg-script", out)
+
+    def test_svg_unquoted_xlink_href_data_scheme_violates(self) -> None:
+        pkg = self.make_package("has-svg-unquoted-xlink-href")
+        f = pkg / "icon.svg"
+        f.write_text('<svg><use xlink:href=data:text/html,x></use></svg>', encoding="utf-8")
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1, out)
+        self.assertIn("rule=R3-svg-script", out)
+
+    def test_svg_foreign_object_violates(self) -> None:
+        pkg = self.make_package("has-svg-foreignobject")
+        f = pkg / "icon.svg"
+        f.write_text(
+            '<svg><foreignObject><div xmlns="http://www.w3.org/1999/xhtml">x</div></foreignObject></svg>',
+            encoding="utf-8",
         )
-        result = _run_checker(self.root)
-        self.assertEqual(result.returncode, 1)
-        self._assert_violation_for_package(result.stdout, "main-js")
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1)
+        self.assertIn("rule=R3-svg-script", out)
 
-    def test_violation_lifecycle_script(self) -> None:
-        """`scripts` にライフサイクルスクリプトが存在すれば違反（Rule 1）。"""
-        _make_package(
-            self.root, "has-lifecycle",
-            package_json={"scripts": {"postinstall": "node setup.js"}},
-        )
-        result = _run_checker(self.root)
-        self.assertEqual(result.returncode, 1)
-        self._assert_violation_for_package(result.stdout, "has-lifecycle")
+    def test_plain_svg_passes(self) -> None:
+        pkg = self.make_package("has-plain-svg")
+        f = pkg / "icon.svg"
+        f.write_text('<svg><circle r="1"/></svg>', encoding="utf-8")
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 0, out)
 
-    # --- Rule 2: ファイル実体の拡張子 allowlist 検査 ----------------------
 
-    def test_violation_js_file_present(self) -> None:
-        """許可拡張子外の `.js` ファイル混入は違反（Rule 2）。"""
-        _make_package(
-            self.root, "has-js-file",
-            files={"lib/helper.js": b"console.log(1);\n"},
-        )
-        result = _run_checker(self.root)
-        self.assertEqual(result.returncode, 1)
-        self._assert_violation_for_package(result.stdout, "has-js-file")
+class TestNestedNodeModules(BaseFixtureTest):
+    """§3.2 の走査境界契約: ネストした node_modules は親パッケージの判定に
+    混入させず、独立した判定対象として別列挙する。"""
 
-    # --- Rule 3: ファイル属性・内容の追加検査 -----------------------------
+    def test_clean_parent_with_nested_js_dependency_passes(self) -> None:
+        parent = self.make_package("clean-parent", {"name": "clean-parent"})
+        (parent / "style.css").write_text("body{}", encoding="utf-8")
 
-    def test_violation_shebang_disguised_as_allowed_extension(self) -> None:
-        """許可拡張子でも shebang で始まれば違反（Rule 3）。"""
-        pkg_dir = _make_package(
-            self.root, "shebang-disguise",
-            files={"data.json": b"#!/bin/sh\necho hi\n"},
-        )
-        result = _run_checker(self.root)
-        self.assertEqual(result.returncode, 1)
-        self._assert_violation_for_package(result.stdout, "shebang-disguise")
+        nested_nm = parent / "node_modules"
+        nested_dep = nested_nm / "nested-dep"
+        nested_dep.mkdir(parents=True)
+        write_package_json(nested_dep, {"name": "nested-dep"})
+        (nested_dep / "index.js").write_text("console.log(1)", encoding="utf-8")
 
-    def test_violation_executable_regular_file(self) -> None:
-        """通常ファイルへの実行ビット付与は違反（Rule 3）。"""
-        pkg_dir = _make_package(
-            self.root, "exec-bit-file",
-            files={"asset.txt": b"hello\n"},
-        )
-        target = pkg_dir / "asset.txt"
-        target.chmod(target.stat().st_mode | stat.S_IXUSR)
-        result = _run_checker(self.root)
-        self.assertEqual(result.returncode, 1)
-        self._assert_violation_for_package(result.stdout, "exec-bit-file")
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        # 親パッケージはクリーンなため合格するが、ネストした子パッケージ自体は
+        # 独立した判定対象として別途違反報告される。
+        self.assertEqual(code, 1, out)
+        self.assertIn("package=nested-dep", out)
+        self.assertIn("rule=R2-ext", out)
+        self.assertNotIn("package=clean-parent", out)
 
-    def test_pass_executable_directory_is_not_a_violation(self) -> None:
-        """ディレクトリの実行ビット（トラバース権限）は違反対象外（Rule 3 の除外）。"""
-        pkg_dir = _make_package(
-            self.root, "exec-bit-dir",
-            files={"nested/asset.txt": b"hello\n"},
-        )
-        nested_dir = pkg_dir / "nested"
-        nested_dir.chmod(nested_dir.stat().st_mode | stat.S_IXUSR)
-        result = _run_checker(self.root)
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+    def test_nested_clean_dependency_does_not_fail_parent(self) -> None:
+        parent = self.make_package("clean-parent2", {"name": "clean-parent2"})
+        (parent / "style.css").write_text("body{}", encoding="utf-8")
 
-    def test_violation_svg_script_element(self) -> None:
-        """SVG 内 `<script>` 混入は違反（Rule 3、REQ-1 既定エスケープ方針との整合）。"""
-        _make_package(
-            self.root, "svg-script",
-            files={
-                "icon.svg": (
-                    b"<svg xmlns='http://www.w3.org/2000/svg'>"
-                    b"<script>alert(1)</script></svg>"
-                ),
-            },
-        )
-        result = _run_checker(self.root)
-        self.assertEqual(result.returncode, 1)
-        self._assert_violation_for_package(result.stdout, "svg-script")
+        nested_nm = parent / "node_modules"
+        nested_dep = nested_nm / "nested-clean-dep"
+        nested_dep.mkdir(parents=True)
+        write_package_json(nested_dep, {"name": "nested-clean-dep"})
+        (nested_dep / "style.css").write_text("a{}", encoding="utf-8")
 
-    def test_violation_svg_javascript_scheme_href(self) -> None:
-        """SVG `href`/`xlink:href` の `javascript:` スキームは違反（Rule 3）。"""
-        _make_package(
-            self.root, "svg-js-href",
-            files={
-                "icon.svg": (
-                    b"<svg xmlns='http://www.w3.org/2000/svg'>"
-                    b"<a xlink:href='javascript:alert(1)'>x</a></svg>"
-                ),
-            },
-        )
-        result = _run_checker(self.root)
-        self.assertEqual(result.returncode, 1)
-        self._assert_violation_for_package(result.stdout, "svg-js-href")
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 0, out)
 
-    # --- §3.2 走査境界: ネストした node_modules ---------------------------
+    def test_node_modules_nested_under_subdirectory_is_still_enumerated(self) -> None:
+        """node_modules が package root 直下ではなく、任意のサブディレクトリ
+        （例: foo/lib/node_modules/evil/payload.js）の下に配置されるケース。
+        walk 側の境界スキップと enumerate 側の探索の深さが食い違うと、
+        payload.js がどちらの走査にも含まれず未検査のまま見逃される
+        （fail-open の回帰）。"""
+        parent = self.make_package("foo", {"name": "foo"})
+        (parent / "style.css").write_text("body{}", encoding="utf-8")
 
-    def test_nested_node_modules_boundary(self) -> None:
-        """親パッケージ自体はクリーンで子（transitive 依存）のみ違反の場合、
-        親は合格・子のみ違反として個別に報告される（設計 §3.2 の走査境界）。
-
-        フォーマット（VIOLATION 行のキー集合）は確定事項として検証するが、
-        「親・子どちらの package= 値で報告するか」の細部は #123 の実装詳細に
-        依存しうるため、ここでは「クリーンな親パッケージ名自体が違反として
-        報告されないこと」と「合計 exit code が違反ありを示すこと」のみを
-        厳密に検証する。
-        """
-        parent_dir = _make_package(
-            self.root, "clean-parent",
-            files={"style.css": b"body{}"},
-        )
-        _make_package(
-            parent_dir, "dirty-child",
-            files={"index.js": b"console.log(1);\n"},
-        )
-        result = _run_checker(self.root)
-        self.assertEqual(result.returncode, 1)
-        self.assertNotIn(
-            "package=clean-parent ", result.stdout,
-            "クリーンな親パッケージ自身が違反として報告されてはならない",
-        )
-
-    # --- §4 実装制約: 実行コード拡張子はハード拒否（免除不可） -------------
-
-    def test_js_extension_rejected_even_with_allowlist_entry(self) -> None:
-        """実行コード拡張子（`.js` 等）は allowlist.toml による免除エントリが
-        あっても拒否されたまま（設計 §3.4 のハード拒否・抜け道封じ）。
-
-        allowlist.toml の具体的なファイルフォーマット・パーサ実装は
-        #123 のスコープ（設計 §3.4 末尾）のため、本テストは特定のシンタックス
-        を仮定しない。allowlist.toml を配置しない状態（免除なし）でも
-        `.js` が拒否されることを確認することで、「免除機構が存在しない場合に
-        当然拒否される」という下限を固定し、#123 マージ後に免除ありのケースを
-        追補する土台とする。
-        """
-        _make_package(
-            self.root, "hard-reject-js",
-            files={"index.js": b"console.log(1);\n"},
-        )
-        result = _run_checker(self.root)
-        self.assertEqual(result.returncode, 1)
-        self._assert_violation_for_package(result.stdout, "hard-reject-js")
-
-    # --- CLI 契約: パス不在 / 出力フォーマット ----------------------------
-
-    def test_exit_code_2_on_missing_path(self) -> None:
-        """`--node-modules` のパスが存在しない場合、実行エラーとして exit 2。"""
-        missing_path = self.root / "does-not-exist" / "node_modules"
-        result = subprocess.run(
-            [sys.executable, str(CHECK_SCRIPT), "--node-modules",
-             str(missing_path)],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
-
-    def test_violation_line_format_contract(self) -> None:
-        """VIOLATION 行はキー集合 package=/rule=/file=/reason= を持つ
-        （設計 §4 出力形式。rule ID の具体的な語彙は #123 の裁量のため
-        \\S+ で緩く照合し、キーの並び・存在のみを確定事項として検証する）。
-        """
-        _make_package(
-            self.root, "format-check",
-            package_json={"bin": "./cli.js"},
-        )
-        result = _run_checker(self.root)
-        self.assertEqual(result.returncode, 1)
-        violation_lines = [
-            line for line in result.stdout.splitlines()
-            if line.startswith("VIOLATION ")
-        ]
-        self.assertTrue(violation_lines, "VIOLATION 行が出力されていない")
-        matched = [
-            line for line in violation_lines
-            if VIOLATION_LINE_RE.match(line)
-        ]
-        self.assertTrue(
-            matched,
-            f"VIOLATION 行のフォーマットが契約と一致しない: {violation_lines}",
+        nested_dep = parent / "lib" / "node_modules" / "evil"
+        nested_dep.mkdir(parents=True)
+        write_package_json(nested_dep, {"name": "evil"})
+        (nested_dep / "payload.js").write_text(
+            "require('child_process').exec('id')", encoding="utf-8"
         )
 
-    # --- 補助 -------------------------------------------------------------
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1, out)
+        self.assertIn("package=evil", out)
+        self.assertIn("rule=R2-ext", out)
+        self.assertIn("payload.js", out)
+        self.assertNotIn("package=foo", out)
 
-    def _assert_violation_for_package(self, stdout: str, package_name: str) -> None:
-        """指定パッケージ名を含む VIOLATION 行が最低 1 行出力されていることを
-        確認する（rule ID の具体的な語彙は問わない）。
-        """
-        found = any(
-            VIOLATION_LINE_RE.match(line) and
-            VIOLATION_LINE_RE.match(line).group("package") == package_name
-            for line in stdout.splitlines()
-            if line.startswith("VIOLATION ")
+    def test_doubly_nested_node_modules_are_enumerated(self) -> None:
+        parent = self.make_package("root-pkg", {"name": "root-pkg"})
+        (parent / "style.css").write_text("body{}", encoding="utf-8")
+
+        mid = parent / "node_modules" / "mid-pkg"
+        mid.mkdir(parents=True)
+        write_package_json(mid, {"name": "mid-pkg"})
+        (mid / "style.css").write_text("a{}", encoding="utf-8")
+
+        leaf = mid / "node_modules" / "leaf-pkg"
+        leaf.mkdir(parents=True)
+        write_package_json(leaf, {"name": "leaf-pkg"})
+        (leaf / "bad.js").write_text("console.log(1)", encoding="utf-8")
+
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1, out)
+        self.assertIn("package=leaf-pkg", out)
+        self.assertNotIn("package=root-pkg", out)
+        self.assertNotIn("package=mid-pkg", out)
+
+
+class TestSymlink(BaseFixtureTest):
+    def test_symlinked_package_reported_not_followed(self) -> None:
+        real_target = Path(self._tmp.name) / "outside-target"
+        real_target.mkdir()
+        (real_target / "evil.js").write_text("console.log('evil')", encoding="utf-8")
+
+        link = self.node_modules / "linked-pkg"
+        os.symlink(real_target, link)
+
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1)
+        self.assertIn("rule=R0-symlink", out)
+        # symlink 先の中身（evil.js）は辿られていないため R2-ext 違反は出ない。
+        self.assertNotIn("evil.js", out)
+
+    def test_symlinked_file_inside_package_reported_not_followed(self) -> None:
+        pkg = self.make_package("pkg-with-symlink-file")
+        outside_file = Path(self._tmp.name) / "outside.js"
+        outside_file.write_text("console.log('x')", encoding="utf-8")
+        os.symlink(outside_file, pkg / "linked.js")
+
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1)
+        self.assertIn("rule=R0-symlink", out)
+
+
+class TestAllowlist(BaseFixtureTest):
+    def write_allowlist(self, content: str) -> Path:
+        path = Path(self._tmp.name) / "allowlist.toml"
+        path.write_text(content, encoding="utf-8")
+        return path
+
+    def test_valid_exemption_suppresses_violation_and_exits_zero(self) -> None:
+        self.make_package("has-scripts", {"scripts": {"postinstall": "node setup.js"}})
+        allowlist = self.write_allowlist(
+            """
+[[exempt]]
+package = "has-scripts"
+rule = "R1-scripts"
+reason = "known false positive for test fixture"
+"""
         )
-        self.assertTrue(
-            found,
-            f"'{package_name}' に対する VIOLATION 行が見つからない: {stdout}",
+        code, out = run_capture(
+            ["--node-modules", str(self.node_modules), "--allowlist", str(allowlist)]
         )
+        self.assertEqual(code, 0, out)
+        self.assertIn("EXEMPTED package=has-scripts rule=R1-scripts", out)
+
+    def test_missing_reason_is_fail_closed_exit_2(self) -> None:
+        self.make_package("pkg-a", {"bin": "./x.js"})
+        allowlist = self.write_allowlist(
+            """
+[[exempt]]
+package = "pkg-a"
+rule = "R1-bin"
+reason = ""
+"""
+        )
+        code, out = run_capture(
+            ["--node-modules", str(self.node_modules), "--allowlist", str(allowlist)]
+        )
+        self.assertEqual(code, 2)
+
+    def test_unknown_rule_is_fail_closed_exit_2(self) -> None:
+        allowlist = self.write_allowlist(
+            """
+[[exempt]]
+package = "pkg-a"
+rule = "R99-nonexistent"
+reason = "bogus"
+"""
+        )
+        code, out = run_capture(
+            ["--node-modules", str(self.node_modules), "--allowlist", str(allowlist)]
+        )
+        self.assertEqual(code, 2)
+
+    def test_wildcard_package_is_fail_closed_exit_2(self) -> None:
+        allowlist = self.write_allowlist(
+            """
+[[exempt]]
+package = "*"
+rule = "R1-bin"
+reason = "too broad"
+"""
+        )
+        code, out = run_capture(
+            ["--node-modules", str(self.node_modules), "--allowlist", str(allowlist)]
+        )
+        self.assertEqual(code, 2)
+
+    def test_r2_ext_exempt_without_ext_or_file_is_fail_closed_exit_2(self) -> None:
+        """§3.4: 「パッケージ + ルール」単位だけの R2-ext 免除は認めない。
+        node_modules/evil-pkg/payload.js に require('child_process') 相当の
+        実行コードを仕込み、粗い粒度の免除 1 行で合格させられる抜け道の再現。"""
+        pkg = self.make_package("evil-pkg", {"name": "evil-pkg"})
+        (pkg / "payload.js").write_text(
+            "require('child_process').exec('id')", encoding="utf-8"
+        )
+        allowlist = self.write_allowlist(
+            """
+[[exempt]]
+package = "evil-pkg"
+rule = "R2-ext"
+reason = "oops, too broad"
+"""
+        )
+        code, out = run_capture(
+            ["--node-modules", str(self.node_modules), "--allowlist", str(allowlist)]
+        )
+        self.assertEqual(code, 2, out)
+
+    def test_r2_ext_exemption_for_executable_extension_is_fail_closed_exit_2(self) -> None:
+        """実行コード拡張子（.js 等）に対する R2-ext 免除はハード拒否
+        （ext 指定でも file 指定でも許可しない）。"""
+        allowlist = self.write_allowlist(
+            """
+[[exempt]]
+package = "evil-pkg"
+rule = "R2-ext"
+ext = ".js"
+reason = "trying to exempt executable code"
+"""
+        )
+        code, out = run_capture(
+            ["--node-modules", str(self.node_modules), "--allowlist", str(allowlist)]
+        )
+        self.assertEqual(code, 2, out)
+
+        allowlist2 = self.write_allowlist(
+            """
+[[exempt]]
+package = "evil-pkg"
+rule = "R2-ext"
+file = "payload.js"
+reason = "trying to exempt executable code via file path"
+"""
+        )
+        code2, out2 = run_capture(
+            ["--node-modules", str(self.node_modules), "--allowlist", str(allowlist2)]
+        )
+        self.assertEqual(code2, 2, out2)
+
+    def test_unrelated_extension_exemption_does_not_leak_to_executable_code(
+        self,
+    ) -> None:
+        """他拡張子（.dat）向けの ext 単位免除エントリが、同一パッケージ内の
+        実行コード拡張子（.js）にまで波及しないことを確認する（免除の照合
+        キーが拡張子単位で厳密に絞られていることの回帰テスト）。実行コード
+        拡張子への免除エントリ自体は load_allowlist が parse 時点で
+        exit 2 拒否するため、ここでは「無関係な免除の漏れ出し」を検証する。"""
+        pkg = self.make_package("evil-pkg2", {"name": "evil-pkg2"})
+        (pkg / "payload.js").write_text(
+            "require('child_process').exec('id')", encoding="utf-8"
+        )
+        # ext 単位の非実行コード拡張子免除（.dat）はこのパッケージの .js には
+        # 一切影響しないことを確認する。
+        allowlist = self.write_allowlist(
+            """
+[[exempt]]
+package = "evil-pkg2"
+rule = "R2-ext"
+ext = ".dat"
+reason = "unrelated extension exemption must not affect .js"
+"""
+        )
+        code, out = run_capture(
+            ["--node-modules", str(self.node_modules), "--allowlist", str(allowlist)]
+        )
+        self.assertEqual(code, 1, out)
+        self.assertIn("VIOLATION package=evil-pkg2 rule=R2-ext", out)
+        self.assertIn("payload.js", out)
+
+    def test_r2_ext_exemption_by_extension_scope_suppresses_only_that_extension(
+        self,
+    ) -> None:
+        pkg = self.make_package("has-unknown-ext", {"name": "has-unknown-ext"})
+        (pkg / "data.xyz").write_text("binary-ish data", encoding="utf-8")
+        (pkg / "other.zzz").write_text("more data", encoding="utf-8")
+        allowlist = self.write_allowlist(
+            """
+[[exempt]]
+package = "has-unknown-ext"
+rule = "R2-ext"
+ext = ".xyz"
+reason = "known safe vendor data format"
+"""
+        )
+        code, out = run_capture(
+            ["--node-modules", str(self.node_modules), "--allowlist", str(allowlist)]
+        )
+        self.assertEqual(code, 1, out)
+        self.assertIn("EXEMPTED package=has-unknown-ext rule=R2-ext", out)
+        self.assertIn("VIOLATION package=has-unknown-ext rule=R2-ext", out)
+        self.assertIn("other.zzz", out)
+
+    def test_r2_ext_exemption_by_file_path_scope(self) -> None:
+        pkg = self.make_package("has-unknown-file", {"name": "has-unknown-file"})
+        (pkg / "vendor.dat").write_text("binary-ish data", encoding="utf-8")
+        allowlist = self.write_allowlist(
+            """
+[[exempt]]
+package = "has-unknown-file"
+rule = "R2-ext"
+file = "vendor.dat"
+reason = "known safe vendor data file"
+"""
+        )
+        code, out = run_capture(
+            ["--node-modules", str(self.node_modules), "--allowlist", str(allowlist)]
+        )
+        self.assertEqual(code, 0, out)
+        self.assertIn("EXEMPTED package=has-unknown-file rule=R2-ext", out)
+
+    def test_r2_ext_exempt_with_both_ext_and_file_is_fail_closed_exit_2(self) -> None:
+        allowlist = self.write_allowlist(
+            """
+[[exempt]]
+package = "pkg-a"
+rule = "R2-ext"
+ext = ".xyz"
+file = "vendor.xyz"
+reason = "both specified"
+"""
+        )
+        code, out = run_capture(
+            ["--node-modules", str(self.node_modules), "--allowlist", str(allowlist)]
+        )
+        self.assertEqual(code, 2, out)
+
+
+class TestExitCodeContract(BaseFixtureTest):
+    def test_missing_node_modules_path_exits_2(self) -> None:
+        missing = Path(self._tmp.name) / "does-not-exist"
+        code, out = run_capture(["--node-modules", str(missing)])
+        self.assertEqual(code, 2)
+
+    def test_dir_flag_derives_node_modules(self) -> None:
+        project_dir = Path(self._tmp.name)
+        code, out = run_capture(["--dir", str(project_dir)])
+        self.assertEqual(code, 0, out)
+
+    def test_violation_output_format(self) -> None:
+        self.make_package("bad-pkg", {"bin": "./cli.js"})
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1)
+        line = out.strip()
+        self.assertRegex(
+            line,
+            r'^VIOLATION package=bad-pkg rule=R1-bin file=package\.json reason=".*"$',
+        )
+
+    def test_reason_with_embedded_quotes_is_escaped_in_output(self) -> None:
+        # 回帰: R1-entry の reason 文字列は
+        # `f'"{field}" field resolves to a JS execution entry'` のように
+        # フィールド名を生のダブルクォートで囲んでいるため、無エスケープで
+        # `reason="..."` 契約に流し込むと途中でクォートが終端し、strict な
+        # パーサ（`reason="(?:[^"\\]|\\.)*"` 相当）を壊してしまう。エスケープ
+        # 後は埋め込まれた `"` が `\"` に変換され、契約上の 1 つの reason
+        # フィールドとして復元可能であることを確認する。
+        self.make_package("has-main-js", {"main": "index.js"})
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1, out)
+        line = out.strip()
+        self.assertIn('reason="\\"main\\" field resolves to a JS execution entry"', line)
+        # strict なパーサ相当の正規表現で reason フィールド全体を 1 つに復元できること。
+        match = __import__("re").search(r'reason="((?:[^"\\]|\\.)*)"$', line)
+        self.assertIsNotNone(match, line)
+        restored = match.group(1).replace('\\"', '"').replace("\\\\", "\\")
+        self.assertEqual(restored, '"main" field resolves to a JS execution entry')
 
 
 if __name__ == "__main__":
