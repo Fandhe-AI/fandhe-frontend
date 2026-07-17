@@ -513,6 +513,14 @@ fn render_with_root_attrs(state: &AppState, extra_root_attrs: Vec<(&str, &str)>)
                         "button",
                         vec![
                             ("data-action", "remove_item"),
+                            // `dispatch`/`decode_action` は WASM 境界の
+                            // `data-action`/`data-payload` 属性契約（本ファイル冒頭
+                            // doc コメント参照）に従って payload を読み取る。
+                            // `data-idx` のみでは payload が空文字列のまま渡され
+                            // `remove_item` の index パースが常に失敗する
+                            // （Bugbot 指摘: Medium Severity）ため、同じ値を
+                            // `data-payload` としても公開する。
+                            ("data-payload", &i.to_string()),
                             ("data-idx", &i.to_string()),
                             ("data-testid", "remove-btn"),
                         ],
@@ -696,6 +704,19 @@ mod tests {
         let attrs: Vec<(String, String)> = Vec::new();
         let err = AppState::from_hydration_attrs(&attrs).unwrap_err();
         assert!(matches!(err, HydrateError::MissingAttr(_)));
+    }
+
+    /// Bugbot 指摘の回帰テスト（Medium Severity）: 削除ボタンは `dispatch`/
+    /// `decode_action` の WASM 境界契約（`data-action`/`data-payload`）に従い
+    /// `data-payload` 属性で index を公開しなければならない。`data-idx` のみ
+    /// では payload が空になり `remove_item` が常に no-op になっていた。
+    #[test]
+    fn render_remove_button_exposes_index_via_data_payload() {
+        let mut s = AppState::new();
+        s.items.push("second".to_string());
+        let html = rws_core::render(&s.view());
+        assert!(html.contains(r#"data-payload="0""#));
+        assert!(html.contains(r#"data-payload="1""#));
     }
 
     #[test]
