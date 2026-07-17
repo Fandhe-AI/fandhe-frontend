@@ -8,12 +8,13 @@
 `templates/embed/embed.html`（TASK-7.1a・#52）と対になる成果物として作成します。
 
 > **本書のステータスと前提**: 本書は `rws-core`・`rws-app`（いずれもマージ済み）の
-> 公開 API と `docs/hydration-api.md`（TASK-6.2a、設計確定済み）の凍結契約のみを
-> 前提として執筆しています。`templates/embed/embed.html`（#52）・`rws-wasm-client`
-> クレート本体の実装（TASK-6.2b・#48）・`rws-server`（TASK-6.1c・#44）は本書執筆時点
-> ではいずれも未マージで並行進行中です。したがって本書に登場する `mount_csr()` /
-> `hydrate()` の呼び出し例は、実装済みコードの引用ではなく **`docs/hydration-api.md`
-> で確定した設計契約**として提示しています。実装が完了しマージされた時点で、本書の
+> 公開 API と `docs/hydration-api.md`（TASK-6.2a、設計確定済み）の凍結契約を
+> 前提として執筆しています。`templates/embed/embed.html`（TASK-7.1a・#52）はマージ
+> 済みで、3.1 節のコード例は実物と一致させています。`rws-wasm-client` クレート本体
+> の実装（TASK-6.2b・#48）・`rws-server`（TASK-6.1c・#44）は本書更新時点ではいずれも
+> 未マージで並行進行中です。したがって本書に登場する `mount_csr()` / `hydrate()` の
+> 呼び出し例は、クレート実装済みコードの引用ではなく **`docs/hydration-api.md` で
+> 確定した設計契約**として提示しています。実装が完了しマージされた時点で、本書の
 > 記述と実物に乖離があれば、各設計確定書・実装を正として本書を追随更新します。
 
 ## 1. 目的と対象読者
@@ -69,9 +70,10 @@ PoC-3（`docs/spec/03-poc/rendering-web-standards/`、差別化空白 E への�
 
 ### 3.1 マウントポイントを置く
 
-PoC-3 の実証例（`docs/spec/03-poc/rendering-web-standards/static/embed.html`）が
-最小構成の骨格を示しています。既存の素の HTML はそのままに、`<div>` 一つだけを
-フレームワークの管理下に置きます。
+`docs/spec/05-tasks.md`（TASK-7.1 節）が定める製品版の正典テンプレートは
+`templates/embed/embed.html`（TASK-7.1a・#52、マージ済み）です。以下は同ファイル
+の抜粋（実物）です。既存の素の HTML はそのままに、`<div>` 一つだけをフレームワーク
+の管理下に置きます。
 
 ```html
 <!DOCTYPE html>
@@ -92,11 +94,10 @@ PoC-3 の実証例（`docs/spec/03-poc/rendering-web-standards/static/embed.html
 </html>
 ```
 
-> **正典テンプレートの所在**: `docs/spec/05-tasks.md`（TASK-7.1 節）が定める製品版の
-> 正典テンプレートは `templates/embed/embed.html`（TASK-7.1a・#52）です。本書執筆
-> 時点では #52 は未マージのため、上記コード例は PoC-3 の実証コードを踏襲したもの
-> です。#52 がマージされ次第、本節は `templates/embed/embed.html` の実物を正として
-> 追随更新します。
+> **正典テンプレートの所在**: 上記は `templates/embed/embed.html` の抜粋です。
+> コメント（役割・責務境界・呼び出し契約の説明）を含む完全な内容は同ファイルを
+> 直接参照してください。本節のコード例と実物が乖離した場合は、実物
+> （`templates/embed/embed.html`）を正とします。
 
 ### 3.2 WASM を初期化してマウントする
 
@@ -197,19 +198,18 @@ REQ-7 の受け入れ基準にあるとおり、v1 の共通コアはパスマ�
 - `app/src/lib.rs` の rustdoc（三モード契約・既定エスケープの引き継ぎ、マージ済み）
 - `docs/hydration-api.md`（`mount_csr` / `hydrate` の設計確定、TASK-6.2a・マージ済み）
 - `docs/component-authoring.md`（コンポーネント記述の一般的な書き方）
+- `templates/embed/embed.html`（TASK-7.1a・#52、マージ済み。3.1 節の正典テンプレート）
 
-以下は本書執筆時点で未マージ・並行進行中であり、マージされ次第、本書の該当箇所
+以下は本書更新時点で未マージ・並行進行中であり、マージされ次第、本書の該当箇所
 （3 節・4 節）を追随更新します。
 
 | 未マージの成果物 | 対応タスク | 影響する本書の節 |
 |---|---|---|
-| `templates/embed/embed.html` | TASK-7.1a（#52） | 3.1 節（正典テンプレート） |
 | `rws-wasm-client` クレート実装 | TASK-6.2b（#48） | 3.2・3.3 節（ビルド・配置） |
 | `rws-server`（SSR/SSG エントリ） | TASK-6.1c（#44） | 4 節（移行パス） |
 
 ## 8. スコープ外（本書では扱わない事項）
 
-- `templates/embed/embed.html` 本体の作成（TASK-7.1a・#52）
 - `mount_csr` / `hydrate` の実装（TASK-6.2b・#48）
 - `rws-server` の SSR/SSG エントリ（TASK-6.1c・#44）
 - 分岐なしの静的解析・テストによる機械検証（TASK-7.3）
