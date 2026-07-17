@@ -28,7 +28,7 @@
 | # | 検証観点（§6 引用） | 検証手段 | 結果 |
 |---|---------------------|---------|------|
 | 1 | `RWS_WASM_BUILD=0` 削除後、`docker build` が成功し、最終イメージの `static/wasm/` 相当の URL パスから WASM 成果物が配信されること | `docker build` → `docker run` → `curl` 実機確認 | Pass（第 4.1 節） |
-| 2 | `wasm-bindgen-cli` バージョン不一致時に、`build.rs` のフェイルクローズがビルダーステージのビルド失敗として正しく伝播すること | `WASM_BINDGEN_VERSION` を意図的に不一致値へ変更した負例ビルド | Pass（第 4.2 節） |
+| 2 | `wasm-bindgen-cli` バージョン不一致時に、`build.rs` のフェイルクローズがビルダーステージのビルド失敗として正しく伝播すること | `WASM_BINDGEN_VERSION` を意図的に不一致値へ変更した負例ビルド＋`xtask/tests/wasm_bindgen_version_sync.rs` による固定値同期ドリフトの回帰検出 | Pass（第 4.2 節） |
 | 3 | 最終イメージに `wasm32-unknown-unknown` ターゲット・`wasm-bindgen-cli` バイナリが含まれないこと | `docker export \| tar -t` によるファイル一覧の全数確認 | Pass（第 4.3 節） |
 | 4 | `xtask check-image-size`（50MB 上限）が WASM 成果物込みでも PASS すること | `cargo run -p xtask -- check-image-size` | Pass（第 4.4 節） |
 | 5 | `image-size.yml` の `paths` 追加後、`wasm-full/`・`wasm-thin/`・`interactive/` の変更が正しくワークフローをトリガーすること | `.github/workflows/image-size.yml` の `paths` 実測確認 | Pass（第 4.5 節、追加は TASK-9.3b 以降の先行変更で既に存在） |
@@ -91,6 +91,14 @@ successfully: exit code: 1
 `Dockerfile` は元の値（`0.2.126`、`x86_64`/`aarch64` 双方の正しい
 チェックサム）へ復元済み。
 
+上記は単発の負例ビルド確認に留まっていたため、`WASM_BINDGEN_VERSION` /
+`WASM_BINDGEN_SHA256` の固定値が `Dockerfile`・`.github/workflows/ci.yml`・
+`Cargo.lock` の間でサイレントにドリフトする事態（ビルド実行まで検出が
+遅延し原因特定コストが高い）を `cargo test` 時点で前倒し検出する回帰テスト
+`xtask/tests/wasm_bindgen_version_sync.rs` を TASK-10.3c で追加した。
+Cargo.lock の解決バージョンとの不一致・Dockerfile/ci.yml 間の SHA256
+不一致を意図的に作った負例でいずれも fail-closed であることを確認済み。
+
 ### 4.3 観点 3: 最終イメージの非汚染確認
 
 ```
@@ -135,6 +143,33 @@ WASM 資産込みでも 50MB 上限に対し十分なマージン（約 0.57MB�
 いた（TASK-9.3b（#103）以降の別変更で先行して追加済み。
 `docs/docker-wasm-build-stage.md` §2.2 参照）。TASK-10.3b・10.3c では
 追加の変更は不要であることを確認した。
+
+### 4.5b main マージ後の CI 実測（TASK-10.3c 完了時点）
+
+第 4.5 節までの実測はワークツリー環境での単発実行に留まっており、REQ-10
+「CI 環境での再現性が担保されること」の直接証跡としては、`main` ブランチ
+マージ後の `image-size.yml` 継続実行結果を別途記録する必要がある。
+TASK-10.3c 完了時点（本節追記時）で `main` 上の直近 5 回の
+`image-size.yml` 実行を確認し、いずれも success（本レポートが検証対象と
+する 2 ステップ「Verify WASM assets are served」「Verify final image does
+not leak the build toolchain」を含む）であることを確認した。
+
+| run ID | headSha | conclusion | URL |
+|--------|---------|------------|-----|
+| 29599984697 | 0461c6c2 | success | https://github.com/Fandhe-AI/frontend-framework/actions/runs/29599984697 |
+| 29599400275 | 77cabefd | success | https://github.com/Fandhe-AI/frontend-framework/actions/runs/29599400275 |
+| 29598763674 | 6d5cc693 | success | https://github.com/Fandhe-AI/frontend-framework/actions/runs/29598763674 |
+| 29598461396 | 0fbfe1fe | success | https://github.com/Fandhe-AI/frontend-framework/actions/runs/29598461396 |
+| 29597370943 | bf5ec748 | success | https://github.com/Fandhe-AI/frontend-framework/actions/runs/29597370943 |
+
+最新 run（29599984697）についてステップ単位でも確認し、以下 2 ステップが
+`conclusion=success` であることを確認済み:
+
+- `Verify WASM assets are served (TASK-10.3c, issue #117)`
+- `Verify final image does not leak the build toolchain (TASK-10.3c, issue #117)`
+
+これにより、観点 1・3 は単発実測（第 4.1・4.3 節）に加え `main` 上での
+継続的な再現性が担保されていることを確認できる。
 
 ### 4.6 観点 6: x86_64 / aarch64 両ビルドホストでのアーキ分岐確認
 
@@ -218,5 +253,7 @@ docker rm -f rws-aarch64-check
 - `Dockerfile`（TASK-10.3b 実装）
 - `.github/workflows/image-size.yml`（TASK-10.3c CI 検証ステップ追加）
 - `dist-server/build.rs`（TASK-10.2b・#110、WASM ビルドステージ本体）
+- `xtask/tests/wasm_bindgen_version_sync.rs`（TASK-10.3c 追加、固定
+  バージョン・SHA256 同期ドリフトの回帰テスト）
 - Issue #114（親・TASK-10.3）・#115（TASK-10.3a・設計）・#116
   （TASK-10.3b・実装）・#117（本レポート・TASK-10.3c）
