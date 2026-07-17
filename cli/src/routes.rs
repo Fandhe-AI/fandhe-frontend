@@ -15,9 +15,13 @@
 //!
 //! 走査対象ディレクトリは [`crate::structure::is_valid_directory_name`] 相当
 //! （呼び出し側で検証済みの `structure.toml` の `directories` キー）からのみ
-//! 構成され、ワークスペースルート配下に限定する（[`scan_dir_within_root`]）。
-//! シンボリックリンクを辿った結果がルート外を指す場合は
-//! [`ExtractError::EscapesWorkspaceRoot`] として拒否する（OWASP A01/A05 対策）。
+//! 構成され、ワークスペースルート配下に限定する（[`resolve_within_root`]）。
+//! 走査の起点はこの 1 段のみをルート配下に確認するが、再帰走査
+//! （[`list_rs_files`]）中に遭遇したシンボリックリンク（ディレクトリ・ファイル
+//! いずれも）は辿らず一律スキップする。リンク先を都度 canonicalize してルート
+//! 内外を判定するのではなく、リンクそのものを対象外とすることで、
+//! シンボリックリンク経由でワークスペースルート外の `.rs` を読み出す経路を
+//! 構造的に排除する（OWASP A01/A05 対策）。
 
 use std::path::{Path, PathBuf};
 
@@ -164,6 +168,17 @@ fn list_rs_files_inner(
         let file_type = entry
             .file_type()
             .map_err(|e| ExtractError::Io(format!("{:?}", e.kind())))?;
+        // シンボリックリンク（ディレクトリ・ファイルいずれも）は辿らず無条件に
+        // スキップする。[`resolve_within_root`] はスキャンの起点 1 段のみを
+        // ルート配下に確認しており、再帰の各段でリンク先を都度 canonicalize すると
+        // コストが増す上、`DirEntry::file_type` がリンクを辿らない挙動は
+        // プラットフォーム・ファイルシステム依存の詳細に委ねられている
+        // （レビュー指摘 #127: symlink 経由でワークスペースルート外の `.rs` を
+        // 読み出せてしまう懸念）。`is_symlink()` を明示チェックすることで、
+        // 実装詳細に依存せずリンクを一律拒否する（OWASP A01/A05 対策の fail-closed）。
+        if file_type.is_symlink() {
+            continue;
+        }
         if file_type.is_dir() {
             list_rs_files_inner(&path, depth + 1, max_depth, out)?;
         } else if file_type.is_file() && path.extension().and_then(|e| e.to_str()) == Some("rs") {
@@ -341,6 +356,62 @@ mod tests {
         let root = std::env::temp_dir();
         let err = resolve_within_root(&root, "definitely-not-a-real-dir-name").unwrap_err();
         assert_eq!(err, ExtractError::NotADirectory);
+    }
+
+    /// レビュー指摘 #127: Medium severity。`resolve_within_root` は走査起点の
+    /// 1 段のみをルート配下に確認しており、再帰走査中に遭遇したシンボリック
+    /// リンク（ディレクトリ・ファイルいずれも）はチェックなく辿られ得た。
+    /// リンク先にワークスペースルート外の `.rs` ファイルを配置しても、
+    /// `list_rs_files` の結果に含まれないこと（辿らずスキップされること）を
+    /// 確認する。
+    #[cfg(unix)]
+    #[test]
+    fn list_rs_files_does_not_follow_symlinked_directory() {
+        let tmp =
+            std::env::temp_dir().join(format!("fw-routes-symlink-dir-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let scan_root = tmp.join("scan_root");
+        let outside = tmp.join("outside");
+        std::fs::create_dir_all(&scan_root).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::write(outside.join("secret.rs"), "pub fn secret() {}").unwrap();
+        std::os::unix::fs::symlink(&outside, scan_root.join("link_to_outside")).unwrap();
+
+        let files = list_rs_files(&scan_root).expect("scan should succeed");
+        assert!(
+            files.is_empty(),
+            "symlinked directory must not be followed: found {files:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// 上記と同様に、シンボリックリンクされた単一ファイル（`.rs` へのリンク）も
+    /// 実体ファイルとして読み込まれないこと（`is_file()` を辿らずスキップ）を
+    /// 確認する。
+    #[cfg(unix)]
+    #[test]
+    fn list_rs_files_does_not_follow_symlinked_file() {
+        let tmp = std::env::temp_dir().join(format!(
+            "fw-routes-symlink-file-test-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let scan_root = tmp.join("scan_root");
+        let outside = tmp.join("outside");
+        std::fs::create_dir_all(&scan_root).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        let target = outside.join("secret.rs");
+        std::fs::write(&target, "pub fn secret() {}").unwrap();
+        std::os::unix::fs::symlink(&target, scan_root.join("link.rs")).unwrap();
+
+        let files = list_rs_files(&scan_root).expect("scan should succeed");
+        assert!(
+            files.is_empty(),
+            "symlinked file must not be followed: found {files:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]
