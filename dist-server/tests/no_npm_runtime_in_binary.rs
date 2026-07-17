@@ -201,27 +201,50 @@ fn distributed_binary_does_not_embed_npm_or_node_runtime() {
     }
 }
 
-/// 層 3（Docker イメージ構造）: ワークスペースルートの `Dockerfile` を
-/// 行ベースで解析し、最終ステージ（`FROM scratch`）が
-/// 「ビルダーステージからのバイナリ 1 件のみを `COPY` し、`RUN` を含まない」
-/// ことを検証する。
+/// builder ステージが生成する唯一の配布物のパス（`Dockerfile` の
+/// `cp "target/.../dist-server" /dist-server-out` に対応）。
 ///
-/// この構造が保たれる限り、最終イメージへ Node ランタイム・NPM パッケージを
-/// 持ち込む経路（`RUN npm install` 等の実行）が構造的に存在しない。
-/// ビルダーステージ自体は変更対象外（TASK-10.3・イシュー #114 で
-/// wasm-bindgen 導入等の正当な変更が入る予定のため）だが、`nodejs`/`npm ` の
-/// インストールを示す明示的なトークンがビルダーステージにも存在しないことを
-/// 併せて確認し、将来の改変を過度に制約しない形で検査する。
-#[test]
-fn dockerfile_final_stage_copies_only_the_binary_and_has_no_run_instruction() {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let dockerfile_path = manifest_dir
-        .parent()
-        .expect("dist-server/ has a parent directory (workspace root)")
-        .join("Dockerfile");
+/// [`validate_dockerfile_final_stage`] は最終ステージの `COPY` 元をこの
+/// 定数と厳密一致させる。ディレクトリ・ワイルドカードの拒否だけでは
+/// `COPY --from=builder /work /dist-server` のような「ビルダーの作業
+/// ディレクトリを丸ごと `/dist-server` という名のディレクトリとして
+/// コピーする」構成（`src` にワイルドカードも末尾スラッシュも現れない）
+/// を見逃してしまうため（Bugbot 指摘: COPY path identity unchecked）、
+/// 既知の単一ファイルパスへのピン留めまで行う。TASK-10.3（#114）の
+/// wasm-bindgen 導入はビルダーステージのアセットビルド過程を変更する想定
+/// であり、最終バイナリの出力パスそのものは変更対象外のため、この定数を
+/// 固定してよい。変更が必要になった場合は本テストが確実に落ちる
+/// （フェイルクローズ）。
+const BUILDER_ARTIFACT_PATH: &str = "/dist-server-out";
 
-    let content = fs::read_to_string(&dockerfile_path).expect("Dockerfile must be readable");
+/// Node/npm ランタイム導入を示す明示的なトークン。`nodejs` は
+/// `wasm-bindgen --target nodejs` という正当な技術用語としてコメント中に
+/// も登場し得るため、[`validate_dockerfile_final_stage`] はコメント行を
+/// 除外した非コメント本文に対してのみこれらを検査する
+/// （Bugbot 指摘: Broad nodejs Dockerfile marker）。
+const DOCKERFILE_RUNTIME_MARKERS: &[&str] =
+    &["nodejs", "npm install", "npm ci", "apt-get install -y npm"];
 
+/// [`dockerfile_final_stage_copies_only_the_binary_and_has_no_run_instruction`]
+/// の検証本体を純粋関数として切り出したもの。
+///
+/// 実ファイルからの読み込み（I/O）と検証ロジックを分離することで、本体を
+/// 実 `Dockerfile` 以外の合成入力（不正な COPY・コメント中の `nodejs` 等）
+/// でも駆動でき、[`find_marker`] に対する
+/// [`marker_detector_flags_synthesized_npm_payload`] と同様に「検証ロジック
+/// が実際に壊れた入力を検出できること」を負例テストで固定できる
+/// （PoC-7 以来の慣行、`.claude/rules/coding-rust.md` の弱体化禁止対象）。
+///
+/// 検証項目:
+/// - 2 ステージ以上あり、最終ステージが `FROM scratch`
+/// - 最終ステージの `COPY` は 1 件のみ、`--from=builder` を伴う
+/// - `COPY` の送り元は [`BUILDER_ARTIFACT_PATH`] と厳密一致（ディレクトリ・
+///   ワイルドカードでない、かつ builder の任意コンテンツでない）
+/// - `COPY` の送り先は単一ファイルパスであり、`ENTRYPOINT` の実行パスと
+///   厳密一致（コピー先が実際に実行されるバイナリであることの保証）
+/// - 最終ステージに `RUN` がない
+/// - コメントを除いた本文全体に [`DOCKERFILE_RUNTIME_MARKERS`] が出現しない
+fn validate_dockerfile_final_stage(content: &str) -> Result<(), String> {
     // `FROM` 行でステージに分割する（`FROM ... AS builder` / `FROM scratch`
     // の 2 ステージ構成を前提とする本 Dockerfile の実際の構造に合わせる。
     // 3 ステージ以上への拡張時は「最終ステージ」の判定のみで足りるため
@@ -236,23 +259,25 @@ fn dockerfile_final_stage_copies_only_the_binary_and_has_no_run_instruction() {
             current.push(line);
         }
     }
-    assert!(
-        stages.len() >= 2,
-        "Dockerfile must have at least a builder stage and a final stage"
-    );
+    if stages.len() < 2 {
+        return Err("Dockerfile must have at least a builder stage and a final stage".to_string());
+    }
 
     let final_stage = stages.last().expect("stages must not be empty");
     let final_stage_header = final_stage
         .first()
         .expect("each stage has a FROM header line")
         .trim();
-    assert!(
-        final_stage_header.starts_with("FROM scratch"),
-        "final stage must be `FROM scratch`, got: {final_stage_header}"
-    );
+    if !final_stage_header.starts_with("FROM scratch") {
+        return Err(format!(
+            "final stage must be `FROM scratch`, got: {final_stage_header}"
+        ));
+    }
 
     let mut copy_instruction_count = 0;
     let mut entrypoint_found = false;
+    let mut entrypoint_target: Option<&str> = None;
+    let mut copy_dest: Option<&str> = None;
     for line in final_stage.iter().skip(1) {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with('#') {
@@ -262,10 +287,47 @@ fn dockerfile_final_stage_copies_only_the_binary_and_has_no_run_instruction() {
         match instruction {
             "COPY" => {
                 copy_instruction_count += 1;
-                assert!(
-                    trimmed.contains("--from=builder"),
-                    "final stage COPY must come from the builder stage, got: {trimmed}"
-                );
+                if !trimmed.contains("--from=builder") {
+                    return Err(format!(
+                        "final stage COPY must come from the builder stage, got: {trimmed}"
+                    ));
+                }
+
+                // `--from=builder` かつ件数が 1 であることだけでは、builder の
+                // 任意コンテンツ（ディレクトリ丸ごと・ワイルドカード等）を
+                // 1 回だけ COPY してもこのゲートを通過してしまう
+                // （Bugbot 指摘: COPY path identity unchecked）。コピー元・
+                // コピー先のパス自体を検証し、「単一のバイナリファイルを
+                // ENTRYPOINT の実行パスへ配置する」構造であることまで確認する。
+                let args: Vec<&str> = trimmed
+                    .split_whitespace()
+                    .skip(1) // "COPY" を除く
+                    .filter(|tok| !tok.starts_with("--"))
+                    .collect();
+                if args.len() != 2 {
+                    return Err(format!(
+                        "final stage COPY must have exactly one source and one destination \
+                         (no multi-source COPY, no directory fan-in), got: {trimmed}"
+                    ));
+                }
+                let (src, dest) = (args[0], args[1]);
+                // 送り元はディレクトリ・ワイルドカード拒否だけでは
+                // `COPY --from=builder /work /dist-server`（ディレクトリを
+                // 単一パス名でコピー）を見逃す。既知の単一成果物パスへの
+                // 厳密一致まで要求する。
+                if src != BUILDER_ARTIFACT_PATH {
+                    return Err(format!(
+                        "final stage COPY source must be the known single build artifact \
+                         {BUILDER_ARTIFACT_PATH:?}, got: {src:?}"
+                    ));
+                }
+                if dest.ends_with('/') {
+                    return Err(format!(
+                        "final stage COPY destination must be a single explicit file path, \
+                         not a directory (found: {dest})"
+                    ));
+                }
+                copy_dest = Some(dest);
             }
             "USER" | "ENV" | "EXPOSE" => {
                 // 非 root 実行・ポート公開・実行時設定は許可された命令
@@ -273,41 +335,179 @@ fn dockerfile_final_stage_copies_only_the_binary_and_has_no_run_instruction() {
             }
             "ENTRYPOINT" => {
                 entrypoint_found = true;
-                assert!(
-                    trimmed.contains("/dist-server"),
-                    "ENTRYPOINT must point at the dist-server binary, got: {trimmed}"
-                );
+                if !trimmed.contains("/dist-server") {
+                    return Err(format!(
+                        "ENTRYPOINT must point at the dist-server binary, got: {trimmed}"
+                    ));
+                }
+                // ENTRYPOINT は JSON 配列形式 `["/dist-server"]` を前提とする
+                // （本 Dockerfile の実際の書式）。実行対象パスを取り出し、
+                // 後段で COPY 先パスと同一であることを突き合わせる。
+                entrypoint_target = trimmed
+                    .trim_start_matches("ENTRYPOINT")
+                    .trim()
+                    .trim_start_matches('[')
+                    .trim_end_matches(']')
+                    .split(',')
+                    .next()
+                    .map(|s| s.trim().trim_matches('"'));
             }
             "RUN" => {
-                panic!(
+                return Err(format!(
                     "final stage must not contain RUN (no code execution at image-build time in the final stage): {trimmed}"
-                );
+                ));
             }
             other => {
-                panic!("unexpected instruction in final stage: {other} (line: {trimmed})");
+                return Err(format!(
+                    "unexpected instruction in final stage: {other} (line: {trimmed})"
+                ));
             }
         }
     }
 
-    assert_eq!(
-        copy_instruction_count, 1,
-        "final stage must COPY exactly one artifact (the dist-server binary)"
-    );
-    assert!(
-        entrypoint_found,
-        "final stage must declare ENTRYPOINT for the dist-server binary"
-    );
+    if copy_instruction_count != 1 {
+        return Err(format!(
+            "final stage must COPY exactly one artifact (the dist-server binary), found: {copy_instruction_count}"
+        ));
+    }
+    if !entrypoint_found {
+        return Err("final stage must declare ENTRYPOINT for the dist-server binary".to_string());
+    }
+
+    // COPY 先パスと ENTRYPOINT の実行パスが同一であることを確認する。これに
+    // より、「builder から COPY された唯一のファイルが、実際に実行される
+    // dist-server バイナリそのものである」ことまで構造的に保証する
+    // （コピー先が ENTRYPOINT と無関係な別ファイルであるケースを排除する）。
+    if copy_dest != entrypoint_target {
+        return Err(format!(
+            "final stage COPY destination must match the ENTRYPOINT binary path \
+             (copy_dest: {copy_dest:?}, entrypoint_target: {entrypoint_target:?})"
+        ));
+    }
 
     // ビルダーステージを含む全行に、Node/npm インストールを示す明示的な
     // トークンがないことを確認する。単語境界を意識した特異的なトークンに
     // 限定し、`wasm-bindgen` 等の将来導入（TASK-10.3）とは衝突しないようにする。
-    let dockerfile_wide_markers = ["nodejs", "npm install", "npm ci", "apt-get install -y npm"];
-    for marker in dockerfile_wide_markers {
-        assert!(
-            !content.contains(marker),
-            "Dockerfile must not install a Node/NPM runtime (found marker: {marker})"
-        );
+    //
+    // コメント行（`#` 始まり）は判定対象から除外する（Bugbot 指摘: Broad
+    // nodejs Dockerfile marker）。`nodejs` は `wasm-bindgen --target nodejs`
+    // の正当な引用として本ファイルのコメント中にも既に登場しており、単純な
+    // `content.contains` ではそうした正当なコメントを誤検知してしまう。
+    // 実行命令（COPY/RUN/FROM 等の非コメント行）のみを対象にすることで、
+    // 「実際に Node/NPM を導入する命令」を検出しつつ、コメント内の技術用語
+    // 言及とは衝突しない。
+    let non_comment_content: String = content
+        .lines()
+        .filter(|line| !line.trim_start().starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for marker in DOCKERFILE_RUNTIME_MARKERS {
+        if non_comment_content.contains(marker) {
+            return Err(format!(
+                "Dockerfile must not install a Node/NPM runtime (found marker: {marker})"
+            ));
+        }
     }
+
+    Ok(())
+}
+
+/// 層 3（Docker イメージ構造）: ワークスペースルートの `Dockerfile` を
+/// 行ベースで解析し、最終ステージ（`FROM scratch`）が
+/// 「ビルダーステージからのバイナリ 1 件のみを `COPY` し、`RUN` を含まない」
+/// ことを検証する。
+///
+/// この構造が保たれる限り、最終イメージへ Node ランタイム・NPM パッケージを
+/// 持ち込む経路（`RUN npm install` 等の実行）が構造的に存在しない。
+/// ビルダーステージ自体は変更対象外（TASK-10.3・イシュー #114 で
+/// wasm-bindgen 導入等の正当な変更が入る予定のため）だが、`nodejs`/`npm ` の
+/// インストールを示す明示的なトークンがビルダーステージにも存在しないことを
+/// 併せて確認し、将来の改変を過度に制約しない形で検査する。
+///
+/// 検証ロジック自体は [`validate_dockerfile_final_stage`] に切り出してあり、
+/// その負例（実効性の証明）は
+/// [`dockerfile_validation_rejects_directory_copy_source`]・
+/// [`dockerfile_validation_rejects_copy_dest_entrypoint_mismatch`]・
+/// [`dockerfile_validation_still_catches_noncomment_nodejs_install`]・
+/// [`dockerfile_validation_allows_nodejs_mentioned_only_in_comment`] を参照。
+#[test]
+fn dockerfile_final_stage_copies_only_the_binary_and_has_no_run_instruction() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let dockerfile_path = manifest_dir
+        .parent()
+        .expect("dist-server/ has a parent directory (workspace root)")
+        .join("Dockerfile");
+
+    let content = fs::read_to_string(&dockerfile_path).expect("Dockerfile must be readable");
+
+    validate_dockerfile_final_stage(&content).expect(
+        "workspace root Dockerfile must satisfy the final-stage NPM/Node non-inclusion invariant",
+    );
+}
+
+/// 最小構成の合成 Dockerfile を組み立てるヘルパー。`copy_line` を最終ステージの
+/// `COPY` 命令として差し込み、[`validate_dockerfile_final_stage`] の負例テストが
+/// 実 Dockerfile の周辺記述に依存せず COPY 検証だけを駆動できるようにする。
+fn synthetic_dockerfile_with_copy(copy_line: &str) -> String {
+    format!(
+        "FROM rust:1.96-slim-bookworm AS builder\nRUN cargo build --release\n\nFROM scratch\n{copy_line}\nENTRYPOINT [\"/dist-server\"]\n"
+    )
+}
+
+/// Bugbot 指摘 1（COPY path identity unchecked）に対する負例テスト:
+/// `--from=builder` かつ COPY 件数が 1 件であっても、送り元がディレクトリ
+/// （builder の作業ディレクトリ丸ごと）であれば検証は失敗しなければならない。
+/// この負例が通ることが、送り元パスの厳密一致チェック（[`BUILDER_ARTIFACT_PATH`]）
+/// が実効的であることの証明になる。
+#[test]
+fn dockerfile_validation_rejects_directory_copy_source() {
+    let dockerfile = synthetic_dockerfile_with_copy("COPY --from=builder /work /dist-server");
+    assert!(
+        validate_dockerfile_final_stage(&dockerfile).is_err(),
+        "COPY of an arbitrary builder directory into the entrypoint path must be rejected"
+    );
+}
+
+/// Bugbot 指摘 1 に対する負例テスト: COPY 送り先が ENTRYPOINT の実行パスと
+/// 一致しない場合（＝実際には実行されない別ファイルをコピーしている場合）は
+/// 検証が失敗しなければならない。
+#[test]
+fn dockerfile_validation_rejects_copy_dest_entrypoint_mismatch() {
+    let dockerfile = synthetic_dockerfile_with_copy(&format!(
+        "COPY --from=builder {BUILDER_ARTIFACT_PATH} /some-other-file"
+    ));
+    assert!(
+        validate_dockerfile_final_stage(&dockerfile).is_err(),
+        "COPY destination that does not match ENTRYPOINT must be rejected"
+    );
+}
+
+/// Bugbot 指摘 2（Broad nodejs Dockerfile marker）に対する負例テスト（フェイル
+/// クローズの証明・その 1）: 非コメント行（実行命令）に現れる `nodejs` は、
+/// コメント除外ロジック導入後も引き続き検出されなければならない。
+#[test]
+fn dockerfile_validation_still_catches_noncomment_nodejs_install() {
+    let dockerfile = format!(
+        "FROM rust:1.96-slim-bookworm AS builder\nRUN apt-get install -y nodejs\n\nFROM scratch\nCOPY --from=builder {BUILDER_ARTIFACT_PATH} /dist-server\nENTRYPOINT [\"/dist-server\"]\n"
+    );
+    assert!(
+        validate_dockerfile_final_stage(&dockerfile).is_err(),
+        "a non-comment `nodejs` installation instruction must still be flagged"
+    );
+}
+
+/// Bugbot 指摘 2 に対する負例テスト（フェイルクローズの証明・その 2、誤検知
+/// しないことの確認）: `# ... wasm-bindgen --target nodejs ...` のような
+/// コメント中の正当な技術用語言及は誤検知してはならない。
+#[test]
+fn dockerfile_validation_allows_nodejs_mentioned_only_in_comment() {
+    let dockerfile = format!(
+        "FROM rust:1.96-slim-bookworm AS builder\n# 参考: wasm-bindgen --target nodejs は将来 TASK-10.3 で導入予定\nRUN cargo build --release\n\nFROM scratch\nCOPY --from=builder {BUILDER_ARTIFACT_PATH} /dist-server\nENTRYPOINT [\"/dist-server\"]\n"
+    );
+    assert!(
+        validate_dockerfile_final_stage(&dockerfile).is_ok(),
+        "a `nodejs` mention confined to a comment line must not be flagged"
+    );
 }
 
 /// マーカー検出器（[`find_marker`]）の実効性を、合成した NPM 風ペイロードで
