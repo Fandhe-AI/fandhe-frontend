@@ -398,6 +398,14 @@ jobs:
         # 上記ステップの ::notice が担う）。
         run: python3 tools/npm-asset-build/tests/test_check_static_only.py -v
 
+      - name: install.sh + check_static_only.py pipeline e2e tests (fail-closed)
+        # TASK-12.1b（イシュー #39）: install.sh → check_static_only.py の
+        # パイプライン全体を実 npm で end-to-end 検証する。ubuntu-latest には
+        # node/npm がプリインストールされているため、CI 上では常に実行される
+        # （緩和用 input・continue-on-error は設けない。既存ジョブの迂回経路
+        # 禁止原則を踏襲）。
+        run: bash tools/npm-asset-build/tests/test_pipeline_e2e.sh
+
   # TASK-10.4a（イシュー #119、REQ-10）: 本番ビルドのアセット変更反映
   # （差分ビルド）が 5 秒以内であることを継続計測するジョブ。
   # `dist-server/benches/rebuild_latency.rs`（judge/format_summary_line は
