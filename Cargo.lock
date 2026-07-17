@@ -14,5 +14,13 @@ name = "rws-core"
 version = "0.1.0"
 
 [[package]]
+name = "rws-server"
+version = "0.1.0"
+dependencies = [
+ "rws-app",
+ "rws-core",
+]
+
+[[package]]
 name = "xtask"
 version = "0.1.0"
