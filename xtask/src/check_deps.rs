@@ -8,6 +8,10 @@
 //! - TASK-3.1b（本ファイル後半）: 実測値に対する上限判定（60 件/深さ 6）と
 //!   レポート出力・終了コード制御（[`DepsMetrics`] / [`judge`] / [`format_report`]）
 //! - TASK-3.1c: CI ワークフローへの組み込み（xtask/src/main.rs 参照）
+//! - イシュー #154: `core` / `interactive` の**外部依存ゼロ**（REQ-3 受け入れ基準 1）を
+//!   専用ゲートとして強制する（[`ZERO_DEP_CRATES`] / [`judge_zero`] / [`format_zero_report`]）。
+//!   既存の 60/6 判定（`judge`）は標準サーバー構成向けの上限チェックであり、
+//!   コアクレートの「ゼロであること」を機械的に保証しないため独立させている。
 //!
 //! # 計測の定義（PoC-3 との対応）
 //!
@@ -52,6 +56,17 @@ pub const MAX_PACKAGES: usize = 60;
 /// PoC-3 実測（純 Rust 方式・`rws-server` 相当構成: 深さ 5）を基準に、
 /// 実装拡張分の余裕を含めて設定する（REQ-3 / docs/spec/04-requirements.md 59 行目）。
 pub const MAX_DEPTH: usize = 6;
+
+/// REQ-3 受け入れ基準 1（外部依存ゼロ）を強制するコアクレート群（イシュー #154）。
+///
+/// `coding-rust.md`「core は外部依存ゼロ」「core/interactive では unsafe を一切使用しない」の
+/// 対象クレートに対応する。CLI 引数・環境変数での差し替えは意図的に設けない
+/// （上限を弱める経路を作らない、coding-rust.md / security.md 参照）。
+///
+/// `rws-interactive` は本実装時点では未作成（workspace 未参加）。
+/// [`fetch_zero_dep_targets`] が `cargo metadata` の `workspace_members` との
+/// 積集合を取るため、追加後は CI 変更なしで自動的に検証対象へ入る。
+pub const ZERO_DEP_CRATES: &[&str] = &["rws-core", "rws-interactive"];
 
 /// `cargo metadata` の `resolve.nodes[].deps[].dep_kinds[].kind` に対応する依存種別。
 ///
@@ -597,6 +612,148 @@ pub fn fetch_dep_graph() -> Result<DepGraph, CheckDepsError> {
     build_graph(&metadata)
 }
 
+/// `cargo metadata` の `workspace_members`（package_id の配列）を、対応する
+/// `packages[].name` の一覧へ解決する（イシュー #154）。
+///
+/// [`fetch_zero_dep_targets`] が [`ZERO_DEP_CRATES`] と実 workspace メンバーの
+/// 積集合を取る際に、xtask 呼び出し側が「実際にワークスペースへ参加しているクレート名」
+/// を知るために使う。`packages` に対応する id が見つからない場合は
+/// [`CheckDepsError::UnexpectedShape`] を返す（`cargo metadata` の出力として矛盾して
+/// いるため panic ではなくエラーとする）。
+pub fn workspace_member_names(metadata: &Json) -> Result<Vec<String>, CheckDepsError> {
+    let packages = metadata
+        .get("packages")
+        .and_then(Json::as_array)
+        .ok_or_else(|| CheckDepsError::UnexpectedShape("missing `packages` array".to_string()))?;
+
+    let mut id_to_name: HashMap<&str, &str> = HashMap::new();
+    for pkg in packages {
+        let id = pkg
+            .get("id")
+            .and_then(Json::as_str)
+            .ok_or_else(|| CheckDepsError::UnexpectedShape("package missing `id`".to_string()))?;
+        let name = pkg
+            .get("name")
+            .and_then(Json::as_str)
+            .ok_or_else(|| CheckDepsError::UnexpectedShape("package missing `name`".to_string()))?;
+        id_to_name.insert(id, name);
+    }
+
+    let workspace_members = metadata
+        .get("workspace_members")
+        .and_then(Json::as_array)
+        .ok_or_else(|| {
+            CheckDepsError::UnexpectedShape("missing `workspace_members` array".to_string())
+        })?;
+
+    let mut names = Vec::with_capacity(workspace_members.len());
+    for member in workspace_members {
+        let id = member.as_str().ok_or_else(|| {
+            CheckDepsError::UnexpectedShape("workspace_members entry is not a string".to_string())
+        })?;
+        let name = id_to_name.get(id).ok_or_else(|| {
+            CheckDepsError::UnexpectedShape(format!(
+                "workspace member `{id}` not found in `packages`"
+            ))
+        })?;
+        names.push((*name).to_string());
+    }
+    Ok(names)
+}
+
+/// `cargo metadata` を 1 度だけ実行し、[`DepGraph`] と workspace メンバー名の両方を返す
+/// （イシュー #154）。`fetch_metadata_json` が集約する JSON パース結果を、
+/// グラフ構築（[`build_graph`]）と workspace メンバー名解決（[`workspace_member_names`]）の
+/// 双方で使い回し、`cargo metadata` の再実行（Bugbot 指摘「metadata rerun per package」と
+/// 同種の重複）を避ける。
+pub fn fetch_workspace_graph() -> Result<(DepGraph, Vec<String>), CheckDepsError> {
+    let metadata = fetch_metadata_json()?;
+    let graph = build_graph(&metadata)?;
+    let members = workspace_member_names(&metadata)?;
+    Ok((graph, members))
+}
+
+/// [`ZERO_DEP_CRATES`] と実際の workspace メンバーとの積集合を求め、[`DepGraph`] と
+/// 併せて返す（イシュー #154。xtask CLI の `check-core-deps` サブコマンドのエントリ
+/// ポイントから利用）。
+///
+/// 積集合が空（`ZERO_DEP_CRATES` の定数値がクレート改名等で陳腐化し、1 件も
+/// workspace に実在しない）場合は [`CheckDepsError::UnexpectedShape`] を返す
+/// fail-closed 設計。CLI 引数でクレートを指定させない設計と対で、判定対象が
+/// 静かに 0 件になり PASS 扱いされる事故を防ぐ。
+pub fn fetch_zero_dep_targets() -> Result<(DepGraph, Vec<String>), CheckDepsError> {
+    let (graph, members) = fetch_workspace_graph()?;
+    let member_set: HashSet<&str> = members.iter().map(String::as_str).collect();
+    let targets: Vec<String> = ZERO_DEP_CRATES
+        .iter()
+        .filter(|name| member_set.contains(*name))
+        .map(|name| (*name).to_string())
+        .collect();
+
+    if targets.is_empty() {
+        return Err(CheckDepsError::UnexpectedShape(format!(
+            "none of ZERO_DEP_CRATES ({}) found among workspace members ({})",
+            ZERO_DEP_CRATES.join(", "),
+            members.join(", ")
+        )));
+    }
+
+    Ok((graph, targets))
+}
+
+/// 実測値 `metrics` を「外部依存ゼロ」（イシュー #154 / REQ-3 受け入れ基準 1）に
+/// 照らして判定する純粋関数。I/O を一切行わない（[`judge`] と対称の設計）。
+///
+/// 呼び出し側（[`fetch_zero_dep_targets`] の結果を使う xtask CLI）は
+/// `measure(graph, name, &[Normal, Dev, Build])` の結果を渡す想定であり、
+/// `Normal` / `Dev` / `Build` のいずれの辺も 1 件でも到達可能なら Fail とする
+/// （[`judge`] の Normal 限定判定とは意図的に異なる。coding-rust.md
+/// 「core/Cargo.toml に外部クレートを追加しない」は dev-dependencies も含むため）。
+/// 深さは件数が 0 なら必然的に 0 になるため、件数のみで判定する。
+pub fn judge_zero(metrics: DepsMetrics) -> CheckResult {
+    if metrics.package_count > 0 {
+        let violation = Violation::PackageCount {
+            actual: metrics.package_count,
+            limit: 0,
+        };
+        CheckResult::Fail(metrics, vec![violation])
+    } else {
+        CheckResult::Pass(metrics)
+    }
+}
+
+/// [`judge_zero`] の結果を人間可読なレポートと、CI ログから機械抽出可能な
+/// 1 行サマリに整形する（イシュー #154）。
+///
+/// 1 行サマリの書式（`core-deps-check: package=<name> external=<n> result=<PASS|FAIL>`）は
+/// 既存の `deps-check:` 行（[`format_report`]）と衝突しない別プレフィックスとし、
+/// CI（`.github/workflows/deps-check.yml`）が両方の判定結果を独立に grep できるようにする。
+/// ユーザー向け文字列は英語（japanese-style.md: フレームワーク成果物は国際利用を想定）。
+pub fn format_zero_report(result: &CheckResult) -> String {
+    let (metrics, verdict): (&DepsMetrics, &str) = match result {
+        CheckResult::Pass(metrics) => (metrics, "PASS"),
+        CheckResult::Fail(metrics, _) => (metrics, "FAIL"),
+    };
+
+    let mut out = String::new();
+    out.push_str(&format!(
+        "Zero external dependency check for core crate \"{}\"\n",
+        metrics.target
+    ));
+    out.push_str(&format!(
+        "  external dependencies: {} (must be 0)\n",
+        metrics.package_count
+    ));
+    out.push_str(&format!("  result: {verdict}\n"));
+
+    out.push_str(&format!(
+        "core-deps-check: package={} external={} result={}\n",
+        metrics.target, metrics.package_count, verdict
+    ));
+
+    out
+}
+
 /// `cargo metadata` を実行し、`root_name` について既定フィルタ（[`DepKind::Normal`] のみ、
 /// PoC-3 の `-e normal` に整合）で計測する。単一パッケージのみを計測する場合のエントリ
 /// ポイント（xtask CLI・単体/結合テストから利用）。
@@ -901,5 +1058,164 @@ mod tests {
         assert_eq!(converted.target, "rws-server");
         assert_eq!(converted.package_count, 52);
         assert_eq!(converted.max_depth, 5);
+    }
+
+    // --- イシュー #154: 外部依存ゼロ強制ゲート ---
+
+    fn zero_metrics(target: &str, package_count: usize) -> DepsMetrics {
+        DepsMetrics {
+            target: target.to_string(),
+            package_count,
+            max_depth: if package_count == 0 { 0 } else { 1 },
+        }
+    }
+
+    #[test]
+    fn judge_zero_passes_when_no_external_dependency() {
+        let result = judge_zero(zero_metrics("rws-core", 0));
+        assert!(result.is_pass());
+    }
+
+    #[test]
+    fn judge_zero_fails_at_boundary_of_one_dependency() {
+        // 境界値: 60/6 判定と異なり「1 件でも」Fail になる契約。
+        let result = judge_zero(zero_metrics("rws-core", 1));
+        match result {
+            CheckResult::Fail(_, violations) => {
+                assert_eq!(violations.len(), 1);
+                assert!(matches!(
+                    violations[0],
+                    Violation::PackageCount {
+                        actual: 1,
+                        limit: 0
+                    }
+                ));
+            }
+            CheckResult::Pass(_) => panic!("expected Fail"),
+        }
+    }
+
+    #[test]
+    fn format_zero_report_pass_contains_machine_readable_summary_line() {
+        let result = judge_zero(zero_metrics("rws-core", 0));
+        let report = format_zero_report(&result);
+        assert!(report.contains("core-deps-check: package=rws-core external=0 result=PASS"));
+    }
+
+    #[test]
+    fn format_zero_report_fail_contains_machine_readable_summary_line() {
+        let result = judge_zero(zero_metrics("rws-core", 3));
+        let report = format_zero_report(&result);
+        assert!(report.contains("core-deps-check: package=rws-core external=3 result=FAIL"));
+    }
+
+    /// fixture ベース回帰: dev / build 依存のみを持つルートでも、
+    /// `measure(.., &[Normal, Dev, Build])` の結果を渡せば `judge_zero` が Fail にする
+    /// こと（`judge_zero` 自体は Normal 限定ではなく、呼び出し側が渡した package_count を
+    /// そのまま判定する契約であることの確認）。
+    #[test]
+    fn judge_zero_fails_for_dev_or_build_only_dependency() {
+        let json = fixture(
+            &[("root#0.1.0", "root"), ("devdep#0.1.0", "devdep")],
+            &[
+                ("root#0.1.0", &[("devdep#0.1.0", "dev")]),
+                ("devdep#0.1.0", &[]),
+            ],
+        );
+        let graph = build_graph(&json).unwrap();
+        // judge（60/6 判定）は Normal 限定のため dev 依存を無視するが、
+        // 外部依存ゼロ判定は Normal/Dev/Build すべてを対象にする（コメント参照）。
+        let m = measure(
+            &graph,
+            "root",
+            &[DepKind::Normal, DepKind::Dev, DepKind::Build],
+        )
+        .unwrap();
+        assert_eq!(m.package_count, 1);
+        let result = judge_zero(m.into());
+        assert!(!result.is_pass());
+    }
+
+    /// `workspace_members` の package_id を `packages[].name` へ解決できることの確認。
+    fn fixture_with_workspace_members(
+        packages: &[(&str, &str)],
+        workspace_member_ids: &[&str],
+    ) -> Json {
+        let mut base = fixture(packages, &[]);
+        if let Json::Object(entries) = &mut base {
+            entries.push((
+                "workspace_members".to_string(),
+                Json::Array(
+                    workspace_member_ids
+                        .iter()
+                        .map(|id| Json::String((*id).to_string()))
+                        .collect(),
+                ),
+            ));
+        }
+        base
+    }
+
+    #[test]
+    fn workspace_member_names_resolves_ids_to_names() {
+        let json = fixture_with_workspace_members(
+            &[("rws-core#0.1.0", "rws-core"), ("xtask#0.1.0", "xtask")],
+            &["rws-core#0.1.0", "xtask#0.1.0"],
+        );
+        let names = workspace_member_names(&json).unwrap();
+        assert_eq!(names, vec!["rws-core".to_string(), "xtask".to_string()]);
+    }
+
+    #[test]
+    fn workspace_member_names_missing_field_returns_unexpected_shape() {
+        let json = fixture(&[("root#0.1.0", "root")], &[]);
+        let err = workspace_member_names(&json).unwrap_err();
+        assert!(matches!(err, CheckDepsError::UnexpectedShape(_)));
+    }
+
+    #[test]
+    fn workspace_member_names_unknown_id_returns_unexpected_shape() {
+        let json = fixture_with_workspace_members(
+            &[("rws-core#0.1.0", "rws-core")],
+            &["not-a-real-id#0.1.0"],
+        );
+        let err = workspace_member_names(&json).unwrap_err();
+        assert!(matches!(err, CheckDepsError::UnexpectedShape(_)));
+    }
+
+    #[test]
+    fn integration_fetch_zero_dep_targets_finds_rws_core_in_real_workspace() {
+        // ZERO_DEP_CRATES ∩ 実 workspace members が空でないこと
+        // （定数の陳腐化を検知する fail-closed 契約の裏付け）。
+        match fetch_zero_dep_targets() {
+            Ok((_, targets)) => {
+                assert!(
+                    targets.contains(&"rws-core".to_string()),
+                    "rws-core must be present among zero-dep targets: {targets:?}"
+                );
+            }
+            Err(e) => panic!("failed to fetch zero-dep targets from real workspace: {e}"),
+        }
+    }
+
+    #[test]
+    fn integration_rws_core_passes_judge_zero_in_real_workspace() {
+        // rws-core は REQ-3 上「外部依存ゼロ」が不変条件。実ワークスペースに対して
+        // measure(.., &[Normal, Dev, Build]) を行い、judge_zero が PASS になることを
+        // 確認する（integration_rws_core_has_zero_dependencies の Normal 限定計測とは
+        // 別に、dev/build も含めた厳格な判定の回帰を担保する）。
+        let (graph, targets) = fetch_zero_dep_targets().expect("real workspace metadata");
+        assert!(targets.contains(&"rws-core".to_string()));
+        let m = measure(
+            &graph,
+            "rws-core",
+            &[DepKind::Normal, DepKind::Dev, DepKind::Build],
+        )
+        .expect("measure rws-core");
+        let result = judge_zero(m.into());
+        assert!(
+            result.is_pass(),
+            "rws-core must keep zero external dependencies including dev/build (issue #154)"
+        );
     }
 }
