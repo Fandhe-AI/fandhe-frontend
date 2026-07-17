@@ -20,6 +20,13 @@ publish = false
 # 依存追加は事前承認必須（.claude/rules/coding-rust.md, security.md）。
 # 本追加は Issue #73/#75 の計画（PoC-5 `wasm-full/Cargo.toml` と同一依存構成）を
 # もって承認済みとし、影響確認結果を PR 本文に記録する。
+#
+# TASK-11.4b（#83）で `Attr`/`NamedNodeMap` を追加。`hydration::read_hydration_attrs`
+# が `web_sys::Element::attributes()`（`NamedNodeMap`）を index 走査して各属性
+# （`web_sys::Attr`）の名前・値を読み取るために必要（`docs/hydration-state-format.md`
+# 第 5 節）。新規クレート追加ではなく既存 `web-sys` の feature 追加のみであり、
+# `cargo metadata` 実測（パッケージ数・依存グラフ深さ）に変化がないことを確認済み
+# （PR 本文に記録）。
 [dependencies]
 rws-core = { path = "../core" }
 rws-interactive = { path = "../interactive" }
@@ -28,11 +35,13 @@ wasm-bindgen = "0.2"
 [dependencies.web-sys]
 version = "0.3"
 features = [
+  "Attr",
   "Document",
   "Element",
   "Event",
   "EventTarget",
   "HtmlInputElement",
+  "NamedNodeMap",
   "Window",
   "console",
 ]
