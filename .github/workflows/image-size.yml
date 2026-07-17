@@ -64,6 +64,85 @@ jobs:
         # 計測後は ubuntu-latest ランナーの破棄とともに揮発する。
         run: docker build -t rws-dist-server:ci .
 
+      - name: Verify WASM assets are served (TASK-10.3c, issue #117)
+        # TASK-10.3b（#116）でコンテナ内 WASM 再ビルドが builder ステージへ
+        # 統合され、`static/wasm/*` はホスト事前ビルドではなくコンテナ内
+        # `dist-server/build.rs`（#110）の実行結果として埋め込まれる。本
+        # ステップはその実ビルド結果を実機（docker run）で検証する
+        # （`dist-server/tests/wasm_assets.rs` のコンテナ実機版）。
+        # fail-closed: 起動待ちのリトライを使い切っても応答しない場合は
+        # そのまま失敗させる（`docker logs` を出力してから終了コード非 0 で
+        # 終わる）。
+        run: |
+          set -euo pipefail
+          docker run -d --name rws-ci -p 3100:3100 rws-dist-server:ci
+
+          ready=0
+          for _ in $(seq 1 30); do
+            if curl -fsS -o /dev/null http://127.0.0.1:3100/static/wasm/rws_wasm_full.js; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "::error::rws-dist-server:ci did not become ready within 30s" >&2
+            docker logs rws-ci || true
+            docker rm -f rws-ci || true
+            exit 1
+          fi
+
+          js_status=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/static/wasm/rws_wasm_full.js)
+          js_type=$(curl -s -o /dev/null -w '%{content_type}' http://127.0.0.1:3100/static/wasm/rws_wasm_full.js)
+          if [ "$js_status" != "200" ] || [ "${js_type#text/javascript}" = "$js_type" ]; then
+            echo "::error::rws_wasm_full.js: expected 200 text/javascript, got status=${js_status} content_type=${js_type}" >&2
+            docker rm -f rws-ci || true
+            exit 1
+          fi
+
+          wasm_status=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/static/wasm/rws_wasm_full_bg.wasm)
+          wasm_type=$(curl -s -o /dev/null -w '%{content_type}' http://127.0.0.1:3100/static/wasm/rws_wasm_full_bg.wasm)
+          if [ "$wasm_status" != "200" ] || [ "$wasm_type" != "application/wasm" ]; then
+            echo "::error::rws_wasm_full_bg.wasm: expected 200 application/wasm, got status=${wasm_status} content_type=${wasm_type}" >&2
+            docker rm -f rws-ci || true
+            exit 1
+          fi
+          wasm_magic=$(curl -fsS http://127.0.0.1:3100/static/wasm/rws_wasm_full_bg.wasm | head -c 4 | od -An -tx1 | tr -d ' \n')
+          if [ "$wasm_magic" != "0061736d" ]; then
+            echo "::error::rws_wasm_full_bg.wasm: unexpected magic bytes ${wasm_magic} (expected \\0asm = 0061736d)" >&2
+            docker rm -f rws-ci || true
+            exit 1
+          fi
+
+          not_found_status=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/static/wasm/does-not-exist.wasm)
+          if [ "$not_found_status" != "404" ]; then
+            echo "::error::unknown /static/wasm/ path expected 404, got ${not_found_status}" >&2
+            docker rm -f rws-ci || true
+            exit 1
+          fi
+
+          docker rm -f rws-ci
+
+      - name: Verify final image does not leak the build toolchain (TASK-10.3c, issue #117)
+        # TASK-10.3b で builder ステージへ追加した curl・wasm32 ターゲット・
+        # wasm-bindgen-cli 等がマルチステージビルドの境界を越えて最終イメージ
+        # （FROM scratch 以降）へ漏れていないことを機械的に固定する
+        # （docs/docker-wasm-build-stage.md §6-3、A05 セキュリティ設定ミス対策）。
+        # 最終イメージの中身は `/dist-server` バイナリ 1 つ（+ tar メタ情報）の
+        # みであるべきで、それ以外のファイルが1つでも見つかれば fail-closed。
+        run: |
+          set -euo pipefail
+          cid=$(docker create rws-dist-server:ci)
+          contents=$(docker export "$cid" | tar -t)
+          docker rm "$cid" >/dev/null
+
+          unexpected=$(echo "$contents" | grep -v -E '^(\.dockerenv|dev/|dev/console|dev/pts/|dev/shm/|dist-server|etc/|etc/hostname|etc/hosts|etc/mtab|etc/resolv\.conf|proc/|sys/)$' || true)
+          if [ -n "$unexpected" ]; then
+            echo "::error::final image contains unexpected entries (possible builder-stage leakage):" >&2
+            echo "$unexpected" >&2
+            exit 1
+          fi
+
       - name: Run xtask check-image-size
         # xtask check-image-size の終了コードをそのまま CI の成否に伝播させる
         # （fail-closed）。set -o pipefail を明示し、tee 経由でも cargo run の
