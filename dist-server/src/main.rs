@@ -24,6 +24,7 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response};
 use hyper_util::rt::TokioIo;
+use rws_dist_server::assets::{active_mode, AssetMode};
 use rws_dist_server::routes::route_request;
 use std::convert::Infallible;
 use std::process::ExitCode;
@@ -65,6 +66,16 @@ async fn run() -> ExitCode {
         }
     };
     eprintln!("rws-dist-server: listening on {bind_addr}");
+    // アセット配信モードを起動時に 1 行だけ出力する（TASK-10.1a、イシュー #106）。
+    // 内部絶対パス（`static/` の実パス等）は含めない固定文言のみとし、
+    // 機微情報を露出しない（`security.md`）。
+    eprintln!(
+        "rws-dist-server: assets={}",
+        match active_mode() {
+            AssetMode::Embedded => "embedded",
+            AssetMode::DevFilesystem => "dev-filesystem",
+        }
+    );
 
     loop {
         let (stream, _peer_addr) = match listener.accept().await {

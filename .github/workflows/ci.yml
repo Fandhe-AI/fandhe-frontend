@@ -71,6 +71,29 @@ jobs:
       - name: Workspace tests
         run: cargo test --workspace --locked
 
+  # TASK-10.1a（#106）: rws-dist-server の開発 / 本番モード切り替え
+  # （`dist-server/src/assets.rs` の `AssetMode`）を CI で両モードとも検証する。
+  #
+  # 上記 `test` ジョブの `cargo test --workspace` はデフォルトの debug ビルド
+  # （= DevFilesystem モード、`static/` からのファイルシステム読み込み経路）
+  # のみをカバーする。本ジョブは `--features force-embed` を付与し、debug
+  # ビルドのまま Embedded モード（本番相当の埋め込みテーブル検索経路）を
+  # 強制して検証する（PoC-4 検証方法 5 の CI 化。`Cargo.toml` の
+  # `force-embed` フィーチャーコメント参照）。
+  dist-server-embedded-mode:
+    name: rws-dist-server embedded mode (force-embed)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。
+        # docs/spec サブモジュールはテストに不要のため取得しない。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+
+      - name: rws-dist-server tests (force-embed, Embedded mode)
+        run: cargo test -p rws-dist-server --features force-embed --locked
+
   # TASK-6.3a（#65）: 実ブラウザ（headless Chromium）でのハイドレーション検証環境。
   # docs/spec/05-tasks.md TASK-6.3 が指名する wasm-pack test --headless --chrome を
   # ubuntu-latest（Chrome/chromedriver プリインストール済み）で実行するジョブ。

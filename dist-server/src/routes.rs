@@ -10,8 +10,10 @@
 //!
 //! # ルーティング方針
 //!
-//! 1. `/static/` プレフィックスは [`assets::lookup`] へ委譲（コンパイル時
-//!    埋め込みテーブルの完全一致検索。パストラバーサル不能、`assets.rs` 参照）。
+//! 1. `/static/` プレフィックスは [`assets::lookup`] へ委譲（開発 / 本番
+//!    モードに応じてファイルシステム読み込み・コンパイル時埋め込みテーブル
+//!    検索を切り替える。いずれもパストラバーサル不能、`assets.rs` 参照
+//!    — TASK-10.1a、イシュー #106）。
 //! 2. それ以外は `rws_server::router::Router<PageRoute>`（REQ-7 共通コア）で
 //!    解決する。v1 の `Router` はワイルドカード（`*path`）に対応しないため、
 //!    1 の `/static/` 分岐で文字列プレフィックス判定を手動補完している
@@ -87,11 +89,15 @@ fn page_router() -> &'static Router<PageRoute> {
 /// サービス関数から 1 リクエストにつき 1 回呼ばれる。
 pub fn route_request(path: &str) -> RouteResponse {
     if let Some(asset_path) = path.split('?').next().filter(|p| p.starts_with("/static/")) {
+        // `assets::lookup` は `Cow<'static, [u8]>` を返す（埋め込みモードは
+        // 借用、開発モードは所有バイト列。`assets.rs` の doc 参照）。
+        // `RouteResponse::body` は `Vec<u8>` 固定のため `into_owned()` で
+        // 両モードを同一に扱う。
         return match assets::lookup(asset_path) {
             Some(bytes) => RouteResponse {
                 status: 200,
                 content_type: content_type_for_path(asset_path),
-                body: bytes.to_vec(),
+                body: bytes.into_owned(),
             },
             None => not_found(),
         };
