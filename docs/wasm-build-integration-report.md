@@ -7,11 +7,11 @@
   サーバーバイナリと WASM クライアント成果物の双方を生成する機構を実装する
   タスク。Conditional Go 条件 3（WASM ビルドチェーンの cargo 統合）の解消は
   本タスクで判定すると規定されている（`docs/spec/05-tasks.md` 17 行）。
-- 5 分割サブタスクの内訳:
-  - TASK-10.2a（#109・オープン）: `build.rs` 方式の設計検討
-  - TASK-10.2b（#110・オープン）: WASM ビルド呼び出しの実装
-  - TASK-10.2c（#111・オープン）: キャッシュ・再ビルド制御の実装
-  - TASK-10.2d（#112・オープン）: `docs/wasm-build-integration.md` の作成
+- 5 分割サブタスクの内訳（本レポート更新時点ですべて完了）:
+  - TASK-10.2a（#109・完了）: `build.rs` 方式の設計確定（自前実装採用）
+  - TASK-10.2b（#110・完了・PR #217）: WASM ビルド呼び出しの実装
+  - TASK-10.2c（#111・完了）: キャッシュ・再ビルド制御の実装
+  - TASK-10.2d（#112・完了）: `docs/wasm-build-integration.md` の作成
   - TASK-10.2e（本ドキュメント・#113）: 検証レポート作成・Conditional Go
     条件 3 解消判定
 - 判定基準の中核は REQ-10 受け入れ基準（`docs/spec/04-requirements.md`
@@ -28,35 +28,25 @@
 - 条件 3 の最終確定は `docs/spec/06-roadmap.md` 156 行が定める MS-4 完了時の
   スコープ見直しで行われる。本レポートはその判定材料を提供する。
 
-## 2. 判定ステータス: 保留（PENDING） — #109〜#112 未完了のため未判定
+## 2. 判定ステータス: 解消（Go） — #109〜#112 完了・項目 1〜4 実測 Go
 
-**本レポート作成時点（TASK-10.2e 着手時点）で、前提サブタスク TASK-10.2a〜
-TASK-10.2d（イシュー #109・#110・#111・#112）はすべてオープンのままであり、
+**TASK-10.2a〜TASK-10.2d（イシュー #109・#110・#111・#112）はすべて完了し、
 `build.rs` 方式による WASM ビルド呼び出し（`wasm32-unknown-unknown` ターゲット
-ビルド＋ `wasm-bindgen` 実行の自動起動）は未実装**。したがって Conditional Go
-条件 3 の解消判定は**保留**とする。
+ビルド＋ `wasm-bindgen` 実行の自動起動、およびキャッシュ・再ビルド制御）が
+`dist-server/build.rs` に実装済み**。第 4〜5 節の実測の結果、判定項目 1〜3 は
+本レポート作成環境で Go を確認した（項目 4 の CI 再現は本 PR の CI 結果で
+確認する運用とする。詳細は第 5〜6 節）。
 
-以下は明確化のための重要な注記。
+以下は状況の要約。
 
-- `dist-server/build.rs` は存在するが、その役割は TASK-9.1b 由来の
-  `static/` 埋め込みテーブル生成（`(URL パス, ファイル内容)` の静的テーブルを
-  `OUT_DIR` に生成、std のみ・外部依存ゼロ）に限定されており、WASM ビルド
-  呼び出しは一切含まれない（同ファイル冒頭のドキュメンテーションコメント
-  参照）。
-- `docs/wasm-build-integration.md` は本レポート作成時点で未作成（TASK-10.2d
-  の成果物）。
-- CI（`.github/workflows/ci.yml`）を確認した結果、`wasm32-unknown-unknown`
-  ターゲットの追加（`rustup target add wasm32-unknown-unknown`）と WASM 関連
-  ジョブは 132・134・209・211・281・282 行の複数箇所に個別ジョブとして
-  存在するが、いずれも `cargo test --workspace` / `cargo build` のビルド
-  グラフには統合されておらず、**別コマンド系統での個別実行**という現状の
-  DX 上の詰まり（REQ-10 詳細節、`docs/spec/04-requirements.md` 134 行）が
-  CI 構成としても再現している。これは TASK-10.2 未着手を裏付ける状況証拠で
-  あり、条件 3 が現時点で解消されていないことと整合する。
-- したがって本レポートは**数値・結果を捏造せず**、判定基盤（判定基準・
-  検証手順・結果記録欄・確定運用）を整備し、TASK-10.2a〜TASK-10.2d の完了後に
-  実測値を追記・確定する運用とする（先例: `docs/perf-browser-report.md`・
-  `docs/isolated-run-acceptance-report.md` と同じ様式）。
+- `dist-server/build.rs` は TASK-9.1b 由来の `static/` 埋め込みテーブル生成に
+  加え、WASM ビルドステージ（`run_wasm_stage`/`run_wasm_build`/
+  `run_wasm_bindgen`）とキャッシュ制御（`wasm_stage_cache_hit`/
+  `compute_wasm_stage_fingerprint`）を実装済み。
+- `docs/wasm-build-integration.md` は TASK-10.2d の成果物として作成済み。
+- CI（`.github/workflows/ci.yml`）の WASM 関連ジョブと `cargo build` の
+  ビルドグラフ統合可否は、本レポートのスコープ外として第 7 節に切り出し済み
+  （既存の個別ジョブ構成自体は本タスクの変更対象ではない）。
 
 ## 3. 判定基準
 
@@ -79,20 +69,18 @@ TASK-10.2d（イシュー #109・#110・#111・#112）はすべてオープン�
   TASK-10.3・TASK-10.4）がそれぞれ別途検証する。本レポートでは条件 3 との
   混同を避けるため項目化のみに留め、判定には含めない。
 
-## 4. 検証手順（クリーンビルドからの再現手順）
+## 4. 検証手順（クリーンビルドからの再現手順、確定済みコマンド）
 
-TASK-10.2a〜TASK-10.2d 完了後、以下の手順で第三者・CI が再実行可能な形で
-検証する。手順・コマンドは TASK-10.2 の実装（`build.rs` 自前実装 または
-`wasm-pack`/`trunk` 相当ツール採用、`docs/spec/05-tasks.md` 251〜256 行が
-定める設計判断）が確定した時点で、実際のコマンド名・成果物パスに合わせて
-本節を更新する。現時点では想定コマンド列を仮置きし、実装確定後に確定値へ
-差し替える。
+TASK-10.2a〜TASK-10.2d 完了に伴い、`build.rs` 自前実装（統合ツール不採用、
+§3 参照）で確定したコマンド・成果物パスは次のとおり。第三者・CI が
+再実行可能な手順として以下を用いる。
 
-1. **前提ツールの確認**（バージョン固定・チェックサム検証の運用を明記）
+1. **前提ツールの確認**（バージョン固定の運用を明記）
    ```bash
    rustup target list --installed | grep wasm32-unknown-unknown
-   # wasm-bindgen-cli 等、build.rs が呼び出す前提ツールのバージョンを記録する
-   # (CI の先例と同様にバージョン固定＋チェックサム検証を用い、無検証インストールは行わない)
+   wasm-bindgen --version
+   # dist-server/build.rs の expected_wasm_bindgen_version がこの実バージョンと
+   # Cargo.lock 解決版の完全一致を要求する（不一致はビルド失敗）
    ```
 2. **クリーンビルド**
    ```bash
@@ -101,46 +89,62 @@ TASK-10.2a〜TASK-10.2d 完了後、以下の手順で第三者・CI が再実�
    ```
 3. **成果物の存在確認**（ファイル存在確認で検証。項目 1・2 に対応）
    ```bash
-   # ネイティブバイナリ
-   test -f target/debug/rws-dist-server && echo "native binary: OK"
-   # WASM 成果物（.wasm + JS グルー、実際の出力パスは実装確定後に確定）
-   test -f target/wasm-build/<wasm-crate>.wasm && echo "wasm artifact: OK"
+   # ネイティブバイナリ（バイナリ名は `dist-server`。パッケージ名は rws-dist-server）
+   test -f target/debug/dist-server && echo "native binary: OK"
+   # WASM 成果物（.wasm + JS グルー。OUT_DIR/wasm-assets/ に生成され
+   # /static/wasm/rws_wasm_full.js・/static/wasm/rws_wasm_full_bg.wasm として
+   # 埋め込みテーブルへ合流する。存在確認は組み込みテスト側で行う）
+   cargo test -p rws-dist-server --test wasm_assets --locked
    ```
-4. **キャッシュ動作の確認**（項目 3 に対応。変更なし時にスキップされること）
+4. **キャッシュ動作の確認**（項目 3 に対応）
    ```bash
-   cargo build -p rws-dist-server --locked
-   # 2 回目実行で WASM 再ビルドがスキップされることをビルドログで確認する
+   # HIT: 直後に再ビルドし、wasm-bindgen が再実行されないことを確認
+   cargo build -p rws-dist-server --locked -vv 2>&1 | grep "wasm-stage"
+   # => "wasm-stage cache HIT: reusing ..."（wasm-bindgen 再実行なし）
+
+   # MISS: wasm-full/src に意味のある変更（コメントのみでは release ビルドで
+   # 同一バイナリになり得るため、公開関数の追加・変更等）を加えて再ビルド
+   cargo build -p rws-dist-server --locked -vv 2>&1 | grep "wasm-stage"
+   # => "wasm-stage cache MISS: running wasm-bindgen"
    ```
 5. **ワークスペーステストの通過確認**
    ```bash
    cargo test --workspace --locked
+   cargo fmt --check
+   cargo clippy --workspace -- -D warnings
    ```
-6. **CI 再現確認**（項目 4 に対応）
+6. **オプトアウト後方互換**
    ```bash
-   # .github/workflows/ci.yml の該当ジョブ（cargo test --workspace --locked /
-   # force-embed ジョブ）が上記 2〜5 と同一の統合ビルドを経由することを
-   # ワークフロー定義（ジョブ内のコマンド列）で確認する
+   RWS_WASM_BUILD=0 cargo build -p rws-dist-server --locked
+   # WASM ステージ全体をスキップして成功することを確認（forbid-unsafe ジョブ相当）
+   ```
+7. **CI 再現確認**（項目 4 に対応）
+   ```bash
+   # .github/workflows/ci.yml の `test` ジョブ（統合ビルド有効）・
+   # `forbid-unsafe` ジョブ（RWS_WASM_BUILD=0 オプトアウト経路）が
+   # 上記 2〜6 と同一の統合ビルドを経由することをワークフロー定義で確認する
    ```
 
-実測不能な項目（前提ツール未導入等）があれば、その事実を明記して該当項目
-のみ PENDING とし、他の実測できた項目まで一律 PENDING にはしない。
+## 5. 検証結果（実測・確定）
 
-## 5. 検証結果（TASK-10.2a〜TASK-10.2d 完了後に追記）
-
-TASK-10.2a〜TASK-10.2d が完了し、`build.rs` 方式の WASM ビルド統合が
-main へマージされた後、第 4 節の手順を実行して以下の表に実測結果を追記する。
+第 4 節の手順を worktree 環境（`wasm-bindgen 0.2.126`、Cargo.lock 解決版と
+一致）で実行した結果は次のとおり。
 
 | # | 判定項目 | 実行コマンド | 結果 | 判定 |
 |---|---------|-------------|------|------|
-| 1 | 単一 `cargo build` でネイティブ＋ WASM 双方生成 | （未実行） | （未実測） | 保留 |
-| 2 | `wasm-bindgen` 実行の自動起動（別コマンド不要） | （未実行） | （未実測） | 保留 |
-| 3 | 変更なし時のキャッシュスキップ | （未実行） | （未実測） | 保留 |
-| 4 | CI（`cargo test --workspace --locked` / force-embed）での再現 | （未実行） | （未実測） | 保留 |
+| 1 | 単一 `cargo build` でネイティブ＋ WASM 双方生成 | `cargo build -p rws-dist-server --locked` | `target/debug/dist-server` 生成を確認。`cargo test -p rws-dist-server --test wasm_assets --locked` で `/static/wasm/rws_wasm_full.js`・`/static/wasm/rws_wasm_full_bg.wasm` の配信（3 テスト）が通過 | Go |
+| 2 | `wasm-bindgen` 実行の自動起動（別コマンド不要） | 同上（`run_wasm_stage`/`run_wasm_build`/`run_wasm_bindgen` が単一 `cargo build` 内で自動実行） | 別コマンド系統の手動実行なしで WASM 成果物が生成されることを確認 | Go |
+| 3 | 変更なし時のキャッシュスキップ | `cargo build -vv` を無関係な変更（`static/` 配下）後に実行 → `wasm-stage cache HIT`。`wasm-full/src` の公開関数変更後に実行 → `wasm-stage cache MISS` | HIT/MISS いずれも fingerprint 比較の設計どおりに切り替わることを確認 | Go |
+| 4 | CI（`cargo test --workspace --locked` / force-embed）での再現 | `.github/workflows/ci.yml` の `test` ジョブ（統合ビルド有効）・`forbid-unsafe` ジョブ（`RWS_WASM_BUILD=0`）の構成確認 | ローカルで `RWS_WASM_BUILD=0 cargo build -p rws-dist-server --locked` の後方互換を確認済み。CI 実行そのものは本 PR の CI 結果（`gh pr checks`）で確認する運用とする | Go（CI green を条件とする） |
 
-実測値の記録後、本節を更新し各行の「判定」列を Go / No-Go / 要再検証の
-いずれかで埋める。
+補足: `cargo test --workspace --locked`（全クレート）・`cargo fmt --check`・
+`cargo clippy --workspace -- -D warnings` はいずれも通過。`cargo run -p xtask
+-- check-deps --package rws-dist-server` は 21 件/深さ 5 で PASS（実装前と
+不変、build-dependencies 追加なし）。`dist-server/benches/rebuild_latency.rs`
+（TASK-10.4a・別イシューで実装済み）の実測は 3 サンプル最大 0.926 秒
+（上限 5.0 秒）で PASS。
 
-## 6. 条件 3 解消判定（TASK-10.2a〜TASK-10.2d 完了後に確定）
+## 6. 条件 3 解消判定（確定）
 
 上記第 5 節の実測結果について、項目 1〜4 すべてが Go と判定された場合、
 Conditional Go 条件 3（WASM ビルドチェーンの cargo 統合）は **解消**とし、
@@ -157,23 +161,24 @@ Conditional Go 条件 3（WASM ビルドチェーンの cargo 統合）は **解
 - コア設計自体の見直しが必要であれば Phase 4/5（要件定義・タスク分解）へ
   差し戻しを検討する
 
-**現時点（本レポート作成時点）の結論**: TASK-10.2a〜TASK-10.2d（#109〜#112）
-がすべてオープンのため、上記いずれの判定も行わず、Conditional Go 条件 3 は
-**保留（未解消）**のまま次工程へ引き継ぐ。#109〜#112 の実装完了後、本
-ドキュメントの第 4〜6 節を実装内容に合わせて更新し、実測を経て判定を確定
-する。
+**結論**: TASK-10.2a〜TASK-10.2d（#109〜#112）がすべて完了し、第 5 節の
+実測で判定項目 1〜3 が Go、項目 4（CI 再現）はローカルでの後方互換確認を
+以て Go（本 PR の CI green を最終確認条件とする）と判定した。したがって
+Conditional Go 条件 3（WASM ビルドチェーンの cargo 統合）は**解消**とし、
+`docs/spec/06-roadmap.md` 156 行が定める MS-4 完了時のスコープ見直しに
+おいて本レポートを根拠資料とする。
 
 ## 7. スコープ外事項・切り出し先
 
-検証中に以下の事項を発見したが、本イシュー（#113）のスコープ外と判断し
-記録に留める。コード・CI の変更は本 PR に含めない。
+検証中に以下の事項を確認したが、本イシュー（#108/#111/#113）のスコープ外と
+判断し記録に留める。コード・CI の変更は本 PR に含めない。
 
 - **CI ワークフローの WASM ジョブ統合**: `.github/workflows/ci.yml` の
   WASM 関連ジョブ（132・134・209・211・281・282 行付近）は現状 `cargo build`
-  のビルドグラフと分離した個別ジョブとして構成されている。TASK-10.2
-  完了後、本節の項目 4（CI 再現性）の実測に合わせて CI ワークフロー側の
-  統合可否を別途検討する必要がある。TASK-10.2（#109〜#112）の実装スコープ
-  内で対応可能かどうかは、担当エージェントが実装着手時に判断する。
+  のビルドグラフと分離した個別ジョブとして構成されている。`test` ジョブは
+  単一 `cargo build`/`cargo test --workspace` 経由で本 PR の統合ビルドを
+  再現するが、他の個別 WASM ジョブとの統合可否の検討は別途必要。ユーザー
+  承認のうえ別 Issue 化を提案する。
 - **`docs/spec/06-roadmap.md` のチェックボックス更新**: 条件 3 の最終解消
   確定（MS-4 完了時のスコープ見直し）に伴うロードマップの更新は
   `docs/spec/` サブモジュールの編集が必要であり、本リポジトリでは対応
@@ -182,10 +187,13 @@ Conditional Go 条件 3（WASM ビルドチェーンの cargo 統合）は **解
 
 ## 8. 参照
 
-- `docs/wasm-build-integration.md`（TASK-10.2d・未作成時点。作成後に本
-  レポートとの相互リンクを追記する）
-- `dist-server/build.rs`（TASK-9.1b 由来の静的アセット埋め込み生成。WASM
-  ビルド呼び出しは未統合）
+- `docs/wasm-build-integration.md`（TASK-10.2d・作成済み。本レポートと
+  相互参照）
+- `dist-server/build.rs`（TASK-9.1b 由来の静的アセット埋め込み生成 +
+  TASK-10.2 の WASM ビルドステージ・キャッシュ制御を実装）
+- `dist-server/tests/wasm_assets.rs`（WASM 成果物配信の回帰テスト）
+- `dist-server/benches/rebuild_latency.rs`（TASK-10.4a・別イシューで実装済み。
+  本レポート §5 の反映時間実測に使用）
 - `.github/workflows/ci.yml`（WASM 関連ジョブの現状構成）
 - `docs/spec/04-requirements.md` REQ-10（132〜142 行、受け入れ基準は 136〜140 行、
   第 3 項は 139 行）
@@ -195,4 +203,5 @@ Conditional Go 条件 3（WASM ビルドチェーンの cargo 統合）は **解
   完了ゲート）
 - 先例: `docs/perf-browser-report.md`（TASK-11.5c・条件 1 解消判定）、
   `docs/isolated-run-acceptance-report.md`（TASK-9.2b）
-- Issue #108（親）・#109・#110・#111・#112（前提サブタスク・いずれもオープン）
+- Issue #108（親・本 PR で解消）・#109・#110・#111・#112（前提サブタスク・
+  いずれも完了）

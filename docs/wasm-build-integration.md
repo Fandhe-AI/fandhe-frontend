@@ -1,17 +1,12 @@
 # WASM ビルドの cargo build 統合（TASK-10.2d）
 
-> **本書のステータスと前提**: 本書の執筆時点で、親タスク TASK-10.2（#108）の
-> 4h 分割サブタスクのうち TASK-10.2b（WASM ビルド呼び出しの実装、#110）は
-> **PR #217 としてマージ済み**（`dist-server/build.rs` の `run_wasm_build` /
-> `run_wasm_bindgen` 関数）です。TASK-10.2a（build.rs 方式の設計検討、#109）・
-> TASK-10.2c（キャッシュ・再ビルド制御の実装、#111）は依然 **OPEN（未マージ）**
-> です。したがって §4「ビルドフロー」は #110 のマージにより実装済みコードの
-> 引用に更新済みですが、§3「統合方式の設計判断」・§5「キャッシュ・再ビルド
-> 制御」は引き続き **REQ-10・`docs/spec/05-tasks.md` TASK-10.2 の要件を土台に
-> した設計契約**として提示しています（`docs/embedding-guide.md` が確立した
-> 「並行タスク前提での docs 執筆」方式を踏襲）。#109・#111 がマージされ本書の
-> 記述と実物に乖離が生じた場合は、それぞれの実装・設計確定書を正として本書を
-> 追随更新してください。
+> **本書のステータス**: 親タスク TASK-10.2（#108）の 4h 分割サブタスクは
+> すべて実装が完了しています。TASK-10.2b（WASM ビルド呼び出し、#110、
+> PR #217）・TASK-10.2a（build.rs 方式の設計確定、#109）・TASK-10.2c
+> （キャッシュ・再ビルド制御、#111）のいずれも `dist-server/build.rs` に
+> 実装済みです。本書は as-built（実装済みコードの引用）として記述します。
+> 検証・条件 3 解消判定は `docs/wasm-build-integration-report.md`
+> （TASK-10.2e・#113）を参照してください。
 
 ## 1. 目的とトレーサビリティ
 
@@ -29,10 +24,10 @@
 
 | サブタスク | Issue | 内容 | 本書との関係 |
 |-----------|-------|------|-------------|
-| TASK-10.2a | #109 | build.rs 方式の設計検討 | §4「統合方式の設計判断」が引用する設計決定の出所 |
-| TASK-10.2b | #110 | WASM ビルド呼び出しの実装 | §5「ビルドフロー」が記述する実装の出所 |
-| TASK-10.2c | #111 | キャッシュ・再ビルド制御の実装 | §6「キャッシュ・再ビルド制御」が記述する実装の出所 |
-| TASK-10.2d | #112（本書） | 統合ビルド機構のドキュメント化 | 本書そのもの |
+| TASK-10.2a | #109（完了） | build.rs 方式の設計確定 | §3「統合方式の設計判断」の出所 |
+| TASK-10.2b | #110（完了・PR #217） | WASM ビルド呼び出しの実装 | §4「ビルドフロー」の出所 |
+| TASK-10.2c | #111（完了） | キャッシュ・再ビルド制御の実装 | §5「キャッシュ・再ビルド制御」の出所 |
+| TASK-10.2d | #112（本書・完了） | 統合ビルド機構のドキュメント化 | 本書そのもの |
 | TASK-10.2e | #113 | 条件 3 解消の検証レポート | 本書の記述を含む TASK-10.2 全体の受け入れ判定 |
 
 - **関連 PoC**: PoC-3・PoC-4・PoC-5（いずれも `cargo build -p <server>` が
@@ -72,38 +67,40 @@ wasm-bindgen --target web --out-dir <出力先> \
 REQ-10 はこの詰まりを解消するため、単一の `cargo build` でネイティブ・WASM
 双方の成果物を生成する統合ビルド機構を Must 要件として定めています。
 
-## 3. 統合方式の設計判断
+## 3. 統合方式の設計判断（確定・TASK-10.2a）
 
-`docs/spec/05-tasks.md` TASK-10.2 は統合方式（`build.rs` 自前実装 vs
-`wasm-pack`/`trunk` 相当の統合ツール採用）を「人間が方針決定し実装は Claude
-Code が担当する」設計判断事項（担当: 共同）と位置づけています。この方針
-決定そのものは TASK-10.2a（#109）のスコープです。
+`docs/spec/05-tasks.md` TASK-10.2 が「人間が方針決定し実装は Claude Code が
+担当する」設計判断事項と位置づけた統合方式（`build.rs` 自前実装 vs
+`wasm-pack`/`trunk` 相当の統合ツール採用）は、**`build.rs` 自前実装を採用**
+として確定しました（TASK-10.2a・#109）。既に main へマージ済みで CI 実証
+済みの実装（`dist-server/build.rs` の `run_wasm_build`/`run_wasm_bindgen`）
+と一致する方式の追認であり、新たな方式変更のリスクを取らない判断です。
 
-現時点（本書執筆時点、#109 未マージ）で参照可能な制約は次のとおりです。
+確定の根拠は次のとおりです。
 
 - **REQ-3（依存グラフ上限 60 件以内・深さ 6 以内）**: `dist-server/Cargo.toml`
   の実測コメントによれば、標準サーバー構成（`rws-dist-server`）は 21 件/
-  深さ 5 で PASS しています。`wasm-pack`・`trunk` は cargo サブコマンドとして
-  ワークスペースの依存グラフそのものには加算されませんが、CI 環境への
-  導入手段（`cargo install` 経由か、バイナリ配布のバージョン固定導入か）に
-  よってサプライチェーン面の脅威面が変わるため、§8 のセキュリティ考慮と
-  合わせて #109 で判断される想定です。
+  深さ 5 で PASS しています（TASK-10.2c 実装後も build-dependencies を追加
+  していないため不変）。`build.rs` 自前実装は build-dependencies を一切
+  追加しないため、この実測値をそのまま維持できます。
+- **サプライチェーン**: `wasm-pack`・`trunk` は外部バイナリの導入経路を
+  追加で必要とし脅威面が拡大します。`wasm-bindgen-cli` のみをバージョン
+  固定 + バージョン整合検証で導入する現行運用が最小構成です（§8 参照）。
 - **`build.rs` 自前実装との整合**: `dist-server/build.rs`（TASK-9.1b・PR #212）
   は、静的アセット埋め込みにおいて `rust-embed` が REQ-3 の深さ上限を構造的に
   超過する（実測: 66 件/深さ 8）ため、外部 `build-dependencies` を一切
   追加しない自前実装を採用した経緯があります（`dist-server/Cargo.toml` の
-  実測コメント、`docs/dist-server-design.md` §4 参照）。WASM ビルド統合を
-  同一の `build.rs` に追加する場合、この「`build-dependencies` ゼロ維持」
-  という既定路線と整合させることが自然な選択ですが、最終判断は #109 に
-  委ねます。
-- **`wasm-bindgen-cli` はいずれの方式でも必要**: `build.rs` 自前実装・
-  統合ツール採用のいずれを選んでも、WASM バインディング生成には
-  `wasm-bindgen-cli`（または同等機能を内包するツール）の実行が必要です。
-  導入はバージョン固定 + チェックサム検証を必須とします（§8 参照）。
-
-本書は #109 の設計確定内容を正として引用する立場を取り、本書独自の新規
-設計判断は行いません。#109 がマージされ次第、本節を実際の設計確定書の
-内容に同期してください。
+  実測コメント、`docs/dist-server-design.md` §4 参照）。WASM ビルド統合の
+  キャッシュ制御（TASK-10.2c・#111 のハッシュ計算含む）も同一方針で
+  std のみによる自前実装（FNV-1a ハッシュの自前実装、外部ハッシュ用クレート
+  不使用）としました。
+- **release 固定（debug wasm 非対応）**: TASK-10.2c（#111）の論点だった
+  「開発用に debug プロファイルの WASM ビルドも許容するか」は、**release
+  固定を維持**で確定しました。埋め込み対象は配布用成果物であり REQ-11
+  バンドルサイズ基準と整合するためです。開発時の高速なロジック確認は
+  `--target nodejs` のオプトイン経路（§6.4）が別途担います。
+- **実証済み**: CI の `test` ジョブが単一 `cargo build` によるネイティブ +
+  WASM 統合ビルドを既に再現しています。
 
 ## 4. ビルドフロー
 
@@ -134,39 +131,56 @@ flowchart TD
     G --> H["rws-dist-server バイナリに\ncargo:rerun-if-changed 経由で\n静的リンク"]
 ```
 
-- **既存経路（TASK-9.1b）との関係**: `dist-server/build.rs` は現時点で
+- **既存経路（TASK-9.1b）との関係**: `dist-server/build.rs` は
   `static/` 配下の `(URL パス, ファイル内容)` テーブルを `include_bytes!` で
-  生成する自前実装のみを行っています（本書冒頭で参照した現行コード）。
-  TASK-10.2 はこの `build.rs` に「WASM ターゲットビルド + `wasm-bindgen`
-  実行」のステップを前段として追加し、生成された `.wasm`/`.js` 成果物が
-  同じ埋め込みテーブル生成の入力（`static/` 相当のディレクトリ）に
-  合流する構成を想定します。
+  生成する自前実装（TASK-9.1b 由来）に加え、TASK-10.2 で「WASM ターゲット
+  ビルド + `wasm-bindgen` 実行」のステップを前段として追加し、生成された
+  `.wasm`/`.js` 成果物が同じ埋め込みテーブル生成の入力（`/static/wasm/`
+  配下の URL パス）へ合流する構成になっています。
 - **TASK-10.1（開発/本番モード切り替え）との関係**: TASK-10.1a/b
   （#215/#216、マージ済み）が導入した `cfg(debug_assertions)` /
   `force-embed` フィーチャーによる開発時ファイルシステム読み込みと
-  本番埋め込みの切り替えは、WASM 成果物にも同一の切り替え軸が適用される
-  想定です。すなわち、開発ビルドでは WASM 再ビルドが `cargo:rerun-if-changed`
-  によるソース変更検知に応じて発火し、本番（release かつ `force-embed`
-  非有効時の debug、または release）では常にコンパイル時埋め込みとなる
-  構成を維持します。§9 の受け入れ基準対応表を参照してください。
+  本番埋め込みの切り替えは `static/` 配下のアセットが対象です。WASM 成果物
+  は TASK-10.2 のスコープでは常にコンパイル時埋め込み（`OUT_DIR` 経由）を
+  経由し、この切り替え軸の対象外である点が実装確定時の相違点です
+  （§9 の受け入れ基準対応表を参照）。
 
-## 5. キャッシュ・再ビルド制御
+## 5. キャッシュ・再ビルド制御（実装済み・TASK-10.2c）
 
 REQ-10 の受け入れ基準「本番差分ビルド反映が 5 秒以内であること」
 （PoC-4 実績 0.571〜0.597 秒）は、WASM ビルドステップを `build.rs` に
-追加した後も維持される必要があります。これは TASK-10.2c（#111）が
-担当するキャッシュ・再ビルド制御の実装対象です。
+追加した後も維持されています（実測は
+`docs/wasm-build-integration-report.md` §5 参照。`dist-server/benches/
+rebuild_latency.rs` による自動計測）。
 
-設計契約として次の方針を前提とします（既存 `build.rs` の実装パターンの
-延長）。
+`dist-server/build.rs` の実装は次のとおりです（既存 `build.rs` の
+`cargo:rerun-if-changed` パターンの延長）。
 
-- **`cargo:rerun-if-changed` による差分検知**: 現行 `build.rs` は
-  `static/` ディレクトリと配下の各ファイルに対して個別に
-  `cargo:rerun-if-changed` を発行し、無関係な変更での不要な再生成を避けて
-  います。WASM ビルドステップも同様に、WASM クレート（`wasm-full`/
-  `wasm-thin`）のソースディレクトリに対して `cargo:rerun-if-changed` を
-  発行し、WASM 側のソースが変化しない限り `wasm-bindgen` の再実行を
-  スキップする構成を想定します。
+- **ネストビルドは常に実行、`wasm-bindgen` のみキャッシュ制御**:
+  `cargo build --target wasm32-unknown-unknown`（`run_wasm_build`）自体は
+  cargo 標準の増分ビルドキャッシュ（`target/wasm-dist/`）が効くため常に
+  実行します。本ステージが独自にキャッシュ判定を行うのは、その後段の
+  `wasm-bindgen` 実行（`run_wasm_bindgen`）のみです。
+- **fingerprint 方式**: ネストビルドが生成した `.wasm` の内容ハッシュ
+  （std のみで完結する自前 FNV-1a 実装、`fnv1a_hash`）と、インストール済み
+  `wasm-bindgen-cli` の実バージョンを束ねた文字列を `OUT_DIR/
+  wasm-stage.fingerprint` に保存します（`compute_wasm_stage_fingerprint`）。
+  次回以降のビルドで、この fingerprint が前回値と完全一致し、かつ
+  `OUT_DIR/wasm-assets/` に前回の成果物（`<stem>.js`/`<stem>_bg.wasm`）が
+  実際に残っている場合に限り `wasm-bindgen` の再実行をスキップします
+  （`wasm_stage_cache_hit`）。
+- **フェイルクローズ**: fingerprint の読み取り失敗・欠落・不一致・成果物
+  欠落のいずれでも「再実行」側へ倒します。fingerprint ファイルの書き込みは
+  `wasm-bindgen` が成功し成果物の存在を確認した**後**にのみ行います
+  （`write_wasm_stage_fingerprint`）。失敗・中断時に不完全な成果物と
+  一致する fingerprint が残る事故を避けるためです。
+- **`cargo:rerun-if-changed` による再実行トリガー**: `wasm-full/src`・
+  `wasm-full/Cargo.toml`・`interactive/src`・`core/src`・`Cargo.lock` の
+  変更で `build.rs` 自体（cargo による再実行）が発火します。ここから先の
+  「`wasm-bindgen` を実際に再実行するか」の判断は上記 fingerprint 比較が
+  担うため、無関係なファイル変更（例: `static/` 配下のみの変更）では
+  ネストビルドが同一バイナリを再生成し、fingerprint が一致して
+  `wasm-bindgen` はスキップされます。
 - **`cargo build` 自体の増分ビルドとの整合**: `cargo build --target
   wasm32-unknown-unknown` 自体は cargo 標準の増分ビルドキャッシュ
   （`target/` 配下）が効くため、`build.rs` 側は「WASM ソースが変化した
@@ -174,10 +188,11 @@ REQ-10 の受け入れ基準「本番差分ビルド反映が 5 秒以内であ�
   WASM コンパイル自体のキャッシュ機構を独自実装する必要はありません。
 - **タイムスタンプ比較 or 内容ハッシュ比較の選択**: 既存 `build.rs` は
   ファイル内容そのものを `include_bytes!` するため差分検知に
-  `cargo:rerun-if-changed` のみで足りていますが、WASM 生成物（`.wasm`/
-  `.js`）を中間生成する場合は、生成済み成果物の再利用可否判定に
-  タイムスタンプ比較またはハッシュ比較が必要になる可能性があります。
-  具体的な比較方式は #111 の実装詳細に委ねます。
+  `cargo:rerun-if-changed` のみで足りますが、WASM 生成物（`.wasm`/`.js`）は
+  中間生成物であるため、上記の内容ハッシュ比較（タイムスタンプ比較ではなく
+  ハッシュ比較を選択）で再利用可否を判定します。タイムスタンプ比較は
+  ファイルシステムの時刻粒度・クロックスキューに依存し偽陽性/偽陰性を
+  生みやすいため採用しませんでした。
 
 ## 6. 利用者向け手順
 
@@ -210,8 +225,10 @@ cargo build -p rws-dist-server --release
 | 事象 | 想定原因 | 対処 |
 |------|---------|------|
 | `wasm-bindgen: version mismatch` 相当のエラー | `wasm-bindgen-cli` と WASM クレートが依存する `wasm-bindgen` クレートのバージョン不一致 | `wasm-bindgen-cli` を対象バージョンで入れ直す（6.1 節） |
-| WASM 成果物の変更が `cargo build` に反映されない | `cargo:rerun-if-changed` の対象パス漏れ | `build.rs` の `rerun-if-changed` 対象に該当パスが含まれているか確認（#111 の実装を参照） |
+| WASM 成果物の変更が `cargo build` に反映されない | `cargo:rerun-if-changed` の対象パス漏れ、または `wasm-full/src` 等の変更が意図せずキャッシュ HIT 扱いになっている | `build.rs` の `rerun-if-changed` 対象に該当パスが含まれているか確認。`cargo build -vv` の出力で `wasm-stage cache HIT`/`MISS` のいずれが出ているか確認する（§5） |
 | release ビルドで WASM 成果物が古いまま埋め込まれる | 開発/本番モード切り替え（TASK-10.1）の `force-embed` 判定誤り | §4 の開発/本番切り替え条件を確認 |
+| キャッシュが効かず毎回 `wasm-bindgen` が再実行される | `wasm-full`/`interactive`/`core` のソースが実際に変化している（ネストビルドの `.wasm` 内容ハッシュが変わるため正しい挙動）、または `OUT_DIR/wasm-assets/` の成果物が欠落・破損している | `cargo build -vv` で `wasm-stage cache MISS` の理由（ソース変更か成果物欠落か）を切り分ける。`cargo clean` 後の初回ビルドでは常に MISS になる（fingerprint 未保存のため）のが正常 |
+| キャッシュが効きすぎて古い WASM がそのまま使われる（疑い） | fingerprint 比較・成果物存在確認のいずれかにバグがある可能性 | `wasm_stage_cache_hit`（`dist-server/build.rs`）のフェイルクローズ条件（fingerprint 完全一致 **かつ** `<stem>.js`/`<stem>_bg.wasm` の両方が存在）を確認。疑わしい場合は `OUT_DIR/wasm-stage.fingerprint` を手動削除して強制的に MISS へ倒す |
 
 ### 6.4 wasm-bindgen 出力ターゲットの使い分け（web / nodejs）
 
@@ -342,8 +359,8 @@ REQ-10（`docs/spec/04-requirements.md` 132〜142 行目）の受け入れ基準
 | REQ-10 受け入れ基準 | 対応状況 | 担当 |
 |---------------------|---------|------|
 | 開発時のアセット変更（CSS 等）が、リビルド・プロセス再起動なしで反映されること | TASK-10.1（#215/#216）でマージ済み。本書のスコープ外（§7 参照） | TASK-10.1（完了） |
-| 本番ビルドのアセット変更反映（差分ビルド）が 5 秒以内であること | §5「キャッシュ・再ビルド制御」が設計契約として言及。実測・維持確認は TASK-10.2c（#111）・TASK-10.4（#未採番、ベンチマーク） | TASK-10.2c / TASK-10.4 |
-| `cargo build`（単一コマンド）で、ネイティブサーバーバイナリと WASM クライアント成果物の双方が生成されること | §4「ビルドフロー」が実装済みコード（`run_wasm_build`/`run_wasm_bindgen`）として記述。TASK-10.2b（#110）は PR #217 でマージ済み。統合方式の設計判断（`build.rs` 自前実装 vs 統合ツール採用）の最終確定は引き続き TASK-10.2a（#109） | TASK-10.2a（設計確定） / TASK-10.2b（実装済み、本書 §4） |
+| 本番ビルドのアセット変更反映（差分ビルド）が 5 秒以内であること | §5「キャッシュ・再ビルド制御」に実装済みの fingerprint 方式を記述。実測は `dist-server/benches/rebuild_latency.rs`（TASK-10.4a、別イシューで実装済み）が計測し、`docs/wasm-build-integration-report.md` §5 に転記 | TASK-10.2c（完了） / TASK-10.4a（別イシュー・完了） |
+| `cargo build`（単一コマンド）で、ネイティブサーバーバイナリと WASM クライアント成果物の双方が生成されること | §4「ビルドフロー」が実装済みコード（`run_wasm_build`/`run_wasm_bindgen`）として記述。統合方式の設計判断（`build.rs` 自前実装採用）も §3 で確定済み | TASK-10.2a（完了） / TASK-10.2b（完了、本書 §4） |
 | Docker マルチステージビルド内で WASM ターゲットの再ビルドが行われ、CI 環境での再現性が担保されること | 本書スコープ外。TASK-10.3（#114）で対応（§7 参照） | TASK-10.3 |
 
 イシュー #161（wasm-bindgen 出力ターゲットの使い分け DX 設計）の受け入れ
@@ -358,9 +375,9 @@ REQ-10（`docs/spec/04-requirements.md` 132〜142 行目）の受け入れ基準
 
 | #108 受け入れ条件 | 対応状況 |
 |-------------------|---------|
-| 成果物が作成され、関連テストが通過する | 本書 `docs/wasm-build-integration.md` の作成が本タスク（#112・TASK-10.2d）の成果物。docs-only 変更のため既存の `cargo test --workspace`・`cargo clippy --workspace -- -D warnings` に回帰がないことを確認済み（§10 検証結果） |
-| `docs/spec/05-tasks.md` の TASK-10.2 受け入れ基準を満たす | 上表参照。統合ビルド機構自体の実装完了は #109〜#111 に依存 |
-| 既定エスケープ・`forbid(unsafe_code)`・依存グラフ上限（60 件/深さ 6）を弱めない | §8 参照。本書は docs-only のためコードへの影響なし。実装（#109〜#111）に対する不変条件として明記 |
+| 成果物が作成され、関連テストが通過する | `dist-server/build.rs`・本書 `docs/wasm-build-integration.md` がいずれも作成済み。`cargo test --workspace --locked`・`cargo clippy --workspace -- -D warnings`・`cargo fmt --check` を実装確認時に通過 |
+| `docs/spec/05-tasks.md` の TASK-10.2 受け入れ基準を満たす | 上表参照。#109〜#112 すべて完了 |
+| 既定エスケープ・`forbid(unsafe_code)`・依存グラフ上限（60 件/深さ 6）を弱めない | §8 参照。`rws-dist-server` の依存グラフは実装完了後も 21 件/深さ 5 で不変（build-dependencies 追加なし） |
 
 ## 10. スコープ外事項の列挙
 
@@ -370,9 +387,6 @@ REQ-10（`docs/spec/04-requirements.md` 132〜142 行目）の受け入れ基準
 
 - **Docker マルチステージビルド内での WASM 再ビルド実装**: TASK-10.3（#114）
   のスコープ。本書 §7 で境界のみ明記。
-- **本番差分ビルド反映時間の CI ベンチマーク実装**（`dist-server/benches/
-  rebuild_latency.rs` 相当、`docs/spec/05-tasks.md` TASK-10.4）: 本書は
-  受け入れ基準としての言及のみに留め、ベンチマーク実装自体は対象外。
 - **`cargo xtask` による nodejs ビルドサブコマンド実装**: §6.4 で示した
   開発時コマンド列（`cargo build --target wasm32-unknown-unknown` →
   `wasm-bindgen --target nodejs` → `node -e "require(...)"`）を
@@ -386,20 +400,19 @@ REQ-10（`docs/spec/04-requirements.md` 132〜142 行目）の受け入れ基準
   留めます。
 - **条件 3（WASM ビルドチェーンの cargo 統合）解消の最終判定**:
   TASK-10.2e（#113）のスコープ。本書は判定に用いる文書的裏付けの提供に
-  留まり、判定そのものは行いません。
-- **`build.rs` 自前実装 vs `wasm-pack`/`trunk` 統合ツール採用の最終決定**:
-  TASK-10.2a（#109）のスコープ。本書 §3 は #109 の判断を引用する立場を
-  取り、独自の新規判断は行いません。
+  留まり、判定そのものは `docs/wasm-build-integration-report.md` が行います。
+- **CI ワークフローの WASM ジョブ統合**（`.github/workflows/ci.yml` の
+  個別 WASM ジョブと `cargo build` のビルドグラフ統合）: TASK-10.2（本書の
+  実装スコープ）では対応せず、`docs/wasm-build-integration-report.md` §7
+  に切り出し済み。
 
 ## 11. リスク・注意事項
 
-- 本書は #109〜#111（TASK-10.2a〜c）が OPEN のまま執筆されているため、
-  §3〜§6 の記述は実装の先取りではなく設計契約として提示しています。
-  #109〜#111 のマージ後、実装内容と本書の記述に乖離があれば、実装・
-  各サブタスクの設計確定書を正として本書を追随更新してください
-  （`docs/embedding-guide.md` が確立した方式の踏襲）。
-- `dist-server/build.rs` の現行実装（TASK-9.1b・PR #212）は静的アセット
-  埋め込みのみを担当しており、本書が想定する WASM ビルドステップの追加は
-  同一ファイルへの機能拡張、または責務分離した別ステップとしての追加
-  いずれの構成も考えられます。この選択自体も TASK-10.2a（#109）のスコープ
-  です。
+- 本書は TASK-10.2a〜c（#109〜#111）の実装完了後に as-built 記述へ更新
+  しました。§3〜§5 は実装済みコード（`dist-server/build.rs`）の引用です。
+  今後 `dist-server/build.rs` に手を加える際は、本書との乖離が生じないよう
+  同時に本書を追随更新してください（`docs/embedding-guide.md` が確立した
+  方式の踏襲）。
+- `dist-server/build.rs` は静的アセット埋め込み（TASK-9.1b・PR #212）と
+  WASM ビルドステージ（TASK-10.2）の両方を単一ファイルで担当する構成に
+  確定しました（責務分離した別ステップへの分割は行わない設計判断、§3）。
