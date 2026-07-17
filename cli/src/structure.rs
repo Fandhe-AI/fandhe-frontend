@@ -1,19 +1,19 @@
 //! `structure.toml`（機械可読なプロジェクト構造マニフェスト、REQ-13）の
-//! スキーマ v1 型定義と、マニフェスト内部の整合性検証（[`StructureManifest::validate`]）。
+//! スキーマ v1 型定義・TOML テキストからのパース（[`parse`] / [`load`]）・
+//! マニフェスト内部の整合性検証（[`StructureManifest::validate`]）。
 //!
-//! TASK-13.1a（#128）のスコープはここまで。TOML テキストから本モジュールの型を
-//! 構築する処理（TOML サブセットの手書きパーサ）は TASK-13.1b（#129）で実装し、
-//! `cargo metadata` や実ディレクトリ・実クレートとの突き合わせ（実体との整合性）は
-//! TASK-13.1c（#130）のスコープである。[`StructureManifest::validate`] は
-//! **マニフェスト内部の宣言同士の整合性のみ**を検証し、ファイルシステムや
-//! `cargo metadata` には一切アクセスしない（副作用なし・panic なし）。
+//! TASK-13.1a（#128）がスキーマ型定義と `validate()`（マニフェスト内部の宣言
+//! 整合性のみを検証する純粋関数）を、TASK-13.1b（#129）が本ファイルの
+//! [`parse`] / [`load`]（[`crate::toml`] の TOML サブセットパーサ結果を本モジュールの
+//! 型へ変換するセマンティック検証）を提供する。`cargo metadata` や実ディレクトリ・
+//! 実クレートとの突き合わせ（実体との整合性）は TASK-13.1c（#130）のスコープであり、
+//! 本ファイルはファイルシステムへは [`load`] の読み込み以外でアクセスしない。
 //!
 //! 設計の詳細・PoC-7 からの差分理由は `docs/structure-manifest.md` を参照。
 //!
-//! 本モジュールの公開 API は `fw main.rs` からまだ呼び出されない
-//! （TOML パース・`structure` サブコマンドへの配線は TASK-13.1b/c のスコープ）。
-//! テストからのみ使用される現時点の状態を明示するため `dead_code` を許容する。
-#![allow(dead_code)]
+//! `fw structure` サブコマンド（`main.rs`）からは [`load`] → [`StructureManifest::validate`]
+//! の順で呼ばれ、双方が通ってはじめて TASK-13.1c の実体突き合わせ・JSON 出力へ進む
+//! （`main.rs` 側の契約: パース・検証いずれかの失敗でも黙示的成功を返さない）。
 
 /// ディレクトリ名として許可する文字集合の検証。
 ///
@@ -56,7 +56,7 @@ impl Role {
     /// マニフェストの文字列表現との対応（TASK-13.1b のパーサが本表と
     /// 同じ語彙を用いる契約。ここで一元管理し、パーサ側での語彙の
     /// 重複定義・食い違いを防ぐ）。
-    const fn as_str(self) -> &'static str {
+    pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Role::Core => "core",
             Role::State => "state",
@@ -66,6 +66,23 @@ impl Role {
             Role::Distribution => "distribution",
             Role::Asset => "asset",
             Role::Tooling => "tooling",
+        }
+    }
+
+    /// `role` キーの文字列表現を [`Role`] へ変換する（TASK-13.1b パーサからの唯一の
+    /// 呼び出し経路）。未知の文字列は `None`（呼び出し側が `structure.toml` 由来の
+    /// 位置情報を添えてエラー化する。fail-closed、`docs/structure-manifest.md` §2.2.1）。
+    fn parse_str(s: &str) -> Option<Self> {
+        match s {
+            "core" => Some(Role::Core),
+            "state" => Some(Role::State),
+            "component" => Some(Role::Component),
+            "server-entrypoint" => Some(Role::ServerEntrypoint),
+            "client-entrypoint" => Some(Role::ClientEntrypoint),
+            "distribution" => Some(Role::Distribution),
+            "asset" => Some(Role::Asset),
+            "tooling" => Some(Role::Tooling),
+            _ => None,
         }
     }
 }
@@ -310,6 +327,269 @@ impl StructureManifest {
     }
 }
 
+/// [`parse`] / [`load`] の失敗を表す。TOML 構文レベルの失敗（[`crate::toml`]）と
+/// セマンティック検証（必須キー欠落・未知キー・`role` 未知語彙等）の失敗を区別する。
+///
+/// [`StructureManifest::validate`] の [`ValidationError`] とは責務が異なる:
+/// こちらは「TOML テキスト → 型」の変換段階、`validate()` は「型 → 宣言整合性」の
+/// 検証段階を担う（呼び出し順は `load`/`parse` → `validate` が契約）。
+#[derive(Debug, Clone, PartialEq)]
+pub enum StructureError {
+    /// 下層の TOML 構文パース（[`crate::toml::parse`]）に失敗した。
+    Toml(crate::toml::TomlError),
+    /// セマンティック検証（必須キー欠落・型不一致・未知キー・未知 `role` 等）に失敗した。
+    Semantic(String),
+}
+
+impl std::fmt::Display for StructureError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            StructureError::Toml(e) => write!(f, "structure.toml is not valid TOML: {e}"),
+            StructureError::Semantic(msg) => {
+                write!(f, "structure.toml failed schema validation: {msg}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for StructureError {}
+
+impl From<crate::toml::TomlError> for StructureError {
+    fn from(e: crate::toml::TomlError) -> Self {
+        StructureError::Toml(e)
+    }
+}
+
+fn semantic_err(message: impl Into<String>) -> StructureError {
+    StructureError::Semantic(message.into())
+}
+
+/// `input` を `structure.toml` としてパースし [`StructureManifest`] へ変換する
+/// （TASK-13.1b、`fw structure` の唯一の TOML → 型 変換経路）。
+///
+/// 変換のみを行い、`directories` 間の宣言整合性（依存の対称性等）は検証しない。
+/// 呼び出し側（`main.rs` の `run_structure`）は本関数の成功後、必ず
+/// [`StructureManifest::validate`] を呼んで宣言整合性を確認する契約とする。
+///
+/// # Errors
+///
+/// TOML 構文が壊れている場合・スキーマ上必須のキーが欠落している場合・
+/// 未知のキー / 未知の `role` 値が含まれる場合に [`StructureError`] を返す
+/// （fail-closed。`docs/structure-manifest.md` §2.1/§2.2 の方針に従う）。
+pub fn parse(input: &str) -> Result<StructureManifest, StructureError> {
+    let doc = crate::toml::parse(input)?;
+
+    let version = parse_manifest_table(&doc)?;
+
+    let mut directories: Vec<DirectoryEntry> = Vec::new();
+    let mut routing: Option<RoutingConfig> = None;
+
+    for (path, table) in doc.entries() {
+        match path {
+            [] => {
+                // トップレベル直書きキーはこのスキーマでは許可しない
+                // （`[manifest]` / `[directories.<name>]` / `[routing]` のみ許可）。
+                if !table.is_empty() {
+                    return Err(semantic_err(
+                        "top-level keys outside `[manifest]` / `[directories.*]` / `[routing]` are not supported",
+                    ));
+                }
+            }
+            [seg] if seg == "manifest" => {
+                // parse_manifest_table で処理済み。
+            }
+            [seg] if seg == "routing" => {
+                routing = Some(parse_routing_table(table)?);
+            }
+            [seg, name] if seg == "directories" => {
+                directories.push(parse_directory_table(name, table)?);
+            }
+            other => {
+                return Err(semantic_err(format!(
+                    "unknown table `[{}]` (expected `[manifest]`, `[directories.<name>]`, or `[routing]`)",
+                    other.join(".")
+                )));
+            }
+        }
+    }
+
+    if directories.is_empty() {
+        return Err(semantic_err(
+            "at least one `[directories.<name>]` table is required",
+        ));
+    }
+
+    Ok(StructureManifest {
+        version,
+        directories,
+        routing,
+    })
+}
+
+/// 指定パスから `structure.toml` を読み込みパースする（`fw structure` からの
+/// 唯一のファイル入出力経路）。パスはそのまま `std::fs::read_to_string` に渡し、
+/// 正規化・シンボリックリンク展開は行わない（走査時のパストラバーサル対策は
+/// 呼び出し側 — TASK-13.1c のファイル走査ロジック — の責務とする）。
+///
+/// # Errors
+///
+/// ファイル読み込みに失敗した場合・[`parse`] が失敗した場合に [`StructureError`] を返す。
+pub fn load(path: &std::path::Path) -> Result<StructureManifest, StructureError> {
+    let content = std::fs::read_to_string(path).map_err(|e| {
+        semantic_err(format!(
+            "failed to read structure.toml: {}",
+            io_error_kind_message(&e)
+        ))
+    })?;
+    parse(&content)
+}
+
+/// `std::io::Error` の `Display` は OS 依存メッセージ（まれに内部パスを含み得る）を
+/// 出すため、機微情報露出を避けて `ErrorKind` ベースの定型メッセージに丸める
+/// （security.md: エラーメッセージへの内部情報漏えい防止）。
+fn io_error_kind_message(e: &std::io::Error) -> String {
+    format!("{:?}", e.kind())
+}
+
+/// `[manifest]` テーブルを検証し `version` を取り出す。
+fn parse_manifest_table(doc: &crate::toml::Document) -> Result<u32, StructureError> {
+    let table = doc
+        .table(&["manifest"])
+        .ok_or_else(|| semantic_err("`[manifest]` table is required"))?;
+    reject_unknown_keys(table, &["version"], "manifest")?;
+    let version_value = table
+        .iter()
+        .find(|(k, _)| k == "version")
+        .map(|(_, v)| v)
+        .ok_or_else(|| semantic_err("`manifest` is missing required key `version`"))?;
+    match version_value {
+        crate::toml::Value::Integer(n) if *n >= 0 => Ok(*n as u32),
+        _ => Err(semantic_err(
+            "`manifest.version` must be a non-negative integer",
+        )),
+    }
+}
+
+/// `[directories.<name>]` テーブル 1 件を検証しつつ [`DirectoryEntry`] へ変換する。
+fn parse_directory_table(
+    name: &str,
+    table: &[(String, crate::toml::Value)],
+) -> Result<DirectoryEntry, StructureError> {
+    let context = format!("directories.{name}");
+    const ALLOWED_KEYS: &[&str] = &[
+        "role",
+        "crate",
+        "description",
+        "depends_on",
+        "allowed_dependents",
+    ];
+    reject_unknown_keys(table, ALLOWED_KEYS, &context)?;
+
+    let role_str = get_str(table, "role", &context)?;
+    let role = Role::parse_str(role_str).ok_or_else(|| {
+        semantic_err(format!(
+            "`{context}.role` has unknown value `{role_str}` (expected one of: core, state, component, server-entrypoint, client-entrypoint, distribution, asset, tooling)"
+        ))
+    })?;
+    // `crate` はキー省略可（`static` 等クレートを持たないディレクトリ）。
+    // `docs/structure-manifest.md` 2.2.2 節: 空文字列表現は廃止し「キー省略」に統一。
+    // `crate = ""` はスキーマ上非許可（キー省略が正）のため、ここで明示的に拒否する。
+    // 拒否しないまま通すと、後段の workspace-member 突き合わせ（main.rs の
+    // `check_crate_and_dependency_consistency`）まで不正なマニフェストが素通りし、
+    // 曖昧な失敗（空文字列に一致する workspace member は存在しないため誤検出は防げるが、
+    // 意図が不明瞭なまま検証を通過してしまう）につながる
+    // （レビュー指摘 #127: 空 crate 文字列を拒否するセマンティックチェックがなかった）。
+    if let Some(value) = table.iter().find(|(k, _)| k == "crate").map(|(_, v)| v) {
+        if value.as_str() == Some("") {
+            return Err(semantic_err(format!(
+                "`{context}.crate` must not be an empty string (omit the key instead)"
+            )));
+        }
+    }
+    let crate_name = get_optional_str(table, "crate", &context)?.map(str::to_string);
+    let description = get_str(table, "description", &context)?.to_string();
+    let depends_on = get_optional_string_array(table, "depends_on", &context)?;
+    let allowed_dependents = get_optional_string_array(table, "allowed_dependents", &context)?;
+
+    Ok(DirectoryEntry {
+        name: name.to_string(),
+        role,
+        crate_name,
+        description,
+        depends_on,
+        allowed_dependents,
+    })
+}
+
+/// `[routing]` テーブルを検証しつつ [`RoutingConfig`] へ変換する。
+fn parse_routing_table(
+    table: &[(String, crate::toml::Value)],
+) -> Result<RoutingConfig, StructureError> {
+    const ALLOWED_KEYS: &[&str] = &["definition_dir", "extractor"];
+    reject_unknown_keys(table, ALLOWED_KEYS, "routing")?;
+    Ok(RoutingConfig {
+        definition_dir: get_str(table, "definition_dir", "routing")?.to_string(),
+        extractor: get_str(table, "extractor", "routing")?.to_string(),
+    })
+}
+
+fn get_str<'a>(
+    table: &'a [(String, crate::toml::Value)],
+    key: &str,
+    context: &str,
+) -> Result<&'a str, StructureError> {
+    let value = table
+        .iter()
+        .find(|(k, _)| k == key)
+        .map(|(_, v)| v)
+        .ok_or_else(|| semantic_err(format!("`{context}` is missing required key `{key}`")))?;
+    value
+        .as_str()
+        .ok_or_else(|| semantic_err(format!("`{context}.{key}` must be a string")))
+}
+
+fn get_optional_str<'a>(
+    table: &'a [(String, crate::toml::Value)],
+    key: &str,
+    context: &str,
+) -> Result<Option<&'a str>, StructureError> {
+    match table.iter().find(|(k, _)| k == key).map(|(_, v)| v) {
+        None => Ok(None),
+        Some(value) => value
+            .as_str()
+            .map(Some)
+            .ok_or_else(|| semantic_err(format!("`{context}.{key}` must be a string"))),
+    }
+}
+
+fn get_optional_string_array(
+    table: &[(String, crate::toml::Value)],
+    key: &str,
+    context: &str,
+) -> Result<Vec<String>, StructureError> {
+    match table.iter().find(|(k, _)| k == key).map(|(_, v)| v) {
+        None => Ok(Vec::new()),
+        Some(value) => value
+            .as_string_array()
+            .map(|items| items.into_iter().map(str::to_string).collect())
+            .ok_or_else(|| semantic_err(format!("`{context}.{key}` must be a string array"))),
+    }
+}
+
+/// テーブル内に許可リスト外のキーがないか検証する（未知キーの fail-closed 拒否）。
+fn reject_unknown_keys(
+    table: &[(String, crate::toml::Value)],
+    allowed: &[&str],
+    context: &str,
+) -> Result<(), StructureError> {
+    for (key, _) in table {
+        if !allowed.contains(&key.as_str()) {
+            return Err(semantic_err(format!("`{context}` has unknown key `{key}`")));
+        }
+    }
+    Ok(())
+}
+
 /// `depends_on` / `allowed_dependents` 共通の参照検証（未知参照・自己参照・重複）。
 ///
 /// [`StructureManifest::validate`] から `depends_on` と `allowed_dependents` の
@@ -530,5 +810,211 @@ mod tests {
         assert_eq!(Role::Distribution.as_str(), "distribution");
         assert_eq!(Role::Asset.as_str(), "asset");
         assert_eq!(Role::Tooling.as_str(), "tooling");
+    }
+
+    /// このリポジトリの実 `structure.toml` を縮小したフィクスチャ
+    /// （TASK-13.1b, #129 の `parse()` 回帰テスト。サブモジュール未初期化環境や
+    /// リポジトリルート外での `cargo test` 実行にも依存しないよう、実ファイルを
+    /// 読まずインラインで保持する）。
+    const FIXTURE: &str = r#"
+[manifest]
+version = 1
+
+[directories.core]
+role = "core"
+crate = "rws-core"
+description = "外部依存ゼロのレンダリングコア"
+allowed_dependents = ["app"]
+
+[directories.app]
+role = "component"
+crate = "rws-app"
+description = "共通コンポーネント"
+depends_on = ["core"]
+
+[directories.static]
+role = "asset"
+description = "静的アセット（対応クレートなし）"
+
+[routing]
+definition_dir = "app"
+extractor = "rws-router-v1"
+"#;
+
+    #[test]
+    fn parse_fixture_succeeds_and_validates() {
+        let manifest = parse(FIXTURE).expect("フィクスチャはスキーマを満たす");
+        assert_eq!(manifest.version, 1);
+        assert_eq!(manifest.directories.len(), 3);
+        let core = manifest
+            .directories
+            .iter()
+            .find(|d| d.name == "core")
+            .unwrap();
+        assert_eq!(core.role, Role::Core);
+        assert_eq!(core.crate_name.as_deref(), Some("rws-core"));
+        let static_dir = manifest
+            .directories
+            .iter()
+            .find(|d| d.name == "static")
+            .unwrap();
+        // `crate` キー省略時は `None`（PoC-7 の空文字列表現は本スキーマでは廃止済み）。
+        assert_eq!(static_dir.crate_name, None);
+        assert!(static_dir.depends_on.is_empty());
+        assert_eq!(
+            manifest.routing,
+            Some(RoutingConfig {
+                definition_dir: "app".to_string(),
+                extractor: "rws-router-v1".to_string(),
+            })
+        );
+        // parse() は変換のみを行う契約であり、`validate()` は呼び出し側の責務。
+        assert_eq!(manifest.validate(), Ok(()));
+    }
+
+    #[test]
+    fn parse_rejects_missing_manifest_table() {
+        let input = r#"
+[directories.core]
+role = "core"
+description = "desc"
+"#;
+        assert!(matches!(parse(input), Err(StructureError::Semantic(_))));
+    }
+
+    #[test]
+    fn parse_rejects_missing_required_key() {
+        let missing_description = r#"
+[manifest]
+version = 1
+
+[directories.core]
+role = "core"
+"#;
+        assert!(parse(missing_description).is_err());
+    }
+
+    #[test]
+    fn parse_rejects_unknown_key() {
+        let unknown_key = r#"
+[manifest]
+version = 1
+
+[directories.core]
+role = "core"
+description = "desc"
+unexpected = "value"
+"#;
+        assert!(parse(unknown_key).is_err());
+    }
+
+    #[test]
+    fn parse_rejects_unknown_role() {
+        let unknown_role = r#"
+[manifest]
+version = 1
+
+[directories.core]
+role = "not-a-role"
+description = "desc"
+"#;
+        assert!(parse(unknown_role).is_err());
+    }
+
+    #[test]
+    fn parse_rejects_empty_directories() {
+        let no_dirs = r#"
+[manifest]
+version = 1
+"#;
+        assert!(parse(no_dirs).is_err());
+    }
+
+    /// レビュー指摘 #127: `crate = ""` はスキーマ上非許可（キー省略が正）だが、
+    /// `get_optional_str` 経由で `Some("")` へマッピングされるだけで拒否されて
+    /// いなかった。空文字列は明示的にセマンティックエラーとして拒否する。
+    #[test]
+    fn parse_rejects_empty_crate_string() {
+        let empty_crate = r#"
+[manifest]
+version = 1
+
+[directories.core]
+role = "core"
+crate = ""
+description = "desc"
+"#;
+        let result = parse(empty_crate);
+        assert!(
+            matches!(result, Err(StructureError::Semantic(_))),
+            "empty `crate` string must be rejected as a semantic error, got {result:?}"
+        );
+    }
+
+    #[test]
+    fn parse_propagates_toml_syntax_errors() {
+        let bad_toml = "[[directories]]\nrole = \"core\"\n";
+        assert!(matches!(parse(bad_toml), Err(StructureError::Toml(_))));
+    }
+
+    #[test]
+    fn parse_allows_missing_routing_table() {
+        // `[routing]` はスキーマ上任意（このリポジトリの `structure.toml` は
+        // 常に持つが、`routing: Option<RoutingConfig>` の型が示す通り
+        // ルート定義を持たないプロジェクトも許容する）。
+        let no_routing = r#"
+[manifest]
+version = 1
+
+[directories.core]
+role = "core"
+description = "desc"
+"#;
+        let manifest = parse(no_routing).unwrap();
+        assert_eq!(manifest.routing, None);
+    }
+
+    #[test]
+    fn parse_does_not_panic_on_arbitrary_input() {
+        let inputs = [
+            "",
+            "[",
+            "]",
+            "[directories]",
+            "[directories.]",
+            "key",
+            "\0\0\0",
+        ];
+        for input in inputs {
+            let _ = parse(input);
+        }
+    }
+
+    #[test]
+    fn load_reports_error_for_missing_file_without_leaking_path() {
+        let result = load(std::path::Path::new(
+            "/nonexistent/path/does-not-exist/structure.toml",
+        ));
+        assert!(result.is_err());
+        let message = result.unwrap_err().to_string();
+        assert!(!message.contains("/nonexistent/path"));
+    }
+
+    /// このリポジトリのルート `structure.toml`（TASK-13.1a/d の参照マニフェスト）が
+    /// 実際に `parse()` → `validate()` を通過することの統合的な回帰テスト
+    /// （`cli/tests/structure_integration.rs` の単体版。単体テストとしても
+    /// 早期に壊れたスキーマ変更を検知できるようここにも置く）。
+    #[test]
+    fn parses_and_validates_repository_root_manifest() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("cli/ has a parent workspace root")
+            .join("structure.toml");
+        let manifest = load(&root).expect("repository root structure.toml must parse");
+        assert_eq!(
+            manifest.validate(),
+            Ok(()),
+            "repository root structure.toml must satisfy internal validation"
+        );
     }
 }
