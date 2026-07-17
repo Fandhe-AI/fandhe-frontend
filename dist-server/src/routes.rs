@@ -30,6 +30,7 @@ use crate::assets;
 use crate::mime::content_type_for_path;
 use rws_app::{demo_items, detail_page, list_page, page_shell, Item};
 use rws_server::router::Router;
+use std::sync::OnceLock;
 
 /// `rws_server::router::Router` に登録するページ種別。
 ///
@@ -69,6 +70,18 @@ fn build_page_router() -> Router<PageRoute> {
         .expect("static pattern \"/items/:id\" is valid")
 }
 
+/// `build_page_router()` の結果をプロセス生存期間中 1 回だけ構築してキャッシュする。
+///
+/// `route_request` は hyper の 1 リクエストにつき 1 回呼ばれる
+/// （`main.rs` の `service_fn(handle)` 経由）ため、キャッシュなしでは毎リクエスト
+/// `Router` を再構築することになる。`Router` の登録内容は固定（開発者が
+/// ハードコードしたパターンのみ）であり実行時に変化しないため、`OnceLock`
+/// （`std` のみ・追加依存なし）で 1 度だけ構築して使い回す。
+fn page_router() -> &'static Router<PageRoute> {
+    static ROUTER: OnceLock<Router<PageRoute>> = OnceLock::new();
+    ROUTER.get_or_init(build_page_router)
+}
+
 /// リクエストパス（クエリ文字列を含んでよい。`Router::resolve` が `?` 以降を
 /// 切り落とす）を解決し、[`RouteResponse`] を返す。`main.rs` の hyper
 /// サービス関数から 1 リクエストにつき 1 回呼ばれる。
@@ -84,7 +97,7 @@ pub fn route_request(path: &str) -> RouteResponse {
         };
     }
 
-    let router = build_page_router();
+    let router = page_router();
     match router.resolve(path) {
         Some(route_match) => match route_match.handler {
             PageRoute::List => {
@@ -186,6 +199,22 @@ mod tests {
         // （OWASP A01 パストラバーサル回帰テスト）。
         assert_eq!(route_request("/static/../Cargo.toml").status, 404);
         assert_eq!(route_request("/static/..%2FCargo.toml").status, 404);
+    }
+
+    #[test]
+    fn page_routes_with_query_string_resolve_like_bare_paths() {
+        // `route_request` 自体はクエリを剥がさず `rws_server::router::Router::resolve`
+        // に生パスを渡す（本ファイル冒頭のドキュメンテーションコメント参照）。
+        // `Router::resolve` 内部の `path.split_once('?')` によるクエリ除去
+        // （`server/src/router.rs`）に暗黙依存しているため、その挙動をこちらの
+        // 層でも固定する回帰テスト（Review 指摘: テストギャップの解消）。
+        let list_with_query = route_request("/?utm=1");
+        assert_eq!(list_with_query.status, 200);
+        assert_eq!(list_with_query.body, route_request("/").body);
+
+        let detail_with_query = route_request("/items/1?utm=1&ref=x");
+        assert_eq!(detail_with_query.status, 200);
+        assert_eq!(detail_with_query.body, route_request("/items/1").body);
     }
 
     #[test]

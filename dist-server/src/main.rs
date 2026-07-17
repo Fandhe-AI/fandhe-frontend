@@ -22,7 +22,7 @@ use http_body_util::Full;
 use hyper::body::Bytes;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
-use hyper::{Request, Response};
+use hyper::{Method, Request, Response};
 use hyper_util::rt::TokioIo;
 use rws_dist_server::routes::route_request;
 use std::convert::Infallible;
@@ -93,7 +93,28 @@ async fn run() -> ExitCode {
 /// `Response<Full<Bytes>>` へ変換する。`Infallible` はこの関数自身が失敗
 /// しないことを型で保証する（`route_request` は `RouteResponse` を必ず返す
 /// 契約であり、パニックしない設計）。
+///
+/// `route_request` は GET 専用の SSR/静的配信を前提とした設計（`routes.rs`）
+/// のため、GET・HEAD 以外のメソッド（POST/PUT/DELETE 等）はページ本文を
+/// 組み立てず先に 405 で弾く（Review 指摘: メソッド無検証で全メソッドに
+/// 200 を返していたギャップの解消）。HEAD は GET と同じ本文を返してよい
+/// （hyper 側で HEAD のボディ送出有無は扱わないため、ここでは GET と同列に許可する）。
 async fn handle(req: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
+    if req.method() != Method::GET && req.method() != Method::HEAD {
+        let response = Response::builder()
+            .status(405)
+            .header(hyper::header::CONTENT_TYPE, "text/plain; charset=utf-8")
+            .header(hyper::header::ALLOW, "GET, HEAD")
+            .body(Full::new(Bytes::from_static(b"405 Method Not Allowed")))
+            .unwrap_or_else(|_| {
+                Response::builder()
+                    .status(500)
+                    .body(Full::new(Bytes::from_static(b"500 Internal Server Error")))
+                    .expect("fallback response with fixed, valid status/body must build")
+            });
+        return Ok(response);
+    }
+
     let route_response = route_request(req.uri().path_and_query().map_or("/", |pq| pq.as_str()));
 
     let mut builder = Response::builder().status(route_response.status);
