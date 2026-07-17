@@ -111,8 +111,9 @@ fn hydrate_toggles_liked_class_on_click_and_untoggles_on_second_click() {
 
     let root = create_container(&document, "browser-click-toggle-root");
     root.set_inner_html(&render_detail_page_html("1"));
-    let button = document
-        .get_element_by_id("like-btn")
+    let button = root
+        .query_selector("#like-btn")
+        .expect("query_selector must not fail for a valid selector")
         .expect("render_detail_page_html must emit #like-btn");
 
     hydrate("browser-click-toggle-root").expect("hydrate must succeed when root and target exist");
@@ -149,8 +150,9 @@ fn hydrate_preserves_pre_existing_liked_state() {
 
     let root = create_container(&document, "browser-preserve-state-root");
     root.set_inner_html(&render_detail_page_html("1"));
-    let button = document
-        .get_element_by_id("like-btn")
+    let button = root
+        .query_selector("#like-btn")
+        .expect("query_selector must not fail for a valid selector")
         .expect("render_detail_page_html must emit #like-btn");
     // サーバーが「既にいいね済み」の状態で DOM を出力した状況を模す
     // （状態注入フォーマットの製品化を待たず、DOM 属性の素朴な事前付与で代替）。
@@ -178,8 +180,9 @@ fn re_hydrate_preserves_click_state_and_fires_exactly_once() {
 
     let root = create_container(&document, "browser-rehydrate-state-root");
     root.set_inner_html(&render_detail_page_html("1"));
-    let button = document
-        .get_element_by_id("like-btn")
+    let button = root
+        .query_selector("#like-btn")
+        .expect("query_selector must not fail for a valid selector")
         .expect("render_detail_page_html must emit #like-btn");
 
     hydrate("browser-rehydrate-state-root")
@@ -237,7 +240,7 @@ fn xss_payload_item_does_not_produce_script_element_in_real_dom() {
         "XSS ペイロードを含むタイトルでも実 DOM 上に script 要素が生成されないこと"
     );
 
-    let title = document
+    let title = root
         .query_selector("[data-testid=\"item-title\"]")
         .expect("query_selector must not fail for a valid selector")
         .expect("render_detail_page_html must emit the item-title element");
