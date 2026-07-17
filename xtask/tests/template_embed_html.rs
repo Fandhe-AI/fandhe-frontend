@@ -76,18 +76,20 @@ fn embed_html_calls_mount_csr_via_frozen_contract() {
         "docs/hydration-api.md 第 3 節が定める rws-wasm-client のグルー \
          コード（rws_wasm_client.js）からの import が見つからない"
     );
+    // "await init()" の出現位置が mount_csr(...) 呼び出しより前であることまで
+    // 位置比較で検証する。部分文字列の存在チェックだけでは呼び出し順序を
+    // 入れ替える regression（mount_csr → await init() の順）を検出できない
+    // ため、両方の出現位置を取得して大小関係を突き合わせる。
+    let init_pos = contents
+        .find("await init()")
+        .expect("init() を await する凍結契約どおりの呼び出しが見つからない");
+    let mount_pos = contents
+        .find(r#"mount_csr("app-list")"#)
+        .expect("mount_csr の呼び出しが見つからない");
     assert!(
-        contents.contains("mount_csr")
-            && contents.contains("init")
-            && contents.contains("await init()"),
-        "init() を await してから mount_csr を呼ぶ凍結契約どおりの \
-         呼び出し順が見つからない"
-    );
-    // mount_csr へ渡す root_id は、マウントポイント <div id="app-list"> と
-    // 一致していなければハイドレーション対象を取り違える。
-    assert!(
-        contents.contains(r#"mount_csr("app-list")"#),
-        "mount_csr の引数 \"app-list\" がマウントポイントの id と一致していない"
+        init_pos < mount_pos,
+        "await init() の後に mount_csr を呼ぶ凍結契約どおりの呼び出し順に \
+         なっていない（await init() の位置: {init_pos}, mount_csr の位置: {mount_pos}）"
     );
 }
 
