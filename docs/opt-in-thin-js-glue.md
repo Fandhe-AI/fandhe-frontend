@@ -158,7 +158,7 @@ DOM 操作・イベント配線は行いません。
 |-----|-----------|------|
 | `initial_html` | `pub fn initial_html() -> String` | 初期状態の HTML を返す。CSR モードで JS グルーがこれを `root.innerHTML` に設定する |
 | `hydrate_from_attrs` | `pub fn hydrate_from_attrs(counter: &str, draft: &str, items_joined: &str) -> ()` | サーバー Rust（SSR）が出力した `data-hydrate-*` 属性の値を JS グルーが読み取って渡し、WASM 内部状態を復元する。JS 側は `root.innerHTML` を書き換えない（SSR 済み DOM をそのまま尊重する） |
-| `apply` | `pub fn apply(action: &str, payload: &str) -> String` | アクションを適用し、更新後の HTML 全体（既定エスケープ済み）を返す。JS グルーはイベントから `action`/`payload` を読み取ってこの関数を呼び、戻り値のみを `innerHTML` に設定する（DOM 差分計算は行わない最小実装） |
+| `apply` | `pub fn apply(action: &str, payload: &str) -> String` | アクションを適用し、更新後の HTML 全体（`#interactive-root` を含む rooted tree 全体・既定エスケープ済み）を返す。JS グルーはイベントから `action`/`payload` を読み取ってこの関数を呼び、戻り値のみを、`#interactive-root` 自身ではなくその親要素（mount）の `innerHTML` に設定する（`#interactive-root` 自身に設定すると戻り値に含まれる同名要素がネストし id が重複するため。DOM 差分計算は行わない最小実装） |
 
 3 関数はいずれも `rws-interactive` の `AppState` / `dispatch` / `render_html` /
 `state_from_hydration_attrs` を内部で呼び出す薄いラッパーであり、状態機械
@@ -215,27 +215,36 @@ root.addEventListener("input", (ev) => {
  * サーバー Rust（SSR）が出力した data-hydrate-* 属性を読み取り、
  * WASM 内部状態を復元する。SSR 済みの DOM は作り直さず、
  * イベント配線のみ行う。
+ *
+ * DOM 更新（innerHTML の書き換え）の対象は #interactive-root の
+ * 親要素（mount）とし、#interactive-root 自身には設定しない。
+ * apply() の戻り値は #interactive-root を含む rooted tree 全体
+ * （initial_html() と同じ形）であるため、#interactive-root 自身へ
+ * 代入すると、戻り値に含まれる #interactive-root がその内部に
+ * ネストされて id が重複し、次回以降のクリックで DOM が壊れる
+ * （CSR モードと同じく mount と rooted tree の id を分離する）。
  */
 import init, { hydrate_from_attrs, apply } from "./pkg/thin/rws_wasm_thin.js";
 
 await init();
 
-const root = document.getElementById("interactive-root");
+const mount = document.getElementById("interactive-root-mount");
+const root = mount.querySelector("#interactive-root");
 hydrate_from_attrs(
   root.getAttribute("data-hydrate-counter") || "0",
   root.getAttribute("data-hydrate-draft") || "",
   root.getAttribute("data-hydrate-items") || ""
 );
 
-root.addEventListener("click", (ev) => {
+mount.addEventListener("click", (ev) => {
   const target = ev.target.closest("[data-action]");
   if (!target) return;
   const action = target.getAttribute("data-action");
   const idx = target.getAttribute("data-idx") || "";
-  root.innerHTML = apply(action, idx);
+  mount.innerHTML = apply(action, idx);
 });
 
-root.addEventListener("input", (ev) => {
+mount.addEventListener("input", (ev) => {
   const target = ev.target;
   if (target.id !== "draft-input") return;
   apply("set_draft", target.value);
