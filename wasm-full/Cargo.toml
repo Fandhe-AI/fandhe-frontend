@@ -1,0 +1,76 @@
+[package]
+name = "rws-wasm-full"
+version = "0.1.0"
+edition = "2021"
+description = "rws-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# TASK-11.2b（#75）でイベント処理（events モジュール）・wasm-bindgen/web-sys
+# 依存を追加。TASK-11.2c（#76）は #75 マージ後の rebase により、DOM 非依存の
+# 純粋関数 `render_component_html`（dom モジュール、rws-core::render 呼び出し）を
+# 追加する。dom モジュールは lib.rs（本クレートの公開面）から呼ばれるため
+# rws-core は通常の [dependencies] とする（rws-interactive 経由で既に依存グラフに
+# 含まれており、REQ-3 依存上限には影響しない）。
+#
+# `docs/unsafe-boundary.md` 第 2 節のポリシー: 自作コードは safe Rust のみとし、
+# `unsafe` は wasm-bindgen / web-sys の FFI 境界（依存クレート内部・自動生成コード）
+# に限定して許容する。
+#
+# 依存追加は事前承認必須（.claude/rules/coding-rust.md, security.md）。
+# 本追加は Issue #73/#75 の計画（PoC-5 `wasm-full/Cargo.toml` と同一依存構成）を
+# もって承認済みとし、影響確認結果を PR 本文に記録する。
+#
+# TASK-11.4b（#83）で `Attr`/`NamedNodeMap` を追加。`hydration::read_hydration_attrs`
+# が `web_sys::Element::attributes()`（`NamedNodeMap`）を index 走査して各属性
+# （`web_sys::Attr`）の名前・値を読み取るために必要（`docs/hydration-state-format.md`
+# 第 5 節）。新規クレート追加ではなく既存 `web-sys` の feature 追加のみであり、
+# `cargo metadata` 実測（パッケージ数・依存グラフ深さ）に変化がないことを確認済み
+# （PR 本文に記録）。
+[dependencies]
+rws-core = { path = "../core" }
+rws-interactive = { path = "../interactive" }
+wasm-bindgen = "0.2"
+
+[dependencies.web-sys]
+version = "0.3"
+features = [
+  "Attr",
+  "Document",
+  "Element",
+  "Event",
+  "EventTarget",
+  "HtmlInputElement",
+  "NamedNodeMap",
+  "Window",
+  "console",
+]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# TASK-11.5a（#86）: 実ブラウザ性能計測ハーネス（wasm-full/tests/perf_browser.rs）の
+# 実行に必要な dev 依存。dev-dependency のため製品バイナリ・標準サーバー構成
+# （REQ-3 の 60 件/深さ 6 の対象）には影響しない。
+#
+# 依存追加の承認整理（.claude/rules/coding-rust.md・security.md の事前承認要件）:
+# `wasm-bindgen-test` は docs/spec/05-tasks.md TASK-11.5 が成果物として明示する
+# `wasm-pack test --headless` の実行に必須であり、docs/browser-testing.md 第 7 節が
+# 実ブラウザテストの dev 依存として計画済み（#65 と同一の運用）。追加による影響
+# （パッケージ数・依存グラフ深さ・build.rs 有無）は PR 本文に実測値を記録する。
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+# Performance API（性能計測ハーネス専用）。製品面の [dependencies.web-sys] の
+# features には触れず、テスト専用の feature 拡張に閉じる。
+#
+# TASK-1.3b（#92）: `EventInit` を追加。`wasm-full/tests/xss_escape_wasm.rs` が
+# `wire_events`（events.rs）の委譲リスナーを合成 click イベントで発火させる際、
+# `bubbles: true` を指定した `web_sys::Event` を組み立てるために必要
+# （リスナーは root 要素へ登録されるため、子要素上の click がバブリングで
+# root まで届く前提。events.rs 冒頭コメント参照）。新規クレート追加ではなく
+# 既存 web-sys の feature 追加のみで、`cargo metadata` 実測（パッケージ数・
+# 依存グラフ深さ）に変化がないことを確認済み（PR 本文に記録）。
+[dev-dependencies.web-sys]
+version = "0.3"
+features = ["Performance", "NamedNodeMap", "Attr", "EventInit"]

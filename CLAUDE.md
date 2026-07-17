@@ -6,7 +6,7 @@ Rust 製フロントエンドフレームワーク。AI 時代のセキュリテ
 
 - 仕様書は [Fandhe-AI/frontend-framework-spec](https://github.com/Fandhe-AI/frontend-framework-spec) を `docs/spec/` サブモジュールとして取り込み管理
 - 開発は `docs/spec/06-roadmap.md` のマイルストーン MS-1〜MS-5 に従う（最初のタスクは TASK-1.1: `rws-core` 既定エスケープの製品化）
-- 計画クレート: `rws-core`（描画コア・外部依存ゼロ）/ `rws-app` / `rws-server`（SSR/SSG）/ `rws-wasm-client`・`rws-wasm-full`（WASM/CSR）/ `rws-interactive`（状態管理）/ `xtask`（CI 計測）
+- 計画クレート: `rws-core`（描画コア・外部依存ゼロ）/ `rws-app` / `rws-server`（SSR/SSG）/ `rws-wasm-client`・`rws-wasm-full`（WASM/CSR）/ `rws-interactive`（状態管理）/ `xtask`（CI 計測）/ `rws-cli`（`fw` コマンド・AI 自己保守フック、REQ-13）
 
 ## Repository Structure
 
@@ -17,6 +17,7 @@ frontend-framework/
 ├── skills-lock.json          # npx skills add の導入記録
 ├── docs/
 │   ├── unsafe-boundary.md    # unsafe 境界ポリシー・使用箇所一覧（REQ-2 トレーサビリティ）
+│   ├── structure-manifest.md # structure.toml スキーマ設計（REQ-13, TASK-13.1a）
 │   └── spec/                 # 仕様サブモジュール (frontend-framework-spec)
 │       ├── 01-brainstorm.md
 │       ├── 02-poc-plan.md
@@ -34,7 +35,7 @@ frontend-framework/
     └── settings.json         # SessionStart / PostToolUse hooks
 ```
 
-（実装着手後は `core/` `app/` `server/` `wasm-client/` `interactive/` `xtask/` 等の cargo workspace が加わる想定 — `docs/spec/05-tasks.md` 参照）
+（実装着手後は `core/` `app/` `server/` `wasm-client/` `interactive/` `xtask/` `cli/`（`rws-cli`: `fw` コマンド、structure.toml のスキーマ・パース・生成）等の cargo workspace が加わる想定 — `docs/spec/05-tasks.md` 参照）
 
 ## 委譲方針（必読）
 
@@ -47,7 +48,7 @@ main セッションは**指揮・統合・ユーザー対話に専念**し、�
 | `core/` `interactive/` | core-builder |
 | `app/` `server/` | server-builder |
 | `wasm-client/` `wasm-full/` `wasm-thin/` `static/` | wasm-builder |
-| `xtask/` `.github/` `Dockerfile` `deny.toml` `templates/` | tooling-builder |
+| `xtask/` `cli/` `.github/` `Dockerfile` `deny.toml` `templates/` | tooling-builder |
 | `docs/`（spec 以外）・CLAUDE.md | docs-writer |
 | `docs/spec/`（読み取り調査） | explorer |
 | テスト実行・失敗分析 | test-runner |

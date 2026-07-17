@@ -15,8 +15,39 @@
 //!
 //! - `list-build-scripts --package <NAME> [--package <NAME> ...]`: REQ-3
 //!   （サプライチェーン監査可能性、PoC-2 脅威モデル）のうち `build.rs` 保有クレートの
-//!   機械的列挙（TASK-3.2a、`list_build_scripts` モジュール）。CI ワークフローへの
-//!   組み込み・1 行サマリの最終契約確定は TASK-3.2b（イシュー #21）に委ねる。
+//!   機械的列挙（TASK-3.2a、`list_build_scripts` モジュール）。CI ワークフロー
+//!   （`.github/workflows/deps-check.yml`）への組み込みは TASK-3.2b（イシュー #21）で、
+//!   1 行サマリ（`list_build_scripts::format_inventory` 参照）を Step Summary に
+//!   転記する。CLI 契約の回帰テストは `xtask/tests/cli_list_build_scripts.rs`。
+//!
+//! - `check-core-deps`（引数なし）: イシュー #154（REQ-3 受け入れ基準 1）。
+//!   `check_deps::ZERO_DEP_CRATES` と実 workspace メンバーの積集合について
+//!   `Normal`/`Dev`/`Build` すべての辺を辿り、workspace 内の第一者パッケージ
+//!   （path dependency）を除いた「真の外部依存」が 1 件でも存在しないかを
+//!   `check_deps::measure_external_only` で計測し判定する（`check_deps::judge_zero`）。
+//!   `check-deps --package rws-core` の 60/6 判定とは別に「ゼロであること」を
+//!   専用ゲートとして強制する。判定対象は CLI 引数で差し替え不可
+//!   （`ZERO_DEP_CRATES` 参照。上限を弱める経路を作らない設計）。
+//!   CLI 契約の回帰テストは `xtask/tests/cli_check_core_deps.rs`。
+//!
+//! - `check-loc`（引数なし）: TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）。
+//!   `check_loc::LOC_CHECK_TARGETS`（`static/view-transitions.js`）について
+//!   コメント・空行を除いた実効 LOC を計測し、`check_loc::MAX_EFFECTIVE_LOC`
+//!   （10 行）以内かを判定する（`check_loc::judge`）。対象ファイルの不在・
+//!   読み取り失敗も超過と同様に fail-closed とする。判定対象・しきい値は
+//!   CLI 引数で差し替え不可。CLI 契約の回帰テストは
+//!   `xtask/tests/cli_check_loc.rs`。
+//!
+//! - `check-image-size --image <TAG> [--limit-mb <N>]`: TASK-9.3b（イシュー #103,
+//!   REQ-9 受け入れ基準）。`docker image inspect --format {{.Size}}` で対象イメージの
+//!   非圧縮サイズを計測し（`check_image_size` モジュールの `measure`）、既定 50MB
+//!   （`check_image_size::REQ9_IMAGE_SIZE_LIMIT_BYTES`）以内かを判定する
+//!   （`check_image_size::judge`）。`--limit-mb` は動作確認・段階導入のための
+//!   上書きであり、既定値を弱める運用は想定しない。CI ワークフロー
+//!   （`.github/workflows/image-size.yml`）はルート `Dockerfile`
+//!   （TASK-9.3a／イシュー #102）を `docker build` した結果を本サブコマンドに渡す
+//!   契約で、Dockerfile 未マージの間は意図的に計測失敗＝fail-closed で FAIL する。
+//!   CLI 契約の回帰テストは `xtask/tests/cli_check_image_size.rs`。
 //!
 //! `core` / `interactive` と異なりプロセス起動（`std::process::Command`）を行うが、
 //! `unsafe` は使わない（REQ-2 は core/interactive 限定だが、xtask でも forbid する。
@@ -25,6 +56,8 @@
 #![forbid(unsafe_code)]
 
 mod check_deps;
+mod check_image_size;
+mod check_loc;
 mod json;
 mod list_build_scripts;
 
@@ -35,6 +68,9 @@ fn main() -> ExitCode {
     match args.get(1).map(String::as_str) {
         Some("check-deps") => run_check_deps(&args[2..]),
         Some("list-build-scripts") => run_list_build_scripts(&args[2..]),
+        Some("check-core-deps") => run_check_core_deps(&args[2..]),
+        Some("check-loc") => run_check_loc(&args[2..]),
+        Some("check-image-size") => run_check_image_size(&args[2..]),
         Some(other) => {
             eprintln!("xtask: unknown subcommand `{other}`");
             print_usage();
@@ -62,6 +98,19 @@ fn print_usage() {
     eprintln!("  list-build-scripts --package <NAME> [--package <NAME> ...]");
     eprintln!("      List crates with a custom build script (build.rs) reachable from");
     eprintln!("      each package (REQ-3 supply-chain audit visibility).");
+    eprintln!("  check-core-deps");
+    eprintln!("      Enforce zero external dependencies (normal/dev/build) for the core");
+    eprintln!("      crates listed in check_deps::ZERO_DEP_CRATES (REQ-3 acceptance");
+    eprintln!("      criterion 1, issue #154). Takes no arguments by design.");
+    eprintln!("  check-loc");
+    eprintln!("      Measure effective LOC (comments and blank lines excluded) for the");
+    eprintln!("      files in check_loc::LOC_CHECK_TARGETS and judge them against");
+    eprintln!("      check_loc::MAX_EFFECTIVE_LOC (REQ-8 acceptance criterion, issue #62).");
+    eprintln!("      Takes no arguments by design.");
+    eprintln!("  check-image-size --image <TAG> [--limit-mb <N>]");
+    eprintln!("      Measure the uncompressed size of a docker image (via `docker image");
+    eprintln!("      inspect`) and judge it against the REQ-9 limit (default 50MB, issue");
+    eprintln!("      #103). `--limit-mb` overrides the default for verification only.");
 }
 
 /// `check-deps` サブコマンド: `--package <NAME>` を 1 つ以上受け取り、
@@ -116,6 +165,61 @@ fn run_check_deps(args: &[String]) -> ExitCode {
             }
             Err(e) => {
                 eprintln!("xtask check-deps: failed to measure `{name}`: {e}");
+                had_failure = true;
+            }
+        }
+    }
+
+    if had_failure {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+/// `check-core-deps` サブコマンド（イシュー #154, REQ-3 受け入れ基準 1）: 引数を
+/// 一切取らない。`check_deps::ZERO_DEP_CRATES` と実 workspace メンバーの積集合
+/// （`check_deps::fetch_zero_dep_targets`）について、それぞれ `Normal`/`Dev`/`Build`
+/// すべての辺を辿り、workspace 内の第一者パッケージ（path dependency）を除いた
+/// 依存パッケージ数を `check_deps::measure_external_only` で計測し、1 件でも
+/// あれば Fail とする（`check_deps::judge_zero`）。
+///
+/// 判定を弱める CLI 引数・環境変数は意図的に設けない（不明な引数は終了コード 2）。
+/// 積集合が空（`ZERO_DEP_CRATES` の定数値が陳腐化し workspace に 1 件も実在しない）
+/// 場合・計測失敗・上限超過のいずれも終了コード 1（fail-closed）とする。
+fn run_check_core_deps(args: &[String]) -> ExitCode {
+    if let Some(unknown) = args.first() {
+        eprintln!("xtask check-core-deps: unknown argument `{unknown}` (this subcommand takes no arguments)");
+        return ExitCode::from(2);
+    }
+
+    let (graph, targets, workspace_members) = match check_deps::fetch_zero_dep_targets() {
+        Ok(triple) => triple,
+        Err(e) => {
+            eprintln!("xtask check-core-deps: failed to resolve zero-dep targets: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let mut had_failure = false;
+    for name in targets {
+        let kinds = [
+            check_deps::DepKind::Normal,
+            check_deps::DepKind::Dev,
+            check_deps::DepKind::Build,
+        ];
+        // 到達可能パッケージから workspace 内の第一者パッケージ（path dependency）を
+        // 除外し、真の外部依存のみを数える（reviewer 指摘: イシュー #154）。
+        match check_deps::measure_external_only(&graph, &name, &kinds, &workspace_members) {
+            Ok(m) => {
+                let check_result = check_deps::judge_zero(m.into());
+                print!("{}", check_deps::format_zero_report(&check_result));
+                if !check_result.is_pass() {
+                    had_failure = true;
+                }
+            }
+            Err(e) => {
+                eprintln!("xtask check-core-deps: failed to measure `{name}`: {e}");
                 had_failure = true;
             }
         }
@@ -187,5 +291,123 @@ fn run_list_build_scripts(args: &[String]) -> ExitCode {
         ExitCode::FAILURE
     } else {
         ExitCode::SUCCESS
+    }
+}
+
+/// `check-loc` サブコマンド（TASK-8.2b, イシュー #62, REQ-8 受け入れ基準）: 引数を
+/// 一切取らない。`check_loc::LOC_CHECK_TARGETS` に列挙されたファイルそれぞれについて
+/// 実効 LOC（コメント・空行を除く）を `check_loc::measure_file` で計測し、
+/// `check_loc::MAX_EFFECTIVE_LOC`（10 行）以内かを `check_loc::judge` で判定する。
+///
+/// 判定を弱める CLI 引数・環境変数は意図的に設けない（不明な引数は終了コード 2）。
+/// 対象ファイルの不在・読み取り失敗・しきい値超過のいずれも終了コード 1
+/// （fail-closed）とする。TASK-8.2a（イシュー #61）がマージされ
+/// `static/view-transitions.js` が存在するまでは、本サブコマンドは
+/// ファイル不在により意図的に FAIL する。
+fn run_check_loc(args: &[String]) -> ExitCode {
+    if let Some(unknown) = args.first() {
+        eprintln!(
+            "xtask check-loc: unknown argument `{unknown}` (this subcommand takes no arguments)"
+        );
+        return ExitCode::from(2);
+    }
+
+    let mut had_failure = false;
+    for &file in check_loc::LOC_CHECK_TARGETS {
+        match check_loc::measure_file(file) {
+            Ok(measurement) => {
+                let check_result = check_loc::judge(measurement);
+                print!("{}", check_loc::format_loc_report(&check_result));
+                if !check_result.is_pass() {
+                    had_failure = true;
+                }
+            }
+            Err(e) => {
+                eprintln!("xtask check-loc: failed to measure `{file}`: {e}");
+                had_failure = true;
+            }
+        }
+    }
+
+    if had_failure {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+/// `check-image-size` サブコマンド（TASK-9.3b, イシュー #103, REQ-9 受け入れ基準）:
+/// `--image <TAG>`（必須）で指定した docker イメージの非圧縮サイズを
+/// `docker image inspect` で計測し、`--limit-mb <N>`（任意、既定 50）に照らして
+/// 判定する。上限の既定値は `check_image_size::REQ9_IMAGE_SIZE_LIMIT_BYTES`。
+///
+/// `--limit-mb` は動作確認・段階導入向けの上書きであり、CI
+/// （`.github/workflows/image-size.yml`）は既定値のまま呼び出す契約とする
+/// （REQ-9 の上限を弱める運用は想定しない）。
+///
+/// 引数不備は終了コード 2、計測失敗（docker 不在・`inspect` 失敗・パース失敗）・
+/// 上限超過はいずれも終了コード 1（fail-closed）とする。ルート `Dockerfile`
+/// （TASK-9.3a／イシュー #102）が未マージの間は、呼び出し元が存在しないイメージ名を
+/// 渡すことになるため計測失敗＝FAIL が意図した挙動になる。
+fn run_check_image_size(args: &[String]) -> ExitCode {
+    let mut image: Option<String> = None;
+    let mut limit_mb: Option<u64> = None;
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--image" => {
+                let Some(value) = args.get(i + 1) else {
+                    eprintln!("xtask check-image-size: `--image` requires a value");
+                    return ExitCode::from(2);
+                };
+                image = Some(value.clone());
+                i += 2;
+            }
+            "--limit-mb" => {
+                let Some(value) = args.get(i + 1) else {
+                    eprintln!("xtask check-image-size: `--limit-mb` requires a value");
+                    return ExitCode::from(2);
+                };
+                let Ok(parsed) = value.parse::<u64>() else {
+                    eprintln!("xtask check-image-size: `--limit-mb` must be a non-negative integer, got `{value}`");
+                    return ExitCode::from(2);
+                };
+                limit_mb = Some(parsed);
+                i += 2;
+            }
+            other => {
+                eprintln!("xtask check-image-size: unknown argument `{other}`");
+                return ExitCode::from(2);
+            }
+        }
+    }
+
+    let Some(image) = image else {
+        eprintln!("xtask check-image-size: `--image <TAG>` is required");
+        return ExitCode::from(2);
+    };
+
+    // 10 進 MB（docker CLI の表示単位と一致させる。check_image_size モジュールの
+    // rustdoc 参照）。`--limit-mb` 未指定時は REQ-9 既定値をそのまま使う。
+    let limit_bytes = match limit_mb {
+        Some(mb) => mb.saturating_mul(1_000_000),
+        None => check_image_size::REQ9_IMAGE_SIZE_LIMIT_BYTES,
+    };
+
+    let measurement = match check_image_size::measure(&image) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("xtask check-image-size: failed to measure `{image}`: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let check_result = check_image_size::judge(measurement, limit_bytes);
+    print!("{}", check_image_size::format_report(&check_result));
+
+    if check_result.is_pass() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
     }
 }

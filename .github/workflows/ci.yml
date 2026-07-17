@@ -25,6 +25,15 @@ jobs:
   forbid-unsafe:
     name: Forbid unsafe in core crates
     runs-on: self-hosted
+    # TASK-10.2b（#110）: dist-server/build.rs は既定で WASM ビルドステージ
+    # （ネスト cargo build + wasm-bindgen）を実行するが、本ジョブは
+    # (a) self-hosted のためツールチェーン（wasm32 target・wasm-bindgen-cli）が
+    #     常設されている保証がなく、(b) 下記 `RUSTFLAGS='-F unsafe_code'` を
+    #     ネストビルドへ伝播させたくない（wasm-bindgen/web-sys の FFI 境界が
+    #     正当に使う unsafe と衝突する）ため、本ジョブに限り明示オプトアウトする。
+    # 統合ビルドの実証は `test` ジョブが担う。
+    env:
+      RWS_WASM_BUILD: "0"
     steps:
       - name: Checkout
         # actions/checkout v6.0.3（update-external.yml と同一 SHA に固定）
@@ -39,7 +48,7 @@ jobs:
 
       # NOTE: -F (forbid) はソース側の #[allow(unsafe_code)] で上書きできないため、
       # 属性が誤って削除された場合の独立した防御線になる。
-      # 現メンバー（core・xtask）はいずれも safe 域のため workspace 全体に適用可能。
+      # 現メンバー（core・app・xtask）はいずれも safe 域のため workspace 全体に適用可能。
       # wasm-client/wasm-full/wasm-thin 等の FFI 境界クレートが追加された場合は
       # `-p` 指定で safe 域クレートのみへ絞り込み、
       # core/tests/unsafe_boundary.rs の UNSAFE_ALLOWED_MEMBERS と同期して更新すること。
@@ -68,5 +77,425 @@ jobs:
         # SSR/SSG/CSR 経路の XSS 回帰テストを独立ステップとして可視化する。
         run: cargo test -p rws-core --test xss_escape --locked
 
+      # TASK-10.2b（#110、REQ-10 条件 3）: dist-server/build.rs が既定で実行する
+      # WASM ビルドステージ（ネスト `cargo build --target wasm32-unknown-unknown`
+      # + `wasm-bindgen`）に必要なツールチェーンを導入する。本ジョブに限り
+      # オプトアウトせず統合ビルドをそのまま実行することで、単一 `cargo build`
+      # からネイティブ + WASM 双方の成果物が生成されることを CI で実証する。
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      # wasm-bindgen-cli は dist-server/build.rs が Cargo.lock 解決済み
+      # wasm-bindgen クレートとのバージョン完全一致を要求する（バージョン
+      # 不一致の CLI で生成した JS グルーコードが壊れる既知の制約への対策、
+      # `dist-server/build.rs` の expected_wasm_bindgen_version 参照）。
+      # ここで固定するバージョンは Cargo.lock の wasm-bindgen と一致させ、
+      # バージョンアップ時は両方を合わせて更新すること。
+      # バージョン固定 + SHA256 チェックサム検証付きプリビルトバイナリの導入
+      # （browser-test/perf-harness ジョブの wasm-pack 導入と同一パターン、
+      # サプライチェーン対策）。
+      - name: Install wasm-bindgen-cli (pinned + checksum-verified)
+        run: |
+          set -euo pipefail
+          WASM_BINDGEN_VERSION="0.2.126"
+          WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
+          ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
+          curl -sSfL -o "${ARCHIVE}" "${URL}"
+          echo "${WASM_BINDGEN_SHA256}  ${ARCHIVE}" | sha256sum -c -
+          tar xzf "${ARCHIVE}"
+          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" /usr/local/bin/wasm-bindgen
+
       - name: Workspace tests
         run: cargo test --workspace --locked
+
+  # TASK-10.1a（#106）: rws-dist-server の開発 / 本番モード切り替え
+  # （`dist-server/src/assets.rs` の `AssetMode`）を CI で両モードとも検証する。
+  #
+  # 上記 `test` ジョブの `cargo test --workspace` はデフォルトの debug ビルド
+  # （= DevFilesystem モード、`static/` からのファイルシステム読み込み経路）
+  # のみをカバーする。本ジョブは `--features force-embed` を付与し、debug
+  # ビルドのまま Embedded モード（本番相当の埋め込みテーブル検索経路）を
+  # 強制して検証する（PoC-4 検証方法 5 の CI 化。`Cargo.toml` の
+  # `force-embed` フィーチャーコメント参照）。
+  dist-server-embedded-mode:
+    name: rws-dist-server embedded mode (force-embed)
+    runs-on: ubuntu-latest
+    # TASK-10.2b（#110）: 本ジョブの目的は force-embed フィーチャーによる
+    # AssetMode 切り替え検証（static/ 埋め込みテーブル経路）であり、WASM
+    # ビルドステージの統合検証は `test` ジョブが専任する。責務を分離し
+    # 本ジョブの実行時間・依存ツールチェーンを増やさないためオプトアウトする。
+    env:
+      RWS_WASM_BUILD: "0"
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。
+        # docs/spec サブモジュールはテストに不要のため取得しない。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+
+      - name: rws-dist-server tests (force-embed, Embedded mode)
+        run: cargo test -p rws-dist-server --features force-embed --locked
+
+  # TASK-6.3a（#65）: 実ブラウザ（headless Chromium）でのハイドレーション検証環境。
+  # docs/spec/05-tasks.md TASK-6.3 が指名する wasm-pack test --headless --chrome を
+  # ubuntu-latest（Chrome/chromedriver プリインストール済み）で実行するジョブ。
+  #
+  # wasm-client/（rws-wasm-client）は TASK-6.2b（#48）でクレート新設予定だが本コミット時点
+  # では未作成（#48/#49 は open）。本イシューはクレート新設をスコープに含めない
+  # （docs/hydration-api.md 第 5 節の引き継ぎ表・#48 との責務混線回避のため）。
+  # そのため各ステップは check-wasm-client の存在判定結果でガードし、
+  # wasm-client/ が存在しない間は環境整備のみ・実行はスキップする。
+  # #48/#49 マージ後、後続タスク（TASK-6.3b #66 の hydration_browser.rs 等）が
+  # 追加された時点で本ジョブは自動的に有効化される。
+  browser-test:
+    name: Browser tests (wasm-pack --headless --chrome)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2（test ジョブと同一 SHA 固定）。
+        # docs/spec サブモジュールはテストに不要のため取得しない。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+
+      # wasm-client/ ディレクトリ存在ガード（TASK-6.2b #48 完了までの直列化措置）。
+      # 未作成の間は後続ステップをすべてスキップし、ジョブは空実行で成功扱いとする。
+      - name: Check wasm-client crate existence
+        id: check
+        run: |
+          if [ -f "wasm-client/Cargo.toml" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::wasm-client/ crate not found yet (blocked on TASK-6.2b #48). Skipping browser tests."
+          fi
+
+      - name: Add wasm32 target
+        if: steps.check.outputs.exists == 'true'
+        run: rustup target add wasm32-unknown-unknown
+
+      # wasm-pack はバージョン固定 + SHA256 チェックサム検証付きで導入する
+      # （実行時の chromedriver 自動ダウンロードと同様、未検証バイナリ取得を避けるサプライ
+      # チェーン対策）。バージョンアップ時はチェックサムも合わせて更新すること。
+      - name: Install wasm-pack (pinned + checksum-verified)
+        if: steps.check.outputs.exists == 'true'
+        run: |
+          set -euo pipefail
+          WASM_PACK_VERSION="0.13.1"
+          WASM_PACK_SHA256="c539d91ccab2591a7e975bcf82c82e1911b03335c80aa83d67ad25ed2ad06539"
+          ARCHIVE="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${ARCHIVE}"
+          curl -sSfL -o "${ARCHIVE}" "${URL}"
+          echo "${WASM_PACK_SHA256}  ${ARCHIVE}" | sha256sum -c -
+          tar xzf "${ARCHIVE}"
+          install -m 755 "wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" /usr/local/bin/wasm-pack
+
+      # CHROMEWEBDRIVER はランナー内蔵の chromedriver へのパスを指す（GitHub ホスト
+      # ランナーの環境変数）。wasm-pack による実行時の chromedriver 自動ダウンロードを
+      # 防ぎ、ランナーに事前導入済みの検証済みバイナリのみを使用する。
+      - name: Run browser tests (headless Chrome)
+        if: steps.check.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-client
+
+  # TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）: 同一文書内更新向け
+  # ラッパー関数（`static/view-transitions.js` の `withViewTransition`、
+  # TASK-8.2a／イシュー #61）の実効 LOC（コメント・空行を除く）が
+  # 10 行以内であることを機械的に強制するジョブ。
+  #
+  # しきい値運用の原則は deps-check ジョブと同一: しきい値・対象ファイルの正は
+  # xtask/src/check_loc.rs の MAX_EFFECTIVE_LOC（10）/ LOC_CHECK_TARGETS 定数のみ。
+  # このジョブには緩和用の input・環境変数・continue-on-error を一切設けない
+  # （迂回経路を作らない設計。しきい値変更はコード定数の変更 = レビュー必須の PR のみ）。
+  #
+  # fail-closed: 対象ファイル（static/view-transitions.js）の不在・読み取り失敗も
+  # しきい値超過と同様に終了コード 1 として扱う（xtask/src/check_loc.rs 参照）。
+  # そのため TASK-8.2a（イシュー #61）のマージ前にこのジョブが実行されると
+  # 意図的に FAIL する。
+  # TASK-11.5a（#86）: 実ブラウザ性能計測ハーネス（wasm-full/tests/perf_browser.rs）の
+  # スモーク実行ジョブ。TASK-6.3a（#65）の browser-test ジョブと同じ環境構築
+  # パターン（wasm32 target・wasm-pack バージョン固定＋チェックサム検証・ランナー
+  # 内蔵 chromedriver 明示指定）を踏襲するが、対象クレート（wasm-client と
+  # wasm-full）が異なり、browser-test ジョブは TASK-11.2d（#77）が担当する
+  # wasm-full 存在ガード追加のスコープであるため、コンフリクトを避けて独立
+  # ジョブとして追加する（`docs/perf-browser-harness.md` 引き継ぎ表参照）。
+  #
+  # 本ジョブの役割は「ハーネス自己検証テストの通過確認（スモーク実行）」のみ
+  # であり、REQ-11 の性能予算（300ms/16ms）に対する正式判定は行わない
+  # （しきい値アサーションの有効化は TASK-11.5b・#87 のスコープ）。
+  perf-harness:
+    name: Perf browser harness smoke (wasm-pack --headless --chrome)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。
+        # docs/spec サブモジュールはテストに不要のため取得しない。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+
+      # wasm-full/tests/perf_browser.rs 存在ガード（TASK-6.3a #65 のガード
+      # パターン踏襲）。並列実行中の他イシューによる巻き戻り等、想定外の理由で
+      # ファイルが存在しない場合でもジョブを失敗させず空実行で成功扱いとする。
+      - name: Check perf_browser.rs harness existence
+        id: check
+        run: |
+          if [ -f "wasm-full/tests/perf_browser.rs" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::wasm-full/tests/perf_browser.rs not found. Skipping perf harness smoke run."
+          fi
+
+      - name: Add wasm32 target
+        if: steps.check.outputs.exists == 'true'
+        run: rustup target add wasm32-unknown-unknown
+
+      # wasm-pack はバージョン固定 + SHA256 チェックサム検証付きで導入する
+      # （browser-test ジョブと同一バージョン・同一チェックサム。実行時の
+      # chromedriver 自動ダウンロードと同様、未検証バイナリ取得を避ける
+      # サプライチェーン対策）。
+      - name: Install wasm-pack (pinned + checksum-verified)
+        if: steps.check.outputs.exists == 'true'
+        run: |
+          set -euo pipefail
+          WASM_PACK_VERSION="0.13.1"
+          WASM_PACK_SHA256="c539d91ccab2591a7e975bcf82c82e1911b03335c80aa83d67ad25ed2ad06539"
+          ARCHIVE="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${ARCHIVE}"
+          curl -sSfL -o "${ARCHIVE}" "${URL}"
+          echo "${WASM_PACK_SHA256}  ${ARCHIVE}" | sha256sum -c -
+          tar xzf "${ARCHIVE}"
+          install -m 755 "wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" /usr/local/bin/wasm-pack
+
+      # CHROMEWEBDRIVER はランナー内蔵の chromedriver へのパスを指す（GitHub ホスト
+      # ランナーの環境変数）。wasm-pack による実行時の chromedriver 自動ダウンロードを
+      # 防ぎ、ランナーに事前導入済みの検証済みバイナリのみを使用する。
+      # `-- --nocapture` を付与しないと、テストが成功した場合に libtest が
+      # console 出力（`perf-browser:` サマリ行）を握りつぶすため、次ステップの
+      # 転記が常に「no summary line found」になる（出力契約が成立しない）。
+      - name: Run perf harness smoke (headless Chrome)
+        if: steps.check.outputs.exists == 'true'
+        run: |
+          set -o pipefail
+          CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-full --test perf_browser -- --nocapture 2>&1 | tee perf-harness.log
+
+      - name: Publish perf-harness summary
+        if: always() && steps.check.outputs.exists == 'true'
+        # perf_browser.rs の 1 行サマリ契約
+        # 「perf-browser: metric=<name> samples=<n> mean_ms=<x> p95_ms=<x> max_ms=<x>」を
+        # Step Summary に転記する（loc-check ジョブのパターン踏襲）。この契約は
+        # perf_browser.rs 内の format_summary_line テストで固定される。
+        run: |
+          {
+            echo '## perf-harness smoke (TASK-11.5a, issue #86)'
+            echo '```'
+            grep '^perf-browser:' perf-harness.log || echo 'perf-browser: no summary line found'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # TASK-1.3b（#92、親 #90、REQ-1）: WASM 経路（イベント処理・DOM 更新）の
+  # XSS 回帰テスト（wasm-full/tests/xss_escape_wasm.rs）を実ブラウザ
+  # （headless Chromium）で実行するジョブ。browser-test/perf-harness ジョブと
+  # 同じ環境構築パターン（wasm32 target・wasm-pack バージョン固定＋チェックサム
+  # 検証・ランナー内蔵 chromedriver 明示指定）を踏襲するが、対象クレート
+  # （wasm-full）・対象テスト（xss_escape_wasm）が異なるため独立ジョブとする。
+  #
+  # browser-test ジョブ（wasm-client 対象）への統合や wasm-full 存在ガードの
+  # 追加は TASK-11.2d（#77）のスコープと明記されており、並列進行中の #77 との
+  # コンフリクト・責務混線を避けるため本ジョブは独立させる（実装計画 §5）。
+  #
+  # ファイル自体が本 PR で新規追加されるため、他ジョブのような存在ガードは
+  # 設けない（追加と同一コミットで即時有効化される）。
+  xss-wasm-test:
+    name: WASM XSS escape regression (wasm-pack --headless --chrome)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。
+        # docs/spec サブモジュールはテストに不要のため取得しない。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      # wasm-pack はバージョン固定 + SHA256 チェックサム検証付きで導入する
+      # （browser-test/perf-harness ジョブと同一バージョン・同一チェックサム。
+      # 実行時の chromedriver 自動ダウンロードと同様、未検証バイナリ取得を
+      # 避けるサプライチェーン対策）。
+      - name: Install wasm-pack (pinned + checksum-verified)
+        run: |
+          set -euo pipefail
+          WASM_PACK_VERSION="0.13.1"
+          WASM_PACK_SHA256="c539d91ccab2591a7e975bcf82c82e1911b03335c80aa83d67ad25ed2ad06539"
+          ARCHIVE="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${ARCHIVE}"
+          curl -sSfL -o "${ARCHIVE}" "${URL}"
+          echo "${WASM_PACK_SHA256}  ${ARCHIVE}" | sha256sum -c -
+          tar xzf "${ARCHIVE}"
+          install -m 755 "wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" /usr/local/bin/wasm-pack
+
+      # CHROMEWEBDRIVER はランナー内蔵の chromedriver へのパスを指す（GitHub
+      # ホストランナーの環境変数）。wasm-pack による実行時の chromedriver
+      # 自動ダウンロードを防ぎ、ランナーに事前導入済みの検証済みバイナリの
+      # みを使用する。
+      - name: Run WASM XSS escape regression (headless Chrome)
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-full --test xss_escape_wasm
+
+  # TASK-12.2c（#124、REQ-12 受け入れ基準 2）: install.sh の --ignore-scripts
+  # 強制（前段、TASK-12.1a・#38・マージ済み）と check_static_only.py の
+  # 静的アセット判定（後段ゲート、TASK-12.2b・#123）の多層防御を CI で
+  # 回帰確認する。本ジョブは緩和用 input・環境変数・continue-on-error を
+  # 一切設けない（loc-check ジョブと同一の迂回経路禁止原則）。
+  #
+  # test_install.sh（TASK-12.1a の成果物）はこれまで CI 未統合だったため、
+  # 本ジョブで無条件（fail-closed）に実行する。
+  #
+  # check_static_only.py 本体は TASK-12.2b（#123、並列進行中）のスコープで
+  # あり本コミット時点では未マージ。browser-test/perf-harness ジョブと同型の
+  # 存在ガードパターンを踏襲し、未作成の間は該当ステップのみスキップして
+  # ジョブ自体は成功扱いとする（#123 完了までの直列化措置）。#123 マージ後、
+  # このガードは自動的に無効化されテストが有効化される。ガード撤去
+  # （fail-closed 化）は #123 マージ後のフォローアップとして扱う。
+  npm-asset-build:
+    name: NPM static asset gate (REQ-12)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。
+        # docs/spec サブモジュールは本ジョブに不要のため取得しない。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+
+      - name: install.sh offline regression tests (fail-closed)
+        run: bash tools/npm-asset-build/tests/test_install.sh
+
+      # check_static_only.py 存在ガード（TASK-6.3a #65 browser-test ジョブの
+      # パターン踏襲）。test_check_static_only.py 内部の unittest.SkipTest も
+      # 同一パス（tools/npm-asset-build/check_static_only.py）を判定条件と
+      # しており、本ステップと同時に有効化される。
+      - name: Check check_static_only.py existence
+        id: check
+        run: |
+          if [ -f "tools/npm-asset-build/check_static_only.py" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::tools/npm-asset-build/check_static_only.py not found yet (blocked on TASK-12.2b #123). Fixture tests will report as skipped (exit 0)."
+          fi
+
+      - name: check_static_only.py fixture regression tests
+        # スクリプト不在時も test_check_static_only.py 自体は実行する
+        # （内部の unittest.SkipTest により全件 skip・exit 0 となるため、
+        # ジョブとしては空実行相当で成功扱いになる。存在ガードの通知は
+        # 上記ステップの ::notice が担う）。
+        run: python3 tools/npm-asset-build/tests/test_check_static_only.py -v
+
+  # TASK-10.4a（イシュー #119、REQ-10）: 本番ビルドのアセット変更反映
+  # （差分ビルド）が 5 秒以内であることを継続計測するジョブ。
+  # `dist-server/benches/rebuild_latency.rs`（judge/format_summary_line は
+  # `dist-server/src/bench_support.rs` に分離しユニットテストで書式契約を
+  # 固定）を実行し、PoC-4 実測（0.571〜0.597 秒）を基準とした回帰を検知する。
+  #
+  # `test` ジョブと同じ環境構築パターン（wasm32 target・wasm-bindgen-cli
+  # バージョン固定 + SHA256 チェックサム検証）を踏襲する。本ベンチが起動する
+  # ネスト `cargo build -p rws-dist-server` は `dist-server/build.rs` の
+  # WASM ビルドステージ（既定有効）を経由するため、本ジョブは
+  # オプトアウトせず統合ビルドをそのまま計測に含める。
+  #
+  # しきい値運用の原則は deps-check/loc-check ジョブと同一: しきい値の正は
+  # `dist-server/src/bench_support.rs` の LIMIT_SECONDS（5.0）定数のみ。
+  # 緩和用の input・環境変数・continue-on-error は設けない。
+  rebuild-latency:
+    name: REQ-10 rebuild latency (5s limit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2（test ジョブと同一 SHA 固定）。
+        # docs/spec サブモジュールは本ジョブの計測に不要のため取得しない。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      # wasm-bindgen-cli はバージョン固定 + SHA256 チェックサム検証付きで
+      # 導入する（`test` ジョブと同一バージョン・同一チェックサム。
+      # `dist-server/build.rs` の expected_wasm_bindgen_version が Cargo.lock
+      # 解決済みバージョンとの完全一致を要求するため、更新時は両方を
+      # 合わせて更新すること）。
+      - name: Install wasm-bindgen-cli (pinned + checksum-verified)
+        run: |
+          set -euo pipefail
+          WASM_BINDGEN_VERSION="0.2.126"
+          WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
+          ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
+          curl -sSfL -o "${ARCHIVE}" "${URL}"
+          echo "${WASM_BINDGEN_SHA256}  ${ARCHIVE}" | sha256sum -c -
+          tar xzf "${ARCHIVE}"
+          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" /usr/local/bin/wasm-bindgen
+
+      - name: Run rebuild_latency bench
+        # xtask 系ジョブと同一の理由（子プロセス終了コード伝播・Cargo.lock
+        # drift 防止）で pipefail・tee・--locked を用いる。
+        run: |
+          set -o pipefail
+          cargo bench --locked -p rws-dist-server --bench rebuild_latency | tee rebuild-latency.log
+
+      - name: Publish rebuild-latency summary
+        if: always()
+        # format_summary_line（dist-server/src/bench_support.rs）の 1 行
+        # サマリ契約「rebuild-latency: samples=<n> s1=<x> ... max_s=<x>
+        # limit_s=<x> result=<PASS|FAIL>」を Step Summary に転記する
+        # （deps-check/loc-check ジョブと同一パターン）。
+        run: |
+          {
+            echo '## rebuild-latency (REQ-10, issue #119)'
+            echo '```'
+            grep '^rebuild-latency:' rebuild-latency.log || echo 'rebuild-latency: no summary line found'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  loc-check:
+    name: REQ-8 view-transitions.js effective LOC limit (10 lines)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2（同一ファイル内の test ジョブと同一 SHA に固定）。
+        # docs/spec submodule は本ジョブの計測に不要なため取得しない。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+
+      - name: Run xtask check-loc
+        # xtask check-loc の終了コードをそのまま CI の成否に伝播させる（fail-closed）。
+        # set -o pipefail を明示し、tee 経由でも cargo run の終了コードが失われないようにする。
+        # --locked はこの外側の cargo run が Cargo.lock を書き換えないことを保証する
+        # （deps-check ジョブと同一の理由）。
+        run: |
+          set -o pipefail
+          cargo run --locked -p xtask -- check-loc | tee loc-check.log
+
+      - name: Publish loc-check summary
+        if: always()
+        # format_loc_report（xtask/src/check_loc.rs）の 1 行サマリ契約
+        # 「loc-check: file=<path> effective_loc=<n>/<limit> result=<PASS|FAIL>」を
+        # Step Summary に転記する。この契約はテストで固定される
+        # （xtask/tests/cli_check_loc.rs）。
+        run: |
+          {
+            echo '## loc-check (REQ-8, issue #62)'
+            echo '```'
+            grep '^loc-check:' loc-check.log || echo 'loc-check: no summary line found'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

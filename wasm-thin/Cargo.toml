@@ -1,0 +1,36 @@
+[package]
+name = "rws-wasm-thin"
+version = "0.1.0"
+edition = "2021"
+description = "rws-wasm-thin: REQ-11 の薄い JS グルー方式（オプトイン）向け WASM ランタイム。イベント配線・DOM 更新は JS グルーに委ね、WASM 側は文字列 in・文字列 out の純粋計算（状態遷移＋既定エスケープ済み HTML 描画）に限定する。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# TASK-11.3a（#79）時点で本クレートは新規作成。
+# `docs/unsafe-boundary.md` 第 2 節のポリシー: 自作コードは safe Rust のみとし、
+# `unsafe` は wasm-bindgen の FFI 境界（依存クレート内部・自動生成コード）に
+# 限定して許容する。本クレートは `wasm-full` と異なり web-sys に依存しない
+# （DOM 操作は JS グルー側の責務であり、WASM 側は文字列計算のみを担う設計、
+# 本タスクの実装計画 第 3 節参照）。
+#
+# 依存追加は事前承認必須（.claude/rules/coding-rust.md, security.md）。
+# wasm-bindgen は `wasm-full`（#75）導入時に承認済みの同一バージョン系列
+# （"0.2"）を共有するため、Cargo.lock に新規外部パッケージは増えない
+# （PR 本文に `git diff Cargo.lock` の確認結果を記録する）。
+#
+# rws-core（path）は通常依存として追加する: `ThinRuntime::html`/`apply` が
+# `rws_interactive::Component::view` の戻り値（`rws_core::Node`）を
+# `rws_core::render()`（既定エスケープ）に通して HTML 文字列を組み立てる
+# 責務を本クレート自身が持つため（`wasm-full` は DOM 差分更新層 #76/#77 が
+# 未実装のため render 呼び出しをまだ持たないが、本クレートは JS グルーへ
+# 文字列を直接返す設計であり render 呼び出しが通常経路に含まれる。
+# `interactive/Cargo.toml` が rws-core を通常依存にしているのと同じ位置づけ）。
+# 新規外部パッケージではなく既存のワークスペース内 path 依存であるため、
+# 依存グラフ上限（REQ-3）・Cargo.lock への影響はない。
+[dependencies]
+rws-interactive = { path = "../interactive" }
+rws-core = { path = "../core" }
+wasm-bindgen = "0.2"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
