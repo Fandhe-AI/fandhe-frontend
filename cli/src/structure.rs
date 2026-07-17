@@ -493,6 +493,19 @@ fn parse_directory_table(
     })?;
     // `crate` はキー省略可（`static` 等クレートを持たないディレクトリ）。
     // `docs/structure-manifest.md` 2.2.2 節: 空文字列表現は廃止し「キー省略」に統一。
+    // `crate = ""` はスキーマ上非許可（キー省略が正）のため、ここで明示的に拒否する。
+    // 拒否しないまま通すと、後段の workspace-member 突き合わせ（main.rs の
+    // `check_crate_and_dependency_consistency`）まで不正なマニフェストが素通りし、
+    // 曖昧な失敗（空文字列に一致する workspace member は存在しないため誤検出は防げるが、
+    // 意図が不明瞭なまま検証を通過してしまう）につながる
+    // （レビュー指摘 #127: 空 crate 文字列を拒否するセマンティックチェックがなかった）。
+    if let Some(value) = table.iter().find(|(k, _)| k == "crate").map(|(_, v)| v) {
+        if value.as_str() == Some("") {
+            return Err(semantic_err(format!(
+                "`{context}.crate` must not be an empty string (omit the key instead)"
+            )));
+        }
+    }
     let crate_name = get_optional_str(table, "crate", &context)?.map(str::to_string);
     let description = get_str(table, "description", &context)?.to_string();
     let depends_on = get_optional_string_array(table, "depends_on", &context)?;
@@ -915,6 +928,27 @@ description = "desc"
 version = 1
 "#;
         assert!(parse(no_dirs).is_err());
+    }
+
+    /// レビュー指摘 #127: `crate = ""` はスキーマ上非許可（キー省略が正）だが、
+    /// `get_optional_str` 経由で `Some("")` へマッピングされるだけで拒否されて
+    /// いなかった。空文字列は明示的にセマンティックエラーとして拒否する。
+    #[test]
+    fn parse_rejects_empty_crate_string() {
+        let empty_crate = r#"
+[manifest]
+version = 1
+
+[directories.core]
+role = "core"
+crate = ""
+description = "desc"
+"#;
+        let result = parse(empty_crate);
+        assert!(
+            matches!(result, Err(StructureError::Semantic(_))),
+            "empty `crate` string must be rejected as a semantic error, got {result:?}"
+        );
     }
 
     #[test]

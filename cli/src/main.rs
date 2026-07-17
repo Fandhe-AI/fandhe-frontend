@@ -153,10 +153,30 @@ fn run_structure(args: &[String]) -> i32 {
             0
         }
         Err(e) => {
-            eprintln!("fw structure: failed to cross-check with cargo metadata: {e}");
+            for line in format_metadata_failure_report(&problems, &e.to_string()) {
+                eprintln!("{line}");
+            }
             1
         }
     }
+}
+
+/// `cargo metadata` 呼び出しが失敗した際に出力すべき行を組み立てる。
+///
+/// `cargo metadata` 呼び出し前に検出済みのディレクトリ欠落違反（`problems`）が
+/// metadata エラーの報告に置き換わって握りつぶされないよう、先行違反と metadata
+/// エラーの両方を必ず含めて返す（レビュー指摘 #127: Medium severity。fetch 失敗時に
+/// 先行違反が非表示になっていた）。純粋関数として切り出すことで、
+/// `eprintln!` の副作用なしに出力内容をテストできるようにしている。
+fn format_metadata_failure_report(problems: &[String], metadata_error: &str) -> Vec<String> {
+    let mut lines: Vec<String> = problems
+        .iter()
+        .map(|p| format!("fw structure: {p}"))
+        .collect();
+    lines.push(format!(
+        "fw structure: failed to cross-check with cargo metadata: {metadata_error}"
+    ));
+    lines
 }
 
 /// `crate` 宣言の実在確認と、`depends_on` 宣言 vs `cargo metadata` の実 path 依存の
@@ -230,9 +250,17 @@ fn collect_routes(
         return Vec::new();
     };
     // extractor は現時点で `rws-router-v1` のみ対応（`structure.toml` の
-    // セマンティック検証では自由文字列を許容しているが、未知の抽出器 ID は
-    // ここで黙って無視せず空結果に倒す。将来の抽出器追加時に個別対応する）。
+    // セマンティック検証では自由文字列を許容している）。未知の抽出器 ID を
+    // 空の成功結果へ黙って倒すと `fw structure` が exit 0 かつ
+    // `"routes":[]` を返してしまい、CI・AI 自己保守フックが誤設定・
+    // 非対応 extractor を「ルートなし」として誤って成功扱いする
+    // （レビュー指摘 #127: 本ファイル冒頭の「黙示的成功を返さない」契約に反する）。
+    // fail-closed のため problems に積んで非 0 終了させる。
     if routing.extractor != "rws-router-v1" {
+        problems.push(format!(
+            "routing.extractor `{}`: unknown extractor (expected `rws-router-v1`)",
+            routing.extractor
+        ));
         return Vec::new();
     }
     match routes::extract_routes(project_dir, &routing.definition_dir) {
@@ -369,6 +397,56 @@ mod tests {
             problems.len(),
             1,
             "extraction failure must be reported, not silently treated as zero routes"
+        );
+    }
+
+    /// レビュー指摘 #127: Medium severity。`cargo metadata` 呼び出し前に検出済みの
+    /// ディレクトリ欠落違反が、metadata 失敗時に出力から欠落していた
+    /// （metadata エラーのみが出力され、先行違反が握りつぶされていた）。
+    /// 両方が出力行に含まれることを確認する。
+    #[test]
+    fn format_metadata_failure_report_includes_prior_problems_and_metadata_error() {
+        let problems = vec!["directories.core: declared directory does not exist".to_string()];
+        let lines = format_metadata_failure_report(&problems, "cargo not found");
+
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].contains("directories.core: declared directory does not exist"));
+        assert!(lines[1].contains("failed to cross-check with cargo metadata: cargo not found"));
+    }
+
+    #[test]
+    fn format_metadata_failure_report_with_no_prior_problems_still_reports_metadata_error() {
+        let lines = format_metadata_failure_report(&[], "cargo not found");
+        assert_eq!(lines.len(), 1);
+        assert!(lines[0].contains("failed to cross-check with cargo metadata: cargo not found"));
+    }
+
+    /// fail-closed 回帰テスト: `routing.extractor` が `rws-router-v1` 以外の
+    /// 未知の値の場合、`"routes":[]` を伴う黙示的成功へ倒さず `problems` に
+    /// 積んで非 0 終了させること（レビュー指摘 #127: High severity。
+    /// 未対応 extractor が誤って成功扱いされ、CI・フックが誤設定を見逃す
+    /// リスクがあった）。
+    #[test]
+    fn collect_routes_reports_problem_for_unknown_extractor() {
+        let manifest = structure::StructureManifest {
+            version: 1,
+            directories: Vec::new(),
+            routing: Some(structure::RoutingConfig {
+                definition_dir: "app".to_string(),
+                extractor: "unknown-extractor-v9".to_string(),
+            }),
+        };
+        let project_dir = std::env::temp_dir().join("fw-collect-routes-unknown-extractor-test");
+        let _ = std::fs::create_dir_all(&project_dir);
+
+        let mut problems: Vec<String> = Vec::new();
+        let routes = collect_routes(&manifest, &project_dir, &mut problems);
+
+        assert!(routes.is_empty());
+        assert_eq!(
+            problems.len(),
+            1,
+            "unknown extractor must be reported as a problem, not treated as zero routes"
         );
     }
 
