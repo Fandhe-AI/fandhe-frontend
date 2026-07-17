@@ -235,6 +235,15 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-full --test runtime_browser
 
+      # TASK-11.4c（#84、親 #81）: read_hydration_attrs（実 DOM からの
+      # data-hydrate-* 属性列挙）の実ブラウザ統合テスト（wasm-full/tests/
+      # hydration_browser.rs）。runtime_browser ステップと同じ
+      # check-wasm-full 存在ガードを再利用し、新規ガードは追加しない
+      # （`docs/hydration-state-format.md` 第 6 節が引き継ぐ実ブラウザ検証）。
+      - name: Run wasm-full hydration browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-full --test hydration_browser
+
   # TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）: 同一文書内更新向け
   # ラッパー関数（`static/view-transitions.js` の `withViewTransition`、
   # TASK-8.2a／イシュー #61）の実効 LOC（コメント・空行を除く）が
