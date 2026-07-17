@@ -38,6 +38,17 @@
 //!   CLI 引数で差し替え不可。CLI 契約の回帰テストは
 //!   `xtask/tests/cli_check_loc.rs`。
 //!
+//! - `check-image-size --image <TAG> [--limit-mb <N>]`: TASK-9.3b（イシュー #103,
+//!   REQ-9 受け入れ基準）。`docker image inspect --format {{.Size}}` で対象イメージの
+//!   非圧縮サイズを計測し（`check_image_size` モジュールの `measure`）、既定 50MB
+//!   （`check_image_size::REQ9_IMAGE_SIZE_LIMIT_BYTES`）以内かを判定する
+//!   （`check_image_size::judge`）。`--limit-mb` は動作確認・段階導入のための
+//!   上書きであり、既定値を弱める運用は想定しない。CI ワークフロー
+//!   （`.github/workflows/image-size.yml`）はルート `Dockerfile`
+//!   （TASK-9.3a／イシュー #102）を `docker build` した結果を本サブコマンドに渡す
+//!   契約で、Dockerfile 未マージの間は意図的に計測失敗＝fail-closed で FAIL する。
+//!   CLI 契約の回帰テストは `xtask/tests/cli_check_image_size.rs`。
+//!
 //! `core` / `interactive` と異なりプロセス起動（`std::process::Command`）を行うが、
 //! `unsafe` は使わない（REQ-2 は core/interactive 限定だが、xtask でも forbid する。
 //! core/tests/unsafe_boundary.rs の WASM/FFI 境界許可リストにも含まれない）。
@@ -45,6 +56,7 @@
 #![forbid(unsafe_code)]
 
 mod check_deps;
+mod check_image_size;
 mod check_loc;
 mod json;
 mod list_build_scripts;
@@ -58,6 +70,7 @@ fn main() -> ExitCode {
         Some("list-build-scripts") => run_list_build_scripts(&args[2..]),
         Some("check-core-deps") => run_check_core_deps(&args[2..]),
         Some("check-loc") => run_check_loc(&args[2..]),
+        Some("check-image-size") => run_check_image_size(&args[2..]),
         Some(other) => {
             eprintln!("xtask: unknown subcommand `{other}`");
             print_usage();
@@ -94,6 +107,10 @@ fn print_usage() {
     eprintln!("      files in check_loc::LOC_CHECK_TARGETS and judge them against");
     eprintln!("      check_loc::MAX_EFFECTIVE_LOC (REQ-8 acceptance criterion, issue #62).");
     eprintln!("      Takes no arguments by design.");
+    eprintln!("  check-image-size --image <TAG> [--limit-mb <N>]");
+    eprintln!("      Measure the uncompressed size of a docker image (via `docker image");
+    eprintln!("      inspect`) and judge it against the REQ-9 limit (default 50MB, issue");
+    eprintln!("      #103). `--limit-mb` overrides the default for verification only.");
 }
 
 /// `check-deps` サブコマンド: `--package <NAME>` を 1 つ以上受け取り、
@@ -316,5 +333,81 @@ fn run_check_loc(args: &[String]) -> ExitCode {
         ExitCode::FAILURE
     } else {
         ExitCode::SUCCESS
+    }
+}
+
+/// `check-image-size` サブコマンド（TASK-9.3b, イシュー #103, REQ-9 受け入れ基準）:
+/// `--image <TAG>`（必須）で指定した docker イメージの非圧縮サイズを
+/// `docker image inspect` で計測し、`--limit-mb <N>`（任意、既定 50）に照らして
+/// 判定する。上限の既定値は `check_image_size::REQ9_IMAGE_SIZE_LIMIT_BYTES`。
+///
+/// `--limit-mb` は動作確認・段階導入向けの上書きであり、CI
+/// （`.github/workflows/image-size.yml`）は既定値のまま呼び出す契約とする
+/// （REQ-9 の上限を弱める運用は想定しない）。
+///
+/// 引数不備は終了コード 2、計測失敗（docker 不在・`inspect` 失敗・パース失敗）・
+/// 上限超過はいずれも終了コード 1（fail-closed）とする。ルート `Dockerfile`
+/// （TASK-9.3a／イシュー #102）が未マージの間は、呼び出し元が存在しないイメージ名を
+/// 渡すことになるため計測失敗＝FAIL が意図した挙動になる。
+fn run_check_image_size(args: &[String]) -> ExitCode {
+    let mut image: Option<String> = None;
+    let mut limit_mb: Option<u64> = None;
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--image" => {
+                let Some(value) = args.get(i + 1) else {
+                    eprintln!("xtask check-image-size: `--image` requires a value");
+                    return ExitCode::from(2);
+                };
+                image = Some(value.clone());
+                i += 2;
+            }
+            "--limit-mb" => {
+                let Some(value) = args.get(i + 1) else {
+                    eprintln!("xtask check-image-size: `--limit-mb` requires a value");
+                    return ExitCode::from(2);
+                };
+                let Ok(parsed) = value.parse::<u64>() else {
+                    eprintln!("xtask check-image-size: `--limit-mb` must be a non-negative integer, got `{value}`");
+                    return ExitCode::from(2);
+                };
+                limit_mb = Some(parsed);
+                i += 2;
+            }
+            other => {
+                eprintln!("xtask check-image-size: unknown argument `{other}`");
+                return ExitCode::from(2);
+            }
+        }
+    }
+
+    let Some(image) = image else {
+        eprintln!("xtask check-image-size: `--image <TAG>` is required");
+        return ExitCode::from(2);
+    };
+
+    // 10 進 MB（docker CLI の表示単位と一致させる。check_image_size モジュールの
+    // rustdoc 参照）。`--limit-mb` 未指定時は REQ-9 既定値をそのまま使う。
+    let limit_bytes = match limit_mb {
+        Some(mb) => mb.saturating_mul(1_000_000),
+        None => check_image_size::REQ9_IMAGE_SIZE_LIMIT_BYTES,
+    };
+
+    let measurement = match check_image_size::measure(&image) {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("xtask check-image-size: failed to measure `{image}`: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let check_result = check_image_size::judge(measurement, limit_bytes);
+    print!("{}", check_image_size::format_report(&check_result));
+
+    if check_result.is_pass() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
     }
 }

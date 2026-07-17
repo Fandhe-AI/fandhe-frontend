@@ -1,0 +1,81 @@
+name: Docker image size (REQ-9)
+
+# TASK-9.3b（イシュー #103）: REQ-9（単一バイナリ配布と Docker イメージ最小化、
+# docs/spec/04-requirements.md）の受け入れ基準「scratch / distroless ベースの
+# Docker イメージサイズが 50MB 以内であること」を継続計測するワークフロー。
+#
+# ルート `Dockerfile`（TASK-9.3a／イシュー #102）をビルドし、
+# `xtask check-image-size`（xtask/src/check_image_size.rs）で非圧縮サイズを
+# 計測・判定する。判定ロジックの正はコード定数（REQ9_IMAGE_SIZE_LIMIT_BYTES）の
+# みであり、本ワークフローに緩和用の input・continue-on-error は設けない
+# （ci.yml の loc-check ジョブと同一の運用原則）。
+#
+# Dockerfile が未マージの間（#102 完了前）は docker build 自体が失敗し、
+# 本ジョブは意図的に FAIL する（fail-closed。ゲートのすり抜けを防ぐ）。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    # イメージサイズに影響し得る変更のみをトリガー対象にする。
+    # dist-server クレート（#96）・Dockerfile（#102）が増やすパスは
+    # マージ時に追随して更新すること。
+    paths:
+      - "Dockerfile"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "core/**"
+      - "app/**"
+      - "server/**"
+      - "dist-server/**"
+      - "static/**"
+      - "xtask/**"
+      - ".github/workflows/image-size.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-size-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image-size:
+    name: Docker image size (REQ-9)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2（ci.yml と同一 SHA に固定）。
+        # docs/spec サブモジュールは本計測に不要のため取得しない。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+
+      - name: Build docker image
+        # push・レジストリログインは行わない。ジョブローカルのタグのみを使い、
+        # 計測後は ubuntu-latest ランナーの破棄とともに揮発する。
+        run: docker build -t rws-dist-server:ci .
+
+      - name: Run xtask check-image-size
+        # xtask check-image-size の終了コードをそのまま CI の成否に伝播させる
+        # （fail-closed）。set -o pipefail を明示し、tee 経由でも cargo run の
+        # 終了コードが失われないようにする（loc-check ジョブと同一パターン）。
+        # --locked はこの外側の cargo run が Cargo.lock を書き換えないことを保証する。
+        run: |
+          set -o pipefail
+          cargo run --locked -p xtask -- check-image-size --image rws-dist-server:ci | tee image-size.log
+
+      - name: Publish image-size summary
+        if: always()
+        # format_report（xtask/src/check_image_size.rs）の 1 行サマリ契約
+        # 「image-size: image=<tag> size_bytes=<n>/<limit> size_mb=<x.xx> result=<PASS|FAIL>」を
+        # Step Summary に転記する。この契約は xtask/tests/cli_check_image_size.rs と
+        # xtask/src/check_image_size.rs の単体テストで固定される。
+        run: |
+          {
+            echo '## Docker image size (REQ-9, issue #103)'
+            echo '```'
+            grep '^image-size:' image-size.log || echo 'image-size: no summary line found'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
