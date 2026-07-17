@@ -164,8 +164,18 @@ fn hydrate_preserves_pre_existing_liked_state() {
     hydrate("browser-preserve-state-root")
         .expect("hydrate must succeed when root and target exist");
 
+    // hydrate() が set_inner_html 等で DOM を再構築した場合、hydrate() 前に
+    // 取得した button 参照は detached ノードとなり、クラス状態を読んでも
+    // 生きた DOM の状態を反映しない（偽陽性の温床）。再構築の有無に関わらず
+    // 「今の生きた DOM」を検証するため、hydrate() 後に #like-btn を再クエリする
+    // （Bugbot 指摘: stale DOM 参照によるアサーション回避の防止）。
+    let button_after = root
+        .query_selector("#like-btn")
+        .expect("query_selector must not fail for a valid selector")
+        .expect("#like-btn must still exist in the live DOM after hydrate()");
+
     assert!(
-        button.class_list().contains("liked"),
+        button_after.class_list().contains("liked"),
         "hydrate() はサーバー出力済み DOM の既存 class を破壊しないこと"
     );
 }
@@ -180,19 +190,30 @@ fn re_hydrate_preserves_click_state_and_fires_exactly_once() {
 
     let root = create_container(&document, "browser-rehydrate-state-root");
     root.set_inner_html(&render_detail_page_html("1"));
-    let button = root
-        .query_selector("#like-btn")
+    // hydrate() 前に #like-btn の存在のみ確認する（サニティチェック）。この
+    // 参照はハイドレーション後の検証には使わない（後続の再クエリ参照）。
+    root.query_selector("#like-btn")
         .expect("query_selector must not fail for a valid selector")
         .expect("render_detail_page_html must emit #like-btn");
 
     hydrate("browser-rehydrate-state-root")
         .expect("first hydrate must succeed when root and target exist");
 
-    button
+    // hydrate() が DOM を再構築していれば、1 回目の hydrate() 前に取得した
+    // button 参照は detached になる。再構築有無を問わず「生きた DOM」に対して
+    // クリック・アサーションを行うため、各 hydrate() 呼び出し後に #like-btn を
+    // 再クエリする（Bugbot 指摘: stale DOM 参照による偽陽性の防止。以降の
+    // dispatch_event / class_list 参照はすべて button_after_first を使う）。
+    let button_after_first = root
+        .query_selector("#like-btn")
+        .expect("query_selector must not fail for a valid selector")
+        .expect("#like-btn must still exist in the live DOM after the first hydrate()");
+
+    button_after_first
         .dispatch_event(&bubbling_click_event())
         .expect("dispatch_event must not fail");
     assert!(
-        button.class_list().contains("liked"),
+        button_after_first.class_list().contains("liked"),
         "1 回目のクリックで liked クラスが付与されること"
     );
 
@@ -201,18 +222,25 @@ fn re_hydrate_preserves_click_state_and_fires_exactly_once() {
     hydrate("browser-rehydrate-state-root")
         .expect("second hydrate on the same root_id must succeed (re-hydration)");
 
+    // 2 回目の hydrate() 後も同様に再クエリし、以降の検証・クリックは
+    // 生きた DOM の #like-btn（button_after_second）に対して行う。
+    let button_after_second = root
+        .query_selector("#like-btn")
+        .expect("query_selector must not fail for a valid selector")
+        .expect("#like-btn must still exist in the live DOM after the second hydrate()");
+
     assert!(
-        button.class_list().contains("liked"),
+        button_after_second.class_list().contains("liked"),
         "再 hydrate() 後もクリックで変化した状態（liked クラス）が保持されること"
     );
 
     // 孤立した旧リスナーが残っていれば、ここで 1 クリックにつき 2 回
     // トグルが走り liked が再び外れてしまう（二重発火の検出）。
-    button
+    button_after_second
         .dispatch_event(&bubbling_click_event())
         .expect("dispatch_event must not fail after re-hydrate");
     assert!(
-        !button.class_list().contains("liked"),
+        !button_after_second.class_list().contains("liked"),
         "再 hydrate() 後も 1 クリック＝1 トグルであること（リスナー二重発火なし）"
     );
 }
