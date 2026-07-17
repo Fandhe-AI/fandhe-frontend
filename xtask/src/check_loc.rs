@@ -1,30 +1,42 @@
-//! REQ-8（View Transitions API のネイティブ活用、`docs/spec/04-requirements.md`）の
-//! 受け入れ基準「同一文書内更新向けラッパー関数の実効行数（コメント・空行を除く）が
-//! 10 行以内であること」を機械的に強制するモジュール（TASK-8.2b、イシュー #62）。
+//! REQ-8（View Transitions API のネイティブ活用）と REQ-11（WASM 完全方式）の
+//! 双方が定める「グルー JS の実効行数（コメント・空行を除く）が 10 行以内で
+//! あること」という受け入れ基準を機械的に強制するモジュール
+//! （TASK-8.2b・イシュー #62 / REQ-11 受け入れ基準 3・イシュー #156）。
 //!
 //! ルーブリックの定義元は PoC-3（`docs/spec/03-poc/rendering-web-standards/README.md`）
-//! の「薄い = 実効行数 0〜10 行（コメント・空行を除く）」。対になる TASK-8.2a
-//! （イシュー #61）が実装する `static/view-transitions.js` の `withViewTransition`
-//! ラッパーが対象で、本モジュールはそのしきい値超過を CI で検知する。
+//! の「薄い = 実効行数 0〜10 行（コメント・空行を除く）」。対象は 2 系統ある:
 //!
-//! `check_deps.rs`（TASK-3.1）と同じ運用原則を踏襲する: しきい値・対象ファイルは
-//! [`MAX_EFFECTIVE_LOC`] / [`LOC_CHECK_TARGETS`] のコード定数のみが正であり、
-//! CLI 引数・環境変数による緩和経路は設けない（`xtask/src/main.rs` の
-//! `run_check_loc` は引数を一切取らない契約）。対象ファイルの不在・読み取り失敗も
-//! しきい値超過と同様に fail-closed（終了コード 1）として扱う。
+//! - TASK-8.2a（イシュー #61）が実装する `static/view-transitions.js` の
+//!   `withViewTransition` ラッパー（REQ-8）
+//! - `wasm-full/src/entry.rs` の既定方式（SSR + ハイドレーション）向け
+//!   アプリ側 JS グルーの参照実装 `static/wasm-full-init.js`（REQ-11、
+//!   PoC-5 実績 3 行）
+//!
+//! 本モジュールは両対象のしきい値超過を CI で検知する。しきい値・対象ファイルの
+//! 定義元はコード定数 [`MAX_EFFECTIVE_LOC`] / [`LOC_CHECK_TARGETS`] のみが正
+//! であり（`check_deps.rs`（TASK-3.1）と同じ運用原則）、CLI 引数・環境変数に
+//! よる緩和経路は設けない（`xtask/src/main.rs` の `run_check_loc` は引数を
+//! 一切取らない契約）。対象ファイルの不在・読み取り失敗もしきい値超過と同様に
+//! fail-closed（終了コード 1）として扱う。
 
 use std::fmt;
 use std::fs;
 
 /// LOC チェックの対象ファイル（workspace ルートからの相対パス）。
 ///
-/// TASK-8.2a（イシュー #61）が実装する `static/view-transitions.js` の
-/// `withViewTransition` ラッパーのみを対象とする。将来的に他のグルー JS
-/// （`hydrate.js` 等）へ対象を広げる場合は、勝手に追加せず別イシューとして
+/// - `static/view-transitions.js`: TASK-8.2a（イシュー #61）の
+///   `withViewTransition` ラッパー（REQ-8）
+/// - `static/wasm-full-init.js`: `wasm-full/src/entry.rs` の既定方式向け
+///   アプリ側 JS グルー参照実装（REQ-11 受け入れ基準 3、イシュー #156）
+///
+/// 将来的に他のグルー JS へ対象を広げる場合は、勝手に追加せず別イシューとして
 /// 提案すること（`out-of-scope-tracking.md`）。
-pub const LOC_CHECK_TARGETS: &[&str] = &["static/view-transitions.js"];
+pub const LOC_CHECK_TARGETS: &[&str] = &["static/view-transitions.js", "static/wasm-full-init.js"];
 
-/// REQ-8 受け入れ基準が定める実効 LOC の上限（コメント・空行を除く）。
+/// REQ-8 / REQ-11 の受け入れ基準が定める実効 LOC の上限（コメント・空行を除く）。
+///
+/// PoC-3 ルーブリックに由来する共通しきい値であり、[`LOC_CHECK_TARGETS`] の
+/// 全対象（REQ-8・REQ-11 いずれも）に同一の値を適用する。
 pub const MAX_EFFECTIVE_LOC: usize = 10;
 
 /// 1 ファイルの実効 LOC 計測結果。
@@ -200,6 +212,16 @@ fn count_effective_loc(source: &str) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn loc_check_targets_covers_req_8_and_req_11_glue_files() {
+        // REQ-8（イシュー #62）・REQ-11（イシュー #156）双方の対象が
+        // 定数から脱落しないことを固定する（`run_check_loc` はこの定数を
+        // 唯一の正としてループするため、脱落は検証漏れに直結する）。
+        assert!(LOC_CHECK_TARGETS.contains(&"static/view-transitions.js"));
+        assert!(LOC_CHECK_TARGETS.contains(&"static/wasm-full-init.js"));
+        assert_eq!(LOC_CHECK_TARGETS.len(), 2);
+    }
 
     #[test]
     fn blank_lines_only_are_not_counted() {
