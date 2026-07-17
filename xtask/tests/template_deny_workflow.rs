@@ -73,12 +73,38 @@ fn template_deny_workflow_declares_required_triggers() {
 
 #[test]
 fn template_deny_workflow_declares_minimal_permissions() {
-    let non_comment = non_comment_lines(&read_workflow()).join("\n");
-    let has_read_only_permissions =
-        non_comment.contains("permissions:") && non_comment.contains("contents: read");
+    let contents = read_workflow();
+    let non_comment_owned: Vec<String> = non_comment_lines(&contents)
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+
+    // `permissions:` は行頭（トップレベルキー）で始まる想定。その直後から、
+    // 次のトップレベルキー（行頭にインデントのない行）が現れるまでを
+    // 「permissions ブロック」とみなし、ブロック内の記述のみを検証する。
+    // これにより `contents: read` と `contents: write` が別ブロックに
+    // 独立して存在するケースを「関連なし」として誤 pass しないようにする。
+    let permissions_index = non_comment_owned
+        .iter()
+        .position(|line| line.trim_start() == "permissions:" && !line.starts_with(' '))
+        .expect("トップレベルの permissions: が見つからない");
+
+    let block: Vec<&str> = non_comment_owned[permissions_index + 1..]
+        .iter()
+        .take_while(|line| line.starts_with(' ') || line.trim().is_empty())
+        .map(String::as_str)
+        .collect();
+    let block_contents = block.join("\n");
+
     assert!(
-        has_read_only_permissions,
-        "permissions: contents: read（最小権限）が見つからない"
+        block_contents.contains("contents: read"),
+        "permissions: ブロック内に contents: read（最小権限）が見つからない: \
+         {block_contents}"
+    );
+    assert!(
+        !block_contents.contains("contents: write"),
+        "permissions: ブロック内に contents: write が含まれている（最小権限の \
+         逸脱）: {block_contents}"
     );
 }
 
@@ -205,8 +231,11 @@ fn cargo_deny_check_blocks_banned_dependency_when_available() {
     let augmented_config =
         base_config.replacen("deny = [", "deny = [\n    { name = \"rws-core\" },", 1);
 
-    let temp_path =
-        std::env::temp_dir().join("xtask-template-deny-workflow-negative-test-deny.toml");
+    // プロセス ID を付与し、並列テスト実行時の一時ファイル名衝突を避ける。
+    let temp_path = std::env::temp_dir().join(format!(
+        "xtask-template-deny-workflow-negative-test-deny-{}.toml",
+        std::process::id()
+    ));
     std::fs::write(&temp_path, augmented_config).expect("一時 deny.toml の書き込みに失敗した");
 
     let output = Command::new("cargo")

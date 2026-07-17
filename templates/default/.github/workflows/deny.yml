@@ -15,10 +15,10 @@ name: deny
 # - ポリシーの正は `deny.toml` のみ。本ワークフローには継続を許す input・
 #   環境変数・`continue-on-error`・`|| true` を一切設けない（fail-closed）。
 #   AI エージェントが本ワークフロー側に緩和の迂回経路を作ってはならない。
-# - `advisories`（既知脆弱性 DB 照合）はネットワークアクセスを要するため、
-#   本ワークフローでは実行しない（オフライン実行可能な bans/licenses/sources の
-#   3 チェックに限定する。deny.toml 内コメント参照）。advisories を含めた
-#   オンライン CI 運用手順の文書化は TASK-4.3 に委譲する。
+# - `advisories`（既知脆弱性 DB 照合）は本 PR のスコープ外として TASK-4.3 へ
+#   意図的に委譲する（bans/licenses/sources の 3 チェックに限定する。
+#   deny.toml 内コメント参照）。advisories を含めたオンライン CI 運用手順の
+#   文書化は TASK-4.3 で行う。
 # - 第三者製 Action（例: EmbarkStudios/cargo-deny-action）は採用しない。
 #   prebuilt バイナリ取得を伴う第三者 Action 経由よりも、crates.io からの
 #   `--locked`・バージョン固定インストールに限定する方がサプライチェーン面の
@@ -65,7 +65,7 @@ jobs:
 
       - name: Run cargo deny check (bans / licenses / sources)
         # fail-closed: 終了コードをそのまま CI の成否に伝播させる。
-        # advisories はネットワークアクセス前提のため対象外（上記コメント・
-        # TASK-4.3 参照）。禁止クレート追加時はここで非 0 終了しジョブが失敗する。
+        # advisories は TASK-4.3 へスコープ委譲のため対象外（上記コメント参照）。
+        # 禁止クレート追加時はここで非 0 終了しジョブが失敗する。
         run: |
           cargo deny check bans licenses sources --config deny.toml
