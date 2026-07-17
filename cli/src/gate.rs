@@ -279,11 +279,26 @@ fn run_cargo_check(runner: &dyn CommandRunner, project_dir: &Path, crates: &[&st
 /// 許容する保守側の実装。目的は「ファイルごと消された/エントリを削られた」
 /// 明白な沈黙化を fail-closed で検出することであり、TOML の完全な意味検証では
 /// ない。
+///
+/// ただし各行の `#` 以降（TOML のコメント）は [`crate::toml::strip_comment`]
+/// （`structure.toml` 用パーサの内部ヘルパーを再利用）で判定前に除去する
+/// （Bugbot 指摘 PR #263 "Clippy policy substring false pass"）。コメント
+/// アウトされた（または削除済みの）`disallowed-methods` ブロックが
+/// `disallowed-methods` / `rws_core::raw_html` という文字列断片をコメントとして
+/// 残しているだけの場合に「設定済み」と誤判定すると、実際には
+/// `cargo clippy` が当該エントリを読み込んでおらず `raw_html()` の未レビュー
+/// 呼び出しを検出できないにもかかわらず `lint` チェックが素通りする
+/// （検出ポリシーの沈黙、security.md A05）。
 fn clippy_policy_is_configured(clippy_toml_path: &Path) -> bool {
     let Ok(content) = std::fs::read_to_string(clippy_toml_path) else {
         return false;
     };
-    content.contains("disallowed-methods") && content.contains("rws_core::raw_html")
+    let active_content: String = content
+        .lines()
+        .map(crate::toml::strip_comment)
+        .collect::<Vec<_>>()
+        .join("\n");
+    active_content.contains("disallowed-methods") && active_content.contains("rws_core::raw_html")
 }
 
 /// `lint` チェックが `cargo clippy` を起動する前に検証する fail-closed ガード。
@@ -455,6 +470,54 @@ const BLANKET_DISALLOWED_METHODS_MARKERS: [&str; 2] = [
     "#![expect(clippy::disallowed_methods",
 ];
 
+/// 行 `line` に実際の（コンパイラが解釈する）ブランケット抑止属性が存在するかを
+/// 判定する。単純な部分文字列一致（`str::contains`）は、行コメント・
+/// ドキュメンテーションコメント（`//` `///` `//!`）中の説明文言や文字列リテラル
+/// （本ファイルのテストフィクスチャが該当）にもマッチしてしまい、実際には
+/// inner attribute が存在しないのに違反として誤検出する（Bugbot 指摘
+/// PR #263 "Blanket scan matches docs and literals"）。
+///
+/// 完全な Rust トークナイザは持たないため、以下の 2 段の簡易判定に留める
+/// （それでも本チェックは clippy（主防御）の保険層であり、厳密な構文解析は
+/// clippy 側が担う。モジュール冒頭 doc コメント参照）:
+/// 1. 行头（先頭の空白を除いた）が `//` で始まる場合はコメント行とみなし除外する
+///    （`//` `///` `//!` をまとめて除外できる）。
+/// 2. マーカーの出現位置がダブルクォート文字列リテラルの内側（マーカー手前の
+///    非エスケープ `"` の個数が奇数）であれば除外する。
+fn line_has_real_blanket_attribute(line: &str) -> bool {
+    if line.trim_start().starts_with("//") {
+        return false;
+    }
+    BLANKET_DISALLOWED_METHODS_MARKERS
+        .iter()
+        .any(|marker| match line.find(marker) {
+            Some(pos) => !position_is_inside_string_literal(line, pos),
+            None => false,
+        })
+}
+
+/// `line` の `pos` バイト位置が、`pos` より前に現れるダブルクォート文字列
+/// リテラルの内側にあるかどうかを判定する（バックスラッシュエスケープされた
+/// `"` は文字列の開始・終了とみなさない）。TOML/Rust の完全なパーサではなく、
+/// 「引用符の個数の偶奇」による簡易判定であるため、複数行文字列・生文字列
+/// （`r"..."` 等）までは追跡しない（この用途では十分な近似）。
+fn position_is_inside_string_literal(line: &str, pos: usize) -> bool {
+    let mut in_string = false;
+    let mut escaped = false;
+    for c in line[..pos].chars() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        match c {
+            '\\' if in_string => escaped = true,
+            '"' => in_string = !in_string,
+            _ => {}
+        }
+    }
+    in_string
+}
+
 /// 行 `line` が「`clippy::disallowed_methods` へのレビュー済み `#[expect]` 属性」で
 /// あるとみなせるかを判定する。同一行に `expect(clippy::disallowed_methods` と
 /// `ESCAPE-REVIEWED:` の両方が含まれることを要求し、旧方式（`ESCAPE-REVIEWED:`
@@ -584,11 +647,14 @@ fn scan_file_for_violations(path: &Path, violations: &mut Vec<String>) {
     // させる。呼び出し個別のレビュー宣言（外側 `#[expect]`）とは異なり、
     // どのような文脈で書かれていても一律に違反として列挙する（イシュー #157、
     // security.md A05: 一括無効化による検出ポリシーの黙示的骨抜き防止）。
+    //
+    // ただし [`line_has_real_blanket_attribute`] でコメント（行コメント・
+    // ドキュメンテーションコメント）と文字列リテラル内の出現を除外する
+    // （Bugbot 指摘 PR #263: 本ファイル自身のモジュール冒頭 doc コメントや
+    // 下記テストのフィクスチャ文字列リテラルが、実際には inner attribute で
+    // ないにもかかわらず誤検出されていた）。
     for (line_idx, line) in lines.iter().enumerate() {
-        if BLANKET_DISALLOWED_METHODS_MARKERS
-            .iter()
-            .any(|marker| line.contains(marker))
-        {
+        if line_has_real_blanket_attribute(line) {
             violations.push(format!(
                 "{}:{}: blanket suppression of clippy::disallowed_methods is not allowed \
 (remove the file/module-level #![allow(...)]/#![expect(...)] and use a per-call \
@@ -1004,6 +1070,60 @@ mod tests {
     }
 
     #[test]
+    fn scan_file_ignores_blanket_marker_inside_comment() {
+        // Bugbot 指摘 PR #263 "Blanket scan matches docs and literals": doc
+        // コメント中で `#![allow(clippy::disallowed_methods)]` を説明のために
+        // 言及しているだけの行は、実際の inner attribute ではないため違反として
+        // 検出してはならない。
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-escape-blanket-comment-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("lib.rs");
+        std::fs::write(
+            &file,
+            "/// `#![allow(clippy::disallowed_methods)]` は禁止という説明。\nfn f() {}\n",
+        )
+        .unwrap();
+
+        let mut violations = Vec::new();
+        scan_file_for_violations(&file, &mut violations);
+        assert!(
+            violations.is_empty(),
+            "doc comment mentioning the marker text must not be flagged: violations={violations:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn scan_file_ignores_blanket_marker_inside_string_literal() {
+        // Bugbot 指摘 PR #263: 本ファイル自身のテストフィクスチャのような
+        // 文字列リテラル内の出現（実際の attribute ではない）も除外する。
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-escape-blanket-literal-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("lib.rs");
+        std::fs::write(
+            &file,
+            "const MARKER: &str = \"#![allow(clippy::disallowed_methods\";\n",
+        )
+        .unwrap();
+
+        let mut violations = Vec::new();
+        scan_file_for_violations(&file, &mut violations);
+        assert!(
+            violations.is_empty(),
+            "marker text inside a string literal must not be flagged: violations={violations:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn clippy_policy_check_fails_closed_when_clippy_toml_missing() {
         let dir = std::env::temp_dir().join(format!(
             "fw-gate-test-clippy-policy-missing-{}",
@@ -1054,6 +1174,34 @@ mod tests {
         .unwrap();
 
         assert!(clippy_policy_check(&dir).is_none());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn clippy_policy_check_fails_closed_when_entry_is_commented_out() {
+        // Bugbot 指摘 PR #263 "Clippy policy substring false pass": コメント
+        // アウトされた `disallowed-methods` ブロックがテキストとして
+        // `disallowed-methods` / `rws_core::raw_html` を含んでいても、実際に
+        // 有効な TOML エントリではないため「設定済み」と誤判定してはならない。
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-clippy-policy-commented-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("clippy.toml"),
+            "# disallowed-methods = [{ path = \"rws_core::raw_html\", reason = \"x\" }]\n",
+        )
+        .unwrap();
+
+        let check = clippy_policy_check(&dir);
+        assert!(
+            check.is_some(),
+            "a commented-out entry must not be treated as configured"
+        );
+        assert!(!check.unwrap().passed);
 
         let _ = std::fs::remove_dir_all(&dir);
     }
