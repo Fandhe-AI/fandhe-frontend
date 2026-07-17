@@ -11,6 +11,7 @@
 #![forbid(unsafe_code)]
 
 mod component_boundary;
+mod gate;
 mod json;
 mod json_out;
 mod metadata;
@@ -34,6 +35,7 @@ fn main() {
 fn run(args: &[String]) -> i32 {
     match args.first().map(String::as_str) {
         Some("structure") => run_structure(&args[1..]),
+        Some("gate") => gate::run_gate(&args[1..]),
         Some(other) => {
             eprintln!("fw: unknown subcommand `{other}`");
             print_usage();
@@ -51,13 +53,17 @@ fn print_usage() {
     eprintln!("Usage: fw <subcommand> [--project <dir>]");
     eprintln!("Subcommands:");
     eprintln!("  structure    generate/validate the machine-readable project structure manifest");
+    eprintln!("  gate         run the AI self-maintenance verification gate (type/escape/lint/test/policy)");
 }
 
 /// `--project <dir>` 引数を解決する（省略時はカレントディレクトリ）。
 ///
 /// `Ok(None)` は「引数の使い方が誤っている」（値の欠落・未知フラグ）ことを表し、
 /// 呼び出し元は終了コード 2（使用法エラー）として扱う。
-fn parse_project_arg(args: &[String]) -> Result<PathBuf, ()> {
+///
+/// `pub(crate)`: `gate.rs`（`fw gate`, TASK-13.3）も同一の `--project` 引数解決を
+/// 必要とするため、`structure` サブコマンドと実装を共有する（重複実装しない）。
+pub(crate) fn parse_project_arg(args: &[String]) -> Result<PathBuf, ()> {
     match args {
         [] => std::env::current_dir().map_err(|_| ()),
         [flag, dir] if flag == "--project" => Ok(PathBuf::from(dir)),
