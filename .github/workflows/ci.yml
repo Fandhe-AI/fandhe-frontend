@@ -52,7 +52,7 @@ jobs:
       - name: Show toolchain
         run: rustup show && cargo --version
 
-      - name: unsafe 境界の回帰テスト（safe 域: forbid 属性・unsafe トークン・core 依存ゼロ／wasm-full deny 域: deny 属性・unsafe トークン・allow 上書き不在、#155）
+      - name: "unsafe 境界の回帰テスト（safe 域: forbid 属性・unsafe トークン・core 依存ゼロ／wasm-full deny 域: deny 属性・unsafe トークン・allow 上書き不在、#155）"
         run: cargo test -p rws-core --test unsafe_boundary --locked
 
       # NOTE: -F (forbid) はソース側の #[allow(unsafe_code)] で上書きできないため、
