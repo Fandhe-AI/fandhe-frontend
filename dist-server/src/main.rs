@@ -13,6 +13,11 @@
 //! せず、アドレスと OS エラーのみを stderr に出力して非 0 終了する
 //! （内部パス・スタックトレース等の機微情報は出力しない）。
 
+// `lib.rs` の `#![forbid(unsafe_code)]`（REQ-2）はクレートルートを跨いで継承
+// されないため、バイナリクレートルートである本ファイルにも明示的に付与し、
+// 宣言の一貫性を保つ（実装上も unsafe は使用していない）。
+#![forbid(unsafe_code)]
+
 use http_body_util::Full;
 use hyper::body::Bytes;
 use hyper::server::conn::http1;
