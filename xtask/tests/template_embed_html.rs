@@ -119,6 +119,35 @@ fn embed_html_does_not_bypass_default_escaping() {
     }
 }
 
+/// TASK-8.1（#59）回帰: 最小埋め込み構成にも SSR ページ遷移向け
+/// `@view-transition` at-rule が既定同梱されていること。
+/// `app/src/lib.rs` の `page_shell()`（SSR/SSG 標準構成）が出力する
+/// 文字列と完全一致する at-rule であることを固定し、両構成間で
+/// クロスドキュメント遷移の有効化契約が食い違わないようにする。
+#[test]
+fn embed_html_includes_view_transition_at_rule() {
+    let contents = read_embed_html();
+    assert!(
+        contents.contains("<style>@view-transition { navigation: auto; }</style>"),
+        "SSR ページ遷移向け @view-transition at-rule が見つからない \
+         （TASK-8.1・#59、page_shell() の既定同梱と同一であるべき）"
+    );
+}
+
+/// TASK-8.1（#59）回帰: View Transitions Level 2 で廃止された旧実験構文
+/// `<meta name="view-transition" content="same-origin">` が復活していないこと。
+/// `app/src/lib.rs` が at-rule へ置換済みであるのと同様、最小埋め込み構成側にも
+/// 旧構文が紛れ込まないことを機械的に固定する。
+#[test]
+fn embed_html_does_not_use_deprecated_view_transition_meta_tag() {
+    let contents = read_embed_html();
+    assert!(
+        !contents.contains(r#"<meta name="view-transition""#),
+        "廃止済みの <meta name=\"view-transition\"> 構文が見つかった。\
+         クロスドキュメント遷移は @view-transition at-rule で行う（TASK-8.1・#59）"
+    );
+}
+
 #[test]
 fn embedding_guide_references_embed_html_template() {
     let guide_path = workspace_root().join("docs/embedding-guide.md");
