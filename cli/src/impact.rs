@@ -1,24 +1,28 @@
 //! 変更影響範囲解析（TASK-13.2a, #133、親 TASK-13.2 #132、REQ-13）の型定義と
-//! 判定ロジック。
+//! 判定ロジック。`main.rs` の `impact` サブコマンド（TASK-13.2c, #135）から
+//! [`analyze`] を呼び出して使われる。
 //!
 //! 本ファイルは TASK-13.2 の 5 分割サブタスク（#133 設計（本ファイル）/
-//! #134 依存グラフ構築 / #135 コマンド実装 / #136 出力フォーマット /
-//! #137 テスト整備）が依拠する**単一の情報源**として、`fw impact <symbol>`
-//! （後続 #135 で `main.rs` に接続される）が返す JSON の形（[`ImpactReport`]）と、
+//! #134 依存グラフ構築 / #135 コマンド実装（本ファイルの [`analyze`] 接続） /
+//! #136 出力フォーマット / #137 テスト整備）が依拠する**単一の情報源**として、
+//! `fw impact <symbol>` が返す JSON の形（[`ImpactReport`]）と、
 //! `breaking_risk` / `requires_human_approval` の判定を副作用のない純粋関数
 //! （[`judge_breaking_risk`] / [`requires_human_approval`]）として切り出す。
-//! 走査（定義元特定・使用箇所列挙・ルート突き合わせ）と CLI 接続は本サブタスクの
-//! スコープ外であり、それぞれ #134 / #135 が実装する
-//! （詳細は `docs/impact-analysis-design.md` §8 を参照）。
+//!
+//! **#134（依存グラフ構築・使用箇所走査）は本 PR 時点で未マージ**のため、
+//! [`analyze`] は暫定的に常に [`ImpactError::Scan`] を返す fail-closed スタブ
+//! （`docs/impact-analysis-design.md` §4 の「ケース B」）。#134 マージ後、
+//! 実際の走査結果から [`ImpactReport`] を構築する実装へ #134 側が置き換える
+//! 契約とする。黙示的成功（空レポートでの exit 0）には倒さない
+//! （security.md A05）。
 //!
 //! アルゴリズムは PoC-7（`docs/spec/03-poc/ai-self-maintenance/tools/poc7_tool.py`
 //! `cmd_impact`）を踏襲した「ファイル単位の粗粒度ヒューリスティック」であり、
 //! AST 解析ベースの精密化は将来スコープとして明示的に見送る
 //! （`docs/spec/05-tasks.md` TASK-13.2、`docs/impact-analysis-design.md` §7）。
 
-#![allow(dead_code)] // #135（fw impact 接続）まで未使用。撤去予定。
-
 use std::fmt;
+use std::path::Path;
 
 /// 破壊的変更リスクの粗粒度分類。
 ///
@@ -26,6 +30,10 @@ use std::fmt;
 /// （`high` / `medium` / `low`）を製品仕様として踏襲する
 /// （`docs/impact-analysis-design.md` §3.4）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+// #134（依存グラフ構築）が `judge_breaking_risk` 経由でこれらの variant を
+// 実際に構築するまで未使用。`analyze` の fail-closed スタブは `Ok` を返さない
+// ため、現状は `BreakingRisk` の値自体が生成されない（撤去予定）。
+#[allow(dead_code)]
 pub enum BreakingRisk {
     High,
     Medium,
@@ -59,12 +67,19 @@ impl fmt::Display for BreakingRisk {
 ///
 /// #134（依存グラフ構築）・#135（CLI 接続）はここを参照し、実測した
 /// `affected_crates` との突き合わせに同じ定数を使う契約とする（二重管理しない）。
+///
+/// `judge_breaking_risk` からのみ参照され、同関数は `analyze` の fail-closed
+/// スタブ（`Ok` を返さない）からは呼ばれないため、#134 が走査結果を
+/// `judge_breaking_risk` に渡すまで未使用（撤去予定）。
+#[allow(dead_code)]
 pub const CLIENT_BOUNDARY_CRATES: [&str; 3] = ["rws-wasm-client", "rws-wasm-full", "rws-wasm-thin"];
 
 /// `high` 判定となる影響クレート数の下限（この件数**以上**で `high`）。
+#[allow(dead_code)] // 上記 CLIENT_BOUNDARY_CRATES と同じ理由（#134 未接続）。
 const HIGH_RISK_CRATE_THRESHOLD: usize = 3;
 
 /// `medium` 判定となる影響クレート数の下限（この件数**以上**で `medium`）。
+#[allow(dead_code)] // 上記 CLIENT_BOUNDARY_CRATES と同じ理由（#134 未接続）。
 const MEDIUM_RISK_CRATE_THRESHOLD: usize = 1;
 
 /// 影響を受けた 1 ファイルと、そのファイル内でシンボルが出現した行番号一覧。
@@ -125,6 +140,10 @@ pub enum ImpactError {
     /// ワークスペース全体を走査しても定義元が見つからなかった。
     /// #135 はこれを検証違反（終了コード 1）として扱う契約
     /// （`defined_in: null` で黙って成功させない）。
+    ///
+    /// `analyze` の fail-closed スタブは常に `Scan` を返すため、#134 が実際の
+    /// 走査を実装してこの variant を構築するまで未使用（撤去予定）。
+    #[allow(dead_code)]
     SymbolNotFound,
     /// 走査中の I/O・パストラバーサル境界違反（`routes::ExtractError` 相当を
     /// #134 が包む想定のバリアント）。
@@ -176,6 +195,10 @@ pub fn validate_symbol(symbol: &str) -> Result<(), ImpactError> {
 ///
 /// コメント・文字列リテラル内の一致も除外しない（PoC-7 と同じ「過検知容認」
 /// 方針、`docs/impact-analysis-design.md` §3.2）。
+///
+/// #134 の使用箇所走査が本関数を呼ぶまで（本 PR の `analyze` スタブからは
+/// 呼ばれない）未使用（撤去予定）。
+#[allow(dead_code)]
 pub fn contains_symbol_at_boundary(haystack: &str, symbol: &str) -> bool {
     if symbol.is_empty() {
         return false;
@@ -214,6 +237,10 @@ pub fn contains_symbol_at_boundary(haystack: &str, symbol: &str) -> bool {
 ///
 /// #134 が走査結果（`affected_crates`）からこの関数を呼んで
 /// [`ImpactReport::breaking_risk`] を確定する契約。
+///
+/// `analyze` の fail-closed スタブ（本 PR 時点）からは呼ばれないため未使用
+/// （撤去予定）。
+#[allow(dead_code)]
 pub fn judge_breaking_risk(affected_crates: &[String]) -> BreakingRisk {
     let touches_client_boundary = affected_crates
         .iter()
@@ -235,6 +262,10 @@ pub fn judge_breaking_risk(affected_crates: &[String]) -> BreakingRisk {
 /// （シンボル 1 つに定義は 1 つ）が崩れている場合、他の判定材料
 /// （`affected_crates` 等）自体の信頼性が下がるため、常に人間承認へ倒す
 /// （安全側 / fail-closed、security.md A05）。
+///
+/// `analyze` の fail-closed スタブ（本 PR 時点）からは呼ばれないため未使用
+/// （撤去予定）。
+#[allow(dead_code)]
 pub fn requires_human_approval(
     breaking_risk: BreakingRisk,
     affected_routes_is_empty: bool,
@@ -243,6 +274,39 @@ pub fn requires_human_approval(
     ambiguous
         || matches!(breaking_risk, BreakingRisk::High | BreakingRisk::Medium)
         || !affected_routes_is_empty
+}
+
+/// 変更影響範囲解析のエントリポイント（TASK-13.2b, #134 が実装する走査 API）。
+///
+/// `main.rs` の `impact` サブコマンド（TASK-13.2c, #135）がここを呼ぶ。呼び出し前に
+/// `symbol` は [`validate_symbol`] を通過済みであることを CLI 層の契約とする
+/// （本関数は再検証しない）。`project_dir` の境界（ワークスペースルート外へ
+/// 脱出しない）は `routes::resolve_within_root` / `routes::scan_root` 相当の
+/// 仕組みを #134 が再利用する契約であり、本関数はそれを迂回しない
+/// （`docs/impact-analysis-design.md` §3.3・§6 A01 対策）。
+///
+/// # 現状（#134 未マージの間の暫定実装）
+///
+/// 本 PR（#135）の時点で #134（依存グラフ構築・使用箇所走査）は未マージのため、
+/// 本関数は常に `Err(ImpactError::Scan(_))` を返す fail-closed スタブである。
+/// 走査せずに黙って空レポートの成功（exit 0）へ倒すと、CLI 呼び出し元
+/// （CI・AI 自己保守フック）が「解析未実装」を「影響なし」と誤認しうるため、
+/// 決してそちらには倒さない（security.md A05）。#134 マージ後、この関数の中身は
+/// 実際の依存グラフ構築・使用箇所走査による [`ImpactReport`] 構築へ置き換わる
+/// 契約とする（シグネチャは変更しない想定）。
+///
+/// # Errors
+///
+/// 現状は常に `Err(ImpactError::Scan(_))`（#134 未接続の暫定実装のため）。
+/// #134 実装後は [`ImpactError::SymbolNotFound`]（定義元が見つからない）も返しうる。
+pub fn analyze(_project_dir: &Path, symbol: &str) -> Result<ImpactReport, ImpactError> {
+    // `symbol` は #134 実装後に走査の起点として使われる想定。現状は未使用だが
+    // シグネチャを確定させるため引数として保持する（余剰引数警告の抑止に
+    // `let _ =` は使わず、契約上の意味をコメントで示すのみに留める）。
+    let _ = symbol;
+    Err(ImpactError::Scan(
+        "impact analysis (TASK-13.2b / #134) not yet integrated".to_string(),
+    ))
 }
 
 #[cfg(test)]
@@ -397,5 +461,17 @@ mod tests {
     #[test]
     fn breaking_risk_display_matches_as_str() {
         assert_eq!(BreakingRisk::High.to_string(), "high");
+    }
+
+    // --- analyze（#134 未接続の間の fail-closed スタブ） ---
+
+    /// #134 がマージされるまで `analyze` は常に `Scan` エラーを返す契約
+    /// （黙示的成功に倒さない、security.md A05）。有効なシンボル名を渡しても
+    /// 成功しないことをここで固定し、将来 #134 接続時に本テストが
+    /// 意図的に落ちる（=置き換えを検知できる）ようにする。
+    #[test]
+    fn analyze_stub_never_succeeds_even_for_valid_symbol() {
+        let result = analyze(Path::new("."), "render");
+        assert!(matches!(result, Err(ImpactError::Scan(_))));
     }
 }
