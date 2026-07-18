@@ -209,6 +209,12 @@ fn type_error_blocks_gate_with_type_check_failure() {
 /// `default_escape_check` が failed になり、`fw gate` 全体が BLOCKED に
 /// なることを確認する。`type_check` は無関係のまま通過することも確認し、
 /// ブロック理由がコンパイル失敗由来ではないことを保証する。
+///
+/// `test`（`cargo test`）も無関係のまま通過することを確認する。PoC-7 の
+/// 重要発見（`docs/spec/03-poc/ai-self-maintenance/README.md` 実施内容 5）
+/// 「未エスケープ出力は `cargo test` 単体では検出できず、`test` は通過した
+/// まま `default_escape_check` という独立したゲートのみが不合格になる」を
+/// 製品 CLI 上で再現し、テストと相補的な専用ゲートの価値を担保する。
 #[test]
 fn unescaped_raw_html_call_blocks_gate_with_escape_check_failure() {
     let injected = baseline_main_rs().replacen(
@@ -246,6 +252,12 @@ fn unescaped_raw_html_call_blocks_gate_with_escape_check_failure() {
         check_passed(&stdout, "type_check"),
         Some(true),
         "エスケープ違反とは無関係な type_check は通過するはず（コンパイル自体は成立、ブロック理由の特定性）: stdout={stdout}"
+    );
+    assert_eq!(
+        check_passed(&stdout, "test"),
+        Some(true),
+        "PoC-7 の重要発見（cargo test 単体では未エスケープ出力を検出できない）どおり、\
+         test は通過したまま default_escape_check のみが不合格であるはず: stdout={stdout}"
     );
 }
 
