@@ -10,14 +10,25 @@
 //! フィクスチャ設計・アサーション設計は `docs/scenario-regression-design.md`
 //! （TASK-13.4a・#144）を単一の情報源とする。
 //!
-//! 本ファイルはシナリオ 1〜3 固有の回帰テスト（`fw impact` の
-//! `breaking_risk`/`affected_routes` 等の検証、変更混入前後の `fw gate`
-//! 差分検証）は含まない。それらは後続 TASK-13.4b/c/d（#145〜#147）が
-//! `cli/tests/scenarios/scenario{1,2,3}_*.rs` として追加する
-//! （設計文書 §4.4）。本ファイルはシナリオ実装の前提健全性を確認する
+//! - `bugfix_escape`: TASK-13.4b（#145）シナリオ 1（バグ修正）。
+//!   `escape_html` のエスケープ回帰を注入し、`fw gate` が BLOCKED → 修正後に
+//!   PASS することを検証する。
+//! - シナリオ 2（#146）・シナリオ 3（#147）は、本ファイルへの `mod` 追加と
+//!   `common.rs` のヘルパー再利用で合流する想定（設計文書 §4.4）。
+//!
+//! 本ファイル自体（ベースライン smoke test 2 件）はシナリオ 1〜3 固有の
+//! 回帰テスト（`fw impact` の `breaking_risk`/`affected_routes` 等の検証、
+//! 変更混入前後の `fw gate` 差分検証）は含まない。それらは
+//! `cli/tests/scenarios/{bugfix_escape,scenario2_*,scenario3_*}.rs` として
+//! 各サブタスクが追加する。本ファイルはシナリオ実装の前提健全性を確認する
 //! ベースライン smoke test 2 件のみを持つ対照群であり、このテストが
 //! 落ちる場合はシナリオ側の失敗を環境要因（ハーネス自体の不備）と
 //! 区別できない。
+//!
+//! 本ファイル・配下のテストの削除・弱体化（アサーション削除・`#[ignore]`
+//! 付与等）は REQ-13 の受け入れ基準（impact による事前判定・BLOCKED・修正後
+//! PASS のライフサイクル全体が担保されていること）を失わせるため行わない
+//! （coding-rust.md「テストの `#[ignore]` 追加でごまかさない」）。
 //!
 //! # 環境差の吸収（cargo-deny の有無）
 //!
@@ -29,6 +40,7 @@
 //! 常時実行する（環境に応じたスキップ・`#[ignore]` は行わない、
 //! `coding-rust.md`「テストの `#[ignore]` 追加でごまかさない」準拠）。
 
+mod bugfix_escape;
 mod common;
 mod scenario2_ui;
 

@@ -15,19 +15,20 @@
 //! （テストターゲット独立の制約によるもの）であり、二重管理を避けるための
 //! 抽出先は用意しない。
 //!
-//! 本サブタスク（TASK-13.4a）ではベースライン smoke test
-//! （`cli/tests/scenarios/main.rs`）のみがこのハーネスを利用する。後続
-//! TASK-13.4b/c/d（#145〜#147）がシナリオ 1〜3 固有のフィクスチャ拡張・
-//! `fw impact` JSON 検証にこのハーネスを利用する契約（設計文書 §4.4）。
+//! 本ファイルはベースライン smoke test（`cli/tests/scenarios/main.rs`）に加え、
+//! TASK-13.4b（#145、シナリオ 1: バグ修正）の
+//! `cli/tests/scenarios/bugfix_escape.rs` が利用する。後続 TASK-13.4c/d
+//! （#146〜#147）もシナリオ 2・3 固有のフィクスチャ拡張・`fw impact` JSON
+//! 検証にこのハーネスを利用する契約（設計文書 §4.4）。
 
-#![allow(dead_code)] // ベースライン smoke test は一部のヘルパのみ使用する。残りは #145〜#147 が利用する契約。
+#![allow(dead_code)] // ベースライン smoke test・シナリオ 1 は一部のヘルパのみ使用する。残りは #146〜#147 が利用する契約。
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// `write_scenario_project` が書き出した一時プロジェクトディレクトリを保持し、
-/// スコープを抜けるタイミングで自身を削除するガード
+/// `write_scenario_project`/`write_scenario1_project` が書き出した一時プロジェクト
+/// ディレクトリを保持し、スコープを抜けるタイミングで自身を削除するガード
 /// （`negative_cases.rs::ScratchProject` と同一方針）。
 pub struct ScenarioProject(PathBuf);
 
@@ -208,6 +209,293 @@ unknown-git = "deny"
     ScenarioProject(dest)
 }
 
+/// シナリオ 1（バグ修正、TASK-13.4b）用フィクスチャの `core/src/lib.rs`
+/// ベースライン内容。
+///
+/// PoC-7 `target-project`（`docs/spec/03-poc/ai-self-maintenance/scenarios/
+/// bugfix-escape-regression/`）が実測した「`rws-core` 相当のレンダリングコア」
+/// を、依存ゼロ・ネイティブビルド可能な最小構成で再現する。`render`/`text`/
+/// `escape_html` の 3 点を、実際の `rws-core` の責務（ノード木 API・
+/// render・既定エスケープ、`docs/unsafe-boundary.md` の対象外＝安全な純 Rust）
+/// と同じ形で持つ。
+///
+/// [`SINGLE_QUOTE_ESCAPE_ARM`] を注入対象の一意な部分文字列として公開し、
+/// [`bugfix_escape`](crate::bugfix_escape) シナリオがここへの置換で
+/// エスケープ回帰を再現する。
+pub fn scenario1_core_lib_rs() -> &'static str {
+    r#"//! シナリオ 1（TASK-13.4b, #145）フィクスチャ: `rws-core` 相当の最小
+//! レンダリングコア。ノード木 API（`text`/`render`）と既定エスケープ
+//! （REQ-1）である `escape_html` のみを持つ。
+//!
+//! `rws-app`（`app/`）・`rws-wasm-client`（`wasm-client/`）相当のフィクスチャ
+//! クレートがここの `render`/`text` を呼び出す契約。`escape_html` の
+//! エスケープ漏れは `text_node_is_escaped_by_default` の失敗として顕在化する
+//! （`fw gate` の `test` チェックが検出、PoC-7 gate-before-fix.json 相当）。
+
+pub enum Node {
+    Text(String),
+}
+
+/// テキストノードを構築する。`render` を通した時点で必ず [`escape_html`]
+/// を経由する（本フィクスチャに `raw_html()` 相当の迂回 API は存在しない）。
+pub fn text(s: &str) -> Node {
+    Node::Text(s.to_string())
+}
+
+/// 既定エスケープ（REQ-1）: `&` `<` `>` `"` `'` の 5 文字を HTML 実体参照へ
+/// 変換する。この関数の出力はエスケープ済みであることを呼び出し元
+/// （`render`、ひいては `rws-app`/`rws-wasm-client` 相当の各フィクスチャ）が
+/// 前提とする契約。
+pub fn escape_html(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    for c in input.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&#x27;"),
+            other => out.push(other),
+        }
+    }
+    out
+}
+
+/// ノード木を HTML 文字列へレンダリングする。`rws-app`/`rws-wasm-client`
+/// 相当のフィクスチャから呼ばれ、既定エスケープ済みの文字列を返す。
+pub fn render(node: &Node) -> String {
+    match node {
+        Node::Text(s) => escape_html(s),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// REQ-1 既定エスケープの回帰テスト。シングルクォートが `&#x27;` へ
+    /// 変換されることを検証する（PoC-7 `bugfix-escape-regression` シナリオが
+    /// 実測した回帰そのもの）。`fw gate` の `test` チェックがこの単体テストを
+    /// 実行するため、シングルクォートのエスケープ漏れが混入すると
+    /// 本テストの失敗として `fw gate` 全体を BLOCKED にする。
+    #[test]
+    fn text_node_is_escaped_by_default() {
+        let rendered = render(&text("a'b<c>&\"d"));
+        assert_eq!(rendered, "a&#x27;b&lt;c&gt;&amp;&quot;d");
+    }
+}
+"#
+}
+
+/// [`scenario1_core_lib_rs`] 中の、シングルクォートを `&#x27;` へ変換する
+/// match アームの一意な部分文字列。[`bugfix_escape`](crate::bugfix_escape)
+/// シナリオが [`replace_unique`] でここを「無変換で素通しする」内容へ置換し、
+/// PoC-7 `bugfix-escape-regression` の回帰（`docs/spec/03-poc/
+/// ai-self-maintenance/scenarios/bugfix-escape-regression/`）を再現する。
+pub const SINGLE_QUOTE_ESCAPE_ARM: &str = "'\\'' => out.push_str(\"&#x27;\"),";
+
+/// シングルクォートのエスケープを欠落させた（無変換で素通しする）置換後の
+/// 内容。型・lint は無傷のまま `text_node_is_escaped_by_default` のみが
+/// 失敗する構造にする（PoC-7 `gate-before-fix.json` と同じ失敗モード:
+/// `type_check`/`lint`/`default_escape_check` は通過、`test` のみ failed）。
+pub const SINGLE_QUOTE_ESCAPE_ARM_REGRESSED: &str = "'\\'' => out.push(c),";
+
+/// シナリオ 1 用 `app/src/lib.rs`（`rws-app` 相当）。`rws-core` 相当の
+/// `render`/`text` を呼び出す薄いコンポーネント層。`render` の使用箇所として
+/// `fw impact render` の `affected_files`/`affected_crates` に現れる契約。
+pub fn scenario1_app_lib_rs() -> &'static str {
+    r#"//! シナリオ 1（TASK-13.4b, #145）フィクスチャ: `rws-app` 相当の
+//! コンポーネント層。`rws-core` 相当クレート（`core/`）の `render`/`text` を
+//! 呼び出し、一覧ページ相当の文字列を組み立てる。
+
+use rws_core::{render, text};
+
+/// 一覧ページ相当のレンダリング関数。`render` の直接の呼び出し元。
+pub fn list_page(name: &str) -> String {
+    render(&text(name))
+}
+"#
+}
+
+/// シナリオ 1 用 `wasm-client/src/lib.rs`（`rws-wasm-client` 相当）。
+///
+/// `cli/src/impact.rs::CLIENT_BOUNDARY_CRATES` に含まれるクレート名
+/// （`rws-wasm-client`）と完全一致させることで、`render` の変更が
+/// クライアント境界へ波及した場合の `breaking_risk: high` 判定
+/// （`judge_breaking_risk`）を再現する。実際の `rws-wasm-full`/`rws-wasm-thin`
+/// と異なり `wasm-bindgen` は使わない純ネイティブ lib とし、`fw gate` が
+/// ネイティブ `cargo test`/`cargo check` で検証できるようにする
+/// （wasm32 ターゲットのクロスビルドは本シナリオのスコープ外）。
+pub fn scenario1_wasm_client_lib_rs() -> &'static str {
+    r#"//! シナリオ 1（TASK-13.4b, #145）フィクスチャ: `rws-wasm-client` 相当の
+//! クライアント境界層（ハイドレーション等の CSR 経路を模した薄い関数のみ）。
+//! `wasm-bindgen` は使わず純ネイティブ lib として構成する
+//! （`fw gate`/`fw impact` のネイティブ実行対象に含めるため）。
+
+use rws_core::{render, text};
+
+/// ハイドレーション時にラベルを再描画する相当の関数。`render` の直接の
+/// 呼び出し元であり、`cli/src/impact.rs::CLIENT_BOUNDARY_CRATES` 判定の
+/// 対象クレートからの利用を再現する。
+pub fn hydrate_label(name: &str) -> String {
+    render(&text(name))
+}
+"#
+}
+
+/// シナリオ 1 の 3 クレートワークスペース一式を一意な一時プロジェクト
+/// ディレクトリへ書き出す:
+///
+/// ```text
+/// <scratch>/scenario1-<label>-<pid>-<nanos>/
+/// ├── structure.toml   ([directories.core]/[directories.app]/[directories.wasm-client])
+/// ├── Cargo.toml       (virtual workspace, members = ["core", "app", "wasm-client"])
+/// ├── deny.toml        (write_scenario_project と同一ポリシーの最小版)
+/// ├── clippy.toml      (rws_core::raw_html の disallowed-methods エントリ)
+/// ├── core/            (name = "rws-core")
+/// ├── app/              (name = "rws-app", core へ path 依存)
+/// └── wasm-client/      (name = "rws-wasm-client", core へ path 依存)
+/// ```
+///
+/// `core_lib_rs` を呼び出し側から差し替え可能にすることで、ベースライン
+/// フィクスチャ書き出しと、エスケープ回帰を注入済みのフィクスチャ書き出しの
+/// 両方に本関数 1 つで対応する。
+///
+/// `cargo generate-lockfile --offline` で `Cargo.lock` を生成する（path 依存
+/// のみのため決定的・ネットワーク不要）。`fw gate` は `--locked` で `cargo`
+/// サブコマンドを起動するため、ロックファイルなしでは各チェックがロック
+/// ファイル欠落自体で failed になり、注入した欠陥とは無関係な失敗理由に
+/// なってしまう（ケースの特定性を損なう）ため、ここで確実に用意する
+/// （`write_scenario_project`/`negative_cases.rs::write_case_project` と
+/// 同一方針）。
+pub fn write_scenario1_project(label: &str, core_lib_rs: &str) -> ScenarioProject {
+    let dest = scratch_root().join(format!(
+        "scenario1-{label}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = fs::remove_dir_all(&dest);
+
+    let core_src = dest.join("core").join("src");
+    let app_src = dest.join("app").join("src");
+    let wasm_client_src = dest.join("wasm-client").join("src");
+    fs::create_dir_all(&core_src).expect("core/src ディレクトリの作成に失敗した");
+    fs::create_dir_all(&app_src).expect("app/src ディレクトリの作成に失敗した");
+    fs::create_dir_all(&wasm_client_src).expect("wasm-client/src ディレクトリの作成に失敗した");
+
+    fs::write(
+        dest.join("structure.toml"),
+        r#"
+[manifest]
+version = 1
+
+[directories.core]
+role = "core"
+crate = "rws-core"
+description = "TASK-13.4b scenario1 fixture: rendering core"
+allowed_dependents = ["app", "wasm-client"]
+
+[directories.app]
+role = "component"
+crate = "rws-app"
+description = "TASK-13.4b scenario1 fixture: component layer"
+depends_on = ["core"]
+
+[directories.wasm-client]
+role = "client-entrypoint"
+crate = "rws-wasm-client"
+description = "TASK-13.4b scenario1 fixture: client boundary layer"
+depends_on = ["core"]
+"#,
+    )
+    .expect("structure.toml の書き込みに失敗した");
+
+    fs::write(
+        dest.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"core\", \"app\", \"wasm-client\"]\nresolver = \"2\"\n",
+    )
+    .expect("workspace Cargo.toml の書き込みに失敗した");
+
+    // `templates/default/deny.toml` と同じ主要ポリシー（bans/licenses/sources）
+    // を持つ最小版（`write_scenario_project`/`negative_cases.rs` と同一内容）。
+    fs::write(
+        dest.join("deny.toml"),
+        r#"[graph]
+targets = []
+
+[bans]
+multiple-versions = "warn"
+deny = [
+    { name = "openssl-sys" },
+]
+
+[licenses]
+allow = ["MIT", "Apache-2.0", "Unicode-3.0", "BSD-3-Clause"]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+"#,
+    )
+    .expect("deny.toml の書き込みに失敗した");
+
+    // `gate.rs::clippy_policy_check` は `project_dir` 直下の `clippy.toml` に
+    // `disallowed-methods` の `rws_core::raw_html` エントリが存在することを
+    // fail-closed で前提とする（`write_scenario_project` と同一内容）。
+    fs::write(
+        dest.join("clippy.toml"),
+        r#"disallowed-methods = [
+    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/raw-html-review-gate.md 参照）" },
+]
+"#,
+    )
+    .expect("clippy.toml の書き込みに失敗した");
+
+    fs::write(
+        dest.join("core").join("Cargo.toml"),
+        "[package]\nname = \"rws-core\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n",
+    )
+    .expect("core/Cargo.toml の書き込みに失敗した");
+    fs::write(core_src.join("lib.rs"), core_lib_rs).expect("core/src/lib.rs の書き込みに失敗した");
+
+    fs::write(
+        dest.join("app").join("Cargo.toml"),
+        "[package]\nname = \"rws-app\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n\n[dependencies]\nrws-core = { path = \"../core\" }\n",
+    )
+    .expect("app/Cargo.toml の書き込みに失敗した");
+    fs::write(app_src.join("lib.rs"), scenario1_app_lib_rs())
+        .expect("app/src/lib.rs の書き込みに失敗した");
+
+    fs::write(
+        dest.join("wasm-client").join("Cargo.toml"),
+        "[package]\nname = \"rws-wasm-client\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n\n[dependencies]\nrws-core = { path = \"../core\" }\n",
+    )
+    .expect("wasm-client/Cargo.toml の書き込みに失敗した");
+    fs::write(
+        wasm_client_src.join("lib.rs"),
+        scenario1_wasm_client_lib_rs(),
+    )
+    .expect("wasm-client/src/lib.rs の書き込みに失敗した");
+
+    // 依存は path 依存のみのためネットワークアクセスなしで決定的にロック
+    // ファイルを生成できる。
+    let lockfile_output = Command::new("cargo")
+        .args(["generate-lockfile", "--offline"])
+        .current_dir(&dest)
+        .output()
+        .expect("cargo generate-lockfile の起動に失敗した");
+    assert!(
+        lockfile_output.status.success(),
+        "cargo generate-lockfile --offline に失敗した（フィクスチャ自体が壊れている）: {}",
+        String::from_utf8_lossy(&lockfile_output.stderr)
+    );
+
+    ScenarioProject(dest)
+}
+
 /// 一意な部分文字列 `from` を `to` へちょうど 1 箇所だけ置換する。複数箇所・
 /// 0 箇所にマッチした場合は panic し、フィクスチャのリファクタリングで
 /// 注入前提が崩れたことをテスト失敗として顕在化させる
@@ -229,10 +517,10 @@ pub fn replace_unique(content: &str, from: &str, to: &str) -> String {
 /// 起動し、(終了コード, stdout, stderr) を返す。`--project <dir>` を固定で
 /// 付与し、`CARGO_TARGET_DIR` をフィクスチャ配下の専用ディレクトリへ上書きする
 /// （`negative_cases.rs::run_fw_gate` と同一方針。self-hosted runner 等で
-/// 継承された `CARGO_TARGET_DIR` をそのまま使うと、同名パッケージ
-/// `scenario-fixture-app` を使う複数フィクスチャ間でビルドキャッシュ/
-/// フィンガープリントが衝突し、直前のフィクスチャの結果を誤って再利用して
-/// しまう偽陰性を招くため、フィクスチャごとに独立させる）。
+/// 継承された `CARGO_TARGET_DIR` をそのまま使うと、同名パッケージを使う
+/// 複数フィクスチャ間でビルドキャッシュ/フィンガープリントが衝突し、直前の
+/// フィクスチャの結果を誤って再利用してしまう偽陰性を招くため、フィクスチャ
+/// ごとに独立させる）。
 ///
 /// `extra_args` はサブコマンド固有の追加引数（例: `fw impact <symbol>` の
 /// `<symbol>`）を `--project` より前に渡す。
