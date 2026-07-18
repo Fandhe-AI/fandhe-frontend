@@ -1,27 +1,40 @@
 //! `cli/tests/negative_cases.rs`（TASK-13.5・#148）と
-//! `cli/tests/xss_regression_link.rs`（TASK-13.3c・#141）が共用する
-//! fixture 基盤。
+//! `cli/tests/xss_regression_link.rs`（TASK-13.3c・#141）、および
+//! `cli/tests/impact_ambiguous.rs` / `cli/tests/impact_wasm_thin.rs`
+//! （イシュー #293、`docs/impact-analysis-design.md` §3.4 観点 2・4 の
+//! 独立 e2e 化）が共用する fixture 基盤。
 //!
-//! 両ファイルはいずれも `fw gate`（`cli/src/gate.rs`, TASK-13.3・#138）を
-//! 実バイナリとして起動し、一時的な最小プロジェクト（`structure.toml` +
-//! virtual workspace + `deny.toml` + `clippy.toml`）に対して欠陥を注入して
-//! BLOCKED まで到達させる e2e テストであり、フィクスチャの書き出し・
-//! 起動・JSON レポート判定のヘルパー群が完全に重複するためここへ集約する。
+//! `negative_cases.rs` / `xss_regression_link.rs` はいずれも `fw gate`
+//! （`cli/src/gate.rs`, TASK-13.3・#138）を実バイナリとして起動し、一時的な
+//! 最小プロジェクト（`structure.toml` + virtual workspace + `deny.toml` +
+//! `clippy.toml`）に対して欠陥を注入して BLOCKED まで到達させる e2e テスト
+//! であり、フィクスチャの書き出し・起動・JSON レポート判定のヘルパー群が
+//! 完全に重複するためここへ集約する。`impact_*.rs` は `fw impact`
+//! （`cli/src/impact.rs`, TASK-13.2・#133〜#136）を対象とするため
+//! `structure.toml`/`deny.toml`/`clippy.toml` を要さない別系統のフィクスチャ
+//! ライタ（[`write_impact_workspace`]）を追加で持つ。
 //! `tests/support/mod.rs` に置くことで cargo からは独立したテストバイナリ
 //! として扱われず（`tests/` 直下の `.rs` のみが個別クレートになる）、
-//! 両テストファイルから `mod support;` で参照できる。
+//! 各テストファイルから `mod support;` で参照できる。
 //!
 //! フィクスチャ自体の設計判断（`CARGO_TARGET_DIR` を専用化する理由・
 //! `cargo generate-lockfile --offline` を要する理由等）は `negative_cases.rs`
 //! 由来のためコメントもそのまま引き継ぐ。
 //!
 //! 本モジュールは `tests/` 配下の複数バイナリ（`negative_cases.rs` /
-//! `xss_regression_link.rs`）から個別にコンパイルされ、各バイナリは公開
-//! ヘルパーの部分集合しか使わない（例: `negative_cases.rs` は
-//! `write_xss_case_project` を使わない）。dead_code lint はバイナリ単位で
-//! 判定されるため、他方でのみ使われる関数がもう一方のコンパイル単位では
-//! 未使用警告になる。共有ヘルパーモジュールの典型的な事情のため、モジュール
-//! 全体で `dead_code` を許可する。
+//! `xss_regression_link.rs` / `impact_ambiguous.rs` / `impact_wasm_thin.rs`）
+//! から個別にコンパイルされ、各バイナリは公開ヘルパーの部分集合しか使わない
+//! （例: `negative_cases.rs` は `write_xss_case_project` を使わない）。
+//! dead_code lint はバイナリ単位で判定されるため、他方でのみ使われる関数が
+//! もう一方のコンパイル単位では未使用警告になる。共有ヘルパーモジュールの
+//! 典型的な事情のため、モジュール全体で `dead_code` を許可する。
+//!
+//! `run_fw`/`json_string_field`/`json_bool_field`/`json_array_contains_str`
+//! は `cli/tests/scenarios/common.rs` の同名ヘルパーと実装が重複するが、
+//! これは意図的な複製である（cargo のテストターゲットは独立コンパイル単位
+//! のため、`tests/` 直下のバイナリから `tests/scenarios/` 配下のモジュール
+//! を参照できない制約による。`scenarios/common.rs` 冒頭コメント・
+//! `docs/scenario-regression-design.md` §4.4 が同じ方針を明文化済み）。
 
 #![allow(dead_code)]
 
@@ -29,23 +42,28 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// `fw` バイナリを `gate --project <dir>` で起動し、(終了コード, stdout, stderr)
-/// を返す（`gate_integration.rs` の `run_fw_gate` と同一パターン）。
+/// `fw` バイナリを任意のサブコマンド（`gate` / `impact` 等）で起動し、
+/// (終了コード, stdout, stderr) を返す（`cli/tests/scenarios/common.rs::run_fw`
+/// と同一方針の汎用ランナー。#293 で `impact_ambiguous.rs`/`impact_wasm_thin.rs`
+/// が `fw impact <symbol>` を起動するために一般化した）。
 ///
 /// `CARGO_TARGET_DIR` はフィクスチャ間で共有しない（`raw_html_lint_e2e.rs`
 /// と同一方針）。self-hosted runner では `CARGO_TARGET_DIR=/cargo-target` が
 /// プロセス環境に既定で設定されており、本テストの全フィクスチャは同名パッケージ
-/// （`negative-fixture-app` あるいは `xss-fixture-app`）のため、これを継承した
-/// まま `cargo` を起動するとフィクスチャ間でビルドキャッシュ/フィンガープリント
-/// が衝突し、直前に生成した別フィクスチャのチェック結果を誤って再利用して
-/// しまう（欠陥を注入したはずのケースが再コンパイルされず誤って PASS する
-/// 偽陰性）。ここで `project_dir` 配下の専用 `target/` を明示指定し、継承
-/// された値を上書きすることで各フィクスチャを独立させる（`fw` から起動される
-/// `cargo` 子プロセスにも env は継承されるため、これで `gate.rs` 側の変更は
-/// 不要）。
-pub fn run_fw_gate(project_dir: &Path) -> (i32, String, String) {
+/// を再利用するため、これを継承したまま `cargo` を起動するとフィクスチャ間で
+/// ビルドキャッシュ/フィンガープリントが衝突し、直前に生成した別フィクスチャの
+/// チェック結果を誤って再利用してしまう（欠陥を注入したはずのケースが
+/// 再コンパイルされず誤って PASS する偽陰性）。ここで `project_dir` 配下の
+/// 専用 `target/` を明示指定し、継承された値を上書きすることで各フィクスチャを
+/// 独立させる（`fw` から起動される `cargo` 子プロセスにも env は継承される
+/// ため、これで `gate.rs`/`impact.rs` 側の変更は不要）。
+///
+/// `extra_args` はサブコマンド固有の追加引数（例: `fw impact <symbol>` の
+/// `<symbol>`）を `--project` より前に渡す。
+pub fn run_fw(subcommand: &str, extra_args: &[&str], project_dir: &Path) -> (i32, String, String) {
     let output = Command::new(env!("CARGO_BIN_EXE_fw"))
-        .arg("gate")
+        .arg(subcommand)
+        .args(extra_args)
         .arg("--project")
         .arg(project_dir)
         .env("CARGO_TARGET_DIR", project_dir.join("target"))
@@ -56,6 +74,13 @@ pub fn run_fw_gate(project_dir: &Path) -> (i32, String, String) {
         String::from_utf8_lossy(&output.stdout).into_owned(),
         String::from_utf8_lossy(&output.stderr).into_owned(),
     )
+}
+
+/// `fw` バイナリを `gate --project <dir>` で起動する（`negative_cases.rs`/
+/// `xss_regression_link.rs` 既存呼び出し元のシグネチャ・挙動を変えないための
+/// 薄いラッパー。実体は [`run_fw`] へ委譲する）。
+pub fn run_fw_gate(project_dir: &Path) -> (i32, String, String) {
+    run_fw("gate", &[], project_dir)
 }
 
 /// `stdout`（`fw gate` の JSON レポート）中の `"name":"<name>"` エントリの
@@ -400,4 +425,148 @@ fn ampersand_is_escaped_first() {
     assert_eq!(xss_fixture_app::escape_html_content("&<"), "&amp;&lt;");
 }
 "#
+}
+
+// --- `fw impact` 向け JSON 抽出ヘルパ（イシュー #293） ---
+//
+// `cli/tests/scenarios/common.rs` の同名関数と実装が完全に一致するが、
+// テストターゲット独立の制約による意図的な複製（ファイル冒頭コメント参照）。
+
+/// `fw impact` の JSON レポート中の文字列フィールド `"<field>":"<value>"` を
+/// 抽出する。専用 JSON パーサ依存を持ち込まず、`check_passed` と同じ
+/// 「文字列走査による軽量抽出」方針を踏襲する（`cli` の外部依存ゼロを維持）。
+/// フィールドが見つからない場合は `None`（欠落と空文字列を区別する）。
+pub fn json_string_field(stdout: &str, field: &str) -> Option<String> {
+    let needle = format!("\"{field}\":\"");
+    let start = stdout.find(&needle)? + needle.len();
+    let rest = &stdout[start..];
+    let end = rest.find('"')?;
+    Some(rest[..end].to_string())
+}
+
+/// `fw impact` の JSON レポート中の真偽値フィールド
+/// `"<field>":true`/`"<field>":false` を抽出する
+/// （`requires_human_approval` / `ambiguous` 等）。フィールドが見つからない
+/// 場合は `None`。
+pub fn json_bool_field(stdout: &str, field: &str) -> Option<bool> {
+    if stdout.contains(&format!("\"{field}\":true")) {
+        Some(true)
+    } else if stdout.contains(&format!("\"{field}\":false")) {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+/// `fw impact` の JSON レポート中の文字列配列フィールド
+/// `"<field>":["a","b"]` の要素をそのまま（クォート込みの生テキストとして）
+/// 含むかを判定する軽量ヘルパ。`affected_crates` の含有検証に使う。
+pub fn json_array_contains_str(stdout: &str, field: &str, expected_element: &str) -> bool {
+    let needle = format!("\"{field}\":[");
+    let Some(start) = stdout.find(&needle) else {
+        return false;
+    };
+    let rest = &stdout[start + needle.len()..];
+    let Some(end) = rest.find(']') else {
+        return false;
+    };
+    let array_body = &rest[..end];
+    array_body.contains(&format!("\"{expected_element}\""))
+}
+
+/// [`write_impact_workspace`] に渡す 1 lib クレート分のフィクスチャ内容
+/// （イシュー #293）。
+///
+/// `fw impact` の入力契約（`cli/src/main.rs::run_impact` →
+/// `metadata::fetch`（`cargo metadata --locked` なし）→ `impact::analyze`）は
+/// `structure.toml` / `deny.toml` / `clippy.toml` を読まない（それらは
+/// `fw gate` 専用）ため、`write_case_project`/`write_workspace_project` とは
+/// 異なり `Cargo.toml`（virtual workspace）+ 各メンバー lib クレートのみの
+/// 最小構成とする。
+pub struct ImpactMemberSpec {
+    /// ワークスペースルート直下のディレクトリ名（cargo workspace member 名と
+    /// 一致させる）。
+    pub dir: &'static str,
+    /// `Cargo.toml` の `package.name`（`fw impact` の JSON レポート中の
+    /// `affected_crates` にはこの値が現れる）。
+    pub package_name: &'static str,
+    /// このメンバーが path 依存する他メンバーの `dir` 一覧（同じ `members`
+    /// スライス内に存在する必要がある）。
+    pub path_deps: &'static [&'static str],
+    /// `src/lib.rs` に書き出すソース全文。
+    pub source: &'static str,
+}
+
+/// `fw impact` 専用の複数 lib クレートワークスペースを一意な一時プロジェクト
+/// ディレクトリへ書き出す（イシュー #293）:
+///
+/// ```text
+/// <scratch>/impact-<label>-<pid>-<nanos>/
+/// ├── Cargo.toml       (virtual workspace, members = members の dir 一覧)
+/// └── <member.dir>/
+///     ├── Cargo.toml   (path_deps は `../<dep_dir>` として依存宣言)
+///     └── src/lib.rs   (member.source)
+/// ```
+///
+/// `structure.toml`/`deny.toml`/`clippy.toml` は書き出さない（`fw impact` は
+/// gate 専用のこれらファイルを読まないため不要、上記 [`ImpactMemberSpec`]
+/// doc コメント参照）。
+///
+/// `cargo generate-lockfile --offline` で `Cargo.lock` を生成する（path 依存
+/// のみのため決定的・ネットワーク不要。`write_case_project` と同一方針）。
+pub fn write_impact_workspace(label: &str, members: &[ImpactMemberSpec]) -> ScratchProject {
+    let dest = scratch_root().join(format!(
+        "impact-{label}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = fs::remove_dir_all(&dest);
+    fs::create_dir_all(&dest).expect("一時プロジェクトディレクトリの作成に失敗した");
+
+    let members_list = members
+        .iter()
+        .map(|m| format!("\"{}\"", m.dir))
+        .collect::<Vec<_>>()
+        .join(", ");
+    fs::write(
+        dest.join("Cargo.toml"),
+        format!("[workspace]\nmembers = [{members_list}]\nresolver = \"2\"\n"),
+    )
+    .expect("workspace Cargo.toml の書き込みに失敗した");
+
+    for m in members {
+        let member_dir = dest.join(m.dir);
+        let src_dir = member_dir.join("src");
+        fs::create_dir_all(&src_dir).expect("member src ディレクトリの作成に失敗した");
+
+        let mut cargo_toml = format!(
+            "[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n",
+            m.package_name
+        );
+        if !m.path_deps.is_empty() {
+            cargo_toml.push_str("\n[dependencies]\n");
+            for dep_dir in m.path_deps {
+                let dep = members
+                    .iter()
+                    .find(|candidate| &candidate.dir == dep_dir)
+                    .unwrap_or_else(|| panic!("path_deps が未知の dir `{dep_dir}` を参照している"));
+                cargo_toml.push_str(&format!(
+                    "{} = {{ path = \"../{}\" }}\n",
+                    dep.package_name, dep_dir
+                ));
+            }
+        }
+        fs::write(member_dir.join("Cargo.toml"), cargo_toml)
+            .expect("member Cargo.toml の書き込みに失敗した");
+
+        fs::write(src_dir.join("lib.rs"), m.source)
+            .expect("member src/lib.rs の書き込みに失敗した");
+    }
+
+    generate_lockfile(&dest);
+
+    ScratchProject(dest)
 }
