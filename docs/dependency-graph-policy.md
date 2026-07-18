@@ -209,3 +209,80 @@ fail-closed な CI 強制（`check-deps` / `check-core-deps`、第 3 節）・bu
 （レビューポイント節）で改めて行われます。
 
 **判定日**: 2026-07-17（TASK-3.3b 確定コミット時点）。
+
+## 9. MAX_DEPTH 上限値・計測方法の再検証（イシュー #298）
+
+### 9.1 経緯
+
+TASK-9.1a（rust-embed 統合設計、`docs/dist-server-design.md` 4.3 節）の検討過程で、
+本ポリシー第 2 節が引用する「PoC-3 実測: 52 件/深さ 5」という値と、現行の計測実装
+（`xtask/src/check_deps.rs` のメモ化 DFS、第 3 節参照）による再計測値が一致しない
+ことが発見されました。PR #210 の対象外節に記録されたまま Issue 化されていなかった
+事項を、out-of-scope 全数集約でイシュー #298 として起票し、本節でその再検証結果を
+確定させます。
+
+### 9.2 齟齬の実体
+
+- PoC-3 の「52 件/深さ 5」（第 2 節の数値表）は `cargo tree -e normal` の**目視インデント
+  段数**による計測値であり、`(*)` による重複サブツリーの省略を伴います
+- 現行の `xtask` 計測（第 3 節）は `cargo metadata` の `resolve.nodes` に対する
+  **メモ化 DFS による厳密な最長経路長**であり、`(*)` 省略による過小評価が起きません
+- `docs/dist-server-design.md` 4.2 節（表・参考行）は、PoC-3 と同一の依存構成
+  （axum + tokio）を現行アルゴリズムで再計測した結果を「50 件/深さ **9**」と記録して
+  います。旧基準（cargo tree 目視）の「52/5」と現行基準（メモ化 DFS）の「50/9」は
+  **直接比較不能**であり、両者の差は計測方法の違いに起因するものであって、現行実装の
+  不具合ではありません
+
+### 9.3 再検証の結論
+
+自動運転・安全側判断として、既存ゲートを一切弱めない前提で次の 4 点を確定します。
+
+1. **計測方法（メモ化 DFS）は変更しません**。`cargo tree` 目視は `(*)` 重複省略により
+   深さを過小評価するため、REQ-3 が求める監査可能性には現行の厳密な最長経路長計測が
+   適切です。実装の欠陥ではなく、根拠側（PoC-3 目視値）が旧基準だったと整理します
+2. **`MAX_DEPTH = 6` / `MAX_PACKAGES = 60` の値は変更しません**。現行計測定義のもとで、
+   REQ-3 が対象とする標準サーバー構成の実体 `rws-dist-server` が実測で上限内であり
+   （下記 9.4 の再実測参照）、上限値としての運用実効性が裏付けられているためです
+3. **根拠の再アンカー**: 「PoC-3 実測 52/5 + 余裕」という第 2 節の説明は現行計測定義と
+   比較不能なため、根拠を「旧基準（cargo tree 目視）の PoC-3 値」と「現行基準
+   （メモ化 DFS）の再計測値・現行実測値（`rws-dist-server`: 21/5）」を区別して読む
+   ことを本節で明文化します。第 2 節・第 3 節の記述自体（TASK-3.3b 確定版）は既に
+   この区別を反映済みであり、齟齬の説明が欠けていたのは `xtask/src/check_deps.rs` の
+   `MAX_PACKAGES` / `MAX_DEPTH` 定数の rustdoc（PoC-3 値のみを根拠として記載）でした。
+   本イシューにあわせて同 rustdoc にも旧基準/現行基準の区別を追記します
+4. **仕様（REQ-3）側への注記提案はユーザー承認事項に留めます**。`docs/spec/04-requirements.md`
+   の REQ-3 受け入れ基準にある「PoC-3 実績: 52 件/深さ 5 を基準に」という記述には
+   計測基準の注記が望ましいですが、`docs/spec/` は編集禁止（サブモジュール）かつ
+   Issue 起票は事前承認必須のため、frontend-framework-spec への計測基準注記 Issue の
+   起票は本節では**提案のみ**とし、起票自体は行いません
+
+### 9.4 再検証時点の実測値（イシュー #298 判定時点）
+
+```
+cargo run --locked -p xtask -- check-deps --package rws-core --package xtask \
+  --package rws-app --package rws-dist-server --package rws-server
+```
+
+```
+deps-check: packages=0/60  depth=0/6 result=PASS  (rws-core)
+deps-check: packages=0/60  depth=0/6 result=PASS  (xtask)
+deps-check: packages=1/60  depth=1/6 result=PASS  (rws-app)
+deps-check: packages=21/60 depth=5/6 result=PASS  (rws-dist-server)
+deps-check: packages=2/60  depth=2/6 result=PASS  (rws-server)
+```
+
+`rws-server` は第 2 節記載時点（0 件/深さ 0）から 2 件/深さ 2 へ増加していますが、
+上限（60/6）に対して十分な余裕があり、判定結果（PASS）に変わりはありません。この
+差分自体が「実測値は経時的にドリフトしうるため定期的な再検証が必要」という本節の
+趣旨を裏付けます。参考実測（`rws-wasm-full`: 20/60・9/6・FAIL、`rws-wasm-thin`:
+13/60・7/6・FAIL）は第 4 節記載値と一致し、変化なしを確認しました。
+
+### 9.5 axum / rust-embed 系スタックへの含意（スコープ外・条件付き整理）
+
+`docs/dist-server-design.md` 4.3 節のとおり、axum / rust-embed 系スタックを標準サーバー
+構成として採用する場合、現行アルゴリズムでは深さ 9 前後となり現行上限（6）で構造的に
+FAIL します。この構成を将来採用するには、frontend-framework-spec 側での REQ-3 改訂
+（計測基準を踏まえた上限値の再設計）が前提となります。本イシューはこの前提整理の
+確認に留まり、上限値自体の変更判断は行いません（第 7 節「対応外」参照）。
+
+**判定日**: 2026-07-18（イシュー #298 再検証確定時点）。
