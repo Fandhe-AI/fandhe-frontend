@@ -204,9 +204,12 @@ clippy` を起動せず即座に `lint` チェックを failed とする（§3 �
 対応するテストは `cli/tests/gate_integration.rs`（CLI 経由の統合テスト、
 6 ケース）・`cli/tests/negative_cases.rs`（3 負例: 型エラー・未エスケープ・
 禁止依存、TASK-13.5）・`cli/tests/raw_html_lint_e2e.rs`（実 clippy 起動に
-よる主防御の実証、4 ケース）・`gate.rs` 内 `#[cfg(test)] mod tests`（約 30
-ユニットテスト）。本書執筆時点でこれら全テストは `cargo test -p rws-cli`
-でグリーンであることを確認済み。
+よる主防御の実証、4 ケース）・`gate.rs` 内 `#[cfg(test)] mod tests`（約 46
+ユニットテスト。TASK-13.3d/#142 でポリシーチェックの単体テスト・外部コマンド
+起動引数契約・宣言クレート 0 件時の fail-closed・集約結果の `action` 文言・
+`run_all_checks` の name/順序と PASS 経路・`render_report` の JSON ラウンド
+トリップ・`truncate_output` のマルチバイト境界安全性を追補）。本書執筆時点で
+これら全テストは `cargo test -p rws-cli` でグリーンであることを確認済み。
 
 ## 7. スコープ外
 
