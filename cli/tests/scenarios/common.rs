@@ -310,6 +310,171 @@ pub fn json_bool_field(stdout: &str, field: &str) -> Option<bool> {
     }
 }
 
+/// 複数クレート構成フィクスチャの workspace member 1 件分の仕様
+/// （TASK-13.4d・#147 が導入。設計文書 §4.2「フィクスチャ拡張指針」に基づく
+/// 汎用形で、シナリオ固有の特殊化を持ち込まない契約とする。#145/#146
+/// （シナリオ 1・2）が複数クレート構成を必要とする場合はこの型・
+/// [`write_scenario_workspace`] を再利用し、`common.rs` を複製・分岐させない）。
+pub struct MemberSpec {
+    /// ワークスペースルート直下のディレクトリ名（`structure.toml` の
+    /// `directories.<dir>` キーと一致させる、`^[a-z0-9_-]+$` を満たすこと）。
+    pub dir: &'static str,
+    /// `Cargo.toml` の `package.name`（`structure.toml` の `crate` フィールドと
+    /// 一致させる）。
+    pub package_name: &'static str,
+    /// `structure.toml` の `role`（`"component"` / `"server-entrypoint"` 等、
+    /// `cli/src/structure.rs::Role` が受理する文字列）。
+    pub role: &'static str,
+    /// `true` なら `src/main.rs`（bin クレート）、`false` なら `src/lib.rs`
+    /// （lib クレート）として書き出す。
+    pub is_bin: bool,
+    /// このメンバーが path 依存する他メンバーの `dir` 一覧（同じ `members`
+    /// スライス内に存在する必要がある）。
+    pub path_deps: &'static [&'static str],
+    /// `src/{lib,main}.rs` に書き出すソース全文。呼び出し側（シナリオ固有の
+    /// テストファイル）が `replace_unique` 等で before/after を組み立てる。
+    pub source: String,
+}
+
+/// [`write_scenario_project`]（単一 `app` クレート構成）の複数クレート版。
+/// 以下を書き出す:
+///
+/// ```text
+/// <fixture>/
+/// ├── structure.toml   ([directories.<dir>] を members の数だけ、
+/// │                     routing が Some なら [routing] も追加)
+/// ├── Cargo.toml       (virtual workspace, members = members の dir 一覧)
+/// ├── deny.toml / clippy.toml  (write_scenario_project と同一内容)
+/// └── <dir>/           (members の各エントリにつき 1 クレート)
+///     ├── Cargo.toml   (path_deps は `../<dep_dir>` として依存宣言)
+///     └── src/{lib,main}.rs
+/// ```
+///
+/// `routing` は `(definition_dir, extractor)` のペア。シナリオ 1〜3
+/// （#145〜#147）はいずれもルート定義を伴う複数クレート構成を必要とするため
+/// 引数化するが、ルート定義が不要なシナリオは `None` を渡せる。
+///
+/// `write_scenario_project` と同じく `cargo generate-lockfile --offline` で
+/// ロックファイルを生成する（path 依存のみのためネットワーク不要・決定的）。
+pub fn write_scenario_workspace(
+    scenario_name: &str,
+    members: &[MemberSpec],
+    routing: Option<(&str, &str)>,
+) -> ScenarioProject {
+    let dest = scratch_root().join(format!(
+        "scenario-ws-{scenario_name}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = fs::remove_dir_all(&dest);
+    fs::create_dir_all(&dest).expect("一時プロジェクトディレクトリの作成に失敗した");
+
+    let mut structure_toml = String::from("\n[manifest]\nversion = 1\n\n");
+    for m in members {
+        structure_toml.push_str(&format!(
+            "[directories.{dir}]\nrole = \"{role}\"\ncrate = \"{pkg}\"\ndescription = \"TASK-13.4 scenario regression fixture (multi-crate)\"\n\n",
+            dir = m.dir,
+            role = m.role,
+            pkg = m.package_name,
+        ));
+    }
+    if let Some((definition_dir, extractor)) = routing {
+        structure_toml.push_str(&format!(
+            "[routing]\ndefinition_dir = \"{definition_dir}\"\nextractor = \"{extractor}\"\n"
+        ));
+    }
+    fs::write(dest.join("structure.toml"), structure_toml)
+        .expect("structure.toml の書き込みに失敗した");
+
+    let members_list = members
+        .iter()
+        .map(|m| format!("\"{}\"", m.dir))
+        .collect::<Vec<_>>()
+        .join(", ");
+    fs::write(
+        dest.join("Cargo.toml"),
+        format!("[workspace]\nmembers = [{members_list}]\nresolver = \"2\"\n"),
+    )
+    .expect("workspace Cargo.toml の書き込みに失敗した");
+
+    // deny.toml / clippy.toml は write_scenario_project と同一内容（二重管理を
+    // 避けるため本来は共有したいが、テストターゲット独立の制約により複製する）。
+    fs::write(
+        dest.join("deny.toml"),
+        r#"[graph]
+targets = []
+
+[bans]
+multiple-versions = "warn"
+deny = [
+    { name = "openssl-sys" },
+]
+
+[licenses]
+allow = ["MIT", "Apache-2.0", "Unicode-3.0", "BSD-3-Clause"]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+"#,
+    )
+    .expect("deny.toml の書き込みに失敗した");
+
+    fs::write(
+        dest.join("clippy.toml"),
+        r#"disallowed-methods = [
+    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/raw-html-review-gate.md 参照）" },
+]
+"#,
+    )
+    .expect("clippy.toml の書き込みに失敗した");
+
+    for m in members {
+        let member_dir = dest.join(m.dir);
+        let src_dir = member_dir.join("src");
+        fs::create_dir_all(&src_dir).expect("member src ディレクトリの作成に失敗した");
+
+        let mut cargo_toml = format!(
+            "[package]\nname = \"{}\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n",
+            m.package_name
+        );
+        if !m.path_deps.is_empty() {
+            cargo_toml.push_str("\n[dependencies]\n");
+            for dep_dir in m.path_deps {
+                let dep = members
+                    .iter()
+                    .find(|candidate| &candidate.dir == dep_dir)
+                    .unwrap_or_else(|| panic!("path_deps が未知の dir `{dep_dir}` を参照している"));
+                cargo_toml.push_str(&format!(
+                    "{} = {{ path = \"../{}\" }}\n",
+                    dep.package_name, dep_dir
+                ));
+            }
+        }
+        fs::write(member_dir.join("Cargo.toml"), cargo_toml)
+            .expect("member Cargo.toml の書き込みに失敗した");
+
+        let file_name = if m.is_bin { "main.rs" } else { "lib.rs" };
+        fs::write(src_dir.join(file_name), &m.source).expect("member ソースの書き込みに失敗した");
+    }
+
+    let lockfile_output = Command::new("cargo")
+        .args(["generate-lockfile", "--offline"])
+        .current_dir(&dest)
+        .output()
+        .expect("cargo generate-lockfile の起動に失敗した");
+    assert!(
+        lockfile_output.status.success(),
+        "cargo generate-lockfile --offline に失敗した（フィクスチャ自体が壊れている）: {}",
+        String::from_utf8_lossy(&lockfile_output.stderr)
+    );
+
+    ScenarioProject(dest)
+}
+
 /// `fw impact` の JSON レポート中の文字列配列フィールド
 /// `"<field>":["a","b"]` の要素をそのまま（クォート込みの生テキストとして）
 /// 含むかを判定する軽量ヘルパ。配列全体をパースせず、期待する要素
