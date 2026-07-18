@@ -81,6 +81,16 @@ div, p, ul, li, a, h1, main_tag（"main" タグへの薄い委譲）
 既存 backlog **Issue #164**（「ノード木記述の可読性向上（ヘルパー関数・インデント規約）」）
 のスコープとする。TASK-5.1b は上記最小セットのみを実装し、#164 との二重実装を避ける。
 
+> **追記（Issue #164 実装済み）**: 上記スコープ外としていた拡張ヘルパー群
+> （`span`/`h2`〜`h6`/`ol`/`strong`/`em`/`small`/`blockquote`/`pre`/`code`/
+> `form`/`label`/`input`/`button`/`textarea`/`table`/`thead`/`tbody`/`tr`/`th`/
+> `td`/`caption`/`img`/`br`/`hr`/`section`/`header`/`footer`/`nav`/`article`/
+> `aside`）とノード木記述の可読性規約は、Issue #164 で `core/src/tags.rs`
+> （`tags` モジュール）・`docs/component-authoring.md` 第 4・6 節として実装済み。
+> 定義規則 1〜4（本節）はそのまま拡張ヘルパーにも適用され、変更していない。
+> `script`/`style`/`iframe` ヘルパーの非提供、`select`/`option`・attrs ビルダ
+> API の不採用は `core/src/tags.rs` の `//!` に判断根拠として記録した。
+
 ## 5. スコープ外の明記
 
 以下は本設計・TASK-5.1 系列全体のスコープ外とし、後続タスクへ引き継ぐ。

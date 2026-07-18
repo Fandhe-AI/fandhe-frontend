@@ -35,13 +35,15 @@
 //! 「マクロ DSL が依存グラフを押し上げる」という知見を踏まえ、`view!`/`html!`
 //! のような独自マクロは使わず、素の Rust の enum・関数のみでノード木を組み立てる。
 //!
-//! ## タグショートカット（TASK-5.1b）
+//! ## タグショートカット（TASK-5.1b・Issue #164）
 //!
-//! `docs/component-api.md`（TASK-5.1a 設計確定書）に従い、`div`/`p`/`ul`/`li`/
-//! `a`/`h1`/`main_tag` を提供する。いずれも [`el`] への薄い委譲のみであり、
-//! 独自の出力経路・独自のエスケープ処理を持たない（不変条件 1・2 がそのまま
-//! 適用される）。網羅的なタグヘルパー群・インデント規約は既存 backlog
-//! （Issue #164）のスコープとし、本クレートでは追加しない。
+//! `docs/component-api.md`（TASK-5.1a 設計確定書）が定義する最小セット
+//! （`div`/`p`/`ul`/`li`/`a`/`h1`/`main_tag`）に加え、Issue #164 でノード木
+//! 記述の可読性向上のため `span`/`table`/`form` 等の網羅的なタグヘルパー群を
+//! `tags` モジュール（[`tags`]）に実装する。いずれも [`el`] への薄い委譲のみ
+//! であり、独自の出力経路・独自のエスケープ処理を持たない（不変条件 1・2 が
+//! そのまま適用される）。定義規則・選定基準・スコープ外の判断は
+//! `tags` モジュールの rustdoc を参照。
 //!
 //! ## ハイドレーション支援（TASK-6.2b）
 //!
@@ -65,8 +67,10 @@
 use std::fmt::Write as _;
 
 mod escape;
+mod tags;
 
 pub use escape::{escape_html, escape_html_into};
+pub use tags::*;
 
 /// HTML ノード木。マクロ DSL に依存しない素の Rust 値として組み立てる。
 ///
@@ -156,108 +160,6 @@ pub fn text(s: impl Into<String>) -> Node {
 /// ```
 pub fn raw_html(s: impl Into<String>) -> Node {
     Node::RawHtml(s.into())
-}
-
-/// `<div>` 要素を組み立てる標準タグショートカット。[`el`] への薄い委譲であり、
-/// エスケープ・タグ名検証は [`el`]/[`render`] の既存経路をそのまま利用する
-/// （`docs/component-api.md` 第 4 節・定義規則）。
-///
-/// # Examples
-///
-/// ```
-/// use rws_core::{div, text, render};
-///
-/// let node = div(vec![("class", "card")], vec![text("hello")]);
-/// assert_eq!(render(&node), r#"<div class="card">hello</div>"#);
-/// ```
-pub fn div(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
-    el("div", attrs, children)
-}
-
-/// `<p>` 要素を組み立てる標準タグショートカット。[`el`] への薄い委譲。
-///
-/// # Examples
-///
-/// ```
-/// use rws_core::{p, text, render};
-///
-/// let node = p(vec![], vec![text("hello")]);
-/// assert_eq!(render(&node), "<p>hello</p>");
-/// ```
-pub fn p(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
-    el("p", attrs, children)
-}
-
-/// `<ul>` 要素を組み立てる標準タグショートカット。[`el`] への薄い委譲。
-///
-/// # Examples
-///
-/// ```
-/// use rws_core::{ul, li, text, render};
-///
-/// let node = ul(vec![], vec![li(vec![], vec![text("item")])]);
-/// assert_eq!(render(&node), "<ul><li>item</li></ul>");
-/// ```
-pub fn ul(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
-    el("ul", attrs, children)
-}
-
-/// `<li>` 要素を組み立てる標準タグショートカット。[`el`] への薄い委譲。
-///
-/// # Examples
-///
-/// ```
-/// use rws_core::{li, text, render};
-///
-/// let node = li(vec![], vec![text("item")]);
-/// assert_eq!(render(&node), "<li>item</li>");
-/// ```
-pub fn li(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
-    el("li", attrs, children)
-}
-
-/// `<a>` 要素を組み立てる標準タグショートカット。[`el`] への薄い委譲。
-///
-/// # Examples
-///
-/// ```
-/// use rws_core::{a, text, render};
-///
-/// let node = a(vec![("href", "/about")], vec![text("about")]);
-/// assert_eq!(render(&node), r#"<a href="/about">about</a>"#);
-/// ```
-pub fn a(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
-    el("a", attrs, children)
-}
-
-/// `<h1>` 要素を組み立てる標準タグショートカット。[`el`] への薄い委譲。
-///
-/// # Examples
-///
-/// ```
-/// use rws_core::{h1, text, render};
-///
-/// let node = h1(vec![], vec![text("title")]);
-/// assert_eq!(render(&node), "<h1>title</h1>");
-/// ```
-pub fn h1(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
-    el("h1", attrs, children)
-}
-
-/// `<main>` 要素を組み立てる標準タグショートカット。`main` は Rust の予約語では
-/// ないが、可読性のため PoC-3 の命名（`main_tag`）をそのまま踏襲する
-/// （`docs/component-api.md` 第 4 節・定義規則 4）。[`el`] への薄い委譲。
-///
-/// # Examples
-///
-/// ```
-/// use rws_core::{main_tag, text, render};
-///
-/// let node = main_tag(vec![], vec![text("content")]);
-/// assert_eq!(render(&node), "<main>content</main>");
-/// ```
-pub fn main_tag(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
-    el("main", attrs, children)
 }
 
 /// 属性名として安全に出力してよいかを判定する。
@@ -632,65 +534,9 @@ mod tests {
         assert!(html.contains("leaf"));
     }
 
-    /// TASK-5.1b で追加したタグショートカット（`docs/component-api.md` 第 4 節）
-    /// が、それぞれ期待どおりのタグ名で出力されることを一括で固定する。
-    /// `main_tag` のみ委譲先タグ名 `"main"` と関数名が異なる点に注意。
-    #[test]
-    fn tag_shortcuts_render_expected_tag_names() {
-        assert_eq!(render(&div(vec![], vec![text("x")])), "<div>x</div>");
-        assert_eq!(render(&p(vec![], vec![text("x")])), "<p>x</p>");
-        assert_eq!(render(&ul(vec![], vec![text("x")])), "<ul>x</ul>");
-        assert_eq!(render(&li(vec![], vec![text("x")])), "<li>x</li>");
-        assert_eq!(render(&a(vec![], vec![text("x")])), "<a>x</a>");
-        assert_eq!(render(&h1(vec![], vec![text("x")])), "<h1>x</h1>");
-        assert_eq!(render(&main_tag(vec![], vec![text("x")])), "<main>x</main>");
-    }
-
-    /// タグショートカットは `el()` への薄い委譲であるため、`el()` を直接
-    /// 使った場合と出力が完全に一致することを確認する（`docs/component-api.md`
-    /// 第 4 節・定義規則 1〜3 が求める「独自の出力経路を持たない」ことの回帰）。
-    #[test]
-    fn tag_shortcut_output_matches_direct_el_call() {
-        let via_shortcut = div(vec![("class", "card")], vec![p(vec![], vec![])]);
-        let via_el = el(
-            "div",
-            vec![("class", "card")],
-            vec![el("p", vec![], vec![])],
-        );
-        assert_eq!(render(&via_shortcut), render(&via_el));
-    }
-
-    /// ショートカット経由でもテキスト・属性値の既定エスケープ（REQ-1）が
-    /// 迂回されないことを XSS ペイロードで確認する。
-    #[test]
-    fn tag_shortcuts_escape_text_and_attrs_by_default() {
-        let payload = "<script>alert(1)</script>";
-        let node = div(
-            vec![("title", "\"><script>alert(1)</script>")],
-            vec![p(vec![], vec![text(payload)])],
-        );
-        let html = render(&node);
-        assert!(
-            !html.contains("<script>"),
-            "ショートカット経由でエスケープが迂回された: {html}"
-        );
-        assert!(html.contains("&lt;script&gt;"));
-        assert!(html.contains("&quot;&gt;&lt;script&gt;"));
-    }
-
-    /// ショートカットと `raw_html` を組み合わせても、非エスケープ出力点が
-    /// `raw_html` のみであるという境界（不変条件 2）が変わらないことを確認する。
-    #[test]
-    fn tag_shortcut_combined_with_raw_html_keeps_opt_in_boundary() {
-        #[expect(
-            clippy::disallowed_methods,
-            reason = "ESCAPE-REVIEWED: タグショートカット併用時もオプトイン境界が変わらないことの検証。固定の信頼済み文字列のみ"
-        )]
-        let node = div(
-            vec![],
-            vec![text("<script>"), raw_html("<b>ok</b>"), text("<script>")],
-        );
-        let html = render(&node);
-        assert_eq!(html, "<div>&lt;script&gt;<b>ok</b>&lt;script&gt;</div>");
-    }
+    // タグショートカット群の出力固定・`el()` 一致・XSS 回帰テストは
+    // `core/src/tags.rs`（Issue #164 で新設した `tags` モジュール）に
+    // 移設した。本モジュールでは `Node`/`el`/`text`/`raw_html`/`render` と
+    // ホワイトリスト検証（`is_valid_attr_name`/`is_valid_tag_name`）のみを
+    // 対象とする。
 }
