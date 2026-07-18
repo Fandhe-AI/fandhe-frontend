@@ -1484,11 +1484,16 @@ jobs:
 
   # イシュー #157（#158/#159、REQ-1）: `raw_html()` 検出の主防御である
   # `clippy::disallowed_methods`（workspace ルート `clippy.toml` が宣言）を
-  # CI でも強制するジョブ。`cli/src/gate.rs` の `lint` チェックと同一境界
-  # （`--all-targets` を付けない = テストコード内の正当な `raw_html` 使用は
-  # lint 対象外のまま、coding-rust.md の `cargo clippy -- -D warnings` 規約と
-  # 同一コマンド）。未レビューの `raw_html()` 呼び出しが本体コードへ入ると
-  # 本ジョブが `-D warnings` により失敗し、マージをブロックする
+  # CI でも強制するジョブ。イシュー #299 で `--all-targets` へ拡張し、
+  # テストターゲット（`#[cfg(test)]` / `tests/` 配下）内の `raw_html()` 呼び
+  # 出しも検出対象に含める。テストコード内の呼び出しにも呼び出し単位の
+  # `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: ...")]`
+  # を必須とする（`docs/raw-html-review-gate.md` 準拠）。`cli/src/gate.rs` の
+  # `lint` チェックは従来どおり `--all-targets` なし（生成プロジェクト側の
+  # テストコードは対象外という PoC-7 由来の境界）のため、本 CI ジョブは
+  # `fw gate` の `lint` より広い superset を担う。未レビューの `raw_html()`
+  # 呼び出しが本体コード・テストコードいずれへ入っても本ジョブが
+  # `-D warnings` により失敗し、マージをブロックする
   # （方式選定・脅威モデルは docs/raw-html-lint-design.md 参照）。
   clippy:
     name: REQ-1 raw_html() 検出（clippy disallowed_methods, issue #157）
@@ -1525,7 +1530,9 @@ jobs:
       - name: Show toolchain
         run: rustup show && cargo --version
 
-      - name: cargo clippy --workspace -- -D warnings
+      - name: cargo clippy --workspace --all-targets -- -D warnings
         # workspace ルートの clippy.toml（disallowed-methods）が効き、
         # 未レビュー raw_html() 呼び出しがあれば本ステップが失敗する。
-        run: cargo clippy --workspace --locked -- -D warnings
+        # --all-targets によりテストターゲット（#[cfg(test)] / tests/ 配下）
+        # もコンパイル・lint 対象に含む（イシュー #299）。
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
