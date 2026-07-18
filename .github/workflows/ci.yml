@@ -1651,9 +1651,10 @@ jobs:
   # 出しも検出対象に含める。テストコード内の呼び出しにも呼び出し単位の
   # `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: ...")]`
   # を必須とする（`docs/raw-html-review-gate.md` 準拠）。`cli/src/gate.rs` の
-  # `lint` チェックは従来どおり `--all-targets` なし（生成プロジェクト側の
-  # テストコードは対象外という PoC-7 由来の境界）のため、本 CI ジョブは
-  # `fw gate` の `lint` より広い superset を担う。未レビューの `raw_html()`
+  # `lint` チェックもイシュー #315 で `--all-targets` 化済みのため、ローカル
+  # ゲート・AI 自己保守フックと本 CI ジョブの検出範囲は一致する（旧記述
+  # 「本 CI ジョブが superset」は解消済み）。本ジョブは `--workspace` による
+  # 全クレート横断を担う最終防衛線として維持する。未レビューの `raw_html()`
   # 呼び出しが本体コード・テストコードいずれへ入っても本ジョブが
   # `-D warnings` により失敗し、マージをブロックする
   # （方式選定・脅威モデルは docs/raw-html-lint-design.md 参照）。
