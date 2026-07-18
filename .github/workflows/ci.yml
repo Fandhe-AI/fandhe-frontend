@@ -1221,11 +1221,13 @@ jobs:
   # 緩和用の input・環境変数・continue-on-error は設けない。
   #
   # イシュー #294: 共有 self-hosted runner（6 並列）上の CPU 競合による
-  # 間欠フレーク対策として、判定は N=3 サンプルの最小値（min-of-N）で行う
-  # （`bench_support::judge`）。恒常的なリグレッション（全サンプル超過）は
-  # 引き続き検出し、サマリには全サンプル値・max_s も出力して間欠的な
-  # リグレッションを目視追跡できるようにする（`bench_support` モジュール
-  # ドキュメント参照）。
+  # 間欠フレーク対策として、判定は N=3 サンプルの中央値（median-of-N）で
+  # 行う（`bench_support::judge`）。少数派（N=3 なら 1 サンプル）のみの
+  # ノイズは吸収しつつ、過半数のサンプルが超過する恒常的なリグレッションは
+  # 引き続き検出する。min-of-N（1 サンプルでも以内なら PASS）は間欠的な
+  # 多数決リグレッションを見逃すため不採用（詳細は `bench_support`
+  # モジュールドキュメント参照）。サマリには全サンプル値・min_s・max_s も
+  # 出力し、分布を目視追跡できるようにする。
   rebuild-latency:
     name: REQ-10 rebuild latency (5s limit)
     runs-on: self-hosted
@@ -1297,10 +1299,11 @@ jobs:
       - name: Publish rebuild-latency summary
         if: always()
         # format_summary_line（dist-server/src/bench_support.rs）の 1 行
-        # サマリ契約「rebuild-latency: samples=<n> s1=<x> ... min_s=<x>
-        # max_s=<x> limit_s=<x> result=<PASS|FAIL>」を Step Summary に転記する
-        # （deps-check/loc-check ジョブと同一パターン。min_s はイシュー #294
-        # で判定基準に採用、max_s は観測性のため引き続き出力）。
+        # サマリ契約「rebuild-latency: samples=<n> s1=<x> ... median_s=<x>
+        # min_s=<x> max_s=<x> limit_s=<x> result=<PASS|FAIL>」を Step Summary
+        # に転記する（deps-check/loc-check ジョブと同一パターン。median_s は
+        # イシュー #294 で判定基準に採用、min_s・max_s は観測性のため
+        # 引き続き出力）。
         run: |
           {
             echo '## rebuild-latency (REQ-10, issue #119)'
