@@ -1,201 +1,207 @@
-# 自動適用と人間承認の境界ルール（TASK-13.6a・草案）
+# 自動適用と人間承認の境界ルール（AI 自己保守・改修ポリシー）
 
-## 0. 本書のステータス
+**本文書のステータス**: 確定（TASK-13.6b、Issue #153）。
 
-**本書は草案（DRAFT）です。** TASK-13.6（親イシュー #151、成果物本書）の
-4h 分割の前半 **TASK-13.6a（本イシュー #152）** の成果物であり、境界ルール
-そのものの**確定判断（人間レビューの反映）は後続の TASK-13.6b（#153）**が
-担う。本書の記述はレビューを経て変更されうる。特に §7「未確定事項」に
-列挙した論点は、#153 で人間が最終判断する前提で草案化している。
+> **本書の位置づけ**: 本書は TASK-13.6（親イシュー、`docs/spec/05-tasks.md` 376 行目）
+> の成果物であり、`docs/spec/03-poc/ai-self-maintenance/README.md`（PoC-7）が提案した
+> 「自動適用と人間承認の境界ルール」を、REQ-13 の受け入れ基準
+> （`docs/spec/04-requirements.md` REQ-13 節）が求める「フレームワークの標準ドキュメント」
+> として正式化・確定したものである。TASK-13.6 は 2 段階に分割されている。
+>
+> - **TASK-13.6a（Issue #152）**: 境界ルール草案の作成
+> - **TASK-13.6b（Issue #153・本書）**: レビュー反映・確定
+>
+> **草案（#152）との関係・訂正**: 着手当初、本書は「TASK-13.6a の草案が
+> `origin/main`・関連 PR・関連ブランチのいずれにも存在しない」という前提で
+> PoC-7 原文・REQ-13・製品実装を一次情報源として独立に起草した。この前提は
+> 事実誤認であり、`docs/152-ai-self-maintenance-policy` ブランチ（コミット
+> `2a51481`、TASK-13.6a・#152 の成果物）に本書と同じファイルパスの草案
+> （201 行、用語表・境界ルール 3 区分・§7 未確定事項リストを含む）が本書の
+> 直前（3 分半前）に既に作成されていた。レビューでこの誤りを指摘され、本書は
+> 改めて #152 の草案を読み直し、次のとおり整合を確認・反映した。
+>
+> - **境界ルールの実質**: #152 のルール 1〜3（ゲート未通過は無条件拒否／
+>   `breaking_risk: low` かつ影響ルートなしかつ非 `ambiguous` は自動適用候補／
+>   それ以外は人間承認必須）と、本書 §2 のルール 1〜3 は、用語・条文構成は
+>   異なるが判定条件・優先順位（`ambiguous` は常に人間承認へ倒す fail-closed
+>   等）は同一であり、判定ロジック上の矛盾はない。本書 §2 ルール 4 は
+>   #152 §6「限界の明示」の内容を境界ルールの一部として明文化したものである。
+> - **#152 §7「未確定事項」（TASK-13.6b への引き継ぎ）への回答**: 本書が
+>   TASK-13.6b（レビュー反映・確定）として次のとおり確定させる。
+>   1. 「自動適用候補」（ルール 2）の既定動作は、#152 草案が安全側の提案とした
+>      **「候補提示のみ」を確定とする**。無人での実適用まで自動化する経路は
+>      本書では定義しない（本書 §2 ルール 4・§5 参照。AI エージェント本体の
+>      実装判断は REQ-13 のスコープ外）。
+>   2. ルール 2 該当の実例収集・事後検証（メトリクス収集）は、REQ-13 の
+>      受け入れ基準（境界ルールの明文化）そのものには含まれないため、
+>      本書のスコープ外として扱う（実施する場合は別タスクとして起票する）。
+>   3. 人間承認の記録・監査方法は、本リポジトリの既存運用（`implement-issue`
+>      等の承認フロー・PR レビュー承認）にそのまま委ね、本書独自の記録形式は
+>      新設しない。判定結果自体の監査可能性は本書 §4 のとおり JSON 出力の
+>      ログ保存で担保する。
+>   4. `ambiguous` 解消後の再判定運用は、#152 の確定済み方針（`ambiguous: true`
+>      の間は他の判定材料の値によらず常に人間承認へ倒す）をそのまま踏襲し、
+>      多重定義の解消自体を AI エージェントに一任する経路は設けない（常に
+>      `fw impact` の再実行結果を判定材料とする）。
+>
+> **重複作業の整理**: 上記のとおり境界ルールの実質に矛盾は生じていないため、
+> #152 の草案を破棄せず、本書（#153）を最終確定版として一本化する。#152 は
+> 本書に統合済みとして扱い、Issue #152 側にその旨を記録の上、クローズ判断は
+> Issue 管理者（人間）に委ねる。
 
 ## 1. 目的とトレーサビリティ
 
 - **関連要件**: REQ-13（AI 自己保守・改修のためのフック・ゲート機構、Must、
-  `docs/spec/04-requirements.md`）の受け入れ基準 5 項目目:
+  `docs/spec/04-requirements.md`）の受け入れ基準のうち、次の項目に対応する。
 
-  > 自動適用と人間承認の境界ルール（ゲート未通過は無条件拒否、
-  > `breaking_risk: low` かつ影響ルートなしは自動適用候補、それ以外は
-  > 人間承認必須）が、フレームワークの標準ドキュメントとして明文化されて
-  > いること（PoC-7 の境界ルール節を踏襲）。
+  > 自動適用と人間承認の境界ルール（ゲート未通過は無条件拒否、`breaking_risk: low`
+  > かつ影響ルートなしは自動適用候補、それ以外は人間承認必須）が、フレームワークの
+  > 標準ドキュメントとして明文化されていること（PoC-7 の境界ルール節を踏襲）。
 
-- **親タスク**: TASK-13.6「自動適用と人間承認の境界ルール明文化」
-  （親イシュー #151、`docs/spec/05-tasks.md` 376 行目、成果物本書、
-  担当区分「共同」— 境界ルールの妥当性は運用リスクに直結するため人間が
-  確定し、文書化を共同で行う）。
-- **原典**: `docs/spec/03-poc/ai-self-maintenance/README.md`
-  「自動適用と人間承認の境界ルール」節（PoC-7 成功基準 4・疑問点 13 の
-  解消として提案されたルール 4 項目）。
-- **先行実装・関連設計文書**:
-  - `docs/impact-analysis-design.md`（TASK-13.2a、`fw impact` の
-    `breaking_risk` / `requires_human_approval` / `ambiguous` 判定設計）
-  - `docs/gate-design.md`（TASK-13.3a、`fw gate` の 5 チェック・
-    `gate_result` 判定設計。§4 が「本書（TASK-13.6）がゲートの終了コード・
-    `gate_result` 値をそのまま前提として参照する」ことを既に明記している）
-  - `docs/raw-html-review-gate.md`（`raw_html()` レビュー運用）
-  - `docs/scenario-regression-design.md`（TASK-13.4、代表的改修シナリオ
-    3 件の回帰実績）
-  - `docs/cargo-deny-advisories.md`（`policy` チェックの `advisories`
-    オフライン除外の扱い）
+- **土台**: `docs/spec/03-poc/ai-self-maintenance/README.md`
+  「自動適用と人間承認の境界ルール（成功基準 4、疑問点 13 の解消）」節（100〜107 行目）。
+- **実装との対応**: 境界ルールの判定ロジックは製品実装として既に確定済みである。
+  本書はその判定ロジックを「運用ポリシー」として文書化するものであり、
+  判定ロジック自体の一次情報源は次の 2 ファイルである。
+  - `cli/src/impact.rs` の `judge_breaking_risk` / `requires_human_approval`
+    （`breaking_risk` 判定・人間承認要否判定の純粋関数、設計は `docs/impact-analysis-design.md`）
+  - `cli/src/gate.rs` の `run_gate` / 5 種の検証チェック
+    （ゲート合否判定、設計は `docs/gate-design.md`）
+- **関連文書**: `docs/gate-design.md`（`fw gate` 判定ルール設計）・
+  `docs/impact-analysis-design.md`（`fw impact` 判定ルール設計）・
+  `docs/cargo-deny-advisories.md`（`cargo-deny` オンライン CI 運用）・
+  `docs/dependency-graph-policy.md`（依存グラフ上限値運用ポリシー）・
+  `docs/raw-html-review-gate.md`（`raw_html()` レビューゲート）。
+- **関連テスト**: `cli/tests/negative_cases.rs`（型エラー・未エスケープ出力・
+  禁止依存追加の 3 負例が `BLOCKED` になることの回帰テスト、TASK-13.5）。
 
-## 2. 用語と前提
+## 2. 境界ルール（確定）
 
-本書は `fw structure` / `fw impact` / `fw gate`（`cli/` = `rws-cli`、
-bin 名 `fw`）が出力する構造化データを判定材料とする。用語はすべて
-既存設計文書で確定済みの定義をそのまま用い、本書で再定義しない
-（判定ロジックの重複実装・二重管理を避けるため）。
+AI エージェントがプロダクトへの変更を提案したとき、`fw gate` の実行結果
+（`gate_result`）と `fw impact <symbol>` の実行結果（`breaking_risk` /
+`affected_routes` / `ambiguous`）を判断材料として、次の 4 ルールに従う。
 
-| 用語 | 定義元 | 意味 |
-|------|--------|------|
-| `gate_result` | `docs/gate-design.md` §4、`cli/src/gate.rs` `aggregate` | `fw gate` の 5 チェック（`type_check` / `default_escape_check` / `lint` / `test` / `policy`）が**すべて**通過すれば `"PASS"`、1 件でも不合格なら `"BLOCKED"`。早期打ち切りはなく常に 5 チェック全件を実行する |
-| `breaking_risk` | `docs/impact-analysis-design.md` §3.4、`cli/src/impact.rs` `judge_breaking_risk` | `fw impact <symbol>` が返す破壊的変更リスクの 3 段階分類（`high` / `medium` / `low`）。影響クレート数とクライアント境界クレート（`rws-wasm-client` / `rws-wasm-full` / `rws-wasm-thin`）への波及有無から決まる |
-| `affected_routes` | `docs/impact-analysis-design.md` §3.5 | `fw impact` が返す、変更対象シンボルの影響を受けるルート定義一覧（ファイル単位の粗粒度突き合わせ）。空配列であれば「影響ルートなし」 |
-| `ambiguous` | `docs/impact-analysis-design.md` §3.2 | 変更対象シンボルの定義元が複数見つかった状態（`true`）。定義元特定の前提が崩れているため、他の判定材料の信頼性も下がる |
-| `requires_human_approval` | `docs/impact-analysis-design.md` §3.4、`cli/src/impact.rs` `requires_human_approval` | `fw impact` が返す単一の真偽値。`breaking_risk ∈ {high, medium}` または `affected_routes` 非空 または `ambiguous` のいずれかで `true` |
+### ルール 1: ゲート未通過（`gate_result: BLOCKED`）は無条件に自動適用しない
 
-## 3. 境界ルール本体
+`fw gate` が実行する 5 種の検証チェック（`type_check` / `default_escape_check` /
+`lint` / `test` / `policy`）のうち 1 件でも不合格であれば、変更は承認フロー以前の
+段階で AI エージェントへ差し戻す。人間の承認を介する必要すらない、最もコストの低い
+安全弁である。
 
-REQ-13 受け入れ基準の 3 区分をそのまま境界ルールとして固定する。
-**判定材料は `ImpactReport::requires_human_approval`（`fw impact` の
-JSON 出力の `requires_human_approval` フィールド）を単一の情報源とし、
-本書やそれを利用する AI エージェント側で判定ロジックを再実装しない**
-（`docs/impact-analysis-design.md` の「判定材料は
-`ImpactReport::requires_human_approval` のみを使う」契約と同一の方針を、
-運用ルールの側でも踏襲する）。
+- `type_check`: 型チェック（`cargo check --locked`）
+- `default_escape_check`: 既定エスケープ検査。`raw_html()` の呼び出しに
+  `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: ...")]`
+  によるレビュー済み明示がない場合に不合格とする（`docs/gate-design.md` §2.2・§5）。
+  **この検査は REQ-1（既定エスケープ）の唯一の許容迂回経路であり、迂回そのものを
+  「推奨手順」として運用しない。** `raw_html()` を使う変更は、常にこのチェックによる
+  人間レビュー（`ESCAPE-REVIEWED:` 属性を書く行為自体が人間の明示的な承認記録となる）
+  を経由することを前提とする。
+- `lint`: `cargo clippy --locked -- -D warnings`
+- `test`: `cargo test --locked`
+- `policy`: `cargo deny check bans licenses sources`。**`advisories`（既知脆弱性 DB
+  照合）はネットワークアクセスが前提のため、オフラインのローカルゲート実行では対象外
+  とする**（`docs/cargo-deny-advisories.md`）。これは「オフラインでは省略してよい」
+  という意味ではなく、オフライン環境では `bans` / `licenses` / `sources` の 3 チェックに
+  限定した上で結果を確定させる、という運用上の切り分けである。`advisories` を含めた
+  完全な検証は、ネットワークアクセスが保証される CI 環境（`docs/cargo-deny-advisories.md`
+  記載の運用手順）で別途実行することを前提とし、ローカルゲート通過だけをもって
+  「既知脆弱性が無いこと」を保証したとは扱わない。
+  また `deny.toml` 自体が読み込めない場合も `policy` を起動せず即座に不合格とする
+  （fail-closed、`cli/src/gate.rs` `policy_check`）。
 
-### ルール 1: ゲート未通過 → 無条件拒否
+### ルール 2: ゲート通過かつ `breaking_risk: low` かつ `affected_routes` が空の変更は自動適用候補とする
 
-`fw gate` の `gate_result` が `"BLOCKED"` の変更は、**承認フロー以前の
-段階で無条件に拒否**する。人間の承認では覆せない。
+`fw impact <symbol>` の判定で `breaking_risk: low`（影響クレート数 0）かつ
+`affected_routes` が空である変更は、単一クレート内で完結し他クレートのソースを
+一切参照されない変更として、自動適用候補になり得る。ただし「候補」であって
+無条件の自動適用を意味しない点に注意する。次の 2 条件がいずれも成立する場合に限る。
 
-- 対象: 型エラー（`type_check`）・未エスケープ出力（`default_escape_check`
-  / `lint` の `raw_html()` 未レビュー呼び出し検出）・禁止依存の追加
-  （`policy`）・テスト失敗（`test`）のいずれか 1 件でも不合格であれば
-  該当する。
-- 根拠: これらはいずれも機械的に検出可能であり、人間承認を介する必要すら
-  ない最も低コストな安全弁である（PoC-7 原典の境界ルール 1）。
-- **承認フローがエスケープ検査のバイパス経路にならないことの明示**:
-  `gate_result: BLOCKED` を人間が「承認」することで変更を適用する経路は
-  存在しない。`fw gate` を再実行して `PASS` に変えることでのみ次段階
-  （ルール 2/3 の判定）に進める。
+- `fw gate` が `PASS` を返している（ルール 1 の前提）
+- `fw impact` が `ambiguous: false` を返している（ルール 3 参照。シンボルの定義元が
+  一意に特定できている）
 
-### ルール 2: ゲート通過 かつ breaking_risk: low かつ 影響ルートなし かつ ambiguous でない → 自動適用「候補」
+### ルール 3: ゲート通過かつ `breaking_risk: medium/high`、または `affected_routes` が非空、または定義元が曖昧（`ambiguous: true`）の変更は人間の承認を必須とする
 
-`gate_result: "PASS"` かつ `fw impact` の判定結果が
-`requires_human_approval: false`（= `breaking_risk: "low"` かつ
-`affected_routes` が空配列かつ `ambiguous: false`）である変更は、
-**自動適用候補**とする。
+製品実装の判定式（`cli/src/impact.rs` `requires_human_approval`）は次の論理和である。
 
-- 該当例（設計上の想定。`docs/spec/03-poc/ai-self-maintenance/README.md`
-  の 3 シナリオではこの区分に実例はなかった）: 単一クレート内で完結し、
-  他クレートのソースを一切参照されない変更（例: 内部ヘルパー関数の実装
-  詳細変更で、影響が同一クレート内・非公開ルートに限定されテストが通る
-  もの）。
-- **既定動作は「候補提示のみ」とする**（草案時点の安全側の提案。
-  §7 未確定事項を参照）。すなわち、「自動適用候補」と判定された変更を
-  無人で実適用まで進めるか、常に人間の最終トリガーを要求するかは、
-  本草案では後者（候補提示に留める）を既定として提案し、確定判断は
-  #153 に引き継ぐ。
-
-### ルール 3: それ以外 → 人間承認必須
-
-`gate_result: "PASS"` だが `requires_human_approval: true`
-（= `breaking_risk` が `medium` / `high`、または `affected_routes` が
-非空、または `ambiguous`）の変更は、**人間の承認を必須**とする。
-
-- `docs/spec/03-poc/ai-self-maintenance/README.md` の 3 シナリオ
-  （バグ修正・UI 改善・機能追加）はすべてこの区分に該当した実績を持つ
-  （コンポーネント境界・ルーティングに触れる変更は本質的にレビュー対象に
-  なりやすいため、想定どおりの結果）。
-- `ambiguous: true`（定義元多重）の場合は、`breaking_risk` や
-  `affected_routes` の値にかかわらず常にこの区分へ倒す（fail-closed。
-  `docs/impact-analysis-design.md` §3.2 の設計判断をそのまま踏襲）。
-
-### 判定表（要約）
-
-| `gate_result` | `requires_human_approval` | 区分 | 扱い |
-|---|---|---|---|
-| `BLOCKED` | — | ルール 1 | 無条件拒否（人間承認では覆せない） |
-| `PASS` | `false`（= `breaking_risk: low` かつ `affected_routes` 空 かつ `ambiguous` でない） | ルール 2 | 自動適用候補（既定: 候補提示のみ、§7 参照） |
-| `PASS` | `true` | ルール 3 | 人間承認必須 |
-
-## 4. 運用フロー（AI エージェント視点）
-
-AI エージェントがプロダクトの補修・改善・機能追加を行う際の想定フロー
-（機構の提供のみが REQ-13 のスコープであり、AI エージェント本体の実装は
-対象外。本書はこのフローが従うべき境界ルールを定めるものであり、
-エージェントの実装仕様書ではない）。
-
-```
-1. fw impact <symbol> を実行し、breaking_risk / affected_routes /
-   ambiguous / requires_human_approval を取得する
-2. 変更を適用する（ワーキングツリーへの反映。適用前に impact を取ることで
-   変更前の影響範囲を把握する。適用後に fw gate を実行する運用を想定）
-3. fw gate --project <dir> を実行し、gate_result を取得する
-4. gate_result == "BLOCKED" → ルール 1（無条件拒否）。
-   AI エージェントへ差し戻し、報告された failing checks を修正して 3 に戻る
-5. gate_result == "PASS" かつ requires_human_approval == false
-   → ルール 2（自動適用候補として提示。実適用の可否は §7 の未確定事項）
-6. gate_result == "PASS" かつ requires_human_approval == true
-   → ルール 3（人間承認を要求し、承認を得るまで適用を保留する）
+```text
+requires_human_approval =
+    ambiguous
+    OR breaking_risk in {High, Medium}
+    OR affected_routes is not empty
 ```
 
-## 5. 実装トレーサビリティ
+- `breaking_risk` は影響クレート数から判定する（`judge_breaking_risk`）。
+  影響クレートが `rws-wasm-client` / `rws-wasm-full` / `rws-wasm-thin`
+  （クライアント境界クレート）のいずれかを含む場合は、影響クレート数に関わらず
+  常に `High` へ倒す（ブラウザへ配布される境界への波及は安全側で扱う、
+  `docs/impact-analysis-design.md` §3.2）。
+- **`ambiguous`（シンボルの多重定義）は PoC-7 原文にない製品固有の追加条件である。**
+  シンボル 1 つに対して定義元が複数見つかった場合、「シンボル 1 つに定義は 1 つ」
+  という判定の前提が崩れているため、`breaking_risk` や `affected_routes` の値に
+  関わらず、常に人間承認へ倒す（fail-closed。定義元特定を誤ると他の判定材料自体の
+  信頼性が下がるため）。**この拡張はルール 2 の「自動適用候補」の範囲を狭める方向
+  にのみ働き、PoC-7 原文より自動適用を広げる方向の緩和は一切行っていない。**
 
-| 本書のルール | 対応実装 |
-|---|---|
-| ルール 1（ゲート未通過は無条件拒否） | `cli/src/gate.rs` `run_gate`（`gate_result` の生成）・`aggregate`（5 チェック全件実行・1 件でも不合格なら `BLOCKED`）。回帰: `cli/tests/gate_integration.rs`・`cli/tests/negative_cases.rs`（`type_error_blocks_gate_with_type_check_failure` / `unescaped_raw_html_call_blocks_gate_with_escape_check_failure` / `banned_dependency_blocks_gate_with_policy_failure`） |
-| ルール 2・3 の判定材料（`breaking_risk` / `affected_routes` / `ambiguous` / `requires_human_approval`） | `cli/src/impact.rs` `judge_breaking_risk`・`requires_human_approval`（純粋関数）。回帰: `cli/src/impact.rs` 内ユニットテスト（`judge_breaking_risk_*`）、`docs/impact-analysis-design.md` §3.4 判定境界一覧 |
-| 3 シナリオでの区分実績（ルール 3 該当の実例） | `cli/tests/scenarios/`（TASK-13.4b/c/d、`docs/scenario-regression-design.md`） |
-| `policy` チェックの `advisories` オフライン除外 | `docs/cargo-deny-advisories.md`（ルール 1 の `policy` チェックは `bans`/`licenses`/`sources` のみをオフラインで実行し、`advisories` は CI 側のネットワークアクセス前提で補完する） |
-| 既定エスケープ検査の 3 層体制 | `docs/gate-design.md` §2.2（`#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: ...")]` 属性 + `clippy.toml` `disallowed-methods` + ブランケット抑止監査。PoC-7 のマーカーコメント方式はイシュー #157 の指摘で偽装可能と判明し廃止済み） |
+### ルール 4: 意味的な脆弱性・ロジック誤りはゲート・影響範囲解析のいずれの対象外であることを明示する
 
-## 6. 限界の明示
+`fw gate` の 5 チェック・`fw impact` の影響範囲解析は、いずれも「構文・ポリシー・
+エスケープ・テスト網羅・依存ポリシーの範囲」に限定される。**ゲート通過・自動適用
+候補判定は「安全性の必要条件」であって「十分条件」ではない。** 次の限界を明示する。
 
-`docs/spec/04-requirements.md` REQ-13 の「制約・宿題」および
-`docs/gate-design.md` §7・`docs/impact-analysis-design.md` §7 の限界を、
-運用ルールの利用者向けに改めて明示する（過度な安全性訴求を避ける観点、
-PoC-2 の要件示唆と整合）。
+- 意味的に誤ったロジック（既存テストがカバーしていない不具合、要件との乖離）は、
+  ゲートを通過しても検出されない。ゲート通過は「機械的に検出可能な既知の危険パターン
+  が無いこと」を意味するに留まる（`docs/spec/03-poc/ai-self-maintenance/README.md`
+  「発見事項」1・`docs/impact-analysis-design.md` の PoC-2 整合の記述と同じ結論）。
+- 影響範囲解析（`fw impact`）はファイル単位の粗粒度ヒューリスティックであり、
+  シンボル単位の呼び出しグラフ解析は行わない。無関係なファイル・ルートも
+  「影響あり」として過検知し得るが、これは安全側（見落としより過検知を許容する）
+  の設計判断であり、精度向上（呼び出しグラフ解析・AST 解析への発展）は将来スコープ
+  として明示的に見送っている（`docs/impact-analysis-design.md` §7、
+  `docs/spec/05-tasks.md` TASK-13.2 の指示）。
+- 「自動適用候補」（ルール 2）は、あくまで機械的な安全弁を通過したという意味であり、
+  自動適用を実行する AI エージェント本体の実装・運用判断は REQ-13 のスコープ外
+  （`docs/spec/04-requirements.md` REQ-13「制約・宿題」節）である。本書は機構
+  （フック・ゲート）が提示する判断材料と境界条件を定義するに留まり、実際に
+  「自動適用する／しない」を実行するオペレーター（人間・AI エージェント運用主体）
+  の最終判断を代替しない。
 
-- **ゲート通過は安全性の「必要条件」であって「十分条件」ではない**。
-  `fw gate` が検出できるのは構文・ポリシー・エスケープ・テスト網羅の
-  範囲に限定され、**意味的な脆弱性・ロジック誤りの検出はスコープ外**
-  である（PoC-2・PoC-7 の結論）。ルール 2（自動適用候補）・ルール 3
-  （人間承認必須）のいずれの区分でも、「ゲートを通過した」ことは
-  「意味的に正しい」ことを保証しない。
-- **影響範囲判定はファイル単位の粗粒度ヒューリスティック**である。
-  シンボル単位で「どのルートハンドラが実際にそのシンボルを呼ぶか」まで
-  は追跡せず、無関係なルートも「影響あり」として過検知しうる（安全側の
-  設計）。AST 解析ベースの精密化（関数呼び出しグラフ解析）は将来スコープ
-  であり本書の対象外（`docs/impact-analysis-design.md` §7）。
-- **AI エージェント本体の実装は REQ-13 の対象外**。本書は機構（フック・
-  ゲート）が従うべき境界ルールの提供に限定される。
-- **`cargo-deny` の `advisories`（既知脆弱性 DB 照合）はオフラインゲート
-  対象外**。`policy` チェックは `bans`/`licenses`/`sources` に限定され、
-  `advisories` は CI 環境でのネットワークアクセスを前提に別途補完する
-  （`docs/cargo-deny-advisories.md`）。
+## 3. 判定材料の出力形式（参照）
 
-## 7. 未確定事項（TASK-13.6b への引き継ぎ）
+`fw gate` と `fw impact` はいずれも JSON を標準出力へ返す。境界ルールの適用可否は、
+両コマンドの出力にある次のフィールドの組み合わせで機械的に判定できる。
 
-以下は本草案（TASK-13.6a）では安全側の暫定案を示すのみとし、確定判断は
-TASK-13.6b（#153）の人間レビューで行う。
+| コマンド | フィールド | 本書での参照箇所 |
+|---------|-----------|-----------------|
+| `fw gate` | `gate_result`（`"PASS"` \| `"BLOCKED"`） | ルール 1 |
+| `fw impact <symbol>` | `breaking_risk`（`"high"` \| `"medium"` \| `"low"`） | ルール 2・3 |
+| `fw impact <symbol>` | `affected_routes`（配列） | ルール 2・3 |
+| `fw impact <symbol>` | `ambiguous`（真偽値） | ルール 2・3 |
+| `fw impact <symbol>` | `requires_human_approval`（真偽値、上記 3 者から一元的に算出済み） | ルール 2・3 の合成結果。個別フィールドを再判定せず本フィールドをそのまま使ってよい |
 
-1. **「自動適用候補」（ルール 2）の既定動作**: 「候補提示のみ（人間が
-   最終トリガーを引く）」とするか、「実適用まで自動で進める」とするか。
-   本草案では安全側の**「候補提示のみ」を既定として提案**する。実運用で
-   自動化の範囲を広げる場合も、対象を「単一クレート内完結・非公開 API
-   のみ・既存テストで担保されている」等にさらに絞り込む追加条件の要否を
-   #153 で検討する。
-2. **ルール 2 のシナリオ実例の不足**: PoC-7 の 3 シナリオ・TASK-13.4 の
-   回帰シナリオのいずれも「自動適用候補」区分の実例を持たない
-   （すべてルール 3 に該当）。実運用開始後、ルール 2 に該当する実際の
-   変更パターンを収集し、想定どおりに安全側へ倒れているかを事後検証する
-   運用（メトリクス収集等）を設けるかどうかは #153 で判断する。
-3. **人間承認の記録・監査方法**: ルール 3 で要求する「人間承認」を
-   どのような形式（PR レビュー承認・別途の承認ログ等）で記録し、
-   監査可能性（REQ-13 非機能要件）を担保するかは本書では規定していない。
-   #153 でリポジトリの運用（`implement-issue` 等の承認フロー）との
-   対応関係を確定する。
-4. **`ambiguous` 解消後の再判定運用**: 定義元が複数見つかった
-   （`ambiguous: true`）場合にルール 3 へ倒すことは確定済みだが、
-   多重定義の解消（リネーム等）自体を AI エージェントに任せてよいか、
-   常に人間が介入すべきかは未確定。#153 で判断する。
+出力の詳細スキーマ・終了コード規約は `docs/gate-design.md` §4・
+`docs/impact-analysis-design.md` §3.5 を参照する。
+
+## 4. 監査可能性
+
+`fw gate` / `fw impact` の判定結果は JSON として標準出力へ返るため、AI エージェントの
+実行ログ・CI ログに残すことで判定根拠を事後監査できる。判定結果自体に絶対パス・
+環境情報（ホスト名・ユーザー名等）を含めない設計とし（`docs/impact-analysis-design.md`
+§6 A09 対策）、ログへ機微情報が混入しないことを、両コマンドの出力仕様として担保する。
+
+## 5. 適用範囲・スコープ外
+
+- 本書が定義する境界ルールは `fw gate` / `fw impact` の判定結果を判断材料とする
+  運用ポリシーであり、判定ロジック自体の実装変更（`cli/src/impact.rs` /
+  `cli/src/gate.rs`）は本書のスコープ外である。判定ロジックに変更が入った場合は、
+  本書 §2 の記述が実装と乖離しないよう追随して更新する必要がある。
+- AI エージェント本体（自動適用を実行するオペレーター）の実装は REQ-13 のスコープ外
+  であり、本書もその実装方式を規定しない。
+- 意味的検証（AST 解析ベースの精密化、ロジック誤りの自動検出）の実現方式は
+  本書のスコープ外とし、将来タスクとして別途起票する（`docs/impact-analysis-design.md`
+  §7 に将来スコープとして記載済み）。
+- **TASK-13.6a（#152）の草案との統合**: 本書冒頭「草案（#152）との関係・訂正」に
+  記載のとおり、`docs/152-ai-self-maintenance-policy` ブランチの草案は境界ルールの
+  実質において本書と矛盾しないことを確認済みであり、本書（#153）へ統合済みとして
+  扱う。Issue #152 のクローズ判断・草案ブランチの後始末は、本書の変更範囲（docs/ の
+  記述）を超えるため、Issue 側の記録に委ねる。
