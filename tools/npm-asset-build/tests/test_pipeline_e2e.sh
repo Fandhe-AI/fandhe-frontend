@@ -32,6 +32,7 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 tool_dir="$(cd "${script_dir}/.." && pwd)"
 install_sh="${tool_dir}/install.sh"
 check_static_only_py="${tool_dir}/check_static_only.py"
+apply_exempt_py="${tool_dir}/apply_exempt.py"
 
 fail_count=0
 pass_count=0
@@ -121,6 +122,25 @@ cat > "${jsexec_src}/package.json" <<'EOF'
 EOF
 echo "module.exports = {};" > "${jsexec_src}/index.js"
 jsexec_tarball="$(pack_fixture "jsexec-pkg" "$jsexec_src")"
+
+# --- fixture 4: R1-bin 単独違反パッケージ（イシュー #316 ケース G 専用）---
+# "bin" フィールドのみを違反理由とし、実行コード拡張子のファイルは一切含めない
+# （R2-ext ハード拒否と混在させると免除不可能になり、半自動追記の往復検証が
+# 成立しないため、意図的に「(package, rule) 単位で免除可能な違反」のみに限定
+# した fixture を用意する）。
+binonly_src="${work_root}/fixture-binonly-pkg-src"
+mkdir -p "$binonly_src"
+cat > "${binonly_src}/package.json" <<'EOF'
+{
+  "name": "e2e-binonly-pkg",
+  "version": "1.0.0",
+  "bin": {
+    "e2e-binonly-cmd": "./cli-placeholder"
+  }
+}
+EOF
+echo "static asset only, no executable content" > "${binonly_src}/README.md"
+binonly_tarball="$(pack_fixture "binonly-pkg" "$binonly_src")"
 
 # --- ケース A: install.sh 経由 → --ignore-scripts により postinstall がブロックされる ---
 # evil-pkg fixture は index.js（実行コード拡張子）を含むため、自動連携された
@@ -276,6 +296,73 @@ jsexec_tarball="$(pack_fixture "jsexec-pkg" "$jsexec_src")"
     pass "case F: --no-check bypasses the auto-invoked check despite a violating fixture, with a warning"
   else
     fail "case F: expected exit 0 + skip warning with --no-check (exit=${install_exit})"
+  fi
+}
+
+# --- ケース G: 半自動追記の往復（イシュー #316）---
+# 違反 fixture → --suggest-exempt の提案出力 → 人間レビュー相当の編集
+# （VIOLATION 行除去・TODO reason の書き換え）→ apply_exempt.py で allowlist
+# へ適用 → 同じ allowlist で再チェックすると exit 0 になることを確認する。
+{
+  proj_dir="${work_root}/case-g-project"
+  mkdir -p "$proj_dir"
+  echo '{"name":"case-g","version":"1.0.0","private":true}' > "${proj_dir}/package.json"
+
+  set +e
+  "$install_sh" --dir "$proj_dir" --no-audit --no-check "$binonly_tarball" \
+    > "${work_root}/case-g-install-stdout.log" 2> "${work_root}/case-g-install-stderr.log"
+  install_exit=$?
+  set -e
+
+  if [[ $install_exit -ne 0 ]]; then
+    fail "case G: install.sh failed to install binonly-pkg (exit=${install_exit})"
+  else
+    # 1) 違反検出 + 提案出力（この時点では未レビューの生出力）。
+    set +e
+    python3 "$check_static_only_py" --node-modules "${proj_dir}/node_modules" --suggest-exempt \
+      > "${work_root}/case-g-suggest-raw.log" 2> "${work_root}/case-g-suggest-stderr.log"
+    suggest_exit=$?
+    set -e
+
+    if [[ $suggest_exit -ne 1 ]]; then
+      fail "case G: expected check_static_only.py to exit 1 with a violation (exit=${suggest_exit})"
+    else
+      # 2) 人間レビュー相当の編集: VIOLATION 行（TOML として不正）を取り除き、
+      #    [[exempt]] 以降のみを抽出し、TODO reason を具体的な理由へ書き換える。
+      sed -n '/^\[\[exempt\]\]/,$p' "${work_root}/case-g-suggest-raw.log" \
+        | sed 's/^reason = "TODO:.*"$/reason = "declared bin entry is a placeholder, never installed as an executable"/' \
+        > "${work_root}/case-g-reviewed.toml"
+
+      project_allowlist="${work_root}/case-g-allowlist.toml"
+      : > "$project_allowlist"
+
+      # 3) 半自動追記コマンドで allowlist へ適用する。
+      set +e
+      python3 "$apply_exempt_py" --suggestions "${work_root}/case-g-reviewed.toml" \
+        --allowlist "$project_allowlist" \
+        > "${work_root}/case-g-apply-stdout.log" 2> "${work_root}/case-g-apply-stderr.log"
+      apply_exit=$?
+      set -e
+
+      if [[ $apply_exit -ne 0 ]]; then
+        fail "case G: apply_exempt.py failed to apply reviewed suggestion (exit=${apply_exit}, output=$(cat "${work_root}/case-g-apply-stdout.log" "${work_root}/case-g-apply-stderr.log"))"
+      else
+        # 4) 適用後の allowlist で再チェックすると exit 0（免除成立）になること。
+        set +e
+        python3 "$check_static_only_py" --node-modules "${proj_dir}/node_modules" \
+          --allowlist "$project_allowlist" \
+          > "${work_root}/case-g-recheck-stdout.log" 2> "${work_root}/case-g-recheck-stderr.log"
+        recheck_exit=$?
+        set -e
+
+        if [[ $recheck_exit -eq 0 ]] \
+          && grep -q "EXEMPTED package=e2e-binonly-pkg" "${work_root}/case-g-recheck-stdout.log"; then
+          pass "case G: suggest-exempt -> reviewed edit -> apply_exempt.py -> recheck exit 0 (round trip)"
+        else
+          fail "case G: expected exit 0 + EXEMPTED after applying reviewed suggestion (exit=${recheck_exit}, output=$(cat "${work_root}/case-g-recheck-stdout.log"))"
+        fi
+      fi
+    fi
   fi
 }
 
