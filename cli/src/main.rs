@@ -344,23 +344,25 @@ fn collect_dependencies(
 /// JSON 出力（`docs/impact-analysis-design.md` §3.5 のスキーマ）は #136 の領分。
 /// 本サブタスクでは暫定の人間可読 1 行サマリを stdout に出す契約とし、
 /// #136 がこの出力を JSON へ置き換える。
+const IMPACT_USAGE: &str = "fw impact: usage: fw impact <symbol> [--project <dir>]";
+
 fn run_impact(args: &[String]) -> i32 {
     let Some(symbol) = args.first() else {
         eprintln!("fw impact: a <symbol> argument is required");
-        eprintln!("fw impact: usage: fw impact <symbol> [--project <dir>]");
+        eprintln!("{IMPACT_USAGE}");
         return 2;
     };
 
     if let Err(e) = impact::validate_symbol(symbol) {
         eprintln!("fw impact: {e}");
-        eprintln!("fw impact: usage: fw impact <symbol> [--project <dir>]");
+        eprintln!("{IMPACT_USAGE}");
         return 2;
     }
 
     let project_dir = match parse_project_arg(&args[1..]) {
         Ok(dir) => dir,
         Err(()) => {
-            eprintln!("fw impact: usage: fw impact <symbol> [--project <dir>]");
+            eprintln!("{IMPACT_USAGE}");
             return 2;
         }
     };
