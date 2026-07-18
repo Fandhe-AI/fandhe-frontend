@@ -127,7 +127,7 @@ REQ-1（既定エスケープ）の唯一の許容迂回経路は `rws_core::raw
 |-------------|------|
 | コメント偽装で回避不能であることの実証 | `cli/tests/raw_html_lint_e2e.rs::comment_only_spoofed_marker_is_still_rejected_by_clippy`（実 clippy 起動） |
 | リネーム import 経由の呼び出しも検出 | `cli/tests/raw_html_lint_e2e.rs::renamed_import_call_is_still_rejected_by_clippy` |
-| CI で未レビュー呼び出しをブロック | `.github/workflows/ci.yml` `clippy` ジョブ |
+| CI で未レビュー呼び出しをブロック | `.github/workflows/ci.yml` `clippy` ジョブ（主防御）+ `test` ジョブの独立ステップ「REQ-1 raw_html() 偽装回避不能テスト (issue #159)」（`raw_html_lint_e2e` を明示実行し受け入れ条件を可視化） |
 | 正当なオプトイン経路の保全 | `cli/tests/raw_html_lint_e2e.rs::reviewed_expect_attribute_call_is_accepted_by_clippy` |
 
 運用手順（属性の書式・レビュー規約）は `docs/raw-html-review-gate.md` を参照。

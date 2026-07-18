@@ -129,6 +129,17 @@ jobs:
       - name: "Gate linkage tests (TASK-13.3c: cargo-deny / XSS regression)"
         run: cargo test -p rws-cli --test negative_cases --test xss_regression_link --locked
 
+      # イシュー #159（REQ-1、親 #157）の受け入れ条件「偽装回避不能テストが通過し
+      # CI でブロックされる」の直接証跡。`raw_html_lint_e2e.rs` は実際に
+      # `cargo clippy` を起動し、直接呼び出し・コメント偽装・リネーム import の
+      # いずれも `clippy::disallowed_methods` で拒否され、`#[expect(...,
+      # reason = "ESCAPE-REVIEWED: ...")]` を付与した呼び出しのみ受理される
+      # ことを実証する（詳細は docs/raw-html-lint-design.md）。上記ステップの
+      # `cargo test --workspace` 実行に暗黙包含されるだけでは受け入れ条件の
+      # 充足が CI 上で可視化されないため、本ステップとして独立させる。
+      - name: "REQ-1 raw_html() 偽装回避不能テスト (issue #159)"
+        run: cargo test -p rws-cli --test raw_html_lint_e2e --locked
+
       # TASK-10.2b（#110、REQ-10 条件 3）: dist-server/build.rs が既定で実行する
       # WASM ビルドステージ（ネスト `cargo build --target wasm32-unknown-unknown`
       # + `wasm-bindgen`）に必要なツールチェーンを導入する。本ジョブに限り
