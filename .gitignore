@@ -10,3 +10,7 @@
 # 一時プローブファイル。ベンチ終了時に Drop ガードで削除するが、強制終了時の
 # 残留に備えた保険（次回実行での自己回復とは独立の安全策）。
 /static/rebuild-latency-probe.txt
+
+# implement-issue-tree 等のスキルが使うローカル状態ディレクトリ
+# （_/issue-trees/<N>.json・_/local-plans/ 等。git 管理外・コミット禁止）
+/_/
