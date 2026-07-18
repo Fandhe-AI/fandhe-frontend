@@ -115,24 +115,48 @@ jobs:
       # 実行下で strict 分岐（ベースライン PASS・banned 依存検出の具体的な
       # ブロック理由）が実行されるようにする（下記 wasm-bindgen-cli の
       # 導入ステップと同一のサプライチェーン対策パターン、security.md A06）。
-      - name: Install cargo-deny (pinned + checksum-verified)
+      - name: Install cargo-deny (pinned + checksum-verified, atomic install)
         # self-hosted 移行に伴い、インストール先を /usr/local/bin から
-        # $HOME/.local/bin へ変更する（ubuntu-latest の runner ユーザーは
-        # /usr/local/bin へ sudo 無しで書き込めるが、self-hosted の非 root
-        # 実行ユーザーには同じ前提が成り立たない可能性があるため）。
-        # $GITHUB_PATH への追記で以降のステップから素の `cargo-deny` として呼べる。
+        # $HOME/.local/share/cargo-deny/<version>/ へ変更する（ubuntu-latest の
+        # runner ユーザーは /usr/local/bin へ sudo 無しで書き込めるが、
+        # self-hosted の非 root 実行ユーザーには同じ前提が成り立たない可能性が
+        # あるため）。
+        #
+        # Cursor Bugbot 指摘（BUGBOT_BUG_ID: 1c88c06e、PR #291）: 複数ジョブが
+        # 並列実行される self-hosted では、共有 $HOME 配下の同一固定パスへ
+        # 複数ジョブが同時に download/展開/install すると互いのツリーや
+        # バイナリを破損し得る（"Shared HOME Chrome install races" 指摘の
+        # 一般形。wasm-bindgen 系にも同一機構の実在リスクがあった）。対策として
+        # バージョン文字列をパスに含めた不変パス
+        # （$HOME/.local/share/cargo-deny/<version>/）へインストールし、
+        # 一時ディレクトリ（$HOME と同一ファイルシステム上）で
+        # ダウンロード・チェックサム検証・展開を完了させたうえで
+        # `mv -n -T`（同一ファイルシステム内なら atomic rename。`-n` は
+        # 既存の完全なインストール先を上書きしない）で最終配置する。
+        # 最終パスが既にバージョン一致で存在すれば再ダウンロードをスキップする
+        # （バージョンがパス自体に埋め込まれているため、存在＝正しいバージョンで
+        # ある保証になる）。これにより並列実行時も「未完成の中間状態」が他
+        # ジョブから見えることはなく、後勝ちの mv はサイレントに no-op となる
+        # （同一バージョンの内容は決定的に同一であるため、どちらの実体が
+        # 生き残っても結果は同じ）。
         run: |
           set -euo pipefail
           CARGO_DENY_VERSION="0.16.4"
           CARGO_DENY_SHA256="28b7f8e12df46a9ce186547e38278c851905fc4bda59a0cc57d2aade9fdf6962"
-          ARCHIVE="cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          URL="https://github.com/EmbarkStudios/cargo-deny/releases/download/${CARGO_DENY_VERSION}/${ARCHIVE}"
-          curl -sSfL -o "${ARCHIVE}" "${URL}"
-          echo "${CARGO_DENY_SHA256}  ${ARCHIVE}" | sha256sum -c -
-          tar xzf "${ARCHIVE}"
-          mkdir -p "${HOME}/.local/bin"
-          install -m 755 "cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny" "${HOME}/.local/bin/cargo-deny"
-          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+          SHARE_DIR="${HOME}/.local/share/cargo-deny"
+          INSTALL_DIR="${SHARE_DIR}/${CARGO_DENY_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/cargo-deny" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/EmbarkStudios/cargo-deny/releases/download/${CARGO_DENY_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${CARGO_DENY_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            mv -n -T "${tmp_root}/cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}"
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
       # TASK-13.3c（#141）: 「連携」の回帰固定そのものを可視化する独立ステップ。
       # 上記で cargo-deny を導入済みの本ジョブでは negative_cases.rs が strict
@@ -175,27 +199,44 @@ jobs:
       # バージョン固定 + SHA256 チェックサム検証付きプリビルトバイナリの導入
       # （browser-test/perf-harness ジョブの wasm-pack 導入と同一パターン、
       # サプライチェーン対策）。
-      - name: Install wasm-bindgen-cli (pinned + checksum-verified)
-        # self-hosted 移行に伴い、cargo-deny と同じ理由でインストール先を
-        # $HOME/.local/bin へ変更する。
+      - name: Install wasm-bindgen-cli (pinned + checksum-verified, atomic install)
+        # self-hosted 移行に伴い、インストール先を /usr/local/bin から
+        # $HOME/.local/share/wasm-bindgen/<version>/ へ変更する（cargo-deny と
+        # 同じ理由）。
+        #
+        # Cursor Bugbot 指摘（BUGBOT_BUG_ID: 1c88c06e、PR #291、"Shared HOME
+        # Chrome install races" の一般形）: 複数ジョブが並列実行される
+        # self-hosted では、共有 $HOME 配下の同一固定パスへ複数ジョブが同時に
+        # download/展開/install すると互いのツリーやバイナリを破損し得る
+        # （実際に「wasm-bindgen 本体のみ存在し wasm-bindgen-test-runner が
+        # 無い不完全な組」が観測された、PR #291 実 CI 実行）。対策として
+        # バージョン文字列をパスに含めた不変パスへインストールし、一時
+        # ディレクトリ（$HOME と同一ファイルシステム上）でダウンロード・
+        # チェックサム検証・展開を完了させたうえで `mv -n -T`（同一ファイル
+        # システム内なら atomic rename、`-n` は既存の完全なインストール先を
+        # 上書きしない）で最終配置する。`wasm-bindgen` と
+        # `wasm-bindgen-test-runner` は同一の展開ディレクトリを丸ごと
+        # 配置することで常に組として揃う（個別コピーによる部分installを
+        # 排除）。並列実行時に後勝ちの mv はサイレントに no-op となる
+        # （同一バージョンの内容は決定的に同一であるため安全）。
         run: |
           set -euo pipefail
           WASM_BINDGEN_VERSION="0.2.126"
           WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
-          ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
-          curl -sSfL -o "${ARCHIVE}" "${URL}"
-          echo "${WASM_BINDGEN_SHA256}  ${ARCHIVE}" | sha256sum -c -
-          tar xzf "${ARCHIVE}"
-          mkdir -p "${HOME}/.local/bin"
-          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" "${HOME}/.local/bin/wasm-bindgen"
-          # browser-test 等の別ジョブが同一の永続 $HOME/.local/bin を参照した際、
-          # `wasm-bindgen` のみ存在し `wasm-bindgen-test-runner` が無い不完全な
-          # 組を「発見」して誤動作しないよう、本ジョブでも常に両方インストール
-          # しておく（PR #291 実 CI 実行で判明した self-hosted 永続 $HOME 特有の
-          # 不整合対策、詳細は browser-test ジョブの同名ステップのコメント参照）。
-          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen-test-runner" "${HOME}/.local/bin/wasm-bindgen-test-runner"
-          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            mv -n -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}"
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
       - name: Workspace tests
         run: cargo test --workspace --locked
@@ -327,26 +368,48 @@ jobs:
         # 探索するため、Chrome の実行ファイルは同梱リソース（*.pak/icudtl.dat/
         # 共有ライブラリ）と同一ディレクトリに置いたまま、そのディレクトリ自体を
         # PATH に追加する（バイナリ単体だけを移動すると壊れる）。
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291、
+        # "Shared HOME Chrome install races"）: 複数ジョブが並列実行される
+        # self-hosted では、共有 $HOME 配下の同一固定パスへ複数ジョブが同時に
+        # download/unzip/install すると互いのツリーやバイナリを破損し得る。
+        # 対策として CFT_VERSION をパスに含めた不変パス
+        # （$HOME/.local/share/chrome-for-testing/<version>/）へインストールし、
+        # $HOME と同一ファイルシステム上の一時ディレクトリでダウンロード・
+        # チェックサム検証・展開を完了させたうえで、chrome-linux64 /
+        # chromedriver-linux64 の各ディレクトリ丸ごとを `mv -n -T`（atomic
+        # rename、`-n` は既存の完全なインストール先を上書きしない）で最終
+        # 配置する。最終パスが既に存在すれば（＝バージョン一致で完全に
+        # インストール済み）ダウンロードをスキップする。並列実行時に後勝ちの
+        # mv はサイレントに no-op となる（同一バージョンの内容は決定的に
+        # 同一であるため安全）。
         run: |
           set -euo pipefail
           CFT_VERSION="151.0.7922.34"
           CHROME_SHA256="ae8736ac28bc69278551500f219fc749575648263c43ec5990749eff43b9fcf8"
           CHROMEDRIVER_SHA256="3c2b6780156f44f3a26db5bee4a3b193d608eda55644de5287e6edf4aef2f4ac"
-          INSTALL_DIR="${HOME}/.local/share/chrome-for-testing"
-          mkdir -p "${INSTALL_DIR}" "${HOME}/.local/bin"
+          SHARE_DIR="${HOME}/.local/share/chrome-for-testing"
+          INSTALL_ROOT="${SHARE_DIR}/${CFT_VERSION}"
+          CHROME_DIR="${INSTALL_ROOT}/chrome-linux64"
+          CHROMEDRIVER_DIR="${INSTALL_ROOT}/chromedriver-linux64"
+          mkdir -p "${SHARE_DIR}" "${INSTALL_ROOT}"
+          if [ ! -x "${CHROME_DIR}/chrome" ] || [ ! -x "${CHROMEDRIVER_DIR}/chromedriver" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
 
-          curl -sSfL -o chrome-linux64.zip "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chrome-linux64.zip"
-          echo "${CHROME_SHA256}  chrome-linux64.zip" | sha256sum -c -
-          unzip -q -o chrome-linux64.zip -d "${INSTALL_DIR}"
+            curl -sSfL -o "${tmp_root}/chrome-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chrome-linux64.zip"
+            echo "${CHROME_SHA256}  ${tmp_root}/chrome-linux64.zip" | sha256sum -c -
+            unzip -q -o "${tmp_root}/chrome-linux64.zip" -d "${tmp_root}"
 
-          curl -sSfL -o chromedriver-linux64.zip "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chromedriver-linux64.zip"
-          echo "${CHROMEDRIVER_SHA256}  chromedriver-linux64.zip" | sha256sum -c -
-          unzip -q -o chromedriver-linux64.zip -d "${INSTALL_DIR}"
-          install -m 755 "${INSTALL_DIR}/chromedriver-linux64/chromedriver" "${HOME}/.local/bin/chromedriver"
+            curl -sSfL -o "${tmp_root}/chromedriver-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chromedriver-linux64.zip"
+            echo "${CHROMEDRIVER_SHA256}  ${tmp_root}/chromedriver-linux64.zip" | sha256sum -c -
+            unzip -q -o "${tmp_root}/chromedriver-linux64.zip" -d "${tmp_root}"
 
-          echo "${INSTALL_DIR}/chrome-linux64" >> "$GITHUB_PATH"
-          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
-          echo "chromedriver_path=${HOME}/.local/bin/chromedriver" >> "$GITHUB_OUTPUT"
+            mv -n -T "${tmp_root}/chrome-linux64" "${CHROME_DIR}"
+            mv -n -T "${tmp_root}/chromedriver-linux64" "${CHROMEDRIVER_DIR}"
+          fi
+
+          echo "${CHROME_DIR}" >> "$GITHUB_PATH"
+          echo "chromedriver_path=${CHROMEDRIVER_DIR}/chromedriver" >> "$GITHUB_OUTPUT"
 
       - name: Verify headless Chrome launches (self-hosted shared-library check)
         # Chrome for Testing の実行に必要な共有ライブラリ（libnss3 / libgbm1 /
@@ -419,19 +482,33 @@ jobs:
       - name: Install wasm-pack (pinned + checksum-verified)
         if: steps.check.outputs.exists == 'true' || steps.check-wasm-full.outputs.exists == 'true'
         # self-hosted 移行に伴い、インストール先を /usr/local/bin から
-        # $HOME/.local/bin へ変更する（test ジョブの cargo-deny と同一の理由）。
+        # $HOME/.local/share/wasm-pack/<version>/ へ変更する（sudo 不要、かつ
+        # atomic install によるレース対策。詳細は次のコメント）。
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291、
+        # "Shared HOME Chrome install races" の一般形）: バージョン付き不変
+        # パスへ、$HOME と同一ファイルシステム上の一時ディレクトリで検証・
+        # 展開してから `mv -n -T`（atomic rename、`-n` は既存の完全な
+        # インストール先を上書きしない）で配置する。並列実行時の破損・
+        # 後勝ちレースを避ける（詳細は wasm-bindgen-cli インストールステップの
+        # コメント参照）。
         run: |
           set -euo pipefail
           WASM_PACK_VERSION="0.13.1"
           WASM_PACK_SHA256="c539d91ccab2591a7e975bcf82c82e1911b03335c80aa83d67ad25ed2ad06539"
-          ARCHIVE="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${ARCHIVE}"
-          curl -sSfL -o "${ARCHIVE}" "${URL}"
-          echo "${WASM_PACK_SHA256}  ${ARCHIVE}" | sha256sum -c -
-          tar xzf "${ARCHIVE}"
-          mkdir -p "${HOME}/.local/bin"
-          install -m 755 "wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" "${HOME}/.local/bin/wasm-pack"
-          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+          SHARE_DIR="${HOME}/.local/share/wasm-pack"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_PACK_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-pack" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_PACK_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            mv -n -T "${tmp_root}/wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}"
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
       # PR #291 実 CI 実行で判明: `wasm-pack test` は内部で
       # `install::download_prebuilt_or_cargo_install(Tool::WasmBindgen, ...)`
@@ -447,21 +524,34 @@ jobs:
       # 永続ワークスペース特有の不整合）。ここで `wasm-bindgen` /
       # `wasm-bindgen-test-runner` の両方をこのジョブ内で明示的に上書き導入し、
       # 常に完全な組を揃える（test ジョブと同一バージョン・同一チェックサム）。
+      # なお現在はインストール先自体をバージョン付き不変パス
+      # （$HOME/.local/share/wasm-bindgen/<version>/）へ変更し、atomic
+      # install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291）で並列
+      # 実行時の破損も防いでいる（詳細は下記ステップのコメント参照）。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified, provides wasm-bindgen-test-runner)
         if: steps.check.outputs.exists == 'true' || steps.check-wasm-full.outputs.exists == 'true'
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291）:
+        # バージョン付き不変パスへ、$HOME と同一ファイルシステム上の一時
+        # ディレクトリで検証・展開してから `mv -n -T` で配置する。詳細は
+        # test ジョブの同名ステップのコメント参照。
         run: |
           set -euo pipefail
           WASM_BINDGEN_VERSION="0.2.126"
           WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
-          ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
-          curl -sSfL -o "${ARCHIVE}" "${URL}"
-          echo "${WASM_BINDGEN_SHA256}  ${ARCHIVE}" | sha256sum -c -
-          tar xzf "${ARCHIVE}"
-          mkdir -p "${HOME}/.local/bin"
-          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" "${HOME}/.local/bin/wasm-bindgen"
-          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen-test-runner" "${HOME}/.local/bin/wasm-bindgen-test-runner"
-          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            mv -n -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}"
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
       # chromedriver のパスは上記 "Install Chrome for Testing + chromedriver" の
       # 出力を使う。wasm-bindgen-test-runner（wasm-pack test の実体）は
@@ -556,26 +646,48 @@ jobs:
         id: install_chrome
         # browser-test ジョブと同一バージョン・同一チェックサム（chrome/
         # chromedriver は同一バージョンで揃える必要がある）。
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291、
+        # "Shared HOME Chrome install races"）: 複数ジョブが並列実行される
+        # self-hosted では、共有 $HOME 配下の同一固定パスへ複数ジョブが同時に
+        # download/unzip/install すると互いのツリーやバイナリを破損し得る。
+        # 対策として CFT_VERSION をパスに含めた不変パス
+        # （$HOME/.local/share/chrome-for-testing/<version>/）へインストールし、
+        # $HOME と同一ファイルシステム上の一時ディレクトリでダウンロード・
+        # チェックサム検証・展開を完了させたうえで、chrome-linux64 /
+        # chromedriver-linux64 の各ディレクトリ丸ごとを `mv -n -T`（atomic
+        # rename、`-n` は既存の完全なインストール先を上書きしない）で最終
+        # 配置する。最終パスが既に存在すれば（＝バージョン一致で完全に
+        # インストール済み）ダウンロードをスキップする。並列実行時に後勝ちの
+        # mv はサイレントに no-op となる（同一バージョンの内容は決定的に
+        # 同一であるため安全）。
         run: |
           set -euo pipefail
           CFT_VERSION="151.0.7922.34"
           CHROME_SHA256="ae8736ac28bc69278551500f219fc749575648263c43ec5990749eff43b9fcf8"
           CHROMEDRIVER_SHA256="3c2b6780156f44f3a26db5bee4a3b193d608eda55644de5287e6edf4aef2f4ac"
-          INSTALL_DIR="${HOME}/.local/share/chrome-for-testing"
-          mkdir -p "${INSTALL_DIR}" "${HOME}/.local/bin"
+          SHARE_DIR="${HOME}/.local/share/chrome-for-testing"
+          INSTALL_ROOT="${SHARE_DIR}/${CFT_VERSION}"
+          CHROME_DIR="${INSTALL_ROOT}/chrome-linux64"
+          CHROMEDRIVER_DIR="${INSTALL_ROOT}/chromedriver-linux64"
+          mkdir -p "${SHARE_DIR}" "${INSTALL_ROOT}"
+          if [ ! -x "${CHROME_DIR}/chrome" ] || [ ! -x "${CHROMEDRIVER_DIR}/chromedriver" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
 
-          curl -sSfL -o chrome-linux64.zip "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chrome-linux64.zip"
-          echo "${CHROME_SHA256}  chrome-linux64.zip" | sha256sum -c -
-          unzip -q -o chrome-linux64.zip -d "${INSTALL_DIR}"
+            curl -sSfL -o "${tmp_root}/chrome-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chrome-linux64.zip"
+            echo "${CHROME_SHA256}  ${tmp_root}/chrome-linux64.zip" | sha256sum -c -
+            unzip -q -o "${tmp_root}/chrome-linux64.zip" -d "${tmp_root}"
 
-          curl -sSfL -o chromedriver-linux64.zip "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chromedriver-linux64.zip"
-          echo "${CHROMEDRIVER_SHA256}  chromedriver-linux64.zip" | sha256sum -c -
-          unzip -q -o chromedriver-linux64.zip -d "${INSTALL_DIR}"
-          install -m 755 "${INSTALL_DIR}/chromedriver-linux64/chromedriver" "${HOME}/.local/bin/chromedriver"
+            curl -sSfL -o "${tmp_root}/chromedriver-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chromedriver-linux64.zip"
+            echo "${CHROMEDRIVER_SHA256}  ${tmp_root}/chromedriver-linux64.zip" | sha256sum -c -
+            unzip -q -o "${tmp_root}/chromedriver-linux64.zip" -d "${tmp_root}"
 
-          echo "${INSTALL_DIR}/chrome-linux64" >> "$GITHUB_PATH"
-          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
-          echo "chromedriver_path=${HOME}/.local/bin/chromedriver" >> "$GITHUB_OUTPUT"
+            mv -n -T "${tmp_root}/chrome-linux64" "${CHROME_DIR}"
+            mv -n -T "${tmp_root}/chromedriver-linux64" "${CHROMEDRIVER_DIR}"
+          fi
+
+          echo "${CHROME_DIR}" >> "$GITHUB_PATH"
+          echo "chromedriver_path=${CHROMEDRIVER_DIR}/chromedriver" >> "$GITHUB_OUTPUT"
 
       - name: Verify headless Chrome launches (self-hosted shared-library check)
         # browser-test ジョブと同一ロジック（ldd で不足共有ライブラリを特定して
@@ -630,38 +742,60 @@ jobs:
       - name: Install wasm-pack (pinned + checksum-verified)
         if: steps.check.outputs.exists == 'true'
         # self-hosted 移行に伴い、インストール先を browser-test ジョブと同様に
-        # $HOME/.local/bin へ変更する。
+        # $HOME/.local/share/wasm-pack/<version>/ へ変更する。
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291、
+        # "Shared HOME Chrome install races" の一般形）: バージョン付き不変
+        # パスへ、$HOME と同一ファイルシステム上の一時ディレクトリで検証・
+        # 展開してから `mv -n -T`（atomic rename、`-n` は既存の完全な
+        # インストール先を上書きしない）で配置する。並列実行時の破損・
+        # 後勝ちレースを避ける（詳細は wasm-bindgen-cli インストールステップの
+        # コメント参照）。
         run: |
           set -euo pipefail
           WASM_PACK_VERSION="0.13.1"
           WASM_PACK_SHA256="c539d91ccab2591a7e975bcf82c82e1911b03335c80aa83d67ad25ed2ad06539"
-          ARCHIVE="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${ARCHIVE}"
-          curl -sSfL -o "${ARCHIVE}" "${URL}"
-          echo "${WASM_PACK_SHA256}  ${ARCHIVE}" | sha256sum -c -
-          tar xzf "${ARCHIVE}"
-          mkdir -p "${HOME}/.local/bin"
-          install -m 755 "wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" "${HOME}/.local/bin/wasm-pack"
-          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+          SHARE_DIR="${HOME}/.local/share/wasm-pack"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_PACK_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-pack" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_PACK_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            mv -n -T "${tmp_root}/wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}"
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
       # browser-test ジョブと同一の理由（PR #291 実 CI 実行で判明: self-hosted の
       # 永続 $HOME に他ジョブが残した不完全な wasm-bindgen 導入を誤検出する
       # 問題への対策。詳細は browser-test ジョブの同名ステップのコメント参照）。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified, provides wasm-bindgen-test-runner)
         if: steps.check.outputs.exists == 'true'
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291）:
+        # バージョン付き不変パスへ、$HOME と同一ファイルシステム上の一時
+        # ディレクトリで検証・展開してから `mv -n -T` で配置する。詳細は
+        # test ジョブの同名ステップのコメント参照。
         run: |
           set -euo pipefail
           WASM_BINDGEN_VERSION="0.2.126"
           WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
-          ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
-          curl -sSfL -o "${ARCHIVE}" "${URL}"
-          echo "${WASM_BINDGEN_SHA256}  ${ARCHIVE}" | sha256sum -c -
-          tar xzf "${ARCHIVE}"
-          mkdir -p "${HOME}/.local/bin"
-          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" "${HOME}/.local/bin/wasm-bindgen"
-          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen-test-runner" "${HOME}/.local/bin/wasm-bindgen-test-runner"
-          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            mv -n -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}"
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
       # chromedriver のパスは上記 "Resolve chromedriver path" ステップの出力を使う
       # （browser-test ジョブと同一の理由）。
@@ -728,38 +862,61 @@ jobs:
       # （browser-test/perf-harness ジョブと同一バージョン・同一チェックサム。
       # 実行時の chromedriver 自動ダウンロードと同様、未検証バイナリ取得を
       # 避けるサプライチェーン対策）。self-hosted 移行に伴い、インストール先を
-      # /usr/local/bin から $HOME/.local/bin へ変更する（他ジョブと同一の理由）。
+      # /usr/local/bin から $HOME/.local/share/wasm-pack/<version>/ へ変更する
+      # （他ジョブと同一の理由）。
       - name: Install wasm-pack (pinned + checksum-verified)
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291、
+        # "Shared HOME Chrome install races" の一般形）: バージョン付き不変
+        # パスへ、$HOME と同一ファイルシステム上の一時ディレクトリで検証・
+        # 展開してから `mv -n -T`（atomic rename、`-n` は既存の完全な
+        # インストール先を上書きしない）で配置する。並列実行時の破損・
+        # 後勝ちレースを避ける（詳細は wasm-bindgen-cli インストールステップの
+        # コメント参照）。
         run: |
           set -euo pipefail
           WASM_PACK_VERSION="0.13.1"
           WASM_PACK_SHA256="c539d91ccab2591a7e975bcf82c82e1911b03335c80aa83d67ad25ed2ad06539"
-          ARCHIVE="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${ARCHIVE}"
-          curl -sSfL -o "${ARCHIVE}" "${URL}"
-          echo "${WASM_PACK_SHA256}  ${ARCHIVE}" | sha256sum -c -
-          tar xzf "${ARCHIVE}"
-          mkdir -p "${HOME}/.local/bin"
-          install -m 755 "wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" "${HOME}/.local/bin/wasm-pack"
-          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+          SHARE_DIR="${HOME}/.local/share/wasm-pack"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_PACK_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-pack" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_PACK_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            mv -n -T "${tmp_root}/wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}"
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
       # browser-test ジョブと同一の理由（PR #291 実 CI 実行で判明: self-hosted の
       # 永続 $HOME に他ジョブが残した不完全な wasm-bindgen 導入を誤検出する
       # 問題への対策。詳細は browser-test ジョブの同名ステップのコメント参照）。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified, provides wasm-bindgen-test-runner)
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291）:
+        # バージョン付き不変パスへ、$HOME と同一ファイルシステム上の一時
+        # ディレクトリで検証・展開してから `mv -n -T` で配置する。詳細は
+        # test ジョブの同名ステップのコメント参照。
         run: |
           set -euo pipefail
           WASM_BINDGEN_VERSION="0.2.126"
           WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
-          ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
-          curl -sSfL -o "${ARCHIVE}" "${URL}"
-          echo "${WASM_BINDGEN_SHA256}  ${ARCHIVE}" | sha256sum -c -
-          tar xzf "${ARCHIVE}"
-          mkdir -p "${HOME}/.local/bin"
-          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" "${HOME}/.local/bin/wasm-bindgen"
-          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen-test-runner" "${HOME}/.local/bin/wasm-bindgen-test-runner"
-          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            mv -n -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}"
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
       # 前提（self-hosted 移行、ユーザー指示 2026-07-18。PR #291 実 CI 実行で
       # Chrome/chromedriver 不在の fail-closed を確認）: browser-test/
@@ -781,26 +938,48 @@ jobs:
       - name: Install Chrome for Testing + chromedriver (Stable channel, pinned + checksum-verified)
         id: install_chrome
         # browser-test/perf-harness ジョブと同一バージョン・同一チェックサム。
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291、
+        # "Shared HOME Chrome install races"）: 複数ジョブが並列実行される
+        # self-hosted では、共有 $HOME 配下の同一固定パスへ複数ジョブが同時に
+        # download/unzip/install すると互いのツリーやバイナリを破損し得る。
+        # 対策として CFT_VERSION をパスに含めた不変パス
+        # （$HOME/.local/share/chrome-for-testing/<version>/）へインストールし、
+        # $HOME と同一ファイルシステム上の一時ディレクトリでダウンロード・
+        # チェックサム検証・展開を完了させたうえで、chrome-linux64 /
+        # chromedriver-linux64 の各ディレクトリ丸ごとを `mv -n -T`（atomic
+        # rename、`-n` は既存の完全なインストール先を上書きしない）で最終
+        # 配置する。最終パスが既に存在すれば（＝バージョン一致で完全に
+        # インストール済み）ダウンロードをスキップする。並列実行時に後勝ちの
+        # mv はサイレントに no-op となる（同一バージョンの内容は決定的に
+        # 同一であるため安全）。
         run: |
           set -euo pipefail
           CFT_VERSION="151.0.7922.34"
           CHROME_SHA256="ae8736ac28bc69278551500f219fc749575648263c43ec5990749eff43b9fcf8"
           CHROMEDRIVER_SHA256="3c2b6780156f44f3a26db5bee4a3b193d608eda55644de5287e6edf4aef2f4ac"
-          INSTALL_DIR="${HOME}/.local/share/chrome-for-testing"
-          mkdir -p "${INSTALL_DIR}" "${HOME}/.local/bin"
+          SHARE_DIR="${HOME}/.local/share/chrome-for-testing"
+          INSTALL_ROOT="${SHARE_DIR}/${CFT_VERSION}"
+          CHROME_DIR="${INSTALL_ROOT}/chrome-linux64"
+          CHROMEDRIVER_DIR="${INSTALL_ROOT}/chromedriver-linux64"
+          mkdir -p "${SHARE_DIR}" "${INSTALL_ROOT}"
+          if [ ! -x "${CHROME_DIR}/chrome" ] || [ ! -x "${CHROMEDRIVER_DIR}/chromedriver" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
 
-          curl -sSfL -o chrome-linux64.zip "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chrome-linux64.zip"
-          echo "${CHROME_SHA256}  chrome-linux64.zip" | sha256sum -c -
-          unzip -q -o chrome-linux64.zip -d "${INSTALL_DIR}"
+            curl -sSfL -o "${tmp_root}/chrome-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chrome-linux64.zip"
+            echo "${CHROME_SHA256}  ${tmp_root}/chrome-linux64.zip" | sha256sum -c -
+            unzip -q -o "${tmp_root}/chrome-linux64.zip" -d "${tmp_root}"
 
-          curl -sSfL -o chromedriver-linux64.zip "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chromedriver-linux64.zip"
-          echo "${CHROMEDRIVER_SHA256}  chromedriver-linux64.zip" | sha256sum -c -
-          unzip -q -o chromedriver-linux64.zip -d "${INSTALL_DIR}"
-          install -m 755 "${INSTALL_DIR}/chromedriver-linux64/chromedriver" "${HOME}/.local/bin/chromedriver"
+            curl -sSfL -o "${tmp_root}/chromedriver-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chromedriver-linux64.zip"
+            echo "${CHROMEDRIVER_SHA256}  ${tmp_root}/chromedriver-linux64.zip" | sha256sum -c -
+            unzip -q -o "${tmp_root}/chromedriver-linux64.zip" -d "${tmp_root}"
 
-          echo "${INSTALL_DIR}/chrome-linux64" >> "$GITHUB_PATH"
-          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
-          echo "chromedriver_path=${HOME}/.local/bin/chromedriver" >> "$GITHUB_OUTPUT"
+            mv -n -T "${tmp_root}/chrome-linux64" "${CHROME_DIR}"
+            mv -n -T "${tmp_root}/chromedriver-linux64" "${CHROMEDRIVER_DIR}"
+          fi
+
+          echo "${CHROME_DIR}" >> "$GITHUB_PATH"
+          echo "chromedriver_path=${CHROMEDRIVER_DIR}/chromedriver" >> "$GITHUB_OUTPUT"
 
       - name: Verify headless Chrome launches (self-hosted shared-library check)
         run: |
@@ -940,24 +1119,29 @@ jobs:
       # `dist-server/build.rs` の expected_wasm_bindgen_version が Cargo.lock
       # 解決済みバージョンとの完全一致を要求するため、更新時は両方を
       # 合わせて更新すること）。self-hosted 移行に伴い、インストール先を
-      # /usr/local/bin から $HOME/.local/bin へ変更する（test ジョブと同一の理由）。
+      # /usr/local/bin から $HOME/.local/share/wasm-bindgen/<version>/ へ
+      # 変更する（test ジョブと同一の理由）。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified)
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291）:
+        # 詳細は test ジョブの同名ステップのコメント参照。
         run: |
           set -euo pipefail
           WASM_BINDGEN_VERSION="0.2.126"
           WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
-          ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
-          curl -sSfL -o "${ARCHIVE}" "${URL}"
-          echo "${WASM_BINDGEN_SHA256}  ${ARCHIVE}" | sha256sum -c -
-          tar xzf "${ARCHIVE}"
-          mkdir -p "${HOME}/.local/bin"
-          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" "${HOME}/.local/bin/wasm-bindgen"
-          # 永続 $HOME/.local/bin の不完全な組を残さないための対策
-          # （test ジョブと同一の理由、詳細は browser-test ジョブの同名ステップの
-          # コメント参照）。
-          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen-test-runner" "${HOME}/.local/bin/wasm-bindgen-test-runner"
-          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            mv -n -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}"
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
       - name: Run rebuild_latency bench
         # xtask 系ジョブと同一の理由（子プロセス終了コード伝播・Cargo.lock
@@ -1026,24 +1210,29 @@ jobs:
       # 導入する（`test`/`rebuild-latency` ジョブと同一バージョン・同一
       # チェックサム。バージョンアップ時は Cargo.lock 解決済み wasm-bindgen
       # と合わせて更新すること）。self-hosted 移行に伴い、インストール先を
-      # /usr/local/bin から $HOME/.local/bin へ変更する（他ジョブと同一の理由）。
+      # /usr/local/bin から $HOME/.local/share/wasm-bindgen/<version>/ へ
+      # 変更する（他ジョブと同一の理由）。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified)
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291）:
+        # 詳細は test ジョブの同名ステップのコメント参照。
         run: |
           set -euo pipefail
           WASM_BINDGEN_VERSION="0.2.126"
           WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
-          ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
-          curl -sSfL -o "${ARCHIVE}" "${URL}"
-          echo "${WASM_BINDGEN_SHA256}  ${ARCHIVE}" | sha256sum -c -
-          tar xzf "${ARCHIVE}"
-          mkdir -p "${HOME}/.local/bin"
-          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" "${HOME}/.local/bin/wasm-bindgen"
-          # 永続 $HOME/.local/bin の不完全な組を残さないための対策
-          # （test ジョブと同一の理由、詳細は browser-test ジョブの同名ステップの
-          # コメント参照）。
-          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen-test-runner" "${HOME}/.local/bin/wasm-bindgen-test-runner"
-          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            mv -n -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}"
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
       - name: Run bundle_size test
         # xtask 系ジョブと同一の理由（子プロセス終了コード伝播・Cargo.lock
