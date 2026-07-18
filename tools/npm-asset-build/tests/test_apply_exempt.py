@@ -145,6 +145,73 @@ class ApplyExemptTestCase(unittest.TestCase):
         self.assertEqual(self.allowlist_path.read_text(encoding="utf-8"), after_first)
         self.assertEqual(after_first.count('package = "dup-pkg"'), 1)
 
+    def test_duplicate_r2_ext_entry_with_different_case_is_skipped(self) -> None:
+        """R2-ext の `ext` フィールドは大文字小文字を正規化してから重複判定
+        する（check_static_only.validate_exempt_entries と apply_exempt._entry_key
+        の正規化が一致していることの回帰テスト、イシュー #316 レビュー指摘）。
+        既存 allowlist に小文字 `.svg` があるとき、大文字 `.SVG` の提案は
+        重複として SKIPPED になり、二重追記されないこと。"""
+        suggestions = self._write_suggestions(
+            '[[exempt]]\n'
+            'package = "case-pkg"\n'
+            'rule = "R2-ext"\n'
+            'ext = ".svg"\n'
+            'reason = "first application"\n'
+        )
+        code1, _ = run_capture_main(
+            ["--suggestions", str(suggestions), "--allowlist", str(self.allowlist_path)]
+        )
+        self.assertEqual(code1, 0)
+        after_first = self.allowlist_path.read_text(encoding="utf-8")
+
+        suggestions_upper = self._write_suggestions(
+            '[[exempt]]\n'
+            'package = "case-pkg"\n'
+            'rule = "R2-ext"\n'
+            'ext = ".SVG"\n'
+            'reason = "second application, different case"\n'
+        )
+        code2, out2 = run_capture_main(
+            ["--suggestions", str(suggestions_upper), "--allowlist", str(self.allowlist_path)]
+        )
+        self.assertEqual(code2, 0)
+        self.assertIn("SKIPPED", out2)
+        self.assertEqual(self.allowlist_path.read_text(encoding="utf-8"), after_first)
+        self.assertEqual(after_first.count('package = "case-pkg"'), 1)
+
+    def test_duplicate_r2_ext_file_entry_with_backslash_is_skipped(self) -> None:
+        """R2-ext の `file` フィールドはバックスラッシュをスラッシュへ正規化
+        してから重複判定する（同上の正規化ドリフト回帰テスト）。既存 allowlist
+        にスラッシュ区切りの `file` があるとき、バックスラッシュ区切りの提案は
+        重複として SKIPPED になること。"""
+        suggestions = self._write_suggestions(
+            '[[exempt]]\n'
+            'package = "path-pkg"\n'
+            'rule = "R2-ext"\n'
+            'file = "dist/bundle.exe"\n'
+            'reason = "first application"\n'
+        )
+        code1, _ = run_capture_main(
+            ["--suggestions", str(suggestions), "--allowlist", str(self.allowlist_path)]
+        )
+        self.assertEqual(code1, 0)
+        after_first = self.allowlist_path.read_text(encoding="utf-8")
+
+        suggestions_backslash = self._write_suggestions(
+            '[[exempt]]\n'
+            'package = "path-pkg"\n'
+            'rule = "R2-ext"\n'
+            'file = "dist\\\\bundle.exe"\n'
+            'reason = "second application, backslash separator"\n'
+        )
+        code2, out2 = run_capture_main(
+            ["--suggestions", str(suggestions_backslash), "--allowlist", str(self.allowlist_path)]
+        )
+        self.assertEqual(code2, 0)
+        self.assertIn("SKIPPED", out2)
+        self.assertEqual(self.allowlist_path.read_text(encoding="utf-8"), after_first)
+        self.assertEqual(after_first.count('package = "path-pkg"'), 1)
+
     def test_invalid_toml_with_violation_lines_is_rejected_exit_two(self) -> None:
         """`--suggest-exempt` の生出力のように VIOLATION 行が混在したファイルは
         TOML として不正なため exit 2 で拒否される（レビューを経ていない生出力の

@@ -179,6 +179,23 @@ def _hard_deny_ext_for_name(name: str) -> str | None:
 ExemptKey = tuple[str, str, tuple[str, str] | None]
 
 
+def exempt_entry_key(package: str, rule: str, ext_norm: str | None, file_norm: str | None) -> ExemptKey:
+    """検証・正規化済みの package/rule/ext/file から ExemptKey を組み立てる。
+
+    `validate_exempt_entries()` 自身のキー生成と、`tools/npm-asset-build/
+    apply_exempt.py` の重複追記判定（`_entry_key`）の両方から呼ばれる、
+    正規化ロジック（ext は `strip().lower()`、file は `strip().replace('\\', '/')`）
+    の単一の実装源（イシュー #316 レビュー指摘: 二重実装によるドリフト防止）。
+    呼び出し側で正規化済みの ext_norm/file_norm を渡すこと（本関数はさらなる
+    正規化は行わない）。
+    """
+    if rule == "R2-ext":
+        if ext_norm is not None:
+            return (package, rule, ("ext", ext_norm))
+        return (package, rule, ("file", file_norm or ""))
+    return (package, rule, None)
+
+
 def validate_exempt_entries(entries: Iterable[object]) -> dict[ExemptKey, str]:
     """`[[exempt]]` エントリ列（tomllib がパースした素のリスト）を検証し、
     ExemptKey -> reason の免除表を返す。
@@ -239,7 +256,7 @@ def validate_exempt_entries(entries: Iterable[object]) -> dict[ExemptKey, str]:
                         "permitted (hard-deny per docs/npm-static-asset-rules.md §3.4): "
                         f"{entry!r}"
                     )
-                key: ExemptKey = (package, rule, ("ext", ext_norm))
+                key: ExemptKey = exempt_entry_key(package, rule, ext_norm, None)
             else:
                 file_norm = file_field.strip().replace("\\", "/")
                 if _hard_deny_ext_for_name(file_norm) is not None:
@@ -248,13 +265,13 @@ def validate_exempt_entries(entries: Iterable[object]) -> dict[ExemptKey, str]:
                         "permitted (hard-deny per docs/npm-static-asset-rules.md §3.4): "
                         f"{entry!r}"
                     )
-                key = (package, rule, ("file", file_norm))
+                key = exempt_entry_key(package, rule, None, file_norm)
         else:
             if has_ext or has_file:
                 raise CheckError(
                     f"'ext'/'file' fields are only valid for rule=R2-ext: {entry!r}"
                 )
-            key = (package, rule, None)
+            key = exempt_entry_key(package, rule, None, None)
 
         exemptions[key] = reason.strip()
 

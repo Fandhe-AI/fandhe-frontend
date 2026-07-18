@@ -135,18 +135,20 @@ def _load_toml_file(path: Path, *, label: str) -> dict[str, Any]:
 
 def _entry_key(entry: dict[str, Any]) -> tuple[str, str, tuple[str, str] | None]:
     """検証済みエントリから重複判定用のキーを組み立てる。
-    ExemptKey（check_static_only.py）と同じ形にする（package, rule, ext/file）。
+
+    正規化ロジック（ext の大文字小文字・file の区切り文字統一）自体は
+    `check_static_only.exempt_entry_key()` に一本化されている（イシュー #316
+    レビュー指摘: 本ファイルで独自に再実装すると `validate_exempt_entries()`
+    側の正規化規則が将来変わった際にドリフトし得るため、ここでは正規化済みの
+    ext/file を組み立てて渡すだけにとどめる）。
     """
     package = entry["package"]
     rule = entry["rule"]
     ext_field = entry.get("ext")
     file_field = entry.get("file")
-    if rule == "R2-ext":
-        if isinstance(ext_field, str) and ext_field.strip():
-            return (package, rule, ("ext", ext_field.strip().lower()))
-        file_norm = str(file_field).strip().replace("\\", "/")
-        return (package, rule, ("file", file_norm))
-    return (package, rule, None)
+    ext_norm = ext_field.strip().lower() if isinstance(ext_field, str) and ext_field.strip() else None
+    file_norm = str(file_field).strip().replace("\\", "/") if ext_norm is None and file_field is not None else None
+    return csc.exempt_entry_key(package, rule, ext_norm, file_norm)
 
 
 def _render_exempt_block(entry: dict[str, Any]) -> str:
