@@ -97,6 +97,7 @@ main セッションは**指揮・統合・ユーザー対話に専念**し、�
 | `conventional-commits.md` | Conventional Commits 詳細規約（scope 一覧含む） |
 | `code-comment-style.md` | コメント規約（役割・責務・呼び出し文脈・`// SAFETY:` を埋め込む） |
 | `out-of-scope-tracking.md` | 実装対象外の追跡規約（スコープ外事項を Issue 化して放置しない） |
+| `ci.md` | CI 規約（self-hosted runner 既定・共有 CARGO_TARGET_DIR 対策・ツール前提の明示） |
 
 ## Current Skills
 

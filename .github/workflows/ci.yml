@@ -76,11 +76,13 @@ jobs:
         run: cargo test --workspace --locked
 
   # TASK-1.2b（#10）: XSS 回帰テスト（REQ-1）を含む Rust テスト CI。
-  # forbid-unsafe ジョブ（self-hosted）とは別に ubuntu-latest 環境でも
-  # workspace テストを実行し、クロスプラットフォームの回帰を検知する。
+  # ユーザー指示（2026-07-18）により self-hosted へ移行。forbid-unsafe ジョブ
+  # （deps-check.yml の "Setup Rust toolchain" と同一 SHA 固定・同一目的）と
+  # 同じく、workspace テストを実行してクロスプラットフォームの回帰を検知する。
   test:
     name: Rust workspace tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    timeout-minutes: 30
     steps:
       - name: Checkout
         # actions/checkout v4.2.2。docs/spec/ サブモジュールはテストに不要なため
@@ -88,6 +90,15 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定: self-hosted runner プールには
+        # cargo が PATH 上に存在しないインスタンスが混在し得るため、Checkout 直後に
+        # 導入する（既に導入済みなら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
 
       - name: XSS regression tests (REQ-1)
         # REQ-1（既定エスケープ）の受け入れ基準を担保するゲート。
@@ -104,17 +115,59 @@ jobs:
       # 実行下で strict 分岐（ベースライン PASS・banned 依存検出の具体的な
       # ブロック理由）が実行されるようにする（下記 wasm-bindgen-cli の
       # 導入ステップと同一のサプライチェーン対策パターン、security.md A06）。
-      - name: Install cargo-deny (pinned + checksum-verified)
+      - name: Install cargo-deny (pinned + checksum-verified, atomic install)
+        # self-hosted 移行に伴い、インストール先を /usr/local/bin から
+        # $HOME/.local/share/cargo-deny/<version>/ へ変更する（ubuntu-latest の
+        # runner ユーザーは /usr/local/bin へ sudo 無しで書き込めるが、
+        # self-hosted の非 root 実行ユーザーには同じ前提が成り立たない可能性が
+        # あるため）。
+        #
+        # Cursor Bugbot 指摘（BUGBOT_BUG_ID: 1c88c06e、PR #291）: 複数ジョブが
+        # 並列実行される self-hosted では、共有 $HOME 配下の同一固定パスへ
+        # 複数ジョブが同時に download/展開/install すると互いのツリーや
+        # バイナリを破損し得る（"Shared HOME Chrome install races" 指摘の
+        # 一般形。wasm-bindgen 系にも同一機構の実在リスクがあった）。対策として
+        # バージョン文字列をパスに含めた不変パス
+        # （$HOME/.local/share/cargo-deny/<version>/）へインストールし、
+        # 一時ディレクトリ（$HOME と同一ファイルシステム上）で
+        # ダウンロード・チェックサム検証・展開を完了させたうえで
+        # `mv -T`（同一ファイルシステム内なら atomic rename）で最終配置する。
+        # mv の終了コードには依存せず、失敗時は宛先に完全な成果物が既にある
+        # かで成否を判定する（coreutils 9.2 以降は `mv -n` が宛先既存時に
+        # 非ゼロ終了するようになったため `-n` は使わない。Cursor Bugbot 指摘
+        # High/Medium、コミット 64ecb28 対応）。
+        # 最終パスが既にバージョン一致で存在すれば再ダウンロードをスキップする
+        # （バージョンがパス自体に埋め込まれているため、存在＝正しいバージョンで
+        # ある保証になる）。これにより並列実行時も「未完成の中間状態」が他
+        # ジョブから見えることはなく、後勝ちの mv はサイレントに no-op となる
+        # （同一バージョンの内容は決定的に同一であるため、どちらの実体が
+        # 生き残っても結果は同じ）。
         run: |
           set -euo pipefail
           CARGO_DENY_VERSION="0.16.4"
           CARGO_DENY_SHA256="28b7f8e12df46a9ce186547e38278c851905fc4bda59a0cc57d2aade9fdf6962"
-          ARCHIVE="cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          URL="https://github.com/EmbarkStudios/cargo-deny/releases/download/${CARGO_DENY_VERSION}/${ARCHIVE}"
-          curl -sSfL -o "${ARCHIVE}" "${URL}"
-          echo "${CARGO_DENY_SHA256}  ${ARCHIVE}" | sha256sum -c -
-          tar xzf "${ARCHIVE}"
-          install -m 755 "cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny" /usr/local/bin/cargo-deny
+          SHARE_DIR="${HOME}/.local/share/cargo-deny"
+          INSTALL_DIR="${SHARE_DIR}/${CARGO_DENY_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/cargo-deny" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/EmbarkStudios/cargo-deny/releases/download/${CARGO_DENY_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${CARGO_DENY_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
+            # 宛先既存時に非ゼロ終了するようになったため、`-n` は使わず、
+            # 失敗時は宛先に完全な成果物が既にあるかで成否を判定する。
+            # 並列実行中の他ジョブが同一バージョンを先に完全配置していた
+            # 場合は成功扱いとし、そうでなければ真の失敗として fail-closed
+            # する。Cursor Bugbot 指摘（High/Medium、コミット 64ecb28）対応）。
+            if ! mv -T "${tmp_root}/cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
+              [ -x "${INSTALL_DIR}/cargo-deny" ] || { echo "::error::failed to install cargo-deny to ${INSTALL_DIR}" >&2; exit 1; }
+            fi
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
       # TASK-13.3c（#141）: 「連携」の回帰固定そのものを可視化する独立ステップ。
       # 上記で cargo-deny を導入済みの本ジョブでは negative_cases.rs が strict
@@ -157,17 +210,56 @@ jobs:
       # バージョン固定 + SHA256 チェックサム検証付きプリビルトバイナリの導入
       # （browser-test/perf-harness ジョブの wasm-pack 導入と同一パターン、
       # サプライチェーン対策）。
-      - name: Install wasm-bindgen-cli (pinned + checksum-verified)
+      - name: Install wasm-bindgen-cli (pinned + checksum-verified, atomic install)
+        # self-hosted 移行に伴い、インストール先を /usr/local/bin から
+        # $HOME/.local/share/wasm-bindgen/<version>/ へ変更する（cargo-deny と
+        # 同じ理由）。
+        #
+        # Cursor Bugbot 指摘（BUGBOT_BUG_ID: 1c88c06e、PR #291、"Shared HOME
+        # Chrome install races" の一般形）: 複数ジョブが並列実行される
+        # self-hosted では、共有 $HOME 配下の同一固定パスへ複数ジョブが同時に
+        # download/展開/install すると互いのツリーやバイナリを破損し得る
+        # （実際に「wasm-bindgen 本体のみ存在し wasm-bindgen-test-runner が
+        # 無い不完全な組」が観測された、PR #291 実 CI 実行）。対策として
+        # バージョン文字列をパスに含めた不変パスへインストールし、一時
+        # ディレクトリ（$HOME と同一ファイルシステム上）でダウンロード・
+        # チェックサム検証・展開を完了させたうえで `mv -T`（同一ファイル
+        # システム内なら atomic rename）で最終配置する。mv の終了コードには
+        # 依存せず、失敗時は宛先に完全な成果物が既にあるかで成否を判定する
+        # （coreutils 9.2 以降は `mv -n` が宛先既存時に非ゼロ終了するように
+        # なったため `-n` は使わない。Cursor Bugbot 指摘 High/Medium、
+        # コミット 64ecb28 対応）。`wasm-bindgen` と
+        # `wasm-bindgen-test-runner` は同一の展開ディレクトリを丸ごと
+        # 配置することで常に組として揃う（個別コピーによる部分installを
+        # 排除）。並列実行時に後勝ちの mv はサイレントに no-op となる
+        # （同一バージョンの内容は決定的に同一であるため安全）。
         run: |
           set -euo pipefail
           WASM_BINDGEN_VERSION="0.2.126"
           WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
-          ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
-          curl -sSfL -o "${ARCHIVE}" "${URL}"
-          echo "${WASM_BINDGEN_SHA256}  ${ARCHIVE}" | sha256sum -c -
-          tar xzf "${ARCHIVE}"
-          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" /usr/local/bin/wasm-bindgen
+          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
+            # 宛先既存時に非ゼロ終了するため。Cursor Bugbot 指摘 High/Medium、
+            # コミット 64ecb28 対応。詳細は cargo-deny インストールステップの
+            # コメント参照）。
+            if ! mv -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
+              if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+                echo "::error::failed to install wasm-bindgen-cli to ${INSTALL_DIR}" >&2
+                exit 1
+              fi
+            fi
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
       - name: Workspace tests
         run: cargo test --workspace --locked
@@ -183,7 +275,8 @@ jobs:
   # `force-embed` フィーチャーコメント参照）。
   dist-server-embedded-mode:
     name: rws-dist-server embedded mode (force-embed)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    timeout-minutes: 15
     # TASK-10.2b（#110）: 本ジョブの目的は force-embed フィーチャーによる
     # AssetMode 切り替え検証（static/ 埋め込みテーブル経路）であり、WASM
     # ビルドステージの統合検証は `test` ジョブが専任する。責務を分離し
@@ -197,6 +290,14 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
+        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
 
       - name: Isolated run acceptance test (REQ-9)
         # TASK-9.2（#98/#99）: REQ-9（単一バイナリ配布）の受け入れ基準
@@ -234,7 +335,7 @@ jobs:
   # 異なる）はそのまま独立ジョブとして維持し、変更しない。
   browser-test:
     name: Browser tests (wasm-pack --headless --chrome)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -243,6 +344,143 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
+        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+
+      # 前提（self-hosted 移行、ユーザー指示 2026-07-18。PR #291 実 CI 実行で
+      # self-hosted runner（コンテナ型、root 実行）には Chrome も
+      # chromedriver も存在せず fail-closed で失敗することを確認）: GitHub-hosted
+      # ubuntu-latest は Chrome/chromedriver をプリインストール済みだが、
+      # self-hosted にはその保証がないため、Chrome for Testing（Google 公式の
+      # テスト専用ビルド）と対応バージョンの chromedriver をこのジョブ内で
+      # バージョン固定 + SHA256 チェックサム検証付きで導入する（他ジョブの
+      # cargo-deny/wasm-bindgen-cli/wasm-pack と同一のサプライチェーン対策
+      # パターン）。ダウンロード元は Chrome for Testing の公式配布元
+      # （storage.googleapis.com/chrome-for-testing-public）。
+      - name: Ensure unzip is available (self-hosted minimal image)
+        # Chrome for Testing は .zip 配布のため unzip が必要。他の pinned
+        # ツール（wasm-pack 等）は .tar.gz のため今まで unzip 不要だった。
+        # 存在チェック付きインストール（root 実行のため sudo 不要）。
+        run: |
+          set -euo pipefail
+          if ! command -v unzip >/dev/null 2>&1; then
+            if command -v apt-get >/dev/null 2>&1; then
+              apt-get update -qq
+              apt-get install -y --no-install-recommends unzip
+            else
+              echo "::error::unzip not found and apt-get unavailable. self-hosted runner image requires unzip pre-installed." >&2
+              exit 1
+            fi
+          fi
+
+      - name: Install Chrome for Testing + chromedriver (Stable channel, pinned + checksum-verified)
+        id: install_chrome
+        # バージョン・SHA256 は https://googlechromelabs.github.io/chrome-for-testing/ の
+        # last-known-good-versions-with-downloads.json（Stable チャンネル）から取得し、
+        # ダウンロード物を実際に sha256sum で検証した値を固定する。chrome と
+        # chromedriver は必ず同一バージョンを使う（プロトコル不一致による
+        # セッション確立失敗を避けるため）。
+        # chromedriver は Linux 上で Chrome バイナリを PATH から名前 "chrome"
+        # （chromium/chromium の chrome_finder.cc GetChromeProgramNames 参照）で
+        # 探索するため、Chrome の実行ファイルは同梱リソース（*.pak/icudtl.dat/
+        # 共有ライブラリ）と同一ディレクトリに置いたまま、そのディレクトリ自体を
+        # PATH に追加する（バイナリ単体だけを移動すると壊れる）。
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291、
+        # "Shared HOME Chrome install races"）: 複数ジョブが並列実行される
+        # self-hosted では、共有 $HOME 配下の同一固定パスへ複数ジョブが同時に
+        # download/unzip/install すると互いのツリーやバイナリを破損し得る。
+        # 対策として CFT_VERSION をパスに含めた不変パス
+        # （$HOME/.local/share/chrome-for-testing/<version>/）へインストールし、
+        # $HOME と同一ファイルシステム上の一時ディレクトリでダウンロード・
+        # チェックサム検証・展開を完了させたうえで、chrome-linux64 /
+        # chromedriver-linux64 の各ディレクトリ丸ごとを `mv -T`（atomic
+        # rename）で最終配置する。最終パスが既に存在すれば（＝バージョン
+        # 一致で完全にインストール済み）ダウンロードをスキップする。
+        # chrome/chromedriver 2 本の mv は互いに独立させ、かつ mv の終了
+        # コードには依存しない（coreutils 9.2 以降は `mv -n` が宛先既存時に
+        # 非ゼロ終了するため `-n` は使わず、失敗時は宛先の実体で成否を判定
+        # する）。並列実行時に後勝ちの mv は宛先の実体確認により成功扱いと
+        # なる（同一バージョンの内容は決定的に同一であるため安全。Cursor
+        # Bugbot 指摘 High: 「chrome の mv 失敗で chromedriver が永久に
+        # 未導入」/ Medium: 「並列後勝ちで mv 失敗しジョブが落ちる」、
+        # コミット 64ecb28 対応）。
+        run: |
+          set -euo pipefail
+          CFT_VERSION="151.0.7922.34"
+          CHROME_SHA256="ae8736ac28bc69278551500f219fc749575648263c43ec5990749eff43b9fcf8"
+          CHROMEDRIVER_SHA256="3c2b6780156f44f3a26db5bee4a3b193d608eda55644de5287e6edf4aef2f4ac"
+          SHARE_DIR="${HOME}/.local/share/chrome-for-testing"
+          INSTALL_ROOT="${SHARE_DIR}/${CFT_VERSION}"
+          CHROME_DIR="${INSTALL_ROOT}/chrome-linux64"
+          CHROMEDRIVER_DIR="${INSTALL_ROOT}/chromedriver-linux64"
+          mkdir -p "${SHARE_DIR}" "${INSTALL_ROOT}"
+          if [ ! -x "${CHROME_DIR}/chrome" ] || [ ! -x "${CHROMEDRIVER_DIR}/chromedriver" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+
+            curl -sSfL -o "${tmp_root}/chrome-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chrome-linux64.zip"
+            echo "${CHROME_SHA256}  ${tmp_root}/chrome-linux64.zip" | sha256sum -c -
+            unzip -q -o "${tmp_root}/chrome-linux64.zip" -d "${tmp_root}"
+
+            curl -sSfL -o "${tmp_root}/chromedriver-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chromedriver-linux64.zip"
+            echo "${CHROMEDRIVER_SHA256}  ${tmp_root}/chromedriver-linux64.zip" | sha256sum -c -
+            unzip -q -o "${tmp_root}/chromedriver-linux64.zip" -d "${tmp_root}"
+
+            # chrome ツリー・chromedriver ツリーの配置は互いに独立させる
+            # （どちらかが「宛先既存」で失敗しても、もう片方のインストールは
+            # 必ず進む）。また mv の終了コードには依存しない（coreutils 9.2
+            # 以降は `mv -n` が宛先既存時に非ゼロ終了するため、`-n` は使わず
+            # 失敗時に宛先の実体で成否を判定する。Cursor Bugbot 指摘
+            # High: 「chrome の mv 失敗で chromedriver が永久に未導入のまま
+            # 壊れる」/ Medium: 「並列ジョブの後勝ち mv が宛先既存で失敗し
+            # ジョブが落ちる」、コミット 64ecb28 対応）。
+            if ! mv -T "${tmp_root}/chrome-linux64" "${CHROME_DIR}" 2>/dev/null; then
+              [ -x "${CHROME_DIR}/chrome" ] || { echo "::error::failed to install Chrome for Testing to ${CHROME_DIR}" >&2; exit 1; }
+            fi
+            if ! mv -T "${tmp_root}/chromedriver-linux64" "${CHROMEDRIVER_DIR}" 2>/dev/null; then
+              [ -x "${CHROMEDRIVER_DIR}/chromedriver" ] || { echo "::error::failed to install chromedriver to ${CHROMEDRIVER_DIR}" >&2; exit 1; }
+            fi
+          fi
+
+          echo "${CHROME_DIR}" >> "$GITHUB_PATH"
+          echo "chromedriver_path=${CHROMEDRIVER_DIR}/chromedriver" >> "$GITHUB_OUTPUT"
+
+      - name: Verify headless Chrome launches (self-hosted shared-library check)
+        # Chrome for Testing の実行に必要な共有ライブラリ（libnss3 / libgbm1 /
+        # libasound2 等）が self-hosted のコンテナイメージに無い場合、バイナリは
+        # 存在してもここで失敗する。fail-closed のまま、不足ライブラリを ldd で
+        # 特定してエラーに含める（runner イメージ側の常設要件を明示するため）。
+        run: |
+          set -euo pipefail
+          check_chrome() {
+            chrome --headless --no-sandbox --disable-gpu --dump-dom about:blank >/tmp/chrome-smoke.log 2>&1
+          }
+          if ! check_chrome; then
+            # PR #291 実 CI 実行で判明: 本 self-hosted runner イメージには
+            # libnspr4/libnss3（libnssutil3・libsmime3 を含む）が不足しており
+            # Chrome が起動できない（`chrome: error while loading shared
+            # libraries: libnspr4.so: cannot open shared object file`）。
+            # root 実行のため sudo なしで apt-get install できることを利用し、
+            # 既知の不足パッケージを自動導入して 1 回だけ再試行する。
+            echo "::notice::Chrome headless launch failed; attempting to install libnss3/libnspr4 and retry once." >&2
+            if command -v apt-get >/dev/null 2>&1; then
+              apt-get update -qq
+              apt-get install -y --no-install-recommends libnss3 libnspr4
+            fi
+            if ! check_chrome; then
+              echo "::error::Chrome for Testing failed to launch in headless mode even after installing libnss3/libnspr4. self-hosted runner image may be missing other shared libraries." >&2
+              cat /tmp/chrome-smoke.log >&2
+              echo "::error::ldd missing libraries (if any):" >&2
+              ldd "$(command -v chrome)" 2>&1 | grep "not found" >&2 || echo "(ldd did not report missing libraries; failure cause is something else — see log above)" >&2
+              exit 1
+            fi
+          fi
 
       # wasm-client/ ディレクトリ存在ガード（TASK-6.2b #48 完了までの直列化措置）。
       # 未作成の間は後続ステップをすべてスキップし、ジョブは空実行で成功扱いとする。
@@ -283,23 +521,103 @@ jobs:
       # チェーン対策）。バージョンアップ時はチェックサムも合わせて更新すること。
       - name: Install wasm-pack (pinned + checksum-verified)
         if: steps.check.outputs.exists == 'true' || steps.check-wasm-full.outputs.exists == 'true'
+        # self-hosted 移行に伴い、インストール先を /usr/local/bin から
+        # $HOME/.local/share/wasm-pack/<version>/ へ変更する（sudo 不要、かつ
+        # atomic install によるレース対策。詳細は次のコメント）。
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291、
+        # "Shared HOME Chrome install races" の一般形）: バージョン付き不変
+        # パスへ、$HOME と同一ファイルシステム上の一時ディレクトリで検証・
+        # 展開してから `mv -T`（atomic rename）で配置する。mv の終了コードには
+        # 依存せず、失敗時は宛先の実体で成否を判定する（coreutils 9.2 以降の
+        # `mv -n` 非ゼロ終了対策、Cursor Bugbot 指摘 High/Medium、コミット
+        # 64ecb28 対応）。並列実行時の破損・後勝ちレースを避ける（詳細は
+        # wasm-bindgen-cli インストールステップのコメント参照）。
         run: |
           set -euo pipefail
           WASM_PACK_VERSION="0.13.1"
           WASM_PACK_SHA256="c539d91ccab2591a7e975bcf82c82e1911b03335c80aa83d67ad25ed2ad06539"
-          ARCHIVE="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${ARCHIVE}"
-          curl -sSfL -o "${ARCHIVE}" "${URL}"
-          echo "${WASM_PACK_SHA256}  ${ARCHIVE}" | sha256sum -c -
-          tar xzf "${ARCHIVE}"
-          install -m 755 "wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" /usr/local/bin/wasm-pack
+          SHARE_DIR="${HOME}/.local/share/wasm-pack"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_PACK_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-pack" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_PACK_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
+            # 宛先既存時に非ゼロ終了するため。Cursor Bugbot 指摘 High/Medium、
+            # コミット 64ecb28 対応。詳細は cargo-deny インストールステップの
+            # コメント参照）。
+            if ! mv -T "${tmp_root}/wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
+              [ -x "${INSTALL_DIR}/wasm-pack" ] || { echo "::error::failed to install wasm-pack to ${INSTALL_DIR}" >&2; exit 1; }
+            fi
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
-      # CHROMEWEBDRIVER はランナー内蔵の chromedriver へのパスを指す（GitHub ホスト
-      # ランナーの環境変数）。wasm-pack による実行時の chromedriver 自動ダウンロードを
-      # 防ぎ、ランナーに事前導入済みの検証済みバイナリのみを使用する。
+      # PR #291 実 CI 実行で判明: `wasm-pack test` は内部で
+      # `install::download_prebuilt_or_cargo_install(Tool::WasmBindgen, ...)`
+      # を呼び、まず `which("wasm-bindgen")` で PATH 上の実体を探し、見つかれば
+      # その「同じディレクトリ」に `wasm-bindgen-test-runner` があるものとして
+      # 扱う（wasm-pack `src/install/mod.rs`）。self-hosted はワークスペース /
+      # $HOME が job 間で永続するため、`test`/`rebuild-latency`/`bundle-size`
+      # ジョブが $HOME/.local/bin へインストールした `wasm-bindgen`（本体のみ）
+      # が残っていると、本ジョブはそれを「発見」してしまい、実際には存在しない
+      # 隣の `wasm-bindgen-test-runner` を起動しようとして
+      # `Error: .../wasm-bindgen-test-runner binary does not exist` で失敗する
+      # （ubuntu-latest の使い捨て runner では発生し得なかった、self-hosted の
+      # 永続ワークスペース特有の不整合）。ここで `wasm-bindgen` /
+      # `wasm-bindgen-test-runner` の両方をこのジョブ内で明示的に上書き導入し、
+      # 常に完全な組を揃える（test ジョブと同一バージョン・同一チェックサム）。
+      # なお現在はインストール先自体をバージョン付き不変パス
+      # （$HOME/.local/share/wasm-bindgen/<version>/）へ変更し、atomic
+      # install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291）で並列
+      # 実行時の破損も防いでいる（詳細は下記ステップのコメント参照）。
+      - name: Install wasm-bindgen-cli (pinned + checksum-verified, provides wasm-bindgen-test-runner)
+        if: steps.check.outputs.exists == 'true' || steps.check-wasm-full.outputs.exists == 'true'
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291）:
+        # バージョン付き不変パスへ、$HOME と同一ファイルシステム上の一時
+        # ディレクトリで検証・展開してから `mv -T`（mv の終了コードには
+        # 依存しない。coreutils 9.2 以降の `mv -n` 非ゼロ終了対策、Cursor
+        # Bugbot 指摘 High/Medium、コミット 64ecb28 対応）で配置する。詳細は
+        # test ジョブの同名ステップのコメント参照。
+        run: |
+          set -euo pipefail
+          WASM_BINDGEN_VERSION="0.2.126"
+          WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
+          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
+            # 宛先既存時に非ゼロ終了するため。Cursor Bugbot 指摘 High/Medium、
+            # コミット 64ecb28 対応。詳細は cargo-deny インストールステップの
+            # コメント参照）。
+            if ! mv -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
+              if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+                echo "::error::failed to install wasm-bindgen-cli to ${INSTALL_DIR}" >&2
+                exit 1
+              fi
+            fi
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
+
+      # chromedriver のパスは上記 "Install Chrome for Testing + chromedriver" の
+      # 出力を使う。wasm-bindgen-test-runner（wasm-pack test の実体）は
+      # CHROMEDRIVER 環境変数を読み、指定されたバイナリを直接起動する
+      # （crates/cli/src/wasm_bindgen_test_runner/headless.rs の Driver::find）。
       - name: Run browser tests (headless Chrome)
         if: steps.check.outputs.exists == 'true'
-        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-client
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-client
 
       # `Runtime::mount`/`Runtime::hydrate` の実ブラウザ統合テスト（TASK-11.2d・
       # #77）。xss-wasm-test/perf-harness ジョブ（同じ wasm-full クレート）とは
@@ -309,7 +627,7 @@ jobs:
       # perf-harness ジョブ自体は変更しない）。
       - name: Run wasm-full Runtime browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-full --test runtime_browser
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test runtime_browser
 
       # TASK-11.4c（#84、親 #81）: read_hydration_attrs（実 DOM からの
       # data-hydrate-* 属性列挙）の実ブラウザ統合テスト（wasm-full/tests/
@@ -318,7 +636,7 @@ jobs:
       # （`docs/hydration-state-format.md` 第 6 節が引き継ぐ実ブラウザ検証）。
       - name: Run wasm-full hydration browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-full --test hydration_browser
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test hydration_browser
 
   # TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）: 同一文書内更新向け
   # ラッパー関数（`static/view-transitions.js` の `withViewTransition`、
@@ -347,7 +665,7 @@ jobs:
   # （しきい値アサーションの有効化は TASK-11.5b・#87 のスコープ）。
   perf-harness:
     name: Perf browser harness smoke (wasm-pack --headless --chrome)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -356,6 +674,124 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
+        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+
+      # 前提（self-hosted 移行、ユーザー指示 2026-07-18。PR #291 実 CI 実行で
+      # Chrome/chromedriver 不在の fail-closed を確認）: browser-test ジョブと
+      # 同一の理由・同一パターンで Chrome for Testing + chromedriver を
+      # バージョン固定 + SHA256 チェックサム検証付きで導入する。
+      - name: Ensure unzip is available (self-hosted minimal image)
+        run: |
+          set -euo pipefail
+          if ! command -v unzip >/dev/null 2>&1; then
+            if command -v apt-get >/dev/null 2>&1; then
+              apt-get update -qq
+              apt-get install -y --no-install-recommends unzip
+            else
+              echo "::error::unzip not found and apt-get unavailable. self-hosted runner image requires unzip pre-installed." >&2
+              exit 1
+            fi
+          fi
+
+      - name: Install Chrome for Testing + chromedriver (Stable channel, pinned + checksum-verified)
+        id: install_chrome
+        # browser-test ジョブと同一バージョン・同一チェックサム（chrome/
+        # chromedriver は同一バージョンで揃える必要がある）。
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291、
+        # "Shared HOME Chrome install races"）: 複数ジョブが並列実行される
+        # self-hosted では、共有 $HOME 配下の同一固定パスへ複数ジョブが同時に
+        # download/unzip/install すると互いのツリーやバイナリを破損し得る。
+        # 対策として CFT_VERSION をパスに含めた不変パス
+        # （$HOME/.local/share/chrome-for-testing/<version>/）へインストールし、
+        # $HOME と同一ファイルシステム上の一時ディレクトリでダウンロード・
+        # チェックサム検証・展開を完了させたうえで、chrome-linux64 /
+        # chromedriver-linux64 の各ディレクトリ丸ごとを `mv -T`（atomic
+        # rename）で最終配置する。最終パスが既に存在すれば（＝バージョン
+        # 一致で完全にインストール済み）ダウンロードをスキップする。
+        # chrome/chromedriver 2 本の mv は互いに独立させ、かつ mv の終了
+        # コードには依存しない（coreutils 9.2 以降は `mv -n` が宛先既存時に
+        # 非ゼロ終了するため `-n` は使わず、失敗時は宛先の実体で成否を判定
+        # する）。並列実行時に後勝ちの mv は宛先の実体確認により成功扱いと
+        # なる（同一バージョンの内容は決定的に同一であるため安全。Cursor
+        # Bugbot 指摘 High: 「chrome の mv 失敗で chromedriver が永久に
+        # 未導入」/ Medium: 「並列後勝ちで mv 失敗しジョブが落ちる」、
+        # コミット 64ecb28 対応）。
+        run: |
+          set -euo pipefail
+          CFT_VERSION="151.0.7922.34"
+          CHROME_SHA256="ae8736ac28bc69278551500f219fc749575648263c43ec5990749eff43b9fcf8"
+          CHROMEDRIVER_SHA256="3c2b6780156f44f3a26db5bee4a3b193d608eda55644de5287e6edf4aef2f4ac"
+          SHARE_DIR="${HOME}/.local/share/chrome-for-testing"
+          INSTALL_ROOT="${SHARE_DIR}/${CFT_VERSION}"
+          CHROME_DIR="${INSTALL_ROOT}/chrome-linux64"
+          CHROMEDRIVER_DIR="${INSTALL_ROOT}/chromedriver-linux64"
+          mkdir -p "${SHARE_DIR}" "${INSTALL_ROOT}"
+          if [ ! -x "${CHROME_DIR}/chrome" ] || [ ! -x "${CHROMEDRIVER_DIR}/chromedriver" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+
+            curl -sSfL -o "${tmp_root}/chrome-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chrome-linux64.zip"
+            echo "${CHROME_SHA256}  ${tmp_root}/chrome-linux64.zip" | sha256sum -c -
+            unzip -q -o "${tmp_root}/chrome-linux64.zip" -d "${tmp_root}"
+
+            curl -sSfL -o "${tmp_root}/chromedriver-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chromedriver-linux64.zip"
+            echo "${CHROMEDRIVER_SHA256}  ${tmp_root}/chromedriver-linux64.zip" | sha256sum -c -
+            unzip -q -o "${tmp_root}/chromedriver-linux64.zip" -d "${tmp_root}"
+
+            # chrome ツリー・chromedriver ツリーの配置は互いに独立させる
+            # （どちらかが「宛先既存」で失敗しても、もう片方のインストールは
+            # 必ず進む）。また mv の終了コードには依存しない（coreutils 9.2
+            # 以降は `mv -n` が宛先既存時に非ゼロ終了するため、`-n` は使わず
+            # 失敗時に宛先の実体で成否を判定する。Cursor Bugbot 指摘
+            # High: 「chrome の mv 失敗で chromedriver が永久に未導入のまま
+            # 壊れる」/ Medium: 「並列ジョブの後勝ち mv が宛先既存で失敗し
+            # ジョブが落ちる」、コミット 64ecb28 対応）。
+            if ! mv -T "${tmp_root}/chrome-linux64" "${CHROME_DIR}" 2>/dev/null; then
+              [ -x "${CHROME_DIR}/chrome" ] || { echo "::error::failed to install Chrome for Testing to ${CHROME_DIR}" >&2; exit 1; }
+            fi
+            if ! mv -T "${tmp_root}/chromedriver-linux64" "${CHROMEDRIVER_DIR}" 2>/dev/null; then
+              [ -x "${CHROMEDRIVER_DIR}/chromedriver" ] || { echo "::error::failed to install chromedriver to ${CHROMEDRIVER_DIR}" >&2; exit 1; }
+            fi
+          fi
+
+          echo "${CHROME_DIR}" >> "$GITHUB_PATH"
+          echo "chromedriver_path=${CHROMEDRIVER_DIR}/chromedriver" >> "$GITHUB_OUTPUT"
+
+      - name: Verify headless Chrome launches (self-hosted shared-library check)
+        # browser-test ジョブと同一ロジック（ldd で不足共有ライブラリを特定して
+        # fail-closed で報告する）。
+        run: |
+          set -euo pipefail
+          check_chrome() {
+            chrome --headless --no-sandbox --disable-gpu --dump-dom about:blank >/tmp/chrome-smoke.log 2>&1
+          }
+          if ! check_chrome; then
+            # PR #291 実 CI 実行で判明: 本 self-hosted runner イメージには
+            # libnspr4/libnss3（libnssutil3・libsmime3 を含む）が不足しており
+            # Chrome が起動できない（`chrome: error while loading shared
+            # libraries: libnspr4.so: cannot open shared object file`）。
+            # root 実行のため sudo なしで apt-get install できることを利用し、
+            # 既知の不足パッケージを自動導入して 1 回だけ再試行する。
+            echo "::notice::Chrome headless launch failed; attempting to install libnss3/libnspr4 and retry once." >&2
+            if command -v apt-get >/dev/null 2>&1; then
+              apt-get update -qq
+              apt-get install -y --no-install-recommends libnss3 libnspr4
+            fi
+            if ! check_chrome; then
+              echo "::error::Chrome for Testing failed to launch in headless mode even after installing libnss3/libnspr4. self-hosted runner image may be missing other shared libraries." >&2
+              cat /tmp/chrome-smoke.log >&2
+              echo "::error::ldd missing libraries (if any):" >&2
+              ldd "$(command -v chrome)" 2>&1 | grep "not found" >&2 || echo "(ldd did not report missing libraries; failure cause is something else — see log above)" >&2
+              exit 1
+            fi
+          fi
 
       # wasm-full/tests/perf_browser.rs 存在ガード（TASK-6.3a #65 のガード
       # パターン踏襲）。並列実行中の他イシューによる巻き戻り等、想定外の理由で
@@ -380,20 +816,82 @@ jobs:
       # サプライチェーン対策）。
       - name: Install wasm-pack (pinned + checksum-verified)
         if: steps.check.outputs.exists == 'true'
+        # self-hosted 移行に伴い、インストール先を browser-test ジョブと同様に
+        # $HOME/.local/share/wasm-pack/<version>/ へ変更する。
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291、
+        # "Shared HOME Chrome install races" の一般形）: バージョン付き不変
+        # パスへ、$HOME と同一ファイルシステム上の一時ディレクトリで検証・
+        # 展開してから `mv -T`（atomic rename）で配置する。mv の終了コードには
+        # 依存せず、失敗時は宛先の実体で成否を判定する（coreutils 9.2 以降の
+        # `mv -n` 非ゼロ終了対策、Cursor Bugbot 指摘 High/Medium、コミット
+        # 64ecb28 対応）。並列実行時の破損・後勝ちレースを避ける（詳細は
+        # wasm-bindgen-cli インストールステップのコメント参照）。
         run: |
           set -euo pipefail
           WASM_PACK_VERSION="0.13.1"
           WASM_PACK_SHA256="c539d91ccab2591a7e975bcf82c82e1911b03335c80aa83d67ad25ed2ad06539"
-          ARCHIVE="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${ARCHIVE}"
-          curl -sSfL -o "${ARCHIVE}" "${URL}"
-          echo "${WASM_PACK_SHA256}  ${ARCHIVE}" | sha256sum -c -
-          tar xzf "${ARCHIVE}"
-          install -m 755 "wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" /usr/local/bin/wasm-pack
+          SHARE_DIR="${HOME}/.local/share/wasm-pack"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_PACK_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-pack" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_PACK_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
+            # 宛先既存時に非ゼロ終了するため。Cursor Bugbot 指摘 High/Medium、
+            # コミット 64ecb28 対応。詳細は cargo-deny インストールステップの
+            # コメント参照）。
+            if ! mv -T "${tmp_root}/wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
+              [ -x "${INSTALL_DIR}/wasm-pack" ] || { echo "::error::failed to install wasm-pack to ${INSTALL_DIR}" >&2; exit 1; }
+            fi
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
-      # CHROMEWEBDRIVER はランナー内蔵の chromedriver へのパスを指す（GitHub ホスト
-      # ランナーの環境変数）。wasm-pack による実行時の chromedriver 自動ダウンロードを
-      # 防ぎ、ランナーに事前導入済みの検証済みバイナリのみを使用する。
+      # browser-test ジョブと同一の理由（PR #291 実 CI 実行で判明: self-hosted の
+      # 永続 $HOME に他ジョブが残した不完全な wasm-bindgen 導入を誤検出する
+      # 問題への対策。詳細は browser-test ジョブの同名ステップのコメント参照）。
+      - name: Install wasm-bindgen-cli (pinned + checksum-verified, provides wasm-bindgen-test-runner)
+        if: steps.check.outputs.exists == 'true'
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291）:
+        # バージョン付き不変パスへ、$HOME と同一ファイルシステム上の一時
+        # ディレクトリで検証・展開してから `mv -T`（mv の終了コードには
+        # 依存しない。coreutils 9.2 以降の `mv -n` 非ゼロ終了対策、Cursor
+        # Bugbot 指摘 High/Medium、コミット 64ecb28 対応）で配置する。詳細は
+        # test ジョブの同名ステップのコメント参照。
+        run: |
+          set -euo pipefail
+          WASM_BINDGEN_VERSION="0.2.126"
+          WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
+          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
+            # 宛先既存時に非ゼロ終了するため。Cursor Bugbot 指摘 High/Medium、
+            # コミット 64ecb28 対応。詳細は cargo-deny インストールステップの
+            # コメント参照）。
+            if ! mv -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
+              if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+                echo "::error::failed to install wasm-bindgen-cli to ${INSTALL_DIR}" >&2
+                exit 1
+              fi
+            fi
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
+
+      # chromedriver のパスは上記 "Resolve chromedriver path" ステップの出力を使う
+      # （browser-test ジョブと同一の理由）。
       # `-- --nocapture` を付与しないと、テストが成功した場合に libtest が
       # console 出力（`perf-browser:` サマリ行）を握りつぶすため、次ステップの
       # 転記が常に「no summary line found」になる（出力契約が成立しない）。
@@ -401,7 +899,7 @@ jobs:
         if: steps.check.outputs.exists == 'true'
         run: |
           set -o pipefail
-          CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-full --test perf_browser -- --nocapture 2>&1 | tee perf-harness.log
+          CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test perf_browser -- --nocapture 2>&1 | tee perf-harness.log
 
       - name: Publish perf-harness summary
         if: always() && steps.check.outputs.exists == 'true'
@@ -432,7 +930,7 @@ jobs:
   # 設けない（追加と同一コミットで即時有効化される）。
   xss-wasm-test:
     name: WASM XSS escape regression (wasm-pack --headless --chrome)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -441,6 +939,14 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
+        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
 
       - name: Add wasm32 target
         run: rustup target add wasm32-unknown-unknown
@@ -448,25 +954,190 @@ jobs:
       # wasm-pack はバージョン固定 + SHA256 チェックサム検証付きで導入する
       # （browser-test/perf-harness ジョブと同一バージョン・同一チェックサム。
       # 実行時の chromedriver 自動ダウンロードと同様、未検証バイナリ取得を
-      # 避けるサプライチェーン対策）。
+      # 避けるサプライチェーン対策）。self-hosted 移行に伴い、インストール先を
+      # /usr/local/bin から $HOME/.local/share/wasm-pack/<version>/ へ変更する
+      # （他ジョブと同一の理由）。
       - name: Install wasm-pack (pinned + checksum-verified)
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291、
+        # "Shared HOME Chrome install races" の一般形）: バージョン付き不変
+        # パスへ、$HOME と同一ファイルシステム上の一時ディレクトリで検証・
+        # 展開してから `mv -T`（atomic rename）で配置する。mv の終了コードには
+        # 依存せず、失敗時は宛先の実体で成否を判定する（coreutils 9.2 以降の
+        # `mv -n` 非ゼロ終了対策、Cursor Bugbot 指摘 High/Medium、コミット
+        # 64ecb28 対応）。並列実行時の破損・後勝ちレースを避ける（詳細は
+        # wasm-bindgen-cli インストールステップのコメント参照）。
         run: |
           set -euo pipefail
           WASM_PACK_VERSION="0.13.1"
           WASM_PACK_SHA256="c539d91ccab2591a7e975bcf82c82e1911b03335c80aa83d67ad25ed2ad06539"
-          ARCHIVE="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${ARCHIVE}"
-          curl -sSfL -o "${ARCHIVE}" "${URL}"
-          echo "${WASM_PACK_SHA256}  ${ARCHIVE}" | sha256sum -c -
-          tar xzf "${ARCHIVE}"
-          install -m 755 "wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" /usr/local/bin/wasm-pack
+          SHARE_DIR="${HOME}/.local/share/wasm-pack"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_PACK_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-pack" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-pack/releases/download/v${WASM_PACK_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_PACK_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
+            # 宛先既存時に非ゼロ終了するため。Cursor Bugbot 指摘 High/Medium、
+            # コミット 64ecb28 対応。詳細は cargo-deny インストールステップの
+            # コメント参照）。
+            if ! mv -T "${tmp_root}/wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
+              [ -x "${INSTALL_DIR}/wasm-pack" ] || { echo "::error::failed to install wasm-pack to ${INSTALL_DIR}" >&2; exit 1; }
+            fi
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
-      # CHROMEWEBDRIVER はランナー内蔵の chromedriver へのパスを指す（GitHub
-      # ホストランナーの環境変数）。wasm-pack による実行時の chromedriver
-      # 自動ダウンロードを防ぎ、ランナーに事前導入済みの検証済みバイナリの
-      # みを使用する。
+      # browser-test ジョブと同一の理由（PR #291 実 CI 実行で判明: self-hosted の
+      # 永続 $HOME に他ジョブが残した不完全な wasm-bindgen 導入を誤検出する
+      # 問題への対策。詳細は browser-test ジョブの同名ステップのコメント参照）。
+      - name: Install wasm-bindgen-cli (pinned + checksum-verified, provides wasm-bindgen-test-runner)
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291）:
+        # バージョン付き不変パスへ、$HOME と同一ファイルシステム上の一時
+        # ディレクトリで検証・展開してから `mv -T`（mv の終了コードには
+        # 依存しない。coreutils 9.2 以降の `mv -n` 非ゼロ終了対策、Cursor
+        # Bugbot 指摘 High/Medium、コミット 64ecb28 対応）で配置する。詳細は
+        # test ジョブの同名ステップのコメント参照。
+        run: |
+          set -euo pipefail
+          WASM_BINDGEN_VERSION="0.2.126"
+          WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
+          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
+            # 宛先既存時に非ゼロ終了するため。Cursor Bugbot 指摘 High/Medium、
+            # コミット 64ecb28 対応。詳細は cargo-deny インストールステップの
+            # コメント参照）。
+            if ! mv -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
+              if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+                echo "::error::failed to install wasm-bindgen-cli to ${INSTALL_DIR}" >&2
+                exit 1
+              fi
+            fi
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
+
+      # 前提（self-hosted 移行、ユーザー指示 2026-07-18。PR #291 実 CI 実行で
+      # Chrome/chromedriver 不在の fail-closed を確認）: browser-test/
+      # perf-harness ジョブと同一パターンで Chrome for Testing + chromedriver を
+      # バージョン固定 + SHA256 チェックサム検証付きで導入する。
+      - name: Ensure unzip is available (self-hosted minimal image)
+        run: |
+          set -euo pipefail
+          if ! command -v unzip >/dev/null 2>&1; then
+            if command -v apt-get >/dev/null 2>&1; then
+              apt-get update -qq
+              apt-get install -y --no-install-recommends unzip
+            else
+              echo "::error::unzip not found and apt-get unavailable. self-hosted runner image requires unzip pre-installed." >&2
+              exit 1
+            fi
+          fi
+
+      - name: Install Chrome for Testing + chromedriver (Stable channel, pinned + checksum-verified)
+        id: install_chrome
+        # browser-test/perf-harness ジョブと同一バージョン・同一チェックサム。
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291、
+        # "Shared HOME Chrome install races"）: 複数ジョブが並列実行される
+        # self-hosted では、共有 $HOME 配下の同一固定パスへ複数ジョブが同時に
+        # download/unzip/install すると互いのツリーやバイナリを破損し得る。
+        # 対策として CFT_VERSION をパスに含めた不変パス
+        # （$HOME/.local/share/chrome-for-testing/<version>/）へインストールし、
+        # $HOME と同一ファイルシステム上の一時ディレクトリでダウンロード・
+        # チェックサム検証・展開を完了させたうえで、chrome-linux64 /
+        # chromedriver-linux64 の各ディレクトリ丸ごとを `mv -T`（atomic
+        # rename）で最終配置する。最終パスが既に存在すれば（＝バージョン
+        # 一致で完全にインストール済み）ダウンロードをスキップする。
+        # chrome/chromedriver 2 本の mv は互いに独立させ、かつ mv の終了
+        # コードには依存しない（coreutils 9.2 以降は `mv -n` が宛先既存時に
+        # 非ゼロ終了するため `-n` は使わず、失敗時は宛先の実体で成否を判定
+        # する）。並列実行時に後勝ちの mv は宛先の実体確認により成功扱いと
+        # なる（同一バージョンの内容は決定的に同一であるため安全。Cursor
+        # Bugbot 指摘 High: 「chrome の mv 失敗で chromedriver が永久に
+        # 未導入」/ Medium: 「並列後勝ちで mv 失敗しジョブが落ちる」、
+        # コミット 64ecb28 対応）。
+        run: |
+          set -euo pipefail
+          CFT_VERSION="151.0.7922.34"
+          CHROME_SHA256="ae8736ac28bc69278551500f219fc749575648263c43ec5990749eff43b9fcf8"
+          CHROMEDRIVER_SHA256="3c2b6780156f44f3a26db5bee4a3b193d608eda55644de5287e6edf4aef2f4ac"
+          SHARE_DIR="${HOME}/.local/share/chrome-for-testing"
+          INSTALL_ROOT="${SHARE_DIR}/${CFT_VERSION}"
+          CHROME_DIR="${INSTALL_ROOT}/chrome-linux64"
+          CHROMEDRIVER_DIR="${INSTALL_ROOT}/chromedriver-linux64"
+          mkdir -p "${SHARE_DIR}" "${INSTALL_ROOT}"
+          if [ ! -x "${CHROME_DIR}/chrome" ] || [ ! -x "${CHROMEDRIVER_DIR}/chromedriver" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+
+            curl -sSfL -o "${tmp_root}/chrome-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chrome-linux64.zip"
+            echo "${CHROME_SHA256}  ${tmp_root}/chrome-linux64.zip" | sha256sum -c -
+            unzip -q -o "${tmp_root}/chrome-linux64.zip" -d "${tmp_root}"
+
+            curl -sSfL -o "${tmp_root}/chromedriver-linux64.zip" "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chromedriver-linux64.zip"
+            echo "${CHROMEDRIVER_SHA256}  ${tmp_root}/chromedriver-linux64.zip" | sha256sum -c -
+            unzip -q -o "${tmp_root}/chromedriver-linux64.zip" -d "${tmp_root}"
+
+            # chrome ツリー・chromedriver ツリーの配置は互いに独立させる
+            # （どちらかが「宛先既存」で失敗しても、もう片方のインストールは
+            # 必ず進む）。また mv の終了コードには依存しない（coreutils 9.2
+            # 以降は `mv -n` が宛先既存時に非ゼロ終了するため、`-n` は使わず
+            # 失敗時に宛先の実体で成否を判定する。Cursor Bugbot 指摘
+            # High: 「chrome の mv 失敗で chromedriver が永久に未導入のまま
+            # 壊れる」/ Medium: 「並列ジョブの後勝ち mv が宛先既存で失敗し
+            # ジョブが落ちる」、コミット 64ecb28 対応）。
+            if ! mv -T "${tmp_root}/chrome-linux64" "${CHROME_DIR}" 2>/dev/null; then
+              [ -x "${CHROME_DIR}/chrome" ] || { echo "::error::failed to install Chrome for Testing to ${CHROME_DIR}" >&2; exit 1; }
+            fi
+            if ! mv -T "${tmp_root}/chromedriver-linux64" "${CHROMEDRIVER_DIR}" 2>/dev/null; then
+              [ -x "${CHROMEDRIVER_DIR}/chromedriver" ] || { echo "::error::failed to install chromedriver to ${CHROMEDRIVER_DIR}" >&2; exit 1; }
+            fi
+          fi
+
+          echo "${CHROME_DIR}" >> "$GITHUB_PATH"
+          echo "chromedriver_path=${CHROMEDRIVER_DIR}/chromedriver" >> "$GITHUB_OUTPUT"
+
+      - name: Verify headless Chrome launches (self-hosted shared-library check)
+        run: |
+          set -euo pipefail
+          check_chrome() {
+            chrome --headless --no-sandbox --disable-gpu --dump-dom about:blank >/tmp/chrome-smoke.log 2>&1
+          }
+          if ! check_chrome; then
+            # PR #291 実 CI 実行で判明: 本 self-hosted runner イメージには
+            # libnspr4/libnss3（libnssutil3・libsmime3 を含む）が不足しており
+            # Chrome が起動できない（`chrome: error while loading shared
+            # libraries: libnspr4.so: cannot open shared object file`）。
+            # root 実行のため sudo なしで apt-get install できることを利用し、
+            # 既知の不足パッケージを自動導入して 1 回だけ再試行する。
+            echo "::notice::Chrome headless launch failed; attempting to install libnss3/libnspr4 and retry once." >&2
+            if command -v apt-get >/dev/null 2>&1; then
+              apt-get update -qq
+              apt-get install -y --no-install-recommends libnss3 libnspr4
+            fi
+            if ! check_chrome; then
+              echo "::error::Chrome for Testing failed to launch in headless mode even after installing libnss3/libnspr4. self-hosted runner image may be missing other shared libraries." >&2
+              cat /tmp/chrome-smoke.log >&2
+              echo "::error::ldd missing libraries (if any):" >&2
+              ldd "$(command -v chrome)" 2>&1 | grep "not found" >&2 || echo "(ldd did not report missing libraries; failure cause is something else — see log above)" >&2
+              exit 1
+            fi
+          fi
+
       - name: Run WASM XSS escape regression (headless Chrome)
-        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-full --test xss_escape_wasm
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test xss_escape_wasm
 
   # TASK-12.2c（#124、REQ-12 受け入れ基準 2）: install.sh の --ignore-scripts
   # 強制（前段、TASK-12.1a・#38・マージ済み）と check_static_only.py の
@@ -481,7 +1152,8 @@ jobs:
   # 即 CI 失敗として扱う。
   npm-asset-build:
     name: NPM static asset gate (REQ-12)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    timeout-minutes: 15
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。
@@ -489,6 +1161,30 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
+
+      - name: Setup Node.js
+        # update-external.yml と同一 SHA 固定。ubuntu-latest には node/npm が
+        # プリインストールされているが、self-hosted runner には保証がないため
+        # 明示的にセットアップする（下段の test_pipeline_e2e.sh は node/npm 不在
+        # 時に自己スキップする作りだが、self-hosted 移行後も実 npm でのパイプライン
+        # 検証を維持するために導入する）。
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: '20'
+
+      # 前提（self-hosted 移行、ユーザー指示 2026-07-18）: 本ジョブは python3 の
+      # 常設を前提とする。ubuntu-latest にはプリインストールされているが、
+      # self-hosted runner には保証がないため、未検出時は fail-closed で
+      # 明示エラーとする（他ジョブと異なりインストールは行わない。python3 は
+      # OS 標準構成の一部として runner 側で常設されることを期待するため）。
+      - name: Check python3 availability
+        run: |
+          set -euo pipefail
+          if ! command -v python3 >/dev/null 2>&1; then
+            echo "::error::python3 not found. self-hosted runner requires python3 pre-installed." >&2
+            exit 1
+          fi
 
       - name: install.sh offline regression tests (fail-closed)
         run: bash tools/npm-asset-build/tests/test_install.sh
@@ -525,7 +1221,7 @@ jobs:
   # 緩和用の input・環境変数・continue-on-error は設けない。
   rebuild-latency:
     name: REQ-10 rebuild latency (5s limit)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -534,6 +1230,14 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
+        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
 
       - name: Add wasm32 target
         run: rustup target add wasm32-unknown-unknown
@@ -542,18 +1246,39 @@ jobs:
       # 導入する（`test` ジョブと同一バージョン・同一チェックサム。
       # `dist-server/build.rs` の expected_wasm_bindgen_version が Cargo.lock
       # 解決済みバージョンとの完全一致を要求するため、更新時は両方を
-      # 合わせて更新すること）。
+      # 合わせて更新すること）。self-hosted 移行に伴い、インストール先を
+      # /usr/local/bin から $HOME/.local/share/wasm-bindgen/<version>/ へ
+      # 変更する（test ジョブと同一の理由）。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified)
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291）:
+        # 詳細は test ジョブの同名ステップのコメント参照。
         run: |
           set -euo pipefail
           WASM_BINDGEN_VERSION="0.2.126"
           WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
-          ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
-          curl -sSfL -o "${ARCHIVE}" "${URL}"
-          echo "${WASM_BINDGEN_SHA256}  ${ARCHIVE}" | sha256sum -c -
-          tar xzf "${ARCHIVE}"
-          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" /usr/local/bin/wasm-bindgen
+          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
+            # 宛先既存時に非ゼロ終了するため。Cursor Bugbot 指摘 High/Medium、
+            # コミット 64ecb28 対応。詳細は cargo-deny インストールステップの
+            # コメント参照）。
+            if ! mv -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
+              if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+                echo "::error::failed to install wasm-bindgen-cli to ${INSTALL_DIR}" >&2
+                exit 1
+              fi
+            fi
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
       - name: Run rebuild_latency bench
         # xtask 系ジョブと同一の理由（子プロセス終了コード伝播・Cargo.lock
@@ -597,7 +1322,7 @@ jobs:
   # 兼ねる（二重防御）。
   bundle-size:
     name: REQ-11 rws-wasm-full bundle gzip size (200KB limit)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -606,6 +1331,14 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
+        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
 
       - name: Add wasm32 target
         run: rustup target add wasm32-unknown-unknown
@@ -613,18 +1346,39 @@ jobs:
       # wasm-bindgen-cli はバージョン固定 + SHA256 チェックサム検証付きで
       # 導入する（`test`/`rebuild-latency` ジョブと同一バージョン・同一
       # チェックサム。バージョンアップ時は Cargo.lock 解決済み wasm-bindgen
-      # と合わせて更新すること）。
+      # と合わせて更新すること）。self-hosted 移行に伴い、インストール先を
+      # /usr/local/bin から $HOME/.local/share/wasm-bindgen/<version>/ へ
+      # 変更する（他ジョブと同一の理由）。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified)
+        # atomic install（Cursor Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e、PR #291）:
+        # 詳細は test ジョブの同名ステップのコメント参照。
         run: |
           set -euo pipefail
           WASM_BINDGEN_VERSION="0.2.126"
           WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
-          ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-          URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
-          curl -sSfL -o "${ARCHIVE}" "${URL}"
-          echo "${WASM_BINDGEN_SHA256}  ${ARCHIVE}" | sha256sum -c -
-          tar xzf "${ARCHIVE}"
-          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" /usr/local/bin/wasm-bindgen
+          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
+            # 宛先既存時に非ゼロ終了するため。Cursor Bugbot 指摘 High/Medium、
+            # コミット 64ecb28 対応。詳細は cargo-deny インストールステップの
+            # コメント参照）。
+            if ! mv -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
+              if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+                echo "::error::failed to install wasm-bindgen-cli to ${INSTALL_DIR}" >&2
+                exit 1
+              fi
+            fi
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
 
       - name: Run bundle_size test
         # xtask 系ジョブと同一の理由（子プロセス終了コード伝播・Cargo.lock
@@ -649,7 +1403,8 @@ jobs:
 
   loc-check:
     name: REQ-8/REQ-11 glue JS effective LOC limit (10 lines, issues #62/#156)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    timeout-minutes: 10
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（同一ファイル内の test ジョブと同一 SHA に固定）。
@@ -657,6 +1412,14 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
+        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
 
       - name: Run xtask check-loc
         # xtask check-loc の終了コードをそのまま CI の成否に伝播させる（fail-closed）。
@@ -688,7 +1451,8 @@ jobs:
   # cargo プロジェクトのため、manifest-path を明示して単独実行する。
   template-negative-type-error:
     name: TASK-4.4 templates/default 型不正コード機械的検出の受け入れ基準検証
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    timeout-minutes: 15
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（test/loc-check ジョブと同一 SHA に固定）。
@@ -696,6 +1460,14 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
+        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
 
       - name: templates/default 単体テスト（正例 + 負例 E0277/E0308）
         # --offline で子プロセス cargo check を実行するテスト（依存ゼロの
@@ -720,7 +1492,8 @@ jobs:
   # （方式選定・脅威モデルは docs/raw-html-lint-design.md 参照）。
   clippy:
     name: REQ-1 raw_html() 検出（clippy disallowed_methods, issue #157）
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    timeout-minutes: 20
     # forbid-unsafe ジョブと同じ理由で dist-server の WASM ネストビルドを
     # オプトアウトする: `cargo clippy --workspace` は dist-server/build.rs 経由で
     # ネストした cargo build + wasm-bindgen 起動を伴うが、本ジョブの runner には
@@ -736,6 +1509,18 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
+        # cargo 未導入インスタンスが混在し得るための保険）。加えて本ジョブは
+        # clippy component を必須とするため components: clippy を明示する
+        # （既に導入済みのツールチェーンでは何もしない。未導入時の新規セット
+        # アップでも clippy が確実に含まれるようにする安全策）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+          components: clippy
 
       - name: Show toolchain
         run: rustup show && cargo --version

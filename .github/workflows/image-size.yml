@@ -50,7 +50,23 @@ concurrency:
 jobs:
   image-size:
     name: Docker image size (REQ-9)
-    runs-on: ubuntu-latest
+    # ユーザー指示（2026-07-18）により self-hosted へ移行。
+    # 前提: self-hosted runner に Docker デーモンが導入済みで、runner 実行
+    # ユーザーがログイン権限（docker グループ所属等）を持つこと。加えて
+    # 本ジョブは x86_64-unknown-linux-musl の Dockerfile 分岐（`docker build`
+    # のホストアーキテクチャに追従）を計測対象とするため、self-hosted プールが
+    # macOS 等の非 Linux/非 x86_64 インスタンスを含む場合、割り当て先次第で
+    # 計測結果・失敗モードが変わり得る（runner ラベルの細分化は本変更の
+    # スコープ外。ユーザー指示に従い `self-hosted` のまま据え置く）。
+    runs-on: self-hosted
+    timeout-minutes: 30
+    env:
+      # self-hosted runner には HTTP プロキシ env が設定されており、localhost 宛
+      # 通信までプロキシへ飛ばしてしまう事例が確認されている（team-hub
+      # ci.yml の test/full-cycle-e2e ジョブと同一の前提）。本ジョブは後段で
+      # コンテナの内部 IP へ直接 curl するため通常は該当しないはずだが、
+      # 念のため localhost 系をプロキシ除外しておく。
+      NO_PROXY: "localhost,127.0.0.1,::1"
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（ci.yml と同一 SHA に固定）。
@@ -58,11 +74,58 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（本ジョブ末尾の
+        # `cargo run -p xtask -- check-image-size` に必要。self-hosted runner
+        # プールに cargo 未導入インスタンスが混在し得るための保険。導入済み
+        # なら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
 
       - name: Build docker image
         # push・レジストリログインは行わない。ジョブローカルのタグのみを使い、
         # 計測後は ubuntu-latest ランナーの破棄とともに揮発する。
         run: docker build -t rws-dist-server:ci .
+
+      - name: "Resolve own container ID (DooD: --network container: attachment)"
+        id: runner_cid
+        # PR #291 の 2 回目の実 CI 実行で判明: 前回の「rws-ci コンテナの bridge IP
+        # へ直接 curl する」方式は、runner コンテナと rws-ci コンテナが同一
+        # bridge ネットワーク上にいない構成（Mac mini 上の docker compose 構成
+        # 等）では到達不能のまま curl がハングし、ジョブが timeout-minutes
+        # いっぱいまで無応答になる形で失敗した（image-size: 30m19s）。
+        #
+        # ここでは bridge ネットワーク構成に依存しない標準的な DooD 対策として、
+        # rws-ci コンテナを `--network container:<この runner 自身のコンテナ ID>`
+        # で起動し、runner コンテナと同一のネットワーク名前空間を共有させる。
+        # これにより runner から見た 127.0.0.1 がそのまま rws-ci コンテナの
+        # リスニングポートに到達する（bridge 越しの IP 到達性を一切仮定しない）。
+        #
+        # HOSTNAME は Docker が既定でコンテナ ID（先頭 12 文字）に設定するが、
+        # compose 側で `hostname:` が明示されている場合は上書きされ得るため、
+        # `docker inspect` で実在確認し、ダメなら /proc/self/mountinfo から
+        # コンテナ ID を抽出するフォールバックを試みる。runner がそもそも
+        # コンテナではない（bare metal / VM）場合はどちらも失敗するため、
+        # その場合は空文字を出力し、後続ステップでは従来のホストポート公開
+        # （`-p 127.0.0.1:PORT:PORT`）方式にフォールバックする（bare metal
+        # runner では DooD の問題自体が発生しないため、ホストポート公開で
+        # 直接動作する）。
+        run: |
+          set -euo pipefail
+          candidate="$(hostname)"
+          if ! docker inspect "$candidate" >/dev/null 2>&1; then
+            candidate="$(grep -oE '/docker/containers/[0-9a-f]{64}' /proc/self/mountinfo 2>/dev/null | head -1 | sed 's#.*/##')"
+          fi
+          if [ -n "$candidate" ] && docker inspect "$candidate" >/dev/null 2>&1; then
+            echo "id=${candidate}" >> "$GITHUB_OUTPUT"
+            echo "::notice::runner container ID resolved (${candidate}); using --network container: attachment"
+          else
+            echo "id=" >> "$GITHUB_OUTPUT"
+            echo "::notice::could not resolve own container ID; falling back to host port publish (runner may not be containerized)"
+          fi
 
       - name: Verify WASM assets are served (TASK-10.3c, issue #117)
         # TASK-10.3b（#116）でコンテナ内 WASM 再ビルドが builder ステージへ
@@ -73,9 +136,20 @@ jobs:
         # fail-closed: 起動待ちのリトライを使い切っても応答しない場合は
         # そのまま失敗させる（`docker logs` を出力してから終了コード非 0 で
         # 終わる）。
+        #
+        # 上記 "Resolve own container ID" の出力に応じて起動方式を切り替える
+        # （DooD 対応、詳細は同ステップのコメント参照）。いずれの経路でも
+        # base_url は 127.0.0.1 に固定できるため、以降のロジックは単純化される。
+        env:
+          RUNNER_CID: ${{ steps.runner_cid.outputs.id }}
         run: |
           set -euo pipefail
-          docker run -d --name rws-ci -p 3100:3100 rws-dist-server:ci
+          if [ -n "${RUNNER_CID}" ]; then
+            docker run -d --name rws-ci --network "container:${RUNNER_CID}" rws-dist-server:ci
+          else
+            docker run -d --name rws-ci -p 127.0.0.1:3100:3100 rws-dist-server:ci
+          fi
+          base_url="http://127.0.0.1:3100"
 
           # curl の body 破棄先には `/dev/null` を使わない。GitHub Actions の
           # ubuntu-latest ランナーでは、curl 8.x が `-o /dev/null` に対して
@@ -87,9 +161,14 @@ jobs:
           discard="$(mktemp)"
           trap 'rm -f "$discard"' EXIT
 
+          # `--max-time`（1 回の curl 呼び出し全体の上限）を明示する。前回の
+          # 失敗（30 分タイムアウト）は、宛先が到達不能な場合に curl がデフォルト
+          # の長い接続タイムアウトまでハングし得ることが一因だったため、readiness
+          # ループ内の 1 回あたりの待ち時間を確実に短く制限する（30 回 x 2 秒
+          # 上限 = 最大 60 秒程度で fail-closed に到達させる）。
           ready=0
           for _ in $(seq 1 30); do
-            if curl -fsS -o "$discard" http://127.0.0.1:3100/static/wasm/rws_wasm_full.js; then
+            if curl -fsS --max-time 2 -o "$discard" "${base_url}/static/wasm/rws_wasm_full.js"; then
               ready=1
               break
             fi
@@ -112,11 +191,14 @@ jobs:
           # 取得はすべて `curl_retry` 経由に統一し、最大 3 回の再試行後も
           # 失敗した場合のみ空文字列を返して（スクリプトは落とさず）後続の
           # 明示的な比較チェックに失敗を委ねる（fail-closed は維持される）。
+          # --max-time 2: 前回の 30 分ハング（宛先到達不能時に curl の既定タイム
+          # アウトまで無応答になった）の再発を防ぐため、1 呼び出しあたりの上限を
+          # 明示する。
           curl_retry() {
             local out
             local attempt
             for attempt in 1 2 3; do
-              if out=$(curl "$@" 2>/dev/null); then
+              if out=$(curl --max-time 2 "$@" 2>/dev/null); then
                 printf '%s' "$out"
                 return 0
               fi
@@ -126,16 +208,16 @@ jobs:
             return 0
           }
 
-          js_status=$(curl_retry -s -o "$discard" -w '%{http_code}' http://127.0.0.1:3100/static/wasm/rws_wasm_full.js)
-          js_type=$(curl_retry -s -o "$discard" -w '%{content_type}' http://127.0.0.1:3100/static/wasm/rws_wasm_full.js)
+          js_status=$(curl_retry -s -o "$discard" -w '%{http_code}' ${base_url}/static/wasm/rws_wasm_full.js)
+          js_type=$(curl_retry -s -o "$discard" -w '%{content_type}' ${base_url}/static/wasm/rws_wasm_full.js)
           if [ "$js_status" != "200" ] || [ "${js_type#text/javascript}" = "$js_type" ]; then
             echo "::error::rws_wasm_full.js: expected 200 text/javascript, got status=${js_status} content_type=${js_type}" >&2
             docker rm -f rws-ci || true
             exit 1
           fi
 
-          wasm_status=$(curl_retry -s -o "$discard" -w '%{http_code}' http://127.0.0.1:3100/static/wasm/rws_wasm_full_bg.wasm)
-          wasm_type=$(curl_retry -s -o "$discard" -w '%{content_type}' http://127.0.0.1:3100/static/wasm/rws_wasm_full_bg.wasm)
+          wasm_status=$(curl_retry -s -o "$discard" -w '%{http_code}' ${base_url}/static/wasm/rws_wasm_full_bg.wasm)
+          wasm_type=$(curl_retry -s -o "$discard" -w '%{content_type}' ${base_url}/static/wasm/rws_wasm_full_bg.wasm)
           if [ "$wasm_status" != "200" ] || [ "$wasm_type" != "application/wasm" ]; then
             echo "::error::rws_wasm_full_bg.wasm: expected 200 application/wasm, got status=${wasm_status} content_type=${wasm_type}" >&2
             docker rm -f rws-ci || true
@@ -148,7 +230,7 @@ jobs:
           trap 'rm -f "$discard" "$magic_file"' EXIT
           magic_ok=0
           for _ in 1 2 3; do
-            if curl -fsS -o "$magic_file" http://127.0.0.1:3100/static/wasm/rws_wasm_full_bg.wasm; then
+            if curl -fsS --max-time 2 -o "$magic_file" ${base_url}/static/wasm/rws_wasm_full_bg.wasm; then
               magic_ok=1
               break
             fi
@@ -165,7 +247,7 @@ jobs:
             exit 1
           fi
 
-          not_found_status=$(curl_retry -s -o "$discard" -w '%{http_code}' http://127.0.0.1:3100/static/wasm/does-not-exist.wasm)
+          not_found_status=$(curl_retry -s -o "$discard" -w '%{http_code}' ${base_url}/static/wasm/does-not-exist.wasm)
           if [ "$not_found_status" != "404" ]; then
             echo "::error::unknown /static/wasm/ path expected 404, got ${not_found_status}" >&2
             docker rm -f rws-ci || true
