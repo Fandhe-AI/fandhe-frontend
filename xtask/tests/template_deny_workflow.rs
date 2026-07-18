@@ -30,6 +30,66 @@ fn template_deny_toml_path() -> PathBuf {
     workspace_root().join("templates/default/deny.toml")
 }
 
+fn ensure_gate_tools_path() -> PathBuf {
+    workspace_root().join("tools/ci/ensure-gate-tools.sh")
+}
+
+fn cargo_deny_advisories_doc_path() -> PathBuf {
+    workspace_root().join("docs/cargo-deny-advisories.md")
+}
+
+fn read_ensure_gate_tools() -> String {
+    std::fs::read_to_string(ensure_gate_tools_path())
+        .expect("tools/ci/ensure-gate-tools.sh の読み込みに失敗した")
+}
+
+fn read_cargo_deny_advisories_doc() -> String {
+    std::fs::read_to_string(cargo_deny_advisories_doc_path())
+        .expect("docs/cargo-deny-advisories.md の読み込みに失敗した")
+}
+
+/// `pattern` に続くバージョン文字列（`X.Y.Z` 形式）を抽出する。
+///
+/// イシュー #314: cargo-deny の pin の正は `tools/ci/ensure-gate-tools.sh` の
+/// `CARGO_DENY_VERSION` のみとし、テンプレート・docs の pin 値がそこから
+/// ドリフトしていないことを本ファイルのテストで強制する（手動同期に頼らない）。
+/// 外部 YAML/TOML パーサは追加しない方針（REQ-3）のため、行ベースの単純な
+/// 前方一致抽出に留める。
+///
+/// 抽出できなかった場合は空文字列ではなく panic する。空文字列同士の比較で
+/// テストが誤って pass する（vacuous pass）ことを避けるため。
+fn extract_version_after(contents: &str, pattern: &str) -> String {
+    let start = contents.find(pattern).unwrap_or_else(|| {
+        panic!("パターン `{pattern}` が見つからない: 抽出元のドリフト検知が機能しない")
+    });
+    let rest = &contents[start + pattern.len()..];
+    let version: String = rest
+        .chars()
+        .take_while(|c| c.is_ascii_digit() || *c == '.')
+        .collect();
+    assert!(
+        !version.is_empty() && version.contains('.'),
+        "パターン `{pattern}` の直後からバージョン文字列を抽出できなかった \
+         （空文字列同士の比較による vacuous pass を避けるため、空値は許容しない）"
+    );
+    version
+}
+
+/// `pattern` に続く SHA256 チェックサム文字列（16 進数 64 文字）を抽出する。
+fn extract_sha256_after(contents: &str, pattern: &str) -> String {
+    let start = contents.find(pattern).unwrap_or_else(|| {
+        panic!("パターン `{pattern}` が見つからない: 抽出元のドリフト検知が機能しない")
+    });
+    let rest = &contents[start + pattern.len()..];
+    let sha: String = rest.chars().take_while(|c| c.is_ascii_hexdigit()).collect();
+    assert!(
+        sha.len() >= 32,
+        "パターン `{pattern}` の直後から SHA256 チェックサムを抽出できなかった \
+         （空値・極端に短い値は許容しない）"
+    );
+    sha
+}
+
 fn read_workflow() -> String {
     std::fs::read_to_string(workflow_path())
         .expect("templates/default/.github/workflows/deny.yml の読み込みに失敗した")
@@ -225,23 +285,85 @@ fn template_deny_workflow_has_no_fail_open_escape_hatch() {
     );
 }
 
+/// イシュー #314: cargo-deny の導入はテンプレート単体でも
+/// `tools/ci/ensure-gate-tools.sh`（本リポジトリ自身の CI）と同一の
+/// 「バージョン固定 + SHA256 検証済みプリビルトバイナリ」パターンに統一する
+/// （`cargo install` によるソースからの任意最新版コンパイルは行わない）。
+/// 旧パターン（`cargo install cargo-deny --locked --version ...`）への
+/// 回帰も検知する。
 #[test]
-fn template_deny_workflow_installs_cargo_deny_with_locked_and_pinned_version() {
+fn template_deny_workflow_installs_cargo_deny_with_pinned_prebuilt_binary() {
     let contents = read_workflow();
     let executable_contents = non_comment_lines(&contents).join("\n");
 
     assert!(
-        executable_contents.contains("cargo install cargo-deny"),
-        "cargo-deny のインストール行が見つからない"
+        !executable_contents.contains("cargo install cargo-deny"),
+        "cargo-deny が旧パターン（cargo install によるソースからのコンパイル）で \
+         導入されている（イシュー #314: プリビルトバイナリ + SHA256 検証への \
+         統一に回帰している）"
     );
     assert!(
-        executable_contents.contains("--locked"),
-        "cargo install cargo-deny に --locked が付与されていない"
+        executable_contents.contains("CARGO_DENY_VERSION="),
+        "cargo-deny のバージョン pin（CARGO_DENY_VERSION）が見つからない"
     );
     assert!(
-        executable_contents.contains("--version"),
-        "cargo install cargo-deny にバージョン固定（--version）が付与されて \
-         いない"
+        executable_contents.contains("CARGO_DENY_SHA256="),
+        "cargo-deny の SHA256 チェックサム pin（CARGO_DENY_SHA256）が見つからない"
+    );
+    assert!(
+        executable_contents.contains("sha256sum -c"),
+        "cargo-deny アーカイブの SHA256 検証（sha256sum -c）が見つからない \
+         （検証なしのダウンロード実行はサプライチェーン対策の骨抜き）"
+    );
+    assert!(
+        executable_contents.contains("github.com/EmbarkStudios/cargo-deny/releases/download"),
+        "cargo-deny の取得元が公式リリース URL になっていない"
+    );
+}
+
+/// イシュー #314: cargo-deny の pin 値の正は
+/// `tools/ci/ensure-gate-tools.sh` の `CARGO_DENY_VERSION` /
+/// `CARGO_DENY_SHA256` のみとする。テンプレート・docs 側の pin 値が
+/// そこから乖離（ドリフト）していないことを `cargo test -p xtask` / CI で
+/// 強制検知し、「1 箇所の変更で全ワークフローに波及する」ことを担保する。
+#[test]
+fn cargo_deny_version_pin_matches_ensure_gate_tools_across_template_and_docs() {
+    let ensure_gate_tools = read_ensure_gate_tools();
+    let template = read_workflow();
+    let advisories_doc = read_cargo_deny_advisories_doc();
+
+    let canonical_version = extract_version_after(&ensure_gate_tools, "CARGO_DENY_VERSION=\"");
+    let canonical_sha256 = extract_sha256_after(&ensure_gate_tools, "CARGO_DENY_SHA256=\"");
+
+    let template_version = extract_version_after(&template, "CARGO_DENY_VERSION=\"");
+    let template_sha256 = extract_sha256_after(&template, "CARGO_DENY_SHA256=\"");
+    assert_eq!(
+        template_version, canonical_version,
+        "templates/default/.github/workflows/deny.yml の CARGO_DENY_VERSION \
+         ({template_version}) が tools/ci/ensure-gate-tools.sh の pin \
+         ({canonical_version}) からドリフトしている"
+    );
+    assert_eq!(
+        template_sha256, canonical_sha256,
+        "templates/default/.github/workflows/deny.yml の CARGO_DENY_SHA256 \
+         が tools/ci/ensure-gate-tools.sh の pin からドリフトしている"
+    );
+
+    // docs/cargo-deny-advisories.md のサンプルワークフロー（第 5 節）は
+    // テンプレートと同一の CARGO_DENY_VERSION / CARGO_DENY_SHA256 変数を
+    // コード例として埋め込んでいる。同じアンカー文字列で抽出する。
+    let doc_version = extract_version_after(&advisories_doc, "CARGO_DENY_VERSION=\"");
+    let doc_sha256 = extract_sha256_after(&advisories_doc, "CARGO_DENY_SHA256=\"");
+    assert_eq!(
+        doc_version, canonical_version,
+        "docs/cargo-deny-advisories.md の CARGO_DENY_VERSION \
+         ({doc_version}) が tools/ci/ensure-gate-tools.sh の pin \
+         ({canonical_version}) からドリフトしている"
+    );
+    assert_eq!(
+        doc_sha256, canonical_sha256,
+        "docs/cargo-deny-advisories.md の CARGO_DENY_SHA256 が \
+         tools/ci/ensure-gate-tools.sh の pin からドリフトしている"
     );
 }
 

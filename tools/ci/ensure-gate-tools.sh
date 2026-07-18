@@ -14,6 +14,15 @@
 # - ローカル開発者・AI 自己保守フックが `fw gate` 実行前に前置する運用手順
 #   （docs/gate-design.md §6、docs/ai-self-maintenance-policy.md 参照）
 #
+# イシュー #314: cargo-deny のバージョン pin の正はこのファイルの
+# `CARGO_DENY_VERSION` / `CARGO_DENY_SHA256` のみとする。テンプレート同梱の
+# `templates/default/.github/workflows/deny.yml`（本リポジトリ自身の CI には
+# 発火しない配布物のため、本スクリプトを直接参照できない）と
+# `docs/cargo-deny-advisories.md` は、同じバージョン + SHA256 検証パターンを
+# 独立して埋め込む。3 箇所の pin 値が乖離しないことは
+# `xtask/tests/template_deny_workflow.rs` のドリフト検知テストが
+# `cargo test -p xtask` / CI で強制する（手動同期に頼らない）。
+#
 # 冪等性: 既にバージョン一致で導入済みなら何もしない（2 回目以降の呼び出しは
 # 何もインストールせず終了する）。
 #
@@ -26,8 +35,8 @@
 #   `/usr/local/bin` 等への書き込み・sudo は要求しない。
 set -euo pipefail
 
-CARGO_DENY_VERSION="0.16.4"
-CARGO_DENY_SHA256="28b7f8e12df46a9ce186547e38278c851905fc4bda59a0cc57d2aade9fdf6962"
+CARGO_DENY_VERSION="0.19.8"
+CARGO_DENY_SHA256="70e769ae3872e34d45132b17040859175e11401dc12dddb0303e0b8c7d088f3f"
 
 # `fw gate` のプリフライト（clippy_environment_preflight / cargo_deny の
 # 環境判定）と同一の疎通確認コマンド。ここで「導入済み」と判定される条件を

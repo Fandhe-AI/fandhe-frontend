@@ -46,14 +46,17 @@ cargo deny check bans licenses sources --config deny.toml
   - `crates.io`（`cargo install` によるツールチェーン取得・依存解決）
   - `github.com`（RustSec Advisory DB の取得元。cargo-deny は内部で advisory-db リポジトリを
     クローンまたは更新します）
-- **cargo-deny のバージョン固定**: `templates/default/.github/workflows/deny.yml` と同一の
-  `cargo install cargo-deny --locked --version 0.19.8` を用います。バージョンを固定しない
-  `cargo install cargo-deny` は、advisory-db のフォーマット変更やコマンド仕様変更を予期せず
-  取り込むリスクがあるため避けます。
+- **cargo-deny のバージョン固定**: `templates/default/.github/workflows/deny.yml`・
+  `tools/ci/ensure-gate-tools.sh`（本フレームワーク自身の CI・イシュー #314）と同一の、
+  バージョン固定 + SHA256 チェックサム検証付きプリビルトバイナリを用います。`cargo install
+  cargo-deny` によるソースからの任意最新版コンパイルは、advisory-db のフォーマット変更や
+  コマンド仕様変更を予期せず取り込むリスクがあるため避けます。バージョン・SHA256 の pin の正は
+  `tools/ci/ensure-gate-tools.sh` の `CARGO_DENY_VERSION` / `CARGO_DENY_SHA256` であり、
+  本ドキュメント・テンプレートの pin 値がそこからドリフトしていないことは
+  `xtask/tests/template_deny_workflow.rs` が `cargo test -p xtask` / CI で強制検知します。
 - **第三者製 Action を使わない**: `templates/default/.github/workflows/deny.yml` の方針
-  （`EmbarkStudios/cargo-deny-action` 等の第三者 Action を採用せず、crates.io からの
-  `--locked` インストールに限定するサプライチェーン方針）をオンライン運用でも踏襲します。
-  Action を参照する場合はフル SHA 固定とします。
+  （`EmbarkStudios/cargo-deny-action` 等の第三者 Action を採用しないサプライチェーン方針）を
+  オンライン運用でも踏襲します。Action を参照する場合はフル SHA 固定とします。
 
 ## 4. 実行手順
 
@@ -126,13 +129,31 @@ jobs:
           toolchain: stable
 
       - name: Install cargo-deny
+        # tools/ci/ensure-gate-tools.sh・templates/default/.github/workflows/deny.yml
+        # と同一の「バージョン固定 + SHA256 検証済みプリビルトバイナリ」パターン
+        # （イシュー #314）。pin 値のドリフトは xtask テストが強制検知します。
         run: |
-          set -o pipefail
-          if cargo deny --version 2>/dev/null | grep -q "0.19.8"; then
-            echo "cargo-deny 0.19.8 は導入済みのためインストールをスキップする"
-          else
-            cargo install cargo-deny --locked --version 0.19.8
+          set -euo pipefail
+          CARGO_DENY_VERSION="0.19.8"
+          CARGO_DENY_SHA256="70e769ae3872e34d45132b17040859175e11401dc12dddb0303e0b8c7d088f3f"
+
+          existing_version=""
+          if existing_version="$(cargo deny --version 2>/dev/null)"; then
+            existing_semver="$(awk '{print $2}' <<<"${existing_version}")"
+            if [ "${existing_semver}" = "${CARGO_DENY_VERSION}" ]; then
+              echo "cargo-deny ${CARGO_DENY_VERSION} は導入済みのためインストールをスキップする"
+              exit 0
+            fi
           fi
+
+          archive="cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          url="https://github.com/EmbarkStudios/cargo-deny/releases/download/${CARGO_DENY_VERSION}/${archive}"
+          tmp_dir="$(mktemp -d)"
+          curl -sSfL -o "${tmp_dir}/${archive}" "${url}"
+          echo "${CARGO_DENY_SHA256}  ${tmp_dir}/${archive}" | sha256sum -c -
+          tar xzf "${tmp_dir}/${archive}" -C "${tmp_dir}"
+          install_dir="${tmp_dir}/cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl"
+          echo "${install_dir}" >> "${GITHUB_PATH}"
 
       - name: Run cargo deny check (advisories)
         # fail-closed: 終了コードをそのまま CI の成否に伝播させる。
