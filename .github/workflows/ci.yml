@@ -423,15 +423,28 @@ jobs:
             # libnspr4/libnss3（libnssutil3・libsmime3 を含む）が不足しており
             # Chrome が起動できない（`chrome: error while loading shared
             # libraries: libnspr4.so: cannot open shared object file`）。
+            # PR #305 実 CI 実行（イシュー #292）で追加判明: libnss3/libnspr4
+            # のみの自動導入では不足で、libatk-1.0.so.0 等 Chromium 実行に
+            # 必要な共有ライブラリ群（ATK / D-Bus / X11 / Cairo・Pango /
+            # ALSA / GBM / AT-SPI 系）が広く不足していた。runner イメージの
+            # ベースにはデスクトップ GUI 系パッケージが入っていない前提のため、
+            # Chrome for Testing（Chromium 系）が要求する共有ライブラリを
+            # 提供する Debian/Ubuntu パッケージ一式をまとめて自動導入する。
             # root 実行のため sudo なしで apt-get install できることを利用し、
             # 既知の不足パッケージを自動導入して 1 回だけ再試行する。
-            echo "::notice::Chrome headless launch failed; attempting to install libnss3/libnspr4 and retry once." >&2
+            echo "::notice::Chrome headless launch failed; attempting to install Chromium shared-library dependencies and retry once." >&2
             if command -v apt-get >/dev/null 2>&1; then
               apt-get update -qq
-              apt-get install -y --no-install-recommends libnss3 libnspr4
+              apt-get install -y --no-install-recommends \
+                libnss3 libnspr4 \
+                libatk1.0-0 libatk-bridge2.0-0 libatspi2.0-0 \
+                libcups2 libdbus-1-3 \
+                libx11-6 libxext6 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxkbcommon0 \
+                libcairo2 libpango-1.0-0 \
+                libgbm1 libasound2
             fi
             if ! check_chrome; then
-              echo "::error::Chrome for Testing failed to launch in headless mode even after installing libnss3/libnspr4. self-hosted runner image may be missing other shared libraries." >&2
+              echo "::error::Chrome for Testing failed to launch in headless mode even after installing the known Chromium shared-library dependencies. self-hosted runner image may be missing other shared libraries." >&2
               cat /tmp/chrome-smoke.log >&2
               echo "::error::ldd missing libraries (if any):" >&2
               ldd "$(command -v chrome)" 2>&1 | grep "not found" >&2 || echo "(ldd did not report missing libraries; failure cause is something else — see log above)" >&2
@@ -734,15 +747,28 @@ jobs:
             # libnspr4/libnss3（libnssutil3・libsmime3 を含む）が不足しており
             # Chrome が起動できない（`chrome: error while loading shared
             # libraries: libnspr4.so: cannot open shared object file`）。
+            # PR #305 実 CI 実行（イシュー #292）で追加判明: libnss3/libnspr4
+            # のみの自動導入では不足で、libatk-1.0.so.0 等 Chromium 実行に
+            # 必要な共有ライブラリ群（ATK / D-Bus / X11 / Cairo・Pango /
+            # ALSA / GBM / AT-SPI 系）が広く不足していた。runner イメージの
+            # ベースにはデスクトップ GUI 系パッケージが入っていない前提のため、
+            # Chrome for Testing（Chromium 系）が要求する共有ライブラリを
+            # 提供する Debian/Ubuntu パッケージ一式をまとめて自動導入する。
             # root 実行のため sudo なしで apt-get install できることを利用し、
             # 既知の不足パッケージを自動導入して 1 回だけ再試行する。
-            echo "::notice::Chrome headless launch failed; attempting to install libnss3/libnspr4 and retry once." >&2
+            echo "::notice::Chrome headless launch failed; attempting to install Chromium shared-library dependencies and retry once." >&2
             if command -v apt-get >/dev/null 2>&1; then
               apt-get update -qq
-              apt-get install -y --no-install-recommends libnss3 libnspr4
+              apt-get install -y --no-install-recommends \
+                libnss3 libnspr4 \
+                libatk1.0-0 libatk-bridge2.0-0 libatspi2.0-0 \
+                libcups2 libdbus-1-3 \
+                libx11-6 libxext6 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxkbcommon0 \
+                libcairo2 libpango-1.0-0 \
+                libgbm1 libasound2
             fi
             if ! check_chrome; then
-              echo "::error::Chrome for Testing failed to launch in headless mode even after installing libnss3/libnspr4. self-hosted runner image may be missing other shared libraries." >&2
+              echo "::error::Chrome for Testing failed to launch in headless mode even after installing the known Chromium shared-library dependencies. self-hosted runner image may be missing other shared libraries." >&2
               cat /tmp/chrome-smoke.log >&2
               echo "::error::ldd missing libraries (if any):" >&2
               ldd "$(command -v chrome)" 2>&1 | grep "not found" >&2 || echo "(ldd did not report missing libraries; failure cause is something else — see log above)" >&2
@@ -1077,15 +1103,28 @@ jobs:
             # libnspr4/libnss3（libnssutil3・libsmime3 を含む）が不足しており
             # Chrome が起動できない（`chrome: error while loading shared
             # libraries: libnspr4.so: cannot open shared object file`）。
+            # PR #305 実 CI 実行（イシュー #292）で追加判明: libnss3/libnspr4
+            # のみの自動導入では不足で、libatk-1.0.so.0 等 Chromium 実行に
+            # 必要な共有ライブラリ群（ATK / D-Bus / X11 / Cairo・Pango /
+            # ALSA / GBM / AT-SPI 系）が広く不足していた。runner イメージの
+            # ベースにはデスクトップ GUI 系パッケージが入っていない前提のため、
+            # Chrome for Testing（Chromium 系）が要求する共有ライブラリを
+            # 提供する Debian/Ubuntu パッケージ一式をまとめて自動導入する。
             # root 実行のため sudo なしで apt-get install できることを利用し、
             # 既知の不足パッケージを自動導入して 1 回だけ再試行する。
-            echo "::notice::Chrome headless launch failed; attempting to install libnss3/libnspr4 and retry once." >&2
+            echo "::notice::Chrome headless launch failed; attempting to install Chromium shared-library dependencies and retry once." >&2
             if command -v apt-get >/dev/null 2>&1; then
               apt-get update -qq
-              apt-get install -y --no-install-recommends libnss3 libnspr4
+              apt-get install -y --no-install-recommends \
+                libnss3 libnspr4 \
+                libatk1.0-0 libatk-bridge2.0-0 libatspi2.0-0 \
+                libcups2 libdbus-1-3 \
+                libx11-6 libxext6 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxkbcommon0 \
+                libcairo2 libpango-1.0-0 \
+                libgbm1 libasound2
             fi
             if ! check_chrome; then
-              echo "::error::Chrome for Testing failed to launch in headless mode even after installing libnss3/libnspr4. self-hosted runner image may be missing other shared libraries." >&2
+              echo "::error::Chrome for Testing failed to launch in headless mode even after installing the known Chromium shared-library dependencies. self-hosted runner image may be missing other shared libraries." >&2
               cat /tmp/chrome-smoke.log >&2
               echo "::error::ldd missing libraries (if any):" >&2
               ldd "$(command -v chrome)" 2>&1 | grep "not found" >&2 || echo "(ldd did not report missing libraries; failure cause is something else — see log above)" >&2

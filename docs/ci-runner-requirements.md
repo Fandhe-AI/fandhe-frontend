@@ -24,7 +24,7 @@ PR #291 で全 CI ジョブを `runs-on: self-hosted` へ移行した際、以�
 
 | 項目 | 必要とするジョブ | `ci.yml` 該当ステップ |
 |------|------------------|------------------------|
-| `libnss3` / `libnspr4`（`libnssutil3`・`libsmime3` を含む） | `browser-test` / `perf-harness` / `xss-wasm-test` | "Verify headless Chrome launches ..." （Chrome for Testing 実行に必要な共有ライブラリ） |
+| `libnss3` / `libnspr4`（`libnssutil3`・`libsmime3` を含む）、`libatk1.0-0` / `libatk-bridge2.0-0` / `libatspi2.0-0` / `libcups2` / `libdbus-1-3` / `libx11-6` / `libxext6` / `libxcomposite1` / `libxdamage1` / `libxfixes3` / `libxrandr2` / `libxkbcommon0` / `libcairo2` / `libpango-1.0-0` / `libgbm1` / `libasound2`（PR #305・イシュー #292 の実 CI 実行で libnss3/libnspr4 のみでは不足と判明し追加） | `browser-test` / `perf-harness` / `xss-wasm-test` | "Verify headless Chrome launches ..." （Chrome for Testing = Chromium 系実行に必要な共有ライブラリ一式） |
 | `unzip` | `browser-test` / `perf-harness` / `xss-wasm-test` | "Ensure unzip is available (self-hosted minimal image)"（Chrome for Testing の zip 展開に使用） |
 | `apt-get`（root 実行前提） | 上記全て | 上記いずれのステップも `apt-get` が使えない場合は fail-closed でエラーになる |
 
