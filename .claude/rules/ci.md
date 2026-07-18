@@ -23,3 +23,9 @@
 - ステップ名（`name:` フィールド）に「: 」を含める場合はクォートで囲む（例: `name: "test: verify escaping"` ）
 - 理由: 過去に構文エラーで CI 全滅の実績（PR #264 で修正）
 - YAML の仕様上、構造化された値（コロン含む）はクォート必須
+
+## runner イメージの常設要件・保守ワークフロー（イシュー #295）
+
+- self-hosted runner イメージへ常設を依頼したい項目（libnss3/libnspr4 等）は `docs/ci-runner-requirements.md` に一覧化する
+- プール状態の検査・旧バイナリ／stale tmp のクリーンアップは `.github/workflows/runner-maintenance.yml`（`workflow_dispatch` 起点、report-only）で行う
+- イメージ側の常設が進んでも、各ワークフローの存在チェック付きインストール（安全網）は削除・弱体化しない
