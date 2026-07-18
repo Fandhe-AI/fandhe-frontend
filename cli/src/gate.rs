@@ -33,6 +33,12 @@
 //!   よるブランケット抑止（ファイル・モジュール一括無効化）を独立の違反として
 //!   監査する（[`scan_file_for_violations`] 参照。イシュー #157/#158/#159、
 //!   詳細な脅威モデル・方式比較は `docs/raw-html-lint-design.md`）。
+//! - `lint` チェックは `--all-targets` を付与し、テストターゲット
+//!   （`#[cfg(test)]` / `tests/` 配下）内の未レビュー `raw_html()` 呼び出しも
+//!   検出する（イシュー #315）。`default_escape_check`（保険層）は `tests/` を
+//!   走査対象外のままとするが、主防御である本チェックが `--all-targets` により
+//!   その死角を埋めるため、ローカルゲート・AI 自己保守フックと CI `clippy`
+//!   ジョブ（イシュー #299）の検出範囲は一致する。
 //! - `lint` チェックは workspace ルート `clippy.toml` に `disallowed-methods` の
 //!   `rws_core::raw_html` エントリが存在することを前提とする。`clippy.toml` の
 //!   欠落・エントリ欠落は「検出ポリシーの沈黙」＝黙示的 PASS を招くため、
@@ -431,7 +437,12 @@ fn run_cargo_clippy(runner: &dyn CommandRunner, project_dir: &Path, crates: &[&s
     }
     // `-- -D warnings` は cargo 引数の後段（サブコマンド固有引数)として渡す
     // （coding-rust.md: `cargo clippy -- -D warnings` を通す規約と同一コマンド）。
-    let mut args: Vec<&str> = vec!["clippy", "--locked"];
+    // `--all-targets` は CI `clippy` ジョブ（イシュー #299）と検出範囲を一致させる
+    // ため付与する（イシュー #315）。テストターゲット（`#[cfg(test)]` / `tests/`
+    // 配下）内の未レビュー `raw_html()` 呼び出しは `default_escape_check`（保険層、
+    // `src/` のみ走査）では検出できないため、本チェック（主防御）がテストターゲット
+    // まで含めて検出することで検出境界差を解消する。
+    let mut args: Vec<&str> = vec!["clippy", "--locked", "--all-targets"];
     for c in crates {
         args.push("-p");
         args.push(c);
@@ -612,8 +623,9 @@ fn line_has_reviewed_expect_attribute(line: &str) -> bool {
 }
 
 /// `role = "core"` 以外の宣言ディレクトリの `src/` 配下 `*.rs`（`tests/` は
-/// 走査対象外。PoC-7 の粒度を維持し、テストコード内の `raw_html()` 利用は
-/// TASK-13.5 以降の負例回帰テストの対象とする限界を持つ）を走査し、
+/// 走査対象外。PoC-7 の粒度を維持する）を走査し、テストターゲット内の
+/// `raw_html()` 利用は本関数ではなく `lint` チェック（`--all-targets` 付き
+/// `cargo clippy`、イシュー #315）が検出を担う役割分担とし、
 /// `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: ...")]`
 /// 属性（同一行または直前行）を伴わない `raw_html()` 呼び出しと、ブランケット
 /// 抑止属性（[`BLANKET_DISALLOWED_METHODS_MARKERS`]）を違反として `file:line`
@@ -1725,7 +1737,18 @@ mod tests {
         assert_eq!(program, "cargo");
         assert_eq!(
             args,
-            vec!["clippy", "--locked", "-p", "rws-core", "-p", "rws-app", "--", "-D", "warnings",]
+            vec![
+                "clippy",
+                "--locked",
+                "--all-targets",
+                "-p",
+                "rws-core",
+                "-p",
+                "rws-app",
+                "--",
+                "-D",
+                "warnings",
+            ]
         );
 
         let _ = std::fs::remove_dir_all(&dir);

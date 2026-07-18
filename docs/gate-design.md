@@ -51,7 +51,7 @@ passed, output }` として結果を持つ。
 |---|----------------|------|------------------------|----------|
 | 1 | `type_check` | 型チェック | `cargo check --locked -p <crate>...`（宣言クレートごとに `-p` を連ねる） | REQ-13 |
 | 2 | `default_escape_check` | 既定エスケープ検査（保険層） | `role = "core"` 以外の宣言ディレクトリの `src/**/*.rs` を走査し、未レビューの `raw_html()` 呼び出し・ブランケット抑止属性を検出する純粋関数（外部コマンド起動なし） | REQ-1 |
-| 3 | `lint` | lint（既定エスケープ検査の主防御を含む） | `cargo clippy --locked -p <crate>... -- -D warnings`。起動前に `clippy.toml` の `disallowed-methods` 設定健全性を検証する（§2.3） | REQ-1・REQ-13 |
+| 3 | `lint` | lint（既定エスケープ検査の主防御を含む） | `cargo clippy --locked --all-targets -p <crate>... -- -D warnings`。`--all-targets` はテストターゲット内の未レビュー `raw_html()` 呼び出しも検出対象に含め、CI `clippy` ジョブ（イシュー #299）と検出範囲を一致させる（イシュー #315）。起動前に `clippy.toml` の `disallowed-methods` 設定健全性を検証する（§2.3） | REQ-1・REQ-13 |
 | 4 | `test` | テスト | `cargo test --locked -p <crate>...` | REQ-13 |
 | 5 | `policy` | 依存ポリシー | `deny.toml` の存在確認 → `cargo deny check bans licenses sources`（`advisories` はネットワーク前提のためオフラインゲート対象外、`docs/cargo-deny-advisories.md` 参照） | REQ-4 |
 

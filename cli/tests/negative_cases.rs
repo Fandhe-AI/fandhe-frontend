@@ -8,6 +8,9 @@
 //! 製品 CLI（実バイナリとしての `fw gate`、実ツールチェーン起動込み）に対して
 //! 再現する。REQ-13「検証・制約の強制」・REQ-1「既定エスケープ」・REQ-4
 //! 「検証フックの多層防御」が弱体化した場合にここで検知することを目的とする。
+//! ケース 4（イシュー #315）はテストターゲット内の未レビュー `raw_html()`
+//! 呼び出しを対象とし、`lint` チェックの `--all-targets` 拡張と CI `clippy`
+//! ジョブ（イシュー #299）の検出境界一致を固定する。
 //!
 //! `cli/tests/gate_integration.rs` は fail-closed 経路（引数不正・`structure.toml`
 //! 欠落等）のみを対象とし、実ツールチェーンを走らせて BLOCKED まで到達させる
@@ -90,6 +93,78 @@ fn inject_banned_dependency(project: &Path) {
     assert!(
         lockfile_output.status.success(),
         "禁止依存注入後の cargo generate-lockfile --offline に失敗した: {}",
+        String::from_utf8_lossy(&lockfile_output.stderr)
+    );
+}
+
+/// ケース 4（イシュー #315: `--all-targets` 検出境界差回帰）向けに、ダミーの
+/// `rws-core` path クレート（`pub fn raw_html`）を追加し、`app` の
+/// `[dev-dependencies]` へ登録したうえで `app/tests/raw_html_leak.rs` から
+/// レビューマーカーなしで呼び出し、`Cargo.lock` を再生成する。
+///
+/// 実際の `rws-core`（本ワークスペースの描画コア）は一切参照しない。ローカル
+/// path クレートに同名 `rws_core::raw_html` を再現するだけで、workspace
+/// ルート `clippy.toml`（[`clippy_toml_content`] 相当、`disallowed-methods`
+/// の `rws_core::raw_html` エントリ）が name-based に検出できる
+/// （完全オフライン、security.md A06 と同じヘルメチック方針）。
+fn inject_raw_html_call_in_test_target(project: &Path) {
+    use std::fs;
+    use std::process::Command;
+
+    let dummy_dir = project.join("rws-core");
+    fs::create_dir_all(dummy_dir.join("src")).expect("ダミー rws-core クレートの作成に失敗した");
+    fs::write(
+        dummy_dir.join("Cargo.toml"),
+        "[package]\nname = \"rws-core\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n",
+    )
+    .expect("ダミー rws-core の Cargo.toml 書き込みに失敗した");
+    fs::write(
+        dummy_dir.join("src").join("lib.rs"),
+        "pub fn raw_html(s: String) -> String {\n    s\n}\n",
+    )
+    .expect("ダミー rws-core の lib.rs 書き込みに失敗した");
+
+    let workspace_toml = project.join("Cargo.toml");
+    let original =
+        fs::read_to_string(&workspace_toml).expect("workspace Cargo.toml の読み込みに失敗した");
+    let injected = replace_unique(
+        &original,
+        "members = [\"app\"]",
+        "members = [\"app\", \"rws-core\"]",
+    );
+    fs::write(&workspace_toml, injected).expect("workspace Cargo.toml の書き込みに失敗した");
+
+    let app_toml = project.join("app").join("Cargo.toml");
+    let original = fs::read_to_string(&app_toml).expect("app/Cargo.toml の読み込みに失敗した");
+    // `[dev-dependencies]` に限定することで、本ケースが「テストターゲット
+    // 経由でのみ到達可能な raw_html 呼び出し」であることを固定する
+    // （通常ビルド・`cargo check` では rws-core 自体がコンパイル対象にならない）。
+    let injected =
+        format!("{original}\n[dev-dependencies]\nrws-core = {{ path = \"../rws-core\" }}\n");
+    fs::write(&app_toml, injected).expect("app/Cargo.toml の書き込みに失敗した");
+
+    let app_tests = project.join("app").join("tests");
+    fs::create_dir_all(&app_tests).expect("app/tests/ ディレクトリの作成に失敗した");
+    fs::write(
+        app_tests.join("raw_html_leak.rs"),
+        "//! イシュー #315 負例回帰フィクスチャ: テストターゲット内の未レビュー\n\
+         //! `raw_html()` 呼び出し。`--all-targets` なしの `cargo clippy` では\n\
+         //! 到達しないターゲットであることが本ケースの前提。\n\n\
+         #[test]\n\
+         fn calls_raw_html_without_review_marker() {\n    \
+         let _ = rws_core::raw_html(\"<script>alert(1)</script>\".to_string());\n\
+         }\n",
+    )
+    .expect("app/tests/raw_html_leak.rs の書き込みに失敗した");
+
+    let lockfile_output = Command::new("cargo")
+        .args(["generate-lockfile", "--offline"])
+        .current_dir(project)
+        .output()
+        .expect("cargo generate-lockfile の再実行に失敗した");
+    assert!(
+        lockfile_output.status.success(),
+        "raw_html 注入後の cargo generate-lockfile --offline に失敗した: {}",
         String::from_utf8_lossy(&lockfile_output.stderr)
     );
 }
@@ -307,4 +382,53 @@ fn banned_dependency_blocks_gate_with_policy_failure() {
              ブロック理由が含まれるはず（PoC-7 と同じブロック理由の確認）: stdout={stdout}"
         );
     }
+}
+
+/// ケース 4（イシュー #315: `fw gate` の `lint` チェックへの `--all-targets`
+/// 拡張の回帰防止）。
+///
+/// テストターゲット（`app/tests/raw_html_leak.rs`）内のみに、レビュー
+/// マーカーなしの `raw_html()` 呼び出しを配置する。`default_escape_check`
+/// （保険層）は `src/` 配下のみを走査するため本ケースを検出できず、
+/// `lint` チェック（`cargo clippy --all-targets`、主防御）のみが検出できる
+/// ことをアサーションで固定する。将来 `--all-targets` が誤って外された場合、
+/// 本テストが「`lint` が passed のまま BLOCKED にならない」偽陰性として
+/// 退行を検知する（coding-rust.md「XSS 回帰テストは削除・弱体化しない」）。
+#[test]
+fn unreviewed_raw_html_in_test_target_is_blocked_by_lint() {
+    let project = write_case_project("raw-html-in-test-target", baseline_main_rs());
+    inject_raw_html_call_in_test_target(&project);
+
+    let (code, stdout, stderr) = run_fw_gate(&project);
+
+    assert_eq!(
+        code, 1,
+        "テストターゲット内の未レビュー raw_html() 呼び出しが fw gate を \
+         通過してしまった（--all-targets の検出境界差が再発している）: \
+         stdout={stdout} stderr={stderr}"
+    );
+    assert!(
+        stdout.contains("\"gate_result\":\"BLOCKED\""),
+        "stdout={stdout}"
+    );
+    assert_eq!(
+        check_passed(&stdout, "lint"),
+        Some(false),
+        "lint（cargo clippy --all-targets）が failed であるはず。イシュー #315 の \
+         `--all-targets` 拡張が退行するとテストターゲット内の raw_html() が \
+         検出されず、この行が Some(true) に変わる: stdout={stdout}"
+    );
+    assert_eq!(
+        check_passed(&stdout, "default_escape_check"),
+        Some(true),
+        "default_escape_check（保険層）は `tests/` を走査対象外とするため \
+         通過するはず（本ケースの検出が `lint` の `--all-targets` 経由で \
+         あることの核心アサーション）: stdout={stdout}"
+    );
+    assert_eq!(
+        check_passed(&stdout, "type_check"),
+        Some(true),
+        "type_check（cargo check、テストターゲットを含まない）は無関係な \
+         まま通過するはず（ブロック理由の特定性）: stdout={stdout}"
+    );
 }

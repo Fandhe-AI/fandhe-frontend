@@ -53,8 +53,8 @@ REQ-1（既定エスケープ）の唯一の許容迂回経路は `rws_core::raw
 1. **`clippy.toml`**（workspace ルート・`templates/default/`）に
    `disallowed-methods = [{ path = "rws_core::raw_html", reason = "..." }]` を
    宣言する。`clippy::disallowed_methods` は設定時 warn-by-default の lint だが、
-   `fw gate` の `lint` チェック（`cargo clippy --locked -p <crate> -- -D warnings`）
-   と CI の `-D warnings` によりエラー化される。
+   `fw gate` の `lint` チェック（`cargo clippy --locked --all-targets -p <crate> -- -D warnings`、
+   `--all-targets` はイシュー #315 で追加）と CI の `-D warnings` によりエラー化される。
 2. **正当なオプトインは属性のみ**とする。
 
    ```rust
@@ -103,7 +103,7 @@ REQ-1（既定エスケープ）の唯一の許容迂回経路は `rws_core::raw
 
 | 層 | 実体 | 役割 | 偽装耐性 |
 |----|------|------|---------|
-| 主防御 | `clippy::disallowed_methods`（`cargo clippy -- -D warnings`, CI `clippy` ジョブ） | コンパイラのパス解決に基づく偽装不能な検出 | 高 |
+| 主防御 | `clippy::disallowed_methods`（`fw gate` `lint`・CI `clippy` ジョブとも `cargo clippy --all-targets -- -D warnings`、イシュー #299/#315） | コンパイラのパス解決に基づく偽装不能な検出。`--all-targets` によりテストターゲット内呼び出しも検出範囲に含む | 高 |
 | 保険層 | `default_escape_check`（テキスト走査、`cli/src/gate.rs`） | clippy が見ない領域・`fw gate` 単体実行時の二次防御 | 中（属性方式化により旧方式より向上） |
 | 監査層 | ブランケット抑止検出（`default_escape_check` 内） | オプトイン地点・一括無効化を `file:line` で可視化 | — |
 | ゲート設定の健全性 | `clippy_policy_check`（`lint` チェック） | `clippy.toml` 欠落による沈黙化を fail-closed で検出 | — |
