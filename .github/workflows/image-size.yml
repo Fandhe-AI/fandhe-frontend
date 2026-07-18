@@ -59,6 +59,14 @@ jobs:
     # 計測結果・失敗モードが変わり得る（runner ラベルの細分化は本変更の
     # スコープ外。ユーザー指示に従い `self-hosted` のまま据え置く）。
     runs-on: self-hosted
+    timeout-minutes: 30
+    env:
+      # self-hosted runner には HTTP プロキシ env が設定されており、localhost 宛
+      # 通信までプロキシへ飛ばしてしまう事例が確認されている（team-hub
+      # ci.yml の test/full-cycle-e2e ジョブと同一の前提）。本ジョブは後段で
+      # コンテナの内部 IP へ直接 curl するため通常は該当しないはずだが、
+      # 念のため localhost 系をプロキシ除外しておく。
+      NO_PROXY: "localhost,127.0.0.1,::1"
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（ci.yml と同一 SHA に固定）。
@@ -66,6 +74,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
 
       - name: Setup Rust toolchain
         # deps-check.yml と同一の理由・同一 SHA 固定（本ジョブ末尾の
@@ -90,9 +99,19 @@ jobs:
         # fail-closed: 起動待ちのリトライを使い切っても応答しない場合は
         # そのまま失敗させる（`docker logs` を出力してから終了コード非 0 で
         # 終わる）。
+        #
+        # PR #291 実 CI 実行で判明（DooD: Docker-outside-of-Docker）: 本 self-hosted
+        # runner 自体がコンテナであり、`docker run -p 3100:3100` はホスト側の
+        # ループバックにポートを公開する。runner コンテナの 127.0.0.1 はホストの
+        # 127.0.0.1 とは別のネットワーク名前空間のため、`-p` 公開 + ホストの
+        # 127.0.0.1 への curl では接続できない（`curl: (7) Failed to connect`）。
+        # ここではホストポート公開をやめ、rws-ci コンテナ自身の内部 IP を
+        # `docker inspect` で取得して直接アクセスする（runner コンテナも同じ
+        # docker デーモンのデフォルト bridge ネットワークに接続されている前提で、
+        # コンテナ間通信は同一 bridge 上の IP 経由で成立する）。
         run: |
           set -euo pipefail
-          docker run -d --name rws-ci -p 3100:3100 rws-dist-server:ci
+          docker run -d --name rws-ci rws-dist-server:ci
 
           # curl の body 破棄先には `/dev/null` を使わない。GitHub Actions の
           # ubuntu-latest ランナーでは、curl 8.x が `-o /dev/null` に対して
@@ -104,20 +123,23 @@ jobs:
           discard="$(mktemp)"
           trap 'rm -f "$discard"' EXIT
 
+          container_ip=""
           ready=0
           for _ in $(seq 1 30); do
-            if curl -fsS -o "$discard" http://127.0.0.1:3100/static/wasm/rws_wasm_full.js; then
+            container_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' rws-ci 2>/dev/null || true)
+            if [ -n "$container_ip" ] && curl -fsS -o "$discard" "http://${container_ip}:3100/static/wasm/rws_wasm_full.js"; then
               ready=1
               break
             fi
             sleep 1
           done
           if [ "$ready" -ne 1 ]; then
-            echo "::error::rws-dist-server:ci did not become ready within 30s" >&2
+            echo "::error::rws-dist-server:ci did not become ready within 30s (container_ip=${container_ip:-<unresolved>})" >&2
             docker logs rws-ci || true
             docker rm -f rws-ci || true
             exit 1
           fi
+          base_url="http://${container_ip}:3100"
 
           # 破棄先を mktemp の実ファイルに変更した後も、GitHub Actions の
           # ubuntu-latest ランナー上では curl 8.x が稀に
@@ -143,16 +165,16 @@ jobs:
             return 0
           }
 
-          js_status=$(curl_retry -s -o "$discard" -w '%{http_code}' http://127.0.0.1:3100/static/wasm/rws_wasm_full.js)
-          js_type=$(curl_retry -s -o "$discard" -w '%{content_type}' http://127.0.0.1:3100/static/wasm/rws_wasm_full.js)
+          js_status=$(curl_retry -s -o "$discard" -w '%{http_code}' ${base_url}/static/wasm/rws_wasm_full.js)
+          js_type=$(curl_retry -s -o "$discard" -w '%{content_type}' ${base_url}/static/wasm/rws_wasm_full.js)
           if [ "$js_status" != "200" ] || [ "${js_type#text/javascript}" = "$js_type" ]; then
             echo "::error::rws_wasm_full.js: expected 200 text/javascript, got status=${js_status} content_type=${js_type}" >&2
             docker rm -f rws-ci || true
             exit 1
           fi
 
-          wasm_status=$(curl_retry -s -o "$discard" -w '%{http_code}' http://127.0.0.1:3100/static/wasm/rws_wasm_full_bg.wasm)
-          wasm_type=$(curl_retry -s -o "$discard" -w '%{content_type}' http://127.0.0.1:3100/static/wasm/rws_wasm_full_bg.wasm)
+          wasm_status=$(curl_retry -s -o "$discard" -w '%{http_code}' ${base_url}/static/wasm/rws_wasm_full_bg.wasm)
+          wasm_type=$(curl_retry -s -o "$discard" -w '%{content_type}' ${base_url}/static/wasm/rws_wasm_full_bg.wasm)
           if [ "$wasm_status" != "200" ] || [ "$wasm_type" != "application/wasm" ]; then
             echo "::error::rws_wasm_full_bg.wasm: expected 200 application/wasm, got status=${wasm_status} content_type=${wasm_type}" >&2
             docker rm -f rws-ci || true
@@ -165,7 +187,7 @@ jobs:
           trap 'rm -f "$discard" "$magic_file"' EXIT
           magic_ok=0
           for _ in 1 2 3; do
-            if curl -fsS -o "$magic_file" http://127.0.0.1:3100/static/wasm/rws_wasm_full_bg.wasm; then
+            if curl -fsS -o "$magic_file" ${base_url}/static/wasm/rws_wasm_full_bg.wasm; then
               magic_ok=1
               break
             fi
@@ -182,7 +204,7 @@ jobs:
             exit 1
           fi
 
-          not_found_status=$(curl_retry -s -o "$discard" -w '%{http_code}' http://127.0.0.1:3100/static/wasm/does-not-exist.wasm)
+          not_found_status=$(curl_retry -s -o "$discard" -w '%{http_code}' ${base_url}/static/wasm/does-not-exist.wasm)
           if [ "$not_found_status" != "404" ]; then
             echo "::error::unknown /static/wasm/ path expected 404, got ${not_found_status}" >&2
             docker rm -f rws-ci || true

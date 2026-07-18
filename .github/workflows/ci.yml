@@ -82,6 +82,7 @@ jobs:
   test:
     name: Rust workspace tests
     runs-on: self-hosted
+    timeout-minutes: 30
     steps:
       - name: Checkout
         # actions/checkout v4.2.2。docs/spec/ サブモジュールはテストに不要なため
@@ -89,6 +90,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
 
       - name: Setup Rust toolchain
         # deps-check.yml と同一の理由・同一 SHA 固定: self-hosted runner プールには
@@ -204,6 +206,7 @@ jobs:
   dist-server-embedded-mode:
     name: rws-dist-server embedded mode (force-embed)
     runs-on: self-hosted
+    timeout-minutes: 15
     # TASK-10.2b（#110）: 本ジョブの目的は force-embed フィーチャーによる
     # AssetMode 切り替え検証（static/ 埋め込みテーブル経路）であり、WASM
     # ビルドステージの統合検証は `test` ジョブが専任する。責務を分離し
@@ -217,6 +220,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
 
       - name: Setup Rust toolchain
         # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
@@ -270,6 +274,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
 
       - name: Setup Rust toolchain
         # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
@@ -278,29 +283,77 @@ jobs:
         with:
           toolchain: stable
 
-      # 前提（self-hosted 移行、ユーザー指示 2026-07-18）: 本ジョブは
-      # headless Chrome + chromedriver を必要とする。GitHub-hosted
+      # 前提（self-hosted 移行、ユーザー指示 2026-07-18。PR #291 実 CI 実行で
+      # self-hosted runner（コンテナ型、root 実行）には Chrome も
+      # chromedriver も存在せず fail-closed で失敗することを確認）: GitHub-hosted
       # ubuntu-latest は Chrome/chromedriver をプリインストール済みだが、
-      # self-hosted runner にはその保証がない。実行環境側で Chrome +
-      # 対応バージョンの chromedriver を事前導入しておくこと（本ジョブは
-      # 未検出時に fail-closed で明示エラーとする。下記 "Resolve chromedriver
-      # path" 参照）。
-      - name: Resolve chromedriver path (self-hosted may lack CHROMEWEBDRIVER)
-        id: chromedriver
-        # CHROMEWEBDRIVER は GitHub-hosted ランナー限定の環境変数（内蔵
-        # chromedriver へのパス）で、self-hosted には設定されない。設定されて
-        # いればそちらを優先し（「検証済み事前導入バイナリのみ使用し、
-        # wasm-pack の実行時自動ダウンロードは行わない」という既存方針を維持）、
-        # なければ PATH 上の chromedriver を探索する。どちらも見つからない
-        # 場合は fail-closed とし、self-hosted 側の前提未整備を明示する。
+      # self-hosted にはその保証がないため、Chrome for Testing（Google 公式の
+      # テスト専用ビルド）と対応バージョンの chromedriver をこのジョブ内で
+      # バージョン固定 + SHA256 チェックサム検証付きで導入する（他ジョブの
+      # cargo-deny/wasm-bindgen-cli/wasm-pack と同一のサプライチェーン対策
+      # パターン）。ダウンロード元は Chrome for Testing の公式配布元
+      # （storage.googleapis.com/chrome-for-testing-public）。
+      - name: Ensure unzip is available (self-hosted minimal image)
+        # Chrome for Testing は .zip 配布のため unzip が必要。他の pinned
+        # ツール（wasm-pack 等）は .tar.gz のため今まで unzip 不要だった。
+        # 存在チェック付きインストール（root 実行のため sudo 不要）。
         run: |
           set -euo pipefail
-          if [ -n "${CHROMEWEBDRIVER:-}" ] && [ -x "${CHROMEWEBDRIVER}/chromedriver" ]; then
-            echo "path=${CHROMEWEBDRIVER}/chromedriver" >> "$GITHUB_OUTPUT"
-          elif command -v chromedriver >/dev/null 2>&1; then
-            echo "path=$(command -v chromedriver)" >> "$GITHUB_OUTPUT"
-          else
-            echo "::error::chromedriver not found (neither CHROMEWEBDRIVER nor PATH). self-hosted runner requires Chrome + matching chromedriver pre-installed." >&2
+          if ! command -v unzip >/dev/null 2>&1; then
+            if command -v apt-get >/dev/null 2>&1; then
+              apt-get update -qq
+              apt-get install -y --no-install-recommends unzip
+            else
+              echo "::error::unzip not found and apt-get unavailable. self-hosted runner image requires unzip pre-installed." >&2
+              exit 1
+            fi
+          fi
+
+      - name: Install Chrome for Testing + chromedriver (Stable channel, pinned + checksum-verified)
+        id: install_chrome
+        # バージョン・SHA256 は https://googlechromelabs.github.io/chrome-for-testing/ の
+        # last-known-good-versions-with-downloads.json（Stable チャンネル）から取得し、
+        # ダウンロード物を実際に sha256sum で検証した値を固定する。chrome と
+        # chromedriver は必ず同一バージョンを使う（プロトコル不一致による
+        # セッション確立失敗を避けるため）。
+        # chromedriver は Linux 上で Chrome バイナリを PATH から名前 "chrome"
+        # （chromium/chromium の chrome_finder.cc GetChromeProgramNames 参照）で
+        # 探索するため、Chrome の実行ファイルは同梱リソース（*.pak/icudtl.dat/
+        # 共有ライブラリ）と同一ディレクトリに置いたまま、そのディレクトリ自体を
+        # PATH に追加する（バイナリ単体だけを移動すると壊れる）。
+        run: |
+          set -euo pipefail
+          CFT_VERSION="151.0.7922.34"
+          CHROME_SHA256="ae8736ac28bc69278551500f219fc749575648263c43ec5990749eff43b9fcf8"
+          CHROMEDRIVER_SHA256="3c2b6780156f44f3a26db5bee4a3b193d608eda55644de5287e6edf4aef2f4ac"
+          INSTALL_DIR="${HOME}/.local/share/chrome-for-testing"
+          mkdir -p "${INSTALL_DIR}" "${HOME}/.local/bin"
+
+          curl -sSfL -o chrome-linux64.zip "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chrome-linux64.zip"
+          echo "${CHROME_SHA256}  chrome-linux64.zip" | sha256sum -c -
+          unzip -q -o chrome-linux64.zip -d "${INSTALL_DIR}"
+
+          curl -sSfL -o chromedriver-linux64.zip "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chromedriver-linux64.zip"
+          echo "${CHROMEDRIVER_SHA256}  chromedriver-linux64.zip" | sha256sum -c -
+          unzip -q -o chromedriver-linux64.zip -d "${INSTALL_DIR}"
+          install -m 755 "${INSTALL_DIR}/chromedriver-linux64/chromedriver" "${HOME}/.local/bin/chromedriver"
+
+          echo "${INSTALL_DIR}/chrome-linux64" >> "$GITHUB_PATH"
+          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+          echo "chromedriver_path=${HOME}/.local/bin/chromedriver" >> "$GITHUB_OUTPUT"
+
+      - name: Verify headless Chrome launches (self-hosted shared-library check)
+        # Chrome for Testing の実行に必要な共有ライブラリ（libnss3 / libgbm1 /
+        # libasound2 等）が self-hosted のコンテナイメージに無い場合、バイナリは
+        # 存在してもここで失敗する。fail-closed のまま、不足ライブラリを ldd で
+        # 特定してエラーに含める（runner イメージ側の常設要件を明示するため）。
+        run: |
+          set -euo pipefail
+          if ! chrome --headless --no-sandbox --disable-gpu --dump-dom about:blank >/tmp/chrome-smoke.log 2>&1; then
+            echo "::error::Chrome for Testing failed to launch in headless mode. self-hosted runner image may be missing required shared libraries." >&2
+            cat /tmp/chrome-smoke.log >&2
+            echo "::error::ldd missing libraries (if any):" >&2
+            ldd "$(command -v chrome)" 2>&1 | grep "not found" >&2 || echo "(ldd did not report missing libraries; failure cause is something else — see log above)" >&2
             exit 1
           fi
 
@@ -358,13 +411,13 @@ jobs:
           install -m 755 "wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" "${HOME}/.local/bin/wasm-pack"
           echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
 
-      # chromedriver のパスは上記 "Resolve chromedriver path" ステップの出力
-      # （self-hosted では CHROMEWEBDRIVER が使えないため PATH 探索へフォール
-      # バックする）を使う。実行時の chromedriver 自動ダウンロードを防ぎ、
-      # 事前導入済みの検証済みバイナリのみを使用する方針は維持する。
+      # chromedriver のパスは上記 "Install Chrome for Testing + chromedriver" の
+      # 出力を使う。wasm-bindgen-test-runner（wasm-pack test の実体）は
+      # CHROMEDRIVER 環境変数を読み、指定されたバイナリを直接起動する
+      # （crates/cli/src/wasm_bindgen_test_runner/headless.rs の Driver::find）。
       - name: Run browser tests (headless Chrome)
         if: steps.check.outputs.exists == 'true'
-        run: CHROMEDRIVER="${{ steps.chromedriver.outputs.path }}" wasm-pack test --headless --chrome wasm-client
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-client
 
       # `Runtime::mount`/`Runtime::hydrate` の実ブラウザ統合テスト（TASK-11.2d・
       # #77）。xss-wasm-test/perf-harness ジョブ（同じ wasm-full クレート）とは
@@ -374,7 +427,7 @@ jobs:
       # perf-harness ジョブ自体は変更しない）。
       - name: Run wasm-full Runtime browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${{ steps.chromedriver.outputs.path }}" wasm-pack test --headless --chrome wasm-full --test runtime_browser
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test runtime_browser
 
       # TASK-11.4c（#84、親 #81）: read_hydration_attrs（実 DOM からの
       # data-hydrate-* 属性列挙）の実ブラウザ統合テスト（wasm-full/tests/
@@ -383,7 +436,7 @@ jobs:
       # （`docs/hydration-state-format.md` 第 6 節が引き継ぐ実ブラウザ検証）。
       - name: Run wasm-full hydration browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${{ steps.chromedriver.outputs.path }}" wasm-pack test --headless --chrome wasm-full --test hydration_browser
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test hydration_browser
 
   # TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）: 同一文書内更新向け
   # ラッパー関数（`static/view-transitions.js` の `withViewTransition`、
@@ -421,6 +474,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
 
       - name: Setup Rust toolchain
         # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
@@ -429,21 +483,58 @@ jobs:
         with:
           toolchain: stable
 
-      # 前提（self-hosted 移行、ユーザー指示 2026-07-18）: browser-test ジョブと
-      # 同一の理由で Chrome + chromedriver の事前導入が必要（下記 "Resolve
-      # chromedriver path" 参照）。
-      - name: Resolve chromedriver path (self-hosted may lack CHROMEWEBDRIVER)
-        id: chromedriver
-        # browser-test ジョブと同一ロジック（CHROMEWEBDRIVER 優先・PATH フォール
-        # バック・fail-closed）。
+      # 前提（self-hosted 移行、ユーザー指示 2026-07-18。PR #291 実 CI 実行で
+      # Chrome/chromedriver 不在の fail-closed を確認）: browser-test ジョブと
+      # 同一の理由・同一パターンで Chrome for Testing + chromedriver を
+      # バージョン固定 + SHA256 チェックサム検証付きで導入する。
+      - name: Ensure unzip is available (self-hosted minimal image)
         run: |
           set -euo pipefail
-          if [ -n "${CHROMEWEBDRIVER:-}" ] && [ -x "${CHROMEWEBDRIVER}/chromedriver" ]; then
-            echo "path=${CHROMEWEBDRIVER}/chromedriver" >> "$GITHUB_OUTPUT"
-          elif command -v chromedriver >/dev/null 2>&1; then
-            echo "path=$(command -v chromedriver)" >> "$GITHUB_OUTPUT"
-          else
-            echo "::error::chromedriver not found (neither CHROMEWEBDRIVER nor PATH). self-hosted runner requires Chrome + matching chromedriver pre-installed." >&2
+          if ! command -v unzip >/dev/null 2>&1; then
+            if command -v apt-get >/dev/null 2>&1; then
+              apt-get update -qq
+              apt-get install -y --no-install-recommends unzip
+            else
+              echo "::error::unzip not found and apt-get unavailable. self-hosted runner image requires unzip pre-installed." >&2
+              exit 1
+            fi
+          fi
+
+      - name: Install Chrome for Testing + chromedriver (Stable channel, pinned + checksum-verified)
+        id: install_chrome
+        # browser-test ジョブと同一バージョン・同一チェックサム（chrome/
+        # chromedriver は同一バージョンで揃える必要がある）。
+        run: |
+          set -euo pipefail
+          CFT_VERSION="151.0.7922.34"
+          CHROME_SHA256="ae8736ac28bc69278551500f219fc749575648263c43ec5990749eff43b9fcf8"
+          CHROMEDRIVER_SHA256="3c2b6780156f44f3a26db5bee4a3b193d608eda55644de5287e6edf4aef2f4ac"
+          INSTALL_DIR="${HOME}/.local/share/chrome-for-testing"
+          mkdir -p "${INSTALL_DIR}" "${HOME}/.local/bin"
+
+          curl -sSfL -o chrome-linux64.zip "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chrome-linux64.zip"
+          echo "${CHROME_SHA256}  chrome-linux64.zip" | sha256sum -c -
+          unzip -q -o chrome-linux64.zip -d "${INSTALL_DIR}"
+
+          curl -sSfL -o chromedriver-linux64.zip "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chromedriver-linux64.zip"
+          echo "${CHROMEDRIVER_SHA256}  chromedriver-linux64.zip" | sha256sum -c -
+          unzip -q -o chromedriver-linux64.zip -d "${INSTALL_DIR}"
+          install -m 755 "${INSTALL_DIR}/chromedriver-linux64/chromedriver" "${HOME}/.local/bin/chromedriver"
+
+          echo "${INSTALL_DIR}/chrome-linux64" >> "$GITHUB_PATH"
+          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+          echo "chromedriver_path=${HOME}/.local/bin/chromedriver" >> "$GITHUB_OUTPUT"
+
+      - name: Verify headless Chrome launches (self-hosted shared-library check)
+        # browser-test ジョブと同一ロジック（ldd で不足共有ライブラリを特定して
+        # fail-closed で報告する）。
+        run: |
+          set -euo pipefail
+          if ! chrome --headless --no-sandbox --disable-gpu --dump-dom about:blank >/tmp/chrome-smoke.log 2>&1; then
+            echo "::error::Chrome for Testing failed to launch in headless mode. self-hosted runner image may be missing required shared libraries." >&2
+            cat /tmp/chrome-smoke.log >&2
+            echo "::error::ldd missing libraries (if any):" >&2
+            ldd "$(command -v chrome)" 2>&1 | grep "not found" >&2 || echo "(ldd did not report missing libraries; failure cause is something else — see log above)" >&2
             exit 1
           fi
 
@@ -494,7 +585,7 @@ jobs:
         if: steps.check.outputs.exists == 'true'
         run: |
           set -o pipefail
-          CHROMEDRIVER="${{ steps.chromedriver.outputs.path }}" wasm-pack test --headless --chrome wasm-full --test perf_browser -- --nocapture 2>&1 | tee perf-harness.log
+          CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test perf_browser -- --nocapture 2>&1 | tee perf-harness.log
 
       - name: Publish perf-harness summary
         if: always() && steps.check.outputs.exists == 'true'
@@ -534,6 +625,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
 
       - name: Setup Rust toolchain
         # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
@@ -564,26 +656,60 @@ jobs:
           install -m 755 "wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" "${HOME}/.local/bin/wasm-pack"
           echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
 
-      # 前提（self-hosted 移行、ユーザー指示 2026-07-18）: browser-test/
-      # perf-harness ジョブと同一の理由で Chrome + chromedriver の事前導入が
-      # 必要。CHROMEWEBDRIVER は GitHub-hosted ランナー限定の環境変数のため、
-      # self-hosted では PATH 上の chromedriver へフォールバックする
-      # （見つからない場合は fail-closed）。
-      - name: Resolve chromedriver path (self-hosted may lack CHROMEWEBDRIVER)
-        id: chromedriver
+      # 前提（self-hosted 移行、ユーザー指示 2026-07-18。PR #291 実 CI 実行で
+      # Chrome/chromedriver 不在の fail-closed を確認）: browser-test/
+      # perf-harness ジョブと同一パターンで Chrome for Testing + chromedriver を
+      # バージョン固定 + SHA256 チェックサム検証付きで導入する。
+      - name: Ensure unzip is available (self-hosted minimal image)
         run: |
           set -euo pipefail
-          if [ -n "${CHROMEWEBDRIVER:-}" ] && [ -x "${CHROMEWEBDRIVER}/chromedriver" ]; then
-            echo "path=${CHROMEWEBDRIVER}/chromedriver" >> "$GITHUB_OUTPUT"
-          elif command -v chromedriver >/dev/null 2>&1; then
-            echo "path=$(command -v chromedriver)" >> "$GITHUB_OUTPUT"
-          else
-            echo "::error::chromedriver not found (neither CHROMEWEBDRIVER nor PATH). self-hosted runner requires Chrome + matching chromedriver pre-installed." >&2
+          if ! command -v unzip >/dev/null 2>&1; then
+            if command -v apt-get >/dev/null 2>&1; then
+              apt-get update -qq
+              apt-get install -y --no-install-recommends unzip
+            else
+              echo "::error::unzip not found and apt-get unavailable. self-hosted runner image requires unzip pre-installed." >&2
+              exit 1
+            fi
+          fi
+
+      - name: Install Chrome for Testing + chromedriver (Stable channel, pinned + checksum-verified)
+        id: install_chrome
+        # browser-test/perf-harness ジョブと同一バージョン・同一チェックサム。
+        run: |
+          set -euo pipefail
+          CFT_VERSION="151.0.7922.34"
+          CHROME_SHA256="ae8736ac28bc69278551500f219fc749575648263c43ec5990749eff43b9fcf8"
+          CHROMEDRIVER_SHA256="3c2b6780156f44f3a26db5bee4a3b193d608eda55644de5287e6edf4aef2f4ac"
+          INSTALL_DIR="${HOME}/.local/share/chrome-for-testing"
+          mkdir -p "${INSTALL_DIR}" "${HOME}/.local/bin"
+
+          curl -sSfL -o chrome-linux64.zip "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chrome-linux64.zip"
+          echo "${CHROME_SHA256}  chrome-linux64.zip" | sha256sum -c -
+          unzip -q -o chrome-linux64.zip -d "${INSTALL_DIR}"
+
+          curl -sSfL -o chromedriver-linux64.zip "https://storage.googleapis.com/chrome-for-testing-public/${CFT_VERSION}/linux64/chromedriver-linux64.zip"
+          echo "${CHROMEDRIVER_SHA256}  chromedriver-linux64.zip" | sha256sum -c -
+          unzip -q -o chromedriver-linux64.zip -d "${INSTALL_DIR}"
+          install -m 755 "${INSTALL_DIR}/chromedriver-linux64/chromedriver" "${HOME}/.local/bin/chromedriver"
+
+          echo "${INSTALL_DIR}/chrome-linux64" >> "$GITHUB_PATH"
+          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+          echo "chromedriver_path=${HOME}/.local/bin/chromedriver" >> "$GITHUB_OUTPUT"
+
+      - name: Verify headless Chrome launches (self-hosted shared-library check)
+        run: |
+          set -euo pipefail
+          if ! chrome --headless --no-sandbox --disable-gpu --dump-dom about:blank >/tmp/chrome-smoke.log 2>&1; then
+            echo "::error::Chrome for Testing failed to launch in headless mode. self-hosted runner image may be missing required shared libraries." >&2
+            cat /tmp/chrome-smoke.log >&2
+            echo "::error::ldd missing libraries (if any):" >&2
+            ldd "$(command -v chrome)" 2>&1 | grep "not found" >&2 || echo "(ldd did not report missing libraries; failure cause is something else — see log above)" >&2
             exit 1
           fi
 
       - name: Run WASM XSS escape regression (headless Chrome)
-        run: CHROMEDRIVER="${{ steps.chromedriver.outputs.path }}" wasm-pack test --headless --chrome wasm-full --test xss_escape_wasm
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test xss_escape_wasm
 
   # TASK-12.2c（#124、REQ-12 受け入れ基準 2）: install.sh の --ignore-scripts
   # 強制（前段、TASK-12.1a・#38・マージ済み）と check_static_only.py の
@@ -599,6 +725,7 @@ jobs:
   npm-asset-build:
     name: NPM static asset gate (REQ-12)
     runs-on: self-hosted
+    timeout-minutes: 15
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。
@@ -606,6 +733,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
 
       - name: Setup Node.js
         # update-external.yml と同一 SHA 固定。ubuntu-latest には node/npm が
@@ -674,6 +802,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
 
       - name: Setup Rust toolchain
         # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
@@ -756,6 +885,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
 
       - name: Setup Rust toolchain
         # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
@@ -810,6 +940,7 @@ jobs:
   loc-check:
     name: REQ-8/REQ-11 glue JS effective LOC limit (10 lines, issues #62/#156)
     runs-on: self-hosted
+    timeout-minutes: 10
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（同一ファイル内の test ジョブと同一 SHA に固定）。
@@ -817,6 +948,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
 
       - name: Setup Rust toolchain
         # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
@@ -856,6 +988,7 @@ jobs:
   template-negative-type-error:
     name: TASK-4.4 templates/default 型不正コード機械的検出の受け入れ基準検証
     runs-on: self-hosted
+    timeout-minutes: 15
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（test/loc-check ジョブと同一 SHA に固定）。
@@ -863,6 +996,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
 
       - name: Setup Rust toolchain
         # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
@@ -895,6 +1029,7 @@ jobs:
   clippy:
     name: REQ-1 raw_html() 検出（clippy disallowed_methods, issue #157）
     runs-on: self-hosted
+    timeout-minutes: 20
     # forbid-unsafe ジョブと同じ理由で dist-server の WASM ネストビルドを
     # オプトアウトする: `cargo clippy --workspace` は dist-server/build.rs 経由で
     # ネストした cargo build + wasm-bindgen 起動を伴うが、本ジョブの runner には
@@ -910,6 +1045,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+          persist-credentials: false
 
       - name: Setup Rust toolchain
         # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
