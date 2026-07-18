@@ -442,10 +442,17 @@ jobs:
               # apt-cache の候補有無で実体パッケージ名を解決してから渡す。
               asound_pkg=libasound2t64
               apt-cache show "${asound_pkg}" >/dev/null 2>&1 || asound_pkg=libasound2
+              # libcups2 も libasound2 と同様、Noble 系 Ubuntu では実体を持たない
+              # 仮想パッケージ（提供元は libcups2t64）に置き換わっており、
+              # そのまま指定すると `has no installation candidate` で
+              # apt-get install が失敗しうる（Bugbot 指摘 #305 review 4728367863）。
+              # apt-cache の候補有無で実体パッケージ名を解決してから渡す。
+              cups_pkg=libcups2t64
+              apt-cache show "${cups_pkg}" >/dev/null 2>&1 || cups_pkg=libcups2
               apt-get install -y --no-install-recommends \
                 libnss3 libnspr4 \
                 libatk1.0-0 libatk-bridge2.0-0 libatspi2.0-0 \
-                libcups2 libdbus-1-3 \
+                "${cups_pkg}" libdbus-1-3 \
                 libx11-6 libxext6 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxkbcommon0 \
                 libcairo2 libpango-1.0-0 \
                 libgbm1 "${asound_pkg}"
@@ -773,10 +780,17 @@ jobs:
               # apt-cache の候補有無で実体パッケージ名を解決してから渡す。
               asound_pkg=libasound2t64
               apt-cache show "${asound_pkg}" >/dev/null 2>&1 || asound_pkg=libasound2
+              # libcups2 も libasound2 と同様、Noble 系 Ubuntu では実体を持たない
+              # 仮想パッケージ（提供元は libcups2t64）に置き換わっており、
+              # そのまま指定すると `has no installation candidate` で
+              # apt-get install が失敗しうる（Bugbot 指摘 #305 review 4728367863）。
+              # apt-cache の候補有無で実体パッケージ名を解決してから渡す。
+              cups_pkg=libcups2t64
+              apt-cache show "${cups_pkg}" >/dev/null 2>&1 || cups_pkg=libcups2
               apt-get install -y --no-install-recommends \
                 libnss3 libnspr4 \
                 libatk1.0-0 libatk-bridge2.0-0 libatspi2.0-0 \
-                libcups2 libdbus-1-3 \
+                "${cups_pkg}" libdbus-1-3 \
                 libx11-6 libxext6 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxkbcommon0 \
                 libcairo2 libpango-1.0-0 \
                 libgbm1 "${asound_pkg}"
@@ -1136,10 +1150,17 @@ jobs:
               # apt-cache の候補有無で実体パッケージ名を解決してから渡す。
               asound_pkg=libasound2t64
               apt-cache show "${asound_pkg}" >/dev/null 2>&1 || asound_pkg=libasound2
+              # libcups2 も libasound2 と同様、Noble 系 Ubuntu では実体を持たない
+              # 仮想パッケージ（提供元は libcups2t64）に置き換わっており、
+              # そのまま指定すると `has no installation candidate` で
+              # apt-get install が失敗しうる（Bugbot 指摘 #305 review 4728367863）。
+              # apt-cache の候補有無で実体パッケージ名を解決してから渡す。
+              cups_pkg=libcups2t64
+              apt-cache show "${cups_pkg}" >/dev/null 2>&1 || cups_pkg=libcups2
               apt-get install -y --no-install-recommends \
                 libnss3 libnspr4 \
                 libatk1.0-0 libatk-bridge2.0-0 libatspi2.0-0 \
-                libcups2 libdbus-1-3 \
+                "${cups_pkg}" libdbus-1-3 \
                 libx11-6 libxext6 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxkbcommon0 \
                 libcairo2 libpango-1.0-0 \
                 libgbm1 "${asound_pkg}"
