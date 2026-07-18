@@ -10,9 +10,10 @@ rustdoc（`cargo doc -p rws-core --open`）を一次情報源とし、本ドキ�
 導線とパターン集を提供します。
 
 > **対象バージョン**: 本ドキュメントは `core/src/lib.rs` の公開 API（`Node` / `el` /
-> `text` / `raw_html` / `render` / `escape_html` / `escape_html_into`）を対象とします。
-> タグショートカット（`div()`/`p()` 等）は TASK-5.1 系のスコープ外注記のとおり
-> 未実装であり、追加され次第このドキュメントも更新されます（Issue #29 参照）。
+> `text` / `raw_html` / `render` / `escape_html` / `escape_html_into`）と、
+> `core/src/tags.rs`（`tags` モジュール）のタグショートカット群（`div()`/`p()`
+> 等の TASK-5.1b 最小セット + Issue #164 で拡張した `span()`/`table()`/`form()`
+> 等）を対象とします。
 
 ## 1. 概要と設計思想
 
@@ -222,6 +223,44 @@ REQ-1（既定エスケープ）の入口 API です。ユーザー由来の文�
 という契約を自分で守る必要があります。`text()`/`el()` 経由で使う限り、この
 契約は `rws-core` が自動的に満たします。
 
+### タグショートカット（`core::tags` モジュール、Issue #164）
+
+`el("div", attrs, children)` の代わりに `div(attrs, children)` のように書ける
+薄いヘルパー関数群です。すべて `el()` への一行委譲であり、独自の出力経路・
+独自のエスケープ処理は一切持ちません（上記「既定エスケープ」の保証がそのまま
+適用されます）。シグネチャは共通で
+`fn <name>(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node` です。
+
+| 分類 | ヘルパー |
+|------|---------|
+| 構造 | `div` / `span` / `section` / `header` / `footer` / `nav` / `article` / `aside` / `main_tag` |
+| 見出し | `h1` / `h2` / `h3` / `h4` / `h5` / `h6` |
+| リスト | `ul` / `ol` / `li` |
+| テキスト | `p` / `a` / `strong` / `em` / `small` / `blockquote` / `pre` / `code` |
+| フォーム | `form` / `label` / `input` / `button` / `textarea` |
+| テーブル | `table` / `thead` / `tbody` / `tr` / `th` / `td` / `caption` |
+| void 要素 | `img` / `br` / `hr`（`input` はフォーム分類にも記載） |
+
+```rust
+use rws_core::{div, p, text, render};
+
+let node = div(vec![("class", "card")], vec![p(vec![], vec![text("hello")])]);
+assert_eq!(render(&node), r#"<div class="card"><p>hello</p></div>"#);
+```
+
+**既知の制約（void 要素）**: `img`/`br`/`hr`/`input` は HTML では void 要素
+（終了タグを持たない）ですが、`render()` は v1 では常に終了タグを出力する
+現行仕様を凍結しています（`docs/component-api.md` 第 3 節・判断 4）。
+`img(vec![("src", "/logo.png")], vec![])` は `<img src="/logo.png"></img>`
+になります。自己終端出力への最適化は将来課題です。
+
+**意図的に提供しないヘルパー**: `script`/`style`/`iframe` は攻撃面が大きい
+タグであり、標準ヘルパーとして書きやすくすることを避けるため提供しません。
+必要な場合は `el("script", ...)` のように明示的に書いてください。
+`select`/`option` は Rust の `Option` 型との混同を避けるため、属性なし版
+ヘルパー（`div_()` 等）・attrs ビルダ API は API 表面の肥大化を避けるため、
+それぞれ不採用としています。
+
 ## 5. セキュリティ: 既定エスケープと `raw_html()` の扱い
 
 `rws-core` の中核的な不変条件（REQ-1）は次の 2 点です。
@@ -284,7 +323,80 @@ assert_eq!(render(&node), "<div><b>bold</b></div>");
 利用者コードでも使用しないでください（`.claude/rules/coding-rust.md` の
 「HTML 文字列の直接組み立て禁止」）。
 
-## 6. 生成 HTML の素直さ
+## 6. ノード木記述の可読性規約（インデント・分割規約、Issue #164）
+
+素の関数呼び出しでノード木を組み立てる書き味は、ネストが深くなるほど JSX 風
+マクロより読みにくくなります（PoC-3 発見事項 4）。`rws-core` は新しい構文や
+マクロを導入せず、**純 Rust の範囲での記述規約**でこれに対応します。
+
+1. **整形は `cargo fmt` に委ねる**。手整形（独自の改行・インデント調整）は
+   せず、rustfmt 既定設定の出力をそのまま正とします。`Vec` リテラル・関数
+   呼び出しの末尾には可能な限りカンマを付け、rustfmt が縦積みレイアウトを
+   安定して選ぶようにします。
+2. **ネスト 3 段を超えたら関数抽出**を目安にします。「コンポーネントは
+   `Node` を返す通常の Rust 関数」という第 3 節の原則をそのまま運用指針にし、
+   深いネストになった部分木を別関数へ切り出します。
+3. **意味のあるまとまりに中間 `let` 束縛で名前を付けます**。
+   `let list_items: Vec<Node> = ...` のように、リスト生成やレイアウト合成の
+   結果に一度名前を与えてから親要素に渡すと、親要素の呼び出し自体が短くなり
+   読みやすくなります。
+4. **リストはイテレータ → `collect::<Vec<Node>>()`、条件分岐は `if`/`match`、
+   空は空 `Vec`** という第 3.3〜3.5 節の規約と整合させます。
+5. **属性なしは `vec![]` をそのまま書きます**。タプル `("class", "x")` は
+   既に素の Rust であり、属性省略版ヘルパー（`div_()` 等）や attrs ビルダ
+   API のような追加の抽象化は導入しません（API 表面の肥大化を避けるための
+   意図的な不採用判断です）。
+
+### Before / After
+
+`app/src/lib.rs` の `list_page` を素材にした例です。ネストしたリスト生成を
+関数呼び出しの引数に直接書くと読みにくくなります。
+
+```rust,ignore
+// Before: リスト生成をそのまま el() の引数に埋め込むと、
+// 「どこからどこまでが 1 項目分か」が読み取りにくい。
+fn list_page_before(items: &[Item]) -> Node {
+    ul(
+        vec![("data-testid", "item-list")],
+        items
+            .iter()
+            .map(|it| {
+                let href = format!("/items/{}", it.id);
+                li(
+                    vec![],
+                    vec![a(
+                        vec![("href", &href), ("data-nav", &href)],
+                        vec![text(it.title.clone())],
+                    )],
+                )
+            })
+            .collect(),
+    )
+}
+```
+
+```rust,ignore
+// After: 中間 let 束縛（list_items）でリスト生成の結果に名前を付け、
+// 親要素（ul）の呼び出しを短く保つ（実際の list_page 実装と同型）。
+fn list_page_after(items: &[Item]) -> Node {
+    let list_items: Vec<Node> = items
+        .iter()
+        .map(|it| {
+            let href = format!("/items/{}", it.id);
+            li(
+                vec![],
+                vec![a(
+                    vec![("href", &href), ("data-nav", &href)],
+                    vec![text(it.title.clone())],
+                )],
+            )
+        })
+        .collect();
+    ul(vec![("data-testid", "item-list")], list_items)
+}
+```
+
+## 7. 生成 HTML の素直さ
 
 `rws-core` はコンポーネントが生成する HTML に、観測用の `data-*` 属性以外の
 フレームワーク固有マーカー（不透明なカスタム要素・隠しラッパー要素等）を
@@ -296,7 +408,7 @@ assert_eq!(render(&node), "<div><b>bold</b></div>");
 対象でもあり、コンポーネント記述側で意図的にマーカーを増やす変更をする際は
 `TASK-5.2` 系の回帰テストへの影響を確認してください。
 
-## 7. コンパイルエラー体験
+## 8. コンパイルエラー体験
 
 `rws-core` は手続きマクロを経由しないため、コンポーネント関数内の型の誤り
 （例: `el()` の引数の型不一致、`Vec<Node>` を要求する箇所に `Node` 単体を
@@ -305,21 +417,25 @@ assert_eq!(render(&node), "<div><b>bold</b></div>");
 （REQ-5 受け入れ基準 3）。この体験の定性評価は TASK-5.3 で改めてレビューされ
 る予定です。
 
-## 8. スコープと今後
+## 9. スコープと今後
 
 - **ハイドレーション・状態管理**（`rws-interactive`、TASK-6.x）は本ドキュメント
   の範囲外です。既存 DOM へのイベント配線・状態復元の記述方式は別ドキュメント
   で扱います。
 - **タグショートカット**（`div()`/`p()` 等のヘルパー関数）・
-  **ハイドレーション支援関数**（`find_attr_values`/`find_nav_targets` 相当）は
-  `core/src/lib.rs` の現時点のスコープ外注記のとおり未実装です。TASK-5.1 系
-  （Issue #29 配下）で追加された場合、本ドキュメントの「4. API リファレンス」
-  に追記します。
+  **ハイドレーション支援関数**（`find_attr_values`/`find_nav_targets`）は
+  実装済みです（第 4 節参照）。タグショートカットは TASK-5.1b の最小セットに
+  加え、Issue #164 で `span`/`table`/`form` 等の拡張セットを実装しました
+  （`core/src/tags.rs`）。
+- **void 要素の自己終端出力最適化**（`<br />` 等）は本ドキュメントのスコープ外
+  のまま未起票です（`docs/component-api.md` 第 3 節・判断 4、第 5 節参照）。
+- **`select`/`option` ヘルパー・attrs ビルダ API**は Issue #164 で検討のうえ
+  不採用としました（第 6 節参照）。
 - **SSR/SSG/CSR の三モード描画**（`render()`/`mount_csr()`/`hydrate()`、REQ-6）
   は `rws-server`/`rws-wasm-client` 側の統合ドキュメントで扱います。本
   ドキュメントは `rws-core` 単体のノード木記述方式に焦点を当てています。
 
-## 9. 関連ドキュメント
+## 10. 関連ドキュメント
 
 - `docs/spec/04-requirements.md`（REQ-5: 独自 DSL に依存しないプレーン Rust
   コンポーネント記述、REQ-1: 既定エスケープ）
