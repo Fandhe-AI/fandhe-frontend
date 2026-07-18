@@ -58,9 +58,18 @@ ensure_clippy() {
 # 指摘 BUGBOT_BUG_ID: 1c88c06e / コミット 64ecb28 対応）と同一パターンを
 # ここへ一元化し、ci.yml とのバージョン pin 二重管理によるドリフトを防ぐ。
 ensure_cargo_deny() {
-  if cargo deny --version >/dev/null 2>&1; then
-    echo "ensure-gate-tools: cargo-deny already available"
-    return 0
+  # PATH 上に cargo-deny が存在しても、ピン留めバージョンと一致しない限り
+  # 早期リターンしない。バージョン検証なしで早期リターンすると、self-hosted
+  # runner に別バージョンの cargo-deny が既設の場合、CI がサプライチェーン
+  # 対策として固定した ${CARGO_DENY_VERSION} を検証せず素通りしてしまう
+  # （Bugbot 指摘、PR #305 対応）。
+  local existing_version=""
+  if existing_version="$(cargo deny --version 2>/dev/null)"; then
+    if [[ "${existing_version}" == *" ${CARGO_DENY_VERSION}"* ]]; then
+      echo "ensure-gate-tools: cargo-deny ${CARGO_DENY_VERSION} already available on PATH"
+      return 0
+    fi
+    echo "ensure-gate-tools: found cargo-deny on PATH (${existing_version}) but pinned version is ${CARGO_DENY_VERSION}; installing pinned binary and prepending it to PATH"
   fi
 
   local share_dir="${HOME}/.local/share/cargo-deny"
