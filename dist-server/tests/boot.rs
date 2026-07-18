@@ -18,6 +18,11 @@
 //! `[dev-dependencies]` は空のまま — REQ-3 の趣旨、`dist-server/Cargo.toml`
 //! 冒頭コメント参照）。プロセス起動・HTTP 通信はすべて `std` のみで行う。
 //!
+//! プロセス起動・HTTP 送受信ヘルパー（`ChildGuard`・`spawn_and_wait_for_port`・
+//! `wait_with_timeout` 等）は TASK-9.2a / TASK-9.4（イシュー #99 / #104）で
+//! `tests/support/mod.rs` へ集約され、`tests/isolated_run.rs`・
+//! `tests/xss_via_embedded_binary.rs` と共有している。
+//!
 //! # #97 完了時点でのカバレッジ（`docs/dist-server-design.md` 8 節との対応）
 //!
 //! 親イシュー #94（PR #244）の前倒し実装により、本ファイルは元々 4 観点
@@ -37,7 +42,6 @@
 
 mod support;
 
-use std::io::Read;
 use std::process::{Command, Stdio};
 use std::time::Duration;
 use support::{
@@ -185,6 +189,7 @@ fn bind_conflict_exits_non_zero_with_fixed_stderr_message() {
         .take()
         .expect("stderr must be piped for spawned child");
     let stderr_reader = std::thread::spawn(move || {
+        use std::io::Read;
         let mut stderr = String::new();
         let mut stderr_pipe = stderr_pipe;
         stderr_pipe
