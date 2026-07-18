@@ -48,6 +48,20 @@ use std::process::Command;
 /// 肥大化防止・秘密情報の意図しない大量転記防止（security.md A09）。
 const OUTPUT_TRUNCATE_CHARS: usize = 4000;
 
+/// 「コード起因の FAIL」と「実行環境にツールが無いだけの failed」を区別する
+/// ための決定的な出力プレフィックス（イシュー #292）。
+///
+/// self-hosted runner プールは clippy component / cargo-deny の導入状態が
+/// インスタンスごとに異なり、`lint` / `policy` チェックがどの runner に
+/// 当たるかで間欠的に BLOCKED になっていた。JSON 契約（`checks[].name` /
+/// `passed` / `output`、PoC-7 互換）の形状は変えず、`output` の先頭にこの
+/// プレフィックスを置くことで区別を表現する。**SKIP や黙示的 PASS には
+/// 倒さない**（fail-closed 維持、security.md A05）。ツールの自動インストールも
+/// ここでは行わない（検証ゲートは検証のみに専念させ、ネットワーク非依存・
+/// サプライチェーン面の不拡大を維持する。導入は `tools/ci/ensure-gate-tools.sh`
+/// の責務とする）。
+const ENVIRONMENT_ERROR_PREFIX: &str = "environment error: ";
+
 /// 1 チェックの結果。PoC-7 互換の JSON 形状（`name`/`passed`/`output`）を保つ。
 pub(crate) struct GateCheck {
     pub(crate) name: &'static str,
@@ -333,6 +347,61 @@ without it `cargo clippy` cannot detect unreviewed raw_html() calls (see templat
     None
 }
 
+/// `cargo clippy` 本実行の直前に疎通確認する（イシュー #292）。
+///
+/// clippy component 不在の runner では `cargo clippy` 起動自体が失敗するが、
+/// その失敗はコード内容とは無関係な環境要因であり、コード起因の lint 違反と
+/// 区別できないと「同じ BLOCKED」が原因不明のまま繰り返される。ここで軽量な
+/// `cargo clippy --version` を先に起動し、失敗時のみ [`ENVIRONMENT_ERROR_PREFIX`]
+/// 付きの決定的なメッセージ（是正コマンド付き）で `lint` を failed とする。
+/// 疎通確認自体が成功した場合は `None` を返し、呼び出し元が本実行へ進む。
+fn clippy_environment_preflight(
+    runner: &dyn CommandRunner,
+    project_dir: &Path,
+) -> Option<GateCheck> {
+    let (available, output) = runner.run("cargo", &["clippy", "--version"], project_dir);
+    if available {
+        return None;
+    }
+    Some(GateCheck {
+        name: "lint",
+        passed: false,
+        output: format!(
+            "{ENVIRONMENT_ERROR_PREFIX}`cargo clippy` is not available on this runner \
+({}); run `rustup component add clippy` or `tools/ci/ensure-gate-tools.sh` to install it, \
+then re-run `fw gate`",
+            truncate_output(&output)
+        ),
+    })
+}
+
+/// `cargo deny` 本実行の直前に疎通確認する（イシュー #292、
+/// [`clippy_environment_preflight`] と同一方針）。
+///
+/// cargo-deny 未導入の runner では `cargo deny check ...` の起動自体が
+/// 失敗し、`deny.toml` の実際のポリシー違反と区別が付かない。`deny.toml`
+/// 存在確認の後・本実行の前に `cargo deny --version` で疎通確認し、失敗時のみ
+/// [`ENVIRONMENT_ERROR_PREFIX`] 付きの決定的なメッセージで `policy` を
+/// failed とする。
+fn cargo_deny_environment_preflight(
+    runner: &dyn CommandRunner,
+    project_dir: &Path,
+) -> Option<GateCheck> {
+    let (available, output) = runner.run("cargo", &["deny", "--version"], project_dir);
+    if available {
+        return None;
+    }
+    Some(GateCheck {
+        name: "policy",
+        passed: false,
+        output: format!(
+            "{ENVIRONMENT_ERROR_PREFIX}`cargo deny` is not available on this runner ({}); \
+run `tools/ci/ensure-gate-tools.sh` to install it, then re-run `fw gate`",
+            truncate_output(&output)
+        ),
+    })
+}
+
 fn run_cargo_clippy(runner: &dyn CommandRunner, project_dir: &Path, crates: &[&str]) -> GateCheck {
     // `--locked` はロックファイル逸脱（依存すり替え）検出のため `type_check` /
     // `test`（`run_locked_cargo_subcommand`）と同様に常に付与する
@@ -353,6 +422,11 @@ fn run_cargo_clippy(runner: &dyn CommandRunner, project_dir: &Path, crates: &[&s
     // `cargo clippy` を起動すると「検出項目が何もない」正常終了になり得るため
     // （黙示的 PASS）、起動前にポリシー設定自体の存在を検証する。
     if let Some(check) = clippy_policy_check(project_dir) {
+        return check;
+    }
+    // イシュー #292: ポリシー設定の健全性確認の後・本実行の直前に、clippy
+    // component 自体が起動可能かを疎通確認する（runner 環境差の決定的な区別）。
+    if let Some(check) = clippy_environment_preflight(runner, project_dir) {
         return check;
     }
     // `-- -D warnings` は cargo 引数の後段（サブコマンド固有引数)として渡す
@@ -396,6 +470,11 @@ fn policy_check(runner: &dyn CommandRunner, project_dir: &Path) -> GateCheck {
                 deny_toml.display()
             ),
         };
+    }
+    // イシュー #292: `deny.toml` 存在確認の後・本実行の直前に、cargo-deny 本体が
+    // 起動可能かを疎通確認する（runner 環境差の決定的な区別）。
+    if let Some(check) = cargo_deny_environment_preflight(runner, project_dir) {
+        return check;
     }
     let (passed, output) = runner.run(
         "cargo",
@@ -893,6 +972,72 @@ mod tests {
         let check = run_cargo_clippy(&PanicIfCalledRunner, &dir, &[]);
         assert!(!check.passed);
         assert!(check.output.contains("no crate declared"));
+    }
+
+    // ------------------------------------------------------------------
+    // イシュー #292: self-hosted runner の環境差（clippy component /
+    // cargo-deny の有無）による `fw gate` 間欠 BLOCKED の解消。
+    // 「コード起因の FAIL」と「ツール不在の環境エラー」を決定的に区別する
+    // プリフライトの単体テスト。
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn clippy_environment_preflight_passes_through_when_clippy_available() {
+        let dir = std::env::temp_dir();
+        let runner = FakeRunner {
+            responses: Mutex::new(vec![(true, "clippy 0.1.0".to_string())]),
+        };
+        assert!(clippy_environment_preflight(&runner, &dir).is_none());
+    }
+
+    #[test]
+    fn clippy_environment_preflight_fails_closed_with_environment_error_when_unavailable() {
+        let dir = std::env::temp_dir();
+        let runner = FakeRunner {
+            responses: Mutex::new(vec![(
+                false,
+                "error: no such subcommand: `clippy`".to_string(),
+            )]),
+        };
+        let check = clippy_environment_preflight(&runner, &dir).expect("must fail closed");
+        assert_eq!(check.name, "lint");
+        assert!(!check.passed);
+        assert!(
+            check.output.starts_with(ENVIRONMENT_ERROR_PREFIX),
+            "output={}",
+            check.output
+        );
+        assert!(check.output.contains("rustup component add clippy"));
+        assert!(check.output.contains("tools/ci/ensure-gate-tools.sh"));
+    }
+
+    #[test]
+    fn cargo_deny_environment_preflight_passes_through_when_deny_available() {
+        let dir = std::env::temp_dir();
+        let runner = FakeRunner {
+            responses: Mutex::new(vec![(true, "cargo-deny 0.16.4".to_string())]),
+        };
+        assert!(cargo_deny_environment_preflight(&runner, &dir).is_none());
+    }
+
+    #[test]
+    fn cargo_deny_environment_preflight_fails_closed_with_environment_error_when_unavailable() {
+        let dir = std::env::temp_dir();
+        let runner = FakeRunner {
+            responses: Mutex::new(vec![(
+                false,
+                "failed to launch `cargo`: No such file or directory".to_string(),
+            )]),
+        };
+        let check = cargo_deny_environment_preflight(&runner, &dir).expect("must fail closed");
+        assert_eq!(check.name, "policy");
+        assert!(!check.passed);
+        assert!(
+            check.output.starts_with(ENVIRONMENT_ERROR_PREFIX),
+            "output={}",
+            check.output
+        );
+        assert!(check.output.contains("tools/ci/ensure-gate-tools.sh"));
     }
 
     #[test]
@@ -1469,7 +1614,14 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("deny.toml"), "# test fixture\n").unwrap();
 
-        let runner = ArgsRecordingRunner::new(vec![(true, "ok".to_string())]);
+        // イシュー #292: `policy_check` はプリフライト（`cargo deny --version`）
+        // → 本実行の順で 2 回 `runner.run` を呼ぶため、応答を 2 つ積む。
+        // `last_call()` は最後の呼び出し（本実行）を指すため、既存のアサーションは
+        // そのまま「本実行の引数契約」を検証し続ける。
+        let runner = ArgsRecordingRunner::new(vec![
+            (true, "cargo-deny 0.16.4".to_string()),
+            (true, "ok".to_string()),
+        ]);
         let check = policy_check(&runner, &dir);
         assert!(check.passed);
 
@@ -1497,11 +1649,20 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("deny.toml"), "# test fixture\n").unwrap();
 
+        // プリフライトは成功させ（環境要因ではなくコード内容起因の失敗である
+        // ことを固定する）、本実行のみを失敗させる。
         let long_output = "x".repeat(OUTPUT_TRUNCATE_CHARS + 100);
-        let runner = ArgsRecordingRunner::new(vec![(false, long_output)]);
+        let runner = ArgsRecordingRunner::new(vec![
+            (true, "cargo-deny 0.16.4".to_string()),
+            (false, long_output),
+        ]);
         let check = policy_check(&runner, &dir);
         assert!(!check.passed);
         assert_eq!(check.output.chars().count(), OUTPUT_TRUNCATE_CHARS);
+        assert!(
+            !check.output.starts_with(ENVIRONMENT_ERROR_PREFIX),
+            "code-caused cargo-deny failure must not be mislabeled as an environment error"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -1551,7 +1712,12 @@ mod tests {
         )
         .unwrap();
 
-        let runner = ArgsRecordingRunner::new(vec![(true, "ok".to_string())]);
+        // イシュー #292: プリフライト（`cargo clippy --version`）→ 本実行の順で
+        // 2 回 `runner.run` が呼ばれる。
+        let runner = ArgsRecordingRunner::new(vec![
+            (true, "clippy 0.1.0".to_string()),
+            (true, "ok".to_string()),
+        ]);
         let check = run_cargo_clippy(&runner, &dir, &["rws-core", "rws-app"]);
         assert!(check.passed);
 
@@ -1678,10 +1844,12 @@ mod tests {
     #[test]
     fn run_all_checks_returns_expected_check_names_in_order() {
         let (manifest, dir) = all_checks_pass_fixture();
-        // 3 つの cargo 系チェック（type_check/lint/test）分のフェイク応答。
-        // policy は deny.toml 存在時に cargo-deny を 1 回起動するため 4 応答。
+        // type_check(1) + lint のプリフライト(1)+本実行(1) + test(1)
+        // + policy のプリフライト(1)+本実行(1)（イシュー #292 で各 2 応答に増加）。
         let runner = FakeRunner {
             responses: Mutex::new(vec![
+                (true, String::new()),
+                (true, String::new()),
                 (true, String::new()),
                 (true, String::new()),
                 (true, String::new()),
@@ -1702,8 +1870,12 @@ mod tests {
     #[test]
     fn run_all_checks_all_success_yields_pass() {
         let (manifest, dir) = all_checks_pass_fixture();
+        // イシュー #292: lint / policy それぞれプリフライト分の応答が追加で必要
+        // （run_all_checks_returns_expected_check_names_in_order と同数）。
         let runner = FakeRunner {
             responses: Mutex::new(vec![
+                (true, String::new()),
+                (true, String::new()),
                 (true, String::new()),
                 (true, String::new()),
                 (true, String::new()),

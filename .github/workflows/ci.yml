@@ -115,59 +115,16 @@ jobs:
       # 実行下で strict 分岐（ベースライン PASS・banned 依存検出の具体的な
       # ブロック理由）が実行されるようにする（下記 wasm-bindgen-cli の
       # 導入ステップと同一のサプライチェーン対策パターン、security.md A06）。
-      - name: Install cargo-deny (pinned + checksum-verified, atomic install)
-        # self-hosted 移行に伴い、インストール先を /usr/local/bin から
-        # $HOME/.local/share/cargo-deny/<version>/ へ変更する（ubuntu-latest の
-        # runner ユーザーは /usr/local/bin へ sudo 無しで書き込めるが、
-        # self-hosted の非 root 実行ユーザーには同じ前提が成り立たない可能性が
-        # あるため）。
-        #
-        # Cursor Bugbot 指摘（BUGBOT_BUG_ID: 1c88c06e、PR #291）: 複数ジョブが
-        # 並列実行される self-hosted では、共有 $HOME 配下の同一固定パスへ
-        # 複数ジョブが同時に download/展開/install すると互いのツリーや
-        # バイナリを破損し得る（"Shared HOME Chrome install races" 指摘の
-        # 一般形。wasm-bindgen 系にも同一機構の実在リスクがあった）。対策として
-        # バージョン文字列をパスに含めた不変パス
-        # （$HOME/.local/share/cargo-deny/<version>/）へインストールし、
-        # 一時ディレクトリ（$HOME と同一ファイルシステム上）で
-        # ダウンロード・チェックサム検証・展開を完了させたうえで
-        # `mv -T`（同一ファイルシステム内なら atomic rename）で最終配置する。
-        # mv の終了コードには依存せず、失敗時は宛先に完全な成果物が既にある
-        # かで成否を判定する（coreutils 9.2 以降は `mv -n` が宛先既存時に
-        # 非ゼロ終了するようになったため `-n` は使わない。Cursor Bugbot 指摘
-        # High/Medium、コミット 64ecb28 対応）。
-        # 最終パスが既にバージョン一致で存在すれば再ダウンロードをスキップする
-        # （バージョンがパス自体に埋め込まれているため、存在＝正しいバージョンで
-        # ある保証になる）。これにより並列実行時も「未完成の中間状態」が他
-        # ジョブから見えることはなく、後勝ちの mv はサイレントに no-op となる
-        # （同一バージョンの内容は決定的に同一であるため、どちらの実体が
-        # 生き残っても結果は同じ）。
-        run: |
-          set -euo pipefail
-          CARGO_DENY_VERSION="0.16.4"
-          CARGO_DENY_SHA256="28b7f8e12df46a9ce186547e38278c851905fc4bda59a0cc57d2aade9fdf6962"
-          SHARE_DIR="${HOME}/.local/share/cargo-deny"
-          INSTALL_DIR="${SHARE_DIR}/${CARGO_DENY_VERSION}"
-          mkdir -p "${SHARE_DIR}"
-          if [ ! -x "${INSTALL_DIR}/cargo-deny" ]; then
-            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
-            trap 'rm -rf "${tmp_root}"' EXIT
-            ARCHIVE="cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz"
-            URL="https://github.com/EmbarkStudios/cargo-deny/releases/download/${CARGO_DENY_VERSION}/${ARCHIVE}"
-            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
-            echo "${CARGO_DENY_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
-            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
-            # mv の終了コードには依存しない（coreutils 9.2 以降は `mv -n` が
-            # 宛先既存時に非ゼロ終了するようになったため、`-n` は使わず、
-            # 失敗時は宛先に完全な成果物が既にあるかで成否を判定する。
-            # 並列実行中の他ジョブが同一バージョンを先に完全配置していた
-            # 場合は成功扱いとし、そうでなければ真の失敗として fail-closed
-            # する。Cursor Bugbot 指摘（High/Medium、コミット 64ecb28）対応）。
-            if ! mv -T "${tmp_root}/cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
-              [ -x "${INSTALL_DIR}/cargo-deny" ] || { echo "::error::failed to install cargo-deny to ${INSTALL_DIR}" >&2; exit 1; }
-            fi
-          fi
-          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
+      - name: Install cargo-deny / clippy component (ensure-gate-tools.sh)
+        # イシュー #292: self-hosted runner プールは clippy component /
+        # cargo-deny の導入状態がインスタンスごとに異なり、`fw gate` の
+        # `lint` / `policy` チェックが間欠的に BLOCKED になっていた。バージョン
+        # 固定 + SHA256 チェックサム検証 + atomic install（旧: 本ステップ直下、
+        # PR #291 Bugbot 指摘 BUGBOT_BUG_ID: 1c88c06e / コミット 64ecb28 対応）の
+        # ロジックは `tools/ci/ensure-gate-tools.sh` へ一元化し、`fw gate` を
+        # ローカル・自己保守フックから直接呼ぶ経路とバージョン pin を共有する
+        # （ci.yml 側と二重管理してドリフトさせない）。
+        run: tools/ci/ensure-gate-tools.sh
 
       # TASK-13.3c（#141）: 「連携」の回帰固定そのものを可視化する独立ステップ。
       # 上記で cargo-deny を導入済みの本ジョブでは negative_cases.rs が strict
@@ -466,15 +423,42 @@ jobs:
             # libnspr4/libnss3（libnssutil3・libsmime3 を含む）が不足しており
             # Chrome が起動できない（`chrome: error while loading shared
             # libraries: libnspr4.so: cannot open shared object file`）。
+            # PR #305 実 CI 実行（イシュー #292）で追加判明: libnss3/libnspr4
+            # のみの自動導入では不足で、libatk-1.0.so.0 等 Chromium 実行に
+            # 必要な共有ライブラリ群（ATK / D-Bus / X11 / Cairo・Pango /
+            # ALSA / GBM / AT-SPI 系）が広く不足していた。runner イメージの
+            # ベースにはデスクトップ GUI 系パッケージが入っていない前提のため、
+            # Chrome for Testing（Chromium 系）が要求する共有ライブラリを
+            # 提供する Debian/Ubuntu パッケージ一式をまとめて自動導入する。
             # root 実行のため sudo なしで apt-get install できることを利用し、
             # 既知の不足パッケージを自動導入して 1 回だけ再試行する。
-            echo "::notice::Chrome headless launch failed; attempting to install libnss3/libnspr4 and retry once." >&2
+            echo "::notice::Chrome headless launch failed; attempting to install Chromium shared-library dependencies and retry once." >&2
             if command -v apt-get >/dev/null 2>&1; then
               apt-get update -qq
-              apt-get install -y --no-install-recommends libnss3 libnspr4
+              # libasound2 は新しめの Ubuntu（本 runner 含む）では実体を持たない
+              # 仮想パッケージ（提供元は libasound2t64）になっており、
+              # そのまま指定すると `has no installation candidate` で
+              # apt-get install が失敗する（イシュー #292 実 CI 実行で判明）。
+              # apt-cache の候補有無で実体パッケージ名を解決してから渡す。
+              asound_pkg=libasound2t64
+              apt-cache show "${asound_pkg}" >/dev/null 2>&1 || asound_pkg=libasound2
+              # libcups2 も libasound2 と同様、Noble 系 Ubuntu では実体を持たない
+              # 仮想パッケージ（提供元は libcups2t64）に置き換わっており、
+              # そのまま指定すると `has no installation candidate` で
+              # apt-get install が失敗しうる（Bugbot 指摘 #305 review 4728367863）。
+              # apt-cache の候補有無で実体パッケージ名を解決してから渡す。
+              cups_pkg=libcups2t64
+              apt-cache show "${cups_pkg}" >/dev/null 2>&1 || cups_pkg=libcups2
+              apt-get install -y --no-install-recommends \
+                libnss3 libnspr4 \
+                libatk1.0-0 libatk-bridge2.0-0 libatspi2.0-0 \
+                "${cups_pkg}" libdbus-1-3 \
+                libx11-6 libxext6 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxkbcommon0 \
+                libcairo2 libpango-1.0-0 \
+                libgbm1 "${asound_pkg}"
             fi
             if ! check_chrome; then
-              echo "::error::Chrome for Testing failed to launch in headless mode even after installing libnss3/libnspr4. self-hosted runner image may be missing other shared libraries." >&2
+              echo "::error::Chrome for Testing failed to launch in headless mode even after installing the known Chromium shared-library dependencies. self-hosted runner image may be missing other shared libraries." >&2
               cat /tmp/chrome-smoke.log >&2
               echo "::error::ldd missing libraries (if any):" >&2
               ldd "$(command -v chrome)" 2>&1 | grep "not found" >&2 || echo "(ldd did not report missing libraries; failure cause is something else — see log above)" >&2
@@ -777,15 +761,42 @@ jobs:
             # libnspr4/libnss3（libnssutil3・libsmime3 を含む）が不足しており
             # Chrome が起動できない（`chrome: error while loading shared
             # libraries: libnspr4.so: cannot open shared object file`）。
+            # PR #305 実 CI 実行（イシュー #292）で追加判明: libnss3/libnspr4
+            # のみの自動導入では不足で、libatk-1.0.so.0 等 Chromium 実行に
+            # 必要な共有ライブラリ群（ATK / D-Bus / X11 / Cairo・Pango /
+            # ALSA / GBM / AT-SPI 系）が広く不足していた。runner イメージの
+            # ベースにはデスクトップ GUI 系パッケージが入っていない前提のため、
+            # Chrome for Testing（Chromium 系）が要求する共有ライブラリを
+            # 提供する Debian/Ubuntu パッケージ一式をまとめて自動導入する。
             # root 実行のため sudo なしで apt-get install できることを利用し、
             # 既知の不足パッケージを自動導入して 1 回だけ再試行する。
-            echo "::notice::Chrome headless launch failed; attempting to install libnss3/libnspr4 and retry once." >&2
+            echo "::notice::Chrome headless launch failed; attempting to install Chromium shared-library dependencies and retry once." >&2
             if command -v apt-get >/dev/null 2>&1; then
               apt-get update -qq
-              apt-get install -y --no-install-recommends libnss3 libnspr4
+              # libasound2 は新しめの Ubuntu（本 runner 含む）では実体を持たない
+              # 仮想パッケージ（提供元は libasound2t64）になっており、
+              # そのまま指定すると `has no installation candidate` で
+              # apt-get install が失敗する（イシュー #292 実 CI 実行で判明）。
+              # apt-cache の候補有無で実体パッケージ名を解決してから渡す。
+              asound_pkg=libasound2t64
+              apt-cache show "${asound_pkg}" >/dev/null 2>&1 || asound_pkg=libasound2
+              # libcups2 も libasound2 と同様、Noble 系 Ubuntu では実体を持たない
+              # 仮想パッケージ（提供元は libcups2t64）に置き換わっており、
+              # そのまま指定すると `has no installation candidate` で
+              # apt-get install が失敗しうる（Bugbot 指摘 #305 review 4728367863）。
+              # apt-cache の候補有無で実体パッケージ名を解決してから渡す。
+              cups_pkg=libcups2t64
+              apt-cache show "${cups_pkg}" >/dev/null 2>&1 || cups_pkg=libcups2
+              apt-get install -y --no-install-recommends \
+                libnss3 libnspr4 \
+                libatk1.0-0 libatk-bridge2.0-0 libatspi2.0-0 \
+                "${cups_pkg}" libdbus-1-3 \
+                libx11-6 libxext6 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxkbcommon0 \
+                libcairo2 libpango-1.0-0 \
+                libgbm1 "${asound_pkg}"
             fi
             if ! check_chrome; then
-              echo "::error::Chrome for Testing failed to launch in headless mode even after installing libnss3/libnspr4. self-hosted runner image may be missing other shared libraries." >&2
+              echo "::error::Chrome for Testing failed to launch in headless mode even after installing the known Chromium shared-library dependencies. self-hosted runner image may be missing other shared libraries." >&2
               cat /tmp/chrome-smoke.log >&2
               echo "::error::ldd missing libraries (if any):" >&2
               ldd "$(command -v chrome)" 2>&1 | grep "not found" >&2 || echo "(ldd did not report missing libraries; failure cause is something else — see log above)" >&2
@@ -1120,15 +1131,42 @@ jobs:
             # libnspr4/libnss3（libnssutil3・libsmime3 を含む）が不足しており
             # Chrome が起動できない（`chrome: error while loading shared
             # libraries: libnspr4.so: cannot open shared object file`）。
+            # PR #305 実 CI 実行（イシュー #292）で追加判明: libnss3/libnspr4
+            # のみの自動導入では不足で、libatk-1.0.so.0 等 Chromium 実行に
+            # 必要な共有ライブラリ群（ATK / D-Bus / X11 / Cairo・Pango /
+            # ALSA / GBM / AT-SPI 系）が広く不足していた。runner イメージの
+            # ベースにはデスクトップ GUI 系パッケージが入っていない前提のため、
+            # Chrome for Testing（Chromium 系）が要求する共有ライブラリを
+            # 提供する Debian/Ubuntu パッケージ一式をまとめて自動導入する。
             # root 実行のため sudo なしで apt-get install できることを利用し、
             # 既知の不足パッケージを自動導入して 1 回だけ再試行する。
-            echo "::notice::Chrome headless launch failed; attempting to install libnss3/libnspr4 and retry once." >&2
+            echo "::notice::Chrome headless launch failed; attempting to install Chromium shared-library dependencies and retry once." >&2
             if command -v apt-get >/dev/null 2>&1; then
               apt-get update -qq
-              apt-get install -y --no-install-recommends libnss3 libnspr4
+              # libasound2 は新しめの Ubuntu（本 runner 含む）では実体を持たない
+              # 仮想パッケージ（提供元は libasound2t64）になっており、
+              # そのまま指定すると `has no installation candidate` で
+              # apt-get install が失敗する（イシュー #292 実 CI 実行で判明）。
+              # apt-cache の候補有無で実体パッケージ名を解決してから渡す。
+              asound_pkg=libasound2t64
+              apt-cache show "${asound_pkg}" >/dev/null 2>&1 || asound_pkg=libasound2
+              # libcups2 も libasound2 と同様、Noble 系 Ubuntu では実体を持たない
+              # 仮想パッケージ（提供元は libcups2t64）に置き換わっており、
+              # そのまま指定すると `has no installation candidate` で
+              # apt-get install が失敗しうる（Bugbot 指摘 #305 review 4728367863）。
+              # apt-cache の候補有無で実体パッケージ名を解決してから渡す。
+              cups_pkg=libcups2t64
+              apt-cache show "${cups_pkg}" >/dev/null 2>&1 || cups_pkg=libcups2
+              apt-get install -y --no-install-recommends \
+                libnss3 libnspr4 \
+                libatk1.0-0 libatk-bridge2.0-0 libatspi2.0-0 \
+                "${cups_pkg}" libdbus-1-3 \
+                libx11-6 libxext6 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxkbcommon0 \
+                libcairo2 libpango-1.0-0 \
+                libgbm1 "${asound_pkg}"
             fi
             if ! check_chrome; then
-              echo "::error::Chrome for Testing failed to launch in headless mode even after installing libnss3/libnspr4. self-hosted runner image may be missing other shared libraries." >&2
+              echo "::error::Chrome for Testing failed to launch in headless mode even after installing the known Chromium shared-library dependencies. self-hosted runner image may be missing other shared libraries." >&2
               cat /tmp/chrome-smoke.log >&2
               echo "::error::ldd missing libraries (if any):" >&2
               ldd "$(command -v chrome)" 2>&1 | grep "not found" >&2 || echo "(ldd did not report missing libraries; failure cause is something else — see log above)" >&2
