@@ -194,3 +194,27 @@ rebuild-latency: samples=3 s1=0.617 s2=0.599 s3=0.653 max_s=0.653 limit_s=5.0 re
 - Issue #118（親・TASK-10.4）・#119（TASK-10.4a・
   `rebuild_latency.rs` 実装、本レポートの前提タスク）・#120（本レポート・
   TASK-10.4b）
+
+## 9. 追記（イシュー #294）: 判定プロトコルを max-of-N → min-of-N へ変更
+
+- 上記第 1〜8 節は TASK-10.4a/b 確定時点（max-of-N 判定）の記録として
+  そのまま保持する。以下は #294 対応（共有 self-hosted runner の CPU 競合に
+  よる間欠フレーク対策）による判定プロトコルの変更点の追記であり、既存の
+  実測ログ・判定根拠を書き換えるものではない。
+- 背景: PR #291 にて、N=3 サンプルの **最大値** を `LIMIT_SECONDS = 5.0`
+  と比較する従来判定が、共有 runner（6 並列）上の他ジョブとの CPU 競合で
+  1 サンプルのみ跳ねたこと（5.494 秒、rerun では 2.x〜4.x 秒台に収束）に
+  より間欠的に FAIL した。
+- 対応: `dist-server/src/bench_support.rs` の `judge()` を **最小値
+  （min-of-N）** 基準に変更した（本レポート第 2〜3 節が根拠とする PoC-4
+  実測 0.571〜0.597 秒・`LIMIT_SECONDS = 5.0` 自体は不変）。恒常的な性能
+  リグレッション（全サンプルが上限超過）は min 基準でも確実に検出でき、
+  受け入れ基準「リグレッション検出力の維持」は引き続き満たす。サマリ書式
+  には `min_s` を追加し、`max_s`（旧書式の主判定値）は観測性のため
+  そのまま残す。
+- 変更しないもの: `LIMIT_SECONDS = 5.0`・`SAMPLE_COUNT = 3`・
+  `runs-on: self-hosted`・緩和用 input / 環境変数 / continue-on-error を
+  設けない運用原則（第 7 節のセキュリティ・不変条件は本追記後も維持）。
+- 詳細な設計根拠は `dist-server/src/bench_support.rs` のモジュール
+  ドキュメント、CI 契約の変更点は `.github/workflows/ci.yml` の
+  `rebuild-latency` ジョブのコメントを参照（イシュー #294）。
