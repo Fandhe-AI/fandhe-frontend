@@ -56,3 +56,12 @@ pub mod assets;
 pub mod bench_support;
 pub mod mime;
 pub mod routes;
+/// TASK-10.2c（イシュー #111）: `build.rs` の WASM ビルドステージ キャッシュ
+/// 判定ロジック（fingerprint 計算・成果物完全性チェック）。`build.rs` 自身は
+/// パッケージ自身の lib を `build-dependencies` にできないため、
+/// `src/wasm_stage_cache.rs` を `#[path]` でソースレベル共有し、こちら側
+/// （通常のクレートモジュール）では `cargo test` によるユニットテスト対象と
+/// する。ベンチ本体からのみ利用する `bench_support` と同様、クレートの公開
+/// API 面を汚さないよう `#[doc(hidden)]` とする。
+#[doc(hidden)]
+pub mod wasm_stage_cache;

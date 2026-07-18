@@ -203,6 +203,19 @@ rust-embed ＋ mime_guess を feature 絞り込みしたもの＝表 A′）を�
 
 ### 4.5 debug/release アセット供給の DX 再現
 
+> **【実装済み・本節は設計当時の草案として履歴保存】** REQ-10（開発時アセット
+> 変更の即時反映）は TASK-10.1a（イシュー #106、PR #215）・TASK-10.1b
+> （イシュー #107、PR #216）で製品化済みです。現行実装は本節が想定した
+> `include_dir` クレートではなく、**外部依存を増やさない自前 `build.rs` +
+> `include_bytes!` 埋め込みテーブル**（`dist-server/build.rs` が生成する
+> `OUT_DIR/embedded_assets.rs` を `assets.rs` が `include!` する方式）を採用
+> しています。設計上の実装イメージ（下記コード例）と実際の API 形状
+> （`read_asset()` ではなく `lookup()` / `AssetMode` / `active_mode()`）も
+> 異なります。最新の正確な挙動・DX 手順は
+> **`docs/dev-asset-reload.md`** と `dist-server/src/assets.rs` の
+> モジュールドキュメントを参照してください。本節以下の記述は「TASK-9.1b
+> 着手前にどう考えていたか」の設計判断の経緯として残します。
+
 `rust-embed` が提供していた「debug ビルドはファイルシステムから読み、release
 ビルドはコンパイル時埋め込み」という DX（REQ-10 の即時反映と関連するが、
 REQ-10 自体の実装は本タスクのスコープ外）を、`include_dir` を使いながら
@@ -240,6 +253,15 @@ PoC-4 の `force-embed` feature 踏襲）は、`cfg(debug_assertions)` の代わ
 独自 feature（例: `force-embed`）で分岐を追加すれば同等に実現できる。この
 feature 名自体の予約のみ本書で行い、実装（feature 定義・CI 組み込み）は
 TASK-9.1b のスコープとする。
+
+**実装済みの実態（TASK-10.1a/b）**: `force-embed` は `dist-server/Cargo.toml`
+にコード・依存を一切持たない空フィーチャーとして定義済みで、
+`cfg(all(debug_assertions, not(feature = "force-embed")))` の判定にのみ関与
+します。CI ジョブ `dist-server-embedded-mode`（`.github/workflows/ci.yml`）が
+`cargo test -p rws-dist-server --features force-embed --locked` を実行し、
+debug ビルドのまま本番相当の `Embedded` モード（ファイルシステム読み込み
+コードが構造的に含まれない経路）を検証し続けます。詳細は
+`docs/dev-asset-reload.md` を参照してください。
 
 ## 5. 共通コア API との接続（REQ-6・REQ-7）
 
@@ -377,13 +399,18 @@ TASK-9.1c・#97 のスコープ、本節は観点の列挙のみ）。
 | `RWS_BIND_ADDR` の切り替え自体の検証（環境変数未設定/設定時の bind 先） | #162 |
 | Docker イメージサイズ計測 | TASK-9.3 |
 
-**実装状況（#94 側での前倒し実装）**: 親イシュー #94（TASK-9.1 全体の受け入れ
-検証）の着手時点で #97 が未マージだったため、本節の起動・エンドポイント疎通
-観点（バイナリ単体起動・`/` の 200・`/static/*` の 200・パストラバーサル 404・
-bind 失敗時の非 0 終了と固定 stderr 文言）は `dist-server/tests/boot.rs` として
-#94 側で実装済み。#97 は本ファイルとの重複実装を避けた上で残タスク
-（TASK-9.2 の CI 自動化・`/items/:id` 経路の起動検証等の拡充）があれば
-そちらで扱う。
+**実装状況（#94 側での前倒し実装、#97 で残ギャップ解消）**: 親イシュー #94
+（TASK-9.1 全体の受け入れ検証）の着手時点で #97 が未マージだったため、本節の
+起動・エンドポイント疎通観点のうち、バイナリ単体起動・`/` の 200・
+`/static/*` の 200・パストラバーサル 404・bind 失敗時の非 0 終了と固定 stderr
+文言は `dist-server/tests/boot.rs` として #94 側で前倒し実装済みだった。
+#97 では本ファイルとの重複を避けたうえで残っていたギャップ
+（`/items/:id` の既知 ID 200・未知 ID 404、未知パス（`/no-such-page`）404、
+静的アセットの `Content-Type` ヘッダ検証）を同じ `dist-server/tests/boot.rs`
+へ追補し、本節に列挙した起動・エンドポイント疎通観点をすべて実プロセス
+（子プロセス起動 + 素の `TcpStream`）で固定した。TASK-9.2 の CI 自動化・
+「無関係なディレクトリへコピーして起動」は引き続き `tests/isolated_run.rs`
+（#98、完了済み）が担当する。
 
 ## 9. スコープ外事項の列挙
 
@@ -409,7 +436,10 @@ bind 失敗時の非 0 終了と固定 stderr 文言）は `dist-server/tests/bo
   前提とする。`/search` 追加要否は 9.1b 以降で `rws-app` 側の対応関数の有無を
   再確認して判断する。
 - **`force-embed` 相当 feature の CI 組み込み**: feature 名の予約のみ本書で
-  行い、実装・CI ジョブ化は TASK-9.1b のスコープ。
+  行い、実装・CI ジョブ化は TASK-9.1b のスコープ。**【実装済み】** TASK-10.1a
+  （イシュー #106、PR #215）で `force-embed` フィーチャーと CI ジョブ
+  `dist-server-embedded-mode` を実装済み。詳細は 4.5 節の追記・
+  `docs/dev-asset-reload.md` を参照。
 - **`X-Content-Type-Options: nosniff` 等のセキュリティヘッダ付与**: 検討事項
   として記録するのみで、本書では必須要件としない（9.1b での採否判断に委ねる）。
 

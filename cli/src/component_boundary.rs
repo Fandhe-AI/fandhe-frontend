@@ -63,7 +63,11 @@ pub fn extract_public_symbols(
 }
 
 /// ソース文字列からトップレベル `pub` 宣言を抽出する（行頭一致・正規表現不使用）。
-fn extract_from_source(content: &str) -> Vec<PublicSymbol> {
+///
+/// `impact.rs`（TASK-13.2b, #134）が `fw impact` の定義元特定（シンボル名と
+/// 一致するトップレベル公開宣言の検索）に再利用するため `pub(crate)` として
+/// 公開する。
+pub(crate) fn extract_from_source(content: &str) -> Vec<PublicSymbol> {
     const PREFIXES: &[(&str, SymbolKind)] = &[
         ("pub fn ", SymbolKind::Fn),
         ("pub struct ", SymbolKind::Struct),

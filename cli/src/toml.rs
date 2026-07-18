@@ -195,7 +195,14 @@ pub fn parse(input: &str) -> Result<Document, TomlError> {
 }
 
 /// 行コメント（`#` 以降）を取り除く。文字列リテラル内の `#` は除去しない。
-fn strip_comment(line: &str) -> &str {
+///
+/// `gate::clippy_policy_is_configured` からも再利用される（`clippy.toml` の
+/// `disallowed-methods` エントリがコメントアウトされているだけなのに「設定
+/// 済み」と誤判定しないための comment-stripping、Bugbot 指摘 PR #263）。
+/// 本パーサ自体は `clippy.toml` の `disallowed-methods`（inline table の配列）
+/// をサポート対象外の構文として扱う（モジュール冒頭 doc コメント参照）ため、
+/// `gate` 側はこの関数だけを借りてテキストベースの緩い判定に用いる。
+pub(crate) fn strip_comment(line: &str) -> &str {
     let mut in_string = false;
     let mut escaped = false;
     for (i, c) in line.char_indices() {

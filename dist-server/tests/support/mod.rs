@@ -10,6 +10,25 @@
 //! （`#[path = "support/mod.rs"] mod support;` 不要 — ディレクトリ名がモジュール
 //! 名と一致するため通常の `mod` 宣言で解決される）で利用する。
 //!
+//! `tests/bind_addr.rs`（イシュー #162）は `RWS_BIND_ADDR` によるバインド
+//! アドレス・ポートの切り替え自体を検証対象とするため、`127.0.0.1:0`（OS
+//! 割当ポート）固定だった従来のヘルパでは検証できない（「指定した値が実際に
+//! 反映されたか」を確かめるには任意のアドレスを明示指定できる必要がある）。
+//! そのため [`spawn_and_wait_for_port`] は任意アドレスを受け付ける
+//! [`spawn_with_bind_addr`] への薄いラッパへ、[`parse_listening_port`] は
+//! 完全なアドレス文字列を返す [`parse_listening_addr`] への薄いラッパへ、
+//! [`send_http_request`] は接続先ホストを可変化した [`send_http_request_to`]
+//! への薄いラッパへ、それぞれ委譲する形にリファクタリングした。既存の公開
+//! 関数のシグネチャ・戻り値・呼び出し側からの見え方は変えていない。
+//!
+//! `spawn_with_bind_addr`・`parse_listening_addr`・`send_http_request_to` は
+//! それぞれ既存の `spawn_and_wait_for_port`・`send_http_request` から内部的に
+//! 呼ばれるため、`boot.rs` / `isolated_run.rs` のテストバイナリでも間接的に
+//! 使われており `dead_code` 警告の対象にならない。一方 `parse_listening_port`
+//! は `read_listening_addr` が `parse_listening_addr` を直接使う形に変わった
+//! ことで内部呼び出しが無くなったため、`#[allow(dead_code)]` を付けている
+//! （本モジュール既存の慣行を踏襲）。
+//!
 //! 外部 dev-dependency（reqwest 等）は追加しない（`dist-server/Cargo.toml` の
 //! `[dev-dependencies]` は空のまま — REQ-3 の趣旨）。プロセス起動・HTTP 通信は
 //! すべて `std` のみで行う。
@@ -19,9 +38,11 @@
 //! `tests/` 配下の各 `.rs` ファイルは cargo によって独立したテストバイナリへ
 //! コンパイルされる。共通モジュールを `mod support;` で複数のテストバイナリ
 //! （`boot.rs`・`isolated_run.rs`・`xss_via_embedded_binary.rs`）から読み込むと、
-//! 本ファイル中の関数が個々のテストバイナリでは未使用になり得る（各バイナリが
-//! 使う関数の組み合わせが異なるため）。バイナリごとに未使用となり得る関数には
-//! 個別に `#[allow(dead_code)]` を付与する方針とする。
+//! 本ファイル中の未使用関数がテストバイナリごとに `dead_code` 警告の対象に
+//! なり得る（各バイナリが使う関数の組み合わせが異なるため）。利用側の
+//! `mod support;` 宣言に本モジュール全体の未使用を許容する属性は付与せず、
+//! 個々の未使用関数へ `#[allow(dead_code)]` を付ける方針とする
+//! （`parse_listening_port` 等、上記参照）。
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
@@ -56,10 +77,44 @@ impl Drop for ChildGuard {
 /// タイムアウト（5 秒）以内に当該行が出力されない場合は panic する
 /// （テストコードでの panic は `coding-rust.md` の対象外 — ライブラリコード
 /// のみ禁止）。
+///
+/// `boot.rs` / `isolated_run.rs` の従来動作（`127.0.0.1:0` 固定・ポートのみ
+/// 返す）を変えないための薄いラッパ。任意のバインドアドレスを指定したい
+/// 場合は [`spawn_with_bind_addr`] を直接使う（`tests/bind_addr.rs`）。
+///
+/// `bind_addr.rs` のテストバイナリでは未使用（同ファイルは任意アドレスを
+/// 指定できる [`spawn_with_bind_addr`] を直接使う）ため `#[allow(dead_code)]`
+/// で抑止する。
+#[allow(dead_code)]
 pub fn spawn_and_wait_for_port(binary: &Path, cwd: Option<&Path>) -> (ChildGuard, u16) {
+    let (guard, addr) = spawn_with_bind_addr(binary, cwd, "127.0.0.1:0");
+    let port = addr
+        .rsplit(':')
+        .next()
+        .and_then(|port_str| port_str.parse::<u16>().ok())
+        .expect("listening address must end with a valid port");
+    (guard, port)
+}
+
+/// `binary` を `RWS_BIND_ADDR=<bind_addr>` で起動し、stderr の
+/// `listening on` 行から実際のバインドアドレス（`127.0.0.2:34567` 等の
+/// 完全な文字列）を読み取る。
+///
+/// `tests/bind_addr.rs`（イシュー #162）が `RWS_BIND_ADDR` の値そのものを
+/// 明示指定してポート・アドレスの切り替えを検証するために使う。
+/// `cwd` は [`spawn_and_wait_for_port`] と同様の意味を持つ。
+///
+/// [`spawn_and_wait_for_port`] がこの関数を呼ぶため、`boot.rs` /
+/// `isolated_run.rs` のテストバイナリでも間接的に使われており
+/// `dead_code` 警告の対象にはならない。
+pub fn spawn_with_bind_addr(
+    binary: &Path,
+    cwd: Option<&Path>,
+    bind_addr: &str,
+) -> (ChildGuard, String) {
     let mut command = Command::new(binary);
     command
-        .env("RWS_BIND_ADDR", "127.0.0.1:0")
+        .env("RWS_BIND_ADDR", bind_addr)
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
     if let Some(dir) = cwd {
@@ -74,15 +129,15 @@ pub fn spawn_and_wait_for_port(binary: &Path, cwd: Option<&Path>) -> (ChildGuard
         .expect("stderr must be piped for spawned child");
     let reader = BufReader::new(stderr);
 
-    // `read_listening_port` の呼び出し（タイムアウト・panic し得る）より前に
+    // `read_listening_addr` の呼び出し（タイムアウト・panic し得る）より前に
     // `ChildGuard` でラップする。ラップを後回しにすると、その間に panic や
     // 早期リターンが起きた場合、生の `Child` が guard で保護されないまま
     // drop されてしまう（`std::process::Child` は drop 時に自動終了しない
     // ため、子プロセスが起動したままゾンビ化・ポート占有し得る）。
     let guard = ChildGuard(child);
 
-    let port = read_listening_port(reader);
-    (guard, port)
+    let addr = read_listening_addr(reader);
+    (guard, addr)
 }
 
 /// `Command::spawn` を、`ETXTBSY`（"Text file busy"）に限り短い待機を挟んで
@@ -120,8 +175,9 @@ fn spawn_with_etxtbsy_retry(command: &mut Command) -> Child {
     unreachable!("loop above always returns or panics");
 }
 
-/// stderr から `"rws-dist-server: listening on 127.0.0.1:<port>"` 行を探し、
-/// `<port>` を返す。5 秒待っても見つからなければ panic する。
+/// stderr から `"rws-dist-server: listening on <addr>"` 行を探し、
+/// `<addr>`（`127.0.0.1:34567` 等の完全なアドレス文字列）を返す。
+/// 5 秒待っても見つからなければ panic する。
 ///
 /// `BufReader::read_line` は子プロセスの `ChildStderr` パイプに対する
 /// ブロッキング呼び出しで、読み取り自体にタイムアウトを設定する手段が
@@ -130,11 +186,11 @@ fn spawn_with_etxtbsy_retry(command: &mut Command) -> Child {
 /// `mpsc::Receiver::recv_timeout` でデッドラインまで待つことでタイムアウトを
 /// 実効化する（パイプ読み取りが無期限にブロックし CI がハングしうる問題への
 /// 対応）。
-fn read_listening_port(reader: BufReader<std::process::ChildStderr>) -> u16 {
+fn read_listening_addr(reader: BufReader<std::process::ChildStderr>) -> String {
     let (tx, rx) = mpsc::channel::<String>();
 
     // 読み取りスレッドは検出後も本体側から join しない（detach する）。
-    // 本関数はポートが見つかり次第 return するため、join すると子プロセスの
+    // 本関数はアドレスが見つかり次第 return するため、join すると子プロセスの
     // 後続出力を待ち続けてしまい、タイムアウト対策そのものが無意味になる。
     // 受信側が既に return してチャネルが閉じている場合は素直に終了する。
     std::thread::spawn(move || {
@@ -163,18 +219,18 @@ fn read_listening_port(reader: BufReader<std::process::ChildStderr>) -> u16 {
         }
         match rx.recv_timeout(remaining) {
             Ok(line) => {
-                if let Some(port) = parse_listening_port(line.trim_end()) {
-                    return port;
+                if let Some(addr) = parse_listening_addr(line.trim_end()) {
+                    return addr.to_string();
                 }
             }
-            // タイムアウト・読み取りスレッド終了（EOF/エラー）はいずれも
+            // タイムアウト・読み取りスレッド終了(EOF/エラー)はいずれも
             // 「該当行が見つからなかった」扱いとして panic へフォールスルーする。
             Err(mpsc::RecvTimeoutError::Timeout) => break,
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
         }
     }
 
-    panic!("dist-server did not print a \"listening on\" line with a port within timeout");
+    panic!("dist-server did not print a \"listening on\" line with an address within timeout");
 }
 
 /// `child.wait()` を無期限にブロックさせず、タイムアウト（5 秒）付きで
@@ -208,24 +264,47 @@ pub fn wait_with_timeout(child: &mut Child, timeout: Duration) -> std::process::
     }
 }
 
-/// `"rws-dist-server: listening on 127.0.0.1:PORT"` 形式の 1 行から
-/// ポート番号を抽出する（`main.rs` の起動ログ契約に対応）。
+/// `"rws-dist-server: listening on <addr>"` 形式の 1 行から完全なバインド
+/// アドレス文字列（`127.0.0.1:34567` 等）を抽出する（`main.rs` の起動ログ
+/// 契約に対応）。
+///
+/// `tests/bind_addr.rs` はこの戻り値のホスト部・ポート部の両方を検証する
+/// （`RWS_BIND_ADDR` の値がそのまま反映されたことの直接証明のため）。
+pub fn parse_listening_addr(line: &str) -> Option<&str> {
+    line.strip_prefix("rws-dist-server: listening on ")
+}
+
+/// [`parse_listening_addr`] からポート番号のみを取り出す薄いラッパ。
+/// 既存の呼び出し形（戻り値 `Option<u16>`）を変えないために残している。
+///
+/// `read_listening_addr` が `parse_listening_addr` を直接使う形に変わった
+/// ため、現状どのテストバイナリからも呼ばれない（上記モジュール doc 参照）。
+#[allow(dead_code)]
 pub fn parse_listening_port(line: &str) -> Option<u16> {
-    let addr = line.strip_prefix("rws-dist-server: listening on ")?;
+    let addr = parse_listening_addr(line)?;
     let port_str = addr.rsplit(':').next()?;
     port_str.parse::<u16>().ok()
 }
 
 /// `127.0.0.1:port` へ TCP 接続し、素の HTTP/1.1 リクエストを送って
 /// レスポンス全体（ヘッダ + ボディ）を文字列で返す。
+///
+/// 接続先ホストを固定しない汎用版は [`send_http_request_to`]（`bind_addr.rs`
+/// が `127.0.0.2` 等の非既定ホストへ接続する際に使う）。
 pub fn send_http_request(port: u16, method: &str, path: &str) -> String {
-    let mut stream = TcpStream::connect(("127.0.0.1", port)).expect("must connect to dist-server");
+    send_http_request_to("127.0.0.1", port, method, path)
+}
+
+/// [`send_http_request`] の接続先ホストを可変化した版。`tests/bind_addr.rs`
+/// が `RWS_BIND_ADDR=127.0.0.2:0` 等、ループバック /8 内の非既定アドレスへの
+/// 到達性を検証するために使う。
+pub fn send_http_request_to(host: &str, port: u16, method: &str, path: &str) -> String {
+    let mut stream = TcpStream::connect((host, port)).expect("must connect to dist-server");
     stream
         .set_read_timeout(Some(Duration::from_secs(5)))
         .expect("set_read_timeout must succeed");
 
-    let request =
-        format!("{method} {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n");
+    let request = format!("{method} {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n");
     stream
         .write_all(request.as_bytes())
         .expect("request must be written");

@@ -20,7 +20,11 @@ use crate::structure::StructureManifest;
 /// 制御文字（`\x00`-`\x1f`）・`"`・`\` をエスケープする。マニフェスト由来の
 /// 任意文字列（`description` 等）がそのまま JSON 構造を破壊しないことを保証する
 /// 唯一の経路であり、本モジュール内の全出力箇所がこの関数を通る契約とする。
-fn escape_str(s: &str) -> String {
+///
+/// `pub(crate)`: `gate.rs`（TASK-13.3, #138）が `cargo check`/`cargo clippy` 等の
+/// 任意バイト列を含み得るコマンド出力を JSON へ埋め込む際にも同じ経路を再利用し、
+/// JSON エスケープ実装を二重管理しない契約とする。
+pub(crate) fn escape_str(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     for c in s.chars() {
         match c {
@@ -36,11 +40,13 @@ fn escape_str(s: &str) -> String {
     out
 }
 
-fn quoted(s: &str) -> String {
+/// `pub(crate)`: `gate.rs` の JSON レポート組み立てからも再利用する（上記 `escape_str` と同じ理由）。
+pub(crate) fn quoted(s: &str) -> String {
     format!("\"{}\"", escape_str(s))
 }
 
-fn string_array(items: &[String]) -> String {
+/// `pub(crate)`: `gate.rs` のチェック名一覧等、文字列配列を出力する箇所から再利用する。
+pub(crate) fn string_array(items: &[String]) -> String {
     let parts: Vec<String> = items.iter().map(|s| quoted(s)).collect();
     format!("[{}]", parts.join(","))
 }
