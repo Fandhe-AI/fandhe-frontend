@@ -693,6 +693,42 @@ def _escape_output_value(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
+def _escape_toml_string(value: str) -> str:
+    """TOML 基本文字列（`"..."`）へ埋め込む値を TOML v1.0 §5.2.2 のエスケープ
+    規則に従ってエスケープする。
+
+    背景: `_print_exempt_suggestion` が出力する package/ext/file の値は
+    `enumerate_packages`/`check_package` 経由で node_modules 配下の実ファイル
+    パス（npm パッケージの tarball エントリ名）から得られ、攻撃者が自由に
+    制御できる。ダブルクォート・バックスラッシュだけでなく改行・制御文字も
+    無エスケープで埋め込むと、提案 TOML 断片の構文破壊や追加行（偽の
+    `[[exempt]]` ブロック等）の注入を許してしまう。人間がレビューしてそのまま
+    allowlist.toml に貼り付ける前提の雛形であるため、ここで確実にエスケープし、
+    レビュー時の見落としが fail-closed ゲートの無力化に直結しないようにする。
+    """
+    out: list[str] = []
+    for ch in value:
+        if ch == "\\":
+            out.append("\\\\")
+        elif ch == '"':
+            out.append('\\"')
+        elif ch == "\b":
+            out.append("\\b")
+        elif ch == "\t":
+            out.append("\\t")
+        elif ch == "\n":
+            out.append("\\n")
+        elif ch == "\f":
+            out.append("\\f")
+        elif ch == "\r":
+            out.append("\\r")
+        elif ord(ch) < 0x20 or ord(ch) == 0x7F:
+            out.append(f"\\u{ord(ch):04x}")
+        else:
+            out.append(ch)
+    return "".join(out)
+
+
 def _print_exempt_suggestion(name: str, rule: str, detail: tuple[str, ...] | None, file: str) -> None:
     """`--suggest-exempt` 向けに、1 件の違反へ対応する allowlist.toml の
     `[[exempt]]` 雛形（または免除不可の注記）を stdout へ出力する。
@@ -700,22 +736,30 @@ def _print_exempt_suggestion(name: str, rule: str, detail: tuple[str, ...] | Non
     契約: allowlist.toml への書き込みは一切行わない（提案のみ・fail-closed
     原則の維持）。呼び出し元 run() は「実際に免除されなかった違反」に対して
     のみこれを呼ぶ（EXEMPTED 済みの違反には出力しない）。
+
+    セキュリティ注記: name/file は node_modules 配下の実ファイル名由来で
+    攻撃者制御下にあり得るため、TOML 文字列に埋め込む箇所は
+    `_escape_toml_string` を通す。hard_deny の注記行（`#` コメント）も、
+    改行を含むファイル名によって出力に無関係な追加行が注入されるのを防ぐため
+    同様にエスケープする（この行は TOML 文字列ではないが、改行注入を防ぐ
+    目的でエスケープ表記を流用する）。
     """
     if detail is not None and detail[0] == "hard_deny":
         print(
-            f"# package={name} rule={rule} file={file}: hard-deny executable "
+            f"# package={_escape_toml_string(name)} rule={rule} "
+            f"file={_escape_toml_string(file)}: hard-deny executable "
             "extension — cannot be exempted (docs/npm-static-asset-rules.md §3.4)"
         )
         return
 
     print("[[exempt]]")
-    print(f'package = "{name}"')
+    print(f'package = "{_escape_toml_string(name)}"')
     print(f'rule = "{rule}"')
     if rule == "R2-ext":
         if detail is not None and detail[0] == "ext":
-            print(f'ext = "{detail[1]}"')
+            print(f'ext = "{_escape_toml_string(detail[1])}"')
         else:
-            print(f'file = "{file}"')
+            print(f'file = "{_escape_toml_string(file)}"')
     print('reason = "TODO: describe why this exemption is safe for this package"')
 
 

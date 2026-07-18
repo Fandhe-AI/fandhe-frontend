@@ -665,6 +665,76 @@ class TestSuggestExempt(BaseFixtureTest):
         self.assertIn("cannot be exempted", out)
         self.assertNotIn("[[exempt]]\npackage = \"has-js\"\nrule = \"R2-ext\"", out)
 
+    def test_escape_toml_string_escapes_quotes_backslash_and_newline(self) -> None:
+        """`_escape_toml_string`（TOML v1.0 §5.2.2 準拠）の単体テスト。node_modules
+        配下の実ファイル名（攻撃者制御下にあり得る）が TOML 文字列に安全に
+        埋め込めることを検証する。"""
+        escaped = check_static_only._escape_toml_string('evil".\n[[exempt]]\npackage = "x')
+        self.assertEqual(
+            escaped,
+            'evil\\".\\n[[exempt]]\\npackage = \\"x',
+        )
+        # エスケープ後の文字列に生の改行・生のダブルクォートが残らないこと。
+        self.assertNotIn("\n", escaped)
+        self.assertNotIn('"', escaped.replace('\\"', ""))
+
+    def test_r2_ext_violation_with_quote_in_filename_produces_parseable_toml(self) -> None:
+        """ファイル名にダブルクォートを含む R2-ext 違反でも、提案された
+        `[[exempt]]` 断片が構文的に壊れず tomllib で正しくパースできること
+        （file フィールドの値が元のファイル名と一致すること）を検証する。"""
+        # 既存の VIOLATION ログ行（file={file} 無エスケープ）は本テストのスコープ
+        # 外（#296 以前からの既知の挙動）のため、ペイロードには "[[exempt]]" と
+        # いう文字列自体を含めず、`--suggest-exempt` が生成する [[exempt]] 断片
+        # 側のみを対象に検証する。
+        # 拡張子なしファイル（"." を含まない）にすることで、R2-ext 違反の免除
+        # 照合が ext 単位ではなく file（個別ファイルパス）単位になるようにする。
+        pkg = self.make_package("has-quote-file", {"name": "has-quote-file"})
+        malicious_name = 'weird"file\ninjected = "value'
+        (pkg / malicious_name).write_text("data", encoding="utf-8")
+
+        code, out = run_capture(
+            ["--node-modules", str(self.node_modules), "--suggest-exempt"]
+        )
+        self.assertEqual(code, 1, out)
+
+        import tomllib
+
+        snippet_start = out.index("[[exempt]]")
+        parsed = tomllib.loads(out[snippet_start:])
+        self.assertEqual(len(parsed["exempt"]), 1)
+        self.assertEqual(parsed["exempt"][0]["package"], "has-quote-file")
+        self.assertEqual(parsed["exempt"][0]["file"], malicious_name)
+        # 注入を狙った偽の [[exempt]] ブロックが独立したテーブルとして
+        # 追加されていないこと（テーブルは 1 件のみ）。
+        self.assertEqual(out.count("[[exempt]]"), 1)
+
+    def test_hard_deny_comment_with_newline_and_quote_does_not_inject_line(self) -> None:
+        """`_print_exempt_suggestion` の hard_deny 注記（`#` コメント）出力を
+        直接検証する。既存の VIOLATION ログ行（file={file} 無エスケープ）は
+        本指摘のスコープ外（#296 以前からの既知の挙動）のため関与させず、
+        `--suggest-exempt` 由来の提案出力のみを対象とする。
+
+        改行・ダブルクォートを含むファイル名でも、出力が単一の `#` コメント行に
+        収まり、注入マーカーが独立した非コメント行として出力されないことを
+        検証する。"""
+        malicious_file = 'evil".js\nINJECTED-MARKER = true'
+
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            check_static_only._print_exempt_suggestion(
+                "has-evil-js", "R2-ext", ("hard_deny",), malicious_file
+            )
+        out = buf.getvalue()
+
+        self.assertIn("cannot be exempted", out)
+        lines = out.splitlines()
+        # 出力は 1 行のコメントに収まっていること（改行注入によって行が
+        # 分割されていない）。
+        self.assertEqual(len(lines), 1)
+        self.assertTrue(lines[0].startswith("#"))
+        # 生のダブルクォート・生の改行がエスケープされていること。
+        self.assertNotIn("\n", out.rstrip("\n"))
+
     def test_already_exempted_violation_does_not_suggest_again(self) -> None:
         self.make_package("has-bin", {"bin": "./cli.js"})
         allowlist_path = Path(self._tmp.name) / "allowlist.toml"
