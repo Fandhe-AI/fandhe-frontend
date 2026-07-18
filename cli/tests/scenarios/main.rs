@@ -133,3 +133,6 @@ fn baseline_fixture_passes_gate_core_checks() {
         );
     }
 }
+
+// #147（TASK-13.4d, シナリオ 3「機能追加」）が追加する回帰テストモジュール。
+mod scenario3_feature;
