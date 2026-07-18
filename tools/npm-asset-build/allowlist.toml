@@ -4,6 +4,12 @@
 # docs/npm-static-asset-rules.md §3.4 に定義される「1 パッケージ・1 ルール単位
 # のみ・ワイルドカード不可・reason 必須」という fail-closed な免除機構に従う。
 #
+# install.sh（イシュー #296）から自動連携される際の標準雛形でもある:
+# `--allowlist` 明示指定・`<project-dir>/allowlist.toml` のいずれも無い場合、
+# install.sh はこのファイルを allowlist として check_static_only.py に渡す
+# （このファイル自体への自動書き込みは行わない。追記は人間のレビューを経て
+# 手動で行う）。
+#
 # ここには実運用の免除エントリを置かない（本タスクの完了条件は雛形提供まで）。
 # 実際に例外が必要になった場合は、以下の形式で [[exempt]] を追記する。
 #

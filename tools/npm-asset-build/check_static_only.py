@@ -124,6 +124,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--allowlist",
         help="Path to allowlist.toml (per-package/per-rule exemptions). Not searched implicitly.",
     )
+    parser.add_argument(
+        "--suggest-exempt",
+        action="store_true",
+        help=(
+            "On violations, print a suggested [[exempt]] TOML snippet to stdout "
+            "(does not write to any file; hard-deny violations are reported as "
+            "not exemptable instead)."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -684,6 +693,32 @@ def _escape_output_value(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
+def _print_exempt_suggestion(name: str, rule: str, detail: tuple[str, ...] | None, file: str) -> None:
+    """`--suggest-exempt` 向けに、1 件の違反へ対応する allowlist.toml の
+    `[[exempt]]` 雛形（または免除不可の注記）を stdout へ出力する。
+
+    契約: allowlist.toml への書き込みは一切行わない（提案のみ・fail-closed
+    原則の維持）。呼び出し元 run() は「実際に免除されなかった違反」に対して
+    のみこれを呼ぶ（EXEMPTED 済みの違反には出力しない）。
+    """
+    if detail is not None and detail[0] == "hard_deny":
+        print(
+            f"# package={name} rule={rule} file={file}: hard-deny executable "
+            "extension — cannot be exempted (docs/npm-static-asset-rules.md §3.4)"
+        )
+        return
+
+    print("[[exempt]]")
+    print(f'package = "{name}"')
+    print(f'rule = "{rule}"')
+    if rule == "R2-ext":
+        if detail is not None and detail[0] == "ext":
+            print(f'ext = "{detail[1]}"')
+        else:
+            print(f'file = "{file}"')
+    print('reason = "TODO: describe why this exemption is safe for this package"')
+
+
 def run(argv: list[str]) -> int:
     """スクリプト本体。exit code (0/1/2) を返す。main() から呼ばれ、CheckError は
     ここで exit 2 相当の戻り値に変換される。"""
@@ -714,6 +749,8 @@ def run(argv: list[str]) -> int:
                 f'reason="{_escape_output_value(reason)}"'
             )
             violation_count += 1
+            if args.suggest_exempt:
+                _print_exempt_suggestion(name, rule, detail, file)
             continue
 
         if rule == "R2-ext":
@@ -738,6 +775,8 @@ def run(argv: list[str]) -> int:
                 f'reason="{_escape_output_value(reason)}"'
             )
             violation_count += 1
+            if args.suggest_exempt:
+                _print_exempt_suggestion(name, rule, detail, file)
             continue
 
         key = (name, rule, None)
@@ -752,6 +791,8 @@ def run(argv: list[str]) -> int:
             f'reason="{_escape_output_value(reason)}"'
         )
         violation_count += 1
+        if args.suggest_exempt:
+            _print_exempt_suggestion(name, rule, detail, file)
 
     return 1 if violation_count else 0
 

@@ -601,5 +601,91 @@ class TestExitCodeContract(BaseFixtureTest):
         self.assertEqual(restored, '"main" field resolves to a JS execution entry')
 
 
+class TestSuggestExempt(BaseFixtureTest):
+    """`--suggest-exempt`（イシュー #296: install.sh の allowlist 自動連携）が
+    生成する提案出力の回帰テスト。allowlist.toml への自動書き込みは一切
+    行わない契約のため、ここでは stdout への出力内容のみを検証する。"""
+
+    def test_no_suggestion_when_no_violations(self) -> None:
+        pkg = self.make_package("clean-pkg", {"name": "clean-pkg"})
+        (pkg / "style.css").write_text("body{}", encoding="utf-8")
+
+        code, out = run_capture(
+            ["--node-modules", str(self.node_modules), "--suggest-exempt"]
+        )
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out, "")
+
+    def test_flag_absent_suppresses_suggestion_even_with_violation(self) -> None:
+        self.make_package("has-bin", {"bin": "./cli.js"})
+        code, out = run_capture(["--node-modules", str(self.node_modules)])
+        self.assertEqual(code, 1)
+        self.assertNotIn("[[exempt]]", out)
+
+    def test_package_rule_scoped_violation_suggests_exempt_snippet(self) -> None:
+        self.make_package("has-bin", {"bin": "./cli.js"})
+        code, out = run_capture(
+            ["--node-modules", str(self.node_modules), "--suggest-exempt"]
+        )
+        self.assertEqual(code, 1, out)
+        self.assertIn("[[exempt]]", out)
+        self.assertIn('package = "has-bin"', out)
+        self.assertIn('rule = "R1-bin"', out)
+        self.assertIn('reason = "TODO:', out)
+        # R1-bin は package+rule 単位の免除のため ext/file フィールドは出力しない。
+        self.assertNotIn("ext =", out)
+        self.assertNotIn("file =", out)
+
+    def test_r2_ext_non_hard_violation_suggests_ext_scoped_snippet(self) -> None:
+        pkg = self.make_package("has-dts", {"name": "has-dts"})
+        (pkg / "types.d.ts").write_text("export {};", encoding="utf-8")
+
+        code, out = run_capture(
+            ["--node-modules", str(self.node_modules), "--suggest-exempt"]
+        )
+        self.assertEqual(code, 1, out)
+        self.assertIn("[[exempt]]", out)
+        self.assertIn('package = "has-dts"', out)
+        self.assertIn('rule = "R2-ext"', out)
+        self.assertIn('ext = ".d.ts"', out)
+
+    def test_hard_deny_violation_reports_not_exemptable_instead_of_snippet(self) -> None:
+        self.make_package("has-js", {"main": "index.js"})
+        (self.node_modules / "has-js" / "index.js").write_text(
+            "module.exports = {};", encoding="utf-8"
+        )
+
+        code, out = run_capture(
+            ["--node-modules", str(self.node_modules), "--suggest-exempt"]
+        )
+        self.assertEqual(code, 1, out)
+        # R2-ext のハード拒否（実行コード拡張子）はいかなる免除エントリでも
+        # 救済不可であることを明示し、[[exempt]] 雛形を出力してはならない
+        # （docs/npm-static-asset-rules.md §3.4）。
+        self.assertIn("cannot be exempted", out)
+        self.assertNotIn("[[exempt]]\npackage = \"has-js\"\nrule = \"R2-ext\"", out)
+
+    def test_already_exempted_violation_does_not_suggest_again(self) -> None:
+        self.make_package("has-bin", {"bin": "./cli.js"})
+        allowlist_path = Path(self._tmp.name) / "allowlist.toml"
+        allowlist_path.write_text(
+            '[[exempt]]\npackage = "has-bin"\nrule = "R1-bin"\nreason = "already reviewed"\n',
+            encoding="utf-8",
+        )
+
+        code, out = run_capture(
+            [
+                "--node-modules",
+                str(self.node_modules),
+                "--allowlist",
+                str(allowlist_path),
+                "--suggest-exempt",
+            ]
+        )
+        self.assertEqual(code, 0, out)
+        self.assertIn("EXEMPTED package=has-bin rule=R1-bin", out)
+        self.assertNotIn("[[exempt]]", out)
+
+
 if __name__ == "__main__":
     unittest.main()

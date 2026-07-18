@@ -123,6 +123,11 @@ echo "module.exports = {};" > "${jsexec_src}/index.js"
 jsexec_tarball="$(pack_fixture "jsexec-pkg" "$jsexec_src")"
 
 # --- ケース A: install.sh 経由 → --ignore-scripts により postinstall がブロックされる ---
+# evil-pkg fixture は index.js（実行コード拡張子）を含むため、自動連携された
+# check_static_only.py は必ず R2-ext ハード拒否で違反検出する。本ケースの
+# 検証対象は「--ignore-scripts がライフサイクルスクリプトをブロックすること」
+# であり静的アセット限定検証とは独立の関心事のため、--no-check で切り離す
+# （--no-audit はオフライン e2e のため付与。イシュー #296）。
 {
   proj_dir="${work_root}/case-a-project"
   mkdir -p "$proj_dir"
@@ -130,7 +135,7 @@ jsexec_tarball="$(pack_fixture "jsexec-pkg" "$jsexec_src")"
   rm -f "$marker_path"
 
   set +e
-  E2E_MARKER_PATH="$marker_path" "$install_sh" --dir "$proj_dir" "$evil_tarball" \
+  E2E_MARKER_PATH="$marker_path" "$install_sh" --dir "$proj_dir" --no-audit --no-check "$evil_tarball" \
     > "${work_root}/case-a-stdout.log" 2> "${work_root}/case-a-stderr.log"
   case_a_exit=$?
   set -e
@@ -169,13 +174,16 @@ jsexec_tarball="$(pack_fixture "jsexec-pkg" "$jsexec_src")"
 }
 
 # --- ケース C: パイプライン連結（静的アセット限定 fixture → check_static_only.py が合格）---
+# install.sh の自動連携チェック（既定有効）とは別に、独立コンポーネントとしての
+# check_static_only.py 単体呼び出しも引き続き検証するため --no-check で分離する
+# （--no-audit はオフライン e2e のため付与。統合チェック自体はケース E/F で検証）。
 {
   proj_dir="${work_root}/case-c-project"
   mkdir -p "$proj_dir"
   echo '{"name":"case-c","version":"1.0.0","private":true}' > "${proj_dir}/package.json"
 
   set +e
-  "$install_sh" --dir "$proj_dir" "$static_tarball" \
+  "$install_sh" --dir "$proj_dir" --no-audit --no-check "$static_tarball" \
     > "${work_root}/case-c-install-stdout.log" 2> "${work_root}/case-c-install-stderr.log"
   install_exit=$?
   set -e
@@ -198,13 +206,16 @@ jsexec_tarball="$(pack_fixture "jsexec-pkg" "$jsexec_src")"
 }
 
 # --- ケース D: パイプライン連結・違反検出（JS 実行エントリ fixture → check_static_only.py が拒否）---
+# ケース C 同様、install.sh 単体の合否とは独立に check_static_only.py 単体の
+# 違反検出を検証するため --no-check で分離する（統合チェックの違反検出は
+# ケース E で検証。--no-audit はオフライン e2e のため付与）。
 {
   proj_dir="${work_root}/case-d-project"
   mkdir -p "$proj_dir"
   echo '{"name":"case-d","version":"1.0.0","private":true}' > "${proj_dir}/package.json"
 
   set +e
-  "$install_sh" --dir "$proj_dir" "$jsexec_tarball" \
+  "$install_sh" --dir "$proj_dir" --no-audit --no-check "$jsexec_tarball" \
     > "${work_root}/case-d-install-stdout.log" 2> "${work_root}/case-d-install-stderr.log"
   install_exit=$?
   set -e
@@ -223,6 +234,48 @@ jsexec_tarball="$(pack_fixture "jsexec-pkg" "$jsexec_src")"
     else
       fail "case D: check_static_only.py should exit 1 for JS-exec package (exit=${check_exit}, output=$(cat "${work_root}/case-d-check-stdout.log"))"
     fi
+  fi
+}
+
+# --- ケース E: install.sh の自動連携チェック（既定有効）が JS 実行エントリ fixture を
+# 自ら検出し、install.sh 自体が非 0 終了 + [[exempt]] 提案を出力する（イシュー #296）---
+{
+  proj_dir="${work_root}/case-e-project"
+  mkdir -p "$proj_dir"
+  echo '{"name":"case-e","version":"1.0.0","private":true}' > "${proj_dir}/package.json"
+
+  set +e
+  "$install_sh" --dir "$proj_dir" --no-audit "$jsexec_tarball" \
+    > "${work_root}/case-e-stdout.log" 2> "${work_root}/case-e-stderr.log"
+  install_exit=$?
+  set -e
+
+  if [[ $install_exit -ne 0 ]] \
+    && grep -q "VIOLATION package=e2e-jsexec-pkg" "${work_root}/case-e-stdout.log" \
+    && grep -q "\[\[exempt\]\]" "${work_root}/case-e-stdout.log"; then
+    pass "case E: install.sh's auto-invoked check_static_only.py rejects a JS-exec fixture and suggests an exempt snippet"
+  else
+    fail "case E: expected non-zero exit + VIOLATION + [[exempt]] suggestion from install.sh (exit=${install_exit}, output=$(cat "${work_root}/case-e-stdout.log"))"
+  fi
+}
+
+# --- ケース F: --no-check で自動連携チェックをバイパスすると、同じ違反 fixture でも
+# install.sh は成功し警告を出す（明示オプトアウトの動作確認、イシュー #296）---
+{
+  proj_dir="${work_root}/case-f-project"
+  mkdir -p "$proj_dir"
+  echo '{"name":"case-f","version":"1.0.0","private":true}' > "${proj_dir}/package.json"
+
+  set +e
+  "$install_sh" --dir "$proj_dir" --no-audit --no-check "$jsexec_tarball" \
+    > "${work_root}/case-f-stdout.log" 2> "${work_root}/case-f-stderr.log"
+  install_exit=$?
+  set -e
+
+  if [[ $install_exit -eq 0 ]] && grep -q "check_static_only.py skipped" "${work_root}/case-f-stderr.log"; then
+    pass "case F: --no-check bypasses the auto-invoked check despite a violating fixture, with a warning"
+  else
+    fail "case F: expected exit 0 + skip warning with --no-check (exit=${install_exit})"
   fi
 }
 
