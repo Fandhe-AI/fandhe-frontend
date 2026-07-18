@@ -222,7 +222,11 @@ fn strip_comment_lines(content: &str) -> String {
 ///   `.route(...)` を実ルート定義と誤認しないため（[`strip_comment_lines`]）。
 /// - `#[cfg(test)]` 以降: テストモジュール内のフィクスチャ呼び出しは製品の
 ///   ルート定義ではないため対象外とする（[`truncate_before_test_cfg`]）。
-fn extract_routes_from_source(content: &str) -> Vec<ExtractedRoute> {
+///
+/// `impact.rs`（TASK-13.2b, #134）が `fw impact` の `affected_files` と
+/// ルート定義の突き合わせ（`affected_routes` の構築）に再利用するため
+/// `pub(crate)` として公開する。
+pub(crate) fn extract_routes_from_source(content: &str) -> Vec<ExtractedRoute> {
     let filtered = strip_comment_lines(truncate_before_test_cfg(content));
     let content = filtered.as_str();
     let mut routes = Vec::new();
