@@ -1,10 +1,12 @@
-# `raw_html()` レビューゲート運用ガイド（イシュー #157/#159/#299）
+# `raw_html()` レビューゲート運用ガイド（イシュー #157/#159/#299/#315）
 
 `rws_core::raw_html()` は REQ-1（既定エスケープ）の唯一の許容迂回経路である。
 本ドキュメントは、その使用をレビュー済みとして宣言する手順と、`fw gate` /
 CI が構成する 3 層の検出体制を説明する。方式選定の背景・脅威モデルは
 `docs/raw-html-lint-design.md` を参照。CI `clippy` ジョブの `--all-targets`
-拡張（テストターゲット内呼び出しの検出対象化）はイシュー #299 で行った。
+拡張（テストターゲット内呼び出しの検出対象化）はイシュー #299 で行い、
+`fw gate` の `lint` チェックへの同拡張（検出境界一致）はイシュー #315 で
+行った。
 
 ## 1. オプトインの書式
 
@@ -53,7 +55,7 @@ pub fn render_trusted_fragment() -> String {
 
 | 層 | 実行タイミング | 実体 |
 |----|---------------|------|
-| 主防御 | `fw gate` の `lint` チェック／CI `clippy` ジョブ | `fw gate` の `lint` は `cargo clippy -- -D warnings`（`--all-targets` なし）。CI `clippy` ジョブはイシュー #299 で `cargo clippy --workspace --all-targets -- -D warnings` へ拡張済みで、テストターゲット（`#[cfg(test)]` / `tests/` 配下）内の呼び出しも検出対象に含む superset となる。いずれも workspace ルート `clippy.toml`（`disallowed-methods`）に基づき、コンパイラのパス解決を通じてコメント偽装・リネーム import 経由の呼び出しも検出する |
+| 主防御 | `fw gate` の `lint` チェック／CI `clippy` ジョブ | `fw gate` の `lint` はイシュー #315 で `cargo clippy --locked --all-targets -p <crate>... -- -D warnings` へ拡張済み。CI `clippy` ジョブはイシュー #299 で `cargo clippy --workspace --all-targets --locked -- -D warnings` へ拡張済み。両者とも `--all-targets` によりテストターゲット（`#[cfg(test)]` / `tests/` 配下）内の呼び出しを検出対象に含み、検出範囲は一致する（旧記述「CI が superset」は解消済み）。いずれも workspace ルート `clippy.toml`（`disallowed-methods`）に基づき、コンパイラのパス解決を通じてコメント偽装・リネーム import 経由の呼び出しも検出する |
 | 保険層 | `fw gate` の `default_escape_check` | テキスト走査。同一行・直前行の `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: ...")]` を受理条件とする（単独のコメントは受理しない） |
 | 監査層 | `fw gate` の `default_escape_check` | ブランケット抑止属性の一律検出（2. 参照） |
 

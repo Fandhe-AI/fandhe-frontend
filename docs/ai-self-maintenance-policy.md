@@ -96,7 +96,8 @@ AI エージェントがプロダクトへの変更を提案したとき、`fw g
   「推奨手順」として運用しない。** `raw_html()` を使う変更は、常にこのチェックによる
   人間レビュー（`ESCAPE-REVIEWED:` 属性を書く行為自体が人間の明示的な承認記録となる）
   を経由することを前提とする。
-- `lint`: `cargo clippy --locked -- -D warnings`
+- `lint`: `cargo clippy --locked --all-targets -- -D warnings`（`--all-targets` は
+  CI `clippy` ジョブと検出範囲を一致させるためイシュー #315 で追加）
 - `test`: `cargo test --locked`
 - `policy`: `cargo deny check bans licenses sources`。**`advisories`（既知脆弱性 DB
   照合）はネットワークアクセスが前提のため、オフラインのローカルゲート実行では対象外
