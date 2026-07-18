@@ -250,6 +250,343 @@ pub mod codec {
         }
     }
 
+    /// ネスト可能なハイドレーション値ツリー（イシュー #163）。
+    ///
+    /// `docs/hydration-state-format.md` が凍結した「数値・文字列・文字列配列
+    /// のみ」制約（TASK-11.4a）は `AppState`/[`super::Hydrate`] の既存契約
+    /// として変更しない。本型は、ネスト構造・オブジェクト等の複雑な状態を
+    /// 扱いたいアプリの [`super::Hydrate`] 実装が**オプトインで**使う追加の
+    /// 属性値表現であり、`docs/hydration-nested-state.md`（設計確定書）が
+    /// 正の規範文書。JSON 等の外部シリアライズクレートには依存しない
+    /// （REQ-11・本クレートの外部依存ゼロ制約を維持）。
+    #[derive(Debug, Clone, PartialEq)]
+    pub enum Value {
+        /// 文字列値。
+        Str(String),
+        /// 整数値（`i64`）。
+        Int(i64),
+        /// 真偽値。
+        Bool(bool),
+        /// 順序付きリスト（要素は任意の [`Value`]、ネスト可）。
+        List(Vec<Value>),
+        /// 順序を保持したキー・値の一覧（`HashMap` は使わず、エンコードを
+        /// 決定的に保つ。キーの重複チェックは行わない = アプリ側の責務）。
+        Map(Vec<(String, Value)>),
+    }
+
+    /// [`decode_value`] が許容する最大ネスト深さ。
+    ///
+    /// `data-hydrate-*` 属性値は改ざんされうるクライアント入力であり、上限を
+    /// 設けない場合は深くネストした `List`/`Map` の再帰デコードでスタックを
+    /// 枯渇させられる（A05 相当の DoS、`docs/hydration-nested-state.md` 参照）。
+    /// 32 段は通常のアプリ状態（ネストしたフォーム・設定オブジェクト等）を
+    /// 十分許容しつつ、無制限の深さを弾く値として選定した。
+    pub const MAX_VALUE_DEPTH: u32 = 32;
+
+    /// [`decode_value`] の失敗を表す。
+    ///
+    /// `data-hydrate-*` 属性値（改ざんされうるクライアント入力）のデコードに
+    /// 特有の失敗を表現する。[`into_hydrate_error`](ValueDecodeError::into_hydrate_error)
+    /// で呼び出し側（アプリの [`super::Hydrate::from_hydration_attrs`] 実装）
+    /// が扱う [`super::HydrateError`] へ変換できる。
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum ValueDecodeError {
+        /// 入力が空文字列だった（有効な [`Value`] エンコードは常に非空）。
+        Empty,
+        /// 先頭の型タグ文字が未知だった。
+        UnknownTag(char),
+        /// `Str`/`Map` キーの長さプレフィックスが非負整数としてパースできない、
+        /// または宣言された長さが残り入力より大きい。
+        InvalidLength,
+        /// 長さプレフィックスが指し示すバイト範囲が UTF-8 として不正
+        /// （マルチバイト文字の境界を跨いだ改ざん等）。
+        InvalidUtf8,
+        /// `Int` タグのペイロードが `i64` としてパースできなかった。
+        InvalidInt,
+        /// `Bool` タグのペイロードが `"0"`/`"1"` のいずれでもなかった。
+        InvalidBool,
+        /// `Map` のキー位置に文字列以外の値が来た（内部実装は常にキーを
+        /// [`Value::Str`] としてエンコードするため、改ざん入力でのみ発生する）。
+        InvalidMapKey,
+        /// 入力が途中で終わっていた（終端記号 `e` や宣言された長さ分の
+        /// バイト列に到達する前に入力が尽きた）。
+        UnexpectedEnd,
+        /// [`MAX_VALUE_DEPTH`] を超えるネストが検出された。
+        DepthExceeded,
+        /// トップレベルの値をデコードした後に余分なバイト列が残っていた。
+        TrailingData,
+    }
+
+    impl core::fmt::Display for ValueDecodeError {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            match self {
+                ValueDecodeError::Empty => write!(f, "empty value encoding"),
+                ValueDecodeError::UnknownTag(tag) => write!(f, "unknown value tag: {tag:?}"),
+                ValueDecodeError::InvalidLength => write!(f, "invalid length prefix"),
+                ValueDecodeError::InvalidUtf8 => {
+                    write!(f, "length-prefixed bytes are not valid utf-8")
+                }
+                ValueDecodeError::InvalidInt => write!(f, "invalid integer payload"),
+                ValueDecodeError::InvalidBool => write!(f, "invalid boolean payload"),
+                ValueDecodeError::InvalidMapKey => write!(f, "map key must be a string"),
+                ValueDecodeError::UnexpectedEnd => write!(f, "unexpected end of input"),
+                ValueDecodeError::DepthExceeded => {
+                    write!(f, "nested value exceeds max depth ({MAX_VALUE_DEPTH})")
+                }
+                ValueDecodeError::TrailingData => write!(f, "trailing data after decoded value"),
+            }
+        }
+    }
+
+    impl std::error::Error for ValueDecodeError {}
+
+    impl ValueDecodeError {
+        /// アプリの [`super::Hydrate::from_hydration_attrs`] 実装が `?` で
+        /// 使えるよう、属性名を添えて [`super::HydrateError::InvalidValue`]
+        /// へ変換するヘルパ。エラーメッセージは英語（機微情報は含めない、
+        /// `.claude/rules/japanese-style.md`・A09 相当の不変条件）。
+        pub fn into_hydrate_error(self, attr: &str) -> super::HydrateError {
+            super::HydrateError::InvalidValue {
+                attr: attr.to_string(),
+                reason: self.to_string(),
+            }
+        }
+    }
+
+    /// [`Value`] を 1 属性値へエンコードする（サーバー側責務）。
+    ///
+    /// 長さ明示型（netstring/Bencode 系）の再帰下降エンコードを採用する。
+    ///
+    /// | バリアント | 形式 |
+    /// |-----------|------|
+    /// | `Str(s)` | `s{バイト長}:{s}` |
+    /// | `Int(i)` | `i{10進文字列}e` |
+    /// | `Bool(b)` | `b0`/`b1` |
+    /// | `List(items)` | `l{各要素のエンコード結果を連結}e` |
+    /// | `Map(entries)` | `m{(キーの Str エンコード + 値のエンコード) を連結}e` |
+    ///
+    /// 子要素・キーの境界は「事前に宣言したバイト長」または明示的な終端
+    /// 記号（`e`）で決定されるため、`escape_item`（`ITEM_SEP`/`ESCAPE_CHAR`
+    /// を対象とする既存 codec のエスケープ）を一切使わない。これにより、
+    /// エスケープ処理をネストの各段で繰り返し適用した結果バックスラッシュの
+    /// 数が段数に対して指数的に増える問題（旧設計で判明した不具合。ネスト
+    /// 済みの既エスケープ済み文字列を、さらに親レベルでエスケープすると
+    /// バックスラッシュの出現数が毎段倍増し、深さ D で O(2^D) のサイズへ
+    /// 発散する）を構造的に回避する。エンコード・デコードとも入力サイズに
+    /// 対して線形時間・線形サイズで完結する。既存の [`encode_list`]/
+    /// [`decode_list`]・`escape_item`/`unescape_item`（`AppState` 等が使用）
+    /// は一切変更しない。
+    pub fn encode_value(value: &Value) -> String {
+        let mut out = String::new();
+        encode_value_into(value, &mut out);
+        out
+    }
+
+    /// [`encode_value`] の内部実装。`out` へ追記する形にすることで、ネスト
+    /// した `List`/`Map` の子要素ごとに中間 `String` を確保しない
+    /// （エンコードが常に線形時間・線形メモリで完結することの実装上の裏付け）。
+    fn encode_value_into(value: &Value, out: &mut String) {
+        match value {
+            Value::Str(s) => {
+                out.push('s');
+                out.push_str(&s.len().to_string());
+                out.push(':');
+                out.push_str(s);
+            }
+            Value::Int(i) => {
+                out.push('i');
+                out.push_str(&i.to_string());
+                out.push('e');
+            }
+            Value::Bool(b) => {
+                out.push('b');
+                out.push(if *b { '1' } else { '0' });
+            }
+            Value::List(items) => {
+                out.push('l');
+                for item in items {
+                    encode_value_into(item, out);
+                }
+                out.push('e');
+            }
+            Value::Map(entries) => {
+                out.push('m');
+                for (key, val) in entries {
+                    // キーは Value::Str と同じ長さプレフィックス形式でエンコード
+                    // する（`decode_value` 側は「Str をデコードして文字列として
+                    // 取り出す」共通経路をキー・値の双方に用いるため、専用の
+                    // キー用フォーマットを別途持たない）。
+                    encode_value_into(&Value::Str(key.clone()), out);
+                    encode_value_into(val, out);
+                }
+                out.push('e');
+            }
+        }
+    }
+
+    /// [`encode_value`] の逆変換（クライアント側責務）。
+    ///
+    /// `data-hydrate-*` 属性値は改ざんされうるクライアント入力として扱い、
+    /// 未知の型タグ・パース失敗・[`MAX_VALUE_DEPTH`] 超過・不正な UTF-8
+    /// 境界のいずれでも panic せず [`ValueDecodeError`] を返す
+    /// （`unwrap()`/`expect()`/`panic!` 不使用、`.claude/rules/coding-rust.md`）。
+    /// 長さプレフィックスにより境界が事前に確定するため、デコードは
+    /// 入力バイト長に対して線形時間で完結する。
+    ///
+    /// # Errors
+    ///
+    /// 入力が空・型タグが未知・長さプレフィックスや UTF-8 境界が不正・
+    /// ペイロードの形式が不正・ネスト深さが [`MAX_VALUE_DEPTH`] を超える・
+    /// 末尾に余分なバイト列が残る場合に [`ValueDecodeError`] を返す。
+    pub fn decode_value(input: &str) -> Result<Value, ValueDecodeError> {
+        if input.is_empty() {
+            return Err(ValueDecodeError::Empty);
+        }
+        let mut cursor = ValueCursor {
+            bytes: input.as_bytes(),
+            pos: 0,
+        };
+        let value = cursor.decode(0)?;
+        if cursor.pos != cursor.bytes.len() {
+            return Err(ValueDecodeError::TrailingData);
+        }
+        Ok(value)
+    }
+
+    /// [`decode_value`] の再帰下降パーサ本体。バイト列上の読み取り位置
+    /// （`pos`）を保持し、`Str`/`Map` キーの長さプレフィックスが指す
+    /// バイト範囲を直接スライスすることで、文字列の再構築コピーを
+    /// 最小限に抑える（各バイトは高々 1 回読み取られる）。
+    struct ValueCursor<'a> {
+        bytes: &'a [u8],
+        pos: usize,
+    }
+
+    impl<'a> ValueCursor<'a> {
+        fn peek(&self) -> Option<u8> {
+            self.bytes.get(self.pos).copied()
+        }
+
+        fn advance(&mut self) -> Option<u8> {
+            let b = self.peek()?;
+            self.pos += 1;
+            Some(b)
+        }
+
+        /// `terminator` に到達するまでの ASCII バイト列を読み取り、
+        /// `terminator` 自身は消費して返り値には含めない。`terminator` に
+        /// 到達せず入力が尽きた場合は `UnexpectedEnd`。
+        fn read_until(&mut self, terminator: u8) -> Result<&'a [u8], ValueDecodeError> {
+            let start = self.pos;
+            loop {
+                match self.peek() {
+                    Some(b) if b == terminator => {
+                        let slice = &self.bytes[start..self.pos];
+                        self.pos += 1;
+                        return Ok(slice);
+                    }
+                    Some(_) => self.pos += 1,
+                    None => return Err(ValueDecodeError::UnexpectedEnd),
+                }
+            }
+        }
+
+        /// `Str`/`Map` キーの長さプレフィックス（先頭の型タグ `s` は既に
+        /// 消費済みの前提）を読み、宣言されたバイト数ぶんの文字列を取り出す。
+        /// 宣言された長さが残り入力より大きい場合・UTF-8 境界が不正な場合は
+        /// panic せず `Err` を返す（改ざんされた長さプレフィックスによる
+        /// パニック・範囲外読み取りを防ぐ）。
+        fn read_length_prefixed_str(&mut self) -> Result<String, ValueDecodeError> {
+            let len_bytes = self.read_until(b':')?;
+            let len_str =
+                core::str::from_utf8(len_bytes).map_err(|_| ValueDecodeError::InvalidLength)?;
+            let len: usize = len_str
+                .parse()
+                .map_err(|_| ValueDecodeError::InvalidLength)?;
+            let remaining = self.bytes.len().saturating_sub(self.pos);
+            if len > remaining {
+                return Err(ValueDecodeError::UnexpectedEnd);
+            }
+            let start = self.pos;
+            let end = start + len;
+            let slice = &self.bytes[start..end];
+            let s = core::str::from_utf8(slice)
+                .map_err(|_| ValueDecodeError::InvalidUtf8)?
+                .to_string();
+            self.pos = end;
+            Ok(s)
+        }
+
+        /// `depth` は現在の再帰深さ（トップレベルは 0）。`List`/`Map` の
+        /// 子要素を復元する前に [`MAX_VALUE_DEPTH`] を超えていないか確認
+        /// してから再帰する（超過した入力でのスタックオーバーフローを
+        /// `Err` で遮断する）。
+        fn decode(&mut self, depth: u32) -> Result<Value, ValueDecodeError> {
+            let tag = self.advance().ok_or(ValueDecodeError::UnexpectedEnd)?;
+            match tag {
+                b's' => Ok(Value::Str(self.read_length_prefixed_str()?)),
+                b'i' => {
+                    let digits = self.read_until(b'e')?;
+                    let s =
+                        core::str::from_utf8(digits).map_err(|_| ValueDecodeError::InvalidInt)?;
+                    s.parse::<i64>()
+                        .map(Value::Int)
+                        .map_err(|_| ValueDecodeError::InvalidInt)
+                }
+                b'b' => match self.advance() {
+                    Some(b'1') => Ok(Value::Bool(true)),
+                    Some(b'0') => Ok(Value::Bool(false)),
+                    Some(_) => Err(ValueDecodeError::InvalidBool),
+                    None => Err(ValueDecodeError::UnexpectedEnd),
+                },
+                b'l' => {
+                    let next_depth = depth
+                        .checked_add(1)
+                        .filter(|d| *d <= MAX_VALUE_DEPTH)
+                        .ok_or(ValueDecodeError::DepthExceeded)?;
+                    let mut items = Vec::new();
+                    loop {
+                        match self.peek() {
+                            Some(b'e') => {
+                                self.pos += 1;
+                                break;
+                            }
+                            Some(_) => items.push(self.decode(next_depth)?),
+                            None => return Err(ValueDecodeError::UnexpectedEnd),
+                        }
+                    }
+                    Ok(Value::List(items))
+                }
+                b'm' => {
+                    let next_depth = depth
+                        .checked_add(1)
+                        .filter(|d| *d <= MAX_VALUE_DEPTH)
+                        .ok_or(ValueDecodeError::DepthExceeded)?;
+                    let mut entries = Vec::new();
+                    loop {
+                        match self.peek() {
+                            Some(b'e') => {
+                                self.pos += 1;
+                                break;
+                            }
+                            Some(_) => {
+                                let key = match self.decode(next_depth)? {
+                                    Value::Str(k) => k,
+                                    _ => return Err(ValueDecodeError::InvalidMapKey),
+                                };
+                                let val = self.decode(next_depth)?;
+                                entries.push((key, val));
+                            }
+                            None => return Err(ValueDecodeError::UnexpectedEnd),
+                        }
+                    }
+                    Ok(Value::Map(entries))
+                }
+                other => Err(ValueDecodeError::UnknownTag(other as char)),
+            }
+        }
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
@@ -273,6 +610,217 @@ pub mod codec {
                 "plain item".to_string(),
             ];
             assert_eq!(decode_list(&encode_list(&items)), items);
+        }
+
+        /// イシュー #163: `Value` codec の追加が既存 `encode_list` の出力・
+        /// 挙動を一切変えないことの回帰確認（後方互換）。`Value` codec は
+        /// 長さプレフィックス方式であり `encode_list`/`escape_item` を一切
+        /// 呼ばないため、U+001E/U+001F を含む項目も既存のエスケープ表
+        /// （バックスラッシュ・U+001F のみ）でそのまま扱われる。
+        #[test]
+        fn value_codec_addition_does_not_change_encode_list_output() {
+            let items = vec![
+                "plain".to_string(),
+                "with-\u{1e}-record-sep".to_string(),
+                "with-\u{1f}-unit-sep".to_string(),
+                "with-\\-backslash".to_string(),
+            ];
+            let before = encode_list(&items);
+            // `Value` codec 呼び出し後も `encode_list` の出力は不変であること
+            let _ = encode_value(&Value::Str("unrelated".to_string()));
+            let after = encode_list(&items);
+            assert_eq!(before, after);
+            assert_eq!(decode_list(&after), items);
+        }
+
+        #[test]
+        fn value_roundtrip_str_int_bool() {
+            for value in [
+                Value::Str(String::new()),
+                Value::Str("hello".to_string()),
+                Value::Int(0),
+                Value::Int(i64::MAX),
+                Value::Int(i64::MIN),
+                Value::Bool(true),
+                Value::Bool(false),
+            ] {
+                let encoded = encode_value(&value);
+                assert_eq!(decode_value(&encoded).unwrap(), value);
+            }
+        }
+
+        #[test]
+        fn value_roundtrip_nested_list_and_map() {
+            let value = Value::Map(vec![
+                (
+                    "user".to_string(),
+                    Value::Map(vec![
+                        ("name".to_string(), Value::Str("Alice".to_string())),
+                        (
+                            "tags".to_string(),
+                            Value::List(vec![
+                                Value::Str("admin".to_string()),
+                                Value::Str("beta".to_string()),
+                            ]),
+                        ),
+                        ("active".to_string(), Value::Bool(true)),
+                    ]),
+                ),
+                (
+                    "counters".to_string(),
+                    Value::List(vec![Value::Int(1), Value::Int(-2), Value::Int(3)]),
+                ),
+            ]);
+            let encoded = encode_value(&value);
+            assert_eq!(decode_value(&encoded).unwrap(), value);
+        }
+
+        #[test]
+        fn value_roundtrip_empty_list_and_map() {
+            assert_eq!(
+                decode_value(&encode_value(&Value::List(vec![]))).unwrap(),
+                Value::List(vec![])
+            );
+            assert_eq!(
+                decode_value(&encode_value(&Value::Map(vec![]))).unwrap(),
+                Value::Map(vec![])
+            );
+        }
+
+        /// 項目文字列に区切り文字（U+001F）・エスケープ文字（`\`）・
+        /// コロン・日本語・絵文字が混在してもラウンドトリップが成立する
+        /// こと（長さプレフィックス方式では文字列内容に対する特別扱いが
+        /// 一切不要であることの回帰確認）。
+        #[test]
+        fn value_roundtrip_survives_adversarial_strings() {
+            let value = Value::List(vec![
+                Value::Str("separator:\u{1f}here".to_string()),
+                Value::Str("backslash:\\here".to_string()),
+                Value::Str("both:\\\u{1f}mixed".to_string()),
+                Value::Str("colon:in:string".to_string()),
+                Value::Str("日本語と絵文字🎉".to_string()),
+                Value::Map(vec![(
+                    "key:\u{1f}with-sep".to_string(),
+                    Value::Str("val\\ue".to_string()),
+                )]),
+            ]);
+            let encoded = encode_value(&value);
+            assert_eq!(decode_value(&encoded).unwrap(), value);
+        }
+
+        #[test]
+        fn decode_value_rejects_empty_input() {
+            assert_eq!(decode_value(""), Err(ValueDecodeError::Empty));
+        }
+
+        #[test]
+        fn decode_value_rejects_unknown_tag() {
+            assert_eq!(
+                decode_value("xhello"),
+                Err(ValueDecodeError::UnknownTag('x'))
+            );
+        }
+
+        #[test]
+        fn decode_value_rejects_invalid_int_payload() {
+            assert_eq!(
+                decode_value("inot-a-numbere"),
+                Err(ValueDecodeError::InvalidInt)
+            );
+        }
+
+        #[test]
+        fn decode_value_rejects_invalid_bool_payload() {
+            assert_eq!(decode_value("b2"), Err(ValueDecodeError::InvalidBool));
+        }
+
+        #[test]
+        fn decode_value_rejects_map_with_non_string_key() {
+            // Map のキー位置に整数（本来は文字列のみ許容）を仕込んだ改ざん入力。
+            let broken = format!(
+                "m{}{}e",
+                encode_value(&Value::Int(1)),
+                encode_value(&Value::Int(2))
+            );
+            assert_eq!(decode_value(&broken), Err(ValueDecodeError::InvalidMapKey));
+        }
+
+        #[test]
+        fn decode_value_rejects_length_prefix_exceeding_remaining_input() {
+            // 宣言された長さ（100 バイト）が実際に残っている入力より大きい。
+            assert_eq!(
+                decode_value("s100:short"),
+                Err(ValueDecodeError::UnexpectedEnd)
+            );
+        }
+
+        #[test]
+        fn decode_value_rejects_missing_terminator() {
+            assert_eq!(decode_value("i42"), Err(ValueDecodeError::UnexpectedEnd));
+            assert_eq!(decode_value("l"), Err(ValueDecodeError::UnexpectedEnd));
+        }
+
+        #[test]
+        fn decode_value_rejects_trailing_data() {
+            assert_eq!(
+                decode_value("i1egarbage"),
+                Err(ValueDecodeError::TrailingData)
+            );
+        }
+
+        #[test]
+        fn decode_value_rejects_excessive_nesting_without_panicking() {
+            // MAX_VALUE_DEPTH を超える深さのネストしたリストを構築し、
+            // panic（スタックオーバーフロー含む）せず Err を返すことを確認する。
+            // 長さプレフィックス方式は再帰段ごとにエスケープを繰り返さない
+            // ため、エンコード結果のサイズは深さに対して線形にとどまる。
+            let mut value = Value::Int(0);
+            for _ in 0..(MAX_VALUE_DEPTH + 5) {
+                value = Value::List(vec![value]);
+            }
+            let encoded = encode_value(&value);
+            assert_eq!(decode_value(&encoded), Err(ValueDecodeError::DepthExceeded));
+        }
+
+        #[test]
+        fn decode_value_accepts_nesting_at_the_depth_limit() {
+            let mut value = Value::Int(42);
+            for _ in 0..MAX_VALUE_DEPTH {
+                value = Value::List(vec![value]);
+            }
+            let encoded = encode_value(&value);
+            assert_eq!(decode_value(&encoded).unwrap(), value);
+        }
+
+        /// エンコード結果のサイズがネスト深さに対して線形であることの回帰
+        /// 確認（旧設計の指数的サイズ増大バグの再発防止）。深さ 32 段の
+        /// リストのエンコード結果が数百バイト程度に収まることを確認する
+        /// （指数的増大であれば `2^32` バイト超になり得る）。
+        #[test]
+        fn encoded_size_grows_linearly_with_nesting_depth() {
+            let mut value = Value::Int(0);
+            for _ in 0..MAX_VALUE_DEPTH {
+                value = Value::List(vec![value]);
+            }
+            let encoded = encode_value(&value);
+            assert!(
+                encoded.len() < 500,
+                "ネスト深さ {MAX_VALUE_DEPTH} のエンコード結果が想定より大きい (指数的増大の疑い): len={}",
+                encoded.len()
+            );
+        }
+
+        #[test]
+        fn decode_value_does_not_panic_on_multibyte_leading_char() {
+            // 攻撃者が非 ASCII のマルチバイト文字を先頭（本来は型タグ位置）に
+            // 置いた場合でも、バイト境界パニックせず Err を返すこと。
+            // マルチバイト文字の最初のバイトは有効な型タグ（ASCII）と一致
+            // しないため、UnknownTag として扱われる。
+            let first_byte = "日本語".as_bytes()[0];
+            assert_eq!(
+                decode_value("日本語"),
+                Err(ValueDecodeError::UnknownTag(first_byte as char))
+            );
         }
     }
 }
