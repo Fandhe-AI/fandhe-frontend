@@ -1,0 +1,223 @@
+name: Runner maintenance
+
+# イシュー #295: self-hosted runner イメージの常設整備（libnss3/libnspr4 等）と
+# 残骸クリーンアップのトラッキング対応。
+#
+# runner イメージ定義自体は本リポジトリの管理外（インフラ側）のため、本
+# ワークフローは「イメージへの焼き込み」は行わず、以下 2 点のみを行う
+# report-only な保守ワークフローとする。
+#   (1) プール内インスタンスの環境検査（root/apt-get 可否・libnss3/libnspr4 等の
+#       常設有無を可視化し、`docs/ci-runner-requirements.md` の依頼内容が
+#       反映されたかどうかの確認に使う）
+#   (2) atomic install 化（PR #291）以前に $HOME/.local/bin へ直接導入された
+#       旧バイナリ・強制終了で残った一時ディレクトリのクリーンアップ
+#       （cleanup=false の場合は列挙のみの dry-run）
+#
+# ci.yml / musl-smoke.yml / image-size.yml / deps-check.yml / update-external.yml
+# 側の存在チェック付きインストール（安全網）はこのワークフローの追加とは独立に
+# 維持し続ける（`.claude/rules/ci.md` 準拠。イメージ焼き込みが完了しても
+# ワークフロー側の安全網は削除しない）。
+on:
+  workflow_dispatch:
+    inputs:
+      parallelism:
+        description: '検査・クリーンアップの並列度（matrix 展開数）。GitHub Actions にはプール内全インスタンスを 1 回ずつ実行する機構が無いため統計的カバーに留まる。プール全体のカバレッジを上げたい場合は dispatch のたび変更・再実行する（docs/ci-runner-requirements.md 参照）'
+        type: choice
+        required: false
+        default: '4'
+        options:
+          - '1'
+          - '2'
+          - '4'
+          - '8'
+      cleanup:
+        description: 'true: 旧バイナリ・stale tmp を実際に削除する。false: 削除対象の列挙のみ行う dry-run'
+        type: boolean
+        required: false
+        default: true
+
+# 最小権限: checkout・シークレット参照を行わないため contents: read で足りる
+# （OWASP A01/A05 対策）。
+permissions:
+  contents: read
+
+# 多重 dispatch による並走を避ける。既存の実行は完走させてから次を実行する
+# （Step Summary の取り違えを避けるための直列化。cleanup 自体は固定ファイル名
+# 限定の冪等な削除のため、同時実行そのものが破壊的というわけではない）。
+concurrency:
+  group: runner-maintenance
+  cancel-in-progress: false
+
+jobs:
+  # workflow_dispatch の type: choice 入力（文字列）を strategy.matrix 用の
+  # JSON 配列へ変換するだけの小さな準備ジョブ。GitHub Actions には
+  # 「1..N の範囲」を生成する組み込み関数が無いため、parallelism の各選択肢
+  # ごとに固定配列をここで用意する。
+  plan:
+    name: Compute matrix shards from parallelism input
+    runs-on: self-hosted
+    timeout-minutes: 2
+    outputs:
+      shards: ${{ steps.compute.outputs.shards }}
+    steps:
+      - name: "compute: shard array from parallelism choice"
+        id: compute
+        env:
+          PARALLELISM: ${{ inputs.parallelism }}
+        run: |
+          set -euo pipefail
+          case "${PARALLELISM}" in
+            1) SHARDS='[1]' ;;
+            2) SHARDS='[1,2]' ;;
+            4) SHARDS='[1,2,3,4]' ;;
+            8) SHARDS='[1,2,3,4,5,6,7,8]' ;;
+            *)
+              echo "::error::unexpected parallelism input: ${PARALLELISM}" >&2
+              exit 1
+              ;;
+          esac
+          echo "shards=${SHARDS}" >> "$GITHUB_OUTPUT"
+
+  # プール内インスタンスの環境検査 + 残骸クリーンアップ本体。
+  # matrix 並列度は `plan` ジョブが input から計算した配列を使う（1 インスタンス
+  # = 1 shard の厳密対応は無く、GitHub Actions のスケジューラに委ねる統計的
+  # カバー方式。同一インスタンスに複数 shard が当たることもあり得る）。
+  inspect-and-cleanup:
+    name: Inspect runner env and clean up legacy artifacts
+    needs: plan
+    runs-on: self-hosted
+    timeout-minutes: 10
+    strategy:
+      # report-only なジョブのため、1 shard の失敗が他 shard の検査・
+      # クリーンアップ結果の可視化を止めないよう fail-fast を無効化する。
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    steps:
+      # ldconfig / dpkg / find は coreutils・glibc・dpkg 標準ツールであり
+      # self-hosted runner に常設されている前提を置く（`.claude/rules/ci.md`
+      # 「ツール前提の明示」）。存在チェックは行わず、失敗時もジョブ全体を
+      # 落とさない report-only 方針とする。
+      - name: "inspect: runner environment"
+        run: |
+          set -uo pipefail
+          {
+            echo "### Runner environment (shard ${{ matrix.shard }})"
+            echo ""
+            echo "| item | value |"
+            echo "|------|-------|"
+            echo "| RUNNER_NAME | ${RUNNER_NAME:-unknown} |"
+            echo "| uname -sm | $(uname -sm 2>&1) |"
+            if [ "$(id -u)" = "0" ]; then
+              echo "| root | yes |"
+            else
+              echo "| root | no (uid=$(id -u)) |"
+            fi
+            if command -v apt-get >/dev/null 2>&1; then
+              echo "| apt-get | available |"
+            else
+              echo "| apt-get | not available |"
+            fi
+            # Chrome for Testing の実行に必要な共有ライブラリの常設有無
+            # （ci.yml の browser-test/perf-harness/xss-wasm-test ジョブが
+            # 毎回 apt-get install している対象。イメージ焼き込み完了後は
+            # ここが "preinstalled" に変わるはずで、それを本ワークフローの
+            # 再 dispatch で確認する）。
+            for lib in libnss3.so libnspr4.so; do
+              if ldconfig -p 2>/dev/null | grep -q "${lib}"; then
+                echo "| ${lib} | preinstalled |"
+              else
+                echo "| ${lib} | missing (installed per-job by ci.yml as fallback) |"
+              fi
+            done
+            if command -v dpkg >/dev/null 2>&1; then
+              if dpkg -s libnss3 libnspr4 >/dev/null 2>&1; then
+                echo "| dpkg libnss3/libnspr4 | installed |"
+              else
+                echo "| dpkg libnss3/libnspr4 | not installed |"
+              fi
+            fi
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # atomic install 化（PR #291）以前は $HOME/.local/bin へ直接バイナリを
+      # 配置していた。現行は $HOME/.local/share/<tool>/<version>/ 配下の
+      # バージョン付き不変パスへ移行済みのため、$HOME/.local/bin 側の
+      # 同名ファイルは全て旧世代の残骸と判断してよい。削除対象は既知の
+      # 固定ファイル名のみに限定し、ディレクトリ削除・ワイルドカード削除は
+      # 行わない（誤って無関係なユーザーバイナリを消さないための安全策）。
+      - name: 'cleanup: legacy binaries in $HOME/.local/bin'
+        env:
+          CLEANUP: ${{ inputs.cleanup }}
+        run: |
+          set -uo pipefail
+          LEGACY_BIN_DIR="${HOME}/.local/bin"
+          LEGACY_NAMES="cargo-deny wasm-bindgen wasm-bindgen-test-runner wasm-pack"
+          {
+            echo "### Legacy \$HOME/.local/bin cleanup (shard ${{ matrix.shard }}, cleanup=${CLEANUP})"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+          for name in ${LEGACY_NAMES}; do
+            path="${LEGACY_BIN_DIR}/${name}"
+            if [ -e "${path}" ]; then
+              if [ "${CLEANUP}" = "true" ]; then
+                if rm -f "${path}"; then
+                  echo "- removed: ${path}" >> "$GITHUB_STEP_SUMMARY"
+                else
+                  echo "- failed to remove: ${path}" >> "$GITHUB_STEP_SUMMARY"
+                fi
+              else
+                echo "- would remove (dry-run): $(ls -l "${path}" 2>&1)" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            else
+              echo "- not present: ${path}" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+      # atomic install（ci.yml 各ステップの `mktemp -d "${SHARE_DIR}/.tmp-XXXXXX"`
+      # + `trap 'rm -rf "${tmp_root}"' EXIT`）は正常終了時には自動で消える。
+      # ジョブの強制終了（timeout・cancel 等）で trap が発火しなかった場合のみ
+      # `.tmp-*` が残る。24 時間以上前のものに限定して削除することで、
+      # 並列実行中の他 CI ジョブが進行中に使っている一時ディレクトリを
+      # 誤って壊さないようにする（時間ガード）。バージョン付き確定
+      # ディレクトリ（<tool>/<version>/ 本体）は対象外（過去バージョン pin
+      # の旧ブランチ CI との競合を避けるため、本イシューでは削除しない）。
+      - name: "cleanup: stale atomic-install temp dirs"
+        env:
+          CLEANUP: ${{ inputs.cleanup }}
+        run: |
+          set -uo pipefail
+          SHARE_ROOT="${HOME}/.local/share"
+          TOOL_DIRS="cargo-deny wasm-bindgen wasm-pack chrome-for-testing"
+          {
+            echo "### Stale atomic-install temp dirs (shard ${{ matrix.shard }}, cleanup=${CLEANUP})"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+          for tool in ${TOOL_DIRS}; do
+            dir="${SHARE_ROOT}/${tool}"
+            if [ ! -d "${dir}" ]; then
+              echo "- ${dir}: not present" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            # -maxdepth 1 で直下のみ対象とし、バージョン付きディレクトリの
+            # 内部（展開済み成果物）には踏み込まない。
+            stale_dirs="$(find "${dir}" -maxdepth 1 -type d -name '.tmp-*' -mmin +1440 2>/dev/null || true)"
+            if [ -z "${stale_dirs}" ]; then
+              echo "- ${dir}: no stale .tmp-* (>24h) found" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            echo "${stale_dirs}" | while IFS= read -r stale; do
+              [ -n "${stale}" ] || continue
+              if [ "${CLEANUP}" = "true" ]; then
+                if rm -rf "${stale}"; then
+                  echo "- removed: ${stale}" >> "$GITHUB_STEP_SUMMARY"
+                else
+                  echo "- failed to remove: ${stale}" >> "$GITHUB_STEP_SUMMARY"
+                fi
+              else
+                echo "- would remove (dry-run, >24h old): ${stale}" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            done
+          done
+          echo "" >> "$GITHUB_STEP_SUMMARY"
