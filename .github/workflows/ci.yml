@@ -1338,8 +1338,22 @@ jobs:
         # パイプライン全体を実 npm で end-to-end 検証する。ubuntu-latest には
         # node/npm がプリインストールされているため、CI 上では常に実行される
         # （緩和用 input・continue-on-error は設けない。既存ジョブの迂回経路
-        # 禁止原則を踏襲）。
+        # 禁止原則を踏襲）。ケース G（イシュー #316）が apply_exempt.py の
+        # 半自動追記往復も併せて検証する。
         run: bash tools/npm-asset-build/tests/test_pipeline_e2e.sh
+
+      - name: apply_exempt.py fixture regression tests (fail-closed)
+        # イシュー #316: allowlist 半自動追記コマンド apply_exempt.py 本体の
+        # ユニット/フィクスチャ回帰（検証・エスケープ・アトミック書き込み・
+        # 終了コード契約）。check_static_only.py と同じく存在ガードなし
+        # （不在・失敗は即座にジョブ失敗）。
+        run: python3 tools/npm-asset-build/tests/test_apply_exempt.py -v
+
+      - name: templates/default npm-asset-build sync check (fail-closed)
+        # イシュー #316: templates/default/tools/npm-asset-build/ へ同梱した
+        # コピーが正本（tools/npm-asset-build/）とドリフトしていないことを
+        # 機械的に検証する。テンプレート側だけが改変・弱体化される事態を防ぐ。
+        run: bash tools/npm-asset-build/tests/test_template_sync.sh
 
   # TASK-10.4a（イシュー #119、REQ-10）: 本番ビルドのアセット変更反映
   # （差分ビルド）が 5 秒以内であることを継続計測するジョブ。

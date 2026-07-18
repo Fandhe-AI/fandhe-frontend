@@ -8,6 +8,10 @@
 > 設計は `docs/npm-static-asset-rules.md` に委ね、本書では二重管理しません。
 > イシュー #296（REQ-12 残課題）で `install.sh` に allowlist 自動連携と
 > `npm audit` 統合を追加しました（§2〜§4 に反映済み）。
+> イシュー #316（#296 の将来拡張の着手判断）で allowlist 半自動追記
+> （`apply_exempt.py`、§3.4）と `templates/default/` への本パイプライン
+> 同梱（§3.5）を追加しました。`npm audit` キャッシュ機構・cargo-deny 統合 /
+> `xtask` 呼び出し導線は見送りました（理由は §6 参照）。
 
 ## 1. 目的とトレーサビリティ
 
@@ -47,6 +51,14 @@ tools/npm-asset-build/check_static_only.py … 後段ゲート。静的アセッ
       │  （install.sh が allowlist 自動連携付きで自動起動。exit 0 のときのみ後続へ）
       ▼
 配布物（static/ 等）への取り込み
+
+      … 違反検出時（exit 1）は --suggest-exempt が [[exempt]] 雛形を提案 …
+              │
+              ▼ （人間によるレビュー・reason 編集。ここは自動化しない）
+      tools/npm-asset-build/apply_exempt.py --suggestions <reviewed.toml>
+              │  （§3.4。レビュー済みエントリを allowlist.toml へ半自動追記）
+              ▼
+      allowlist.toml 更新 → check_static_only.py を再実行して確認
 ```
 
 - **`install.sh`（入口・受け入れ基準 1）**: `npm install` / `npm ci` を
@@ -142,6 +154,57 @@ check_static_only.py (--node-modules <path> | --dir <project-dir>)
 コメントと `docs/npm-static-asset-rules.md` §3.4 を参照してください。
 本書では詳細を二重管理しません。
 
+### 3.4 `apply_exempt.py`（allowlist 半自動追記、イシュー #316）
+
+```
+apply_exempt.py --suggestions <reviewed.toml> --allowlist <allowlist.toml> [--dry-run]
+```
+
+`--suggest-exempt`（§3.2）が出力する `[[exempt]]` 雛形を、**人間がレビュー・
+編集して保存したファイル**に対して allowlist.toml へ半自動で追記するコマンドです。
+`check_static_only.py` 本体・`install.sh` からは呼び出されません（自動連携
+しない）。「チェッカー・install.sh からの allowlist 自動書き込みなし」という
+既存方針（イシュー #296・A08 観点）は維持したまま、人間レビュー後の適用
+手作業（コピー & ペースト）に伴う転記ミス・エスケープ崩れのリスクだけを
+減らすことが目的です。
+
+- **入力契約**: `--suggestions` はファイル全体が有効な TOML であることを
+  要求します。`--suggest-exempt` の生出力（`VIOLATION ...` 行が混在する）を
+  そのまま渡すとパースエラーで拒否されます。人間が VIOLATION 行を取り除き、
+  `reason = "TODO: ..."` を実際の理由へ書き換えて保存したファイルだけを
+  受理する意図的なゲートです
+- **検証**: `check_static_only.py` の `validate_exempt_entries()` を再利用し、
+  allowlist の検証規則を二重実装しません。`reason` が空・`TODO:` で始まる
+  雛形のままのエントリは拒否します（人間レビューの強制）。ハード拒否拡張子
+  （`.js`/`.mjs`/`.cjs`/`.node`/`.wasm`）への免除は適用側でも拒否されます
+- **書き込み**: 既存 allowlist + 追記エントリのマージ結果を書き込み前に
+  再検証し、合格した場合のみ同一ディレクトリの一時ファイル経由で
+  `os.replace()` によりアトミックに置換します。検証に失敗した場合、対象
+  ファイルは一切変更されません。既存 allowlist に同一エントリ（package,
+  rule, ext/file）が既にあれば `SKIPPED` として重複追記しません（冪等）
+- **`--dry-run`**: 検証・適用予定の内容を出力するのみで、ファイルは変更しません
+- **終了コード契約**: `0` = 適用完了（適用 0 件の冪等成功を含む）/
+  `1` = エントリ検証で拒否あり（提案ファイルに修正が必要）/
+  `2` = 実行エラー（ファイル不在・TOML 構文エラー等）
+
+### 3.5 `templates/default/` への同梱（イシュー #316）
+
+`templates/default/tools/npm-asset-build/` に正本 4 ファイル
+（`install.sh` / `check_static_only.py` / `apply_exempt.py` /
+`allowlist.toml`）をバイト同一のままコピー同梱しています
+（`deny.toml` + `deny.yml` の同梱前例、TASK-4.1/4.2 に倣う）。
+テンプレート利用者向けの CI ワークフロー
+`templates/default/.github/workflows/npm-asset-gate.yml` が
+`package.json` / `package-lock.json` / `allowlist.toml` /
+`tools/npm-asset-build/**` の変更時に `install.sh --dir .` を実行します
+（`deny.yml` と同様 `ubuntu-latest` を使用。本リポジトリ CI の
+self-hosted 既定は適用外）。
+
+正本とコピーのドリフトは `tools/npm-asset-build/tests/test_template_sync.sh`
+が CI（`.github/workflows/ci.yml` の `npm-asset-build` ジョブ）で機械検証
+します。正本を変更したら `templates/default/tools/npm-asset-build/` へも
+同じ内容を反映してください（同期を忘れると本テストが fail-closed で検知します）。
+
 ## 4. セキュリティモデルと限界
 
 本パイプラインは PoC-6（`docs/spec/03-poc/npm-compat-feasibility/README.md`）
@@ -182,21 +245,24 @@ check_static_only.py (--node-modules <path> | --dir <project-dir>)
 | D | JS 実行エントリ（`main` が `.js`）を持つ fixture を同パイプラインで流す → `check_static_only.py` が exit 1 で違反報告 | 基準 2・パイプライン連結の異常系（違反検出） | PASS |
 | E | ケース D と同じ fixture を `install.sh`（`--no-check` なし・自動連携有効）に流す → `install.sh` 自身が非 0 終了 + `[[exempt]]` 提案を出力 | イシュー #296: allowlist 自動連携の統合検証（正常な fail-closed 動作） | PASS |
 | F | ケース E と同じ fixture・`--no-check` 付き → `install.sh` は成功し、check スキップの警告を出力 | イシュー #296: 明示オプトアウトの動作確認 | PASS |
+| G | R1-bin 単独違反 fixture を `install.sh` でインストール → `--suggest-exempt` の提案出力 → VIOLATION 行除去・reason 編集（人間レビュー相当）→ `apply_exempt.py` で allowlist へ適用 → 同じ allowlist で再チェックすると `EXEMPTED` + exit 0 | イシュー #316: 半自動追記の往復（提案 → レビュー → 適用 → 再検証） | PASS |
 
 既存の回帰テストもあわせて全件 PASS を確認済みです。
 
 | テスト | 結果 |
 |--------|------|
 | `bash tools/npm-asset-build/tests/test_install.sh` | 18 passed, 0 failed |
-| `python3 tools/npm-asset-build/tests/test_check_static_only.py -v` | 48 tests, OK |
-| `bash tools/npm-asset-build/tests/test_pipeline_e2e.sh` | 6 passed, 0 failed |
+| `python3 tools/npm-asset-build/tests/test_check_static_only.py -v` | 51 tests, OK |
+| `bash tools/npm-asset-build/tests/test_pipeline_e2e.sh` | 7 passed, 0 failed（ケース G 含む） |
+| `python3 tools/npm-asset-build/tests/test_apply_exempt.py -v` | 10 tests, OK |
+| `bash tools/npm-asset-build/tests/test_template_sync.sh` | 4 passed, 0 failed |
 
-CI（`.github/workflows/ci.yml` の `npm-asset-build` ジョブ）は上記 3 つの
+CI（`.github/workflows/ci.yml` の `npm-asset-build` ジョブ）は上記 5 つの
 テストをすべて fail-closed（緩和用 input・`continue-on-error` なし）で
 実行します。`test_pipeline_e2e.sh` はローカルで `npm`/`node`/`python3` が
 見つからない場合のみ notice を出して skip しますが、CI 環境
-（`ubuntu-latest`）には常にプリインストールされているため、CI 上では
-実質的に必ず実行されます。
+（self-hosted runner、`.claude/rules/ci.md` 準拠）には Node.js セットアップ
+ステップがあるため、CI 上では実質的に必ず実行されます。
 
 ## 6. スコープ外事項
 
@@ -211,12 +277,23 @@ CI（`.github/workflows/ci.yml` の `npm-asset-build` ジョブ）は上記 3 �
   への自動書き込みは行わず提案出力（`--suggest-exempt`）にとどめる設計は
   A08（ソフトウェア・データ完全性）の観点から意図的な選択です
 
-以下は #296 の実装時に新たにスコープ外と判断した事項で、別途 Issue 化を
-検討します（承認なしの起票はしません）。
+以下は #296 の実装時に新たにスコープ外と判断した事項で、いずれもイシュー
+#316 で採否判断を行いました。
 
 - allowlist の提案（`--suggest-exempt`）から `allowlist.toml` への半自動
-  追記（人間レビュー後のワンコマンド適用等）: 本イシューは「提案出力まで」
-  をスコープとし、書き込み自体は将来の別イシューとします
-- `npm audit` 結果のキャッシュ機構・`templates/default/` への本パイプライン
-  同梱・cargo-deny 側との統合・`xtask` クレートからの呼び出し導線: いずれも
-  TASK-12.1 系のスコープ（NPM 互換静的アセット導入）を超えるため対象外です
+  追記（人間レビュー後のワンコマンド適用等）: **イシュー #316 で採用・
+  実装済みです**（`apply_exempt.py`、§3.4）
+- `templates/default/` への本パイプライン同梱: **イシュー #316 で採用・
+  実装済みです**（§3.5）
+- `npm audit` 結果のキャッシュ機構: **イシュー #316 で見送りました**。
+  audit の価値は既知 advisory の「鮮度」にあり、キャッシュは検出遅延
+  （安全性低下）と引き換えに小さな CI コスト削減しか得られません。現行
+  `npm-asset-build` ジョブ（timeout 15 分）で audit がボトルネックである
+  実測もありません。要否が変わった場合はユーザー承認を得たうえで再度
+  Issue 化を検討します
+- cargo-deny 側との統合・`xtask` クレートからの呼び出し導線: **イシュー
+  #316 で見送りました**。cargo-deny 統合は npm / cargo のエコシステム
+  横断設計が必要で要件が未定義です。`xtask` 呼び出し導線は
+  `templates/default/` へのテンプレート同梱（`install.sh` 直接呼び出しで
+  十分）と価値が重複するため見送りました。ユーザーの承認なしに Issue は
+  起票していません（`.claude/rules/out-of-scope-tracking.md` 準拠）

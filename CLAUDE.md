@@ -28,9 +28,12 @@ frontend-framework/
 ├── templates/
 │   └── default/
 │       ├── deny.toml         # 標準プロジェクトテンプレート同梱の cargo-deny 設定（TASK-4.1 / REQ-4）
+│       ├── tools/
+│       │   └── npm-asset-build/  # NPM 静的アセットゲートの同梱コピー（正本は tools/npm-asset-build/、イシュー #316）
 │       └── .github/
 │           └── workflows/
-│               └── deny.yml  # 禁止クレート追加を CI でブロックするテンプレートワークフロー（TASK-4.2 / REQ-4）
+│               ├── deny.yml            # 禁止クレート追加を CI でブロックするテンプレートワークフロー（TASK-4.2 / REQ-4）
+│               └── npm-asset-gate.yml  # NPM 静的アセットゲート（install.sh 経由）のテンプレートワークフロー（REQ-12, イシュー #316）
 └── .claude/
     ├── agents/               # カテゴリ別 sub-agent 定義
     ├── rules/                # 委譲・コーディング・セキュリティ規約
