@@ -241,7 +241,7 @@ PoC-5（`docs/spec/03-poc/wasm-runtime-split/README.md` 178 行目）は、
 
 | 観点 | `--target web`（本番） | `--target nodejs`（開発） |
 |------|------------------------|---------------------------|
-| 用途 | ブラウザ配布・`dist-server` への埋め込み | `web-sys` 非依存クレート（`rws-wasm-thin` 系）のロジック確認・タイミング近似計測 |
+| 用途 | ブラウザ配布・`dist-server` への埋め込み | `web-sys` 非依存クレート（`rws-wasm-thin` 系）のロジック確認・タイミング近似計測（`rws-wasm-full`/`rws-wasm-client` へ拡張しない判断は §6.4.1 参照） |
 | 実行経路 | `cargo build -p rws-dist-server`（`run_wasm_build`・`run_wasm_bindgen` による自動実行、§4） | 開発者が手動で実行するオプトイン経路（下記コマンド例）。`build.rs` のビルドグラフ外 |
 | 出力先 | `OUT_DIR` 経由で埋め込みテーブル（`embedded_assets.rs`）へ合流 | `target/wasm-node/` 配下（`.gitignore` の `/target` により VCS 追跡外） |
 | 検証上の位置付け | 正式なブラウザ実証は `wasm-pack test --headless --chrome`（`docs/browser-testing.md`、CI の `browser-test`/`perf-harness` ジョブ） | ブラウザ実測の代替ではなく、`web-sys` を介さないロジックの高速な近似確認・補助（PoC-5 が明記する環境制約の踏襲） |
@@ -277,6 +277,47 @@ node -e "const m = require('./target/wasm-node/thin'); console.log(m.some_export
   バインディング生成・node 実行での既定エスケープ（REQ-1）回帰検証までを
   1 コマンドで行い、`.github/workflows/ci.yml` の `wasm-node-smoke` ジョブが
   CI ゲートとして実行します（§10 参照）。
+
+#### 6.4.1 `rws-wasm-full` / `rws-wasm-client` へ拡張しない判断（イシュー #317）
+
+`wasm-node-smoke`（前節）の対象を `rws-wasm-thin` 単一のまま維持し、
+`rws-wasm-full` / `rws-wasm-client` へのマルチパッケージ対応は行わない
+と判断しました。根拠は以下の 4 点です。
+
+1. **nodejs バインディングから到達できるロジックが存在しない**:
+   両クレートの `#[wasm_bindgen]` エクスポートは `mount` / `hydrate`
+   （`wasm-full/src/entry.rs:73,89`）、`hydrate` / `mount_csr`
+   （`wasm-client/src/lib.rs:193,255`）のみで、いずれも `window()` /
+   `document()` 等の実 DOM（`web-sys`）に依存します。nodejs 環境には
+   DOM が存在しないため実行できません。node で検証する価値がある純粋
+   ロジック（`render_component_html`、`dispatch_and_render_headless`、
+   `render_list_page_html` / `render_detail_page_html` /
+   `find_hydrate_target_kinds` / `find_list_nav_targets`
+   （`wasm-client/src/lib.rs:78-141`）等）は `#[wasm_bindgen]` が
+   付与されていない（ジェネリクス制約、または単に非公開エクスポート）
+   ため、nodejs バインディング経由では到達不能です。
+2. **既存の native テストと重複する**: 上記の純粋ロジックは
+   `wasm-full/tests/runtime_headless.rs` / `dom_update.rs` /
+   `xss_escape_wasm.rs`（XSS 回帰）、`wasm-client/tests/hydration_targets.rs`、
+   および各関数の doctest により、native `cargo test` で毎 CI 検証済みです。
+3. **既存のブラウザ CI ジョブと重複する**: wasm32 ビルド + wasm-bindgen
+   境界 + 実行の実証は `browser-test`（`wasm-pack test --headless --chrome`、
+   `.github/workflows/ci.yml:613,623,632`）・`xss-wasm-test`・
+   `perf-harness` の各ジョブが実ブラウザ上で毎 CI 検証済みです。
+4. **拡張のコストが便益を上回る**: 意味のある検証を成立させるには
+   (a) CI 目的の `#[wasm_bindgen]` エクスポートを製品クレートへ追加する
+   （本番 cdylib のエクスポート面・サイズを REQ トレースなしで拡大し、
+   `bundle_size.rs` のサイズ管理・API 表面最小化方針と衝突する）、
+   (b) jsdom 等の npm 依存で DOM をエミュレートする（サプライチェーン面の
+   拡大、REQ-12・脅威面最小化方針、`.claude/rules/security.md` と抵触する）、
+   のいずれかが必要です。それを避けて require() ロードのみに留める
+   スモークは、検証内容が「wasm32 ビルドと bindgen が通ること」に縮退し、
+   これは browser-test 系ジョブがより強い形（実ブラウザでの実行まで）で
+   既に毎 CI 検証しており純粋な重複になります。
+
+**再検討条件**: `rws-wasm-full` / `rws-wasm-client` に `web-sys` 非依存の
+`#[wasm_bindgen]` エクスポートが仕様（REQ）起点で追加された場合は、
+本判断を再評価します。
 
 ## 7. TASK-10.3（Docker マルチステージ内再ビルド）との境界
 
@@ -404,6 +445,8 @@ REQ-10（`docs/spec/04-requirements.md` 132〜142 行目）の受け入れ基準
   個別 WASM ジョブと `cargo build` のビルドグラフ統合）: TASK-10.2（本書の
   実装スコープ）では対応せず、`docs/wasm-build-integration-report.md` §7
   に切り出し済み。
+- ~~**`wasm-node-smoke` の `rws-wasm-full` / `rws-wasm-client` への拡張**~~:
+  イシュー #317 で非拡張と判断済み（§6.4.1 参照）。
 
 ## 11. リスク・注意事項
 
