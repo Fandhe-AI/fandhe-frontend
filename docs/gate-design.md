@@ -112,6 +112,33 @@ PR #263 の Bugbot 指摘対応）。`clippy.toml` の欠落・エントリ欠�
 clippy` を起動せず即座に `lint` チェックを failed とする（§3 の fail-closed
 原則）。
 
+### 2.3a 環境エラーのプリフライト検出（clippy component / cargo-deny の有無、イシュー #292）
+
+self-hosted runner プールはインスタンスごとに clippy component / cargo-deny
+の導入状態が異なり得る。`lint`／`policy` チェックがこれらツールの不在で
+failed になった場合、コード内容起因の FAIL（clippy 違反・deny.toml ポリシー
+違反）と区別が付かず、「当たった runner 次第で BLOCKED になる」間欠failure
+として現れる（イシュー #292）。
+
+これに対応するため、それぞれの本実行の直前に軽量な疎通確認を行う。
+
+- `lint`: `clippy_policy_check`（§2.3）の後、本実行の前に
+  [`clippy_environment_preflight`] が `cargo clippy --version` を起動する。
+- `policy`: `deny.toml` 存在確認の後、本実行の前に
+  [`cargo_deny_environment_preflight`] が `cargo deny --version` を起動する。
+
+いずれも疎通確認が失敗した場合のみ、`output` 先頭に固定プレフィックス
+`ENVIRONMENT_ERROR_PREFIX`（`"environment error: "`）を付与した決定的な
+メッセージ（是正コマンド `rustup component add clippy` /
+`tools/ci/ensure-gate-tools.sh` を含む）で該当チェックを failed とする。
+**SKIP や黙示的 PASS には倒さない**（fail-closed 維持、§3・security.md
+A05）。JSON 契約（`checks[].name`/`passed`/`output` の形状、PoC-7 互換）は
+変えず、区別は `output` の先頭プレフィックスのみで表現する。
+
+ツールの自動インストールはここでは行わない（検証ゲートは検証のみに専念し、
+ネットワーク非依存・サプライチェーン面の不拡大を維持する）。常設化・導入は
+`tools/ci/ensure-gate-tools.sh`（§6）の責務とする。
+
 ## 3. fail-closed 原則
 
 `fw gate` は「検証できないこと」を暗黙の PASS として扱わない
@@ -125,6 +152,8 @@ clippy` を起動せず即座に `lint` チェックを failed とする（§3 �
 | 宣言クレートが 0 件（`structure.toml` にどのディレクトリも `crate = "..."` を持たない） | `type_check`/`lint`/`test` を `-p` なしのワークスペース全体検証へフォールバックせず、各チェックを個別に failed とする（[`no_declared_crates_message`]。「検証対象なし＝ PASS」でも「範囲不明な全体検証」でもなく、設定不備として明示する） |
 | `deny.toml` が存在しない | `cargo deny` を起動せず `policy` チェックを failed とする |
 | `clippy.toml` の欠落・`disallowed-methods` エントリ欠落 | `cargo clippy` を起動せず `lint` チェックを failed とする（§2.3） |
+| clippy component が runner に未導入（`cargo clippy --version` 疎通確認失敗） | `cargo clippy` 本実行を起動せず `lint` チェックを `environment error:` 付きで failed とする（§2.3a、イシュー #292） |
+| cargo-deny が runner に未導入（`cargo deny --version` 疎通確認失敗） | `cargo deny check ...` 本実行を起動せず `policy` チェックを `environment error:` 付きで failed とする（§2.3a、イシュー #292） |
 | 外部コマンド（`cargo` 系）の起動自体に失敗（バイナリ不在等） | 該当チェックを failed とする（[`CommandRunner::run`] が起動失敗を `Ok((false, ...))` として返し、呼び出し元は `Err` 分岐を用意せず fail-closed 集約する） |
 
 ## 4. 集約規則と CLI 契約
@@ -197,7 +226,8 @@ clippy` を起動せず即座に `lint` チェックを failed とする（§3 �
 | §2 表（5 チェック定義） | `run_all_checks`（169-185 行目）、`run_cargo_check`/`run_cargo_clippy`/`run_cargo_test`/`policy_check`/`default_escape_check` |
 | §2.2（3 層体制） | モジュール doc コメント（1-35 行目）、`find_raw_html_call_positions`（420-440 行目）、`line_has_reviewed_expect_attribute`（521-528 行目）、`line_has_real_blanket_attribute`（487-497 行目）、`scan_file_for_violations`（607-667 行目） |
 | §2.3（clippy ポリシー健全性） | `clippy_policy_is_configured`（292-302 行目）、`clippy_policy_check`（315-329 行目） |
-| §3（fail-closed） | `run_gate`（97-153 行目、structure.toml 段階）、`no_declared_crates_message`（219-231 行目）、`run_locked_cargo_subcommand`（237-262 行目）、`run_cargo_clippy`（331-369 行目）、`policy_check`（383-405 行目） |
+| §2.3a（環境エラーのプリフライト、イシュー #292） | `clippy_environment_preflight`・`cargo_deny_environment_preflight`（`ENVIRONMENT_ERROR_PREFIX` 定数とあわせて `run_cargo_clippy`/`policy_check` 直前で呼び出し） |
+| §3（fail-closed） | `run_gate`（97-153 行目、structure.toml 段階）、`no_declared_crates_message`（219-231 行目）、`run_locked_cargo_subcommand`（237-262 行目）、`run_cargo_clippy`（331-369 行目）、`policy_check`（383-405 行目）、`clippy_environment_preflight`/`cargo_deny_environment_preflight`（イシュー #292） |
 | §4（集約規則・CLI 契約） | `aggregate`（189-204 行目）、`render_report`（673-697 行目）、`main.rs` の終了コード規約（`main.rs` 33-35 行目） |
 | §5（セキュリティ不変条件） | `RealCommandRunner::run`（74-85 行目）、`truncate_output`（207-217 行目）、`OUTPUT_TRUNCATE_CHARS`（44 行目）、`scan_dir_for_violations`（579-597 行目） |
 
@@ -231,6 +261,25 @@ TASK-13.3c（#141、`policy`/`test` チェックの実連携固定）の対応:
   実証される（cargo-deny 未導入環境向けの fail-closed 分岐は
   `negative_cases.rs` 側の `cargo_deny_available()` 判定が環境非依存に
   担保する）。
+
+イシュー #292（self-hosted runner の環境差による `fw gate` 間欠 BLOCKED）の
+対応:
+
+- `tools/ci/ensure-gate-tools.sh`: clippy component（`rustup component add
+  clippy`）・cargo-deny（バージョン固定 + SHA256 チェックサム検証付き
+  プリビルトバイナリ、atomic install）の存在チェック付きインストールを
+  一元化するブートストラップスクリプト。`.github/workflows/ci.yml` の
+  test ジョブから呼び出すほか、ローカル開発・AI 自己保守フックが
+  `fw gate` 実行前に前置する運用手順として利用する
+  （`.claude/rules/ci.md`「ツール前提の明示」節・
+  `docs/ai-self-maintenance-policy.md` 参照）。冪等（導入済みなら何もしない）。
+- `cli/src/gate.rs` の `clippy_environment_preflight` /
+  `cargo_deny_environment_preflight`（§2.3a）: 上記スクリプトが前置されな
+  かった場合の安全網。ツール不在を「環境エラー」として決定的に示し、
+  コード起因の FAIL との区別を可能にする（自動インストールは行わない）。
+- 真の常設化（runner イメージへの焼き込み）は先行イシュー #295
+  （インフラ側管理）の領分として継続追跡し、本対応はその安全網として
+  位置づける。
 
 ## 7. スコープ外
 

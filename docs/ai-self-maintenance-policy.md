@@ -109,6 +109,18 @@ AI エージェントがプロダクトへの変更を提案したとき、`fw g
   また `deny.toml` 自体が読み込めない場合も `policy` を起動せず即座に不合格とする
   （fail-closed、`cli/src/gate.rs` `policy_check`）。
 
+**実行前提（ツールブートストラップ、イシュー #292）**: `lint` / `policy`
+チェックは clippy component / cargo-deny の導入を前提とする。self-hosted
+runner インスタンスによってはこれらが未導入で、ツール不在に起因する
+`BLOCKED` を「コードの問題」と誤認しかねない。AI エージェントが `fw gate`
+を自己保守フックから直接呼ぶ場合は、実行前に `tools/ci/ensure-gate-tools.sh`
+を一度実行してツールの常設を確認・補完すること（冪等、導入済みなら
+何もしない）。前置を怠った場合でも `fw gate` 側のプリフライト検出
+（`docs/gate-design.md` §2.3a）が `output` 先頭の `environment error:`
+プレフィックスで「コード起因ではなく環境要因の失敗」であることを明示する
+ため、AI エージェントはこのプレフィックスの有無で「コードを修正すべきか」
+「ツール導入を先に行うべきか」を判別できる。
+
 ### ルール 2: ゲート通過かつ `breaking_risk: low` かつ `affected_routes` が空の変更は自動適用候補とする
 
 `fw impact <symbol>` の判定で `breaking_risk: low`（影響クレート数 0）かつ
