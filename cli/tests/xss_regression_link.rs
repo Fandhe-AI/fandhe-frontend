@@ -66,10 +66,9 @@ pub fn escape_html_content(input: &str) -> String {
 ///
 /// エスケープ実装が仕様どおりのフィクスチャで `fw gate` を実行し、
 /// `type_check` / `default_escape_check` / `lint` / `test` の 4 チェック
-/// （+ cargo-deny 導入環境では `policy` も）が通過することを確認する。
-/// 後続の負例テストが「注入した退行」に起因して `test` チェックのみ
-/// failed になっていることを保証する基盤であり、本テストが落ちる場合は
-/// 負例側の失敗を環境要因と区別できない。
+/// が通過することを確認する。後続の負例テストが「注入した退行」に起因して
+/// `test` チェックのみ failed になっていることを保証する基盤であり、
+/// 本テストが落ちる場合は負例側の失敗を環境要因と区別できない。
 ///
 /// Cursor Bugbot（PR #281, review 4727301533）指摘: 本テストは従来
 /// `type_check` / `default_escape_check` / `lint` / `test` の 4 チェックの
@@ -77,11 +76,22 @@ pub fn escape_html_content(input: &str) -> String {
 /// 見ていなかった。そのため cargo-deny 導入環境で `policy` チェックのみが
 /// BLOCKED でも本テストは（4 チェックが passed のままなので）成功してしまい、
 /// 「正例フィクスチャは `fw gate` を無条件に通過する」という正例側
-/// （positive control）の前提が実際には保証されていなかった。ここで
-/// `cargo_deny_available()` の場合に `policy` の passed と `gate_result` の
-/// 終了コード（0 = PASS）を明示的にアサートし、cargo-deny 導入・未導入の
-/// いずれの環境でも「正例フィクスチャは `fw gate` の全チェックを通過する」
-/// ことを保証する。
+/// （positive control）の前提が実際には保証されていなかった。
+///
+/// PR #281 CI（`forbid-unsafe` ジョブ）指摘: `policy` チェック
+/// （`gate.rs::policy_check`）は `deny.toml` が存在しても cargo-deny 本体が
+/// 未導入の環境では起動自体に失敗し fail-closed で failed になる
+/// （`negative_cases.rs::baseline_fixture_passes_core_checks` と同じ契約）。
+/// cargo-deny のインストールステップは `test` ジョブ（TASK-13.3c）にのみ
+/// 存在し `forbid-unsafe` ジョブには存在しないため、`gate_result` /
+/// 終了コードを cargo-deny 導入有無に関わらず PASS/0 に固定してしまうと
+/// `forbid-unsafe` ジョブでは常に失敗する。ここでは `negative_cases.rs` と
+/// 同一パターンで `cargo_deny_available()` により分岐し、導入環境では
+/// `policy` の passed と `gate_result` の終了コード（0 = PASS）まで検証し、
+/// 未導入環境では「`policy` のみ fail-closed で failed になり `gate_result`
+/// は BLOCKED（終了コード 1）」という契約自体を検証する。いずれの分岐でも
+/// `type_check` / `default_escape_check` / `lint` / `test` の 4 チェックが
+/// 通過することは共通のアサーションとして維持する。
 #[test]
 fn fixture_with_passing_xss_regression_test_passes_test_check() {
     let project = write_xss_case_project("passing", passing_escape_lib_rs());
@@ -107,22 +117,41 @@ fn fixture_with_passing_xss_regression_test_passes_test_check() {
         Some(true),
         "正例フィクスチャで XSS 回帰テスト（test チェック）が失敗した: stdout={stdout} stderr={stderr}"
     );
+
     if support::cargo_deny_available() {
         assert_eq!(
             check_passed(&stdout, "policy"),
             Some(true),
             "cargo-deny 導入環境で正例フィクスチャの policy チェックが失敗した: stdout={stdout} stderr={stderr}"
         );
+        assert_eq!(
+            code, 0,
+            "cargo-deny 導入環境では正例フィクスチャは fw gate を PASS するはず: stdout={stdout} stderr={stderr}"
+        );
+        assert!(
+            stdout.contains("\"gate_result\":\"PASS\""),
+            "cargo-deny 導入環境で正例フィクスチャの gate_result が PASS でない: stdout={stdout}"
+        );
+    } else {
+        // cargo-deny 未導入環境（例: forbid-unsafe ジョブ）では policy のみ
+        // fail-closed で failed になり、他の 4 チェックは通過したまま全体
+        // として BLOCKED になる、という negative_cases.rs と同一の
+        // fail-closed 契約を確認する（cargo-deny 不在は「エスケープ退行」
+        // ではないため、この分岐に来ても対照群としての妥当性は損なわれない）。
+        assert_eq!(
+            check_passed(&stdout, "policy"),
+            Some(false),
+            "cargo-deny 未導入環境では policy は fail-closed で failed のはず: stdout={stdout} stderr={stderr}"
+        );
+        assert_eq!(
+            code, 1,
+            "cargo-deny 未導入環境では policy の fail-closed により BLOCKED（終了コード 1）のはず: stdout={stdout} stderr={stderr}"
+        );
+        assert!(
+            stdout.contains("\"gate_result\":\"BLOCKED\""),
+            "cargo-deny 未導入環境で正例フィクスチャの gate_result が BLOCKED でない: stdout={stdout}"
+        );
     }
-    assert_eq!(
-        code, 0,
-        "正例フィクスチャで fw gate が終了コード 0（PASS）以外を返した \
-         （いずれかのチェックが BLOCKED になっている）: stdout={stdout} stderr={stderr}"
-    );
-    assert!(
-        stdout.contains("\"gate_result\":\"PASS\""),
-        "正例フィクスチャで gate_result が PASS でない: stdout={stdout}"
-    );
 }
 
 /// 負例（TASK-1.2 連携の核心アサーション）。
