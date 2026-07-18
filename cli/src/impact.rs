@@ -2,14 +2,17 @@
 //! 判定ロジック。
 //!
 //! 本ファイルは TASK-13.2 の 5 分割サブタスク（#133 設計（本ファイル）/
-//! #134 依存グラフ構築 / #135 コマンド実装 / #136 出力フォーマット /
+//! #134 依存グラフ構築 / #135 コマンド実装 / #136 出力フォーマット（本ファイル） /
 //! #137 テスト整備）が依拠する**単一の情報源**として、`fw impact <symbol>`
 //! （後続 #135 で `main.rs` に接続される）が返す JSON の形（[`ImpactReport`]）と、
 //! `breaking_risk` / `requires_human_approval` の判定を副作用のない純粋関数
 //! （[`judge_breaking_risk`] / [`requires_human_approval`]）として切り出す。
 //! 走査（定義元特定・使用箇所列挙・ルート突き合わせ）は本ファイルが実装する
-//! （TASK-13.2b, #134）。CLI 接続（`main.rs` へのディスパッチ・終了コード処理）・
-//! JSON 出力（`verdict` 文字列生成等）・統合テストは引き続き #135 / #136 / #137 の
+//! （TASK-13.2b, #134）。JSON シリアライズ（[`render_report`]、`verdict` 文字列
+//! 生成含む）も本ファイルが実装する（TASK-13.2d, #136、`docs/impact-analysis-design.md`
+//! §3.5 の JSON スキーマに準拠、`json_out::escape_str` を唯一の文字列エスケープ
+//! 経路として使う）。CLI 接続（`main.rs` へのディスパッチ・終了コード処理・
+//! [`render_report`] の呼び出し）・統合テストは引き続き #135 / #137 の
 //! スコープであり、[`analyze`] は `cargo metadata` の実行（`metadata::fetch`）を
 //! 呼び出し元（#135 の CLI 層）に委ねる契約とする
 //! （詳細は `docs/impact-analysis-design.md` §8 を参照）。
@@ -22,6 +25,7 @@
 #![allow(dead_code)] // #135（fw impact 接続）まで未使用。撤去予定。
 
 use crate::component_boundary;
+use crate::json_out;
 use crate::metadata::MemberPackage;
 use crate::routes;
 use std::collections::{BTreeMap, BTreeSet};
@@ -549,6 +553,104 @@ pub(crate) fn analyze(
     })
 }
 
+/// 人間可読な判定要約（`docs/impact-analysis-design.md` §3.5 の `verdict`
+/// フィールド）を固定 2 値で生成する。
+///
+/// 判定材料は `ImpactReport::requires_human_approval` のみを使う
+/// （`judge_breaking_risk` / `requires_human_approval` の判定ロジックを
+/// ここで二重実装しない）。文言は英語で確定する: PoC-7 は日本語 2 値
+/// （「要人間承認」/「自動適用可」）だが、`japanese-style.md` は
+/// 「ユーザー向け文字列は仕様で指定がない限り英語」と規定し、
+/// `docs/impact-analysis-design.md` §3.5 の「PoC-7 互換」はフィールドの
+/// 存在・意味・2 値構造の互換と解釈する（判断 D1、同 §3.5 に追記）。
+fn verdict_text(requires_human_approval: bool) -> &'static str {
+    if requires_human_approval {
+        "requires human approval (impact spans multiple crates or public routes)"
+    } else {
+        "auto-applicable (impact is limited; automatic application allowed subject to gate pass)"
+    }
+}
+
+/// `Vec<String>`（`defined_in_crates` / `defined_in_files`）を JSON スカラーへ
+/// 単数化する（`docs/impact-analysis-design.md` §3.5: 「複数なら先頭要素、
+/// `ambiguous` 参照」）。多重定義時も先頭要素をそのまま出力し、多重定義の
+/// 事実自体は `ambiguous` フィールドが伝える契約とするため、`ambiguous` の値
+/// では分岐しない。`analyze` は 0 件を `SymbolNotFound` として拒否するため
+/// 実運用で空になることはないが、防御的に空の場合は `null` を返し
+/// panic させない（PoC-7 スキーマの `string | null` 互換）。
+fn scalar_or_null(values: &[String]) -> String {
+    match values.first() {
+        Some(v) => json_out::quoted(v),
+        None => "null".to_string(),
+    }
+}
+
+/// `ImpactReport` を `docs/impact-analysis-design.md` §3.5 の JSON スキーマに
+/// 従い 1 行の JSON へシリアライズする（`fw structure` の
+/// `json_out::render` と同じくパイプ処理・他ツール読み込み前提で
+/// pretty-print はしない）。
+///
+/// #135（CLI 接続）が `analyze()` 成功時に stdout へ出力する契約。
+/// マニフェスト由来ではなくワークスペース走査由来の文字列
+/// （`symbol` / ファイルパス / クレート名・ルートパス）も、利用者の
+/// ソースコード内容に起因し得る任意文字列であることに変わりはないため、
+/// 全ての文字列値は `json_out::quoted`（内部で `escape_str` を通す）
+/// 経由でのみ埋め込む（security.md A08、JSON インジェクション対策）。
+pub(crate) fn render_report(report: &ImpactReport) -> String {
+    let mut buf = String::new();
+    buf.push('{');
+
+    buf.push_str("\"symbol\":");
+    buf.push_str(&json_out::quoted(&report.symbol));
+
+    buf.push_str(",\"defined_in_crate\":");
+    buf.push_str(&scalar_or_null(&report.defined_in_crates));
+
+    buf.push_str(",\"defined_in_file\":");
+    buf.push_str(&scalar_or_null(&report.defined_in_files));
+
+    buf.push_str(",\"ambiguous\":");
+    buf.push_str(if report.ambiguous { "true" } else { "false" });
+
+    buf.push_str(",\"affected_files\":[");
+    for (i, affected) in report.affected_files.iter().enumerate() {
+        if i > 0 {
+            buf.push(',');
+        }
+        buf.push('{');
+        buf.push_str("\"file\":");
+        buf.push_str(&json_out::quoted(&affected.file));
+        buf.push_str(",\"lines\":");
+        buf.push_str(&json_out::usize_array(&affected.lines));
+        buf.push('}');
+    }
+    buf.push(']');
+
+    buf.push_str(",\"affected_crates\":");
+    buf.push_str(&json_out::string_array(&report.affected_crates));
+
+    buf.push_str(",\"affected_routes\":");
+    buf.push_str(&json_out::string_array(&report.affected_routes));
+
+    buf.push_str(",\"breaking_risk\":");
+    buf.push_str(&json_out::quoted(report.breaking_risk.as_str()));
+
+    buf.push_str(",\"requires_human_approval\":");
+    buf.push_str(if report.requires_human_approval {
+        "true"
+    } else {
+        "false"
+    });
+
+    buf.push_str(",\"verdict\":");
+    buf.push_str(&json_out::quoted(verdict_text(
+        report.requires_human_approval,
+    )));
+
+    buf.push('}');
+    buf
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1072,5 +1174,133 @@ mod tests {
         let members: Vec<MemberPackage> = vec![];
         let err = analyze(&ws.root, &members, "render()").unwrap_err();
         assert_eq!(err, ImpactError::InvalidSymbol);
+    }
+
+    // --- render_report（TASK-13.2d, #136: JSON 出力フォーマット） ---
+
+    /// テスト用の最小 `ImpactReport` を組み立てるヘルパー。各テストは
+    /// 検証したいフィールドのみ引数で上書きする。
+    fn sample_report() -> ImpactReport {
+        ImpactReport {
+            symbol: "render".to_string(),
+            defined_in_crates: vec!["rws-core".to_string()],
+            defined_in_files: vec!["core/src/lib.rs".to_string()],
+            ambiguous: false,
+            affected_files: vec![AffectedFile {
+                file: "app/src/main.rs".to_string(),
+                lines: vec![3, 10],
+            }],
+            affected_crates: vec!["rws-app".to_string()],
+            affected_routes: vec!["/items/:id".to_string()],
+            breaking_risk: BreakingRisk::Medium,
+            requires_human_approval: true,
+        }
+    }
+
+    #[test]
+    fn render_report_matches_expected_json_key_order_and_shape() {
+        let report = sample_report();
+        let json = render_report(&report);
+        assert_eq!(
+            json,
+            "{\"symbol\":\"render\",\
+             \"defined_in_crate\":\"rws-core\",\
+             \"defined_in_file\":\"core/src/lib.rs\",\
+             \"ambiguous\":false,\
+             \"affected_files\":[{\"file\":\"app/src/main.rs\",\"lines\":[3,10]}],\
+             \"affected_crates\":[\"rws-app\"],\
+             \"affected_routes\":[\"/items/:id\"],\
+             \"breaking_risk\":\"medium\",\
+             \"requires_human_approval\":true,\
+             \"verdict\":\"requires human approval (impact spans multiple crates or public routes)\"}"
+        );
+    }
+
+    #[test]
+    fn render_report_singularizes_defined_in_when_ambiguous() {
+        let mut report = sample_report();
+        report.defined_in_crates = vec!["rws-core".to_string(), "rws-app".to_string()];
+        report.defined_in_files = vec!["core/src/lib.rs".to_string(), "app/src/lib.rs".to_string()];
+        report.ambiguous = true;
+        let json = render_report(&report);
+        assert!(json.contains("\"defined_in_crate\":\"rws-core\""));
+        assert!(json.contains("\"defined_in_file\":\"core/src/lib.rs\""));
+        assert!(json.contains("\"ambiguous\":true"));
+        // 先頭要素のみが出力され、2 件目（"rws-app" 単体としての値）が
+        // defined_in_crate の値としては現れないこと。
+        assert!(!json.contains("\"defined_in_crate\":\"rws-app\""));
+    }
+
+    #[test]
+    fn render_report_defensively_nulls_empty_defined_in_vecs() {
+        let mut report = sample_report();
+        report.defined_in_crates = vec![];
+        report.defined_in_files = vec![];
+        let json = render_report(&report);
+        assert!(json.contains("\"defined_in_crate\":null"));
+        assert!(json.contains("\"defined_in_file\":null"));
+    }
+
+    #[test]
+    fn render_report_renders_empty_affected_collections_as_empty_arrays() {
+        let mut report = sample_report();
+        report.affected_files = vec![];
+        report.affected_crates = vec![];
+        report.affected_routes = vec![];
+        report.breaking_risk = BreakingRisk::Low;
+        report.requires_human_approval = false;
+        let json = render_report(&report);
+        assert!(json.contains("\"affected_files\":[]"));
+        assert!(json.contains("\"affected_crates\":[]"));
+        assert!(json.contains("\"affected_routes\":[]"));
+        assert!(json.contains("\"breaking_risk\":\"low\""));
+        assert!(json.contains(
+            "\"verdict\":\"auto-applicable (impact is limited; automatic application allowed subject to gate pass)\""
+        ));
+    }
+
+    #[test]
+    fn verdict_text_has_fixed_two_values() {
+        assert_eq!(
+            verdict_text(true),
+            "requires human approval (impact spans multiple crates or public routes)"
+        );
+        assert_eq!(
+            verdict_text(false),
+            "auto-applicable (impact is limited; automatic application allowed subject to gate pass)"
+        );
+    }
+
+    #[test]
+    fn render_report_lines_are_unquoted_numeric_arrays_in_order() {
+        let mut report = sample_report();
+        report.affected_files = vec![AffectedFile {
+            file: "a.rs".to_string(),
+            lines: vec![1, 2, 42],
+        }];
+        let json = render_report(&report);
+        assert!(json.contains("\"lines\":[1,2,42]"));
+    }
+
+    #[test]
+    fn render_report_escapes_json_injection_attempts_in_string_values() {
+        let mut report = sample_report();
+        report.symbol = "render".to_string();
+        report.affected_files = vec![AffectedFile {
+            file: "weird\"}, \"injected\": true, \"x\":\"\\n.rs".to_string(),
+            lines: vec![1],
+        }];
+        report.affected_crates = vec!["crate\"with\\quotes".to_string()];
+        report.affected_routes = vec!["/a\"b".to_string()];
+        let json = render_report(&report);
+
+        // エスケープ済みの `"` `\` を含む文字列としてそのまま値に現れ、
+        // JSON 構造（キー数・ネスト）を壊す形では出現しないこと。
+        assert!(json.contains("\\\"injected\\\""));
+        assert!(json.contains("crate\\\"with\\\\quotes"));
+        assert!(json.contains("/a\\\"b"));
+        // 注入されたキーがトップレベルのキーとして解釈されていないこと
+        // （エスケープされた文字列値の内部にのみ現れる）。
+        assert!(!json.contains("\"injected\":true"));
     }
 }

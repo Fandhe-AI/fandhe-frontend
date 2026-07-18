@@ -152,8 +152,29 @@
 
   `cli/src/impact.rs` の `ImpactReport` 型がこのスキーマに対応する
   （`defined_in_crates: Vec<String>` / `defined_in_files: Vec<String>` を
-  複数形で保持し、`ambiguous` が `false` の場合に限り JSON では先頭要素を
-  単数のスカラーとして出力する変換を #136 が実装する契約）。
+  複数形で保持し、`ambiguous` の値にかかわらず JSON では常に先頭要素を
+  単数のスカラーとして出力する変換を #136 が実装する契約。多重定義の事実
+  自体は `ambiguous` フィールドが伝えるため、単数化変換はどちらの先頭要素を
+  出すかで場合分けしない。空 Vec の場合は防御的に `null` を出力し
+  panic させない）。
+
+### 判断 D1（#136 で確定・自動運転による決定）: `verdict` 文言
+
+PoC-7 は `verdict` を日本語 2 値（「要人間承認（…）」/「自動適用可（…）」）で
+返すが、`.claude/rules/japanese-style.md` は「ユーザー向け文字列は仕様で
+指定がない限り英語」と規定する。本書の「PoC-7 互換」は `verdict`
+フィールドの**存在・意味・2 値構造**の互換と解釈し、文言そのものは
+英語で確定する（`fw` の他のユーザー向け文字列も英語のため一貫性を保つ）。
+
+- `requires_human_approval == true` →
+  `"requires human approval (impact spans multiple crates or public routes)"`
+- `requires_human_approval == false` →
+  `"auto-applicable (impact is limited; automatic application allowed subject to gate pass)"`
+
+判定材料は `ImpactReport::requires_human_approval` のみを使い、
+`judge_breaking_risk` / `requires_human_approval` の判定ロジックを
+`verdict` 生成側で二重実装しない（`cli/src/impact.rs` の
+`verdict_text` 関数）。
 
 ## 4. 対象ファイル・変更箇所（本サブタスク #133 分）
 
