@@ -1,19 +1,20 @@
 //! 変更影響範囲解析（TASK-13.2a, #133、親 TASK-13.2 #132、REQ-13）の型定義と
-//! 判定ロジック。
+//! 判定ロジック。`main.rs` の `impact` サブコマンド（TASK-13.2c, #135）から
+//! [`analyze`] を呼び出して使われる。
 //!
 //! 本ファイルは TASK-13.2 の 5 分割サブタスク（#133 設計（本ファイル）/
 //! #134 依存グラフ構築 / #135 コマンド実装 / #136 出力フォーマット（本ファイル） /
 //! #137 テスト整備）が依拠する**単一の情報源**として、`fw impact <symbol>`
-//! （後続 #135 で `main.rs` に接続される）が返す JSON の形（[`ImpactReport`]）と、
-//! `breaking_risk` / `requires_human_approval` の判定を副作用のない純粋関数
-//! （[`judge_breaking_risk`] / [`requires_human_approval`]）として切り出す。
-//! 走査（定義元特定・使用箇所列挙・ルート突き合わせ）は本ファイルが実装する
-//! （TASK-13.2b, #134）。JSON シリアライズ（[`render_report`]、`verdict` 文字列
-//! 生成含む）も本ファイルが実装する（TASK-13.2d, #136、`docs/impact-analysis-design.md`
-//! §3.5 の JSON スキーマに準拠、`json_out::escape_str` を唯一の文字列エスケープ
-//! 経路として使う）。CLI 接続（`main.rs` へのディスパッチ・終了コード処理・
-//! [`render_report`] の呼び出し）・統合テストは引き続き #135 / #137 の
-//! スコープであり、[`analyze`] は `cargo metadata` の実行（`metadata::fetch`）を
+//! （`main.rs` の `impact` サブコマンド、TASK-13.2c, #135 が接続する）が返す
+//! JSON の形（[`ImpactReport`]）と、`breaking_risk` / `requires_human_approval`
+//! の判定を副作用のない純粋関数（[`judge_breaking_risk`] / [`requires_human_approval`]）
+//! として切り出す。走査（定義元特定・使用箇所列挙・ルート突き合わせ）は本ファイルが
+//! 実装する（TASK-13.2b, #134）。JSON シリアライズ（[`render_report`]、`verdict`
+//! 文字列生成含む）も本ファイルが実装する（TASK-13.2d, #136、
+//! `docs/impact-analysis-design.md` §3.5 の JSON スキーマに準拠、
+//! `json_out::escape_str` を唯一の文字列エスケープ経路として使う）。CLI 接続
+//! （`main.rs` へのディスパッチ・終了コード処理・[`render_report`] の呼び出し）は
+//! #135 の担当で、[`analyze`] は `cargo metadata` の実行（`metadata::fetch`）を
 //! 呼び出し元（#135 の CLI 層）に委ねる契約とする
 //! （詳細は `docs/impact-analysis-design.md` §8 を参照）。
 //!
@@ -21,8 +22,6 @@
 //! `cmd_impact`）を踏襲した「ファイル単位の粗粒度ヒューリスティック」であり、
 //! AST 解析ベースの精密化は将来スコープとして明示的に見送る
 //! （`docs/spec/05-tasks.md` TASK-13.2、`docs/impact-analysis-design.md` §7）。
-
-#![allow(dead_code)] // #135（fw impact 接続）まで未使用。撤去予定。
 
 use crate::component_boundary;
 use crate::json_out;
@@ -71,6 +70,8 @@ impl fmt::Display for BreakingRisk {
 ///
 /// #134（依存グラフ構築）・#135（CLI 接続）はここを参照し、実測した
 /// `affected_crates` との突き合わせに同じ定数を使う契約とする（二重管理しない）。
+///
+/// `judge_breaking_risk` からのみ参照される。
 pub const CLIENT_BOUNDARY_CRATES: [&str; 3] = ["rws-wasm-client", "rws-wasm-full", "rws-wasm-thin"];
 
 /// `high` 判定となる影響クレート数の下限（この件数**以上**で `high`）。
