@@ -100,10 +100,25 @@ fn write_case_project(case_name: &str, main_rs_content: &str) -> ScratchProject 
 /// 固定引数のみを子プロセスへ渡し、外部入力からコマンドライン引数を
 /// 組み立てない（インジェクション対策）。`--offline` によりネットワーク
 /// アクセスを行わないことを保証する。
+///
+/// `CARGO_TARGET_DIR` はフィクスチャ間で共有しない。プロジェクトディレクトリ
+/// 配下の `target/` を明示指定し、プロセス環境から継承され得る値（self-hosted
+/// runner の `CARGO_TARGET_DIR=/cargo-target` 等）を上書きする。本テストの
+/// 全フィクスチャ（baseline/e0277/e0308）が同一パッケージ名
+/// `rws-template-default` を持つため、`CARGO_TARGET_DIR` が環境側で共有設定
+/// されている場合、明示指定なしでは複数フィクスチャのビルドキャッシュ/
+/// フィンガープリントが衝突し、型不正コードを注入したフィクスチャの
+/// `cargo check` が別フィクスチャ（正例）のキャッシュ命中で実際には再検査を
+/// 行わないまま成功終了してしまう（PR #291 self-hosted CI で実測、
+/// `cli/tests/raw_html_lint_e2e.rs::run_cargo_clippy_in` /
+/// `cli/tests/negative_cases.rs::run_fw_gate` と同一機構・同一修正、
+/// PR #264 参照）。ubuntu-latest（ジョブごとに使い捨ての target dir）では
+/// 顕在化しなかったため、self-hosted 移行に伴い本ファイルでも明示上書きする。
 fn run_cargo_check(project_dir: &Path) -> Output {
     Command::new("cargo")
         .args(["check", "--offline"])
         .current_dir(project_dir)
+        .env("CARGO_TARGET_DIR", project_dir.join("target"))
         .output()
         .expect("cargo check の起動に失敗した")
 }

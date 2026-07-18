@@ -72,12 +72,19 @@ jobs:
     # ポート競合を懸念していたが、下記 DooD 対応でホストポート公開自体を
     # 撤去したため、この懸念は解消済み。
     #
-    # PR #291 実 CI 実行で判明した DooD（Docker-outside-of-Docker）対応:
-    # 本 self-hosted runner 自体がコンテナのため、"Container startup smoke"
-    # ステップは `-p 127.0.0.1:3100:3100` によるホストループバック公開を
-    # やめ、コンテナの内部 IP へ直接アクセスする方式へ変更した（image-size.yml
-    # と同一の理由。詳細は当該ステップのコメント参照）。「Host direct startup
-    # smoke」はバイナリを runner コンテナ自身のプロセスとして直接起動するため
+    # PR #291 実 CI 実行（2 回）で判明した DooD（Docker-outside-of-Docker）対応:
+    # 1 回目は `-p 127.0.0.1:3100:3100` によるホストループバック公開が
+    # runner コンテナの 127.0.0.1 から到達できず即時失敗（curl: (7)）。
+    # 2 回目はその場しのぎの「rws-musl-smoke コンテナの bridge IP へ直接
+    # curl する」方式へ変更したが、bridge ネットワーク構成（Mac mini 上の
+    # docker compose 構成では runner コンテナと新規コンテナが同一 bridge に
+    # いるとは限らない）次第では到達不能のまま curl がハングし、
+    # timeout-minutes いっぱいまで無応答になった（20m27s）。3 回目の本対応
+    # では "Container startup smoke" ステップを runner 自身とのネットワーク
+    # 名前空間共有（`--network container:<runner のコンテナ ID>`）方式へ
+    # 変更し、bridge ネットワーク構成に依存せず 127.0.0.1 で確実に到達させる
+    # （詳細は当該ステップのコメント参照）。「Host direct startup smoke」は
+    # バイナリを runner コンテナ自身のプロセスとして直接起動するため
     # DooD の境界を越えず、127.0.0.1 のままで問題ない。
     runs-on: self-hosted
     timeout-minutes: 20
@@ -180,48 +187,61 @@ jobs:
             --retry 30 --retry-delay 1 --retry-connrefused \
             http://127.0.0.1:3101/ > /dev/null
 
+      - name: "Resolve own container ID (DooD: --network container: attachment)"
+        id: runner_cid
+        # image-size.yml と同一ロジック（詳細は同ファイルの同名ステップの
+        # コメント参照）。PR #291 の 2 回目の実 CI 実行で、bridge IP への直接
+        # curl 方式が到達不能なままハングし、ジョブが timeout-minutes いっぱい
+        # まで無応答になったため、runner 自身とのネットワーク名前空間共有
+        # （`--network container:<runner のコンテナ ID>`）へ変更した。
+        run: |
+          set -euo pipefail
+          candidate="$(hostname)"
+          if ! docker inspect "$candidate" >/dev/null 2>&1; then
+            candidate="$(grep -oE '/docker/containers/[0-9a-f]{64}' /proc/self/mountinfo 2>/dev/null | head -1 | sed 's#.*/##')"
+          fi
+          if [ -n "$candidate" ] && docker inspect "$candidate" >/dev/null 2>&1; then
+            echo "id=${candidate}" >> "$GITHUB_OUTPUT"
+            echo "::notice::runner container ID resolved (${candidate}); using --network container: attachment"
+          else
+            echo "id=" >> "$GITHUB_OUTPUT"
+            echo "::notice::could not resolve own container ID; falling back to host port publish (runner may not be containerized)"
+          fi
+
       - name: Container startup smoke
         # Dockerfile が生成する scratch ベースの実コンテナとして起動し、
         # ルーティング（routes.rs）の主要契約 — ページ応答・埋め込みアセット
         # 配信・パストラバーサル拒否 — が配布バイナリ経路でも成立することを
         # 確認する。
         #
-        # PR #291 実 CI 実行で判明（DooD）: 本 self-hosted runner 自体がコンテナの
-        # ため、ホストループバックへの `-p` 公開は runner コンテナの 127.0.0.1
-        # から到達できない（image-size.yml と同一の理由）。ここではホスト
-        # ポート公開をやめ、rws-musl-smoke コンテナの内部 IP を docker inspect で
-        # 取得して直接アクセスする（runner コンテナも同じ docker デーモンの
-        # デフォルト bridge に接続されている前提。security.md A05 の「外部公開
-        # しない」という意図は、公開先をホストのループバックからコンテナ間
-        # 内部ネットワークへ変えても、ホスト外部からの到達不可という点で維持
-        # される）。
+        # 上記 "Resolve own container ID" の出力に応じて起動方式を切り替える
+        # （image-size.yml と同一パターン）。コンテナ内部の待受ポートは
+        # `RWS_BIND_ADDR` で 3103 に固定する（`--network container:` 方式では
+        # runner のネットワーク名前空間を image-size.yml の rws-ci コンテナ
+        # （3100）・本ジョブの「Host direct startup smoke」（3101）と共有する
+        # ため、既定の 3100 のままだと bind 競合し得るため明示的に分離する）。
+        env:
+          RUNNER_CID: ${{ steps.runner_cid.outputs.id }}
         run: |
           set -euo pipefail
-          docker run -d --rm --name rws-musl-smoke rws-dist-server:musl-smoke
-
-          container_ip=""
-          for _ in $(seq 1 30); do
-            container_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' rws-musl-smoke 2>/dev/null || true)
-            if [ -n "$container_ip" ]; then
-              break
-            fi
-            sleep 1
-          done
-          if [ -z "$container_ip" ]; then
-            echo "::error::failed to resolve rws-musl-smoke container IP address" >&2
-            docker logs rws-musl-smoke || true
-            exit 1
+          if [ -n "${RUNNER_CID}" ]; then
+            docker run -d --rm --name rws-musl-smoke --network "container:${RUNNER_CID}" \
+              -e RWS_BIND_ADDR=0.0.0.0:3103 rws-dist-server:musl-smoke
+          else
+            docker run -d --rm --name rws-musl-smoke -p 127.0.0.1:3103:3103 \
+              -e RWS_BIND_ADDR=0.0.0.0:3103 rws-dist-server:musl-smoke
           fi
-          base_url="http://${container_ip}:3100"
+          base_url="http://127.0.0.1:3103"
 
           # readiness ポーリング: listening ログが出るまで待つ（起動直後の
           # 接続拒否と本物の失敗を区別するため curl 自体にも --retry を使う）。
+          # --max-time: 前回の 30 分ハングの再発防止（image-size.yml と同一理由）。
           curl --fail --silent --show-error --output /tmp/root.html --dump-header /tmp/root.headers \
-            --retry 30 --retry-delay 1 --retry-connrefused \
+            --retry 30 --retry-delay 1 --retry-connrefused --max-time 2 \
             "${base_url}/"
           grep -qi "^content-type: text/html" /tmp/root.headers
 
-          curl --fail --silent --show-error --output /dev/null \
+          curl --fail --silent --show-error --max-time 2 --output /dev/null \
             "${base_url}/static/view-transitions.js"
 
           # パストラバーサル拒否（routes.rs の既存単体テスト保証を配布バイナリ
@@ -233,7 +253,7 @@ jobs:
           # 検証できないため、`--path-as-is` で `../` を含む生パスをそのまま
           # 送信し、サーバー実装（routes.rs）が拒否することを確認する
           # （Cursor Bugbot 指摘 #256 対応）。
-          traversal_status="$(curl --silent --path-as-is --output /dev/null --write-out '%{http_code}' \
+          traversal_status="$(curl --silent --path-as-is --max-time 2 --output /dev/null --write-out '%{http_code}' \
             "${base_url}/static/../Cargo.toml")"
           if [ "${traversal_status}" != "404" ]; then
             echo "::error::expected 404 for path traversal attempt, got ${traversal_status}" >&2
@@ -243,11 +263,11 @@ jobs:
           # 起動ログの固定文言は dist-server/src/main.rs の契約
           # （`rws-dist-server: listening on {addr}` / `rws-dist-server:
           # assets={mode}`）に依存する。release ビルドでは active_mode() が
-          # 常に AssetMode::Embedded を返すため assets=embedded 固定。この
-          # 文言を main.rs 側が変更する場合は本ワークフローの grep も追随
-          # させること（他クレートとの契約、code-comment-style.md）。
+          # 常に AssetMode::Embedded を返すため assets=embedded 固定。ポートは
+          # 上記 RWS_BIND_ADDR で 3103 に固定しているため、grep も追随させる
+          # （他クレートとの契約、code-comment-style.md）。
           docker logs rws-musl-smoke > /tmp/container.log 2>&1
-          grep -q "listening on 0.0.0.0:3100" /tmp/container.log
+          grep -q "listening on 0.0.0.0:3103" /tmp/container.log
           grep -q "assets=embedded" /tmp/container.log
 
       - name: Stop container
