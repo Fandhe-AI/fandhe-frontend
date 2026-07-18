@@ -126,6 +126,15 @@
 4. 多重定義（`ambiguous`）時の承認強制
 5. 識別子検証の正常系・異常系（空文字・数字始まり・記号混入・パス区切り混入）
 
+#137 は `cli/src/impact.rs` の単体テスト + シナリオ e2e
+（`cli/tests/scenarios/{bugfix_escape,scenario2_ui,scenario3_feature}.rs`）の
+組み合わせでクローズしたが、観点 2 のうち `rws-wasm-thin` 単独ケース
+（シナリオ e2e は `rws-wasm-client` のみカバー）と観点 4（`ambiguous` 承認強制）
+は独立の `cli/tests/impact_*.rs` として未実装のまま留保されていた。
+イシュー #293 でこの留保を解消し、`cli/tests/impact_wasm_thin.rs`
+（観点 2: `rws-wasm-thin` 単独 high 判定）・`cli/tests/impact_ambiguous.rs`
+（観点 4: 多重定義時の承認強制）として実バイナリ（`fw`）経由の独立 e2e を追加した。
+
 ### 3.5 CLI 仕様・JSON スキーマ（#135 / #136 の実装契約）
 
 - **CLI**: `fw impact <symbol> [--project <dir>]`。`<symbol>` は
