@@ -37,6 +37,7 @@ fn run(args: &[String]) -> i32 {
     match args.first().map(String::as_str) {
         Some("structure") => run_structure(&args[1..]),
         Some("gate") => gate::run_gate(&args[1..]),
+        Some("impact") => run_impact(&args[1..]),
         Some(other) => {
             eprintln!("fw: unknown subcommand `{other}`");
             print_usage();
@@ -55,6 +56,7 @@ fn print_usage() {
     eprintln!("Subcommands:");
     eprintln!("  structure    generate/validate the machine-readable project structure manifest");
     eprintln!("  gate         run the AI self-maintenance verification gate (type/escape/lint/test/policy)");
+    eprintln!("  impact       analyze the change impact of a symbol (breaking risk, affected crates/routes)");
 }
 
 /// `--project <dir>` 引数を解決する（省略時はカレントディレクトリ）。
@@ -326,6 +328,84 @@ fn collect_dependencies(
         .collect()
 }
 
+/// `impact` サブコマンド本体（TASK-13.2c, #135）。
+///
+/// `docs/impact-analysis-design.md` §3.5 の CLI 仕様・終了コード規約を実装する:
+///
+/// 1. 第 1 位置引数 `<symbol>` を取り出す（欠落時は使用法エラー、終了コード 2）
+/// 2. [`impact::validate_symbol`] でシンボル名を検証する（シェル・走査へ渡す前の
+///    A03 対策、`docs/impact-analysis-design.md` §6）。不正なら終了コード 2
+/// 3. 残余引数を [`parse_project_arg`]（`structure` / `gate` と共有）で解決する
+/// 4. [`metadata::fetch`] で `cargo metadata` を実行し、ワークスペースルート・
+///    member 一覧を取得する（`fw structure` と同じ責務分担: `cargo` プロセス起動は
+///    CLI 層が担い、`impact::analyze` は `&[MemberPackage]` を受け取るだけの
+///    純粋なスキャン API に留める）。失敗時は検証違反（終了コード 1）とし、
+///    黙示的成功に倒さない（security.md A05）
+/// 5. [`impact::analyze`]（TASK-13.2b, #134 の走査エンジン）を呼び、結果を
+///    終了コードへマッピングする: 成功 → 0 / [`impact::ImpactError::InvalidSymbol`]
+///    → 2 / [`impact::ImpactError::SymbolNotFound`]・[`impact::ImpactError::Scan`] → 1
+/// 6. 成功時は [`impact::render_report`]（TASK-13.2d, #136）で
+///    `docs/impact-analysis-design.md` §3.5 の JSON スキーマへシリアライズして
+///    stdout へ出力する。
+const IMPACT_USAGE: &str = "fw impact: usage: fw impact <symbol> [--project <dir>]";
+
+fn run_impact(args: &[String]) -> i32 {
+    let Some(symbol) = args.first() else {
+        eprintln!("fw impact: a <symbol> argument is required");
+        eprintln!("{IMPACT_USAGE}");
+        return 2;
+    };
+
+    if let Err(e) = impact::validate_symbol(symbol) {
+        eprintln!("fw impact: {e}");
+        eprintln!("{IMPACT_USAGE}");
+        return 2;
+    }
+
+    let project_dir = match parse_project_arg(&args[1..]) {
+        Ok(dir) => dir,
+        Err(()) => {
+            eprintln!("{IMPACT_USAGE}");
+            return 2;
+        }
+    };
+
+    // `cargo metadata` の実行自体に失敗した場合（cargo 不在・ワークスペース外
+    // 指定等）は走査に進まず検証違反として扱う（fail-closed、security.md A05:
+    // metadata が取れないのに「影響なし」と誤認させない）。
+    let ws = match metadata::fetch(&project_dir) {
+        Ok(ws) => ws,
+        Err(e) => {
+            eprintln!("fw impact: failed to cross-check with cargo metadata: {e}");
+            return 1;
+        }
+    };
+
+    match impact::analyze(&ws.workspace_root, &ws.members, symbol) {
+        Ok(report) => {
+            // JSON 出力（`docs/impact-analysis-design.md` §3.5 のスキーマ）。
+            // 全文字列値は `render_report` 内部で `json_out::quoted`（`escape_str`
+            // 経由）を通す契約であり、本呼び出し側では文字列を組み立てない
+            // （security.md A08 対策）。
+            println!("{}", impact::render_report(&report));
+            0
+        }
+        // 使用法エラー（終了コード 2）: シンボル名は呼び出し前に検証済みだが、
+        // `analyze` が独自に再検証して返す可能性を契約上排除しないため、
+        // ここでも規約どおりマッピングする。
+        Err(e @ impact::ImpactError::InvalidSymbol) => {
+            eprintln!("fw impact: {e}");
+            2
+        }
+        // 検証違反（終了コード 1）: 定義元が見つからない・走査失敗のいずれも
+        // `defined_in: null` 等で黙って成功させない（fail-closed、security.md A05）。
+        Err(e @ (impact::ImpactError::SymbolNotFound | impact::ImpactError::Scan(_))) => {
+            eprintln!("fw impact: {e}");
+            1
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -485,5 +565,73 @@ mod tests {
             1,
             "extraction failure must be reported, not silently treated as zero symbols"
         );
+    }
+
+    // --- impact サブコマンド（TASK-13.2c, #135） ---
+
+    #[test]
+    fn impact_subcommand_without_symbol_is_a_usage_error() {
+        assert_eq!(run(&["impact".to_string()]), 2);
+    }
+
+    #[test]
+    fn impact_subcommand_rejects_invalid_symbol() {
+        assert_eq!(
+            run(&["impact".to_string(), "bad-symbol".to_string()]),
+            2,
+            "symbol containing `-` must be rejected before reaching the scan step"
+        );
+        assert_eq!(
+            run(&["impact".to_string(), "std::render".to_string()]),
+            2,
+            "symbol containing `::` must be rejected before reaching the scan step"
+        );
+        assert_eq!(
+            run(&["impact".to_string(), String::new()]),
+            2,
+            "empty symbol must be rejected"
+        );
+    }
+
+    #[test]
+    fn impact_subcommand_rejects_bad_project_usage() {
+        assert_eq!(
+            run(&[
+                "impact".to_string(),
+                "render".to_string(),
+                "--unknown-flag".to_string(),
+                "x".to_string()
+            ]),
+            2
+        );
+        assert_eq!(
+            run(&[
+                "impact".to_string(),
+                "render".to_string(),
+                "--project".to_string()
+            ]),
+            2,
+            "--project with a missing value must be a usage error"
+        );
+    }
+
+    /// `impact::analyze`（#134 の走査エンジン）・`metadata::fetch`（本 CLI 接続、
+    /// #135）が実際に結線されていることを固定する回帰テスト。このリポジトリ
+    /// 自身をワークスペースとして走査し、`render`（`core/src/lib.rs` で
+    /// トップレベル `pub fn` として定義済み）が黙示的失敗（exit 非 0）に
+    /// 倒れず解析成功（exit 0）することを確認する（JSON 出力の詳細検証は
+    /// `impact::render_report` の単体テストが担う）。
+    #[test]
+    fn impact_subcommand_with_valid_symbol_analyzes_successfully() {
+        let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("cli/ has a parent workspace root");
+        let code = run(&[
+            "impact".to_string(),
+            "render".to_string(),
+            "--project".to_string(),
+            workspace_root.to_string_lossy().into_owned(),
+        ]);
+        assert_eq!(code, 0);
     }
 }
