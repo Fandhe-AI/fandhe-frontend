@@ -50,7 +50,15 @@ concurrency:
 jobs:
   image-size:
     name: Docker image size (REQ-9)
-    runs-on: ubuntu-latest
+    # ユーザー指示（2026-07-18）により self-hosted へ移行。
+    # 前提: self-hosted runner に Docker デーモンが導入済みで、runner 実行
+    # ユーザーがログイン権限（docker グループ所属等）を持つこと。加えて
+    # 本ジョブは x86_64-unknown-linux-musl の Dockerfile 分岐（`docker build`
+    # のホストアーキテクチャに追従）を計測対象とするため、self-hosted プールが
+    # macOS 等の非 Linux/非 x86_64 インスタンスを含む場合、割り当て先次第で
+    # 計測結果・失敗モードが変わり得る（runner ラベルの細分化は本変更の
+    # スコープ外。ユーザー指示に従い `self-hosted` のまま据え置く）。
+    runs-on: self-hosted
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（ci.yml と同一 SHA に固定）。
@@ -58,6 +66,15 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（本ジョブ末尾の
+        # `cargo run -p xtask -- check-image-size` に必要。self-hosted runner
+        # プールに cargo 未導入インスタンスが混在し得るための保険。導入済み
+        # なら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
 
       - name: Build docker image
         # push・レジストリログインは行わない。ジョブローカルのタグのみを使い、

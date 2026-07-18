@@ -76,11 +76,12 @@ jobs:
         run: cargo test --workspace --locked
 
   # TASK-1.2b（#10）: XSS 回帰テスト（REQ-1）を含む Rust テスト CI。
-  # forbid-unsafe ジョブ（self-hosted）とは別に ubuntu-latest 環境でも
-  # workspace テストを実行し、クロスプラットフォームの回帰を検知する。
+  # ユーザー指示（2026-07-18）により self-hosted へ移行。forbid-unsafe ジョブ
+  # （deps-check.yml の "Setup Rust toolchain" と同一 SHA 固定・同一目的）と
+  # 同じく、workspace テストを実行してクロスプラットフォームの回帰を検知する。
   test:
     name: Rust workspace tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout
         # actions/checkout v4.2.2。docs/spec/ サブモジュールはテストに不要なため
@@ -88,6 +89,14 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定: self-hosted runner プールには
+        # cargo が PATH 上に存在しないインスタンスが混在し得るため、Checkout 直後に
+        # 導入する（既に導入済みなら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
 
       - name: XSS regression tests (REQ-1)
         # REQ-1（既定エスケープ）の受け入れ基準を担保するゲート。
@@ -105,6 +114,11 @@ jobs:
       # ブロック理由）が実行されるようにする（下記 wasm-bindgen-cli の
       # 導入ステップと同一のサプライチェーン対策パターン、security.md A06）。
       - name: Install cargo-deny (pinned + checksum-verified)
+        # self-hosted 移行に伴い、インストール先を /usr/local/bin から
+        # $HOME/.local/bin へ変更する（ubuntu-latest の runner ユーザーは
+        # /usr/local/bin へ sudo 無しで書き込めるが、self-hosted の非 root
+        # 実行ユーザーには同じ前提が成り立たない可能性があるため）。
+        # $GITHUB_PATH への追記で以降のステップから素の `cargo-deny` として呼べる。
         run: |
           set -euo pipefail
           CARGO_DENY_VERSION="0.16.4"
@@ -114,7 +128,9 @@ jobs:
           curl -sSfL -o "${ARCHIVE}" "${URL}"
           echo "${CARGO_DENY_SHA256}  ${ARCHIVE}" | sha256sum -c -
           tar xzf "${ARCHIVE}"
-          install -m 755 "cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny" /usr/local/bin/cargo-deny
+          mkdir -p "${HOME}/.local/bin"
+          install -m 755 "cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny" "${HOME}/.local/bin/cargo-deny"
+          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
 
       # TASK-13.3c（#141）: 「連携」の回帰固定そのものを可視化する独立ステップ。
       # 上記で cargo-deny を導入済みの本ジョブでは negative_cases.rs が strict
@@ -158,6 +174,8 @@ jobs:
       # （browser-test/perf-harness ジョブの wasm-pack 導入と同一パターン、
       # サプライチェーン対策）。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified)
+        # self-hosted 移行に伴い、cargo-deny と同じ理由でインストール先を
+        # $HOME/.local/bin へ変更する。
         run: |
           set -euo pipefail
           WASM_BINDGEN_VERSION="0.2.126"
@@ -167,7 +185,9 @@ jobs:
           curl -sSfL -o "${ARCHIVE}" "${URL}"
           echo "${WASM_BINDGEN_SHA256}  ${ARCHIVE}" | sha256sum -c -
           tar xzf "${ARCHIVE}"
-          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" /usr/local/bin/wasm-bindgen
+          mkdir -p "${HOME}/.local/bin"
+          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" "${HOME}/.local/bin/wasm-bindgen"
+          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
 
       - name: Workspace tests
         run: cargo test --workspace --locked
@@ -183,7 +203,7 @@ jobs:
   # `force-embed` フィーチャーコメント参照）。
   dist-server-embedded-mode:
     name: rws-dist-server embedded mode (force-embed)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     # TASK-10.2b（#110）: 本ジョブの目的は force-embed フィーチャーによる
     # AssetMode 切り替え検証（static/ 埋め込みテーブル経路）であり、WASM
     # ビルドステージの統合検証は `test` ジョブが専任する。責務を分離し
@@ -197,6 +217,13 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
+        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
 
       - name: Isolated run acceptance test (REQ-9)
         # TASK-9.2（#98/#99）: REQ-9（単一バイナリ配布）の受け入れ基準
@@ -234,7 +261,7 @@ jobs:
   # 異なる）はそのまま独立ジョブとして維持し、変更しない。
   browser-test:
     name: Browser tests (wasm-pack --headless --chrome)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -243,6 +270,39 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
+        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+
+      # 前提（self-hosted 移行、ユーザー指示 2026-07-18）: 本ジョブは
+      # headless Chrome + chromedriver を必要とする。GitHub-hosted
+      # ubuntu-latest は Chrome/chromedriver をプリインストール済みだが、
+      # self-hosted runner にはその保証がない。実行環境側で Chrome +
+      # 対応バージョンの chromedriver を事前導入しておくこと（本ジョブは
+      # 未検出時に fail-closed で明示エラーとする。下記 "Resolve chromedriver
+      # path" 参照）。
+      - name: Resolve chromedriver path (self-hosted may lack CHROMEWEBDRIVER)
+        id: chromedriver
+        # CHROMEWEBDRIVER は GitHub-hosted ランナー限定の環境変数（内蔵
+        # chromedriver へのパス）で、self-hosted には設定されない。設定されて
+        # いればそちらを優先し（「検証済み事前導入バイナリのみ使用し、
+        # wasm-pack の実行時自動ダウンロードは行わない」という既存方針を維持）、
+        # なければ PATH 上の chromedriver を探索する。どちらも見つからない
+        # 場合は fail-closed とし、self-hosted 側の前提未整備を明示する。
+        run: |
+          set -euo pipefail
+          if [ -n "${CHROMEWEBDRIVER:-}" ] && [ -x "${CHROMEWEBDRIVER}/chromedriver" ]; then
+            echo "path=${CHROMEWEBDRIVER}/chromedriver" >> "$GITHUB_OUTPUT"
+          elif command -v chromedriver >/dev/null 2>&1; then
+            echo "path=$(command -v chromedriver)" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::chromedriver not found (neither CHROMEWEBDRIVER nor PATH). self-hosted runner requires Chrome + matching chromedriver pre-installed." >&2
+            exit 1
+          fi
 
       # wasm-client/ ディレクトリ存在ガード（TASK-6.2b #48 完了までの直列化措置）。
       # 未作成の間は後続ステップをすべてスキップし、ジョブは空実行で成功扱いとする。
@@ -283,6 +343,8 @@ jobs:
       # チェーン対策）。バージョンアップ時はチェックサムも合わせて更新すること。
       - name: Install wasm-pack (pinned + checksum-verified)
         if: steps.check.outputs.exists == 'true' || steps.check-wasm-full.outputs.exists == 'true'
+        # self-hosted 移行に伴い、インストール先を /usr/local/bin から
+        # $HOME/.local/bin へ変更する（test ジョブの cargo-deny と同一の理由）。
         run: |
           set -euo pipefail
           WASM_PACK_VERSION="0.13.1"
@@ -292,14 +354,17 @@ jobs:
           curl -sSfL -o "${ARCHIVE}" "${URL}"
           echo "${WASM_PACK_SHA256}  ${ARCHIVE}" | sha256sum -c -
           tar xzf "${ARCHIVE}"
-          install -m 755 "wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" /usr/local/bin/wasm-pack
+          mkdir -p "${HOME}/.local/bin"
+          install -m 755 "wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" "${HOME}/.local/bin/wasm-pack"
+          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
 
-      # CHROMEWEBDRIVER はランナー内蔵の chromedriver へのパスを指す（GitHub ホスト
-      # ランナーの環境変数）。wasm-pack による実行時の chromedriver 自動ダウンロードを
-      # 防ぎ、ランナーに事前導入済みの検証済みバイナリのみを使用する。
+      # chromedriver のパスは上記 "Resolve chromedriver path" ステップの出力
+      # （self-hosted では CHROMEWEBDRIVER が使えないため PATH 探索へフォール
+      # バックする）を使う。実行時の chromedriver 自動ダウンロードを防ぎ、
+      # 事前導入済みの検証済みバイナリのみを使用する方針は維持する。
       - name: Run browser tests (headless Chrome)
         if: steps.check.outputs.exists == 'true'
-        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-client
+        run: CHROMEDRIVER="${{ steps.chromedriver.outputs.path }}" wasm-pack test --headless --chrome wasm-client
 
       # `Runtime::mount`/`Runtime::hydrate` の実ブラウザ統合テスト（TASK-11.2d・
       # #77）。xss-wasm-test/perf-harness ジョブ（同じ wasm-full クレート）とは
@@ -309,7 +374,7 @@ jobs:
       # perf-harness ジョブ自体は変更しない）。
       - name: Run wasm-full Runtime browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-full --test runtime_browser
+        run: CHROMEDRIVER="${{ steps.chromedriver.outputs.path }}" wasm-pack test --headless --chrome wasm-full --test runtime_browser
 
       # TASK-11.4c（#84、親 #81）: read_hydration_attrs（実 DOM からの
       # data-hydrate-* 属性列挙）の実ブラウザ統合テスト（wasm-full/tests/
@@ -318,7 +383,7 @@ jobs:
       # （`docs/hydration-state-format.md` 第 6 節が引き継ぐ実ブラウザ検証）。
       - name: Run wasm-full hydration browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-full --test hydration_browser
+        run: CHROMEDRIVER="${{ steps.chromedriver.outputs.path }}" wasm-pack test --headless --chrome wasm-full --test hydration_browser
 
   # TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）: 同一文書内更新向け
   # ラッパー関数（`static/view-transitions.js` の `withViewTransition`、
@@ -347,7 +412,7 @@ jobs:
   # （しきい値アサーションの有効化は TASK-11.5b・#87 のスコープ）。
   perf-harness:
     name: Perf browser harness smoke (wasm-pack --headless --chrome)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -356,6 +421,31 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
+        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+
+      # 前提（self-hosted 移行、ユーザー指示 2026-07-18）: browser-test ジョブと
+      # 同一の理由で Chrome + chromedriver の事前導入が必要（下記 "Resolve
+      # chromedriver path" 参照）。
+      - name: Resolve chromedriver path (self-hosted may lack CHROMEWEBDRIVER)
+        id: chromedriver
+        # browser-test ジョブと同一ロジック（CHROMEWEBDRIVER 優先・PATH フォール
+        # バック・fail-closed）。
+        run: |
+          set -euo pipefail
+          if [ -n "${CHROMEWEBDRIVER:-}" ] && [ -x "${CHROMEWEBDRIVER}/chromedriver" ]; then
+            echo "path=${CHROMEWEBDRIVER}/chromedriver" >> "$GITHUB_OUTPUT"
+          elif command -v chromedriver >/dev/null 2>&1; then
+            echo "path=$(command -v chromedriver)" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::chromedriver not found (neither CHROMEWEBDRIVER nor PATH). self-hosted runner requires Chrome + matching chromedriver pre-installed." >&2
+            exit 1
+          fi
 
       # wasm-full/tests/perf_browser.rs 存在ガード（TASK-6.3a #65 のガード
       # パターン踏襲）。並列実行中の他イシューによる巻き戻り等、想定外の理由で
@@ -380,6 +470,8 @@ jobs:
       # サプライチェーン対策）。
       - name: Install wasm-pack (pinned + checksum-verified)
         if: steps.check.outputs.exists == 'true'
+        # self-hosted 移行に伴い、インストール先を browser-test ジョブと同様に
+        # $HOME/.local/bin へ変更する。
         run: |
           set -euo pipefail
           WASM_PACK_VERSION="0.13.1"
@@ -389,11 +481,12 @@ jobs:
           curl -sSfL -o "${ARCHIVE}" "${URL}"
           echo "${WASM_PACK_SHA256}  ${ARCHIVE}" | sha256sum -c -
           tar xzf "${ARCHIVE}"
-          install -m 755 "wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" /usr/local/bin/wasm-pack
+          mkdir -p "${HOME}/.local/bin"
+          install -m 755 "wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" "${HOME}/.local/bin/wasm-pack"
+          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
 
-      # CHROMEWEBDRIVER はランナー内蔵の chromedriver へのパスを指す（GitHub ホスト
-      # ランナーの環境変数）。wasm-pack による実行時の chromedriver 自動ダウンロードを
-      # 防ぎ、ランナーに事前導入済みの検証済みバイナリのみを使用する。
+      # chromedriver のパスは上記 "Resolve chromedriver path" ステップの出力を使う
+      # （browser-test ジョブと同一の理由）。
       # `-- --nocapture` を付与しないと、テストが成功した場合に libtest が
       # console 出力（`perf-browser:` サマリ行）を握りつぶすため、次ステップの
       # 転記が常に「no summary line found」になる（出力契約が成立しない）。
@@ -401,7 +494,7 @@ jobs:
         if: steps.check.outputs.exists == 'true'
         run: |
           set -o pipefail
-          CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-full --test perf_browser -- --nocapture 2>&1 | tee perf-harness.log
+          CHROMEDRIVER="${{ steps.chromedriver.outputs.path }}" wasm-pack test --headless --chrome wasm-full --test perf_browser -- --nocapture 2>&1 | tee perf-harness.log
 
       - name: Publish perf-harness summary
         if: always() && steps.check.outputs.exists == 'true'
@@ -432,7 +525,7 @@ jobs:
   # 設けない（追加と同一コミットで即時有効化される）。
   xss-wasm-test:
     name: WASM XSS escape regression (wasm-pack --headless --chrome)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -442,13 +535,21 @@ jobs:
         with:
           submodules: false
 
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
+        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+
       - name: Add wasm32 target
         run: rustup target add wasm32-unknown-unknown
 
       # wasm-pack はバージョン固定 + SHA256 チェックサム検証付きで導入する
       # （browser-test/perf-harness ジョブと同一バージョン・同一チェックサム。
       # 実行時の chromedriver 自動ダウンロードと同様、未検証バイナリ取得を
-      # 避けるサプライチェーン対策）。
+      # 避けるサプライチェーン対策）。self-hosted 移行に伴い、インストール先を
+      # /usr/local/bin から $HOME/.local/bin へ変更する（他ジョブと同一の理由）。
       - name: Install wasm-pack (pinned + checksum-verified)
         run: |
           set -euo pipefail
@@ -459,14 +560,30 @@ jobs:
           curl -sSfL -o "${ARCHIVE}" "${URL}"
           echo "${WASM_PACK_SHA256}  ${ARCHIVE}" | sha256sum -c -
           tar xzf "${ARCHIVE}"
-          install -m 755 "wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" /usr/local/bin/wasm-pack
+          mkdir -p "${HOME}/.local/bin"
+          install -m 755 "wasm-pack-v${WASM_PACK_VERSION}-x86_64-unknown-linux-musl/wasm-pack" "${HOME}/.local/bin/wasm-pack"
+          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
 
-      # CHROMEWEBDRIVER はランナー内蔵の chromedriver へのパスを指す（GitHub
-      # ホストランナーの環境変数）。wasm-pack による実行時の chromedriver
-      # 自動ダウンロードを防ぎ、ランナーに事前導入済みの検証済みバイナリの
-      # みを使用する。
+      # 前提（self-hosted 移行、ユーザー指示 2026-07-18）: browser-test/
+      # perf-harness ジョブと同一の理由で Chrome + chromedriver の事前導入が
+      # 必要。CHROMEWEBDRIVER は GitHub-hosted ランナー限定の環境変数のため、
+      # self-hosted では PATH 上の chromedriver へフォールバックする
+      # （見つからない場合は fail-closed）。
+      - name: Resolve chromedriver path (self-hosted may lack CHROMEWEBDRIVER)
+        id: chromedriver
+        run: |
+          set -euo pipefail
+          if [ -n "${CHROMEWEBDRIVER:-}" ] && [ -x "${CHROMEWEBDRIVER}/chromedriver" ]; then
+            echo "path=${CHROMEWEBDRIVER}/chromedriver" >> "$GITHUB_OUTPUT"
+          elif command -v chromedriver >/dev/null 2>&1; then
+            echo "path=$(command -v chromedriver)" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::chromedriver not found (neither CHROMEWEBDRIVER nor PATH). self-hosted runner requires Chrome + matching chromedriver pre-installed." >&2
+            exit 1
+          fi
+
       - name: Run WASM XSS escape regression (headless Chrome)
-        run: CHROMEDRIVER="${CHROMEWEBDRIVER}/chromedriver" wasm-pack test --headless --chrome wasm-full --test xss_escape_wasm
+        run: CHROMEDRIVER="${{ steps.chromedriver.outputs.path }}" wasm-pack test --headless --chrome wasm-full --test xss_escape_wasm
 
   # TASK-12.2c（#124、REQ-12 受け入れ基準 2）: install.sh の --ignore-scripts
   # 強制（前段、TASK-12.1a・#38・マージ済み）と check_static_only.py の
@@ -481,7 +598,7 @@ jobs:
   # 即 CI 失敗として扱う。
   npm-asset-build:
     name: NPM static asset gate (REQ-12)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。
@@ -489,6 +606,29 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+
+      - name: Setup Node.js
+        # update-external.yml と同一 SHA 固定。ubuntu-latest には node/npm が
+        # プリインストールされているが、self-hosted runner には保証がないため
+        # 明示的にセットアップする（下段の test_pipeline_e2e.sh は node/npm 不在
+        # 時に自己スキップする作りだが、self-hosted 移行後も実 npm でのパイプライン
+        # 検証を維持するために導入する）。
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: '20'
+
+      # 前提（self-hosted 移行、ユーザー指示 2026-07-18）: 本ジョブは python3 の
+      # 常設を前提とする。ubuntu-latest にはプリインストールされているが、
+      # self-hosted runner には保証がないため、未検出時は fail-closed で
+      # 明示エラーとする（他ジョブと異なりインストールは行わない。python3 は
+      # OS 標準構成の一部として runner 側で常設されることを期待するため）。
+      - name: Check python3 availability
+        run: |
+          set -euo pipefail
+          if ! command -v python3 >/dev/null 2>&1; then
+            echo "::error::python3 not found. self-hosted runner requires python3 pre-installed." >&2
+            exit 1
+          fi
 
       - name: install.sh offline regression tests (fail-closed)
         run: bash tools/npm-asset-build/tests/test_install.sh
@@ -525,7 +665,7 @@ jobs:
   # 緩和用の input・環境変数・continue-on-error は設けない。
   rebuild-latency:
     name: REQ-10 rebuild latency (5s limit)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -535,6 +675,13 @@ jobs:
         with:
           submodules: false
 
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
+        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+
       - name: Add wasm32 target
         run: rustup target add wasm32-unknown-unknown
 
@@ -542,7 +689,8 @@ jobs:
       # 導入する（`test` ジョブと同一バージョン・同一チェックサム。
       # `dist-server/build.rs` の expected_wasm_bindgen_version が Cargo.lock
       # 解決済みバージョンとの完全一致を要求するため、更新時は両方を
-      # 合わせて更新すること）。
+      # 合わせて更新すること）。self-hosted 移行に伴い、インストール先を
+      # /usr/local/bin から $HOME/.local/bin へ変更する（test ジョブと同一の理由）。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified)
         run: |
           set -euo pipefail
@@ -553,7 +701,9 @@ jobs:
           curl -sSfL -o "${ARCHIVE}" "${URL}"
           echo "${WASM_BINDGEN_SHA256}  ${ARCHIVE}" | sha256sum -c -
           tar xzf "${ARCHIVE}"
-          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" /usr/local/bin/wasm-bindgen
+          mkdir -p "${HOME}/.local/bin"
+          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" "${HOME}/.local/bin/wasm-bindgen"
+          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
 
       - name: Run rebuild_latency bench
         # xtask 系ジョブと同一の理由（子プロセス終了コード伝播・Cargo.lock
@@ -597,7 +747,7 @@ jobs:
   # 兼ねる（二重防御）。
   bundle-size:
     name: REQ-11 rws-wasm-full bundle gzip size (200KB limit)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -607,13 +757,21 @@ jobs:
         with:
           submodules: false
 
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
+        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+
       - name: Add wasm32 target
         run: rustup target add wasm32-unknown-unknown
 
       # wasm-bindgen-cli はバージョン固定 + SHA256 チェックサム検証付きで
       # 導入する（`test`/`rebuild-latency` ジョブと同一バージョン・同一
       # チェックサム。バージョンアップ時は Cargo.lock 解決済み wasm-bindgen
-      # と合わせて更新すること）。
+      # と合わせて更新すること）。self-hosted 移行に伴い、インストール先を
+      # /usr/local/bin から $HOME/.local/bin へ変更する（他ジョブと同一の理由）。
       - name: Install wasm-bindgen-cli (pinned + checksum-verified)
         run: |
           set -euo pipefail
@@ -624,7 +782,9 @@ jobs:
           curl -sSfL -o "${ARCHIVE}" "${URL}"
           echo "${WASM_BINDGEN_SHA256}  ${ARCHIVE}" | sha256sum -c -
           tar xzf "${ARCHIVE}"
-          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" /usr/local/bin/wasm-bindgen
+          mkdir -p "${HOME}/.local/bin"
+          install -m 755 "wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl/wasm-bindgen" "${HOME}/.local/bin/wasm-bindgen"
+          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
 
       - name: Run bundle_size test
         # xtask 系ジョブと同一の理由（子プロセス終了コード伝播・Cargo.lock
@@ -649,7 +809,7 @@ jobs:
 
   loc-check:
     name: REQ-8/REQ-11 glue JS effective LOC limit (10 lines, issues #62/#156)
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（同一ファイル内の test ジョブと同一 SHA に固定）。
@@ -657,6 +817,13 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
+        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
 
       - name: Run xtask check-loc
         # xtask check-loc の終了コードをそのまま CI の成否に伝播させる（fail-closed）。
@@ -688,7 +855,7 @@ jobs:
   # cargo プロジェクトのため、manifest-path を明示して単独実行する。
   template-negative-type-error:
     name: TASK-4.4 templates/default 型不正コード機械的検出の受け入れ基準検証
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（test/loc-check ジョブと同一 SHA に固定）。
@@ -696,6 +863,13 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
+        # cargo 未導入インスタンスが混在し得るための保険。導入済みなら何もしない）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
 
       - name: templates/default 単体テスト（正例 + 負例 E0277/E0308）
         # --offline で子プロセス cargo check を実行するテスト（依存ゼロの
@@ -720,7 +894,7 @@ jobs:
   # （方式選定・脅威モデルは docs/raw-html-lint-design.md 参照）。
   clippy:
     name: REQ-1 raw_html() 検出（clippy disallowed_methods, issue #157）
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     # forbid-unsafe ジョブと同じ理由で dist-server の WASM ネストビルドを
     # オプトアウトする: `cargo clippy --workspace` は dist-server/build.rs 経由で
     # ネストした cargo build + wasm-bindgen 起動を伴うが、本ジョブの runner には
@@ -736,6 +910,17 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml と同一の理由・同一 SHA 固定（self-hosted runner プールに
+        # cargo 未導入インスタンスが混在し得るための保険）。加えて本ジョブは
+        # clippy component を必須とするため components: clippy を明示する
+        # （既に導入済みのツールチェーンでは何もしない。未導入時の新規セット
+        # アップでも clippy が確実に含まれるようにする安全策）。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+          components: clippy
 
       - name: Show toolchain
         run: rustup show && cargo --version

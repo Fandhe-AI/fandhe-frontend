@@ -59,7 +59,21 @@ concurrency:
 jobs:
   musl-smoke:
     name: x86_64 musl startup smoke (REQ-9)
-    runs-on: ubuntu-latest
+    # ユーザー指示（2026-07-18）により self-hosted へ移行。
+    # 前提: self-hosted runner に Docker デーモンが導入済みで、runner 実行
+    # ユーザーがログイン権限を持つこと。本ジョブは冒頭の "Assert runner
+    # architecture is x86_64" で x86_64 であることを機械的に確認するが（元々
+    # GitHub-hosted ubuntu-latest 前提だった検証を維持）、self-hosted プールが
+    # 非 x86_64（例: Apple Silicon macOS）インスタンスを含む場合、そのインス
+    # タンスに割り当たると本ステップが fail-closed で明示的に失敗する
+    # （「たまたま動く」ことを防ぐ既存の安全策がそのまま自己保守として働く）。
+    # なお image-size.yml も同じ self-hosted プールでホストポート 3100 を
+    # 使用する。両ワークフローが同一の物理 runner マシンへ同時にスケジュール
+    # された場合、ポート競合の可能性が理論上残る（同一 workflow 内の並列job
+    # ではなく別ワークフロー間のため concurrency グループでは防げない）。
+    # 本 PR では動作実績のある値を変更せず、実 CI 実行で顕在化するかを確認する
+    # 前提とする。
+    runs-on: self-hosted
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（image-size.yml / ci.yml と同一 SHA に固定）。
