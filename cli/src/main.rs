@@ -336,14 +336,17 @@ fn collect_dependencies(
 /// 2. [`impact::validate_symbol`] でシンボル名を検証する（シェル・走査へ渡す前の
 ///    A03 対策、`docs/impact-analysis-design.md` §6）。不正なら終了コード 2
 /// 3. 残余引数を [`parse_project_arg`]（`structure` / `gate` と共有）で解決する
-/// 4. [`impact::analyze`]（TASK-13.2b, #134 の走査 API。本 PR 時点では
-///    fail-closed スタブ）を呼び、結果を終了コードへマッピングする:
-///    成功 → 0 / [`impact::ImpactError::InvalidSymbol`] → 2 /
-///    [`impact::ImpactError::SymbolNotFound`]・[`impact::ImpactError::Scan`] → 1
-///
-/// JSON 出力（`docs/impact-analysis-design.md` §3.5 のスキーマ）は #136 の領分。
-/// 本サブタスクでは暫定の人間可読 1 行サマリを stdout に出す契約とし、
-/// #136 がこの出力を JSON へ置き換える。
+/// 4. [`metadata::fetch`] で `cargo metadata` を実行し、ワークスペースルート・
+///    member 一覧を取得する（`fw structure` と同じ責務分担: `cargo` プロセス起動は
+///    CLI 層が担い、`impact::analyze` は `&[MemberPackage]` を受け取るだけの
+///    純粋なスキャン API に留める）。失敗時は検証違反（終了コード 1）とし、
+///    黙示的成功に倒さない（security.md A05）
+/// 5. [`impact::analyze`]（TASK-13.2b, #134 の走査エンジン）を呼び、結果を
+///    終了コードへマッピングする: 成功 → 0 / [`impact::ImpactError::InvalidSymbol`]
+///    → 2 / [`impact::ImpactError::SymbolNotFound`]・[`impact::ImpactError::Scan`] → 1
+/// 6. 成功時は [`impact::render_report`]（TASK-13.2d, #136）で
+///    `docs/impact-analysis-design.md` §3.5 の JSON スキーマへシリアライズして
+///    stdout へ出力する。
 const IMPACT_USAGE: &str = "fw impact: usage: fw impact <symbol> [--project <dir>]";
 
 fn run_impact(args: &[String]) -> i32 {
@@ -367,24 +370,29 @@ fn run_impact(args: &[String]) -> i32 {
         }
     };
 
-    match impact::analyze(&project_dir, symbol) {
+    // `cargo metadata` の実行自体に失敗した場合（cargo 不在・ワークスペース外
+    // 指定等）は走査に進まず検証違反として扱う（fail-closed、security.md A05:
+    // metadata が取れないのに「影響なし」と誤認させない）。
+    let ws = match metadata::fetch(&project_dir) {
+        Ok(ws) => ws,
+        Err(e) => {
+            eprintln!("fw impact: failed to cross-check with cargo metadata: {e}");
+            return 1;
+        }
+    };
+
+    match impact::analyze(&ws.workspace_root, &ws.members, symbol) {
         Ok(report) => {
-            // #136（JSON 出力）が本行を `docs/impact-analysis-design.md` §3.5 の
-            // JSON スキーマへ置き換えるまでの暫定サマリ。絶対パス・環境情報を
-            // 含めない（`AffectedFile::file` はワークスペース相対の契約、security.md A09）。
-            println!(
-                "fw impact: symbol={} breaking_risk={} requires_human_approval={} affected_crates={} affected_routes={}",
-                report.symbol,
-                report.breaking_risk,
-                report.requires_human_approval,
-                report.affected_crates.len(),
-                report.affected_routes.len(),
-            );
+            // JSON 出力（`docs/impact-analysis-design.md` §3.5 のスキーマ）。
+            // 全文字列値は `render_report` 内部で `json_out::quoted`（`escape_str`
+            // 経由）を通す契約であり、本呼び出し側では文字列を組み立てない
+            // （security.md A08 対策）。
+            println!("{}", impact::render_report(&report));
             0
         }
         // 使用法エラー（終了コード 2）: シンボル名は呼び出し前に検証済みだが、
-        // #134 実装後の `analyze` が独自に再検証して返す可能性を契約上排除しない
-        // ため、ここでも規約どおりマッピングする。
+        // `analyze` が独自に再検証して返す可能性を契約上排除しないため、
+        // ここでも規約どおりマッピングする。
         Err(e @ impact::ImpactError::InvalidSymbol) => {
             eprintln!("fw impact: {e}");
             2
@@ -607,13 +615,14 @@ mod tests {
         );
     }
 
-    /// fail-closed 回帰テスト: #134（依存グラフ構築）が本 PR 時点で未マージのため
-    /// [`impact::analyze`] は常に `Scan` エラーのスタブである。正当なシンボル・
-    /// 正当な `--project` を渡しても黙示的成功（exit 0）に倒れないことを固定する
-    /// （security.md A05）。#134 マージ後、本テストの想定終了コードは 0 側の
-    /// 分岐へ更新される想定（#134 側の変更範囲）。
+    /// `impact::analyze`（#134 の走査エンジン）・`metadata::fetch`（本 CLI 接続、
+    /// #135）が実際に結線されていることを固定する回帰テスト。このリポジトリ
+    /// 自身をワークスペースとして走査し、`render`（`core/src/lib.rs` で
+    /// トップレベル `pub fn` として定義済み）が黙示的失敗（exit 非 0）に
+    /// 倒れず解析成功（exit 0）することを確認する（JSON 出力の詳細検証は
+    /// `impact::render_report` の単体テストが担う）。
     #[test]
-    fn impact_subcommand_with_valid_symbol_fails_closed_while_134_unintegrated() {
+    fn impact_subcommand_with_valid_symbol_analyzes_successfully() {
         let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .expect("cli/ has a parent workspace root");
@@ -623,6 +632,6 @@ mod tests {
             "--project".to_string(),
             workspace_root.to_string_lossy().into_owned(),
         ]);
-        assert_eq!(code, 1);
+        assert_eq!(code, 0);
     }
 }

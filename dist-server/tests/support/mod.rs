@@ -1,10 +1,12 @@
-//! `dist-server` の実プロセス起動検証（`tests/boot.rs`・`tests/isolated_run.rs`）
-//! が共有するヘルパ群（TASK-9.2a、イシュー #99）。
+//! `dist-server` の実プロセス起動検証（`tests/boot.rs`・`tests/isolated_run.rs`・
+//! `tests/xss_via_embedded_binary.rs`）が共有するヘルパ群
+//! （TASK-9.2a / TASK-9.4、イシュー #99 / #104）。
 //!
 //! 元々は `tests/boot.rs`（TASK-9.1c、イシュー #97）に単体で実装されていたが、
-//! `isolated_run.rs`（隔離ディレクトリへコピーしたバイナリを起動する変種）が
+//! `isolated_run.rs`（隔離ディレクトリへコピーしたバイナリを起動する変種）・
+//! `xss_via_embedded_binary.rs`（単一バイナリ経由の XSS エスケープ維持検証）が
 //! 同じプロセス管理・HTTP 送受信の仕組みを必要としたため、共通部分をこの
-//! `tests/support/mod.rs` へ抽出した。両テストファイルからは `mod support;`
+//! `tests/support/mod.rs` へ抽出した。各テストファイルからは `mod support;`
 //! （`#[path = "support/mod.rs"] mod support;` 不要 — ディレクトリ名がモジュール
 //! 名と一致するため通常の `mod` 宣言で解決される）で利用する。
 //!
@@ -35,12 +37,12 @@
 //!
 //! `tests/` 配下の各 `.rs` ファイルは cargo によって独立したテストバイナリへ
 //! コンパイルされる。共通モジュールを `mod support;` で複数のテストバイナリ
-//! （`boot.rs`・`isolated_run.rs`）から読み込むと、本ファイル中の未使用関数が
-//! テストバイナリごとに `dead_code` 警告の対象になり得る（各バイナリが使う
-//! 関数の組み合わせが異なるため）。利用側の `mod support;` 宣言に本モジュール
-//! 全体の未使用を許容する属性は付与せず、個々の未使用関数へ
-//! `#[allow(dead_code)]` を付ける方針とする（`parse_listening_port` 等、上記
-//! 参照）。
+//! （`boot.rs`・`isolated_run.rs`・`xss_via_embedded_binary.rs`）から読み込むと、
+//! 本ファイル中の未使用関数がテストバイナリごとに `dead_code` 警告の対象に
+//! なり得る（各バイナリが使う関数の組み合わせが異なるため）。利用側の
+//! `mod support;` 宣言に本モジュール全体の未使用を許容する属性は付与せず、
+//! 個々の未使用関数へ `#[allow(dead_code)]` を付ける方針とする
+//! （`parse_listening_port` 等、上記参照）。
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
@@ -182,7 +184,8 @@ fn spawn_with_etxtbsy_retry(command: &mut Command) -> Child {
 /// 標準ライブラリにはない（`TcpStream::set_read_timeout` 相当が存在しない）。
 /// そのため実際の読み取りは別スレッドへ切り出し、本スレッドは
 /// `mpsc::Receiver::recv_timeout` でデッドラインまで待つことでタイムアウトを
-/// 実効化する。
+/// 実効化する（パイプ読み取りが無期限にブロックし CI がハングしうる問題への
+/// 対応）。
 fn read_listening_addr(reader: BufReader<std::process::ChildStderr>) -> String {
     let (tx, rx) = mpsc::channel::<String>();
 
@@ -240,9 +243,10 @@ fn read_listening_addr(reader: BufReader<std::process::ChildStderr>) -> String {
 /// `ChildGuard` でラップ済みであることが前提 — panic 後も `Drop` で子
 /// プロセスの kill/wait が保証される）。
 ///
-/// `isolated_run.rs` のテストバイナリでは未使用（bind 失敗検証は
-/// `boot.rs` の `bind_conflict_exits_non_zero_with_fixed_stderr_message`
-/// 専用のシナリオ）のため `#[allow(dead_code)]` で抑止する。
+/// `isolated_run.rs`・`xss_via_embedded_binary.rs` のテストバイナリでは
+/// 未使用（bind 失敗検証は `boot.rs` の
+/// `bind_conflict_exits_non_zero_with_fixed_stderr_message` 専用のシナリオ）
+/// のため `#[allow(dead_code)]` で抑止する。
 #[allow(dead_code)]
 pub fn wait_with_timeout(child: &mut Child, timeout: Duration) -> std::process::ExitStatus {
     let deadline = Instant::now() + timeout;
@@ -323,6 +327,27 @@ pub fn status_code(response: &str) -> u16 {
         .expect("response must start with a valid HTTP status line")
 }
 
+/// レスポンス文字列からヘッダ部を取り除き、ボディのみを返す。
+///
+/// ヘッダとボディは空行（`\r\n\r\n`）で区切られる（RFC 9112）。`dist-server`
+/// は `Connection: close` の HTTP/1.1 応答を固定長ボディ（`Full<Bytes>`、
+/// `main.rs` 参照）で返すため chunked transfer-encoding は使わず、単純な
+/// 最初の `\r\n\r\n` 分割でボディ全体を取り出せる
+/// （`xss_via_embedded_binary.rs` のバイト列完全一致検証で使用）。
+///
+/// `boot.rs`・`isolated_run.rs` は本関数を使わないため、そちらのテスト
+/// バイナリでは未使用警告が出る。`tests/` 配下の各 `.rs` は独立のテスト
+/// バイナリとしてコンパイルされ、`mod support;` で取り込んだ関数のうち
+/// 使わないものが出るのは共有モジュール抽出の構造上避けられないため、
+/// `#[allow(dead_code)]` を明示する。
+#[allow(dead_code)]
+pub fn response_body(response: &str) -> &str {
+    response
+        .split_once("\r\n\r\n")
+        .map(|(_, body)| body)
+        .expect("response must contain a header/body separator")
+}
+
 /// [`send_http_request`] のバイト列版。
 ///
 /// WASM バイナリ（`.wasm`）の応答本文は有効な UTF-8 とは限らない
@@ -332,10 +357,10 @@ pub fn status_code(response: &str) -> u16 {
 ///
 /// `tests/` 配下は各ファイルが独立したテストバイナリへコンパイルされる
 /// （`mod support;` を宣言するファイルごとに本モジュールが再コンパイル
-/// される）。`boot.rs` はこの関数を呼ばないため、`boot.rs` のテスト
-/// バイナリでは常に未使用になり `dead_code` 警告の対象となる。実際には
-/// `isolated_run.rs`（`wasm_assets_embedded` cfg 有効時）から使われる
-/// ため `#[allow(dead_code)]` で抑止する。
+/// される）。`boot.rs`・`xss_via_embedded_binary.rs` はこの関数を呼ばない
+/// ため、それらのテストバイナリでは常に未使用になり `dead_code` 警告の
+/// 対象となる。実際には `isolated_run.rs`（`wasm_assets_embedded` cfg 有効
+/// 時）から使われるため `#[allow(dead_code)]` で抑止する。
 #[allow(dead_code)]
 pub fn send_http_request_bytes(port: u16, method: &str, path: &str) -> Vec<u8> {
     let mut stream = TcpStream::connect(("127.0.0.1", port)).expect("must connect to dist-server");
@@ -360,8 +385,9 @@ pub fn send_http_request_bytes(port: u16, method: &str, path: &str) -> Vec<u8> {
 /// （[`status_code`] のバイト列版）。ステータス行自体は常に ASCII のため
 /// `str::from_utf8` で先頭行だけを取り出せば十分。
 ///
-/// `boot.rs` のテストバイナリでは未使用（`send_http_request_bytes` と同じ
-/// 理由、上記 doc 参照）のため `#[allow(dead_code)]` で抑止する。
+/// `boot.rs`・`xss_via_embedded_binary.rs` のテストバイナリでは未使用
+/// （`send_http_request_bytes` と同じ理由、上記 doc 参照）のため
+/// `#[allow(dead_code)]` で抑止する。
 #[allow(dead_code)]
 pub fn status_code_bytes(response: &[u8]) -> u16 {
     let header_end = find_header_end(response).unwrap_or(response.len());
@@ -382,8 +408,9 @@ pub fn status_code_bytes(response: &[u8]) -> u16 {
 /// [`send_http_request_bytes`] の出力をヘッダ区切り（`\r\n\r\n`）で
 /// 単純分割するのみで十分。
 ///
-/// `boot.rs` のテストバイナリでは未使用（`send_http_request_bytes` と同じ
-/// 理由、上記 doc 参照）のため `#[allow(dead_code)]` で抑止する。
+/// `boot.rs`・`xss_via_embedded_binary.rs` のテストバイナリでは未使用
+/// （`send_http_request_bytes` と同じ理由、上記 doc 参照）のため
+/// `#[allow(dead_code)]` で抑止する。
 #[allow(dead_code)]
 pub fn response_body_bytes(response: &[u8]) -> &[u8] {
     match find_header_end(response) {

@@ -51,6 +51,17 @@ pub(crate) fn string_array(items: &[String]) -> String {
     format!("[{}]", parts.join(","))
 }
 
+/// 数値配列を JSON 配列として出力する（クォートしない）。
+///
+/// `pub(crate)`: `impact.rs`（TASK-13.2d, #136）の `render_report` が
+/// `AffectedFile::lines`（1 始まりの行番号一覧）を出力する際に使う。
+/// 文字列を経由しないため `escape_str` は不要（数値は JSON インジェクションの
+/// 対象にならない）。
+pub(crate) fn usize_array(items: &[usize]) -> String {
+    let parts: Vec<String> = items.iter().map(usize::to_string).collect();
+    format!("[{}]", parts.join(","))
+}
+
 /// `fw structure` が JSON 出力に含める 4 要素と、その生成に使った素材。
 pub struct StructureOutput<'a> {
     pub manifest: &'a StructureManifest,
@@ -178,5 +189,11 @@ mod tests {
             string_array(&["a".to_string(), "b\"c".to_string()]),
             "[\"a\",\"b\\\"c\"]"
         );
+    }
+
+    #[test]
+    fn usize_array_renders_comma_separated_unquoted_numbers() {
+        assert_eq!(usize_array(&[1, 2, 10]), "[1,2,10]");
+        assert_eq!(usize_array(&[]), "[]");
     }
 }
