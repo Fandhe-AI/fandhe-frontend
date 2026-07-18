@@ -14,7 +14,9 @@
 //! `.claude/rules/coding-rust.md` の規約により、本ファイルの XSS 回帰
 //! テストは以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
-use rws_interactive::{render_for_hydration, AppState, Component, Hydrate};
+use rws_core::{el, text, Node};
+use rws_interactive::codec::{self, Value};
+use rws_interactive::{render_for_hydration, AppState, Component, Hydrate, HydrateError};
 
 /// `AppState::view()`（[`Component`] トレイト経由）を `rws_core::render()` に
 /// 通した CSR 相当の HTML 文字列を返すテスト用ヘルパ。
@@ -235,4 +237,87 @@ fn render_html_actually_contains_escaped_representation_of_item_payload() {
             || html.contains("&lt;script&gt;"),
         "エスケープ済み script 表現が出力に見当たらない（偽陰性リグレッションの疑い）: html={html}"
     );
+}
+
+// --- イシュー #163: ネスト構造（codec::Value）経由の XSS 回帰 ---------------
+
+/// ネストした `codec::Value`（`Map`/`List`）で状態を表現する最小コンポーネント。
+///
+/// `docs/hydration-nested-state.md` が確定した設計どおり、`Value` codec は
+/// 区切り文字・エスケープ文字のみを対象とした構造的エスケープ（データ注入
+/// 防止）を担い、HTML エスケープは一切行わない。HTML としての安全性は
+/// 常に `render_for_hydration` → `rws_core::render()` の既定エスケープ経路
+/// のみが担保する契約であることを、ネスト値経由でも固定する回帰テスト。
+struct NestedComponent {
+    profile_name: String,
+}
+
+impl Component for NestedComponent {
+    type Action = ();
+    fn update(&mut self, _action: ()) {}
+    fn view(&self) -> Node {
+        el(
+            "div",
+            vec![("id", "nested-root")],
+            vec![text(self.profile_name.clone())],
+        )
+    }
+    fn decode_action(_name: &str, _payload: &str) -> Option<()> {
+        None
+    }
+}
+
+impl Hydrate for NestedComponent {
+    fn hydration_attrs(&self) -> Vec<(String, String)> {
+        let value = Value::Map(vec![(
+            "profile".to_string(),
+            Value::Map(vec![(
+                "name".to_string(),
+                Value::Str(self.profile_name.clone()),
+            )]),
+        )]);
+        vec![(
+            "data-hydrate-state".to_string(),
+            codec::encode_value(&value),
+        )]
+    }
+
+    fn from_hydration_attrs(_attrs: &[(String, String)]) -> Result<Self, HydrateError> {
+        // 本テストは SSR 出力の安全性のみを検証するため、復元経路は不要。
+        Ok(NestedComponent {
+            profile_name: String::new(),
+        })
+    }
+}
+
+/// ネスト値（`Map` の中の `Map` の中の `Str`）に XSS ペイロードを埋め込んでも、
+/// `render_for_hydration` の SSR 出力が属性境界・タグ境界を破らないこと
+/// （既定エスケープが `Value` codec のネスト段数に関わらず貫通することの
+/// 回帰確認、イシュー #163）。
+#[test]
+fn render_for_hydration_escapes_payloads_nested_inside_value_codec() {
+    for payload in payloads::all() {
+        let component = NestedComponent {
+            profile_name: payload.to_string(),
+        };
+        let html = rws_core::render(&render_for_hydration(&component));
+        assert_html_is_safe(payload, &html, "ネスト Value（Map in Map）属性コンテキスト");
+    }
+}
+
+/// `Value` codec 自体は区切り文字・バックスラッシュのみをエスケープし、HTML
+/// メタ文字（`<` `>` `"` `'` `&`）はそのまま素通しする契約であることを直接
+/// 確認する（HTML エスケープはあくまで render 層の責務であり、codec 層に
+/// 二重実装しないという設計判断の固定）。
+#[test]
+fn value_codec_encode_does_not_html_escape_payloads() {
+    for payload in payloads::all() {
+        let encoded = codec::encode_value(&Value::Str(payload.to_string()));
+        let decoded = codec::decode_value(&encoded).expect("well-formed encoding must decode");
+        assert_eq!(
+            decoded,
+            Value::Str(payload.to_string()),
+            "codec 層で HTML エスケープ相当の変換が混入している（render 層との責務分離違反）"
+        );
+    }
 }

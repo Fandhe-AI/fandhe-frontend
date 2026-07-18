@@ -9,6 +9,19 @@
 //! `events.rs`（TASK-11.2b・#75）・`dom.rs`（TASK-11.2c・#76）と同じ 2 層構成を
 //! 踏襲する。
 //!
+//! # ネスト構造対応（イシュー #163）
+//!
+//! `docs/hydration-state-format.md` が「単純な値（数値・文字列・文字列配列）
+//! のみ」に凍結した対象型を、ネスト構造・オブジェクト・マップ等の複雑な状態
+//! へ一般化する設計・実装はイシュー #163・`docs/hydration-nested-state.md`
+//! （正の規範文書）が担う。`rws_interactive::codec::Value`（型タグ付き再帰
+//! codec）を追加しただけであり、[`read_hydration_attrs`]・[`restore_state`]
+//! の API 表面・実装は本イシューでは変更していない（`C::from_hydration_attrs`
+//! への薄い委譲という契約はそのまま）。アプリの `Hydrate` 実装が
+//! `codec::Value`/`encode_value`/`decode_value` を使ってネスト構造を 1 属性値
+//! へ表現することを選択した場合でも、本モジュールを経由する復元経路
+//! （`restore_state` → `C::from_hydration_attrs`）は変わらず機能する。
+//!
 //! - **純粋ロジック層**（[`restore_state`]・[`filter_hydration_attrs`]）: DOM・
 //!   `web-sys` に依存せず、native の `cargo test` で検証できる。
 //! - **wasm32 配線層**（[`read_hydration_attrs`]）: `#[cfg(target_arch = "wasm32")]`

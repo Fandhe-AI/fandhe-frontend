@@ -169,3 +169,24 @@ frontend-framework-spec リポジトリで行う）。
   契約のみを扱う。
 - `docs/unsafe-boundary.md` 第 2 節の `interactive` 行は本タスクのクレート
   骨格作成に伴い実態を更新する（第 6 節・不変条件 6）。
+
+## 9. 追記: ネスト構造対応（イシュー #163）
+
+第 3 節の `codec` 凍結表（`encode_list`/`decode_list`、Unit Separator 方式）
+は本追記時点でも一切変更していない。イシュー #163
+（`docs/hydration-nested-state.md`、正の規範文書）により、同一の `codec`
+モジュールへ以下の追加公開 API が導入された。
+
+| API | シグネチャ | 役割 |
+|-----|-----------|------|
+| `codec::Value` | `pub enum Value { Str(String), Int(i64), Bool(bool), List(Vec<Value>), Map(Vec<(String, Value)>) }` | ネスト可能なハイドレーション値ツリー |
+| `codec::MAX_VALUE_DEPTH` | `pub const MAX_VALUE_DEPTH: u32 = 32` | `decode_value` が許容する最大ネスト深さ |
+| `codec::ValueDecodeError` | `pub enum ValueDecodeError { .. }` | `decode_value` の失敗種別（`into_hydrate_error` で `HydrateError` へ変換可能） |
+| `codec::encode_value` | `pub fn encode_value(value: &Value) -> String` | `Value` を 1 属性値文字列へエンコードする |
+| `codec::decode_value` | `pub fn decode_value(input: &str) -> Result<Value, ValueDecodeError>` | [`encode_value`] の逆変換 |
+
+`encode_list`/`decode_list`（第 3 節の凍結 API）と `Value` codec は完全に
+独立した実装であり、互いを呼び出さない（`docs/hydration-nested-state.md`
+第 3.3 節）。既存の `AppState`・`Hydrate`・`HYDRATE_ATTR_PREFIX` の凍結 API
+表面（第 3 節）は本追記によって一切変更されていない。詳細な設計判断・
+セキュリティ不変条件は `docs/hydration-nested-state.md` を参照する。
