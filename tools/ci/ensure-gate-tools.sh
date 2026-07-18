@@ -63,9 +63,18 @@ ensure_cargo_deny() {
   # runner に別バージョンの cargo-deny が既設の場合、CI がサプライチェーン
   # 対策として固定した ${CARGO_DENY_VERSION} を検証せず素通りしてしまう
   # （Bugbot 指摘、PR #305 対応）。
+  #
+  # バージョン一致判定は部分文字列一致ではなく完全一致にする。`cargo deny
+  # --version` の出力は `cargo-deny 0.16.4` 形式（2 番目のフィールドが
+  # semver 本体）だが、部分文字列一致（`*" 0.16.4"*"`）だと `0.16.40` の
+  # ような上位バージョンの一部にもマッチしてしまい、pinned バイナリの
+  # インストール・優先処理を誤って早期スキップしてしまう
+  # （Bugbot 指摘 Medium、cargo-deny#L67-L68、PR #305 対応）。
   local existing_version=""
   if existing_version="$(cargo deny --version 2>/dev/null)"; then
-    if [[ "${existing_version}" == *" ${CARGO_DENY_VERSION}"* ]]; then
+    local existing_semver=""
+    existing_semver="$(awk '{print $2}' <<<"${existing_version}")"
+    if [[ "${existing_semver}" == "${CARGO_DENY_VERSION}" ]]; then
       echo "ensure-gate-tools: cargo-deny ${CARGO_DENY_VERSION} already available on PATH"
       return 0
     fi
