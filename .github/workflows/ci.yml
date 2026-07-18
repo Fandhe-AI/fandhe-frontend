@@ -94,6 +94,41 @@ jobs:
         # SSR/SSG/CSR 経路の XSS 回帰テストを独立ステップとして可視化する。
         run: cargo test -p rws-core --test xss_escape --locked
 
+      # TASK-13.3c（#141）: `fw gate`（cli/src/gate.rs）の `policy` チェックは
+      # `cargo deny check bans licenses sources` を実際に起動する。cargo-deny
+      # 本体が未導入だと `cli/tests/negative_cases.rs` はフォールバック分岐
+      # （cargo-deny 起動失敗 → fail-closed で policy failed）しか検証できず、
+      # TASK-4.1 の deny.toml と `policy` チェックが実際に接続されている
+      # ことを常時実証できない。ここでバージョン固定 + SHA256 チェックサム
+      # 検証付きプリビルトバイナリを導入し、以降の `cargo test --workspace`
+      # 実行下で strict 分岐（ベースライン PASS・banned 依存検出の具体的な
+      # ブロック理由）が実行されるようにする（下記 wasm-bindgen-cli の
+      # 導入ステップと同一のサプライチェーン対策パターン、security.md A06）。
+      - name: Install cargo-deny (pinned + checksum-verified)
+        run: |
+          set -euo pipefail
+          CARGO_DENY_VERSION="0.16.4"
+          CARGO_DENY_SHA256="28b7f8e12df46a9ce186547e38278c851905fc4bda59a0cc57d2aade9fdf6962"
+          ARCHIVE="cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          URL="https://github.com/EmbarkStudios/cargo-deny/releases/download/${CARGO_DENY_VERSION}/${ARCHIVE}"
+          curl -sSfL -o "${ARCHIVE}" "${URL}"
+          echo "${CARGO_DENY_SHA256}  ${ARCHIVE}" | sha256sum -c -
+          tar xzf "${ARCHIVE}"
+          install -m 755 "cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny" /usr/local/bin/cargo-deny
+
+      # TASK-13.3c（#141）: 「連携」の回帰固定そのものを可視化する独立ステップ。
+      # 上記で cargo-deny を導入済みの本ジョブでは negative_cases.rs が strict
+      # 分岐（cargo-deny 実行・banned 依存の具体的検出）まで実行され、
+      # TASK-4.1 deny.toml ↔ `policy` チェックの連携が実証される
+      # （cargo-deny 未導入環境向けの fail-closed 分岐は同ファイル側の環境
+      # 判定 `cargo_deny_available()` が担保するため、CI では本ステップが
+      # strict 側を実行することを以て「常時検証」とする）。あわせて
+      # `xss_regression_link.rs` により、`test` チェックが XSS 回帰テスト
+      # （TASK-1.2）の合否をそのまま反映し `default_escape_check` とは
+      # 独立にゲートを BLOCK することを検証する。
+      - name: "Gate linkage tests (TASK-13.3c: cargo-deny / XSS regression)"
+        run: cargo test -p rws-cli --test negative_cases --test xss_regression_link --locked
+
       # TASK-10.2b（#110、REQ-10 条件 3）: dist-server/build.rs が既定で実行する
       # WASM ビルドステージ（ネスト `cargo build --target wasm32-unknown-unknown`
       # + `wasm-bindgen`）に必要なツールチェーンを導入する。本ジョブに限り

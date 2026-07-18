@@ -28,7 +28,7 @@
 |-----------|-------|------|-------------|
 | TASK-13.3a | #139（本書） | 判定ルール設計の正式化 | 本書が単一の情報源。`cli/src/gate.rs` の実装から逆引きして記述する |
 | TASK-13.3b | #140 | `gate` サブコマンドの CLI 接続 | 実装済み（`cli/src/main.rs` の `gate::run_gate` ディスパッチ）。本書 §4 が CLI 契約を規定 |
-| TASK-13.3c | #141 | `cargo-deny`・XSS 回帰テスト連携 | 実装済み（本書 §2 の `policy` チェック・`default_escape_check`） |
+| TASK-13.3c | #141 | `cargo-deny`・XSS 回帰テスト連携 | 実装済み（本書 §2 の `policy` チェック・`default_escape_check`）。連携の回帰固定は `cli/tests/xss_regression_link.rs` と CI `test` ジョブへの cargo-deny 導入（`.github/workflows/ci.yml`）で行う（§6 参照） |
 | TASK-13.3d | #142 | テスト整備 | 実装済み（`cli/tests/gate_integration.rs`・`cli/tests/negative_cases.rs`・`cli/tests/raw_html_lint_e2e.rs`） |
 
 - **土台**: PoC-7 の `docs/spec/03-poc/ai-self-maintenance/tools/poc7_tool.py`
@@ -210,6 +210,27 @@ clippy` を起動せず即座に `lint` チェックを failed とする（§3 �
 `run_all_checks` の name/順序と PASS 経路・`render_report` の JSON ラウンド
 トリップ・`truncate_output` のマルチバイト境界安全性を追補）。本書執筆時点で
 これら全テストは `cargo test -p rws-cli` でグリーンであることを確認済み。
+
+TASK-13.3c（#141、`policy`/`test` チェックの実連携固定）の対応:
+
+- `cli/tests/support/mod.rs`: `negative_cases.rs`・`xss_regression_link.rs`
+  が共用するフィクスチャ書き出し・`fw gate` 起動・JSON レポート判定の
+  共通ヘルパー（`negative_cases.rs` からの抽出）。
+- `cli/tests/xss_regression_link.rs`: `test` チェックが XSS 回帰テスト
+  （TASK-1.2 相当、`core/tests/xss_escape.rs` の代表ペイロードを移植）の
+  合否をそのまま反映し、エスケープ実装の退行を `default_escape_check` とは
+  独立に BLOCKED へ導くことを固定する正例・負例。
+- `.github/workflows/ci.yml`（`test` ジョブ）: `Install cargo-deny
+  (pinned + checksum-verified)` ステップで cargo-deny 本体をバージョン
+  固定・SHA256 検証付きで導入し、続く `Gate linkage tests (TASK-13.3c:
+  cargo-deny / XSS regression)` ステップで `negative_cases.rs`・
+  `xss_regression_link.rs` を独立実行する。これにより
+  `banned_dependency_blocks_gate_with_policy_failure` の strict 分岐
+  （cargo-deny 実行・`banned`/`openssl-sys` ブロック理由の具体性検証）が
+  CI 上で常時実行され、TASK-4.1 `deny.toml` ↔ `policy` チェックの連携が
+  実証される（cargo-deny 未導入環境向けの fail-closed 分岐は
+  `negative_cases.rs` 側の `cargo_deny_available()` 判定が環境非依存に
+  担保する）。
 
 ## 7. スコープ外
 

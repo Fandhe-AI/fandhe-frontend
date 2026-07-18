@@ -39,7 +39,7 @@ use crate::common::{
 #[test]
 fn baseline_passes_gate() {
     let project = write_scenario1_project("baseline", scenario1_core_lib_rs());
-    let (code, stdout, stderr) = run_fw(&["gate"], &project);
+    let (code, stdout, stderr) = run_fw("gate", &[], &project);
 
     assert_eq!(
         check_passed(&stdout, "type_check"),
@@ -112,7 +112,7 @@ fn baseline_passes_gate() {
 #[test]
 fn impact_reports_high_risk_for_render() {
     let project = write_scenario1_project("impact", scenario1_core_lib_rs());
-    let (code, stdout, stderr) = run_fw(&["impact", "render"], &project);
+    let (code, stdout, stderr) = run_fw("impact", &["render"], &project);
 
     assert_eq!(
         code, 0,
@@ -180,7 +180,7 @@ fn gate_blocks_escape_regression_and_passes_after_fix() {
     let project = write_scenario1_project("regression", &regressed_core_lib_rs);
 
     // --- (a) 欠陥混入時点: BLOCKED ---
-    let (code, stdout, stderr) = run_fw(&["gate"], &project);
+    let (code, stdout, stderr) = run_fw("gate", &[], &project);
     assert_eq!(
         code, 1,
         "escape_html のシングルクォートエスケープ欠落が fw gate を通過してしまった（BLOCKED になるはず）: stdout={stdout} stderr={stderr}"
@@ -217,7 +217,7 @@ fn gate_blocks_escape_regression_and_passes_after_fix() {
     )
     .expect("修正適用（core/src/lib.rs の書き戻し）に失敗した");
 
-    let (code, stdout, stderr) = run_fw(&["gate"], &project);
+    let (code, stdout, stderr) = run_fw("gate", &[], &project);
     assert_eq!(
         check_passed(&stdout, "test"),
         Some(true),
