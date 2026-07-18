@@ -30,6 +30,7 @@
 //! `coding-rust.md`「テストの `#[ignore]` 追加でごまかさない」準拠）。
 
 mod common;
+mod scenario2_ui;
 
 use common::{cargo_deny_available, check_passed, run_fw, write_scenario_project};
 
