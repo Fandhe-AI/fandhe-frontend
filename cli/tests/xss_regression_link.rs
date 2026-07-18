@@ -70,10 +70,22 @@ pub fn escape_html_content(input: &str) -> String {
 /// 後続の負例テストが「注入した退行」に起因して `test` チェックのみ
 /// failed になっていることを保証する基盤であり、本テストが落ちる場合は
 /// 負例側の失敗を環境要因と区別できない。
+///
+/// Cursor Bugbot（PR #281, review 4727301533）指摘: 本テストは従来
+/// `type_check` / `default_escape_check` / `lint` / `test` の 4 チェックの
+/// `passed` のみをアサートし、`fw gate` 全体の終了コード（`gate_result`）を
+/// 見ていなかった。そのため cargo-deny 導入環境で `policy` チェックのみが
+/// BLOCKED でも本テストは（4 チェックが passed のままなので）成功してしまい、
+/// 「正例フィクスチャは `fw gate` を無条件に通過する」という正例側
+/// （positive control）の前提が実際には保証されていなかった。ここで
+/// `cargo_deny_available()` の場合に `policy` の passed と `gate_result` の
+/// 終了コード（0 = PASS）を明示的にアサートし、cargo-deny 導入・未導入の
+/// いずれの環境でも「正例フィクスチャは `fw gate` の全チェックを通過する」
+/// ことを保証する。
 #[test]
 fn fixture_with_passing_xss_regression_test_passes_test_check() {
     let project = write_xss_case_project("passing", passing_escape_lib_rs());
-    let (_, stdout, stderr) = run_fw_gate(&project);
+    let (code, stdout, stderr) = run_fw_gate(&project);
 
     assert_eq!(
         check_passed(&stdout, "type_check"),
@@ -94,6 +106,22 @@ fn fixture_with_passing_xss_regression_test_passes_test_check() {
         check_passed(&stdout, "test"),
         Some(true),
         "正例フィクスチャで XSS 回帰テスト（test チェック）が失敗した: stdout={stdout} stderr={stderr}"
+    );
+    if support::cargo_deny_available() {
+        assert_eq!(
+            check_passed(&stdout, "policy"),
+            Some(true),
+            "cargo-deny 導入環境で正例フィクスチャの policy チェックが失敗した: stdout={stdout} stderr={stderr}"
+        );
+    }
+    assert_eq!(
+        code, 0,
+        "正例フィクスチャで fw gate が終了コード 0（PASS）以外を返した \
+         （いずれかのチェックが BLOCKED になっている）: stdout={stdout} stderr={stderr}"
+    );
+    assert!(
+        stdout.contains("\"gate_result\":\"PASS\""),
+        "正例フィクスチャで gate_result が PASS でない: stdout={stdout}"
     );
 }
 
