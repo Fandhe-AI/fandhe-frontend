@@ -704,6 +704,7 @@ fn render_report(report: &GateReport) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
     use std::sync::Mutex;
 
     struct FakeRunner {
@@ -713,6 +714,45 @@ mod tests {
 
     impl CommandRunner for FakeRunner {
         fn run(&self, _program: &str, _args: &[&str], _cwd: &Path) -> (bool, String) {
+            self.responses.lock().unwrap().remove(0)
+        }
+    }
+
+    /// 呼び出しごとの `program`・`args` を記録しつつ、固定応答を順番に返す
+    /// フェイク（G2: 外部コマンドの**起動引数契約**の検証専用。TASK-13.3d
+    /// #142）。`FakeRunner` は引数を無視するため、`--locked` の脱落・
+    /// `-D warnings` の脱落・`-p <crate>` 列挙の崩れ・`policy_check` の
+    /// サブコマンド列（`advisories` を含めてはならない）といった弱体化を
+    /// 検知できない（`docs/gate-design.md` §2 表・§5 A06 の回帰固定）。
+    struct ArgsRecordingRunner {
+        responses: Mutex<Vec<(bool, String)>>,
+        calls: Mutex<Vec<(String, Vec<String>)>>,
+    }
+
+    impl ArgsRecordingRunner {
+        fn new(responses: Vec<(bool, String)>) -> Self {
+            Self {
+                responses: Mutex::new(responses),
+                calls: Mutex::new(Vec::new()),
+            }
+        }
+
+        fn last_call(&self) -> (String, Vec<String>) {
+            self.calls
+                .lock()
+                .unwrap()
+                .last()
+                .cloned()
+                .expect("ArgsRecordingRunner.run() was never called")
+        }
+    }
+
+    impl CommandRunner for ArgsRecordingRunner {
+        fn run(&self, program: &str, args: &[&str], _cwd: &Path) -> (bool, String) {
+            self.calls.lock().unwrap().push((
+                program.to_string(),
+                args.iter().map(|s| s.to_string()).collect(),
+            ));
             self.responses.lock().unwrap().remove(0)
         }
     }
@@ -1371,5 +1411,368 @@ mod tests {
     #[test]
     fn truncate_output_leaves_short_output_untouched() {
         assert_eq!(truncate_output("short"), "short");
+    }
+
+    // ------------------------------------------------------------------
+    // G8 (TASK-13.3d #142): `truncate_output` のマルチバイト文字境界安全性。
+    // `chars()` ベースの丸めが char 境界を跨いで panic しないこと・
+    // マルチバイト文字列でも末尾優先が保たれることを固定する
+    // （docs/gate-design.md §5 A09）。
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn truncate_output_keeps_tail_for_multibyte_chars_without_panicking() {
+        // 日本語 1 文字はマルチバイト（UTF-8 で 3 バイト）だが `chars()` は
+        // 1 文字として数えるため、バイト境界とはズレる。ここでバイト単位の
+        // 丸め実装への回帰（char 境界を跨いでの panic・文字化け）を防ぐ。
+        let head = "先頭".repeat(OUTPUT_TRUNCATE_CHARS); // 十分な長さの先頭部分
+        let tail = "末尾テスト文字列";
+        let long = format!("{head}{tail}");
+        let truncated = truncate_output(&long);
+        assert_eq!(truncated.chars().count(), OUTPUT_TRUNCATE_CHARS);
+        assert!(
+            truncated.ends_with(tail),
+            "tail must be preserved verbatim: {truncated:?}"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // G1 (TASK-13.3d #142): `policy_check` の単体テスト。
+    // deny.toml 欠落時に cargo-deny を**起動しないこと**（fail-closed）、
+    // 存在時の成功/失敗伝播・出力丸めを検証する（docs/gate-design.md §2
+    // 表 #5・§3 fail-closed）。
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn policy_check_does_not_invoke_cargo_deny_when_deny_toml_missing() {
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-policy-no-deny-toml-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let check = policy_check(&PanicIfCalledRunner, &dir);
+        assert!(!check.passed);
+        assert!(check.output.contains("deny.toml not found"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn policy_check_invokes_cargo_deny_with_expected_args_when_deny_toml_present() {
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-policy-deny-args-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("deny.toml"), "# test fixture\n").unwrap();
+
+        let runner = ArgsRecordingRunner::new(vec![(true, "ok".to_string())]);
+        let check = policy_check(&runner, &dir);
+        assert!(check.passed);
+
+        let (program, args) = runner.last_call();
+        assert_eq!(program, "cargo");
+        // `advisories` はオフラインゲート対象外（ネットワーク前提のため）。
+        // 含めてしまうと offline 実行環境で誤って failed になる（弱体化とは
+        // 逆方向の回帰だが、契約からの逸脱として同様に固定する）。
+        assert_eq!(args, vec!["deny", "check", "bans", "licenses", "sources"]);
+        assert!(
+            !args.contains(&"advisories".to_string()),
+            "policy_check must not include `advisories` (offline gate scope, docs/cargo-deny-advisories.md)"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn policy_check_propagates_cargo_deny_failure_with_truncated_output() {
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-policy-deny-fail-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("deny.toml"), "# test fixture\n").unwrap();
+
+        let long_output = "x".repeat(OUTPUT_TRUNCATE_CHARS + 100);
+        let runner = ArgsRecordingRunner::new(vec![(false, long_output)]);
+        let check = policy_check(&runner, &dir);
+        assert!(!check.passed);
+        assert_eq!(check.output.chars().count(), OUTPUT_TRUNCATE_CHARS);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ------------------------------------------------------------------
+    // G2 (TASK-13.3d #142): 外部コマンドの起動引数契約。`--locked` の脱落
+    // （A06 弱体化）・`-D warnings` の脱落・`-p <crate>` 列挙の崩れを
+    // 検知できるようにする（docs/gate-design.md §2 表・§5 A06）。
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn run_cargo_check_invokes_cargo_with_locked_and_declared_crates() {
+        let dir = std::env::temp_dir();
+        let runner = ArgsRecordingRunner::new(vec![(true, "ok".to_string())]);
+        let check = run_cargo_check(&runner, &dir, &["rws-core", "rws-app"]);
+        assert!(check.passed);
+
+        let (program, args) = runner.last_call();
+        assert_eq!(program, "cargo");
+        assert_eq!(
+            args,
+            vec!["check", "--locked", "-p", "rws-core", "-p", "rws-app"]
+        );
+    }
+
+    #[test]
+    fn run_cargo_test_invokes_cargo_with_locked_and_declared_crates() {
+        let dir = std::env::temp_dir();
+        let runner = ArgsRecordingRunner::new(vec![(true, "ok".to_string())]);
+        let check = run_cargo_test(&runner, &dir, &["rws-core"]);
+        assert!(check.passed);
+
+        let (program, args) = runner.last_call();
+        assert_eq!(program, "cargo");
+        assert_eq!(args, vec!["test", "--locked", "-p", "rws-core"]);
+    }
+
+    #[test]
+    fn run_cargo_clippy_invokes_cargo_with_locked_deny_warnings_and_declared_crates() {
+        let dir =
+            std::env::temp_dir().join(format!("fw-gate-test-clippy-args-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("clippy.toml"),
+            "disallowed-methods = [{ path = \"rws_core::raw_html\", reason = \"x\" }]\n",
+        )
+        .unwrap();
+
+        let runner = ArgsRecordingRunner::new(vec![(true, "ok".to_string())]);
+        let check = run_cargo_clippy(&runner, &dir, &["rws-core", "rws-app"]);
+        assert!(check.passed);
+
+        let (program, args) = runner.last_call();
+        assert_eq!(program, "cargo");
+        assert_eq!(
+            args,
+            vec!["clippy", "--locked", "-p", "rws-core", "-p", "rws-app", "--", "-D", "warnings",]
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ------------------------------------------------------------------
+    // G3 (TASK-13.3d #142): 宣言クレート 0 件時、`run_cargo_check` /
+    // `run_cargo_test` それぞれが共通ヘルパー経由の fail-closed を維持する
+    // ことを個別に固定する（既存は clippy のみテスト済み。この 2 つも
+    // ワークスペース全体へフォールバックしてはならない、docs/gate-design.md
+    // §3）。
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn run_cargo_check_fails_closed_when_no_crates_declared() {
+        let dir = std::env::temp_dir();
+        let check = run_cargo_check(&PanicIfCalledRunner, &dir, &[]);
+        assert!(!check.passed);
+        assert!(check.output.contains("no crate declared"));
+    }
+
+    #[test]
+    fn run_cargo_test_fails_closed_when_no_crates_declared() {
+        let dir = std::env::temp_dir();
+        let check = run_cargo_test(&PanicIfCalledRunner, &dir, &[]);
+        assert!(!check.passed);
+        assert!(check.output.contains("no crate declared"));
+    }
+
+    // ------------------------------------------------------------------
+    // G4 (TASK-13.3d #142): `aggregate` の `action` 固定文言。集約結果の
+    // JSON 契約の一部（docs/gate-design.md §4）であり、文言の意図しない変更を
+    // 検知する。
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn aggregate_all_passed_action_text_is_fixed() {
+        let checks = vec![GateCheck {
+            name: "a",
+            passed: true,
+            output: String::new(),
+        }];
+        let report = aggregate(checks);
+        assert_eq!(report.action, "all checks passed; changes may proceed");
+    }
+
+    #[test]
+    fn aggregate_failure_action_text_is_fixed() {
+        let checks = vec![GateCheck {
+            name: "a",
+            passed: false,
+            output: String::new(),
+        }];
+        let report = aggregate(checks);
+        assert_eq!(
+            report.action,
+            "fix the reported failing checks and re-run `fw gate`"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // G5/G7 (TASK-13.3d #142): `run_all_checks` が返す 5 チェックの name と
+    // 順序（PoC-7 互換 JSON 形状）、および全チェック成功時に `gate_result`
+    // が `"PASS"` になる経路を固定する（docs/gate-design.md §4 JSON 出力契約・
+    // 集約規則）。フル e2e（実ツールチェーン走行）は TASK-13.4 #143 の
+    // スコープのため、`FakeRunner` による軽量検証に留める。
+    // ------------------------------------------------------------------
+
+    /// `run_all_checks` の全 5 チェックを PASS させるためのフィクスチャ一式
+    /// （`structure.toml` 相当のマニフェスト・`clippy.toml`・`deny.toml`・
+    /// クリーンな `app/src`）を用意する。
+    fn all_checks_pass_fixture() -> (StructureManifest, PathBuf) {
+        // 呼び出し元 2 テスト（run_all_checks_returns_expected_check_names_in_order /
+        // run_all_checks_all_success_yields_pass）は同一プロセス内で並列実行され
+        // 得るため、`std::process::id()` のみではディレクトリ名が衝突し、
+        // 片方の cleanup がもう片方の実行中フィクスチャを削除するレースが生じる。
+        // ナノ秒タイムスタンプを付与して呼び出しごとに一意化する
+        // （`gate_integration.rs` の `tempdir_for_test` と同じ戦略）。
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-run-all-checks-pass-{}-{unique}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        let app_src = dir.join("app").join("src");
+        std::fs::create_dir_all(&app_src).unwrap();
+        // 未レビュー raw_html() 呼び出しを含まないクリーンなソース
+        // （default_escape_check は純粋関数でありプロセス起動を伴わないため
+        // フィクスチャのファイル内容がそのまま合否を左右する）。
+        std::fs::write(app_src.join("lib.rs"), "pub fn render() {}\n").unwrap();
+        std::fs::write(
+            dir.join("clippy.toml"),
+            "disallowed-methods = [{ path = \"rws_core::raw_html\", reason = \"x\" }]\n",
+        )
+        .unwrap();
+        std::fs::write(dir.join("deny.toml"), "# test fixture\n").unwrap();
+
+        let manifest = StructureManifest {
+            version: 1,
+            directories: vec![structure::DirectoryEntry {
+                name: "app".to_string(),
+                role: Role::Component,
+                crate_name: Some("rws-app".to_string()),
+                description: "test".to_string(),
+                depends_on: Vec::new(),
+                allowed_dependents: Vec::new(),
+            }],
+            routing: None,
+        };
+        (manifest, dir)
+    }
+
+    #[test]
+    fn run_all_checks_returns_expected_check_names_in_order() {
+        let (manifest, dir) = all_checks_pass_fixture();
+        // 3 つの cargo 系チェック（type_check/lint/test）分のフェイク応答。
+        // policy は deny.toml 存在時に cargo-deny を 1 回起動するため 4 応答。
+        let runner = FakeRunner {
+            responses: Mutex::new(vec![
+                (true, String::new()),
+                (true, String::new()),
+                (true, String::new()),
+                (true, String::new()),
+            ]),
+        };
+        let report = run_all_checks(&manifest, &dir, &runner);
+        let names: Vec<&str> = report.checks.iter().map(|c| c.name).collect();
+        assert_eq!(
+            names,
+            vec!["type_check", "default_escape_check", "lint", "test", "policy"],
+            "check name/order is a JSON output contract (PoC-7 compatibility, docs/gate-design.md §4)"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn run_all_checks_all_success_yields_pass() {
+        let (manifest, dir) = all_checks_pass_fixture();
+        let runner = FakeRunner {
+            responses: Mutex::new(vec![
+                (true, String::new()),
+                (true, String::new()),
+                (true, String::new()),
+                (true, String::new()),
+            ]),
+        };
+        let report = run_all_checks(&manifest, &dir, &runner);
+        assert_eq!(report.gate_result, "PASS");
+        assert!(report.checks.iter().all(|c| c.passed), "{:?}", {
+            report
+                .checks
+                .iter()
+                .map(|c| (c.name, c.passed))
+                .collect::<Vec<_>>()
+        });
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ------------------------------------------------------------------
+    // G6 (TASK-13.3d #142): `render_report` の出力が機械的に有効な JSON で
+    // あることをラウンドトリップ検証する（既存は部分文字列アサートのみ。
+    // `cli` 自前パーサ `crate::json` を使えば外部依存ゼロのまま検証できる。
+    // docs/gate-design.md §4・§5 A09）。
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn render_report_output_round_trips_through_json_parser() {
+        let report = GateReport {
+            checks: vec![
+                GateCheck {
+                    name: "type_check",
+                    passed: true,
+                    output: "ok".to_string(),
+                },
+                GateCheck {
+                    name: "lint",
+                    passed: false,
+                    output: "warning: \"unused\"\ncontrol\x07char".to_string(),
+                },
+            ],
+            gate_result: "BLOCKED",
+            action: "fix the reported failing checks and re-run `fw gate`".to_string(),
+        };
+        let json_text = render_report(&report);
+
+        let parsed =
+            crate::json::parse(&json_text).expect("render_report output must be valid JSON");
+        assert_eq!(
+            parsed.get("gate_result").and_then(|v| v.as_str()),
+            Some("BLOCKED")
+        );
+        assert_eq!(
+            parsed.get("action").and_then(|v| v.as_str()),
+            Some("fix the reported failing checks and re-run `fw gate`")
+        );
+        let checks = parsed
+            .get("checks")
+            .and_then(|v| v.as_array())
+            .expect("checks must be a JSON array");
+        assert_eq!(checks.len(), 2);
+        assert_eq!(
+            checks[0].get("name").and_then(|v| v.as_str()),
+            Some("type_check")
+        );
+        assert_eq!(
+            checks[1].get("output").and_then(|v| v.as_str()),
+            Some("warning: \"unused\"\ncontrol\x07char"),
+            "control characters and quotes must survive an escape/unescape round trip"
+        );
     }
 }
