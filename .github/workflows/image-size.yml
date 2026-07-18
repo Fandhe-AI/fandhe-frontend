@@ -67,6 +67,15 @@ jobs:
       # コンテナの内部 IP へ直接 curl するため通常は該当しないはずだが、
       # 念のため localhost 系をプロキシ除外しておく。
       NO_PROXY: "localhost,127.0.0.1,::1"
+      # イシュー #294（PR #306 CI 失敗）対応: 固定コンテナ名 "rws-ci" だと、
+      # 同一 self-hosted runner 上での並行実行（別 PR / 別 run の同時実行、
+      # または同一 run の rerun）でコンテナ名が衝突し、
+      # `docker run --name rws-ci` が
+      # `Conflict. The container name "/rws-ci" is already in use` で失敗する
+      # （run 29641153252 の初回実行・rerun の双方で再現）。
+      # run_id + run_attempt を組み込んで run 単位・rerun 単位に一意化し、
+      # 衝突そのものを避ける（rerun でも run_attempt が変わるため別名になる）。
+      CONTAINER_NAME: "rws-ci-${{ github.run_id }}-${{ github.run_attempt }}"
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（ci.yml と同一 SHA に固定）。
@@ -144,10 +153,14 @@ jobs:
           RUNNER_CID: ${{ steps.runner_cid.outputs.id }}
         run: |
           set -euo pipefail
+          # 念のための防御的 cleanup。CONTAINER_NAME は run_id/run_attempt で
+          # 一意化済みのため通常は既存コンテナが残っていないはずだが、
+          # 同名コンテナが万一残存していても衝突させず fail-closed に進める。
+          docker rm -f "${CONTAINER_NAME}" >/dev/null 2>&1 || true
           if [ -n "${RUNNER_CID}" ]; then
-            docker run -d --name rws-ci --network "container:${RUNNER_CID}" rws-dist-server:ci
+            docker run -d --name "${CONTAINER_NAME}" --network "container:${RUNNER_CID}" rws-dist-server:ci
           else
-            docker run -d --name rws-ci -p 127.0.0.1:3100:3100 rws-dist-server:ci
+            docker run -d --name "${CONTAINER_NAME}" -p 127.0.0.1:3100:3100 rws-dist-server:ci
           fi
           base_url="http://127.0.0.1:3100"
 
@@ -176,8 +189,8 @@ jobs:
           done
           if [ "$ready" -ne 1 ]; then
             echo "::error::rws-dist-server:ci did not become ready within 30s" >&2
-            docker logs rws-ci || true
-            docker rm -f rws-ci || true
+            docker logs "${CONTAINER_NAME}" || true
+            docker rm -f "${CONTAINER_NAME}" || true
             exit 1
           fi
 
@@ -212,7 +225,7 @@ jobs:
           js_type=$(curl_retry -s -o "$discard" -w '%{content_type}' ${base_url}/static/wasm/rws_wasm_full.js)
           if [ "$js_status" != "200" ] || [ "${js_type#text/javascript}" = "$js_type" ]; then
             echo "::error::rws_wasm_full.js: expected 200 text/javascript, got status=${js_status} content_type=${js_type}" >&2
-            docker rm -f rws-ci || true
+            docker rm -f "${CONTAINER_NAME}" || true
             exit 1
           fi
 
@@ -220,7 +233,7 @@ jobs:
           wasm_type=$(curl_retry -s -o "$discard" -w '%{content_type}' ${base_url}/static/wasm/rws_wasm_full_bg.wasm)
           if [ "$wasm_status" != "200" ] || [ "$wasm_type" != "application/wasm" ]; then
             echo "::error::rws_wasm_full_bg.wasm: expected 200 application/wasm, got status=${wasm_status} content_type=${wasm_type}" >&2
-            docker rm -f rws-ci || true
+            docker rm -f "${CONTAINER_NAME}" || true
             exit 1
           fi
           # magic bytes 取得専用の一時ファイルを使う（$discard を使い回すと、
@@ -243,18 +256,18 @@ jobs:
           fi
           if [ "$wasm_magic" != "0061736d" ]; then
             echo "::error::rws_wasm_full_bg.wasm: unexpected magic bytes ${wasm_magic} (expected \\0asm = 0061736d)" >&2
-            docker rm -f rws-ci || true
+            docker rm -f "${CONTAINER_NAME}" || true
             exit 1
           fi
 
           not_found_status=$(curl_retry -s -o "$discard" -w '%{http_code}' ${base_url}/static/wasm/does-not-exist.wasm)
           if [ "$not_found_status" != "404" ]; then
             echo "::error::unknown /static/wasm/ path expected 404, got ${not_found_status}" >&2
-            docker rm -f rws-ci || true
+            docker rm -f "${CONTAINER_NAME}" || true
             exit 1
           fi
 
-          docker rm -f rws-ci
+          docker rm -f "${CONTAINER_NAME}"
 
       - name: Verify final image does not leak the build toolchain (TASK-10.3c, issue #117)
         # TASK-10.3b で builder ステージへ追加した curl・wasm32 ターゲット・
