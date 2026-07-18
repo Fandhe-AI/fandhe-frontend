@@ -50,6 +50,19 @@
 //!   契約で、Dockerfile 未マージの間は意図的に計測失敗＝fail-closed で FAIL する。
 //!   CLI 契約の回帰テストは `xtask/tests/cli_check_image_size.rs`。
 //!
+//! - `wasm-node-smoke [--build-only]`: イシュー #297（TASK-10.2 残課題、出典
+//!   PR #220 §10 スコープ外節）。`docs/wasm-build-integration.md` §6.4 が
+//!   文書化していた nodejs ターゲット開発フロー（`cargo build --target
+//!   wasm32-unknown-unknown` → `wasm-bindgen --target nodejs` → `node -e
+//!   "require(...)"`）を自動化する（`wasm_node_smoke` モジュール）。
+//!   Cargo.lock 解決済み `wasm-bindgen` バージョンと `wasm-bindgen --version`
+//!   の完全一致検証（`dist-server/build.rs::expected_wasm_bindgen_version`
+//!   と同一契約）→ wasm32 ビルド → `--target nodejs` バインディング生成 →
+//!   （`--build-only` 指定時を除き）node 実行での動作確認・既定エスケープ
+//!   （REQ-1）回帰検証を行う。呼び出し元は `.github/workflows/ci.yml` の
+//!   `wasm-node-smoke` ジョブ。1 行サマリは `wasm_node_smoke::format_report`
+//!   参照。CLI 契約の回帰テストは `xtask/tests/cli_wasm_node_smoke.rs`。
+//!
 //! `core` / `interactive` と異なりプロセス起動（`std::process::Command`）を行うが、
 //! `unsafe` は使わない（REQ-2 は core/interactive 限定だが、xtask でも forbid する。
 //! core/tests/unsafe_boundary.rs の WASM/FFI 境界許可リストにも含まれない）。
@@ -61,6 +74,7 @@ mod check_image_size;
 mod check_loc;
 mod json;
 mod list_build_scripts;
+mod wasm_node_smoke;
 
 use std::process::ExitCode;
 
@@ -72,6 +86,7 @@ fn main() -> ExitCode {
         Some("check-core-deps") => run_check_core_deps(&args[2..]),
         Some("check-loc") => run_check_loc(&args[2..]),
         Some("check-image-size") => run_check_image_size(&args[2..]),
+        Some("wasm-node-smoke") => run_wasm_node_smoke(&args[2..]),
         Some(other) => {
             eprintln!("xtask: unknown subcommand `{other}`");
             print_usage();
@@ -112,6 +127,13 @@ fn print_usage() {
     eprintln!("      Measure the uncompressed size of a docker image (via `docker image");
     eprintln!("      inspect`) and judge it against the REQ-9 limit (default 50MB, issue");
     eprintln!("      #103). `--limit-mb` overrides the default for verification only.");
+    eprintln!("  wasm-node-smoke [--build-only]");
+    eprintln!("      Automate the nodejs-target dev workflow documented in");
+    eprintln!("      docs/wasm-build-integration.md §6.4 for rws-wasm-thin: verify the");
+    eprintln!("      installed wasm-bindgen-cli matches Cargo.lock's wasm-bindgen version,");
+    eprintln!("      build for wasm32-unknown-unknown, generate `--target nodejs` bindings,");
+    eprintln!("      and (unless --build-only) run a node smoke check including a default-");
+    eprintln!("      escape (REQ-1) regression check (issue #297).");
 }
 
 /// `check-deps` サブコマンド: `--package <NAME>` を 1 つ以上受け取り、
@@ -409,5 +431,39 @@ fn run_check_image_size(args: &[String]) -> ExitCode {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
+    }
+}
+
+/// `wasm-node-smoke` サブコマンド（イシュー #297, TASK-10.2 残課題）: 引数は
+/// `--build-only`（任意）のみ受け付ける。`wasm_node_smoke::run` に処理を委譲し、
+/// 成否を 1 行サマリ（`wasm_node_smoke::format_report`）として stdout に出す。
+///
+/// 判定対象クレート（`wasm_node_smoke::PACKAGE_NAME`）・出力先は定数固定で
+/// CLI からの差し替え不可（`check-loc`/`check-core-deps` と同じ設計原則）。
+/// `--build-only` 以外の不明な引数は終了コード 2（usage エラー）とし、
+/// ツール不在・バージョン不一致・ビルド失敗・bindgen 失敗・node 実行失敗・
+/// エスケープ検証失敗はいずれも終了コード 1（fail-closed）とする。
+fn run_wasm_node_smoke(args: &[String]) -> ExitCode {
+    let mut mode = wasm_node_smoke::SmokeMode::Full;
+    for arg in args {
+        match arg.as_str() {
+            "--build-only" => mode = wasm_node_smoke::SmokeMode::BuildOnly,
+            other => {
+                eprintln!("xtask wasm-node-smoke: unknown argument `{other}`");
+                return ExitCode::from(2);
+            }
+        }
+    }
+
+    match wasm_node_smoke::run(mode) {
+        Ok(()) => {
+            print!("{}", wasm_node_smoke::format_report(mode, true));
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("xtask wasm-node-smoke: {e}");
+            print!("{}", wasm_node_smoke::format_report(mode, false));
+            ExitCode::FAILURE
+        }
     }
 }

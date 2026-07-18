@@ -1177,6 +1177,96 @@ jobs:
       - name: Run WASM XSS escape regression (headless Chrome)
         run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test xss_escape_wasm
 
+  # イシュー #297（TASK-10.2 残課題、出典 PR #220 §10 スコープ外節）:
+  # docs/wasm-build-integration.md §6.4 が文書化していた nodejs ターゲット
+  # 開発フロー（`web-sys` 非依存な rws-wasm-thin のロジック高速確認経路）を
+  # `cargo xtask wasm-node-smoke` として CI ゲート化する。上記 `test` ジョブと
+  # 同一の wasm32 target 追加・wasm-bindgen-cli 導入パターンを踏襲する
+  # （同一バージョン固定値。ドリフト検出は xtask/tests/wasm_bindgen_version_sync.rs
+  # が行ベース抽出で拾う対象に本ジョブの宣言も自動的に含まれる）。
+  #
+  # 正式なブラウザ実証（上記 browser-test/xss-wasm-test ジョブ）の代替ではなく、
+  # 開発者手元での高速確認経路を CI でも回帰検証する位置づけ（§6.4 不変条件）。
+  # 緩和用 input・continue-on-error は設けない（既存ジョブの迂回経路禁止原則）。
+  wasm-node-smoke:
+    name: "nodejs target smoke test (rws-wasm-thin, issue #297)"
+    runs-on: self-hosted
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        # 他ジョブと同一 SHA 固定。docs/spec サブモジュールは本ジョブに不要。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # deps-check.yml / test ジョブと同一の理由・同一 SHA 固定。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      # wasm-bindgen-cli の導入パターンは `test` ジョブと同一（バージョン固定 +
+      # SHA256 チェックサム検証 + atomic install）。`xtask wasm-node-smoke` 自身が
+      # 実行時に Cargo.lock 解決済みバージョンとの完全一致を再検証するため
+      # （`wasm_node_smoke::verify_wasm_bindgen_version`）、二重の fail-closed
+      # ゲートになる。
+      - name: Install wasm-bindgen-cli (pinned + checksum-verified, atomic install)
+        run: |
+          set -euo pipefail
+          WASM_BINDGEN_VERSION="0.2.126"
+          WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
+          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            if ! mv -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
+              if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ] || [ ! -x "${INSTALL_DIR}/wasm-bindgen-test-runner" ]; then
+                echo "::error::failed to install wasm-bindgen-cli to ${INSTALL_DIR}" >&2
+                exit 1
+              fi
+            fi
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
+
+      - name: Setup Node.js
+        # npm-asset-build ジョブと同一 SHA 固定。self-hosted runner に node の
+        # 常設は保証されないため明示セットアップする（.claude/rules/ci.md
+        # 「ツール前提の明示」）。
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: '20'
+
+      - name: Run xtask wasm-node-smoke
+        # xtask の終了コードをそのまま CI の成否に伝播させる（fail-closed）。
+        # --locked はこの外側の cargo run が Cargo.lock を書き換えないことを保証する。
+        run: |
+          set -o pipefail
+          cargo run --locked -p xtask -- wasm-node-smoke | tee wasm-node-smoke.log
+
+      - name: Publish wasm-node-smoke summary
+        if: always()
+        # wasm_node_smoke::format_report の 1 行サマリ契約
+        # 「wasm-node-smoke: package=<pkg> target=nodejs mode=<mode> result=<PASS|FAIL>」を
+        # Step Summary に転記する。契約は xtask/tests/cli_wasm_node_smoke.rs で固定。
+        run: |
+          {
+            echo '## wasm-node-smoke (issue #297)'
+            echo '```'
+            grep '^wasm-node-smoke:' wasm-node-smoke.log || echo 'wasm-node-smoke: no summary line found'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   # TASK-12.2c（#124、REQ-12 受け入れ基準 2）: install.sh の --ignore-scripts
   # 強制（前段、TASK-12.1a・#38・マージ済み）と check_static_only.py の
   # 静的アセット判定（後段ゲート、TASK-12.2b・#123・マージ済み）の多層防御を

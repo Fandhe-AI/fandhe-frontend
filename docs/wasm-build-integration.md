@@ -271,9 +271,12 @@ node -e "const m = require('./target/wasm-node/thin'); console.log(m.some_export
 - `--target nodejs` はブラウザ環境の実証を代替しない。ブラウザ挙動の正式な
   検証は必ず `docs/browser-testing.md` の手順（実ブラウザ・ヘッドレス Chrome）
   で行う。
-- 将来的に本節のコマンド列を `cargo xtask` サブコマンド化する案、および CI
-  への nodejs ターゲットのスモークテスト追加は、本書執筆時点ではスコープ外
-  です（§10 参照）。
+- 上記のコマンド列は `cargo xtask wasm-node-smoke [--build-only]`
+  （イシュー #297、`xtask/src/wasm_node_smoke.rs`）としてツール化済みです。
+  wasm-bindgen-cli のバージョン整合検証・wasm32 ビルド・`--target nodejs`
+  バインディング生成・node 実行での既定エスケープ（REQ-1）回帰検証までを
+  1 コマンドで行い、`.github/workflows/ci.yml` の `wasm-node-smoke` ジョブが
+  CI ゲートとして実行します（§10 参照）。
 
 ## 7. TASK-10.3（Docker マルチステージ内再ビルド）との境界
 
@@ -387,17 +390,13 @@ REQ-10（`docs/spec/04-requirements.md` 132〜142 行目）の受け入れ基準
 
 - **Docker マルチステージビルド内での WASM 再ビルド実装**: TASK-10.3（#114）
   のスコープ。本書 §7 で境界のみ明記。
-- **`cargo xtask` による nodejs ビルドサブコマンド実装**: §6.4 で示した
-  開発時コマンド列（`cargo build --target wasm32-unknown-unknown` →
-  `wasm-bindgen --target nodejs` → `node -e "require(...)"`）を
-  `xtask` のサブコマンドとして自動化する案。本書は手順の文書化までを
-  スコープとし、ツール化自体は対象外です。
-- **CI への nodejs ターゲットスモークテスト追加**: §6.4 の nodejs
-  経路を CI ワークフロー（`.github/workflows/ci.yml`）で自動実行・検証する
-  仕組みの追加。正式なブラウザ実証は既に `docs/browser-testing.md` の
-  `browser-test`/`perf-harness` ジョブで確立済みであり、nodejs 経路は
-  開発者手元での高速確認用途にとどまるため、本書では CI 組み込みの提案に
-  留めます。
+- ~~**`cargo xtask` による nodejs ビルドサブコマンド実装**~~: イシュー #297
+  で実装済み（`cargo xtask wasm-node-smoke`、§6.4 参照）。
+- ~~**CI への nodejs ターゲットスモークテスト追加**~~: イシュー #297 で
+  `.github/workflows/ci.yml` の `wasm-node-smoke` ジョブとして実装済み
+  （§6.4 参照）。正式なブラウザ実証（`browser-test`/`xss-wasm-test` ジョブ）
+  の代替ではなく、開発者手元での高速確認経路の CI 回帰検証という位置づけは
+  変わりません。
 - **条件 3（WASM ビルドチェーンの cargo 統合）解消の最終判定**:
   TASK-10.2e（#113）のスコープ。本書は判定に用いる文書的裏付けの提供に
   留まり、判定そのものは `docs/wasm-build-integration-report.md` が行います。
