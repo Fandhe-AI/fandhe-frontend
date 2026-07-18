@@ -252,6 +252,139 @@ pub fn run_fw(subcommand: &str, extra_args: &[&str], project_dir: &Path) -> (i32
     )
 }
 
+/// `write_workspace_project` に渡す 1 crate 分のフィクスチャ内容。
+///
+/// シナリオ 2（UI 改善、TASK-13.4c・#146）で複数クレート（`rws-app` /
+/// `rws-server` / `rws-wasm-client` 等）にまたがるワークスペースを組み立てる
+/// ために導入した汎用型。設計文書 §4.4「`common.rs` をシナリオ数だけ
+/// 分岐させない」方針に従い、シナリオ固有の特殊化を持ち込まず、ソース内容・
+/// クレート構成は呼び出し側（`scenario{1,2,3}_*.rs`）からパラメータとして
+/// 渡す（後続 #145/#147 も同じ型を再利用する契約）。
+pub struct MemberFixture<'a> {
+    /// ワークスペースルート直下のディレクトリ名（`structure.toml` の
+    /// `directories` キー・cargo workspace member 名と一致させる）。
+    pub dir_name: &'a str,
+    /// `<dir_name>/Cargo.toml` の内容（`[package] name = "..."` を含む）。
+    pub cargo_toml: &'a str,
+    /// `<dir_name>/src/` 配下に書き出す `(相対パス, 内容)` の一覧
+    /// （例: `("lib.rs", "pub fn ...")`）。`'static` に固定しないのは、
+    /// `common::replace_unique` が返す所有 `String`（`before`/`after` 変更
+    /// 適用後の内容）をリークせずそのまま借用させるため（呼び出し側の
+    /// スタックフレーム内で完結させる、設計文書 §4.4）。
+    pub src_files: &'a [(&'a str, &'a str)],
+}
+
+/// 複数クレートワークスペースの一時プロジェクトを書き出す汎用ビルダー
+/// （`write_scenario_project` の単一クレート版を拡張したもの。設計文書 §4.2
+/// 「拡張指針」に従い、既存のベースライン smoke test 用フィクスチャ生成とは
+/// 独立させ、両者を同時に保守可能にする）。
+///
+/// ```text
+/// <fixture>/
+/// ├── structure.toml   (呼び出し側が渡す structure_toml_content)
+/// ├── Cargo.toml       (virtual workspace, members = members の dir_name 一覧)
+/// ├── deny.toml / clippy.toml  (write_scenario_project と同一内容)
+/// └── <member.dir_name>/
+///     ├── Cargo.toml   (member.cargo_toml)
+///     └── src/<file>   (member.src_files の各エントリ)
+/// ```
+///
+/// `write_scenario_project` と同じく `cargo generate-lockfile --offline` で
+/// `Cargo.lock` を生成する（各 member 間の依存は path 依存のみのため registry
+/// 不要・決定的に成功する）。
+pub fn write_workspace_project(
+    scenario_name: &str,
+    structure_toml: &str,
+    members: &[MemberFixture<'_>],
+) -> ScenarioProject {
+    let dest = scratch_root().join(format!(
+        "scenario-{scenario_name}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = fs::remove_dir_all(&dest);
+    fs::create_dir_all(&dest).expect("一時プロジェクトディレクトリの作成に失敗した");
+
+    fs::write(dest.join("structure.toml"), structure_toml)
+        .expect("structure.toml の書き込みに失敗した");
+
+    let members_list = members
+        .iter()
+        .map(|m| format!("\"{}\"", m.dir_name))
+        .collect::<Vec<_>>()
+        .join(", ");
+    fs::write(
+        dest.join("Cargo.toml"),
+        format!("[workspace]\nmembers = [{members_list}]\nresolver = \"2\"\n"),
+    )
+    .expect("workspace Cargo.toml の書き込みに失敗した");
+
+    // `deny.toml` / `clippy.toml` は `write_scenario_project` と同一内容
+    // （`gate.rs::policy_check` / `clippy_policy_check` が前提とするポリシー
+    // 設定。フィクスチャ間で二重管理しないよう、内容はここで固定する）。
+    fs::write(
+        dest.join("deny.toml"),
+        r#"[graph]
+targets = []
+
+[bans]
+multiple-versions = "warn"
+deny = [
+    { name = "openssl-sys" },
+]
+
+[licenses]
+allow = ["MIT", "Apache-2.0", "Unicode-3.0", "BSD-3-Clause"]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+"#,
+    )
+    .expect("deny.toml の書き込みに失敗した");
+
+    fs::write(
+        dest.join("clippy.toml"),
+        r#"disallowed-methods = [
+    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/raw-html-review-gate.md 参照）" },
+]
+"#,
+    )
+    .expect("clippy.toml の書き込みに失敗した");
+
+    for member in members {
+        let member_src = dest.join(member.dir_name).join("src");
+        fs::create_dir_all(&member_src).expect("member src ディレクトリの作成に失敗した");
+        fs::write(
+            dest.join(member.dir_name).join("Cargo.toml"),
+            member.cargo_toml,
+        )
+        .expect("member Cargo.toml の書き込みに失敗した");
+        for (rel_path, content) in member.src_files {
+            fs::write(member_src.join(rel_path), content)
+                .expect("member ソースファイルの書き込みに失敗した");
+        }
+    }
+
+    // 各 member 間は path 依存のみのためネットワークアクセスなしで決定的に
+    // ロックファイルを生成できる（`write_scenario_project` と同一方針）。
+    let lockfile_output = Command::new("cargo")
+        .args(["generate-lockfile", "--offline"])
+        .current_dir(&dest)
+        .output()
+        .expect("cargo generate-lockfile の起動に失敗した");
+    assert!(
+        lockfile_output.status.success(),
+        "cargo generate-lockfile --offline に失敗した（フィクスチャ自体が壊れている）: {}",
+        String::from_utf8_lossy(&lockfile_output.stderr)
+    );
+
+    ScenarioProject(dest)
+}
+
 /// `stdout`（`fw gate` の JSON レポート）中の `"name":"<name>"` エントリの
 /// `passed` 値を判定する。該当エントリが見つからない場合は `None`
 /// （「チェック自体が JSON に現れていない」ことと「passed:false」を区別する
