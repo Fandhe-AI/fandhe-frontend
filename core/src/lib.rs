@@ -453,6 +453,10 @@ mod tests {
     #[test]
     fn raw_html_node_is_not_escaped_when_opted_in() {
         let payload = "<b>bold</b>";
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "ESCAPE-REVIEWED: raw_html オプトイン時の非エスケープ透過を検証するユニットテスト。固定の信頼済み文字列のみ"
+        )]
         let node = el("p", vec![], vec![raw_html(payload)]);
         let html = render(&node);
         assert!(html.contains("<b>bold</b>"));
@@ -585,6 +589,10 @@ mod tests {
     /// 当該ノードに閉じており、木全体を非エスケープ化しない）。
     #[test]
     fn text_and_raw_html_siblings_render_independently() {
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "ESCAPE-REVIEWED: raw_html の非エスケープが兄弟 text ノードへ波及しないことの検証。固定の信頼済み文字列のみ"
+        )]
         let node = el(
             "div",
             vec![],
@@ -674,6 +682,10 @@ mod tests {
     /// `raw_html` のみであるという境界（不変条件 2）が変わらないことを確認する。
     #[test]
     fn tag_shortcut_combined_with_raw_html_keeps_opt_in_boundary() {
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "ESCAPE-REVIEWED: タグショートカット併用時もオプトイン境界が変わらないことの検証。固定の信頼済み文字列のみ"
+        )]
         let node = div(
             vec![],
             vec![text("<script>"), raw_html("<b>ok</b>"), text("<script>")],
