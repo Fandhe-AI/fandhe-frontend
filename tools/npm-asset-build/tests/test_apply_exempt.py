@@ -302,6 +302,22 @@ class ApplyExemptTestCase(unittest.TestCase):
         self.assertIn("nothing to apply", out)
         self.assertEqual(self.allowlist_path.read_text(encoding="utf-8"), before)
 
+    def test_malformed_exempt_non_list_is_rejected_exit_two(self) -> None:
+        """`exempt` キーは存在するがリストでない（不正形式）場合、
+        「空配列＝適用対象なし」と誤って exit 0 にしてはならない
+        （イシュー #316 Bugbot 指摘: fail-closed 契約の回帰テスト）。
+        TOML の `exempt = "..."`（文字列）は tomllib 上で valid だが、
+        [[exempt]] のテーブル配列ではないため apply_exempt は拒否する。
+        """
+        suggestions = self._write_suggestions('exempt = "not-a-list"\n')
+        before = self.allowlist_path.read_text(encoding="utf-8")
+        code, out = run_capture_main(
+            ["--suggestions", str(suggestions), "--allowlist", str(self.allowlist_path)]
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("must be an array", out)
+        self.assertEqual(self.allowlist_path.read_text(encoding="utf-8"), before)
+
     def test_missing_allowlist_file_is_created(self) -> None:
         """allowlist.toml がまだ存在しない場合でも新規作成して適用できる。"""
         missing_path = self.tmp_path / "new_allowlist.toml"

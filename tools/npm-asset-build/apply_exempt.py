@@ -180,7 +180,16 @@ def apply_exempt(suggestions_path: Path, allowlist_path: Path, *, dry_run: bool)
             "(this usually means raw --suggest-exempt output was pasted without review)"
         )
     raw_new_entries = suggestions_data.get("exempt", [])
-    if not isinstance(raw_new_entries, list) or not raw_new_entries:
+    # 「exempt キーが未指定・空配列」（適用対象なし、正常系）と「exempt が
+    # 存在するがリスト以外の型（文字列・テーブル等、明確な不正形式）」を
+    # 混同しない。後者は他の不正 suggestions 入力と同様に fail-closed で
+    # ApplyError（exit code 2）として拒否する（イシュー #316 Bugbot 指摘対応）。
+    if not isinstance(raw_new_entries, list):
+        raise ApplyError(
+            "suggestions file's top-level 'exempt' key must be an array of tables; "
+            f"found type {type(raw_new_entries).__name__}"
+        )
+    if not raw_new_entries:
         return 0, "No [[exempt]] entries found in suggestions file; nothing to apply."
 
     # 未レビュー（reason が空・雛形の TODO: のまま）のエントリは、検証エラー

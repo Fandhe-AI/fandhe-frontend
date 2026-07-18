@@ -9,8 +9,18 @@ name: npm-asset-gate
 # npm audit 統合）と check_static_only.py（静的アセット限定の後段ゲート、
 # allowlist 自動連携）を、テンプレート利用者の CI 上で実行する。
 # package.json / package-lock.json / allowlist.toml / tools/npm-asset-build/**
-# のいずれかが変更された場合のみ発火する（NPM アセットを利用しないプロジェクトでは
-# 常時発火させない）。
+# のいずれかが変更された場合に発火する。
+#
+# 注意（イシュー #316 Bugbot 指摘対応）: tools/npm-asset-build/** は
+# ツール自体の追従修正（本フレームワーク側の更新取り込み等）で変更され
+# 得るが、Rust プロジェクト等 package.json を持たないテンプレート利用者
+# では npm プロジェクトではない。そのため「package.json が存在するか」を
+# 最初のステップで判定し、存在しない場合は install.sh を実行せずジョブを
+# 正常終了させる（NPM アセットを利用しないプロジェクトを誤って fail させ
+# ない）。package.json / package-lock.json / allowlist.toml 自体の変更は
+# package.json が存在する前提のプロジェクトでのみ意味を持つため、この判定
+# によって「NPM アセットを利用する場合は必ずゲートが働く」という
+# fail-closed の性質は損なわれない。
 #
 # セキュリティ不変条件（security.md 準拠、deny.yml と同様の方針）:
 # - 緩和を許す input・環境変数・continue-on-error・`|| true` を一切設けない
@@ -53,10 +63,26 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Check for package.json
+        # package.json が存在しない場合、本プロジェクトは NPM アセットを
+        # 利用していない（Rust プロジェクト等）と判断し、後続の install.sh
+        # 実行をスキップする。tools/npm-asset-build/** のみの変更（ツール
+        # 追従更新）で非 npm プロジェクトの CI を誤って落とさないための
+        # ガード（イシュー #316 Bugbot 指摘対応）。
+        id: check-package-json
+        run: |
+          if [ -f package.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "package.json not found; this project does not use NPM assets. Skipping npm-asset-gate."
+          fi
+
       - name: Setup Node.js
         # actions/setup-node（本リポジトリの既存ワークフローと同一 SHA に固定）。
         # ubuntu-latest には node/npm がプリインストールされているが、
         # バージョンを明示固定するためセットアップする。
+        if: steps.check-package-json.outputs.exists == 'true'
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: "20"
@@ -65,4 +91,6 @@ jobs:
         # install.sh は既定で --ignore-scripts・npm audit・check_static_only.py
         # 自動連携（allowlist 自動解決）を有効にする。いずれかが失敗すれば
         # 本ステップが非 0 終了し、ジョブ全体が fail-closed で失敗する。
+        # package.json が存在するプロジェクトでのみ実行する（上記ガード）。
+        if: steps.check-package-json.outputs.exists == 'true'
         run: bash tools/npm-asset-build/install.sh --dir .
