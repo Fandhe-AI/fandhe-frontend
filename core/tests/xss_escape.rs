@@ -297,6 +297,10 @@ mod csr {
         let trusted_fragment = "<b>trusted</b>";
         let untrusted_payload = payloads::SCRIPT_TAG;
 
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "ESCAPE-REVIEWED: raw_html オプトイン境界の回帰テスト。固定の信頼済み文字列のみを渡し、外部入力を含まない"
+        )]
         let node = el(
             "div",
             vec![("id", "app")],
@@ -573,6 +577,10 @@ fn raw_html_is_the_only_escape_bypass_on_both_paths() {
     // 信頼できない入力を raw_html に渡すサンプルとして読まれないよう
     // 固定・無害な文字列のみを使う。
     let trusted_fragment = "<b>bold</b>";
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "ESCAPE-REVIEWED: raw_html が唯一の迂回経路であることを対比固定するテスト。固定・無害な文字列のみを使用"
+    )]
     let raw_node = el("div", vec![], vec![raw_html(trusted_fragment)]);
     let raw_ssr = render(&raw_node);
     assert!(

@@ -101,6 +101,10 @@ fn nested_tree_has_no_injected_elements_or_comments() {
 /// として横断的に確認する。
 #[test]
 fn output_never_contains_framework_markers() {
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "ESCAPE-REVIEWED: FORBIDDEN_MARKERS 非混入の横断確認に raw_html ノードも含める。固定の信頼済み文字列のみで外部入力を含まない"
+    )]
     let trees = vec![
         el("div", vec![], vec![text("plain")]),
         el(
@@ -197,6 +201,10 @@ fn poc3_like_composite_page_matches_snapshot() {
 /// （`raw_html` の乱用を促す例は書かない）。
 #[test]
 fn raw_html_content_is_emitted_without_wrapper_markers() {
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "ESCAPE-REVIEWED: raw_html の前後にラッパー・マーカーが注入されないことの検証。固定の信頼済み文字列のみ"
+    )]
     let node = el(
         "div",
         vec![],

@@ -56,6 +56,10 @@ fn find_attr_values_lists_duplicate_attributes_in_occurrence_order() {
 
 #[test]
 fn find_attr_values_ignores_text_and_raw_html_nodes() {
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "ESCAPE-REVIEWED: find_attr_values が RawHtml ノードを無視することの検証。固定の信頼済み文字列のみで外部入力を含まない"
+    )]
     let tree = div(
         vec![],
         vec![text("<data-nav>"), rws_core::raw_html("<span>ok</span>")],
