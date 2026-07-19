@@ -167,8 +167,8 @@ pub fn keyed_list(
     reject_reserved_attr(&attrs, KEY_ATTR)?;
 
     // (2)(3) 各子要素の検証: Element であること・キー非空・キー一意性。
-    // HashSet は直下スコープのみを対象とし O(n) で判定する（非再帰、DoS 耐性）。
-    let mut seen_keys: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    // 直下スコープのみを対象に、初出インデックスを HashMap で記録して O(n) で
+    // 重複判定する（非再帰、DoS 耐性）。
     let mut first_index_of: std::collections::HashMap<&str, usize> =
         std::collections::HashMap::new();
     let mut children = Vec::with_capacity(items.len());
@@ -183,7 +183,6 @@ pub fn keyed_list(
                 duplicate_index: index,
             });
         }
-        seen_keys.insert(key.as_str());
         first_index_of.insert(key.as_str(), index);
 
         let Node::Element {
