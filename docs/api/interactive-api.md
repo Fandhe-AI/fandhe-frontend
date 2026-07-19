@@ -190,3 +190,38 @@ frontend-framework-spec リポジトリで行う）。
 第 3.3 節）。既存の `AppState`・`Hydrate`・`HYDRATE_ATTR_PREFIX` の凍結 API
 表面（第 3 節）は本追記によって一切変更されていない。詳細な設計判断・
 セキュリティ不変条件は `docs/design/hydration-nested-state.md` を参照する。
+
+## 10. 追記: 変更フィールド追跡（dirty tracking、イシュー #341）
+
+第 3 節の `Component` トレイト（`fn update(&mut self, action: Self::Action)`、
+戻り値なし）は本追記によっても一切変更していない。`docs/design/dom-binding-update-design.md`
+第 4.2 節（#340 設計確定書、正の規範文書）が確定した API 形状に従い、
+`update()` の戻り値方式ではなく **対になる別トレイト** `DirtyTracked` を
+新規追加した（親イシュー #336「実 DOM 直接更新基盤」の第 1 タスク）。
+
+```rust
+pub trait DirtyTracked: Component {
+    /// 直前の update() 呼び出しで変更されたフィールド名の集合。
+    fn dirty_fields(&self) -> &[&'static str];
+}
+```
+
+| 契約 | 内容 |
+|------|------|
+| 対象範囲 | 「直前の `update()` 呼び出し」で実際に値が変わったフィールドのみ（`update()` 冒頭でクリアし、実比較で変化した場合のみ記録） |
+| フィールド名 | `&'static str`（コンパイル時に確定した有限集合。実行時文字列からのフィールド偽装を型で排除、第 3.3 節と同一原理） |
+| 順序 | 重複なし・決定的（同一入力に対し常に同一順序） |
+| オプトイン性 | `Component` とは独立したトレイト。実装しない既存/将来のコンポーネントに影響しない |
+| 対象外 | 公開フィールドへの直接代入（`state.items.push(..)` 等、`update()` を経由しない変更）は追跡しない |
+
+`AppState` はこのトレイトの参照実装として `pub dirty: Vec<&'static str>` フィールドを
+追加した。`dirty` は状態値ではなく描画同期メタデータであるため、`PartialEq`/`Eq`
+の比較対象から除外し（手動実装）、`Hydrate::hydration_attrs()` にもエンコードしない。
+`from_hydration_attrs` は常に空の `dirty` で状態を復元する（ハイドレーション直後は
+SSR 出力済み DOM と状態が一致しているため）。SSR 出力バイト列（`hydration_attrs()`
+の結果）は本追記によって一切変化しない。
+
+`rws-wasm-full`/`rws-wasm-client`（#343 で一般化予定）が `update()` 直後に
+`dirty_fields()` を呼び、束縛点対応表（#342）と突き合わせて該当ノードのみを
+更新する入力として使う想定。設計判断・受け入れ条件・後続タスク（#342〜#345）
+との依存関係は `docs/design/dom-binding-update-design.md` 第 4.2 節を参照する。

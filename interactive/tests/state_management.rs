@@ -11,7 +11,7 @@
 //! 依存クレートは追加しない（REQ-3・`interactive/Cargo.toml` は
 //! `rws-core`（path 依存）のみを維持する）。
 
-use rws_interactive::{dispatch, Action, AppState, Component, Hydrate};
+use rws_interactive::{dispatch, Action, AppState, Component, DirtyTracked, Hydrate};
 
 // --- AppState 既定値 -------------------------------------------------------
 
@@ -352,4 +352,42 @@ fn hydrate_trait_import_allows_method_call_on_app_state() {
     let attrs = s.hydration_attrs();
     let restored = AppState::from_hydration_attrs(&attrs).unwrap();
     assert_eq!(s, restored);
+}
+
+// --- dirty tracking（イシュー #341、`DirtyTracked`） --------------------
+//
+// `wasm-full`/`wasm-client`（#343）は本クレートを `dispatch`（WASM 境界の
+// 文字列 dispatch 契約）経由で呼ぶため、`dirty_fields()` も `dispatch` 経由
+// での取得を固定する（`AppState::update` を直接呼ぶ `interactive/src/lib.rs`
+// 側のユニットテストとは異なる境界の回帰確認）。
+
+#[test]
+fn dispatch_then_dirty_fields_reflects_changed_field() {
+    let mut s = AppState::new();
+    dispatch(&mut s, "increment", "");
+    assert_eq!(s.dirty_fields(), &["counter"]);
+}
+
+#[test]
+fn dispatch_extreme_increment_saturates_with_no_dirty_fields() {
+    // i64::MAX からの increment は saturating_add で値が変化しないため、
+    // dirty も空になる（`dispatch_increment_at_i64_max_saturates_without_panicking`
+    // が固定する「panic しない」契約に加え、dirty tracking 側の契約も固定する）。
+    let mut s = AppState {
+        counter: i64::MAX,
+        ..AppState::new()
+    };
+    dispatch(&mut s, "increment", "");
+    assert_eq!(s.counter, i64::MAX);
+    assert!(s.dirty_fields().is_empty());
+}
+
+#[test]
+fn dispatch_unknown_action_does_not_call_update_and_leaves_dirty_unchanged() {
+    let mut s = AppState::new();
+    dispatch(&mut s, "increment", "");
+    let before = s.dirty_fields().to_vec();
+    let dispatched = dispatch(&mut s, "no_such_action", "payload");
+    assert!(!dispatched);
+    assert_eq!(s.dirty_fields(), before.as_slice());
 }
