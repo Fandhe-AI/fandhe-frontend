@@ -87,9 +87,9 @@
 
 | # | シナリオ | PoC-7 土台 | 対象シンボル | `fw impact` 期待値（製品判定ルール準拠） | `fw gate` 期待値 |
 |---|---------|-----------|-------------|--------------------------------------|------------|
-| 1 | バグ修正: エスケープ回帰（シングルクォート欠落）の混入 → 修正 | `scenarios/bugfix-escape-regression/` | `render`（core クレート由来） | `affected_crates` 2 件 + クライアント境界クレート波及 → `breaking_risk: high`・`requires_human_approval: true` | 混入時: `test` チェックが `passed:false` → `gate_result: BLOCKED` / 修正後: コア 4 チェック（`type_check`/`default_escape_check`/`lint`/`test`）が `passed:true` |
-| 2 | UI 改善: 一覧画面への件数サマリー追加 | `scenarios/ui-item-count/` | `list_page`（app クレート由来） | `affected_crates` 2 件（`rws-server`・クライアント境界クレート） → `breaking_risk: high`・`affected_routes` 非空・`requires_human_approval: true` | 変更適用後: コア 4 チェックが `passed:true`（件数表示の新規アサーション込み） |
-| 3 | 機能追加: タイトル部分一致検索（`search_page` + `GET /search`） | `scenarios/feature-search/` | `search_page`（新規追加、app クレート由来） | `affected_crates` 1 件（`rws-server`） → `breaking_risk: medium`・`affected_routes` 非空（新設 `/search` 含む）・`requires_human_approval: true` | 変更適用後: コア 4 チェックが `passed:true`（新規テスト込み） |
+| 1 | バグ修正: エスケープ回帰（シングルクォート欠落）の混入 → 修正 | `scenarios/bugfix-escape-regression/` | `render`（core クレート由来） | `affected_crates` 2 件 + クライアント境界クレート波及 → `breaking_risk: high`・`requires_human_approval: true` | 混入時: `test` チェックが `passed:false` → `gate_result: BLOCKED` / 修正後: コア 5 チェック（`type_check`/`default_escape_check`/`url_validation_check`/`lint`/`test`）が `passed:true` |
+| 2 | UI 改善: 一覧画面への件数サマリー追加 | `scenarios/ui-item-count/` | `list_page`（app クレート由来） | `affected_crates` 2 件（`rws-server`・クライアント境界クレート） → `breaking_risk: high`・`affected_routes` 非空・`requires_human_approval: true` | 変更適用後: コア 5 チェックが `passed:true`（件数表示の新規アサーション込み） |
+| 3 | 機能追加: タイトル部分一致検索（`search_page` + `GET /search`） | `scenarios/feature-search/` | `search_page`（新規追加、app クレート由来） | `affected_crates` 1 件（`rws-server`） → `breaking_risk: medium`・`affected_routes` 非空（新設 `/search` 含む）・`requires_human_approval: true` | 変更適用後: コア 5 チェックが `passed:true`（新規テスト込み） |
 
 #### PoC-7 実測値と製品判定ルールの差分
 
@@ -105,7 +105,7 @@ PoC-7 の `impact.json`（`docs/spec/03-poc/ai-self-maintenance/scenarios/*/impa
 | `verdict` の文言 | 日本語 2 値（「要人間承認（…）」/「自動適用可（…）」） | 英語 2 値（`docs/design/impact-analysis-design.md` 判断 D1） | `.claude/rules/japanese-style.md`「ユーザー向け文字列は英語」規約と統一 |
 | `ambiguous` フィールド | なし | あり（定義元が複数の場合 `true`）。本書のシナリオ 1〜3 はいずれも単一定義のため常に `false` | 製品追加フィールド、`docs/design/impact-analysis-design.md` §3.2 |
 | クライアント境界クレートの扱い | `rws-wasm-client` 単独 | `rws-wasm-client` / `rws-wasm-full` / `rws-wasm-thin` の 3 クレート（[`impact::CLIENT_BOUNDARY_CRATES`]）のいずれかで `high` | `docs/design/impact-analysis-design.md` §3.2。フィクスチャがクライアント境界クレートを模す場合、3 クレートのうちどれを採用するかはシナリオ実装側（#145/#146）が決めてよいが、名前は `CLIENT_BOUNDARY_CRATES` のいずれかと厳密一致させること |
-| `gate.rs` のチェック名表記 | `"type_check(cargo check)"` 等（括弧付き） | `"type_check"` / `"default_escape_check"` / `"lint"` / `"test"` / `"policy"`（括弧なし、`cli/tests/negative_cases.rs` の `check_passed` 実測と一致） | 実装済みコード（`cli/src/gate.rs`）を正とする。PoC-7 の表記はツール（`poc7_tool.py`）独自のものであり、製品出力とは一致しない |
+| `gate.rs` のチェック名表記 | `"type_check(cargo check)"` 等（括弧付き） | `"type_check"` / `"default_escape_check"` / `"url_validation_check"` / `"lint"` / `"test"` / `"policy"`（括弧なし、`cli/tests/negative_cases.rs` の `check_passed` 実測と一致） | 実装済みコード（`cli/src/gate.rs`）を正とする。PoC-7 の表記はツール（`poc7_tool.py`）独自のものであり、製品出力とは一致しない |
 
 シナリオ 1 の `breaking_risk: high` 判定根拠: `affected_crates` が
 `rws-app`・`rws-wasm-client` の 2 件で、うち `rws-wasm-client` が
@@ -184,7 +184,7 @@ PoC-7 の `impact.json`（`docs/spec/03-poc/ai-self-maintenance/scenarios/*/impa
    を終了コード 0 で通過すること（`cli/tests/structure_integration.rs`
    の smoke test パターンを流用）。
 2. `baseline_fixture_passes_gate_core_checks`: フィクスチャが
-   `fw gate` のコア 4 チェック（`type_check`/`default_escape_check`/
+   `fw gate` のコア 5 チェック（`type_check`/`default_escape_check`/`url_validation_check`/
    `lint`/`test`）すべてで `passed:true` を返すこと（`policy` は
    `cargo_deny_available()` で環境ごとに最強のアサーションを行う、
    `negative_cases.rs` の `baseline_fixture_passes_core_checks` と

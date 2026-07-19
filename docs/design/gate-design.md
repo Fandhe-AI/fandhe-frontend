@@ -43,7 +43,7 @@
 ## 2. 判定ルール本体
 
 `fw gate` は `structure.toml`（[`crate::structure`]、TASK-13.1）を唯一の
-情報源として宣言クレート一覧を求め、以下の 5 チェックを**すべて実行**する
+情報源として宣言クレート一覧を求め、以下の 6 チェックを**すべて実行**する
 （後述 §3 のとおり早期打ち切りはしない）。各チェックは `GateCheck { name,
 passed, output }` として結果を持つ。
 
@@ -51,9 +51,10 @@ passed, output }` として結果を持つ。
 |---|----------------|------|------------------------|----------|
 | 1 | `type_check` | 型チェック | `cargo check --locked -p <crate>...`（宣言クレートごとに `-p` を連ねる） | REQ-13 |
 | 2 | `default_escape_check` | 既定エスケープ検査（保険層） | `role = "core"` 以外の宣言ディレクトリの `src/**/*.rs` を走査し、未レビューの `raw_html()` 呼び出し・ブランケット抑止属性を検出する純粋関数（外部コマンド起動なし） | REQ-1 |
-| 3 | `lint` | lint（既定エスケープ検査の主防御を含む） | `cargo clippy --locked --all-targets -p <crate>... -- -D warnings`。`--all-targets` はテストターゲット内の未レビュー `raw_html()` 呼び出しも検出対象に含め、CI `clippy` ジョブ（イシュー #299）と検出範囲を一致させる（イシュー #315）。起動前に `clippy.toml` の `disallowed-methods` 設定健全性を検証する（§2.3） | REQ-1・REQ-13 |
-| 4 | `test` | テスト | `cargo test --locked -p <crate>...` | REQ-13 |
-| 5 | `policy` | 依存ポリシー | `deny.toml` の存在確認 → `cargo deny check bans licenses sources`（`advisories` はネットワーク前提のためオフラインゲート対象外、`docs/policy/cargo-deny-advisories.md` 参照） | REQ-4 |
+| 3 | `url_validation_check` | URL 属性検証の弱体化検出（保険層、イシュー #401） | `set_attribute` 系呼び出しの未ガード経路（U1）・`core` 役割の `URL_ATTRS`/許可スキーム緩和（U2）・ガード関数呼び出しの削除（U3）をテキスト走査で検出する純粋関数（外部コマンド起動なし）。詳細は §2.4 | REQ-1 |
+| 4 | `lint` | lint（既定エスケープ検査の主防御を含む） | `cargo clippy --locked --all-targets -p <crate>... -- -D warnings`。`--all-targets` はテストターゲット内の未レビュー `raw_html()` 呼び出しも検出対象に含め、CI `clippy` ジョブ（イシュー #299）と検出範囲を一致させる（イシュー #315）。起動前に `clippy.toml` の `disallowed-methods` 設定健全性を検証する（§2.3） | REQ-1・REQ-13 |
+| 5 | `test` | テスト | `cargo test --locked -p <crate>...` | REQ-13 |
+| 6 | `policy` | 依存ポリシー | `deny.toml` の存在確認 → `cargo deny check bans licenses sources`（`advisories` はネットワーク前提のためオフラインゲート対象外、`docs/policy/cargo-deny-advisories.md` 参照） | REQ-4 |
 
 実行時の作業ディレクトリ（cwd）はいずれも `--project` で指定したプロジェクト
 ルート（省略時はカレントディレクトリ）。`--locked` はチェック 1・3・4 に
@@ -67,7 +68,9 @@ passed, output }` として結果を持つ。
   `passed = false`。
 - チェック 2（`default_escape_check`）: `violations` リストが空であれば
   `passed = true`。1 件でも違反があれば `passed = false`。
-- チェック 5（`policy`）: `deny.toml` が存在し、かつ `cargo deny check bans
+- チェック 3（`url_validation_check`）: `violations` リストが空であれば
+  `passed = true`。1 件でも違反があれば `passed = false`（§2.4）。
+- チェック 6（`policy`）: `deny.toml` が存在し、かつ `cargo deny check bans
   licenses sources` が成功終了であれば `passed = true`。
 
 ### 2.2 既定エスケープ検査の 3 層体制
@@ -192,6 +195,80 @@ A05）。JSON 契約（`checks[].name`/`passed`/`output` の形状、PoC-7 互�
 ネットワーク非依存・サプライチェーン面の不拡大を維持する）。常設化・導入は
 `tools/ci/ensure-gate-tools.sh`（§6）の責務とする。
 
+### 2.4 URL 属性検証の弱体化検出（`url_validation_check`、イシュー #401）
+
+イシュー #373（PR #386）は `core/src/url.rs` に URL スキーム検証
+（`is_safe_url`/`is_safe_srcset`/`is_url_attr`/`is_event_handler_attr`、
+正本 allowlist `URL_ATTRS`）を導入し、SSR（`render_into`）・CSR 実 DOM
+（`wasm-client::binding_dom::apply_one`/`keyed_dom::build_element`）の
+3 経路へ適用した。しかしこの保証はレビュー・テストのみに依存しており、
+`fw gate` は以下 3 種の弱体化を機械検出できていなかった:
+
+1. 検証関数を経由せず URL 属性を設定する新規経路の追加
+2. allowlist の緩和（`URL_ATTRS` からの属性削除・許可スキームの追加）
+3. 既存 3 経路からのガード呼び出しの削除
+
+`url_validation_check` は `default_escape_check` と同型の「外部コマンド
+起動なしの純粋関数走査」（保険層）として、以下 3 ルール（U1〜U3）を実装
+する。走査基盤は §2.2a の[`code_context_mask`]・左境界チェックを再利用
+する（`find_code_context_call_positions`、`find_raw_html_call_positions`
+を needle 引数化した共通実装）。
+
+**U1（非 core ディレクトリの未検証 DOM 属性設定経路の検出）**: `role !=
+"core"` の宣言ディレクトリの `src/**/*.rs`（`tests/` は対象外、symlink 非
+追従）を走査し、`set_attribute`/`set_attribute_ns`/`set_attribute_node`
+呼び出しを含むファイルが、同一ファイル内にガード 4 種
+（`is_url_attr`/`is_safe_url`/`is_safe_srcset`/`is_event_handler_attr`）の
+呼び出しをすべて持たない場合、呼び出しごとに違反とする。**既知の限界**:
+ファイル単位の共起判定のため「同一ファイル内にガード済み呼び出しと未
+ガード呼び出しが併存」は見逃す。保険層としての限界であり、行動保証の
+本体は `test` チェック（XSS 回帰テスト）が担う。
+
+**U2（core ディレクトリの allowlist 非緩和、ピン検査）**: `role = "core"`
+の宣言ディレクトリの `src/**/*.rs` から `const URL_ATTRS` 定義ファイルを
+特定し（単なる `URL_ATTRS` 識別子ではなく `const URL_ATTRS` を要求し、
+`pub use url::{..., URL_ATTRS};` のような再エクスポート言及を定義と誤認
+しない）、以下をすべて満たすことを要求する（fail-closed。いずれか不成立
+で違反）:
+
+- `URL_ATTRS` 定義ファイルが core role の src 内に存在すること
+- 定義ブロック（`const URL_ATTRS` 出現位置から直近の `];` まで）内の文字列
+  リテラル集合が、gate 側にピンした 12 属性（href/src/action/formaction/
+  xlink:href/poster/cite/data/background/ping/dynsrc/lowsrc）をすべて
+  含むこと（削除＝緩和を検出。追加は強化のため許容）
+- 同ファイル内のコード文脈における `eq_ignore_ascii_case("<literal>")` の
+  スキーム比較リテラル集合が、ピン集合 `{http, https, mailto, tel}` の
+  部分集合であること（スキーム追加＝緩和を検出）
+- ガード関数 4 種（`is_safe_url`/`is_safe_srcset`/`is_url_attr`/
+  `is_event_handler_attr`）の定義が core role の src 内（`URL_ATTRS` 定義
+  ファイルに限定しない）に存在すること（削除検出）
+
+**U3（core ディレクトリのガード呼び出し実在、適用経路の削除検出）**:
+`role = "core"` の宣言ディレクトリの src 内で、ガード 4 種それぞれについて
+「`fn` 定義行を除いたコード文脈の呼び出し」（[`is_fn_definition_call`] で
+定義行を除外）が 1 箇所以上存在することを要求する。**既知の限界**:
+`is_safe_url` は `is_safe_srcset` 内部呼び出しで自明に成立するため、実効的
+な検出対象は `is_url_attr`/`is_event_handler_attr`/`is_safe_srcset` の
+削除。
+
+**core role 非宣言プロジェクトの扱い**: `structure.toml` に `role = "core"`
+のディレクトリが 1 つも宣言されていないプロジェクト（`fw new` 生成物・
+既存テストフィクスチャの多く）では U2/U3 は対象なしで素通しする。U1 は
+宣言済み非 core ディレクトリのみに適用されるため、core role 非宣言でも
+機能する。
+
+自己適用回帰は `url_validation_check_passes_on_this_repository_itself`
+（`cli/src/gate.rs`）が固定する。本リポジトリ自身の `structure.toml` を
+実際に読み込み `url_validation_check`（純粋関数・外部コマンド起動なし）を
+適用し、`passed` であることを検証する。
+
+**追加スコープ外（PR 本文で切り出し提案。§7 参照）**: clippy
+`disallowed-methods` による `web_sys::Element::set_attribute` の主防御化
+（`raw_html` と同じ 3 層体制への昇格）・`web_sys` の型付きセッター
+（`set_href`/`set_src` 等）や `insert_adjacent_html` 経路の検出・
+`fw new` テンプレート vendor 配下の弱体化検出（`template_vendor_drift.rs`
+が別途担保）は本イシューのスコープ外。
+
 ## 3. fail-closed 原則
 
 `fw gate` は「検証できないこと」を暗黙の PASS として扱わない
@@ -211,7 +288,7 @@ A05）。JSON 契約（`checks[].name`/`passed`/`output` の形状、PoC-7 互�
 
 ## 4. 集約規則と CLI 契約
 
-- **集約**: 5 チェックすべてを実行し、早期打ち切りはしない（AI エージェントが
+- **集約**: 6 チェックすべてを実行し、早期打ち切りはしない（AI エージェントが
   一括修正できるよう全違反を報告する PoC-7 の方針を踏襲、[`run_all_checks`]）。
   全チェック `passed = true` であれば `gate_result = "PASS"`、1 件でも
   `passed = false` であれば `gate_result = "BLOCKED"`（[`aggregate`]）。
@@ -226,6 +303,7 @@ A05）。JSON 契約（`checks[].name`/`passed`/`output` の形状、PoC-7 互�
   "checks": [
     { "name": "type_check", "passed": true, "output": "..." },
     { "name": "default_escape_check", "passed": true, "output": "..." },
+    { "name": "url_validation_check", "passed": true, "output": "..." },
     { "name": "lint", "passed": true, "output": "..." },
     { "name": "test", "passed": true, "output": "..." },
     { "name": "policy", "passed": true, "output": "..." }
@@ -276,28 +354,36 @@ A05）。JSON 契約（`checks[].name`/`passed`/`output` の形状、PoC-7 互�
 
 | 本書の章 | `cli/src/gate.rs` の対応箇所 |
 |---------|------------------------------|
-| §2 表（5 チェック定義） | `run_all_checks`（169-185 行目）、`run_cargo_check`/`run_cargo_clippy`/`run_cargo_test`/`policy_check`/`default_escape_check` |
+| §2 表（6 チェック定義） | `run_all_checks`、`run_cargo_check`/`run_cargo_clippy`/`run_cargo_test`/`policy_check`/`default_escape_check`/`url_validation_check` |
 | §2.2（3 層体制） | モジュール doc コメント（1-35 行目）、`find_raw_html_call_positions`（420-440 行目）、`line_has_reviewed_expect_attribute`（521-528 行目）、`line_has_real_blanket_attribute`（487-497 行目）、`scan_file_for_violations`（607-667 行目） |
 | §2.2a（コード文脈限定の走査、イシュー #372） | `find_raw_html_call_positions`（530 行目〜）、`code_context_mask`（578 行目〜）、`raw_string_hash_count`（742 行目〜）、`char_literal_end`（759 行目〜）、`utf8_char_len`（805 行目〜） |
 | §2.3（clippy ポリシー健全性） | `clippy_policy_is_configured`（292-302 行目）、`clippy_policy_check`（315-329 行目） |
 | §2.3a（環境エラーのプリフライト、イシュー #292） | `clippy_environment_preflight`・`cargo_deny_environment_preflight`（`ENVIRONMENT_ERROR_PREFIX` 定数とあわせて `run_cargo_clippy`/`policy_check` 直前で呼び出し） |
-| §3（fail-closed） | `run_gate`（97-153 行目、structure.toml 段階）、`no_declared_crates_message`（219-231 行目）、`run_locked_cargo_subcommand`（237-262 行目）、`run_cargo_clippy`（331-369 行目）、`policy_check`（383-405 行目）、`clippy_environment_preflight`/`cargo_deny_environment_preflight`（イシュー #292） |
+| §2.4（URL 属性検証の弱体化検出、イシュー #401） | `url_validation_check`（U1〜U3 集約）、`find_code_context_call_positions`（`find_raw_html_call_positions` の needle 引数化・共通化）、`is_fn_definition_call`（U3 の定義行除外）、`check_url_sink_guard_cooccurrence`（U1）、`check_core_url_validation_module`（U2）、`check_core_guard_calls_exist`（U3）、`walk_rs_files`（`scan_dir_for_violations` と共有する走査基盤） |
+| §3（fail-closed） | `run_gate`（97-153 行目、structure.toml 段階）、`no_declared_crates_message`（219-231 行目）、`run_locked_cargo_subcommand`（237-262 行目）、`run_cargo_clippy`（331-369 行目）、`policy_check`（383-405 行目）、`clippy_environment_preflight`/`cargo_deny_environment_preflight`（イシュー #292）、`check_core_url_validation_module`（core role 宣言時の URL_ATTRS モジュール欠落 fail-closed、イシュー #401） |
 | §4（集約規則・CLI 契約） | `aggregate`（189-204 行目）、`render_report`（673-697 行目）、`main.rs` の終了コード規約（`main.rs` 33-35 行目） |
-| §5（セキュリティ不変条件） | `RealCommandRunner::run`（74-85 行目）、`truncate_output`（207-217 行目）、`OUTPUT_TRUNCATE_CHARS`（44 行目）、`scan_dir_for_violations`（579-597 行目） |
+| §5（セキュリティ不変条件） | `RealCommandRunner::run`（74-85 行目）、`truncate_output`（207-217 行目）、`OUTPUT_TRUNCATE_CHARS`（44 行目）、`scan_dir_for_violations`（579-597 行目）、`walk_rs_files`（symlink 非追従の共有実装、イシュー #401） |
 
 対応するテストは `cli/tests/gate_integration.rs`（CLI 経由の統合テスト、
 6 ケース）・`cli/tests/negative_cases.rs`（型エラー・未エスケープ・禁止依存・
-テストターゲット内 raw_html・自己参照様ソース（イシュー #372）を含む負例
-群、TASK-13.5）・`cli/tests/raw_html_lint_e2e.rs`（実 clippy 起動による
-主防御の実証、4 ケース）・`gate.rs` 内 `#[cfg(test)] mod tests`（65
-ユニットテスト。TASK-13.3d/#142 でポリシーチェックの単体テスト・外部コマンド
-起動引数契約・宣言クレート 0 件時の fail-closed・集約結果の `action` 文言・
-`run_all_checks` の name/順序と PASS 経路・`render_report` の JSON ラウンド
-トリップ・`truncate_output` のマルチバイト境界安全性を追補、さらにイシュー
-#372 でコード文脈限定の走査に関する誤検知解消・非弱体化の敵対的回帰・
+テストターゲット内 raw_html・自己参照様ソース（イシュー #372）・URL 属性
+検証の弱体化（イシュー #401、U1 未ガード呼び出し・U2 スキーム緩和・U2/U3
+正例基準線の 3 ケース）を含む負例群、TASK-13.5）・
+`cli/tests/raw_html_lint_e2e.rs`（実 clippy 起動による主防御の実証、
+4 ケース）・`cli/tests/scenarios/`（イシュー #401 対応: `bugfix_escape`
+シナリオの `role = "core"` フィクスチャへ `url_validation_check` 充足専用の
+未配線 `core/src/url.rs` を追補、既存シナリオのアサーションは無変更）・
+`gate.rs` 内 `#[cfg(test)] mod tests`（76 ユニットテスト。TASK-13.3d/#142
+でポリシーチェックの単体テスト・外部コマンド起動引数契約・宣言クレート
+0 件時の fail-closed・集約結果の `action` 文言・`run_all_checks` の
+name/順序と PASS 経路・`render_report` の JSON ラウンドトリップ・
+`truncate_output` のマルチバイト境界安全性を追補、イシュー #372 で
+コード文脈限定の走査に関する誤検知解消・非弱体化の敵対的回帰・
 `default_escape_check_passes_on_this_repository_itself` による自己適用回帰を
-追補）。本書執筆時点でこれら全テストは `cargo test -p rws-cli` でグリーン
-であることを確認済み。
+追補、イシュー #401 で `url_validation_check` の U1〜U3 単体テスト・
+`url_validation_check_passes_on_this_repository_itself` による自己適用回帰を
+追補）。本書執筆時点でこれら全テストは `cargo test -p rws-cli`・
+`cargo test --workspace` でグリーンであることを確認済み。
 
 TASK-13.3c（#141、`policy`/`test` チェックの実連携固定）の対応:
 
@@ -356,7 +442,11 @@ TASK-13.3c（#141、`policy`/`test` チェックの実連携固定）の対応:
 - **`fw gate` の振る舞い変更・チェック追加**: 実装は #261/#262/#263 で
   完了済み。本書は現状の実装を正式化するものであり、振る舞いの変更提案は
   別 Issue・別 PR で扱う（out-of-scope-tracking.md、切り出し提案は本 PR の
-  本文に記載する）。
+  本文に記載する）。**例外**: イシュー #401（`url_validation_check` の追加、
+  §2.4）は「REQ-1 隣接の既存不変条件（イシュー #373 の URL スキーム検証）が
+  レビュー・テストのみに依存し機械検出できていない」という明確な弱体化
+  リスクへの対応であり、本原則が想定する「任意のチェック追加提案」の
+  対象外として本書内で正式化した。
 - **新 API（束縛点・keyed list・Loader）に対するチェック追加は非採用
   （イシュー #353 で判断）**: いずれもノード木 API 経由で HTML を構築し、
   REQ-1 は既存 3 層（`disallowed-methods` lint の主防御 + `default_escape_check`

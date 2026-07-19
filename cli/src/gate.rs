@@ -1,14 +1,15 @@
 //! `fw gate`: REQ-13 の第 4 要素「検証・制約の強制」を製品化する検証ゲート
 //! （TASK-13.3, #138, 親 PoC-7 `cmd_gate` の Rust 移植）。
 //!
-//! 本モジュールが実装する判定ルール（5 チェックの定義・fail-closed 条件・
+//! 本モジュールが実装する判定ルール（6 チェックの定義・fail-closed 条件・
 //! 集約規則・JSON 契約）の正式な設計文書は `docs/design/gate-design.md`
 //! （TASK-13.3a, #139）を参照。本コメントおよび各関数の doc コメントは
 //! 実装詳細の説明に留め、判定ルールの単一の情報源は同文書とする。
 //!
 //! [`crate::structure`]（TASK-13.1）が定義する `structure.toml` を唯一の情報源
-//! として宣言クレート・ディレクトリを求め、5 チェック（型チェック・既定エスケープ
-//! 検査・lint・テスト・依存ポリシー）を実行し、集約結果を JSON で stdout へ出力する。
+//! として宣言クレート・ディレクトリを求め、6 チェック（型チェック・既定エスケープ
+//! 検査・URL 属性検証（イシュー #401）・lint・テスト・依存ポリシー）を実行し、
+//! 集約結果を JSON で stdout へ出力する。
 //! AI 自己保守フック・CI からは本サブコマンドの終了コード（0 = PASS / 1 = BLOCKED /
 //! 2 = 使用法エラー）と JSON の `gate_result` を照合し、変更適用の可否を判断する
 //! 契約とする（`main.rs` 冒頭 doc コメントと同じ「黙示的成功を返さない」契約を
@@ -116,7 +117,7 @@ impl CommandRunner for RealCommandRunner {
 /// 2. `<project>/structure.toml` を [`structure::load`] + [`StructureManifest::validate`]
 ///    で読み込む。失敗時は即 BLOCKED（fail-closed。マニフェストが読めない時点で
 ///    宣言クレート一覧が定まらず、以降のチェックが無意味になるため）
-/// 3. 5 チェックをすべて実行（早期打ち切りしない。AI エージェントが一括修正できる
+/// 3. 6 チェックをすべて実行（早期打ち切りしない。AI エージェントが一括修正できる
 ///    よう全違反を報告する PoC-7 の方針を踏襲）
 /// 4. JSON レポートを stdout へ出力し、`gate_result` に応じた終了コードを返す
 pub(crate) fn run_gate(args: &[String]) -> i32 {
@@ -187,7 +188,7 @@ fn declared_crate_names(manifest: &StructureManifest) -> Vec<&str> {
         .collect()
 }
 
-/// 5 チェックを実行して [`GateReport`] を組み立てる（実プロセス起動を伴う本番経路）。
+/// 6 チェックを実行して [`GateReport`] を組み立てる（実プロセス起動を伴う本番経路）。
 ///
 /// テストからは `runner` に実行を伴わないフェイクを注入して集約ロジックのみを
 /// 検証する（実プロセス起動なしのテスト容易性、計画 §3.3）。
@@ -201,6 +202,7 @@ fn run_all_checks(
     let checks = vec![
         run_cargo_check(runner, project_dir, &crates),
         default_escape_check(manifest, project_dir),
+        url_validation_check(manifest, project_dir),
         run_cargo_clippy(runner, project_dir, &crates),
         run_cargo_test(runner, project_dir, &crates),
         policy_check(runner, project_dir),
@@ -528,8 +530,25 @@ fn policy_check(runner: &dyn CommandRunner, project_dir: &Path) -> GateCheck {
 /// PR #261 #1）。空白の読み飛ばしを改行にも及ぼすことでこれを解消する
 /// （この挙動は本変更でも維持する）。
 fn find_raw_html_call_positions(content: &str) -> Vec<usize> {
+    find_code_context_call_positions(content, b"raw_html", false)
+}
+
+/// [`find_raw_html_call_positions`] の走査本体を needle 引数化した共通実装
+/// （イシュー #401: `url_validation_check` の U1〜U3 判定が同一の「コード文脈
+/// 限定・識別子左境界チェック」を `set_attribute` / `is_safe_url` 等の別 needle
+/// へ適用する必要が生じたための一般化）。挙動は `raw_html` 呼び出し検出時と
+/// 完全に同一（呼び出し元の `find_raw_html_call_positions` は薄いラッパーとして
+/// 維持し、既存テストで挙動不変を保証する）。
+///
+/// `exclude_fn_defs` が `true` の場合、[`is_fn_definition_call`] により
+/// `fn <needle>(...)` という関数定義行自体へのマッチを除外する（U3: ガード
+/// 関数の「呼び出し」のみを数え、定義行を呼び出しと誤認しないため）。
+fn find_code_context_call_positions(
+    content: &str,
+    needle: &[u8],
+    exclude_fn_defs: bool,
+) -> Vec<usize> {
     let bytes = content.as_bytes();
-    let needle = b"raw_html";
     let mask = code_context_mask(content);
     let mut positions = Vec::new();
     let mut start = 0;
@@ -543,7 +562,10 @@ fn find_raw_html_call_positions(content: &str) -> Vec<usize> {
             while i < bytes.len() && bytes[i].is_ascii_whitespace() {
                 i += 1;
             }
-            if i < bytes.len() && bytes[i] == b'(' {
+            if i < bytes.len()
+                && bytes[i] == b'('
+                && !(exclude_fn_defs && is_fn_definition_call(bytes, match_start))
+            {
                 positions.push(match_start);
             }
         }
@@ -553,6 +575,25 @@ fn find_raw_html_call_positions(content: &str) -> Vec<usize> {
         }
     }
     positions
+}
+
+/// `match_start` の呼び出しらしき出現が `fn <name>(` という関数定義自体か
+/// どうかを、直前の非空白トークンが独立した `fn` キーワードかで近似判定する
+/// （イシュー #401 U3: `fn is_safe_url(...)` の定義行をガード関数の
+/// 「呼び出し」として誤って数えないため）。`pub fn` / `pub(crate) fn` 等の
+/// 可視性修飾子は `fn` の直前に来るため対象外（`fn` トークンの左境界のみ見る）。
+/// ジェネリクス付き宣言（`fn foo<T>(`）はこのリポジトリの対象関数群には
+/// 存在しないため未対応（近似実装であることの明示、既知の限界）。
+fn is_fn_definition_call(bytes: &[u8], match_start: usize) -> bool {
+    let mut i = match_start;
+    while i > 0 && bytes[i - 1].is_ascii_whitespace() {
+        i -= 1;
+    }
+    if i >= 2 && &bytes[i - 2..i] == b"fn" {
+        i - 2 == 0 || !(bytes[i - 3].is_ascii_alphanumeric() || bytes[i - 3] == b'_')
+    } else {
+        false
+    }
 }
 
 /// Rust ソース `content` の各バイト位置が「コード文脈」か否かを表すマスクを
@@ -945,6 +986,384 @@ fn default_escape_check(manifest: &StructureManifest, project_dir: &Path) -> Gat
     }
 }
 
+// --- `url_validation_check`（イシュー #401） ---
+//
+// `core/src/url.rs`（イシュー #373、PR #386）が導入した URL スキーム検証
+// （`is_safe_url`/`is_safe_srcset`/`is_url_attr`/`is_event_handler_attr`、
+// 正本 allowlist `URL_ATTRS`）は SSR（`render_into`）・CSR 実 DOM
+// （`wasm-client::binding_dom::apply_one`/`keyed_dom::build_element`）の
+// 3 経路へ適用されているが、この保証はレビュー・テストのみに依存しており
+// `fw gate` は弱体化（検証を経由しない新規経路の追加・allowlist の緩和・
+// 既存ガード呼び出しの削除）を機械検出できていなかった。本セクションは
+// `default_escape_check` と同型の「外部コマンド起動なしの純粋関数走査」
+// （保険層。行動保証の本体は XSS 回帰テスト = `test` チェックが担う）として
+// 3 ルール（U1〜U3）を実装する。判定ルールの正式な定義は
+// `docs/design/gate-design.md` §2.4 を参照。
+
+/// `set_attribute` 系 DOM 属性設定 API の呼び出し検出 needle（U1）。
+/// `set_attribute` は `set_attribute_ns`/`set_attribute_node` の呼び出しの
+/// 前方一致にはならない（`find_code_context_call_positions` は needle 直後の
+/// 空白を読み飛ばした先が `(` である場合のみマッチとするため、`_ns(`/`_node(`
+/// が続く出現はここでは捕捉されず、専用 needle 側でのみ捕捉される）。
+const URL_SINK_NEEDLES: &[&[u8]] = &[b"set_attribute", b"set_attribute_ns", b"set_attribute_node"];
+
+/// URL 検証ガード関数 4 種の呼び出し needle（U1: 同一ファイル内の共起判定 /
+/// U3: core ディレクトリ内の実在判定）。`core/src/url.rs` が公開する契約
+/// （[`core::url`] doc コメント参照）と同一の 4 種で固定する。
+const URL_GUARD_NEEDLES: &[&[u8]] = &[
+    b"is_url_attr",
+    b"is_safe_url",
+    b"is_safe_srcset",
+    b"is_event_handler_attr",
+];
+
+/// U2 でピンする `URL_ATTRS`（`core/src/url.rs`）の許可属性 12 種。削除
+/// （＝ allowlist の緩和）を検出する基準集合。追加は強化のため許容する
+/// （U2 判定は「ピン集合をすべて含むか」の片方向チェック）。
+const URL_VALIDATION_PINNED_ATTRS: &[&str] = &[
+    "href",
+    "src",
+    "action",
+    "formaction",
+    "xlink:href",
+    "poster",
+    "cite",
+    "data",
+    "background",
+    "ping",
+    "dynsrc",
+    "lowsrc",
+];
+
+/// U2 でピンする `is_safe_url`（`core/src/url.rs`）の許可スキーム 4 種。
+/// 同ファイル内の `eq_ignore_ascii_case("<literal>")` 比較リテラル集合が
+/// この集合の部分集合であることを要求する（スキーム追加＝緩和の検出）。
+const URL_VALIDATION_PINNED_SCHEMES: &[&str] = &["http", "https", "mailto", "tel"];
+
+/// `role = "core"` ディレクトリの `src/` 配下から `URL_ATTRS` **定義**ファイルを
+/// 特定するための needle。単なる `URL_ATTRS` 識別子ではなく `const URL_ATTRS`
+/// という定義パターンを要求する（`core/src/lib.rs` の
+/// `pub use url::{..., URL_ATTRS};` のような再エクスポート・言及箇所を定義と
+/// 誤認し、無関係な後続 `];`（他の配列リテラル等）までを誤ってブロックとして
+/// 抽出してしまう偽陽性を防ぐ）。
+const URL_ATTRS_DEFINITION_NEEDLE: &str = "const URL_ATTRS";
+
+/// URL 属性検証の弱体化を検出する（イシュー #401、U1〜U3、`GateCheck` 名
+/// `url_validation_check`）。`run_all_checks` から `default_escape_check` の
+/// 直後に組み込まれる（JSON `checks` 配列の並び、`docs/design/gate-design.md`
+/// §4 の出力契約）。
+///
+/// # 判定ルール
+///
+/// - **U1**（非 core ディレクトリ）: [`URL_SINK_NEEDLES`] のいずれかを呼ぶ
+///   ファイルが、同一ファイル内に [`URL_GUARD_NEEDLES`] の 4 種すべてを
+///   呼んでいない場合、呼び出しごとに違反とする。ファイル単位の共起判定の
+///   ため「同一ファイル内にガード済み呼び出しと未ガード呼び出しが併存」は
+///   見逃す（既知の限界。行動保証の本体は XSS 回帰テストが担う）。
+/// - **U2**（core ディレクトリ、allowlist のピン検査）: [`URL_ATTRS_DEFINITION_NEEDLE`]
+///   を持つファイルが存在しない場合、属性/スキーム集合がピンを満たさない
+///   場合、ガード関数 4 種の定義が見当たらない場合はいずれも違反
+///   （fail-closed）。
+/// - **U3**（core ディレクトリ、ガード呼び出しの実在）: [`URL_GUARD_NEEDLES`]
+///   それぞれについて、定義行を除いたコード文脈の呼び出しが core src 内に
+///   1 箇所も無ければ違反（`render_into` からのガード削除の検出）。
+///   `is_safe_url` は `is_safe_srcset` 内部呼び出しで自明に成立する
+///   （既知の限界、実効的な検出対象は他 3 種）。
+///
+/// core role が `structure.toml` に宣言されていないプロジェクト（`fw new`
+/// 生成物・既存フィクスチャの多くは `vendor/` を意図的に非宣言）では U2/U3
+/// は対象なしで素通しする（`template_vendor_drift.rs` が vendor 配下の
+/// ドリフト検知を別途担う）。
+fn url_validation_check(manifest: &StructureManifest, project_dir: &Path) -> GateCheck {
+    let mut violations: Vec<String> = Vec::new();
+
+    let mut core_src_dirs: Vec<PathBuf> = Vec::new();
+    for dir in &manifest.directories {
+        let src_dir = escape_check_src_dir(project_dir, &dir.name);
+        if !src_dir.is_dir() {
+            continue;
+        }
+        if dir.role == Role::Core {
+            core_src_dirs.push(src_dir);
+        } else {
+            check_url_sink_guard_cooccurrence(&src_dir, &mut violations);
+        }
+    }
+
+    if !core_src_dirs.is_empty() {
+        check_core_url_validation_module(&core_src_dirs, &mut violations);
+        check_core_guard_calls_exist(&core_src_dirs, &mut violations);
+    }
+
+    violations.sort();
+    let passed = violations.is_empty();
+    let output = if passed {
+        "no URL validation weakening detected".to_string()
+    } else {
+        truncate_output(&violations.join("\n"))
+    };
+    GateCheck {
+        name: "url_validation_check",
+        passed,
+        output,
+    }
+}
+
+/// U1: `src_dir` 配下の各 `*.rs` ファイルについて、[`URL_SINK_NEEDLES`] の
+/// 呼び出しが存在するのに [`URL_GUARD_NEEDLES`] 4 種すべてを同一ファイル内で
+/// 呼んでいない場合を違反として `violations` へ追記する。
+fn check_url_sink_guard_cooccurrence(src_dir: &Path, violations: &mut Vec<String>) {
+    walk_rs_files(src_dir, &mut |path| {
+        let Ok(content) = std::fs::read_to_string(path) else {
+            return;
+        };
+        let sink_positions: Vec<usize> = URL_SINK_NEEDLES
+            .iter()
+            .flat_map(|needle| find_code_context_call_positions(&content, needle, false))
+            .collect();
+        if sink_positions.is_empty() {
+            return;
+        }
+        let has_all_guards = URL_GUARD_NEEDLES
+            .iter()
+            .all(|needle| !find_code_context_call_positions(&content, needle, false).is_empty());
+        if has_all_guards {
+            return;
+        }
+        let line_starts = line_start_offsets(&content);
+        let mut sorted_positions = sink_positions;
+        sorted_positions.sort_unstable();
+        for pos in sorted_positions {
+            let line_idx = offset_to_line_idx(&line_starts, pos);
+            violations.push(format!(
+                "{}:{}: DOM attribute sink call without co-located URL validation guards \
+(is_url_attr/is_safe_url/is_safe_srcset/is_event_handler_attr) in the same file",
+                path.display(),
+                line_idx + 1
+            ));
+        }
+    });
+}
+
+/// U2: `core_src_dirs` 配下から `URL_ATTRS` 定義ファイルを特定し、allowlist
+/// （属性集合・スキーム集合・ガード関数定義）の緩和を検出する。
+fn check_core_url_validation_module(core_src_dirs: &[PathBuf], violations: &mut Vec<String>) {
+    let mut found_definition = false;
+
+    for src_dir in core_src_dirs {
+        walk_rs_files(src_dir, &mut |path| {
+            let Ok(content) = std::fs::read_to_string(path) else {
+                return;
+            };
+            let mask = code_context_mask(&content);
+            let Some(def_pos) =
+                find_code_context_occurrence(&content, &mask, URL_ATTRS_DEFINITION_NEEDLE)
+            else {
+                return;
+            };
+            found_definition = true;
+
+            // `URL_ATTRS` 定義ブロックを、出現位置から直近の `];` までとして
+            // 抽出する（`core/src/url.rs` の `pub const URL_ATTRS: &[&str] = &[...]`
+            // 形式を前提とする単純な近似。ネストした配列リテラルは本リポジトリの
+            // 定義に現れないため未対応、既知の限界）。
+            let block_end = content[def_pos..]
+                .find("];")
+                .map(|rel| def_pos + rel)
+                .unwrap_or(content.len());
+            let block = &content[def_pos..block_end];
+            let attrs = extract_string_literals(block);
+            for pinned in URL_VALIDATION_PINNED_ATTRS {
+                if !attrs.iter().any(|a| a == pinned) {
+                    violations.push(format!(
+                        "{}: URL_ATTRS allowlist is missing pinned attribute \"{pinned}\" \
+(allowlist relaxation detected)",
+                        path.display()
+                    ));
+                }
+            }
+
+            // スキーム比較リテラル: `eq_ignore_ascii_case("<literal>")` の
+            // 引数がピン集合の部分集合であることを要求する（コード文脈限定、
+            // ファイル全体を対象にする。`is_safe_url` 本体のみが該当する想定）。
+            let schemes = extract_eq_ignore_ascii_case_literals(&content, &mask);
+            for scheme in &schemes {
+                if !URL_VALIDATION_PINNED_SCHEMES
+                    .iter()
+                    .any(|pinned| pinned.eq_ignore_ascii_case(scheme))
+                {
+                    violations.push(format!(
+                        "{}: is_safe_url compares against non-pinned scheme \"{scheme}\" \
+(allowlist relaxation detected)",
+                        path.display()
+                    ));
+                }
+            }
+        });
+    }
+
+    if !found_definition {
+        violations.push(
+            "no URL_ATTRS definition found in any core-role src/ directory (URL validation \
+module missing)"
+                .to_string(),
+        );
+        // URL_ATTRS モジュール自体が無ければガード定義の有無を判定する意味が
+        // ないため、以降の定義探索はスキップする（重複違反の抑制）。
+        return;
+    }
+
+    // ガード関数 4 種の定義存在チェックは `URL_ATTRS` 定義ファイルに限定せず
+    // core src 全体を対象にする（`docs/design/gate-design.md` §2.4 U2:
+    // 将来 url.rs の実装が複数ファイルへ分割されても検出が追従できるよう、
+    // 「同一ファイル」制約を課さない）。
+    for fn_name in [
+        "is_safe_url",
+        "is_safe_srcset",
+        "is_url_attr",
+        "is_event_handler_attr",
+    ] {
+        let needle = format!("fn {fn_name}");
+        let mut found = false;
+        for src_dir in core_src_dirs {
+            walk_rs_files(src_dir, &mut |path| {
+                if found {
+                    return;
+                }
+                let Ok(content) = std::fs::read_to_string(path) else {
+                    return;
+                };
+                let mask = code_context_mask(&content);
+                if find_code_context_occurrence(&content, &mask, &needle).is_some() {
+                    found = true;
+                }
+            });
+        }
+        if !found {
+            violations.push(format!(
+                "definition of `{fn_name}` not found in any core-role src/ directory \
+(guard function definition removal detected)"
+            ));
+        }
+    }
+}
+
+/// U3: `core_src_dirs` 配下で [`URL_GUARD_NEEDLES`] 4 種それぞれについて、
+/// 定義行を除いたコード文脈の呼び出しが 1 箇所以上存在することを確認する。
+fn check_core_guard_calls_exist(core_src_dirs: &[PathBuf], violations: &mut Vec<String>) {
+    for guard in URL_GUARD_NEEDLES {
+        let guard_name = String::from_utf8_lossy(guard).into_owned();
+        let mut found = false;
+        for src_dir in core_src_dirs {
+            walk_rs_files(src_dir, &mut |path| {
+                if found {
+                    return;
+                }
+                let Ok(content) = std::fs::read_to_string(path) else {
+                    return;
+                };
+                if !find_code_context_call_positions(&content, guard, true).is_empty() {
+                    found = true;
+                }
+            });
+        }
+        if !found {
+            violations.push(format!(
+                "no call to `{guard_name}` found in any core-role src/ directory \
+(guard call removal detected)"
+            ));
+        }
+    }
+}
+
+/// `content` 中で `needle`（プレーンな部分文字列、呼び出し括弧を要求しない）
+/// がコード文脈に最初に出現するバイト位置を返す（U2: `URL_ATTRS` 定義・
+/// `fn <name>` 定義の検出に使う。[`find_code_context_call_positions`] とは
+/// 異なり `(` の直後性を要求しない汎用版）。
+fn find_code_context_occurrence(content: &str, mask: &[bool], needle: &str) -> Option<usize> {
+    let bytes = content.as_bytes();
+    let needle_bytes = needle.as_bytes();
+    let mut start = 0;
+    while let Some(rel) = find_subslice(&bytes[start..], needle_bytes) {
+        let match_start = start + rel;
+        if mask.get(match_start).copied().unwrap_or(true) {
+            return Some(match_start);
+        }
+        start = match_start + 1;
+        if start >= bytes.len() {
+            break;
+        }
+    }
+    None
+}
+
+/// `block` 内のダブルクォート文字列リテラル（`"..."`）の中身をすべて抽出する
+/// （U2: `URL_ATTRS` 配列リテラルの要素抽出用）。`\"` エスケープには対応せず
+/// 単純なクォート対で区切る（`core/src/url.rs` の実際の定義がエスケープを
+/// 含まない単純な属性名リテラルのみのため、この近似で十分。既知の限界）。
+fn extract_string_literals(block: &str) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut chars = block.char_indices();
+    while let Some((_, c)) = chars.next() {
+        if c == '"' {
+            let mut literal = String::new();
+            for (_, c2) in chars.by_ref() {
+                if c2 == '"' {
+                    break;
+                }
+                literal.push(c2);
+            }
+            result.push(literal);
+        }
+    }
+    result
+}
+
+/// `content` 中のコード文脈にある `eq_ignore_ascii_case("<literal>")` 呼び出し
+/// の引数リテラルをすべて抽出する（U2: `is_safe_url` のスキーム比較検出用）。
+fn extract_eq_ignore_ascii_case_literals(content: &str, mask: &[bool]) -> Vec<String> {
+    let needle = "eq_ignore_ascii_case(\"";
+    let bytes = content.as_bytes();
+    let needle_bytes = needle.as_bytes();
+    let mut result = Vec::new();
+    let mut start = 0;
+    while let Some(rel) = find_subslice(&bytes[start..], needle_bytes) {
+        let match_start = start + rel;
+        if mask.get(match_start).copied().unwrap_or(true) {
+            let literal_start = match_start + needle_bytes.len();
+            if let Some(end_rel) = content[literal_start..].find('"') {
+                result.push(content[literal_start..literal_start + end_rel].to_string());
+            }
+        }
+        start = match_start + 1;
+        if start >= bytes.len() {
+            break;
+        }
+    }
+    result
+}
+
+/// `content` の各行の開始バイトオフセットを返す（[`scan_file_for_violations`]
+/// と同一方針の前計算。マッチ位置 → 行番号変換を線形走査 1 回で済ませる）。
+fn line_start_offsets(content: &str) -> Vec<usize> {
+    let mut line_starts = Vec::new();
+    let mut offset = 0usize;
+    for line in content.lines() {
+        line_starts.push(offset);
+        offset += line.len() + 1;
+    }
+    line_starts
+}
+
+/// [`line_start_offsets`] の結果からバイト位置 `pos` が属する行インデックス
+/// （0 始まり）を二分探索で求める。
+fn offset_to_line_idx(line_starts: &[usize], pos: usize) -> usize {
+    match line_starts.binary_search(&pos) {
+        Ok(i) => i,
+        Err(i) => i.saturating_sub(1),
+    }
+}
+
 /// `structure.toml` の `[directories.<name>]` エントリ名 `dir_name` に対応する
 /// 走査対象 `src/` ディレクトリを解決する。
 ///
@@ -960,9 +1379,17 @@ fn escape_check_src_dir(project_dir: &Path, dir_name: &str) -> PathBuf {
     crate::structure::dir_fs_path(project_dir, dir_name).join("src")
 }
 
-/// `dir` 配下（再帰）の `*.rs` ファイルを走査する。I/O エラー（読み取り不可等）は
-/// 違反として計上せず黙って読み飛ばす想定外パスとし、スキャナ自体の堅牢性を
-/// 優先する（`fw gate` 全体としては他チェックの failed で fail-closed が働く）。
+/// `dir` 配下（再帰）の `*.rs` ファイルを走査し [`scan_file_for_violations`] を
+/// 適用する（`default_escape_check` 専用の薄いラッパー、実体は
+/// [`walk_rs_files`] に委譲）。
+fn scan_dir_for_violations(dir: &Path, violations: &mut Vec<String>) {
+    walk_rs_files(dir, &mut |path| scan_file_for_violations(path, violations));
+}
+
+/// `dir` 配下（再帰）の `*.rs` ファイルそれぞれについて `visit` を呼ぶ走査器
+/// （イシュー #401: [`scan_dir_for_violations`]（`default_escape_check` 用）と
+/// `url_validation_check`（U1/U2/U3）の双方が同じ「symlink 非追従・`.rs` 限定
+/// 再帰走査」を必要としたための一般化）。
 ///
 /// シンボリックリンク（ディレクトリ・ファイルいずれも）は辿らず無条件にスキップ
 /// する。`path.is_dir()`（メタデータ経由でリンクを辿る）ではなく
@@ -971,7 +1398,11 @@ fn escape_check_src_dir(project_dir: &Path, dir_name: &str) -> PathBuf {
 /// プロジェクト外を指すリンクを辿ってのパストラバーサル（`.rs` ファイル内容が
 /// 絶対パス付きで JSON レポートへ漏えいする経路）を防ぐ。`cli/src/routes.rs`
 /// の `list_rs_files_inner`（レビュー指摘 #127 対応）と同一方針（OWASP A01/A05）。
-fn scan_dir_for_violations(dir: &Path, violations: &mut Vec<String>) {
+///
+/// I/O エラー（読み取り不可等）は違反として計上せず黙って読み飛ばす想定外
+/// パスとし、スキャナ自体の堅牢性を優先する（`fw gate` 全体としては他チェック
+/// の failed で fail-closed が働く）。
+fn walk_rs_files(dir: &Path, visit: &mut dyn FnMut(&Path)) {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return;
     };
@@ -984,9 +1415,9 @@ fn scan_dir_for_violations(dir: &Path, violations: &mut Vec<String>) {
         }
         let path = entry.path();
         if file_type.is_dir() {
-            scan_dir_for_violations(&path, violations);
+            walk_rs_files(&path, visit);
         } else if file_type.is_file() && path.extension().and_then(|e| e.to_str()) == Some("rs") {
-            scan_file_for_violations(&path, violations);
+            visit(&path);
         }
     }
 }
@@ -1203,9 +1634,9 @@ mod tests {
         let manifest = manifest_with_one_crate();
         let dir = std::env::temp_dir().join("fw-gate-test-launch-failure");
         let _ = std::fs::create_dir_all(&dir);
-        // 5 チェックすべてがコマンド起動を試みるわけではない（escape_check は
-        // 純粋関数、policy は deny.toml 欠落で早期 failed）。cargo 系 3 チェック分の
-        // フェイク応答を積む。
+        // 6 チェックすべてがコマンド起動を試みるわけではない（escape_check /
+        // url_validation_check は純粋関数、policy は deny.toml 欠落で早期
+        // failed）。cargo 系 3 チェック分のフェイク応答を積む。
         let runner = FakeRunner {
             responses: Mutex::new(vec![
                 (false, "cargo: command not found".to_string()),
@@ -2040,6 +2471,375 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// テスト専用: 単一 `role = "component"` ディレクトリを持つマニフェストを
+    /// 組み立てる（`url_validation_check` U1 系テスト共通ヘルパー）。
+    fn component_manifest(dir_name: &str) -> StructureManifest {
+        StructureManifest {
+            version: 1,
+            directories: vec![structure::DirectoryEntry {
+                name: dir_name.to_string(),
+                role: Role::Component,
+                crate_name: Some("rws-app".to_string()),
+                description: "test".to_string(),
+                depends_on: Vec::new(),
+                allowed_dependents: Vec::new(),
+            }],
+            routing: None,
+        }
+    }
+
+    /// テスト専用: 単一 `role = "core"` ディレクトリを持つマニフェストを
+    /// 組み立てる（`url_validation_check` U2/U3 系テスト共通ヘルパー）。
+    fn core_manifest(dir_name: &str) -> StructureManifest {
+        StructureManifest {
+            version: 1,
+            directories: vec![structure::DirectoryEntry {
+                name: dir_name.to_string(),
+                role: Role::Core,
+                crate_name: Some("rws-core".to_string()),
+                description: "test".to_string(),
+                depends_on: Vec::new(),
+                allowed_dependents: Vec::new(),
+            }],
+            routing: None,
+        }
+    }
+
+    /// `core/src/url.rs` の実定義を模した最小の URL 検証モジュールソース
+    /// （`url_validation_check` U2 系テストの「現行相当で PASS」基準線）。
+    fn valid_core_url_module_source() -> &'static str {
+        r#"
+pub const URL_ATTRS: &[&str] = &[
+    "href",
+    "src",
+    "action",
+    "formaction",
+    "xlink:href",
+    "poster",
+    "cite",
+    "data",
+    "background",
+    "ping",
+    "dynsrc",
+    "lowsrc",
+];
+
+pub fn is_url_attr(name: &str) -> bool {
+    URL_ATTRS.iter().any(|a| a.eq_ignore_ascii_case(name))
+}
+
+pub fn is_event_handler_attr(name: &str) -> bool {
+    name.len() > 2
+        && name.as_bytes()[0].eq_ignore_ascii_case(&b'o')
+        && name.as_bytes()[1].eq_ignore_ascii_case(&b'n')
+}
+
+pub fn is_safe_url(value: &str) -> bool {
+    match extract_scheme(value) {
+        None => true,
+        Some(scheme) => {
+            scheme.eq_ignore_ascii_case("http")
+                || scheme.eq_ignore_ascii_case("https")
+                || scheme.eq_ignore_ascii_case("mailto")
+                || scheme.eq_ignore_ascii_case("tel")
+        }
+    }
+}
+
+fn extract_scheme(s: &str) -> Option<&str> {
+    let colon_idx = s.find(':')?;
+    Some(&s[..colon_idx])
+}
+
+pub fn is_safe_srcset(value: &str) -> bool {
+    value.split(',').all(|candidate| {
+        let url_part = candidate.split_whitespace().next().unwrap_or("");
+        is_safe_url(url_part)
+    })
+}
+"#
+    }
+
+    #[test]
+    fn url_validation_check_flags_unguarded_set_attribute_call() {
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-url-u1-unguarded-{}",
+            std::process::id()
+        ));
+        let app_src = dir.join("app").join("src");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&app_src).unwrap();
+        std::fs::write(
+            app_src.join("lib.rs"),
+            "fn f(el: &Element, name: &str, v: &str) {\n    let _ = el.set_attribute(name, v);\n}\n",
+        )
+        .unwrap();
+
+        let check = url_validation_check(&component_manifest("app"), &dir);
+        assert!(
+            !check.passed,
+            "unguarded set_attribute call must be flagged"
+        );
+        assert!(check.output.contains("lib.rs:2"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn url_validation_check_passes_when_guards_co_located() {
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-url-u1-guarded-{}",
+            std::process::id()
+        ));
+        let app_src = dir.join("app").join("src");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&app_src).unwrap();
+        std::fs::write(
+            app_src.join("lib.rs"),
+            "fn f(el: &Element, name: &str, v: &str) {\n\
+             \x20   if rws_core::is_event_handler_attr(name) { return; }\n\
+             \x20   if rws_core::is_url_attr(name) && !rws_core::is_safe_url(v) { return; }\n\
+             \x20   if !rws_core::is_safe_srcset(v) { return; }\n\
+             \x20   let _ = el.set_attribute(name, v);\n}\n",
+        )
+        .unwrap();
+
+        let check = url_validation_check(&component_manifest("app"), &dir);
+        assert!(
+            check.passed,
+            "set_attribute co-located with all 4 guards must pass: {}",
+            check.output
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn url_validation_check_detects_set_attribute_ns_call() {
+        let dir =
+            std::env::temp_dir().join(format!("fw-gate-test-url-u1-ns-{}", std::process::id()));
+        let app_src = dir.join("app").join("src");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&app_src).unwrap();
+        std::fs::write(
+            app_src.join("lib.rs"),
+            "fn f(el: &Element) {\n    let _ = el.set_attribute_ns(None, \"href\", \"x\");\n}\n",
+        )
+        .unwrap();
+
+        let check = url_validation_check(&component_manifest("app"), &dir);
+        assert!(
+            !check.passed,
+            "unguarded set_attribute_ns call must be flagged"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn url_validation_check_ignores_comment_and_string_occurrences() {
+        // #372 と同一方針: コメント・文字列リテラル・doc コメント中の
+        // `set_attribute(` 言及は誤検知しない（保険層の偽陽性抑制）。
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-url-u1-comment-{}",
+            std::process::id()
+        ));
+        let app_src = dir.join("app").join("src");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&app_src).unwrap();
+        std::fs::write(
+            app_src.join("lib.rs"),
+            "//! calls set_attribute(name, value) internally\n\
+             // set_attribute(x, y) is called elsewhere\n\
+             fn f() {\n    let s = \"set_attribute(x, y)\";\n    let _ = s.len();\n}\n",
+        )
+        .unwrap();
+
+        let check = url_validation_check(&component_manifest("app"), &dir);
+        assert!(
+            check.passed,
+            "comment/string occurrences of set_attribute( must not be flagged: {}",
+            check.output
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn url_validation_check_passes_when_core_module_matches_pinned_baseline() {
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-url-u2-baseline-{}",
+            std::process::id()
+        ));
+        let core_src = dir.join("core").join("src");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&core_src).unwrap();
+        std::fs::write(core_src.join("url.rs"), valid_core_url_module_source()).unwrap();
+        std::fs::write(
+            core_src.join("lib.rs"),
+            "fn f(v: &str) -> bool {\n    url::is_url_attr(\"href\") && url::is_safe_url(v) \
+             && url::is_safe_srcset(v) && url::is_event_handler_attr(\"onclick\")\n}\n",
+        )
+        .unwrap();
+
+        let check = url_validation_check(&core_manifest("core"), &dir);
+        assert!(
+            check.passed,
+            "current core/src/url.rs-equivalent baseline must pass: {}",
+            check.output
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn url_validation_check_fails_when_pinned_attribute_removed() {
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-url-u2-attr-removed-{}",
+            std::process::id()
+        ));
+        let core_src = dir.join("core").join("src");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&core_src).unwrap();
+        let weakened = valid_core_url_module_source().replace("    \"href\",\n", "");
+        std::fs::write(core_src.join("url.rs"), weakened).unwrap();
+        std::fs::write(
+            core_src.join("lib.rs"),
+            "fn f(v: &str) -> bool {\n    url::is_url_attr(\"src\") && url::is_safe_url(v) \
+             && url::is_safe_srcset(v) && url::is_event_handler_attr(\"onclick\")\n}\n",
+        )
+        .unwrap();
+
+        let check = url_validation_check(&core_manifest("core"), &dir);
+        assert!(
+            !check.passed,
+            "removing a pinned URL_ATTRS entry (href) must be detected as a relaxation"
+        );
+        assert!(check.output.contains("href"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn url_validation_check_fails_when_scheme_added() {
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-url-u2-scheme-added-{}",
+            std::process::id()
+        ));
+        let core_src = dir.join("core").join("src");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&core_src).unwrap();
+        let weakened = valid_core_url_module_source().replace(
+            "scheme.eq_ignore_ascii_case(\"tel\")",
+            "scheme.eq_ignore_ascii_case(\"tel\")\n                || scheme.eq_ignore_ascii_case(\"ftp\")",
+        );
+        std::fs::write(core_src.join("url.rs"), weakened).unwrap();
+        std::fs::write(
+            core_src.join("lib.rs"),
+            "fn f(v: &str) -> bool {\n    url::is_url_attr(\"src\") && url::is_safe_url(v) \
+             && url::is_safe_srcset(v) && url::is_event_handler_attr(\"onclick\")\n}\n",
+        )
+        .unwrap();
+
+        let check = url_validation_check(&core_manifest("core"), &dir);
+        assert!(
+            !check.passed,
+            "adding a non-pinned scheme (ftp) to is_safe_url must be detected as a relaxation"
+        );
+        assert!(check.output.contains("ftp"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn url_validation_check_fails_when_core_role_has_no_url_module() {
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-url-u2-missing-module-{}",
+            std::process::id()
+        ));
+        let core_src = dir.join("core").join("src");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&core_src).unwrap();
+        std::fs::write(core_src.join("lib.rs"), "pub fn render() {}\n").unwrap();
+
+        let check = url_validation_check(&core_manifest("core"), &dir);
+        assert!(
+            !check.passed,
+            "core role declared without any URL_ATTRS module must fail-closed"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn url_validation_check_fails_when_guard_call_removed_from_core() {
+        // U3: `fn is_url_attr` の定義のみが存在し、core src 内のどこからも
+        // 呼ばれていない場合（`render_into` からのガード削除を模す）。
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-url-u3-no-call-{}",
+            std::process::id()
+        ));
+        let core_src = dir.join("core").join("src");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&core_src).unwrap();
+        std::fs::write(core_src.join("url.rs"), valid_core_url_module_source()).unwrap();
+        // lib.rs はガード関数を一切呼ばない（url.rs 内部の is_safe_srcset →
+        // is_safe_url 呼び出しのみが残る）。
+        std::fs::write(core_src.join("lib.rs"), "pub fn render() {}\n").unwrap();
+
+        let check = url_validation_check(&core_manifest("core"), &dir);
+        assert!(
+            !check.passed,
+            "is_url_attr/is_event_handler_attr/is_safe_srcset with zero call sites must fail"
+        );
+        assert!(check.output.contains("is_url_attr"));
+        assert!(check.output.contains("is_event_handler_attr"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn url_validation_check_skips_u2_u3_when_no_core_role_declared() {
+        // 既存フィクスチャ・`fw new` 生成物のように core role が宣言されて
+        // いないプロジェクトでは、U2/U3 は対象なしで素通しする。
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-url-no-core-role-{}",
+            std::process::id()
+        ));
+        let app_src = dir.join("app").join("src");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&app_src).unwrap();
+        std::fs::write(app_src.join("lib.rs"), "pub fn render() {}\n").unwrap();
+
+        let check = url_validation_check(&component_manifest("app"), &dir);
+        assert!(check.passed, "{}", check.output);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// イシュー #401 自己適用回帰: 本リポジトリ自身の `structure.toml` を
+    /// 実読して `url_validation_check` を適用し、PASS を固定する。将来
+    /// ソースが検証を弱体化させれば即座に本テストが検知する
+    /// （`default_escape_check_passes_on_this_repository_itself` と同型）。
+    #[test]
+    fn url_validation_check_passes_on_this_repository_itself() {
+        let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("cli crate must have a parent directory (repository root)");
+        let structure_path = repo_root.join("structure.toml");
+        if !structure_path.is_file() {
+            return;
+        }
+        let manifest = structure::load(&structure_path)
+            .expect("repository structure.toml must be parseable for this regression test");
+        let check = url_validation_check(&manifest, repo_root);
+        assert!(
+            check.passed,
+            "url_validation_check must pass when self-applied to this repository: {}",
+            check.output
+        );
+    }
+
     #[test]
     fn render_report_escapes_command_output_with_quotes_and_control_chars() {
         let report = GateReport {
@@ -2311,14 +3111,14 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // G5/G7 (TASK-13.3d #142): `run_all_checks` が返す 5 チェックの name と
+    // G5/G7 (TASK-13.3d #142): `run_all_checks` が返す 6 チェックの name と
     // 順序（PoC-7 互換 JSON 形状）、および全チェック成功時に `gate_result`
     // が `"PASS"` になる経路を固定する（docs/design/gate-design.md §4 JSON 出力契約・
     // 集約規則）。フル e2e（実ツールチェーン走行）は TASK-13.4 #143 の
     // スコープのため、`FakeRunner` による軽量検証に留める。
     // ------------------------------------------------------------------
 
-    /// `run_all_checks` の全 5 チェックを PASS させるためのフィクスチャ一式
+    /// `run_all_checks` の全 6 チェックを PASS させるためのフィクスチャ一式
     /// （`structure.toml` 相当のマニフェスト・`clippy.toml`・`deny.toml`・
     /// クリーンな `app/src`）を用意する。
     fn all_checks_pass_fixture() -> (StructureManifest, PathBuf) {
@@ -2384,7 +3184,14 @@ mod tests {
         let names: Vec<&str> = report.checks.iter().map(|c| c.name).collect();
         assert_eq!(
             names,
-            vec!["type_check", "default_escape_check", "lint", "test", "policy"],
+            vec![
+                "type_check",
+                "default_escape_check",
+                "url_validation_check",
+                "lint",
+                "test",
+                "policy"
+            ],
             "check name/order is a JSON output contract (PoC-7 compatibility, docs/design/gate-design.md §4)"
         );
 

@@ -329,7 +329,8 @@ fn feature_addition_impact_reports_medium_risk_and_new_route() {
 }
 
 /// テスト 3: (a) ベースライン（対照群）・(b) 変更適用後のいずれも `fw gate` の
-/// コア 4 チェック（`type_check`/`default_escape_check`/`lint`/`test`）を
+/// コア 5 チェック（`type_check`/`default_escape_check`/`url_validation_check`/
+/// `lint`/`test`）を
 /// 通過することを確認する。`policy` チェックのみ cargo-deny の導入有無で
 /// 環境ごとに挙動が変わるため、`baseline_fixture_passes_gate_core_checks`
 /// （`main.rs`）と同じ fail-closed 契約を検証する
@@ -346,7 +347,13 @@ fn feature_addition_passes_gate_core_checks() {
             Some(("server", "rws-router-v1")),
         );
         let (_code, stdout, stderr) = run_fw("gate", &[], &project);
-        for name in ["type_check", "default_escape_check", "lint", "test"] {
+        for name in [
+            "type_check",
+            "default_escape_check",
+            "url_validation_check",
+            "lint",
+            "test",
+        ] {
             assert_eq!(
                 check_passed(&stdout, name),
                 Some(true),
@@ -356,7 +363,7 @@ fn feature_addition_passes_gate_core_checks() {
         }
     }
 
-    // (b) 変更後: コア 4 チェックが新規テスト込みで通過する。
+    // (b) 変更後: コア 5 チェックが新規テスト込みで通過する。
     let members = members_with(app_after_src(), server_after_src());
     let project = write_scenario_workspace(
         "feature-after-gate",
@@ -365,7 +372,13 @@ fn feature_addition_passes_gate_core_checks() {
     );
     let (code, stdout, stderr) = run_fw("gate", &[], &project);
 
-    for name in ["type_check", "default_escape_check", "lint", "test"] {
+    for name in [
+        "type_check",
+        "default_escape_check",
+        "url_validation_check",
+        "lint",
+        "test",
+    ] {
         assert_eq!(
             check_passed(&stdout, name),
             Some(true),

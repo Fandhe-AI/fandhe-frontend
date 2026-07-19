@@ -106,10 +106,11 @@ fn fw_new_output_passes_fw_gate() {
     let (gate_code, gate_stdout, gate_stderr) = run_fw_gate(&project_dir);
 
     // チェックセット自体のドリフト検知（gate.rs 側でチェックが増減しても
-    // ここで検出できるよう、5 件すべてが JSON に現れることを断定する）。
+    // ここで検出できるよう、6 件すべてが JSON に現れることを断定する）。
     for name in [
         "type_check",
         "default_escape_check",
+        "url_validation_check",
         "lint",
         "test",
         "policy",
@@ -124,7 +125,13 @@ fn fw_new_output_passes_fw_gate() {
     // はず。ここが failed の場合はテンプレートと gate 前提のドリフト
     // （clippy.toml の disallowed-methods 欠落・structure.toml の宣言
     // クレート不一致・型不正コードの混入等）を意味する。
-    for name in ["type_check", "default_escape_check", "lint", "test"] {
+    for name in [
+        "type_check",
+        "default_escape_check",
+        "url_validation_check",
+        "lint",
+        "test",
+    ] {
         assert_eq!(
             check_passed(&gate_stdout, name),
             Some(true),
@@ -330,6 +337,7 @@ fn fw_new_app_template_output_passes_fw_gate() {
     for name in [
         "type_check",
         "default_escape_check",
+        "url_validation_check",
         "lint",
         "test",
         "policy",
@@ -340,7 +348,13 @@ fn fw_new_app_template_output_passes_fw_gate() {
         );
     }
 
-    for name in ["type_check", "default_escape_check", "lint", "test"] {
+    for name in [
+        "type_check",
+        "default_escape_check",
+        "url_validation_check",
+        "lint",
+        "test",
+    ] {
         assert_eq!(
             check_passed(&gate_stdout, name),
             Some(true),
