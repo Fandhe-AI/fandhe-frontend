@@ -32,10 +32,11 @@
 //! - 一時ディレクトリはテスト専用ヘルパー（`support/temp_dir.rs`、
 //!   `tempfile` 非依存）を再利用し、新規外部依存を追加しない（REQ-3）。
 
-use rws_app::demo_items;
-use rws_server::ssg::generate;
-use rws_server::ssr::respond;
+use rws_app::{demo_items, Item, Loader};
+use rws_server::ssg::{generate, generate_with, SsgError};
+use rws_server::ssr::{respond, respond_with};
 use std::collections::BTreeSet;
+use std::convert::Infallible;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -261,4 +262,123 @@ fn ssg_never_writes_non_200_bodies() {
     generate(&dir.0).expect("generate should succeed");
 
     assert!(!dir.0.join("items/does-not-exist/index.html").exists());
+}
+
+/// イシュー #348 受け入れ条件 1 用のカスタム決定的 loader。
+///
+/// `demo_items()` とは異なる固定 `Vec<Item>`（XSS ペイロード入り title を
+/// 含む）を返す。同一 loader を [`generate_with`]（SSG）と [`respond_with`]
+/// （SSR）の両方に渡し、出力がバイト完全一致することを検証するための
+/// フィクスチャ（「同一 loader 入力 → SSR/SSG 出力一致」の直接証明）。
+#[derive(Debug, Clone, Copy, Default)]
+struct CustomListLoader;
+
+impl Loader for CustomListLoader {
+    type Input = ();
+    type Output = Vec<Item>;
+    type Error = Infallible;
+
+    fn load(&self, _input: &()) -> Result<Vec<Item>, Infallible> {
+        Ok(custom_items())
+    }
+}
+
+/// [`CustomListLoader`] と対になる詳細 loader。同じ固定データセットから
+/// id で引き当てる。
+#[derive(Debug, Clone, Copy, Default)]
+struct CustomDetailLoader;
+
+impl Loader for CustomDetailLoader {
+    type Input = String;
+    type Output = Option<Item>;
+    type Error = Infallible;
+
+    fn load(&self, id: &String) -> Result<Option<Item>, Infallible> {
+        Ok(custom_items().into_iter().find(|it| &it.id == id))
+    }
+}
+
+/// `demo_items()` とは異なる id 体系の固定データ（`custom-1`/`custom-2`）。
+/// `custom-2` の title に XSS ペイロードを含め、既定エスケープ回帰
+/// （REQ-1）をカスタム loader 経路でも固定する。
+fn custom_items() -> Vec<Item> {
+    vec![
+        Item {
+            id: "custom-1".to_string(),
+            title: "カスタム loader 記事 1".to_string(),
+            body: "#348 受け入れ条件 1 用の固定データ。".to_string(),
+        },
+        Item {
+            id: "custom-2".to_string(),
+            title: "<script>alert('custom-xss')</script>".to_string(),
+            body: "カスタム loader 経路でも既定エスケープされることを確認する。".to_string(),
+        },
+    ]
+}
+
+/// 受け入れ条件 1 の中核: カスタム決定的 loader を [`generate_with`]
+/// （SSG）と [`respond_with`]（SSR）の両方に渡し、`generate_with()` の
+/// 全出力ファイルと `respond_with()` の応答ボディがバイト完全一致すること
+/// を固定する。あわせて既定エスケープ（`&lt;script&gt;` を含み
+/// `<script>alert` を含まない）が両経路で成立することも確認する
+/// （REQ-1 回帰、`demo_items()` 依存ではないカスタムデータでの再証明）。
+#[test]
+fn custom_loader_ssr_and_ssg_outputs_match_byte_for_byte() {
+    let dir = TempDir::new("custom-loader-parity");
+    let written = generate_with(&CustomListLoader, &CustomDetailLoader, &dir.0)
+        .expect("custom loader generate_with should succeed");
+    assert_eq!(written.len(), 1 + custom_items().len());
+
+    for file_path in &written {
+        let request_path = request_path_for(&dir.0, file_path);
+        let ssr_body = respond_with(&CustomListLoader, &CustomDetailLoader, &request_path)
+            .unwrap_or_else(|| panic!("SSR route not found for {request_path}"))
+            .body;
+        let ssg_bytes = fs::read(file_path).expect("生成されたファイルは読み取れるはず");
+        assert_eq!(
+            ssg_bytes,
+            ssr_body.as_bytes(),
+            "path={request_path} で SSR/SSG のバイト列が不一致"
+        );
+    }
+
+    let detail_path = dir.0.join("items").join("custom-2").join("index.html");
+    let detail_body =
+        fs::read_to_string(&detail_path).expect("custom-2 のファイルは読み取れるはず");
+    assert!(!detail_body.contains("<script>alert"));
+    assert!(detail_body.contains("&lt;script&gt;alert"));
+
+    let list_body = fs::read_to_string(dir.0.join("index.html")).expect("index.html は読み取れる");
+    assert!(!list_body.contains("<script>alert"));
+    assert!(list_body.contains("&lt;script&gt;alert"));
+}
+
+/// loader が失敗する場合の SSG fail-closed の外形回帰: `generate_with` が
+/// `SsgError::LoaderError` でビルド失敗し、`out_dir` にファイルが 1 つも
+/// 書き出されないこと（受け入れ条件 2 の SSG 側直接証明、単体テストの
+/// `server/src/ssg.rs::tests` を統合レベルでも固定する）。
+struct AlwaysFailingListLoader;
+
+impl Loader for AlwaysFailingListLoader {
+    type Input = ();
+    type Output = Vec<Item>;
+    type Error = String;
+
+    fn load(&self, _input: &()) -> Result<Vec<Item>, String> {
+        Err("internal-connection-string=dummy".to_string())
+    }
+}
+
+#[test]
+fn generate_with_fails_closed_and_writes_no_files_when_loader_fails() {
+    let dir = TempDir::new("fail-closed-empty-output");
+    let err = generate_with(&AlwaysFailingListLoader, &CustomDetailLoader, &dir.0)
+        .expect_err("failing loader should abort the build");
+    assert!(matches!(err, SsgError::LoaderError { .. }));
+    assert!(!err.to_string().contains("internal-connection-string"));
+
+    // `TempDir::new` はディレクトリ自体を作成しない（`server/src/ssg.rs` の
+    // `create_dir_all` に委ねる契約）。loader 失敗時は 1 ファイルも書き出さない
+    // ため、out_dir 自体が存在しないままであることを確認する。
+    assert!(!dir.0.exists());
 }
