@@ -111,6 +111,18 @@ PoC-7 は `role` を自由記述文字列としていたが、本スキーマで
 | `asset` | 静的アセット（対応クレートなし） | `static` |
 | `tooling` | 開発者・CI 用ツール | `xtask` / `cli` |
 
+**`fw gate` 静的専用（asset-only）モードとの関係（イシュー #410）**:
+宣言クレートが 0 件、かつ宣言ディレクトリ全件が `role = "asset"` である
+マニフェスト（`fw new --template embed` が生成する `templates/embed/
+structure.toml` が代表例）は、`fw gate`（`cli/src/gate.rs::
+is_asset_only_project`）にとって「cargo パッケージを持たない静的専用
+プロジェクトである」ことの明示的オプトイン宣言として機能する。この場合
+cargo 系 4 チェック（`type_check`/`lint`/`test`/`policy`）は not-applicable
+PASS 化され、テキスト走査ベースの保険層（`default_escape_check`/
+`url_validation_check`）のみが通常どおり実行される（詳細判定ルールは
+`docs/design/gate-design.md` §2.5 を参照。本ファイルはスキーマの語彙定義
+までを担い、`fw gate` 側の解釈規則は同文書を単一の情報源とする）。
+
 #### 2.2.2 PoC-7 からの主な変更点と理由
 
 | 変更 | 理由 |

@@ -27,7 +27,17 @@ use std::process::Command;
 /// `cli/src/new_template.rs::TEMPLATES` と手動同期する必要があるが、件数の
 /// ドリフトは `embedded_template_matches_templates_default_on_disk` 等の
 /// per-template テストが `templates/<name>/` の走査を通じて機械的に検出する）。
-const TEMPLATE_NAMES: &[&str] = &["default", "app"];
+///
+/// `embed`（イシュー #410）は cargo パッケージを持たない静的単一ファイル
+/// テンプレートのため、決定性・fail-closed・終了コード契約・ドリフト検知の
+/// 汎用テストはここへの追加のみで自動的にパラメタ化されるが、cargo プロジェクト
+/// 前提のパッケージ名置換テスト（`package_name_is_substituted_and_other_files_are_byte_identical_to_template`）
+/// は `CARGO_SUBSTITUTED_TEMPLATE_NAMES` で別途限定する。
+const TEMPLATE_NAMES: &[&str] = &["default", "app", "embed"];
+
+/// cargo パッケージを持ち、`Cargo.toml`/`Cargo.lock`/`structure.toml` の
+/// パッケージ名置換契約が適用されるテンプレートの一覧（`embed` を除く）。
+const CARGO_SUBSTITUTED_TEMPLATE_NAMES: &[&str] = &["default", "app"];
 
 /// `fw new` を実バイナリとして起動し (終了コード, stdout, stderr) を返す。
 fn run_fw_new(extra_args: &[&str]) -> (i32, String, String) {
@@ -286,7 +296,7 @@ fn omitting_template_flag_defaults_to_default_template() {
 
 #[test]
 fn package_name_is_substituted_and_other_files_are_byte_identical_to_template() {
-    for name in TEMPLATE_NAMES {
+    for name in CARGO_SUBSTITUTED_TEMPLATE_NAMES {
         let scratch = unique_scratch_dir(&format!("substitution-{name}"));
         let (code, _, stderr) = run_fw_new(&[
             "demo-app",
@@ -320,6 +330,42 @@ fn package_name_is_substituted_and_other_files_are_byte_identical_to_template() 
     }
 }
 
+/// `embed` テンプレート（イシュー #410）は cargo パッケージを持たず
+/// `substituted_files` が空（`cli/src/new_template.rs::TEMPLATES`）のため、
+/// `needle`（`rws-template-embed`）はどのファイルにも出現せず、生成物は
+/// テンプレート正本と全ファイルバイト一致になる。
+#[test]
+fn embed_template_output_is_byte_identical_to_template_and_contains_no_needle() {
+    let scratch = unique_scratch_dir("embed-no-substitution");
+    let (code, _, stderr) = run_fw_new(&[
+        "demo-embed",
+        "--template",
+        "embed",
+        "--dir",
+        &scratch.to_string_lossy(),
+    ]);
+    assert_eq!(code, 0, "stderr: {stderr}");
+
+    let target = scratch.join("demo-embed");
+    let template_root = template_root_dir("embed");
+    let generated = collect_tree(&target);
+    let original = collect_tree(&template_root);
+    assert_eq!(
+        generated, original,
+        "embed template has no package-name substitution, so output must be byte-identical to templates/embed/"
+    );
+
+    let needle = "rws-template-embed";
+    for (rel_path, bytes, _) in &generated {
+        assert!(
+            !String::from_utf8_lossy(bytes).contains(needle),
+            "generated file `{rel_path}` must not contain the unused placeholder `{needle}`"
+        );
+    }
+
+    let _ = fs::remove_dir_all(&scratch);
+}
+
 /// 置換対象外ファイル（`default` テンプレートの `tests/negative_type_error.rs`
 /// の doc コメント内言及）はテンプレートとバイト一致すること（意図的に
 /// 置換しない契約、`new.rs::Template::substituted_files` allowlist の境界）。
@@ -349,16 +395,24 @@ fn template_root_dir(name: &str) -> PathBuf {
 }
 
 /// `--template` ごとに置換対象ファイル（プロジェクト名を含むため展開後は
-/// 正本とバイト一致しない）の allowlist。全テンプレート共通で
-/// `Cargo.toml`/`Cargo.lock`/`structure.toml`（`cli/src/new_template.rs`
-/// の `Template::substituted_files` と同期する）。
-const SUBSTITUTED_RELATIVE_PATHS: &[&str] = &["Cargo.toml", "Cargo.lock", "structure.toml"];
+/// 正本とバイト一致しない）の allowlist（`cli/src/new_template.rs` の
+/// `Template::substituted_files` と同期する）。cargo パッケージを持つ
+/// `default`/`app` は `Cargo.toml`/`Cargo.lock`/`structure.toml` を置換するが、
+/// cargo パッケージを持たない `embed`（イシュー #410）は置換対象がなく空。
+fn substituted_relative_paths(name: &str) -> &'static [&'static str] {
+    if CARGO_SUBSTITUTED_TEMPLATE_NAMES.contains(&name) {
+        &["Cargo.toml", "Cargo.lock", "structure.toml"]
+    } else {
+        &[]
+    }
+}
 
 #[test]
 fn embedded_template_matches_templates_on_disk() {
     for name in TEMPLATE_NAMES {
         let template_root = template_root_dir(name);
         let on_disk = collect_tree(&template_root);
+        let substituted_relative_paths = substituted_relative_paths(name);
 
         let scratch = unique_scratch_dir(&format!("drift-check-{name}"));
         let (code, _, stderr) = run_fw_new(&[
@@ -392,7 +446,7 @@ fn embedded_template_matches_templates_on_disk() {
             );
             // Cargo.toml/Cargo.lock/structure.toml はプロジェクト名を置換するため
             // 内容は一致しない（置換前提の検証は substitution テストが別途担う）。
-            if !SUBSTITUTED_RELATIVE_PATHS.contains(&disk_path.as_str()) {
+            if !substituted_relative_paths.contains(&disk_path.as_str()) {
                 assert_eq!(
                     disk_bytes, expanded_bytes,
                     "template `{name}`: content of `{disk_path}` must be byte-identical between templates/{name}/ \

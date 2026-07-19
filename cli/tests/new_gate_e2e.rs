@@ -433,3 +433,134 @@ fn fw_new_app_template_default_escape_check_detects_injected_violation() {
          終了するはず: stdout={gate_stdout}"
     );
 }
+
+/// イシュー #410: `fw new --template embed`（静的単一ファイルテンプレート、
+/// cargo パッケージを持たない）が生成する `structure.toml`（`[directories.root]`
+/// `role = "asset"`、`crate` キーなし）は `fw gate`（`cli/src/gate.rs::
+/// is_asset_only_project`）の静的専用モードの明示的オプトイン条件を満たす。
+///
+/// `default`/`app` の e2e（`fw_new_output_passes_fw_gate` /
+/// `fw_new_app_template_output_passes_fw_gate`）は `policy`（cargo-deny 依存）
+/// のみ実行環境（cargo-deny の導入有無）で結果が分岐するが、静的専用モードは
+/// cargo を一切起動しないため cargo-deny の導入有無に依存せず、6 チェック
+/// すべてが常に PASS・`gate_result: "PASS"`・終了コード 0 になることを
+/// 無条件に断定する（計画 §4 ステップ 5 の断定方針差）。
+#[test]
+fn fw_new_embed_template_output_passes_fw_gate() {
+    let scratch = unique_scratch_dir();
+    let _scratch_guard = ScratchProject(scratch.clone());
+
+    let (new_code, new_stdout, new_stderr) = run_fw_new(&[
+        "gate-pass-embed-template",
+        "--template",
+        "embed",
+        "--dir",
+        &scratch.to_string_lossy(),
+    ]);
+    assert_eq!(
+        new_code, 0,
+        "fw new --template embed が失敗した: stdout={new_stdout} stderr={new_stderr}"
+    );
+
+    let project_dir = scratch.join("gate-pass-embed-template");
+    let (gate_code, gate_stdout, gate_stderr) = run_fw_gate(&project_dir);
+
+    for name in [
+        "type_check",
+        "default_escape_check",
+        "url_validation_check",
+        "lint",
+        "test",
+        "policy",
+    ] {
+        assert!(
+            gate_stdout.contains(&format!("\"name\":\"{name}\"")),
+            "fw gate のレポートにチェック `{name}` が現れない: stdout={gate_stdout}"
+        );
+        assert_eq!(
+            check_passed(&gate_stdout, name),
+            Some(true),
+            "静的専用（asset-only）モードは cargo-deny の導入有無に関わらず \
+             `{name}` が常に PASS するはず: stdout={gate_stdout} stderr={gate_stderr}"
+        );
+    }
+
+    assert_eq!(
+        gate_code, 0,
+        "fw new --template embed 生成直後は環境に依存せず常に PASS するはず: \
+         stdout={gate_stdout} stderr={gate_stderr}"
+    );
+    assert!(
+        gate_stdout.contains("\"gate_result\":\"PASS\""),
+        "stdout={gate_stdout}"
+    );
+}
+
+/// イシュー #410: 静的専用（asset-only）モードは cargo 系 4 チェックを
+/// not-applicable PASS 化するが、`default_escape_check`（保険層）は
+/// バイパスしない。`embed` テンプレートは `src/` を生成しないため、
+/// `[directories.root]` 予約名規約に従いプロジェクトルート直下へ
+/// `src/injected.rs`（未レビュー `raw_html()` 呼び出し）を手動注入し、
+/// `default_escape_check` が実際に走査を実行して violation を検出（failed）
+/// することを断定する（`fw_new_output_default_escape_check_detects_injected_violation_in_root_src`
+/// の embed 版。静的専用モードが検証の全面バイパスにならないことの回帰固定、
+/// security.md A05）。
+#[test]
+fn fw_new_embed_template_gate_detects_injected_rust_violation() {
+    let scratch = unique_scratch_dir();
+    let _scratch_guard = ScratchProject(scratch.clone());
+
+    let (new_code, new_stdout, new_stderr) = run_fw_new(&[
+        "gate-pass-embed-violation",
+        "--template",
+        "embed",
+        "--dir",
+        &scratch.to_string_lossy(),
+    ]);
+    assert_eq!(
+        new_code, 0,
+        "fw new --template embed が失敗した: stdout={new_stdout} stderr={new_stderr}"
+    );
+
+    let project_dir = scratch.join("gate-pass-embed-violation");
+    let injected_src_dir = project_dir.join("src");
+    std::fs::create_dir_all(&injected_src_dir).expect("failed to create src/ for injection");
+    std::fs::write(
+        injected_src_dir.join("injected.rs"),
+        "fn unreviewed_raw_html_probe() {\n    raw_html(\"x\");\n}\n",
+    )
+    .expect("failed to write src/injected.rs");
+
+    let (gate_code, gate_stdout, gate_stderr) = run_fw_gate(&project_dir);
+
+    assert_eq!(
+        check_passed(&gate_stdout, "default_escape_check"),
+        Some(false),
+        "embed テンプレート（静的専用モード）の src/ に注入した未レビュー \
+         raw_html() 呼び出しが default_escape_check で検出されなかった \
+         （静的専用モードが保険層を全面バイパスしている疑い）: \
+         stdout={gate_stdout} stderr={gate_stderr}"
+    );
+    assert!(
+        gate_stdout.contains("injected.rs"),
+        "default_escape_check の failed 出力は違反ファイルを file:line で \
+         列挙するはず: stdout={gate_stdout}"
+    );
+    for name in ["type_check", "lint", "test", "policy"] {
+        assert_eq!(
+            check_passed(&gate_stdout, name),
+            Some(true),
+            "静的専用モードの not-applicable 4 チェックは Rust コード混入時も \
+             PASS のままのはず（cargo が起動されないため）: stdout={gate_stdout}"
+        );
+    }
+    assert_ne!(
+        gate_code, 0,
+        "default_escape_check が failed の場合 fw gate 全体も非ゼロで \
+         終了するはず: stdout={gate_stdout}"
+    );
+    assert!(
+        gate_stdout.contains("\"gate_result\":\"BLOCKED\""),
+        "stdout={gate_stdout}"
+    );
+}

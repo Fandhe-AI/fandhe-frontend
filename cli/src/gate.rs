@@ -192,6 +192,16 @@ fn declared_crate_names(manifest: &StructureManifest) -> Vec<&str> {
 ///
 /// テストからは `runner` に実行を伴わないフェイクを注入して集約ロジックのみを
 /// 検証する（実プロセス起動なしのテスト容易性、計画 §3.3）。
+///
+/// `fw new --template embed`（イシュー #410）が生成する静的単一ファイル
+/// プロジェクトのように cargo パッケージを持たない構成では、cargo 系 4 チェック
+/// （`type_check`/`lint`/`test`/`policy`）は検証対象クレートが存在せず
+/// 「検証不能」と「検証したが違反なし」を区別できない。[`is_asset_only_project`]
+/// が明示宣言（同関数 doc コメント参照）を検出した場合のみ、この 4 チェックを
+/// [`not_applicable_check`] で not-applicable PASS 化する。テキスト走査ベースの
+/// `default_escape_check`（保険層）・`url_validation_check` は cargo パッケージの
+/// 有無に依存しないため静的専用モードでも通常どおり実行し、asset ディレクトリ
+/// 配下へ Rust コードが混入した場合の回帰検出を維持する（security.md A05）。
 fn run_all_checks(
     manifest: &StructureManifest,
     project_dir: &Path,
@@ -199,16 +209,60 @@ fn run_all_checks(
 ) -> GateReport {
     let crates = declared_crate_names(manifest);
 
-    let checks = vec![
-        run_cargo_check(runner, project_dir, &crates),
-        default_escape_check(manifest, project_dir),
-        url_validation_check(manifest, project_dir),
-        run_cargo_clippy(runner, project_dir, &crates),
-        run_cargo_test(runner, project_dir, &crates),
-        policy_check(runner, project_dir),
-    ];
+    let checks = if is_asset_only_project(manifest) {
+        vec![
+            not_applicable_check("type_check"),
+            default_escape_check(manifest, project_dir),
+            url_validation_check(manifest, project_dir),
+            not_applicable_check("lint"),
+            not_applicable_check("test"),
+            not_applicable_check("policy"),
+        ]
+    } else {
+        vec![
+            run_cargo_check(runner, project_dir, &crates),
+            default_escape_check(manifest, project_dir),
+            url_validation_check(manifest, project_dir),
+            run_cargo_clippy(runner, project_dir, &crates),
+            run_cargo_test(runner, project_dir, &crates),
+            policy_check(runner, project_dir),
+        ]
+    };
 
     aggregate(checks)
+}
+
+/// 静的専用（asset-only）判定条件: 宣言クレートが 0 件、かつ宣言ディレクトリ
+/// 全件が `role = "asset"` であること（イシュー #410 実装計画 §2.1、
+/// `docs/design/gate-design.md` §2.4）。
+///
+/// `structure.toml` 上の明示宣言によるオプトインであり黙示的 PASS ではない
+/// （security.md A05）。`crate` キーの削除し忘れ等で非 asset ロールが 1 件でも
+/// 残っていれば本関数は `false` を返し、[`no_declared_crates_message`] による
+/// 従来どおりの fail-closed（BLOCKED）が働く。`manifest.directories` が空の
+/// ケースは通常 [`StructureManifest::validate`] が `NoDirectories` として
+/// `run_gate` の時点で先に BLOCKED にするが、テストから本関数が直接呼ばれる
+/// 場合に備えて防御的に空集合も非該当として扱う。
+fn is_asset_only_project(manifest: &StructureManifest) -> bool {
+    !manifest.directories.is_empty()
+        && declared_crate_names(manifest).is_empty()
+        && manifest.directories.iter().all(|d| d.role == Role::Asset)
+}
+
+/// 静的専用モードにおける cargo 系チェックの not-applicable PASS 文言。
+///
+/// 「検証不能」を隠蔽せず、なぜ実行しなかったか（cargo パッケージが存在せず
+/// 対象なし）を決定的な文言で明示する（security.md A09。環境情報以外の内部
+/// 情報は含めない）。
+const STATIC_ONLY_NOT_APPLICABLE_MESSAGE: &str = "static-only project (all directories declare \
+role = \"asset\" with no crate): cargo-based check not applicable";
+
+fn not_applicable_check(name: &'static str) -> GateCheck {
+    GateCheck {
+        name,
+        passed: true,
+        output: STATIC_ONLY_NOT_APPLICABLE_MESSAGE.to_string(),
+    }
 }
 
 /// 全チェック通過 → PASS、1 件でも不合格 → BLOCKED（起動失敗も不合格扱い、
@@ -3222,6 +3276,142 @@ pub fn is_safe_srcset(value: &str) -> bool {
                 .map(|c| (c.name, c.passed))
                 .collect::<Vec<_>>()
         });
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ------------------------------------------------------------------
+    // イシュー #410: `fw new --template embed` が生成する静的専用
+    // （asset-only）プロジェクトに対する `fw gate` の明示的オプトインモード。
+    // ------------------------------------------------------------------
+
+    /// `role = "asset"`・`crate` キーなしの単一ディレクトリのみを宣言する
+    /// マニフェスト（`templates/embed/structure.toml` 相当）。
+    fn asset_only_manifest() -> StructureManifest {
+        StructureManifest {
+            version: 1,
+            directories: vec![structure::DirectoryEntry {
+                name: "root".to_string(),
+                role: Role::Asset,
+                crate_name: None,
+                description: "test".to_string(),
+                depends_on: Vec::new(),
+                allowed_dependents: Vec::new(),
+            }],
+            routing: None,
+        }
+    }
+
+    #[test]
+    fn is_asset_only_project_true_for_all_asset_roles_with_no_crate() {
+        assert!(is_asset_only_project(&asset_only_manifest()));
+    }
+
+    #[test]
+    fn is_asset_only_project_false_when_a_declared_crate_exists() {
+        assert!(!is_asset_only_project(&manifest_with_one_crate()));
+    }
+
+    #[test]
+    fn is_asset_only_project_false_when_non_asset_role_mixed_in_with_no_crate() {
+        // `crate` キーの削除し忘れ等で非 asset ロールが残っている設定不備を
+        // 静的専用モードと誤認してはならない（fail-closed 境界の維持）。
+        let manifest = StructureManifest {
+            version: 1,
+            directories: vec![structure::DirectoryEntry {
+                name: "app".to_string(),
+                role: Role::Component,
+                crate_name: None,
+                description: "test".to_string(),
+                depends_on: Vec::new(),
+                allowed_dependents: Vec::new(),
+            }],
+            routing: None,
+        };
+        assert!(!is_asset_only_project(&manifest));
+    }
+
+    #[test]
+    fn run_all_checks_asset_only_project_passes_all_checks_without_invoking_cargo() {
+        let manifest = asset_only_manifest();
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-asset-only-pass-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // 静的専用モードでは cargo 系チェックが cargo を一切起動してはならない
+        // （`PanicIfCalledRunner` が起動されたら即座にテスト失敗として顕在化する）。
+        let report = run_all_checks(&manifest, &dir, &PanicIfCalledRunner);
+
+        assert_eq!(report.gate_result, "PASS");
+        let names: Vec<&str> = report.checks.iter().map(|c| c.name).collect();
+        assert_eq!(
+            names,
+            vec![
+                "type_check",
+                "default_escape_check",
+                "url_validation_check",
+                "lint",
+                "test",
+                "policy"
+            ],
+            "asset-only mode must keep the same 6-check JSON contract (name/order)"
+        );
+        assert!(report.checks.iter().all(|c| c.passed), "{:?}", {
+            report
+                .checks
+                .iter()
+                .map(|c| (c.name, c.passed))
+                .collect::<Vec<_>>()
+        });
+        for name in ["type_check", "lint", "test", "policy"] {
+            let check = report.checks.iter().find(|c| c.name == name).unwrap();
+            assert!(
+                check.output.contains("static-only project"),
+                "not-applicable output for {name} must explain why cargo was not invoked"
+            );
+        }
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn run_all_checks_asset_only_project_still_runs_default_escape_check() {
+        // 静的専用モードでも保険層（`default_escape_check`）はバイパスしない。
+        // asset ディレクトリ配下（`root` 慣習 → プロジェクトルート直下 `src/`）に
+        // 未レビュー `raw_html()` 呼び出しが混入した場合は検出されなければならない
+        // （security.md A05: 明示宣言によるオプトインが検証の全面停止を意味しない）。
+        let manifest = asset_only_manifest();
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-asset-only-violation-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        let src_dir = dir.join("src");
+        std::fs::create_dir_all(&src_dir).unwrap();
+        std::fs::write(
+            src_dir.join("injected.rs"),
+            "fn f() { let _ = rws_core::raw_html(\"<b>x</b>\"); }\n",
+        )
+        .unwrap();
+
+        let report = run_all_checks(&manifest, &dir, &PanicIfCalledRunner);
+
+        assert_eq!(
+            report.gate_result, "BLOCKED",
+            "an unreviewed raw_html() call under an asset-only project must still block"
+        );
+        let escape_check = report
+            .checks
+            .iter()
+            .find(|c| c.name == "default_escape_check")
+            .unwrap();
+        assert!(
+            !escape_check.passed,
+            "asset-only mode must not bypass default_escape_check (insurance layer)"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }

@@ -96,3 +96,71 @@ GitHub Actions には「self-hosted プール内の全インスタンスに対�
 - **`$HOME/.local/share/<tool>/` 配下の旧バージョンディレクトリの容量整理**:
   旧ブランチ CI との競合リスクがあるため対象外。必要になった時点で別イシュー化を
   提案する
+
+## 6. Windows self-hosted runner の常設要件（イシュー #413）
+
+`fw new`（`cli/src/new.rs`）の非 Unix パーミッション挙動（`set_permissions` の
+`#[cfg(not(unix))]` no-op、`docs/design/fw-new-design.md` §6.1）はこれまで
+self-hosted **Linux** runner でしか検証されておらず、「設計上の想定」に留まって
+いた（PR #389 out-of-scope 節・fw-new-design.md §9 旧 non-goal）。イシュー #413
+はこれを実機検証するハーネス（`.github/workflows/fw-new-windows-verify.yml`）を
+確立する。本節はその runner 調達要件を記録する。
+
+### 6.1 ラベル規約
+
+`runs-on: [self-hosted, Windows]`。既存 Linux ジョブの `runs-on: self-hosted`
+（`Windows` ラベルを持たない）と衝突しないよう、Windows インスタンスには
+`Windows` ラベルを付与した状態でプールへ登録する。
+
+### 6.2 常設を依頼する項目
+
+| 項目 | 用途 |
+|------|------|
+| rustup（stable toolchain 導入済み、または `dtolnay/rust-toolchain` が導入可能な状態） | `cargo build` / `cargo test` |
+| MSVC Build Tools（`link.exe` を含む C++ ビルドツール） | Rust の既定ターゲット `*-pc-windows-msvc` のリンク |
+| git | `actions/checkout` |
+| PowerShell 7 系（`pwsh`） | 本ワークフローの既定シェル（`defaults.run.shell: pwsh`） |
+
+`.github/workflows/fw-new-windows-verify.yml` は上記の存在チェック
+（`Get-Command cargo` / `Get-Command git`）を冒頭で行い、欠落時は
+`environment error: ` プレフィックス付きメッセージで fail-closed する
+（`.claude/rules/ci.md` の「ツール前提の明示」運用、`docs/design/gate-design.md`
+§2.3a のプリフライト検出方針と同型）。
+
+### 6.3 調達方針の選択肢と判断
+
+- **採用**: self-hosted Windows runner を新設し `Windows` ラベルを付与して
+  プールへ登録する。
+- **非採用**: GitHub ホステッドの `windows-latest` は `.claude/rules/ci.md` の
+  「self-hosted を既定とする」規約に反するため使わない
+  （自社 runner 管理下での安全性・コスト最適化方針、ci.md 冒頭参照）。
+  規約自体の変更が必要と判断される場合は、インフラ側・リポジトリ管理者間で
+  別途 ci.md の改定を検討する。
+
+### 6.4 確認手順
+
+Windows runner が登録されているかどうかは以下で確認できる（要 Actions API
+read 権限）。
+
+```bash
+gh api repos/Fandhe-AI/frontend-framework/actions/runners \
+  --jq '.runners[] | {name, os, labels: [.labels[].name]}'
+```
+
+登録が確認できたら、以下で検証ワークフローを手動起動する。
+
+```bash
+gh workflow run fw-new-windows-verify.yml
+gh run watch
+```
+
+実行結果（Step Summary）は `docs/reports/fw-new-windows-verification-report.md`
+へ転記する。
+
+### 6.5 クローズ方針
+
+runner イメージ・インスタンスの調達自体はインフラ側作業であり、本リポジトリの
+コミットでは完了しない。#295 と同じ運用として、Windows runner の調達（登録）が
+完了し `fw-new-windows-verify.yml` の実行結果が
+`docs/reports/fw-new-windows-verification-report.md` に実測値として記録される
+までイシュー #413 はクローズしない。
