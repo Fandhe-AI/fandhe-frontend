@@ -291,9 +291,22 @@ mod wiring {
         window.scroll_to_with_x_and_y(target.0, target.1);
     }
 
-    /// 現在の history エントリへ最新スクロール位置を `replace_state` で
-    /// 書き戻す（イシュー #406 追加分、リロード時にスクロール位置が失われる
-    /// 不具合の修正）。
+    /// 現在の history エントリへ `(x, y)` を `replace_state` で書き戻す
+    /// （イシュー #406、レビュー指摘 #423 対応: [`save_current_scroll_state`]
+    /// と [`push_and_render`] の離脱元保存が同一のエンコード＋`replace_state`
+    /// 手順を別々に実装していた重複を解消する共通ヘルパー）。
+    ///
+    /// 第 3 引数 `None` で現在の URL を維持したまま state のみを差し替える
+    /// （呼び出し元の URL を書き換えない）。`replace_state_with_url` の失敗は
+    /// best-effort で無視する（呼び出し元がいずれも失敗時にリトライする
+    /// 機会を持たない・遷移や離脱自体を妨げてはならない箇所のため）。
+    fn write_scroll_state_to_history(history: &web_sys::History, x: f64, y: f64) {
+        let encoded = JsValue::from_str(&encode_scroll_state(x, y));
+        let _ = history.replace_state_with_url(&encoded, "", None);
+    }
+
+    /// 現在の history エントリへ最新スクロール位置を書き戻す（イシュー #406
+    /// 追加分、リロード時にスクロール位置が失われる不具合の修正）。
     ///
     /// [`push_and_render`] は**離脱元**エントリへのみ保存するため、
     /// `push_state` で新規に作られたエントリ自身の `state` は、そのページ上で
@@ -315,10 +328,7 @@ mod wiring {
             return;
         };
         if let (Ok(x), Ok(y)) = (window.scroll_x(), window.scroll_y()) {
-            let encoded = JsValue::from_str(&encode_scroll_state(x, y));
-            // 第 3 引数 `None` で現在の URL を維持したまま state のみを
-            // 差し替える（`push_and_render` の離脱元保存と同じ方針）。
-            let _ = history.replace_state_with_url(&encoded, "", None);
+            write_scroll_state_to_history(&history, x, y);
         }
     }
 
@@ -338,14 +348,11 @@ mod wiring {
         if let Some(window) = web_sys::window() {
             if let Ok(history) = window.history() {
                 // 離脱元エントリのスクロール位置を保存する。`scroll_x`/
-                // `scroll_y` 取得または `replace_state` が失敗しても遷移
-                // 自体は継続する（best-effort、機能劣化のみで安全側）。
-                // `replace_state_with_url` の第 3 引数に `None` を渡すことで
-                // 現在の URL を維持したまま state のみを差し替える
-                // （離脱元の URL を書き換えない）。
+                // `scroll_y` 取得または [`write_scroll_state_to_history`]
+                // の失敗は best-effort で無視し、遷移自体は継続する
+                // （機能劣化のみで安全側）。
                 if let (Ok(x), Ok(y)) = (window.scroll_x(), window.scroll_y()) {
-                    let encoded = JsValue::from_str(&encode_scroll_state(x, y));
-                    let _ = history.replace_state_with_url(&encoded, "", None);
+                    write_scroll_state_to_history(&history, x, y);
                 }
                 // 新規エントリの state は従来どおり `JsValue::NULL`
                 // （URL のみを状態の正とする、改ざん面を持たない設計判断）。
