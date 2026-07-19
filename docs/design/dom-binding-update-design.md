@@ -561,6 +561,7 @@ keyed list の構造変化が発生した呼び出しに限り**対応表を再�
 | Loader trait（Phase 2 相当の非同期データ取得層） | 別途 Phase として起票（本書スコープ外） |
 | `structure.toml` / `fw impact` / `fw gate` の束縛点・Loader・`fw new` への追従 | #353 で完了。束縛点の `fw impact` 影響反映・`fw gate` への新チェック追加は非採用と判断（`docs/design/impact-analysis-design.md` §7、`docs/design/gate-design.md` §7 参照）。`fw new` 生成物の `root` 慣習は `structure.toml` スキーマ v1 で正式化した（`docs/design/structure-manifest.md` §2.2） |
 | 意図的非採用の横断記録（仮想 DOM・ファイルベースルーティング・HMR・signal 一括） | #352（本書第 7.5 節は Phase 1 実装判断としての却下記録であり、#352 の横断記録とは別建てで併存する） |
+| `wasm-thin` の JS グルー側更新経路への同方針（束縛点更新・keyed list）の適用可否 | #376 で非採用確定（`docs/policy/intentional-non-adoption.md` §3.5） |
 | `docs/spec/` 本文（REQ-1/REQ-11 等）への v2 要件反映 | frontend-framework-spec リポジトリへの Issue 提案をユーザーへ別途提案する（本書はサブモジュール編集禁止のため直接反映しない） |
 
 ## 9. セキュリティ不変条件

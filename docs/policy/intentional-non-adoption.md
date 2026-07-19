@@ -1,6 +1,6 @@
 # 意図的非採用の記録（仮想 DOM・ファイルベースルーティング・HMR・signal）と AI 開発前提の評価軸
 
-**本文書のステータス**: 確定（イシュー #352）。
+**本文書のステータス**: 確定（イシュー #352）。§3.5 は非採用確定（イシュー #376）。
 
 > **本書の位置づけ**: 本フレームワークは仮想 DOM・ファイルベースルーティング・HMR
 > （Hot Module Replacement）・signal/store といった主流フロントエンド機能を
@@ -16,9 +16,10 @@
 
 - **課題**: 非採用判断の根拠が散在し、AI・人間双方が追跡しづらい。
 - **目的**: `docs/policy/` に「AI 開発・保守前提の評価軸」と、その軸による
-  4 機能（仮想 DOM・ファイルベースルーティング・HMR・signal/store）の非採用
-  判断・代替手段・再評価トリガーを記録し、CLAUDE.md / 関連 rules から参照
-  可能にする。
+  非採用判断・代替手段・再評価トリガーを記録し、CLAUDE.md / 関連 rules から
+  参照可能にする。当初 4 機能（仮想 DOM・ファイルベースルーティング・HMR・
+  signal/store、イシュー #352）に加え、§3.5 で `wasm-thin` への束縛点更新・
+  keyed list 方針の適用可否（イシュー #376）を追加記録する。
 - **対象外**: 本書は `docs/spec/` の内容を変更するものではない。仕様自体の
   変更が必要と判断された場合は、frontend-framework-spec リポジトリ側で
   提案する（`.claude/rules/out-of-scope-tracking.md` 準拠）。
@@ -203,6 +204,60 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   単一状態機械での全再評価コストが実測で性能受け入れ基準を超えることが
   確認された場合。
 
+### 3.5 `wasm-thin`（薄い JS グルー方式）への束縛点更新・keyed list の適用
+
+- **概要**: `rws-wasm-full` / `rws-wasm-client` で採用済みの「束縛点更新
+  （`data-bind-*`）+ keyed list（`data-key`）」方針（§3.1、
+  `docs/design/dom-binding-update-design.md`）を、`rws-wasm-thin`（オプトイン
+  の薄い JS グルー方式、`docs/design/opt-in-thin-js-glue.md`）の JS グルー側
+  更新経路にも一般化するかどうかの検討（イシュー #345 out-of-scope 節から
+  イシュー #376 として起票）。
+- **検討した構成案とコスト**:
+
+| 案 | 構成 | 却下理由 |
+|----|------|---------|
+| A: JS グルー側実装 | JS グルーが `data-bind-*` 走査・`textContent`/`setAttribute` 適用・keyed diff を実装する | JS 実効 LOC が PoC-3 ルーブリック上限（40 行 = 「中」）を大きく超過する。更新ロジック全体が Rust の型検査・`cargo test`・REQ-13 の AI 自己保守ゲートの到達範囲外へ移動し、`docs/design/opt-in-thin-js-glue.md` §3.1（(c) XSS 保証一貫性の減衰）・§3.2（(d) AI 生成検証の到達範囲）の制約が構造的に悪化する |
+| B: WASM が diff 操作列を返し JS が適用する | `apply()` の戻り値を「HTML 文字列」から「操作列（JSON 等）」へ変更する | 「`initial_html()` / `apply()` の戻り値のみを `innerHTML` に設定する」という JS グルー規範（同 §5 不変条件 1・2）に反する新たな DOM 書き換え経路の新設になる。公開 API 凍結表（同 §4.2）の破壊的変更でもある |
+| C: `rws-wasm-client` の束縛点適用層（`wasm-client/src/binding_dom.rs` 等）へ依存する | `wasm-thin` が `web-sys` 依存の DOM 適用層を取り込む | 「`web-sys` 非依存・文字列 in・文字列 out の純粋計算」という `wasm-thin` の存在意義（`wasm-thin/src/lib.rs` クレートドキュメント、`opt-in-thin-js-glue.md` §4.2）が消滅し、既定方式である `rws-wasm-full` と同型化してしまう。その要件であれば選定フローチャート（同 §2「位置づけ — 既定とオプトイン」）に従い `wasm-full` を使うべきである |
+
+  - 4 軸評価（§2）: 案 A・B・C はいずれも更新ロジックの一部または全部を
+    機械検証不能な JS 層へ移す、または `wasm-thin` の存在意義（明示的な
+    「文字列 in・文字列 out」契約）を崩すため、明示性・決定性・機械検証
+    可能性・コンテキスト消費のいずれの軸でも悪化する。
+  - 補足事実: イシュー #345 以降、`rws-interactive` の `AppState::view()` /
+    `render_html` が `wasm-thin` からも呼ばれる共通コードのため、
+    `wasm-thin` の出力 HTML にも `data-bind-*` / `data-key` /
+    `data-hydrate-item-ids` マーカーが**含まれる**。ただし `wasm-thin` の
+    更新経路は `apply()` 戻り値の全置換 `innerHTML` 代入
+    （`opt-in-thin-js-glue.md` §4.2・§5）であるため、これらのマーカーは
+    `wasm-thin` 経路では**不活性（inert）**であり、無害である（属性値は
+    既定エスケープ済み）。この形は `wasm-thin/tests/thin_runtime.rs` の
+    `demo_boundary_layer_smoke` が既に検証済みである。
+- **本フレームワークでの代替**: 既定方式である `rws-wasm-full` を使う
+  （`opt-in-thin-js-glue.md` §2 の選定フローチャートに従う）。DOM ノード
+  同一性保持（フォーカス・IME・アニメーション維持）が必要なユースケースは、
+  そもそも `wasm-thin` の想定選定範囲外である。
+- **再評価トリガー**: 以下のいずれかが実測・仕様変更で確認された場合に限る。
+  - (a) 実ブラウザ計測（`docs/ci/perf-browser-harness.md`）で `wasm-thin`
+    経路の全置換再描画が REQ-11 の受け入れ基準を継続的に満たせないと実測で
+    確認された場合。
+  - (b) オプトイン採用者の移行ユースケースで DOM ノード同一性保持（フォーカ
+    ス・IME・アニメーション）が必須となり、かつ `wasm-full` への移行が
+    成立しない場合。
+  - (c) 仕様（REQ-11）側で全クライアント経路への束縛点更新適用が必須化
+    された場合（この場合は frontend-framework-spec リポジトリ側での提案が
+    前提となる）。
+- **XSS 回帰テストの位置付け**: Rust 側文字列出力の XSS 回帰は
+  `wasm-thin/tests/thin_runtime.rs`（native）の
+  `apply_escapes_script_payload` / `apply_escapes_attribute_breaking_payload`
+  / `demo_boundary_layer_smoke` が引き続き担保する。本節の非採用判断により
+  更新経路は「既定エスケープ済み HTML の全置換」単一のままであり、これらの
+  テストの削除・弱体化・追加はいずれも不要である
+  （`.claude/rules/coding-rust.md`「XSS 回帰テストは削除・弱体化しない」）。
+  JS グルー結合（実ブラウザ）の XSS 検証は
+  `docs/design/xss-escape-wasm-test-design.md` §9 の判断（v1 スコープ外）を
+  維持し、`opt-in-thin-js-glue.md` の制約明記（§3.1・§5）で担保する。
+
 ## 4. 運用（再導入提案時の手続き）
 
 上記 4 項目のいずれかを再導入したいと判断した場合、以下を Issue・PR に
@@ -242,6 +297,12 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   機械）
 - `docs/api/interactive-api.md` / `docs/api/hydration-state-format.md`
   （`rws-interactive` API・ハイドレーション状態フォーマット）
+- `docs/design/opt-in-thin-js-glue.md`（イシュー #376、`rws-wasm-thin` の
+  位置づけ・公開 API 凍結表・JS グルー規範。§3.5 の非採用根拠）
+- `wasm-thin/tests/thin_runtime.rs`（イシュー #376、`wasm-thin` の XSS 回帰
+  テスト群）
+- `docs/design/xss-escape-wasm-test-design.md`（イシュー #376、JS グルー
+  結合の実ブラウザ XSS 検証スコープ判断）
 
 ## 6. スコープ外（放置しない事項）
 
