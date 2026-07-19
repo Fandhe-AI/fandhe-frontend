@@ -303,13 +303,17 @@ fn scan_err(e: routes::ExtractError) -> ImpactError {
     ImpactError::Scan(e.to_string())
 }
 
-/// workspace member のディレクトリ名（`routes::scan_root` 等に渡す 1 段の
-/// ワークスペース相対ディレクトリ名）を `manifest_dir` から導出する。
+/// workspace member のディレクトリパス（`routes::scan_root` 等に渡す、`/` 区切り
+/// ワークスペース相対パス。1 段のフラット配置だけでなく `crates/core` のような
+/// 多段の実配置も表す）を `manifest_dir` から導出する。
 ///
-/// `routes::resolve_within_root` は「ワークスペースルート直下 1 段のディレクトリ
-/// 名」のみを受け付ける契約であるため、`manifest_dir` がワークスペースルート
-/// 直下の単一ディレクトリでない場合（多段パス・ルート外）は fail-closed で
-/// [`ImpactError::Scan`] を返す（`docs/design/impact-analysis-design.md` §6 A05 対策）。
+/// `routes::resolve_within_root` は最大 [`crate::structure::MAX_PATH_SEGMENTS`]
+/// 段までの `/` 区切りパス（各セグメントが `^[a-z0-9_-]+$` を満たすもの）を
+/// 受け付ける契約（イシュー #436、`crates/` 配下移設）。`manifest_dir` が
+/// ワークスペースルート配下でない場合・セグメント数が上限を超える場合・
+/// セグメントが検証不能な文字を含む場合は fail-closed で [`ImpactError::Scan`]
+/// を返す（`docs/design/impact-analysis-design.md` §6 A05 対策。「検証不能パスは
+/// 引き続き拒否する」契約を移設後も維持する）。
 ///
 /// `manifest_dir == workspace_root`（クレートがワークスペースルート直下に
 /// 直接配置される構成。`fw new` が生成するプロジェクトの唯一のクレート、
@@ -328,26 +332,30 @@ fn member_dir_name(workspace_root: &Path, member: &MemberPackage) -> Result<Stri
                 member.name
             ))
         })?;
-    let mut components = rel.components();
-    let Some(first) = components.next() else {
-        return Ok(crate::structure::ROOT_DIR_KEY.to_string());
-    };
-    if components.next().is_some() {
-        return Err(ImpactError::Scan(format!(
-            "member `{}` manifest_dir is not a single top-level directory",
-            member.name
-        )));
-    }
-    first
-        .as_os_str()
-        .to_str()
-        .map(str::to_string)
-        .ok_or_else(|| {
+    let mut segments: Vec<String> = Vec::new();
+    for component in rel.components() {
+        let seg = component.as_os_str().to_str().ok_or_else(|| {
             ImpactError::Scan(format!(
                 "member `{}` directory name is not valid UTF-8",
                 member.name
             ))
-        })
+        })?;
+        segments.push(seg.to_string());
+    }
+    if segments.is_empty() {
+        return Ok(crate::structure::ROOT_DIR_KEY.to_string());
+    }
+    if segments.len() > crate::structure::MAX_PATH_SEGMENTS
+        || !segments
+            .iter()
+            .all(|s| crate::structure::is_valid_directory_name(s))
+    {
+        return Err(ImpactError::Scan(format!(
+            "member `{}` manifest_dir is not a valid workspace-relative directory path",
+            member.name
+        )));
+    }
+    Ok(segments.join("/"))
 }
 
 /// 走査で得た絶対パスをワークスペースルート相対パス（`/` 区切り）に正規化する。
@@ -483,14 +491,17 @@ fn reverse_dependency_closure(
 
 /// `rel_file`（ワークスペースルート相対パス）が属する workspace member 名を返す。
 ///
-/// パスの先頭 1 段（ディレクトリ名）を [`member_dir_name`] の結果と突き合わせる。
-/// 一致する member がない場合（走査対象外のファイル等）は `None`。
+/// パスの先頭セグメント列（[`member_dir_name`] が返す `/` 区切りパス、
+/// 例: `crates/core`）を `rel_file` のプレフィックスと突き合わせる
+/// （イシュー #436。多段実配置に対応するため、単一セグメント比較から
+/// プレフィックス比較へ一般化した）。一致する member がない場合
+/// （走査対象外のファイル等）は `None`。
 ///
 /// `root` member（[`crate::structure::ROOT_DIR_KEY`]、イシュー #353）は
 /// `<workspace_root>/root/...` ではなく `<workspace_root>/src/...` を走査するため
 /// （[`crate::routes::scan_root`] の `root` 慣習対応）、`rel_file` の先頭 1 段は
 /// `"root"` ではなく `"src"` になる。そのため `root` member のみ先頭 1 段を
-/// `"src"` と突き合わせる特例判定を行う。
+/// `"src"` と突き合わせる特例判定を行う（この特例は移設後も不変）。
 fn crate_name_for_file(
     workspace_root: &Path,
     members: &[MemberPackage],
@@ -502,7 +513,11 @@ fn crate_name_for_file(
         let matches = if dir_name == crate::structure::ROOT_DIR_KEY {
             first_component == "src"
         } else {
-            dir_name == first_component
+            // `dir_name` は `/` 区切りの多段パス（例: `crates/core`）を取り得る。
+            // `rel_file` がその配下（`<dir_name>/` で始まる）であることをプレフィックス
+            // 比較で判定する（`crates/core-extra` のような別ディレクトリを誤って
+            // `crates/core` の配下と誤認しないよう、区切り文字込みで比較する）。
+            rel_file == dir_name || rel_file.starts_with(&format!("{dir_name}/"))
         };
         if matches {
             return Ok(Some(member.name.clone()));
@@ -1349,12 +1364,44 @@ mod tests {
 
     // --- fail-closed ---
 
+    /// イシュー #436: `crates/<name>` のような 2 段の実配置は許容すること
+    /// （`crates/` 配下移設で `member_dir_name` が単一セグメントのみ許容する
+    /// 制約を一般化した回帰確認）。
     #[test]
-    fn member_dir_name_rejects_nested_manifest_dir() {
+    fn member_dir_name_accepts_two_segment_manifest_dir() {
         let workspace_root = std::path::Path::new("/ws");
         let member = MemberPackage {
-            name: "nested".to_string(),
-            manifest_dir: std::path::PathBuf::from("/ws/group/nested"),
+            name: "fandhe-frontend-core".to_string(),
+            manifest_dir: std::path::PathBuf::from("/ws/crates/core"),
+            normal_workspace_deps: vec![],
+        };
+        let dir_name = member_dir_name(workspace_root, &member).expect("should resolve");
+        assert_eq!(dir_name, "crates/core");
+    }
+
+    /// イシュー #436: セグメント数が [`crate::structure::MAX_PATH_SEGMENTS`]（3）を
+    /// 超える manifest_dir は引き続き fail-closed で拒否すること（一般化後も
+    /// 検証不能パスを無制限に受理しないことの回帰確認）。
+    #[test]
+    fn member_dir_name_rejects_manifest_dir_beyond_max_segments() {
+        let workspace_root = std::path::Path::new("/ws");
+        let member = MemberPackage {
+            name: "deeply-nested".to_string(),
+            manifest_dir: std::path::PathBuf::from("/ws/a/b/c/deeply-nested"),
+            normal_workspace_deps: vec![],
+        };
+        let err = member_dir_name(workspace_root, &member).unwrap_err();
+        assert!(matches!(err, ImpactError::Scan(_)));
+    }
+
+    /// セグメントが `^[a-z0-9_-]+$` を満たさない（大文字混入等）manifest_dir は
+    /// 引き続き拒否すること。
+    #[test]
+    fn member_dir_name_rejects_manifest_dir_with_invalid_segment() {
+        let workspace_root = std::path::Path::new("/ws");
+        let member = MemberPackage {
+            name: "invalid-seg".to_string(),
+            manifest_dir: std::path::PathBuf::from("/ws/Crates/core"),
             normal_workspace_deps: vec![],
         };
         let err = member_dir_name(workspace_root, &member).unwrap_err();

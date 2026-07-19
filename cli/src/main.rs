@@ -120,11 +120,13 @@ fn run_structure(args: &[String]) -> i32 {
     // ディレクトリ実在確認: `structure.toml` が宣言する各ディレクトリが
     // 実際にプロジェクト内に存在するかを確認する（TASK-13.1c の実体突き合わせ）。
     // 予約名 `root`（`structure::ROOT_DIR_KEY`。クレートがプロジェクトルート
-    // 直下に配置される慣習、`fw new`）は `structure::dir_fs_path` が
+    // 直下に配置される慣習、`fw new`）は `structure::dir_fs_path_for_entry` が
     // `project_dir` 自身へ写像するため、`fw new` 生成直後のプロジェクトでも
     // 「`<project>/root` が実在しない」という誤検知が起きない（イシュー #353）。
+    // 任意の実配置パス（`path` キー、例: `crates/core`、イシュー #436）を持つ
+    // エントリも同じ解決経路（`dir_fs_path_for_entry`）を単一の情報源として使う。
     for dir in &manifest.directories {
-        let path = structure::dir_fs_path(&project_dir, &dir.name);
+        let path = structure::dir_fs_path_for_entry(&project_dir, dir);
         if !path.is_dir() {
             problems.push(format!(
                 "directories.{}: declared directory does not exist",
@@ -281,7 +283,10 @@ fn collect_routes(
         ));
         return Vec::new();
     }
-    match routes::extract_routes(project_dir, &routing.definition_dir) {
+    // `definition_dir` はディレクトリキー名（論理名）。実配置パス（`path` キー、
+    // イシュー #436）への解決を経てから走査する（`resolved_dir_path` が単一情報源）。
+    let scan_path = manifest.resolved_dir_path(&routing.definition_dir);
+    match routes::extract_routes(project_dir, &scan_path) {
         Ok(found) => vec![(routing.definition_dir.clone(), found)],
         Err(e) => {
             problems.push(format!(
@@ -306,8 +311,10 @@ fn collect_component_boundary(
         .directories
         .iter()
         .filter(|d| matches!(d.role, structure::Role::Component))
-        .filter_map(
-            |d| match component_boundary::extract_public_symbols(project_dir, &d.name) {
+        .filter_map(|d| {
+            // 実配置パス（イシュー #436、`path` キー）へ解決してから走査する。
+            let scan_path = manifest.resolved_dir_path(&d.name);
+            match component_boundary::extract_public_symbols(project_dir, &scan_path) {
                 Ok(symbols) => Some((d.name.clone(), symbols)),
                 Err(e) => {
                     problems.push(format!(
@@ -316,8 +323,8 @@ fn collect_component_boundary(
                     ));
                     None
                 }
-            },
-        )
+            }
+        })
         .collect()
 }
 
@@ -559,6 +566,7 @@ mod tests {
                 description: "test".to_string(),
                 depends_on: Vec::new(),
                 allowed_dependents: Vec::new(),
+                path: None,
             }],
             routing: None,
         };

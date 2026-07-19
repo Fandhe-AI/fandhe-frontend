@@ -1020,7 +1020,7 @@ fn default_escape_check(manifest: &StructureManifest, project_dir: &Path) -> Gat
         if dir.role == Role::Core {
             continue;
         }
-        let src_dir = escape_check_src_dir(project_dir, &dir.name);
+        let src_dir = escape_check_src_dir(project_dir, dir);
         if !src_dir.is_dir() {
             continue;
         }
@@ -1134,7 +1134,7 @@ fn url_validation_check(manifest: &StructureManifest, project_dir: &Path) -> Gat
 
     let mut core_src_dirs: Vec<PathBuf> = Vec::new();
     for dir in &manifest.directories {
-        let src_dir = escape_check_src_dir(project_dir, &dir.name);
+        let src_dir = escape_check_src_dir(project_dir, dir);
         if !src_dir.is_dir() {
             continue;
         }
@@ -1419,19 +1419,20 @@ fn offset_to_line_idx(line_starts: &[usize], pos: usize) -> usize {
     }
 }
 
-/// `structure.toml` の `[directories.<name>]` エントリ名 `dir_name` に対応する
+/// `structure.toml` の `[directories.<name>]` エントリ `dir` に対応する
 /// 走査対象 `src/` ディレクトリを解決する。
 ///
 /// 予約名 `root`（`crate::structure::ROOT_DIR_KEY`。クレートがプロジェクト
 /// ルート直下 `<project_dir>/src` に直接配置される規約、`fw new`）を
 /// 通常のエントリ名解釈（`<project_dir>/<name>/src`）で扱うと実在しない
 /// `<project_dir>/root/src` を指してしまい `default_escape_check` が常に
-/// スキップされる（PR #358 Bugbot 指摘、イシュー #351）。`root` 慣習の
-/// ディレクトリ名 → 実パス解決は `crate::structure::dir_fs_path` を単一の
-/// 情報源とし、本関数はそこに `src` を連結するだけの薄いラッパーとする
-/// （個別特例をこの関数に閉じ込めない一般化、イシュー #353）。
-fn escape_check_src_dir(project_dir: &Path, dir_name: &str) -> PathBuf {
-    crate::structure::dir_fs_path(project_dir, dir_name).join("src")
+/// スキップされる（PR #358 Bugbot 指摘、イシュー #351）。任意の実配置パス
+/// （`path` キー、例: `crates/core`、イシュー #436）を持つエントリも含め、
+/// ディレクトリ → 実パス解決は `crate::structure::dir_fs_path_for_entry` を
+/// 単一の情報源とし、本関数はそこに `src` を連結するだけの薄いラッパーとする
+/// （個別特例をこの関数に閉じ込めない一般化、イシュー #353/#436）。
+fn escape_check_src_dir(project_dir: &Path, dir: &crate::structure::DirectoryEntry) -> PathBuf {
+    crate::structure::dir_fs_path_for_entry(project_dir, dir).join("src")
 }
 
 /// `dir` 配下（再帰）の `*.rs` ファイルを走査し [`scan_file_for_violations`] を
@@ -1643,6 +1644,7 @@ mod tests {
                 description: "test".to_string(),
                 depends_on: Vec::new(),
                 allowed_dependents: Vec::new(),
+                path: None,
             }],
             routing: None,
         }
@@ -1726,6 +1728,7 @@ mod tests {
                     description: "test".to_string(),
                     depends_on: Vec::new(),
                     allowed_dependents: Vec::new(),
+                    path: None,
                 },
                 structure::DirectoryEntry {
                     name: "static".to_string(),
@@ -1734,6 +1737,7 @@ mod tests {
                     description: "test".to_string(),
                     depends_on: Vec::new(),
                     allowed_dependents: Vec::new(),
+                    path: None,
                 },
             ],
             routing: None,
@@ -2367,6 +2371,7 @@ mod tests {
                 description: "test".to_string(),
                 depends_on: Vec::new(),
                 allowed_dependents: Vec::new(),
+                path: None,
             }],
             routing: None,
         };
@@ -2406,6 +2411,7 @@ mod tests {
                 description: "test".to_string(),
                 depends_on: Vec::new(),
                 allowed_dependents: Vec::new(),
+                path: None,
             }],
             routing: None,
         };
@@ -2518,6 +2524,7 @@ mod tests {
                 description: "test".to_string(),
                 depends_on: Vec::new(),
                 allowed_dependents: Vec::new(),
+                path: None,
             }],
             routing: None,
         };
@@ -2541,6 +2548,7 @@ mod tests {
                 description: "test".to_string(),
                 depends_on: Vec::new(),
                 allowed_dependents: Vec::new(),
+                path: None,
             }],
             routing: None,
         }
@@ -2558,6 +2566,7 @@ mod tests {
                 description: "test".to_string(),
                 depends_on: Vec::new(),
                 allowed_dependents: Vec::new(),
+                path: None,
             }],
             routing: None,
         }
@@ -3232,6 +3241,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
                 description: "test".to_string(),
                 depends_on: Vec::new(),
                 allowed_dependents: Vec::new(),
+                path: None,
             }],
             routing: None,
         };
@@ -3316,6 +3326,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
                 description: "test".to_string(),
                 depends_on: Vec::new(),
                 allowed_dependents: Vec::new(),
+                path: None,
             }],
             routing: None,
         }
@@ -3344,6 +3355,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
                 description: "test".to_string(),
                 depends_on: Vec::new(),
                 allowed_dependents: Vec::new(),
+                path: None,
             }],
             routing: None,
         };

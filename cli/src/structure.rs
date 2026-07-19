@@ -45,13 +45,63 @@ pub(crate) fn dir_fs_path(project_dir: &std::path::Path, dir_name: &str) -> std:
     }
 }
 
+/// `[directories.<name>]` の宣言（`name` と任意の `path`）から実ファイルシステム
+/// パスを解決する（イシュー #436、`crates/` 配下移設に伴う `dir_fs_path` の拡張）。
+///
+/// `path` が指定されていればワークスペースルート相対のその実配置（例:
+/// `crates/core`）へ写像し、省略時は従来どおり [`dir_fs_path`] （`name` を
+/// そのままディレクトリ名として使うフラット配置）へフォールバックする。
+/// `entry.path` の値は [`StructureManifest::validate`] が事前に
+/// [`is_valid_directory_name`] によるセグメント検証・段数上限・`root` への
+/// 指定拒否を通過済みであることを呼び出し元の契約とする（本関数自体は
+/// 検証を行わない。パストラバーサル対策は呼び出し元 `routes::resolve_within_root`
+/// 等が別途境界検証を担う設計を [`dir_fs_path`] から引き継ぐ）。
+pub(crate) fn dir_fs_path_for_entry(
+    project_dir: &std::path::Path,
+    entry: &DirectoryEntry,
+) -> std::path::PathBuf {
+    match &entry.path {
+        Some(path) => {
+            let mut fs_path = project_dir.to_path_buf();
+            for segment in path.split('/') {
+                fs_path.push(segment);
+            }
+            fs_path
+        }
+        None => dir_fs_path(project_dir, &entry.name),
+    }
+}
+
+/// `path` キーの実配置パス制約: `/` 区切りで 1〜3 セグメント。
+///
+/// `crates/<name>` のような 2 段構成を想定しつつ、将来の深いネストは
+/// 明示的に禁止する（無制限のネストは走査コスト・可読性の両面で
+/// `docs/policy/intentional-non-adoption.md` の明示性・決定性の評価軸に反するため）。
+pub(crate) const MAX_PATH_SEGMENTS: usize = 3;
+
+/// `path` の各セグメントが [`is_valid_directory_name`] を満たし、段数が
+/// [`MAX_PATH_SEGMENTS`] 以内であることを検証する（イシュー #436）。
+///
+/// `..`・絶対パス（先頭 `/`）・空セグメント（`//` や末尾 `/`）は
+/// セグメント分割後に `is_valid_directory_name` が拒否する
+/// （`..` は `.` を含む時点で文字集合外、空文字列は非空条件で拒否）。
+fn is_valid_directory_path(path: &str) -> bool {
+    if path.is_empty() || path.starts_with('/') || path.ends_with('/') {
+        return false;
+    }
+    let segments: Vec<&str> = path.split('/').collect();
+    !segments.is_empty()
+        && segments.len() <= MAX_PATH_SEGMENTS
+        && segments.iter().all(|seg| is_valid_directory_name(seg))
+}
+
 /// ディレクトリ名として許可する文字集合の検証。
 ///
 /// `^[a-z0-9_-]+$` 相当（正規表現クレートを使わず手書きで判定する。
 /// `cli` は外部依存ゼロを維持する方針のため）。絶対パス・`..`・`/` を
 /// 含む名前を拒否することで、TASK-13.1c 以降のファイル走査がワークスペース外へ
 /// 出るパストラバーサル面を仕様段階で塞ぐ（OWASP A01/A05 対策）。
-fn is_valid_directory_name(name: &str) -> bool {
+pub(crate) fn is_valid_directory_name(name: &str) -> bool {
     !name.is_empty()
         && name
             .bytes()
@@ -132,6 +182,14 @@ pub struct DirectoryEntry {
     pub depends_on: Vec<String>,
     /// 被依存を許可する `directories` キーの一覧（宣言済みキーのみ参照可）。
     pub allowed_dependents: Vec<String>,
+    /// ワークスペースルート相対の実配置パス（例: `crates/core`）。
+    ///
+    /// 省略時は従来どおり `name` をそのままディレクトリ名として使う
+    /// フラット配置（`fw new` が生成するユーザープロジェクトの既定、
+    /// イシュー #436）。論理名（`name`・`depends_on`・`allowed_dependents`・
+    /// `[routing] definition_dir`）とは独立した実体解決専用のキーであり、
+    /// 依存宣言の語彙には一切影響しない。
+    pub path: Option<String>,
 }
 
 /// `[routing]` テーブル。ルート定義を許すディレクトリと、その抽出方式を宣言する。
@@ -199,6 +257,22 @@ pub enum ValidationError {
     AsymmetricDependency { from: String, to: String },
     /// `[routing] definition_dir` が宣言済み `directories` キーを参照していない。
     UnknownRoutingDefinitionDir(String),
+    /// `path` の書式が不正（絶対パス・`..`・空セグメント・4 段以上・
+    /// セグメントが `^[a-z0-9_-]+$` を満たさない、イシュー #436）。
+    InvalidDirectoryPath { name: String, path: String },
+    /// `path` が [`ROOT_DIR_KEY`]（`root`）エントリに指定されている。
+    ///
+    /// `root` は「ワークスペースルート自身」を表す予約名であり、実配置は
+    /// 常にワークスペースルートに固定される。`path` で別の実体を指すことを
+    /// 許すと `dir_fs_path` の `root` 特例の意味論と衝突するため拒否する。
+    PathOnRootEntry { name: String },
+    /// 複数の `directories` エントリが同一の実配置パスへ解決される
+    /// （`name`/`path` の組み合わせ違いによる実体の重複、イシュー #436）。
+    DuplicateResolvedPath {
+        first: String,
+        second: String,
+        resolved: String,
+    },
 }
 
 impl std::fmt::Display for ValidationError {
@@ -240,6 +314,18 @@ impl std::fmt::Display for ValidationError {
                 f,
                 "structure.toml: [routing].definition_dir references unknown directory `{target}`"
             ),
+            ValidationError::InvalidDirectoryPath { name, path } => write!(
+                f,
+                "structure.toml: directories.{name}.path `{path}` is invalid (must be 1-3 `/`-separated segments matching ^[a-z0-9_-]+$, no `..` or absolute paths)"
+            ),
+            ValidationError::PathOnRootEntry { name } => write!(
+                f,
+                "structure.toml: directories.{name} must not set `path` (the `root` reserved name always resolves to the workspace root itself)"
+            ),
+            ValidationError::DuplicateResolvedPath { first, second, resolved } => write!(
+                f,
+                "structure.toml: directories.{first} and directories.{second} both resolve to the same path `{resolved}`"
+            ),
         }
     }
 }
@@ -247,6 +333,27 @@ impl std::fmt::Display for ValidationError {
 impl std::error::Error for ValidationError {}
 
 impl StructureManifest {
+    /// `directories.<name>` キーからワークスペースルート相対の実配置パスを
+    /// 解決する（イシュー #436。`routes.rs`/`impact.rs`/`gate.rs` が走査対象・
+    /// 実体解決を行う際の単一の情報源）。
+    ///
+    /// `name` が [`ROOT_DIR_KEY`] の場合はそのまま `"root"` を返す
+    /// （`resolve_within_root` 等の呼び出し側が引き続き `ROOT_DIR_KEY` の
+    /// 特例分岐で解決する契約、[`dir_fs_path`] の意味論を維持）。
+    /// `name` が宣言されていない場合は `name` をそのまま返す（呼び出し元が
+    /// 未知キーをこの時点までに検証済みである契約を前提とし、ここでの
+    /// フォールバックはあくまで防御的措置）。
+    pub(crate) fn resolved_dir_path(&self, name: &str) -> String {
+        if name == ROOT_DIR_KEY {
+            return name.to_string();
+        }
+        self.directories
+            .iter()
+            .find(|d| d.name == name)
+            .and_then(|d| d.path.clone())
+            .unwrap_or_else(|| name.to_string())
+    }
+
     /// マニフェスト内部の宣言同士の整合性を検証する。
     ///
     /// ファイルシステム・`cargo metadata` へは一切アクセスしない純粋関数
@@ -346,6 +453,52 @@ impl StructureManifest {
                 errors.push(ValidationError::UnknownRoutingDefinitionDir(
                     routing.definition_dir.clone(),
                 ));
+            }
+        }
+
+        // `path` キーの検証（イシュー #436）: 書式・`root` エントリへの指定拒否・
+        // 解決先の重複を fail-closed で検出する。解決先の衝突検出は
+        // `dir_fs_path_for_entry` 相当のロジックを文字列レベルで再現し、
+        // ファイルシステムへは一切アクセスしない（本関数は純粋関数のまま）。
+        {
+            let mut resolved_paths: std::collections::HashMap<String, &str> =
+                std::collections::HashMap::new();
+            for dir in &self.directories {
+                let Some(path) = &dir.path else {
+                    // `path` 省略時は `name` がそのまま実体（フラット配置）。
+                    let resolved = dir.name.clone();
+                    if let Some(existing) = resolved_paths.insert(resolved.clone(), &dir.name) {
+                        errors.push(ValidationError::DuplicateResolvedPath {
+                            first: existing.to_string(),
+                            second: dir.name.clone(),
+                            resolved,
+                        });
+                    }
+                    continue;
+                };
+
+                if dir.name == ROOT_DIR_KEY {
+                    errors.push(ValidationError::PathOnRootEntry {
+                        name: dir.name.clone(),
+                    });
+                    continue;
+                }
+
+                if !is_valid_directory_path(path) {
+                    errors.push(ValidationError::InvalidDirectoryPath {
+                        name: dir.name.clone(),
+                        path: path.clone(),
+                    });
+                    continue;
+                }
+
+                if let Some(existing) = resolved_paths.insert(path.clone(), &dir.name) {
+                    errors.push(ValidationError::DuplicateResolvedPath {
+                        first: existing.to_string(),
+                        second: dir.name.clone(),
+                        resolved: path.clone(),
+                    });
+                }
             }
         }
 
@@ -512,6 +665,7 @@ fn parse_directory_table(
         "description",
         "depends_on",
         "allowed_dependents",
+        "path",
     ];
     reject_unknown_keys(table, ALLOWED_KEYS, &context)?;
 
@@ -540,6 +694,7 @@ fn parse_directory_table(
     let description = get_str(table, "description", &context)?.to_string();
     let depends_on = get_optional_string_array(table, "depends_on", &context)?;
     let allowed_dependents = get_optional_string_array(table, "allowed_dependents", &context)?;
+    let path = get_optional_str(table, "path", &context)?.map(str::to_string);
 
     Ok(DirectoryEntry {
         name: name.to_string(),
@@ -548,6 +703,7 @@ fn parse_directory_table(
         description,
         depends_on,
         allowed_dependents,
+        path,
     })
 }
 
@@ -676,6 +832,7 @@ mod tests {
             description: format!("{name} directory"),
             depends_on: depends_on.iter().map(|s| s.to_string()).collect(),
             allowed_dependents: allowed_dependents.iter().map(|s| s.to_string()).collect(),
+            path: None,
         }
     }
 
@@ -844,6 +1001,121 @@ mod tests {
         assert!(errors
             .iter()
             .any(|e| matches!(e, ValidationError::UnknownRoutingDefinitionDir(t) if t == "ghost")));
+    }
+
+    /// イシュー #436: `path` キーを持つエントリが `crates/<name>` へ正しく
+    /// 解決されること（正常系）。
+    #[test]
+    fn path_key_valid_two_segment_passes_validation() {
+        let mut manifest = valid_manifest();
+        manifest.directories[0].path = Some("crates/core".to_string());
+        manifest.directories[1].path = Some("crates/app".to_string());
+        assert_eq!(manifest.validate(), Ok(()));
+    }
+
+    #[test]
+    fn path_key_rejects_dot_dot_traversal() {
+        let mut manifest = valid_manifest();
+        manifest.directories[0].path = Some("../etc".to_string());
+        let errors = manifest.validate().unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e,
+            ValidationError::InvalidDirectoryPath { name, .. } if name == "core"
+        )));
+    }
+
+    #[test]
+    fn path_key_rejects_absolute_path() {
+        let mut manifest = valid_manifest();
+        manifest.directories[0].path = Some("/etc/passwd".to_string());
+        let errors = manifest.validate().unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e,
+            ValidationError::InvalidDirectoryPath { name, .. } if name == "core"
+        )));
+    }
+
+    #[test]
+    fn path_key_rejects_uppercase_segment() {
+        let mut manifest = valid_manifest();
+        manifest.directories[0].path = Some("Crates/core".to_string());
+        let errors = manifest.validate().unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e,
+            ValidationError::InvalidDirectoryPath { name, .. } if name == "core"
+        )));
+    }
+
+    #[test]
+    fn path_key_rejects_four_or_more_segments() {
+        let mut manifest = valid_manifest();
+        manifest.directories[0].path = Some("a/b/c/d".to_string());
+        let errors = manifest.validate().unwrap_err();
+        assert!(errors.iter().any(|e| matches!(
+            e,
+            ValidationError::InvalidDirectoryPath { name, .. } if name == "core"
+        )));
+    }
+
+    #[test]
+    fn path_key_on_root_entry_is_rejected() {
+        let mut manifest = valid_manifest();
+        manifest.directories[0].name = ROOT_DIR_KEY.to_string();
+        manifest.directories[0].path = Some("crates/core".to_string());
+        // `depends_on`/`allowed_dependents` の参照先を書き換えたので、この
+        // テストが確認したい `PathOnRootEntry` 検出のみに着目する。
+        let errors = manifest.validate().unwrap_err();
+        assert!(errors.iter().any(
+            |e| matches!(e, ValidationError::PathOnRootEntry { name } if name == ROOT_DIR_KEY)
+        ));
+    }
+
+    #[test]
+    fn path_key_duplicate_resolved_path_is_rejected() {
+        let mut manifest = valid_manifest();
+        manifest.directories[0].path = Some("crates/shared".to_string());
+        manifest.directories[1].path = Some("crates/shared".to_string());
+        let errors = manifest.validate().unwrap_err();
+        assert!(errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::DuplicateResolvedPath { resolved, .. } if resolved == "crates/shared")));
+    }
+
+    #[test]
+    fn dir_fs_path_for_entry_uses_path_key_when_present() {
+        let mut manifest = valid_manifest();
+        manifest.directories[0].path = Some("crates/core".to_string());
+        let project_dir = std::path::Path::new("/tmp/some-project");
+        assert_eq!(
+            dir_fs_path_for_entry(project_dir, &manifest.directories[0]),
+            project_dir.join("crates").join("core")
+        );
+    }
+
+    #[test]
+    fn dir_fs_path_for_entry_falls_back_to_name_when_path_absent() {
+        let manifest = valid_manifest();
+        let project_dir = std::path::Path::new("/tmp/some-project");
+        assert_eq!(
+            dir_fs_path_for_entry(project_dir, &manifest.directories[0]),
+            project_dir.join("core")
+        );
+    }
+
+    #[test]
+    fn parse_accepts_path_key() {
+        let input = r#"
+[manifest]
+version = 1
+
+[directories.core]
+role = "core"
+crate = "fandhe-frontend-core"
+description = "desc"
+path = "crates/core"
+"#;
+        let manifest = parse(input).expect("path key should be accepted by parser");
+        assert_eq!(manifest.directories[0].path.as_deref(), Some("crates/core"));
     }
 
     #[test]

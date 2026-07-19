@@ -111,6 +111,21 @@ pub(crate) fn scan_root(workspace_root: &Path, dir_name: &str) -> Result<PathBuf
     }
 }
 
+/// [`resolve_within_root`] が受け付ける `dir_name`（`/` 区切りマルチセグメント
+/// 実配置パスを含む）の書式検証（イシュー #436）。空セグメント（先頭・末尾・
+/// 連続 `/`）・段数超過・セグメント文字集合外を fail-closed で拒否する。
+fn is_valid_scan_dir_path(dir_name: &str) -> bool {
+    if dir_name.is_empty() || dir_name.starts_with('/') || dir_name.ends_with('/') {
+        return false;
+    }
+    let segments: Vec<&str> = dir_name.split('/').collect();
+    !segments.is_empty()
+        && segments.len() <= crate::structure::MAX_PATH_SEGMENTS
+        && segments
+            .iter()
+            .all(|seg| crate::structure::is_valid_directory_name(seg))
+}
+
 /// `workspace_root / dir_name` を解決し、結果が `workspace_root` 配下（シンボリック
 /// リンク解決後も含む）に収まることを確認する。収まらない場合・
 /// 存在しない場合はエラーを返す（`unsafe` を使わず `std::fs::canonicalize` のみで
@@ -125,20 +140,25 @@ pub(crate) fn resolve_within_root(
     workspace_root: &Path,
     dir_name: &str,
 ) -> Result<PathBuf, ExtractError> {
-    // `dir_name` 自体にパス区切り・`..` が含まれる呼び出しを二重に防御する
-    // （`structure.toml` の `is_valid_directory_name` 検証を経由しない誤用を想定）。
-    if dir_name.is_empty()
-        || !dir_name
-            .bytes()
-            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-')
-    {
+    // `dir_name` は単純な 1 段ディレクトリ名（従来仕様）か、`crates/core` のような
+    // `/` 区切りの実配置パス（イシュー #436、`structure.toml` の `path` キー由来）の
+    // いずれかを受け付ける。各セグメントは [`crate::structure::is_valid_directory_name`]
+    // （`^[a-z0-9_-]+$`）を満たすこと・段数は
+    // [`crate::structure::MAX_PATH_SEGMENTS`] 以内であることを二重に検証する
+    // （`structure.toml` 側の `validate()` を経由しない誤用を想定した防御。
+    // `..` は文字集合外として、絶対パス（先頭 `/`）は空セグメント発生により拒否される）。
+    if dir_name != crate::structure::ROOT_DIR_KEY && !is_valid_scan_dir_path(dir_name) {
         return Err(ExtractError::EscapesWorkspaceRoot);
     }
 
     let candidate = if dir_name == crate::structure::ROOT_DIR_KEY {
         workspace_root.to_path_buf()
     } else {
-        workspace_root.join(dir_name)
+        let mut candidate = workspace_root.to_path_buf();
+        for segment in dir_name.split('/') {
+            candidate.push(segment);
+        }
+        candidate
     };
     let canonical_root = std::fs::canonicalize(workspace_root)
         .map_err(|e| ExtractError::Io(format!("{:?}", e.kind())))?;
