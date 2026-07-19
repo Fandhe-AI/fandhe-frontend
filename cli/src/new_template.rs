@@ -139,7 +139,8 @@ const DEFAULT_TEMPLATE_FILES: &[TemplateFile] = &[
     },
 ];
 
-/// `templates/app/` の全ファイル（22 件）を埋め込んだ固定配列（イシュー #378）。
+/// `templates/app/` の全ファイル（35 件）を埋め込んだ固定配列（イシュー #378、
+/// イシュー #411 で wasm ビルド込み CSR 完全実体を追加）。
 ///
 /// rws-core / rws-app（vendor 同梱、`vendor/rws-core` / `vendor/rws-app`）に
 /// 依存する拡張テンプレート。`Loader` trait 実装・束縛点 API
@@ -147,6 +148,13 @@ const DEFAULT_TEMPLATE_FILES: &[TemplateFile] = &[
 /// （`templates/app/src/main.rs`）。`.github/workflows/*`・`clippy.toml`・
 /// `deny.toml`・`tools/npm-asset-build/*` は `templates/default/` と共有
 /// ファイル同一性を保つ（`cli/tests/template_vendor_drift.rs` が検証）。
+///
+/// イシュー #411: `vendor/rws-interactive` / `vendor/rws-wasm-client`（正本
+/// `interactive/` / `wasm-client/` の vendor 同梱）と、独立ワークスペース
+/// `wasm/`（glue クレート `app-csr-wasm`）・`tools/wasm/build.sh`（wasm ビルド
+/// 手順）を追加し、生成プロジェクトが自力で CSR（`mount_csr`/`hydrate`）の
+/// wasm 成果物をビルドできる完全実体を同梱する（root（`rws-template-app`）の
+/// 依存グラフ・`fw gate` 対象は不変、実装計画 §2.2 参照）。
 const APP_TEMPLATE_FILES: &[TemplateFile] = &[
     TemplateFile {
         rel_path: ".github/workflows/deny.yml",
@@ -275,6 +283,75 @@ const APP_TEMPLATE_FILES: &[TemplateFile] = &[
         contents: include_str!("../../templates/app/vendor/rws-core/src/url.rs"),
         executable: false,
     },
+    // イシュー #411: CSR wasm ビルド込みの完全実体。rws-interactive /
+    // rws-wasm-client の vendor 同梱（正本は interactive/ / wasm-client/）と、
+    // それらをビルドする独立ワークスペース wasm/・手順スクリプト
+    // tools/wasm/build.sh を追加する（実装計画 §2.2・§2.3）。
+    TemplateFile {
+        rel_path: "vendor/rws-interactive/Cargo.toml",
+        contents: include_str!("../../templates/app/vendor/rws-interactive/Cargo.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "vendor/rws-interactive/src/lib.rs",
+        contents: include_str!("../../templates/app/vendor/rws-interactive/src/lib.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "vendor/rws-wasm-client/Cargo.toml",
+        contents: include_str!("../../templates/app/vendor/rws-wasm-client/Cargo.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "vendor/rws-wasm-client/src/binding.rs",
+        contents: include_str!("../../templates/app/vendor/rws-wasm-client/src/binding.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "vendor/rws-wasm-client/src/binding_dom.rs",
+        contents: include_str!("../../templates/app/vendor/rws-wasm-client/src/binding_dom.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "vendor/rws-wasm-client/src/keyed_diff.rs",
+        contents: include_str!("../../templates/app/vendor/rws-wasm-client/src/keyed_diff.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "vendor/rws-wasm-client/src/keyed_dom.rs",
+        contents: include_str!("../../templates/app/vendor/rws-wasm-client/src/keyed_dom.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "vendor/rws-wasm-client/src/lib.rs",
+        contents: include_str!("../../templates/app/vendor/rws-wasm-client/src/lib.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "vendor/rws-wasm-client/src/registry.rs",
+        contents: include_str!("../../templates/app/vendor/rws-wasm-client/src/registry.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "wasm/Cargo.lock",
+        contents: include_str!("../../templates/app/wasm/Cargo.lock"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "wasm/Cargo.toml",
+        contents: include_str!("../../templates/app/wasm/Cargo.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "wasm/src/lib.rs",
+        contents: include_str!("../../templates/app/wasm/src/lib.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "tools/wasm/build.sh",
+        contents: include_str!("../../templates/app/tools/wasm/build.sh"),
+        executable: true,
+    },
 ];
 
 /// `templates/embed/` の全ファイル（2 件）を埋め込んだ固定配列
@@ -392,7 +469,14 @@ mod tests {
             "tools/npm-asset-build/check_static_only.py",
             "tools/npm-asset-build/install.sh",
         ];
-        let expected_app: &[&str] = expected_default;
+        // イシュー #411: `tools/wasm/build.sh` は app テンプレート固有の
+        // 実行可能ファイル（wasm ビルド手順、default テンプレートには存在しない）。
+        let expected_app: &[&str] = &[
+            "tools/npm-asset-build/apply_exempt.py",
+            "tools/npm-asset-build/check_static_only.py",
+            "tools/npm-asset-build/install.sh",
+            "tools/wasm/build.sh",
+        ];
         let expected_embed: &[&str] = &[];
 
         for (name, expected) in [
