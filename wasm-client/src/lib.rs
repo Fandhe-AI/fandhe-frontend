@@ -23,7 +23,12 @@
 //!    （「データ取得の実装は 1 箇所・モード別分岐なし」REQ-6）。
 //! 2. **wasm32 配線層**（[`mod wiring`]、`#[cfg(target_arch = "wasm32")]`）:
 //!    `#[wasm_bindgen]` エクスポート `hydrate` / `mount_csr`。実 DOM
-//!    （`web-sys`）を操作するのはこの層のみに限定する。
+//!    （`web-sys`）を操作するのはこの層のみに限定する。配線本体は
+//!    `wasm-bindgen-exports` feature 非依存の共有 Rust API
+//!    [`wire_hydrate_targets`] として公開しており、`hydrate` はこれを
+//!    `#[wasm_bindgen]` でラップするだけの薄い層になっている（イシュー
+//!    #403: `rws-wasm-full`（`wasm-full/src/nav.rs`）の遷移後再配線が
+//!    同じ本体を呼ぶ）。
 //!
 //! # セキュリティ不変条件（`docs/api/hydration-api.md` 第 6 節を引き継ぐ）
 //!
@@ -72,7 +77,13 @@ mod keyed_dom;
 #[cfg(target_arch = "wasm32")]
 pub use keyed_dom::{apply_keyed_list, build_dom_node, find_keyed_list_node, find_list_element};
 
-#[cfg(all(target_arch = "wasm32", feature = "wasm-bindgen-exports"))]
+// イシュー #403: 配線本体（[`wire_hydrate_targets`]、下記 `hydrate_dom`
+// モジュール）を `wasm-bindgen-exports` feature 非依存の共有 Rust API へ
+// 切り出したため、
+// `registry`（Closure 寿命管理）も同 feature ゲートを外し wasm32 ターゲット
+// 全体で利用可能にする。`wasm-full`（`default-features = false` で依存）から
+// `wire_hydrate_targets` 経由で `registry::replace_handles` 等を使うため。
+#[cfg(target_arch = "wasm32")]
 mod registry;
 
 /// ハイドレーション対象を示す属性名（`rws_app::detail_page` が「いいね」
@@ -80,7 +91,7 @@ mod registry;
 /// `docs/api/hydration-api.md` 第 3.1 節の契約）。
 ///
 /// 純粋ロジック層（[`find_hydrate_target_kinds`]）・wasm32 配線層
-/// （[`wiring::hydrate`]）の双方が同じ属性名を参照することで、
+/// （[`wire_hydrate_targets`]）の双方が同じ属性名を参照することで、
 /// 「どの属性を見て対象を判定するか」の契約を一箇所に固定する。
 pub const HYDRATE_ATTR: &str = "data-hydrate";
 
@@ -201,7 +212,7 @@ pub fn render_detail_page_html(id: &str) -> String {
 ///
 /// DOM 非依存の純粋関数のため wasm ビルドを介さずネイティブテスト可能
 /// （`wasm-client/tests/hydration_targets.rs`）。実 DOM 上でのハイドレーション
-/// 配線（[`wiring::hydrate`]、wasm32 配線層）は、本関数と同じ属性名契約
+/// 配線（[`wire_hydrate_targets`]、wasm32 配線層）は、本関数と同じ属性名契約
 /// （[`HYDRATE_ATTR`]）を使って `web_sys::Element::query_selector_all` で
 /// 実要素を検索する。両者は同じ属性名定数を共有することで、対象特定ロジックの
 /// 契約が単一箇所に保たれる。
@@ -237,72 +248,54 @@ pub fn find_list_nav_targets() -> Vec<String> {
 }
 
 // ---------------------------------------------------------------------
-// wasm32 配線層: 実 DOM（web-sys）を操作するのはこのモジュールに限定する。
+// wasm32 配線本体: 実 DOM（web-sys）を操作するのはこのモジュールに限定する。
 // native の `cargo test -p rws-wasm-client` にはコンパイル対象外
 // （wasm-full/src/events.rs の wiring モジュールと同じ切り分け方針）。
+// `wasm-bindgen-exports` feature には依存しない（イシュー #403: `wasm-full`
+// が `default-features = false` で依存した状態からも [`wire_hydrate_targets`]
+// を呼べるようにするため、`#[wasm_bindgen]` エクスポート面と本体を分離する）。
 // ---------------------------------------------------------------------
-// イシュー #345: `rws-wasm-full` が本クレートを rlib として依存し
-// `BindingTable`/`keyed_diff`/`keyed_dom`（DOM 依存だが `#[wasm_bindgen]`
-// ではない通常の Rust API）のみを消費する。`wiring::hydrate`/`mount_csr`
-// は REQ-6（本クレート独自の最小ハイドレーション CSR デモ、#48）向けの
-// `#[wasm_bindgen]` エクスポートであり、`wasm-full` 側にも同名の
-// `#[wasm_bindgen] pub fn hydrate`/`mount`（`entry.rs`）が存在するため、
-// 両クレートを 1 つの wasm バイナリへ静的リンクすると
-// `__wbindgen_describe_hydrate`/`hydrate` のシンボルが重複しリンクエラーに
-// なる（`wasm-bindgen` の "describe" シンボルはクレートで名前空間分離され
-// ない）。`wasm-bindgen-exports` feature（既定 on）でこの 2 エクスポートを
-// 切り離せるようにし、`wasm-full/Cargo.toml` は
-// `default-features = false` で依存することでこの衝突を避ける
-// （本クレートを単体で使う既存の利用者には影響しない、既定 on のまま）。
-#[cfg(all(target_arch = "wasm32", feature = "wasm-bindgen-exports"))]
-mod wiring {
+#[cfg(target_arch = "wasm32")]
+mod hydrate_dom {
     use super::{HYDRATE_ATTR, LIKE_HYDRATE_VALUE};
     use crate::registry;
     use wasm_bindgen::closure::Closure;
-    use wasm_bindgen::prelude::*;
     use wasm_bindgen::JsCast;
-    use web_sys::{Document, Element, Event};
+    use wasm_bindgen::JsValue;
+    use web_sys::{Element, Event};
 
-    /// `window().document()` を解決する。いずれかが取得できない環境
-    /// （テストランナーの合成 DOM 以外の非ブラウザ実行等）では `Err` を返す。
-    /// エラー文字列は固定の英語文言とし、内部状態を含めない（不変条件 6）。
-    fn document() -> Result<Document, JsValue> {
-        web_sys::window()
-            .ok_or_else(|| JsValue::from_str("window is unavailable"))?
-            .document()
-            .ok_or_else(|| JsValue::from_str("document is unavailable"))
-    }
-
-    /// 指定 `root_id` のルート要素を取得する。存在しない場合は `Err`
-    /// （呼び出し元へ内部情報を含まない固定文言で伝える、不変条件 6）。
-    fn get_root(root_id: &str) -> Result<Element, JsValue> {
-        document()?
-            .get_element_by_id(root_id)
-            .ok_or_else(|| JsValue::from_str("root element not found"))
-    }
-
-    /// REQ-6 受け入れ基準の中核 API。`root_id` 配下の**サーバー出力済み DOM
+    /// REQ-6 受け入れ基準の中核 API。`root` 配下の**サーバー出力済み DOM
     /// を再構築せず**（`set_inner_html` 等を一切呼ばない、不変条件 2）、
     /// 既存要素へイベントリスナーを後付けする。
     ///
+    /// `registry_key` はクロージャの寿命管理（[`registry::replace_handles`]）
+    /// の単位。REQ-6 デモ（[`crate::wiring::hydrate`]、feature
+    /// `wasm-bindgen-exports`）は `root_id` をそのままキーとして渡す。
+    /// `rws-wasm-full`（`wasm-full/src/nav.rs::render_route`、イシュー
+    /// #403）は遷移完了後に `root` 要素の `id`（実運用 `app-root`）を
+    /// キーとして渡し、別 wasm インスタンス・別 registry（本クレートの
+    /// デモ用エクスポートとはキー空間・呼び出し元が異なる）として衝突なく
+    /// 共存する。
+    ///
     /// ハイドレーション対象は [`HYDRATE_ATTR`] を持つ子孫要素を
     /// `query_selector_all` で検索して特定する（純粋ロジック層
-    /// [`find_hydrate_target_kinds`] と同一の属性名契約を共有）。値が
+    /// [`super::find_hydrate_target_kinds`] と同一の属性名契約を共有）。値が
     /// [`LIKE_HYDRATE_VALUE`] の要素にのみ `click` リスナーを登録し、
     /// ハンドラ内では `class_list`（`DomTokenList::toggle`）のみを操作する
     /// （`set_text_content`/`class_list` に限定、不変条件 3）。
     ///
-    /// クロージャは [`registry::replace_handles`] が root_id 単位で保持する
-    /// （`closure.forget()` は使わない、`docs/api/hydration-api.md` 判断 4）。
+    /// クロージャは [`registry::replace_handles`] が `registry_key` 単位で
+    /// 保持する（`closure.forget()` は使わない、`docs/api/hydration-api.md`
+    /// 判断 4）。同一キーへの再呼び出しは旧ハンドルを解除してから差し替える
+    /// ため、遷移のたびに呼んでもリスナー・Closure は現存 DOM 分に有界。
     ///
     /// # Errors
     ///
-    /// `root_id` に対応する要素が存在しない場合、または `query_selector_all`
-    /// / イベントリスナー登録が失敗した場合に `Err` を返す。
-    #[wasm_bindgen]
-    pub fn hydrate(root_id: &str) -> Result<(), JsValue> {
-        let root = get_root(root_id)?;
-
+    /// `query_selector_all` / イベントリスナー登録が失敗した場合に `Err`
+    /// を返す。呼び出し元（`wasm-full::nav::render_route` 等）は fail-safe
+    /// として `Err` でも遷移自体は成立させ、警告ログのみに留めることを
+    /// 想定する。
+    pub fn wire_hydrate_targets(registry_key: &str, root: &Element) -> Result<(), JsValue> {
         let selector = format!("[{HYDRATE_ATTR}]");
         let targets = root
             .query_selector_all(&selector)
@@ -340,15 +333,76 @@ mod wiring {
                     // DOM リスナーをここで解除してから Err を返す
                     // （ローカル handles の Drop だけに任せると、Closure は
                     // 破棄されるのに DOM 側リスナーだけ残ってしまう）。
-                    // 既存レジストリ（前回までの hydrate() 分）には触れない。
+                    // 既存レジストリ（前回までの呼び出し分）には触れない。
                     registry::rollback_partial_handles(handles);
                     return Err(JsValue::from_str("add_event_listener_with_callback failed"));
                 }
             }
         }
 
-        registry::replace_handles(root_id, handles);
+        registry::replace_handles(registry_key, handles);
         Ok(())
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+pub use hydrate_dom::wire_hydrate_targets;
+
+// ---------------------------------------------------------------------
+// wasm32 配線層（`#[wasm_bindgen]` エクスポート面）: REQ-6 デモ用の
+// `hydrate`/`mount_csr` をここでのみ公開する。
+// ---------------------------------------------------------------------
+// イシュー #345: `rws-wasm-full` が本クレートを rlib として依存し
+// `BindingTable`/`keyed_diff`/`keyed_dom`（DOM 依存だが `#[wasm_bindgen]`
+// ではない通常の Rust API）のみを消費する。`wiring::hydrate`/`mount_csr`
+// は REQ-6（本クレート独自の最小ハイドレーション CSR デモ、#48）向けの
+// `#[wasm_bindgen]` エクスポートであり、`wasm-full` 側にも同名の
+// `#[wasm_bindgen] pub fn hydrate`/`mount`（`entry.rs`）が存在するため、
+// 両クレートを 1 つの wasm バイナリへ静的リンクすると
+// `__wbindgen_describe_hydrate`/`hydrate` のシンボルが重複しリンクエラーに
+// なる（`wasm-bindgen` の "describe" シンボルはクレートで名前空間分離され
+// ない）。`wasm-bindgen-exports` feature（既定 on）でこの 2 エクスポートを
+// 切り離せるようにし、`wasm-full/Cargo.toml` は
+// `default-features = false` で依存することでこの衝突を避ける
+// （本クレートを単体で使う既存の利用者には影響しない、既定 on のまま）。
+// イシュー #403: 配線本体は [`wire_hydrate_targets`]（`wasm-bindgen-exports`
+// feature 非依存）へ切り出したため、ここでは `#[wasm_bindgen]` によるラップ
+// のみを行う。
+#[cfg(all(target_arch = "wasm32", feature = "wasm-bindgen-exports"))]
+mod wiring {
+    use wasm_bindgen::prelude::*;
+    use web_sys::{Document, Element};
+
+    /// `window().document()` を解決する。いずれかが取得できない環境
+    /// （テストランナーの合成 DOM 以外の非ブラウザ実行等）では `Err` を返す。
+    /// エラー文字列は固定の英語文言とし、内部状態を含めない（不変条件 6）。
+    fn document() -> Result<Document, JsValue> {
+        web_sys::window()
+            .ok_or_else(|| JsValue::from_str("window is unavailable"))?
+            .document()
+            .ok_or_else(|| JsValue::from_str("document is unavailable"))
+    }
+
+    /// 指定 `root_id` のルート要素を取得する。存在しない場合は `Err`
+    /// （呼び出し元へ内部情報を含まない固定文言で伝える、不変条件 6）。
+    fn get_root(root_id: &str) -> Result<Element, JsValue> {
+        document()?
+            .get_element_by_id(root_id)
+            .ok_or_else(|| JsValue::from_str("root element not found"))
+    }
+
+    /// REQ-6 デモ用エクスポート。[`super::wire_hydrate_targets`]（配線本体）を
+    /// `root_id` をそのまま registry キーとして呼ぶ薄いラッパー
+    /// （`#[wasm_bindgen]` 展開面のみをここに閉じる、イシュー #403）。
+    ///
+    /// # Errors
+    ///
+    /// `root_id` に対応する要素が存在しない場合、または `query_selector_all`
+    /// / イベントリスナー登録が失敗した場合に `Err` を返す。
+    #[wasm_bindgen]
+    pub fn hydrate(root_id: &str) -> Result<(), JsValue> {
+        let root = get_root(root_id)?;
+        super::wire_hydrate_targets(root_id, &root)
     }
 
     /// CSR エントリポイント。[`super::render_list_page_html`]（純粋ロジック層、

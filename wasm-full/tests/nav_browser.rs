@@ -25,6 +25,9 @@
 //! 6. 連続遷移: 一覧 → 詳細 → 一覧の往復後もクリック配線が生きている
 //!    （`document` レベル委譲のため `root` のサブツリー差し替え後も
 //!    リスナーが失われないことの直接証明）
+//! 7. 遷移後の `data-hydrate` 再配線（イシュー #403）: 遷移 → いいねボタン
+//!    操作 → `class="liked"` 付与・トグル、往復遷移後の再配線、初期表示
+//!    ページ非配線の契約、XSS 複合ケース
 
 #![cfg(target_arch = "wasm32")]
 
@@ -409,5 +412,216 @@ fn non_matching_clicks_are_not_intercepted() {
         window.location().pathname().unwrap(),
         "/",
         "未登録パスへのクリックでは URL が変化しないこと"
+    );
+}
+
+/// `#like-btn`（`rws_app::LIKE_BUTTON_ID`、`data-hydrate="like"`）へ合成
+/// クリックを dispatch する（`nav::wiring::render_route` が登録する
+/// `click` リスナーは要素へ直接付く後付けのため、`document` 委譲リスナー
+/// （クリック遷移用）とは異なりバブリング前提は不要だが、他テストと同じ
+/// 構築関数を再利用する）。
+fn dispatch_like_click(like_button: &Element) {
+    like_button
+        .dispatch_event(&synthetic_click_event())
+        .expect("dispatch_event must not fail");
+}
+
+/// 検証 7: `class` 属性値に `"liked"` トークンが含まれるかを判定する
+/// （`DomTokenList` feature を wasm-full の dev-dependencies へ追加しない
+/// 方針のため `get_attribute("class")` の文字列検査で代替する）。
+fn has_liked_class(element: &Element) -> bool {
+    element
+        .get_attribute("class")
+        .map(|value| value.split_whitespace().any(|token| token == "liked"))
+        .unwrap_or(false)
+}
+
+/// 検証 7（中核）: 一覧 → 詳細（`/items/1`）へクリック遷移した後、遷移で
+/// 新規構築された `#like-btn` へのクリックが `class="liked"` の付与・解除を
+/// トグルすること（イシュー #403 の受け入れ条件 1・3 の直接証明）。
+#[wasm_bindgen_test]
+fn like_button_toggles_after_client_side_navigation() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    set_location_path("/");
+    let (container, root) = create_app_root(
+        &document,
+        "nav-test-hydrate-rewire",
+        &ssr_equivalent_list_inner_html(),
+    );
+    let _cleanup = RemoveOnDrop(container);
+
+    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+
+    let link = document
+        .query_selector("a[data-nav=\"/items/1\"]")
+        .expect("query_selector must not fail")
+        .expect("list page must contain a data-nav link to /items/1");
+    link.dispatch_event(&synthetic_click_event())
+        .expect("dispatch_event must not fail");
+
+    let like_button = root
+        .query_selector("#like-btn")
+        .expect("query_selector must not fail")
+        .expect("detail page must contain the like button (data-hydrate=\"like\")");
+    assert!(
+        !has_liked_class(&like_button),
+        "遷移直後の like ボタンは liked class を持たないこと"
+    );
+
+    dispatch_like_click(&like_button);
+    assert!(
+        has_liked_class(&like_button),
+        "遷移後に新規生成された like ボタンへのクリックが再配線され、\
+         class=\"liked\" が付与されること（イシュー #403 の中核）"
+    );
+
+    dispatch_like_click(&like_button);
+    assert!(
+        !has_liked_class(&like_button),
+        "再クリックで liked class がトグルオフされること"
+    );
+}
+
+/// 検証 7（往復後の再配線）: 詳細 → 一覧 → 詳細と往復遷移した後も like
+/// ボタンが機能すること。`render_route` の都度 `wire_hydrate_targets` が
+/// 旧ハンドルを解除して新規登録することの直接証明
+/// （`rws-wasm-client::registry::replace_handles` の反復成立）。
+#[wasm_bindgen_test]
+fn like_button_works_after_round_trip_navigation() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    set_location_path("/");
+    let (container, root) = create_app_root(
+        &document,
+        "nav-test-hydrate-rewire-round-trip",
+        &ssr_equivalent_list_inner_html(),
+    );
+    let _cleanup = RemoveOnDrop(container);
+
+    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+
+    // 1 回目の詳細遷移。
+    document
+        .query_selector("a[data-nav=\"/items/1\"]")
+        .expect("query_selector must not fail")
+        .expect("list page must contain a data-nav link to /items/1")
+        .dispatch_event(&synthetic_click_event())
+        .expect("dispatch_event must not fail");
+
+    // 一覧へ戻る。
+    document
+        .query_selector("a[data-nav=\"/\"]")
+        .expect("query_selector must not fail")
+        .expect("detail page must contain a data-nav link back to /")
+        .dispatch_event(&synthetic_click_event())
+        .expect("dispatch_event must not fail");
+
+    // 2 回目の詳細遷移。
+    document
+        .query_selector("a[data-nav=\"/items/1\"]")
+        .expect("query_selector must not fail")
+        .expect("list page (round 2) must contain a data-nav link to /items/1")
+        .dispatch_event(&synthetic_click_event())
+        .expect("dispatch_event must not fail");
+
+    let like_button = root
+        .query_selector("#like-btn")
+        .expect("query_selector must not fail")
+        .expect("detail page (round 2) must contain the like button");
+    dispatch_like_click(&like_button);
+    assert!(
+        has_liked_class(&like_button),
+        "往復遷移後も like ボタンの再配線が成立すること"
+    );
+}
+
+/// 検証 7（初期ページ非配線の契約）: `start_router` 直後（クライアント遷移
+/// 前）の SSR 済み `#like-btn` へのクリックは `class` を変化させない。
+/// 初期表示ページの配線は `rws-wasm-client::wiring::hydrate`（REQ-6 デモ）の
+/// 管轄のままであり、`nav::render_route` は遷移で新規構築されたサブツリー
+/// のみを対象とする（二重配線回避の凍結事項、`docs/design/
+/// wasm-full-architecture.md` §10 参照）。
+#[wasm_bindgen_test]
+fn like_button_on_initial_page_is_not_wired_by_nav_module() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    let body = rws_app::assemble_detail_page(&rws_app::DemoItemDetailLoader, &"1".to_string())
+        .expect("infallible loader");
+    set_location_path("/items/1");
+    let (container, root) = create_app_root(
+        &document,
+        "nav-test-hydrate-initial-not-wired",
+        &rws_core::render(&body),
+    );
+    let _cleanup = RemoveOnDrop(container);
+
+    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+
+    let like_button = root
+        .query_selector("#like-btn")
+        .expect("query_selector must not fail")
+        .expect("initial detail page must contain the like button");
+    dispatch_like_click(&like_button);
+    assert!(
+        !has_liked_class(&like_button),
+        "start_router 呼び出し直後（クライアント遷移前）の like ボタンは \
+         nav モジュールの再配線対象外であり class は変化しないこと"
+    );
+}
+
+/// 検証 7（XSS × 再配線の複合）: XSS ペイロード item（id="2"）へ遷移した後も
+/// ペイロードはエスケープ済みテキストのままであり（検証 4 の既存契約を
+/// 変更しない）、かつ like ボタンが機能すること。
+#[wasm_bindgen_test]
+fn like_button_works_after_navigating_to_xss_payload_item() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    set_location_path("/");
+    let (container, root) = create_app_root(
+        &document,
+        "nav-test-hydrate-xss",
+        &ssr_equivalent_list_inner_html(),
+    );
+    let _cleanup = RemoveOnDrop(container);
+
+    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+
+    let xss_item_id = demo_items()
+        .into_iter()
+        .find(|it| it.title.contains("<script>"))
+        .map(|it| it.id)
+        .expect("demo_items() must contain the XSS payload fixture item");
+    let selector = format!("a[data-nav=\"/items/{xss_item_id}\"]");
+    document
+        .query_selector(&selector)
+        .expect("query_selector must not fail")
+        .expect("list page must contain a data-nav link to the XSS payload item")
+        .dispatch_event(&synthetic_click_event())
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        root.query_selector("script").unwrap().is_none(),
+        "XSS ペイロードが実 DOM 上で <script> 要素として生成されてはならない（既存契約の非弱体化）"
+    );
+    assert!(
+        root.inner_html()
+            .contains("&lt;script&gt;alert('xss')&lt;/script&gt;"),
+        "XSS ペイロードはエスケープ済みテキストとして DOM に保持されること: {}",
+        root.inner_html()
+    );
+
+    let like_button = root
+        .query_selector("#like-btn")
+        .expect("query_selector must not fail")
+        .expect("XSS payload item's detail page must still contain the like button");
+    dispatch_like_click(&like_button);
+    assert!(
+        has_liked_class(&like_button),
+        "XSS ペイロード item への遷移後も like ボタンの再配線が成立すること"
     );
 }

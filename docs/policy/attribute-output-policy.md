@@ -160,8 +160,8 @@ out-of-scope 節で明示的に先送りされてきたこの領域について�
   `web_sys::Element::set_attribute` の主防御化・`web_sys` 型付きセッター
   （`set_href`/`set_src` 等）の検出は同イシューのスコープ外として別 Issue
   候補に残す。
-- `templates/default/` 側への周知ドキュメント反映: 標準プロジェクト
-  テンプレート利用者向けの説明追加は本書のスコープ外。別 Issue 候補。
+- `templates/default/` 側への周知ドキュメント反映: イシュー #402 で
+  `templates/default/README.md` として反映済み。
 
 ## 7. 参照
 
