@@ -55,9 +55,14 @@
 //!
 //! # スコープ外（本モジュールでは扱わない）
 //!
-//! URL / JavaScript / CSS コンテキストのエスケープ、void 要素処理、
+//! JavaScript / CSS コンテキストのエスケープ、void 要素処理、
 //! タグ名・属性名の妥当性検証。必要になった時点で
 //! `.claude/rules/out-of-scope-tracking.md` に従い Issue 化を検討する。
+//!
+//! URL コンテキストの危険スキーム（`javascript:` 等）対策は、脱出を
+//! 伴わないため本モジュールのエスケープでは防げない性質の脅威であり、
+//! `url` モジュール（[`crate::is_safe_url`]）へ分離実装した
+//! （イシュー #373・`docs/policy/attribute-output-policy.md`）。
 
 /// 入力文字列を既定のエスケープ規則に従って HTML エンティティ化した新しい
 /// `String` を返す。

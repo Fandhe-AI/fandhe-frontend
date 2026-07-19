@@ -167,6 +167,15 @@ fn fixture_tree() -> rws_core::Node {
                 vec![("id", "unrelated-node")],
                 vec![text("unrelated")],
             ),
+            el(
+                "a",
+                vec![
+                    ("id", "draft-link"),
+                    ("href", "/safe"),
+                    ("data-bind-attr", &bind_attr_token("href", "draft")),
+                ],
+                vec![text("link")],
+            ),
         ],
     )
 }
@@ -469,5 +478,67 @@ fn tampered_on_prefixed_attr_marker_is_rejected_and_produces_no_onclick_attribut
     assert!(
         tampered_btn.get_attribute("onclick").is_none(),
         "onclick 接頭辞の data-bind-attr トークンは拒否され、onclick 属性が生成されないこと（fail-closed）"
+    );
+}
+
+// ---------------------------------------------------------------------
+// URL スキーム検証（イシュー #373）: 実 DOM 属性更新経路の fail-closed
+// ---------------------------------------------------------------------
+
+/// `href` 属性へ束縛された field を危険スキーム（`javascript:`）に更新した
+/// とき、`set_attribute` を素通りさせず、既存の安全な `href` 属性値を
+/// `remove_attribute` で除去すること（`binding_dom.rs` の `apply_one` が
+/// `rws_core::is_safe_url` を経由する契約の実ブラウザ証跡。
+/// `docs/policy/attribute-output-policy.md` 参照）。
+#[wasm_bindgen_test]
+fn dangerous_url_scheme_bound_to_href_removes_the_attribute() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    let root = create_container(&document, "binding-url-scheme-root");
+    root.set_inner_html(&render(&fixture_tree()));
+
+    let table = BindingTable::scan(&root).expect("scan must succeed for a well-formed fixture");
+
+    let mut state = TestState::new();
+    dispatch(&mut state, "set_draft", "javascript:alert(1)");
+    table.apply_update(&state);
+
+    let link = root
+        .query_selector("#draft-link")
+        .expect("query_selector must not fail")
+        .expect("fixture must contain #draft-link");
+
+    assert!(
+        link.get_attribute("href").is_none(),
+        "危険スキームの href 束縛値は set_attribute されず、既存値も remove_attribute で除去されること（fail-closed）"
+    );
+}
+
+/// 安全な URL（相対 URL）へ更新した場合は従来どおり `href` が反映される
+/// こと（過剰ブロックでないことの確認）。
+#[wasm_bindgen_test]
+fn safe_url_bound_to_href_is_applied_normally() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    let root = create_container(&document, "binding-url-safe-root");
+    root.set_inner_html(&render(&fixture_tree()));
+
+    let table = BindingTable::scan(&root).expect("scan must succeed for a well-formed fixture");
+
+    let mut state = TestState::new();
+    dispatch(&mut state, "set_draft", "/items/42");
+    table.apply_update(&state);
+
+    let link = root
+        .query_selector("#draft-link")
+        .expect("query_selector must not fail")
+        .expect("fixture must contain #draft-link");
+
+    assert_eq!(
+        link.get_attribute("href").as_deref(),
+        Some("/items/42"),
+        "安全な相対 URL は href 束縛として正常に反映されること"
     );
 }

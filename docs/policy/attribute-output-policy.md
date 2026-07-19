@@ -1,0 +1,158 @@
+# 属性出力ポリシー（URL スキーム検証・イベントハンドラ属性ブロック）
+
+**本文書のステータス**: 確定（イシュー #373）。
+
+## 1. 目的とトレーサビリティ
+
+`rws-core` の既定エスケープ（`core/src/escape.rs`、OWASP XSS Prevention
+Cheat Sheet Rule #1 準拠の 5 文字置換）は属性値コンテキストからの
+「脱出」（`"` による breakout 等）を防ぐが、**脱出を伴わない攻撃**は防げ
+ない。代表例が URL スキーム経由の XSS である。
+
+```
+el("a", vec![("href", user_url)], ...)
+```
+
+に `javascript:alert(1)` を渡した場合、5 文字（`"` `'` `<` `>` `&`）の
+いずれも含まないため、既定エスケープをそのまま通過して
+`href="javascript:alert(1)"` として出力される。これはブラウザ上でリンク
+クリック時に任意 JS を実行させる、breakout を伴わない別種の脅威である。
+
+本書は `core/src/escape.rs` の rustdoc「スコープ外」節・イシュー #367 の
+out-of-scope 節で明示的に先送りされてきたこの領域について、脅威整理と
+対応方針を確定し、`docs/spec/04-requirements.md` REQ-1（既定エスケープ）
+の趣旨を「属性出力全体の安全性」へ拡張する形で記録する。関連イシュー:
+#367（既定エスケープの範囲確定）。
+
+## 2. 脅威マトリクス
+
+| 脅威 | breakout を伴うか | 既定エスケープで防げるか | 本書での対応 |
+|------|---|---|---|
+| URL スキーム経由の XSS（`href="javascript:..."` 等） | 伴わない | 防げない | §3.1 URL 許可スキーム検証（採用） |
+| イベントハンドラ属性への注入（`onclick="..."`） | 属性値が常に JS 実行コンテキスト | 部分的（breakout は防ぐが、属性自体が存在すれば値がそのまま実行される） | §3.2 `on*` 属性の一律不出力（採用） |
+| `style` 属性経由のデータ流出・レガシー CSS 実行ベクタ | 伴わない場合あり | エスケープは breakout を防ぐのみ | `intentional-non-adoption.md` §3.7（非採用。理由: 現代ブラウザでは CSS 経由コード実行ベクタは既に廃止済み。属性値エスケープで breakout は防止済み） |
+| `srcset` の複数候補中 1 件が危険スキーム | 伴わない | 防げない（カンマ区切りの複合構文） | §3.1 の拡張（1 候補でも不合格なら属性全体をスキップ） |
+| `<base href>` / `<meta http-equiv="refresh">` 経由の間接的 URL 制御 | 該当なし（別要素からの間接効果） | 対象外（属性値そのものの脅威ではない） | 本書のスコープ外（§6 参照。対策強化が必要なら別 Issue） |
+
+## 3. 採用した対策
+
+### 3.1 URL 属性の許可スキーム検証
+
+**実装**: `core/src/url.rs`（`rws_core::is_safe_url` / `rws_core::URL_ATTRS`
+/ `rws_core::is_url_attr`）。
+
+- **正リスト（`URL_ATTRS`）**: `href` / `src` / `action` / `formaction` /
+  `xlink:href` / `poster` / `cite` / `data` / `background` / `ping` /
+  `dynsrc` / `lowsrc`。属性名の照合は ASCII 大文字小文字非依存。
+  `URL_ATTRS` と許可スキームのリストは `core/src/url.rs` を単一の情報源
+  とし、`rws-core` から `pub use` された関数・定数を `rws-wasm-client` 等の
+  上位クレートが再利用する（コピーを作らない、A05 対策）。
+- **許可スキーム（deny by default）**: スキームなしの相対 URL（`/path`・
+  `./x`・`?q`・`#frag`・protocol-relative `//host`）、および
+  `http` / `https` / `mailto` / `tel`（大文字小文字非依存）。
+- **拒否**: 上記以外の全スキーム（`javascript:` / `data:` / `vbscript:` /
+  `blob:` / 未知スキーム）。
+- **スキーム抽出**: ブラウザの寛容な URL パースを模倣した過剰側安全設計。
+  判定前に ASCII タブ・改行（`\t` `\n` `\r`）を全位置で除去し、先頭の
+  C0 制御文字・空白をトリムした上で、`/` `?` `#` `\` のいずれよりも前に
+  現れる `:` までの区間が `[a-zA-Z][a-zA-Z0-9+.\-]*` に一致する場合のみを
+  スキームとみなす。これにより `java\tscript:`・`\u{0}javascript:`・
+  ` javascript:` のような偽装形を遮断しつつ、`/path/a:b` のような相対
+  URL 中のコロンをスキーム区切りと誤認しない。
+- **`srcset` の扱い**: カンマ区切りの複数候補を持つ特殊構文のため
+  `URL_ATTRS` には含めず、`render_into`（`core/src/lib.rs`）が個別に
+  候補分割（カンマ区切り→各候補の先頭空白区切りトークンを URL 部分として
+  抽出）した上で `is_safe_url` を適用する。1 候補でも不合格なら属性全体を
+  スキップする（部分的な書き換えは決定性を損なうため行わない）。
+
+**適用箇所（両経路に同一保証）**:
+
+1. **`render_into`（`core/src/lib.rs`）**: SSR・SSG・CSR いずれのモードも
+   共通で通る `rws_core::render()` の内部実装。`URL_ATTRS` 該当属性の値が
+   `is_safe_url` 不合格の場合、属性ごと出力をスキップする（既存の不正
+   属性名スキップ・不正タグ名スキップと同型の fail-closed 挙動。panic
+   させない）。
+2. **`rws-wasm-client` の実 DOM 直接更新経路**（`binding_dom.rs` の
+   `apply_one` / `keyed_dom.rs` の `build_element`）: `render()` を通らず
+   `set_attribute` を直接呼ぶ経路が存在するため、render 時検証だけでは
+   不十分。両関数とも `rws_core::is_url_attr` / `rws_core::is_safe_url` を
+   通し、不合格の場合は `set_attribute` を呼ばない。`binding_dom.rs` は
+   さらに `remove_attribute` で既存の（束縛前に設定されていた）属性値を
+   除去する（fail-closed。古い安全値が残ることによる不整合も避ける）。
+
+検証は常に**生の属性値**に対して行う。`escape_html_into` によるエスケープ
+後の文字列を判定対象にしない（エスケープは別コンテキスト向けの文字置換で
+あり、スキーム判定の対象を歪めるため）。
+
+### 3.2 イベントハンドラ属性の一律ブロック
+
+**実装**: `core/src/url.rs`（`rws_core::is_event_handler_attr`）。
+
+本フレームワークのインタラクションモデルは `data-hydrate` /
+`data-bind-*` マーキングと dispatch（`docs/api/interactive-api.md`）で
+あり、インライン JS（`onclick` 等）は設計上の正規経路に存在しない。
+属性名が ASCII 大文字小文字非依存で `on` から始まり、かつ `on` の後に
+1 文字以上続く場合（`on` 単体は対象外。HTML 標準に `on` という名前の
+イベントは存在しない）、値によらず出力しない。
+
+**適用箇所**: `render_into`（`core/src/lib.rs`）・`binding_dom.rs` の
+`apply_one`・`keyed_dom.rs` の `build_element`（§3.1 と同一の 3 箇所）。
+
+`on*` 始まりの正当なカスタム属性が必要な場合は `data-*` を使う運用と
+する。本対策は制限の追加のみであり、既定エスケープの迂回経路の新設には
+当たらない。
+
+## 4. 正リストの所在（単一の情報源）
+
+- `URL_ATTRS` 定数・許可スキーム判定ロジック・`is_event_handler_attr`:
+  `core/src/url.rs`（`rws-core` の公開 API として `pub use` 済み）
+- 利用者コード・他クレートからの利用は必ず `rws_core::{is_safe_url,
+  is_url_attr, is_event_handler_attr, URL_ATTRS}` を経由し、独自にリストを
+  複製しない。
+
+## 5. 運用: 属性がスキップされた場合の診断
+
+`core` はログ機構を持たないため、URL 属性・イベントハンドラ属性が
+スキップされても実行時ログは出力されない（現状構造で自然にログ経由の
+情報露出を回避している、A09 対策）。開発時に「属性が消えた」ことに
+気づくには以下を確認する。
+
+- 出力 HTML に該当属性（例: `href=`）自体が存在するかを確認する。
+- 属性値が `javascript:` 等の危険スキームでないか、またはタブ・改行・
+  制御文字による偽装形になっていないかを確認する（§3.1 のスキーム抽出
+  規則参照）。
+- `on*` で始まる属性名を意図的に使っていないか確認する（`data-*` へ
+  置き換える）。
+
+将来診断機能（開発モードでのみ有効な警告出力等）を追加する場合は、
+属性値そのものをログに含めない設計とすること（A09 対策の継続）。
+
+## 6. スコープ外（放置しない事項）
+
+- `<base href>` / `<meta http-equiv="refresh">` 経由の間接的 URL 制御の
+  追加対策: これらは対象属性そのものの脅威ではなく、ページ内の別要素が
+  ナビゲーション先へ間接的に影響する経路であり、本書の対象（属性値の
+  URL スキーム検証）とは性質が異なる。対策強化が必要と判断された場合は
+  別 Issue として提案する（`.claude/rules/out-of-scope-tracking.md` 準拠）。
+- `fw gate` への「URL 属性検証の弱体化検出」ゲート追加: 現状は
+  `core/tests/xss_escape.rs` の回帰テスト（削除・弱体化禁止規約、
+  `.claude/rules/coding-rust.md`）に依拠する。機械ゲート化が必要と判断
+  された場合は別 Issue として提案する。
+- `templates/default/` 側への周知ドキュメント反映: 標準プロジェクト
+  テンプレート利用者向けの説明追加は本書のスコープ外。別 Issue 候補。
+
+## 7. 参照
+
+- `core/src/url.rs`（`is_safe_url` / `URL_ATTRS` / `is_url_attr` /
+  `is_event_handler_attr` の実装・ユニットテスト）
+- `core/src/lib.rs`（`render_into` のクレート冒頭不変条件 8・9、適用箇所）
+- `core/src/escape.rs`（既定エスケープの守備範囲、スコープ外節から本書への参照）
+- `core/tests/xss_escape.rs`（`mod url_scheme_xss`、SSR/SSG/CSR 経路の回帰テスト）
+- `wasm-client/src/binding_dom.rs`（実 DOM 属性束縛更新経路の適用）
+- `wasm-client/src/keyed_dom.rs`（keyed list プログラム的構築経路の適用）
+- `wasm-client/tests/binding_browser.rs`（実ブラウザでの束縛更新回帰テスト）
+- `wasm-full/tests/xss_escape_wasm.rs`（実ブラウザでの `set_inner_html` 経由 DOM 読み戻し回帰テスト）
+- `docs/policy/intentional-non-adoption.md` §3.5〜§3.9（非採用項目の評価軸・再評価トリガー）
+- `docs/api/component-api.md`（属性出力の検証仕様への参照）
+- `.claude/rules/coding-rust.md`（既定エスケープ厳守・`forbid(unsafe_code)`・依存上限）
+- `.claude/rules/security.md`（OWASP Top 10 チェック）

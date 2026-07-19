@@ -134,7 +134,12 @@ fn nth_element_child(list_element: &Element, index: usize) -> Option<Element> {
 /// 渡した場合でも `setAttribute` はイベントハンドラを実行コード化しない
 /// （`element.onclick = ...` とは異なる。属性値は `escape_html` を経由しない
 /// 生文字列だが、`setAttribute`/`set_text_content` は HTML パースを行わない
-/// ため XSS 経路にならない）。
+/// ため breakout 系 XSS 経路にならない）。
+///
+/// ただし URL スキーム経由の XSS（`href="javascript:..."` 等）は breakout を
+/// 伴わないため上記の理由では防げない。`render_into`（rws-core）・
+/// `binding_dom.rs` と同一の URL 検証・イベントハンドラ属性ブロックを本経路
+/// にも適用する（イシュー #373。`docs/policy/attribute-output-policy.md`）。
 fn build_element(document: &Document, node: &Node) -> Option<web_sys::Node> {
     match node {
         Node::Text(text) => Some(document.create_text_node(text).into()),
@@ -145,6 +150,14 @@ fn build_element(document: &Document, node: &Node) -> Option<web_sys::Node> {
         } => {
             let element = document.create_element(tag).ok()?;
             for (name, value) in attrs {
+                if rws_core::is_event_handler_attr(name) {
+                    // イベントハンドラ属性は一律出力しない（不変条件 9 と同一）。
+                    continue;
+                }
+                if rws_core::is_url_attr(name) && !rws_core::is_safe_url(value) {
+                    // 危険スキームの URL 属性は書き込まない（fail-closed）。
+                    continue;
+                }
                 let _ = element.set_attribute(name, value);
             }
             for child in children {
