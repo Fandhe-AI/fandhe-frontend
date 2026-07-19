@@ -44,7 +44,7 @@ mod support;
 use std::path::Path;
 use support::{
     baseline_main_rs, cargo_deny_available, check_passed, replace_unique, run_fw_gate,
-    write_case_project,
+    write_case_project, write_core_case_project,
 };
 
 /// ケース 3（禁止依存追加）向けに、ダミーの `openssl-sys` path クレートを
@@ -194,6 +194,12 @@ fn baseline_fixture_passes_core_checks() {
         check_passed(&stdout, "default_escape_check"),
         Some(true),
         "ベースラインで default_escape_check が失敗した: stdout={stdout}"
+    );
+    assert_eq!(
+        check_passed(&stdout, "url_validation_check"),
+        Some(true),
+        "ベースラインで url_validation_check が失敗した（イシュー #401、\
+         set_attribute 系呼び出しを含まないため常に通過するはず）: stdout={stdout}"
     );
     assert_eq!(
         check_passed(&stdout, "lint"),
@@ -493,5 +499,149 @@ fn self_referential_source_still_blocks_on_actual_raw_html_call() {
         Some(false),
         "実際の raw_html() 呼び出しは default_escape_check で検出され続ける \
          はず（誤検知解消が偽陰性を生んでいないことの確認）: stdout={stdout}"
+    );
+}
+
+// --- イシュー #401: `url_validation_check`（U1〜U3）の負例・正例 ---
+
+/// U1 負例。`role != "core"`（component 役割）のディレクトリに、URL 検証
+/// ガード 4 種のいずれも呼ばない DOM 属性設定呼び出し（`set_attribute`
+/// 相当、`web_sys` 非依存の自己完結スタブで再現）を注入し、
+/// `url_validation_check` が failed のまま `fw gate` が BLOCKED になることを
+/// 固定する（`docs/design/gate-design.md` §2.4 U1）。
+#[test]
+fn url_sink_without_guards_blocks_gate_with_url_validation_check_failure() {
+    let injected = format!(
+        "{}\nstruct FakeElement;\n\nimpl FakeElement {{\n    fn set_attribute(&self, name: &str, value: &str) {{\n        let _ = (name, value);\n    }}\n}}\n\nfn set_untrusted_href(el: &FakeElement, value: &str) {{\n    el.set_attribute(\"href\", value);\n}}\n",
+        baseline_main_rs()
+    );
+    let project = write_case_project("url-sink-unguarded", &injected);
+    let (code, stdout, stderr) = run_fw_gate(&project);
+
+    assert_eq!(
+        code, 1,
+        "ガード未経由の DOM 属性設定呼び出しが fw gate を通過してしまった \
+         （イシュー #401 の弱体化検出が機能していない）: stdout={stdout} stderr={stderr}"
+    );
+    assert!(
+        stdout.contains("\"gate_result\":\"BLOCKED\""),
+        "stdout={stdout}"
+    );
+    assert_eq!(
+        check_passed(&stdout, "url_validation_check"),
+        Some(false),
+        "url_validation_check が failed であるはず: stdout={stdout}"
+    );
+    assert_eq!(
+        check_passed(&stdout, "default_escape_check"),
+        Some(true),
+        "default_escape_check は無関係のまま通過するはず（ブロック理由の \
+         特定性）: stdout={stdout}"
+    );
+    assert_eq!(
+        check_passed(&stdout, "type_check"),
+        Some(true),
+        "注入コードはコンパイル可能なはず（type_check は無関係のまま \
+         通過する）: stdout={stdout}"
+    );
+}
+
+/// `core/src/url.rs`（イシュー #373）の実装相当の最小 URL 検証モジュール
+/// ソース（`URL_ATTRS` 12 属性・ガード関数 4 種・許可スキーム 4 種）。
+/// `url_validation_check` U2/U3 の正例・負例双方の基準線として使う。
+fn valid_core_url_rs_content() -> &'static str {
+    r#"pub const URL_ATTRS: &[&str] = &[
+    "href",
+    "src",
+    "action",
+    "formaction",
+    "xlink:href",
+    "poster",
+    "cite",
+    "data",
+    "background",
+    "ping",
+    "dynsrc",
+    "lowsrc",
+];
+
+pub fn is_url_attr(name: &str) -> bool {
+    URL_ATTRS.iter().any(|a| a.eq_ignore_ascii_case(name))
+}
+
+pub fn is_event_handler_attr(name: &str) -> bool {
+    name.len() > 2
+        && name.as_bytes()[0].eq_ignore_ascii_case(&b'o')
+        && name.as_bytes()[1].eq_ignore_ascii_case(&b'n')
+}
+
+pub fn is_safe_url(value: &str) -> bool {
+    match extract_scheme(value) {
+        None => true,
+        Some(scheme) => {
+            scheme.eq_ignore_ascii_case("http")
+                || scheme.eq_ignore_ascii_case("https")
+                || scheme.eq_ignore_ascii_case("mailto")
+                || scheme.eq_ignore_ascii_case("tel")
+        }
+    }
+}
+
+fn extract_scheme(s: &str) -> Option<&str> {
+    let colon_idx = s.find(':')?;
+    Some(&s[..colon_idx])
+}
+
+pub fn is_safe_srcset(value: &str) -> bool {
+    value.split(',').all(|candidate| {
+        let url_part = candidate.split_whitespace().next().unwrap_or("");
+        is_safe_url(url_part)
+    })
+}
+"#
+}
+
+/// U2/U3 正例。`core/src/url.rs` 相当の未弱体化モジュールを `role = "core"`
+/// フィクスチャへ配置した場合、`url_validation_check` が passed のまま
+/// `fw gate` が進むことを固定する（負例テストの対照群）。
+#[test]
+fn core_url_module_baseline_passes_url_validation_check() {
+    let project = write_core_case_project("baseline", valid_core_url_rs_content());
+    let (_code, stdout, stderr) = run_fw_gate(&project);
+
+    assert_eq!(
+        check_passed(&stdout, "url_validation_check"),
+        Some(true),
+        "未弱体化の core URL 検証モジュールが url_validation_check を \
+         通過しなかった: stdout={stdout} stderr={stderr}"
+    );
+}
+
+/// U2 負例。`is_safe_url` の許可スキーム集合へ `ftp` を追加（allowlist の
+/// 緩和）し、`url_validation_check` が failed のまま `fw gate` が BLOCKED に
+/// なることを固定する（`docs/design/gate-design.md` §2.4 U2）。
+#[test]
+fn core_url_scheme_relaxation_blocks_gate_with_url_validation_check_failure() {
+    let weakened = replace_unique(
+        valid_core_url_rs_content(),
+        "scheme.eq_ignore_ascii_case(\"tel\")",
+        "scheme.eq_ignore_ascii_case(\"tel\")\n                || scheme.eq_ignore_ascii_case(\"ftp\")",
+    );
+    let project = write_core_case_project("scheme-relaxed", &weakened);
+    let (code, stdout, stderr) = run_fw_gate(&project);
+
+    assert_eq!(
+        code, 1,
+        "許可スキームへの ftp 追加（allowlist の緩和）が fw gate を \
+         通過してしまった: stdout={stdout} stderr={stderr}"
+    );
+    assert!(
+        stdout.contains("\"gate_result\":\"BLOCKED\""),
+        "stdout={stdout}"
+    );
+    assert_eq!(
+        check_passed(&stdout, "url_validation_check"),
+        Some(false),
+        "url_validation_check が failed であるはず: stdout={stdout}"
     );
 }

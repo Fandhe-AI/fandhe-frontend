@@ -315,10 +315,11 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
    マニフェストと相対パス集合・内容バイト列（`Cargo.toml`/`Cargo.lock`/
    `structure.toml` を除く）・実行ビットが 1:1 対応することを確認する。
 
-さらに `cli/tests/new_gate_e2e.rs`（イシュー #351／#378）が `fw new` →
+さらに `cli/tests/new_gate_e2e.rs`（イシュー #351／#378／#401）が `fw new` →
 `fw gate` の直列 e2e を実バイナリで実行し、生成直後のプロジェクトが無編集で
-`fw gate` の 5 チェック（type_check / default_escape_check / lint / test /
-policy）全 PASS になることをテンプレートごとに固定する。`policy`
+`fw gate` の 6 チェック（type_check / default_escape_check /
+url_validation_check / lint / test / policy）全 PASS になることをテンプレート
+ごとに固定する。`policy`
 （cargo-deny 依存）のみ実行環境で分岐するため、
 `cli/tests/scenarios/bugfix_escape.rs::baseline_passes_gate` と同一方針で
 スキップ・`#[ignore]` を使わず両分岐（PASS / 環境エラーによる BLOCKED）を

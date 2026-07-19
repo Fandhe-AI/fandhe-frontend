@@ -76,9 +76,10 @@ fn baseline_fixture_passes_fw_structure() {
     }
 }
 
-/// ベースライン（無改変）フィクスチャが `fw gate` のコア 4 チェック
-/// （`type_check`/`default_escape_check`/`lint`/`test`）すべてを通過する
-/// ことを確認する対照群（`negative_cases.rs::baseline_fixture_passes_core_checks`
+/// ベースライン（無改変）フィクスチャが `fw gate` のコア 5 チェック
+/// （`type_check`/`default_escape_check`/`url_validation_check`/`lint`/`test`）
+/// すべてを通過することを確認する対照群
+/// （`negative_cases.rs::baseline_fixture_passes_core_checks`
 /// と同一方針）。後続のシナリオ回帰テストが「注入した欠陥」・「適用した
 /// 改修」に起因して BLOCKED/PASS になっていることを保証する基盤であり、
 /// このテストが落ちる場合はシナリオ側の失敗を環境要因と区別できない。
@@ -101,6 +102,11 @@ fn baseline_fixture_passes_gate_core_checks() {
         check_passed(&stdout, "default_escape_check"),
         Some(true),
         "ベースラインで default_escape_check が失敗した: stdout={stdout}"
+    );
+    assert_eq!(
+        check_passed(&stdout, "url_validation_check"),
+        Some(true),
+        "ベースラインで url_validation_check が失敗した（イシュー #401）: stdout={stdout}"
     );
     assert_eq!(
         check_passed(&stdout, "lint"),
