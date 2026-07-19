@@ -68,10 +68,10 @@ User-Agent では Cloudflare 由来の 403 を返す環境がある、fandhe-bac
 - `fw` バイナリ名（中立な CLI コマンド名として維持。package 名
   `rws-cli` → `fandhe-frontend-cli` の改名とは独立）
 - `xtask`（中立な補助クレート名）
-- `docs/spec/`（別リポジトリ `frontend-framework-spec` のサブモジュール。
+- `docs/spec/`（別リポジトリ `fandhe-frontend-spec` のサブモジュール。
   本ツリーでは参照表記のみを更新し、spec リポジトリ自体の改名・
   `RWS_BIND_ADDR` 記載（`04-requirements.md`）の更新は
-  frontend-framework-spec 側へ別途申し入れる）
+  fandhe-frontend-spec 側へ別途申し入れる）
 
 ## 責務分界
 
@@ -83,7 +83,7 @@ User-Agent では Cloudflare 由来の 403 を返す環境がある、fandhe-bac
 - crates.io 上での名称確保（予約公開）の要否判断・実施
 - GitHub リポジトリ名の変更（第 6 段階 #439）の実施可否判断・実施（旧 URL
   からのリダイレクト・外部リンク・CI シークレット等への影響評価を含む）
-- `docs/spec/`（別リポジトリ `Fandhe-AI/frontend-framework-spec`）側の
+- `docs/spec/`（別リポジトリ `Fandhe-AI/fandhe-frontend-spec`）側の
   名称関連記述の更新（submodule のため本リポジトリ側からは書き換えない）
 
 ## 段階的移行計画

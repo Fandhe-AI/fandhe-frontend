@@ -29,7 +29,7 @@
 変更）。`crates/wasm-full/src/hydration.rs` の実装・`web-sys` feature 追加・
 `Runtime::hydrate` 本体・CI 変更はいずれも TASK-11.4b（#83）・TASK-11.2d（#77）
 以降のスコープであり、本タスクでは行わない。`docs/spec/` はサブモジュールのため
-編集禁止（変更が必要な場合は frontend-framework-spec リポジトリで行う）。
+編集禁止（変更が必要な場合は fandhe-frontend-spec リポジトリで行う）。
 
 **先行依存関係**: 本書は以下の凍結済み設計・実装のみに依存し、いずれも本書側では
 再定義しない。
@@ -181,7 +181,7 @@ C: Component + Hydrate`）のみを前提とする。本書の `hydration.rs` AP
 | `Runtime<C>` / `Runtime::hydrate` 本体・CI の `wasm-full` 存在ガード | TASK-11.2d（#77、並列進行中） |
 | ネスト構造等の複雑な状態への一般化 | Issue #163（起票済み・backlog） |
 | 巨大な属性値・リスト長の上限（DoS 耐性） | TASK-11.4b（#83）の実装検討事項として引き継ぐ（第 4 節・判断 7） |
-| 仕様（`docs/spec/`）自体の変更が必要な事項 | frontend-framework-spec リポジトリへの起票を提案する（本書の対象外） |
+| 仕様（`docs/spec/`）自体の変更が必要な事項 | fandhe-frontend-spec リポジトリへの起票を提案する（本書の対象外） |
 
 ## 8. セキュリティ不変条件の引き継ぎ
 

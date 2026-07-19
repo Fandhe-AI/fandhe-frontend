@@ -27,7 +27,7 @@
 **本タスクのスコープ**: 本ドキュメントの作成のみ（docs-only 変更）。`crates/wasm-thin/`
 クレートの実装・`Cargo.toml`（workspace）・CI の変更はいずれも TASK-11.3a（#79）の
 スコープであり、本書では行いません。`docs/spec/` はサブモジュールのため編集禁止
-（変更が必要な場合は frontend-framework-spec リポジトリで行います）。
+（変更が必要な場合は fandhe-frontend-spec リポジトリで行います）。
 
 本書は `docs/design/wasm-full-architecture.md`（TASK-11.2a）・`docs/guides/embedding-guide.md`
 （TASK-7.1b）・`docs/api/component-api.md`（TASK-5.1a）と同じ書式（目的とトレーサビ
@@ -364,4 +364,4 @@ WASM 関数呼び出しスループット計測による代替値である点に
 | バンドルサイズ検証の自動化 | TASK-11.6（#85〜#89） |
 | `docs/policy/unsafe-boundary.md` の `wasm-thin` 行の更新（`fandhe-frontend-wasm-thin` は `web-sys` 非依存のため `unsafe` を使用しない見込みだが、確定は実装時に行う） | TASK-11.3a（#79） |
 | 束縛点更新・keyed list（イシュー #345 の一般化方針）を `wasm-thin` の JS グルー側更新経路にも適用するか | `docs/policy/intentional-non-adoption.md` §3.10（イシュー #376）で非採用確定 |
-| 仕様（`docs/spec/`）自体の変更が必要な事項が生じた場合 | frontend-framework-spec リポジトリの Issue として起票を提案する（本書の対象外） |
+| 仕様（`docs/spec/`）自体の変更が必要な事項が生じた場合 | fandhe-frontend-spec リポジトリの Issue として起票を提案する（本書の対象外） |

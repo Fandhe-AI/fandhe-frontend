@@ -31,4 +31,4 @@ EOF
 
 - ユーザーの承認なしに勝手に Issue を起票しない
 - スコープ外の修正を現在の PR に混入させない（別 Issue・別 PR で対処する）
-- 仕様（`docs/spec/`）自体の変更が必要な事項は、本リポジトリではなく frontend-framework-spec リポジトリの Issue として起票を提案する
+- 仕様（`docs/spec/`）自体の変更が必要な事項は、本リポジトリではなく fandhe-frontend-spec リポジトリの Issue として起票を提案する

@@ -35,7 +35,7 @@
 関数本体の実装（codec・dispatch・render ヘルパの本体）は TASK-11.1b（#71）、
 テストスイートは TASK-11.1c（#72）のスコープであり、本タスクでは行わない。
 `docs/spec/` はサブモジュールのため編集禁止（変更が必要な場合は
-frontend-framework-spec リポジトリで行う）。
+fandhe-frontend-spec リポジトリで行う）。
 
 **先行依存関係**: 本書の設計は `fandhe-frontend-core`（マージ済み、`docs/api/component-api.md`
 第 2 節の凍結表）のみに依存する。`fandhe-frontend-interactive` と `fandhe-frontend-wasm-full`

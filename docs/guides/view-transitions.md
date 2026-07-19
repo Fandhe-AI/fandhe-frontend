@@ -53,7 +53,7 @@ View Transitions API の実験段階（Level 1 初期）で提案された構文
 という仕様の**意図**を、廃止された旧構文ではなく現行標準で満たす判断です。
 
 > 仕様書（`docs/spec/`）自体はサブモジュールであり本リポジトリからは編集できません
-> （`.claude/rules/delegation-impl.md`）。文言の乖離は frontend-framework-spec
+> （`.claude/rules/delegation-impl.md`）。文言の乖離は fandhe-frontend-spec
 > リポジトリ側の Issue として起票を提案します（`.claude/rules/out-of-scope-tracking.md`、
 > ユーザー承認後に起票）。
 

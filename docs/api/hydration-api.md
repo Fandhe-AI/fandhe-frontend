@@ -29,7 +29,7 @@
 新設・依存クレート（`wasm-bindgen` / `web-sys`）の実追加・`.github/workflows/ci.yml` の
 変更はいずれも TASK-6.2b（#48）のスコープであり、本タスクでは行わない。テスト実装は
 TASK-6.2c（#49）のスコープ。`docs/spec/` はサブモジュールのため編集禁止（変更が必要な
-場合は frontend-framework-spec リポジトリで行う）。
+場合は fandhe-frontend-spec リポジトリで行う）。
 
 **先行依存関係**: `hydrate()` の設計は `fandhe-frontend-core`（マージ済み）・`fandhe-frontend-app`（TASK-6.1b
 #43 でマージ済み）の公開 API のみに依存する。TASK-6.1c（#44 fandhe-frontend-server）・TASK-6.1d
