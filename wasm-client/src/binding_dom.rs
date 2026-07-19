@@ -125,9 +125,10 @@ impl BindingTable {
 /// - `Text`: `set_text_content`（`Node.textContent`）。`BoundValue::Flag` が
 ///   渡された場合は `"true"`/`"false"` として出力する。
 /// - `Attr(name)`: `set_attribute`。`BoundValue::Flag` も同様に文字列化する。
-///   `render_into`（`rws-core`）と同一の URL スキーム検証・イベントハンドラ
-///   属性ブロックを適用する（イシュー #373。SSR 初期描画と実 DOM 直接更新の
-///   両経路に同一の XSS 対策保証を持たせる契約。詳細は
+///   `render_into`（`rws-core`）と同一の URL スキーム検証（`srcset` の
+///   カンマ区切り候補分割検証を含む）・イベントハンドラ属性ブロックを
+///   適用する（イシュー #373。SSR 初期描画と実 DOM 直接更新の両経路に
+///   同一の XSS 対策保証を持たせる契約。詳細は
 ///   `docs/policy/attribute-output-policy.md`）。
 /// - `Class(name)`: `class_list().toggle_with_force`。`BoundValue::Text` が
 ///   渡された場合（型不一致）は no-op とする（fail-closed）。
@@ -151,6 +152,15 @@ fn apply_one(kind: &BindingKind, element: &Element, value: &BoundValue) {
             // 残る不整合を避けるため `remove_attribute` で除去する
             // （fail-closed。古い安全値の残存にも決定的な挙動を与える）。
             if rws_core::is_url_attr(name) && !rws_core::is_safe_url(&text) {
+                let _ = element.remove_attribute(name);
+                return;
+            }
+            // `srcset` はカンマ区切りの URL 候補を持つ特殊構文のため
+            // `is_url_attr` の対象外（`URL_ATTRS` に非該当）。`render_into`
+            // と同一の `is_safe_srcset` で候補分割検証する（イシュー #373
+            // レビュー指摘対応: 従来は `render_into` にのみ実装されており
+            // 本経路では未検証だった）。
+            if name.eq_ignore_ascii_case("srcset") && !rws_core::is_safe_srcset(&text) {
                 let _ = element.remove_attribute(name);
                 return;
             }

@@ -31,7 +31,7 @@ out-of-scope 節で明示的に先送りされてきたこの領域について�
 | URL スキーム経由の XSS（`href="javascript:..."` 等） | 伴わない | 防げない | §3.1 URL 許可スキーム検証（採用） |
 | イベントハンドラ属性への注入（`onclick="..."`） | 属性値が常に JS 実行コンテキスト | 部分的（breakout は防ぐが、属性自体が存在すれば値がそのまま実行される） | §3.2 `on*` 属性の一律不出力（採用） |
 | `style` 属性経由のデータ流出・レガシー CSS 実行ベクタ | 伴わない場合あり | エスケープは breakout を防ぐのみ | `intentional-non-adoption.md` §3.7（非採用。理由: 現代ブラウザでは CSS 経由コード実行ベクタは既に廃止済み。属性値エスケープで breakout は防止済み） |
-| `srcset` の複数候補中 1 件が危険スキーム | 伴わない | 防げない（カンマ区切りの複合構文） | §3.1 の拡張（1 候補でも不合格なら属性全体をスキップ） |
+| `srcset` の複数候補中 1 件が危険スキーム | 伴わない | 防げない（カンマ区切りの複合構文） | §3.1 の拡張・`is_safe_srcset`（1 候補でも不合格なら属性全体をスキップ。`render_into`・`binding_dom.rs`・`keyed_dom.rs` の 3 経路すべてで検証） |
 | `<base href>` / `<meta http-equiv="refresh">` 経由の間接的 URL 制御 | 該当なし（別要素からの間接効果） | 対象外（属性値そのものの脅威ではない） | 本書のスコープ外（§6 参照。対策強化が必要なら別 Issue） |
 
 ## 3. 採用した対策
@@ -60,23 +60,29 @@ out-of-scope 節で明示的に先送りされてきたこの領域について�
   ` javascript:` のような偽装形を遮断しつつ、`/path/a:b` のような相対
   URL 中のコロンをスキーム区切りと誤認しない。
 - **`srcset` の扱い**: カンマ区切りの複数候補を持つ特殊構文のため
-  `URL_ATTRS` には含めず、`render_into`（`core/src/lib.rs`）が個別に
-  候補分割（カンマ区切り→各候補の先頭空白区切りトークンを URL 部分として
-  抽出）した上で `is_safe_url` を適用する。1 候補でも不合格なら属性全体を
-  スキップする（部分的な書き換えは決定性を損なうため行わない）。
+  `URL_ATTRS` には含めず、`core/src/url.rs` の `is_safe_srcset`（単一の
+  情報源）が候補分割（カンマ区切り→各候補の先頭空白区切りトークンを URL
+  部分として抽出）と `is_safe_url` 適用を行う。1 候補でも不合格なら属性
+  全体をスキップする（部分的な書き換えは決定性を損なうため行わない）。
+  `render_into`・`binding_dom.rs`・`keyed_dom.rs` の 3 経路すべてが
+  `is_safe_srcset` を参照し、判定ロジックを重複させない（イシュー #373
+  レビュー指摘対応: 従来は `render_into` にのみインライン実装されており、
+  wasm-client の実 DOM 直接更新経路では `srcset` が `URL_ATTRS` 非該当
+  ゆえに未検証だった）。
 
-**適用箇所（両経路に同一保証）**:
+**適用箇所（3 経路に同一保証）**:
 
 1. **`render_into`（`core/src/lib.rs`）**: SSR・SSG・CSR いずれのモードも
    共通で通る `rws_core::render()` の内部実装。`URL_ATTRS` 該当属性の値が
-   `is_safe_url` 不合格の場合、属性ごと出力をスキップする（既存の不正
-   属性名スキップ・不正タグ名スキップと同型の fail-closed 挙動。panic
-   させない）。
+   `is_safe_url` 不合格の場合、`srcset` の値が `is_safe_srcset` 不合格の
+   場合は、属性ごと出力をスキップする（既存の不正属性名スキップ・不正
+   タグ名スキップと同型の fail-closed 挙動。panic させない）。
 2. **`rws-wasm-client` の実 DOM 直接更新経路**（`binding_dom.rs` の
    `apply_one` / `keyed_dom.rs` の `build_element`）: `render()` を通らず
    `set_attribute` を直接呼ぶ経路が存在するため、render 時検証だけでは
-   不十分。両関数とも `rws_core::is_url_attr` / `rws_core::is_safe_url` を
-   通し、不合格の場合は `set_attribute` を呼ばない。`binding_dom.rs` は
+   不十分。両関数とも `rws_core::is_url_attr` / `rws_core::is_safe_url`、
+   および `srcset` については `rws_core::is_safe_srcset` を通し、不合格の
+   場合は `set_attribute` を呼ばない。`binding_dom.rs` は
    さらに `remove_attribute` で既存の（束縛前に設定されていた）属性値を
    除去する（fail-closed。古い安全値が残ることによる不整合も避ける）。
 

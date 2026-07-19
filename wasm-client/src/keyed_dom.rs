@@ -138,8 +138,9 @@ fn nth_element_child(list_element: &Element, index: usize) -> Option<Element> {
 ///
 /// ただし URL スキーム経由の XSS（`href="javascript:..."` 等）は breakout を
 /// 伴わないため上記の理由では防げない。`render_into`（rws-core）・
-/// `binding_dom.rs` と同一の URL 検証・イベントハンドラ属性ブロックを本経路
-/// にも適用する（イシュー #373。`docs/policy/attribute-output-policy.md`）。
+/// `binding_dom.rs` と同一の URL 検証（`srcset` のカンマ区切り候補分割検証
+/// を含む）・イベントハンドラ属性ブロックを本経路にも適用する
+/// （イシュー #373。`docs/policy/attribute-output-policy.md`）。
 fn build_element(document: &Document, node: &Node) -> Option<web_sys::Node> {
     match node {
         Node::Text(text) => Some(document.create_text_node(text).into()),
@@ -156,6 +157,13 @@ fn build_element(document: &Document, node: &Node) -> Option<web_sys::Node> {
                 }
                 if rws_core::is_url_attr(name) && !rws_core::is_safe_url(value) {
                     // 危険スキームの URL 属性は書き込まない（fail-closed）。
+                    continue;
+                }
+                // `srcset` はカンマ区切りの URL 候補を持つ特殊構文のため
+                // `is_url_attr` の対象外。`render_into`/`binding_dom.rs` と
+                // 同一の `is_safe_srcset` で候補分割検証する
+                // （イシュー #373 レビュー指摘対応）。
+                if name.eq_ignore_ascii_case("srcset") && !rws_core::is_safe_srcset(value) {
                     continue;
                 }
                 let _ = element.set_attribute(name, value);
@@ -237,7 +245,7 @@ pub fn apply_keyed_list(document: &Document, list_element: &Element, new_list_no
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rws_core::{keyed::keyed_list, li, text};
+    use rws_core::{el, keyed::keyed_list, li, text};
     use wasm_bindgen_test::*;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
@@ -336,5 +344,64 @@ mod tests {
         assert_eq!(list_element.query_selector("script").unwrap(), None);
         let li_el = list_element.first_element_child().unwrap();
         assert_eq!(li_el.text_content().as_deref(), Some(malicious));
+    }
+
+    /// `srcset` はカンマ区切りの URL 候補を持つ特殊構文のため `URL_ATTRS`
+    /// （単一 URL 属性の正リスト）に非該当。候補の 1 件でも危険スキームを
+    /// 含む場合、`build_element` が `is_safe_srcset` による候補分割検証を
+    /// 経由して `srcset` 属性そのものを書き込まないこと（イシュー #373
+    /// レビュー指摘対応: keyed list 経由のプログラム的ノード構築でも
+    /// `render_into`/`binding_dom.rs` と同一の保証を持たせる契約の実ブラウザ
+    /// 証跡）。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_drops_srcset_when_a_candidate_has_a_dangerous_scheme() {
+        let document = doc();
+        let list_element = make_list_element(&document, &[]);
+
+        let items: Vec<(String, Node)> = vec![(
+            "x".to_string(),
+            li(
+                vec![],
+                vec![el(
+                    "img",
+                    vec![("srcset", "/safe.png 1x, javascript:alert(1) 2x")],
+                    vec![],
+                )],
+            ),
+        )];
+        let new_tree = keyed_list("ul", vec![], "items", items).unwrap();
+        apply_keyed_list(&document, &list_element, &new_tree);
+
+        let img = list_element.query_selector("img").unwrap().unwrap();
+        assert!(
+            img.get_attribute("srcset").is_none(),
+            "srcset 候補の 1 件でも危険スキームを含む場合、属性全体が \
+             書き込まれないこと（fail-closed）"
+        );
+    }
+
+    /// 全候補が安全な URL である `srcset` は従来どおり反映されること
+    /// （過剰ブロックでないことの確認）。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_keeps_srcset_when_all_candidates_are_safe() {
+        let document = doc();
+        let list_element = make_list_element(&document, &[]);
+
+        let items: Vec<(String, Node)> = vec![(
+            "x".to_string(),
+            li(
+                vec![],
+                vec![el("img", vec![("srcset", "/a.png 1x, /b.png 2x")], vec![])],
+            ),
+        )];
+        let new_tree = keyed_list("ul", vec![], "items", items).unwrap();
+        apply_keyed_list(&document, &list_element, &new_tree);
+
+        let img = list_element.query_selector("img").unwrap().unwrap();
+        assert_eq!(
+            img.get_attribute("srcset").as_deref(),
+            Some("/a.png 1x, /b.png 2x"),
+            "全候補が安全な URL の srcset は反映されること"
+        );
     }
 }

@@ -43,6 +43,7 @@ enum TestAction {
     Increment,
     SetDraft(String),
     ToggleLiked,
+    SetSrcset(String),
 }
 
 /// counter（テキスト束縛）/draft（テキスト束縛）/liked（属性 + class 束縛）の
@@ -51,6 +52,7 @@ struct TestState {
     counter: i64,
     draft: String,
     liked: bool,
+    srcset: String,
     dirty: Vec<&'static str>,
 }
 
@@ -58,12 +60,14 @@ impl TestState {
     const FIELD_COUNTER: &'static str = "counter";
     const FIELD_DRAFT: &'static str = "draft";
     const FIELD_LIKED: &'static str = "liked";
+    const FIELD_SRCSET: &'static str = "srcset";
 
     fn new() -> Self {
         Self {
             counter: 0,
             draft: String::new(),
             liked: false,
+            srcset: String::new(),
             dirty: Vec::new(),
         }
     }
@@ -88,6 +92,10 @@ impl Component for TestState {
                 self.liked = !self.liked;
                 self.dirty.push(Self::FIELD_LIKED);
             }
+            TestAction::SetSrcset(value) => {
+                self.srcset = value;
+                self.dirty.push(Self::FIELD_SRCSET);
+            }
         }
     }
 
@@ -103,6 +111,7 @@ impl Component for TestState {
             "increment" => Some(TestAction::Increment),
             "set_draft" => Some(TestAction::SetDraft(payload.to_string())),
             "toggle_liked" => Some(TestAction::ToggleLiked),
+            "set_srcset" => Some(TestAction::SetSrcset(payload.to_string())),
             _ => None,
         }
     }
@@ -120,6 +129,7 @@ impl BindingSource for TestState {
             "counter" => Some(BoundValue::Text(self.counter.to_string())),
             "draft" => Some(BoundValue::Text(self.draft.clone())),
             "liked" => Some(BoundValue::Flag(self.liked)),
+            "srcset" => Some(BoundValue::Text(self.srcset.clone())),
             _ => None,
         }
     }
@@ -175,6 +185,23 @@ fn fixture_tree() -> rws_core::Node {
                     ("data-bind-attr", &bind_attr_token("href", "draft")),
                 ],
                 vec![text("link")],
+            ),
+            // `srcset` は本来 `img`/`source` 等が持つ属性だが、既存の
+            // `text_update_does_not_parse_payload_as_html`（受け入れ条件 2）
+            // が「root 配下に img 要素が生成されないこと」を独立に検証して
+            // いるため、`img` タグとの衝突を避けて `span` に `srcset`
+            // 属性を持たせる（`set_attribute` は DOM 標準 API であり、
+            // タグと属性名の対応はブラウザのセマンティクス上の慣習に過ぎず
+            // 検証対象のロジック（`is_safe_srcset` 経由の候補分割検証）には
+            // 影響しない）。
+            el(
+                "span",
+                vec![
+                    ("id", "srcset-node"),
+                    ("srcset", "/safe.png 1x"),
+                    ("data-bind-attr", &bind_attr_token("srcset", "srcset")),
+                ],
+                vec![],
             ),
         ],
     )
@@ -540,5 +567,71 @@ fn safe_url_bound_to_href_is_applied_normally() {
         link.get_attribute("href").as_deref(),
         Some("/items/42"),
         "安全な相対 URL は href 束縛として正常に反映されること"
+    );
+}
+
+/// `srcset` 属性へ束縛された field を「候補の一部に危険スキームを含む値」
+/// に更新したとき、`apply_one`（`binding_dom.rs`）が候補分割検証
+/// （`rws_core::is_safe_srcset`）を経由して既存の安全な `srcset` 属性値を
+/// `remove_attribute` で除去すること。`srcset` は `URL_ATTRS`（単一 URL
+/// 属性の正リスト）に非該当のため、この検証が欠けていると危険スキームが
+/// そのまま実 DOM に書き込まれる（イシュー #373 レビュー指摘対応の
+/// 実ブラウザ証跡）。
+#[wasm_bindgen_test]
+fn dangerous_url_scheme_in_srcset_candidate_removes_the_attribute() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    let root = create_container(&document, "binding-srcset-scheme-root");
+    root.set_inner_html(&render(&fixture_tree()));
+
+    let table = BindingTable::scan(&root).expect("scan must succeed for a well-formed fixture");
+
+    let mut state = TestState::new();
+    dispatch(
+        &mut state,
+        "set_srcset",
+        "/safe.png 1x, javascript:alert(1) 2x",
+    );
+    table.apply_update(&state);
+
+    let img = root
+        .query_selector("#srcset-node")
+        .expect("query_selector must not fail")
+        .expect("fixture must contain #srcset-node");
+
+    assert!(
+        img.get_attribute("srcset").is_none(),
+        "srcset 候補の 1 件でも危険スキームを含む場合、属性全体が \
+         set_attribute されず、既存値も remove_attribute で除去されること \
+         （fail-closed）"
+    );
+}
+
+/// 全候補が安全な URL である `srcset` 値へ更新した場合は従来どおり
+/// `srcset` が反映されること（過剰ブロックでないことの確認）。
+#[wasm_bindgen_test]
+fn safe_srcset_candidates_are_applied_normally() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    let root = create_container(&document, "binding-srcset-safe-root");
+    root.set_inner_html(&render(&fixture_tree()));
+
+    let table = BindingTable::scan(&root).expect("scan must succeed for a well-formed fixture");
+
+    let mut state = TestState::new();
+    dispatch(&mut state, "set_srcset", "/a.png 1x, /b.png 2x");
+    table.apply_update(&state);
+
+    let img = root
+        .query_selector("#srcset-node")
+        .expect("query_selector must not fail")
+        .expect("fixture must contain #srcset-node");
+
+    assert_eq!(
+        img.get_attribute("srcset").as_deref(),
+        Some("/a.png 1x, /b.png 2x"),
+        "全候補が安全な URL の srcset は束縛として正常に反映されること"
     );
 }

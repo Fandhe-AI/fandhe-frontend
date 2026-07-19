@@ -35,8 +35,8 @@ pub const URL_ATTRS: &[&str] = &[
 /// 属性名が [`URL_ATTRS`] に該当するかを ASCII 大文字小文字非依存で判定する。
 ///
 /// `srcset` は複数 URL 候補を含む特殊構文のため本関数の対象に含めず、
-/// 呼び出し側（`render_into`）で個別に候補分割してから [`is_safe_url`] を
-/// 適用する契約とする。
+/// 呼び出し側（`render_into`・`binding_dom.rs`・`keyed_dom.rs`）で
+/// [`is_safe_srcset`] を個別に適用する契約とする。
 pub fn is_url_attr(name: &str) -> bool {
     URL_ATTRS.iter().any(|a| a.eq_ignore_ascii_case(name))
 }
@@ -136,6 +136,37 @@ fn extract_scheme(s: &str) -> Option<&str> {
     }
 
     Some(candidate)
+}
+
+/// `srcset` 属性値（カンマ区切りの URL 候補 + 記述子）が安全に出力してよい
+/// ものかを判定する。
+///
+/// `srcset` はカンマ区切りの複数 URL 候補（各候補は空白区切りで
+/// `URL [記述子]` の形式）を持つ特殊構文であり、[`URL_ATTRS`] /
+/// [`is_url_attr`] の対象外（単純な単一 URL 判定では表現できないため）。
+/// 各候補の先頭トークン（URL 部分。記述子は無視）を [`is_safe_url`] で
+/// 検証し、1 候補でも不合格なら属性全体を不合格として扱う（部分的な
+/// 書き換えは決定性を損なうため行わない）。
+///
+/// `render_into`（`lib.rs`）・`rws-wasm-client` の `binding_dom.rs`・
+/// `keyed_dom.rs` の 3 経路すべてが本関数を単一の情報源として参照する
+/// 契約とする（イシュー #373 レビュー指摘: 従来は `render_into` にのみ
+/// インライン実装されており、wasm-client の実 DOM 直接更新経路
+/// （`apply_one`/`build_element`）では検証されない不整合があった）。
+///
+/// # Examples
+///
+/// ```
+/// use rws_core::is_safe_srcset;
+///
+/// assert!(is_safe_srcset("/a.png 1x, /b.png 2x"));
+/// assert!(!is_safe_srcset("/a.png 1x, javascript:alert(1) 2x"));
+/// ```
+pub fn is_safe_srcset(value: &str) -> bool {
+    value.split(',').all(|candidate| {
+        let url_part = candidate.split_whitespace().next().unwrap_or("");
+        is_safe_url(url_part)
+    })
 }
 
 #[cfg(test)]

@@ -113,7 +113,7 @@ mod url;
 pub use bind::*;
 pub use escape::{escape_html, escape_html_into};
 pub use tags::*;
-pub use url::{is_event_handler_attr, is_safe_url, is_url_attr, URL_ATTRS};
+pub use url::{is_event_handler_attr, is_safe_srcset, is_safe_url, is_url_attr, URL_ATTRS};
 
 /// HTML ノード木。マクロ DSL に依存しない素の Rust 値として組み立てる。
 ///
@@ -377,16 +377,12 @@ fn render_into(node: &Node, out: &mut String) {
                         continue;
                     }
                 } else if k.eq_ignore_ascii_case("srcset") {
-                    // srcset はカンマ区切りの URL 候補を持つ特殊構文。各候補の
-                    // 先頭トークン（空白区切りの URL 部分。記述子は無視）を
-                    // is_safe_url で検証し、1 候補でも不合格なら属性全体を
-                    // スキップする（部分的な書き換えは決定性を損なうため
-                    // 行わない）。
-                    let all_safe = v.split(',').all(|candidate| {
-                        let url_part = candidate.split_whitespace().next().unwrap_or("");
-                        is_safe_url(url_part)
-                    });
-                    if !all_safe {
+                    // srcset はカンマ区切りの URL 候補を持つ特殊構文。
+                    // is_safe_srcset（url.rs）が候補分割と検証を行う。
+                    // wasm-client の binding_dom.rs / keyed_dom.rs も同一
+                    // 関数を参照し、3 経路で判定ロジックを重複させない
+                    // （イシュー #373 レビュー指摘対応）。
+                    if !is_safe_srcset(v) {
                         continue;
                     }
                 }
