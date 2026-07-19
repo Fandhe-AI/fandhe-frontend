@@ -102,17 +102,25 @@ fn vendored_rws_core_cargo_toml_has_no_external_dependencies() {
 
 // --- rws-app vendor drift ---
 
+/// 正本 `app/src/` のうち vendor 同梱・`fw new --template app` 生成対象の
+/// ファイル一覧（イシュー #407 で `router.rs` / `routes.rs` を追加）。
+/// `CORE_SRC_FILES` と同様、ここに列挙されていないファイルは本テストの
+/// ドリフト検知対象外になる点に注意する。
+const APP_SRC_FILES: &[&str] = &["lib.rs", "router.rs", "routes.rs"];
+
 #[test]
 fn vendored_rws_app_src_is_byte_identical_to_source_crate() {
     let root = workspace_root();
-    let src = root.join("app/src/lib.rs");
-    let vendored = root.join("templates/app/vendor/rws-app/src/lib.rs");
-    assert_eq!(
-        read_bytes(&src),
-        read_bytes(&vendored),
-        "vendored rws-app/src/lib.rs has drifted from app/src/lib.rs \
-         (正本の変更を templates/app/vendor/rws-app/src/lib.rs へ手動同期すること)"
-    );
+    for file in APP_SRC_FILES {
+        let src = root.join("app/src").join(file);
+        let vendored = root.join("templates/app/vendor/rws-app/src").join(file);
+        assert_eq!(
+            read_bytes(&src),
+            read_bytes(&vendored),
+            "vendored rws-app/src/{file} has drifted from app/src/{file} \
+             (正本の変更を templates/app/vendor/rws-app/src/{file} へ手動同期すること)"
+        );
+    }
 }
 
 /// vendored `rws-app/Cargo.toml` の `rws-core` path 依存が
