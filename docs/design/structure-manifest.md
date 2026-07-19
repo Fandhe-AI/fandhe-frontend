@@ -52,12 +52,13 @@ TASK-13.1b の手書きパーサ（`toml`/`serde` 等の外部クレートを使
 [manifest]
 version = 1                     # スキーマバージョン（整数・必須）
 
-[directories.<name>]            # <name>: ^[a-z0-9_-]+$ のワークスペース相対ディレクトリ名
+[directories.<name>]            # <name>: ^[a-z0-9_-]+$ のワークスペース相対ディレクトリ名（論理名）
 role = "core"                   # 閉じた語彙（§2.2.1）
 crate = "fandhe-frontend-core"               # 対応クレート名（キー省略可。空文字は不可）
 description = "..."              # 役割の説明（必須）
 depends_on = ["..."]              # 依存を許可する directories キー（既定 []）
 allowed_dependents = ["..."]      # 被依存を許可する directories キー（既定 []）
+path = "crates/core"             # 任意。実配置パス（§2.2.0a）。省略時は <name> がそのまま実体（フラット配置）
 
 [routing]
 definition_dir = "app"           # ルート定義を許すディレクトリ（directories キー参照）
@@ -93,6 +94,36 @@ extractor = "fandhe-frontend-router-v1"      # 組み込み抽出器 ID
 `root` 慣習下でも走査はワークスペースルート「全体」ではなく `<project>/src`
 に限定する（`target/` 等の混入・過検知防止、`routes.rs::scan_root` の
 既存方針をそのまま適用）。
+
+#### 2.2.0a `path` キー（任意の実配置パス、イシュー #436）
+
+`[directories.<name>]` の `<name>`（論理名）は `depends_on` / `allowed_dependents` /
+`[routing] definition_dir` が参照する**依存宣言の語彙**であり、実ファイルシステム上の
+配置とは独立させたい場合がある（例: 本リポジトリ自身の `crates/` 配下移設で、
+論理名 `core` を維持したまま実体を `<workspace_root>/crates/core` へ動かす）。
+
+この目的のため、任意キー `path`（ワークスペースルート相対の実配置パス文字列）を
+追加できる。省略時は従来どおり `<name>` がそのまま実体（フラット配置、`fw new` が
+生成するユーザープロジェクトの既定）。
+
+制約（`validate()` が fail-closed で検証、OWASP A01/A05 対策）:
+
+- `/` 区切りで 1〜3 セグメント（`cli/src/structure.rs::MAX_PATH_SEGMENTS`）
+- 各セグメントは `^[a-z0-9_-]+$`（[`is_valid_directory_name`] と同じ文字集合）
+- 絶対パス（先頭 `/`）・`..`・空セグメント（連続 `/`・末尾 `/`）は拒否
+- 予約名 `root`（§2.2.0）のエントリに `path` を指定することは拒否
+  （`root` は常にワークスペースルート自身へ写像する意味論のため）
+- 複数エントリが同一の解決先へ写像することは拒否（`path` 省略時の
+  `<name>` 自身との衝突も含む）
+
+ディレクトリ → 実ファイルシステムパスの解決は `cli/src/structure.rs::
+dir_fs_path_for_entry`（`path` があればそれを、無ければ `dir_fs_path` の
+従来ロジックへフォールバック）を単一の情報源とする。走査系ヘルパー
+（`routes::resolve_within_root`/`scan_root`）は `dir_name` 引数として
+`/` 区切りの多段パスを受け付けるよう一般化されており、`StructureManifest::
+resolved_dir_path(name)` がディレクトリキー名から実配置パス文字列への
+変換窓口を担う（`main.rs`・`impact.rs::member_dir_name` も同じ制約
+（段数上限・文字集合検証）を共有する）。
 
 #### 2.2.1 `role` の閉じた語彙
 

@@ -500,11 +500,11 @@ jobs:
       - name: Check wasm-client crate existence
         id: check
         run: |
-          if [ -f "wasm-client/Cargo.toml" ]; then
+          if [ -f "crates/wasm-client/Cargo.toml" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::wasm-client/ crate not found yet (blocked on TASK-6.2b #48). Skipping browser tests."
+            echo "::notice::crates/wasm-client/ crate not found yet (blocked on TASK-6.2b #48). Skipping browser tests."
           fi
 
       # wasm-full/ ディレクトリ存在ガード（TASK-11.2d・#77）。wasm-client と
@@ -518,11 +518,11 @@ jobs:
       - name: Check wasm-full crate existence
         id: check-wasm-full
         run: |
-          if [ -f "wasm-full/Cargo.toml" ]; then
+          if [ -f "crates/wasm-full/Cargo.toml" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::wasm-full/ crate not found. Skipping wasm-full Runtime browser tests."
+            echo "::notice::crates/wasm-full/ crate not found. Skipping wasm-full Runtime browser tests."
           fi
 
       - name: Add wasm32 target
@@ -630,7 +630,7 @@ jobs:
       # （crates/cli/src/wasm_bindgen_test_runner/headless.rs の Driver::find）。
       - name: Run browser tests (headless Chrome)
         if: steps.check.outputs.exists == 'true'
-        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-client
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-client
 
       # `Runtime::mount`/`Runtime::hydrate` の実ブラウザ統合テスト（TASK-11.2d・
       # #77）。xss-wasm-test/perf-harness ジョブ（同じ wasm-full クレート）とは
@@ -640,7 +640,7 @@ jobs:
       # perf-harness ジョブ自体は変更しない）。
       - name: Run wasm-full Runtime browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test runtime_browser
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test runtime_browser
 
       # TASK-11.4c（#84、親 #81）: read_hydration_attrs（実 DOM からの
       # data-hydrate-* 属性列挙）の実ブラウザ統合テスト（wasm-full/tests/
@@ -649,7 +649,7 @@ jobs:
       # （`docs/api/hydration-state-format.md` 第 6 節が引き継ぐ実ブラウザ検証）。
       - name: Run wasm-full hydration browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test hydration_browser
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test hydration_browser
 
       # TASK-CSR-loader（#349、親 #337）: CSR 経路の loader 解決
       # （wasm-full/src/csr.rs）の三モード（SSR/SSG/CSR）表示整合・
@@ -658,7 +658,7 @@ jobs:
       # 同じ check-wasm-full 存在ガードを再利用し、新規ガードは追加しない。
       - name: Run wasm-full three-mode browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test three_mode_browser
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test three_mode_browser
 
       # イシュー #374: クライアント側ルーティング（history API 連携・
       # URL 同期・遷移時 loader 配線）の実ブラウザ統合テスト（wasm-full/tests/
@@ -667,7 +667,7 @@ jobs:
       # 追加しない。
       - name: Run wasm-full nav browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
-        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test nav_browser
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test nav_browser
 
   # TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）: 同一文書内更新向け
   # ラッパー関数（`static/view-transitions.js` の `withViewTransition`、
@@ -857,11 +857,11 @@ jobs:
       - name: Check perf_browser.rs harness existence
         id: check
         run: |
-          if [ -f "wasm-full/tests/perf_browser.rs" ]; then
+          if [ -f "crates/wasm-full/tests/perf_browser.rs" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::wasm-full/tests/perf_browser.rs not found. Skipping perf harness smoke run."
+            echo "::notice::crates/wasm-full/tests/perf_browser.rs not found. Skipping perf harness smoke run."
           fi
 
       - name: Add wasm32 target
@@ -957,7 +957,7 @@ jobs:
         if: steps.check.outputs.exists == 'true'
         run: |
           set -o pipefail
-          CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test perf_browser -- --nocapture 2>&1 | tee perf-harness.log
+          CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test perf_browser -- --nocapture 2>&1 | tee perf-harness.log
 
       - name: Publish perf-harness summary
         if: always() && steps.check.outputs.exists == 'true'
@@ -1222,7 +1222,7 @@ jobs:
           fi
 
       - name: Run WASM XSS escape regression (headless Chrome)
-        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test xss_escape_wasm
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test xss_escape_wasm
 
   # イシュー #297（TASK-10.2 残課題、出典 PR #220 §10 スコープ外節）:
   # docs/design/wasm-build-integration.md §6.4 が文書化していた nodejs ターゲット

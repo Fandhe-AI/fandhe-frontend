@@ -30,21 +30,14 @@ on:
     # image-size.yml（#103）と同一のパスフィルタ（Dockerfile の COPY 列挙 =
     # workspace members と同期。member 変更が docker build を壊すケースを
     # 本ワークフローでも検出できるようにする）に、本ファイル自身を加える。
+    # イシュー #436（`crates/` 配下移設）で全メンバークレートが `crates/**`
+    # 1 パターンに集約された。
     paths:
       - "Dockerfile"
       - "Cargo.toml"
       - "Cargo.lock"
-      - "core/**"
-      - "interactive/**"
-      - "app/**"
-      - "server/**"
-      - "wasm-client/**"
-      - "wasm-full/**"
-      - "wasm-thin/**"
-      - "cli/**"
-      - "dist-server/**"
+      - "crates/**"
       - "static/**"
-      - "xtask/**"
       - ".dockerignore"
       - ".github/workflows/musl-smoke.yml"
   workflow_dispatch:

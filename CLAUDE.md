@@ -4,7 +4,7 @@
 
 Rust 製フロントエンドフレームワーク。AI 時代のセキュリティリスク低減を目的に、プレーンな HTML / JavaScript / CSS を尊重しつつ SSR / SPA / SSG / トランジションなどモダン機能を網羅する。部分埋め込みの最小構成からフル機能構成までのグラデーションを持ち、単一実行ファイルでのデプロイ（Docker 想定）を目標とする。
 
-- 正式名称は `fandhe-frontend`（確定、2026-07-19）。決定記録・新旧マッピング表・段階的移行計画は `docs/design/framework-naming.md` を参照。crate 名 `fandhe-frontend-*` は #435 以降で段階的に `fandhe-frontend-*` へ改名予定（本 CLAUDE.md 内の crate 名・ディレクトリ構成の記述は現行実態のまま）
+- 正式名称は `fandhe-frontend`（確定、2026-07-19）。決定記録・新旧マッピング表は `docs/design/framework-naming.md` を参照。crate 名は #441 で `rws-*` から `fandhe-frontend-*` へ改名済み
 - 仕様書は [Fandhe-AI/frontend-framework-spec](https://github.com/Fandhe-AI/frontend-framework-spec) を `docs/spec/` サブモジュールとして取り込み管理
 - 開発は `docs/spec/06-roadmap.md` のマイルストーン MS-1〜MS-5 に従う（最初のタスクは TASK-1.1: `fandhe-frontend-core` 既定エスケープの製品化）
 - 計画クレート: `fandhe-frontend-core`（描画コア・外部依存ゼロ）/ `fandhe-frontend-app` / `fandhe-frontend-server`（SSR/SSG）/ `fandhe-frontend-wasm-client`・`fandhe-frontend-wasm-full`（WASM/CSR）/ `fandhe-frontend-interactive`（状態管理）/ `xtask`（CI 計測）/ `fandhe-frontend-cli`（`fw` コマンド・AI 自己保守フック、REQ-13）
@@ -56,7 +56,28 @@ frontend-framework/
     └── settings.json         # SessionStart / PostToolUse hooks
 ```
 
-（実装着手後は `core/` `app/` `server/` `wasm-client/` `interactive/` `xtask/` `cli/`（`fandhe-frontend-cli`: `fw` コマンド、structure.toml のスキーマ・パース・生成）等の cargo workspace が加わる想定 — `docs/spec/05-tasks.md` 参照）
+全メンバークレートは `crates/` 配下に配置する（イシュー #436）:
+
+```
+crates/
+├── core/          # fandhe-frontend-core: 描画コア・外部依存ゼロ
+├── interactive/   # fandhe-frontend-interactive: 状態管理コア
+├── app/           # fandhe-frontend-app: モード非依存の共通コンポーネント
+├── server/        # fandhe-frontend-server: SSR/SSG エントリ
+├── wasm-client/   # fandhe-frontend-wasm-client: クライアントランタイム基盤
+├── wasm-full/     # fandhe-frontend-wasm-full: CSR/ハイドレーション フルセット
+├── wasm-thin/     # fandhe-frontend-wasm-thin: CSR/ハイドレーション 最小構成
+├── dist-server/   # fandhe-frontend-dist-server: 単一実行ファイル配布サーバー
+├── cli/           # fandhe-frontend-cli: `fw` コマンド（structure.toml のスキーマ・パース・生成、REQ-13）
+└── xtask/         # CI 計測用の開発者ツール
+```
+
+ルート `Cargo.toml` は `members = ["crates/*"]`（glob）。リポジトリ自身の
+`structure.toml` は各 `[directories.<name>]` に `path = "crates/<name>"` を
+宣言し、依存宣言の論理名（`<name>`）とは独立して実配置を表す
+（`docs/design/structure-manifest.md` §2.2.0a 参照）。`fw new` が生成する
+ユーザープロジェクト（`templates/`）は `path` を使わないフラット配置のまま
+不変。
 
 ## 委譲方針（必読）
 
@@ -66,10 +87,10 @@ main セッションは**指揮・統合・ユーザー対話に専念**し、�
 
 | 対象パス | 委譲先 Agent |
 |---------|-------------|
-| `core/` `interactive/` | core-builder |
-| `app/` `server/` | server-builder |
-| `wasm-client/` `wasm-full/` `wasm-thin/` `static/` | wasm-builder |
-| `xtask/` `cli/` `.github/` `Dockerfile` `deny.toml` `templates/` | tooling-builder |
+| `crates/core/` `crates/interactive/` | core-builder |
+| `crates/app/` `crates/server/` | server-builder |
+| `crates/wasm-client/` `crates/wasm-full/` `crates/wasm-thin/` `static/` | wasm-builder |
+| `crates/xtask/` `crates/cli/` `.github/` `Dockerfile` `deny.toml` `templates/` | tooling-builder |
 | `docs/`（spec 以外）・CLAUDE.md | docs-writer |
 | `docs/spec/`（読み取り調査） | explorer |
 | テスト実行・失敗分析 | test-runner |

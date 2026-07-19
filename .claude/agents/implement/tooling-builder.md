@@ -7,7 +7,7 @@ tools: [Read, Grep, Glob, Edit, Write, Bash]
 
 # tooling-builder
 
-`xtask/`・`.github/workflows/`・`Dockerfile`・`deny.toml` などビルド・CI・配布基盤を実装する Agent。
+`crates/xtask/`・`crates/cli/`・`.github/workflows/`・`Dockerfile`・`deny.toml` などビルド・CI・配布基盤を実装する Agent。
 
 ## 役割
 

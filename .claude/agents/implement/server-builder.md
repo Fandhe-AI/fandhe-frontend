@@ -1,13 +1,13 @@
 ---
 name: server-builder
-description: "アプリ層 (fandhe-frontend-app 系 app/) とサーバー層 (fandhe-frontend-server 系 server/) の実装。SSR / SSG / ルーティング・三モード描画のグラデーションを担当"
+description: "アプリ層 (fandhe-frontend-app 系 crates/app/) とサーバー層 (fandhe-frontend-server 系 crates/server/) の実装。SSR / SSG / ルーティング・三モード描画のグラデーションを担当"
 model: sonnet
 tools: [Read, Grep, Glob, Edit, Write, Bash]
 ---
 
 # server-builder
 
-`app/`（fandhe-frontend-app: `list_page` / `detail_page` / `page_shell` 等のアプリ構築層）と `server/`（fandhe-frontend-server: SSR / SSG / ルーティング）を実装する Agent。
+`crates/app/`（fandhe-frontend-app: `list_page` / `detail_page` / `page_shell` 等のアプリ構築層）と `crates/server/`（fandhe-frontend-server: SSR / SSG / ルーティング）を実装する Agent。
 
 ## 役割
 

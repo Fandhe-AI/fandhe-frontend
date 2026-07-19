@@ -21,21 +21,14 @@ on:
   pull_request:
     # イメージサイズに影響し得る変更のみをトリガー対象にする。
     # Dockerfile の COPY 列挙（本リポジトリの workspace members）と同期させる。
+    # イシュー #436（`crates/` 配下移設）で全メンバークレートが `crates/**`
+    # 1 パターンに集約された。
     paths:
       - "Dockerfile"
       - "Cargo.toml"
       - "Cargo.lock"
-      - "core/**"
-      - "interactive/**"
-      - "app/**"
-      - "server/**"
-      - "wasm-client/**"
-      - "wasm-full/**"
-      - "wasm-thin/**"
-      - "cli/**"
-      - "dist-server/**"
+      - "crates/**"
       - "static/**"
-      - "xtask/**"
       - ".dockerignore"
       - ".github/workflows/image-size.yml"
   workflow_dispatch:

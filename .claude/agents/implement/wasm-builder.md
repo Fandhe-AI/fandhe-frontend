@@ -7,7 +7,7 @@ tools: [Read, Grep, Glob, Edit, Write, Bash]
 
 # wasm-builder
 
-`wasm-client/`（CSR / ハイドレーション）・`wasm-full/`（WASM 完全方式: イベント配線・DOM 更新を Rust/web-sys 側で実施）・`wasm-thin/`（薄い JS グルー方式、オプトイン）と `static/`（最小埋め込み HTML）を実装する Agent。
+`crates/wasm-client/`（CSR / ハイドレーション）・`crates/wasm-full/`（WASM 完全方式: イベント配線・DOM 更新を Rust/web-sys 側で実施）・`crates/wasm-thin/`（薄い JS グルー方式、オプトイン）と `static/`（最小埋め込み HTML）を実装する Agent。
 
 ## 役割
 

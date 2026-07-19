@@ -9,6 +9,13 @@
 # メタデータとの機械的な突き合わせ（依存の実体検証）は TASK-13.1c（#130）の
 # スコープであり、本ファイル単体としては TASK-13.1a の `validate()`
 # （マニフェスト内部の宣言整合性のみ）の対象。
+#
+# 全クレートディレクトリは crates/ 配下に配置する（イシュー #436）。各
+# エントリの `path` キー（ワークスペースルート相対の実配置パス）がこれを
+# 表す。`path` は実体解決専用のキーであり、`depends_on`/`allowed_dependents`/
+# `[routing] definition_dir` が参照する論理名（`<name>`）は本移設で変更しない
+# （`docs/design/structure-manifest.md` §2.2.0a 参照）。`static`（静的アセット、
+# 対応クレートなし）はクレートではないため移設対象外でフラット配置のまま。
 
 [manifest]
 version = 1
@@ -18,6 +25,7 @@ role = "core"
 crate = "fandhe-frontend-core"
 description = "外部依存ゼロのレンダリングコア（ノード木 API・render・既定エスケープ）"
 allowed_dependents = ["interactive", "app", "server", "wasm-full", "wasm-thin", "wasm-client", "dist-server"]
+path = "crates/core"
 
 [directories.interactive]
 role = "state"
@@ -25,6 +33,7 @@ crate = "fandhe-frontend-interactive"
 description = "状態管理コア（forbid(unsafe_code) 域）"
 depends_on = ["core"]
 allowed_dependents = ["wasm-full", "wasm-thin", "wasm-client"]
+path = "crates/interactive"
 
 [directories.app]
 role = "component"
@@ -32,6 +41,7 @@ crate = "fandhe-frontend-app"
 description = "モード非依存の共通コンポーネント（SSR/CSR/SSG から共通利用）。パスマッチングルーティング（router.rs）+ server/client 単一ルート定義（routes.rs、イシュー #407）も本クレートに集約する"
 depends_on = ["core"]
 allowed_dependents = ["server", "dist-server", "wasm-full", "wasm-client"]
+path = "crates/app"
 
 [directories.server]
 role = "server-entrypoint"
@@ -39,6 +49,7 @@ crate = "fandhe-frontend-server"
 description = "SSR/SSG エントリ（ssr.rs/ssg.rs、TASK-6.1c）。ルーティングは fandhe-frontend-app::router / fandhe-frontend-app::routes（イシュー #407）を再エクスポート・参照する。fandhe-frontend-core/fandhe-frontend-app への依存は通常依存（path 依存のみ、外部クレート追加なし）"
 depends_on = ["core", "app"]
 allowed_dependents = ["dist-server"]
+path = "crates/server"
 
 [directories.wasm-client]
 role = "client-entrypoint"
@@ -46,24 +57,28 @@ crate = "fandhe-frontend-wasm-client"
 description = "束縛点更新（BindingTable）・keyed list DOM 適用（keyed_diff/keyed_dom）・最小ハイドレーション方式のクライアントランタイム基盤。イシュー #345 で fandhe-frontend-wasm-full が rlib として消費する"
 depends_on = ["core", "interactive", "app"]
 allowed_dependents = ["wasm-full"]
+path = "crates/wasm-client"
 
 [directories.wasm-full]
 role = "client-entrypoint"
 crate = "fandhe-frontend-wasm-full"
 description = "CSR/ハイドレーション フルセット構成（wasm32 ターゲット）"
 depends_on = ["core", "interactive", "app", "wasm-client"]
+path = "crates/wasm-full"
 
 [directories.wasm-thin]
 role = "client-entrypoint"
 crate = "fandhe-frontend-wasm-thin"
 description = "CSR/ハイドレーション 最小構成（wasm32 ターゲット）"
 depends_on = ["core", "interactive"]
+path = "crates/wasm-thin"
 
 [directories.dist-server]
 role = "distribution"
 crate = "fandhe-frontend-dist-server"
 description = "単一実行ファイル配布サーバー（core/app/server を束ねる）"
 depends_on = ["core", "app", "server"]
+path = "crates/dist-server"
 
 [directories.static]
 role = "asset"
@@ -73,11 +88,13 @@ description = "静的アセット（HTML/CSS/JS グルー、対応クレート�
 role = "tooling"
 crate = "xtask"
 description = "CI 計測用の開発者ツール（依存グラフ件数・深さ計測・上限判定等）。配布物には含めない"
+path = "crates/xtask"
 
 [directories.cli]
 role = "tooling"
 crate = "fandhe-frontend-cli"
 description = "AI 自己保守フック向け fw コマンド（structure.toml のスキーマ・パース・生成、REQ-13）"
+path = "crates/cli"
 
 [routing]
 # イシュー #407: server / client 単一定義からのルート生成（共有機構）採用に伴い、

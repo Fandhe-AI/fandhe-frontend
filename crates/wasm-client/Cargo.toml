@@ -1,0 +1,103 @@
+[package]
+name = "fandhe-frontend-wasm-client"
+version = "0.1.0"
+edition = "2021"
+description = "fandhe-frontend-wasm-client: REQ-6 最小ハイドレーション方式のクライアントランタイム。サーバー出力済み DOM を再構築せず、イベントリスナーを後付けする hydrate() と、SSR/SSG と同一関数を呼ぶ CSR 用 mount_csr() を提供する。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# TASK-6.2b（#48）で本クレートを新設。`docs/api/hydration-api.md`（TASK-6.2a・#47、
+# 凍結済み設計書）第 2 節の凍結内容に従う。実装と本書に乖離が生じた場合は
+# 本書を正とする。
+#
+# `docs/policy/unsafe-boundary.md` 第 2 節のポリシー: 自作コードは safe Rust のみとし、
+# `unsafe` は wasm-bindgen / web-sys の FFI 境界（依存クレート内部・自動生成
+# グルーコード）に限定して許容する（`wasm-full`/`wasm-thin` と同方針）。
+#
+# 依存追加の事前承認整理（.claude/rules/coding-rust.md・security.md）:
+# wasm-bindgen / web-sys は `docs/api/hydration-api.md` 第 2 節・第 6 節（不変条件 6）
+# で計画済みであり、`wasm-full`（#75）と同一のバージョン系列（"0.2" / "0.3"）を
+# 指定する。Cargo.lock は既に wasm-bindgen 0.2.126 / web-sys 0.3.103 を解決済み
+# のため、本クレート追加で新規外部パッケージは増えない
+# （`cargo metadata` 実測: パッケージ総数 71 件のまま。PR 本文に記録）。
+#
+# fandhe-frontend-interactive（#343、束縛点ベースの最小更新の一般化）: DirtyTracked
+# トレイト境界に必要。ワークスペース内 path 依存であり外部依存ゼロの
+# クレートのため、新規外部パッケージの増加はゼロ（REQ-3 整理、PR 本文に
+# `cargo metadata` 実測を記録）。
+[dependencies]
+fandhe-frontend-core = { path = "../core" }
+fandhe-frontend-app = { path = "../app" }
+fandhe-frontend-interactive = { path = "../interactive" }
+wasm-bindgen = "0.2"
+
+# イシュー #345（束縛点更新 + keyed list への置換）で以下 3 feature を追加。
+# 新規外部クレート追加ではなく既存 web-sys の feature 追加のみであり、
+# `cargo metadata` の総パッケージ数・依存グラフ深さに変化がないことを実測
+# 確認済み（PR 本文に記録）。
+# - "Text": keyed list 挿入時、`document.create_text_node` の戻り値型
+#   （`build_element`、`keyed_dom.rs`）。
+# - "HtmlInputElement": `data-bind-attr="value:..."` の value プロパティ同期
+#   （`apply_one`、`binding_dom.rs`）。`wasm-full` と同一 feature。
+# - "HtmlCollection": `apply_keyed_list`（`keyed_dom.rs`）が
+#   `Element::children()` を使わないため実際には不要 — dev のみで足りるため
+#   ここには追加しない（既存 dev-dependencies.web-sys の HtmlCollection を
+#   引き続き使う）。
+[dependencies.web-sys]
+version = "0.3"
+features = [
+  "Document",
+  "Element",
+  "Event",
+  "EventTarget",
+  "HtmlInputElement",
+  "Node",
+  "NodeList",
+  "Text",
+  "Window",
+  "DomTokenList",
+  "console",
+]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# イシュー #345: `wasm-full`（`entry.rs`）が独自に `#[wasm_bindgen] pub fn
+# hydrate`/`mount` をエクスポートするため、本クレートの REQ-6 デモ用
+# エクスポート（`hydrate`/`mount_csr`）と同一 wasm バイナリへリンクすると
+# `wasm-bindgen` の "describe" シンボル（クレート非依存の関数名ベース）が
+# 重複してリンクエラーになる。`wasm-full` は `default-features = false` で
+# 依存し、本クレート単体利用者（既定）には影響を与えない
+# （`wasm-client/src/lib.rs` の `wiring` モジュール doc 参照）。
+[features]
+default = ["wasm-bindgen-exports"]
+wasm-bindgen-exports = []
+
+# TASK-6.2c（#49）: CI の browser-test ジョブ（.github/workflows/ci.yml）が
+# 本クレート新設と同時に `wasm-pack test --headless --chrome crates/wasm-client` を
+# 自動実行するため（存在ガード解除）、最小スモークテスト
+# （tests/hydrate_smoke.rs）に必要な dev 依存。`wasm-full`（#65 と同一運用）と
+# 同一バージョンを指定する。
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+# 三モード（SSR/SSG/CSR）整合テスト（wasm-client/tests/three_mode_integration.rs、
+# イシュー #375）専用の dev-dependency。ワークスペース内 path 依存かつ
+# fandhe-frontend-server 自体は外部依存ゼロ（server/Cargo.toml 参照）のため、新規外部
+# パッケージの追加はゼロ（REQ-3、`cargo metadata` 実測を PR 本文に記録）。
+# native (host) ターゲットのみのテストで使うため target.'cfg(not(target_arch = "wasm32"))'
+# の記法は使わず、通常の dev-dependencies に置く（wasm32 ビルドでは
+# integration test バイナリ自体を wasm-pack が実行しないため実害はない）。
+fandhe-frontend-server = { path = "../server" }
+
+# 合成 DOM 構築（テスト専用）に必要な追加 feature。製品面の
+# [dependencies.web-sys] の features には触れず、テスト専用の feature 拡張に
+# 閉じる（`wasm-full/Cargo.toml` の dev-dependencies.web-sys と同じ方針）。
+# `HtmlElement` は `Document::body()` の戻り値型、`EventInit` は合成 click
+# イベント（`bubbles: true`）の組み立てに必要。`HtmlCollection` は #343 の
+# ブラウザテスト（`binding_browser.rs`）が `Element::children()` で
+# 「要素子が生成されていないこと」（受け入れ条件 2、innerHTML 不使用の
+# 回帰固定）を検証するために必要。
+[dev-dependencies.web-sys]
+version = "0.3"
+features = ["HtmlElement", "EventInit", "HtmlCollection"]
