@@ -218,3 +218,12 @@ PoC-3（`docs/spec/03-poc/rendering-web-standards/core/src/lib.rs:131,152`）の
   `wasm-client` 系統（`wasm-full`/`wasm-thin` を含むブラウザ配布ビルド全般）を
   対象にした将来の独立計測枠の要否は、`out-of-scope-tracking.md` の手順に従い
   別 Issue 化の是非をユーザーに確認する。
+
+## 11. イシュー #403 実装後の追記（配線本体の共有 Rust API 化）
+
+第 3 節の公開 API 凍結表の `hydrate`（`#[wasm_bindgen] pub fn hydrate(root_id: &str) -> Result<(), JsValue>`）は凍結内容・シグネチャとも変更していない。イシュー #403（`rws-wasm-full` の遷移後再配線）の実装により、その**本体**（`query_selector_all` による対象特定・`click` リスナー登録・`registry` への差し替え）を `wasm-client/src/lib.rs` の `hydrate_dom::wire_hydrate_targets(registry_key: &str, root: &Element) -> Result<(), JsValue>` として切り出し、`wasm-bindgen-exports` feature 非依存の共有 Rust API として公開した。
+
+- `wiring::hydrate`（REQ-6 デモ用エクスポート、feature `wasm-bindgen-exports` 限定）は `wire_hydrate_targets(root_id, &get_root(root_id)?)` を呼ぶ薄いラッパーへ縮小した。第 3 節の凍結シグネチャ・挙動（`set_inner_html` 等を呼ばない、クロージャは registry 管理）は不変。
+- `rws-wasm-full`（`default-features = false` で本クレートへ依存）は `wire_hydrate_targets` を `nav.rs::render_route`（クライアント側ルーティングの遷移描画、イシュー #374）から呼び、遷移で新規構築されたサブツリー内の `data-hydrate="like"` 要素へイベントを再配線する。設計判断の詳細（per-element 方式を採用し `document` レベル委譲リスナー方式を不採用とした理由・二重配線回避）は `docs/design/wasm-full-architecture.md` §10「#403 再配線設計」を参照。
+- `registry`（`wasm-client/src/registry.rs`、第 4 節・判断 4 のクロージャ寿命管理）は `wasm-bindgen-exports` feature ゲートを外し `#[cfg(target_arch = "wasm32")]` のみとした。`wasm-full` から `wire_hydrate_targets` 経由で利用するため。
+- 新規外部クレート・web-sys feature 追加はゼロ（workspace 内 path 依存の公開面変更のみ）。`cargo metadata` 実測（パッケージ総数・依存グラフ深さ）に変化がないことを確認済み。
