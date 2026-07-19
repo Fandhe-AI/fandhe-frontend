@@ -254,7 +254,13 @@ PoC-7 は `verdict` を日本語 2 値（「要人間承認（…）」/「自�
 - **AST 解析ベースの精密化**: `docs/spec/05-tasks.md` TASK-13.2 が
   明示的に将来スコープと指定している。本タスクでは新規 Issue を起票せず
   （起票はユーザー承認が必要な行為、`out-of-scope-tracking.md`）、本書と
-  PR 本文への記載に留める。
+  PR 本文への記載に留める。**イシュー #379 で syn 等の AST 解析クレート
+  導入の採否を評価した結果、非採用と確定した**。判断根拠（偽陽性・偽陰性
+  の実例収集・評価軸 4 項目での評価・syn 導入時の依存影響実測・再評価
+  トリガー）は `docs/policy/intentional-non-adoption.md` §3.11 に記録して
+  いる。実例を固定した characterization テストは `cli/src/impact.rs` /
+  `cli/src/loaders.rs` の `#[cfg(test)]`（「#379 characterization tests」）
+  を参照。
 - **行単位のルート特定**: 現行設計はファイル単位でルート影響を突き合わせる
   （`affected_files` のファイルパスと `routes::extract_routes` の
   `defined_in` の一致のみ）。同一ファイル内の他ルートも影響ありと
