@@ -14,12 +14,15 @@
 - **TASK-11.3b（本ドキュメント・#80）**: `docs/design/opt-in-thin-js-glue.md`（オプトイン
   提供ドキュメント・制約事項の明記）
 
-**本文書のステータス**: 本書執筆時点で TASK-11.3a（#79）は未マージ（並行進行中）
-です。したがって本書は PoC-5（`docs/spec/03-poc/wasm-runtime-split/wasm-thin/src/lib.rs`）
-で実証済みの公開 API 凍結表（`initial_html` / `hydrate_from_attrs` / `apply` の
-3 関数）を正として記述しています。#79 の実装と本書の記述に乖離が生じた場合は、
-実装（製品版 `wasm-thin/src/lib.rs`）を正として本書を追随更新します
-（`docs/design/wasm-full-architecture.md` が TASK-11.1b 未マージ時に採った運用と同一）。
+**本文書のステータス**: TASK-11.3a（#79）はマージ済みです。本書は製品版
+`wasm-thin/src/lib.rs`（`demo` モジュールの `#[wasm_bindgen]` エクスポート）を
+正として記述します。本書は元々 PoC-5
+（`docs/spec/03-poc/wasm-runtime-split/wasm-thin/src/lib.rs`）で実証済みの
+公開 API を土台に執筆されましたが、#79 マージ後に実装との乖離が判明したため
+（イシュー #397）、実装を正として本書を追随更新しました
+（`docs/design/wasm-full-architecture.md` が TASK-11.1b 未マージ時に採った運用と同一
+の方針）。今後もエクスポート関数のシグネチャ変更は実装 PR と同一 PR で本書
+（特に第 4.2 節）を更新することとし、単独の乖離を発生させません（第 4.2 節参照）。
 
 **本タスクのスコープ**: 本ドキュメントの作成のみ（docs-only 変更）。`wasm-thin/`
 クレートの実装・`Cargo.toml`（workspace）・CI の変更はいずれも TASK-11.3a（#79）の
@@ -83,9 +86,9 @@ PoC-2 は「薄い JS グルーを実行時に持ち込んだ時点で、Rust �
 ### 3.1 (c) XSS の保証一貫性の減衰
 
 `rws-wasm-thin` の公開関数（`initial_html()` / `apply()`）は、いずれも内部で
-`rws_interactive::render_html()`（`rws_core::render()` の既定エスケープを経由）
-を呼び出しており、**関数が返す文字列自体は既定エスケープ済み**です
-（PoC-5 実施内容 1・`render_escapes_item_text` テストで確認済み）。
+`ThinRuntime::html()`（`rws_core::render()` の既定エスケープを経由）を
+呼び出しており、**関数が返す文字列自体は既定エスケープ済み**です
+（第 4.2 節・`demo_boundary_layer_smoke` テストの XSS 回帰検証で確認済み）。
 
 しかし、この文字列を実際に DOM へ適用する処理（`root.innerHTML = apply(...)`）
 は JS グルー側の 1 行に委ねられています。この境界より先は Rust 側の型チェック・
@@ -150,22 +153,39 @@ wasm-bindgen --target web \
 
 ### 4.2 公開 API 凍結表
 
-`rws-wasm-thin` は `web-sys` に一切依存せず、公開する関数はすべて「文字列
-in・文字列 out」の純粋な状態計算のみを行います（PoC-5 実績、`wasm-thin/src/lib.rs`）。
-DOM 操作・イベント配線は行いません。
+**凍結の基準点**: 本表の正は製品版 `wasm-thin/src/lib.rs` の `demo` モジュール
+（`#[wasm_bindgen]` エクスポート）であり、表はそのシグネチャを転記したもの
+です（実装が正、文書が従。第 1 節参照）。**変更手続き**: エクスポート関数の
+シグネチャ変更は破壊的変更として扱い、実装 PR と同一 PR で本表を更新してく
+ださい。文書のみ・実装のみの単独変更で乖離させないでください。**検証手段**:
+`wasm-thin/tests/thin_runtime.rs` の `demo_boundary_layer_smoke` が 3 関数の
+呼び出し形（`demo::hydrate_from_attrs(vec![...], Vec::new()) -> bool` 等）を
+コンパイル時に固定しており、本表の読者はこのテストで実シグネチャを裏取り
+できます。
+
+`rws-wasm-thin` は `web-sys` に一切依存しません。`initial_html` / `apply` は
+「文字列 in・文字列 out」の純粋な状態計算を行い、`hydrate_from_attrs` は
+「文字列配列 2 本 in・真偽値 out」の純粋な状態計算を行います（`wasm_bindgen`
+がタプルの `Vec` を直接エクスポートできないため 2 配列表現になっています）。
+いずれも DOM 操作・イベント配線は行いません。
 
 | API | シグネチャ | 役割 |
 |-----|-----------|------|
 | `initial_html` | `pub fn initial_html() -> String` | 初期状態の HTML を返す。CSR モードで JS グルーがこれを `root.innerHTML` に設定する |
-| `hydrate_from_attrs` | `pub fn hydrate_from_attrs(counter: &str, draft: &str, items_joined: &str) -> ()` | サーバー Rust（SSR）が出力した `data-hydrate-*` 属性の値を JS グルーが読み取って渡し、WASM 内部状態を復元する。JS 側は `root.innerHTML` を書き換えない（SSR 済み DOM をそのまま尊重する） |
+| `hydrate_from_attrs` | `pub fn hydrate_from_attrs(names: Vec<String>, values: Vec<String>) -> bool` | SSR が出力した `data-hydrate-*` 属性の「プレフィックス付き属性名」と値を、同一添字が対応する 2 本の配列（`names`/`values`）で渡し、WASM 内部状態を復元する。`names` の長さが `values` と一致しない場合、または復元に失敗した場合は状態を変更せず `false` を返す（初期状態のまま CSR を継続する安全側フォールバック）。JS 側は `root.innerHTML` を書き換えない（SSR 済み DOM をそのまま尊重する） |
 | `apply` | `pub fn apply(action: &str, payload: &str) -> String` | アクションを適用し、更新後の HTML 全体（`#interactive-root` を含む rooted tree 全体・既定エスケープ済み）を返す。JS グルーはイベントから `action`/`payload` を読み取ってこの関数を呼び、戻り値のみを、`#interactive-root` 自身ではなくその親要素（mount）の `innerHTML` に設定する（`#interactive-root` 自身に設定すると戻り値に含まれる同名要素がネストし id が重複するため。DOM 差分計算は行わない最小実装） |
 
-3 関数はいずれも `rws-interactive` の `AppState` / `dispatch` / `render_html` /
-`state_from_hydration_attrs` を内部で呼び出す薄いラッパーであり、状態機械
-そのものは `rws-wasm-full` と共通の `rws-interactive` を使用します。
+3 関数はいずれも境界層（`wasm-thin/src/lib.rs` の `demo` モジュール、
+`#[wasm_bindgen]` エクスポート）が汎用層 [`ThinRuntime<C>`]（`wasm-bindgen`
+非依存の純粋 Rust）を `rws_interactive::AppState` に束縛して呼び出す薄い
+ラッパーです。`ThinRuntime<C>` は内部で `rws_core::render()`・
+`rws_interactive::dispatch`・`rws_interactive::Hydrate::from_hydration_attrs`
+を呼び出します。状態機械そのものは `rws-wasm-full` と共通の
+`rws-interactive` を使用します。
 
-**補足（イシュー #376）**: `AppState::view()` / `render_html` が共通コード
-であるため、`initial_html()` / `apply()` の出力 HTML には `rws-wasm-full`
+**補足（イシュー #376）**: `AppState::view()`（`render_with_root_attrs` 経由で
+束縛点マーカーを付与する）が `rws-wasm-full` と共通のコードであるため、
+`initial_html()` / `apply()` の出力 HTML には `rws-wasm-full`
 と同様に `data-bind-*` / `data-key` / `data-hydrate-item-ids` マーカーが
 含まれます。ただし `rws-wasm-thin` の更新経路は本節の `apply` の説明の
 とおり戻り値の全置換 `innerHTML` 代入のみであり、これらのマーカーは
@@ -228,6 +248,12 @@ root.addEventListener("input", (ev) => {
  * WASM 内部状態を復元する。SSR 済みの DOM は作り直さず、
  * イベント配線のみ行う。
  *
+ * hydrate_from_attrs は names/values の 2 配列 in・真偽値 out。
+ * data-hydrate- プレフィックス付きの属性名をそのまま names に渡す
+ * （HTMLElement.dataset は camelCase 化してプレフィックスを失うため
+ * 使用しない）。復元失敗時は false が返り、状態は初期状態のまま
+ * （CSR フォールバック）。
+ *
  * DOM 更新（innerHTML の書き換え）の対象は #interactive-root の
  * 親要素（mount）とし、#interactive-root 自身には設定しない。
  * apply() の戻り値は #interactive-root を含む rooted tree 全体
@@ -242,11 +268,17 @@ await init();
 
 const mount = document.getElementById("interactive-root-mount");
 const root = mount.querySelector("#interactive-root");
-hydrate_from_attrs(
-  root.getAttribute("data-hydrate-counter") || "0",
-  root.getAttribute("data-hydrate-draft") || "",
-  root.getAttribute("data-hydrate-items") || ""
-);
+
+const names = [];
+const values = [];
+for (const attr of root.attributes) {
+  if (attr.name.startsWith("data-hydrate-")) {
+    names.push(attr.name);
+    values.push(attr.value);
+  }
+}
+// 復元失敗時は false（状態は初期のまま = CSR フォールバック）。
+hydrate_from_attrs(names, values);
 
 mount.addEventListener("click", (ev) => {
   const target = ev.target.closest("[data-action]");
