@@ -16,8 +16,12 @@ frontend-framework/
 ├── README.md
 ├── skills-lock.json          # npx skills add の導入記録
 ├── docs/
-│   ├── unsafe-boundary.md    # unsafe 境界ポリシー・使用箇所一覧（REQ-2 トレーサビリティ）
-│   ├── structure-manifest.md # structure.toml スキーマ設計（REQ-13, TASK-13.1a）
+│   ├── design/               # 設計文書（gate-design / wasm-full-architecture / structure-manifest 等）
+│   ├── api/                  # API 仕様（component-api / hydration-api / hydration-state-format 等）
+│   ├── guides/               # 利用者向けガイド（embedding-guide / npm-asset-build / browser-testing 等）
+│   ├── policy/               # 規約・セキュリティポリシー（unsafe-boundary / dependency-graph-policy / cargo-deny-advisories 等）
+│   ├── ci/                   # CI・runner 運用（ci-runner-requirements / perf-browser-harness）
+│   ├── reports/              # 実測・受け入れレポート（perf-browser-report / *-acceptance-report 等）
 │   └── spec/                 # 仕様サブモジュール (frontend-framework-spec)
 │       ├── 01-brainstorm.md
 │       ├── 02-poc-plan.md

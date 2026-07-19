@@ -7,7 +7,7 @@
 //! 基づく clippy 検出）そのものが機能することは証明しない。本ファイルは
 //! `rws-core` へ path 依存する最小フィクスチャクレートを一時ディレクトリに
 //! 生成し、`cargo clippy -- -D warnings` を実プロセスとして起動して検証する
-//! （ネットワーク非依存・独立 `[workspace]`、`docs/raw-html-lint-design.md`
+//! （ネットワーク非依存・独立 `[workspace]`、`docs/design/raw-html-lint-design.md`
 //! §2 の採用方式 B の受け入れ条件 1「コメント偽装で回避不能」の直接証跡）。
 //!
 //! clippy 不在環境では `#[ignore]` で沈黙させず明示的にテスト失敗させる

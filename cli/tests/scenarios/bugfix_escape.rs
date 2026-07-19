@@ -107,7 +107,7 @@ fn baseline_passes_gate() {
 /// （3 件以上）未満であっても、クライアント境界への波及により
 /// `breaking_risk: high`・`requires_human_approval: true` となる
 /// （`judge_breaking_risk`/`requires_human_approval`、
-/// `docs/impact-analysis-design.md` §3.4/§3.5 のスキーマに準拠）。
+/// `docs/design/impact-analysis-design.md` §3.4/§3.5 のスキーマに準拠）。
 /// ルート定義を含まないフィクスチャのため `affected_routes` は空。
 #[test]
 fn impact_reports_high_risk_for_render() {

@@ -5,7 +5,7 @@
 //! rws-app のコンポーネント関数（[`rws_app::list_page`] 等 + `rws_core::render`）
 //! を実際に組み合わせて固定する。
 //!
-//! # スコープ（`docs/app-api.md` 第 9 節参照）
+//! # スコープ（`docs/api/app-api.md` 第 9 節参照）
 //!
 //! - 実ブラウザでの `mount_csr` / ハイドレーション実証は TASK-6.2（#46）・
 //!   TASK-6.3 のスコープであり、本テストでは扱わない。ここでの「CSR 同一

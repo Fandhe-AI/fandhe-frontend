@@ -18,7 +18,7 @@ tools: [Read, Grep, Glob, Edit, Write, Bash]
 
 ## 厳守事項
 
-- `unsafe` は WASM バインディング層・FFI 境界に限定し、使用箇所をコメントと `docs/unsafe-boundary.md` に明示する（REQ-2）
+- `unsafe` は WASM バインディング層・FFI 境界に限定し、使用箇所をコメントと `docs/policy/unsafe-boundary.md` に明示する（REQ-2）
 - WASM 経由の DOM 更新にも `core` と同一のエスケープ保証を維持する（REQ-1 / TASK-1.3）
 - `rws-wasm-thin` はオプトインの参考実装であり、既定にしない
 - 変更後は wasm ターゲットのビルド・テスト（`cargo test` / wasm 回帰テスト）を通す

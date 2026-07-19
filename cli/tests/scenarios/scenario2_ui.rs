@@ -1,6 +1,6 @@
 //! シナリオ 2（UI 改善: 一覧画面への件数サマリー追加、TASK-13.4c・#146）の
 //! 回帰テスト。親タスク TASK-13.4（#143）・設計文書
-//! `docs/scenario-regression-design.md` §4.1 行 2・§4.2〜§4.4 の実装契約に
+//! `docs/design/scenario-regression-design.md` §4.1 行 2・§4.2〜§4.4 の実装契約に
 //! 従う。
 //!
 //! # 期待値の根拠（PoC-7 JSON をそのまま突き合わせない理由）
@@ -28,7 +28,7 @@ use crate::common::{
 /// `structure.toml`（`fw gate` が唯一の情報源とする宣言ファイル、
 /// `gate.rs` 冒頭コメント参照）。`app` は `role = "component"`、`server` は
 /// `role = "server-entrypoint"`、`wasm-client` は `role = "client-entrypoint"`
-/// （`docs/structure-manifest.md` §2.2.1 の閉じた語彙に従う）。`[routing]
+/// （`docs/design/structure-manifest.md` §2.2.1 の閉じた語彙に従う）。`[routing]
 /// definition_dir = "server"` はルート定義を `server/` 配下に限定する宣言。
 const STRUCTURE_TOML: &str = r#"
 [manifest]

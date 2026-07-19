@@ -5,9 +5,9 @@
 //! 提供するための薄いヘルパー関数群。**すべて [`crate::el`] への委譲のみ**で
 //! あり、独自の出力経路・独自のエスケープ処理を一切持たない
 //! （`core/src/lib.rs` 冒頭の不変条件 1・2 がそのまま適用される。
-//! `docs/component-api.md` 第 4 節・定義規則 1〜3 を参照）。
+//! `docs/api/component-api.md` 第 4 節・定義規則 1〜3 を参照）。
 //!
-//! ## 定義規則（`docs/component-api.md` 第 4 節を踏襲）
+//! ## 定義規則（`docs/api/component-api.md` 第 4 節を踏襲）
 //!
 //! 1. シグネチャは `fn <name>(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node`
 //!    に統一し、本体は `el("<tag>", attrs, children)` の一行のみとする。
@@ -37,7 +37,7 @@
 //!
 //! `img`/`br`/`hr`/`input` は HTML では void 要素（終了タグを持たない）だが、
 //! `render`/`render_into`（`core/src/lib.rs`）は v1 では常に終了タグを出力する
-//! 現行仕様を凍結している（`docs/component-api.md` 第 3 節・判断 4）。本モジュール
+//! 現行仕様を凍結している（`docs/api/component-api.md` 第 3 節・判断 4）。本モジュール
 //! のヘルパーもこの挙動をそのまま継承し、`<br></br>` のような出力になる。
 //! 自己終端出力への最適化は本モジュールのスコープ外とする。
 
@@ -45,7 +45,7 @@ use crate::{el, Node};
 
 /// `<div>` 要素を組み立てる標準タグショートカット。[`el`] への薄い委譲であり、
 /// エスケープ・タグ名検証は [`el`]/[`crate::render`] の既存経路をそのまま利用する
-/// （`docs/component-api.md` 第 4 節・定義規則）。
+/// （`docs/api/component-api.md` 第 4 節・定義規則）。
 ///
 /// # Examples
 ///
@@ -131,7 +131,7 @@ pub fn h1(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 
 /// `<main>` 要素を組み立てる標準タグショートカット。`main` は Rust の予約語では
 /// ないが、可読性のため PoC-3 の命名（`main_tag`）をそのまま踏襲する
-/// （`docs/component-api.md` 第 4 節・定義規則 4）。[`el`] への薄い委譲。
+/// （`docs/api/component-api.md` 第 4 節・定義規則 4）。[`el`] への薄い委譲。
 ///
 /// # Examples
 ///
@@ -290,7 +290,7 @@ pub fn label(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 ///
 /// `input` は HTML では void 要素だが、本クレートの `render` は v1 では常に
 /// 終了タグを出力する現行仕様を凍結している（本モジュール冒頭の rustdoc・
-/// `docs/component-api.md` 第 3 節・判断 4 を参照）。
+/// `docs/api/component-api.md` 第 3 節・判断 4 を参照）。
 pub fn input(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
     el("input", attrs, children)
 }
@@ -353,7 +353,7 @@ pub fn caption(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 ///
 /// `img` は HTML では void 要素だが、本クレートの `render` は v1 では常に
 /// 終了タグを出力する現行仕様を凍結している（本モジュール冒頭の rustdoc・
-/// `docs/component-api.md` 第 3 節・判断 4 を参照）。
+/// `docs/api/component-api.md` 第 3 節・判断 4 を参照）。
 ///
 /// # Examples
 ///
@@ -371,7 +371,7 @@ pub fn img(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 ///
 /// `br` は HTML では void 要素だが、本クレートの `render` は v1 では常に
 /// 終了タグを出力する現行仕様を凍結している（本モジュール冒頭の rustdoc・
-/// `docs/component-api.md` 第 3 節・判断 4 を参照）。
+/// `docs/api/component-api.md` 第 3 節・判断 4 を参照）。
 pub fn br(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
     el("br", attrs, children)
 }
@@ -380,7 +380,7 @@ pub fn br(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 ///
 /// `hr` は HTML では void 要素だが、本クレートの `render` は v1 では常に
 /// 終了タグを出力する現行仕様を凍結している（本モジュール冒頭の rustdoc・
-/// `docs/component-api.md` 第 3 節・判断 4 を参照）。
+/// `docs/api/component-api.md` 第 3 節・判断 4 を参照）。
 pub fn hr(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
     el("hr", attrs, children)
 }
@@ -390,7 +390,7 @@ mod tests {
     use super::*;
     use crate::{raw_html, render, text};
 
-    /// TASK-5.1b で追加した最小セット（`docs/component-api.md` 第 4 節）が、
+    /// TASK-5.1b で追加した最小セット（`docs/api/component-api.md` 第 4 節）が、
     /// それぞれ期待どおりのタグ名で出力されることを一括で固定する。
     /// `main_tag` のみ委譲先タグ名 `"main"` と関数名が異なる点に注意。
     #[test]
@@ -451,7 +451,7 @@ mod tests {
     }
 
     /// タグショートカットは `el()` への薄い委譲であるため、`el()` を直接
-    /// 使った場合と出力が完全に一致することを確認する（`docs/component-api.md`
+    /// 使った場合と出力が完全に一致することを確認する（`docs/api/component-api.md`
     /// 第 4 節・定義規則 1〜3 が求める「独自の出力経路を持たない」ことの回帰）。
     #[test]
     fn tag_shortcut_output_matches_direct_el_call() {
@@ -532,7 +532,7 @@ mod tests {
     }
 
     /// void 要素ショートカット（`img`/`br`/`hr`/`input`）が、現行仕様どおり
-    /// 常に終了タグを出力することを固定する（`docs/component-api.md` 第 3 節・
+    /// 常に終了タグを出力することを固定する（`docs/api/component-api.md` 第 3 節・
     /// 判断 4 の凍結仕様。将来の自己終端出力最適化はこのテストの更新を伴う）。
     #[test]
     fn void_element_shortcuts_render_closing_tag() {

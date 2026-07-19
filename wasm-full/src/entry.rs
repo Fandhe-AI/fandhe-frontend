@@ -2,7 +2,7 @@
 //!
 //! `Runtime<C: rws_interactive::Component>`（`crate::Runtime`）はジェネリックな
 //! Rust API であり、`#[wasm_bindgen]` はジェネリクスをエクスポートできない
-//! 制約があるため直接 JS から呼べない（`docs/wasm-full-architecture.md`
+//! 制約があるため直接 JS から呼べない（`docs/design/wasm-full-architecture.md`
 //! 第 3.3 節）。本モジュールはその制約を埋める**アプリ側の薄いラッパー**の
 //! 参照実装であり、`rws_interactive::AppState`（PoC-5 のカウンター・フォーム・
 //! 動的リスト実装を汎用化した参照コンポーネント）に対して具象の
@@ -62,7 +62,7 @@ thread_local! {
 /// 2 回以上呼ばれた場合、直前の `Runtime`（および `wire_events` が登録した
 /// リスナー）は新しい `Runtime` に置き換わる。`Closure::forget` により登録
 /// 済みのリスナーは DOM 側に残存するが、`unmount`（明示的解放）は
-/// `docs/wasm-full-architecture.md` が将来課題として明記するスコープ外
+/// `docs/design/wasm-full-architecture.md` が将来課題として明記するスコープ外
 /// （第 4 節・判断 2、第 5 節）であり、本参照実装は「アプリ生存期間に 1 度」
 /// という前提（同書第 4 節・判断 2）に従い単一マウントを想定する。
 ///

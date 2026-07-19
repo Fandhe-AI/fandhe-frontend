@@ -8,7 +8,7 @@
 //! 呼び出し）を実ブラウザで検証しているが、`read_hydration_attrs` 単体（実 DOM
 //! からの `data-hydrate-*` 属性列挙）の直接検証は行っていない。
 //!
-//! 本ファイルはその空白を埋め、`docs/hydration-state-format.md` 第 6 節
+//! 本ファイルはその空白を埋め、`docs/api/hydration-state-format.md` 第 6 節
 //! 「テスト観点の引き継ぎ」が要求する下記を検証する（実装計画 §4.2 に対応）。
 //!
 //! 1. `read_hydration_attrs` が実 DOM から `data-hydrate-*` 属性のみを列挙し、
@@ -150,7 +150,7 @@ fn read_hydration_attrs_preserves_unit_separator_across_real_dom_roundtrip() {
 
 /// 観点 3: `MAX_ATTR_VALUE_LEN` 超過の属性値を実 DOM 上へ直接付与した場合、
 /// `read_hydration_attrs` の列挙結果から除外されること（DoS 耐性、
-/// `docs/hydration-state-format.md` 第 8 節・不変条件 4 の実 DOM 実証）。
+/// `docs/api/hydration-state-format.md` 第 8 節・不変条件 4 の実 DOM 実証）。
 #[wasm_bindgen_test]
 fn read_hydration_attrs_excludes_oversized_attribute_value_in_real_dom() {
     let window = web_sys::window().expect("window must exist");

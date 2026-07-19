@@ -1,4 +1,4 @@
-//! DOM 更新の内部モジュール（`docs/wasm-full-architecture.md` 第 3.1 節）。
+//! DOM 更新の内部モジュール（`docs/design/wasm-full-architecture.md` 第 3.1 節）。
 //!
 //! 本モジュールは DOM を一切参照しない**純粋関数** [`render_component_html`]
 //! （TASK-11.2c・#76）と、それを `web_sys::Element::set_inner_html` へ適用する
@@ -35,7 +35,7 @@ pub fn render_component_html<C: Component>(component: &C) -> String {
 /// [`render_component_html`] の出力を `root` へ反映する薄い層（TASK-11.2d・#77）。
 ///
 /// `crate::Runtime::mount`（CSR 経路）・`crate::Runtime::hydrate`（ハイドレーション
-/// 失敗時の CSR フォールバック経路、`docs/wasm-full-architecture.md` 第 4 節・
+/// 失敗時の CSR フォールバック経路、`docs/design/wasm-full-architecture.md` 第 4 節・
 /// 判断 5）から呼ばれる。この関数自体は文字列生成を一切行わず、
 /// [`render_component_html`] の戻り値を `set_inner_html` へ渡すだけであるため、
 /// XSS 保証（既定エスケープ済み出力のみを DOM へ挿入する不変条件）は呼び出し元

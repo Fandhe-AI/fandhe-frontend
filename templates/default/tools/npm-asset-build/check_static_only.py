@@ -10,7 +10,7 @@
 `--ignore-scripts` は preinstall/install/postinstall の暗黙実行のみを防ぎ、
 パッケージ内の明示的な require() やビルドプラグイン実行までは防げない。
 本スクリプトはその隙間を埋める fail-closed な allowlist 方式の検証器であり、
-判定ルールは #122（TASK-12.2a）の設計ドキュメント docs/npm-static-asset-rules.md
+判定ルールは #122（TASK-12.2a）の設計ドキュメント docs/policy/npm-static-asset-rules.md
 （本実装時点で未マージの場合は当該 PR #223 の内容を契約として使用）に従う。
 
 呼び出し文脈: install.sh の実行後、CI から呼び出されることを想定する
@@ -77,7 +77,7 @@ ALLOWED_EXTS = {
 # 拡張子を持たないが許可するファイル名の前方一致プレフィックス（大文字小文字非区別）。
 ALLOWED_NOEXT_PREFIXES = ("license", "notice", "readme")
 
-# 実行コード拡張子（docs/npm-static-asset-rules.md §3.4）。
+# 実行コード拡張子（docs/policy/npm-static-asset-rules.md §3.4）。
 # R2-ext の拒否はこれらに対して、いかなる粒度の allowlist エントリでも免除不可
 # （ハード拒否）とする。`.min.js` は `.js` とみなして判定する。
 HARD_DENY_EXTS = {".js", ".mjs", ".cjs", ".node", ".wasm"}
@@ -174,7 +174,7 @@ def _hard_deny_ext_for_name(name: str) -> str | None:
 #   - 非 R2-ext ルール: (package, rule, None) — パッケージ + ルール単位
 #   - R2-ext ルール: (package, "R2-ext", ("ext", 拡張子)) または
 #     (package, "R2-ext", ("file", パッケージ相対パス)) のいずれか一方のみ
-#     （契約: docs/npm-static-asset-rules.md §3.4 「Rule 2 の免除は対象拡張子
+#     （契約: docs/policy/npm-static-asset-rules.md §3.4 「Rule 2 の免除は対象拡張子
 #     or 個別ファイルパス単位を必須とする」）。
 ExemptKey = tuple[str, str, tuple[str, str] | None]
 
@@ -200,7 +200,7 @@ def validate_exempt_entries(entries: Iterable[object]) -> dict[ExemptKey, str]:
     """`[[exempt]]` エントリ列（tomllib がパースした素のリスト）を検証し、
     ExemptKey -> reason の免除表を返す。
 
-    契約（docs/npm-static-asset-rules.md §3.4）:
+    契約（docs/policy/npm-static-asset-rules.md §3.4）:
       - reason 欠落・空、未知 rule ID、ワイルドカード的指定はすべてパースエラー
         として CheckError を送出する（呼び出し元で exit 2 系に変換される）。
       - R2-ext の免除は「対象拡張子（ext）」または「個別ファイルパス（file）」の
@@ -253,7 +253,7 @@ def validate_exempt_entries(entries: Iterable[object]) -> dict[ExemptKey, str]:
                 if ext_norm in HARD_DENY_EXTS or ext_norm == ".min.js":
                     raise CheckError(
                         f"R2-ext exemption for executable extension {ext_norm!r} is not "
-                        "permitted (hard-deny per docs/npm-static-asset-rules.md §3.4): "
+                        "permitted (hard-deny per docs/policy/npm-static-asset-rules.md §3.4): "
                         f"{entry!r}"
                     )
                 key: ExemptKey = exempt_entry_key(package, rule, ext_norm, None)
@@ -262,7 +262,7 @@ def validate_exempt_entries(entries: Iterable[object]) -> dict[ExemptKey, str]:
                 if _hard_deny_ext_for_name(file_norm) is not None:
                     raise CheckError(
                         f"R2-ext exemption for executable file {file_norm!r} is not "
-                        "permitted (hard-deny per docs/npm-static-asset-rules.md §3.4): "
+                        "permitted (hard-deny per docs/policy/npm-static-asset-rules.md §3.4): "
                         f"{entry!r}"
                     )
                 key = exempt_entry_key(package, rule, None, file_norm)
@@ -338,7 +338,7 @@ def _is_js_entry(value: object) -> bool:
 #   detail は run() での allowlist 照合キーの組み立てに使う:
 #     - None: (package, rule) 単位で免除照合する（R2-ext 以外の全ルール）
 #     - ("hard_deny",): 実行コード拡張子の R2-ext 違反。いかなる免除エントリでも
-#       救済不可（docs/npm-static-asset-rules.md §3.4）
+#       救済不可（docs/policy/npm-static-asset-rules.md §3.4）
 #     - ("ext", 拡張子) / ("file", パッケージ相対パス): R2-ext の免除照合キー
 Violation = tuple[str, str, str, tuple[str, ...] | None]
 
@@ -406,7 +406,7 @@ def _check_extension(filename: str) -> tuple[str, tuple[str, ...] | None] | None
     戻り値は (reason, detail) で、detail は run() での免除照合キーの組み立てに
     使う。実行コード拡張子（HARD_DENY_EXTS。`.min.js` を含む）は
     detail=("hard_deny",) を返し、いかなる allowlist エントリでも免除不可と
-    する（docs/npm-static-asset-rules.md §3.4）。それ以外の拒否対象は
+    する（docs/policy/npm-static-asset-rules.md §3.4）。それ以外の拒否対象は
     detail=("ext", 拡張子) とし、対象拡張子単位の免除照合に使う。
     """
     lower = filename.lower()
@@ -459,7 +459,7 @@ _SVG_FOREIGN_OBJECT_RE = re.compile(r"<foreignObject[\s>/]", re.IGNORECASE)
 
 def _check_svg_script(path: Path) -> str | None:
     """R3-svg-script: SVG 内のスクリプト混入経路を文字列検査で検出する
-    （過検知許容・見逃し回避、正規表現による広めの一致。docs/npm-static-asset-rules.md
+    （過検知許容・見逃し回避、正規表現による広めの一致。docs/policy/npm-static-asset-rules.md
     §3.3 が列挙する 4 種の検査対象すべてをカバーする）。ファイルは読むのみで
     一切実行しない。"""
     try:
@@ -478,7 +478,7 @@ def _check_svg_script(path: Path) -> str | None:
 
 
 # パッケージ自身の走査境界とする npm 実装ディレクトリ名（ネストした transitive
-# 依存の配置場所）。docs/npm-static-asset-rules.md §3.2 の契約:
+# 依存の配置場所）。docs/policy/npm-static-asset-rules.md §3.2 の契約:
 # 「あるパッケージの判定走査はこのディレクトリ自体を境界として除外し、配下は
 # パッケージ一覧走査（enumerate_packages）が別途独立した判定対象として列挙する」。
 NESTED_NODE_MODULES_DIR = "node_modules"
@@ -683,7 +683,7 @@ def enumerate_packages(
 ) -> tuple[list[tuple[str, Path]], list[tuple[str, str, str, str, None]]]:
     """node_modules を再帰的に列挙する。
 
-    契約（docs/npm-static-asset-rules.md §3.2）: あるパッケージ `foo` の配下に
+    契約（docs/policy/npm-static-asset-rules.md §3.2）: あるパッケージ `foo` の配下に
     ネストした `node_modules/bar/`（深さは問わない。`foo/node_modules/bar/` は
     もちろん `foo/lib/node_modules/bar/` のような配置も対象）が存在する場合、
     `bar` は `foo` の判定走査（_check_package_files が _walk_no_follow の境界で
@@ -785,7 +785,7 @@ def _print_exempt_suggestion(name: str, rule: str, detail: tuple[str, ...] | Non
         print(
             f"# package={_escape_toml_string(name)} rule={rule} "
             f"file={_escape_toml_string(file)}: hard-deny executable "
-            "extension — cannot be exempted (docs/npm-static-asset-rules.md §3.4)"
+            "extension — cannot be exempted (docs/policy/npm-static-asset-rules.md §3.4)"
         )
         return
 
@@ -823,7 +823,7 @@ def run(argv: list[str]) -> int:
     violation_count = 0
     for name, rule, file, reason, detail in all_violations:
         # R2-ext のハード拒否（実行コード拡張子）はいかなる免除エントリでも
-        # 救済しない（docs/npm-static-asset-rules.md §3.4）。
+        # 救済しない（docs/policy/npm-static-asset-rules.md §3.4）。
         if detail is not None and detail[0] == "hard_deny":
             print(
                 f'VIOLATION package={name} rule={rule} file={file} '

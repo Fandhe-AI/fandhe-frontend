@@ -4,7 +4,7 @@
 //! [`Hydrate::hydration_attrs`]（サーバー側: 状態 → 属性）と
 //! [`Hydrate::from_hydration_attrs`]（クライアント側: 属性 → 状態）は、
 //! `wasm-full`/`wasm-thin`（TASK-11.2/11.3）が DOM から読み取った属性値を
-//! 復元する際の唯一の契約点である（`docs/interactive-api.md` 第 3 節・
+//! 復元する際の唯一の契約点である（`docs/api/interactive-api.md` 第 3 節・
 //! TASK-11.1a で確定した凍結 API）。属性値はクライアント制御下になり得る
 //! （DevTools 等での改ざんを含む）ため、`from_hydration_attrs` は panic
 //! せず `Result` で失敗を返す契約になっている（本クレートの不変条件 3）。
@@ -141,7 +141,7 @@ fn roundtrip_survives_html_meta_characters_in_items() {
 
 // --- from_hydration_attrs の敵対的入力耐性（panic せず Err を返す） --------
 //
-// `docs/interactive-api.md` 第 4 節・判断 4: `from_hydration_attrs` は
+// `docs/api/interactive-api.md` 第 4 節・判断 4: `from_hydration_attrs` は
 // 改ざんされうるクライアント入力を前提に `Result` を返し、`unwrap()`/
 // `panic!` を使わない。フォールバック戦略（既定値に倒すかエラーを
 // 伝播するか）は呼び出し側（`rws-wasm-full`）に委ねる設計であるため、

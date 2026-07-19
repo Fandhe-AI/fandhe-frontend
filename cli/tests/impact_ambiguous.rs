@@ -1,7 +1,7 @@
 //! `fw impact` の ambiguous（多重定義）単独ケースの独立 e2e（イシュー #293）。
 //!
 //! #137（TASK-13.2e: 影響範囲解析のテスト整備）クローズ時の留保事項のうち、
-//! `docs/impact-analysis-design.md` §3.4 テスト観点 4「多重定義
+//! `docs/design/impact-analysis-design.md` §3.4 テスト観点 4「多重定義
 //! （`ambiguous`）時の承認強制」を、`cli/src/impact.rs` の単体テスト
 //! （`analyze_reports_ambiguous_and_requires_approval_when_multiply_defined`
 //! ほか）に加えて実バイナリ（`fw`）経由の e2e として固定する。
@@ -65,7 +65,7 @@ fn unambiguous_baseline_is_auto_applicable() {
 /// 本題: `core-a` / `core-b` の双方が同名 `pub fn render_widget` を定義する
 /// 2 クレート構成（相互依存なし・使用箇所なし）。`breaking_risk: low` の
 /// まま `ambiguous: true` により `requires_human_approval: true` が強制
-/// されることを検証する（`docs/impact-analysis-design.md` §3.4 観点 4）。
+/// されることを検証する（`docs/design/impact-analysis-design.md` §3.4 観点 4）。
 #[test]
 fn multiply_defined_symbol_forces_human_approval() {
     let project = write_impact_workspace(

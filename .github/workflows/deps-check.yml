@@ -21,7 +21,7 @@ name: deps-check
 #   （迂回経路を作らない設計。しきい値変更はコード定数の変更 = レビュー必須の PR のみ）。
 # - 上限超過時の原則対応は依存削減。上限値自体の見直しは frontend-framework-spec
 #   リポジトリでの仕様変更を経る。
-# - 運用ドキュメント本体は TASK-3.3（docs/dependency-graph-policy.md 相当）で整備予定。
+# - 運用ドキュメント本体は TASK-3.3（docs/policy/dependency-graph-policy.md 相当）で整備予定。
 #   本ワークフローはあくまで CI 組み込みの実体。
 #
 # 計測対象パッケージ:
@@ -37,7 +37,7 @@ name: deps-check
 #   server/）を計測対象に追加した。実測: packages=0/60 depth=0/6（PASS）。
 #   rws-wasm-full・rws-wasm-thin（CSR/ハイドレーション用クライアントクレート）は
 #   REQ-3 が対象と明記する「標準サーバー構成」に該当しないため、本ゲートの対象に
-#   含めない（docs/dependency-graph-policy.md 第 4 節参照）。参考実測: wasm-full
+#   含めない（docs/policy/dependency-graph-policy.md 第 4 節参照）。参考実測: wasm-full
 #   20 packages/depth 9、wasm-thin 13 packages/depth 7（いずれも深さ上限 6 を
 #   超過するが、これは対象外の結果であって理由ではない。対象外の理由は上記の
 #   スコープ定義そのものであり、深さ超過を根拠に対象外化したわけではない）。

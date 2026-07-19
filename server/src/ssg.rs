@@ -7,7 +7,7 @@
 //! - SSR 出力（[`crate::ssr::SsrResponse::body`]）を**そのまま**ファイルへ
 //!   書き出すのみで、独自の HTML 組み立て・独自のエスケープ処理を行わない
 //!   （REQ-6: SSR/SSG 出力の文字列完全一致が構成上自明になる。
-//!   `docs/app-api.md` 第 4 節・判断 5）。
+//!   `docs/api/app-api.md` 第 4 節・判断 5）。
 //! - `std::fs` のみを使用し、外部クレート（`tempfile` 等）を追加しない
 //!   （REQ-3、`coding-rust.md`）。
 //!

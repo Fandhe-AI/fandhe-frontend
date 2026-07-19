@@ -1,7 +1,7 @@
 //! ルーティング統合テスト（TASK-7.2c、イシュー #57）。
 //!
 //! REQ-7（`docs/spec/04-requirements.md`）の受け入れ基準・
-//! `docs/router-path-matching.md`（TASK-7.2a）の v1 仕様を、
+//! `docs/api/router-path-matching.md`（TASK-7.2a）の v1 仕様を、
 //! `rws_server::router::Router` の公開 API（unit テストではなく外部クレート
 //! と同じ利用経路）を通じて固定する。`server/src/router.rs` の unit テストと
 //! 重複させず、以下の観点に絞る。
@@ -19,7 +19,7 @@
 //! - `RouterError` 全変種が公開 API 経由で再現でき、`Display` 出力が
 //!   機微情報を含まないこと
 //!
-//! 以下はイシュー #57 で `docs/router-path-matching.md` §3 の仕様表と
+//! 以下はイシュー #57 で `docs/api/router-path-matching.md` §3 の仕様表と
 //! 既存カバレッジ（PR #239）を突き合わせて未固定と判明した観点を補う。
 //!
 //! - 「優先度規則なし・登録順の先勝ち」が、静的セグメントとパラメータが
@@ -36,7 +36,7 @@ use rws_server::ssr::respond;
 
 /// REQ-7 受け入れ基準（PoC-3 の 3 ルート相当）が公開 API から解決できることを
 /// 固定する。`/search` は `rws-app` に検索ページの凍結 API がないため
-/// `respond()` へは配線されていない（`docs/router-path-matching.md` §7）。
+/// `respond()` へは配線されていない（`docs/api/router-path-matching.md` §7）。
 /// ここでは router 単体としてのマッチング可否のみを確認する。
 #[test]
 fn resolves_req7_baseline_routes_via_public_api() {
@@ -112,7 +112,7 @@ fn respond_escapes_xss_payload_carried_by_matched_route_param() {
     assert!(known_xss_item.body.contains("&lt;script&gt;alert"));
 }
 
-/// クエリ文字列は照合前に切り落とされる（`docs/router-path-matching.md` §3）。
+/// クエリ文字列は照合前に切り落とされる（`docs/api/router-path-matching.md` §3）。
 #[test]
 fn query_string_is_ignored_when_matching() {
     let router: Router<&str> = Router::new().route("/items/:id", "item_detail").unwrap();
@@ -124,7 +124,7 @@ fn query_string_is_ignored_when_matching() {
 }
 
 /// 末尾スラッシュ・連続スラッシュ・空パス・非 `/` 始まりパスはいずれも
-/// 厳格一致の対象外として非マッチになる（`docs/router-path-matching.md` §3）。
+/// 厳格一致の対象外として非マッチになる（`docs/api/router-path-matching.md` §3）。
 #[test]
 fn strict_matching_rejects_slash_variants() {
     let router: Router<&str> = Router::new()
@@ -193,7 +193,7 @@ fn router_error_variants_are_reachable_and_display_safely() {
     assert!(!display.to_lowercase().contains("backtrace"));
 }
 
-/// 登録順の先勝ち（`docs/router-path-matching.md` §3）は、静的セグメントと
+/// 登録順の先勝ち（`docs/api/router-path-matching.md` §3）は、静的セグメントと
 /// パラメータが競合するパターン間でも成り立つことを固定する。「静的セグメント
 /// を優先する」という暗黙の優先度規則は v1 に存在しないため、後から登録した
 /// 静的パターンが先に登録したパラメータパターンを上書きすることはない。
@@ -221,7 +221,7 @@ fn registration_order_wins_over_static_vs_param_ambiguity() {
 
 /// パーセントエンコードされたセグメント（`%2F`・`%2e%2e%2f` 等）はデコードせず
 /// 生文字列のまま `Params` へ格納されることを固定する
-/// （`docs/router-path-matching.md` §3・§5、パストラバーサル再導入防止の回帰）。
+/// （`docs/api/router-path-matching.md` §3・§5、パストラバーサル再導入防止の回帰）。
 /// デコードするとセグメント数が変化しパストラバーサルの面が再導入され得るため、
 /// router が一切デコードしないことをここで固定する。
 #[test]
@@ -256,7 +256,7 @@ fn multi_param_route_and_params_iter_via_public_api() {
     assert_eq!(pairs, vec![("id", "2"), ("review_id", "9")]);
 }
 
-/// クエリ文字列のエッジケース（`docs/router-path-matching.md` §3）:
+/// クエリ文字列のエッジケース（`docs/api/router-path-matching.md` §3）:
 /// ルートパス自身にクエリが付く場合、および空クエリ（`?` のみで値なし）の
 /// いずれも `?` 以降が切り落とされてマッチすることを固定する。
 #[test]

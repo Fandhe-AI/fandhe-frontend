@@ -16,7 +16,7 @@ publish = false
 # クレート追加は行っていない（既存 wasm-bindgen/web-sys のみで完結、
 # `cargo metadata` 実測結果は PR 本文に記録する）。
 #
-# `docs/unsafe-boundary.md` 第 2 節のポリシー: 自作コードは safe Rust のみとし、
+# `docs/policy/unsafe-boundary.md` 第 2 節のポリシー: 自作コードは safe Rust のみとし、
 # `unsafe` は wasm-bindgen / web-sys の FFI 境界（依存クレート内部・自動生成コード）
 # に限定して許容する。
 #
@@ -26,7 +26,7 @@ publish = false
 #
 # TASK-11.4b（#83）で `Attr`/`NamedNodeMap` を追加。`hydration::read_hydration_attrs`
 # が `web_sys::Element::attributes()`（`NamedNodeMap`）を index 走査して各属性
-# （`web_sys::Attr`）の名前・値を読み取るために必要（`docs/hydration-state-format.md`
+# （`web_sys::Attr`）の名前・値を読み取るために必要（`docs/api/hydration-state-format.md`
 # 第 5 節）。新規クレート追加ではなく既存 `web-sys` の feature 追加のみであり、
 # `cargo metadata` 実測（パッケージ数・依存グラフ深さ）に変化がないことを確認済み
 # （PR 本文に記録）。
@@ -58,7 +58,7 @@ crate-type = ["cdylib", "rlib"]
 # `perf-harness` ジョブは feature なしのまま実行し（スモークのみ・性能判定
 # しない方針を維持）、正式計測は統制されたローカル環境で
 # `--features perf-assert` を付けて実行する
-# （`docs/perf-browser-harness.md` 第 5 節）。
+# （`docs/ci/perf-browser-harness.md` 第 5 節）。
 [features]
 perf-assert = []
 
@@ -68,7 +68,7 @@ perf-assert = []
 #
 # 依存追加の承認整理（.claude/rules/coding-rust.md・security.md の事前承認要件）:
 # `wasm-bindgen-test` は docs/spec/05-tasks.md TASK-11.5 が成果物として明示する
-# `wasm-pack test --headless` の実行に必須であり、docs/browser-testing.md 第 7 節が
+# `wasm-pack test --headless` の実行に必須であり、docs/guides/browser-testing.md 第 7 節が
 # 実ブラウザテストの dev 依存として計画済み（#65 と同一の運用）。追加による影響
 # （パッケージ数・依存グラフ深さ・build.rs 有無）は PR 本文に実測値を記録する。
 [dev-dependencies]

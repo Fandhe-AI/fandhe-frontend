@@ -70,7 +70,7 @@ pub struct MemberPackage {
     /// 通常依存（`dev`/`build` を除く）のうち、他の workspace member への依存
     /// （= 実質的な path 依存）の名前一覧。`structure.toml` の `depends_on`
     /// 宣言との突き合わせに使う。dev-dependencies は対象外
-    /// （`docs/structure-manifest.md` §3 の server の扱いに従う）。
+    /// （`docs/design/structure-manifest.md` §3 の server の扱いに従う）。
     pub normal_workspace_deps: Vec<String>,
 }
 
@@ -223,7 +223,7 @@ fn parse_metadata(input: &str) -> Result<WorkspaceMetadata, MetadataError> {
             .to_path_buf();
 
         // このメンバーの通常依存（dev/build を除く）のうち、他 workspace member を
-        // 指すものだけを抽出する。dev-dependencies は `docs/structure-manifest.md`
+        // 指すものだけを抽出する。dev-dependencies は `docs/design/structure-manifest.md`
         // §3 の方針（server の rws-core/rws-app は dev-dependencies のみで
         // depends_on 宣言しない）に従い対象外とする。
         let node = resolve_nodes

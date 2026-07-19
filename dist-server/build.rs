@@ -365,7 +365,7 @@ fn installed_wasm_bindgen_cli_version() -> Result<String, String> {
 /// - プロファイルは常に release 固定（配布用埋め込み成果物。REQ-11 の
 ///   バンドルサイズ基準に沿う。debug wasm 対応は TASK-10.2a/c（#109/#111）の
 ///   検討の結果、release 固定を維持する設計判断とした。開発時の高速確認は
-///   `--target nodejs` のオプトイン経路（`docs/wasm-build-integration.md`
+///   `--target nodejs` のオプトイン経路（`docs/design/wasm-build-integration.md`
 ///   §6.4）が別途担う）
 fn run_wasm_build(workspace_root: &Path) -> Result<PathBuf, String> {
     let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());

@@ -243,7 +243,7 @@ fn render_html_actually_contains_escaped_representation_of_item_payload() {
 
 /// ネストした `codec::Value`（`Map`/`List`）で状態を表現する最小コンポーネント。
 ///
-/// `docs/hydration-nested-state.md` が確定した設計どおり、`Value` codec は
+/// `docs/design/hydration-nested-state.md` が確定した設計どおり、`Value` codec は
 /// 区切り文字・エスケープ文字のみを対象とした構造的エスケープ（データ注入
 /// 防止）を担い、HTML エスケープは一切行わない。HTML としての安全性は
 /// 常に `render_for_hydration` → `rws_core::render()` の既定エスケープ経路

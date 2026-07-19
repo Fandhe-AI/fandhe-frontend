@@ -39,7 +39,7 @@ const VIEW_TRANSITION_AT_RULE: &str = "<style>@view-transition { navigation: aut
 
 /// 廃止済みの旧実験構文。View Transitions Level 2 の標準化過程で
 /// `<meta name="view-transition" content="same-origin">` は廃止されており、
-/// `page_shell()` は at-rule へ置換済み（`docs/view-transitions.md` 参照）。
+/// `page_shell()` は at-rule へ置換済み（`docs/guides/view-transitions.md` 参照）。
 const DEPRECATED_VIEW_TRANSITION_META: &str = r#"<meta name="view-transition""#;
 
 /// テスト観点 1: SSR のトップページ（`respond("/")`）に at-rule が

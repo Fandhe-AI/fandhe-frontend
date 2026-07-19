@@ -1,7 +1,7 @@
 # allowlist.toml
 #
 # 役割: check_static_only.py（TASK-12.2b）が参照する免除表の雛形。
-# docs/npm-static-asset-rules.md §3.4 に定義される「1 パッケージ・1 ルール単位
+# docs/policy/npm-static-asset-rules.md §3.4 に定義される「1 パッケージ・1 ルール単位
 # のみ・ワイルドカード不可・reason 必須」という fail-closed な免除機構に従う。
 #
 # install.sh（イシュー #296）から自動連携される際の標準雛形でもある:

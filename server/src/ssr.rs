@@ -4,7 +4,7 @@
 //!
 //! # 呼び出し文脈・契約
 //!
-//! - `docs/app-api.md` 第 4 節の設計判断 5（REQ-6/REQ-7 受け入れ基準）に従い、
+//! - `docs/api/app-api.md` 第 4 節の設計判断 5（REQ-6/REQ-7 受け入れ基準）に従い、
 //!   [`respond`] は [`rws_app::list_page`] / [`rws_app::detail_page`] /
 //!   [`rws_app::page_shell`] を SSR・SSG・（将来の）CSR のいずれのモードからも
 //!   **同一関数として分岐なく**呼ぶ。[`crate::ssg::generate`] は本関数が返す
@@ -13,7 +13,7 @@
 //! - `server/src/main.rs`（SSR エントリの CLI 版）から呼ばれる想定。HTTP
 //!   ソケット層は本関数の責務ではなく、`rws-dist-server`
 //!   （`dist-server/src/routes.rs`）が本関数を呼んで HTTP レスポンスへ変換する
-//!   （`docs/app-api.md` 追記: axum 不採用の実測根拠により、HTTP 配信は
+//!   （`docs/api/app-api.md` 追記: axum 不採用の実測根拠により、HTTP 配信は
 //!   `rws-dist-server` の hyper 構成に委譲し、本クレートは外部依存ゼロを保つ）。
 //! - ルーティングは [`crate::router::Router`]（外部依存ゼロ・パニックしない
 //!   パスマッチング）を使う。ルーター自体はエスケープを行わない契約
@@ -66,7 +66,7 @@ pub struct SsrResponse {
 /// ユーザー入力由来の失敗を panic させないことを求めるものであり、コンパイル
 /// 時定数の妥当性はこの限りでない）。`/search` は rws-app の凍結 API に
 /// search ページが存在しないため本 v1 では接続しない（スコープ外。
-/// `docs/app-api.md` 追記・PR 本文に記録）。
+/// `docs/api/app-api.md` 追記・PR 本文に記録）。
 fn build_page_router() -> Router<PageRoute> {
     Router::new()
         .route("/", PageRoute::List)

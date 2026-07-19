@@ -9,7 +9,7 @@
 //! 機械的に担保する。
 //!
 //! テスト観点（T1〜T7）は TASK-5.2a（#34）の設計書
-//! `docs/plain-html-output-test-design.md`（PR #182）の観点表に従う。
+//! `docs/design/plain-html-output-test-design.md`（PR #182）の観点表に従う。
 //! 設計書と本ファイルの実装が乖離した場合は設計書を正とする。
 //!
 //! # 本ファイルの位置づけ（`xss_escape.rs` との関係）

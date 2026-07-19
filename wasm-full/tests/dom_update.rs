@@ -4,7 +4,7 @@
 //! `wasm-bindgen` に依存しない純粋関数のため、native `cargo test` で
 //! REQ-11 受け入れ基準「クライアント WASM のイベント処理・DOM 更新を
 //! 経由した出力にも同一のエスケープ保証が及ぶこと（REQ-1 関連）」を検証できる。
-//! （`docs/wasm-full-architecture.md` 第 5 節・テスト設計 §5 参照）。
+//! （`docs/design/wasm-full-architecture.md` 第 5 節・テスト設計 §5 参照）。
 //!
 //! `set_inner_html` を伴う `paint()` の実ブラウザ検証は本コミット時点では
 //! 未実装であり、TASK-11.2d（#77）の統合テストへ引き継ぐ（実装計画 §5-4）。
@@ -63,7 +63,7 @@ fn render_component_html_escapes_xss_payload_in_attribute_value() {
 
 /// dispatch → 再描画のラウンドトリップ: 状態遷移後の
 /// `render_component_html` 出力が遷移後の状態を反映すること
-/// （`docs/wasm-full-architecture.md` 第 3.2 節の
+/// （`docs/design/wasm-full-architecture.md` 第 3.2 節の
 /// `dispatch_and_render_headless` 相当の経路を `dom` モジュール側からも確認）。
 #[test]
 fn render_component_html_reflects_state_after_dispatch() {

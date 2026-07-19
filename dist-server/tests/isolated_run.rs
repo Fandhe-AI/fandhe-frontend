@@ -4,7 +4,7 @@
 //! 回帰テスト（TASK-9.2a、イシュー #99。親イシュー #98）。
 //!
 //! PoC-4 で手動実証された「ビルド成果物をソースツリーと無関係なディレクトリ
-//! へコピーして起動する」手順（`docs/isolated-run-acceptance-report.md` 第 4
+//! へコピーして起動する」手順（`docs/reports/isolated-run-acceptance-report.md` 第 4
 //! 節の検証手順様式）を自動化する。プロセス起動・HTTP 送受信の共通ヘルパは
 //! `tests/support/mod.rs`（`tests/boot.rs` と共有）を使う。
 //!

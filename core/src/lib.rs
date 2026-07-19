@@ -37,7 +37,7 @@
 //!
 //! ## タグショートカット（TASK-5.1b・Issue #164）
 //!
-//! `docs/component-api.md`（TASK-5.1a 設計確定書）が定義する最小セット
+//! `docs/api/component-api.md`（TASK-5.1a 設計確定書）が定義する最小セット
 //! （`div`/`p`/`ul`/`li`/`a`/`h1`/`main_tag`）に加え、Issue #164 でノード木
 //! 記述の可読性向上のため `span`/`table`/`form` 等の網羅的なタグヘルパー群を
 //! `tags` モジュール（[`tags`]）に実装する。いずれも [`el`] への薄い委譲のみ
@@ -52,12 +52,12 @@
 //! 呼び出す **DOM 非依存の純粋関数**。引数に取るのは本クレート自身の
 //! ノード木（[`Node`]）であり、実 DOM 型（`web-sys::Node` 等）には一切
 //! 依存しない。そのため `core` の外部依存ゼロ契約（不変条件 7）を侵さず、
-//! wasm ビルドを介さないネイティブ環境でもテスト可能（`docs/hydration-api.md`
+//! wasm ビルドを介さないネイティブ環境でもテスト可能（`docs/api/hydration-api.md`
 //! 第 2〜3 節・判断 3 の設計どおり）。
 //!
 //! ## スコープ外
 //!
-//! void 要素の自己終了処理は本クレートでは扱わない。`docs/component-api.md`
+//! void 要素の自己終了処理は本クレートでは扱わない。`docs/api/component-api.md`
 //! 第 3 節に記載のとおり、v1 では常に終了タグを出力する現行仕様を意図した
 //! 挙動として凍結する。
 
@@ -209,7 +209,7 @@ fn is_valid_tag_name(name: &str) -> bool {
 /// 反映されていない/対応しない値を返しうる。呼び出し側（`wasm-client`）は、
 /// SSR/CSR いずれかで実際に描画した木と同値の [`Node`] に対して本関数を呼び、
 /// 得られた属性値をキーに `web-sys` 経由で実 DOM 要素を検索してイベント
-/// リスナーを後付けする（`docs/hydration-api.md` 第 3〜4 節・判断 3）。
+/// リスナーを後付けする（`docs/api/hydration-api.md` 第 3〜4 節・判断 3）。
 ///
 /// `Node::Text` / `Node::RawHtml` は属性を持たないため無視する。同一要素に
 /// 同名属性が重複して渡された場合（[`el`] の `attrs` は生成時に重複除去
@@ -253,8 +253,8 @@ fn collect_attr_values(node: &Node, attr_name: &str, out: &mut Vec<String>) {
 /// `data-nav` 属性値を列挙する [`find_attr_values`] のショートカット。
 ///
 /// `rws_app::list_page` が各項目リンクへ付与する `data-nav` 属性
-///（`docs/app-api.md` 第 3 節）をクライアント側ルーティング配線の対象として
-/// 特定するために `wasm-client` が呼ぶ契約の関数（`docs/hydration-api.md`
+///（`docs/api/app-api.md` 第 3 節）をクライアント側ルーティング配線の対象として
+/// 特定するために `wasm-client` が呼ぶ契約の関数（`docs/api/hydration-api.md`
 /// 第 3 節・公開 API 凍結表）。
 ///
 /// # Examples

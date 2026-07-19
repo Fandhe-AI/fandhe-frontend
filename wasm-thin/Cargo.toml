@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 publish = false
 
 # TASK-11.3a（#79）時点で本クレートは新規作成。
-# `docs/unsafe-boundary.md` 第 2 節のポリシー: 自作コードは safe Rust のみとし、
+# `docs/policy/unsafe-boundary.md` 第 2 節のポリシー: 自作コードは safe Rust のみとし、
 # `unsafe` は wasm-bindgen の FFI 境界（依存クレート内部・自動生成コード）に
 # 限定して許容する。本クレートは `wasm-full` と異なり web-sys に依存しない
 # （DOM 操作は JS グルー側の責務であり、WASM 側は文字列計算のみを担う設計、

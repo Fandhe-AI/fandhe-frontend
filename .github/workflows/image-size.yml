@@ -311,7 +311,7 @@ jobs:
         # TASK-10.3b で builder ステージへ追加した curl・wasm32 ターゲット・
         # wasm-bindgen-cli 等がマルチステージビルドの境界を越えて最終イメージ
         # （FROM scratch 以降）へ漏れていないことを機械的に固定する
-        # （docs/docker-wasm-build-stage.md §6-3、A05 セキュリティ設定ミス対策）。
+        # （docs/design/docker-wasm-build-stage.md §6-3、A05 セキュリティ設定ミス対策）。
         # 最終イメージの中身は `/dist-server` バイナリ 1 つ（+ tar メタ情報）の
         # みであるべきで、それ以外のファイルが1つでも見つかれば fail-closed。
         run: |

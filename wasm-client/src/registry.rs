@@ -1,4 +1,4 @@
-//! ハンドラクロージャの寿命管理（TASK-6.2b、`docs/hydration-api.md` 第 4 節・判断 4）。
+//! ハンドラクロージャの寿命管理（TASK-6.2b、`docs/api/hydration-api.md` 第 4 節・判断 4）。
 //!
 //! `hydrate()`（`wiring` モジュール、`lib.rs` から呼ばれる）が
 //! `EventTarget::add_event_listener_with_callback` に渡す `Closure` は、
@@ -69,7 +69,7 @@ thread_local! {
 /// `remove_event_listener_with_callback` で解除する。
 ///
 /// 呼び出し元の DOM 構造が `hydrate()` 呼び出し間で変化していない前提
-/// （v1 最小スコープ、`docs/hydration-api.md` 第 3.1 節）では対象要素は
+/// （v1 最小スコープ、`docs/api/hydration-api.md` 第 3.1 節）では対象要素は
 /// まだ生存しているため解除は成功するが、要素が既に DOM から取り除かれて
 /// いた場合でも `remove_event_listener_with_callback` はエラーを返さず
 /// 単に無効な呼び出しとなる（`web-sys`/ブラウザ仕様）ため、戻り値は無視

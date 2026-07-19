@@ -12,13 +12,13 @@
 # 呼び出し元:
 # - `.github/workflows/ci.yml` の test ジョブ（cargo-deny 導入ステップの置換元）
 # - ローカル開発者・AI 自己保守フックが `fw gate` 実行前に前置する運用手順
-#   （docs/gate-design.md §6、docs/ai-self-maintenance-policy.md 参照）
+#   （docs/design/gate-design.md §6、docs/policy/ai-self-maintenance-policy.md 参照）
 #
 # イシュー #314: cargo-deny のバージョン pin の正はこのファイルの
 # `CARGO_DENY_VERSION` / `CARGO_DENY_SHA256` のみとする。テンプレート同梱の
 # `templates/default/.github/workflows/deny.yml`（本リポジトリ自身の CI には
 # 発火しない配布物のため、本スクリプトを直接参照できない）と
-# `docs/cargo-deny-advisories.md` は、同じバージョン + SHA256 検証パターンを
+# `docs/policy/cargo-deny-advisories.md` は、同じバージョン + SHA256 検証パターンを
 # 独立して埋め込む。3 箇所の pin 値が乖離しないことは
 # `xtask/tests/template_deny_workflow.rs` のドリフト検知テストが
 # `cargo test -p xtask` / CI で強制する（手動同期に頼らない）。

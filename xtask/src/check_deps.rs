@@ -52,7 +52,7 @@ use std::process::Command;
 ///
 /// この「52 件」は `cargo tree` 目視（`(*)` 重複省略あり）による旧基準値であり、
 /// 本モジュールのメモ化 DFS 計測（過小評価なし）とは直接比較できない
-/// （イシュー #298 再検証、`docs/dependency-graph-policy.md` 第 9 節）。
+/// （イシュー #298 再検証、`docs/policy/dependency-graph-policy.md` 第 9 節）。
 /// 上限の実効的根拠は現行計測定義における現行標準サーバー構成
 /// `rws-dist-server` の実測 21 件/深さ 5（同ポリシー第 2 節・第 9 節）であり、
 /// 本定数の値自体は再検証の結果として変更していない。
@@ -65,8 +65,8 @@ pub const MAX_PACKAGES: usize = 60;
 ///
 /// この「深さ 5」は `cargo tree` 目視（`(*)` 重複省略あり）による旧基準値であり、
 /// 本モジュールのメモ化 DFS 計測では同一構成（axum + tokio）が深さ 9 になる
-/// （PR #210 / `docs/dist-server-design.md` 4.2〜4.3 節、イシュー #298 再検証・
-/// `docs/dependency-graph-policy.md` 第 9 節）。両者は計測方法の違いによるもので
+/// （PR #210 / `docs/design/dist-server-design.md` 4.2〜4.3 節、イシュー #298 再検証・
+/// `docs/policy/dependency-graph-policy.md` 第 9 節）。両者は計測方法の違いによるもので
 /// 実装の欠陥ではない。上限の実効的根拠は現行標準サーバー構成 `rws-dist-server` の
 /// 実測 21 件/深さ 5（同ポリシー第 2 節・第 9 節）であり、本定数の値自体は
 /// 再検証の結果として変更していない。

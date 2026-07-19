@@ -6,7 +6,7 @@
 //! [`metadata`] を用いた実体突き合わせ（TASK-13.1c）→ [`json_out`] による
 //! JSON 出力、の順で処理する。いずれかの段階で失敗した場合は非 0 終了とし、
 //! 呼び出し元（CI・AI 自己保守フック）が「構造チェック PASS」と誤認しないよう
-//! 黙示的成功を返さない（`docs/structure-manifest.md` §4/§5、security.md A05）。
+//! 黙示的成功を返さない（`docs/design/structure-manifest.md` §4/§5、security.md A05）。
 
 #![forbid(unsafe_code)]
 
@@ -330,11 +330,11 @@ fn collect_dependencies(
 
 /// `impact` サブコマンド本体（TASK-13.2c, #135）。
 ///
-/// `docs/impact-analysis-design.md` §3.5 の CLI 仕様・終了コード規約を実装する:
+/// `docs/design/impact-analysis-design.md` §3.5 の CLI 仕様・終了コード規約を実装する:
 ///
 /// 1. 第 1 位置引数 `<symbol>` を取り出す（欠落時は使用法エラー、終了コード 2）
 /// 2. [`impact::validate_symbol`] でシンボル名を検証する（シェル・走査へ渡す前の
-///    A03 対策、`docs/impact-analysis-design.md` §6）。不正なら終了コード 2
+///    A03 対策、`docs/design/impact-analysis-design.md` §6）。不正なら終了コード 2
 /// 3. 残余引数を [`parse_project_arg`]（`structure` / `gate` と共有）で解決する
 /// 4. [`metadata::fetch`] で `cargo metadata` を実行し、ワークスペースルート・
 ///    member 一覧を取得する（`fw structure` と同じ責務分担: `cargo` プロセス起動は
@@ -345,7 +345,7 @@ fn collect_dependencies(
 ///    終了コードへマッピングする: 成功 → 0 / [`impact::ImpactError::InvalidSymbol`]
 ///    → 2 / [`impact::ImpactError::SymbolNotFound`]・[`impact::ImpactError::Scan`] → 1
 /// 6. 成功時は [`impact::render_report`]（TASK-13.2d, #136）で
-///    `docs/impact-analysis-design.md` §3.5 の JSON スキーマへシリアライズして
+///    `docs/design/impact-analysis-design.md` §3.5 の JSON スキーマへシリアライズして
 ///    stdout へ出力する。
 const IMPACT_USAGE: &str = "fw impact: usage: fw impact <symbol> [--project <dir>]";
 
@@ -383,7 +383,7 @@ fn run_impact(args: &[String]) -> i32 {
 
     match impact::analyze(&ws.workspace_root, &ws.members, symbol) {
         Ok(report) => {
-            // JSON 出力（`docs/impact-analysis-design.md` §3.5 のスキーマ）。
+            // JSON 出力（`docs/design/impact-analysis-design.md` §3.5 のスキーマ）。
             // 全文字列値は `render_report` 内部で `json_out::quoted`（`escape_str`
             // 経由）を通す契約であり、本呼び出し側では文字列を組み立てない
             // （security.md A08 対策）。

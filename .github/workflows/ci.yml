@@ -162,7 +162,7 @@ jobs:
       # `cargo clippy` を起動し、直接呼び出し・コメント偽装・リネーム import の
       # いずれも `clippy::disallowed_methods` で拒否され、`#[expect(...,
       # reason = "ESCAPE-REVIEWED: ...")]` を付与した呼び出しのみ受理される
-      # ことを実証する（詳細は docs/raw-html-lint-design.md）。上記ステップの
+      # ことを実証する（詳細は docs/design/raw-html-lint-design.md）。上記ステップの
       # `cargo test --workspace` 実行に暗黙包含されるだけでは受け入れ条件の
       # 充足が CI 上で可視化されないため、本ステップとして独立させる。
       - name: "REQ-1 raw_html() 偽装回避不能テスト (issue #159)"
@@ -278,7 +278,7 @@ jobs:
         # TASK-9.2（#98/#99）: REQ-9（単一バイナリ配布）の受け入れ基準
         # 「外部ファイル・Node ランタイム・依存インストールなしで自己完結
         # して動作すること」を固定する `tests/isolated_run.rs` を独立ステップ
-        # として可視化する（`docs/isolated-run-acceptance-report.md` 第 3 節
+        # として可視化する（`docs/reports/isolated-run-acceptance-report.md` 第 3 節
         # 「CI 統合」）。同ファイルは
         # `#![cfg(any(not(debug_assertions), feature = "force-embed"))]` で
         # ゲートされており、本ジョブの `--features force-embed` 下でのみ
@@ -296,7 +296,7 @@ jobs:
   #
   # wasm-client/（rws-wasm-client）は TASK-6.2b（#48）でクレート新設予定だが本コミット時点
   # では未作成（#48/#49 は open）。本イシューはクレート新設をスコープに含めない
-  # （docs/hydration-api.md 第 5 節の引き継ぎ表・#48 との責務混線回避のため）。
+  # （docs/api/hydration-api.md 第 5 節の引き継ぎ表・#48 との責務混線回避のため）。
   # そのため各ステップは check-wasm-client の存在判定結果でガードし、
   # wasm-client/ が存在しない間は環境整備のみ・実行はスキップする。
   # #48/#49 マージ後、後続タスク（TASK-6.3b #66 の hydration_browser.rs 等）が
@@ -305,7 +305,7 @@ jobs:
   # TASK-11.2d（#77）: 上記と同じ存在ガードパターンで `wasm-full/`
   # （`Runtime::mount`/`hydrate` の実ブラウザ統合テスト、
   # `wasm-full/tests/runtime_browser.rs`）も本ジョブへ同居させる
-  # （`docs/wasm-full-architecture.md` 第 5 節の引き継ぎ）。xss-wasm-test・
+  # （`docs/design/wasm-full-architecture.md` 第 5 節の引き継ぎ）。xss-wasm-test・
   # perf-harness ジョブ（同じ wasm-full クレートだが対象テストファイルが
   # 異なる）はそのまま独立ジョブとして維持し、変更しない。
   browser-test:
@@ -502,7 +502,7 @@ jobs:
       # wasm-full/tests/runtime_browser.rs（`Runtime::mount`/`hydrate` の実
       # ブラウザ統合テスト）が同一 PR で追加されるため通常は true になるが、
       # 並列進行中の他イシューによる巻き戻り等、想定外の理由でファイルが
-      # 存在しない場合でもジョブを失敗させない（`docs/wasm-full-architecture.md`
+      # 存在しない場合でもジョブを失敗させない（`docs/design/wasm-full-architecture.md`
       # 第 5 節が引き継ぐ「browser-test ジョブへの wasm-full 存在ガード追加」）。
       - name: Check wasm-full crate existence
         id: check-wasm-full
@@ -635,7 +635,7 @@ jobs:
       # data-hydrate-* 属性列挙）の実ブラウザ統合テスト（wasm-full/tests/
       # hydration_browser.rs）。runtime_browser ステップと同じ
       # check-wasm-full 存在ガードを再利用し、新規ガードは追加しない
-      # （`docs/hydration-state-format.md` 第 6 節が引き継ぐ実ブラウザ検証）。
+      # （`docs/api/hydration-state-format.md` 第 6 節が引き継ぐ実ブラウザ検証）。
       - name: Run wasm-full hydration browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test hydration_browser
@@ -660,7 +660,7 @@ jobs:
   # 内蔵 chromedriver 明示指定）を踏襲するが、対象クレート（wasm-client と
   # wasm-full）が異なり、browser-test ジョブは TASK-11.2d（#77）が担当する
   # wasm-full 存在ガード追加のスコープであるため、コンフリクトを避けて独立
-  # ジョブとして追加する（`docs/perf-browser-harness.md` 引き継ぎ表参照）。
+  # ジョブとして追加する（`docs/ci/perf-browser-harness.md` 引き継ぎ表参照）。
   #
   # 本ジョブの役割は「ハーネス自己検証テストの通過確認（スモーク実行）」のみ
   # であり、REQ-11 の性能予算（300ms/16ms）に対する正式判定は行わない
@@ -1196,7 +1196,7 @@ jobs:
         run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test xss_escape_wasm
 
   # イシュー #297（TASK-10.2 残課題、出典 PR #220 §10 スコープ外節）:
-  # docs/wasm-build-integration.md §6.4 が文書化していた nodejs ターゲット
+  # docs/design/wasm-build-integration.md §6.4 が文書化していた nodejs ターゲット
   # 開発フロー（`web-sys` 非依存な rws-wasm-thin のロジック高速確認経路）を
   # `cargo xtask wasm-node-smoke` として CI ゲート化する。上記 `test` ジョブと
   # 同一の wasm32 target 追加・wasm-bindgen-cli 導入パターンを踏襲する
@@ -1659,14 +1659,14 @@ jobs:
   # テストターゲット（`#[cfg(test)]` / `tests/` 配下）内の `raw_html()` 呼び
   # 出しも検出対象に含める。テストコード内の呼び出しにも呼び出し単位の
   # `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: ...")]`
-  # を必須とする（`docs/raw-html-review-gate.md` 準拠）。`cli/src/gate.rs` の
+  # を必須とする（`docs/policy/raw-html-review-gate.md` 準拠）。`cli/src/gate.rs` の
   # `lint` チェックもイシュー #315 で `--all-targets` 化済みのため、ローカル
   # ゲート・AI 自己保守フックと本 CI ジョブの検出範囲は一致する（旧記述
   # 「本 CI ジョブが superset」は解消済み）。本ジョブは `--workspace` による
   # 全クレート横断を担う最終防衛線として維持する。未レビューの `raw_html()`
   # 呼び出しが本体コード・テストコードいずれへ入っても本ジョブが
   # `-D warnings` により失敗し、マージをブロックする
-  # （方式選定・脅威モデルは docs/raw-html-lint-design.md 参照）。
+  # （方式選定・脅威モデルは docs/design/raw-html-lint-design.md 参照）。
   clippy:
     name: REQ-1 raw_html() 検出（clippy disallowed_methods, issue #157）
     runs-on: self-hosted

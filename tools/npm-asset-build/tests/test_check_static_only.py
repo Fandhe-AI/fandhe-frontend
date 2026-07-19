@@ -661,7 +661,7 @@ class TestSuggestExempt(BaseFixtureTest):
         self.assertEqual(code, 1, out)
         # R2-ext のハード拒否（実行コード拡張子）はいかなる免除エントリでも
         # 救済不可であることを明示し、[[exempt]] 雛形を出力してはならない
-        # （docs/npm-static-asset-rules.md §3.4）。
+        # （docs/policy/npm-static-asset-rules.md §3.4）。
         self.assertIn("cannot be exempted", out)
         self.assertNotIn("[[exempt]]\npackage = \"has-js\"\nrule = \"R2-ext\"", out)
 

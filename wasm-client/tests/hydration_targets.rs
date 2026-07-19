@@ -1,7 +1,7 @@
 //! `rws-wasm-client` 純粋ロジック層のネイティブ回帰テスト（TASK-6.2c、#49）。
 //!
 //! `rlib` として通常の Rust クレート経由でリンクし、wasm ビルド・実ブラウザを
-//! 介さずに以下を確認する（`docs/hydration-api.md` 第 7 節・テスト階層 1）。
+//! 介さずに以下を確認する（`docs/api/hydration-api.md` 第 7 節・テスト階層 1）。
 //!
 //! - SSR（`rws_app` の各ページ関数 → `rws_core::render`）と CSR 用純粋関数
 //!   （[`rws_wasm_client::render_list_page_html`] 等）の出力が完全一致すること

@@ -7,7 +7,7 @@
 //! が実測した代表的改修シナリオ 3 件（バグ修正・UI 改善・機能追加）を、
 //! 製品 CLI（実バイナリとしての `fw`、実ツールチェーン起動込み）に対して
 //! `impact` → 変更適用 → `gate` の一連の流れとして再現する。シナリオ選定・
-//! フィクスチャ設計・アサーション設計は `docs/scenario-regression-design.md`
+//! フィクスチャ設計・アサーション設計は `docs/design/scenario-regression-design.md`
 //! （TASK-13.4a・#144）を単一の情報源とする。
 //!
 //! - `bugfix_escape`: TASK-13.4b（#145）シナリオ 1（バグ修正）。

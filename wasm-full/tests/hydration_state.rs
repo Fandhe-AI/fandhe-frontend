@@ -5,7 +5,7 @@
 //! `TestState` のみを対象にしている。本ファイルは実アプリ相当の
 //! `rws_interactive::AppState`（`Hydrate` 実装済み、`interactive/src/lib.rs`）
 //! を用いて [`rws_wasm_full::hydration::restore_state`] のラウンドトリップ・
-//! 改ざん値マトリクスを検証し、`docs/hydration-state-format.md` 第 6 節
+//! 改ざん値マトリクスを検証し、`docs/api/hydration-state-format.md` 第 6 節
 //! 「テスト観点の引き継ぎ」が求める統合テストの空白を埋める
 //! （設計文書第 6 節・実装計画 §4.1 に対応）。
 //!
@@ -20,7 +20,7 @@
 //!   HTML メタ文字・日本語/絵文字・空リストと単一空文字列項目の区別を含む）。
 //! - 改ざん値（非数値 counter・属性欠落・未知属性混入・生の区切り文字混入・
 //!   不完全エスケープ列）に対し `restore_state` が `HydrateError` を返し
-//!   panic しないこと（`docs/hydration-state-format.md` 第 8 節・不変条件 2・3）。
+//!   panic しないこと（`docs/api/hydration-state-format.md` 第 8 節・不変条件 2・3）。
 //! - `MAX_ATTR_VALUE_LEN` 超過属性が `filter_hydration_attrs` 相当の経路
 //!   （`read_hydration_attrs` は wasm32 限定のため、ここでは `restore_state` に
 //!   直接欠落属性を渡すことで「除外後」の状態を模擬する）で `MissingAttr` に
@@ -66,7 +66,7 @@ fn restore_state_roundtrips_negative_counter() {
 
 /// 項目文字列に区切り文字（U+001F）・バックスラッシュが混入していても
 /// `codec` のエスケープ規約により項目境界の偽装が起きず往復すること
-/// （`docs/hydration-state-format.md` 第 8 節・不変条件 2）。
+/// （`docs/api/hydration-state-format.md` 第 8 節・不変条件 2）。
 #[test]
 fn restore_state_roundtrips_items_containing_separator_and_backslash() {
     let mut state = AppState::new();
@@ -80,7 +80,7 @@ fn restore_state_roundtrips_items_containing_separator_and_backslash() {
 
 /// 属性値中の HTML メタ文字自体は `codec` レベルでは何ら特別扱いされず
 /// そのまま往復する（エスケープは `render_for_hydration` の SSR 出力生成時
-/// にのみ発生する契約、`docs/hydration-state-format.md` 第 8 節・不変条件 1）。
+/// にのみ発生する契約、`docs/api/hydration-state-format.md` 第 8 節・不変条件 1）。
 #[test]
 fn restore_state_roundtrips_items_containing_html_meta_characters() {
     let mut state = AppState::new();
@@ -160,7 +160,7 @@ fn restore_state_fails_when_all_attrs_missing() {
 }
 
 /// 未知の `data-hydrate-*` 属性が混入していても、既知フィールド（counter/
-/// draft/items）は正常に復元されること（`docs/hydration-state-format.md`
+/// draft/items）は正常に復元されること（`docs/api/hydration-state-format.md`
 /// 第 4 節・判断 5、無視は復元側の責務）。
 #[test]
 fn restore_state_ignores_unknown_hydrate_attr_and_restores_known_fields() {
@@ -173,7 +173,7 @@ fn restore_state_ignores_unknown_hydrate_attr_and_restores_known_fields() {
 
 /// 正規の `codec::encode_list` エンコード経路を通す限り、項目文字列自体に
 /// 区切り文字（U+001F）が含まれていても `escape_item`/`unescape_item` に
-/// より余分な項目境界が生まれないこと（`docs/hydration-state-format.md`
+/// より余分な項目境界が生まれないこと（`docs/api/hydration-state-format.md`
 /// 第 8 節・不変条件 2「区切り文字混入による項目境界の偽装は codec の
 /// エスケープ規約により防がれる」の本体。防がれるのはあくまで正規の
 /// エンコード経路を経由した場合であり、以下の
@@ -203,7 +203,7 @@ fn restore_state_preserves_separator_char_embedded_via_legitimate_encode_path() 
 /// `codec` のエスケープ規約（不変条件 2）が防ぐのは「正規のエンコード経路
 /// （`encode_list`）を経由した場合に項目文字列中の区切り文字が境界として
 /// 誤認されないこと」であり、`encode_list` を経由しない生の属性値改ざんに
-/// 対して境界の真正性を検証する契約ではない（`docs/hydration-state-format.md`
+/// 対して境界の真正性を検証する契約ではない（`docs/api/hydration-state-format.md`
 /// 第 4 節・判断 5: 属性値は改ざんされうるクライアント入力として扱い、
 /// `HydrateError` を返すか安全に処理することのみを保証する）。
 /// 本テストは「境界偽装が起きない」ことではなく、「区切り文字の出現数
@@ -276,7 +276,7 @@ fn codec_roundtrip_matches_app_state_roundtrip_via_hydration_attrs() {
 /// `restore_state` へ渡る属性列から該当属性が欠落した状態を模擬する。
 /// 欠落属性は `MissingAttr` として扱われ、安全側フォールバック
 /// （初期状態での CSR 再描画、`Runtime::hydrate` 側の責務）に収束する経路を
-/// `AppState` レベルで確認する（`docs/hydration-state-format.md` 第 8 節・
+/// `AppState` レベルで確認する（`docs/api/hydration-state-format.md` 第 8 節・
 /// 不変条件 4）。
 #[test]
 fn restore_state_treats_attrs_filtered_out_by_size_limit_as_missing() {

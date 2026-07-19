@@ -23,7 +23,7 @@
 //! `tests/support/mod.rs` へ集約され、`tests/isolated_run.rs`・
 //! `tests/xss_via_embedded_binary.rs` と共有している。
 //!
-//! # #97 完了時点でのカバレッジ（`docs/dist-server-design.md` 8 節との対応）
+//! # #97 完了時点でのカバレッジ（`docs/design/dist-server-design.md` 8 節との対応）
 //!
 //! 親イシュー #94（PR #244）の前倒し実装により、本ファイルは元々 4 観点
 //! （`/` 200・エスケープ済み HTML／静的アセット 200／パストラバーサル 404／
