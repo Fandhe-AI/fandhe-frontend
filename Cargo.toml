@@ -1,3 +1,4 @@
 [workspace]
 resolver = "2"
-members = ["core", "interactive", "app", "server", "wasm-client", "wasm-full", "wasm-thin", "xtask", "dist-server", "cli"]
+# 全メンバークレートは crates/ 配下に配置する（イシュー #436）。
+members = ["crates/*"]

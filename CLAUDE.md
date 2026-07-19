@@ -56,7 +56,28 @@ frontend-framework/
     └── settings.json         # SessionStart / PostToolUse hooks
 ```
 
-（実装着手後は `core/` `app/` `server/` `wasm-client/` `interactive/` `xtask/` `cli/`（`fandhe-frontend-cli`: `fw` コマンド、structure.toml のスキーマ・パース・生成）等の cargo workspace が加わる想定 — `docs/spec/05-tasks.md` 参照）
+全メンバークレートは `crates/` 配下に配置する（イシュー #436）:
+
+```
+crates/
+├── core/          # fandhe-frontend-core: 描画コア・外部依存ゼロ
+├── interactive/   # fandhe-frontend-interactive: 状態管理コア
+├── app/           # fandhe-frontend-app: モード非依存の共通コンポーネント
+├── server/        # fandhe-frontend-server: SSR/SSG エントリ
+├── wasm-client/   # fandhe-frontend-wasm-client: クライアントランタイム基盤
+├── wasm-full/     # fandhe-frontend-wasm-full: CSR/ハイドレーション フルセット
+├── wasm-thin/     # fandhe-frontend-wasm-thin: CSR/ハイドレーション 最小構成
+├── dist-server/   # fandhe-frontend-dist-server: 単一実行ファイル配布サーバー
+├── cli/           # fandhe-frontend-cli: `fw` コマンド（structure.toml のスキーマ・パース・生成、REQ-13）
+└── xtask/         # CI 計測用の開発者ツール
+```
+
+ルート `Cargo.toml` は `members = ["crates/*"]`（glob）。リポジトリ自身の
+`structure.toml` は各 `[directories.<name>]` に `path = "crates/<name>"` を
+宣言し、依存宣言の論理名（`<name>`）とは独立して実配置を表す
+（`docs/design/structure-manifest.md` §2.2.0a 参照）。`fw new` が生成する
+ユーザープロジェクト（`templates/`）は `path` を使わないフラット配置のまま
+不変。
 
 ## 委譲方針（必読）
 
@@ -66,10 +87,10 @@ main セッションは**指揮・統合・ユーザー対話に専念**し、�
 
 | 対象パス | 委譲先 Agent |
 |---------|-------------|
-| `core/` `interactive/` | core-builder |
-| `app/` `server/` | server-builder |
-| `wasm-client/` `wasm-full/` `wasm-thin/` `static/` | wasm-builder |
-| `xtask/` `cli/` `.github/` `Dockerfile` `deny.toml` `templates/` | tooling-builder |
+| `crates/core/` `crates/interactive/` | core-builder |
+| `crates/app/` `crates/server/` | server-builder |
+| `crates/wasm-client/` `crates/wasm-full/` `crates/wasm-thin/` `static/` | wasm-builder |
+| `crates/xtask/` `crates/cli/` `.github/` `Dockerfile` `deny.toml` `templates/` | tooling-builder |
 | `docs/`（spec 以外）・CLAUDE.md | docs-writer |
 | `docs/spec/`（読み取り調査） | explorer |
 | テスト実行・失敗分析 | test-runner |

@@ -10,7 +10,7 @@
 # 既にバイナリへコンパイル時埋め込み済みのため、最終イメージにアセット
 # ファイルを COPY する必要はない。
 #
-# 参照先クレート `dist-server/`（パッケージ名 `fandhe-frontend-dist-server`、
+# 参照先クレート `crates/dist-server/`（パッケージ名 `fandhe-frontend-dist-server`、
 # `[[bin]] name = "dist-server"`）は TASK-9.1b（#96）でマージ済み。
 # 名前は docs/design/dist-server-design.md（TASK-9.1a 確定版）の 3 節を正とする。
 # TASK-9.3b（#103）の `.github/workflows/image-size.yml` により、本
@@ -98,21 +98,13 @@ WORKDIR /work
 # .dockerignore による除外だけに頼らずここで対象を列挙し、ビルドコンテキスト
 # 混入（.git・.env 等）を多重防御で防ぐ。
 #
-# 列挙はルート Cargo.toml の [workspace] members と同期必須。member 追加時は
-# 本列挙にも追加すること（不整合は image-size CI の docker build 失敗として
-# 検出される。#101 で wasm-client / cli の欠落による cargo workspace 解決
-# エラーを修正した経緯があるため、members を変更する際は必ずここも見直す）。
+# イシュー #436（`crates/` 配下移設）でルート Cargo.toml の [workspace]
+# members は `crates/*` の glob になった。全メンバークレートが `crates/`
+# 配下 1 ディレクトリに揃ったため列挙は `COPY crates ./crates` の 1 行に
+# 集約できる（`crates/` 配下はワークスペースメンバーのソースのみである前提。
+# member 追加時も本ディレクトリ配下に置く限り本 COPY 行の追随は不要）。
 COPY Cargo.toml Cargo.lock ./
-COPY core ./core
-COPY interactive ./interactive
-COPY app ./app
-COPY server ./server
-COPY wasm-client ./wasm-client
-COPY wasm-full ./wasm-full
-COPY wasm-thin ./wasm-thin
-COPY xtask ./xtask
-COPY dist-server ./dist-server
-COPY cli ./cli
+COPY crates ./crates
 COPY static ./static
 
 # --locked で Cargo.lock 固定ビルドを強制し、依存解決の非決定性を排除する

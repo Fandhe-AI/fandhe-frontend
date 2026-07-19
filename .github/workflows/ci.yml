@@ -500,7 +500,7 @@ jobs:
       - name: Check wasm-client crate existence
         id: check
         run: |
-          if [ -f "wasm-client/Cargo.toml" ]; then
+          if [ -f "crates/wasm-client/Cargo.toml" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -518,7 +518,7 @@ jobs:
       - name: Check wasm-full crate existence
         id: check-wasm-full
         run: |
-          if [ -f "wasm-full/Cargo.toml" ]; then
+          if [ -f "crates/wasm-full/Cargo.toml" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -857,7 +857,7 @@ jobs:
       - name: Check perf_browser.rs harness existence
         id: check
         run: |
-          if [ -f "wasm-full/tests/perf_browser.rs" ]; then
+          if [ -f "crates/wasm-full/tests/perf_browser.rs" ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"

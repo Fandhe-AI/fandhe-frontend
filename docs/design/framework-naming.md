@@ -95,7 +95,7 @@ User-Agent では Cloudflare 由来の 403 を返す環境がある、fandhe-bac
 |----|-------|------|
 | 1 | #434 | 決定記録 `docs/design/framework-naming.md` 作成（本書） |
 | 2 | #435 | crate 名 `rws-*` → `fandhe-frontend-*` 一括改名 |
-| 3 | #436 | クレートディレクトリの `crates/` 配下移設 |
+| 3 | #436 | クレートディレクトリの `crates/` 配下移設（完了。`structure.toml` の任意 `path` キーで論理名と実配置を分離し、`Cargo.toml` は `members = ["crates/*"]` へ集約） |
 | 4 | #437 | 環境変数 `RWS_*` → `FANDHE_FRONTEND_*` 改名 |
 | 5 | #438 | docs・CI・スクリプトの表記統一 |
 | 6 | #439 | リポジトリ名変更（GitHub リネーム・remote 追随、人間管理者実施） |

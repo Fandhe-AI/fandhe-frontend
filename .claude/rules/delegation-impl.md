@@ -8,13 +8,13 @@
 
 | 対象パス | 委譲先 Agent | model |
 |---------|-------------|-------|
-| `core/`（fandhe-frontend-core: 描画コア） | core-builder | sonnet |
-| `interactive/`（fandhe-frontend-interactive: 状態管理コア） | core-builder | sonnet |
-| `app/`（fandhe-frontend-app: アプリ構築層） | server-builder | sonnet |
-| `server/`（fandhe-frontend-server: SSR/SSG/ルーティング） | server-builder | sonnet |
-| `wasm-client/` `wasm-full/` `wasm-thin/` | wasm-builder | sonnet |
+| `crates/core/`（fandhe-frontend-core: 描画コア） | core-builder | sonnet |
+| `crates/interactive/`（fandhe-frontend-interactive: 状態管理コア） | core-builder | sonnet |
+| `crates/app/`（fandhe-frontend-app: アプリ構築層） | server-builder | sonnet |
+| `crates/server/`（fandhe-frontend-server: SSR/SSG/ルーティング） | server-builder | sonnet |
+| `crates/wasm-client/` `crates/wasm-full/` `crates/wasm-thin/` | wasm-builder | sonnet |
 | `static/`（埋め込み HTML） | wasm-builder | sonnet |
-| `xtask/` `.github/` `Dockerfile` `deny.toml` `Cargo.toml`（workspace） | tooling-builder | sonnet |
+| `crates/xtask/` `crates/cli/` `.github/` `Dockerfile` `deny.toml` `Cargo.toml`（workspace） | tooling-builder | sonnet |
 | `docs/`（`docs/spec/` を除く）・README.md・CLAUDE.md | docs-writer | haiku |
 | テスト実行・失敗分析 | test-runner | sonnet |
 
