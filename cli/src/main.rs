@@ -16,6 +16,8 @@ mod impact;
 mod json;
 mod json_out;
 mod metadata;
+mod new;
+mod new_template;
 mod routes;
 mod structure;
 mod toml;
@@ -38,6 +40,7 @@ fn run(args: &[String]) -> i32 {
         Some("structure") => run_structure(&args[1..]),
         Some("gate") => gate::run_gate(&args[1..]),
         Some("impact") => run_impact(&args[1..]),
+        Some("new") => new::run_new(&args[1..]),
         Some(other) => {
             eprintln!("fw: unknown subcommand `{other}`");
             print_usage();
@@ -57,6 +60,7 @@ fn print_usage() {
     eprintln!("  structure    generate/validate the machine-readable project structure manifest");
     eprintln!("  gate         run the AI self-maintenance verification gate (type/escape/lint/test/policy)");
     eprintln!("  impact       analyze the change impact of a symbol (breaking risk, affected crates/routes)");
+    eprintln!("  new          deterministically scaffold a new project from templates/default");
 }
 
 /// `--project <dir>` 引数を解決する（省略時はカレントディレクトリ）。
