@@ -227,11 +227,20 @@ pub fn keyed_list(
 }
 
 /// 呼び出し側属性列に予約マーカー属性が含まれていないか検査する。
+///
+/// HTML の属性名は大文字小文字を区別しないため、比較は
+/// `eq_ignore_ascii_case` で行う。単純な完全一致（大文字小文字を区別する
+/// 比較）だと `DATA-BIND-LIST` / `Data-Key` のような表記ゆれでこの検査を
+/// 迂回でき、その後 `keyed_list` が正規のマーカー属性を追加することで
+/// 重複・競合するリストマーカーが生成されてしまう。これは
+/// `docs/design/dom-binding-update-design.md` §5.2 が要求する
+/// fail-closed のなりすまし防止保証を破るため、大文字小文字を区別しない
+/// 比較で確実に遮断する。
 fn reject_reserved_attr(
     attrs: &[(&str, &str)],
     reserved: &'static str,
 ) -> Result<(), KeyedListError> {
-    if attrs.iter().any(|(k, _)| *k == reserved) {
+    if attrs.iter().any(|(k, _)| k.eq_ignore_ascii_case(reserved)) {
         return Err(KeyedListError::ReservedAttr { attr: reserved });
     }
     Ok(())
@@ -393,6 +402,44 @@ mod tests {
             vec![],
             "items",
             vec![("a".to_string(), el("li", vec![(KEY_ATTR, "fake")], vec![]))],
+        )
+        .unwrap_err();
+        assert_eq!(err, KeyedListError::ReservedAttr { attr: KEY_ATTR });
+    }
+
+    /// 異常系: 親属性に予約属性を大文字小文字違いの表記（`DATA-BIND-LIST`）
+    /// で渡しても ReservedAttr で拒否される。HTML の属性名は大文字小文字を
+    /// 区別しないため、表記ゆれでの偽装防止バリデーション迂回を許さない
+    /// （Bugbot 指摘、#344/PR #362）。
+    #[test]
+    fn reserved_attr_on_parent_is_rejected_case_insensitively() {
+        let err = keyed_list(
+            "ul",
+            vec![("DATA-BIND-LIST", "fake")],
+            "items",
+            vec![("a".to_string(), el("li", vec![], vec![]))],
+        )
+        .unwrap_err();
+        assert_eq!(
+            err,
+            KeyedListError::ReservedAttr {
+                attr: BIND_LIST_ATTR
+            }
+        );
+    }
+
+    /// 異常系: 子要素の属性に予約属性を大文字小文字違いの表記
+    /// （`Data-Key`）で渡しても ReservedAttr で拒否される（同上）。
+    #[test]
+    fn reserved_attr_on_item_is_rejected_case_insensitively() {
+        let err = keyed_list(
+            "ul",
+            vec![],
+            "items",
+            vec![(
+                "a".to_string(),
+                el("li", vec![("Data-Key", "fake")], vec![]),
+            )],
         )
         .unwrap_err();
         assert_eq!(err, KeyedListError::ReservedAttr { attr: KEY_ATTR });
