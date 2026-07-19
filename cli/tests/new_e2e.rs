@@ -192,6 +192,14 @@ fn package_name_is_substituted_and_other_files_are_byte_identical_to_template() 
     assert!(cargo_lock.contains("name = \"demo-app\""));
     assert!(!cargo_lock.contains("rws-template-default"));
 
+    // structure.toml（イシュー #351）も同じ allowlist で置換される。fw gate
+    // （cli/src/gate.rs）はここで宣言される `crate = "..."` を唯一の情報源と
+    // するため、プロジェクト名への置換漏れは生成直後の fw gate BLOCKED
+    // （宣言クレート不在の fail-closed）に直結する。
+    let structure_toml = fs::read_to_string(target.join("structure.toml")).unwrap();
+    assert!(structure_toml.contains("crate = \"demo-app\""));
+    assert!(!structure_toml.contains("rws-template-default"));
+
     // 置換対象外ファイルはテンプレートとバイト一致すること
     // （negative_type_error.rs の doc コメント内言及は置換しない契約）。
     let template_root = template_root_dir();
@@ -240,9 +248,9 @@ fn embedded_template_matches_templates_default_on_disk() {
             disk_exec, expanded_exec,
             "executable bit for `{disk_path}` must match between templates/default/ and the embedded manifest"
         );
-        // Cargo.toml/Cargo.lock は package 名を置換するため内容は一致しない
-        // （置換前提の検証は substitution テストが別途担う）。
-        if disk_path != "Cargo.toml" && disk_path != "Cargo.lock" {
+        // Cargo.toml/Cargo.lock/structure.toml はプロジェクト名を置換するため
+        // 内容は一致しない（置換前提の検証は substitution テストが別途担う）。
+        if disk_path != "Cargo.toml" && disk_path != "Cargo.lock" && disk_path != "structure.toml" {
             assert_eq!(
                 disk_bytes, expanded_bytes,
                 "content of `{disk_path}` must be byte-identical between templates/default/ \

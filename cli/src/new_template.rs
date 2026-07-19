@@ -25,11 +25,14 @@ pub(crate) struct TemplateFile {
     pub(crate) executable: bool,
 }
 
-/// `templates/default/` の全ファイル（12 件）を git の相対パス順・実行ビット
+/// `templates/default/` の全ファイル（13 件）を git の相対パス順・実行ビット
 /// どおりに埋め込んだ固定配列。
 ///
 /// 展開順はこの配列順であり、`fw new` の出力 JSON の `files` 一覧も同じ順序で
-/// 並べる契約とする（`new.rs::run_new` 参照）。
+/// 並べる契約とする（`new.rs::run_new` 参照）。`structure.toml`（イシュー #351
+/// で追加、`fw gate` が唯一の情報源として読む）は生成直後の `fw gate` PASS の
+/// 前提条件であり、`Cargo.toml` / `Cargo.lock` と同様プロジェクト名への置換
+/// 対象（`new.rs::SUBSTITUTED_FILES`）。
 pub(crate) const TEMPLATE_FILES: &[TemplateFile] = &[
     TemplateFile {
         rel_path: ".github/workflows/deny.yml",
@@ -64,6 +67,11 @@ pub(crate) const TEMPLATE_FILES: &[TemplateFile] = &[
     TemplateFile {
         rel_path: "src/main.rs",
         contents: include_str!("../../templates/default/src/main.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "structure.toml",
+        contents: include_str!("../../templates/default/structure.toml"),
         executable: false,
     },
     TemplateFile {

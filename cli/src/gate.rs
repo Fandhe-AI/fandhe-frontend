@@ -47,7 +47,7 @@
 
 use crate::json_out::quoted;
 use crate::structure::{self, Role, StructureManifest};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// コマンド出力を JSON へ格納する際の丸め上限（末尾からの文字数）。
@@ -640,7 +640,7 @@ fn default_escape_check(manifest: &StructureManifest, project_dir: &Path) -> Gat
         if dir.role == Role::Core {
             continue;
         }
-        let src_dir = project_dir.join(&dir.name).join("src");
+        let src_dir = escape_check_src_dir(project_dir, &dir.name);
         if !src_dir.is_dir() {
             continue;
         }
@@ -658,6 +658,25 @@ fn default_escape_check(manifest: &StructureManifest, project_dir: &Path) -> Gat
         name: "default_escape_check",
         passed,
         output,
+    }
+}
+
+/// `structure.toml` の `[directories.<name>]` エントリ名 `dir_name` に対応する
+/// 走査対象 `src/` ディレクトリを解決する。
+///
+/// `templates/default/structure.toml` 冒頭コメントが明文化する予約名
+/// `root`（クレートがプロジェクトルート直下 `<project_dir>/src` に直接配置
+/// される規約。現行スキーマにルート自身を指す名前が無いための慣習）は、
+/// 通常のエントリ名解釈（`<project_dir>/<name>/src`）を適用すると実在しない
+/// `<project_dir>/root/src` を指してしまい `default_escape_check` が常に
+/// スキップされる（PR #358 Bugbot 指摘、イシュー #351）。この関数はその
+/// 特例を一箇所に閉じ込め、`root` の場合のみ `<project_dir>/src` を返す。
+/// 一般化（`root` 慣習のスキーマ正式化）はイシュー #353 のスコープ。
+fn escape_check_src_dir(project_dir: &Path, dir_name: &str) -> PathBuf {
+    if dir_name == "root" {
+        project_dir.join("src")
+    } else {
+        project_dir.join(dir_name).join("src")
     }
 }
 
@@ -1433,6 +1452,53 @@ mod tests {
             check.passed,
             "role=core directories must be excluded from the scan (core owns raw_html itself)"
         );
+    }
+
+    #[test]
+    fn default_escape_check_scans_root_convention_directory() {
+        // PR #358 Bugbot 指摘（イシュー #351）の回帰テスト: `structure.toml` の
+        // 予約名 `root`（`templates/default/structure.toml` が採用する
+        // 「クレートはプロジェクトルート直下 `src/` に配置される」規約）を
+        // 素朴に `<project_dir>/root/src` と解釈すると実在しないパスとなり
+        // 走査が常にスキップされ、`raw_html()` の未レビュー使用を検出できない
+        // まま無意味な PASS を返してしまう。`<project_dir>/src` 直下に仕込んだ
+        // 未レビュー `raw_html()` 呼び出しが実際に violation として検出される
+        // ことを断定し、スキップされていないことを確認する。
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-escape-root-convention-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        let root_src = dir.join("src");
+        std::fs::create_dir_all(&root_src).unwrap();
+        std::fs::write(root_src.join("lib.rs"), "raw_html(x);\n").unwrap();
+
+        let manifest = StructureManifest {
+            version: 1,
+            directories: vec![structure::DirectoryEntry {
+                name: "root".to_string(),
+                role: Role::Distribution,
+                crate_name: Some("rws-template-default".to_string()),
+                description: "test".to_string(),
+                depends_on: Vec::new(),
+                allowed_dependents: Vec::new(),
+            }],
+            routing: None,
+        };
+
+        let check = default_escape_check(&manifest, &dir);
+        assert!(
+            !check.passed,
+            "the `root` convention directory must be scanned (not skipped): {}",
+            check.output
+        );
+        assert!(
+            check.output.contains("lib.rs"),
+            "violation output must reference the offending file: {}",
+            check.output
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
