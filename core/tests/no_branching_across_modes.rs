@@ -269,6 +269,15 @@ fn app_component_logic_has_no_mode_branching_cfg() {
 ///
 /// 自前定義（`fn list_page` 等）はコンポーネントロジックの重複再実装であり、
 /// 将来的に一方だけ実装が変わる「事実上の分岐」の温床になるため検知する。
+///
+/// イシュー #375（`rws-wasm-client` の Loader 移行）で許容参照形を拡張した:
+/// `rws_app::assemble_{func}`（`assemble_list_page`/`assemble_detail_page`、
+/// `docs/design/loader-trait-design.md` §3.3 の共通契約ラッパー）経由の参照も
+/// `rws_app::{func}` 直参照と同格に許容する。`assemble_*` は rws-app 内部で
+/// `{func}` を呼ぶのみで独自ロジックを持たないため、REQ-7 の意図（共通関数
+/// 経由・コンポーネントロジックの重複再実装禁止）を弱めない。同時に
+/// `assemble_{func}` 自体の自前定義（`fn assemble_list_page(` 等）も
+/// 重複再実装として検知対象へ加える。
 #[test]
 fn both_call_sites_reference_shared_app_functions_without_redefining() {
     let root = workspace_root();
@@ -279,6 +288,8 @@ fn both_call_sites_reference_shared_app_functions_without_redefining() {
         let stripped = read_stripped(path);
 
         for func in SHARED_PAGE_FUNCTIONS {
+            let assemble_func = format!("assemble_{func}");
+
             let referenced_via_rws_app = stripped.contains(&format!("rws_app::{func}"))
                 || stripped.contains(&format!("rws_app :: {func}"));
             // `use rws_app::{ ... , list_page, ... };` 形式の named import も
@@ -286,10 +297,23 @@ fn both_call_sites_reference_shared_app_functions_without_redefining() {
             // またがる import ブロックも検出するため [`contains_use_import`] を
             // 使う（1 行完結判定による偽陰性の回避、Bugbot 指摘 #2 対応）。
             let imported_via_use = contains_use_import(&stripped, func);
+
+            // `rws_app::assemble_{func}` 直参照・`use rws_app::{ assemble_{func}, ... }`
+            // 形式の named import も許容参照形とする（イシュー #375、上記
+            // ドキュメンテーションコメント参照）。
+            let referenced_via_rws_app_assemble = stripped
+                .contains(&format!("rws_app::{assemble_func}"))
+                || stripped.contains(&format!("rws_app :: {assemble_func}"));
+            let imported_via_use_assemble = contains_use_import(&stripped, &assemble_func);
+
             assert!(
-                referenced_via_rws_app || imported_via_use,
-                "{path:?} が rws_app::{func}（共通契約関数）を経由して参照していない。\
-                 最小埋め込み・フルスタック双方が同一関数を呼ぶことが REQ-7 の受け入れ基準"
+                referenced_via_rws_app
+                    || imported_via_use
+                    || referenced_via_rws_app_assemble
+                    || imported_via_use_assemble,
+                "{path:?} が rws_app::{func}（共通契約関数）も rws_app::{assemble_func}\
+                 （共通契約ラッパー）も経由して参照していない。最小埋め込み・フルスタック\
+                 双方が同一関数を呼ぶことが REQ-7 の受け入れ基準"
             );
 
             let self_defined = stripped.contains(&format!("fn {func}("));
@@ -297,6 +321,14 @@ fn both_call_sites_reference_shared_app_functions_without_redefining() {
                 !self_defined,
                 "{path:?} が `fn {func}` を自前定義している。コンポーネントロジックの \
                  重複再実装は構成間の事実上の分岐を招くため禁止（REQ-7）"
+            );
+
+            let assemble_self_defined = stripped.contains(&format!("fn {assemble_func}("));
+            assert!(
+                !assemble_self_defined,
+                "{path:?} が `fn {assemble_func}` を自前定義している。共通契約ラッパー \
+                 （rws_app::{assemble_func}）の重複再実装は構成間の事実上の分岐を招くため \
+                 禁止（REQ-7、イシュー #375）"
             );
         }
     }

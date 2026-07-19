@@ -215,6 +215,19 @@ Phase 4 #352「意図的非採用の記録（仮想 DOM・ファイルベース�
 | 追加テスト観点 | `wasm-full/tests/hydration_browser.rs` へ三モード整合テスト（SSR が注入した状態と CSR 初期表示が一致すること）を追加。エラー時の固定エラービュー表示テストを追加 |
 | 完了条件 | `cargo test -p rws-wasm-full`（native 部分）と既存ブラウザテストが通過すること。ハイドレーション属性復元失敗時の CSR フォールバック契約が非劣化であること |
 
+### 7.4 #375 refactor(wasm-client): デモデータ直呼びを rws-app の Loader 経由へ移行（実装記録）
+
+#347（app）・#348（server）・#349（wasm-full）の移行後も、`rws-wasm-client`（最小ハイドレーション方式）の純粋ロジック層 4 関数（`render_list_page_html`/`render_detail_page_html`/`find_hydrate_target_kinds`/`find_list_nav_targets`）が `rws_app::demo_items()` を直接呼んでおり未移行だった（#349 は wasm-full のみがスコープで wasm-client は対象外）。イシュー #375 でこの残余を移行した。
+
+| 項目 | 内容 |
+|------|------|
+| 実装する API 表面 | `wasm-client/src/lib.rs` に `wasm-full/src/csr.rs`（#349）と同型の `loader_error_view()` / `resolve_list_node<L>` / `resolve_detail_node<D>` を追加。既存 4 関数の内部実装を `DemoItemsLoader` / `DemoItemDetailLoader` + `assemble_list_page` / `assemble_detail_page` 経由へ差し替えた。公開シグネチャ・出力バイトは無変更（`hydration_browser.rs`・`templates/embed/embed.html` への影響ゼロ） |
+| `wasm-full/src/csr.rs` との重複 | `resolve_list_node`/`resolve_detail_node`/`loader_error_view` は wasm-full 側と同型実装であり、本イシューでは共通化（`rws-app` 等への切り出し）を行わなかった（スコープ外、PR #375 本文に記録）。将来 3 例目の CSR loader 解決実装が必要になった時点で共通化を再検討する |
+| 三モード整合テストの配置 | `wasm-client/tests/three_mode_integration.rs`（native）を新設し、`rws-server` を dev-dependency（workspace 内 path 依存、外部依存ゼロクレート、REQ-3 の依存グラフ計測 = Normal のみ対象のため影響なし）として `rws_server::ssr::respond` / `rws_server::ssg::generate` の出力と実際の `rws-wasm-client` 公開関数の出力を直接突き合わせる。従来の `server/tests/three_mode_integration.rs` は「CSR を模した直接呼び出し」（コメント参照）であり `rws-wasm-client` の実関数を経由しないため、本テストがそのギャップを埋める |
+| 実ブラウザ三モードテストを wasm-client に追加しない理由 | `wasm-full/tests/three_mode_browser.rs`（#349）が実 DOM 経路（ハイドレーション後の DOM 状態と SSR 注入状態の一致）を既にカバーしており、`wasm-client`（最小ハイドレーション方式・状態注入を持たない構成）で同種のブラウザテストを追加してもカバレッジの重複が大きい。native でのバイト完全一致固定（三モード整合テスト・doctest の「直呼びとの完全一致」アサーション）で契約は十分に固定されると判断した |
+| 静的回帰テストの拡張 | `core/tests/no_branching_across_modes.rs` の検証 2（REQ-7）が `rws_app::{func}` 直参照のみを許容していたため、`assemble_list_page`/`assemble_detail_page`（共通契約ラッパー、第 3.3 節・§7.2 注記）経由の参照も許容形として追加した（弱体化ではなく拡張。`assemble_{func}` 自体の自前定義禁止チェックも同時に追加） |
+| 完了条件 | `cargo test --workspace`（`rws-wasm-client`・`rws-core --test no_branching_across_modes` を含む）が通過し、`cargo clippy --workspace --all-targets -- -D warnings` が警告 0 件、`cargo metadata` で外部パッケージ総数・依存グラフ深さが変化しないこと（実測: `Cargo.lock` への追加は `rws-wasm-client` → `rws-server`（workspace 内）の 1 エッジのみ） |
+
 ## 8. スコープ外の明記
 
 | 項目 | 引き継ぎ先 |
