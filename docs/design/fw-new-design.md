@@ -157,6 +157,14 @@ members = ["."]` を明示することで、path 依存先（`vendor/rws-core`/
 生成プロジェクトの依存グラフは vendored 2 crate のみ・外部クレートゼロ
 （REQ-3 の 60 件 / 深さ 6 に対し余裕。依存クレートの新規追加なし）。
 
+vendor 同梱は「`publish = false`（crates.io 未公開）である間」の暫定措置
+であり、公開後はバージョン依存へ切り替えるべきものである。切替の
+トリガー条件（正本 `Cargo.toml` から `publish = false` が解除されること）
+と切替手順は `docs/design/template-vendor-to-version-switch.md`
+（イシュー #412）に定める。トリガー成立は
+`cli/tests/template_vendor_drift.rs` の canary テスト
+（`vendor_to_version_switch_trigger_has_not_fired`）が機械検知する。
+
 `structure.toml` は `vendor/rws-core`/`vendor/rws-app` を宣言しない
 （`[directories.*]` 宣言外）。`fw gate` の `default_escape_check`・
 `fw structure`・`fw impact` はいずれも宣言済みディレクトリのみを走査・
@@ -342,7 +350,10 @@ url_validation_check / lint / test / policy）全 PASS になることをテン�
 - **wasm ビルドを含む CSR の完全実体**は `app` テンプレートのスコープ外
   （`rws-wasm-client` は wasm-bindgen 外部依存のため vendor 不可）。
 - **crates.io 公開後の vendor → バージョン依存への切替**は本イシューの
-  範囲外（publish = false が解消された時点で再検討する）。
+  範囲外（publish = false が解消された時点で再検討する）。トリガー条件の
+  機械検知（canary テスト）と切替手順書の整備はイシュー #412 で追跡済み
+  （`docs/design/template-vendor-to-version-switch.md`）。実際の切替実施は
+  トリガー成立後、別イシュー・別 PR で行う。
 - **Windows 実機 CI での非 Unix 挙動の実測**は行わない（self-hosted Linux
   runner のみのため、設計書明文化（§6.1）とプラットフォーム非依存テスト
   （`executable_file_sets_match_expected_fixed_lists`）で担保する）。

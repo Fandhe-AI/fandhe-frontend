@@ -36,6 +36,7 @@
 //! スコープ外とする（`fw new` の生成対象としての `embed` テンプレート自体は
 //! イシュー #378 の対象外、実装計画 §9）。
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 /// workspace ルート（`cli/` の親ディレクトリ）の絶対パスを返す。
@@ -178,6 +179,112 @@ fn default_and_app_templates_share_identical_bytes_for_common_files() {
             "templates/default/{rel} と templates/app/{rel} はバイト単位で \
              一致する契約（イシュー #378 実装計画 §3.3）。一方だけを変更した \
              場合は他方にも反映すること"
+        );
+    }
+}
+
+// --- vendor 同梱 → バージョン依存への切替トリガー検知（イシュー #412） ---
+//
+// rws-core / rws-app は `publish = false`（crates.io 未公開）を根拠に vendor
+// 同梱を採用している（§3a、`docs/design/fw-new-design.md`）。この根拠が
+// 消える（= 正本 Cargo.toml から `publish = false` が解除される）ことは
+// crates.io 公開の準備・実施を意味し、テンプレートを vendor 同梱から
+// バージョン依存へ切り替えるべきタイミングであることの代理指標になる。
+// 本テストは crates.io の公開状態そのものへネットワーク問い合わせを行わず
+// （オフライン決定性維持）、リポジトリ内で完結するこの代理指標を機械検知し、
+// トリガー成立を「手動同期・人の記憶」に頼らず CI で強制する。
+
+/// vendor されるクレート名 → 正本 `Cargo.toml` の相対パス対応表。
+///
+/// **fail-closed 契約**: この対応表に未登録のクレートが `templates/*/vendor/`
+/// 配下に見つかった場合、本テストは（トリガー検知ではなく）「対応表の
+/// 更新漏れ」として失敗する（`vendored_crates_not_covered_by_known_map`）。
+/// 新規テンプレートが vendor 対象クレートを追加する場合は、ここへの追記を
+/// 併せて行うこと（監視対象からの漏れを防ぐ）。
+const VENDORED_CRATE_SOURCE_MANIFESTS: &[(&str, &str)] = &[
+    ("rws-core", "core/Cargo.toml"),
+    ("rws-app", "app/Cargo.toml"),
+];
+
+/// `templates/` 配下の全テンプレートを走査し、`<template>/vendor/<crate>/`
+/// の形で vendor 同梱されているクレート名の集合を返す（特定テンプレート名の
+/// ハードコードを避け、他イシューでの新規テンプレート追加によるマージ順序
+/// 依存を避ける）。
+fn discover_vendored_crate_names(templates_root: &Path) -> BTreeSet<String> {
+    let mut names = BTreeSet::new();
+    let Ok(template_dirs) = std::fs::read_dir(templates_root) else {
+        return names;
+    };
+    for template_dir in template_dirs.flatten() {
+        let vendor_dir = template_dir.path().join("vendor");
+        let Ok(crate_dirs) = std::fs::read_dir(&vendor_dir) else {
+            continue;
+        };
+        for crate_dir in crate_dirs.flatten() {
+            if crate_dir.path().is_dir() {
+                if let Some(name) = crate_dir.file_name().to_str() {
+                    names.insert(name.to_string());
+                }
+            }
+        }
+    }
+    names
+}
+
+/// 非コメント行として `publish = false` を含むかどうかを判定する。
+///
+/// 誤 FAIL（trigger を見逃す）より誤 PASS（トリガー成立を見逃す）を避ける
+/// 方が安全という判断（実装計画 §8）から、行頭が `#` のコメント行のみを
+/// 除外する単純な判定に留める（外部 TOML パーサは追加しない、REQ-3）。
+fn has_publish_false_line(toml: &str) -> bool {
+    toml.lines().any(|line| {
+        let trimmed = line.trim();
+        !trimmed.starts_with('#') && trimmed == "publish = false"
+    })
+}
+
+/// `templates/*/vendor/` に現れる vendor クレートが、すべて
+/// `VENDORED_CRATE_SOURCE_MANIFESTS` に登録済みであることを検証する
+/// （fail-closed: 未登録クレートの vendor 化を黙って見逃さない）。
+#[test]
+fn vendored_crates_not_covered_by_known_map() {
+    let root = workspace_root();
+    let discovered = discover_vendored_crate_names(&root.join("templates"));
+    let known: BTreeSet<&str> = VENDORED_CRATE_SOURCE_MANIFESTS
+        .iter()
+        .map(|(name, _)| *name)
+        .collect();
+    let unknown: Vec<&String> = discovered
+        .iter()
+        .filter(|name| !known.contains(name.as_str()))
+        .collect();
+    assert!(
+        unknown.is_empty(),
+        "templates/*/vendor/ に未登録の vendor クレートが見つかった: {unknown:?}。 \
+         cli/tests/template_vendor_drift.rs の VENDORED_CRATE_SOURCE_MANIFESTS へ \
+         対応する正本 Cargo.toml のパスを追記すること（イシュー #412 の \
+         canary 監視対象から漏らさないため）"
+    );
+}
+
+/// vendor 同梱の根拠（`publish = false`）が正本側で維持されていることを
+/// 検証する canary テスト。FAIL した場合はトリガー成立（crates.io 公開の
+/// 準備・実施）を意味する。
+#[test]
+fn vendor_to_version_switch_trigger_has_not_fired() {
+    let root = workspace_root();
+    for (crate_name, manifest_rel) in VENDORED_CRATE_SOURCE_MANIFESTS {
+        let manifest_path = root.join(manifest_rel);
+        let manifest = read(&manifest_path);
+        assert!(
+            has_publish_false_line(&manifest),
+            "{manifest_rel}（{crate_name} の正本）から `publish = false` が \
+             解除されている。これは crates.io 公開の準備が整った（= vendor \
+             同梱 → バージョン依存への切替トリガーが成立した）ことを意味する。 \
+             `docs/design/template-vendor-to-version-switch.md`（イシュー #412）の \
+             切替手順に従い、テンプレートをバージョン依存へ切り替えてから \
+             本テスト（および同ファイルの vendor drift テスト群）を更新する \
+             こと"
         );
     }
 }
