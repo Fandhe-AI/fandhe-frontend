@@ -39,10 +39,12 @@ frontend-framework/
 │   │       └── workflows/
 │   │           ├── deny.yml            # 禁止クレート追加を CI でブロックするテンプレートワークフロー（TASK-4.2 / REQ-4）
 │   │           └── npm-asset-gate.yml  # NPM 静的アセットゲート（install.sh 経由）のテンプレートワークフロー（REQ-12, イシュー #316）
-│   └── app/                  # `fw new --template app`（イシュー #378）: rws-core/rws-app 依存の拡充テンプレート
+│   └── app/                  # `fw new --template app`（イシュー #378/#411）: rws-core/rws-app 依存の拡充テンプレート（wasm ビルド込み CSR 完全実体を同梱）
 │       ├── src/main.rs       # Loader・束縛点 API（bind_text/keyed_list）・render の実体サンプル
-│       ├── vendor/           # rws-core / rws-app のソース vendor 同梱（publish=false のため。正本との乖離は cli/tests/template_vendor_drift.rs が検知）
-│       └── static/embed.html # CSR マウント骨格（templates/embed/embed.html の同梱コピー）
+│       ├── vendor/           # rws-core/rws-app/rws-interactive/rws-wasm-client のソース vendor 同梱（publish=false のため。正本との乖離は cli/tests/template_vendor_drift.rs が検知）
+│       ├── wasm/              # CSR wasm ビルド用の独立ワークスペース（glue クレート app-csr-wasm、root の依存グラフから隔離）
+│       ├── tools/wasm/build.sh # wasm ビルド手順（wasm-bindgen-cli バージョン整合の fail-closed 検証込み）
+│       └── static/embed.html # CSR マウント骨格（templates/embed/embed.html の同梱コピー、build.sh 実行後に動作）
 └── .claude/
     ├── agents/               # カテゴリ別 sub-agent 定義
     ├── rules/                # 委譲・コーディング・セキュリティ規約

@@ -23,13 +23,21 @@
       であり、その安全性はページ作者の責務（docs/guides/embedding-guide.md 5 節）。
 
     呼び出し契約（docs/api/hydration-api.md 第 3 節で凍結済み）:
-      mount_csr(root_id) は rws-wasm-client（TASK-6.2b・#48、本テンプレート
-      作成時点で未マージ）が提供する #[wasm_bindgen] 関数。内部で
-      rws_app::list_page 等（SSR/SSG からも同一関数が呼ばれる、REQ-6 の
-      分岐なし契約）を呼び、rws_core::render() 済み（＝既定エスケープ済み）の
-      HTML を root_id 要素へ反映する。このテンプレート自身は HTML 文字列組み立てや
-      DOM API を直接呼ぶコードを一切含まない
-      （.claude/rules/coding-rust.md「HTML 文字列の直接組み立て禁止」）。
+      mount_csr(root_id) は rws-wasm-client（TASK-6.2b・#48）が提供する
+      #[wasm_bindgen] 関数。内部で rws_app::list_page 等（SSR/SSG からも
+      同一関数が呼ばれる、REQ-6 の分岐なし契約）を呼び、rws_core::render()
+      済み（＝既定エスケープ済み）の HTML を root_id 要素へ反映する。この
+      テンプレート自身は HTML 文字列組み立てや DOM API を直接呼ぶコードを
+      一切含まない（.claude/rules/coding-rust.md「HTML 文字列の直接組み立て
+      禁止」）。
+
+      wasm ビルド込みの CSR 完全実体（イシュー #411）: 下記 <script> が参照する
+      ./wasm/rws_wasm_client.js / rws_wasm_client_bg.wasm は `fw new
+      --template app` 生成直後には存在しない。生成プロジェクトルートで
+      `tools/wasm/build.sh` を実行すると、vendor 同梱の rws-wasm-client
+      （vendor/rws-wasm-client、正本は wasm-client/）を wasm/（独立ワーク
+      スペースの glue クレート app-csr-wasm）経由でビルドし、この 2 ファイルを
+      static/wasm/ へ生成する。
   -->
   <title>既存ページへの部分埋め込みサンプル</title>
   <!--

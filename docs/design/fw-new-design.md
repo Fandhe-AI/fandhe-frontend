@@ -112,7 +112,8 @@ pub(crate) const TEMPLATES: &[Template] = &[/* "default", "app" */];
 
 `templates/default/`（rws-core 非依存の最小骨格）に対し、フレームワークの
 実 API（`Loader` trait 実装・束縛点 API・`rws_core::render`）を使う出発点を
-提供する。`templates/app/` の対象 22 ファイル:
+提供する。`templates/app/` の対象 35 ファイル（イシュー #378 で 22 ファイル、
+イシュー #411 で CSR wasm ビルド込み完全実体を追加し 35 ファイルへ拡張）:
 
 - プロジェクト骨格: `Cargo.toml`（`rws-core`/`rws-app` へ vendor path 依存）・
   `Cargo.lock`・`structure.toml`（`crate = "rws-template-app"`）・
@@ -125,10 +126,14 @@ pub(crate) const TEMPLATES: &[Template] = &[/* "default", "app" */];
   / `.github/workflows/npm-asset-gate.yml` / `clippy.toml` / `deny.toml` /
   `tools/npm-asset-build/*`（4 ファイル）
 - `static/embed.html`: `templates/embed/embed.html`（既存の CSR マウント
-  骨格）を同梱したもの。wasm ビルド自体は本テンプレートのスコープ外
-  （§9）
-- `vendor/rws-core/`・`vendor/rws-app/`: rws-core / rws-app のソース
-  vendor 同梱（§3a）
+  骨格）を同梱したもの。`tools/wasm/build.sh` 実行後は
+  `static/wasm/rws_wasm_client.js`/`rws_wasm_client_bg.wasm` を参照して
+  実際に動作する（§3b）
+- `vendor/rws-core/`・`vendor/rws-app/`・`vendor/rws-interactive/`・
+  `vendor/rws-wasm-client/`: rws-core / rws-app / rws-interactive /
+  rws-wasm-client のソース vendor 同梱（§3a・§3b）
+- `wasm/`・`tools/wasm/build.sh`: CSR wasm ビルド用の独立ワークスペース
+  （glue クレート `app-csr-wasm`）とビルド手順（§3b、イシュー #411）
 
 #### 3a. vendor 同梱の選定根拠
 
@@ -182,6 +187,62 @@ fail-closed）。クレートはプロジェクトルート直下（`src/`）に
 --all-targets -p <crate>` 経由の `disallowed-methods`）もクレートの配置
 ディレクトリに依存せず全ソースを検査するため、REQ-1 の検出保証は二重に
 保たれる（詳細は `docs/design/structure-manifest.md` §2.2 を参照）。
+
+#### 3b. CSR wasm ビルド込み完全実体（イシュー #411）
+
+`rws-wasm-client`（正本 `wasm-client/`）は `wasm-bindgen`/`web-sys` という
+外部依存を持つため、§3a のソース vendor 方式（外部依存ゼロが前提）を
+そのまま適用できない。以下のハイブリッド方式を採る:
+
+| 方式 | 判定 |
+|------|------|
+| wasm-bindgen 一族まで全ソース vendor | 却下: 数十クレート規模の複製となり `include_str!` によるコンパイル時埋め込みが非現実的 |
+| ビルド済み `.wasm`/JS グルーコードの同梱 | 却下: 監査不能なビルド成果物の配布（OWASP A08） |
+| **ハイブリッド（採用）**: `rws-interactive`/`rws-wasm-client`（外部依存ゼロのフレームワーク部分）はソース vendor。`wasm-bindgen`/`web-sys` は独立ワークスペース `wasm/` の `Cargo.lock` で crates.io バージョン依存として固定 | 正本ドリフト検知の既存運用に乗る。外部クレートは新規追加ゼロ（リポジトリ本体 `Cargo.lock` と同一バージョンの参照のみ） |
+
+**独立ワークスペースへの隔離（root のオフライン決定性を守る）**: `wasm/` は
+`templates/app`（root、`rws-template-app`）の `[workspace] members = ["."]`
+に含まれない別の `[workspace]`（`templates/app/wasm/Cargo.toml`）として
+切り離す。wasm-bindgen の取得にはビルド時ネットワークが必要であり、これを
+root の依存グラフに混ぜると `cargo build`/`cargo test`/`fw gate` の既定経路
+（オフライン・自己完結が前提、§3a）を壊すため。`structure.toml` は
+`wasm/` を宣言しない（§3a の vendor 除外と同一根拠）ため `fw gate` の
+検証対象クレート決定にも影響しない。
+
+**構成**:
+- `vendor/rws-interactive/`・`vendor/rws-wasm-client/`: 正本 `interactive/`・
+  `wasm-client/` の `src/*` バイト同一コピー（`cli/tests/template_vendor_drift.rs`
+  が検証）。`Cargo.toml` は既知変換（path 依存先を vendor 配下の実ディレクトリ名へ
+  変更、dev-dependencies を除去。dev-dependencies は `rws-server` への vendor
+  連鎖を招くため）を適用する。
+- `wasm/Cargo.toml`（glue クレート `app-csr-wasm`、cdylib）: `vendor/rws-wasm-client`
+  の `hydrate`/`mount_csr`（`#[wasm_bindgen]` エクスポート）を再エクスポート
+  するのみ。HTML 組み立て・DOM 直接操作・`raw_html()` を持たない。
+- `wasm/Cargo.lock`: wasm-bindgen 0.2.126 / web-sys 0.3.103（リポジトリ本体
+  `Cargo.lock` の解決値と同一）へピン。バージョン一致は
+  `cli/tests/template_vendor_drift.rs::wasm_lockfile_wasm_bindgen_version_matches_repo_root_lockfile`
+  が機械的に検証する（手動同期に頼らない）。
+- `tools/wasm/build.sh`（実行ビット 100755）: (a) rustup target・wasm-bindgen-cli
+  の存在チェック、(b) `wasm/Cargo.lock` から読んだ wasm-bindgen バージョンと
+  `wasm-bindgen --version` の完全一致検証（`dist-server/build.rs::expected_wasm_bindgen_version`
+  と同一の fail-closed 契約）、(c) `cargo build --manifest-path wasm/Cargo.toml
+  --target wasm32-unknown-unknown --release`、(d) `wasm-bindgen --target web
+  --out-dir static/wasm --out-name rws_wasm_client` を実行する固定コマンド列。
+
+**REQ-3（60 件/深さ 6）への影響**: root（`rws-template-app`）の依存グラフ・
+`xtask check-deps` の計測対象は不変（`include_str!` 追加のみ）。`wasm/` は
+「標準サーバー構成」の外にあるオプトイン CSR 成果物であり REQ-3 の計測
+基準へ影響しない。新規外部クレートの追加はゼロ（wasm-bindgen/web-sys とも
+リポジトリ本体で既に解決済みのバージョンを参照するのみ）。
+
+**CI 回帰検証**: `.github/workflows/ci.yml` の `template-app-wasm-smoke`
+ジョブが `fw new --template app` → `tools/wasm/build.sh` →
+`static/wasm/rws_wasm_client.js`/`rws_wasm_client_bg.wasm` の生成と
+`mount_csr`/`hydrate` エクスポートの存在を e2e 検証する。
+
+**スコープ外**（`.claude/rules/out-of-scope-tracking.md`）: crates.io 公開後の
+vendor → バージョン依存への切替はイシュー #412 で追跡する（本方式はその
+移行を阻害しない）。
 
 ## 4. 変数置換: 明示的 allowlist + 置換回数の fail-closed 検証
 
@@ -327,10 +388,14 @@ url_validation_check / lint / test / policy）全 PASS になることをテン�
 組み込み済み。`app` テンプレートの gate e2e は vendored 2 crate の
 コンパイルを伴うため `default` より実行時間が長い。
 
-`cli/tests/template_vendor_drift.rs`（イシュー #378 新設）は vendor 同梱
-（rws-core / rws-app）と正本 `core/`/`app/` の乖離検知、および
-`templates/default/` と `templates/app/` の共有ファイル（`.github/workflows/*`・
-`clippy.toml`・`deny.toml`・`tools/npm-asset-build/*`）のバイト同一性を検証する。
+`cli/tests/template_vendor_drift.rs`（イシュー #378 新設、イシュー #411 で
+`rws-interactive`/`rws-wasm-client` を追加）は vendor 同梱（rws-core /
+rws-app / rws-interactive / rws-wasm-client）と正本 `core/`/`app/`/
+`interactive/`/`wasm-client/` の乖離検知、`wasm/Cargo.lock` の
+wasm-bindgen/web-sys バージョンとリポジトリ本体 `Cargo.lock` の一致検知、
+および `templates/default/` と `templates/app/` の共有ファイル
+（`.github/workflows/*`・`clippy.toml`・`deny.toml`・`tools/npm-asset-build/*`）
+のバイト同一性を検証する。
 
 ## 9. 非目標（Non-goals）
 
@@ -339,8 +404,10 @@ url_validation_check / lint / test / policy）全 PASS になることをテン�
   形で展開すること）は本イシュー（#378）の範囲外。`app` テンプレートは
   `static/embed.html` として embed.html を同梱することで CSR マウント骨格の
   サンプル自体は提供する。
-- **wasm ビルドを含む CSR の完全実体**は `app` テンプレートのスコープ外
-  （`rws-wasm-client` は wasm-bindgen 外部依存のため vendor 不可）。
+- **wasm ビルドを含む CSR の完全実体**は本イシュー（#378）の範囲外だったが、
+  イシュー #411 でハイブリッド方式（rws-wasm-client 本体はソース vendor、
+  wasm-bindgen / web-sys のみ独立ワークスペース `wasm/` でバージョン依存）
+  により同梱済み（§3b 参照）。
 - **crates.io 公開後の vendor → バージョン依存への切替**は本イシューの
   範囲外（publish = false が解消された時点で再検討する）。
 - **Windows 実機 CI での非 Unix 挙動の実測**は行わない（self-hosted Linux
