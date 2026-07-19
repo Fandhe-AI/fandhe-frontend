@@ -66,14 +66,45 @@
 //! チェックで即座に条件が満たされるため、待機コストは実質ゼロで従来どおりの
 //! 決定的な検証を維持する。
 //!
-//! `wait_until` の各ポーリングステップ（[`next_animation_frame`]）は
-//! `requestAnimationFrame` のみに依存せず、壁時計ベースの `setTimeout`
-//! フォールバック（[`FRAME_FALLBACK_TIMEOUT_MS`]）を必ず併走させる。
-//! headless Chrome 環境で rAF コールバックが発火しない場合でも 1 ステップの
-//! 待機が無期限化しないようにするための fail-fast 化であり、CI ハング
-//! （chromedriver の `SIGKILL`、`docs/ci/ci-runner-requirements.md` §6）を
-//! 「原因不明の無限ハング」から「診断可能な `assert!` 失敗」へ変換する
-//! （レビュー指摘、PR #420 フォローアップ）。
+//! # CI ハング再発の根本原因と修正（PR #420 フォローアップ）
+//!
+//! `wasm-bindgen-test` はテストを登録順とは逆順（`Vec::pop` による LIFO）で
+//! 実行するため、本ファイルでは実行順が宣言順とは一致しない
+//! （`v` 始まり → `s` → `p` → `n` → `l` → `c` 始まりの逆アルファベット順で
+//! 実行される、CI run 29696865573 実測）。この実行順で
+//! [`non_matching_clicks_are_not_intercepted`] の直後に実行されるのが
+//! [`navigating_to_xss_payload_item_keeps_payload_as_text_not_element`]
+//! であり、後者が原因不明のままハングし chromedriver が `SIGKILL` される
+//! 事象が確認された（CI run 29695628266・29696865573）。
+//!
+//! 根本原因は [`non_matching_clicks_are_not_intercepted`] の Ctrl+クリック
+//! ケースにあった: 検証対象（nav モジュールが `prevent_default` を呼ばない
+//! こと）を確定させた後も、実 `href="/items/1"` を持つ実 DOM `<a>` 要素への
+//! 合成クリックのブラウザ既定動作（新規タブで開く等）を止めていなかった。
+//! `dispatchEvent` は `isTrusted: false` だが、`<a href>` の既定動作は
+//! `preventDefault` されない限り実行され得るため、headless Chrome の
+//! テスト実行ページ自身が新規タブ生成・フォーカス遷移に巻き込まれうる。
+//! 巻き込まれると `document.visibilityState` がバックグラウンド化し、
+//! 以後のテストが依存する `requestAnimationFrame`（バックグラウンドタブでは
+//! 抑制されうる）ベースの [`wait_until`] が無期限に停止し得る。これは
+//! 「実行順で直後に来る、最初に `wait_until` を使うテスト」で症状が
+//! 現れることと整合する（[`non_function_shadow_falls_back_to_synchronous_
+//! render`] は同期のみのため症状が出ず、その次の
+//! [`navigating_to_xss_payload_item_keeps_payload_as_text_not_element`]
+//! で初めて `wait_until` の `await` が観測される）。
+//!
+//! 修正は 2 点:
+//!
+//! 1. [`non_matching_clicks_are_not_intercepted`] で、検証用アサーション
+//!    確定後に `ctrl_event.prevent_default()` をテスト側から明示的に呼び、
+//!    実ブラウザ既定動作（新規タブ生成等）そのものを発生させない
+//!    （「nav モジュールが `prevent_default` を呼ばないこと」の検証は
+//!    アサーションが既定動作の前に完了しているため弱まらない）。
+//! 2. [`next_animation_frame`]（[`wait_until`] の内部実装）に壁時計ベースの
+//!    `setTimeout` フォールバック（[`FRAME_FALLBACK_TIMEOUT_MS`]）を追加する。
+//!    上記 1. で根本原因を解消した後も、rAF が発火しない未知の環境要因が
+//!    残る場合に「原因不明の無限ハング」ではなく「診断可能な `assert!`
+//!    失敗」へ確実に変換するための多層防御。
 
 #![cfg(target_arch = "wasm32")]
 
@@ -306,12 +337,13 @@ async fn next_animation_frame() {
 }
 
 /// [`next_animation_frame`] の壁時計フォールバック締切（ミリ秒）。
-/// `wait_until` の既定 `max_frames`（60）との組み合わせで、1 回の
-/// `wait_until` 呼び出し全体の最大待機時間は高々 `60 * 200ms = 12` 秒
-/// （コーディネーター指摘の目安「実時間 5 秒相当」に対し安全側に余裕を
-/// 持たせた値。rAF が正常発火する通常経路では毎回 rAF が先に解決するため
-/// 実待機コストへの影響はない）に収まる。
-const FRAME_FALLBACK_TIMEOUT_MS: i32 = 200;
+/// 本ファイル中で最大の `max_frames`（[`consecutive_navigations_with_stub_
+/// converge_to_last_route_and_match_ssr`] の 120）との組み合わせでも、
+/// 1 回の `wait_until` 呼び出し全体の最大待機時間は高々 `120 * 100ms = 12` 秒
+/// （`wasm-bindgen-test` の既定タイムアウト `WASM_BINDGEN_TEST_TIMEOUT`
+/// （20 秒）に対し十分な余裕を残す値。rAF が正常発火する通常経路では毎回
+/// rAF が先に解決するため実待機コストへの影響はない）に収まる。
+const FRAME_FALLBACK_TIMEOUT_MS: i32 = 100;
 
 /// `condition` が `true` になるまで最大 `max_frames` フレーム（実際には
 /// [`next_animation_frame`] の壁時計フォールバック込みで有限時間）待つ
@@ -705,6 +737,26 @@ fn non_matching_clicks_are_not_intercepted() {
         !ctrl_event.default_prevented(),
         "Ctrl+クリックは prevent_default されないこと（新規タブで開く操作を維持）"
     );
+    // 検証対象（nav モジュールの click ハンドラが `prevent_default` を
+    // 呼ばなかったこと）は上記アサーションで既に確定している。ここから先は
+    // `link`（実 `href="/items/1"` を持つ実 DOM 要素）へのクリックのブラウザ
+    // 既定動作そのものを止める（イシュー #404 フォローアップ、CI ハング
+    // 再発調査）。`dispatch_event` は `isTrusted: false` の合成イベントだが、
+    // `<a href>` の既定動作（新規タブで開く/遷移）は cancelable な click
+    // イベントが `preventDefault` されない限り実行され得る（Web 標準の
+    // activation behavior は `isTrusted` を前提としない）。テスト実行用
+    // ページ自身（≒
+    // `wasm-bindgen-test-runner` のハーネスページ）が新規タブ生成やタブの
+    // フォーカス遷移に巻き込まれると、以後のテストが依存する
+    // `requestAnimationFrame` ベースの `wait_until`（バックグラウンドタブでは
+    // rAF が抑制されうる）が無期限に停止しかねない（CI run 29695628266・
+    // 29696865573 で `navigating_to_xss_payload_item_keeps_payload_as_text_
+    // not_element`（本テストの直後に実行される、`wasm-bindgen-test` の
+    // `Vec::pop` による LIFO 実行順）が原因不明のままハングし chromedriver が
+    // `SIGKILL` された事象と符合）。既定動作を止めても「nav モジュールが
+    // `prevent_default` を呼ばないこと」の検証には影響しない（アサーション
+    // 自体は既定動作が走る前に完了している）ため、既存の検証意図を弱めない。
+    ctrl_event.prevent_default();
     assert_eq!(
         window.location().pathname().unwrap(),
         "/",

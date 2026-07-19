@@ -126,6 +126,47 @@ from renderer` の後 `signal: 9 (SIGKILL)` で強制終了し、ジョブが
 アプリケーションコードは変更していない。本対策適用後の CI 再実行で解消しない
 場合は `/dev/shm` 以外の要因（コンテナ全体のメモリ上限等）を追加調査する。
 
+### 6.1 再発と根本原因の特定（`--disable-dev-shm-usage` 適用後も再発、PR #420）
+
+`wasm-full/webdriver.json` の `disable-dev-shm-usage` に `--` プレフィックスが
+欠落していた不備を修正した（コミット `c22e9eb`）後の CI 再実行（run
+29696865573・job 88219045218）でも、`nav_browser` が同一の症状
+（`Unable to receive message from renderer` → `signal: 9 (SIGKILL)`）で
+失敗した。§6 の「10 番目に実行されたテストが症状を示すに過ぎない」という
+実行順の切り分け（`Vec::pop` LIFO）は今回も成立したが、今回はコード側に
+具体的な原因を特定できた。
+
+**根本原因**: `wasm-full/tests/nav_browser.rs::non_matching_clicks_are_not_
+intercepted` の Ctrl+クリック検証ケースが、`prevent_default` が呼ばれない
+ことを確認した後もブラウザの既定動作（新規タブで開く等）を止めていなかった。
+検証対象は実 `href="/items/1"` を持つ実 DOM `<a>` 要素であり、合成
+`dispatchEvent`（`isTrusted: false`）であっても `preventDefault` されない
+`<a href>` の既定動作は実行され得る。headless Chrome のテスト実行ページ
+自身が新規タブ生成・フォーカス遷移に巻き込まれると
+`document.visibilityState` がバックグラウンド化し、以後のテストが依存する
+`requestAnimationFrame`（バックグラウンドタブでは抑制されうる）ベースの
+`wait_until` ポーリングが無期限に停止しうる。`wasm-bindgen-test` の LIFO
+実行順で当該テストの直後に来る、最初に `wait_until`（rAF ポーリング）を
+使うテストが `navigating_to_xss_payload_item_keeps_payload_as_text_not_
+element` であったことが、症状の局在と整合する。
+
+**修正**（詳細は `wasm-full/tests/nav_browser.rs` 冒頭のドキュメンテーション
+コメント参照）:
+
+1. `non_matching_clicks_are_not_intercepted` で、検証用アサーション確定後に
+   `ctrl_event.prevent_default()` をテスト側から明示的に呼び、実ブラウザの
+   既定動作そのものを発生させないようにした（検証意図は弱めない）
+2. `next_animation_frame`（`wait_until` の内部実装）へ壁時計ベースの
+   `setTimeout` フォールバック（`FRAME_FALLBACK_TIMEOUT_MS = 100`）を追加し、
+   1. で根本原因を解消した後も rAF が発火しない未知の環境要因が残る場合に
+   「原因不明の無限ハング」ではなく「診断可能な `assert!` 失敗」へ確実に
+   変換する多層防御とした（既存の `max_frames` 上限との組み合わせでも
+   `wasm-bindgen-test` の既定タイムアウト 20 秒に対し十分な余裕を残す）
+
+本事象は `wasm-full/src/nav.rs`（View Transitions 実装本体）の不具合ではなく
+テストコード（`wasm-full/tests/nav_browser.rs`）側の副作用管理の不備であり、
+アプリケーションコードは変更していない。
+
 ## 7. スコープ外・フォローアップ
 
 - **runner イメージへの libnss3/libnspr4 焼き込み本体**: インフラ側作業。
