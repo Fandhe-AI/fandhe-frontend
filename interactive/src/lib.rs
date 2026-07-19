@@ -971,6 +971,11 @@ impl AppState {
     pub const FIELD_DRAFT: &'static str = "draft";
     /// 項目リストフィールド名（用途は [`Self::FIELD_COUNTER`] と同様）。
     pub const FIELD_ITEMS: &'static str = "items";
+    /// keyed list の安定 id 列フィールド名（イシュー #345 レビュー指摘の
+    /// 是正で追加。`docs/api/hydration-state-format.md` 第 3.1 節の
+    /// `<field>` 命名規約（ASCII 小文字英数字とハイフンのみ）に従い、
+    /// `item_ids`（Rust 側フィールド名）ではなくハイフン区切りにする）。
+    pub const FIELD_ITEM_IDS: &'static str = "item-ids";
 
     /// 既定状態（カウンター 0・下書き空・初期項目 1 件）を生成する。
     pub fn new() -> Self {
@@ -1120,6 +1125,15 @@ impl Hydrate for AppState {
                 format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_ITEMS),
                 codec::encode_list(&self.items),
             ),
+            (
+                // keyed list（`rws_core::keyed::keyed_list`）が SSR 出力の
+                // `data-key` として使った実 id 列を、ハイドレーション属性
+                // としても運ぶ（イシュー #345 レビュー指摘の是正）。
+                // 数値の列を `codec::encode_list` の文字列配列表現に載せる
+                // ことで、区切り文字の仕組みを再実装せず流用する。
+                format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_ITEM_IDS),
+                codec::encode_list(&self.item_ids.iter().map(u64::to_string).collect::<Vec<_>>()),
+            ),
         ]
     }
 
@@ -1135,6 +1149,7 @@ impl Hydrate for AppState {
         let counter_attr = format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_COUNTER);
         let draft_attr = format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_DRAFT);
         let items_attr = format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_ITEMS);
+        let item_ids_attr = format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_ITEM_IDS);
 
         let counter_raw = find(&counter_attr)?;
         let counter = counter_raw
@@ -1146,15 +1161,53 @@ impl Hydrate for AppState {
         let draft = find(&draft_attr)?.to_string();
         let items = codec::decode_list(find(&items_attr)?);
 
-        // `item_ids`/`next_item_id` はハイドレーション対象外（描画同期
-        // メタデータ。上記 `AppState::item_ids` の型ドキュメント参照）。
-        // クライアント制御下の属性値から復元すると偽装 id を注入できて
-        // しまうため、`0..items.len()` を決定的に再割当てする
-        // （SSR 出力済み DOM の keyed list（`data-key`）とは無関係になるが、
-        // ハイドレーション直後は `wasm-full` 側が対応表を DOM から再走査する
-        // ため実害はない）。
-        let item_ids: Vec<u64> = (0..items.len() as u64).collect();
-        let next_item_id = item_ids.len() as u64;
+        // `item_ids` は本来「描画同期メタデータ」（`Self::item_ids` の型
+        // ドキュメント参照）だが、SSR が keyed list の `data-key` として
+        // 実際に出力した値と一致していなければ、ハイドレーション直後の
+        // 最初の構造変化（追加・削除・並べ替え）で `wasm-client::keyed_diff`
+        // が「変更されていない既存ノード」まで誤って破棄・再生成してしまう
+        // （Bugbot 指摘、イシュー #345: `wasm-full` は `BindingTable`
+        // （text/attr/class 束縛点）を再スキャンするのみで、keyed list の
+        // `data-key` ↔ `item_ids` 対応表は再走査していないため、旧実装の
+        // 「実害はない」という前提は誤りだった）。
+        //
+        // このため `data-hydrate-item_ids` 属性値を復元候補として読み取り、
+        // 「`items` と同じ長さ」「全要素が `u64` としてパース可能」
+        // 「重複なし（`keyed_list` のキー一意性契約）」の 3 条件をすべて
+        // 満たす場合のみ採用する。改ざん・欠落・破損（本クレートの
+        // 不変条件 3: `data-hydrate-*` は信頼できないクライアント入力）の
+        // 場合は panic せず、フォールバックとして `0..items.len()` を
+        // 決定的に再割当てする（旧実装からの挙動を安全側で維持）。
+        let item_ids: Vec<u64> = find(&item_ids_attr)
+            .ok()
+            .map(codec::decode_list)
+            .and_then(|raw_ids| {
+                if raw_ids.len() != items.len() {
+                    return None;
+                }
+                let parsed: Vec<u64> = raw_ids
+                    .iter()
+                    .filter_map(|s| s.parse::<u64>().ok())
+                    .collect();
+                if parsed.len() != raw_ids.len() {
+                    return None;
+                }
+                let mut seen = std::collections::HashSet::with_capacity(parsed.len());
+                if parsed.iter().all(|id| seen.insert(*id)) {
+                    Some(parsed)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| (0..items.len() as u64).collect());
+
+        // 次発行 id は「復元した `item_ids` のうち最大値 + 1」（欠番があっても
+        // 将来の新規追加 id が既存 id と衝突しないため）。`item_ids` が空
+        // （リスト空）の場合は 0 から開始する。`item_ids` はクライアント制御下の
+        // 属性値から復元されうる（改ざんで `u64::MAX` を注入可能）ため、
+        // `+ 1` は `Action::Increment`/`Decrement` と同じ理由（本関数 doc・
+        // 不変条件 3）で `saturating_add` にし debug ビルドの overflow panic を防ぐ。
+        let next_item_id = item_ids.iter().max().map_or(0, |max| max.saturating_add(1));
 
         // ハイドレーション直後は SSR 出力済み DOM と状態が一致しているため、
         // dirty は常に空で復元する（クライアント入力（改ざんされうる属性値）
@@ -1524,7 +1577,7 @@ mod tests {
             .contains(r#"<span data-testid="counter-value" data-bind-text="counter">1</span>"#));
         assert_eq!(
             ssr_html.replace(
-                " data-hydrate-counter=\"1\" data-hydrate-draft=\"\" data-hydrate-items=\"\u{1f}最初の項目\"",
+                " data-hydrate-counter=\"1\" data-hydrate-draft=\"\" data-hydrate-items=\"\u{1f}最初の項目\" data-hydrate-item-ids=\"\u{1f}0\"",
                 ""
             ),
             csr_html

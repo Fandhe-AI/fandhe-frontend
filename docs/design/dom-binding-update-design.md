@@ -420,9 +420,27 @@ pub fn keyed_list(
 `item_ids: Vec<u64>`（`items` と同じ長さ・順序で対応する安定キー）・
 `next_item_id: u64`（単調増加カウンタ）を追加した。`item_ids`/
 `next_item_id` は `dirty` と同様の**描画同期メタデータ**であり、
-`PartialEq`/ハイドレーション対象外とする（`from_hydration_attrs` は
-`0..items.len()` を決定的に再割当てする。クライアント制御下の属性値から
-`item_ids` を復元すると偽装 id を注入できてしまうため）。
+`PartialEq` 比較対象外とする。
+
+ハイドレーション（`from_hydration_attrs`）については、`item_ids` を
+`data-hydrate-item-ids` 属性（`items` と同じ `codec::encode_list` 方式で
+数値文字列の配列をエンコード）として運び、SSR が keyed list の `data-key`
+として実際に出力した id 列と一致させる（イシュー #345 レビュー指摘の
+是正。当初案は `0..items.len()` への決定的再割当てのみだったが、これは
+中間削除で `item_ids` に欠番が生じている場合に SSR 出力済み `data-key`
+と乖離し、ハイドレーション直後の最初の構造変化で変更されていない既存
+ノードまで誤って破棄・再生成してしまう欠陥があった。`wasm-full` 側の
+`BindingTable` 再スキャン（第 6.4.1 節・`Self::wire` 相当）はテキスト/
+属性/class の束縛点対応表のみを再構築するものであり、keyed list の
+`data-key` ↔ `item_ids` 対応はこの再スキャンでは救済されない）。
+
+復元した `data-hydrate-item-ids` 属性値は「`items` と同じ長さ」「全要素が
+`u64` としてパース可能」「重複なし（`keyed_list` のキー一意性契約）」の
+3 条件をすべて満たす場合のみ採用する。クライアント制御下の属性値は
+改ざんされうる（本クレートの不変条件 3）ため、条件を満たさない場合は
+`0..items.len()` への決定的再割当てへ安全側フォールバックする（panic
+しない）。`next_item_id` は採用した `item_ids` の最大値 + 1（空の場合は
+0）とし、将来の新規追加 id が既存 id と衝突しないようにする。
 
 これに伴い、`Action::RemoveItem` の payload を index（`usize`）から安定
 id（`u64`）へ変更する。keyed 更新では既存 DOM ノードの `data-payload`
