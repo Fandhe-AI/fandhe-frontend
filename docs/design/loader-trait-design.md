@@ -49,7 +49,7 @@ Node 木）」「エラー時の fail-closed 挙動」「SSG のビルド時解�
   `crates/wasm-full/src/entry.rs`・`crates/wasm-full/src/hydration.rs` の実装自体は本書では変更しない
   （実装は #347〜#349 のスコープ）。
 - `docs/spec/` は編集禁止（サブモジュール）。仕様本文の追随が必要な場合は
-  frontend-framework-spec リポジトリへの Issue 起票を別途検討する。
+  fandhe-frontend-spec リポジトリへの Issue 起票を別途検討する。
 - 依存クレート追加は**ゼロ**（REQ-3 依存上限・`fandhe-frontend-app`/`fandhe-frontend-server` の外部依存ゼロ
   制約を維持）。
 

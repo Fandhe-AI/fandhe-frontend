@@ -5,7 +5,7 @@
 Rust 製フロントエンドフレームワーク。AI 時代のセキュリティリスク低減を目的に、プレーンな HTML / JavaScript / CSS を尊重しつつ SSR / SPA / SSG / トランジションなどモダン機能を網羅する。部分埋め込みの最小構成からフル機能構成までのグラデーションを持ち、単一実行ファイルでのデプロイ（Docker 想定）を目標とする。
 
 - 正式名称は `fandhe-frontend`（確定、2026-07-19）。決定記録・新旧マッピング表は `docs/design/framework-naming.md` を参照。crate 名は #441 で `rws-*` から `fandhe-frontend-*` へ改名済み
-- 仕様書は [Fandhe-AI/frontend-framework-spec](https://github.com/Fandhe-AI/frontend-framework-spec) を `docs/spec/` サブモジュールとして取り込み管理
+- 仕様書は [Fandhe-AI/fandhe-frontend-spec](https://github.com/Fandhe-AI/fandhe-frontend-spec) を `docs/spec/` サブモジュールとして取り込み管理
 - 開発は `docs/spec/06-roadmap.md` のマイルストーン MS-1〜MS-5 に従う（最初のタスクは TASK-1.1: `fandhe-frontend-core` 既定エスケープの製品化）
 - 計画クレート: `fandhe-frontend-core`（描画コア・外部依存ゼロ）/ `fandhe-frontend-app` / `fandhe-frontend-server`（SSR/SSG）/ `fandhe-frontend-wasm-client`・`fandhe-frontend-wasm-full`（WASM/CSR）/ `fandhe-frontend-interactive`（状態管理）/ `xtask`（CI 計測）/ `fandhe-frontend-cli`（`fw` コマンド・AI 自己保守フック、REQ-13）
 
@@ -23,7 +23,7 @@ fandhe-frontend/
 │   ├── policy/               # 規約・セキュリティポリシー（unsafe-boundary / dependency-graph-policy / cargo-deny-advisories / intentional-non-adoption 等）
 │   ├── ci/                   # CI・runner 運用（ci-runner-requirements / perf-browser-harness）
 │   ├── reports/              # 実測・受け入れレポート（perf-browser-report / *-acceptance-report 等）
-│   └── spec/                 # 仕様サブモジュール (frontend-framework-spec)
+│   └── spec/                 # 仕様サブモジュール (fandhe-frontend-spec)
 │       ├── 01-brainstorm.md
 │       ├── 02-poc-plan.md
 │       ├── 03-poc/           # PoC-1〜7 成果物（rendering-web-standards が中核）
@@ -155,7 +155,7 @@ main セッションは**指揮・統合・ユーザー対話に専念**し、�
 - **Conventional Commits**: create-commit スキルを使用。`--no-verify` 禁止（`conventional-commits.md`）
 - **セキュリティレビュー**: コミット・PR 前に security-auditor による OWASP チェック必須（`security.md`）
 - **ユーザー承認フロー**: 実装は計画承認後（implement-issue）。依存クレート追加・Issue 起票は事前承認必須
-- **`docs/spec/` は編集禁止**: サブモジュール。仕様変更は frontend-framework-spec リポジトリで行う
+- **`docs/spec/` は編集禁止**: サブモジュール。仕様変更は fandhe-frontend-spec リポジトリで行う
 - **スコープ外事項**: 放置せず Issue 化を提案（`out-of-scope-tracking.md`）
 
 ## hooks（settings.json）

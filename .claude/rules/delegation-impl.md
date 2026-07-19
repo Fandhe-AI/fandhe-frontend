@@ -28,7 +28,7 @@
 
 ## 運用ルール
 
-- **`docs/spec/` は編集禁止**（サブモジュール。変更は frontend-framework-spec リポジトリで行う）
+- **`docs/spec/` は編集禁止**（サブモジュール。変更は fandhe-frontend-spec リポジトリで行う）
 - 複数クレートにまたがる変更は、クレート単位に分割して各 builder へ並列委譲する。ただし依存関係（core → server 等）がある場合は依存順に直列化する
 - builder への委譲プロンプトには「対象タスク（TASK-x.x）・変更対象ファイル・厳守事項（既定エスケープ・forbid(unsafe_code) 等）・完了条件（テスト通過）」を含める
 - 委譲後の統合確認（workspace 全体の `cargo test`）は test-runner に委譲する

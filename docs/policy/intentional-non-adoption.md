@@ -45,7 +45,7 @@
   `fandhe-frontend-wasm-client`（最小ハイドレーション方式）側のクライアントルーティング
   対応の採否（イシュー #405、出典 PR #383 の out-of-scope 節）を追加記録する。
 - **対象外**: 本書は `docs/spec/` の内容を変更するものではない。仕様自体の
-  変更が必要と判断された場合は、frontend-framework-spec リポジトリ側で
+  変更が必要と判断された場合は、fandhe-frontend-spec リポジトリ側で
   提案する（`.claude/rules/out-of-scope-tracking.md` 準拠）。
 
 ## 2. AI 開発・保守前提の評価軸
@@ -374,7 +374,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     ス・IME・アニメーション）が必須となり、かつ `wasm-full` への移行が
     成立しない場合。
   - (c) 仕様（REQ-11）側で全クライアント経路への束縛点更新適用が必須化
-    された場合（この場合は frontend-framework-spec リポジトリ側での提案が
+    された場合（この場合は fandhe-frontend-spec リポジトリ側での提案が
     前提となる）。
 - **XSS 回帰テストの位置付け**: Rust 側文字列出力の XSS 回帰は
   `crates/wasm-thin/tests/thin_runtime.rs`（native）の
@@ -761,7 +761,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   1. `wasm-client` 採用構成でのクライアント遷移の実需要が確定し、かつ
      `wasm-full` への移行がバイナリ予算等の実測根拠で成立しない場合。
   2. 仕様（REQ）側で全クライアント方式へのクライアント遷移提供が必須化
-     された場合（この場合は frontend-framework-spec リポジトリ側での提案が
+     された場合（この場合は fandhe-frontend-spec リポジトリ側での提案が
      前提となる）。
   3. イシュー #403（遷移後のインタラクティブ要素再配線）等の解決の過程で、
      `wasm-full` の `nav` と `wasm-client` の `hydrate()` の統合設計が
@@ -786,7 +786,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
    60 件/深さ 6・`core` 外部依存ゼロ、`.claude/rules/coding-rust.md`）
    を弱めない設計であることを示す。
 4. 仕様（`docs/spec/`）の変更を伴う場合は、本リポジトリではなく
-   frontend-framework-spec リポジトリ側で提案する。
+   fandhe-frontend-spec リポジトリ側で提案する。
 
 ## 5. 参照
 

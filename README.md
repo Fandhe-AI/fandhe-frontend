@@ -6,7 +6,7 @@ Rust 製のフロントエンドフレームワークです。AI 時代のセキ
 
 ## 仕様
 
-仕様書（ブレスト〜PoC〜要件定義〜タスク分解〜ロードマップ）は [Fandhe-AI/frontend-framework-spec](https://github.com/Fandhe-AI/frontend-framework-spec) で管理し、`docs/spec/` にサブモジュールとして取り込んでいます。
+仕様書（ブレスト〜PoC〜要件定義〜タスク分解〜ロードマップ）は [Fandhe-AI/fandhe-frontend-spec](https://github.com/Fandhe-AI/fandhe-frontend-spec) で管理し、`docs/spec/` にサブモジュールとして取り込んでいます。
 
 ```bash
 git clone --recurse-submodules git@github.com:Fandhe-AI/fandhe-frontend.git

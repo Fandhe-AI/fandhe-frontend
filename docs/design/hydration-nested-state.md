@@ -12,7 +12,7 @@
 `docs/spec/04-requirements.md:221` も「現時点では単純な値のみ・複雑な状態
 への一般化は将来課題」と明記しており、本書はその将来課題の設計・実装を
 確定するための成果物である（`docs/spec/` はサブモジュールのため編集禁止。
-仕様本文の追随が必要な場合は frontend-framework-spec リポジトリへの Issue
+仕様本文の追随が必要な場合は fandhe-frontend-spec リポジトリへの Issue
 起票を別途検討する）。
 
 **本文書のステータス**: イシュー #163 の設計確定書。`crates/interactive/src/lib.rs`
@@ -192,7 +192,7 @@ pub enum Value {
 |------|-----------|
 | `Hydrate` の derive マクロ提供 | 要望が出た場合に別 Issue を提案（第 4 節・判断 6） |
 | `AppState` 自体のネスト化（デモ用途変更） | 別途（本書はネスト codec の提供のみが対象） |
-| `docs/spec/04-requirements.md:221` の「将来課題」文言の更新 | frontend-framework-spec リポジトリへの Issue 起票をユーザーへ提案 |
+| `docs/spec/04-requirements.md:221` の「将来課題」文言の更新 | fandhe-frontend-spec リポジトリへの Issue 起票をユーザーへ提案 |
 | U+001E 等の追加区切り文字による属性値表現の実ブラウザ実証 | 不採用（第 3.3 節・第 4 節・判断 1）のため引き継ぎ不要。将来 U+001F 以外の区切り方式が必要になった場合は改めて設計する |
 
 ## 8. セキュリティ不変条件
