@@ -30,7 +30,17 @@ publish = false
 # 第 5 節）。新規クレート追加ではなく既存 `web-sys` の feature 追加のみであり、
 # `cargo metadata` 実測（パッケージ数・依存グラフ深さ）に変化がないことを確認済み
 # （PR 本文に記録）。
+# TASK-CSR-loader（#349）: `csr` モジュール（CSR 経路の loader 解決）が
+# `rws_app::Loader` / `assemble_list_page` / `assemble_detail_page` を
+# 型接続に使うため `rws-app` を追加。`rws-app` は外部依存ゼロの
+# workspace path 依存（`core/Cargo.toml` と同じく `rws_core` のみに依存する
+# コンポーネントロジック層）であり、新規クレート追加ではないため
+# `cargo metadata` 実測（パッケージ数・依存グラフ深さ）に変化がないことを
+# PR 本文に記録する（`.claude/rules/coding-rust.md` の事前承認要件は
+# `docs/design/loader-trait-design.md` §3.1 が「CSR（wasm-full）が Loader を
+# 参照する」ことを想定し `rws-app` 配置を選んでいる時点で承認整理済み）。
 [dependencies]
+rws-app = { path = "../app" }
 rws-core = { path = "../core" }
 rws-interactive = { path = "../interactive" }
 wasm-bindgen = "0.2"
