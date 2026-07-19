@@ -96,6 +96,41 @@ pub fn dispatch<C: Component>(component: &mut C, name: &str, payload: &str) -> b
     }
 }
 
+/// `update()` が変更した状態フィールドを列挙する、[`Component`] とは別立ての
+/// オプトイン・トレイト（イシュー #341）。
+///
+/// [`Component::update`] のシグネチャ（`docs/api/interactive-api.md` 第 3 節で
+/// 凍結済み）は変更しない。戻り値で差分を返す方式は採用せず、実装者が
+/// `update()` 内で変更したフィールド名を積み上げ、本トレイトの
+/// [`DirtyTracked::dirty_fields`] で読み出す形にする
+/// （`docs/design/dom-binding-update-design.md` 第 4.2 節で確定済みの API 形状）。
+///
+/// # 契約
+///
+/// - 戻り値は「直前の `update()` 呼び出し」で実際に値が変わったフィールドの
+///   集合のみを表す。`update()` を実装する側は呼び出し冒頭で記録をクリアし、
+///   アクション処理中に実変更が起きたフィールド名だけを記録すること
+///   （未知アクション・範囲外操作等の no-op では空集合のまま）。
+/// - フィールド名は実行時文字列ではなく `&'static str`（コンパイル時に確定
+///   した有限集合）とし、外部入力からのフィールド名偽装を型で排除する
+///   （設計書第 3.3 節と同一原理）。
+/// - 公開フィールドへの直接代入（`state.items.push(..)` 等、`update()` を
+///   経由しない変更）は追跡対象外。
+///
+/// # 呼び出し文脈
+///
+/// `rws-wasm-full`/`rws-wasm-client`（#343 で一般化予定）が `update()` 直後に
+/// 本トレイトを呼び、束縛点対応表（#342）と突き合わせて該当ノードのみを
+/// 更新する入力として使う。過少報告は表示の陳腐化（stale UI）に留まり、
+/// 過剰報告は冗長な再適用（冪等・無害）に留まるため、いずれも
+/// エスケープ・XSS 面には影響しない（設計書第 9 節・不変条件 1）。
+pub trait DirtyTracked: Component {
+    /// 直前の [`Component::update`] 呼び出しで変更されたフィールド名の集合。
+    ///
+    /// 順序は実装依存だが決定的であること（同一入力に対し常に同一順序）。
+    fn dirty_fields(&self) -> &[&'static str];
+}
+
 /// SSR ↔ WASM のハイドレーション契約。
 ///
 /// `hydration_attrs` はサーバー側（SSR）の責務、`from_hydration_attrs` は
@@ -858,7 +893,14 @@ pub fn render_for_hydration<C: Component + Hydrate>(component: &C) -> Node {
 /// 動的リスト更新）をそのまま製品状態として引き継ぐ。[`Component`]/
 /// [`Hydrate`] を実装し、`docs/api/interactive-api.md` が確定した API 表面の
 /// 具体例として機能する。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// `dirty` は [`PartialEq`]/[`Eq`] の比較対象から除外する（手動実装、下記）。
+/// 状態値そのものではなく「直前の `update()` で何が変わったか」を表す
+/// 描画同期メタデータであり、ハイドレーション roundtrip の等価性判定
+/// （`hydration_roundtrip_preserves_state` 等）を dirty の有無に依存させない
+/// ための設計判断（イシュー #341、`docs/design/dom-binding-update-design.md`
+/// 第 4.2 節）。
+#[derive(Debug, Clone)]
 pub struct AppState {
     /// カウンター値。[`Action::Increment`]/[`Action::Decrement`]/
     /// [`Action::Reset`] からのみ変更する。
@@ -869,7 +911,27 @@ pub struct AppState {
     /// 動的リストの項目群。ハイドレーション時は [`codec::encode_list`] で
     /// リスト全体を 1 属性値へエンコードする。
     pub items: Vec<String>,
+    /// 直前の [`Component::update`] 呼び出しで変更されたフィールド名
+    /// （[`DirtyTracked::dirty_fields`] の実体）。
+    ///
+    /// 描画同期メタデータであり、アプリ状態そのものではない
+    /// （[`PartialEq`] 比較対象外・ハイドレーション非対象。詳細は上記の
+    /// 型ドキュメント参照）。テストコード等からの直接変更（`push` 等）は
+    /// 追跡されない点にも注意。
+    pub dirty: Vec<&'static str>,
 }
+
+// `dirty` を除外した手動 `PartialEq`/`Eq`（上記の型ドキュメント参照）。
+// `counter`/`draft`/`items` の 3 フィールドのみを比較することで、
+// `update()` 呼び出し後（dirty 非空）とハイドレーション復元直後
+// （dirty 空）の状態を「同じアプリ状態」として同一視できる。
+impl PartialEq for AppState {
+    fn eq(&self, other: &Self) -> bool {
+        self.counter == other.counter && self.draft == other.draft && self.items == other.items
+    }
+}
+
+impl Eq for AppState {}
 
 impl Default for AppState {
     fn default() -> Self {
@@ -877,14 +939,32 @@ impl Default for AppState {
             counter: 0,
             draft: String::new(),
             items: vec!["最初の項目".to_string()],
+            dirty: Vec::new(),
         }
     }
 }
 
 impl AppState {
+    /// カウンターフィールド名（ハイドレーション属性名・dirty 記録で共用、
+    /// #342/#343 の束縛点対応表とのフィールド名一致を単一定義で保証する）。
+    pub const FIELD_COUNTER: &'static str = "counter";
+    /// 下書きフィールド名（用途は [`Self::FIELD_COUNTER`] と同様）。
+    pub const FIELD_DRAFT: &'static str = "draft";
+    /// 項目リストフィールド名（用途は [`Self::FIELD_COUNTER`] と同様）。
+    pub const FIELD_ITEMS: &'static str = "items";
+
     /// 既定状態（カウンター 0・下書き空・初期項目 1 件）を生成する。
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// `dirty` に未登録のフィールド名のみ追加する（同一フィールドの重複記録
+    /// を避け、決定的な出力順序を保つための内部ヘルパ。設計書第 7.4 節
+    /// 「決定性」）。
+    fn mark_dirty(&mut self, field: &'static str) {
+        if !self.dirty.contains(&field) {
+            self.dirty.push(field);
+        }
     }
 }
 
@@ -912,6 +992,11 @@ impl Component for AppState {
     type Action = Action;
 
     fn update(&mut self, action: Action) {
+        // 呼び出し冒頭でクリアし、本呼び出し中に実変更が起きたフィールド名
+        // のみを記録する（[`DirtyTracked`] の契約: 「直前の update() 呼び出し」
+        // 分に限定・1 呼び出しに有界）。
+        self.dirty.clear();
+
         match action {
             // `counter` はハイドレーション属性経由でクライアント制御下の
             // 極端な値（i64::MAX/MIN）から復元されうる（`from_hydration_attrs`）。
@@ -920,21 +1005,48 @@ impl Component for AppState {
             // 安全側フォールバック（panic しない）を維持する
             // （interactive/tests/hydration_codec.rs・state_management.rs の
             // 極端値回帰テスト参照）。
-            Action::Increment => self.counter = self.counter.saturating_add(1),
-            Action::Decrement => self.counter = self.counter.saturating_sub(1),
-            Action::Reset => self.counter = 0,
-            Action::SetDraft(value) => self.draft = value,
+            Action::Increment => {
+                let next = self.counter.saturating_add(1);
+                if next != self.counter {
+                    self.counter = next;
+                    self.mark_dirty(Self::FIELD_COUNTER);
+                }
+            }
+            Action::Decrement => {
+                let next = self.counter.saturating_sub(1);
+                if next != self.counter {
+                    self.counter = next;
+                    self.mark_dirty(Self::FIELD_COUNTER);
+                }
+            }
+            Action::Reset => {
+                if self.counter != 0 {
+                    self.counter = 0;
+                    self.mark_dirty(Self::FIELD_COUNTER);
+                }
+            }
+            Action::SetDraft(value) => {
+                if value != self.draft {
+                    self.draft = value;
+                    self.mark_dirty(Self::FIELD_DRAFT);
+                }
+            }
             Action::AddItem => {
                 let trimmed = self.draft.trim();
                 if !trimmed.is_empty() {
                     self.items.push(trimmed.to_string());
                     self.draft.clear();
+                    // コード上の変更順で固定（items へ追加 → draft をクリア）。
+                    self.mark_dirty(Self::FIELD_ITEMS);
+                    self.mark_dirty(Self::FIELD_DRAFT);
                 }
             }
-            // 範囲外インデックスは何もしない（安全側フォールバック）。
+            // 範囲外インデックスは何もしない（安全側フォールバック、dirty も
+            // 空のまま）。
             Action::RemoveItem(index) => {
                 if index < self.items.len() {
                     self.items.remove(index);
+                    self.mark_dirty(Self::FIELD_ITEMS);
                 }
             }
         }
@@ -963,12 +1075,15 @@ impl Hydrate for AppState {
     fn hydration_attrs(&self) -> Vec<(String, String)> {
         vec![
             (
-                format!("{HYDRATE_ATTR_PREFIX}counter"),
+                format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_COUNTER),
                 self.counter.to_string(),
             ),
-            (format!("{HYDRATE_ATTR_PREFIX}draft"), self.draft.clone()),
             (
-                format!("{HYDRATE_ATTR_PREFIX}items"),
+                format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_DRAFT),
+                self.draft.clone(),
+            ),
+            (
+                format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_ITEMS),
                 codec::encode_list(&self.items),
             ),
         ]
@@ -983,9 +1098,9 @@ impl Hydrate for AppState {
                 .ok_or_else(|| HydrateError::MissingAttr(name.to_string()))
         };
 
-        let counter_attr = format!("{HYDRATE_ATTR_PREFIX}counter");
-        let draft_attr = format!("{HYDRATE_ATTR_PREFIX}draft");
-        let items_attr = format!("{HYDRATE_ATTR_PREFIX}items");
+        let counter_attr = format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_COUNTER);
+        let draft_attr = format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_DRAFT);
+        let items_attr = format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_ITEMS);
 
         let counter_raw = find(&counter_attr)?;
         let counter = counter_raw
@@ -997,11 +1112,28 @@ impl Hydrate for AppState {
         let draft = find(&draft_attr)?.to_string();
         let items = codec::decode_list(find(&items_attr)?);
 
+        // ハイドレーション直後は SSR 出力済み DOM と状態が一致しているため、
+        // dirty は常に空で復元する（クライアント入力（改ざんされうる属性値）
+        // から dirty を注入する経路を作らない。本クレートの不変条件 3 と
+        // 同じ「信頼できない入力は panic ではなく安全側で扱う」方針の一環）。
         Ok(AppState {
             counter,
             draft,
             items,
+            dirty: Vec::new(),
         })
+    }
+}
+
+/// [`AppState`] の dirty tracking API（イシュー #341）。
+///
+/// `dirty_fields()` は [`AppState::dirty`] をそのまま返す薄い実装。
+/// `rws-wasm-full`/`rws-wasm-client`（#343）が `update()` 直後にこれを呼び、
+/// 束縛点対応表と突き合わせて該当ノードのみを更新する入力として使う想定
+/// （[`DirtyTracked`] のドキュメント参照）。
+impl DirtyTracked for AppState {
+    fn dirty_fields(&self) -> &[&'static str] {
+        &self.dirty
     }
 }
 
@@ -1342,5 +1474,165 @@ mod tests {
 
         let node = render_for_hydration(&TextOnly);
         assert_eq!(rws_core::render(&node), "plain text root");
+    }
+
+    // --- dirty tracking（イシュー #341、DirtyTracked） -------------------
+
+    #[test]
+    fn new_state_has_no_dirty_fields() {
+        let s = AppState::new();
+        assert!(s.dirty_fields().is_empty());
+    }
+
+    #[test]
+    fn increment_marks_counter_dirty() {
+        let mut s = AppState::new();
+        s.update(Action::Increment);
+        assert_eq!(s.dirty_fields(), &["counter"]);
+    }
+
+    #[test]
+    fn decrement_marks_counter_dirty() {
+        let mut s = AppState::new();
+        s.update(Action::Decrement);
+        assert_eq!(s.dirty_fields(), &["counter"]);
+    }
+
+    #[test]
+    fn increment_at_saturation_reports_no_dirty_fields() {
+        // saturating_add で値が変化しない極値では、代入経路があっても
+        // 実比較で変化なしと判定し dirty を空にする（過少報告ではなく、
+        // 「実際に値が変わったか」を厳密に判定する契約どおりの挙動）。
+        let mut s = AppState {
+            counter: i64::MAX,
+            ..AppState::new()
+        };
+        s.update(Action::Increment);
+        assert!(s.dirty_fields().is_empty());
+    }
+
+    #[test]
+    fn decrement_at_saturation_reports_no_dirty_fields() {
+        let mut s = AppState {
+            counter: i64::MIN,
+            ..AppState::new()
+        };
+        s.update(Action::Decrement);
+        assert!(s.dirty_fields().is_empty());
+    }
+
+    #[test]
+    fn reset_marks_counter_dirty_only_when_nonzero() {
+        let mut s = AppState::new();
+        s.update(Action::Reset);
+        assert!(s.dirty_fields().is_empty(), "counter は既に 0 のため no-op");
+
+        s.update(Action::Increment);
+        s.update(Action::Reset);
+        assert_eq!(s.dirty_fields(), &["counter"]);
+    }
+
+    #[test]
+    fn set_draft_marks_draft_dirty_only_on_change() {
+        let mut s = AppState::new();
+        s.update(Action::SetDraft("hello".to_string()));
+        assert_eq!(s.dirty_fields(), &["draft"]);
+
+        // 同値の再設定は実変更なしとして dirty 空。
+        s.update(Action::SetDraft("hello".to_string()));
+        assert!(s.dirty_fields().is_empty());
+    }
+
+    #[test]
+    fn add_item_marks_items_and_draft_dirty_in_fixed_order() {
+        let mut s = AppState::new();
+        s.update(Action::SetDraft("new item".to_string()));
+        s.update(Action::AddItem);
+        assert_eq!(s.dirty_fields(), &["items", "draft"]);
+    }
+
+    #[test]
+    fn add_item_with_blank_draft_is_noop_and_reports_no_dirty_fields() {
+        let mut s = AppState::new();
+        s.update(Action::SetDraft("   ".to_string()));
+        s.update(Action::AddItem);
+        assert!(s.dirty_fields().is_empty());
+    }
+
+    #[test]
+    fn remove_item_in_range_marks_items_dirty() {
+        let mut s = AppState::new();
+        s.items.push("second".to_string());
+        s.update(Action::RemoveItem(0));
+        assert_eq!(s.dirty_fields(), &["items"]);
+    }
+
+    #[test]
+    fn remove_item_out_of_range_reports_no_dirty_fields() {
+        let mut s = AppState::new();
+        s.update(Action::RemoveItem(99));
+        assert!(s.dirty_fields().is_empty());
+    }
+
+    #[test]
+    fn only_the_most_recent_update_call_is_reflected() {
+        let mut s = AppState::new();
+        s.update(Action::Increment);
+        assert_eq!(s.dirty_fields(), &["counter"]);
+        s.update(Action::SetDraft("x".to_string()));
+        assert_eq!(
+            s.dirty_fields(),
+            &["draft"],
+            "counter の dirty は次の update() でクリアされる"
+        );
+    }
+
+    #[test]
+    fn dispatch_of_unknown_action_leaves_dirty_unchanged() {
+        let mut s = AppState::new();
+        s.update(Action::Increment);
+        let before = s.dirty.clone();
+        let dispatched = dispatch(&mut s, "no_such_action", "payload");
+        assert!(!dispatched);
+        assert_eq!(s.dirty, before, "復号失敗時は update() 自体が呼ばれない");
+    }
+
+    #[test]
+    fn dirty_does_not_affect_partial_eq() {
+        // dirty は描画同期メタデータであり、アプリ状態としての等価性判定
+        // （PartialEq/Eq）に影響しない（型ドキュメント参照）。
+        let mut with_dirty = AppState::new();
+        with_dirty.update(Action::Increment);
+        let mut without_dirty = AppState::new();
+        without_dirty.counter = 1;
+        assert!(!with_dirty.dirty.is_empty());
+        assert!(without_dirty.dirty.is_empty());
+        assert_eq!(with_dirty, without_dirty);
+    }
+
+    #[test]
+    fn hydration_attrs_output_is_unaffected_by_dirty() {
+        // SSR 出力（hydration_attrs）は dirty の有無で変化しない
+        // （dirty はハイドレーション対象外・エンコードされない）。
+        let mut s = AppState::new();
+        s.update(Action::Increment);
+        assert!(!s.dirty.is_empty());
+        let attrs_with_dirty = s.hydration_attrs();
+
+        let mut s_no_dirty = AppState::new();
+        s_no_dirty.counter = 1;
+        assert!(s_no_dirty.dirty.is_empty());
+        let attrs_without_dirty = s_no_dirty.hydration_attrs();
+
+        assert_eq!(attrs_with_dirty, attrs_without_dirty);
+    }
+
+    #[test]
+    fn from_hydration_attrs_restores_with_empty_dirty() {
+        let mut s = AppState::new();
+        s.update(Action::Increment);
+        let attrs = s.hydration_attrs();
+        let restored = AppState::from_hydration_attrs(&attrs).expect("valid attrs");
+        assert!(restored.dirty_fields().is_empty());
     }
 }
