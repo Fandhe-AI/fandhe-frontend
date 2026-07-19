@@ -16,10 +16,16 @@
 //!    契約（`server/src/ssr.rs::respond_with` と同一のリテラル）を返すこと
 //! 3. loader fail-closed: 機微情報風文字列が出力へ混入しないこと
 //! 4. XSS 回帰: XSS ペイロード id のノードが既定エスケープされること
+//! 5. スクロール座標コーデック（[`encode_scroll_state`]/[`decode_scroll_state`]、
+//!    イシュー #406）: 往復一致・不正値の fail-closed 拒否（DOM 非依存の
+//!    純粋層のため、配線層の実ブラウザ検証は `wasm-full/tests/nav_browser.rs`
+//!    が別途担う）
 
 use rws_app::{demo_items, DemoItemDetailLoader, DemoItemsLoader, Item, Loader};
 use rws_core::render;
-use rws_wasm_full::nav::{resolve_path, resolve_route_view_with, ClientRoute};
+use rws_wasm_full::nav::{
+    decode_scroll_state, encode_scroll_state, resolve_path, resolve_route_view_with, ClientRoute,
+};
 
 /// 検証 1: `/` は `ClientRoute::List` に解決する。
 #[test]
@@ -219,5 +225,51 @@ fn resolve_route_view_with_detail_node_has_hydrate_target() {
         values,
         vec![rws_wasm_client::LIKE_HYDRATE_VALUE.to_string()],
         "Detail ルートの解決結果ノードは data-hydrate=\"like\" を含むこと（再配線対象の存在契約）"
+    );
+}
+
+// ---------------------------------------------------------------------
+// 検証 5: スクロール座標コーデック（イシュー #406）
+// ---------------------------------------------------------------------
+
+/// エンコード→デコードが座標を保存すること（往復一致）。
+#[test]
+fn scroll_state_codec_round_trips() {
+    assert_eq!(
+        decode_scroll_state(&encode_scroll_state(0.0, 0.0)),
+        Some((0.0, 0.0))
+    );
+    assert_eq!(
+        decode_scroll_state(&encode_scroll_state(240.0, 1980.5)),
+        Some((240.0, 1980.5))
+    );
+}
+
+/// history state は同一オリジンから改ざん可能な前提のため、固定プレフィックス
+/// と一致しない値は fail-closed で `None` になること。
+#[test]
+fn decode_scroll_state_rejects_values_without_the_fixed_prefix() {
+    assert_eq!(decode_scroll_state("0,0"), None);
+    assert_eq!(decode_scroll_state("evil"), None);
+}
+
+/// 非数・非有限（`NaN`/`Inf`）・負値のいずれも `None` になること
+/// （`Window::scroll_to_with_x_and_y` へ渡してよい値の範囲を構造的に限定する）。
+#[test]
+fn decode_scroll_state_rejects_non_numeric_non_finite_and_negative_values() {
+    assert_eq!(decode_scroll_state("rws-scroll:a,b"), None);
+    assert_eq!(decode_scroll_state("rws-scroll:NaN,0"), None);
+    assert_eq!(decode_scroll_state("rws-scroll:0,-5"), None);
+}
+
+/// history state が XSS ペイロード風文字列で改ざんされていても、復号は必ず
+/// 失敗し（`None`）、`Window::scroll_to_with_x_and_y`（数値専用 API）以外へ
+/// 値が流出しないことを直接固定する（DOM・HTML への流入経路を持たない設計の
+/// 回帰テスト）。
+#[test]
+fn decode_scroll_state_rejects_xss_payload_like_string() {
+    assert_eq!(
+        decode_scroll_state("rws-scroll:<script>alert(1)</script>,0"),
+        None
     );
 }

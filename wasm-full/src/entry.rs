@@ -99,7 +99,10 @@ pub fn hydrate(root_id: &str) -> Result<(), JsValue> {
 /// と同型の参照実装）。`RUNTIME`（`AppState` の状態管理）とは独立した別系統
 /// であり、本関数はページ遷移（history API 連携・URL 同期・loader 解決）
 /// のみを扱う。**起動時点では描画を行わない**（SSR 済み DOM を維持する
-/// 契約は [`crate::nav::start_router`] 側の doc を参照）。
+/// 契約は [`crate::nav::start_router`] 側の doc を参照）。`history.
+/// scrollRestoration` を `"manual"` へ設定し、新規遷移は先頭へ・戻る/進むは
+/// 保存済み位置へスクロールを決定的に制御する（イシュー #406、詳細は
+/// [`crate::nav::start_router`] 側の doc を参照）。
 ///
 /// # `root_id` の対象（`hydrate`/`mount` とは異なるデモ系統）
 ///
