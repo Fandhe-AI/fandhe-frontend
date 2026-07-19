@@ -39,7 +39,13 @@
 //!   左クリック以外はブラウザ既定動作に委ねる（オープンリダイレクト対策）。
 //! - history state には何も格納しない（URL のみを状態の正とする）。
 //! - リスナー登録は起動時の定数回（click 1 + popstate 1）の `Closure::forget`
-//!   に限定する（`events.rs` と同方針、無制限リークの構造的回避）。加えて
+//!   に限定する（`events.rs` と同方針、無制限リークの構造的回避）。
+//!   [`wiring::start_router`] は同一 `root_id` で複数回呼ばれても
+//!   [`wiring::REGISTERED_ROOT_IDS`] により 2 回目以降を no-op とするため、
+//!   呼び出し側が誤って複数回呼んでも「`root_id` あたり定数回（1 組）」の
+//!   不変条件が壊れない（多重マウント・再初期化・複数の統合テストが同一
+//!   `document` を共有するテスト環境でのリスナー積み上がり対策、イシュー
+//!   #404 フォローアップ）。加えて
 //!   イシュー #404 で導入した遷移ごとの View Transitions update コールバック
 //!   は `Closure::once_into_js`（1 回呼び出し後に JS 側が所有権ごと解放）で
 //!   生成するため `forget` の対象には含めない。`startViewTransition` の
@@ -144,9 +150,34 @@ where
 mod wiring {
     use super::{resolve_path, resolve_route_view_with, ClientRoute};
     use rws_app::{DemoItemDetailLoader, DemoItemsLoader};
+    use std::cell::RefCell;
+    use std::collections::HashSet;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{Document, Element, Event, MouseEvent};
+
+    thread_local! {
+        /// [`start_router`] を同一 `root_id` で複数回呼んでも `click`/`popstate`
+        /// リスナーを重複登録しないための既登録 `root_id` 集合（イシュー #404
+        /// フォローアップ）。
+        ///
+        /// [`start_router`] は `document` レベルのリスナーを
+        /// `Closure::forget()`（意図的リーク）で登録するため、本来「起動時の
+        /// 定数回（click 1 + popstate 1）」の呼び出しを前提とする
+        /// （本ファイル冒頭のセキュリティ不変条件参照）。しかし呼び出し側が
+        /// 同一 `root_id` に対して誤って複数回呼んだ場合（多重マウント・
+        /// 再初期化・`wasm-full/tests/nav_browser.rs` のように 1 ページ内で
+        /// 複数の統合テストが同一 `"app-root"` を使い回す場合等）、本集合が
+        /// なければ呼ぶたびに新しい `click`/`popstate` リスナーが `document`
+        /// へ積み上がり、以後の 1 クリックが登録済みリスナーの数だけ
+        /// `push_and_render`/View Transitions を重複実行してしまう
+        /// （無制限リークの構造的回避という不変条件そのものが崩れる）。
+        /// `root_id` ごとに 1 度目の呼び出しのみリスナーを登録し、2 度目以降は
+        /// 早期 `Ok(())` で no-op とすることで、`start_router` を同一 `root_id`
+        /// で何度呼んでも登録済みリスナー数が高々 1 組であることを構造的に
+        /// 保証する。
+        static REGISTERED_ROOT_IDS: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
+    }
 
     /// `document.startViewTransition` の機能検出・呼び出し専用の duck-typing
     /// extern バインディング（イシュー #404）。
@@ -433,7 +464,18 @@ mod wiring {
     ///
     /// `root_id` に対応する要素が存在しない場合、または
     /// `add_event_listener_with_callback` が失敗した場合に `Err` を返す。
+    ///
+    /// 同一 `root_id` で 2 回目以降に呼ばれた場合はリスナーを再登録せず
+    /// `Ok(())` を返す（[`REGISTERED_ROOT_IDS`] 参照、イシュー #404
+    /// フォローアップ）。この場合 `root_id` 要素の存在確認も行わない
+    /// （初回呼び出し時点で既に確認済みのため）。
     pub fn start_router(root_id: &str) -> Result<(), JsValue> {
+        let already_registered =
+            REGISTERED_ROOT_IDS.with(|registered| registered.borrow().contains(root_id));
+        if already_registered {
+            return Ok(());
+        }
+
         let doc = document()?;
         // `root_id` 要素の存在確認のみに使う（クロージャへは捕捉しない）。
         // 遷移のたびに `document.get_element_by_id` で再取得する方針
@@ -522,6 +564,12 @@ mod wiring {
                 popstate_closure.as_ref().unchecked_ref(),
             )?;
         popstate_closure.forget();
+
+        // click/popstate リスナーの登録が両方成功した場合にのみ `root_id` を
+        // 既登録として記録する（部分失敗時に「登録済み」と誤記録しない）。
+        REGISTERED_ROOT_IDS.with(|registered| {
+            registered.borrow_mut().insert(root_id.to_string());
+        });
 
         Ok(())
     }
