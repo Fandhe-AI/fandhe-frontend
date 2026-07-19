@@ -76,11 +76,15 @@ jobs:
         run: cargo build -p rws-cli --locked
 
       - name: "test: rws-cli unit tests (new_template.rs 含む) on Windows"
+        # rws-cli は cli/Cargo.toml で [[bin]] name = "fw" のみを持ち lib ターゲットを
+        # 持たない（外部依存ゼロ方針、main.rs 直下に #[cfg(test)] を配置する設計）ため
+        # `--lib` は「no library targets found」で失敗する。単体テストは `--bin fw` で
+        # 実行するのが正しい起動方法（実機確認済み: cargo test -p rws-cli --lib はここで失敗する）。
         # executable_file_sets_match_expected_fixed_lists（cli/src/new_template.rs）が
         # プラットフォーム非依存にメタデータ記述のみを比較する設計であることを実機で確認する
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}\target-win-verify
-        run: cargo test -p rws-cli --lib --locked
+        run: cargo test -p rws-cli --bin fw --locked
 
       - name: "test: fw new e2e (new_e2e.rs) on Windows"
         # collect_tree（cli/tests/new_e2e.rs）は #[cfg(not(unix))] で executable = false を
@@ -222,7 +226,7 @@ jobs:
           | RUNNER_NAME | $env:RUNNER_NAME |
           | OS | $os |
           | rustc | $rustc |
-          | cargo test -p rws-cli --lib | $(if ($env:GITHUB_JOB) { 'see job status above' }) |
+          | cargo test -p rws-cli --bin fw | $(if ($env:GITHUB_JOB) { 'see job status above' }) |
 
           検証項目（前段ステップ参照）: ビルド成功 / new_template 単体テスト /
           new_e2e 決定性テスト / default・app・embed 各テンプレートのバイト決定性 /

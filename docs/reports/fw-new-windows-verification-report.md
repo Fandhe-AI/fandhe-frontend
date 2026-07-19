@@ -17,7 +17,7 @@
 | # | 項目 | 対応する設計上の主張 |
 |---|------|----------------------|
 | 1 | `cargo build -p rws-cli` が Windows でビルド成功する | 前提: `fw` バイナリが Windows ターゲットでコンパイル可能であること |
-| 2 | `cargo test -p rws-cli --lib`（`new_template.rs` の `executable_file_sets_match_expected_fixed_lists` 含む）が成功する | fw-new-design.md §6.1: 実行可能ファイル集合の期待固定リスト一致検証はプラットフォーム非依存 |
+| 2 | `cargo test -p rws-cli --bin fw`（`new_template.rs` の `executable_file_sets_match_expected_fixed_lists` 含む）が成功する（`rws-cli` は `[[bin]]` のみで lib ターゲットを持たないため `--lib` は不可、実機確認で判明） | fw-new-design.md §6.1: 実行可能ファイル集合の期待固定リスト一致検証はプラットフォーム非依存 |
 | 3 | `cargo test -p rws-cli --test new_e2e` が成功する | fw-new-design.md §6.1: `collect_tree` が `#[cfg(not(unix))]` で `executable = false` を返す設計の下で、決定性テスト（`same_args_produce_byte_identical_output_across_two_runs` 等）が成立する |
 | 4 | `fw new`（`default`/`app`/`embed`（#410）3 テンプレート）の同一引数 2 回実行が全ファイル SHA-256 一致（バイト決定性）。`embed` は置換なしのためテンプレート同梱ファイルとバイト一致することも含意する | fw-new-design.md §6: 決定性の保証はバイト内容の同一性が主 |
 | 5 | 既存ターゲットへの再実行が exit 1（fail-closed）、`--force` 付きで exit 0（3 テンプレート共通） | fw-new-design.md §2 終了コード規約 |
@@ -33,7 +33,7 @@ Windows マシン（PowerShell 7 系、Rust stable + MSVC Build Tools 導入済�
 git clone https://github.com/Fandhe-AI/frontend-framework.git
 cd frontend-framework
 cargo build -p rws-cli --locked
-cargo test -p rws-cli --lib --locked
+cargo test -p rws-cli --bin fw --locked
 cargo test -p rws-cli --test new_e2e --locked
 ```
 
