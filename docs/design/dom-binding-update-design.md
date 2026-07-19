@@ -643,3 +643,67 @@ keyed list の構造変化が発生した呼び出しに限り**対応表を再�
   `find_attr_values`（属性値走査、`data-hydrate`/`data-nav` が使用する
   既存パターン）を、本書の `data-bind-*` 走査（第 3.2 節）・属性検証
   （第 3.3 節）がそのまま再利用する設計とした。
+
+## 12. 追補: 束縛点整合性のテスト時検証（イシュー #380）
+
+### 12.1 背景・課題
+
+`data-bind-text`/`data-bind-attr`/`data-bind-class` の束縛点トークン
+（producer: `core/src/bind.rs` #342、demo view: `interactive/src/lib.rs`
+`AppState::view`）と、`AppState` 側フィールド名（consumer:
+`wasm-client/src/binding.rs` の `impl BindingSource for AppState`）の整合は、
+実行時の文字列比較契約のみで結ばれており、機械検証手段がなかった。
+`fw gate` への新チェック追加は `docs/design/gate-design.md` §7 で不採用と
+確定済み（#353）である一方、代替手段は未検討だった
+（PR #366 の対象外節、親イシュー #371 phase-3）。
+
+### 12.2 不整合の実行時顕在化
+
+`BindingSource::bound_value(field)` は未知 field に対し `None` を返し、
+呼び出し側は当該束縛を no-op として扱う（本書第 9 節・不変条件、
+fail-closed）。したがって、
+
+- view 側マーカーの typo・`BindingSource` 側 match 腕の削除追従漏れ
+- `AppState` フィールド削除後の view 追従漏れ
+
+のいずれも **panic せず・console 出力もなく**、DOM が SSR 初期値のまま
+黙って据え置かれる「無音の表示更新停止」として顕在化する。フィールド名は
+`AppState::FIELD_COUNTER` 等の `&'static str` 定数で単一定義されており
+typo は起きにくいが、定数使用は規約であって型強制ではないため、検証手段が
+必要と判断した。
+
+### 12.3 採用した手段: テスト時構造検証 API
+
+`wasm-client` の DOM 非依存ロジック層（`src/binding.rs`）へ
+`collect_binding_specs(node: &Node) -> Vec<BindingSpec>` /
+`unresolved_binding_specs<S: BindingSource>(node: &Node, source: &S) ->
+Vec<BindingSpec>` の 2 関数を追加した。
+
+- `collect_binding_specs` は Node 木を再帰走査し、実 DOM 走査
+  （`binding_dom`）と同一の `element_binding_specs` へ委譲する。
+  トークンパーサを新設しないことで、検証ロジックと実行時ロジックの
+  ドリフトを構造的に排除する
+- `unresolved_binding_specs` は収集した束縛点のうち `BindingSource` が
+  `None` を返すものを返す。空 `Vec` なら整合
+- `Node::RawHtml` は走査対象外（HTML パースを持ち込まない）。
+  `data-bind-list`（keyed list）は 3 マーカーに含まれないため自然に
+  収集対象外となる
+- 本命の回帰テストは `wasm-client/tests/binding_logic.rs` の
+  `app_state_view_has_no_unresolved_bindings`
+  （`AppState::new().view()` に対する整合性検証、native・
+  `cargo test -p rws-wasm-client` で実行）
+
+### 12.4 非採用とした代替とその根拠
+
+| 候補 | 判断 | 根拠 |
+|------|------|------|
+| `fw gate` 拡張 | 非採用（維持） | `docs/design/gate-design.md` §7（#353）の確定判断。本検証は `test` チェック経由で間接カバーされる位置付けとし、§7 の非採用判断と矛盾しない |
+| コンパイル時（型付きフィールド enum 等） | 非採用 | SSR 出力形式（第 3.1 節）は文字列トークンとして凍結済み。型レベル強制は `bind_*` API・`BindingSource` の再設計を要し、本イシューのスコープを超える |
+| 実行時 assert / console warn | 非採用 | 第 9 節の fail-closed（panic しない・no-op）不変条件と矛盾する |
+
+### 12.5 再評価の目安
+
+束縛点を使うクレートが増え、テストユーティリティでは網羅が追えなくなった
+場合（例: `wasm-full` が独自の `BindingSource` 実装を持ち、view 側の
+マーカーとの同期漏れが繰り返し発生する場合）は、型付き API による
+コンパイル時強制を再検討する。

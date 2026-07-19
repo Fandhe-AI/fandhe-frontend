@@ -1,0 +1,30 @@
+[package]
+name = "rws-template-app"
+version = "0.1.0"
+edition = "2021"
+description = "rws フレームワークの拡張プロジェクトテンプレート（rws-core / rws-app 依存、Loader・束縛点・render の実体サンプル、イシュー #378）。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# REQ-3 / coding-rust.md: rws-core / rws-app は crates.io 未公開
+# （publish = false）のため、vendor 同梱（templates/app/vendor/）を
+# path 依存する。外部クレートは追加しない（生成プロジェクトの依存グラフは
+# vendored 2 crate のみ、外部依存ゼロ。REQ-3 の 60 件/深さ 6 に対し余裕）。
+[dependencies]
+rws-core = { path = "vendor/rws-core" }
+rws-app = { path = "vendor/rws-app" }
+
+[dev-dependencies]
+
+# root workspace（リポジトリ直下 Cargo.toml の members）から意図的に切り離す。
+# templates/app は「フレームワーク利用者へ配布される独立プロジェクトの雛形」
+# であり、root workspace に巻き込まれると `cargo new` 直後の単体プロジェクト
+# としての `cargo check`/`cargo test`/`fw gate` の挙動を検証できなくなる
+# （templates/default の Cargo.toml と同一方針）。
+#
+# `members` をこの crate 自身のみに明示することで、`vendor/rws-core` /
+# `vendor/rws-app`（path 依存）が本 workspace の member として自動編入
+# されないようにする（vendor 側は独立クレートとして扱い、本プロジェクトの
+# workspace には含めない。イシュー #378 §3.2）。
+[workspace]
+members = ["."]

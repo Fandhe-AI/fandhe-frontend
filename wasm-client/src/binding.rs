@@ -175,6 +175,93 @@ pub fn element_binding_specs(
     specs
 }
 
+/// Node 木を再帰走査し、`data-bind-text` / `data-bind-attr` /
+/// `data-bind-class` マーカーから [`BindingSpec`] 列を収集する（イシュー
+/// #380）。
+///
+/// # 呼び出し文脈
+///
+/// アプリのテストコードが `Component::view()` の戻り値（`rws_core::Node`）を
+/// 本関数に渡し、[`unresolved_binding_specs`] で `BindingSource`
+/// 実装（例: `AppState`）と突き合わせることで、view 側の束縛点マーカーと
+/// 状態フィールドの整合をテスト時に検証する。`fw gate` への束縛点チェック
+/// 追加は `docs/design/gate-design.md` §7 で非採用と確定済み（#353）だが、
+/// 本関数は `fw gate` の `test` チェック（`cargo test`）経由で間接的に
+/// カバーされる位置付けであり、§7 の非採用判断とは矛盾しない
+/// （`docs/design/dom-binding-update-design.md` #380 追補節）。
+///
+/// # 実装方針（実挙動とのドリフト防止）
+///
+/// トークンパーサを新設せず、実 DOM 走査（[`crate::binding_dom`]）と同じ
+/// [`element_binding_specs`] へ委譲する。検証ロジックと実行時ロジックが
+/// 同一関数を通ることで、両者が非同期に変更されて乖離する余地を構造的に
+/// 排除する。
+///
+/// # スコープ外
+///
+/// - `Node::Text` は素通り、`Node::RawHtml` は走査しない（HTML パースを
+///   本関数へ持ち込まない。raw_html 経路は既存の raw-html レビューゲートの
+///   領分であり、本関数の責務ではない）
+/// - `data-bind-list`（keyed list、`rws_core::keyed::BIND_LIST_ATTR`）は
+///   3 マーカーに含まれないため収集されない。`items` 等の keyed
+///   フィールドが誤って「未束縛」と判定されることはない
+///
+/// 戻り値の順序は木の走査順（深さ優先・子ノード出現順）であり、決定的。
+pub fn collect_binding_specs(node: &rws_core::Node) -> Vec<BindingSpec> {
+    let mut specs = Vec::new();
+    collect_binding_specs_into(node, &mut specs);
+    specs
+}
+
+/// [`collect_binding_specs`] の再帰実装。
+fn collect_binding_specs_into(node: &rws_core::Node, out: &mut Vec<BindingSpec>) {
+    match node {
+        rws_core::Node::Element {
+            attrs, children, ..
+        } => {
+            let find = |name: &str| {
+                attrs
+                    .iter()
+                    .find(|(attr_name, _)| attr_name == name)
+                    .map(|(_, value)| value.as_str())
+            };
+            out.extend(element_binding_specs(
+                find(rws_core::BIND_TEXT_ATTR),
+                find(rws_core::BIND_ATTR_ATTR),
+                find(rws_core::BIND_CLASS_ATTR),
+            ));
+            for child in children {
+                collect_binding_specs_into(child, out);
+            }
+        }
+        // Text はマーカー属性を持たない。RawHtml は HTML パースを要するため
+        // スコープ外（上記 rustdoc 参照）。
+        rws_core::Node::Text(_) | rws_core::Node::RawHtml(_) => {}
+    }
+}
+
+/// [`collect_binding_specs`] で収集した束縛点のうち、`source.bound_value`
+/// が `None` を返すもの（= 実行時に無音 no-op となるもの）を返す（イシュー
+/// #380）。空 `Vec` なら view のマーカーと `source` のフィールドが整合して
+/// いる。
+///
+/// # 実行時 fail-closed 契約との関係
+///
+/// [`BindingSource::bound_value`] は未知 field に対し panic せず `None` を
+/// 返す設計（本ファイル冒頭 doc 参照）であり、この不変条件には一切手を
+/// 入れない。本関数はその「無音の no-op」をテスト時に可視化し、CI の
+/// `test` チェックで検出可能にするための読み取り専用ユーティリティに
+/// 限定する。
+pub fn unresolved_binding_specs<S: BindingSource>(
+    node: &rws_core::Node,
+    source: &S,
+) -> Vec<BindingSpec> {
+    collect_binding_specs(node)
+        .into_iter()
+        .filter(|spec| source.bound_value(&spec.field).is_none())
+        .collect()
+}
+
 /// [`rws_interactive::AppState`] を [`BindingSource`] へ接続する（イシュー
 /// #345）。孤児則（orphan rule）により、この実装は `BindingSource`（本クレート
 /// 定義）と `AppState`（`rws_interactive` 定義）のいずれか一方を所有する
@@ -335,5 +422,126 @@ mod tests {
             None
         );
         assert_eq!(state.bound_value("unknown-field"), None);
+    }
+
+    // --- collect_binding_specs / unresolved_binding_specs（イシュー #380） ---
+
+    use rws_core::{el, text, Node, BIND_ATTR_ATTR, BIND_CLASS_ATTR, BIND_TEXT_ATTR};
+
+    /// `BindingSource` テストダブル。任意の field 集合を「解決可能」として
+    /// 振る舞わせ、`unresolved_binding_specs` の突き合わせロジックだけを
+    /// `AppState` から切り離して検証する。
+    struct FakeSource {
+        known_fields: Vec<&'static str>,
+    }
+
+    impl BindingSource for FakeSource {
+        fn bound_value(&self, field: &str) -> Option<BoundValue> {
+            if self.known_fields.contains(&field) {
+                Some(BoundValue::Text("dummy".to_string()))
+            } else {
+                None
+            }
+        }
+    }
+
+    #[test]
+    fn collect_binding_specs_walks_nested_elements_in_document_order() {
+        let node = el(
+            "div",
+            vec![],
+            vec![
+                el("span", vec![(BIND_TEXT_ATTR, "counter")], vec![text("0")]),
+                el("input", vec![(BIND_ATTR_ATTR, "value:draft")], vec![]),
+            ],
+        );
+        let specs = collect_binding_specs(&node);
+        assert_eq!(
+            specs,
+            vec![
+                BindingSpec {
+                    field: "counter".to_string(),
+                    kind: BindingKind::Text,
+                },
+                BindingSpec {
+                    field: "draft".to_string(),
+                    kind: BindingKind::Attr("value".to_string()),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn collect_binding_specs_collects_multiple_markers_on_one_element() {
+        let node = el(
+            "button",
+            vec![
+                (BIND_TEXT_ATTR, "counter"),
+                (BIND_ATTR_ATTR, "aria-pressed:liked"),
+                (BIND_CLASS_ATTR, "liked:liked"),
+            ],
+            vec![text("0")],
+        );
+        let specs = collect_binding_specs(&node);
+        assert_eq!(specs.len(), 3);
+    }
+
+    #[test]
+    fn collect_binding_specs_ignores_raw_html_nodes() {
+        // RawHtml は HTML パースを要するためスコープ外
+        // （rustdoc の「スコープ外」節を固定する回帰テスト）。
+        let node = el(
+            "div",
+            vec![],
+            vec![Node::RawHtml(format!(
+                "<span {BIND_TEXT_ATTR}=\"counter\">0</span>"
+            ))],
+        );
+        assert_eq!(collect_binding_specs(&node), Vec::new());
+    }
+
+    #[test]
+    fn collect_binding_specs_ignores_bind_list_marker() {
+        // data-bind-list（keyed list）は 3 マーカーに含まれないため収集
+        // されない。keyed 経路との分離を固定する。
+        let node = el(
+            "ul",
+            vec![(rws_core::keyed::BIND_LIST_ATTR, "items")],
+            vec![],
+        );
+        assert_eq!(collect_binding_specs(&node), Vec::new());
+    }
+
+    #[test]
+    fn collect_binding_specs_returns_empty_for_tree_without_markers() {
+        let node = el("div", vec![], vec![text("plain")]);
+        assert_eq!(collect_binding_specs(&node), Vec::new());
+    }
+
+    #[test]
+    fn unresolved_binding_specs_detects_typo_field() {
+        // "countr" は BindingSource 側に存在しないため、実行時には
+        // no-op（無音の表示更新停止）となる不整合を検出する。
+        let node = el("span", vec![(BIND_TEXT_ATTR, "countr")], vec![text("0")]);
+        let source = FakeSource {
+            known_fields: vec!["counter"],
+        };
+        let unresolved = unresolved_binding_specs(&node, &source);
+        assert_eq!(
+            unresolved,
+            vec![BindingSpec {
+                field: "countr".to_string(),
+                kind: BindingKind::Text,
+            }]
+        );
+    }
+
+    #[test]
+    fn unresolved_binding_specs_is_empty_when_all_fields_known() {
+        let node = el("span", vec![(BIND_TEXT_ATTR, "counter")], vec![text("0")]);
+        let source = FakeSource {
+            known_fields: vec!["counter"],
+        };
+        assert_eq!(unresolved_binding_specs(&node, &source), Vec::new());
     }
 }

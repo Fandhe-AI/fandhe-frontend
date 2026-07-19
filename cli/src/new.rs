@@ -1,7 +1,8 @@
-//! `fw new` サブコマンド本体（TASK-13.4 相当、イシュー #350）。
+//! `fw new` サブコマンド本体（TASK-13.4 相当、イシュー #350／複数テンプレート
+//! 選択、イシュー #378）。
 //!
 //! 親イシュー #338「決定的スキャフォールド — fw new」の第 1 タスク。
-//! `templates/default/`（[`crate::new_template::TEMPLATE_FILES`] としてコンパイル
+//! `templates/<name>/`（[`crate::new_template::TEMPLATES`] としてコンパイル
 //! 時埋め込み）を決定的に展開し、AI エージェントが毎回 boilerplate を生成する
 //! ことによる構成ドリフトを防ぐ。`fw gate` / `fw impact` / `structure.toml` が
 //! そのまま効く「全プロジェクトが同一構成」を保証するのが目的。
@@ -12,42 +13,37 @@
 //! 唯一の情報源として読む宣言クレート名をプロジェクト名へ置換することで、
 //! 生成直後の `fw gate` が無編集で PASS する構成を保証する
 //! （`cli/tests/new_gate_e2e.rs` が e2e で固定する）。
+//!
+//! `--template <name>` はイシュー #378 で追加した選択 UI。未指定時は
+//! [`crate::new_template::DEFAULT_TEMPLATE_NAME`]（`default`）を使い、
+//! イシュー #378 以前の `fw new` 呼び出しと完全後方互換（同一バイト出力）を
+//! 保つ。未知のテンプレート名は使用法エラー（終了コード 2）とし、stderr へ
+//! 利用可能テンプレート一覧（固定順）を出す。
 
 use crate::json_out::{quoted, string_array};
-use crate::new_template::TEMPLATE_FILES;
+use crate::new_template::{find_template, Template, DEFAULT_TEMPLATE_NAME, TEMPLATES};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const USAGE: &str = "fw new: usage: fw new <project-name> [--dir <parent-dir>] [--force]";
-
-/// テンプレート内で置換対象とする文字列（allowlist）。
-///
-/// `(needle, expected_count)`: 置換前に出現回数を検証し、期待値と一致しない
-/// 場合はエラーとする（fail-closed。テンプレート改変時の黙示的な置換漏れ・
-/// 過剰置換を防ぐ）。`tests/negative_type_error.rs` の doc コメント内言及
-/// （テンプレート出自の説明）は allowlist に含めない（意図的に置換しない）。
-const PACKAGE_NAME_NEEDLE: &str = "rws-template-default";
-
-/// パッケージ名置換（[`PACKAGE_NAME_NEEDLE`]）を適用するテンプレート内相対
-/// パスの allowlist（イシュー #351）。
-///
-/// `structure.toml` はプロジェクト名を `fw gate`（`cli/src/gate.rs`）が
-/// `-p <crate>` として cargo へ渡す唯一の情報源とするため、`Cargo.toml` /
-/// `Cargo.lock` と同様に置換しないと生成直後の `fw gate` が
-/// 「宣言クレートが実在しない」として失敗する。
-const SUBSTITUTED_FILES: &[&str] = &["Cargo.toml", "Cargo.lock", "structure.toml"];
+const USAGE: &str =
+    "fw new: usage: fw new <project-name> [--template <template>] [--dir <parent-dir>] [--force]";
 
 /// `fw new` サブコマンド本体。
 ///
-/// 1. 引数を解析する（第 1 位置引数 `<project-name>` 必須、`--dir` / `--force`
-///    はオプション）。引数の使い方が誤っている場合は使用法エラー（終了コード 2）
+/// 1. 引数を解析する（第 1 位置引数 `<project-name>` 必須、`--template` /
+///    `--dir` / `--force` はオプション）。引数の使い方が誤っている場合は
+///    使用法エラー（終了コード 2）
 /// 2. [`validate_project_name`] でプロジェクト名を検証する（違反は終了コード 2。
 ///    パストラバーサル対策として `/` `\` `..` 等を構造的に排除する）
-/// 3. ターゲットパス（`<parent-dir>/<project-name>`）の存在確認。`--force`
+/// 3. `--template` をコンパイル時 allowlist（[`TEMPLATES`]）と完全一致照合する。
+///    未知の名前は使用法エラー（終了コード 2）
+/// 4. ターゲットパス（`<parent-dir>/<project-name>`）の存在確認。`--force`
 ///    なしで既存の場合は fail-closed で拒否（終了コード 1）
-/// 4. [`crate::new_template::TEMPLATE_FILES`] を配列順（固定）で展開し、
-///    `Cargo.toml` / `Cargo.lock` の package 名をプロジェクト名へ置換する
-/// 5. 成功時は展開したファイル一覧を JSON で stdout へ出力し終了コード 0
+/// 5. 選択したテンプレートの `files` を配列順（固定）で展開し、
+///    `Cargo.toml` / `Cargo.lock` / `structure.toml` の package 名を
+///    プロジェクト名へ置換する
+/// 6. 成功時は展開したファイル一覧・使用テンプレート名を JSON で stdout へ
+///    出力し終了コード 0
 pub(crate) fn run_new(args: &[String]) -> i32 {
     let parsed = match parse_args(args) {
         Ok(p) => p,
@@ -63,6 +59,20 @@ pub(crate) fn run_new(args: &[String]) -> i32 {
         return 2;
     }
 
+    let template = match find_template(&parsed.template_name) {
+        Some(t) => t,
+        None => {
+            let available: Vec<&str> = TEMPLATES.iter().map(|t| t.name).collect();
+            eprintln!(
+                "fw new: unknown template `{}` (available: {})",
+                parsed.template_name,
+                available.join(", ")
+            );
+            eprintln!("{USAGE}");
+            return 2;
+        }
+    };
+
     let target = parsed.parent_dir.join(&parsed.project_name);
 
     // fail-closed: `--force` なしでターゲットが既存（ファイル・空ディレクトリ
@@ -76,12 +86,13 @@ pub(crate) fn run_new(args: &[String]) -> i32 {
         return 1;
     }
 
-    match expand_template(&target, &parsed.project_name) {
+    match expand_template(template, &target, &parsed.project_name) {
         Ok(files) => {
             let files_json = string_array(&files);
             println!(
-                "{{\"created\":{},\"files\":{}}}",
+                "{{\"created\":{},\"template\":{},\"files\":{}}}",
                 quoted(&target.to_string_lossy()),
+                quoted(template.name),
                 files_json
             );
             0
@@ -96,15 +107,21 @@ pub(crate) fn run_new(args: &[String]) -> i32 {
 struct ParsedArgs {
     project_name: String,
     parent_dir: PathBuf,
+    template_name: String,
     force: bool,
 }
 
-/// `fw new <project-name> [--dir <parent-dir>] [--force]` を解析する。
+/// `fw new <project-name> [--template <template>] [--dir <parent-dir>] [--force]`
+/// を解析する。
 ///
-/// `Err(2)` は使用法エラー（引数欠落・`--dir` 値欠落・未知フラグ）を表す。
+/// `Err(2)` は使用法エラー（引数欠落・`--dir`/`--template` 値欠落・未知
+/// フラグ）を表す。`--template` 未指定時は
+/// [`DEFAULT_TEMPLATE_NAME`] を採用する（テンプレート名自体の allowlist
+/// 照合は呼び出し元 [`run_new`] が行う。ここでは値の欠落のみを検査する）。
 fn parse_args(args: &[String]) -> Result<ParsedArgs, i32> {
     let mut project_name: Option<String> = None;
     let mut parent_dir: Option<PathBuf> = None;
+    let mut template_name: Option<String> = None;
     let mut force = false;
 
     let mut i = 0;
@@ -113,6 +130,11 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, i32> {
             "--dir" => {
                 let value = args.get(i + 1).ok_or(2)?;
                 parent_dir = Some(PathBuf::from(value));
+                i += 2;
+            }
+            "--template" => {
+                let value = args.get(i + 1).ok_or(2)?;
+                template_name = Some(value.clone());
                 i += 2;
             }
             "--force" => {
@@ -136,10 +158,12 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, i32> {
         Some(dir) => dir,
         None => std::env::current_dir().map_err(|_| 1)?,
     };
+    let template_name = template_name.unwrap_or_else(|| DEFAULT_TEMPLATE_NAME.to_string());
 
     Ok(ParsedArgs {
         project_name,
         parent_dir,
+        template_name,
         force,
     })
 }
@@ -195,24 +219,29 @@ fn replace_exact(
     Ok(contents.replace(needle, replacement))
 }
 
-/// [`TEMPLATE_FILES`] を配列順（固定）で `target` 配下へ展開する。
+/// 選択された [`Template`] の `files` を配列順（固定）で `target` 配下へ
+/// 展開する。
 ///
 /// タイムスタンプ・乱数・環境変数由来の値を出力ファイルへ一切書き込まない
 /// ため、同一引数の 2 回実行はバイト単位で同一出力になる（決定性の担保）。
 /// 書き込み途中の失敗は該当パスを含めて `Err` を返す（部分生成物を残すが、
 /// 成功と誤認させる 0 終了は返さない）。
-fn expand_template(target: &Path, project_name: &str) -> Result<Vec<String>, String> {
-    let mut written: Vec<String> = Vec::with_capacity(TEMPLATE_FILES.len());
+fn expand_template(
+    template: &Template,
+    target: &Path,
+    project_name: &str,
+) -> Result<Vec<String>, String> {
+    let mut written: Vec<String> = Vec::with_capacity(template.files.len());
 
-    for file in TEMPLATE_FILES {
+    for file in template.files {
         let dest = target.join(file.rel_path);
         if let Some(parent) = dest.parent() {
             fs::create_dir_all(parent)
                 .map_err(|e| format!("failed to create directory `{}`: {e}", parent.display()))?;
         }
 
-        let contents = if SUBSTITUTED_FILES.contains(&file.rel_path) {
-            replace_exact(file.contents, PACKAGE_NAME_NEEDLE, project_name, 1)?
+        let contents = if template.substituted_files.contains(&file.rel_path) {
+            replace_exact(file.contents, template.needle, project_name, 1)?
         } else {
             file.contents.to_string()
         };
