@@ -92,3 +92,41 @@ pub fn hydrate(root_id: &str) -> Result<(), JsValue> {
     RUNTIME.with(|cell| *cell.borrow_mut() = Some(runtime));
     Ok(())
 }
+
+/// クライアント側ルーティングの起動エントリポイント（イシュー #374）。
+///
+/// [`crate::nav::start_router`] をそのまま呼ぶ薄いラッパー（`mount`/`hydrate`
+/// と同型の参照実装）。`RUNTIME`（`AppState` の状態管理）とは独立した別系統
+/// であり、本関数はページ遷移（history API 連携・URL 同期・loader 解決）
+/// のみを扱う。**起動時点では描画を行わない**（SSR 済み DOM を維持する
+/// 契約は [`crate::nav::start_router`] 側の doc を参照）。
+///
+/// # `root_id` の対象（`hydrate`/`mount` とは異なるデモ系統）
+///
+/// 本関数が遷移対象とするのは `rws_app::list_page`/`detail_page`
+/// （`server/src/ssr.rs` が SSR する記事一覧・詳細ページ、`data-nav` リンクは
+/// `layout()` が組み立てる `<div id="app-root">` 配下にのみ存在する）であり、
+/// 上記 `hydrate`/`mount`（`AppState` のカウンター・フォーム・動的リスト
+/// デモ）とは**別系統・別 DOM**である。実運用では `root_id = "app-root"` を
+/// 渡す（`hydrate("app")`/`mount("app")` と同時に同一ページへ組み込む用途は
+/// 想定しない。両デモを 1 ページに同居させる場合は互いに異なる `root_id` の
+/// 要素を用意すること）。
+///
+/// # JS グルー例
+///
+/// ```html
+/// <script type="module">
+///   import init, { start_router } from "./pkg/rws_wasm_full.js";
+///   await init();
+///   start_router("app-root");
+/// </script>
+/// ```
+///
+/// # Errors
+///
+/// `root_id` に対応する要素が存在しない場合、またはイベント配線
+/// （`add_event_listener_with_callback`）が失敗した場合に `Err` を返す。
+#[wasm_bindgen]
+pub fn start_router(root_id: &str) -> Result<(), JsValue> {
+    crate::nav::start_router(root_id)
+}

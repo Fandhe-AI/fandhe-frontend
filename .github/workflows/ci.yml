@@ -660,6 +660,15 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test three_mode_browser
 
+      # イシュー #374: クライアント側ルーティング（history API 連携・
+      # URL 同期・遷移時 loader 配線）の実ブラウザ統合テスト（wasm-full/tests/
+      # nav_browser.rs）。runtime_browser/hydration_browser/three_mode_browser
+      # ステップと同じ check-wasm-full 存在ガードを再利用し、新規ガードは
+      # 追加しない。
+      - name: Run wasm-full nav browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test nav_browser
+
   # TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）: 同一文書内更新向け
   # ラッパー関数（`static/view-transitions.js` の `withViewTransition`、
   # TASK-8.2a／イシュー #61）の実効 LOC（コメント・空行を除く）が

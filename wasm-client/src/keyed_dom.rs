@@ -135,7 +135,14 @@ fn nth_element_child(list_element: &Element, index: usize) -> Option<Element> {
 /// （`element.onclick = ...` とは異なる。属性値は `escape_html` を経由しない
 /// 生文字列だが、`setAttribute`/`set_text_content` は HTML パースを行わない
 /// ため XSS 経路にならない）。
-fn build_element(document: &Document, node: &Node) -> Option<web_sys::Node> {
+///
+/// [`apply_keyed_list`]（本モジュール内、keyed list 挿入）に加え、
+/// `rws-wasm-full` の遷移描画（`nav.rs`、イシュー #374）からも
+/// `rws_wasm_client::build_dom_node` として呼ばれる公開 API（`lib.rs` の
+/// `pub use keyed_dom::build_dom_node` 経由）。挿入先で `RawHtml` を `None`
+/// として fail-closed に拒否する契約は呼び出し元を問わず不変（不変条件 4
+/// を遷移経路にも継承）。
+pub fn build_dom_node(document: &Document, node: &Node) -> Option<web_sys::Node> {
     match node {
         Node::Text(text) => Some(document.create_text_node(text).into()),
         Node::Element {
@@ -148,7 +155,7 @@ fn build_element(document: &Document, node: &Node) -> Option<web_sys::Node> {
                 let _ = element.set_attribute(name, value);
             }
             for child in children {
-                if let Some(child_node) = build_element(document, child) {
+                if let Some(child_node) = build_dom_node(document, child) {
                     let _ = element.append_child(&child_node);
                 }
             }
@@ -176,7 +183,7 @@ fn build_element(document: &Document, node: &Node) -> Option<web_sys::Node> {
 /// 想定）。`list_element` は実 DOM 上の対応する親要素（`data-bind-list`
 /// で走査済み）。
 ///
-/// キー照合に失敗する要素（`Insert` で `build_element` が `None` を返す
+/// キー照合に失敗する要素（`Insert` で `build_dom_node` が `None` を返す
 /// ケース = `RawHtml` 子や不正タグ名）は skip し、当該 1 件のみ未適用のまま
 /// 残す（fail-closed。他の正当な操作の適用を妨げない）。
 pub fn apply_keyed_list(document: &Document, list_element: &Element, new_list_node: &Node) {
@@ -196,7 +203,7 @@ pub fn apply_keyed_list(document: &Document, list_element: &Element, new_list_no
                 let Some((_, node)) = new_items.iter().find(|(k, _)| k == &key) else {
                     continue;
                 };
-                let Some(new_child) = build_element(document, node) else {
+                let Some(new_child) = build_dom_node(document, node) else {
                     continue;
                 };
                 let reference = nth_element_child(list_element, index);
