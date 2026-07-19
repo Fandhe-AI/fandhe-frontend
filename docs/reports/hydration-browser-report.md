@@ -1,5 +1,7 @@
 # 実ブラウザハイドレーション検証レポート（TASK-6.3d・Conditional Go 条件 1 解消判定）
 
+> **注記（#433 改名）**: 本レポートは旧名称時代の実測記録です。crate 名 `rws_core`（`rws-*`）は #441 で `fandhe_frontend_core`（`fandhe-frontend-*`）へ、`wasm-client/` 等のクレート配置はルート直下から #442 で `crates/wasm-client/` 等へ改名・移設されます（新旧対応は `docs/design/framework-naming.md` 参照）。以下の記録中のパス・識別子は当時のまま残しています。
+
 ## 1. 目的とトレーサビリティ
 
 - TASK-6.3【Conditional Go 条件 1】（親イシュー #64・クローズ済み、REQ-6）は、

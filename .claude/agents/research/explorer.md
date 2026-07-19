@@ -7,7 +7,7 @@ tools: [Read, Grep, Glob, Bash]
 
 # explorer
 
-frontend-framework リポジトリのコードベースと `docs/spec/` 仕様書を横断調査する読み取り専用 Agent。
+fandhe-frontend リポジトリのコードベースと `docs/spec/` 仕様書を横断調査する読み取り専用 Agent。
 
 ## 役割
 

@@ -1,4 +1,4 @@
-# frontend-framework
+# fandhe-frontend
 
 Rust 製のフロントエンドフレームワークです。AI 時代のセキュリティリスクを下げることを目的に、プレーンな HTML / JavaScript / CSS を尊重しつつ、SSR / SPA / SSG / トランジションなどモダン機能を網羅します。部分埋め込みの最小構成からフル機能構成までのグラデーションを持ち、単一実行ファイルでのデプロイ（Docker 想定）を目標とします。
 
@@ -9,7 +9,7 @@ Rust 製のフロントエンドフレームワークです。AI 時代のセキ
 仕様書（ブレスト〜PoC〜要件定義〜タスク分解〜ロードマップ）は [Fandhe-AI/frontend-framework-spec](https://github.com/Fandhe-AI/frontend-framework-spec) で管理し、`docs/spec/` にサブモジュールとして取り込んでいます。
 
 ```bash
-git clone --recurse-submodules git@github.com:Fandhe-AI/frontend-framework.git
+git clone --recurse-submodules git@github.com:Fandhe-AI/fandhe-frontend.git
 # 既存クローンの場合
 git submodule update --init
 ```

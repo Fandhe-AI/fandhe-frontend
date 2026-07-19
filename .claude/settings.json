@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'frontend-framework: 日本語でやりとり / 作業は subagent へ委譲し main 消費を抑える (delegation.md, delegation-impl.md) / Conventional Commits 厳守 (--no-verify 禁止) / implement-issue は計画承認後に実装 / core は既定エスケープ・forbid(unsafe_code)・外部依存ゼロを厳守'"
+            "command": "echo 'fandhe-frontend: 日本語でやりとり / 作業は subagent へ委譲し main 消費を抑える (delegation.md, delegation-impl.md) / Conventional Commits 厳守 (--no-verify 禁止) / implement-issue は計画承認後に実装 / core は既定エスケープ・forbid(unsafe_code)・外部依存ゼロを厳守'"
           }
         ]
       }

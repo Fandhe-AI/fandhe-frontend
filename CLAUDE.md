@@ -12,7 +12,7 @@ Rust 製フロントエンドフレームワーク。AI 時代のセキュリテ
 ## Repository Structure
 
 ```
-frontend-framework/
+fandhe-frontend/
 ├── CLAUDE.md
 ├── README.md
 ├── skills-lock.json          # npx skills add の導入記録
@@ -42,7 +42,7 @@ frontend-framework/
 │   │           └── npm-asset-gate.yml  # NPM 静的アセットゲート（install.sh 経由）のテンプレートワークフロー（REQ-12, イシュー #316）
 │   ├── app/                   # `fw new --template app`（イシュー #378/#411）: fandhe-frontend-core/fandhe-frontend-app 依存の拡充テンプレート（wasm ビルド込み CSR 完全実体を同梱）
 │   │   ├── src/main.rs       # Loader・束縛点 API（bind_text/keyed_list）・render の実体サンプル
-│   │   ├── vendor/           # fandhe-frontend-core/fandhe-frontend-app/fandhe-frontend-interactive/fandhe-frontend-wasm-client のソース vendor 同梱（publish=false のため。正本との乖離は cli/tests/template_vendor_drift.rs が検知）
+│   │   ├── vendor/           # fandhe-frontend-core/fandhe-frontend-app/fandhe-frontend-interactive/fandhe-frontend-wasm-client のソース vendor 同梱（publish=false のため。正本との乖離は crates/cli/tests/template_vendor_drift.rs が検知）
 │   │   ├── wasm/              # CSR wasm ビルド用の独立ワークスペース（glue クレート app-csr-wasm、root の依存グラフから隔離）
 │   │   ├── tools/wasm/build.sh # wasm ビルド手順（wasm-bindgen-cli バージョン整合の fail-closed 検証込み）
 │   │   └── static/embed.html # CSR マウント骨格（templates/embed/embed.html の同梱コピー、build.sh 実行後に動作）
@@ -112,10 +112,10 @@ main セッションは**指揮・統合・ユーザー対話に専念**し、�
 |---------|---------------|-------|------|
 | research | explorer | sonnet | コードベース・`docs/spec/` 横断調査（読み取り専用） |
 | research | reference-researcher | sonnet | 外部仕様（Rust / WASM / Web 標準 / 依存クレート）調査 |
-| implement | core-builder | sonnet | `core/` `interactive/` — 描画・状態管理コア（`forbid(unsafe_code)` 域） |
-| implement | server-builder | sonnet | `app/` `server/` — SSR / SSG / ルーティング |
-| implement | wasm-builder | sonnet | `wasm-client/` `wasm-full/` `wasm-thin/` `static/` — CSR / ハイドレーション / WASM |
-| implement | tooling-builder | sonnet | `xtask/` / CI / Dockerfile / cargo-deny / 単一バイナリ配布 / AI 自己保守フック |
+| implement | core-builder | sonnet | `crates/core/` `crates/interactive/` — 描画・状態管理コア（`forbid(unsafe_code)` 域） |
+| implement | server-builder | sonnet | `crates/app/` `crates/server/` — SSR / SSG / ルーティング |
+| implement | wasm-builder | sonnet | `crates/wasm-client/` `crates/wasm-full/` `crates/wasm-thin/` `static/` — CSR / ハイドレーション / WASM |
+| implement | tooling-builder | sonnet | `crates/xtask/` / CI / Dockerfile / cargo-deny / 単一バイナリ配布 / AI 自己保守フック |
 | testing | test-runner | sonnet | `cargo test` / XSS 回帰 / wasm テストの実行と失敗分析 |
 | quality | reviewer | sonnet | 仕様準拠・アーキテクチャ整合・Rust イディオムのレビュー |
 | quality | security-auditor | sonnet | OWASP・XSS エスケープ保証・`unsafe` 境界・依存監査 |

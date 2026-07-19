@@ -223,7 +223,7 @@ Windows runner が登録されているかどうかは以下で確認できる�
 read 権限）。
 
 ```bash
-gh api repos/Fandhe-AI/frontend-framework/actions/runners \
+gh api repos/Fandhe-AI/fandhe-frontend/actions/runners \
   --jq '.runners[] | {name, os, labels: [.labels[].name]}'
 ```
 
