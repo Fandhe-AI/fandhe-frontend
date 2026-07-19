@@ -493,6 +493,16 @@ fn start_router_does_not_repaint_on_initial_call() {
 /// 実 DOM 上でテキストのまま（要素化されない）こと。View Transitions 経由
 /// （非同期になりうる）でも描画内容自体はエスケープ済みのまま変化しない
 /// ことを固定する（async 版、イシュー #404）。
+///
+/// 本テストの目的はエスケープ保証（既定エスケープの非弱体化、REQ-1）の
+/// 回帰検証であり、`document.startViewTransition` 自体の実ブラウザ挙動
+/// 検証は検証 7・9・10 が別途担う。そのため [`ViewTransitionStub`]
+/// （検証 7 と同じ決定的スタブ）で `startViewTransition` を差し替える
+/// （CI 実測: headless Chrome 実行環境でネイティブ実装を素通しした場合、
+/// 本テストが `wasm-bindgen-test-runner` のテスト完了検出に失敗して
+/// ジョブ全体が `timeout-minutes` に達するまでハングする事象が発生した
+/// ため、イシュー #404 フォローアップとしてスタブへ切り替え、決定性を
+/// 優先する）。
 #[wasm_bindgen_test]
 async fn navigating_to_xss_payload_item_keeps_payload_as_text_not_element() {
     let window = web_sys::window().expect("window must exist");
@@ -505,6 +515,7 @@ async fn navigating_to_xss_payload_item_keeps_payload_as_text_not_element() {
         &ssr_equivalent_list_inner_html(),
     );
     let _cleanup = RemoveOnDrop(container);
+    let _stub = ViewTransitionStub::install(&document);
 
     rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
