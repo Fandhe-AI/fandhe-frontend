@@ -1,9 +1,10 @@
-# View Transitions 機構（TASK-8.1／TASK-8.2）
+# View Transitions 機構（TASK-8.1／TASK-8.2／イシュー #404）
 
 本ドキュメントは REQ-8（`docs/spec/04-requirements.md` REQ-8 節「View Transitions API の
 ネイティブ活用」）のうち、クロスドキュメントナビゲーション側（TASK-8.1・#59）の
 製品仕様を固定するものです。同一文書内（SPA 的）遷移側（TASK-8.2、`static/view-transitions.js`
-の `withViewTransition()`）は既にマージ済みであり、本書では両者の役割分担も整理します。
+の `withViewTransition()`）は既にマージ済みであり、WASM（`wasm-full` の `nav` モジュール）
+経由の SPA 内遷移側（イシュー #404）も実装済みです。本書では三者の役割分担を整理します。
 
 ## 1. 機構の全体像
 
@@ -13,9 +14,25 @@ REQ-8 が求める「JS 0 行での宣言的な遷移有効化」は、遷移の
 | 遷移の種類 | 有効化する機構 | 実装場所 | JS 行数 |
 |---|---|---|---|
 | クロスドキュメントナビゲーション（SSR/SSG のページ遷移） | `@view-transition { navigation: auto; }`（CSS at-rule） | `rws_app::page_shell()` / `templates/embed/embed.html` | 0 行 |
-| 同一文書内（SPA 的）更新 | `document.startViewTransition()` | `static/view-transitions.js` の `withViewTransition()` | 呼び出し側が明示的に利用 |
+| 同一文書内（SPA 的）更新（非 WASM 埋め込み用） | `document.startViewTransition()` | `static/view-transitions.js` の `withViewTransition()` | 呼び出し側が明示的に利用 |
+| WASM（`wasm-full`）の SPA 内遷移（クライアント側ルーティング） | `document.startViewTransition()`（`nav.rs` のカスタム duck-typing extern バインディング経由） | `wasm-full/src/nav.rs`（`wiring::with_view_transition`、イシュー #404） | 0 行（利用者コード不要、`start_router` 起動のみで自動連携） |
 
-本書は前者（TASK-8.1）を主題とします。
+`static/view-transitions.js` の `withViewTransition()` と `wasm-full/src/nav.rs` の
+`with_view_transition` は、いずれも `document.startViewTransition` の機能検出 +
+graceful degradation（非対応時は同期実行）という同一の設計思想を持ちますが、実装は
+独立しています。前者は JS 実装として「呼び出し側（利用者コード）が明示的に
+`withViewTransition(updateCallback)` を呼ぶ」薄いユーティリティであるのに対し、
+後者は Rust（wasm-bindgen）実装として `nav::start_router` 起動後は SPA 内遷移
+（`data-nav` クリック・`popstate`）のたびに**自動的**にラップされ、利用者コードからの
+明示的な呼び出しを必要としません。両者は同一ページで共存する想定はなく（`wasm-full`
+採用時は WASM 経由のクライアント側ルーティングが遷移を担うため）、選択は
+「WASM を使うか（`wasm-full`）／使わないか（最小埋め込み・`wasm-client`）」という
+既存のクレート選択（`docs/design/wasm-full-architecture.md` 第 4 節・判断 6）に従います。
+
+本書の第 2〜5 節は前者（TASK-8.1、クロスドキュメント側）を主題とします。WASM 側の
+設計判断・不変条件は `docs/design/wasm-full-architecture.md` 第 4 節・判断 10、
+セキュリティ考慮は同判断 10 および `docs/policy/unsafe-boundary.md` 第 2 節「許容
+FFI 境界（wasm-full）」3 点目を参照してください。
 
 ## 2. `<meta name="view-transition">` から `@view-transition` at-rule への置換
 

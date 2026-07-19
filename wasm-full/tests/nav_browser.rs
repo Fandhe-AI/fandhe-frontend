@@ -1,5 +1,6 @@
 //! クライアント側ルーティングの実ブラウザ統合テスト（イシュー #374、
-//! `wasm-pack test --headless --chrome`）。
+//! `wasm-pack test --headless --chrome`）。View Transitions 連携
+//! （イシュー #404）の統合検証も本ファイルに含める。
 //!
 //! # 責務境界
 //!
@@ -11,7 +12,7 @@
 //! フィクスチャを組み立てる。`rws-server` への dev-dependency 追加はしない
 //! ため）。
 //!
-//! # 検証内容（#374 実装計画 §6 に対応）
+//! # 検証内容（#374 実装計画 §6・#404 実装計画 §6 に対応）
 //!
 //! 1. クリック遷移: `a[data-nav]` への合成クリックで `pushState` + 描画
 //! 2. 戻る/進む（popstate 契約）: 合成 `PopStateEvent` で再描画（`history.back()`
@@ -25,10 +26,34 @@
 //! 6. 連続遷移: 一覧 → 詳細 → 一覧の往復後もクリック配線が生きている
 //!    （`document` レベル委譲のため `root` のサブツリー差し替え後も
 //!    リスナーが失われないことの直接証明）
+//! 7. （#404）View Transitions スタブ検証: nav 遷移 1 回につき
+//!    `document.startViewTransition` が 1 回だけ呼ばれ、非同期の update
+//!    コールバック実行で DOM/タイトルが確定すること
+//! 8. （#404）非対応ブラウザ相当（`startViewTransition` を非関数値で
+//!    shadow）では同期的に DOM が差し替わること（graceful degradation）
+//! 9. （#404）連続遷移が loader 解決との競合なく最後のルートへ収束し、
+//!    SSR 相当出力とバイト一致すること
+//! 10. （#404）実 `startViewTransition` が存在する環境でのスモーク: クリック
+//!     遷移後、最終 DOM が SSR 相当出力とバイト一致すること
+//!
+//! # 非同期化の方針（#404）
+//!
+//! `document.startViewTransition()` の update コールバックは実ブラウザでは
+//! 非同期実行されうるため、遷移後の DOM/タイトル断定はすべて [`wait_until`]
+//! （`requestAnimationFrame` ベースのポーリング）を介して行う。同期実行環境
+//! （非対応ブラウザ相当のフォールバック経路）では 1 回目のチェックで即座に
+//! 条件が満たされるため、待機コストは実質ゼロで従来どおりの決定的な検証を
+//! 維持する。
 
 #![cfg(target_arch = "wasm32")]
 
+use js_sys::{Function, Reflect};
 use rws_app::{assemble_list_page, demo_items, DemoItemsLoader};
+use std::cell::Cell;
+use std::rc::Rc;
+use wasm_bindgen::closure::Closure;
+use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen_futures::JsFuture;
 use wasm_bindgen_test::*;
 use web_sys::{Document, Element, MouseEvent, MouseEventInit, PopStateEvent, PopStateEventInit};
 
@@ -158,10 +183,153 @@ fn synthetic_popstate_event() -> PopStateEvent {
         .expect("PopStateEvent construction must not fail")
 }
 
+/// `document` を `Reflect` API へ渡せる `JsValue` へ変換する
+/// （`web_sys::Document` は `wasm_bindgen` の newtype ラッパーであり、
+/// `Reflect::set`/`Reflect::get` はいずれも `&JsValue` を要求するため、
+/// テスト内のスタブ設置・取得処理で共通に使う）。
+fn document_as_value(document: &Document) -> JsValue {
+    JsValue::from(document.clone())
+}
+
+/// `document` を `Reflect::delete_property` 用の `&js_sys::Object` へ変換する
+/// （`delete_property` のみ `&Object<T>` を要求するため、`Reflect::set`/
+/// `Reflect::get` の `document_as_value` とは異なるヘルパーとして分離する）。
+fn document_as_object(document: &Document) -> js_sys::Object {
+    document.clone().unchecked_into::<js_sys::Object>()
+}
+
+/// 1 フレーム分待機する（`requestAnimationFrame` を `Promise` 化して await）。
+/// [`wait_until`] の内部実装。
+async fn next_animation_frame() {
+    let promise = js_sys::Promise::new(&mut |resolve, _reject| {
+        let window = web_sys::window().expect("window must exist");
+        let callback = Closure::once_into_js(move || {
+            let _ = resolve.call0(&JsValue::NULL);
+        });
+        window
+            .request_animation_frame(callback.unchecked_ref())
+            .expect("requestAnimationFrame must not fail in test environment");
+    });
+    JsFuture::from(promise)
+        .await
+        .expect("requestAnimationFrame promise must not reject");
+}
+
+/// `condition` が `true` になるまで最大 `max_frames` フレーム待つ
+/// （`nav.rs` の `with_view_transition` の update コールバックが実ブラウザ
+/// では非同期実行されうるため、遷移後の DOM/タイトル断定は本ヘルパーを介して
+/// 行う。同期実行環境（フォールバック経路）では 1 回目のチェックで即座に
+/// `true` となるため待機コストは実質ゼロ。上限に達しても条件を満たさない
+/// 場合は最後の判定結果をそのまま返し、呼び出し側の `assert!` でテスト失敗
+/// として明示させる）。
+async fn wait_until<F: Fn() -> bool>(condition: F, max_frames: u32) -> bool {
+    for _ in 0..max_frames {
+        if condition() {
+            return true;
+        }
+        next_animation_frame().await;
+    }
+    condition()
+}
+
+/// `document.startViewTransition` を記録用スタブへインスタンスプロパティ
+/// として差し替える（イシュー #404、判断 D「スタブによる決定的検証」）。
+///
+/// - `calls()`: スタブが呼ばれた回数（`with_view_transition` が
+///   `document.startViewTransition` を関数として検出し呼び出した回数と一致）
+/// - update コールバックは `wasm_bindgen_futures::spawn_local` によるマイクロ
+///   タスクで**非同期**実行する（実ブラウザの非同期性を模す。同期実行では
+///   ないことを構造的に保証し、`wait_until` を介した断定が必須であることを
+///   テスト自身が体現する）
+/// - `Drop` でプロパティを削除し、他テストへ影響を残さない（`RemoveOnDrop`
+///   と同じ「テスト間の状態非共有」方針）
+struct ViewTransitionStub {
+    call_count: Rc<Cell<u32>>,
+    // `Closure` は JS 側へ渡した関数の生存期間を保持するためだけに保持する
+    // （`as_ref().unchecked_ref()` で参照を渡した後も、この構造体が生きている
+    // 間はクロージャの実体が解放されない）。
+    _closure: Closure<dyn FnMut(JsValue) -> JsValue>,
+}
+
+impl ViewTransitionStub {
+    fn install(document: &Document) -> Self {
+        let call_count = Rc::new(Cell::new(0u32));
+        let counter = call_count.clone();
+        let closure = Closure::wrap(Box::new(move |update: JsValue| -> JsValue {
+            counter.set(counter.get() + 1);
+            if let Some(update_fn) = update.dyn_ref::<Function>() {
+                let update_fn = update_fn.clone();
+                wasm_bindgen_futures::spawn_local(async move {
+                    let _ = update_fn.call0(&JsValue::NULL);
+                });
+            }
+            JsValue::UNDEFINED
+        }) as Box<dyn FnMut(JsValue) -> JsValue>);
+        Reflect::set(
+            &document_as_value(document),
+            &JsValue::from_str("startViewTransition"),
+            closure.as_ref().unchecked_ref(),
+        )
+        .expect("Reflect::set must not fail when shadowing a plain instance property");
+        Self {
+            call_count,
+            _closure: closure,
+        }
+    }
+
+    fn calls(&self) -> u32 {
+        self.call_count.get()
+    }
+}
+
+impl Drop for ViewTransitionStub {
+    fn drop(&mut self) {
+        let document = web_sys::window()
+            .and_then(|w| w.document())
+            .expect("document must exist");
+        let _ = Reflect::delete_property(
+            &document_as_object(&document),
+            &JsValue::from_str("startViewTransition"),
+        );
+    }
+}
+
+/// `document.startViewTransition` を非関数値で shadow する（検証 8、
+/// 非対応ブラウザ相当の機能検出フォールバック直接証明）。`Drop` で復元する。
+struct NonFunctionViewTransitionShadow;
+
+impl NonFunctionViewTransitionShadow {
+    fn install(document: &Document) -> Self {
+        Reflect::set(
+            &document_as_value(document),
+            &JsValue::from_str("startViewTransition"),
+            &JsValue::from_str("not-a-function"),
+        )
+        .expect("Reflect::set must not fail when shadowing a plain instance property");
+        Self
+    }
+}
+
+impl Drop for NonFunctionViewTransitionShadow {
+    fn drop(&mut self) {
+        let document = web_sys::window()
+            .and_then(|w| w.document())
+            .expect("document must exist");
+        let _ = Reflect::delete_property(
+            &document_as_object(&document),
+            &JsValue::from_str("startViewTransition"),
+        );
+    }
+}
+
 /// 検証 1・6: `/` → `/items/1` → `/` の連続クリック遷移で URL・DOM・
 /// `document.title` が追従し、往復後もクリック配線が生きていること。
+///
+/// `startViewTransition` はスタブせず、実行環境（ヘッドレス Chrome）が
+/// ネイティブに持つ実装（存在すれば）またはフォールバック経路のいずれかを
+/// そのまま通す。[`wait_until`] は両ケースを同一コードで許容する。
 #[wasm_bindgen_test]
-fn click_navigation_updates_url_dom_and_title_across_round_trip() {
+async fn click_navigation_updates_url_dom_and_title_across_round_trip() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
 
@@ -183,8 +351,13 @@ fn click_navigation_updates_url_dom_and_title_across_round_trip() {
     link.dispatch_event(&synthetic_click_event())
         .expect("dispatch_event must not fail");
 
+    // `pushState` は apply 段より前（同期）で実行されるため URL は即座に反映
+    // される（イシュー #404 実装計画・判断 B）。
     assert_eq!(window.location().pathname().unwrap(), "/items/1");
-    assert_eq!(document.title(), "記事詳細");
+    assert!(
+        wait_until(|| document.title() == "記事詳細", 60).await,
+        "遷移後に document.title が「記事詳細」へ確定すること"
+    );
     assert!(root
         .query_selector("[data-testid=\"item-detail\"]")
         .unwrap()
@@ -214,7 +387,10 @@ fn click_navigation_updates_url_dom_and_title_across_round_trip() {
         .expect("dispatch_event must not fail");
 
     assert_eq!(window.location().pathname().unwrap(), "/");
-    assert_eq!(document.title(), "記事一覧");
+    assert!(
+        wait_until(|| document.title() == "記事一覧", 60).await,
+        "遷移後に document.title が「記事一覧」へ確定すること"
+    );
     assert!(root
         .query_selector("[data-testid=\"item-list\"]")
         .unwrap()
@@ -229,13 +405,24 @@ fn click_navigation_updates_url_dom_and_title_across_round_trip() {
         .dispatch_event(&synthetic_click_event())
         .expect("dispatch_event must not fail");
     assert_eq!(window.location().pathname().unwrap(), "/items/1");
+    assert!(
+        wait_until(
+            || root
+                .query_selector("[data-testid=\"item-detail\"]")
+                .unwrap()
+                .is_some(),
+            60
+        )
+        .await,
+        "2 往復目の遷移後も詳細 DOM が確定すること"
+    );
 }
 
 /// 検証 2: `history.replace_state` で `/` へ揃えたのち合成 `popstate` を
 /// dispatch すると、一覧 DOM・タイトルへ復帰する（`history.back()` の
 /// 非同期性を避けた決定的な契約固定）。
 #[wasm_bindgen_test]
-fn popstate_event_re_resolves_and_renders_without_pushing_history() {
+async fn popstate_event_re_resolves_and_renders_without_pushing_history() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
 
@@ -258,7 +445,10 @@ fn popstate_event_re_resolves_and_renders_without_pushing_history() {
         .dispatch_event(&synthetic_popstate_event())
         .expect("dispatch_event must not fail");
 
-    assert_eq!(document.title(), "記事一覧");
+    assert!(
+        wait_until(|| document.title() == "記事一覧", 60).await,
+        "popstate 後に document.title が「記事一覧」へ確定すること"
+    );
     assert!(root
         .query_selector("[data-testid=\"item-list\"]")
         .unwrap()
@@ -267,6 +457,8 @@ fn popstate_event_re_resolves_and_renders_without_pushing_history() {
 
 /// 検証 3: SSR 済み DOM の上で `start_router` を呼んでも DOM は不変
 /// （初期表示で loader を再実行・再描画しない凍結事項の直接証明）。
+/// View Transitions 連携は遷移（クリック/popstate）発生時のみ関与するため
+/// 本テストは同期のままでよい。
 #[wasm_bindgen_test]
 fn start_router_does_not_repaint_on_initial_call() {
     let window = web_sys::window().expect("window must exist");
@@ -295,9 +487,11 @@ fn start_router_does_not_repaint_on_initial_call() {
 }
 
 /// 検証 4: XSS ペイロード item（id="2"）へのクライアント遷移後もペイロードが
-/// 実 DOM 上でテキストのまま（要素化されない）こと。
+/// 実 DOM 上でテキストのまま（要素化されない）こと。View Transitions 経由
+/// （非同期になりうる）でも描画内容自体はエスケープ済みのまま変化しない
+/// ことを固定する（async 版、イシュー #404）。
 #[wasm_bindgen_test]
-fn navigating_to_xss_payload_item_keeps_payload_as_text_not_element() {
+async fn navigating_to_xss_payload_item_keeps_payload_as_text_not_element() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
 
@@ -325,6 +519,17 @@ fn navigating_to_xss_payload_item_keeps_payload_as_text_not_element() {
         .expect("dispatch_event must not fail");
 
     assert!(
+        wait_until(
+            || root
+                .query_selector("[data-testid=\"item-detail\"]")
+                .unwrap()
+                .is_some(),
+            60
+        )
+        .await,
+        "XSS ペイロード item への遷移後、詳細 DOM が確定すること"
+    );
+    assert!(
         root.query_selector("script").unwrap().is_none(),
         "XSS ペイロードが実 DOM 上で <script> 要素として生成されてはならない"
     );
@@ -338,7 +543,9 @@ fn navigating_to_xss_payload_item_keeps_payload_as_text_not_element() {
 
 /// 検証 5: `data-nav` を持たない要素のクリック・Ctrl+クリック・未登録パス
 /// への `data-nav` ではいずれも `prevent_default` されない
-/// （ブラウザ既定動作を壊さない安全側フォールバック）。
+/// （ブラウザ既定動作を壊さない安全側フォールバック）。いずれのケースも
+/// `resolve_path` が `None` を返す時点で `render_route`（View Transitions
+/// 連携の起点）自体に到達しないため、本テストは同期のままでよい。
 #[wasm_bindgen_test]
 fn non_matching_clicks_are_not_intercepted() {
     let window = web_sys::window().expect("window must exist");
@@ -409,5 +616,226 @@ fn non_matching_clicks_are_not_intercepted() {
         window.location().pathname().unwrap(),
         "/",
         "未登録パスへのクリックでは URL が変化しないこと"
+    );
+}
+
+/// 検証 7（イシュー #404）: `document.startViewTransition` をスタブすると、
+/// nav 遷移 1 回につき 1 回だけ呼ばれ、非同期の update コールバック実行で
+/// DOM/タイトルが確定すること。
+#[wasm_bindgen_test]
+async fn view_transition_stub_is_called_once_and_dom_updates_after_async_callback() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    set_location_path("/");
+    let (container, root) = create_app_root(
+        &document,
+        "nav-test-vt-stub-single-call",
+        &ssr_equivalent_list_inner_html(),
+    );
+    let _cleanup = RemoveOnDrop(container);
+    let stub = ViewTransitionStub::install(&document);
+
+    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+
+    let link = document
+        .query_selector("a[data-nav=\"/items/1\"]")
+        .expect("query_selector must not fail")
+        .expect("list page must contain a data-nav link to /items/1");
+    link.dispatch_event(&synthetic_click_event())
+        .expect("dispatch_event must not fail");
+
+    // `with_view_transition` は update コールバックを渡す前提として
+    // `document.startViewTransition` を同期的に 1 回呼ぶ（呼び出し自体は
+    // 遷移の成否・update の実行タイミングに関わらず同期）。
+    assert_eq!(
+        stub.calls(),
+        1,
+        "nav 遷移 1 回につき startViewTransition が 1 回だけ呼ばれること"
+    );
+    // スタブの update コールバックはマイクロタスクで非同期実行するため、
+    // dispatch_event 直後の時点では DOM は未確定でありうる
+    // （実装が真に非同期実行を経由していることの間接証明）。
+    assert!(
+        wait_until(|| document.title() == "記事詳細", 60).await,
+        "非同期 update コールバック実行後に document.title が確定すること"
+    );
+    assert!(root
+        .query_selector("[data-testid=\"item-detail\"]")
+        .unwrap()
+        .is_some());
+}
+
+/// 検証 8（イシュー #404）: `document.startViewTransition` を非関数値で
+/// shadow した場合、機能検出により同期的に DOM が差し替わること
+/// （graceful degradation の直接証明）。
+#[wasm_bindgen_test]
+fn non_function_shadow_falls_back_to_synchronous_render() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    set_location_path("/");
+    let (container, root) = create_app_root(
+        &document,
+        "nav-test-vt-fallback",
+        &ssr_equivalent_list_inner_html(),
+    );
+    let _cleanup = RemoveOnDrop(container);
+    let _shadow = NonFunctionViewTransitionShadow::install(&document);
+
+    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+
+    let link = document
+        .query_selector("a[data-nav=\"/items/1\"]")
+        .expect("query_selector must not fail")
+        .expect("list page must contain a data-nav link to /items/1");
+    link.dispatch_event(&synthetic_click_event())
+        .expect("dispatch_event must not fail");
+
+    // `wait_until` を使わず、dispatch_event 直後の同期的な状態を直接断定する
+    // （非対応ブラウザ相当の経路は `apply` を即座に実行するはず、という
+    // 契約そのものを検証する）。
+    assert_eq!(
+        document.title(),
+        "記事詳細",
+        "非関数値で shadow された場合、遷移は同期的に完了すること"
+    );
+    assert!(root
+        .query_selector("[data-testid=\"item-detail\"]")
+        .unwrap()
+        .is_some());
+}
+
+/// 検証 9（イシュー #404）: `document.startViewTransition` をスタブした状態
+/// での連続遷移（詳細 → 一覧 → 詳細、各 update コールバックの解決を待たず
+/// 連続クリック）が、loader 解決との競合なく最後のルートへ収束し、最終 DOM
+/// が SSR 相当出力とバイト一致すること。
+///
+/// クリック対象は `root`（`render_route` により都度サブツリー差し替えされる
+/// 範囲）の**外側**、`container` 直下に固定で用意した 2 本のリンクとする
+/// （`root` の子要素から `data-nav` リンクを探す方式だと、直前のクリックの
+/// apply 未完了時点で DOM がどちらの状態かに依存してテストが不安定になる
+/// ため、クリック対象自体を DOM 差し替えの影響を受けない位置に固定する）。
+#[wasm_bindgen_test]
+async fn consecutive_navigations_with_stub_converge_to_last_route_and_match_ssr() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    set_location_path("/");
+    let (container, root) = create_app_root(
+        &document,
+        "nav-test-vt-consecutive",
+        &ssr_equivalent_list_inner_html(),
+    );
+    let container_for_links = container.clone();
+    let _cleanup = RemoveOnDrop(container);
+    let stub = ViewTransitionStub::install(&document);
+
+    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+
+    let to_detail = document
+        .create_element("a")
+        .expect("create_element must not fail");
+    to_detail
+        .set_attribute("data-nav", "/items/1")
+        .expect("set_attribute must not fail");
+    container_for_links
+        .append_child(&to_detail)
+        .expect("append_child must not fail");
+
+    let to_list = document
+        .create_element("a")
+        .expect("create_element must not fail");
+    to_list
+        .set_attribute("data-nav", "/")
+        .expect("set_attribute must not fail");
+    container_for_links
+        .append_child(&to_list)
+        .expect("append_child must not fail");
+
+    // 詳細 → 一覧 → 詳細。各クリックは前段の update コールバック解決を待たず
+    // 連続で発火する（`startViewTransition` の標準挙動では先行遷移が
+    // スキップされうるが、全 update コールバックは順序どおり実行される仕様の
+    // ため、最終状態は最後にクリックしたルート＝詳細へ収束するはず）。
+    to_detail
+        .dispatch_event(&synthetic_click_event())
+        .expect("dispatch_event must not fail");
+    to_list
+        .dispatch_event(&synthetic_click_event())
+        .expect("dispatch_event must not fail");
+    to_detail
+        .dispatch_event(&synthetic_click_event())
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        wait_until(
+            || root
+                .query_selector("[data-testid=\"item-detail\"]")
+                .unwrap()
+                .is_some(),
+            120
+        )
+        .await,
+        "連続遷移後、最終的に詳細 DOM へ収束すること"
+    );
+    assert_eq!(window.location().pathname().unwrap(), "/items/1");
+    assert_eq!(
+        root.outer_html(),
+        ssr_equivalent_detail_outer_html(&document, "1"),
+        "連続遷移後の最終 #app-root は SSR 相当出力とバイト一致すること"
+    );
+    assert_eq!(
+        stub.calls(),
+        3,
+        "連続 3 回のクリックそれぞれで startViewTransition が呼ばれていること"
+    );
+}
+
+/// 検証 10（イシュー #404）: 実 `document.startViewTransition` が存在する
+/// 環境でのスモークテスト。存在しない環境（非対応ブラウザ）では
+/// スタブ・shadow を一切使わず、機能検出により同期フォールバックへ委ねる
+/// （検証 8 が直接固定済みのため、ここでは早期リターンして trivial pass
+/// とする。`#[ignore]` は使わない、`.claude/rules/coding-rust.md` 準拠）。
+#[wasm_bindgen_test]
+async fn native_start_view_transition_smoke_if_supported() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    let has_native_support = Reflect::get(
+        &document_as_value(&document),
+        &JsValue::from_str("startViewTransition"),
+    )
+    .map(|v| v.is_function())
+    .unwrap_or(false);
+    if !has_native_support {
+        // 非対応環境: 検証 8 が同期フォールバックを直接固定済みのため、
+        // 本テストは何も検証せず trivial pass とする。
+        return;
+    }
+
+    set_location_path("/");
+    let (container, root) = create_app_root(
+        &document,
+        "nav-test-vt-native-smoke",
+        &ssr_equivalent_list_inner_html(),
+    );
+    let _cleanup = RemoveOnDrop(container);
+
+    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+
+    let link = document
+        .query_selector("a[data-nav=\"/items/1\"]")
+        .expect("query_selector must not fail")
+        .expect("list page must contain a data-nav link to /items/1");
+    link.dispatch_event(&synthetic_click_event())
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        wait_until(
+            || root.outer_html() == ssr_equivalent_detail_outer_html(&document, "1"),
+            120
+        )
+        .await,
+        "実 startViewTransition 環境でも最終 DOM が SSR 相当出力とバイト一致すること"
     );
 }

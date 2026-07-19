@@ -102,8 +102,21 @@ perf-assert = []
 # `wasm-pack test --headless` の実行に必須であり、docs/guides/browser-testing.md 第 7 節が
 # 実ブラウザテストの dev 依存として計画済み（#65 と同一の運用）。追加による影響
 # （パッケージ数・依存グラフ深さ・build.rs 有無）は PR 本文に実測値を記録する。
+#
+# イシュー #404（View Transitions 連携）: `wasm-full/tests/nav_browser.rs` の
+# 遷移テストが `document.startViewTransition` をスタブ（同期 shadow）・
+# 非同期実行（マイクロタスク/rAF 相当）で検証するため `wasm-bindgen-futures`
+# （`JsFuture` による Promise 待ち）・`js-sys`（`Reflect::set`/
+# `Reflect::delete_property` によるスタブ設置・削除、`Function`/`Promise`
+# 組み立て）を追加する。両クレートとも既に Cargo.lock に存在
+# （`wasm-bindgen-test`/`web-sys` が既に依存グラフへ引き込んでいる）ため、
+# **新規外部パッケージの追加はゼロ**（`cargo metadata` 実測: パッケージ数・
+# 依存グラフ深さ不変。実測結果は PR 本文に記録する）。製品依存
+# （`[dependencies]`）には一切追加しない（REQ-3 不変）。
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
 
 # Performance API（性能計測ハーネス専用）。製品面の [dependencies.web-sys] の
 # features には触れず、テスト専用の feature 拡張に閉じる。

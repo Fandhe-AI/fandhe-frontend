@@ -38,7 +38,25 @@
 //!   左クリック以外はブラウザ既定動作に委ねる（オープンリダイレクト対策）。
 //! - history state には何も格納しない（URL のみを状態の正とする）。
 //! - リスナー登録は起動時の定数回（click 1 + popstate 1）の `Closure::forget`
-//!   に限定する（`events.rs` と同方針、無制限リークの構造的回避）。
+//!   に限定する（`events.rs` と同方針、無制限リークの構造的回避）。加えて
+//!   イシュー #404 で導入した遷移ごとの View Transitions update コールバック
+//!   は `Closure::once_into_js`（1 回呼び出し後に JS 側が所有権ごと解放）で
+//!   生成するため `forget` の対象には含めない。`startViewTransition` の
+//!   update コールバックは遷移がスキップされる場合でも仕様上必ず一度呼ばれる
+//!   ため、無制限リークにはならない（`docs/design/wasm-full-architecture.md`
+//!   第 4 節・判断 10）。
+//!
+//! # View Transitions 連携（イシュー #404）
+//!
+//! [`wiring::render_route`] は「loader 解決 + 新 DOM 構築（`prepare` 段、
+//! 遷移の外）」と「`root` への差し替え + タイトル更新（`apply` 段、
+//! `document.startViewTransition()` の update コールバック内）」の 2 段に
+//! 分割されている。loader 解決を遷移の外に置くことで、データ取得の遅延が
+//! 遷移アニメーションの開始を妨げない（旧ビューは新ビューの準備が整うまで
+//! 表示され続ける、View Transitions の推奨パターン）。`document` が
+//! `startViewTransition` を持たない（非対応ブラウザ）場合は
+//! [`wiring::with_view_transition`] が機能検出で判定し、apply 段を同期
+//! 実行する（graceful degradation、失敗時も描画は必ず完了する）。
 
 use crate::csr::{resolve_detail_node, resolve_list_node};
 use rws_app::{Item, Loader};
@@ -127,6 +145,40 @@ mod wiring {
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{Document, Element, Event, MouseEvent};
 
+    /// `document.startViewTransition` の機能検出・呼び出し専用の duck-typing
+    /// extern バインディング（イシュー #404）。
+    ///
+    /// web-sys 0.3 系の `Document::start_view_transition` は
+    /// `#[cfg(web_sys_unstable_apis)]` ゲート付きであり、有効化には
+    /// `RUSTFLAGS='--cfg web_sys_unstable_apis'` をワークスペース全体へ適用
+    /// する必要がある（共有 `CARGO_TARGET_DIR` 運用・他クレートのビルド
+    /// フラグ汚染を招くため不採用、`docs/design/wasm-full-architecture.md`
+    /// 第 4 節・判断 10）。本 extern ブロックは安定版 wasm-bindgen のみで
+    /// 完結し、ソーステキスト上に `unsafe` トークンを含まない（マクロ展開後の
+    /// グルーコードのみが `unsafe` を含む、`docs/policy/unsafe-boundary.md`
+    /// 第 2 節の許容境界 2 点目と同区分）。新規外部パッケージの追加はゼロ
+    /// （既存の `wasm-bindgen`/`web-sys` のみで完結）。
+    #[wasm_bindgen::prelude::wasm_bindgen]
+    extern "C" {
+        type DocumentViewTransitions;
+
+        /// 機能検出用: `document.startViewTransition` プロパティの取得。
+        /// 非対応ブラウザでは `undefined`（`JsValue::is_function()` が
+        /// `false` を返す）になる。
+        #[wasm_bindgen::prelude::wasm_bindgen(method, getter, js_name = startViewTransition)]
+        fn start_view_transition_prop(this: &DocumentViewTransitions) -> JsValue;
+
+        /// `document.startViewTransition(updateCallback)` の呼び出し。
+        /// `updateCallback` は同期または Promise を返す関数（本モジュールでは
+        /// 常に同期の update コールバックを渡す）。呼び出しが throw した場合は
+        /// `catch` 属性により `Err` として返る。
+        #[wasm_bindgen::prelude::wasm_bindgen(method, catch, js_name = startViewTransition)]
+        fn start_view_transition(
+            this: &DocumentViewTransitions,
+            update: &JsValue,
+        ) -> Result<JsValue, JsValue>;
+    }
+
     /// `window().document()` を解決する。`events.rs`/`wasm-client::wiring` と
     /// 同じ固定文言方針（内部状態を含めない、不変条件 6）。
     fn document() -> Result<Document, JsValue> {
@@ -142,6 +194,56 @@ mod wiring {
             .ok_or_else(|| JsValue::from_str("root element not found"))
     }
 
+    /// `apply`（DOM 差し替え + タイトル更新等の副作用のみを行うクロージャ）を
+    /// `document.startViewTransition()` でラップして呼び出す（イシュー #404）。
+    ///
+    /// `document` が `startViewTransition` を関数として持たない場合
+    /// （非対応ブラウザ、機能検出）、または呼び出し自体が throw した場合は
+    /// `apply` を同期的に直接実行する（graceful degradation。遷移が
+    /// 失敗しても描画は必ず完了させる、fail-closed にしない）。
+    ///
+    /// `apply` を `Rc<RefCell<Option<F>>>` で包み、update コールバック
+    /// （`Closure::once_into_js` で JS 側へ所有権を移し、呼び出し後に自己
+    /// 解放する。`forget` 不使用）と throw 時フォールバックの双方から
+    /// 「`take()` できた側のみが 1 回だけ実行する」形にすることで、
+    /// 呼び出しが throw した場合でも `apply` を確実に一度だけ実行する
+    /// （update コールバックが呼ばれずに throw するケースへの対処。
+    /// `startViewTransition` の update コールバックは遷移がスキップされても
+    /// 仕様上必ず一度呼ばれるため、通常経路では throw 側の `take()` は
+    /// 常に空になり二重実行は起きない）。
+    fn with_view_transition<F>(document: &Document, apply: F)
+    where
+        F: FnOnce() + 'static,
+    {
+        let doc_vt = document.clone().unchecked_into::<DocumentViewTransitions>();
+        if !doc_vt.start_view_transition_prop().is_function() {
+            // 非対応ブラウザ: 同期フォールバック。
+            apply();
+            return;
+        }
+
+        let slot = std::rc::Rc::new(std::cell::RefCell::new(Some(apply)));
+        let update_slot = slot.clone();
+        let update = Closure::once_into_js(move || {
+            if let Some(apply) = update_slot.borrow_mut().take() {
+                apply();
+            }
+        });
+        if let Err(err) = doc_vt.start_view_transition(&update) {
+            // 呼び出し自体が throw し、update コールバックが未実行のまま
+            // 終わった場合の同期フォールバック（警告ログのみ、内部状態は
+            // 含めない不変条件 6）。
+            web_sys::console::warn_1(
+                &"rws-wasm-full: document.startViewTransition threw, view transition skipped"
+                    .into(),
+            );
+            let _ = err;
+            if let Some(apply) = slot.borrow_mut().take() {
+                apply();
+            }
+        }
+    }
+
     /// `value` が `pushState`/描画へ渡してよい相対パスかを判定する。
     ///
     /// `/` 始まりかつ `//` 非始まり（プロトコル相対 URL・外部オリジンへの
@@ -150,24 +252,36 @@ mod wiring {
         value.starts_with('/') && !value.starts_with("//")
     }
 
-    /// `route` を解決し、`root`（`rws_app::layout` が組み立てる
-    /// `<div id="app-root" data-rws="root">` 相当の要素そのもの。
-    /// `page_shell` の出力は `<body>` 直下にこの要素を単独で置くため、呼び出し
-    /// 元は `root_id = "app-root"` を渡す想定）の子要素を loader 解決済み
-    /// ノードで差し替えて `document.title` を更新する（受け入れ条件 2:
-    /// 束縛点更新/keyed list ではなくサブツリー差し替えだが、`set_inner_html`
-    /// は使わない）。
+    /// `route` を解決し、`root_id`（`rws_app::layout` が組み立てる
+    /// `<div id="app-root" data-rws="root">` 相当の要素の id。呼び出し元は
+    /// `root_id = "app-root"` を渡す想定）の子要素を loader 解決済みノードで
+    /// 差し替えて `document.title` を更新する（受け入れ条件 2: 束縛点更新/
+    /// keyed list ではなくサブツリー差し替えだが、`set_inner_html` は使わない）。
+    ///
+    /// # prepare/apply 2 段構成（イシュー #404）
+    ///
+    /// loader 解決 + `build_dom_node` による新 DOM 構築（**prepare 段**）は
+    /// `document.startViewTransition()` の呼び出しより前、同期に行う。
+    /// `root` への差し替え + `document.set_title`（**apply 段**）のみを
+    /// [`with_view_transition`] の update コールバック内で実行する。これに
+    /// より「遷移中に loader 解決が走らない」（旧ビューはデータ準備完了まで
+    /// 表示され続ける、View Transitions の推奨パターン）ことが構造的に
+    /// 保証される。`root` はコールバック実行時に `document.get_element_by_id`
+    /// で再解決する（`root` 自身は `replace_child`/`replaceWith` で入れ替え
+    /// ないため通常は起動時の要素のままでも有効だが、prepare と apply の間に
+    /// 時間差が生まれる非同期構成のため、将来 `root_id` 要素自体が差し替え
+    /// られる変更が入った場合に備え明示的に再解決する。要素が消えていた場合は
+    /// no-op、panic しない）。
     ///
     /// 描画は [`rws_wasm_client::build_dom_node`]（`createElement`/
     /// `createTextNode`/`set_attribute` のみ）経由で `resolve_route_view_with`
     /// が返す `Node`（`layout()` の出力＝`<div id="app-root">...</div>`
     /// 相当）を丸ごと新規構築し、その**子要素のみ**を `root` へ移し替える
-    /// （`root` 自身は `replace_child`/`replaceWith` で入れ替えない。
-    /// `root_id` で解決した要素の同一性を維持したまま中身だけ差し替える設計。
-    /// `root` の属性（`id`/`data-rws`）はナビゲーション間で不変のため
+    /// （`root` の属性（`id`/`data-rws`）はナビゲーション間で不変のため
     /// コピー不要）。既定 loader（`DemoItemsLoader`/`DemoItemDetailLoader`、
     /// `server/src/ssr.rs::respond` と同じ既定）を使う。
-    fn render_route(document: &Document, root: &Element, route: &ClientRoute) {
+    fn render_route(document: &Document, root_id: &str, route: &ClientRoute) {
+        // prepare 段: loader 解決 + 新 DOM 構築（遷移の外、同期）。
         let (title, node) = resolve_route_view_with(&DemoItemsLoader, &DemoItemDetailLoader, route);
 
         let Some(new_dom_node) = rws_wasm_client::build_dom_node(document, &node) else {
@@ -179,41 +293,50 @@ mod wiring {
             return;
         };
 
-        while let Some(child) = root.first_child() {
-            let _ = root.remove_child(&child);
-        }
-        while let Some(new_child) = new_dom_node.first_child() {
-            let _ = root.append_child(&new_child);
-        }
-
-        document.set_title(title);
+        // apply 段: `root` への差し替え + タイトル更新のみを View Transitions
+        // でラップする。
+        let apply_document = document.clone();
+        let root_id_owned = root_id.to_string();
+        with_view_transition(document, move || {
+            let Some(root) = apply_document.get_element_by_id(&root_id_owned) else {
+                return;
+            };
+            while let Some(child) = root.first_child() {
+                let _ = root.remove_child(&child);
+            }
+            while let Some(new_child) = new_dom_node.first_child() {
+                let _ = root.append_child(&new_child);
+            }
+            apply_document.set_title(title);
+        });
     }
 
     /// `path`（`location.pathname` + `location.search` 相当）を再解決して
     /// 描画する。一致しないパスは no-op（現在の DOM を維持、安全側
     /// フォールバック）。
-    fn navigate_render(document: &Document, root: &Element, path: &str) {
+    fn navigate_render(document: &Document, root_id: &str, path: &str) {
         let Some(route) = resolve_path(path) else {
             return;
         };
-        render_route(document, root, &route);
+        render_route(document, root_id, &route);
     }
 
     /// `path` が [`resolve_path`] で解決可能な場合のみ `history.pushState`
     /// で URL を進め、描画する（`popstate` からは呼ばない。history へ
     /// エントリを追加するのはユーザー操作起点のクリック遷移のみ）。
-    fn push_and_render(document: &Document, root: &Element, path: &str) {
+    fn push_and_render(document: &Document, root_id: &str, path: &str) {
         let Some(route) = resolve_path(path) else {
             return;
         };
         if let Some(window) = web_sys::window() {
             if let Ok(history) = window.history() {
                 // history state には何も格納しない（URL のみを状態の正とする、
-                // 改ざん面を持たない設計判断）。
+                // 改ざん面を持たない設計判断）。`pushState` は View Transitions
+                // の対象外（apply 段より前、prepare 段と同じく同期実行のまま）。
                 let _ = history.push_state_with_url(&JsValue::NULL, "", Some(path));
             }
         }
-        render_route(document, root, &route);
+        render_route(document, root_id, &route);
     }
 
     /// クリックが左クリック・無修飾キーかを判定する（新規タブで開く等の
@@ -296,16 +419,11 @@ mod wiring {
                 // に定めのない値をクライアント側で誤判定しない）。
                 return;
             }
-            // `root_id` 要素は差し替えの都度 `get_element_by_id` で再取得する
-            // （`render_route` は `root` の子要素のみを差し替え、`root` 自身
-            // （`#app-root` 相当の要素）は再生成しないため実際には起動時の
-            // 要素のままでも有効だが、将来 `root_id` 要素自体が差し替えられる
-            // 変更が入った場合に備え明示的に再解決する）。
-            let Some(current_root) = click_document.get_element_by_id(&root_id_owned) else {
-                return;
-            };
+            // `render_route`（`push_and_render` 経由）の apply 段が
+            // `root_id` 要素を `get_element_by_id` で再解決するため、ここでの
+            // 存在確認は不要（イシュー #404 で apply 段へ移動）。
             mouse_event.prevent_default();
-            push_and_render(&click_document, &current_root, &value);
+            push_and_render(&click_document, &root_id_owned, &value);
         });
         doc.add_event_listener_with_callback("click", click_closure.as_ref().unchecked_ref())?;
         click_closure.forget();
@@ -321,10 +439,7 @@ mod wiring {
             };
             let search = window.location().search().unwrap_or_default();
             let path = format!("{location_pathname}{search}");
-            let Some(current_root) = popstate_document.get_element_by_id(&popstate_root_id) else {
-                return;
-            };
-            navigate_render(&popstate_document, &current_root, &path);
+            navigate_render(&popstate_document, &popstate_root_id, &path);
         });
         web_sys::window()
             .ok_or_else(|| JsValue::from_str("window is unavailable"))?

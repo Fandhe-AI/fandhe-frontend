@@ -31,13 +31,14 @@ PoC-2 の脅威モデルの結論は次のとおりです。コア（`rws-core` 
 
 `wasm-full` のアプリロジック層（自作コード、`wasm-full/src/`）に対して CI が強制する
 forbid(unsafe_code) 相当の制約下で、なお解消されず許容される `unsafe` の境界は
-以下の 2 点に限定される。これら以外に `wasm-full/src/` 自作コードで `unsafe` が
+以下の 3 点に限定される。これら以外に `wasm-full/src/` 自作コードで `unsafe` が
 現れることは CI（`core/tests/unsafe_boundary.rs` の `DENY_UNSAFE_FFI_MEMBERS` チェック）
 が拒否する。
 
 1. **依存クレート内部の `unsafe`**: `wasm-bindgen`（0.2 系）・`web-sys`（0.3 系、
    feature: `Attr` / `Document` / `Element` / `Event` / `EventTarget` /
-   `HtmlInputElement` / `NamedNodeMap` / `Window` / `console`）の各クレート自体の
+   `History` / `HtmlInputElement` / `Location` / `MouseEvent` /
+   `NamedNodeMap` / `Window` / `console`）の各クレート自体の
    実装内部に含まれる `unsafe`。これらは `wasm-full/Cargo.toml` の依存であり、
    `wasm-full/src/` のソーステキストには現れないため、上記 CI 走査の対象外
    （= 解消不能な残存リスクとして第 4 節で開示する）
@@ -46,9 +47,20 @@ forbid(unsafe_code) 相当の制約下で、なお解消されず許容される
    内部で `unsafe` を含むが、これは `wasm-full/src/` のソーステキスト（マクロ
    展開前）には `unsafe` トークンとして現れないため、`#![deny(unsafe_code)]` の
    lint 対象にもならず、CI 走査（ソーステキスト走査）の対象にもならない
+3. **`nav.rs` のカスタム `#[wasm_bindgen] extern "C"` ブロック（イシュー #404、
+   View Transitions 連携）**: `wasm-full/src/nav.rs` の `wiring` モジュールは
+   `document.startViewTransition` を機能検出・呼び出しするため、`web-sys` の
+   `Document::start_view_transition`（`#[cfg(web_sys_unstable_apis)]` ゲート付き、
+   ワークスペース全体への `RUSTFLAGS` 汚染を招くため不採用）の代わりに独自の
+   duck-typing `extern "C"` 型（`DocumentViewTransitions`）を定義し、
+   `start_view_transition_prop`（getter、機能検出用）・`start_view_transition`
+   （`catch` 属性付き呼び出し）の 2 メソッドを束縛する。この extern ブロックは
+   上記 2 点目と同区分（`#[wasm_bindgen]` マクロ展開の自動生成コードのみが
+   `unsafe` を含み、`nav.rs` のソーステキスト自体には `unsafe` トークンが
+   現れない）であり、CI 走査（ソーステキスト走査）の対象にはならない
 
-上記 2 点はいずれも `wasm-full` の自作コード（`Runtime`/`events`/`dom`/`entry`/
-`hydration` 各モジュール）が直接 `unsafe` ブロックを書くことを意味しない。
+上記 3 点はいずれも `wasm-full` の自作コード（`Runtime`/`events`/`dom`/`entry`/
+`hydration`/`nav` 各モジュール）が直接 `unsafe` ブロックを書くことを意味しない。
 自作コード側の `unsafe` 使用箇所は本ドキュメント作成時点・CI 強制時点のいずれも
 0 件である（第 3 節）。
 

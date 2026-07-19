@@ -354,11 +354,13 @@ dependencies = [
 name = "rws-wasm-full"
 version = "0.1.0"
 dependencies = [
+ "js-sys",
  "rws-app",
  "rws-core",
  "rws-interactive",
  "rws-wasm-client",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "wasm-bindgen-test",
  "web-sys",
 ]

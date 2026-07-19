@@ -88,7 +88,7 @@ Phase 1（#336・`docs/design/dom-binding-update-design.md`）で束縛点最小
 | `dom`（内部） | `paint()`（`rws_core::render()` 出力への `set_inner_html` 適用） | TASK-11.2c（#76） |
 | `hydration` | `data-hydrate-*` 属性からの状態復元の実配線 | **TASK-11.4（#81/#82）に予約**。本書では配置とシグネチャ方針のみ規定する |
 | `csr` | `rws_app::Loader` 経由の CSR データ解決層（`rws_app::Item` 系ページ）。DOM 非依存の純粋層で `Runtime`/`hydration` とは独立した別系統。初期表示（ハイドレーション）では呼ばない | TASK-CSR-loader（#349） |
-| `nav` | クライアント側ルーティング（history API 連携・URL 同期・遷移時 loader 配線）。`csr` の loader 解決層を再利用し、`data-nav` クリック委譲・`popstate` 連携・`rws_wasm_client::build_dom_node` 経由の DOM サブツリー差し替え（`set_inner_html` 不使用）を担う独立系統 | イシュー #374 |
+| `nav` | クライアント側ルーティング（history API 連携・URL 同期・遷移時 loader 配線）。`csr` の loader 解決層を再利用し、`data-nav` クリック委譲・`popstate` 連携・`rws_wasm_client::build_dom_node` 経由の DOM サブツリー差し替え（`set_inner_html` 不使用）を担う独立系統。SPA 内遷移の DOM 差し替え + タイトル更新（apply 段）は `document.startViewTransition()` でラップする（イシュー #404、機能検出により非対応ブラウザでは同期フォールバック） | イシュー #374 / #404 |
 
 ### 3.2 公開 API 凍結表
 
@@ -146,6 +146,7 @@ Phase 1（#336・`docs/design/dom-binding-update-design.md`）で束縛点最小
 | 7 | `rws-wasm-thin`（TASK-11.3）はオプトインであり本書のスコープ外とする | 安全性境界の差分（PoC-2 / PoC-5 の脅威モデル (c)(d) 面）への参照のみ本書第 6 節に記載し、詳細設計は TASK-11.3 側の設計確定書に委ねる |
 | 8 | `nav::start_router` の click/popstate リスナーは `root_id` 要素ではなく `document`/`window` へ登録する（イシュー #374） | 遷移描画は `root_id` 要素の**子要素のみ**を差し替える（`root` 自身は再生成しない）ため理論上は `root` へ登録しても生存するが、`events.rs::wire_events` の「ルート要素へ登録」慣行とは異なり、より外側の不変な親（`document`/`window`）へ登録することで将来の描画方式変更（`root` 自体の再生成を伴う変更）に対しても委譲リスナーの生存を保証する（`wasm-full/tests/nav_browser.rs` の連続遷移テストで直接固定） |
 | 9 | `nav` は `rws-server` へ依存せず、ルート表を `wasm-full/src/nav.rs` 内に独自実装する（イシュー #374） | `structure.toml` の `server.allowed_dependents = ["dist-server"]` により `wasm-full` は `rws-server` へ依存できない。`server/src/ssr.rs` とのルートパターン・ページタイトルのドリフトは `wasm-full/tests/route_sync_static.rs`（静的ソース走査、`core/tests/no_branching_across_modes.rs` と同方式）で検知する |
+| 10 | SPA 内遷移への View Transitions 連携（イシュー #404）は、web-sys の unstable API（`Document::start_view_transition`、`#[cfg(web_sys_unstable_apis)]` ゲート付き）を採用せず、`nav.rs` の wiring 層に安定版 wasm-bindgen のみで完結するカスタム duck-typing `extern "C"` 型（`DocumentViewTransitions`）を定義する。`render_route` は「loader 解決 + 新 DOM 構築（prepare 段、遷移の外・同期）」と「`root` への差し替え + タイトル更新（apply 段、`document.startViewTransition()` の update コールバック内）」の 2 段に分割し、apply 段のみを遷移でラップする。update コールバックは `Closure::once_into_js`（呼び出し後に自己解放、`forget` 不使用）で JS へ所有権を移す | unstable API の有効化には `RUSTFLAGS='--cfg web_sys_unstable_apis'` をワークスペース全体へ適用する必要があり、共有 `CARGO_TARGET_DIR` 運用（`.claude/rules/ci.md`）・他クレートのビルドフラグ汚染を招くため不採用とする。`js_sys::Reflect` 方式は `js-sys` の直接依存追加（製品依存への追加は事前承認必須）が必要になるため製品コードでは避ける。loader 解決を遷移の外（prepare 段）に置くことで「遷移中に loader 解決が走らない」ことを構造的に保証し、旧ビューはデータ準備完了まで表示され続ける（View Transitions の推奨パターン）。`startViewTransition` の update コールバックは遷移がスキップされる場合でも仕様上必ず一度呼ばれるため、`once_into_js` による自己解放は無制限リークを構造的に回避する（`wasm-full/tests/nav_browser.rs` のスタブ検証テストで直接固定） |
 
 ## 5. 既定実装化の方針（TASK-11.2d への引き継ぎ）
 
@@ -241,7 +242,10 @@ WASM 完全方式固有の不変条件を追加する。
 | 項目 | 理由 |
 |------|------|
 | 遷移後ページ内のインタラクティブ要素の再配線（詳細ページの `data-hydrate="like"` ボタン） | REQ-6 最小デモ（`wasm-client`）の管轄であり、クライアント遷移後は未配線のまま |
-| SPA 内 View Transitions（`document.startViewTransition` 連携） | 現状は Cross-Document View Transitions の CSS のみ（`page_shell` の `@view-transition` at-rule） |
+| ~~SPA 内 View Transitions（`document.startViewTransition` 連携）~~ | **消化済み（イシュー #404）**。`nav.rs` の `render_route` prepare/apply 分割 + カスタム duck-typing extern バインディングで実装（第 4 節・判断 10） |
 | `wasm-client`（最小ハイドレーション方式）側の遷移対応・loader 移行 | イシュー #349 の out-of-scope 事項と同項 |
 | スクロール位置の復元制御（`history.scrollRestoration`）・遷移中のローディング表示 | 本イシューの受け入れ条件に含まれない |
 | 汎用ルート定義共有機構（ルート表を server / client で単一定義から生成する仕組み） | `fw structure` の `rws-router-v1` 抽出器（`cli/src/routes.rs`）は `server/` 内の文字列リテラルのみを走査するため定数共有は取れない。現状は `wasm-full/tests/route_sync_static.rs` の静的走査によるドリフト検知で代替する（判断 9） |
+| `prefers-reduced-motion` に応じた遷移スキップ制御（イシュー #404 スコープ外） | View Transitions API 自体はブラウザが `prefers-reduced-motion` を尊重する実装を持つが、アプリ側での明示的な制御は本イシューの受け入れ条件に含まれない |
+| `view-transition-name` によるパーツ単位アニメーション・遷移タイプ（`StartViewTransitionOptions`）対応（イシュー #404 スコープ外） | 本イシューは「連携の導入」までを対象とし、細粒度カスタマイズは別 Issue とする |
+| `ViewTransition` オブジェクト（`finished`/`ready` promise）の公開 API 化（イシュー #404 スコープ外） | `nav::start_router` の公開シグネチャは不変のため、呼び出し元へ `ViewTransition` を露出しない |
