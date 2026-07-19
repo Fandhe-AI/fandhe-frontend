@@ -140,7 +140,7 @@ out-of-scope 節で明示的に先送りされてきたこの領域について�
   ナビゲーション先へ間接的に影響する経路であり、本書の対象（属性値の
   URL スキーム検証）とは性質が異なる。対策強化が必要と判断された場合は
   別 Issue として提案する（`.claude/rules/out-of-scope-tracking.md` 準拠）。
-  本件は `docs/policy/intentional-non-adoption.md` §3.15 に再評価トリガー
+  本件は `docs/policy/intentional-non-adoption.md` §3.18 に再評価トリガー
   付きで登録済み。
 - `fw gate` への「URL 属性検証の弱体化検出」ゲート追加: 現状は
   `core/tests/xss_escape.rs` の回帰テスト（削除・弱体化禁止規約、
