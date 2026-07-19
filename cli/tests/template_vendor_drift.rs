@@ -212,14 +212,20 @@ const VENDORED_CRATE_SOURCE_MANIFESTS: &[(&str, &str)] = &[
 /// 依存を避ける）。
 fn discover_vendored_crate_names(templates_root: &Path) -> BTreeSet<String> {
     let mut names = BTreeSet::new();
-    let Ok(template_dirs) = std::fs::read_dir(templates_root) else {
-        return names;
-    };
+    // fail-closed 契約の維持: templates/ 自体が読めない場合に空集合を返すと
+    // `vendored_crates_not_covered_by_known_map` が何も走査せず PASS してしまう
+    // （監視の空振り）。IO エラーはテスト失敗として顕在化させる。
+    let template_dirs = std::fs::read_dir(templates_root)
+        .unwrap_or_else(|e| panic!("failed to read {}: {e}", templates_root.display()));
     for template_dir in template_dirs.flatten() {
         let vendor_dir = template_dir.path().join("vendor");
-        let Ok(crate_dirs) = std::fs::read_dir(&vendor_dir) else {
+        // vendor/ を持たないテンプレートは正常（スキップ）。存在するのに
+        // 読めない場合は上と同じく fail-closed でテスト失敗にする。
+        if !vendor_dir.is_dir() {
             continue;
-        };
+        }
+        let crate_dirs = std::fs::read_dir(&vendor_dir)
+            .unwrap_or_else(|e| panic!("failed to read {}: {e}", vendor_dir.display()));
         for crate_dir in crate_dirs.flatten() {
             if crate_dir.path().is_dir() {
                 if let Some(name) = crate_dir.file_name().to_str() {
