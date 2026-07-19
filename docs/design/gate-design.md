@@ -371,3 +371,9 @@ TASK-13.3c（#141、`policy`/`test` チェックの実連携固定）の対応:
   DOM 反映検証はブラウザテストの領分であり、`fw gate` はネイティブ高速
   チェックに限定する方針を維持する。5 チェック・JSON 契約（PoC-7 互換）は
   本イシューで変更していない。
+  束縛点整合性（`data-bind-*` マーカーと状態フィールドの突き合わせ）は
+  `fw gate` に追加せず、`wasm-client::binding` のテスト時検証ユーティリティ
+  （イシュー #380、`collect_binding_specs`/`unresolved_binding_specs`）が担う。
+  この検証は `test` チェック（`cargo test --locked -p <crate>`）経由で
+  そのままカバーされる位置付けであり、上記の非採用判断と矛盾しない
+  （詳細: `docs/design/dom-binding-update-design.md` #380 追補節）。
