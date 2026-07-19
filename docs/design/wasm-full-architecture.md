@@ -243,7 +243,8 @@ WASM 完全方式固有の不変条件を追加する。
 | ~~遷移後ページ内のインタラクティブ要素の再配線（詳細ページの `data-hydrate="like"` ボタン）~~ | **イシュー #403 で解消**。`rws-wasm-client` の配線本体（`wasm-client/src/lib.rs` の `hydrate_dom::wire_hydrate_targets`）を `wasm-bindgen-exports` feature 非依存の共有 Rust API へ切り出し、`nav::wiring::render_route`（本ファイル §10 の対象外リストから除外）が遷移完了後（子要素差し替え・`document.title` 更新の直後）にこれを呼ぶことで解消した。詳細は下記「#403 再配線設計」参照 |
 | SPA 内 View Transitions（`document.startViewTransition` 連携） | 現状は Cross-Document View Transitions の CSS のみ（`page_shell` の `@view-transition` at-rule） |
 | `wasm-client`（最小ハイドレーション方式）側の遷移対応・loader 移行 | イシュー #349 の out-of-scope 事項と同項。**イシュー #405 で非採用確定**（`docs/policy/intentional-non-adoption.md` §3.19） |
-| スクロール位置の復元制御（`history.scrollRestoration`）・遷移中のローディング表示 | 本イシューの受け入れ条件に含まれない |
+| ~~スクロール位置の復元制御（`history.scrollRestoration`）~~ | **イシュー #406 で実装済み**。詳細は下記「§11 スクロール位置復元制御設計」参照 |
+| 遷移中のローディング表示 | 本イシューの受け入れ条件に含まれない（#406 でも未対応のまま） |
 | 汎用ルート定義共有機構（ルート表を server / client で単一定義から生成する仕組み） | `fw structure` の `rws-router-v1` 抽出器（`cli/src/routes.rs`）は `server/` 内の文字列リテラルのみを走査するため定数共有は取れない。現状は `wasm-full/tests/route_sync_static.rs` の静的走査によるドリフト検知で代替する（判断 9） |
 
 ### #403 再配線設計（per-element + registry 方式）
@@ -255,3 +256,29 @@ WASM 完全方式固有の不変条件を追加する。
 - **per-element 方式を採用した理由（`document` レベル委譲リスナー方式の不採用）**: 初期表示ページの like ボタンは `page_shell` 同梱の REQ-6 デモ（`rws-wasm-client::wiring::hydrate`）が per-element リスナーを付けうる。`document` レベルの委譲リスナーで `[data-hydrate]` クリックを一括処理する方式だと、遷移前に配線済みの初期ページ要素と遷移後に配線される要素が同一セレクタで二重に処理され、`class_list().toggle("liked")` が 2 回発火して実質 no-op になる（誤動作）。per-element 再配線（`query_selector_all` → 個別 `add_event_listener_with_callback`）は「遷移で新規構築されたサブツリー」のみを対象とし、旧要素はサブツリーごと破棄済みのため二重配線が構造的に起きない。
 - **リスナー寿命管理**: registry キーは root 要素の `id`（実運用 `app-root`）。`rws-wasm-client::registry::replace_handles` が同一キーへの再呼び出しで旧ハンドルを解除してから差し替えるため、`nav.rs` の「`Closure::forget` は起動時定数回（click 1 + popstate 1）」という既存不変条件とは独立に、遷移ごとの再配線を呼んでもリスナー・Closure は現存 DOM 分に有界（無制限リーク蓄積を回避）。`wasm-client` のデモ用 registry（キー `app` 等）とは呼び出し元・wasm インスタンスが異なるため衝突しない。
 - **初期表示ページの配線は変えない**: `nav::wiring::start_router` は起動時に描画を一切行わない凍結事項（本書冒頭の判断）をそのまま維持し、初期ページの配線は引き続き REQ-6 デモ（`wasm-client::wiring::hydrate`）の管轄のまま変更していない。
+
+## 11. スクロール位置復元制御設計（イシュー #406）
+
+### 11.1 方針決定
+
+`history.scrollRestoration = "manual"` を採用し、スクロール制御をルーター側で決定的に行う。ブラウザ既定の `"auto"` のままだと、popstate 時のブラウザ自動復元と `nav.rs` の同期的 DOM 差し替えとの順序がブラウザ実装依存になり、かつ合成 `PopStateEvent` では自動復元が発火せずヘッドレステスト不能になるため不採用とした。
+
+### 11.2 history state 不変条件の限定緩和
+
+`nav.rs` 冒頭の「history state には何も格納しない（URL のみを状態の正とする）」という不変条件（イシュー #374 由来）を、「history state には固定形式のスクロール座標レコード（文字列 `"rws-scroll:{x},{y}"`）のみを格納し、読み取りは厳格検証（fail-closed）で有限非負 `f64` の 2 値に限定する」へ改訂した（`nav.rs` モジュール doc・セキュリティ不変条件節に反映済み）。
+
+- 座標値は `Window::scroll_to_with_x_and_y(f64, f64)`（数値専用 API）にのみ渡し、DOM・URL・HTML へは一切流さない。改ざんされても最悪「スクロール位置がずれる」だけで注入面を持たない
+- デコード失敗（形式不一致・非数・`NaN`/`Inf`・負値）は `None` → 先頭 `(0, 0)` へフォールバック
+- 文字列コーデック（`nav::encode_scroll_state`/`nav::decode_scroll_state`、DOM 非依存の純粋層）により `js-sys` の直接依存追加を回避し、新規外部クレート追加ゼロを維持した
+
+### 11.3 挙動仕様
+
+| 操作 | 挙動 |
+|------|------|
+| `start_router` 起動時 | `scrollRestoration = "manual"` を設定（失敗は best-effort で無視）。現エントリの `history.state` が有効なスクロールレコードならその位置へ復元（リロード・クロスドキュメント traversal 後の復元。DOM は SSR 済みのまま変更しない §10 相当の凍結事項を維持し、state が無効/不在の通常初回ロードでは先頭 `(0, 0)` を強制しない） |
+| クリック遷移（`push_and_render`） | ①現在の `scroll_x`/`scroll_y` をエンコードし `replace_state`（第 3 引数 `None` で URL は維持）で**離脱元エントリ**へ保存 → ②`push_state`（state は従来どおり `JsValue::NULL`）→ ③描画 → ④`scroll_to(0, 0)`（新規遷移は先頭表示） |
+| popstate（戻る/進む） | ルート解決成功時のみ: 再描画 → `PopStateEvent::state()` をデコードし、成功なら保存位置へ・失敗/`NULL` なら `(0, 0)` へスクロール。ルート未解決パスは従来どおり完全 no-op（スクロールも触らない） |
+
+### 11.4 既知の制限
+
+戻る/進む操作自体でエントリを離脱した場合、その離脱元の最新スクロール位置は再保存されない（popstate 発火時点で history は既に移動済みのため）。完全対応には scroll リスナー + スロットリング保存が必要で、`nav.rs` の「リスナー登録は起動時定数回」不変条件に関わる変更となるため、本イシューのスコープ外として別 Issue 化をユーザーへ提案する（`.claude/rules/out-of-scope-tracking.md`）。遷移中ローディング表示（§10 残項目）も引き続き別 Issue。

@@ -36,7 +36,16 @@
 //! - インターセプト対象は「`/` 始まりかつ `//` 非始まり・ルート表に一致する」
 //!   相対パスのみに構造的に限定する。一致しない値・修飾キー付きクリック・
 //!   左クリック以外はブラウザ既定動作に委ねる（オープンリダイレクト対策）。
-//! - history state には何も格納しない（URL のみを状態の正とする）。
+//! - history state には固定形式のスクロール座標レコード（[`encode_scroll_state`]
+//!   が生成する `"rws-scroll:{x},{y}"` 文字列）のみを格納する（イシュー #406、
+//!   従来の「何も格納しない」不変条件を限定緩和）。`push_state` に渡す state は
+//!   従来どおり `JsValue::NULL` のまま（新規履歴エントリは URL のみを状態の
+//!   正とする）で、離脱元エントリへ `replace_state` でスクロール位置を書き戻す
+//!   点のみが変更点。読み取りは [`decode_scroll_state`] による厳格検証
+//!   （fail-closed: 形式不一致・非数・非有限・負値はすべて `None`）を経てから
+//!   `Window::scroll_to_with_x_and_y`（数値専用 API）にのみ渡し、DOM・URL・
+//!   HTML へは一切流さない（改ざんされても表示位置がずれるだけで注入面を
+//!   持たない）。
 //! - リスナー登録は起動時の定数回（click 1 + popstate 1）の `Closure::forget`
 //!   に限定する（`events.rs` と同方針、無制限リークの構造的回避）。
 //! - 遷移後の `data-hydrate` 要素へのイベント再配線（イシュー #403）は
@@ -123,6 +132,41 @@ where
     }
 }
 
+/// history state に格納するスクロール座標レコードの固定プレフィックス
+/// （[`encode_scroll_state`]/[`decode_scroll_state`] が共有する契約）。
+const SCROLL_STATE_PREFIX: &str = "rws-scroll:";
+
+/// スクロール座標 `(x, y)` を history state 用の固定形式文字列へ変換する
+/// （イシュー #406）。DOM 非依存の純粋関数（native テスト可能）。
+///
+/// 形式: `"rws-scroll:{x},{y}"`。読み取り側は [`decode_scroll_state`] で
+/// 厳格検証してから使うため、ここでは値の妥当性チェックは行わない
+/// （呼び出し元の [`mod wiring`] が `window.scroll_x()`/`scroll_y()` の
+/// 実測値のみを渡す前提）。
+pub fn encode_scroll_state(x: f64, y: f64) -> String {
+    format!("{SCROLL_STATE_PREFIX}{x},{y}")
+}
+
+/// [`encode_scroll_state`] が生成した文字列を `(x, y)` へ復号する
+/// （イシュー #406）。history state は同一オリジンから改ざん可能な前提の
+/// ため fail-closed で検証する: プレフィックス不一致・カンマ区切りでない・
+/// 非数・非有限（`NaN`/`Inf`）・負値のいずれかであれば `None` を返す。
+///
+/// 呼び出し元（[`mod wiring`]）は `None` を「先頭 `(0, 0)` へフォール
+/// バック」として扱う。この関数の戻り値は `Window::
+/// scroll_to_with_x_and_y`（数値専用 API）にのみ渡され、DOM・URL・HTML へ
+/// 流入する経路を持たない。
+pub fn decode_scroll_state(value: &str) -> Option<(f64, f64)> {
+    let rest = value.strip_prefix(SCROLL_STATE_PREFIX)?;
+    let (x_raw, y_raw) = rest.split_once(',')?;
+    let x: f64 = x_raw.parse().ok()?;
+    let y: f64 = y_raw.parse().ok()?;
+    if !x.is_finite() || !y.is_finite() || x < 0.0 || y < 0.0 {
+        return None;
+    }
+    Some((x, y))
+}
+
 // ---------------------------------------------------------------------
 // 配線層: web-sys 依存。wasm32 ターゲットでのみコンパイル対象とし、
 // native の `cargo test --workspace` に本層の DOM 依存コードを混入させない
@@ -130,11 +174,14 @@ where
 // ---------------------------------------------------------------------
 #[cfg(target_arch = "wasm32")]
 mod wiring {
-    use super::{resolve_path, resolve_route_view_with, ClientRoute};
+    use super::{
+        decode_scroll_state, encode_scroll_state, resolve_path, resolve_route_view_with,
+        ClientRoute,
+    };
     use rws_app::{DemoItemDetailLoader, DemoItemsLoader};
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Document, Element, Event, MouseEvent};
+    use web_sys::{Document, Element, Event, MouseEvent, PopStateEvent, ScrollRestoration};
 
     /// `window().document()` を解決する。`events.rs`/`wasm-client::wiring` と
     /// 同じ固定文言方針（内部状態を含めない、不変条件 6）。
@@ -216,27 +263,62 @@ mod wiring {
 
     /// `path`（`location.pathname` + `location.search` 相当）を再解決して
     /// 描画する。一致しないパスは no-op（現在の DOM を維持、安全側
-    /// フォールバック）。
-    fn navigate_render(document: &Document, root: &Element, path: &str) {
+    /// フォールバック）。戻り値は描画を実行したか（popstate クロージャが
+    /// スクロール復元を行ってよいかの判定に使う、イシュー #406）。
+    fn navigate_render(document: &Document, root: &Element, path: &str) -> bool {
         let Some(route) = resolve_path(path) else {
-            return;
+            return false;
         };
         render_route(document, root, &route);
+        true
+    }
+
+    /// `state`（`PopStateEvent::state()`）をデコードして復元し、失敗時は
+    /// 先頭 `(0, 0)` へフォールバックする（イシュー #406、§2.2 の popstate
+    /// 挙動）。`state` が `JsValue::NULL`（本モジュールの `push_state` が
+    /// 積む値）の場合も [`decode_scroll_state`] は `None` を返す
+    /// （`JsValue::as_string` が `NULL` に対して `None` を返すため）。
+    fn restore_scroll_from_popstate_state(window: &web_sys::Window, state: &JsValue) {
+        let target = state
+            .as_string()
+            .and_then(|encoded| decode_scroll_state(&encoded))
+            .unwrap_or((0.0, 0.0));
+        window.scroll_to_with_x_and_y(target.0, target.1);
     }
 
     /// `path` が [`resolve_path`] で解決可能な場合のみ `history.pushState`
     /// で URL を進め、描画する（`popstate` からは呼ばない。history へ
     /// エントリを追加するのはユーザー操作起点のクリック遷移のみ）。
+    ///
+    /// イシュー #406: 遷移前に現在のスクロール位置を**離脱元エントリ**へ
+    /// `replace_state` で保存してから `push_state` する。新規エントリの
+    /// state は従来どおり `JsValue::NULL`（URL のみを状態の正とする不変
+    /// 条件を維持）。描画後は先頭 `(0, 0)` へスクロールする（新規遷移は
+    /// 常にページ先頭から表示する仕様、§2.2）。
     fn push_and_render(document: &Document, root: &Element, path: &str) {
         let Some(route) = resolve_path(path) else {
             return;
         };
         if let Some(window) = web_sys::window() {
             if let Ok(history) = window.history() {
-                // history state には何も格納しない（URL のみを状態の正とする、
-                // 改ざん面を持たない設計判断）。
+                // 離脱元エントリのスクロール位置を保存する。`scroll_x`/
+                // `scroll_y` 取得または `replace_state` が失敗しても遷移
+                // 自体は継続する（best-effort、機能劣化のみで安全側）。
+                // `replace_state_with_url` の第 3 引数に `None` を渡すことで
+                // 現在の URL を維持したまま state のみを差し替える
+                // （離脱元の URL を書き換えない）。
+                if let (Ok(x), Ok(y)) = (window.scroll_x(), window.scroll_y()) {
+                    let encoded = JsValue::from_str(&encode_scroll_state(x, y));
+                    let _ = history.replace_state_with_url(&encoded, "", None);
+                }
+                // 新規エントリの state は従来どおり `JsValue::NULL`
+                // （URL のみを状態の正とする、改ざん面を持たない設計判断）。
                 let _ = history.push_state_with_url(&JsValue::NULL, "", Some(path));
             }
+            // 新規遷移は常にページ先頭から表示する（§2.2）。失敗は無視
+            // （best-effort、DOM 差し替え・URL 更新は既に成立済みのため
+            // 遷移自体は継続する）。
+            window.scroll_to_with_x_and_y(0.0, 0.0);
         }
         render_route(document, root, &route);
     }
@@ -264,10 +346,18 @@ mod wiring {
     ///   `docs/design/wasm-full-architecture.md` 第 4 節・判断 8）。
     /// - `window` へ `popstate` を 1 回だけ登録し、`location.pathname` +
     ///   `location.search` から再解決・再描画する（`pushState` は呼ばない、
-    ///   history の往復のみに追従する）。
+    ///   history の往復のみに追従する）。ルート解決成功時のみ
+    ///   `PopStateEvent::state()` をデコードしてスクロール位置を復元する
+    ///   （成功なら保存位置へ・失敗/NULL なら先頭 `(0, 0)` へ、イシュー
+    ///   #406）。ルート未解決パスはスクロールも含めて完全 no-op のまま。
     /// - **起動時（本関数呼び出し時点）は描画を一切行わない**（SSR 済み
     ///   DOM をそのまま維持する。初期表示で loader を再実行しない凍結事項
     ///   の遵守、`docs/design/loader-trait-design.md` §4・§7.3）。
+    ///   `history.scrollRestoration` を `"manual"` へ設定し（失敗は
+    ///   best-effort で無視、機能劣化のみ）、現エントリの `history.state`
+    ///   が有効なスクロールレコードであればその位置へ復元する
+    ///   （リロード・クロスドキュメント traversal 後の復元。DOM 自体は
+    ///   変更しない上記凍結事項と両立する）。
     ///
     /// # Errors
     ///
@@ -281,6 +371,26 @@ mod wiring {
         // 前提チェック（要素が存在しない設定ミスを早期に `Err` で検出する）
         // に限定する。
         let _root = root_element(root_id)?;
+
+        if let Some(window) = web_sys::window() {
+            if let Ok(history) = window.history() {
+                // ブラウザ既定の自動スクロール復元を止め、本モジュールが
+                // 決定的に制御する（§2 の方針決定。失敗は best-effort で
+                // 無視し、ブラウザ既定へフォールバックさせる）。
+                let _ = history.set_scroll_restoration(ScrollRestoration::Manual);
+                // リロード・クロスドキュメント traversal 直後は現エントリの
+                // state が既にスクロールレコードを持ち得る（前回セッションの
+                // `replace_state`/`push_state` が積んだ値）。デコードに成功
+                // した場合のみ復元し、失敗/NULL（通常の初回ロード）では
+                // 何もしない（SSR 済み DOM のみを表示する凍結事項の維持、
+                // 起動時に先頭 `(0, 0)` を強制しない）。
+                if let Some(encoded) = history.state().ok().and_then(|s| s.as_string()) {
+                    if let Some((x, y)) = decode_scroll_state(&encoded) {
+                        window.scroll_to_with_x_and_y(x, y);
+                    }
+                }
+            }
+        }
 
         let click_document = doc.clone();
         let root_id_owned = root_id.to_string();
@@ -337,20 +447,26 @@ mod wiring {
 
         let popstate_document = doc.clone();
         let popstate_root_id = root_id.to_string();
-        let popstate_closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
-            let Some(window) = web_sys::window() else {
-                return;
-            };
-            let Ok(location_pathname) = window.location().pathname() else {
-                return;
-            };
-            let search = window.location().search().unwrap_or_default();
-            let path = format!("{location_pathname}{search}");
-            let Some(current_root) = popstate_document.get_element_by_id(&popstate_root_id) else {
-                return;
-            };
-            navigate_render(&popstate_document, &current_root, &path);
-        });
+        let popstate_closure =
+            Closure::<dyn FnMut(PopStateEvent)>::new(move |event: PopStateEvent| {
+                let Some(window) = web_sys::window() else {
+                    return;
+                };
+                let Ok(location_pathname) = window.location().pathname() else {
+                    return;
+                };
+                let search = window.location().search().unwrap_or_default();
+                let path = format!("{location_pathname}{search}");
+                let Some(current_root) = popstate_document.get_element_by_id(&popstate_root_id)
+                else {
+                    return;
+                };
+                // ルート解決が成功した（＝実際に再描画した）場合のみスクロールを
+                // 触る。未解決パスは従来どおり完全 no-op（イシュー #406、§2.2）。
+                if navigate_render(&popstate_document, &current_root, &path) {
+                    restore_scroll_from_popstate_state(&window, &event.state());
+                }
+            });
         web_sys::window()
             .ok_or_else(|| JsValue::from_str("window is unavailable"))?
             .add_event_listener_with_callback(
@@ -401,5 +517,60 @@ mod tests {
     #[test]
     fn resolve_path_rejects_empty_id_segment() {
         assert_eq!(resolve_path("/items/"), None);
+    }
+
+    // -------------------------------------------------------------
+    // スクロール座標コーデック（イシュー #406）
+    // -------------------------------------------------------------
+
+    #[test]
+    fn scroll_state_round_trips_through_encode_and_decode() {
+        assert_eq!(
+            decode_scroll_state(&encode_scroll_state(0.0, 500.0)),
+            Some((0.0, 500.0))
+        );
+        assert_eq!(
+            decode_scroll_state(&encode_scroll_state(120.5, 3000.25)),
+            Some((120.5, 3000.25))
+        );
+    }
+
+    #[test]
+    fn decode_scroll_state_rejects_prefix_mismatch() {
+        assert_eq!(decode_scroll_state("0,500"), None);
+        assert_eq!(decode_scroll_state("rws-scroll-x:0,500"), None);
+    }
+
+    #[test]
+    fn decode_scroll_state_rejects_non_numeric_values() {
+        assert_eq!(decode_scroll_state("rws-scroll:abc,500"), None);
+        assert_eq!(decode_scroll_state("rws-scroll:0,xyz"), None);
+    }
+
+    #[test]
+    fn decode_scroll_state_rejects_non_finite_values() {
+        assert_eq!(decode_scroll_state("rws-scroll:NaN,500"), None);
+        assert_eq!(decode_scroll_state("rws-scroll:0,inf"), None);
+        assert_eq!(decode_scroll_state("rws-scroll:0,infinity"), None);
+    }
+
+    #[test]
+    fn decode_scroll_state_rejects_negative_values() {
+        assert_eq!(decode_scroll_state("rws-scroll:-1,500"), None);
+        assert_eq!(decode_scroll_state("rws-scroll:0,-1"), None);
+    }
+
+    #[test]
+    fn decode_scroll_state_rejects_injection_like_strings() {
+        // history state は改ざん可能な前提のため、HTML/script 風の文字列が
+        // 紛れ込んでも復号は必ず失敗し、DOM/HTML へ流入する経路を持たない
+        // ことを直接確認する。
+        assert_eq!(
+            decode_scroll_state("rws-scroll:<script>alert(1)</script>,0"),
+            None
+        );
+        assert_eq!(decode_scroll_state(""), None);
+        assert_eq!(decode_scroll_state("rws-scroll:"), None);
+        assert_eq!(decode_scroll_state("rws-scroll:0"), None);
     }
 }
