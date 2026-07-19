@@ -28,8 +28,13 @@
 //! 2. `hydrate()` は対象 DOM に対し `set_inner_html` 等の再構築系 API を
 //!    **一切呼ばない**。イベントリスナーの後付け（`add_event_listener_with_callback`）
 //!    のみを行う。
-//! 3. ハンドラ内 DOM 更新は `set_text_content` / `class_list`
-//!    （`DomTokenList`）等のテキスト・属性 API に限定する。
+//! 3. ハンドラ内 DOM 更新・束縛点ベースの最小更新（[`binding`]/[`binding_dom`]、
+//!    イシュー #343）は `set_text_content` / `set_attribute` / `class_list`
+//!    （`DomTokenList`）のテキスト・属性・class API に限定する。`data-bind-*`
+//!    束縛点（`rws_core::bind`、#342）と `DirtyTracked::dirty_fields()`
+//!    （`rws_interactive`、#341）から駆動する汎用経路（[`binding_dom::BindingTable`]）
+//!    もこの限定に従い、DOM 再構築なし・イベントリスナー保持を維持する
+//!    （`docs/design/dom-binding-update-design.md` §4.1・§9 不変条件 1〜4）。
 //! 4. `rws_core::raw_html()` は本クレートから呼ばない。
 //! 5. `#![deny(unsafe_code)]` を採用する（`#[wasm_bindgen]` 展開コードが
 //!    内部で `unsafe` を含むため `forbid` は不採用。自作コードでの新規
@@ -39,6 +44,14 @@
 
 #![deny(unsafe_code)]
 #![warn(missing_docs)]
+
+mod binding;
+pub use binding::*;
+
+#[cfg(target_arch = "wasm32")]
+mod binding_dom;
+#[cfg(target_arch = "wasm32")]
+pub use binding_dom::BindingTable;
 
 #[cfg(target_arch = "wasm32")]
 mod registry;

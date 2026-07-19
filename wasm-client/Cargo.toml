@@ -20,9 +20,15 @@ publish = false
 # 指定する。Cargo.lock は既に wasm-bindgen 0.2.126 / web-sys 0.3.103 を解決済み
 # のため、本クレート追加で新規外部パッケージは増えない
 # （`cargo metadata` 実測: パッケージ総数 71 件のまま。PR 本文に記録）。
+#
+# rws-interactive（#343、束縛点ベースの最小更新の一般化）: DirtyTracked
+# トレイト境界に必要。ワークスペース内 path 依存であり外部依存ゼロの
+# クレートのため、新規外部パッケージの増加はゼロ（REQ-3 整理、PR 本文に
+# `cargo metadata` 実測を記録）。
 [dependencies]
 rws-core = { path = "../core" }
 rws-app = { path = "../app" }
+rws-interactive = { path = "../interactive" }
 wasm-bindgen = "0.2"
 
 [dependencies.web-sys]
@@ -53,7 +59,10 @@ wasm-bindgen-test = "0.3"
 # [dependencies.web-sys] の features には触れず、テスト専用の feature 拡張に
 # 閉じる（`wasm-full/Cargo.toml` の dev-dependencies.web-sys と同じ方針）。
 # `HtmlElement` は `Document::body()` の戻り値型、`EventInit` は合成 click
-# イベント（`bubbles: true`）の組み立てに必要。
+# イベント（`bubbles: true`）の組み立てに必要。`HtmlCollection` は #343 の
+# ブラウザテスト（`binding_browser.rs`）が `Element::children()` で
+# 「要素子が生成されていないこと」（受け入れ条件 2、innerHTML 不使用の
+# 回帰固定）を検証するために必要。
 [dev-dependencies.web-sys]
 version = "0.3"
-features = ["HtmlElement", "EventInit"]
+features = ["HtmlElement", "EventInit", "HtmlCollection"]

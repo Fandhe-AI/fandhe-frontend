@@ -95,6 +95,27 @@
   同一の考え方（属性値を手掛かりにした DOM 走査、HTML 再パースを伴わない）
   を踏襲する。
 
+#### 3.2a 実装確定（#343、`wasm-client/src/binding.rs`・`binding_dom.rs`）
+
+- 対応表のキーである `field` は、DOM 走査で `data-bind-*` 属性値から読んだ
+  **実行時 `String`**（`BindingSpec::field`）にならざるを得ない（属性値は
+  ブラウザの DOM API から得るためコンパイル時定数にできない）。一方
+  `DirtyTracked::dirty_fields()`（#341）は `&'static str` の有限集合を返す。
+  両者の突き合わせは**文字列比較**（`==`）で行う。`&'static str` 側は
+  コンパイル時に確定した有限集合であり外部入力からの偽装余地がないため、
+  この比較で「対応表側の走査キーが動的文字列である」ことによる安全性の
+  低下は生じない（第 3.3 節の設計原理を維持したまま、突き合わせ方式のみを
+  確定させたもの）。
+- `data-bind-attr` トークンの属性名（`<attr>` 部分）は消費側（#343）の
+  fail-closed 検証を経由する: 英数字・`-`・`_` のみを許可し、大小文字を
+  無視して `on` で始まる名前を拒否する
+  （`wasm-client/src/binding.rs::is_valid_binding_name`）。これは
+  `setAttribute("onclick", value)` のような呼び出しが状態値を実行可能な
+  イベントハンドラへ昇格させる経路を遮断するための、`core/src/bind.rs` の
+  モジュール docs が明記する「消費側の契約」の履行である。URL スキーム等
+  「値の内容」の検証は本節・第 9 節の確定通り導入しない（既存 SSR 経路と
+  同等の残存リスク）。
+
 ### 3.3 core API 形状（#342 実装確定）
 
 当初案（`bind_text(field, value) -> Node` / `bind_attr(...) -> (String, String)` /
