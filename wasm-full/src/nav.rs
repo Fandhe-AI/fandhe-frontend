@@ -387,7 +387,13 @@ mod wiring {
     /// `document.startViewTransition()` でラップして実行する。
     /// `prepare_render` が返した `title`/`new_dom_node` を受け取る側で、
     /// この関数自体は失敗しない（`root` 消失時は `with_view_transition`
-    /// 経由の no-op、既存の fail-closed 方針を維持）。
+    /// 経由の no-op、既存の fail-safe 方針を維持）。ただし呼び出し元
+    /// （`push_and_render`）は本関数の実行前に `history.pushState` を既に
+    /// 済ませているため（apply 段は View Transitions 対応ブラウザでは非同期）、
+    /// `root` 消失を完全な silent no-op のままにすると「URL だけ変わり DOM は
+    /// 古いまま」の不整合が診断不能になる（Cursor Bugbot 指摘 `27cc68fd`）。
+    /// このため `root` 消失時は固定英語文言（内部状態を含めない不変条件 6）の
+    /// 警告ログを出してから no-op で終える。
     ///
     /// `post_apply` は DOM 差し替え・タイトル更新・`data-hydrate` 再配線が
     /// 完了した**直後**（`with_view_transition` の update コールバック内、
@@ -410,6 +416,19 @@ mod wiring {
         let root_id_owned = root_id.to_string();
         with_view_transition(document, move || {
             let Some(root) = apply_document.get_element_by_id(&root_id_owned) else {
+                // Cursor Bugbot 指摘 `27cc68fd`: apply 段は `pushState` 実行後
+                // （場合によっては非同期）に走るため、ここで `root_id` 要素が
+                // 見つからない場合は既に URL が進んでしまっている。silent
+                // return のままだと「URL だけ変わり DOM は古いまま」の不整合が
+                // 診断不能になるため、他の fail-safe 分岐（本関数下部・
+                // `render_route_with_post`）と同じ固定英語文言の警告ログを
+                // 出してから no-op で終える（内部状態を含めない不変条件 6、
+                // 遷移自体を止めない fail-safe 方針は維持）。
+                web_sys::console::warn_1(
+                    &"rws-wasm-full: nav apply_render_with_post could not find root element, \
+                      URL already updated but DOM was not"
+                        .into(),
+                );
                 return;
             };
             while let Some(child) = root.first_child() {

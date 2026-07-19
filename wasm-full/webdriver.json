@@ -1,5 +1,5 @@
 {
   "goog:chromeOptions": {
-    "args": ["disable-dev-shm-usage"]
+    "args": ["--disable-dev-shm-usage"]
   }
 }
