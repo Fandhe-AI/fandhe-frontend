@@ -133,6 +133,18 @@ out-of-scope 節で明示的に先送りされてきたこの領域について�
 将来診断機能（開発モードでのみ有効な警告出力等）を追加する場合は、
 属性値そのものをログに含めない設計とすること（A09 対策の継続）。
 
+**`fw gate` との連携（弱体化の機械検出、イシュー #401）**: 本書が定める
+不変条件（`URL_ATTRS` 正リスト・許可スキーム 4 種・ガード関数 4 種の
+定義/呼び出し）は `core/tests/xss_escape.rs` の回帰テストに加え、
+`fw gate url_validation_check`（`cli/src/gate.rs`、詳細は
+`docs/design/gate-design.md` §2.4）が保険層としてテキスト走査で検出する。
+検出対象は (1) `role != "core"` ディレクトリでの未ガード DOM 属性設定
+呼び出しの新規追加、(2) `role = "core"` ディレクトリでの `URL_ATTRS`/
+許可スキームの緩和、(3) ガード関数呼び出しの削除の 3 種（U1〜U3）。
+`fw gate` 実行時に `url_validation_check` が `passed: false` を返した
+場合、本書 §3 の対策のいずれかが弱体化された可能性を疑い、該当ファイルの
+`file:line` を出力から特定して復元する。
+
 ## 6. スコープ外（放置しない事項）
 
 - `<base href>` / `<meta http-equiv="refresh">` 経由の間接的 URL 制御の
@@ -142,10 +154,12 @@ out-of-scope 節で明示的に先送りされてきたこの領域について�
   別 Issue として提案する（`.claude/rules/out-of-scope-tracking.md` 準拠）。
   本件は `docs/policy/intentional-non-adoption.md` §3.18 に再評価トリガー
   付きで登録済み。
-- `fw gate` への「URL 属性検証の弱体化検出」ゲート追加: 現状は
-  `core/tests/xss_escape.rs` の回帰テスト（削除・弱体化禁止規約、
-  `.claude/rules/coding-rust.md`）に依拠する。機械ゲート化が必要と判断
-  された場合は別 Issue として提案する。
+- `fw gate` への「URL 属性検証の弱体化検出」ゲート追加: イシュー #401 で
+  `url_validation_check` として実装済み（上記§5 参照、
+  `docs/design/gate-design.md` §2.4）。clippy `disallowed-methods` による
+  `web_sys::Element::set_attribute` の主防御化・`web_sys` 型付きセッター
+  （`set_href`/`set_src` 等）の検出は同イシューのスコープ外として別 Issue
+  候補に残す。
 - `templates/default/` 側への周知ドキュメント反映: イシュー #402 で
   `templates/default/README.md` として反映済み。
 

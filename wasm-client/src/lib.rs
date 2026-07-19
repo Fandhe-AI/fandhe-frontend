@@ -231,8 +231,10 @@ pub fn find_hydrate_target_kinds(id: &str) -> Vec<String> {
 }
 
 /// 一覧ページのノード木から `data-nav` 属性値を [`rws_core::find_nav_targets`]
-/// で列挙する。クライアント側ルーティング配線（将来の TASK-7.2 系のスコープ、
-/// 本クレートでは配線自体は実装しない）が対象を特定する際に使う契約の関数。
+/// で列挙する。`wasm-client` 側のクライアントルーティング配線はイシュー #405
+/// で非採用確定（`docs/policy/intentional-non-adoption.md` §3.19）。配線は
+/// `rws-wasm-full` の `nav`（`wasm-full/src/nav.rs`）のみが実装し、本関数は
+/// 将来の再評価トリガー充足時に備えた対象特定契約として維持する。
 ///
 /// # Examples
 ///

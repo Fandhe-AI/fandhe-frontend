@@ -268,7 +268,7 @@ fn scenario2_impact_reports_high_risk_for_list_page() {
 }
 
 /// 改修（件数サマリー追加）+ 新規アサーションの両方を適用したフィクスチャで
-/// `fw gate` のコア 4 チェックがすべて通過することを検証する。`policy` は
+/// `fw gate` のコア 5 チェックがすべて通過することを検証する。`policy` は
 /// `cargo_deny_available()` で環境分岐する（`main.rs` の
 /// `baseline_fixture_passes_gate_core_checks` と同一方針。環境ごとに
 /// 弱体化なしで取れる最強のアサーションを常時実行する、`coding-rust.md`）。
@@ -309,7 +309,13 @@ fn scenario2_gate_passes_after_ui_improvement() {
 
     let (code, stdout, stderr) = run_fw("gate", &[], &project);
 
-    for check_name in ["type_check", "default_escape_check", "lint", "test"] {
+    for check_name in [
+        "type_check",
+        "default_escape_check",
+        "url_validation_check",
+        "lint",
+        "test",
+    ] {
         assert_eq!(
             check_passed(&stdout, check_name),
             Some(true),

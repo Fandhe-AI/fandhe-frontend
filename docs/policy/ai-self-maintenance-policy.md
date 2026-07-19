@@ -83,10 +83,10 @@ AI エージェントがプロダクトへの変更を提案したとき、`fw g
 
 ### ルール 1: ゲート未通過（`gate_result: BLOCKED`）は無条件に自動適用しない
 
-`fw gate` が実行する 5 種の検証チェック（`type_check` / `default_escape_check` /
-`lint` / `test` / `policy`）のうち 1 件でも不合格であれば、変更は承認フロー以前の
-段階で AI エージェントへ差し戻す。人間の承認を介する必要すらない、最もコストの低い
-安全弁である。
+`fw gate` が実行する 6 種の検証チェック（`type_check` / `default_escape_check` /
+`url_validation_check` / `lint` / `test` / `policy`）のうち 1 件でも不合格であれば、
+変更は承認フロー以前の段階で AI エージェントへ差し戻す。人間の承認を介する必要
+すらない、最もコストの低い安全弁である。
 
 - `type_check`: 型チェック（`cargo check --locked`）
 - `default_escape_check`: 既定エスケープ検査。`raw_html()` の呼び出しに
@@ -96,6 +96,9 @@ AI エージェントがプロダクトへの変更を提案したとき、`fw g
   「推奨手順」として運用しない。** `raw_html()` を使う変更は、常にこのチェックによる
   人間レビュー（`ESCAPE-REVIEWED:` 属性を書く行為自体が人間の明示的な承認記録となる）
   を経由することを前提とする。
+- `url_validation_check`: URL 属性検証（イシュー #373）の弱体化検出。未検証の
+  DOM 属性設定経路の追加・`URL_ATTRS`/許可スキームの緩和・ガード関数呼び出しの
+  削除を検出する（`docs/design/gate-design.md` §2.4、イシュー #401）
 - `lint`: `cargo clippy --locked --all-targets -- -D warnings`（`--all-targets` は
   CI `clippy` ジョブと検出範囲を一致させるためイシュー #315 で追加）
 - `test`: `cargo test --locked`
@@ -158,7 +161,7 @@ requires_human_approval =
 
 ### ルール 4: 意味的な脆弱性・ロジック誤りはゲート・影響範囲解析のいずれの対象外であることを明示する
 
-`fw gate` の 5 チェック・`fw impact` の影響範囲解析は、いずれも「構文・ポリシー・
+`fw gate` の 6 チェック・`fw impact` の影響範囲解析は、いずれも「構文・ポリシー・
 エスケープ・テスト網羅・依存ポリシーの範囲」に限定される。**ゲート通過・自動適用
 候補判定は「安全性の必要条件」であって「十分条件」ではない。** 次の限界を明示する。
 

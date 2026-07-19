@@ -300,6 +300,77 @@ pub const SINGLE_QUOTE_ESCAPE_ARM: &str = "'\\'' => out.push_str(\"&#x27;\"),";
 /// `type_check`/`lint`/`default_escape_check` は通過、`test` のみ failed）。
 pub const SINGLE_QUOTE_ESCAPE_ARM_REGRESSED: &str = "'\\'' => out.push(c),";
 
+/// シナリオ 1 フィクスチャ専用の `core/src/url.rs`（イシュー #401、
+/// `url_validation_check` U2/U3 の充足専用）。`core/src/url.rs`（実 `rws-core`）
+/// の `URL_ATTRS`（12 属性ピン）・ガード関数 4 種の定義・呼び出しを最小構成で
+/// 再現する。`lib.rs` から `mod url;` されないため実際のクレートには含まれず
+/// （[`write_scenario1_project`] のコメント参照）、シナリオ 1 の型・lint・
+/// テストの挙動には一切影響しない。
+const SCENARIO1_CORE_URL_VALIDATION_FIXTURE: &str = r#"//! イシュー #401 対応: `url_validation_check` の U2/U3 充足専用フィクスチャ。
+//! `lib.rs` から `mod` 宣言されないため実クレートには含まれない
+//! （`write_scenario1_project` コメント参照）。
+
+pub const URL_ATTRS: &[&str] = &[
+    "href",
+    "src",
+    "action",
+    "formaction",
+    "xlink:href",
+    "poster",
+    "cite",
+    "data",
+    "background",
+    "ping",
+    "dynsrc",
+    "lowsrc",
+];
+
+pub fn is_url_attr(name: &str) -> bool {
+    URL_ATTRS.iter().any(|a| a.eq_ignore_ascii_case(name))
+}
+
+pub fn is_event_handler_attr(name: &str) -> bool {
+    name.len() > 2
+        && name.as_bytes()[0].eq_ignore_ascii_case(&b'o')
+        && name.as_bytes()[1].eq_ignore_ascii_case(&b'n')
+}
+
+pub fn is_safe_url(value: &str) -> bool {
+    match extract_scheme(value) {
+        None => true,
+        Some(scheme) => {
+            scheme.eq_ignore_ascii_case("http")
+                || scheme.eq_ignore_ascii_case("https")
+                || scheme.eq_ignore_ascii_case("mailto")
+                || scheme.eq_ignore_ascii_case("tel")
+        }
+    }
+}
+
+fn extract_scheme(s: &str) -> Option<&str> {
+    let colon_idx = s.find(':')?;
+    Some(&s[..colon_idx])
+}
+
+pub fn is_safe_srcset(value: &str) -> bool {
+    value.split(',').all(|candidate| {
+        let url_part = candidate.split_whitespace().next().unwrap_or("");
+        is_safe_url(url_part)
+    })
+}
+
+/// U3（ガード呼び出し実在チェック）充足用の自己完結した呼び出し口。
+pub fn __gate_self_check(name: &str, value: &str) -> bool {
+    if is_event_handler_attr(name) {
+        return false;
+    }
+    if is_url_attr(name) {
+        return is_safe_url(value);
+    }
+    is_safe_srcset(value)
+}
+"#;
+
 /// シナリオ 1 用 `app/src/lib.rs`（`rws-app` 相当）。`rws-core` 相当の
 /// `render`/`text` を呼び出す薄いコンポーネント層。`render` の使用箇所として
 /// `fw impact render` の `affected_files`/`affected_crates` に現れる契約。
@@ -460,6 +531,26 @@ unknown-git = "deny"
     )
     .expect("core/Cargo.toml の書き込みに失敗した");
     fs::write(core_src.join("lib.rs"), core_lib_rs).expect("core/src/lib.rs の書き込みに失敗した");
+
+    // イシュー #401（`url_validation_check`）: `[directories.core]` に
+    // `role = "core"` を宣言すると、`fw gate` は当該ディレクトリの src/ に
+    // `URL_ATTRS` 定義・URL 検証ガード関数 4 種の定義/呼び出しが実在する
+    // ことを要求する（U2/U3、fail-closed）。本シナリオ 1 フィクスチャは
+    // イシュー #373 以前から存在するエスケープ回帰シナリオ専用の最小
+    // `rws-core` スタンドインであり、`core_lib_rs`（シングルクォート
+    // エスケープの注入対象、[`SINGLE_QUOTE_ESCAPE_ARM`]）を汚染せずに
+    // 新しい gate 不変条件を満たす必要がある。そのため `lib.rs` からは
+    // `mod` 宣言しない独立ファイルとして `url.rs` を追加する: `mod` 宣言が
+    // ないため `cargo check`/`clippy`/`test`（型チェック・lint・テスト
+    // チェック）のコンパイル対象には含まれず（Rust はクレートルートから
+    // 到達可能な `mod` のみをコンパイルする）、`url_validation_check`
+    // （ファイルシステム走査ベースで `mod` 宣言の有無を問わない）のみが
+    // これを検出する。
+    fs::write(
+        core_src.join("url.rs"),
+        SCENARIO1_CORE_URL_VALIDATION_FIXTURE,
+    )
+    .expect("core/src/url.rs の書き込みに失敗した");
 
     fs::write(
         dest.join("app").join("Cargo.toml"),

@@ -105,7 +105,7 @@ PoC-3 実績シグネチャをそのまま標準 API として凍結する。TAS
 | 項目 | 引き継ぎ先 |
 |------|-----------|
 | ハイドレーション支援 API（`find_attr_values` / `find_nav_targets`）— 現行 `rws-core`（origin/main）には未実装 | TASK-6.2 系（PoC-3 の該当テストは TASK-6.1b では移植対象外とする） |
-| ルーティング（パスマッチング） | TASK-7.2（`server/src/router.rs`） |
+| ルーティング（パスマッチング） | TASK-7.2（実装は `app/src/router.rs`。イシュー #407 で `server` から `rws-app` へ移設し、`server/src/ssr.rs`・`wasm-full/src/nav.rs` が単一定義（`app/src/routes.rs`）を共有する。詳細は `docs/design/route-definition-sharing.md`） |
 | 最小埋め込みテンプレート | TASK-7.1 |
 | 状態管理（`rws-interactive`） | TASK-11.1 |
 | `page_shell` のテンプレートパラメータ化 | TASK-7.1/8.1 で再検討 |

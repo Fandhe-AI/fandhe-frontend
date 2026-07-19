@@ -11,8 +11,16 @@
 `docs/spec/05-tasks.md` の TASK-7.2 は a〜c に分割されています。
 
 - **TASK-7.2a（本ドキュメント・#55）**: v1 パスマッチング仕様の設計確定
-- **TASK-7.2b（#56・実装済み）**: `server/src/router.rs`（`rws_server::router::Router`）の実装
+- **TASK-7.2b（#56・実装済み）**: パスマッチングエンジンの実装
 - **TASK-7.2c（#57）**: 公開 API 経由の統合ルーティングテスト整備
+
+**実装位置の更新（イシュー #407）**: エンジン本体は `app/src/router.rs`
+（`rws_app::router::Router`）へ移設した。`server`（SSR/SSG）・`wasm-full`
+（CSR）の双方が同一エンジンを共有し、パスマッチング意味論のドリフトを
+構造的に排除するための移設であり、本書が定める v1 仕様自体に変更はない。
+`server/src/router.rs`（`rws_server::router`）は非破壊のための再エクスポート
+シムとして存置する。設計判断の詳細は `docs/design/route-definition-sharing.md`
+を参照。
 
 **本文書のステータス**: TASK-7.2a 確定版。TASK-7.2b は本書に先行して
 実装されているが、実装時点の挙動は本書が定める仕様と一致することを

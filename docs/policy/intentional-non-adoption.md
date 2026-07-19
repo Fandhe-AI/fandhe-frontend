@@ -4,7 +4,8 @@
 （イシュー #373）。§3.10 は非採用確定（イシュー #376）。§3.11 は非採用確定
 （イシュー #379）。§3.12 は非採用確定（イシュー #381）。§3.13〜§3.15 は
 非採用確定（イシュー #377）。§3.16〜§3.18 は非採用確定（イシュー #399、
-出典 PR #386 / #390）。
+出典 PR #386 / #390）。§3.19 は非採用確定（イシュー #405、出典 PR #383 /
+`docs/design/wasm-full-architecture.md` §10）。
 
 **節番号の採番規則**（イシュー #398、§3.6〜§3.8 の重複発覚を受けて明記）:
 
@@ -40,8 +41,9 @@
   機械ゲート化の採否（イシュー #381）、§3.13〜§3.15 で Loader の async 化・
   キャッシュ / 再検証・複数 loader 合成の採否（イシュー #377）、§3.16〜§3.18
   で束縛点整合性の型付き強制・検証ユーティリティ横展開・`<base href>` 等の
-  間接的 URL 制御対策の採否（イシュー #399、出典 PR #386 / #390）を追加
-  記録する。
+  間接的 URL 制御対策の採否（イシュー #399、出典 PR #386 / #390）、§3.19 で
+  `rws-wasm-client`（最小ハイドレーション方式）側のクライアントルーティング
+  対応の採否（イシュー #405、出典 PR #383 の out-of-scope 節）を追加記録する。
 - **対象外**: 本書は `docs/spec/` の内容を変更するものではない。仕様自体の
   変更が必要と判断された場合は、frontend-framework-spec リポジトリ側で
   提案する（`.claude/rules/out-of-scope-tracking.md` 準拠）。
@@ -479,18 +481,18 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   | 明示性 | 宣言的構成（クレート一覧・ルート表の単一情報源化） | `structure.toml` を唯一の情報源とする `fw gate` 全体の設計（`docs/design/gate-design.md` §2）・宣言的 `Router` テーブル（`server/src/router.rs`）とそのテスト | 不要（担保済み） |
   | 決定性 | 同一入力 → 同一出力（SSR/SSG バイト一致・再実行一致） | `server/tests/ssr_ssg_parity.rs`（`generate_is_deterministic_across_runs` ほか）→ `fw gate` の `test` チェック（`cargo test --locked -p <crate>`）経由で gate に既に接続済み | 不要（担保済み） |
   | 決定性 | 検証入力（依存グラフ）の固定 | `type_check` / `lint` / `test` 共通の `--locked` 付与（`docs/design/gate-design.md` §2・§5 A06） | 不要（担保済み） |
-  | 機械検証可能性 | 契約違反の静的・機械的検出 | `fw gate` 5 チェックそのもの + `fw impact`（`docs/design/impact-analysis-design.md`）+ CI（`deny.yml`・XSS 回帰連携） | 不要（この軸は gate の存在意義そのものであり、専用チェックの追加は自己言及的な重複） |
+  | 機械検証可能性 | 契約違反の静的・機械的検出 | `fw gate` 6 チェックそのもの + `fw impact`（`docs/design/impact-analysis-design.md`）+ CI（`deny.yml`・XSS 回帰連携） | 不要（この軸は gate の存在意義そのものであり、専用チェックの追加は自己言及的な重複） |
   | コンテキスト消費 | 依存グラフ上限（60 件 / 深さ 6）という代理指標 | xtask の依存グラフ自動計測（`docs/policy/dependency-graph-policy.md`・CI） | 不要（担保済み） |
   | コンテキスト消費 | 「AI が読むべきファイル・概念の量」の直接計測 | なし | **追加不能**（決定的な PASS/FAIL 閾値を設計できず、ヒューリスティック判定は gate の決定性原則・環境エラー区別（`docs/design/gate-design.md` §2.3a）と両立しない） |
 
 - **判断（非採用）**: 上記洗い出しの結果、機械判定可能な下位項目は
-  すべて既存の機械的担保（`fw gate` の 5 チェック・既存回帰テスト・
+  すべて既存の機械的担保（`fw gate` の 6 チェック・既存回帰テスト・
   xtask 依存グラフ計測）で強制済みであり、新チェックの追加は既存
   チェックとの二重管理（単一情報源の崩壊）になる。残る「コンテキスト
   消費の直接計測」は決定的な PASS/FAIL 基準を設計できずヒューリスティック
   判定にならざるを得ず、gate 自身の設計原則（決定的判定・fail-closed・
   環境エラーとコード起因 FAIL の区別、`docs/design/gate-design.md` §2.3a・
-  §3）と矛盾するため gate へ載せるべきでない。`fw gate` の 5 チェック
+  §3）と矛盾するため gate へ載せるべきでない。`fw gate` のチェック
   構成・JSON 出力契約は PoC-7 互換として固定されており（同 §4）、
   チェック追加は AI 自己保守フック・CI の利用契約に波及するため、
   必要性が顕在化していない現段階での契約変更はリスクのみが大きい。
@@ -505,8 +507,10 @@ AI エージェントが変更の影響範囲を判断するために読み込�
      （例: イシュー #380「束縛点整合性の静的検証手段の検討」が採用に
      至った場合）、評価軸チェックの追加コストが JSON 契約の安定性を
      損なわずに小さくなった場合。
-  3. 5 チェック構成・JSON 契約（PoC-7 互換）の改定が他要因で避けられ
-     なくなった場合（改定時に評価軸チェック搭載を同時再検討する）。
+  3. チェック構成・JSON 契約（PoC-7 互換）の改定が他要因で避けられ
+     なくなった場合（改定時に評価軸チェック搭載を同時再検討する。イシュー
+     #401 で 5→6 チェックへ改定済みだが評価軸自体の再検討には至らず、
+     本トリガーは維持する）。
 
 ### 3.13 async loader
 
@@ -703,6 +707,72 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   （`docs/policy/attribute-output-policy.md` §6、
   `.claude/rules/out-of-scope-tracking.md` 準拠）。
 
+### 3.19 `wasm-client`（最小ハイドレーション方式）側のクライアントルーティング対応（イシュー #405）
+
+- **概要**: クライアント側ルーティング（履歴 API 連携・URL 同期・遷移時
+  loader 配線）は `rws-wasm-full` の `nav` モジュール（`wasm-full/src/nav.rs`、
+  イシュー #374 / PR #383）として実装済みである。`rws-wasm-client`（最小
+  ハイドレーション方式、REQ-6）側の遷移対応・loader 移行は PR #383 の
+  out-of-scope 節、`docs/design/wasm-full-architecture.md` §10 に対象外
+  事項として記録されており、本節はその採否判断を確定する。
+- **一般的な採用動機**: 最小構成（`wasm-client`）のみを採用する利用者にも
+  ページ全体リロードなしのクライアント遷移（history API 連携・URL 同期）を
+  提供し、`wasm-full` へ移行しなくても SPA 的な遷移体験を得られるようにする
+  動機。
+- **評価軸での評価**（§2 の 4 軸）:
+  - **明示性**: `wasm-client` は `hydrate()`（リスナー後付けのみ・DOM 再構築
+    禁止）と `mount_csr()`（初回マウント時のみ `set_inner_html`）という 2 API
+    への単純な責務分担を持つ（`wasm-client/src/lib.rs` クレートドキュメント
+    冒頭の不変条件 2・3）。クライアント遷移は「ページサブツリーの全差し替え」
+    （`wasm-full` の `render_route` が `build_dom_node` で新規 DOM を構築し
+    root の子を丸ごと差し替える方式）を本質的に要求し、上記不変条件 3 の
+    DOM 変異 3 種別（`set_text_content` / `set_attribute` / `class_list`）
+    限定契約を破る第 4 の変異カテゴリの新設になる。既存 2 経路の読み下しが
+    複雑化し、明示性が悪化する。
+  - **決定性**: 既存 2 経路（`hydrate()` / `mount_csr()`）とは独立した判断
+    軸であり、決定性そのものは悪化しない（公平に記載）。
+  - **機械検証可能性**: ルート表のクライアント側コピーが `wasm-client` にも
+    必要になり、`wasm-full/tests/route_sync_static.rs` 相当のドリフト検知を
+    server ↔ wasm-full ↔ wasm-client の 3 点同期として二重に維持する必要が
+    生じ、機械検証可能性が悪化する。
+  - **コンテキスト消費**: 同一機能（クライアント遷移）の実装が `wasm-full` /
+    `wasm-client` の 2 クレートに並存することになり、AI が変更影響を判断する
+    際に読むべき範囲が倍増する。
+  - 最小バイナリ・最小公開 API という `wasm-client` の方針（REQ-6）に対し、
+    nav 配線の追加は web-sys features（`History` / `Location` /
+    `MouseEvent`）とルート表・配線コードの増加を伴い、バイナリサイズと公開
+    API 面の双方を拡大する。
+- **検討した構成案とコスト**:
+
+| 案 | 構成 | 却下理由 |
+|----|------|---------|
+| A: `wasm-client` 内に nav を独自実装 | `resolve_path` / 配線層を `wasm-client` へ複製する | ルート表・安全策（`is_safe_relative_path` 等）の重複コピーが発生し、ドリフト検知の三重管理になる。`hydrate()` の DOM 変異 3 種別限定契約（不変条件 3）を破る |
+| B: `nav` を `wasm-client` へ移設し `wasm-full` が再エクスポートする | 依存方向（`wasm-full` → `wasm-client`）に沿って共有する | ルーティング（アプリ遷移機構）が「最小ハイドレーション」クレートの責務に混入し、最小 API 方針と `docs/api/hydration-api.md` の凍結範囲を崩す。凍結済み公開面の破壊的変更になる |
+| C: `wasm-client` が `wasm-full` の `nav` に依存する | `wasm-client` → `wasm-full` 依存を追加する | 既存の依存方向（`wasm-full` は `wasm-client` に依存しない独立クレート、`docs/design/wasm-full-architecture.md` §2 判断 6）が逆転し循環依存になる（構造的に不可能） |
+
+- **本フレームワークでの代替**: クライアント遷移が必要なユースケースは既定
+  方式である `rws-wasm-full` を使う（`docs/design/opt-in-thin-js-glue.md`
+  §2 の選定フローチャートと同じ判断に従う）。`wasm-client` の
+  [`find_list_nav_targets`](../../wasm-client/src/lib.rs)（一覧ページの
+  `data-nav` 属性値を列挙する純粋契約関数）は削除せず、将来採用時の対象
+  特定契約として維持する。
+- **再評価トリガー**: 以下のいずれかが実測・仕様変更・後続イシューの解決
+  過程で確認された場合に限る。
+  1. `wasm-client` 採用構成でのクライアント遷移の実需要が確定し、かつ
+     `wasm-full` への移行がバイナリ予算等の実測根拠で成立しない場合。
+  2. 仕様（REQ）側で全クライアント方式へのクライアント遷移提供が必須化
+     された場合（この場合は frontend-framework-spec リポジトリ側での提案が
+     前提となる）。
+  3. イシュー #403（遷移後のインタラクティブ要素再配線）等の解決の過程で、
+     `wasm-full` の `nav` と `wasm-client` の `hydrate()` の統合設計が
+     避けられなくなった場合。
+- **XSS 回帰テストの位置付け**: 本節の非採用判断はコード挙動を変更しない
+  （`wasm-client/src/lib.rs` の rustdoc 更新のみ）ため、`wasm-full` の
+  `nav` に関する XSS 回帰テスト（`wasm-full/tests/nav_native.rs` /
+  `nav_browser.rs` 等）・`wasm-client` の既存テスト（doctest 含む）のいずれ
+  も削除・弱体化・追加は不要である（`.claude/rules/coding-rust.md`「XSS 回帰
+  テストは削除・弱体化しない」）。
+
 ## 4. 運用（再導入提案時の手続き）
 
 上記各項目のいずれかを再導入したいと判断した場合、以下を Issue・PR に
@@ -757,6 +827,13 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   結合の実ブラウザ XSS 検証スコープ判断）
 - `docs/design/loader-extension-design.md`（イシュー #377、Loader の async 化・
   キャッシュ / 再検証・複数 loader 合成の設計確定書。§3.13〜§3.15 の非採用根拠）
+- `wasm-full/src/nav.rs`（イシュー #374 / PR #383、クライアント側ルーティング
+  の実装本体。§3.19 の非採用判断における既定方式）
+- `docs/design/wasm-full-architecture.md` §10（`nav` モジュールのスコープ外
+  一覧。`wasm-client` 側の遷移対応・loader 移行が対象外事項として記録された
+  出典。§3.19 の非採用根拠）
+- `docs/api/hydration-api.md`（`rws-wasm-client` の最小ハイドレーション方式の
+  凍結済み設計・不変条件。§3.19 の非採用根拠）
 
 ## 6. スコープ外（放置しない事項）
 

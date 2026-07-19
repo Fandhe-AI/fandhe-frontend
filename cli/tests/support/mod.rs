@@ -321,6 +321,88 @@ pub fn write_case_project(case_name: &str, main_rs_content: &str) -> ScratchProj
     ScratchProject(dest)
 }
 
+/// `url_validation_check`（`cli/src/gate.rs`, イシュー #401）の U2/U3 負例・
+/// 正例向け専用フィクスチャ。`write_case_project` との違いは
+/// `[directories.core]`（`role = "core"`）を宣言し、`core/src/url.rs` に
+/// `url_rs_content` を書き出す点にある（U2: allowlist ピン検査・U3: ガード
+/// 呼び出し実在確認は `role = "core"` 宣言ディレクトリのみを対象とするため）。
+///
+/// ```text
+/// <fixture>/
+/// ├── structure.toml   ([directories.core], role = "core")
+/// ├── Cargo.toml       (virtual workspace, members = ["core"])
+/// ├── deny.toml
+/// ├── clippy.toml
+/// └── core/
+///     ├── Cargo.toml   (name = "negative-fixture-core", 依存ゼロ)
+///     └── src/
+///         ├── lib.rs   (url モジュールのガード関数を呼ぶ最小コード。U3 のため)
+///         └── url.rs   (url_rs_content)
+/// ```
+pub fn write_core_case_project(case_name: &str, url_rs_content: &str) -> ScratchProject {
+    let dest = scratch_root().join(format!(
+        "negative-cases-core-{case_name}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = fs::remove_dir_all(&dest);
+    let core_src = dest.join("core").join("src");
+    fs::create_dir_all(&core_src).expect("一時プロジェクトディレクトリの作成に失敗した");
+
+    fs::write(
+        dest.join("structure.toml"),
+        r#"
+[manifest]
+version = 1
+
+[directories.core]
+role = "core"
+crate = "negative-fixture-core"
+description = "TASK-401 url_validation_check negative case fixture"
+"#,
+    )
+    .expect("structure.toml の書き込みに失敗した");
+
+    fs::write(
+        dest.join("Cargo.toml"),
+        "[workspace]\nmembers = [\"core\"]\nresolver = \"2\"\n",
+    )
+    .expect("workspace Cargo.toml の書き込みに失敗した");
+
+    fs::write(dest.join("deny.toml"), deny_toml_content()).expect("deny.toml の書き込みに失敗した");
+
+    fs::write(dest.join("clippy.toml"), clippy_toml_content())
+        .expect("clippy.toml の書き込みに失敗した");
+
+    fs::write(
+        dest.join("core").join("Cargo.toml"),
+        "[package]\nname = \"negative-fixture-core\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n",
+    )
+    .expect("core/Cargo.toml の書き込みに失敗した");
+
+    // lib.rs はガード 4 種すべてを呼ぶ最小コード（U3: ガード呼び出し実在
+    // チェックが `url_rs_content` 自体の自己呼び出し（`is_safe_srcset` →
+    // `is_safe_url`）に依存しすぎないよう、通常の呼び出し元コードを模す）。
+    fs::write(
+        core_src.join("lib.rs"),
+        "mod url;\n\npub fn check(name: &str, value: &str) -> bool {\n    \
+         if url::is_event_handler_attr(name) {\n        return false;\n    }\n    \
+         if url::is_url_attr(name) {\n        return url::is_safe_url(value);\n    }\n    \
+         url::is_safe_srcset(value)\n}\n",
+    )
+    .expect("core/src/lib.rs の書き込みに失敗した");
+
+    fs::write(core_src.join("url.rs"), url_rs_content)
+        .expect("core/src/url.rs の書き込みに失敗した");
+
+    generate_lockfile(&dest);
+
+    ScratchProject(dest)
+}
+
 /// `xss_regression_link.rs`（TASK-13.3c・#141）専用フィクスチャ。
 ///
 /// `write_case_project` との違いは、`app` クレートに `lib.rs`（エスケープ

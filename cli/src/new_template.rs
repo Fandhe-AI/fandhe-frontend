@@ -228,6 +228,18 @@ const APP_TEMPLATE_FILES: &[TemplateFile] = &[
         contents: include_str!("../../templates/app/vendor/rws-app/src/lib.rs"),
         executable: false,
     },
+    // イシュー #407: server / client 単一定義からのルート生成（共有機構）を
+    // rws-app へ集約したため、router.rs / routes.rs も vendor 同梱する。
+    TemplateFile {
+        rel_path: "vendor/rws-app/src/router.rs",
+        contents: include_str!("../../templates/app/vendor/rws-app/src/router.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "vendor/rws-app/src/routes.rs",
+        contents: include_str!("../../templates/app/vendor/rws-app/src/routes.rs"),
+        executable: false,
+    },
     TemplateFile {
         rel_path: "vendor/rws-core/Cargo.toml",
         contents: include_str!("../../templates/app/vendor/rws-core/Cargo.toml"),
