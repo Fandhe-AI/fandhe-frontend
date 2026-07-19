@@ -2,7 +2,8 @@
 
 **本文書のステータス**: 確定（イシュー #352）。§3.5〜§3.9 は非採用確定
 （イシュー #373）。§3.10 は非採用確定（イシュー #376）。§3.11 は非採用確定
-（イシュー #379）。
+（イシュー #379）。§3.13〜§3.15 は非採用確定（イシュー #399、出典 PR
+#386 / #390）。
 
 > **本書の位置づけ**: 本フレームワークは仮想 DOM・ファイルベースルーティング・HMR
 > （Hot Module Replacement）・signal/store といった主流フロントエンド機能を
@@ -23,7 +24,10 @@
   signal/store、イシュー #352）に加え、§3.5〜§3.9 で属性値の URL スキーム
   検証・属性出力ポリシー（イシュー #373）、§3.10 で `wasm-thin` への束縛点
   更新・keyed list 方針の適用可否（イシュー #376）、§3.11 で `fw impact` の
-  AST 解析ベース精密化（syn 等）の採否（イシュー #379）を追加記録する。
+  AST 解析ベース精密化（syn 等）の採否（イシュー #379）、§3.13〜§3.15 で
+  束縛点整合性の型付き強制・検証ユーティリティ横展開・`<base href>` 等の
+  間接的 URL 制御対策の採否（イシュー #399、出典 PR #386 / #390）を追加
+  記録する。
 - **対象外**: 本書は `docs/spec/` の内容を変更するものではない。仕様自体の
   変更が必要と判断された場合は、frontend-framework-spec リポジトリ側で
   提案する（`.claude/rules/out-of-scope-tracking.md` 準拠）。
@@ -587,6 +591,105 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   3. 5 チェック構成・JSON 契約（PoC-7 互換）の改定が他要因で避けられ
      なくなった場合（改定時に評価軸チェック搭載を同時再検討する）。
 
+### 3.13 束縛点整合性の型付きフィールド enum によるコンパイル時強制（イシュー #380 / PR #390）
+
+- **概要**: `data-bind-*` トークン（producer: `core/src/bind.rs`）と
+  `BindingSource` フィールド名（consumer: `wasm-client/src/binding.rs` の
+  `impl BindingSource for AppState`）の整合を、現行の実行時文字列契約
+  ではなく型付きフィールド enum でコンパイル時に強制する方式
+  （`docs/design/dom-binding-update-design.md` §12.4）。
+- **一般的な採用動機**: 文字列 typo・フィールド追従漏れをコンパイルエラー
+  として検出でき、実行時の「無音の表示更新停止」（同書 §12.2）を構造的に
+  防げる。
+- **評価軸での評価**:
+  - 明示性: 型付き enum 化は不整合をコンパイルエラーとして明示できる点で
+    優れるが、SSR 出力形式（同書 §3.1）はすでに文字列トークンとして凍結
+    済みであり、型レベル強制を導入するには `bind_*` API・`BindingSource`
+    trait 自体の再設計（公開 API の破壊的変更）が前提となる。
+  - 決定性: 型付き化自体は決定性を損なわないが、再設計の影響範囲
+    （SSR/CSR 双方の凍結済み契約）が本イシュー（#380）のスコープを超える。
+  - 機械検証可能性: 現行の `wasm-client/tests/binding_logic.rs`
+    `app_state_view_has_no_unresolved_bindings`（§12.3 のテスト時構造検証
+    API 経由）が `cargo test -p rws-wasm-client` で決定的に検証済みであり、
+    型付き化による追加の機械検証可能性の向上分は、再設計コストに対して
+    限定的。
+  - コンテキスト消費: `bind_*` API・`BindingSource` の再設計は、産出物
+    （SSR 出力形式・`AppState::view` 実装・`BindingSource` 実装クレート
+    全体）の学習コストを増やす。
+- **本フレームワークでの代替**: テスト時構造検証 API
+  （`wasm-client/src/binding.rs` の `collect_binding_specs` /
+  `unresolved_binding_specs`）+ 回帰テスト
+  `wasm-client/tests/binding_logic.rs::app_state_view_has_no_unresolved_bindings`。
+  第 9 節（同設計書）の fail-closed（panic しない・no-op）不変条件は維持
+  したまま、テスト実行時に不整合を機械検出する（同書 §12.3）。
+- **再評価トリガー**: 束縛点を使うクレートが増え、テストユーティリティ
+  では網羅が追えなくなった場合（例: `wasm-full` が独自の `BindingSource`
+  実装を持ち、view 側マーカーとの同期漏れが反復的に発生する場合、
+  同設計書 §12.5）。
+
+### 3.14 検証ユーティリティの他クレート横展開（イシュー #380 / PR #390）
+
+- **概要**: `collect_binding_specs` / `unresolved_binding_specs`
+  （`wasm-client/src/binding.rs`、§3.13 参照）を、`wasm-full` 等の他
+  クレートが持つ独自の `BindingSource` 実装へ横展開し、整合検証を共通化
+  する方式。
+- **一般的な採用動機**: 束縛点整合検証を全クレート共通の仕組みとして
+  提供できれば、クレートごとの検証実装の重複を避けられる。
+- **評価軸での評価**:
+  - 明示性・機械検証可能性: 横展開自体は既存の検証ロジック
+    （`element_binding_specs` への委譲、§12.3）を再利用する設計であり、
+    軸としては悪化させない。
+  - コンテキスト消費: 現時点の consumer は `wasm-client` の
+    `impl BindingSource for AppState` のみであり、横展開先となる実需要
+    （他クレートの独自 `BindingSource` 実装）が存在しない。存在しない
+    抽象化を先行実装すると、AI エージェントが「なぜこの汎用化が必要か」
+    を判断するための追加コンテキストを要求する。
+- **本フレームワークでの代替**: 横展開は行わず、`wasm-client` 内の
+  `collect_binding_specs` / `unresolved_binding_specs` を単一 consumer
+  向けの検証手段として維持する（§3.13 と同じ回帰テストで担保）。
+- **再評価トリガー**: `wasm-full` 等が実際に独自の `BindingSource` 実装を
+  持った場合。その時点で横展開を実施し、§3.13 の型付き API 再検討
+  トリガーと連動して評価する。
+
+### 3.15 `<base href>` / `<meta http-equiv="refresh">` 経由の間接的 URL 制御対策（イシュー #373 / PR #386）
+
+- **概要**: 属性値そのものではなく、ページ内の別要素（`<base href>` /
+  `<meta http-equiv="refresh">` 等）がナビゲーション先へ間接的に影響する
+  経路に対する検証・ブロック方式
+  （`docs/policy/attribute-output-policy.md` §2 脅威マトリクス最終行・
+  §6 第 1 項）。
+- **一般的な採用動機**: `href`/`src` 属性値の URL スキーム検証（同書
+  §3.1）を回避し、`<base href>` でページ全体の相対 URL 解決先を書き換える
+  等の間接的なナビゲーション制御ベクタへの対策。
+- **評価軸での評価**:
+  - 明示性・機械検証可能性: 属性出力ポリシー（`is_safe_url` /
+    `URL_ATTRS` / `on*` 一律ブロック）は「属性値そのものの URL スキーム
+    検証」を対象範囲として明示しており、`<base href>` 等の間接効果は
+    脅威の性質が異なる（同書 §2「該当なし（別要素からの間接効果）」）。
+    対象を混在させると、単一の検証関数（`is_safe_url`）が担う責務境界が
+    曖昧になり、既存の機械検証可能性（`core/tests/xss_escape.rs` の回帰
+    テストが担保する範囲）を不明瞭にする。
+  - 本フレームワークでの正規経路: `raw_html()` 以外の経路では、利用者
+    入力から `<base>` / `<meta>` 要素を動的に組み立てる場合もノード木
+    API（`.claude/rules/coding-rust.md`「HTML 文字列の直接組み立て禁止」）
+    + 既定エスケープ（REQ-1）を経由するため、任意の外部入力が無検証で
+    これらの要素を注入することはできない。ただし既定エスケープは
+    breakout（属性境界の脱出）防止が目的であり、正当に構築された
+    `<base href="https://evil.com">` のような要素自体（エスケープ済みで
+    構文的に妥当な属性値）がナビゲーション解決先を書き換える効果までは
+    防がない点に注意する。`raw_html()` 経由でこれらの要素が持ち込まれる
+    残余リスクは既存の 3 層検査（`docs/design/gate-design.md` §2.2）に
+    委ねる。
+- **本フレームワークでの代替**: 現時点で専用の追加対策は導入しない。
+  対策の実体は「利用者入力から要素自体を無検証に注入できない」という
+  ノード木 API の構造的制約（上記正規経路）であり、属性値の URL スキーム
+  検証（`is_safe_url` 等）とは異なる保証軸である点を明示した上で、
+  属性出力ポリシーの対象外（本節）として台帳に留め置く。
+- **再評価トリガー**: 対策強化が必要と判断された場合（実害あるベクタの
+  判明・利用者からの需要確定）に、別 Issue として提案する
+  （`docs/policy/attribute-output-policy.md` §6、
+  `.claude/rules/out-of-scope-tracking.md` 準拠）。
+
 ## 4. 運用（再導入提案時の手続き）
 
 上記各項目のいずれかを再導入したいと判断した場合、以下を Issue・PR に
@@ -605,7 +708,8 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 ## 5. 参照
 
 - `docs/design/dom-binding-update-design.md`（イシュー #340、束縛点更新・
-  keyed list の設計確定書。仮想 DOM 非採用の設計根拠・#341〜#345 の移行計画）
+  keyed list の設計確定書。仮想 DOM 非採用の設計根拠・#341〜#345 の移行計画。
+  §12.4・§12.5〔イシュー #380〕は本書 §3.13・§3.14 の非採用判断に対応）
 - `docs/design/wasm-full-architecture.md`（イベント委譲・`set_inner_html`
   再描画の設計制約、REQ-1/REQ-11 不変条件）
 - `docs/spec/03-poc/differentiation-analysis/README.md`（PoC-1、Leptos/
@@ -630,7 +734,8 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 - `docs/api/interactive-api.md` / `docs/api/hydration-state-format.md`
   （`rws-interactive` API・ハイドレーション状態フォーマット）
 - `docs/policy/attribute-output-policy.md`（イシュー #373、属性値の URL
-  スキーム検証・属性出力ポリシー。§3.5〜§3.9 の非採用判断の対応元）
+  スキーム検証・属性出力ポリシー。§3.5〜§3.9 の非採用判断の対応元。§6
+  第 1 項は本書 §3.15 の非採用判断に対応）
 - `docs/design/opt-in-thin-js-glue.md`（イシュー #376、`rws-wasm-thin` の
   位置づけ・公開 API 凍結表・JS グルー規範。§3.10 の非採用根拠）
 - `wasm-thin/tests/thin_runtime.rs`（イシュー #376、`wasm-thin` の XSS 回帰
