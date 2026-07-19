@@ -1,7 +1,8 @@
 # 意図的非採用の記録（仮想 DOM・ファイルベースルーティング・HMR・signal）と AI 開発前提の評価軸
 
 **本文書のステータス**: 確定（イシュー #352）。§3.5〜§3.9 は非採用確定
-（イシュー #373）。§3.10 は非採用確定（イシュー #376）。
+（イシュー #373）。§3.10 は非採用確定（イシュー #376）。§3.11 は非採用確定
+（イシュー #379）。
 
 > **本書の位置づけ**: 本フレームワークは仮想 DOM・ファイルベースルーティング・HMR
 > （Hot Module Replacement）・signal/store といった主流フロントエンド機能を
@@ -21,7 +22,8 @@
   参照可能にする。当初 4 機能（仮想 DOM・ファイルベースルーティング・HMR・
   signal/store、イシュー #352）に加え、§3.5〜§3.9 で属性値の URL スキーム
   検証・属性出力ポリシー（イシュー #373）、§3.10 で `wasm-thin` への束縛点
-  更新・keyed list 方針の適用可否（イシュー #376）を追加記録する。
+  更新・keyed list 方針の適用可否（イシュー #376）、§3.11 で `fw impact` の
+  AST 解析ベース精密化（syn 等）の採否（イシュー #379）を追加記録する。
 - **対象外**: 本書は `docs/spec/` の内容を変更するものではない。仕様自体の
   変更が必要と判断された場合は、frontend-framework-spec リポジトリ側で
   提案する（`.claude/rules/out-of-scope-tracking.md` 準拠）。
@@ -365,9 +367,88 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   `docs/design/xss-escape-wasm-test-design.md` §9 の判断（v1 スコープ外）を
   維持し、`opt-in-thin-js-glue.md` の制約明記（§3.1・§5）で担保する。
 
+### 3.11 `fw impact` の AST 解析ベース精密化（syn 等、イシュー #379）
+
+- **概要**: `fw impact`（`cli/src/impact.rs` / `cli/src/loaders.rs`）が
+  行うシンボル定義元特定・使用箇所走査・`Loader` 実装抽出を、正規表現
+  不使用・手書き文字列走査のヒューリスティックから `syn` 等の AST
+  （抽象構文木）解析クレートへ置き換える方式。`docs/design/impact-analysis-design.md`
+  §7 が将来スコープとして残していた検討タスク（PR #366 対象外節）。
+- **一般的な採用動機**: コメント・文字列リテラル内の偶発的なシンボル出現
+  を構文的に除外できる（過検知の低減）。`use X as Y` の別名・複数行に
+  またがる宣言・マクロ生成シンボル等、識別子境界一致では追跡できない
+  構造をインポート解決・構文木走査で正しく捕捉できる（見逃しの低減）。
+- **実例収集（費用対効果評価の根拠）**: `cli/src/impact.rs` /
+  `cli/src/loaders.rs` の `#[cfg(test)]` に「#379 characterization
+  tests」として固定した現行仕様の実例。
+  - 偽陽性（過検知・安全側）:
+    `scan_usages_counts_occurrence_inside_comment_as_usage` /
+    `scan_usages_counts_occurrence_inside_string_literal_as_usage`
+    （コメント・文字列リテラル内の出現も使用箇所として数える）。
+  - 偽陰性（見逃し）: `scan_usages_misses_alias_reexport_call_site`
+    （`pub use crate::render as draw;` の再エクスポート宣言自身は
+    検出されるが、実際の呼び出し箇所 `draw()` は文字列上 `render` を
+    含まないため境界一致では追跡できない）。
+    `does_not_detect_multiline_impl_loader`（`impl Loader\n    for X`
+    のようにトレイト境界・型名が改行で分割された `impl` は単一行走査
+    では検出できない）。
+  - 偽陽性は `requires_human_approval` を承認要側へ倒すのみで安全側
+    （fail-closed）である一方、偽陰性の主要因（複数行 `impl`・トップ
+    レベル以外の `pub` 宣言）は本リポジトリのコード規約
+    （単一行 `impl`・トップレベル `pub` 定義）で実質的に抑制されている
+    （`find_definitions_ignores_indented_declarations` が既存挙動として
+    固定済み）。
+- **syn 導入時の依存影響実測**（使い捨てスクラッチプロジェクトでの実測、
+  イシュー #379 受け入れ条件 2 に対応、`Cargo.toml`/`Cargo.lock` への
+  痕跡は残していない）: `cargo add syn --features full` で追加される
+  パッケージは `syn` / `proc-macro2` / `quote` / `unicode-ident` の
+  **4 件**（依存深さ 3、`cargo tree --edges normal` 実測）。うち
+  `proc-macro2` / `quote` の 2 件は `build.rs` を持つ。`cli`（`rws-cli`）
+  は REQ-3「標準サーバー構成 60 件以内・深さ 6 以内」の直接の計測対象
+  （`xtask` の依存グラフ計測基準）ではないが、`cli` 自体が現在
+  「外部依存ゼロ」（`cli/Cargo.toml` 冒頭コメント）であるため、
+  4 件・深さ 3・`build.rs` 2 件はいずれもゼロからの純増となる。
+- **評価軸での評価**:
+  - 明示性: 手書き走査は `impact.rs` / `loaders.rs` 内で完結し、判定
+    ロジック全体を `cli` の外部依存なしに読み切れる。`syn` 導入は
+    Rust 構文木の型（`syn::Item` 列挙・`syn::UseTree` 等）への理解を
+    前提化し、外部クレートの API サーフェスを読者に要求する。
+  - 決定性: 双方とも決定的な走査であり、この軸での差はない（公平に
+    記載）。
+  - 機械検証可能性: 現行の過検知は fail-closed（`requires_human_approval`
+    を承認要側へ倒す）であり、REQ-13 の AI 自己保守ゲート機構
+    （人間承認を安全側の既定とする設計）と整合する。AST 化で得られる
+    精度向上は主に「承認要 → 承認不要」方向の変化であり、ゲートを
+    緩める投資になる。見逃しが残る限り「AST 化したから承認を省略して
+    よい」という運用判断はできず、精度向上の実利は限定的である。
+  - コンテキスト消費: `syn`（+ `proc-macro2` / `quote` / `unicode-ident`、
+    上記実測）の追加はサプライチェーン脅威面（`.claude/rules/security.md`・
+    PoC-2 脅威モデル）とビルドコスト（`build.rs` 2 件）を増やし、
+    `cli` の「外部依存ゼロ」という単純な不変条件（読者が確認すべき
+    依存面がゼロ）を失わせる。
+- **本フレームワークでの代替**: 過検知容認（fail-closed）+ 人間承認への
+  安全側フォールバック（`requires_human_approval`、
+  `docs/design/impact-analysis-design.md` §3.4）+ 本リポジトリのコード
+  規約（単一行 `impl`・トップレベル `pub` 定義）による偽陰性主要因の
+  実質抑制 + 上記 characterization テストによる現行仕様の回帰的固定。
+  `cli` の外部依存ゼロ方針（`cli/Cargo.toml` 冒頭コメント）を維持する。
+- **採用時の手続き（現時点では非該当）**: 将来 AST 化を採用する場合は
+  `cargo metadata` で `cli` への実際の依存影響を確認し、ユーザー承認を
+  得る（§4 の再導入手続きに準拠）。
+- **再評価トリガー**: 以下のいずれかが確認された場合に限る。
+  1. 過検知・見逃しが `requires_human_approval` / `breaking_risk` の
+     誤判定として AI 自己保守フックの実運用で具体的な手戻り・障害を
+     反復的に引き起こした実績が確認された場合。
+  2. `fw impact` の適用対象が本リポジトリのコード規約に従わない外部
+     プロジェクト（`fw new` 生成物の多様化を含む）へ拡大し、規約前提の
+     偽陰性抑制が成立しなくなった場合。
+  3. 外部依存ゼロ方針を維持したまま利用可能な構文解析手段（Rust 標準・
+     rustc 安定 API 等）が現実的になった場合。
+  4. `cli` の外部依存ゼロ方針自体がユーザー判断で変更された場合。
+
 ## 4. 運用（再導入提案時の手続き）
 
-上記 4 項目のいずれかを再導入したいと判断した場合、以下を Issue・PR に
+上記各項目のいずれかを再導入したいと判断した場合、以下を Issue・PR に
 明記する。
 
 1. §2 の評価軸 4 項目（明示性・決定性・機械検証可能性・コンテキスト消費）
@@ -394,7 +475,10 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 - `server/src/router.rs`（宣言的 `Router` テーブル、TASK-7.2b）
 - `docs/api/router-path-matching.md`（パスパターン照合仕様）
 - `docs/design/impact-analysis-design.md`（`fw impact` シンボル単位影響
-  解析）
+  解析、§7「既知の限界と将来スコープ」が §3.11 の非採用検討の出発点）
+- `cli/src/impact.rs` / `cli/src/loaders.rs`（イシュー #379、`fw impact` の
+  現行ヒューリスティック実装。`#[cfg(test)]` 内「#379 characterization
+  tests」が §3.11 の判断根拠となった偽陽性・偽陰性の実例を固定する）
 - `docs/spec/04-requirements.md`（REQ-10・REQ-11・REQ-13）
 - `dist-server/benches/rebuild_latency.rs` /
   `docs/reports/rebuild-latency-acceptance-report.md`（rebuild latency
