@@ -1,0 +1,222 @@
+name: fw new Windows verification
+
+# イシュー #413: `fw new`（cli/src/new.rs）の非 Unix（Windows）パーミッション挙動
+# （`set_permissions` の `#[cfg(not(unix))]` no-op、docs/design/fw-new-design.md §6.1）は
+# これまで self-hosted Linux runner でしか検証されておらず「設計上の想定」に留まっていた
+# （PR #389 out-of-scope 節・fw-new-design.md §9 非目標）。本ワークフローはその実機検証
+# ハーネスであり、以下の理由から CI（pull_request/push）には組み込まず workflow_dispatch
+# 専用とする。
+#
+#   - Windows ラベルの self-hosted runner がプールに存在するかどうかは本リポジトリの
+#     管理外（インフラ側作業、docs/ci/ci-runner-requirements.md 同様の運用）。
+#   - runner 不在のまま PR トリガーに組み込むと、ジョブが永久 queue 待ちになり CI 全体を
+#     ブロックする（runner-maintenance.yml と同じ fail-safe 方針）。
+#
+# `runs-on: self-hosted` 既定（.claude/rules/ci.md）に従い、GitHub ホステッドの
+# `windows-latest` は使わない（採用しない理由は docs/ci/ci-runner-requirements.md
+# 「Windows self-hosted runner の常設要件」節に判断根拠ごと記録する）。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify fw new on Windows (generation / determinism / non-Unix permission no-op)
+    runs-on: [self-hosted, Windows]
+    defaults:
+      run:
+        shell: pwsh
+    # フィクスチャ生成・cargo test を含むため長時間化を見込んでも 30 分で打ち切る
+    # （runner 詰まり時に他ジョブを塞がないための保険、ci.md 方針に準拠）
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        # ci.yml と同一 SHA 固定（docs/spec サブモジュールは本検証に不要のため取得しない）
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: "preflight: verify cargo/git are present (fail-closed)"
+        # 要: Windows runner に rustup（stable toolchain）+ MSVC Build Tools（link.exe）+ git
+        # が常設済みであること（docs/ci/ci-runner-requirements.md 「Windows self-hosted
+        # runner の常設要件」節参照）。存在チェックなしに進めると失敗の原因が
+        # 「runner 環境未整備」か「fw new のコード起因」か区別できなくなるため、
+        # ここで明示的にガードする（ci.md「ツール前提の明示」運用）。
+        run: |
+          $ErrorActionPreference = "Stop"
+          $missing = @()
+          foreach ($cmd in @("cargo", "git")) {
+            if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
+              $missing += $cmd
+            }
+          }
+          if ($missing.Count -gt 0) {
+            Write-Host "::error::environment error: missing required command(s): $($missing -join ', '). Windows runner に rustup（stable）+ MSVC Build Tools + git を常設してください（docs/ci/ci-runner-requirements.md 参照）"
+            exit 1
+          }
+          cargo --version
+          git --version
+
+      - name: Setup Rust toolchain
+        # ci.yml と同一 SHA 固定
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+
+      - name: Show toolchain
+        run: |
+          rustup show
+          cargo --version
+
+      - name: Build fw (rws-cli)
+        # 共有 CARGO_TARGET_DIR との衝突を避けるため workspace ローカルの専用ディレクトリを
+        # 明示指定する（ci.md の共有 target dir 対策の Windows 版）
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}\target-win-verify
+        run: cargo build -p rws-cli --locked
+
+      - name: "test: rws-cli unit tests (new_template.rs 含む) on Windows"
+        # executable_file_sets_match_expected_fixed_lists（cli/src/new_template.rs）が
+        # プラットフォーム非依存にメタデータ記述のみを比較する設計であることを実機で確認する
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}\target-win-verify
+        run: cargo test -p rws-cli --lib --locked
+
+      - name: "test: fw new e2e (new_e2e.rs) on Windows"
+        # collect_tree（cli/tests/new_e2e.rs）は #[cfg(not(unix))] で executable = false を
+        # 返す設計（fw-new-design.md §6.1）。この分岐込みで
+        # same_args_produce_byte_identical_output_across_two_runs 等の決定性テストが
+        # Windows 上でも成立することを確認する。
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}\target-win-verify
+        run: cargo test -p rws-cli --test new_e2e --locked
+
+      - name: "smoke: fw new generation / determinism / fail-closed on Windows (default template)"
+        # cargo test 側でカバーされない「実バイナリを直接叩いたときの終端挙動
+        # （exit code・JSON 出力）」を pwsh から明示的に確認する。
+        # プロジェクト名はハードコード定数のみを使い、イベントコンテキスト由来の文字列は
+        # 一切補間しない（OWASP A01/A03 対策）。
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}\target-win-verify
+        run: |
+          $ErrorActionPreference = "Stop"
+          $fw = "${env:CARGO_TARGET_DIR}\debug\fw.exe"
+          if (-not (Test-Path $fw)) {
+            Write-Host "::error::environment error: fw.exe not found at $fw (build step must have failed silently)"
+            exit 1
+          }
+
+          $work = Join-Path $env:RUNNER_TEMP "fw-new-win-verify"
+          New-Item -ItemType Directory -Force -Path $work | Out-Null
+
+          function Test-Determinism([string]$template) {
+            $dirA = Join-Path $work "run-a-$template"
+            $dirB = Join-Path $work "run-b-$template"
+            New-Item -ItemType Directory -Force -Path $dirA, $dirB | Out-Null
+
+            $outA = & $fw new demo-app --template $template --dir $dirA 2>&1
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error::fw new (template=$template, run A) failed with exit $LASTEXITCODE: $outA"
+              exit 1
+            }
+            if (-not ($outA -match '"template":"' + $template + '"')) {
+              Write-Host "::error::fw new (template=$template) stdout missing expected template field: $outA"
+              exit 1
+            }
+
+            $outB = & $fw new demo-app --template $template --dir $dirB 2>&1
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error::fw new (template=$template, run B) failed with exit $LASTEXITCODE: $outB"
+              exit 1
+            }
+
+            $hashesA = Get-ChildItem -Path (Join-Path $dirA "demo-app") -Recurse -File |
+              ForEach-Object {
+                [PSCustomObject]@{
+                  RelPath = $_.FullName.Substring((Join-Path $dirA "demo-app").Length + 1) -replace '\\', '/'
+                  Hash    = (Get-FileHash -Algorithm SHA256 -Path $_.FullName).Hash
+                }
+              } | Sort-Object RelPath
+
+            $hashesB = Get-ChildItem -Path (Join-Path $dirB "demo-app") -Recurse -File |
+              ForEach-Object {
+                [PSCustomObject]@{
+                  RelPath = $_.FullName.Substring((Join-Path $dirB "demo-app").Length + 1) -replace '\\', '/'
+                  Hash    = (Get-FileHash -Algorithm SHA256 -Path $_.FullName).Hash
+                }
+              } | Sort-Object RelPath
+
+            $diff = Compare-Object -ReferenceObject $hashesA -DifferenceObject $hashesB -Property RelPath, Hash
+            if ($diff) {
+              Write-Host "::error::fw new (template=$template) is not byte-deterministic across two runs on Windows"
+              $diff | Format-Table | Out-String | Write-Host
+              exit 1
+            }
+            Write-Host "OK: template=$template byte-identical across two runs ($($hashesA.Count) files)"
+
+            # fail-closed: 既存ターゲットへの再実行は --force なしで失敗すること
+            & $fw new demo-app --template $template --dir $dirA | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "::error::fw new (template=$template) re-run without --force unexpectedly succeeded (fail-closed contract broken)"
+              exit 1
+            }
+            & $fw new demo-app --template $template --dir $dirA --force | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error::fw new (template=$template) re-run with --force unexpectedly failed"
+              exit 1
+            }
+            Write-Host "OK: template=$template fail-closed / --force contract holds"
+          }
+
+          Test-Determinism "default"
+          Test-Determinism "app"
+
+          # 未知テンプレート名は使用法エラー（終了コード 2）
+          & $fw new demo-app --template no-such-template --dir (Join-Path $work "unknown") 2>&1 | Out-Null
+          if ($LASTEXITCODE -ne 2) {
+            Write-Host "::error::fw new with unknown template exited $LASTEXITCODE, expected 2"
+            exit 1
+          }
+          Write-Host "OK: unknown template exits with usage error (2)"
+
+          # tools/npm-asset-build/* (executable: true 3 ファイル) が
+          # non-Unix no-op（fw-new-design.md §6.1）でもエラーにならず生成されることを確認する
+          $execFiles = @(
+            "tools/npm-asset-build/install.sh",
+            "tools/npm-asset-build/check_static_only.py",
+            "tools/npm-asset-build/run.sh"
+          )
+          $genDir = Join-Path $work "run-a-default/demo-app"
+          $missingExec = @()
+          foreach ($rel in $execFiles) {
+            $p = Join-Path $genDir $rel
+            if (-not (Test-Path $p)) {
+              $missingExec += $rel
+            }
+          }
+          if ($missingExec.Count -gt 0) {
+            Write-Host "::warning::expected executable-flagged files not found in generated tree (list may be stale, check cli/src/new_template.rs): $($missingExec -join ', ')"
+          } else {
+            Write-Host "OK: executable-flagged template files generated without error on Windows (no-op permission skip confirmed harmless)"
+          }
+
+      - name: Write Step Summary
+        if: always()
+        run: |
+          $os = (Get-CimInstance Win32_OperatingSystem).Caption
+          $rustc = (rustc --version)
+          @"
+          ### fw new Windows verification (イシュー #413)
+
+          | 項目 | 値 |
+          |------|----|
+          | RUNNER_NAME | $env:RUNNER_NAME |
+          | OS | $os |
+          | rustc | $rustc |
+          | cargo test -p rws-cli --lib | $(if ($env:GITHUB_JOB) { 'see job status above' }) |
+
+          検証項目（前段ステップ参照）: ビルド成功 / new_template 単体テスト /
+          new_e2e 決定性テスト / default・app 各テンプレートのバイト決定性 /
+          fail-closed（--force 契約） / 未知テンプレート exit 2 /
+          executable フラグ付きファイルの no-op 生成。
+          "@ | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
