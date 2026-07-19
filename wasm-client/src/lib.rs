@@ -9,13 +9,18 @@
 //! # 2 層構成（`rws-wasm-full` の先例を踏襲）
 //!
 //! 1. **純粋ロジック層**（本ファイル直下、ネイティブテスト可能）:
-//!    `rws_app` のページ関数 → `rws_core::render` を呼ぶ CSR 用 HTML 生成
-//!    ([`render_list_page_html`] / [`render_detail_page_html`])、および
-//!    `rws_core::find_attr_values` / `rws_core::find_nav_targets` を用いた
-//!    ハイドレーション対象の特定（[`find_hydrate_target_kinds`] /
-//!    [`find_list_nav_targets`]）。実 DOM 型（`web-sys` 各型）には一切依存
-//!    しないため、wasm ビルドを介さず `cargo test -p rws-wasm-client` で
-//!    検証できる（`wasm-client/tests/hydration_targets.rs`）。
+//!    `rws_app::Loader`（#347・イシュー #346 設計確定書
+//!    `docs/design/loader-trait-design.md`）経由でデータを解決し
+//!    `rws_core::render` を呼ぶ CSR 用 HTML 生成（[`render_list_page_html`] /
+//!    [`render_detail_page_html`])、および `rws_core::find_attr_values` /
+//!    `rws_core::find_nav_targets` を用いたハイドレーション対象の特定
+//!    （[`find_hydrate_target_kinds`] / [`find_list_nav_targets`]）。実 DOM 型
+//!    （`web-sys` 各型）には一切依存しないため、wasm ビルドを介さず
+//!    `cargo test -p rws-wasm-client` で検証できる
+//!    （`wasm-client/tests/hydration_targets.rs`）。イシュー #375 で
+//!    `rws_app::demo_items()` の直接呼び出しを排し、`rws-server`（#348）・
+//!    `rws-wasm-full`（#349）と同一の Loader 契約へ統一した
+//!    （「データ取得の実装は 1 箇所・モード別分岐なし」REQ-6）。
 //! 2. **wasm32 配線層**（[`mod wiring`]、`#[cfg(target_arch = "wasm32")]`）:
 //!    `#[wasm_bindgen]` エクスポート `hydrate` / `mount_csr`。実 DOM
 //!    （`web-sys`）を操作するのはこの層のみに限定する。
@@ -44,6 +49,11 @@
 
 #![deny(unsafe_code)]
 #![warn(missing_docs)]
+
+use rws_app::{
+    assemble_detail_page, assemble_list_page, DemoItemDetailLoader, DemoItemsLoader, Item, Loader,
+};
+use rws_core::Node;
 
 mod binding;
 pub use binding::*;
@@ -78,12 +88,79 @@ pub const HYDRATE_ATTR: &str = "data-hydrate";
 /// （`rws_app::LIKE_BUTTON_ID` と対になる契約）。
 pub const LIKE_HYDRATE_VALUE: &str = "like";
 
+/// loader 解決失敗時の fail-closed ビュー（`server/src/ssr.rs::loader_error_response`
+/// と同型の構造的保証、イシュー #375）。`rws-wasm-full` は本関数を独自実装せず
+/// `wasm-full/src/csr.rs` から再エクスポートして共有する（Bugbot 指摘対応、
+/// 重複コピーの解消）。
+///
+/// **呼び出し元はこの関数へ `Loader::Error` の値を渡さない**（意図的に
+/// シグネチャへ含めない）。`Display`/`Debug` を一切経由しないため、loader
+/// 実装が `Error` に機微情報を含めていても出力へ混入する経路が型レベルで
+/// 存在しない（`security.md`「機微情報の露出」）。本文はノード木 API
+/// （[`rws_core`]）のみで組み立て、`format!` によるタグ文字列の直接組み立て
+/// は行わない（REQ-1・不変条件 1）。英語固定文言とする
+/// （`.claude/rules/japanese-style.md`「エラーメッセージ・ログ等のユーザー
+/// 向け文字列は英語」）。
+///
+/// 現行の参照 loader（[`DemoItemsLoader`] / [`DemoItemDetailLoader`]、
+/// `Error = Infallible`）では実行時に到達しないが、将来 loader を差し替えた
+/// 場合でも機微情報が非露出であることを構造的に保証するために用意する。
+pub fn loader_error_view() -> Node {
+    rws_core::div(
+        vec![("data-rws", "csr-error")],
+        vec![rws_core::p(
+            vec![],
+            vec![rws_core::text("Something went wrong. Please try again.")],
+        )],
+    )
+}
+
+/// 一覧画面向け CSR loader 解決（イシュー #375）。`rws-wasm-full` は
+/// `wasm-full/src/csr.rs` から本関数を再エクスポートして共有する
+/// （Bugbot 指摘対応、重複コピーの解消）。
+///
+/// `assemble_list_page(loader, &())` の `Ok` はそのまま返し、`Err(_)` は
+/// 値に一切触れず [`loader_error_view`] へ変換する（fail-closed、未解決
+/// データで描画を続行しない）。`L::Output` が `Vec<Item>` でない loader を
+/// 渡すとコンパイルエラーになる（`where` 束縛による型接続）。
+pub fn resolve_list_node<L>(loader: &L) -> Node
+where
+    L: Loader<Input = (), Output = Vec<Item>>,
+{
+    match assemble_list_page(loader, &()) {
+        Ok(node) => node,
+        Err(_) => loader_error_view(),
+    }
+}
+
+/// 詳細画面向け CSR loader 解決（イシュー #375）。`rws-wasm-full` は
+/// `wasm-full/src/csr.rs` から本関数を再エクスポートして共有する
+/// （Bugbot 指摘対応、重複コピーの解消）。
+///
+/// `assemble_detail_page(loader, id)` の `Ok` はそのまま返す。`Output`
+/// （`Option<Item>`）が `None`（未知の id、404 相当）の場合は
+/// `detail_page(None)` の既存契約どおり描画する（見つからない、を
+/// `Error` として扱わない）。`Err(_)` のみ値に触れず [`loader_error_view`]
+/// へ変換する。
+pub fn resolve_detail_node<D>(loader: &D, id: &str) -> Node
+where
+    D: Loader<Input = String, Output = Option<Item>>,
+{
+    match assemble_detail_page(loader, &id.to_string()) {
+        Ok(node) => node,
+        Err(_) => loader_error_view(),
+    }
+}
+
 /// CSR 用の一覧ページ HTML を生成する純粋関数（`mount_csr` の中核）。
 ///
-/// `rws_app::list_page` → `rws_core::render` を**分岐なく**呼び出す。
-/// SSR/SSG（`rws-server`、TASK-6.1c）が同一関数を同一入力で呼んだ場合と
-/// 文字列完全一致することを、CSR が SSR/SSG と同一関数を呼ぶという
-/// REQ-6 の受け入れ基準として保証する（`docs/api/hydration-api.md` 第 3.1 節）。
+/// [`DemoItemsLoader`]（参照 loader、`Error = Infallible`）を
+/// [`resolve_list_node`] 経由で解決し `rws_core::render` を呼ぶ。
+/// SSR/SSG（`rws-server`、TASK-6.1c）が同一の `rws_app::Loader` 契約
+/// （`assemble_list_page` → `list_page`）を同一入力で解決した場合と文字列
+/// 完全一致することを、CSR が SSR/SSG と同一関数を呼ぶという REQ-6 の
+/// 受け入れ基準として保証する（`docs/api/hydration-api.md` 第 3.1 節・
+/// `docs/design/loader-trait-design.md`）。
 ///
 /// # Examples
 ///
@@ -98,13 +175,14 @@ pub const LIKE_HYDRATE_VALUE: &str = "like";
 /// );
 /// ```
 pub fn render_list_page_html() -> String {
-    rws_core::render(&rws_app::list_page(&rws_app::demo_items()))
+    rws_core::render(&resolve_list_node(&DemoItemsLoader))
 }
 
 /// CSR 用の詳細ページ HTML を生成する純粋関数。[`render_list_page_html`] と
-/// 同様、`rws_app::detail_page` → `rws_core::render` を分岐なく呼び出す。
-/// 該当 `id` が存在しない場合は `rws_app::detail_page` の 404 相当ノードを
-/// 返す（呼び出し元での `panic!` を避ける、`.claude/rules/coding-rust.md`）。
+/// 同様、[`DemoItemDetailLoader`] を [`resolve_detail_node`] 経由で解決し
+/// `rws_core::render` を呼ぶ。該当 `id` が存在しない場合は
+/// `rws_app::detail_page` の 404 相当ノードを返す（呼び出し元での
+/// `panic!` を避ける、`.claude/rules/coding-rust.md`）。
 ///
 /// # Examples
 ///
@@ -115,9 +193,7 @@ pub fn render_list_page_html() -> String {
 /// assert!(html.contains("Rust 製フロントエンド基盤の構想"));
 /// ```
 pub fn render_detail_page_html(id: &str) -> String {
-    let items = rws_app::demo_items();
-    let item = items.iter().find(|it| it.id == id);
-    rws_core::render(&rws_app::detail_page(item))
+    rws_core::render(&resolve_detail_node(&DemoItemDetailLoader, id))
 }
 
 /// 指定 `id` の詳細ページのノード木から、[`HYDRATE_ATTR`] を持つ要素の値を
@@ -139,9 +215,7 @@ pub fn render_detail_page_html(id: &str) -> String {
 /// assert!(find_hydrate_target_kinds("missing-id").is_empty());
 /// ```
 pub fn find_hydrate_target_kinds(id: &str) -> Vec<String> {
-    let items = rws_app::demo_items();
-    let item = items.iter().find(|it| it.id == id);
-    let tree = rws_app::detail_page(item);
+    let tree = resolve_detail_node(&DemoItemDetailLoader, id);
     rws_core::find_attr_values(&tree, HYDRATE_ATTR)
 }
 
@@ -158,7 +232,7 @@ pub fn find_hydrate_target_kinds(id: &str) -> Vec<String> {
 /// assert!(targets.contains(&"/items/1".to_string()));
 /// ```
 pub fn find_list_nav_targets() -> Vec<String> {
-    let tree = rws_app::list_page(&rws_app::demo_items());
+    let tree = resolve_list_node(&DemoItemsLoader);
     rws_core::find_nav_targets(&tree)
 }
 
