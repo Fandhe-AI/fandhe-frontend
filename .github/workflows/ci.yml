@@ -61,6 +61,15 @@ jobs:
       - name: Show toolchain
         run: rustup show && cargo --version
 
+      - name: Install cargo-deny / clippy component (ensure-gate-tools.sh)
+        # 本ジョブ末尾の `cargo test --workspace` は negative_cases.rs（fw gate
+        # の lint / policy チェック）を含むため、test ジョブと同様に clippy
+        # component / cargo-deny のブートストラップが必要（イシュー #292 の
+        # 標準ブートストラップ、ci.md 参照）。前置がないと runner の導入状態
+        # 次第で baseline_fixture_passes_core_checks が間欠的に BLOCKED → FAIL
+        # になる（PR #332 の CI で実際に発生）。
+        run: tools/ci/ensure-gate-tools.sh
+
       - name: "unsafe 境界の回帰テスト（safe 域: forbid 属性・unsafe トークン・core 依存ゼロ／wasm-full deny 域: deny 属性・unsafe トークン・allow 上書き不在、#155）"
         run: cargo test -p rws-core --test unsafe_boundary --locked
 
