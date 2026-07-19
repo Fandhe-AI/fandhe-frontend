@@ -53,7 +53,10 @@ fn binding_dom_uses_set_text_content_for_text_updates() {
     );
 }
 
-use rws_wasm_client::{element_binding_specs, parse_binding_tokens, BindingKind, BindingSpec};
+use rws_wasm_client::{
+    collect_binding_specs, element_binding_specs, parse_binding_tokens, unresolved_binding_specs,
+    BindingKind, BindingSpec,
+};
 
 #[test]
 fn parse_binding_tokens_is_reexported_and_behaves_as_documented() {
@@ -90,5 +93,68 @@ fn element_binding_specs_is_reexported_and_orders_text_then_attr_then_class() {
                 kind: BindingKind::Class("liked".to_string()),
             },
         ]
+    );
+}
+
+// --- 束縛点整合性の回帰テスト（イシュー #380） ---
+//
+// `interactive::AppState::view()`（demo view）が出力するマーカーと
+// `rws_wasm_client::AppState`（`BindingSource` 実装、`src/binding.rs`）の
+// フィールドが非同期に変更され乖離した場合、実行時には無音の no-op
+// （表示更新の静かな欠落）としてしか顕在化しない（`docs/design/
+// dom-binding-update-design.md` #380 追補節）。以下は
+// `unresolved_binding_specs` を用いてこのドリフトをテスト時に FAIL として
+// 顕在化させる「本命」の回帰テスト。
+
+use rws_interactive::{Action, AppState, Component};
+
+#[test]
+fn app_state_view_has_no_unresolved_bindings() {
+    let state = AppState::new();
+    let node = state.view();
+    let unresolved = unresolved_binding_specs(&node, &state);
+    assert!(
+        unresolved.is_empty(),
+        "view の束縛点マーカーが AppState（BindingSource）と整合していません: {unresolved:?}"
+    );
+}
+
+#[test]
+fn app_state_view_has_no_unresolved_bindings_after_state_transitions() {
+    // update() 適用後の view でも整合が保たれることを確認する
+    // （dirty フィールド管理と束縛点対応表の双方が state 遷移に追従する
+    // ことの固定）。
+    let mut state = AppState::new();
+    state.update(Action::Increment);
+    state.update(Action::SetDraft("hello".to_string()));
+    state.update(Action::AddItem);
+
+    let node = state.view();
+    let unresolved = unresolved_binding_specs(&node, &state);
+    assert!(
+        unresolved.is_empty(),
+        "state 遷移後の view で束縛点の不整合が発生しました: {unresolved:?}"
+    );
+}
+
+#[test]
+fn app_state_view_binds_counter_and_draft_fields() {
+    // 「束縛したつもりのフィールドが view から消えた」逆方向のドリフトも
+    // 検知できることを固定する（collect_binding_specs が期待フィールドを
+    // 少なくとも 1 件ずつ含むこと）。
+    let state = AppState::new();
+    let node = state.view();
+    let specs = collect_binding_specs(&node);
+
+    assert!(
+        specs
+            .iter()
+            .any(|spec| spec.field == AppState::FIELD_COUNTER && spec.kind == BindingKind::Text),
+        "view から FIELD_COUNTER の data-bind-text 束縛が消えています: {specs:?}"
+    );
+    assert!(
+        specs.iter().any(|spec| spec.field == AppState::FIELD_DRAFT
+            && spec.kind == BindingKind::Attr("value".to_string())),
+        "view から FIELD_DRAFT の data-bind-attr(value) 束縛が消えています: {specs:?}"
     );
 }
