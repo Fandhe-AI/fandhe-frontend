@@ -146,7 +146,13 @@ pub fn bind_text(
     field: &'static str,
     value: impl Into<String>,
 ) -> Node {
+    // 呼び出し元 `attrs` に既存の `data-bind-text` マーカーが含まれる場合、
+    // 除去せず末尾に追加すると `render()` が 2 つのマーカーを出力してしまい、
+    // HTML パース時は先頭のマーカーのみが有効になって `field` が黙って
+    // 無視される不整合が生じる（Bugbot 指摘 df17d3a2-8566-438a-9459-3016e25667c5）。
+    // 一意性を保証するため、まず既存エントリを除去してから新しい値を追加する。
     let mut attrs = attrs;
+    attrs.retain(|(name, _)| *name != BIND_TEXT_ATTR);
     attrs.push((BIND_TEXT_ATTR, field));
     el(tag, attrs, vec![text(value)])
 }
@@ -226,5 +232,22 @@ mod tests {
     fn bind_text_without_attrs_renders_marker_only() {
         let node = bind_text("span", vec![], "counter", "0");
         assert_eq!(render(&node), r#"<span data-bind-text="counter">0</span>"#);
+    }
+
+    #[test]
+    fn bind_text_replaces_existing_bind_text_marker_in_attrs() {
+        // `attrs` に既存の `data-bind-text` が含まれていても、`render()` が
+        // 2 つのマーカーを出力して先頭のみ有効になる不整合を防ぐため、
+        // 新しい `field` の値で一意に上書きされることを検証する。
+        let node = bind_text(
+            "span",
+            vec![("data-bind-text", "old-field")],
+            "new-field",
+            "0",
+        );
+        assert_eq!(
+            render(&node),
+            r#"<span data-bind-text="new-field">0</span>"#
+        );
     }
 }
