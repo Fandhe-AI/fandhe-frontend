@@ -65,6 +65,15 @@
 //! 同期実行環境（検証 8 の非対応ブラウザ相当フォールバック経路）では 1 回目の
 //! チェックで即座に条件が満たされるため、待機コストは実質ゼロで従来どおりの
 //! 決定的な検証を維持する。
+//!
+//! `wait_until` の各ポーリングステップ（[`next_animation_frame`]）は
+//! `requestAnimationFrame` のみに依存せず、壁時計ベースの `setTimeout`
+//! フォールバック（[`FRAME_FALLBACK_TIMEOUT_MS`]）を必ず併走させる。
+//! headless Chrome 環境で rAF コールバックが発火しない場合でも 1 ステップの
+//! 待機が無期限化しないようにするための fail-fast 化であり、CI ハング
+//! （chromedriver の `SIGKILL`、`docs/ci/ci-runner-requirements.md` §6）を
+//! 「原因不明の無限ハング」から「診断可能な `assert!` 失敗」へ変換する
+//! （レビュー指摘、PR #420 フォローアップ）。
 
 #![cfg(target_arch = "wasm32")]
 
@@ -247,24 +256,65 @@ fn document_as_object(document: &Document) -> js_sys::Object {
     document.clone().unchecked_into::<js_sys::Object>()
 }
 
-/// 1 フレーム分待機する（`requestAnimationFrame` を `Promise` 化して await）。
-/// [`wait_until`] の内部実装。
+/// 1 回分の待機ステップを `requestAnimationFrame` または
+/// [`FRAME_FALLBACK_TIMEOUT_MS`] のいずれか早い方まで `Promise` 化して
+/// await する（[`wait_until`] の内部実装）。
+///
+/// # fail-fast 化の経緯（CI ハング再発、PR #420 レビュー指摘）
+///
+/// 従来は `requestAnimationFrame` のみを待っていたため、headless Chrome の
+/// 実行環境で rAF コールバックが発火しない（描画不可視・compositor 停止等）
+/// 場合、この `await` が無期限に返らず `wait_until` の `max_frames` による
+/// 回数上限が実質無意味化する（ループ回数は有限でも、各回の `await` 自体が
+/// 無限に停止し得るため）。これにより「テスト失敗」ではなく
+/// `wasm-bindgen-test-runner` 側の完了検出タイムアウト・chromedriver の
+/// 強制終了（`SIGKILL`）に至るまで診断不能なハングとなっていた
+/// （CI run 29695628266 等、`docs/ci/ci-runner-requirements.md` §6）。
+///
+/// 本関数は `requestAnimationFrame` と `setTimeout`（[`FRAME_FALLBACK_TIMEOUT_MS`]
+/// ミリ秒後）の双方を仕掛け、`js_sys::Promise` の `resolve` を **どちらが
+/// 先に呼んでも構わない**形で共有する（2 回目の呼び出しは仕様上 no-op）。
+/// これにより 1 ステップあたりの待機時間が壁時計時間で必ず上限を持ち、
+/// rAF が発火しない環境でも `wait_until` の総待機時間が
+/// `max_frames * FRAME_FALLBACK_TIMEOUT_MS` を超えて停止することはない
+/// （無限ハングを、原因が診断可能な決定的な `assert!` 失敗へ変換する）。
 async fn next_animation_frame() {
     let promise = js_sys::Promise::new(&mut |resolve, _reject| {
         let window = web_sys::window().expect("window must exist");
-        let callback = Closure::once_into_js(move || {
+
+        let raf_resolve = resolve.clone();
+        let raf_callback = Closure::once_into_js(move || {
+            let _ = raf_resolve.call0(&JsValue::NULL);
+        });
+        window
+            .request_animation_frame(raf_callback.unchecked_ref())
+            .expect("requestAnimationFrame must not fail in test environment");
+
+        let timeout_callback = Closure::once_into_js(move || {
             let _ = resolve.call0(&JsValue::NULL);
         });
         window
-            .request_animation_frame(callback.unchecked_ref())
-            .expect("requestAnimationFrame must not fail in test environment");
+            .set_timeout_with_callback_and_timeout_and_arguments_0(
+                timeout_callback.unchecked_ref(),
+                FRAME_FALLBACK_TIMEOUT_MS,
+            )
+            .expect("setTimeout must not fail in test environment");
     });
     JsFuture::from(promise)
         .await
-        .expect("requestAnimationFrame promise must not reject");
+        .expect("requestAnimationFrame/setTimeout promise must not reject");
 }
 
-/// `condition` が `true` になるまで最大 `max_frames` フレーム待つ
+/// [`next_animation_frame`] の壁時計フォールバック締切（ミリ秒）。
+/// `wait_until` の既定 `max_frames`（60）との組み合わせで、1 回の
+/// `wait_until` 呼び出し全体の最大待機時間は高々 `60 * 200ms = 12` 秒
+/// （コーディネーター指摘の目安「実時間 5 秒相当」に対し安全側に余裕を
+/// 持たせた値。rAF が正常発火する通常経路では毎回 rAF が先に解決するため
+/// 実待機コストへの影響はない）に収まる。
+const FRAME_FALLBACK_TIMEOUT_MS: i32 = 200;
+
+/// `condition` が `true` になるまで最大 `max_frames` フレーム（実際には
+/// [`next_animation_frame`] の壁時計フォールバック込みで有限時間）待つ
 /// （`nav.rs` の `with_view_transition` の update コールバックが実ブラウザ
 /// では非同期実行されうるため、遷移後の DOM/タイトル断定は本ヘルパーを介して
 /// 行う。同期実行環境（フォールバック経路）では 1 回目のチェックで即座に
