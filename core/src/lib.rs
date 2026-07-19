@@ -55,6 +55,19 @@
 //! wasm ビルドを介さないネイティブ環境でもテスト可能（`docs/api/hydration-api.md`
 //! 第 2〜3 節・判断 3 の設計どおり）。
 //!
+//! ## 束縛点マーキング（イシュー #342）
+//!
+//! [`bind_text`] / [`bind_attr_token`] / [`bind_attr_tokens`] /
+//! [`bind_class_token`] / [`bind_class_tokens`]（[`bind`] モジュール）は、
+//! `rws-interactive` の state フィールドと DOM ノードを対応付ける
+//! `data-bind-text` / `data-bind-attr` / `data-bind-class` マーカー属性を
+//! SSR 出力へ付加するヘルパー群。出力形式は
+//! `docs/design/dom-binding-update-design.md`（#340 設計確定書）第 3.1 節で
+//! 凍結されており、`rws-wasm-client`（#343）が起動時に走査する契約の入口。
+//! いずれも [`el`]/[`text`] への薄い委譲・文字列トークン合成のみであり、
+//! 独自の出力経路・独自のエスケープ処理を持たない（不変条件 1・2 がそのまま
+//! 適用される）。
+//!
 //! ## keyed list（イシュー #344）
 //!
 //! [`keyed`] モジュールが提供する [`keyed::keyed_list`] は、実 DOM 直接更新
@@ -77,10 +90,12 @@
 
 use std::fmt::Write as _;
 
+mod bind;
 mod escape;
 pub mod keyed;
 mod tags;
 
+pub use bind::*;
 pub use escape::{escape_html, escape_html_into};
 pub use tags::*;
 

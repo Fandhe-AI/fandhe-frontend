@@ -1,15 +1,17 @@
-//! SSR エントリ（TASK-6.1c）: リクエストパスを rws-app のページ関数へ分岐なく
-//! つなぎ、「ステータス・Content-Type・HTML 文字列」に文字列化する純関数を
-//! 提供する。
+//! SSR エントリ（TASK-6.1c・#348）: リクエストパスを rws-app の `Loader` 経由
+//! データ解決 + ページ関数へ分岐なくつなぎ、「ステータス・Content-Type・HTML
+//! 文字列」に文字列化する純関数を提供する。
 //!
 //! # 呼び出し文脈・契約
 //!
 //! - `docs/api/app-api.md` 第 4 節の設計判断 5（REQ-6/REQ-7 受け入れ基準）に従い、
-//!   [`respond`] は [`rws_app::list_page`] / [`rws_app::detail_page`] /
-//!   [`rws_app::page_shell`] を SSR・SSG・（将来の）CSR のいずれのモードからも
-//!   **同一関数として分岐なく**呼ぶ。[`crate::ssg::generate`] は本関数が返す
-//!   [`SsrResponse::body`] をそのままファイルへ書き出すことで、SSR/SSG の
-//!   出力完全一致（REQ-6）を構造的に保証する。
+//!   [`respond`] / [`respond_with`] は [`rws_app::list_page`] /
+//!   [`rws_app::detail_page`] / [`rws_app::page_shell`] を SSR・SSG・（将来の）
+//!   CSR のいずれのモードからも**同一関数として分岐なく**呼ぶ。
+//!   [`crate::ssg::generate_with`] は本関数が返す [`SsrResponse::body`] を
+//!   そのままファイルへ書き出すことで、SSR/SSG の出力完全一致（REQ-6）を
+//!   構造的に保証する（SSG が独自に loader を呼ぶ描画経路は新設しない。
+//!   `docs/design/loader-trait-design.md` §4）。
 //! - `server/src/main.rs`（SSR エントリの CLI 版）から呼ばれる想定。HTTP
 //!   ソケット層は本関数の責務ではなく、`rws-dist-server`
 //!   （`dist-server/src/routes.rs`）が本関数を呼んで HTTP レスポンスへ変換する
@@ -20,6 +22,11 @@
 //!   （`router.rs` 参照）であり、HTML 化は必ず rws-app 経由（既定エスケープ
 //!   済み）で行う。`format!` によるタグ文字列の直接組み立ては行わない
 //!   （`coding-rust.md`）。
+//! - データ取得は [`rws_app::Loader`]（#347・イシュー #346 設計確定書）経由に
+//!   統一する。[`respond`] は既定 loader（[`rws_app::DemoItemsLoader`] /
+//!   [`rws_app::DemoItemDetailLoader`]）で [`respond_with`] を呼ぶ薄い
+//!   互換エントリであり、公開シグネチャは #347 以前から非破壊（`main.rs`・
+//!   `dist-server` は無修正のまま利用継続できる）。
 //!
 //! # セキュリティ不変条件
 //!
@@ -27,13 +34,22 @@
 //!   リクエスト由来の文字列をヘッダ相当の値へ流さない（ヘッダインジェクション
 //!   対策）。
 //! - 未知の `id`（`/items/:id`）は 404 ステータス + `detail_page(None)` の
-//!   固定文言 HTML を返す。内部パス・スタックトレース等は含めない
+//!   固定文言 HTML を返す（`Loader::Error` ではなく `Output = None` として
+//!   表現される契約。設計書 §3.3）。内部パス・スタックトレース等は含めない
 //!   （`security.md`「機微情報の露出」）。
+//! - loader が [`rws_app::Loader::Error`] を返した場合は
+//!   [`loader_error_response`] が組み立てる 500 固定文言応答を返す
+//!   （fail-closed、設計書 §5）。**`L::Error` / `D::Error` の値自体は一切
+//!   参照しない**（`Display`/`Debug` を呼ばない）ため、loader 実装が内部
+//!   パス・接続情報等を `Error` に含めていても応答へ混入する経路が構造的に
+//!   存在しない（`security.md`「機微情報の露出」・設計書 §9-5）。
 //! - 未一致パスは `None` を返すのみで `panic!` しない（呼び出し側が 404 応答を
 //!   組み立てる）。
 
 use crate::router::Router;
-use rws_app::{demo_items, detail_page, list_page, page_shell, Item};
+use rws_app::{
+    detail_page, list_page, page_shell, DemoItemDetailLoader, DemoItemsLoader, Item, Loader,
+};
 use std::sync::OnceLock;
 
 /// [`Router`] に登録するページ種別。ハンドラ型は本モジュール外に公開しない
@@ -84,44 +100,90 @@ fn page_router() -> &'static Router<PageRoute> {
     ROUTER.get_or_init(build_page_router)
 }
 
-/// リクエストパスを解決し、[`SsrResponse`] を返す。
+/// リクエストパスを解決し、既定 loader（[`DemoItemsLoader`] /
+/// [`DemoItemDetailLoader`]）で [`SsrResponse`] を返す。
 ///
 /// `rws-dist-server`（HTTP 配信）・`server/src/main.rs`（SSR エントリ CLI）・
 /// [`crate::ssg::generate`]（SSG）のいずれからも同一実装を共有する
-/// （REQ-6/REQ-7 受け入れ基準）。未一致パスは `None`（呼び出し側が 404 応答を
-/// 組み立てる。本関数自身は固定 404 文言を持たない＝呼び出し文脈ごとの
-/// 404 表現差異を許容する）。
+/// （REQ-6/REQ-7 受け入れ基準）。loader を差し替えたい呼び出し元（テスト等）は
+/// [`respond_with`] を直接使う。公開シグネチャは #347 以前から非破壊
+/// （`main.rs`・`dist-server` は無修正のまま利用継続できる）。
 pub fn respond(path: &str) -> Option<SsrResponse> {
+    respond_with(&DemoItemsLoader, &DemoItemDetailLoader, path)
+}
+
+/// loader を差し替え可能なジェネリック版。`where` 束縛で `Loader::Output` を
+/// ページ関数（[`rws_app::list_page`] / [`rws_app::detail_page`]）の引数型へ
+/// 型接続する（設計書 §3.4「型で保証する範囲」を server 側にも適用）。
+///
+/// 一覧・詳細のいずれも `rws_app::assemble_list_page` /
+/// `assemble_detail_page`（`Node` のみを返すヘルパー）は使わず、
+/// `loader.load()` → 判定 → ページ関数の順で自前に組み立てる。理由は
+/// ルートごとに異なる:
+///
+/// - 一覧（`/`）: `list_loader.load(&())` を解決し `list_page(&items)` を
+///   呼ぶ。`Err(_)` は [`loader_error_response`] の 500 固定文言応答に変換
+///   する（`Ok`/`Err` の 2 値のみで `Vec<Item>` の中身自体はステータス判定に
+///   関与しない）。`assemble_list_page` ではなく `list_page` を直接呼ぶのは、
+///   `core/tests/no_branching_across_modes.rs` の REQ-7 静的検証
+///   （`both_call_sites_reference_shared_app_functions_without_redefining`）
+///   が本ファイルで `rws_app::list_page` への直接参照（`use` import 経由を
+///   含む）を要求するため。`assemble_list_page` 経由では内部で `list_page`
+///   を呼んでいても本ファイル上に識別子が現れず検証に通らない。機能的には
+///   `assemble_list_page(list_loader, &())` と等価であり、`where` 束縛
+///   （`L: Loader<Output = Vec<Item>>`）による型接続の保証も同様に働く。
+/// - 詳細（`/items/:id`）: `detail_loader.load(&id)` → `Option` 判定 →
+///   [`detail_page`] の順で組み立てる（後述）。`Result` の中身
+///   （`Option<Item>` が `Some`/`None` のどちらか）が HTTP ステータス
+///   （200/404）の判定材料であり、`Node` のみを返す `assemble_detail_page`
+///   ではこの情報が失われるため直接組み立てる。
+pub fn respond_with<L, D>(list_loader: &L, detail_loader: &D, path: &str) -> Option<SsrResponse>
+where
+    L: Loader<Input = (), Output = Vec<Item>>,
+    D: Loader<Input = String, Output = Option<Item>>,
+{
     let route_match = page_router().resolve(path)?;
     let response = match route_match.handler {
-        PageRoute::List => {
-            let items = demo_items();
-            let html = page_shell("記事一覧", list_page(&items));
-            SsrResponse {
+        PageRoute::List => match list_loader.load(&()) {
+            Ok(items) => SsrResponse {
                 status: 200,
                 content_type: "text/html; charset=utf-8",
-                body: html,
-            }
-        }
+                body: page_shell("記事一覧", list_page(&items)),
+            },
+            Err(_) => loader_error_response(),
+        },
         PageRoute::Detail => {
-            let items = demo_items();
             // `Params::get` は router（rws-server）の契約どおり生文字列を返す。
-            // ここでは `Item::id` との文字列一致にのみ使い、HTML へは出力しない
-            // （既定エスケープ対象外。`id` はもともと `String` フィールド）。
-            let id = route_match.params.get("id");
-            let item = id.and_then(|id| items.iter().find(|it: &&Item| it.id == id));
-            match item {
-                Some(item) => {
-                    let html = page_shell("記事詳細", detail_page(Some(item)));
+            // loader への入力（`String`）としてのみ使い、HTML へは出力しない
+            // （既定エスケープ対象外。`Item::id` はもともと `String` フィールド）。
+            let id = match route_match.params.get("id") {
+                Some(id) => id.to_string(),
+                // ルートパターン `/items/:id` は `id` を必ずキャプチャするため
+                // 通常到達しないが、`Router` の内部実装変更に対する防御として
+                // 404 応答（機微情報を含まない）にフォールバックする。
+                None => {
+                    let html = page_shell("記事詳細", detail_page(None));
+                    return Some(SsrResponse {
+                        status: 404,
+                        content_type: "text/html; charset=utf-8",
+                        body: html,
+                    });
+                }
+            };
+            match detail_loader.load(&id) {
+                Ok(Some(item)) => {
+                    let html = page_shell("記事詳細", detail_page(Some(&item)));
                     SsrResponse {
                         status: 200,
                         content_type: "text/html; charset=utf-8",
                         body: html,
                     }
                 }
-                None => {
+                Ok(None) => {
                     // 未知の id: `detail_page(None)` が返す 404 相当のノードを
-                    // そのまま描画し、ステータス 404 と HTML ボディを一致させる。
+                    // そのまま描画し、ステータス 404 と HTML ボディを一致させる
+                    // （見つからない、は loader の `Error` ではなく `Output` の
+                    // 一部。設計書 §3.3）。
                     let html = page_shell("記事詳細", detail_page(None));
                     SsrResponse {
                         status: 404,
@@ -129,15 +191,70 @@ pub fn respond(path: &str) -> Option<SsrResponse> {
                         body: html,
                     }
                 }
+                Err(_) => loader_error_response(),
             }
         }
     };
     Some(response)
 }
 
+/// loader 解決失敗時の fail-closed 応答（設計書 §5）。
+///
+/// **呼び出し元は `Loader::Error` の値をこの関数へ渡さない**（意図的にシグ
+/// ネチャに含めない）。`Display`/`Debug` を一切経由しない構造にすることで、
+/// loader 実装が `Error` に内部パス・接続情報等を含めていても応答本文へ
+/// 混入する経路が型レベルで存在しない（`security.md`「機微情報の露出」・
+/// 設計書 §9-5）。body はノード木 API（[`page_shell`]）経由で組み立て、
+/// `format!` によるタグ文字列の直接組み立ては行わない（REQ-1）。
+fn loader_error_response() -> SsrResponse {
+    let body = page_shell(
+        "Internal Server Error",
+        rws_core::p(
+            vec![],
+            vec![rws_core::text(
+                "An internal error occurred while loading data.",
+            )],
+        ),
+    );
+    SsrResponse {
+        status: 500,
+        content_type: "text/html; charset=utf-8",
+        body,
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::respond;
+    use super::{respond, respond_with};
+    use rws_app::{DemoItemDetailLoader, DemoItemsLoader, Item, Loader};
+
+    /// 受け入れ条件 2 の直接証明用フィクスチャ: 一覧 loader が必ず失敗する。
+    /// `Error` にダミーの機微情報風文字列を含め、[`respond_with`] の 500
+    /// 応答本文へ一切混入しないことを検証する（内部パス・接続情報の非露出）。
+    struct FailingListLoader;
+
+    impl Loader for FailingListLoader {
+        type Input = ();
+        type Output = Vec<Item>;
+        type Error = String;
+
+        fn load(&self, _input: &()) -> Result<Vec<Item>, String> {
+            Err("db_password=dummy-secret /internal/path".to_string())
+        }
+    }
+
+    /// 詳細 loader 版の失敗フィクスチャ（[`FailingListLoader`] と同様）。
+    struct FailingDetailLoader;
+
+    impl Loader for FailingDetailLoader {
+        type Input = String;
+        type Output = Option<Item>;
+        type Error = String;
+
+        fn load(&self, _input: &String) -> Result<Option<Item>, String> {
+            Err("db_password=dummy-secret /internal/path".to_string())
+        }
+    }
 
     #[test]
     fn list_page_returns_200_and_escapes_xss_payload_title() {
@@ -172,5 +289,53 @@ mod tests {
     fn query_string_is_stripped_before_matching() {
         let list_with_query = respond("/?utm=1").expect("should match ignoring query string");
         assert_eq!(list_with_query.body, respond("/").unwrap().body);
+    }
+
+    /// 受け入れ条件 2: 一覧 loader が失敗した場合、500 固定文言応答になり、
+    /// `Loader::Error` に含めたダミー機微文字列が body・content_type の
+    /// いずれにも一切含まれないこと（fail-closed の直接証明）。
+    #[test]
+    fn list_route_returns_500_fixed_message_when_loader_fails_and_leaks_nothing() {
+        let response = respond_with(&FailingListLoader, &DemoItemDetailLoader, "/")
+            .expect("\"/\" should still match the route pattern");
+        assert_eq!(response.status, 500);
+        assert_eq!(response.content_type, "text/html; charset=utf-8");
+        assert!(response.body.contains("Internal Server Error"));
+        assert!(!response.body.contains("db_password"));
+        assert!(!response.body.contains("dummy-secret"));
+        assert!(!response.body.contains("/internal/path"));
+    }
+
+    /// 詳細 loader 版の fail-closed 回帰。既知 id でも loader が失敗すれば
+    /// 500 になり、`Ok(None)`（未知 id）は従来どおり 404 のままであること
+    /// （`Error` と `Output` の一部としての「見つからない」の区別を固定）。
+    #[test]
+    fn detail_route_returns_500_fixed_message_when_loader_fails_and_leaks_nothing() {
+        let response = respond_with(&DemoItemsLoader, &FailingDetailLoader, "/items/1")
+            .expect("\"/items/1\" should still match the route pattern");
+        assert_eq!(response.status, 500);
+        assert!(response.body.contains("Internal Server Error"));
+        assert!(!response.body.contains("db_password"));
+        assert!(!response.body.contains("dummy-secret"));
+        assert!(!response.body.contains("/internal/path"));
+
+        // 対照: 成功する既定 loader での未知 id は従来どおり 404（Error ではない）。
+        let missing = respond_with(&DemoItemsLoader, &DemoItemDetailLoader, "/items/999")
+            .expect("\"/items/999\" should match the pattern");
+        assert_eq!(missing.status, 404);
+    }
+
+    /// `respond()` は既定 loader で `respond_with` を呼ぶ薄いラッパーであり、
+    /// 既存 4 テストが証明する互換性がジェネリック版導入後も破れないことを
+    /// 直接固定する。
+    #[test]
+    fn respond_matches_respond_with_default_loaders() {
+        for path in ["/", "/items/1", "/items/999"] {
+            let via_respond = respond(path).expect("known path should match");
+            let via_respond_with = respond_with(&DemoItemsLoader, &DemoItemDetailLoader, path)
+                .expect("known path should match");
+            assert_eq!(via_respond.status, via_respond_with.status);
+            assert_eq!(via_respond.body, via_respond_with.body);
+        }
     }
 }

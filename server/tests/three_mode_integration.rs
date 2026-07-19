@@ -16,7 +16,9 @@
 //!   TASK-6.4（#50）のスコープであり別イシューで扱う。本テストは
 //!   TASK-6.1d の受け入れ基準（三モード統合の最小固定）のみを担う。
 
-use rws_app::{demo_items, detail_page, list_page, page_shell};
+use rws_app::{
+    assemble_list_page, demo_items, detail_page, list_page, page_shell, DemoItemsLoader,
+};
 use rws_core::render;
 use rws_server::ssg::generate;
 use rws_server::ssr::respond;
@@ -169,4 +171,19 @@ fn unmatched_paths_return_none_without_panicking() {
     assert!(respond("/items/").is_none());
     // クエリ文字列付きの未知パスも同様に `None`。
     assert!(respond("/no-such-route?x=1").is_none());
+}
+
+/// イシュー #348 引き継ぎ確認: `respond("/")` のボディが
+/// `page_shell("記事一覧", assemble_list_page(&DemoItemsLoader, &()).unwrap())`
+/// と一致すること（server 経路が `rws-app` の `Loader` 型接続と同一データ
+/// 経路であることの固定。`server/src/ssr.rs::respond_with` が
+/// `assemble_list_page` を実際に呼んでいることの間接証明）。
+#[test]
+fn respond_list_route_matches_assemble_list_page_via_default_loader() {
+    let via_respond = respond("/").expect("\"/\" should match").body;
+    let via_assemble = page_shell(
+        "記事一覧",
+        assemble_list_page(&DemoItemsLoader, &()).expect("DemoItemsLoader is Infallible"),
+    );
+    assert_eq!(via_respond, via_assemble);
 }
