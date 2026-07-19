@@ -97,7 +97,7 @@ impl std::fmt::Display for KeyedListError {
                 )
             }
             KeyedListError::ReservedAttr { attr } => {
-                write!(f, "keyed_list: reserved attribute \"{attr}\" is reserved")
+                write!(f, "keyed_list: attribute \"{attr}\" is reserved")
             }
         }
     }
