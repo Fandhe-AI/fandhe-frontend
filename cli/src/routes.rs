@@ -522,21 +522,24 @@ mod tests {
 
     #[test]
     fn extract_routes_reads_real_router_source() {
-        // 統合的な回帰テスト: このリポジトリの実 `server/src/`（`ssr.rs`）から
+        // 統合的な回帰テスト: このリポジトリの実 `app/src/`（`routes.rs`）から
         // 実際にルートを抽出できること（`rws-router-v1` 抽出器の実体確認）。
+        // イシュー #407 でルート定義の正本を server から app へ移設し、
+        // `structure.toml` の `[routing] definition_dir` も `"app"` へ追随した
+        // （抽出器本体は無改修、文字列走査のまま追随できることの回帰）。
         // `router.rs` 自体の rustdoc 例・`#[cfg(test)]` 内呼び出し・
-        // `server/tests/`（integration test、`src/` の外）は対象外
+        // `app/tests/`（integration test、`src/` の外）は対象外
         // （[`scan_root`] が `src/` 配下に限定して走査するため）。
         let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .expect("cli/ has a parent workspace root");
-        let routes = extract_routes(workspace_root, "server").expect("scan should succeed");
+        let routes = extract_routes(workspace_root, "app").expect("scan should succeed");
         assert!(routes
             .iter()
-            .any(|r| r.path == "/" && r.handler == "PageRoute::List"));
+            .any(|r| r.path == "/" && r.handler == "AppRoute::List"));
         assert!(routes
             .iter()
-            .any(|r| r.path == "/items/:id" && r.handler == "PageRoute::Detail"));
+            .any(|r| r.path == "/items/:id" && r.handler == "AppRoute::Detail"));
         assert_eq!(routes.len(), 2, "src/ scan should exclude test fixtures");
     }
 }
