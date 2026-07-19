@@ -144,6 +144,14 @@ PoC-7 は `role` を自由記述文字列としていたが、本スキーマで
   はこれを反映して `["core", "app"]` を宣言する（TASK-13.1c の
   `cargo metadata` 実体突き合わせが、この宣言と実際の path 依存の一致を
   検証する）。
+- `wasm-full`（`rws-wasm-full`）は TASK-CSR-loader（#349）で `csr` モジュール
+  （CSR 経路の loader 解決層）が `rws_app::Loader`/`assemble_list_page`/
+  `assemble_detail_page` を呼ぶようになったため、`rws-app` を
+  `wasm-full/Cargo.toml` の**通常依存**（`[dependencies]`、path 依存のみ・
+  外部クレート追加なし）に追加済みである。`directories.wasm-full.depends_on`
+  はこれを反映して `["core", "interactive", "app"]` を、
+  `directories.app.allowed_dependents` は `["server", "dist-server",
+  "wasm-full"]` を宣言する（対称性、本節冒頭 §2.3 検証 6）。
 - `[routing] definition_dir = "server"` は「ルートは `server/src/ssr.rs` の
   `Router::route(...)` 呼び出しに定義される」という規約を宣言する。
   実際の抽出処理（`rws-router-v1` 抽出器、`cli/src/routes.rs`）は

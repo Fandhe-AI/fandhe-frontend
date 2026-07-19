@@ -31,7 +31,7 @@ role = "component"
 crate = "rws-app"
 description = "モード非依存の共通コンポーネント（SSR/CSR/SSG から共通利用）"
 depends_on = ["core"]
-allowed_dependents = ["server", "dist-server"]
+allowed_dependents = ["server", "dist-server", "wasm-full"]
 
 [directories.server]
 role = "server-entrypoint"
@@ -44,7 +44,7 @@ allowed_dependents = ["dist-server"]
 role = "client-entrypoint"
 crate = "rws-wasm-full"
 description = "CSR/ハイドレーション フルセット構成（wasm32 ターゲット）"
-depends_on = ["core", "interactive"]
+depends_on = ["core", "interactive", "app"]
 
 [directories.wasm-thin]
 role = "client-entrypoint"

@@ -651,6 +651,15 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test hydration_browser
 
+      # TASK-CSR-loader（#349、親 #337）: CSR 経路の loader 解決
+      # （wasm-full/src/csr.rs）の三モード（SSR/SSG/CSR）表示整合・
+      # 固定エラービューの実ブラウザ統合テスト（wasm-full/tests/
+      # three_mode_browser.rs）。runtime_browser/hydration_browser ステップと
+      # 同じ check-wasm-full 存在ガードを再利用し、新規ガードは追加しない。
+      - name: Run wasm-full three-mode browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome wasm-full --test three_mode_browser
+
   # TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）: 同一文書内更新向け
   # ラッパー関数（`static/view-transitions.js` の `withViewTransition`、
   # TASK-8.2a／イシュー #61）の実効 LOC（コメント・空行を除く）が

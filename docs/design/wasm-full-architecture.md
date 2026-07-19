@@ -87,6 +87,7 @@ Phase 1（#336・`docs/design/dom-binding-update-design.md`）で束縛点最小
 | `events`（内部） | ルート要素へのイベント委譲配線（`click` / `input` を 1 回だけ登録）・`Closure` 保持 | TASK-11.2b（#75） |
 | `dom`（内部） | `paint()`（`rws_core::render()` 出力への `set_inner_html` 適用） | TASK-11.2c（#76） |
 | `hydration` | `data-hydrate-*` 属性からの状態復元の実配線 | **TASK-11.4（#81/#82）に予約**。本書では配置とシグネチャ方針のみ規定する |
+| `csr` | `rws_app::Loader` 経由の CSR データ解決層（`rws_app::Item` 系ページ）。DOM 非依存の純粋層で `Runtime`/`hydration` とは独立した別系統。初期表示（ハイドレーション）では呼ばない | TASK-CSR-loader（#349） |
 
 ### 3.2 公開 API 凍結表
 
@@ -96,6 +97,9 @@ Phase 1（#336・`docs/design/dom-binding-update-design.md`）で束縛点最小
 | `Runtime::mount` | `pub fn mount(root_id: &str, component: C) -> Result<Runtime<C>, JsValue>`（本体は TASK-11.2b/c） | CSR 経路: `component.view()` → `rws_core::render()` の既定エスケープ済み出力を `root_id` 要素へ `paint()` で反映し、続けてイベント委譲を 1 回だけ登録する |
 | `Runtime::hydrate` | `pub fn hydrate(root_id: &str, component: C) -> Result<Runtime<C>, JsValue> where C: rws_interactive::Component + rws_interactive::Hydrate`（本体は TASK-11.4 #81/#82） | ハイドレーション経路: SSR 済み DOM を再構築せず、`data-hydrate-*` 属性から状態復元＋イベント配線のみを行う（`docs/api/hydration-api.md` の最小ハイドレーション方針を継承） |
 | `dispatch_and_render_headless` | `pub fn dispatch_and_render_headless<C: rws_interactive::Component>(component: &mut C, name: &str, payload: &str) -> rws_core::Node`（本体は TASK-11.2b） | DOM 非依存のヘッドレス補助 API。`rws_interactive::dispatch` ＋ `component.view()` のみを行い、ネイティブ単体テスト・Node 計測（TASK-11.5/11.6）から DOM/wasm32 ターゲットを介さずに呼び出せる（PoC-5 の `dispatch_and_render_headless` 相当） |
+| `csr::resolve_list_node` | `pub fn resolve_list_node<L>(loader: &L) -> rws_core::Node where L: rws_app::Loader<Input = (), Output = Vec<rws_app::Item>>`（本体は TASK-CSR-loader #349） | CSR 経路の一覧画面 loader 解決。`rws_app::assemble_list_page` の `Ok` はそのまま返し、`Err(_)` は値に触れず `csr::loader_error_view()` へ変換する（fail-closed） |
+| `csr::resolve_detail_node` | `pub fn resolve_detail_node<D>(loader: &D, id: &str) -> rws_core::Node where D: rws_app::Loader<Input = String, Output = Option<rws_app::Item>>`（本体は TASK-CSR-loader #349） | CSR 経路の詳細画面 loader 解決。`Output = None`（404 相当）は `detail_page(None)` の既存契約のまま描画し、`Err(_)` のみ `csr::loader_error_view()` へ変換する |
+| `csr::loader_error_view` | `pub fn loader_error_view() -> rws_core::Node`（本体は TASK-CSR-loader #349） | CSR の fail-closed 固定エラービュー。`rws_app::Loader::Error` の値をシグネチャ上受け取らず、`server/src/ssr.rs::loader_error_response` と同型の構造的な機微情報非露出保証を持つ |
 
 ### 3.3 設計方針の要点（2 層構成）
 

@@ -26,6 +26,14 @@
 //! （`docs/design/wasm-full-architecture.md` 第 3.3 節、`#[wasm_bindgen]` はジェネリクスを
 //! エクスポートできないため `Runtime<C>` はここで具象化しない）。
 //!
+//! [`csr`] モジュール（TASK-CSR-loader・#349）は `rws_app::Loader` 経由の
+//! CSR データ解決（`rws_app::Item` 系ページ）を担う別系統の 2 層構成
+//! （DOM 非依存の純粋層）であり、[`Runtime`]/[`entry`]/[`hydration`]
+//! （`rws_interactive::Component`/`AppState` 系の初期表示・イベント処理）
+//! とは独立に、クライアント側で新規データ解決が必要になった場合の入口を
+//! 提供する。初期表示（ハイドレーション）では呼ばない
+//! （`docs/design/loader-trait-design.md` §4・§7.3、`csr` モジュール doc 参照）。
+//!
 //! 本クレートの自作コードは safe Rust のみとし、`unsafe` は `wasm-bindgen` /
 //! `web-sys` の FFI 境界（依存クレート内部・自動生成コード）に限定する
 //! （`docs/policy/unsafe-boundary.md` 第 2 節）。自作コードでの新規 `unsafe` 追加を
@@ -39,6 +47,7 @@
 
 #![deny(unsafe_code)]
 
+pub mod csr;
 pub mod events;
 pub mod hydration;
 

@@ -31,8 +31,9 @@
 
 use rws_interactive::{render_for_hydration, AppState};
 use rws_wasm_full::hydration::{read_hydration_attrs, restore_state, MAX_ATTR_VALUE_LEN};
+use rws_wasm_full::Runtime;
 use wasm_bindgen_test::*;
-use web_sys::{Document, Element};
+use web_sys::{Document, Element, Event, EventInit};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -205,5 +206,94 @@ fn read_hydration_attrs_then_restore_state_matches_pre_ssr_state_end_to_end() {
     assert_eq!(
         restored, state,
         "実 DOM 経由の read_hydration_attrs → restore_state が SSR 前の状態と完全に一致すること"
+    );
+}
+
+/// 合成 `click` イベントを生成する（`bubbles: true`）。
+/// `wasm-full/tests/runtime_browser.rs::bubbling_event` と同じ意図。
+fn bubbling_click() -> Event {
+    let init = EventInit::new();
+    init.set_bubbles(true);
+    Event::new_with_event_init_dict("click", &init).expect("Event::new must not fail")
+}
+
+/// 観点 5（TASK-CSR-loader・#349 受け入れ条件 1 の直接証明）: SSR 初期表示
+/// → ハイドレーション → クライアント更新の一連で loader 契約が一貫している
+/// こと。
+///
+/// `AppState::new()`（既定値）とは異なる「サーバー解決済み」状態を
+/// `render_for_hydration` で SSR 出力 → 実 DOM 展開 → `Runtime::hydrate` した
+/// とき、復元される状態が注入値そのものと一致すること（既定値の再取得・
+/// loader の再実行をしていない = 初期表示はサーバー解決済み状態の再利用、
+/// `docs/design/loader-trait-design.md` §4・§7.3・`wasm-full/src/lib.rs::Runtime::hydrate`
+/// の凍結契約）を固定する。続けて click イベントを dispatch し、注入値を
+/// 起点とした更新（`5 + 1 = 6`）が DOM へ反映されることまで検証する
+/// （`wasm-full/tests/runtime_browser.rs::hydrate_restores_state_from_existing_dom_and_wires_events`
+/// と同種の観点だが、本ファイルの責務である「SSR 出力 → 実 DOM 展開」の
+/// 明示的な起点から通しで固定する点が異なる）。
+#[wasm_bindgen_test]
+fn ssr_output_hydrate_then_click_updates_from_injected_server_resolved_state() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "hydration-browser-e2e-update-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    // 「サーバー解決済み」状態: 既定値（counter=0, items=[]）とは明確に
+    // 異なる値を注入する。loader 再実行や既定値の再取得が起きていれば
+    // ここでの復元値は既定値へ戻ってしまうため、このズレ自体が受け入れ
+    // 条件 1 の直接証明になる。
+    let mut injected_state = AppState::new();
+    injected_state.counter = 5;
+    injected_state.draft = "サーバー解決済みの下書き".to_string();
+    injected_state.items = vec!["サーバー解決済み項目".to_string()];
+
+    // render_for_hydration が付与する data-hydrate-* 属性を含む SSR 出力を
+    // 実 DOM へ展開する（`render_ssr_into` 経由、rws_core::render 経由の
+    // フィクスチャ生成のみで format!/raw_html() は使わない）。
+    let _root = render_ssr_into(&placeholder, &injected_state);
+
+    // AppState::view() のルート要素固定 id "interactive-root" を
+    // Runtime::hydrate の root_id として使う（runtime_browser.rs と同じ前提。
+    // render_ssr_into が展開した DOM 上の該当要素をそのまま対象とする）。
+    let runtime = Runtime::hydrate("interactive-root", AppState::new())
+        .expect("hydrate must succeed for well-formed SSR output");
+
+    assert_eq!(
+        runtime.component().counter,
+        injected_state.counter,
+        "hydrate 後の状態が注入した「サーバー解決済み」状態と一致すること \
+         （初期表示は loader を再実行せずサーバー解決済み状態の注入を再利用する契約）"
+    );
+    assert_eq!(
+        runtime.component().draft,
+        injected_state.draft,
+        "draft も注入値のまま復元されること（既定値への再取得が起きていないこと）"
+    );
+    assert_eq!(
+        runtime.component().items,
+        injected_state.items,
+        "items も注入値のまま復元されること"
+    );
+
+    // クライアント更新: 注入値（counter=5）を起点とした increment が
+    // DOM へ反映されることを確認する（受け入れ条件 1 の「クライアント更新」
+    // 区間の直接証明）。
+    let button = placeholder
+        .query_selector("[data-testid='inc-btn']")
+        .expect("query_selector must not fail")
+        .expect("increment button must exist in hydrated DOM");
+    button
+        .dispatch_event(&bubbling_click())
+        .expect("dispatch_event must not fail");
+
+    assert_eq!(
+        runtime.component().counter,
+        6,
+        "注入値（5）を起点としたクライアント更新（+1 = 6）が状態へ反映されること"
+    );
+    assert!(
+        placeholder.inner_html().contains("カウント: 6"),
+        "注入値を起点とした更新が実 DOM へ反映されていること: {}",
+        placeholder.inner_html()
     );
 }
