@@ -39,10 +39,13 @@ frontend-framework/
 │   │       └── workflows/
 │   │           ├── deny.yml            # 禁止クレート追加を CI でブロックするテンプレートワークフロー（TASK-4.2 / REQ-4）
 │   │           └── npm-asset-gate.yml  # NPM 静的アセットゲート（install.sh 経由）のテンプレートワークフロー（REQ-12, イシュー #316）
-│   └── app/                  # `fw new --template app`（イシュー #378）: rws-core/rws-app 依存の拡充テンプレート
-│       ├── src/main.rs       # Loader・束縛点 API（bind_text/keyed_list）・render の実体サンプル
-│       ├── vendor/           # rws-core / rws-app のソース vendor 同梱（publish=false のため。正本との乖離は cli/tests/template_vendor_drift.rs が検知）
-│       └── static/embed.html # CSR マウント骨格（templates/embed/embed.html の同梱コピー）
+│   ├── app/                   # `fw new --template app`（イシュー #378）: rws-core/rws-app 依存の拡充テンプレート
+│   │   ├── src/main.rs       # Loader・束縛点 API（bind_text/keyed_list）・render の実体サンプル
+│   │   ├── vendor/           # rws-core / rws-app のソース vendor 同梱（publish=false のため。正本との乖離は cli/tests/template_vendor_drift.rs が検知）
+│   │   └── static/embed.html # CSR マウント骨格（templates/embed/embed.html の同梱コピー）
+│   └── embed/                 # `fw new --template embed`（イシュー #410）: 静的単一ファイルの部分埋め込み構成（cargo パッケージなし）
+│       ├── embed.html        # TASK-7.1a（#52）正本（templates/app/static/embed.html と同一）
+│       └── structure.toml    # fw gate 静的専用（asset-only）モードの明示宣言（role = "asset" のみ、crate キーなし）
 └── .claude/
     ├── agents/               # カテゴリ別 sub-agent 定義
     ├── rules/                # 委譲・コーディング・セキュリティ規約

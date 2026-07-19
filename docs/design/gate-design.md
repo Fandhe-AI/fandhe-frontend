@@ -269,6 +269,45 @@ A05）。JSON 契約（`checks[].name`/`passed`/`output` の形状、PoC-7 互�
 `fw new` テンプレート vendor 配下の弱体化検出（`template_vendor_drift.rs`
 が別途担保）は本イシューのスコープ外。
 
+### 2.5 静的専用（asset-only）プロジェクトの判定（イシュー #410）
+
+`fw new --template embed` が生成する「静的単一ファイルの部分埋め込み構成」
+（REQ-7）は cargo パッケージを一切持たない。この構成では cargo 系 4 チェック
+（`type_check`/`lint`/`test`/`policy`）は検証対象クレートが存在せず、
+「検証不能」と「検証したが違反なし」を区別できないまま §3 の宣言クレート
+0 件 fail-closed（[`no_declared_crates_message`]）に落ちてしまう。
+
+`fw gate`（[`is_asset_only_project`]）は以下の条件を**すべて**満たす場合に
+限り、これを静的専用プロジェクトの明示的オプトインと認識する:
+
+- 宣言クレートが 0 件（どの `[directories.*]` も `crate = "..."` を持たない）
+- 宣言ディレクトリが 1 件以上存在し、**全件**が `role = "asset"` である
+
+両方を満たす場合、`type_check`/`lint`/`test`/`policy` の 4 チェックは
+cargo を一切起動せず、`passed: true` と決定的な not-applicable 文言
+（`static-only project (all directories declare role = "asset" with no
+crate): cargo-based check not applicable`）で PASS 化する
+（[`not_applicable_check`]）。
+
+**明示宣言によるオプトインであり黙示的 PASS ではない**（security.md
+A05）。`crate` キーの削除し忘れ等の設定不備で非 asset ロールが 1 件でも
+混在していれば `is_asset_only_project` は `false` を返し、従来どおり
+[`no_declared_crates_message`] による fail-closed（BLOCKED）が働く。
+
+**テキスト走査ベースの保険層は継続実行**: `default_escape_check`・
+`url_validation_check` は cargo パッケージの有無に依存しない純粋関数
+走査であり、静的専用モードでも通常どおり実行する。`role = "asset"` の
+`root` 慣習ディレクトリ配下（プロジェクトルート直下 `src/`）に Rust
+コードが混入し、そこに未レビューの `raw_html()` 呼び出しが含まれる場合は
+`default_escape_check` が検出し `BLOCKED` にする（`cli/tests/new_gate_e2e.rs::
+fw_new_embed_template_gate_detects_injected_rust_violation` が回帰固定）。
+静的専用モードは「cargo 系チェックの対象が存在しない」ことの明示化に
+限定され、検証の全面停止ではない。
+
+**JSON 契約への影響なし**: `checks[].name`/`passed`/`output` の形状・
+6 チェックの名前と順序は不変。既存クライアント（AI 自己保守フック・CI）は
+`not_applicable_check` の `passed: true` を通常の PASS と同様に扱える。
+
 ## 3. fail-closed 原則
 
 `fw gate` は「検証できないこと」を暗黙の PASS として扱わない
@@ -279,7 +318,7 @@ A05）。JSON 契約（`checks[].name`/`passed`/`output` の形状、PoC-7 互�
 |------|------|
 | `structure.toml` の読み込み・パース失敗 | ゲート全体を即座に `BLOCKED`（他チェックを実行しない。宣言クレート一覧が定まらず以降のチェックが無意味になるため） |
 | `structure.toml` のセマンティック検証（[`StructureManifest::validate`]）失敗 | ゲート全体を即座に `BLOCKED` |
-| 宣言クレートが 0 件（`structure.toml` にどのディレクトリも `crate = "..."` を持たない） | `type_check`/`lint`/`test` を `-p` なしのワークスペース全体検証へフォールバックせず、各チェックを個別に failed とする（[`no_declared_crates_message`]。「検証対象なし＝ PASS」でも「範囲不明な全体検証」でもなく、設定不備として明示する） |
+| 宣言クレートが 0 件（`structure.toml` にどのディレクトリも `crate = "..."` を持たない） | `type_check`/`lint`/`test` を `-p` なしのワークスペース全体検証へフォールバックせず、各チェックを個別に failed とする（[`no_declared_crates_message`]。「検証対象なし＝ PASS」でも「範囲不明な全体検証」でもなく、設定不備として明示する）。**例外**: 宣言ディレクトリ全件が `role = "asset"` である場合のみ静的専用プロジェクトの明示的オプトインとみなし、`type_check`/`lint`/`test`/`policy` を not-applicable PASS 化する（§2.5、イシュー #410） |
 | `deny.toml` が存在しない | `cargo deny` を起動せず `policy` チェックを failed とする（`<project>/deny.toml` を唯一の情報源とする。本リポジトリ自身への自己適用時もこの契約は変更せず、リポジトリ直下へ `templates/default/deny.toml` と同一強度のポリシーを配置することで解決する。イシュー #372、workspace 参照解決方式は gate の fail-closed 契約を複雑化させるため不採用） |
 | `clippy.toml` の欠落・`disallowed-methods` エントリ欠落 | `cargo clippy` を起動せず `lint` チェックを failed とする（§2.3） |
 | clippy component が runner に未導入（`cargo clippy --version` 疎通確認失敗） | `cargo clippy` 本実行を起動せず `lint` チェックを `environment error:` 付きで failed とする（§2.3a、イシュー #292） |
@@ -360,6 +399,7 @@ A05）。JSON 契約（`checks[].name`/`passed`/`output` の形状、PoC-7 互�
 | §2.3（clippy ポリシー健全性） | `clippy_policy_is_configured`（292-302 行目）、`clippy_policy_check`（315-329 行目） |
 | §2.3a（環境エラーのプリフライト、イシュー #292） | `clippy_environment_preflight`・`cargo_deny_environment_preflight`（`ENVIRONMENT_ERROR_PREFIX` 定数とあわせて `run_cargo_clippy`/`policy_check` 直前で呼び出し） |
 | §2.4（URL 属性検証の弱体化検出、イシュー #401） | `url_validation_check`（U1〜U3 集約）、`find_code_context_call_positions`（`find_raw_html_call_positions` の needle 引数化・共通化）、`is_fn_definition_call`（U3 の定義行除外）、`check_url_sink_guard_cooccurrence`（U1）、`check_core_url_validation_module`（U2）、`check_core_guard_calls_exist`（U3）、`walk_rs_files`（`scan_dir_for_violations` と共有する走査基盤） |
+| §2.5（静的専用プロジェクトの判定、イシュー #410） | `is_asset_only_project`・`not_applicable_check`・`STATIC_ONLY_NOT_APPLICABLE_MESSAGE`（`run_all_checks` からの分岐呼び出し） |
 | §3（fail-closed） | `run_gate`（97-153 行目、structure.toml 段階）、`no_declared_crates_message`（219-231 行目）、`run_locked_cargo_subcommand`（237-262 行目）、`run_cargo_clippy`（331-369 行目）、`policy_check`（383-405 行目）、`clippy_environment_preflight`/`cargo_deny_environment_preflight`（イシュー #292）、`check_core_url_validation_module`（core role 宣言時の URL_ATTRS モジュール欠落 fail-closed、イシュー #401） |
 | §4（集約規則・CLI 契約） | `aggregate`（189-204 行目）、`render_report`（673-697 行目）、`main.rs` の終了コード規約（`main.rs` 33-35 行目） |
 | §5（セキュリティ不変条件） | `RealCommandRunner::run`（74-85 行目）、`truncate_output`（207-217 行目）、`OUTPUT_TRUNCATE_CHARS`（44 行目）、`scan_dir_for_violations`（579-597 行目）、`walk_rs_files`（symlink 非追従の共有実装、イシュー #401） |
@@ -382,7 +422,10 @@ name/順序と PASS 経路・`render_report` の JSON ラウンドトリップ�
 `default_escape_check_passes_on_this_repository_itself` による自己適用回帰を
 追補、イシュー #401 で `url_validation_check` の U1〜U3 単体テスト・
 `url_validation_check_passes_on_this_repository_itself` による自己適用回帰を
-追補）。本書執筆時点でこれら全テストは `cargo test -p rws-cli`・
+追補、イシュー #410 で `is_asset_only_project` の判定境界（全 asset ロール／
+宣言クレート存在／非 asset ロール混在の 3 分岐）・静的専用モードでの
+`run_all_checks` 全 PASS かつ cargo 未起動・`default_escape_check` の非
+バイパスを追補）。本書執筆時点でこれら全テストは `cargo test -p rws-cli`・
 `cargo test --workspace` でグリーンであることを確認済み。
 
 TASK-13.3c（#141、`policy`/`test` チェックの実連携固定）の対応:
