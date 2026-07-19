@@ -2,7 +2,7 @@
 //! （イシュー #293）。
 //!
 //! #137（TASK-13.2e: 影響範囲解析のテスト整備）クローズ時の留保事項のうち、
-//! `docs/impact-analysis-design.md` §3.4 テスト観点 2「`rws-wasm-client` /
+//! `docs/design/impact-analysis-design.md` §3.4 テスト観点 2「`rws-wasm-client` /
 //! `rws-wasm-full` / `rws-wasm-thin` 各々を単独で含む場合の `high` 判定」の
 //! うち、既存シナリオ e2e（`cli/tests/scenarios/bugfix_escape.rs`）が
 //! `rws-wasm-client` のみをカバーしていた欠落分（`rws-wasm-thin`）を、

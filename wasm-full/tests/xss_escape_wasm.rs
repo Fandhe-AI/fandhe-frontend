@@ -14,7 +14,7 @@
 //!
 //! 本イシュー着手時点で #91（テスト設計サブタスク）は OPEN・未マージのため、
 //! 実装計画（#92）第 2 節のフォールバック方針に従い、`docs/spec/05-tasks.md`
-//! TASK-1.3 の記述と `docs/wasm-full-architecture.md` 第 3 節の公開面を根拠に
+//! TASK-1.3 の記述と `docs/design/wasm-full-architecture.md` 第 3 節の公開面を根拠に
 //! 本ファイルのテストケースを設計した。#91 の設計ドキュメントがマージされた
 //! 場合は、その設計との整合を別途レビューする（実装計画 §2 参照）。
 //!
@@ -46,7 +46,7 @@
 //! ペイロード集合は `core/tests/xss_escape.rs`（TASK-1.2・#8）と対応させる
 //! （`<script>` タグ注入・属性注入・`<img onerror>` の代表例）。
 //!
-//! # ハイドレーション経路の XSS 回帰（TASK-11.4c・#84、`docs/hydration-state-format.md`
+//! # ハイドレーション経路の XSS 回帰（TASK-11.4c・#84、`docs/api/hydration-state-format.md`
 //! 第 6 節「XSS 回帰」）
 //!
 //! `render_for_hydration`（`interactive/src/lib.rs`）が付与する `data-hydrate-*`
@@ -429,7 +429,7 @@ fn hydrate_restores_xss_payload_in_draft_without_escape_regression() {
 /// REQ-1 回帰（ハイドレーション経路・再描画後の実 DOM、TASK-11.4c・#84）:
 /// `Runtime::hydrate` で XSS ペイロードを含む `draft` を復元した後、
 /// `add_item` により `items` へ確定 → イベント配線経由で再描画された DOM でも
-/// エスケープ保証が保たれること（`docs/hydration-state-format.md` 第 6 節
+/// エスケープ保証が保たれること（`docs/api/hydration-state-format.md` 第 6 節
 /// 「XSS 回帰」が要求する「再描画した DOM」での検証）。
 #[wasm_bindgen_test]
 fn hydrate_then_repaint_via_wired_event_preserves_escape_guarantee_for_xss_payload() {

@@ -1,4 +1,4 @@
-//! `wasm-node-smoke` サブコマンド: `docs/wasm-build-integration.md` §6.4 が
+//! `wasm-node-smoke` サブコマンド: `docs/design/wasm-build-integration.md` §6.4 が
 //! 手順として文書化していた「`rws-wasm-thin`（`web-sys` 非依存な薄い JS グルー
 //! 方式ランタイム）を Node.js から `require()` して素早くロジック確認する」
 //! 開発フローを、イシュー #297（TASK-10.2 残課題、出典 PR #220 §10 スコープ外

@@ -4,7 +4,7 @@
 //! トップレベル公開シンボル（`pub fn` / `pub struct` / `pub enum` / `pub const`）を
 //! 文字列走査で列挙する。PoC-7（`docs/spec/03-poc/ai-self-maintenance/tools/poc7_tool.py`）
 //! の `component_boundary` 抽出と同等の粒度（トップレベルのみ・AST 精密化はスコープ外、
-//! `docs/structure-manifest.md` §5）を Rust で再実装したもの。
+//! `docs/design/structure-manifest.md` §5）を Rust で再実装したもの。
 //!
 //! パストラバーサル対策は [`crate::routes::resolve_within_root`] を共有する
 //! （走査対象ディレクトリ名は `structure.toml` の検証済み `directories` キーのみ）。

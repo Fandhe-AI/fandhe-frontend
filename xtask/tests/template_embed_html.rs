@@ -3,7 +3,7 @@
 //! REQ-7 の受け入れ基準「最小埋め込み構成とフルスタック構成がコンポーネント
 //! ロジックに一切分岐を持たない同一関数を呼び出すこと」を成立させる、
 //! 最小埋め込み側の製品版テンプレートの構造的不変条件を機械的に固定する。
-//! `docs/hydration-api.md` 第 3 節で凍結された `mount_csr` 呼び出し契約への
+//! `docs/api/hydration-api.md` 第 3 節で凍結された `mount_csr` 呼び出し契約への
 //! 準拠と、既定エスケープ迂回経路（`innerHTML` 直接代入・`document.write`・
 //! 外部 CDN 参照）が入り込んでいないことを検証する
 //! （`.claude/rules/security.md` サプライチェーン対策・REQ-1 非弱体化）。
@@ -73,7 +73,7 @@ fn embed_html_calls_mount_csr_via_frozen_contract() {
     );
     assert!(
         contents.contains("rws_wasm_client.js"),
-        "docs/hydration-api.md 第 3 節が定める rws-wasm-client のグルー \
+        "docs/api/hydration-api.md 第 3 節が定める rws-wasm-client のグルー \
          コード（rws_wasm_client.js）からの import が見つからない"
     );
     // "await init()" の出現位置が mount_csr(...) 呼び出しより前であることまで
@@ -150,12 +150,12 @@ fn embed_html_does_not_use_deprecated_view_transition_meta_tag() {
 
 #[test]
 fn embedding_guide_references_embed_html_template() {
-    let guide_path = workspace_root().join("docs/embedding-guide.md");
+    let guide_path = workspace_root().join("docs/guides/embedding-guide.md");
     let guide_contents = std::fs::read_to_string(&guide_path)
         .unwrap_or_else(|_| panic!("{} の読み込みに失敗した", guide_path.display()));
     assert!(
         guide_contents.contains("templates/embed/embed.html"),
-        "docs/embedding-guide.md が templates/embed/embed.html へ言及して \
+        "docs/guides/embedding-guide.md が templates/embed/embed.html へ言及して \
          いない（テンプレートとガイドの相互参照が担保されていない）"
     );
 }

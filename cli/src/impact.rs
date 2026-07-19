@@ -11,17 +11,17 @@
 //! として切り出す。走査（定義元特定・使用箇所列挙・ルート突き合わせ）は本ファイルが
 //! 実装する（TASK-13.2b, #134）。JSON シリアライズ（[`render_report`]、`verdict`
 //! 文字列生成含む）も本ファイルが実装する（TASK-13.2d, #136、
-//! `docs/impact-analysis-design.md` §3.5 の JSON スキーマに準拠、
+//! `docs/design/impact-analysis-design.md` §3.5 の JSON スキーマに準拠、
 //! `json_out::escape_str` を唯一の文字列エスケープ経路として使う）。CLI 接続
 //! （`main.rs` へのディスパッチ・終了コード処理・[`render_report`] の呼び出し）は
 //! #135 の担当で、[`analyze`] は `cargo metadata` の実行（`metadata::fetch`）を
 //! 呼び出し元（#135 の CLI 層）に委ねる契約とする
-//! （詳細は `docs/impact-analysis-design.md` §8 を参照）。
+//! （詳細は `docs/design/impact-analysis-design.md` §8 を参照）。
 //!
 //! アルゴリズムは PoC-7（`docs/spec/03-poc/ai-self-maintenance/tools/poc7_tool.py`
 //! `cmd_impact`）を踏襲した「ファイル単位の粗粒度ヒューリスティック」であり、
 //! AST 解析ベースの精密化は将来スコープとして明示的に見送る
-//! （`docs/spec/05-tasks.md` TASK-13.2、`docs/impact-analysis-design.md` §7）。
+//! （`docs/spec/05-tasks.md` TASK-13.2、`docs/design/impact-analysis-design.md` §7）。
 
 use crate::component_boundary;
 use crate::json_out;
@@ -35,7 +35,7 @@ use std::path::Path;
 ///
 /// 判定は [`judge_breaking_risk`] が一元的に行う。PoC-7 と同じ 3 段階
 /// （`high` / `medium` / `low`）を製品仕様として踏襲する
-/// （`docs/impact-analysis-design.md` §3.4）。
+/// （`docs/design/impact-analysis-design.md` §3.4）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BreakingRisk {
     High,
@@ -66,7 +66,7 @@ impl fmt::Display for BreakingRisk {
 /// 追加条件に使っていたが、製品ワークスペースは WASM 配布クレートが
 /// `rws-wasm-client` / `rws-wasm-full` / `rws-wasm-thin` の 3 つに分かれている
 /// （`docs/spec/06-roadmap.md` MS-3〜MS-4）。いずれかへの波及でも `high` 側に
-/// 倒す（安全側・過検知容認、`docs/impact-analysis-design.md` §3.2）。
+/// 倒す（安全側・過検知容認、`docs/design/impact-analysis-design.md` §3.2）。
 ///
 /// #134（依存グラフ構築）・#135（CLI 接続）はここを参照し、実測した
 /// `affected_crates` との突き合わせに同じ定数を使う契約とする（二重管理しない）。
@@ -87,7 +87,7 @@ const MEDIUM_RISK_CRATE_THRESHOLD: usize = 1;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AffectedFile {
     /// ワークスペースルート相対パス（絶対パス・環境情報を含めない、
-    /// `docs/impact-analysis-design.md` §6 A09 対策）。
+    /// `docs/design/impact-analysis-design.md` §6 A09 対策）。
     pub file: String,
     /// シンボルが出現した行番号（1 始まり、昇順）。
     pub lines: Vec<usize>,
@@ -97,7 +97,7 @@ pub struct AffectedFile {
 ///
 /// フィールド構成は PoC-7 の `cmd_impact` 戻り値（JSON キー）と互換を保ち、
 /// 製品固有の判断（多重定義の扱い）を `ambiguous` として追加する
-/// （`docs/impact-analysis-design.md` §3.3・§6.4 の対応表を参照）。
+/// （`docs/design/impact-analysis-design.md` §3.3・§6.4 の対応表を参照）。
 /// JSON へのシリアライズは #136 が `json_out.rs` の方針
 /// （`escape_str` を通す・値をそのまま埋め込まない）に従って実装する。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -128,7 +128,7 @@ pub struct ImpactReport {
 /// `fw impact` 走査・検証段階の失敗。
 ///
 /// `fw structure` / `fw gate` と同じ「黙示的成功を返さない」方針
-/// （`docs/structure-manifest.md` §4/§5、security.md A05）を踏襲し、
+/// （`docs/design/structure-manifest.md` §4/§5、security.md A05）を踏襲し、
 /// 定義元が見つからない場合も曖昧に成功させずエラーとする。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ImpactError {
@@ -164,7 +164,7 @@ impl std::error::Error for ImpactError {}
 /// ゼロ方針・`coding-rust.md`）。ここを通らない入力（空文字・記号・数字始まり等）
 /// は #135 が使用法エラー（終了コード 2）として拒否する契約であり、
 /// 検証を経ないシンボル文字列がシェル・ファイル走査へ渡ることはない
-/// （`docs/impact-analysis-design.md` §6 A03 対策）。
+/// （`docs/design/impact-analysis-design.md` §6 A03 対策）。
 ///
 /// # Errors
 ///
@@ -188,7 +188,7 @@ pub fn validate_symbol(symbol: &str) -> Result<(), ImpactError> {
 /// この関数を呼ぶ想定の共有ロジック。
 ///
 /// コメント・文字列リテラル内の一致も除外しない（PoC-7 と同じ「過検知容認」
-/// 方針、`docs/impact-analysis-design.md` §3.2）。
+/// 方針、`docs/design/impact-analysis-design.md` §3.2）。
 pub fn contains_symbol_at_boundary(haystack: &str, symbol: &str) -> bool {
     if symbol.is_empty() {
         return false;
@@ -218,7 +218,7 @@ pub fn contains_symbol_at_boundary(haystack: &str, symbol: &str) -> bool {
 
 /// 影響クレート数・クライアント境界クレートへの波及から `breaking_risk` を判定する。
 ///
-/// PoC-7 の `cmd_impact` の判定式をそのまま踏襲する（`docs/impact-analysis-design.md`
+/// PoC-7 の `cmd_impact` の判定式をそのまま踏襲する（`docs/design/impact-analysis-design.md`
 /// §3.4）:
 /// - `affected_crates` が [`HIGH_RISK_CRATE_THRESHOLD`] 件以上、または
 ///   [`CLIENT_BOUNDARY_CRATES`] のいずれかを含む → `High`
@@ -243,7 +243,7 @@ pub fn judge_breaking_risk(affected_crates: &[String]) -> BreakingRisk {
 /// `breaking_risk` / 影響ルート有無 / 多重定義から人間承認要否を判定する。
 ///
 /// `breaking_risk` が `High` / `Medium`、影響ルートが 1 件以上、または
-/// 定義元が曖昧（`ambiguous`）のいずれかで `true`（`docs/impact-analysis-design.md`
+/// 定義元が曖昧（`ambiguous`）のいずれかで `true`（`docs/design/impact-analysis-design.md`
 /// §3.4）。`ambiguous` は PoC-7 にない製品固有の追加条件: 定義元特定の前提
 /// （シンボル 1 つに定義は 1 つ）が崩れている場合、他の判定材料
 /// （`affected_crates` 等）自体の信頼性が下がるため、常に人間承認へ倒す
@@ -272,7 +272,7 @@ struct Definition {
 /// `routes::ExtractError` を [`ImpactError::Scan`] に変換する。
 ///
 /// ファイル列挙・走査は `routes::scan_root` / `routes::list_rs_files`
-/// （パストラバーサル対策済み、`docs/impact-analysis-design.md` §3.3 必須事項）
+/// （パストラバーサル対策済み、`docs/design/impact-analysis-design.md` §3.3 必須事項）
 /// のみを経由し、本ファイルが独自のパス解決・ファイル列挙を新設しないための
 /// 変換窓口。
 fn scan_err(e: routes::ExtractError) -> ImpactError {
@@ -285,7 +285,7 @@ fn scan_err(e: routes::ExtractError) -> ImpactError {
 /// `routes::resolve_within_root` は「ワークスペースルート直下 1 段のディレクトリ
 /// 名」のみを受け付ける契約であるため、`manifest_dir` がワークスペースルート
 /// 直下の単一ディレクトリでない場合（多段パス・ルート外）は fail-closed で
-/// [`ImpactError::Scan`] を返す（`docs/impact-analysis-design.md` §6 A05 対策）。
+/// [`ImpactError::Scan`] を返す（`docs/design/impact-analysis-design.md` §6 A05 対策）。
 fn member_dir_name(workspace_root: &Path, member: &MemberPackage) -> Result<String, ImpactError> {
     let rel = member
         .manifest_dir
@@ -324,7 +324,7 @@ fn member_dir_name(workspace_root: &Path, member: &MemberPackage) -> Result<Stri
 /// 走査で得た絶対パスをワークスペースルート相対パス（`/` 区切り）に正規化する。
 ///
 /// 出力（[`AffectedFile::file`] 等）に絶対パス・環境情報を残さないための変換
-/// （`docs/impact-analysis-design.md` §6 A09 対策）。`routes::resolve_within_root`
+/// （`docs/design/impact-analysis-design.md` §6 A09 対策）。`routes::resolve_within_root`
 /// が返す走査起点は `canonicalize` 済みのため、比較対象の `workspace_root` 側も
 /// 同じく `canonicalize` してから `strip_prefix` する。
 fn to_workspace_relative(workspace_root: &Path, file: &Path) -> Result<String, ImpactError> {
@@ -339,7 +339,7 @@ fn to_workspace_relative(workspace_root: &Path, file: &Path) -> Result<String, I
 }
 
 /// ワークスペース全 member を走査し、トップレベル公開宣言としてシンボルを
-/// 定義しているファイルを列挙する（定義元特定、`docs/impact-analysis-design.md`
+/// 定義しているファイルを列挙する（定義元特定、`docs/design/impact-analysis-design.md`
 /// §3.1）。
 ///
 /// 列挙は `routes::scan_root` / `routes::list_rs_files`（シンボリックリンク
@@ -379,7 +379,7 @@ fn find_definitions(
 }
 
 /// ワークスペース全 member を走査し、シンボルの使用箇所（定義元ファイル自身を
-/// 除く）を行番号付きで列挙する（使用箇所走査、`docs/impact-analysis-design.md`
+/// 除く）を行番号付きで列挙する（使用箇所走査、`docs/design/impact-analysis-design.md`
 /// §3.2）。
 ///
 /// 行単位に [`contains_symbol_at_boundary`] を適用する。コメント・文字列リテラル
@@ -421,7 +421,7 @@ fn scan_usages(
 /// 依存している他クレート）を BFS で辿った推移閉包を返す（`seeds` 自身を含む）。
 ///
 /// 「A に依存する B が影響を受けるなら、B にさらに依存する C も波及候補として
-/// 保守的に含める」（`docs/impact-analysis-design.md` §5）を実装する純粋関数。
+/// 保守的に含める」（`docs/design/impact-analysis-design.md` §5）を実装する純粋関数。
 /// I/O を行わないため単体テストで `MemberPackage` を直接構築して検証できる。
 fn reverse_dependency_closure(
     members: &[MemberPackage],
@@ -473,7 +473,7 @@ fn crate_name_for_file(
 
 /// `affected_files` の内容を `routes::extract_routes_from_source` に通し、
 /// 抽出されたルートの `path` を重複除去・昇順ソートして返す
-/// （影響ルート突き合わせ、`docs/impact-analysis-design.md` §3.2）。
+/// （影響ルート突き合わせ、`docs/design/impact-analysis-design.md` §3.2）。
 ///
 /// ファイル単位の粗粒度突き合わせであり、`structure.toml` の
 /// `[routing].definition_dir` 宣言には依存しない（過検知容認）。
@@ -500,7 +500,7 @@ fn affected_route_paths(
 /// [`validate_symbol`] → [`find_definitions`] → [`scan_usages`] → seeds 構築 →
 /// [`reverse_dependency_closure`] → [`affected_route_paths`] →
 /// [`judge_breaking_risk`] / [`requires_human_approval`] の順で [`ImpactReport`]
-/// を構築する（`docs/impact-analysis-design.md` §3〜§5）。
+/// を構築する（`docs/design/impact-analysis-design.md` §3〜§5）。
 ///
 /// `cargo metadata` の実行（`metadata::fetch`）は呼び出し元の CLI 層（#135）が
 /// 行う契約とし、本関数は `&[MemberPackage]` を受け取る。これにより単体テストは
@@ -554,7 +554,7 @@ pub(crate) fn analyze(
     })
 }
 
-/// 人間可読な判定要約（`docs/impact-analysis-design.md` §3.5 の `verdict`
+/// 人間可読な判定要約（`docs/design/impact-analysis-design.md` §3.5 の `verdict`
 /// フィールド）を固定 2 値で生成する。
 ///
 /// 判定材料は `ImpactReport::requires_human_approval` のみを使う
@@ -562,7 +562,7 @@ pub(crate) fn analyze(
 /// ここで二重実装しない）。文言は英語で確定する: PoC-7 は日本語 2 値
 /// （「要人間承認」/「自動適用可」）だが、`japanese-style.md` は
 /// 「ユーザー向け文字列は仕様で指定がない限り英語」と規定し、
-/// `docs/impact-analysis-design.md` §3.5 の「PoC-7 互換」はフィールドの
+/// `docs/design/impact-analysis-design.md` §3.5 の「PoC-7 互換」はフィールドの
 /// 存在・意味・2 値構造の互換と解釈する（判断 D1、同 §3.5 に追記）。
 fn verdict_text(requires_human_approval: bool) -> &'static str {
     if requires_human_approval {
@@ -573,7 +573,7 @@ fn verdict_text(requires_human_approval: bool) -> &'static str {
 }
 
 /// `Vec<String>`（`defined_in_crates` / `defined_in_files`）を JSON スカラーへ
-/// 単数化する（`docs/impact-analysis-design.md` §3.5: 「複数なら先頭要素、
+/// 単数化する（`docs/design/impact-analysis-design.md` §3.5: 「複数なら先頭要素、
 /// `ambiguous` 参照」）。多重定義時も先頭要素をそのまま出力し、多重定義の
 /// 事実自体は `ambiguous` フィールドが伝える契約とするため、`ambiguous` の値
 /// では分岐しない。`analyze` は 0 件を `SymbolNotFound` として拒否するため
@@ -586,7 +586,7 @@ fn scalar_or_null(values: &[String]) -> String {
     }
 }
 
-/// `ImpactReport` を `docs/impact-analysis-design.md` §3.5 の JSON スキーマに
+/// `ImpactReport` を `docs/design/impact-analysis-design.md` §3.5 の JSON スキーマに
 /// 従い 1 行の JSON へシリアライズする（`fw structure` の
 /// `json_out::render` と同じくパイプ処理・他ツール読み込み前提で
 /// pretty-print はしない）。
@@ -1062,7 +1062,7 @@ mod tests {
         );
         let report = analyze(&ws.root, &[core, wasm_client], "render").expect("should analyze");
         // affected_crates は「使用箇所を含むクレート」を seed とした逆依存閉包
-        // （docs/impact-analysis-design.md §5）であり、定義元クレート自体は
+        // （docs/design/impact-analysis-design.md §5）であり、定義元クレート自体は
         // 別途使用されていない限り含まれない。ここでは rws-wasm-client のみが
         // 使用箇所を持ち、それに依存する他クレートは存在しないため単独になる。
         assert_eq!(report.affected_crates, vec!["rws-wasm-client".to_string()]);

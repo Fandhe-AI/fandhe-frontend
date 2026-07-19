@@ -5,7 +5,7 @@
 //! [`rws_wasm_full::dispatch_and_render_headless`]（DOM 非依存）までを
 //! 検証済みである。本ファイルはその先、`Runtime::mount`/`Runtime::hydrate`
 //! が実 DOM（headless Chromium）上で以下を満たすことを検証する
-//! （`docs/wasm-full-architecture.md` 第 3.2 節・第 5 節）。
+//! （`docs/design/wasm-full-architecture.md` 第 3.2 節・第 5 節）。
 //!
 //! 1. `Runtime::mount` → クリック（`increment`/`add_item`）→ DOM 更新反映
 //! 2. `input` イベント中は再描画がスキップされること（`events.rs` の
@@ -13,7 +13,7 @@
 //! 3. `rws_interactive::render_for_hydration` 出力相当の DOM への
 //!    `Runtime::hydrate` → 状態復元・イベント配線
 //! 4. 改ざんされた `data-hydrate-*` 属性 → panic せず初期状態 CSR フォール
-//!    バック（`docs/wasm-full-architecture.md` 第 4 節・判断 5）
+//!    バック（`docs/design/wasm-full-architecture.md` 第 4 節・判断 5）
 //! 5. XSS ペイロードを持つ状態での `Runtime::mount` → 実 DOM に `script`
 //!    要素が生成されないこと（REQ-1、`wasm-full/tests/xss_escape_wasm.rs`
 //!    が検証する `render_component_html` 単体の保証を `Runtime::mount` の
@@ -292,7 +292,7 @@ fn hydrate_restores_state_from_existing_dom_and_wires_events() {
 
 /// 改ざんされた `data-hydrate-*` 属性（数値パース不能な counter）は panic
 /// せず、初期状態での CSR 再描画へフォールバックすること（観点 4、
-/// `docs/wasm-full-architecture.md` 第 4 節・判断 5）。
+/// `docs/design/wasm-full-architecture.md` 第 4 節・判断 5）。
 #[wasm_bindgen_test]
 fn hydrate_falls_back_to_initial_state_csr_on_corrupted_attrs() {
     let window = web_sys::window().expect("window must exist");

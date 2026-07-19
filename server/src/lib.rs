@@ -5,7 +5,7 @@
 //! （`Cargo.toml` 参照）、HTTP ソケット層（TCP リッスン・hyper 処理等）は
 //! 一切持たない。実際の HTTP 配信は `rws-dist-server`
 //! （`dist-server/src/routes.rs`）が [`ssr::respond`] を呼んで担う
-//! （`docs/app-api.md` 第 4 節: axum 不採用の実測根拠に基づく設計判断）。
+//! （`docs/api/app-api.md` 第 4 節: axum 不採用の実測根拠に基づく設計判断）。
 //!
 //! - [`router`]: HTTP・HTML を一切知らないパスマッチングルーター
 //!   （TASK-7.2 系）。

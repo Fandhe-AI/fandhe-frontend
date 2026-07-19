@@ -1,6 +1,6 @@
 //! シナリオ 3「機能追加」の回帰テスト（TASK-13.4d、#147。親 TASK-13.4 #143）。
 //!
-//! `docs/scenario-regression-design.md`（TASK-13.4a・#144）§4.1 行 3・§4.2・§4.3・
+//! `docs/design/scenario-regression-design.md`（TASK-13.4a・#144）§4.1 行 3・§4.2・§4.3・
 //! §4.4 を単一の情報源とする。PoC-7 土台
 //! （`docs/spec/03-poc/ai-self-maintenance/scenarios/feature-search/`）の
 //! 実測値（`impact.json`: `affected_crates: ["rws-server"]` / `breaking_risk:

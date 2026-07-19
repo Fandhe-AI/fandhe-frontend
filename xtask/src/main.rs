@@ -51,7 +51,7 @@
 //!   CLI 契約の回帰テストは `xtask/tests/cli_check_image_size.rs`。
 //!
 //! - `wasm-node-smoke [--build-only]`: イシュー #297（TASK-10.2 残課題、出典
-//!   PR #220 §10 スコープ外節）。`docs/wasm-build-integration.md` §6.4 が
+//!   PR #220 §10 スコープ外節）。`docs/design/wasm-build-integration.md` §6.4 が
 //!   文書化していた nodejs ターゲット開発フロー（`cargo build --target
 //!   wasm32-unknown-unknown` → `wasm-bindgen --target nodejs` → `node -e
 //!   "require(...)"`）を自動化する（`wasm_node_smoke` モジュール）。
@@ -129,7 +129,7 @@ fn print_usage() {
     eprintln!("      #103). `--limit-mb` overrides the default for verification only.");
     eprintln!("  wasm-node-smoke [--build-only]");
     eprintln!("      Automate the nodejs-target dev workflow documented in");
-    eprintln!("      docs/wasm-build-integration.md §6.4 for rws-wasm-thin: verify the");
+    eprintln!("      docs/design/wasm-build-integration.md §6.4 for rws-wasm-thin: verify the");
     eprintln!("      installed wasm-bindgen-cli matches Cargo.lock's wasm-bindgen version,");
     eprintln!("      build for wasm32-unknown-unknown, generate `--target nodejs` bindings,");
     eprintln!("      and (unless --build-only) run a node smoke check including a default-");

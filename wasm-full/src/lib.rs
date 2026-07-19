@@ -8,10 +8,10 @@
 //! 本コミット時点（TASK-11.2b・#75／TASK-11.2c・#76／TASK-11.4b・#83／
 //! TASK-11.2d・#77 マージ済み）では [`events`]（イベント委譲配線）・
 //! [`dom::render_component_html`]（DOM 非依存の描画純粋関数）・[`hydration`]
-//! （`data-hydrate-*` 属性からの状態復元、`docs/hydration-state-format.md`
+//! （`data-hydrate-*` 属性からの状態復元、`docs/api/hydration-state-format.md`
 //! 第 5 節）に加え、[`Runtime`]（`mount`/`hydrate` の公開 API・`set_inner_html`
 //! を伴う `dom::paint` 本体・イベント配線・ハイドレーション関数群の統合、
-//! `docs/wasm-full-architecture.md` 第 3.2 節の公開 API 凍結表）と
+//! `docs/design/wasm-full-architecture.md` 第 3.2 節の公開 API 凍結表）と
 //! [`dispatch_and_render_headless`]（DOM 非依存のヘッドレス補助 API）を提供する。
 //!
 //! `Runtime` 自体・`mount`/`hydrate` は `web_sys::Element` を扱うため
@@ -23,12 +23,12 @@
 //! 具象 `Component` 実装（例: `rws_interactive::AppState`）に対して
 //! `#[wasm_bindgen]` エクスポートを薄く書き出すアプリ側エントリポイントの
 //! 参照実装は [`entry`] モジュールが提供する
-//! （`docs/wasm-full-architecture.md` 第 3.3 節、`#[wasm_bindgen]` はジェネリクスを
+//! （`docs/design/wasm-full-architecture.md` 第 3.3 節、`#[wasm_bindgen]` はジェネリクスを
 //! エクスポートできないため `Runtime<C>` はここで具象化しない）。
 //!
 //! 本クレートの自作コードは safe Rust のみとし、`unsafe` は `wasm-bindgen` /
 //! `web-sys` の FFI 境界（依存クレート内部・自動生成コード）に限定する
-//! （`docs/unsafe-boundary.md` 第 2 節）。自作コードでの新規 `unsafe` 追加を
+//! （`docs/policy/unsafe-boundary.md` 第 2 節）。自作コードでの新規 `unsafe` 追加を
 //! ビルド時に検出するため `#![deny(unsafe_code)]` を採用する
 //! （`#[wasm_bindgen]` 展開コードが内部で `unsafe` を含むため `forbid` は不採用。
 //! `wasm-client` と同方針）。この `deny` 属性はソース側の `#[allow(unsafe_code)]`
@@ -49,13 +49,13 @@ mod dom;
 
 // integration test（`tests/dom_update.rs`・`tests/runtime_headless.rs`）から
 // 呼べるよう再エクスポートする。`dom` モジュール自体は crate 内部実装
-// （`docs/wasm-full-architecture.md` 第 3.1 節の「内部」区分）のため非 pub の
+// （`docs/design/wasm-full-architecture.md` 第 3.1 節の「内部」区分）のため非 pub の
 // ままとし、公開面はこの再エクスポートのみに絞る。
 pub use dom::render_component_html;
 
 use rws_interactive::Component;
 
-/// DOM 非依存のヘッドレス補助 API（`docs/wasm-full-architecture.md` 第 3.2 節の
+/// DOM 非依存のヘッドレス補助 API（`docs/design/wasm-full-architecture.md` 第 3.2 節の
 /// 公開 API 凍結表）。
 ///
 /// `rws_interactive::dispatch` で状態を更新し、`component.view()`（描画前の
@@ -83,7 +83,7 @@ pub fn dispatch_and_render_headless<C: Component>(
 }
 
 /// 状態機械 `C` を保持し、マウント・イベント配線・再描画のライフサイクルを
-/// 統括する中核型（`docs/wasm-full-architecture.md` 第 3.2 節の公開 API
+/// 統括する中核型（`docs/design/wasm-full-architecture.md` 第 3.2 節の公開 API
 /// 凍結表）。PoC-5 の `AppState` グローバル状態を汎用化する。
 ///
 /// `Closure`（[`events::wire_events`] がマウント時に 1 回だけ登録する
@@ -145,7 +145,7 @@ impl<C: Component + 'static> Runtime<C> {
         }
     }
 
-    /// CSR 経路（`docs/wasm-full-architecture.md` 第 3.2 節）。
+    /// CSR 経路（`docs/design/wasm-full-architecture.md` 第 3.2 節）。
     ///
     /// `component.view()` → [`dom::render_component_html`]（既定エスケープ済み
     /// 出力）を `root_id` 要素へ [`dom::paint`] で反映し、続けて
@@ -166,7 +166,7 @@ impl<C: Component + 'static> Runtime<C> {
         Ok(Self { component, root })
     }
 
-    /// ハイドレーション経路（`docs/wasm-full-architecture.md` 第 3.2 節）。
+    /// ハイドレーション経路（`docs/design/wasm-full-architecture.md` 第 3.2 節）。
     ///
     /// SSR 済み DOM を再構築せず、[`hydration::read_hydration_attrs`] →
     /// [`hydration::restore_state`] の順に状態復元を試みる。復元成功時は

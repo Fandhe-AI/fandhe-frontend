@@ -6,19 +6,19 @@
 # 静的リンクの release バイナリを生成し、最終イメージは scratch（libc すら
 # 含まない空イメージ）へバイナリ 1 つだけをコピーする。フロントアセット
 # （HTML/CSS/JS/WASM）は rust-embed（または include_dir、
-# docs/dist-server-design.md 4.4 節のフォールバック案）によりビルド時点で
+# docs/design/dist-server-design.md 4.4 節のフォールバック案）によりビルド時点で
 # 既にバイナリへコンパイル時埋め込み済みのため、最終イメージにアセット
 # ファイルを COPY する必要はない。
 #
 # 参照先クレート `dist-server/`（パッケージ名 `rws-dist-server`、
 # `[[bin]] name = "dist-server"`）は TASK-9.1b（#96）でマージ済み。
-# 名前は docs/dist-server-design.md（TASK-9.1a 確定版）の 3 節を正とする。
+# 名前は docs/design/dist-server-design.md（TASK-9.1a 確定版）の 3 節を正とする。
 # TASK-9.3b（#103）の `.github/workflows/image-size.yml` により、本
 # Dockerfile の docker build・イメージサイズ計測は CI で継続実測される
 # 運用（#101 で startup failure・COPY 列挙不整合を解消し実効化済み）。
 #
 # WASM 資産のコンテナ内再ビルド統合（TASK-10.3・#114、設計は
-# docs/docker-wasm-build-stage.md）はビルダーステージへ組み込み済み。
+# docs/design/docker-wasm-build-stage.md）はビルダーステージへ組み込み済み。
 # `COPY static ./static` は手書きアセット（CSS 等）のみを対象とし、
 # `/static/wasm/*`（WASM 生成物）はビルドコンテキストへ含めない。下段の
 # `cargo build -p rws-dist-server` 実行時に `dist-server/build.rs`
@@ -40,7 +40,7 @@ FROM rust:1.96-slim-bookworm@sha256:e18a79fc84dfcfc3ab5ba72290398a644c135c97eaa8
 # TLS 検証に必要（rust:1.96-slim-bookworm には既定で含まれない）。
 # builder ステージ限定の追加であり、最終イメージ（FROM scratch 以降）へは
 # マルチステージビルドの性質上漏れないため攻撃面は増えない（§7 セキュリティ
-# 考慮事項、docs/docker-wasm-build-stage.md 参照）。
+# 考慮事項、docs/design/docker-wasm-build-stage.md 参照）。
 RUN apt-get update \
     && apt-get install -y --no-install-recommends musl-tools pkg-config curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -55,7 +55,7 @@ RUN case "$(uname -m)" in \
     esac \
     && rustup target add "$(cat /musl_target)"
 
-# TASK-10.3b（#116、設計は docs/docker-wasm-build-stage.md §3.1）:
+# TASK-10.3b（#116、設計は docs/design/docker-wasm-build-stage.md §3.1）:
 # wasm32-unknown-unknown はピュア WASM ターゲットでありホストアーキ非依存の
 # ため、上段の musl ターゲット判定と異なりアーキ分岐は不要。
 RUN rustup target add wasm32-unknown-unknown
@@ -120,7 +120,7 @@ COPY static ./static
 # `dist-server/build.rs`（TASK-10.2b・#110）が既定（RWS_WASM_BUILD 未設定＝
 # 有効）で発火し、ネスト `cargo build -p rws-wasm-full --target
 # wasm32-unknown-unknown` + `wasm-bindgen` を実行して WASM 資産を
-# `OUT_DIR` へ生成・埋め込む。`docs/wasm-build-integration.md` §7 が定義する
+# `OUT_DIR` へ生成・埋め込む。`docs/design/wasm-build-integration.md` §7 が定義する
 # 「単一コマンドでネイティブ + WASM 双方の成果物を生成する」構成をここで
 # 満たす（`ENV RWS_WASM_BUILD=0` によるオプトアウトは行わない）。
 RUN cargo build --release --locked --target "$(cat /musl_target)" -p rws-dist-server \
@@ -142,7 +142,7 @@ COPY --from=builder /dist-server-out /dist-server
 USER 65532:65532
 
 # コンテナ内では既定のループバックバインド（127.0.0.1、
-# docs/dist-server-design.md 7 節のホスト単体起動時の既定）だと外部到達不能
+# docs/design/dist-server-design.md 7 節のホスト単体起動時の既定）だと外部到達不能
 # なため、コンテナ境界内での待ち受けとして 0.0.0.0 を明示する。ホスト側への
 # 実際の公開は利用者の `docker run -p` 指定によるオプトインであり、この
 # ENV 自体が外部公開を意味しない。

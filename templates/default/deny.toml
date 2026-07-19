@@ -56,6 +56,6 @@ unknown-git = "deny"
 #     cargo deny check bans licenses sources
 #
 # `advisories` を含めたネットワークアクセス前提の CI 運用手順は
-# `docs/cargo-deny-advisories.md`（TASK-4.3）に文書化されている。
+# `docs/policy/cargo-deny-advisories.md`（TASK-4.3）に文書化されている。
 # CI ワークフローへの組み込み自体は TASK-4.2 のスコープ。
 ignore = []

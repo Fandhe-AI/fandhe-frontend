@@ -16,9 +16,9 @@
       フレームワークが安全性（既定エスケープ）を保証するのは、下記の
       マウントポイント <div id="app-list"> の内側だけ。それ以外の素の HTML
       （見出し・段落・このページの他の <script> 等）はフレームワークの管理外
-      であり、その安全性はページ作者の責務（docs/embedding-guide.md 5 節）。
+      であり、その安全性はページ作者の責務（docs/guides/embedding-guide.md 5 節）。
 
-    呼び出し契約（docs/hydration-api.md 第 3 節で凍結済み）:
+    呼び出し契約（docs/api/hydration-api.md 第 3 節で凍結済み）:
       mount_csr(root_id) は rws-wasm-client（TASK-6.2b・#48、本テンプレート
       作成時点で未マージ）が提供する #[wasm_bindgen] 関数。内部で
       rws_app::list_page 等（SSR/SSG からも同一関数が呼ばれる、REQ-6 の
@@ -36,12 +36,12 @@
     View Transitions Level 2 で標準化された `@view-transition` at-rule により
     ブラウザ既定のクロスドキュメント遷移アニメーションが有効になる。
     旧世代の meta タグベースの実験的構文は標準化過程で廃止されたため使用しない
-    （経緯は app/src/lib.rs の page_shell 実装・docs/view-transitions.md 参照）。
+    （経緯は app/src/lib.rs の page_shell 実装・docs/guides/view-transitions.md 参照）。
 
     非対応ブラウザではこの at-rule は単に無視され、通常のナビゲーションへ
     フォールバックする（graceful degradation、追加の JS 分岐は不要）。
     同一文書内（SPA 的）の遷移は static/view-transitions.js の
-    withViewTransition() が別途担う（役割分担は docs/view-transitions.md）。
+    withViewTransition() が別途担う（役割分担は docs/guides/view-transitions.md）。
     このページはフレームワーク管理外の静的 HTML のため、この <style> は
     利用者がコピー後に削除しても構わない（責務境界は本ファイル冒頭のコメント参照）。
   -->

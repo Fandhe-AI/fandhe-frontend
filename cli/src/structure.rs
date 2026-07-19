@@ -9,7 +9,7 @@
 //! 実クレートとの突き合わせ（実体との整合性）は TASK-13.1c（#130）のスコープであり、
 //! 本ファイルはファイルシステムへは [`load`] の読み込み以外でアクセスしない。
 //!
-//! 設計の詳細・PoC-7 からの差分理由は `docs/structure-manifest.md` を参照。
+//! 設計の詳細・PoC-7 からの差分理由は `docs/design/structure-manifest.md` を参照。
 //!
 //! `fw structure` サブコマンド（`main.rs`）からは [`load`] → [`StructureManifest::validate`]
 //! の順で呼ばれ、双方が通ってはじめて TASK-13.1c の実体突き合わせ・JSON 出力へ進む
@@ -31,7 +31,7 @@ fn is_valid_directory_name(name: &str) -> bool {
 /// ディレクトリの役割（閉じた語彙）。
 ///
 /// PoC-7 の自由記述文字列を廃止し、`validate()` で機械的に判定できる
-/// クローズドな語彙に固定する（`docs/structure-manifest.md` 差分理由参照）。
+/// クローズドな語彙に固定する（`docs/design/structure-manifest.md` 差分理由参照）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
     /// 外部依存ゼロの描画・状態管理コア（`core` / `interactive` 相当）。
@@ -71,7 +71,7 @@ impl Role {
 
     /// `role` キーの文字列表現を [`Role`] へ変換する（TASK-13.1b パーサからの唯一の
     /// 呼び出し経路）。未知の文字列は `None`（呼び出し側が `structure.toml` 由来の
-    /// 位置情報を添えてエラー化する。fail-closed、`docs/structure-manifest.md` §2.2.1）。
+    /// 位置情報を添えてエラー化する。fail-closed、`docs/design/structure-manifest.md` §2.2.1）。
     fn parse_str(s: &str) -> Option<Self> {
         match s {
             "core" => Some(Role::Core),
@@ -110,7 +110,7 @@ pub struct DirectoryEntry {
 /// 設計）は本スキーマでは廃止した。`server/src/router.rs` が正規表現・
 /// バックトラックを排した設計（DoS 耐性）であるのに対し、任意正規表現を
 /// マニフェスト経由で実行させる経路は ReDoS・インジェクション面を広げるため
-/// （`docs/structure-manifest.md` 差分理由参照）。抽出器自体の実装は TASK-13.1c
+/// （`docs/design/structure-manifest.md` 差分理由参照）。抽出器自体の実装は TASK-13.1c
 /// （#130）のスコープであり、ここでは組み込み抽出器の ID のみを宣言する。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RoutingConfig {
@@ -220,7 +220,7 @@ impl StructureManifest {
     /// マニフェスト内部の宣言同士の整合性を検証する。
     ///
     /// ファイルシステム・`cargo metadata` へは一切アクセスしない純粋関数
-    /// （実体との突き合わせは TASK-13.1c のスコープ、`docs/structure-manifest.md`
+    /// （実体との突き合わせは TASK-13.1c のスコープ、`docs/design/structure-manifest.md`
     /// 2.3 節参照）。検出した違反はすべて収集して返す（最初の 1 件で打ち切らない）。
     ///
     /// # Errors
@@ -375,7 +375,7 @@ fn semantic_err(message: impl Into<String>) -> StructureError {
 ///
 /// TOML 構文が壊れている場合・スキーマ上必須のキーが欠落している場合・
 /// 未知のキー / 未知の `role` 値が含まれる場合に [`StructureError`] を返す
-/// （fail-closed。`docs/structure-manifest.md` §2.1/§2.2 の方針に従う）。
+/// （fail-closed。`docs/design/structure-manifest.md` §2.1/§2.2 の方針に従う）。
 pub fn parse(input: &str) -> Result<StructureManifest, StructureError> {
     let doc = crate::toml::parse(input)?;
 
@@ -492,7 +492,7 @@ fn parse_directory_table(
         ))
     })?;
     // `crate` はキー省略可（`static` 等クレートを持たないディレクトリ）。
-    // `docs/structure-manifest.md` 2.2.2 節: 空文字列表現は廃止し「キー省略」に統一。
+    // `docs/design/structure-manifest.md` 2.2.2 節: 空文字列表現は廃止し「キー省略」に統一。
     // `crate = ""` はスキーマ上非許可（キー省略が正）のため、ここで明示的に拒否する。
     // 拒否しないまま通すと、後段の workspace-member 突き合わせ（main.rs の
     // `check_crate_and_dependency_consistency`）まで不正なマニフェストが素通りし、

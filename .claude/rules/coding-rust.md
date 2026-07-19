@@ -3,7 +3,7 @@
 ## 本リポジトリ特有の厳守事項
 
 - **既定エスケープを弱めない（REQ-1）**: テキスト補間は必ず既定エスケープを経由する。エスケープ迂回は `raw_html()` 等の明示的オプトイン API のみとし、新たな迂回経路を作らない
-- **`#![forbid(unsafe_code)]`（REQ-2）**: `core` / `interactive` では `unsafe` を一切使用しない。`unsafe` は WASM バインディング層・FFI 境界に限定し、使用箇所は `docs/unsafe-boundary.md` に列挙する
+- **`#![forbid(unsafe_code)]`（REQ-2）**: `core` / `interactive` では `unsafe` を一切使用しない。`unsafe` は WASM バインディング層・FFI 境界に限定し、使用箇所は `docs/policy/unsafe-boundary.md` に列挙する
 - **依存グラフ上限（REQ-3）**: 標準サーバー構成で依存パッケージ 60 件以内・深さ 6 以内。依存クレートの追加は事前に `cargo metadata` で影響を確認し、**ユーザー承認を得る**
 - **`core` は外部依存ゼロ**: `core/Cargo.toml` に外部クレートを追加しない
 - **HTML 文字列の直接組み立て禁止**: `format!("<div>{}</div>", user_input)` のようなコードは書かない。必ずノード木 API を使う

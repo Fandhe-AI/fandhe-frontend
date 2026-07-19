@@ -42,7 +42,7 @@
 //!
 //! 本クレートは HTML 文字列を独自に組み立てない（`routes` モジュール参照）。
 //! `unsafe` も使用しない（`hyper`/`tokio` 自体の内部実装は対象外。
-//! `docs/unsafe-boundary.md` の対象は WASM/FFI 境界クレートのみで
+//! `docs/policy/unsafe-boundary.md` の対象は WASM/FFI 境界クレートのみで
 //! 本クレートは非該当）。
 
 #![forbid(unsafe_code)]

@@ -1,7 +1,7 @@
 //! `cli/tests/negative_cases.rs`（TASK-13.5・#148）と
 //! `cli/tests/xss_regression_link.rs`（TASK-13.3c・#141）、および
 //! `cli/tests/impact_ambiguous.rs` / `cli/tests/impact_wasm_thin.rs`
-//! （イシュー #293、`docs/impact-analysis-design.md` §3.4 観点 2・4 の
+//! （イシュー #293、`docs/design/impact-analysis-design.md` §3.4 観点 2・4 の
 //! 独立 e2e 化）が共用する fixture 基盤。
 //!
 //! `negative_cases.rs` / `xss_regression_link.rs` はいずれも `fw gate`
@@ -34,7 +34,7 @@
 //! これは意図的な複製である（cargo のテストターゲットは独立コンパイル単位
 //! のため、`tests/` 直下のバイナリから `tests/scenarios/` 配下のモジュール
 //! を参照できない制約による。`scenarios/common.rs` 冒頭コメント・
-//! `docs/scenario-regression-design.md` §4.4 が同じ方針を明文化済み）。
+//! `docs/design/scenario-regression-design.md` §4.4 が同じ方針を明文化済み）。
 
 #![allow(dead_code)]
 
@@ -207,7 +207,7 @@ unknown-git = "deny"
 /// 実体化させる。
 fn clippy_toml_content() -> &'static str {
     r#"disallowed-methods = [
-    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/raw-html-review-gate.md 参照）" },
+    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/policy/raw-html-review-gate.md 参照）" },
 ]
 "#
 }

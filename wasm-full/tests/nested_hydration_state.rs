@@ -6,7 +6,7 @@
 //! ネスト構造（オブジェクト・マップ・リストの入れ子）を持つ独自の `Hydrate`
 //! 実装（`NestedState`）に対して同水準の検証（ラウンドトリップ・改ざん値・
 //! panic-free）を行う。フォーマット自体の設計根拠は
-//! `docs/hydration-nested-state.md` を正とする。
+//! `docs/design/hydration-nested-state.md` を正とする。
 //!
 //! DOM・`web-sys` に依存しない native テスト（`cargo test -p rws-wasm-full`）。
 
@@ -159,7 +159,7 @@ fn restore_state_roundtrips_nested_state() {
 
 /// 項目文字列に区切り文字・バックスラッシュ・日本語/絵文字が混在しても、
 /// ネストしたラウンドトリップが panic せず成立すること（データ注入耐性の
-/// 統合確認、`docs/hydration-nested-state.md` 参照）。
+/// 統合確認、`docs/design/hydration-nested-state.md` 参照）。
 #[test]
 fn restore_state_roundtrips_nested_state_with_adversarial_strings() {
     let state = NestedState {
@@ -195,7 +195,7 @@ fn restore_state_fails_on_corrupted_value_encoding_without_panicking() {
 
 /// `MAX_VALUE_DEPTH`（`rws_interactive::codec`）を超えるネストを持つ改ざん
 /// 入力に対し、panic（スタックオーバーフロー含む）せず `HydrateError` を
-/// 返すこと（A05 相当の DoS 耐性、`docs/hydration-nested-state.md` 参照）。
+/// 返すこと（A05 相当の DoS 耐性、`docs/design/hydration-nested-state.md` 参照）。
 #[test]
 fn restore_state_fails_on_excessively_deep_nesting_without_panicking() {
     let mut deep = Value::Int(0);

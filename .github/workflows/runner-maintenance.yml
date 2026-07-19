@@ -7,7 +7,7 @@ name: Runner maintenance
 # ワークフローは「イメージへの焼き込み」は行わず、以下 2 点のみを行う
 # report-only な保守ワークフローとする。
 #   (1) プール内インスタンスの環境検査（root/apt-get 可否・libnss3/libnspr4 等の
-#       常設有無を可視化し、`docs/ci-runner-requirements.md` の依頼内容が
+#       常設有無を可視化し、`docs/ci/ci-runner-requirements.md` の依頼内容が
 #       反映されたかどうかの確認に使う）
 #   (2) atomic install 化（PR #291）以前に $HOME/.local/bin へ直接導入された
 #       旧バイナリ・強制終了で残った一時ディレクトリのクリーンアップ
@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
     inputs:
       parallelism:
-        description: '検査・クリーンアップの並列度（matrix 展開数）。GitHub Actions にはプール内全インスタンスを 1 回ずつ実行する機構が無いため統計的カバーに留まる。プール全体のカバレッジを上げたい場合は dispatch のたび変更・再実行する（docs/ci-runner-requirements.md 参照）'
+        description: '検査・クリーンアップの並列度（matrix 展開数）。GitHub Actions にはプール内全インスタンスを 1 回ずつ実行する機構が無いため統計的カバーに留まる。プール全体のカバレッジを上げたい場合は dispatch のたび変更・再実行する（docs/ci/ci-runner-requirements.md 参照）'
         type: choice
         required: false
         default: '4'

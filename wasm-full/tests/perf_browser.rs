@@ -7,14 +7,14 @@
 //! TASK-11.5a（#86・計測ハーネス構築）と TASK-11.5b（#87・計測実行・しきい値
 //! 有効化）の双方の成果物を統合したものである。
 //!
-//! `docs/browser-testing.md`（TASK-6.3a・#65）が構築した実ブラウザテスト環境
+//! `docs/guides/browser-testing.md`（TASK-6.3a・#65）が構築した実ブラウザテスト環境
 //! （headless Chromium・`wasm-pack test --headless`）を再利用する。
 //!
 //! # 計測シナリオ（製品経路、TASK-11.5b・#87 で確定）
 //!
 //! `Runtime::mount`/`Runtime::hydrate`（TASK-11.2d・#77、TASK-11.4b・#83）が
 //! マージ済みのため、本ハーネスは PoC-5 相当の近似ではなく `rws_wasm_full::Runtime`
-//! を直接経由する製品経路を計測する（`docs/wasm-full-architecture.md` 第 3.2 節）。
+//! を直接経由する製品経路を計測する（`docs/design/wasm-full-architecture.md` 第 3.2 節）。
 //!
 //! - `initial_load`: SSR 済み HTML（[`rws_interactive::render_for_hydration`] →
 //!   [`rws_core::render`]、既定エスケープ済み）の `set_inner_html` 反映（サーバー
@@ -29,7 +29,7 @@
 //!   所要時間を 1 操作として計測する（`tests/runtime_browser.rs` の合成イベント
 //!   パターンを踏襲）。固定サンプル数 [`DOM_UPDATE_SAMPLES`] を維持する。
 //!
-//! # 不変条件（REQ-1、`docs/wasm-full-architecture.md` 第 7 節・不変条件 1 継承）
+//! # 不変条件（REQ-1、`docs/design/wasm-full-architecture.md` 第 7 節・不変条件 1 継承）
 //!
 //! `set_inner_html` へ渡す文字列は [`rws_core::render`] の既定エスケープ済み
 //! 出力のみとする（`Runtime::mount`/`hydrate` 内部の `dom::paint` が担保）。
@@ -54,7 +54,7 @@
 //! 行う。統制されたローカル環境での正式計測時のみ
 //! `--features perf-assert` を付けて実行し、[`INITIAL_LOAD_BUDGET_MS`]（mean
 //! 基準）・[`FRAME_BUDGET_MS`]（p95 基準＋ 16ms 超過率 5% 以下）をアサートする
-//! （`docs/perf-browser-harness.md` 第 5 節の実行手順、`docs/perf-browser-report.md`
+//! （`docs/ci/perf-browser-harness.md` 第 5 節の実行手順、`docs/reports/perf-browser-report.md`
 //! 第 3 節の判定基準）。CI `perf-harness` ジョブは feature なしのまま実行し、
 //! スモーク（ハーネス自己検証）のみを行う方針を維持する。
 
@@ -79,7 +79,7 @@ const INITIAL_LOAD_BUDGET_MS: f64 = 300.0;
 const FRAME_BUDGET_MS: f64 = 16.0;
 
 /// `dom_update` の 16ms 超過率がこれを超える場合、`p95_ms` が予算内でも
-/// 単純な Go とはしない目安（`docs/perf-browser-report.md` 第 3 節）。
+/// 単純な Go とはしない目安（`docs/reports/perf-browser-report.md` 第 3 節）。
 #[cfg_attr(not(feature = "perf-assert"), allow(dead_code))]
 const FRAME_OVERAGE_RATIO_BUDGET: f64 = 0.05;
 
@@ -144,7 +144,7 @@ fn summarize(samples: &[f64]) -> DurationStats {
 }
 
 /// `dom_update` について、16ms（[`FRAME_BUDGET_MS`]）を超過したサンプルの
-/// 割合を算出する（`docs/perf-browser-report.md` 第 3 節「16ms 超過率」）。
+/// 割合を算出する（`docs/reports/perf-browser-report.md` 第 3 節「16ms 超過率」）。
 /// 空スライスは 0.0 を返す安全側フォールバック（呼び出し元は非空を保証する）。
 #[cfg_attr(not(feature = "perf-assert"), allow(dead_code))]
 fn frame_overage_ratio(samples: &[f64]) -> f64 {
@@ -414,7 +414,7 @@ fn dom_update_harness_produces_bounded_finite_samples() {
 ///
 /// 統制されたローカル環境でのみ有効化する（`--features perf-assert`、
 /// ファイル冒頭 `//!` 参照）。`mean_ms` を基準に [`INITIAL_LOAD_BUDGET_MS`]
-/// （300ms）以内であることをアサートする（`docs/perf-browser-report.md`
+/// （300ms）以内であることをアサートする（`docs/reports/perf-browser-report.md`
 /// 第 3 節: `initial_load` は `mean_ms` を基準とし `p95_ms` は安定性確認に
 /// 用いる）。
 #[cfg(feature = "perf-assert")]
@@ -436,7 +436,7 @@ fn initial_load_meets_budget() {
 ///
 /// 統制されたローカル環境でのみ有効化する（`--features perf-assert`）。
 /// `p95_ms` を主判定に用い（`mean_ms` 単独では判定しない、
-/// `docs/perf-browser-report.md` 第 3 節）、16ms 超過率も
+/// `docs/reports/perf-browser-report.md` 第 3 節）、16ms 超過率も
 /// [`FRAME_OVERAGE_RATIO_BUDGET`]（目安 5%）以下であることをあわせて
 /// アサートする。
 #[cfg(feature = "perf-assert")]

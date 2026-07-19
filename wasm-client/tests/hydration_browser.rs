@@ -3,9 +3,9 @@
 //! `hydrate_smoke.rs`（TASK-6.2c、#49）は CI の `browser-test` ジョブを green に
 //! 保つための最小限のスモークテストであり、REQ-6 受け入れ基準 4（実ブラウザでの
 //! クリックイベント発火・状態復元）の**正式な実証**は本ファイルが引き継ぐ
-//! （`docs/spec/05-tasks.md` TASK-6.3、`docs/browser-testing.md` 第 7 節）。
+//! （`docs/spec/05-tasks.md` TASK-6.3、`docs/guides/browser-testing.md` 第 7 節）。
 //!
-//! 本ファイルが実ブラウザで実証する 5 観点（`docs/hydration-api.md` 第 3 節・
+//! 本ファイルが実ブラウザで実証する 5 観点（`docs/api/hydration-api.md` 第 3 節・
 //! 第 6 節の不変条件に対応）:
 //!
 //! 1. SSR/SSG 出力との整合（CSR の DOM 反映） — [`mount_csr_reflects_same_render_output_as_ssr`]
@@ -18,7 +18,7 @@
 //! 状態注入フォーマット（`data-hydrate-*` エンコード）による状態復元の製品化は
 //! TASK-11.4 系（#81〜#84）のスコープであり、本ファイルの検証範囲は「サーバー
 //! 出力済み DOM 上の状態（テキスト・属性・class）が `hydrate()` で破壊されず
-//! 引き継がれること」に限定する（`docs/hydration-api.md` 第 5 節スコープ外表）。
+//! 引き継がれること」に限定する（`docs/api/hydration-api.md` 第 5 節スコープ外表）。
 
 #![cfg(target_arch = "wasm32")]
 
@@ -77,7 +77,7 @@ fn mount_csr_reflects_same_render_output_as_ssr() {
 
 /// 観点 2: `hydrate()` はサーバー出力済み DOM（`render_detail_page_html` の
 /// 出力を模した既存 DOM）を再構築しない（`set_inner_html` 等を呼ばない、
-/// `docs/hydration-api.md` 不変条件 2）。`hydrate()` 前後で root の `inner_html`
+/// `docs/api/hydration-api.md` 不変条件 2）。`hydrate()` 前後で root の `inner_html`
 /// がバイト一致することを実ブラウザ上で確認する。
 #[wasm_bindgen_test]
 fn hydrate_does_not_rebuild_server_rendered_dom() {
@@ -251,7 +251,7 @@ fn re_hydrate_preserves_click_state_and_fires_exactly_once() {
 /// として表示されることを確認する。DOM への HTML 挿入は
 /// `render_detail_page_html`（`rws_core::render` 出力、既定エスケープ済み）
 /// のみを経由し、`format!` による HTML 組み立て・`raw_html()` は使わない
-/// （`docs/hydration-api.md` 第 6 節不変条件 1・4）。
+/// （`docs/api/hydration-api.md` 第 6 節不変条件 1・4）。
 #[wasm_bindgen_test]
 fn xss_payload_item_does_not_produce_script_element_in_real_dom() {
     let window = web_sys::window().expect("window must exist");

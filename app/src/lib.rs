@@ -2,7 +2,7 @@
 //!
 //! `rws-core`（`Node` / `el` / `text` / `render` 等）**のみ**に依存する。マクロ DSL
 //! には依存せず、`Node` を返す通常の Rust 関数としてコンポーネントを記述する
-//! （`docs/component-api.md` の「コンポーネント記述の標準規約」に従う）。
+//! （`docs/api/component-api.md` の「コンポーネント記述の標準規約」に従う）。
 //!
 //! # 三モード契約（REQ-6）
 //!

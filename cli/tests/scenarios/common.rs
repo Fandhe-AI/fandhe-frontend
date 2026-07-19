@@ -1,5 +1,5 @@
 //! `cli/tests/scenarios/` 共有ハーネス（TASK-13.4a・#144、設計文書
-//! `docs/scenario-regression-design.md` §4.2/§4.3）。
+//! `docs/design/scenario-regression-design.md` §4.2/§4.3）。
 //!
 //! PoC-7 が検証した代表的改修シナリオ（バグ修正・UI 改善・機能追加、
 //! `docs/spec/03-poc/ai-self-maintenance/scenarios/`）を製品 CLI（`fw`）に
@@ -186,7 +186,7 @@ unknown-git = "deny"
     fs::write(
         dest.join("clippy.toml"),
         r#"disallowed-methods = [
-    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/raw-html-review-gate.md 参照）" },
+    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/policy/raw-html-review-gate.md 参照）" },
 ]
 "#,
     )
@@ -216,7 +216,7 @@ unknown-git = "deny"
 /// bugfix-escape-regression/`）が実測した「`rws-core` 相当のレンダリングコア」
 /// を、依存ゼロ・ネイティブビルド可能な最小構成で再現する。`render`/`text`/
 /// `escape_html` の 3 点を、実際の `rws-core` の責務（ノード木 API・
-/// render・既定エスケープ、`docs/unsafe-boundary.md` の対象外＝安全な純 Rust）
+/// render・既定エスケープ、`docs/policy/unsafe-boundary.md` の対象外＝安全な純 Rust）
 /// と同じ形で持つ。
 ///
 /// [`SINGLE_QUOTE_ESCAPE_ARM`] を注入対象の一意な部分文字列として公開し、
@@ -448,7 +448,7 @@ unknown-git = "deny"
     fs::write(
         dest.join("clippy.toml"),
         r#"disallowed-methods = [
-    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/raw-html-review-gate.md 参照）" },
+    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/policy/raw-html-review-gate.md 参照）" },
 ]
 "#,
     )
@@ -637,7 +637,7 @@ unknown-git = "deny"
     fs::write(
         dest.join("clippy.toml"),
         r#"disallowed-methods = [
-    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/raw-html-review-gate.md 参照）" },
+    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/policy/raw-html-review-gate.md 参照）" },
 ]
 "#,
     )
@@ -847,7 +847,7 @@ unknown-git = "deny"
     fs::write(
         dest.join("clippy.toml"),
         r#"disallowed-methods = [
-    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/raw-html-review-gate.md 参照）" },
+    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/policy/raw-html-review-gate.md 参照）" },
 ]
 "#,
     )

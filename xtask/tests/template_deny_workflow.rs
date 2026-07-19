@@ -35,7 +35,7 @@ fn ensure_gate_tools_path() -> PathBuf {
 }
 
 fn cargo_deny_advisories_doc_path() -> PathBuf {
-    workspace_root().join("docs/cargo-deny-advisories.md")
+    workspace_root().join("docs/policy/cargo-deny-advisories.md")
 }
 
 fn read_ensure_gate_tools() -> String {
@@ -45,7 +45,7 @@ fn read_ensure_gate_tools() -> String {
 
 fn read_cargo_deny_advisories_doc() -> String {
     std::fs::read_to_string(cargo_deny_advisories_doc_path())
-        .expect("docs/cargo-deny-advisories.md の読み込みに失敗した")
+        .expect("docs/policy/cargo-deny-advisories.md の読み込みに失敗した")
 }
 
 /// `pattern` に続くバージョン文字列（`X.Y.Z` 形式）を抽出する。
@@ -349,20 +349,20 @@ fn cargo_deny_version_pin_matches_ensure_gate_tools_across_template_and_docs() {
          が tools/ci/ensure-gate-tools.sh の pin からドリフトしている"
     );
 
-    // docs/cargo-deny-advisories.md のサンプルワークフロー（第 5 節）は
+    // docs/policy/cargo-deny-advisories.md のサンプルワークフロー（第 5 節）は
     // テンプレートと同一の CARGO_DENY_VERSION / CARGO_DENY_SHA256 変数を
     // コード例として埋め込んでいる。同じアンカー文字列で抽出する。
     let doc_version = extract_version_after(&advisories_doc, "CARGO_DENY_VERSION=\"");
     let doc_sha256 = extract_sha256_after(&advisories_doc, "CARGO_DENY_SHA256=\"");
     assert_eq!(
         doc_version, canonical_version,
-        "docs/cargo-deny-advisories.md の CARGO_DENY_VERSION \
+        "docs/policy/cargo-deny-advisories.md の CARGO_DENY_VERSION \
          ({doc_version}) が tools/ci/ensure-gate-tools.sh の pin \
          ({canonical_version}) からドリフトしている"
     );
     assert_eq!(
         doc_sha256, canonical_sha256,
-        "docs/cargo-deny-advisories.md の CARGO_DENY_SHA256 が \
+        "docs/policy/cargo-deny-advisories.md の CARGO_DENY_SHA256 が \
          tools/ci/ensure-gate-tools.sh の pin からドリフトしている"
     );
 }

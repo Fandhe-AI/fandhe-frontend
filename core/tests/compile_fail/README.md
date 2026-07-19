@@ -1,7 +1,7 @@
 # compile_fail フィクスチャ
 
 このディレクトリのファイルは **意図的にコンパイル不能** な `rws-core` 利用例です。
-TASK-5.3（`docs/compile-error-review.md`）のためのレビュー材料であり、
+TASK-5.3（`docs/design/compile-error-review.md`）のためのレビュー材料であり、
 `docs/spec/04-requirements.md` REQ-5 受け入れ基準 3「コンパイルエラーが
 マクロ展開後のコードを指す読みにくいメッセージではなく、通常の Rust の
 型エラーとして表示されること」を検証するために作成しました。
@@ -13,7 +13,7 @@ TASK-5.3（`docs/compile-error-review.md`）のためのレビュー材料であ
 というサブディレクトリであり、直下の `.rs` ファイルではないため
 **cargo のテストターゲットに含まれず、`cargo test` / `cargo build` に
 一切影響しません**。この性質は `cargo test --workspace --locked` が
-通過することで確認済みです（`docs/compile-error-review.md` 内の検証結果参照）。
+通過することで確認済みです（`docs/design/compile-error-review.md` 内の検証結果参照）。
 
 ## 再現手順
 
@@ -36,7 +36,7 @@ cp core/tests/compile_fail/case01_child_type_mismatch.rs /tmp/compile-error-chec
 cd /tmp/compile-error-check && cargo check
 ```
 
-各ケースの実測出力・評価は `docs/compile-error-review.md` を参照してください。
+各ケースの実測出力・評価は `docs/design/compile-error-review.md` を参照してください。
 
 ## ケース一覧
 

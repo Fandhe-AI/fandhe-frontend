@@ -3,7 +3,7 @@
 
 役割: `check_static_only.py --suggest-exempt` が出力する `[[exempt]]` 雛形を、
 **人間によるレビュー後**に allowlist.toml へ半自動で追記する独立コマンド
-（イシュー #316・docs/npm-asset-build.md §3.4）。
+（イシュー #316・docs/guides/npm-asset-build.md §3.4）。
 
 背景: PR #311（イシュー #296）で導入された `--suggest-exempt` は「提案の
 出力のみ・allowlist.toml への自動書き込みなし」という fail-closed 方針を
@@ -129,7 +129,7 @@ def _load_toml_file(path: Path, *, label: str) -> dict[str, Any]:
         raise ApplyError(
             f"failed to parse {label} file {path} as TOML: {exc} "
             "(hint: raw --suggest-exempt output containing 'VIOLATION ...' lines "
-            "is not valid TOML — review and edit it first, per docs/npm-asset-build.md §3.4)"
+            "is not valid TOML — review and edit it first, per docs/guides/npm-asset-build.md §3.4)"
         ) from exc
 
 

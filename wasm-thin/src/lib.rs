@@ -7,14 +7,14 @@
 //! （状態遷移＋既定エスケープ済み HTML 描画）に限定する。この責務限定こそが
 //! 本方式の制約であり利点でもある（軽量・既存 DOM ヘルパーとの段階的併用が
 //! 可能）。制約の詳細な警告文書（JS グルー実装ガイド）は本タスク（11.3a）の
-//! スコープ外であり、TASK-11.3b（#80）の `docs/opt-in-thin-js-glue.md` が担当する。
+//! スコープ外であり、TASK-11.3b（#80）の `docs/design/opt-in-thin-js-glue.md` が担当する。
 //!
 //! # 2 層構造
 //!
 //! - **汎用層** [`ThinRuntime`]: `wasm-bindgen` 非依存・web-sys 非依存の
 //!   純粋 Rust。`rws_interactive::Component`/`Hydrate` の任意の実装を束縛して
 //!   使える汎用ランタイム。native の `cargo test` で検証できる
-//!   （`wasm-full` の `Runtime<C>` 設計、`docs/wasm-full-architecture.md` と対をなす）。
+//!   （`wasm-full` の `Runtime<C>` 設計、`docs/design/wasm-full-architecture.md` と対をなす）。
 //! - **境界層** [`demo`]: `#[wasm_bindgen]` エクスポートの参照実装。
 //!   `wasm_bindgen` はジェネリクスをエクスポートできないため、
 //!   `rws_interactive::AppState` に束縛した具象エクスポートを同梱する。
@@ -32,14 +32,14 @@
 //! 2. JS グルーとの契約: グルーは戻り値の HTML 文字列を**そのまま**
 //!    `innerHTML` へ設定するのみとし、連結・加工をしない。この保証が
 //!    グルー側（JS）に委ねられること自体が薄いグルー方式固有の制約であり、
-//!    詳細な注意点は TASK-11.3b（#80）の `docs/opt-in-thin-js-glue.md` に譲る。
+//!    詳細な注意点は TASK-11.3b（#80）の `docs/design/opt-in-thin-js-glue.md` に譲る。
 //! 3. `action`/`payload`/ハイドレーション属性値はクライアント側で改ざん
 //!    されうる信頼できない入力として扱う。未知アクションは
 //!    `rws_interactive::dispatch` の仕様どおり no-op とし、ハイドレーション
 //!    失敗は panic せず `Err`（[`rws_interactive::HydrateError`]）を返す。
 //! 4. 自作コードに `unsafe` ブロックを書かない（`unsafe` は `wasm-bindgen` の
 //!    FFI 依存クレート内部・自動生成コードに限定して許容する。
-//!    `docs/unsafe-boundary.md` 参照）。
+//!    `docs/policy/unsafe-boundary.md` 参照）。
 
 #![warn(missing_docs)]
 
@@ -95,7 +95,7 @@ impl<C: Component + Hydrate> ThinRuntime<C> {
     /// 属性はクライアント側で改ざんされうる入力のため、`rws_interactive::
     /// Hydrate::from_hydration_attrs` を経由し panic しない。復元に失敗した
     /// 場合は本ランタイムの状態を変更せず `Err` を返す（呼び出し側は初期状態の
-    /// まま CSR を継続するフォールバックを取れる。`docs/wasm-full-architecture.md`
+    /// まま CSR を継続するフォールバックを取れる。`docs/design/wasm-full-architecture.md`
     /// 判断 5 と同じ安全側戦略。不変条件 3）。
     ///
     /// # Errors

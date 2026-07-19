@@ -1,6 +1,6 @@
 //! ハイドレーション状態注入の実装（TASK-11.4b、イシュー #83）。
 //!
-//! フォーマット規約は `docs/hydration-state-format.md`（TASK-11.4a・#82、正の
+//! フォーマット規約は `docs/api/hydration-state-format.md`（TASK-11.4a・#82、正の
 //! 規範文書）が確定済みであり、本モジュールはその第 5 節が凍結した API 表面
 //! （[`read_hydration_attrs`]・[`restore_state`]）を実装するのみで、フォーマット
 //! 自体（属性命名・codec）を再定義・再実装しない。属性名プレフィックスは
@@ -11,9 +11,9 @@
 //!
 //! # ネスト構造対応（イシュー #163）
 //!
-//! `docs/hydration-state-format.md` が「単純な値（数値・文字列・文字列配列）
+//! `docs/api/hydration-state-format.md` が「単純な値（数値・文字列・文字列配列）
 //! のみ」に凍結した対象型を、ネスト構造・オブジェクト・マップ等の複雑な状態
-//! へ一般化する設計・実装はイシュー #163・`docs/hydration-nested-state.md`
+//! へ一般化する設計・実装はイシュー #163・`docs/design/hydration-nested-state.md`
 //! （正の規範文書）が担う。`rws_interactive::codec::Value`（型タグ付き再帰
 //! codec）を追加しただけであり、[`read_hydration_attrs`]・[`restore_state`]
 //! の API 表面・実装は本イシューでは変更していない（`C::from_hydration_attrs`
@@ -36,7 +36,7 @@
 //!   復元は `restore_state` → `C::from_hydration_attrs` の `Result` 経路のみを
 //!   通し、`unwrap()`/`panic!` を使わない（不変条件 2・3）。
 //! - `Runtime::hydrate`（`crate::Runtime::hydrate`、TASK-11.2d・#77 で実装済み）
-//!   との結合: `docs/hydration-state-format.md` 第 5.1 節どおり
+//!   との結合: `docs/api/hydration-state-format.md` 第 5.1 節どおり
 //!   `read_hydration_attrs` → `restore_state` の順に呼び出し、`Err` 時は引数の
 //!   `component`（初期状態）のまま CSR 再描画（`Runtime::mount` 相当）へ
 //!   フォールバックする（`wasm-full/src/lib.rs` の `Runtime::hydrate` 実装参照）。
@@ -52,12 +52,12 @@ use rws_interactive::{Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 /// `data-hydrate-*` 属性値は改ざんされうるクライアント入力であり、上限を
 /// 設けない場合は巨大な属性値を注入されるとパース処理（`codec::decode_list`
 /// 等）のコストが状態注入 1 回あたり無制限に増大し得る（A05 相当の DoS
-/// 耐性、`docs/hydration-state-format.md` 第 4 節・判断 7 / 第 8 節・不変条件 4
+/// 耐性、`docs/api/hydration-state-format.md` 第 4 節・判断 7 / 第 8 節・不変条件 4
 /// で TASK-11.4b への実装検討事項として引き継がれた事項の決定）。
 ///
 /// 64 KiB は通常のフォーム入力・動的リスト用途（数値・短い文字列・数十件
 /// 程度の文字列配列）を十分許容しつつ、無制限の巨大属性値を弾く値として
-/// 選定した（`docs/hydration-state-format.md` が対象とする「単純な値」制約
+/// 選定した（`docs/api/hydration-state-format.md` が対象とする「単純な値」制約
 /// との整合。将来より精密な上限が必要になった場合は Issue 化して見直す）。
 ///
 /// 上限超過の属性は [`filter_hydration_attrs`] が列挙対象から除外する。
@@ -73,13 +73,13 @@ pub const MAX_ATTR_VALUE_LEN: usize = 64 * 1024;
 /// 未知の `data-hydrate-*` 属性（アプリの `Hydrate` 実装が使わないフィールド名）
 /// は除外せずそのまま通す。未知フィールドの無視は復元側
 /// （`Hydrate::from_hydration_attrs`）の契約であり
-/// （`docs/hydration-state-format.md` 第 4 節・判断 5）、本関数の責務は
+/// （`docs/api/hydration-state-format.md` 第 4 節・判断 5）、本関数の責務は
 /// プレフィックス絞り込みのみに留める。
 ///
 /// [`MAX_ATTR_VALUE_LEN`] を超える値を持つ属性は、DoS 耐性のため列挙結果から
 /// 除外する。除外時に出力するログ（`web_sys::console` 等）には属性名のみを
 /// 含め、値の内容は一切含めない（A09: 機微情報非露出、
-/// `docs/hydration-state-format.md` 第 8 節・不変条件 6）。
+/// `docs/api/hydration-state-format.md` 第 8 節・不変条件 6）。
 ///
 /// wasm32 配線層（[`read_hydration_attrs`]）・native テストの双方から呼ばれる
 /// DOM 非依存の純粋関数。呼び出し元は wasm32 ターゲットの `wiring` モジュール
@@ -97,7 +97,7 @@ fn filter_hydration_attrs(pairs: impl Iterator<Item = (String, String)>) -> Vec<
 
 /// `data-hydrate-*` 属性列から状態を復元する（クライアント側責務）。
 ///
-/// `docs/hydration-state-format.md` 第 5 節が凍結した API。`C::from_hydration_attrs`
+/// `docs/api/hydration-state-format.md` 第 5 節が凍結した API。`C::from_hydration_attrs`
 /// （`rws_interactive::Hydrate`）へ委譲する薄いラッパーであり、フォーマット
 /// 固有の追加ロジックは持たない。DOM・`web-sys` に依存しない純粋関数のため、
 /// native の `cargo test`（wasm32 ターゲット不要）で直接検証できる。
@@ -106,7 +106,7 @@ fn filter_hydration_attrs(pairs: impl Iterator<Item = (String, String)>) -> Vec<
 ///
 /// 属性の欠落・値の形式不正（例: 数値パース失敗）の場合に
 /// [`HydrateError`] を返す。panic しない（改ざんされうるクライアント入力を
-/// 前提とした防御的処理、`docs/hydration-state-format.md` 第 8 節・不変条件 2）。
+/// 前提とした防御的処理、`docs/api/hydration-state-format.md` 第 8 節・不変条件 2）。
 /// 呼び出し側（`Runtime::hydrate` 等）は `Err` を「初期状態での CSR 再描画へ
 /// フォールバックすべき」シグナルとして扱う契約（同書第 4 節・判断 6）。
 pub fn restore_state<C: Hydrate>(attrs: &[(String, String)]) -> Result<C, HydrateError> {
@@ -126,10 +126,10 @@ mod wiring {
     /// `root` 要素の属性一覧から `data-hydrate-*` 属性を列挙する（サーバーが
     /// 出力した状態のクライアント側読み取り）。
     ///
-    /// `docs/hydration-state-format.md` 第 5 節が凍結した API。`root.attributes()`
+    /// `docs/api/hydration-state-format.md` 第 5 節が凍結した API。`root.attributes()`
     /// （`web_sys::NamedNodeMap`）を index 走査し、各 `web_sys::Attr` の
     /// `name()`/`value()` を読み取るのみで、`set_inner_html` 等の DOM
-    /// **再構築** API は一切呼ばない（読み取り専用、`docs/hydration-state-format.md`
+    /// **再構築** API は一切呼ばない（読み取り専用、`docs/api/hydration-state-format.md`
     /// 第 8 節・不変条件 1 の「新たな迂回経路を作らない」を DOM 操作面でも
     /// 徹底する）。
     ///
@@ -138,7 +138,7 @@ mod wiring {
     /// root には（改ざんされうる）任意の属性が付与され得るため、無関係な
     /// 属性に巨大な値を仕込まれても Rust 側へコピーしない設計とし、
     /// [`MAX_ATTR_VALUE_LEN`]（`super::MAX_ATTR_VALUE_LEN`）による DoS 耐性
-    /// （`docs/hydration-state-format.md` 第 8 節・不変条件 4）を値取得コスト
+    /// （`docs/api/hydration-state-format.md` 第 8 節・不変条件 4）を値取得コスト
     /// の面でも徹底する。値長上限フィルタ自体は
     /// [`filter_hydration_attrs`]（純粋ロジック層）へ委譲する。
     ///
@@ -279,7 +279,7 @@ mod tests {
 
     /// 未知の `data-hydrate-*` 属性（アプリの `Hydrate` 実装が使わないフィールド
     /// 名）はここでは除外せずそのまま通す契約
-    /// （`docs/hydration-state-format.md` 第 4 節・判断 5、無視は復元側の責務）。
+    /// （`docs/api/hydration-state-format.md` 第 4 節・判断 5、無視は復元側の責務）。
     #[test]
     fn filter_hydration_attrs_passes_through_unknown_hydrate_fields() {
         let pairs = vec![(

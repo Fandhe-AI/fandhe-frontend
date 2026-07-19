@@ -3,7 +3,7 @@
 # 本リポジトリ自身の構成を宣言する参照マニフェストであり、`cli/src/structure.rs`
 # のスキーマ v1 の正例を兼ねる（TASK-13.1d, #131 のテストフィクスチャとしても
 # 利用予定）。スキーマの詳細・各フィールドの制約・PoC-7 からの差分理由は
-# `docs/structure-manifest.md` を参照。
+# `docs/design/structure-manifest.md` を参照。
 #
 # 本ファイルはワークスペース Cargo.toml の members と対応するが、cargo
 # メタデータとの機械的な突き合わせ（依存の実体検証）は TASK-13.1c（#130）の

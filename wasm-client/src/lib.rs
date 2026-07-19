@@ -3,7 +3,7 @@
 //! REQ-6（`docs/spec/04-requirements.md`）の受け入れ基準「ハイドレーション
 //! （`hydrate()`）が、サーバー出力済み DOM を再構築せず、既存 DOM へ
 //! イベントリスナーを後付けする最小ハイドレーション方式で成立すること」を
-//! 満たす実装クレート。設計は `docs/hydration-api.md`（TASK-6.2a、凍結済み）
+//! 満たす実装クレート。設計は `docs/api/hydration-api.md`（TASK-6.2a、凍結済み）
 //! に従う。実装と同書に乖離が生じた場合は同書を正とする。
 //!
 //! # 2 層構成（`rws-wasm-full` の先例を踏襲）
@@ -20,7 +20,7 @@
 //!    `#[wasm_bindgen]` エクスポート `hydrate` / `mount_csr`。実 DOM
 //!    （`web-sys`）を操作するのはこの層のみに限定する。
 //!
-//! # セキュリティ不変条件（`docs/hydration-api.md` 第 6 節を引き継ぐ）
+//! # セキュリティ不変条件（`docs/api/hydration-api.md` 第 6 節を引き継ぐ）
 //!
 //! 1. DOM への HTML 挿入は [`rws_core::render`] の出力（既定エスケープ済み）
 //!    **のみ**を経由する。`format!` による HTML 断片組み立て・ユーザー入力
@@ -44,8 +44,8 @@
 mod registry;
 
 /// ハイドレーション対象を示す属性名（`rws_app::detail_page` が「いいね」
-/// ボタンに付与する `data-hydrate` 属性、`docs/app-api.md` 第 3 節・
-/// `docs/hydration-api.md` 第 3.1 節の契約）。
+/// ボタンに付与する `data-hydrate` 属性、`docs/api/app-api.md` 第 3 節・
+/// `docs/api/hydration-api.md` 第 3.1 節の契約）。
 ///
 /// 純粋ロジック層（[`find_hydrate_target_kinds`]）・wasm32 配線層
 /// （[`wiring::hydrate`]）の双方が同じ属性名を参照することで、
@@ -61,7 +61,7 @@ pub const LIKE_HYDRATE_VALUE: &str = "like";
 /// `rws_app::list_page` → `rws_core::render` を**分岐なく**呼び出す。
 /// SSR/SSG（`rws-server`、TASK-6.1c）が同一関数を同一入力で呼んだ場合と
 /// 文字列完全一致することを、CSR が SSR/SSG と同一関数を呼ぶという
-/// REQ-6 の受け入れ基準として保証する（`docs/hydration-api.md` 第 3.1 節）。
+/// REQ-6 の受け入れ基準として保証する（`docs/api/hydration-api.md` 第 3.1 節）。
 ///
 /// # Examples
 ///
@@ -184,7 +184,7 @@ mod wiring {
     /// （`set_text_content`/`class_list` に限定、不変条件 3）。
     ///
     /// クロージャは [`registry::replace_handles`] が root_id 単位で保持する
-    /// （`closure.forget()` は使わない、`docs/hydration-api.md` 判断 4）。
+    /// （`closure.forget()` は使わない、`docs/api/hydration-api.md` 判断 4）。
     ///
     /// # Errors
     ///
@@ -210,7 +210,7 @@ mod wiring {
             let kind = element.get_attribute(HYDRATE_ATTR).unwrap_or_default();
             if kind != LIKE_HYDRATE_VALUE {
                 // v1 最小スコープでは「いいね」ボタン以外の data-hydrate 値は
-                // 未対応（`docs/hydration-api.md` 第 3.1 節）。
+                // 未対応（`docs/api/hydration-api.md` 第 3.1 節）。
                 continue;
             }
 

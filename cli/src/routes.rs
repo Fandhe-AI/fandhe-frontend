@@ -7,7 +7,7 @@
 //! 相当の呼び出しからルート文字列を抽出する。
 //!
 //! PoC-7 が採用していた「マニフェスト由来の任意正規表現をツールが評価する」設計は
-//! `docs/structure-manifest.md` 2.2.2 節で廃止済み（ReDoS・パターンインジェクション面の
+//! `docs/design/structure-manifest.md` 2.2.2 節で廃止済み（ReDoS・パターンインジェクション面の
 //! 排除）。本抽出器は正規表現クレートを使わず、`.route(` 呼び出しの引数を文字列として
 //! 走査するのみで、抽出したパス文字列を実行・評価はしない。
 //!
@@ -93,7 +93,7 @@ pub fn extract_routes(
 /// ビルドグラフ自体でテスト専用と扱うため）ので、[`truncate_before_test_cfg`]
 /// では除外できない。`src/` に限定して走査することで、製品コードではない
 /// フィクスチャ呼び出しを構造的に除外する（AST 精密化の代替としての
-/// ディレクトリ規約ベースの簡易対策。`docs/structure-manifest.md` §5）。
+/// ディレクトリ規約ベースの簡易対策。`docs/design/structure-manifest.md` §5）。
 pub(crate) fn scan_root(workspace_root: &Path, dir_name: &str) -> Result<PathBuf, ExtractError> {
     let target = resolve_within_root(workspace_root, dir_name)?;
     let src = target.join("src");
@@ -216,7 +216,7 @@ fn strip_comment_lines(content: &str) -> String {
 /// `server/src/router.rs` の `Router::route` は第 2 引数にハンドラ値（文字列
 /// リテラルまたは識別子）を取る。本抽出器はフル AST 解析は行わない軽量
 /// ヒューリスティックであり、REQ-13 の「機械可読なプロジェクト構造」を大まかに
-/// 列挙する用途に限定する（AST 精密化はスコープ外、`docs/structure-manifest.md` §5）。
+/// 列挙する用途に限定する（AST 精密化はスコープ外、`docs/design/structure-manifest.md` §5）。
 /// ノイズを減らすため以下の 2 点のみ前処理で除外する:
 /// - 行コメント（`//` 始まり。rustdoc 例（`///`）も含む）: 使用例・説明文中の
 ///   `.route(...)` を実ルート定義と誤認しないため（[`strip_comment_lines`]）。

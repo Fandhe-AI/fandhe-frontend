@@ -5,7 +5,7 @@
 //!
 //! 基準 1（`--ignore-scripts` 既定化、TASK-12.1・#38・イシュー #37 系列）・
 //! 基準 2（実行可能コード非混入の機械検証、TASK-12.2・#123）は
-//! `tools/npm-asset-build/` 側で担保済み（`docs/npm-asset-build.md` 参照）。
+//! `tools/npm-asset-build/` 側で担保済み（`docs/guides/npm-asset-build.md` 参照）。
 //! 本ファイルはその先、「配布物として最終的に出て行くもの」に対する
 //! 最終ゲートを担う。
 //!

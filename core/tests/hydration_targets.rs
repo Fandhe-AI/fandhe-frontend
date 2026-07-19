@@ -1,9 +1,9 @@
-//! `find_attr_values` / `find_nav_targets`（TASK-6.2b, `docs/hydration-api.md`
+//! `find_attr_values` / `find_nav_targets`（TASK-6.2b, `docs/api/hydration-api.md`
 //! 第 3 節・公開 API 凍結表）のネイティブ回帰テスト。
 //!
 //! これらは `rws-wasm-client` の `hydrate()` がハイドレーション対象を特定する
 //! ために呼ぶ契約の DOM 非依存純粋関数であり、wasm ビルドを介さずネイティブ
-//! 環境で回帰確認できることが設計上の要点（`docs/hydration-api.md` 判断 3）。
+//! 環境で回帰確認できることが設計上の要点（`docs/api/hydration-api.md` 判断 3）。
 //! 本ファイルはその契約（ネスト木の走査・属性欠落時の空配列・重複属性の
 //! 全列挙・`data-nav` ショートカットの委譲関係）を固定する。
 

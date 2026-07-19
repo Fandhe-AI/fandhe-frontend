@@ -28,7 +28,7 @@
 //! 誤検知しないよう、いずれもコメント除去後に判定する）。
 //!
 //! 将来クレートを追加・移行する場合は、本ファイルの `UNSAFE_ALLOWED_MEMBERS` /
-//! `DENY_UNSAFE_FFI_MEMBERS` を更新した上で `docs/unsafe-boundary.md`
+//! `DENY_UNSAFE_FFI_MEMBERS` を更新した上で `docs/policy/unsafe-boundary.md`
 //! （TASK-2.2b、#14／#155）に unsafe 使用箇所と安全性根拠（`// SAFETY:`）を追記する。
 //!
 //! ファイル走査は `CARGO_MANIFEST_DIR`（`core/`）の親（workspace ルート）配下に
@@ -42,7 +42,7 @@ use std::path::{Path, PathBuf};
 ///
 /// このリストに **含まれないメンバー**（`core` 等の safe 域クレート）は
 /// `#![forbid(unsafe_code)]` を必須とする。クレート追加時は本リストと
-/// `docs/unsafe-boundary.md`（#14）を同時に更新する運用とする。
+/// `docs/policy/unsafe-boundary.md`（#14）を同時に更新する運用とする。
 const UNSAFE_ALLOWED_MEMBERS: &[&str] = &["wasm-client", "wasm-thin"];
 
 /// `#![deny(unsafe_code)]` を採用しつつ、自作コード側の `unsafe` を CI で
@@ -51,7 +51,7 @@ const UNSAFE_ALLOWED_MEMBERS: &[&str] = &["wasm-client", "wasm-thin"];
 /// `wasm-bindgen` 展開コードの内部 `unsafe` と衝突するため `forbid` は
 /// 採用しないが、`src/` 配下の自作コードには `unsafe` トークン・
 /// `allow(unsafe_code)` による deny の上書きのいずれも許可しない。
-/// クレート追加時は本リストと `docs/unsafe-boundary.md` を同時に更新する。
+/// クレート追加時は本リストと `docs/policy/unsafe-boundary.md` を同時に更新する。
 const DENY_UNSAFE_FFI_MEMBERS: &[&str] = &["wasm-full"];
 
 /// workspace ルート（`core/` の親ディレクトリ）の絶対パスを返す。
@@ -331,7 +331,7 @@ fn contains_unsafe_code_allow_override(src: &str) -> bool {
 ///
 /// `wasm-full` は `#[wasm_bindgen]` 展開コードの内部 `unsafe` と衝突するため
 /// `forbid(unsafe_code)` ではなく `deny(unsafe_code)` を採用する方針
-/// （`wasm-full/src/lib.rs` 冒頭 doc コメント・`docs/unsafe-boundary.md` 第 2 節）。
+/// （`wasm-full/src/lib.rs` 冒頭 doc コメント・`docs/policy/unsafe-boundary.md` 第 2 節）。
 /// `deny` はソース側の `allow` で上書き可能なため、本テストは
 /// `ffi_deny_crates_contain_no_unsafe_token_nor_allow_override` と組み合わせて
 /// forbid 相当の強制を構成する一次防御を担う。
@@ -381,7 +381,7 @@ fn ffi_deny_crates_have_deny_unsafe_code_attribute() {
 /// 許容される unsafe は wasm-bindgen/web-sys の依存クレート内部・
 /// `#[wasm_bindgen]` マクロ展開の自動生成コードのみであり、いずれもここで
 /// 走査する自作ソース（`wasm-full/src/`）には現れない
-/// （`docs/unsafe-boundary.md` 第 2 節の許容 FFI 境界の記述を参照）。
+/// （`docs/policy/unsafe-boundary.md` 第 2 節の許容 FFI 境界の記述を参照）。
 #[test]
 fn ffi_deny_crates_contain_no_unsafe_token_nor_allow_override() {
     let root = workspace_root();

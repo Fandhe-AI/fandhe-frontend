@@ -8,7 +8,7 @@
 //! カウンター・フォーム・動的リスト固有の具象実装（`AppState`/`dispatch`/
 //! `hydration_attrs` 等）を、アプリ非依存の汎用 API へ一般化したものである。
 //!
-//! # 本クレートの不変条件（REQ-1・REQ-2・REQ-11、`docs/interactive-api.md` 第 6 節）
+//! # 本クレートの不変条件（REQ-1・REQ-2・REQ-11、`docs/api/interactive-api.md` 第 6 節）
 //!
 //! 1. [`Component::view`] の出力は `rws_core::Node` のみであり、
 //!    `rws_core::render()` の既定エスケープを必ず経由する。**本クレート内では
@@ -20,7 +20,7 @@
 //!    前提に、panic せず [`Result`] で失敗（[`HydrateError`]）を返す。
 //! 4. 未知アクション名の dispatch は no-op とし、状態を変更しない（安全側
 //!    フォールバック）。
-//! 5. codec（`docs/interactive-api.md` 第 3 節、TASK-11.1b で実装）は区切り
+//! 5. codec（`docs/api/interactive-api.md` 第 3 節、TASK-11.1b で実装）は区切り
 //!    文字・エスケープ文字を含む入力でもラウンドトリップが成立する方式
 //!    （Unit Separator + バックスラッシュエスケープ）を採用する。
 //! 6. **`unsafe` コード禁止**: `#![forbid(unsafe_code)]` によりクレート全体で
@@ -30,12 +30,12 @@
 //!
 //! # 本ファイルのスコープ（TASK-11.1b）
 //!
-//! 本ファイルは TASK-11.1a（#70、`docs/interactive-api.md`）が確定した
+//! 本ファイルは TASK-11.1a（#70、`docs/api/interactive-api.md`）が確定した
 //! [`Component`]・[`Hydrate`] トレイトと [`HYDRATE_ATTR_PREFIX`]・
 //! [`HydrateError`] の骨格に対し、`dispatch`・`codec` モジュールの関数本体・
 //! `render_for_hydration` の実装を追加し、PoC-5 のカウンター・フォーム・
 //! 動的リストコンポーネント（[`AppState`]）を [`Component`]/[`Hydrate`] の
-//! 具象実装として提供する（設計詳細は `docs/interactive-api.md` 第 3〜4 節）。
+//! 具象実装として提供する（設計詳細は `docs/api/interactive-api.md` 第 3〜4 節）。
 //! テストスイートの本格網羅は TASK-11.1c（#72）のスコープ。本クレートに
 //! 同梱するテストはスモーク〜回帰確認水準にとどめる。
 
@@ -49,9 +49,9 @@ use rws_core::{el, li, text, ul, Node};
 /// PoC-5 の `AppState`/`dispatch`/`render`（`docs/spec/03-poc/wasm-runtime-split/
 /// interactive/src/lib.rs`）を一般化したもの。`view()` は `rws-core` の
 /// ノード木 API のみを使う純粋関数として実装すること
-/// （`docs/component-api.md` REQ-5 の「コンポーネントは通常の Rust 関数」
+/// （`docs/api/component-api.md` REQ-5 の「コンポーネントは通常の Rust 関数」
 /// 規約と、本トレイトが導入する状態機械の抽象は独立した関心事であり、
-/// 矛盾しない。`docs/interactive-api.md` 第 3 節・第 4 節・判断 1 参照）。
+/// 矛盾しない。`docs/api/interactive-api.md` 第 3 節・第 4 節・判断 1 参照）。
 ///
 /// `rws-wasm-full`（TASK-11.2）が呼ぶ最小面はここで確定する
 /// （`decode_action`/`update`/`view`）。
@@ -105,7 +105,7 @@ pub fn dispatch<C: Component>(component: &mut C, name: &str, payload: &str) -> b
 ///
 /// [`Component`] とは独立したトレイトであり、SSR ハイドレーションを必要
 /// としないコンポーネントは本トレイトを実装しなくてよい
-/// （`docs/interactive-api.md` 第 3.1 節）。
+/// （`docs/api/interactive-api.md` 第 3.1 節）。
 pub trait Hydrate: Sized {
     /// 状態を `data-hydrate-*` 属性列へエンコードする（サーバー側責務）。
     ///
@@ -126,7 +126,7 @@ pub trait Hydrate: Sized {
 /// PoC-5 実績（`data-hydrate-counter`/`data-hydrate-draft`/
 /// `data-hydrate-items`）を標準化したもの。個々の属性名はコンポーネント
 /// ごとに異なるため、共有すべき接頭辞のみを定数として公開する
-/// （`docs/interactive-api.md` 第 4 節・判断 3）。
+/// （`docs/api/interactive-api.md` 第 4 節・判断 3）。
 pub const HYDRATE_ATTR_PREFIX: &str = "data-hydrate-";
 
 /// [`Hydrate::from_hydration_attrs`] の失敗を表す。
@@ -252,11 +252,11 @@ pub mod codec {
 
     /// ネスト可能なハイドレーション値ツリー（イシュー #163）。
     ///
-    /// `docs/hydration-state-format.md` が凍結した「数値・文字列・文字列配列
+    /// `docs/api/hydration-state-format.md` が凍結した「数値・文字列・文字列配列
     /// のみ」制約（TASK-11.4a）は `AppState`/[`super::Hydrate`] の既存契約
     /// として変更しない。本型は、ネスト構造・オブジェクト等の複雑な状態を
     /// 扱いたいアプリの [`super::Hydrate`] 実装が**オプトインで**使う追加の
-    /// 属性値表現であり、`docs/hydration-nested-state.md`（設計確定書）が
+    /// 属性値表現であり、`docs/design/hydration-nested-state.md`（設計確定書）が
     /// 正の規範文書。JSON 等の外部シリアライズクレートには依存しない
     /// （REQ-11・本クレートの外部依存ゼロ制約を維持）。
     #[derive(Debug, Clone, PartialEq)]
@@ -278,7 +278,7 @@ pub mod codec {
     ///
     /// `data-hydrate-*` 属性値は改ざんされうるクライアント入力であり、上限を
     /// 設けない場合は深くネストした `List`/`Map` の再帰デコードでスタックを
-    /// 枯渇させられる（A05 相当の DoS、`docs/hydration-nested-state.md` 参照）。
+    /// 枯渇させられる（A05 相当の DoS、`docs/design/hydration-nested-state.md` 参照）。
     /// 32 段は通常のアプリ状態（ネストしたフォーム・設定オブジェクト等）を
     /// 十分許容しつつ、無制限の深さを弾く値として選定した。
     pub const MAX_VALUE_DEPTH: u32 = 32;
@@ -830,7 +830,7 @@ pub mod codec {
 ///
 /// ルート要素が `Node::Element` でない場合（`Text`/`RawHtml` を直接返す
 /// コンポーネント）は属性を付与できないため、`view()` の戻り値をそのまま
-/// 返す（属性欠落を panic で扱わない、`docs/interactive-api.md` 第 4 節・
+/// 返す（属性欠落を panic で扱わない、`docs/api/interactive-api.md` 第 4 節・
 /// 判断 7）。
 pub fn render_for_hydration<C: Component + Hydrate>(component: &C) -> Node {
     let view = component.view();
@@ -856,7 +856,7 @@ pub fn render_for_hydration<C: Component + Hydrate>(component: &C) -> Node {
 ///
 /// PoC-5 の最小インタラクティブコンポーネント（カウンター＋フォーム入力＋
 /// 動的リスト更新）をそのまま製品状態として引き継ぐ。[`Component`]/
-/// [`Hydrate`] を実装し、`docs/interactive-api.md` が確定した API 表面の
+/// [`Hydrate`] を実装し、`docs/api/interactive-api.md` が確定した API 表面の
 /// 具体例として機能する。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppState {
@@ -1317,7 +1317,7 @@ mod tests {
     fn render_for_hydration_returns_view_unchanged_for_non_element_root() {
         // Component::view のルートが Node::Element でない場合、
         // render_for_hydration は属性を付与できず view() をそのまま返す
-        // （panic しない、docs/interactive-api.md 第 4 節・判断 7）。
+        // （panic しない、docs/api/interactive-api.md 第 4 節・判断 7）。
         struct TextOnly;
 
         impl Component for TextOnly {

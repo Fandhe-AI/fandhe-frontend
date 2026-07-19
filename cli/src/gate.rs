@@ -2,7 +2,7 @@
 //! （TASK-13.3, #138, 親 PoC-7 `cmd_gate` の Rust 移植）。
 //!
 //! 本モジュールが実装する判定ルール（5 チェックの定義・fail-closed 条件・
-//! 集約規則・JSON 契約）の正式な設計文書は `docs/gate-design.md`
+//! 集約規則・JSON 契約）の正式な設計文書は `docs/design/gate-design.md`
 //! （TASK-13.3a, #139）を参照。本コメントおよび各関数の doc コメントは
 //! 実装詳細の説明に留め、判定ルールの単一の情報源は同文書とする。
 //!
@@ -32,7 +32,7 @@
 //!   `unfulfilled_lint_expectations` で検出する）。あわせて `#[allow(...)]` に
 //!   よるブランケット抑止（ファイル・モジュール一括無効化）を独立の違反として
 //!   監査する（[`scan_file_for_violations`] 参照。イシュー #157/#158/#159、
-//!   詳細な脅威モデル・方式比較は `docs/raw-html-lint-design.md`）。
+//!   詳細な脅威モデル・方式比較は `docs/design/raw-html-lint-design.md`）。
 //! - `lint` チェックは `--all-targets` を付与し、テストターゲット
 //!   （`#[cfg(test)]` / `tests/` 配下）内の未レビュー `raw_html()` 呼び出しも
 //!   検出する（イシュー #315）。`default_escape_check`（保険層）は `tests/` を
@@ -464,7 +464,7 @@ fn run_cargo_test(runner: &dyn CommandRunner, project_dir: &Path, crates: &[&str
 
 /// `deny.toml` の存在確認（TASK-4.1 との接続点）→ `cargo deny check bans licenses
 /// sources` を実行する。`advisories` はネットワーク前提でオフラインゲート対象外
-/// とする（`templates/default/deny.toml` 冒頭コメント・`docs/cargo-deny-advisories.md`
+/// とする（`templates/default/deny.toml` 冒頭コメント・`docs/policy/cargo-deny-advisories.md`
 /// 参照）。
 ///
 /// `deny.toml` が存在しない場合は cargo-deny を起動せず即 failed とする
@@ -699,7 +699,7 @@ fn scan_dir_for_violations(dir: &Path, violations: &mut Vec<String>) {
 /// [`line_has_reviewed_expect_attribute`]（レビュー済み `#[expect]` 属性）の
 /// 有無を判定する（属性は呼び出し全体ではなく開始位置に対して書かれる運用を
 /// 想定。statement 属性として呼び出し文自体に付与するのが標準形、
-/// `docs/raw-html-review-gate.md` 参照）。
+/// `docs/policy/raw-html-review-gate.md` 参照）。
 fn scan_file_for_violations(path: &Path, violations: &mut Vec<String>) {
     let Ok(content) = std::fs::read_to_string(path) else {
         return;
@@ -814,7 +814,7 @@ mod tests {
     /// #142）。`FakeRunner` は引数を無視するため、`--locked` の脱落・
     /// `-D warnings` の脱落・`-p <crate>` 列挙の崩れ・`policy_check` の
     /// サブコマンド列（`advisories` を含めてはならない）といった弱体化を
-    /// 検知できない（`docs/gate-design.md` §2 表・§5 A06 の回帰固定）。
+    /// 検知できない（`docs/design/gate-design.md` §2 表・§5 A06 の回帰固定）。
     struct ArgsRecordingRunner {
         responses: Mutex<Vec<(bool, String)>>,
         calls: Mutex<Vec<(String, Vec<String>)>>,
@@ -1574,7 +1574,7 @@ mod tests {
     // G8 (TASK-13.3d #142): `truncate_output` のマルチバイト文字境界安全性。
     // `chars()` ベースの丸めが char 境界を跨いで panic しないこと・
     // マルチバイト文字列でも末尾優先が保たれることを固定する
-    // （docs/gate-design.md §5 A09）。
+    // （docs/design/gate-design.md §5 A09）。
     // ------------------------------------------------------------------
 
     #[test]
@@ -1596,7 +1596,7 @@ mod tests {
     // ------------------------------------------------------------------
     // G1 (TASK-13.3d #142): `policy_check` の単体テスト。
     // deny.toml 欠落時に cargo-deny を**起動しないこと**（fail-closed）、
-    // 存在時の成功/失敗伝播・出力丸めを検証する（docs/gate-design.md §2
+    // 存在時の成功/失敗伝播・出力丸めを検証する（docs/design/gate-design.md §2
     // 表 #5・§3 fail-closed）。
     // ------------------------------------------------------------------
 
@@ -1645,7 +1645,7 @@ mod tests {
         assert_eq!(args, vec!["deny", "check", "bans", "licenses", "sources"]);
         assert!(
             !args.contains(&"advisories".to_string()),
-            "policy_check must not include `advisories` (offline gate scope, docs/cargo-deny-advisories.md)"
+            "policy_check must not include `advisories` (offline gate scope, docs/policy/cargo-deny-advisories.md)"
         );
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -1682,7 +1682,7 @@ mod tests {
     // ------------------------------------------------------------------
     // G2 (TASK-13.3d #142): 外部コマンドの起動引数契約。`--locked` の脱落
     // （A06 弱体化）・`-D warnings` の脱落・`-p <crate>` 列挙の崩れを
-    // 検知できるようにする（docs/gate-design.md §2 表・§5 A06）。
+    // 検知できるようにする（docs/design/gate-design.md §2 表・§5 A06）。
     // ------------------------------------------------------------------
 
     #[test]
@@ -1758,7 +1758,7 @@ mod tests {
     // G3 (TASK-13.3d #142): 宣言クレート 0 件時、`run_cargo_check` /
     // `run_cargo_test` それぞれが共通ヘルパー経由の fail-closed を維持する
     // ことを個別に固定する（既存は clippy のみテスト済み。この 2 つも
-    // ワークスペース全体へフォールバックしてはならない、docs/gate-design.md
+    // ワークスペース全体へフォールバックしてはならない、docs/design/gate-design.md
     // §3）。
     // ------------------------------------------------------------------
 
@@ -1780,7 +1780,7 @@ mod tests {
 
     // ------------------------------------------------------------------
     // G4 (TASK-13.3d #142): `aggregate` の `action` 固定文言。集約結果の
-    // JSON 契約の一部（docs/gate-design.md §4）であり、文言の意図しない変更を
+    // JSON 契約の一部（docs/design/gate-design.md §4）であり、文言の意図しない変更を
     // 検知する。
     // ------------------------------------------------------------------
 
@@ -1812,7 +1812,7 @@ mod tests {
     // ------------------------------------------------------------------
     // G5/G7 (TASK-13.3d #142): `run_all_checks` が返す 5 チェックの name と
     // 順序（PoC-7 互換 JSON 形状）、および全チェック成功時に `gate_result`
-    // が `"PASS"` になる経路を固定する（docs/gate-design.md §4 JSON 出力契約・
+    // が `"PASS"` になる経路を固定する（docs/design/gate-design.md §4 JSON 出力契約・
     // 集約規則）。フル e2e（実ツールチェーン走行）は TASK-13.4 #143 の
     // スコープのため、`FakeRunner` による軽量検証に留める。
     // ------------------------------------------------------------------
@@ -1884,7 +1884,7 @@ mod tests {
         assert_eq!(
             names,
             vec!["type_check", "default_escape_check", "lint", "test", "policy"],
-            "check name/order is a JSON output contract (PoC-7 compatibility, docs/gate-design.md §4)"
+            "check name/order is a JSON output contract (PoC-7 compatibility, docs/design/gate-design.md §4)"
         );
 
         let _ = std::fs::remove_dir_all(&dir);
@@ -1922,7 +1922,7 @@ mod tests {
     // G6 (TASK-13.3d #142): `render_report` の出力が機械的に有効な JSON で
     // あることをラウンドトリップ検証する（既存は部分文字列アサートのみ。
     // `cli` 自前パーサ `crate::json` を使えば外部依存ゼロのまま検証できる。
-    // docs/gate-design.md §4・§5 A09）。
+    // docs/design/gate-design.md §4・§5 A09）。
     // ------------------------------------------------------------------
 
     #[test]

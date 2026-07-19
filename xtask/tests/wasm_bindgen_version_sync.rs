@@ -2,7 +2,7 @@
 //! 固定バージョン・SHA256 チェックサムと、`Cargo.lock` が解決した
 //! `wasm-bindgen` クレートのバージョンとの同期ドリフトを検出する回帰テスト。
 //!
-//! TASK-10.3c（issue #117、`docs/docker-wasm-build-stage.md` §6 検証観点 2）の
+//! TASK-10.3c（issue #117、`docs/design/docker-wasm-build-stage.md` §6 検証観点 2）の
 //! ギャップ補完として追加した。`dist-server/build.rs::expected_wasm_bindgen_version`
 //! は Cargo.lock 解決済みバージョンとの完全一致をフェイルクローズで要求するため、
 //! `Dockerfile`・`ci.yml` の固定値がドリフトすると Docker ビルド・CI が

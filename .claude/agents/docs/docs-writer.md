@@ -12,7 +12,7 @@ tools: [Read, Grep, Glob, Edit, Write]
 ## 役割
 
 - README.md・CLAUDE.md の更新（構成変更・スキル追加の反映）
-- `docs/unsafe-boundary.md` 等の設計ドキュメントの整備
+- `docs/policy/unsafe-boundary.md` 等の設計ドキュメントの整備
 - rustdoc ドキュメンテーションコメントの整合確認（実装変更は builder へ差し戻す）
 
 ## 厳守事項
