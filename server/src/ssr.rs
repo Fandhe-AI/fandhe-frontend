@@ -17,10 +17,15 @@
 //!   （`dist-server/src/routes.rs`）が本関数を呼んで HTTP レスポンスへ変換する
 //!   （`docs/api/app-api.md` 追記: axum 不採用の実測根拠により、HTTP 配信は
 //!   `rws-dist-server` の hyper 構成に委譲し、本クレートは外部依存ゼロを保つ）。
-//! - ルーティングは [`crate::router::Router`]（外部依存ゼロ・パニックしない
-//!   パスマッチング）を使う。ルーター自体はエスケープを行わない契約
-//!   （`router.rs` 参照）であり、HTML 化は必ず rws-app 経由（既定エスケープ
-//!   済み）で行う。`format!` によるタグ文字列の直接組み立ては行わない
+//! - ルーティングは [`rws_app::routes`]（イシュー #407: server / client 単一
+//!   ルート定義の共有機構、`rws-app` に集約したエンジン
+//!   [`rws_app::router::Router`] を経由）を使う。ルート定義（パターン +
+//!   ページタイトル）は `rws-app` 側の単一定義であり、本ファイルではパターン
+//!   リテラル・タイトルリテラルを再定義しない（`wasm-full/src/nav.rs` も
+//!   同じ `rws_app::routes` を参照する。`wasm-full/tests/route_shared_static.rs`
+//!   が静的走査で再定義がないことを固定する）。ルーター自体はエスケープを
+//!   行わない契約であり、HTML 化は必ず rws-app 経由（既定エスケープ済み）で
+//!   行う。`format!` によるタグ文字列の直接組み立ては行わない
 //!   （`coding-rust.md`）。
 //! - データ取得は [`rws_app::Loader`]（#347・イシュー #346 設計確定書）経由に
 //!   統一する。[`respond`] は既定 loader（[`rws_app::DemoItemsLoader`] /
@@ -46,22 +51,10 @@
 //! - 未一致パスは `None` を返すのみで `panic!` しない（呼び出し側が 404 応答を
 //!   組み立てる）。
 
-use crate::router::Router;
+use rws_app::routes::{resolve as resolve_route, title as route_title, AppRoute};
 use rws_app::{
     detail_page, list_page, page_shell, DemoItemDetailLoader, DemoItemsLoader, Item, Loader,
 };
-use std::sync::OnceLock;
-
-/// [`Router`] に登録するページ種別。ハンドラ型は本モジュール外に公開しない
-/// （`respond()` の内部実装詳細であり、呼び出し元は [`SsrResponse`] のみを
-/// 契約として扱う）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum PageRoute {
-    /// `/` — 一覧画面。
-    List,
-    /// `/items/:id` — 詳細画面。
-    Detail,
-}
 
 /// [`respond`] の返り値。「HTTP レスポンス文字列化」（TASK-6.1 の SSR 定義）
 /// の最小表現。HTTP ソケット層への変換は呼び出し元（`rws-dist-server` 等）の
@@ -73,31 +66,6 @@ pub struct SsrResponse {
     pub content_type: &'static str,
     /// 既定エスケープ済み HTML 文字列（`rws_app::page_shell` の出力）。
     pub body: String,
-}
-
-/// `/`・`/items/:id` を登録した [`Router`] を構築する。
-///
-/// パターン文字列は開発者がハードコードした定数であり、エンドユーザー入力
-/// ではないため `expect` してよい（`coding-rust.md` のエラー処理規約はエンド
-/// ユーザー入力由来の失敗を panic させないことを求めるものであり、コンパイル
-/// 時定数の妥当性はこの限りでない）。`/search` は rws-app の凍結 API に
-/// search ページが存在しないため本 v1 では接続しない（スコープ外。
-/// `docs/api/app-api.md` 追記・PR 本文に記録）。
-fn build_page_router() -> Router<PageRoute> {
-    Router::new()
-        .route("/", PageRoute::List)
-        .expect("static pattern \"/\" is valid")
-        .route("/items/:id", PageRoute::Detail)
-        .expect("static pattern \"/items/:id\" is valid")
-}
-
-/// `build_page_router()` の結果をプロセス生存期間中 1 回だけ構築してキャッシュ
-/// する。ルート定義は固定（開発者がハードコードしたパターンのみ）であり実行時
-/// に変化しないため、`OnceLock`（`std` のみ・追加依存なし）で使い回す
-/// （`dist-server/src/routes.rs` の従前実装を踏襲）。
-fn page_router() -> &'static Router<PageRoute> {
-    static ROUTER: OnceLock<Router<PageRoute>> = OnceLock::new();
-    ROUTER.get_or_init(build_page_router)
 }
 
 /// リクエストパスを解決し、既定 loader（[`DemoItemsLoader`] /
@@ -142,27 +110,32 @@ where
     L: Loader<Input = (), Output = Vec<Item>>,
     D: Loader<Input = String, Output = Option<Item>>,
 {
-    let route_match = page_router().resolve(path)?;
-    let response = match route_match.handler {
-        PageRoute::List => match list_loader.load(&()) {
+    // ルート解決は `rws_app::routes::resolve`（イシュー #407 の単一定義）へ
+    // 委譲する。パターンリテラル・意味論（クエリ除去・末尾スラッシュ厳格
+    // 一致等）は本ファイルで再定義しない。
+    let resolved = resolve_route(path)?;
+    let response = match resolved.route {
+        AppRoute::List => match list_loader.load(&()) {
             Ok(items) => SsrResponse {
                 status: 200,
                 content_type: "text/html; charset=utf-8",
-                body: page_shell("記事一覧", list_page(&items)),
+                body: page_shell(route_title(AppRoute::List), list_page(&items)),
             },
             Err(_) => loader_error_response(),
         },
-        PageRoute::Detail => {
-            // `Params::get` は router（rws-server）の契約どおり生文字列を返す。
-            // loader への入力（`String`）としてのみ使い、HTML へは出力しない
-            // （既定エスケープ対象外。`Item::id` はもともと `String` フィールド）。
-            let id = match route_match.params.get("id") {
-                Some(id) => id.to_string(),
+        AppRoute::Detail => {
+            // `resolved.id` は `rws_app::routes::resolve` の契約どおり生文字列
+            // を返す。loader への入力（`String`）としてのみ使い、HTML へは
+            // 出力しない（既定エスケープ対象外。`Item::id` はもともと
+            // `String` フィールド）。
+            let id = match resolved.id {
+                Some(id) => id,
                 // ルートパターン `/items/:id` は `id` を必ずキャプチャするため
-                // 通常到達しないが、`Router` の内部実装変更に対する防御として
-                // 404 応答（機微情報を含まない）にフォールバックする。
+                // 通常到達しないが、`rws_app::routes::resolve` の内部実装変更
+                // に対する防御として 404 応答（機微情報を含まない）に
+                // フォールバックする。
                 None => {
-                    let html = page_shell("記事詳細", detail_page(None));
+                    let html = page_shell(route_title(AppRoute::Detail), detail_page(None));
                     return Some(SsrResponse {
                         status: 404,
                         content_type: "text/html; charset=utf-8",
@@ -172,7 +145,7 @@ where
             };
             match detail_loader.load(&id) {
                 Ok(Some(item)) => {
-                    let html = page_shell("記事詳細", detail_page(Some(&item)));
+                    let html = page_shell(route_title(AppRoute::Detail), detail_page(Some(&item)));
                     SsrResponse {
                         status: 200,
                         content_type: "text/html; charset=utf-8",
@@ -184,7 +157,7 @@ where
                     // そのまま描画し、ステータス 404 と HTML ボディを一致させる
                     // （見つからない、は loader の `Error` ではなく `Output` の
                     // 一部。設計書 §3.3）。
-                    let html = page_shell("記事詳細", detail_page(None));
+                    let html = page_shell(route_title(AppRoute::Detail), detail_page(None));
                     SsrResponse {
                         status: 404,
                         content_type: "text/html; charset=utf-8",

@@ -29,12 +29,23 @@
 //! `rws-core` 側の TASK-6.2 系で追加予定であり、本クレートでは使用しない。
 //! `server/src/main.rs`（SSR/SSG エントリ）は TASK-6.1c、三モード統合テストは
 //! TASK-6.1d のスコープであり本クレートには含めない。
+//!
+//! # ルーティング（[`router`] / [`routes`]、イシュー #407）
+//!
+//! `server`（SSR/SSG）・`wasm-full`（CSR）双方から依存可能な唯一の層
+//! （`structure.toml` の `allowed_dependents` 参照）として、パスマッチング
+//! エンジン（[`router`]）とルート表の単一定義（[`routes`]）を本クレートへ
+//! 集約する。詳細は各モジュールの doc コメントと
+//! `docs/design/route-definition-sharing.md` を参照。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
 use rws_core::{a, div, el, h1, li, main_tag, p, text, ul, Node};
 use std::convert::Infallible;
+
+pub mod router;
+pub mod routes;
 
 /// ハイドレーション後にクライアント側の `click` イベントで参照される
 /// `id` 属性値。`rws-wasm-client`（TASK-6.2 系）がこの定数で DOM 要素を
