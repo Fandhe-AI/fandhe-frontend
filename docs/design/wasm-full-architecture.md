@@ -88,6 +88,7 @@ Phase 1（#336・`docs/design/dom-binding-update-design.md`）で束縛点最小
 | `dom`（内部） | `paint()`（`rws_core::render()` 出力への `set_inner_html` 適用） | TASK-11.2c（#76） |
 | `hydration` | `data-hydrate-*` 属性からの状態復元の実配線 | **TASK-11.4（#81/#82）に予約**。本書では配置とシグネチャ方針のみ規定する |
 | `csr` | `rws_app::Loader` 経由の CSR データ解決層（`rws_app::Item` 系ページ）。DOM 非依存の純粋層で `Runtime`/`hydration` とは独立した別系統。初期表示（ハイドレーション）では呼ばない | TASK-CSR-loader（#349） |
+| `nav` | クライアント側ルーティング（history API 連携・URL 同期・遷移時 loader 配線）。`csr` の loader 解決層を再利用し、`data-nav` クリック委譲・`popstate` 連携・`rws_wasm_client::build_dom_node` 経由の DOM サブツリー差し替え（`set_inner_html` 不使用）を担う独立系統 | イシュー #374 |
 
 ### 3.2 公開 API 凍結表
 
@@ -100,6 +101,11 @@ Phase 1（#336・`docs/design/dom-binding-update-design.md`）で束縛点最小
 | `csr::resolve_list_node` | `pub fn resolve_list_node<L>(loader: &L) -> rws_core::Node where L: rws_app::Loader<Input = (), Output = Vec<rws_app::Item>>`（本体は TASK-CSR-loader #349） | CSR 経路の一覧画面 loader 解決。`rws_app::assemble_list_page` の `Ok` はそのまま返し、`Err(_)` は値に触れず `csr::loader_error_view()` へ変換する（fail-closed） |
 | `csr::resolve_detail_node` | `pub fn resolve_detail_node<D>(loader: &D, id: &str) -> rws_core::Node where D: rws_app::Loader<Input = String, Output = Option<rws_app::Item>>`（本体は TASK-CSR-loader #349） | CSR 経路の詳細画面 loader 解決。`Output = None`（404 相当）は `detail_page(None)` の既存契約のまま描画し、`Err(_)` のみ `csr::loader_error_view()` へ変換する |
 | `csr::loader_error_view` | `pub fn loader_error_view() -> rws_core::Node`（本体は TASK-CSR-loader #349） | CSR の fail-closed 固定エラービュー。`rws_app::Loader::Error` の値をシグネチャ上受け取らず、`server/src/ssr.rs::loader_error_response` と同型の構造的な機微情報非露出保証を持つ |
+| `nav::ClientRoute` | `pub enum ClientRoute { List, Detail(String) }`（本体はイシュー #374） | クライアント側で解決したルート。`server/src/ssr.rs::PageRoute` に対応するクライアント側の等価表現（`rws-server` へ依存できないため独自定義） |
+| `nav::resolve_path` | `pub fn resolve_path(path: &str) -> Option<ClientRoute>`（本体はイシュー #374） | DOM 非依存の純粋ルート解決。`docs/api/router-path-matching.md` v1 仕様のうち本アプリの 2 ルートに必要な範囲（クエリ切り落とし・末尾スラッシュ厳格一致・`:id` 捕捉）を実装する |
+| `nav::resolve_route_view_with` | `pub fn resolve_route_view_with<L, D>(list_loader: &L, detail_loader: &D, route: &ClientRoute) -> (&'static str, rws_core::Node) where L: rws_app::Loader<Input = (), Output = Vec<rws_app::Item>>, D: rws_app::Loader<Input = String, Output = Option<rws_app::Item>>`（本体はイシュー #374） | ルートを「タイトル + 描画済み Node」へ変換する。`server/src/ssr.rs::respond_with` と同じ分岐構造・同一タイトルリテラルを踏襲し、`csr::resolve_list_node`/`resolve_detail_node` を呼ぶ（fail-closed をそのまま継承） |
+| `nav::start_router` | `pub fn start_router(root_id: &str) -> Result<(), JsValue>`（wasm32 限定、本体はイシュー #374） | クライアント側ルーティングの起動配線。`document` レベルで `click`（`data-nav` 委譲）・`window` レベルで `popstate` を各 1 回だけ登録する。**起動時点では描画を行わない**（初期表示で loader を再実行しない凍結事項の遵守） |
+| `entry::start_router` | `#[wasm_bindgen] pub fn start_router(root_id: &str) -> Result<(), JsValue>`（本体はイシュー #374） | `nav::start_router` を呼ぶ薄い `#[wasm_bindgen]` エクスポート（`mount`/`hydrate` と同型の参照実装）。`RUNTIME`（`AppState` 状態管理）とは独立した別系統 |
 
 ### 3.3 設計方針の要点（2 層構成）
 
@@ -138,6 +144,8 @@ Phase 1（#336・`docs/design/dom-binding-update-design.md`）で束縛点最小
 | 5 | `HydrateError` 発生時（属性欠落・不正値）は panic せず、**初期状態での CSR 再描画に安全側フォールバックする** | `docs/api/interactive-api.md` 第 4 節・判断 4 で「フォールバック戦略は呼び出し側（`rws-wasm-full`）の選択に委ねる」とされた選択を本書で確定する。改ざんされた・破損した `data-hydrate-*` 属性値は信頼できないクライアント入力として扱い、panic による未定義遷移を排除する（`.claude/rules/coding-rust.md` の panic 回避規約） |
 | 6 | `rws-wasm-full` は `rws-wasm-client`（TASK-6.2 系）に依存しない**独立クレート**とする | PoC-3 / PoC-5 のクレート分離実績を踏襲する。責務を明確に分ける: `wasm-client` = 最小ハイドレーション（DOM 再構築なし・状態機械を持たない）、`wasm-full` = 状態機械つきの既定インタラクション（`set_inner_html` による再描画を伴う）。両者は共存可能だが、一方が他方に依存する構成は採らない |
 | 7 | `rws-wasm-thin`（TASK-11.3）はオプトインであり本書のスコープ外とする | 安全性境界の差分（PoC-2 / PoC-5 の脅威モデル (c)(d) 面）への参照のみ本書第 6 節に記載し、詳細設計は TASK-11.3 側の設計確定書に委ねる |
+| 8 | `nav::start_router` の click/popstate リスナーは `root_id` 要素ではなく `document`/`window` へ登録する（イシュー #374） | 遷移描画は `root_id` 要素の**子要素のみ**を差し替える（`root` 自身は再生成しない）ため理論上は `root` へ登録しても生存するが、`events.rs::wire_events` の「ルート要素へ登録」慣行とは異なり、より外側の不変な親（`document`/`window`）へ登録することで将来の描画方式変更（`root` 自体の再生成を伴う変更）に対しても委譲リスナーの生存を保証する（`wasm-full/tests/nav_browser.rs` の連続遷移テストで直接固定） |
+| 9 | `nav` は `rws-server` へ依存せず、ルート表を `wasm-full/src/nav.rs` 内に独自実装する（イシュー #374） | `structure.toml` の `server.allowed_dependents = ["dist-server"]` により `wasm-full` は `rws-server` へ依存できない。`server/src/ssr.rs` とのルートパターン・ページタイトルのドリフトは `wasm-full/tests/route_sync_static.rs`（静的ソース走査、`core/tests/no_branching_across_modes.rs` と同方式）で検知する |
 
 ## 5. 既定実装化の方針（TASK-11.2d への引き継ぎ）
 
@@ -223,3 +231,17 @@ WASM 完全方式固有の不変条件を追加する。
 - `docs/policy/unsafe-boundary.md` 第 2 節の `wasm-full` 行（現状「未作成」）は
   本書の `deny(unsafe_code)` 方針と矛盾せず、TASK-11.2b（#75）でクレート
   作成時にこの表を本書の方針に沿って更新する。
+
+## 10. `nav` モジュール（イシュー #374）のスコープ外
+
+以下は本イシューの受け入れ条件（history API 連携・URL 同期・遷移時 loader
+配線）に含めず、`.claude/rules/out-of-scope-tracking.md` に従い別 Issue 化を
+提案する事項として記録する（ユーザー承認なしに起票はしない）。
+
+| 項目 | 理由 |
+|------|------|
+| 遷移後ページ内のインタラクティブ要素の再配線（詳細ページの `data-hydrate="like"` ボタン） | REQ-6 最小デモ（`wasm-client`）の管轄であり、クライアント遷移後は未配線のまま |
+| SPA 内 View Transitions（`document.startViewTransition` 連携） | 現状は Cross-Document View Transitions の CSS のみ（`page_shell` の `@view-transition` at-rule） |
+| `wasm-client`（最小ハイドレーション方式）側の遷移対応・loader 移行 | イシュー #349 の out-of-scope 事項と同項 |
+| スクロール位置の復元制御（`history.scrollRestoration`）・遷移中のローディング表示 | 本イシューの受け入れ条件に含まれない |
+| 汎用ルート定義共有機構（ルート表を server / client で単一定義から生成する仕組み） | `fw structure` の `rws-router-v1` 抽出器（`cli/src/routes.rs`）は `server/` 内の文字列リテラルのみを走査するため定数共有は取れない。現状は `wasm-full/tests/route_sync_static.rs` の静的走査によるドリフト検知で代替する（判断 9） |

@@ -46,6 +46,10 @@ publish = false
 # 承認整理済みの方向（`docs/design/dom-binding-update-design.md` §3.2a）。
 # workspace 内 path 依存であり新規外部パッケージの追加はゼロ
 # （`cargo metadata` 実測結果を PR 本文に記録する）。
+# イシュー #374（クライアント側ルーティング）: 新規外部クレート追加ゼロ。
+# `[dependencies.web-sys]` の features 拡張のみ（History/Location/PopStateEvent
+# 連携用の `History`/`Location`/`MouseEvent` を追加）。`cargo metadata` 実測
+# （パッケージ数・依存グラフ深さ）に変化がないことを PR 本文に記録する。
 [dependencies]
 rws-app = { path = "../app" }
 rws-core = { path = "../core" }
@@ -67,7 +71,10 @@ features = [
   "Element",
   "Event",
   "EventTarget",
+  "History",
   "HtmlInputElement",
+  "Location",
+  "MouseEvent",
   "NamedNodeMap",
   "Window",
   "console",
@@ -111,6 +118,11 @@ wasm-bindgen-test = "0.3"
 # イシュー #345: `runtime_browser.rs` の keyed list ノード同一性テストが
 # `Element::children()`（`HtmlCollection`）・`query_selector_all`
 # （`NodeList`）を使うため追加。テスト専用の feature 拡張。
+# イシュー #374: `wasm-full/tests/nav_browser.rs` が合成 `MouseEvent`
+# （クリック遷移テスト）・合成 `PopStateEvent`（戻る/進む契約テスト）を
+# 組み立てるために `MouseEventInit`/`PopStateEventInit` を追加する
+# （テスト専用の feature 拡張。既存の `EventInit` 追加時の判断・PR #92
+# と同じ承認整理）。
 [dev-dependencies.web-sys]
 version = "0.3"
 features = [
@@ -120,4 +132,7 @@ features = [
   "EventInit",
   "HtmlCollection",
   "NodeList",
+  "MouseEventInit",
+  "PopStateEvent",
+  "PopStateEventInit",
 ]

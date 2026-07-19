@@ -34,6 +34,15 @@
 //! 提供する。初期表示（ハイドレーション）では呼ばない
 //! （`docs/design/loader-trait-design.md` §4・§7.3、`csr` モジュール doc 参照）。
 //!
+//! [`nav`] モジュール（イシュー #374）はクライアント側ルーティング
+//! （history API 連携・URL 同期・遷移時 loader 配線）を担う。[`csr`] の
+//! loader 解決層を再利用しつつ、`data-nav` クリック委譲・`popstate` 連携・
+//! DOM サブツリー差し替え（[`rws_wasm_client::build_dom_node`] 経由、
+//! `set_inner_html` 不使用）という独自の配線層を持つ。[`Runtime`]/[`entry`]
+//! の状態管理（`rws_interactive::Component`）とは独立した別系統であり、
+//! 遷移後のインタラクティブ要素再配線は本クレートのスコープ外（#374 計画
+//! §8 参照）。
+//!
 //! 本クレートの自作コードは safe Rust のみとし、`unsafe` は `wasm-bindgen` /
 //! `web-sys` の FFI 境界（依存クレート内部・自動生成コード）に限定する
 //! （`docs/policy/unsafe-boundary.md` 第 2 節）。自作コードでの新規 `unsafe` 追加を
@@ -50,6 +59,7 @@
 pub mod csr;
 pub mod events;
 pub mod hydration;
+pub mod nav;
 
 #[cfg(target_arch = "wasm32")]
 pub mod entry;
