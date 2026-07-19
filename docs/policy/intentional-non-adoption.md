@@ -114,12 +114,12 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     「束縛点最小更新」がすでに一般化実装済み。`data-bind-text` /
     `data-bind-attr` / `data-bind-class` 属性を 1 回走査して束縛点対応表を
     構築し、`set_text_content` / `set_attribute` / `class_list` の 3 種別
-    に限定した DOM 変異のみを行う（`wasm-client/src/binding.rs` ・
-    `wasm-client/src/binding_dom.rs`、イシュー #343、`docs/design/dom-binding-update-design.md`
+    に限定した DOM 変異のみを行う（`crates/wasm-client/src/binding.rs` ・
+    `crates/wasm-client/src/binding_dom.rs`、イシュー #343、`docs/design/dom-binding-update-design.md`
     §3）。
   - `fandhe-frontend-wasm-full`（状態機械つきの既定インタラクション）: 現時点では
     `paint()` が `web_sys::Element::set_inner_html` によるイベント単位の
-    領域再描画を行う（`wasm-full/src/dom.rs`）。以下の設計制約でリスクと
+    領域再描画を行う（`crates/wasm-full/src/dom.rs`）。以下の設計制約でリスクと
     コストを抑えている（`docs/design/wasm-full-architecture.md` 第 7 節・
     不変条件表）。
     - イベント委譲配線（`click` / `input`）をマウント時に 1 回だけルート
@@ -160,7 +160,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     ディレクトリ構造を読み込む必要があり、宣言的テーブル 1 ファイルを読む
     より消費コンテキストが大きい。
 - **本フレームワークでの代替**: 宣言的な `Router` テーブル
-  （`server/src/router.rs`、TASK-7.2b）。`Router::route(pattern, handler)`
+  （`crates/server/src/router.rs`、TASK-7.2b）。`Router::route(pattern, handler)`
   の builder パターンでルート一覧を 1 箇所に明示し、`Router::resolve` で
   解決する。パターン不正（先頭 `/` 欠落・空セグメント等）は `panic!` せず
   `RouterError` を返す設計。パスパターンの照合仕様は
@@ -188,7 +188,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     ビルドパイプラインの挙動を把握するための追加コンテキストとなる。
 - **本フレームワークでの代替**: REQ-10（開発時 DX、
   `docs/spec/04-requirements.md`）が定める「本番差分ビルド反映 5 秒以内」
-  ゲート。`dist-server/benches/rebuild_latency.rs` による rebuild latency
+  ゲート。`crates/dist-server/benches/rebuild_latency.rs` による rebuild latency
   計測が CI ジョブ（「REQ-10 rebuild latency (5s limit)」）として組み込まれ、
   実測値は `docs/reports/rebuild-latency-acceptance-report.md`
   （0.571〜0.597 秒）に記録されている。状態保持は行わず、決定的な
@@ -216,7 +216,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   - コンテキスト消費: リアクティブグラフ全体を把握しないと変更影響を
     判断できず、AI が読むべきコンテキストが増える。
 - **本フレームワークでの代替**: `fandhe-frontend-interactive` の action-dispatch 単一
-  状態機械（`interactive/src/lib.rs`）。`Component::view` の出力は
+  状態機械（`crates/interactive/src/lib.rs`）。`Component::view` の出力は
   `fandhe_frontend_core::Node` のみを経由し既定エスケープを必ず通す。状態遷移は
   `dispatch` 関数 1 箇所に集約され、未知のアクション名は no-op となる
   安全側フォールバックを規約化している（同ファイル冒頭の不変条件コメント
@@ -244,12 +244,12 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   - コンテキスト消費: `core` 外部依存ゼロ（不変条件 7）を維持する場合は自前
     実装が必要になり、コンテキスト消費・保守コストが本イシューの脅威（URL
     スキーム経由の XSS）の重大度に対して過大。
-- **本フレームワークでの代替**: `core/src/url.rs` の `is_safe_url`（スキーム
+- **本フレームワークでの代替**: `crates/core/src/url.rs` の `is_safe_url`（スキーム
   抽出のみを行う最小実装、外部依存ゼロ）。スキーム判定のみで
   `javascript:`/`data:`/`vbscript:` 等の脅威は遮断できるため、フルパースの
   必要性がない。
 - **再評価トリガー**: 許可スキーム判定（現行実装）では防げない実攻撃パターン
-  が XSS 回帰テスト（`core/tests/xss_escape.rs`）で実証された場合。
+  が XSS 回帰テスト（`crates/core/tests/xss_escape.rs`）で実証された場合。
 
 ### 3.6 `data:` URL の部分許可（`data:image/*` 等）
 
@@ -328,7 +328,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     できるが、実行時設定はその確認を不可能にする。
   - コンテキスト消費: 「どこで設定されたか」を追う必要が生じ、影響範囲の
     特定コストが増える。
-- **本フレームワークでの代替**: `core/src/url.rs::URL_ATTRS` と許可スキームは
+- **本フレームワークでの代替**: `crates/core/src/url.rs::URL_ATTRS` と許可スキームは
   core 内の固定定数 1 箇所を正とする。v1 は固定リストのみ。
 - **再評価トリガー**: `ftp:` 等の追加スキーム需要が Issue で確定した場合
   （その際も追加はリスト拡張のみとし、差し替え API は再検討する）。
@@ -347,7 +347,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 |----|------|---------|
 | A: JS グルー側実装 | JS グルーが `data-bind-*` 走査・`textContent`/`setAttribute` 適用・keyed diff を実装する | JS 実効 LOC が PoC-3 ルーブリック上限（40 行 = 「中」）を大きく超過する。更新ロジック全体が Rust の型検査・`cargo test`・REQ-13 の AI 自己保守ゲートの到達範囲外へ移動し、`docs/design/opt-in-thin-js-glue.md` §3.1（(c) XSS 保証一貫性の減衰）・§3.2（(d) AI 生成検証の到達範囲）の制約が構造的に悪化する |
 | B: WASM が diff 操作列を返し JS が適用する | `apply()` の戻り値を「HTML 文字列」から「操作列（JSON 等）」へ変更する | 「`initial_html()` / `apply()` の戻り値のみを `innerHTML` に設定する」という JS グルー規範（同 §5 不変条件 1・2）に反する新たな DOM 書き換え経路の新設になる。公開 API 凍結表（同 §4.2）の破壊的変更でもある |
-| C: `fandhe-frontend-wasm-client` の束縛点適用層（`wasm-client/src/binding_dom.rs` 等）へ依存する | `wasm-thin` が `web-sys` 依存の DOM 適用層を取り込む | 「`web-sys` 非依存・文字列 in・文字列 out の純粋計算」という `wasm-thin` の存在意義（`wasm-thin/src/lib.rs` クレートドキュメント、`opt-in-thin-js-glue.md` §4.2）が消滅し、既定方式である `fandhe-frontend-wasm-full` と同型化してしまう。その要件であれば選定フローチャート（同 §2「位置づけ — 既定とオプトイン」）に従い `wasm-full` を使うべきである |
+| C: `fandhe-frontend-wasm-client` の束縛点適用層（`crates/wasm-client/src/binding_dom.rs` 等）へ依存する | `wasm-thin` が `web-sys` 依存の DOM 適用層を取り込む | 「`web-sys` 非依存・文字列 in・文字列 out の純粋計算」という `wasm-thin` の存在意義（`crates/wasm-thin/src/lib.rs` クレートドキュメント、`opt-in-thin-js-glue.md` §4.2）が消滅し、既定方式である `fandhe-frontend-wasm-full` と同型化してしまう。その要件であれば選定フローチャート（同 §2「位置づけ — 既定とオプトイン」）に従い `wasm-full` を使うべきである |
 
   - 4 軸評価（§2）: 案 A・B・C はいずれも更新ロジックの一部または全部を
     機械検証不能な JS 層へ移す、または `wasm-thin` の存在意義（明示的な
@@ -360,7 +360,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     更新経路は `apply()` 戻り値の全置換 `innerHTML` 代入
     （`opt-in-thin-js-glue.md` §4.2・§5）であるため、これらのマーカーは
     `wasm-thin` 経路では**不活性（inert）**であり、無害である（属性値は
-    既定エスケープ済み）。この形は `wasm-thin/tests/thin_runtime.rs` の
+    既定エスケープ済み）。この形は `crates/wasm-thin/tests/thin_runtime.rs` の
     `demo_boundary_layer_smoke` が既に検証済みである。
 - **本フレームワークでの代替**: 既定方式である `fandhe-frontend-wasm-full` を使う
   （`opt-in-thin-js-glue.md` §2 の選定フローチャートに従う）。DOM ノード
@@ -377,7 +377,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     された場合（この場合は frontend-framework-spec リポジトリ側での提案が
     前提となる）。
 - **XSS 回帰テストの位置付け**: Rust 側文字列出力の XSS 回帰は
-  `wasm-thin/tests/thin_runtime.rs`（native）の
+  `crates/wasm-thin/tests/thin_runtime.rs`（native）の
   `apply_escapes_script_payload` / `apply_escapes_attribute_breaking_payload`
   / `demo_boundary_layer_smoke` が引き続き担保する。本節の非採用判断により
   更新経路は「既定エスケープ済み HTML の全置換」単一のままであり、これらの
@@ -389,7 +389,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 
 ### 3.11 `fw impact` の AST 解析ベース精密化（syn 等、イシュー #379）
 
-- **概要**: `fw impact`（`cli/src/impact.rs` / `cli/src/loaders.rs`）が
+- **概要**: `fw impact`（`crates/cli/src/impact.rs` / `crates/cli/src/loaders.rs`）が
   行うシンボル定義元特定・使用箇所走査・`Loader` 実装抽出を、正規表現
   不使用・手書き文字列走査のヒューリスティックから `syn` 等の AST
   （抽象構文木）解析クレートへ置き換える方式。`docs/design/impact-analysis-design.md`
@@ -398,8 +398,8 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   を構文的に除外できる（過検知の低減）。`use X as Y` の別名・複数行に
   またがる宣言・マクロ生成シンボル等、識別子境界一致では追跡できない
   構造をインポート解決・構文木走査で正しく捕捉できる（見逃しの低減）。
-- **実例収集（費用対効果評価の根拠）**: `cli/src/impact.rs` /
-  `cli/src/loaders.rs` の `#[cfg(test)]` に「#379 characterization
+- **実例収集（費用対効果評価の根拠）**: `crates/cli/src/impact.rs` /
+  `crates/cli/src/loaders.rs` の `#[cfg(test)]` に「#379 characterization
   tests」として固定した現行仕様の実例。
   - 偽陽性（過検知・安全側）:
     `scan_usages_counts_occurrence_inside_comment_as_usage` /
@@ -426,7 +426,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   `proc-macro2` / `quote` の 2 件は `build.rs` を持つ。`cli`（`fandhe-frontend-cli`）
   は REQ-3「標準サーバー構成 60 件以内・深さ 6 以内」の直接の計測対象
   （`xtask` の依存グラフ計測基準）ではないが、`cli` 自体が現在
-  「外部依存ゼロ」（`cli/Cargo.toml` 冒頭コメント）であるため、
+  「外部依存ゼロ」（`crates/cli/Cargo.toml` 冒頭コメント）であるため、
   4 件・深さ 3・`build.rs` 2 件はいずれもゼロからの純増となる。
 - **評価軸での評価**:
   - 明示性: 手書き走査は `impact.rs` / `loaders.rs` 内で完結し、判定
@@ -451,7 +451,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   `docs/design/impact-analysis-design.md` §3.4）+ 本リポジトリのコード
   規約（単一行 `impl`・トップレベル `pub` 定義）による偽陰性主要因の
   実質抑制 + 上記 characterization テストによる現行仕様の回帰的固定。
-  `cli` の外部依存ゼロ方針（`cli/Cargo.toml` 冒頭コメント）を維持する。
+  `cli` の外部依存ゼロ方針（`crates/cli/Cargo.toml` 冒頭コメント）を維持する。
 - **採用時の手続き（現時点では非該当）**: 将来 AST 化を採用する場合は
   `cargo metadata` で `cli` への実際の依存影響を確認し、ユーザー承認を
   得る（§4 の再導入手続きに準拠）。
@@ -478,8 +478,8 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   | 軸 | 機械判定可能な下位項目 | 既存の機械的担保（強制箇所） | 新チェック追加の要否 |
   |---|---|---|---|
   | 明示性 | grep 可能な API 使用（`raw_html()` の明示レビュー宣言） | `fw gate` の `lint` チェック（clippy `disallowed-methods` 主防御）+ `default_escape_check`（テキスト走査の保険層）+ ブランケット抑止監査の 3 層（`docs/design/gate-design.md` §2.2） | 不要（担保済み） |
-  | 明示性 | 宣言的構成（クレート一覧・ルート表の単一情報源化） | `structure.toml` を唯一の情報源とする `fw gate` 全体の設計（`docs/design/gate-design.md` §2）・宣言的 `Router` テーブル（`server/src/router.rs`）とそのテスト | 不要（担保済み） |
-  | 決定性 | 同一入力 → 同一出力（SSR/SSG バイト一致・再実行一致） | `server/tests/ssr_ssg_parity.rs`（`generate_is_deterministic_across_runs` ほか）→ `fw gate` の `test` チェック（`cargo test --locked -p <crate>`）経由で gate に既に接続済み | 不要（担保済み） |
+  | 明示性 | 宣言的構成（クレート一覧・ルート表の単一情報源化） | `structure.toml` を唯一の情報源とする `fw gate` 全体の設計（`docs/design/gate-design.md` §2）・宣言的 `Router` テーブル（`crates/server/src/router.rs`）とそのテスト | 不要（担保済み） |
+  | 決定性 | 同一入力 → 同一出力（SSR/SSG バイト一致・再実行一致） | `crates/server/tests/ssr_ssg_parity.rs`（`generate_is_deterministic_across_runs` ほか）→ `fw gate` の `test` チェック（`cargo test --locked -p <crate>`）経由で gate に既に接続済み | 不要（担保済み） |
   | 決定性 | 検証入力（依存グラフ）の固定 | `type_check` / `lint` / `test` 共通の `--locked` 付与（`docs/design/gate-design.md` §2・§5 A06） | 不要（担保済み） |
   | 機械検証可能性 | 契約違反の静的・機械的検出 | `fw gate` 6 チェックそのもの + `fw impact`（`docs/design/impact-analysis-design.md`）+ CI（`deny.yml`・XSS 回帰連携） | 不要（この軸は gate の存在意義そのものであり、専用チェックの追加は自己言及的な重複） |
   | コンテキスト消費 | 依存グラフ上限（60 件 / 深さ 6）という代理指標 | xtask の依存グラフ自動計測（`docs/policy/dependency-graph-policy.md`・CI） | 不要（担保済み） |
@@ -530,7 +530,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     複雑化する。
   - コンテキスト消費: async ランタイム導入は依存グラフに新規サブツリーを
     追加し、AI が把握すべき依存関係の範囲を広げる。
-- **本フレームワークでの代替**: 同期 `fn load`（`app/src/lib.rs:121`）を v1
+- **本フレームワークでの代替**: 同期 `fn load`（`crates/app/src/lib.rs:121`）を v1
   契約として維持する。現行の loader 実装（`DemoItemsLoader`・
   `DemoItemDetailLoader`）はいずれも固定デモデータを返す純関数であり外部 I/O を
   伴わないため、async 化を正当化する実需要が存在しない。加えて
@@ -610,8 +610,8 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   再評価する。
 ### 3.16 束縛点整合性の型付きフィールド enum によるコンパイル時強制（イシュー #380 / PR #390）
 
-- **概要**: `data-bind-*` トークン（producer: `core/src/bind.rs`）と
-  `BindingSource` フィールド名（consumer: `wasm-client/src/binding.rs` の
+- **概要**: `data-bind-*` トークン（producer: `crates/core/src/bind.rs`）と
+  `BindingSource` フィールド名（consumer: `crates/wasm-client/src/binding.rs` の
   `impl BindingSource for AppState`）の整合を、現行の実行時文字列契約
   ではなく型付きフィールド enum でコンパイル時に強制する方式
   （`docs/design/dom-binding-update-design.md` §12.4）。
@@ -625,7 +625,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     trait 自体の再設計（公開 API の破壊的変更）が前提となる。
   - 決定性: 型付き化自体は決定性を損なわないが、再設計の影響範囲
     （SSR/CSR 双方の凍結済み契約）が本イシュー（#380）のスコープを超える。
-  - 機械検証可能性: 現行の `wasm-client/tests/binding_logic.rs`
+  - 機械検証可能性: 現行の `crates/wasm-client/tests/binding_logic.rs`
     `app_state_view_has_no_unresolved_bindings`（§12.3 のテスト時構造検証
     API 経由）が `cargo test -p fandhe-frontend-wasm-client` で決定的に検証済みであり、
     型付き化による追加の機械検証可能性の向上分は、再設計コストに対して
@@ -634,9 +634,9 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     （SSR 出力形式・`AppState::view` 実装・`BindingSource` 実装クレート
     全体）の学習コストを増やす。
 - **本フレームワークでの代替**: テスト時構造検証 API
-  （`wasm-client/src/binding.rs` の `collect_binding_specs` /
+  （`crates/wasm-client/src/binding.rs` の `collect_binding_specs` /
   `unresolved_binding_specs`）+ 回帰テスト
-  `wasm-client/tests/binding_logic.rs::app_state_view_has_no_unresolved_bindings`。
+  `crates/wasm-client/tests/binding_logic.rs::app_state_view_has_no_unresolved_bindings`。
   第 9 節（同設計書）の fail-closed（panic しない・no-op）不変条件は維持
   したまま、テスト実行時に不整合を機械検出する（同書 §12.3）。
 - **再評価トリガー**: 束縛点を使うクレートが増え、テストユーティリティ
@@ -647,7 +647,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 ### 3.17 検証ユーティリティの他クレート横展開（イシュー #380 / PR #390）
 
 - **概要**: `collect_binding_specs` / `unresolved_binding_specs`
-  （`wasm-client/src/binding.rs`、§3.16 参照）を、`wasm-full` 等の他
+  （`crates/wasm-client/src/binding.rs`、§3.16 参照）を、`wasm-full` 等の他
   クレートが持つ独自の `BindingSource` 実装へ横展開し、整合検証を共通化
   する方式。
 - **一般的な採用動機**: 束縛点整合検証を全クレート共通の仕組みとして
@@ -684,7 +684,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     検証」を対象範囲として明示しており、`<base href>` 等の間接効果は
     脅威の性質が異なる（同書 §2「該当なし（別要素からの間接効果）」）。
     対象を混在させると、単一の検証関数（`is_safe_url`）が担う責務境界が
-    曖昧になり、既存の機械検証可能性（`core/tests/xss_escape.rs` の回帰
+    曖昧になり、既存の機械検証可能性（`crates/core/tests/xss_escape.rs` の回帰
     テストが担保する範囲）を不明瞭にする。
   - 本フレームワークでの正規経路: `raw_html()` 以外の経路では、利用者
     入力から `<base>` / `<meta>` 要素を動的に組み立てる場合もノード木
@@ -710,7 +710,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 ### 3.19 `wasm-client`（最小ハイドレーション方式）側のクライアントルーティング対応（イシュー #405）
 
 - **概要**: クライアント側ルーティング（履歴 API 連携・URL 同期・遷移時
-  loader 配線）は `fandhe-frontend-wasm-full` の `nav` モジュール（`wasm-full/src/nav.rs`、
+  loader 配線）は `fandhe-frontend-wasm-full` の `nav` モジュール（`crates/wasm-full/src/nav.rs`、
   イシュー #374 / PR #383）として実装済みである。`fandhe-frontend-wasm-client`（最小
   ハイドレーション方式、REQ-6）側の遷移対応・loader 移行は PR #383 の
   out-of-scope 節、`docs/design/wasm-full-architecture.md` §10 に対象外
@@ -722,7 +722,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 - **評価軸での評価**（§2 の 4 軸）:
   - **明示性**: `wasm-client` は `hydrate()`（リスナー後付けのみ・DOM 再構築
     禁止）と `mount_csr()`（初回マウント時のみ `set_inner_html`）という 2 API
-    への単純な責務分担を持つ（`wasm-client/src/lib.rs` クレートドキュメント
+    への単純な責務分担を持つ（`crates/wasm-client/src/lib.rs` クレートドキュメント
     冒頭の不変条件 2・3）。クライアント遷移は「ページサブツリーの全差し替え」
     （`wasm-full` の `render_route` が `build_dom_node` で新規 DOM を構築し
     root の子を丸ごと差し替える方式）を本質的に要求し、上記不変条件 3 の
@@ -732,7 +732,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   - **決定性**: 既存 2 経路（`hydrate()` / `mount_csr()`）とは独立した判断
     軸であり、決定性そのものは悪化しない（公平に記載）。
   - **機械検証可能性**: ルート表のクライアント側コピーが `wasm-client` にも
-    必要になり、`wasm-full/tests/route_sync_static.rs` 相当のドリフト検知を
+    必要になり、`crates/wasm-full/tests/route_sync_static.rs` 相当のドリフト検知を
     server ↔ wasm-full ↔ wasm-client の 3 点同期として二重に維持する必要が
     生じ、機械検証可能性が悪化する。
   - **コンテキスト消費**: 同一機能（クライアント遷移）の実装が `wasm-full` /
@@ -767,8 +767,8 @@ AI エージェントが変更の影響範囲を判断するために読み込�
      `wasm-full` の `nav` と `wasm-client` の `hydrate()` の統合設計が
      避けられなくなった場合。
 - **XSS 回帰テストの位置付け**: 本節の非採用判断はコード挙動を変更しない
-  （`wasm-client/src/lib.rs` の rustdoc 更新のみ）ため、`wasm-full` の
-  `nav` に関する XSS 回帰テスト（`wasm-full/tests/nav_native.rs` /
+  （`crates/wasm-client/src/lib.rs` の rustdoc 更新のみ）ため、`wasm-full` の
+  `nav` に関する XSS 回帰テスト（`crates/wasm-full/tests/nav_native.rs` /
   `nav_browser.rs` 等）・`wasm-client` の既存テスト（doctest 含む）のいずれ
   も削除・弱体化・追加は不要である（`.claude/rules/coding-rust.md`「XSS 回帰
   テストは削除・弱体化しない」）。
@@ -800,19 +800,19 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   採用に関する記述を含む）
 - `docs/ci/perf-browser-harness.md` / `docs/reports/perf-browser-report.md`
   （REQ-11 性能実測）
-- `server/src/router.rs`（宣言的 `Router` テーブル、TASK-7.2b）
+- `crates/server/src/router.rs`（宣言的 `Router` テーブル、TASK-7.2b）
 - `docs/api/router-path-matching.md`（パスパターン照合仕様）
 - `docs/design/impact-analysis-design.md`（`fw impact` シンボル単位影響
   解析、§7「既知の限界と将来スコープ」が §3.11 の非採用検討の出発点）
-- `cli/src/impact.rs` / `cli/src/loaders.rs`（イシュー #379、`fw impact` の
+- `crates/cli/src/impact.rs` / `crates/cli/src/loaders.rs`（イシュー #379、`fw impact` の
   現行ヒューリスティック実装。`#[cfg(test)]` 内「#379 characterization
   tests」が §3.11 の判断根拠となった偽陽性・偽陰性の実例を固定する）
 - `docs/spec/04-requirements.md`（REQ-10・REQ-11・REQ-13）
-- `dist-server/benches/rebuild_latency.rs` /
+- `crates/dist-server/benches/rebuild_latency.rs` /
   `docs/reports/rebuild-latency-acceptance-report.md`（rebuild latency
   実測）
 - `docs/guides/browser-testing.md`（ブラウザ自動検証）
-- `interactive/src/lib.rs`（`AppState` / `dispatch` / action 単一状態
+- `crates/interactive/src/lib.rs`（`AppState` / `dispatch` / action 単一状態
   機械）
 - `docs/api/interactive-api.md` / `docs/api/hydration-state-format.md`
   （`fandhe-frontend-interactive` API・ハイドレーション状態フォーマット）
@@ -821,13 +821,13 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   第 1 項は本書 §3.15 の非採用判断に対応）
 - `docs/design/opt-in-thin-js-glue.md`（イシュー #376、`fandhe-frontend-wasm-thin` の
   位置づけ・公開 API 凍結表・JS グルー規範。§3.10 の非採用根拠）
-- `wasm-thin/tests/thin_runtime.rs`（イシュー #376、`wasm-thin` の XSS 回帰
+- `crates/wasm-thin/tests/thin_runtime.rs`（イシュー #376、`wasm-thin` の XSS 回帰
   テスト群）
 - `docs/design/xss-escape-wasm-test-design.md`（イシュー #376、JS グルー
   結合の実ブラウザ XSS 検証スコープ判断）
 - `docs/design/loader-extension-design.md`（イシュー #377、Loader の async 化・
   キャッシュ / 再検証・複数 loader 合成の設計確定書。§3.13〜§3.15 の非採用根拠）
-- `wasm-full/src/nav.rs`（イシュー #374 / PR #383、クライアント側ルーティング
+- `crates/wasm-full/src/nav.rs`（イシュー #374 / PR #383、クライアント側ルーティング
   の実装本体。§3.19 の非採用判断における既定方式）
 - `docs/design/wasm-full-architecture.md` §10（`nav` モジュールのスコープ外
   一覧。`wasm-client` 側の遷移対応・loader 移行が対象外事項として記録された

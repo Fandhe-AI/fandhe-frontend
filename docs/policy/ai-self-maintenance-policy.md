@@ -63,16 +63,16 @@
 - **実装との対応**: 境界ルールの判定ロジックは製品実装として既に確定済みである。
   本書はその判定ロジックを「運用ポリシー」として文書化するものであり、
   判定ロジック自体の一次情報源は次の 2 ファイルである。
-  - `cli/src/impact.rs` の `judge_breaking_risk` / `requires_human_approval`
+  - `crates/cli/src/impact.rs` の `judge_breaking_risk` / `requires_human_approval`
     （`breaking_risk` 判定・人間承認要否判定の純粋関数、設計は `docs/design/impact-analysis-design.md`）
-  - `cli/src/gate.rs` の `run_gate` / 5 種の検証チェック
+  - `crates/cli/src/gate.rs` の `run_gate` / 5 種の検証チェック
     （ゲート合否判定、設計は `docs/design/gate-design.md`）
 - **関連文書**: `docs/design/gate-design.md`（`fw gate` 判定ルール設計）・
   `docs/design/impact-analysis-design.md`（`fw impact` 判定ルール設計）・
   `docs/policy/cargo-deny-advisories.md`（`cargo-deny` オンライン CI 運用）・
   `docs/policy/dependency-graph-policy.md`（依存グラフ上限値運用ポリシー）・
   `docs/policy/raw-html-review-gate.md`（`raw_html()` レビューゲート）。
-- **関連テスト**: `cli/tests/negative_cases.rs`（型エラー・未エスケープ出力・
+- **関連テスト**: `crates/cli/tests/negative_cases.rs`（型エラー・未エスケープ出力・
   禁止依存追加の 3 負例が `BLOCKED` になることの回帰テスト、TASK-13.5）。
 
 ## 2. 境界ルール（確定）
@@ -111,7 +111,7 @@ AI エージェントがプロダクトへの変更を提案したとき、`fw g
   記載の運用手順）で別途実行することを前提とし、ローカルゲート通過だけをもって
   「既知脆弱性が無いこと」を保証したとは扱わない。
   また `deny.toml` 自体が読み込めない場合も `policy` を起動せず即座に不合格とする
-  （fail-closed、`cli/src/gate.rs` `policy_check`）。
+  （fail-closed、`crates/cli/src/gate.rs` `policy_check`）。
 
 **実行前提（ツールブートストラップ、イシュー #292）**: `lint` / `policy`
 チェックは clippy component / cargo-deny の導入を前提とする。self-hosted
@@ -138,7 +138,7 @@ runner インスタンスによってはこれらが未導入で、ツール不�
 
 ### ルール 3: ゲート通過かつ `breaking_risk: medium/high`、または `affected_routes` が非空、または定義元が曖昧（`ambiguous: true`）の変更は人間の承認を必須とする
 
-製品実装の判定式（`cli/src/impact.rs` `requires_human_approval`）は次の論理和である。
+製品実装の判定式（`crates/cli/src/impact.rs` `requires_human_approval`）は次の論理和である。
 
 ```text
 requires_human_approval =
@@ -208,8 +208,8 @@ requires_human_approval =
 ## 5. 適用範囲・スコープ外
 
 - 本書が定義する境界ルールは `fw gate` / `fw impact` の判定結果を判断材料とする
-  運用ポリシーであり、判定ロジック自体の実装変更（`cli/src/impact.rs` /
-  `cli/src/gate.rs`）は本書のスコープ外である。判定ロジックに変更が入った場合は、
+  運用ポリシーであり、判定ロジック自体の実装変更（`crates/cli/src/impact.rs` /
+  `crates/cli/src/gate.rs`）は本書のスコープ外である。判定ロジックに変更が入った場合は、
   本書 §2 の記述が実装と乖離しないよう追随して更新する必要がある。
 - AI エージェント本体（自動適用を実行するオペレーター）の実装は REQ-13 のスコープ外
   であり、本書もその実装方式を規定しない。

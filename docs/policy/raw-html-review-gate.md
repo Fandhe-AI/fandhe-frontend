@@ -47,7 +47,7 @@ pub fn render_trusted_fragment() -> String {
 
 これらは呼び出し個別のレビューではなく、主防御そのものの一括無効化に相当する。
 `fw gate` の `default_escape_check` はこれを独立の違反として検出し、
-`file:line` 付きで報告する（`cli/src/gate.rs` の
+`file:line` 付きで報告する（`crates/cli/src/gate.rs` の
 `BLANKET_DISALLOWED_METHODS_MARKERS`）。レビューが必要な呼び出しには、
 必ず 1. の呼び出し単位の `#[expect(...)]` を使うこと。
 

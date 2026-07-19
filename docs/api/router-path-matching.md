@@ -14,11 +14,11 @@
 - **TASK-7.2b（#56・実装済み）**: パスマッチングエンジンの実装
 - **TASK-7.2c（#57）**: 公開 API 経由の統合ルーティングテスト整備
 
-**実装位置の更新（イシュー #407）**: エンジン本体は `app/src/router.rs`
+**実装位置の更新（イシュー #407）**: エンジン本体は `crates/app/src/router.rs`
 （`fandhe_frontend_app::router::Router`）へ移設した。`server`（SSR/SSG）・`wasm-full`
 （CSR）の双方が同一エンジンを共有し、パスマッチング意味論のドリフトを
 構造的に排除するための移設であり、本書が定める v1 仕様自体に変更はない。
-`server/src/router.rs`（`fandhe_frontend_server::router`）は非破壊のための再エクスポート
+`crates/server/src/router.rs`（`fandhe_frontend_server::router`）は非破壊のための再エクスポート
 シムとして存置する。設計判断の詳細は `docs/design/route-definition-sharing.md`
 を参照。
 
@@ -33,7 +33,7 @@
 `fandhe_frontend_server::router::Router<H>` は HTTP・HTML を一切知らない、パス文字列と
 ハンドラ型 `H` のみを扱う汎用パスマッチング機構です。
 
-- SSR（`server/src/ssr.rs` の `respond()`）・SSG（`server/src/ssg.rs`）・
+- SSR（`crates/server/src/ssr.rs` の `respond()`）・SSG（`crates/server/src/ssg.rs`）・
   単一バイナリ配布（`fandhe-frontend-dist-server`）のいずれの上位層からも同一の
   `Router` / `Router::resolve()` を呼び出せることを想定する。
 - `Router` はエスケープ責務を持たない。抽出したパスパラメータ（`Params`）は
@@ -86,12 +86,12 @@
 
 | 受け入れ基準 | 対応 |
 |---|---|
-| PoC-3 相当の 3 ルート（`/`・`/items/:id`・`/search`）が解決できる | `server/src/router.rs` の unit テスト `resolves_req7_baseline_routes` で固定。`server/tests/router_resolution.rs`（TASK-7.2c・#57）の `resolves_req7_baseline_routes_via_public_api` で公開 API 経由でも固定済み |
+| PoC-3 相当の 3 ルート（`/`・`/items/:id`・`/search`）が解決できる | `crates/server/src/router.rs` の unit テスト `resolves_req7_baseline_routes` で固定。`crates/server/tests/router_resolution.rs`（TASK-7.2c・#57）の `resolves_req7_baseline_routes_via_public_api` で公開 API 経由でも固定済み |
 | 高度なルーティング機能（ワイルドカード・データローディング等）は対象外 | 本書 §4 に明記し、実装しない |
 
 ## 7. 備考: `/search` の配線状況
 
-`server/src/ssr.rs` の `respond()` は `/` と `/items/:id` のみを
+`crates/server/src/ssr.rs` の `respond()` は `/` と `/items/:id` のみを
 `fandhe_frontend_app` のページ関数へ配線している。`/search` はルーター自体では
 マッチング可能（unit テストで検証済み）だが、`fandhe-frontend-app` の凍結 API
 （`docs/api/app-api.md`）に検索ページの実装がないため、SSR エントリでの

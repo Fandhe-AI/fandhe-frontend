@@ -22,7 +22,7 @@ REQ-12「NPM 互換（ビルド時静的アセット限定、実行時スコー�
 |-------------|-----------|------|
 | 基準 1: ビルド時に取り込む NPM パッケージのインストールが `--ignore-scripts` を既定で使用すること | `tools/npm-asset-build/install.sh` | 実装済み（#38）+ 実 npm 検証（本書 §5 ケース A/B） |
 | 基準 2: 取り込んだパッケージに実行可能コードを含まないことを機械的に検証する仕組みを持つこと | `tools/npm-asset-build/check_static_only.py` | 実装済み（#123）+ パイプライン連結検証（本書 §5 ケース C/D） |
-| 基準 3: クライアント実行時（配布バイナリ・ブラウザ）に NPM パッケージのコード・Node ランタイムが一切含まれないこと | `dist-server/tests/no_npm_runtime_in_binary.rs` | 実装済み（TASK-12.3、#125） |
+| 基準 3: クライアント実行時（配布バイナリ・ブラウザ）に NPM パッケージのコード・Node ランタイムが一切含まれないこと | `crates/dist-server/tests/no_npm_runtime_in_binary.rs` | 実装済み（TASK-12.3、#125） |
 
 タスク・イシュー・PR の対応関係:
 
@@ -33,7 +33,7 @@ REQ-12「NPM 互換（ビルド時静的アセット限定、実行時スコー�
 | TASK-12.2a | #122 | 静的アセット判定ルール設計 | #223 |
 | TASK-12.2b | #123 | `check_static_only.py` 実装 | #226 |
 | TASK-12.2c | #124 | fixture テスト・CI 統合 | #225 |
-| TASK-12.3 | #125 | 配布バイナリ・Docker イメージへの NPM/Node 非混入の機械検証（`dist-server/tests/no_npm_runtime_in_binary.rs`） | #255 |
+| TASK-12.3 | #125 | 配布バイナリ・Docker イメージへの NPM/Node 非混入の機械検証（`crates/dist-server/tests/no_npm_runtime_in_binary.rs`） | #255 |
 
 ## 2. パイプライン全体像
 

@@ -1,7 +1,7 @@
 /**
  * fandhe-frontend-wasm-full の既定方式（SSR + ハイドレーション）向けアプリ側 JS グルーの参照実装。
  *
- * `wasm-full/src/entry.rs` の `hydrate(root_id)` は SSR 済み DOM の
+ * `crates/wasm-full/src/entry.rs` の `hydrate(root_id)` は SSR 済み DOM の
  * `data-hydrate-*` 属性から状態を復元し、失敗時は初期状態での CSR 再描画へ
  * フォールバックする契約（同ファイル rustdoc 参照）。本ファイルはその契約を
  * 呼び出す最小のグルーであり、DOM 構築・HTML 文字列組み立て・状態管理を

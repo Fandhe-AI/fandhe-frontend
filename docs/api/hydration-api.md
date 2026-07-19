@@ -25,7 +25,7 @@
 書式（ステータス・トレーサビリティ・凍結表・設計判断表・スコープ外表・
 セキュリティ不変条件・受け入れ基準対応表）に揃え、`docs/` 直下のフラット配置とする。
 
-**本タスクのスコープ**: 設計確定書の作成のみ（docs-only 変更）。`wasm-client/` クレート
+**本タスクのスコープ**: 設計確定書の作成のみ（docs-only 変更）。`crates/wasm-client/` クレート
 新設・依存クレート（`wasm-bindgen` / `web-sys`）の実追加・`.github/workflows/ci.yml` の
 変更はいずれも TASK-6.2b（#48）のスコープであり、本タスクでは行わない。テスト実装は
 TASK-6.2c（#49）のスコープ。`docs/spec/` はサブモジュールのため編集禁止（変更が必要な
@@ -34,14 +34,14 @@ TASK-6.2c（#49）のスコープ。`docs/spec/` はサブモジュールのた�
 **先行依存関係**: `hydrate()` の設計は `fandhe-frontend-core`（マージ済み）・`fandhe-frontend-app`（TASK-6.1b
 #43 でマージ済み）の公開 API のみに依存する。TASK-6.1c（#44 fandhe-frontend-server）・TASK-6.1d
 （#45）は本書執筆時点で並行して進行中のため未完了だが、本書は `fandhe-frontend-app` API の
-凍結表（`docs/api/app-api.md` 第 3 節）のみを前提とし、`server/` 側の未マージ実装詳細には
+凍結表（`docs/api/app-api.md` 第 3 節）のみを前提とし、`crates/server/` 側の未マージ実装詳細には
 依存しない。万一 #44 側で `fandhe-frontend-app` の公開シグネチャに変更が入った場合は、本書の
 凍結表を正として TASK-6.2b 実装時に調整する（`docs/api/app-api.md` の運用に倣う）。
 
 ## 2. クレート構成の確定
 
 - **パッケージ名**: `fandhe-frontend-wasm-client`
-- **配置**: `wasm-client/`
+- **配置**: `crates/wasm-client/`
 - **edition**: 2021
 - **`crate-type`**: `["cdylib", "rlib"]`（`cdylib` は `wasm32-unknown-unknown` ターゲットの
   成果物として必須。`rlib` はネイティブ単体テスト — TASK-6.2c の `find_attr_values` 等の
@@ -120,9 +120,9 @@ PoC-3（`docs/spec/03-poc/rendering-web-standards/core/src/lib.rs:131,152`）の
 
 | 項目 | 引き継ぎ先 |
 |------|-----------|
-| `wasm-client/` クレート新設・`Cargo.toml` 依存追加（`wasm-bindgen` / `web-sys`） | TASK-6.2b（#48） |
+| `crates/wasm-client/` クレート新設・`Cargo.toml` 依存追加（`wasm-bindgen` / `web-sys`） | TASK-6.2b（#48） |
 | `.github/workflows/ci.yml` の `forbid-unsafe` ジョブ対象を safe 域クレートへ `-p` 絞り込みする変更 | TASK-6.2b（#48） |
-| `core/tests/unsafe_boundary.rs` の `UNSAFE_ALLOWED_MEMBERS` への `fandhe-frontend-wasm-client` 追加 | TASK-6.2b（#48） |
+| `crates/core/tests/unsafe_boundary.rs` の `UNSAFE_ALLOWED_MEMBERS` への `fandhe-frontend-wasm-client` 追加 | TASK-6.2b（#48） |
 | ネイティブ単体テスト（`find_attr_values` 等）・`cargo build --target wasm32-unknown-unknown -p fandhe-frontend-wasm-client` のコンパイル確認 | TASK-6.2c（#49） |
 | 実ブラウザでの実証（Playwright 等による E2E 検証） | TASK-6.3 系（#64〜、Conditional Go 条件 1） |
 | 状態注入・`fandhe-frontend-interactive` との統合 | TASK-11.4（#81） |
@@ -130,7 +130,7 @@ PoC-3（`docs/spec/03-poc/rendering-web-standards/core/src/lib.rs:131,152`）の
 
 ## 6. セキュリティ不変条件（REQ-1 の引き継ぎ）
 
-`core/src/lib.rs` 冒頭の不変条件（REQ-1・REQ-2）を、`fandhe-frontend-wasm-client` への制約として
+`crates/core/src/lib.rs` 冒頭の不変条件（REQ-1・REQ-2）を、`fandhe-frontend-wasm-client` への制約として
 そのまま再掲・固定する。加えて `wasm-client` 固有の不変条件を以下に定義する。
 
 1. DOM への HTML 挿入は `fandhe_frontend_core::render()` の出力（既定エスケープ済み）**のみ**を
@@ -158,7 +158,7 @@ PoC-3（`docs/spec/03-poc/rendering-web-standards/core/src/lib.rs:131,152`）の
   `wasm-client` 追加により workspace 全体には適用できなくなるため、safe 域クレート
   （`core` / `interactive` / `app` / `server` / `xtask`）への `-p` 絞り込みに変更する
   （TASK-6.2b）。
-- `core/tests/unsafe_boundary.rs` の `UNSAFE_ALLOWED_MEMBERS` に `fandhe-frontend-wasm-client` を
+- `crates/core/tests/unsafe_boundary.rs` の `UNSAFE_ALLOWED_MEMBERS` に `fandhe-frontend-wasm-client` を
   追加し、CI 上の機械確認（`docs/policy/unsafe-boundary.md` 第 3 節）と実態を同期させる
   （TASK-6.2b）。
 - テスト階層は以下の 3 段階とする。
@@ -196,7 +196,7 @@ PoC-3（`docs/spec/03-poc/rendering-web-standards/core/src/lib.rs:131,152`）の
 「`xtask` の deps-check 計測対象に `wasm-client` を独立枠として含めるか否かを判断し
 本書に追記する」を、TASK-6.2b（#48）の実装結果として反映したものである。
 
-- **依存追加の実測値**: `wasm-client/Cargo.toml` に `fandhe-frontend-core`・`fandhe-frontend-app`（path 依存）
+- **依存追加の実測値**: `crates/wasm-client/Cargo.toml` に `fandhe-frontend-core`・`fandhe-frontend-app`（path 依存）
   ＋ `wasm-bindgen = "0.2"` ＋ `web-sys 0.3`（features: `Document` / `Element` /
   `Event` / `EventTarget` / `Node` / `NodeList` / `Window` / `DomTokenList`）を追加した。
   `cargo metadata` のパッケージ総数は追加前後で 71 件のまま変化していない
@@ -221,9 +221,9 @@ PoC-3（`docs/spec/03-poc/rendering-web-standards/core/src/lib.rs:131,152`）の
 
 ## 11. イシュー #403 実装後の追記（配線本体の共有 Rust API 化）
 
-第 3 節の公開 API 凍結表の `hydrate`（`#[wasm_bindgen] pub fn hydrate(root_id: &str) -> Result<(), JsValue>`）は凍結内容・シグネチャとも変更していない。イシュー #403（`fandhe-frontend-wasm-full` の遷移後再配線）の実装により、その**本体**（`query_selector_all` による対象特定・`click` リスナー登録・`registry` への差し替え）を `wasm-client/src/lib.rs` の `hydrate_dom::wire_hydrate_targets(registry_key: &str, root: &Element) -> Result<(), JsValue>` として切り出し、`wasm-bindgen-exports` feature 非依存の共有 Rust API として公開した。
+第 3 節の公開 API 凍結表の `hydrate`（`#[wasm_bindgen] pub fn hydrate(root_id: &str) -> Result<(), JsValue>`）は凍結内容・シグネチャとも変更していない。イシュー #403（`fandhe-frontend-wasm-full` の遷移後再配線）の実装により、その**本体**（`query_selector_all` による対象特定・`click` リスナー登録・`registry` への差し替え）を `crates/wasm-client/src/lib.rs` の `hydrate_dom::wire_hydrate_targets(registry_key: &str, root: &Element) -> Result<(), JsValue>` として切り出し、`wasm-bindgen-exports` feature 非依存の共有 Rust API として公開した。
 
 - `wiring::hydrate`（REQ-6 デモ用エクスポート、feature `wasm-bindgen-exports` 限定）は `wire_hydrate_targets(root_id, &get_root(root_id)?)` を呼ぶ薄いラッパーへ縮小した。第 3 節の凍結シグネチャ・挙動（`set_inner_html` 等を呼ばない、クロージャは registry 管理）は不変。
 - `fandhe-frontend-wasm-full`（`default-features = false` で本クレートへ依存）は `wire_hydrate_targets` を `nav.rs::render_route`（クライアント側ルーティングの遷移描画、イシュー #374）から呼び、遷移で新規構築されたサブツリー内の `data-hydrate="like"` 要素へイベントを再配線する。設計判断の詳細（per-element 方式を採用し `document` レベル委譲リスナー方式を不採用とした理由・二重配線回避）は `docs/design/wasm-full-architecture.md` §10「#403 再配線設計」を参照。
-- `registry`（`wasm-client/src/registry.rs`、第 4 節・判断 4 のクロージャ寿命管理）は `wasm-bindgen-exports` feature ゲートを外し `#[cfg(target_arch = "wasm32")]` のみとした。`wasm-full` から `wire_hydrate_targets` 経由で利用するため。
+- `registry`（`crates/wasm-client/src/registry.rs`、第 4 節・判断 4 のクロージャ寿命管理）は `wasm-bindgen-exports` feature ゲートを外し `#[cfg(target_arch = "wasm32")]` のみとした。`wasm-full` から `wire_hydrate_targets` 経由で利用するため。
 - 新規外部クレート・web-sys feature 追加はゼロ（workspace 内 path 依存の公開面変更のみ）。`cargo metadata` 実測（パッケージ総数・依存グラフ深さ）に変化がないことを確認済み。

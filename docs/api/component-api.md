@@ -21,14 +21,14 @@ TASK-5.1c（利用者向けチュートリアル）は本書とはファイル�
 本書は `docs/policy/dependency-graph-policy.md`（TASK-3.3a）と同じく `docs/` 直下のフラット
 配置とし、「本文書のステータス」「トレーサビリティ」を明記する形式に揃える。
 
-**本タスクのスコープ**: 設計確定書の作成のみ（docs-only 変更）。`core/src/lib.rs` の
+**本タスクのスコープ**: 設計確定書の作成のみ（docs-only 変更）。`crates/core/src/lib.rs` の
 コード変更は TASK-5.1b（#31）のスコープであり、本タスクでは行わない。
 `docs/spec/` はサブモジュールのため編集禁止（変更が必要な場合は
 frontend-framework-spec リポジトリで行う）。
 
 ## 2. 確定 API 表面（凍結表）
 
-現行 `core/src/lib.rs`（TASK-1.1 系で実装済み）のシグネチャをそのまま標準 API として
+現行 `crates/core/src/lib.rs`（TASK-1.1 系で実装済み）のシグネチャをそのまま標準 API として
 凍結する。TASK-5.1b はこれらのシグネチャを変更せず、タグショートカットのみを追加する。
 
 | 項目 | シグネチャ | 役割 |
@@ -51,8 +51,8 @@ frontend-framework-spec リポジトリで行う）。
 | # | 判断 | 根拠 |
 |---|------|------|
 | 1 | マクロ DSL（`view!`/`rsx!`/`html!` 相当）を提供しない | PoC-1 が特定した差別化空白 D。PoC-2 の依存グラフ実測（マクロ DSL 構成 202 件/深さ14 → 純 Rust 構成 52 件/深さ5、`docs/policy/dependency-graph-policy.md` 第 2 節）。REQ-5 概要・詳細 |
-| 2 | タグ名は `tag: &'static str` に固定し、かつ出力前に `is_valid_tag_name` ホワイトリスト検証を行う多層防御を維持する | `&'static str` は値の有効期間のみを保証し文字内容は保証しないため（`Box::leak` によるタグ名注入が型検査をすり抜け得る、PR #166 Bugbot 指摘）。`core/src/lib.rs` 不変条件 5 |
-| 3 | 属性名はホワイトリスト検証（英数字・`-`・`_`・`:` のみ許可）し、不正な属性名は panic させず出力からスキップする | 属性名スロット経由の注入（追加属性の割り込み）を遮断するため。`core/src/lib.rs` 不変条件 4、ライブラリコードでの panic 回避規約（`.claude/rules/coding-rust.md`） |
+| 2 | タグ名は `tag: &'static str` に固定し、かつ出力前に `is_valid_tag_name` ホワイトリスト検証を行う多層防御を維持する | `&'static str` は値の有効期間のみを保証し文字内容は保証しないため（`Box::leak` によるタグ名注入が型検査をすり抜け得る、PR #166 Bugbot 指摘）。`crates/core/src/lib.rs` 不変条件 5 |
+| 3 | 属性名はホワイトリスト検証（英数字・`-`・`_`・`:` のみ許可）し、不正な属性名は panic させず出力からスキップする | 属性名スロット経由の注入（追加属性の割り込み）を遮断するため。`crates/core/src/lib.rs` 不変条件 4、ライブラリコードでの panic 回避規約（`.claude/rules/coding-rust.md`） |
 | 4 | void 要素（`br`/`img`/`input` 等）は v1 では常に終了タグを出力する現行仕様を凍結する | 現行実装の既知の制約として記録する。自己終了タグ出力（`<br />` 等）の最適化は本書のスコープ外とし、将来課題として TASK-5.1b 以降に挙動変更を混入させない（第 8 節参照） |
 | 5 | 大文字を含むタグ名（例: `DIV`）はそのまま出力する現行挙動を凍結する | `is_valid_tag_name` が `is_ascii_alphabetic`/`is_ascii_alphanumeric` で判定するため許可される。HTML の小文字化はフレームワークの責務外という現状の実装どおりの挙動を明文化する |
 
@@ -85,11 +85,11 @@ div, p, ul, li, a, h1, main_tag（"main" タグへの薄い委譲）
 > （`span`/`h2`〜`h6`/`ol`/`strong`/`em`/`small`/`blockquote`/`pre`/`code`/
 > `form`/`label`/`input`/`button`/`textarea`/`table`/`thead`/`tbody`/`tr`/`th`/
 > `td`/`caption`/`img`/`br`/`hr`/`section`/`header`/`footer`/`nav`/`article`/
-> `aside`）とノード木記述の可読性規約は、Issue #164 で `core/src/tags.rs`
+> `aside`）とノード木記述の可読性規約は、Issue #164 で `crates/core/src/tags.rs`
 > （`tags` モジュール）・`docs/guides/component-authoring.md` 第 4・6 節として実装済み。
 > 定義規則 1〜4（本節）はそのまま拡張ヘルパーにも適用され、変更していない。
 > `script`/`style`/`iframe` ヘルパーの非提供、`select`/`option`・attrs ビルダ
-> API の不採用は `core/src/tags.rs` の `//!` に判断根拠として記録した。
+> API の不採用は `crates/core/src/tags.rs` の `//!` に判断根拠として記録した。
 
 ## 5. スコープ外の明記
 
@@ -105,7 +105,7 @@ div, p, ul, li, a, h1, main_tag（"main" タグへの薄い委譲）
 
 ## 6. セキュリティ不変条件の引き継ぎ
 
-`core/src/lib.rs` 冒頭に記載された不変条件 1〜7（REQ-1・REQ-2 の直接根拠）を、
+`crates/core/src/lib.rs` 冒頭に記載された不変条件 1〜7（REQ-1・REQ-2 の直接根拠）を、
 本設計が確定する API 拡張（タグショートカット追加を含む）に対する制約として
 そのまま再掲・固定する。
 
@@ -120,7 +120,7 @@ div, p, ul, li, a, h1, main_tag（"main" タグへの薄い委譲）
 5. タグ名は `&'static str` に限定し、かつ出力前にホワイトリスト検証（`is_valid_tag_name`）
    も行う多層防御とする。
 6. `#![forbid(unsafe_code)]` によりクレート全体で `unsafe` を機械的に禁止する。
-7. `core/Cargo.toml` の `[dependencies]` は常に空を維持する（外部依存ゼロ）。
+7. `crates/core/Cargo.toml` の `[dependencies]` は常に空を維持する（外部依存ゼロ）。
    依存クレートの追加は事前に `cargo metadata` で影響を確認し、ユーザー承認を得る
    （`.claude/rules/coding-rust.md`）。標準サーバー構成での依存パッケージ上限
    60 件・深さ 6 の制約（`docs/policy/dependency-graph-policy.md`）も維持する。
@@ -136,13 +136,13 @@ div, p, ul, li, a, h1, main_tag（"main" タグへの薄い委譲）
 
 | REQ-5 受け入れ基準 | 満たす API 特性 | 検証タスク |
 |--------------------|-----------------|-----------|
-| 標準のコンポーネント記述方式が、手続きマクロを経由しない通常の Rust コードで完結すること | `Node`/`el`/`text`/`raw_html`/`render` はすべて素の Rust 関数・enum（第 2 節）。`core/Cargo.toml` に proc-macro 依存を追加しない（第 6 節・不変条件 7） | TASK-5.3（コンパイルエラー品質の定性レビュー） |
-| 生成される HTML が、`data-*` 以外にフレームワーク固有のカスタム要素・不透明なマーカーを含まないこと | タグショートカットは `el()` への薄い委譲のみで独自マーカーを出力しない（第 4 節・定義規則） | TASK-5.2（生成 HTML の「素直さ」検証、`core/tests/plain_html_output.rs`） |
+| 標準のコンポーネント記述方式が、手続きマクロを経由しない通常の Rust コードで完結すること | `Node`/`el`/`text`/`raw_html`/`render` はすべて素の Rust 関数・enum（第 2 節）。`crates/core/Cargo.toml` に proc-macro 依存を追加しない（第 6 節・不変条件 7） | TASK-5.3（コンパイルエラー品質の定性レビュー） |
+| 生成される HTML が、`data-*` 以外にフレームワーク固有のカスタム要素・不透明なマーカーを含まないこと | タグショートカットは `el()` への薄い委譲のみで独自マーカーを出力しない（第 4 節・定義規則） | TASK-5.2（生成 HTML の「素直さ」検証、`crates/core/tests/plain_html_output.rs`） |
 | コンパイルエラーが、マクロ展開後のコードを指す読みにくいメッセージではなく通常の Rust の型エラーとして表示されること | コンポーネントは通常の Rust 関数であり、`el`/`text`/`raw_html`/タグショートカットの引数・戻り値はマクロ展開を経ない通常の型検査を受ける（第 2 節） | TASK-5.3（人間によるコンパイルエラー品質の定性レビュー） |
 
 ## 8. 設計書内のコード例
 
-以下は第 2 節で凍結した既存 API のみを用いたコード例であり、`core/src/lib.rs` の
+以下は第 2 節で凍結した既存 API のみを用いたコード例であり、`crates/core/src/lib.rs` の
 doctest（`el`/`text`/`raw_html`/`render` の `# Examples`）と同一のシグネチャ・出力になる
 ことを照合済みである。
 

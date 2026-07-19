@@ -23,9 +23,9 @@ fandhe-frontend-app が crates.io へ公開された時点で、テンプレー�
   対策）と矛盾するため。
 - `publish = false` の解除はリポジトリ内で完結して検知できる代理指標であり、
   crates.io への実際の公開作業に先立って行われる必要条件である。
-- トリガーの機械検知は `cli/tests/template_vendor_drift.rs` の
+- トリガーの機械検知は `crates/cli/tests/template_vendor_drift.rs` の
   `vendor_to_version_switch_trigger_has_not_fired` テスト（canary）が担う。
-  正本 `core/Cargo.toml` / `app/Cargo.toml` のいずれかで `publish = false` が
+  正本 `crates/core/Cargo.toml` / `crates/app/Cargo.toml` のいずれかで `publish = false` が
   非コメント行として存在しなくなると、このテストが是正手順付きメッセージで
   FAIL する。
 
@@ -58,10 +58,10 @@ fandhe-frontend-app が crates.io へ公開された時点で、テンプレー�
 3. **vendor 削除**
 
    - `templates/app/vendor/` ディレクトリを削除する。
-   - `cli/src/new_template.rs` の `APP_TEMPLATE_FILES`（または同等の定義）
+   - `crates/cli/src/new_template.rs` の `APP_TEMPLATE_FILES`（または同等の定義）
      から vendor 配下エントリ（`fandhe-frontend-core`/`fandhe-frontend-app` の各ソースファイル・
      `Cargo.toml`）を除去する。
-   - `cli/tests/new_e2e.rs` のドリフト検知（埋め込みマニフェストと
+   - `crates/cli/tests/new_e2e.rs` のドリフト検知（埋め込みマニフェストと
      `templates/<name>/` の 1:1 検証）が整合を強制する。
 
 4. **Cargo.lock 再生成**
@@ -73,7 +73,7 @@ fandhe-frontend-app が crates.io へ公開された時点で、テンプレー�
 
 5. **テスト更新**
 
-   `cli/tests/template_vendor_drift.rs` から以下を削除する。
+   `crates/cli/tests/template_vendor_drift.rs` から以下を削除する。
 
    - vendor drift テスト（バイト一致検証）:
      `vendored_fandhe_frontend_core_src_is_byte_identical_to_source_crate`・
@@ -90,7 +90,7 @@ fandhe-frontend-app が crates.io へ公開された時点で、テンプレー�
 
 6. **CI 前提の変化を明記**
 
-   `fw gate` e2e（`cli/tests/new_gate_e2e.rs`）の app テンプレート分は
+   `fw gate` e2e（`crates/cli/tests/new_gate_e2e.rs`）の app テンプレート分は
    crates.io からの取得（ネットワークアクセス）が必要になり、vendor 同梱時
    のオフライン決定性が失われる。self-hosted runner のネットワーク・
    registry キャッシュ前提を `.claude/rules/ci.md`（ツール前提の明示）の

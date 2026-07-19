@@ -16,11 +16,11 @@
 人間レビュアーが判断を追跡できる状態にすることが目的である。
 
 - 上流イシュー: #377（トラッキング元は `loader-trait-design.md` §8 のスコープ外表）
-- 実装状況（本書執筆時点）: `Loader` trait 本体は #347（PR #357、`app/src/lib.rs`）、
-  SSR/SSG 経路は #348（PR #361、`server/src/ssr.rs` / `server/src/ssg.rs`）、CSR 初期
-  表示経路は #349（PR #365、`wasm-full/src/csr.rs`）で実装済み。クライアント側
-  ルーティング（画面遷移機構）は #374（PR #383、`wasm-full/src/nav.rs`）で実装済みで
-  あり、遷移時に `resolve_route_view_with`（`wasm-full/src/nav.rs:102`）経由で
+- 実装状況（本書執筆時点）: `Loader` trait 本体は #347（PR #357、`crates/app/src/lib.rs`）、
+  SSR/SSG 経路は #348（PR #361、`crates/server/src/ssr.rs` / `crates/server/src/ssg.rs`）、CSR 初期
+  表示経路は #349（PR #365、`crates/wasm-full/src/csr.rs`）で実装済み。クライアント側
+  ルーティング（画面遷移機構）は #374（PR #383、`crates/wasm-full/src/nav.rs`）で実装済みで
+  あり、遷移時に `resolve_route_view_with`（`crates/wasm-full/src/nav.rs:102`）経由で
   `resolve_list_node`/`resolve_detail_node` が呼ばれ loader が実行される。ただし
   `start_router` 呼び出し時点（初期表示）では描画・loader 再実行を行わない契約
   （`loader-trait-design.md` §4/§7.3 の凍結事項）は維持されている。
@@ -30,7 +30,7 @@
 - 本書は**設計検討・判断確定のみ**を扱う。3 項目とも実装（コード変更）は行わない。
 - `docs/spec/` サブモジュールは編集対象外（仕様変更が必要な場合は
   frontend-framework-spec リポジトリ側で別途提案する）。
-- `Loader` trait のシグネチャ（`app/src/lib.rs:104`〜`121`）・三モード解決シーケンス
+- `Loader` trait のシグネチャ（`crates/app/src/lib.rs:104`〜`121`）・三モード解決シーケンス
   （`loader-trait-design.md` §4）・エラー契約（同 §5）はいずれも変更しない。
 
 ## 3. async 化の検討
@@ -61,13 +61,13 @@
 
 ### 3.4 需要の評価
 
-現在の loader 実装（`DemoItemsLoader`・`DemoItemDetailLoader`、`app/src/lib.rs:130`〜
+現在の loader 実装（`DemoItemsLoader`・`DemoItemDetailLoader`、`crates/app/src/lib.rs:130`〜
 `166`）はいずれも固定デモデータを返す純関数であり、外部 I/O を一切伴わない。async 化を
 正当化する実需要は本書執筆時点で存在しない。
 
 ### 3.5 判断
 
-**非採用**（再評価トリガー付き）。同期 `fn load`（`app/src/lib.rs:121`）を v1 契約として
+**非採用**（再評価トリガー付き）。同期 `fn load`（`crates/app/src/lib.rs:121`）を v1 契約として
 維持する。
 
 **再評価トリガー**:
@@ -100,13 +100,13 @@
 現行の三モード解決シーケンス（`loader-trait-design.md` §4）では、キャッシュが挟まる
 自然な箇所が存在しない。
 
-- SSR: リクエスト時に `respond_with`（`server/src/ssr.rs:140`）が毎回 `load` を呼ぶ純関数
+- SSR: リクエスト時に `respond_with`（`crates/server/src/ssr.rs:140`）が毎回 `load` を呼ぶ純関数
   的経路。
-- SSG: ビルド時に `generate_with`（`server/src/ssg.rs:156`）が 1 回だけ解決する
+- SSG: ビルド時に `generate_with`（`crates/server/src/ssg.rs:156`）が 1 回だけ解決する
   （そもそも再利用の必要がない）。
 - CSR: 初期表示はサーバー解決済みのハイドレーション状態注入を再利用し loader を
   再実行しない（`loader-trait-design.md` §4 補足）。クライアント側ルーティング
-  （画面遷移機構、`wasm-full/src/nav.rs`、#374/PR #383）導入後は、遷移時に毎回
+  （画面遷移機構、`crates/wasm-full/src/nav.rs`、#374/PR #383）導入後は、遷移時に毎回
   `load` が呼ばれる（`resolve_route_view_with` 経由）。ただし遷移先は同一セッション
   内で同じルートへ複数回遷移する場合を除き基本的に単発の解決であり、キャッシュが
   自然に挟まる構造にはなっていない。
@@ -128,7 +128,7 @@
 **非採用**（再評価トリガー付き）。
 
 **再評価トリガー**: 以下のいずれかが実測で確認された場合。
-1. クライアント側ルーティング（画面遷移機構、`wasm-full/src/nav.rs`）経由の遷移で、
+1. クライアント側ルーティング（画面遷移機構、`crates/wasm-full/src/nav.rs`）経由の遷移で、
    同一データの再取得コストが実測で性能受け入れ基準（REQ-11）を満たせないことが
    確認された場合。
 2. 外部 I/O を伴う loader（第 3 節）が導入され、その I/O コストが実測で問題化した
@@ -245,19 +245,19 @@ pub enum CombinedLoaderError<E1, E2> {
 ## 6. 三モード同一契約の保証
 
 本書の 3 判断（async 非採用・キャッシュ非採用・合成は既存 trait 内で規約化）は
-いずれも `Loader` trait の公開シグネチャ（`app/src/lib.rs:104`〜`121`）・三モード
+いずれも `Loader` trait の公開シグネチャ（`crates/app/src/lib.rs:104`〜`121`）・三モード
 解決シーケンス（`loader-trait-design.md` §4）・エラー契約（同 §5）を変更しない。
 API 変更がゼロであるため、以下は本書導入前後で自明に維持される。
 
 - SSR・SSG・CSR の三モードから同一実装が呼ばれる契約（REQ-6）。
-- SSR は `respond_with`（`server/src/ssr.rs:140`）、SSG は `generate_with`
-  （`server/src/ssg.rs:156`、内部で同一の `respond()` を経由）、CSR は初期表示で
-  `resolve_list_node`/`resolve_detail_node`（`wasm-full/src/csr.rs:52`/`69`）、
-  クライアント側遷移時は `resolve_route_view_with`（`wasm-full/src/nav.rs:102`、
+- SSR は `respond_with`（`crates/server/src/ssr.rs:140`）、SSG は `generate_with`
+  （`crates/server/src/ssg.rs:156`、内部で同一の `respond()` を経由）、CSR は初期表示で
+  `resolve_list_node`/`resolve_detail_node`（`crates/wasm-full/src/csr.rs:52`/`69`）、
+  クライアント側遷移時は `resolve_route_view_with`（`crates/wasm-full/src/nav.rs:102`、
   内部で同じ `resolve_list_node`/`resolve_detail_node` を呼ぶ）が、それぞれ既存の
   解決経路をそのまま使う。
-- エラー契約: SSR は `loader_error_response`（`server/src/ssr.rs:209`）による
-  固定文言 500、SSG はビルド失敗、CSR は `loader_error_view`（`wasm-full/src/csr.rs:35`）
+- エラー契約: SSR は `loader_error_response`（`crates/server/src/ssr.rs:209`）による
+  固定文言 500、SSG はビルド失敗、CSR は `loader_error_view`（`crates/wasm-full/src/csr.rs:35`）
   による固定エラービュー。
 
 合成 loader（第 5.4 節）も `Loader` trait の通常の実装であるため、上記の解決経路・

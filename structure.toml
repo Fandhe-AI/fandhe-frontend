@@ -1,6 +1,6 @@
 # 機械可読なプロジェクト構造マニフェスト（TASK-13.1a, REQ-13）。
 #
-# 本リポジトリ自身の構成を宣言する参照マニフェストであり、`cli/src/structure.rs`
+# 本リポジトリ自身の構成を宣言する参照マニフェストであり、`crates/cli/src/structure.rs`
 # のスキーマ v1 の正例を兼ねる（TASK-13.1d, #131 のテストフィクスチャとしても
 # 利用予定）。スキーマの詳細・各フィールドの制約・PoC-7 からの差分理由は
 # `docs/design/structure-manifest.md` を参照。
@@ -99,7 +99,7 @@ path = "crates/cli"
 [routing]
 # イシュー #407: server / client 単一定義からのルート生成（共有機構）採用に伴い、
 # ルート表の正本を server から app（fandhe-frontend-app::routes）へ移設した。抽出器
-# （`fandhe-frontend-router-v1`、`cli/src/routes.rs`）は文字列走査のみで AST 非依存のため、
+# （`fandhe-frontend-router-v1`、`crates/cli/src/routes.rs`）は文字列走査のみで AST 非依存のため、
 # `definition_dir` の変更のみで無改修のまま追随できる
 # （`docs/design/route-definition-sharing.md` §4・採用判断基準 2）。
 definition_dir = "app"

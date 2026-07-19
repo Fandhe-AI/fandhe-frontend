@@ -16,7 +16,7 @@
      と統一
 - **関連 Issue（追補）**: #351「test(cli): fw new 生成直後に fw gate が
   PASS する構成保証」（兄弟イシュー）でテンプレートへの `structure.toml`
-  追加・「生成直後 `fw gate` PASS」の e2e（`cli/tests/new_gate_e2e.rs`）が
+  追加・「生成直後 `fw gate` PASS」の e2e（`crates/cli/tests/new_gate_e2e.rs`）が
   実装済み。§3・§4・§8 参照。
 - **関連 Issue（追補 2）**: #378「feat(cli): fw new の複数テンプレート選択と
   テンプレート骨格の拡充」で `--template` 選択 UI と、fandhe-frontend-core / fandhe-frontend-app
@@ -32,7 +32,7 @@ fw new <project-name> [--template <template>] [--dir <parent-dir>] [--force]
 | 要素 | 説明 |
 |------|------|
 | `<project-name>` | 必須の第 1 位置引数。§5 の検証規則を満たさない場合は使用法エラー（終了コード 2） |
-| `--template <template>` | 使用するテンプレート名（イシュー #378）。省略時は `default`。未知の名前は使用法エラー（終了コード 2）で、stderr に利用可能テンプレート一覧を出す。allowlist は `cli/src/new_template.rs::TEMPLATES` |
+| `--template <template>` | 使用するテンプレート名（イシュー #378）。省略時は `default`。未知の名前は使用法エラー（終了コード 2）で、stderr に利用可能テンプレート一覧を出す。allowlist は `crates/cli/src/new_template.rs::TEMPLATES` |
 | `--dir <parent-dir>` | 展開先の親ディレクトリ。省略時はカレントディレクトリ。ターゲットは `<parent-dir>/<project-name>` |
 | `--force` | ターゲットが既存でも展開を許可する。テンプレート該当ファイルのみ上書きし、テンプレート外の既存ファイルは削除しない（`rm -rf` 相当の自動削除は行わない） |
 
@@ -66,7 +66,7 @@ fw new <project-name> [--template <template>] [--dir <parent-dir>] [--force]
 `templates/<name>/` のファイルシステム配置へ依存させず、`include_str!`
 によるコンパイル時埋め込みとする。
 
-`cli/src/new_template.rs` に静的マニフェスト `Template`/`TemplateFile` を
+`crates/cli/src/new_template.rs` に静的マニフェスト `Template`/`TemplateFile` を
 定義する（イシュー #378 で単一 `TEMPLATE_FILES` 配列から一般化）:
 
 ```rust
@@ -87,7 +87,7 @@ pub(crate) const TEMPLATES: &[Template] = &[/* "default", "app", "embed" */];
 ```
 
 正本は従来どおり `templates/<name>/`。埋め込みとの乖離は
-`cli/tests/new_e2e.rs::embedded_template_matches_templates_on_disk`
+`crates/cli/tests/new_e2e.rs::embedded_template_matches_templates_on_disk`
 （全テンプレートをパラメタ化したドリフト検知テスト）が機械的に検出する。
 テンプレートにファイルが増減・変更されたら CI で必ず落ちる仕組みとし、
 手動同期に頼らない（`.claude/rules/ci.md` の cargo-deny pin ドリフト検知と
@@ -122,7 +122,7 @@ pub(crate) const TEMPLATES: &[Template] = &[/* "default", "app", "embed" */];
   `bind_text`/`keyed_list` の束縛点 API 使用サンプルも含む）・
   `tests/escape_regression.rs`（XSS 回帰テスト）
 - 共有ファイル（`templates/default/` とバイト単位で同一。
-  `cli/tests/template_vendor_drift.rs` が検証）: `.github/workflows/deny.yml`
+  `crates/cli/tests/template_vendor_drift.rs` が検証）: `.github/workflows/deny.yml`
   / `.github/workflows/npm-asset-gate.yml` / `clippy.toml` / `deny.toml` /
   `tools/npm-asset-build/*`（4 ファイル）
 - `static/embed.html`: `templates/embed/embed.html`（既存の CSR マウント
@@ -167,7 +167,7 @@ vendor 同梱は「`publish = false`（crates.io 未公開）である間」の�
 トリガー条件（正本 `Cargo.toml` から `publish = false` が解除されること）
 と切替手順は `docs/design/template-vendor-to-version-switch.md`
 （イシュー #412）に定める。トリガー成立は
-`cli/tests/template_vendor_drift.rs` の canary テスト
+`crates/cli/tests/template_vendor_drift.rs` の canary テスト
 （`vendor_to_version_switch_trigger_has_not_fired`）が機械検知する。
 
 `structure.toml` は `vendor/fandhe-frontend-core`/`vendor/fandhe-frontend-app` を宣言しない
@@ -179,12 +179,12 @@ vendor 同梱は「`publish = false`（crates.io 未公開）である間」の�
 検査するため、vendored crate 内部の `raw_html` 定義自体は違反にならない
 （既存 gate 仕様どおり）。
 
-`structure.toml`（イシュー #351 で追加）は `fw gate`（`cli/src/gate.rs`）が
+`structure.toml`（イシュー #351 で追加）は `fw gate`（`crates/cli/src/gate.rs`）が
 検証対象クレートを決定する唯一の情報源であり、これを同梱しない限り生成
 直後のプロジェクトは `fw gate` が即 BLOCKED になる（宣言クレート不在の
 fail-closed）。クレートはプロジェクトルート直下（`src/`）に置かれるため、
 `[directories.root]` という慣習名で宣言する。`root` はスキーマ v1 の正式な
-予約名（`cli/src/structure.rs::ROOT_DIR_KEY`、イシュー #353 で正式化）で
+予約名（`crates/cli/src/structure.rs::ROOT_DIR_KEY`、イシュー #353 で正式化）で
 あり、ディレクトリ名 → 実ファイルシステムパスの解決は
 `structure::dir_fs_path` を単一の情報源とする（`root` は `<project>` 自身へ
 写像する）。`fw gate` の `default_escape_check`（保険層）・`fw structure` の
@@ -198,7 +198,7 @@ fail-closed）。クレートはプロジェクトルート直下（`src/`）に
 
 #### 3b. CSR wasm ビルド込み完全実体（イシュー #411）
 
-`fandhe-frontend-wasm-client`（正本 `wasm-client/`）は `wasm-bindgen`/`web-sys` という
+`fandhe-frontend-wasm-client`（正本 `crates/wasm-client/`）は `wasm-bindgen`/`web-sys` という
 外部依存を持つため、§3a のソース vendor 方式（外部依存ゼロが前提）を
 そのまま適用できない。以下のハイブリッド方式を採る:
 
@@ -218,8 +218,8 @@ root の依存グラフに混ぜると `cargo build`/`cargo test`/`fw gate` の�
 検証対象クレート決定にも影響しない。
 
 **構成**:
-- `vendor/fandhe-frontend-interactive/`・`vendor/fandhe-frontend-wasm-client/`: 正本 `interactive/`・
-  `wasm-client/` の `src/*` バイト同一コピー（`cli/tests/template_vendor_drift.rs`
+- `vendor/fandhe-frontend-interactive/`・`vendor/fandhe-frontend-wasm-client/`: 正本 `crates/interactive/`・
+  `crates/wasm-client/` の `src/*` バイト同一コピー（`crates/cli/tests/template_vendor_drift.rs`
   が検証）。`Cargo.toml` は既知変換（path 依存先を vendor 配下の実ディレクトリ名へ
   変更、dev-dependencies を除去。dev-dependencies は `fandhe-frontend-server` への vendor
   連鎖を招くため）を適用する。
@@ -228,11 +228,11 @@ root の依存グラフに混ぜると `cargo build`/`cargo test`/`fw gate` の�
   するのみ。HTML 組み立て・DOM 直接操作・`raw_html()` を持たない。
 - `wasm/Cargo.lock`: wasm-bindgen 0.2.126 / web-sys 0.3.103（リポジトリ本体
   `Cargo.lock` の解決値と同一）へピン。バージョン一致は
-  `cli/tests/template_vendor_drift.rs::wasm_lockfile_wasm_bindgen_version_matches_repo_root_lockfile`
+  `crates/cli/tests/template_vendor_drift.rs::wasm_lockfile_wasm_bindgen_version_matches_repo_root_lockfile`
   が機械的に検証する（手動同期に頼らない）。
 - `tools/wasm/build.sh`（実行ビット 100755）: (a) rustup target・wasm-bindgen-cli
   の存在チェック、(b) `wasm/Cargo.lock` から読んだ wasm-bindgen バージョンと
-  `wasm-bindgen --version` の完全一致検証（`dist-server/build.rs::expected_wasm_bindgen_version`
+  `wasm-bindgen --version` の完全一致検証（`crates/dist-server/build.rs::expected_wasm_bindgen_version`
   と同一の fail-closed 契約）、(c) `cargo build --manifest-path wasm/Cargo.toml
   --target wasm32-unknown-unknown --release`、(d) `wasm-bindgen --target web
   --out-dir static/wasm --out-name fandhe_frontend_wasm_client` を実行する固定コマンド列。
@@ -258,8 +258,8 @@ vendor → バージョン依存への切替はイシュー #412 で追跡する
 レート」を製品化する。`templates/embed/` の対象 2 ファイル:
 
 - `embed.html`: `templates/embed/embed.html`（TASK-7.1a・#52 の正本）を
-  バイト無変更で流用（`xtask/tests/template_embed_html.rs`・
-  `cli/tests/template_vendor_drift.rs` が参照する正本と同一であることが
+  バイト無変更で流用（`crates/xtask/tests/template_embed_html.rs`・
+  `crates/cli/tests/template_vendor_drift.rs` が参照する正本と同一であることが
   前提のため、本テンプレート追加時も一切変更しない）
 - `structure.toml`: `fw gate` が唯一の情報源として読む静的専用
   （asset-only）マニフェスト。`[directories.root]` は `role = "asset"` の
@@ -269,11 +269,11 @@ vendor → バージョン依存への切替はイシュー #412 で追跡する
 `Template::substituted_files` は空配列（`&[]`）とする。`needle`
 （`fandhe-frontend-template-embed`）はどのファイルにも出現しないダミー文字列であり、
 置換ループは素通りする。生成物はテンプレート正本と全ファイルバイト一致
-になり、`cli/tests/new_e2e.rs::embed_template_output_is_byte_identical_to_template_and_contains_no_needle`
+になり、`crates/cli/tests/new_e2e.rs::embed_template_output_is_byte_identical_to_template_and_contains_no_needle`
 がこれを固定する。
 
 cargo パッケージを持たない構成のまま `fw gate` PASS を保証するには、
-`fw gate`（`cli/src/gate.rs::is_asset_only_project`）側に静的専用プロジェ
+`fw gate`（`crates/cli/src/gate.rs::is_asset_only_project`）側に静的専用プロジェ
 クトの明示的オプトインモードが必要だった（`docs/design/gate-design.md`
 §2.5 参照）。判定条件は「宣言クレートが 0 件、かつ宣言ディレクトリ全件が
 `role = "asset"`」で、満たす場合のみ cargo 系 4 チェック
@@ -303,7 +303,7 @@ Rust コードが混入した場合の回帰を検出する。
 なる。実装時に実際に検出・修正した経緯があり、テンプレート改稿時の注意点
 として明記する）。
 
-実装は `cli/src/new.rs::replace_exact(contents, needle, replacement,
+実装は `crates/cli/src/new.rs::replace_exact(contents, needle, replacement,
 expected_count) -> Result<String, String>` とし、**出現回数が期待値と
 一致しない場合はエラー（終了コード 1）**にする（fail-closed。テンプレート
 改変時の黙示的な置換漏れ・過剰置換を防ぐ）。
@@ -317,7 +317,7 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
 
 ## 5. プロジェクト名の検証規則
 
-`cli/src/new.rs::validate_project_name`。すべて満たさない場合は使用法エラー
+`crates/cli/src/new.rs::validate_project_name`。すべて満たさない場合は使用法エラー
 （終了コード 2）:
 
 - 非空・64 文字以内
@@ -335,7 +335,7 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
 - パーミッション: `executable: true` のファイルへ Unix では 0o755 を明示
   設定する（`std::os::unix::fs::PermissionsExt`、`#[cfg(unix)]`）。
   **非 Unix プラットフォームではパーミッションモデルが異なるため設定を
-  スキップする**（`#[cfg(not(unix))]` の no-op 実装、`cli/src/new.rs::set_permissions`）。
+  スキップする**（`#[cfg(not(unix))]` の no-op 実装、`crates/cli/src/new.rs::set_permissions`）。
 - 書き込み途中の失敗は該当パス付きで stderr へ報告して終了コード 1 とする
   （部分生成物は削除しない = 成功と誤認させないことのみ保証する。
   `--force` でも削除系操作は一切行わない）。
@@ -347,7 +347,7 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
 - 決定性の保証（§6）は**バイト内容の同一性**が主であり、実行ビットは
   Unix のみで担保される副次的な性質と位置づける。非 Unix 環境での
   `same_args_produce_byte_identical_output_across_two_runs` 相当のテストは、
-  `collect_tree`（`cli/tests/new_e2e.rs`）が `#[cfg(not(unix))]` で
+  `collect_tree`（`crates/cli/tests/new_e2e.rs`）が `#[cfg(not(unix))]` で
   `executable = false` を返すため、実行ビット差異を検知対象に含めない
   （プラットフォーム条件分岐込みで決定性の定義が閉じている）。
 - `tools/npm-asset-build/*`（`executable: true` の 3 ファイル）は
@@ -357,7 +357,7 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
   （呼び出し側がシェバン実行に依存しない）。非 Unix でのローカル直接実行
   （ダブルクリック相当）は本フレームワークの配布形態（Docker/Linux 想定）
   のスコープ外とする。
-- 各テンプレートの実行可能ファイル集合は `cli/src/new_template.rs`
+- 各テンプレートの実行可能ファイル集合は `crates/cli/src/new_template.rs`
   （`executable_file_sets_match_expected_fixed_lists` テスト）が期待固定
   リストとの一致をプラットフォーム非依存に検証する（メタデータの記述内容
   のみを比較するため、どの OS でも実行できる）。
@@ -400,13 +400,13 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
   入力から動的にパス・`include_str!` 対象を組み立てない（A01/A03）。
 - **`app` テンプレート固有（イシュー #378）**: `raw_html()` は使用しない
   （REQ-1、`clippy.toml` の `disallowed-methods` が依存追加により初めて
-  実効化される。`cli/tests/new_gate_e2e.rs::fw_new_app_template_default_escape_check_detects_injected_violation`
+  実効化される。`crates/cli/tests/new_gate_e2e.rs::fw_new_app_template_default_escape_check_detects_injected_violation`
   が実際に注入検出を固定）。`templates/app/tests/escape_regression.rs`
   （生成プロジェクト内 XSS 回帰テスト）が `fw gate` の `test` チェックで
   常時実行される。vendor 同梱（fandhe-frontend-core / fandhe-frontend-app）は正本とのドリフト検知
-  （`cli/tests/template_vendor_drift.rs`）で改ざん・陳腐化を検出する。
+  （`crates/cli/tests/template_vendor_drift.rs`）で改ざん・陳腐化を検出する。
 
-## 8. テスト（`cli/tests/new_e2e.rs`）
+## 8. テスト（`crates/cli/tests/new_e2e.rs`）
 
 実バイナリ（`CARGO_BIN_EXE_fw`）を起動する e2e テスト:
 
@@ -423,12 +423,12 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
    マニフェストと相対パス集合・内容バイト列（`Cargo.toml`/`Cargo.lock`/
    `structure.toml` を除く）・実行ビットが 1:1 対応することを確認する。
 
-さらに `cli/tests/new_gate_e2e.rs`（イシュー #351／#378／#401／#410）が
+さらに `crates/cli/tests/new_gate_e2e.rs`（イシュー #351／#378／#401／#410）が
 `fw new` → `fw gate` の直列 e2e を実バイナリで実行し、生成直後のプロジェ
 クトが無編集で `fw gate` の 6 チェック（type_check / default_escape_check /
 url_validation_check / lint / test / policy）全 PASS になることをテンプレート
 ごとに固定する。`default`/`app` は `policy`（cargo-deny 依存）のみ実行環境で
-分岐するため、`cli/tests/scenarios/bugfix_escape.rs::baseline_passes_gate`
+分岐するため、`crates/cli/tests/scenarios/bugfix_escape.rs::baseline_passes_gate`
 と同一方針でスキップ・`#[ignore]` を使わず両分岐（PASS / 環境エラーによる
 BLOCKED）を断定する。`.github/workflows/ci.yml` の test ジョブへ明示ステップ
 として組み込み済み。`app` テンプレートの gate e2e は vendored 2 crate の
@@ -437,10 +437,10 @@ BLOCKED）を断定する。`.github/workflows/ci.yml` の test ジョブへ明�
 導入有無に依存せず、6 チェック全 PASS・`gate_result: "PASS"`・終了コード 0
 を無条件に断定する。
 
-`cli/tests/template_vendor_drift.rs`（イシュー #378 新設、イシュー #411 で
+`crates/cli/tests/template_vendor_drift.rs`（イシュー #378 新設、イシュー #411 で
 `fandhe-frontend-interactive`/`fandhe-frontend-wasm-client` を追加）は vendor 同梱（fandhe-frontend-core /
-fandhe-frontend-app / fandhe-frontend-interactive / fandhe-frontend-wasm-client）と正本 `core/`/`app/`/
-`interactive/`/`wasm-client/` の乖離検知、`wasm/Cargo.lock` の
+fandhe-frontend-app / fandhe-frontend-interactive / fandhe-frontend-wasm-client）と正本 `crates/core/`/`crates/app/`/
+`crates/interactive/`/`crates/wasm-client/` の乖離検知、`wasm/Cargo.lock` の
 wasm-bindgen/web-sys バージョンとリポジトリ本体 `Cargo.lock` の一致検知、
 および `templates/default/` と `templates/app/` の共有ファイル
 （`.github/workflows/*`・`clippy.toml`・`deny.toml`・`tools/npm-asset-build/*`）
@@ -469,4 +469,4 @@ wasm-bindgen/web-sys バージョンとリポジトリ本体 `Cargo.lock` の一
 - ルート直下クレートの `structure.toml` スキーマ上の正式化（`root` 慣習の
   一般化）と `fw structure`/`fw impact`/`default_escape_check` の当該盲点の
   一般対応はイシュー #353 で完了した（`docs/design/structure-manifest.md`
-  §2.2 / `cli/tests/impact_root_crate.rs` / `cli/tests/new_gate_e2e.rs` 参照）。
+  §2.2 / `crates/cli/tests/impact_root_crate.rs` / `crates/cli/tests/new_gate_e2e.rs` 参照）。

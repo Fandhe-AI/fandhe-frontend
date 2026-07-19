@@ -18,7 +18,7 @@
   168 行目以降）。
 - **背景**: PoC-7（`docs/spec/03-poc/ai-self-maintenance/`）が
   `structure.toml` + `tools/poc7_tool.py structure` の Python プロトタイプで
-  実証した。本タスクはこれを Rust CLI（`cli/src/structure.rs`）として
+  実証した。本タスクはこれを Rust CLI（`crates/cli/src/structure.rs`）として
   製品化する最初のサブタスクであり、**後続 #129〜#131 が依拠する単一の
   情報源**（スキーマ設計 + 型定義 + 参照マニフェスト）を確定させる。
 - **親タスク**: TASK-13.1（#127、`docs/spec/05-tasks.md` 参照）。
@@ -26,7 +26,7 @@
 
 | サブタスク | Issue | 内容 | 本書との関係 |
 |-----------|-------|------|-------------|
-| TASK-13.1a | #128（本書） | スキーマ設計 | 本書 + `cli/src/structure.rs` の型定義 + ルート `structure.toml` |
+| TASK-13.1a | #128（本書） | スキーマ設計 | 本書 + `crates/cli/src/structure.rs` の型定義 + ルート `structure.toml` |
 | TASK-13.1b | #129 | TOML サブセットの手書きパーサ実装 | 本書 §2 が構文サブセット・エラー方針を規定 |
 | TASK-13.1c | #130 | `cargo metadata` 連携・マニフェスト生成・`fandhe-frontend-router-v1` 抽出器実装 | 本書 §2.2/§2.3 がスキーマ・検証範囲の境界を規定 |
 | TASK-13.1d | #131 | ルートの `structure.toml` をフィクスチャとした統合テスト | 本書のスキーマ・ルート `structure.toml` を直接使用 |
@@ -67,7 +67,7 @@ extractor = "fandhe-frontend-router-v1"      # 組み込み抽出器 ID
 
 #### 2.2.0 予約名 `root`（イシュー #353 で正式化）
 
-`[directories.<name>]` の `<name>` に予約名 `root`（`cli/src/structure.rs::ROOT_DIR_KEY`）
+`[directories.<name>]` の `<name>` に予約名 `root`（`crates/cli/src/structure.rs::ROOT_DIR_KEY`）
 を使うと、そのディレクトリはワークスペースルート**自身**（クレートが
 プロジェクトルート直下 `<project>/src` に直接配置される構成）を表す。
 現行スキーマの命名規則（`^[a-z0-9_-]+$`）にはワークスペースルート自身を
@@ -78,7 +78,7 @@ extractor = "fandhe-frontend-router-v1"      # 組み込み抽出器 ID
 `fw new`（イシュー #350/#351）が生成するプロジェクトは常にこの慣習を使う
 （`templates/default/structure.toml` の `[directories.root]`）。
 
-ディレクトリ名 → 実ファイルシステムパスの解決は `cli/src/structure.rs::dir_fs_path`
+ディレクトリ名 → 実ファイルシステムパスの解決は `crates/cli/src/structure.rs::dir_fs_path`
 を**単一の情報源**とし、`root` は `<project>` 自身へ、それ以外は従来どおり
 `<project>/<name>` へ写像する。以下の消費箇所はいずれもこのヘルパー
 （または `routes::resolve_within_root`／`routes::scan_root` に一般化した
@@ -108,7 +108,7 @@ extractor = "fandhe-frontend-router-v1"      # 組み込み抽出器 ID
 
 制約（`validate()` が fail-closed で検証、OWASP A01/A05 対策）:
 
-- `/` 区切りで 1〜3 セグメント（`cli/src/structure.rs::MAX_PATH_SEGMENTS`）
+- `/` 区切りで 1〜3 セグメント（`crates/cli/src/structure.rs::MAX_PATH_SEGMENTS`）
 - 各セグメントは `^[a-z0-9_-]+$`（[`is_valid_directory_name`] と同じ文字集合）
 - 絶対パス（先頭 `/`）・`..`・空セグメント（連続 `/`・末尾 `/`）は拒否
 - 予約名 `root`（§2.2.0）のエントリに `path` を指定することは拒否
@@ -116,7 +116,7 @@ extractor = "fandhe-frontend-router-v1"      # 組み込み抽出器 ID
 - 複数エントリが同一の解決先へ写像することは拒否（`path` 省略時の
   `<name>` 自身との衝突も含む）
 
-ディレクトリ → 実ファイルシステムパスの解決は `cli/src/structure.rs::
+ディレクトリ → 実ファイルシステムパスの解決は `crates/cli/src/structure.rs::
 dir_fs_path_for_entry`（`path` があればそれを、無ければ `dir_fs_path` の
 従来ロジックへフォールバック）を単一の情報源とする。走査系ヘルパー
 （`routes::resolve_within_root`/`scan_root`）は `dir_name` 引数として
@@ -128,7 +128,7 @@ resolved_dir_path(name)` がディレクトリキー名から実配置パス文�
 #### 2.2.1 `role` の閉じた語彙
 
 PoC-7 は `role` を自由記述文字列としていたが、本スキーマでは機械的に
-判定できるよう固定語彙にする（`cli/src/structure.rs` の `Role` enum が
+判定できるよう固定語彙にする（`crates/cli/src/structure.rs` の `Role` enum が
 唯一の定義。パーサ側で語彙を再定義しない）。
 
 | 値 | 意味 | 本リポジトリでの対応例 |
@@ -145,7 +145,7 @@ PoC-7 は `role` を自由記述文字列としていたが、本スキーマで
 **`fw gate` 静的専用（asset-only）モードとの関係（イシュー #410）**:
 宣言クレートが 0 件、かつ宣言ディレクトリ全件が `role = "asset"` である
 マニフェスト（`fw new --template embed` が生成する `templates/embed/
-structure.toml` が代表例）は、`fw gate`（`cli/src/gate.rs::
+structure.toml` が代表例）は、`fw gate`（`crates/cli/src/gate.rs::
 is_asset_only_project`）にとって「cargo パッケージを持たない静的専用
 プロジェクトである」ことの明示的オプトイン宣言として機能する。この場合
 cargo 系 4 チェック（`type_check`/`lint`/`test`/`policy`）は not-applicable
@@ -161,12 +161,12 @@ PASS 化され、テキスト走査ベースの保険層（`default_escape_check
 | `[manifest] version` を新設 | 前方互換の判定基盤。TASK-13.1b 以降がバージョン分岐できるようにする |
 | `crate = ""`（空文字）を廃止し「キー省略」に統一 | 空文字と未設定の二重表現を避ける。パーサ側の分岐を単純化 |
 | `role` を自由記述からクローズドな語彙へ変更 | `validate()` が機械的に判定できるようにする（§2.2.1） |
-| `[routing] handler_pattern`（ユーザー定義正規表現）を廃止し、組み込み抽出器 ID の選択式（`extractor`）に変更 | `server/src/router.rs` は正規表現・バックトラックを排した設計（DoS 耐性を狙う実装判断）。マニフェスト経由で任意正規表現をツール側に実行させる経路は、宣言ファイルがコード実行相当の振る舞い（ReDoS・意図しないパターンマッチによる誤爆）を注入できる面を増やすため、v1 スキーマから排除した。抽出器自体の実装は TASK-13.1c（#130）のスコープ |
+| `[routing] handler_pattern`（ユーザー定義正規表現）を廃止し、組み込み抽出器 ID の選択式（`extractor`）に変更 | `crates/server/src/router.rs` は正規表現・バックトラックを排した設計（DoS 耐性を狙う実装判断）。マニフェスト経由で任意正規表現をツール側に実行させる経路は、宣言ファイルがコード実行相当の振る舞い（ReDoS・意図しないパターンマッチによる誤爆）を注入できる面を増やすため、v1 スキーマから排除した。抽出器自体の実装は TASK-13.1c（#130）のスコープ |
 | `[routing] definition_file_pattern`（glob 文字列）を `definition_dir`（`directories` キー参照）に変更 | 「ルート定義を許すディレクトリ」を独自の glob 文字列ではなく既存の `directories` 宣言に統一し、二重管理・書式の不一致を避ける |
 
 ### 2.3 整合性検証ルール（`StructureManifest::validate()`）
 
-`cli/src/structure.rs` の `validate()` が実装する、マニフェスト**内部**の
+`crates/cli/src/structure.rs` の `validate()` が実装する、マニフェスト**内部**の
 宣言整合性検証。ファイルシステム・`cargo metadata` へは一切アクセスしない
 純粋関数（実体との突き合わせは TASK-13.1c のスコープ、§4 参照）。
 
@@ -202,7 +202,7 @@ PASS 化され、テキスト走査ベースの保険層（`default_escape_check
 ## 3. ルートの `structure.toml`（参照マニフェスト）
 
 リポジトリルートの `structure.toml` は、本リポジトリ自身の構成
-（`Cargo.toml` の workspace members + `static/` + `xtask/` + `cli/`）を
+（`Cargo.toml` の workspace members + `static/` + `crates/xtask/` + `crates/cli/`）を
 現行のスキーマ v1 で宣言した参照マニフェストであり、以下を兼ねる:
 
 - 2.2 節スキーマの正例
@@ -212,7 +212,7 @@ PASS 化され、テキスト走査ベースの保険層（`default_escape_check
 
 - `server`（`fandhe-frontend-server`）は TASK-6.1c で `ssr.rs`/`ssg.rs` が `fandhe-frontend-app` の
   ページ関数を呼ぶようになったため、`fandhe-frontend-core`/`fandhe-frontend-app` を
-  `server/Cargo.toml` の**通常依存**（`[dependencies]`、path 依存のみ・
+  `crates/server/Cargo.toml` の**通常依存**（`[dependencies]`、path 依存のみ・
   外部クレート追加なし）に昇格済みである。`directories.server.depends_on`
   はこれを反映して `["core", "app"]` を宣言する（TASK-13.1c の
   `cargo metadata` 実体突き合わせが、この宣言と実際の path 依存の一致を
@@ -220,18 +220,18 @@ PASS 化され、テキスト走査ベースの保険層（`default_escape_check
 - `wasm-full`（`fandhe-frontend-wasm-full`）は TASK-CSR-loader（#349）で `csr` モジュール
   （CSR 経路の loader 解決層）が `fandhe_frontend_app::Loader`/`assemble_list_page`/
   `assemble_detail_page` を呼ぶようになったため、`fandhe-frontend-app` を
-  `wasm-full/Cargo.toml` の**通常依存**（`[dependencies]`、path 依存のみ・
+  `crates/wasm-full/Cargo.toml` の**通常依存**（`[dependencies]`、path 依存のみ・
   外部クレート追加なし）に追加済みである。`directories.wasm-full.depends_on`
   はこれを反映して `["core", "interactive", "app"]` を、
   `directories.app.allowed_dependents` は `["server", "dist-server",
   "wasm-full"]` を宣言する（対称性、本節冒頭 §2.3 検証 6）。
-- `[routing] definition_dir = "app"` は「ルートは `app/src/routes.rs` の
+- `[routing] definition_dir = "app"` は「ルートは `crates/app/src/routes.rs` の
   `Router::route(...)` 呼び出しに定義される」という規約を宣言する
   （イシュー #407: server / client 単一定義からのルート生成（共有機構）
   採用に伴い、ルート表の正本を `server` から `app` へ移設した。
-  `server/src/ssr.rs`・`wasm-full/src/nav.rs` はいずれも `fandhe_frontend_app::routes`
+  `crates/server/src/ssr.rs`・`crates/wasm-full/src/nav.rs` はいずれも `fandhe_frontend_app::routes`
   経由で同一定義を参照する。詳細は `docs/design/route-definition-sharing.md`）。
-  実際の抽出処理（`fandhe-frontend-router-v1` 抽出器、`cli/src/routes.rs`）は
+  実際の抽出処理（`fandhe-frontend-router-v1` 抽出器、`crates/cli/src/routes.rs`）は
   `definition_dir` 配下の `src/`（Cargo の慣例に基づき `tests/` 等の
   integration test は対象外）を走査し、コメント・`#[cfg(test)]` 以降の
   内部テストも除外したうえで抽出する（TASK-13.1c 実装済み）。
@@ -240,22 +240,22 @@ PASS 化され、テキスト走査ベースの保険層（`default_escape_check
 
 TASK-13.1（親 #127）の全サブタスクは実装済み。
 
-- TASK-13.1a（#128）: スキーマの型定義（`cli/src/structure.rs`）と
+- TASK-13.1a（#128）: スキーマの型定義（`crates/cli/src/structure.rs`）と
   マニフェスト**内部**の宣言整合性検証（`validate()`、§2.3）。
-- TASK-13.1b（#129）: `cli/src/toml.rs`（TOML サブセットパーサ）+
-  `cli/src/structure.rs` の `parse()`/`load()`（TOML → `StructureManifest`
+- TASK-13.1b（#129）: `crates/cli/src/toml.rs`（TOML サブセットパーサ）+
+  `crates/cli/src/structure.rs` の `parse()`/`load()`（TOML → `StructureManifest`
   への変換とセマンティック検証）。未知キー・サブセット外構文・未知 `role` は
   すべてエラー（fail-closed）。
-- TASK-13.1c（#130）: `cli/src/metadata.rs`（`cargo metadata` 連携・
-  workspace member と path 依存の抽出）、`cli/src/routes.rs`
-  （`fandhe-frontend-router-v1` 抽出器）、`cli/src/component_boundary.rs`
-  （コンポーネント境界抽出）、`cli/src/json_out.rs`（4 要素の JSON 出力）。
+- TASK-13.1c（#130）: `crates/cli/src/metadata.rs`（`cargo metadata` 連携・
+  workspace member と path 依存の抽出）、`crates/cli/src/routes.rs`
+  （`fandhe-frontend-router-v1` 抽出器）、`crates/cli/src/component_boundary.rs`
+  （コンポーネント境界抽出）、`crates/cli/src/json_out.rs`（4 要素の JSON 出力）。
   `main.rs` の `run_structure` がこれらを結線し、宣言と実体の差分
   （crate 実在・依存の宣言漏れ / 過剰宣言・ディレクトリ実在）を検出した
   場合は非 0 終了で列挙する。
-- TASK-13.1d（#131）: `cli/tests/structure_integration.rs`
+- TASK-13.1d（#131）: `crates/cli/tests/structure_integration.rs`
   （ルートの `structure.toml` をフィクスチャとした `fw` バイナリ起動の
-  統合テスト・負例テスト）+ `cli/src/*.rs` 内の単体テスト。
+  統合テスト・負例テスト）+ `crates/cli/src/*.rs` 内の単体テスト。
 
 `fw structure`（引数省略時はカレントディレクトリ、`--project <dir>` で
 対象を指定）は、リポジトリルートで実行すると 4 要素

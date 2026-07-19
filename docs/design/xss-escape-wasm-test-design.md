@@ -29,27 +29,27 @@
 ## 2. 成果物配置のマッピング判断（最重要）
 
 仕様（`docs/spec/05-tasks.md` TASK-1.3）が示す成果物パス
-`wasm-client/tests/xss_escape_wasm.rs` は計画時点のクレート名であり、現行
+`crates/wasm-client/tests/xss_escape_wasm.rs` は計画時点のクレート名であり、現行
 workspace で「クライアント WASM のイベント処理・DOM 更新」を実装しているのは
-`fandhe-frontend-wasm-full`（`wasm-full/`）である。以下のマッピングを本書で確定し、
+`fandhe-frontend-wasm-full`（`crates/wasm-full/`）である。以下のマッピングを本書で確定し、
 TASK-1.3b（#92）の実装対象として固定する。
 
-- **一次成果物（#92 実装対象）**: `wasm-full/tests/xss_escape_wasm.rs`
+- **一次成果物（#92 実装対象）**: `crates/wasm-full/tests/xss_escape_wasm.rs`
 - **根拠**:
   1. TASK-1.3 が検証対象とする「イベント処理・DOM 更新」の実装
-     （`wasm-full/src/events.rs`・`wasm-full/src/dom.rs`・
-     `wasm-full/src/hydration.rs`）は現行 workspace では `wasm-full` にのみ
+     （`crates/wasm-full/src/events.rs`・`crates/wasm-full/src/dom.rs`・
+     `crates/wasm-full/src/hydration.rs`）は現行 workspace では `wasm-full` にのみ
      存在する。
-  2. `wasm-client/`（`fandhe-frontend-wasm-client`）クレートの新設は TASK-6.2b（#48）の
+  2. `crates/wasm-client/`（`fandhe-frontend-wasm-client`）クレートの新設は TASK-6.2b（#48）の
      スコープである。`docs/guides/browser-testing.md` 第 2 節が同様の判断
-     （`wasm-client/` 未作成を前提にクレート新設を自スコープに含めない）を
-     既に確立しており、本書はその判断を踏襲する。TASK-1.3a で `wasm-client/`
+     （`crates/wasm-client/` 未作成を前提にクレート新設を自スコープに含めない）を
+     既に確立しており、本書はその判断を踏襲する。TASK-1.3a で `crates/wasm-client/`
      を重複新設すると #48 との責務混線・コンフリクトを招く。
-  3. `wasm-full/Cargo.toml` は `crate-type = ["cdylib", "rlib"]` のため、
+  3. `crates/wasm-full/Cargo.toml` は `crate-type = ["cdylib", "rlib"]` のため、
      native（rlib、`cargo test`）と wasm32 実機（`wasm-pack test`）の両方の
      テストが同一クレートに同居できる。
 
-`wasm-client/` 新設（#48）後にハイドレーション経路の実ブラウザ検証
+`crates/wasm-client/` 新設（#48）後にハイドレーション経路の実ブラウザ検証
 （TASK-6.3b・#66）と本書の設計内容がどう接続するかは第 9 節（スコープ外と
 引き継ぎ）に記録する。
 
@@ -64,9 +64,9 @@ TASK-1.3b（#92）の実装対象として固定する。
 | N-2 | 同上 | 全ペイロード × 属性値文脈: `"` `'` による属性境界破壊（例: `onmouseover="..."` の生成、属性値からの breakout）が発生しない |
 | N-3 | `events::action_from_click` / `events::action_from_input`（純粋関数） → `dispatch` → `render_component_html` | イベント処理を経由して state に取り込まれたペイロードにもエスケープが貫通する（TASK-1.3 の要件文言「イベント処理を経由した出力」に直接対応する観点） |
 | N-4 | `hydration::restore_state` → 状態復元後の `view()` → `render` | `data-hydrate-*` 属性値として注入されたペイロードが、状態復元・再描画を経てもエスケープされたまま出力される（DOM 更新経由の観点） |
-| N-5 | エンティティ偽装ペイロード（`ENTITY_SPOOF_TAG`・`ENTITY_SPOOF_AMP`）を N-1〜N-4 の経路へ通す | 二重エスケープ・エスケープ漏れの双方を検知する（`core/tests/xss_escape.rs` と同一観点の WASM 経路版） |
+| N-5 | エンティティ偽装ペイロード（`ENTITY_SPOOF_TAG`・`ENTITY_SPOOF_AMP`）を N-1〜N-4 の経路へ通す | 二重エスケープ・エスケープ漏れの双方を検知する（`crates/core/tests/xss_escape.rs` と同一観点の WASM 経路版） |
 
-- N-1・N-2 は `wasm-full/tests/dom_update.rs`（TASK-11.2c・#76 成果物）に
+- N-1・N-2 は `crates/wasm-full/tests/dom_update.rs`（TASK-11.2c・#76 成果物）に
   既に存在する 2 ケース（`render_component_html_escapes_xss_payload_in_list_items`・
   `render_component_html_escapes_xss_payload_in_attribute_value`）を土台に、
   第 5 節のペイロードカタログ全種へ拡張する形で実装する。既存ケースの
@@ -94,11 +94,11 @@ TASK-1.3b（#92）の実装対象として固定する。
 - W-5 は `Runtime<C>` が未実装（#77 open）のため TASK-1.3b（#92）の実装
   対象外とし、#77 マージ後の拡張として第 9 節に引き継ぐ。#92 のブロッカーには
   しない。
-- W-1〜W-4 は `wasm-full/Cargo.toml` の `crate-type = ["cdylib", "rlib"]` を
+- W-1〜W-4 は `crates/wasm-full/Cargo.toml` の `crate-type = ["cdylib", "rlib"]` を
   前提とする。`set_inner_html`/`query_selector`（`Element`）・属性走査
   （`NamedNodeMap`・`Attr`）は既存 `web-sys` features で充足するが、
   W-2 が使う `text_content()` は `web_sys::Node` のメソッドであり、現行
-  `wasm-full/Cargo.toml` の features 一覧（`Attr`・`Document`・`Element`・
+  `crates/wasm-full/Cargo.toml` の features 一覧（`Attr`・`Document`・`Element`・
   `Event`・`EventTarget`・`HtmlInputElement`・`NamedNodeMap`・`Window`・
   `console`）に `Node` は含まれていない。#92 実装時に `Node` feature の
   追加が必要になる見込みが高い。これは既存 `web-sys` 依存への **feature
@@ -109,9 +109,9 @@ TASK-1.3b（#92）の実装対象として固定する。
 
 ## 5. ペイロードカタログ
 
-`core/tests/xss_escape.rs` の `mod payloads`（OWASP XSS Prevention Cheat Sheet
+`crates/core/tests/xss_escape.rs` の `mod payloads`（OWASP XSS Prevention Cheat Sheet
 Rule #1 準拠、CSR 経路テストが使用する共有集合）と観点を揃えて
-`xss_escape_wasm.rs` 内に**再定義**する。`interactive/tests/xss_escape.rs` が
+`xss_escape_wasm.rs` 内に**再定義**する。`crates/interactive/tests/xss_escape.rs` が
 既に確立している「テストコードはクレート境界をまたいで共有せず再定義する」
 規約（クレート間のテストコード依存を作らない）に従う。
 
@@ -129,7 +129,7 @@ Rule #1 準拠、CSR 経路テストが使用する共有集合）と観点を�
 再定義規約:
 
 - 定数名・値は `core::payloads` と同一の文字列を用いる（値の乖離を防ぐため、
-  実装時に `core/tests/xss_escape.rs` から値をコピーしたことをコメントで
+  実装時に `crates/core/tests/xss_escape.rs` から値をコピーしたことをコメントで
   明記する）。
 - `mod payloads`（またはトップレベル `const` 集合 + `all()` 関数）の形で
   `xss_escape_wasm.rs` 冒頭に定義し、全観点がこのカタログを共有する。
@@ -148,7 +148,7 @@ Rule #1 準拠、CSR 経路テストが使用する共有集合）と観点を�
 ### 6.2 `browser-test` ジョブ（第 2 層・実機）
 
 - 既存の `browser-test` ジョブ（`.github/workflows/ci.yml`）は
-  `wasm-client/Cargo.toml` の存在ガードで現在は空実行になっている
+  `crates/wasm-client/Cargo.toml` の存在ガードで現在は空実行になっている
   （TASK-6.2b・#48 未マージのため）。本タスクの第 2 層はこのガードとは
   **独立**したステップとして追加する。`wasm-full` は既存クレートであり
   存在ガードは不要（fail-closed。ガード漏れによる誤スキップを避ける）。
@@ -160,7 +160,7 @@ Rule #1 準拠、CSR 経路テストが使用する共有集合）と観点を�
 
 ### 6.3 dev 依存の追加（`wasm-bindgen-test`）
 
-- `wasm-full/Cargo.toml` に `wasm-bindgen-test`（`[dev-dependencies]`）の追加が
+- `crates/wasm-full/Cargo.toml` に `wasm-bindgen-test`（`[dev-dependencies]`）の追加が
   必要になる。
 - **承認根拠**: PoC-5（`docs/spec/03-poc/`）が実機テストで実績のある構成であり、
   `docs/guides/browser-testing.md` 第 3 節が `wasm-pack test --headless --chrome`
@@ -175,7 +175,7 @@ Rule #1 準拠、CSR 経路テストが使用する共有集合）と観点を�
 - **両方向 assert の徹底**: 「エスケープ済み表現が出力に含まれる」ことと
   「対応する生の攻撃構文が出力に含まれない」ことの両方を assert する。
   一方向のみの assert は、出力が空文字列になる等の偽陰性を見逃す
-  （`core/tests/xss_escape.rs` 冒頭コメントと同一原則）。
+  （`crates/core/tests/xss_escape.rs` 冒頭コメントと同一原則）。
 - **DOM 構造検証による補完（第 2 層）**: 文字列 grep（`contains`/`!contains`）
   に加え、実 DOM パース後の `query_selector` によって「ブラウザが実際にどう
   解釈したか」を検証する。文字列一致だけでは検出できないブラウザ側の
@@ -187,7 +187,7 @@ Rule #1 準拠、CSR 経路テストが使用する共有集合）と観点を�
 - **削除・弱体化の禁止**: `xss_escape_wasm.rs` は `.claude/rules/coding-rust.md`
   の規約により、以後の削除・弱体化・`#[ignore]` 化を禁止する。この規約を
   ファイル冒頭 `//!` に明記することを TASK-1.3b の実装条件とする
-  （`core/tests/xss_escape.rs` と同様の書式）。
+  （`crates/core/tests/xss_escape.rs` と同様の書式）。
 - **秘密情報の混入防止**: ペイロードはすべて OWASP 公開カタログ由来の
   ダミー攻撃文字列であり、実クレデンシャル・実在の内部情報を含まない。
 
@@ -197,7 +197,7 @@ Rule #1 準拠、CSR 経路テストが使用する共有集合）と観点を�
 |-----------------------------------|-------------------|--------|
 | クライアント WASM のイベント処理を経由した出力に既定エスケープ保証が及ぶこと | N-3・W-1〜W-3 | 第 3・4 節 |
 | クライアント WASM の DOM 更新を経由した出力に既定エスケープ保証が及ぶこと | N-1・N-2・N-4・W-1〜W-4 | 第 3・4 節 |
-| SSR/SSG/CSR（TASK-1.2）と同一のエスケープ保証水準であること | 第 5 節のペイロードカタログを `core/tests/xss_escape.rs` と揃えることで担保 | 第 5 節 |
+| SSR/SSG/CSR（TASK-1.2）と同一のエスケープ保証水準であること | 第 5 節のペイロードカタログを `crates/core/tests/xss_escape.rs` と揃えることで担保 | 第 5 節 |
 | 進捗チェック | #90（親）・#91（本書・設計）・#92（実装・CI 統合） | — |
 
 ## 9. スコープ外と引き継ぎ
@@ -206,7 +206,7 @@ Rule #1 準拠、CSR 経路テストが使用する共有集合）と観点を�
 |------|-------------------|
 | `xss_escape_wasm.rs` の実装本体・CI ワークフロー変更・`wasm-bindgen-test` の実追加 | TASK-1.3b（#92）。本書は設計のみで実装しない |
 | `Runtime::mount()`/`hydrate()` + 実イベント発火（`dispatchEvent`）経由の検証（W-5） | TASK-11.2d（#77）マージ後の拡張として追補する。#92 のブロッカーにしない |
-| `wasm-client/` クレート経由のハイドレーション実ブラウザ検証 | TASK-6.2b（#48）・TASK-6.3b（#66）。`docs/guides/browser-testing.md` 第 7 節の引き継ぎ表に「WASM 経路 XSS テストの本環境への統合」として既に記載済み |
+| `crates/wasm-client/` クレート経由のハイドレーション実ブラウザ検証 | TASK-6.2b（#48）・TASK-6.3b（#66）。`docs/guides/browser-testing.md` 第 7 節の引き継ぎ表に「WASM 経路 XSS テストの本環境への統合」として既に記載済み |
 | `wasm-thin`（オプトイン薄い JS グルー方式）経路の XSS 検証 | v1 スコープ外。`docs/design/opt-in-thin-js-glue.md` が既に制約を明記済み。本タスクでは新規 Issue 化を提案しない（既存文書での担保で十分と判断） |
 
 本書が新たに Issue 化を要すると判断した事項は現時点でない
@@ -217,7 +217,7 @@ Rule #1 準拠、CSR 経路テストが使用する共有集合）と観点を�
 - **A03 インジェクション / XSS（本タスクの主題）**: 第 7 節に不変条件として
   明記した通り、両方向 assert + DOM 構造検証（`query_selector`）により
   偽陰性を排除する設計とした。ペイロードカタログは OWASP XSS Prevention
-  Cheat Sheet Rule #1 準拠のまま既存 `core/tests/xss_escape.rs` と整合させた。
+  Cheat Sheet Rule #1 準拠のまま既存 `crates/core/tests/xss_escape.rs` と整合させた。
 - **A04 安全でない設計**: 既定エスケープの迂回経路（`raw_html` の新規使用・
   HTML 文字列直接組み立て）をテスト対象コードへ導入しないことを第 7 節に
   明記。テスト自体の弱体化（`#[ignore]`・削除）禁止も規約として埋め込んだ。

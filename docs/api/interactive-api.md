@@ -45,11 +45,11 @@ frontend-framework-spec リポジトリで行う）。
 ## 2. クレート構成の確定
 
 - **パッケージ名**: `fandhe-frontend-interactive`
-- **配置**: `interactive/`
+- **配置**: `crates/interactive/`
 - **edition**: 2021
 - **属性**: `#![forbid(unsafe_code)]` + `#![warn(missing_docs)]`
 - **依存**: `fandhe-frontend-core`（path 依存）のみ。**外部クレート 0**（PoC-5 の
-  `interactive/Cargo.toml` 実績を踏襲。`docs/policy/unsafe-boundary.md` 第 2 節が
+  `crates/interactive/Cargo.toml` 実績を踏襲。`docs/policy/unsafe-boundary.md` 第 2 節が
   「作成時に `#![forbid(unsafe_code)]` を設定」と予告している内容に合致する）。
 
 依存グラフ上限（REQ-3: 標準サーバー構成 60 件以内・深さ 6 以内、
@@ -119,7 +119,7 @@ frontend-framework-spec リポジトリで行う）。
 
 ## 6. セキュリティ不変条件の引き継ぎ
 
-`core/src/lib.rs` 冒頭に記載された不変条件（REQ-1・REQ-2）を、`fandhe-frontend-interactive`
+`crates/core/src/lib.rs` 冒頭に記載された不変条件（REQ-1・REQ-2）を、`fandhe-frontend-interactive`
 への制約としてそのまま再掲・固定し、状態管理コア固有の不変条件を追加する。
 
 1. `Component::view()` の出力は `fandhe_frontend_core::Node` のみであり、`fandhe_frontend_core::render()`
@@ -139,7 +139,7 @@ frontend-framework-spec リポジトリで行う）。
 6. `#![forbid(unsafe_code)]` によりクレート全体で `unsafe` を機械的に禁止する
    （REQ-2）。`docs/policy/unsafe-boundary.md` 第 2 節の `interactive` 行を「未作成」
    から「作成済み・forbid 設定済み」へ本タスクで更新する。
-7. `interactive/Cargo.toml` の `[dependencies]` は `fandhe-frontend-core`（path）のみを
+7. `crates/interactive/Cargo.toml` の `[dependencies]` は `fandhe-frontend-core`（path）のみを
    維持する（外部依存ゼロ、REQ-3）。
 8. 巨大な属性値・リスト長に対する上限（DoS 耐性）は TASK-11.1b の実装検討
    事項として明記し、放置しない（第 5 節）。

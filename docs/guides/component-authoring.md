@@ -5,13 +5,13 @@
 （REQ-5、`docs/spec/04-requirements.md` 参照）。
 
 このドキュメントは `fandhe-frontend-core` を使ってコンポーネントを書く利用者向けのチュートリアルと
-API リファレンスです。各クレートの公開 API・不変条件そのものは `core/src/lib.rs` の
+API リファレンスです。各クレートの公開 API・不変条件そのものは `crates/core/src/lib.rs` の
 rustdoc（`cargo doc -p fandhe-frontend-core --open`）を一次情報源とし、本ドキュメントはそこへの
 導線とパターン集を提供します。
 
-> **対象バージョン**: 本ドキュメントは `core/src/lib.rs` の公開 API（`Node` / `el` /
+> **対象バージョン**: 本ドキュメントは `crates/core/src/lib.rs` の公開 API（`Node` / `el` /
 > `text` / `raw_html` / `render` / `escape_html` / `escape_html_into`）と、
-> `core/src/tags.rs`（`tags` モジュール）のタグショートカット群（`div()`/`p()`
+> `crates/core/src/tags.rs`（`tags` モジュール）のタグショートカット群（`div()`/`p()`
 > 等の TASK-5.1b 最小セット + Issue #164 で拡張した `span()`/`table()`/`form()`
 > 等）を対象とします。
 
@@ -157,7 +157,7 @@ assert_eq!(render(&el("div", vec![], children)), "<div><h1>title</h1></div>");
 
 ## 4. API リファレンス
 
-詳細な契約・不変条件は各シンボルの rustdoc（`core/src/lib.rs` / `core/src/escape.rs`）
+詳細な契約・不変条件は各シンボルの rustdoc（`crates/core/src/lib.rs` / `crates/core/src/escape.rs`）
 を正とします。ここでは利用者が最初に押さえるべき要点のみをまとめます。
 
 ### `enum Node`
@@ -349,7 +349,7 @@ assert_eq!(render(&node), "<div><b>bold</b></div>");
 
 ### Before / After
 
-`app/src/lib.rs` の `list_page` を素材にした例です。ネストしたリスト生成を
+`crates/app/src/lib.rs` の `list_page` を素材にした例です。ネストしたリスト生成を
 関数呼び出しの引数に直接書くと読みにくくなります。
 
 ```rust,ignore
@@ -426,7 +426,7 @@ fn list_page_after(items: &[Item]) -> Node {
   **ハイドレーション支援関数**（`find_attr_values`/`find_nav_targets`）は
   実装済みです（第 4 節参照）。タグショートカットは TASK-5.1b の最小セットに
   加え、Issue #164 で `span`/`table`/`form` 等の拡張セットを実装しました
-  （`core/src/tags.rs`）。
+  （`crates/core/src/tags.rs`）。
 - **void 要素の自己終端出力最適化**（`<br />` 等）は本ドキュメントのスコープ外
   のまま未起票です（`docs/api/component-api.md` 第 3 節・判断 4、第 5 節参照）。
 - **`select`/`option` ヘルパー・attrs ビルダ API**は Issue #164 で検討のうえ
@@ -442,4 +442,4 @@ fn list_page_after(items: &[Item]) -> Node {
 - `docs/spec/05-tasks.md`（TASK-5.1 系のタスク分解）
 - `docs/policy/unsafe-boundary.md`（`unsafe` 境界ポリシー。`fandhe-frontend-core` は
   `#![forbid(unsafe_code)]` により対象外）
-- `core/src/lib.rs` / `core/src/escape.rs`（一次情報源となる rustdoc・実装）
+- `crates/core/src/lib.rs` / `crates/core/src/escape.rs`（一次情報源となる rustdoc・実装）

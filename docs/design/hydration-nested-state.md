@@ -15,7 +15,7 @@
 仕様本文の追随が必要な場合は frontend-framework-spec リポジトリへの Issue
 起票を別途検討する）。
 
-**本文書のステータス**: イシュー #163 の設計確定書。`interactive/src/lib.rs`
+**本文書のステータス**: イシュー #163 の設計確定書。`crates/interactive/src/lib.rs`
 の `codec::Value`/`encode_value`/`decode_value` 実装と本書の記述に乖離が
 生じた場合は本書を正とし、PR レビューで指摘する。
 
@@ -42,7 +42,7 @@
 
 ### 3.1 `Value` 型
 
-`fandhe_frontend_interactive::codec::Value`（`interactive/src/lib.rs`）としてネスト
+`fandhe_frontend_interactive::codec::Value`（`crates/interactive/src/lib.rs`）としてネスト
 可能な値ツリーを追加する。
 
 ```rust
@@ -125,7 +125,7 @@ pub enum Value {
 ことが原因であり、本方式ではネスト段数に対してエンコード結果のサイズが
 線形に留まることを回帰テスト `encoded_size_grows_linearly_with_nesting_depth`
 で固定している）。深さ制限と既存の `MAX_ATTR_VALUE_LEN`（64 KiB、
-`wasm-full/src/hydration.rs`）の総量上限を組み合わせることで、全体の
+`crates/wasm-full/src/hydration.rs`）の総量上限を組み合わせることで、全体の
 デコードコストは入力サイズに対し線形に抑えられる。
 
 ## 4. 設計判断と根拠
@@ -156,14 +156,14 @@ pub enum Value {
 `data-hydrate-<field>` 属性として出力する。`from_hydration_attrs()` では
 `decode_value` の結果（`Value`）をアプリ固有の型へ変換する（`match` に
 よる型チェック、型不一致は `HydrateError::InvalidValue` として扱う）。
-`wasm-full/tests/nested_hydration_state.rs` の `NestedState`/`UserProfile`
+`crates/wasm-full/tests/nested_hydration_state.rs` の `NestedState`/`UserProfile`
 がこの往復パターンの実装例を提供する。
 
 ## 6. テスト観点
 
 - **ラウンドトリップ**: `Str`/`Int`/`Bool` の単純値、深いネスト（`Map` の
   中に `List`、その中に `Map`）、空 `Map`/空 `List`、境界値（`i64::MIN`/
-  `MAX`）、日本語・絵文字を含む文字列（`interactive/src/lib.rs` の
+  `MAX`）、日本語・絵文字を含む文字列（`crates/interactive/src/lib.rs` の
   `codec::tests` モジュール）。
 - **敵対的入力**（すべて `Err`、panic しない）: 未知の型タグ、空入力、
   `Int`/`Bool` ペイロードのパース失敗、`Map` キー位置への非文字列混入、
@@ -175,16 +175,16 @@ pub enum Value {
   （`encoded_size_grows_linearly_with_nesting_depth`、第 4 節・判断 1 で
   発見した指数的サイズ増大バグの再発防止）。
 - **後方互換**: `Value` codec の追加後も既存 `encode_list`/`decode_list`
-  の出力・挙動が完全に不変であること（`interactive/src/lib.rs` の
+  の出力・挙動が完全に不変であること（`crates/interactive/src/lib.rs` の
   `value_codec_addition_does_not_change_encode_list_output`）。
 - **統合テスト**: ネスト構造を持つ独自の `Hydrate` 実装
-  （`wasm-full/tests/nested_hydration_state.rs::NestedState`）での
+  （`crates/wasm-full/tests/nested_hydration_state.rs::NestedState`）での
   `restore_state` ラウンドトリップ・改ざん値・過度なネスト・型不一致の
   各ケース。
 - **XSS 回帰**: ネスト値（`Map` in `Map`）経由でも `render_for_hydration`
   の既定エスケープが貫通すること、および `Value` codec 自体は HTML
   エスケープを一切行わない契約であることの両方
-  （`interactive/tests/xss_escape.rs`）。
+  （`crates/interactive/tests/xss_escape.rs`）。
 
 ## 7. スコープ外の明記
 
@@ -241,6 +241,6 @@ pub enum Value {
 - `docs/api/interactive-api.md` 第 3〜4 節の `Hydrate`・`HYDRATE_ATTR_PREFIX`・
   `HydrateError`・既存 `codec::encode_list`/`decode_list` の凍結記述を
   そのまま引用し、本書側で再定義・変更していない。
-- `interactive/src/lib.rs`（実装）の `codec::Value`/`encode_value`/
+- `crates/interactive/src/lib.rs`（実装）の `codec::Value`/`encode_value`/
   `decode_value`/`MAX_VALUE_DEPTH`/`ValueDecodeError` と本書第 3〜5 節の
   記述が一致することを確認済み。

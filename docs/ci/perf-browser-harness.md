@@ -5,7 +5,7 @@
 - TASK-11.5【Conditional Go 条件 1】（親イシュー #85、REQ-11）は、PoC-5 の
   Node.js 近似計測に代えて、実ブラウザで初期ロード（描画＋ハイドレーション完了
   300ms 以内）・DOM 操作性能（16ms/フレーム予算内）を正式計測するタスク
-  （`docs/spec/05-tasks.md` TASK-11.5）。成果物は `wasm-full/tests/perf_browser.rs`
+  （`docs/spec/05-tasks.md` TASK-11.5）。成果物は `crates/wasm-full/tests/perf_browser.rs`
   （`wasm-pack test --headless`）＋計測レポート。
 - 本イシュー（TASK-11.5a・#86）はその 3 分割の 1 番目「計測ハーネス構築」。
   **計測を実行できる仕組み（テストハーネス・実行手順・CI 配線・出力契約）を
@@ -96,8 +96,8 @@ Chrome/Chromium と対応する chromedriver がローカルに必要（バー�
   存在ガード追加のスコープ）とはコンフリクトを避けるため、**独立ジョブとして
   追加**した
 - ランナー: `ubuntu-latest`・`timeout-minutes: 20`
-- `wasm-full/tests/perf_browser.rs` の存在ガード（`browser-test` ジョブの
-  `wasm-client/Cargo.toml` ガードパターン踏襲。並列実行中の他イシューによる
+- `crates/wasm-full/tests/perf_browser.rs` の存在ガード（`browser-test` ジョブの
+  `crates/wasm-client/Cargo.toml` ガードパターン踏襲。並列実行中の他イシューによる
   想定外の欠落でもジョブを失敗させない）
 - wasm32 target 追加 → wasm-pack v0.13.1 の SHA256 検証付き導入（`browser-test`
   ジョブと同一バージョン・同一チェックサム）→ ランナー内蔵 chromedriver
@@ -127,7 +127,7 @@ Chrome/Chromium と対応する chromedriver がローカルに必要（バー�
 
 - **A03 インジェクション/XSS（REQ-1）**: ハーネスは HTML 文字列を一切手組みしない。
   `set_inner_html` へ渡すのは `fandhe_frontend_core::render()`（既定エスケープ）を経由した
-  出力のみ（`wasm-full/src/dom.rs`・`docs/api/hydration-api.md` と同一の不変条件）。
+  出力のみ（`crates/wasm-full/src/dom.rs`・`docs/api/hydration-api.md` と同一の不変条件）。
   `raw_html()` は使用しない
 - **A04 安全でない設計**: 計測ループは固定サンプル数（`DOM_UPDATE_SAMPLES = 100`）
   で有界とし、無制限のメモリ・リスナー蓄積を作らない（イベント配線は既存

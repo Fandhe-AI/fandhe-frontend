@@ -15,9 +15,9 @@ REQ-8 が求める「JS 0 行での宣言的な遷移有効化」は、遷移の
 |---|---|---|---|
 | クロスドキュメントナビゲーション（SSR/SSG のページ遷移） | `@view-transition { navigation: auto; }`（CSS at-rule） | `fandhe_frontend_app::page_shell()` / `templates/embed/embed.html` | 0 行 |
 | 同一文書内（SPA 的）更新（非 WASM 埋め込み用） | `document.startViewTransition()` | `static/view-transitions.js` の `withViewTransition()` | 呼び出し側が明示的に利用 |
-| WASM（`wasm-full`）の SPA 内遷移（クライアント側ルーティング） | `document.startViewTransition()`（`nav.rs` のカスタム duck-typing extern バインディング経由） | `wasm-full/src/nav.rs`（`wiring::with_view_transition`、イシュー #404） | 0 行（利用者コード不要、`start_router` 起動のみで自動連携） |
+| WASM（`wasm-full`）の SPA 内遷移（クライアント側ルーティング） | `document.startViewTransition()`（`nav.rs` のカスタム duck-typing extern バインディング経由） | `crates/wasm-full/src/nav.rs`（`wiring::with_view_transition`、イシュー #404） | 0 行（利用者コード不要、`start_router` 起動のみで自動連携） |
 
-`static/view-transitions.js` の `withViewTransition()` と `wasm-full/src/nav.rs` の
+`static/view-transitions.js` の `withViewTransition()` と `crates/wasm-full/src/nav.rs` の
 `with_view_transition` は、いずれも `document.startViewTransition` の機能検出 +
 graceful degradation（非対応時は同期実行）という同一の設計思想を持ちますが、実装は
 独立しています。前者は JS 実装として「呼び出し側（利用者コード）が明示的に
@@ -66,15 +66,15 @@ View Transitions API の実験段階（Level 1 初期）で提案された構文
    `<style>@view-transition { navigation: auto; }</style>` を出力します。
    `page_shell()` は SSR（`fandhe_frontend_server::ssr::respond`）・SSG（`fandhe_frontend_server::ssg::generate`）
    の両方から分岐なく呼ばれる共通関数（REQ-6）であるため、全ルートに既定同梱されます。
-   回帰は `server/tests/view_transitions.rs`（トップページ・全アイテム詳細ページ・
-   404 ページ・SSG 全出力ファイルを対象）と `app/src/lib.rs` の単体テストで固定して
+   回帰は `crates/server/tests/view_transitions.rs`（トップページ・全アイテム詳細ページ・
+   404 ページ・SSG 全出力ファイルを対象）と `crates/app/src/lib.rs` の単体テストで固定して
    います。
 2. **最小埋め込み標準**: `templates/embed/embed.html`（TASK-7.1a・#52）の `<head>` にも
    同一の at-rule を明示的に配置しています。このファイルはフレームワーク管理下の
    マウントポイント（`<div id="app-list">`）を除き利用者が自由に書き換える前提の
    雛形であるため、この `<style>` 行は利用者がコピー後に削除しても構いません
    （責務境界は `templates/embed/embed.html` 冒頭のコメント参照）。回帰は
-   `xtask/tests/template_embed_html.rs` で固定しています。
+   `crates/xtask/tests/template_embed_html.rs` で固定しています。
 
 `templates/default/*.html` という成果物パスは作成していません。標準テンプレートの
 HTML 骨格は `page_shell()`（Rust 関数）が生成する設計であり、実際には使われない
@@ -96,6 +96,6 @@ feature detection を必要としない graceful degradation であり、これ�
 at-rule の内容はユーザー入力を一切含まない固定リテラルであり、`page_shell()` は
 `el`/`text`（既定エスケープ経路）経由でこれを `<style>` 子ノードとして出力します
 （REQ-1 非弱体化）。`raw_html()` 等のエスケープ迂回 API・HTML 文字列の直接組み立ては
-使用していません。`server/tests/view_transitions.rs` と
-`xtask/tests/template_embed_html.rs` は、廃止済み `<meta name="view-transition">`
+使用していません。`crates/server/tests/view_transitions.rs` と
+`crates/xtask/tests/template_embed_html.rs` は、廃止済み `<meta name="view-transition">`
 構文が再導入されていないことも併せて回帰固定しています。

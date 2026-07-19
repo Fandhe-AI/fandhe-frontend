@@ -4,7 +4,7 @@
 > 分割サブタスク（TASK-13.2a 設計・#133（本書） / TASK-13.2b 依存グラフ構築・
 > #134 / TASK-13.2c コマンド実装・#135 / TASK-13.2d 出力フォーマット・#136 /
 > TASK-13.2e テスト整備・#137）の先頭であり、本サブタスクの成果物は
-> **設計文書（本書）+ 型定義・判定ロジックのスケルトン**（`cli/src/impact.rs`）
+> **設計文書（本書）+ 型定義・判定ロジックのスケルトン**（`crates/cli/src/impact.rs`）
 > です。ソース走査・CLI 接続・JSON 出力・統合テストは後続 #134〜#137 の
 > 領分であり、本書 §8 でスコープ外として明示します。
 >
@@ -18,13 +18,13 @@
 - **関連要件**: REQ-13（AI 自己保守・改修のためのフック・ゲート機構、Must）。
   `fw structure`（TASK-13.1、#127 実装済み）・`fw gate`（TASK-13.3、#138）に
   続く第 3 のサブコマンド `fw impact` の設計を確定する。
-- **親タスク**: TASK-13.2（#132、成果物 `cli/src/impact.rs`。前提タスク
+- **親タスク**: TASK-13.2（#132、成果物 `crates/cli/src/impact.rs`。前提タスク
   TASK-13.1 は完了済み、`docs/spec/05-tasks.md` 348 行目以降）。
 - **サブタスク分割**:
 
 | サブタスク | Issue | 内容 | 本書との関係 |
 |-----------|-------|------|-------------|
-| TASK-13.2a | #133（本書） | アルゴリズム設計・型定義・判定ロジック | 本書 + `cli/src/impact.rs` の型定義・純粋関数が単一の情報源 |
+| TASK-13.2a | #133（本書） | アルゴリズム設計・型定義・判定ロジック | 本書 + `crates/cli/src/impact.rs` の型定義・純粋関数が単一の情報源 |
 | TASK-13.2b | #134 | 依存グラフ構築・定義元特定・使用箇所走査の実装 | 本書 §3.1/§3.3/§6 が走査アルゴリズム・パストラバーサル対策を規定 |
 | TASK-13.2c | #135 | `fw impact <symbol>` の CLI 接続 | 本書 §3.5 が CLI 仕様・終了コード規約を規定 |
 | TASK-13.2d | #136 | JSON 出力フォーマット実装 | 本書 §3.5 の JSON スキーマを規定 |
@@ -36,28 +36,28 @@
   TASK-13.2 の指示に従い、ファイル単位の粗粒度ヒューリスティックの限界を
   維持し、AST 解析ベースの精密化は将来スコープとして本書 §7 に明記する。
 - **先行パターンの踏襲**: TASK-13.1a（#128、`docs/design/structure-manifest.md`）は
-  「設計文書 + 型定義スケルトン（`cli/src/structure.rs`）」を成果物とした。
+  「設計文書 + 型定義スケルトン（`crates/cli/src/structure.rs`）」を成果物とした。
   本タスクも同型で進める。
 
 ## 2. 現状（再利用可能な既存資産）
 
-`cli/`（`fandhe-frontend-cli`、bin 名 `fw`）は外部依存ゼロ（`cli/src/toml.rs` /
-`cli/src/json.rs` の手書きパーサを保有）。TASK-13.2b〜e が再利用すべき
+`crates/cli/`（`fandhe-frontend-cli`、bin 名 `fw`）は外部依存ゼロ（`crates/cli/src/toml.rs` /
+`crates/cli/src/json.rs` の手書きパーサを保有）。TASK-13.2b〜e が再利用すべき
 既存資産:
 
-- `cli/src/metadata.rs`: `cargo metadata` 連携（`WorkspaceMetadata` /
+- `crates/cli/src/metadata.rs`: `cargo metadata` 連携（`WorkspaceMetadata` /
   `MemberPackage::normal_workspace_deps`）。#134 の依存グラフ構築が
   `normal_workspace_deps` から逆依存閉包を構築する土台になる。
-- `cli/src/routes.rs`: ルート抽出（`extract_routes`）+ パストラバーサル対策
+- `crates/cli/src/routes.rs`: ルート抽出（`extract_routes`）+ パストラバーサル対策
   （`resolve_within_root` / `scan_root` / `list_rs_files`、シンボリック
   リンクを辿らない設計）。#134 のソース走査はこれらを再利用し、
   独自のファイル列挙ロジックを重複実装しない。
-- `cli/src/component_boundary.rs`: `^pub (fn|struct|enum|const) <name>` の
+- `crates/cli/src/component_boundary.rs`: `^pub (fn|struct|enum|const) <name>` の
   トップレベル公開シンボル走査。定義元特定（本タスクの走査対象と同じ
   正規表現相当のパターン）に流用できる。
-- `cli/src/json_out.rs`: JSON 出力レンダリング（`escape_str` による
+- `crates/cli/src/json_out.rs`: JSON 出力レンダリング（`escape_str` による
   JSON インジェクション対策）。#136 が同じ方針で `impact` 用の出力を書く。
-- `cli/src/main.rs`: サブコマンドディスパッチ（`structure` / `gate`、
+- `crates/cli/src/main.rs`: サブコマンドディスパッチ（`structure` / `gate`、
   終了コード規約: 正常 0 / 検証違反 1 / 使用法エラー 2、
   `parse_project_arg` の共有）。#135 がここに `impact` を追加する。
 
@@ -102,7 +102,7 @@
 
 ### 3.4 判定境界（#137 のテスト観点として使用）
 
-`cli/src/impact.rs` の `judge_breaking_risk` / `requires_human_approval`
+`crates/cli/src/impact.rs` の `judge_breaking_risk` / `requires_human_approval`
 （純粋関数、副作用なし）が確定した判定境界:
 
 | affected_crates 件数 | クライアント境界クレートを含むか | breaking_risk |
@@ -128,13 +128,13 @@
 4. 多重定義（`ambiguous`）時の承認強制
 5. 識別子検証の正常系・異常系（空文字・数字始まり・記号混入・パス区切り混入）
 
-#137 は `cli/src/impact.rs` の単体テスト + シナリオ e2e
-（`cli/tests/scenarios/{bugfix_escape,scenario2_ui,scenario3_feature}.rs`）の
+#137 は `crates/cli/src/impact.rs` の単体テスト + シナリオ e2e
+（`crates/cli/tests/scenarios/{bugfix_escape,scenario2_ui,scenario3_feature}.rs`）の
 組み合わせでクローズしたが、観点 2 のうち `fandhe-frontend-wasm-thin` 単独ケース
 （シナリオ e2e は `fandhe-frontend-wasm-client` のみカバー）と観点 4（`ambiguous` 承認強制）
-は独立の `cli/tests/impact_*.rs` として未実装のまま留保されていた。
-イシュー #293 でこの留保を解消し、`cli/tests/impact_wasm_thin.rs`
-（観点 2: `fandhe-frontend-wasm-thin` 単独 high 判定）・`cli/tests/impact_ambiguous.rs`
+は独立の `crates/cli/tests/impact_*.rs` として未実装のまま留保されていた。
+イシュー #293 でこの留保を解消し、`crates/cli/tests/impact_wasm_thin.rs`
+（観点 2: `fandhe-frontend-wasm-thin` 単独 high 判定）・`crates/cli/tests/impact_ambiguous.rs`
 （観点 4: 多重定義時の承認強制）として実バイナリ（`fw`）経由の独立 e2e を追加した。
 
 ### 3.5 CLI 仕様・JSON スキーマ（#135 / #136 の実装契約）
@@ -162,7 +162,7 @@
 }
 ```
 
-  `cli/src/impact.rs` の `ImpactReport` 型がこのスキーマに対応する
+  `crates/cli/src/impact.rs` の `ImpactReport` 型がこのスキーマに対応する
   （`defined_in_crates: Vec<String>` / `defined_in_files: Vec<String>` を
   複数形で保持し、`ambiguous` の値にかかわらず JSON では常に先頭要素を
   単数のスカラーとして出力する変換を #136 が実装する契約。多重定義の事実
@@ -171,7 +171,7 @@
   panic させない）。
 
   **`affected_loaders`（イシュー #353 で追加、後方互換な追加フィールド）**:
-  `affected_files` の内容を `cli/src/loaders.rs::extract_loader_impls_from_source`
+  `affected_files` の内容を `crates/cli/src/loaders.rs::extract_loader_impls_from_source`
   に通し、`impl Loader for <Type>`（`docs/design/loader-trait-design.md`）の
   型名を重複除去・昇順ソートして列挙する。Loader は SSR/SSG/CSR 三モード
   共通のデータ取得契約であり、`affected_routes` と同格の「ユーザー可視の
@@ -194,7 +194,7 @@ PoC-7 は `verdict` を日本語 2 値（「要人間承認（…）」/「自�
 
 判定材料は `ImpactReport::requires_human_approval` のみを使い、
 `judge_breaking_risk` / `requires_human_approval` の判定ロジックを
-`verdict` 生成側で二重実装しない（`cli/src/impact.rs` の
+`verdict` 生成側で二重実装しない（`crates/cli/src/impact.rs` の
 `verdict_text` 関数）。
 
 ## 4. 対象ファイル・変更箇所（本サブタスク #133 分）
@@ -202,8 +202,8 @@ PoC-7 は `verdict` を日本語 2 値（「要人間承認（…）」/「自�
 | パス | 変更 | 内容 |
 |------|------|------|
 | `docs/design/impact-analysis-design.md` | 新規（本書） | 設計文書一式 |
-| `cli/src/impact.rs` | 新規 | 型定義（`BreakingRisk` / `AffectedFile` / `ImpactReport` / `ImpactError`）+ 判定純粋関数（`judge_breaking_risk` / `requires_human_approval` / `validate_symbol` / `contains_symbol_at_boundary`）+ 単体テスト。走査・CLI 接続は実装しない |
-| `cli/src/main.rs` | 編集 | `mod impact;` の追加のみ |
+| `crates/cli/src/impact.rs` | 新規 | 型定義（`BreakingRisk` / `AffectedFile` / `ImpactReport` / `ImpactError`）+ 判定純粋関数（`judge_breaking_risk` / `requires_human_approval` / `validate_symbol` / `contains_symbol_at_boundary`）+ 単体テスト。走査・CLI 接続は実装しない |
+| `crates/cli/src/main.rs` | 編集 | `mod impact;` の追加のみ |
 
 - `docs/spec/` は編集禁止（サブモジュール）。
 - 新規依存クレートは追加していない（`fandhe-frontend-cli` 外部依存ゼロ方針・REQ-3）。
@@ -220,7 +220,7 @@ PoC-7 は `verdict` を日本語 2 値（「要人間承認（…）」/「自�
 - **#136（出力フォーマット）**: 本書 §3.5 の JSON スキーマを
   `json_out.rs` の `escape_str` を用いて実装する。
 - **#137（テスト整備）**: 本書 §3.4 の判定境界テスト観点を統合テスト
-  （`cli/tests/`）として実装する。
+  （`crates/cli/tests/`）として実装する。
 
 ## 6. セキュリティ考慮（OWASP Top 10 観点）
 
@@ -258,8 +258,8 @@ PoC-7 は `verdict` を日本語 2 値（「要人間承認（…）」/「自�
   導入の採否を評価した結果、非採用と確定した**。判断根拠（偽陽性・偽陰性
   の実例収集・評価軸 4 項目での評価・syn 導入時の依存影響実測・再評価
   トリガー）は `docs/policy/intentional-non-adoption.md` §3.11 に記録して
-  いる。実例を固定した characterization テストは `cli/src/impact.rs` /
-  `cli/src/loaders.rs` の `#[cfg(test)]`（「#379 characterization tests」）
+  いる。実例を固定した characterization テストは `crates/cli/src/impact.rs` /
+  `crates/cli/src/loaders.rs` の `#[cfg(test)]`（「#379 characterization tests」）
   を参照。
 - **行単位のルート特定**: 現行設計はファイル単位でルート影響を突き合わせる
   （`affected_files` のファイルパスと `routes::extract_routes` の

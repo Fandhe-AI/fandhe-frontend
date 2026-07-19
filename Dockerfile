@@ -21,7 +21,7 @@
 # docs/design/docker-wasm-build-stage.md）はビルダーステージへ組み込み済み。
 # `COPY static ./static` は手書きアセット（CSS 等）のみを対象とし、
 # `/static/wasm/*`（WASM 生成物）はビルドコンテキストへ含めない。下段の
-# `cargo build -p fandhe-frontend-dist-server` 実行時に `dist-server/build.rs`
+# `cargo build -p fandhe-frontend-dist-server` 実行時に `crates/dist-server/build.rs`
 # （TASK-10.2b・#110）がネスト `cargo build --target
 # wasm32-unknown-unknown` + `wasm-bindgen` を都度実行して `OUT_DIR` 側で
 # 再生成し埋め込む（ホスト側事前ビルド成果物には依存しない不変条件）。
@@ -62,7 +62,7 @@ RUN rustup target add wasm32-unknown-unknown
 
 # wasm-bindgen-cli をバージョン固定 + SHA256 チェックサム検証付きで導入する
 # （.github/workflows/ci.yml の test ジョブと同一パターン、A08 サプライ
-# チェーン対策）。dist-server/build.rs::expected_wasm_bindgen_version が
+# チェーン対策）。crates/dist-server/build.rs::expected_wasm_bindgen_version が
 # Cargo.lock 解決済み wasm-bindgen クレートとのバージョン完全一致を要求し
 # フェイルクローズで検証するため、ここで固定するバージョンは Cargo.lock の
 # wasm-bindgen エントリと同期させる必要がある（更新時は ci.yml の
@@ -109,7 +109,7 @@ COPY static ./static
 
 # --locked で Cargo.lock 固定ビルドを強制し、依存解決の非決定性を排除する
 # （REQ-3・security.md のサプライチェーン対策）。この単一コマンドの内部で
-# `dist-server/build.rs`（TASK-10.2b・#110）が既定（FANDHE_FRONTEND_WASM_BUILD
+# `crates/dist-server/build.rs`（TASK-10.2b・#110）が既定（FANDHE_FRONTEND_WASM_BUILD
 # 未設定＝有効）で発火し、ネスト `cargo build -p fandhe-frontend-wasm-full --target
 # wasm32-unknown-unknown` + `wasm-bindgen` を実行して WASM 資産を
 # `OUT_DIR` へ生成・埋め込む。`docs/design/wasm-build-integration.md` §7 が定義する

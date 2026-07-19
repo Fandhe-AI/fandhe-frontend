@@ -10,12 +10,12 @@
 
 `docs/spec/05-tasks.md` の親タスク TASK-11.3（#78）は 2 つの成果物に分かれています。
 
-- **TASK-11.3a（#79）**: `wasm-thin/src/lib.rs`（製品版クレート実装）
+- **TASK-11.3a（#79）**: `crates/wasm-thin/src/lib.rs`（製品版クレート実装）
 - **TASK-11.3b（本ドキュメント・#80）**: `docs/design/opt-in-thin-js-glue.md`（オプトイン
   提供ドキュメント・制約事項の明記）
 
 **本文書のステータス**: TASK-11.3a（#79）はマージ済みです。本書は製品版
-`wasm-thin/src/lib.rs`（`demo` モジュールの `#[wasm_bindgen]` エクスポート）を
+`crates/wasm-thin/src/lib.rs`（`demo` モジュールの `#[wasm_bindgen]` エクスポート）を
 正として記述します。本書は元々 PoC-5
 （`docs/spec/03-poc/wasm-runtime-split/wasm-thin/src/lib.rs`）で実証済みの
 公開 API を土台に執筆されましたが、#79 マージ後に実装との乖離が判明したため
@@ -24,7 +24,7 @@
 の方針）。今後もエクスポート関数のシグネチャ変更は実装 PR と同一 PR で本書
 （特に第 4.2 節）を更新することとし、単独の乖離を発生させません（第 4.2 節参照）。
 
-**本タスクのスコープ**: 本ドキュメントの作成のみ（docs-only 変更）。`wasm-thin/`
+**本タスクのスコープ**: 本ドキュメントの作成のみ（docs-only 変更）。`crates/wasm-thin/`
 クレートの実装・`Cargo.toml`（workspace）・CI の変更はいずれも TASK-11.3a（#79）の
 スコープであり、本書では行いません。`docs/spec/` はサブモジュールのため編集禁止
 （変更が必要な場合は frontend-framework-spec リポジトリで行います）。
@@ -153,12 +153,12 @@ wasm-bindgen --target web \
 
 ### 4.2 公開 API 凍結表
 
-**凍結の基準点**: 本表の正は製品版 `wasm-thin/src/lib.rs` の `demo` モジュール
+**凍結の基準点**: 本表の正は製品版 `crates/wasm-thin/src/lib.rs` の `demo` モジュール
 （`#[wasm_bindgen]` エクスポート）であり、表はそのシグネチャを転記したもの
 です（実装が正、文書が従。第 1 節参照）。**変更手続き**: エクスポート関数の
 シグネチャ変更は破壊的変更として扱い、実装 PR と同一 PR で本表を更新してく
 ださい。文書のみ・実装のみの単独変更で乖離させないでください。**検証手段**:
-`wasm-thin/tests/thin_runtime.rs` の `demo_boundary_layer_smoke` が 3 関数の
+`crates/wasm-thin/tests/thin_runtime.rs` の `demo_boundary_layer_smoke` が 3 関数の
 呼び出し形（`demo::hydrate_from_attrs(vec![...], Vec::new()) -> bool` 等）を
 コンパイル時に固定しており、本表の読者はこのテストで実シグネチャを裏取り
 できます。
@@ -175,7 +175,7 @@ wasm-bindgen --target web \
 | `hydrate_from_attrs` | `pub fn hydrate_from_attrs(names: Vec<String>, values: Vec<String>) -> bool` | SSR が出力した `data-hydrate-*` 属性の「プレフィックス付き属性名」と値を、同一添字が対応する 2 本の配列（`names`/`values`）で渡し、WASM 内部状態を復元する。`names` の長さが `values` と一致しない場合、または復元に失敗した場合は状態を変更せず `false` を返す（初期状態のまま CSR を継続する安全側フォールバック）。JS 側は `root.innerHTML` を書き換えない（SSR 済み DOM をそのまま尊重する） |
 | `apply` | `pub fn apply(action: &str, payload: &str) -> String` | アクションを適用し、更新後の HTML 全体（`#interactive-root` を含む rooted tree 全体・既定エスケープ済み）を返す。JS グルーはイベントから `action`/`payload` を読み取ってこの関数を呼び、戻り値のみを、`#interactive-root` 自身ではなくその親要素（mount）の `innerHTML` に設定する（`#interactive-root` 自身に設定すると戻り値に含まれる同名要素がネストし id が重複するため。DOM 差分計算は行わない最小実装） |
 
-3 関数はいずれも境界層（`wasm-thin/src/lib.rs` の `demo` モジュール、
+3 関数はいずれも境界層（`crates/wasm-thin/src/lib.rs` の `demo` モジュール、
 `#[wasm_bindgen]` エクスポート）が汎用層 [`ThinRuntime<C>`]（`wasm-bindgen`
 非依存の純粋 Rust）を `fandhe_frontend_interactive::AppState` に束縛して呼び出す薄い
 ラッパーです。`ThinRuntime<C>` は内部で `fandhe_frontend_core::render()`・
@@ -357,7 +357,7 @@ WASM 関数呼び出しスループット計測による代替値である点に
 
 | 項目 | 引き継ぎ先 |
 |------|-----------|
-| `wasm-thin/` クレート本体の実装・`Cargo.toml`（workspace）追加 | TASK-11.3a（#79） |
+| `crates/wasm-thin/` クレート本体の実装・`Cargo.toml`（workspace）追加 | TASK-11.3a（#79） |
 | `.github/workflows/ci.yml` への `wasm-thin` 存在ガードジョブ追加 | TASK-11.3a（#79）以降（`fandhe-frontend-wasm-full` の運用に倣う） |
 | 複雑な状態（ネストしたオブジェクト等）のハイドレーション一般化 | PoC-5「要件への示唆」節に記載のとおり Phase 4 以降の設計課題 |
 | 実ブラウザでの初期ロード・DOM 操作性能の正式計測 | TASK-11.5【Conditional Go 条件 1】（#85〜） |

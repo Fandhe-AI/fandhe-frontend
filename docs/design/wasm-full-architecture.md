@@ -27,7 +27,7 @@ PoC-5（`docs/spec/03-poc/wasm-runtime-split/wasm-full/src/lib.rs`）で実証�
 セキュリティ不変条件・受け入れ基準対応表）に揃え、`docs/` 直下のフラット配置
 とする。
 
-**本タスクのスコープ**: 設計確定書の作成のみ（docs-only 変更）。`wasm-full/`
+**本タスクのスコープ**: 設計確定書の作成のみ（docs-only 変更）。`crates/wasm-full/`
 クレート新設・依存クレート（`wasm-bindgen` / `web-sys`）の実追加・
 `.github/workflows/ci.yml` の変更はいずれも TASK-11.2b（#75）以降のスコープで
 あり、本タスクでは行わない。DOM 更新の実装は TASK-11.2c（#76）、既定実装化・
@@ -53,7 +53,7 @@ Phase 1（#336・`docs/design/dom-binding-update-design.md`）で束縛点最小
 ## 2. クレート構成の確定
 
 - **パッケージ名**: `fandhe-frontend-wasm-full`
-- **配置**: `wasm-full/`
+- **配置**: `crates/wasm-full/`
 - **edition**: 2021
 - **`crate-type`**: `["cdylib", "rlib"]`（`cdylib` は `wasm32-unknown-unknown`
   ターゲットの成果物として必須。`rlib` はネイティブ単体テスト用 —
@@ -100,10 +100,10 @@ Phase 1（#336・`docs/design/dom-binding-update-design.md`）で束縛点最小
 | `dispatch_and_render_headless` | `pub fn dispatch_and_render_headless<C: fandhe_frontend_interactive::Component>(component: &mut C, name: &str, payload: &str) -> fandhe_frontend_core::Node`（本体は TASK-11.2b） | DOM 非依存のヘッドレス補助 API。`fandhe_frontend_interactive::dispatch` ＋ `component.view()` のみを行い、ネイティブ単体テスト・Node 計測（TASK-11.5/11.6）から DOM/wasm32 ターゲットを介さずに呼び出せる（PoC-5 の `dispatch_and_render_headless` 相当） |
 | `csr::resolve_list_node` | `pub fn resolve_list_node<L>(loader: &L) -> fandhe_frontend_core::Node where L: fandhe_frontend_app::Loader<Input = (), Output = Vec<fandhe_frontend_app::Item>>`（本体は TASK-CSR-loader #349） | CSR 経路の一覧画面 loader 解決。`fandhe_frontend_app::assemble_list_page` の `Ok` はそのまま返し、`Err(_)` は値に触れず `csr::loader_error_view()` へ変換する（fail-closed） |
 | `csr::resolve_detail_node` | `pub fn resolve_detail_node<D>(loader: &D, id: &str) -> fandhe_frontend_core::Node where D: fandhe_frontend_app::Loader<Input = String, Output = Option<fandhe_frontend_app::Item>>`（本体は TASK-CSR-loader #349） | CSR 経路の詳細画面 loader 解決。`Output = None`（404 相当）は `detail_page(None)` の既存契約のまま描画し、`Err(_)` のみ `csr::loader_error_view()` へ変換する |
-| `csr::loader_error_view` | `pub fn loader_error_view() -> fandhe_frontend_core::Node`（本体は TASK-CSR-loader #349） | CSR の fail-closed 固定エラービュー。`fandhe_frontend_app::Loader::Error` の値をシグネチャ上受け取らず、`server/src/ssr.rs::loader_error_response` と同型の構造的な機微情報非露出保証を持つ |
+| `csr::loader_error_view` | `pub fn loader_error_view() -> fandhe_frontend_core::Node`（本体は TASK-CSR-loader #349） | CSR の fail-closed 固定エラービュー。`fandhe_frontend_app::Loader::Error` の値をシグネチャ上受け取らず、`crates/server/src/ssr.rs::loader_error_response` と同型の構造的な機微情報非露出保証を持つ |
 | `nav::ClientRoute` | `pub enum ClientRoute { List, Detail(String) }`（本体はイシュー #374、イシュー #407 で解決を `fandhe_frontend_app::routes` へ委譲） | クライアント側で解決したルート。`fandhe_frontend_app::routes::ResolvedRoute`（`server`・`wasm-full` 共有の単一定義）を [`resolve_path`] がクライアント側の呼び出し形へ変換した表現 |
 | `nav::resolve_path` | `pub fn resolve_path(path: &str) -> Option<ClientRoute>`（本体はイシュー #374、イシュー #407 で `fandhe_frontend_app::routes::resolve` へ委譲） | DOM 非依存の純粋ルート解決。マッチング本体は `fandhe_frontend_app::routes::resolve`（`fandhe_frontend_app::router::Router` 経由、`docs/api/router-path-matching.md` v1 仕様準拠）に委譲し、本モジュールでは意味論を再実装しない |
-| `nav::resolve_route_view_with` | `pub fn resolve_route_view_with<L, D>(list_loader: &L, detail_loader: &D, route: &ClientRoute) -> (&'static str, fandhe_frontend_core::Node) where L: fandhe_frontend_app::Loader<Input = (), Output = Vec<fandhe_frontend_app::Item>>, D: fandhe_frontend_app::Loader<Input = String, Output = Option<fandhe_frontend_app::Item>>`（本体はイシュー #374、タイトルはイシュー #407 で `fandhe_frontend_app::routes::title` へ委譲） | ルートを「タイトル + 描画済み Node」へ変換する。`server/src/ssr.rs::respond_with` と同じ分岐構造・同一タイトル（`fandhe_frontend_app::routes::title` の単一定義）を使い、`csr::resolve_list_node`/`resolve_detail_node` を呼ぶ（fail-closed をそのまま継承） |
+| `nav::resolve_route_view_with` | `pub fn resolve_route_view_with<L, D>(list_loader: &L, detail_loader: &D, route: &ClientRoute) -> (&'static str, fandhe_frontend_core::Node) where L: fandhe_frontend_app::Loader<Input = (), Output = Vec<fandhe_frontend_app::Item>>, D: fandhe_frontend_app::Loader<Input = String, Output = Option<fandhe_frontend_app::Item>>`（本体はイシュー #374、タイトルはイシュー #407 で `fandhe_frontend_app::routes::title` へ委譲） | ルートを「タイトル + 描画済み Node」へ変換する。`crates/server/src/ssr.rs::respond_with` と同じ分岐構造・同一タイトル（`fandhe_frontend_app::routes::title` の単一定義）を使い、`csr::resolve_list_node`/`resolve_detail_node` を呼ぶ（fail-closed をそのまま継承） |
 | `nav::start_router` | `pub fn start_router(root_id: &str) -> Result<(), JsValue>`（wasm32 限定、本体はイシュー #374） | クライアント側ルーティングの起動配線。`document` レベルで `click`（`data-nav` 委譲）・`window` レベルで `popstate` を各 1 回だけ登録する。**起動時点では描画を行わない**（初期表示で loader を再実行しない凍結事項の遵守） |
 | `entry::start_router` | `#[wasm_bindgen] pub fn start_router(root_id: &str) -> Result<(), JsValue>`（本体はイシュー #374） | `nav::start_router` を呼ぶ薄い `#[wasm_bindgen]` エクスポート（`mount`/`hydrate` と同型の参照実装）。`RUNTIME`（`AppState` 状態管理）とは独立した別系統 |
 
@@ -144,9 +144,9 @@ Phase 1（#336・`docs/design/dom-binding-update-design.md`）で束縛点最小
 | 5 | `HydrateError` 発生時（属性欠落・不正値）は panic せず、**初期状態での CSR 再描画に安全側フォールバックする** | `docs/api/interactive-api.md` 第 4 節・判断 4 で「フォールバック戦略は呼び出し側（`fandhe-frontend-wasm-full`）の選択に委ねる」とされた選択を本書で確定する。改ざんされた・破損した `data-hydrate-*` 属性値は信頼できないクライアント入力として扱い、panic による未定義遷移を排除する（`.claude/rules/coding-rust.md` の panic 回避規約） |
 | 6 | `fandhe-frontend-wasm-full` は `fandhe-frontend-wasm-client`（TASK-6.2 系）に依存しない**独立クレート**とする | PoC-3 / PoC-5 のクレート分離実績を踏襲する。責務を明確に分ける: `wasm-client` = 最小ハイドレーション（DOM 再構築なし・状態機械を持たない）、`wasm-full` = 状態機械つきの既定インタラクション（`set_inner_html` による再描画を伴う）。両者は共存可能だが、一方が他方に依存する構成は採らない |
 | 7 | `fandhe-frontend-wasm-thin`（TASK-11.3）はオプトインであり本書のスコープ外とする | 安全性境界の差分（PoC-2 / PoC-5 の脅威モデル (c)(d) 面）への参照のみ本書第 6 節に記載し、詳細設計は TASK-11.3 側の設計確定書に委ねる |
-| 8 | `nav::start_router` の click/popstate リスナーは `root_id` 要素ではなく `document`/`window` へ登録する（イシュー #374） | 遷移描画は `root_id` 要素の**子要素のみ**を差し替える（`root` 自身は再生成しない）ため理論上は `root` へ登録しても生存するが、`events.rs::wire_events` の「ルート要素へ登録」慣行とは異なり、より外側の不変な親（`document`/`window`）へ登録することで将来の描画方式変更（`root` 自体の再生成を伴う変更）に対しても委譲リスナーの生存を保証する（`wasm-full/tests/nav_browser.rs` の連続遷移テストで直接固定） |
-| 9 | `nav` は `fandhe-frontend-server` へ依存せず、ルート解決を `fandhe_frontend_app::routes`（`fandhe-frontend-app`、`server`・`wasm-full` 双方から依存可能な唯一の層）経由で共有定義から取得する（イシュー #374 で独自実装として導入 → **イシュー #407 で単一定義へ統合**） | `structure.toml` の `server.allowed_dependents = ["dist-server"]` により `wasm-full` は `fandhe-frontend-server` へ依存できないが、`fandhe-frontend-app` へは依存可能（`app.allowed_dependents` 参照）。イシュー #407 でルート表（パターン + マッチングエンジン + ページタイトル）を `fandhe-frontend-app`（`router.rs`/`routes.rs`）へ集約し、`server/src/ssr.rs`・`wasm-full/src/nav.rs` の双方が `fandhe_frontend_app::routes::resolve`/`title` を呼ぶ構成へ移行した。旧来の独自実装 + `wasm-full/tests/route_sync_static.rs`（静的走査によるドリフト**検知**）は廃止し、`wasm-full/tests/route_shared_static.rs`（単一定義の**強制**）へ置き換えた。設計比較・採用判断根拠は `docs/design/route-definition-sharing.md` を参照 |
-| 10 | SPA 内遷移への View Transitions 連携（イシュー #404）は、web-sys の unstable API（`Document::start_view_transition`、`#[cfg(web_sys_unstable_apis)]` ゲート付き）を採用せず、`nav.rs` の wiring 層に安定版 wasm-bindgen のみで完結するカスタム duck-typing `extern "C"` 型（`DocumentViewTransitions`）を定義する。`render_route` は「loader 解決 + 新 DOM 構築（prepare 段、遷移の外・同期）」と「`root` への差し替え + タイトル更新（apply 段、`document.startViewTransition()` の update コールバック内）」の 2 段に分割し、apply 段のみを遷移でラップする。update コールバックは `Closure::once_into_js`（呼び出し後に自己解放、`forget` 不使用）で JS へ所有権を移す | unstable API の有効化には `RUSTFLAGS='--cfg web_sys_unstable_apis'` をワークスペース全体へ適用する必要があり、共有 `CARGO_TARGET_DIR` 運用（`.claude/rules/ci.md`）・他クレートのビルドフラグ汚染を招くため不採用とする。`js_sys::Reflect` 方式は `js-sys` の直接依存追加（製品依存への追加は事前承認必須）が必要になるため製品コードでは避ける。loader 解決を遷移の外（prepare 段）に置くことで「遷移中に loader 解決が走らない」ことを構造的に保証し、旧ビューはデータ準備完了まで表示され続ける（View Transitions の推奨パターン）。`startViewTransition` の update コールバックは遷移がスキップされる場合でも仕様上必ず一度呼ばれるため、`once_into_js` による自己解放は無制限リークを構造的に回避する（`wasm-full/tests/nav_browser.rs` のスタブ検証テストで直接固定） |
+| 8 | `nav::start_router` の click/popstate リスナーは `root_id` 要素ではなく `document`/`window` へ登録する（イシュー #374） | 遷移描画は `root_id` 要素の**子要素のみ**を差し替える（`root` 自身は再生成しない）ため理論上は `root` へ登録しても生存するが、`events.rs::wire_events` の「ルート要素へ登録」慣行とは異なり、より外側の不変な親（`document`/`window`）へ登録することで将来の描画方式変更（`root` 自体の再生成を伴う変更）に対しても委譲リスナーの生存を保証する（`crates/wasm-full/tests/nav_browser.rs` の連続遷移テストで直接固定） |
+| 9 | `nav` は `fandhe-frontend-server` へ依存せず、ルート解決を `fandhe_frontend_app::routes`（`fandhe-frontend-app`、`server`・`wasm-full` 双方から依存可能な唯一の層）経由で共有定義から取得する（イシュー #374 で独自実装として導入 → **イシュー #407 で単一定義へ統合**） | `structure.toml` の `server.allowed_dependents = ["dist-server"]` により `wasm-full` は `fandhe-frontend-server` へ依存できないが、`fandhe-frontend-app` へは依存可能（`app.allowed_dependents` 参照）。イシュー #407 でルート表（パターン + マッチングエンジン + ページタイトル）を `fandhe-frontend-app`（`router.rs`/`routes.rs`）へ集約し、`crates/server/src/ssr.rs`・`crates/wasm-full/src/nav.rs` の双方が `fandhe_frontend_app::routes::resolve`/`title` を呼ぶ構成へ移行した。旧来の独自実装 + `crates/wasm-full/tests/route_sync_static.rs`（静的走査によるドリフト**検知**）は廃止し、`crates/wasm-full/tests/route_shared_static.rs`（単一定義の**強制**）へ置き換えた。設計比較・採用判断根拠は `docs/design/route-definition-sharing.md` を参照 |
+| 10 | SPA 内遷移への View Transitions 連携（イシュー #404）は、web-sys の unstable API（`Document::start_view_transition`、`#[cfg(web_sys_unstable_apis)]` ゲート付き）を採用せず、`nav.rs` の wiring 層に安定版 wasm-bindgen のみで完結するカスタム duck-typing `extern "C"` 型（`DocumentViewTransitions`）を定義する。`render_route` は「loader 解決 + 新 DOM 構築（prepare 段、遷移の外・同期）」と「`root` への差し替え + タイトル更新（apply 段、`document.startViewTransition()` の update コールバック内）」の 2 段に分割し、apply 段のみを遷移でラップする。update コールバックは `Closure::once_into_js`（呼び出し後に自己解放、`forget` 不使用）で JS へ所有権を移す | unstable API の有効化には `RUSTFLAGS='--cfg web_sys_unstable_apis'` をワークスペース全体へ適用する必要があり、共有 `CARGO_TARGET_DIR` 運用（`.claude/rules/ci.md`）・他クレートのビルドフラグ汚染を招くため不採用とする。`js_sys::Reflect` 方式は `js-sys` の直接依存追加（製品依存への追加は事前承認必須）が必要になるため製品コードでは避ける。loader 解決を遷移の外（prepare 段）に置くことで「遷移中に loader 解決が走らない」ことを構造的に保証し、旧ビューはデータ準備完了まで表示され続ける（View Transitions の推奨パターン）。`startViewTransition` の update コールバックは遷移がスキップされる場合でも仕様上必ず一度呼ばれるため、`once_into_js` による自己解放は無制限リークを構造的に回避する（`crates/wasm-full/tests/nav_browser.rs` のスタブ検証テストで直接固定） |
 
 ## 5. 既定実装化の方針（TASK-11.2d への引き継ぎ）
 
@@ -157,8 +157,8 @@ TASK-11.2b（#75）で実施する作業として引き継ぐ。
 
 - 統合テスト（`Runtime::mount` / `Runtime::hydrate` のネイティブ単体テスト・
   wasm ビルド確認・実ブラウザ検証）の整備。
-- CI 統合: 既存 `browser-test` ジョブ（`wasm-client/Cargo.toml` 存在ガード付き、
-  TASK-6.3a）に倣い、`wasm-full/Cargo.toml` の存在ガードを追加する。
+- CI 統合: 既存 `browser-test` ジョブ（`crates/wasm-client/Cargo.toml` 存在ガード付き、
+  TASK-6.3a）に倣い、`crates/wasm-full/Cargo.toml` の存在ガードを追加する。
 - 標準テンプレート（TASK-11.2d 想定）での `Runtime::<C>::mount` / `hydrate` を
   ラップする `#[wasm_bindgen]` エントリポイントの具体例を示す。
 
@@ -169,7 +169,7 @@ TASK-11.2b（#75）で実施する作業として引き継ぐ。
 
 | 項目 | 引き継ぎ先 |
 |------|-----------|
-| `wasm-full/` クレート新設・`Cargo.toml` 依存追加（`wasm-bindgen` / `web-sys`）・イベント処理の実装 | TASK-11.2b（#75） |
+| `crates/wasm-full/` クレート新設・`Cargo.toml` 依存追加（`wasm-bindgen` / `web-sys`）・イベント処理の実装 | TASK-11.2b（#75） |
 | `Runtime::mount` の `paint()`（DOM 更新）実装 | TASK-11.2c（#76） |
 | 既定実装化・標準テンプレートへの組み込み・統合テスト | TASK-11.2d（#77） |
 | `hydration.rs` の実配線（`Runtime::hydrate` 本体・状態注入の end-to-end 結合） | TASK-11.4（#81 / #82） |
@@ -182,7 +182,7 @@ TASK-11.2b（#75）で実施する作業として引き継ぐ。
 
 ## 7. セキュリティ不変条件
 
-`core/src/lib.rs` 冒頭・`docs/api/interactive-api.md` 第 6 節に記載された不変条件
+`crates/core/src/lib.rs` 冒頭・`docs/api/interactive-api.md` 第 6 節に記載された不変条件
 （REQ-1・REQ-2）を、`fandhe-frontend-wasm-full` への制約としてそのまま再掲・固定し、
 WASM 完全方式固有の不変条件を追加する。
 
@@ -241,12 +241,12 @@ WASM 完全方式固有の不変条件を追加する。
 
 | 項目 | 理由 |
 |------|------|
-| ~~遷移後ページ内のインタラクティブ要素の再配線（詳細ページの `data-hydrate="like"` ボタン）~~ | **イシュー #403 で解消**。`fandhe-frontend-wasm-client` の配線本体（`wasm-client/src/lib.rs` の `hydrate_dom::wire_hydrate_targets`）を `wasm-bindgen-exports` feature 非依存の共有 Rust API へ切り出し、`nav::wiring::render_route`（本ファイル §10 の対象外リストから除外）が遷移完了後（子要素差し替え・`document.title` 更新の直後）にこれを呼ぶことで解消した。詳細は下記「#403 再配線設計」参照 |
+| ~~遷移後ページ内のインタラクティブ要素の再配線（詳細ページの `data-hydrate="like"` ボタン）~~ | **イシュー #403 で解消**。`fandhe-frontend-wasm-client` の配線本体（`crates/wasm-client/src/lib.rs` の `hydrate_dom::wire_hydrate_targets`）を `wasm-bindgen-exports` feature 非依存の共有 Rust API へ切り出し、`nav::wiring::render_route`（本ファイル §10 の対象外リストから除外）が遷移完了後（子要素差し替え・`document.title` 更新の直後）にこれを呼ぶことで解消した。詳細は下記「#403 再配線設計」参照 |
 | ~~SPA 内 View Transitions（`document.startViewTransition` 連携）~~ | **消化済み（イシュー #404）**。`nav.rs` の `render_route` prepare/apply 分割 + カスタム duck-typing extern バインディングで実装（第 4 節・判断 10） |
 | `wasm-client`（最小ハイドレーション方式）側の遷移対応・loader 移行 | イシュー #349 の out-of-scope 事項と同項。**イシュー #405 で非採用確定**（`docs/policy/intentional-non-adoption.md` §3.19） |
 | ~~スクロール位置の復元制御（`history.scrollRestoration`）~~ | **イシュー #406 で実装済み**。詳細は下記「§11 スクロール位置復元制御設計」参照 |
 | 遷移中のローディング表示 | 本イシューの受け入れ条件に含まれない（#406 でも未対応のまま） |
-| ~~汎用ルート定義共有機構（ルート表を server / client で単一定義から生成する仕組み）~~ | **イシュー #407 で解消**。`fandhe-frontend-app`（`server`・`wasm-full` 双方から依存可能な唯一の層）へルート表・マッチングエンジンを集約する構成（案 B-1）を採用し、`fw structure` の `fandhe-frontend-router-v1` 抽出器（`cli/src/routes.rs`、AST 不使用・文字列走査）は `structure.toml` の `[routing] definition_dir` を `"server"` → `"app"` へ変更するのみで無改修のまま追随できることを確認した。設計比較・詳細は `docs/design/route-definition-sharing.md`、判断 9（本節上部の表）参照 |
+| ~~汎用ルート定義共有機構（ルート表を server / client で単一定義から生成する仕組み）~~ | **イシュー #407 で解消**。`fandhe-frontend-app`（`server`・`wasm-full` 双方から依存可能な唯一の層）へルート表・マッチングエンジンを集約する構成（案 B-1）を採用し、`fw structure` の `fandhe-frontend-router-v1` 抽出器（`crates/cli/src/routes.rs`、AST 不使用・文字列走査）は `structure.toml` の `[routing] definition_dir` を `"server"` → `"app"` へ変更するのみで無改修のまま追随できることを確認した。設計比較・詳細は `docs/design/route-definition-sharing.md`、判断 9（本節上部の表）参照 |
 | `prefers-reduced-motion` に応じた遷移スキップ制御（イシュー #404 スコープ外） | View Transitions API 自体はブラウザが `prefers-reduced-motion` を尊重する実装を持つが、アプリ側での明示的な制御は本イシューの受け入れ条件に含まれない |
 | `view-transition-name` によるパーツ単位アニメーション・遷移タイプ（`StartViewTransitionOptions`）対応（イシュー #404 スコープ外） | 本イシューは「連携の導入」までを対象とし、細粒度カスタマイズは別 Issue とする |
 | `ViewTransition` オブジェクト（`finished`/`ready` promise）の公開 API 化（イシュー #404 スコープ外） | `nav::start_router` の公開シグネチャは不変のため、呼び出し元へ `ViewTransition` を露出しない |
@@ -255,7 +255,7 @@ WASM 完全方式固有の不変条件を追加する。
 
 遷移で `nav::wiring::render_route` が [`fandhe_frontend_wasm_client::build_dom_node`]（`createElement`/`createTextNode`/`set_attribute` のみ）から新規構築するサブツリーは、イベントリスナーを一切持たない。詳細ページの「いいね」ボタン（`data-hydrate="like"`、`fandhe_frontend_app::LIKE_BUTTON_ID`）を機能させるため、以下の設計を採る。
 
-- **配線本体の共有**: `wasm-client/src/lib.rs` の配線ロジック（旧 `wiring::hydrate` 本体）を `wasm-bindgen-exports` feature 非依存の公開 API `wire_hydrate_targets(registry_key: &str, root: &Element) -> Result<(), JsValue>` として切り出した（`hydrate_dom` モジュール）。`fandhe-frontend-wasm-client` の REQ-6 デモ用エクスポート `hydrate`（`wiring::hydrate`、feature `wasm-bindgen-exports` 限定）はこれを `root_id` をキーとして呼ぶ薄いラッパーへ縮小し、`fandhe-frontend-wasm-full`（`default-features = false` で依存）からも同じ本体を呼べるようにした（重複コピー禁止、`csr.rs` の再エクスポートパターンと同方針）。
+- **配線本体の共有**: `crates/wasm-client/src/lib.rs` の配線ロジック（旧 `wiring::hydrate` 本体）を `wasm-bindgen-exports` feature 非依存の公開 API `wire_hydrate_targets(registry_key: &str, root: &Element) -> Result<(), JsValue>` として切り出した（`hydrate_dom` モジュール）。`fandhe-frontend-wasm-client` の REQ-6 デモ用エクスポート `hydrate`（`wiring::hydrate`、feature `wasm-bindgen-exports` 限定）はこれを `root_id` をキーとして呼ぶ薄いラッパーへ縮小し、`fandhe-frontend-wasm-full`（`default-features = false` で依存）からも同じ本体を呼べるようにした（重複コピー禁止、`csr.rs` の再エクスポートパターンと同方針）。
 - **呼び出し点**: `nav.rs::render_route_with_post`（実体は `apply_render_with_post` の `startViewTransition` update コールバック内、イシュー #404 の prepare/apply 分割との統合）が子要素差し替え・`document.title` 更新の直後に `fandhe_frontend_wasm_client::wire_hydrate_targets(&root.id(), &root)` を呼ぶ。`Err` 時は固定英語文言の `console::warn_1` で継続する（fail-safe、遷移自体は成立させる）。
 - **per-element 方式を採用した理由（`document` レベル委譲リスナー方式の不採用）**: 初期表示ページの like ボタンは `page_shell` 同梱の REQ-6 デモ（`fandhe-frontend-wasm-client::wiring::hydrate`）が per-element リスナーを付けうる。`document` レベルの委譲リスナーで `[data-hydrate]` クリックを一括処理する方式だと、遷移前に配線済みの初期ページ要素と遷移後に配線される要素が同一セレクタで二重に処理され、`class_list().toggle("liked")` が 2 回発火して実質 no-op になる（誤動作）。per-element 再配線（`query_selector_all` → 個別 `add_event_listener_with_callback`）は「遷移で新規構築されたサブツリー」のみを対象とし、旧要素はサブツリーごと破棄済みのため二重配線が構造的に起きない。
 - **リスナー寿命管理**: registry キーは root 要素の `id`（実運用 `app-root`）。`fandhe-frontend-wasm-client::registry::replace_handles` が同一キーへの再呼び出しで旧ハンドルを解除してから差し替えるため、`nav.rs` の「`Closure::forget` は起動時定数回（click 1 + popstate 1）」という既存不変条件とは独立に、遷移ごとの再配線を呼んでもリスナー・Closure は現存 DOM 分に有界（無制限リーク蓄積を回避）。`wasm-client` のデモ用 registry（キー `app` 等）とは呼び出し元・wasm インスタンスが異なるため衝突しない。

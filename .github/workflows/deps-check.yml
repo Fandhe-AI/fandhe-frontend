@@ -15,7 +15,7 @@ name: deps-check
 # Normal/Dev/Build すべての辺を対象に外部依存 0 件を専用ゲートとして強制する。
 #
 # しきい値運用の原則:
-# - しきい値の正は xtask/src/check_deps.rs の MAX_PACKAGES（60）/ MAX_DEPTH（6）/
+# - しきい値の正は crates/xtask/src/check_deps.rs の MAX_PACKAGES（60）/ MAX_DEPTH（6）/
 #   ZERO_DEP_CRATES（外部依存ゼロ強制対象）定数のみ。
 #   このワークフローには緩和用の input・環境変数・continue-on-error を一切設けない
 #   （迂回経路を作らない設計。しきい値変更はコード定数の変更 = レビュー必須の PR のみ）。
@@ -26,15 +26,15 @@ name: deps-check
 #
 # 計測対象パッケージ:
 # - 現時点の workspace members である fandhe-frontend-core（外部依存ゼロ契約。ディレクトリは
-#   core/ だがパッケージ名は Cargo.toml 上 fandhe-frontend-core）・xtask（外部依存ゼロ契約）・
+#   crates/core/ だがパッケージ名は Cargo.toml 上 fandhe-frontend-core）・xtask（外部依存ゼロ契約）・
 #   fandhe-frontend-app（TASK-6.1b で追加。fandhe-frontend-core への path 依存のみ）を対象とする。
-#   TASK-9.1b（イシュー #96）で fandhe-frontend-dist-server（dist-server/、hyper 依存を持つ
+#   TASK-9.1b（イシュー #96）で fandhe-frontend-dist-server（crates/dist-server/、hyper 依存を持つ
 #   標準サーバー構成の実体）を追加した。実測: packages=21/60 depth=5/6（PASS）。
 #   axum・rust-embed はいずれも依存グラフ深さ上限（6）を構造的に超過するため
 #   不採用とし、hyper + hyper-util + http-body-util + tokio の直接構成とした
-#   （実測根拠は `dist-server/Cargo.toml` のコメント参照）。
+#   （実測根拠は `crates/dist-server/Cargo.toml` のコメント参照）。
 #   TASK-3.3b（イシュー #22/#24）で fandhe-frontend-server（router のみ・外部依存ゼロ、
-#   server/）を計測対象に追加した。実測: packages=0/60 depth=0/6（PASS）。
+#   crates/server/）を計測対象に追加した。実測: packages=0/60 depth=0/6（PASS）。
 #   fandhe-frontend-wasm-full・fandhe-frontend-wasm-thin（CSR/ハイドレーション用クライアントクレート）は
 #   REQ-3 が対象と明記する「標準サーバー構成」に該当しないため、本ゲートの対象に
 #   含めない（docs/policy/dependency-graph-policy.md 第 4 節参照）。参考実測: wasm-full
@@ -85,7 +85,7 @@ jobs:
         # xtask check-deps の終了コードをそのまま CI の成否に伝播させる（fail-closed）。
         # set -o pipefail を明示し、tee 経由でも cargo run の終了コードが失われないようにする。
         # `--locked` を付与し、この外側の cargo run が Cargo.lock を書き換えないことを保証する。
-        # 内部の cargo metadata（xtask/src/check_deps.rs）も --locked で計測しており、
+        # 内部の cargo metadata（crates/xtask/src/check_deps.rs）も --locked で計測しており、
         # ここで --locked を外すとビルド時に Cargo.toml / Cargo.lock の drift で
         # ロックファイルが書き換わり得て、計測対象と実際にビルドされたグラフが
         # 一致しなくなる（fail-closed の前提が崩れる）ため必須。
@@ -95,10 +95,10 @@ jobs:
 
       - name: Publish deps-check summary
         if: always()
-        # format_report（xtask/src/check_deps.rs）の 1 行サマリ契約
+        # format_report（crates/xtask/src/check_deps.rs）の 1 行サマリ契約
         # 「deps-check: packages=<n>/<limit> depth=<n>/<limit> result=<PASS|FAIL>」を
         # Step Summary に転記する。この契約はテストで固定される
-        # （xtask/tests/cli_check_deps.rs）。
+        # （crates/xtask/tests/cli_check_deps.rs）。
         run: |
           {
             echo '## deps-check (REQ-3)'
@@ -111,7 +111,7 @@ jobs:
         # イシュー #154（REQ-3 受け入れ基準 1）: core / interactive の外部依存ゼロを
         # 専用ゲートとして強制する。check-deps（60/6 判定）とは別の PASS/FAIL 判定を
         # 持つため独立したステップとして可視化する（Publish 用の summary も別ステップ）。
-        # 引数は取らない契約（xtask/src/main.rs `run_check_core_deps` 参照。判定対象を
+        # 引数は取らない契約（crates/xtask/src/main.rs `run_check_core_deps` 参照。判定対象を
         # ワークフロー側の引数変更で弱められない設計）。
         # pipefail・tee・--locked の理由は直前の "Run xtask check-deps" ステップと同一。
         # if: always()（Cursor Bugbot review 4718471860 指摘 1 対応）: 先行する
@@ -126,10 +126,10 @@ jobs:
 
       - name: Publish check-core-deps summary
         if: always()
-        # format_zero_report（xtask/src/check_deps.rs）の 1 行サマリ契約
+        # format_zero_report（crates/xtask/src/check_deps.rs）の 1 行サマリ契約
         # 「core-deps-check: package=<name> external=<n> result=<PASS|FAIL>」を
         # Step Summary に転記する。この契約はテストで固定される
-        # （xtask/tests/cli_check_core_deps.rs）。
+        # （crates/xtask/tests/cli_check_core_deps.rs）。
         run: |
           {
             echo '## check-core-deps (REQ-3 acceptance criterion 1, issue #154)'
@@ -139,7 +139,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run xtask list-build-scripts
-        # TASK-3.2b: build.rs 保有クレート列挙（TASK-3.2a, xtask/src/list_build_scripts.rs）
+        # TASK-3.2b: build.rs 保有クレート列挙（TASK-3.2a, crates/xtask/src/list_build_scripts.rs）
         # の CI 出力統合。deps-check と同じ理由（子プロセスの終了コード伝播・
         # Cargo.lock drift 防止）で pipefail・tee・--locked を用いる。
         # ゲートではないため、この列挙自体が「count > 0」で CI を落とすことはない
@@ -159,9 +159,9 @@ jobs:
 
       - name: Publish build-scripts summary
         if: always()
-        # format_inventory（xtask/src/list_build_scripts.rs）の 1 行サマリ契約
+        # format_inventory（crates/xtask/src/list_build_scripts.rs）の 1 行サマリ契約
         # （`build-scripts: target=<name> count=<n>`）を Step Summary に転記する。
-        # この契約はテストで固定される（`xtask/tests/cli_list_build_scripts.rs`）。
+        # この契約はテストで固定される（`crates/xtask/tests/cli_list_build_scripts.rs`）。
         # 監査ログであり PASS/FAIL の概念はない。
         run: |
           {
