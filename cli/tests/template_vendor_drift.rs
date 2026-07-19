@@ -330,6 +330,11 @@ fn default_and_app_templates_share_identical_bytes_for_common_files() {
 const VENDORED_CRATE_SOURCE_MANIFESTS: &[(&str, &str)] = &[
     ("rws-core", "core/Cargo.toml"),
     ("rws-app", "app/Cargo.toml"),
+    // イシュー #411（PR #428）で app テンプレートへ追加された vendor クレート。
+    // いずれも正本は publish = false（crates.io 未公開）であり、canary の
+    // 監視対象に含める。
+    ("rws-interactive", "interactive/Cargo.toml"),
+    ("rws-wasm-client", "wasm-client/Cargo.toml"),
 ];
 
 /// `templates/` 配下の全テンプレートを走査し、`<template>/vendor/<crate>/`
