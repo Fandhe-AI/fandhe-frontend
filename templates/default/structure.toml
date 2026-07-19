@@ -1,0 +1,31 @@
+# `fw new`（イシュー #350）が展開する標準プロジェクトの構造マニフェスト
+# （REQ-13、`cli/src/structure.rs` のスキーマ v1）。
+#
+# `fw gate`（`cli/src/gate.rs::run_gate`）は本ファイルを唯一の情報源として
+# 検証対象クレートを決定するため、`fw new` 生成直後に `fw gate` を無編集で
+# PASS させるにはこのファイルの同梱が必須（イシュー #351）。下記
+# `[directories.root]` の `crate` の値（テンプレートのパッケージ名）は
+# `fw new` が `Cargo.toml` / `Cargo.lock` と同様にプロジェクト名へ置換する
+# 対象に含める（`cli/src/new.rs::SUBSTITUTED_FILES`）。
+#
+# ディレクトリ名 `root` について: 本テンプレートのクレートはプロジェクト
+# ルート直下（`src/`）に置かれ、`structure.toml` の `[directories.<name>]`
+# はワークスペース相対ディレクトリ名を要求するがルート自体を指す予約名
+# （`.` 等）は現行スキーマ（`cli/src/structure.rs::is_valid_directory_name`）
+# にないため、慣習名として `root` を用いる。このため `fw gate` の
+# `default_escape_check`（保険層、`<project>/root/src` を走査）は実在しない
+# パスとしてスキップされるが、主防御である `lint` チェック
+# （`cargo clippy --all-targets -p <crate>`、`clippy.toml` の
+# `disallowed-methods` 経由で REQ-1 を検出）はクレートの配置ディレクトリに
+# 依存せず全ソースを検査するため、REQ-1 の検出保証はこの構成でも失われない。
+# ルート直下クレートのスキーマ上の正式化（`root` 慣習の一般化）と
+# `default_escape_check` の当該盲点の一般対応は、後続イシュー #353
+# （structure.toml / fw impact / fw gate の新 API 追従）のスコープとする。
+
+[manifest]
+version = 1
+
+[directories.root]
+role = "distribution"
+crate = "rws-template-default"
+description = "fw new が生成する単一バイナリプロジェクトの骨格（クレートはプロジェクトルート直下に配置）"

@@ -32,6 +32,7 @@ frontend-framework/
 ├── templates/
 │   └── default/
 │       ├── deny.toml         # 標準プロジェクトテンプレート同梱の cargo-deny 設定（TASK-4.1 / REQ-4）
+│       ├── structure.toml    # fw gate が唯一の情報源として読む構造マニフェスト（生成直後 fw gate PASS 保証、イシュー #351）
 │       ├── tools/
 │       │   └── npm-asset-build/  # NPM 静的アセットゲートの同梱コピー（正本は tools/npm-asset-build/、イシュー #316）
 │       └── .github/

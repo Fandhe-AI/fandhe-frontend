@@ -13,9 +13,10 @@
   2. 既存ディレクトリへの上書きは fail-closed（明示フラグなしでは拒否）
   3. 終了コード契約（0/1/2）を他サブコマンド（`structure` / `gate` / `impact`）
      と統一
-- **スコープ外**: テンプレートへの `structure.toml` 追加・「生成直後
-  `fw gate` PASS」の e2e は兄弟イシュー #351 で扱う。本書・本実装には
-  含まない。
+- **関連 Issue（追補）**: #351「test(cli): fw new 生成直後に fw gate が
+  PASS する構成保証」（兄弟イシュー）でテンプレートへの `structure.toml`
+  追加・「生成直後 `fw gate` PASS」の e2e（`cli/tests/new_gate_e2e.rs`）が
+  実装済み。§3・§4・§8 参照。
 
 ## 2. CLI 契約
 
@@ -75,14 +76,28 @@ pub(crate) struct TemplateFile {
 増減・変更されたら CI で必ず落ちる仕組みとし、手動同期に頼らない
 （`.claude/rules/ci.md` の cargo-deny pin ドリフト検知と同じ運用方針）。
 
-`templates/default/` の対象 12 ファイル（git mode 込み）:
+`templates/default/` の対象 13 ファイル（git mode 込み）:
 
 - 100644: `.github/workflows/deny.yml` / `.github/workflows/npm-asset-gate.yml`
   / `Cargo.lock` / `Cargo.toml` / `clippy.toml` / `deny.toml` / `src/main.rs`
-  / `tests/negative_type_error.rs` / `tools/npm-asset-build/allowlist.toml`
+  / `structure.toml` / `tests/negative_type_error.rs` /
+  `tools/npm-asset-build/allowlist.toml`
 - 100755: `tools/npm-asset-build/apply_exempt.py` /
   `tools/npm-asset-build/check_static_only.py` /
   `tools/npm-asset-build/install.sh`
+
+`structure.toml`（イシュー #351 で追加）は `fw gate`（`cli/src/gate.rs`）が
+検証対象クレートを決定する唯一の情報源であり、これを同梱しない限り生成
+直後のプロジェクトは `fw gate` が即 BLOCKED になる（宣言クレート不在の
+fail-closed）。クレートはプロジェクトルート直下（`src/`）に置かれるため、
+`[directories.root]` という慣習名で宣言する（`root` 自体を指す予約ディレクトリ
+名は現行スキーマに存在しないため）。この構成では `fw gate` の
+`default_escape_check`（保険層、`<project>/root/src` を走査）は実在しない
+パスとしてスキップされるが、主防御である `lint` チェック
+（`cargo clippy --all-targets -p <crate>` 経由の `disallowed-methods`）は
+クレートの配置ディレクトリに依存せず全ソースを検査するため REQ-1 の検出
+保証は失われない。ルート直下クレートのスキーマ上の正式化はイシュー #353
+のスコープとする（詳細は `templates/default/structure.toml` 冒頭コメント）。
 
 ## 4. 変数置換: 明示的 allowlist + 置換回数の fail-closed 検証
 
@@ -94,6 +109,7 @@ pub(crate) struct TemplateFile {
 |---------|-------------|
 | `Cargo.toml` | 1 |
 | `Cargo.lock` | 1 |
+| `structure.toml` | 1（`[directories.root]` の `crate` 値。イシュー #351） |
 
 実装は `cli/src/new.rs::replace_exact(contents, needle, replacement,
 expected_count) -> Result<String, String>` とし、**出現回数が期待値と
@@ -172,11 +188,22 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
    `name = "<project-name>"` があり `rws-template-default` が残らないこと。
    置換対象外ファイルはテンプレートとバイト一致すること。
 5. **ドリフト検知**: `templates/default/` を再帰走査し、埋め込み
-   マニフェストと相対パス集合・内容バイト列（`Cargo.toml`/`Cargo.lock` を
-   除く）・実行ビットが 1:1 対応することを確認する。
+   マニフェストと相対パス集合・内容バイト列（`Cargo.toml`/`Cargo.lock`/
+   `structure.toml` を除く）・実行ビットが 1:1 対応することを確認する。
+
+さらに `cli/tests/new_gate_e2e.rs`（イシュー #351）が `fw new` → `fw gate`
+の直列 e2e を実バイナリで実行し、生成直後のプロジェクトが無編集で
+`fw gate` の 5 チェック（type_check / default_escape_check / lint / test /
+policy）全 PASS になることを固定する。`policy`（cargo-deny 依存）のみ実行
+環境で分岐するため、`cli/tests/scenarios/bugfix_escape.rs::baseline_passes_gate`
+と同一方針でスキップ・`#[ignore]` を使わず両分岐（PASS / 環境エラーによる
+BLOCKED）を断定する。`.github/workflows/ci.yml` の test ジョブへ明示ステップ
+として組み込み済み。
 
 ## 9. 非目標（Non-goals）
 
 - 複数テンプレート選択（`fw new --template embed` 等）は本イシューの範囲外。
 - 非 Unix でのパーミッション再現（ACL 相当の代替設定等）は行わない。
-- 生成直後の `fw gate` PASS 保証・`structure.toml` の同梱は #351 で扱う。
+- ルート直下クレートの `structure.toml` スキーマ上の正式化（`root` 慣習の
+  一般化）と `default_escape_check` の当該盲点の一般対応はイシュー #353
+  のスコープとする。

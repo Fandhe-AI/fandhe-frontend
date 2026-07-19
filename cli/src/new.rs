@@ -8,8 +8,10 @@
 //!
 //! 終了コードは `main.rs` 冒頭の doc コメントが明文化する全サブコマンド共通の
 //! 規約（0 = 成功 / 1 = 検証違反・実行失敗 / 2 = 使用法エラー）に従う。
-//! 兄弟イシュー #351（生成直後 `fw gate` PASS の e2e・テンプレートへの
-//! `structure.toml` 整備）は本モジュールのスコープ外。
+//! テンプレートは `structure.toml`（イシュー #351）を同梱し、`fw gate` が
+//! 唯一の情報源として読む宣言クレート名をプロジェクト名へ置換することで、
+//! 生成直後の `fw gate` が無編集で PASS する構成を保証する
+//! （`cli/tests/new_gate_e2e.rs` が e2e で固定する）。
 
 use crate::json_out::{quoted, string_array};
 use crate::new_template::TEMPLATE_FILES;
@@ -25,6 +27,15 @@ const USAGE: &str = "fw new: usage: fw new <project-name> [--dir <parent-dir>] [
 /// 過剰置換を防ぐ）。`tests/negative_type_error.rs` の doc コメント内言及
 /// （テンプレート出自の説明）は allowlist に含めない（意図的に置換しない）。
 const PACKAGE_NAME_NEEDLE: &str = "rws-template-default";
+
+/// パッケージ名置換（[`PACKAGE_NAME_NEEDLE`]）を適用するテンプレート内相対
+/// パスの allowlist（イシュー #351）。
+///
+/// `structure.toml` はプロジェクト名を `fw gate`（`cli/src/gate.rs`）が
+/// `-p <crate>` として cargo へ渡す唯一の情報源とするため、`Cargo.toml` /
+/// `Cargo.lock` と同様に置換しないと生成直後の `fw gate` が
+/// 「宣言クレートが実在しない」として失敗する。
+const SUBSTITUTED_FILES: &[&str] = &["Cargo.toml", "Cargo.lock", "structure.toml"];
 
 /// `fw new` サブコマンド本体。
 ///
@@ -200,7 +211,7 @@ fn expand_template(target: &Path, project_name: &str) -> Result<Vec<String>, Str
                 .map_err(|e| format!("failed to create directory `{}`: {e}", parent.display()))?;
         }
 
-        let contents = if file.rel_path == "Cargo.toml" || file.rel_path == "Cargo.lock" {
+        let contents = if SUBSTITUTED_FILES.contains(&file.rel_path) {
             replace_exact(file.contents, PACKAGE_NAME_NEEDLE, project_name, 1)?
         } else {
             file.contents.to_string()

@@ -168,6 +168,17 @@ jobs:
       - name: "REQ-1 raw_html() 偽装回避不能テスト (issue #159)"
         run: cargo test -p rws-cli --test raw_html_lint_e2e --locked
 
+      # イシュー #351（親 #338）の受け入れ条件「`fw new` 生成直後に `fw gate`
+      # が PASS する構成保証」の直接証跡。`fw new` が展開する
+      # `templates/default/` と `fw gate` の前提（`structure.toml` の宣言
+      # クレート・`clippy.toml` の disallowed-methods・`deny.toml`）が
+      # ドリフトすると生成直後のプロジェクトが無編集で BLOCKED になり得る
+      # ため、上記ステップで導入済みの cargo-deny を用いて strict 分岐
+      # （5 チェック全 PASS）を本ジョブで常時実証する
+      # （`cli/tests/new_gate_e2e.rs` 冒頭コメント参照）。
+      - name: "fw new 生成直後の fw gate PASS 構成保証 (issue #351)"
+        run: cargo test -p rws-cli --test new_gate_e2e --locked
+
       # TASK-10.2b（#110、REQ-10 条件 3）: dist-server/build.rs が既定で実行する
       # WASM ビルドステージ（ネスト `cargo build --target wasm32-unknown-unknown`
       # + `wasm-bindgen`）に必要なツールチェーンを導入する。本ジョブに限り
