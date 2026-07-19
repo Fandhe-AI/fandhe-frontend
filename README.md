@@ -2,7 +2,7 @@
 
 Rust 製のフロントエンドフレームワークです。AI 時代のセキュリティリスクを下げることを目的に、プレーンな HTML / JavaScript / CSS を尊重しつつ、SSR / SPA / SSG / トランジションなどモダン機能を網羅します。部分埋め込みの最小構成からフル機能構成までのグラデーションを持ち、単一実行ファイルでのデプロイ（Docker 想定）を目標とします。
 
-> フレームワーク名は仮称です。仕様上のクレート名は `rws-core` 系を想定しています（[仕様リポジトリの `05-tasks.md`](./docs/spec/05-tasks.md) 参照）。
+> 正式名称は `fandhe-frontend`（確定、2026-07-19）です。決定根拠・新旧マッピング表・段階的移行計画は [`docs/design/framework-naming.md`](./docs/design/framework-naming.md) を参照してください。現行のクレート名は `rws-core` 系のまま段階的移行中です（仕様上のクレート名の想定については [仕様リポジトリの `05-tasks.md`](./docs/spec/05-tasks.md) 参照）。
 
 ## 仕様
 
