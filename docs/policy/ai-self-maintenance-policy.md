@@ -148,7 +148,7 @@ requires_human_approval =
 ```
 
 - `breaking_risk` は影響クレート数から判定する（`judge_breaking_risk`）。
-  影響クレートが `rws-wasm-client` / `rws-wasm-full` / `rws-wasm-thin`
+  影響クレートが `fandhe-frontend-wasm-client` / `fandhe-frontend-wasm-full` / `fandhe-frontend-wasm-thin`
   （クライアント境界クレート）のいずれかを含む場合は、影響クレート数に関わらず
   常に `High` へ倒す（ブラウザへ配布される境界への波及は安全側で扱う、
   `docs/design/impact-analysis-design.md` §3.2）。

@@ -1,10 +1,10 @@
-# 薄い JS グルー方式（`rws-wasm-thin`）のオプトイン提供（TASK-11.3b）
+# 薄い JS グルー方式（`fandhe-frontend-wasm-thin`）のオプトイン提供（TASK-11.3b）
 
 ## 1. 目的とトレーサビリティ
 
 本ドキュメントは REQ-11（`docs/spec/04-requirements.md` REQ-11 節「WASM 完全方式に
 よるクライアントインタラクション（既定）と薄い JS グルー（オプトイン）」）のうち、
-「薄い JS グルー」方式（`rws-wasm-thin`）をオプトインとして選択した場合に生じる
+「薄い JS グルー」方式（`fandhe-frontend-wasm-thin`）をオプトインとして選択した場合に生じる
 制約事項（(c) XSS の保証一貫性・(d) AI 生成検証の到達範囲が Rust 側の設計に
 収まらなくなる旨）を明記した警告ドキュメントです。
 
@@ -45,8 +45,8 @@
 
 ## 2. 位置づけ — 既定とオプトイン
 
-フレームワークの既定のクライアントインタラクション方式は `rws-wasm-full`
-（WASM 完全方式、`docs/design/wasm-full-architecture.md` 参照）です。`rws-wasm-thin`
+フレームワークの既定のクライアントインタラクション方式は `fandhe-frontend-wasm-full`
+（WASM 完全方式、`docs/design/wasm-full-architecture.md` 参照）です。`fandhe-frontend-wasm-thin`
 （薄い JS グルー方式）は既定ではなく、**次のいずれかに該当する場合に限り**
 選択するオプトイン方式として位置づけます。
 
@@ -57,36 +57,36 @@
 - バンドルサイズを極限まで切り詰めたい特殊事情があり、かつ第 3 節の
   制約事項を受け入れられる
 
-**選定フローチャート**: 上記のいずれにも該当しない限り、既定の `rws-wasm-full`
-を選択してください。`rws-wasm-thin` を選ぶ判断は、第 3 節の制約事項を読んだ
+**選定フローチャート**: 上記のいずれにも該当しない限り、既定の `fandhe-frontend-wasm-full`
+を選択してください。`fandhe-frontend-wasm-thin` を選ぶ判断は、第 3 節の制約事項を読んだ
 うえで、それでも上記の事情が既定方式の採用を上回ると判断した場合に限ります。
 
 ```
-既定方式（rws-wasm-full）で要件を満たせるか？
+既定方式（fandhe-frontend-wasm-full）で要件を満たせるか？
   │
-  ├─ Yes → rws-wasm-full を使う（推奨・既定経路）
+  ├─ Yes → fandhe-frontend-wasm-full を使う（推奨・既定経路）
   │
   └─ No（DOM ヘルパー併用／既存 JS 資産からの移行／バンドルサイズ極限化が必要）
         │
         └─ 第 3 節の制約事項（(c)(d)・LOC 分類・サプライチェーン誘因）を
            受け入れられるか？
              │
-             ├─ Yes → rws-wasm-thin をオプトインで採用する（第 4〜5 節に従う）
+             ├─ Yes → fandhe-frontend-wasm-thin をオプトインで採用する（第 4〜5 節に従う）
              │
-             └─ No  → rws-wasm-full に留まる、または要件自体を見直す
+             └─ No  → fandhe-frontend-wasm-full に留まる、または要件自体を見直す
 ```
 
 ## 3. 制約事項・警告（オプトイン選択時に必ず理解すべき事項）
 
 PoC-2 は「薄い JS グルーを実行時に持ち込んだ時点で、Rust 基盤が確保した相対的な
 安全性の緩和効果はほぼ即座に減衰する」という境界を明文化しています。PoC-5 は
-この境界を `rws-wasm-thin` の実装で実証しました。`rws-wasm-thin` を選択する場合、
+この境界を `fandhe-frontend-wasm-thin` の実装で実証しました。`fandhe-frontend-wasm-thin` を選択する場合、
 以下の 4 点を必ず理解したうえで採用してください。
 
 ### 3.1 (c) XSS の保証一貫性の減衰
 
-`rws-wasm-thin` の公開関数（`initial_html()` / `apply()`）は、いずれも内部で
-`ThinRuntime::html()`（`rws_core::render()` の既定エスケープを経由）を
+`fandhe-frontend-wasm-thin` の公開関数（`initial_html()` / `apply()`）は、いずれも内部で
+`ThinRuntime::html()`（`fandhe_frontend_core::render()` の既定エスケープを経由）を
 呼び出しており、**関数が返す文字列自体は既定エスケープ済み**です
 （第 4.2 節・`demo_boundary_layer_smoke` テストの XSS 回帰検証で確認済み）。
 
@@ -97,12 +97,12 @@ PoC-2 は「薄い JS グルーを実行時に持ち込んだ時点で、Rust �
 - JS グルー側で `apply()` の戻り値と他の文字列を連結してから `innerHTML` に
   代入する、別の描画パス（`document.write()` 等）を追加する、といった変更を
   行った場合、**その追加分には Rust 側のエスケープ保証が及びません**。
-- これは「`rws-wasm-thin` の実装に脆弱性がある」という意味ではなく、
+- これは「`fandhe-frontend-wasm-thin` の実装に脆弱性がある」という意味ではなく、
   「JS グルーというレイヤーが Rust の保証範囲外にある」という構造的な
   リスクです（PoC-5 実施内容 7・PoC-2 との突き合わせで確認済み）。
 
-`rws-wasm-full`（WASM 完全方式）では DOM 適用（`set_inner_html`）まで Rust 側が
-行うため、この一貫性の減衰は発生しません。これが REQ-11 で `rws-wasm-full` を
+`fandhe-frontend-wasm-full`（WASM 完全方式）では DOM 適用（`set_inner_html`）まで Rust 側が
+行うため、この一貫性の減衰は発生しません。これが REQ-11 で `fandhe-frontend-wasm-full` を
 既定とする根拠の一つです。
 
 ### 3.2 (d) AI 生成検証の到達範囲
@@ -117,23 +117,23 @@ AI がこの JS グルーを変更・生成した場合、Rust 側の型チェ�
 
 PoC-3 が定めた LOC ベースの操作的ルーブリック（0〜10 行 = 薄い、11〜40 行 = 中）
 に照らすと、PoC-5 実測の `glue-thin.js` は **16 行**であり、「薄い」ではなく
-**「中」に分類**されます（PoC-5 発見事項 2）。一方、`rws-wasm-full` 側の
+**「中」に分類**されます（PoC-5 発見事項 2）。一方、`fandhe-frontend-wasm-full` 側の
 `glue-full.js` は **3 行**で、「薄い」の中でも最小の実例です。
 
 「薄い JS グルー」という設計思想上の呼称と、客観的な LOC 実測にはズレがあります。
-`rws-wasm-thin` を採用しても、JS の記述量が `rws-wasm-full` より少なくなる
+`fandhe-frontend-wasm-thin` を採用しても、JS の記述量が `fandhe-frontend-wasm-full` より少なくなる
 とは限らない点に注意してください（第 4.3 節「JS 実効行数の操作的定義」も参照）。
 
 ### 3.4 サプライチェーン誘因
 
-`rws-wasm-thin` 自体は `web-sys` にすら依存せず、依存面では最小です。しかし
+`fandhe-frontend-wasm-thin` 自体は `web-sys` にすら依存せず、依存面では最小です。しかし
 「薄い JS グルー」という設計方針そのものが、将来的に DOM ヘルパーライブラリ・
 フォーマッタ等の npm パッケージを JS 側（実行時）へ持ち込む誘因になり得ます。
 これは PoC-2 が懸念する「NPM パッケージの実行時混入」と同一線上のリスクです。
 
 - クライアント実行時への NPM パッケージ・Node ランタイムの持ち込みは REQ-12 の
   スコープ外であり、**禁止**です。
-- `rws-wasm-thin` の JS グルーはブラウザ標準 API（`addEventListener` /
+- `fandhe-frontend-wasm-thin` の JS グルーはブラウザ標準 API（`addEventListener` /
   `innerHTML` 等）のみを使用し、npm 由来の実行時コードを一切含めないでください
   （第 5 節「JS グルーの規範」参照）。
 
@@ -143,12 +143,12 @@ PoC-3 が定めた LOC ベースの操作的ルーブリック（0〜10 行 = �
 
 ```bash
 # wasm32 ターゲットへのビルド
-cargo build -p rws-wasm-thin --target wasm32-unknown-unknown --release
+cargo build -p fandhe-frontend-wasm-thin --target wasm32-unknown-unknown --release
 
 # wasm-bindgen でブラウザ配布用の JS グルーを生成
 wasm-bindgen --target web \
-  --out-dir pkg/thin --out-name rws_wasm_thin \
-  target/wasm32-unknown-unknown/release/rws_wasm_thin.wasm
+  --out-dir pkg/thin --out-name fandhe_frontend_wasm_thin \
+  target/wasm32-unknown-unknown/release/fandhe_frontend_wasm_thin.wasm
 ```
 
 ### 4.2 公開 API 凍結表
@@ -163,7 +163,7 @@ wasm-bindgen --target web \
 コンパイル時に固定しており、本表の読者はこのテストで実シグネチャを裏取り
 できます。
 
-`rws-wasm-thin` は `web-sys` に一切依存しません。`initial_html` / `apply` は
+`fandhe-frontend-wasm-thin` は `web-sys` に一切依存しません。`initial_html` / `apply` は
 「文字列 in・文字列 out」の純粋な状態計算を行い、`hydrate_from_attrs` は
 「文字列配列 2 本 in・真偽値 out」の純粋な状態計算を行います（`wasm_bindgen`
 がタプルの `Vec` を直接エクスポートできないため 2 配列表現になっています）。
@@ -177,17 +177,17 @@ wasm-bindgen --target web \
 
 3 関数はいずれも境界層（`wasm-thin/src/lib.rs` の `demo` モジュール、
 `#[wasm_bindgen]` エクスポート）が汎用層 [`ThinRuntime<C>`]（`wasm-bindgen`
-非依存の純粋 Rust）を `rws_interactive::AppState` に束縛して呼び出す薄い
-ラッパーです。`ThinRuntime<C>` は内部で `rws_core::render()`・
-`rws_interactive::dispatch`・`rws_interactive::Hydrate::from_hydration_attrs`
-を呼び出します。状態機械そのものは `rws-wasm-full` と共通の
-`rws-interactive` を使用します。
+非依存の純粋 Rust）を `fandhe_frontend_interactive::AppState` に束縛して呼び出す薄い
+ラッパーです。`ThinRuntime<C>` は内部で `fandhe_frontend_core::render()`・
+`fandhe_frontend_interactive::dispatch`・`fandhe_frontend_interactive::Hydrate::from_hydration_attrs`
+を呼び出します。状態機械そのものは `fandhe-frontend-wasm-full` と共通の
+`fandhe-frontend-interactive` を使用します。
 
 **補足（イシュー #376）**: `AppState::view()`（`render_with_root_attrs` 経由で
-束縛点マーカーを付与する）が `rws-wasm-full` と共通のコードであるため、
-`initial_html()` / `apply()` の出力 HTML には `rws-wasm-full`
+束縛点マーカーを付与する）が `fandhe-frontend-wasm-full` と共通のコードであるため、
+`initial_html()` / `apply()` の出力 HTML には `fandhe-frontend-wasm-full`
 と同様に `data-bind-*` / `data-key` / `data-hydrate-item-ids` マーカーが
-含まれます。ただし `rws-wasm-thin` の更新経路は本節の `apply` の説明の
+含まれます。ただし `fandhe-frontend-wasm-thin` の更新経路は本節の `apply` の説明の
 とおり戻り値の全置換 `innerHTML` 代入のみであり、これらのマーカーは
 `wasm-thin` 経路では**不活性（inert）**です（束縛点更新・keyed list の
 差分適用ロジック自体を `wasm-thin` / JS グルー側は持たないため）。属性値は
@@ -211,10 +211,10 @@ PoC-5 実測の `glue-thin.js`（CSR モード、下記 4.4 節例と同一構�
 /**
  * WASM＋薄い JS グルー方式・CSR モード。
  * イベント配線（addEventListener）・DOM 更新（innerHTML の書き換え）を
- * この JS ファイル側で行う。WASM 側（rws-wasm-thin）は
+ * この JS ファイル側で行う。WASM 側（fandhe-frontend-wasm-thin）は
  * 「文字列 in・文字列 out」の純粋な状態計算のみを提供する。
  */
-import init, { initial_html, apply } from "./pkg/thin/rws_wasm_thin.js";
+import init, { initial_html, apply } from "./pkg/thin/fandhe_frontend_wasm_thin.js";
 
 await init();
 
@@ -262,7 +262,7 @@ root.addEventListener("input", (ev) => {
  * ネストされて id が重複し、次回以降のクリックで DOM が壊れる
  * （CSR モードと同じく mount と rooted tree の id を分離する）。
  */
-import init, { hydrate_from_attrs, apply } from "./pkg/thin/rws_wasm_thin.js";
+import init, { hydrate_from_attrs, apply } from "./pkg/thin/fandhe_frontend_wasm_thin.js";
 
 await init();
 
@@ -297,7 +297,7 @@ mount.addEventListener("input", (ev) => {
 
 ## 5. JS グルーの規範（セキュリティ不変条件）
 
-`rws-wasm-thin` をオプトインで採用する場合、JS グルーは以下の不変条件を
+`fandhe-frontend-wasm-thin` をオプトインで採用する場合、JS グルーは以下の不変条件を
 **必ず**守ってください。違反すると第 3.1 節の (c) XSS 保証一貫性の減衰が
 実際に脆弱性として顕在化します。
 
@@ -341,7 +341,7 @@ el.setAttribute("onclick", `handleClick('${payload}')`); // 禁止
 
 ## 7. 性能実測の参照
 
-`rws-wasm-thin` の性能特性は PoC-5（`docs/spec/03-poc/wasm-runtime-split/README.md`
+`fandhe-frontend-wasm-thin` の性能特性は PoC-5（`docs/spec/03-poc/wasm-runtime-split/README.md`
 「実施内容 2〜4」）で以下のとおり実測済みです（実ブラウザでの正式実証は
 TASK-11.5【Conditional Go 条件 1】の宿題であり、本書の実測値は Node.js 近似・
 WASM 関数呼び出しスループット計測による代替値である点に注意してください）。
@@ -358,10 +358,10 @@ WASM 関数呼び出しスループット計測による代替値である点に
 | 項目 | 引き継ぎ先 |
 |------|-----------|
 | `wasm-thin/` クレート本体の実装・`Cargo.toml`（workspace）追加 | TASK-11.3a（#79） |
-| `.github/workflows/ci.yml` への `wasm-thin` 存在ガードジョブ追加 | TASK-11.3a（#79）以降（`rws-wasm-full` の運用に倣う） |
+| `.github/workflows/ci.yml` への `wasm-thin` 存在ガードジョブ追加 | TASK-11.3a（#79）以降（`fandhe-frontend-wasm-full` の運用に倣う） |
 | 複雑な状態（ネストしたオブジェクト等）のハイドレーション一般化 | PoC-5「要件への示唆」節に記載のとおり Phase 4 以降の設計課題 |
 | 実ブラウザでの初期ロード・DOM 操作性能の正式計測 | TASK-11.5【Conditional Go 条件 1】（#85〜） |
 | バンドルサイズ検証の自動化 | TASK-11.6（#85〜#89） |
-| `docs/policy/unsafe-boundary.md` の `wasm-thin` 行の更新（`rws-wasm-thin` は `web-sys` 非依存のため `unsafe` を使用しない見込みだが、確定は実装時に行う） | TASK-11.3a（#79） |
+| `docs/policy/unsafe-boundary.md` の `wasm-thin` 行の更新（`fandhe-frontend-wasm-thin` は `web-sys` 非依存のため `unsafe` を使用しない見込みだが、確定は実装時に行う） | TASK-11.3a（#79） |
 | 束縛点更新・keyed list（イシュー #345 の一般化方針）を `wasm-thin` の JS グルー側更新経路にも適用するか | `docs/policy/intentional-non-adoption.md` §3.10（イシュー #376）で非採用確定 |
 | 仕様（`docs/spec/`）自体の変更が必要な事項が生じた場合 | frontend-framework-spec リポジトリの Issue として起票を提案する（本書の対象外） |

@@ -41,7 +41,7 @@
 
 ## 2. 現状（再利用可能な既存資産）
 
-`cli/`（`rws-cli`、bin 名 `fw`）は外部依存ゼロ（`cli/src/toml.rs` /
+`cli/`（`fandhe-frontend-cli`、bin 名 `fw`）は外部依存ゼロ（`cli/src/toml.rs` /
 `cli/src/json.rs` の手書きパーサを保有）。TASK-13.2b〜e が再利用すべき
 既存資産:
 
@@ -85,7 +85,7 @@
 
 | 判断事項 | PoC-7 | 製品仕様（本書で確定） | 根拠 |
 |---------|-------|----------------------|------|
-| クライアント境界クレート | `rws-wasm-client` 単独 | `rws-wasm-client` / `rws-wasm-full` / `rws-wasm-thin` の 3 クレート（[`impact::CLIENT_BOUNDARY_CRATES`]）。いずれかへの波及で `high` | 製品ワークスペースは WASM 配布クレートが 3 つに分割されている（`docs/spec/06-roadmap.md` MS-3〜MS-4）。1 つでも見逃すと過小評価になるため全て対象にする |
+| クライアント境界クレート | `fandhe-frontend-wasm-client` 単独 | `fandhe-frontend-wasm-client` / `fandhe-frontend-wasm-full` / `fandhe-frontend-wasm-thin` の 3 クレート（[`impact::CLIENT_BOUNDARY_CRATES`]）。いずれかへの波及で `high` | 製品ワークスペースは WASM 配布クレートが 3 つに分割されている（`docs/spec/06-roadmap.md` MS-3〜MS-4）。1 つでも見逃すと過小評価になるため全て対象にする |
 | 定義元が見つからない場合 | `defined_in_crate: None` で成功扱い | エラー終了（終了コード 1）。黙って `defined_in: null` で成功させない | `fw structure` の「黙示的成功を返さない」方針（security.md A05）と統一する |
 | 定義元が複数の場合 | 未考慮（`break` で最初の 1 件のみ採用） | 全候補を列挙し `ambiguous: true`、`requires_human_approval` を強制 `true` | 「シンボル 1 つに定義は 1 つ」という走査の前提が崩れている状態であり、他の判定材料の信頼性も下がるため人間承認へ倒す |
 | シンボル入力の検証 | 未検証（任意文字列を正規表現に埋め込む） | Rust 識別子（`^[A-Za-z_][A-Za-z0-9_]*$`）以外は使用法エラー（終了コード 2） | 任意文字列を走査パターンに使わない（本書 §6 A03 対策）。正規表現クレート自体を使わないため ReDoS 面はないが、識別子境界判定の入力として不正な文字種を拒否する |
@@ -123,18 +123,18 @@
 テスト観点一覧（#137 が統合テストとして実装する想定）:
 
 1. クレート数 0 / 1 / 2 / 3 の境界値
-2. `rws-wasm-client` / `rws-wasm-full` / `rws-wasm-thin` 各々を単独で含む場合の `high` 判定
+2. `fandhe-frontend-wasm-client` / `fandhe-frontend-wasm-full` / `fandhe-frontend-wasm-thin` 各々を単独で含む場合の `high` 判定
 3. ルート有無（低リスクでもルート影響ありなら要承認）
 4. 多重定義（`ambiguous`）時の承認強制
 5. 識別子検証の正常系・異常系（空文字・数字始まり・記号混入・パス区切り混入）
 
 #137 は `cli/src/impact.rs` の単体テスト + シナリオ e2e
 （`cli/tests/scenarios/{bugfix_escape,scenario2_ui,scenario3_feature}.rs`）の
-組み合わせでクローズしたが、観点 2 のうち `rws-wasm-thin` 単独ケース
-（シナリオ e2e は `rws-wasm-client` のみカバー）と観点 4（`ambiguous` 承認強制）
+組み合わせでクローズしたが、観点 2 のうち `fandhe-frontend-wasm-thin` 単独ケース
+（シナリオ e2e は `fandhe-frontend-wasm-client` のみカバー）と観点 4（`ambiguous` 承認強制）
 は独立の `cli/tests/impact_*.rs` として未実装のまま留保されていた。
 イシュー #293 でこの留保を解消し、`cli/tests/impact_wasm_thin.rs`
-（観点 2: `rws-wasm-thin` 単独 high 判定）・`cli/tests/impact_ambiguous.rs`
+（観点 2: `fandhe-frontend-wasm-thin` 単独 high 判定）・`cli/tests/impact_ambiguous.rs`
 （観点 4: 多重定義時の承認強制）として実バイナリ（`fw`）経由の独立 e2e を追加した。
 
 ### 3.5 CLI 仕様・JSON スキーマ（#135 / #136 の実装契約）
@@ -206,7 +206,7 @@ PoC-7 は `verdict` を日本語 2 値（「要人間承認（…）」/「自�
 | `cli/src/main.rs` | 編集 | `mod impact;` の追加のみ |
 
 - `docs/spec/` は編集禁止（サブモジュール）。
-- 新規依存クレートは追加していない（`rws-cli` 外部依存ゼロ方針・REQ-3）。
+- 新規依存クレートは追加していない（`fandhe-frontend-cli` 外部依存ゼロ方針・REQ-3）。
 
 ## 5. インターフェース境界（後続サブタスクとの契約）
 

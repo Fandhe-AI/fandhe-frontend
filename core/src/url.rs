@@ -3,7 +3,7 @@
 //! `core/src/escape.rs` の既定エスケープは属性値コンテキストからの
 //! breakout（`"` 等による脱出）を防ぐが、脱出を伴わない `javascript:` 等の
 //! URL スキーム経由の XSS は防げない。本モジュールは [`render_into`]
-//!（`lib.rs`）と `rws-wasm-client` の実 DOM 属性更新経路（`binding_dom.rs`）
+//!（`lib.rs`）と `fandhe-frontend-wasm-client` の実 DOM 属性更新経路（`binding_dom.rs`）
 //! の両方から呼ばれる契約の検証関数を提供し、両経路に同一の保証を与える
 //! （`docs/policy/attribute-output-policy.md` 参照）。
 //!
@@ -14,7 +14,7 @@
 
 /// URL 値を受け取り得る属性名の正リスト。
 ///
-/// `render_into`（`lib.rs`）・`rws-wasm-client` の `binding_dom.rs` の双方が
+/// `render_into`（`lib.rs`）・`fandhe-frontend-wasm-client` の `binding_dom.rs` の双方が
 /// 本定数を単一の情報源として参照する（コピーを作らない）。属性名の照合は
 /// ASCII 大文字小文字非依存で行う（[`is_url_attr`] 参照）。
 pub const URL_ATTRS: &[&str] = &[
@@ -80,7 +80,7 @@ pub fn is_event_handler_attr(name: &str) -> bool {
 /// # Examples
 ///
 /// ```
-/// use rws_core::is_safe_url;
+/// use fandhe_frontend_core::is_safe_url;
 ///
 /// assert!(is_safe_url("/items/1"));
 /// assert!(is_safe_url("https://example.com"));
@@ -148,7 +148,7 @@ fn extract_scheme(s: &str) -> Option<&str> {
 /// 検証し、1 候補でも不合格なら属性全体を不合格として扱う（部分的な
 /// 書き換えは決定性を損なうため行わない）。
 ///
-/// `render_into`（`lib.rs`）・`rws-wasm-client` の `binding_dom.rs`・
+/// `render_into`（`lib.rs`）・`fandhe-frontend-wasm-client` の `binding_dom.rs`・
 /// `keyed_dom.rs` の 3 経路すべてが本関数を単一の情報源として参照する
 /// 契約とする（イシュー #373 レビュー指摘: 従来は `render_into` にのみ
 /// インライン実装されており、wasm-client の実 DOM 直接更新経路
@@ -157,7 +157,7 @@ fn extract_scheme(s: &str) -> Option<&str> {
 /// # Examples
 ///
 /// ```
-/// use rws_core::is_safe_srcset;
+/// use fandhe_frontend_core::is_safe_srcset;
 ///
 /// assert!(is_safe_srcset("/a.png 1x, /b.png 2x"));
 /// assert!(!is_safe_srcset("/a.png 1x, javascript:alert(1) 2x"));

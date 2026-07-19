@@ -1,6 +1,6 @@
 # compile_fail フィクスチャ
 
-このディレクトリのファイルは **意図的にコンパイル不能** な `rws-core` 利用例です。
+このディレクトリのファイルは **意図的にコンパイル不能** な `fandhe-frontend-core` 利用例です。
 TASK-5.3（`docs/design/compile-error-review.md`）のためのレビュー材料であり、
 `docs/spec/04-requirements.md` REQ-5 受け入れ基準 3「コンパイルエラーが
 マクロ展開後のコードを指す読みにくいメッセージではなく、通常の Rust の
@@ -30,7 +30,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rws-core = { path = "<このリポジトリの絶対パス>/core" }
+fandhe-frontend-core = { path = "<このリポジトリの絶対パス>/core" }
 EOF
 cp core/tests/compile_fail/case01_child_type_mismatch.rs /tmp/compile-error-check/src/lib.rs
 cd /tmp/compile-error-check && cargo check

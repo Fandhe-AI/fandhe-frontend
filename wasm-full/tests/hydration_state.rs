@@ -3,13 +3,13 @@
 //!
 //! `wasm-full/src/hydration.rs` 内のインラインテストは自作の最小
 //! `TestState` のみを対象にしている。本ファイルは実アプリ相当の
-//! `rws_interactive::AppState`（`Hydrate` 実装済み、`interactive/src/lib.rs`）
-//! を用いて [`rws_wasm_full::hydration::restore_state`] のラウンドトリップ・
+//! `fandhe_frontend_interactive::AppState`（`Hydrate` 実装済み、`interactive/src/lib.rs`）
+//! を用いて [`fandhe_frontend_wasm_full::hydration::restore_state`] のラウンドトリップ・
 //! 改ざん値マトリクスを検証し、`docs/api/hydration-state-format.md` 第 6 節
 //! 「テスト観点の引き継ぎ」が求める統合テストの空白を埋める
 //! （設計文書第 6 節・実装計画 §4.1 に対応）。
 //!
-//! DOM・`web-sys` に依存しない native テスト（`cargo test -p rws-wasm-full`）。
+//! DOM・`web-sys` に依存しない native テスト（`cargo test -p fandhe-frontend-wasm-full`）。
 //! 実 DOM 経由の検証（U+001F の実 DOM 保持実証・上限超過属性の実 DOM 除外）は
 //! `wasm-full/tests/hydration_browser.rs` が担当する。
 //!
@@ -26,8 +26,8 @@
 //!   直接欠落属性を渡すことで「除外後」の状態を模擬する）で `MissingAttr` に
 //!   収束することの結合確認。
 
-use rws_interactive::{codec, AppState, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
-use rws_wasm_full::hydration::restore_state;
+use fandhe_frontend_interactive::{codec, AppState, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
+use fandhe_frontend_wasm_full::hydration::restore_state;
 
 /// `AppState::hydration_attrs()` → `restore_state::<AppState>` の往復ヘルパー。
 /// ラウンドトリップが必ず成功する前提のテストでのみ使用する。

@@ -2,7 +2,7 @@
 
 Rust 製のフロントエンドフレームワークです。AI 時代のセキュリティリスクを下げることを目的に、プレーンな HTML / JavaScript / CSS を尊重しつつ、SSR / SPA / SSG / トランジションなどモダン機能を網羅します。部分埋め込みの最小構成からフル機能構成までのグラデーションを持ち、単一実行ファイルでのデプロイ（Docker 想定）を目標とします。
 
-> 正式名称は `fandhe-frontend`（確定、2026-07-19）です。決定根拠・新旧マッピング表・段階的移行計画は [`docs/design/framework-naming.md`](./docs/design/framework-naming.md) を参照してください。現行のクレート名は `rws-core` 系のまま段階的移行中です（仕様上のクレート名の想定については [仕様リポジトリの `05-tasks.md`](./docs/spec/05-tasks.md) 参照）。
+> 正式名称は `fandhe-frontend`（確定、2026-07-19）です。決定根拠・新旧マッピング表・段階的移行計画は [`docs/design/framework-naming.md`](./docs/design/framework-naming.md) を参照してください。現行のクレート名は `fandhe-frontend-core` 系のまま段階的移行中です（仕様上のクレート名の想定については [仕様リポジトリの `05-tasks.md`](./docs/spec/05-tasks.md) 参照）。
 
 ## 仕様
 
@@ -30,4 +30,4 @@ git submodule update --init
 - **MS-4**: 配布・DX の確立（単一実行ファイル・Docker・cargo 統合ビルドチェーン）
 - **MS-5**: AI 自己保守・改修フックの確立（`impact` → 変更適用 → `gate`）
 
-実装着手の最初のタスクは TASK-1.1（`rws-core` 既定エスケープの製品化）です。
+実装着手の最初のタスクは TASK-1.1（`fandhe-frontend-core` 既定エスケープの製品化）です。

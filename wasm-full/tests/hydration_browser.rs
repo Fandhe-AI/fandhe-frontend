@@ -1,4 +1,4 @@
-//! TASK-11.4c（#84、親 #81、REQ-11）: [`rws_wasm_full::hydration::read_hydration_attrs`]
+//! TASK-11.4c（#84、親 #81、REQ-11）: [`fandhe_frontend_wasm_full::hydration::read_hydration_attrs`]
 //! の実ブラウザ統合テスト（`wasm-pack test --headless --chrome`）。
 //!
 //! `wasm-full/src/hydration.rs` のインラインテスト・
@@ -23,15 +23,17 @@
 //!    → `restore_state` の結果が SSR 前の状態と一致すること
 //!    （サーバー/クライアント責務分界の e2e 実証、REQ-11 受け入れ基準）
 //!
-//! フィクスチャの HTML はすべて `rws_core::render`（`rws_interactive::render_for_hydration`
+//! フィクスチャの HTML はすべて `fandhe_frontend_core::render`（`fandhe_frontend_interactive::render_for_hydration`
 //! 経由）で生成し、`format!` 等による HTML 文字列直接組み立て・`raw_html()` は
 //! 使用しない（`.claude/rules/coding-rust.md`）。
 
 #![cfg(target_arch = "wasm32")]
 
-use rws_interactive::{render_for_hydration, AppState};
-use rws_wasm_full::hydration::{read_hydration_attrs, restore_state, MAX_ATTR_VALUE_LEN};
-use rws_wasm_full::Runtime;
+use fandhe_frontend_interactive::{render_for_hydration, AppState};
+use fandhe_frontend_wasm_full::hydration::{
+    read_hydration_attrs, restore_state, MAX_ATTR_VALUE_LEN,
+};
+use fandhe_frontend_wasm_full::Runtime;
 use wasm_bindgen_test::*;
 use web_sys::{Document, Element, Event, EventInit};
 
@@ -71,13 +73,13 @@ impl Drop for RemoveOnDrop {
     }
 }
 
-/// `render_for_hydration` → `rws_core::render` の SSR 出力を `placeholder` へ
+/// `render_for_hydration` → `fandhe_frontend_core::render` の SSR 出力を `placeholder` へ
 /// 展開し、ルート要素（`id="interactive-root"`）を返す。
 ///
-/// SSR 出力生成は必ず `rws_core::render` 経由とし、`format!` によるフィクス
+/// SSR 出力生成は必ず `fandhe_frontend_core::render` 経由とし、`format!` によるフィクス
 /// チャ組み立て・`raw_html()` は行わない（`.claude/rules/coding-rust.md`）。
 fn render_ssr_into(placeholder: &Element, state: &AppState) -> Element {
-    let html = rws_core::render(&render_for_hydration(state));
+    let html = fandhe_frontend_core::render(&render_for_hydration(state));
     placeholder.set_inner_html(&html);
     placeholder
         .first_element_child()
@@ -177,7 +179,7 @@ fn read_hydration_attrs_excludes_oversized_attribute_value_in_real_dom() {
     let err = restore_state::<AppState>(&attrs).unwrap_err();
     assert!(matches!(
         err,
-        rws_interactive::HydrateError::MissingAttr(ref attr) if attr == "data-hydrate-draft"
+        fandhe_frontend_interactive::HydrateError::MissingAttr(ref attr) if attr == "data-hydrate-draft"
     ));
 }
 
@@ -248,7 +250,7 @@ fn ssr_output_hydrate_then_click_updates_from_injected_server_resolved_state() {
     injected_state.items = vec!["サーバー解決済み項目".to_string()];
 
     // render_for_hydration が付与する data-hydrate-* 属性を含む SSR 出力を
-    // 実 DOM へ展開する（`render_ssr_into` 経由、rws_core::render 経由の
+    // 実 DOM へ展開する（`render_ssr_into` 経由、fandhe_frontend_core::render 経由の
     // フィクスチャ生成のみで format!/raw_html() は使わない）。
     let _root = render_ssr_into(&placeholder, &injected_state);
 

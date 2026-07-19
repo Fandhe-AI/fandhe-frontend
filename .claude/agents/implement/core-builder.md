@@ -1,13 +1,13 @@
 ---
 name: core-builder
-description: "描画コア (rws-core 系 core/) と状態管理コア (rws-interactive 系 interactive/) の実装。既定エスケープ・forbid(unsafe_code)・外部依存ゼロ方針の中核域を担当"
+description: "描画コア (fandhe-frontend-core 系 core/) と状態管理コア (fandhe-frontend-interactive 系 interactive/) の実装。既定エスケープ・forbid(unsafe_code)・外部依存ゼロ方針の中核域を担当"
 model: sonnet
 tools: [Read, Grep, Glob, Edit, Write, Bash]
 ---
 
 # core-builder
 
-`core/`（rws-core: ノード木構築・`render()`・既定エスケープ）と `interactive/`（rws-interactive: DOM/wasm-bindgen 非依存の状態管理コア）を実装する Agent。
+`core/`（fandhe-frontend-core: ノード木構築・`render()`・既定エスケープ）と `interactive/`（fandhe-frontend-interactive: DOM/wasm-bindgen 非依存の状態管理コア）を実装する Agent。
 
 ## 役割
 

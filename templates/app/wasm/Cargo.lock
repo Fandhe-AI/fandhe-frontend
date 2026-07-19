@@ -6,7 +6,7 @@ version = 4
 name = "app-csr-wasm"
 version = "0.1.0"
 dependencies = [
- "rws-wasm-client",
+ "fandhe-frontend-wasm-client",
 ]
 
 [[package]]
@@ -93,30 +93,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
-name = "rws-app"
+name = "fandhe-frontend-app"
 version = "0.1.0"
 dependencies = [
- "rws-core",
+ "fandhe-frontend-core",
 ]
 
 [[package]]
-name = "rws-core"
+name = "fandhe-frontend-core"
 version = "0.1.0"
 
 [[package]]
-name = "rws-interactive"
+name = "fandhe-frontend-interactive"
 version = "0.1.0"
 dependencies = [
- "rws-core",
+ "fandhe-frontend-core",
 ]
 
 [[package]]
-name = "rws-wasm-client"
+name = "fandhe-frontend-wasm-client"
 version = "0.1.0"
 dependencies = [
- "rws-app",
- "rws-core",
- "rws-interactive",
+ "fandhe-frontend-app",
+ "fandhe-frontend-core",
+ "fandhe-frontend-interactive",
  "wasm-bindgen",
  "web-sys",
 ]

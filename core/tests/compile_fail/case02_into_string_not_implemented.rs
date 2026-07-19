@@ -4,7 +4,7 @@
 //! 期待するエラーコード: E0277（トレイト境界未充足）。
 //! 本ファイルは cargo のテストターゲットには含まれない（README 参照）。
 
-use rws_core::{text, Node};
+use fandhe_frontend_core::{text, Node};
 
 pub fn case02() -> Node {
     text(42)

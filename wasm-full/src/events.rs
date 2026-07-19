@@ -1,6 +1,6 @@
 //! イベント委譲によるクリック/入力処理（TASK-11.2b、イシュー #75）。
 //!
-//! `rws-wasm-full` は REQ-11（WASM 完全方式）の既定実装であり、クライアントの
+//! `fandhe-frontend-wasm-full` は REQ-11（WASM 完全方式）の既定実装であり、クライアントの
 //! イベント処理・DOM 更新を JS グルーへ漏らさず safe Rust の範囲に閉じ込める
 //! ことが目的である。本モジュールはその「イベント処理」区画を担当し、
 //! DOM 更新（TASK-11.2c、#76）とは責務を分離する。`mount()`/`hydrate()` の
@@ -24,26 +24,26 @@
 //!
 //! # 他クレート・他モジュールとの契約
 //!
-//! - [`ActionRef`] の `action` / `payload` は `rws_interactive::dispatch` の
+//! - [`ActionRef`] の `action` / `payload` は `fandhe_frontend_interactive::dispatch` の
 //!   `name` / `payload` 引数仕様と一致する（`data-action` / `data-payload` 属性、
 //!   `interactive/src/lib.rs` の `render_with_root_attrs` が出力する DOM 契約）。
 //! - [`wire_events`] は状態更新（`dispatch`）・再描画（DOM 更新、#76 のスコープ）を
 //!   直接呼ばず、すべて `on_action` コールバックへ委譲する。これにより本モジュールは
-//!   `rws-interactive` の具象状態にも DOM 更新実装にも結合しない。
-//! - 再描画出力は呼び出し側（#76/#77）が `rws_core::render()`（既定エスケープ）を
+//!   `fandhe-frontend-interactive` の具象状態にも DOM 更新実装にも結合しない。
+//! - 再描画出力は呼び出し側（#76/#77）が `fandhe_frontend_core::render()`（既定エスケープ）を
 //!   経由させる前提であり、本モジュールは HTML 文字列を一切組み立てない
 //!   （REQ-1 不変条件、`.claude/rules/coding-rust.md`）。
 
 /// クリック/入力イベントから判定した「dispatch すべきアクション」への参照。
 ///
 /// `action` は `data-action` 属性値、`payload` は `data-payload`（クリック時）
-/// または入力値そのもの（input 時）に対応する。`rws_interactive::dispatch`
+/// または入力値そのもの（input 時）に対応する。`fandhe_frontend_interactive::dispatch`
 /// （`interactive/src/lib.rs`）の `(name, payload)` 引数へそのまま渡せる形。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ActionRef {
-    /// `data-action` 属性値（`rws_interactive::Component::decode_action` の `name`）。
+    /// `data-action` 属性値（`fandhe_frontend_interactive::Component::decode_action` の `name`）。
     pub action: String,
-    /// dispatch へ渡す payload（`rws_interactive::Component::decode_action` の `payload`）。
+    /// dispatch へ渡す payload（`fandhe_frontend_interactive::Component::decode_action` の `payload`）。
     pub payload: String,
 }
 
@@ -60,7 +60,7 @@ pub trait AttrSource {
 ///
 /// `data-action` 属性が無ければフレームワーク管轄外のクリックとして `None`
 /// を返す（安全側 no-op）。`data-payload` が無い場合は空文字列を payload
-/// とする（`rws_interactive::Component::decode_action` 側が未知/不正な
+/// とする（`fandhe_frontend_interactive::Component::decode_action` 側が未知/不正な
 /// payload を no-op として扱う契約に委ねる、不変条件 4）。
 ///
 /// 配線層（[`wire_events`]）は `target.closest("[data-action]")`
@@ -127,7 +127,7 @@ mod wiring {
     ///   `data-action` 属性を持つ要素を探索する（ボタン内の子要素クリックを
     ///   取りこぼさないための対策。PoC 版は `target()` 直接参照のため子要素
     ///   クリックを取りこぼしていた）。`event.target()` がテキストノード
-    ///   （`rws_core::text` が生成するボタン文言等）の場合は `Element` への
+    ///   （`fandhe_frontend_core::text` が生成するボタン文言等）の場合は `Element` への
     ///   キャストが失敗するため、`Node::parent_element()` で直近の親要素まで
     ///   遡ってから `closest` を呼ぶ（テキストノードクリックの取りこぼし対策、
     ///   PR #200 Cursor Bugbot 指摘）。`Element::closest` は呼び出し要素自身
@@ -157,7 +157,7 @@ mod wiring {
                 return;
             };
             // `event.target()` はクリックされた最も深いノードを指し、テキスト
-            // ノード（`rws_core::text` が生成する `data-action` ボタン内の文言
+            // ノード（`fandhe_frontend_core::text` が生成する `data-action` ボタン内の文言
             // 等）であることがある。テキストノードは `Element` ではないため
             // `dyn_ref::<Element>()` は `None` を返すが、これは「フレームワーク
             // 管轄外のクリック」ではなく「祖先探索の起点を要素まで遡る必要が
@@ -266,7 +266,7 @@ mod tests {
     #[test]
     fn click_with_unknown_action_still_produces_action_ref() {
         // 未知アクション名の判定自体は本モジュールの責務ではない。
-        // no-op 化は rws_interactive::dispatch/decode_action 側の契約
+        // no-op 化は fandhe_frontend_interactive::dispatch/decode_action 側の契約
         // （不変条件 4）に委ねる。
         let target = element(&[("data-action", "no_such_action")]);
         let action_ref = action_from_click(&target).expect("data-action present");
@@ -286,12 +286,12 @@ mod tests {
     }
 
     /// REQ-1（既定エスケープ）の経路一貫性回帰テスト:
-    /// イベント判定 → dispatch → `rws_core::render` の一連の経路を通しても
+    /// イベント判定 → dispatch → `fandhe_frontend_core::render` の一連の経路を通しても
     /// 生タグが出力に現れないこと（`docs/spec/04-requirements.md` の
     /// 「イベント処理・DOM 更新経由の出力にも同一のエスケープ保証」対応）。
     #[test]
     fn event_to_dispatch_to_render_roundtrip_escapes_script_payload() {
-        use rws_interactive::{dispatch, AppState, Component};
+        use fandhe_frontend_interactive::{dispatch, AppState, Component};
 
         let target = element(&[
             ("data-action", "set_draft"),
@@ -309,17 +309,17 @@ mod tests {
         // dispatch して draft の内容を items へ確定させる。
         assert!(dispatch(&mut state, "add_item", ""));
 
-        let html = rws_core::render(&state.view());
+        let html = fandhe_frontend_core::render(&state.view());
         assert!(!html.contains("<script>alert"));
         assert!(html.contains("&lt;script&gt;alert"));
     }
 
     /// `data-idx`/payload の数値パース失敗が panic しないこと
-    /// （`remove_item` は `rws_interactive::AppState::decode_action` 側で
+    /// （`remove_item` は `fandhe_frontend_interactive::AppState::decode_action` 側で
     /// `parse::<usize>()` の失敗を no-op とする契約、境界外・非数値入力）。
     #[test]
     fn remove_item_with_non_numeric_payload_is_noop_not_panic() {
-        use rws_interactive::{dispatch, AppState};
+        use fandhe_frontend_interactive::{dispatch, AppState};
 
         let target = element(&[
             ("data-action", "remove_item"),

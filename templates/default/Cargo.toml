@@ -1,8 +1,8 @@
 [package]
-name = "rws-template-default"
+name = "fandhe-frontend-template-default"
 version = "0.1.0"
 edition = "2021"
-description = "rws フレームワークの標準プロジェクトテンプレート（最小骨格）。TASK-4.4 型不正コード検出テストの土台。"
+description = "fandhe-frontend フレームワークの標準プロジェクトテンプレート（最小骨格）。TASK-4.4 型不正コード検出テストの土台。"
 license = "MIT OR Apache-2.0"
 publish = false
 

@@ -1,6 +1,6 @@
-//! `rws-dist-server`: TASK-9.1b。`rws-core` / `rws-app` / `rws-server` を
+//! `fandhe-frontend-dist-server`: TASK-9.1b。`fandhe-frontend-core` / `fandhe-frontend-app` / `fandhe-frontend-server` を
 //! 単一実行ファイルへ統合し、コンパイル時埋め込みの静的アセット（`static/`）と
-//! `rws-app` の SSR ページ（`/`・`/items/:id`）を配信する配布用サーバー。
+//! `fandhe-frontend-app` の SSR ページ（`/`・`/items/:id`）を配信する配布用サーバー。
 //!
 //! # クレート構成
 //!
@@ -9,7 +9,7 @@
 //!   に応じて `static/` ディレクトリからの実行時読み込みと `build.rs` 生成
 //!   埋め込みテーブルの完全一致検索を切り替える（TASK-10.1a、イシュー #106）。
 //! - [`routes`]: HTTP に依存しないルート解決層（[`routes::route_request`]）。
-//!   ページ解決は `rws_server::ssr::respond`（TASK-6.1c の SSR コア）へ委譲し、
+//!   ページ解決は `fandhe_frontend_server::ssr::respond`（TASK-6.1c の SSR コア）へ委譲し、
 //!   静的アセットは `assets::lookup` で解決する。
 //! - `main.rs`: hyper 接続処理（本ファイルには含めない。テスト容易性のため
 //!   HTTP 層と純粋なルーティング層を分離する）。起動時にアセット配信モードを

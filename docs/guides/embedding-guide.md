@@ -7,11 +7,11 @@
 実際に手を動かして体験するためのガイドです。TASK-7.1（#51）の子タスクとして、
 `templates/embed/embed.html`（TASK-7.1a・#52）と対になる成果物として作成します。
 
-> **本書のステータスと前提**: 本書は `rws-core`・`rws-app`（いずれもマージ済み）の
+> **本書のステータスと前提**: 本書は `fandhe-frontend-core`・`fandhe-frontend-app`（いずれもマージ済み）の
 > 公開 API と `docs/api/hydration-api.md`（TASK-6.2a、設計確定済み）の凍結契約を
 > 前提として執筆しています。`templates/embed/embed.html`（TASK-7.1a・#52）はマージ
-> 済みで、3.1 節のコード例は実物と一致させています。`rws-wasm-client` クレート本体
-> の実装（TASK-6.2b・#48）・`rws-server`（TASK-6.1c・#44）は本書更新時点ではいずれも
+> 済みで、3.1 節のコード例は実物と一致させています。`fandhe-frontend-wasm-client` クレート本体
+> の実装（TASK-6.2b・#48）・`fandhe-frontend-server`（TASK-6.1c・#44）は本書更新時点ではいずれも
 > 未マージで並行進行中です。したがって本書に登場する `mount_csr()` / `hydrate()` の
 > 呼び出し例は、クレート実装済みコードの引用ではなく **`docs/api/hydration-api.md` で
 > 確定した設計契約**として提示しています。実装が完了しマージされた時点で、本書の
@@ -41,11 +41,11 @@ PoC-3（`docs/spec/03-poc/rendering-web-standards/`、差別化空白 E への�
 だけであり、コンポーネント自身の実装には一切現れません。
 
 ```
-        rws-app（list_page / detail_page / page_shell）
+        fandhe-frontend-app（list_page / detail_page / page_shell）
                     ▲                    ▲
                     │                    │
      CSR（最小埋め込み）           SSR/SSG（フルスタック）
-     rws-wasm-client の            rws-server（axum ハンドラ想定）
+     fandhe-frontend-wasm-client の            fandhe-frontend-server（axum ハンドラ想定）
      mount_csr("app-list")         が同じ関数を呼び出す
      が同じ関数を呼び出す
 ```
@@ -53,10 +53,10 @@ PoC-3（`docs/spec/03-poc/rendering-web-standards/`、差別化空白 E への�
 `app/src/lib.rs` の `list_page` / `detail_page` / `page_shell` は、SSR・SSG・CSR の
 いずれのモードからも**同一関数がそのまま呼ばれる**ことを前提に設計されています
 （三モード契約、REQ-6）。関数側にモード分岐の `if` や `#[cfg(...)]` は存在しません。
-呼び出し側（CSR なら `rws-wasm-client`、SSR/SSG なら `rws-server`）が変わるだけで、
+呼び出し側（CSR なら `fandhe-frontend-wasm-client`、SSR/SSG なら `fandhe-frontend-server`）が変わるだけで、
 コンポーネントの記述は共通です。
 
-この契約の一次情報源は `app/src/lib.rs` の rustdoc（`cargo doc -p rws-app --open`）
+この契約の一次情報源は `app/src/lib.rs` の rustdoc（`cargo doc -p fandhe-frontend-app --open`）
 です。本ガイドはそこへの導線であり、契約そのものの詳細は rustdoc を参照してください。
 
 ## 3. 最小埋め込みの手順
@@ -86,7 +86,7 @@ PoC-3（`docs/spec/03-poc/rendering-web-standards/`、差別化空白 E への�
   <h1>既存の静的ページ（フレームワーク外で書かれた想定）</h1>
   <p>この段落は素の HTML であり、フレームワークの管理下にありません。</p>
 
-  <!-- ここだけ rws-app の CSR コンポーネントで埋める（アイランド的な最小構成） -->
+  <!-- ここだけ fandhe-frontend-app の CSR コンポーネントで埋める（アイランド的な最小構成） -->
   <div id="app-list"></div>
 
   <p>この段落も素の HTML です。フレームワークは上の div の中身にしか関与しません。</p>
@@ -113,12 +113,12 @@ PoC-3（`docs/spec/03-poc/rendering-web-standards/`、差別化空白 E への�
 
 `<script type="module">` から WASM を初期化し、`mount_csr(root_id)` を呼びます。
 `mount_csr` は `docs/api/hydration-api.md` 第 3 節で凍結された API で、指定 ID の要素に
-対して `rws_app` のページ関数 → `rws_core::render()` の**既定エスケープ済み**出力を
+対して `fandhe_frontend_app` のページ関数 → `fandhe_frontend_core::render()` の**既定エスケープ済み**出力を
 反映します（CSR が SSR/SSG と同一関数を呼ぶという REQ-6 受け入れ基準そのものです）。
 
 ```html
 <script type="module">
-  import init, { mount_csr } from "./wasm/rws_wasm_client.js";
+  import init, { mount_csr } from "./wasm/fandhe_frontend_wasm_client.js";
   async function main() {
     await init();
     mount_csr("app-list");
@@ -127,7 +127,7 @@ PoC-3（`docs/spec/03-poc/rendering-web-standards/`、差別化空白 E への�
 </script>
 ```
 
-`mount_csr` は `rws-wasm-client` クレート（TASK-6.2b・#48、本書執筆時点で未マージ）
+`mount_csr` は `fandhe-frontend-wasm-client` クレート（TASK-6.2b・#48、本書執筆時点で未マージ）
 が提供する予定の API です。設計契約（シグネチャ・不変条件）は `docs/api/hydration-api.md`
 第 3 節・第 6 節で確定済みですが、クレート本体・実際にビルドされる `.js`/`.wasm`
 成果物は #48 のマージを待って利用可能になります。
@@ -139,7 +139,7 @@ WASM モジュールのビルド手順の正式な確定はクレート実装（
 示す方向性は次のとおりです。
 
 - ターゲットは `wasm32-unknown-unknown`（`cargo build --target wasm32-unknown-unknown
-  -p rws-wasm-client` でコンパイル成立を確認する、`docs/api/hydration-api.md` 第 7 節）
+  -p fandhe-frontend-wasm-client` でコンパイル成立を確認する、`docs/api/hydration-api.md` 第 7 節）
 - `wasm-pack` 等のツールで JS グルーコード（`init` / `mount_csr` のバインディング）
   を生成する運用を想定
 - 生成物はページと**同一オリジン**で配信する（4 節・5 節参照）
@@ -151,13 +151,13 @@ WASM モジュールのビルド手順の正式な確定はクレート実装（
 ## 4. フルスタック構成への移行パス
 
 プロジェクトが成長し、SSR やルーティングが必要になったら、同じ `list_page` /
-`detail_page` / `page_shell` を `rws-server`（TASK-6.1c・#44、本書執筆時点で未マージ）
+`detail_page` / `page_shell` を `fandhe-frontend-server`（TASK-6.1c・#44、本書執筆時点で未マージ）
 の axum ハンドラから呼び出す構成に移行できます。
 
 | | 最小埋め込み（本書） | フルスタック |
 |---|---|---|
-| 呼び出し元 | `rws-wasm-client` の `mount_csr` | `rws-server` の SSR/SSG ハンドラ |
-| 呼び出す関数 | `rws_app::list_page` 等 | 同じ `rws_app::list_page` 等 |
+| 呼び出し元 | `fandhe-frontend-wasm-client` の `mount_csr` | `fandhe-frontend-server` の SSR/SSG ハンドラ |
+| 呼び出す関数 | `fandhe_frontend_app::list_page` 等 | 同じ `fandhe_frontend_app::list_page` 等 |
 | コンポーネント側の分岐 | なし | なし |
 | 出力の反映先 | `<div>` の `innerHTML`（CSR） | HTTP レスポンス本文（SSR/SSG） |
 
@@ -171,12 +171,12 @@ WASM モジュールのビルド手順の正式な確定はクレート実装（
 最小埋め込み構成であっても、既定エスケープ（REQ-1）はフルスタック構成と同じ強度で
 維持されます。
 
-- `mount_csr` が DOM へ反映する内容は、`rws_app` のページ関数 → `rws_core::render()`
+- `mount_csr` が DOM へ反映する内容は、`fandhe_frontend_app` のページ関数 → `fandhe_frontend_core::render()`
   を経由した**既定エスケープ済み**の HTML のみです。`format!` によるタグ文字列の
   直接組み立てや、ユーザー入力を直接 `innerHTML` に代入するコードは、フレームワーク
   側にも埋め込みページ側にも書いてはいけません（`.claude/rules/coding-rust.md`
   「HTML 文字列の直接組み立て禁止」）。
-- `rws_core::raw_html()` は既定エスケープを迂回する明示的オプトイン API です。
+- `fandhe_frontend_core::raw_html()` は既定エスケープを迂回する明示的オプトイン API です。
   信頼できない入力（ユーザー投稿・外部 API のレスポンス等）を `raw_html()` に
   渡してはいけません。埋め込みページのコンポーネントであっても、この制約は
   フルスタック構成と同一です。
@@ -215,13 +215,13 @@ REQ-7 の受け入れ基準にあるとおり、v1 の共通コアはパスマ�
 
 | 未マージの成果物 | 対応タスク | 影響する本書の節 |
 |---|---|---|
-| `rws-wasm-client` クレート実装 | TASK-6.2b（#48） | 3.2・3.3 節（ビルド・配置） |
-| `rws-server`（SSR/SSG エントリ） | TASK-6.1c（#44） | 4 節（移行パス） |
+| `fandhe-frontend-wasm-client` クレート実装 | TASK-6.2b（#48） | 3.2・3.3 節（ビルド・配置） |
+| `fandhe-frontend-server`（SSR/SSG エントリ） | TASK-6.1c（#44） | 4 節（移行パス） |
 
 ## 8. スコープ外（本書では扱わない事項）
 
 - `mount_csr` / `hydrate` の実装（TASK-6.2b・#48）
-- `rws-server` の SSR/SSG エントリ（TASK-6.1c・#44）
+- `fandhe-frontend-server` の SSR/SSG エントリ（TASK-6.1c・#44）
 - 分岐なしの静的解析・テストによる機械検証（TASK-7.3）
 - View Transitions API の `<meta>` タグ・薄いラッパー（TASK-8.1、`docs/spec/04-requirements.md` REQ-8）
 

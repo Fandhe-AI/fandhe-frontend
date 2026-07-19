@@ -1,35 +1,35 @@
-//! SSR エントリ（TASK-6.1c・#348）: リクエストパスを rws-app の `Loader` 経由
+//! SSR エントリ（TASK-6.1c・#348）: リクエストパスを fandhe-frontend-app の `Loader` 経由
 //! データ解決 + ページ関数へ分岐なくつなぎ、「ステータス・Content-Type・HTML
 //! 文字列」に文字列化する純関数を提供する。
 //!
 //! # 呼び出し文脈・契約
 //!
 //! - `docs/api/app-api.md` 第 4 節の設計判断 5（REQ-6/REQ-7 受け入れ基準）に従い、
-//!   [`respond`] / [`respond_with`] は [`rws_app::list_page`] /
-//!   [`rws_app::detail_page`] / [`rws_app::page_shell`] を SSR・SSG・（将来の）
+//!   [`respond`] / [`respond_with`] は [`fandhe_frontend_app::list_page`] /
+//!   [`fandhe_frontend_app::detail_page`] / [`fandhe_frontend_app::page_shell`] を SSR・SSG・（将来の）
 //!   CSR のいずれのモードからも**同一関数として分岐なく**呼ぶ。
 //!   [`crate::ssg::generate_with`] は本関数が返す [`SsrResponse::body`] を
 //!   そのままファイルへ書き出すことで、SSR/SSG の出力完全一致（REQ-6）を
 //!   構造的に保証する（SSG が独自に loader を呼ぶ描画経路は新設しない。
 //!   `docs/design/loader-trait-design.md` §4）。
 //! - `server/src/main.rs`（SSR エントリの CLI 版）から呼ばれる想定。HTTP
-//!   ソケット層は本関数の責務ではなく、`rws-dist-server`
+//!   ソケット層は本関数の責務ではなく、`fandhe-frontend-dist-server`
 //!   （`dist-server/src/routes.rs`）が本関数を呼んで HTTP レスポンスへ変換する
 //!   （`docs/api/app-api.md` 追記: axum 不採用の実測根拠により、HTTP 配信は
-//!   `rws-dist-server` の hyper 構成に委譲し、本クレートは外部依存ゼロを保つ）。
-//! - ルーティングは [`rws_app::routes`]（イシュー #407: server / client 単一
-//!   ルート定義の共有機構、`rws-app` に集約したエンジン
-//!   [`rws_app::router::Router`] を経由）を使う。ルート定義（パターン +
-//!   ページタイトル）は `rws-app` 側の単一定義であり、本ファイルではパターン
+//!   `fandhe-frontend-dist-server` の hyper 構成に委譲し、本クレートは外部依存ゼロを保つ）。
+//! - ルーティングは [`fandhe_frontend_app::routes`]（イシュー #407: server / client 単一
+//!   ルート定義の共有機構、`fandhe-frontend-app` に集約したエンジン
+//!   [`fandhe_frontend_app::router::Router`] を経由）を使う。ルート定義（パターン +
+//!   ページタイトル）は `fandhe-frontend-app` 側の単一定義であり、本ファイルではパターン
 //!   リテラル・タイトルリテラルを再定義しない（`wasm-full/src/nav.rs` も
-//!   同じ `rws_app::routes` を参照する。`wasm-full/tests/route_shared_static.rs`
+//!   同じ `fandhe_frontend_app::routes` を参照する。`wasm-full/tests/route_shared_static.rs`
 //!   が静的走査で再定義がないことを固定する）。ルーター自体はエスケープを
-//!   行わない契約であり、HTML 化は必ず rws-app 経由（既定エスケープ済み）で
+//!   行わない契約であり、HTML 化は必ず fandhe-frontend-app 経由（既定エスケープ済み）で
 //!   行う。`format!` によるタグ文字列の直接組み立ては行わない
 //!   （`coding-rust.md`）。
-//! - データ取得は [`rws_app::Loader`]（#347・イシュー #346 設計確定書）経由に
-//!   統一する。[`respond`] は既定 loader（[`rws_app::DemoItemsLoader`] /
-//!   [`rws_app::DemoItemDetailLoader`]）で [`respond_with`] を呼ぶ薄い
+//! - データ取得は [`fandhe_frontend_app::Loader`]（#347・イシュー #346 設計確定書）経由に
+//!   統一する。[`respond`] は既定 loader（[`fandhe_frontend_app::DemoItemsLoader`] /
+//!   [`fandhe_frontend_app::DemoItemDetailLoader`]）で [`respond_with`] を呼ぶ薄い
 //!   互換エントリであり、公開シグネチャは #347 以前から非破壊（`main.rs`・
 //!   `dist-server` は無修正のまま利用継続できる）。
 //!
@@ -42,7 +42,7 @@
 //!   固定文言 HTML を返す（`Loader::Error` ではなく `Output = None` として
 //!   表現される契約。設計書 §3.3）。内部パス・スタックトレース等は含めない
 //!   （`security.md`「機微情報の露出」）。
-//! - loader が [`rws_app::Loader::Error`] を返した場合は
+//! - loader が [`fandhe_frontend_app::Loader::Error`] を返した場合は
 //!   [`loader_error_response`] が組み立てる 500 固定文言応答を返す
 //!   （fail-closed、設計書 §5）。**`L::Error` / `D::Error` の値自体は一切
 //!   参照しない**（`Display`/`Debug` を呼ばない）ため、loader 実装が内部
@@ -51,27 +51,27 @@
 //! - 未一致パスは `None` を返すのみで `panic!` しない（呼び出し側が 404 応答を
 //!   組み立てる）。
 
-use rws_app::routes::{resolve as resolve_route, title as route_title, AppRoute};
-use rws_app::{
+use fandhe_frontend_app::routes::{resolve as resolve_route, title as route_title, AppRoute};
+use fandhe_frontend_app::{
     detail_page, list_page, page_shell, DemoItemDetailLoader, DemoItemsLoader, Item, Loader,
 };
 
 /// [`respond`] の返り値。「HTTP レスポンス文字列化」（TASK-6.1 の SSR 定義）
-/// の最小表現。HTTP ソケット層への変換は呼び出し元（`rws-dist-server` 等）の
+/// の最小表現。HTTP ソケット層への変換は呼び出し元（`fandhe-frontend-dist-server` 等）の
 /// 責務とする。
 pub struct SsrResponse {
     /// HTTP ステータスコード相当。
     pub status: u16,
     /// 固定文言の Content-Type（リクエスト由来文字列を含まない）。
     pub content_type: &'static str,
-    /// 既定エスケープ済み HTML 文字列（`rws_app::page_shell` の出力）。
+    /// 既定エスケープ済み HTML 文字列（`fandhe_frontend_app::page_shell` の出力）。
     pub body: String,
 }
 
 /// リクエストパスを解決し、既定 loader（[`DemoItemsLoader`] /
 /// [`DemoItemDetailLoader`]）で [`SsrResponse`] を返す。
 ///
-/// `rws-dist-server`（HTTP 配信）・`server/src/main.rs`（SSR エントリ CLI）・
+/// `fandhe-frontend-dist-server`（HTTP 配信）・`server/src/main.rs`（SSR エントリ CLI）・
 /// [`crate::ssg::generate`]（SSG）のいずれからも同一実装を共有する
 /// （REQ-6/REQ-7 受け入れ基準）。loader を差し替えたい呼び出し元（テスト等）は
 /// [`respond_with`] を直接使う。公開シグネチャは #347 以前から非破壊
@@ -81,10 +81,10 @@ pub fn respond(path: &str) -> Option<SsrResponse> {
 }
 
 /// loader を差し替え可能なジェネリック版。`where` 束縛で `Loader::Output` を
-/// ページ関数（[`rws_app::list_page`] / [`rws_app::detail_page`]）の引数型へ
+/// ページ関数（[`fandhe_frontend_app::list_page`] / [`fandhe_frontend_app::detail_page`]）の引数型へ
 /// 型接続する（設計書 §3.4「型で保証する範囲」を server 側にも適用）。
 ///
-/// 一覧・詳細のいずれも `rws_app::assemble_list_page` /
+/// 一覧・詳細のいずれも `fandhe_frontend_app::assemble_list_page` /
 /// `assemble_detail_page`（`Node` のみを返すヘルパー）は使わず、
 /// `loader.load()` → 判定 → ページ関数の順で自前に組み立てる。理由は
 /// ルートごとに異なる:
@@ -95,7 +95,7 @@ pub fn respond(path: &str) -> Option<SsrResponse> {
 ///   関与しない）。`assemble_list_page` ではなく `list_page` を直接呼ぶのは、
 ///   `core/tests/no_branching_across_modes.rs` の REQ-7 静的検証
 ///   （`both_call_sites_reference_shared_app_functions_without_redefining`）
-///   が本ファイルで `rws_app::list_page` への直接参照（`use` import 経由を
+///   が本ファイルで `fandhe_frontend_app::list_page` への直接参照（`use` import 経由を
 ///   含む）を要求するため。`assemble_list_page` 経由では内部で `list_page`
 ///   を呼んでいても本ファイル上に識別子が現れず検証に通らない。機能的には
 ///   `assemble_list_page(list_loader, &())` と等価であり、`where` 束縛
@@ -110,7 +110,7 @@ where
     L: Loader<Input = (), Output = Vec<Item>>,
     D: Loader<Input = String, Output = Option<Item>>,
 {
-    // ルート解決は `rws_app::routes::resolve`（イシュー #407 の単一定義）へ
+    // ルート解決は `fandhe_frontend_app::routes::resolve`（イシュー #407 の単一定義）へ
     // 委譲する。パターンリテラル・意味論（クエリ除去・末尾スラッシュ厳格
     // 一致等）は本ファイルで再定義しない。
     let resolved = resolve_route(path)?;
@@ -124,14 +124,14 @@ where
             Err(_) => loader_error_response(),
         },
         AppRoute::Detail => {
-            // `resolved.id` は `rws_app::routes::resolve` の契約どおり生文字列
+            // `resolved.id` は `fandhe_frontend_app::routes::resolve` の契約どおり生文字列
             // を返す。loader への入力（`String`）としてのみ使い、HTML へは
             // 出力しない（既定エスケープ対象外。`Item::id` はもともと
             // `String` フィールド）。
             let id = match resolved.id {
                 Some(id) => id,
                 // ルートパターン `/items/:id` は `id` を必ずキャプチャするため
-                // 通常到達しないが、`rws_app::routes::resolve` の内部実装変更
+                // 通常到達しないが、`fandhe_frontend_app::routes::resolve` の内部実装変更
                 // に対する防御として 404 応答（機微情報を含まない）に
                 // フォールバックする。
                 None => {
@@ -182,9 +182,9 @@ where
 fn loader_error_response() -> SsrResponse {
     let body = page_shell(
         "Internal Server Error",
-        rws_core::p(
+        fandhe_frontend_core::p(
             vec![],
-            vec![rws_core::text(
+            vec![fandhe_frontend_core::text(
                 "An internal error occurred while loading data.",
             )],
         ),
@@ -199,7 +199,7 @@ fn loader_error_response() -> SsrResponse {
 #[cfg(test)]
 mod tests {
     use super::{respond, respond_with};
-    use rws_app::{DemoItemDetailLoader, DemoItemsLoader, Item, Loader};
+    use fandhe_frontend_app::{DemoItemDetailLoader, DemoItemsLoader, Item, Loader};
 
     /// 受け入れ条件 2 の直接証明用フィクスチャ: 一覧 loader が必ず失敗する。
     /// `Error` にダミーの機微情報風文字列を含め、[`respond_with`] の 500

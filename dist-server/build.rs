@@ -1,4 +1,4 @@
-//! `rws-dist-server` のビルドスクリプト。
+//! `fandhe-frontend-dist-server` のビルドスクリプト。
 //!
 //! ワークスペース直下 `static/`（`wasm-thin`/`wasm-full` の埋め込み HTML 等が
 //! 置かれる想定のディレクトリ、`.claude/rules/delegation-impl.md` 参照）を
@@ -22,8 +22,8 @@
 //!
 //! # WASM ビルドステージ（TASK-10.2b、イシュー #110、REQ-10 条件 3）
 //!
-//! `cargo build -p rws-dist-server` 単一コマンドでネイティブサーバーバイナリと
-//! WASM クライアント成果物（`rws-wasm-full`）の双方が生成されるようにする。
+//! `cargo build -p fandhe-frontend-dist-server` 単一コマンドでネイティブサーバーバイナリと
+//! WASM クライアント成果物（`fandhe-frontend-wasm-full`）の双方が生成されるようにする。
 //! 処理の流れは [`wasm_build_enabled`] → [`run_wasm_stage`]
 //! （[`expected_wasm_bindgen_version`] によるバージョン整合検証 →
 //! [`run_wasm_build`]（ネスト `cargo build --target wasm32-unknown-unknown`）→
@@ -50,7 +50,7 @@
 //! `OUT_DIR/wasm-stage.fingerprint` に保存し、次回以降の実行で前回値と完全一致
 //! する場合に限り再利用する（`wasm_stage_cache::wasm_stage_cache_hit`）。
 //! これらキャッシュ判定の純粋関数は `src/wasm_stage_cache.rs` にソースレベルで
-//! 切り出しており、`cargo test -p rws-dist-server` でユニットテストされる
+//! 切り出しており、`cargo test -p fandhe-frontend-dist-server` でユニットテストされる
 //! （下記 `mod wasm_stage_cache` 宣言・当該ファイル冒頭コメント参照）。
 //!
 //! フェイルクローズ方針: fingerprint の読み取り失敗・欠落・不一致・成果物
@@ -67,7 +67,7 @@ use std::process::Command;
 // キャッシュ判定の純粋関数群（fingerprint 計算・成果物完全性チェック等）は
 // `src/wasm_stage_cache.rs` にソースレベルで切り出している。パッケージ自身の
 // lib クレートを `build-dependencies` にはできない（循環依存）ため `#[path]`
-// でこのファイルをそのまま取り込み、`cargo test -p rws-dist-server`
+// でこのファイルをそのまま取り込み、`cargo test -p fandhe-frontend-dist-server`
 // （`lib.rs` 経由の通常モジュールとして）でユニットテストできるようにする
 // （`bench_support.rs` と同型のパターン。詳細は当該ファイル冒頭コメント参照）。
 #[path = "src/wasm_stage_cache.rs"]
@@ -346,7 +346,7 @@ fn installed_wasm_bindgen_cli_version() -> Result<String, String> {
         .ok_or_else(|| "unexpected `wasm-bindgen --version` output format".to_string())
 }
 
-/// ネストした `cargo build -p rws-wasm-full --target wasm32-unknown-unknown
+/// ネストした `cargo build -p fandhe-frontend-wasm-full --target wasm32-unknown-unknown
 /// --release` を実行し、生成された `.wasm` バイナリの絶対パスを返す。
 ///
 /// # 環境の分離（決定性確保）
@@ -389,7 +389,7 @@ fn run_wasm_build(workspace_root: &Path) -> Result<PathBuf, String> {
         .args([
             "build",
             "-p",
-            "rws-wasm-full",
+            "fandhe-frontend-wasm-full",
             "--target",
             "wasm32-unknown-unknown",
             "--release",
@@ -397,12 +397,12 @@ fn run_wasm_build(workspace_root: &Path) -> Result<PathBuf, String> {
         ])
         .arg(&wasm_target_dir);
 
-    let status = command
-        .status()
-        .map_err(|e| format!("failed to spawn nested `cargo build -p rws-wasm-full`: {e}"))?;
+    let status = command.status().map_err(|e| {
+        format!("failed to spawn nested `cargo build -p fandhe-frontend-wasm-full`: {e}")
+    })?;
     if !status.success() {
         return Err(
-            "nested `cargo build -p rws-wasm-full --target wasm32-unknown-unknown --release` failed. \
+            "nested `cargo build -p fandhe-frontend-wasm-full --target wasm32-unknown-unknown --release` failed. \
              Ensure the wasm32-unknown-unknown target is installed: rustup target add wasm32-unknown-unknown"
                 .to_string(),
         );
@@ -411,7 +411,7 @@ fn run_wasm_build(workspace_root: &Path) -> Result<PathBuf, String> {
     Ok(wasm_target_dir
         .join("wasm32-unknown-unknown")
         .join("release")
-        .join("rws_wasm_full.wasm"))
+        .join("fandhe_frontend_wasm_full.wasm"))
 }
 
 /// `wasm-bindgen --target web --no-typescript` を実行し、生成された JS グルー
@@ -437,7 +437,9 @@ fn run_wasm_bindgen(wasm_binary_path: &Path, wasm_assets_dir: &Path) -> Result<(
         .status()
         .map_err(|e| format!("failed to spawn wasm-bindgen: {e}"))?;
     if !status.success() {
-        return Err("wasm-bindgen failed to generate JS bindings for rws-wasm-full".to_string());
+        return Err(
+            "wasm-bindgen failed to generate JS bindings for fandhe-frontend-wasm-full".to_string(),
+        );
     }
 
     if !wasm_stage_cache::wasm_assets_look_complete(wasm_assets_dir, wasm_binary_path) {
@@ -457,7 +459,7 @@ fn run_wasm_bindgen(wasm_binary_path: &Path, wasm_assets_dir: &Path) -> Result<(
 // `write_wasm_stage_fingerprint` / `wasm_assets_look_complete` /
 // `fnv1a_hash` はいずれも `wasm_stage_cache` モジュール（`src/wasm_stage_cache.rs`
 // を `#[path]` でソースレベル共有、本ファイル冒頭の `mod` 宣言参照）へ移した。
-// ユニットテストは `cargo test -p rws-dist-server`（`src/wasm_stage_cache.rs`
+// ユニットテストは `cargo test -p fandhe-frontend-dist-server`（`src/wasm_stage_cache.rs`
 // の `#[cfg(test)]`）が担う。
 
 /// `dir` 以下を再帰的に走査し、`(URL パス, 絶対パス)` を `out` へ積む。

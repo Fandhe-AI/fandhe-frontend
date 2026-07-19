@@ -14,7 +14,7 @@
 const BINDING_RS: &str = include_str!("../src/binding.rs");
 const BINDING_DOM_RS: &str = include_str!("../src/binding_dom.rs");
 
-/// DOM への HTML 挿入は `rws_core::render` の出力のみを経由する不変条件
+/// DOM への HTML 挿入は `fandhe_frontend_core::render` の出力のみを経由する不変条件
 /// （`lib.rs` クレート docs 不変条件 1・2・4）が、束縛点ベースの最小更新
 /// 経路にも及んでいることをソースレベルで固定する。
 ///
@@ -53,7 +53,7 @@ fn binding_dom_uses_set_text_content_for_text_updates() {
     );
 }
 
-use rws_wasm_client::{
+use fandhe_frontend_wasm_client::{
     collect_binding_specs, element_binding_specs, parse_binding_tokens, unresolved_binding_specs,
     BindingKind, BindingSpec,
 };
@@ -99,14 +99,14 @@ fn element_binding_specs_is_reexported_and_orders_text_then_attr_then_class() {
 // --- 束縛点整合性の回帰テスト（イシュー #380） ---
 //
 // `interactive::AppState::view()`（demo view）が出力するマーカーと
-// `rws_wasm_client::AppState`（`BindingSource` 実装、`src/binding.rs`）の
+// `fandhe_frontend_wasm_client::AppState`（`BindingSource` 実装、`src/binding.rs`）の
 // フィールドが非同期に変更され乖離した場合、実行時には無音の no-op
 // （表示更新の静かな欠落）としてしか顕在化しない（`docs/design/
 // dom-binding-update-design.md` #380 追補節）。以下は
 // `unresolved_binding_specs` を用いてこのドリフトをテスト時に FAIL として
 // 顕在化させる「本命」の回帰テスト。
 
-use rws_interactive::{Action, AppState, Component};
+use fandhe_frontend_interactive::{Action, AppState, Component};
 
 #[test]
 fn app_state_view_has_no_unresolved_bindings() {

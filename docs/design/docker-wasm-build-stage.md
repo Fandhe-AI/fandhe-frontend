@@ -49,7 +49,7 @@
 | TASK-10.3c | #117 | コンテナ内 WASM 再ビルドの実ビルド検証 | 本書 §6 の検証観点を引き継ぐ |
 
 - **`docs/design/wasm-build-integration.md` との境界**: 同書 §7 は「TASK-10.3 は
-  `cargo build -p rws-dist-server` 単一コマンドを Docker ビルドステージ内で
+  `cargo build -p fandhe-frontend-dist-server` 単一コマンドを Docker ビルドステージ内で
   そのまま実行する構成を想定する」と明記済みです。本書はこの境界を前提に、
   Docker ビルダーステージ側でその単一コマンドが実際に WASM ステージを
   発火できる状態（ツールチェーン導入・環境変数設定）をどう整えるかを
@@ -63,7 +63,7 @@ TASK-10.3a の設計は「ゼロから WASM ビルドを Docker に組み込む�
 
 ### 2.1 既に実装済み（`dist-server/build.rs`）
 
-- `cargo build -p rws-dist-server` 実行時、`build.rs` の `main` が
+- `cargo build -p fandhe-frontend-dist-server` 実行時、`build.rs` の `main` が
   `wasm_build_enabled()` を判定し、既定（環境変数未設定）では有効です。
 - 有効時は `run_wasm_stage` が次を順に実行します。
   1. `expected_wasm_bindgen_version`: `Cargo.lock` から解決済み
@@ -71,7 +71,7 @@ TASK-10.3a の設計は「ゼロから WASM ビルドを Docker に組み込む�
   2. `installed_wasm_bindgen_cli_version`: `wasm-bindgen --version` を実行し
      CLI の実バージョンを取得する。
   3. 両者が不一致ならビルドを `panic!` で失敗させる（フェイルクローズ）。
-  4. `run_wasm_build`: ネスト `cargo build -p rws-wasm-full --target
+  4. `run_wasm_build`: ネスト `cargo build -p fandhe-frontend-wasm-full --target
      wasm32-unknown-unknown --release --target-dir target/wasm-dist` を
      `env_clear()` した最小環境（`PATH`/`HOME`/`CARGO_HOME`/`RUSTUP_HOME`/
      `RUSTUP_TOOLCHAIN` のみ引き継ぎ）で実行する。
@@ -89,7 +89,7 @@ TASK-10.3a の設計は「ゼロから WASM ビルドを Docker に組み込む�
   `rustup target add wasm32-unknown-unknown`・`wasm-bindgen-cli`
   （バージョン固定 + SHA256 検証付き、x86_64/aarch64 双方）を導入し、
   `ENV RWS_WASM_BUILD=0` によるオプトアウトを削除しました。
-- これにより `cargo build -p rws-dist-server` 実行時に `build.rs` の
+- これにより `cargo build -p fandhe-frontend-dist-server` 実行時に `build.rs` の
   WASM ビルドステージが実際に発火し、コンテナ内で生成された WASM 資産が
   `/static/wasm/*` として埋め込まれます。`Dockerfile` の
   `COPY static ./static` は手書きアセットのみを対象とする不変条件は
@@ -157,12 +157,12 @@ builder`）に、既存の musl ターゲット導入と同じ並びで次を追
      影響しない。
 3. 既存の `ENV RWS_WASM_BUILD=0` を削除する（既定値＝有効のまま
    `cargo build --release --locked --target "$(cat /musl_target)" -p
-   rws-dist-server` を実行し、ネスト WASM ビルドを発火させる）。
+   fandhe-frontend-dist-server` を実行し、ネスト WASM ビルドを発火させる）。
 
 この結果、既存の単一 `RUN cargo build ...` 行を変更せずに、その内部で
 `dist-server/build.rs` が WASM ビルドステージを実行する構成になります。
 `docs/design/wasm-build-integration.md` §7 が定義した「`cargo build -p
-rws-dist-server` 単一コマンドを Docker ビルドステージ内でそのまま実行する」
+fandhe-frontend-dist-server` 単一コマンドを Docker ビルドステージ内でそのまま実行する」
 という境界と完全に一致します。
 
 **aarch64 成果物が将来 GitHub Releases から欠落した場合のフォールバック**:
@@ -184,7 +184,7 @@ aarch64 ビルドホストでは `ENV RWS_WASM_BUILD=0`
 あります。
 
 **不採用理由**: `dist-server/build.rs`（TASK-10.2b）は、ネスト `cargo
-build -p rws-wasm-full --target wasm32-unknown-unknown` と `wasm-bindgen`
+build -p fandhe-frontend-wasm-full --target wasm32-unknown-unknown` と `wasm-bindgen`
 実行を**サーバービルドの内部プロセスとして**既に実装済みです。WASM
 専用ステージを分離すると、(a) その独立ステージの成果物を `build.rs` の
 埋め込みテーブルへ再度合流させる経路が別途必要になり `build.rs` の
@@ -213,8 +213,8 @@ WASM ビルド経路の 2 系統が並存し、`docs/design/wasm-build-integrati
 ## 4. CI 再現性の担保方式
 
 - **`--locked` による `Cargo.lock` 固定**: 現行 `RUN cargo build --release
-  --locked --target ... -p rws-dist-server` を変更せず維持します。ネスト
-  `cargo build -p rws-wasm-full`（`build.rs` 内部）も同一ワークスペースの
+  --locked --target ... -p fandhe-frontend-dist-server` を変更せず維持します。ネスト
+  `cargo build -p fandhe-frontend-wasm-full`（`build.rs` 内部）も同一ワークスペースの
   `Cargo.lock` を参照するため、`--locked` の効果は WASM ビルドにも及びます。
 - **ベースイメージ digest 固定**: 現行 `FROM rust:1.96-slim-bookworm@sha256:...`
   を維持します（本タスクでの変更なし）。
@@ -251,7 +251,7 @@ WASM ビルド経路の 2 系統が並存し、`docs/design/wasm-build-integrati
   Cargo.toml Cargo.lock ./` より前**に配置し、ソースコード変更のたびに
   ツールチェーン導入をやり直さない構成とします。
 - **ビルド時間への影響**: builder ステージ内でネスト `cargo build -p
-  rws-wasm-full --target wasm32-unknown-unknown --release` が追加実行される
+  fandhe-frontend-wasm-full --target wasm32-unknown-unknown --release` が追加実行される
   ため、Docker イメージビルド全体の所要時間が増加します。実測は
   TASK-10.3c（#117）のスコープとし、本書では見積りを行いません。
 - **`image-size.yml` のトリガー paths（実装済み）**: `.github/workflows/

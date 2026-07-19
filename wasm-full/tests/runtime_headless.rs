@@ -1,7 +1,7 @@
-//! `rws_wasm_full::dispatch_and_render_headless` の native（rlib）統合テスト
+//! `fandhe_frontend_wasm_full::dispatch_and_render_headless` の native（rlib）統合テスト
 //! （TASK-11.2d・#77）。
 //!
-//! [`rws_wasm_full::dispatch_and_render_headless`] は DOM・`wasm-bindgen` に
+//! [`fandhe_frontend_wasm_full::dispatch_and_render_headless`] は DOM・`wasm-bindgen` に
 //! 依存しない DOM 非依存のヘッドレス補助 API（`docs/design/wasm-full-architecture.md`
 //! 第 3.2 節）であり、native `cargo test` から wasm32 ターゲット・実 DOM を
 //! 介さずに「dispatch 後の状態」を検証できる。
@@ -12,9 +12,9 @@
 //! 検証できない（`wasm-full/tests/runtime_browser.rs` の実ブラウザ統合テストへ
 //! 委ねる）。本ファイルはヘッドレス経路（状態遷移・XSS 回帰）のみを扱う。
 
-use rws_core::render;
-use rws_interactive::AppState;
-use rws_wasm_full::dispatch_and_render_headless;
+use fandhe_frontend_core::render;
+use fandhe_frontend_interactive::AppState;
+use fandhe_frontend_wasm_full::dispatch_and_render_headless;
 
 /// dispatch 後の状態遷移が `Node` 木へ反映されること（`docs/design/wasm-full-architecture.md`
 /// 第 3.2 節の `dispatch_and_render_headless` 契約）。
@@ -35,7 +35,7 @@ fn dispatch_and_render_headless_reflects_state_after_dispatch() {
     assert!(render(&node).contains(r#"data-bind-text="counter">1</span>"#));
 }
 
-/// 未知アクションの安全側 no-op（`rws_interactive::dispatch` の不変条件 4）:
+/// 未知アクションの安全側 no-op（`fandhe_frontend_interactive::dispatch` の不変条件 4）:
 /// 状態を変更せず、その時点の描画を返す。
 #[test]
 fn dispatch_and_render_headless_is_noop_for_unknown_action() {
@@ -56,7 +56,7 @@ fn dispatch_and_render_headless_is_noop_for_unknown_action() {
 
 /// REQ-1 回帰: `dispatch_and_render_headless` 経由でも既定エスケープが
 /// 効いていること（`Runtime::mount`/`hydrate` の内部で使う `dom::paint` とは
-/// 別経路だが、`rws_core::render` を通す点は共通の不変条件）。
+/// 別経路だが、`fandhe_frontend_core::render` を通す点は共通の不変条件）。
 #[test]
 fn dispatch_and_render_headless_escapes_xss_payload() {
     let mut state = AppState::new();

@@ -60,6 +60,86 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
+name = "fandhe-frontend-app"
+version = "0.1.0"
+dependencies = [
+ "fandhe-frontend-core",
+]
+
+[[package]]
+name = "fandhe-frontend-cli"
+version = "0.1.0"
+
+[[package]]
+name = "fandhe-frontend-core"
+version = "0.1.0"
+
+[[package]]
+name = "fandhe-frontend-dist-server"
+version = "0.1.0"
+dependencies = [
+ "fandhe-frontend-app",
+ "fandhe-frontend-core",
+ "fandhe-frontend-server",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "tokio",
+]
+
+[[package]]
+name = "fandhe-frontend-interactive"
+version = "0.1.0"
+dependencies = [
+ "fandhe-frontend-core",
+]
+
+[[package]]
+name = "fandhe-frontend-server"
+version = "0.1.0"
+dependencies = [
+ "fandhe-frontend-app",
+ "fandhe-frontend-core",
+]
+
+[[package]]
+name = "fandhe-frontend-wasm-client"
+version = "0.1.0"
+dependencies = [
+ "fandhe-frontend-app",
+ "fandhe-frontend-core",
+ "fandhe-frontend-interactive",
+ "fandhe-frontend-server",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "fandhe-frontend-wasm-full"
+version = "0.1.0"
+dependencies = [
+ "fandhe-frontend-app",
+ "fandhe-frontend-core",
+ "fandhe-frontend-interactive",
+ "fandhe-frontend-wasm-client",
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+ "web-sys",
+]
+
+[[package]]
+name = "fandhe-frontend-wasm-thin"
+version = "0.1.0"
+dependencies = [
+ "fandhe-frontend-core",
+ "fandhe-frontend-interactive",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "find-msvc-tools"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -293,86 +373,6 @@ name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
-
-[[package]]
-name = "rws-app"
-version = "0.1.0"
-dependencies = [
- "rws-core",
-]
-
-[[package]]
-name = "rws-cli"
-version = "0.1.0"
-
-[[package]]
-name = "rws-core"
-version = "0.1.0"
-
-[[package]]
-name = "rws-dist-server"
-version = "0.1.0"
-dependencies = [
- "http-body-util",
- "hyper",
- "hyper-util",
- "rws-app",
- "rws-core",
- "rws-server",
- "tokio",
-]
-
-[[package]]
-name = "rws-interactive"
-version = "0.1.0"
-dependencies = [
- "rws-core",
-]
-
-[[package]]
-name = "rws-server"
-version = "0.1.0"
-dependencies = [
- "rws-app",
- "rws-core",
-]
-
-[[package]]
-name = "rws-wasm-client"
-version = "0.1.0"
-dependencies = [
- "rws-app",
- "rws-core",
- "rws-interactive",
- "rws-server",
- "wasm-bindgen",
- "wasm-bindgen-test",
- "web-sys",
-]
-
-[[package]]
-name = "rws-wasm-full"
-version = "0.1.0"
-dependencies = [
- "js-sys",
- "rws-app",
- "rws-core",
- "rws-interactive",
- "rws-wasm-client",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-bindgen-test",
- "web-sys",
-]
-
-[[package]]
-name = "rws-wasm-thin"
-version = "0.1.0"
-dependencies = [
- "rws-core",
- "rws-interactive",
- "wasm-bindgen",
-]
 
 [[package]]
 name = "same-file"

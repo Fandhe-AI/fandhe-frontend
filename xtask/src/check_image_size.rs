@@ -159,7 +159,7 @@ mod tests {
 
     fn measurement(size_bytes: u64) -> ImageSizeMeasurement {
         ImageSizeMeasurement {
-            image: "rws-dist-server:ci".to_string(),
+            image: "fandhe-frontend-dist-server:ci".to_string(),
             size_bytes,
         }
     }
@@ -195,7 +195,7 @@ mod tests {
         let report = format_report(&judge(m, REQ9_IMAGE_SIZE_LIMIT_BYTES));
         assert_eq!(
             report,
-            "image-size: image=rws-dist-server:ci size_bytes=2190000/50000000 size_mb=2.19 result=PASS\n"
+            "image-size: image=fandhe-frontend-dist-server:ci size_bytes=2190000/50000000 size_mb=2.19 result=PASS\n"
         );
     }
 
@@ -205,7 +205,7 @@ mod tests {
         let report = format_report(&judge(m, REQ9_IMAGE_SIZE_LIMIT_BYTES));
         assert_eq!(
             report,
-            "image-size: image=rws-dist-server:ci size_bytes=60000000/50000000 size_mb=60.00 result=FAIL\n"
+            "image-size: image=fandhe-frontend-dist-server:ci size_bytes=60000000/50000000 size_mb=60.00 result=FAIL\n"
         );
     }
 
@@ -214,7 +214,7 @@ mod tests {
         // 存在しないイメージ名は `docker image inspect` が非ゼロ終了する
         // （もしくは docker 自体が未インストールなら Spawn エラー）ため、
         // いずれの経路でも Err を返し fail-closed であることを確認する。
-        let result = measure("rws-image-size-test-does-not-exist:__missing__");
+        let result = measure("fandhe-frontend-image-size-test-does-not-exist:__missing__");
         assert!(result.is_err());
     }
 }

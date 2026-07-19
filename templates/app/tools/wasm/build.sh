@@ -3,9 +3,9 @@
 #
 # 役割: `templates/app/wasm`（独立ワークスペース、glue クレート `app-csr-wasm`）
 # を wasm32-unknown-unknown へビルドし、wasm-bindgen CLI で
-# `static/wasm/rws_wasm_client.js` / `rws_wasm_client_bg.wasm` を生成する。
-# `static/embed.html` の `import ... from "./wasm/rws_wasm_client.js"`
-# （無改変）と整合させるため `--out-name rws_wasm_client` を固定する。
+# `static/wasm/fandhe_frontend_wasm_client.js` / `fandhe_frontend_wasm_client_bg.wasm` を生成する。
+# `static/embed.html` の `import ... from "./wasm/fandhe_frontend_wasm_client.js"`
+# （無改変）と整合させるため `--out-name fandhe_frontend_wasm_client` を固定する。
 #
 # 前提（fail-closed。黙示的にスキップしない、`.claude/rules/ci.md`）:
 #   - rustup ターゲット wasm32-unknown-unknown が追加済みであること
@@ -96,6 +96,6 @@ fi
 
 # --- (d) wasm-bindgen 後処理 ---
 mkdir -p "${out_dir}"
-wasm-bindgen --target web --out-dir "${out_dir}" --out-name rws_wasm_client "${wasm_artifact}"
+wasm-bindgen --target web --out-dir "${out_dir}" --out-name fandhe_frontend_wasm_client "${wasm_artifact}"
 
-echo "wasm build complete: ${out_dir}/rws_wasm_client.js, ${out_dir}/rws_wasm_client_bg.wasm"
+echo "wasm build complete: ${out_dir}/fandhe_frontend_wasm_client.js, ${out_dir}/fandhe_frontend_wasm_client_bg.wasm"

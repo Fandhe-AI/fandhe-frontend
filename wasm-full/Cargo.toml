@@ -1,16 +1,16 @@
 [package]
-name = "rws-wasm-full"
+name = "fandhe-frontend-wasm-full"
 version = "0.1.0"
 edition = "2021"
-description = "rws-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
+description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
 publish = false
 
 # TASK-11.2b（#75）でイベント処理（events モジュール）・wasm-bindgen/web-sys
 # 依存を追加。TASK-11.2c（#76）は #75 マージ後の rebase により、DOM 非依存の
-# 純粋関数 `render_component_html`（dom モジュール、rws-core::render 呼び出し）を
+# 純粋関数 `render_component_html`（dom モジュール、fandhe-frontend-core::render 呼び出し）を
 # 追加する。dom モジュールは lib.rs（本クレートの公開面）から呼ばれるため
-# rws-core は通常の [dependencies] とする（rws-interactive 経由で既に依存グラフに
+# fandhe-frontend-core は通常の [dependencies] とする（fandhe-frontend-interactive 経由で既に依存グラフに
 # 含まれており、REQ-3 依存上限には影響しない）。TASK-11.2d（#77）で
 # `Runtime<C>`（lib.rs）・`dom::paint`・`entry` モジュールを追加したが、新規
 # クレート追加は行っていない（既存 wasm-bindgen/web-sys のみで完結、
@@ -31,16 +31,16 @@ publish = false
 # `cargo metadata` 実測（パッケージ数・依存グラフ深さ）に変化がないことを確認済み
 # （PR 本文に記録）。
 # TASK-CSR-loader（#349）: `csr` モジュール（CSR 経路の loader 解決）が
-# `rws_app::Loader` / `assemble_list_page` / `assemble_detail_page` を
-# 型接続に使うため `rws-app` を追加。`rws-app` は外部依存ゼロの
-# workspace path 依存（`core/Cargo.toml` と同じく `rws_core` のみに依存する
+# `fandhe_frontend_app::Loader` / `assemble_list_page` / `assemble_detail_page` を
+# 型接続に使うため `fandhe-frontend-app` を追加。`fandhe-frontend-app` は外部依存ゼロの
+# workspace path 依存（`core/Cargo.toml` と同じく `fandhe_frontend_core` のみに依存する
 # コンポーネントロジック層）であり、新規クレート追加ではないため
 # `cargo metadata` 実測（パッケージ数・依存グラフ深さ）に変化がないことを
 # PR 本文に記録する（`.claude/rules/coding-rust.md` の事前承認要件は
 # `docs/design/loader-trait-design.md` §3.1 が「CSR（wasm-full）が Loader を
-# 参照する」ことを想定し `rws-app` 配置を選んでいる時点で承認整理済み）。
+# 参照する」ことを想定し `fandhe-frontend-app` 配置を選んでいる時点で承認整理済み）。
 # イシュー #345（set_inner_html 全置換を束縛点更新 + keyed list へ置換）:
-# `rws-wasm-client`（`BindingTable`/`keyed_diff`/`keyed_dom`、#343/#344）を
+# `fandhe-frontend-wasm-client`（`BindingTable`/`keyed_diff`/`keyed_dom`、#343/#344）を
 # rlib 経由で消費するため追加する。`wasm-client/src/binding_dom.rs` 冒頭 doc
 # が「#345 が rlib 経由で消費できる公開 API として設計」と明記済みであり、
 # 承認整理済みの方向（`docs/design/dom-binding-update-design.md` §3.2a）。
@@ -58,16 +58,16 @@ publish = false
 # set_scroll_restoration` の引数型）を追加する。`cargo metadata` 実測
 # （パッケージ数・依存グラフ深さ）に変化がないことを PR 本文に記録する。
 [dependencies]
-rws-app = { path = "../app" }
-rws-core = { path = "../core" }
-rws-interactive = { path = "../interactive" }
+fandhe-frontend-app = { path = "../app" }
+fandhe-frontend-core = { path = "../core" }
+fandhe-frontend-interactive = { path = "../interactive" }
 # `default-features = false`: 本クレート独自の `wasm_bindgen` エクスポート
-# （`entry.rs` の `hydrate`/`mount`）と `rws-wasm-client` の REQ-6 デモ用
+# （`entry.rs` の `hydrate`/`mount`）と `fandhe-frontend-wasm-client` の REQ-6 デモ用
 # エクスポート（`hydrate`/`mount_csr`）とのシンボル重複（wasm-bindgen の
 # "describe" シンボルはクレート非依存の関数名ベース）を避けるため、
 # `wasm-client` 側の `wasm-bindgen-exports` feature を無効化する
 # （`wasm-client/Cargo.toml`・`wasm-client/src/lib.rs` の `wiring` doc 参照）。
-rws-wasm-client = { path = "../wasm-client", default-features = false }
+fandhe-frontend-wasm-client = { path = "../wasm-client", default-features = false }
 wasm-bindgen = "0.2"
 
 [dependencies.web-sys]

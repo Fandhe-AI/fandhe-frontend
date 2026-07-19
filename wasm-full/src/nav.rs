@@ -3,12 +3,12 @@
 //!
 //! # 位置付け・呼び出し文脈
 //!
-//! `rws-wasm-full` は `rws-server`（`server/src/ssr.rs`）へ依存できない
+//! `fandhe-frontend-wasm-full` は `fandhe-frontend-server`（`server/src/ssr.rs`）へ依存できない
 //! （`structure.toml` の `server.allowed_dependents = ["dist-server"]`）ため、
-//! クライアント側のルート解決は `rws-server` を経由しない。イシュー #407 で
-//! `rws-app`（`server`・`wasm-full` 双方から依存可能な唯一の層）へルート定義
+//! クライアント側のルート解決は `fandhe-frontend-server` を経由しない。イシュー #407 で
+//! `fandhe-frontend-app`（`server`・`wasm-full` 双方から依存可能な唯一の層）へルート定義
 //! （パターン・マッチングエンジン・ページタイトル）を単一化したため、本
-//! モジュールは [`rws_app::routes::resolve`] / [`rws_app::routes::title`] を
+//! モジュールは [`fandhe_frontend_app::routes::resolve`] / [`fandhe_frontend_app::routes::title`] を
 //! そのまま呼ぶ（`server/src/ssr.rs` と同じ関数を共有し、パターンリテラル・
 //! タイトルリテラル・マッチング意味論のいずれも本ファイルで再定義しない）。
 //! `wasm-full/tests/route_shared_static.rs`（静的ソース走査、
@@ -31,14 +31,14 @@
 //!
 //! # セキュリティ不変条件
 //!
-//! - 遷移描画は [`rws_wasm_client::build_dom_node`]（`createElement`/
+//! - 遷移描画は [`fandhe_frontend_wasm_client::build_dom_node`]（`createElement`/
 //!   `createTextNode`/`set_attribute` のみ）で行い、`set_inner_html` を
 //!   一切呼ばない（受け入れ条件 2、#345 の不変条件の継承）。
 //! - インターセプト対象は「`/` 始まりかつ `//` 非始まり・ルート表に一致する」
 //!   相対パスのみに構造的に限定する。一致しない値・修飾キー付きクリック・
 //!   左クリック以外はブラウザ既定動作に委ねる（オープンリダイレクト対策）。
 //! - history state には固定形式のスクロール座標レコード（[`encode_scroll_state`]
-//!   が生成する `"rws-scroll:{x},{y}"` 文字列）のみを格納する（イシュー #406、
+//!   が生成する `"fandhe-frontend-scroll:{x},{y}"` 文字列）のみを格納する（イシュー #406、
 //!   従来の「何も格納しない」不変条件を限定緩和）。`push_state` に渡す state は
 //!   従来どおり `JsValue::NULL` のまま（新規履歴エントリは URL のみを状態の
 //!   正とする）で、離脱元エントリへ `replace_state` でスクロール位置を書き戻す
@@ -66,10 +66,10 @@
 //!   ため、無制限リークにはならない（`docs/design/wasm-full-architecture.md`
 //!   第 4 節・判断 10）。
 //! - 遷移後の `data-hydrate` 要素へのイベント再配線（イシュー #403）は
-//!   [`rws_wasm_client::wire_hydrate_targets`] の呼び出しに限定する。同関数は
+//!   [`fandhe_frontend_wasm_client::wire_hydrate_targets`] の呼び出しに限定する。同関数は
 //!   `add_event_listener_with_callback` の後付けのみを行い `set_inner_html`
-//!   等の再構築系 API を呼ばない（`rws-wasm-client` 側の不変条件を継承）。
-//!   クロージャの寿命は `rws-wasm-client::registry` が root 要素の `id` 単位
+//!   等の再構築系 API を呼ばない（`fandhe-frontend-wasm-client` 側の不変条件を継承）。
+//!   クロージャの寿命は `fandhe-frontend-wasm-client::registry` が root 要素の `id` 単位
 //!   で管理し、再配線のたびに旧ハンドルを解除してから差し替えるため、上記
 //!   「`forget` は起動時定数回」の不変条件（`click`/`popstate` の 2 回）とは
 //!   独立に、遷移ごとの再配線が無制限リークを生まない（`registry::replace_handles`
@@ -91,11 +91,11 @@
 //! 実行する（graceful degradation、失敗時も描画は必ず完了する）。
 
 use crate::csr::{resolve_detail_node, resolve_list_node};
-use rws_app::routes::{resolve as resolve_route, title as route_title, AppRoute};
-use rws_app::{Item, Loader};
-use rws_core::Node;
+use fandhe_frontend_app::routes::{resolve as resolve_route, title as route_title, AppRoute};
+use fandhe_frontend_app::{Item, Loader};
+use fandhe_frontend_core::Node;
 
-/// クライアント側で解決したルート。`rws_app::routes::ResolvedRoute`
+/// クライアント側で解決したルート。`fandhe_frontend_app::routes::ResolvedRoute`
 /// （イシュー #407 の単一定義）を [`resolve_path`] がクライアント側の呼び出し
 /// 形へ変換した表現であり、パターン・意味論は再定義しない。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -108,7 +108,7 @@ pub enum ClientRoute {
 
 /// パスをルートへ解決する（DOM 非依存の純粋関数）。
 ///
-/// マッチング本体は [`rws_app::routes::resolve`]（`rws_app::router::Router`
+/// マッチング本体は [`fandhe_frontend_app::routes::resolve`]（`fandhe_frontend_app::router::Router`
 /// 経由、`docs/api/router-path-matching.md` v1 仕様準拠）に委譲する。
 /// 一致しないパスは `None`（呼び出し側はブラウザ既定遷移に委ねる、
 /// 安全側フォールバック）。
@@ -116,7 +116,7 @@ pub fn resolve_path(path: &str) -> Option<ClientRoute> {
     let resolved = resolve_route(path)?;
     match resolved.route {
         AppRoute::List => Some(ClientRoute::List),
-        // `AppRoute::Detail` は `rws_app::routes::resolve` の契約上、常に
+        // `AppRoute::Detail` は `fandhe_frontend_app::routes::resolve` の契約上、常に
         // `id` を捕捉して返す（`resolved.id` が `None` になるのは `List`
         // 側のみ）。万一 `None` の場合でも `unwrap_or_default` で空文字列に
         // フォールバックし、panic しない（ライブラリコードの規約継承）。
@@ -130,11 +130,11 @@ pub fn resolve_path(path: &str) -> Option<ClientRoute> {
 ///
 /// - `List`: `list_loader` を解決し `resolve_list_node`（内部で `Err` を
 ///   [`crate::csr::loader_error_view`] へ変換、fail-closed）を呼ぶ。タイトルは
-///   [`rws_app::routes::title`]（単一定義、イシュー #407）を使う。
+///   [`fandhe_frontend_app::routes::title`]（単一定義、イシュー #407）を使う。
 /// - `Detail`: `detail_loader` を解決し `resolve_detail_node` を呼ぶ。未知の
 ///   `id`（`Ok(None)`）も `Err` もいずれもタイトルは変わらない
 ///   （`page_shell` へ渡すタイトルは `Ok`/`Err`/`None` のいずれでも
-///   `respond_with` と同じ [`rws_app::routes::title`] の値と一致させる。
+///   `respond_with` と同じ [`fandhe_frontend_app::routes::title`] の値と一致させる。
 ///   ページ内の見出し文言 "見つかりません" とは独立した `<title>` 相当の値
 ///   である）。
 pub fn resolve_route_view_with<L, D>(
@@ -157,12 +157,12 @@ where
 
 /// history state に格納するスクロール座標レコードの固定プレフィックス
 /// （[`encode_scroll_state`]/[`decode_scroll_state`] が共有する契約）。
-const SCROLL_STATE_PREFIX: &str = "rws-scroll:";
+const SCROLL_STATE_PREFIX: &str = "fandhe-frontend-scroll:";
 
 /// スクロール座標 `(x, y)` を history state 用の固定形式文字列へ変換する
 /// （イシュー #406）。DOM 非依存の純粋関数（native テスト可能）。
 ///
-/// 形式: `"rws-scroll:{x},{y}"`。読み取り側は [`decode_scroll_state`] で
+/// 形式: `"fandhe-frontend-scroll:{x},{y}"`。読み取り側は [`decode_scroll_state`] で
 /// 厳格検証してから使うため、ここでは値の妥当性チェックは行わない
 /// （呼び出し元の [`mod wiring`] が `window.scroll_x()`/`scroll_y()` の
 /// 実測値のみを渡す前提）。
@@ -201,7 +201,7 @@ mod wiring {
         decode_scroll_state, encode_scroll_state, resolve_path, resolve_route_view_with,
         ClientRoute,
     };
-    use rws_app::{DemoItemDetailLoader, DemoItemsLoader};
+    use fandhe_frontend_app::{DemoItemDetailLoader, DemoItemsLoader};
     use std::cell::RefCell;
     use std::collections::HashSet;
     use wasm_bindgen::closure::Closure;
@@ -320,7 +320,7 @@ mod wiring {
             // 終わった場合の同期フォールバック（警告ログのみ、内部状態は
             // 含めない不変条件 6）。
             web_sys::console::warn_1(
-                &"rws-wasm-full: document.startViewTransition threw, view transition skipped"
+                &"fandhe-frontend-wasm-full: document.startViewTransition threw, view transition skipped"
                     .into(),
             );
             let _ = err;
@@ -338,8 +338,8 @@ mod wiring {
         value.starts_with('/') && !value.starts_with("//")
     }
 
-    /// `route` を解決し、`root_id`（`rws_app::layout` が組み立てる
-    /// `<div id="app-root" data-rws="root">` 相当の要素の id。呼び出し元は
+    /// `route` を解決し、`root_id`（`fandhe_frontend_app::layout` が組み立てる
+    /// `<div id="app-root" data-fandhe-frontend="root">` 相当の要素の id。呼び出し元は
     /// `root_id = "app-root"` を渡す想定）の子要素を loader 解決済みノードで
     /// 差し替えて `document.title` を更新する（受け入れ条件 2: 束縛点更新/
     /// keyed list ではなくサブツリー差し替えだが、`set_inner_html` は使わない）。
@@ -360,11 +360,11 @@ mod wiring {
     /// 場合に備え明示的に再解決する。要素が消えていた場合は no-op、panic
     /// しない）。
     ///
-    /// 描画は [`rws_wasm_client::build_dom_node`]（`createElement`/
+    /// 描画は [`fandhe_frontend_wasm_client::build_dom_node`]（`createElement`/
     /// `createTextNode`/`set_attribute` のみ）経由で `resolve_route_view_with`
     /// が返す `Node`（`layout()` の出力＝`<div id="app-root">...</div>`
     /// 相当）を丸ごと新規構築し、その**子要素のみ**を `root` へ移し替える
-    /// （`root` の属性（`id`/`data-rws`）はナビゲーション間で不変のため
+    /// （`root` の属性（`id`/`data-fandhe-frontend`）はナビゲーション間で不変のため
     /// コピー不要）。既定 loader（`DemoItemsLoader`/`DemoItemDetailLoader`、
     /// `server/src/ssr.rs::respond` と同じ既定）を使う。
     ///
@@ -379,7 +379,7 @@ mod wiring {
         route: &ClientRoute,
     ) -> Option<(&'static str, web_sys::Node)> {
         let (title, node) = resolve_route_view_with(&DemoItemsLoader, &DemoItemDetailLoader, route);
-        let new_dom_node = rws_wasm_client::build_dom_node(document, &node)?;
+        let new_dom_node = fandhe_frontend_wasm_client::build_dom_node(document, &node)?;
         Some((title, new_dom_node))
     }
 
@@ -425,7 +425,7 @@ mod wiring {
                 // 出してから no-op で終える（内部状態を含めない不変条件 6、
                 // 遷移自体を止めない fail-safe 方針は維持）。
                 web_sys::console::warn_1(
-                    &"rws-wasm-full: nav apply_render_with_post could not find root element, \
+                    &"fandhe-frontend-wasm-full: nav apply_render_with_post could not find root element, \
                       URL already updated but DOM was not"
                         .into(),
                 );
@@ -441,17 +441,18 @@ mod wiring {
 
             // イシュー #403: 差し替えた子要素は build_dom_node による新規生成
             // ノードであり、イベントリスナーが一切付いていない
-            // （`rws-wasm-client::wiring::hydrate` が担う初期表示ページの配線とは
+            // （`fandhe-frontend-wasm-client::wiring::hydrate` が担う初期表示ページの配線とは
             // 別経路）。registry キーは root 要素の `id`（実運用 `app-root`）とし、
             // wasm-client デモ側（別 wasm インスタンス・別 registry、キー `app`）
             // とは衝突しない。対象 0 件（`detail_page(None)`/`loader_error_view`
             // 等）のページへの遷移では空集合で差し替わる（旧リスナー解除のみ）。
-            if let Err(_err) = rws_wasm_client::wire_hydrate_targets(&root.id(), &root) {
+            if let Err(_err) = fandhe_frontend_wasm_client::wire_hydrate_targets(&root.id(), &root)
+            {
                 // fail-safe: 再配線に失敗しても遷移自体（DOM 差し替え・URL・
                 // タイトル更新）は既に成立させているため、ここでは継続する
                 // （内部状態を含まない固定英語文言、不変条件 6 の継承）。
                 web_sys::console::warn_1(
-                    &"rws-wasm-full: nav render_route failed to wire data-hydrate targets".into(),
+                    &"fandhe-frontend-wasm-full: nav render_route failed to wire data-hydrate targets".into(),
                 );
             }
             post_apply();
@@ -475,7 +476,8 @@ mod wiring {
         let Some((title, new_dom_node)) = prepare_render(document, route) else {
             // 現在の DOM を維持したまま no-op（panic しない）。
             web_sys::console::warn_1(
-                &"rws-wasm-full: nav render_route failed to build replacement DOM node".into(),
+                &"fandhe-frontend-wasm-full: nav render_route failed to build replacement DOM node"
+                    .into(),
             );
             return;
         };
@@ -594,7 +596,7 @@ mod wiring {
         };
         let Some((title, new_dom_node)) = prepare_render(document, &route) else {
             web_sys::console::warn_1(
-                &"rws-wasm-full: nav push_and_render failed to build replacement DOM node, URL not updated"
+                &"fandhe-frontend-wasm-full: nav push_and_render failed to build replacement DOM node, URL not updated"
                     .into(),
             );
             return;
@@ -897,26 +899,29 @@ mod tests {
     #[test]
     fn decode_scroll_state_rejects_prefix_mismatch() {
         assert_eq!(decode_scroll_state("0,500"), None);
-        assert_eq!(decode_scroll_state("rws-scroll-x:0,500"), None);
+        assert_eq!(decode_scroll_state("fandhe-frontend-scroll-x:0,500"), None);
     }
 
     #[test]
     fn decode_scroll_state_rejects_non_numeric_values() {
-        assert_eq!(decode_scroll_state("rws-scroll:abc,500"), None);
-        assert_eq!(decode_scroll_state("rws-scroll:0,xyz"), None);
+        assert_eq!(decode_scroll_state("fandhe-frontend-scroll:abc,500"), None);
+        assert_eq!(decode_scroll_state("fandhe-frontend-scroll:0,xyz"), None);
     }
 
     #[test]
     fn decode_scroll_state_rejects_non_finite_values() {
-        assert_eq!(decode_scroll_state("rws-scroll:NaN,500"), None);
-        assert_eq!(decode_scroll_state("rws-scroll:0,inf"), None);
-        assert_eq!(decode_scroll_state("rws-scroll:0,infinity"), None);
+        assert_eq!(decode_scroll_state("fandhe-frontend-scroll:NaN,500"), None);
+        assert_eq!(decode_scroll_state("fandhe-frontend-scroll:0,inf"), None);
+        assert_eq!(
+            decode_scroll_state("fandhe-frontend-scroll:0,infinity"),
+            None
+        );
     }
 
     #[test]
     fn decode_scroll_state_rejects_negative_values() {
-        assert_eq!(decode_scroll_state("rws-scroll:-1,500"), None);
-        assert_eq!(decode_scroll_state("rws-scroll:0,-1"), None);
+        assert_eq!(decode_scroll_state("fandhe-frontend-scroll:-1,500"), None);
+        assert_eq!(decode_scroll_state("fandhe-frontend-scroll:0,-1"), None);
     }
 
     #[test]
@@ -925,11 +930,11 @@ mod tests {
         // 紛れ込んでも復号は必ず失敗し、DOM/HTML へ流入する経路を持たない
         // ことを直接確認する。
         assert_eq!(
-            decode_scroll_state("rws-scroll:<script>alert(1)</script>,0"),
+            decode_scroll_state("fandhe-frontend-scroll:<script>alert(1)</script>,0"),
             None
         );
         assert_eq!(decode_scroll_state(""), None);
-        assert_eq!(decode_scroll_state("rws-scroll:"), None);
-        assert_eq!(decode_scroll_state("rws-scroll:0"), None);
+        assert_eq!(decode_scroll_state("fandhe-frontend-scroll:"), None);
+        assert_eq!(decode_scroll_state("fandhe-frontend-scroll:0"), None);
     }
 }

@@ -5,7 +5,7 @@
 //! `cli/src/gate.rs` の単体テスト・`gate_integration.rs` はテキスト走査
 //! （保険層）の振る舞いのみを検証しており、主防御（コンパイラのパス解決に
 //! 基づく clippy 検出）そのものが機能することは証明しない。本ファイルは
-//! `rws-core` へ path 依存する最小フィクスチャクレートを一時ディレクトリに
+//! `fandhe-frontend-core` へ path 依存する最小フィクスチャクレートを一時ディレクトリに
 //! 生成し、`cargo clippy -- -D warnings` を実プロセスとして起動して検証する
 //! （ネットワーク非依存・独立 `[workspace]`、`docs/design/raw-html-lint-design.md`
 //! §2 の採用方式 B の受け入れ条件 1「コメント偽装で回避不能」の直接証跡）。
@@ -16,9 +16,9 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// `cli/` から見た `core/`（`rws-core`）への絶対パス。フィクスチャの
+/// `cli/` から見た `core/`（`fandhe-frontend-core`）への絶対パス。フィクスチャの
 /// `Cargo.toml` はこの絶対パスへ `path` 依存することで、ネットワーク取得や
-/// レジストリ解決を伴わずに `rws_core::raw_html` を参照できるようにする。
+/// レジストリ解決を伴わずに `fandhe_frontend_core::raw_html` を参照できるようにする。
 fn core_crate_path() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -42,20 +42,20 @@ fn tempdir_for_test(label: &str) -> PathBuf {
 }
 
 /// workspace ルートの `clippy.toml` と同一のポリシー（`disallowed-methods` に
-/// `rws_core::raw_html` を宣言）をフィクスチャへ複製する。実運用の設定と
+/// `fandhe_frontend_core::raw_html` を宣言）をフィクスチャへ複製する。実運用の設定と
 /// 乖離しないよう、内容はハードコードせず契約（キー名・対象パス）のみ固定する。
 const CLIPPY_TOML: &str = r#"disallowed-methods = [
-    { path = "rws_core::raw_html", reason = "ESCAPE-REVIEWED review required" },
+    { path = "fandhe_frontend_core::raw_html", reason = "ESCAPE-REVIEWED review required" },
 ]
 "#;
 
-/// `rws-core` への path 依存を持つ独立 `[workspace]` の最小フィクスチャクレートを
+/// `fandhe-frontend-core` への path 依存を持つ独立 `[workspace]` の最小フィクスチャクレートを
 /// 構築し、`lib.rs` の内容を `lib_rs_content` で差し替える。
 fn write_fixture_crate(dir: &Path, lib_rs_content: &str) {
     std::fs::write(
         dir.join("Cargo.toml"),
         format!(
-            "[package]\nname = \"raw-html-lint-fixture\"\nversion = \"0.1.0\"\nedition = \"2021\"\npublish = false\n\n[dependencies]\nrws-core = {{ path = {:?} }}\n\n[workspace]\n",
+            "[package]\nname = \"raw-html-lint-fixture\"\nversion = \"0.1.0\"\nedition = \"2021\"\npublish = false\n\n[dependencies]\nfandhe-frontend-core = {{ path = {:?} }}\n\n[workspace]\n",
             core_crate_path()
         ),
     )
@@ -111,13 +111,13 @@ fn direct_unreviewed_call_is_rejected_by_clippy() {
     let dir = tempdir_for_test("raw-html-e2e-direct-call");
     write_fixture_crate(
         &dir,
-        "pub fn render(input: &str) -> String {\n    rws_core::raw_html(input.to_string());\n    String::new()\n}\n",
+        "pub fn render(input: &str) -> String {\n    fandhe_frontend_core::raw_html(input.to_string());\n    String::new()\n}\n",
     );
 
     let (success, output) = run_cargo_clippy_in(&dir);
     assert!(
         !success,
-        "unreviewed rws_core::raw_html() call must be rejected by clippy: output={output}"
+        "unreviewed fandhe_frontend_core::raw_html() call must be rejected by clippy: output={output}"
     );
     assert!(
         output.contains("disallowed_methods"),
@@ -136,7 +136,7 @@ fn comment_only_spoofed_marker_is_still_rejected_by_clippy() {
     let dir = tempdir_for_test("raw-html-e2e-comment-spoof");
     write_fixture_crate(
         &dir,
-        "pub fn render(input: &str) -> String {\n    // ESCAPE-REVIEWED: sanitized upstream\n    rws_core::raw_html(input.to_string());\n    String::new()\n}\n",
+        "pub fn render(input: &str) -> String {\n    // ESCAPE-REVIEWED: sanitized upstream\n    fandhe_frontend_core::raw_html(input.to_string());\n    String::new()\n}\n",
     );
 
     let (success, output) = run_cargo_clippy_in(&dir);
@@ -151,14 +151,14 @@ fn comment_only_spoofed_marker_is_still_rejected_by_clippy() {
 
 #[test]
 fn renamed_import_call_is_still_rejected_by_clippy() {
-    // clippy はコンパイラの HIR パス解決に基づき定義元 `rws_core::raw_html` を
+    // clippy はコンパイラの HIR パス解決に基づき定義元 `fandhe_frontend_core::raw_html` を
     // 特定するため、呼び出し側でリネームした import 経由の呼び出しも検出できる
     // ことの証跡（テキスト走査では `raw_html` という識別子文字列に依存する
     // ため見逃し得るケース）。
     let dir = tempdir_for_test("raw-html-e2e-renamed-import");
     write_fixture_crate(
         &dir,
-        "use rws_core::raw_html as fragment;\n\npub fn render(input: &str) -> String {\n    fragment(input.to_string());\n    String::new()\n}\n",
+        "use fandhe_frontend_core::raw_html as fragment;\n\npub fn render(input: &str) -> String {\n    fragment(input.to_string());\n    String::new()\n}\n",
     );
 
     let (success, output) = run_cargo_clippy_in(&dir);
@@ -179,7 +179,7 @@ fn reviewed_expect_attribute_call_is_accepted_by_clippy() {
     let dir = tempdir_for_test("raw-html-e2e-reviewed-expect");
     write_fixture_crate(
         &dir,
-        "pub fn render(input: &str) -> String {\n    #[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: trusted fixed fragment\")]\n    rws_core::raw_html(input.to_string());\n    String::new()\n}\n",
+        "pub fn render(input: &str) -> String {\n    #[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: trusted fixed fragment\")]\n    fandhe_frontend_core::raw_html(input.to_string());\n    String::new()\n}\n",
     );
 
     let (success, output) = run_cargo_clippy_in(&dir);

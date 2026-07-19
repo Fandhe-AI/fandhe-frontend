@@ -1,12 +1,12 @@
-# コンポーネント記述ガイド（`rws-core`）
+# コンポーネント記述ガイド（`fandhe-frontend-core`）
 
-`rws-core` は、コンポーネントをマクロ DSL（`view!`/`rsx!`/`html!` 相当）に依存させず、
+`fandhe-frontend-core` は、コンポーネントをマクロ DSL（`view!`/`rsx!`/`html!` 相当）に依存させず、
 通常の Rust の関数・enum・`Vec` だけでノード木を組み立てる「純 Rust 方式」を採用しています
 （REQ-5、`docs/spec/04-requirements.md` 参照）。
 
-このドキュメントは `rws-core` を使ってコンポーネントを書く利用者向けのチュートリアルと
+このドキュメントは `fandhe-frontend-core` を使ってコンポーネントを書く利用者向けのチュートリアルと
 API リファレンスです。各クレートの公開 API・不変条件そのものは `core/src/lib.rs` の
-rustdoc（`cargo doc -p rws-core --open`）を一次情報源とし、本ドキュメントはそこへの
+rustdoc（`cargo doc -p fandhe-frontend-core --open`）を一次情報源とし、本ドキュメントはそこへの
 導線とパターン集を提供します。
 
 > **対象バージョン**: 本ドキュメントは `core/src/lib.rs` の公開 API（`Node` / `el` /
@@ -22,7 +22,7 @@ rustdoc（`cargo doc -p rws-core --open`）を一次情報源とし、本ドキ�
 コスト・特定フレームワークへのロックインを生みます（PoC-1 が特定した差別化空白
 「D: 独自 DSL への依存」）。
 
-`rws-core` はこの空白に対して、**マクロを使わず、通常の Rust コードだけで HTML
+`fandhe-frontend-core` はこの空白に対して、**マクロを使わず、通常の Rust コードだけで HTML
 ノード木を組み立てる**方式を選びました（PoC-3 で実証・選定）。
 
 - コンポーネントは通常の Rust 関数であり、`props` は関数の引数、合成は関数呼び出し
@@ -30,7 +30,7 @@ rustdoc（`cargo doc -p rws-core --open`）を一次情報源とし、本ドキ�
 - 手続きマクロ（`proc-macro`）を経由しないため、コンパイルエラーはマクロ展開後の
   読みにくいコードではなく、通常の Rust の型エラーとしてそのまま表示されます
   （REQ-5 受け入れ基準）。
-- `rws-core` 自体が外部依存ゼロであることも、この方式を選んだ結果です
+- `fandhe-frontend-core` 自体が外部依存ゼロであることも、この方式を選んだ結果です
   （PoC-2 が明らかにした「マクロ DSL は依存グラフを押し上げる」という知見）。
 
 代わりに得られるものは「HTML との素直な 1:1 対応」です。ノード木の形がそのまま
@@ -42,7 +42,7 @@ rustdoc（`cargo doc -p rws-core --open`）を一次情報源とし、本ドキ�
 変換します。
 
 ```rust
-use rws_core::{el, text, render};
+use fandhe_frontend_core::{el, text, render};
 
 let greeting = el(
     "p",
@@ -60,13 +60,13 @@ assert_eq!(render(&greeting), r#"<p class="greeting">hello, world</p>"#);
 
 ## 3. コンポーネント = 通常の Rust 関数
 
-`rws-core` にコンポーネント専用の型やトレイトはありません。「`Node` を返す
+`fandhe-frontend-core` にコンポーネント専用の型やトレイトはありません。「`Node` を返す
 関数」がそのままコンポーネントです。
 
 ### 3.1 props は関数引数
 
 ```rust
-use rws_core::{el, text, render, Node};
+use fandhe_frontend_core::{el, text, render, Node};
 
 /// ユーザー名を表示するだけの最小コンポーネント。
 /// props（ここでは `name`）は普通の関数引数として受け取る。
@@ -86,7 +86,7 @@ assert_eq!(
 不要です。
 
 ```rust
-use rws_core::{el, text, render, Node};
+use fandhe_frontend_core::{el, text, render, Node};
 
 fn user_badge(name: &str) -> Node {
     el("span", vec![("class", "badge")], vec![text(name)])
@@ -114,7 +114,7 @@ assert_eq!(
 通常の `if` 式・`match` 式で `Node` を作り分けます。
 
 ```rust
-use rws_core::{el, text, render, Node};
+use fandhe_frontend_core::{el, text, render, Node};
 
 fn status_label(is_active: bool) -> Node {
     if is_active {
@@ -143,7 +143,7 @@ assert_eq!(
 します。`Node` に専用の `Empty`/`Fragment` バリアントは現時点ではありません。
 
 ```rust
-use rws_core::{el, text, render, Node};
+use fandhe_frontend_core::{el, text, render, Node};
 
 fn optional_note(note: Option<&str>) -> Vec<Node> {
     // note が None のときは空の Vec になり、children に何も追加されない。
@@ -198,7 +198,7 @@ REQ-1（既定エスケープ）の入口 API です。ユーザー由来の文�
 ノード木を HTML 文字列にレンダリングします。SSR（サーバーからのレスポンス
 送出）・SSG（ファイル書き出し）・CSR（ブラウザで `innerHTML` に設定）の
 いずれもこの関数を共通で使うモード非依存レンダラです。出力は既定エスケープ
-済みであることを呼び出し側の各層（`rws-server` 等）が前提とします。
+済みであることを呼び出し側の各層（`fandhe-frontend-server` 等）が前提とします。
 
 ### `fn escape_html(input: &str) -> String` / `fn escape_html_into(input: &str, out: &mut String)`
 
@@ -221,7 +221,7 @@ REQ-1（既定エスケープ）の入口 API です。ユーザー由来の文�
 （`escape.rs` rustdoc 参照）。「入力に応じて賢く二重エスケープを回避する」
 機能は意図的に持たないため、呼び出し側は「エスケープは 1 回だけ適用する」
 という契約を自分で守る必要があります。`text()`/`el()` 経由で使う限り、この
-契約は `rws-core` が自動的に満たします。
+契約は `fandhe-frontend-core` が自動的に満たします。
 
 ### タグショートカット（`core::tags` モジュール、Issue #164）
 
@@ -242,7 +242,7 @@ REQ-1（既定エスケープ）の入口 API です。ユーザー由来の文�
 | void 要素 | `img` / `br` / `hr`（`input` はフォーム分類にも記載） |
 
 ```rust
-use rws_core::{div, p, text, render};
+use fandhe_frontend_core::{div, p, text, render};
 
 let node = div(vec![("class", "card")], vec![p(vec![], vec![text("hello")])]);
 assert_eq!(render(&node), r#"<div class="card"><p>hello</p></div>"#);
@@ -263,7 +263,7 @@ assert_eq!(render(&node), r#"<div class="card"><p>hello</p></div>"#);
 
 ## 5. セキュリティ: 既定エスケープと `raw_html()` の扱い
 
-`rws-core` の中核的な不変条件（REQ-1）は次の 2 点です。
+`fandhe-frontend-core` の中核的な不変条件（REQ-1）は次の 2 点です。
 
 1. `Node::Text` の内容・`Node::Element` の属性値は、`render()` が必ず
    `escape_html`/`escape_html_into` を経由して出力する。
@@ -273,7 +273,7 @@ assert_eq!(render(&node), r#"<div class="card"><p>hello</p></div>"#);
 ### 安全な例（既定エスケープ）
 
 ```rust
-use rws_core::{el, text, render};
+use fandhe_frontend_core::{el, text, render};
 
 let payload = "<script>alert('xss')</script>";
 let node = el("p", vec![], vec![text(payload)]);
@@ -297,7 +297,7 @@ XSS ペイロードは無害化されます。
   こと。**
 
 ```rust
-use rws_core::{el, raw_html, render};
+use fandhe_frontend_core::{el, raw_html, render};
 
 // 良い例: 信頼できる固定の HTML 断片のみを渡す。
 let node = el("div", vec![], vec![raw_html("<b>bold</b>")]);
@@ -317,8 +317,8 @@ assert_eq!(render(&node), "<div><b>bold</b></div>");
 ### 禁止パターン: HTML 文字列の直接組み立て
 
 `format!("<div>{}</div>", user_input)` のような文字列組み立てによる HTML
-生成は、`rws-core` のノード木 API を経由しないため既定エスケープの保証が
-一切効きません。このパターンは `rws-core` 自身の実装内部でも使われておらず
+生成は、`fandhe-frontend-core` のノード木 API を経由しないため既定エスケープの保証が
+一切効きません。このパターンは `fandhe-frontend-core` 自身の実装内部でも使われておらず
 （`render_into` はタグ名・属性名を構造化した手順でのみ書き出します）、
 利用者コードでも使用しないでください（`.claude/rules/coding-rust.md` の
 「HTML 文字列の直接組み立て禁止」）。
@@ -326,7 +326,7 @@ assert_eq!(render(&node), "<div><b>bold</b></div>");
 ## 6. ノード木記述の可読性規約（インデント・分割規約、Issue #164）
 
 素の関数呼び出しでノード木を組み立てる書き味は、ネストが深くなるほど JSX 風
-マクロより読みにくくなります（PoC-3 発見事項 4）。`rws-core` は新しい構文や
+マクロより読みにくくなります（PoC-3 発見事項 4）。`fandhe-frontend-core` は新しい構文や
 マクロを導入せず、**純 Rust の範囲での記述規約**でこれに対応します。
 
 1. **整形は `cargo fmt` に委ねる**。手整形（独自の改行・インデント調整）は
@@ -398,19 +398,19 @@ fn list_page_after(items: &[Item]) -> Node {
 
 ## 7. 生成 HTML の素直さ
 
-`rws-core` はコンポーネントが生成する HTML に、観測用の `data-*` 属性以外の
+`fandhe-frontend-core` はコンポーネントが生成する HTML に、観測用の `data-*` 属性以外の
 フレームワーク固有マーカー（不透明なカスタム要素・隠しラッパー要素等）を
 混入させません（REQ-5 受け入れ基準・PoC-3「生成 HTML の素直さ」実測基準）。
 `el("ul", ..., vec![el("li", ..., ...)])` は素直に `<ul><li>...</li></ul>` に
 なり、ブラウザの開発者ツールで見た構造とコンポーネントの構造が一致します。
 
-この性質はハイドレーション（TASK-6.x / `rws-interactive` 予定）の回帰テスト
+この性質はハイドレーション（TASK-6.x / `fandhe-frontend-interactive` 予定）の回帰テスト
 対象でもあり、コンポーネント記述側で意図的にマーカーを増やす変更をする際は
 `TASK-5.2` 系の回帰テストへの影響を確認してください。
 
 ## 8. コンパイルエラー体験
 
-`rws-core` は手続きマクロを経由しないため、コンポーネント関数内の型の誤り
+`fandhe-frontend-core` は手続きマクロを経由しないため、コンポーネント関数内の型の誤り
 （例: `el()` の引数の型不一致、`Vec<Node>` を要求する箇所に `Node` 単体を
 渡す等）は、マクロ展開後の読みにくいコード位置ではなく、**利用者が実際に
 書いた行そのもの**を指す通常の Rust コンパイルエラーとして表示されます
@@ -419,7 +419,7 @@ fn list_page_after(items: &[Item]) -> Node {
 
 ## 9. スコープと今後
 
-- **ハイドレーション・状態管理**（`rws-interactive`、TASK-6.x）は本ドキュメント
+- **ハイドレーション・状態管理**（`fandhe-frontend-interactive`、TASK-6.x）は本ドキュメント
   の範囲外です。既存 DOM へのイベント配線・状態復元の記述方式は別ドキュメント
   で扱います。
 - **タグショートカット**（`div()`/`p()` 等のヘルパー関数）・
@@ -432,14 +432,14 @@ fn list_page_after(items: &[Item]) -> Node {
 - **`select`/`option` ヘルパー・attrs ビルダ API**は Issue #164 で検討のうえ
   不採用としました（第 6 節参照）。
 - **SSR/SSG/CSR の三モード描画**（`render()`/`mount_csr()`/`hydrate()`、REQ-6）
-  は `rws-server`/`rws-wasm-client` 側の統合ドキュメントで扱います。本
-  ドキュメントは `rws-core` 単体のノード木記述方式に焦点を当てています。
+  は `fandhe-frontend-server`/`fandhe-frontend-wasm-client` 側の統合ドキュメントで扱います。本
+  ドキュメントは `fandhe-frontend-core` 単体のノード木記述方式に焦点を当てています。
 
 ## 10. 関連ドキュメント
 
 - `docs/spec/04-requirements.md`（REQ-5: 独自 DSL に依存しないプレーン Rust
   コンポーネント記述、REQ-1: 既定エスケープ）
 - `docs/spec/05-tasks.md`（TASK-5.1 系のタスク分解）
-- `docs/policy/unsafe-boundary.md`（`unsafe` 境界ポリシー。`rws-core` は
+- `docs/policy/unsafe-boundary.md`（`unsafe` 境界ポリシー。`fandhe-frontend-core` は
   `#![forbid(unsafe_code)]` により対象外）
 - `core/src/lib.rs` / `core/src/escape.rs`（一次情報源となる rustdoc・実装）

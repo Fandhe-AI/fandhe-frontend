@@ -7,7 +7,7 @@
 //! アセット変更反映（差分ビルド）が 5 秒以内」を、PoC-4 実測方法
 //! （`docs/spec/03-poc/single-binary-distribution/README.md`: `static/` の
 //! アセットを変更 → `cargo build --release` の壁時計時間を計測）に沿って
-//! 自動化する。判定・サマリ整形は [`rws_dist_server::bench_support`]
+//! 自動化する。判定・サマリ整形は [`fandhe_frontend_dist_server::bench_support`]
 //! （`dist-server/src/bench_support.rs`）へ切り出し、そちらの
 //! `#[cfg(test)]` で書式契約を固定する（本ファイルは `test = false` の
 //! ため `cargo test` からは実行されない）。
@@ -15,7 +15,7 @@
 //! # 実行方法
 //!
 //! ```text
-//! cargo bench -p rws-dist-server --bench rebuild_latency
+//! cargo bench -p fandhe-frontend-dist-server --bench rebuild_latency
 //! ```
 //!
 //! wasm ツールチェーン未整備環境では `RWS_WASM_BUILD=0` を付与すると
@@ -32,12 +32,12 @@
 //! 3. 各サンプル後、生成バイナリのバイト列に当該マーカーが含まれることを
 //!    検査し、「アセット変更が実際に反映された」ことをビルド成功以上に
 //!    強く確認する（マーカー不在は fail-closed で終了コード 1）。
-//! 4. 中央値を [`rws_dist_server::bench_support::LIMIT_SECONDS`] と比較し、
+//! 4. 中央値を [`fandhe_frontend_dist_server::bench_support::LIMIT_SECONDS`] と比較し、
 //!    1 行サマリを stdout へ出力して判定に応じた終了コードを返す（イシュー
 //!    #294: 共有 self-hosted runner の CPU 競合による少数派サンプルの
 //!    跳ねを吸収しつつ検出力を落とさないよう、判定基準を最大値から
 //!    中央値（median-of-N）へ変更した。根拠・トレードオフの詳細は
-//!    [`rws_dist_server::bench_support`] のモジュールドキュメント参照）。
+//!    [`fandhe_frontend_dist_server::bench_support`] のモジュールドキュメント参照）。
 //!
 //! # ネストビルドのロック回避
 //!
@@ -54,7 +54,7 @@
 //! シェル展開を経由しない）。`RWS_WASM_BUILD` は値を解釈せず子プロセスへ
 //! 透過するのみで、コマンドライン組み立てには一切関与しない。
 
-use rws_dist_server::bench_support::{format_summary_line, judge, Sample};
+use fandhe_frontend_dist_server::bench_support::{format_summary_line, judge, Sample};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -169,7 +169,7 @@ fn main() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// `cargo build --release --locked -p rws-dist-server --target-dir
+/// `cargo build --release --locked -p fandhe-frontend-dist-server --target-dir
 /// <bench_target_dir>` を実行する。エラー時は内部パス等の機微情報を含まない
 /// メッセージを返す（`security.md` 「機微情報の露出」観点）。
 fn run_build(cargo: &str, workspace_root: &Path, target_dir: &Path) -> Result<(), String> {
@@ -180,7 +180,7 @@ fn run_build(cargo: &str, workspace_root: &Path, target_dir: &Path) -> Result<()
             "--release",
             "--locked",
             "-p",
-            "rws-dist-server",
+            "fandhe-frontend-dist-server",
             "--target-dir",
         ])
         .arg(target_dir)
@@ -189,7 +189,8 @@ fn run_build(cargo: &str, workspace_root: &Path, target_dir: &Path) -> Result<()
 
     if !status.success() {
         return Err(
-            "`cargo build --release --locked -p rws-dist-server` exited non-zero".to_string(),
+            "`cargo build --release --locked -p fandhe-frontend-dist-server` exited non-zero"
+                .to_string(),
         );
     }
     Ok(())

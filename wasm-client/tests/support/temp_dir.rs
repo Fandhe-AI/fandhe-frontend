@@ -3,13 +3,13 @@
 // #45・#50）の複製。
 //
 // integration test は各ファイルが独立バイナリとしてコンパイルされ、かつ
-// 別クレート（`rws-server`）の test-only コードは参照できないため、この
+// 別クレート（`fandhe-frontend-server`）の test-only コードは参照できないため、この
 // クレートにも同型のヘルパーを複製する（`core/tests/no_branching_across_modes.rs`
 // の `collect_rs_files`/`strip_comments` 複製と同じ理由）。
 //
 // `tempfile` 等の外部クレートを追加せず、`std::env::temp_dir()` +
 // プロセス固有サフィックスで一時ディレクトリを代用する（REQ-3。本ヘルパーは
-// dev-dependency 経由でのみ使われ、`rws-wasm-client` の製品面依存を増やさない）。
+// dev-dependency 経由でのみ使われ、`fandhe-frontend-wasm-client` の製品面依存を増やさない）。
 //
 // 呼び出し文脈:
 // - `include!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/support/temp_dir.rs"))`
@@ -35,7 +35,7 @@ impl TempDir {
             .map(|d| d.as_nanos())
             .unwrap_or(0);
         let path = std::env::temp_dir().join(format!(
-            "rws-wasm-client-test-{tag}-{}-{unique}",
+            "fandhe-frontend-wasm-client-test-{tag}-{}-{unique}",
             std::process::id()
         ));
         Self(path)

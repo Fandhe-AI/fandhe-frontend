@@ -1,27 +1,27 @@
 //! 三モード統合テスト（TASK-6.1d、イシュー #45）。
 //!
-//! REQ-6（単一コアによる SSR/SSG/CSR 描画）の受け入れ基準を、rws-server の
-//! 公開 API（[`rws_server::ssr::respond`] / [`rws_server::ssg::generate`]）と
-//! rws-app のコンポーネント関数（[`rws_app::list_page`] 等 + `rws_core::render`）
+//! REQ-6（単一コアによる SSR/SSG/CSR 描画）の受け入れ基準を、fandhe-frontend-server の
+//! 公開 API（[`fandhe_frontend_server::ssr::respond`] / [`fandhe_frontend_server::ssg::generate`]）と
+//! fandhe-frontend-app のコンポーネント関数（[`fandhe_frontend_app::list_page`] 等 + `fandhe_frontend_core::render`）
 //! を実際に組み合わせて固定する。
 //!
 //! # スコープ（`docs/api/app-api.md` 第 9 節参照）
 //!
 //! - 実ブラウザでの `mount_csr` / ハイドレーション実証は TASK-6.2（#46）・
 //!   TASK-6.3 のスコープであり、本テストでは扱わない。ここでの「CSR 同一
-//!   関数性」検証は、`rws_core::render(&list_page(...))` を SSR とは別に
+//!   関数性」検証は、`fandhe_frontend_core::render(&list_page(...))` を SSR とは別に
 //!   呼び出しても同一関数・同一入力である限り同一 HTML が得られることの
 //!   固定（モード非依存契約の直接証明）に限定する。
 //! - SSR/SSG 完全一致の CI 回帰拡充（`server/tests/ssr_ssg_parity.rs`）は
 //!   TASK-6.4（#50）のスコープであり別イシューで扱う。本テストは
 //!   TASK-6.1d の受け入れ基準（三モード統合の最小固定）のみを担う。
 
-use rws_app::{
+use fandhe_frontend_app::{
     assemble_list_page, demo_items, detail_page, list_page, page_shell, DemoItemsLoader,
 };
-use rws_core::render;
-use rws_server::ssg::generate;
-use rws_server::ssr::respond;
+use fandhe_frontend_core::render;
+use fandhe_frontend_server::ssg::generate;
+use fandhe_frontend_server::ssr::respond;
 use std::fs;
 
 // `TempDir` は `server/src/ssg.rs` の unit test と重複実装しない共有ヘルパー。
@@ -66,7 +66,7 @@ fn ssr_and_ssg_bodies_match_byte_for_byte() {
 fn csr_style_direct_calls_produce_html_embedded_in_ssr_output() {
     let items = demo_items();
 
-    // CSR を模した直接呼び出し（rws-wasm-client 相当。実ブラウザでの
+    // CSR を模した直接呼び出し（fandhe-frontend-wasm-client 相当。実ブラウザでの
     // mount_csr 実証は TASK-6.2 のスコープ、上記モジュール doc 参照）。
     let csr_list_html = render(&list_page(&items));
     let ssr_response = respond("/").expect("\"/\" should match");
@@ -159,7 +159,7 @@ fn unknown_item_id_returns_404_without_leaking_internal_details() {
 /// ルーターに一致しないパス・不正なパスパラメータは `respond` が `panic!` を
 /// 起こさず `None` を返すこと（SSR エントリ経由の振る舞いとしての固定）。
 ///
-/// `router.rs` 自体の単体テストとは別に、rws-app の実データと組み合わせた
+/// `router.rs` 自体の単体テストとは別に、fandhe-frontend-app の実データと組み合わせた
 /// `respond()` の呼び出し経路として非 panic 契約を固定する（DoS 耐性・
 /// `security.md` の観点にも対応）。
 #[test]
@@ -175,7 +175,7 @@ fn unmatched_paths_return_none_without_panicking() {
 
 /// イシュー #348 引き継ぎ確認: `respond("/")` のボディが
 /// `page_shell("記事一覧", assemble_list_page(&DemoItemsLoader, &()).unwrap())`
-/// と一致すること（server 経路が `rws-app` の `Loader` 型接続と同一データ
+/// と一致すること（server 経路が `fandhe-frontend-app` の `Loader` 型接続と同一データ
 /// 経路であることの固定。`server/src/ssr.rs::respond_with` が
 /// `assemble_list_page` を実際に呼んでいることの間接証明）。
 #[test]

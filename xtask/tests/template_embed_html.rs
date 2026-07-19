@@ -72,9 +72,9 @@ fn embed_html_calls_mount_csr_via_frozen_contract() {
         "<script type=\"module\"> が見つからない"
     );
     assert!(
-        contents.contains("rws_wasm_client.js"),
-        "docs/api/hydration-api.md 第 3 節が定める rws-wasm-client のグルー \
-         コード（rws_wasm_client.js）からの import が見つからない"
+        contents.contains("fandhe_frontend_wasm_client.js"),
+        "docs/api/hydration-api.md 第 3 節が定める fandhe-frontend-wasm-client のグルー \
+         コード（fandhe_frontend_wasm_client.js）からの import が見つからない"
     );
     // "await init()" の出現位置が mount_csr(...) 呼び出しより前であることまで
     // 位置比較で検証する。部分文字列の存在チェックだけでは呼び出し順序を
@@ -113,7 +113,7 @@ fn embed_html_does_not_bypass_default_escaping() {
         assert!(
             !contents.contains(forbidden),
             "既定エスケープ経路を迂回しうる {forbidden} の使用が見つかった。\
-             描画は mount_csr → rws_core::render() の既定エスケープ経路のみを \
+             描画は mount_csr → fandhe_frontend_core::render() の既定エスケープ経路のみを \
              通る必要がある（REQ-1 非弱体化）"
         );
     }

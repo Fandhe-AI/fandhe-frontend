@@ -1,5 +1,5 @@
 //! `wasm-node-smoke` サブコマンド: `docs/design/wasm-build-integration.md` §6.4 が
-//! 手順として文書化していた「`rws-wasm-thin`（`web-sys` 非依存な薄い JS グルー
+//! 手順として文書化していた「`fandhe-frontend-wasm-thin`（`web-sys` 非依存な薄い JS グルー
 //! 方式ランタイム）を Node.js から `require()` して素早くロジック確認する」
 //! 開発フローを、イシュー #297（TASK-10.2 残課題、出典 PR #220 §10 スコープ外
 //! 節）で `cargo xtask` サブコマンドとして自動化したもの。
@@ -24,7 +24,7 @@
 //! 2. `--build-only` 指定時を除き [`check_node_available`] で `node` の存在を
 //!    確認する。
 //! 3. [`run_wasm32_build`] で `cargo build --target wasm32-unknown-unknown -p
-//!    rws-wasm-thin`（debug プロファイル）を実行する。
+//!    fandhe-frontend-wasm-thin`（debug プロファイル）を実行する。
 //! 4. [`cargo_metadata_target_directory`] で `cargo metadata` の
 //!    `target_directory` を取得し、成果物パス・`wasm-bindgen` 出力先を
 //!    そこから解決する（共有 `CARGO_TARGET_DIR`、`.claude/rules/ci.md`
@@ -46,7 +46,7 @@
 //!   node 実行失敗・エスケープ検証失敗のいずれも fail-closed
 //! - 終了コード 2: 不明な引数（`--build-only` 以外は受け付けない）
 //! - stdout 1 行サマリ: [`format_report`] が生成する
-//!   `wasm-node-smoke: package=rws-wasm-thin target=nodejs mode=<full|build-only>
+//!   `wasm-node-smoke: package=fandhe-frontend-wasm-thin target=nodejs mode=<full|build-only>
 //!   result=<PASS|FAIL>` 形式。CI が `grep '^wasm-node-smoke:'` で抽出できる。
 //!
 //! 判定対象クレート（[`PACKAGE_NAME`]）・出力先（[`wasm_bindgen_out_dir`]）は
@@ -61,11 +61,11 @@ use std::process::Command;
 
 /// スモーク対象のクレート（`web-sys` 非依存な薄い JS グルー方式の参照実装、
 /// `wasm-thin/Cargo.toml` 参照）。CLI 引数での差し替えは意図的にサポートしない。
-pub const PACKAGE_NAME: &str = "rws-wasm-thin";
+pub const PACKAGE_NAME: &str = "fandhe-frontend-wasm-thin";
 
 /// `cargo build` が生成する `.wasm` ファイル名（クレート名のハイフンが
 /// アンダースコアに正規化される cargo の既定挙動に一致させる）。
-pub const WASM_ARTIFACT_STEM: &str = "rws_wasm_thin";
+pub const WASM_ARTIFACT_STEM: &str = "fandhe_frontend_wasm_thin";
 
 /// `--build-only` の有無を表すモード。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -273,7 +273,7 @@ pub fn extract_target_directory(metadata: &Json) -> Result<PathBuf, SmokeError> 
         })
 }
 
-/// `<target_directory>/wasm32-unknown-unknown/debug/rws_wasm_thin.wasm`
+/// `<target_directory>/wasm32-unknown-unknown/debug/fandhe_frontend_wasm_thin.wasm`
 /// （debug プロファイル固定、§6.4 の実績コマンド踏襲）を解決する。
 fn wasm_artifact_path(target_directory: &Path) -> PathBuf {
     target_directory
@@ -290,7 +290,7 @@ fn wasm_bindgen_out_dir(target_directory: &Path) -> PathBuf {
     target_directory.join("wasm-node").join("thin")
 }
 
-/// `cargo build --target wasm32-unknown-unknown -p rws-wasm-thin`
+/// `cargo build --target wasm32-unknown-unknown -p fandhe-frontend-wasm-thin`
 /// （debug プロファイル、§6.4 の実績コマンド踏襲）を実行する。
 fn run_wasm32_build() -> Result<(), SmokeError> {
     let cargo_bin = env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
@@ -331,7 +331,8 @@ fn run_wasm_bindgen_nodejs(wasm_path: &Path, out_dir: &Path) -> Result<(), Smoke
         .map_err(|e| SmokeError::new(format!("failed to spawn wasm-bindgen: {e}")))?;
     if !status.success() {
         return Err(SmokeError::new(
-            "wasm-bindgen failed to generate nodejs bindings for rws-wasm-thin".to_string(),
+            "wasm-bindgen failed to generate nodejs bindings for fandhe-frontend-wasm-thin"
+                .to_string(),
         ));
     }
     Ok(())
@@ -439,7 +440,7 @@ mod tests {
         let report = format_report(SmokeMode::Full, true);
         assert_eq!(
             report,
-            "wasm-node-smoke: package=rws-wasm-thin target=nodejs mode=full result=PASS\n"
+            "wasm-node-smoke: package=fandhe-frontend-wasm-thin target=nodejs mode=full result=PASS\n"
         );
     }
 
@@ -448,7 +449,7 @@ mod tests {
         let report = format_report(SmokeMode::BuildOnly, false);
         assert_eq!(
             report,
-            "wasm-node-smoke: package=rws-wasm-thin target=nodejs mode=build-only result=FAIL\n"
+            "wasm-node-smoke: package=fandhe-frontend-wasm-thin target=nodejs mode=build-only result=FAIL\n"
         );
     }
 
@@ -514,7 +515,9 @@ version = "1.0.0"
         let path = wasm_artifact_path(Path::new("/workspace/target"));
         assert_eq!(
             path,
-            PathBuf::from("/workspace/target/wasm32-unknown-unknown/debug/rws_wasm_thin.wasm")
+            PathBuf::from(
+                "/workspace/target/wasm32-unknown-unknown/debug/fandhe_frontend_wasm_thin.wasm"
+            )
         );
     }
 

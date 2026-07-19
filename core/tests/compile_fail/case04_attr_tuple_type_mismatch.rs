@@ -5,7 +5,7 @@
 //! 期待するエラーコード: E0308（mismatched types）。
 //! 本ファイルは cargo のテストターゲットには含まれない（README 参照）。
 
-use rws_core::{el, Node};
+use fandhe_frontend_core::{el, Node};
 
 pub fn case04() -> Node {
     el("div", vec![("class", 3)], vec![])

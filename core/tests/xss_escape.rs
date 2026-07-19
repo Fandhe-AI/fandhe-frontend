@@ -11,20 +11,20 @@
 //! （SSR は curl 実測・SSG は生成ファイル grep 実測）を先行実装し独自のペイロード
 //! 定数を持つ。CSR 側は別途 OWASP 準拠の共有ペイロード集合（`mod payloads`）を
 //! 持つ。両者は現時点で別の定数として存在するが、いずれも
-//! `rws-core::render()` が経路非依存にエスケープを貫通させることを検証する
+//! `fandhe-frontend-core::render()` が経路非依存にエスケープを貫通させることを検証する
 //! 目的は共通である。
 //!
-//! `rws-core::render()` は SSR・SSG・CSR のいずれのモードからも共通で
+//! `fandhe-frontend-core::render()` は SSR・SSG・CSR のいずれのモードからも共通で
 //! 呼ばれる（`core/src/lib.rs` 冒頭の不変条件を参照）。CSR 経路は
-//! `rws-wasm-client` の `mount_csr()` 相当（未実装。TASK-1.3 で
+//! `fandhe-frontend-wasm-client` の `mount_csr()` 相当（未実装。TASK-1.3 で
 //! `wasm-client/tests/xss_escape_wasm.rs` が WASM 実機経由の検証を担当する）
 //! の呼び出し文脈——**部分ノードの断片レンダリングを `innerHTML` へ設定し、
-//! 状態更新のたびに再レンダリングする**——を、`rws-core` が保証する契約
+//! 状態更新のたびに再レンダリングする**——を、`fandhe-frontend-core` が保証する契約
 //! （`render()` の出力は常にエスケープ済み）のレベルでネイティブに検証する。
 //!
-//! 現時点の workspace には `rws-server` が存在せず、SSR（HTTP レスポンス
+//! 現時点の workspace には `fandhe-frontend-server` が存在せず、SSR（HTTP レスポンス
 //! ボディ）・SSG（ファイル書き出し）はいずれもモード非依存の
-//! `rws_core::render()` を共通で呼ぶ契約（`core/src/lib.rs` 冒頭の不変条件）
+//! `fandhe_frontend_core::render()` を共通で呼ぶ契約（`core/src/lib.rs` 冒頭の不変条件）
 //! である。そのため本ファイルの SSR/SSG 側では:
 //!
 //! - **SSR 経路** = `render()` の戻り値をそのまま HTTP レスポンスボディ相当として検証する
@@ -45,7 +45,9 @@
 //! 本ファイルの XSS 回帰テストは `.claude/rules/coding-rust.md` の規約により、
 //! 以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
-use rws_core::{bind_attr_token, bind_text, el, escape_html, raw_html, render, text, Node};
+use fandhe_frontend_core::{
+    bind_attr_token, bind_text, el, escape_html, raw_html, render, text, Node,
+};
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 が挙げる脅威パターンを核とした
 /// 共有ペイロード集合。CSR（本ファイル `mod csr`）が使用する。
@@ -85,9 +87,9 @@ pub mod payloads {
 
 /// CSR（Client-Side Rendering）経路の XSS 回帰テスト（TASK-1.2b、#10）。
 ///
-/// `rws-wasm-client` の `mount_csr()` 相当——`render()` の出力文字列を
+/// `fandhe-frontend-wasm-client` の `mount_csr()` 相当——`render()` の出力文字列を
 /// `innerHTML` に設定し、状態変化のたびに断片を再レンダリングする——呼び出し
-/// パターンをネイティブ側で模した検証。`rws-core::render()` はモード非依存
+/// パターンをネイティブ側で模した検証。`fandhe-frontend-core::render()` はモード非依存
 /// レンダラであるため、CSR 固有のコード経路は本クレートには存在しないが、
 /// 「CSR が実際に行う呼び出し方」でエスケープ保証が崩れないことを直接証明する。
 mod csr {
@@ -166,7 +168,7 @@ mod csr {
     /// ならないことを確認する（1 回目と 2 回目の出力が完全一致）。
     ///
     /// CSR では状態変化のたびに新しいノード木を組み立てて再レンダリングする
-    /// （仮想 DOM 差分ではなく `rws-core` は文字列レンダラであるため、
+    /// （仮想 DOM 差分ではなく `fandhe-frontend-core` は文字列レンダラであるため、
     /// 再マウント相当の全体再構築を模す）。同一入力から常に同一出力になる
     /// （エスケープ回数が呼び出し回数に依存しない）ことが再レンダリング安全性
     /// の核心。
@@ -224,7 +226,7 @@ mod csr {
     /// `render()` 呼び出し）を比較する。
     ///
     /// PoC-3 成功基準 1（エスケープ保証はレンダリングモードに依存しない）の
-    /// 製品版回帰。`rws-core::render()` はモード引数を取らない単一実装で
+    /// 製品版回帰。`fandhe-frontend-core::render()` はモード引数を取らない単一実装で
     /// あるため、周辺構造が異なっていても断片自体のエスケープ結果
     /// （ペイロードのエスケープ済み表現）は一致し、かつ双方から生タグが
     /// 漏れないことを確認する。これにより「SSR 用と CSR 用で別のエスケープ
@@ -353,7 +355,7 @@ const XSS_PAYLOADS: &[&str] = &[
 /// PoC-3 の `page_shell`/`list_page` を模した `html > body > ul > li` の
 /// ネスト木。`payload` はリスト項目のテキストノードとして埋め込まれ、
 /// `render()` が既定エスケープを経由することを検証する対象となる。
-fn page_with_text_payload(payload: &str) -> rws_core::Node {
+fn page_with_text_payload(payload: &str) -> fandhe_frontend_core::Node {
     el(
         "html",
         vec![],
@@ -380,7 +382,7 @@ fn page_with_text_payload(payload: &str) -> rws_core::Node {
 /// `title` 属性・`data-value` 属性の両方にペイロードを設定し、属性値
 /// breakout（`"><script>...` 等）が `render()` の属性シリアライズで
 /// エスケープされることを検証する対象とする。
-fn page_with_attr_payload(payload: &str) -> rws_core::Node {
+fn page_with_attr_payload(payload: &str) -> fandhe_frontend_core::Node {
     el(
         "html",
         vec![],
@@ -408,8 +410,11 @@ fn page_with_attr_payload(payload: &str) -> rws_core::Node {
 /// クレートは使わず、`std::fs`/`std::env::temp_dir` のみで実装する。
 /// テストコードのため `unwrap()`/`expect()` の使用を許容する。
 fn ssg_write_and_read_back(html: &str, test_name: &str) -> String {
-    let dir =
-        std::env::temp_dir().join(format!("rws-xss-ssg-{}-{}", std::process::id(), test_name));
+    let dir = std::env::temp_dir().join(format!(
+        "fandhe-frontend-xss-ssg-{}-{}",
+        std::process::id(),
+        test_name
+    ));
     std::fs::create_dir_all(&dir).expect("SSG 出力先ディレクトリの作成に失敗した");
     let file_path = dir.join("index.html");
     std::fs::write(&file_path, html).expect("SSG ファイル書き出しに失敗した");
@@ -675,7 +680,7 @@ mod bind_points {
                     ("aria-pressed", "false"),
                     ("title", payload),
                     (
-                        rws_core::BIND_ATTR_ATTR,
+                        fandhe_frontend_core::BIND_ATTR_ATTR,
                         &bind_attr_token("aria-pressed", "liked"),
                     ),
                 ],
@@ -733,7 +738,7 @@ mod bind_points {
 /// `page_with_text_payload`/`ssg_write_and_read_back` と同じ検証形式を踏襲する。
 mod keyed_list_xss {
     use super::*;
-    use rws_core::keyed::keyed_list;
+    use fandhe_frontend_core::keyed::keyed_list;
 
     /// キーはアプリ側の識別子（データベース ID 等）由来であり、外部入力に
     /// 汚染され得る前提で扱う。XSS ペイロードをキーとして渡しても
@@ -828,7 +833,7 @@ mod keyed_list_xss {
 /// URL スキーム検証・イベントハンドラ属性ブロックの XSS 回帰テスト
 /// （イシュー #373）。`escape_html` は属性値コンテキストからの breakout
 /// （`"` 等）を防ぐが、脱出を伴わない `javascript:` 等の URL スキーム
-/// 経由の XSS は別の防御（`rws_core::is_safe_url` の許可リスト判定・
+/// 経由の XSS は別の防御（`fandhe_frontend_core::is_safe_url` の許可リスト判定・
 /// `render_into` での属性スキップ）が必要になる。本モジュールは
 /// SSR（`render()` 戻り値）・SSG（ファイル書き出し読み戻し）・CSR
 /// （部分ノードの断片レンダリング）の 3 経路すべてで、危険スキームの

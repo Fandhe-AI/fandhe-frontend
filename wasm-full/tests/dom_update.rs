@@ -9,12 +9,12 @@
 //! `set_inner_html` を伴う `paint()` の実ブラウザ検証は本コミット時点では
 //! 未実装であり、TASK-11.2d（#77）の統合テストへ引き継ぐ（実装計画 §5-4）。
 
-use rws_interactive::{dispatch, AppState};
-use rws_wasm_full::render_component_html;
+use fandhe_frontend_interactive::{dispatch, AppState};
+use fandhe_frontend_wasm_full::render_component_html;
 
 /// REQ-1 回帰: 状態にスクリプトタグ等の XSS ペイロードを持たせても、
 /// `render_component_html` の出力に生の `<script>` タグが現れないこと
-/// （`rws_core::render` の既定エスケープが `dom` モジュール経由でも
+/// （`fandhe_frontend_core::render` の既定エスケープが `dom` モジュール経由でも
 /// 効いていることの確認）。
 #[test]
 fn render_component_html_escapes_xss_payload_in_list_items() {
@@ -86,7 +86,7 @@ fn render_component_html_reflects_state_after_dispatch() {
 
 /// 未知アクションの安全側 no-op: `dispatch` が `false` を返した場合、
 /// `render_component_html` の出力が dispatch 前と変わらないこと
-/// （`rws-interactive` 不変条件 4 の継承確認、実装計画 §5-3）。
+/// （`fandhe-frontend-interactive` 不変条件 4 の継承確認、実装計画 §5-3）。
 #[test]
 fn render_component_html_is_unchanged_after_unknown_action_noop() {
     let mut state = AppState::new();

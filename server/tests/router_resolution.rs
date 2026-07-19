@@ -2,17 +2,17 @@
 //!
 //! REQ-7（`docs/spec/04-requirements.md`）の受け入れ基準・
 //! `docs/api/router-path-matching.md`（TASK-7.2a）の v1 仕様を、
-//! `rws_server::router::Router` の公開 API（unit テストではなく外部クレート
+//! `fandhe_frontend_server::router::Router` の公開 API（unit テストではなく外部クレート
 //! と同じ利用経路）を通じて固定する。`server/src/router.rs` の unit テストと
 //! 重複させず、以下の観点に絞る。
 //!
 //! - REQ-7 受け入れ基準の 3 ルート（`/`・`/items/:id`・`/search`）相当が
 //!   公開 API 経由で解決できること
-//! - `rws_server::ssr::respond`（SSR エントリ）との結合（`/` → 200、
+//! - `fandhe_frontend_server::ssr::respond`（SSR エントリ）との結合（`/` → 200、
 //!   既知 `id` → 200、未知 `id` → 404）
 //! - XSS 回帰: パスパラメータに XSS ペイロードを与えても `Params` は生文字列の
 //!   ままであること、および実際にルーティングされたパラメータが描画される
-//!   経路（`respond` の 200 分岐、`rws_app::demo_items()[1]` の XSS ペイロード
+//!   経路（`respond` の 200 分岐、`fandhe_frontend_app::demo_items()[1]` の XSS ペイロード
 //!   title）で生の `<script>` 等が現れないこと（既定エスケープ、REQ-1）
 //! - エッジケース（クエリ付きパス・末尾スラッシュ・連続スラッシュ・空パス・
 //!   非 `/` 始まりパス）の非マッチ / マッチ挙動
@@ -31,11 +31,11 @@
 //!   成り立つこと
 //! - クエリ文字列のエッジケース（ルート + クエリ・空クエリ）
 
-use rws_server::router::{Router, RouterError};
-use rws_server::ssr::respond;
+use fandhe_frontend_server::router::{Router, RouterError};
+use fandhe_frontend_server::ssr::respond;
 
 /// REQ-7 受け入れ基準（PoC-3 の 3 ルート相当）が公開 API から解決できることを
-/// 固定する。`/search` は `rws-app` に検索ページの凍結 API がないため
+/// 固定する。`/search` は `fandhe-frontend-app` に検索ページの凍結 API がないため
 /// `respond()` へは配線されていない（`docs/api/router-path-matching.md` §7）。
 /// ここでは router 単体としてのマッチング可否のみを確認する。
 #[test]
@@ -55,7 +55,7 @@ fn resolves_req7_baseline_routes_via_public_api() {
     assert_eq!(*router.resolve("/search").unwrap().handler, "search");
 }
 
-/// SSR エントリ（`rws_server::ssr::respond`）との結合。ルーターが解決した
+/// SSR エントリ（`fandhe_frontend_server::ssr::respond`）との結合。ルーターが解決した
 /// 結果がそのまま SSR のステータスコードへ反映されることを固定する。
 #[test]
 fn respond_uses_router_resolution_for_status_codes() {
@@ -94,8 +94,8 @@ fn xss_payload_in_path_param_is_captured_as_raw_string_by_router() {
 
 /// XSS 回帰（削除・弱体化禁止）: `/items/:id` にルーティングされた
 /// パスパラメータが実際に既知アイテムとして解決・描画される経路
-/// （`rws_app::demo_items()[1]`, `id == "2"`、title に XSS ペイロードを含む）で、
-/// `respond()` の 200 ボディが `rws-app` の既定エスケープを経由し生の
+/// （`fandhe_frontend_app::demo_items()[1]`, `id == "2"`、title に XSS ペイロードを含む）で、
+/// `respond()` の 200 ボディが `fandhe-frontend-app` の既定エスケープを経由し生の
 /// `<script>` タグを含まないことを確認する。
 ///
 /// 前段の `xss_payload_in_path_param_is_captured_as_raw_string_by_router` は

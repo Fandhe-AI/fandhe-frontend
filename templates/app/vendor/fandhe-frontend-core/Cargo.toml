@@ -1,8 +1,8 @@
 [package]
-name = "rws-core"
+name = "fandhe-frontend-core"
 version = "0.1.0"
 edition = "2021"
-description = "rws-core: 描画コア（ノード木 API・既定エスケープレンダラ）。外部依存ゼロ。"
+description = "fandhe-frontend-core: 描画コア（ノード木 API・既定エスケープレンダラ）。外部依存ゼロ。"
 license = "MIT OR Apache-2.0"
 publish = false
 
@@ -15,7 +15,7 @@ publish = false
 # vendor 同梱物（templates/app、イシュー #378）: 正本 core/Cargo.toml と
 # 内容は同一（差分なし）。ここに [workspace] を追加すると、この crate 自身が
 # 独立した workspace root と見なされ、親（templates/app/Cargo.toml、
-# rws-template-app）の workspace ツリー内に別の workspace root が
+# fandhe-frontend-template-app）の workspace ツリー内に別の workspace root が
 # ネストする形になり `cargo` が
 # "multiple workspace roots found in the same workspace" で拒否する
 # （実測で確認済み）。親 workspace への自動編入防止は親側

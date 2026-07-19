@@ -142,18 +142,18 @@ const DEFAULT_TEMPLATE_FILES: &[TemplateFile] = &[
 /// `templates/app/` の全ファイル（35 件）を埋め込んだ固定配列（イシュー #378、
 /// イシュー #411 で wasm ビルド込み CSR 完全実体を追加）。
 ///
-/// rws-core / rws-app（vendor 同梱、`vendor/rws-core` / `vendor/rws-app`）に
+/// fandhe-frontend-core / fandhe-frontend-app（vendor 同梱、`vendor/fandhe-frontend-core` / `vendor/fandhe-frontend-app`）に
 /// 依存する拡張テンプレート。`Loader` trait 実装・束縛点 API
-/// （`bind_text`/`keyed_list`）・`rws_core::render` を使う実体サンプルを含む
+/// （`bind_text`/`keyed_list`）・`fandhe_frontend_core::render` を使う実体サンプルを含む
 /// （`templates/app/src/main.rs`）。`.github/workflows/*`・`clippy.toml`・
 /// `deny.toml`・`tools/npm-asset-build/*` は `templates/default/` と共有
 /// ファイル同一性を保つ（`cli/tests/template_vendor_drift.rs` が検証）。
 ///
-/// イシュー #411: `vendor/rws-interactive` / `vendor/rws-wasm-client`（正本
+/// イシュー #411: `vendor/fandhe-frontend-interactive` / `vendor/fandhe-frontend-wasm-client`（正本
 /// `interactive/` / `wasm-client/` の vendor 同梱）と、独立ワークスペース
 /// `wasm/`（glue クレート `app-csr-wasm`）・`tools/wasm/build.sh`（wasm ビルド
 /// 手順）を追加し、生成プロジェクトが自力で CSR（`mount_csr`/`hydrate`）の
-/// wasm 成果物をビルドできる完全実体を同梱する（root（`rws-template-app`）の
+/// wasm 成果物をビルドできる完全実体を同梱する（root（`fandhe-frontend-template-app`）の
 /// 依存グラフ・`fw gate` 対象は不変、実装計画 §2.2 参照）。
 const APP_TEMPLATE_FILES: &[TemplateFile] = &[
     TemplateFile {
@@ -227,109 +227,119 @@ const APP_TEMPLATE_FILES: &[TemplateFile] = &[
         executable: true,
     },
     TemplateFile {
-        rel_path: "vendor/rws-app/Cargo.toml",
-        contents: include_str!("../../templates/app/vendor/rws-app/Cargo.toml"),
+        rel_path: "vendor/fandhe-frontend-app/Cargo.toml",
+        contents: include_str!("../../templates/app/vendor/fandhe-frontend-app/Cargo.toml"),
         executable: false,
     },
     TemplateFile {
-        rel_path: "vendor/rws-app/src/lib.rs",
-        contents: include_str!("../../templates/app/vendor/rws-app/src/lib.rs"),
+        rel_path: "vendor/fandhe-frontend-app/src/lib.rs",
+        contents: include_str!("../../templates/app/vendor/fandhe-frontend-app/src/lib.rs"),
         executable: false,
     },
     // イシュー #407: server / client 単一定義からのルート生成（共有機構）を
-    // rws-app へ集約したため、router.rs / routes.rs も vendor 同梱する。
+    // fandhe-frontend-app へ集約したため、router.rs / routes.rs も vendor 同梱する。
     TemplateFile {
-        rel_path: "vendor/rws-app/src/router.rs",
-        contents: include_str!("../../templates/app/vendor/rws-app/src/router.rs"),
+        rel_path: "vendor/fandhe-frontend-app/src/router.rs",
+        contents: include_str!("../../templates/app/vendor/fandhe-frontend-app/src/router.rs"),
         executable: false,
     },
     TemplateFile {
-        rel_path: "vendor/rws-app/src/routes.rs",
-        contents: include_str!("../../templates/app/vendor/rws-app/src/routes.rs"),
+        rel_path: "vendor/fandhe-frontend-app/src/routes.rs",
+        contents: include_str!("../../templates/app/vendor/fandhe-frontend-app/src/routes.rs"),
         executable: false,
     },
     TemplateFile {
-        rel_path: "vendor/rws-core/Cargo.toml",
-        contents: include_str!("../../templates/app/vendor/rws-core/Cargo.toml"),
+        rel_path: "vendor/fandhe-frontend-core/Cargo.toml",
+        contents: include_str!("../../templates/app/vendor/fandhe-frontend-core/Cargo.toml"),
         executable: false,
     },
     TemplateFile {
-        rel_path: "vendor/rws-core/src/bind.rs",
-        contents: include_str!("../../templates/app/vendor/rws-core/src/bind.rs"),
+        rel_path: "vendor/fandhe-frontend-core/src/bind.rs",
+        contents: include_str!("../../templates/app/vendor/fandhe-frontend-core/src/bind.rs"),
         executable: false,
     },
     TemplateFile {
-        rel_path: "vendor/rws-core/src/escape.rs",
-        contents: include_str!("../../templates/app/vendor/rws-core/src/escape.rs"),
+        rel_path: "vendor/fandhe-frontend-core/src/escape.rs",
+        contents: include_str!("../../templates/app/vendor/fandhe-frontend-core/src/escape.rs"),
         executable: false,
     },
     TemplateFile {
-        rel_path: "vendor/rws-core/src/keyed.rs",
-        contents: include_str!("../../templates/app/vendor/rws-core/src/keyed.rs"),
+        rel_path: "vendor/fandhe-frontend-core/src/keyed.rs",
+        contents: include_str!("../../templates/app/vendor/fandhe-frontend-core/src/keyed.rs"),
         executable: false,
     },
     TemplateFile {
-        rel_path: "vendor/rws-core/src/lib.rs",
-        contents: include_str!("../../templates/app/vendor/rws-core/src/lib.rs"),
+        rel_path: "vendor/fandhe-frontend-core/src/lib.rs",
+        contents: include_str!("../../templates/app/vendor/fandhe-frontend-core/src/lib.rs"),
         executable: false,
     },
     TemplateFile {
-        rel_path: "vendor/rws-core/src/tags.rs",
-        contents: include_str!("../../templates/app/vendor/rws-core/src/tags.rs"),
+        rel_path: "vendor/fandhe-frontend-core/src/tags.rs",
+        contents: include_str!("../../templates/app/vendor/fandhe-frontend-core/src/tags.rs"),
         executable: false,
     },
     TemplateFile {
-        rel_path: "vendor/rws-core/src/url.rs",
-        contents: include_str!("../../templates/app/vendor/rws-core/src/url.rs"),
+        rel_path: "vendor/fandhe-frontend-core/src/url.rs",
+        contents: include_str!("../../templates/app/vendor/fandhe-frontend-core/src/url.rs"),
         executable: false,
     },
-    // イシュー #411: CSR wasm ビルド込みの完全実体。rws-interactive /
-    // rws-wasm-client の vendor 同梱（正本は interactive/ / wasm-client/）と、
+    // イシュー #411: CSR wasm ビルド込みの完全実体。fandhe-frontend-interactive /
+    // fandhe-frontend-wasm-client の vendor 同梱（正本は interactive/ / wasm-client/）と、
     // それらをビルドする独立ワークスペース wasm/・手順スクリプト
     // tools/wasm/build.sh を追加する（実装計画 §2.2・§2.3）。
     TemplateFile {
-        rel_path: "vendor/rws-interactive/Cargo.toml",
-        contents: include_str!("../../templates/app/vendor/rws-interactive/Cargo.toml"),
+        rel_path: "vendor/fandhe-frontend-interactive/Cargo.toml",
+        contents: include_str!("../../templates/app/vendor/fandhe-frontend-interactive/Cargo.toml"),
         executable: false,
     },
     TemplateFile {
-        rel_path: "vendor/rws-interactive/src/lib.rs",
-        contents: include_str!("../../templates/app/vendor/rws-interactive/src/lib.rs"),
+        rel_path: "vendor/fandhe-frontend-interactive/src/lib.rs",
+        contents: include_str!("../../templates/app/vendor/fandhe-frontend-interactive/src/lib.rs"),
         executable: false,
     },
     TemplateFile {
-        rel_path: "vendor/rws-wasm-client/Cargo.toml",
-        contents: include_str!("../../templates/app/vendor/rws-wasm-client/Cargo.toml"),
+        rel_path: "vendor/fandhe-frontend-wasm-client/Cargo.toml",
+        contents: include_str!("../../templates/app/vendor/fandhe-frontend-wasm-client/Cargo.toml"),
         executable: false,
     },
     TemplateFile {
-        rel_path: "vendor/rws-wasm-client/src/binding.rs",
-        contents: include_str!("../../templates/app/vendor/rws-wasm-client/src/binding.rs"),
+        rel_path: "vendor/fandhe-frontend-wasm-client/src/binding.rs",
+        contents: include_str!(
+            "../../templates/app/vendor/fandhe-frontend-wasm-client/src/binding.rs"
+        ),
         executable: false,
     },
     TemplateFile {
-        rel_path: "vendor/rws-wasm-client/src/binding_dom.rs",
-        contents: include_str!("../../templates/app/vendor/rws-wasm-client/src/binding_dom.rs"),
+        rel_path: "vendor/fandhe-frontend-wasm-client/src/binding_dom.rs",
+        contents: include_str!(
+            "../../templates/app/vendor/fandhe-frontend-wasm-client/src/binding_dom.rs"
+        ),
         executable: false,
     },
     TemplateFile {
-        rel_path: "vendor/rws-wasm-client/src/keyed_diff.rs",
-        contents: include_str!("../../templates/app/vendor/rws-wasm-client/src/keyed_diff.rs"),
+        rel_path: "vendor/fandhe-frontend-wasm-client/src/keyed_diff.rs",
+        contents: include_str!(
+            "../../templates/app/vendor/fandhe-frontend-wasm-client/src/keyed_diff.rs"
+        ),
         executable: false,
     },
     TemplateFile {
-        rel_path: "vendor/rws-wasm-client/src/keyed_dom.rs",
-        contents: include_str!("../../templates/app/vendor/rws-wasm-client/src/keyed_dom.rs"),
+        rel_path: "vendor/fandhe-frontend-wasm-client/src/keyed_dom.rs",
+        contents: include_str!(
+            "../../templates/app/vendor/fandhe-frontend-wasm-client/src/keyed_dom.rs"
+        ),
         executable: false,
     },
     TemplateFile {
-        rel_path: "vendor/rws-wasm-client/src/lib.rs",
-        contents: include_str!("../../templates/app/vendor/rws-wasm-client/src/lib.rs"),
+        rel_path: "vendor/fandhe-frontend-wasm-client/src/lib.rs",
+        contents: include_str!("../../templates/app/vendor/fandhe-frontend-wasm-client/src/lib.rs"),
         executable: false,
     },
     TemplateFile {
-        rel_path: "vendor/rws-wasm-client/src/registry.rs",
-        contents: include_str!("../../templates/app/vendor/rws-wasm-client/src/registry.rs"),
+        rel_path: "vendor/fandhe-frontend-wasm-client/src/registry.rs",
+        contents: include_str!(
+            "../../templates/app/vendor/fandhe-frontend-wasm-client/src/registry.rs"
+        ),
         executable: false,
     },
     TemplateFile {
@@ -388,13 +398,13 @@ pub(crate) const TEMPLATES: &[Template] = &[
     Template {
         name: "default",
         files: DEFAULT_TEMPLATE_FILES,
-        needle: "rws-template-default",
+        needle: "fandhe-frontend-template-default",
         substituted_files: &["Cargo.toml", "Cargo.lock", "structure.toml"],
     },
     Template {
         name: "app",
         files: APP_TEMPLATE_FILES,
-        needle: "rws-template-app",
+        needle: "fandhe-frontend-template-app",
         substituted_files: &["Cargo.toml", "Cargo.lock", "structure.toml"],
     },
     Template {
@@ -405,7 +415,7 @@ pub(crate) const TEMPLATES: &[Template] = &[
         // 文字列であり（`substituted_files` が空のため置換ループは素通りする、
         // `new.rs::expand_template` 参照）、生成物はテンプレートと全ファイル
         // バイト一致になる（`cli/tests/new_e2e.rs` が固定）。
-        needle: "rws-template-embed",
+        needle: "fandhe-frontend-template-embed",
         substituted_files: &[],
     },
 ];

@@ -6,7 +6,7 @@
 //! cargo のテストターゲット（`core/tests/*.rs` 直下）には含まれないため
 //! 通常のビルド・テストには影響しない。参照方法は同ディレクトリの README を参照。
 
-use rws_core::{el, text, Node};
+use fandhe_frontend_core::{el, text, Node};
 
 pub fn case01() -> Node {
     el("div", vec![], text("hi"))

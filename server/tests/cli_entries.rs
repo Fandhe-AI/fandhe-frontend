@@ -1,10 +1,10 @@
-//! CLI エントリ 2 バイナリ（`rws-server`＝SSR / `ssg`＝SSG）の実プロセス起動
+//! CLI エントリ 2 バイナリ（`fandhe-frontend-server`＝SSR / `ssg`＝SSG）の実プロセス起動
 //! 回帰テスト（TASK-6.1c、イシュー #44）。
 //!
 //! # `three_mode_integration.rs`・`ssr_ssg_parity.rs` との役割分担
 //!
-//! 既存の統合テストはいずれも `rws_server::ssr::respond` /
-//! `rws_server::ssg::generate` を**ライブラリ API として直接呼ぶ**のみで、
+//! 既存の統合テストはいずれも `fandhe_frontend_server::ssr::respond` /
+//! `fandhe_frontend_server::ssg::generate` を**ライブラリ API として直接呼ぶ**のみで、
 //! `server/src/main.rs`（SSR CLI）・`server/src/bin/ssg.rs`（SSG CLI）という
 //! 「バイナリクレートルート」を実プロセスとして起動する経路は検証していない
 //! （`server/src/bin/ssg.rs` は `parse_out_dir` の unit test のみを持つ）。
@@ -22,7 +22,7 @@
 //! - OWASP A01 パストラバーサル: `ssg` バイナリの生成物がすべて `--out` 配下
 //!   に限定されること（外形回帰）。
 
-use rws_app::demo_items;
+use fandhe_frontend_app::demo_items;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -33,16 +33,16 @@ use std::process::Command;
 // （`server/tests/support/temp_dir.rs` 参照、REQ-3）。
 include!("support/temp_dir.rs");
 
-/// SSR エントリ（`rws-server` バイナリ）を起動する共通処理。
+/// SSR エントリ（`fandhe-frontend-server` バイナリ）を起動する共通処理。
 ///
-/// `CARGO_BIN_EXE_rws-server` は cargo がテストビルド時に注入する、対象
+/// `CARGO_BIN_EXE_fandhe-frontend-server` は cargo がテストビルド時に注入する、対象
 /// バイナリの絶対パス（`cargo test` の標準機能。追加の実行委譲ライブラリは
 /// 使わない）。
 fn run_ssr(args: &[&str]) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_rws-server"))
+    Command::new(env!("CARGO_BIN_EXE_fandhe-frontend-server"))
         .args(args)
         .output()
-        .expect("rws-server binary should spawn")
+        .expect("fandhe-frontend-server binary should spawn")
 }
 
 /// SSG エントリ（`ssg` バイナリ）を起動する共通処理。

@@ -3,20 +3,20 @@
 version = 4
 
 [[package]]
-name = "rws-app"
+name = "fandhe-frontend-app"
 version = "0.1.0"
 dependencies = [
- "rws-core",
+ "fandhe-frontend-core",
 ]
 
 [[package]]
-name = "rws-core"
+name = "fandhe-frontend-core"
 version = "0.1.0"
 
 [[package]]
-name = "rws-template-app"
+name = "fandhe-frontend-template-app"
 version = "0.1.0"
 dependencies = [
- "rws-app",
- "rws-core",
+ "fandhe-frontend-app",
+ "fandhe-frontend-core",
 ]

@@ -41,7 +41,7 @@
 //!   その死角を埋めるため、ローカルゲート・AI 自己保守フックと CI `clippy`
 //!   ジョブ（イシュー #299）の検出範囲は一致する。
 //! - `lint` チェックは workspace ルート `clippy.toml` に `disallowed-methods` の
-//!   `rws_core::raw_html` エントリが存在することを前提とする。`clippy.toml` の
+//!   `fandhe_frontend_core::raw_html` エントリが存在することを前提とする。`clippy.toml` の
 //!   欠落・エントリ欠落は「検出ポリシーの沈黙」＝黙示的 PASS を招くため、
 //!   `cargo clippy` を起動する前に fail-closed で検出する
 //!   （[`clippy_policy_is_configured`] 参照、security.md A05）。
@@ -365,7 +365,7 @@ fn run_cargo_check(runner: &dyn CommandRunner, project_dir: &Path, crates: &[&st
 /// （`structure.toml` 用パーサの内部ヘルパーを再利用）で判定前に除去する
 /// （Bugbot 指摘 PR #263 "Clippy policy substring false pass"）。コメント
 /// アウトされた（または削除済みの）`disallowed-methods` ブロックが
-/// `disallowed-methods` / `rws_core::raw_html` という文字列断片をコメントとして
+/// `disallowed-methods` / `fandhe_frontend_core::raw_html` という文字列断片をコメントとして
 /// 残しているだけの場合に「設定済み」と誤判定すると、実際には
 /// `cargo clippy` が当該エントリを読み込んでおらず `raw_html()` の未レビュー
 /// 呼び出しを検出できないにもかかわらず `lint` チェックが素通りする
@@ -379,7 +379,8 @@ fn clippy_policy_is_configured(clippy_toml_path: &Path) -> bool {
         .map(crate::toml::strip_comment)
         .collect::<Vec<_>>()
         .join("\n");
-    active_content.contains("disallowed-methods") && active_content.contains("rws_core::raw_html")
+    active_content.contains("disallowed-methods")
+        && active_content.contains("fandhe_frontend_core::raw_html")
 }
 
 /// `lint` チェックが `cargo clippy` を起動する前に検証する fail-closed ガード。
@@ -387,7 +388,7 @@ fn clippy_policy_is_configured(clippy_toml_path: &Path) -> bool {
 /// clippy は `disallowed-methods` を起動時のカレントディレクトリ
 /// （`CLIPPY_CONF_DIR` 未設定時）の `clippy.toml` から読み込む。本チェックは
 /// `runner.run` に `project_dir` を cwd として渡すため、`clippy.toml` が
-/// `project_dir` 直下に存在し `rws_core::raw_html` を宣言していることを前提と
+/// `project_dir` 直下に存在し `fandhe_frontend_core::raw_html` を宣言していることを前提と
 /// する。ここが欠落・削除されると `disallowed_methods` が沈黙し、`raw_html()`
 /// の未レビュー呼び出しが検出されないまま `lint` チェックが PASS してしまう
 /// （検出ポリシーの黙示的無効化という fail-open の穴、security.md A05）。
@@ -400,7 +401,7 @@ fn clippy_policy_check(project_dir: &Path) -> Option<GateCheck> {
             name: "lint",
             passed: false,
             output: format!(
-                "{} is missing or lacks a `disallowed-methods` entry for `rws_core::raw_html`; \
+                "{} is missing or lacks a `disallowed-methods` entry for `fandhe_frontend_core::raw_html`; \
 without it `cargo clippy` cannot detect unreviewed raw_html() calls (see templates/default/clippy.toml)",
                 clippy_toml.display()
             ),
@@ -566,7 +567,7 @@ fn policy_check(runner: &dyn CommandRunner, project_dir: &Path) -> GateCheck {
 ///    リテラル・文字リテラルの外側）であること
 /// 2. 出現開始位置の直前バイトが識別子構成文字（`[A-Za-z0-9_]`）でないこと
 ///    （`..._raw_html(` のような別識別子のサフィックスを呼び出しと誤認しない。
-///    `rws_core::raw_html(`（直前 `:`）や `.raw_html(`（メソッド形）は
+///    `fandhe_frontend_core::raw_html(`（直前 `:`）や `.raw_html(`（メソッド形）は
 ///    直前バイトが識別子構成文字でないため引き続き検出する）
 ///
 /// さらに、直後の空白文字（半角スペース・タブ・改行を含む ASCII 空白）を
@@ -1638,7 +1639,7 @@ mod tests {
             directories: vec![structure::DirectoryEntry {
                 name: "core".to_string(),
                 role: Role::Core,
-                crate_name: Some("rws-core".to_string()),
+                crate_name: Some("fandhe-frontend-core".to_string()),
                 description: "test".to_string(),
                 depends_on: Vec::new(),
                 allowed_dependents: Vec::new(),
@@ -1721,7 +1722,7 @@ mod tests {
                 structure::DirectoryEntry {
                     name: "core".to_string(),
                     role: Role::Core,
-                    crate_name: Some("rws-core".to_string()),
+                    crate_name: Some("fandhe-frontend-core".to_string()),
                     description: "test".to_string(),
                     depends_on: Vec::new(),
                     allowed_dependents: Vec::new(),
@@ -1737,7 +1738,10 @@ mod tests {
             ],
             routing: None,
         };
-        assert_eq!(declared_crate_names(&manifest), vec!["rws-core"]);
+        assert_eq!(
+            declared_crate_names(&manifest),
+            vec!["fandhe-frontend-core"]
+        );
     }
 
     /// 呼ばれたら即座に panic するフェイク（「起動しないこと」自体を検証する
@@ -1847,7 +1851,7 @@ mod tests {
             &dir,
             "type_check",
             &["check", "--locked"],
-            &["rws-core"],
+            &["fandhe-frontend-core"],
         );
         assert!(check.passed);
     }
@@ -1957,7 +1961,7 @@ mod tests {
     #[test]
     fn find_raw_html_call_positions_still_detects_path_qualified_call() {
         assert_eq!(
-            find_raw_html_call_positions("rws_core::raw_html(x);").len(),
+            find_raw_html_call_positions("fandhe_frontend_core::raw_html(x);").len(),
             1
         );
     }
@@ -2310,7 +2314,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(
             dir.join("clippy.toml"),
-            "disallowed-methods = [{ path = \"rws_core::raw_html\", reason = \"x\" }]\n",
+            "disallowed-methods = [{ path = \"fandhe_frontend_core::raw_html\", reason = \"x\" }]\n",
         )
         .unwrap();
 
@@ -2323,7 +2327,7 @@ mod tests {
     fn clippy_policy_check_fails_closed_when_entry_is_commented_out() {
         // Bugbot 指摘 PR #263 "Clippy policy substring false pass": コメント
         // アウトされた `disallowed-methods` ブロックがテキストとして
-        // `disallowed-methods` / `rws_core::raw_html` を含んでいても、実際に
+        // `disallowed-methods` / `fandhe_frontend_core::raw_html` を含んでいても、実際に
         // 有効な TOML エントリではないため「設定済み」と誤判定してはならない。
         let dir = std::env::temp_dir().join(format!(
             "fw-gate-test-clippy-policy-commented-{}",
@@ -2333,7 +2337,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(
             dir.join("clippy.toml"),
-            "# disallowed-methods = [{ path = \"rws_core::raw_html\", reason = \"x\" }]\n",
+            "# disallowed-methods = [{ path = \"fandhe_frontend_core::raw_html\", reason = \"x\" }]\n",
         )
         .unwrap();
 
@@ -2359,7 +2363,7 @@ mod tests {
             directories: vec![structure::DirectoryEntry {
                 name: "core".to_string(),
                 role: Role::Core,
-                crate_name: Some("rws-core".to_string()),
+                crate_name: Some("fandhe-frontend-core".to_string()),
                 description: "test".to_string(),
                 depends_on: Vec::new(),
                 allowed_dependents: Vec::new(),
@@ -2398,7 +2402,7 @@ mod tests {
             directories: vec![structure::DirectoryEntry {
                 name: "root".to_string(),
                 role: Role::Distribution,
-                crate_name: Some("rws-template-default".to_string()),
+                crate_name: Some("fandhe-frontend-template-default".to_string()),
                 description: "test".to_string(),
                 depends_on: Vec::new(),
                 allowed_dependents: Vec::new(),
@@ -2510,7 +2514,7 @@ mod tests {
             directories: vec![structure::DirectoryEntry {
                 name: "app".to_string(),
                 role: Role::Component,
-                crate_name: Some("rws-app".to_string()),
+                crate_name: Some("fandhe-frontend-app".to_string()),
                 description: "test".to_string(),
                 depends_on: Vec::new(),
                 allowed_dependents: Vec::new(),
@@ -2533,7 +2537,7 @@ mod tests {
             directories: vec![structure::DirectoryEntry {
                 name: dir_name.to_string(),
                 role: Role::Component,
-                crate_name: Some("rws-app".to_string()),
+                crate_name: Some("fandhe-frontend-app".to_string()),
                 description: "test".to_string(),
                 depends_on: Vec::new(),
                 allowed_dependents: Vec::new(),
@@ -2550,7 +2554,7 @@ mod tests {
             directories: vec![structure::DirectoryEntry {
                 name: dir_name.to_string(),
                 role: Role::Core,
-                crate_name: Some("rws-core".to_string()),
+                crate_name: Some("fandhe-frontend-core".to_string()),
                 description: "test".to_string(),
                 depends_on: Vec::new(),
                 allowed_dependents: Vec::new(),
@@ -2651,9 +2655,9 @@ pub fn is_safe_srcset(value: &str) -> bool {
         std::fs::write(
             app_src.join("lib.rs"),
             "fn f(el: &Element, name: &str, v: &str) {\n\
-             \x20   if rws_core::is_event_handler_attr(name) { return; }\n\
-             \x20   if rws_core::is_url_attr(name) && !rws_core::is_safe_url(v) { return; }\n\
-             \x20   if !rws_core::is_safe_srcset(v) { return; }\n\
+             \x20   if fandhe_frontend_core::is_event_handler_attr(name) { return; }\n\
+             \x20   if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(v) { return; }\n\
+             \x20   if !fandhe_frontend_core::is_safe_srcset(v) { return; }\n\
              \x20   let _ = el.set_attribute(name, v);\n}\n",
         )
         .unwrap();
@@ -3044,14 +3048,25 @@ pub fn is_safe_srcset(value: &str) -> bool {
     fn run_cargo_check_invokes_cargo_with_locked_and_declared_crates() {
         let dir = std::env::temp_dir();
         let runner = ArgsRecordingRunner::new(vec![(true, "ok".to_string())]);
-        let check = run_cargo_check(&runner, &dir, &["rws-core", "rws-app"]);
+        let check = run_cargo_check(
+            &runner,
+            &dir,
+            &["fandhe-frontend-core", "fandhe-frontend-app"],
+        );
         assert!(check.passed);
 
         let (program, args) = runner.last_call();
         assert_eq!(program, "cargo");
         assert_eq!(
             args,
-            vec!["check", "--locked", "-p", "rws-core", "-p", "rws-app"]
+            vec![
+                "check",
+                "--locked",
+                "-p",
+                "fandhe-frontend-core",
+                "-p",
+                "fandhe-frontend-app"
+            ]
         );
     }
 
@@ -3059,12 +3074,12 @@ pub fn is_safe_srcset(value: &str) -> bool {
     fn run_cargo_test_invokes_cargo_with_locked_and_declared_crates() {
         let dir = std::env::temp_dir();
         let runner = ArgsRecordingRunner::new(vec![(true, "ok".to_string())]);
-        let check = run_cargo_test(&runner, &dir, &["rws-core"]);
+        let check = run_cargo_test(&runner, &dir, &["fandhe-frontend-core"]);
         assert!(check.passed);
 
         let (program, args) = runner.last_call();
         assert_eq!(program, "cargo");
-        assert_eq!(args, vec!["test", "--locked", "-p", "rws-core"]);
+        assert_eq!(args, vec!["test", "--locked", "-p", "fandhe-frontend-core"]);
     }
 
     #[test]
@@ -3075,7 +3090,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(
             dir.join("clippy.toml"),
-            "disallowed-methods = [{ path = \"rws_core::raw_html\", reason = \"x\" }]\n",
+            "disallowed-methods = [{ path = \"fandhe_frontend_core::raw_html\", reason = \"x\" }]\n",
         )
         .unwrap();
 
@@ -3085,7 +3100,11 @@ pub fn is_safe_srcset(value: &str) -> bool {
             (true, "clippy 0.1.0".to_string()),
             (true, "ok".to_string()),
         ]);
-        let check = run_cargo_clippy(&runner, &dir, &["rws-core", "rws-app"]);
+        let check = run_cargo_clippy(
+            &runner,
+            &dir,
+            &["fandhe-frontend-core", "fandhe-frontend-app"],
+        );
         assert!(check.passed);
 
         let (program, args) = runner.last_call();
@@ -3097,9 +3116,9 @@ pub fn is_safe_srcset(value: &str) -> bool {
                 "--locked",
                 "--all-targets",
                 "-p",
-                "rws-core",
+                "fandhe-frontend-core",
                 "-p",
-                "rws-app",
+                "fandhe-frontend-app",
                 "--",
                 "-D",
                 "warnings",
@@ -3199,7 +3218,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
         std::fs::write(app_src.join("lib.rs"), "pub fn render() {}\n").unwrap();
         std::fs::write(
             dir.join("clippy.toml"),
-            "disallowed-methods = [{ path = \"rws_core::raw_html\", reason = \"x\" }]\n",
+            "disallowed-methods = [{ path = \"fandhe_frontend_core::raw_html\", reason = \"x\" }]\n",
         )
         .unwrap();
         std::fs::write(dir.join("deny.toml"), "# test fixture\n").unwrap();
@@ -3209,7 +3228,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
             directories: vec![structure::DirectoryEntry {
                 name: "app".to_string(),
                 role: Role::Component,
-                crate_name: Some("rws-app".to_string()),
+                crate_name: Some("fandhe-frontend-app".to_string()),
                 description: "test".to_string(),
                 depends_on: Vec::new(),
                 allowed_dependents: Vec::new(),
@@ -3393,7 +3412,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
         std::fs::create_dir_all(&src_dir).unwrap();
         std::fs::write(
             src_dir.join("injected.rs"),
-            "fn f() { let _ = rws_core::raw_html(\"<b>x</b>\"); }\n",
+            "fn f() { let _ = fandhe_frontend_core::raw_html(\"<b>x</b>\"); }\n",
         )
         .unwrap();
 

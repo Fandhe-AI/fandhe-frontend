@@ -17,7 +17,7 @@
 //!
 //! `lib.rs` からは `#[doc(hidden)] pub mod wasm_stage_cache;` として通常の
 //! モジュールとして取り込まれ、下記 `#[cfg(test)]` のユニットテストは
-//! `cargo test -p rws-dist-server` で実行される。`build.rs` 側の
+//! `cargo test -p fandhe-frontend-dist-server` で実行される。`build.rs` 側の
 //! ビルドでは `#[cfg(test)]` は当然コンパイルされない
 //! （build スクリプトは `cargo test` の対象ではないため）。
 //!
@@ -142,7 +142,7 @@ mod tests {
     /// 等の外部クレートを追加しない REQ-3 方針）。
     fn with_temp_dir(test_name: &str, body: impl FnOnce(&Path)) {
         let temp_root = std::env::temp_dir().join(format!(
-            "rws-dist-server-wasm-stage-cache-{test_name}-{}-{:?}",
+            "fandhe-frontend-dist-server-wasm-stage-cache-{test_name}-{}-{:?}",
             std::process::id(),
             std::thread::current().id()
         ));
@@ -171,9 +171,9 @@ mod tests {
     #[test]
     fn wasm_assets_look_complete_true_when_both_artifacts_present_and_non_empty() {
         with_temp_dir("assets-complete", |dir| {
-            let wasm_binary_path = dir.join("rws_wasm_full.wasm");
-            fs::write(dir.join("rws_wasm_full.js"), b"glue code").unwrap();
-            fs::write(dir.join("rws_wasm_full_bg.wasm"), b"\0asm...").unwrap();
+            let wasm_binary_path = dir.join("fandhe_frontend_wasm_full.wasm");
+            fs::write(dir.join("fandhe_frontend_wasm_full.js"), b"glue code").unwrap();
+            fs::write(dir.join("fandhe_frontend_wasm_full_bg.wasm"), b"\0asm...").unwrap();
             assert!(wasm_assets_look_complete(dir, &wasm_binary_path));
         });
     }
@@ -181,8 +181,8 @@ mod tests {
     #[test]
     fn wasm_assets_look_complete_false_when_wasm_artifact_missing() {
         with_temp_dir("assets-missing-wasm", |dir| {
-            let wasm_binary_path = dir.join("rws_wasm_full.wasm");
-            fs::write(dir.join("rws_wasm_full.js"), b"glue code").unwrap();
+            let wasm_binary_path = dir.join("fandhe_frontend_wasm_full.wasm");
+            fs::write(dir.join("fandhe_frontend_wasm_full.js"), b"glue code").unwrap();
             // `_bg.wasm` を書かない。
             assert!(!wasm_assets_look_complete(dir, &wasm_binary_path));
         });
@@ -191,9 +191,9 @@ mod tests {
     #[test]
     fn wasm_assets_look_complete_false_when_artifact_is_empty() {
         with_temp_dir("assets-empty-artifact", |dir| {
-            let wasm_binary_path = dir.join("rws_wasm_full.wasm");
-            fs::write(dir.join("rws_wasm_full.js"), b"").unwrap();
-            fs::write(dir.join("rws_wasm_full_bg.wasm"), b"\0asm...").unwrap();
+            let wasm_binary_path = dir.join("fandhe_frontend_wasm_full.wasm");
+            fs::write(dir.join("fandhe_frontend_wasm_full.js"), b"").unwrap();
+            fs::write(dir.join("fandhe_frontend_wasm_full_bg.wasm"), b"\0asm...").unwrap();
             assert!(!wasm_assets_look_complete(dir, &wasm_binary_path));
         });
     }
@@ -205,15 +205,23 @@ mod tests {
     #[test]
     fn cache_hit_is_false_when_wasm_binary_content_changed_after_fingerprint_was_written() {
         with_temp_dir("cache-miss-on-content-change", |dir| {
-            let wasm_binary_path = dir.join("rws_wasm_full.wasm");
+            let wasm_binary_path = dir.join("fandhe_frontend_wasm_full.wasm");
             let wasm_assets_dir = dir.join("wasm-assets");
             let fingerprint_path = dir.join("wasm-stage.fingerprint");
             let version = "0.2.126";
 
             fs::write(&wasm_binary_path, b"wasm bytes v1").unwrap();
             fs::create_dir_all(&wasm_assets_dir).unwrap();
-            fs::write(wasm_assets_dir.join("rws_wasm_full.js"), b"glue v1").unwrap();
-            fs::write(wasm_assets_dir.join("rws_wasm_full_bg.wasm"), b"\0asm v1").unwrap();
+            fs::write(
+                wasm_assets_dir.join("fandhe_frontend_wasm_full.js"),
+                b"glue v1",
+            )
+            .unwrap();
+            fs::write(
+                wasm_assets_dir.join("fandhe_frontend_wasm_full_bg.wasm"),
+                b"\0asm v1",
+            )
+            .unwrap();
             write_wasm_stage_fingerprint(&wasm_binary_path, version, &fingerprint_path).unwrap();
 
             // 変更前は HIT のはず。
@@ -245,14 +253,22 @@ mod tests {
     #[test]
     fn cache_hit_is_false_when_wasm_bindgen_cli_version_changed() {
         with_temp_dir("cache-miss-on-version-change", |dir| {
-            let wasm_binary_path = dir.join("rws_wasm_full.wasm");
+            let wasm_binary_path = dir.join("fandhe_frontend_wasm_full.wasm");
             let wasm_assets_dir = dir.join("wasm-assets");
             let fingerprint_path = dir.join("wasm-stage.fingerprint");
 
             fs::write(&wasm_binary_path, b"wasm bytes (unchanged)").unwrap();
             fs::create_dir_all(&wasm_assets_dir).unwrap();
-            fs::write(wasm_assets_dir.join("rws_wasm_full.js"), b"glue").unwrap();
-            fs::write(wasm_assets_dir.join("rws_wasm_full_bg.wasm"), b"\0asm").unwrap();
+            fs::write(
+                wasm_assets_dir.join("fandhe_frontend_wasm_full.js"),
+                b"glue",
+            )
+            .unwrap();
+            fs::write(
+                wasm_assets_dir.join("fandhe_frontend_wasm_full_bg.wasm"),
+                b"\0asm",
+            )
+            .unwrap();
             write_wasm_stage_fingerprint(&wasm_binary_path, "0.2.126", &fingerprint_path).unwrap();
 
             assert!(!wasm_stage_cache_hit(
@@ -270,7 +286,7 @@ mod tests {
     #[test]
     fn cache_hit_is_false_when_fingerprint_matches_but_assets_are_missing() {
         with_temp_dir("cache-miss-on-missing-assets", |dir| {
-            let wasm_binary_path = dir.join("rws_wasm_full.wasm");
+            let wasm_binary_path = dir.join("fandhe_frontend_wasm_full.wasm");
             let wasm_assets_dir = dir.join("wasm-assets");
             let fingerprint_path = dir.join("wasm-stage.fingerprint");
             let version = "0.2.126";
@@ -292,14 +308,22 @@ mod tests {
     #[test]
     fn cache_hit_is_false_when_fingerprint_file_is_absent() {
         with_temp_dir("cache-miss-no-fingerprint", |dir| {
-            let wasm_binary_path = dir.join("rws_wasm_full.wasm");
+            let wasm_binary_path = dir.join("fandhe_frontend_wasm_full.wasm");
             let wasm_assets_dir = dir.join("wasm-assets");
             let fingerprint_path = dir.join("wasm-stage.fingerprint");
 
             fs::write(&wasm_binary_path, b"wasm bytes").unwrap();
             fs::create_dir_all(&wasm_assets_dir).unwrap();
-            fs::write(wasm_assets_dir.join("rws_wasm_full.js"), b"glue").unwrap();
-            fs::write(wasm_assets_dir.join("rws_wasm_full_bg.wasm"), b"\0asm").unwrap();
+            fs::write(
+                wasm_assets_dir.join("fandhe_frontend_wasm_full.js"),
+                b"glue",
+            )
+            .unwrap();
+            fs::write(
+                wasm_assets_dir.join("fandhe_frontend_wasm_full_bg.wasm"),
+                b"\0asm",
+            )
+            .unwrap();
 
             assert!(!wasm_stage_cache_hit(
                 &wasm_binary_path,

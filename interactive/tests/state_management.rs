@@ -1,4 +1,4 @@
-//! TASK-11.1c（#72、REQ-11）: `rws-interactive` の状態遷移・`dispatch` の
+//! TASK-11.1c（#72、REQ-11）: `fandhe-frontend-interactive` の状態遷移・`dispatch` の
 //! 本格網羅テスト。
 //!
 //! `interactive/src/lib.rs` 同梱の `#[cfg(test)] mod tests` は TASK-11.1b
@@ -9,9 +9,9 @@
 //! という契約（不変条件 4）を統合テストとして固定化する。
 //!
 //! 依存クレートは追加しない（REQ-3・`interactive/Cargo.toml` は
-//! `rws-core`（path 依存）のみを維持する）。
+//! `fandhe-frontend-core`（path 依存）のみを維持する）。
 
-use rws_interactive::{dispatch, Action, AppState, Component, DirtyTracked, Hydrate};
+use fandhe_frontend_interactive::{dispatch, Action, AppState, Component, DirtyTracked, Hydrate};
 
 /// `items`/`item_ids` を一貫した状態（id は `0..items.len()`）へ直接差し替える
 /// テスト用ヘルパー。
@@ -360,7 +360,7 @@ fn reset_counter_recovers_from_extreme_restored_value() {
 
 #[test]
 fn hydrate_trait_import_allows_method_call_on_app_state() {
-    // `use rws_interactive::Hydrate` により、トレイトメソッドとして
+    // `use fandhe_frontend_interactive::Hydrate` により、トレイトメソッドとして
     // `hydration_attrs`/`from_hydration_attrs` を呼べることを確認する
     // （具象の自由関数ではなくトレイト経由の呼び出しへ移行した契約）。
     let s = AppState::new();

@@ -5,7 +5,7 @@
 //! 観測用属性（`data-*`）以外にフレームワーク固有のカスタム要素・不透明な
 //! マーカーを含まないこと」を自動回帰として固定する。PoC-3
 //! （`docs/spec/03-poc/rendering-web-standards/`）で定性的に確認済みの
-//! 「素直さ」を、以後の `rws_core::render()` 実装変更に対する回帰検知として
+//! 「素直さ」を、以後の `fandhe_frontend_core::render()` 実装変更に対する回帰検知として
 //! 機械的に担保する。
 //!
 //! テスト観点（T1〜T7）は TASK-5.2a（#34）の設計書
@@ -34,20 +34,20 @@
 //! #31 完了後のフォローアップとして親タスク #33 に引き継ぐ（出力対象外
 //! 追跡、`.claude/rules/out-of-scope-tracking.md`）。
 
-use rws_core::{el, raw_html, render, text};
+use fandhe_frontend_core::{el, raw_html, render, text};
 
 /// フレームワーク固有の不透明マーカーとして出力に現れてはならない代表的な
 /// パターン集合。「フレームワーク固有のカスタム要素・不透明なマーカー」
 /// （REQ-5 受け入れ基準）の否定 assert に横断的に使う。
 ///
-/// - `<rws-`: フレームワーク独自のカスタム要素タグ名の接頭辞
+/// - `<fandhe-frontend-`: フレームワーク独自のカスタム要素タグ名の接頭辞
 /// - `<!--`: フレームワークがハイドレーション境界等に挿入しうるコメントマーカー
-/// - `data-rws-`: フレームワーク内部専用の観測属性接頭辞
+/// - `data-fandhe-frontend-`: フレームワーク内部専用の観測属性接頭辞
 ///   （利用者が明示的に指定した `data-*` 属性はこの接頭辞を含まない前提）
 ///
 /// `xss_escape.rs` の `XSS_PAYLOADS` と同格の保護対象とし、削除・弱体化を
 /// 禁止する。
-const FORBIDDEN_MARKERS: &[&str] = &["<rws-", "<!--", "data-rws-"];
+const FORBIDDEN_MARKERS: &[&str] = &["<fandhe-frontend-", "<!--", "data-fandhe-frontend-"];
 
 /// 出力 HTML に [`FORBIDDEN_MARKERS`] のいずれも含まれないことを確認する
 /// 共有ヘルパー。各テストが完全一致 assert に加えて横断的に呼び出す

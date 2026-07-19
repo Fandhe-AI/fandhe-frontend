@@ -17,10 +17,10 @@
 //!    応答には [`RouteResponse::cache_control`] に `Some("no-store")` を
 //!    設定し、ブラウザキャッシュがディスクの即時反映（REQ-10）を体感上
 //!    無効化しないようにする（TASK-10.1b、イシュー #107）。
-//! 2. それ以外は [`rws_server::ssr::respond`]（TASK-6.1c の SSR コア）へ
-//!    委譲する。ページ解決・rws-app 呼び出しの実体は `rws-server` 側の
+//! 2. それ以外は [`fandhe_frontend_server::ssr::respond`]（TASK-6.1c の SSR コア）へ
+//!    委譲する。ページ解決・fandhe-frontend-app 呼び出しの実体は `fandhe-frontend-server` 側の
 //!    単一実装であり、本モジュールは HTTP レスポンス表現（[`RouteResponse`]）
-//!    への詰め替えのみを行う。`rws_server::ssr` 内部の `Router` は
+//!    への詰め替えのみを行う。`fandhe_frontend_server::ssr` 内部の `Router` は
 //!    ワイルドカード（`*path`）に対応しないため、1 の `/static/` 分岐で
 //!    文字列プレフィックス判定を手動補完している（`server/src/router.rs`
 //!    のスコープ外事項、PR に記録）。
@@ -29,15 +29,15 @@
 //!
 //! # 既定エスケープの引き継ぎ（REQ-1）
 //!
-//! ページ本文の生成は [`rws_server::ssr::respond`] を経由して
-//! [`rws_app::list_page`] / [`rws_app::detail_page`] / [`rws_app::page_shell`]
-//! （いずれも `rws_core::text` 経由で既定エスケープ済み）のみを呼ぶ。
+//! ページ本文の生成は [`fandhe_frontend_server::ssr::respond`] を経由して
+//! [`fandhe_frontend_app::list_page`] / [`fandhe_frontend_app::detail_page`] / [`fandhe_frontend_app::page_shell`]
+//! （いずれも `fandhe_frontend_core::text` 経由で既定エスケープ済み）のみを呼ぶ。
 //! 本モジュールが独自に `format!` で HTML を組み立てることはない
 //! （`coding-rust.md`「HTML 文字列の直接組み立て禁止」）。
 
 use crate::assets;
 use crate::mime::content_type_for_path;
-use rws_server::ssr::respond;
+use fandhe_frontend_server::ssr::respond;
 
 /// [`route_request`] の返り値。`main.rs` がこれを HTTP レスポンスへ変換する。
 pub struct RouteResponse {
@@ -60,7 +60,7 @@ pub struct RouteResponse {
     pub cache_control: Option<&'static str>,
 }
 
-/// リクエストパス（クエリ文字列を含んでよい。`rws_server::ssr::respond` 内部
+/// リクエストパス（クエリ文字列を含んでよい。`fandhe_frontend_server::ssr::respond` 内部
 /// の `Router::resolve` が `?` 以降を切り落とす）を解決し、[`RouteResponse`]
 /// を返す。`main.rs` の hyper サービス関数から 1 リクエストにつき 1 回呼ばれる。
 pub fn route_request(path: &str) -> RouteResponse {
@@ -85,9 +85,9 @@ pub fn route_request(path: &str) -> RouteResponse {
         };
     }
 
-    // ページ解決の実体は `rws_server::ssr::respond`（TASK-6.1c の SSR コア）
+    // ページ解決の実体は `fandhe_frontend_server::ssr::respond`（TASK-6.1c の SSR コア）
     // に一本化されている。本モジュールは HTTP レスポンス表現への詰め替えのみ
-    // 行い、`rws-app` のページ関数を直接呼ばない（重複実装の回避、REQ-6）。
+    // 行い、`fandhe-frontend-app` のページ関数を直接呼ばない（重複実装の回避、REQ-6）。
     match respond(path) {
         Some(ssr_response) => RouteResponse {
             status: ssr_response.status,
@@ -160,7 +160,7 @@ mod tests {
 
     #[test]
     fn page_routes_with_query_string_resolve_like_bare_paths() {
-        // `route_request` 自体はクエリを剥がさず `rws_server::router::Router::resolve`
+        // `route_request` 自体はクエリを剥がさず `fandhe_frontend_server::router::Router::resolve`
         // に生パスを渡す（本ファイル冒頭のドキュメンテーションコメント参照）。
         // `Router::resolve` 内部の `path.split_once('?')` によるクエリ除去
         // （`server/src/router.rs`）に暗黙依存しているため、その挙動をこちらの

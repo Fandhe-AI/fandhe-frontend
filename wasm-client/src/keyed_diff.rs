@@ -2,10 +2,10 @@
 //!
 //! `docs/design/dom-binding-update-design.md` §5 が定める「リストの構造変化
 //! （挿入・削除・並べ替え）を表現できる唯一の経路」である
-//! `rws_core::keyed::keyed_list`（#344）が出力する `data-key` 列に対し、
+//! `fandhe_frontend_core::keyed::keyed_list`（#344）が出力する `data-key` 列に対し、
 //! 「現在の DOM 上のキー列」と「新しい `Node` 木のキー列」の 2 つの `&str`
 //! 列だけから最小の操作列（削除・挿入・移動）を計画する。DOM
-//! （`web-sys`）に一切依存しないため、`cargo test -p rws-wasm-client`
+//! （`web-sys`）に一切依存しないため、`cargo test -p fandhe-frontend-wasm-client`
 //! （native）で検証できる（`crate::binding`/`crate::binding_dom` と同じ
 //! 2 層構成方針）。
 //!
@@ -56,7 +56,7 @@ pub enum KeyedOp {
 ///    [`KeyedOp::Move`]、見つからなければ [`KeyedOp::Insert`] とする。
 ///    いずれの場合も `working` を新しい並びに合わせて更新してから次へ進む。
 ///
-/// キー重複がある場合（本来は [`rws_core::keyed::keyed_list`] が構築時点で
+/// キー重複がある場合（本来は [`fandhe_frontend_core::keyed::keyed_list`] が構築時点で
 /// 拒否するため到達しない想定だが、DOM 改ざん等で `old_keys` 側に重複が
 /// 混入した場合の防御）は、`working` 側の探索を「未処理の先頭要素」に
 /// 限定することで最初の 1 件のみを対象とし、無限ループ・panic を起こさない

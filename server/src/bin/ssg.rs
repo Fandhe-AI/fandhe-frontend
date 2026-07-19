@@ -1,9 +1,9 @@
-//! `rws-server` の SSG エントリ（TASK-6.1c）。
+//! `fandhe-frontend-server` の SSG エントリ（TASK-6.1c）。
 //!
 //! `--out <dir>` で指定したディレクトリ（既定 `target/ssg-out`）へ、
-//! [`rws_server::ssg::generate`] を使って `/` と各デモアイテムの詳細ページを
+//! [`fandhe_frontend_server::ssg::generate`] を使って `/` と各デモアイテムの詳細ページを
 //! 静的ファイルとして書き出す薄い CLI ラッパー。HTML 生成・出力パスの安全性
-//! 検証は `rws_server::ssg` 側の責務であり、本ファイルは引数解析と結果表示
+//! 検証は `fandhe_frontend_server::ssg` 側の責務であり、本ファイルは引数解析と結果表示
 //! のみを担う。
 //!
 //! `#![forbid(unsafe_code)]` はクレートルートを跨いで継承されないため、
@@ -11,7 +11,7 @@
 
 #![forbid(unsafe_code)]
 
-use rws_server::ssg::generate;
+use fandhe_frontend_server::ssg::generate;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -23,7 +23,7 @@ fn main() -> ExitCode {
     match generate(&out_dir) {
         Ok(written) => {
             println!(
-                "rws-server ssg: wrote {} file(s) to {out_dir:?}",
+                "fandhe-frontend-server ssg: wrote {} file(s) to {out_dir:?}",
                 written.len()
             );
             for path in &written {
@@ -34,7 +34,7 @@ fn main() -> ExitCode {
         Err(err) => {
             // `SsgError` の `Display` は固定文言 + 入力パス/id のみで、内部
             // スタックトレース等は含まない（`security.md`「機微情報の露出」）。
-            eprintln!("rws-server ssg: generation failed: {err}");
+            eprintln!("fandhe-frontend-server ssg: generation failed: {err}");
             ExitCode::FAILURE
         }
     }

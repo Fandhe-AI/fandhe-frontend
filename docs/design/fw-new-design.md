@@ -19,8 +19,8 @@
   追加・「生成直後 `fw gate` PASS」の e2e（`cli/tests/new_gate_e2e.rs`）が
   実装済み。§3・§4・§8 参照。
 - **関連 Issue（追補 2）**: #378「feat(cli): fw new の複数テンプレート選択と
-  テンプレート骨格の拡充」で `--template` 選択 UI と、rws-core / rws-app
-  依存の拡充テンプレート `app`（Loader・束縛点 API・`rws_core::render` の
+  テンプレート骨格の拡充」で `--template` 選択 UI と、fandhe-frontend-core / fandhe-frontend-app
+  依存の拡充テンプレート `app`（Loader・束縛点 API・`fandhe_frontend_core::render` の
   実体サンプル）を追加。§2・§3・§3a・§9 参照。
 
 ## 2. CLI 契約
@@ -108,15 +108,15 @@ pub(crate) const TEMPLATES: &[Template] = &[/* "default", "app", "embed" */];
 イシュー #378 以前と完全後方互換（`--template` 省略時は `default`、同一
 バイト出力）。
 
-### 3.2 `app`（イシュー #378 新設。rws-core / rws-app 依存の拡充テンプレート）
+### 3.2 `app`（イシュー #378 新設。fandhe-frontend-core / fandhe-frontend-app 依存の拡充テンプレート）
 
-`templates/default/`（rws-core 非依存の最小骨格）に対し、フレームワークの
-実 API（`Loader` trait 実装・束縛点 API・`rws_core::render`）を使う出発点を
+`templates/default/`（fandhe-frontend-core 非依存の最小骨格）に対し、フレームワークの
+実 API（`Loader` trait 実装・束縛点 API・`fandhe_frontend_core::render`）を使う出発点を
 提供する。`templates/app/` の対象 35 ファイル（イシュー #378 で 22 ファイル、
 イシュー #411 で CSR wasm ビルド込み完全実体を追加し 35 ファイルへ拡張）:
 
-- プロジェクト骨格: `Cargo.toml`（`rws-core`/`rws-app` へ vendor path 依存）・
-  `Cargo.lock`・`structure.toml`（`crate = "rws-template-app"`）・
+- プロジェクト骨格: `Cargo.toml`（`fandhe-frontend-core`/`fandhe-frontend-app` へ vendor path 依存）・
+  `Cargo.lock`・`structure.toml`（`crate = "fandhe-frontend-template-app"`）・
   `src/main.rs`（`DemoItemsLoader`/`DemoItemDetailLoader` → `list_page`/
   `detail_page` → `render` で `dist/` へ書き出す SSG 的最小 SSR。
   `bind_text`/`keyed_list` の束縛点 API 使用サンプルも含む）・
@@ -127,33 +127,33 @@ pub(crate) const TEMPLATES: &[Template] = &[/* "default", "app", "embed" */];
   `tools/npm-asset-build/*`（4 ファイル）
 - `static/embed.html`: `templates/embed/embed.html`（既存の CSR マウント
   骨格）を同梱したもの。`tools/wasm/build.sh` 実行後は
-  `static/wasm/rws_wasm_client.js`/`rws_wasm_client_bg.wasm` を参照して
+  `static/wasm/fandhe_frontend_wasm_client.js`/`fandhe_frontend_wasm_client_bg.wasm` を参照して
   実際に動作する（§3b）
-- `vendor/rws-core/`・`vendor/rws-app/`・`vendor/rws-interactive/`・
-  `vendor/rws-wasm-client/`: rws-core / rws-app / rws-interactive /
-  rws-wasm-client のソース vendor 同梱（§3a・§3b）
+- `vendor/fandhe-frontend-core/`・`vendor/fandhe-frontend-app/`・`vendor/fandhe-frontend-interactive/`・
+  `vendor/fandhe-frontend-wasm-client/`: fandhe-frontend-core / fandhe-frontend-app / fandhe-frontend-interactive /
+  fandhe-frontend-wasm-client のソース vendor 同梱（§3a・§3b）
 - `wasm/`・`tools/wasm/build.sh`: CSR wasm ビルド用の独立ワークスペース
   （glue クレート `app-csr-wasm`）とビルド手順（§3b、イシュー #411）
 
 #### 3a. vendor 同梱の選定根拠
 
-rws-core / rws-app は `publish = false`（crates.io 未公開）のため、生成
+fandhe-frontend-core / fandhe-frontend-app は `publish = false`（crates.io 未公開）のため、生成
 プロジェクトが依存する方式には次の選択肢があった:
 
 | 方式 | 判定 |
 |------|------|
 | git 依存 | 却下: ビルド時ネットワーク依存（`security.md` サプライチェーン対策・オフライン決定性と矛盾） |
 | フレームワークリポへの path 依存 | 却下: 生成プロジェクトが配布先で独立して成立しなくなる |
-| **vendor 同梱（採用）** | rws-core / rws-app とも外部依存ゼロのため自己完結・オフライン・決定的。既存の「正本 + ドリフト検知テスト」運用にそのまま乗る |
+| **vendor 同梱（採用）** | fandhe-frontend-core / fandhe-frontend-app とも外部依存ゼロのため自己完結・オフライン・決定的。既存の「正本 + ドリフト検知テスト」運用にそのまま乗る |
 
-vendored `Cargo.toml`（`templates/app/vendor/{rws-core,rws-app}/Cargo.toml`）
-は正本から 1 点のみ変換する: `rws-app` の `rws-core` path 依存の参照先を
-`../core` → `../rws-core`（vendor 配下の実ディレクトリ名に合わせる）。
+vendored `Cargo.toml`（`templates/app/vendor/{fandhe-frontend-core,fandhe-frontend-app}/Cargo.toml`）
+は正本から 1 点のみ変換する: `fandhe-frontend-app` の `fandhe-frontend-core` path 依存の参照先を
+`../core` → `../fandhe-frontend-core`（vendor 配下の実ディレクトリ名に合わせる）。
 
 **重要**: vendor 側 `Cargo.toml` に `[workspace]` を追加してはならない。
-生成プロジェクトの `Cargo.toml`（`rws-template-app`）は `[workspace]
-members = ["."]` を明示することで、path 依存先（`vendor/rws-core`/
-`vendor/rws-app`）が workspace member として自動編入されるのを防いでいる。
+生成プロジェクトの `Cargo.toml`（`fandhe-frontend-template-app`）は `[workspace]
+members = ["."]` を明示することで、path 依存先（`vendor/fandhe-frontend-core`/
+`vendor/fandhe-frontend-app`）が workspace member として自動編入されるのを防いでいる。
 この状態で vendor 側にも独立した `[workspace]` を持たせると、cargo が
 "multiple workspace roots found in the same workspace" で拒否する
 （実装時に実測で確認済み。`templates/app/vendor/*/Cargo.toml` のコメント
@@ -170,12 +170,12 @@ vendor 同梱は「`publish = false`（crates.io 未公開）である間」の�
 `cli/tests/template_vendor_drift.rs` の canary テスト
 （`vendor_to_version_switch_trigger_has_not_fired`）が機械検知する。
 
-`structure.toml` は `vendor/rws-core`/`vendor/rws-app` を宣言しない
+`structure.toml` は `vendor/fandhe-frontend-core`/`vendor/fandhe-frontend-app` を宣言しない
 （`[directories.*]` 宣言外）。`fw gate` の `default_escape_check`・
 `fw structure`・`fw impact` はいずれも宣言済みディレクトリのみを走査・
 解決対象とするため、vendor 配下（正本の写しであり生成プロジェクトの
 記述対象ではない）は意図的に走査対象から除外される。`lint` チェック
-（`cargo clippy --all-targets -p rws-template-app`）はクレート境界で
+（`cargo clippy --all-targets -p fandhe-frontend-template-app`）はクレート境界で
 検査するため、vendored crate 内部の `raw_html` 定義自体は違反にならない
 （既存 gate 仕様どおり）。
 
@@ -198,7 +198,7 @@ fail-closed）。クレートはプロジェクトルート直下（`src/`）に
 
 #### 3b. CSR wasm ビルド込み完全実体（イシュー #411）
 
-`rws-wasm-client`（正本 `wasm-client/`）は `wasm-bindgen`/`web-sys` という
+`fandhe-frontend-wasm-client`（正本 `wasm-client/`）は `wasm-bindgen`/`web-sys` という
 外部依存を持つため、§3a のソース vendor 方式（外部依存ゼロが前提）を
 そのまま適用できない。以下のハイブリッド方式を採る:
 
@@ -206,10 +206,10 @@ fail-closed）。クレートはプロジェクトルート直下（`src/`）に
 |------|------|
 | wasm-bindgen 一族まで全ソース vendor | 却下: 数十クレート規模の複製となり `include_str!` によるコンパイル時埋め込みが非現実的 |
 | ビルド済み `.wasm`/JS グルーコードの同梱 | 却下: 監査不能なビルド成果物の配布（OWASP A08） |
-| **ハイブリッド（採用）**: `rws-interactive`/`rws-wasm-client`（外部依存ゼロのフレームワーク部分）はソース vendor。`wasm-bindgen`/`web-sys` は独立ワークスペース `wasm/` の `Cargo.lock` で crates.io バージョン依存として固定 | 正本ドリフト検知の既存運用に乗る。外部クレートは新規追加ゼロ（リポジトリ本体 `Cargo.lock` と同一バージョンの参照のみ） |
+| **ハイブリッド（採用）**: `fandhe-frontend-interactive`/`fandhe-frontend-wasm-client`（外部依存ゼロのフレームワーク部分）はソース vendor。`wasm-bindgen`/`web-sys` は独立ワークスペース `wasm/` の `Cargo.lock` で crates.io バージョン依存として固定 | 正本ドリフト検知の既存運用に乗る。外部クレートは新規追加ゼロ（リポジトリ本体 `Cargo.lock` と同一バージョンの参照のみ） |
 
 **独立ワークスペースへの隔離（root のオフライン決定性を守る）**: `wasm/` は
-`templates/app`（root、`rws-template-app`）の `[workspace] members = ["."]`
+`templates/app`（root、`fandhe-frontend-template-app`）の `[workspace] members = ["."]`
 に含まれない別の `[workspace]`（`templates/app/wasm/Cargo.toml`）として
 切り離す。wasm-bindgen の取得にはビルド時ネットワークが必要であり、これを
 root の依存グラフに混ぜると `cargo build`/`cargo test`/`fw gate` の既定経路
@@ -218,12 +218,12 @@ root の依存グラフに混ぜると `cargo build`/`cargo test`/`fw gate` の�
 検証対象クレート決定にも影響しない。
 
 **構成**:
-- `vendor/rws-interactive/`・`vendor/rws-wasm-client/`: 正本 `interactive/`・
+- `vendor/fandhe-frontend-interactive/`・`vendor/fandhe-frontend-wasm-client/`: 正本 `interactive/`・
   `wasm-client/` の `src/*` バイト同一コピー（`cli/tests/template_vendor_drift.rs`
   が検証）。`Cargo.toml` は既知変換（path 依存先を vendor 配下の実ディレクトリ名へ
-  変更、dev-dependencies を除去。dev-dependencies は `rws-server` への vendor
+  変更、dev-dependencies を除去。dev-dependencies は `fandhe-frontend-server` への vendor
   連鎖を招くため）を適用する。
-- `wasm/Cargo.toml`（glue クレート `app-csr-wasm`、cdylib）: `vendor/rws-wasm-client`
+- `wasm/Cargo.toml`（glue クレート `app-csr-wasm`、cdylib）: `vendor/fandhe-frontend-wasm-client`
   の `hydrate`/`mount_csr`（`#[wasm_bindgen]` エクスポート）を再エクスポート
   するのみ。HTML 組み立て・DOM 直接操作・`raw_html()` を持たない。
 - `wasm/Cargo.lock`: wasm-bindgen 0.2.126 / web-sys 0.3.103（リポジトリ本体
@@ -235,9 +235,9 @@ root の依存グラフに混ぜると `cargo build`/`cargo test`/`fw gate` の�
   `wasm-bindgen --version` の完全一致検証（`dist-server/build.rs::expected_wasm_bindgen_version`
   と同一の fail-closed 契約）、(c) `cargo build --manifest-path wasm/Cargo.toml
   --target wasm32-unknown-unknown --release`、(d) `wasm-bindgen --target web
-  --out-dir static/wasm --out-name rws_wasm_client` を実行する固定コマンド列。
+  --out-dir static/wasm --out-name fandhe_frontend_wasm_client` を実行する固定コマンド列。
 
-**REQ-3（60 件/深さ 6）への影響**: root（`rws-template-app`）の依存グラフ・
+**REQ-3（60 件/深さ 6）への影響**: root（`fandhe-frontend-template-app`）の依存グラフ・
 `xtask check-deps` の計測対象は不変（`include_str!` 追加のみ）。`wasm/` は
 「標準サーバー構成」の外にあるオプトイン CSR 成果物であり REQ-3 の計測
 基準へ影響しない。新規外部クレートの追加はゼロ（wasm-bindgen/web-sys とも
@@ -245,7 +245,7 @@ root の依存グラフに混ぜると `cargo build`/`cargo test`/`fw gate` の�
 
 **CI 回帰検証**: `.github/workflows/ci.yml` の `template-app-wasm-smoke`
 ジョブが `fw new --template app` → `tools/wasm/build.sh` →
-`static/wasm/rws_wasm_client.js`/`rws_wasm_client_bg.wasm` の生成と
+`static/wasm/fandhe_frontend_wasm_client.js`/`fandhe_frontend_wasm_client_bg.wasm` の生成と
 `mount_csr`/`hydrate` エクスポートの存在を e2e 検証する。
 
 **スコープ外**（`.claude/rules/out-of-scope-tracking.md`）: crates.io 公開後の
@@ -267,7 +267,7 @@ vendor → バージョン依存への切替はイシュー #412 で追跡する
 
 `default`/`app` と異なり **cargo パッケージを持たない**ため、
 `Template::substituted_files` は空配列（`&[]`）とする。`needle`
-（`rws-template-embed`）はどのファイルにも出現しないダミー文字列であり、
+（`fandhe-frontend-template-embed`）はどのファイルにも出現しないダミー文字列であり、
 置換ループは素通りする。生成物はテンプレート正本と全ファイルバイト一致
 になり、`cli/tests/new_e2e.rs::embed_template_output_is_byte_identical_to_template_and_contains_no_needle`
 がこれを固定する。
@@ -287,7 +287,7 @@ Rust コードが混入した場合の回帰を検出する。
 
 置換対象は allowlist で固定する。置換 needle はテンプレートごとに異なる
 仮パッケージ名（`Template::needle`、イシュー #378 でテンプレートごとに
-一般化）: `default` は `rws-template-default`、`app` は `rws-template-app`
+一般化）: `default` は `fandhe-frontend-template-default`、`app` は `fandhe-frontend-template-app`
 （`Cargo.toml` の `name = "..."`、`Cargo.lock` の同キー）。対象ファイルと
 期待出現回数は両テンプレート共通で以下のとおり:
 
@@ -308,7 +308,7 @@ expected_count) -> Result<String, String>` とし、**出現回数が期待値�
 一致しない場合はエラー（終了コード 1）**にする（fail-closed。テンプレート
 改変時の黙示的な置換漏れ・過剰置換を防ぐ）。
 
-`tests/negative_type_error.rs` 内の `rws-template-default` への doc コメント
+`tests/negative_type_error.rs` 内の `fandhe-frontend-template-default` への doc コメント
 言及（テンプレート出自の説明）は**置換しない**（allowlist 最小化の方針、
 かつコメント置換は意味的に不要）。
 
@@ -403,7 +403,7 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
   実効化される。`cli/tests/new_gate_e2e.rs::fw_new_app_template_default_escape_check_detects_injected_violation`
   が実際に注入検出を固定）。`templates/app/tests/escape_regression.rs`
   （生成プロジェクト内 XSS 回帰テスト）が `fw gate` の `test` チェックで
-  常時実行される。vendor 同梱（rws-core / rws-app）は正本とのドリフト検知
+  常時実行される。vendor 同梱（fandhe-frontend-core / fandhe-frontend-app）は正本とのドリフト検知
   （`cli/tests/template_vendor_drift.rs`）で改ざん・陳腐化を検出する。
 
 ## 8. テスト（`cli/tests/new_e2e.rs`）
@@ -417,7 +417,7 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
    が不変）→ `--force` 付きで成功、の順に確認する。
 3. **終了コード契約**: 引数なし・不正名・未知フラグは 2、成功は 0。
 4. **置換検証**: 生成後の `Cargo.toml` / `Cargo.lock` に
-   `name = "<project-name>"` があり `rws-template-default` が残らないこと。
+   `name = "<project-name>"` があり `fandhe-frontend-template-default` が残らないこと。
    置換対象外ファイルはテンプレートとバイト一致すること。
 5. **ドリフト検知**: `templates/default/` を再帰走査し、埋め込み
    マニフェストと相対パス集合・内容バイト列（`Cargo.toml`/`Cargo.lock`/
@@ -438,8 +438,8 @@ BLOCKED）を断定する。`.github/workflows/ci.yml` の test ジョブへ明�
 を無条件に断定する。
 
 `cli/tests/template_vendor_drift.rs`（イシュー #378 新設、イシュー #411 で
-`rws-interactive`/`rws-wasm-client` を追加）は vendor 同梱（rws-core /
-rws-app / rws-interactive / rws-wasm-client）と正本 `core/`/`app/`/
+`fandhe-frontend-interactive`/`fandhe-frontend-wasm-client` を追加）は vendor 同梱（fandhe-frontend-core /
+fandhe-frontend-app / fandhe-frontend-interactive / fandhe-frontend-wasm-client）と正本 `core/`/`app/`/
 `interactive/`/`wasm-client/` の乖離検知、`wasm/Cargo.lock` の
 wasm-bindgen/web-sys バージョンとリポジトリ本体 `Cargo.lock` の一致検知、
 および `templates/default/` と `templates/app/` の共有ファイル
@@ -451,7 +451,7 @@ wasm-bindgen/web-sys バージョンとリポジトリ本体 `Cargo.lock` の一
 - **静的単一ファイル `embed` テンプレート**は #378 の範囲外だったが、
   イシュー #410 で `fw new --template embed`（§3.3）として製品化済み。
 - **wasm ビルドを含む CSR の完全実体**は本イシュー（#378）の範囲外だったが、
-  イシュー #411 でハイブリッド方式（rws-wasm-client 本体はソース vendor、
+  イシュー #411 でハイブリッド方式（fandhe-frontend-wasm-client 本体はソース vendor、
   wasm-bindgen / web-sys のみ独立ワークスペース `wasm/` でバージョン依存）
   により同梱済み（§3b 参照）。
 - **crates.io 公開後の vendor → バージョン依存への切替**は本イシューの

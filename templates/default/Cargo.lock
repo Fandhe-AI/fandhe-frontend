@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "rws-template-default"
+name = "fandhe-frontend-template-default"
 version = "0.1.0"

@@ -2,7 +2,7 @@
 
 ## 1. 背景・脅威モデル
 
-REQ-1（既定エスケープ）の唯一の許容迂回経路は `rws_core::raw_html()` である
+REQ-1（既定エスケープ）の唯一の許容迂回経路は `fandhe_frontend_core::raw_html()` である
 （`core/src/lib.rs`）。`fw gate`（TASK-13.3、#138）の `default_escape_check`
 （`cli/src/gate.rs`）は当初、次のテキスト走査方式（PoC-7 由来の「マーカー方式」）
 のみで未レビュー呼び出しを検出していた。
@@ -17,7 +17,7 @@ REQ-1（既定エスケープ）の唯一の許容迂回経路は `rws_core::raw
    AI エージェント・人間のいずれであっても、レビュープロセスを経由したという
    「事実」を保証する仕組みがコメント文字列にはない。
 2. **見落とし（false negative）**: テキスト走査は識別子の文字列一致に依存する
-   ため、リネーム import（`use rws_core::raw_html as fragment;` → `fragment(...)`)
+   ため、リネーム import（`use fandhe_frontend_core::raw_html as fragment;` → `fragment(...)`)
    のような呼び出しを構造的に見逃し得る。
 
 本イシューは、上記脅威に対して偽装不能・見落としに強い検出機構へ頑健化する。
@@ -28,9 +28,9 @@ REQ-1（既定エスケープ）の唯一の許容迂回経路は `rws_core::raw
 |------|---------|-------------------|--------------------------------------|------|
 | A. コメントマーカー（旧方式） | なし（コメントは任意に書ける） | ○ | 0 | 単独では不採用（本イシューの起点） |
 | B. **`clippy::disallowed_methods`（`clippy.toml` 設定）** | **あり（コンパイラの HIR パス解決に基づく。コメントでは抑止不能）** | ○ | **0** | **採用** |
-| C. dylint 等のカスタム lint（`rws::unreviewed_raw_html` 相当） | あり | ×（`rustc_private`/nightly 前提が一般的） | 重量依存の追加が必要 | 不採用（REQ-3 違反・依存追加は事前承認が必要） |
+| C. dylint 等のカスタム lint（`fandhe_frontend::unreviewed_raw_html` 相当） | あり | ×（`rustc_private`/nightly 前提が一般的） | 重量依存の追加が必要 | 不採用（REQ-3 違反・依存追加は事前承認が必要） |
 | D. rustc ドライバ自作・`register_tool` | あり | ×（unstable API 前提） | 保守コスト大 | 不採用 |
-| E. `syn` 等による AST 走査を `cli` へ実装 | 中（属性解析は可能だがパス解決はできない） | ○ | `rws-cli` は外部依存ゼロ方針（`cli/Cargo.toml` 明記）に抵触 | 不採用 |
+| E. `syn` 等による AST 走査を `cli` へ実装 | 中（属性解析は可能だがパス解決はできない） | ○ | `fandhe-frontend-cli` は外部依存ゼロ方針（`cli/Cargo.toml` 明記）に抵触 | 不採用 |
 
 ### 選定理由（方式 B）
 
@@ -41,7 +41,7 @@ REQ-1（既定エスケープ）の唯一の許容迂回経路は `rws_core::raw
 - コメントで抑止できない（`clippy::disallowed_methods` 自体を沈黙させるには
   ソース上に検証可能な属性 `#[allow(...)]`/`#[expect(...)]` を書く必要があり、
   「レビューを経た証跡」を残す運用と両立する）。
-- `use rws_core::raw_html as fragment;` のようなリネーム import 経由の呼び出し
+- `use fandhe_frontend_core::raw_html as fragment;` のようなリネーム import 経由の呼び出し
   も、コンパイラが最終的に解決する定義元パスが同一であるため検出できる
   （実証: `cli/tests/raw_html_lint_e2e.rs`
   `renamed_import_call_is_still_rejected_by_clippy`）。
@@ -51,7 +51,7 @@ REQ-1（既定エスケープ）の唯一の許容迂回経路は `rws_core::raw
 ## 3. 採用方式の骨子
 
 1. **`clippy.toml`**（workspace ルート・`templates/default/`）に
-   `disallowed-methods = [{ path = "rws_core::raw_html", reason = "..." }]` を
+   `disallowed-methods = [{ path = "fandhe_frontend_core::raw_html", reason = "..." }]` を
    宣言する。`clippy::disallowed_methods` は設定時 warn-by-default の lint だが、
    `fw gate` の `lint` チェック（`cargo clippy --locked --all-targets -p <crate> -- -D warnings`、
    `--all-targets` はイシュー #315 で追加）と CI の `-D warnings` によりエラー化される。
@@ -59,7 +59,7 @@ REQ-1（既定エスケープ）の唯一の許容迂回経路は `rws_core::raw
 
    ```rust
    #[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: <レビュー根拠>")]
-   rws_core::raw_html(trusted_fragment)
+   fandhe_frontend_core::raw_html(trusted_fragment)
    ```
 
    `#[expect]`（Rust 1.81 以降、stable。本リポジトリのツールチェーンは
@@ -105,7 +105,7 @@ REQ-1（既定エスケープ）の唯一の許容迂回経路は `rws_core::raw
    - **`lint` チェック自体の fail-closed 強化**: `clippy.toml` が削除・エントリが
      欠落すると `disallowed_methods` が沈黙し「検出項目なし」の黙示的 PASS に
      なり得る。`cargo clippy` を起動する前に `clippy.toml` の存在と
-     `rws_core::raw_html` エントリの包含をテキスト検証し、欠落時は clippy を
+     `fandhe_frontend_core::raw_html` エントリの包含をテキスト検証し、欠落時は clippy を
      起動せず `lint` チェックを failed にする（`clippy_policy_check`,
      security.md A05）。
 
@@ -123,7 +123,7 @@ REQ-1（既定エスケープ）の唯一の許容迂回経路は `rws_core::raw
 - **レビュー済みラッパ関数経由の呼び出し**: `#[expect(...)]` を付けたラッパ
   関数内で `raw_html()` を呼び、そのラッパを別の場所から呼び出す構成の場合、
   ラッパの呼び出し元は lint 対象外になる（disallowed_methods は
-  `rws_core::raw_html` への直接呼び出しにのみ反応する）。これは方式 B の
+  `fandhe_frontend_core::raw_html` への直接呼び出しにのみ反応する）。これは方式 B の
   構造的な限界であり、監査層（ブランケット抑止検出・レビュー地点の
   `file:line` 列挙）による可視性確保で緩和する。ラッパ関数の新設自体は
   コードレビューで検知されることを前提とする。

@@ -1,8 +1,8 @@
-//! `rws_wasm_full::Runtime` の実ブラウザ統合テスト（TASK-11.2d・#77、
+//! `fandhe_frontend_wasm_full::Runtime` の実ブラウザ統合テスト（TASK-11.2d・#77、
 //! `wasm-pack test --headless --chrome`）。
 //!
 //! `wasm-full/tests/runtime_headless.rs`（native）は
-//! [`rws_wasm_full::dispatch_and_render_headless`]（DOM 非依存）までを
+//! [`fandhe_frontend_wasm_full::dispatch_and_render_headless`]（DOM 非依存）までを
 //! 検証済みである。本ファイルはその先、`Runtime::mount`/`Runtime::hydrate`
 //! が実 DOM（headless Chromium）上で以下を満たすことを検証する
 //! （`docs/design/wasm-full-architecture.md` 第 3.2 節・第 5 節、
@@ -14,7 +14,7 @@
 //!    入力途中の値・スクロール位置が保持されること（#345 の実装動機。
 //!    旧 `should_repaint`（`set_inner_html` 全置換回避のための再描画抑止）
 //!    は不要になり撤去済み、`events.rs` doc 参照）
-//! 3. `rws_interactive::render_for_hydration` 出力相当の DOM への
+//! 3. `fandhe_frontend_interactive::render_for_hydration` 出力相当の DOM への
 //!    `Runtime::hydrate` → 状態復元・イベント配線
 //! 4. 改ざんされた `data-hydrate-*` 属性 → panic せず初期状態 CSR フォール
 //!    バック（`docs/design/wasm-full-architecture.md` 第 4 節・判断 5）
@@ -25,7 +25,7 @@
 //!    という製品経路まで通しで確認する）
 //! 6. keyed list（`items`）への追加・削除で該当ノードのみが増減し、
 //!    無関係ノードの参照が保持されること（#345 受け入れ条件、
-//!    `rws_wasm_client::keyed_dom` の DOM 適用契約の統合確認）
+//!    `fandhe_frontend_wasm_client::keyed_dom` の DOM 適用契約の統合確認）
 //!
 //! `AppState::view`（`interactive/src/lib.rs`）はルート要素へ固定 id
 //! `interactive-root` を付与するため、本ファイルの `root_id` は一貫して
@@ -35,8 +35,8 @@
 
 #![cfg(target_arch = "wasm32")]
 
-use rws_interactive::{AppState, Hydrate};
-use rws_wasm_full::Runtime;
+use fandhe_frontend_interactive::{AppState, Hydrate};
+use fandhe_frontend_wasm_full::Runtime;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 use web_sys::{Document, Element, Event, EventInit, HtmlInputElement};
@@ -320,7 +320,9 @@ fn hydrate_restores_state_from_existing_dom_and_wires_events() {
 
     let placeholder = create_placeholder(&document, "interactive-root");
     let _cleanup = RemoveOnDrop(placeholder.clone());
-    placeholder.set_inner_html(&rws_wasm_full::render_component_html(&seed_state));
+    placeholder.set_inner_html(&fandhe_frontend_wasm_full::render_component_html(
+        &seed_state,
+    ));
     // render_component_html の出力は AppState::view() のルート div
     // （id="interactive-root"）そのものであり、`interactive-root` という id を
     // 持つプレースホルダの子孫として重複生成される。hydrate() が読み取る

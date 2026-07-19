@@ -1,9 +1,9 @@
-//! `rws-router-v1` 組み込み抽出器（TASK-13.1c, #130）と、コンポーネント境界抽出。
+//! `fandhe-frontend-router-v1` 組み込み抽出器（TASK-13.1c, #130）と、コンポーネント境界抽出。
 //!
-//! [`crate::structure`] の `[routing] extractor = "rws-router-v1"` 宣言に対応する
+//! [`crate::structure`] の `[routing] extractor = "fandhe-frontend-router-v1"` 宣言に対応する
 //! 唯一の実装。`structure.toml` の `[routing].definition_dir`（検証済み・
 //! `^[a-z0-9_-]+$` を満たすディレクトリ名のみ）配下の `.rs` ファイルを文字列走査し、
-//! `server/src/router.rs`（`rws-server`）が実装する `Router::route(path, handler)`
+//! `server/src/router.rs`（`fandhe-frontend-server`）が実装する `Router::route(path, handler)`
 //! 相当の呼び出しからルート文字列を抽出する。
 //!
 //! PoC-7 が採用していた「マニフェスト由来の任意正規表現をツールが評価する」設計は
@@ -523,7 +523,7 @@ mod tests {
     #[test]
     fn extract_routes_reads_real_router_source() {
         // 統合的な回帰テスト: このリポジトリの実 `app/src/`（`routes.rs`）から
-        // 実際にルートを抽出できること（`rws-router-v1` 抽出器の実体確認）。
+        // 実際にルートを抽出できること（`fandhe-frontend-router-v1` 抽出器の実体確認）。
         // イシュー #407 でルート定義の正本を server から app へ移設し、
         // `structure.toml` の `[routing] definition_dir` も `"app"` へ追随した
         // （抽出器本体は無改修、文字列走査のまま追随できることの回帰）。

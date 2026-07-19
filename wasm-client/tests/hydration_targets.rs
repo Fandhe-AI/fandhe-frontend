@@ -1,23 +1,23 @@
-//! `rws-wasm-client` 純粋ロジック層のネイティブ回帰テスト（TASK-6.2c、#49）。
+//! `fandhe-frontend-wasm-client` 純粋ロジック層のネイティブ回帰テスト（TASK-6.2c、#49）。
 //!
 //! `rlib` として通常の Rust クレート経由でリンクし、wasm ビルド・実ブラウザを
 //! 介さずに以下を確認する（`docs/api/hydration-api.md` 第 7 節・テスト階層 1）。
 //!
-//! - SSR（`rws_app` の各ページ関数 → `rws_core::render`）と CSR 用純粋関数
-//!   （[`rws_wasm_client::render_list_page_html`] 等）の出力が完全一致すること
+//! - SSR（`fandhe_frontend_app` の各ページ関数 → `fandhe_frontend_core::render`）と CSR 用純粋関数
+//!   （[`fandhe_frontend_wasm_client::render_list_page_html`] 等）の出力が完全一致すること
 //!   （REQ-6「CSR が SSR/SSG と同一関数を呼ぶ」契約）。
 //! - `demo_items()[1]` の XSS ペイロードが CSR 経路でもエスケープされること
 //!   （REQ-1 の CSR 経路での回帰）。
-//! - ハイドレーション対象特定関数（[`rws_wasm_client::find_hydrate_target_kinds`] /
-//!   [`rws_wasm_client::find_list_nav_targets`]）が `rws_app` の DOM 契約
+//! - ハイドレーション対象特定関数（[`fandhe_frontend_wasm_client::find_hydrate_target_kinds`] /
+//!   [`fandhe_frontend_wasm_client::find_list_nav_targets`]）が `fandhe_frontend_app` の DOM 契約
 //!   （`data-hydrate` / `data-nav`）と整合すること。
-//! - イシュー #375（`rws_app::demo_items()` 直呼び出しから
-//!   `rws_app::Loader` 経由への移行）: loader 経路の決定性・fail-closed 挙動
+//! - イシュー #375（`fandhe_frontend_app::demo_items()` 直呼び出しから
+//!   `fandhe_frontend_app::Loader` 経由への移行）: loader 経路の決定性・fail-closed 挙動
 //!   （[`loader_error_view`] への収束・機微情報の非混入）を追加固定する。
 
-use rws_app::{demo_items, detail_page, list_page, Item, Loader};
-use rws_core::render;
-use rws_wasm_client::{
+use fandhe_frontend_app::{demo_items, detail_page, list_page, Item, Loader};
+use fandhe_frontend_core::render;
+use fandhe_frontend_wasm_client::{
     find_hydrate_target_kinds, find_list_nav_targets, loader_error_view, render_detail_page_html,
     render_list_page_html, resolve_detail_node, resolve_list_node, LIKE_HYDRATE_VALUE,
 };
@@ -157,7 +157,7 @@ fn find_list_nav_targets_lists_all_item_hrefs() {
 /// ノード木（＝同じ `render` 出力）を返すこと（`where` 束縛の型接続確認）。
 #[test]
 fn resolve_list_node_is_deterministic_across_equivalent_loaders() {
-    let via_default = render(&resolve_list_node(&rws_app::DemoItemsLoader));
+    let via_default = render(&resolve_list_node(&fandhe_frontend_app::DemoItemsLoader));
     let via_custom = render(&resolve_list_node(&AlwaysOkListLoader));
     assert_eq!(via_default, via_custom);
     assert_eq!(via_default, render_list_page_html());
@@ -198,7 +198,7 @@ fn resolve_detail_node_falls_back_to_loader_error_view_and_leaks_nothing() {
 /// 設計書 §3.3）。
 #[test]
 fn resolve_detail_node_returns_not_found_node_not_error_view_for_unknown_id() {
-    let node = resolve_detail_node(&rws_app::DemoItemDetailLoader, "does-not-exist");
+    let node = resolve_detail_node(&fandhe_frontend_app::DemoItemDetailLoader, "does-not-exist");
     assert_ne!(render(&node), render(&loader_error_view()));
     assert_eq!(render(&node), render(&detail_page(None)));
 }

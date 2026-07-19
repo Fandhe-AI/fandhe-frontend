@@ -1,4 +1,4 @@
-//! `rws-wasm-full`: WASM 完全方式のクライアントランタイム。
+//! `fandhe-frontend-wasm-full`: WASM 完全方式のクライアントランタイム。
 //!
 //! REQ-11（`docs/spec/04-requirements.md`）が既定とする「クライアントの
 //! イベント処理・DOM 更新を Rust + WASM の safe な範囲に収める」方式の
@@ -20,16 +20,16 @@
 //! `dom.rs` と同じ 2 層構成方針）。[`dispatch_and_render_headless`] は
 //! DOM 非依存のためゲートせず、native から直接呼べる。
 //!
-//! 具象 `Component` 実装（例: `rws_interactive::AppState`）に対して
+//! 具象 `Component` 実装（例: `fandhe_frontend_interactive::AppState`）に対して
 //! `#[wasm_bindgen]` エクスポートを薄く書き出すアプリ側エントリポイントの
 //! 参照実装は [`entry`] モジュールが提供する
 //! （`docs/design/wasm-full-architecture.md` 第 3.3 節、`#[wasm_bindgen]` はジェネリクスを
 //! エクスポートできないため `Runtime<C>` はここで具象化しない）。
 //!
-//! [`csr`] モジュール（TASK-CSR-loader・#349）は `rws_app::Loader` 経由の
-//! CSR データ解決（`rws_app::Item` 系ページ）を担う別系統の 2 層構成
+//! [`csr`] モジュール（TASK-CSR-loader・#349）は `fandhe_frontend_app::Loader` 経由の
+//! CSR データ解決（`fandhe_frontend_app::Item` 系ページ）を担う別系統の 2 層構成
 //! （DOM 非依存の純粋層）であり、[`Runtime`]/[`entry`]/[`hydration`]
-//! （`rws_interactive::Component`/`AppState` 系の初期表示・イベント処理）
+//! （`fandhe_frontend_interactive::Component`/`AppState` 系の初期表示・イベント処理）
 //! とは独立に、クライアント側で新規データ解決が必要になった場合の入口を
 //! 提供する。初期表示（ハイドレーション）では呼ばない
 //! （`docs/design/loader-trait-design.md` §4・§7.3、`csr` モジュール doc 参照）。
@@ -37,9 +37,9 @@
 //! [`nav`] モジュール（イシュー #374）はクライアント側ルーティング
 //! （history API 連携・URL 同期・遷移時 loader 配線）を担う。[`csr`] の
 //! loader 解決層を再利用しつつ、`data-nav` クリック委譲・`popstate` 連携・
-//! DOM サブツリー差し替え（[`rws_wasm_client::build_dom_node`] 経由、
+//! DOM サブツリー差し替え（[`fandhe_frontend_wasm_client::build_dom_node`] 経由、
 //! `set_inner_html` 不使用）という独自の配線層を持つ。[`Runtime`]/[`entry`]
-//! の状態管理（`rws_interactive::Component`）とは独立した別系統であり、
+//! の状態管理（`fandhe_frontend_interactive::Component`）とは独立した別系統であり、
 //! 遷移後のインタラクティブ要素再配線は本クレートのスコープ外（#374 計画
 //! §8 参照）。
 //!
@@ -72,20 +72,20 @@ mod dom;
 // ままとし、公開面はこの再エクスポートのみに絞る。
 pub use dom::render_component_html;
 
-use rws_interactive::Component;
+use fandhe_frontend_interactive::Component;
 
 /// DOM 非依存のヘッドレス補助 API（`docs/design/wasm-full-architecture.md` 第 3.2 節の
 /// 公開 API 凍結表）。
 ///
-/// `rws_interactive::dispatch` で状態を更新し、`component.view()`（描画前の
-/// `rws_core::Node` 木）を返すのみで、`rws_core::render()`・DOM のいずれも
+/// `fandhe_frontend_interactive::dispatch` で状態を更新し、`component.view()`（描画前の
+/// `fandhe_frontend_core::Node` 木）を返すのみで、`fandhe_frontend_core::render()`・DOM のいずれも
 /// 経由しない。native の単体テスト・Node 計測（TASK-11.5/11.6）が
 /// wasm32 ターゲット・実 DOM を介さずに「dispatch 後の状態」を検証できるように
 /// するためのヘルパーであり、[`Runtime::mount`]/[`Runtime::hydrate`] の
-/// 内部実装（`dom::mount_initial` 経由で `rws_core::render()` の既定エスケープ済み
+/// 内部実装（`dom::mount_initial` 経由で `fandhe_frontend_core::render()` の既定エスケープ済み
 /// 出力のみを DOM へ渡す）とは別経路である。
 ///
-/// 未知のアクション名（`rws_interactive::dispatch` が `false` を返す場合）でも
+/// 未知のアクション名（`fandhe_frontend_interactive::dispatch` が `false` を返す場合）でも
 /// 状態は変更されず、その時点の `component.view()` を返す（安全側 no-op、
 /// 不変条件 4）。
 ///
@@ -96,8 +96,8 @@ pub fn dispatch_and_render_headless<C: Component>(
     component: &mut C,
     name: &str,
     payload: &str,
-) -> rws_core::Node {
-    rws_interactive::dispatch(component, name, payload);
+) -> fandhe_frontend_core::Node {
+    fandhe_frontend_interactive::dispatch(component, name, payload);
     component.view()
 }
 
@@ -126,7 +126,10 @@ pub struct Runtime<C: Component> {
 #[cfg(target_arch = "wasm32")]
 impl<C> Runtime<C>
 where
-    C: Component + rws_interactive::DirtyTracked + rws_wasm_client::BindingSource + 'static,
+    C: Component
+        + fandhe_frontend_interactive::DirtyTracked
+        + fandhe_frontend_wasm_client::BindingSource
+        + 'static,
 {
     /// `root_id` 要素を解決する。`window`/`document` 非存在・要素不在は
     /// いずれも `Err`（panic しない、`.claude/rules/coding-rust.md`）。
@@ -156,7 +159,7 @@ where
     /// のいずれからもイベント配線はこの 1 箇所からのみ行う（配線は 1 回のみ
     /// という契約を型で保証する）。
     ///
-    /// 束縛点対応表（[`rws_wasm_client::BindingTable`]）は `root` の DOM が
+    /// 束縛点対応表（[`fandhe_frontend_wasm_client::BindingTable`]）は `root` の DOM が
     /// 既に構築済み（`mount`/`hydrate` が [`dom::mount_initial`] または
     /// SSR 済み DOM を用意した後）である前提でクロージャ生成時に 1 回
     /// `scan` する。keyed list の構造変化（挿入・削除・並べ替え）が起きた
@@ -169,10 +172,10 @@ where
     ///   （`set_inner_html` 不使用）。
     /// - keyed list 更新: dirty field ごとに `root` 配下の
     ///   `[data-bind-list="<field>"]` 要素を探し（
-    ///   `rws_wasm_client::find_list_element`）、見つかった場合のみ
+    ///   `fandhe_frontend_wasm_client::find_list_element`）、見つかった場合のみ
     ///   `component.view()` の新しい木から対応するリストノードを特定して
-    ///   （`rws_wasm_client::find_keyed_list_node`）
-    ///   `rws_wasm_client::apply_keyed_list` を適用する。どちらかが
+    ///   （`fandhe_frontend_wasm_client::find_keyed_list_node`）
+    ///   `fandhe_frontend_wasm_client::apply_keyed_list` を適用する。どちらかが
     ///   見つからない場合は当該 field を no-op とする（fail-closed。
     ///   `field` が keyed list ではなく通常の束縛点だった場合の通常経路）。
     ///
@@ -191,15 +194,18 @@ where
         root: web_sys::Element,
     ) -> impl FnMut(events::ActionRef) + 'static {
         let binding_table = std::rc::Rc::new(std::cell::RefCell::new(
-            rws_wasm_client::BindingTable::scan(&root).ok(),
+            fandhe_frontend_wasm_client::BindingTable::scan(&root).ok(),
         ));
 
         move |action_ref: events::ActionRef| {
             let Ok(mut state) = component.try_borrow_mut() else {
                 return;
             };
-            let dispatched =
-                rws_interactive::dispatch(&mut *state, &action_ref.action, &action_ref.payload);
+            let dispatched = fandhe_frontend_interactive::dispatch(
+                &mut *state,
+                &action_ref.action,
+                &action_ref.payload,
+            );
             if !dispatched {
                 return;
             }
@@ -220,13 +226,20 @@ where
             let mut structural_change = false;
             if let Ok(document) = Self::document() {
                 for field in &dirty {
-                    let Ok(Some(list_element)) = rws_wasm_client::find_list_element(&root, field)
+                    let Ok(Some(list_element)) =
+                        fandhe_frontend_wasm_client::find_list_element(&root, field)
                     else {
                         continue;
                     };
                     let view = state.view();
-                    if let Some(list_node) = rws_wasm_client::find_keyed_list_node(&view, field) {
-                        rws_wasm_client::apply_keyed_list(&document, &list_element, list_node);
+                    if let Some(list_node) =
+                        fandhe_frontend_wasm_client::find_keyed_list_node(&view, field)
+                    {
+                        fandhe_frontend_wasm_client::apply_keyed_list(
+                            &document,
+                            &list_element,
+                            list_node,
+                        );
                         structural_change = true;
                     }
                 }
@@ -239,7 +252,8 @@ where
             // 機構。毎呼び出しで再スキャンしないことで通常の
             // テキスト/属性更新のコストを最小限に保つ）。
             if structural_change {
-                *binding_table.borrow_mut() = rws_wasm_client::BindingTable::scan(&root).ok();
+                *binding_table.borrow_mut() =
+                    fandhe_frontend_wasm_client::BindingTable::scan(&root).ok();
             }
         }
     }
@@ -283,7 +297,7 @@ where
     /// `Err` を返さず CSR フォールバックへ収束させる。
     pub fn hydrate(root_id: &str, component: C) -> Result<Self, wasm_bindgen::JsValue>
     where
-        C: rws_interactive::Hydrate,
+        C: fandhe_frontend_interactive::Hydrate,
     {
         let root = Self::get_root(root_id)?;
 

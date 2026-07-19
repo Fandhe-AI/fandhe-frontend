@@ -3,7 +3,7 @@
 //! `docs/design/scenario-regression-design.md`（TASK-13.4a・#144）§4.1 行 3・§4.2・§4.3・
 //! §4.4 を単一の情報源とする。PoC-7 土台
 //! （`docs/spec/03-poc/ai-self-maintenance/scenarios/feature-search/`）の
-//! 実測値（`impact.json`: `affected_crates: ["rws-server"]` / `breaking_risk:
+//! 実測値（`impact.json`: `affected_crates: ["fandhe-frontend-server"]` / `breaking_risk:
 //! medium` / ルート 3 件 / `requires_human_approval: true`、`gate.json`: 全
 //! チェック PASS（新規テスト込み））を、製品 CLI（`fw`）に対する統合テストとして
 //! 再現する。
@@ -11,7 +11,7 @@
 //! # フィクスチャ構成
 //!
 //! `common::write_scenario_workspace` で 2 クレート構成
-//! （`app` = `scenario-fixture-app` lib クレート、`server` = `rws-server` bin
+//! （`app` = `scenario-fixture-app` lib クレート、`server` = `fandhe-frontend-server` bin
 //! クレート、`server` は `app` へ path 依存）を生成する。「機能追加」の
 //! before/after は `app::search_page`（タイトル部分一致検索）を app 側に、
 //! `search_handler` + `.route("/search", ...)` を server 側にそれぞれ追加する
@@ -20,15 +20,15 @@
 //! `search_page` の定義は `app/src/lib.rs`（定義ファイル）に閉じ、`server` 側
 //! からのみ参照させる。`impact::analyze` の `scan_usages` は定義元ファイル
 //! 自身を使用箇所から除外するため、これにより `affected_crates` が
-//! `["rws-server"]` の 1 件に収まる（設計文書 §4.1 行 3 の前提）。
+//! `["fandhe-frontend-server"]` の 1 件に収まる（設計文書 §4.1 行 3 の前提）。
 //!
 //! # 期待値の導出根拠（`cli/src/impact.rs`）
 //!
-//! - `affected_files` = `server/src/main.rs` のみ → seeds `{rws-server}` →
-//!   `rws-server` に依存する他クレートがないため逆依存閉包も `{rws-server}`
-//!   のまま → `affected_crates: ["rws-server"]`
+//! - `affected_files` = `server/src/main.rs` のみ → seeds `{fandhe-frontend-server}` →
+//!   `fandhe-frontend-server` に依存する他クレートがないため逆依存閉包も `{fandhe-frontend-server}`
+//!   のまま → `affected_crates: ["fandhe-frontend-server"]`
 //! - `judge_breaking_risk`: 影響クレート 1 件・クライアント境界クレート
-//!   （`rws-wasm-client`/`rws-wasm-full`/`rws-wasm-thin`）を含まない →
+//!   （`fandhe-frontend-wasm-client`/`fandhe-frontend-wasm-full`/`fandhe-frontend-wasm-thin`）を含まない →
 //!   `medium`
 //! - `requires_human_approval(medium, routes 非空, ambiguous=false)` → `true`
 //! - `affected_route_paths`: 影響ファイル `server/src/main.rs` 内の全ルートを
@@ -142,13 +142,13 @@ pub fn search_page(items: &[Item], query: &str) -> String {
     )
 }
 
-/// `server`（`rws-server`）クレートのベースラインソース。依存ゼロのスタブ
+/// `server`（`fandhe-frontend-server`）クレートのベースラインソース。依存ゼロのスタブ
 /// `Router`（`.route("<path>", handler)` の実体を持たせるだけの最小実装）に
 /// 既存 2 ルート（`/`, `/items/:id`）を登録する。`search_page` はまだ
 /// 参照しない。
 fn server_baseline_src() -> String {
     r#"//! シナリオ 3（機能追加、TASK-13.4d・#147）フィクスチャ用の最小 server crate
-//! （`rws-server` 役）。実依存を持たないスタブ `Router` に `app` crate
+//! （`fandhe-frontend-server` 役）。実依存を持たないスタブ `Router` に `app` crate
 //! （`scenario-fixture-app`）のハンドラを登録する。`fw impact` のルート抽出器
 //! （`cli/src/routes.rs`）が対象とする `.route("<path>", handler)` 構文を実体
 //! として持つ。
@@ -236,7 +236,7 @@ fn members_with(app_src: String, server_src: String) -> Vec<MemberSpec> {
         },
         MemberSpec {
             dir: "server",
-            package_name: "rws-server",
+            package_name: "fandhe-frontend-server",
             role: "server-entrypoint",
             is_bin: true,
             path_deps: &["app"],
@@ -256,7 +256,7 @@ fn search_page_is_absent_from_baseline() {
     let project = write_scenario_workspace(
         "feature-baseline-impact",
         &members,
-        Some(("server", "rws-router-v1")),
+        Some(("server", "fandhe-frontend-router-v1")),
     );
     let (code, stdout, stderr) = run_fw("impact", &["search_page"], &project);
 
@@ -276,7 +276,7 @@ fn feature_addition_impact_reports_medium_risk_and_new_route() {
     let project = write_scenario_workspace(
         "feature-after-impact",
         &members,
-        Some(("server", "rws-router-v1")),
+        Some(("server", "fandhe-frontend-router-v1")),
     );
     let (code, stdout, stderr) = run_fw("impact", &["search_page"], &project);
 
@@ -289,7 +289,7 @@ fn feature_addition_impact_reports_medium_risk_and_new_route() {
     assert_eq!(
         json_string_field(&stdout, "breaking_risk"),
         Some("medium".to_string()),
-        "影響クレートは rws-server の 1 件のみのため medium のはず: stdout={stdout}"
+        "影響クレートは fandhe-frontend-server の 1 件のみのため medium のはず: stdout={stdout}"
     );
     assert_eq!(
         json_bool_field(&stdout, "requires_human_approval"),
@@ -303,10 +303,10 @@ fn feature_addition_impact_reports_medium_risk_and_new_route() {
     );
 
     // affected_crates はシリアライズが決定的・昇順であるため厳密一致で検証する
-    // （rws-server 1 件のみ = クライアント境界クレート非含有も同時に保証する）。
+    // （fandhe-frontend-server 1 件のみ = クライアント境界クレート非含有も同時に保証する）。
     assert!(
-        stdout.contains(r#""affected_crates":["rws-server"]"#),
-        "affected_crates は rws-server 1 件のみのはず: stdout={stdout}"
+        stdout.contains(r#""affected_crates":["fandhe-frontend-server"]"#),
+        "affected_crates は fandhe-frontend-server 1 件のみのはず: stdout={stdout}"
     );
 
     // affected_routes も厳密一致で検証する（既存 2 ルート + 新設 /search の
@@ -344,7 +344,7 @@ fn feature_addition_passes_gate_core_checks() {
         let project = write_scenario_workspace(
             "feature-baseline-gate",
             &members,
-            Some(("server", "rws-router-v1")),
+            Some(("server", "fandhe-frontend-router-v1")),
         );
         let (_code, stdout, stderr) = run_fw("gate", &[], &project);
         for name in [
@@ -368,7 +368,7 @@ fn feature_addition_passes_gate_core_checks() {
     let project = write_scenario_workspace(
         "feature-after-gate",
         &members,
-        Some(("server", "rws-router-v1")),
+        Some(("server", "fandhe-frontend-router-v1")),
     );
     let (code, stdout, stderr) = run_fw("gate", &[], &project);
 

@@ -44,13 +44,13 @@ fn run_xtask(args: &[&str]) -> std::process::Output {
 
 #[test]
 fn list_build_scripts_single_package_with_no_build_scripts_exits_zero() {
-    let output = run_xtask(&["list-build-scripts", "--package", "rws-core"]);
+    let output = run_xtask(&["list-build-scripts", "--package", "fandhe-frontend-core"]);
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     assert_eq!(
         output.status.code(),
         Some(0),
-        "rws-core は build.rs 非保有かつ 0 件は正常終了扱いの想定。stderr: {}",
+        "fandhe-frontend-core は build.rs 非保有かつ 0 件は正常終了扱いの想定。stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(
@@ -66,7 +66,7 @@ fn list_build_scripts_multiple_packages_emits_one_summary_line_per_package() {
     let output = run_xtask(&[
         "list-build-scripts",
         "--package",
-        "rws-core",
+        "fandhe-frontend-core",
         "--package",
         "xtask",
     ]);
@@ -75,7 +75,7 @@ fn list_build_scripts_multiple_packages_emits_one_summary_line_per_package() {
     assert_eq!(
         output.status.code(),
         Some(0),
-        "rws-core / xtask はいずれも build.rs 非保有である想定。stderr: {}",
+        "fandhe-frontend-core / xtask はいずれも build.rs 非保有である想定。stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 

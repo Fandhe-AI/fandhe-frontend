@@ -1,10 +1,10 @@
 //! 既定実装化のエントリポイント（TASK-11.2d・#77）。
 //!
-//! `Runtime<C: rws_interactive::Component>`（`crate::Runtime`）はジェネリックな
+//! `Runtime<C: fandhe_frontend_interactive::Component>`（`crate::Runtime`）はジェネリックな
 //! Rust API であり、`#[wasm_bindgen]` はジェネリクスをエクスポートできない
 //! 制約があるため直接 JS から呼べない（`docs/design/wasm-full-architecture.md`
 //! 第 3.3 節）。本モジュールはその制約を埋める**アプリ側の薄いラッパー**の
-//! 参照実装であり、`rws_interactive::AppState`（PoC-5 のカウンター・フォーム・
+//! 参照実装であり、`fandhe_frontend_interactive::AppState`（PoC-5 のカウンター・フォーム・
 //! 動的リスト実装を汎用化した参照コンポーネント）に対して具象の
 //! `#[wasm_bindgen] pub fn mount(root_id: &str)` / `pub fn hydrate(root_id: &str)`
 //! を提供する。
@@ -21,7 +21,7 @@
 //! そのため `thread_local! { static RUNTIME: RefCell<Option<Runtime<AppState>>> }`
 //! にモジュールスタティックとして保持し、ラッパー関数を抜けたあとも
 //! 状態・イベント配線が意図した生存期間として維持されるようにする
-//! （この保持責務はアプリ側クレートが負い、`rws-wasm-full` 自体は具象型を
+//! （この保持責務はアプリ側クレートが負い、`fandhe-frontend-wasm-full` 自体は具象型を
 //! 知らないためこの保持先を提供しない）。
 //!
 //! # JS グルー例（実効 10 行以内、REQ-11 受け入れ基準 3）
@@ -31,7 +31,7 @@
 //! ```html
 //! <div id="app"></div>
 //! <script type="module">
-//!   import init, { mount } from "./pkg/rws_wasm_full.js";
+//!   import init, { mount } from "./pkg/fandhe_frontend_wasm_full.js";
 //!   await init();
 //!   mount("app");
 //! </script>
@@ -44,7 +44,7 @@
 //! ハイドレーション経路の参照実装）として実ファイル化されており、
 //! `xtask check-loc`（イシュー #156）が CI で機械的に検証する。
 
-use rws_interactive::AppState;
+use fandhe_frontend_interactive::AppState;
 use std::cell::RefCell;
 use wasm_bindgen::prelude::wasm_bindgen;
 use wasm_bindgen::JsValue;
@@ -106,7 +106,7 @@ pub fn hydrate(root_id: &str) -> Result<(), JsValue> {
 ///
 /// # `root_id` の対象（`hydrate`/`mount` とは異なるデモ系統）
 ///
-/// 本関数が遷移対象とするのは `rws_app::list_page`/`detail_page`
+/// 本関数が遷移対象とするのは `fandhe_frontend_app::list_page`/`detail_page`
 /// （`server/src/ssr.rs` が SSR する記事一覧・詳細ページ、`data-nav` リンクは
 /// `layout()` が組み立てる `<div id="app-root">` 配下にのみ存在する）であり、
 /// 上記 `hydrate`/`mount`（`AppState` のカウンター・フォーム・動的リスト
@@ -119,7 +119,7 @@ pub fn hydrate(root_id: &str) -> Result<(), JsValue> {
 ///
 /// ```html
 /// <script type="module">
-///   import init, { start_router } from "./pkg/rws_wasm_full.js";
+///   import init, { start_router } from "./pkg/fandhe_frontend_wasm_full.js";
 ///   await init();
 ///   start_router("app-root");
 /// </script>

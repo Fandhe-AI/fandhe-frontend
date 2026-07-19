@@ -21,7 +21,7 @@
 //!
 //! wasm32 ターゲット専用（`wasm_bindgen::closure::Closure` に依存するため）。
 //! `lib.rs` は `#[cfg(target_arch = "wasm32")] mod registry;` としてのみ
-//! 宣言し、ネイティブビルド（`cargo test -p rws-wasm-client`）には
+//! 宣言し、ネイティブビルド（`cargo test -p fandhe-frontend-wasm-client`）には
 //! 本モジュールを含めない。
 
 use std::cell::RefCell;

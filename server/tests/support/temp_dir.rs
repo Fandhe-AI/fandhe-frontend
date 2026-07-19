@@ -5,7 +5,7 @@
 //
 // `tempfile` 等の外部クレートを追加せず、`std::env::temp_dir()` +
 // プロセス固有サフィックスで一時ディレクトリを代用する
-// （REQ-3: `rws-server` は外部依存ゼロを維持する）。
+// （REQ-3: `fandhe-frontend-server` は外部依存ゼロを維持する）。
 //
 // 呼び出し文脈:
 // - `include!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/support/temp_dir.rs"))`
@@ -33,7 +33,7 @@ impl TempDir {
             .map(|d| d.as_nanos())
             .unwrap_or(0);
         let path = std::env::temp_dir().join(format!(
-            "rws-server-test-{tag}-{}-{unique}",
+            "fandhe-frontend-server-test-{tag}-{}-{unique}",
             std::process::id()
         ));
         Self(path)

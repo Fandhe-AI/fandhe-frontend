@@ -5,11 +5,11 @@
 //! # 責務境界
 //!
 //! `wasm-full/tests/nav_native.rs` がルート解決・loader 接続の純粋層を
-//! native で固定済み。本ファイルは配線層（`rws_wasm_full::nav::start_router`、
+//! native で固定済み。本ファイルは配線層（`fandhe_frontend_wasm_full::nav::start_router`、
 //! `#[cfg(target_arch = "wasm32")]`）を実 DOM 上で検証する
 //! （`wasm-full/tests/three_mode_browser.rs` と同じ「SSR 相当を
-//! `rws_app::page_shell` + `assemble_*_page` の直接合成で再現する」方式で
-//! フィクスチャを組み立てる。`rws-server` への dev-dependency 追加はしない
+//! `fandhe_frontend_app::page_shell` + `assemble_*_page` の直接合成で再現する」方式で
+//! フィクスチャを組み立てる。`fandhe-frontend-server` への dev-dependency 追加はしない
 //! ため）。
 //!
 //! # 検証内容（#374 実装計画 §6・#404 実装計画 §6 に対応）
@@ -108,9 +108,9 @@
 
 #![cfg(target_arch = "wasm32")]
 
+use fandhe_frontend_app::{assemble_list_page, demo_items, DemoItemsLoader};
+use fandhe_frontend_wasm_full::nav::encode_scroll_state;
 use js_sys::{Function, Reflect};
-use rws_app::{assemble_list_page, demo_items, DemoItemsLoader};
-use rws_wasm_full::nav::encode_scroll_state;
 use std::cell::Cell;
 use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
@@ -126,7 +126,7 @@ wasm_bindgen_test_configure!(run_in_browser);
 
 /// テスト用のプレースホルダを document body へ生成する。`page_shell` の
 /// 実際の DOM 構造（`<body>` 直下に `<div id="app-root">` を単独で置く）を
-/// 再現するため、`initial_html`（`rws_app::layout` の render 出力＝
+/// 再現するため、`initial_html`（`fandhe_frontend_app::layout` の render 出力＝
 /// `<div id="app-root">...</div>` そのもの）を**一意な test スコープ id**
 /// を持つ外側コンテナへ挿入する（`page_shell` の `<body>` 相当）。返り値は
 /// 実際に `id="app-root"` を持つ内側要素（`start_router("app-root")` が
@@ -155,7 +155,7 @@ fn create_app_root(
     let root = container
         .query_selector("#app-root")
         .expect("query_selector must not fail")
-        .expect("initial_html must contain a single #app-root element (rws_app::layout output)");
+        .expect("initial_html must contain a single #app-root element (fandhe_frontend_app::layout output)");
     (container, root)
 }
 
@@ -189,13 +189,15 @@ fn reset_scroll_to_top() {
 /// 経路に通す」方式。受け入れ条件 4「三モード整合」を、クライアント遷移後の
 /// DOM とのバイト比較として直接固定する）。
 fn ssr_equivalent_detail_outer_html(document: &Document, item_id: &str) -> String {
-    let ssr_body =
-        rws_app::assemble_detail_page(&rws_app::DemoItemDetailLoader, &item_id.to_string())
-            .expect("infallible loader");
+    let ssr_body = fandhe_frontend_app::assemble_detail_page(
+        &fandhe_frontend_app::DemoItemDetailLoader,
+        &item_id.to_string(),
+    )
+    .expect("infallible loader");
     let placeholder = document
         .create_element("div")
         .expect("create_element must not fail for a plain div");
-    placeholder.set_inner_html(&rws_core::render(&ssr_body));
+    placeholder.set_inner_html(&fandhe_frontend_core::render(&ssr_body));
     document
         .body()
         .expect("document body must exist in browser test environment")
@@ -219,7 +221,7 @@ impl Drop for RemoveOnDrop {
 }
 
 /// SSR 相当の一覧ページ本文（`<div id="app-root">` の innerHTML 相当）を
-/// 組み立てる（`three_mode_browser.rs` と同じ「rws_app 直接合成」方式）。
+/// 組み立てる（`three_mode_browser.rs` と同じ「fandhe_frontend_app 直接合成」方式）。
 fn ssr_equivalent_list_inner_html() -> String {
     let body = assemble_list_page(&DemoItemsLoader, &()).expect("infallible loader");
     // `page_shell` は `<div id="app-root">` を含む完全文書を返すため、
@@ -228,7 +230,7 @@ fn ssr_equivalent_list_inner_html() -> String {
     // `render` した内容を直接使う代わりに、`body` ノードを直接 render する
     // （`body` は `layout()` の戻り値そのもの、`assemble_list_page` の
     // 内部で `list_page` が呼ばれた結果）。
-    rws_core::render(&body)
+    fandhe_frontend_core::render(&body)
 }
 
 /// history state（URL）を `path` へ揃える（テスト前提条件のセットアップ、
@@ -476,7 +478,7 @@ async fn click_navigation_updates_url_dom_and_title_across_round_trip() {
     let _cleanup = RemoveOnDrop(container);
     let _stub = ViewTransitionStub::install(&document);
 
-    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+    fandhe_frontend_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
     // 1 回目: 一覧 → 詳細（/items/1）。
     let link = document
@@ -593,16 +595,22 @@ async fn popstate_event_re_resolves_and_renders_without_pushing_history() {
     let document = window.document().expect("document must exist");
 
     // 開始状態は詳細ページ（/items/1）とする。
-    let body = rws_app::assemble_detail_page(&rws_app::DemoItemDetailLoader, &"1".to_string())
-        .expect("infallible loader");
+    let body = fandhe_frontend_app::assemble_detail_page(
+        &fandhe_frontend_app::DemoItemDetailLoader,
+        &"1".to_string(),
+    )
+    .expect("infallible loader");
     set_location_path("/items/1");
-    let (container, root) =
-        create_app_root(&document, "nav-test-popstate", &rws_core::render(&body));
+    let (container, root) = create_app_root(
+        &document,
+        "nav-test-popstate",
+        &fandhe_frontend_core::render(&body),
+    );
     let _cleanup = RemoveOnDrop(container);
     document.set_title("記事詳細");
     let _stub = ViewTransitionStub::install(&document);
 
-    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+    fandhe_frontend_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
     // ブラウザの「戻る」操作を模した状態遷移: URL を `/` へ書き換えてから
     // popstate を発火する（実際の `back()` は非同期でヘッドレス環境が
@@ -644,11 +652,17 @@ fn start_router_does_not_repaint_on_initial_call() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
 
-    let body = rws_app::assemble_detail_page(&rws_app::DemoItemDetailLoader, &"1".to_string())
-        .expect("infallible loader");
+    let body = fandhe_frontend_app::assemble_detail_page(
+        &fandhe_frontend_app::DemoItemDetailLoader,
+        &"1".to_string(),
+    )
+    .expect("infallible loader");
     set_location_path("/items/1");
-    let (container, root) =
-        create_app_root(&document, "nav-test-no-repaint", &rws_core::render(&body));
+    let (container, root) = create_app_root(
+        &document,
+        "nav-test-no-repaint",
+        &fandhe_frontend_core::render(&body),
+    );
     let _cleanup = RemoveOnDrop(container);
     // `root`（実際の `#app-root` 要素）の innerHTML をここで固定する。
     // `create_app_root` の `initial_html` は外側コンテナへ渡した文字列
@@ -657,7 +671,7 @@ fn start_router_does_not_repaint_on_initial_call() {
     // 実際の DOM から読み取った値同士で行う。
     let inner_html_before_start_router = root.inner_html();
 
-    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+    fandhe_frontend_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
     assert_eq!(
         root.inner_html(),
@@ -694,7 +708,7 @@ async fn navigating_to_xss_payload_item_keeps_payload_as_text_not_element() {
     let _cleanup = RemoveOnDrop(container);
     let _stub = ViewTransitionStub::install(&document);
 
-    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+    fandhe_frontend_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
     let xss_item_id = demo_items()
         .into_iter()
@@ -750,7 +764,7 @@ fn non_matching_clicks_are_not_intercepted() {
     );
     let _cleanup = RemoveOnDrop(container);
 
-    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+    fandhe_frontend_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
     // data-nav なし要素。
     let plain_span = document
@@ -847,7 +861,7 @@ async fn view_transition_stub_is_called_once_and_dom_updates_after_async_callbac
     let _cleanup = RemoveOnDrop(container);
     let stub = ViewTransitionStub::install(&document);
 
-    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+    fandhe_frontend_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
     let link = document
         .query_selector("a[data-nav=\"/items/1\"]")
@@ -908,7 +922,7 @@ fn non_function_shadow_falls_back_to_synchronous_render() {
     let _cleanup = RemoveOnDrop(container);
     let _shadow = NonFunctionViewTransitionShadow::install(&document);
 
-    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+    fandhe_frontend_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
     let link = document
         .query_selector("a[data-nav=\"/items/1\"]")
@@ -956,7 +970,7 @@ async fn consecutive_navigations_with_stub_converge_to_last_route_and_match_ssr(
     let _cleanup = RemoveOnDrop(container);
     let stub = ViewTransitionStub::install(&document);
 
-    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+    fandhe_frontend_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
     let to_detail = document
         .create_element("a")
@@ -1016,7 +1030,7 @@ async fn consecutive_navigations_with_stub_converge_to_last_route_and_match_ssr(
     );
 }
 
-/// `#like-btn`（`rws_app::LIKE_BUTTON_ID`、`data-hydrate="like"`）へ合成
+/// `#like-btn`（`fandhe_frontend_app::LIKE_BUTTON_ID`、`data-hydrate="like"`）へ合成
 /// クリックを dispatch する（`nav::wiring::render_route` が登録する
 /// `click` リスナーは要素へ直接付く後付けのため、`document` 委譲リスナー
 /// （クリック遷移用）とは異なりバブリング前提は不要だが、他テストと同じ
@@ -1062,7 +1076,7 @@ async fn like_button_toggles_after_client_side_navigation() {
     let _cleanup = RemoveOnDrop(container);
     let _stub = ViewTransitionStub::install(&document);
 
-    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+    fandhe_frontend_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
     let link = document
         .query_selector("a[data-nav=\"/items/1\"]")
@@ -1101,7 +1115,7 @@ async fn like_button_toggles_after_client_side_navigation() {
 /// 検証 11（往復後の再配線）: 詳細 → 一覧 → 詳細と往復遷移した後も like
 /// ボタンが機能すること。`render_route` の都度 `wire_hydrate_targets` が
 /// 旧ハンドルを解除して新規登録することの直接証明
-/// （`rws-wasm-client::registry::replace_handles` の反復成立）。
+/// （`fandhe-frontend-wasm-client::registry::replace_handles` の反復成立）。
 ///
 /// 検証 11（中核）と同じ理由（イシュー #404、Cursor Bugbot 指摘 `d68cf969`）
 /// で `startViewTransition` を [`ViewTransitionStub`] でスタブし、各遷移後の
@@ -1120,7 +1134,7 @@ async fn like_button_works_after_round_trip_navigation() {
     let _cleanup = RemoveOnDrop(container);
     let _stub = ViewTransitionStub::install(&document);
 
-    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+    fandhe_frontend_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
     // 1 回目の詳細遷移。
     document
@@ -1185,7 +1199,7 @@ async fn like_button_works_after_round_trip_navigation() {
 
 /// 検証 11（初期ページ非配線の契約）: `start_router` 直後（クライアント遷移
 /// 前）の SSR 済み `#like-btn` へのクリックは `class` を変化させない。
-/// 初期表示ページの配線は `rws-wasm-client::wiring::hydrate`（REQ-6 デモ）の
+/// 初期表示ページの配線は `fandhe-frontend-wasm-client::wiring::hydrate`（REQ-6 デモ）の
 /// 管轄のままであり、`nav::render_route` は遷移で新規構築されたサブツリー
 /// のみを対象とする（二重配線回避の凍結事項、`docs/design/
 /// wasm-full-architecture.md` §10 参照）。
@@ -1194,17 +1208,20 @@ fn like_button_on_initial_page_is_not_wired_by_nav_module() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
 
-    let body = rws_app::assemble_detail_page(&rws_app::DemoItemDetailLoader, &"1".to_string())
-        .expect("infallible loader");
+    let body = fandhe_frontend_app::assemble_detail_page(
+        &fandhe_frontend_app::DemoItemDetailLoader,
+        &"1".to_string(),
+    )
+    .expect("infallible loader");
     set_location_path("/items/1");
     let (container, root) = create_app_root(
         &document,
         "nav-test-hydrate-initial-not-wired",
-        &rws_core::render(&body),
+        &fandhe_frontend_core::render(&body),
     );
     let _cleanup = RemoveOnDrop(container);
 
-    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+    fandhe_frontend_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
     let like_button = root
         .query_selector("#like-btn")
@@ -1239,7 +1256,7 @@ async fn like_button_works_after_navigating_to_xss_payload_item() {
     let _cleanup = RemoveOnDrop(container);
     let _stub = ViewTransitionStub::install(&document);
 
-    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+    fandhe_frontend_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
     let xss_item_id = demo_items()
         .into_iter()
@@ -1306,7 +1323,7 @@ fn start_router_sets_scroll_restoration_to_manual() {
     );
     let _cleanup = RemoveOnDrop(container);
 
-    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+    fandhe_frontend_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
     let history = window.history().expect("history must exist");
     assert_eq!(
@@ -1344,7 +1361,7 @@ async fn click_navigation_scrolls_to_top_on_new_entry() {
     let _cleanup = RemoveOnDrop(container);
     let _stub = ViewTransitionStub::install(&document);
 
-    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+    fandhe_frontend_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
     window.scroll_to_with_x_and_y(0.0, 800.0);
     assert!(
@@ -1394,19 +1411,22 @@ async fn popstate_with_encoded_state_restores_saved_scroll_position() {
 
     reset_scroll_to_top();
     set_location_path("/items/1");
-    let body = rws_app::assemble_detail_page(&rws_app::DemoItemDetailLoader, &"1".to_string())
-        .expect("infallible loader");
+    let body = fandhe_frontend_app::assemble_detail_page(
+        &fandhe_frontend_app::DemoItemDetailLoader,
+        &"1".to_string(),
+    )
+    .expect("infallible loader");
     let (container, root) = create_app_root(
         &document,
         "nav-test-scroll-popstate-restore",
-        &rws_core::render(&body),
+        &fandhe_frontend_core::render(&body),
     );
     append_tall_spacer(&document, &container);
     let _cleanup = RemoveOnDrop(container);
     document.set_title("記事詳細");
     let _stub = ViewTransitionStub::install(&document);
 
-    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+    fandhe_frontend_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
     // 「戻る」操作を模した状態遷移: URL を書き換え、離脱元エントリの
     // スクロール位置を積んだ state 付きの合成 popstate を dispatch する
@@ -1458,19 +1478,22 @@ async fn popstate_with_null_or_invalid_state_falls_back_to_top() {
 
     reset_scroll_to_top();
     set_location_path("/items/1");
-    let body = rws_app::assemble_detail_page(&rws_app::DemoItemDetailLoader, &"1".to_string())
-        .expect("infallible loader");
+    let body = fandhe_frontend_app::assemble_detail_page(
+        &fandhe_frontend_app::DemoItemDetailLoader,
+        &"1".to_string(),
+    )
+    .expect("infallible loader");
     let (container, root) = create_app_root(
         &document,
         "nav-test-scroll-popstate-fallback",
-        &rws_core::render(&body),
+        &fandhe_frontend_core::render(&body),
     );
     append_tall_spacer(&document, &container);
     let _cleanup = RemoveOnDrop(container);
     document.set_title("記事詳細");
     let _stub = ViewTransitionStub::install(&document);
 
-    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+    fandhe_frontend_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
     window.scroll_to_with_x_and_y(0.0, 900.0);
     assert!(
@@ -1534,7 +1557,7 @@ fn popstate_for_unresolved_path_does_not_change_scroll_position() {
     append_tall_spacer(&document, &container);
     let _cleanup = RemoveOnDrop(container);
 
-    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+    fandhe_frontend_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
     window.scroll_to_with_x_and_y(0.0, 700.0);
     assert!(

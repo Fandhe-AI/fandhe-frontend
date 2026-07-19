@@ -2,7 +2,7 @@
 
 ## 位置づけ
 
-本書は `rws-dist-server`（`dist-server/`）における静的アセット配信の開発体験
+本書は `fandhe-frontend-dist-server`（`dist-server/`）における静的アセット配信の開発体験
 （DX）ガイドです。対象読者は `dist-server/` を触る開発者、および `docs/spec/`
 の REQ-10・TASK-10.1（`docs/spec/05-tasks.md`）の受け入れ状況を確認したい人。
 
@@ -69,7 +69,7 @@
 
 ## 3. 開発フロー手順
 
-1. `cargo run -p rws-dist-server`（または `RWS_WASM_BUILD=0 cargo run -p rws-dist-server`
+1. `cargo run -p fandhe-frontend-dist-server`（または `RWS_WASM_BUILD=0 cargo run -p fandhe-frontend-dist-server`
    — WASM ビルドステージをスキップする場合。`dist-server/build.rs` 冒頭
    ドキュメント参照）で debug ビルドを起動する。既定で `DevFilesystem`
    モードになる。
@@ -82,8 +82,8 @@
 
 ## 4. `force-embed` の用途
 
-`cargo test -p rws-dist-server --features force-embed --locked` /
-`cargo build -p rws-dist-server --features force-embed` のように指定すると、
+`cargo test -p fandhe-frontend-dist-server --features force-embed --locked` /
+`cargo build -p fandhe-frontend-dist-server --features force-embed` のように指定すると、
 debug ビルドのままファイルシステム読み込み経路を無効化し、release と同じ
 `Embedded` モードの配信経路を検証できます。CI ジョブ
 `dist-server-embedded-mode`（`.github/workflows/ci.yml`）がこれを実行し、

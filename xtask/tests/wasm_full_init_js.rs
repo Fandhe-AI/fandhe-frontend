@@ -45,8 +45,8 @@ fn wasm_full_init_js_imports_from_same_origin_dist_server_path() {
     // （`dist-server/tests/wasm_assets.rs` が検証する配信 URL と一致させる）。
     // 外部 CDN からの読み込みはサプライチェーン対策（security.md）として禁止する。
     assert!(
-        source.contains("from \"/static/wasm/rws_wasm_full.js\""),
-        "同一オリジンの /static/wasm/rws_wasm_full.js からの import が見つからない"
+        source.contains("from \"/static/wasm/fandhe_frontend_wasm_full.js\""),
+        "同一オリジンの /static/wasm/fandhe_frontend_wasm_full.js からの import が見つからない"
     );
     assert!(
         !source.contains("http://") && !source.contains("https://"),
@@ -76,7 +76,7 @@ fn wasm_full_init_js_calls_hydrate_as_the_default_entrypoint() {
 #[test]
 fn wasm_full_init_js_does_not_build_html_strings_or_bypass_escaping() {
     let source = read_source();
-    // XSS 保証を Rust 側（rws-core の既定エスケープ、REQ-1）に閉じたままにする
+    // XSS 保証を Rust 側（fandhe-frontend-core の既定エスケープ、REQ-1）に閉じたままにする
     // 不変条件。グルー JS 側で DOM 文字列を直接組み立てる経路を持ち込まないことを
     // 固定する（`.claude/rules/code-comment-style.md` セキュリティ不変条件の
     // 明文化と対になる回帰テスト）。

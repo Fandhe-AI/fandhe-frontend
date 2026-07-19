@@ -9,12 +9,12 @@
 //! `#[cfg(target_arch = "wasm32")]` でゲートする（`events.rs`/`hydration.rs` と
 //! 同じ 2 層構成方針）。
 //!
-//! # 契約（`rws-wasm-full` 全体の不変条件、同書第 7 節・不変条件 1）
+//! # 契約（`fandhe-frontend-wasm-full` 全体の不変条件、同書第 7 節・不変条件 1）
 //!
-//! [`render_component_html`] が返す文字列は [`rws_core::render`] の既定
+//! [`render_component_html`] が返す文字列は [`fandhe_frontend_core::render`] の既定
 //! エスケープ済み出力のみであり、`format!` 等による HTML 文字列直接組み立てや
-//! `rws_core::raw_html()` の呼び出しを一切行わない。[`mount_initial`] はこの
-//! 関数（または同等の `rws_core::render` 呼び出し）の出力のみを
+//! `fandhe_frontend_core::raw_html()` の呼び出しを一切行わない。[`mount_initial`] はこの
+//! 関数（または同等の `fandhe_frontend_core::render` 呼び出し）の出力のみを
 //! `set_inner_html` へ渡す契約を守り、独自にエスケープや文字列組み立てを
 //! 行わない。
 //!
@@ -22,10 +22,10 @@
 //!
 //! `crate::Runtime::wire`（イベント後更新）は #345 以降 `set_inner_html` を
 //! 一切呼ばない。イベント後の更新は
-//! `rws_wasm_client::BindingTable::apply_update`（テキスト・属性・class の
-//! 束縛点更新）と `rws_wasm_client::{find_list_element, apply_keyed_list}`
+//! `fandhe_frontend_wasm_client::BindingTable::apply_update`（テキスト・属性・class の
+//! 束縛点更新）と `fandhe_frontend_wasm_client::{find_list_element, apply_keyed_list}`
 //! （keyed list の構造変化）に置き換わっている（`crate::lib` 参照）。
-//! [`mount_initial`] は「`rws_core::render` 出力のみを渡す初回マウント限定
+//! [`mount_initial`] は「`fandhe_frontend_core::render` 出力のみを渡す初回マウント限定
 //! API」として、`Runtime::mount`（CSR 初回描画）・`Runtime::hydrate`
 //! （ハイドレーション属性が読めない・不正な場合の CSR フォールバック、
 //! いずれも「DOM がまだ何も反映されていない」状態からの初期構築）からのみ
@@ -35,11 +35,11 @@
 //! `mount_csr` は別機能・別イシュー〈REQ-6 最小ハイドレーション、#48〉の
 //! 既存 CSR エントリポイントであり、本イシューのスコープ外）。
 
-use rws_interactive::Component;
+use fandhe_frontend_interactive::Component;
 
 /// コンポーネントの現在状態を既定エスケープ済み HTML 文字列へ変換する。
 ///
-/// `component.view()`（`rws_core::Node` 木）を [`rws_core::render`] に通すだけの
+/// `component.view()`（`fandhe_frontend_core::Node` 木）を [`fandhe_frontend_core::render`] に通すだけの
 /// 純粋関数。DOM・`wasm-bindgen` に一切依存しないため、native（`rlib`）テストで
 /// XSS 回帰・dispatch 後の再描画内容を検証できる
 /// （`wasm-full/tests/dom_update.rs` 参照）。
@@ -48,7 +48,7 @@ use rws_interactive::Component;
 /// この関数の戻り値をそのまま渡す想定であり、`mount_initial` 自体は独自に
 /// エスケープや文字列組み立てを行わない。
 pub fn render_component_html<C: Component>(component: &C) -> String {
-    rws_core::render(&component.view())
+    fandhe_frontend_core::render(&component.view())
 }
 
 /// [`render_component_html`] の出力を `root` へ反映する、**初回マウント限定**

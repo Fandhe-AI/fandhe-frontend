@@ -1,13 +1,13 @@
 //! `find_attr_values` / `find_nav_targets`（TASK-6.2b, `docs/api/hydration-api.md`
 //! 第 3 節・公開 API 凍結表）のネイティブ回帰テスト。
 //!
-//! これらは `rws-wasm-client` の `hydrate()` がハイドレーション対象を特定する
+//! これらは `fandhe-frontend-wasm-client` の `hydrate()` がハイドレーション対象を特定する
 //! ために呼ぶ契約の DOM 非依存純粋関数であり、wasm ビルドを介さずネイティブ
 //! 環境で回帰確認できることが設計上の要点（`docs/api/hydration-api.md` 判断 3）。
 //! 本ファイルはその契約（ネスト木の走査・属性欠落時の空配列・重複属性の
 //! 全列挙・`data-nav` ショートカットの委譲関係）を固定する。
 
-use rws_core::{a, div, el, find_attr_values, find_nav_targets, li, text, ul};
+use fandhe_frontend_core::{a, div, el, find_attr_values, find_nav_targets, li, text, ul};
 
 #[test]
 fn find_attr_values_collects_nested_descendants_in_order() {
@@ -62,7 +62,10 @@ fn find_attr_values_ignores_text_and_raw_html_nodes() {
     )]
     let tree = div(
         vec![],
-        vec![text("<data-nav>"), rws_core::raw_html("<span>ok</span>")],
+        vec![
+            text("<data-nav>"),
+            fandhe_frontend_core::raw_html("<span>ok</span>"),
+        ],
     );
     assert!(find_attr_values(&tree, "data-nav").is_empty());
 }

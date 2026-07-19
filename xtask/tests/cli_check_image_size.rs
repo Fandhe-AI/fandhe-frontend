@@ -79,7 +79,7 @@ fn nonexistent_image_fails_closed_with_exit_one() {
     let output = run_xtask(&[
         "check-image-size",
         "--image",
-        "rws-image-size-cli-test-does-not-exist:__missing__",
+        "fandhe-frontend-image-size-cli-test-does-not-exist:__missing__",
     ]);
     assert_eq!(
         output.status.code(),
@@ -99,7 +99,7 @@ fn limit_mb_zero_forces_fail_for_any_nonzero_image() {
     let output = run_xtask(&[
         "check-image-size",
         "--image",
-        "rws-image-size-cli-test-does-not-exist:__missing__",
+        "fandhe-frontend-image-size-cli-test-does-not-exist:__missing__",
         "--limit-mb",
         "0",
     ]);

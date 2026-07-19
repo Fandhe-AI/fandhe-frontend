@@ -1,9 +1,9 @@
-//! `rws-core`: 描画コア（外部依存ゼロ）。
+//! `fandhe-frontend-core`: 描画コア（外部依存ゼロ）。
 //!
 //! フロントエンドフレームワークの中核クレート。ノード木 API（`Node` / `el` /
 //! `text` / `raw_html`）と、それを HTML 文字列へ変換するモード非依存レンダラ
-//! （`render`）を提供する。`rws-server`（SSR/SSG）・`rws-wasm-client` /
-//! `rws-wasm-full`（CSR）など上位クレートが本クレートの `render()` を共通で
+//! （`render`）を提供する。`fandhe-frontend-server`（SSR/SSG）・`fandhe-frontend-wasm-client` /
+//! `fandhe-frontend-wasm-full`（CSR）など上位クレートが本クレートの `render()` を共通で
 //! 呼び出す前提であり、**その出力は既定エスケープ済みであることを呼び出し側
 //! フレームワーク各層が前提とする**（REQ-1）。
 //!
@@ -37,7 +37,7 @@
 //!    fail-closed。既定エスケープでは防げない URL スキーム経由の XSS への
 //!    対策。詳細は `docs/policy/attribute-output-policy.md`）。この保証は
 //!    `render_into`（本クレート）だけでなく、実 DOM 直接更新経路
-//!    （`rws-wasm-client` の `binding_dom.rs`）にも同一の関数群を通じて
+//!    （`fandhe-frontend-wasm-client` の `binding_dom.rs`）にも同一の関数群を通じて
 //!    適用される契約。
 //! 9. **イベントハンドラ属性の一律不出力（イシュー #373）**: 属性名が
 //!    [`is_event_handler_attr`] と判定される場合（`on` で始まる）、
@@ -61,7 +61,7 @@
 //!
 //! ## ハイドレーション支援（TASK-6.2b）
 //!
-//! [`find_attr_values`] / [`find_nav_targets`] は、`rws-wasm-client`
+//! [`find_attr_values`] / [`find_nav_targets`] は、`fandhe-frontend-wasm-client`
 //! （TASK-6.2 系）が既存 DOM 上でハイドレーション対象を特定するために
 //! 呼び出す **DOM 非依存の純粋関数**。引数に取るのは本クレート自身の
 //! ノード木（[`Node`]）であり、実 DOM 型（`web-sys::Node` 等）には一切
@@ -73,11 +73,11 @@
 //!
 //! [`bind_text`] / [`bind_attr_token`] / [`bind_attr_tokens`] /
 //! [`bind_class_token`] / [`bind_class_tokens`]（[`bind`] モジュール）は、
-//! `rws-interactive` の state フィールドと DOM ノードを対応付ける
+//! `fandhe-frontend-interactive` の state フィールドと DOM ノードを対応付ける
 //! `data-bind-text` / `data-bind-attr` / `data-bind-class` マーカー属性を
 //! SSR 出力へ付加するヘルパー群。出力形式は
 //! `docs/design/dom-binding-update-design.md`（#340 設計確定書）第 3.1 節で
-//! 凍結されており、`rws-wasm-client`（#343）が起動時に走査する契約の入口。
+//! 凍結されており、`fandhe-frontend-wasm-client`（#343）が起動時に走査する契約の入口。
 //! いずれも [`el`]/[`text`] への薄い委譲・文字列トークン合成のみであり、
 //! 独自の出力経路・独自のエスケープ処理を持たない（不変条件 1・2 がそのまま
 //! 適用される）。
@@ -152,7 +152,7 @@ pub enum Node {
 /// # Examples
 ///
 /// ```
-/// use rws_core::{el, text, render};
+/// use fandhe_frontend_core::{el, text, render};
 ///
 /// let node = el("p", vec![("class", "greeting")], vec![text("hello")]);
 /// assert_eq!(render(&node), r#"<p class="greeting">hello</p>"#);
@@ -174,7 +174,7 @@ pub fn el(tag: &'static str, attrs: Vec<(&str, &str)>, children: Vec<Node>) -> N
 /// # Examples
 ///
 /// ```
-/// use rws_core::{el, text, render};
+/// use fandhe_frontend_core::{el, text, render};
 ///
 /// let node = el("p", vec![], vec![text("<script>alert(1)</script>")]);
 /// assert_eq!(render(&node), "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>");
@@ -195,7 +195,7 @@ pub fn text(s: impl Into<String>) -> Node {
 /// # Examples
 ///
 /// ```
-/// use rws_core::{el, raw_html, render};
+/// use fandhe_frontend_core::{el, raw_html, render};
 ///
 /// // 信頼できる固定文字列のみを渡す（ユーザー入力を直接渡さない）。
 /// let node = el("div", vec![], vec![raw_html("<b>bold</b>")]);
@@ -246,7 +246,7 @@ fn is_valid_tag_name(name: &str) -> bool {
 
 /// 指定属性名を持つ子孫要素（自身を含む）の属性値を出現順に列挙する。
 ///
-/// `rws-wasm-client`（TASK-6.2 系）が `hydrate()` 実行時にハイドレーション
+/// `fandhe-frontend-wasm-client`（TASK-6.2 系）が `hydrate()` 実行時にハイドレーション
 /// 対象を特定するために呼ぶ契約の関数。本関数は `node` が表す木構造のみを
 /// 辿る DOM 非依存の純粋関数であり、実 DOM（`web-sys::Node` 等）にはまだ
 /// 反映されていない/対応しない値を返しうる。呼び出し側（`wasm-client`）は、
@@ -262,7 +262,7 @@ fn is_valid_tag_name(name: &str) -> bool {
 /// # Examples
 ///
 /// ```
-/// use rws_core::{div, el, text, find_attr_values};
+/// use fandhe_frontend_core::{div, el, text, find_attr_values};
 ///
 /// let tree = div(
 ///     vec![],
@@ -295,7 +295,7 @@ fn collect_attr_values(node: &Node, attr_name: &str, out: &mut Vec<String>) {
 
 /// `data-nav` 属性値を列挙する [`find_attr_values`] のショートカット。
 ///
-/// `rws_app::list_page` が各項目リンクへ付与する `data-nav` 属性
+/// `fandhe_frontend_app::list_page` が各項目リンクへ付与する `data-nav` 属性
 ///（`docs/api/app-api.md` 第 3 節）をクライアント側ルーティング配線の対象として
 /// 特定するために `wasm-client` が呼ぶ契約の関数（`docs/api/hydration-api.md`
 /// 第 3 節・公開 API 凍結表）。
@@ -303,7 +303,7 @@ fn collect_attr_values(node: &Node, attr_name: &str, out: &mut Vec<String>) {
 /// # Examples
 ///
 /// ```
-/// use rws_core::{a, text, find_nav_targets};
+/// use fandhe_frontend_core::{a, text, find_nav_targets};
 ///
 /// let tree = a(vec![("href", "/items/1"), ("data-nav", "/items/1")], vec![text("記事1")]);
 /// assert_eq!(find_nav_targets(&tree), vec!["/items/1".to_string()]);
@@ -322,7 +322,7 @@ pub fn find_nav_targets(node: &Node) -> Vec<String> {
 /// # Examples
 ///
 /// ```
-/// use rws_core::{el, text, render, Node};
+/// use fandhe_frontend_core::{el, text, render, Node};
 ///
 /// let tree = el("ul", vec![], vec![el("li", vec![], vec![text("item")])]);
 /// assert_eq!(render(&tree), "<ul><li>item</li></ul>");

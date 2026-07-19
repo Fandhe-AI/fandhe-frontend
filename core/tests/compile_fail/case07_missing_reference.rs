@@ -4,7 +4,7 @@
 //! 期待するエラーコード: E0308（mismatched types、`help: consider borrowing` 付き）。
 //! 本ファイルは cargo のテストターゲットには含まれない（README 参照）。
 
-use rws_core::{render, text};
+use fandhe_frontend_core::{render, text};
 
 pub fn case07() -> String {
     let node = text("hi");

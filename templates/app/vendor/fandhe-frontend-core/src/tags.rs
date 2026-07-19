@@ -1,6 +1,6 @@
 //! 標準タグショートカット群（TASK-5.1b + Issue #164 拡張分）。
 //!
-//! `rws-app`・`rws-server` 等の上位クレートやフレームワーク利用者コードが
+//! `fandhe-frontend-app`・`fandhe-frontend-server` 等の上位クレートやフレームワーク利用者コードが
 //! ノード木を組み立てる際に、素の [`crate::el`] 呼び出しより読みやすい記述を
 //! 提供するための薄いヘルパー関数群。**すべて [`crate::el`] への委譲のみ**で
 //! あり、独自の出力経路・独自のエスケープ処理を一切持たない
@@ -50,7 +50,7 @@ use crate::{el, Node};
 /// # Examples
 ///
 /// ```
-/// use rws_core::{div, text, render};
+/// use fandhe_frontend_core::{div, text, render};
 ///
 /// let node = div(vec![("class", "card")], vec![text("hello")]);
 /// assert_eq!(render(&node), r#"<div class="card">hello</div>"#);
@@ -64,7 +64,7 @@ pub fn div(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 /// # Examples
 ///
 /// ```
-/// use rws_core::{p, text, render};
+/// use fandhe_frontend_core::{p, text, render};
 ///
 /// let node = p(vec![], vec![text("hello")]);
 /// assert_eq!(render(&node), "<p>hello</p>");
@@ -78,7 +78,7 @@ pub fn p(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 /// # Examples
 ///
 /// ```
-/// use rws_core::{ul, li, text, render};
+/// use fandhe_frontend_core::{ul, li, text, render};
 ///
 /// let node = ul(vec![], vec![li(vec![], vec![text("item")])]);
 /// assert_eq!(render(&node), "<ul><li>item</li></ul>");
@@ -92,7 +92,7 @@ pub fn ul(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 /// # Examples
 ///
 /// ```
-/// use rws_core::{li, text, render};
+/// use fandhe_frontend_core::{li, text, render};
 ///
 /// let node = li(vec![], vec![text("item")]);
 /// assert_eq!(render(&node), "<li>item</li>");
@@ -106,7 +106,7 @@ pub fn li(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 /// # Examples
 ///
 /// ```
-/// use rws_core::{a, text, render};
+/// use fandhe_frontend_core::{a, text, render};
 ///
 /// let node = a(vec![("href", "/about")], vec![text("about")]);
 /// assert_eq!(render(&node), r#"<a href="/about">about</a>"#);
@@ -120,7 +120,7 @@ pub fn a(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 /// # Examples
 ///
 /// ```
-/// use rws_core::{h1, text, render};
+/// use fandhe_frontend_core::{h1, text, render};
 ///
 /// let node = h1(vec![], vec![text("title")]);
 /// assert_eq!(render(&node), "<h1>title</h1>");
@@ -136,7 +136,7 @@ pub fn h1(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 /// # Examples
 ///
 /// ```
-/// use rws_core::{main_tag, text, render};
+/// use fandhe_frontend_core::{main_tag, text, render};
 ///
 /// let node = main_tag(vec![], vec![text("content")]);
 /// assert_eq!(render(&node), "<main>content</main>");
@@ -150,7 +150,7 @@ pub fn main_tag(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 /// # Examples
 ///
 /// ```
-/// use rws_core::{span, text, render};
+/// use fandhe_frontend_core::{span, text, render};
 ///
 /// let node = span(vec![], vec![text("inline")]);
 /// assert_eq!(render(&node), "<span>inline</span>");
@@ -194,7 +194,7 @@ pub fn aside(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 /// # Examples
 ///
 /// ```
-/// use rws_core::{h2, text, render};
+/// use fandhe_frontend_core::{h2, text, render};
 ///
 /// let node = h2(vec![], vec![text("section title")]);
 /// assert_eq!(render(&node), "<h2>section title</h2>");
@@ -233,7 +233,7 @@ pub fn ol(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 /// # Examples
 ///
 /// ```
-/// use rws_core::{strong, text, render};
+/// use fandhe_frontend_core::{strong, text, render};
 ///
 /// let node = strong(vec![], vec![text("important")]);
 /// assert_eq!(render(&node), "<strong>important</strong>");
@@ -272,7 +272,7 @@ pub fn code(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 /// # Examples
 ///
 /// ```
-/// use rws_core::{form, button, text, render};
+/// use fandhe_frontend_core::{form, button, text, render};
 ///
 /// let node = form(vec![("method", "post")], vec![button(vec![], vec![text("送信")])]);
 /// assert_eq!(render(&node), r#"<form method="post"><button>送信</button></form>"#);
@@ -310,7 +310,7 @@ pub fn textarea(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 /// # Examples
 ///
 /// ```
-/// use rws_core::{table, tr, td, text, render};
+/// use fandhe_frontend_core::{table, tr, td, text, render};
 ///
 /// let node = table(vec![], vec![tr(vec![], vec![td(vec![], vec![text("1")])])]);
 /// assert_eq!(render(&node), "<table><tr><td>1</td></tr></table>");
@@ -358,7 +358,7 @@ pub fn caption(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 /// # Examples
 ///
 /// ```
-/// use rws_core::{img, render};
+/// use fandhe_frontend_core::{img, render};
 ///
 /// let node = img(vec![("src", "/logo.png"), ("alt", "logo")], vec![]);
 /// assert_eq!(render(&node), r#"<img src="/logo.png" alt="logo"></img>"#);

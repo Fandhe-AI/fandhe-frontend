@@ -9,8 +9,8 @@
 # `Cargo.lock` と同様にプロジェクト名へ置換する対象に含める
 # （`cli/src/new.rs` のテンプレート別 SUBSTITUTED_FILES）。
 #
-# `vendor/rws-core` / `vendor/rws-app` / `vendor/rws-interactive` /
-# `vendor/rws-wasm-client`（templates/app 固有の同梱物、イシュー #378 §3.2・
+# `vendor/fandhe-frontend-core` / `vendor/fandhe-frontend-app` / `vendor/fandhe-frontend-interactive` /
+# `vendor/fandhe-frontend-wasm-client`（templates/app 固有の同梱物、イシュー #378 §3.2・
 # #411 §2.3）は本マニフェストへ宣言しない。`fw gate` の
 # `default_escape_check`（保険層）・`fw structure`・`fw impact` はいずれも
 # `[directories.*]` 宣言済みのディレクトリのみを走査・解決対象とするため、
@@ -34,5 +34,5 @@ version = 1
 
 [directories.root]
 role = "distribution"
-crate = "rws-template-app"
-description = "fw new --template app が生成する単一バイナリプロジェクトの骨格（クレートはプロジェクトルート直下に配置、rws-core/rws-app 依存）"
+crate = "fandhe-frontend-template-app"
+description = "fw new --template app が生成する単一バイナリプロジェクトの骨格（クレートはプロジェクトルート直下に配置、fandhe-frontend-core/fandhe-frontend-app 依存）"

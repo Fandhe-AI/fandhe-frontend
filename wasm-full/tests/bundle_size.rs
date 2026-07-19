@@ -7,7 +7,7 @@
 //!
 //! `dist-server/build.rs`（TASK-10.2b・イシュー #110）が本番配布物として実行する
 //! のと同一のコマンド列
-//! （`cargo build -p rws-wasm-full --target wasm32-unknown-unknown --release`
+//! （`cargo build -p fandhe-frontend-wasm-full --target wasm32-unknown-unknown --release`
 //! → `wasm-bindgen --target web --no-typescript --out-dir <dir>`）を、本テストは
 //! `wasm-full` クレート自身の native 統合テストとして再現する。`dist-server` に
 //! 依存させない（`wasm-full` 単体で TASK-11.6 の受け入れ基準を検証できる）ため、
@@ -20,7 +20,7 @@
 //! 「2. バンドルサイズの実測」節参照）
 //!
 //! `wasm-bindgen --target web` の出力ディレクトリに含まれる全ファイル
-//! （`rws_wasm_full_bg.wasm`・`rws_wasm_full.js`）を**各ファイル個別に
+//! （`fandhe_frontend_wasm_full_bg.wasm`・`fandhe_frontend_wasm_full.js`）を**各ファイル個別に
 //! `gzip -9` した圧縮後バイト数の合算**とする（実配信時は個別ファイルとして
 //! 転送されるため、連結後の圧縮ではなく個別圧縮の合算を採用し、実配信バイト数を
 //! 過小評価しないようにする PoC-5 の方針を踏襲する）。
@@ -146,7 +146,7 @@ fn wasm_build_enabled() -> bool {
     }
 }
 
-/// ネストした `cargo build -p rws-wasm-full --target wasm32-unknown-unknown
+/// ネストした `cargo build -p fandhe-frontend-wasm-full --target wasm32-unknown-unknown
 /// --release --locked` を実行し、生成された `.wasm` バイナリの絶対パスを返す。
 ///
 /// `--target-dir` を `target/bundle-size-check/`（本テスト専用）にすることで、
@@ -185,7 +185,7 @@ fn build_wasm_full_release(workspace_root: &Path) -> PathBuf {
         .args([
             "build",
             "-p",
-            "rws-wasm-full",
+            "fandhe-frontend-wasm-full",
             "--target",
             "wasm32-unknown-unknown",
             "--release",
@@ -196,17 +196,17 @@ fn build_wasm_full_release(workspace_root: &Path) -> PathBuf {
 
     let status = command
         .status()
-        .expect("failed to spawn nested `cargo build -p rws-wasm-full`");
+        .expect("failed to spawn nested `cargo build -p fandhe-frontend-wasm-full`");
     assert!(
         status.success(),
-        "nested `cargo build -p rws-wasm-full --target wasm32-unknown-unknown --release` failed. \
+        "nested `cargo build -p fandhe-frontend-wasm-full --target wasm32-unknown-unknown --release` failed. \
          Ensure the wasm32-unknown-unknown target is installed: rustup target add wasm32-unknown-unknown"
     );
 
     target_dir
         .join("wasm32-unknown-unknown")
         .join("release")
-        .join("rws_wasm_full.wasm")
+        .join("fandhe_frontend_wasm_full.wasm")
 }
 
 /// ワークスペースの `Cargo.lock` を std の文字列処理でパースし、解決済みの
@@ -318,7 +318,7 @@ fn run_wasm_bindgen_for_bundle_size(wasm_binary_path: &Path, workspace_root: &Pa
         );
     assert!(
         status.success(),
-        "wasm-bindgen failed to generate JS bindings for rws-wasm-full"
+        "wasm-bindgen failed to generate JS bindings for fandhe-frontend-wasm-full"
     );
 
     out_dir
@@ -424,7 +424,7 @@ mod judge_and_format_report_tests {
 }
 
 /// TASK-11.6・REQ-11 の受け入れ基準本体。`RWS_WASM_BUILD` が明示的に無効化
-/// されていない限り、製品ビルドと同一のコマンド列で `rws-wasm-full` を
+/// されていない限り、製品ビルドと同一のコマンド列で `fandhe-frontend-wasm-full` を
 /// ビルド・`wasm-bindgen` 変換し、実測 gzip 合計サイズが 200KB 以内であることを
 /// アサートする（fail-closed。詳細はファイル冒頭の doc comment 参照）。
 #[test]

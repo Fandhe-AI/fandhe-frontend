@@ -10,7 +10,7 @@
 # 既にバイナリへコンパイル時埋め込み済みのため、最終イメージにアセット
 # ファイルを COPY する必要はない。
 #
-# 参照先クレート `dist-server/`（パッケージ名 `rws-dist-server`、
+# 参照先クレート `dist-server/`（パッケージ名 `fandhe-frontend-dist-server`、
 # `[[bin]] name = "dist-server"`）は TASK-9.1b（#96）でマージ済み。
 # 名前は docs/design/dist-server-design.md（TASK-9.1a 確定版）の 3 節を正とする。
 # TASK-9.3b（#103）の `.github/workflows/image-size.yml` により、本
@@ -21,7 +21,7 @@
 # docs/design/docker-wasm-build-stage.md）はビルダーステージへ組み込み済み。
 # `COPY static ./static` は手書きアセット（CSS 等）のみを対象とし、
 # `/static/wasm/*`（WASM 生成物）はビルドコンテキストへ含めない。下段の
-# `cargo build -p rws-dist-server` 実行時に `dist-server/build.rs`
+# `cargo build -p fandhe-frontend-dist-server` 実行時に `dist-server/build.rs`
 # （TASK-10.2b・#110）がネスト `cargo build --target
 # wasm32-unknown-unknown` + `wasm-bindgen` を都度実行して `OUT_DIR` 側で
 # 再生成し埋め込む（ホスト側事前ビルド成果物には依存しない不変条件）。
@@ -118,12 +118,12 @@ COPY static ./static
 # --locked で Cargo.lock 固定ビルドを強制し、依存解決の非決定性を排除する
 # （REQ-3・security.md のサプライチェーン対策）。この単一コマンドの内部で
 # `dist-server/build.rs`（TASK-10.2b・#110）が既定（RWS_WASM_BUILD 未設定＝
-# 有効）で発火し、ネスト `cargo build -p rws-wasm-full --target
+# 有効）で発火し、ネスト `cargo build -p fandhe-frontend-wasm-full --target
 # wasm32-unknown-unknown` + `wasm-bindgen` を実行して WASM 資産を
 # `OUT_DIR` へ生成・埋め込む。`docs/design/wasm-build-integration.md` §7 が定義する
 # 「単一コマンドでネイティブ + WASM 双方の成果物を生成する」構成をここで
 # 満たす（`ENV RWS_WASM_BUILD=0` によるオプトアウトは行わない）。
-RUN cargo build --release --locked --target "$(cat /musl_target)" -p rws-dist-server \
+RUN cargo build --release --locked --target "$(cat /musl_target)" -p fandhe-frontend-dist-server \
     && strip "target/$(cat /musl_target)/release/dist-server" \
     && cp "target/$(cat /musl_target)/release/dist-server" /dist-server-out
 

@@ -46,7 +46,7 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use rws_dist_server::assets::EMBEDDED_ASSETS;
+use fandhe_frontend_dist_server::assets::EMBEDDED_ASSETS;
 
 /// NPM パッケージ・Node ランタイムに由来すると判断できる既知シグネチャ。
 ///

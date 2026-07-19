@@ -1,4 +1,4 @@
-//! `rws_wasm_full::csr`（TASK-CSR-loader・#349）の native テスト。
+//! `fandhe_frontend_wasm_full::csr`（TASK-CSR-loader・#349）の native テスト。
 //!
 //! `csr` モジュールは DOM 非依存の純粋層（`resolve_list_node`/
 //! `resolve_detail_node`/`loader_error_view`）であるため、`wasm32` ターゲット・
@@ -8,7 +8,7 @@
 //! # 検証内容
 //!
 //! 1. CSR ≡ 直呼び: `resolve_list_node`/`resolve_detail_node` の出力が
-//!    `rws_app::list_page`/`detail_page` を直接呼んだ場合とバイト一致する
+//!    `fandhe_frontend_app::list_page`/`detail_page` を直接呼んだ場合とバイト一致する
 //!    （三モード整合の native 側前提。実ブラウザ側の等価検証は
 //!    `wasm-full/tests/three_mode_browser.rs` が担う）。
 //! 2. 決定性: 同一入力での反復呼び出しが完全一致する。
@@ -20,11 +20,11 @@
 //!    経由でも既定エスケープされ、生の `<script>` タグが出力に現れない
 //!    （REQ-1）。
 
-use rws_app::{
+use fandhe_frontend_app::{
     demo_items, detail_page, list_page, DemoItemDetailLoader, DemoItemsLoader, Item, Loader,
 };
-use rws_core::render;
-use rws_wasm_full::csr::{loader_error_view, resolve_detail_node, resolve_list_node};
+use fandhe_frontend_core::render;
+use fandhe_frontend_wasm_full::csr::{loader_error_view, resolve_detail_node, resolve_list_node};
 
 /// 検証 1（一覧）: `resolve_list_node` の出力は `list_page` を直接呼んだ
 /// 場合とバイト一致する。

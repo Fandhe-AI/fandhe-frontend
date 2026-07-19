@@ -4,7 +4,7 @@
 //!
 //! # レイヤー責務・既存テストとの違い
 //!
-//! - `core/tests/xss_escape.rs`: `rws_core::render()` レベルのエスケープ
+//! - `core/tests/xss_escape.rs`: `fandhe_frontend_core::render()` レベルのエスケープ
 //!   固定（HTML 文字列を組み立てる最内層）。
 //! - `dist-server/tests/routes.rs`: `routes::route_request()`（ハンドラ
 //!   レベル）の公開契約固定。プロセス起動・TCP・hyper は経由しない。
@@ -18,13 +18,13 @@
 //!
 //! # モードカバレッジ
 //!
-//! - 既定 `cargo test -p rws-dist-server`: debug ビルド（`assets::AssetMode::
+//! - 既定 `cargo test -p fandhe-frontend-dist-server`: debug ビルド（`assets::AssetMode::
 //!   DevFilesystem`）で実行される。
-//! - CI の `dist-server-embedded-mode` ジョブ（`cargo test -p rws-dist-server
+//! - CI の `dist-server-embedded-mode` ジョブ（`cargo test -p fandhe-frontend-dist-server
 //!   --features force-embed`）: `force-embed` フィーチャーにより
 //!   `assets::AssetMode::Embedded`（release・単一バイナリ配布と同じ配信経路）
 //!   に固定した状態で同じテストが実行される。ページ本文の生成
-//!   （`rws_server::ssr::respond`）はアセットモードに依存しないため、いずれの
+//!   （`fandhe_frontend_server::ssr::respond`）はアセットモードに依存しないため、いずれの
 //!   モードでも同一のアサーションが成立する。
 //!
 //! # 削除・弱体化の禁止
@@ -33,8 +33,8 @@
 //! 削除・弱体化しない」「テストの `#[ignore]` 追加でごまかさない」に従い、
 //! 本ファイルのテストは今後の変更でも維持すること。
 //!
-//! 依存関係: `rws_server` は `dist-server/Cargo.toml` の通常 `[dependencies]`
-//! （`rws-app` 経由の SSR コア）であり、テストから `use` しても新規
+//! 依存関係: `fandhe_frontend_server` は `dist-server/Cargo.toml` の通常 `[dependencies]`
+//! （`fandhe-frontend-app` 経由の SSR コア）であり、テストから `use` しても新規
 //! dev-dependency の追加にはあたらない。`[dev-dependencies]` は本タスクでも
 //! 空のまま維持する（REQ-3）。
 
@@ -43,7 +43,7 @@ mod support;
 use support::{response_body, send_http_request, spawn_and_wait_for_port, status_code};
 
 /// `demo_items()[1]`（id="2"）の title に埋め込まれた XSS ペイロード
-/// （`app/src/lib.rs` 参照）と、`rws_core::escape` の写像
+/// （`app/src/lib.rs` 参照）と、`fandhe_frontend_core::escape` の写像
 /// （`&`→`&amp;` / `<`→`&lt;` / `>`→`&gt;` / `"`→`&quot;` / `'`→`&#x27;`）
 /// に基づく、期待されるエスケープ済み表現。
 const ESCAPED_SCRIPT_TAG: &str = "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;";
@@ -113,7 +113,7 @@ fn list_page_via_binary_escapes_xss_payload() {
 
 /// トランスポート層（hyper・`routes.rs` の詰め替え）がエスケープ済み HTML を
 /// 一切変換しないことの構造的証明。実バイナリ・TCP 越しの応答本文が、
-/// 同一プロセス内で `rws_server::ssr::respond` を直接呼んだ場合の出力と
+/// 同一プロセス内で `fandhe_frontend_server::ssr::respond` を直接呼んだ場合の出力と
 /// バイト列完全一致することを検証する（`route_request`・`main.rs` の詰め
 /// 替えが余分な変換を挟まないことの回帰テスト）。
 #[test]
@@ -128,7 +128,7 @@ fn http_body_matches_in_process_ssr_output_byte_for_byte() {
         assert_eq!(status_code(&response), 200);
         let http_body = response_body(&response);
 
-        let in_process = rws_server::ssr::respond(path)
+        let in_process = fandhe_frontend_server::ssr::respond(path)
             .unwrap_or_else(|| panic!("in-process ssr::respond must resolve path {path}"));
 
         assert_eq!(
@@ -156,7 +156,7 @@ fn unknown_item_id_with_payload_is_not_reflected() {
 
     let response = send_http_request(port, "GET", "/items/%3Cscript%3Ealert(1)%3C%2Fscript%3E");
 
-    // 未知の id は `rws_server::ssr::respond` が 404 ステータス +
+    // 未知の id は `fandhe_frontend_server::ssr::respond` が 404 ステータス +
     // `detail_page(None)` の固定文言 HTML（「見つかりません」等）を返す契約
     // （`server/src/ssr.rs` の doc 参照）。`routes::not_found()` の
     // プレーンテキスト固定文言（`/static/` 未一致・完全未一致パス用）とは

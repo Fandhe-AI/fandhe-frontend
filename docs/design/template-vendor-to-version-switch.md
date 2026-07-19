@@ -2,20 +2,20 @@
 
 ## 背景
 
-`templates/app`（`fw new --template app`、イシュー #378）は、rws-core /
-rws-app が `publish = false`（crates.io 未公開）のため、生成プロジェクトへ
-ソースを vendor 同梱（`templates/app/vendor/rws-core`・
-`templates/app/vendor/rws-app`）し、path 依存させている
+`templates/app`（`fw new --template app`、イシュー #378）は、fandhe-frontend-core /
+fandhe-frontend-app が `publish = false`（crates.io 未公開）のため、生成プロジェクトへ
+ソースを vendor 同梱（`templates/app/vendor/fandhe-frontend-core`・
+`templates/app/vendor/fandhe-frontend-app`）し、path 依存させている
 （選定根拠は `docs/design/fw-new-design.md` §3a）。
 
-vendor 同梱は正本の写しであり、本来は「暫定措置」である。rws-core /
-rws-app が crates.io へ公開された時点で、テンプレートは通常のバージョン
-依存（`rws-core = "X.Y.Z"`）へ切り替えるべきである。本文書はその切替を
+vendor 同梱は正本の写しであり、本来は「暫定措置」である。fandhe-frontend-core /
+fandhe-frontend-app が crates.io へ公開された時点で、テンプレートは通常のバージョン
+依存（`fandhe-frontend-core = "X.Y.Z"`）へ切り替えるべきである。本文書はその切替を
 実施する際のチェックリストを定める。
 
 ## トリガー条件
 
-**「vendor 同梱対象クレート（rws-core / rws-app）の正本 `Cargo.toml` から
+**「vendor 同梱対象クレート（fandhe-frontend-core / fandhe-frontend-app）の正本 `Cargo.toml` から
 `publish = false` が解除される」** をトリガーとする。
 
 - crates.io の公開状態そのものへの実行時問い合わせ（ネットワークアクセス）
@@ -35,7 +35,7 @@ rws-app が crates.io へ公開された時点で、テンプレートは通常�
 
 1. **前提確認**
 
-   rws-core / rws-app が crates.io へ公開済みで、公開バージョン `X.Y.Z` が
+   fandhe-frontend-core / fandhe-frontend-app が crates.io へ公開済みで、公開バージョン `X.Y.Z` が
    確定していることを確認する。公開作業自体・公開バージョンの決定は本手順の
    範囲外（別途ユーザー承認のもとで実施する）。
 
@@ -45,8 +45,8 @@ rws-app が crates.io へ公開された時点で、テンプレートは通常�
 
    ```toml
    [dependencies]
-   rws-core = "X.Y.Z"
-   rws-app = "X.Y.Z"
+   fandhe-frontend-core = "X.Y.Z"
+   fandhe-frontend-app = "X.Y.Z"
    ```
 
    バージョンは厳密固定を基本とし、テンプレートの決定性（同一入力 → 同一
@@ -59,7 +59,7 @@ rws-app が crates.io へ公開された時点で、テンプレートは通常�
 
    - `templates/app/vendor/` ディレクトリを削除する。
    - `cli/src/new_template.rs` の `APP_TEMPLATE_FILES`（または同等の定義）
-     から vendor 配下エントリ（`rws-core`/`rws-app` の各ソースファイル・
+     から vendor 配下エントリ（`fandhe-frontend-core`/`fandhe-frontend-app` の各ソースファイル・
      `Cargo.toml`）を除去する。
    - `cli/tests/new_e2e.rs` のドリフト検知（埋め込みマニフェストと
      `templates/<name>/` の 1:1 検証）が整合を強制する。
@@ -68,7 +68,7 @@ rws-app が crates.io へ公開された時点で、テンプレートは通常�
 
    crates.io の registry エントリ（`source` + `checksum` 付き）で
    `templates/app/Cargo.lock` を再生成する。`new.rs::replace_exact` が使う
-   needle（`rws-template-app`）の出現回数が引き続き 1 であることを確認する
+   needle（`fandhe-frontend-template-app`）の出現回数が引き続き 1 であることを確認する
    （`docs/design/fw-new-design.md` §4 に fail-closed 検証の実例あり）。
 
 5. **テスト更新**
@@ -76,10 +76,10 @@ rws-app が crates.io へ公開された時点で、テンプレートは通常�
    `cli/tests/template_vendor_drift.rs` から以下を削除する。
 
    - vendor drift テスト（バイト一致検証）:
-     `vendored_rws_core_src_is_byte_identical_to_source_crate`・
-     `vendored_rws_core_cargo_toml_has_no_external_dependencies`・
-     `vendored_rws_app_src_is_byte_identical_to_source_crate`・
-     `vendored_rws_app_cargo_toml_points_at_vendored_rws_core`
+     `vendored_fandhe_frontend_core_src_is_byte_identical_to_source_crate`・
+     `vendored_fandhe_frontend_core_cargo_toml_has_no_external_dependencies`・
+     `vendored_fandhe_frontend_app_src_is_byte_identical_to_source_crate`・
+     `vendored_fandhe_frontend_app_cargo_toml_points_at_vendored_fandhe_frontend_core`
    - canary テスト:
      `vendor_to_version_switch_trigger_has_not_fired`・
      `vendored_crates_not_covered_by_known_map`
@@ -118,4 +118,4 @@ rws-app が crates.io へ公開された時点で、テンプレートは通常�
 - 実際の切替実施（本文書はトリガー成立時に参照するチェックリストであり、
   本文書自体の新設・改訂だけでは切替は行わない）
 - crates.io への公開作業そのもの・公開バージョンの決定
-- `templates/default`（rws-core / rws-app に依存しないため対象外）
+- `templates/default`（fandhe-frontend-core / fandhe-frontend-app に依存しないため対象外）

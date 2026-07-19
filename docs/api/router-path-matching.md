@@ -1,4 +1,4 @@
-# rws-server パスマッチング仕様（v1）（TASK-7.2a）
+# fandhe-frontend-server パスマッチング仕様（v1）（TASK-7.2a）
 
 ## 1. 目的とトレーサビリティ
 
@@ -15,10 +15,10 @@
 - **TASK-7.2c（#57）**: 公開 API 経由の統合ルーティングテスト整備
 
 **実装位置の更新（イシュー #407）**: エンジン本体は `app/src/router.rs`
-（`rws_app::router::Router`）へ移設した。`server`（SSR/SSG）・`wasm-full`
+（`fandhe_frontend_app::router::Router`）へ移設した。`server`（SSR/SSG）・`wasm-full`
 （CSR）の双方が同一エンジンを共有し、パスマッチング意味論のドリフトを
 構造的に排除するための移設であり、本書が定める v1 仕様自体に変更はない。
-`server/src/router.rs`（`rws_server::router`）は非破壊のための再エクスポート
+`server/src/router.rs`（`fandhe_frontend_server::router`）は非破壊のための再エクスポート
 シムとして存置する。設計判断の詳細は `docs/design/route-definition-sharing.md`
 を参照。
 
@@ -30,15 +30,15 @@
 
 ## 2. 責務境界・呼び出し文脈
 
-`rws_server::router::Router<H>` は HTTP・HTML を一切知らない、パス文字列と
+`fandhe_frontend_server::router::Router<H>` は HTTP・HTML を一切知らない、パス文字列と
 ハンドラ型 `H` のみを扱う汎用パスマッチング機構です。
 
 - SSR（`server/src/ssr.rs` の `respond()`）・SSG（`server/src/ssg.rs`）・
-  単一バイナリ配布（`rws-dist-server`）のいずれの上位層からも同一の
+  単一バイナリ配布（`fandhe-frontend-dist-server`）のいずれの上位層からも同一の
   `Router` / `Router::resolve()` を呼び出せることを想定する。
 - `Router` はエスケープ責務を持たない。抽出したパスパラメータ（`Params`）は
   URL デコードしない生文字列のまま返し、HTML へ出力する際は呼び出し元が
-  必ず `rws_core::text` / `rws_core::el` の attrs 経由で既定エスケープ
+  必ず `fandhe_frontend_core::text` / `fandhe_frontend_core::el` の attrs 経由で既定エスケープ
   （REQ-1）を通すこと。
 
 ## 3. v1 マッチング仕様
@@ -79,7 +79,7 @@
   一致しないパスに対して `None` を返す。いずれもエンドユーザー入力
   （リクエストパス）に起因して panic することはない。
 - **エスケープ非経由**: `Params` の値は生文字列であり、HTML 化は本モジュールの
-  責務外。既定エスケープ（REQ-1）は呼び出し元（`rws-app` の描画関数経由）が
+  責務外。既定エスケープ（REQ-1）は呼び出し元（`fandhe-frontend-app` の描画関数経由）が
   担う契約を `router.rs` のモジュール doc に明記する。
 
 ## 6. REQ-7 受け入れ基準との対応
@@ -92,8 +92,8 @@
 ## 7. 備考: `/search` の配線状況
 
 `server/src/ssr.rs` の `respond()` は `/` と `/items/:id` のみを
-`rws_app` のページ関数へ配線している。`/search` はルーター自体では
-マッチング可能（unit テストで検証済み）だが、`rws-app` の凍結 API
+`fandhe_frontend_app` のページ関数へ配線している。`/search` はルーター自体では
+マッチング可能（unit テストで検証済み）だが、`fandhe-frontend-app` の凍結 API
 （`docs/api/app-api.md`）に検索ページの実装がないため、SSR エントリでの
-ページ配線はスコープ外として見送っている。将来 `rws-app` に検索ページが
+ページ配線はスコープ外として見送っている。将来 `fandhe-frontend-app` に検索ページが
 追加された際に配線する（別タスク）。

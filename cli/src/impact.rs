@@ -68,9 +68,9 @@ impl fmt::Display for BreakingRisk {
 
 /// クライアント境界クレート（WASM 経由でブラウザに配布される 3 クレート）。
 ///
-/// PoC-7 は `rws-wasm-client` 単独を「クライアント境界」として `high` 判定の
+/// PoC-7 は `fandhe-frontend-wasm-client` 単独を「クライアント境界」として `high` 判定の
 /// 追加条件に使っていたが、製品ワークスペースは WASM 配布クレートが
-/// `rws-wasm-client` / `rws-wasm-full` / `rws-wasm-thin` の 3 つに分かれている
+/// `fandhe-frontend-wasm-client` / `fandhe-frontend-wasm-full` / `fandhe-frontend-wasm-thin` の 3 つに分かれている
 /// （`docs/spec/06-roadmap.md` MS-3〜MS-4）。いずれかへの波及でも `high` 側に
 /// 倒す（安全側・過検知容認、`docs/design/impact-analysis-design.md` §3.2）。
 ///
@@ -78,7 +78,11 @@ impl fmt::Display for BreakingRisk {
 /// `affected_crates` との突き合わせに同じ定数を使う契約とする（二重管理しない）。
 ///
 /// `judge_breaking_risk` からのみ参照される。
-pub const CLIENT_BOUNDARY_CRATES: [&str; 3] = ["rws-wasm-client", "rws-wasm-full", "rws-wasm-thin"];
+pub const CLIENT_BOUNDARY_CRATES: [&str; 3] = [
+    "fandhe-frontend-wasm-client",
+    "fandhe-frontend-wasm-full",
+    "fandhe-frontend-wasm-thin",
+];
 
 /// `high` 判定となる影響クレート数の下限（この件数**以上**で `high`）。
 const HIGH_RISK_CRATE_THRESHOLD: usize = 3;
@@ -796,41 +800,44 @@ mod tests {
 
     #[test]
     fn judge_breaking_risk_one_crate_is_medium() {
-        let crates = vec!["rws-core".to_string()];
+        let crates = vec!["fandhe-frontend-core".to_string()];
         assert_eq!(judge_breaking_risk(&crates), BreakingRisk::Medium);
     }
 
     #[test]
     fn judge_breaking_risk_two_crates_is_medium() {
-        let crates = vec!["rws-core".to_string(), "rws-app".to_string()];
+        let crates = vec![
+            "fandhe-frontend-core".to_string(),
+            "fandhe-frontend-app".to_string(),
+        ];
         assert_eq!(judge_breaking_risk(&crates), BreakingRisk::Medium);
     }
 
     #[test]
     fn judge_breaking_risk_three_crates_is_high() {
         let crates = vec![
-            "rws-core".to_string(),
-            "rws-app".to_string(),
-            "rws-server".to_string(),
+            "fandhe-frontend-core".to_string(),
+            "fandhe-frontend-app".to_string(),
+            "fandhe-frontend-server".to_string(),
         ];
         assert_eq!(judge_breaking_risk(&crates), BreakingRisk::High);
     }
 
     #[test]
     fn judge_breaking_risk_single_wasm_client_crate_is_high() {
-        let crates = vec!["rws-wasm-client".to_string()];
+        let crates = vec!["fandhe-frontend-wasm-client".to_string()];
         assert_eq!(judge_breaking_risk(&crates), BreakingRisk::High);
     }
 
     #[test]
     fn judge_breaking_risk_single_wasm_full_crate_is_high() {
-        let crates = vec!["rws-wasm-full".to_string()];
+        let crates = vec!["fandhe-frontend-wasm-full".to_string()];
         assert_eq!(judge_breaking_risk(&crates), BreakingRisk::High);
     }
 
     #[test]
     fn judge_breaking_risk_single_wasm_thin_crate_is_high() {
-        let crates = vec!["rws-wasm-thin".to_string()];
+        let crates = vec!["fandhe-frontend-wasm-thin".to_string()];
         assert_eq!(judge_breaking_risk(&crates), BreakingRisk::High);
     }
 
@@ -1129,52 +1136,55 @@ mod tests {
     #[test]
     fn reverse_dependency_closure_includes_direct_dependents() {
         let a = MemberPackage {
-            name: "rws-core".to_string(),
+            name: "fandhe-frontend-core".to_string(),
             manifest_dir: std::path::PathBuf::from("/ws/core"),
             normal_workspace_deps: vec![],
         };
         let b = MemberPackage {
-            name: "rws-app".to_string(),
+            name: "fandhe-frontend-app".to_string(),
             manifest_dir: std::path::PathBuf::from("/ws/app"),
-            normal_workspace_deps: vec!["rws-core".to_string()],
+            normal_workspace_deps: vec!["fandhe-frontend-core".to_string()],
         };
         let members = [a, b];
         let mut seeds = BTreeSet::new();
-        seeds.insert("rws-core".to_string());
+        seeds.insert("fandhe-frontend-core".to_string());
         let closure = reverse_dependency_closure(&members, &seeds);
         assert_eq!(
             closure,
-            BTreeSet::from(["rws-core".to_string(), "rws-app".to_string()])
+            BTreeSet::from([
+                "fandhe-frontend-core".to_string(),
+                "fandhe-frontend-app".to_string()
+            ])
         );
     }
 
     #[test]
     fn reverse_dependency_closure_includes_transitive_dependents() {
         let a = MemberPackage {
-            name: "rws-core".to_string(),
+            name: "fandhe-frontend-core".to_string(),
             manifest_dir: std::path::PathBuf::from("/ws/core"),
             normal_workspace_deps: vec![],
         };
         let b = MemberPackage {
-            name: "rws-app".to_string(),
+            name: "fandhe-frontend-app".to_string(),
             manifest_dir: std::path::PathBuf::from("/ws/app"),
-            normal_workspace_deps: vec!["rws-core".to_string()],
+            normal_workspace_deps: vec!["fandhe-frontend-core".to_string()],
         };
         let c = MemberPackage {
-            name: "rws-server".to_string(),
+            name: "fandhe-frontend-server".to_string(),
             manifest_dir: std::path::PathBuf::from("/ws/server"),
-            normal_workspace_deps: vec!["rws-app".to_string()],
+            normal_workspace_deps: vec!["fandhe-frontend-app".to_string()],
         };
         let members = [a, b, c];
         let mut seeds = BTreeSet::new();
-        seeds.insert("rws-core".to_string());
+        seeds.insert("fandhe-frontend-core".to_string());
         let closure = reverse_dependency_closure(&members, &seeds);
         assert_eq!(
             closure,
             BTreeSet::from([
-                "rws-core".to_string(),
-                "rws-app".to_string(),
-                "rws-server".to_string(),
+                "fandhe-frontend-core".to_string(),
+                "fandhe-frontend-app".to_string(),
+                "fandhe-frontend-server".to_string(),
             ])
         );
     }
@@ -1182,26 +1192,29 @@ mod tests {
     #[test]
     fn reverse_dependency_closure_excludes_unrelated_crates() {
         let a = MemberPackage {
-            name: "rws-core".to_string(),
+            name: "fandhe-frontend-core".to_string(),
             manifest_dir: std::path::PathBuf::from("/ws/core"),
             normal_workspace_deps: vec![],
         };
         let unrelated = MemberPackage {
-            name: "rws-wasm-client".to_string(),
+            name: "fandhe-frontend-wasm-client".to_string(),
             manifest_dir: std::path::PathBuf::from("/ws/wasm-client"),
             normal_workspace_deps: vec![],
         };
         let members = [a, unrelated];
         let mut seeds = BTreeSet::new();
-        seeds.insert("rws-core".to_string());
+        seeds.insert("fandhe-frontend-core".to_string());
         let closure = reverse_dependency_closure(&members, &seeds);
-        assert_eq!(closure, BTreeSet::from(["rws-core".to_string()]));
+        assert_eq!(
+            closure,
+            BTreeSet::from(["fandhe-frontend-core".to_string()])
+        );
     }
 
     #[test]
     fn reverse_dependency_closure_empty_seeds_is_empty() {
         let a = MemberPackage {
-            name: "rws-core".to_string(),
+            name: "fandhe-frontend-core".to_string(),
             manifest_dir: std::path::PathBuf::from("/ws/core"),
             normal_workspace_deps: vec![],
         };
@@ -1235,19 +1248,27 @@ mod tests {
     #[test]
     fn analyze_reflects_affected_crates_and_client_boundary_risk() {
         let ws = TempWorkspace::new("analyze-crates-risk");
-        let core = ws.write_member("rws-core", "lib.rs", "pub fn render() {}\n", &[]);
+        let core = ws.write_member(
+            "fandhe-frontend-core",
+            "lib.rs",
+            "pub fn render() {}\n",
+            &[],
+        );
         let wasm_client = ws.write_member(
-            "rws-wasm-client",
+            "fandhe-frontend-wasm-client",
             "lib.rs",
             "fn use_it() {\n    render();\n}\n",
-            &["rws-core"],
+            &["fandhe-frontend-core"],
         );
         let report = analyze(&ws.root, &[core, wasm_client], "render").expect("should analyze");
         // affected_crates は「使用箇所を含むクレート」を seed とした逆依存閉包
         // （docs/design/impact-analysis-design.md §5）であり、定義元クレート自体は
-        // 別途使用されていない限り含まれない。ここでは rws-wasm-client のみが
+        // 別途使用されていない限り含まれない。ここでは fandhe-frontend-wasm-client のみが
         // 使用箇所を持ち、それに依存する他クレートは存在しないため単独になる。
-        assert_eq!(report.affected_crates, vec!["rws-wasm-client".to_string()]);
+        assert_eq!(
+            report.affected_crates,
+            vec!["fandhe-frontend-wasm-client".to_string()]
+        );
         assert_eq!(report.breaking_risk, BreakingRisk::High);
         assert!(report.requires_human_approval);
     }
@@ -1255,12 +1276,17 @@ mod tests {
     #[test]
     fn analyze_marks_affected_routes_and_requires_approval() {
         let ws = TempWorkspace::new("analyze-routes");
-        let core = ws.write_member("rws-core", "lib.rs", "pub fn item_detail() {}\n", &[]);
+        let core = ws.write_member(
+            "fandhe-frontend-core",
+            "lib.rs",
+            "pub fn item_detail() {}\n",
+            &[],
+        );
         let server = ws.write_member(
-            "rws-server",
+            "fandhe-frontend-server",
             "router.rs",
             "fn build() {\n    Router::new().route(\"/items/:id\", item_detail)?;\n}\n",
-            &["rws-core"],
+            &["fandhe-frontend-core"],
         );
         let report = analyze(&ws.root, &[core, server], "item_detail").expect("should analyze");
         assert_eq!(report.affected_routes, vec!["/items/:id".to_string()]);
@@ -1272,12 +1298,17 @@ mod tests {
     #[test]
     fn analyze_marks_affected_loaders_and_requires_approval() {
         let ws = TempWorkspace::new("analyze-loaders");
-        let core = ws.write_member("rws-core", "lib.rs", "pub fn fetch_items() {}\n", &[]);
+        let core = ws.write_member(
+            "fandhe-frontend-core",
+            "lib.rs",
+            "pub fn fetch_items() {}\n",
+            &[],
+        );
         let app = ws.write_member(
-            "rws-app",
+            "fandhe-frontend-app",
             "lib.rs",
             "struct DemoItemsLoader;\nimpl Loader for DemoItemsLoader {\n    fn load(&self) {\n        fetch_items();\n    }\n}\n",
-            &["rws-core"],
+            &["fandhe-frontend-core"],
         );
         let report = analyze(&ws.root, &[core, app], "fetch_items").expect("should analyze");
         assert_eq!(report.affected_loaders, vec!["DemoItemsLoader".to_string()]);
@@ -1289,12 +1320,17 @@ mod tests {
     #[test]
     fn analyze_reports_empty_affected_loaders_when_no_loader_impl_touched() {
         let ws = TempWorkspace::new("analyze-no-loaders");
-        let core = ws.write_member("rws-core", "lib.rs", "pub fn render() {}\n", &[]);
+        let core = ws.write_member(
+            "fandhe-frontend-core",
+            "lib.rs",
+            "pub fn render() {}\n",
+            &[],
+        );
         let app = ws.write_member(
-            "rws-app",
+            "fandhe-frontend-app",
             "lib.rs",
             "fn use_it() {\n    render();\n}\n",
-            &["rws-core"],
+            &["fandhe-frontend-core"],
         );
         let report = analyze(&ws.root, &[core, app], "render").expect("should analyze");
         assert!(report.affected_loaders.is_empty());
@@ -1346,7 +1382,7 @@ mod tests {
     fn member_dir_name_maps_workspace_root_manifest_dir_to_root_key() {
         let workspace_root = std::path::Path::new("/ws");
         let member = MemberPackage {
-            name: "rws-template-default".to_string(),
+            name: "fandhe-frontend-template-default".to_string(),
             manifest_dir: std::path::PathBuf::from("/ws"),
             normal_workspace_deps: vec![],
         };
@@ -1362,7 +1398,7 @@ mod tests {
     fn crate_name_for_file_attributes_src_files_to_root_member() {
         let workspace_root = std::path::Path::new("/ws");
         let root_member = MemberPackage {
-            name: "rws-template-default".to_string(),
+            name: "fandhe-frontend-template-default".to_string(),
             manifest_dir: std::path::PathBuf::from("/ws"),
             normal_workspace_deps: vec![],
         };
@@ -1370,7 +1406,7 @@ mod tests {
 
         let found =
             crate_name_for_file(workspace_root, &members, "src/main.rs").expect("should resolve");
-        assert_eq!(found, Some("rws-template-default".to_string()));
+        assert_eq!(found, Some("fandhe-frontend-template-default".to_string()));
 
         // 走査対象外のファイル（member に属さない先頭コンポーネント）は None。
         let not_found = crate_name_for_file(workspace_root, &members, "docs/readme.md")
@@ -1440,14 +1476,14 @@ mod tests {
     fn sample_report() -> ImpactReport {
         ImpactReport {
             symbol: "render".to_string(),
-            defined_in_crates: vec!["rws-core".to_string()],
+            defined_in_crates: vec!["fandhe-frontend-core".to_string()],
             defined_in_files: vec!["core/src/lib.rs".to_string()],
             ambiguous: false,
             affected_files: vec![AffectedFile {
                 file: "app/src/main.rs".to_string(),
                 lines: vec![3, 10],
             }],
-            affected_crates: vec!["rws-app".to_string()],
+            affected_crates: vec!["fandhe-frontend-app".to_string()],
             affected_routes: vec!["/items/:id".to_string()],
             affected_loaders: vec!["DemoItemsLoader".to_string()],
             breaking_risk: BreakingRisk::Medium,
@@ -1462,11 +1498,11 @@ mod tests {
         assert_eq!(
             json,
             "{\"symbol\":\"render\",\
-             \"defined_in_crate\":\"rws-core\",\
+             \"defined_in_crate\":\"fandhe-frontend-core\",\
              \"defined_in_file\":\"core/src/lib.rs\",\
              \"ambiguous\":false,\
              \"affected_files\":[{\"file\":\"app/src/main.rs\",\"lines\":[3,10]}],\
-             \"affected_crates\":[\"rws-app\"],\
+             \"affected_crates\":[\"fandhe-frontend-app\"],\
              \"affected_routes\":[\"/items/:id\"],\
              \"affected_loaders\":[\"DemoItemsLoader\"],\
              \"breaking_risk\":\"medium\",\
@@ -1478,16 +1514,19 @@ mod tests {
     #[test]
     fn render_report_singularizes_defined_in_when_ambiguous() {
         let mut report = sample_report();
-        report.defined_in_crates = vec!["rws-core".to_string(), "rws-app".to_string()];
+        report.defined_in_crates = vec![
+            "fandhe-frontend-core".to_string(),
+            "fandhe-frontend-app".to_string(),
+        ];
         report.defined_in_files = vec!["core/src/lib.rs".to_string(), "app/src/lib.rs".to_string()];
         report.ambiguous = true;
         let json = render_report(&report);
-        assert!(json.contains("\"defined_in_crate\":\"rws-core\""));
+        assert!(json.contains("\"defined_in_crate\":\"fandhe-frontend-core\""));
         assert!(json.contains("\"defined_in_file\":\"core/src/lib.rs\""));
         assert!(json.contains("\"ambiguous\":true"));
-        // 先頭要素のみが出力され、2 件目（"rws-app" 単体としての値）が
+        // 先頭要素のみが出力され、2 件目（"fandhe-frontend-app" 単体としての値）が
         // defined_in_crate の値としては現れないこと。
-        assert!(!json.contains("\"defined_in_crate\":\"rws-app\""));
+        assert!(!json.contains("\"defined_in_crate\":\"fandhe-frontend-app\""));
     }
 
     #[test]

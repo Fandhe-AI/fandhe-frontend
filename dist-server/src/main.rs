@@ -1,8 +1,8 @@
-//! `rws-dist-server` の起動エントリ。
+//! `fandhe-frontend-dist-server` の起動エントリ。
 //!
 //! `RWS_BIND_ADDR`（既定 `127.0.0.1:3100`）で TCP リッスンし、1 接続ごとに
 //! `hyper`（HTTP/1.1）で処理する。実際のルーティング・レスポンス生成は
-//! `rws_dist_server::routes::route_request`（HTTP に依存しない純粋関数）に
+//! `fandhe_frontend_dist_server::routes::route_request`（HTTP に依存しない純粋関数）に
 //! 委譲し、本ファイルは「hyper の接続を受けてバイト列に変換する」薄い
 //! トランスポート層のみを担う。
 //!
@@ -18,14 +18,14 @@
 // 宣言の一貫性を保つ（実装上も unsafe は使用していない）。
 #![forbid(unsafe_code)]
 
+use fandhe_frontend_dist_server::assets::{active_mode, AssetMode};
+use fandhe_frontend_dist_server::routes::route_request;
 use http_body_util::Full;
 use hyper::body::Bytes;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response};
 use hyper_util::rt::TokioIo;
-use rws_dist_server::assets::{active_mode, AssetMode};
-use rws_dist_server::routes::route_request;
 use std::convert::Infallible;
 use std::process::ExitCode;
 use tokio::net::TcpListener;
@@ -43,7 +43,7 @@ fn main() -> ExitCode {
     {
         Ok(rt) => rt,
         Err(err) => {
-            eprintln!("rws-dist-server: failed to start tokio runtime: {err}");
+            eprintln!("fandhe-frontend-dist-server: failed to start tokio runtime: {err}");
             return ExitCode::FAILURE;
         }
     };
@@ -61,7 +61,7 @@ async fn run() -> ExitCode {
         Ok(listener) => listener,
         Err(err) => {
             // bind 失敗はアドレスと OS エラーのみを出力する（機微情報を含めない）。
-            eprintln!("rws-dist-server: failed to bind {bind_addr}: {err}");
+            eprintln!("fandhe-frontend-dist-server: failed to bind {bind_addr}: {err}");
             return ExitCode::FAILURE;
         }
     };
@@ -78,12 +78,12 @@ async fn run() -> ExitCode {
         .local_addr()
         .map(|addr| addr.to_string())
         .unwrap_or_else(|_| bind_addr.clone());
-    eprintln!("rws-dist-server: listening on {listening_addr}");
+    eprintln!("fandhe-frontend-dist-server: listening on {listening_addr}");
     // アセット配信モードを起動時に 1 行だけ出力する（TASK-10.1a、イシュー #106）。
     // 内部絶対パス（`static/` の実パス等）は含めない固定文言のみとし、
     // 機微情報を露出しない（`security.md`）。
     eprintln!(
-        "rws-dist-server: assets={}",
+        "fandhe-frontend-dist-server: assets={}",
         match active_mode() {
             AssetMode::Embedded => "embedded",
             AssetMode::DevFilesystem => "dev-filesystem",
@@ -96,7 +96,7 @@ async fn run() -> ExitCode {
             Err(err) => {
                 // 個別接続の accept 失敗でプロセス全体を落とさない
                 // （エラー処理規約 `coding-rust.md`: panic! を避ける）。
-                eprintln!("rws-dist-server: accept error: {err}");
+                eprintln!("fandhe-frontend-dist-server: accept error: {err}");
                 continue;
             }
         };
@@ -107,7 +107,7 @@ async fn run() -> ExitCode {
                 .serve_connection(io, service_fn(handle))
                 .await
             {
-                eprintln!("rws-dist-server: connection error: {err}");
+                eprintln!("fandhe-frontend-dist-server: connection error: {err}");
             }
         });
     }

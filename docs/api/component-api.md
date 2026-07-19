@@ -41,7 +41,7 @@ frontend-framework-spec リポジトリで行う）。
 | `escape_html` / `escape_html_into` | `escape` モジュール re-export | HTML エンティティエスケープの実装 |
 
 **コンポーネント記述の標準規約**: コンポーネントは「`Node` を返す通常の Rust 関数」
-として記述する（`fn list_page() -> Node { ... }` 形式、PoC-3 の `rws-app` 実績）。
+として記述する（`fn list_page() -> Node { ... }` 形式、PoC-3 の `fandhe-frontend-app` 実績）。
 マクロ・トレイト実装・特別な戻り値型は要求しない。関数の引数・戻り値は通常の Rust
 の型検査を受けるため、コンパイルエラーはマクロ展開後のコードではなく、利用者が
 書いた関数そのものを指す（REQ-5 受け入れ基準 3 点目、第 7 節参照）。
@@ -98,8 +98,8 @@ div, p, ul, li, a, h1, main_tag（"main" タグへの薄い委譲）
 | 項目 | 引き継ぎ先 |
 |------|-----------|
 | ハイドレーション支援 API（`find_attr_values`/`find_nav_targets`） | TASK-6.2 系 |
-| 状態管理（`rws-interactive` クレート） | 別クレート（TASK-5.1 系の対象外） |
-| イベントハンドラ API | WASM 層（`rws-wasm-client`/`rws-wasm-full`）のタスク |
+| 状態管理（`fandhe-frontend-interactive` クレート） | 別クレート（TASK-5.1 系の対象外） |
+| イベントハンドラ API | WASM 層（`fandhe-frontend-wasm-client`/`fandhe-frontend-wasm-full`）のタスク |
 | 網羅的タグヘルパー群・インデント規約 | Issue #164 |
 | void 要素の自己終了出力最適化 | 本書第 3 節・第 8 節に既知の制約として記録（未起票、第 8 節参照） |
 
@@ -125,7 +125,7 @@ div, p, ul, li, a, h1, main_tag（"main" タグへの薄い委譲）
    （`.claude/rules/coding-rust.md`）。標準サーバー構成での依存パッケージ上限
    60 件・深さ 6 の制約（`docs/policy/dependency-graph-policy.md`）も維持する。
 8. **（イシュー #373）** `href`/`src` 等 `URL_ATTRS` に該当する属性の値は
-   `rws_core::is_safe_url` の許可スキーム検証を通過したものだけを出力する。
+   `fandhe_frontend_core::is_safe_url` の許可スキーム検証を通過したものだけを出力する。
    不合格の値（`javascript:` 等）は属性ごと出力からスキップする（fail-closed）。
    `on*` で始まるイベントハンドラ属性は値によらず一律出力しない。詳細な脅威
    整理・許可リストの正は `docs/policy/attribute-output-policy.md` を参照する。
@@ -147,14 +147,14 @@ doctest（`el`/`text`/`raw_html`/`render` の `# Examples`）と同一のシグ�
 ことを照合済みである。
 
 ```rust
-use rws_core::{el, text, render};
+use fandhe_frontend_core::{el, text, render};
 
 let node = el("p", vec![("class", "greeting")], vec![text("hello")]);
 assert_eq!(render(&node), r#"<p class="greeting">hello</p>"#);
 ```
 
 ```rust
-use rws_core::{el, text, render};
+use fandhe_frontend_core::{el, text, render};
 
 // テキストノードは既定でエスケープされる（REQ-1 の中核）。
 let node = el("p", vec![], vec![text("<script>alert(1)</script>")]);
@@ -162,7 +162,7 @@ assert_eq!(render(&node), "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>");
 ```
 
 ```rust
-use rws_core::{el, raw_html, render};
+use fandhe_frontend_core::{el, raw_html, render};
 
 // raw_html は唯一の明示的オプトイン。信頼できる固定文字列のみを渡す。
 let node = el("div", vec![], vec![raw_html("<b>bold</b>")]);
@@ -173,7 +173,7 @@ TASK-5.1b で追加予定のタグショートカット（第 4 節）を用い�
 （`div`/`p` は `el` への薄い委譲のため、出力は `el` を直接使った場合と完全に一致する）:
 
 ```rust,ignore
-use rws_core::{div, p, text, render};
+use fandhe_frontend_core::{div, p, text, render};
 
 let node = div(vec![("class", "card")], vec![p(vec![], vec![text("hello")])]);
 assert_eq!(render(&node), r#"<div class="card"><p>hello</p></div>"#);

@@ -1,5 +1,5 @@
 //! `xtask`: このワークスペースの CI 計測・自己保守用ツール群のエントリポイント。
-//! 開発者用ツールであり、配布物（rws-* クレート）には含めない。
+//! 開発者用ツールであり、配布物（fandhe-frontend-* クレート）には含めない。
 //!
 //! サブコマンド:
 //! - `check-deps --package <NAME> [--package <NAME> ...]`: REQ-3（依存グラフ上限
@@ -25,7 +25,7 @@
 //!   `Normal`/`Dev`/`Build` すべての辺を辿り、workspace 内の第一者パッケージ
 //!   （path dependency）を除いた「真の外部依存」が 1 件でも存在しないかを
 //!   `check_deps::measure_external_only` で計測し判定する（`check_deps::judge_zero`）。
-//!   `check-deps --package rws-core` の 60/6 判定とは別に「ゼロであること」を
+//!   `check-deps --package fandhe-frontend-core` の 60/6 判定とは別に「ゼロであること」を
 //!   専用ゲートとして強制する。判定対象は CLI 引数で差し替え不可
 //!   （`ZERO_DEP_CRATES` 参照。上限を弱める経路を作らない設計）。
 //!   CLI 契約の回帰テストは `xtask/tests/cli_check_core_deps.rs`。
@@ -129,7 +129,7 @@ fn print_usage() {
     eprintln!("      #103). `--limit-mb` overrides the default for verification only.");
     eprintln!("  wasm-node-smoke [--build-only]");
     eprintln!("      Automate the nodejs-target dev workflow documented in");
-    eprintln!("      docs/design/wasm-build-integration.md §6.4 for rws-wasm-thin: verify the");
+    eprintln!("      docs/design/wasm-build-integration.md §6.4 for fandhe-frontend-wasm-thin: verify the");
     eprintln!("      installed wasm-bindgen-cli matches Cargo.lock's wasm-bindgen version,");
     eprintln!("      build for wasm32-unknown-unknown, generate `--target nodejs` bindings,");
     eprintln!("      and (unless --build-only) run a node smoke check including a default-");

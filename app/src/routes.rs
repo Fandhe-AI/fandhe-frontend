@@ -8,17 +8,17 @@
 //! `wasm-full/tests/route_sync_static.rs`（静的ソース走査）によるドリフト
 //! **検知**でのみ同期を担保していた（#374・PR #383 の申し送り）。
 //!
-//! 本モジュールは `rws-app`（`server`・`wasm-full` の双方から依存可能な
+//! 本モジュールは `fandhe-frontend-app`（`server`・`wasm-full` の双方から依存可能な
 //! 唯一の層、`structure.toml` の `allowed_dependents` 参照）にルート表
 //! （パスパターン + ハンドラ + ページタイトル）を**単一定義**し、
 //! `server/src/ssr.rs`（SSR）・`wasm-full/src/nav.rs`（CSR）の双方が本モジュールの
 //! [`resolve`] / [`title`] を呼ぶことで、パターンリテラル・タイトルリテラルの
 //! 再定義を構造的に排除する。マッチングエンジンも [`crate::router::Router`]
-//! （同じくイシュー #407 で `rws-server` から移設）を共有するため、
+//! （同じくイシュー #407 で `fandhe-frontend-server` から移設）を共有するため、
 //! パスマッチング**意味論**（末尾スラッシュ・空セグメント・クエリ除去等）の
 //! ドリフトも構造的に消滅する（`docs/design/route-definition-sharing.md` 案 B-1）。
 //!
-//! # `fw structure` の `rws-router-v1` 抽出器との関係
+//! # `fw structure` の `fandhe-frontend-router-v1` 抽出器との関係
 //!
 //! `cli/src/routes.rs` の抽出器は `[routing] definition_dir` 配下の `.rs`
 //! ファイルを文字列走査し `.route("<literal>", handler)` を抽出する
@@ -33,7 +33,7 @@
 //! - [`resolve`] が返す `id`（`ResolvedRoute::Detail` の捕捉値）は
 //!   [`crate::router::Params`] と同じく生文字列のままであり、HTML へ出力する
 //!   際は呼び出し元（`server/src/ssr.rs`・`wasm-full/src/csr.rs` 経由）が必ず
-//!   `rws_core::text` / `rws_core::el` の attrs 経由で既定エスケープ（REQ-1）を
+//!   `fandhe_frontend_core::text` / `fandhe_frontend_core::el` の attrs 経由で既定エスケープ（REQ-1）を
 //!   通すこと。本モジュール自身は loader への入力としてのみ `id` を渡し、
 //!   HTML 文字列を一切組み立てない。
 //! - [`title`] は固定 `&'static str` のみを返し、リクエスト由来の文字列を
