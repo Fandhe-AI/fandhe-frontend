@@ -95,32 +95,72 @@
   同一の考え方（属性値を手掛かりにした DOM 走査、HTML 再パースを伴わない）
   を踏襲する。
 
-### 3.3 core API 形状（案）
+### 3.3 core API 形状（#342 実装確定）
+
+当初案（`bind_text(field, value) -> Node` / `bind_attr(...) -> (String, String)` /
+`bind_class(...) -> Option<String>`）は実装検討の結果、次の 2 点の課題が
+判明したため、下記の確定形へ改訂する。
+
+- (a) `bind_text` が「マーカー属性 + テキスト子」を単一 `Node` で表すには
+  タグ名・呼び出し側属性を合わせて受け取る必要があり、`field`/`value` のみの
+  シグネチャでは要素を構築できない。
+- (b) 同一要素へ複数の `bind_attr`/`bind_class` を適用すると `data-bind-attr`/
+  `data-bind-class` 属性が要素内で重複し、ブラウザが先頭のみを採用して
+  残りの束縛が黙って欠落する（第 9 節・fail-closed 方針に反する）。トークン
+  合成を明示的な複数束縛版関数に分離することでこれを構造的に防ぐ。
 
 ```rust
-// rws-core: 束縛点付きノード構築ヘルパー（#342 で追加）
-pub fn bind_text(field: &'static str, value: impl Into<String>) -> Node;
-pub fn bind_attr(attr: &'static str, field: &'static str, value: impl Into<String>) -> (String, String);
-pub fn bind_class(class: &'static str, field: &'static str, active: bool) -> Option<String>;
+// rws-core: 束縛点マーキングのヘルパー群（core/src/bind.rs、#342 で追加）
+
+/// 束縛点マーカー属性名（#343 が走査する契約値。§3.1 で凍結）
+pub const BIND_TEXT_ATTR: &str = "data-bind-text";
+pub const BIND_ATTR_ATTR: &str = "data-bind-attr";
+pub const BIND_CLASS_ATTR: &str = "data-bind-class";
+
+/// "attr:field" トークンを合成する（data-bind-attr の値用）
+pub fn bind_attr_token(attr: &'static str, field: &'static str) -> String;
+/// 複数束縛の空白区切り合成（同一要素の data-bind-attr 重複を構造的に防ぐ）
+pub fn bind_attr_tokens(bindings: &[(&'static str, &'static str)]) -> String;
+/// "class:field" トークン（data-bind-class の値用）。複数版も同様に提供
+pub fn bind_class_token(class: &'static str, field: &'static str) -> String;
+pub fn bind_class_tokens(bindings: &[(&'static str, &'static str)]) -> String;
+
+/// テキスト束縛付き要素を構築する。マーカー属性は呼び出し側 attrs の後ろへ
+/// 決定的な順序で付加し、子は Node::Text(value) の 1 つのみとする
+/// （§3.1「唯一のテキスト子」不変条件を構築で保証する）。
+pub fn bind_text(
+    tag: &'static str,
+    attrs: Vec<(&str, &str)>,
+    field: &'static str,
+    value: impl Into<String>,
+) -> Node;
 ```
 
-- `field` を `&'static str` に固定するのは、`Node::Element.tag`
+- `field`/属性名/class 名を `&'static str` に固定するのは、`Node::Element.tag`
   （`core/src/lib.rs:80` 以降）が `&'static str` 固定であることと同じ設計
   原理である。動的文字列（実行時に組み立てた `String`）をフィールド名として
   受理しないことで、束縛点対応表の走査キーが常にコンパイル時に確定した
   有限集合であることを型で保証し、任意文字列注入によるフィールド偽装の
   余地を構造的に排除する。
-- `bind_text` は `Node::Element` の子として `data-bind-text` 属性と
-  `Node::Text(value)` を同時に生成するヘルパーとする（要素本体の構築は
-  呼び出し側の既存 `el`/`div` 等と組み合わせる）。
-- `bind_attr`/`bind_class` は属性タプル・class トークンを返す薄いヘルパー
-  とし、`is_valid_attr_name` の検証は既存の `render()` 経路（属性出力時の
+- `bind_text` は `tag`/呼び出し側 `attrs` を受け取り、`Node::Element` の
+  子として `data-bind-text` 属性と `Node::Text(value)` を同時に生成する
+  要素構築ヘルパーとする（当初案の `field`/`value` のみのシグネチャから
+  改訂）。
+- 属性・class 束縛は要素構築ヘルパーを持たず、トークン合成関数
+  （`bind_attr_token`/`bind_attr_tokens`/`bind_class_token`/`bind_class_tokens`）
+  + 既存 `el`/タグヘルパーの組み合わせで表現する（例:
+  `el("button", vec![("aria-pressed", "false"), (BIND_ATTR_ATTR, &bind_attr_token("aria-pressed", "liked"))], ...)`）。
+  同一要素へのテキスト + 属性 + class の複合束縛も既存 API の合成だけで書け、
+  マーカー属性の重複を作らない。
+- `is_valid_attr_name` の検証は既存の `render()` 経路（属性出力時の
   ホワイトリスト検証、`core/src/lib.rs:320` 付近）へそのまま委ねる。新しい
   検証ロジックを追加しない（既存の防御を再利用する）。
 - SSR 出力の決定性: 束縛点マーキングを使わない既存の `Node` 構築
   （`el`/`div`/`text` 等）の出力には**一切影響しない**（`bind_*` は既存
   ヘルパーに属性・テキストを付加するオプトイン API であり、未使用時の
-  `render()` 出力はバイト単位で不変）。これを凍結条件とする。
+  `render()` 出力はバイト単位で不変）。これを凍結条件とする
+  （`core/tests/xss_escape.rs` の `bind_points::existing_node_construction_output_is_unaffected`
+  で回帰固定）。
 
 ## 4. 更新の種別（#341・#343 の入力）
 

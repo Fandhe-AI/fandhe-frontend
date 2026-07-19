@@ -45,7 +45,7 @@
 //! 本ファイルの XSS 回帰テストは `.claude/rules/coding-rust.md` の規約により、
 //! 以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
-use rws_core::{el, escape_html, raw_html, render, text, Node};
+use rws_core::{bind_attr_token, bind_text, el, escape_html, raw_html, render, text, Node};
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 が挙げる脅威パターンを核とした
 /// 共有ペイロード集合。CSR（本ファイル `mod csr`）が使用する。
@@ -636,4 +636,89 @@ fn nested_tree_escapes_payload_at_any_depth() {
     let ssg_html = ssg_write_and_read_back(&ssr_html, "nested-depth");
     assert!(!ssg_html.contains("<script>"));
     assert!(ssg_html.contains("&lt;script&gt;alert(&#x27;deep&#x27;)&lt;/script&gt;"));
+}
+
+/// 束縛点マーキング API（イシュー #342、`core/src/bind.rs`）の XSS 回帰。
+///
+/// `bind_text`/`bind_attr_token` は既存 `el`/`render` への薄い委譲のみで
+/// 新しいエスケープ処理を持たない（設計書 §3.3・不変条件 1・2 の継承）ため、
+/// 本モジュールの既存ペイロード集合（`XSS_PAYLOADS`）に対しても同一の
+/// エスケープ貫通が成立することを固定する。
+mod bind_points {
+    use super::*;
+
+    /// `bind_text` の value に既存ペイロード集合を渡し、出力に生タグが
+    /// 現れないこと（既存テキストエスケープ経路への全面委譲の固定）。
+    #[test]
+    fn bind_text_value_escapes_xss_payloads() {
+        for payload in XSS_PAYLOADS {
+            let node = bind_text("span", vec![("class", "count")], "counter", *payload);
+            let html = render(&node);
+            assert!(
+                !html.contains("<script>") && !html.contains("<svg") && !html.contains("<iframe"),
+                "bind_text の value 経由で生タグが出力された（payload={payload}）: {html}"
+            );
+            // マーカー属性自体は常に出力され、束縛点対応表構築（#343）が
+            // 欠落しないことも併せて固定する。
+            assert!(html.contains("data-bind-text=\"counter\""));
+        }
+    }
+
+    /// `bind_attr_token` を値に持つ属性へペイロードを併置した要素で、
+    /// 属性値エスケープ（5 文字: `"` `'` `<` `>` `&`）が貫通すること。
+    #[test]
+    fn attribute_alongside_bind_attr_marker_is_escaped() {
+        for payload in XSS_PAYLOADS {
+            let node = el(
+                "button",
+                vec![
+                    ("aria-pressed", "false"),
+                    ("title", payload),
+                    (
+                        rws_core::BIND_ATTR_ATTR,
+                        &bind_attr_token("aria-pressed", "liked"),
+                    ),
+                ],
+                vec![text("いいね")],
+            );
+            let html = render(&node);
+            assert!(
+                !html.contains("<script>") && !html.contains("<svg") && !html.contains("<iframe"),
+                "bind_attr_token 併置要素の title 属性経由で生タグが出力された（payload={payload}）: {html}"
+            );
+            assert!(html.contains("data-bind-attr=\"aria-pressed:liked\""));
+        }
+    }
+
+    /// `Box::leak` で `'static` に昇格させた悪性フィールド名でも、属性値
+    /// コンテキストのエスケープにより breakout しないことを固定する
+    /// （既存の悪性タグ名テスト `invalid_tag_name_is_skipped_without_panic`
+    /// と対になる多層防御。フィールド名は本来 `&'static str` 定数のみを
+    /// 受理する設計だが、型制約をすり抜けた場合の防御を確認する）。
+    #[test]
+    fn malicious_leaked_field_name_does_not_break_out_of_attribute_context() {
+        let malicious_field: &'static str =
+            Box::leak(String::from("counter\" onmouseover=\"alert(1)").into_boxed_str());
+        let node = bind_text("span", vec![], malicious_field, "0");
+        let html = render(&node);
+        assert!(
+            !html.contains("onmouseover=\"alert(1)\""),
+            "悪性フィールド名経由で属性値 breakout が発生した: {html}"
+        );
+        assert!(html.contains("&quot;"));
+    }
+
+    /// 束縛点を使わない既存ノード構築の出力が不変であることの回帰
+    /// （受け入れ条件 1: `bind.rs` 追加後も既存 `render()` 経路にコード変更が
+    /// ないことのピン留め）。
+    #[test]
+    fn existing_node_construction_output_is_unaffected() {
+        let payload = "<script>alert('xss')</script>";
+        let tree = el("div", vec![], vec![text(payload)]);
+        let html = render(&tree);
+        assert_eq!(
+            html,
+            "<div>&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;</div>"
+        );
+    }
 }
