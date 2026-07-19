@@ -22,6 +22,12 @@
 //! `cmd_impact`）を踏襲した「ファイル単位の粗粒度ヒューリスティック」であり、
 //! AST 解析ベースの精密化は将来スコープとして明示的に見送る
 //! （`docs/spec/05-tasks.md` TASK-13.2、`docs/design/impact-analysis-design.md` §7）。
+//! イシュー #379 でこの精密化（syn 等の AST 解析クレート導入）を検討した結果、
+//! `cli` 外部依存ゼロ方針・fail-closed 設計（過検知を人間承認側へ倒す）との
+//! 整合を優先し**非採用**と確定した。判断根拠・評価軸・再評価トリガーは
+//! `docs/policy/intentional-non-adoption.md` §3.11 に記録している。本ファイル
+//! 末尾の `#[cfg(test)]` 内「#379 characterization tests」は、その判断の
+//! 根拠となった現行ヒューリスティックの偽陽性・偽陰性の実例を回帰的に固定する。
 
 use crate::component_boundary;
 use crate::json_out;
@@ -1034,6 +1040,87 @@ mod tests {
         assert!(
             affected.is_empty(),
             "definition file itself must be excluded from usages: {affected:?}"
+        );
+    }
+
+    // --- #379 characterization tests ---
+    //
+    // イシュー #379「fw impact の AST 解析ベース精密化の検討」の費用対効果
+    // 評価で収集した現行ヒューリスティックの偽陽性・偽陰性の実例を固定する。
+    // 挙動変更は行わず、`docs/policy/intentional-non-adoption.md` §3.11 の
+    // 非採用判断の根拠となる現行仕様を回帰的に記録するテストである。
+
+    #[test]
+    fn scan_usages_counts_occurrence_inside_comment_as_usage() {
+        // 偽陽性（過検知・安全側）: コメント行内のシンボル出現も使用箇所として
+        // 数える。PoC-7 由来の「過検知容認」方針（scan_usages の rustdoc参照）
+        // により、この過検知は requires_human_approval を承認要側へ倒すのみで
+        // 見逃しを生まないため許容している（#379 評価の根拠の一つ）。
+        let ws = TempWorkspace::new("usages-fp-comment");
+        let member = ws.write_member(
+            "crate-a",
+            "caller.rs",
+            "fn a() {\n    // render() は将来ここで呼ぶ予定\n}\n",
+            &[],
+        );
+        let affected = scan_usages(&ws.root, &[member], "render", &[]).expect("should scan");
+        assert_eq!(
+            affected.len(),
+            1,
+            "comment-only occurrence is still counted as a usage (known false positive): {affected:?}"
+        );
+        assert_eq!(affected[0].lines, vec![2]);
+    }
+
+    #[test]
+    fn scan_usages_counts_occurrence_inside_string_literal_as_usage() {
+        // 偽陽性（過検知・安全側）: 文字列リテラル内のシンボル出現も同様に
+        // 使用箇所として数える（AST 解析なしには文字列境界を除外できない）。
+        let ws = TempWorkspace::new("usages-fp-string");
+        let member = ws.write_member(
+            "crate-a",
+            "caller.rs",
+            "fn a() {\n    let msg = \"call render() later\";\n}\n",
+            &[],
+        );
+        let affected = scan_usages(&ws.root, &[member], "render", &[]).expect("should scan");
+        assert_eq!(
+            affected.len(),
+            1,
+            "string-literal occurrence is still counted as a usage (known false positive): {affected:?}"
+        );
+        assert_eq!(affected[0].lines, vec![2]);
+    }
+
+    #[test]
+    fn scan_usages_misses_alias_reexport_call_site() {
+        // 偽陰性（見逃し）: `pub use crate::render as draw;` で別名再エクスポート
+        // した場合、再エクスポート宣言自身は `render` という文字列を含むため
+        // 検出されるが、実際の呼び出し箇所（`draw()`）は `render` という
+        // 文字列を一切含まないため境界一致（contains_symbol_at_boundary）
+        // では追跡できない。AST 解析（syn 等によるインポート解決）でのみ
+        // 検出可能な既知の限界。
+        let ws = TempWorkspace::new("usages-fn-alias");
+        let reexport = ws.write_member(
+            "crate-a",
+            "reexport.rs",
+            "pub use crate::render as draw;\n",
+            &[],
+        );
+        std::fs::write(
+            reexport.manifest_dir.join("src").join("caller.rs"),
+            "fn a() {\n    draw();\n}\n",
+        )
+        .expect("write caller.rs into the same member");
+        let affected = scan_usages(&ws.root, &[reexport], "render", &[]).expect("should scan");
+        let files: Vec<&str> = affected.iter().map(|a| a.file.as_str()).collect();
+        assert!(
+            files.contains(&"crate-a/src/reexport.rs"),
+            "re-export line literally contains the symbol name and is detected: {files:?}"
+        );
+        assert!(
+            !files.contains(&"crate-a/src/caller.rs"),
+            "alias call site never contains the literal symbol name and is missed (known false negative): {files:?}"
         );
     }
 

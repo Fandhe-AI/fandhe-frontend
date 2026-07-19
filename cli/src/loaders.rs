@@ -17,7 +17,10 @@
 //!   （`app/src/lib.rs`）が一貫して用いる形）のみを検出対象とする。
 //!   トレイト境界・型が複数行にまたがる `impl` ブロックは検出しない
 //!   （AST 解析ベースの精密化はスコープ外、`docs/design/impact-analysis-design.md` §7
-//!   と同じ立場）。
+//!   と同じ立場。イシュー #379 で AST 化（syn 等）の採否を検討した結果
+//!   非採用と確定しており、判断根拠は `docs/policy/intentional-non-adoption.md`
+//!   §3.11 を参照。複数行 `impl` の非検出は下記テスト
+//!   `does_not_detect_multiline_impl_loader` で現行仕様として固定している）。
 //! - ジェネリック実装（`impl<T> Loader for Foo<T>`）はジェネリックパラメータ
 //!   宣言・トレイト実装対象の生ジェネリック引数を読み飛ばし、基底の型名
 //!   （`Foo`）のみを抽出する。
@@ -230,6 +233,20 @@ mod tests {
         assert_eq!(
             extract_loader_impls_from_source(src),
             vec!["BeforeTest".to_string()]
+        );
+    }
+
+    #[test]
+    fn does_not_detect_multiline_impl_loader() {
+        // #379 characterization test: 偽陰性（見逃し）の実例を固定する。
+        // トレイト境界・型名が改行で分割された `impl` ブロックは単一行走査
+        // では検出できない（rustdoc「既知の限界」参照、
+        // `docs/policy/intentional-non-adoption.md` §3.11）。本リポジトリの
+        // コード規約（単一行 `impl`）が事実上この偽陰性の発生を抑えている。
+        let src = "impl Loader\n    for MultilineLoader\n{\n}\n";
+        assert!(
+            extract_loader_impls_from_source(src).is_empty(),
+            "multi-line impl header is not detected by single-line scanning (known false negative)"
         );
     }
 
