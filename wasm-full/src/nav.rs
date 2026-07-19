@@ -331,8 +331,11 @@ mod wiring {
     /// イシュー #406: 遷移前に現在のスクロール位置を**離脱元エントリ**へ
     /// `replace_state` で保存してから `push_state` する。新規エントリの
     /// state は従来どおり `JsValue::NULL`（URL のみを状態の正とする不変
-    /// 条件を維持）。描画後は先頭 `(0, 0)` へスクロールする（新規遷移は
-    /// 常にページ先頭から表示する仕様、§2.2）。
+    /// 条件を維持）。`render_route` による DOM 差し替えが成立した**後**に
+    /// 先頭 `(0, 0)` へスクロールする（新規遷移は常にページ先頭から表示
+    /// する仕様、§2.2）。scroll を render より先に行わないのは、
+    /// `render_route` が失敗した場合に URL だけ進んで旧ページがトップへ
+    /// スクロールされる不整合を避けるため（Bugbot 指摘、PR #423）。
     fn push_and_render(document: &Document, root: &Element, path: &str) {
         let Some(route) = resolve_path(path) else {
             return;
@@ -350,12 +353,16 @@ mod wiring {
                 // （URL のみを状態の正とする、改ざん面を持たない設計判断）。
                 let _ = history.push_state_with_url(&JsValue::NULL, "", Some(path));
             }
-            // 新規遷移は常にページ先頭から表示する（§2.2）。失敗は無視
-            // （best-effort、DOM 差し替え・URL 更新は既に成立済みのため
-            // 遷移自体は継続する）。
-            window.scroll_to_with_x_and_y(0.0, 0.0);
         }
         render_route(document, root, &route);
+        // 新規遷移は常にページ先頭から表示する（§2.2）。DOM 差し替え
+        // （`render_route`）が成立した後にのみスクロールする。先に
+        // スクロールしてしまうと、`render_route` が失敗した場合に
+        // URL だけ進んだ状態で旧ページがトップへスクロールされる不整合が
+        // 生じる（Bugbot 指摘、PR #423）。失敗は無視（best-effort）。
+        if let Some(window) = web_sys::window() {
+            window.scroll_to_with_x_and_y(0.0, 0.0);
+        }
     }
 
     /// クリックが左クリック・無修飾キーかを判定する（新規タブで開く等の
