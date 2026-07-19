@@ -1,6 +1,6 @@
 # 外部ファイル非依存起動の受け入れ基準検証レポート（TASK-9.2b）
 
-> **注記（#437）**: 本レポート中の `RWS_BIND_ADDR` / `RWS_WASM_BUILD` はその後 #437 で `FANDHE_FRONTEND_BIND_ADDR` / `FANDHE_FRONTEND_WASM_BUILD` へ改名されました。以下の記録は当時の実測値・環境変数名のまま残しています。
+> **注記（#433 改名）**: 本レポートは旧名称時代の実測記録です。crate 名 `rws-*`（`rws-dist-server` 等）は #441 で `fandhe-frontend-*` へ、クレート配置はルート直下から #442 で `crates/` 配下へ、環境変数 `RWS_BIND_ADDR` / `RWS_WASM_BUILD` は #437 で `FANDHE_FRONTEND_BIND_ADDR` / `FANDHE_FRONTEND_WASM_BUILD` へ改名され、リポジトリ名 `Fandhe-AI/frontend-framework` は #439 で `Fandhe-AI/fandhe-frontend` へ改名されます（新旧対応は `docs/design/framework-naming.md` 参照）。以下の記録中のコマンド・パス・URL・値は当時のまま残しています。
 
 ## 1. 目的とトレーサビリティ
 

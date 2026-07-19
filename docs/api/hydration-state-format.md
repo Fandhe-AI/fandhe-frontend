@@ -12,7 +12,7 @@
 分割されています。
 
 - **TASK-11.4a（本ドキュメント・#82）**: 状態注入フォーマットの**設計確定**
-- **TASK-11.4b（#83）**: `wasm-full/src/hydration.rs` の実装
+- **TASK-11.4b（#83）**: `crates/wasm-full/src/hydration.rs` の実装
 - **TASK-11.4c（#84）**: 関連テスト（ラウンドトリップ・改ざん値・XSS 回帰・実ブラウザ
   検証）の整備
 
@@ -26,7 +26,7 @@
 対応表）に揃え、`docs/` 直下のフラット配置とする。
 
 **本タスクのスコープ**: 状態注入フォーマットの設計確定書の作成のみ（docs-only
-変更）。`wasm-full/src/hydration.rs` の実装・`web-sys` feature 追加・
+変更）。`crates/wasm-full/src/hydration.rs` の実装・`web-sys` feature 追加・
 `Runtime::hydrate` 本体・CI 変更はいずれも TASK-11.4b（#83）・TASK-11.2d（#77）
 以降のスコープであり、本タスクでは行わない。`docs/spec/` はサブモジュールのため
 編集禁止（変更が必要な場合は frontend-framework-spec リポジトリで行う）。
@@ -35,13 +35,13 @@
 再定義しない。
 
 - `fandhe-frontend-interactive` の `Hydrate` トレイト・`HYDRATE_ATTR_PREFIX`・`HydrateError`・
-  `codec::encode_list`/`decode_list`（`interactive/src/lib.rs`、マージ済み実装。
+  `codec::encode_list`/`decode_list`（`crates/interactive/src/lib.rs`、マージ済み実装。
   `docs/api/interactive-api.md` 第 3〜4 節の凍結表と一致）
-- `render_for_hydration`（`interactive/src/lib.rs:287`、マージ済み実装）
-- `fandhe-frontend-wasm-full` クレートの現状（`wasm-full/src/lib.rs`・`events.rs`・`dom.rs`。
+- `render_for_hydration`（`crates/interactive/src/lib.rs:287`、マージ済み実装）
+- `fandhe-frontend-wasm-full` クレートの現状（`crates/wasm-full/src/lib.rs`・`events.rs`・`dom.rs`。
   `hydration` モジュールは本書執筆時点で未作成・TASK-11.4 に予約済み、
   `docs/design/wasm-full-architecture.md` 第 3.1 節）
-- `fandhe-frontend-core` の属性エスケープ（`core/src/escape.rs:109-115`。`& < > " '` の 5 文字
+- `fandhe-frontend-core` の属性エスケープ（`crates/core/src/escape.rs:109-115`。`& < > " '` の 5 文字
   のみを対象とし、U+001F 等の制御文字は素通しする）
 
 `Runtime<C>` / `Runtime::hydrate`（TASK-11.2d #77）は本書執筆時点で **未マージ・
@@ -91,15 +91,15 @@ C: Component + Hydrate`）のみを前提とする。本書の `hydration.rs` AP
 
 ### 3.3 codec エスケープ規約の再掲
 
-`fandhe_frontend_interactive::codec`（`interactive/src/lib.rs:171-`）を正とし、以下を
+`fandhe_frontend_interactive::codec`（`crates/interactive/src/lib.rs:171-`）を正とし、以下を
 再掲・固定する（本書側での再実装・再定義は行わない）。
 
 - 項目区切り: 各項目の前に Unit Separator（`\u{1f}`）を前置する
-  （`ITEM_SEP`、`interactive/src/lib.rs`）。前置区切り方式により、空リスト
+  （`ITEM_SEP`、`crates/interactive/src/lib.rs`）。前置区切り方式により、空リスト
   （エンコード結果が空文字列 `""`）と「空文字列 1 件」（エンコード結果が
   `"\u{1f}"` のみ）を区別できる。
 - エスケープ: 項目内に区切り文字またはバックスラッシュそのものが出現する場合、
-  `escape_item`/`unescape_item`（`interactive/src/lib.rs:186-` / `:205-`）に
+  `escape_item`/`unescape_item`（`crates/interactive/src/lib.rs:186-` / `:205-`）に
   従い `\` → `\\`、`\u{1f}` → `\u` へエスケープする。
 - ラウンドトリップ整合性（区切り文字・エスケープ文字混入時を含む）は
   `fandhe-frontend-interactive` 側で保証済み（`docs/api/interactive-api.md` 第 6 節・不変条件 5）
@@ -107,7 +107,7 @@ C: Component + Hydrate`）のみを前提とする。本書の `hydration.rs` AP
 
 ### 3.4 U+001F の HTML 属性内表現に関する設計判断
 
-`fandhe-frontend-core::escape_html`（`core/src/escape.rs:109-115`）は `& < > " '` の 5 文字
+`fandhe-frontend-core::escape_html`（`crates/core/src/escape.rs:109-115`）は `& < > " '` の 5 文字
 のみを対象としており、Unit Separator（U+001F）を含む制御文字は素通しする。
 このため SSR/SSG が出力する `data-hydrate-*` 属性値には、文字列配列を含む
 フィールドについて U+001F がエスケープされずそのまま埋め込まれる。
@@ -126,7 +126,7 @@ C: Component + Hydrate`）のみを前提とする。本書の `hydration.rs` AP
 | 6 | `HydrateError` 発生時は panic せず、初期状態での CSR 再描画へフォールバックする | `docs/design/wasm-full-architecture.md` 第 4 節・判断 5 の再掲・確定。本書はこのフォールバック方針をフォーマット層の不変条件としても明記し、`hydration.rs`（#83）の実装契約とする |
 | 7 | 巨大な属性値・リスト長の上限（DoS 耐性）は本タスクでは規定せず、TASK-11.4b（#83）の実装検討事項として引き継ぐ | `docs/api/interactive-api.md` 第 5 節・第 6 節・不変条件 8 の記録を継承する。放置せず引き継ぎ先を明示することで `.claude/rules/out-of-scope-tracking.md` の規約を満たす |
 
-## 5. `wasm-full/src/hydration.rs` の API 表面設計（TASK-11.4b への引き継ぎ）
+## 5. `crates/wasm-full/src/hydration.rs` の API 表面設計（TASK-11.4b への引き継ぎ）
 
 以下は凍結表として TASK-11.4b（#83）が従うべき方針であり、関数本体・
 `web-sys` feature 追加の実施は #83 のスコープとする。
@@ -150,7 +150,7 @@ C: Component + Hydrate`）のみを前提とする。本書の `hydration.rs` AP
   `restore_state`）として設計する。`Runtime::hydrate` 本体からこれらの関数を
   呼び出す結合コードは、#77・#83 のうち後にマージされる側が実装する。
 - サーバー側の責務（状態保持・`data-hydrate-*` 属性出力）は既存の
-  `render_for_hydration`（`interactive/src/lib.rs:287`）で完結しており、本設計
+  `render_for_hydration`（`crates/interactive/src/lib.rs:287`）で完結しており、本設計
   はこれを変更しない。
 
 ## 6. テスト観点の引き継ぎ（TASK-11.4c への引き継ぎ）
@@ -176,7 +176,7 @@ C: Component + Hydrate`）のみを前提とする。本書の `hydration.rs` AP
 
 | 項目 | 引き継ぎ先 |
 |------|-----------|
-| `wasm-full/src/hydration.rs` の実装・`web-sys` feature 追加・`lib.rs` へのモジュール登録 | TASK-11.4b（#83） |
+| `crates/wasm-full/src/hydration.rs` の実装・`web-sys` feature 追加・`lib.rs` へのモジュール登録 | TASK-11.4b（#83） |
 | ラウンドトリップ・改ざん値・XSS 回帰・実ブラウザテスト | TASK-11.4c（#84） |
 | `Runtime<C>` / `Runtime::hydrate` 本体・CI の `wasm-full` 存在ガード | TASK-11.2d（#77、並列進行中） |
 | ネスト構造等の複雑な状態への一般化 | Issue #163（起票済み・backlog） |
@@ -185,7 +185,7 @@ C: Component + Hydrate`）のみを前提とする。本書の `hydration.rs` AP
 
 ## 8. セキュリティ不変条件の引き継ぎ
 
-`core/src/lib.rs` 冒頭・`docs/api/interactive-api.md` 第 6 節・
+`crates/core/src/lib.rs` 冒頭・`docs/api/interactive-api.md` 第 6 節・
 `docs/design/wasm-full-architecture.md` 第 7 節に記載された不変条件（REQ-1・REQ-2）を、
 本フォーマット設計への制約としてそのまま再掲・固定し、状態注入フォーマット固有の
 不変条件を追加する。
@@ -237,8 +237,8 @@ C: Component + Hydrate`）のみを前提とする。本書の `hydration.rs` AP
   TASK-11.4 #81/#82 のスコープ」・第 4 節・判断 5「`HydrateError` 発生時は
   初期状態での CSR 再描画に安全側フォールバックする」との整合を維持し、
   本書はこれらの記述を第 5 節・第 4 節・判断 6 で具体化する。
-- `interactive/src/lib.rs`（マージ済み実装）の `HYDRATE_ATTR_PREFIX`・
-  `Hydrate`・`HydrateError`・`codec` モジュールの実装内容（`interactive/src/lib.rs:109-260`
+- `crates/interactive/src/lib.rs`（マージ済み実装）の `HYDRATE_ATTR_PREFIX`・
+  `Hydrate`・`HydrateError`・`codec` モジュールの実装内容（`crates/interactive/src/lib.rs:109-260`
   付近）と本書第 3 節の記述が一致することを確認済み。
 - PoC-5（`docs/spec/03-poc/wasm-runtime-split/wasm-full/src/lib.rs:86-104`）の
   `hydrate()` 実証実装（`data-hydrate-counter`/`draft`/`items` の読み取りと

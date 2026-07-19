@@ -4,7 +4,7 @@
 
 ## 1. 目的とトレーサビリティ
 
-`fandhe-frontend-core` の既定エスケープ（`core/src/escape.rs`、OWASP XSS Prevention
+`fandhe-frontend-core` の既定エスケープ（`crates/core/src/escape.rs`、OWASP XSS Prevention
 Cheat Sheet Rule #1 準拠の 5 文字置換）は属性値コンテキストからの
 「脱出」（`"` による breakout 等）を防ぐが、**脱出を伴わない攻撃**は防げ
 ない。代表例が URL スキーム経由の XSS である。
@@ -18,7 +18,7 @@ el("a", vec![("href", user_url)], ...)
 `href="javascript:alert(1)"` として出力される。これはブラウザ上でリンク
 クリック時に任意 JS を実行させる、breakout を伴わない別種の脅威である。
 
-本書は `core/src/escape.rs` の rustdoc「スコープ外」節・イシュー #367 の
+本書は `crates/core/src/escape.rs` の rustdoc「スコープ外」節・イシュー #367 の
 out-of-scope 節で明示的に先送りされてきたこの領域について、脅威整理と
 対応方針を確定し、`docs/spec/04-requirements.md` REQ-1（既定エスケープ）
 の趣旨を「属性出力全体の安全性」へ拡張する形で記録する。関連イシュー:
@@ -38,13 +38,13 @@ out-of-scope 節で明示的に先送りされてきたこの領域について�
 
 ### 3.1 URL 属性の許可スキーム検証
 
-**実装**: `core/src/url.rs`（`fandhe_frontend_core::is_safe_url` / `fandhe_frontend_core::URL_ATTRS`
+**実装**: `crates/core/src/url.rs`（`fandhe_frontend_core::is_safe_url` / `fandhe_frontend_core::URL_ATTRS`
 / `fandhe_frontend_core::is_url_attr`）。
 
 - **正リスト（`URL_ATTRS`）**: `href` / `src` / `action` / `formaction` /
   `xlink:href` / `poster` / `cite` / `data` / `background` / `ping` /
   `dynsrc` / `lowsrc`。属性名の照合は ASCII 大文字小文字非依存。
-  `URL_ATTRS` と許可スキームのリストは `core/src/url.rs` を単一の情報源
+  `URL_ATTRS` と許可スキームのリストは `crates/core/src/url.rs` を単一の情報源
   とし、`fandhe-frontend-core` から `pub use` された関数・定数を `fandhe-frontend-wasm-client` 等の
   上位クレートが再利用する（コピーを作らない、A05 対策）。
 - **許可スキーム（deny by default）**: スキームなしの相対 URL（`/path`・
@@ -60,7 +60,7 @@ out-of-scope 節で明示的に先送りされてきたこの領域について�
   ` javascript:` のような偽装形を遮断しつつ、`/path/a:b` のような相対
   URL 中のコロンをスキーム区切りと誤認しない。
 - **`srcset` の扱い**: カンマ区切りの複数候補を持つ特殊構文のため
-  `URL_ATTRS` には含めず、`core/src/url.rs` の `is_safe_srcset`（単一の
+  `URL_ATTRS` には含めず、`crates/core/src/url.rs` の `is_safe_srcset`（単一の
   情報源）が候補分割（カンマ区切り→各候補の先頭空白区切りトークンを URL
   部分として抽出）と `is_safe_url` 適用を行う。1 候補でも不合格なら属性
   全体をスキップする（部分的な書き換えは決定性を損なうため行わない）。
@@ -72,7 +72,7 @@ out-of-scope 節で明示的に先送りされてきたこの領域について�
 
 **適用箇所（3 経路に同一保証）**:
 
-1. **`render_into`（`core/src/lib.rs`）**: SSR・SSG・CSR いずれのモードも
+1. **`render_into`（`crates/core/src/lib.rs`）**: SSR・SSG・CSR いずれのモードも
    共通で通る `fandhe_frontend_core::render()` の内部実装。`URL_ATTRS` 該当属性の値が
    `is_safe_url` 不合格の場合、`srcset` の値が `is_safe_srcset` 不合格の
    場合は、属性ごと出力をスキップする（既存の不正属性名スキップ・不正
@@ -92,7 +92,7 @@ out-of-scope 節で明示的に先送りされてきたこの領域について�
 
 ### 3.2 イベントハンドラ属性の一律ブロック
 
-**実装**: `core/src/url.rs`（`fandhe_frontend_core::is_event_handler_attr`）。
+**実装**: `crates/core/src/url.rs`（`fandhe_frontend_core::is_event_handler_attr`）。
 
 本フレームワークのインタラクションモデルは `data-hydrate` /
 `data-bind-*` マーキングと dispatch（`docs/api/interactive-api.md`）で
@@ -101,7 +101,7 @@ out-of-scope 節で明示的に先送りされてきたこの領域について�
 1 文字以上続く場合（`on` 単体は対象外。HTML 標準に `on` という名前の
 イベントは存在しない）、値によらず出力しない。
 
-**適用箇所**: `render_into`（`core/src/lib.rs`）・`binding_dom.rs` の
+**適用箇所**: `render_into`（`crates/core/src/lib.rs`）・`binding_dom.rs` の
 `apply_one`・`keyed_dom.rs` の `build_element`（§3.1 と同一の 3 箇所）。
 
 `on*` 始まりの正当なカスタム属性が必要な場合は `data-*` を使う運用と
@@ -111,7 +111,7 @@ out-of-scope 節で明示的に先送りされてきたこの領域について�
 ## 4. 正リストの所在（単一の情報源）
 
 - `URL_ATTRS` 定数・許可スキーム判定ロジック・`is_event_handler_attr`:
-  `core/src/url.rs`（`fandhe-frontend-core` の公開 API として `pub use` 済み）
+  `crates/core/src/url.rs`（`fandhe-frontend-core` の公開 API として `pub use` 済み）
 - 利用者コード・他クレートからの利用は必ず `fandhe_frontend_core::{is_safe_url,
   is_url_attr, is_event_handler_attr, URL_ATTRS}` を経由し、独自にリストを
   複製しない。
@@ -135,8 +135,8 @@ out-of-scope 節で明示的に先送りされてきたこの領域について�
 
 **`fw gate` との連携（弱体化の機械検出、イシュー #401）**: 本書が定める
 不変条件（`URL_ATTRS` 正リスト・許可スキーム 4 種・ガード関数 4 種の
-定義/呼び出し）は `core/tests/xss_escape.rs` の回帰テストに加え、
-`fw gate url_validation_check`（`cli/src/gate.rs`、詳細は
+定義/呼び出し）は `crates/core/tests/xss_escape.rs` の回帰テストに加え、
+`fw gate url_validation_check`（`crates/cli/src/gate.rs`、詳細は
 `docs/design/gate-design.md` §2.4）が保険層としてテキスト走査で検出する。
 検出対象は (1) `role != "core"` ディレクトリでの未ガード DOM 属性設定
 呼び出しの新規追加、(2) `role = "core"` ディレクトリでの `URL_ATTRS`/
@@ -165,15 +165,15 @@ out-of-scope 節で明示的に先送りされてきたこの領域について�
 
 ## 7. 参照
 
-- `core/src/url.rs`（`is_safe_url` / `URL_ATTRS` / `is_url_attr` /
+- `crates/core/src/url.rs`（`is_safe_url` / `URL_ATTRS` / `is_url_attr` /
   `is_event_handler_attr` の実装・ユニットテスト）
-- `core/src/lib.rs`（`render_into` のクレート冒頭不変条件 8・9、適用箇所）
-- `core/src/escape.rs`（既定エスケープの守備範囲、スコープ外節から本書への参照）
-- `core/tests/xss_escape.rs`（`mod url_scheme_xss`、SSR/SSG/CSR 経路の回帰テスト）
-- `wasm-client/src/binding_dom.rs`（実 DOM 属性束縛更新経路の適用）
-- `wasm-client/src/keyed_dom.rs`（keyed list プログラム的構築経路の適用）
-- `wasm-client/tests/binding_browser.rs`（実ブラウザでの束縛更新回帰テスト）
-- `wasm-full/tests/xss_escape_wasm.rs`（実ブラウザでの `set_inner_html` 経由 DOM 読み戻し回帰テスト）
+- `crates/core/src/lib.rs`（`render_into` のクレート冒頭不変条件 8・9、適用箇所）
+- `crates/core/src/escape.rs`（既定エスケープの守備範囲、スコープ外節から本書への参照）
+- `crates/core/tests/xss_escape.rs`（`mod url_scheme_xss`、SSR/SSG/CSR 経路の回帰テスト）
+- `crates/wasm-client/src/binding_dom.rs`（実 DOM 属性束縛更新経路の適用）
+- `crates/wasm-client/src/keyed_dom.rs`（keyed list プログラム的構築経路の適用）
+- `crates/wasm-client/tests/binding_browser.rs`（実ブラウザでの束縛更新回帰テスト）
+- `crates/wasm-full/tests/xss_escape_wasm.rs`（実ブラウザでの `set_inner_html` 経由 DOM 読み戻し回帰テスト）
 - `docs/policy/intentional-non-adoption.md` §3.5〜§3.9（非採用項目の評価軸・再評価トリガー）
 - `docs/api/component-api.md`（属性出力の検証仕様への参照）
 - `.claude/rules/coding-rust.md`（既定エスケープ厳守・`forbid(unsafe_code)`・依存上限）

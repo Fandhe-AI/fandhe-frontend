@@ -14,7 +14,7 @@
 
 ## 2. 現状（2026-07-17 時点の重要な前提）
 
-**`wasm-client/`（`fandhe-frontend-wasm-client`）クレートは本コミット時点でまだ作成されていない。**
+**`crates/wasm-client/`（`fandhe-frontend-wasm-client`）クレートは本コミット時点でまだ作成されていない。**
 TASK-6.2b（#48 最小ハイドレーション実装）・TASK-6.2c（#49 ハイドレーションテスト整備）が
 いずれも open のため、クレート自体の新設は本イシューのスコープに含めない
 （`docs/api/hydration-api.md` 第 5 節の引き継ぎ表で #48/#49 のスコープと明記されており、
@@ -22,12 +22,12 @@ TASK-6.2b（#48 最小ハイドレーション実装）・TASK-6.2c（#49 ハイ
 
 そのため本イシューでは以下の 2 点のみを整備する:
 
-1. `.github/workflows/ci.yml` の `browser-test` ジョブ（wasm-client/ ディレクトリ存在ガード付き）
+1. `.github/workflows/ci.yml` の `browser-test` ジョブ（crates/wasm-client/ ディレクトリ存在ガード付き）
 2. 本ドキュメント（環境ガイド・後続タスクへの引き継ぎ）
 
-`wasm-client/Cargo.toml` への `wasm-bindgen-test` dev 依存追加・
-`wasm-client/tests/browser_smoke.rs`（環境実証スモークテスト）の作成は、
-`wasm-client/` クレート自体が存在しないため本イシューでは行わない。
+`crates/wasm-client/Cargo.toml` への `wasm-bindgen-test` dev 依存追加・
+`crates/wasm-client/tests/browser_smoke.rs`（環境実証スモークテスト）の作成は、
+`crates/wasm-client/` クレート自体が存在しないため本イシューでは行わない。
 **TASK-6.2b（#48）マージ後、TASK-6.3b（#66）着手時に併せて整備すること。**
 
 ## 3. テストランナー: `wasm-pack test --headless --chrome`
@@ -48,11 +48,11 @@ TASK-6.2b（#48 最小ハイドレーション実装）・TASK-6.2c（#49 ハイ
   ダウンロード
 - 第三者製 action（rust-cache / install-action 等）は新規追加しない。既存ワークフローと同じ
   SHA 固定の `actions/checkout` のみ使用する
-- **ディレクトリ存在ガード**: `wasm-client/Cargo.toml` の有無を最初のステップで判定し、
+- **ディレクトリ存在ガード**: `crates/wasm-client/Cargo.toml` の有無を最初のステップで判定し、
   存在しない間は後続ステップ（wasm32 target 追加・wasm-pack 導入・テスト実行）をすべて
-  スキップする。`wasm-client/` が追加された時点で自動的に有効化される
+  スキップする。`crates/wasm-client/` が追加された時点で自動的に有効化される
 
-## 5. ローカル実行手順（`wasm-client/` 追加後）
+## 5. ローカル実行手順（`crates/wasm-client/` 追加後）
 
 ```bash
 # 1. wasm32 ターゲットの追加（初回のみ）
@@ -72,7 +72,7 @@ Chrome/Chromium と対応する chromedriver がローカルに必要（バー�
 | 症状 | 対処 |
 |------|------|
 | `chromedriver` が見つからない | `CHROMEDRIVER` 環境変数でパスを明示指定する（自動ダウンロードには依存しない） |
-| CI で `browser-test` ジョブがスキップされる | `wasm-client/Cargo.toml` が存在するか確認（#48 未マージの間は意図した挙動） |
+| CI で `browser-test` ジョブがスキップされる | `crates/wasm-client/Cargo.toml` が存在するか確認（#48 未マージの間は意図した挙動） |
 | wasm-pack のチェックサム検証失敗 | バージョンアップ時にチェックサム更新を忘れていないか確認する（`.github/workflows/ci.yml` 内にハードコード） |
 | ローカルとCIでブラウザテスト結果が異なる | Chrome バージョン差異の可能性。CI 側のバージョンを基準とする |
 
@@ -80,8 +80,8 @@ Chrome/Chromium と対応する chromedriver がローカルに必要（バー�
 
 | 事項 | 引き継ぎ先 |
 |------|-----------|
-| `wasm-client/Cargo.toml` への `wasm-bindgen-test` dev 依存追加 | TASK-6.3b（#66）着手時（#48 マージ後） |
-| `wasm-client/tests/browser_smoke.rs`（環境実証スモークテスト） | TASK-6.3b（#66）着手時 |
+| `crates/wasm-client/Cargo.toml` への `wasm-bindgen-test` dev 依存追加 | TASK-6.3b（#66）着手時（#48 マージ後） |
+| `crates/wasm-client/tests/browser_smoke.rs`（環境実証スモークテスト） | TASK-6.3b（#66）着手時 |
 | `hydration_browser.rs`（ハイドレーション実証テスト本体） | TASK-6.3b（#66） |
 | 実証実行・不具合修正 | TASK-6.3c（#67） |
 | 検証レポート（Conditional Go 条件 1 解消判定） | TASK-6.3d（#68） |
@@ -98,6 +98,6 @@ Chrome/Chromium と対応する chromedriver がローカルに必要（バー�
   チェックサム検証付き導入。chromedriver はランナー内蔵バイナリを明示指定し実行時の自動
   ダウンロードを封じる。action は既存の SHA 固定 `actions/checkout` のみ・第三者製 action の
   新規追加なし。`submodules: false` でチェックアウト面を最小化
-- 将来 `wasm-client/tests/browser_smoke.rs` を追加する際は、`set_text_content` 等のテキスト API
+- 将来 `crates/wasm-client/tests/browser_smoke.rs` を追加する際は、`set_text_content` 等のテキスト API
   のみを使用し、`raw_html()` / `set_inner_html` の直接使用・HTML 文字列組み立てを行わないこと
   （`docs/api/hydration-api.md` 第 6 節の不変条件に整合）

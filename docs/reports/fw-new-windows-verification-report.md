@@ -1,5 +1,7 @@
 # `fw new` Windows 実機検証レポート（イシュー #413）
 
+> **注記（#433 改名）**: 本レポートは旧名称時代の実測記録です。crate 名 `rws-cli` は #441 で `fandhe-frontend-cli` へ、クレート配置はルート直下から #442 で `crates/` 配下へ改名・移設され、リポジトリ名 `Fandhe-AI/frontend-framework` は #439 で `Fandhe-AI/fandhe-frontend` へ改名されます（新旧対応は `docs/design/framework-naming.md` 参照）。以下の記録中のコマンド・パス・URL・値は当時のまま残しています。
+
 ## 1. 目的
 
 `fw new`（`cli/src/new.rs`）の非 Unix（Windows）パーミッション挙動は、これまで

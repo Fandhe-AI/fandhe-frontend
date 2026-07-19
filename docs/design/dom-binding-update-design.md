@@ -32,20 +32,20 @@
 
 ## 2. 現状と課題
 
-- `wasm-full/src/dom.rs` の `paint()` は `render_component_html()`（`fandhe_frontend_core::render`
+- `crates/wasm-full/src/dom.rs` の `paint()` は `render_component_html()`（`fandhe_frontend_core::render`
   の出力）を `web_sys::Element::set_inner_html` へ**全置換**で渡す
-  （`wasm-full/src/dom.rs:44`）。イベントごとに DOM 全体を文字列化 →
+  （`crates/wasm-full/src/dom.rs:44`）。イベントごとに DOM 全体を文字列化 →
   ブラウザの HTML パーサで再パースする経路であり、フォーカス・入力途中の
   値・スクロール位置・IME 変換状態を破壊する。
-- `wasm-full/src/events.rs` は、入力ハンドラで `should_repaint: false`
+- `crates/wasm-full/src/events.rs` は、入力ハンドラで `should_repaint: false`
   を返すことで再描画自体を抑止する暫定運用でこれを回避している
-  （`wasm-full/src/events.rs:93` 付近のコメント）。これは症状を避けている
+  （`crates/wasm-full/src/events.rs:93` 付近のコメント）。これは症状を避けている
   だけであり、入力以外の更新（カウンタ増減等）では依然として全置換が
   発生する。
-- 一方 `wasm-client/src/lib.rs` は既にこの問題を避けた設計になっている。
+- 一方 `crates/wasm-client/src/lib.rs` は既にこの問題を避けた設計になっている。
   `hydrate()` は再構築系 API を一切呼ばず（不変条件 2）、ハンドラ内更新は
   `set_text_content` / `class_list` に限定される（不変条件 3、
-  `wasm-client/src/lib.rs:27-31`）。ただし対応するのは `data-hydrate="like"`
+  `crates/wasm-client/src/lib.rs:27-31`）。ただし対応するのは `data-hydrate="like"`
   という単一の具象実装のみであり、任意の `Component` へ一般化されていない。
 - 本書は `wasm-client` が既に守っている最小更新路線を、`fandhe-frontend-core` の
   Node 木 API・`fandhe-frontend-interactive` の dirty tracking・`wasm-full` の適用層の
@@ -65,7 +65,7 @@
 | リスト束縛 | `data-bind-list="<field>"` | `data-bind-list="items"` | 親要素の子ノード列が `field`（keyed list）の現在値の並び順・要素集合に束縛される。子ノード自体は `data-key` を持つ（第 5.1 節）。キー一意性は**当該親の直下子のみ**が対象（子孫にネストした別の `data-bind-list` のキー空間とは独立、第 5.1 節） |
 
 - 属性名は `data-bind-text` / `data-bind-attr` / `data-bind-class` の 3 種に
-  固定し、いずれも `core/src/lib.rs:175` の `is_valid_attr_name`（英数字・
+  固定し、いずれも `crates/core/src/lib.rs:175` の `is_valid_attr_name`（英数字・
   ハイフンで構成される既存ホワイトリスト検証)をそのまま通過する
   形式である（新たな属性名パターンを核の検証ロジックへ追加する必要は
   ない）。
@@ -81,7 +81,7 @@
 ### 3.2 `data-hydrate-*`（#163）との役割の直交性
 
 - `data-hydrate-<field>`（`interactive::HYDRATE_ATTR_PREFIX`、
-  `interactive/src/lib.rs:130`）は**状態値そのもの**をハイドレーション時に
+  `crates/interactive/src/lib.rs:130`）は**状態値そのもの**をハイドレーション時に
   復元するための注入である（`codec::Value` によるエンコード、
   `docs/design/hydration-nested-state.md`）。
 - `data-bind-*` は**更新先ノード位置**のマーキングであり、値を運ばない
@@ -91,11 +91,11 @@
   持つ全ノードを 1 回だけ `query_selector_all` で走査し、
   `Vec<(&'static str, BindingTarget)>`（`field` → 束縛点リスト）の対応表を
   構築してメモリ上に保持する。この走査パターンは `fandhe_frontend_core::find_attr_values`
-  （`core/src/lib.rs:230`）・`wasm-client` が `data-nav` に対して行う走査と
+  （`crates/core/src/lib.rs:230`）・`wasm-client` が `data-nav` に対して行う走査と
   同一の考え方（属性値を手掛かりにした DOM 走査、HTML 再パースを伴わない）
   を踏襲する。
 
-#### 3.2a 実装確定（#343、`wasm-client/src/binding.rs`・`binding_dom.rs`）
+#### 3.2a 実装確定（#343、`crates/wasm-client/src/binding.rs`・`binding_dom.rs`）
 
 - 対応表のキーである `field` は、DOM 走査で `data-bind-*` 属性値から読んだ
   **実行時 `String`**（`BindingSpec::field`）にならざるを得ない（属性値は
@@ -109,9 +109,9 @@
 - `data-bind-attr` トークンの属性名（`<attr>` 部分）は消費側（#343）の
   fail-closed 検証を経由する: 英数字・`-`・`_` のみを許可し、大小文字を
   無視して `on` で始まる名前を拒否する
-  （`wasm-client/src/binding.rs::is_valid_binding_name`）。これは
+  （`crates/wasm-client/src/binding.rs::is_valid_binding_name`）。これは
   `setAttribute("onclick", value)` のような呼び出しが状態値を実行可能な
-  イベントハンドラへ昇格させる経路を遮断するための、`core/src/bind.rs` の
+  イベントハンドラへ昇格させる経路を遮断するための、`crates/core/src/bind.rs` の
   モジュール docs が明記する「消費側の契約」の履行である。URL スキーム等
   「値の内容」の検証は本節・第 9 節の確定通り導入しない（既存 SSR 経路と
   同等の残存リスク）。
@@ -131,7 +131,7 @@
   合成を明示的な複数束縛版関数に分離することでこれを構造的に防ぐ。
 
 ```rust
-// fandhe-frontend-core: 束縛点マーキングのヘルパー群（core/src/bind.rs、#342 で追加）
+// fandhe-frontend-core: 束縛点マーキングのヘルパー群（crates/core/src/bind.rs、#342 で追加）
 
 /// 束縛点マーカー属性名（#343 が走査する契約値。§3.1 で凍結）
 pub const BIND_TEXT_ATTR: &str = "data-bind-text";
@@ -158,7 +158,7 @@ pub fn bind_text(
 ```
 
 - `field`/属性名/class 名を `&'static str` に固定するのは、`Node::Element.tag`
-  （`core/src/lib.rs:80` 以降）が `&'static str` 固定であることと同じ設計
+  （`crates/core/src/lib.rs:80` 以降）が `&'static str` 固定であることと同じ設計
   原理である。動的文字列（実行時に組み立てた `String`）をフィールド名として
   受理しないことで、束縛点対応表の走査キーが常にコンパイル時に確定した
   有限集合であることを型で保証し、任意文字列注入によるフィールド偽装の
@@ -174,13 +174,13 @@ pub fn bind_text(
   同一要素へのテキスト + 属性 + class の複合束縛も既存 API の合成だけで書け、
   マーカー属性の重複を作らない。
 - `is_valid_attr_name` の検証は既存の `render()` 経路（属性出力時の
-  ホワイトリスト検証、`core/src/lib.rs:320` 付近）へそのまま委ねる。新しい
+  ホワイトリスト検証、`crates/core/src/lib.rs:320` 付近）へそのまま委ねる。新しい
   検証ロジックを追加しない（既存の防御を再利用する）。
 - SSR 出力の決定性: 束縛点マーキングを使わない既存の `Node` 構築
   （`el`/`div`/`text` 等）の出力には**一切影響しない**（`bind_*` は既存
   ヘルパーに属性・テキストを付加するオプトイン API であり、未使用時の
   `render()` 出力はバイト単位で不変）。これを凍結条件とする
-  （`core/tests/xss_escape.rs` の `bind_points::existing_node_construction_output_is_unaffected`
+  （`crates/core/tests/xss_escape.rs` の `bind_points::existing_node_construction_output_is_unaffected`
   で回帰固定）。
 
 ## 4. 更新の種別（#341・#343 の入力）
@@ -254,12 +254,12 @@ dispatch（文字列 → Action、既存 #341 以前の経路） →
 
 当初案 `keyed_list(field, items) -> Node` は、(a) 親要素のタグ名・呼び出し
 側属性を受け取れない、(b) fail-closed（キー衝突・欠落で `Err`）を戻り値
-なしで表現できない、の 2 点で実装不能であったため、実装（`core/src/keyed.rs`）
+なしで表現できない、の 2 点で実装不能であったため、実装（`crates/core/src/keyed.rs`）
 着手前に本節を以下の確定形へ改訂する（#342 が第 3.3 節で行ったのと同じ
 「設計書を先に改訂してから実装する」手順）。
 
 ```rust
-// fandhe-frontend-core::keyed（#344 で追加。core/src/keyed.rs）
+// fandhe-frontend-core::keyed（#344 で追加。crates/core/src/keyed.rs）
 pub const BIND_LIST_ATTR: &str = "data-bind-list";
 pub const KEY_ATTR: &str = "data-key";
 
@@ -344,10 +344,10 @@ pub fn keyed_list(
 
 ### 6.1 撤去手順
 
-1. `wasm-full/src/dom.rs` の `paint()`（`set_inner_html` 全置換、
-   `wasm-full/src/dom.rs:44`）を、第 4.3 節の更新駆動フローに置き換える。
-2. `wasm-full/src/events.rs` の `should_repaint: false` による入力時再描画
-   抑止（`wasm-full/src/events.rs:93` 付近）は、束縛点更新が実 DOM を
+1. `crates/wasm-full/src/dom.rs` の `paint()`（`set_inner_html` 全置換、
+   `crates/wasm-full/src/dom.rs:44`）を、第 4.3 節の更新駆動フローに置き換える。
+2. `crates/wasm-full/src/events.rs` の `should_repaint: false` による入力時再描画
+   抑止（`crates/wasm-full/src/events.rs:93` 付近）は、束縛点更新が実 DOM を
    再構築しないため入力状態を破壊しなくなり、暫定運用として不要になる。
    ただし「入力ハンドラは呼ばれたが対応する束縛点更新が存在しない」
    ケースの扱いは #345 実装時に個別確認する（本書は撤去を許可する設計
@@ -376,10 +376,10 @@ pub fn keyed_list(
 一般化・`wasm-full` 移行が着手できないため）。各段階で以下を非劣化条件
 とする。
 
-- XSS 回帰テスト（`interactive/tests/xss_escape.rs` 等、SSR/SSG/CSR/WASM
+- XSS 回帰テスト（`crates/interactive/tests/xss_escape.rs` 等、SSR/SSG/CSR/WASM
   各経路）が削除・弱体化されないこと。
 - ハイドレーション roundtrip テスト（#163 系、
-  `wasm-full/tests/nested_hydration_state.rs`）が非劣化であること。
+  `crates/wasm-full/tests/nested_hydration_state.rs`）が非劣化であること。
 - WASM バンドルサイズ上限（REQ-11）に対する影響を各段階で計測すること。
 
 ### 6.4 #345 実装確定（設計の乖離改訂）
@@ -393,7 +393,7 @@ pub fn keyed_list(
 6.1 は撤去可否を「#345 実装時に個別確認」としていたが、実装の結果、
 束縛点更新（`set_text_content`/`set_attribute`/`class_list`）は**冪等**
 かつ**変更フィールド数に比例するコスト**であるため、input イベントでも
-毎回適用してよいと確定した。`should_repaint`（`wasm-full/src/events.rs`
+毎回適用してよいと確定した。`should_repaint`（`crates/wasm-full/src/events.rs`
 の `ActionRef`）はフィールドごと撤去し、`click`/`input` いずれのイベント
 後も同一の更新経路（6.4.4 参照）を通す。
 
@@ -452,11 +452,11 @@ id（`u64`）へ変更する。keyed 更新では既存 DOM ノードの `data-p
 
 `fandhe-frontend-wasm-client`（#343 で新設済み）に以下 2 モジュールを追加する。
 
-- `wasm-client/src/keyed_diff.rs`（純粋層・native テスト可）: 「現在の
+- `crates/wasm-client/src/keyed_diff.rs`（純粋層・native テスト可）: 「現在の
   DOM 上のキー列」と「新しい `Node` 木のキー列」の 2 つの文字列列から、
   最小の操作列（`KeyedOp::{Remove, Insert, Move}`）を計画する DOM 非依存
   関数 `diff_keys`。
-- `wasm-client/src/keyed_dom.rs`（`wasm32` 配線層）: 操作列を実 DOM へ
+- `crates/wasm-client/src/keyed_dom.rs`（`wasm32` 配線層）: 操作列を実 DOM へ
   適用する `apply_keyed_list`。挿入ノードは `fandhe_frontend_core::Node` 木から
   `create_element`/`set_text_content`/`append_child` によりプログラム的に
   構築し、`innerHTML`/`insert_adjacent_html` を一切使わない。移動は
@@ -499,7 +499,7 @@ keyed list の構造変化が発生した呼び出しに限り**対応表を再�
 としてのフルスキャン再構築」と同じ機構を、通常の構造変化後更新にも転用
 する形になる）。
 
-`wasm-full/src/dom.rs::paint` は `mount_initial` へ改名し、6.2 の限定 API
+`crates/wasm-full/src/dom.rs::paint` は `mount_initial` へ改名し、6.2 の限定 API
 方針どおり初回マウント・ハイドレーション CSR フォールバックからのみ
 呼ばれる（イベント後更新からは呼ばれない）。
 
@@ -639,7 +639,7 @@ keyed list の構造変化が発生した呼び出しに限り**対応表を再�
 - `docs/design/hydration-nested-state.md` が確立した `data-hydrate-*` の
   役割（状態値の注入）と、本書が新設する `data-bind-*`（更新先ノード
   位置のマーキング）の役割分担を第 3.2 節で明示した。
-- `core/src/lib.rs` の `is_valid_attr_name`（属性名ホワイトリスト）・
+- `crates/core/src/lib.rs` の `is_valid_attr_name`（属性名ホワイトリスト）・
   `find_attr_values`（属性値走査、`data-hydrate`/`data-nav` が使用する
   既存パターン）を、本書の `data-bind-*` 走査（第 3.2 節）・属性検証
   （第 3.3 節）がそのまま再利用する設計とした。
@@ -649,9 +649,9 @@ keyed list の構造変化が発生した呼び出しに限り**対応表を再�
 ### 12.1 背景・課題
 
 `data-bind-text`/`data-bind-attr`/`data-bind-class` の束縛点トークン
-（producer: `core/src/bind.rs` #342、demo view: `interactive/src/lib.rs`
+（producer: `crates/core/src/bind.rs` #342、demo view: `crates/interactive/src/lib.rs`
 `AppState::view`）と、`AppState` 側フィールド名（consumer:
-`wasm-client/src/binding.rs` の `impl BindingSource for AppState`）の整合は、
+`crates/wasm-client/src/binding.rs` の `impl BindingSource for AppState`）の整合は、
 実行時の文字列比較契約のみで結ばれており、機械検証手段がなかった。
 `fw gate` への新チェック追加は `docs/design/gate-design.md` §7 で不採用と
 確定済み（#353）である一方、代替手段は未検討だった
@@ -688,7 +688,7 @@ Vec<BindingSpec>` の 2 関数を追加した。
 - `Node::RawHtml` は走査対象外（HTML パースを持ち込まない）。
   `data-bind-list`（keyed list）は 3 マーカーに含まれないため自然に
   収集対象外となる
-- 本命の回帰テストは `wasm-client/tests/binding_logic.rs` の
+- 本命の回帰テストは `crates/wasm-client/tests/binding_logic.rs` の
   `app_state_view_has_no_unresolved_bindings`
   （`AppState::new().view()` に対する整合性検証、native・
   `cargo test -p fandhe-frontend-wasm-client` で実行）

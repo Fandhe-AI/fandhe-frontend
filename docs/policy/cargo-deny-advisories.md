@@ -53,7 +53,7 @@ cargo deny check bans licenses sources --config deny.toml
   コマンド仕様変更を予期せず取り込むリスクがあるため避けます。バージョン・SHA256 の pin の正は
   `tools/ci/ensure-gate-tools.sh` の `CARGO_DENY_VERSION` / `CARGO_DENY_SHA256` であり、
   本ドキュメント・テンプレートの pin 値がそこからドリフトしていないことは
-  `xtask/tests/template_deny_workflow.rs` が `cargo test -p xtask` / CI で強制検知します。
+  `crates/xtask/tests/template_deny_workflow.rs` が `cargo test -p xtask` / CI で強制検知します。
 - **第三者製 Action を使わない**: `templates/default/.github/workflows/deny.yml` の方針
   （`EmbarkStudios/cargo-deny-action` 等の第三者 Action を採用しないサプライチェーン方針）を
   オンライン運用でも踏襲します。Action を参照する場合はフル SHA 固定とします。
@@ -205,6 +205,6 @@ jobs:
 
 - `templates/default/deny.toml`（TASK-4.1・`[advisories]` セクション）
 - `templates/default/.github/workflows/deny.yml`（TASK-4.2・bans/licenses/sources の CI 強制）
-- `xtask/tests/template_deny_config.rs` / `xtask/tests/template_deny_workflow.rs`（テンプレートの回帰テスト）
+- `crates/xtask/tests/template_deny_config.rs` / `crates/xtask/tests/template_deny_workflow.rs`（テンプレートの回帰テスト）
 - `docs/spec/03-poc/ai-self-maintenance/README.md`（PoC-7・advisories オフライン実行不可の実測根拠）
 - `docs/spec/04-requirements.md`（REQ-4）・`docs/spec/05-tasks.md`（TASK-4.3）

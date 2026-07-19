@@ -253,7 +253,7 @@ jobs:
             exit 1
           fi
 
-          # 起動ログの固定文言は dist-server/src/main.rs の契約
+          # 起動ログの固定文言は crates/dist-server/src/main.rs の契約
           # （`fandhe-frontend-dist-server: listening on {addr}` / `fandhe-frontend-dist-server:
           # assets={mode}`）に依存する。release ビルドでは active_mode() が
           # 常に AssetMode::Embedded を返すため assets=embedded 固定。ポートは

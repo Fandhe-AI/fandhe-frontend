@@ -1,6 +1,6 @@
 # イシュー #157（#158/#159）: `raw_html()` 検出ゲートのカスタム clippy lint 化。
 #
-# 背景: `cli/src/gate.rs` の `default_escape_check`（PoC-7 由来）はテキスト走査で
+# 背景: `crates/cli/src/gate.rs` の `default_escape_check`（PoC-7 由来）はテキスト走査で
 # `raw_html()` 呼び出しを検出していたが、`// ESCAPE-REVIEWED:` コメントマーカーは
 # コンパイラに検証されないため、レビューを経ずにコメントを書くだけで検出を回避
 # できた（偽装耐性なし）。本設定はその主防御をコンパイラのパス解決（HIR）に基づく
@@ -11,11 +11,11 @@
 # 警告対象となる。正当なオプトインは呼び出し（文）へ直接付与する
 #   #[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: <レビュー根拠>")]
 # のみとする。`#[allow(clippy::disallowed_methods)]` によるファイル・モジュール
-# 一括抑止（ブランケット抑止）は `cli/src/gate.rs` の監査対象であり禁止する
+# 一括抑止（ブランケット抑止）は `crates/cli/src/gate.rs` の監査対象であり禁止する
 # （運用手順は docs/policy/raw-html-review-gate.md）。
 #
 # 本設定は `cargo clippy` 起動時のカレントディレクトリ（`CLIPPY_CONF_DIR` 未設定
-# 時は clippy 起動時の cwd）から読み込まれる。`cli/src/gate.rs` の `lint` チェックは
+# 時は clippy 起動時の cwd）から読み込まれる。`crates/cli/src/gate.rs` の `lint` チェックは
 # `project_dir` を cwd として `cargo clippy` を起動するため、本ファイルが
 # workspace ルート直下にあることが前提となる（欠落時は `lint` チェック自体を
 # fail-closed させる、`run_cargo_clippy` 参照）。

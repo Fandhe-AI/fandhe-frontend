@@ -50,13 +50,13 @@ PoC-3（`docs/spec/03-poc/rendering-web-standards/`、差別化空白 E への�
      が同じ関数を呼び出す
 ```
 
-`app/src/lib.rs` の `list_page` / `detail_page` / `page_shell` は、SSR・SSG・CSR の
+`crates/app/src/lib.rs` の `list_page` / `detail_page` / `page_shell` は、SSR・SSG・CSR の
 いずれのモードからも**同一関数がそのまま呼ばれる**ことを前提に設計されています
 （三モード契約、REQ-6）。関数側にモード分岐の `if` や `#[cfg(...)]` は存在しません。
 呼び出し側（CSR なら `fandhe-frontend-wasm-client`、SSR/SSG なら `fandhe-frontend-server`）が変わるだけで、
 コンポーネントの記述は共通です。
 
-この契約の一次情報源は `app/src/lib.rs` の rustdoc（`cargo doc -p fandhe-frontend-app --open`）
+この契約の一次情報源は `crates/app/src/lib.rs` の rustdoc（`cargo doc -p fandhe-frontend-app --open`）
 です。本ガイドはそこへの導線であり、契約そのものの詳細は rustdoc を参照してください。
 
 ## 3. 最小埋め込みの手順
@@ -161,7 +161,7 @@ WASM モジュールのビルド手順の正式な確定はクレート実装（
 | コンポーネント側の分岐 | なし | なし |
 | 出力の反映先 | `<div>` の `innerHTML`（CSR） | HTTP レスポンス本文（SSR/SSG） |
 
-移行時にコンポーネントの記述（`app/src/lib.rs` 相当のコード）を書き直す必要は
+移行時にコンポーネントの記述（`crates/app/src/lib.rs` 相当のコード）を書き直す必要は
 ありません。書き直すのは「どこから呼ぶか」（埋め込みページの `<script>` か、
 サーバーのルーティングハンドラか）だけです。これが REQ-7 の「フレームワークを
 乗り換えたくない」というユーザーストーリーに対する具体的な回答です。
@@ -198,14 +198,14 @@ REQ-7 の受け入れ基準にあるとおり、v1 の共通コアはパスマ�
 （`docs/spec/04-requirements.md` の対象外事項一覧と整合）。
 
 「最小埋め込みとフルスタックがコンポーネントロジックに分岐を持たない」ことの
-機械的検証（静的解析・テスト）は TASK-7.3（`core/tests/no_branching_across_modes.rs`）
+機械的検証（静的解析・テスト）は TASK-7.3（`crates/core/tests/no_branching_across_modes.rs`）
 のスコープであり、本ガイドの対象外です。
 
 ## 7. 関連文書・並行タスクとの整合
 
 本書は次の一次情報源を前提とし、そこに矛盾があれば各文書・実装を正とします。
 
-- `app/src/lib.rs` の rustdoc（三モード契約・既定エスケープの引き継ぎ、マージ済み）
+- `crates/app/src/lib.rs` の rustdoc（三モード契約・既定エスケープの引き継ぎ、マージ済み）
 - `docs/api/hydration-api.md`（`mount_csr` / `hydrate` の設計確定、TASK-6.2a・マージ済み）
 - `docs/guides/component-authoring.md`（コンポーネント記述の一般的な書き方）
 - `templates/embed/embed.html`（TASK-7.1a・#52、マージ済み。3.1 節の正典テンプレート）

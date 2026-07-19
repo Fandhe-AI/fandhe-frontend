@@ -3,8 +3,8 @@
 ## 1. 背景・脅威モデル
 
 REQ-1（既定エスケープ）の唯一の許容迂回経路は `fandhe_frontend_core::raw_html()` である
-（`core/src/lib.rs`）。`fw gate`（TASK-13.3、#138）の `default_escape_check`
-（`cli/src/gate.rs`）は当初、次のテキスト走査方式（PoC-7 由来の「マーカー方式」）
+（`crates/core/src/lib.rs`）。`fw gate`（TASK-13.3、#138）の `default_escape_check`
+（`crates/cli/src/gate.rs`）は当初、次のテキスト走査方式（PoC-7 由来の「マーカー方式」）
 のみで未レビュー呼び出しを検出していた。
 
 - `raw_html()` 呼び出しの同一行・直前行に `// ESCAPE-REVIEWED: <根拠>` という
@@ -30,7 +30,7 @@ REQ-1（既定エスケープ）の唯一の許容迂回経路は `fandhe_fronte
 | B. **`clippy::disallowed_methods`（`clippy.toml` 設定）** | **あり（コンパイラの HIR パス解決に基づく。コメントでは抑止不能）** | ○ | **0** | **採用** |
 | C. dylint 等のカスタム lint（`fandhe_frontend::unreviewed_raw_html` 相当） | あり | ×（`rustc_private`/nightly 前提が一般的） | 重量依存の追加が必要 | 不採用（REQ-3 違反・依存追加は事前承認が必要） |
 | D. rustc ドライバ自作・`register_tool` | あり | ×（unstable API 前提） | 保守コスト大 | 不採用 |
-| E. `syn` 等による AST 走査を `cli` へ実装 | 中（属性解析は可能だがパス解決はできない） | ○ | `fandhe-frontend-cli` は外部依存ゼロ方針（`cli/Cargo.toml` 明記）に抵触 | 不採用 |
+| E. `syn` 等による AST 走査を `cli` へ実装 | 中（属性解析は可能だがパス解決はできない） | ○ | `fandhe-frontend-cli` は外部依存ゼロ方針（`crates/cli/Cargo.toml` 明記）に抵触 | 不採用 |
 
 ### 選定理由（方式 B）
 
@@ -43,7 +43,7 @@ REQ-1（既定エスケープ）の唯一の許容迂回経路は `fandhe_fronte
   「レビューを経た証跡」を残す運用と両立する）。
 - `use fandhe_frontend_core::raw_html as fragment;` のようなリネーム import 経由の呼び出し
   も、コンパイラが最終的に解決する定義元パスが同一であるため検出できる
-  （実証: `cli/tests/raw_html_lint_e2e.rs`
+  （実証: `crates/cli/tests/raw_html_lint_e2e.rs`
   `renamed_import_call_is_still_rejected_by_clippy`）。
 - 追加の外部クレート依存が不要（clippy 自体は既存のツールチェーン構成要素）。
 - stable Rust 上で動作する（`rustc 1.96.0` で検証済み）。
@@ -84,7 +84,7 @@ REQ-1（既定エスケープ）の唯一の許容迂回経路は `fandhe_fronte
    - clippy が見ない領域（`cfg` で除外されたコード等）に対する保険として、
      テキスト走査は残す。ただし受理条件を「コメントマーカー」から「同一行・
      直前行の `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED:
-     ...")]` 属性」へ変更した（`cli/src/gate.rs`
+     ...")]` 属性」へ変更した（`crates/cli/src/gate.rs`
      `line_has_reviewed_expect_attribute`）。単独のコメントはもはや受理しない
      （回帰テスト: `scan_file_rejects_comment_only_marker_as_spoofable`・
      `fw_gate_still_blocks_comment_only_spoofed_marker`）。
@@ -114,7 +114,7 @@ REQ-1（既定エスケープ）の唯一の許容迂回経路は `fandhe_fronte
 | 層 | 実体 | 役割 | 偽装耐性 |
 |----|------|------|---------|
 | 主防御 | `clippy::disallowed_methods`（`fw gate` `lint`・CI `clippy` ジョブとも `cargo clippy --all-targets -- -D warnings`、イシュー #299/#315） | コンパイラのパス解決に基づく偽装不能な検出。`--all-targets` によりテストターゲット内呼び出しも検出範囲に含む | 高 |
-| 保険層 | `default_escape_check`（テキスト走査、`cli/src/gate.rs`） | clippy が見ない領域・`fw gate` 単体実行時の二次防御 | 中（属性方式化により旧方式より向上） |
+| 保険層 | `default_escape_check`（テキスト走査、`crates/cli/src/gate.rs`） | clippy が見ない領域・`fw gate` 単体実行時の二次防御 | 中（属性方式化により旧方式より向上） |
 | 監査層 | ブランケット抑止検出（`default_escape_check` 内） | オプトイン地点・一括無効化を `file:line` で可視化 | — |
 | ゲート設定の健全性 | `clippy_policy_check`（`lint` チェック） | `clippy.toml` 欠落による沈黙化を fail-closed で検出 | — |
 
@@ -127,7 +127,7 @@ REQ-1（既定エスケープ）の唯一の許容迂回経路は `fandhe_fronte
   構造的な限界であり、監査層（ブランケット抑止検出・レビュー地点の
   `file:line` 列挙）による可視性確保で緩和する。ラッパ関数の新設自体は
   コードレビューで検知されることを前提とする。
-- **self-hosted CI runner の clippy コンポーネント不在**: `cli/tests/raw_html_lint_e2e.rs`
+- **self-hosted CI runner の clippy コンポーネント不在**: `crates/cli/tests/raw_html_lint_e2e.rs`
   は clippy 起動失敗時に明示メッセージ付きで `panic!` する（沈黙スキップ
   しない）ため、不在は CI 失敗として顕在化する。
 
@@ -135,9 +135,9 @@ REQ-1（既定エスケープ）の唯一の許容迂回経路は `fandhe_fronte
 
 | 受け入れ条件 | 対応 |
 |-------------|------|
-| コメント偽装で回避不能であることの実証 | `cli/tests/raw_html_lint_e2e.rs::comment_only_spoofed_marker_is_still_rejected_by_clippy`（実 clippy 起動） |
-| リネーム import 経由の呼び出しも検出 | `cli/tests/raw_html_lint_e2e.rs::renamed_import_call_is_still_rejected_by_clippy` |
+| コメント偽装で回避不能であることの実証 | `crates/cli/tests/raw_html_lint_e2e.rs::comment_only_spoofed_marker_is_still_rejected_by_clippy`（実 clippy 起動） |
+| リネーム import 経由の呼び出しも検出 | `crates/cli/tests/raw_html_lint_e2e.rs::renamed_import_call_is_still_rejected_by_clippy` |
 | CI で未レビュー呼び出しをブロック | `.github/workflows/ci.yml` `clippy` ジョブ（主防御）+ `test` ジョブの独立ステップ「REQ-1 raw_html() 偽装回避不能テスト (issue #159)」（`raw_html_lint_e2e` を明示実行し受け入れ条件を可視化） |
-| 正当なオプトイン経路の保全 | `cli/tests/raw_html_lint_e2e.rs::reviewed_expect_attribute_call_is_accepted_by_clippy` |
+| 正当なオプトイン経路の保全 | `crates/cli/tests/raw_html_lint_e2e.rs::reviewed_expect_attribute_call_is_accepted_by_clippy` |
 
 運用手順（属性の書式・レビュー規約）は `docs/policy/raw-html-review-gate.md` を参照。

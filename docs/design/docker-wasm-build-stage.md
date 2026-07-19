@@ -13,7 +13,7 @@
 > | サブタスク | Issue | 状態 | 本書との関係 |
 > |-----------|-------|------|-------------|
 > | TASK-10.2a（build.rs 方式の設計検討） | #109 | OPEN | §2 が引用する設計判断の一部が未確定 |
-> | TASK-10.2b（WASM ビルド呼び出しの実装） | #110 | **CLOSED（マージ済み）** | `dist-server/build.rs` に WASM ビルドステージ（`run_wasm_stage` 以下）が実装済み。本書 §2〜§3 はこの実装済みコードを前提に設計する |
+> | TASK-10.2b（WASM ビルド呼び出しの実装） | #110 | **CLOSED（マージ済み）** | `crates/dist-server/build.rs` に WASM ビルドステージ（`run_wasm_stage` 以下）が実装済み。本書 §2〜§3 はこの実装済みコードを前提に設計する |
 > | TASK-10.2c（キャッシュ・再ビルド制御の実装） | #111 | OPEN | 差分スキップ・fingerprint の精緻化は未実装。本書 §4 は現状の `rerun-if-changed` ベースの粗い制御を前提とする |
 >
 > すなわち `docs/design/wasm-build-integration.md` の前置き（#109〜#111 すべて
@@ -58,10 +58,10 @@
 ## 2. 現状整理: 既に実装済みの部分と未整備の部分
 
 TASK-10.3a の設計は「ゼロから WASM ビルドを Docker に組み込む」ものでは
-なく、既に実装済みの `dist-server/build.rs`（TASK-10.2b・#110、マージ済み）
+なく、既に実装済みの `crates/dist-server/build.rs`（TASK-10.2b・#110、マージ済み）
 を Docker ビルダーステージから正しく発火させる設計です。現状を整理します。
 
-### 2.1 既に実装済み（`dist-server/build.rs`）
+### 2.1 既に実装済み（`crates/dist-server/build.rs`）
 
 - `cargo build -p fandhe-frontend-dist-server` 実行時、`build.rs` の `main` が
   `wasm_build_enabled()` を判定し、既定（環境変数未設定）では有効です。
@@ -160,7 +160,7 @@ builder`）に、既存の musl ターゲット導入と同じ並びで次を追
    fandhe-frontend-dist-server` を実行し、ネスト WASM ビルドを発火させる）。
 
 この結果、既存の単一 `RUN cargo build ...` 行を変更せずに、その内部で
-`dist-server/build.rs` が WASM ビルドステージを実行する構成になります。
+`crates/dist-server/build.rs` が WASM ビルドステージを実行する構成になります。
 `docs/design/wasm-build-integration.md` §7 が定義した「`cargo build -p
 fandhe-frontend-dist-server` 単一コマンドを Docker ビルドステージ内でそのまま実行する」
 という境界と完全に一致します。
@@ -183,7 +183,7 @@ aarch64 ビルドホストでは `ENV FANDHE_FRONTEND_WASM_BUILD=0`
 `COPY --from=wasm-builder` でサーバービルドステージへ合流させる方式が
 あります。
 
-**不採用理由**: `dist-server/build.rs`（TASK-10.2b）は、ネスト `cargo
+**不採用理由**: `crates/dist-server/build.rs`（TASK-10.2b）は、ネスト `cargo
 build -p fandhe-frontend-wasm-full --target wasm32-unknown-unknown` と `wasm-bindgen`
 実行を**サーバービルドの内部プロセスとして**既に実装済みです。WASM
 専用ステージを分離すると、(a) その独立ステージの成果物を `build.rs` の
@@ -202,8 +202,8 @@ WASM ビルド経路の 2 系統が並存し、`docs/design/wasm-build-integrati
   場合（例: 統合ツール方式への転換）、本書 §3.1 の前提が変わる可能性が
   あるため、TASK-10.3b 着手前に #109 の状態を再確認することを推奨します。
 - **#111（キャッシュ・再ビルド制御）が OPEN であること**: 現状の
-  `rerun-if-changed` は `wasm-full/src`・`wasm-full/Cargo.toml`・
-  `interactive/src`・`core/src`・`Cargo.lock` を対象としており、Docker
+  `rerun-if-changed` は `crates/wasm-full/src`・`crates/wasm-full/Cargo.toml`・
+  `crates/interactive/src`・`crates/core/src`・`Cargo.lock` を対象としており、Docker
   ビルドはレイヤキャッシュ単位（COPY 命令の変更検知）で再実行判断される
   ため、`cargo:rerun-if-changed` の精緻化状況は Docker イメージビルドの
   正しさに影響しません（Docker はレイヤ全体を再実行するか、キャッシュ
@@ -219,7 +219,7 @@ WASM ビルド経路の 2 系統が並存し、`docs/design/wasm-build-integrati
 - **ベースイメージ digest 固定**: 現行 `FROM rust:1.96-slim-bookworm@sha256:...`
   を維持します（本タスクでの変更なし）。
 - **`wasm-bindgen-cli` バージョンと `wasm-bindgen` クレートバージョンの
-  一致**: `dist-server/build.rs::expected_wasm_bindgen_version` が
+  一致**: `crates/dist-server/build.rs::expected_wasm_bindgen_version` が
   `Cargo.lock` 解決済みバージョンと `wasm-bindgen --version` の実バージョンを
   突き合わせ、不一致ならビルドを失敗させる仕組みが既に存在します。
   Dockerfile 側で固定導入する `wasm-bindgen-cli` のバージョンは、この
@@ -255,8 +255,8 @@ WASM ビルド経路の 2 系統が並存し、`docs/design/wasm-build-integrati
   ため、Docker イメージビルド全体の所要時間が増加します。実測は
   TASK-10.3c（#117）のスコープとし、本書では見積りを行いません。
 - **`image-size.yml` のトリガー paths（実装済み）**: `.github/workflows/
-  image-size.yml` の `paths` は本書執筆時点で既に `wasm-full/**`・
-  `wasm-thin/**`・`interactive/**` を含んでいることを実装時に確認しました
+  image-size.yml` の `paths` は本書執筆時点で既に `crates/wasm-full/**`・
+  `crates/wasm-thin/**`・`crates/interactive/**`（現在は `crates/` 配下移設に伴い `crates/**` へ集約済み）を含んでいることを実装時に確認しました
   （TASK-9.3b（#103）以降の別変更で先行して追加済み）。§3.1 の変更に
   より、これらのクレートの変更がコンテナ内 WASM 再ビルド経由で最終
   イメージの内容（サイズ）に影響する、という設計判断そのものは変わりません。
@@ -276,8 +276,8 @@ TASK-10.3c（#117）が実施すべき検証観点として引き継ぎます。
    builder ステージのツールチェーンが最終イメージへ漏れないことの確認）。
 4. `xtask check-image-size`（REQ-9、50MB 上限）が WASM 成果物込みでも
    PASS すること。
-5. `image-size.yml` の `paths` 追加後、`wasm-full/`・`wasm-thin/`・
-   `interactive/` の変更が正しくワークフローをトリガーすること。
+5. `image-size.yml` の `paths` 追加後、`crates/wasm-full/`・`crates/wasm-thin/`・
+   `crates/interactive/` の変更が正しくワークフローをトリガーすること。
 6. `docker build` を x86_64・aarch64 の両ビルドホスト（例: GitHub Actions
    の x86_64 ランナーと Apple Silicon の Docker Desktop）で実行し、§3.1
    のアーキ分岐（archive 名・チェックサム選択）が両方で成功すること。
@@ -295,10 +295,10 @@ TASK-10.3c（#117）が実施すべき検証観点として引き継ぎます。
     改ざんされたバイナリの混入を防ぎます。
   - ベースイメージの digest 固定（既存）・`--locked` による `Cargo.lock`
     固定ビルド（既存）は変更せず維持します。
-  - `dist-server/build.rs` は任意コード実行経路（ビルドスクリプト）である
+  - `crates/dist-server/build.rs` は任意コード実行経路（ビルドスクリプト）である
     ため、外部 `build-dependencies`（Cargo クレート）をゼロに保つ現行方針を
     維持します。§3.1 の変更は Dockerfile 側にツール（`wasm-bindgen-cli`
-    バイナリ）を追加するのみで、`dist-server/Cargo.toml` の
+    バイナリ）を追加するのみで、`crates/dist-server/Cargo.toml` の
     `build-dependencies` には手を加えません（REQ-3 の依存グラフ上限
     60 件/深さ 6 を弱めない）。
   - `build.rs` が保有するクレート一覧は `xtask list-build-scripts` による
@@ -316,7 +316,7 @@ TASK-10.3c（#117）が実施すべき検証観点として引き継ぎます。
   ビルド／コンテナ内再ビルドのいずれか）に依存しないことを不変条件とします
   （`wasm-full`/`wasm-thin` の XSS 回帰テストは本設計により影響を受けません）。
 - **A01 パストラバーサル**: コンパイル時埋め込みにより実行時ファイル
-  システムアクセスが構造的に発生しない性質（`dist-server/build.rs` 冒頭
+  システムアクセスが構造的に発生しない性質（`crates/dist-server/build.rs` 冒頭
   コメント）は、WASM 成果物がホスト側事前ビルドかコンテナ内再ビルドかに
   関わらず維持されます。
 - **機微情報**: 本書・関連コミットにトークン・実在の内部 URL・シークレットを
@@ -346,7 +346,7 @@ TASK-10.3c（#117）が実施すべき検証観点として引き継ぎます。
 - **`Dockerfile` への WASM ビルドステージ実装**: TASK-10.3b（#116）のスコープ。
 - **コンテナ内 WASM 再ビルドの実ビルド検証・CI 統合**: TASK-10.3c（#117）の
   スコープ。§6 に検証観点を引き継ぎ済み。
-- **`dist-server/build.rs` への WASM ビルド呼び出し実装自体**: TASK-10.2b
+- **`crates/dist-server/build.rs` への WASM ビルド呼び出し実装自体**: TASK-10.2b
   （#110）で完了済み（本書はこれを前提として引用するのみ）。
 - **`build.rs` のキャッシュ・再ビルド制御の精緻化**: TASK-10.2c（#111）の
   スコープ。

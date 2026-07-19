@@ -15,18 +15,18 @@ concurrency:
 jobs:
   # TASK-2.1 (REQ-2): コアクレートの unsafe 不使用を機械的に強制するジョブ。
   # 一次防御 = #![forbid(unsafe_code)] 属性（ビルド時 lint、削除は下記テストが検知）
-  # 二次防御 = core/tests/unsafe_boundary.rs（属性の実在・unsafe トークン不在・core 外部依存ゼロ）
+  # 二次防御 = crates/core/tests/unsafe_boundary.rs（属性の実在・unsafe トークン不在・core 外部依存ゼロ）
   # 三次防御 = 本ジョブの RUSTFLAGS='-F unsafe_code' による cargo check（属性とテストが
   # 同時に外された場合でも、コマンドラインからの forbid はソース側の allow で上書きできない）
   #
-  # #155 (REQ-11 受け入れ基準 2): 上記の safe 域（core/interactive 等、forbid 採用）に加え、
+  # #155 (REQ-11 受け入れ基準 2): 上記の safe 域（crates/core/interactive 等、forbid 採用）に加え、
   # `wasm-full`（deny 採用。#[wasm_bindgen] 展開コードの内部 unsafe と衝突するため forbid 不採用）
   # のアプリロジック層（自作コード）にも forbid 相当の CI 強制を適用する。実体は下記
   # `cargo test -p fandhe-frontend-core --test unsafe_boundary` に含まれる `ffi_deny_crates_*` テスト
-  # （core/tests/unsafe_boundary.rs の DENY_UNSAFE_FFI_MEMBERS）であり、本ジョブ自体に
+  # （crates/core/tests/unsafe_boundary.rs の DENY_UNSAFE_FFI_MEMBERS）であり、本ジョブ自体に
   # 追加のステップは不要（deny 域は `RUSTFLAGS='-F unsafe_code'` 適用外のまま、
   # wasm-bindgen 展開コードの unsafe との衝突を避ける）。
-  # UNSAFE_ALLOWED_MEMBERS（wasm-client/wasm-thin）は引き続きスコープ外（#155 参照）。
+  # UNSAFE_ALLOWED_MEMBERS（crates/wasm-client/wasm-thin）は引き続きスコープ外（#155 参照）。
   #
   # ファイル名は汎用の ci.yml とし、ジョブ名を目的特化の forbid-unsafe とする。
   # 後続の CI 系タスク（fmt/clippy・依存グラフ計測等）は同一ファイルへ
@@ -34,7 +34,7 @@ jobs:
   forbid-unsafe:
     name: Forbid unsafe in core crates (+ wasm-full deny boundary)
     runs-on: self-hosted
-    # TASK-10.2b（#110）: dist-server/build.rs は既定で WASM ビルドステージ
+    # TASK-10.2b（#110）: crates/dist-server/build.rs は既定で WASM ビルドステージ
     # （ネスト cargo build + wasm-bindgen）を実行するが、本ジョブは
     # (a) self-hosted のためツールチェーン（wasm32 target・wasm-bindgen-cli）が
     #     常設されている保証がなく、(b) 下記 `RUSTFLAGS='-F unsafe_code'` を
@@ -75,7 +75,7 @@ jobs:
 
       # NOTE: -F (forbid) はソース側の #[allow(unsafe_code)] で上書きできないため、
       # 属性が誤って削除された場合の独立した防御線になる。
-      # wasm-client/wasm-full/wasm-thin は #![deny(unsafe_code)] 採用クレートだが、
+      # crates/wasm-client/wasm-full/wasm-thin は #![deny(unsafe_code)] 採用クレートだが、
       # native（このステップのデフォルトターゲット）ビルドでは各クレートの
       # #[cfg(target_arch = "wasm32")] ゲート配下（wasm-full の entry/Runtime/
       # dom::paint 等、#[wasm_bindgen] 展開を含む箇所）がコンパイル対象から
@@ -85,7 +85,7 @@ jobs:
       # unsafe と衝突して失敗するため、このステップは意図的に native のみ）。
       # wasm32 ゲート配下の自作コードに対する forbid 相当の強制は、native の
       # 本ステップではなく上記のソーステキスト走査テスト（DENY_UNSAFE_FFI_MEMBERS）
-      # が担う。クレート追加時は core/tests/unsafe_boundary.rs の
+      # が担う。クレート追加時は crates/core/tests/unsafe_boundary.rs の
       # UNSAFE_ALLOWED_MEMBERS / DENY_UNSAFE_FFI_MEMBERS と同期して更新すること。
       - name: ビルド時 lint による強制（属性とテストの双方が同時に外された場合の三重防御）
         run: RUSTFLAGS='-F unsafe_code' cargo check --workspace --locked
@@ -123,9 +123,9 @@ jobs:
         # SSR/SSG/CSR 経路の XSS 回帰テストを独立ステップとして可視化する。
         run: cargo test -p fandhe-frontend-core --test xss_escape --locked
 
-      # TASK-13.3c（#141）: `fw gate`（cli/src/gate.rs）の `policy` チェックは
+      # TASK-13.3c（#141）: `fw gate`（crates/cli/src/gate.rs）の `policy` チェックは
       # `cargo deny check bans licenses sources` を実際に起動する。cargo-deny
-      # 本体が未導入だと `cli/tests/negative_cases.rs` はフォールバック分岐
+      # 本体が未導入だと `crates/cli/tests/negative_cases.rs` はフォールバック分岐
       # （cargo-deny 起動失敗 → fail-closed で policy failed）しか検証できず、
       # TASK-4.1 の deny.toml と `policy` チェックが実際に接続されている
       # ことを常時実証できない。ここでバージョン固定 + SHA256 チェックサム
@@ -175,11 +175,11 @@ jobs:
       # ドリフトすると生成直後のプロジェクトが無編集で BLOCKED になり得る
       # ため、上記ステップで導入済みの cargo-deny を用いて strict 分岐
       # （6 チェック全 PASS）を本ジョブで常時実証する
-      # （`cli/tests/new_gate_e2e.rs` 冒頭コメント参照）。
+      # （`crates/cli/tests/new_gate_e2e.rs` 冒頭コメント参照）。
       - name: "fw new 生成直後の fw gate PASS 構成保証 (issue #351)"
         run: cargo test -p fandhe-frontend-cli --test new_gate_e2e --locked
 
-      # TASK-10.2b（#110、REQ-10 条件 3）: dist-server/build.rs が既定で実行する
+      # TASK-10.2b（#110、REQ-10 条件 3）: crates/dist-server/build.rs が既定で実行する
       # WASM ビルドステージ（ネスト `cargo build --target wasm32-unknown-unknown`
       # + `wasm-bindgen`）に必要なツールチェーンを導入する。本ジョブに限り
       # オプトアウトせず統合ビルドをそのまま実行することで、単一 `cargo build`
@@ -187,10 +187,10 @@ jobs:
       - name: Add wasm32 target
         run: rustup target add wasm32-unknown-unknown
 
-      # wasm-bindgen-cli は dist-server/build.rs が Cargo.lock 解決済み
+      # wasm-bindgen-cli は crates/dist-server/build.rs が Cargo.lock 解決済み
       # wasm-bindgen クレートとのバージョン完全一致を要求する（バージョン
       # 不一致の CLI で生成した JS グルーコードが壊れる既知の制約への対策、
-      # `dist-server/build.rs` の expected_wasm_bindgen_version 参照）。
+      # `crates/dist-server/build.rs` の expected_wasm_bindgen_version 参照）。
       # ここで固定するバージョンは Cargo.lock の wasm-bindgen と一致させ、
       # バージョンアップ時は両方を合わせて更新すること。
       # バージョン固定 + SHA256 チェックサム検証付きプリビルトバイナリの導入
@@ -251,7 +251,7 @@ jobs:
         run: cargo test --workspace --locked
 
   # TASK-10.1a（#106）: fandhe-frontend-dist-server の開発 / 本番モード切り替え
-  # （`dist-server/src/assets.rs` の `AssetMode`）を CI で両モードとも検証する。
+  # （`crates/dist-server/src/assets.rs` の `AssetMode`）を CI で両モードとも検証する。
   #
   # 上記 `test` ジョブの `cargo test --workspace` はデフォルトの debug ビルド
   # （= DevFilesystem モード、`static/` からのファイルシステム読み込み経路）
@@ -305,17 +305,17 @@ jobs:
   # docs/spec/05-tasks.md TASK-6.3 が指名する wasm-pack test --headless --chrome を
   # ubuntu-latest（Chrome/chromedriver プリインストール済み）で実行するジョブ。
   #
-  # wasm-client/（fandhe-frontend-wasm-client）は TASK-6.2b（#48）でクレート新設予定だが本コミット時点
+  # crates/wasm-client/（fandhe-frontend-wasm-client）は TASK-6.2b（#48）でクレート新設予定だが本コミット時点
   # では未作成（#48/#49 は open）。本イシューはクレート新設をスコープに含めない
   # （docs/api/hydration-api.md 第 5 節の引き継ぎ表・#48 との責務混線回避のため）。
   # そのため各ステップは check-wasm-client の存在判定結果でガードし、
-  # wasm-client/ が存在しない間は環境整備のみ・実行はスキップする。
+  # crates/wasm-client/ が存在しない間は環境整備のみ・実行はスキップする。
   # #48/#49 マージ後、後続タスク（TASK-6.3b #66 の hydration_browser.rs 等）が
   # 追加された時点で本ジョブは自動的に有効化される。
   #
-  # TASK-11.2d（#77）: 上記と同じ存在ガードパターンで `wasm-full/`
+  # TASK-11.2d（#77）: 上記と同じ存在ガードパターンで `crates/wasm-full/`
   # （`Runtime::mount`/`hydrate` の実ブラウザ統合テスト、
-  # `wasm-full/tests/runtime_browser.rs`）も本ジョブへ同居させる
+  # `crates/wasm-full/tests/runtime_browser.rs`）も本ジョブへ同居させる
   # （`docs/design/wasm-full-architecture.md` 第 5 節の引き継ぎ）。xss-wasm-test・
   # perf-harness ジョブ（同じ wasm-full クレートだが対象テストファイルが
   # 異なる）はそのまま独立ジョブとして維持し、変更しない。
@@ -495,7 +495,7 @@ jobs:
             fi
           fi
 
-      # wasm-client/ ディレクトリ存在ガード（TASK-6.2b #48 完了までの直列化措置）。
+      # crates/wasm-client/ ディレクトリ存在ガード（TASK-6.2b #48 完了までの直列化措置）。
       # 未作成の間は後続ステップをすべてスキップし、ジョブは空実行で成功扱いとする。
       - name: Check wasm-client crate existence
         id: check
@@ -507,10 +507,10 @@ jobs:
             echo "::notice::crates/wasm-client/ crate not found yet (blocked on TASK-6.2b #48). Skipping browser tests."
           fi
 
-      # wasm-full/ ディレクトリ存在ガード（TASK-11.2d・#77）。wasm-client と
+      # crates/wasm-full/ ディレクトリ存在ガード（TASK-11.2d・#77）。wasm-client と
       # 同じ「存在ガードのみで直列化措置とし、未作成時はスキップして空実行で
       # 成功扱いとする」パターンを踏襲する。本コミット時点では
-      # wasm-full/tests/runtime_browser.rs（`Runtime::mount`/`hydrate` の実
+      # crates/wasm-full/tests/runtime_browser.rs（`Runtime::mount`/`hydrate` の実
       # ブラウザ統合テスト）が同一 PR で追加されるため通常は true になるが、
       # 並列進行中の他イシューによる巻き戻り等、想定外の理由でファイルが
       # 存在しない場合でもジョブを失敗させない（`docs/design/wasm-full-architecture.md`
@@ -643,7 +643,7 @@ jobs:
         run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test runtime_browser
 
       # TASK-11.4c（#84、親 #81）: read_hydration_attrs（実 DOM からの
-      # data-hydrate-* 属性列挙）の実ブラウザ統合テスト（wasm-full/tests/
+      # data-hydrate-* 属性列挙）の実ブラウザ統合テスト（crates/wasm-full/tests/
       # hydration_browser.rs）。runtime_browser ステップと同じ
       # check-wasm-full 存在ガードを再利用し、新規ガードは追加しない
       # （`docs/api/hydration-state-format.md` 第 6 節が引き継ぐ実ブラウザ検証）。
@@ -652,8 +652,8 @@ jobs:
         run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test hydration_browser
 
       # TASK-CSR-loader（#349、親 #337）: CSR 経路の loader 解決
-      # （wasm-full/src/csr.rs）の三モード（SSR/SSG/CSR）表示整合・
-      # 固定エラービューの実ブラウザ統合テスト（wasm-full/tests/
+      # （crates/wasm-full/src/csr.rs）の三モード（SSR/SSG/CSR）表示整合・
+      # 固定エラービューの実ブラウザ統合テスト（crates/wasm-full/tests/
       # three_mode_browser.rs）。runtime_browser/hydration_browser ステップと
       # 同じ check-wasm-full 存在ガードを再利用し、新規ガードは追加しない。
       - name: Run wasm-full three-mode browser tests (headless Chrome)
@@ -661,7 +661,7 @@ jobs:
         run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test three_mode_browser
 
       # イシュー #374: クライアント側ルーティング（history API 連携・
-      # URL 同期・遷移時 loader 配線）の実ブラウザ統合テスト（wasm-full/tests/
+      # URL 同期・遷移時 loader 配線）の実ブラウザ統合テスト（crates/wasm-full/tests/
       # nav_browser.rs）。runtime_browser/hydration_browser/three_mode_browser
       # ステップと同じ check-wasm-full 存在ガードを再利用し、新規ガードは
       # 追加しない。
@@ -675,15 +675,15 @@ jobs:
   # 10 行以内であることを機械的に強制するジョブ。
   #
   # しきい値運用の原則は deps-check ジョブと同一: しきい値・対象ファイルの正は
-  # xtask/src/check_loc.rs の MAX_EFFECTIVE_LOC（10）/ LOC_CHECK_TARGETS 定数のみ。
+  # crates/xtask/src/check_loc.rs の MAX_EFFECTIVE_LOC（10）/ LOC_CHECK_TARGETS 定数のみ。
   # このジョブには緩和用の input・環境変数・continue-on-error を一切設けない
   # （迂回経路を作らない設計。しきい値変更はコード定数の変更 = レビュー必須の PR のみ）。
   #
   # fail-closed: 対象ファイル（static/view-transitions.js）の不在・読み取り失敗も
-  # しきい値超過と同様に終了コード 1 として扱う（xtask/src/check_loc.rs 参照）。
+  # しきい値超過と同様に終了コード 1 として扱う（crates/xtask/src/check_loc.rs 参照）。
   # そのため TASK-8.2a（イシュー #61）のマージ前にこのジョブが実行されると
   # 意図的に FAIL する。
-  # TASK-11.5a（#86）: 実ブラウザ性能計測ハーネス（wasm-full/tests/perf_browser.rs）の
+  # TASK-11.5a（#86）: 実ブラウザ性能計測ハーネス（crates/wasm-full/tests/perf_browser.rs）の
   # スモーク実行ジョブ。TASK-6.3a（#65）の browser-test ジョブと同じ環境構築
   # パターン（wasm32 target・wasm-pack バージョン固定＋チェックサム検証・ランナー
   # 内蔵 chromedriver 明示指定）を踏襲するが、対象クレート（wasm-client と
@@ -851,7 +851,7 @@ jobs:
             fi
           fi
 
-      # wasm-full/tests/perf_browser.rs 存在ガード（TASK-6.3a #65 のガード
+      # crates/wasm-full/tests/perf_browser.rs 存在ガード（TASK-6.3a #65 のガード
       # パターン踏襲）。並列実行中の他イシューによる巻き戻り等、想定外の理由で
       # ファイルが存在しない場合でもジョブを失敗させず空実行で成功扱いとする。
       - name: Check perf_browser.rs harness existence
@@ -974,7 +974,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # TASK-1.3b（#92、親 #90、REQ-1）: WASM 経路（イベント処理・DOM 更新）の
-  # XSS 回帰テスト（wasm-full/tests/xss_escape_wasm.rs）を実ブラウザ
+  # XSS 回帰テスト（crates/wasm-full/tests/xss_escape_wasm.rs）を実ブラウザ
   # （headless Chromium）で実行するジョブ。browser-test/perf-harness ジョブと
   # 同じ環境構築パターン（wasm32 target・wasm-pack バージョン固定＋チェックサム
   # 検証・ランナー内蔵 chromedriver 明示指定）を踏襲するが、対象クレート
@@ -1229,7 +1229,7 @@ jobs:
   # 開発フロー（`web-sys` 非依存な fandhe-frontend-wasm-thin のロジック高速確認経路）を
   # `cargo xtask wasm-node-smoke` として CI ゲート化する。上記 `test` ジョブと
   # 同一の wasm32 target 追加・wasm-bindgen-cli 導入パターンを踏襲する
-  # （同一バージョン固定値。ドリフト検出は xtask/tests/wasm_bindgen_version_sync.rs
+  # （同一バージョン固定値。ドリフト検出は crates/xtask/tests/wasm_bindgen_version_sync.rs
   # が行ベース抽出で拾う対象に本ジョブの宣言も自動的に含まれる）。
   #
   # 正式なブラウザ実証（上記 browser-test/xss-wasm-test ジョブ）の代替ではなく、
@@ -1305,7 +1305,7 @@ jobs:
         if: always()
         # wasm_node_smoke::format_report の 1 行サマリ契約
         # 「wasm-node-smoke: package=<pkg> target=nodejs mode=<mode> result=<PASS|FAIL>」を
-        # Step Summary に転記する。契約は xtask/tests/cli_wasm_node_smoke.rs で固定。
+        # Step Summary に転記する。契約は crates/xtask/tests/cli_wasm_node_smoke.rs で固定。
         run: |
           {
             echo '## wasm-node-smoke (issue #297)'
@@ -1319,7 +1319,7 @@ jobs:
   # tools/wasm/build.sh）が実際にビルド可能であることを CI で回帰検証する。
   # wasm-bindgen-cli の導入パターンは `wasm-node-smoke` ジョブと同一
   # （バージョン固定 + SHA256 チェックサム検証）。ドリフト検出は
-  # `cli/tests/template_vendor_drift.rs::wasm_lockfile_wasm_bindgen_version_matches_repo_root_lockfile`
+  # `crates/cli/tests/template_vendor_drift.rs::wasm_lockfile_wasm_bindgen_version_matches_repo_root_lockfile`
   # が `templates/app/wasm/Cargo.lock` とリポジトリ本体 `Cargo.lock` の
   # バージョン一致を機械的に検証する（`test` ジョブの `cargo test` で実行済み）。
   template-app-wasm-smoke:
@@ -1498,18 +1498,18 @@ jobs:
 
   # TASK-10.4a（イシュー #119、REQ-10）: 本番ビルドのアセット変更反映
   # （差分ビルド）が 5 秒以内であることを継続計測するジョブ。
-  # `dist-server/benches/rebuild_latency.rs`（judge/format_summary_line は
-  # `dist-server/src/bench_support.rs` に分離しユニットテストで書式契約を
+  # `crates/dist-server/benches/rebuild_latency.rs`（judge/format_summary_line は
+  # `crates/dist-server/src/bench_support.rs` に分離しユニットテストで書式契約を
   # 固定）を実行し、PoC-4 実測（0.571〜0.597 秒）を基準とした回帰を検知する。
   #
   # `test` ジョブと同じ環境構築パターン（wasm32 target・wasm-bindgen-cli
   # バージョン固定 + SHA256 チェックサム検証）を踏襲する。本ベンチが起動する
-  # ネスト `cargo build -p fandhe-frontend-dist-server` は `dist-server/build.rs` の
+  # ネスト `cargo build -p fandhe-frontend-dist-server` は `crates/dist-server/build.rs` の
   # WASM ビルドステージ（既定有効）を経由するため、本ジョブは
   # オプトアウトせず統合ビルドをそのまま計測に含める。
   #
   # しきい値運用の原則は deps-check/loc-check ジョブと同一: しきい値の正は
-  # `dist-server/src/bench_support.rs` の LIMIT_SECONDS（5.0）定数のみ。
+  # `crates/dist-server/src/bench_support.rs` の LIMIT_SECONDS（5.0）定数のみ。
   # 緩和用の input・環境変数・continue-on-error は設けない。
   #
   # イシュー #294: 共有 self-hosted runner（6 並列）上の CPU 競合による
@@ -1545,7 +1545,7 @@ jobs:
 
       # wasm-bindgen-cli はバージョン固定 + SHA256 チェックサム検証付きで
       # 導入する（`test` ジョブと同一バージョン・同一チェックサム。
-      # `dist-server/build.rs` の expected_wasm_bindgen_version が Cargo.lock
+      # `crates/dist-server/build.rs` の expected_wasm_bindgen_version が Cargo.lock
       # 解決済みバージョンとの完全一致を要求するため、更新時は両方を
       # 合わせて更新すること）。self-hosted 移行に伴い、インストール先を
       # /usr/local/bin から $HOME/.local/share/wasm-bindgen/<version>/ へ
@@ -1590,7 +1590,7 @@ jobs:
 
       - name: Publish rebuild-latency summary
         if: always()
-        # format_summary_line（dist-server/src/bench_support.rs）の 1 行
+        # format_summary_line（crates/dist-server/src/bench_support.rs）の 1 行
         # サマリ契約「rebuild-latency: samples=<n> s1=<x> ... median_s=<x>
         # min_s=<x> max_s=<x> limit_s=<x> result=<PASS|FAIL>」を Step Summary
         # に転記する（deps-check/loc-check ジョブと同一パターン。median_s は
@@ -1608,7 +1608,7 @@ jobs:
   # コンポーネント（fandhe-frontend-wasm-full）の WASM バンドルサイズ（gzip 後）が
   # 200KB 以内であることを継続計測するジョブ。
   #
-  # `wasm-full/tests/bundle_size.rs` が `dist-server/build.rs` と同一の
+  # `crates/wasm-full/tests/bundle_size.rs` が `crates/dist-server/build.rs` と同一の
   # コマンド列（cargo build --target wasm32-unknown-unknown --release →
   # wasm-bindgen --target web --no-typescript）を自己完結で再現するため、
   # `test`/`rebuild-latency` ジョブと同じ wasm ツールチェーン導入パターン
@@ -1616,7 +1616,7 @@ jobs:
   # 検証）を踏襲する。
   #
   # しきい値運用の原則は deps-check/loc-check ジョブと同一: しきい値の正は
-  # `wasm-full/tests/bundle_size.rs` の REQ11_BUNDLE_SIZE_LIMIT_BYTES
+  # `crates/wasm-full/tests/bundle_size.rs` の REQ11_BUNDLE_SIZE_LIMIT_BYTES
   # （200_000）定数のみ。緩和用の input・環境変数・continue-on-error は
   # 設けない（迂回経路を作らない設計）。
   #
@@ -1692,7 +1692,7 @@ jobs:
 
       - name: Publish bundle-size summary
         if: always()
-        # format_report（wasm-full/tests/bundle_size.rs）の 1 行サマリ契約
+        # format_report（crates/wasm-full/tests/bundle_size.rs）の 1 行サマリ契約
         # 「bundle-size: total_gzip_bytes=<n>/<limit> files=<k>
         # result=<PASS|FAIL>」を Step Summary に転記する（loc-check ジョブと
         # 同一パターン）。
@@ -1735,10 +1735,10 @@ jobs:
 
       - name: Publish loc-check summary
         if: always()
-        # format_loc_report（xtask/src/check_loc.rs）の 1 行サマリ契約
+        # format_loc_report（crates/xtask/src/check_loc.rs）の 1 行サマリ契約
         # 「loc-check: file=<path> effective_loc=<n>/<limit> result=<PASS|FAIL>」を
         # Step Summary に転記する。この契約はテストで固定される
-        # （xtask/tests/cli_check_loc.rs）。
+        # （crates/xtask/tests/cli_check_loc.rs）。
         run: |
           {
             echo '## loc-check (REQ-8 issue #62 / REQ-11 issue #156)'
@@ -1791,7 +1791,7 @@ jobs:
   # テストターゲット（`#[cfg(test)]` / `tests/` 配下）内の `raw_html()` 呼び
   # 出しも検出対象に含める。テストコード内の呼び出しにも呼び出し単位の
   # `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: ...")]`
-  # を必須とする（`docs/policy/raw-html-review-gate.md` 準拠）。`cli/src/gate.rs` の
+  # を必須とする（`docs/policy/raw-html-review-gate.md` 準拠）。`crates/cli/src/gate.rs` の
   # `lint` チェックもイシュー #315 で `--all-targets` 化済みのため、ローカル
   # ゲート・AI 自己保守フックと本 CI ジョブの検出範囲は一致する（旧記述
   # 「本 CI ジョブが superset」は解消済み）。本ジョブは `--workspace` による
@@ -1804,7 +1804,7 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 20
     # forbid-unsafe ジョブと同じ理由で dist-server の WASM ネストビルドを
-    # オプトアウトする: `cargo clippy --workspace` は dist-server/build.rs 経由で
+    # オプトアウトする: `cargo clippy --workspace` は crates/dist-server/build.rs 経由で
     # ネストした cargo build + wasm-bindgen 起動を伴うが、本ジョブの runner には
     # wasm32 ターゲット・wasm-bindgen-cli の常設保証がなく、build.rs 側の
     # panic（wasm-bindgen-cli 不在）で本ジョブ本来の目的（raw_html() 検出）と
@@ -1844,7 +1844,7 @@ jobs:
   # イシュー #400（親 #394、出典: PR #382 out-of-scope）: `fw gate --project .`
   # の自己適用（#372 で PASS 化、PR #382）を CI で常時実行し、自己適用 PASS の
   # リグレッション（自己参照誤検知の再発・deny.toml 弱体化・structure.toml と
-  # 実構成のドリフト等）を検出する。`fw gate` 本体（cli/src/gate.rs）は
+  # 実構成のドリフト等）を検出する。`fw gate` 本体（crates/cli/src/gate.rs）は
   # type_check/lint/test/policy/default_escape_check の 5 チェックを直列実行し
   # リポジトリ直下 structure.toml の宣言クレートを対象とする。
   gate-self-apply:
@@ -1854,7 +1854,7 @@ jobs:
     # 長めに確保する。
     timeout-minutes: 40
     # forbid-unsafe / clippy ジョブと同じ理由: gate の type_check / test は
-    # -p fandhe-frontend-dist-server を含み、dist-server/build.rs の WASM ネストビルド
+    # -p fandhe-frontend-dist-server を含み、crates/dist-server/build.rs の WASM ネストビルド
     # （wasm32 target・wasm-bindgen-cli 起動）は本ジョブの runner に常設保証が
     # ないため明示オプトアウトする。統合 WASM ビルドの実証は test ジョブが
     # 専任する。

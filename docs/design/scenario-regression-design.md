@@ -1,7 +1,7 @@
 # 改修シナリオ回帰テスト設計（TASK-13.4a）
 
 > **本書のステータスと前提**: 本書は TASK-13.4（親イシュー #143、成果物
-> `cli/tests/scenarios/`）の 4 分割サブタスク（TASK-13.4a シナリオ選定・
+> `crates/cli/tests/scenarios/`）の 4 分割サブタスク（TASK-13.4a シナリオ選定・
 > 設計・#144（本書） / TASK-13.4b シナリオ 1（バグ修正）・#145 /
 > TASK-13.4c シナリオ 2（UI 改善）・#146 / TASK-13.4d シナリオ 3（機能追加）・
 > #147）の先頭に位置づけられる設計文書である。
@@ -14,7 +14,7 @@
 > 個別に対応すること。
 >
 > 本サブタスクの成果物は**設計文書（本書）+ 共有テストハーネスのスケルトン**
-> （`cli/tests/scenarios/common.rs` + `cli/tests/scenarios/main.rs` の
+> （`crates/cli/tests/scenarios/common.rs` + `crates/cli/tests/scenarios/main.rs` の
 > ベースライン smoke test）である。シナリオ 1〜3 の回帰テスト本体は
 > 後続 #145〜#147 の領分であり、本書 §8 でスコープ外として明示する
 > （TASK-13.1a `docs/design/structure-manifest.md` / TASK-13.2a
@@ -29,13 +29,13 @@
   「代表的な改修シナリオ 3 件（バグ修正・UI 改善・機能追加）」を
   `impact` → 変更適用 → `gate` の一連の流れとして再現し、CI で継続検証する。
 - **親タスク**: TASK-13.4（#143、`docs/spec/05-tasks.md` TASK-13.4、
-  成果物 `cli/tests/scenarios/`。前提タスク TASK-13.2・TASK-13.3 は
+  成果物 `crates/cli/tests/scenarios/`。前提タスク TASK-13.2・TASK-13.3 は
   完了済み）。
 - **サブタスク分割**:
 
 | サブタスク | Issue | 内容 | 本書との関係 |
 |-----------|-------|------|-------------|
-| TASK-13.4a | #144（本書） | シナリオ選定・共有ハーネス設計 | 本書 + `cli/tests/scenarios/{main.rs,common.rs}` の smoke test が単一の情報源 |
+| TASK-13.4a | #144（本書） | シナリオ選定・共有ハーネス設計 | 本書 + `crates/cli/tests/scenarios/{main.rs,common.rs}` の smoke test が単一の情報源 |
 | TASK-13.4b | #145 | シナリオ 1（バグ修正: エスケープ回帰）の回帰テスト実装 | 本書 §4.1 行 1・§4.4 が実装契約を規定 |
 | TASK-13.4c | #146 | シナリオ 2（UI 改善: 一覧件数サマリー）の回帰テスト実装 | 本書 §4.1 行 2・§4.4 が実装契約を規定 |
 | TASK-13.4d | #147 | シナリオ 3（機能追加: タイトル部分一致検索）の回帰テスト実装 | 本書 §4.1 行 3・§4.4 が実装契約を規定 |
@@ -45,7 +45,7 @@
   保存済みの実測 `impact.json` / `gate*.json`。本書 §4.1 でこれらの実測値と
   製品判定ルール（`docs/design/impact-analysis-design.md` §3.1〜3.5・
   `docs/design/gate-design.md` §2）との対応を確定する。
-- **先行パターンの踏襲**: `cli/tests/negative_cases.rs`（TASK-13.5、#262
+- **先行パターンの踏襲**: `crates/cli/tests/negative_cases.rs`（TASK-13.5、#262
   マージ済み）が確立した「ヘルメチックなフィクスチャ生成
   （`ScratchProject` Drop ガード）・`cargo generate-lockfile --offline`・
   フィクスチャごとの `CARGO_TARGET_DIR` 分離・cargo-deny 有無の環境差吸収
@@ -56,10 +56,10 @@
 
 | 項目 | 状態 |
 |------|------|
-| `fw structure` / `fw gate` | 実装・テスト済み（`cli/src/structure.rs` / `cli/src/gate.rs`）。CLI 配線済み（`cli/src/main.rs`） |
-| `fw impact` | 実装・CLI 配線済み（`cli/src/impact.rs`、PR #277 マージ済み・`origin/main` ee61c6b 時点）。TASK-13.4b 以降がこれを前提にできる |
-| `cli/tests/negative_cases.rs` | ヘルメチックなフィクスチャ生成・`fw gate` 起動ヘルパ・`check_passed` JSON 抽出ヘルパの実装先例 |
-| `cli/tests/structure_integration.rs` | `fw structure` 起動ヘルパ・リポジトリ自身のワークスペースルートを対象にした smoke test の実装先例 |
+| `fw structure` / `fw gate` | 実装・テスト済み（`crates/cli/src/structure.rs` / `crates/cli/src/gate.rs`）。CLI 配線済み（`crates/cli/src/main.rs`） |
+| `fw impact` | 実装・CLI 配線済み（`crates/cli/src/impact.rs`、PR #277 マージ済み・`origin/main` ee61c6b 時点）。TASK-13.4b 以降がこれを前提にできる |
+| `crates/cli/tests/negative_cases.rs` | ヘルメチックなフィクスチャ生成・`fw gate` 起動ヘルパ・`check_passed` JSON 抽出ヘルパの実装先例 |
+| `crates/cli/tests/structure_integration.rs` | `fw structure` 起動ヘルパ・リポジトリ自身のワークスペースルートを対象にした smoke test の実装先例 |
 | PoC-7 実測値 | `docs/spec/03-poc/ai-self-maintenance/scenarios/{bugfix-escape-regression,ui-item-count,feature-search}/` に `impact.json` / `gate*.json` 保存済み |
 
 ## 3. 成果物・対象ファイル（本サブタスク #144 分）
@@ -67,13 +67,13 @@
 | パス | 変更 | 内容 |
 |------|------|------|
 | `docs/design/scenario-regression-design.md` | 新規（本書） | シナリオ回帰テスト設計文書一式 |
-| `cli/tests/scenarios/main.rs` | 新規 | 統合テストターゲット `scenarios` のエントリ（`mod common;` + ベースライン smoke test 2 件） |
-| `cli/tests/scenarios/common.rs` | 新規 | 共有ハーネス（フィクスチャ生成・`fw` 起動ヘルパ・JSON フィールド抽出ヘルパ） |
+| `crates/cli/tests/scenarios/main.rs` | 新規 | 統合テストターゲット `scenarios` のエントリ（`mod common;` + ベースライン smoke test 2 件） |
+| `crates/cli/tests/scenarios/common.rs` | 新規 | 共有ハーネス（フィクスチャ生成・`fw` 起動ヘルパ・JSON フィールド抽出ヘルパ） |
 
-- `cli/tests/scenarios/scenario1_bugfix.rs` / `scenario2_ui.rs` /
+- `crates/cli/tests/scenarios/scenario1_bugfix.rs` / `scenario2_ui.rs` /
   `scenario3_feature.rs`（TASK-13.4b/c/d の成果物）は本サブタスクでは
   **作成しない**。本書 §4.4 でファイル名・責務のみ確定する。
-- `cli/Cargo.toml` の変更は不要（外部依存ゼロを維持。`[[test]]` 宣言なしで
+- `crates/cli/Cargo.toml` の変更は不要（外部依存ゼロを維持。`[[test]]` 宣言なしで
   cargo の auto-discovery に任せる。`tests/scenarios/main.rs` は cargo が
   単一の統合テストターゲット `scenarios` として自動認識する）。
 
@@ -101,11 +101,11 @@ PoC-7 の `impact.json`（`docs/spec/03-poc/ai-self-maintenance/scenarios/*/impa
 
 | 差分項目 | PoC-7 実測値 | 製品スキーマ（本書が正とする） | 根拠 |
 |---------|-------------|-------------------------------|------|
-| `affected_routes` の型 | オブジェクト配列 `{path, handler, defined_in}` | 文字列配列 `["/items/:id", ...]`（`cli/src/impact.rs` `ImpactReport::affected_routes: Vec<String>`） | `docs/design/impact-analysis-design.md` §3.5 で確定済み。シナリオテストはパス文字列のみを検証する |
+| `affected_routes` の型 | オブジェクト配列 `{path, handler, defined_in}` | 文字列配列 `["/items/:id", ...]`（`crates/cli/src/impact.rs` `ImpactReport::affected_routes: Vec<String>`） | `docs/design/impact-analysis-design.md` §3.5 で確定済み。シナリオテストはパス文字列のみを検証する |
 | `verdict` の文言 | 日本語 2 値（「要人間承認（…）」/「自動適用可（…）」） | 英語 2 値（`docs/design/impact-analysis-design.md` 判断 D1） | `.claude/rules/japanese-style.md`「ユーザー向け文字列は英語」規約と統一 |
 | `ambiguous` フィールド | なし | あり（定義元が複数の場合 `true`）。本書のシナリオ 1〜3 はいずれも単一定義のため常に `false` | 製品追加フィールド、`docs/design/impact-analysis-design.md` §3.2 |
 | クライアント境界クレートの扱い | `fandhe-frontend-wasm-client` 単独 | `fandhe-frontend-wasm-client` / `fandhe-frontend-wasm-full` / `fandhe-frontend-wasm-thin` の 3 クレート（[`impact::CLIENT_BOUNDARY_CRATES`]）のいずれかで `high` | `docs/design/impact-analysis-design.md` §3.2。フィクスチャがクライアント境界クレートを模す場合、3 クレートのうちどれを採用するかはシナリオ実装側（#145/#146）が決めてよいが、名前は `CLIENT_BOUNDARY_CRATES` のいずれかと厳密一致させること |
-| `gate.rs` のチェック名表記 | `"type_check(cargo check)"` 等（括弧付き） | `"type_check"` / `"default_escape_check"` / `"url_validation_check"` / `"lint"` / `"test"` / `"policy"`（括弧なし、`cli/tests/negative_cases.rs` の `check_passed` 実測と一致） | 実装済みコード（`cli/src/gate.rs`）を正とする。PoC-7 の表記はツール（`poc7_tool.py`）独自のものであり、製品出力とは一致しない |
+| `gate.rs` のチェック名表記 | `"type_check(cargo check)"` 等（括弧付き） | `"type_check"` / `"default_escape_check"` / `"url_validation_check"` / `"lint"` / `"test"` / `"policy"`（括弧なし、`crates/cli/tests/negative_cases.rs` の `check_passed` 実測と一致） | 実装済みコード（`crates/cli/src/gate.rs`）を正とする。PoC-7 の表記はツール（`poc7_tool.py`）独自のものであり、製品出力とは一致しない |
 
 シナリオ 1 の `breaking_risk: high` 判定根拠: `affected_crates` が
 `fandhe-frontend-app`・`fandhe-frontend-wasm-client` の 2 件で、うち `fandhe-frontend-wasm-client` が
@@ -144,9 +144,9 @@ PoC-7 の `impact.json`（`docs/spec/03-poc/ai-self-maintenance/scenarios/*/impa
   ワークスペースメンバーに追加できるようにする。ルート抽出
   （`fw impact` の `affected_routes`）を伴うシナリオ 2・3 では、
   `structure.toml` に `[routing] definition_dir = "server"` /
-  `extractor = "fandhe-frontend-router-v1"` を追加し、`server/src/main.rs` に
+  `extractor = "fandhe-frontend-router-v1"` を追加し、`crates/server/src/main.rs` に
   `.route("<path>", get(<handler>))` 形式のルート定義を文字列で
-  含める（`cli/src/routes.rs` の抽出器が対象とする構文、axum 等の
+  含める（`crates/cli/src/routes.rs` の抽出器が対象とする構文、axum 等の
   実依存は不要でスタブ文字列のみで足りる。依存ゼロを維持）。
 - **変更適用方式**: 「ベースライン文字列に対する一意な部分文字列置換」
   （`negative_cases.rs` の `replace_unique` を踏襲）で、シナリオごとに
@@ -176,12 +176,12 @@ PoC-7 の `impact.json`（`docs/spec/03-poc/ai-self-maintenance/scenarios/*/impa
   との混同を防ぐ（`negative_cases.rs` の「ブロック理由の特定性」方針と
   同じ）。
 
-本サブタスク（13.4a）が `cli/tests/scenarios/main.rs` に実装する
+本サブタスク（13.4a）が `crates/cli/tests/scenarios/main.rs` に実装する
 ベースライン smoke test 2 件（シナリオ実装の前提健全性を確認する
 対照群であり、シナリオ 1〜3 固有のアサーションは含まない）:
 
 1. `baseline_fixture_passes_fw_structure`: フィクスチャが `fw structure`
-   を終了コード 0 で通過すること（`cli/tests/structure_integration.rs`
+   を終了コード 0 で通過すること（`crates/cli/tests/structure_integration.rs`
    の smoke test パターンを流用）。
 2. `baseline_fixture_passes_gate_core_checks`: フィクスチャが
    `fw gate` のコア 5 チェック（`type_check`/`default_escape_check`/`url_validation_check`/
@@ -194,7 +194,7 @@ PoC-7 の `impact.json`（`docs/spec/03-poc/ai-self-maintenance/scenarios/*/impa
 
 - **ファイル分担**: `scenario1_bugfix.rs`（#145）/ `scenario2_ui.rs`
   （#146）/ `scenario3_feature.rs`（#147）。いずれも
-  `cli/tests/scenarios/` 配下に新設し、`main.rs` の `mod common;` に
+  `crates/cli/tests/scenarios/` 配下に新設し、`main.rs` の `mod common;` に
   加えて各ファイル冒頭で `#[path = "common.rs"] mod common;` 等の
   形で共有ハーネスを参照する（cargo の統合テストはターゲット単位で
   独立コンパイルされるため、`main.rs` と `scenario1_bugfix.rs` は
@@ -218,9 +218,9 @@ PoC-7 の `impact.json`（`docs/spec/03-poc/ai-self-maintenance/scenarios/*/impa
 
 | 設計節 | 対応する実装・テスト |
 |-------|----------------------|
-| §4.1 シナリオ選定・差分表 | `docs/spec/03-poc/ai-self-maintenance/scenarios/*/impact.json`・`gate*.json`（PoC-7 実測値、参照のみ）/ `cli/src/impact.rs`・`cli/src/gate.rs`（製品判定ロジック、参照のみ） |
-| §4.2 フィクスチャ設計 | `cli/tests/scenarios/common.rs`（本サブタスクで新規実装） |
-| §4.3 アサーション設計・ベースライン smoke test | `cli/tests/scenarios/main.rs`（本サブタスクで新規実装） |
+| §4.1 シナリオ選定・差分表 | `docs/spec/03-poc/ai-self-maintenance/scenarios/*/impact.json`・`gate*.json`（PoC-7 実測値、参照のみ）/ `crates/cli/src/impact.rs`・`crates/cli/src/gate.rs`（製品判定ロジック、参照のみ） |
+| §4.2 フィクスチャ設計 | `crates/cli/tests/scenarios/common.rs`（本サブタスクで新規実装） |
+| §4.3 アサーション設計・ベースライン smoke test | `crates/cli/tests/scenarios/main.rs`（本サブタスクで新規実装） |
 | §4.4 後続引き継ぎ | #145 / #146 / #147（未実装、本書が実装契約を規定） |
 
 ## 6. セキュリティ考慮事項（OWASP Top 10 観点）

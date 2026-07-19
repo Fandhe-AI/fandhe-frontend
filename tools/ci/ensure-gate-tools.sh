@@ -5,7 +5,7 @@
 # イシュー #292: self-hosted runner プールはインスタンスごとに clippy
 # component / cargo-deny の導入状態に差があり、`fw gate` の `lint` /
 # `policy` チェックが「当たった runner 次第で BLOCKED になる」間欠failure の
-# 原因になっていた。`cli/src/gate.rs` 側のプリフライト検出（本スクリプトと
+# 原因になっていた。`crates/cli/src/gate.rs` 側のプリフライト検出（本スクリプトと
 # セットで導入）は「環境エラーであること」を決定的なメッセージで明示する
 # だけであり、常設化自体は本スクリプトの責務（ci.md「ツール前提の明示」参照）。
 #
@@ -20,7 +20,7 @@
 # 発火しない配布物のため、本スクリプトを直接参照できない）と
 # `docs/policy/cargo-deny-advisories.md` は、同じバージョン + SHA256 検証パターンを
 # 独立して埋め込む。3 箇所の pin 値が乖離しないことは
-# `xtask/tests/template_deny_workflow.rs` のドリフト検知テストが
+# `crates/xtask/tests/template_deny_workflow.rs` のドリフト検知テストが
 # `cargo test -p xtask` / CI で強制する（手動同期に頼らない）。
 #
 # 冪等性: 既にバージョン一致で導入済みなら何もしない（2 回目以降の呼び出しは

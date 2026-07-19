@@ -20,10 +20,10 @@ PoC-3（`docs/spec/03-poc/rendering-web-standards/README.md` セクション 8�
 
 - **rustc**: 1.96.0（`ac68faa20 2026-05-25`）
 - **cargo**: 1.96.0（`30a34c682 2026-05-25`）
-- **対象 API**: `fandhe-frontend-core`（`core/src/lib.rs`、`origin/main` 時点で TASK-5.1 完了済みの公開 API）
-- **フィクスチャ**: `core/tests/compile_fail/case01_*.rs` 〜 `case07_*.rs`（意図的にコンパイル不能。`core/tests/compile_fail/README.md` に位置づけと再現手順を記載）
-- **採取手順**: ワークスペース外の一時検証クレート（`[dependencies] fandhe-frontend-core = { path = "<repo>/core" }`）を作成し、各フィクスチャの**コード本体のみ**（冒頭の `//!` ドキュメンテーションコメントを除いた部分）を検証クレートの `src/lib.rs` に配置して `cargo check 2>&1` を実行し、標準エラー出力をそのまま記録した。採取した出力中のローカル絶対パスは `<repo>` / `<scratchpad>` に置換してサニタイズしている。
-- **再現方法**: `core/tests/compile_fail/README.md` の手順に従う。ただし本ドキュメントの各ケースで引用する `--> src/lib.rs:行:列` の行番号は、フィクスチャ冒頭の `//!` ヘッダーコメントを除いたコード本体を基準にしている。README の手順どおりフィクスチャファイルをそのまま `src/lib.rs` へコピーすると、ヘッダーコメント分（7 行）だけ行番号がずれる（例: ケース 1 は `:5:` ではなく `:12:` 付近になる）。エラーの**内容**（型・トレイト境界・メッセージ文言）は完全に一致し、本レビューの主張はその内容に基づく。
+- **対象 API**: `fandhe-frontend-core`（`crates/core/src/lib.rs`、`origin/main` 時点で TASK-5.1 完了済みの公開 API）
+- **フィクスチャ**: `crates/core/tests/compile_fail/case01_*.rs` 〜 `case07_*.rs`（意図的にコンパイル不能。`crates/core/tests/compile_fail/README.md` に位置づけと再現手順を記載）
+- **採取手順**: ワークスペース外の一時検証クレート（`[dependencies] fandhe-frontend-core = { path = "<repo>/crates/core" }`）を作成し、各フィクスチャの**コード本体のみ**（冒頭の `//!` ドキュメンテーションコメントを除いた部分）を検証クレートの `src/lib.rs` に配置して `cargo check 2>&1` を実行し、標準エラー出力をそのまま記録した。採取した出力中のローカル絶対パスは `<repo>` / `<scratchpad>` に置換してサニタイズしている。
+- **再現方法**: `crates/core/tests/compile_fail/README.md` の手順に従う。ただし本ドキュメントの各ケースで引用する `--> src/lib.rs:行:列` の行番号は、フィクスチャ冒頭の `//!` ヘッダーコメントを除いたコード本体を基準にしている。README の手順どおりフィクスチャファイルをそのまま `src/lib.rs` へコピーすると、ヘッダーコメント分（7 行）だけ行番号がずれる（例: ケース 1 は `:5:` ではなく `:12:` 付近になる）。エラーの**内容**（型・トレイト境界・メッセージ文言）は完全に一致し、本レビューの主張はその内容に基づく。
 
 ## 3. 評価基準
 
@@ -37,7 +37,7 @@ PoC-3（`docs/spec/03-poc/rendering-web-standards/README.md` セクション 8�
 
 ### ケース 1: 子ノードの型ミス（`Vec<Node>` 期待に `Node` を渡す）
 
-フィクスチャ（`core/tests/compile_fail/case01_child_type_mismatch.rs`）:
+フィクスチャ（`crates/core/tests/compile_fail/case01_child_type_mismatch.rs`）:
 
 ```rust
 el("div", vec![], text("hi"))
@@ -255,7 +255,7 @@ help: consider borrowing here
 - **承認者**: admin@fandhe.com
 - **承認日**: 2026-07-19
 - **承認内容**: 上記「総合所見」がマクロ非依存設計（REQ-5）の妥当性判断として妥当であることを確認し、`docs/spec/05-tasks.md` TASK-5.3 の完了として承認する。
-- **承認時の再検証**: 承認に先立ち、7 ケースすべてを main HEAD 時点の `fandhe-frontend-core` に対して §2 の手順で再実測し、エラー内容・文言・利用者コード側の行列位置が本ドキュメントの記録と完全一致することを確認した。唯一の差分は `note: function defined here` が指す `core/src/lib.rs` 側の定義行番号（`el`: 104→160、`text`: 126→182、`render`: 311→333。レビュー採取後のタグショートカット追加等による定義位置のずれ）であり、エラー品質の評価には影響しない。
+- **承認時の再検証**: 承認に先立ち、7 ケースすべてを main HEAD 時点の `fandhe-frontend-core` に対して §2 の手順で再実測し、エラー内容・文言・利用者コード側の行列位置が本ドキュメントの記録と完全一致することを確認した。唯一の差分は `note: function defined here` が指す `crates/core/src/lib.rs` 側の定義行番号（`el`: 104→160、`text`: 126→182、`render`: 311→333。レビュー採取後のタグショートカット追加等による定義位置のずれ）であり、エラー品質の評価には影響しない。
 
 ## 7. 既知のトレードオフ・スコープ外事項
 

@@ -10,14 +10,14 @@
 本ドキュメントは REQ-9（`docs/spec/04-requirements.md` REQ-9 節「単一バイナリ配布と
 Docker イメージ最小化」）のうち、PoC-4（`docs/spec/03-poc/single-binary-distribution/`）
 で実証済みの `rust-embed` ＋ `axum` による単一バイナリ配布サーバーを、REQ-6・REQ-7 の
-共通コア API（`fandhe-frontend-app` / `fandhe-frontend-server`）と接続する製品版クレート `dist-server/` の
+共通コア API（`fandhe-frontend-app` / `fandhe-frontend-server`）と接続する製品版クレート `crates/dist-server/` の
 クレート構成・依存方針・アーキテクチャ・アセット埋め込み方式・起動設定・セキュリティ
 不変条件を**設計として確定**するための成果物です。
 
 `docs/spec/05-tasks.md` の親タスク TASK-9.1（#94）は 3 段階に分割されています。
 
 - **TASK-9.1a（本ドキュメント・#95）**: 統合設計の**設計確定**
-- **TASK-9.1b（#96）**: 本書に従った `dist-server/` 実装
+- **TASK-9.1b（#96）**: 本書に従った `crates/dist-server/` 実装
 - **TASK-9.1c（#97）**: 起動検証テスト整備
 
 **本文書のステータス**: TASK-9.1a 確定版。TASK-9.1b/c は本書の設計に従って実装し、
@@ -28,7 +28,7 @@ Docker イメージ最小化」）のうち、PoC-4（`docs/spec/03-poc/single-b
 （トレーサビリティ・凍結表・設計判断・スコープ外表・セキュリティ不変条件・受け入れ基準
 対応表）に揃え、`docs/` 直下のフラット配置とする。
 
-**本タスクのスコープ**: 設計確定書の作成のみ（docs-only 変更）。`dist-server/`
+**本タスクのスコープ**: 設計確定書の作成のみ（docs-only 変更）。`crates/dist-server/`
 クレート新設・依存クレートの実追加・workspace `Cargo.toml` の `members` 変更・
 `.github/workflows/*.yml` の変更はいずれも TASK-9.1b（#96）以降のスコープであり、
 本タスクでは行わない。起動検証テストの実装は TASK-9.1c（#97）のスコープ。
@@ -44,15 +44,15 @@ frontend-framework-spec リポジトリで行う）。
 着手時点（origin/main、`git fetch` 後）で以下を確認済み。
 
 - workspace members: `core` / `interactive` / `app` / `server` / `wasm-full` /
-  `wasm-thin` / `xtask`。`dist-server/` は未作成。
-- `server/src/router.rs`（TASK-7.2b 完了・#56 closed）: 外部依存ゼロの純 Rust
+  `wasm-thin` / `xtask`。`crates/dist-server/` は未作成。
+- `crates/server/src/router.rs`（TASK-7.2b 完了・#56 closed）: 外部依存ゼロの純 Rust
   パスマッチングルーター。rustdoc に「単一バイナリ配布（TASK-9.1）の上位層からも
   同一の `Router::resolve` を呼び出せることを想定」と明記済み。公開 API は
   `Router::new()` / `Router::route(pattern, handler) -> Result<Self, RouterError>` /
   `Router::resolve(path) -> Option<RouteMatch<'_, H>>` / `Params::get(name)` /
-  `Params::iter()`。`server/Cargo.toml` は現時点で外部依存ゼロ（`[dependencies]` 節が
+  `Params::iter()`。`crates/server/Cargo.toml` は現時点で外部依存ゼロ（`[dependencies]` 節が
   空、`fandhe-frontend-core`/`fandhe-frontend-app` は `[dev-dependencies]` のみ）。
-- `app/src/lib.rs`（TASK-6.1b 完了・#43 closed）: `layout()` / `list_page(&[Item])` /
+- `crates/app/src/lib.rs`（TASK-6.1b 完了・#43 closed）: `layout()` / `list_page(&[Item])` /
   `detail_page(Option<&Item>)` / `page_shell(title: &str, body: Node) -> String` /
   `demo_items() -> Vec<Item>` を公開。`page_shell()` の戻り値は `fandhe_frontend_core` ノード木
   経由でレンダリングされた既定エスケープ済み HTML 文字列。
@@ -63,18 +63,18 @@ frontend-framework-spec リポジトリで行う）。
   する）。
 - CI: `.github/workflows/ci.yml` は `RUSTFLAGS='-F unsafe_code' cargo check --workspace`
   を全 workspace に適用（`dist-server` も safe 域必須）。`.github/workflows/deps-check.yml`
-  は `xtask check-deps`（`xtask/src/check_deps.rs` の `MAX_PACKAGES = 60` /
+  は `xtask check-deps`（`crates/xtask/src/check_deps.rs` の `MAX_PACKAGES = 60` /
   `MAX_DEPTH = 6` が正）を強制。運用ポリシーは `docs/policy/dependency-graph-policy.md`。
 - 並行イシュー（すべて OPEN）: #44（TASK-6.1c fandhe-frontend-server SSR/SSG エントリ実装）・
   #55（TASK-7.2a パスマッチング仕様設計）・#51/#52（TASK-7.1/7.1a
   `templates/embed/embed.html`）・#162（`FANDHE_FRONTEND_BIND_ADDR` 検証）・#96（TASK-9.1b）・
   #97（TASK-9.1c）。本書はこれらが未確定であることを前提に、確定済みの現物
-  （`router.rs` / `app/src/lib.rs` の公開 API）への参照を基本とし、未確定要素は
+  （`router.rs` / `crates/app/src/lib.rs` の公開 API）への参照を基本とし、未確定要素は
   「追従方針」として条件付き記述にする（第 8 節）。
 
 ## 3. クレート構成
 
-- 新 workspace member `dist-server/`（パッケージ名 `fandhe-frontend-dist-server`）。
+- 新 workspace member `crates/dist-server/`（パッケージ名 `fandhe-frontend-dist-server`）。
 - `[[bin]] name = "dist-server"`（`path = "src/main.rs"`。PoC-4 踏襲）。
 - `#![forbid(unsafe_code)]` を crate 冒頭に必須とする。CI の
   `RUSTFLAGS='-F unsafe_code' cargo check --workspace` は workspace 全体に
@@ -88,10 +88,10 @@ frontend-framework-spec リポジトリで行う）。
 
 ### 4.1 実測方法
 
-scratchpad 上に試作クレート（workspace 外、`dist-server/Cargo.toml` 相当の
+scratchpad 上に試作クレート（workspace 外、`crates/dist-server/Cargo.toml` 相当の
 `[dependencies]` のみを持つ最小クレート）を作成し、
 `cargo metadata --format-version 1 --filter-platform x86_64-unknown-linux-gnu`
-の出力を `xtask/src/check_deps.rs` の実装（`kind: null` を Normal 依存とみなす、
+の出力を `crates/xtask/src/check_deps.rs` の実装（`kind: null` を Normal 依存とみなす、
 ルートを除く到達可能パッケージ数、ルートを深さ 0 としたメモ化 DFS 最長経路）と
 **同一のアルゴリズム**で解析した（xtask バイナリ自体を試作クレートに向けて実行する
 には workspace `members` への一時追加が必要になり本タスクのスコープ（docs-only）を
@@ -119,7 +119,7 @@ scratchpad 上に試作クレート（workspace 外、`dist-server/Cargo.toml` �
 
 `docs/policy/dependency-graph-policy.md` の「採用上限」根拠は PoC-3 実測（52 件/深さ **5**、
 `cargo tree -p fandhe-frontend-server -e normal --prefix none` の**目視インデント段数**）である。
-一方 `xtask/src/check_deps.rs` の実装（メモ化 DFS による最長経路長）で**同一の
+一方 `crates/xtask/src/check_deps.rs` の実装（メモ化 DFS による最長経路長）で**同一の
 PoC-3 依存構成（axum + tokio のみ）を再計測すると、件数は 50 件で近似するが、
 深さは 9 になる**（4.2 節の表、経路: `axum → hyper-util → hyper → tokio →
 tokio-macros → syn → quote → proc-macro2 → unicode-ident`）。`rust-embed`
@@ -136,7 +136,7 @@ hybrid-array → typenum`。コンパイル時のコンテンツハッシュ計�
 
 **この不一致は TASK-9.1（本イシュー系列）固有の問題ではなく、フレームワーク
 全体に及ぶ**。PoC-3 の `fandhe-frontend-server`（axum + tokio）自体が本書と同一の
-再計測で深さ 9 になる以上、`server/Cargo.toml` に axum 系依存が実際に追加
+再計測で深さ 9 になる以上、`crates/server/Cargo.toml` に axum 系依存が実際に追加
 される時点（TASK-6.1c・#44）で `fandhe-frontend-server` 自身も同じ CI ゲートに抵触する。
 つまり `dist-server` だけが axum/`rust-embed` を避けても、フレームワーク
 全体としての依存グラフ上限運用（REQ-3・`docs/policy/dependency-graph-policy.md`）は
@@ -144,7 +144,7 @@ hybrid-array → typenum`。コンパイル時のコンテンツハッシュ計�
 ブロッカーとして報告することを最優先とし**、`dist-server` 単体の技術選定で
 迂回することを既定解としない（4.4 節）。
 
-この不一致自体の解消（`xtask/src/check_deps.rs` の計測方法見直し、または
+この不一致自体の解消（`crates/xtask/src/check_deps.rs` の計測方法見直し、または
 `MAX_DEPTH` 値・`docs/policy/dependency-graph-policy.md` の再検証）は本タスク
 （docs-only の設計確定）の範囲では行えない（`MAX_DEPTH` は tooling-builder
 領域の定数変更・ユーザー承認事項、`docs/policy/dependency-graph-policy.md` の確定は
@@ -207,12 +207,12 @@ rust-embed ＋ mime_guess を feature 絞り込みしたもの＝表 A′）を�
 > 変更の即時反映）は TASK-10.1a（イシュー #106、PR #215）・TASK-10.1b
 > （イシュー #107、PR #216）で製品化済みです。現行実装は本節が想定した
 > `include_dir` クレートではなく、**外部依存を増やさない自前 `build.rs` +
-> `include_bytes!` 埋め込みテーブル**（`dist-server/build.rs` が生成する
+> `include_bytes!` 埋め込みテーブル**（`crates/dist-server/build.rs` が生成する
 > `OUT_DIR/embedded_assets.rs` を `assets.rs` が `include!` する方式）を採用
 > しています。設計上の実装イメージ（下記コード例）と実際の API 形状
 > （`read_asset()` ではなく `lookup()` / `AssetMode` / `active_mode()`）も
 > 異なります。最新の正確な挙動・DX 手順は
-> **`docs/guides/dev-asset-reload.md`** と `dist-server/src/assets.rs` の
+> **`docs/guides/dev-asset-reload.md`** と `crates/dist-server/src/assets.rs` の
 > モジュールドキュメントを参照してください。本節以下の記述は「TASK-9.1b
 > 着手前にどう考えていたか」の設計判断の経緯として残します。
 
@@ -222,7 +222,7 @@ REQ-10 自体の実装は本タスクのスコープ外）を、`include_dir` �
 以下のラッパーで再現する（実装は TASK-9.1b）。
 
 ```rust
-// dist-server/src/assets.rs（設計イメージ。実装は 9.1b）
+// crates/dist-server/src/assets.rs（設計イメージ。実装は 9.1b）
 //
 // release ビルドはコンパイル時埋め込み（`include_dir!` マクロ、ファイル
 // システムに一切触れない）。debug ビルドは `std::fs::read` で `static/`
@@ -254,7 +254,7 @@ PoC-4 の `force-embed` feature 踏襲）は、`cfg(debug_assertions)` の代わ
 feature 名自体の予約のみ本書で行い、実装（feature 定義・CI 組み込み）は
 TASK-9.1b のスコープとする。
 
-**実装済みの実態（TASK-10.1a/b）**: `force-embed` は `dist-server/Cargo.toml`
+**実装済みの実態（TASK-10.1a/b）**: `force-embed` は `crates/dist-server/Cargo.toml`
 にコード・依存を一切持たない空フィーチャーとして定義済みで、
 `cfg(all(debug_assertions, not(feature = "force-embed")))` の判定にのみ関与
 します。CI ジョブ `dist-server-embedded-mode`（`.github/workflows/ci.yml`）が
@@ -344,11 +344,11 @@ PoC-4 は `axum::Router` で `/`・`/items/:id`・`/static/*path` を直接ル�
   `http-body-util`・`include_dir` の 5 クレート（推移的に 23 パッケージ・深さ 5）
   とする。**依存クレート追加はユーザー事前承認が必須**（`coding-rust.md`）であり、
   本設計書のレビューはあくまで設計内容の技術的な妥当性確認であって、依存クレート
-  追加そのもののユーザー承認を兼ねるものではない。**TASK-9.1b で `dist-server/`
+  追加そのもののユーザー承認を兼ねるものではない。**TASK-9.1b で `crates/dist-server/`
   の `Cargo.toml` に上記 5 クレートを実際に追加する際、`cargo metadata` で影響を
   確認したうえで改めてユーザーの明示的な承認を得ること**。
   `build.rs` 保有クレートの有無は TASK-9.1b 実装時に `xtask list-build-scripts`
-  相当（`xtask/src/check_deps.rs` 内、TASK-3.2 系）で確認する。`cargo deny` 系
+  相当（`crates/xtask/src/check_deps.rs` 内、TASK-3.2 系）で確認する。`cargo deny` 系
   ゲート（TASK-4.x）との関係は、`cargo deny check advisories` が別途 CI で
   独立実行される前提であり本書は関与しない。
 - **機微情報の露出**: 404 応答は固定文言（例: `"not found"`）とし、内部パス・
@@ -403,10 +403,10 @@ TASK-9.1c・#97 のスコープ、本節は観点の列挙のみ）。
 （TASK-9.1 全体の受け入れ検証）の着手時点で #97 が未マージだったため、本節の
 起動・エンドポイント疎通観点のうち、バイナリ単体起動・`/` の 200・
 `/static/*` の 200・パストラバーサル 404・bind 失敗時の非 0 終了と固定 stderr
-文言は `dist-server/tests/boot.rs` として #94 側で前倒し実装済みだった。
+文言は `crates/dist-server/tests/boot.rs` として #94 側で前倒し実装済みだった。
 #97 では本ファイルとの重複を避けたうえで残っていたギャップ
 （`/items/:id` の既知 ID 200・未知 ID 404、未知パス（`/no-such-page`）404、
-静的アセットの `Content-Type` ヘッダ検証）を同じ `dist-server/tests/boot.rs`
+静的アセットの `Content-Type` ヘッダ検証）を同じ `crates/dist-server/tests/boot.rs`
 へ追補し、本節に列挙した起動・エンドポイント疎通観点をすべて実プロセス
 （子プロセス起動 + 素の `TcpStream`）で固定した。TASK-9.2 の CI 自動化・
 「無関係なディレクトリへコピーして起動」は引き続き `tests/isolated_run.rs`
@@ -425,7 +425,7 @@ TASK-9.1c・#97 のスコープ、本節は観点の列挙のみ）。
   共通する上流ブロッカー**。`rust-embed`／`axum` いずれも単体で `MAX_DEPTH(6)`
   を超過するため、フレームワーク標準構成で PoC-4/PoC-3 が示した技術選定を
   そのまま製品化しようとすると必ず本齟齬に突き当たる。`docs/policy/dependency-graph-policy.md`
-  （TASK-3.3b、#24）での再検討、または `xtask/src/check_deps.rs` の計測方法・
+  （TASK-3.3b、#24）での再検討、または `crates/xtask/src/check_deps.rs` の計測方法・
   `MAX_DEPTH` 値そのものの再検証を Issue 化することを PR 本文で提案する。
   TASK-9.1b は本 Issue の解決状況（4.4 節の一次設計 vs. フォールバック案の
   いずれを採るか）に応じて着手内容を決めること。
@@ -455,7 +455,7 @@ TASK-9.1c・#97 のスコープ、本節は観点の列挙のみ）。
   `cargo run --locked -p xtask -- check-deps --package fandhe-frontend-dist-server` による
   実測での再確認を必須の完了条件とする。
 - 4.3 節の計測基準齟齬は本タスクの発見事項であり、`docs/policy/dependency-graph-policy.md`
-  ・`xtask/src/check_deps.rs` いずれも本書では変更しない（変更はそれぞれ
+  ・`crates/xtask/src/check_deps.rs` いずれも本書では変更しない（変更はそれぞれ
   TASK-3.3b・tooling-builder 領域かつユーザー承認事項）。
 
 ## 11. 受け入れ基準対応表（REQ-9・親イシュー #94）

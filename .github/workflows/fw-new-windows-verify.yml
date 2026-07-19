@@ -1,6 +1,6 @@
 name: fw new Windows verification
 
-# イシュー #413: `fw new`（cli/src/new.rs）の非 Unix（Windows）パーミッション挙動
+# イシュー #413: `fw new`（crates/cli/src/new.rs）の非 Unix（Windows）パーミッション挙動
 # （`set_permissions` の `#[cfg(not(unix))]` no-op、docs/design/fw-new-design.md §6.1）は
 # これまで self-hosted Linux runner でしか検証されておらず「設計上の想定」に留まっていた
 # （PR #389 out-of-scope 節・fw-new-design.md §9 非目標）。本ワークフローはその実機検証
@@ -76,18 +76,18 @@ jobs:
         run: cargo build -p fandhe-frontend-cli --locked
 
       - name: "test: fandhe-frontend-cli unit tests (new_template.rs 含む) on Windows"
-        # fandhe-frontend-cli は cli/Cargo.toml で [[bin]] name = "fw" のみを持ち lib ターゲットを
+        # fandhe-frontend-cli は crates/cli/Cargo.toml で [[bin]] name = "fw" のみを持ち lib ターゲットを
         # 持たない（外部依存ゼロ方針、main.rs 直下に #[cfg(test)] を配置する設計）ため
         # `--lib` は「no library targets found」で失敗する。単体テストは `--bin fw` で
         # 実行するのが正しい起動方法（実機確認済み: cargo test -p fandhe-frontend-cli --lib はここで失敗する）。
-        # executable_file_sets_match_expected_fixed_lists（cli/src/new_template.rs）が
+        # executable_file_sets_match_expected_fixed_lists（crates/cli/src/new_template.rs）が
         # プラットフォーム非依存にメタデータ記述のみを比較する設計であることを実機で確認する
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}\target-win-verify
         run: cargo test -p fandhe-frontend-cli --bin fw --locked
 
       - name: "test: fw new e2e (new_e2e.rs) on Windows"
-        # collect_tree（cli/tests/new_e2e.rs）は #[cfg(not(unix))] で executable = false を
+        # collect_tree（crates/cli/tests/new_e2e.rs）は #[cfg(not(unix))] で executable = false を
         # 返す設計（fw-new-design.md §6.1）。この分岐込みで
         # same_args_produce_byte_identical_output_across_two_runs 等の決定性テストが
         # Windows 上でも成立することを確認する。
@@ -190,7 +190,7 @@ jobs:
           # tools/npm-asset-build/* (default/app テンプレートの executable: true 3 ファイル、
           # embed は executable ファイルなし) が non-Unix no-op（fw-new-design.md §6.1）でも
           # エラーにならず生成されることを確認する。
-          # リストの正は cli/src/new_template.rs の
+          # リストの正は crates/cli/src/new_template.rs の
           # executable_file_sets_match_expected_fixed_lists（expected_default / expected_app）。
           # 欠落は「executable フラグの記述とテンプレート同梱ファイルの乖離」を示すため
           # warning に倒さず fail-closed（exit 1）で検出する。

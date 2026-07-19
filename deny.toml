@@ -11,7 +11,7 @@
 # - 本ファイルのポリシーを弱める変更（licenses.allow への追加・bans.deny からの
 #   削除・sources の deny → warn への緩和等）は人間の承認を必須とする。
 #   AI エージェントが自己判断で緩和方向の変更を行ってはならない。
-# - `xtask/tests/root_deny_config.rs` が本ファイルの必須ポリシー
+# - `crates/xtask/tests/root_deny_config.rs` が本ファイルの必須ポリシー
 #   （bans/licenses/sources の主要項目）を静的検証し、弱体化を回帰検出する。
 # - `templates/default/deny.toml` とのポリシー強度の乖離（緩和方向）は
 #   同テストで検出する。

@@ -113,7 +113,7 @@ from renderer` の後 `signal: 9 (SIGKILL)` で強制終了し、ジョブが
   `hydration_browser`/`three_mode_browser`）が起動した Chrome インスタンスの
   共有メモリ使用が蓄積し、閾値を超えた可能性が高い
 
-対策として `wasm-full/webdriver.json` に `--disable-dev-shm-usage`
+対策として `crates/wasm-full/webdriver.json` に `--disable-dev-shm-usage`
 （`goog:chromeOptions.args`）を追加した。`wasm-bindgen-test-runner` は
 `--no-sandbox` を常に自動付与する実装のため（`wasm-bindgen-cli` crate
 `src/wasm_bindgen_test_runner/headless.rs`）、本設定は両フラグが併存する形で
@@ -121,14 +121,14 @@ from renderer` の後 `signal: 9 (SIGKILL)` で強制終了し、ジョブが
 以外の `runtime_browser`/`hydration_browser`/`three_mode_browser`/
 `xss_escape_wasm`/`perf_browser` も含む）へ適用される。
 
-本事象はコード（`wasm-full/src/nav.rs`）側の View Transitions 実装の不具合では
+本事象はコード（`crates/wasm-full/src/nav.rs`）側の View Transitions 実装の不具合では
 なく CI 実行環境（self-hosted・コンテナ・root 実行）起因と判断し、
 アプリケーションコードは変更していない。本対策適用後の CI 再実行で解消しない
 場合は `/dev/shm` 以外の要因（コンテナ全体のメモリ上限等）を追加調査する。
 
 ### 6.1 再発と根本原因の特定（`--disable-dev-shm-usage` 適用後も再発、PR #420）
 
-`wasm-full/webdriver.json` の `disable-dev-shm-usage` に `--` プレフィックスが
+`crates/wasm-full/webdriver.json` の `disable-dev-shm-usage` に `--` プレフィックスが
 欠落していた不備を修正した（コミット `c22e9eb`）後の CI 再実行（run
 29696865573・job 88219045218）でも、`nav_browser` が同一の症状
 （`Unable to receive message from renderer` → `signal: 9 (SIGKILL)`）で
@@ -136,7 +136,7 @@ from renderer` の後 `signal: 9 (SIGKILL)` で強制終了し、ジョブが
 実行順の切り分け（`Vec::pop` LIFO）は今回も成立したが、今回はコード側に
 具体的な原因を特定できた。
 
-**根本原因**: `wasm-full/tests/nav_browser.rs::non_matching_clicks_are_not_
+**根本原因**: `crates/wasm-full/tests/nav_browser.rs::non_matching_clicks_are_not_
 intercepted` の Ctrl+クリック検証ケースが、`prevent_default` が呼ばれない
 ことを確認した後もブラウザの既定動作（新規タブで開く等）を止めていなかった。
 検証対象は実 `href="/items/1"` を持つ実 DOM `<a>` 要素であり、合成
@@ -150,7 +150,7 @@ intercepted` の Ctrl+クリック検証ケースが、`prevent_default` が呼�
 使うテストが `navigating_to_xss_payload_item_keeps_payload_as_text_not_
 element` であったことが、症状の局在と整合する。
 
-**修正**（詳細は `wasm-full/tests/nav_browser.rs` 冒頭のドキュメンテーション
+**修正**（詳細は `crates/wasm-full/tests/nav_browser.rs` 冒頭のドキュメンテーション
 コメント参照）:
 
 1. `non_matching_clicks_are_not_intercepted` で、検証用アサーション確定後に
@@ -163,8 +163,8 @@ element` であったことが、症状の局在と整合する。
    変換する多層防御とした（既存の `max_frames` 上限との組み合わせでも
    `wasm-bindgen-test` の既定タイムアウト 20 秒に対し十分な余裕を残す）
 
-本事象は `wasm-full/src/nav.rs`（View Transitions 実装本体）の不具合ではなく
-テストコード（`wasm-full/tests/nav_browser.rs`）側の副作用管理の不備であり、
+本事象は `crates/wasm-full/src/nav.rs`（View Transitions 実装本体）の不具合ではなく
+テストコード（`crates/wasm-full/tests/nav_browser.rs`）側の副作用管理の不備であり、
 アプリケーションコードは変更していない。
 
 ## 7. スコープ外・フォローアップ
@@ -179,7 +179,7 @@ element` であったことが、症状の局在と整合する。
 
 ## 6. Windows self-hosted runner の常設要件（イシュー #413）
 
-`fw new`（`cli/src/new.rs`）の非 Unix パーミッション挙動（`set_permissions` の
+`fw new`（`crates/cli/src/new.rs`）の非 Unix パーミッション挙動（`set_permissions` の
 `#[cfg(not(unix))]` no-op、`docs/design/fw-new-design.md` §6.1）はこれまで
 self-hosted **Linux** runner でしか検証されておらず、「設計上の想定」に留まって
 いた（PR #389 out-of-scope 節・fw-new-design.md §9 旧 non-goal）。イシュー #413
@@ -223,7 +223,7 @@ Windows runner が登録されているかどうかは以下で確認できる�
 read 権限）。
 
 ```bash
-gh api repos/Fandhe-AI/frontend-framework/actions/runners \
+gh api repos/Fandhe-AI/fandhe-frontend/actions/runners \
   --jq '.runners[] | {name, os, labels: [.labels[].name]}'
 ```
 

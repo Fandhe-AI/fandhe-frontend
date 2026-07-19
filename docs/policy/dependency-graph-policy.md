@@ -31,10 +31,10 @@ TASK-3.3 は 2 段階に分割されていました。
 | PoC-2（マクロ DSL・Leptos 構成） | 202 | 14 | `docs/spec/04-requirements.md` REQ-3 詳細・概要（25 行目） |
 | PoC-3（純 Rust 方式・fandhe-frontend-server 相当構成） | 52 | 5 | `docs/spec/04-requirements.md` REQ-3 詳細・受け入れ基準、`docs/spec/03-poc/` |
 | 削減率（PoC-2 → PoC-3） | 約 74% 減 | 約 64% 減 | `docs/spec/04-requirements.md` REQ-3 詳細（PoC-2/PoC-3 実測差の記述） |
-| **採用上限**（`MAX_PACKAGES` / `MAX_DEPTH`） | **60** | **6** | PoC-3 実測（52 件/深さ 5）に実装拡張分の余裕を加算。`xtask/src/check_deps.rs` |
+| **採用上限**（`MAX_PACKAGES` / `MAX_DEPTH`） | **60** | **6** | PoC-3 実測（52 件/深さ 5）に実装拡張分の余裕を加算。`crates/xtask/src/check_deps.rs` |
 
 コアクレート（`fandhe-frontend-core` / `fandhe-frontend-interactive`）は外部依存パッケージ数 0 件であることを別途受け入れ基準としています
-（REQ-3 受け入れ基準 1 点目）。`core/Cargo.toml` への外部クレート追加は `.claude/rules/coding-rust.md` により禁止されています。
+（REQ-3 受け入れ基準 1 点目）。`crates/core/Cargo.toml` への外部クレート追加は `.claude/rules/coding-rust.md` により禁止されています。
 この「0 件であること」自体は `check-deps`（60/6 判定）とは別に、`check-core-deps` ゲート（Issue #154）が
 `check_deps::ZERO_DEP_CRATES`（`fandhe-frontend-core` / `fandhe-frontend-interactive`）を対象に Normal/Dev/Build すべての辺で強制します。
 
@@ -51,10 +51,10 @@ deps-check: packages=21/60 depth=5/6 result=PASS  (fandhe-frontend-dist-server)
 deps-check: packages=0/60 depth=0/6 result=PASS   (fandhe-frontend-server)
 ```
 
-`fandhe-frontend-dist-server`（`dist-server/`）は REQ-3 が本来対象とする「標準サーバー構成（SSR サーバー相当）」の実体です。
+`fandhe-frontend-dist-server`（`crates/dist-server/`）は REQ-3 が本来対象とする「標準サーバー構成（SSR サーバー相当）」の実体です。
 `hyper` + `hyper-util` + `http-body-util` + `tokio` の直接構成を採用しており、`axum` / `rust-embed` はいずれも
-依存グラフ深さ上限（6）を構造的に超過するため不採用としました（実測根拠は `dist-server/Cargo.toml` のコメント参照）。
-`fandhe-frontend-server`（`server/`）はパスマッチングルーティングのみを担う外部依存ゼロのクレートで、SSR/SSG/単一バイナリ配布の
+依存グラフ深さ上限（6）を構造的に超過するため不採用としました（実測根拠は `crates/dist-server/Cargo.toml` のコメント参照）。
+`fandhe-frontend-server`（`crates/server/`）はパスマッチングルーティングのみを担う外部依存ゼロのクレートで、SSR/SSG/単一バイナリ配布の
 各エントリから共通利用されます。
 
 ## 3. 計測の定義と「正」の所在
@@ -65,7 +65,7 @@ deps-check: packages=0/60 depth=0/6 result=PASS   (fandhe-frontend-server)
 cargo run --locked -p xtask -- check-deps --package <NAME> [--package <NAME> ...]
 ```
 
-定義（`xtask/src/check_deps.rs` の rustdoc と整合）:
+定義（`crates/xtask/src/check_deps.rs` の rustdoc と整合）:
 
 - **件数**: `cargo metadata --format-version 1 --filter-platform <host-triple>` の `resolve.nodes` を正とし、
   ルートパッケージから `DepKind::Normal` 辺のみを辿って到達可能な一意パッケージ数（ルート自身を除く）。
@@ -75,7 +75,7 @@ cargo run --locked -p xtask -- check-deps --package <NAME> [--package <NAME> ...
 - **プラットフォーム**: `--filter-platform` にホストの target triple を渡し、ホストで有効にならない
   cfg 条件付き依存（target-specific な normal edge）を計測から除外する
 
-しきい値の唯一の正は `xtask/src/check_deps.rs` の `MAX_PACKAGES`（60）・`MAX_DEPTH`（6）・`ZERO_DEP_CRATES`
+しきい値の唯一の正は `crates/xtask/src/check_deps.rs` の `MAX_PACKAGES`（60）・`MAX_DEPTH`（6）・`ZERO_DEP_CRATES`
 （`fandhe-frontend-core` / `fandhe-frontend-interactive`。`check-core-deps` が参照）定数です。`--locked` 実行を必須とし、CLI 引数・
 環境変数・`continue-on-error` 等による緩和経路は意図的に設けません（迂回経路を作らない設計）。
 
@@ -83,18 +83,18 @@ CI 組み込みは `.github/workflows/deps-check.yml` が担い、fail-closed（
 運用します。同ワークフローも `--locked` を必須とし、外側の `cargo run` が `Cargo.lock` を書き換えないことを
 保証しています。`check-deps`（60/6 判定）・`check-core-deps`（コアクレート外部依存ゼロ判定、Issue #154）は
 それぞれ独立した PASS/FAIL 判定を持つ別ステップとして可視化されます（`format_report` / `format_zero_report` の
-1 行サマリ契約はテストで固定されています。`xtask/tests/cli_check_deps.rs` / `cli_check_core_deps.rs`）。
+1 行サマリ契約はテストで固定されています。`crates/xtask/tests/cli_check_deps.rs` / `cli_check_core_deps.rs`）。
 
 ## 4. 計測対象パッケージ
 
 現時点の計測対象は次の 5 パッケージです（`.github/workflows/deps-check.yml` と一致）。
 
-- `fandhe-frontend-core`（ディレクトリは `core/`。外部依存ゼロ契約）
+- `fandhe-frontend-core`（ディレクトリは `crates/core/`。外部依存ゼロ契約）
 - `xtask`（外部依存ゼロ契約）
-- `fandhe-frontend-app`（ディレクトリは `app/`。`fandhe-frontend-core` への path 依存のみ）
-- `fandhe-frontend-dist-server`（ディレクトリは `dist-server/`。REQ-3 が対象とする「標準サーバー構成」の実体。
+- `fandhe-frontend-app`（ディレクトリは `crates/app/`。`fandhe-frontend-core` への path 依存のみ）
+- `fandhe-frontend-dist-server`（ディレクトリは `crates/dist-server/`。REQ-3 が対象とする「標準サーバー構成」の実体。
   hyper 直接構成、実測 21 packages/depth 5）
-- `fandhe-frontend-server`（ディレクトリは `server/`。パスマッチングルーティングのみ、外部依存ゼロ）
+- `fandhe-frontend-server`（ディレクトリは `crates/server/`。パスマッチングルーティングのみ、外部依存ゼロ）
 
 `check-core-deps` は引数を取らず、`check_deps::ZERO_DEP_CRATES` と実 workspace メンバーの積集合を xtask 内部で
 自動解決します（`fandhe-frontend-interactive` 等の追加時もワークフロー変更は不要です）。
@@ -140,7 +140,7 @@ deps-check: packages=13/60 depth=7/6 result=FAIL  (fandhe-frontend-wasm-thin)
    `cargo metadata` で影響を事前確認し、`build.rs` の有無を確認したうえで、**ユーザー承認**を得てから追加する
 5. **上限値自体の見直しが必要な場合**: 本リポジトリ内では変更しません。上限値は REQ-3（`frontend-framework-spec`
    リポジトリ管理）に由来するため、まず同リポジトリへ仕様変更（REQ-3 改訂）を提案し、承認を経たうえで
-   `xtask/src/check_deps.rs` の定数変更 PR（レビュー必須）を行います。CI ワークフロー側に一時的な緩和手順・
+   `crates/xtask/src/check_deps.rs` の定数変更 PR（レビュー必須）を行います。CI ワークフロー側に一時的な緩和手順・
    スキップ手順は設けません
 
 ## 6. build.rs 保有クレートの監査（監査可能性）
@@ -149,13 +149,13 @@ REQ-3 の受け入れ基準は「`build.rs` を持つ依存クレートの一覧
 列挙できること」を求めています。
 
 この機能は TASK-3.2（Issue #19 系列: #20 TASK-3.2a 列挙ロジック実装・#21 TASK-3.2b CI 出力統合）で実装済みです。
-実体は `xtask` の `list-build-scripts` サブコマンド（`xtask/src/list_build_scripts.rs`）です。
+実体は `xtask` の `list-build-scripts` サブコマンド（`crates/xtask/src/list_build_scripts.rs`）です。
 
 ```bash
 cargo run --locked -p xtask -- list-build-scripts --package <NAME> [--package <NAME> ...]
 ```
 
-出力契約（`format_inventory`、`xtask/tests/cli_list_build_scripts.rs` で固定）は 1 行サマリ
+出力契約（`format_inventory`、`crates/xtask/tests/cli_list_build_scripts.rs` で固定）は 1 行サマリ
 `build-scripts: target=<name> count=<n>` です。この列挙は PASS/FAIL の概念を持たない監査ログであり、
 `build.rs` の存在自体は違反ではありません（禁止クレートのブロックは `cargo-deny` 系タスク TASK-4.x のスコープ）。
 
@@ -216,7 +216,7 @@ fail-closed な CI 強制（`check-deps` / `check-core-deps`、第 3 節）・bu
 
 TASK-9.1a（rust-embed 統合設計、`docs/design/dist-server-design.md` 4.3 節）の検討過程で、
 本ポリシー第 2 節が引用する「PoC-3 実測: 52 件/深さ 5」という値と、現行の計測実装
-（`xtask/src/check_deps.rs` のメモ化 DFS、第 3 節参照）による再計測値が一致しない
+（`crates/xtask/src/check_deps.rs` のメモ化 DFS、第 3 節参照）による再計測値が一致しない
 ことが発見されました。PR #210 の対象外節に記録されたまま Issue 化されていなかった
 事項を、out-of-scope 全数集約でイシュー #298 として起票し、本節でその再検証結果を
 確定させます。
@@ -247,7 +247,7 @@ TASK-9.1a（rust-embed 統合設計、`docs/design/dist-server-design.md` 4.3 �
    比較不能なため、根拠を「旧基準（cargo tree 目視）の PoC-3 値」と「現行基準
    （メモ化 DFS）の再計測値・現行実測値（`fandhe-frontend-dist-server`: 21/5）」を区別して読む
    ことを本節で明文化します。第 2 節・第 3 節の記述自体（TASK-3.3b 確定版）は既に
-   この区別を反映済みであり、齟齬の説明が欠けていたのは `xtask/src/check_deps.rs` の
+   この区別を反映済みであり、齟齬の説明が欠けていたのは `crates/xtask/src/check_deps.rs` の
    `MAX_PACKAGES` / `MAX_DEPTH` 定数の rustdoc（PoC-3 値のみを根拠として記載）でした。
    本イシューにあわせて同 rustdoc にも旧基準/現行基準の区別を追記します
 4. **仕様（REQ-3）側への注記提案はユーザー承認事項に留めます**。`docs/spec/04-requirements.md`

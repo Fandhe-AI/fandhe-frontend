@@ -1,7 +1,7 @@
 # 検証ゲート（`fw gate`）判定ルール設計（TASK-13.3a）
 
 > **本書のステータスと前提**: 本書は TASK-13.3（親イシュー #138、成果物
-> `cli/src/gate.rs`）の 4 分割サブタスク（TASK-13.3a 判定ルール設計・#139
+> `crates/cli/src/gate.rs`）の 4 分割サブタスク（TASK-13.3a 判定ルール設計・#139
 > （本書）/ TASK-13.3b コマンド実装・#140 / TASK-13.3c `cargo-deny`・XSS
 > 回帰テスト連携・#141 / TASK-13.3d テスト整備・#142）の先頭に位置づけられる
 > 設計文書である。
@@ -10,7 +10,7 @@
 > （PR #261 `feat(global): TASK-13.3 検証ゲート（fw gate）の Rust 実装`、
 > 追補 PR #262 負例回帰テスト、PR #263 `raw_html` カスタム clippy lint 化）。
 > 親 #138 は CLOSED 済み。本書は「これから実装する設計」ではなく、**実装済み
-> かつテスト済みのコード（`cli/src/gate.rs`、約 1370 行）が内包する判定ルールを、
+> かつテスト済みのコード（`crates/cli/src/gate.rs`、約 1370 行）が内包する判定ルールを、
 > モジュール doc コメントに散在した状態から正式な設計文書として抽出・固定する」
 > ことを目的とする。実装とのトレーサビリティは §6 を参照。乖離が見つかった
 > 場合は実装（マージ済み・テスト済み）を正とし、本書側を合わせる方針を取った。
@@ -26,10 +26,10 @@
 
 | サブタスク | Issue | 内容 | 本書との関係 |
 |-----------|-------|------|-------------|
-| TASK-13.3a | #139（本書） | 判定ルール設計の正式化 | 本書が単一の情報源。`cli/src/gate.rs` の実装から逆引きして記述する |
-| TASK-13.3b | #140 | `gate` サブコマンドの CLI 接続 | 実装済み（`cli/src/main.rs` の `gate::run_gate` ディスパッチ）。本書 §4 が CLI 契約を規定 |
-| TASK-13.3c | #141 | `cargo-deny`・XSS 回帰テスト連携 | 実装済み（本書 §2 の `policy` チェック・`default_escape_check`）。連携の回帰固定は `cli/tests/xss_regression_link.rs` と CI `test` ジョブへの cargo-deny 導入（`.github/workflows/ci.yml`）で行う（§6 参照） |
-| TASK-13.3d | #142 | テスト整備 | 実装済み（`cli/tests/gate_integration.rs`・`cli/tests/negative_cases.rs`・`cli/tests/raw_html_lint_e2e.rs`） |
+| TASK-13.3a | #139（本書） | 判定ルール設計の正式化 | 本書が単一の情報源。`crates/cli/src/gate.rs` の実装から逆引きして記述する |
+| TASK-13.3b | #140 | `gate` サブコマンドの CLI 接続 | 実装済み（`crates/cli/src/main.rs` の `gate::run_gate` ディスパッチ）。本書 §4 が CLI 契約を規定 |
+| TASK-13.3c | #141 | `cargo-deny`・XSS 回帰テスト連携 | 実装済み（本書 §2 の `policy` チェック・`default_escape_check`）。連携の回帰固定は `crates/cli/tests/xss_regression_link.rs` と CI `test` ジョブへの cargo-deny 導入（`.github/workflows/ci.yml`）で行う（§6 参照） |
+| TASK-13.3d | #142 | テスト整備 | 実装済み（`crates/cli/tests/gate_integration.rs`・`crates/cli/tests/negative_cases.rs`・`crates/cli/tests/raw_html_lint_e2e.rs`） |
 
 - **土台**: PoC-7 の `docs/spec/03-poc/ai-self-maintenance/tools/poc7_tool.py`
   `cmd_gate`（5 チェックの実行・集約という骨格）からの Rust 移植。PoC-7 の
@@ -143,7 +143,7 @@ security.md A05: 保険層の偽陰性ゼロを優先し、偽陽性の残存は
 字句判定を狂わせる敵対的パターン（文字リテラル `'"'` で文字列状態を狂わせる・
 文字列内の `/*` でコメント状態を狂わせる等）は
 `find_raw_html_call_positions_still_detects_call_after_char_literal_confusion_attempt`
-等の敵対的回帰テスト（`cli/src/gate.rs`）で固定する。また
+等の敵対的回帰テスト（`crates/cli/src/gate.rs`）で固定する。また
 `raw_html /* comment */ (x)` のようにコメントを呼び出し内に挟む記法は保険層の
 検出漏れとして残る（従来からの限界。主防御 `lint` チェックがこの経路も検出する）。
 
@@ -152,7 +152,7 @@ security.md A05: 保険層の偽陰性ゼロを優先し、偽陽性の残存は
 の障害要因ではないため、差分最小化を優先）。
 
 自己適用回帰は `default_escape_check_passes_on_this_repository_itself`
-（`cli/src/gate.rs`）が固定する。本リポジトリ自身の `structure.toml` を実際に
+（`crates/cli/src/gate.rs`）が固定する。本リポジトリ自身の `structure.toml` を実際に
 読み込み `default_escape_check`（純粋関数・外部コマンド起動なし）を適用し、
 `passed` であることを検証する。
 
@@ -197,7 +197,7 @@ A05）。JSON 契約（`checks[].name`/`passed`/`output` の形状、PoC-7 互�
 
 ### 2.4 URL 属性検証の弱体化検出（`url_validation_check`、イシュー #401）
 
-イシュー #373（PR #386）は `core/src/url.rs` に URL スキーム検証
+イシュー #373（PR #386）は `crates/core/src/url.rs` に URL スキーム検証
 （`is_safe_url`/`is_safe_srcset`/`is_url_attr`/`is_event_handler_attr`、
 正本 allowlist `URL_ATTRS`）を導入し、SSR（`render_into`）・CSR 実 DOM
 （`wasm-client::binding_dom::apply_one`/`keyed_dom::build_element`）の
@@ -258,7 +258,7 @@ A05）。JSON 契約（`checks[].name`/`passed`/`output` の形状、PoC-7 互�
 機能する。
 
 自己適用回帰は `url_validation_check_passes_on_this_repository_itself`
-（`cli/src/gate.rs`）が固定する。本リポジトリ自身の `structure.toml` を
+（`crates/cli/src/gate.rs`）が固定する。本リポジトリ自身の `structure.toml` を
 実際に読み込み `url_validation_check`（純粋関数・外部コマンド起動なし）を
 適用し、`passed` であることを検証する。
 
@@ -299,7 +299,7 @@ A05）。`crate` キーの削除し忘れ等の設定不備で非 asset ロー�
 走査であり、静的専用モードでも通常どおり実行する。`role = "asset"` の
 `root` 慣習ディレクトリ配下（プロジェクトルート直下 `src/`）に Rust
 コードが混入し、そこに未レビューの `raw_html()` 呼び出しが含まれる場合は
-`default_escape_check` が検出し `BLOCKED` にする（`cli/tests/new_gate_e2e.rs::
+`default_escape_check` が検出し `BLOCKED` にする（`crates/cli/tests/new_gate_e2e.rs::
 fw_new_embed_template_gate_detects_injected_rust_violation` が回帰固定）。
 静的専用モードは「cargo 系チェックの対象が存在しない」ことの明示化に
 限定され、検証の全面停止ではない。
@@ -387,11 +387,11 @@ fw_new_embed_template_gate_detects_injected_rust_violation` が回帰固定）�
   `DirEntry::file_type().is_symlink()` による明示チェックにより、自己参照
   リンクによる無限再帰（fail-closed の実行自体を阻害する DoS）と、
   プロジェクト外を指すリンクを辿ってのパストラバーサルの双方を防ぐ
-  （`cli/src/routes.rs` の `list_rs_files_inner` と同一方針）。
+  （`crates/cli/src/routes.rs` の `list_rs_files_inner` と同一方針）。
 
 ## 6. 実装トレーサビリティ
 
-| 本書の章 | `cli/src/gate.rs` の対応箇所 |
+| 本書の章 | `crates/cli/src/gate.rs` の対応箇所 |
 |---------|------------------------------|
 | §2 表（6 チェック定義） | `run_all_checks`、`run_cargo_check`/`run_cargo_clippy`/`run_cargo_test`/`policy_check`/`default_escape_check`/`url_validation_check` |
 | §2.2（3 層体制） | モジュール doc コメント（1-35 行目）、`find_raw_html_call_positions`（420-440 行目）、`line_has_reviewed_expect_attribute`（521-528 行目）、`line_has_real_blanket_attribute`（487-497 行目）、`scan_file_for_violations`（607-667 行目） |
@@ -404,15 +404,15 @@ fw_new_embed_template_gate_detects_injected_rust_violation` が回帰固定）�
 | §4（集約規則・CLI 契約） | `aggregate`（189-204 行目）、`render_report`（673-697 行目）、`main.rs` の終了コード規約（`main.rs` 33-35 行目） |
 | §5（セキュリティ不変条件） | `RealCommandRunner::run`（74-85 行目）、`truncate_output`（207-217 行目）、`OUTPUT_TRUNCATE_CHARS`（44 行目）、`scan_dir_for_violations`（579-597 行目）、`walk_rs_files`（symlink 非追従の共有実装、イシュー #401） |
 
-対応するテストは `cli/tests/gate_integration.rs`（CLI 経由の統合テスト、
-6 ケース）・`cli/tests/negative_cases.rs`（型エラー・未エスケープ・禁止依存・
+対応するテストは `crates/cli/tests/gate_integration.rs`（CLI 経由の統合テスト、
+6 ケース）・`crates/cli/tests/negative_cases.rs`（型エラー・未エスケープ・禁止依存・
 テストターゲット内 raw_html・自己参照様ソース（イシュー #372）・URL 属性
 検証の弱体化（イシュー #401、U1 未ガード呼び出し・U2 スキーム緩和・U2/U3
 正例基準線の 3 ケース）を含む負例群、TASK-13.5）・
-`cli/tests/raw_html_lint_e2e.rs`（実 clippy 起動による主防御の実証、
-4 ケース）・`cli/tests/scenarios/`（イシュー #401 対応: `bugfix_escape`
+`crates/cli/tests/raw_html_lint_e2e.rs`（実 clippy 起動による主防御の実証、
+4 ケース）・`crates/cli/tests/scenarios/`（イシュー #401 対応: `bugfix_escape`
 シナリオの `role = "core"` フィクスチャへ `url_validation_check` 充足専用の
-未配線 `core/src/url.rs` を追補、既存シナリオのアサーションは無変更）・
+未配線 `crates/core/src/url.rs` を追補、既存シナリオのアサーションは無変更）・
 `gate.rs` 内 `#[cfg(test)] mod tests`（76 ユニットテスト。TASK-13.3d/#142
 でポリシーチェックの単体テスト・外部コマンド起動引数契約・宣言クレート
 0 件時の fail-closed・集約結果の `action` 文言・`run_all_checks` の
@@ -430,11 +430,11 @@ name/順序と PASS 経路・`render_report` の JSON ラウンドトリップ�
 
 TASK-13.3c（#141、`policy`/`test` チェックの実連携固定）の対応:
 
-- `cli/tests/support/mod.rs`: `negative_cases.rs`・`xss_regression_link.rs`
+- `crates/cli/tests/support/mod.rs`: `negative_cases.rs`・`xss_regression_link.rs`
   が共用するフィクスチャ書き出し・`fw gate` 起動・JSON レポート判定の
   共通ヘルパー（`negative_cases.rs` からの抽出）。
-- `cli/tests/xss_regression_link.rs`: `test` チェックが XSS 回帰テスト
-  （TASK-1.2 相当、`core/tests/xss_escape.rs` の代表ペイロードを移植）の
+- `crates/cli/tests/xss_regression_link.rs`: `test` チェックが XSS 回帰テスト
+  （TASK-1.2 相当、`crates/core/tests/xss_escape.rs` の代表ペイロードを移植）の
   合否をそのまま反映し、エスケープ実装の退行を `default_escape_check` とは
   独立に BLOCKED へ導くことを固定する正例・負例。
 - `.github/workflows/ci.yml`（`test` ジョブ）: `Install cargo-deny
@@ -460,7 +460,7 @@ TASK-13.3c（#141、`policy`/`test` チェックの実連携固定）の対応:
   `fw gate` 実行前に前置する運用手順として利用する
   （`.claude/rules/ci.md`「ツール前提の明示」節・
   `docs/policy/ai-self-maintenance-policy.md` 参照）。冪等（導入済みなら何もしない）。
-- `cli/src/gate.rs` の `clippy_environment_preflight` /
+- `crates/cli/src/gate.rs` の `clippy_environment_preflight` /
   `cargo_deny_environment_preflight`（§2.3a）: 上記スクリプトが前置されな
   かった場合の安全網。ツール不在を「環境エラー」として決定的に示し、
   コード起因の FAIL との区別を可能にする（自動インストールは行わない）。

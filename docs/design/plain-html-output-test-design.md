@@ -11,14 +11,14 @@
 2 段階に分割されている。
 
 - **TASK-5.2a（本ドキュメント・#34）**: テスト観点の設計確定
-- **TASK-5.2b（#35）**: 本書に従った `core/tests/plain_html_output.rs` の実装
+- **TASK-5.2b（#35）**: 本書に従った `crates/core/tests/plain_html_output.rs` の実装
 
 **本文書のステータス**: TASK-5.2a 確定版。TASK-5.2b は本書の観点表（第 3 節）に
 従って実装し、実装と本書の記述に乖離が生じた場合は本書を正として PR レビューで
 指摘する。
 
 **本タスクのスコープ**: テスト観点の設計確定書の作成のみ（docs-only 変更）。
-`core/tests/plain_html_output.rs` の新規作成は TASK-5.2b（#35）のスコープであり、
+`crates/core/tests/plain_html_output.rs` の新規作成は TASK-5.2b（#35）のスコープであり、
 本タスクでは行わない。`docs/spec/` はサブモジュールのため編集禁止。
 
 本書は `docs/api/component-api.md`（TASK-5.1a）・`docs/policy/dependency-graph-policy.md`
@@ -47,7 +47,7 @@ PoC-3 の定性実測（`docs/spec/03-poc/rendering-web-standards/README.md` 第
    `core` が自動付与する属性は現時点でゼロであり、この「ゼロである」こと
    自体をテストで固定する。
 
-**既存契約との関係**: 本節は `core/src/lib.rs` 冒頭の不変条件（`docs/api/component-api.md`
+**既存契約との関係**: 本節は `crates/core/src/lib.rs` 冒頭の不変条件（`docs/api/component-api.md`
 第 6 節に再掲）を「出力に何を足さないか」の観点から補完するものであり、
 既定エスケープ（不変条件 1〜3）の検証を代替しない（第 5 節参照）。
 
@@ -61,7 +61,7 @@ PoC-3 の定性実測（`docs/spec/03-poc/rendering-web-standards/README.md` 第
 | T4 | `data-*` 許容側 | 完全一致 + 否定 assert | 利用者指定の `data-testid` 等が指定どおり出力され、かつ未指定の `data-*` が一切出現しない |
 | T5 | PoC-3 相当の複合ノード木 | 完全一致 assert | list/detail 風の複合ノード木（PoC-3 実測ページ構造相当）を回帰スナップショットとして完全一致検証する |
 | T6 | `raw_html` 使用時のマーカー非付加 | 完全一致 assert | `raw_html` の前後にも core がマーカー・ラッパー要素を注入しない（raw 内容がそのまま出力される） |
-| T7 | 不正入力スキップ時のプレースホルダ非出力 | 完全一致 assert | 不正タグ名・不正属性名がスキップされる経路（`core/src/lib.rs` 不変条件 4・5）でも代替マーカー・プレースホルダ文字列を出力しない |
+| T7 | 不正入力スキップ時のプレースホルダ非出力 | 完全一致 assert | 不正タグ名・不正属性名がスキップされる経路（`crates/core/src/lib.rs` 不変条件 4・5）でも代替マーカー・プレースホルダ文字列を出力しない |
 | T8 | タグショートカットの `el()` 等価性 | 完全一致 assert（TASK-5.1b 完了後有効） | `div`/`p` 等のショートカット出力が `el()` 直接使用時の出力と完全一致する。**TASK-5.1b（#31）完了後にのみ実装可能** |
 
 ### 検証方式の優先順位
@@ -70,7 +70,7 @@ PoC-3 の定性実測（`docs/spec/03-poc/rendering-web-standards/README.md` 第
   将来追加される新しい注入経路の検出漏れが起こり得るため、完全一致で
   「出力全体が期待どおりであること」を固定したうえで、T3 を横断的な
   補助チェックとして併用する。
-- 禁止パターン集合は `const` 配列として定義し、`core/tests/xss_escape.rs` の
+- 禁止パターン集合は `const` 配列として定義し、`crates/core/tests/xss_escape.rs` の
   `XSS_PAYLOADS` と同様に**削除・弱体化・`#[ignore]` 化を禁止**する。
 
 ## 4. スコープ外の明記
@@ -78,17 +78,17 @@ PoC-3 の定性実測（`docs/spec/03-poc/rendering-web-standards/README.md` 第
 | 項目 | 引き継ぎ先 |
 |------|-----------|
 | サーバー層・ハイドレーション層が付与する `data-hydrate-*` 等の観測用属性自体の妥当性検証 | TASK-6.x（REQ-6・REQ-11） |
-| 実 HTTP レスポンス・生成ファイル経由の E2E 検証 | `xss_escape.rs` と同じく `render()` 契約レベルの検証に留め、`server/` 実装後の拡張余地として記録（未起票） |
+| 実 HTTP レスポンス・生成ファイル経由の E2E 検証 | `xss_escape.rs` と同じく `render()` 契約レベルの検証に留め、`crates/server/` 実装後の拡張余地として記録（未起票） |
 | T8（タグショートカット等価性）の実装 | TASK-5.1b（#31）が未完了の場合、TASK-5.2b は T1〜T7 を先行実装し、T8 を #31 完了後のフォローとして記録する |
 
 本節で新たに Issue 化が必要と判断した事項は現時点でない（既存タスク番号への
-引き継ぎのみ）。`server/` 実装後の E2E 拡張は将来課題として本書に記録するに
+引き継ぎのみ）。`crates/server/` 実装後の E2E 拡張は将来課題として本書に記録するに
 留め、`.claude/rules/out-of-scope-tracking.md` に従い、着手判断時に改めて
 ユーザー承認のうえ Issue 化を検討する。
 
 ## 5. TASK-5.2b への引き継ぎ事項
 
-- 成果物パス: `core/tests/plain_html_output.rs`（親 #33 の成果物）。
+- 成果物パス: `crates/core/tests/plain_html_output.rs`（親 #33 の成果物）。
 - テストファイル冒頭 `//!` に担当タスク（TASK-5.2b・#35）・REQ-5 トレース・
   「本テストは既定エスケープ検証（`xss_escape.rs`）の代替ではなく補完で
   あり、削除・弱体化・`#[ignore]` 化を禁止する」旨を記載する

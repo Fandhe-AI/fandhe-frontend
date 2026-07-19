@@ -2,17 +2,17 @@
 
 ## 位置づけ
 
-本書は `fandhe-frontend-dist-server`（`dist-server/`）における静的アセット配信の開発体験
-（DX）ガイドです。対象読者は `dist-server/` を触る開発者、および `docs/spec/`
+本書は `fandhe-frontend-dist-server`（`crates/dist-server/`）における静的アセット配信の開発体験
+（DX）ガイドです。対象読者は `crates/dist-server/` を触る開発者、および `docs/spec/`
 の REQ-10・TASK-10.1（`docs/spec/05-tasks.md`）の受け入れ状況を確認したい人。
 
 - **実装元**: TASK-10.1a（イシュー #106、PR #215）でモード切り替え本体を、
   TASK-10.1b（イシュー #107、PR #216）で即時反映の回帰テストとキャッシュ
   ヘッダを製品化しました。親イシュー #105（TASK-10.1）はこの 2 つの統合と
   受け入れ検証・ドキュメント整備を扱います。
-- **実装コード**: `dist-server/src/assets.rs`（モード判定・アセット検索の本体）、
-  `dist-server/src/routes.rs`（`Cache-Control` ヘッダの付与判定）、
-  `dist-server/src/main.rs`（HTTP レスポンスへのヘッダ反映）。
+- **実装コード**: `crates/dist-server/src/assets.rs`（モード判定・アセット検索の本体）、
+  `crates/dist-server/src/routes.rs`（`Cache-Control` ヘッダの付与判定）、
+  `crates/dist-server/src/main.rs`（HTTP レスポンスへのヘッダ反映）。
 - **設計上の位置づけ**: 統合設計書 `docs/design/dist-server-design.md` の §4.5 は
   TASK-9.1a 時点（実装前）の草案（`include_dir` クレート採用を想定）であり、
   実装はそれとは異なる自前実装（下記）を採用しています。§4.5 には実装済みで
@@ -20,7 +20,7 @@
 
 ## 1. モード切り替え表
 
-`dist-server/src/assets.rs::AssetMode` はコンパイル時（`cfg!`）に確定し、
+`crates/dist-server/src/assets.rs::AssetMode` はコンパイル時（`cfg!`）に確定し、
 実行時には変化しません。
 
 | ビルド条件 | モード（`AssetMode`） | 配信経路 |
@@ -31,12 +31,12 @@
 
 **例外（WASM ビルド成果物）**: URL パスが `/static/wasm/` で始まるアセットは、
 `DevFilesystem` モードでも常に埋め込みテーブルから配信されます。WASM 成果物
-（TASK-10.2b、イシュー #110）は `dist-server/build.rs` が `OUT_DIR` に生成する
+（TASK-10.2b、イシュー #110）は `crates/dist-server/build.rs` が `OUT_DIR` に生成する
 ものであり、ソースツリー `static/` に実体を持たないためです。したがって
 **「毎リクエストでディスクの最新内容を反映する」保証は `/static/wasm/*` 以外
 の静的アセットにのみ適用されます**。
 
-`force-embed` はコード・依存を一切持たない空フィーチャー（`dist-server/Cargo.toml`
+`force-embed` はコード・依存を一切持たない空フィーチャー（`crates/dist-server/Cargo.toml`
 参照）で、`cfg(all(debug_assertions, not(feature = "force-embed")))` の判定
 にのみ関与します。REQ-3（依存グラフ上限 60 件/深さ 6）の実測値（21 件/深さ 5）
 に影響しません。
@@ -70,7 +70,7 @@
 ## 3. 開発フロー手順
 
 1. `cargo run -p fandhe-frontend-dist-server`（または `FANDHE_FRONTEND_WASM_BUILD=0 cargo run -p fandhe-frontend-dist-server`
-   — WASM ビルドステージをスキップする場合。`dist-server/build.rs` 冒頭
+   — WASM ビルドステージをスキップする場合。`crates/dist-server/build.rs` 冒頭
    ドキュメント参照）で debug ビルドを起動する。既定で `DevFilesystem`
    モードになる。
 2. `static/` 配下のファイル（`/static/wasm/*` を除く）を編集・追加・削除する。
