@@ -55,6 +55,17 @@
 //! wasm ビルドを介さないネイティブ環境でもテスト可能（`docs/api/hydration-api.md`
 //! 第 2〜3 節・判断 3 の設計どおり）。
 //!
+//! ## keyed list（イシュー #344）
+//!
+//! [`keyed`] モジュールが提供する [`keyed::keyed_list`] は、実 DOM 直接更新
+//! 方針（イシュー #336・`docs/design/dom-binding-update-design.md`）における
+//! **構造変化（リストの挿入・削除・並べ替え）を表現できる唯一の経路**。
+//! 汎用 diff・仮想 DOM は実装しない。出力は `data-bind-list`/`data-key`
+//! 属性を持つ通常の [`Node`] 木であり、新しい `Node` バリアント・新しい
+//! レンダリング経路は追加しない（不変条件 1・2 がそのまま適用される）。
+//! `wasm-full`（イシュー #343/#345）はこの属性形式を走査してキー照合・
+//! 最小 DOM 操作を行う契約になっている。
+//!
 //! ## スコープ外
 //!
 //! void 要素の自己終了処理は本クレートでは扱わない。`docs/api/component-api.md`
@@ -67,6 +78,7 @@
 use std::fmt::Write as _;
 
 mod escape;
+pub mod keyed;
 mod tags;
 
 pub use escape::{escape_html, escape_html_into};
