@@ -124,6 +124,11 @@ div, p, ul, li, a, h1, main_tag（"main" タグへの薄い委譲）
    依存クレートの追加は事前に `cargo metadata` で影響を確認し、ユーザー承認を得る
    （`.claude/rules/coding-rust.md`）。標準サーバー構成での依存パッケージ上限
    60 件・深さ 6 の制約（`docs/policy/dependency-graph-policy.md`）も維持する。
+8. **（イシュー #373）** `href`/`src` 等 `URL_ATTRS` に該当する属性の値は
+   `rws_core::is_safe_url` の許可スキーム検証を通過したものだけを出力する。
+   不合格の値（`javascript:` 等）は属性ごと出力からスキップする（fail-closed）。
+   `on*` で始まるイベントハンドラ属性は値によらず一律出力しない。詳細な脅威
+   整理・許可リストの正は `docs/policy/attribute-output-policy.md` を参照する。
 
 これらは「設計制約」であり、TASK-5.1b の実装レビューではこの一覧との整合を確認する。
 

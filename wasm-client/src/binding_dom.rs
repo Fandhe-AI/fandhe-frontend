@@ -125,6 +125,11 @@ impl BindingTable {
 /// - `Text`: `set_text_content`（`Node.textContent`）。`BoundValue::Flag` が
 ///   渡された場合は `"true"`/`"false"` として出力する。
 /// - `Attr(name)`: `set_attribute`。`BoundValue::Flag` も同様に文字列化する。
+///   `render_into`（`rws-core`）と同一の URL スキーム検証（`srcset` の
+///   カンマ区切り候補分割検証を含む）・イベントハンドラ属性ブロックを
+///   適用する（イシュー #373。SSR 初期描画と実 DOM 直接更新の両経路に
+///   同一の XSS 対策保証を持たせる契約。詳細は
+///   `docs/policy/attribute-output-policy.md`）。
 /// - `Class(name)`: `class_list().toggle_with_force`。`BoundValue::Text` が
 ///   渡された場合（型不一致）は no-op とする（fail-closed）。
 fn apply_one(kind: &BindingKind, element: &Element, value: &BoundValue) {
@@ -133,7 +138,32 @@ fn apply_one(kind: &BindingKind, element: &Element, value: &BoundValue) {
             element.set_text_content(Some(&bound_value_as_text(value)));
         }
         BindingKind::Attr(name) => {
+            // イベントハンドラ属性（`on*`）は束縛対象にしない。束縛点は
+            // SSR 側 `render_into`（rws-core）が事前に発行したものに限られる
+            // 契約だが、`rws_core` 側で `on*` は出力されないため対応表にも
+            // 現れない想定である。ここでは二重の fail-closed 防御として
+            // 同じ判定を適用する。
+            if rws_core::is_event_handler_attr(name) {
+                return;
+            }
             let text = bound_value_as_text(value);
+            // URL を受ける属性（`href`/`src` 等）は許可スキーム検証を通過
+            // した値のみ反映する。不合格の場合は書き込まず、既存属性が
+            // 残る不整合を避けるため `remove_attribute` で除去する
+            // （fail-closed。古い安全値の残存にも決定的な挙動を与える）。
+            if rws_core::is_url_attr(name) && !rws_core::is_safe_url(&text) {
+                let _ = element.remove_attribute(name);
+                return;
+            }
+            // `srcset` はカンマ区切りの URL 候補を持つ特殊構文のため
+            // `is_url_attr` の対象外（`URL_ATTRS` に非該当）。`render_into`
+            // と同一の `is_safe_srcset` で候補分割検証する（イシュー #373
+            // レビュー指摘対応: 従来は `render_into` にのみ実装されており
+            // 本経路では未検証だった）。
+            if name.eq_ignore_ascii_case("srcset") && !rws_core::is_safe_srcset(&text) {
+                let _ = element.remove_attribute(name);
+                return;
+            }
             let _ = element.set_attribute(name, &text);
             // `set_attribute("value", ...)` は HTML 属性（初期値）のみを
             // 更新し、ブラウザの live value プロパティ（`HTMLInputElement.value`）

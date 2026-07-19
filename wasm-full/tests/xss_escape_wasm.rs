@@ -507,3 +507,81 @@ fn hydrate_then_repaint_via_wired_event_preserves_escape_guarantee_for_xss_paylo
         "再描画後の item-list inner_html にエスケープ済みペイロードが含まれること: {items_inner}"
     );
 }
+
+/// REQ-1 拡張回帰（URL スキーム経路・実 DOM、イシュー #373）:
+/// `rws_core::render` が SSR/CSR いずれのモードでも通る `render_into` の URL
+/// スキーム検証（`rws_core::is_safe_url`）が、実ブラウザの `set_inner_html`
+/// 経由の DOM 構築でも保証されることを確認する。既定エスケープ
+/// （`escape_html`）は属性値コンテキストからの breakout は防ぐが、脱出を
+/// 伴わない `javascript:` href はエスケープだけでは防げない別種の脅威で
+/// あるため、`core/tests/xss_escape.rs`（ネイティブ）と対をなす実ブラウザ
+/// 証跡として本テストを置く。
+#[wasm_bindgen_test]
+fn javascript_scheme_href_does_not_appear_as_a_real_dom_attribute() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "xss-url-scheme-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let node = rws_core::el(
+        "a",
+        vec![
+            ("id", "xss-url-link"),
+            ("href", "javascript:alert(1)"),
+            ("data-testid", "safe"),
+        ],
+        vec![rws_core::text("link")],
+    );
+    let html = rws_core::render(&node);
+    container.set_inner_html(&html);
+
+    let link = container
+        .query_selector("#xss-url-link")
+        .expect("query_selector must not fail")
+        .expect("xss-url-link must exist in rendered output");
+
+    assert!(
+        link.get_attribute("href").is_none(),
+        "javascript: スキームの href は実 DOM 上の属性として一切現れてはならない"
+    );
+    assert_eq!(
+        link.get_attribute("data-testid").as_deref(),
+        Some("safe"),
+        "危険スキームの href スキップが兄弟属性の出力へ波及してはならない（過剰ブロックでないこと）"
+    );
+
+    let inner = container.inner_html();
+    assert!(
+        !inner.to_lowercase().contains("javascript:"),
+        "inner_html に javascript: 文字列が一切含まれてはならない: {inner}"
+    );
+}
+
+/// URL スキーム検証の透過側（安全な相対 URL）が実ブラウザ経路でも従来
+/// どおり反映されることを確認する（過剰ブロックでないことの回帰）。
+#[wasm_bindgen_test]
+fn safe_relative_href_is_applied_normally_in_real_dom() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "xss-url-safe-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let node = rws_core::el(
+        "a",
+        vec![("id", "safe-url-link"), ("href", "/items/1")],
+        vec![rws_core::text("link")],
+    );
+    let html = rws_core::render(&node);
+    container.set_inner_html(&html);
+
+    let link = container
+        .query_selector("#safe-url-link")
+        .expect("query_selector must not fail")
+        .expect("safe-url-link must exist in rendered output");
+
+    assert_eq!(
+        link.get_attribute("href").as_deref(),
+        Some("/items/1"),
+        "安全な相対 URL は href として実 DOM に反映されること"
+    );
+}

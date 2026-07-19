@@ -824,3 +824,167 @@ mod keyed_list_xss {
         }
     }
 }
+
+/// URL スキーム検証・イベントハンドラ属性ブロックの XSS 回帰テスト
+/// （イシュー #373）。`escape_html` は属性値コンテキストからの breakout
+/// （`"` 等）を防ぐが、脱出を伴わない `javascript:` 等の URL スキーム
+/// 経由の XSS は別の防御（`rws_core::is_safe_url` の許可リスト判定・
+/// `render_into` での属性スキップ）が必要になる。本モジュールは
+/// SSR（`render()` 戻り値）・SSG（ファイル書き出し読み戻し）・CSR
+/// （部分ノードの断片レンダリング）の 3 経路すべてで、危険スキームの
+/// URL 属性値・`on*` 属性が出力に一切現れないこと、および安全な URL
+/// （相対 URL・許可スキーム）は従来どおり透過することを固定する
+/// （削除・弱体化禁止は本ファイル冒頭の規約に従う）。
+mod url_scheme_xss {
+    use super::*;
+
+    /// 拒否されるべき URL（危険スキーム・偽装形）。
+    const DANGEROUS_URLS: &[&str] = &[
+        "javascript:alert(1)",
+        "JaVaScRiPt:alert(1)",
+        "java\tscript:alert(1)",
+        "java\nscript:alert(1)",
+        "\u{0}javascript:alert(1)",
+        " javascript:alert(1)",
+        "data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==",
+        "vbscript:msgbox(1)",
+        "foo:bar",
+    ];
+
+    /// 透過されるべき安全な URL（相対 URL・許可スキーム）。
+    const SAFE_URLS: &[&str] = &[
+        "/items/1",
+        "./rel",
+        "?q=1",
+        "#frag",
+        "//example.com/x",
+        "https://example.com",
+        "http://example.com",
+        "mailto:a@example.com",
+        "tel:+819012345678",
+        "HTTPS://EXAMPLE.COM",
+        "/path/a:b",
+    ];
+
+    fn page_with_href(url: &str) -> Node {
+        el(
+            "a",
+            vec![("href", url), ("data-nav", "safe")],
+            vec![text("link")],
+        )
+    }
+
+    /// SSR 経路: 危険スキームの `href` は属性ごと出力から消え、`javascript:`
+    /// という文字列自体が render() 出力に一切現れないことを確認する。
+    #[test]
+    fn ssr_response_body_blocks_dangerous_url_schemes() {
+        for url in DANGEROUS_URLS {
+            let html = render(&page_with_href(url));
+            assert!(
+                !html.contains("href="),
+                "危険スキームの href が出力された（url: {url:?}）: {html}"
+            );
+            assert!(
+                !html.to_lowercase().contains("javascript:")
+                    && !html.to_lowercase().contains("vbscript:")
+                    && !html.to_lowercase().contains("data:text/html"),
+                "危険スキーム文字列が出力に残存した（url: {url:?}）: {html}"
+            );
+            // 兄弟属性（data-nav）は影響を受けず出力される（過剰ブロックでないこと）。
+            assert!(html.contains("data-nav=\"safe\""));
+        }
+    }
+
+    /// SSR 経路: 安全な URL は従来どおり透過し、`href` 属性がエスケープ済みの
+    /// 値で出力されることを確認する。
+    #[test]
+    fn ssr_response_body_allows_safe_urls() {
+        for url in SAFE_URLS {
+            let html = render(&page_with_href(url));
+            let expected = format!("href=\"{}\"", escape_html(url));
+            assert!(
+                html.contains(&expected),
+                "安全な URL が透過されなかった（url: {url:?}）: {html}"
+            );
+        }
+    }
+
+    /// SSG 経路: ファイル書き出し・読み戻し後も同一の遮断・透過が成立する
+    /// ことを確認する。
+    #[test]
+    fn ssg_file_output_blocks_dangerous_url_schemes() {
+        for (i, url) in DANGEROUS_URLS.iter().enumerate() {
+            let html = render(&page_with_href(url));
+            let from_file = ssg_write_and_read_back(&html, &format!("url-danger-{i}"));
+            assert!(
+                !from_file.contains("href="),
+                "SSG 出力に危険スキームの href が残存した（url: {url:?}）: {from_file}"
+            );
+        }
+    }
+
+    /// CSR 経路: `render()` の断片出力を `innerHTML` 相当として扱う呼び出し
+    /// パターンでも同一の保証が成立することを確認する（`mod csr` と同型の
+    /// ネイティブ検証）。
+    #[test]
+    fn csr_fragment_render_blocks_dangerous_url_schemes() {
+        for url in DANGEROUS_URLS {
+            let fragment = render(&page_with_href(url));
+            assert!(
+                !fragment.contains("href="),
+                "CSR 断片レンダリングで危険スキームの href が出力された（url: {url:?}）: {fragment}"
+            );
+        }
+    }
+
+    /// `srcset` はカンマ区切りの複数候補を持つ特殊構文。1 候補でも危険
+    /// スキームなら属性全体をスキップし、全候補安全なら透過することを
+    /// 確認する（部分書き換えをしない決定的挙動の固定）。
+    #[test]
+    fn srcset_attribute_all_or_nothing_validation() {
+        let node = el(
+            "img",
+            vec![
+                ("srcset", "/a.png 1x, javascript:alert(1) 2x"),
+                ("alt", "safe"),
+            ],
+            vec![],
+        );
+        let html = render(&node);
+        assert!(
+            !html.contains("srcset="),
+            "危険スキーム候補を含む srcset が出力された: {html}"
+        );
+        assert!(html.contains("alt=\"safe\""));
+
+        let safe_node = el(
+            "img",
+            vec![("srcset", "/a.png 1x, /b.png 2x"), ("alt", "safe")],
+            vec![],
+        );
+        let safe_html = render(&safe_node);
+        assert!(
+            safe_html.contains("srcset=\"/a.png 1x, /b.png 2x\""),
+            "全候補安全な srcset が透過されなかった: {safe_html}"
+        );
+    }
+
+    /// イベントハンドラ属性（`on*`）は値によらず一律出力されないことを
+    /// SSR/CSR 双方の呼び出しパターンで確認する。
+    #[test]
+    fn event_handler_attributes_are_never_rendered() {
+        for attr in ["onclick", "ONERROR", "OnMouseOver"] {
+            let node = el(
+                "div",
+                vec![(attr, "alert(1)"), ("class", "safe")],
+                vec![text("x")],
+            );
+            let html = render(&node);
+            assert!(
+                !html.to_lowercase().contains(&attr.to_lowercase()),
+                "イベントハンドラ属性 {attr} が出力された: {html}"
+            );
+            assert!(html.contains("class=\"safe\""));
+        }
+    }
+}

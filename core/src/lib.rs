@@ -30,6 +30,20 @@
 //!    機械的に禁止する。`unsafe` は WASM バインディング層・FFI 境界に限定され、
 //!    本クレートには含まれない。
 //! 7. **外部依存ゼロ**: `Cargo.toml` の `[dependencies]` は常に空を維持する。
+//! 8. **URL 属性の許可スキーム検証（イシュー #373）**: `href`/`src` 等
+//!    [`URL_ATTRS`] に該当する属性の値は [`is_safe_url`]（`url` モジュール）
+//!    を通過したものだけを出力する。不合格の値（`javascript:` 等の
+//!    危険スキーム）は属性ごと出力からスキップする（panic させない
+//!    fail-closed。既定エスケープでは防げない URL スキーム経由の XSS への
+//!    対策。詳細は `docs/policy/attribute-output-policy.md`）。この保証は
+//!    `render_into`（本クレート）だけでなく、実 DOM 直接更新経路
+//!    （`rws-wasm-client` の `binding_dom.rs`）にも同一の関数群を通じて
+//!    適用される契約。
+//! 9. **イベントハンドラ属性の一律不出力（イシュー #373）**: 属性名が
+//!    [`is_event_handler_attr`] と判定される場合（`on` で始まる）、
+//!    値によらず出力しない。本フレームワークのインタラクションモデルは
+//!    `data-hydrate`/`data-bind-*` の束縛点方式であり、インライン JS は
+//!    設計上の正規経路に存在しない。
 //!
 //! 本クレートは外部依存ゼロ（`core/Cargo.toml` 参照）。PoC-2 で判明した
 //! 「マクロ DSL が依存グラフを押し上げる」という知見を踏まえ、`view!`/`html!`
@@ -94,10 +108,12 @@ mod bind;
 mod escape;
 pub mod keyed;
 mod tags;
+mod url;
 
 pub use bind::*;
 pub use escape::{escape_html, escape_html_into};
 pub use tags::*;
+pub use url::{is_event_handler_attr, is_safe_srcset, is_safe_url, is_url_attr, URL_ATTRS};
 
 /// HTML ノード木。マクロ DSL に依存しない素の Rust 値として組み立てる。
 ///
@@ -347,6 +363,28 @@ fn render_into(node: &Node, out: &mut String) {
                 if !is_valid_attr_name(k) {
                     // 不正な属性名は panic させず出力からスキップする（不変条件 4）。
                     continue;
+                }
+                if is_event_handler_attr(k) {
+                    // イベントハンドラ属性は値によらず出力しない（不変条件 9）。
+                    continue;
+                }
+                if is_url_attr(k) {
+                    // URL 属性は許可スキーム検証を通過した値のみ出力する
+                    // （不変条件 8）。検証は raw な属性値に対して行う
+                    // （エスケープ後の文字列は判定対象にしない。エスケープは
+                    // 別コンテキスト向けの変換であり、スキーム判定を歪める）。
+                    if !is_safe_url(v) {
+                        continue;
+                    }
+                } else if k.eq_ignore_ascii_case("srcset") {
+                    // srcset はカンマ区切りの URL 候補を持つ特殊構文。
+                    // is_safe_srcset（url.rs）が候補分割と検証を行う。
+                    // wasm-client の binding_dom.rs / keyed_dom.rs も同一
+                    // 関数を参照し、3 経路で判定ロジックを重複させない
+                    // （イシュー #373 レビュー指摘対応）。
+                    if !is_safe_srcset(v) {
+                        continue;
+                    }
                 }
                 let _ = write!(out, " {}=\"", k);
                 escape_html_into(v, out);
