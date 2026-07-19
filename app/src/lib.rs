@@ -34,6 +34,7 @@
 #![warn(missing_docs)]
 
 use rws_core::{a, div, el, h1, li, main_tag, p, text, ul, Node};
+use std::convert::Infallible;
 
 /// ハイドレーション後にクライアント側の `click` イベントで参照される
 /// `id` 属性値。`rws-wasm-client`（TASK-6.2 系）がこの定数で DOM 要素を
@@ -83,6 +84,113 @@ pub fn demo_items() -> Vec<Item> {
             body: "標準 API を直接呼び出す形でページ遷移を演出できるかを検証する。".to_string(),
         },
     ]
+}
+
+/// SSR・SSG・CSR の三モードから同一実装が呼ばれるデータ取得契約
+/// （イシュー #346 設計確定書 `docs/design/loader-trait-design.md` §3.2 の
+/// 凍結シグネチャに一字一句準拠する。実装が本 trait と乖離した場合は
+/// 同設計書を正とする）。
+///
+/// `load()` の実装は 1 箇所のみとし、モード別の分岐を持たない
+/// （REQ-6 の三モード契約を Loader にも適用する）。`rws-server`（#348）・
+/// `rws-wasm-full`（#349）はいずれも本 trait の同一 `impl` を呼ぶのみで、
+/// モードごとに別実装を作らない。
+///
+/// # 型で保証する範囲（設計書 §3.4）
+///
+/// 保証するのは `Output` 型とページ関数（[`list_page`] / [`detail_page`]）
+/// への型接続のみであり、`load` 自体の実行時決定性（外界 I/O を含みうる）
+/// は型システムの外側（テスト）の責務とする。
+pub trait Loader {
+    /// ルートパラメータ等の解決入力（例: 一覧 = `()`、詳細 = id）。
+    type Input;
+    /// ページ関数への唯一のデータ源。
+    type Output;
+    /// 解決失敗を表す型。
+    ///
+    /// 表示用文字列に内部パス・スタックトレース・接続情報等の内部情報を
+    /// 含めない契約とする（fail-closed、`security.md`「機微情報の露出」・
+    /// 設計書 §5・§9-5）。エラー時の実際の応答（500 / ビルド失敗 / 固定
+    /// エラービュー）は呼び出し元（`rws-server` #348・`rws-wasm-full` #349）
+    /// の責務であり、本 trait はエラーの型のみを規定する。
+    type Error;
+
+    /// `input` からデータを解決する。三モードいずれの呼び出し元からも
+    /// 同一実装が呼ばれる（型で保証する範囲は本 trait の rustdoc 冒頭を
+    /// 参照）。
+    fn load(&self, input: &Self::Input) -> Result<Self::Output, Self::Error>;
+}
+
+/// 一覧画面（[`list_page`]）向けの参照 loader 実装。
+///
+/// 内部で [`demo_items()`] を呼ぶのみであり、デモデータは解決に失敗しない
+/// ため `Error = Infallible` とする（設計書 §7.1 の参照実装）。#348 が
+/// エラー経路をテストする際は、この loader とは別に失敗する loader を
+/// server 側テストで定義できる（`Loader` は汎用のまま）。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DemoItemsLoader;
+
+impl Loader for DemoItemsLoader {
+    type Input = ();
+    type Output = Vec<Item>;
+    type Error = Infallible;
+
+    fn load(&self, _input: &()) -> Result<Vec<Item>, Infallible> {
+        Ok(demo_items())
+    }
+}
+
+/// 詳細画面（[`detail_page`]）向けの参照 loader 実装。
+///
+/// `Input` は URL パス片（`/items/{id}`）に対応する id 文字列。id が
+/// [`demo_items()`] に存在しない場合は `Output = None` を返す（見つから
+/// ない、を `Error` ではなく `Output` の一部として表現することで、404
+/// 相当を fail-closed なエラー扱いにしない — 設計書 §3.3 の
+/// `detail_page(item: Option<&Item>)` 契約とそのまま接続する）。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DemoItemDetailLoader;
+
+impl Loader for DemoItemDetailLoader {
+    type Input = String;
+    type Output = Option<Item>;
+    type Error = Infallible;
+
+    fn load(&self, id: &String) -> Result<Option<Item>, Infallible> {
+        Ok(demo_items().into_iter().find(|it| &it.id == id))
+    }
+}
+
+/// loader の解決結果を一覧ページへ型接続する。
+///
+/// `L::Output` が `Vec<Item>` でない loader を渡すとコンパイルエラーに
+/// なる（`where` 束縛による型接続。設計書 §3.4 の「保証する範囲」）。
+/// `load` が失敗した場合は `?` で即座に `Err` を返し、未解決データで
+/// 描画を続行しない（fail-closed、設計書 §5）。呼び出し元（`rws-server`
+/// #348・`rws-wasm-full` #349）がこの `Err` をモードごとの応答（500 /
+/// ビルド失敗 / 固定エラービュー）へ変換する。
+///
+/// `list_page` の引数は `&[Item]` であり `&L::Output`（`&Vec<Item>`）とは
+/// 借用の形が異なるため、`.as_slice()` で薄く変換する（設計書 §3.3 注記。
+/// `list_page` 自体の純関数シグネチャは変更しない）。
+pub fn assemble_list_page<L>(loader: &L, input: &L::Input) -> Result<Node, L::Error>
+where
+    L: Loader<Output = Vec<Item>>,
+{
+    Ok(list_page(loader.load(input)?.as_slice()))
+}
+
+/// loader の解決結果を詳細ページへ型接続する。[`assemble_list_page`] と
+/// 同様に `where` 束縛で `Output` を `Option<Item>` に固定し、型不整合を
+/// コンパイルエラーにする。
+///
+/// `detail_page` の引数は `Option<&Item>` であり `&L::Output`
+/// （`&Option<Item>`）とは `Option` の内外どちらを参照で包むかが異なる
+/// ため、`.as_ref()` で薄く変換する（設計書 §3.3 注記）。
+pub fn assemble_detail_page<L>(loader: &L, input: &L::Input) -> Result<Node, L::Error>
+where
+    L: Loader<Output = Option<Item>>,
+{
+    Ok(detail_page(loader.load(input)?.as_ref()))
 }
 
 /// 共通レイアウト（ヘッダー相当）。[`list_page`] / [`detail_page`] の両方から
@@ -316,5 +424,66 @@ mod tests {
         ));
         assert!(!html.contains("<script>alert"));
         assert!(html.contains("&lt;script&gt;alert"));
+    }
+
+    /// 設計書 §3.4「型で保証しない範囲」の実行時側: 同一 `Input` を渡した
+    /// `DemoItemsLoader::load` の呼び出し結果が完全一致することを固定する
+    /// （REQ-6 の三モード契約を loader にも適用したことの決定性証明）。
+    #[test]
+    fn demo_items_loader_load_is_deterministic_for_same_input() {
+        let loader = DemoItemsLoader;
+        let first = loader.load(&()).expect("Infallible は必ず Ok");
+        let second = loader.load(&()).expect("Infallible は必ず Ok");
+        assert_eq!(first, second);
+    }
+
+    /// 受け入れ条件 1 の直接証明: loader 経由（`assemble_list_page`）と
+    /// 純関数直呼び（`list_page(&demo_items())`）が完全一致する Node 木を
+    /// 生成する。`Output = Vec<Item>` という `where` 束縛が
+    /// `list_page` の引数型と接続していることを実行結果でも裏付ける。
+    #[test]
+    fn assemble_list_page_matches_direct_list_page_call() {
+        let via_loader =
+            render(&assemble_list_page(&DemoItemsLoader, &()).expect("Infallible は必ず Ok"));
+        let direct = render(&list_page(&demo_items()));
+        assert_eq!(via_loader, direct);
+    }
+
+    /// `assemble_detail_page` の型接続版。存在する id では
+    /// `detail_page(Some(..))` と、存在しない id では `detail_page(None)`
+    /// と同一の Node 木になることを確認する。
+    #[test]
+    fn assemble_detail_page_matches_direct_detail_page_call_for_existing_and_missing_id() {
+        let loader = DemoItemDetailLoader;
+
+        let via_loader =
+            render(&assemble_detail_page(&loader, &"1".to_string()).expect("Infallible は必ず Ok"));
+        let items = demo_items();
+        let direct = render(&detail_page(items.iter().find(|it| it.id == "1")));
+        assert_eq!(via_loader, direct);
+        assert!(via_loader.contains(r#"data-testid="item-detail""#));
+
+        let via_loader_missing = render(
+            &assemble_detail_page(&loader, &"does-not-exist".to_string())
+                .expect("Infallible は必ず Ok"),
+        );
+        assert!(via_loader_missing.contains("見つかりません"));
+    }
+
+    /// loader 経由の XSS 回帰: `demo_items()[1]` の XSS ペイロードが
+    /// `assemble_list_page` / `assemble_detail_page` 経路でも既定エスケープ
+    /// されることを確認する（既存の直接呼び出し経路の XSS 回帰テストを
+    /// 弱体化させず、loader 経路の同等テストを追加する形を取る）。
+    #[test]
+    fn assemble_pages_escape_xss_payload_via_loader_path() {
+        let list_html = render(&assemble_list_page(&DemoItemsLoader, &()).expect("Infallible"));
+        assert!(!list_html.contains("<script>alert"));
+        assert!(list_html.contains("&lt;script&gt;alert"));
+
+        let detail_html = render(
+            &assemble_detail_page(&DemoItemDetailLoader, &"2".to_string()).expect("Infallible"),
+        );
+        assert!(!detail_html.contains("<script>alert"));
+        assert!(detail_html.contains("&lt;script&gt;alert"));
     }
 }
