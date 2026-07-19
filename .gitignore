@@ -14,3 +14,7 @@
 # implement-issue-tree 等のスキルが使うローカル状態ディレクトリ
 # （_/issue-trees/<N>.json・_/local-plans/ 等。git 管理外・コミット禁止）
 /_/
+
+# implement-issue-tree / Workflow が実装隔離に使う一時 git worktree の配置先
+# （worktree 自体は各所の掃除処理で削除されるが、untracked 表示を防ぐ）
+/.claude/worktrees/
