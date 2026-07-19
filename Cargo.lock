@@ -343,6 +343,7 @@ version = "0.1.0"
 dependencies = [
  "rws-app",
  "rws-core",
+ "rws-interactive",
  "wasm-bindgen",
  "wasm-bindgen-test",
  "web-sys",
