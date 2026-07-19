@@ -56,7 +56,7 @@ pub(crate) struct Template {
 /// まま固定する。
 pub(crate) const DEFAULT_TEMPLATE_NAME: &str = "default";
 
-/// `templates/default/` の全ファイル（13 件）を git の相対パス順・実行ビット
+/// `templates/default/` の全ファイル（14 件）を git の相対パス順・実行ビット
 /// どおりに埋め込んだ固定配列。
 ///
 /// 展開順はこの配列順であり、`fw new` の出力 JSON の `files` 一覧も同じ順序で
@@ -83,6 +83,11 @@ const DEFAULT_TEMPLATE_FILES: &[TemplateFile] = &[
     TemplateFile {
         rel_path: "Cargo.toml",
         contents: include_str!("../../templates/default/Cargo.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "README.md",
+        contents: include_str!("../../templates/default/README.md"),
         executable: false,
     },
     TemplateFile {

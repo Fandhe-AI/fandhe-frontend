@@ -146,8 +146,8 @@ out-of-scope 節で明示的に先送りされてきたこの領域について�
   `core/tests/xss_escape.rs` の回帰テスト（削除・弱体化禁止規約、
   `.claude/rules/coding-rust.md`）に依拠する。機械ゲート化が必要と判断
   された場合は別 Issue として提案する。
-- `templates/default/` 側への周知ドキュメント反映: 標準プロジェクト
-  テンプレート利用者向けの説明追加は本書のスコープ外。別 Issue 候補。
+- `templates/default/` 側への周知ドキュメント反映: イシュー #402 で
+  `templates/default/README.md` として反映済み。
 
 ## 7. 参照
 
