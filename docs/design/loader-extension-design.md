@@ -17,9 +17,13 @@
 
 - 上流イシュー: #377（トラッキング元は `loader-trait-design.md` §8 のスコープ外表）
 - 実装状況（本書執筆時点）: `Loader` trait 本体は #347（PR #357、`app/src/lib.rs`）、
-  SSR/SSG 経路は #348（PR #361、`server/src/ssr.rs` / `server/src/ssg.rs`）、CSR 経路は
-  #349（PR #365、`wasm-full/src/csr.rs`）で実装済み。クライアント側ルーティング（画面
-  遷移機構）は未実装（PR #365 対象外節 1）。
+  SSR/SSG 経路は #348（PR #361、`server/src/ssr.rs` / `server/src/ssg.rs`）、CSR 初期
+  表示経路は #349（PR #365、`wasm-full/src/csr.rs`）で実装済み。クライアント側
+  ルーティング（画面遷移機構）は #374（PR #383、`wasm-full/src/nav.rs`）で実装済みで
+  あり、遷移時に `resolve_route_view_with`（`wasm-full/src/nav.rs:102`）経由で
+  `resolve_list_node`/`resolve_detail_node` が呼ばれ loader が実行される。ただし
+  `start_router` 呼び出し時点（初期表示）では描画・loader 再実行を行わない契約
+  （`loader-trait-design.md` §4/§7.3 の凍結事項）は維持されている。
 
 ## 2. スコープの確認
 
@@ -102,7 +106,10 @@
   （そもそも再利用の必要がない）。
 - CSR: 初期表示はサーバー解決済みのハイドレーション状態注入を再利用し loader を
   再実行しない（`loader-trait-design.md` §4 補足）。クライアント側ルーティング
-  （画面遷移機構）は未実装のため、遷移時の再取得コストは現時点で発生しない。
+  （画面遷移機構、`wasm-full/src/nav.rs`、#374/PR #383）導入後は、遷移時に毎回
+  `load` が呼ばれる（`resolve_route_view_with` 経由）。ただし遷移先は同一セッション
+  内で同じルートへ複数回遷移する場合を除き基本的に単発の解決であり、キャッシュが
+  自然に挟まる構造にはなっていない。
 
 ### 4.4 セキュリティ面の懸念（追加リスク）
 
@@ -121,8 +128,9 @@
 **非採用**（再評価トリガー付き）。
 
 **再評価トリガー**: 以下のいずれかが実測で確認された場合。
-1. クライアント側ルーティング（画面遷移機構）の導入後、同一データの再取得コストが
-   実測で性能受け入れ基準（REQ-11）を満たせないことが確認された場合。
+1. クライアント側ルーティング（画面遷移機構、`wasm-full/src/nav.rs`）経由の遷移で、
+   同一データの再取得コストが実測で性能受け入れ基準（REQ-11）を満たせないことが
+   確認された場合。
 2. 外部 I/O を伴う loader（第 3 節）が導入され、その I/O コストが実測で問題化した
    場合。
 
@@ -243,9 +251,11 @@ API 変更がゼロであるため、以下は本書導入前後で自明に維�
 
 - SSR・SSG・CSR の三モードから同一実装が呼ばれる契約（REQ-6）。
 - SSR は `respond_with`（`server/src/ssr.rs:140`）、SSG は `generate_with`
-  （`server/src/ssg.rs:156`、内部で同一の `respond()` を経由）、CSR は
-  `resolve_list_node`/`resolve_detail_node`（`wasm-full/src/csr.rs:52`/`69`）が
-  それぞれ既存の解決経路をそのまま使う。
+  （`server/src/ssg.rs:156`、内部で同一の `respond()` を経由）、CSR は初期表示で
+  `resolve_list_node`/`resolve_detail_node`（`wasm-full/src/csr.rs:52`/`69`）、
+  クライアント側遷移時は `resolve_route_view_with`（`wasm-full/src/nav.rs:102`、
+  内部で同じ `resolve_list_node`/`resolve_detail_node` を呼ぶ）が、それぞれ既存の
+  解決経路をそのまま使う。
 - エラー契約: SSR は `loader_error_response`（`server/src/ssr.rs:209`）による
   固定文言 500、SSG はビルド失敗、CSR は `loader_error_view`（`wasm-full/src/csr.rs:35`）
   による固定エラービュー。
