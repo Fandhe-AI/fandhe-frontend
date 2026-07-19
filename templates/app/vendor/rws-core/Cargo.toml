@@ -1,0 +1,22 @@
+[package]
+name = "rws-core"
+version = "0.1.0"
+edition = "2021"
+description = "rws-core: 描画コア（ノード木 API・既定エスケープレンダラ）。外部依存ゼロ。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# REQ-3 / coding-rust.md: core は外部依存ゼロを厳守する。
+# 新規クレートを追加する場合は事前にユーザー承認を得ること。
+[dependencies]
+
+[dev-dependencies]
+
+# vendor 同梱物（templates/app、イシュー #378）: 正本 core/Cargo.toml と
+# 内容は同一（差分なし）。ここに [workspace] を追加すると、この crate 自身が
+# 独立した workspace root と見なされ、親（templates/app/Cargo.toml、
+# rws-template-app）の workspace ツリー内に別の workspace root が
+# ネストする形になり `cargo` が
+# "multiple workspace roots found in the same workspace" で拒否する
+# （実測で確認済み）。親 workspace への自動編入防止は親側
+# （templates/app/Cargo.toml）の `[workspace] members = ["."]` のみで行う。

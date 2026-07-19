@@ -1,22 +1,33 @@
-//! `fw new`（TASK-13.4 相当、イシュー #350）の実バイナリ e2e テスト。
+//! `fw new`（TASK-13.4 相当、イシュー #350／複数テンプレート選択、
+//! イシュー #378）の実バイナリ e2e テスト。
 //!
 //! `cli/tests/support/mod.rs`（`negative_cases.rs` 等）は `structure.toml` /
 //! `deny.toml` 等の `fw gate` 専用フィクスチャを前提とするため、`fw new` には
 //! 流用せず本ファイル内に薄いヘルパーを持つ（`support/mod.rs` 冒頭コメントが
 //! 明文化する「テストターゲット独立の制約による意図的な複製」方針を踏襲）。
 //!
-//! 受け入れ条件（イシュー #350 計画 §1）:
+//! 受け入れ条件（イシュー #350 計画 §1、イシュー #378 で全テンプレートへ
+//! パラメタ化）:
 //! 1. 同一引数での 2 回実行が同一出力（決定性テスト）
 //! 2. 既存ディレクトリへの上書きは fail-closed（明示フラグなしでは拒否）
-//! 3. 終了コード契約（0/1/2）を他サブコマンドと統一
+//! 3. 終了コード契約（0/1/2）を他サブコマンドと統一（未知 `--template` も
+//!    使用法エラー・終了コード 2）
 //!
-//! さらに `cli/src/new_template.rs::TEMPLATE_FILES`（コンパイル時埋め込み）と
-//! 正本 `templates/default/` の乖離を検出するドリフト検知テストを持つ
+//! さらに `cli/src/new_template.rs::TEMPLATES`（コンパイル時埋め込み）と
+//! 正本 `templates/<name>/` の乖離を検出するドリフト検知テストを持つ
 //! （`.claude/rules/ci.md` の cargo-deny pin ドリフト検知と同じ運用方針）。
+//! vendor 同梱物（`templates/app/vendor/`）と正本 `core/`/`app/` の乖離検知は
+//! 別ファイル `cli/tests/template_vendor_drift.rs` が担う。
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+
+/// `--template` の allowlist（テストのパラメタ化に使う。
+/// `cli/src/new_template.rs::TEMPLATES` と手動同期する必要があるが、件数の
+/// ドリフトは `embedded_template_matches_templates_default_on_disk` 等の
+/// per-template テストが `templates/<name>/` の走査を通じて機械的に検出する）。
+const TEMPLATE_NAMES: &[&str] = &["default", "app"];
 
 /// `fw new` を実バイナリとして起動し (終了コード, stdout, stderr) を返す。
 fn run_fw_new(extra_args: &[&str]) -> (i32, String, String) {
@@ -84,62 +95,108 @@ fn collect_tree(root: &Path) -> Vec<(String, Vec<u8>, bool)> {
     out
 }
 
-// --- 受け入れ条件 1: 決定性 ---
+// --- 受け入れ条件 1: 決定性（全テンプレート） ---
 
 #[test]
 fn same_args_produce_byte_identical_output_across_two_runs() {
-    let scratch = unique_scratch_dir("determinism");
-    let dir_a = scratch.join("a");
-    let dir_b = scratch.join("b");
-    fs::create_dir_all(&dir_a).unwrap();
-    fs::create_dir_all(&dir_b).unwrap();
+    for name in TEMPLATE_NAMES {
+        let scratch = unique_scratch_dir(&format!("determinism-{name}"));
+        let dir_a = scratch.join("a");
+        let dir_b = scratch.join("b");
+        fs::create_dir_all(&dir_a).unwrap();
+        fs::create_dir_all(&dir_b).unwrap();
 
-    let (code_a, _, stderr_a) = run_fw_new(&["demo-app", "--dir", &dir_a.to_string_lossy()]);
-    assert_eq!(code_a, 0, "first run must succeed: {stderr_a}");
+        let (code_a, _, stderr_a) = run_fw_new(&[
+            "demo-app",
+            "--template",
+            name,
+            "--dir",
+            &dir_a.to_string_lossy(),
+        ]);
+        assert_eq!(
+            code_a, 0,
+            "template `{name}` first run must succeed: {stderr_a}"
+        );
 
-    let (code_b, _, stderr_b) = run_fw_new(&["demo-app", "--dir", &dir_b.to_string_lossy()]);
-    assert_eq!(code_b, 0, "second run must succeed: {stderr_b}");
+        let (code_b, _, stderr_b) = run_fw_new(&[
+            "demo-app",
+            "--template",
+            name,
+            "--dir",
+            &dir_b.to_string_lossy(),
+        ]);
+        assert_eq!(
+            code_b, 0,
+            "template `{name}` second run must succeed: {stderr_b}"
+        );
 
-    let tree_a = collect_tree(&dir_a.join("demo-app"));
-    let tree_b = collect_tree(&dir_b.join("demo-app"));
-    assert_eq!(
-        tree_a, tree_b,
-        "two runs with identical arguments must produce byte-identical output"
-    );
-    assert!(!tree_a.is_empty(), "expansion must not be empty");
+        let tree_a = collect_tree(&dir_a.join("demo-app"));
+        let tree_b = collect_tree(&dir_b.join("demo-app"));
+        assert_eq!(
+            tree_a, tree_b,
+            "template `{name}`: two runs with identical arguments must produce byte-identical output"
+        );
+        assert!(
+            !tree_a.is_empty(),
+            "template `{name}`: expansion must not be empty"
+        );
 
-    let _ = fs::remove_dir_all(&scratch);
+        let _ = fs::remove_dir_all(&scratch);
+    }
 }
 
-// --- 受け入れ条件 2: fail-closed ---
+// --- 受け入れ条件 2: fail-closed（全テンプレート） ---
 
 #[test]
 fn existing_target_is_rejected_without_force_and_accepted_with_force() {
-    let scratch = unique_scratch_dir("fail-closed");
+    for name in TEMPLATE_NAMES {
+        let scratch = unique_scratch_dir(&format!("fail-closed-{name}"));
 
-    let (code1, _, _) = run_fw_new(&["demo-app", "--dir", &scratch.to_string_lossy()]);
-    assert_eq!(code1, 0);
+        let (code1, _, _) = run_fw_new(&[
+            "demo-app",
+            "--template",
+            name,
+            "--dir",
+            &scratch.to_string_lossy(),
+        ]);
+        assert_eq!(code1, 0, "template `{name}`");
 
-    let target = scratch.join("demo-app");
-    let marker = target.join("MARKER_UNTOUCHED");
-    fs::write(&marker, b"sentinel").unwrap();
+        let target = scratch.join("demo-app");
+        let marker = target.join("MARKER_UNTOUCHED");
+        fs::write(&marker, b"sentinel").unwrap();
 
-    let (code2, _, stderr2) = run_fw_new(&["demo-app", "--dir", &scratch.to_string_lossy()]);
-    assert_eq!(
-        code2, 1,
-        "re-running against an existing target without --force must fail-closed"
-    );
-    assert!(!stderr2.is_empty(), "stderr must explain the rejection");
-    assert!(
-        marker.exists(),
-        "existing content must be left untouched when rejected"
-    );
+        let (code2, _, stderr2) = run_fw_new(&[
+            "demo-app",
+            "--template",
+            name,
+            "--dir",
+            &scratch.to_string_lossy(),
+        ]);
+        assert_eq!(
+            code2, 1,
+            "template `{name}`: re-running against an existing target without --force must fail-closed"
+        );
+        assert!(!stderr2.is_empty(), "stderr must explain the rejection");
+        assert!(
+            marker.exists(),
+            "existing content must be left untouched when rejected"
+        );
 
-    let (code3, _, stderr3) =
-        run_fw_new(&["demo-app", "--dir", &scratch.to_string_lossy(), "--force"]);
-    assert_eq!(code3, 0, "--force must allow overwriting: {stderr3}");
+        let (code3, _, stderr3) = run_fw_new(&[
+            "demo-app",
+            "--template",
+            name,
+            "--dir",
+            &scratch.to_string_lossy(),
+            "--force",
+        ]);
+        assert_eq!(
+            code3, 0,
+            "template `{name}`: --force must allow overwriting: {stderr3}"
+        );
 
-    let _ = fs::remove_dir_all(&scratch);
+        let _ = fs::remove_dir_all(&scratch);
+    }
 }
 
 // --- 受け入れ条件 3: 終了コード契約 ---
@@ -164,45 +221,116 @@ fn unknown_flag_is_usage_error() {
     assert_eq!(code, 2);
 }
 
+/// イシュー #378: 未知の `--template` 値は使用法エラー（終了コード 2）とし、
+/// stderr に利用可能テンプレート一覧を出す。
+#[test]
+fn unknown_template_is_usage_error_and_lists_available_templates() {
+    let (code, _, stderr) = run_fw_new(&["demo-app", "--template", "nonexistent"]);
+    assert_eq!(code, 2);
+    assert!(
+        stderr.contains("nonexistent"),
+        "stderr must mention the rejected template name: {stderr}"
+    );
+    for name in TEMPLATE_NAMES {
+        assert!(
+            stderr.contains(name),
+            "stderr must list available template `{name}`: {stderr}"
+        );
+    }
+}
+
+/// `--template` の値欠落は使用法エラー（`--dir` と同様の解析規則）。
+#[test]
+fn template_flag_missing_value_is_usage_error() {
+    let (code, _, _) = run_fw_new(&["demo-app", "--template"]);
+    assert_eq!(code, 2);
+}
+
 #[test]
 fn success_is_exit_code_zero() {
-    let scratch = unique_scratch_dir("exit-zero");
+    for name in TEMPLATE_NAMES {
+        let scratch = unique_scratch_dir(&format!("exit-zero-{name}"));
+        let (code, stdout, stderr) = run_fw_new(&[
+            "demo-app",
+            "--template",
+            name,
+            "--dir",
+            &scratch.to_string_lossy(),
+        ]);
+        assert_eq!(code, 0, "template `{name}` stderr: {stderr}");
+        assert!(stdout.contains("\"created\""));
+        assert!(stdout.contains("\"files\""));
+        assert!(
+            stdout.contains(&format!("\"template\":\"{name}\"")),
+            "stdout must echo the selected template name: {stdout}"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+/// `--template` 省略時は `default` が選ばれる（イシュー #378 以前の
+/// `fw new` 呼び出しとの後方互換性）。
+#[test]
+fn omitting_template_flag_defaults_to_default_template() {
+    let scratch = unique_scratch_dir("template-omitted");
     let (code, stdout, stderr) = run_fw_new(&["demo-app", "--dir", &scratch.to_string_lossy()]);
     assert_eq!(code, 0, "stderr: {stderr}");
-    assert!(stdout.contains("\"created\""));
-    assert!(stdout.contains("\"files\""));
+    assert!(
+        stdout.contains("\"template\":\"default\""),
+        "stdout={stdout}"
+    );
     let _ = fs::remove_dir_all(&scratch);
 }
 
-// --- 置換検証 ---
+// --- 置換検証（全テンプレート） ---
 
 #[test]
 fn package_name_is_substituted_and_other_files_are_byte_identical_to_template() {
-    let scratch = unique_scratch_dir("substitution");
+    for name in TEMPLATE_NAMES {
+        let scratch = unique_scratch_dir(&format!("substitution-{name}"));
+        let (code, _, stderr) = run_fw_new(&[
+            "demo-app",
+            "--template",
+            name,
+            "--dir",
+            &scratch.to_string_lossy(),
+        ]);
+        assert_eq!(code, 0, "template `{name}` stderr: {stderr}");
+
+        let target = scratch.join("demo-app");
+        let needle = format!("rws-template-{name}");
+
+        let cargo_toml = fs::read_to_string(target.join("Cargo.toml")).unwrap();
+        assert!(cargo_toml.contains("name = \"demo-app\""));
+        assert!(!cargo_toml.contains(&needle));
+
+        let cargo_lock = fs::read_to_string(target.join("Cargo.lock")).unwrap();
+        assert!(cargo_lock.contains("name = \"demo-app\""));
+        assert!(!cargo_lock.contains(&needle));
+
+        // structure.toml（イシュー #351）も同じ allowlist で置換される。fw gate
+        // （cli/src/gate.rs）はここで宣言される `crate = "..."` を唯一の情報源と
+        // するため、プロジェクト名への置換漏れは生成直後の fw gate BLOCKED
+        // （宣言クレート不在の fail-closed）に直結する。
+        let structure_toml = fs::read_to_string(target.join("structure.toml")).unwrap();
+        assert!(structure_toml.contains("crate = \"demo-app\""));
+        assert!(!structure_toml.contains(&needle));
+
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+/// 置換対象外ファイル（`default` テンプレートの `tests/negative_type_error.rs`
+/// の doc コメント内言及）はテンプレートとバイト一致すること（意図的に
+/// 置換しない契約、`new.rs::Template::substituted_files` allowlist の境界）。
+#[test]
+fn default_template_negative_type_error_test_is_byte_identical_to_source() {
+    let scratch = unique_scratch_dir("substitution-boundary");
     let (code, _, stderr) = run_fw_new(&["demo-app", "--dir", &scratch.to_string_lossy()]);
     assert_eq!(code, 0, "stderr: {stderr}");
 
     let target = scratch.join("demo-app");
-
-    let cargo_toml = fs::read_to_string(target.join("Cargo.toml")).unwrap();
-    assert!(cargo_toml.contains("name = \"demo-app\""));
-    assert!(!cargo_toml.contains("rws-template-default"));
-
-    let cargo_lock = fs::read_to_string(target.join("Cargo.lock")).unwrap();
-    assert!(cargo_lock.contains("name = \"demo-app\""));
-    assert!(!cargo_lock.contains("rws-template-default"));
-
-    // structure.toml（イシュー #351）も同じ allowlist で置換される。fw gate
-    // （cli/src/gate.rs）はここで宣言される `crate = "..."` を唯一の情報源と
-    // するため、プロジェクト名への置換漏れは生成直後の fw gate BLOCKED
-    // （宣言クレート不在の fail-closed）に直結する。
-    let structure_toml = fs::read_to_string(target.join("structure.toml")).unwrap();
-    assert!(structure_toml.contains("crate = \"demo-app\""));
-    assert!(!structure_toml.contains("rws-template-default"));
-
-    // 置換対象外ファイルはテンプレートとバイト一致すること
-    // （negative_type_error.rs の doc コメント内言及は置換しない契約）。
-    let template_root = template_root_dir();
+    let template_root = template_root_dir("default");
     let generated = fs::read(target.join("tests/negative_type_error.rs")).unwrap();
     let original = fs::read(template_root.join("tests/negative_type_error.rs")).unwrap();
     assert_eq!(generated, original);
@@ -210,54 +338,69 @@ fn package_name_is_substituted_and_other_files_are_byte_identical_to_template() 
     let _ = fs::remove_dir_all(&scratch);
 }
 
-// --- ドリフト検知: TEMPLATE_FILES と templates/default/ の一致 ---
+// --- ドリフト検知: TEMPLATES と templates/<name>/ の一致（全テンプレート） ---
 
-fn template_root_dir() -> PathBuf {
+fn template_root_dir(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("cli/ has a parent workspace root")
-        .join("templates/default")
+        .join("templates")
+        .join(name)
 }
 
+/// `--template` ごとに置換対象ファイル（プロジェクト名を含むため展開後は
+/// 正本とバイト一致しない）の allowlist。全テンプレート共通で
+/// `Cargo.toml`/`Cargo.lock`/`structure.toml`（`cli/src/new_template.rs`
+/// の `Template::substituted_files` と同期する）。
+const SUBSTITUTED_RELATIVE_PATHS: &[&str] = &["Cargo.toml", "Cargo.lock", "structure.toml"];
+
 #[test]
-fn embedded_template_matches_templates_default_on_disk() {
-    let template_root = template_root_dir();
-    let on_disk = collect_tree(&template_root);
+fn embedded_template_matches_templates_on_disk() {
+    for name in TEMPLATE_NAMES {
+        let template_root = template_root_dir(name);
+        let on_disk = collect_tree(&template_root);
 
-    let scratch = unique_scratch_dir("drift-check");
-    let (code, _, stderr) = run_fw_new(&["drift-check-app", "--dir", &scratch.to_string_lossy()]);
-    assert_eq!(code, 0, "stderr: {stderr}");
-    let expanded = collect_tree(&scratch.join("drift-check-app"));
+        let scratch = unique_scratch_dir(&format!("drift-check-{name}"));
+        let (code, _, stderr) = run_fw_new(&[
+            "drift-check-app",
+            "--template",
+            name,
+            "--dir",
+            &scratch.to_string_lossy(),
+        ]);
+        assert_eq!(code, 0, "template `{name}` stderr: {stderr}");
+        let expanded = collect_tree(&scratch.join("drift-check-app"));
 
-    assert_eq!(
-        on_disk.len(),
-        expanded.len(),
-        "templates/default/ file count must match the embedded manifest \
-         (cli/src/new_template.rs::TEMPLATE_FILES) — update the manifest when \
-         templates/default/ gains or loses files"
-    );
-
-    for (disk_entry, expanded_entry) in on_disk.iter().zip(expanded.iter()) {
-        let (disk_path, disk_bytes, disk_exec) = disk_entry;
-        let (expanded_path, expanded_bytes, expanded_exec) = expanded_entry;
         assert_eq!(
-            disk_path, expanded_path,
-            "relative path set must match between templates/default/ and the embedded manifest"
+            on_disk.len(),
+            expanded.len(),
+            "templates/{name}/ file count must match the embedded manifest \
+             (cli/src/new_template.rs::TEMPLATES) — update the manifest when \
+             templates/{name}/ gains or loses files"
         );
-        assert_eq!(
-            disk_exec, expanded_exec,
-            "executable bit for `{disk_path}` must match between templates/default/ and the embedded manifest"
-        );
-        // Cargo.toml/Cargo.lock/structure.toml はプロジェクト名を置換するため
-        // 内容は一致しない（置換前提の検証は substitution テストが別途担う）。
-        if disk_path != "Cargo.toml" && disk_path != "Cargo.lock" && disk_path != "structure.toml" {
+
+        for (disk_entry, expanded_entry) in on_disk.iter().zip(expanded.iter()) {
+            let (disk_path, disk_bytes, disk_exec) = disk_entry;
+            let (expanded_path, expanded_bytes, expanded_exec) = expanded_entry;
             assert_eq!(
-                disk_bytes, expanded_bytes,
-                "content of `{disk_path}` must be byte-identical between templates/default/ \
-                 and the embedded manifest"
+                disk_path, expanded_path,
+                "template `{name}`: relative path set must match between templates/{name}/ and the embedded manifest"
             );
+            assert_eq!(
+                disk_exec, expanded_exec,
+                "template `{name}`: executable bit for `{disk_path}` must match between templates/{name}/ and the embedded manifest"
+            );
+            // Cargo.toml/Cargo.lock/structure.toml はプロジェクト名を置換するため
+            // 内容は一致しない（置換前提の検証は substitution テストが別途担う）。
+            if !SUBSTITUTED_RELATIVE_PATHS.contains(&disk_path.as_str()) {
+                assert_eq!(
+                    disk_bytes, expanded_bytes,
+                    "template `{name}`: content of `{disk_path}` must be byte-identical between templates/{name}/ \
+                     and the embedded manifest"
+                );
+            }
         }
-    }
 
-    let _ = fs::remove_dir_all(&scratch);
+        let _ = fs::remove_dir_all(&scratch);
+    }
 }
