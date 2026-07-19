@@ -1,0 +1,59 @@
+# cargo-deny 設定（イシュー #372: `fw gate --project .` の自己適用用）
+#
+# 役割: 本リポジトリ自身（フレームワーク実装リポジトリ）へ `fw gate` を実行
+# する際、`policy` チェック（`cargo deny check bans licenses sources`）が
+# 参照する依存ポリシー定義。テンプレートの正本は `templates/default/deny.toml`
+# であり、本ファイルは同一強度のポリシーをドッグフーディング用にリポジトリ
+# 直下へ配置したもの（`fw gate` の `<project>/deny.toml` 欠落＝fail-closed
+# 契約、docs/design/gate-design.md §3、を本リポジトリ自身にも適用するため）。
+#
+# セキュリティ不変条件（security.md 準拠）:
+# - 本ファイルのポリシーを弱める変更（licenses.allow への追加・bans.deny からの
+#   削除・sources の deny → warn への緩和等）は人間の承認を必須とする。
+#   AI エージェントが自己判断で緩和方向の変更を行ってはならない。
+# - `xtask/tests/root_deny_config.rs` が本ファイルの必須ポリシー
+#   （bans/licenses/sources の主要項目）を静的検証し、弱体化を回帰検出する。
+# - `templates/default/deny.toml` とのポリシー強度の乖離（緩和方向）は
+#   同テストで検出する。
+
+[graph]
+# 検証対象のターゲット（プラットフォーム）を限定しない。
+# 空配列は「全ターゲットを対象にする」cargo-deny の既定動作。
+targets = []
+
+[bans]
+# 同一クレートの複数バージョン共存は許容しつつ warn で可視化する
+# （REQ-3: 依存グラフ上限 60 件/深さ 6 の運用と合わせて監視する）。
+multiple-versions = "warn"
+deny = [
+    # openssl-sys: ビルド時に C 実装 OpenSSL のリンク・ビルドスクリプト実行を
+    # 伴い、サプライチェーン面の攻撃面が広い（security.md の build.rs 監査対象）。
+    # 代替として rustls 系（rustls / rustls-native-certs 等）の採用を推奨する。
+    { name = "openssl-sys" },
+]
+
+[licenses]
+# 許可リスト方式（allow）。templates/default/deny.toml と同一集合を維持し、
+# 緩和しない。
+allow = ["MIT", "Apache-2.0", "Unicode-3.0", "BSD-3-Clause"]
+
+[sources]
+# サプライチェーン対策（security.md）: 由来不明のレジストリ・Git 依存を
+# 検出した時点でブロックする。
+unknown-registry = "deny"
+unknown-git = "deny"
+
+[advisories]
+# 既知脆弱性データベース（RustSec Advisory DB）照合設定。値は cargo-deny の
+# 既定値のまま（個別の除外なし）とし、ポリシーの手動緩和は行わない。
+#
+# 制約（PoC-7 の発見。templates/default/deny.toml と同様）: `cargo deny check
+# advisories` は RustSec Advisory DB の取得・照合にネットワークアクセスを
+# 必要とし、オフライン環境では実行できない。そのため `fw gate` の `policy`
+# チェックは次の 3 チェックに限定する:
+#
+#     cargo deny check bans licenses sources
+#
+# `advisories` を含めたネットワークアクセス前提の運用手順は
+# `docs/policy/cargo-deny-advisories.md` を参照。
+ignore = []

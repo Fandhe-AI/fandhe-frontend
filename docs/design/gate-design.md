@@ -100,6 +100,59 @@ REQ-1 の唯一の許容迂回経路である `raw_html()` の呼び出しを検
 走査は `tests/` ディレクトリを対象外とし、テストコード内の `raw_html()`
 利用は TASK-13.5 以降の負例回帰テストの対象とする限界を持つ。
 
+### 2.2a コード文脈限定の走査（イシュー #372）
+
+`fw gate --project .` を本リポジトリ自身へ適用すると、保険層（`default_escape_check`）
+のテキスト走査がコード以外の文脈に現れる `raw_html(` 文字列まで違反として
+検出する自己参照誤検知が生じていた（PR #365/#366/#367 の申し送り）。確定した
+誤検知の実態は 3 分類:
+
+- **コメント内の言及**（doc コメントでの `raw_html()` API 説明、`gate.rs`
+  自身のモジュール doc コメント等）
+- **文字列リテラル内**（エラーメッセージ文言・テストフィクスチャ文字列）
+- **識別子サフィックス**（`fn ..._detects_unreviewed_raw_html()` のような
+  別識別子の一部としての `raw_html`。直後の `(` は関数定義のパラメータリスト
+  であり呼び出しではない）
+
+これらは tooling（`cli`）に限らず `interactive` / `wasm-*` 系クレートの doc
+コメントにも及ぶため、「特定 role の除外」や「ファイル単位 allowlist」では
+解決にならない（allowlist は実呼び出しの死角を作る）。そこで
+[`find_raw_html_call_positions`] の走査を「コード文脈限定」へ精密化した:
+
+1. [`code_context_mask`] が Rust ソース全体を状態機械（`Code` /
+   `LineComment` / `BlockComment`（ネスト対応） / `Str` / `RawStr`）で走査し、
+   各バイト位置がコード文脈か否かのマスクを構築する
+2. 出現位置がコード文脈であることに加え、直前バイトが識別子構成文字
+   （`[A-Za-z0-9_]`）でないこと（左境界チェック）を要求する。`rws_core::raw_html(`
+   （直前 `:`）・`.raw_html(`（メソッド形）は直前バイトが識別子構成文字では
+   ないため引き続き検出する
+
+**REQ-1 非弱体化の根拠**: コメント・文字列リテラル・別識別子は Rust の字句
+規則上 `raw_html()` の呼び出しになり得ない。除外は誤検知（偽陽性）のみを
+削り、偽陰性を生まない。主防御は従来どおり §2.2 の 3 層体制（`lint` チェック、
+HIR パス解決）であり無変更。
+
+**字句判定の近似と限界**: `code_context_mask` は完全な Rust 字句解析器ではない。
+文字リテラルとライフタイム（`'a`）の判別は「`'` の直後がエスケープ列または
+任意 1 文字＋閉じ `'`」の近似で行い、判別不能（ライフタイムの可能性を
+排除できない `'`）な場合は **コード文脈（Code）側に倒す**（fail-closed、
+security.md A05: 保険層の偽陰性ゼロを優先し、偽陽性の残存は許容する）。
+字句判定を狂わせる敵対的パターン（文字リテラル `'"'` で文字列状態を狂わせる・
+文字列内の `/*` でコメント状態を狂わせる等）は
+`find_raw_html_call_positions_still_detects_call_after_char_literal_confusion_attempt`
+等の敵対的回帰テスト（`cli/src/gate.rs`）で固定する。また
+`raw_html /* comment */ (x)` のようにコメントを呼び出し内に挟む記法は保険層の
+検出漏れとして残る（従来からの限界。主防御 `lint` チェックがこの経路も検出する）。
+
+ブランケット抑止監査（§2.2 の 3 番目、[`line_has_real_blanket_attribute`]）は
+行単位判定のまま変更していない（既存実装・既存テストで機能しており本イシュー
+の障害要因ではないため、差分最小化を優先）。
+
+自己適用回帰は `default_escape_check_passes_on_this_repository_itself`
+（`cli/src/gate.rs`）が固定する。本リポジトリ自身の `structure.toml` を実際に
+読み込み `default_escape_check`（純粋関数・外部コマンド起動なし）を適用し、
+`passed` であることを検証する。
+
 ### 2.3 `lint` チェックの起動前ガード（clippy ポリシー健全性）
 
 `lint` チェックは `cargo clippy` を起動する前に、workspace ルート
@@ -150,7 +203,7 @@ A05）。JSON 契約（`checks[].name`/`passed`/`output` の形状、PoC-7 互�
 | `structure.toml` の読み込み・パース失敗 | ゲート全体を即座に `BLOCKED`（他チェックを実行しない。宣言クレート一覧が定まらず以降のチェックが無意味になるため） |
 | `structure.toml` のセマンティック検証（[`StructureManifest::validate`]）失敗 | ゲート全体を即座に `BLOCKED` |
 | 宣言クレートが 0 件（`structure.toml` にどのディレクトリも `crate = "..."` を持たない） | `type_check`/`lint`/`test` を `-p` なしのワークスペース全体検証へフォールバックせず、各チェックを個別に failed とする（[`no_declared_crates_message`]。「検証対象なし＝ PASS」でも「範囲不明な全体検証」でもなく、設定不備として明示する） |
-| `deny.toml` が存在しない | `cargo deny` を起動せず `policy` チェックを failed とする |
+| `deny.toml` が存在しない | `cargo deny` を起動せず `policy` チェックを failed とする（`<project>/deny.toml` を唯一の情報源とする。本リポジトリ自身への自己適用時もこの契約は変更せず、リポジトリ直下へ `templates/default/deny.toml` と同一強度のポリシーを配置することで解決する。イシュー #372、workspace 参照解決方式は gate の fail-closed 契約を複雑化させるため不採用） |
 | `clippy.toml` の欠落・`disallowed-methods` エントリ欠落 | `cargo clippy` を起動せず `lint` チェックを failed とする（§2.3） |
 | clippy component が runner に未導入（`cargo clippy --version` 疎通確認失敗） | `cargo clippy` 本実行を起動せず `lint` チェックを `environment error:` 付きで failed とする（§2.3a、イシュー #292） |
 | cargo-deny が runner に未導入（`cargo deny --version` 疎通確認失敗） | `cargo deny check ...` 本実行を起動せず `policy` チェックを `environment error:` 付きで failed とする（§2.3a、イシュー #292） |
@@ -225,6 +278,7 @@ A05）。JSON 契約（`checks[].name`/`passed`/`output` の形状、PoC-7 互�
 |---------|------------------------------|
 | §2 表（5 チェック定義） | `run_all_checks`（169-185 行目）、`run_cargo_check`/`run_cargo_clippy`/`run_cargo_test`/`policy_check`/`default_escape_check` |
 | §2.2（3 層体制） | モジュール doc コメント（1-35 行目）、`find_raw_html_call_positions`（420-440 行目）、`line_has_reviewed_expect_attribute`（521-528 行目）、`line_has_real_blanket_attribute`（487-497 行目）、`scan_file_for_violations`（607-667 行目） |
+| §2.2a（コード文脈限定の走査、イシュー #372） | `find_raw_html_call_positions`（530 行目〜）、`code_context_mask`（578 行目〜）、`raw_string_hash_count`（742 行目〜）、`char_literal_end`（759 行目〜）、`utf8_char_len`（805 行目〜） |
 | §2.3（clippy ポリシー健全性） | `clippy_policy_is_configured`（292-302 行目）、`clippy_policy_check`（315-329 行目） |
 | §2.3a（環境エラーのプリフライト、イシュー #292） | `clippy_environment_preflight`・`cargo_deny_environment_preflight`（`ENVIRONMENT_ERROR_PREFIX` 定数とあわせて `run_cargo_clippy`/`policy_check` 直前で呼び出し） |
 | §3（fail-closed） | `run_gate`（97-153 行目、structure.toml 段階）、`no_declared_crates_message`（219-231 行目）、`run_locked_cargo_subcommand`（237-262 行目）、`run_cargo_clippy`（331-369 行目）、`policy_check`（383-405 行目）、`clippy_environment_preflight`/`cargo_deny_environment_preflight`（イシュー #292） |
@@ -232,14 +286,18 @@ A05）。JSON 契約（`checks[].name`/`passed`/`output` の形状、PoC-7 互�
 | §5（セキュリティ不変条件） | `RealCommandRunner::run`（74-85 行目）、`truncate_output`（207-217 行目）、`OUTPUT_TRUNCATE_CHARS`（44 行目）、`scan_dir_for_violations`（579-597 行目） |
 
 対応するテストは `cli/tests/gate_integration.rs`（CLI 経由の統合テスト、
-6 ケース）・`cli/tests/negative_cases.rs`（3 負例: 型エラー・未エスケープ・
-禁止依存、TASK-13.5）・`cli/tests/raw_html_lint_e2e.rs`（実 clippy 起動に
-よる主防御の実証、4 ケース）・`gate.rs` 内 `#[cfg(test)] mod tests`（約 46
+6 ケース）・`cli/tests/negative_cases.rs`（型エラー・未エスケープ・禁止依存・
+テストターゲット内 raw_html・自己参照様ソース（イシュー #372）を含む負例
+群、TASK-13.5）・`cli/tests/raw_html_lint_e2e.rs`（実 clippy 起動による
+主防御の実証、4 ケース）・`gate.rs` 内 `#[cfg(test)] mod tests`（65
 ユニットテスト。TASK-13.3d/#142 でポリシーチェックの単体テスト・外部コマンド
 起動引数契約・宣言クレート 0 件時の fail-closed・集約結果の `action` 文言・
 `run_all_checks` の name/順序と PASS 経路・`render_report` の JSON ラウンド
-トリップ・`truncate_output` のマルチバイト境界安全性を追補）。本書執筆時点で
-これら全テストは `cargo test -p rws-cli` でグリーンであることを確認済み。
+トリップ・`truncate_output` のマルチバイト境界安全性を追補、さらにイシュー
+#372 でコード文脈限定の走査に関する誤検知解消・非弱体化の敵対的回帰・
+`default_escape_check_passes_on_this_repository_itself` による自己適用回帰を
+追補）。本書執筆時点でこれら全テストは `cargo test -p rws-cli` でグリーン
+であることを確認済み。
 
 TASK-13.3c（#141、`policy`/`test` チェックの実連携固定）の対応:
 
