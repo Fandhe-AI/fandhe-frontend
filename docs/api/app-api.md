@@ -74,6 +74,20 @@ PoC-3 実績シグネチャをそのまま標準 API として凍結する。TAS
 | `page_shell` | `fn page_shell(title: &str, body: Node) -> String` | `<!DOCTYPE html>` を含む完全文書化。SSR・SSG 双方から呼ばれる |
 | `LIKE_BUTTON_ID` | `const LIKE_BUTTON_ID: &str` | ハイドレーション対象 ID（TASK-6.2 との契約点） |
 
+### 3.1 Loader trait（イシュー #347・トラッキング #337/#335）
+
+以下は `docs/design/loader-trait-design.md`（イシュー #346 設計確定書）が**正の
+規範文書**。本表は概要のみを記載し、シグネチャ・三モード解決シーケンス・
+エラー契約（fail-closed）の詳細は同設計書を参照する。
+
+| 項目 | シグネチャ | 役割 |
+|------|-----------|------|
+| `Loader` | `trait Loader { type Input; type Output; type Error; fn load(&self, input: &Self::Input) -> Result<Self::Output, Self::Error>; }` | SSR・SSG・CSR 三モードから同一実装が呼ばれるデータ取得契約（同期 `fn load` を v1 契約として凍結。async はスコープ外） |
+| `DemoItemsLoader` | `struct DemoItemsLoader;` — `Input = ()` / `Output = Vec<Item>` / `Error = Infallible` | `list_page` 向け参照実装。内部で `demo_items()` を呼ぶ |
+| `DemoItemDetailLoader` | `struct DemoItemDetailLoader;` — `Input = String`（id） / `Output = Option<Item>` / `Error = Infallible` | `detail_page` 向け参照実装。id が存在しない場合は `Output = None`（404 相当を `Error` ではなく `Output` の一部として表現） |
+| `assemble_list_page` | `fn assemble_list_page<L>(loader: &L, input: &L::Input) -> Result<Node, L::Error> where L: Loader<Output = Vec<Item>>` | loader の解決結果を `list_page` へ型接続する組み立て関数。`Output` 型不一致はコンパイルエラーになる |
+| `assemble_detail_page` | `fn assemble_detail_page<L>(loader: &L, input: &L::Input) -> Result<Node, L::Error> where L: Loader<Output = Option<Item>>` | loader の解決結果を `detail_page` へ型接続する組み立て関数 |
+
 ## 4. 設計判断と根拠
 
 | # | 判断 | 根拠 |
