@@ -878,8 +878,16 @@ fn has_liked_class(element: &Element) -> bool {
 /// 検証 11（中核）: 一覧 → 詳細（`/items/1`）へクリック遷移した後、遷移で
 /// 新規構築された `#like-btn` へのクリックが `class="liked"` の付与・解除を
 /// トグルすること（イシュー #403 の受け入れ条件 1・3 の直接証明）。
+///
+/// イシュー #404 で DOM 差し替え + `wire_hydrate_targets` 呼び出しが
+/// `startViewTransition` の update コールバック内（非同期になりうる）へ
+/// 移動したため、クリック直後に `#like-btn` を断定せず [`wait_until`] で
+/// apply 段の完了を待つ（Cursor Bugbot 指摘 `d68cf969`）。`startViewTransition`
+/// 自体は他検証と同じ [`ViewTransitionStub`] で決定的にスタブする
+/// （検証 4 と同じ理由: 実ブラウザの View Transitions 挙動検証は検証
+/// 7・9・10 が別途担う）。
 #[wasm_bindgen_test]
-fn like_button_toggles_after_client_side_navigation() {
+async fn like_button_toggles_after_client_side_navigation() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
 
@@ -890,6 +898,7 @@ fn like_button_toggles_after_client_side_navigation() {
         &ssr_equivalent_list_inner_html(),
     );
     let _cleanup = RemoveOnDrop(container);
+    let _stub = ViewTransitionStub::install(&document);
 
     rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
@@ -900,6 +909,10 @@ fn like_button_toggles_after_client_side_navigation() {
     link.dispatch_event(&synthetic_click_event())
         .expect("dispatch_event must not fail");
 
+    assert!(
+        wait_until(|| root.query_selector("#like-btn").unwrap().is_some(), 60).await,
+        "遷移後、apply 段の完了により #like-btn が確定すること"
+    );
     let like_button = root
         .query_selector("#like-btn")
         .expect("query_selector must not fail")
@@ -927,8 +940,12 @@ fn like_button_toggles_after_client_side_navigation() {
 /// ボタンが機能すること。`render_route` の都度 `wire_hydrate_targets` が
 /// 旧ハンドルを解除して新規登録することの直接証明
 /// （`rws-wasm-client::registry::replace_handles` の反復成立）。
+///
+/// 検証 11（中核）と同じ理由（イシュー #404、Cursor Bugbot 指摘 `d68cf969`）
+/// で `startViewTransition` を [`ViewTransitionStub`] でスタブし、各遷移後の
+/// DOM 断定は [`wait_until`] で apply 段の完了を待つ。
 #[wasm_bindgen_test]
-fn like_button_works_after_round_trip_navigation() {
+async fn like_button_works_after_round_trip_navigation() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
 
@@ -939,6 +956,7 @@ fn like_button_works_after_round_trip_navigation() {
         &ssr_equivalent_list_inner_html(),
     );
     let _cleanup = RemoveOnDrop(container);
+    let _stub = ViewTransitionStub::install(&document);
 
     rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
@@ -949,6 +967,17 @@ fn like_button_works_after_round_trip_navigation() {
         .expect("list page must contain a data-nav link to /items/1")
         .dispatch_event(&synthetic_click_event())
         .expect("dispatch_event must not fail");
+    assert!(
+        wait_until(
+            || root
+                .query_selector("[data-testid=\"item-detail\"]")
+                .unwrap()
+                .is_some(),
+            60
+        )
+        .await,
+        "1 回目の詳細遷移後、apply 段の完了により詳細 DOM が確定すること"
+    );
 
     // 一覧へ戻る。
     document
@@ -957,6 +986,17 @@ fn like_button_works_after_round_trip_navigation() {
         .expect("detail page must contain a data-nav link back to /")
         .dispatch_event(&synthetic_click_event())
         .expect("dispatch_event must not fail");
+    assert!(
+        wait_until(
+            || document
+                .query_selector("a[data-nav=\"/items/1\"]")
+                .unwrap()
+                .is_some(),
+            60
+        )
+        .await,
+        "一覧への遷移後、apply 段の完了により一覧 DOM が確定すること"
+    );
 
     // 2 回目の詳細遷移。
     document
@@ -965,6 +1005,10 @@ fn like_button_works_after_round_trip_navigation() {
         .expect("list page (round 2) must contain a data-nav link to /items/1")
         .dispatch_event(&synthetic_click_event())
         .expect("dispatch_event must not fail");
+    assert!(
+        wait_until(|| root.query_selector("#like-btn").unwrap().is_some(), 60).await,
+        "2 回目の詳細遷移後、apply 段の完了により #like-btn が確定すること"
+    );
 
     let like_button = root
         .query_selector("#like-btn")
@@ -1015,8 +1059,12 @@ fn like_button_on_initial_page_is_not_wired_by_nav_module() {
 /// 検証 11（XSS × 再配線の複合）: XSS ペイロード item（id="2"）へ遷移した後も
 /// ペイロードはエスケープ済みテキストのままであり（検証 4 の既存契約を
 /// 変更しない）、かつ like ボタンが機能すること。
+///
+/// 検証 11（中核）と同じ理由（イシュー #404、Cursor Bugbot 指摘 `d68cf969`）
+/// で `startViewTransition` を [`ViewTransitionStub`] でスタブし、遷移後の
+/// DOM 断定は [`wait_until`] で apply 段の完了を待つ。
 #[wasm_bindgen_test]
-fn like_button_works_after_navigating_to_xss_payload_item() {
+async fn like_button_works_after_navigating_to_xss_payload_item() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
 
@@ -1027,6 +1075,7 @@ fn like_button_works_after_navigating_to_xss_payload_item() {
         &ssr_equivalent_list_inner_html(),
     );
     let _cleanup = RemoveOnDrop(container);
+    let _stub = ViewTransitionStub::install(&document);
 
     rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
@@ -1043,6 +1092,17 @@ fn like_button_works_after_navigating_to_xss_payload_item() {
         .dispatch_event(&synthetic_click_event())
         .expect("dispatch_event must not fail");
 
+    assert!(
+        wait_until(
+            || root
+                .query_selector("[data-testid=\"item-detail\"]")
+                .unwrap()
+                .is_some(),
+            60
+        )
+        .await,
+        "XSS ペイロード item への遷移後、apply 段の完了により詳細 DOM が確定すること"
+    );
     assert!(
         root.query_selector("script").unwrap().is_none(),
         "XSS ペイロードが実 DOM 上で <script> 要素として生成されてはならない（既存契約の非弱体化）"
