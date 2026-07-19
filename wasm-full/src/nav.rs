@@ -45,6 +45,17 @@
 //!   update コールバックは遷移がスキップされる場合でも仕様上必ず一度呼ばれる
 //!   ため、無制限リークにはならない（`docs/design/wasm-full-architecture.md`
 //!   第 4 節・判断 10）。
+//! - 遷移後の `data-hydrate` 要素へのイベント再配線（イシュー #403）は
+//!   [`rws_wasm_client::wire_hydrate_targets`] の呼び出しに限定する。同関数は
+//!   `add_event_listener_with_callback` の後付けのみを行い `set_inner_html`
+//!   等の再構築系 API を呼ばない（`rws-wasm-client` 側の不変条件を継承）。
+//!   クロージャの寿命は `rws-wasm-client::registry` が root 要素の `id` 単位
+//!   で管理し、再配線のたびに旧ハンドルを解除してから差し替えるため、上記
+//!   「`forget` は起動時定数回」の不変条件（`click`/`popstate` の 2 回）とは
+//!   独立に、遷移ごとの再配線が無制限リークを生まない（`registry::replace_handles`
+//!   による寿命管理、`forget()` を使わない）。この再配線呼び出しは
+//!   [`wiring::apply_render`] の `startViewTransition` update コールバック内、
+//!   DOM 差し替え + タイトル更新の直後に実行する（イシュー #404 との統合）。
 //!
 //! # View Transitions 連携（イシュー #404）
 //!
@@ -321,6 +332,22 @@ mod wiring {
                 let _ = root.append_child(&new_child);
             }
             apply_document.set_title(title);
+
+            // イシュー #403: 差し替えた子要素は build_dom_node による新規生成
+            // ノードであり、イベントリスナーが一切付いていない
+            // （`rws-wasm-client::wiring::hydrate` が担う初期表示ページの配線とは
+            // 別経路）。registry キーは root 要素の `id`（実運用 `app-root`）とし、
+            // wasm-client デモ側（別 wasm インスタンス・別 registry、キー `app`）
+            // とは衝突しない。対象 0 件（`detail_page(None)`/`loader_error_view`
+            // 等）のページへの遷移では空集合で差し替わる（旧リスナー解除のみ）。
+            if let Err(_err) = rws_wasm_client::wire_hydrate_targets(&root.id(), &root) {
+                // fail-safe: 再配線に失敗しても遷移自体（DOM 差し替え・URL・
+                // タイトル更新）は既に成立させているため、ここでは継続する
+                // （内部状態を含まない固定英語文言、不変条件 6 の継承）。
+                web_sys::console::warn_1(
+                    &"rws-wasm-full: nav render_route failed to wire data-hydrate targets".into(),
+                );
+            }
         });
     }
 

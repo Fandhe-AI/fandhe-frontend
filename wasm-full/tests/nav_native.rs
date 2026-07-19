@@ -200,3 +200,24 @@ fn resolve_route_view_with_detail_converges_to_fixed_error_view_without_leaking_
         "loader の Error 値（機微情報風文字列）が出力へ混入してはならない: {html}"
     );
 }
+
+/// イシュー #403: 遷移先（Detail ルート）の解決結果ノードが
+/// `data-hydrate="like"` を持つことを純粋層で固定する。`nav::wiring::render_route`
+/// （wasm32 配線層、ブラウザテストは `nav_browser.rs` が担当）が
+/// `rws_wasm_client::wire_hydrate_targets` で再配線する対象が実際に
+/// 存在することの契約テスト（`rws_core::find_attr_values` で
+/// `rws-wasm-client::HYDRATE_ATTR` と同一の属性名契約を検証する）。
+#[test]
+fn resolve_route_view_with_detail_node_has_hydrate_target() {
+    let (_, node) = resolve_route_view_with(
+        &DemoItemsLoader,
+        &DemoItemDetailLoader,
+        &ClientRoute::Detail("1".to_string()),
+    );
+    let values = rws_core::find_attr_values(&node, rws_wasm_client::HYDRATE_ATTR);
+    assert_eq!(
+        values,
+        vec![rws_wasm_client::LIKE_HYDRATE_VALUE.to_string()],
+        "Detail ルートの解決結果ノードは data-hydrate=\"like\" を含むこと（再配線対象の存在契約）"
+    );
+}

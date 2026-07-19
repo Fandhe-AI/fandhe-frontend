@@ -241,7 +241,7 @@ WASM 完全方式固有の不変条件を追加する。
 
 | 項目 | 理由 |
 |------|------|
-| 遷移後ページ内のインタラクティブ要素の再配線（詳細ページの `data-hydrate="like"` ボタン） | REQ-6 最小デモ（`wasm-client`）の管轄であり、クライアント遷移後は未配線のまま |
+| ~~遷移後ページ内のインタラクティブ要素の再配線（詳細ページの `data-hydrate="like"` ボタン）~~ | **イシュー #403 で解消**。`rws-wasm-client` の配線本体（`wasm-client/src/lib.rs` の `hydrate_dom::wire_hydrate_targets`）を `wasm-bindgen-exports` feature 非依存の共有 Rust API へ切り出し、`nav::wiring::render_route`（本ファイル §10 の対象外リストから除外）が遷移完了後（子要素差し替え・`document.title` 更新の直後）にこれを呼ぶことで解消した。詳細は下記「#403 再配線設計」参照 |
 | ~~SPA 内 View Transitions（`document.startViewTransition` 連携）~~ | **消化済み（イシュー #404）**。`nav.rs` の `render_route` prepare/apply 分割 + カスタム duck-typing extern バインディングで実装（第 4 節・判断 10） |
 | `wasm-client`（最小ハイドレーション方式）側の遷移対応・loader 移行 | イシュー #349 の out-of-scope 事項と同項 |
 | スクロール位置の復元制御（`history.scrollRestoration`）・遷移中のローディング表示 | 本イシューの受け入れ条件に含まれない |
@@ -249,3 +249,13 @@ WASM 完全方式固有の不変条件を追加する。
 | `prefers-reduced-motion` に応じた遷移スキップ制御（イシュー #404 スコープ外） | View Transitions API 自体はブラウザが `prefers-reduced-motion` を尊重する実装を持つが、アプリ側での明示的な制御は本イシューの受け入れ条件に含まれない |
 | `view-transition-name` によるパーツ単位アニメーション・遷移タイプ（`StartViewTransitionOptions`）対応（イシュー #404 スコープ外） | 本イシューは「連携の導入」までを対象とし、細粒度カスタマイズは別 Issue とする |
 | `ViewTransition` オブジェクト（`finished`/`ready` promise）の公開 API 化（イシュー #404 スコープ外） | `nav::start_router` の公開シグネチャは不変のため、呼び出し元へ `ViewTransition` を露出しない |
+
+### #403 再配線設計（per-element + registry 方式）
+
+遷移で `nav::wiring::render_route` が [`rws_wasm_client::build_dom_node`]（`createElement`/`createTextNode`/`set_attribute` のみ）から新規構築するサブツリーは、イベントリスナーを一切持たない。詳細ページの「いいね」ボタン（`data-hydrate="like"`、`rws_app::LIKE_BUTTON_ID`）を機能させるため、以下の設計を採る。
+
+- **配線本体の共有**: `wasm-client/src/lib.rs` の配線ロジック（旧 `wiring::hydrate` 本体）を `wasm-bindgen-exports` feature 非依存の公開 API `wire_hydrate_targets(registry_key: &str, root: &Element) -> Result<(), JsValue>` として切り出した（`hydrate_dom` モジュール）。`rws-wasm-client` の REQ-6 デモ用エクスポート `hydrate`（`wiring::hydrate`、feature `wasm-bindgen-exports` 限定）はこれを `root_id` をキーとして呼ぶ薄いラッパーへ縮小し、`rws-wasm-full`（`default-features = false` で依存）からも同じ本体を呼べるようにした（重複コピー禁止、`csr.rs` の再エクスポートパターンと同方針）。
+- **呼び出し点**: `nav.rs::render_route`（実体は `apply_render` の `startViewTransition` update コールバック内、イシュー #404 の prepare/apply 分割との統合）が子要素差し替え・`document.title` 更新の直後に `rws_wasm_client::wire_hydrate_targets(&root.id(), &root)` を呼ぶ。`Err` 時は固定英語文言の `console::warn_1` で継続する（fail-safe、遷移自体は成立させる）。
+- **per-element 方式を採用した理由（`document` レベル委譲リスナー方式の不採用）**: 初期表示ページの like ボタンは `page_shell` 同梱の REQ-6 デモ（`rws-wasm-client::wiring::hydrate`）が per-element リスナーを付けうる。`document` レベルの委譲リスナーで `[data-hydrate]` クリックを一括処理する方式だと、遷移前に配線済みの初期ページ要素と遷移後に配線される要素が同一セレクタで二重に処理され、`class_list().toggle("liked")` が 2 回発火して実質 no-op になる（誤動作）。per-element 再配線（`query_selector_all` → 個別 `add_event_listener_with_callback`）は「遷移で新規構築されたサブツリー」のみを対象とし、旧要素はサブツリーごと破棄済みのため二重配線が構造的に起きない。
+- **リスナー寿命管理**: registry キーは root 要素の `id`（実運用 `app-root`）。`rws-wasm-client::registry::replace_handles` が同一キーへの再呼び出しで旧ハンドルを解除してから差し替えるため、`nav.rs` の「`Closure::forget` は起動時定数回（click 1 + popstate 1）」という既存不変条件とは独立に、遷移ごとの再配線を呼んでもリスナー・Closure は現存 DOM 分に有界（無制限リーク蓄積を回避）。`wasm-client` のデモ用 registry（キー `app` 等）とは呼び出し元・wasm インスタンスが異なるため衝突しない。
+- **初期表示ページの配線は変えない**: `nav::wiring::start_router` は起動時に描画を一切行わない凍結事項（本書冒頭の判断）をそのまま維持し、初期ページの配線は引き続き REQ-6 デモ（`wasm-client::wiring::hydrate`）の管轄のまま変更していない。
