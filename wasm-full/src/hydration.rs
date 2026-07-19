@@ -4,7 +4,7 @@
 //! 規範文書）が確定済みであり、本モジュールはその第 5 節が凍結した API 表面
 //! （[`read_hydration_attrs`]・[`restore_state`]）を実装するのみで、フォーマット
 //! 自体（属性命名・codec）を再定義・再実装しない。属性名プレフィックスは
-//! [`rws_interactive::HYDRATE_ATTR_PREFIX`] を単一の真実として扱う。
+//! [`fandhe_frontend_interactive::HYDRATE_ATTR_PREFIX`] を単一の真実として扱う。
 //!
 //! `events.rs`（TASK-11.2b・#75）・`dom.rs`（TASK-11.2c・#76）と同じ 2 層構成を
 //! 踏襲する。
@@ -14,7 +14,7 @@
 //! `docs/api/hydration-state-format.md` が「単純な値（数値・文字列・文字列配列）
 //! のみ」に凍結した対象型を、ネスト構造・オブジェクト・マップ等の複雑な状態
 //! へ一般化する設計・実装はイシュー #163・`docs/design/hydration-nested-state.md`
-//! （正の規範文書）が担う。`rws_interactive::codec::Value`（型タグ付き再帰
+//! （正の規範文書）が担う。`fandhe_frontend_interactive::codec::Value`（型タグ付き再帰
 //! codec）を追加しただけであり、[`read_hydration_attrs`]・[`restore_state`]
 //! の API 表面・実装は本イシューでは変更していない（`C::from_hydration_attrs`
 //! への薄い委譲という契約はそのまま）。アプリの `Hydrate` 実装が
@@ -30,7 +30,7 @@
 //! # 他クレート・他モジュールとの契約
 //!
 //! - SSR 側の対（サーバー Rust が担う状態保持・属性出力の責務）は
-//!   `rws_interactive::render_for_hydration`（`interactive/src/lib.rs:287`）で
+//!   `fandhe_frontend_interactive::render_for_hydration`（`interactive/src/lib.rs:287`）で
 //!   完結済みであり、本モジュールは一切変更しない。
 //! - `data-hydrate-*` 属性値は改ざんされうるクライアント入力として扱う。
 //!   復元は `restore_state` → `C::from_hydration_attrs` の `Result` 経路のみを
@@ -45,7 +45,7 @@
 //!   だけの関係にとどまり、本モジュール自体に `Runtime` 固有のロジックは
 //!   持ち込まれていない。
 
-use rws_interactive::{Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
+use fandhe_frontend_interactive::{Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 
 /// 1 属性値の長さ上限（バイト数）。
 ///
@@ -98,7 +98,7 @@ fn filter_hydration_attrs(pairs: impl Iterator<Item = (String, String)>) -> Vec<
 /// `data-hydrate-*` 属性列から状態を復元する（クライアント側責務）。
 ///
 /// `docs/api/hydration-state-format.md` 第 5 節が凍結した API。`C::from_hydration_attrs`
-/// （`rws_interactive::Hydrate`）へ委譲する薄いラッパーであり、フォーマット
+/// （`fandhe_frontend_interactive::Hydrate`）へ委譲する薄いラッパーであり、フォーマット
 /// 固有の追加ロジックは持たない。DOM・`web-sys` に依存しない純粋関数のため、
 /// native の `cargo test`（wasm32 ターゲット不要）で直接検証できる。
 ///
@@ -175,7 +175,7 @@ mod tests {
 
     /// native テスト専用の最小 `Hydrate` 実装。
     ///
-    /// `rws_interactive::AppState`（counter/draft/items の 3 フィールド）と
+    /// `fandhe_frontend_interactive::AppState`（counter/draft/items の 3 フィールド）と
     /// 同型の構成を最小限で再現し、`restore_state` のラウンドトリップ・
     /// エラー経路を DOM 非依存で検証する。
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -195,7 +195,7 @@ mod tests {
                 (format!("{HYDRATE_ATTR_PREFIX}draft"), self.draft.clone()),
                 (
                     format!("{HYDRATE_ATTR_PREFIX}items"),
-                    rws_interactive::codec::encode_list(&self.items),
+                    fandhe_frontend_interactive::codec::encode_list(&self.items),
                 ),
             ]
         }
@@ -220,7 +220,7 @@ mod tests {
                         reason: "not a valid integer".to_string(),
                     })?;
             let draft = find(&draft_attr)?.to_string();
-            let items = rws_interactive::codec::decode_list(find(&items_attr)?);
+            let items = fandhe_frontend_interactive::codec::decode_list(find(&items_attr)?);
 
             Ok(TestState {
                 counter,

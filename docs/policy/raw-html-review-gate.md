@@ -1,6 +1,6 @@
 # `raw_html()` レビューゲート運用ガイド（イシュー #157/#159/#299/#315）
 
-`rws_core::raw_html()` は REQ-1（既定エスケープ）の唯一の許容迂回経路である。
+`fandhe_frontend_core::raw_html()` は REQ-1（既定エスケープ）の唯一の許容迂回経路である。
 本ドキュメントは、その使用をレビュー済みとして宣言する手順と、`fw gate` /
 CI が構成する 3 層の検出体制を説明する。方式選定の背景・脅威モデルは
 `docs/design/raw-html-lint-design.md` を参照。CI `clippy` ジョブの `--all-targets`
@@ -16,8 +16,8 @@ CI が構成する 3 層の検出体制を説明する。方式選定の背景�
 ```rust
 pub fn render_trusted_fragment() -> String {
     #[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: 固定の信頼済み HTML 片。外部入力を含まない")]
-    let node = rws_core::raw_html("<b>trusted</b>");
-    rws_core::render(&node)
+    let node = fandhe_frontend_core::raw_html("<b>trusted</b>");
+    fandhe_frontend_core::render(&node)
 }
 ```
 
@@ -59,7 +59,7 @@ pub fn render_trusted_fragment() -> String {
 | 保険層 | `fw gate` の `default_escape_check` | テキスト走査。同一行・直前行の `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: ...")]` を受理条件とする（単独のコメントは受理しない） |
 | 監査層 | `fw gate` の `default_escape_check` | ブランケット抑止属性の一律検出（2. 参照） |
 
-`lint` チェックは `clippy.toml` の存在・`rws_core::raw_html` エントリの包含を
+`lint` チェックは `clippy.toml` の存在・`fandhe_frontend_core::raw_html` エントリの包含を
 起動前に検証し、欠落時は `cargo clippy` を起動せず即 failed とする
 （`clippy.toml` が消されると検出が沈黙し黙示的 PASS になる穴を塞ぐ、
 security.md A05 fail-closed）。
@@ -69,7 +69,7 @@ security.md A05 fail-closed）。
 `fw` が生成する標準プロジェクトテンプレート（`templates/default/`）には
 workspace ルートと同一内容の `clippy.toml` を同梱済みである
 （`templates/default/clippy.toml`）。生成直後の空プロジェクトの段階から
-ポリシーが有効になっており、`rws-core` への依存・`raw_html()` の使用を
+ポリシーが有効になっており、`fandhe-frontend-core` への依存・`raw_html()` の使用を
 始めた時点で検出が機能する。
 
 ## 5. レビュー手順

@@ -1,8 +1,8 @@
 //! SSR / SSG 出力完全一致の回帰テストスイート（TASK-6.4、イシュー #50）。
 //!
 //! REQ-6 の中核保証「SSG が書き出す静的ファイルは、対応する SSR
-//! （[`rws_server::ssr::respond`]）が返す文字列と完全一致する」ことを、
-//! [`rws_server::ssg::generate`] の**戻り値 `Vec<PathBuf>` を起点にした
+//! （[`fandhe_frontend_server::ssr::respond`]）が返す文字列と完全一致する」ことを、
+//! [`fandhe_frontend_server::ssg::generate`] の**戻り値 `Vec<PathBuf>` を起点にした
 //! 網羅的な走査**で固定する。
 //!
 //! # `server/tests/three_mode_integration.rs` との役割分担
@@ -32,9 +32,9 @@
 //! - 一時ディレクトリはテスト専用ヘルパー（`support/temp_dir.rs`、
 //!   `tempfile` 非依存）を再利用し、新規外部依存を追加しない（REQ-3）。
 
-use rws_app::{demo_items, Item, Loader};
-use rws_server::ssg::{generate, generate_with, SsgError};
-use rws_server::ssr::{respond, respond_with};
+use fandhe_frontend_app::{demo_items, Item, Loader};
+use fandhe_frontend_server::ssg::{generate, generate_with, SsgError};
+use fandhe_frontend_server::ssr::{respond, respond_with};
 use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::fs;

@@ -1,4 +1,4 @@
-//! イシュー #163: ハイドレーション状態注入のネスト構造対応（`rws_interactive::codec::Value`）
+//! イシュー #163: ハイドレーション状態注入のネスト構造対応（`fandhe_frontend_interactive::codec::Value`）
 //! を用いた `restore_state` 統合テスト。
 //!
 //! `wasm-full/tests/hydration_state.rs` は既存の凍結フォーマット（数値・文字列・
@@ -8,11 +8,11 @@
 //! panic-free）を行う。フォーマット自体の設計根拠は
 //! `docs/design/hydration-nested-state.md` を正とする。
 //!
-//! DOM・`web-sys` に依存しない native テスト（`cargo test -p rws-wasm-full`）。
+//! DOM・`web-sys` に依存しない native テスト（`cargo test -p fandhe-frontend-wasm-full`）。
 
-use rws_interactive::codec::{self, Value};
-use rws_interactive::{Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
-use rws_wasm_full::hydration::restore_state;
+use fandhe_frontend_interactive::codec::{self, Value};
+use fandhe_frontend_interactive::{Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
+use fandhe_frontend_wasm_full::hydration::restore_state;
 
 /// ネストしたオブジェクト（`user: { name, tags: [...] }`）・トップレベルの
 /// リストを含む、複雑な状態を表すテスト用アプリ状態。
@@ -193,7 +193,7 @@ fn restore_state_fails_on_corrupted_value_encoding_without_panicking() {
     assert!(matches!(err, HydrateError::InvalidValue { .. }));
 }
 
-/// `MAX_VALUE_DEPTH`（`rws_interactive::codec`）を超えるネストを持つ改ざん
+/// `MAX_VALUE_DEPTH`（`fandhe_frontend_interactive::codec`）を超えるネストを持つ改ざん
 /// 入力に対し、panic（スタックオーバーフロー含む）せず `HydrateError` を
 /// 返すこと（A05 相当の DoS 耐性、`docs/design/hydration-nested-state.md` 参照）。
 #[test]

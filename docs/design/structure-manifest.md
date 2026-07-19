@@ -28,7 +28,7 @@
 |-----------|-------|------|-------------|
 | TASK-13.1a | #128（本書） | スキーマ設計 | 本書 + `cli/src/structure.rs` の型定義 + ルート `structure.toml` |
 | TASK-13.1b | #129 | TOML サブセットの手書きパーサ実装 | 本書 §2 が構文サブセット・エラー方針を規定 |
-| TASK-13.1c | #130 | `cargo metadata` 連携・マニフェスト生成・`rws-router-v1` 抽出器実装 | 本書 §2.2/§2.3 がスキーマ・検証範囲の境界を規定 |
+| TASK-13.1c | #130 | `cargo metadata` 連携・マニフェスト生成・`fandhe-frontend-router-v1` 抽出器実装 | 本書 §2.2/§2.3 がスキーマ・検証範囲の境界を規定 |
 | TASK-13.1d | #131 | ルートの `structure.toml` をフィクスチャとした統合テスト | 本書のスキーマ・ルート `structure.toml` を直接使用 |
 
 ## 2. スキーマ v1
@@ -54,14 +54,14 @@ version = 1                     # スキーマバージョン（整数・必須�
 
 [directories.<name>]            # <name>: ^[a-z0-9_-]+$ のワークスペース相対ディレクトリ名
 role = "core"                   # 閉じた語彙（§2.2.1）
-crate = "rws-core"               # 対応クレート名（キー省略可。空文字は不可）
+crate = "fandhe-frontend-core"               # 対応クレート名（キー省略可。空文字は不可）
 description = "..."              # 役割の説明（必須）
 depends_on = ["..."]              # 依存を許可する directories キー（既定 []）
 allowed_dependents = ["..."]      # 被依存を許可する directories キー（既定 []）
 
 [routing]
 definition_dir = "app"           # ルート定義を許すディレクトリ（directories キー参照）
-extractor = "rws-router-v1"      # 組み込み抽出器 ID
+extractor = "fandhe-frontend-router-v1"      # 組み込み抽出器 ID
 ```
 
 #### 2.2.0 予約名 `root`（イシュー #353 で正式化）
@@ -179,16 +179,16 @@ PASS 化され、テキスト走査ベースの保険層（`default_escape_check
 
 構成上の留意点:
 
-- `server`（`rws-server`）は TASK-6.1c で `ssr.rs`/`ssg.rs` が `rws-app` の
-  ページ関数を呼ぶようになったため、`rws-core`/`rws-app` を
+- `server`（`fandhe-frontend-server`）は TASK-6.1c で `ssr.rs`/`ssg.rs` が `fandhe-frontend-app` の
+  ページ関数を呼ぶようになったため、`fandhe-frontend-core`/`fandhe-frontend-app` を
   `server/Cargo.toml` の**通常依存**（`[dependencies]`、path 依存のみ・
   外部クレート追加なし）に昇格済みである。`directories.server.depends_on`
   はこれを反映して `["core", "app"]` を宣言する（TASK-13.1c の
   `cargo metadata` 実体突き合わせが、この宣言と実際の path 依存の一致を
   検証する）。
-- `wasm-full`（`rws-wasm-full`）は TASK-CSR-loader（#349）で `csr` モジュール
-  （CSR 経路の loader 解決層）が `rws_app::Loader`/`assemble_list_page`/
-  `assemble_detail_page` を呼ぶようになったため、`rws-app` を
+- `wasm-full`（`fandhe-frontend-wasm-full`）は TASK-CSR-loader（#349）で `csr` モジュール
+  （CSR 経路の loader 解決層）が `fandhe_frontend_app::Loader`/`assemble_list_page`/
+  `assemble_detail_page` を呼ぶようになったため、`fandhe-frontend-app` を
   `wasm-full/Cargo.toml` の**通常依存**（`[dependencies]`、path 依存のみ・
   外部クレート追加なし）に追加済みである。`directories.wasm-full.depends_on`
   はこれを反映して `["core", "interactive", "app"]` を、
@@ -198,9 +198,9 @@ PASS 化され、テキスト走査ベースの保険層（`default_escape_check
   `Router::route(...)` 呼び出しに定義される」という規約を宣言する
   （イシュー #407: server / client 単一定義からのルート生成（共有機構）
   採用に伴い、ルート表の正本を `server` から `app` へ移設した。
-  `server/src/ssr.rs`・`wasm-full/src/nav.rs` はいずれも `rws_app::routes`
+  `server/src/ssr.rs`・`wasm-full/src/nav.rs` はいずれも `fandhe_frontend_app::routes`
   経由で同一定義を参照する。詳細は `docs/design/route-definition-sharing.md`）。
-  実際の抽出処理（`rws-router-v1` 抽出器、`cli/src/routes.rs`）は
+  実際の抽出処理（`fandhe-frontend-router-v1` 抽出器、`cli/src/routes.rs`）は
   `definition_dir` 配下の `src/`（Cargo の慣例に基づき `tests/` 等の
   integration test は対象外）を走査し、コメント・`#[cfg(test)]` 以降の
   内部テストも除外したうえで抽出する（TASK-13.1c 実装済み）。
@@ -217,7 +217,7 @@ TASK-13.1（親 #127）の全サブタスクは実装済み。
   すべてエラー（fail-closed）。
 - TASK-13.1c（#130）: `cli/src/metadata.rs`（`cargo metadata` 連携・
   workspace member と path 依存の抽出）、`cli/src/routes.rs`
-  （`rws-router-v1` 抽出器）、`cli/src/component_boundary.rs`
+  （`fandhe-frontend-router-v1` 抽出器）、`cli/src/component_boundary.rs`
   （コンポーネント境界抽出）、`cli/src/json_out.rs`（4 要素の JSON 出力）。
   `main.rs` の `run_structure` がこれらを結線し、宣言と実体の差分
   （crate 実在・依存の宣言漏れ / 過剰宣言・ディレクトリ実在）を検出した
@@ -232,7 +232,7 @@ TASK-13.1（親 #127）の全サブタスクは実装済み。
 含む JSON を標準出力へ 1 行で出力し、終了コード 0 を返す:
 
 ```console
-$ cargo run -p rws-cli --bin fw -- structure
+$ cargo run -p fandhe-frontend-cli --bin fw -- structure
 {"directories":[...],"routes":[...],"component_boundary":[...],"dependencies":{...}}
 ```
 

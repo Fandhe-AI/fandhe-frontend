@@ -33,7 +33,7 @@
 - `server/src/ssg.rs:115` `generate()`: `respond()` の 200 応答ボディをそのまま書き出す
   ことで SSR/SSG バイト一致を構造的に保証する（`SsgError` による fail-closed 済み）。
 - `wasm-full/src/entry.rs` / `hydration.rs`: CSR 初期表示は `data-hydrate-*` 属性からの
-  状態復元（`rws_interactive::render_for_hydration` が SSR 側の対、イシュー #163・
+  状態復元（`fandhe_frontend_interactive::render_for_hydration` が SSR 側の対、イシュー #163・
   `docs/design/hydration-nested-state.md` の `codec::Value` でネスト対応済み）。
   復元失敗は CSR フォールバック。
 
@@ -44,26 +44,26 @@ Node 木）」「エラー時の fail-closed 挙動」「SSG のビルド時解�
 
 ## 2. スコープの確認
 
-- 対象は `rws-app`（`app/`）へ追加する `Loader` trait の定義・三モードの解決シーケンス・
+- 対象は `fandhe-frontend-app`（`app/`）へ追加する `Loader` trait の定義・三モードの解決シーケンス・
   エラー契約のみである。`app/src/lib.rs`・`server/src/ssr.rs`・`server/src/ssg.rs`・
   `wasm-full/src/entry.rs`・`wasm-full/src/hydration.rs` の実装自体は本書では変更しない
   （実装は #347〜#349 のスコープ）。
 - `docs/spec/` は編集禁止（サブモジュール）。仕様本文の追随が必要な場合は
   frontend-framework-spec リポジトリへの Issue 起票を別途検討する。
-- 依存クレート追加は**ゼロ**（REQ-3 依存上限・`rws-app`/`rws-server` の外部依存ゼロ
+- 依存クレート追加は**ゼロ**（REQ-3 依存上限・`fandhe-frontend-app`/`fandhe-frontend-server` の外部依存ゼロ
   制約を維持）。
 
 ## 3. trait 定義案の凍結
 
 ### 3.1 配置クレート
 
-**`rws-app`（`app/`）に配置する。**
+**`fandhe-frontend-app`（`app/`）に配置する。**
 
 | 検討した配置先 | 不採用理由 |
 |---------------|-----------|
-| `rws-core`（`core/`） | `core` は「描画コア・外部依存ゼロ」の責務境界（`docs/api/component-api.md`）であり、データ取得契約を持ち込まない。`Node` / `render` 以外の抽象を core に置くと責務境界が曖昧になる |
-| `rws-server`（`server/`） | loader は SSR/SSG/CSR 三モード共通の契約であり、SSR/SSG 専用クレートに置くと CSR（`wasm-full`）から参照する際にサーバー依存を引き込む懸念が生じる |
-| **`rws-app`（採用）** | 既に `list_page` / `detail_page` / `page_shell`（ページ関数）が三モード共通契約として置かれている場所であり、データ取得とページ組み立ての型接続を同一クレートで完結できる。`rws-app` も外部依存ゼロ・`#![forbid(unsafe_code)]` 域のため REQ-3（依存 60 件/深さ 6）を消費しない |
+| `fandhe-frontend-core`（`core/`） | `core` は「描画コア・外部依存ゼロ」の責務境界（`docs/api/component-api.md`）であり、データ取得契約を持ち込まない。`Node` / `render` 以外の抽象を core に置くと責務境界が曖昧になる |
+| `fandhe-frontend-server`（`server/`） | loader は SSR/SSG/CSR 三モード共通の契約であり、SSR/SSG 専用クレートに置くと CSR（`wasm-full`）から参照する際にサーバー依存を引き込む懸念が生じる |
+| **`fandhe-frontend-app`（採用）** | 既に `list_page` / `detail_page` / `page_shell`（ページ関数）が三モード共通契約として置かれている場所であり、データ取得とページ組み立ての型接続を同一クレートで完結できる。`fandhe-frontend-app` も外部依存ゼロ・`#![forbid(unsafe_code)]` 域のため REQ-3（依存 60 件/深さ 6）を消費しない |
 
 ### 3.2 trait 定義
 
@@ -89,7 +89,7 @@ pub trait Loader {
 ```
 
 - **同期 `fn load` を v1 契約として凍結する**。async 化はスコープ外（第 7 節）へ記録する。
-  理由: `rws-app`/`rws-server` の外部依存ゼロ方針と両立する async ランタイム
+  理由: `fandhe-frontend-app`/`fandhe-frontend-server` の外部依存ゼロ方針と両立する async ランタイム
   （`tokio` 等）が現構成に存在しない。`docs/api/app-api.md` 第 9 節が記録するとおり、
   `dist-server` は axum 不採用（`tokio-macros → syn → quote → proc-macro2 →
   unicode-ident` の連鎖が深さ 7〜9 に達し REQ-3 に違反）という実測根拠を持つ。同期
@@ -133,9 +133,9 @@ pub trait Loader {
 
 | モード | いつ | どこで（誰が） | 内容 |
 |--------|------|---------------|------|
-| SSR | リクエスト時 | `rws-server::ssr::respond`（#348） | ルート解決 → `Input` 構成 → `load` → ページ関数 → `page_shell` |
-| SSG | **ビルド時** | `rws-server::ssg::generate`（#348） | SSR と同一の `respond` 経由で解決する。「200 応答ボディをそのまま書き出す」契約（`server/src/ssg.rs:115` の既存コメント参照）を維持し、SSR/SSG バイト一致の構造的保証を壊さない |
-| CSR / ハイドレーション | 初期表示: サーバー解決済み状態の注入を再利用（loader 再実行なし）。クライアント遷移時のみ `load` 実行 | `rws-wasm-full`（#349） | 既存の `data-hydrate-*` / `codec::Value` 経路（`docs/api/hydration-state-format.md`・`docs/design/hydration-nested-state.md`）と接続する |
+| SSR | リクエスト時 | `fandhe-frontend-server::ssr::respond`（#348） | ルート解決 → `Input` 構成 → `load` → ページ関数 → `page_shell` |
+| SSG | **ビルド時** | `fandhe-frontend-server::ssg::generate`（#348） | SSR と同一の `respond` 経由で解決する。「200 応答ボディをそのまま書き出す」契約（`server/src/ssg.rs:115` の既存コメント参照）を維持し、SSR/SSG バイト一致の構造的保証を壊さない |
+| CSR / ハイドレーション | 初期表示: サーバー解決済み状態の注入を再利用（loader 再実行なし）。クライアント遷移時のみ `load` 実行 | `fandhe-frontend-wasm-full`（#349） | 既存の `data-hydrate-*` / `codec::Value` 経路（`docs/api/hydration-state-format.md`・`docs/design/hydration-nested-state.md`）と接続する |
 
 補足:
 
@@ -195,7 +195,7 @@ Phase 4 #352「意図的非採用の記録（仮想 DOM・ファイルベース�
 | 実装する API 表面 | `app/src/lib.rs` へ `Loader` trait（第 3.2 節）を追加。`Item` を対象とした具象 loader（例: `DemoItemsLoader`）を参照実装として追加し、`demo_items()` の呼び出し元をこの loader 経由へ置換する |
 | 移行対象 | `demo_items()` の直接呼び出し箇所（`app/src/lib.rs` 内のテスト・将来 `server` 側からの直接呼び出し）を `Loader::load` 経由へ置換する。`demo_items()` 自体は固定デモデータの提供元として残してよい（loader の内部実装が呼ぶ形に変える） |
 | 追加テスト観点 | 「同一 `Input` → 同一 `Output`」の決定性テスト、`Output` 型とページ関数（`list_page`/`detail_page`）の型接続テスト |
-| 完了条件 | `cargo test -p rws-app` が通過し、既存の XSS 回帰テスト（`list_page_render_is_mode_independent_and_matches_expected_dom` 等）が非劣化であること |
+| 完了条件 | `cargo test -p fandhe-frontend-app` が通過し、既存の XSS 回帰テスト（`list_page_render_is_mode_independent_and_matches_expected_dom` 等）が非劣化であること |
 
 ### 7.2 #348 feat(server): SSR / SSG 経路の loader 解決
 
@@ -204,7 +204,7 @@ Phase 4 #352「意図的非採用の記録（仮想 DOM・ファイルベース�
 | 実装する API 表面 | `server/src/ssr.rs::respond()` を `Loader::load` 経由でデータを取得するよう変更する。エラー時は第 5 節の SSR fail-closed 契約（500 固定文言）を実装する。`server/src/ssg.rs::generate()` は `respond()` 経由の解決を維持し、loader 起因のエラーを `SsgError` の新バリアントとして伝播しビルド失敗させる |
 | 移行対象 | `server/src/ssr.rs:98`・`:107` の `demo_items()` ハードコード呼び出し箇所 |
 | 追加テスト観点 | `server/tests/ssr_ssg_parity.rs` へ loader エラー時の SSR 500 / SSG ビルド失敗の回帰ケースを追加。`server/tests/three_mode_integration.rs` への loader 経由データの一致確認追加 |
-| 完了条件 | `cargo test -p rws-server` が通過し、SSR/SSG 出力バイト完全一致テストが非劣化であること。loader エラー時に内部情報が応答に含まれないことをテストで固定する |
+| 完了条件 | `cargo test -p fandhe-frontend-server` が通過し、SSR/SSG 出力バイト完全一致テストが非劣化であること。loader エラー時に内部情報が応答に含まれないことをテストで固定する |
 
 ### 7.3 #349 feat(wasm-full): CSR / ハイドレーション経路の loader 解決と三モード整合テスト
 
@@ -213,23 +213,23 @@ Phase 4 #352「意図的非採用の記録（仮想 DOM・ファイルベース�
 | 実装する API 表面 | `wasm-full/src/entry.rs`（`mount`/`hydrate`）・`wasm-full/src/hydration.rs` はハイドレーション経路自体を変更しない（第 4 節の「初期表示では loader 再実行なし」契約）。クライアント側遷移（新規ページ遷移）時に `Loader::load` を呼ぶ経路を追加する場合はここで実装する |
 | 移行対象 | クライアント側遷移が既に存在する場合はその実装箇所（現状スコープ外の可能性が高く、実装時に explorer で現状確認する） |
 | 追加テスト観点 | `wasm-full/tests/hydration_browser.rs` へ三モード整合テスト（SSR が注入した状態と CSR 初期表示が一致すること）を追加。エラー時の固定エラービュー表示テストを追加 |
-| 完了条件 | `cargo test -p rws-wasm-full`（native 部分）と既存ブラウザテストが通過すること。ハイドレーション属性復元失敗時の CSR フォールバック契約が非劣化であること |
+| 完了条件 | `cargo test -p fandhe-frontend-wasm-full`（native 部分）と既存ブラウザテストが通過すること。ハイドレーション属性復元失敗時の CSR フォールバック契約が非劣化であること |
 
-### 7.4 #375 refactor(wasm-client): デモデータ直呼びを rws-app の Loader 経由へ移行（実装記録）
+### 7.4 #375 refactor(wasm-client): デモデータ直呼びを fandhe-frontend-app の Loader 経由へ移行（実装記録）
 
-#347（app）・#348（server）・#349（wasm-full）の移行後も、`rws-wasm-client`（最小ハイドレーション方式）の純粋ロジック層 4 関数（`render_list_page_html`/`render_detail_page_html`/`find_hydrate_target_kinds`/`find_list_nav_targets`）が `rws_app::demo_items()` を直接呼んでおり未移行だった（#349 は wasm-full のみがスコープで wasm-client は対象外）。イシュー #375 でこの残余を移行した。
+#347（app）・#348（server）・#349（wasm-full）の移行後も、`fandhe-frontend-wasm-client`（最小ハイドレーション方式）の純粋ロジック層 4 関数（`render_list_page_html`/`render_detail_page_html`/`find_hydrate_target_kinds`/`find_list_nav_targets`）が `fandhe_frontend_app::demo_items()` を直接呼んでおり未移行だった（#349 は wasm-full のみがスコープで wasm-client は対象外）。イシュー #375 でこの残余を移行した。
 
 | 項目 | 内容 |
 |------|------|
 | 実装する API 表面 | `wasm-client/src/lib.rs` に `wasm-full/src/csr.rs`（#349）と同型の `loader_error_view()` / `resolve_list_node<L>` / `resolve_detail_node<D>` を追加。既存 4 関数の内部実装を `DemoItemsLoader` / `DemoItemDetailLoader` + `assemble_list_page` / `assemble_detail_page` 経由へ差し替えた。公開シグネチャ・出力バイトは無変更（`hydration_browser.rs`・`templates/embed/embed.html` への影響ゼロ） |
-| `wasm-full/src/csr.rs` との重複（#375 時点） | `resolve_list_node`/`resolve_detail_node`/`loader_error_view` は wasm-full 側と同型実装であり、本イシューでは共通化（`rws-app` 等への切り出し）を行わなかった（スコープ外、PR #375 本文に記録）。将来 3 例目の CSR loader 解決実装が必要になった時点で共通化を再検討する |
-| `wasm-full/src/csr.rs` との重複（PR #384 マージ後の最終形、追随更新） | PR #384（イシュー #375 への Cursor Bugbot 指摘対応）でコードレベルの重複は解消済み。実装の実体は `wasm-client/src/lib.rs`（`loader_error_view` L119 / `resolve_list_node` L137 / `resolve_detail_node` L156）の 1 箇所のみで、`wasm-full/src/csr.rs`（L31）は `pub use rws_wasm_client::{loader_error_view, resolve_detail_node, resolve_list_node};` による**再エクスポート窓口**であり実装を持たない（csr.rs モジュールコメント「rws-wasm-client への一本化」参照）。上表の #375 時点の記述（「同型実装であり共通化を行わなかった」）は一本化前の状態であり、以降 stale。イシュー #408 でこの表を実態へ追随させた |
-| #408 トリガー評価記録（評価日 2026-07-19、origin/main 基準） | 受け入れ条件「3 例目の CSR loader 実装が必要になった時点で再検討」の成立可否を評価。**不成立**と判断し、共通化リファクタ本体（rws-app への移設）には着手しない。証跡: (1) `grep` で `resolve_*_node`/`loader_error_view` 相当の実装は wasm-client の 1 例のみ（wasm-full は再エクスポート）。(2) #405（wasm-client 側クライアントルーティング）は非採用確定（CLOSED、`docs/policy/intentional-non-adoption.md` へ記録済み）で新規 loader 解決実装は発生しない。(3) wasm-thin は「文字列 in・文字列 out の純粋計算」設計で loader 解決層を持たず、wasm-client 実装の横展開も非採用判断済み。(4) #409（Loader 拡張採用時の wasm-client 側追随）は OPEN だがトリガー未成立（async・キャッシュ・合成は #377 で非採用確定）。トリガーの具体化: 「wasm-client / wasm-full 以外（新規 WASM 方式クレート・wasm-thin の方式転換・#409 の Loader 拡張採用に伴う解決層増設等）で `resolve_*_node`/`loader_error_view` 相当の CSR loader 解決層が必要になった時点」を以って 3 例目成立とみなし、再評価する |
-| 成立時の共通化方針（引き継ぎ事項） | `app/src/lib.rs`（または `app/src/loader_view.rs` 新設）へ `loader_error_view()`/`resolve_list_node<L: Loader<...>>`/`resolve_detail_node<D: Loader<...>>` を移設する。実装は `rws_app`（`Loader`/`assemble_list_page`/`assemble_detail_page`）と `rws_core`（`div`/`p`/`text`）のみに依存するため rws-app へそのまま移設可能（外部依存追加ゼロ、REQ-3 非消費。wasm-client / wasm-full は既に rws-app へ path 依存済み）。`wasm-client/src/lib.rs` / `wasm-full/src/csr.rs` は `rws_app` からの再エクスポートへ縮小し公開シグネチャを非破壊に保つ。エラービュー本文はノード木 API のみで組み立て、`format!` 等による HTML 直接組み立てを行う迂回経路を作らない（REQ-1 不変条件の継続）。`Err(_)` 時に未解決データで描画を続行せず固定エラービューへ倒す fail-closed 契約を共通化後も削除・弱体化しない。`Loader::Error` の値をシグネチャ上一切受け取らない構造的保証（`Display`/`Debug` 非経由）を維持する。3 例目の新規クレートも `rws_app` の同一実装を参照する |
-| 三モード整合テストの配置 | `wasm-client/tests/three_mode_integration.rs`（native）を新設し、`rws-server` を dev-dependency（workspace 内 path 依存、外部依存ゼロクレート、REQ-3 の依存グラフ計測 = Normal のみ対象のため影響なし）として `rws_server::ssr::respond` / `rws_server::ssg::generate` の出力と実際の `rws-wasm-client` 公開関数の出力を直接突き合わせる。従来の `server/tests/three_mode_integration.rs` は「CSR を模した直接呼び出し」（コメント参照）であり `rws-wasm-client` の実関数を経由しないため、本テストがそのギャップを埋める |
+| `wasm-full/src/csr.rs` との重複（#375 時点） | `resolve_list_node`/`resolve_detail_node`/`loader_error_view` は wasm-full 側と同型実装であり、本イシューでは共通化（`fandhe-frontend-app` 等への切り出し）を行わなかった（スコープ外、PR #375 本文に記録）。将来 3 例目の CSR loader 解決実装が必要になった時点で共通化を再検討する |
+| `wasm-full/src/csr.rs` との重複（PR #384 マージ後の最終形、追随更新） | PR #384（イシュー #375 への Cursor Bugbot 指摘対応）でコードレベルの重複は解消済み。実装の実体は `wasm-client/src/lib.rs`（`loader_error_view` L119 / `resolve_list_node` L137 / `resolve_detail_node` L156）の 1 箇所のみで、`wasm-full/src/csr.rs`（L31）は `pub use fandhe_frontend_wasm_client::{loader_error_view, resolve_detail_node, resolve_list_node};` による**再エクスポート窓口**であり実装を持たない（csr.rs モジュールコメント「fandhe-frontend-wasm-client への一本化」参照）。上表の #375 時点の記述（「同型実装であり共通化を行わなかった」）は一本化前の状態であり、以降 stale。イシュー #408 でこの表を実態へ追随させた |
+| #408 トリガー評価記録（評価日 2026-07-19、origin/main 基準） | 受け入れ条件「3 例目の CSR loader 実装が必要になった時点で再検討」の成立可否を評価。**不成立**と判断し、共通化リファクタ本体（fandhe-frontend-app への移設）には着手しない。証跡: (1) `grep` で `resolve_*_node`/`loader_error_view` 相当の実装は wasm-client の 1 例のみ（wasm-full は再エクスポート）。(2) #405（wasm-client 側クライアントルーティング）は非採用確定（CLOSED、`docs/policy/intentional-non-adoption.md` へ記録済み）で新規 loader 解決実装は発生しない。(3) wasm-thin は「文字列 in・文字列 out の純粋計算」設計で loader 解決層を持たず、wasm-client 実装の横展開も非採用判断済み。(4) #409（Loader 拡張採用時の wasm-client 側追随）は OPEN だがトリガー未成立（async・キャッシュ・合成は #377 で非採用確定）。トリガーの具体化: 「wasm-client / wasm-full 以外（新規 WASM 方式クレート・wasm-thin の方式転換・#409 の Loader 拡張採用に伴う解決層増設等）で `resolve_*_node`/`loader_error_view` 相当の CSR loader 解決層が必要になった時点」を以って 3 例目成立とみなし、再評価する |
+| 成立時の共通化方針（引き継ぎ事項） | `app/src/lib.rs`（または `app/src/loader_view.rs` 新設）へ `loader_error_view()`/`resolve_list_node<L: Loader<...>>`/`resolve_detail_node<D: Loader<...>>` を移設する。実装は `fandhe_frontend_app`（`Loader`/`assemble_list_page`/`assemble_detail_page`）と `fandhe_frontend_core`（`div`/`p`/`text`）のみに依存するため fandhe-frontend-app へそのまま移設可能（外部依存追加ゼロ、REQ-3 非消費。wasm-client / wasm-full は既に fandhe-frontend-app へ path 依存済み）。`wasm-client/src/lib.rs` / `wasm-full/src/csr.rs` は `fandhe_frontend_app` からの再エクスポートへ縮小し公開シグネチャを非破壊に保つ。エラービュー本文はノード木 API のみで組み立て、`format!` 等による HTML 直接組み立てを行う迂回経路を作らない（REQ-1 不変条件の継続）。`Err(_)` 時に未解決データで描画を続行せず固定エラービューへ倒す fail-closed 契約を共通化後も削除・弱体化しない。`Loader::Error` の値をシグネチャ上一切受け取らない構造的保証（`Display`/`Debug` 非経由）を維持する。3 例目の新規クレートも `fandhe_frontend_app` の同一実装を参照する |
+| 三モード整合テストの配置 | `wasm-client/tests/three_mode_integration.rs`（native）を新設し、`fandhe-frontend-server` を dev-dependency（workspace 内 path 依存、外部依存ゼロクレート、REQ-3 の依存グラフ計測 = Normal のみ対象のため影響なし）として `fandhe_frontend_server::ssr::respond` / `fandhe_frontend_server::ssg::generate` の出力と実際の `fandhe-frontend-wasm-client` 公開関数の出力を直接突き合わせる。従来の `server/tests/three_mode_integration.rs` は「CSR を模した直接呼び出し」（コメント参照）であり `fandhe-frontend-wasm-client` の実関数を経由しないため、本テストがそのギャップを埋める |
 | 実ブラウザ三モードテストを wasm-client に追加しない理由 | `wasm-full/tests/three_mode_browser.rs`（#349）が実 DOM 経路（ハイドレーション後の DOM 状態と SSR 注入状態の一致）を既にカバーしており、`wasm-client`（最小ハイドレーション方式・状態注入を持たない構成）で同種のブラウザテストを追加してもカバレッジの重複が大きい。native でのバイト完全一致固定（三モード整合テスト・doctest の「直呼びとの完全一致」アサーション）で契約は十分に固定されると判断した |
-| 静的回帰テストの拡張 | `core/tests/no_branching_across_modes.rs` の検証 2（REQ-7）が `rws_app::{func}` 直参照のみを許容していたため、`assemble_list_page`/`assemble_detail_page`（共通契約ラッパー、第 3.3 節・§7.2 注記）経由の参照も許容形として追加した（弱体化ではなく拡張。`assemble_{func}` 自体の自前定義禁止チェックも同時に追加） |
-| 完了条件 | `cargo test --workspace`（`rws-wasm-client`・`rws-core --test no_branching_across_modes` を含む）が通過し、`cargo clippy --workspace --all-targets -- -D warnings` が警告 0 件、`cargo metadata` で外部パッケージ総数・依存グラフ深さが変化しないこと（実測: `Cargo.lock` への追加は `rws-wasm-client` → `rws-server`（workspace 内）の 1 エッジのみ） |
+| 静的回帰テストの拡張 | `core/tests/no_branching_across_modes.rs` の検証 2（REQ-7）が `fandhe_frontend_app::{func}` 直参照のみを許容していたため、`assemble_list_page`/`assemble_detail_page`（共通契約ラッパー、第 3.3 節・§7.2 注記）経由の参照も許容形として追加した（弱体化ではなく拡張。`assemble_{func}` 自体の自前定義禁止チェックも同時に追加） |
+| 完了条件 | `cargo test --workspace`（`fandhe-frontend-wasm-client`・`fandhe-frontend-core --test no_branching_across_modes` を含む）が通過し、`cargo clippy --workspace --all-targets -- -D warnings` が警告 0 件、`cargo metadata` で外部パッケージ総数・依存グラフ深さが変化しないこと（実測: `Cargo.lock` への追加は `fandhe-frontend-wasm-client` → `fandhe-frontend-server`（workspace 内）の 1 エッジのみ） |
 
 ## 8. スコープ外の明記
 
@@ -247,7 +247,7 @@ Phase 4 #352「意図的非採用の記録（仮想 DOM・ファイルベース�
 ## 9. セキュリティ不変条件
 
 1. **既定エスケープの一貫性（REQ-1）**: `Loader::Output` の HTML 化は必ずノード木 API
-   （`rws_core::text` / `rws_core::el` の attrs 経由）で行う。`format!` による HTML
+   （`fandhe_frontend_core::text` / `fandhe_frontend_core::el` の attrs 経由）で行う。`format!` による HTML
    文字列直接組み立ては禁止する（`coding-rust.md`「HTML 文字列の直接組み立て禁止」）。
    `page_shell` が許容する `format!` の唯一の例外（`docs/api/app-api.md` 第 4 節・
    判断 2: 補間値がエスケープ済み出力のみの固定文書骨格）は本書導入後も変更しない。
@@ -264,7 +264,7 @@ Phase 4 #352「意図的非採用の記録（仮想 DOM・ファイルベース�
 5. **エラー・ログの機微情報非露出（A09 相当）**: `Loader::Error` の表示・ログ設計は
    内部パス・スタックトレース・接続情報（DB 接続文字列等）を含めない契約とする。SSR
    の 500 応答・SSG のビルド失敗ログはいずれも固定文言または理由コードのみを出力する。
-6. **サプライチェーン（REQ-3）**: 依存クレート追加はゼロ。`rws-app`/`rws-server` の
+6. **サプライチェーン（REQ-3）**: 依存クレート追加はゼロ。`fandhe-frontend-app`/`fandhe-frontend-server` の
    外部依存ゼロ・`#![forbid(unsafe_code)]` を維持する。
 
 ## 10. 受け入れ基準対応表
@@ -280,7 +280,7 @@ Phase 4 #352「意図的非採用の記録（仮想 DOM・ファイルベース�
 
 ## 11. 関連文書との整合確認
 
-- `docs/api/app-api.md` 第 4 節・判断 5（SSR/SSG/CSR は `rws-app` の同一関数を分岐なく
+- `docs/api/app-api.md` 第 4 節・判断 5（SSR/SSG/CSR は `fandhe-frontend-app` の同一関数を分岐なく
   呼び出す）と、本書第 3〜4 節の Loader trait 設計は矛盾しない。むしろ「同一関数を
   分岐なく呼ぶ」という運用規約を、`Loader` という型契約として明示化するものである。
 - `docs/api/app-api.md` 第 9 節（axum 不採用・SSR は純関数・SSG は SSR ボディの単純

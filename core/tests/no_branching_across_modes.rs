@@ -6,7 +6,7 @@
 //! 同一関数を呼び出すこと」を受け入れ基準とする。
 //!
 //! `core/Cargo.toml` は外部依存ゼロが不変条件（`.claude/rules/coding-rust.md`）
-//! であり、`rws_app` / `rws_server` / `rws_wasm_client` を dev-dependency として
+//! であり、`fandhe_frontend_app` / `fandhe_frontend_server` / `fandhe_frontend_wasm_client` を dev-dependency として
 //! リンクし挙動を検証することはできない。そのため本ファイルは
 //! `core/tests/unsafe_boundary.rs`（TASK-2.2a）と同じ方式 — `std::fs` のみで
 //! workspace 内ソースを走査する**静的解析テスト**として実装する。
@@ -19,18 +19,18 @@
 //! 「構成による分岐が構造的に存在しないこと」の固定に限定する。
 //!
 //! `dist-server` の `force-embed` feature は配布層（HTTP 配信方式）の
-//! 埋め込み方式切り替えであり、コンポーネントロジック（`rws-app`）自体の
+//! 埋め込み方式切り替えであり、コンポーネントロジック（`fandhe-frontend-app`）自体の
 //! 分岐ではないため、本テストの検証対象には含めない（スコープ外、#58 計画）。
 //!
 //! # 検証内容
 //!
-//! 1. `app/src/`（rws-app: コンポーネントロジックの実体）に `cfg(test)` 以外の
+//! 1. `app/src/`（fandhe-frontend-app: コンポーネントロジックの実体）に `cfg(test)` 以外の
 //!    構成分岐属性（`#[cfg(...)]` / `cfg!(...)` / `#[cfg_attr(...)]`）が存在
 //!    しないこと、および `app/Cargo.toml` に `[features]` セクションが存在
 //!    しないこと。
 //! 2. フルスタック側（`server/src/ssr.rs`）・最小埋め込み側
 //!    （`wasm-client/src/lib.rs`）の双方が、共通契約関数
-//!    （[`SHARED_PAGE_FUNCTIONS`]）を `rws_app::` 経由で参照し、かつ
+//!    （[`SHARED_PAGE_FUNCTIONS`]）を `fandhe_frontend_app::` 経由で参照し、かつ
 //!    同名関数を自前定義（コンポーネントロジックの重複再実装）していないこと。
 //! 3. `templates/embed/embed.html`（最小埋め込みの入口）が、検証 2 で固定した
 //!    `wasm-client` の共通経路に接続される `mount_csr` を参照していること。
@@ -43,9 +43,9 @@ use std::path::{Path, PathBuf};
 /// 三モード（SSR/SSG/CSR）から分岐なく呼ばれることを契約とするページ関数群。
 ///
 /// `app/src/lib.rs` の rustdoc（三モード契約・REQ-6）が定める
-/// [`rws_app::list_page`] / [`rws_app::detail_page`] に対応する。
+/// [`fandhe_frontend_app::list_page`] / [`fandhe_frontend_app::detail_page`] に対応する。
 /// フルスタック側・最小埋め込み側の双方がこのリストの**全関数**を
-/// `rws_app::` 経由で参照していることを検証 2 で固定する。
+/// `fandhe_frontend_app::` 経由で参照していることを検証 2 で固定する。
 const SHARED_PAGE_FUNCTIONS: &[&str] = &["list_page", "detail_page"];
 
 /// workspace ルート（`core/` の親ディレクトリ）の絶対パスを返す。
@@ -180,20 +180,20 @@ fn contains_identifier(haystack: &str, ident: &str) -> bool {
     false
 }
 
-/// `use rws_app::{ ... };` 形式の named import ブロック（複数行にまたがる場合を
+/// `use fandhe_frontend_app::{ ... };` 形式の named import ブロック（複数行にまたがる場合を
 /// 含む）を走査し、`func` が識別子としてブロック内に出現するかを判定する。
 ///
 /// Cursor Bugbot 指摘（PR #242, Medium）:
 /// `both_call_sites_reference_shared_app_functions_without_redefining` の
-/// 旧実装は `line.contains("use rws_app::") && line.contains(func)` という
+/// 旧実装は `line.contains("use fandhe_frontend_app::") && line.contains(func)` という
 /// 1 行完結の判定であったため、`server/src/ssr.rs` のような通常の複数行
-/// `use rws_app::{\n    list_page,\n    detail_page,\n};` 形式では
-/// `use rws_app::` と `func` が同一行に現れず偽陰性（誤って未参照と判定）に
-/// なり得た。`use rws_app::` の出現位置から対応する `;` までを 1 つの
+/// `use fandhe_frontend_app::{\n    list_page,\n    detail_page,\n};` 形式では
+/// `use fandhe_frontend_app::` と `func` が同一行に現れず偽陰性（誤って未参照と判定）に
+/// なり得た。`use fandhe_frontend_app::` の出現位置から対応する `;` までを 1 つの
 /// import ブロックとして切り出し、改行をまたいで検索する。
 fn contains_use_import(stripped: &str, func: &str) -> bool {
     let mut search_from = 0usize;
-    while let Some(rel) = stripped[search_from..].find("use rws_app::") {
+    while let Some(rel) = stripped[search_from..].find("use fandhe_frontend_app::") {
         let start = search_from + rel;
         let after = &stripped[start..];
         let end = after
@@ -204,12 +204,12 @@ fn contains_use_import(stripped: &str, func: &str) -> bool {
         if contains_identifier(block, func) {
             return true;
         }
-        search_from = start + "use rws_app::".len();
+        search_from = start + "use fandhe_frontend_app::".len();
     }
     false
 }
 
-/// 検証 1: `app/src/`（rws-app）に `cfg(test)` 以外の構成分岐属性が存在せず、
+/// 検証 1: `app/src/`（fandhe-frontend-app）に `cfg(test)` 以外の構成分岐属性が存在せず、
 /// かつ `app/Cargo.toml` に `[features]` セクションが存在しないことを確認する。
 ///
 /// `cfg(test)` はテストビルド判定であり最小埋め込み/フルスタックというモード
@@ -246,7 +246,7 @@ fn app_component_logic_has_no_mode_branching_cfg() {
                 normalized.contains("#[cfg(test)]")
                     || normalized.contains("cfg!(test)")
                     || normalized.contains("#[cfg_attr(test,"),
-                "rws-app（コンポーネントロジック）{file:?}:{line_no} に \
+                "fandhe-frontend-app（コンポーネントロジック）{file:?}:{line_no} に \
                  `cfg(test)` / `cfg_attr(test, ...)` 以外の構成分岐属性が \
                  見つかった: {line:?}。REQ-7 はコンポーネントロジックが \
                  構成間で分岐を持たないことを要求する"
@@ -259,21 +259,21 @@ fn app_component_logic_has_no_mode_branching_cfg() {
     assert!(
         !app_manifest.contains("[features]"),
         "app/Cargo.toml に [features] セクションが存在する。feature フラグによる \
-         構成分岐の入口となるため rws-app では持たない契約（REQ-7）"
+         構成分岐の入口となるため fandhe-frontend-app では持たない契約（REQ-7）"
     );
 }
 
 /// 検証 2: フルスタック側（`server/src/ssr.rs`）・最小埋め込み側
 /// （`wasm-client/src/lib.rs`）が [`SHARED_PAGE_FUNCTIONS`] の全関数を
-/// `rws_app::` 経由で参照し、かつ同名関数を自前定義していないことを確認する。
+/// `fandhe_frontend_app::` 経由で参照し、かつ同名関数を自前定義していないことを確認する。
 ///
 /// 自前定義（`fn list_page` 等）はコンポーネントロジックの重複再実装であり、
 /// 将来的に一方だけ実装が変わる「事実上の分岐」の温床になるため検知する。
 ///
-/// イシュー #375（`rws-wasm-client` の Loader 移行）で許容参照形を拡張した:
-/// `rws_app::assemble_{func}`（`assemble_list_page`/`assemble_detail_page`、
+/// イシュー #375（`fandhe-frontend-wasm-client` の Loader 移行）で許容参照形を拡張した:
+/// `fandhe_frontend_app::assemble_{func}`（`assemble_list_page`/`assemble_detail_page`、
 /// `docs/design/loader-trait-design.md` §3.3 の共通契約ラッパー）経由の参照も
-/// `rws_app::{func}` 直参照と同格に許容する。`assemble_*` は rws-app 内部で
+/// `fandhe_frontend_app::{func}` 直参照と同格に許容する。`assemble_*` は fandhe-frontend-app 内部で
 /// `{func}` を呼ぶのみで独自ロジックを持たないため、REQ-7 の意図（共通関数
 /// 経由・コンポーネントロジックの重複再実装禁止）を弱めない。同時に
 /// `assemble_{func}` 自体の自前定義（`fn assemble_list_page(` 等）も
@@ -290,28 +290,29 @@ fn both_call_sites_reference_shared_app_functions_without_redefining() {
         for func in SHARED_PAGE_FUNCTIONS {
             let assemble_func = format!("assemble_{func}");
 
-            let referenced_via_rws_app = stripped.contains(&format!("rws_app::{func}"))
-                || stripped.contains(&format!("rws_app :: {func}"));
-            // `use rws_app::{ ... , list_page, ... };` 形式の named import も
+            let referenced_via_fandhe_frontend_app = stripped
+                .contains(&format!("fandhe_frontend_app::{func}"))
+                || stripped.contains(&format!("fandhe_frontend_app :: {func}"));
+            // `use fandhe_frontend_app::{ ... , list_page, ... };` 形式の named import も
             // 呼び出し面として許容する（server/src/ssr.rs の実装形）。複数行に
             // またがる import ブロックも検出するため [`contains_use_import`] を
             // 使う（1 行完結判定による偽陰性の回避、Bugbot 指摘 #2 対応）。
             let imported_via_use = contains_use_import(&stripped, func);
 
-            // `rws_app::assemble_{func}` 直参照・`use rws_app::{ assemble_{func}, ... }`
+            // `fandhe_frontend_app::assemble_{func}` 直参照・`use fandhe_frontend_app::{ assemble_{func}, ... }`
             // 形式の named import も許容参照形とする（イシュー #375、上記
             // ドキュメンテーションコメント参照）。
-            let referenced_via_rws_app_assemble = stripped
-                .contains(&format!("rws_app::{assemble_func}"))
-                || stripped.contains(&format!("rws_app :: {assemble_func}"));
+            let referenced_via_fandhe_frontend_app_assemble = stripped
+                .contains(&format!("fandhe_frontend_app::{assemble_func}"))
+                || stripped.contains(&format!("fandhe_frontend_app :: {assemble_func}"));
             let imported_via_use_assemble = contains_use_import(&stripped, &assemble_func);
 
             assert!(
-                referenced_via_rws_app
+                referenced_via_fandhe_frontend_app
                     || imported_via_use
-                    || referenced_via_rws_app_assemble
+                    || referenced_via_fandhe_frontend_app_assemble
                     || imported_via_use_assemble,
-                "{path:?} が rws_app::{func}（共通契約関数）も rws_app::{assemble_func}\
+                "{path:?} が fandhe_frontend_app::{func}（共通契約関数）も fandhe_frontend_app::{assemble_func}\
                  （共通契約ラッパー）も経由して参照していない。最小埋め込み・フルスタック\
                  双方が同一関数を呼ぶことが REQ-7 の受け入れ基準"
             );
@@ -327,7 +328,7 @@ fn both_call_sites_reference_shared_app_functions_without_redefining() {
             assert!(
                 !assemble_self_defined,
                 "{path:?} が `fn {assemble_func}` を自前定義している。共通契約ラッパー \
-                 （rws_app::{assemble_func}）の重複再実装は構成間の事実上の分岐を招くため \
+                 （fandhe_frontend_app::{assemble_func}）の重複再実装は構成間の事実上の分岐を招くため \
                  禁止（REQ-7、イシュー #375）"
             );
         }
@@ -339,7 +340,7 @@ fn both_call_sites_reference_shared_app_functions_without_redefining() {
 /// ことを確認する。
 ///
 /// 埋め込みテンプレートが独自のロジックを持たず、共通経路（wasm-client →
-/// rws_app → rws_core::render）へそのまま接続されていることの固定。
+/// fandhe_frontend_app → fandhe_frontend_core::render）へそのまま接続されていることの固定。
 #[test]
 fn embed_template_entry_point_uses_shared_mount_csr() {
     let root = workspace_root();
@@ -354,7 +355,7 @@ fn embed_template_entry_point_uses_shared_mount_csr() {
     assert!(
         html_without_comments.contains("mount_csr"),
         "{embed_path:?} が mount_csr を参照していない。最小埋め込みの入口は \
-         wasm-client の共通経路（rws_app 経由）に接続される契約（REQ-7）"
+         wasm-client の共通経路（fandhe_frontend_app 経由）に接続される契約（REQ-7）"
     );
 }
 

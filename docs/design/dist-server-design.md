@@ -10,7 +10,7 @@
 本ドキュメントは REQ-9（`docs/spec/04-requirements.md` REQ-9 節「単一バイナリ配布と
 Docker イメージ最小化」）のうち、PoC-4（`docs/spec/03-poc/single-binary-distribution/`）
 で実証済みの `rust-embed` ＋ `axum` による単一バイナリ配布サーバーを、REQ-6・REQ-7 の
-共通コア API（`rws-app` / `rws-server`）と接続する製品版クレート `dist-server/` の
+共通コア API（`fandhe-frontend-app` / `fandhe-frontend-server`）と接続する製品版クレート `dist-server/` の
 クレート構成・依存方針・アーキテクチャ・アセット埋め込み方式・起動設定・セキュリティ
 不変条件を**設計として確定**するための成果物です。
 
@@ -51,10 +51,10 @@ frontend-framework-spec リポジトリで行う）。
   `Router::new()` / `Router::route(pattern, handler) -> Result<Self, RouterError>` /
   `Router::resolve(path) -> Option<RouteMatch<'_, H>>` / `Params::get(name)` /
   `Params::iter()`。`server/Cargo.toml` は現時点で外部依存ゼロ（`[dependencies]` 節が
-  空、`rws-core`/`rws-app` は `[dev-dependencies]` のみ）。
+  空、`fandhe-frontend-core`/`fandhe-frontend-app` は `[dev-dependencies]` のみ）。
 - `app/src/lib.rs`（TASK-6.1b 完了・#43 closed）: `layout()` / `list_page(&[Item])` /
   `detail_page(Option<&Item>)` / `page_shell(title: &str, body: Node) -> String` /
-  `demo_items() -> Vec<Item>` を公開。`page_shell()` の戻り値は `rws_core` ノード木
+  `demo_items() -> Vec<Item>` を公開。`page_shell()` の戻り値は `fandhe_frontend_core` ノード木
   経由でレンダリングされた既定エスケープ済み HTML 文字列。
 - `static/`: `view-transitions.js` のみ存在。`embed.html` 相当は
   TASK-7.1（#51）配下で `templates/embed/embed.html`（`static/` 外）として
@@ -65,7 +65,7 @@ frontend-framework-spec リポジトリで行う）。
   を全 workspace に適用（`dist-server` も safe 域必須）。`.github/workflows/deps-check.yml`
   は `xtask check-deps`（`xtask/src/check_deps.rs` の `MAX_PACKAGES = 60` /
   `MAX_DEPTH = 6` が正）を強制。運用ポリシーは `docs/policy/dependency-graph-policy.md`。
-- 並行イシュー（すべて OPEN）: #44（TASK-6.1c rws-server SSR/SSG エントリ実装）・
+- 並行イシュー（すべて OPEN）: #44（TASK-6.1c fandhe-frontend-server SSR/SSG エントリ実装）・
   #55（TASK-7.2a パスマッチング仕様設計）・#51/#52（TASK-7.1/7.1a
   `templates/embed/embed.html`）・#162（`RWS_BIND_ADDR` 検証）・#96（TASK-9.1b）・
   #97（TASK-9.1c）。本書はこれらが未確定であることを前提に、確定済みの現物
@@ -74,14 +74,14 @@ frontend-framework-spec リポジトリで行う）。
 
 ## 3. クレート構成
 
-- 新 workspace member `dist-server/`（パッケージ名 `rws-dist-server`）。
+- 新 workspace member `dist-server/`（パッケージ名 `fandhe-frontend-dist-server`）。
 - `[[bin]] name = "dist-server"`（`path = "src/main.rs"`。PoC-4 踏襲）。
 - `#![forbid(unsafe_code)]` を crate 冒頭に必須とする。CI の
   `RUSTFLAGS='-F unsafe_code' cargo check --workspace` は workspace 全体に
   一律適用されるため、`dist-server` も core/interactive と同じ safe 域で実装する
   契約を本書で明記する（`coding-rust.md` の `unsafe` 境界方針に従い、`unsafe` は
   WASM バインディング層・FFI 境界のみに限定し、HTTP サーバー層には持ち込まない）。
-- 依存: `rws-core` / `rws-app` / `rws-server` への path 依存＋外部依存（第 4 節で
+- 依存: `fandhe-frontend-core` / `fandhe-frontend-app` / `fandhe-frontend-server` への path 依存＋外部依存（第 4 節で
   実測に基づき確定）。
 
 ## 4. 依存方針（REQ-3）— 本書の最重要判断
@@ -96,7 +96,7 @@ scratchpad 上に試作クレート（workspace 外、`dist-server/Cargo.toml` �
 **同一のアルゴリズム**で解析した（xtask バイナリ自体を試作クレートに向けて実行する
 には workspace `members` への一時追加が必要になり本タスクのスコープ（docs-only）を
 超えるため、アルゴリズムを忠実に再実装して計測した。TASK-9.1b では
-`cargo run --locked -p xtask -- check-deps --package rws-dist-server` による実測で
+`cargo run --locked -p xtask -- check-deps --package fandhe-frontend-dist-server` による実測で
 本書の数値を再確認すること）。
 
 ### 4.2 実測結果
@@ -109,16 +109,16 @@ scratchpad 上に試作クレート（workspace 外、`dist-server/Cargo.toml` �
 | **C（採用案）: hyper 直利用（http1 のみ）+ include_dir** | tokio（rt-multi-thread,net,io-util）+ hyper（http1,server）+ hyper-util（tokio,http1,server）+ http-body-util + include_dir | 23 | 5 | **PASS** |
 | 参考: hyper 直利用のみ（アセット埋め込みクレートなし） | 上記から include_dir を除いたもの | 18 | 5 | PASS |
 | 参考: rust-embed 単体（default-features=false） | rust-embed のみ | 21 | 8 | FAIL（rust-embed 自体が深さ超過の原因） |
-| 参考: PoC-3 の `rws-server`（axum+tokio、既存実測 52/5 の再検証） | axum + tokio（PoC-3 と同一） | 50 | **9** | 既存の「52 件/深さ 5」という PoC-3 実測（`docs/policy/dependency-graph-policy.md` 第 2 節）と**本書の再計測（同一アルゴリズム）は不一致** |
+| 参考: PoC-3 の `fandhe-frontend-server`（axum+tokio、既存実測 52/5 の再検証） | axum + tokio（PoC-3 と同一） | 50 | **9** | 既存の「52 件/深さ 5」という PoC-3 実測（`docs/policy/dependency-graph-policy.md` 第 2 節）と**本書の再計測（同一アルゴリズム）は不一致** |
 
 （実測環境: 2026-07-17、`cargo metadata` によるネットワーク解決。`Cargo.lock` は
 試作クレート側で都度生成されたものであり、実クレートのバージョン解決とは
-若干異なりうる。TASK-9.1b で `rws-dist-server` 実クレートによる再実測が必要。）
+若干異なりうる。TASK-9.1b で `fandhe-frontend-dist-server` 実クレートによる再実測が必要。）
 
 ### 4.3 最重要の発見: `MAX_DEPTH` 計測基準の不整合（TASK-9.1b 着手前の全系列ブロッカー）
 
 `docs/policy/dependency-graph-policy.md` の「採用上限」根拠は PoC-3 実測（52 件/深さ **5**、
-`cargo tree -p rws-server -e normal --prefix none` の**目視インデント段数**）である。
+`cargo tree -p fandhe-frontend-server -e normal --prefix none` の**目視インデント段数**）である。
 一方 `xtask/src/check_deps.rs` の実装（メモ化 DFS による最長経路長）で**同一の
 PoC-3 依存構成（axum + tokio のみ）を再計測すると、件数は 50 件で近似するが、
 深さは 9 になる**（4.2 節の表、経路: `axum → hyper-util → hyper → tokio →
@@ -135,9 +135,9 @@ hybrid-array → typenum`。コンパイル時のコンテンツハッシュ計�
 再帰的重複の圧縮を経た値）との間に元から存在していた計測基準の不一致である。
 
 **この不一致は TASK-9.1（本イシュー系列）固有の問題ではなく、フレームワーク
-全体に及ぶ**。PoC-3 の `rws-server`（axum + tokio）自体が本書と同一の
+全体に及ぶ**。PoC-3 の `fandhe-frontend-server`（axum + tokio）自体が本書と同一の
 再計測で深さ 9 になる以上、`server/Cargo.toml` に axum 系依存が実際に追加
-される時点（TASK-6.1c・#44）で `rws-server` 自身も同じ CI ゲートに抵触する。
+される時点（TASK-6.1c・#44）で `fandhe-frontend-server` 自身も同じ CI ゲートに抵触する。
 つまり `dist-server` だけが axum/`rust-embed` を避けても、フレームワーク
 全体としての依存グラフ上限運用（REQ-3・`docs/policy/dependency-graph-policy.md`）は
 未解決のまま残る。**本書はこの不整合をイシュー #94／#44 に共通する上流の
@@ -175,7 +175,7 @@ rust-embed ＋ mime_guess を feature 絞り込みしたもの＝表 A′）を�
     `server-auto`（HTTP/1・HTTP/2 自動判定）や `async-trait` を暗黙に引き込み、
     feature を絞っても `syn`/`quote`/`proc-macro2` チェーンにより深さ 7〜9 に
     達する（4.2 節 A′/B 行）。ページルーティングは REQ-7 の共通コア API
-    （`rws_server::router::Router`）に完全移譲するため、`axum::Router` の
+    （`fandhe_frontend_server::router::Router`）に完全移譲するため、`axum::Router` の
     ルーティング機能自体は不要であり、「HTTP 待ち受け＋レスポンス送出」のみを
     担う `hyper`/`hyper-util` へ置き換えても機能損失はない。
   - `rust-embed` 不採用の理由: 4.3 節のとおり単体で深さ 8 に達するため。
@@ -258,7 +258,7 @@ TASK-9.1b のスコープとする。
 にコード・依存を一切持たない空フィーチャーとして定義済みで、
 `cfg(all(debug_assertions, not(feature = "force-embed")))` の判定にのみ関与
 します。CI ジョブ `dist-server-embedded-mode`（`.github/workflows/ci.yml`）が
-`cargo test -p rws-dist-server --features force-embed --locked` を実行し、
+`cargo test -p fandhe-frontend-dist-server --features force-embed --locked` を実行し、
 debug ビルドのまま本番相当の `Embedded` モード（ファイルシステム読み込み
 コードが構造的に含まれない経路）を検証し続けます。詳細は
 `docs/guides/dev-asset-reload.md` を参照してください。
@@ -268,63 +268,63 @@ debug ビルドのまま本番相当の `Embedded` モード（ファイルシ�
 PoC-4 は `axum::Router` で `/`・`/items/:id`・`/static/*path` を直接ルーティング
 していたが、製品版は**一次設計・フォールバック案のいずれを採る場合も**、
 ページルート解決を PoC-4 のような `axum::Router` 直登録ではなく
-`rws_server::router::Router`（v1 共通コア、TASK-7.2b で確定済みの API）へ
+`fandhe_frontend_server::router::Router`（v1 共通コア、TASK-7.2b で確定済みの API）へ
 完全委譲する構成に統一する。これは REQ-6・REQ-7 の「共通コア API を SSR/SSG/
 単一バイナリ配布から共通利用する」という設計意図（`router.rs` rustdoc に
 明記済み）に沿うための判断であり、4.3 節の依存グラフ論点とは独立に成立する。
-一次設計（axum 採用）では `axum::Router` は `rws_server::router::Router` の
+一次設計（axum 採用）では `axum::Router` は `fandhe_frontend_server::router::Router` の
 解決結果をディスパッチする薄いラッパーとして使い、フォールバック案
 （`hyper`/`hyper-util` 直利用）では HTTP 待ち受け・リクエストのパース・
 レスポンス送出のみを担う薄い層とする。
 
 - 起動時に `Router::<Handler>::new().route("/", ..)?.route("/items/:id", ..)?`
-  で 2 ルートを登録する（`/search` は REQ-7 が示す 3 ルート目だが、`rws-app` の
-  現行公開 API に対応するページ関数がないため、対応する `rws-app` API が
+  で 2 ルートを登録する（`/search` は REQ-7 が示す 3 ルート目だが、`fandhe-frontend-app` の
+  現行公開 API に対応するページ関数がないため、対応する `fandhe-frontend-app` API が
   用意され次第 9.1b 以降で追加する。追加不要と判明した場合はスコープ外表に
   記録する）。
 - リクエストごとに `router.resolve(request.path())` を呼び、`Some(RouteMatch)`
-  ならハンドラ関数（`rws_app::list_page()` / `rws_app::detail_page(..)`）を呼んで
-  `rws_app::page_shell(title, body)` で HTML 文字列を得る。`page_shell()` の
-  戻り値は `rws_core` ノード木経由で生成された既定エスケープ済み HTML であり、
+  ならハンドラ関数（`fandhe_frontend_app::list_page()` / `fandhe_frontend_app::detail_page(..)`）を呼んで
+  `fandhe_frontend_app::page_shell(title, body)` で HTML 文字列を得る。`page_shell()` の
+  戻り値は `fandhe_frontend_core` ノード木経由で生成された既定エスケープ済み HTML であり、
   `dist-server` 自身は `format!` 等で HTML 文字列を直接組み立てない
   （`coding-rust.md`「HTML 文字列の直接組み立て禁止」）。
-- `router.resolve()` が `Params`（生文字列）を返す場合、`rws_app` 側の関数
+- `router.resolve()` が `Params`（生文字列）を返す場合、`fandhe_frontend_app` 側の関数
   シグネチャが受け取る型（例: `detail_page(Option<&Item>)`）に変換する処理を
   `dist-server` 側で行う。この変換で生文字列を直接 HTML へ埋め込まないこと
-  （`router.rs` の既存契約「出力は `rws_core::text` / attrs 経由で必ずエスケープ
+  （`router.rs` の既存契約「出力は `fandhe_frontend_core::text` / attrs 経由で必ずエスケープ
   すること」を継承する）。
 - `None`（マッチなし）の場合は `/static/*` プレフィックスかどうかを判定し、
   該当すれば 4.5 節の `read_asset()`、しなければ 404 を返す（6 節）。
 - **PoC-4 踏襲の axum 直ルーティング案との得失**: axum の `Router::route()` に
   `/`・`/items/:id`・`/static/*path` を直接登録する PoC-4 方式は実装量が最小だが、
-  ページルーティングという責務を `rws-app`/`rws-server` 側の共通コアと二重に
+  ページルーティングという責務を `fandhe-frontend-app`/`fandhe-frontend-server` 側の共通コアと二重に
   持つことになり、SSR（TASK-6.1c）・SSG・単一バイナリ配布の 3 経路で同一の
-  ルート定義を保守する負担が生じる。`rws_server::router` へ委譲する方式は
+  ルート定義を保守する負担が生じる。`fandhe_frontend_server::router` へ委譲する方式は
   実装量がやや増える（一次設計では axum ハンドラから `Router::resolve()` を
   呼ぶ薄い橋渡しコード、フォールバック案では hyper の `Service` トレイト実装を
   手書きする必要がある）が、3 経路で単一の `Router` 定義を共有できる点で
   REQ-6・REQ-7 の設計意図に合致するため、一次設計・フォールバック案のいずれでも
-  後者（`rws_server::router` 委譲）を採用する。
+  後者（`fandhe_frontend_server::router` 委譲）を採用する。
 - **TASK-7.2a（#55）との整合**: #55 はパスマッチング仕様の設計確定（4h 分割の
   a 段階）であり本書執筆時点で未マージ。本書は TASK-7.2b で既に確定・実装済みの
   `Router` 公開 API（`route()`/`resolve()`/`Params`）のみに依存し、パターン文法
   自体の仕様変更（例: ワイルドカードの追加）には依存しない設計としている。
   #55 の確定により `Router` の公開 API シグネチャに破壊的変更が入った場合のみ、
   本書 5 節の記述を追従修正する。
-- **TASK-6.1c（#44、rws-server SSR/SSG エントリ）との関係**: #44 は `rws-server`
+- **TASK-6.1c（#44、fandhe-frontend-server SSR/SSG エントリ）との関係**: #44 は `fandhe-frontend-server`
   自体が axum 等でどう HTTP エントリを持つかを決める別タスクである。本書の
   4.4 節の判断（axum 不採用）は `dist-server` クレート固有の判断であり、#44 が
-  別の結論（例: `rws-server` 側は axum を使う）を採る場合、`rws-server` 自体の
-  依存グラフ測定（`docs/policy/dependency-graph-policy.md` 第 2 節「`rws-server` は
+  別の結論（例: `fandhe-frontend-server` 側は axum を使う）を採る場合、`fandhe-frontend-server` 自体の
+  依存グラフ測定（`docs/policy/dependency-graph-policy.md` 第 2 節「`fandhe-frontend-server` は
   未実装のため実測値が得られていない」）でも本書と同様に深さ超過が起きうる
   ことを申し送る（第 9 節）。
 
 ## 6. セキュリティ考慮事項（OWASP Top 10 観点）
 
-- **A03 インジェクション / XSS（REQ-1）**: HTML 生成は `rws_app::page_shell()`
-  （`rws_core` ノード木＝既定エスケープ済み）経由のみとし、`dist-server` 内で
+- **A03 インジェクション / XSS（REQ-1）**: HTML 生成は `fandhe_frontend_app::page_shell()`
+  （`fandhe_frontend_core` ノード木＝既定エスケープ済み）経由のみとし、`dist-server` 内で
   `format!` 等による HTML 文字列直接組み立てを禁止する。`raw_html()` は使用しない。
-  `router.rs` が返す `Params`（生文字列）を出力へ渡す経路は必ず `rws_core::text` /
+  `router.rs` が返す `Params`（生文字列）を出力へ渡す経路は必ず `fandhe_frontend_core::text` /
   attrs 経由でエスケープすることを維持する。
 - **A01/A05 パストラバーサル・静的配信**: release ビルドは `include_dir` の
   埋め込みマップ参照のみでファイルシステムに一切触れない（コンパイル時に
@@ -431,9 +431,9 @@ TASK-9.1c・#97 のスコープ、本節は観点の列挙のみ）。
   いずれを採るか）に応じて着手内容を決めること。
 - **graceful shutdown・TLS・圧縮（gzip/br）・キャッシュヘッダ（`ETag`/
   `Cache-Control`）**: v1 対象外。
-- **`/search` ルート（REQ-7 が示す 3 ルート目）**: 対応する `rws-app` 公開関数が
+- **`/search` ルート（REQ-7 が示す 3 ルート目）**: 対応する `fandhe-frontend-app` 公開関数が
   現行 API に存在しないため、5 節の設計は `/`・`/items/:id` の 2 ルートのみを
-  前提とする。`/search` 追加要否は 9.1b 以降で `rws-app` 側の対応関数の有無を
+  前提とする。`/search` 追加要否は 9.1b 以降で `fandhe-frontend-app` 側の対応関数の有無を
   再確認して判断する。
 - **`force-embed` 相当 feature の CI 組み込み**: feature 名の予約のみ本書で
   行い、実装・CI ジョブ化は TASK-9.1b のスコープ。**【実装済み】** TASK-10.1a
@@ -452,7 +452,7 @@ TASK-9.1c・#97 のスコープ、本節は観点の列挙のみ）。
 - 4.2 節の実測は scratchpad 上の試作クレート（workspace 外）によるものであり、
   `xtask` バイナリそのものを試作クレートに向けて実行してはいない
   （アルゴリズムの忠実な再実装による計測）。TASK-9.1b で実クレート作成後、
-  `cargo run --locked -p xtask -- check-deps --package rws-dist-server` による
+  `cargo run --locked -p xtask -- check-deps --package fandhe-frontend-dist-server` による
   実測での再確認を必須の完了条件とする。
 - 4.3 節の計測基準齟齬は本タスクの発見事項であり、`docs/policy/dependency-graph-policy.md`
   ・`xtask/src/check_deps.rs` いずれも本書では変更しない（変更はそれぞれ

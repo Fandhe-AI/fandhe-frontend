@@ -4,7 +4,7 @@
 
 ## 1. 目的とトレーサビリティ
 
-`rws-core` の既定エスケープ（`core/src/escape.rs`、OWASP XSS Prevention
+`fandhe-frontend-core` の既定エスケープ（`core/src/escape.rs`、OWASP XSS Prevention
 Cheat Sheet Rule #1 準拠の 5 文字置換）は属性値コンテキストからの
 「脱出」（`"` による breakout 等）を防ぐが、**脱出を伴わない攻撃**は防げ
 ない。代表例が URL スキーム経由の XSS である。
@@ -38,14 +38,14 @@ out-of-scope 節で明示的に先送りされてきたこの領域について�
 
 ### 3.1 URL 属性の許可スキーム検証
 
-**実装**: `core/src/url.rs`（`rws_core::is_safe_url` / `rws_core::URL_ATTRS`
-/ `rws_core::is_url_attr`）。
+**実装**: `core/src/url.rs`（`fandhe_frontend_core::is_safe_url` / `fandhe_frontend_core::URL_ATTRS`
+/ `fandhe_frontend_core::is_url_attr`）。
 
 - **正リスト（`URL_ATTRS`）**: `href` / `src` / `action` / `formaction` /
   `xlink:href` / `poster` / `cite` / `data` / `background` / `ping` /
   `dynsrc` / `lowsrc`。属性名の照合は ASCII 大文字小文字非依存。
   `URL_ATTRS` と許可スキームのリストは `core/src/url.rs` を単一の情報源
-  とし、`rws-core` から `pub use` された関数・定数を `rws-wasm-client` 等の
+  とし、`fandhe-frontend-core` から `pub use` された関数・定数を `fandhe-frontend-wasm-client` 等の
   上位クレートが再利用する（コピーを作らない、A05 対策）。
 - **許可スキーム（deny by default）**: スキームなしの相対 URL（`/path`・
   `./x`・`?q`・`#frag`・protocol-relative `//host`）、および
@@ -73,15 +73,15 @@ out-of-scope 節で明示的に先送りされてきたこの領域について�
 **適用箇所（3 経路に同一保証）**:
 
 1. **`render_into`（`core/src/lib.rs`）**: SSR・SSG・CSR いずれのモードも
-   共通で通る `rws_core::render()` の内部実装。`URL_ATTRS` 該当属性の値が
+   共通で通る `fandhe_frontend_core::render()` の内部実装。`URL_ATTRS` 該当属性の値が
    `is_safe_url` 不合格の場合、`srcset` の値が `is_safe_srcset` 不合格の
    場合は、属性ごと出力をスキップする（既存の不正属性名スキップ・不正
    タグ名スキップと同型の fail-closed 挙動。panic させない）。
-2. **`rws-wasm-client` の実 DOM 直接更新経路**（`binding_dom.rs` の
+2. **`fandhe-frontend-wasm-client` の実 DOM 直接更新経路**（`binding_dom.rs` の
    `apply_one` / `keyed_dom.rs` の `build_element`）: `render()` を通らず
    `set_attribute` を直接呼ぶ経路が存在するため、render 時検証だけでは
-   不十分。両関数とも `rws_core::is_url_attr` / `rws_core::is_safe_url`、
-   および `srcset` については `rws_core::is_safe_srcset` を通し、不合格の
+   不十分。両関数とも `fandhe_frontend_core::is_url_attr` / `fandhe_frontend_core::is_safe_url`、
+   および `srcset` については `fandhe_frontend_core::is_safe_srcset` を通し、不合格の
    場合は `set_attribute` を呼ばない。`binding_dom.rs` は
    さらに `remove_attribute` で既存の（束縛前に設定されていた）属性値を
    除去する（fail-closed。古い安全値が残ることによる不整合も避ける）。
@@ -92,7 +92,7 @@ out-of-scope 節で明示的に先送りされてきたこの領域について�
 
 ### 3.2 イベントハンドラ属性の一律ブロック
 
-**実装**: `core/src/url.rs`（`rws_core::is_event_handler_attr`）。
+**実装**: `core/src/url.rs`（`fandhe_frontend_core::is_event_handler_attr`）。
 
 本フレームワークのインタラクションモデルは `data-hydrate` /
 `data-bind-*` マーキングと dispatch（`docs/api/interactive-api.md`）で
@@ -111,8 +111,8 @@ out-of-scope 節で明示的に先送りされてきたこの領域について�
 ## 4. 正リストの所在（単一の情報源）
 
 - `URL_ATTRS` 定数・許可スキーム判定ロジック・`is_event_handler_attr`:
-  `core/src/url.rs`（`rws-core` の公開 API として `pub use` 済み）
-- 利用者コード・他クレートからの利用は必ず `rws_core::{is_safe_url,
+  `core/src/url.rs`（`fandhe-frontend-core` の公開 API として `pub use` 済み）
+- 利用者コード・他クレートからの利用は必ず `fandhe_frontend_core::{is_safe_url,
   is_url_attr, is_event_handler_attr, URL_ATTRS}` を経由し、独自にリストを
   複製しない。
 

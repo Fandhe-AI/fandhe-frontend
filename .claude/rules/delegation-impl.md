@@ -8,10 +8,10 @@
 
 | 対象パス | 委譲先 Agent | model |
 |---------|-------------|-------|
-| `core/`（rws-core: 描画コア） | core-builder | sonnet |
-| `interactive/`（rws-interactive: 状態管理コア） | core-builder | sonnet |
-| `app/`（rws-app: アプリ構築層） | server-builder | sonnet |
-| `server/`（rws-server: SSR/SSG/ルーティング） | server-builder | sonnet |
+| `core/`（fandhe-frontend-core: 描画コア） | core-builder | sonnet |
+| `interactive/`（fandhe-frontend-interactive: 状態管理コア） | core-builder | sonnet |
+| `app/`（fandhe-frontend-app: アプリ構築層） | server-builder | sonnet |
+| `server/`（fandhe-frontend-server: SSR/SSG/ルーティング） | server-builder | sonnet |
 | `wasm-client/` `wasm-full/` `wasm-thin/` | wasm-builder | sonnet |
 | `static/`（埋め込み HTML） | wasm-builder | sonnet |
 | `xtask/` `.github/` `Dockerfile` `deny.toml` `Cargo.toml`（workspace） | tooling-builder | sonnet |

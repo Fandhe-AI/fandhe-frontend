@@ -1,7 +1,7 @@
-//! `rws-interactive`: 状態管理コア（外部依存は `rws-core` のみ）。
+//! `fandhe-frontend-interactive`: 状態管理コア（外部依存は `fandhe-frontend-core` のみ）。
 //!
 //! DOM/`wasm-bindgen` 非依存の状態機械とハイドレーション契約を提供する。
-//! `rws-wasm-full`（TASK-11.2、イベント→dispatch→再描画）と `rws-server`
+//! `fandhe-frontend-wasm-full`（TASK-11.2、イベント→dispatch→再描画）と `fandhe-frontend-server`
 //! （SSR、ハイドレーション属性付き HTML 出力）が本クレートの型・トレイトを
 //! 共有して呼び出す前提であり、PoC-5
 //! （`docs/spec/03-poc/wasm-runtime-split/interactive/src/lib.rs`）の
@@ -10,10 +10,10 @@
 //!
 //! # 本クレートの不変条件（REQ-1・REQ-2・REQ-11、`docs/api/interactive-api.md` 第 6 節）
 //!
-//! 1. [`Component::view`] の出力は `rws_core::Node` のみであり、
-//!    `rws_core::render()` の既定エスケープを必ず経由する。**本クレート内では
+//! 1. [`Component::view`] の出力は `fandhe_frontend_core::Node` のみであり、
+//!    `fandhe_frontend_core::render()` の既定エスケープを必ず経由する。**本クレート内では
 //!    `raw_html()` を使用しない**（新たなエスケープ迂回経路を作らない）。
-//! 2. ハイドレーション属性値はレンダリング時に `rws-core` の属性エスケープで
+//! 2. ハイドレーション属性値はレンダリング時に `fandhe-frontend-core` の属性エスケープで
 //!    保護され、復元時（[`Hydrate::from_hydration_attrs`]）は「データ」として
 //!    のみ扱い HTML として解釈しない。
 //! 3. [`Hydrate::from_hydration_attrs`] は改ざんされうるクライアント入力を
@@ -25,7 +25,7 @@
 //!    （Unit Separator + バックスラッシュエスケープ）を採用する。
 //! 6. **`unsafe` コード禁止**: `#![forbid(unsafe_code)]` によりクレート全体で
 //!    機械的に禁止する。
-//! 7. **外部依存は `rws-core`（path）のみ**: `interactive/Cargo.toml` の
+//! 7. **外部依存は `fandhe-frontend-core`（path）のみ**: `interactive/Cargo.toml` の
 //!    `[dependencies]` にサードパーティクレートを追加しない。
 //!
 //! # 本ファイルのスコープ（TASK-11.1b）
@@ -42,20 +42,20 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-use rws_core::{
+use fandhe_frontend_core::{
     bind_attr_token, bind_text, el, keyed::keyed_list, li, text, ul, Node, BIND_ATTR_ATTR,
 };
 
 /// アプリ状態と描画・遷移を結ぶ中核トレイト。
 ///
 /// PoC-5 の `AppState`/`dispatch`/`render`（`docs/spec/03-poc/wasm-runtime-split/
-/// interactive/src/lib.rs`）を一般化したもの。`view()` は `rws-core` の
+/// interactive/src/lib.rs`）を一般化したもの。`view()` は `fandhe-frontend-core` の
 /// ノード木 API のみを使う純粋関数として実装すること
 /// （`docs/api/component-api.md` REQ-5 の「コンポーネントは通常の Rust 関数」
 /// 規約と、本トレイトが導入する状態機械の抽象は独立した関心事であり、
 /// 矛盾しない。`docs/api/interactive-api.md` 第 3 節・第 4 節・判断 1 参照）。
 ///
-/// `rws-wasm-full`（TASK-11.2）が呼ぶ最小面はここで確定する
+/// `fandhe-frontend-wasm-full`（TASK-11.2）が呼ぶ最小面はここで確定する
 /// （`decode_action`/`update`/`view`）。
 pub trait Component {
     /// 型付きアクション。WASM 境界の文字列 dispatch（`name`/`payload`）とは
@@ -65,12 +65,12 @@ pub trait Component {
     /// アクションを適用して状態を遷移させる（純粋な状態遷移。panic しない）。
     fn update(&mut self, action: Self::Action);
 
-    /// 状態から `rws_core::Node` 木を構築する純粋関数。
+    /// 状態から `fandhe_frontend_core::Node` 木を構築する純粋関数。
     ///
-    /// `rws_core::render()` の既定エスケープを必ず経由させるため、
-    /// 戻り値は必ず `rws_core::Node` のみとし、HTML 文字列や DOM 型を
+    /// `fandhe_frontend_core::render()` の既定エスケープを必ず経由させるため、
+    /// 戻り値は必ず `fandhe_frontend_core::Node` のみとし、HTML 文字列や DOM 型を
     /// 直接返さない（本クレートの不変条件 1）。
-    fn view(&self) -> rws_core::Node;
+    fn view(&self) -> fandhe_frontend_core::Node;
 
     /// WASM 境界の `(name, payload)` 文字列を型付きアクションへ復号する。
     ///
@@ -85,7 +85,7 @@ pub trait Component {
 /// `component.decode_action` で型付きアクションへの復号を試み、成功時のみ
 /// `component.update` を呼んで状態を変更する。復号失敗（未知のアクション名）
 /// では状態を変更せず `false` を返す（本クレートの不変条件 4、安全側
-/// フォールバック）。`rws-wasm-full`/`rws-wasm-thin`（TASK-11.2/11.3）が
+/// フォールバック）。`fandhe-frontend-wasm-full`/`fandhe-frontend-wasm-thin`（TASK-11.2/11.3）が
 /// ブラウザの `data-action`/`data-payload` 属性から受け取った文字列を
 /// そのまま渡す想定の境界関数。
 pub fn dispatch<C: Component>(component: &mut C, name: &str, payload: &str) -> bool {
@@ -121,7 +121,7 @@ pub fn dispatch<C: Component>(component: &mut C, name: &str, payload: &str) -> b
 ///
 /// # 呼び出し文脈
 ///
-/// `rws-wasm-full`/`rws-wasm-client`（#343 で一般化予定）が `update()` 直後に
+/// `fandhe-frontend-wasm-full`/`fandhe-frontend-wasm-client`（#343 で一般化予定）が `update()` 直後に
 /// 本トレイトを呼び、束縛点対応表（#342）と突き合わせて該当ノードのみを
 /// 更新する入力として使う。過少報告は表示の陳腐化（stale UI）に留まり、
 /// 過剰報告は冗長な再適用（冪等・無害）に留まるため、いずれも
@@ -210,7 +210,7 @@ pub mod codec {
     ///
     /// 通常のテキスト入力に混入しない ASCII 制御文字（Unit Separator）を使う
     /// ことで、JSON 等の追加依存なしに複数項目をハイドレーション属性 1 個へ
-    /// エンコードできる（REQ-11 受け入れ基準・`rws-core` の「外部依存ゼロ」
+    /// エンコードできる（REQ-11 受け入れ基準・`fandhe-frontend-core` の「外部依存ゼロ」
     /// 方針を本クレートでも踏襲する）。
     const ITEM_SEP: char = '\u{1f}';
     /// [`ITEM_SEP`] / [`ESCAPE_CHAR`] 自体が項目文字列に混入した場合のエスケープ文字。
@@ -926,7 +926,7 @@ pub struct AppState {
     ///
     /// `items[i]` の keyed list 上のキーは `item_ids[i].to_string()`。
     /// index をキーに使うと中間削除時に後続項目のキーがずれ、
-    /// `rws_core::keyed::keyed_list` を消費するクライアント側（#345
+    /// `fandhe_frontend_core::keyed::keyed_list` を消費するクライアント側（#345
     /// `wasm-client::keyed_diff`）が別項目のノードを誤って再利用してしまう
     /// （フォーカス・入力途中の値が別項目へ飛ぶ事故）ため、生成順に単調増加
     /// する安定 id で置き換える。`dirty` と同様の**描画同期メタデータ**であり
@@ -1062,7 +1062,7 @@ impl Component for AppState {
                     self.items.push(trimmed.to_string());
                     // 新規項目には常に新しい単調増加 id を割り当てる（既存 id
                     // との衝突なし。keyed list のキー一意性は
-                    // `rws_core::keyed::keyed_list` が構築時に検査する）。
+                    // `fandhe_frontend_core::keyed::keyed_list` が構築時に検査する）。
                     self.item_ids.push(self.next_item_id);
                     self.next_item_id = self.next_item_id.saturating_add(1);
                     self.draft.clear();
@@ -1126,7 +1126,7 @@ impl Hydrate for AppState {
                 codec::encode_list(&self.items),
             ),
             (
-                // keyed list（`rws_core::keyed::keyed_list`）が SSR 出力の
+                // keyed list（`fandhe_frontend_core::keyed::keyed_list`）が SSR 出力の
                 // `data-key` として使った実 id 列を、ハイドレーション属性
                 // としても運ぶ（イシュー #345 レビュー指摘の是正）。
                 // 数値の列を `codec::encode_list` の文字列配列表現に載せる
@@ -1227,7 +1227,7 @@ impl Hydrate for AppState {
 /// [`AppState`] の dirty tracking API（イシュー #341）。
 ///
 /// `dirty_fields()` は [`AppState::dirty`] をそのまま返す薄い実装。
-/// `rws-wasm-full`/`rws-wasm-client`（#343）が `update()` 直後にこれを呼び、
+/// `fandhe-frontend-wasm-full`/`fandhe-frontend-wasm-client`（#343）が `update()` 直後にこれを呼び、
 /// 束縛点対応表と突き合わせて該当ノードのみを更新する入力として使う想定
 /// （[`DirtyTracked`] のドキュメント参照）。
 impl DirtyTracked for AppState {
@@ -1245,8 +1245,8 @@ impl DirtyTracked for AppState {
 /// ハイドレーション属性共有経路であるかのような doc コメントを付けていたが、
 /// 唯一の呼び出し元（[`AppState::view`]）は常に空 vec を渡しており実質死んで
 /// いた。引数を削除し、責務分離の実態に合わせて doc コメントを修正する）。
-/// テキスト・属性値はすべて `rws_core::text`/`el` の attrs 経由で出力する
-/// ため、`rws_core::render` が既定エスケープを必ず適用する（不変条件 1）。
+/// テキスト・属性値はすべて `fandhe_frontend_core::text`/`el` の attrs 経由で出力する
+/// ため、`fandhe_frontend_core::render` が既定エスケープを必ず適用する（不変条件 1）。
 fn render_with_root_attrs(state: &AppState) -> Node {
     // カウンター値のみを束縛点（`data-bind-text="counter"`）として切り出す
     // （イシュー #345）。以前は「カウント: {counter}」を丸ごと合成テキストに
@@ -1447,7 +1447,7 @@ mod tests {
     fn render_reflects_state() {
         let mut s = AppState::new();
         s.update(Action::Increment);
-        let html = rws_core::render(&s.view());
+        let html = fandhe_frontend_core::render(&s.view());
         // カウンター値は静的テキストと分離した束縛点（span）に出力される
         // （イシュー #345、`render_with_root_attrs` 参照）。
         assert!(
@@ -1544,7 +1544,7 @@ mod tests {
         s.items.push("second".to_string());
         s.item_ids.push(s.next_item_id);
         s.next_item_id += 1;
-        let html = rws_core::render(&s.view());
+        let html = fandhe_frontend_core::render(&s.view());
         assert!(html.contains(r#"data-payload="0""#));
         assert!(html.contains(r#"data-payload="1""#));
     }
@@ -1555,7 +1555,7 @@ mod tests {
         let mut s = AppState::new();
         s.update(Action::SetDraft("<script>alert(1)</script>".to_string()));
         s.update(Action::AddItem);
-        let html = rws_core::render(&s.view());
+        let html = fandhe_frontend_core::render(&s.view());
         assert!(!html.contains("<script>alert"));
         assert!(html.contains("&lt;script&gt;alert"));
     }
@@ -1564,7 +1564,7 @@ mod tests {
     fn render_for_hydration_embeds_state_attrs_and_matches_view_dom() {
         let mut s = AppState::new();
         s.update(Action::Increment);
-        let ssr_html = rws_core::render(&render_for_hydration(&s));
+        let ssr_html = fandhe_frontend_core::render(&render_for_hydration(&s));
         assert!(ssr_html.contains(r#"data-hydrate-counter="1""#));
         // encode_list は各項目の前に ITEM_SEP（\u{1f}）を付与するため、
         // 属性値は先頭に区切り文字を含む（「空リスト」との衝突回避、Bugbot 指摘対応）。
@@ -1572,7 +1572,7 @@ mod tests {
 
         // ハイドレーション属性を除けば、CSR（view）と同一の DOM 構造を持つ
         // （サーバーが出す本文とクライアントが後で描画する本文が一致することの保証）。
-        let csr_html = rws_core::render(&s.view());
+        let csr_html = fandhe_frontend_core::render(&s.view());
         assert!(ssr_html
             .contains(r#"<span data-testid="counter-value" data-bind-text="counter">1</span>"#));
         assert_eq!(
@@ -1612,7 +1612,7 @@ mod tests {
         }
 
         let node = render_for_hydration(&TextOnly);
-        assert_eq!(rws_core::render(&node), "plain text root");
+        assert_eq!(fandhe_frontend_core::render(&node), "plain text root");
     }
 
     // --- dirty tracking（イシュー #341、DirtyTracked） -------------------

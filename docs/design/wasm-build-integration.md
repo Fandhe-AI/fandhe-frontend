@@ -43,12 +43,12 @@ PoC-3・PoC-4・PoC-5 では、WASM を用いるクライアント成果物（`w
 
 ```sh
 # 系統 1: ネイティブサーバーのビルド（従来の cargo build のみで完結）
-cargo build -p rws-dist-server
+cargo build -p fandhe-frontend-dist-server
 
 # 系統 2: WASM 成果物のビルド（別コマンド系統。従来は cargo build に含まれない）
-cargo build --target wasm32-unknown-unknown --release -p rws-wasm-full
+cargo build --target wasm32-unknown-unknown --release -p fandhe-frontend-wasm-full
 wasm-bindgen --target web --out-dir <出力先> \
-  target/wasm32-unknown-unknown/release/rws_wasm_full.wasm
+  target/wasm32-unknown-unknown/release/fandhe_frontend_wasm_full.wasm
 ```
 
 この 2 系統化は次の問題を生みます。
@@ -58,7 +58,7 @@ wasm-bindgen --target web --out-dir <出力先> \
 - **CI 再現性リスク**: `cargo build` 単体を CI ステップに書いただけでは
   WASM 成果物が生成されず、ビルドスクリプトや CI ワークフロー側で系統 2 を
   別途明示しない限り、成果物欠落に気づきにくい構成になります。
-- **単一バイナリ配布との不整合**: `rws-dist-server`（TASK-9.1）は
+- **単一バイナリ配布との不整合**: `fandhe-frontend-dist-server`（TASK-9.1）は
   コンパイル時埋め込みによる単一実行ファイル配布を前提としており
   （`docs/design/dist-server-design.md` 参照）、WASM 成果物が `cargo build` の
   ビルドグラフに含まれないと、埋め込み対象のアセットが手動生成物に
@@ -79,7 +79,7 @@ REQ-10 はこの詰まりを解消するため、単一の `cargo build` でネ�
 確定の根拠は次のとおりです。
 
 - **REQ-3（依存グラフ上限 60 件以内・深さ 6 以内）**: `dist-server/Cargo.toml`
-  の実測コメントによれば、標準サーバー構成（`rws-dist-server`）は 21 件/
+  の実測コメントによれば、標準サーバー構成（`fandhe-frontend-dist-server`）は 21 件/
   深さ 5 で PASS しています（TASK-10.2c 実装後も build-dependencies を追加
   していないため不変）。`build.rs` 自前実装は build-dependencies を一切
   追加しないため、この実測値をそのまま維持できます。
@@ -115,20 +115,20 @@ REQ-10 はこの詰まりを解消するため、単一の `cargo build` でネ�
 > を固定で実行し、生成された ES module 形式の JS グルーコードのみを
 > 埋め込みテーブル（`OUT_DIR/embedded_assets.rs`）へ合流させます。
 > `--target nodejs`（§6.4 参照）はこのビルドグラフの**外側**にある開発者
-> オプトインの手動経路であり、`cargo build -p rws-dist-server` からは
+> オプトインの手動経路であり、`cargo build -p fandhe-frontend-dist-server` からは
 > 一切呼び出されません。本番配布物に `--target nodejs` の生成物（CommonJS
 > グルーコード）が混入することはありません（§8 の不変条件）。
 
 ```mermaid
 flowchart TD
-    A["cargo build -p rws-dist-server"] --> B["dist-server/build.rs 起動"]
+    A["cargo build -p fandhe-frontend-dist-server"] --> B["dist-server/build.rs 起動"]
     B --> C["WASM ターゲットビルド\ncargo build --target wasm32-unknown-unknown\n(wasm-full / wasm-thin)"]
     C --> D["wasm-bindgen 実行\n(--target web 固定、run_wasm_bindgen)"]
     D --> E["生成物を static/ 相当の\n埋め込みテーブルへ合流"]
     B --> F["static/ 直下の既存アセット走査\n(TASK-9.1b から継続)"]
     E --> G["OUT_DIR/embedded_assets.rs 生成"]
     F --> G
-    G --> H["rws-dist-server バイナリに\ncargo:rerun-if-changed 経由で\n静的リンク"]
+    G --> H["fandhe-frontend-dist-server バイナリに\ncargo:rerun-if-changed 経由で\n静的リンク"]
 ```
 
 - **既存経路（TASK-9.1b）との関係**: `dist-server/build.rs` は
@@ -214,7 +214,7 @@ cargo install wasm-bindgen-cli --version <固定バージョン> --locked
 
 ```sh
 # ネイティブ・WASM 双方を単一コマンドで生成する（設計契約）
-cargo build -p rws-dist-server --release
+cargo build -p fandhe-frontend-dist-server --release
 
 # 生成されたバイナリを起動して疎通確認
 ./target/release/dist-server
@@ -241,24 +241,24 @@ PoC-5（`docs/spec/03-poc/wasm-runtime-split/README.md` 178 行目）は、
 
 | 観点 | `--target web`（本番） | `--target nodejs`（開発） |
 |------|------------------------|---------------------------|
-| 用途 | ブラウザ配布・`dist-server` への埋め込み | `web-sys` 非依存クレート（`rws-wasm-thin` 系）のロジック確認・タイミング近似計測（`rws-wasm-full`/`rws-wasm-client` へ拡張しない判断は §6.4.1 参照） |
-| 実行経路 | `cargo build -p rws-dist-server`（`run_wasm_build`・`run_wasm_bindgen` による自動実行、§4） | 開発者が手動で実行するオプトイン経路（下記コマンド例）。`build.rs` のビルドグラフ外 |
+| 用途 | ブラウザ配布・`dist-server` への埋め込み | `web-sys` 非依存クレート（`fandhe-frontend-wasm-thin` 系）のロジック確認・タイミング近似計測（`fandhe-frontend-wasm-full`/`fandhe-frontend-wasm-client` へ拡張しない判断は §6.4.1 参照） |
+| 実行経路 | `cargo build -p fandhe-frontend-dist-server`（`run_wasm_build`・`run_wasm_bindgen` による自動実行、§4） | 開発者が手動で実行するオプトイン経路（下記コマンド例）。`build.rs` のビルドグラフ外 |
 | 出力先 | `OUT_DIR` 経由で埋め込みテーブル（`embedded_assets.rs`）へ合流 | `target/wasm-node/` 配下（`.gitignore` の `/target` により VCS 追跡外） |
 | 検証上の位置付け | 正式なブラウザ実証は `wasm-pack test --headless --chrome`（`docs/guides/browser-testing.md`、CI の `browser-test`/`perf-harness` ジョブ） | ブラウザ実測の代替ではなく、`web-sys` を介さないロジックの高速な近似確認・補助（PoC-5 が明記する環境制約の踏襲） |
 | ツール | `wasm-bindgen-cli`（§8 のバージョン固定 + チェックサム検証を適用） | 同一 CLI で両ターゲットを出力可能。追加導入は不要 |
 
-**開発時のコマンド例**（`rws-wasm-thin` のロジックを Node.js で素早く確認する
+**開発時のコマンド例**（`fandhe-frontend-wasm-thin` のロジックを Node.js で素早く確認する
 場合。PoC-5 の実績コマンドを踏襲）:
 
 ```sh
 # 1. wasm32 ターゲットへネイティブビルド（release でなくても可）
-cargo build --target wasm32-unknown-unknown -p rws-wasm-thin
+cargo build --target wasm32-unknown-unknown -p fandhe-frontend-wasm-thin
 
 # 2. --target nodejs で CommonJS 形式のバインディングを生成
 #    出力先は target/ 配下（VCS 追跡外・本番埋め込み対象外）に限定する
 wasm-bindgen --target nodejs \
   --out-dir target/wasm-node/thin \
-  target/wasm32-unknown-unknown/debug/rws_wasm_thin.wasm
+  target/wasm32-unknown-unknown/debug/fandhe_frontend_wasm_thin.wasm
 
 # 3. Node.js から require() して同期的にロジックを呼び出す
 node -e "const m = require('./target/wasm-node/thin'); console.log(m.some_exported_fn());"
@@ -278,10 +278,10 @@ node -e "const m = require('./target/wasm-node/thin'); console.log(m.some_export
   1 コマンドで行い、`.github/workflows/ci.yml` の `wasm-node-smoke` ジョブが
   CI ゲートとして実行します（§10 参照）。
 
-#### 6.4.1 `rws-wasm-full` / `rws-wasm-client` へ拡張しない判断（イシュー #317）
+#### 6.4.1 `fandhe-frontend-wasm-full` / `fandhe-frontend-wasm-client` へ拡張しない判断（イシュー #317）
 
-`wasm-node-smoke`（前節）の対象を `rws-wasm-thin` 単一のまま維持し、
-`rws-wasm-full` / `rws-wasm-client` へのマルチパッケージ対応は行わない
+`wasm-node-smoke`（前節）の対象を `fandhe-frontend-wasm-thin` 単一のまま維持し、
+`fandhe-frontend-wasm-full` / `fandhe-frontend-wasm-client` へのマルチパッケージ対応は行わない
 と判断しました。根拠は以下の 4 点です。
 
 1. **nodejs バインディングから到達できるロジックが存在しない**:
@@ -315,7 +315,7 @@ node -e "const m = require('./target/wasm-node/thin'); console.log(m.some_export
    これは browser-test 系ジョブがより強い形（実ブラウザでの実行まで）で
    既に毎 CI 検証しており純粋な重複になります。
 
-**再検討条件**: `rws-wasm-full` / `rws-wasm-client` に `web-sys` 非依存の
+**再検討条件**: `fandhe-frontend-wasm-full` / `fandhe-frontend-wasm-client` に `web-sys` 非依存の
 `#[wasm_bindgen]` エクスポートが仕様（REQ）起点で追加された場合は、
 本判断を再評価します。
 
@@ -323,7 +323,7 @@ node -e "const m = require('./target/wasm-node/thin'); console.log(m.some_export
 
 Docker マルチステージビルド内での WASM ターゲット再ビルド・CI 環境での
 再現性担保は TASK-10.3（`docs/spec/05-tasks.md` 258〜263 行目、#114）の
-スコープです。本書が扱う `cargo build -p rws-dist-server` 単一コマンドでの
+スコープです。本書が扱う `cargo build -p fandhe-frontend-dist-server` 単一コマンドでの
 統合が前提となり、TASK-10.3 はこの単一コマンドを Docker ビルドステージ内で
 そのまま実行する構成を想定します（REQ-10 受け入れ基準「Docker マルチステージ
 ビルド内で WASM ターゲットの再ビルドが行われること」）。
@@ -363,7 +363,7 @@ Docker マルチステージビルド内での WASM ターゲット再ビルド�
     192 行目）。
 - **A03 インジェクション / XSS（REQ-1）**: WASM ビルド統合はビルド時の
   成果物生成経路の変更であり、実行時の HTML 生成・テキスト補間の経路には
-  関与しません。既定エスケープの保証（`rws_core` のノード木 API 経由の
+  関与しません。既定エスケープの保証（`fandhe_frontend_core` のノード木 API 経由の
   レンダリング）は、WASM 成果物がどのビルド経路で生成されたかに関わらず
   維持されることを不変条件とします。本書のコード例・手順例は
   `format!` による HTML 直接組み立てを含みません。
@@ -421,7 +421,7 @@ REQ-10（`docs/spec/04-requirements.md` 132〜142 行目）の受け入れ基準
 |-------------------|---------|
 | 成果物が作成され、関連テストが通過する | `dist-server/build.rs`・本書 `docs/design/wasm-build-integration.md` がいずれも作成済み。`cargo test --workspace --locked`・`cargo clippy --workspace -- -D warnings`・`cargo fmt --check` を実装確認時に通過 |
 | `docs/spec/05-tasks.md` の TASK-10.2 受け入れ基準を満たす | 上表参照。#109〜#112 すべて完了 |
-| 既定エスケープ・`forbid(unsafe_code)`・依存グラフ上限（60 件/深さ 6）を弱めない | §8 参照。`rws-dist-server` の依存グラフは実装完了後も 21 件/深さ 5 で不変（build-dependencies 追加なし） |
+| 既定エスケープ・`forbid(unsafe_code)`・依存グラフ上限（60 件/深さ 6）を弱めない | §8 参照。`fandhe-frontend-dist-server` の依存グラフは実装完了後も 21 件/深さ 5 で不変（build-dependencies 追加なし） |
 
 ## 10. スコープ外事項の列挙
 
@@ -445,7 +445,7 @@ REQ-10（`docs/spec/04-requirements.md` 132〜142 行目）の受け入れ基準
   個別 WASM ジョブと `cargo build` のビルドグラフ統合）: TASK-10.2（本書の
   実装スコープ）では対応せず、`docs/reports/wasm-build-integration-report.md` §7
   に切り出し済み。
-- ~~**`wasm-node-smoke` の `rws-wasm-full` / `rws-wasm-client` への拡張**~~:
+- ~~**`wasm-node-smoke` の `fandhe-frontend-wasm-full` / `fandhe-frontend-wasm-client` への拡張**~~:
   イシュー #317 で非拡張と判断済み（§6.4.1 参照）。
 
 ## 11. リスク・注意事項

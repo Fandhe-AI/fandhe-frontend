@@ -1,4 +1,4 @@
-//! `rws-dist-server` の公開 API（`routes::route_request`）に対する統合テスト。
+//! `fandhe-frontend-dist-server` の公開 API（`routes::route_request`）に対する統合テスト。
 //!
 //! `src/routes.rs` 内のユニットテストと重複する観点も含むが、こちらは
 //! クレート外部（`tests/`）から `pub` 経路のみを叩くことで、`route_request`
@@ -9,7 +9,7 @@
 //! スコープであり、本テストはハンドラレベル（`route_request` 呼び出し）に
 //! 留める。
 
-use rws_dist_server::routes::route_request;
+use fandhe_frontend_dist_server::routes::route_request;
 
 #[test]
 fn root_path_serves_list_page_with_escaped_xss_payload() {

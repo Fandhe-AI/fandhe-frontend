@@ -100,9 +100,9 @@ fn baseline_passes_gate() {
 /// する（REQ-13 受け入れ基準: impact が影響範囲・`breaking_risk`・
 /// `requires_human_approval` を提示する）。
 ///
-/// `render` は `core/src/lib.rs`（`rws-core`）で定義され、`app/src/lib.rs`
-/// （`rws-app`）・`wasm-client/src/lib.rs`（`rws-wasm-client`）の双方から
-/// 呼ばれる。`rws-wasm-client` は `cli/src/impact.rs::CLIENT_BOUNDARY_CRATES`
+/// `render` は `core/src/lib.rs`（`fandhe-frontend-core`）で定義され、`app/src/lib.rs`
+/// （`fandhe-frontend-app`）・`wasm-client/src/lib.rs`（`fandhe-frontend-wasm-client`）の双方から
+/// 呼ばれる。`fandhe-frontend-wasm-client` は `cli/src/impact.rs::CLIENT_BOUNDARY_CRATES`
 /// と完全一致するため、影響クレート数（2 件）が `high` 判定の閾値
 /// （3 件以上）未満であっても、クライアント境界への波及により
 /// `breaking_risk: high`・`requires_human_approval: true` となる
@@ -120,8 +120,8 @@ fn impact_reports_high_risk_for_render() {
     );
     assert!(stdout.contains("\"symbol\":\"render\""), "stdout={stdout}");
     assert!(
-        stdout.contains("\"defined_in_crate\":\"rws-core\""),
-        "render は core/src/lib.rs（rws-core）で定義されるはず: stdout={stdout}"
+        stdout.contains("\"defined_in_crate\":\"fandhe-frontend-core\""),
+        "render は core/src/lib.rs（fandhe-frontend-core）で定義されるはず: stdout={stdout}"
     );
     assert!(
         stdout.contains("\"ambiguous\":false"),
@@ -136,8 +136,8 @@ fn impact_reports_high_risk_for_render() {
         "wasm-client/src/lib.rs が affected_files に含まれるはず: stdout={stdout}"
     );
     assert!(
-        stdout.contains("\"affected_crates\":[\"rws-app\",\"rws-wasm-client\"]"),
-        "affected_crates は rws-app・rws-wasm-client の 2 件のはず: stdout={stdout}"
+        stdout.contains("\"affected_crates\":[\"fandhe-frontend-app\",\"fandhe-frontend-wasm-client\"]"),
+        "affected_crates は fandhe-frontend-app・fandhe-frontend-wasm-client の 2 件のはず: stdout={stdout}"
     );
     assert!(
         stdout.contains("\"affected_routes\":[]"),
@@ -145,7 +145,7 @@ fn impact_reports_high_risk_for_render() {
     );
     assert!(
         stdout.contains("\"breaking_risk\":\"high\""),
-        "rws-wasm-client（クライアント境界）への波及により high 判定のはず: stdout={stdout}"
+        "fandhe-frontend-wasm-client（クライアント境界）への波及により high 判定のはず: stdout={stdout}"
     );
     assert!(
         stdout.contains("\"requires_human_approval\":true"),

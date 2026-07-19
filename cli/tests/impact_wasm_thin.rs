@@ -1,15 +1,15 @@
-//! `fw impact` の `rws-wasm-thin` 単独クレート高リスク判定の独立 e2e
+//! `fw impact` の `fandhe-frontend-wasm-thin` 単独クレート高リスク判定の独立 e2e
 //! （イシュー #293）。
 //!
 //! #137（TASK-13.2e: 影響範囲解析のテスト整備）クローズ時の留保事項のうち、
-//! `docs/design/impact-analysis-design.md` §3.4 テスト観点 2「`rws-wasm-client` /
-//! `rws-wasm-full` / `rws-wasm-thin` 各々を単独で含む場合の `high` 判定」の
+//! `docs/design/impact-analysis-design.md` §3.4 テスト観点 2「`fandhe-frontend-wasm-client` /
+//! `fandhe-frontend-wasm-full` / `fandhe-frontend-wasm-thin` 各々を単独で含む場合の `high` 判定」の
 //! うち、既存シナリオ e2e（`cli/tests/scenarios/bugfix_escape.rs`）が
-//! `rws-wasm-client` のみをカバーしていた欠落分（`rws-wasm-thin`）を、
+//! `fandhe-frontend-wasm-client` のみをカバーしていた欠落分（`fandhe-frontend-wasm-thin`）を、
 //! 実バイナリ（`fw`）経由の e2e として補う。
 //!
 //! `cli/src/impact.rs::CLIENT_BOUNDARY_CRATES` は
-//! `["rws-wasm-client", "rws-wasm-full", "rws-wasm-thin"]` を持ち、
+//! `["fandhe-frontend-wasm-client", "fandhe-frontend-wasm-full", "fandhe-frontend-wasm-thin"]` を持ち、
 //! `judge_breaking_risk` はこのいずれかを 1 クレートでも含めば
 //! `affected_crates` の総数によらず `high` と判定する（`cli/src/impact.rs`
 //! 単体テスト `judge_breaking_risk_single_wasm_thin_crate_is_high` と同じ
@@ -32,7 +32,7 @@ fn consumer_lib_rs() -> &'static str {
     "use impact_fixture_core::render;\n\npub fn hydrate() -> String {\n    render()\n}\n"
 }
 
-/// 本題: `core` + `wasm-thin`（pkg 名 `rws-wasm-thin`）の 2 クレート構成
+/// 本題: `core` + `wasm-thin`（pkg 名 `fandhe-frontend-wasm-thin`）の 2 クレート構成
 /// （`wasm-thin` が `core` へ path 依存し `render` を呼ぶ）。単独 1 クレート
 /// でもクライアント境界クレートであるため `breaking_risk: high` になることを
 /// 検証する。
@@ -49,7 +49,7 @@ fn single_wasm_thin_crate_impact_is_high_risk() {
             },
             ImpactMemberSpec {
                 dir: "wasm-thin",
-                package_name: "rws-wasm-thin",
+                package_name: "fandhe-frontend-wasm-thin",
                 path_deps: &["core"],
                 source: consumer_lib_rs(),
             },
@@ -62,13 +62,13 @@ fn single_wasm_thin_crate_impact_is_high_risk() {
         "fw impact は正常系で終了コード 0 を返す契約（stderr: {stderr}）"
     );
     assert!(
-        json_array_contains_str(&stdout, "affected_crates", "rws-wasm-thin"),
-        "wasm-thin が render を呼び出すため affected_crates に rws-wasm-thin を含む（stdout: {stdout}）"
+        json_array_contains_str(&stdout, "affected_crates", "fandhe-frontend-wasm-thin"),
+        "wasm-thin が render を呼び出すため affected_crates に fandhe-frontend-wasm-thin を含む（stdout: {stdout}）"
     );
     assert_eq!(
         json_string_field(&stdout, "breaking_risk"),
         Some("high".to_string()),
-        "rws-wasm-thin は単独でもクライアント境界クレートのため breaking_risk は high（stdout: {stdout}）"
+        "fandhe-frontend-wasm-thin は単独でもクライアント境界クレートのため breaking_risk は high（stdout: {stdout}）"
     );
     assert_eq!(
         json_bool_field(&stdout, "requires_human_approval"),

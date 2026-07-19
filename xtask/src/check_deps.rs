@@ -15,7 +15,7 @@
 //!
 //! # 計測の定義（PoC-3 との対応）
 //!
-//! PoC-3 は `cargo tree -p rws-server -e normal --prefix none` の一意クレート数と
+//! PoC-3 は `cargo tree -p fandhe-frontend-server -e normal --prefix none` の一意クレート数と
 //! インデント段数で実測した（`docs/spec/03-poc/rendering-web-standards/README.md`）。
 //! 本実装は `cargo metadata --format-version 1 --filter-platform <host-triple>` の
 //! `resolve.nodes` を正とし、次の定義を採用する:
@@ -45,7 +45,7 @@ use std::process::Command;
 
 /// フレームワーク標準構成で許容する解決済み依存パッケージ数の上限。
 ///
-/// PoC-3 実測（純 Rust 方式・`rws-server` 相当構成: 52 件）を基準に、
+/// PoC-3 実測（純 Rust 方式・`fandhe-frontend-server` 相当構成: 52 件）を基準に、
 /// 実装拡張分の余裕を含めて設定する（REQ-3 / docs/spec/04-requirements.md 59 行目）。
 /// 上限緩和のための CLI 引数・環境変数は意図的に設けない
 /// （coding-rust.md「依存グラフ上限を弱めない」/ security.md 参照）。
@@ -54,20 +54,20 @@ use std::process::Command;
 /// 本モジュールのメモ化 DFS 計測（過小評価なし）とは直接比較できない
 /// （イシュー #298 再検証、`docs/policy/dependency-graph-policy.md` 第 9 節）。
 /// 上限の実効的根拠は現行計測定義における現行標準サーバー構成
-/// `rws-dist-server` の実測 21 件/深さ 5（同ポリシー第 2 節・第 9 節）であり、
+/// `fandhe-frontend-dist-server` の実測 21 件/深さ 5（同ポリシー第 2 節・第 9 節）であり、
 /// 本定数の値自体は再検証の結果として変更していない。
 pub const MAX_PACKAGES: usize = 60;
 
 /// フレームワーク標準構成で許容する依存グラフ最大深さの上限。
 ///
-/// PoC-3 実測（純 Rust 方式・`rws-server` 相当構成: 深さ 5）を基準に、
+/// PoC-3 実測（純 Rust 方式・`fandhe-frontend-server` 相当構成: 深さ 5）を基準に、
 /// 実装拡張分の余裕を含めて設定する（REQ-3 / docs/spec/04-requirements.md 59 行目）。
 ///
 /// この「深さ 5」は `cargo tree` 目視（`(*)` 重複省略あり）による旧基準値であり、
 /// 本モジュールのメモ化 DFS 計測では同一構成（axum + tokio）が深さ 9 になる
 /// （PR #210 / `docs/design/dist-server-design.md` 4.2〜4.3 節、イシュー #298 再検証・
 /// `docs/policy/dependency-graph-policy.md` 第 9 節）。両者は計測方法の違いによるもので
-/// 実装の欠陥ではない。上限の実効的根拠は現行標準サーバー構成 `rws-dist-server` の
+/// 実装の欠陥ではない。上限の実効的根拠は現行標準サーバー構成 `fandhe-frontend-dist-server` の
 /// 実測 21 件/深さ 5（同ポリシー第 2 節・第 9 節）であり、本定数の値自体は
 /// 再検証の結果として変更していない。
 pub const MAX_DEPTH: usize = 6;
@@ -78,10 +78,10 @@ pub const MAX_DEPTH: usize = 6;
 /// 対象クレートに対応する。CLI 引数・環境変数での差し替えは意図的に設けない
 /// （上限を弱める経路を作らない、coding-rust.md / security.md 参照）。
 ///
-/// `rws-interactive`（TASK-11.1b、`interactive/`）は workspace に参加済み。
+/// `fandhe-frontend-interactive`（TASK-11.1b、`interactive/`）は workspace に参加済み。
 /// [`fetch_zero_dep_targets`] が `cargo metadata` の `workspace_members` との
 /// 積集合を取るため、追加後は CI 変更なしで自動的に検証対象へ入っている。
-pub const ZERO_DEP_CRATES: &[&str] = &["rws-core", "rws-interactive"];
+pub const ZERO_DEP_CRATES: &[&str] = &["fandhe-frontend-core", "fandhe-frontend-interactive"];
 
 /// `cargo metadata` の `resolve.nodes[].deps[].dep_kinds[].kind` に対応する依存種別。
 ///
@@ -177,7 +177,7 @@ impl CheckResult {
 /// 実測値 `metrics` を上限（`MAX_PACKAGES` / `MAX_DEPTH`）に照らして判定する純粋関数。
 ///
 /// I/O を一切行わないため単体テストで境界値を網羅できる。
-/// rws-server（将来の標準サーバー構成）を計測対象として想定するが、
+/// fandhe-frontend-server（将来の標準サーバー構成）を計測対象として想定するが、
 /// 本関数自体は対象の種類を問わず `DepsMetrics` の値のみで判定する。
 pub fn judge(metrics: DepsMetrics) -> CheckResult {
     let mut violations = Vec::new();
@@ -574,7 +574,7 @@ pub fn measure(
 /// パッケージを除いた「真の外部依存」の件数を計測する（イシュー #154 レビュー対応）。
 ///
 /// [`measure`] は到達可能な全パッケージ（workspace 内の path dependency も含む）を
-/// 件数計上するため、`rws-interactive -> rws-core` のような第一者依存同士の path
+/// 件数計上するため、`fandhe-frontend-interactive -> fandhe-frontend-core` のような第一者依存同士の path
 /// dependency も「外部依存」として誤カウントしてしまう（`packages[].source` が
 /// path/workspace メンバーは `null`、crates.io 由来は `registry+...` である事実を
 /// 一切参照していなかったのが原因）。本関数は到達可能集合から
@@ -769,8 +769,8 @@ pub fn fetch_workspace_graph(
 ///
 /// 戻り値の第 3 要素（全 workspace メンバー名集合）は、呼び出し側が
 /// [`measure_external_only`] で「到達可能パッケージのうち第一者（workspace 内）
-/// パッケージを外部依存から除外する」際に使う（reviewer 指摘: `rws-interactive`
-/// から `rws-core` への path dependency のような第一者依存を外部依存として
+/// パッケージを外部依存から除外する」際に使う（reviewer 指摘: `fandhe-frontend-interactive`
+/// から `fandhe-frontend-core` への path dependency のような第一者依存を外部依存として
 /// 誤カウントしないため）。
 ///
 /// [`fetch_workspace_graph`] を `filter_platform=false` で呼び出し、全 target 分の
@@ -1040,15 +1040,15 @@ mod tests {
     }
 
     #[test]
-    fn integration_rws_core_has_zero_dependencies() {
-        // rws-core は REQ-3 上「外部依存ゼロ」が不変条件。実ワークスペースに対して
+    fn integration_fandhe_frontend_core_has_zero_dependencies() {
+        // fandhe-frontend-core は REQ-3 上「外部依存ゼロ」が不変条件。実ワークスペースに対して
         // cargo metadata を実行し、それが実際に 0 件 / 深さ 0 であることを確認する。
         // cargo が使えない実行環境（オフライン CI 等）では明示メッセージで fail させる。
-        match measure_from_cargo_metadata("rws-core") {
+        match measure_from_cargo_metadata("fandhe-frontend-core") {
             Ok(m) => {
                 assert_eq!(
                     m.package_count, 0,
-                    "rws-core must keep zero external dependencies (REQ-3)"
+                    "fandhe-frontend-core must keep zero external dependencies (REQ-3)"
                 );
                 assert_eq!(m.max_depth, 0);
             }
@@ -1057,21 +1057,21 @@ mod tests {
     }
 
     #[test]
-    fn integration_measure_many_matches_single_measure_for_rws_core() {
+    fn integration_measure_many_matches_single_measure_for_fandhe_frontend_core() {
         // Bugbot 指摘「metadata rerun per package」の回帰テスト:
         // 複数パッケージ計測（cargo metadata 1 回）が単発計測と同じ結果を返すこと。
-        let names = vec!["rws-core".to_string()];
+        let names = vec!["fandhe-frontend-core".to_string()];
         match measure_many_from_cargo_metadata(&names) {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
                 let (name, result) = &results[0];
-                assert_eq!(name, "rws-core");
+                assert_eq!(name, "fandhe-frontend-core");
                 match result {
                     Ok(m) => {
                         assert_eq!(m.package_count, 0);
                         assert_eq!(m.max_depth, 0);
                     }
-                    Err(e) => panic!("failed to measure rws-core: {e}"),
+                    Err(e) => panic!("failed to measure fandhe-frontend-core: {e}"),
                 }
             }
             Err(e) => panic!("failed to run cargo metadata for integration test: {e}"),
@@ -1152,12 +1152,12 @@ mod tests {
     #[test]
     fn deps_metrics_from_measurement_preserves_fields() {
         let measurement = DepsMeasurement {
-            root: "rws-server".to_string(),
+            root: "fandhe-frontend-server".to_string(),
             package_count: 52,
             max_depth: 5,
         };
         let converted: DepsMetrics = measurement.into();
-        assert_eq!(converted.target, "rws-server");
+        assert_eq!(converted.target, "fandhe-frontend-server");
         assert_eq!(converted.package_count, 52);
         assert_eq!(converted.max_depth, 5);
     }
@@ -1174,14 +1174,14 @@ mod tests {
 
     #[test]
     fn judge_zero_passes_when_no_external_dependency() {
-        let result = judge_zero(zero_metrics("rws-core", 0));
+        let result = judge_zero(zero_metrics("fandhe-frontend-core", 0));
         assert!(result.is_pass());
     }
 
     #[test]
     fn judge_zero_fails_at_boundary_of_one_dependency() {
         // 境界値: 60/6 判定と異なり「1 件でも」Fail になる契約。
-        let result = judge_zero(zero_metrics("rws-core", 1));
+        let result = judge_zero(zero_metrics("fandhe-frontend-core", 1));
         match result {
             CheckResult::Fail(_, violations) => {
                 assert_eq!(violations.len(), 1);
@@ -1199,16 +1199,20 @@ mod tests {
 
     #[test]
     fn format_zero_report_pass_contains_machine_readable_summary_line() {
-        let result = judge_zero(zero_metrics("rws-core", 0));
+        let result = judge_zero(zero_metrics("fandhe-frontend-core", 0));
         let report = format_zero_report(&result);
-        assert!(report.contains("core-deps-check: package=rws-core external=0 result=PASS"));
+        assert!(
+            report.contains("core-deps-check: package=fandhe-frontend-core external=0 result=PASS")
+        );
     }
 
     #[test]
     fn format_zero_report_fail_contains_machine_readable_summary_line() {
-        let result = judge_zero(zero_metrics("rws-core", 3));
+        let result = judge_zero(zero_metrics("fandhe-frontend-core", 3));
         let report = format_zero_report(&result);
-        assert!(report.contains("core-deps-check: package=rws-core external=3 result=FAIL"));
+        assert!(
+            report.contains("core-deps-check: package=fandhe-frontend-core external=3 result=FAIL")
+        );
     }
 
     /// fixture ベース回帰: dev / build 依存のみを持つルートでも、
@@ -1261,11 +1265,17 @@ mod tests {
     #[test]
     fn workspace_member_names_resolves_ids_to_names() {
         let json = fixture_with_workspace_members(
-            &[("rws-core#0.1.0", "rws-core"), ("xtask#0.1.0", "xtask")],
-            &["rws-core#0.1.0", "xtask#0.1.0"],
+            &[
+                ("fandhe-frontend-core#0.1.0", "fandhe-frontend-core"),
+                ("xtask#0.1.0", "xtask"),
+            ],
+            &["fandhe-frontend-core#0.1.0", "xtask#0.1.0"],
         );
         let names = workspace_member_names(&json).unwrap();
-        assert_eq!(names, vec!["rws-core".to_string(), "xtask".to_string()]);
+        assert_eq!(
+            names,
+            vec!["fandhe-frontend-core".to_string(), "xtask".to_string()]
+        );
     }
 
     #[test]
@@ -1278,7 +1288,7 @@ mod tests {
     #[test]
     fn workspace_member_names_unknown_id_returns_unexpected_shape() {
         let json = fixture_with_workspace_members(
-            &[("rws-core#0.1.0", "rws-core")],
+            &[("fandhe-frontend-core#0.1.0", "fandhe-frontend-core")],
             &["not-a-real-id#0.1.0"],
         );
         let err = workspace_member_names(&json).unwrap_err();
@@ -1286,14 +1296,14 @@ mod tests {
     }
 
     #[test]
-    fn integration_fetch_zero_dep_targets_finds_rws_core_in_real_workspace() {
+    fn integration_fetch_zero_dep_targets_finds_fandhe_frontend_core_in_real_workspace() {
         // ZERO_DEP_CRATES ∩ 実 workspace members が空でないこと
         // （定数の陳腐化を検知する fail-closed 契約の裏付け）。
         match fetch_zero_dep_targets() {
             Ok((_, targets, _)) => {
                 assert!(
-                    targets.contains(&"rws-core".to_string()),
-                    "rws-core must be present among zero-dep targets: {targets:?}"
+                    targets.contains(&"fandhe-frontend-core".to_string()),
+                    "fandhe-frontend-core must be present among zero-dep targets: {targets:?}"
                 );
             }
             Err(e) => panic!("failed to fetch zero-dep targets from real workspace: {e}"),
@@ -1301,31 +1311,31 @@ mod tests {
     }
 
     #[test]
-    fn integration_rws_core_passes_judge_zero_in_real_workspace() {
-        // rws-core は REQ-3 上「外部依存ゼロ」が不変条件。実ワークスペースに対して
+    fn integration_fandhe_frontend_core_passes_judge_zero_in_real_workspace() {
+        // fandhe-frontend-core は REQ-3 上「外部依存ゼロ」が不変条件。実ワークスペースに対して
         // measure_external_only(.., &[Normal, Dev, Build], &workspace_members) を行い、
         // judge_zero が PASS になることを確認する
-        // （integration_rws_core_has_zero_dependencies の Normal 限定計測とは
+        // （integration_fandhe_frontend_core_has_zero_dependencies の Normal 限定計測とは
         // 別に、dev/build も含めた厳格な判定の回帰を担保する）。
         let (graph, targets, members) = fetch_zero_dep_targets().expect("real workspace metadata");
-        assert!(targets.contains(&"rws-core".to_string()));
+        assert!(targets.contains(&"fandhe-frontend-core".to_string()));
         let m = measure_external_only(
             &graph,
-            "rws-core",
+            "fandhe-frontend-core",
             &[DepKind::Normal, DepKind::Dev, DepKind::Build],
             &members,
         )
-        .expect("measure rws-core");
+        .expect("measure fandhe-frontend-core");
         let result = judge_zero(m.into());
         assert!(
             result.is_pass(),
-            "rws-core must keep zero external dependencies including dev/build (issue #154)"
+            "fandhe-frontend-core must keep zero external dependencies including dev/build (issue #154)"
         );
     }
 
     #[test]
     fn measure_external_only_excludes_workspace_member_path_dependency() {
-        // reviewer 指摘の回帰テスト: `rws-interactive -> rws-core` のような
+        // reviewer 指摘の回帰テスト: `fandhe-frontend-interactive -> fandhe-frontend-core` のような
         // workspace 内の第一者依存（path dependency）は「外部依存」として
         // カウントされてはならない。root（interactive 相当）が到達できる
         // 唯一の依存が workspace メンバー（core 相当）である場合、

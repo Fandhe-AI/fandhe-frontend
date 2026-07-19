@@ -1,13 +1,13 @@
-//! `rws-wasm-thin` の汎用層・境界層（demo）の回帰テスト（TASK-11.3a、#79）。
+//! `fandhe-frontend-wasm-thin` の汎用層・境界層（demo）の回帰テスト（TASK-11.3a、#79）。
 //!
 //! ここでの検証対象は「WASM 境界を越える HTML 文字列が既定エスケープ済みで
 //! あること」「未知アクション・改ざんハイドレーション属性に対して panic
 //! しないこと」の 2 点であり、実ブラウザでの JS グルー結合検証は
 //! TASK-11.5/11.6 系列のスコープ（`docs/spec/05-tasks.md`）。
 
-use rws_interactive::{AppState, Hydrate, HydrateError};
-use rws_wasm_thin::demo;
-use rws_wasm_thin::ThinRuntime;
+use fandhe_frontend_interactive::{AppState, Hydrate, HydrateError};
+use fandhe_frontend_wasm_thin::demo;
+use fandhe_frontend_wasm_thin::ThinRuntime;
 
 /// XSS 回帰（薄いグルー経路、REQ-1）: `apply` に script タグ相当の payload を
 /// 渡しても、戻り値 HTML に生タグが現れず既定エスケープされていること。
@@ -53,10 +53,10 @@ fn apply_ignores_unknown_action() {
 /// バックスラッシュを含む項目でも成立することを確認する。
 #[test]
 fn hydrate_from_attrs_roundtrip_matches_ssr_view() {
-    use rws_interactive::Component;
+    use fandhe_frontend_interactive::Component;
 
     let mut source = AppState::new();
-    source.update(rws_interactive::Action::Increment);
+    source.update(fandhe_frontend_interactive::Action::Increment);
     source.items.push("separator:\u{1f}here".to_string());
     source.items.push("backslash:\\here".to_string());
     // `items` への直接代入は `item_ids`（keyed list の安定キー、イシュー
@@ -65,7 +65,9 @@ fn hydrate_from_attrs_roundtrip_matches_ssr_view() {
     // クレートの `AppState::item_ids` 型ドキュメント参照）、比較対象の
     // `source.view()` 側もここで揃えておく。
     source.item_ids = (0..source.items.len() as u64).collect();
-    source.update(rws_interactive::Action::SetDraft("draft text".to_string()));
+    source.update(fandhe_frontend_interactive::Action::SetDraft(
+        "draft text".to_string(),
+    ));
 
     let attrs = source.hydration_attrs();
 
@@ -74,7 +76,7 @@ fn hydrate_from_attrs_roundtrip_matches_ssr_view() {
         .hydrate_from_attrs(&attrs)
         .expect("valid attrs should hydrate");
 
-    let expected = rws_core::render(&source.view());
+    let expected = fandhe_frontend_core::render(&source.view());
     assert_eq!(runtime.html(), expected);
 }
 
@@ -95,15 +97,18 @@ fn hydrate_from_attrs_rejects_invalid_input_without_panicking() {
 
     let invalid = vec![
         (
-            format!("{}counter", rws_interactive::HYDRATE_ATTR_PREFIX),
+            format!(
+                "{}counter",
+                fandhe_frontend_interactive::HYDRATE_ATTR_PREFIX
+            ),
             "not-a-number".to_string(),
         ),
         (
-            format!("{}draft", rws_interactive::HYDRATE_ATTR_PREFIX),
+            format!("{}draft", fandhe_frontend_interactive::HYDRATE_ATTR_PREFIX),
             String::new(),
         ),
         (
-            format!("{}items", rws_interactive::HYDRATE_ATTR_PREFIX),
+            format!("{}items", fandhe_frontend_interactive::HYDRATE_ATTR_PREFIX),
             String::new(),
         ),
     ];

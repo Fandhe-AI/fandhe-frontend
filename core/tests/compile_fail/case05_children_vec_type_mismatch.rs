@@ -5,7 +5,7 @@
 //! 期待するエラーコード: E0308（mismatched types）。
 //! 本ファイルは cargo のテストターゲットには含まれない（README 参照）。
 
-use rws_core::{text, Node};
+use fandhe_frontend_core::{text, Node};
 
 pub fn case05() -> Vec<Node> {
     vec![text("a"), "b"]

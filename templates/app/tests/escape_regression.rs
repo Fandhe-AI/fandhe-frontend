@@ -1,17 +1,17 @@
 //! `templates/app`（`fw new --template app` 拡張プロジェクトテンプレート、
 //! イシュー #378）の XSS 回帰テスト。
 //!
-//! REQ-1（既定エスケープ）の実証: `rws_app::demo_items()`（vendor 同梱
-//! `vendor/rws-app`）は `items()[1]` に意図的な XSS ペイロード
+//! REQ-1（既定エスケープ）の実証: `fandhe_frontend_app::demo_items()`（vendor 同梱
+//! `vendor/fandhe-frontend-app`）は `items()[1]` に意図的な XSS ペイロード
 //! （`<script>alert('xss')</script>` 等）を含む。本テストは `list_page` /
-//! `detail_page` を経由して `rws_core::render` した出力にそのペイロードが
+//! `detail_page` を経由して `fandhe_frontend_core::render` した出力にそのペイロードが
 //! 生タグとして現れないことを固定する。`fw gate` の `test` チェック
-//! （`cargo test -p rws-template-app`）が常時実行する回帰テストであり、
+//! （`cargo test -p fandhe-frontend-template-app`）が常時実行する回帰テストであり、
 //! `.claude/rules/coding-rust.md`「XSS 回帰テストは削除・弱体化しない」を
 //! 本プロジェクトテンプレートでも踏襲する。
 
-use rws_app::{demo_items, detail_page, list_page};
-use rws_core::render;
+use fandhe_frontend_app::{demo_items, detail_page, list_page};
+use fandhe_frontend_core::render;
 
 /// PoC-2/PoC-3 由来の意図的な XSS ペイロード（`app/src/lib.rs::demo_items`）
 /// が `list_page` 経由でエスケープされずに出力へ混入しないことを確認する。

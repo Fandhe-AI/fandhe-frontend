@@ -1,6 +1,6 @@
-//! `rws-server` の SSR エントリ（TASK-6.1c）。
+//! `fandhe-frontend-server` の SSR エントリ（TASK-6.1c）。
 //!
-//! 指定パス（既定 `/`）に対する [`rws_server::ssr::respond`] の結果
+//! 指定パス（既定 `/`）に対する [`fandhe_frontend_server::ssr::respond`] の結果
 //! （ステータス・Content-Type・HTML）を stdout へ出力する std のみの CLI。
 //!
 //! # スコープ（`docs/api/app-api.md` との乖離の記録）
@@ -10,7 +10,7 @@
 //! の実測（axum は tokio-macros → syn 連鎖で依存グラフ深さ 7〜9 に達し REQ-3
 //! に構造的に違反）により、本クレートは HTTP ソケット層を持たない
 //! （`docs/api/app-api.md` 第 4 節へ追記済み）。HTTP 配信（実際の TCP リッスン・
-//! hyper 処理）は `rws-dist-server`（`dist-server/src/main.rs`）が担い、
+//! hyper 処理）は `fandhe-frontend-dist-server`（`dist-server/src/main.rs`）が担い、
 //! 本バイナリは「パス文字列 → レスポンス文字列化」のみを提供する。
 //!
 //! `#![forbid(unsafe_code)]` はクレートルートを跨いで継承されないため、
@@ -19,7 +19,7 @@
 
 #![forbid(unsafe_code)]
 
-use rws_server::ssr::respond;
+use fandhe_frontend_server::ssr::respond;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
@@ -42,7 +42,7 @@ fn main() -> ExitCode {
         None => {
             // 固定ルート表に一致しないパス。内部パス等の機微情報は含めない
             // 固定文言のみを標準エラーへ出力する（`security.md`）。
-            eprintln!("rws-server: no route matched path {path:?}");
+            eprintln!("fandhe-frontend-server: no route matched path {path:?}");
             ExitCode::FAILURE
         }
     }

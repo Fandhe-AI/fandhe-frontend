@@ -200,14 +200,14 @@ unknown-git = "deny"
 
 /// イシュー #157/#263（`gate.rs::clippy_policy_check`）: `lint` チェックは
 /// `project_dir` 直下の `clippy.toml` に `disallowed-methods` の
-/// `rws_core::raw_html` エントリが存在することを fail-closed で前提とする
+/// `fandhe_frontend_core::raw_html` エントリが存在することを fail-closed で前提とする
 /// （欠落時は cargo clippy を起動する前に `lint` を failed とする）。本
 /// フィクスチャはワークスペースルートの `clippy.toml` と同一ポリシーを配布
 /// する `templates/default/clippy.toml` と同内容を複製し、`lint` チェックを
 /// 実体化させる。
 fn clippy_toml_content() -> &'static str {
     r#"disallowed-methods = [
-    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/policy/raw-html-review-gate.md 参照）" },
+    { path = "fandhe_frontend_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/policy/raw-html-review-gate.md 参照）" },
 ]
 "#
 }

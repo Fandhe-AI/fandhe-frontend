@@ -1,4 +1,4 @@
-//! `rws-dist-server` バイナリの実プロセス起動検証（TASK-9.1c、イシュー #97）。
+//! `fandhe-frontend-dist-server` バイナリの実プロセス起動検証（TASK-9.1c、イシュー #97）。
 //!
 //! `tests/routes.rs` はハンドラレベル（`routes::route_request` 呼び出し）に
 //! 留め、実際の TCP bind・hyper 接続処理は検証しない設計だった
@@ -97,7 +97,7 @@ fn get_known_item_detail_returns_200_with_escaped_xss_payload() {
         None,
     );
 
-    // id "2" は `rws_app::demo_items()` 内の XSS ペイロード付き既知アイテム
+    // id "2" は `fandhe_frontend_app::demo_items()` 内の XSS ペイロード付き既知アイテム
     // （`server/src/ssr.rs` 等、他の統合テストと共通の固定 ID）。
     let response = send_http_request(port, "GET", "/items/2");
 
@@ -217,7 +217,7 @@ fn bind_conflict_exits_non_zero_with_fixed_stderr_message() {
     // 機微情報（内部パス・スタックトレース等）を含まない固定文言のみで
     // あることを確認する（`security.md` A09、`main.rs` の doc 参照）。
     assert!(
-        stderr.contains("rws-dist-server: failed to bind"),
+        stderr.contains("fandhe-frontend-dist-server: failed to bind"),
         "stderr must contain the fixed bind-failure message: {stderr}"
     );
     assert!(

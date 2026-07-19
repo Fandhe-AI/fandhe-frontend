@@ -13,7 +13,7 @@
 //! `codec::encode_list`/`decode_list` は `codec` モジュール内の単体テストで
 //! 別途カバーする（`lib.rs` 参照）。
 
-use rws_interactive::{codec, Action, AppState, Component, Hydrate, HydrateError};
+use fandhe_frontend_interactive::{codec, Action, AppState, Component, Hydrate, HydrateError};
 use std::collections::HashMap;
 
 /// [`Hydrate::hydration_attrs`] の戻り値を `HashMap` へ変換し、キー名でアクセスできるようにする。
@@ -131,7 +131,7 @@ fn roundtrip_survives_newlines_tabs_and_quotes() {
 #[test]
 fn roundtrip_survives_html_meta_characters_in_items() {
     // items のエスケープはコーデックの責務であり、HTML エスケープは
-    // render 側（rws_core::render）の責務。ここでは「コーデックが
+    // render 側（fandhe_frontend_core::render）の責務。ここでは「コーデックが
     // メタ文字を変質させずに往復させる」ことのみを確認する
     // （HTML エスケープの検証は xss_escape.rs の役割）。
     let mut s = AppState::new();
@@ -144,7 +144,7 @@ fn roundtrip_survives_html_meta_characters_in_items() {
 // `docs/api/interactive-api.md` 第 4 節・判断 4: `from_hydration_attrs` は
 // 改ざんされうるクライアント入力を前提に `Result` を返し、`unwrap()`/
 // `panic!` を使わない。フォールバック戦略（既定値に倒すかエラーを
-// 伝播するか）は呼び出し側（`rws-wasm-full`）に委ねる設計であるため、
+// 伝播するか）は呼び出し側（`fandhe-frontend-wasm-full`）に委ねる設計であるため、
 // 本クレート自身は「値へフォールバックする」のではなく「Err を返して
 // panic しない」ことを保証する。
 

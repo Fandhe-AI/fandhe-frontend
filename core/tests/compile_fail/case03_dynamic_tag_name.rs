@@ -5,7 +5,7 @@
 //! 期待するエラーコード: E0597（borrowed value does not live long enough）。
 //! 本ファイルは cargo のテストターゲットには含まれない（README 参照）。
 
-use rws_core::{el, Node};
+use fandhe_frontend_core::{el, Node};
 
 pub fn case03() -> Node {
     let t = String::from("div");

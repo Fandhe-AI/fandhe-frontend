@@ -3,13 +3,13 @@
 //!
 //! REQ-8（View Transitions API のネイティブ活用）のうちクロスドキュメント
 //! ナビゲーション側の受け入れ基準「宣言 1 行・JS 0 行で全ルートに有効化
-//! されること」を、`rws_app::page_shell()` を経由する SSR（[`respond`]）・
+//! されること」を、`fandhe_frontend_app::page_shell()` を経由する SSR（[`respond`]）・
 //! SSG（[`generate`]）全ルートについて固定する。
 //!
 //! `page_shell()` 自体の単体テスト（`app/src/lib.rs` の
 //! `page_shell_includes_view_transition_at_rule_and_matches_across_ssr_and_ssg`）
 //! は「関数の戻り値」を検証済みだが、本ファイルは一段上の観点として
-//! 「rws-server が実際に応答する全ルート（`respond("/")` ・
+//! 「fandhe-frontend-server が実際に応答する全ルート（`respond("/")` ・
 //! `demo_items()` 全 id の詳細ページ・未知 id の 404 ページ）」と
 //! 「SSG が書き出す全ファイル」の双方で既定同梱が崩れていないことを、
 //! `server/tests/ssr_ssg_parity.rs` と同じ流儀（`support/temp_dir.rs` の
@@ -24,9 +24,9 @@
 //! されていないこと」も併せて固定し、仕様書（`docs/spec/`）記載の旧構文への
 //! 先祖返りを検知する。
 
-use rws_app::demo_items;
-use rws_server::ssg::generate;
-use rws_server::ssr::respond;
+use fandhe_frontend_app::demo_items;
+use fandhe_frontend_server::ssg::generate;
+use fandhe_frontend_server::ssr::respond;
 use std::fs;
 
 include!("support/temp_dir.rs");

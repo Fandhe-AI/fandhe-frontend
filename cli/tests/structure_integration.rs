@@ -1,7 +1,7 @@
 //! TASK-13.1d（#131）: ルートの `structure.toml` をフィクスチャとした統合テスト。
 //!
 //! `cli/src/structure.rs` の単体テストが `#[cfg(test)]` 内でインライン文字列の
-//! フィクスチャを検証するのに対し、本ファイルは `cargo test -p rws-cli` の
+//! フィクスチャを検証するのに対し、本ファイルは `cargo test -p fandhe-frontend-cli` の
 //! integration test（`cli/tests/`）として `fw structure` の外部プロセス起動まで
 //! 通す（TASK-13.1 の受け入れ基準 1 が要求する「ツール出力」を実際に確認する）。
 //!

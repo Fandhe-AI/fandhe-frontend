@@ -2,10 +2,10 @@
 //! XSS 回帰テスト。
 //!
 //! `core/tests/xss_escape.rs`（`mod payloads`）が定義する OWASP 準拠の
-//! 共有ペイロード集合と整合する観点で、`rws-interactive` が状態（`AppState`
+//! 共有ペイロード集合と整合する観点で、`fandhe-frontend-interactive` が状態（`AppState`
 //! の `draft`/`items`）を `render`/`render_for_hydration` 経由でノード木へ
-//! 展開する際、`rws_core::render()` の既定エスケープが最後まで貫通する
-//! ことを固定する。`rws-interactive` は `raw_html` を一切使用しない
+//! 展開する際、`fandhe_frontend_core::render()` の既定エスケープが最後まで貫通する
+//! ことを固定する。`fandhe-frontend-interactive` は `raw_html` を一切使用しない
 //! （lib.rs 冒頭の不変条件 1 参照）ため、エスケープ迂回経路は存在しない
 //! 前提だが、本ファイルはその前提を統合テストとして直接検証する。
 //!
@@ -14,25 +14,27 @@
 //! `.claude/rules/coding-rust.md` の規約により、本ファイルの XSS 回帰
 //! テストは以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
-use rws_core::{el, text, Node};
-use rws_interactive::codec::{self, Value};
-use rws_interactive::{render_for_hydration, AppState, Component, Hydrate, HydrateError};
+use fandhe_frontend_core::{el, text, Node};
+use fandhe_frontend_interactive::codec::{self, Value};
+use fandhe_frontend_interactive::{
+    render_for_hydration, AppState, Component, Hydrate, HydrateError,
+};
 
-/// `AppState::view()`（[`Component`] トレイト経由）を `rws_core::render()` に
+/// `AppState::view()`（[`Component`] トレイト経由）を `fandhe_frontend_core::render()` に
 /// 通した CSR 相当の HTML 文字列を返すテスト用ヘルパ。
 ///
 /// TASK-11.1a/TASK-11.1b で API が [`Component`]/[`Hydrate`] トレイトへ
-/// 一般化される前は `rws_interactive::render_html` という自由関数が
-/// 存在したが、現行 API では `view()` の呼び出しと `rws_core::render()` の
+/// 一般化される前は `fandhe_frontend_interactive::render_html` という自由関数が
+/// 存在したが、現行 API では `view()` の呼び出しと `fandhe_frontend_core::render()` の
 /// 呼び出しを利用側が明示的に組み合わせる契約になっている（lib.rs 参照）。
 fn render_html(state: &AppState) -> String {
-    rws_core::render(&state.view())
+    fandhe_frontend_core::render(&state.view())
 }
 
-/// [`render_for_hydration`] の結果を `rws_core::render()` に通した SSR 相当の
+/// [`render_for_hydration`] の結果を `fandhe_frontend_core::render()` に通した SSR 相当の
 /// HTML 文字列を返すテスト用ヘルパ（上記 `render_html` の SSR 版）。
 fn render_html_for_hydration(state: &AppState) -> String {
-    rws_core::render(&render_for_hydration(state))
+    fandhe_frontend_core::render(&render_for_hydration(state))
 }
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系のペイロード集合。
@@ -66,7 +68,7 @@ mod payloads {
 /// `core/tests/xss_escape.rs`（`assert_fragment_is_safe`）の方針と揃え、
 /// 以下 3 点を見る。
 ///
-/// 1. **肯定的アサーション（偽陰性防止）**: [`rws_core::escape_html`] が
+/// 1. **肯定的アサーション（偽陰性防止）**: [`fandhe_frontend_core::escape_html`] が
 ///    返す正解のエスケープ済み表現が出力中に実際に存在すること。これが
 ///    無いと、ペイロードが出力へ丸ごと現れなくなる（例: 空文字列化・
 ///    フィールドの取りこぼし）リグレッションを、後続の否定条件がすべて
@@ -76,7 +78,7 @@ mod payloads {
 /// 3. `<script>`/`<img` の実タグ開始が出力に含まれない（語の有無ではなく
 ///    構文としての危険性の有無を見る）。
 fn assert_html_is_safe(payload: &str, html: &str, context_label: &str) {
-    let expected_escaped = rws_core::escape_html(payload);
+    let expected_escaped = fandhe_frontend_core::escape_html(payload);
     assert!(
         html.contains(&expected_escaped),
         "{context_label}: 期待されるエスケープ済み表現が出力に見当たらない \
@@ -181,14 +183,14 @@ fn render_and_render_for_hydration_share_same_dom_shape_under_malicious_input() 
     assert_html_is_safe(payloads::SCRIPT_TAG, &csr_html, "CSR 同一性検証");
     assert_html_is_safe(payloads::SCRIPT_TAG, &ssr_html, "SSR 同一性検証");
 
-    // rws_core::el の attrs 出力順序（挿入順）に合わせて、ルート要素に
+    // fandhe_frontend_core::el の attrs 出力順序（挿入順）に合わせて、ルート要素に
     // 追加された 3 つのハイドレーション属性をこの順で連結した断片を
     // 組み立てる。属性値自体は render_html 側と同じくエスケープ済みの
     // 生 HTML 文字列として得られるため、単純な文字列除去で比較できる。
     let attrs = s.hydration_attrs();
     let hydrate_fragment: String = attrs
         .iter()
-        .map(|(k, v)| format!(" {k}=\"{}\"", rws_core::escape_html(v)))
+        .map(|(k, v)| format!(" {k}=\"{}\"", fandhe_frontend_core::escape_html(v)))
         .collect();
     assert!(
         ssr_html.contains(&hydrate_fragment),
@@ -251,7 +253,7 @@ fn render_html_actually_contains_escaped_representation_of_item_payload() {
 /// `docs/design/hydration-nested-state.md` が確定した設計どおり、`Value` codec は
 /// 区切り文字・エスケープ文字のみを対象とした構造的エスケープ（データ注入
 /// 防止）を担い、HTML エスケープは一切行わない。HTML としての安全性は
-/// 常に `render_for_hydration` → `rws_core::render()` の既定エスケープ経路
+/// 常に `render_for_hydration` → `fandhe_frontend_core::render()` の既定エスケープ経路
 /// のみが担保する契約であることを、ネスト値経由でも固定する回帰テスト。
 struct NestedComponent {
     profile_name: String,
@@ -305,7 +307,7 @@ fn render_for_hydration_escapes_payloads_nested_inside_value_codec() {
         let component = NestedComponent {
             profile_name: payload.to_string(),
         };
-        let html = rws_core::render(&render_for_hydration(&component));
+        let html = fandhe_frontend_core::render(&render_for_hydration(&component));
         assert_html_is_safe(payload, &html, "ネスト Value（Map in Map）属性コンテキスト");
     }
 }

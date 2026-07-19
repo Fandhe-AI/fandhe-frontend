@@ -1,0 +1,19 @@
+[package]
+name = "fandhe-frontend-app"
+version = "0.1.0"
+edition = "2021"
+description = "fandhe-frontend-app: SSR/SSG/CSR 三モード共通のモード非依存コンポーネントライブラリ（fandhe-frontend-core のみに依存）。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# REQ-3 / coding-rust.md: 依存クレート追加は事前承認が必要。
+# fandhe-frontend-app は fandhe-frontend-core（path 依存）のみを持ち、外部クレートは追加しない。
+[dependencies]
+fandhe-frontend-core = { path = "../fandhe-frontend-core" }
+
+[dev-dependencies]
+
+# vendor 同梱物（templates/app、イシュー #378）: 正本 app/Cargo.toml から
+# path 依存の参照先ディレクトリ名のみ変換した写し（../core → ../fandhe-frontend-core、
+# vendor 配下の実ディレクトリ名に合わせる）。[workspace] を追加しない理由は
+# ../fandhe-frontend-core/Cargo.toml のコメントと同一（多重 workspace root エラーの回避）。

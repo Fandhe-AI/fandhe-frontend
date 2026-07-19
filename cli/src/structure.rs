@@ -146,7 +146,7 @@ pub struct DirectoryEntry {
 pub struct RoutingConfig {
     /// ルート定義を許すディレクトリ（`directories` キーを参照する）。
     pub definition_dir: String,
-    /// 組み込み抽出器 ID（例: `"rws-router-v1"`）。自由記述の正規表現は持たない。
+    /// 組み込み抽出器 ID（例: `"fandhe-frontend-router-v1"`）。自由記述の正規表現は持たない。
     pub extractor: String,
 }
 
@@ -685,12 +685,24 @@ mod tests {
         StructureManifest {
             version: 1,
             directories: vec![
-                entry("core", Role::Core, Some("rws-core"), &[], &["app"]),
-                entry("app", Role::Component, Some("rws-app"), &["core"], &[]),
+                entry(
+                    "core",
+                    Role::Core,
+                    Some("fandhe-frontend-core"),
+                    &[],
+                    &["app"],
+                ),
+                entry(
+                    "app",
+                    Role::Component,
+                    Some("fandhe-frontend-app"),
+                    &["core"],
+                    &[],
+                ),
             ],
             routing: Some(RoutingConfig {
                 definition_dir: "app".to_string(),
-                extractor: "rws-router-v1".to_string(),
+                extractor: "fandhe-frontend-router-v1".to_string(),
             }),
         }
     }
@@ -730,9 +742,13 @@ mod tests {
         let mut manifest = valid_manifest();
         // "app" と同名のエントリを追加する（依存関係は空にして、この
         // テストが検出したい重複名の検証のみを対象にする）。
-        manifest
-            .directories
-            .push(entry("app", Role::Component, Some("rws-app-dup"), &[], &[]));
+        manifest.directories.push(entry(
+            "app",
+            Role::Component,
+            Some("fandhe-frontend-app-dup"),
+            &[],
+            &[],
+        ));
         let errors = manifest.validate().unwrap_err();
         assert!(errors
             .iter()
@@ -822,7 +838,7 @@ mod tests {
         let mut manifest = valid_manifest();
         manifest.routing = Some(RoutingConfig {
             definition_dir: "ghost".to_string(),
-            extractor: "rws-router-v1".to_string(),
+            extractor: "fandhe-frontend-router-v1".to_string(),
         });
         let errors = manifest.validate().unwrap_err();
         assert!(errors
@@ -864,13 +880,13 @@ version = 1
 
 [directories.core]
 role = "core"
-crate = "rws-core"
+crate = "fandhe-frontend-core"
 description = "外部依存ゼロのレンダリングコア"
 allowed_dependents = ["app"]
 
 [directories.app]
 role = "component"
-crate = "rws-app"
+crate = "fandhe-frontend-app"
 description = "共通コンポーネント"
 depends_on = ["core"]
 
@@ -880,7 +896,7 @@ description = "静的アセット（対応クレートなし）"
 
 [routing]
 definition_dir = "app"
-extractor = "rws-router-v1"
+extractor = "fandhe-frontend-router-v1"
 "#;
 
     #[test]
@@ -894,7 +910,7 @@ extractor = "rws-router-v1"
             .find(|d| d.name == "core")
             .unwrap();
         assert_eq!(core.role, Role::Core);
-        assert_eq!(core.crate_name.as_deref(), Some("rws-core"));
+        assert_eq!(core.crate_name.as_deref(), Some("fandhe-frontend-core"));
         let static_dir = manifest
             .directories
             .iter()
@@ -907,7 +923,7 @@ extractor = "rws-router-v1"
             manifest.routing,
             Some(RoutingConfig {
                 definition_dir: "app".to_string(),
-                extractor: "rws-router-v1".to_string(),
+                extractor: "fandhe-frontend-router-v1".to_string(),
             })
         );
         // parse() は変換のみを行う契約であり、`validate()` は呼び出し側の責務。

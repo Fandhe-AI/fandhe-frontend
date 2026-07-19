@@ -9,7 +9,7 @@
 //! 汎用経路にも適用する）。
 //!
 //! `#[wasm_bindgen]` エクスポートはここでは追加しない。状態は Rust 側
-//! （`rws_interactive::DirtyTracked` 実装 + `BindingSource` 実装）にのみ
+//! （`fandhe_frontend_interactive::DirtyTracked` 実装 + `BindingSource` 実装）にのみ
 //! 存在し、JS 表面（dispatch → `apply_update` の配線）は `#345`（`wasm-full`
 //! への統合）のスコープである。本モジュールは `#345` が rlib 経由で消費できる
 //! 公開 API として設計する。
@@ -22,15 +22,15 @@ use web_sys::{Element, HtmlInputElement};
 /// `data-bind-text` / `data-bind-attr` / `data-bind-class` の 3 マーカー属性を
 /// 対象とする `query_selector_all` の CSS セレクタを組み立てる。
 ///
-/// `rws_core::{BIND_TEXT_ATTR, BIND_ATTR_ATTR, BIND_CLASS_ATTR}`（#342）を
+/// `fandhe_frontend_core::{BIND_TEXT_ATTR, BIND_ATTR_ATTR, BIND_CLASS_ATTR}`（#342）を
 /// 参照して構築することで、SSR 出力側（core）とクライアント側走査の属性名
 /// 契約を単一箇所（core の定数）に保つ。
 fn binding_selector() -> String {
     format!(
         "[{}],[{}],[{}]",
-        rws_core::BIND_TEXT_ATTR,
-        rws_core::BIND_ATTR_ATTR,
-        rws_core::BIND_CLASS_ATTR
+        fandhe_frontend_core::BIND_TEXT_ATTR,
+        fandhe_frontend_core::BIND_ATTR_ATTR,
+        fandhe_frontend_core::BIND_CLASS_ATTR
     )
 }
 
@@ -68,9 +68,9 @@ impl BindingTable {
             let Ok(element) = node.dyn_into::<Element>() else {
                 continue;
             };
-            let bind_text = element.get_attribute(rws_core::BIND_TEXT_ATTR);
-            let bind_attr = element.get_attribute(rws_core::BIND_ATTR_ATTR);
-            let bind_class = element.get_attribute(rws_core::BIND_CLASS_ATTR);
+            let bind_text = element.get_attribute(fandhe_frontend_core::BIND_TEXT_ATTR);
+            let bind_attr = element.get_attribute(fandhe_frontend_core::BIND_ATTR_ATTR);
+            let bind_class = element.get_attribute(fandhe_frontend_core::BIND_CLASS_ATTR);
             let specs = crate::binding::element_binding_specs(
                 bind_text.as_deref(),
                 bind_attr.as_deref(),
@@ -107,14 +107,14 @@ impl BindingTable {
         }
     }
 
-    /// [`rws_interactive::DirtyTracked`] 実装から `dirty_fields()` を
+    /// [`fandhe_frontend_interactive::DirtyTracked`] 実装から `dirty_fields()` を
     /// 読み出して [`Self::apply_dirty`] を呼ぶ便宜関数（設計書 §4.3
     /// 「`update()` 直後」フローの入口）。`C` は `DirtyTracked` と
     /// [`BindingSource`] の両方を実装する呼び出し側の状態コンポーネント型
     /// （`#345` の `wasm-full` 適用層が消費する想定）。
     pub fn apply_update<C>(&self, component: &C)
     where
-        C: rws_interactive::DirtyTracked + BindingSource,
+        C: fandhe_frontend_interactive::DirtyTracked + BindingSource,
     {
         self.apply_dirty(component.dirty_fields(), component);
     }
@@ -125,7 +125,7 @@ impl BindingTable {
 /// - `Text`: `set_text_content`（`Node.textContent`）。`BoundValue::Flag` が
 ///   渡された場合は `"true"`/`"false"` として出力する。
 /// - `Attr(name)`: `set_attribute`。`BoundValue::Flag` も同様に文字列化する。
-///   `render_into`（`rws-core`）と同一の URL スキーム検証（`srcset` の
+///   `render_into`（`fandhe-frontend-core`）と同一の URL スキーム検証（`srcset` の
 ///   カンマ区切り候補分割検証を含む）・イベントハンドラ属性ブロックを
 ///   適用する（イシュー #373。SSR 初期描画と実 DOM 直接更新の両経路に
 ///   同一の XSS 対策保証を持たせる契約。詳細は
@@ -139,11 +139,11 @@ fn apply_one(kind: &BindingKind, element: &Element, value: &BoundValue) {
         }
         BindingKind::Attr(name) => {
             // イベントハンドラ属性（`on*`）は束縛対象にしない。束縛点は
-            // SSR 側 `render_into`（rws-core）が事前に発行したものに限られる
-            // 契約だが、`rws_core` 側で `on*` は出力されないため対応表にも
+            // SSR 側 `render_into`（fandhe-frontend-core）が事前に発行したものに限られる
+            // 契約だが、`fandhe_frontend_core` 側で `on*` は出力されないため対応表にも
             // 現れない想定である。ここでは二重の fail-closed 防御として
             // 同じ判定を適用する。
-            if rws_core::is_event_handler_attr(name) {
+            if fandhe_frontend_core::is_event_handler_attr(name) {
                 return;
             }
             let text = bound_value_as_text(value);
@@ -151,7 +151,8 @@ fn apply_one(kind: &BindingKind, element: &Element, value: &BoundValue) {
             // した値のみ反映する。不合格の場合は書き込まず、既存属性が
             // 残る不整合を避けるため `remove_attribute` で除去する
             // （fail-closed。古い安全値の残存にも決定的な挙動を与える）。
-            if rws_core::is_url_attr(name) && !rws_core::is_safe_url(&text) {
+            if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(&text)
+            {
                 let _ = element.remove_attribute(name);
                 return;
             }
@@ -160,7 +161,7 @@ fn apply_one(kind: &BindingKind, element: &Element, value: &BoundValue) {
             // と同一の `is_safe_srcset` で候補分割検証する（イシュー #373
             // レビュー指摘対応: 従来は `render_into` にのみ実装されており
             // 本経路では未検証だった）。
-            if name.eq_ignore_ascii_case("srcset") && !rws_core::is_safe_srcset(&text) {
+            if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(&text) {
                 let _ = element.remove_attribute(name);
                 return;
             }

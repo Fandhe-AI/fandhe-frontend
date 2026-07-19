@@ -224,7 +224,7 @@ fn parse_metadata(input: &str) -> Result<WorkspaceMetadata, MetadataError> {
 
         // このメンバーの通常依存（dev/build を除く）のうち、他 workspace member を
         // 指すものだけを抽出する。dev-dependencies は `docs/design/structure-manifest.md`
-        // §3 の方針（server の rws-core/rws-app は dev-dependencies のみで
+        // §3 の方針（server の fandhe-frontend-core/fandhe-frontend-app は dev-dependencies のみで
         // depends_on 宣言しない）に従い対象外とする。
         let node = resolve_nodes
             .iter()
@@ -298,11 +298,13 @@ mod tests {
             .parent()
             .expect("cli/ has a parent workspace root");
         let metadata = fetch(workspace_root).expect("cargo metadata should succeed in-tree");
-        assert!(metadata.member("rws-cli").is_some());
-        assert!(metadata.member("rws-core").is_some());
+        assert!(metadata.member("fandhe-frontend-cli").is_some());
+        assert!(metadata.member("fandhe-frontend-core").is_some());
         let app = metadata
-            .member("rws-app")
-            .expect("rws-app is a workspace member");
-        assert!(app.normal_workspace_deps.contains(&"rws-core".to_string()));
+            .member("fandhe-frontend-app")
+            .expect("fandhe-frontend-app is a workspace member");
+        assert!(app
+            .normal_workspace_deps
+            .contains(&"fandhe-frontend-core".to_string()));
     }
 }

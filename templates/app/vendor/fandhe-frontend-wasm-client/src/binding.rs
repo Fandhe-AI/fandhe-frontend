@@ -4,7 +4,7 @@
 //! 定める「`data-bind-*` 属性の 1 回走査で構築した束縛点対応表 +
 //! `DirtyTracked::dirty_fields()`（#341）から駆動する最小更新」のうち、
 //! `web-sys`（実 DOM）に依存しない部分をここに切り出す。DOM 非依存のため
-//! `cargo test -p rws-wasm-client`（native）で検証でき、wasm ビルドを介さない
+//! `cargo test -p fandhe-frontend-wasm-client`（native）で検証でき、wasm ビルドを介さない
 //! （`wasm-client` 既存の 2 層構成、`lib.rs` の方針を踏襲）。
 //!
 //! 実 DOM への適用（`query_selector_all` による走査・`set_text_content` 等の
@@ -13,10 +13,10 @@
 //!
 //! # 呼び出し文脈
 //!
-//! `rws-core::bind`（#342）が SSR 出力に埋め込む `data-bind-text` /
+//! `fandhe-frontend-core::bind`（#342）が SSR 出力に埋め込む `data-bind-text` /
 //! `data-bind-attr` / `data-bind-class` マーカー属性値（`"<name>:<field>"`
 //! 空白区切りトークン列）が本モジュールの入力契約そのものである。
-//! `rws-interactive::DirtyTracked`（#341）の `dirty_fields()` が返す
+//! `fandhe-frontend-interactive::DirtyTracked`（#341）の `dirty_fields()` が返す
 //! `&'static str` と、本モジュールが DOM から読み出す実行時 `String` の
 //! フィールド名は**文字列比較**で照合する（`&'static str` 側はコンパイル時に
 //! 確定した有限集合であり、外部入力からの偽装余地はない。設計書 §3.2 の
@@ -181,7 +181,7 @@ pub fn element_binding_specs(
 ///
 /// # 呼び出し文脈
 ///
-/// アプリのテストコードが `Component::view()` の戻り値（`rws_core::Node`）を
+/// アプリのテストコードが `Component::view()` の戻り値（`fandhe_frontend_core::Node`）を
 /// 本関数に渡し、[`unresolved_binding_specs`] で `BindingSource`
 /// 実装（例: `AppState`）と突き合わせることで、view 側の束縛点マーカーと
 /// 状態フィールドの整合をテスト時に検証する。`fw gate` への束縛点チェック
@@ -202,21 +202,21 @@ pub fn element_binding_specs(
 /// - `Node::Text` は素通り、`Node::RawHtml` は走査しない（HTML パースを
 ///   本関数へ持ち込まない。raw_html 経路は既存の raw-html レビューゲートの
 ///   領分であり、本関数の責務ではない）
-/// - `data-bind-list`（keyed list、`rws_core::keyed::BIND_LIST_ATTR`）は
+/// - `data-bind-list`（keyed list、`fandhe_frontend_core::keyed::BIND_LIST_ATTR`）は
 ///   3 マーカーに含まれないため収集されない。`items` 等の keyed
 ///   フィールドが誤って「未束縛」と判定されることはない
 ///
 /// 戻り値の順序は木の走査順（深さ優先・子ノード出現順）であり、決定的。
-pub fn collect_binding_specs(node: &rws_core::Node) -> Vec<BindingSpec> {
+pub fn collect_binding_specs(node: &fandhe_frontend_core::Node) -> Vec<BindingSpec> {
     let mut specs = Vec::new();
     collect_binding_specs_into(node, &mut specs);
     specs
 }
 
 /// [`collect_binding_specs`] の再帰実装。
-fn collect_binding_specs_into(node: &rws_core::Node, out: &mut Vec<BindingSpec>) {
+fn collect_binding_specs_into(node: &fandhe_frontend_core::Node, out: &mut Vec<BindingSpec>) {
     match node {
-        rws_core::Node::Element {
+        fandhe_frontend_core::Node::Element {
             attrs, children, ..
         } => {
             let find = |name: &str| {
@@ -226,9 +226,9 @@ fn collect_binding_specs_into(node: &rws_core::Node, out: &mut Vec<BindingSpec>)
                     .map(|(_, value)| value.as_str())
             };
             out.extend(element_binding_specs(
-                find(rws_core::BIND_TEXT_ATTR),
-                find(rws_core::BIND_ATTR_ATTR),
-                find(rws_core::BIND_CLASS_ATTR),
+                find(fandhe_frontend_core::BIND_TEXT_ATTR),
+                find(fandhe_frontend_core::BIND_ATTR_ATTR),
+                find(fandhe_frontend_core::BIND_CLASS_ATTR),
             ));
             for child in children {
                 collect_binding_specs_into(child, out);
@@ -236,7 +236,7 @@ fn collect_binding_specs_into(node: &rws_core::Node, out: &mut Vec<BindingSpec>)
         }
         // Text はマーカー属性を持たない。RawHtml は HTML パースを要するため
         // スコープ外（上記 rustdoc 参照）。
-        rws_core::Node::Text(_) | rws_core::Node::RawHtml(_) => {}
+        fandhe_frontend_core::Node::Text(_) | fandhe_frontend_core::Node::RawHtml(_) => {}
     }
 }
 
@@ -253,7 +253,7 @@ fn collect_binding_specs_into(node: &rws_core::Node, out: &mut Vec<BindingSpec>)
 /// `test` チェックで検出可能にするための読み取り専用ユーティリティに
 /// 限定する。
 pub fn unresolved_binding_specs<S: BindingSource>(
-    node: &rws_core::Node,
+    node: &fandhe_frontend_core::Node,
     source: &S,
 ) -> Vec<BindingSpec> {
     collect_binding_specs(node)
@@ -262,10 +262,10 @@ pub fn unresolved_binding_specs<S: BindingSource>(
         .collect()
 }
 
-/// [`rws_interactive::AppState`] を [`BindingSource`] へ接続する（イシュー
+/// [`fandhe_frontend_interactive::AppState`] を [`BindingSource`] へ接続する（イシュー
 /// #345）。孤児則（orphan rule）により、この実装は `BindingSource`（本クレート
-/// 定義）と `AppState`（`rws_interactive` 定義）のいずれか一方を所有する
-/// クレートでのみ書ける。`AppState` を所有する `rws-interactive` は
+/// 定義）と `AppState`（`fandhe_frontend_interactive` 定義）のいずれか一方を所有する
+/// クレートでのみ書ける。`AppState` を所有する `fandhe-frontend-interactive` は
 /// `wasm-client`（DOM 依存クレート）へ依存できない設計方針であるため、
 /// 実装先は `wasm-client` 側一択となる（`docs/design/dom-binding-update-design.md`
 /// #345 実装確定節）。
@@ -276,13 +276,13 @@ pub fn unresolved_binding_specs<S: BindingSource>(
 /// の構造変化専用経路が扱う。設計書 §5 が定める「構造変化を表現できる唯一の
 /// 経路」の原則をクライアント側の型でも保つ）。未知 field は `None`
 /// （fail-closed、`BindingSource` のドキュメント参照）。
-impl BindingSource for rws_interactive::AppState {
+impl BindingSource for fandhe_frontend_interactive::AppState {
     fn bound_value(&self, field: &str) -> Option<BoundValue> {
         match field {
-            f if f == rws_interactive::AppState::FIELD_COUNTER => {
+            f if f == fandhe_frontend_interactive::AppState::FIELD_COUNTER => {
                 Some(BoundValue::Text(self.counter.to_string()))
             }
-            f if f == rws_interactive::AppState::FIELD_DRAFT => {
+            f if f == fandhe_frontend_interactive::AppState::FIELD_DRAFT => {
                 Some(BoundValue::Text(self.draft.clone()))
             }
             _ => None,
@@ -399,26 +399,26 @@ mod tests {
 
     #[test]
     fn app_state_bound_value_returns_counter_and_draft_as_text() {
-        let mut state = rws_interactive::AppState::new();
+        let mut state = fandhe_frontend_interactive::AppState::new();
         state.counter = 5;
         state.draft = "hello".to_string();
         assert_eq!(
-            state.bound_value(rws_interactive::AppState::FIELD_COUNTER),
+            state.bound_value(fandhe_frontend_interactive::AppState::FIELD_COUNTER),
             Some(BoundValue::Text("5".to_string()))
         );
         assert_eq!(
-            state.bound_value(rws_interactive::AppState::FIELD_DRAFT),
+            state.bound_value(fandhe_frontend_interactive::AppState::FIELD_DRAFT),
             Some(BoundValue::Text("hello".to_string()))
         );
     }
 
     #[test]
     fn app_state_bound_value_returns_none_for_items_and_unknown_fields() {
-        let state = rws_interactive::AppState::new();
+        let state = fandhe_frontend_interactive::AppState::new();
         // items は keyed list 専用経路（`keyed_diff`/`keyed_dom`）が扱うため、
         // BindingSource（text/attr/class 更新経路）の対象外とする。
         assert_eq!(
-            state.bound_value(rws_interactive::AppState::FIELD_ITEMS),
+            state.bound_value(fandhe_frontend_interactive::AppState::FIELD_ITEMS),
             None
         );
         assert_eq!(state.bound_value("unknown-field"), None);
@@ -426,7 +426,7 @@ mod tests {
 
     // --- collect_binding_specs / unresolved_binding_specs（イシュー #380） ---
 
-    use rws_core::{el, text, Node, BIND_ATTR_ATTR, BIND_CLASS_ATTR, BIND_TEXT_ATTR};
+    use fandhe_frontend_core::{el, text, Node, BIND_ATTR_ATTR, BIND_CLASS_ATTR, BIND_TEXT_ATTR};
 
     /// `BindingSource` テストダブル。任意の field 集合を「解決可能」として
     /// 振る舞わせ、`unresolved_binding_specs` の突き合わせロジックだけを
@@ -506,7 +506,7 @@ mod tests {
         // されない。keyed 経路との分離を固定する。
         let node = el(
             "ul",
-            vec![(rws_core::keyed::BIND_LIST_ATTR, "items")],
+            vec![(fandhe_frontend_core::keyed::BIND_LIST_ATTR, "items")],
             vec![],
         );
         assert_eq!(collect_binding_specs(&node), Vec::new());

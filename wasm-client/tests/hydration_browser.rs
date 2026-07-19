@@ -22,7 +22,9 @@
 
 #![cfg(target_arch = "wasm32")]
 
-use rws_wasm_client::{hydrate, mount_csr, render_detail_page_html, render_list_page_html};
+use fandhe_frontend_wasm_client::{
+    hydrate, mount_csr, render_detail_page_html, render_list_page_html,
+};
 use wasm_bindgen_test::*;
 use web_sys::{Document, Element, Event, EventInit};
 
@@ -100,7 +102,7 @@ fn hydrate_does_not_rebuild_server_rendered_dom() {
     );
 }
 
-/// 観点 3: `data-hydrate="like"` 要素（`rws_app::detail_page` 実出力の
+/// 観点 3: `data-hydrate="like"` 要素（`fandhe_frontend_app::detail_page` 実出力の
 /// `#like-btn`）への合成 click イベント（`bubbles: true`）で `liked` クラスが
 /// トグルされ、2 回目のクリックで解除されること（ハンドラが 1 回だけ登録されて
 /// いる証跡）。
@@ -249,7 +251,7 @@ fn re_hydrate_preserves_click_state_and_fires_exactly_once() {
 /// `render_detail_page_html("2")` で描画し、実 DOM 上で `script` 要素が
 /// 生成されない（`query_selector("script")` が `None`）・タイトルがテキスト
 /// として表示されることを確認する。DOM への HTML 挿入は
-/// `render_detail_page_html`（`rws_core::render` 出力、既定エスケープ済み）
+/// `render_detail_page_html`（`fandhe_frontend_core::render` 出力、既定エスケープ済み）
 /// のみを経由し、`format!` による HTML 組み立て・`raw_html()` は使わない
 /// （`docs/api/hydration-api.md` 第 6 節不変条件 1・4）。
 #[wasm_bindgen_test]

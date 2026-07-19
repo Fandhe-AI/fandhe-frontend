@@ -22,12 +22,12 @@ TASK-11.2d・#77、TASK-11.4b・#83 でマージ済み）を直接経由する�
 （TASK-11.5a・#86 時点は `Runtime` 未実装のため近似計測だったが、TASK-11.5b・#87
 で差し替えを完了した）。
 
-- `initial_load`: `AppState::new()` → `rws_interactive::render_for_hydration()` →
-  `rws_core::render()`（既定エスケープ済み HTML）→ `set_inner_html`（サーバー側
-  責務相当・計測対象外）ののち、`rws_wasm_full::Runtime::hydrate` 呼び出し完了
+- `initial_load`: `AppState::new()` → `fandhe_frontend_interactive::render_for_hydration()` →
+  `fandhe_frontend_core::render()`（既定エスケープ済み HTML）→ `set_inner_html`（サーバー側
+  責務相当・計測対象外）ののち、`fandhe_frontend_wasm_full::Runtime::hydrate` 呼び出し完了
   までの経過時間を計測する（状態復元＋イベント配線という製品経路そのもの）。
   有界サンプル数（`INITIAL_LOAD_SAMPLES = 30`）で mean/p95/max を算出する
-- `dom_update`: `rws_wasm_full::Runtime::mount` 済み DOM の
+- `dom_update`: `fandhe_frontend_wasm_full::Runtime::mount` 済み DOM の
   `[data-testid='inc-btn']` へ合成 `click` イベント（`bubbles: true`）を発火し、
   その同期実行（イベント委譲 → `dispatch` → 条件付き `dom::paint`）を 1 操作として
   固定回数（`DOM_UPDATE_SAMPLES = 100`）計測する
@@ -126,7 +126,7 @@ Chrome/Chromium と対応する chromedriver がローカルに必要（バー�
 ## 8. セキュリティ考慮事項（OWASP Top 10 観点）
 
 - **A03 インジェクション/XSS（REQ-1）**: ハーネスは HTML 文字列を一切手組みしない。
-  `set_inner_html` へ渡すのは `rws_core::render()`（既定エスケープ）を経由した
+  `set_inner_html` へ渡すのは `fandhe_frontend_core::render()`（既定エスケープ）を経由した
   出力のみ（`wasm-full/src/dom.rs`・`docs/api/hydration-api.md` と同一の不変条件）。
   `raw_html()` は使用しない
 - **A04 安全でない設計**: 計測ループは固定サンプル数（`DOM_UPDATE_SAMPLES = 100`）
@@ -137,12 +137,12 @@ Chrome/Chromium と対応する chromedriver がローカルに必要（バー�
   外部入力補間を作らない。`submodules: false` でチェックアウト面を最小化
 - **A06/A08 脆弱な依存・サプライチェーン**: `wasm-bindgen-test` は Cargo.lock
   固定＋ `--locked` 実行の dev-dependency。追加パッケージの `build.rs` 有無は
-  `cargo run -p xtask -- list-build-scripts --package rws-wasm-full` で確認済み
+  `cargo run -p xtask -- list-build-scripts --package fandhe-frontend-wasm-full` で確認済み
   （dev 依存は同ツールの列挙対象外のため製品面の build.rs 保有数は不変）。
   wasm-pack はバージョン固定＋ SHA256 チェックサム検証、chromedriver は
   ランナー内蔵バイナリ明示指定（実行時自動ダウンロード封止）。第三者製 action の
   新規追加なし
 - **依存グラフ上限（REQ-3）**: 追加は dev-dependency であり標準サーバー構成の
   60 件/深さ 6 に影響しない（`cargo run -p xtask -- check-deps --package
-  rws-core` の結果が不変であることを実装時に確認済み）
+  fandhe-frontend-core` の結果が不変であることを実装時に確認済み）
 - **秘密情報**: 計測ハーネス・CI・本ドキュメントにクレデンシャルを含めない

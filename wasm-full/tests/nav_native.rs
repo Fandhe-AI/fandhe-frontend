@@ -1,4 +1,4 @@
-//! `rws_wasm_full::nav`（クライアント側ルーティング・イシュー #374）の
+//! `fandhe_frontend_wasm_full::nav`（クライアント側ルーティング・イシュー #374）の
 //! native テスト。
 //!
 //! `nav` モジュールの純粋層（[`ClientRoute`]/`resolve_path`/
@@ -21,9 +21,9 @@
 //!    純粋層のため、配線層の実ブラウザ検証は `wasm-full/tests/nav_browser.rs`
 //!    が別途担う）
 
-use rws_app::{demo_items, DemoItemDetailLoader, DemoItemsLoader, Item, Loader};
-use rws_core::render;
-use rws_wasm_full::nav::{
+use fandhe_frontend_app::{demo_items, DemoItemDetailLoader, DemoItemsLoader, Item, Loader};
+use fandhe_frontend_core::render;
+use fandhe_frontend_wasm_full::nav::{
     decode_scroll_state, encode_scroll_state, resolve_path, resolve_route_view_with, ClientRoute,
 };
 
@@ -86,7 +86,7 @@ fn resolve_route_view_with_list_matches_direct_call_and_title() {
     let (title, node) =
         resolve_route_view_with(&DemoItemsLoader, &DemoItemDetailLoader, &ClientRoute::List);
     assert_eq!(title, "記事一覧");
-    let direct = render(&rws_app::list_page(&demo_items()));
+    let direct = render(&fandhe_frontend_app::list_page(&demo_items()));
     assert_eq!(render(&node), direct);
 }
 
@@ -101,7 +101,7 @@ fn resolve_route_view_with_detail_matches_direct_call_for_known_id() {
     );
     assert_eq!(title, "記事詳細");
     let expected_item = demo_items().into_iter().find(|it| it.id == "1");
-    let direct = render(&rws_app::detail_page(expected_item.as_ref()));
+    let direct = render(&fandhe_frontend_app::detail_page(expected_item.as_ref()));
     assert_eq!(render(&node), direct);
 }
 
@@ -117,7 +117,7 @@ fn resolve_route_view_with_detail_matches_direct_call_for_unknown_id() {
         &ClientRoute::Detail("does-not-exist".to_string()),
     );
     assert_eq!(title, "記事詳細");
-    let direct = render(&rws_app::detail_page(None));
+    let direct = render(&fandhe_frontend_app::detail_page(None));
     assert_eq!(render(&node), direct);
 }
 
@@ -168,7 +168,7 @@ impl Loader for FailingDetailLoader {
 }
 
 /// 検証 3: loader 失敗時も機微情報風文字列は出力へ混入せず、
-/// `rws_wasm_full::csr::loader_error_view` の render 結果へ収束する。
+/// `fandhe_frontend_wasm_full::csr::loader_error_view` の render 結果へ収束する。
 /// タイトルはルート由来（"記事一覧"）のまま変わらない（`resolve_route_view_with`
 /// は `Ok`/`Err` に関わらずタイトルをルートから決定する契約、`Loader::Error`
 /// 型自体の相違を吸収するため一覧・詳細は個別の失敗 loader 型を要する）。
@@ -181,7 +181,7 @@ fn resolve_route_view_with_list_converges_to_fixed_error_view_without_leaking_er
     );
     assert_eq!(title, "記事一覧");
     let html = render(&node);
-    let expected = render(&rws_wasm_full::csr::loader_error_view());
+    let expected = render(&fandhe_frontend_wasm_full::csr::loader_error_view());
     assert_eq!(html, expected);
     assert!(
         !html.contains("secret://db-password@internal-host"),
@@ -199,7 +199,7 @@ fn resolve_route_view_with_detail_converges_to_fixed_error_view_without_leaking_
     );
     assert_eq!(title, "記事詳細");
     let html = render(&node);
-    let expected = render(&rws_wasm_full::csr::loader_error_view());
+    let expected = render(&fandhe_frontend_wasm_full::csr::loader_error_view());
     assert_eq!(html, expected);
     assert!(
         !html.contains("secret://db-password@internal-host"),
@@ -210,9 +210,9 @@ fn resolve_route_view_with_detail_converges_to_fixed_error_view_without_leaking_
 /// イシュー #403: 遷移先（Detail ルート）の解決結果ノードが
 /// `data-hydrate="like"` を持つことを純粋層で固定する。`nav::wiring::render_route`
 /// （wasm32 配線層、ブラウザテストは `nav_browser.rs` が担当）が
-/// `rws_wasm_client::wire_hydrate_targets` で再配線する対象が実際に
-/// 存在することの契約テスト（`rws_core::find_attr_values` で
-/// `rws-wasm-client::HYDRATE_ATTR` と同一の属性名契約を検証する）。
+/// `fandhe_frontend_wasm_client::wire_hydrate_targets` で再配線する対象が実際に
+/// 存在することの契約テスト（`fandhe_frontend_core::find_attr_values` で
+/// `fandhe-frontend-wasm-client::HYDRATE_ATTR` と同一の属性名契約を検証する）。
 #[test]
 fn resolve_route_view_with_detail_node_has_hydrate_target() {
     let (_, node) = resolve_route_view_with(
@@ -220,10 +220,11 @@ fn resolve_route_view_with_detail_node_has_hydrate_target() {
         &DemoItemDetailLoader,
         &ClientRoute::Detail("1".to_string()),
     );
-    let values = rws_core::find_attr_values(&node, rws_wasm_client::HYDRATE_ATTR);
+    let values =
+        fandhe_frontend_core::find_attr_values(&node, fandhe_frontend_wasm_client::HYDRATE_ATTR);
     assert_eq!(
         values,
-        vec![rws_wasm_client::LIKE_HYDRATE_VALUE.to_string()],
+        vec![fandhe_frontend_wasm_client::LIKE_HYDRATE_VALUE.to_string()],
         "Detail ルートの解決結果ノードは data-hydrate=\"like\" を含むこと（再配線対象の存在契約）"
     );
 }
@@ -257,9 +258,9 @@ fn decode_scroll_state_rejects_values_without_the_fixed_prefix() {
 /// （`Window::scroll_to_with_x_and_y` へ渡してよい値の範囲を構造的に限定する）。
 #[test]
 fn decode_scroll_state_rejects_non_numeric_non_finite_and_negative_values() {
-    assert_eq!(decode_scroll_state("rws-scroll:a,b"), None);
-    assert_eq!(decode_scroll_state("rws-scroll:NaN,0"), None);
-    assert_eq!(decode_scroll_state("rws-scroll:0,-5"), None);
+    assert_eq!(decode_scroll_state("fandhe-frontend-scroll:a,b"), None);
+    assert_eq!(decode_scroll_state("fandhe-frontend-scroll:NaN,0"), None);
+    assert_eq!(decode_scroll_state("fandhe-frontend-scroll:0,-5"), None);
 }
 
 /// history state が XSS ペイロード風文字列で改ざんされていても、復号は必ず
@@ -269,7 +270,7 @@ fn decode_scroll_state_rejects_non_numeric_non_finite_and_negative_values() {
 #[test]
 fn decode_scroll_state_rejects_xss_payload_like_string() {
     assert_eq!(
-        decode_scroll_state("rws-scroll:<script>alert(1)</script>,0"),
+        decode_scroll_state("fandhe-frontend-scroll:<script>alert(1)</script>,0"),
         None
     );
 }

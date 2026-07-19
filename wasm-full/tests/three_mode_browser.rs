@@ -6,37 +6,37 @@
 //! `respond("/")` ≡ `page_shell("記事一覧", assemble_list_page(&DemoItemsLoader, &()))`
 //! というバイトレベルの等価性は `server/src/ssr.rs` の unit テスト・
 //! `server/tests/three_mode_integration.rs`（#348）が既に native で固定
-//! 済みである。本ファイルはその契約の連鎖を使い、rws-server を dev-dependency
+//! 済みである。本ファイルはその契約の連鎖を使い、fandhe-frontend-server を dev-dependency
 //! に加えず（server → wasm 方向の依存逆流を避ける、`structure.toml` の
 //! `allowed_dependents` 宣言にも反するため）、**SSR 相当の出力を
-//! `rws_app::page_shell` + `assemble_list_page`/`assemble_detail_page` の
-//! 直接合成で再現**し、CSR 側（[`rws_wasm_full::csr::resolve_list_node`]/
+//! `fandhe_frontend_app::page_shell` + `assemble_list_page`/`assemble_detail_page` の
+//! 直接合成で再現**し、CSR 側（[`fandhe_frontend_wasm_full::csr::resolve_list_node`]/
 //! [`resolve_detail_node`]）との実 DOM 上の表示整合を検証する
 //! （実装計画 §3 設計判断 3）。
 //!
 //! # 検証内容
 //!
 //! 1. 一覧・詳細（XSS ペイロード item 含む）の両方で、SSR 相当ボディと
-//!    CSR 出力を実 DOM へ展開したときの該当領域（`data-rws="root"` の
+//!    CSR 出力を実 DOM へ展開したときの該当領域（`data-fandhe-frontend="root"` の
 //!    `div#app-root`）シリアライズ結果が一致すること。detail ルートでは
 //!    XSS ペイロードが実 DOM 上でテキストとして保持され（要素化されない）
 //!    ことも合わせて固定する。
 //! 2. CSR 固定エラービュー: `Error` に機微情報風文字列を含む loader から
-//!    [`rws_wasm_full::csr::resolve_list_node`] を経由して実 DOM へ paint
+//!    [`fandhe_frontend_wasm_full::csr::resolve_list_node`] を経由して実 DOM へ paint
 //!    したのち、固定文言のみが表示され機微文字列が DOM に存在しないこと。
 //!
-//! フィクスチャの HTML はすべて `rws_core::render` 経由で生成し、`format!`
+//! フィクスチャの HTML はすべて `fandhe_frontend_core::render` 経由で生成し、`format!`
 //! 等による HTML 文字列直接組み立て・`raw_html()` は使用しない
 //! （`.claude/rules/coding-rust.md`）。
 
 #![cfg(target_arch = "wasm32")]
 
-use rws_app::{
+use fandhe_frontend_app::{
     assemble_detail_page, assemble_list_page, demo_items, page_shell, DemoItemDetailLoader,
     DemoItemsLoader, Item, Loader,
 };
-use rws_core::render;
-use rws_wasm_full::csr::{resolve_detail_node, resolve_list_node};
+use fandhe_frontend_core::render;
+use fandhe_frontend_wasm_full::csr::{resolve_detail_node, resolve_list_node};
 use wasm_bindgen_test::*;
 use web_sys::{Document, Element};
 
@@ -75,17 +75,17 @@ impl Drop for RemoveOnDrop {
 ///
 /// `page_shell` 出力（`<!DOCTYPE html>` を含む完全文書）を div へ
 /// `set_inner_html` するとブラウザが `html`/`head`/`body` を剥がすため、
-/// 文書全体ではなく該当領域（`div[data-rws="root"]`）の実 DOM シリアライズ
+/// 文書全体ではなく該当領域（`div[data-fandhe-frontend="root"]`）の実 DOM シリアライズ
 /// 同士で比較する（双方を同一のパース・シリアライズ経路に通すことで比較の
 /// 対称性を確保する、実装計画 §9 のリスク対策）。SSR 相当・CSR いずれも
 /// 同じ本ヘルパーを通す。
 fn paint_and_extract_app_root(placeholder: &Element, document: &Document, html: &str) -> String {
     placeholder.set_inner_html(html);
     let root = placeholder
-        .query_selector("[data-rws='root']")
+        .query_selector("[data-fandhe-frontend='root']")
         .expect("query_selector must not fail")
         .unwrap_or_else(|| {
-            // CSR 固定エラービュー（loader_error_view）は data-rws="root" を
+            // CSR 固定エラービュー（loader_error_view）は data-fandhe-frontend="root" を
             // 持たないため、この場合はプレースホルダ自身の内容を比較対象とする。
             placeholder.clone()
         });
@@ -95,7 +95,7 @@ fn paint_and_extract_app_root(placeholder: &Element, document: &Document, html: 
 
 /// 検証 1（一覧）: SSR 相当ボディ（`page_shell` + `assemble_list_page`）と
 /// CSR（`resolve_list_node`）を、それぞれ独立したプレースホルダへ実 DOM
-/// 展開し、`div[data-rws="root"]` のシリアライズ結果が一致することを確認する。
+/// 展開し、`div[data-fandhe-frontend="root"]` のシリアライズ結果が一致することを確認する。
 #[wasm_bindgen_test]
 fn ssr_equivalent_and_csr_render_identical_dom_for_list_page() {
     let window = web_sys::window().expect("window must exist");
@@ -109,7 +109,7 @@ fn ssr_equivalent_and_csr_render_identical_dom_for_list_page() {
     // SSR 相当: assemble_list_page(&DemoItemsLoader, &()) の Ok を
     // page_shell へ渡す。respond("/") とのバイトレベル等価性は #348 の
     // native テスト（server 側）が既に固定済みであるため、ここでは
-    // rws_app レベルの直接合成のみを行う（server への dev-dependency 追加なし）。
+    // fandhe_frontend_app レベルの直接合成のみを行う（server への dev-dependency 追加なし）。
     let ssr_body = assemble_list_page(&DemoItemsLoader, &()).expect("infallible loader");
     let ssr_html = page_shell("記事一覧", ssr_body);
     let ssr_serialized = paint_and_extract_app_root(&ssr_placeholder, &document, &ssr_html);

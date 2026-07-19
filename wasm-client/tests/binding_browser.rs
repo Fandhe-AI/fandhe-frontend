@@ -19,9 +19,9 @@
 
 #![cfg(target_arch = "wasm32")]
 
-use rws_core::{bind_attr_token, bind_class_token, bind_text, el, render, text};
-use rws_interactive::{dispatch, Component, DirtyTracked};
-use rws_wasm_client::{BindingSource, BindingTable, BoundValue};
+use fandhe_frontend_core::{bind_attr_token, bind_class_token, bind_text, el, render, text};
+use fandhe_frontend_interactive::{dispatch, Component, DirtyTracked};
+use fandhe_frontend_wasm_client::{BindingSource, BindingTable, BoundValue};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
@@ -31,8 +31,8 @@ wasm_bindgen_test_configure!(run_in_browser);
 
 // ---------------------------------------------------------------------
 // テストフィクスチャ: counter（テキスト束縛）・draft（テキスト束縛）・
-// liked（属性束縛 + class 束縛）を持つ最小コンポーネント。`rws_interactive`
-// の `Component`/`DirtyTracked` と `rws_wasm_client` の `BindingSource` を
+// liked（属性束縛 + class 束縛）を持つ最小コンポーネント。`fandhe_frontend_interactive`
+// の `Component`/`DirtyTracked` と `fandhe_frontend_wasm_client` の `BindingSource` を
 // すべて本テストクレート内のローカル型へ実装することで、orphan rule
 // （外部 trait × 外部 type の impl 禁止）を回避しつつ、#343 が消費側
 // （#345 の wasm-full 想定）に課す 3 trait 実装契約を実地で確認する。
@@ -99,7 +99,7 @@ impl Component for TestState {
         }
     }
 
-    fn view(&self) -> rws_core::Node {
+    fn view(&self) -> fandhe_frontend_core::Node {
         // 本テストでは view() 自体は使わない（BindingTable は SSR 出力済み
         // DOM を対象に走査・適用するため）。Component の型契約を満たす
         // ための最小実装。
@@ -153,9 +153,9 @@ fn create_container(document: &Document, id: &str) -> Element {
 }
 
 /// counter/draft のテキスト束縛・liked の属性 + class 束縛・非束縛ノードを
-/// 持つ SSR 出力相当のノード木を組み立てる（`rws_core::bind` ヘルパーの
+/// 持つ SSR 出力相当のノード木を組み立てる（`fandhe_frontend_core::bind` ヘルパーの
 /// 実利用、core が定める SSR 出力形式そのもの）。
-fn fixture_tree() -> rws_core::Node {
+fn fixture_tree() -> fandhe_frontend_core::Node {
     el(
         "div",
         vec![],
@@ -515,7 +515,7 @@ fn tampered_on_prefixed_attr_marker_is_rejected_and_produces_no_onclick_attribut
 /// `href` 属性へ束縛された field を危険スキーム（`javascript:`）に更新した
 /// とき、`set_attribute` を素通りさせず、既存の安全な `href` 属性値を
 /// `remove_attribute` で除去すること（`binding_dom.rs` の `apply_one` が
-/// `rws_core::is_safe_url` を経由する契約の実ブラウザ証跡。
+/// `fandhe_frontend_core::is_safe_url` を経由する契約の実ブラウザ証跡。
 /// `docs/policy/attribute-output-policy.md` 参照）。
 #[wasm_bindgen_test]
 fn dangerous_url_scheme_bound_to_href_removes_the_attribute() {
@@ -572,7 +572,7 @@ fn safe_url_bound_to_href_is_applied_normally() {
 
 /// `srcset` 属性へ束縛された field を「候補の一部に危険スキームを含む値」
 /// に更新したとき、`apply_one`（`binding_dom.rs`）が候補分割検証
-/// （`rws_core::is_safe_srcset`）を経由して既存の安全な `srcset` 属性値を
+/// （`fandhe_frontend_core::is_safe_srcset`）を経由して既存の安全な `srcset` 属性値を
 /// `remove_attribute` で除去すること。`srcset` は `URL_ATTRS`（単一 URL
 /// 属性の正リスト）に非該当のため、この検証が欠けていると危険スキームが
 /// そのまま実 DOM に書き込まれる（イシュー #373 レビュー指摘対応の

@@ -75,7 +75,7 @@ jobs:
     # PR #291 実 CI 実行（2 回）で判明した DooD（Docker-outside-of-Docker）対応:
     # 1 回目は `-p 127.0.0.1:3100:3100` によるホストループバック公開が
     # runner コンテナの 127.0.0.1 から到達できず即時失敗（curl: (7)）。
-    # 2 回目はその場しのぎの「rws-musl-smoke コンテナの bridge IP へ直接
+    # 2 回目はその場しのぎの「fandhe-frontend-musl-smoke コンテナの bridge IP へ直接
     # curl する」方式へ変更したが、bridge ネットワーク構成（Mac mini 上の
     # docker compose 構成では runner コンテナと新規コンテナが同一 bridge に
     # いるとは限らない）次第では到達不能のまま curl がハングし、
@@ -119,7 +119,7 @@ jobs:
         # x86_64-unknown-linux-musl 分岐（未検証だった側）を確実に実行させる。
         # レジストリ push・ログインは行わず、ジョブローカルタグのみを使う
         # （image-size.yml と同一の運用、security.md）。
-        run: docker build -t rws-dist-server:musl-smoke .
+        run: docker build -t fandhe-frontend-dist-server:musl-smoke .
 
       - name: Ensure file/binutils utilities are available (self-hosted minimal image)
         # PR #291 実 CI 実行で判明: self-hosted runner（コンテナ型、root 実行）の
@@ -152,7 +152,7 @@ jobs:
         # 単一バイナリの性質として動くことを裏付ける。
         run: |
           set -euo pipefail
-          container_id="$(docker create rws-dist-server:musl-smoke)"
+          container_id="$(docker create fandhe-frontend-dist-server:musl-smoke)"
           docker cp "${container_id}:/dist-server" ./dist-server-extracted
           docker rm "${container_id}" >/dev/null
           chmod +x ./dist-server-extracted
@@ -217,7 +217,7 @@ jobs:
         # 上記 "Resolve own container ID" の出力に応じて起動方式を切り替える
         # （image-size.yml と同一パターン）。コンテナ内部の待受ポートは
         # `RWS_BIND_ADDR` で 3103 に固定する（`--network container:` 方式では
-        # runner のネットワーク名前空間を image-size.yml の rws-ci コンテナ
+        # runner のネットワーク名前空間を image-size.yml の fandhe-frontend-ci コンテナ
         # （3100）・本ジョブの「Host direct startup smoke」（3101）と共有する
         # ため、既定の 3100 のままだと bind 競合し得るため明示的に分離する）。
         env:
@@ -225,11 +225,11 @@ jobs:
         run: |
           set -euo pipefail
           if [ -n "${RUNNER_CID}" ]; then
-            docker run -d --rm --name rws-musl-smoke --network "container:${RUNNER_CID}" \
-              -e RWS_BIND_ADDR=0.0.0.0:3103 rws-dist-server:musl-smoke
+            docker run -d --rm --name fandhe-frontend-musl-smoke --network "container:${RUNNER_CID}" \
+              -e RWS_BIND_ADDR=0.0.0.0:3103 fandhe-frontend-dist-server:musl-smoke
           else
-            docker run -d --rm --name rws-musl-smoke -p 127.0.0.1:3103:3103 \
-              -e RWS_BIND_ADDR=0.0.0.0:3103 rws-dist-server:musl-smoke
+            docker run -d --rm --name fandhe-frontend-musl-smoke -p 127.0.0.1:3103:3103 \
+              -e RWS_BIND_ADDR=0.0.0.0:3103 fandhe-frontend-dist-server:musl-smoke
           fi
           base_url="http://127.0.0.1:3103"
 
@@ -261,12 +261,12 @@ jobs:
           fi
 
           # 起動ログの固定文言は dist-server/src/main.rs の契約
-          # （`rws-dist-server: listening on {addr}` / `rws-dist-server:
+          # （`fandhe-frontend-dist-server: listening on {addr}` / `fandhe-frontend-dist-server:
           # assets={mode}`）に依存する。release ビルドでは active_mode() が
           # 常に AssetMode::Embedded を返すため assets=embedded 固定。ポートは
           # 上記 RWS_BIND_ADDR で 3103 に固定しているため、grep も追随させる
           # （他クレートとの契約、code-comment-style.md）。
-          docker logs rws-musl-smoke > /tmp/container.log 2>&1
+          docker logs fandhe-frontend-musl-smoke > /tmp/container.log 2>&1
           grep -q "listening on 0.0.0.0:3103" /tmp/container.log
           grep -q "assets=embedded" /tmp/container.log
 
@@ -275,7 +275,7 @@ jobs:
         # 起動スモークが途中で失敗しても、ランナー破棄前にコンテナを明示停止
         # し残置させない（image-size.yml のジョブローカル運用と同様、
         # レジストリ push なしでランナーの破棄とともに揮発させる方針を維持）。
-        run: docker stop rws-musl-smoke 2>/dev/null || true
+        run: docker stop fandhe-frontend-musl-smoke 2>/dev/null || true
 
       - name: Publish smoke summary
         # 固定文言の 1 行サマリのみを出力し、ランナー内部パス等の機微情報は

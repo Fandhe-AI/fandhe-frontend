@@ -30,7 +30,7 @@
 //! - 既存 CI `test` ジョブ（`cargo test --workspace --locked`、debug・
 //!   DevFilesystem）では本ファイルはコンパイル対象外（空テストバイナリ）
 //!   となり、偽陽性を生まない
-//! - `dist-server-embedded-mode` ジョブ（`cargo test -p rws-dist-server
+//! - `dist-server-embedded-mode` ジョブ（`cargo test -p fandhe-frontend-dist-server
 //!   --features force-embed --locked`、`.github/workflows/ci.yml`）では
 //!   本ファイルが実行され、Embedded モード = release と同一の配信経路が
 //!   実際に外部ファイル非依存であることを固定する
@@ -85,7 +85,7 @@ static ISOLATED_DIR_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::A
 fn create_isolated_binary() -> (IsolatedDirGuard, PathBuf) {
     let sequence = ISOLATED_DIR_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let unique = format!(
-        "rws-isolated-run-{}-{}-{}",
+        "fandhe-frontend-isolated-run-{}-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -208,10 +208,14 @@ fn isolated_wasm_assets_served() {
         .to_path_buf();
     let (_guard, port) = spawn_and_wait_for_port(&binary, Some(&cwd));
 
-    let js_response = send_http_request(port, "GET", "/static/wasm/rws_wasm_full.js");
+    let js_response = send_http_request(port, "GET", "/static/wasm/fandhe_frontend_wasm_full.js");
     assert_eq!(status_code(&js_response), 200);
 
-    let wasm_response = send_http_request_bytes(port, "GET", "/static/wasm/rws_wasm_full_bg.wasm");
+    let wasm_response = send_http_request_bytes(
+        port,
+        "GET",
+        "/static/wasm/fandhe_frontend_wasm_full_bg.wasm",
+    );
     assert_eq!(status_code_bytes(&wasm_response), 200);
     let body = response_body_bytes(&wasm_response);
     assert!(

@@ -43,29 +43,29 @@ fn run_xtask(args: &[&str]) -> std::process::Output {
 }
 
 #[test]
-fn check_core_deps_passes_for_real_workspace_and_reports_rws_core() {
+fn check_core_deps_passes_for_real_workspace_and_reports_fandhe_frontend_core() {
     let output = run_xtask(&["check-core-deps"]);
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     assert_eq!(
         output.status.code(),
         Some(0),
-        "rws-core は外部依存ゼロが不変条件（REQ-3 受け入れ基準 1）。stderr: {}",
+        "fandhe-frontend-core は外部依存ゼロが不変条件（REQ-3 受け入れ基準 1）。stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(
         stdout.lines().any(|line| {
             line.starts_with("core-deps-check: ")
-                && line.contains("package=rws-core")
+                && line.contains("package=fandhe-frontend-core")
                 && line.contains("result=PASS")
         }),
-        "rws-core の 1 行サマリ（result=PASS）が stdout に見つからない: {stdout}"
+        "fandhe-frontend-core の 1 行サマリ（result=PASS）が stdout に見つからない: {stdout}"
     );
 }
 
 #[test]
 fn check_core_deps_with_unknown_argument_exits_two() {
-    let output = run_xtask(&["check-core-deps", "--package", "rws-core"]);
+    let output = run_xtask(&["check-core-deps", "--package", "fandhe-frontend-core"]);
     assert_eq!(
         output.status.code(),
         Some(2),

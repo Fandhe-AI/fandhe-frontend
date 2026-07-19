@@ -17,11 +17,11 @@
 //! に対応する、実行時スキップではなくコンパイル時ゲートの選択）。
 #![cfg(wasm_assets_embedded)]
 
-use rws_dist_server::routes::route_request;
+use fandhe_frontend_dist_server::routes::route_request;
 
 #[test]
 fn wasm_bindgen_js_glue_is_served_with_javascript_content_type() {
-    let response = route_request("/static/wasm/rws_wasm_full.js");
+    let response = route_request("/static/wasm/fandhe_frontend_wasm_full.js");
     assert_eq!(response.status, 200);
     assert_eq!(response.content_type, "text/javascript; charset=utf-8");
     assert!(!response.body.is_empty());
@@ -29,7 +29,7 @@ fn wasm_bindgen_js_glue_is_served_with_javascript_content_type() {
 
 #[test]
 fn wasm_binary_is_served_with_wasm_content_type() {
-    let response = route_request("/static/wasm/rws_wasm_full_bg.wasm");
+    let response = route_request("/static/wasm/fandhe_frontend_wasm_full_bg.wasm");
     assert_eq!(response.status, 200);
     assert_eq!(response.content_type, "application/wasm");
     assert!(!response.body.is_empty());

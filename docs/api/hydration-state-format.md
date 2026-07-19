@@ -5,7 +5,7 @@
 本ドキュメントは REQ-11（`docs/spec/04-requirements.md` REQ-11 節）の受け入れ基準
 「サーバー Rust（状態保持・ハイドレーション属性出力）とクライアント WASM（属性から
 の状態復元・イベント配線のみ）の責務分界に基づく状態注入が、追加の JSON 等の依存
-なしに成立すること」を満たすため、`rws-wasm-full` のハイドレーション状態注入
+なしに成立すること」を満たすため、`fandhe-frontend-wasm-full` のハイドレーション状態注入
 フォーマット（DOM 属性エンコード方式）を**設計として確定**するための成果物です。
 
 `docs/spec/05-tasks.md` の親タスク TASK-11.4（#81）は 3 段階（イシュー階層）に
@@ -34,14 +34,14 @@
 **先行依存関係**: 本書は以下の凍結済み設計・実装のみに依存し、いずれも本書側では
 再定義しない。
 
-- `rws-interactive` の `Hydrate` トレイト・`HYDRATE_ATTR_PREFIX`・`HydrateError`・
+- `fandhe-frontend-interactive` の `Hydrate` トレイト・`HYDRATE_ATTR_PREFIX`・`HydrateError`・
   `codec::encode_list`/`decode_list`（`interactive/src/lib.rs`、マージ済み実装。
   `docs/api/interactive-api.md` 第 3〜4 節の凍結表と一致）
 - `render_for_hydration`（`interactive/src/lib.rs:287`、マージ済み実装）
-- `rws-wasm-full` クレートの現状（`wasm-full/src/lib.rs`・`events.rs`・`dom.rs`。
+- `fandhe-frontend-wasm-full` クレートの現状（`wasm-full/src/lib.rs`・`events.rs`・`dom.rs`。
   `hydration` モジュールは本書執筆時点で未作成・TASK-11.4 に予約済み、
   `docs/design/wasm-full-architecture.md` 第 3.1 節）
-- `rws-core` の属性エスケープ（`core/src/escape.rs:109-115`。`& < > " '` の 5 文字
+- `fandhe-frontend-core` の属性エスケープ（`core/src/escape.rs:109-115`。`& < > " '` の 5 文字
   のみを対象とし、U+001F 等の制御文字は素通しする）
 
 `Runtime<C>` / `Runtime::hydrate`（TASK-11.2d #77）は本書執筆時点で **未マージ・
@@ -58,7 +58,7 @@ C: Component + Hydrate`）のみを前提とする。本書の `hydration.rs` AP
 マップ等の複雑な状態への一般化は、本タスクのスコープ外であり Issue #163
 （`feat(wasm-full): ハイドレーション状態注入の複雑な状態（ネスト構造等）への
 一般化`、起票済み・backlog）へ引き継ぐ。本書が確定するフォーマットは、
-`rws-interactive::Hydrate` トレイトが既に一般化している「フィールド名 →
+`fandhe-frontend-interactive::Hydrate` トレイトが既に一般化している「フィールド名 →
 文字列値」の写像（`Vec<(String, String)>`）を **どう解釈・往復させるか** の
 規約であり、`Hydrate` トレイト自体（既に凍結済み）は変更しない。
 
@@ -66,7 +66,7 @@ C: Component + Hydrate`）のみを前提とする。本書の `hydration.rs` AP
 
 ### 3.1 属性命名規約
 
-- プレフィックスは `rws_interactive::HYDRATE_ATTR_PREFIX`（`"data-hydrate-"`）を
+- プレフィックスは `fandhe_frontend_interactive::HYDRATE_ATTR_PREFIX`（`"data-hydrate-"`）を
   単一の真実とし、`wasm-full` 側では再定義・ハードコードしない。
 - 属性全体の形は `data-hydrate-<field>` とする。`<field>` は ASCII 小文字英数字
   とハイフンのみで構成する（HTML `data-*` 属性の命名規約に準拠し、大文字を含めない
@@ -80,8 +80,8 @@ C: Component + Hydrate`）のみを前提とする。本書の `hydration.rs` AP
 | 型 | 属性値の表現 | エンコード | デコード |
 |----|-------------|-----------|---------|
 | 数値（`i64` 相当） | 10 進文字列 | `i64::to_string()` | `str::parse::<i64>()`。パース失敗は `HydrateError::InvalidValue { attr, reason }` |
-| 文字列 | そのまま格納 | 変換不要 | 変換不要（HTML 属性としてのエスケープ／アンエスケープは `rws-core` の描画・DOM パース経路が担保し、本フォーマット層では関与しない） |
-| 文字列配列（`Vec<String>`） | Unit Separator（`\u{1f}`）前置区切り＋バックスラッシュエスケープ済みの単一文字列 | `rws_interactive::codec::encode_list` | `rws_interactive::codec::decode_list` |
+| 文字列 | そのまま格納 | 変換不要 | 変換不要（HTML 属性としてのエスケープ／アンエスケープは `fandhe-frontend-core` の描画・DOM パース経路が担保し、本フォーマット層では関与しない） |
+| 文字列配列（`Vec<String>`） | Unit Separator（`\u{1f}`）前置区切り＋バックスラッシュエスケープ済みの単一文字列 | `fandhe_frontend_interactive::codec::encode_list` | `fandhe_frontend_interactive::codec::decode_list` |
 
 数値・文字列配列以外の型（真偽値・浮動小数点数・日時等）は本タスクのスコープ外
 とし、必要が生じた場合は `Hydrate` 実装側で文字列表現へ変換してから
@@ -91,7 +91,7 @@ C: Component + Hydrate`）のみを前提とする。本書の `hydration.rs` AP
 
 ### 3.3 codec エスケープ規約の再掲
 
-`rws_interactive::codec`（`interactive/src/lib.rs:171-`）を正とし、以下を
+`fandhe_frontend_interactive::codec`（`interactive/src/lib.rs:171-`）を正とし、以下を
 再掲・固定する（本書側での再実装・再定義は行わない）。
 
 - 項目区切り: 各項目の前に Unit Separator（`\u{1f}`）を前置する
@@ -102,12 +102,12 @@ C: Component + Hydrate`）のみを前提とする。本書の `hydration.rs` AP
   `escape_item`/`unescape_item`（`interactive/src/lib.rs:186-` / `:205-`）に
   従い `\` → `\\`、`\u{1f}` → `\u` へエスケープする。
 - ラウンドトリップ整合性（区切り文字・エスケープ文字混入時を含む）は
-  `rws-interactive` 側で保証済み（`docs/api/interactive-api.md` 第 6 節・不変条件 5）
+  `fandhe-frontend-interactive` 側で保証済み（`docs/api/interactive-api.md` 第 6 節・不変条件 5）
   であり、本書ではこの契約をそのまま利用する。
 
 ### 3.4 U+001F の HTML 属性内表現に関する設計判断
 
-`rws-core::escape_html`（`core/src/escape.rs:109-115`）は `& < > " '` の 5 文字
+`fandhe-frontend-core::escape_html`（`core/src/escape.rs:109-115`）は `& < > " '` の 5 文字
 のみを対象としており、Unit Separator（U+001F）を含む制御文字は素通しする。
 このため SSR/SSG が出力する `data-hydrate-*` 属性値には、文字列配列を含む
 フィールドについて U+001F がエスケープされずそのまま埋め込まれる。
@@ -118,10 +118,10 @@ C: Component + Hydrate`）のみを前提とする。本書の `hydration.rs` AP
 
 | # | 判断 | 根拠 |
 |---|------|------|
-| 1 | 属性命名は `data-hydrate-<field>`（`<field>` は ASCII 小文字英数字・ハイフンのみ）とし、`HYDRATE_ATTR_PREFIX` は `rws-interactive` 側の定数を単一の真実として再定義しない | `docs/api/interactive-api.md` 第 4 節・判断 3 の踏襲。属性名の生成主体（アプリ側 `Hydrate` 実装）と読み取り主体（`wasm-full`）が同一プレフィックスを共有する必要があり、複数箇所へのハードコードは規約の分岐（単一の真実の原則違反）を招く |
+| 1 | 属性命名は `data-hydrate-<field>`（`<field>` は ASCII 小文字英数字・ハイフンのみ）とし、`HYDRATE_ATTR_PREFIX` は `fandhe-frontend-interactive` 側の定数を単一の真実として再定義しない | `docs/api/interactive-api.md` 第 4 節・判断 3 の踏襲。属性名の生成主体（アプリ側 `Hydrate` 実装）と読み取り主体（`wasm-full`）が同一プレフィックスを共有する必要があり、複数箇所へのハードコードは規約の分岐（単一の真実の原則違反）を招く |
 | 2 | 数値は 10 進文字列（`i64`）、文字列はそのまま、文字列配列は既存 `codec` を利用する 3 種類のみをフォーマットの対象型とする | REQ-11 受け入れ基準・`docs/spec/04-requirements.md:205` の「単純な値（数値・文字列・文字列配列）のみ」制約を忠実に反映する。ネスト構造等の一般化は Issue #163 へ切り出し済みであり、本タスクでスコープを広げない |
 | 3 | 数値パース失敗は `HydrateError::InvalidValue` として扱い、`unwrap()`/`panic!` を使わない | `.claude/rules/coding-rust.md` のエラーハンドリング規約・`docs/api/interactive-api.md` 第 4 節・判断 4 の踏襲。`data-hydrate-*` 属性値は改ざんされうるクライアント入力であり、パース失敗時に panic すると DoS（クラッシュ）につながる |
-| 4 | 文字列配列のエンコードにおける Unit Separator（U+001F）の HTML 属性内表現は、`rws-core::escape_html` が制御文字を素通しする現行仕様のまま凍結する（数値文字参照へのエスケープ変更は行わない） | ブラウザの HTML パーサは属性値中の U+001F をそのまま保持し、`element.getAttribute()` で取得した文字列にも U+001F がそのまま含まれることを PoC-5 が実証済み（`docs/spec/03-poc/wasm-runtime-split/`）。この方式により復元側（`decode_list`）は追加のデコード処理なしに DOM から取得した属性値をそのまま渡せる。HTML validator 上は生の制御文字を含む属性値が警告対象となり得るが、実行時のブラウザ挙動には影響しない。将来 `rws-core` 側で属性値中の U+001F を数値文字参照（`&#31;`）として出力するよう変更した場合でも、ブラウザの属性値取得 API は参照をデコード済みの文字として返すため、本書が定める復元側（`decode_list`）の処理には影響しない。この独立性を設計上の安全弁として記録する |
+| 4 | 文字列配列のエンコードにおける Unit Separator（U+001F）の HTML 属性内表現は、`fandhe-frontend-core::escape_html` が制御文字を素通しする現行仕様のまま凍結する（数値文字参照へのエスケープ変更は行わない） | ブラウザの HTML パーサは属性値中の U+001F をそのまま保持し、`element.getAttribute()` で取得した文字列にも U+001F がそのまま含まれることを PoC-5 が実証済み（`docs/spec/03-poc/wasm-runtime-split/`）。この方式により復元側（`decode_list`）は追加のデコード処理なしに DOM から取得した属性値をそのまま渡せる。HTML validator 上は生の制御文字を含む属性値が警告対象となり得るが、実行時のブラウザ挙動には影響しない。将来 `fandhe-frontend-core` 側で属性値中の U+001F を数値文字参照（`&#31;`）として出力するよう変更した場合でも、ブラウザの属性値取得 API は参照をデコード済みの文字として返すため、本書が定める復元側（`decode_list`）の処理には影響しない。この独立性を設計上の安全弁として記録する |
 | 5 | 属性値は改ざんされうるクライアント入力として扱い、復元は `from_hydration_attrs` → `Result<_, HydrateError>` の経路のみを許容する。未知の `data-hydrate-*` 属性は無視する | `docs/api/interactive-api.md` 第 6 節・不変条件 3 の踏襲。DOM は攻撃者（ブラウザ拡張・DevTools・XSS 経由の別スクリプト等）が改変可能な信頼境界外の入力源であり、パース・復元処理は防御的に書く |
 | 6 | `HydrateError` 発生時は panic せず、初期状態での CSR 再描画へフォールバックする | `docs/design/wasm-full-architecture.md` 第 4 節・判断 5 の再掲・確定。本書はこのフォールバック方針をフォーマット層の不変条件としても明記し、`hydration.rs`（#83）の実装契約とする |
 | 7 | 巨大な属性値・リスト長の上限（DoS 耐性）は本タスクでは規定せず、TASK-11.4b（#83）の実装検討事項として引き継ぐ | `docs/api/interactive-api.md` 第 5 節・第 6 節・不変条件 8 の記録を継承する。放置せず引き継ぎ先を明示することで `.claude/rules/out-of-scope-tracking.md` の規約を満たす |
@@ -133,8 +133,8 @@ C: Component + Hydrate`）のみを前提とする。本書の `hydration.rs` AP
 
 | API | シグネチャ | 役割 |
 |-----|-----------|------|
-| `read_hydration_attrs` | `pub fn read_hydration_attrs(root: &web_sys::Element) -> Vec<(String, String)>`（本体は #83） | `root` 要素の属性一覧から `rws_interactive::HYDRATE_ATTR_PREFIX` で始まるものを列挙し `(属性名, 値)` の一覧として返す。`web_sys::Element::attributes()`（`NamedNodeMap`/`Attr`）に依存するため、当該 feature の実追加は #83 で行い、追加時に `cargo metadata` 実測（パッケージ数・依存グラフ深さ）を記録する義務を引き継ぐ（`docs/design/wasm-full-architecture.md` 第 2 節・第 7 節・不変条件 4 と同一運用） |
-| `restore_state` | `pub fn restore_state<C: rws_interactive::Hydrate>(attrs: &[(String, String)]) -> Result<C, rws_interactive::HydrateError>`（本体は #83） | DOM に依存しない純粋関数として設計し、ネイティブ単体テスト（`cargo test`、wasm32 ターゲット不要）から直接呼び出せるようにする。`C::from_hydration_attrs(attrs)` へそのまま委譲する薄いラッパーとして位置付け、フォーマット固有の追加ロジックを持たない |
+| `read_hydration_attrs` | `pub fn read_hydration_attrs(root: &web_sys::Element) -> Vec<(String, String)>`（本体は #83） | `root` 要素の属性一覧から `fandhe_frontend_interactive::HYDRATE_ATTR_PREFIX` で始まるものを列挙し `(属性名, 値)` の一覧として返す。`web_sys::Element::attributes()`（`NamedNodeMap`/`Attr`）に依存するため、当該 feature の実追加は #83 で行い、追加時に `cargo metadata` 実測（パッケージ数・依存グラフ深さ）を記録する義務を引き継ぐ（`docs/design/wasm-full-architecture.md` 第 2 節・第 7 節・不変条件 4 と同一運用） |
+| `restore_state` | `pub fn restore_state<C: fandhe_frontend_interactive::Hydrate>(attrs: &[(String, String)]) -> Result<C, fandhe_frontend_interactive::HydrateError>`（本体は #83） | DOM に依存しない純粋関数として設計し、ネイティブ単体テスト（`cargo test`、wasm32 ターゲット不要）から直接呼び出せるようにする。`C::from_hydration_attrs(attrs)` へそのまま委譲する薄いラッパーとして位置付け、フォーマット固有の追加ロジックを持たない |
 
 ### 5.1 `Runtime::hydrate` との結合方針
 
@@ -164,7 +164,7 @@ C: Component + Hydrate`）のみを前提とする。本書の `hydration.rs` AP
   （`\u{1f}`）の混入・エスケープ不整合・未知の `data-hydrate-*` 属性・属性欠落
   の各ケースで、`HydrateError` を返し panic しないこと。
 - **XSS 回帰**: 属性値に `"` `<` `>` 等を含む状態を `render_for_hydration` で
-  SSR 出力し、属性境界を破らず正しくエスケープされること（`rws-core` の属性
+  SSR 出力し、属性境界を破らず正しくエスケープされること（`fandhe-frontend-core` の属性
   エスケープ経路がそのまま機能することの確認。フォーマット層の変更が既存
   エスケープ保証を弱めないことの回帰確認）。
 - **実ブラウザ検証**: `wasm-pack test --headless` により `read_hydration_attrs`
@@ -191,7 +191,7 @@ C: Component + Hydrate`）のみを前提とする。本書の `hydration.rs` AP
 不変条件を追加する。
 
 1. **既定エスケープの一貫性（REQ-1）**: `data-hydrate-*` 属性の出力は
-   `render_for_hydration` を経由し `rws_core::render()` の既定エスケープを必ず
+   `render_for_hydration` を経由し `fandhe_frontend_core::render()` の既定エスケープを必ず
    通す。本フォーマット設計は新たなエスケープ迂回経路（`raw_html()` の使用・
    HTML 文字列直接組み立て）を作らない。
 2. **改ざん耐性（A08 相当）**: `data-hydrate-*` は信頼できないクライアント入力
@@ -225,7 +225,7 @@ C: Component + Hydrate`）のみを前提とする。本書の `hydration.rs` AP
 |--------------------|----------------|-----------|
 | サーバー Rust（状態保持・ハイドレーション属性出力）とクライアント WASM（属性からの状態復元・イベント配線のみ）の責務分界に基づく状態注入が、追加の JSON 等の依存なしに成立すること | 数値・文字列・文字列配列の 3 種類のみを対象とするフォーマット規約（第 3 節）＋既存 `codec`（JSON 等の追加依存なし、第 3.3 節）＋`read_hydration_attrs`/`restore_state` の DOM 非依存設計（第 5 節） | TASK-11.4b（#83） |
 | クライアント WASM のイベント処理・DOM 更新を経由した出力にも同一のエスケープ保証が及ぶこと（REQ-1 関連） | `data-hydrate-*` 出力は `render_for_hydration` の既定エスケープ経路のみを通す不変条件（第 8 節・不変条件 1） | TASK-11.4b（#83）・TASK-11.4c（#84） |
-| WASM 完全方式でのイベント処理・DOM 操作が `unsafe` を使用せず safe Rust の範囲に収まること | `read_hydration_attrs`/`restore_state` は `rws-wasm-full` の `#![deny(unsafe_code)]` 方針（`docs/design/wasm-full-architecture.md` 第 2 節）の範囲内で実装する自作コード（`unsafe` は `wasm-bindgen` 生成コードに限定） | TASK-11.4b（#83） |
+| WASM 完全方式でのイベント処理・DOM 操作が `unsafe` を使用せず safe Rust の範囲に収まること | `read_hydration_attrs`/`restore_state` は `fandhe-frontend-wasm-full` の `#![deny(unsafe_code)]` 方針（`docs/design/wasm-full-architecture.md` 第 2 節）の範囲内で実装する自作コード（`unsafe` は `wasm-bindgen` 生成コードに限定） | TASK-11.4b（#83） |
 
 ## 10. 関連文書との整合確認
 

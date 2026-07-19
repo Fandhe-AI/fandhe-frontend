@@ -13,17 +13,17 @@
 //! # 計測シナリオ（製品経路、TASK-11.5b・#87 で確定）
 //!
 //! `Runtime::mount`/`Runtime::hydrate`（TASK-11.2d・#77、TASK-11.4b・#83）が
-//! マージ済みのため、本ハーネスは PoC-5 相当の近似ではなく `rws_wasm_full::Runtime`
+//! マージ済みのため、本ハーネスは PoC-5 相当の近似ではなく `fandhe_frontend_wasm_full::Runtime`
 //! を直接経由する製品経路を計測する（`docs/design/wasm-full-architecture.md` 第 3.2 節）。
 //!
-//! - `initial_load`: SSR 済み HTML（[`rws_interactive::render_for_hydration`] →
-//!   [`rws_core::render`]、既定エスケープ済み）の `set_inner_html` 反映（サーバー
-//!   側責務相当・計測対象外）ののち、[`rws_wasm_full::Runtime::hydrate`] 呼び出し
+//! - `initial_load`: SSR 済み HTML（[`fandhe_frontend_interactive::render_for_hydration`] →
+//!   [`fandhe_frontend_core::render`]、既定エスケープ済み）の `set_inner_html` 反映（サーバー
+//!   側責務相当・計測対象外）ののち、[`fandhe_frontend_wasm_full::Runtime::hydrate`] 呼び出し
 //!   完了までの経過時間を計測する。これは状態復元・イベント配線という
 //!   クライアント側責務そのものであり、[`Runtime::hydrate`] 内部処理と一致する
 //!   （`wasm-full/src/lib.rs::Runtime::hydrate` 参照）。有界サンプル数
 //!   （[`INITIAL_LOAD_SAMPLES`]）で統計値（mean/p95/max）を算出する。
-//! - `dom_update`: [`rws_wasm_full::Runtime::mount`] 済み DOM の
+//! - `dom_update`: [`fandhe_frontend_wasm_full::Runtime::mount`] 済み DOM の
 //!   `[data-testid='inc-btn']` へ合成 `click` イベント（`bubbles: true`）を
 //!   発火し、その同期実行（イベント委譲 → `dispatch` → 条件付き `dom::paint`）の
 //!   所要時間を 1 操作として計測する（`tests/runtime_browser.rs` の合成イベント
@@ -31,10 +31,10 @@
 //!
 //! # 不変条件（REQ-1、`docs/design/wasm-full-architecture.md` 第 7 節・不変条件 1 継承）
 //!
-//! `set_inner_html` へ渡す文字列は [`rws_core::render`] の既定エスケープ済み
+//! `set_inner_html` へ渡す文字列は [`fandhe_frontend_core::render`] の既定エスケープ済み
 //! 出力のみとする（`Runtime::mount`/`hydrate` 内部の `dom::paint` が担保）。
 //! 本ハーネス自身も `format!` 等による HTML 文字列直接組み立て・
-//! `rws_core::raw_html()` の呼び出しは一切行わない。
+//! `fandhe_frontend_core::raw_html()` の呼び出しは一切行わない。
 //!
 //! # 出力契約（機械可読 1 行サマリ）
 //!
@@ -60,8 +60,8 @@
 
 #![cfg(target_arch = "wasm32")]
 
-use rws_interactive::AppState;
-use rws_wasm_full::Runtime;
+use fandhe_frontend_interactive::AppState;
+use fandhe_frontend_wasm_full::Runtime;
 use wasm_bindgen_test::*;
 use web_sys::{Document, Element, Event, EventInit};
 
@@ -235,7 +235,7 @@ fn bubbling_click_event() -> Event {
 /// 完了までの経過時間（ミリ秒）を計測する。
 ///
 /// `wrapper_id` は呼び出しごとに一意な値を渡すこと。[`Runtime::hydrate`] が
-/// 読み取る `root_id`（`"interactive-root"`、[`rws_interactive::AppState::view`]
+/// 読み取る `root_id`（`"interactive-root"`、[`fandhe_frontend_interactive::AppState::view`]
 /// 固定値）は SSR 出力のルート要素自身が持つため、サンプル間で前回の
 /// `wrapper` を除去してから次サンプルを実行しないと
 /// `document.get_element_by_id("interactive-root")` が過去サンプルの残留要素に
@@ -249,10 +249,11 @@ fn run_initial_load(document: &Document, wrapper_id: &str) -> f64 {
 
     // サーバー側責務相当（計測対象外）: ハイドレーション属性付き Node を
     // 既定エスケープ済み HTML 文字列へ描画し、SSR 済みページの初期 DOM として
-    // 反映する（`rws_interactive::render_for_hydration` → `rws_core::render`。
-    // REQ-1 契約は `rws-interactive`/`rws-core` 側で担保済み、`raw_html()` は
+    // 反映する（`fandhe_frontend_interactive::render_for_hydration` → `fandhe_frontend_core::render`。
+    // REQ-1 契約は `fandhe-frontend-interactive`/`fandhe-frontend-core` 側で担保済み、`raw_html()` は
     // 使用しない）。
-    let html = rws_core::render(&rws_interactive::render_for_hydration(&state));
+    let html =
+        fandhe_frontend_core::render(&fandhe_frontend_interactive::render_for_hydration(&state));
     let wrapper = create_scenario_container(document, wrapper_id);
     // 以降で panic しても関数を抜ける際に `wrapper` を確実に除去する
     // （成功パスのみの `remove()` 呼び出しでは `expect` の panic をすり抜けて

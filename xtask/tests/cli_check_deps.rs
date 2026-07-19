@@ -44,13 +44,13 @@ fn run_xtask(args: &[&str]) -> std::process::Output {
 
 #[test]
 fn check_deps_single_package_within_limits_exits_zero_with_summary_line() {
-    let output = run_xtask(&["check-deps", "--package", "rws-core"]);
+    let output = run_xtask(&["check-deps", "--package", "fandhe-frontend-core"]);
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     assert_eq!(
         output.status.code(),
         Some(0),
-        "rws-core は REQ-3 上限内である想定。stderr: {}",
+        "fandhe-frontend-core は REQ-3 上限内である想定。stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(
@@ -63,13 +63,19 @@ fn check_deps_single_package_within_limits_exits_zero_with_summary_line() {
 
 #[test]
 fn check_deps_multiple_packages_emits_one_summary_line_per_package() {
-    let output = run_xtask(&["check-deps", "--package", "rws-core", "--package", "xtask"]);
+    let output = run_xtask(&[
+        "check-deps",
+        "--package",
+        "fandhe-frontend-core",
+        "--package",
+        "xtask",
+    ]);
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     assert_eq!(
         output.status.code(),
         Some(0),
-        "rws-core / xtask はいずれも REQ-3 上限内である想定。stderr: {}",
+        "fandhe-frontend-core / xtask はいずれも REQ-3 上限内である想定。stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
 

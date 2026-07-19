@@ -4,7 +4,7 @@
 //! 期待するエラーコード: E0599（no variant found for enum）。
 //! 本ファイルは cargo のテストターゲットには含まれない（README 参照）。
 
-use rws_core::Node;
+use fandhe_frontend_core::Node;
 
 pub fn case06() -> Node {
     Node::Raw("x".to_string())

@@ -9,7 +9,7 @@
 //! - 終了コード 1: ツール不在・バージョン不一致・ビルド失敗・bindgen 失敗・
 //!   node 実行失敗・エスケープ検証失敗のいずれか（fail-closed）
 //! - 終了コード 2: `--build-only` 以外の不明な引数
-//! - stdout 1 行サマリ: `wasm-node-smoke: package=rws-wasm-thin target=nodejs
+//! - stdout 1 行サマリ: `wasm-node-smoke: package=fandhe-frontend-wasm-thin target=nodejs
 //!   mode=<full|build-only> result=<PASS|FAIL>`（`grep '^wasm-node-smoke:'` で抽出可能）
 //!
 //! happy path のフル e2e（wasm32 ビルド + wasm-bindgen + node 実行が実際に

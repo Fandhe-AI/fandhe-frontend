@@ -4,18 +4,18 @@
 //! （[`crate::keyed_diff::KeyedOp`]）を実 DOM（`web-sys`）へ適用する。
 //! `set_inner_html` / `insert_adjacent_html` / `raw_html` を**一切呼ばない**
 //! （`crate::binding_dom` と同じ不変条件 1・2・4）。挿入ノードは
-//! `rws_core::Node` 木から `create_element`/`set_text_content`/`append_child`
+//! `fandhe_frontend_core::Node` 木から `create_element`/`set_text_content`/`append_child`
 //! でプログラム的に構築し、移動は既存ノード参照を保持したまま
 //! `insert_before` のみで行う（既存 DOM ノードを再生成しないことが
 //! フォーカス・入力途中の値の保持に直結する、設計書 §5.3）。
 //!
-//! `rws_core::Node::RawHtml` 子は fail-closed で skip し、
+//! `fandhe_frontend_core::Node::RawHtml` 子は fail-closed で skip し、
 //! `web_sys::console` へ英語固定文言の警告を出す（本経路にエスケープ迂回を
 //! 組み込まない、設計書 §9 不変条件 4）。
 
 use crate::keyed_diff::{diff_keys, KeyedOp};
-use rws_core::keyed::KEY_ATTR;
-use rws_core::Node;
+use fandhe_frontend_core::keyed::KEY_ATTR;
+use fandhe_frontend_core::Node;
 use wasm_bindgen::JsCast;
 use web_sys::{Document, Element};
 
@@ -29,7 +29,7 @@ pub fn find_keyed_list_node<'a>(node: &'a Node, list_field: &str) -> Option<&'a 
     if let Node::Element { attrs, .. } = node {
         if attrs
             .iter()
-            .any(|(k, v)| k == rws_core::keyed::BIND_LIST_ATTR && v == list_field)
+            .any(|(k, v)| k == fandhe_frontend_core::keyed::BIND_LIST_ATTR && v == list_field)
         {
             return Some(node);
         }
@@ -57,7 +57,10 @@ pub fn find_list_element(
     root: &Element,
     field: &str,
 ) -> Result<Option<Element>, wasm_bindgen::JsValue> {
-    let selector = format!("[{}=\"{field}\"]", rws_core::keyed::BIND_LIST_ATTR);
+    let selector = format!(
+        "[{}=\"{field}\"]",
+        fandhe_frontend_core::keyed::BIND_LIST_ATTR
+    );
     root.query_selector(&selector)
         .map_err(|_| wasm_bindgen::JsValue::from_str("query_selector failed for keyed list"))
 }
@@ -123,12 +126,12 @@ fn nth_element_child(list_element: &Element, index: usize) -> Option<Element> {
     None
 }
 
-/// `rws_core::Node` から実 DOM 要素をプログラム的に構築する
+/// `fandhe_frontend_core::Node` から実 DOM 要素をプログラム的に構築する
 /// （`create_element`/`set_text_content`/`append_child` の再帰、
 /// `innerHTML`/`insert_adjacent_html` 不使用）。
 ///
 /// `Node::RawHtml` 子は fail-closed で skip し `console` へ警告する
-/// （不変条件 4）。属性名・タグ名は `rws_interactive::AppState::view()` 等
+/// （不変条件 4）。属性名・タグ名は `fandhe_frontend_interactive::AppState::view()` 等
 /// 呼び出し側の `&'static str`/コンパイル時に固定された文字列であることを
 /// 前提とするが、`set_attribute` 自体は DOM 標準 API であり `on*` 属性名を
 /// 渡した場合でも `setAttribute` はイベントハンドラを実行コード化しない
@@ -137,14 +140,14 @@ fn nth_element_child(list_element: &Element, index: usize) -> Option<Element> {
 /// ため breakout 系 XSS 経路にならない）。
 ///
 /// ただし URL スキーム経由の XSS（`href="javascript:..."` 等）は breakout を
-/// 伴わないため上記の理由では防げない。`render_into`（rws-core）・
+/// 伴わないため上記の理由では防げない。`render_into`（fandhe-frontend-core）・
 /// `binding_dom.rs` と同一の URL 検証（`srcset` のカンマ区切り候補分割検証
 /// を含む）・イベントハンドラ属性ブロックを本経路にも適用する
 /// （イシュー #373。`docs/policy/attribute-output-policy.md`）。
 ///
 /// [`apply_keyed_list`]（本モジュール内、keyed list 挿入）に加え、
-/// `rws-wasm-full` の遷移描画（`nav.rs`、イシュー #374）からも
-/// `rws_wasm_client::build_dom_node` として呼ばれる公開 API（`lib.rs` の
+/// `fandhe-frontend-wasm-full` の遷移描画（`nav.rs`、イシュー #374）からも
+/// `fandhe_frontend_wasm_client::build_dom_node` として呼ばれる公開 API（`lib.rs` の
 /// `pub use keyed_dom::build_dom_node` 経由）。挿入先で `RawHtml` を `None`
 /// として fail-closed に拒否する契約は呼び出し元を問わず不変（不変条件 4
 /// を遷移経路にも継承）。
@@ -158,11 +161,13 @@ pub fn build_dom_node(document: &Document, node: &Node) -> Option<web_sys::Node>
         } => {
             let element = document.create_element(tag).ok()?;
             for (name, value) in attrs {
-                if rws_core::is_event_handler_attr(name) {
+                if fandhe_frontend_core::is_event_handler_attr(name) {
                     // イベントハンドラ属性は一律出力しない（不変条件 9 と同一）。
                     continue;
                 }
-                if rws_core::is_url_attr(name) && !rws_core::is_safe_url(value) {
+                if fandhe_frontend_core::is_url_attr(name)
+                    && !fandhe_frontend_core::is_safe_url(value)
+                {
                     // 危険スキームの URL 属性は書き込まない（fail-closed）。
                     continue;
                 }
@@ -170,7 +175,9 @@ pub fn build_dom_node(document: &Document, node: &Node) -> Option<web_sys::Node>
                 // `is_url_attr` の対象外。`render_into`/`binding_dom.rs` と
                 // 同一の `is_safe_srcset` で候補分割検証する
                 // （イシュー #373 レビュー指摘対応）。
-                if name.eq_ignore_ascii_case("srcset") && !rws_core::is_safe_srcset(value) {
+                if name.eq_ignore_ascii_case("srcset")
+                    && !fandhe_frontend_core::is_safe_srcset(value)
+                {
                     continue;
                 }
                 let _ = element.set_attribute(name, value);
@@ -187,7 +194,7 @@ pub fn build_dom_node(document: &Document, node: &Node) -> Option<web_sys::Node>
             // 構造的に持たない（設計書 §9 不変条件 4）。内容は含めない
             // 固定英語文言でログのみ残す（不変条件 6）。
             web_sys::console::warn_1(
-                &"rws-wasm-client: keyed_dom skipped a RawHtml node (unsupported in keyed list insertion)".into(),
+                &"fandhe-frontend-wasm-client: keyed_dom skipped a RawHtml node (unsupported in keyed list insertion)".into(),
             );
             None
         }
@@ -252,7 +259,7 @@ pub fn apply_keyed_list(document: &Document, list_element: &Element, new_list_no
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rws_core::{el, keyed::keyed_list, li, text};
+    use fandhe_frontend_core::{el, keyed::keyed_list, li, text};
     use wasm_bindgen_test::*;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);

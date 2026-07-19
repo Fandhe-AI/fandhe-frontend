@@ -32,7 +32,7 @@
 
 ## 2. 現状と課題
 
-- `wasm-full/src/dom.rs` の `paint()` は `render_component_html()`（`rws_core::render`
+- `wasm-full/src/dom.rs` の `paint()` は `render_component_html()`（`fandhe_frontend_core::render`
   の出力）を `web_sys::Element::set_inner_html` へ**全置換**で渡す
   （`wasm-full/src/dom.rs:44`）。イベントごとに DOM 全体を文字列化 →
   ブラウザの HTML パーサで再パースする経路であり、フォーカス・入力途中の
@@ -47,8 +47,8 @@
   `set_text_content` / `class_list` に限定される（不変条件 3、
   `wasm-client/src/lib.rs:27-31`）。ただし対応するのは `data-hydrate="like"`
   という単一の具象実装のみであり、任意の `Component` へ一般化されていない。
-- 本書は `wasm-client` が既に守っている最小更新路線を、`rws-core` の
-  Node 木 API・`rws-interactive` の dirty tracking・`wasm-full` の適用層の
+- 本書は `wasm-client` が既に守っている最小更新路線を、`fandhe-frontend-core` の
+  Node 木 API・`fandhe-frontend-interactive` の dirty tracking・`wasm-full` の適用層の
   三層に一般化する設計を確定する。構造変化（リストの増減・並べ替え）
   だけは仮想 DOM 的な汎用 diff を採用せず、keyed list という**単一の
   専用経路**に限定する。
@@ -70,7 +70,7 @@
   形式である（新たな属性名パターンを核の検証ロジックへ追加する必要は
   ない）。
 - 属性**値**（`<field>` 名・`<attr>:<field>` の組）は既定エスケープ
-  （`rws_core::render` の属性値エスケープ）をそのまま経由して出力される。
+  （`fandhe_frontend_core::render` の属性値エスケープ）をそのまま経由して出力される。
   フィールド名は `&'static str` としてコンパイル時に固定される値であり
   （第 3.3 節）、実行時の外部入力から組み立てられることはない。
 - コロン `:` ・空白は区切り文字として予約する。フィールド名にコロン・
@@ -90,7 +90,7 @@
 - クライアント側は起動時（`hydrate()` 相当の初期化）に `data-bind-*` を
   持つ全ノードを 1 回だけ `query_selector_all` で走査し、
   `Vec<(&'static str, BindingTarget)>`（`field` → 束縛点リスト）の対応表を
-  構築してメモリ上に保持する。この走査パターンは `rws_core::find_attr_values`
+  構築してメモリ上に保持する。この走査パターンは `fandhe_frontend_core::find_attr_values`
   （`core/src/lib.rs:230`）・`wasm-client` が `data-nav` に対して行う走査と
   同一の考え方（属性値を手掛かりにした DOM 走査、HTML 再パースを伴わない）
   を踏襲する。
@@ -131,7 +131,7 @@
   合成を明示的な複数束縛版関数に分離することでこれを構造的に防ぐ。
 
 ```rust
-// rws-core: 束縛点マーキングのヘルパー群（core/src/bind.rs、#342 で追加）
+// fandhe-frontend-core: 束縛点マーキングのヘルパー群（core/src/bind.rs、#342 で追加）
 
 /// 束縛点マーカー属性名（#343 が走査する契約値。§3.1 で凍結）
 pub const BIND_TEXT_ATTR: &str = "data-bind-text";
@@ -202,7 +202,7 @@ DOM 変異は以下の 4 種別に限定し、これ以外の DOM 変異経路�
 `docs/api/interactive-api.md` 第 3 節で `Component::update` は
 `fn update(&mut self, action: Self::Action)`（戻り値なし）として**既に
 凍結済み**である。このシグネチャを変更すること（戻り値方式で変更
-フィールド集合を返す案）は凍結 API への破壊的変更となり、`rws-wasm-full`
+フィールド集合を返す案）は凍結 API への破壊的変更となり、`fandhe-frontend-wasm-full`
 （TASK-11.2、既に `Component` へ依存する実装）を巻き込む影響が大きい
 ため**採用しない**。
 
@@ -210,7 +210,7 @@ DOM 変異は以下の 4 種別に限定し、これ以外の DOM 変異経路�
 方式を採用する。
 
 ```rust
-// rws-interactive: dirty tracking API 形状案（#341 で追加）
+// fandhe-frontend-interactive: dirty tracking API 形状案（#341 で追加）
 pub trait DirtyTracked: Component {
     /// `update()` によって直前の呼び出しで変更されたフィールド名の集合。
     /// フィールド名は `&'static str`（第 3.3 節と同じ設計原理）。
@@ -259,7 +259,7 @@ dispatch（文字列 → Action、既存 #341 以前の経路） →
 「設計書を先に改訂してから実装する」手順）。
 
 ```rust
-// rws-core::keyed（#344 で追加。core/src/keyed.rs）
+// fandhe-frontend-core::keyed（#344 で追加。core/src/keyed.rs）
 pub const BIND_LIST_ATTR: &str = "data-bind-list";
 pub const KEY_ATTR: &str = "data-key";
 
@@ -332,7 +332,7 @@ pub fn keyed_list(
   第 2 節の課題に対応）。
 - SSR / SSG 出力一致保証: `keyed_list` は既存の `Node` 木 API の一部として
   実装するため、`render()` の出力は SSR・SSG・CSR 初回マウントで同一の
-  関数（`rws_core::render`）を経由し続ける。決定性は他の `Node` 種別と
+  関数（`fandhe_frontend_core::render`）を経由し続ける。決定性は他の `Node` 種別と
   同じ既存保証（`docs/design/wasm-full-architecture.md` 等の凍結表）を
   継承する。
 
@@ -361,7 +361,7 @@ pub fn keyed_list(
 `set_inner_html` 呼び出しは**撤去せず存置する**。ただし以下の条件で
 明示的な限定 API として文書化する。
 
-- `rws_core::render(component.view())` の出力（既定エスケープ済み HTML
+- `fandhe_frontend_core::render(component.view())` の出力（既定エスケープ済み HTML
   文字列）**のみ**を渡す用途に限定した内部関数（例:
   `mount_initial(root: &Element, html: &str)`）として切り出し、汎用の
   DOM 更新経路（第 4〜5 節）とは呼び出し元を分離する。
@@ -414,7 +414,7 @@ pub fn keyed_list(
 
 #### 6.4.3 keyed list の安定キー戦略と `remove_item` の id 化
 
-`rws_interactive::AppState` の動的リストは、当初 index をキーとする案が
+`fandhe_frontend_interactive::AppState` の動的リストは、当初 index をキーとする案が
 想定されたが、中間削除でキーがずれる（削除後、後続項目の index が
 1 つずつ繰り上がり、別項目のキーと衝突する）ため、`AppState` に
 `item_ids: Vec<u64>`（`items` と同じ長さ・順序で対応する安定キー）・
@@ -450,35 +450,35 @@ id（`u64`）へ変更する。keyed 更新では既存 DOM ノードの `data-p
 
 #### 6.4.4 keyed list の DOM 適用層は `wasm-client` に置く（2 層構成）
 
-`rws-wasm-client`（#343 で新設済み）に以下 2 モジュールを追加する。
+`fandhe-frontend-wasm-client`（#343 で新設済み）に以下 2 モジュールを追加する。
 
 - `wasm-client/src/keyed_diff.rs`（純粋層・native テスト可）: 「現在の
   DOM 上のキー列」と「新しい `Node` 木のキー列」の 2 つの文字列列から、
   最小の操作列（`KeyedOp::{Remove, Insert, Move}`）を計画する DOM 非依存
   関数 `diff_keys`。
 - `wasm-client/src/keyed_dom.rs`（`wasm32` 配線層）: 操作列を実 DOM へ
-  適用する `apply_keyed_list`。挿入ノードは `rws_core::Node` 木から
+  適用する `apply_keyed_list`。挿入ノードは `fandhe_frontend_core::Node` 木から
   `create_element`/`set_text_content`/`append_child` によりプログラム的に
   構築し、`innerHTML`/`insert_adjacent_html` を一切使わない。移動は
   既存ノード参照を保持したまま `insert_before` のみで行う（再生成しない
   ためフォーカス・入力途中の値が保持される）。`Node::RawHtml` 子は
   fail-closed で skip し、`console` へ英語固定文言の警告を出す。
 
-`wasm-full` は `rws-wasm-client` を workspace path 依存として追加し、
+`wasm-full` は `fandhe-frontend-wasm-client` を workspace path 依存として追加し、
 これらを rlib 経由で消費する（`structure.toml` の
 `[directories.wasm-client]`（新設）・`[directories.wasm-full].depends_on`
 へ追加）。外部クレートの追加はゼロ。
 
-**シンボル衝突への対応**: `rws-wasm-client` は独自の `#[wasm_bindgen] pub
+**シンボル衝突への対応**: `fandhe-frontend-wasm-client` は独自の `#[wasm_bindgen] pub
 fn hydrate`/`mount_csr`（REQ-6 最小ハイドレーション方式のデモ、#48）を
-既に公開しており、`rws-wasm-full` も独自に `#[wasm_bindgen] pub fn
+既に公開しており、`fandhe-frontend-wasm-full` も独自に `#[wasm_bindgen] pub fn
 hydrate`/`mount`（`entry.rs`）を公開する。両クレートを 1 つの wasm
 バイナリへ静的リンクすると、`wasm-bindgen` の "describe" シンボル
 （クレートで名前空間分離されない）が重複しリンクエラーになる。この衝突を
-避けるため、`rws-wasm-client` に `wasm-bindgen-exports` feature（既定
+避けるため、`fandhe-frontend-wasm-client` に `wasm-bindgen-exports` feature（既定
 on）を新設し、`wiring` モジュール（`hydrate`/`mount_csr` の
 `#[wasm_bindgen]` エクスポート）をこの feature でゲートする。
-`rws-wasm-full` は `default-features = false` で依存することでこの
+`fandhe-frontend-wasm-full` は `default-features = false` で依存することでこの
 feature を無効化し、シンボル衝突を構造的に回避する。本クレートを単体で
 利用する既存の呼び出し元（feature 既定 on）には影響しない。
 
@@ -603,7 +603,7 @@ keyed list の構造変化が発生した呼び出しに限り**対応表を再�
    いずれの経路にもエスケープ迂回オプトインを組み込まない。新たな
    エスケープ迂回経路を作らない（REQ-1、`.claude/rules/coding-rust.md`）。
 5. **束縛点属性・キー属性の値は既定エスケープ済み出力にのみ現れる**:
-   `data-bind-*`/`data-key` は `rws_core::render()` の属性値エスケープを
+   `data-bind-*`/`data-key` は `fandhe_frontend_core::render()` の属性値エスケープを
    経由して出力される。フィールド名は `&'static str`（第 3.3 節）に
    固定され、実行時の外部入力から構築されないため、属性名自体への
    注入面も存在しない。
@@ -691,7 +691,7 @@ Vec<BindingSpec>` の 2 関数を追加した。
 - 本命の回帰テストは `wasm-client/tests/binding_logic.rs` の
   `app_state_view_has_no_unresolved_bindings`
   （`AppState::new().view()` に対する整合性検証、native・
-  `cargo test -p rws-wasm-client` で実行）
+  `cargo test -p fandhe-frontend-wasm-client` で実行）
 
 ### 12.4 非採用とした代替とその根拠
 

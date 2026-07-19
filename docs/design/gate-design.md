@@ -80,7 +80,7 @@ REQ-1 の唯一の許容迂回経路である `raw_html()` の呼び出しを検
 コメント、`docs/design/raw-html-lint-design.md` に詳細な脅威モデル・方式比較を持つ）。
 
 1. **主防御（`lint` チェック）**: `cargo clippy` + workspace ルート
-   `clippy.toml` の `disallowed-methods` エントリ（`rws_core::raw_html`）。
+   `clippy.toml` の `disallowed-methods` エントリ（`fandhe_frontend_core::raw_html`）。
    コンパイラのパス解決（HIR）に基づくため、コメントでは偽装できない
    （リネームインポート・複数行呼び出しも検出、`raw_html_lint_e2e.rs` で
    実 clippy 起動による検証を持つ）。
@@ -126,7 +126,7 @@ REQ-1 の唯一の許容迂回経路である `raw_html()` の呼び出しを検
    `LineComment` / `BlockComment`（ネスト対応） / `Str` / `RawStr`）で走査し、
    各バイト位置がコード文脈か否かのマスクを構築する
 2. 出現位置がコード文脈であることに加え、直前バイトが識別子構成文字
-   （`[A-Za-z0-9_]`）でないこと（左境界チェック）を要求する。`rws_core::raw_html(`
+   （`[A-Za-z0-9_]`）でないこと（左境界チェック）を要求する。`fandhe_frontend_core::raw_html(`
    （直前 `:`）・`.raw_html(`（メソッド形）は直前バイトが識別子構成文字では
    ないため引き続き検出する
 
@@ -159,10 +159,10 @@ security.md A05: 保険層の偽陰性ゼロを優先し、偽陽性の残存は
 ### 2.3 `lint` チェックの起動前ガード（clippy ポリシー健全性）
 
 `lint` チェックは `cargo clippy` を起動する前に、workspace ルート
-`clippy.toml` に `disallowed-methods` の `rws_core::raw_html` エントリが
+`clippy.toml` に `disallowed-methods` の `fandhe_frontend_core::raw_html` エントリが
 存在するかをテキストで検証する（[`clippy_policy_is_configured`]）。判定は
 各行の `#` 以降（TOML コメント）を [`crate::toml::strip_comment`] で除去した
-うえで `disallowed-methods` と `rws_core::raw_html` の両文字列を含むかで行う
+うえで `disallowed-methods` と `fandhe_frontend_core::raw_html` の両文字列を含むかで行う
 （コメントアウトされたエントリを「設定済み」と誤判定しないための対策、
 PR #263 の Bugbot 指摘対応）。`clippy.toml` の欠落・エントリ欠落は `cargo
 clippy` を起動せず即座に `lint` チェックを failed とする（§3 の fail-closed
@@ -425,7 +425,7 @@ name/順序と PASS 経路・`render_report` の JSON ラウンドトリップ�
 追補、イシュー #410 で `is_asset_only_project` の判定境界（全 asset ロール／
 宣言クレート存在／非 asset ロール混在の 3 分岐）・静的専用モードでの
 `run_all_checks` 全 PASS かつ cargo 未起動・`default_escape_check` の非
-バイパスを追補）。本書執筆時点でこれら全テストは `cargo test -p rws-cli`・
+バイパスを追補）。本書執筆時点でこれら全テストは `cargo test -p fandhe-frontend-cli`・
 `cargo test --workspace` でグリーンであることを確認済み。
 
 TASK-13.3c（#141、`policy`/`test` チェックの実連携固定）の対応:
@@ -473,7 +473,7 @@ TASK-13.3c（#141、`policy`/`test` チェックの実連携固定）の対応:
 
 - `.github/workflows/ci.yml`（`gate-self-apply` ジョブ）: `RWS_WASM_BUILD=0`
   下で `tools/ci/ensure-gate-tools.sh` を前置したうえで
-  `cargo run -p rws-cli --locked -- gate --project .` を PR ごと・main push
+  `cargo run -p fandhe-frontend-cli --locked -- gate --project .` を PR ごと・main push
   ごとに実行し、`gate_result: "PASS"`（終了コード 0）を継続保証する。
   BLOCKED 時は JSON レポートの `checks[].output` 先頭の
   `"environment error: "`（§2.3a・`ENVIRONMENT_ERROR_PREFIX`）の有無で

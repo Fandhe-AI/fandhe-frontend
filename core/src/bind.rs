@@ -4,7 +4,7 @@
 //! 凍結する SSR 出力形式（`data-bind-text="<field>"` /
 //! `data-bind-attr="<attr>:<field>"` / `data-bind-class="<class>:<field>"`、
 //! 複数束縛は空白区切りトークン）を生成するための薄いヘルパー群。
-//! `rws-wasm-client`（#343）は起動時にこれらの属性を 1 回だけ走査し、
+//! `fandhe-frontend-wasm-client`（#343）は起動時にこれらの属性を 1 回だけ走査し、
 //! `field → DOM ノード` の束縛点対応表を構築する契約であり、本モジュールの
 //! 出力形式が #343 の入力契約そのものである。
 //!
@@ -46,7 +46,7 @@ pub const BIND_CLASS_ATTR: &str = "data-bind-class";
 /// # Examples
 ///
 /// ```
-/// use rws_core::bind_attr_token;
+/// use fandhe_frontend_core::bind_attr_token;
 ///
 /// assert_eq!(bind_attr_token("aria-pressed", "liked"), "aria-pressed:liked");
 /// ```
@@ -64,7 +64,7 @@ pub fn bind_attr_token(attr: &'static str, field: &'static str) -> String {
 /// # Examples
 ///
 /// ```
-/// use rws_core::bind_attr_tokens;
+/// use fandhe_frontend_core::bind_attr_tokens;
 ///
 /// assert_eq!(
 ///     bind_attr_tokens(&[("aria-pressed", "liked"), ("disabled", "busy")]),
@@ -86,7 +86,7 @@ pub fn bind_attr_tokens(bindings: &[(&'static str, &'static str)]) -> String {
 /// # Examples
 ///
 /// ```
-/// use rws_core::bind_class_token;
+/// use fandhe_frontend_core::bind_class_token;
 ///
 /// assert_eq!(bind_class_token("liked", "liked"), "liked:liked");
 /// ```
@@ -101,7 +101,7 @@ pub fn bind_class_token(class: &'static str, field: &'static str) -> String {
 /// # Examples
 ///
 /// ```
-/// use rws_core::bind_class_tokens;
+/// use fandhe_frontend_core::bind_class_tokens;
 ///
 /// assert_eq!(
 ///     bind_class_tokens(&[("liked", "liked"), ("busy", "loading")]),
@@ -132,7 +132,7 @@ pub fn bind_class_tokens(bindings: &[(&'static str, &'static str)]) -> String {
 /// # Examples
 ///
 /// ```
-/// use rws_core::{bind_text, render};
+/// use fandhe_frontend_core::{bind_text, render};
 ///
 /// let node = bind_text("span", vec![("class", "count")], "counter", "0");
 /// assert_eq!(

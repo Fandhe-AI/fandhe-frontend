@@ -67,15 +67,15 @@ jobs:
       # コンテナの内部 IP へ直接 curl するため通常は該当しないはずだが、
       # 念のため localhost 系をプロキシ除外しておく。
       NO_PROXY: "localhost,127.0.0.1,::1"
-      # イシュー #294（PR #306 CI 失敗）対応: 固定コンテナ名 "rws-ci" だと、
+      # イシュー #294（PR #306 CI 失敗）対応: 固定コンテナ名 "fandhe-frontend-ci" だと、
       # 同一 self-hosted runner 上での並行実行（別 PR / 別 run の同時実行、
       # または同一 run の rerun）でコンテナ名が衝突し、
-      # `docker run --name rws-ci` が
-      # `Conflict. The container name "/rws-ci" is already in use` で失敗する
+      # `docker run --name fandhe-frontend-ci` が
+      # `Conflict. The container name "/fandhe-frontend-ci" is already in use` で失敗する
       # （run 29641153252 の初回実行・rerun の双方で再現）。
       # run_id + run_attempt を組み込んで run 単位・rerun 単位に一意化し、
       # 衝突そのものを避ける（rerun でも run_attempt が変わるため別名になる）。
-      CONTAINER_NAME: "rws-ci-${{ github.run_id }}-${{ github.run_attempt }}"
+      CONTAINER_NAME: "fandhe-frontend-ci-${{ github.run_id }}-${{ github.run_attempt }}"
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（ci.yml と同一 SHA に固定）。
@@ -97,20 +97,20 @@ jobs:
       - name: Build docker image
         # push・レジストリログインは行わない。ジョブローカルのタグのみを使い、
         # 計測後は ubuntu-latest ランナーの破棄とともに揮発する。
-        run: docker build -t rws-dist-server:ci .
+        run: docker build -t fandhe-frontend-dist-server:ci .
 
       - name: "Resolve own container ID (DooD: --network container: attachment)"
         id: runner_cid
-        # PR #291 の 2 回目の実 CI 実行で判明: 前回の「rws-ci コンテナの bridge IP
-        # へ直接 curl する」方式は、runner コンテナと rws-ci コンテナが同一
+        # PR #291 の 2 回目の実 CI 実行で判明: 前回の「fandhe-frontend-ci コンテナの bridge IP
+        # へ直接 curl する」方式は、runner コンテナと fandhe-frontend-ci コンテナが同一
         # bridge ネットワーク上にいない構成（Mac mini 上の docker compose 構成
         # 等）では到達不能のまま curl がハングし、ジョブが timeout-minutes
         # いっぱいまで無応答になる形で失敗した（image-size: 30m19s）。
         #
         # ここでは bridge ネットワーク構成に依存しない標準的な DooD 対策として、
-        # rws-ci コンテナを `--network container:<この runner 自身のコンテナ ID>`
+        # fandhe-frontend-ci コンテナを `--network container:<この runner 自身のコンテナ ID>`
         # で起動し、runner コンテナと同一のネットワーク名前空間を共有させる。
-        # これにより runner から見た 127.0.0.1 がそのまま rws-ci コンテナの
+        # これにより runner から見た 127.0.0.1 がそのまま fandhe-frontend-ci コンテナの
         # リスニングポートに到達する（bridge 越しの IP 到達性を一切仮定しない）。
         #
         # HOSTNAME は Docker が既定でコンテナ ID（先頭 12 文字）に設定するが、
@@ -132,7 +132,7 @@ jobs:
         # その「別コンテナ」に誤ってヒットして false pass を返しうる。
         # GitHub Actions の式構文には算術演算子（+, %, *）が無いため、ここで
         # run_id/run_attempt から bash の算術評価でポートを決定的に算出し
-        # （20000-31999 のレンジ、rws-dist-server の `RWS_BIND_ADDR` 環境変数
+        # （20000-31999 のレンジ、fandhe-frontend-dist-server の `RWS_BIND_ADDR` 環境変数
         # で切り替え）、CONTAINER_NAME と同様に run 単位・rerun 単位でポート
         # も分離する。Linux の一時ポート（エフェメラルポート）範囲は既定で
         # 32768-60999 であり、そこと重なる値を割り当てると OS が偶然その番号を
@@ -173,7 +173,7 @@ jobs:
         # （DooD 対応、詳細は同ステップのコメント参照）。いずれの経路でも
         # base_url は 127.0.0.1 に固定できるため、以降のロジックは単純化される。
         #
-        # APP_PORT（イシュー #294 Bugbot 指摘1対応）: rws-dist-server の
+        # APP_PORT（イシュー #294 Bugbot 指摘1対応）: fandhe-frontend-dist-server の
         # `RWS_BIND_ADDR` 環境変数でリスニングポートを run 単位・rerun 単位の
         # 動的ポートに切り替える。固定 3100 のままだと、`--network container:`
         # 経由（runner 自身とネットワーク名前空間を共有）でもホスト公開経由でも、
@@ -193,12 +193,12 @@ jobs:
             docker run -d --name "${CONTAINER_NAME}" \
               --network "container:${RUNNER_CID}" \
               -e "RWS_BIND_ADDR=127.0.0.1:${APP_PORT}" \
-              rws-dist-server:ci
+              fandhe-frontend-dist-server:ci
           else
             docker run -d --name "${CONTAINER_NAME}" \
               -p "127.0.0.1:${APP_PORT}:${APP_PORT}" \
               -e "RWS_BIND_ADDR=0.0.0.0:${APP_PORT}" \
-              rws-dist-server:ci
+              fandhe-frontend-dist-server:ci
           fi
           base_url="http://127.0.0.1:${APP_PORT}"
 
@@ -219,14 +219,14 @@ jobs:
           # 上限 = 最大 60 秒程度で fail-closed に到達させる）。
           ready=0
           for _ in $(seq 1 30); do
-            if curl -fsS --max-time 2 -o "$discard" "${base_url}/static/wasm/rws_wasm_full.js"; then
+            if curl -fsS --max-time 2 -o "$discard" "${base_url}/static/wasm/fandhe_frontend_wasm_full.js"; then
               ready=1
               break
             fi
             sleep 1
           done
           if [ "$ready" -ne 1 ]; then
-            echo "::error::rws-dist-server:ci did not become ready within 30s" >&2
+            echo "::error::fandhe-frontend-dist-server:ci did not become ready within 30s" >&2
             docker logs "${CONTAINER_NAME}" || true
             docker rm -f "${CONTAINER_NAME}" || true
             exit 1
@@ -259,18 +259,18 @@ jobs:
             return 0
           }
 
-          js_status=$(curl_retry -s -o "$discard" -w '%{http_code}' ${base_url}/static/wasm/rws_wasm_full.js)
-          js_type=$(curl_retry -s -o "$discard" -w '%{content_type}' ${base_url}/static/wasm/rws_wasm_full.js)
+          js_status=$(curl_retry -s -o "$discard" -w '%{http_code}' ${base_url}/static/wasm/fandhe_frontend_wasm_full.js)
+          js_type=$(curl_retry -s -o "$discard" -w '%{content_type}' ${base_url}/static/wasm/fandhe_frontend_wasm_full.js)
           if [ "$js_status" != "200" ] || [ "${js_type#text/javascript}" = "$js_type" ]; then
-            echo "::error::rws_wasm_full.js: expected 200 text/javascript, got status=${js_status} content_type=${js_type}" >&2
+            echo "::error::fandhe_frontend_wasm_full.js: expected 200 text/javascript, got status=${js_status} content_type=${js_type}" >&2
             docker rm -f "${CONTAINER_NAME}" || true
             exit 1
           fi
 
-          wasm_status=$(curl_retry -s -o "$discard" -w '%{http_code}' ${base_url}/static/wasm/rws_wasm_full_bg.wasm)
-          wasm_type=$(curl_retry -s -o "$discard" -w '%{content_type}' ${base_url}/static/wasm/rws_wasm_full_bg.wasm)
+          wasm_status=$(curl_retry -s -o "$discard" -w '%{http_code}' ${base_url}/static/wasm/fandhe_frontend_wasm_full_bg.wasm)
+          wasm_type=$(curl_retry -s -o "$discard" -w '%{content_type}' ${base_url}/static/wasm/fandhe_frontend_wasm_full_bg.wasm)
           if [ "$wasm_status" != "200" ] || [ "$wasm_type" != "application/wasm" ]; then
-            echo "::error::rws_wasm_full_bg.wasm: expected 200 application/wasm, got status=${wasm_status} content_type=${wasm_type}" >&2
+            echo "::error::fandhe_frontend_wasm_full_bg.wasm: expected 200 application/wasm, got status=${wasm_status} content_type=${wasm_type}" >&2
             docker rm -f "${CONTAINER_NAME}" || true
             exit 1
           fi
@@ -281,7 +281,7 @@ jobs:
           trap 'rm -f "$discard" "$magic_file"' EXIT
           magic_ok=0
           for _ in 1 2 3; do
-            if curl -fsS --max-time 2 -o "$magic_file" ${base_url}/static/wasm/rws_wasm_full_bg.wasm; then
+            if curl -fsS --max-time 2 -o "$magic_file" ${base_url}/static/wasm/fandhe_frontend_wasm_full_bg.wasm; then
               magic_ok=1
               break
             fi
@@ -293,7 +293,7 @@ jobs:
             wasm_magic=""
           fi
           if [ "$wasm_magic" != "0061736d" ]; then
-            echo "::error::rws_wasm_full_bg.wasm: unexpected magic bytes ${wasm_magic} (expected \\0asm = 0061736d)" >&2
+            echo "::error::fandhe_frontend_wasm_full_bg.wasm: unexpected magic bytes ${wasm_magic} (expected \\0asm = 0061736d)" >&2
             docker rm -f "${CONTAINER_NAME}" || true
             exit 1
           fi
@@ -316,7 +316,7 @@ jobs:
         # みであるべきで、それ以外のファイルが1つでも見つかれば fail-closed。
         run: |
           set -euo pipefail
-          cid=$(docker create rws-dist-server:ci)
+          cid=$(docker create fandhe-frontend-dist-server:ci)
           contents=$(docker export "$cid" | tar -t)
           docker rm "$cid" >/dev/null
 
@@ -334,7 +334,7 @@ jobs:
         # --locked はこの外側の cargo run が Cargo.lock を書き換えないことを保証する。
         run: |
           set -o pipefail
-          cargo run --locked -p xtask -- check-image-size --image rws-dist-server:ci | tee image-size.log
+          cargo run --locked -p xtask -- check-image-size --image fandhe-frontend-dist-server:ci | tee image-size.log
 
       - name: Publish image-size summary
         if: always()
@@ -370,7 +370,7 @@ jobs:
             exit 1
           fi
 
-      - name: Cleanup rws-ci container (always)
+      - name: Cleanup fandhe-frontend-ci container (always)
         if: always()
         # イシュー #294 Bugbot 指摘2（Missing cleanup leaks containers）対応:
         # "Verify WASM assets are served" ステップ内の `docker rm -f` は
@@ -378,7 +378,7 @@ jobs:
         # されており、`cancel-in-progress`（本ワークフロー冒頭の
         # concurrency 設定）によるジョブキャンセルでステップ自体が中断
         # された場合はどちらの経路も通らず、コンテナが self-hosted runner
-        # 上に残置されたままになる（"rws-ci-*" の蓄積）。
+        # 上に残置されたままになる（"fandhe-frontend-ci-*" の蓄積）。
         # job レベルの最終ステップに `if: always()` を付けて確実にコンテナ
         # を削除する（GitHub Actions のキャンセル猶予時間内に限り実行される
         # ベストエフォートの安全網。前段の各ステップ内の即時 rm -f は

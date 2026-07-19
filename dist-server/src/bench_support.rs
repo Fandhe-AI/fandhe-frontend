@@ -6,7 +6,7 @@
 //!
 //! ベンチ本体（`benches/rebuild_latency.rs`）は `[[bench]] test = false` の
 //! ため `cargo test` では実行されない。しきい値判定・サマリ整形はここへ
-//! 分離し、`cargo test -p rws-dist-server` から直接ユニットテストで固定する
+//! 分離し、`cargo test -p fandhe-frontend-dist-server` から直接ユニットテストで固定する
 //! （`xtask::check_loc` の `format_loc_report` 契約テストと同型のパターン）。
 //!
 //! CI（`.github/workflows/ci.yml` の `rebuild-latency` ジョブ）は本モジュールが

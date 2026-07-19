@@ -13,7 +13,7 @@ REQ-8 が求める「JS 0 行での宣言的な遷移有効化」は、遷移の
 
 | 遷移の種類 | 有効化する機構 | 実装場所 | JS 行数 |
 |---|---|---|---|
-| クロスドキュメントナビゲーション（SSR/SSG のページ遷移） | `@view-transition { navigation: auto; }`（CSS at-rule） | `rws_app::page_shell()` / `templates/embed/embed.html` | 0 行 |
+| クロスドキュメントナビゲーション（SSR/SSG のページ遷移） | `@view-transition { navigation: auto; }`（CSS at-rule） | `fandhe_frontend_app::page_shell()` / `templates/embed/embed.html` | 0 行 |
 | 同一文書内（SPA 的）更新（非 WASM 埋め込み用） | `document.startViewTransition()` | `static/view-transitions.js` の `withViewTransition()` | 呼び出し側が明示的に利用 |
 | WASM（`wasm-full`）の SPA 内遷移（クライアント側ルーティング） | `document.startViewTransition()`（`nav.rs` のカスタム duck-typing extern バインディング経由） | `wasm-full/src/nav.rs`（`wiring::with_view_transition`、イシュー #404） | 0 行（利用者コード不要、`start_router` 起動のみで自動連携） |
 
@@ -62,9 +62,9 @@ View Transitions API の実験段階（Level 1 初期）で提案された構文
 「標準テンプレートへの既定同梱」という受け入れ基準は、本フレームワークが持つ
 2 種類の標準構成それぞれで満たしています。
 
-1. **フルスタック標準（SSR/SSG）**: `rws_app::page_shell()` が `<head>` 内に
+1. **フルスタック標準（SSR/SSG）**: `fandhe_frontend_app::page_shell()` が `<head>` 内に
    `<style>@view-transition { navigation: auto; }</style>` を出力します。
-   `page_shell()` は SSR（`rws_server::ssr::respond`）・SSG（`rws_server::ssg::generate`）
+   `page_shell()` は SSR（`fandhe_frontend_server::ssr::respond`）・SSG（`fandhe_frontend_server::ssg::generate`）
    の両方から分岐なく呼ばれる共通関数（REQ-6）であるため、全ルートに既定同梱されます。
    回帰は `server/tests/view_transitions.rs`（トップページ・全アイテム詳細ページ・
    404 ページ・SSG 全出力ファイルを対象）と `app/src/lib.rs` の単体テストで固定して

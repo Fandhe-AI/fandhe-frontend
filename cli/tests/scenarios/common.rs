@@ -100,7 +100,7 @@ fn main() {
 /// ├── structure.toml   ([directories.app], role = "component")
 /// ├── Cargo.toml       (virtual workspace, members = ["app"])
 /// ├── deny.toml        (templates/default/deny.toml と同ポリシーの最小版)
-/// ├── clippy.toml      (disallowed-methods: rws_core::raw_html)
+/// ├── clippy.toml      (disallowed-methods: fandhe_frontend_core::raw_html)
 /// └── app/
 ///     ├── Cargo.toml   (name = "scenario-fixture-app", 依存ゼロ)
 ///     └── src/main.rs  (main_rs_content)
@@ -181,12 +181,12 @@ unknown-git = "deny"
 
     // イシュー #157/#263（`gate.rs::clippy_policy_check`）: `lint` チェックは
     // `project_dir` 直下の `clippy.toml` に `disallowed-methods` の
-    // `rws_core::raw_html` エントリが存在することを fail-closed で前提とする
+    // `fandhe_frontend_core::raw_html` エントリが存在することを fail-closed で前提とする
     // （欠落時は cargo clippy を起動する前に `lint` を failed とする）。
     fs::write(
         dest.join("clippy.toml"),
         r#"disallowed-methods = [
-    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/policy/raw-html-review-gate.md 参照）" },
+    { path = "fandhe_frontend_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/policy/raw-html-review-gate.md 参照）" },
 ]
 "#,
     )
@@ -213,9 +213,9 @@ unknown-git = "deny"
 /// ベースライン内容。
 ///
 /// PoC-7 `target-project`（`docs/spec/03-poc/ai-self-maintenance/scenarios/
-/// bugfix-escape-regression/`）が実測した「`rws-core` 相当のレンダリングコア」
+/// bugfix-escape-regression/`）が実測した「`fandhe-frontend-core` 相当のレンダリングコア」
 /// を、依存ゼロ・ネイティブビルド可能な最小構成で再現する。`render`/`text`/
-/// `escape_html` の 3 点を、実際の `rws-core` の責務（ノード木 API・
+/// `escape_html` の 3 点を、実際の `fandhe-frontend-core` の責務（ノード木 API・
 /// render・既定エスケープ、`docs/policy/unsafe-boundary.md` の対象外＝安全な純 Rust）
 /// と同じ形で持つ。
 ///
@@ -223,11 +223,11 @@ unknown-git = "deny"
 /// [`bugfix_escape`](crate::bugfix_escape) シナリオがここへの置換で
 /// エスケープ回帰を再現する。
 pub fn scenario1_core_lib_rs() -> &'static str {
-    r#"//! シナリオ 1（TASK-13.4b, #145）フィクスチャ: `rws-core` 相当の最小
+    r#"//! シナリオ 1（TASK-13.4b, #145）フィクスチャ: `fandhe-frontend-core` 相当の最小
 //! レンダリングコア。ノード木 API（`text`/`render`）と既定エスケープ
 //! （REQ-1）である `escape_html` のみを持つ。
 //!
-//! `rws-app`（`app/`）・`rws-wasm-client`（`wasm-client/`）相当のフィクスチャ
+//! `fandhe-frontend-app`（`app/`）・`fandhe-frontend-wasm-client`（`wasm-client/`）相当のフィクスチャ
 //! クレートがここの `render`/`text` を呼び出す契約。`escape_html` の
 //! エスケープ漏れは `text_node_is_escaped_by_default` の失敗として顕在化する
 //! （`fw gate` の `test` チェックが検出、PoC-7 gate-before-fix.json 相当）。
@@ -244,7 +244,7 @@ pub fn text(s: &str) -> Node {
 
 /// 既定エスケープ（REQ-1）: `&` `<` `>` `"` `'` の 5 文字を HTML 実体参照へ
 /// 変換する。この関数の出力はエスケープ済みであることを呼び出し元
-/// （`render`、ひいては `rws-app`/`rws-wasm-client` 相当の各フィクスチャ）が
+/// （`render`、ひいては `fandhe-frontend-app`/`fandhe-frontend-wasm-client` 相当の各フィクスチャ）が
 /// 前提とする契約。
 pub fn escape_html(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
@@ -261,7 +261,7 @@ pub fn escape_html(input: &str) -> String {
     out
 }
 
-/// ノード木を HTML 文字列へレンダリングする。`rws-app`/`rws-wasm-client`
+/// ノード木を HTML 文字列へレンダリングする。`fandhe-frontend-app`/`fandhe-frontend-wasm-client`
 /// 相当のフィクスチャから呼ばれ、既定エスケープ済みの文字列を返す。
 pub fn render(node: &Node) -> String {
     match node {
@@ -301,7 +301,7 @@ pub const SINGLE_QUOTE_ESCAPE_ARM: &str = "'\\'' => out.push_str(\"&#x27;\"),";
 pub const SINGLE_QUOTE_ESCAPE_ARM_REGRESSED: &str = "'\\'' => out.push(c),";
 
 /// シナリオ 1 フィクスチャ専用の `core/src/url.rs`（イシュー #401、
-/// `url_validation_check` U2/U3 の充足専用）。`core/src/url.rs`（実 `rws-core`）
+/// `url_validation_check` U2/U3 の充足専用）。`core/src/url.rs`（実 `fandhe-frontend-core`）
 /// の `URL_ATTRS`（12 属性ピン）・ガード関数 4 種の定義・呼び出しを最小構成で
 /// 再現する。`lib.rs` から `mod url;` されないため実際のクレートには含まれず
 /// （[`write_scenario1_project`] のコメント参照）、シナリオ 1 の型・lint・
@@ -371,15 +371,15 @@ pub fn __gate_self_check(name: &str, value: &str) -> bool {
 }
 "#;
 
-/// シナリオ 1 用 `app/src/lib.rs`（`rws-app` 相当）。`rws-core` 相当の
+/// シナリオ 1 用 `app/src/lib.rs`（`fandhe-frontend-app` 相当）。`fandhe-frontend-core` 相当の
 /// `render`/`text` を呼び出す薄いコンポーネント層。`render` の使用箇所として
 /// `fw impact render` の `affected_files`/`affected_crates` に現れる契約。
 pub fn scenario1_app_lib_rs() -> &'static str {
-    r#"//! シナリオ 1（TASK-13.4b, #145）フィクスチャ: `rws-app` 相当の
-//! コンポーネント層。`rws-core` 相当クレート（`core/`）の `render`/`text` を
+    r#"//! シナリオ 1（TASK-13.4b, #145）フィクスチャ: `fandhe-frontend-app` 相当の
+//! コンポーネント層。`fandhe-frontend-core` 相当クレート（`core/`）の `render`/`text` を
 //! 呼び出し、一覧ページ相当の文字列を組み立てる。
 
-use rws_core::{render, text};
+use fandhe_frontend_core::{render, text};
 
 /// 一覧ページ相当のレンダリング関数。`render` の直接の呼び出し元。
 pub fn list_page(name: &str) -> String {
@@ -388,22 +388,22 @@ pub fn list_page(name: &str) -> String {
 "#
 }
 
-/// シナリオ 1 用 `wasm-client/src/lib.rs`（`rws-wasm-client` 相当）。
+/// シナリオ 1 用 `wasm-client/src/lib.rs`（`fandhe-frontend-wasm-client` 相当）。
 ///
 /// `cli/src/impact.rs::CLIENT_BOUNDARY_CRATES` に含まれるクレート名
-/// （`rws-wasm-client`）と完全一致させることで、`render` の変更が
+/// （`fandhe-frontend-wasm-client`）と完全一致させることで、`render` の変更が
 /// クライアント境界へ波及した場合の `breaking_risk: high` 判定
-/// （`judge_breaking_risk`）を再現する。実際の `rws-wasm-full`/`rws-wasm-thin`
+/// （`judge_breaking_risk`）を再現する。実際の `fandhe-frontend-wasm-full`/`fandhe-frontend-wasm-thin`
 /// と異なり `wasm-bindgen` は使わない純ネイティブ lib とし、`fw gate` が
 /// ネイティブ `cargo test`/`cargo check` で検証できるようにする
 /// （wasm32 ターゲットのクロスビルドは本シナリオのスコープ外）。
 pub fn scenario1_wasm_client_lib_rs() -> &'static str {
-    r#"//! シナリオ 1（TASK-13.4b, #145）フィクスチャ: `rws-wasm-client` 相当の
+    r#"//! シナリオ 1（TASK-13.4b, #145）フィクスチャ: `fandhe-frontend-wasm-client` 相当の
 //! クライアント境界層（ハイドレーション等の CSR 経路を模した薄い関数のみ）。
 //! `wasm-bindgen` は使わず純ネイティブ lib として構成する
 //! （`fw gate`/`fw impact` のネイティブ実行対象に含めるため）。
 
-use rws_core::{render, text};
+use fandhe_frontend_core::{render, text};
 
 /// ハイドレーション時にラベルを再描画する相当の関数。`render` の直接の
 /// 呼び出し元であり、`cli/src/impact.rs::CLIENT_BOUNDARY_CRATES` 判定の
@@ -422,10 +422,10 @@ pub fn hydrate_label(name: &str) -> String {
 /// ├── structure.toml   ([directories.core]/[directories.app]/[directories.wasm-client])
 /// ├── Cargo.toml       (virtual workspace, members = ["core", "app", "wasm-client"])
 /// ├── deny.toml        (write_scenario_project と同一ポリシーの最小版)
-/// ├── clippy.toml      (rws_core::raw_html の disallowed-methods エントリ)
-/// ├── core/            (name = "rws-core")
-/// ├── app/              (name = "rws-app", core へ path 依存)
-/// └── wasm-client/      (name = "rws-wasm-client", core へ path 依存)
+/// ├── clippy.toml      (fandhe_frontend_core::raw_html の disallowed-methods エントリ)
+/// ├── core/            (name = "fandhe-frontend-core")
+/// ├── app/              (name = "fandhe-frontend-app", core へ path 依存)
+/// └── wasm-client/      (name = "fandhe-frontend-wasm-client", core へ path 依存)
 /// ```
 ///
 /// `core_lib_rs` を呼び出し側から差し替え可能にすることで、ベースライン
@@ -465,19 +465,19 @@ version = 1
 
 [directories.core]
 role = "core"
-crate = "rws-core"
+crate = "fandhe-frontend-core"
 description = "TASK-13.4b scenario1 fixture: rendering core"
 allowed_dependents = ["app", "wasm-client"]
 
 [directories.app]
 role = "component"
-crate = "rws-app"
+crate = "fandhe-frontend-app"
 description = "TASK-13.4b scenario1 fixture: component layer"
 depends_on = ["core"]
 
 [directories.wasm-client]
 role = "client-entrypoint"
-crate = "rws-wasm-client"
+crate = "fandhe-frontend-wasm-client"
 description = "TASK-13.4b scenario1 fixture: client boundary layer"
 depends_on = ["core"]
 "#,
@@ -514,12 +514,12 @@ unknown-git = "deny"
     .expect("deny.toml の書き込みに失敗した");
 
     // `gate.rs::clippy_policy_check` は `project_dir` 直下の `clippy.toml` に
-    // `disallowed-methods` の `rws_core::raw_html` エントリが存在することを
+    // `disallowed-methods` の `fandhe_frontend_core::raw_html` エントリが存在することを
     // fail-closed で前提とする（`write_scenario_project` と同一内容）。
     fs::write(
         dest.join("clippy.toml"),
         r#"disallowed-methods = [
-    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/policy/raw-html-review-gate.md 参照）" },
+    { path = "fandhe_frontend_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/policy/raw-html-review-gate.md 参照）" },
 ]
 "#,
     )
@@ -527,7 +527,7 @@ unknown-git = "deny"
 
     fs::write(
         dest.join("core").join("Cargo.toml"),
-        "[package]\nname = \"rws-core\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n",
+        "[package]\nname = \"fandhe-frontend-core\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n",
     )
     .expect("core/Cargo.toml の書き込みに失敗した");
     fs::write(core_src.join("lib.rs"), core_lib_rs).expect("core/src/lib.rs の書き込みに失敗した");
@@ -537,7 +537,7 @@ unknown-git = "deny"
     // `URL_ATTRS` 定義・URL 検証ガード関数 4 種の定義/呼び出しが実在する
     // ことを要求する（U2/U3、fail-closed）。本シナリオ 1 フィクスチャは
     // イシュー #373 以前から存在するエスケープ回帰シナリオ専用の最小
-    // `rws-core` スタンドインであり、`core_lib_rs`（シングルクォート
+    // `fandhe-frontend-core` スタンドインであり、`core_lib_rs`（シングルクォート
     // エスケープの注入対象、[`SINGLE_QUOTE_ESCAPE_ARM`]）を汚染せずに
     // 新しい gate 不変条件を満たす必要がある。そのため `lib.rs` からは
     // `mod` 宣言しない独立ファイルとして `url.rs` を追加する: `mod` 宣言が
@@ -554,7 +554,7 @@ unknown-git = "deny"
 
     fs::write(
         dest.join("app").join("Cargo.toml"),
-        "[package]\nname = \"rws-app\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n\n[dependencies]\nrws-core = { path = \"../core\" }\n",
+        "[package]\nname = \"fandhe-frontend-app\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n\n[dependencies]\nfandhe-frontend-core = { path = \"../core\" }\n",
     )
     .expect("app/Cargo.toml の書き込みに失敗した");
     fs::write(app_src.join("lib.rs"), scenario1_app_lib_rs())
@@ -562,7 +562,7 @@ unknown-git = "deny"
 
     fs::write(
         dest.join("wasm-client").join("Cargo.toml"),
-        "[package]\nname = \"rws-wasm-client\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n\n[dependencies]\nrws-core = { path = \"../core\" }\n",
+        "[package]\nname = \"fandhe-frontend-wasm-client\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n\n[dependencies]\nfandhe-frontend-core = { path = \"../core\" }\n",
     )
     .expect("wasm-client/Cargo.toml の書き込みに失敗した");
     fs::write(
@@ -633,8 +633,8 @@ pub fn run_fw(subcommand: &str, extra_args: &[&str], project_dir: &Path) -> (i32
 
 /// `write_workspace_project` に渡す 1 crate 分のフィクスチャ内容。
 ///
-/// シナリオ 2（UI 改善、TASK-13.4c・#146）で複数クレート（`rws-app` /
-/// `rws-server` / `rws-wasm-client` 等）にまたがるワークスペースを組み立てる
+/// シナリオ 2（UI 改善、TASK-13.4c・#146）で複数クレート（`fandhe-frontend-app` /
+/// `fandhe-frontend-server` / `fandhe-frontend-wasm-client` 等）にまたがるワークスペースを組み立てる
 /// ために導入した汎用型。設計文書 §4.4「`common.rs` をシナリオ数だけ
 /// 分岐させない」方針に従い、シナリオ固有の特殊化を持ち込まず、ソース内容・
 /// クレート構成は呼び出し側（`scenario{1,2,3}_*.rs`）からパラメータとして
@@ -728,7 +728,7 @@ unknown-git = "deny"
     fs::write(
         dest.join("clippy.toml"),
         r#"disallowed-methods = [
-    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/policy/raw-html-review-gate.md 参照）" },
+    { path = "fandhe_frontend_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/policy/raw-html-review-gate.md 参照）" },
 ]
 "#,
     )
@@ -938,7 +938,7 @@ unknown-git = "deny"
     fs::write(
         dest.join("clippy.toml"),
         r#"disallowed-methods = [
-    { path = "rws_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/policy/raw-html-review-gate.md 参照）" },
+    { path = "fandhe_frontend_core::raw_html", reason = "REQ-1 の唯一のエスケープ迂回経路。レビュー済みの呼び出しには `#[expect(clippy::disallowed_methods, reason = \"ESCAPE-REVIEWED: <根拠>\")]` を呼び出し文へ直接付与すること（`#[allow(...)]` によるブランケット抑止は禁止、docs/policy/raw-html-review-gate.md 参照）" },
 ]
 "#,
     )

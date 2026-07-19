@@ -1,4 +1,4 @@
-//! `rws-cli` 内部専用の最小 JSON パーサ。
+//! `fandhe-frontend-cli` 内部専用の最小 JSON パーサ。
 //!
 //! [`crate::metadata`] が `cargo metadata --format-version 1` の出力
 //! （`cargo` プロセスの標準出力）を読み取るためだけに存在する。

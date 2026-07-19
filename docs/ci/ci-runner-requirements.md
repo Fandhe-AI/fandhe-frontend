@@ -97,8 +97,8 @@ from renderer` の後 `signal: 9 (SIGKILL)` で強制終了し、ジョブが
 
 原因調査（コード側の不具合切り分け）:
 
-- 既定エスケープ（`rws-core`/`rws-app` の XSS 回帰ユニットテスト）は native
-  実行で全て通過しており、クライアント遷移経路（`rws_wasm_client::build_dom_node`）
+- 既定エスケープ（`fandhe-frontend-core`/`fandhe-frontend-app` の XSS 回帰ユニットテスト）は native
+  実行で全て通過しており、クライアント遷移経路（`fandhe_frontend_wasm_client::build_dom_node`）
   も `createElement`/`createTextNode` のみで `set_inner_html` を使わないことを
   確認済み。ペイロード内容起因のエスケープ回帰ではない
 - `wasm-bindgen-test` のブラウザ内実行順は `Vec::pop`（LIFO）で決まり、失敗した

@@ -1,32 +1,32 @@
-//! `rws-app`: SSR / SSG / CSR 三モード共通のモード非依存コンポーネントライブラリ。
+//! `fandhe-frontend-app`: SSR / SSG / CSR 三モード共通のモード非依存コンポーネントライブラリ。
 //!
-//! `rws-core`（`Node` / `el` / `text` / `render` 等）**のみ**に依存する。マクロ DSL
+//! `fandhe-frontend-core`（`Node` / `el` / `text` / `render` 等）**のみ**に依存する。マクロ DSL
 //! には依存せず、`Node` を返す通常の Rust 関数としてコンポーネントを記述する
 //! （`docs/api/component-api.md` の「コンポーネント記述の標準規約」に従う）。
 //!
 //! # 三モード契約（REQ-6）
 //!
-//! [`list_page`] / [`detail_page`] / [`page_shell`] は、SSR（`rws-server` の
+//! [`list_page`] / [`detail_page`] / [`page_shell`] は、SSR（`fandhe-frontend-server` の
 //! axum ハンドラ想定・TASK-6.1c）・SSG（同クレートの静的書き出しバイナリ想定）・
-//! CSR（`rws-wasm-client` 想定・TASK-6.2 系）の**いずれのモードからも同一関数が
+//! CSR（`fandhe-frontend-wasm-client` 想定・TASK-6.2 系）の**いずれのモードからも同一関数が
 //! そのまま呼ばれる**ことを前提とする。モード別の分岐・モード別の出力差異を
-//! 本クレートに持ち込まない（同一入力に対し常に同一の [`rws_core::render`]
+//! 本クレートに持ち込まない（同一入力に対し常に同一の [`fandhe_frontend_core::render`]
 //! 出力を返すことをテストで固定する）。
 //!
 //! # 既定エスケープの引き継ぎ（REQ-1）
 //!
-//! 本クレートはテキスト・属性値をすべて `rws_core::text` / `rws_core::el` の
+//! 本クレートはテキスト・属性値をすべて `fandhe_frontend_core::text` / `fandhe_frontend_core::el` の
 //! attrs 経由で組み立て、独自のエスケープ処理・独自の raw 出力経路を持たない。
 //! `format!` によるタグ文字列の直接組み立ては行わない（`coding-rust.md`
 //! 「HTML 文字列の直接組み立て禁止」）。[`page_shell`] が前置する
 //! `<!DOCTYPE html>` のみ、ユーザー入力を一切含まない固定リテラルとして
-//! 文字列結合する（`rws_core::render` 済みの既定エスケープ済み HTML の前に
+//! 文字列結合する（`fandhe_frontend_core::render` 済みの既定エスケープ済み HTML の前に
 //! 付与するのみであり、新たな迂回経路ではない）。
 //!
 //! # スコープ外
 //!
 //! ハイドレーション支援 API（`find_attr_values`/`find_nav_targets` 相当）は
-//! `rws-core` 側の TASK-6.2 系で追加予定であり、本クレートでは使用しない。
+//! `fandhe-frontend-core` 側の TASK-6.2 系で追加予定であり、本クレートでは使用しない。
 //! `server/src/main.rs`（SSR/SSG エントリ）は TASK-6.1c、三モード統合テストは
 //! TASK-6.1d のスコープであり本クレートには含めない。
 //!
@@ -41,14 +41,14 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-use rws_core::{a, div, el, h1, li, main_tag, p, text, ul, Node};
+use fandhe_frontend_core::{a, div, el, h1, li, main_tag, p, text, ul, Node};
 use std::convert::Infallible;
 
 pub mod router;
 pub mod routes;
 
 /// ハイドレーション後にクライアント側の `click` イベントで参照される
-/// `id` 属性値。`rws-wasm-client`（TASK-6.2 系）がこの定数で DOM 要素を
+/// `id` 属性値。`fandhe-frontend-wasm-client`（TASK-6.2 系）がこの定数で DOM 要素を
 /// 検索する前提の契約であり、値を変更する場合はクライアント側と合わせて
 /// 更新する必要がある。
 pub const LIKE_BUTTON_ID: &str = "like-btn";
@@ -103,8 +103,8 @@ pub fn demo_items() -> Vec<Item> {
 /// 同設計書を正とする）。
 ///
 /// `load()` の実装は 1 箇所のみとし、モード別の分岐を持たない
-/// （REQ-6 の三モード契約を Loader にも適用する）。`rws-server`（#348）・
-/// `rws-wasm-full`（#349）はいずれも本 trait の同一 `impl` を呼ぶのみで、
+/// （REQ-6 の三モード契約を Loader にも適用する）。`fandhe-frontend-server`（#348）・
+/// `fandhe-frontend-wasm-full`（#349）はいずれも本 trait の同一 `impl` を呼ぶのみで、
 /// モードごとに別実装を作らない。
 ///
 /// # 型で保証する範囲（設計書 §3.4）
@@ -122,7 +122,7 @@ pub trait Loader {
     /// 表示用文字列に内部パス・スタックトレース・接続情報等の内部情報を
     /// 含めない契約とする（fail-closed、`security.md`「機微情報の露出」・
     /// 設計書 §5・§9-5）。エラー時の実際の応答（500 / ビルド失敗 / 固定
-    /// エラービュー）は呼び出し元（`rws-server` #348・`rws-wasm-full` #349）
+    /// エラービュー）は呼び出し元（`fandhe-frontend-server` #348・`fandhe-frontend-wasm-full` #349）
     /// の責務であり、本 trait はエラーの型のみを規定する。
     type Error;
 
@@ -176,8 +176,8 @@ impl Loader for DemoItemDetailLoader {
 /// `L::Output` が `Vec<Item>` でない loader を渡すとコンパイルエラーに
 /// なる（`where` 束縛による型接続。設計書 §3.4 の「保証する範囲」）。
 /// `load` が失敗した場合は `?` で即座に `Err` を返し、未解決データで
-/// 描画を続行しない（fail-closed、設計書 §5）。呼び出し元（`rws-server`
-/// #348・`rws-wasm-full` #349）がこの `Err` をモードごとの応答（500 /
+/// 描画を続行しない（fail-closed、設計書 §5）。呼び出し元（`fandhe-frontend-server`
+/// #348・`fandhe-frontend-wasm-full` #349）がこの `Err` をモードごとの応答（500 /
 /// ビルド失敗 / 固定エラービュー）へ変換する。
 ///
 /// `list_page` の引数は `&[Item]` であり `&L::Output`（`&Vec<Item>`）とは
@@ -207,18 +207,18 @@ where
 /// 共通レイアウト（ヘッダー相当）。[`list_page`] / [`detail_page`] の両方から
 /// 呼ばれる、モード非依存の骨格コンポーネント。
 ///
-/// `title` は [`rws_core::text`] 経由で渡すため既定エスケープされる
+/// `title` は [`fandhe_frontend_core::text`] 経由で渡すため既定エスケープされる
 /// （呼び出し元が信頼できない文字列を渡しても生タグとして解釈されない）。
 pub fn layout(title: &str, body: Node) -> Node {
     el(
         "div",
-        vec![("id", "app-root"), ("data-rws", "root")],
+        vec![("id", "app-root"), ("data-fandhe-frontend", "root")],
         vec![h1(vec![], vec![text(title)]), main_tag(vec![], vec![body])],
     )
 }
 
 /// 画面 1: 一覧画面。各項目へのリンクに `data-nav` 属性を付与する
-/// （`rws-core` 側 TASK-6.2 系のハイドレーション支援 API がこの属性を
+/// （`fandhe-frontend-core` 側 TASK-6.2 系のハイドレーション支援 API がこの属性を
 /// 実 DOM なしに機械的検出する前提の契約。本クレートでは検出処理自体は
 /// 実装しない＝スコープ外）。
 ///
@@ -287,11 +287,11 @@ pub fn detail_page(item: Option<&Item>) -> Node {
 /// SSR（axum ハンドラ想定）・SSG（静的書き出しバイナリ想定）の両方から
 /// 呼ばれる共通関数（TASK-6.1c で実際のエントリポイントが接続される）。
 ///
-/// `title` は [`rws_core::el`] の `<title>` 子ノードとして [`text`] 経由で
+/// `title` は [`fandhe_frontend_core::el`] の `<title>` 子ノードとして [`text`] 経由で
 /// 渡すため既定エスケープされる（PoC-3 の手動 `escape_html` 呼び出しより
 /// 安全な構造。`text()` を経由しない独自のエスケープ処理を持たない）。
 /// `<!DOCTYPE html>` はユーザー入力を一切含まない固定リテラルとして
-/// [`rws_core::render`] 済みの文字列の前に結合するのみであり、新たな
+/// [`fandhe_frontend_core::render`] 済みの文字列の前に結合するのみであり、新たな
 /// エスケープ迂回経路ではない。
 ///
 /// `@view-transition { navigation: auto; }`（CSS Level 2 の at-rule）は
@@ -341,13 +341,13 @@ pub fn page_shell(title: &str, body: Node) -> String {
         ],
     );
     let html = el("html", vec![("lang", "ja")], vec![head, document_body]);
-    format!("<!DOCTYPE html>\n{}", rws_core::render(&html))
+    format!("<!DOCTYPE html>\n{}", fandhe_frontend_core::render(&html))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rws_core::render;
+    use fandhe_frontend_core::render;
 
     /// REQ-6 中核: 同一関数（`list_page`）を 2 回呼び出しても完全一致する
     /// ことを固定する。SSR で呼んでも CSR で呼んでも同一関数・同一入力なら

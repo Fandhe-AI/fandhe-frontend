@@ -88,8 +88,8 @@
 | # | シナリオ | PoC-7 土台 | 対象シンボル | `fw impact` 期待値（製品判定ルール準拠） | `fw gate` 期待値 |
 |---|---------|-----------|-------------|--------------------------------------|------------|
 | 1 | バグ修正: エスケープ回帰（シングルクォート欠落）の混入 → 修正 | `scenarios/bugfix-escape-regression/` | `render`（core クレート由来） | `affected_crates` 2 件 + クライアント境界クレート波及 → `breaking_risk: high`・`requires_human_approval: true` | 混入時: `test` チェックが `passed:false` → `gate_result: BLOCKED` / 修正後: コア 5 チェック（`type_check`/`default_escape_check`/`url_validation_check`/`lint`/`test`）が `passed:true` |
-| 2 | UI 改善: 一覧画面への件数サマリー追加 | `scenarios/ui-item-count/` | `list_page`（app クレート由来） | `affected_crates` 2 件（`rws-server`・クライアント境界クレート） → `breaking_risk: high`・`affected_routes` 非空・`requires_human_approval: true` | 変更適用後: コア 5 チェックが `passed:true`（件数表示の新規アサーション込み） |
-| 3 | 機能追加: タイトル部分一致検索（`search_page` + `GET /search`） | `scenarios/feature-search/` | `search_page`（新規追加、app クレート由来） | `affected_crates` 1 件（`rws-server`） → `breaking_risk: medium`・`affected_routes` 非空（新設 `/search` 含む）・`requires_human_approval: true` | 変更適用後: コア 5 チェックが `passed:true`（新規テスト込み） |
+| 2 | UI 改善: 一覧画面への件数サマリー追加 | `scenarios/ui-item-count/` | `list_page`（app クレート由来） | `affected_crates` 2 件（`fandhe-frontend-server`・クライアント境界クレート） → `breaking_risk: high`・`affected_routes` 非空・`requires_human_approval: true` | 変更適用後: コア 5 チェックが `passed:true`（件数表示の新規アサーション込み） |
+| 3 | 機能追加: タイトル部分一致検索（`search_page` + `GET /search`） | `scenarios/feature-search/` | `search_page`（新規追加、app クレート由来） | `affected_crates` 1 件（`fandhe-frontend-server`） → `breaking_risk: medium`・`affected_routes` 非空（新設 `/search` 含む）・`requires_human_approval: true` | 変更適用後: コア 5 チェックが `passed:true`（新規テスト込み） |
 
 #### PoC-7 実測値と製品判定ルールの差分
 
@@ -104,18 +104,18 @@ PoC-7 の `impact.json`（`docs/spec/03-poc/ai-self-maintenance/scenarios/*/impa
 | `affected_routes` の型 | オブジェクト配列 `{path, handler, defined_in}` | 文字列配列 `["/items/:id", ...]`（`cli/src/impact.rs` `ImpactReport::affected_routes: Vec<String>`） | `docs/design/impact-analysis-design.md` §3.5 で確定済み。シナリオテストはパス文字列のみを検証する |
 | `verdict` の文言 | 日本語 2 値（「要人間承認（…）」/「自動適用可（…）」） | 英語 2 値（`docs/design/impact-analysis-design.md` 判断 D1） | `.claude/rules/japanese-style.md`「ユーザー向け文字列は英語」規約と統一 |
 | `ambiguous` フィールド | なし | あり（定義元が複数の場合 `true`）。本書のシナリオ 1〜3 はいずれも単一定義のため常に `false` | 製品追加フィールド、`docs/design/impact-analysis-design.md` §3.2 |
-| クライアント境界クレートの扱い | `rws-wasm-client` 単独 | `rws-wasm-client` / `rws-wasm-full` / `rws-wasm-thin` の 3 クレート（[`impact::CLIENT_BOUNDARY_CRATES`]）のいずれかで `high` | `docs/design/impact-analysis-design.md` §3.2。フィクスチャがクライアント境界クレートを模す場合、3 クレートのうちどれを採用するかはシナリオ実装側（#145/#146）が決めてよいが、名前は `CLIENT_BOUNDARY_CRATES` のいずれかと厳密一致させること |
+| クライアント境界クレートの扱い | `fandhe-frontend-wasm-client` 単独 | `fandhe-frontend-wasm-client` / `fandhe-frontend-wasm-full` / `fandhe-frontend-wasm-thin` の 3 クレート（[`impact::CLIENT_BOUNDARY_CRATES`]）のいずれかで `high` | `docs/design/impact-analysis-design.md` §3.2。フィクスチャがクライアント境界クレートを模す場合、3 クレートのうちどれを採用するかはシナリオ実装側（#145/#146）が決めてよいが、名前は `CLIENT_BOUNDARY_CRATES` のいずれかと厳密一致させること |
 | `gate.rs` のチェック名表記 | `"type_check(cargo check)"` 等（括弧付き） | `"type_check"` / `"default_escape_check"` / `"url_validation_check"` / `"lint"` / `"test"` / `"policy"`（括弧なし、`cli/tests/negative_cases.rs` の `check_passed` 実測と一致） | 実装済みコード（`cli/src/gate.rs`）を正とする。PoC-7 の表記はツール（`poc7_tool.py`）独自のものであり、製品出力とは一致しない |
 
 シナリオ 1 の `breaking_risk: high` 判定根拠: `affected_crates` が
-`rws-app`・`rws-wasm-client` の 2 件で、うち `rws-wasm-client` が
+`fandhe-frontend-app`・`fandhe-frontend-wasm-client` の 2 件で、うち `fandhe-frontend-wasm-client` が
 クライアント境界クレートに該当するため、`docs/design/impact-analysis-design.md`
 §3.4 判定境界表の「1 以上（3 未満含む）・クライアント境界クレートを
 含む → high」に該当する（PoC-7 実測の `affected_crates` 件数 2 件・
 `breaking_risk: high` と整合）。
 
 シナリオ 3 の `breaking_risk: medium` 判定根拠: `affected_crates` が
-`rws-server` の 1 件のみで、クライアント境界クレートを含まないため、
+`fandhe-frontend-server` の 1 件のみで、クライアント境界クレートを含まないため、
 判定境界表の「1〜2 件・クライアント境界クレートを含まない → medium」に
 該当する（PoC-7 実測値と一致）。
 
@@ -128,7 +128,7 @@ PoC-7 の `impact.json`（`docs/spec/03-poc/ai-self-maintenance/scenarios/*/impa
 - **構成**: 仮想 workspace + `app`（`negative_cases.rs` と同じ
   `role = "component"`・依存ゼロクレート）。付帯ファイルは
   `structure.toml`（`[manifest] version = 1` + `[directories.app]`）・
-  `clippy.toml`（`disallowed-methods` の `rws_core::raw_html` エントリ、
+  `clippy.toml`（`disallowed-methods` の `fandhe_frontend_core::raw_html` エントリ、
   `templates/default/clippy.toml` 同等）・`deny.toml`（bans/licenses/sources
   最小版）を配布する。`cargo generate-lockfile --offline` により決定的な
   `Cargo.lock` を生成する（`fw gate` は `--locked` で `cargo` を起動するため
@@ -139,12 +139,12 @@ PoC-7 の `impact.json`（`docs/spec/03-poc/ai-self-maintenance/scenarios/*/impa
 - **13.4b/c 拡張時の指針**: シナリオ 1（バグ修正）・シナリオ 2（UI 改善）は
   `affected_crates` に複数クレート・クライアント境界クレードの波及が
   必要なため、`common.rs` のフィクスチャ生成関数を拡張し、`app` に加えて
-  `server`（`rws-server` 役 = role `"server-entrypoint"`）・クライアント
-  境界クレート（`rws-wasm-client` 等、role `"client-entrypoint"`）を
+  `server`（`fandhe-frontend-server` 役 = role `"server-entrypoint"`）・クライアント
+  境界クレート（`fandhe-frontend-wasm-client` 等、role `"client-entrypoint"`）を
   ワークスペースメンバーに追加できるようにする。ルート抽出
   （`fw impact` の `affected_routes`）を伴うシナリオ 2・3 では、
   `structure.toml` に `[routing] definition_dir = "server"` /
-  `extractor = "rws-router-v1"` を追加し、`server/src/main.rs` に
+  `extractor = "fandhe-frontend-router-v1"` を追加し、`server/src/main.rs` に
   `.route("<path>", get(<handler>))` 形式のルート定義を文字列で
   含める（`cli/src/routes.rs` の抽出器が対象とする構文、axum 等の
   実依存は不要でスタブ文字列のみで足りる。依存ゼロを維持）。

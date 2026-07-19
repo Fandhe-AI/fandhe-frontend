@@ -26,7 +26,7 @@
 
 ## 2. スコープの確認
 
-- 対象は `rws_interactive::Hydrate` トレイトが既に一般化している
+- 対象は `fandhe_frontend_interactive::Hydrate` トレイトが既に一般化している
   「フィールド名 → 文字列値」の写像（`Vec<(String, String)>`）の**属性値
   内部**表現の拡張のみである。`Hydrate` トレイト自体・`HYDRATE_ATTR_PREFIX`・
   既存の `codec::encode_list`/`decode_list`（`AppState` が使用）は**一切
@@ -42,7 +42,7 @@
 
 ### 3.1 `Value` 型
 
-`rws_interactive::codec::Value`（`interactive/src/lib.rs`）としてネスト
+`fandhe_frontend_interactive::codec::Value`（`interactive/src/lib.rs`）としてネスト
 可能な値ツリーを追加する。
 
 ```rust
@@ -201,7 +201,7 @@ pub enum Value {
 ネスト値 codec 固有の不変条件を追加する。
 
 1. **既定エスケープの一貫性（REQ-1）**: ネスト値を含む `data-hydrate-*`
-   属性の出力も `render_for_hydration` → `rws_core::render()` の既定
+   属性の出力も `render_for_hydration` → `fandhe_frontend_core::render()` の既定
    エスケープを必ず経由する。`codec::Value`/`encode_value`/`decode_value`
    は新たなエスケープ迂回経路（`raw_html()` の使用・HTML 文字列直接
    組み立て）を作らない。**`Value` codec 自体は HTML エスケープを一切

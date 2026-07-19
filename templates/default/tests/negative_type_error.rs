@@ -105,7 +105,7 @@ fn write_case_project(case_name: &str, main_rs_content: &str) -> ScratchProject 
 /// 配下の `target/` を明示指定し、プロセス環境から継承され得る値（self-hosted
 /// runner の `CARGO_TARGET_DIR=/cargo-target` 等）を上書きする。本テストの
 /// 全フィクスチャ（baseline/e0277/e0308）が同一パッケージ名
-/// `rws-template-default` を持つため、`CARGO_TARGET_DIR` が環境側で共有設定
+/// `fandhe-frontend-template-default` を持つため、`CARGO_TARGET_DIR` が環境側で共有設定
 /// されている場合、明示指定なしでは複数フィクスチャのビルドキャッシュ/
 /// フィンガープリントが衝突し、型不正コードを注入したフィクスチャの
 /// `cargo check` が別フィクスチャ（正例）のキャッシュ命中で実際には再検査を

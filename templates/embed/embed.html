@@ -19,10 +19,10 @@
       であり、その安全性はページ作者の責務（docs/guides/embedding-guide.md 5 節）。
 
     呼び出し契約（docs/api/hydration-api.md 第 3 節で凍結済み）:
-      mount_csr(root_id) は rws-wasm-client（TASK-6.2b・#48、本テンプレート
+      mount_csr(root_id) は fandhe-frontend-wasm-client（TASK-6.2b・#48、本テンプレート
       作成時点で未マージ）が提供する #[wasm_bindgen] 関数。内部で
-      rws_app::list_page 等（SSR/SSG からも同一関数が呼ばれる、REQ-6 の
-      分岐なし契約）を呼び、rws_core::render() 済み（＝既定エスケープ済み）の
+      fandhe_frontend_app::list_page 等（SSR/SSG からも同一関数が呼ばれる、REQ-6 の
+      分岐なし契約）を呼び、fandhe_frontend_core::render() 済み（＝既定エスケープ済み）の
       HTML を root_id 要素へ反映する。このテンプレート自身は HTML 文字列組み立てや
       DOM API を直接呼ぶコードを一切含まない
       （.claude/rules/coding-rust.md「HTML 文字列の直接組み立て禁止」）。
@@ -30,7 +30,7 @@
   <title>既存ページへの部分埋め込みサンプル</title>
   <!--
     TASK-8.1（#59）: SSR ページ遷移（クロスドキュメントナビゲーション）を
-    JS 0 行で有効化する宣言的機構。`rws_app::page_shell()`（SSR/SSG 標準構成）が
+    JS 0 行で有効化する宣言的機構。`fandhe_frontend_app::page_shell()`（SSR/SSG 標準構成）が
     既定同梱する at-rule と同一のものを、最小埋め込み構成側にも明示的に置く。
 
     View Transitions Level 2 で標準化された `@view-transition` at-rule により
@@ -51,7 +51,7 @@
   <h1>既存の静的ページ（フレームワーク外で書かれた想定）</h1>
   <p>この段落は素の HTML であり、フレームワークの管理下にありません。</p>
 
-  <!-- ここだけ rws-app の CSR コンポーネントで埋める（アイランド的な最小構成）。
+  <!-- ここだけ fandhe-frontend-app の CSR コンポーネントで埋める（アイランド的な最小構成）。
        初期状態は空で、mount_csr() 呼び出し後に既定エスケープ済み HTML が入る。 -->
   <div id="app-list"></div>
 
@@ -61,12 +61,12 @@
     /**
      * WASM モジュールを初期化し、mount_csr でマウントポイントへ描画する。
      *
-     * 参照する rws_wasm_client.js は rws-wasm-client クレート（#48）が
+     * 参照する fandhe_frontend_wasm_client.js は fandhe-frontend-wasm-client クレート（#48）が
      * 生成するグルーコードで、このページと同一オリジンに配置する
      * （外部 CDN からの読み込みはサプライチェーン面のリスク拡大につながる
      * ため行わない。.claude/rules/security.md）。
      */
-    import init, { mount_csr } from "./wasm/rws_wasm_client.js";
+    import init, { mount_csr } from "./wasm/fandhe_frontend_wasm_client.js";
 
     async function main() {
       await init();

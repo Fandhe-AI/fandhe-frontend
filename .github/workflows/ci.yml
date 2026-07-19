@@ -22,7 +22,7 @@ jobs:
   # #155 (REQ-11 受け入れ基準 2): 上記の safe 域（core/interactive 等、forbid 採用）に加え、
   # `wasm-full`（deny 採用。#[wasm_bindgen] 展開コードの内部 unsafe と衝突するため forbid 不採用）
   # のアプリロジック層（自作コード）にも forbid 相当の CI 強制を適用する。実体は下記
-  # `cargo test -p rws-core --test unsafe_boundary` に含まれる `ffi_deny_crates_*` テスト
+  # `cargo test -p fandhe-frontend-core --test unsafe_boundary` に含まれる `ffi_deny_crates_*` テスト
   # （core/tests/unsafe_boundary.rs の DENY_UNSAFE_FFI_MEMBERS）であり、本ジョブ自体に
   # 追加のステップは不要（deny 域は `RUSTFLAGS='-F unsafe_code'` 適用外のまま、
   # wasm-bindgen 展開コードの unsafe との衝突を避ける）。
@@ -71,7 +71,7 @@ jobs:
         run: tools/ci/ensure-gate-tools.sh
 
       - name: "unsafe 境界の回帰テスト（safe 域: forbid 属性・unsafe トークン・core 依存ゼロ／wasm-full deny 域: deny 属性・unsafe トークン・allow 上書き不在、#155）"
-        run: cargo test -p rws-core --test unsafe_boundary --locked
+        run: cargo test -p fandhe-frontend-core --test unsafe_boundary --locked
 
       # NOTE: -F (forbid) はソース側の #[allow(unsafe_code)] で上書きできないため、
       # 属性が誤って削除された場合の独立した防御線になる。
@@ -121,7 +121,7 @@ jobs:
       - name: XSS regression tests (REQ-1)
         # REQ-1（既定エスケープ）の受け入れ基準を担保するゲート。
         # SSR/SSG/CSR 経路の XSS 回帰テストを独立ステップとして可視化する。
-        run: cargo test -p rws-core --test xss_escape --locked
+        run: cargo test -p fandhe-frontend-core --test xss_escape --locked
 
       # TASK-13.3c（#141）: `fw gate`（cli/src/gate.rs）の `policy` チェックは
       # `cargo deny check bans licenses sources` を実際に起動する。cargo-deny
@@ -155,7 +155,7 @@ jobs:
       # （TASK-1.2）の合否をそのまま反映し `default_escape_check` とは
       # 独立にゲートを BLOCK することを検証する。
       - name: "Gate linkage tests (TASK-13.3c: cargo-deny / XSS regression)"
-        run: cargo test -p rws-cli --test negative_cases --test xss_regression_link --locked
+        run: cargo test -p fandhe-frontend-cli --test negative_cases --test xss_regression_link --locked
 
       # イシュー #159（REQ-1、親 #157）の受け入れ条件「偽装回避不能テストが通過し
       # CI でブロックされる」の直接証跡。`raw_html_lint_e2e.rs` は実際に
@@ -166,7 +166,7 @@ jobs:
       # `cargo test --workspace` 実行に暗黙包含されるだけでは受け入れ条件の
       # 充足が CI 上で可視化されないため、本ステップとして独立させる。
       - name: "REQ-1 raw_html() 偽装回避不能テスト (issue #159)"
-        run: cargo test -p rws-cli --test raw_html_lint_e2e --locked
+        run: cargo test -p fandhe-frontend-cli --test raw_html_lint_e2e --locked
 
       # イシュー #351（親 #338）の受け入れ条件「`fw new` 生成直後に `fw gate`
       # が PASS する構成保証」の直接証跡。`fw new` が展開する
@@ -177,7 +177,7 @@ jobs:
       # （6 チェック全 PASS）を本ジョブで常時実証する
       # （`cli/tests/new_gate_e2e.rs` 冒頭コメント参照）。
       - name: "fw new 生成直後の fw gate PASS 構成保証 (issue #351)"
-        run: cargo test -p rws-cli --test new_gate_e2e --locked
+        run: cargo test -p fandhe-frontend-cli --test new_gate_e2e --locked
 
       # TASK-10.2b（#110、REQ-10 条件 3）: dist-server/build.rs が既定で実行する
       # WASM ビルドステージ（ネスト `cargo build --target wasm32-unknown-unknown`
@@ -250,7 +250,7 @@ jobs:
       - name: Workspace tests
         run: cargo test --workspace --locked
 
-  # TASK-10.1a（#106）: rws-dist-server の開発 / 本番モード切り替え
+  # TASK-10.1a（#106）: fandhe-frontend-dist-server の開発 / 本番モード切り替え
   # （`dist-server/src/assets.rs` の `AssetMode`）を CI で両モードとも検証する。
   #
   # 上記 `test` ジョブの `cargo test --workspace` はデフォルトの debug ビルド
@@ -260,7 +260,7 @@ jobs:
   # 強制して検証する（PoC-4 検証方法 5 の CI 化。`Cargo.toml` の
   # `force-embed` フィーチャーコメント参照）。
   dist-server-embedded-mode:
-    name: rws-dist-server embedded mode (force-embed)
+    name: fandhe-frontend-dist-server embedded mode (force-embed)
     runs-on: self-hosted
     timeout-minutes: 15
     # TASK-10.2b（#110）: 本ジョブの目的は force-embed フィーチャーによる
@@ -296,16 +296,16 @@ jobs:
         # コンパイル・実行される（下段の全体テストにも含まれるが、受け入れ
         # 基準ゲートであることを CI 上で明示するため独立ステップとして
         # 先に実行する）。
-        run: cargo test -p rws-dist-server --test isolated_run --features force-embed --locked
+        run: cargo test -p fandhe-frontend-dist-server --test isolated_run --features force-embed --locked
 
-      - name: rws-dist-server tests (force-embed, Embedded mode)
-        run: cargo test -p rws-dist-server --features force-embed --locked
+      - name: fandhe-frontend-dist-server tests (force-embed, Embedded mode)
+        run: cargo test -p fandhe-frontend-dist-server --features force-embed --locked
 
   # TASK-6.3a（#65）: 実ブラウザ（headless Chromium）でのハイドレーション検証環境。
   # docs/spec/05-tasks.md TASK-6.3 が指名する wasm-pack test --headless --chrome を
   # ubuntu-latest（Chrome/chromedriver プリインストール済み）で実行するジョブ。
   #
-  # wasm-client/（rws-wasm-client）は TASK-6.2b（#48）でクレート新設予定だが本コミット時点
+  # wasm-client/（fandhe-frontend-wasm-client）は TASK-6.2b（#48）でクレート新設予定だが本コミット時点
   # では未作成（#48/#49 は open）。本イシューはクレート新設をスコープに含めない
   # （docs/api/hydration-api.md 第 5 節の引き継ぎ表・#48 との責務混線回避のため）。
   # そのため各ステップは check-wasm-client の存在判定結果でガードし、
@@ -1226,7 +1226,7 @@ jobs:
 
   # イシュー #297（TASK-10.2 残課題、出典 PR #220 §10 スコープ外節）:
   # docs/design/wasm-build-integration.md §6.4 が文書化していた nodejs ターゲット
-  # 開発フロー（`web-sys` 非依存な rws-wasm-thin のロジック高速確認経路）を
+  # 開発フロー（`web-sys` 非依存な fandhe-frontend-wasm-thin のロジック高速確認経路）を
   # `cargo xtask wasm-node-smoke` として CI ゲート化する。上記 `test` ジョブと
   # 同一の wasm32 target 追加・wasm-bindgen-cli 導入パターンを踏襲する
   # （同一バージョン固定値。ドリフト検出は xtask/tests/wasm_bindgen_version_sync.rs
@@ -1236,7 +1236,7 @@ jobs:
   # 開発者手元での高速確認経路を CI でも回帰検証する位置づけ（§6.4 不変条件）。
   # 緩和用 input・continue-on-error は設けない（既存ジョブの迂回経路禁止原則）。
   wasm-node-smoke:
-    name: "nodejs target smoke test (rws-wasm-thin, issue #297)"
+    name: "nodejs target smoke test (fandhe-frontend-wasm-thin, issue #297)"
     runs-on: self-hosted
     timeout-minutes: 15
     steps:
@@ -1315,7 +1315,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # イシュー #411: `fw new --template app` が生成する CSR wasm ビルド込み
-  # 完全実体（vendor/rws-wasm-client + wasm/ 独立ワークスペース +
+  # 完全実体（vendor/fandhe-frontend-wasm-client + wasm/ 独立ワークスペース +
   # tools/wasm/build.sh）が実際にビルド可能であることを CI で回帰検証する。
   # wasm-bindgen-cli の導入パターンは `wasm-node-smoke` ジョブと同一
   # （バージョン固定 + SHA256 チェックサム検証）。ドリフト検出は
@@ -1373,12 +1373,12 @@ jobs:
         # 共有 CARGO_TARGET_DIR との衝突回避は `.claude/rules/ci.md`
         # 「Self-hosted 環境の前提」に従う。
         env:
-          CARGO_TARGET_DIR: /tmp/rws-template-app-wasm-smoke-target
+          CARGO_TARGET_DIR: /tmp/fandhe-frontend-template-app-wasm-smoke-target
         run: |
           set -euo pipefail
-          rm -rf /tmp/rws-template-app-wasm-smoke
-          cargo run --locked -p rws-cli --bin fw -- new template-app-wasm-smoke \
-            --template app --dir /tmp/rws-template-app-wasm-smoke
+          rm -rf /tmp/fandhe-frontend-template-app-wasm-smoke
+          cargo run --locked -p fandhe-frontend-cli --bin fw -- new template-app-wasm-smoke \
+            --template app --dir /tmp/fandhe-frontend-template-app-wasm-smoke
 
       - name: tools/wasm/build.sh の実行
         # 直前ステップと同じくフィクスチャ専用 CARGO_TARGET_DIR を明示指定する
@@ -1387,18 +1387,18 @@ jobs:
         # build.sh が期待する `wasm/target/...` とパスが一致しなくなる
         # （イシュー #411 CI 失敗の原因）。
         env:
-          CARGO_TARGET_DIR: /tmp/rws-template-app-wasm-smoke-target/wasm-build
+          CARGO_TARGET_DIR: /tmp/fandhe-frontend-template-app-wasm-smoke-target/wasm-build
         run: |
           set -euo pipefail
-          cd /tmp/rws-template-app-wasm-smoke/template-app-wasm-smoke
+          cd /tmp/fandhe-frontend-template-app-wasm-smoke/template-app-wasm-smoke
           ./tools/wasm/build.sh
 
       - name: 生成物の存在・mount_csr/hydrate エクスポートの検証
         run: |
           set -euo pipefail
-          project="/tmp/rws-template-app-wasm-smoke/template-app-wasm-smoke"
-          js="${project}/static/wasm/rws_wasm_client.js"
-          wasm="${project}/static/wasm/rws_wasm_client_bg.wasm"
+          project="/tmp/fandhe-frontend-template-app-wasm-smoke/template-app-wasm-smoke"
+          js="${project}/static/wasm/fandhe_frontend_wasm_client.js"
+          wasm="${project}/static/wasm/fandhe_frontend_wasm_client_bg.wasm"
           if [ ! -f "${js}" ]; then
             echo "::error::missing ${js}" >&2
             exit 1
@@ -1504,7 +1504,7 @@ jobs:
   #
   # `test` ジョブと同じ環境構築パターン（wasm32 target・wasm-bindgen-cli
   # バージョン固定 + SHA256 チェックサム検証）を踏襲する。本ベンチが起動する
-  # ネスト `cargo build -p rws-dist-server` は `dist-server/build.rs` の
+  # ネスト `cargo build -p fandhe-frontend-dist-server` は `dist-server/build.rs` の
   # WASM ビルドステージ（既定有効）を経由するため、本ジョブは
   # オプトアウトせず統合ビルドをそのまま計測に含める。
   #
@@ -1586,7 +1586,7 @@ jobs:
         # drift 防止）で pipefail・tee・--locked を用いる。
         run: |
           set -o pipefail
-          cargo bench --locked -p rws-dist-server --bench rebuild_latency | tee rebuild-latency.log
+          cargo bench --locked -p fandhe-frontend-dist-server --bench rebuild_latency | tee rebuild-latency.log
 
       - name: Publish rebuild-latency summary
         if: always()
@@ -1605,7 +1605,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   # TASK-11.6（イシュー #89、REQ-11 受け入れ基準 1）: 最小インタラクティブ
-  # コンポーネント（rws-wasm-full）の WASM バンドルサイズ（gzip 後）が
+  # コンポーネント（fandhe-frontend-wasm-full）の WASM バンドルサイズ（gzip 後）が
   # 200KB 以内であることを継続計測するジョブ。
   #
   # `wasm-full/tests/bundle_size.rs` が `dist-server/build.rs` と同一の
@@ -1624,7 +1624,7 @@ jobs:
   # 本ジョブは主に「REQ-11 の 1 行サマリを Step Summary へ可視化する」役割を
   # 兼ねる（二重防御）。
   bundle-size:
-    name: REQ-11 rws-wasm-full bundle gzip size (200KB limit)
+    name: REQ-11 fandhe-frontend-wasm-full bundle gzip size (200KB limit)
     runs-on: self-hosted
     timeout-minutes: 20
     steps:
@@ -1688,7 +1688,7 @@ jobs:
         # drift 防止）で pipefail・tee・--locked を用いる。
         run: |
           set -o pipefail
-          cargo test -p rws-wasm-full --test bundle_size --locked -- --nocapture | tee bundle-size.log
+          cargo test -p fandhe-frontend-wasm-full --test bundle_size --locked -- --nocapture | tee bundle-size.log
 
       - name: Publish bundle-size summary
         if: always()
@@ -1854,7 +1854,7 @@ jobs:
     # 長めに確保する。
     timeout-minutes: 40
     # forbid-unsafe / clippy ジョブと同じ理由: gate の type_check / test は
-    # -p rws-dist-server を含み、dist-server/build.rs の WASM ネストビルド
+    # -p fandhe-frontend-dist-server を含み、dist-server/build.rs の WASM ネストビルド
     # （wasm32 target・wasm-bindgen-cli 起動）は本ジョブの runner に常設保証が
     # ないため明示オプトアウトする。統合 WASM ビルドの実証は test ジョブが
     # 専任する。
@@ -1894,7 +1894,7 @@ jobs:
           # GitHub Actions アノテーションとして区別する（受け入れ条件 2）。
           # gate の JSON は compact 出力（キー間に空白なし）のため
           # `"environment error: ` を緩く grep する。
-          if cargo run -p rws-cli --locked -- gate --project . | tee gate-report.json; then
+          if cargo run -p fandhe-frontend-cli --locked -- gate --project . | tee gate-report.json; then
             exit 0
           fi
           if grep -q '"environment error: ' gate-report.json; then

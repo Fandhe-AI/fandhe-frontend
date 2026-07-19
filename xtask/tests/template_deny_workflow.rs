@@ -370,7 +370,7 @@ fn cargo_deny_version_pin_matches_ensure_gate_tools_across_template_and_docs() {
 /// PoC-7 `negative-banned-dependency` ケースの自動化。
 ///
 /// テンプレート `deny.toml` の `[bans].deny` に workspace グラフ上に確実に
-/// 存在するクレート（`rws-core`）を追記した一時 config を生成し、
+/// 存在するクレート（`fandhe-frontend-core`）を追記した一時 config を生成し、
 /// `cargo deny check bans` が非 0 終了かつ `banned` を含む出力で失敗する
 /// ことを確認する。固定引数のみでプロセスを組み立て、外部入力から
 /// コマンドライン引数を構成しない（インジェクション対策）。
@@ -398,11 +398,14 @@ fn cargo_deny_check_blocks_banned_dependency_when_available() {
     let base_config = std::fs::read_to_string(template_deny_toml_path())
         .expect("templates/default/deny.toml の読み込みに失敗した");
 
-    // workspace グラフ上に確実に存在する rws-core を bans.deny 配列へ追記した
+    // workspace グラフ上に確実に存在する fandhe-frontend-core を bans.deny 配列へ追記した
     // 一時 config を作る。TOML パーサを使わず、`deny = [` 直後に行ベースで
     // 単純に挿入するのみに留める（REQ-3・xtask 外部依存ゼロ方針）。
-    let augmented_config =
-        base_config.replacen("deny = [", "deny = [\n    { name = \"rws-core\" },", 1);
+    let augmented_config = base_config.replacen(
+        "deny = [",
+        "deny = [\n    { name = \"fandhe-frontend-core\" },",
+        1,
+    );
 
     // プロセス ID を付与し、並列テスト実行時の一時ファイル名衝突を避ける。
     let temp_path = std::env::temp_dir().join(format!(
@@ -429,7 +432,7 @@ fn cargo_deny_check_blocks_banned_dependency_when_available() {
 
     assert!(
         !output.status.success(),
-        "禁止クレート（rws-core）を追加した設定で cargo deny check bans が \
+        "禁止クレート（fandhe-frontend-core）を追加した設定で cargo deny check bans が \
          成功してしまった（CI ブロック機構が機能していない）。\nstdout: {}\nstderr: {}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
@@ -441,7 +444,7 @@ fn cargo_deny_check_blocks_banned_dependency_when_available() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(
-        combined_output.contains("banned") || combined_output.contains("rws-core"),
+        combined_output.contains("banned") || combined_output.contains("fandhe-frontend-core"),
         "失敗理由が禁止クレート由来であることを出力から確認できなかった: \
          {combined_output}"
     );

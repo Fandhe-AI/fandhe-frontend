@@ -9,9 +9,9 @@ name: deps-check
 # ブロックは cargo-deny 系タスク（TASK-4.x）のスコープ）。
 #
 # さらにイシュー #154（REQ-3 受け入れ基準 1）で、`check-deps`（60/6 判定）とは独立に
-# `check-core-deps` ゲートを追加する。`check-deps --package rws-core` は「60 件以内」を
+# `check-core-deps` ゲートを追加する。`check-deps --package fandhe-frontend-core` は「60 件以内」を
 # 見るのみで「ゼロであること」自体は強制しない。`check-core-deps` は
-# `check_deps::ZERO_DEP_CRATES`（rws-core / rws-interactive）について
+# `check_deps::ZERO_DEP_CRATES`（fandhe-frontend-core / fandhe-frontend-interactive）について
 # Normal/Dev/Build すべての辺を対象に外部依存 0 件を専用ゲートとして強制する。
 #
 # しきい値運用の原則:
@@ -25,24 +25,24 @@ name: deps-check
 #   本ワークフローはあくまで CI 組み込みの実体。
 #
 # 計測対象パッケージ:
-# - 現時点の workspace members である rws-core（外部依存ゼロ契約。ディレクトリは
-#   core/ だがパッケージ名は Cargo.toml 上 rws-core）・xtask（外部依存ゼロ契約）・
-#   rws-app（TASK-6.1b で追加。rws-core への path 依存のみ）を対象とする。
-#   TASK-9.1b（イシュー #96）で rws-dist-server（dist-server/、hyper 依存を持つ
+# - 現時点の workspace members である fandhe-frontend-core（外部依存ゼロ契約。ディレクトリは
+#   core/ だがパッケージ名は Cargo.toml 上 fandhe-frontend-core）・xtask（外部依存ゼロ契約）・
+#   fandhe-frontend-app（TASK-6.1b で追加。fandhe-frontend-core への path 依存のみ）を対象とする。
+#   TASK-9.1b（イシュー #96）で fandhe-frontend-dist-server（dist-server/、hyper 依存を持つ
 #   標準サーバー構成の実体）を追加した。実測: packages=21/60 depth=5/6（PASS）。
 #   axum・rust-embed はいずれも依存グラフ深さ上限（6）を構造的に超過するため
 #   不採用とし、hyper + hyper-util + http-body-util + tokio の直接構成とした
 #   （実測根拠は `dist-server/Cargo.toml` のコメント参照）。
-#   TASK-3.3b（イシュー #22/#24）で rws-server（router のみ・外部依存ゼロ、
+#   TASK-3.3b（イシュー #22/#24）で fandhe-frontend-server（router のみ・外部依存ゼロ、
 #   server/）を計測対象に追加した。実測: packages=0/60 depth=0/6（PASS）。
-#   rws-wasm-full・rws-wasm-thin（CSR/ハイドレーション用クライアントクレート）は
+#   fandhe-frontend-wasm-full・fandhe-frontend-wasm-thin（CSR/ハイドレーション用クライアントクレート）は
 #   REQ-3 が対象と明記する「標準サーバー構成」に該当しないため、本ゲートの対象に
 #   含めない（docs/policy/dependency-graph-policy.md 第 4 節参照）。参考実測: wasm-full
 #   20 packages/depth 9、wasm-thin 13 packages/depth 7（いずれも深さ上限 6 を
 #   超過するが、これは対象外の結果であって理由ではない。対象外の理由は上記の
 #   スコープ定義そのものであり、深さ超過を根拠に対象外化したわけではない）。
 # - `check-core-deps` は引数を取らず、`check_deps::ZERO_DEP_CRATES` と実 workspace
-#   メンバーの積集合を xtask 内部で自動解決する（`rws-interactive` 追加時も
+#   メンバーの積集合を xtask 内部で自動解決する（`fandhe-frontend-interactive` 追加時も
 #   ワークフロー変更は不要）。
 on:
   pull_request:
@@ -91,7 +91,7 @@ jobs:
         # 一致しなくなる（fail-closed の前提が崩れる）ため必須。
         run: |
           set -o pipefail
-          cargo run --locked -p xtask -- check-deps --package rws-core --package xtask --package rws-app --package rws-dist-server --package rws-server | tee deps-check.log
+          cargo run --locked -p xtask -- check-deps --package fandhe-frontend-core --package xtask --package fandhe-frontend-app --package fandhe-frontend-dist-server --package fandhe-frontend-server | tee deps-check.log
 
       - name: Publish deps-check summary
         if: always()
@@ -155,7 +155,7 @@ jobs:
         if: always()
         run: |
           set -o pipefail
-          cargo run --locked -p xtask -- list-build-scripts --package rws-core --package xtask --package rws-app --package rws-dist-server --package rws-server | tee build-scripts.log
+          cargo run --locked -p xtask -- list-build-scripts --package fandhe-frontend-core --package xtask --package fandhe-frontend-app --package fandhe-frontend-dist-server --package fandhe-frontend-server | tee build-scripts.log
 
       - name: Publish build-scripts summary
         if: always()

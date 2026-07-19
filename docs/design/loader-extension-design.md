@@ -54,7 +54,7 @@
 
 `docs/api/app-api.md` §9 が記録するとおり、`dist-server` は axum 不採用の実測根拠を
 持つ（`tokio-macros → syn → quote → proc-macro2 → unicode-ident` の連鎖が深さ 7〜9 に
-達し REQ-3〔依存 60 件以内・深さ 6 以内〕に違反）。`rws-app`/`rws-server` は外部依存
+達し REQ-3〔依存 60 件以内・深さ 6 以内〕に違反）。`fandhe-frontend-app`/`fandhe-frontend-server` は外部依存
 ゼロ方針であり、`async fn load` を実用に足る形で導入するには何らかの async ランタイム
 （`tokio`・`async-std` 等）または executor 抽象が必要になる。現構成にはそのいずれも
 存在しない。
@@ -169,7 +169,7 @@ loader を呼び、`Output` を結合構造体として返す）として表現�
 新規 trait・新規メソッドは導入しない。
 
 ```rust
-use rws_app::Loader;
+use fandhe_frontend_app::Loader;
 
 /// 一覧ページが必要とする 2 つのデータソース（商品一覧・サイドバー集計）を
 /// 結合した出力。ページ関数への唯一のデータ源として渡される
@@ -270,7 +270,7 @@ API 変更がゼロであるため、以下は本書導入前後で自明に維�
 再掲・追記する。
 
 1. **既定エスケープの一貫性（REQ-1）**: 合成 loader の `Output` も他の loader と
-   同様、必ずノード木 API（`rws_core::text`/`rws_core::el`）経由でページへ描画される。
+   同様、必ずノード木 API（`fandhe_frontend_core::text`/`fandhe_frontend_core::el`）経由でページへ描画される。
    `format!` による HTML 文字列直接組み立ては禁止する（第 5.4 節規約 3）。
 2. **fail-closed（A04 相当）**: 合成 loader はいずれかの内側 loader 失敗時に全体を
    失敗させ、部分成功データで描画を継続しない（第 5.4 節規約 2）。既存の SSR 500 /

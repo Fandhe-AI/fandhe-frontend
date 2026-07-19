@@ -2,13 +2,13 @@
 name = "app-csr-wasm"
 version = "0.1.0"
 edition = "2021"
-description = "fw new --template app（イシュー #411）が同梱する CSR wasm ビルド用の薄い glue クレート。vendor/rws-wasm-client の hydrate/mount_csr を再エクスポートするのみ。"
+description = "fw new --template app（イシュー #411）が同梱する CSR wasm ビルド用の薄い glue クレート。vendor/fandhe-frontend-wasm-client の hydrate/mount_csr を再エクスポートするのみ。"
 license = "MIT OR Apache-2.0"
 publish = false
 
 # 独立ワークスペース（イシュー #411 実装計画 §2.2）:
 #
-# このクレートは templates/app（rws-template-app、外部依存ゼロの既定経路）
+# このクレートは templates/app（fandhe-frontend-template-app、外部依存ゼロの既定経路）
 # とは意図的に別ワークスペースとして切り離す。wasm-bindgen / web-sys の
 # 取得にはビルド時ネットワークが必要であり、これを root クレートの依存
 # グラフへ混ぜると `cargo build`/`cargo test`/`fw gate` の既定経路（オフライン・
@@ -19,7 +19,7 @@ publish = false
 # 親ディレクトリを遡って templates/app/Cargo.toml の `[workspace]`
 # （members = ["."]、このクレートを含まない）を見つけてしまい、
 # 「current package believes it's in a workspace when it's not」エラーになる
-# （templates/app/vendor/rws-core/Cargo.toml のコメントと同種の事情）。
+# （templates/app/vendor/fandhe-frontend-core/Cargo.toml のコメントと同種の事情）。
 [workspace]
 members = ["."]
 
@@ -30,7 +30,7 @@ members = ["."]
 # root（templates/app 直下）の依存グラフには一切含まれないため、
 # REQ-3（60 件/深さ 6）の計測基準（標準サーバー構成）への影響もない。
 [dependencies]
-rws-wasm-client = { path = "../vendor/rws-wasm-client" }
+fandhe-frontend-wasm-client = { path = "../vendor/fandhe-frontend-wasm-client" }
 
 [lib]
 crate-type = ["cdylib"]

@@ -267,16 +267,16 @@ fn collect_routes(
     let Some(routing) = &manifest.routing else {
         return Vec::new();
     };
-    // extractor は現時点で `rws-router-v1` のみ対応（`structure.toml` の
+    // extractor は現時点で `fandhe-frontend-router-v1` のみ対応（`structure.toml` の
     // セマンティック検証では自由文字列を許容している）。未知の抽出器 ID を
     // 空の成功結果へ黙って倒すと `fw structure` が exit 0 かつ
     // `"routes":[]` を返してしまい、CI・AI 自己保守フックが誤設定・
     // 非対応 extractor を「ルートなし」として誤って成功扱いする
     // （レビュー指摘 #127: 本ファイル冒頭の「黙示的成功を返さない」契約に反する）。
     // fail-closed のため problems に積んで非 0 終了させる。
-    if routing.extractor != "rws-router-v1" {
+    if routing.extractor != "fandhe-frontend-router-v1" {
         problems.push(format!(
-            "routing.extractor `{}`: unknown extractor (expected `rws-router-v1`)",
+            "routing.extractor `{}`: unknown extractor (expected `fandhe-frontend-router-v1`)",
             routing.extractor
         ));
         return Vec::new();
@@ -479,7 +479,7 @@ mod tests {
                 // `structure::is_valid_directory_name` を満たす形式のまま
                 // 実体が欠落しているケース（I/O エラー相当）を模する。
                 definition_dir: "does-not-exist".to_string(),
-                extractor: "rws-router-v1".to_string(),
+                extractor: "fandhe-frontend-router-v1".to_string(),
             }),
         };
         let project_dir = std::env::temp_dir().join("fw-collect-routes-test-project");
@@ -517,7 +517,7 @@ mod tests {
         assert!(lines[0].contains("failed to cross-check with cargo metadata: cargo not found"));
     }
 
-    /// fail-closed 回帰テスト: `routing.extractor` が `rws-router-v1` 以外の
+    /// fail-closed 回帰テスト: `routing.extractor` が `fandhe-frontend-router-v1` 以外の
     /// 未知の値の場合、`"routes":[]` を伴う黙示的成功へ倒さず `problems` に
     /// 積んで非 0 終了させること（レビュー指摘 #127: High severity。
     /// 未対応 extractor が誤って成功扱いされ、CI・フックが誤設定を見逃す

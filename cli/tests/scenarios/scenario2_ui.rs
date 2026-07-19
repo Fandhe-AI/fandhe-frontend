@@ -13,9 +13,9 @@
 //!
 //! # フィクスチャ構成
 //!
-//! `rws-app`（`list_page`）を `rws-server`（一覧ルート `/`・詳細ルート
-//! `/items/:id`）と `rws-wasm-client`（CSR ハイドレーションスタブ）の双方から
-//! 呼び出す 3 クレートワークスペース。`rws-wasm-client` は
+//! `fandhe-frontend-app`（`list_page`）を `fandhe-frontend-server`（一覧ルート `/`・詳細ルート
+//! `/items/:id`）と `fandhe-frontend-wasm-client`（CSR ハイドレーションスタブ）の双方から
+//! 呼び出す 3 クレートワークスペース。`fandhe-frontend-wasm-client` は
 //! `impact::CLIENT_BOUNDARY_CRATES` に含まれるクレート名と厳密一致させる
 //! ことが判定要件であり、wasm-bindgen 等の実 wasm 依存は持ち込まない
 //! （ホストコンパイル可能なスタブ、設計文書 §3）。
@@ -36,40 +36,40 @@ version = 1
 
 [directories.app]
 role = "component"
-crate = "rws-app"
+crate = "fandhe-frontend-app"
 description = "TASK-13.4c scenario 2 fixture: list_page component"
 allowed_dependents = ["server", "wasm-client"]
 
 [directories.server]
 role = "server-entrypoint"
-crate = "rws-server"
+crate = "fandhe-frontend-server"
 description = "TASK-13.4c scenario 2 fixture: server entrypoint routing to list_page"
 depends_on = ["app"]
 
 [directories.wasm-client]
 role = "client-entrypoint"
-crate = "rws-wasm-client"
+crate = "fandhe-frontend-wasm-client"
 description = "TASK-13.4c scenario 2 fixture: CSR client entrypoint stub"
 depends_on = ["app"]
 
 [routing]
 definition_dir = "server"
-extractor = "rws-router-v1"
+extractor = "fandhe-frontend-router-v1"
 "#;
 
-const APP_CARGO_TOML: &str = "[package]\nname = \"rws-app\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n";
+const APP_CARGO_TOML: &str = "[package]\nname = \"fandhe-frontend-app\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n";
 
-const SERVER_CARGO_TOML: &str = "[package]\nname = \"rws-server\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n\n[dependencies]\nrws-app = { path = \"../app\" }\n";
+const SERVER_CARGO_TOML: &str = "[package]\nname = \"fandhe-frontend-server\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n\n[dependencies]\nfandhe-frontend-app = { path = \"../app\" }\n";
 
-const WASM_CLIENT_CARGO_TOML: &str = "[package]\nname = \"rws-wasm-client\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n\n[dependencies]\nrws-app = { path = \"../app\" }\n";
+const WASM_CLIENT_CARGO_TOML: &str = "[package]\nname = \"fandhe-frontend-wasm-client\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n\n[dependencies]\nfandhe-frontend-app = { path = \"../app\" }\n";
 
 /// ベースライン（無改変）の `app/src/lib.rs`。`list_page` はプレーン文字列
 /// 描画のみを行い（`raw_html` 等のエスケープ迂回・HTML 文字列直接組み立ては
-/// 使わない、`coding-rust.md`）、`rws-server`・`rws-wasm-client` の双方から
-/// 呼び出されるモード非依存コンポーネント（本リポジトリの `app/`（rws-app）の
+/// 使わない、`coding-rust.md`）、`fandhe-frontend-server`・`fandhe-frontend-wasm-client` の双方から
+/// 呼び出されるモード非依存コンポーネント（本リポジトリの `app/`（fandhe-frontend-app）の
 /// 役割に対応）。
 const BASELINE_APP_LIB_RS: &str = r#"//! シナリオ 2（UI 改善）フィクスチャ: 一覧画面コンポーネント。
-//! `rws-server`（一覧ルート `/`）・`rws-wasm-client`（CSR ハイドレーション）
+//! `fandhe-frontend-server`（一覧ルート `/`）・`fandhe-frontend-wasm-client`（CSR ハイドレーション）
 //! の双方から呼ばれるモード非依存コンポーネントを模する。
 
 /// 一覧画面の本文を組み立てる。既定エスケープ方針（REQ-1）に抵触しない
@@ -103,18 +103,18 @@ const TESTS_MOD_TAIL: &str = "        assert!(out.contains(\"widget, gadget\"));
 const TESTS_MOD_TAIL_WITH_COUNT_ASSERTION: &str = "        assert!(out.contains(\"widget, gadget\"));\n    }\n\n    #[test]\n    fn list_page_includes_item_count_summary() {\n        let out = list_page(&[\"widget\", \"gadget\"]);\n        assert!(\n            out.contains(\"count: 2\"),\n            \"list_page should include an item count summary line: {out}\"\n        );\n    }\n}\n";
 
 /// `server/src/main.rs`: 一覧ルート `/` と詳細ルート `/items/:id` を宣言し、
-/// 一覧ルートのハンドラから `rws_app::list_page` を呼び出す。
-/// `cli/src/routes.rs`（`rws-router-v1` 抽出器）が対象とする
+/// 一覧ルートのハンドラから `fandhe_frontend_app::list_page` を呼び出す。
+/// `cli/src/routes.rs`（`fandhe-frontend-router-v1` 抽出器）が対象とする
 /// `.route("<path>", handler)` 構文をそのまま実コードとして含む
-/// （Router スタブ、実物の `rws-server::router` のパスマッチング実装は
+/// （Router スタブ、実物の `fandhe-frontend-server::router` のパスマッチング実装は
 /// 持ち込まない）。
 const SERVER_MAIN_RS: &str = r#"//! シナリオ 2（UI 改善）フィクスチャ: サーバーエントリ。
-//! `rws-app::list_page` を一覧ルート `/` のハンドラから呼び出し、詳細ルート
+//! `fandhe-frontend-app::list_page` を一覧ルート `/` のハンドラから呼び出し、詳細ルート
 //! `/items/:id` も併せて宣言する。
 
-use rws_app::list_page;
+use fandhe_frontend_app::list_page;
 
-/// ルート定義を蓄積する最小スタブ。`rws-server`（実物）の `router.rs` の
+/// ルート定義を蓄積する最小スタブ。`fandhe-frontend-server`（実物）の `router.rs` の
 /// パスマッチング実装は持ち込まず、`.route(path, handler)` 構文の形だけを
 /// 再現する。
 struct Router;
@@ -125,7 +125,7 @@ impl Router {
     }
 }
 
-/// 一覧ルート `/` のハンドラ。`rws-app::list_page` を呼び出す
+/// 一覧ルート `/` のハンドラ。`fandhe-frontend-app::list_page` を呼び出す
 /// （`fw impact list_page` が `affected_files` として検出する対象）。
 fn list_handler() -> String {
     list_page(&["widget", "gadget"])
@@ -155,17 +155,17 @@ mod tests {
 }
 "#;
 
-/// `wasm-client/src/lib.rs`: CSR ハイドレーションスタブ。`rws_app::list_page`
+/// `wasm-client/src/lib.rs`: CSR ハイドレーションスタブ。`fandhe_frontend_app::list_page`
 /// を呼び出すのみで、wasm-bindgen 等の実 wasm 依存は持ち込まない（ホスト
-/// コンパイル可能。クレート名 `rws-wasm-client` が
+/// コンパイル可能。クレート名 `fandhe-frontend-wasm-client` が
 /// `impact::CLIENT_BOUNDARY_CRATES` と厳密一致することのみが判定要件）。
 const WASM_CLIENT_LIB_RS: &str = r#"//! シナリオ 2（UI 改善)フィクスチャ: CSR ハイドレーションスタブ。
-//! `rws-app::list_page` を呼び出し、クライアント側での再描画を模する。
+//! `fandhe-frontend-app::list_page` を呼び出し、クライアント側での再描画を模する。
 
 /// `list_page` の結果をクライアント側 DOM へ反映する体（実際の DOM 操作は
 /// 行わない、ホストコンパイル可能な最小スタブ）。
 pub fn hydrate_list() -> String {
-    rws_app::list_page(&["widget", "gadget"])
+    fandhe_frontend_app::list_page(&["widget", "gadget"])
 }
 
 #[cfg(test)]
@@ -209,16 +209,16 @@ fn write_baseline_fixture(scenario_name: &str) -> common::ScenarioProject {
 ///
 /// 導出根拠（`cli/src/impact.rs` の実装に基づく、PoC-7 JSON はそのまま
 /// 使わない）:
-/// - `defined_in_crate`: `list_page` はトップレベル `pub fn` として `rws-app`
-///   の 1 ファイルにのみ定義される（`find_definitions`）→ `"rws-app"`・
+/// - `defined_in_crate`: `list_page` はトップレベル `pub fn` として `fandhe-frontend-app`
+///   の 1 ファイルにのみ定義される（`find_definitions`）→ `"fandhe-frontend-app"`・
 ///   `ambiguous:false`。
 /// - `affected_crates`: `list_page` の使用箇所（定義ファイル自身は除外）は
 ///   `server/src/main.rs`・`wasm-client/src/lib.rs` の 2 ファイル
 ///   （`scan_usages`）。いずれのクレートにも逆依存する他クレートは存在しない
 ///   ため `reverse_dependency_closure` は seeds のまま
-///   `["rws-server","rws-wasm-client"]`（`BTreeSet` 昇順）。
+///   `["fandhe-frontend-server","fandhe-frontend-wasm-client"]`（`BTreeSet` 昇順）。
 /// - `breaking_risk`: `affected_crates` が `CLIENT_BOUNDARY_CRATES`
-///   （`rws-wasm-client`）を含むため、件数 2 でも `judge_breaking_risk` は
+///   （`fandhe-frontend-wasm-client`）を含むため、件数 2 でも `judge_breaking_risk` は
 ///   `high`。
 /// - `requires_human_approval`: `high` かつ影響ルート非空のため `true`。
 /// - `affected_routes`: `server/src/main.rs` は `list_page` の使用箇所
@@ -236,7 +236,7 @@ fn scenario2_impact_reports_high_risk_for_list_page() {
     );
     assert_eq!(
         json_string_field(&stdout, "defined_in_crate").as_deref(),
-        Some("rws-app"),
+        Some("fandhe-frontend-app"),
         "stdout={stdout}"
     );
     assert_eq!(
@@ -258,7 +258,9 @@ fn scenario2_impact_reports_high_risk_for_list_page() {
     // 部分一致ではなく、`render_report` が 1 行コンパクト JSON を出力する
     // 契約（`BTreeSet` 由来で要素順序も安定）を利用した完全一致で検証する。
     assert!(
-        stdout.contains("\"affected_crates\":[\"rws-server\",\"rws-wasm-client\"]"),
+        stdout.contains(
+            "\"affected_crates\":[\"fandhe-frontend-server\",\"fandhe-frontend-wasm-client\"]"
+        ),
         "stdout={stdout}"
     );
     assert!(

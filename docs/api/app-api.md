@@ -1,19 +1,19 @@
-# rws-app 公開 API 設計確定（TASK-6.1a）
+# fandhe-frontend-app 公開 API 設計確定（TASK-6.1a）
 
 ## 1. 目的とトレーサビリティ
 
 本ドキュメントは REQ-6（`docs/spec/04-requirements.md` REQ-6 節）が求める
 「同一コンポーネント関数から SSR・CSR・SSG の 3 モードで描画できる共通コア」
-のうち、アプリケーション層クレート `rws-app` の公開 API 表面・モジュール構成・
+のうち、アプリケーション層クレート `fandhe-frontend-app` の公開 API 表面・モジュール構成・
 セキュリティ不変条件を**設計として確定**するための成果物です。PoC-3
 （`docs/spec/03-poc/rendering-web-standards/app/src/lib.rs`）で実証済みの
 `list_page` / `detail_page` / `page_shell` を標準アーキテクチャとして採用します。
 
 `docs/spec/05-tasks.md` の TASK-6.1（#41）は 4h 粒度で a〜d に分割されています。
 
-- **TASK-6.1a（本ドキュメント・#42）**: rws-app 公開 API の**設計確定**
-- **TASK-6.1b（#43）**: 本書に従った `rws-app` クレートの実装
-- **TASK-6.1c（#44）**: `rws-server`（SSR/SSG エントリポイント）の実装
+- **TASK-6.1a（本ドキュメント・#42）**: fandhe-frontend-app 公開 API の**設計確定**
+- **TASK-6.1b（#43）**: 本書に従った `fandhe-frontend-app` クレートの実装
+- **TASK-6.1c（#44）**: `fandhe-frontend-server`（SSR/SSG エントリポイント）の実装
 - **TASK-6.1d（#45）**: SSR/SSG/CSR 三モード統合テスト
 
 **本文書のステータス**: TASK-6.1a 確定版。TASK-6.1b/c は本書の設計に従って
@@ -36,17 +36,17 @@ REQ-7/9/11/13 が依存する最重要結節点であり、手戻りの影響範
 
 ## 2. クレート構成の確定
 
-- **パッケージ名**: `rws-app`
+- **パッケージ名**: `fandhe-frontend-app`
 - **配置**: `app/`
 - **edition**: 2021
 - **属性**: `#![forbid(unsafe_code)]` + `#![warn(missing_docs)]`
-- **依存**: `rws-core`（path 依存）のみ。**外部クレート 0**（PoC-3 の
+- **依存**: `fandhe-frontend-core`（path 依存）のみ。**外部クレート 0**（PoC-3 の
   `app/Cargo.toml` 実績を踏襲）。axum / tokio 等のサーバー依存は `server/`
-  （TASK-6.1c）側に隔離し、`rws-app` には持ち込まない。
+  （TASK-6.1c）側に隔離し、`fandhe-frontend-app` には持ち込まない。
 
 依存グラフ上限（REQ-3: 標準サーバー構成 60 件以内・深さ 6 以内、
 `docs/policy/dependency-graph-policy.md`）に対し、PoC-3 実測値は 52 件/深さ 5
-（同ポリシー第 2 節）であり、`rws-app` が外部依存 0 を維持することで
+（同ポリシー第 2 節）であり、`fandhe-frontend-app` が外部依存 0 を維持することで
 この余裕を消費しないことを設計上の根拠として記録する。
 
 **モジュール構成案**:
@@ -95,7 +95,7 @@ PoC-3 実績シグネチャをそのまま標準 API として凍結する。TAS
 | # | 判断 | 根拠 |
 |---|------|------|
 | 1 | コンポーネントは「`Node` を返す通常の Rust 関数」として記述する | `docs/api/component-api.md` 第 2 節の標準規約を継承。マクロ・トレイト・特別な戻り値型は導入しない |
-| 2 | `page_shell` は静的テンプレート文字列 + `format!` による補間を許容する例外とする。許容条件は「補間値が `rws_core::escape_html(title)` と `rws_core::render(body)`（既定エスケープ済み出力）のみであること」とする | PoC-3 実装を踏襲しつつ、`format!("<div>{}</div>", user_input)` 型の直接組み立て禁止（`.claude/rules/coding-rust.md`）との関係を「未エスケープのユーザー入力を補間しない固定文書骨格」として整理する。この不変条件は rustdoc とテストで固定することを TASK-6.1b の要件とする |
+| 2 | `page_shell` は静的テンプレート文字列 + `format!` による補間を許容する例外とする。許容条件は「補間値が `fandhe_frontend_core::escape_html(title)` と `fandhe_frontend_core::render(body)`（既定エスケープ済み出力）のみであること」とする | PoC-3 実装を踏襲しつつ、`format!("<div>{}</div>", user_input)` 型の直接組み立て禁止（`.claude/rules/coding-rust.md`）との関係を「未エスケープのユーザー入力を補間しない固定文書骨格」として整理する。この不変条件は rustdoc とテストで固定することを TASK-6.1b の要件とする |
 | 3 | 静的アセットパス（`/static/style.css`・`/static/hydrate.js`）と `<meta name="view-transition">` の既定同梱を v1 では固定値として凍結する | PoC-3 の実装をそのまま踏襲。パラメータ化は TASK-7.1/8.1 の設計余地として記録する。**追記（TASK-8.1・#59）**: `<meta name="view-transition">` は View Transitions Level 2 の標準化過程で廃止されたため、実装は `@view-transition { navigation: auto; }`（CSS at-rule）へ置換済み。採用経緯・標準テンプレートへの既定同梱の詳細は `docs/guides/view-transitions.md` を参照 |
 | 4 | デモデータ（`items()`）を製品クレートに残し、`data` モジュールに隔離する | XSS 回帰テスト（REQ-1）・SSR/SSG 完全一致テスト（TASK-6.4）・三モード統合テスト（TASK-6.1d）の共通フィクスチャであるため v1 では公開のまま維持し、将来の feature 分離余地を記録する |
 | 5 | `server/src/main.rs`（SSR）・`server/src/bin/ssg.rs`（SSG）・`wasm-client`（CSR、TASK-6.2）は本クレートの同一関数を**分岐なく**呼び出す | REQ-6/REQ-7 受け入れ基準。SSG 出力 = SSR 出力の文字列完全一致（`ssg_output_equals_ssr_output_for_list_and_detail`）を TASK-6.1d・TASK-6.4 の回帰テスト対象として明記する |
@@ -104,30 +104,30 @@ PoC-3 実績シグネチャをそのまま標準 API として凍結する。TAS
 
 | 項目 | 引き継ぎ先 |
 |------|-----------|
-| ハイドレーション支援 API（`find_attr_values` / `find_nav_targets`）— 現行 `rws-core`（origin/main）には未実装 | TASK-6.2 系（PoC-3 の該当テストは TASK-6.1b では移植対象外とする） |
-| ルーティング（パスマッチング） | TASK-7.2（実装は `app/src/router.rs`。イシュー #407 で `server` から `rws-app` へ移設し、`server/src/ssr.rs`・`wasm-full/src/nav.rs` が単一定義（`app/src/routes.rs`）を共有する。詳細は `docs/design/route-definition-sharing.md`） |
+| ハイドレーション支援 API（`find_attr_values` / `find_nav_targets`）— 現行 `fandhe-frontend-core`（origin/main）には未実装 | TASK-6.2 系（PoC-3 の該当テストは TASK-6.1b では移植対象外とする） |
+| ルーティング（パスマッチング） | TASK-7.2（実装は `app/src/router.rs`。イシュー #407 で `server` から `fandhe-frontend-app` へ移設し、`server/src/ssr.rs`・`wasm-full/src/nav.rs` が単一定義（`app/src/routes.rs`）を共有する。詳細は `docs/design/route-definition-sharing.md`） |
 | 最小埋め込みテンプレート | TASK-7.1 |
-| 状態管理（`rws-interactive`） | TASK-11.1 |
+| 状態管理（`fandhe-frontend-interactive`） | TASK-11.1 |
 | `page_shell` のテンプレートパラメータ化 | TASK-7.1/8.1 で再検討 |
 | 静的ファイル配信のパストラバーサル対策（`canonicalize` + `Component::Normal` 検証） | TASK-6.1c（`server/`）。本書は PoC-3 実装の防御を弱めないことを設計上の要求として引き継ぐ |
 
 ## 6. セキュリティ不変条件の引き継ぎ
 
-`core/src/lib.rs` 冒頭の不変条件 1〜7（REQ-1・REQ-2）を、`rws-app` への
-制約としてそのまま再掲・固定する。加えて `rws-app` 固有の不変条件を以下に
+`core/src/lib.rs` 冒頭の不変条件 1〜7（REQ-1・REQ-2）を、`fandhe-frontend-app` への
+制約としてそのまま再掲・固定する。加えて `fandhe-frontend-app` 固有の不変条件を以下に
 定義する。
 
-1. `Node::Text` の内容・`Element` の属性値は `rws-core` の `render()` 内で
-   必ず `escape_html` / `escape_html_into` を経由して出力する（`rws-app` は
+1. `Node::Text` の内容・`Element` の属性値は `fandhe-frontend-core` の `render()` 内で
+   必ず `escape_html` / `escape_html_into` を経由して出力する（`fandhe-frontend-app` は
    この契約に依存し、独自のエスケープ実装を持たない）。
-2. エスケープを迂回できる経路は `raw_html()` のみとする。**`rws-app` は
+2. エスケープを迂回できる経路は `raw_html()` のみとする。**`fandhe-frontend-app` は
    新たなエスケープ迂回経路を作らない**。`raw_html` を使用する場合は
    根拠コメント必須とする。
 3. `format!("<div>{}</div>", user_input)` のような HTML 文字列の直接組み立てを
    内部にも作らない。唯一の例外は第 4 節・判断 2 で定義した `page_shell` の
    固定文書骨格であり、補間値はエスケープ済み値のみとする。
 4. `#![forbid(unsafe_code)]` によりクレート全体で `unsafe` を機械的に禁止する。
-5. `app/Cargo.toml` の `[dependencies]` は `rws-core`（path 依存）のみとし、
+5. `app/Cargo.toml` の `[dependencies]` は `fandhe-frontend-core`（path 依存）のみとし、
    外部依存 0 を維持する。依存クレートの追加は事前に `cargo metadata` で
    影響を確認し、ユーザー承認を得る（`.claude/rules/coding-rust.md`）。
 
@@ -149,7 +149,7 @@ PoC-3 実績シグネチャをそのまま標準 API として凍結する。TAS
   `docs/api/component-api.md` 第 2 節の標準規約と矛盾しない。
 - 本書第 5 節（ハイドレーション支援 API は TASK-6.2 系へ引き継ぎ）は
   `core/src/lib.rs` の rustdoc 記載（「ハイドレーション支援は TASK-6.2 系」）
-  と整合する。TASK-6.1b は `rws-core` への API 追加を行わない。
+  と整合する。TASK-6.1b は `fandhe-frontend-core` への API 追加を行わない。
 
 ## 9. TASK-6.1c 実装時の乖離記録（axum 不採用・HTTP 配信の委譲）
 
@@ -170,19 +170,19 @@ TASK-6.1c（#44）の実装により、第 2 節「axum / tokio 等のサーバ�
    `server/src/ssr.rs::respond(path: &str) -> Option<SsrResponse>` が
    ステータス・Content-Type・既定エスケープ済み HTML 文字列を返す。
    ソケット層（TCP リッスン・HTTP/1.1 解析等）は持たない。
-3. **HTTP 配信（ソケット層）は `rws-dist-server` に委譲する**:
-   `dist-server/src/routes.rs::route_request` は `rws_server::ssr::respond`
+3. **HTTP 配信（ソケット層）は `fandhe-frontend-dist-server` に委譲する**:
+   `dist-server/src/routes.rs::route_request` は `fandhe_frontend_server::ssr::respond`
    を呼び出し、その結果を `RouteResponse`（hyper 変換用の表現）へ詰め替える
-   のみとする。ページ解決・rws-app 呼び出しのロジックは `rws-server` 側の
-   単一実装に一本化し、`rws-dist-server` 側の重複実装を排除した。
+   のみとする。ページ解決・fandhe-frontend-app 呼び出しのロジックは `fandhe-frontend-server` 側の
+   単一実装に一本化し、`fandhe-frontend-dist-server` 側の重複実装を排除した。
 4. **SSG は SSR ボディの単純書き出し**: `server/src/ssg.rs::generate` は
    `ssr::respond` が返す 200 応答ボディをそのまま `std::fs::write` する。
    これにより SSR/SSG の出力文字列完全一致（REQ-6 受け入れ基準）は
    実装レベルで自明になる（同一関数呼び出しの結果を書き出すのみのため）。
-5. **`/search` ルートは本タスクでも接続しない**: `rws-app` の凍結 API
+5. **`/search` ルートは本タスクでも接続しない**: `fandhe-frontend-app` の凍結 API
    （第 3 節）に search ページ相当のコンポーネントが存在しないため、
    `server/src/ssr.rs` は `/`・`/items/:id` の 2 ルートのみを登録する。
    `dist-server/src/routes.rs` に残っていた「`/search` は TASK-6.1c 以降で
-   扱う」という記述のスコープはここでは解消しない（`rws-app` 側に search
+   扱う」という記述のスコープはここでは解消しない（`fandhe-frontend-app` 側に search
    ページを追加する設計判断が必要なため、別 Issue 化をユーザーに提案する
    スコープ外事項として PR 本文に記録する）。

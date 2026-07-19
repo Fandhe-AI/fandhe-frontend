@@ -22,7 +22,7 @@
 
 #![cfg(target_arch = "wasm32")]
 
-use rws_wasm_client::hydrate;
+use fandhe_frontend_wasm_client::hydrate;
 use wasm_bindgen_test::*;
 use web_sys::{Document, Element, Event, EventInit};
 
@@ -44,7 +44,7 @@ fn create_container(document: &Document, id: &str) -> Element {
     container
 }
 
-/// `rws_app::detail_page` が出力するボタン相当（`id="like-btn"
+/// `fandhe_frontend_app::detail_page` が出力するボタン相当（`id="like-btn"
 /// data-hydrate="like"`）の合成 DOM をルート配下に構築する。
 /// サーバー出力済み DOM を模しており、`hydrate()` はこれを再構築せず
 /// リスナーを後付けするだけであることを検証する。

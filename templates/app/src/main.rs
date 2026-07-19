@@ -1,30 +1,30 @@
-//! rws フレームワークの拡張プロジェクトテンプレート（`fw new --template app`、
+//! fandhe-frontend フレームワークの拡張プロジェクトテンプレート（`fw new --template app`、
 //! イシュー #378）。
 //!
 //! # 役割・契約
 //!
-//! `templates/default`（rws-core 非依存の最小骨格、TASK-4.4 の負例検出
-//! テスト土台）に対し、本テンプレートは rws-core / rws-app（vendor 同梱、
-//! `vendor/rws-core` / `vendor/rws-app`）へ依存し、フレームワークの実 API
-//! （`Loader` trait 実装・束縛点 API・`rws_core::render`）を使う出発点を
+//! `templates/default`（fandhe-frontend-core 非依存の最小骨格、TASK-4.4 の負例検出
+//! テスト土台）に対し、本テンプレートは fandhe-frontend-core / fandhe-frontend-app（vendor 同梱、
+//! `vendor/fandhe-frontend-core` / `vendor/fandhe-frontend-app`）へ依存し、フレームワークの実 API
+//! （`Loader` trait 実装・束縛点 API・`fandhe_frontend_core::render`）を使う出発点を
 //! 提供する。AI エージェントが SSR/SSG 実体を自作して構成ドリフトするのを
 //! 防ぐことが目的（イシュー #378 背景）。
 //!
-//! `main()` は `rws_app::Loader` の参照実装（`DemoItemsLoader` /
-//! `DemoItemDetailLoader`）でデータを解決し、`rws_app::{list_page,
-//! detail_page, page_shell}` で描画したノード木を `rws_core::render`
+//! `main()` は `fandhe_frontend_app::Loader` の参照実装（`DemoItemsLoader` /
+//! `DemoItemDetailLoader`）でデータを解決し、`fandhe_frontend_app::{list_page,
+//! detail_page, page_shell}` で描画したノード木を `fandhe_frontend_core::render`
 //! （既定エスケープ済み HTML 文字列）へ変換して `dist/` へ書き出す
 //! （SSG 的最小 SSR）。`raw_html()` は使用しない
 //! （`clippy.toml` の `disallowed-methods` が検出する）。
-//! `demo_counter_fragment` は `rws_core::bind_text` / `rws_core::keyed_list`
+//! `demo_counter_fragment` は `fandhe_frontend_core::bind_text` / `fandhe_frontend_core::keyed_list`
 //! （束縛点 API）の使用サンプルであり、`dist/demo.html` へ書き出す。
 //! いずれも HTML 文字列の直接組み立てはしない（ノード木 API のみ）。
 
 #![forbid(unsafe_code)]
 
-use rws_app::{DemoItemDetailLoader, DemoItemsLoader, Item, Loader};
-use rws_core::keyed::keyed_list;
-use rws_core::{bind_text, div, el, li, render, text, Node};
+use fandhe_frontend_app::{DemoItemDetailLoader, DemoItemsLoader, Item, Loader};
+use fandhe_frontend_core::keyed::keyed_list;
+use fandhe_frontend_core::{bind_text, div, el, li, render, text, Node};
 use std::fs;
 use std::path::Path;
 
@@ -40,7 +40,7 @@ fn main() {
     let items = items_loader
         .load(&())
         .expect("DemoItemsLoader::load never fails (Error = Infallible)");
-    let list_html = rws_app::page_shell("記事一覧", rws_app::list_page(&items));
+    let list_html = fandhe_frontend_app::page_shell("記事一覧", fandhe_frontend_app::list_page(&items));
     write_page(dist_dir, "index.html", &list_html);
 
     // 詳細画面: 項目ごとに DemoItemDetailLoader → detail_page → render。
@@ -49,7 +49,7 @@ fn main() {
         let detail = detail_loader
             .load(&item.id)
             .expect("DemoItemDetailLoader::load never fails (Error = Infallible)");
-        let detail_html = rws_app::page_shell("記事詳細", rws_app::detail_page(detail.as_ref()));
+        let detail_html = fandhe_frontend_app::page_shell("記事詳細", fandhe_frontend_app::detail_page(detail.as_ref()));
         write_page(dist_dir, &format!("items-{}.html", item.id), &detail_html);
     }
 
@@ -60,11 +60,11 @@ fn main() {
     println!("wrote {} pages to dist/", items.len() + 2);
 }
 
-/// `rws_core::bind_text` / `rws_core::keyed_list`（束縛点 API）の使用サンプル。
+/// `fandhe_frontend_core::bind_text` / `fandhe_frontend_core::keyed_list`（束縛点 API）の使用サンプル。
 ///
 /// `bind_text` は `data-bind-text` マーカーを、`keyed_list` は
 /// `data-bind-list`/`data-key` マーカーを付与した [`Node`] を返す
-/// （`rws-wasm-client`/`rws-wasm-full` がハイドレーション時に走査する契約、
+/// （`fandhe-frontend-wasm-client`/`fandhe-frontend-wasm-full` がハイドレーション時に走査する契約、
 /// `core/src/lib.rs` 冒頭 rustdoc 参照）。本テンプレートはハイドレーション
 /// 自体（wasm ビルド）を行わないため、SSR 出力にマーカー属性を含めるだけの
 /// 最小サンプルとする（`static/embed.html` が CSR マウント骨格を示す）。

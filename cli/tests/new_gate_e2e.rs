@@ -308,7 +308,7 @@ fn fw_new_output_fw_structure_succeeds_and_fw_impact_does_not_hit_root_scan_erro
     );
 }
 
-/// イシュー #378 受け入れ条件 2: `fw new --template app`（rws-core/rws-app
+/// イシュー #378 受け入れ条件 2: `fw new --template app`（fandhe-frontend-core/fandhe-frontend-app
 /// 依存の拡充テンプレート、vendor 同梱）が生成直後に `fw gate` PASS する
 /// ことを固定する。`fw_new_output_passes_fw_gate`（`default` テンプレート）
 /// と同一の断定方針（環境依存の `policy` のみ両分岐を確認、他 4 チェックは
@@ -391,8 +391,8 @@ fn fw_new_app_template_output_passes_fw_gate() {
 /// イシュー #378: `fw new --template app` 生成物への未レビュー `raw_html()`
 /// 注入が `default_escape_check` で検出されることを固定する
 /// （`fw_new_output_default_escape_check_detects_injected_violation_in_root_src`
-/// の app テンプレート版）。app は rws-core に依存するため `raw_html()` が
-/// 実際に解決可能な呼び出しになる点が `default`（rws-core 非依存）との
+/// の app テンプレート版）。app は fandhe-frontend-core に依存するため `raw_html()` が
+/// 実際に解決可能な呼び出しになる点が `default`（fandhe-frontend-core 非依存）との
 /// 差分であり、clippy.toml の disallowed-methods が依存追加によって
 /// 初めて実効化されることを固定する（実装計画 §7 セキュリティ考慮）。
 #[test]
@@ -415,7 +415,9 @@ fn fw_new_app_template_default_escape_check_detects_injected_violation() {
     let project_dir = scratch.join("gate-pass-app-violation");
     let main_rs = project_dir.join("src").join("main.rs");
     let mut content = std::fs::read_to_string(&main_rs).expect("failed to read src/main.rs");
-    content.push_str("\nfn unreviewed_raw_html_probe() {\n    rws_core::raw_html(\"x\");\n}\n");
+    content.push_str(
+        "\nfn unreviewed_raw_html_probe() {\n    fandhe_frontend_core::raw_html(\"x\");\n}\n",
+    );
     std::fs::write(&main_rs, content).expect("failed to write src/main.rs");
 
     let (gate_code, gate_stdout, gate_stderr) = run_fw_gate(&project_dir);

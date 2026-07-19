@@ -55,7 +55,7 @@ const MAX_PORT_RETRIES: u32 = 3;
 /// 「`listening on` 行が出るまで待ち、出なければ 5 秒後に panic する」契約
 /// になっている（bind 成功を前提とする `boot.rs` 等の既存呼び出し側に合わせた
 /// 設計）。本関数は bind **失敗**（`main.rs` が出す
-/// `"rws-dist-server: failed to bind"` 行）を正常系の一つとして区別し、
+/// `"fandhe-frontend-dist-server: failed to bind"` 行）を正常系の一つとして区別し、
 /// 呼び出し側（TOCTOU リトライループ）へ `Err` として返す必要があるため、
 /// 共有ヘルパには委譲せず個別に実装する。
 fn try_spawn_with_bind_addr(binary: &Path, bind_addr: &str) -> Result<(ChildGuard, String), ()> {
@@ -104,7 +104,7 @@ fn try_spawn_with_bind_addr(binary: &Path, bind_addr: &str) -> Result<(ChildGuar
                 if let Some(addr) = parse_listening_addr(trimmed) {
                     return Ok((guard, addr.to_string()));
                 }
-                if trimmed.starts_with("rws-dist-server: failed to bind") {
+                if trimmed.starts_with("fandhe-frontend-dist-server: failed to bind") {
                     return Err(());
                 }
                 // それ以外の行（`assets=` 等）は無視して読み取りを続ける。
@@ -222,7 +222,10 @@ fn bind_addr_env_switches_address() {
     );
 
     assert!(
-        parse_listening_addr(&format!("rws-dist-server: listening on {reported_addr}")).is_some(),
+        parse_listening_addr(&format!(
+            "fandhe-frontend-dist-server: listening on {reported_addr}"
+        ))
+        .is_some(),
         "listening line format contract must still hold for the reported address"
     );
 }

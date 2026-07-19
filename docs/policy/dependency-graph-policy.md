@@ -12,7 +12,7 @@ TASK-3.3 は 2 段階に分割されていました。
 - **TASK-3.3a（Issue #23・完了）**: 上限値の算出根拠・超過時の対応フロー・サプライチェーンリスクの限界を
   明文化した草案の作成（PR #176、コミット 16eee26）
 - **TASK-3.3b（Issue #24・本更新で完了）**: 草案のレビュー反映・確定。TASK-3.2（build.rs 保有クレートの機械的列挙）の
-  完了状況を踏まえた第 6 節の確定、`rws-server` 実装後の実測値反映、WASM クライアントクレートのスコープ判断
+  完了状況を踏まえた第 6 節の確定、`fandhe-frontend-server` 実装後の実測値反映、WASM クライアントクレートのスコープ判断
   （Issue #22 コメント由来）、および Conditional Go 条件 2 の解消判定
 
 **本文書のステータス**: 確定（TASK-3.3b、Issue #22/#24）。第 8 節に解消判定の根拠を記録します。
@@ -24,37 +24,37 @@ TASK-3.3 は 2 段階に分割されていました。
 - **依存パッケージ数**: 標準サーバー構成で解決済み依存パッケージ 60 件以内
 - **依存グラフ最大深さ**: 6 以内
 
-根拠は PoC-2（マクロ DSL・Leptos 構成）と PoC-3（純 Rust 方式・`rws-server` 相当構成）の実測差です。
+根拠は PoC-2（マクロ DSL・Leptos 構成）と PoC-3（純 Rust 方式・`fandhe-frontend-server` 相当構成）の実測差です。
 
 | 構成 | パッケージ件数 | 最大深さ | 出典 |
 |------|--------------|---------|------|
 | PoC-2（マクロ DSL・Leptos 構成） | 202 | 14 | `docs/spec/04-requirements.md` REQ-3 詳細・概要（25 行目） |
-| PoC-3（純 Rust 方式・rws-server 相当構成） | 52 | 5 | `docs/spec/04-requirements.md` REQ-3 詳細・受け入れ基準、`docs/spec/03-poc/` |
+| PoC-3（純 Rust 方式・fandhe-frontend-server 相当構成） | 52 | 5 | `docs/spec/04-requirements.md` REQ-3 詳細・受け入れ基準、`docs/spec/03-poc/` |
 | 削減率（PoC-2 → PoC-3） | 約 74% 減 | 約 64% 減 | `docs/spec/04-requirements.md` REQ-3 詳細（PoC-2/PoC-3 実測差の記述） |
 | **採用上限**（`MAX_PACKAGES` / `MAX_DEPTH`） | **60** | **6** | PoC-3 実測（52 件/深さ 5）に実装拡張分の余裕を加算。`xtask/src/check_deps.rs` |
 
-コアクレート（`rws-core` / `rws-interactive`）は外部依存パッケージ数 0 件であることを別途受け入れ基準としています
+コアクレート（`fandhe-frontend-core` / `fandhe-frontend-interactive`）は外部依存パッケージ数 0 件であることを別途受け入れ基準としています
 （REQ-3 受け入れ基準 1 点目）。`core/Cargo.toml` への外部クレート追加は `.claude/rules/coding-rust.md` により禁止されています。
 この「0 件であること」自体は `check-deps`（60/6 判定）とは別に、`check-core-deps` ゲート（Issue #154）が
-`check_deps::ZERO_DEP_CRATES`（`rws-core` / `rws-interactive`）を対象に Normal/Dev/Build すべての辺で強制します。
+`check_deps::ZERO_DEP_CRATES`（`fandhe-frontend-core` / `fandhe-frontend-interactive`）を対象に Normal/Dev/Build すべての辺で強制します。
 
 ### 現行実測値（TASK-3.3b 確定時点、origin/main 相当）
 
-`cargo run --locked -p xtask -- check-deps --package rws-core --package xtask --package rws-app
---package rws-dist-server --package rws-server` の実行結果は次のとおりです。
+`cargo run --locked -p xtask -- check-deps --package fandhe-frontend-core --package xtask --package fandhe-frontend-app
+--package fandhe-frontend-dist-server --package fandhe-frontend-server` の実行結果は次のとおりです。
 
 ```
-deps-check: packages=0/60 depth=0/6 result=PASS   (rws-core)
+deps-check: packages=0/60 depth=0/6 result=PASS   (fandhe-frontend-core)
 deps-check: packages=0/60 depth=0/6 result=PASS   (xtask)
-deps-check: packages=1/60 depth=1/6 result=PASS   (rws-app)
-deps-check: packages=21/60 depth=5/6 result=PASS  (rws-dist-server)
-deps-check: packages=0/60 depth=0/6 result=PASS   (rws-server)
+deps-check: packages=1/60 depth=1/6 result=PASS   (fandhe-frontend-app)
+deps-check: packages=21/60 depth=5/6 result=PASS  (fandhe-frontend-dist-server)
+deps-check: packages=0/60 depth=0/6 result=PASS   (fandhe-frontend-server)
 ```
 
-`rws-dist-server`（`dist-server/`）は REQ-3 が本来対象とする「標準サーバー構成（SSR サーバー相当）」の実体です。
+`fandhe-frontend-dist-server`（`dist-server/`）は REQ-3 が本来対象とする「標準サーバー構成（SSR サーバー相当）」の実体です。
 `hyper` + `hyper-util` + `http-body-util` + `tokio` の直接構成を採用しており、`axum` / `rust-embed` はいずれも
 依存グラフ深さ上限（6）を構造的に超過するため不採用としました（実測根拠は `dist-server/Cargo.toml` のコメント参照）。
-`rws-server`（`server/`）はパスマッチングルーティングのみを担う外部依存ゼロのクレートで、SSR/SSG/単一バイナリ配布の
+`fandhe-frontend-server`（`server/`）はパスマッチングルーティングのみを担う外部依存ゼロのクレートで、SSR/SSG/単一バイナリ配布の
 各エントリから共通利用されます。
 
 ## 3. 計測の定義と「正」の所在
@@ -76,7 +76,7 @@ cargo run --locked -p xtask -- check-deps --package <NAME> [--package <NAME> ...
   cfg 条件付き依存（target-specific な normal edge）を計測から除外する
 
 しきい値の唯一の正は `xtask/src/check_deps.rs` の `MAX_PACKAGES`（60）・`MAX_DEPTH`（6）・`ZERO_DEP_CRATES`
-（`rws-core` / `rws-interactive`。`check-core-deps` が参照）定数です。`--locked` 実行を必須とし、CLI 引数・
+（`fandhe-frontend-core` / `fandhe-frontend-interactive`。`check-core-deps` が参照）定数です。`--locked` 実行を必須とし、CLI 引数・
 環境変数・`continue-on-error` 等による緩和経路は意図的に設けません（迂回経路を作らない設計）。
 
 CI 組み込みは `.github/workflows/deps-check.yml` が担い、fail-closed（PASS/FAIL をそのまま CI の成否に伝播）で
@@ -89,38 +89,38 @@ CI 組み込みは `.github/workflows/deps-check.yml` が担い、fail-closed（
 
 現時点の計測対象は次の 5 パッケージです（`.github/workflows/deps-check.yml` と一致）。
 
-- `rws-core`（ディレクトリは `core/`。外部依存ゼロ契約）
+- `fandhe-frontend-core`（ディレクトリは `core/`。外部依存ゼロ契約）
 - `xtask`（外部依存ゼロ契約）
-- `rws-app`（ディレクトリは `app/`。`rws-core` への path 依存のみ）
-- `rws-dist-server`（ディレクトリは `dist-server/`。REQ-3 が対象とする「標準サーバー構成」の実体。
+- `fandhe-frontend-app`（ディレクトリは `app/`。`fandhe-frontend-core` への path 依存のみ）
+- `fandhe-frontend-dist-server`（ディレクトリは `dist-server/`。REQ-3 が対象とする「標準サーバー構成」の実体。
   hyper 直接構成、実測 21 packages/depth 5）
-- `rws-server`（ディレクトリは `server/`。パスマッチングルーティングのみ、外部依存ゼロ）
+- `fandhe-frontend-server`（ディレクトリは `server/`。パスマッチングルーティングのみ、外部依存ゼロ）
 
 `check-core-deps` は引数を取らず、`check_deps::ZERO_DEP_CRATES` と実 workspace メンバーの積集合を xtask 内部で
-自動解決します（`rws-interactive` 等の追加時もワークフロー変更は不要です）。
+自動解決します（`fandhe-frontend-interactive` 等の追加時もワークフロー変更は不要です）。
 
 ### WASM クライアントクレートのスコープ（Issue #22 コメント由来の判断）
 
-`rws-wasm-full` / `rws-wasm-thin`（CSR・ハイドレーション用のクライアント側クレート）は本ゲートの計測対象に
+`fandhe-frontend-wasm-full` / `fandhe-frontend-wasm-thin`（CSR・ハイドレーション用のクライアント側クレート）は本ゲートの計測対象に
 **含めません**。理由は次のとおりです。
 
 - REQ-3 の受け入れ基準は「標準サーバー構成（SSR サーバー相当）の解決済み依存パッケージ数・依存グラフ最大深さ」を
   対象と明記しており（`docs/spec/04-requirements.md` REQ-3 受け入れ基準 2 点目）、クライアント側で実行される
   WASM バインディング層はこの定義に含まれません
 - `wasm-bindgen` / `web-sys` に由来する依存グラフの深さは、ブラウザ API バインディングという領域の構造的特性
-  であり、`rws-dist-server` のように代替クレート選定で回避できる性質のものではありません
+  であり、`fandhe-frontend-dist-server` のように代替クレート選定で回避できる性質のものではありません
 - `unsafe` 境界としての監査は `docs/policy/unsafe-boundary.md` のスコープであり、本ポリシーの 60/6 上限とは別の
   観点で担保されます
 
 参考実測（TASK-3.3b 確定時点）:
 
 ```
-deps-check: packages=20/60 depth=9/6 result=FAIL  (rws-wasm-full)
-deps-check: packages=13/60 depth=7/6 result=FAIL  (rws-wasm-thin)
+deps-check: packages=20/60 depth=9/6 result=FAIL  (fandhe-frontend-wasm-full)
+deps-check: packages=13/60 depth=7/6 result=FAIL  (fandhe-frontend-wasm-thin)
 ```
 
 （Issue #22 コメント記載の #48 時点実測「wasm-client 20 packages / depth 9」は、クレート再編後の
-`rws-wasm-full` の現行実測値と一致します。）
+`fandhe-frontend-wasm-full` の現行実測値と一致します。）
 
 この FAIL 表示はあくまで参考値であり、`deps-check` CI（`.github/workflows/deps-check.yml`）はこれらのクレートを
 計測対象に含めていないため CI 上の判定には影響しません。上限緩和・WASM 専用の別基準の新設は行わず、
@@ -165,11 +165,11 @@ cargo run --locked -p xtask -- list-build-scripts --package <NAME> [--package <N
 実行例（第 4 節の計測対象パッケージに対する実測）:
 
 ```
-build-scripts: target=rws-core count=0
+build-scripts: target=fandhe-frontend-core count=0
 build-scripts: target=xtask count=0
-build-scripts: target=rws-app count=0
-build-scripts: target=rws-dist-server count=3   (httparse, libc, rws-dist-server)
-build-scripts: target=rws-server count=0
+build-scripts: target=fandhe-frontend-app count=0
+build-scripts: target=fandhe-frontend-dist-server count=3   (httparse, libc, fandhe-frontend-dist-server)
+build-scripts: target=fandhe-frontend-server count=0
 ```
 
 ## 7. サプライチェーンリスクの限界（安全性主張のスコープ）
@@ -197,9 +197,9 @@ TASK-3.3b（Issue #22/#24）として、以下のレビュー観点を消化し�
 - [x] 超過時の対応フロー（第 5 節）が実際の運用として実行可能であることを確認した（依存追加承認フロー
       `.claude/rules/coding-rust.md` / `.claude/rules/security.md` との整合を含む）
 - [x] TASK-3.2（build.rs 列挙）完了を受け、第 6 節を実コマンド名・出力形式・実行例で確定記述に更新した
-- [x] `rws-server` 実装を受け、第 2 節・第 4 節に標準サーバー構成（`rws-dist-server` / `rws-server`）の
-      実測値を反映した（`.github/workflows/deps-check.yml` の計測対象にも `rws-server` を追加した）
-- [x] WASM クライアントクレート（`rws-wasm-full` / `rws-wasm-thin`）のスコープ判断（Issue #22 コメント由来）を
+- [x] `fandhe-frontend-server` 実装を受け、第 2 節・第 4 節に標準サーバー構成（`fandhe-frontend-dist-server` / `fandhe-frontend-server`）の
+      実測値を反映した（`.github/workflows/deps-check.yml` の計測対象にも `fandhe-frontend-server` を追加した）
+- [x] WASM クライアントクレート（`fandhe-frontend-wasm-full` / `fandhe-frontend-wasm-thin`）のスコープ判断（Issue #22 コメント由来）を
       第 4 節に明文化した
 
 **判定**: Conditional Go 条件 2（依存グラフ上限の要件化）は運用として確立しました。しきい値の根拠（第 2 節）・
@@ -241,11 +241,11 @@ TASK-9.1a（rust-embed 統合設計、`docs/design/dist-server-design.md` 4.3 �
    深さを過小評価するため、REQ-3 が求める監査可能性には現行の厳密な最長経路長計測が
    適切です。実装の欠陥ではなく、根拠側（PoC-3 目視値）が旧基準だったと整理します
 2. **`MAX_DEPTH = 6` / `MAX_PACKAGES = 60` の値は変更しません**。現行計測定義のもとで、
-   REQ-3 が対象とする標準サーバー構成の実体 `rws-dist-server` が実測で上限内であり
+   REQ-3 が対象とする標準サーバー構成の実体 `fandhe-frontend-dist-server` が実測で上限内であり
    （下記 9.4 の再実測参照）、上限値としての運用実効性が裏付けられているためです
 3. **根拠の再アンカー**: 「PoC-3 実測 52/5 + 余裕」という第 2 節の説明は現行計測定義と
    比較不能なため、根拠を「旧基準（cargo tree 目視）の PoC-3 値」と「現行基準
-   （メモ化 DFS）の再計測値・現行実測値（`rws-dist-server`: 21/5）」を区別して読む
+   （メモ化 DFS）の再計測値・現行実測値（`fandhe-frontend-dist-server`: 21/5）」を区別して読む
    ことを本節で明文化します。第 2 節・第 3 節の記述自体（TASK-3.3b 確定版）は既に
    この区別を反映済みであり、齟齬の説明が欠けていたのは `xtask/src/check_deps.rs` の
    `MAX_PACKAGES` / `MAX_DEPTH` 定数の rustdoc（PoC-3 値のみを根拠として記載）でした。
@@ -259,22 +259,22 @@ TASK-9.1a（rust-embed 統合設計、`docs/design/dist-server-design.md` 4.3 �
 ### 9.4 再検証時点の実測値（イシュー #298 判定時点）
 
 ```
-cargo run --locked -p xtask -- check-deps --package rws-core --package xtask \
-  --package rws-app --package rws-dist-server --package rws-server
+cargo run --locked -p xtask -- check-deps --package fandhe-frontend-core --package xtask \
+  --package fandhe-frontend-app --package fandhe-frontend-dist-server --package fandhe-frontend-server
 ```
 
 ```
-deps-check: packages=0/60  depth=0/6 result=PASS  (rws-core)
+deps-check: packages=0/60  depth=0/6 result=PASS  (fandhe-frontend-core)
 deps-check: packages=0/60  depth=0/6 result=PASS  (xtask)
-deps-check: packages=1/60  depth=1/6 result=PASS  (rws-app)
-deps-check: packages=21/60 depth=5/6 result=PASS  (rws-dist-server)
-deps-check: packages=2/60  depth=2/6 result=PASS  (rws-server)
+deps-check: packages=1/60  depth=1/6 result=PASS  (fandhe-frontend-app)
+deps-check: packages=21/60 depth=5/6 result=PASS  (fandhe-frontend-dist-server)
+deps-check: packages=2/60  depth=2/6 result=PASS  (fandhe-frontend-server)
 ```
 
-`rws-server` は第 2 節記載時点（0 件/深さ 0）から 2 件/深さ 2 へ増加していますが、
+`fandhe-frontend-server` は第 2 節記載時点（0 件/深さ 0）から 2 件/深さ 2 へ増加していますが、
 上限（60/6）に対して十分な余裕があり、判定結果（PASS）に変わりはありません。この
 差分自体が「実測値は経時的にドリフトしうるため定期的な再検証が必要」という本節の
-趣旨を裏付けます。参考実測（`rws-wasm-full`: 20/60・9/6・FAIL、`rws-wasm-thin`:
+趣旨を裏付けます。参考実測（`fandhe-frontend-wasm-full`: 20/60・9/6・FAIL、`fandhe-frontend-wasm-thin`:
 13/60・7/6・FAIL）は第 4 節記載値と一致し、変化なしを確認しました。
 
 ### 9.5 axum / rust-embed 系スタックへの含意（スコープ外・条件付き整理）

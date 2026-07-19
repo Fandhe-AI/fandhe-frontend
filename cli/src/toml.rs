@@ -420,27 +420,27 @@ mod tests {
 # 機械可読なプロジェクト構造マニフェスト（PoC-7）
 [directories.core]
 role = "core"
-crate = "rws-core"
+crate = "fandhe-frontend-core"
 description = "外部依存ゼロのレンダリングコア（Node木・render・escape）"
 allowed_dependents = ["app", "server", "wasm-client"]
 
 [directories.app]
 role = "component"
-crate = "rws-app"
+crate = "fandhe-frontend-app"
 description = "モード非依存の共通コンポーネント（SSR/CSR/SSG から共通利用）"
 depends_on = ["core"]
 allowed_dependents = ["server", "wasm-client"]
 
 [directories.server]
 role = "server-entrypoint"
-crate = "rws-server"
+crate = "fandhe-frontend-server"
 description = "SSR/SSG エントリポイント（axum ルーティング）"
 depends_on = ["core", "app"]
 allowed_dependents = []
 
 [directories.wasm-client]
 role = "client-entrypoint"
-crate = "rws-wasm-client"
+crate = "fandhe-frontend-wasm-client"
 description = "CSR/ハイドレーション エントリポイント（wasm32 ターゲット）"
 depends_on = ["core", "app"]
 allowed_dependents = []

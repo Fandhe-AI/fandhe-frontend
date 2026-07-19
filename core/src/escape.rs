@@ -1,10 +1,10 @@
-//! `rws-core` の既定エスケープ実装（TASK-1.1a）。
+//! `fandhe-frontend-core` の既定エスケープ実装（TASK-1.1a）。
 //!
 //! ノード木 API（TASK-1.1b で `lib.rs` に追加予定）がテキストノード・属性値を
 //! HTML へシリアライズする際、**必ずこのモジュールの関数を経由してエスケープする**
 //! ことを製品仕様として固定する。エスケープを迂回できる経路は `raw_html()`
 //! （明示的オプトイン API、TASK-1.1b で設計）のみとし、それ以外の新規迂回経路を
-//! 作らないことが `rws-core` 全体の不変条件（REQ-1）となる。
+//! 作らないことが `fandhe-frontend-core` 全体の不変条件（REQ-1）となる。
 //!
 //! # 対象文字仕様（OWASP XSS Prevention Cheat Sheet Rule #1 準拠）
 //!
@@ -70,13 +70,13 @@
 /// テキストノード・属性値の両コンテキストで安全に埋め込める文字列を返す
 /// （上表 5 文字を置換し、それ以外の文字はそのまま透過する）。
 ///
-/// `rws-core` のノード木 API（TASK-1.1b）が、ユーザー由来の文字列を
+/// `fandhe-frontend-core` のノード木 API（TASK-1.1b）が、ユーザー由来の文字列を
 /// テキストノード・属性値としてシリアライズする際に呼び出すことを想定する。
 ///
 /// # Examples
 ///
 /// ```
-/// use rws_core::escape_html;
+/// use fandhe_frontend_core::escape_html;
 ///
 /// assert_eq!(escape_html("<script>"), "&lt;script&gt;");
 /// assert_eq!(escape_html("plain text"), "plain text");
@@ -96,7 +96,7 @@ pub fn escape_html(input: &str) -> String {
 /// # Examples
 ///
 /// ```
-/// use rws_core::escape_html_into;
+/// use fandhe_frontend_core::escape_html_into;
 ///
 /// let mut buf = String::from("prefix:");
 /// escape_html_into("<b>", &mut buf);

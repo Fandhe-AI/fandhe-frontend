@@ -10,12 +10,12 @@
 //!   `docs/api/app-api.md` 第 4 節・判断 5・`docs/design/loader-trait-design.md`
 //!   §4「SSG が独自に loader を呼ぶ描画経路を新設しない」）。
 //! - ルート列挙（一覧に何件のアイテムがあるか）は
-//!   [`rws_app::Loader::load`]（一覧 loader）でビルド時に解決する。各ルート
+//!   [`fandhe_frontend_app::Loader::load`]（一覧 loader）でビルド時に解決する。各ルート
 //!   の HTML 生成自体は従来どおり [`crate::ssr::respond_with`] を呼ぶため、
 //!   loader は 1 回の [`generate_with`] 実行で複数回（列挙 1 回 + 各ルート
 //!   描画 1 回）呼ばれる。決定的な loader（同一入力に同一出力を返す）で
 //!   あることは型システムの外側の責務であり、テスト
-//!   （`server/tests/ssr_ssg_parity.rs`）で固定する（`rws-app` の `Loader`
+//!   （`server/tests/ssr_ssg_parity.rs`）で固定する（`fandhe-frontend-app` の `Loader`
 //!   rustdoc の「型で保証する範囲」注記と同じ位置づけ）。
 //! - `std::fs` のみを使用し、外部クレート（`tempfile` 等）を追加しない
 //!   （REQ-3、`coding-rust.md`）。
@@ -24,7 +24,7 @@
 //!
 //! - 出力ファイルパスは固定ルート表（`/` → `index.html`、
 //!   `/items/{id}` → `items/{id}/index.html`）から `out_dir` 配下に限定して
-//!   構成する。`Item::id` は `rws-app` の公開フィールドであり loader 由来の
+//!   構成する。`Item::id` は `fandhe-frontend-app` の公開フィールドであり loader 由来の
 //!   任意の値を持ちうるため、`..`・`/`・`\` を含む id はエラーとして拒否し、
 //!   英数字・`-`・`_` のみを許可するホワイトリスト検証を loader 出力の各
 //!   `item.id` に対して従来どおり適用する。
@@ -39,7 +39,7 @@
 //!   （`coding-rust.md` のエラー処理規約）。
 
 use crate::ssr::respond_with;
-use rws_app::{DemoItemDetailLoader, DemoItemsLoader, Item, Loader};
+use fandhe_frontend_app::{DemoItemDetailLoader, DemoItemsLoader, Item, Loader};
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -122,7 +122,7 @@ impl std::error::Error for SsgError {}
 
 /// `id` が出力パス片として安全（英数字・`-`・`_` のみ）かを検証する。
 ///
-/// デモデータ（[`rws_app::demo_items`]）はすべて数値 id だが、`Item` は
+/// デモデータ（[`fandhe_frontend_app::demo_items`]）はすべて数値 id だが、`Item` は
 /// 公開構造体であり将来任意の由来（DB・API 等）のデータを持ちうるため、
 /// `..`・`/`・`\` を含む id を機械的に拒否する（OWASP A01）。
 fn is_safe_path_segment(id: &str) -> bool {
@@ -244,7 +244,7 @@ where
 mod tests {
     use super::*;
     use crate::ssr::respond;
-    use rws_app::demo_items;
+    use fandhe_frontend_app::demo_items;
     use std::fs;
 
     // `TempDir` は integration test（`server/tests/three_mode_integration.rs`）

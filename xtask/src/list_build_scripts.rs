@@ -527,9 +527,9 @@ mod tests {
 
     #[test]
     fn format_inventory_empty_shows_none_and_zero_count() {
-        let out = format_inventory("rws-core", &[]);
+        let out = format_inventory("fandhe-frontend-core", &[]);
         assert!(out.contains("no packages with build scripts"));
-        assert!(out.contains("build-scripts: target=rws-core count=0"));
+        assert!(out.contains("build-scripts: target=fandhe-frontend-core count=0"));
     }
 
     #[test]
@@ -544,27 +544,27 @@ mod tests {
                 version: "2.0.0".to_string(),
             },
         ];
-        let out = format_inventory("rws-server", &crates);
+        let out = format_inventory("fandhe-frontend-server", &crates);
         assert!(out.contains("alpha 1.0.0"));
         assert!(out.contains("beta 2.0.0"));
-        assert!(out.contains("build-scripts: target=rws-server count=2"));
+        assert!(out.contains("build-scripts: target=fandhe-frontend-server count=2"));
     }
 
     #[test]
-    fn integration_rws_core_has_no_build_scripts() {
-        // rws-core は依存ゼロかつ build.rs 非保有が不変条件（REQ-2/REQ-3）。
-        let names = vec!["rws-core".to_string()];
+    fn integration_fandhe_frontend_core_has_no_build_scripts() {
+        // fandhe-frontend-core は依存ゼロかつ build.rs 非保有が不変条件（REQ-2/REQ-3）。
+        let names = vec!["fandhe-frontend-core".to_string()];
         match list_many_from_cargo_metadata(&names) {
             Ok(results) => {
                 assert_eq!(results.len(), 1);
                 let (name, result) = &results[0];
-                assert_eq!(name, "rws-core");
+                assert_eq!(name, "fandhe-frontend-core");
                 match result {
                     Ok(crates) => assert!(
                         crates.is_empty(),
-                        "rws-core は build.rs を保有しない想定: {crates:?}"
+                        "fandhe-frontend-core は build.rs を保有しない想定: {crates:?}"
                     ),
-                    Err(e) => panic!("failed to list build scripts for rws-core: {e}"),
+                    Err(e) => panic!("failed to list build scripts for fandhe-frontend-core: {e}"),
                 }
             }
             Err(e) => panic!("failed to run cargo metadata for integration test: {e}"),

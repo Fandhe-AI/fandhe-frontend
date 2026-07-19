@@ -42,7 +42,7 @@
   キャッシュ / 再検証・複数 loader 合成の採否（イシュー #377）、§3.16〜§3.18
   で束縛点整合性の型付き強制・検証ユーティリティ横展開・`<base href>` 等の
   間接的 URL 制御対策の採否（イシュー #399、出典 PR #386 / #390）、§3.19 で
-  `rws-wasm-client`（最小ハイドレーション方式）側のクライアントルーティング
+  `fandhe-frontend-wasm-client`（最小ハイドレーション方式）側のクライアントルーティング
   対応の採否（イシュー #405、出典 PR #383 の out-of-scope 節）を追加記録する。
 - **対象外**: 本書は `docs/spec/` の内容を変更するものではない。仕様自体の
   変更が必要と判断された場合は、frontend-framework-spec リポジトリ側で
@@ -110,14 +110,14 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   （リストの増減・並べ替え）にも仮想 DOM 的な汎用 diff を採用せず、keyed
   list という単一の専用経路に限定する設計である。実装状況は以下のとおり
   クレートごとに異なる（本書執筆時点）。
-  - `rws-wasm-client`（`data-hydrate="like"` 等の最小ハイドレーション）:
+  - `fandhe-frontend-wasm-client`（`data-hydrate="like"` 等の最小ハイドレーション）:
     「束縛点最小更新」がすでに一般化実装済み。`data-bind-text` /
     `data-bind-attr` / `data-bind-class` 属性を 1 回走査して束縛点対応表を
     構築し、`set_text_content` / `set_attribute` / `class_list` の 3 種別
     に限定した DOM 変異のみを行う（`wasm-client/src/binding.rs` ・
     `wasm-client/src/binding_dom.rs`、イシュー #343、`docs/design/dom-binding-update-design.md`
     §3）。
-  - `rws-wasm-full`（状態機械つきの既定インタラクション）: 現時点では
+  - `fandhe-frontend-wasm-full`（状態機械つきの既定インタラクション）: 現時点では
     `paint()` が `web_sys::Element::set_inner_html` によるイベント単位の
     領域再描画を行う（`wasm-full/src/dom.rs`）。以下の設計制約でリスクと
     コストを抑えている（`docs/design/wasm-full-architecture.md` 第 7 節・
@@ -127,7 +127,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
       回避）。
     - `input` イベント中は再描画を行わない（フォーカス・キャレット位置の
       破棄を避けるため）。
-    - `paint()` が `set_inner_html` へ渡す文字列は必ず `rws_core::render()`
+    - `paint()` が `set_inner_html` へ渡す文字列は必ず `fandhe_frontend_core::render()`
       の既定エスケープ済み出力である（REQ-1 の不変条件、
       `.claude/rules/coding-rust.md` の既定エスケープ厳守と一致）。
     - `wasm-client` が既に守っている最小更新路線への一般化はイシュー #345
@@ -215,9 +215,9 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     ことが難しく、実行時デバッグに頼りやすい。
   - コンテキスト消費: リアクティブグラフ全体を把握しないと変更影響を
     判断できず、AI が読むべきコンテキストが増える。
-- **本フレームワークでの代替**: `rws-interactive` の action-dispatch 単一
+- **本フレームワークでの代替**: `fandhe-frontend-interactive` の action-dispatch 単一
   状態機械（`interactive/src/lib.rs`）。`Component::view` の出力は
-  `rws_core::Node` のみを経由し既定エスケープを必ず通す。状態遷移は
+  `fandhe_frontend_core::Node` のみを経由し既定エスケープを必ず通す。状態遷移は
   `dispatch` 関数 1 箇所に集約され、未知のアクション名は no-op となる
   安全側フォールバックを規約化している（同ファイル冒頭の不変条件コメント
   1〜7 参照）。ハイドレーション属性の契約は `docs/api/interactive-api.md`
@@ -335,9 +335,9 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 
 ### 3.10 `wasm-thin`（薄い JS グルー方式）への束縛点更新・keyed list の適用
 
-- **概要**: `rws-wasm-full` / `rws-wasm-client` で採用済みの「束縛点更新
+- **概要**: `fandhe-frontend-wasm-full` / `fandhe-frontend-wasm-client` で採用済みの「束縛点更新
   （`data-bind-*`）+ keyed list（`data-key`）」方針（§3.1、
-  `docs/design/dom-binding-update-design.md`）を、`rws-wasm-thin`（オプトイン
+  `docs/design/dom-binding-update-design.md`）を、`fandhe-frontend-wasm-thin`（オプトイン
   の薄い JS グルー方式、`docs/design/opt-in-thin-js-glue.md`）の JS グルー側
   更新経路にも一般化するかどうかの検討（イシュー #345 out-of-scope 節から
   イシュー #376 として起票）。
@@ -347,13 +347,13 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 |----|------|---------|
 | A: JS グルー側実装 | JS グルーが `data-bind-*` 走査・`textContent`/`setAttribute` 適用・keyed diff を実装する | JS 実効 LOC が PoC-3 ルーブリック上限（40 行 = 「中」）を大きく超過する。更新ロジック全体が Rust の型検査・`cargo test`・REQ-13 の AI 自己保守ゲートの到達範囲外へ移動し、`docs/design/opt-in-thin-js-glue.md` §3.1（(c) XSS 保証一貫性の減衰）・§3.2（(d) AI 生成検証の到達範囲）の制約が構造的に悪化する |
 | B: WASM が diff 操作列を返し JS が適用する | `apply()` の戻り値を「HTML 文字列」から「操作列（JSON 等）」へ変更する | 「`initial_html()` / `apply()` の戻り値のみを `innerHTML` に設定する」という JS グルー規範（同 §5 不変条件 1・2）に反する新たな DOM 書き換え経路の新設になる。公開 API 凍結表（同 §4.2）の破壊的変更でもある |
-| C: `rws-wasm-client` の束縛点適用層（`wasm-client/src/binding_dom.rs` 等）へ依存する | `wasm-thin` が `web-sys` 依存の DOM 適用層を取り込む | 「`web-sys` 非依存・文字列 in・文字列 out の純粋計算」という `wasm-thin` の存在意義（`wasm-thin/src/lib.rs` クレートドキュメント、`opt-in-thin-js-glue.md` §4.2）が消滅し、既定方式である `rws-wasm-full` と同型化してしまう。その要件であれば選定フローチャート（同 §2「位置づけ — 既定とオプトイン」）に従い `wasm-full` を使うべきである |
+| C: `fandhe-frontend-wasm-client` の束縛点適用層（`wasm-client/src/binding_dom.rs` 等）へ依存する | `wasm-thin` が `web-sys` 依存の DOM 適用層を取り込む | 「`web-sys` 非依存・文字列 in・文字列 out の純粋計算」という `wasm-thin` の存在意義（`wasm-thin/src/lib.rs` クレートドキュメント、`opt-in-thin-js-glue.md` §4.2）が消滅し、既定方式である `fandhe-frontend-wasm-full` と同型化してしまう。その要件であれば選定フローチャート（同 §2「位置づけ — 既定とオプトイン」）に従い `wasm-full` を使うべきである |
 
   - 4 軸評価（§2）: 案 A・B・C はいずれも更新ロジックの一部または全部を
     機械検証不能な JS 層へ移す、または `wasm-thin` の存在意義（明示的な
     「文字列 in・文字列 out」契約）を崩すため、明示性・決定性・機械検証
     可能性・コンテキスト消費のいずれの軸でも悪化する。
-  - 補足事実: イシュー #345 以降、`rws-interactive` の `AppState::view()` /
+  - 補足事実: イシュー #345 以降、`fandhe-frontend-interactive` の `AppState::view()` /
     `render_html` が `wasm-thin` からも呼ばれる共通コードのため、
     `wasm-thin` の出力 HTML にも `data-bind-*` / `data-key` /
     `data-hydrate-item-ids` マーカーが**含まれる**。ただし `wasm-thin` の
@@ -362,7 +362,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     `wasm-thin` 経路では**不活性（inert）**であり、無害である（属性値は
     既定エスケープ済み）。この形は `wasm-thin/tests/thin_runtime.rs` の
     `demo_boundary_layer_smoke` が既に検証済みである。
-- **本フレームワークでの代替**: 既定方式である `rws-wasm-full` を使う
+- **本フレームワークでの代替**: 既定方式である `fandhe-frontend-wasm-full` を使う
   （`opt-in-thin-js-glue.md` §2 の選定フローチャートに従う）。DOM ノード
   同一性保持（フォーカス・IME・アニメーション維持）が必要なユースケースは、
   そもそも `wasm-thin` の想定選定範囲外である。
@@ -423,7 +423,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   痕跡は残していない）: `cargo add syn --features full` で追加される
   パッケージは `syn` / `proc-macro2` / `quote` / `unicode-ident` の
   **4 件**（依存深さ 3、`cargo tree --edges normal` 実測）。うち
-  `proc-macro2` / `quote` の 2 件は `build.rs` を持つ。`cli`（`rws-cli`）
+  `proc-macro2` / `quote` の 2 件は `build.rs` を持つ。`cli`（`fandhe-frontend-cli`）
   は REQ-3「標準サーバー構成 60 件以内・深さ 6 以内」の直接の計測対象
   （`xtask` の依存グラフ計測基準）ではないが、`cli` 自体が現在
   「外部依存ゼロ」（`cli/Cargo.toml` 冒頭コメント）であるため、
@@ -514,7 +514,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 
 ### 3.13 async loader
 
-- **概要**: `rws-app` の `Loader` trait（`docs/design/loader-trait-design.md`、
+- **概要**: `fandhe-frontend-app` の `Loader` trait（`docs/design/loader-trait-design.md`、
   イシュー #346）が持つ同期 `fn load` を `async fn load` へ拡張し、外部 I/O を
   伴う loader をブロッキングなしで実行できるようにする案（イシュー #377）。
 - **一般的な採用動機**: DB・HTTP API 呼び出し等の外部 I/O を伴う loader を
@@ -536,7 +536,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   伴わないため、async 化を正当化する実需要が存在しない。加えて
   `docs/api/app-api.md` 第 9 節が記録するとおり `dist-server` は axum 不採用の
   実測根拠（`tokio-macros → syn → quote → proc-macro2 → unicode-ident` の連鎖が
-  深さ 7〜9 に達し REQ-3 に違反）を持ち、`rws-app`/`rws-server` の外部依存ゼロ
+  深さ 7〜9 に達し REQ-3 に違反）を持ち、`fandhe-frontend-app`/`fandhe-frontend-server` の外部依存ゼロ
   方針と両立する async ランタイムが現構成に存在しない。詳細は
   `docs/design/loader-extension-design.md` 第 3 節を参照。
 - **再評価トリガー**: 以下の 3 条件をすべて満たした場合。
@@ -627,7 +627,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     （SSR/CSR 双方の凍結済み契約）が本イシュー（#380）のスコープを超える。
   - 機械検証可能性: 現行の `wasm-client/tests/binding_logic.rs`
     `app_state_view_has_no_unresolved_bindings`（§12.3 のテスト時構造検証
-    API 経由）が `cargo test -p rws-wasm-client` で決定的に検証済みであり、
+    API 経由）が `cargo test -p fandhe-frontend-wasm-client` で決定的に検証済みであり、
     型付き化による追加の機械検証可能性の向上分は、再設計コストに対して
     限定的。
   - コンテキスト消費: `bind_*` API・`BindingSource` の再設計は、産出物
@@ -710,8 +710,8 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 ### 3.19 `wasm-client`（最小ハイドレーション方式）側のクライアントルーティング対応（イシュー #405）
 
 - **概要**: クライアント側ルーティング（履歴 API 連携・URL 同期・遷移時
-  loader 配線）は `rws-wasm-full` の `nav` モジュール（`wasm-full/src/nav.rs`、
-  イシュー #374 / PR #383）として実装済みである。`rws-wasm-client`（最小
+  loader 配線）は `fandhe-frontend-wasm-full` の `nav` モジュール（`wasm-full/src/nav.rs`、
+  イシュー #374 / PR #383）として実装済みである。`fandhe-frontend-wasm-client`（最小
   ハイドレーション方式、REQ-6）側の遷移対応・loader 移行は PR #383 の
   out-of-scope 節、`docs/design/wasm-full-architecture.md` §10 に対象外
   事項として記録されており、本節はその採否判断を確定する。
@@ -751,7 +751,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 | C: `wasm-client` が `wasm-full` の `nav` に依存する | `wasm-client` → `wasm-full` 依存を追加する | 既存の依存方向（`wasm-full` は `wasm-client` に依存しない独立クレート、`docs/design/wasm-full-architecture.md` §2 判断 6）が逆転し循環依存になる（構造的に不可能） |
 
 - **本フレームワークでの代替**: クライアント遷移が必要なユースケースは既定
-  方式である `rws-wasm-full` を使う（`docs/design/opt-in-thin-js-glue.md`
+  方式である `fandhe-frontend-wasm-full` を使う（`docs/design/opt-in-thin-js-glue.md`
   §2 の選定フローチャートと同じ判断に従う）。`wasm-client` の
   [`find_list_nav_targets`](../../wasm-client/src/lib.rs)（一覧ページの
   `data-nav` 属性値を列挙する純粋契約関数）は削除せず、将来採用時の対象
@@ -815,11 +815,11 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 - `interactive/src/lib.rs`（`AppState` / `dispatch` / action 単一状態
   機械）
 - `docs/api/interactive-api.md` / `docs/api/hydration-state-format.md`
-  （`rws-interactive` API・ハイドレーション状態フォーマット）
+  （`fandhe-frontend-interactive` API・ハイドレーション状態フォーマット）
 - `docs/policy/attribute-output-policy.md`（イシュー #373、属性値の URL
   スキーム検証・属性出力ポリシー。§3.5〜§3.9 の非採用判断の対応元。§6
   第 1 項は本書 §3.15 の非採用判断に対応）
-- `docs/design/opt-in-thin-js-glue.md`（イシュー #376、`rws-wasm-thin` の
+- `docs/design/opt-in-thin-js-glue.md`（イシュー #376、`fandhe-frontend-wasm-thin` の
   位置づけ・公開 API 凍結表・JS グルー規範。§3.10 の非採用根拠）
 - `wasm-thin/tests/thin_runtime.rs`（イシュー #376、`wasm-thin` の XSS 回帰
   テスト群）
@@ -832,12 +832,12 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 - `docs/design/wasm-full-architecture.md` §10（`nav` モジュールのスコープ外
   一覧。`wasm-client` 側の遷移対応・loader 移行が対象外事項として記録された
   出典。§3.19 の非採用根拠）
-- `docs/api/hydration-api.md`（`rws-wasm-client` の最小ハイドレーション方式の
+- `docs/api/hydration-api.md`（`fandhe-frontend-wasm-client` の最小ハイドレーション方式の
   凍結済み設計・不変条件。§3.19 の非採用根拠）
 
 ## 6. スコープ外（放置しない事項）
 
-- `rws-wasm-full` への束縛点更新 + keyed list の一般化（イシュー #344・
+- `fandhe-frontend-wasm-full` への束縛点更新 + keyed list の一般化（イシュー #344・
   #345）自体の実装は本書のスコープ外であり、追跡状況の記録にとどめる。
   実装は既存イシューで追跡済みのため新規起票は不要。
 - 評価軸（§2）を `fw gate` 等の機械ゲートへ組み込む自動化は、イシュー

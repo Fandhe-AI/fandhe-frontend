@@ -1,6 +1,6 @@
 ---
 name: wasm-builder
-description: "WASM クライアント層 (rws-wasm-client / rws-wasm-full / rws-wasm-thin) の実装。CSR・ハイドレーション・wasm-bindgen 境界・View Transitions を担当"
+description: "WASM クライアント層 (fandhe-frontend-wasm-client / fandhe-frontend-wasm-full / fandhe-frontend-wasm-thin) の実装。CSR・ハイドレーション・wasm-bindgen 境界・View Transitions を担当"
 model: sonnet
 tools: [Read, Grep, Glob, Edit, Write, Bash]
 ---
@@ -20,5 +20,5 @@ tools: [Read, Grep, Glob, Edit, Write, Bash]
 
 - `unsafe` は WASM バインディング層・FFI 境界に限定し、使用箇所をコメントと `docs/policy/unsafe-boundary.md` に明示する（REQ-2）
 - WASM 経由の DOM 更新にも `core` と同一のエスケープ保証を維持する（REQ-1 / TASK-1.3）
-- `rws-wasm-thin` はオプトインの参考実装であり、既定にしない
+- `fandhe-frontend-wasm-thin` はオプトインの参考実装であり、既定にしない
 - 変更後は wasm ターゲットのビルド・テスト（`cargo test` / wasm 回帰テスト）を通す

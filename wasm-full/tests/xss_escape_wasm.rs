@@ -2,7 +2,7 @@
 //! DOM 更新）における既定エスケープ保証の実ブラウザ回帰テスト。
 //!
 //! `wasm-full/tests/dom_update.rs`（TASK-11.2c・#76）は DOM/`wasm-bindgen` に
-//! 依存しない純粋関数 [`rws_wasm_full::render_component_html`] までを native
+//! 依存しない純粋関数 [`fandhe_frontend_wasm_full::render_component_html`] までを native
 //! `cargo test` で検証済みである。本ファイルはその先、**実ブラウザ
 //! （headless Chromium、`wasm-pack test --headless --chrome`）上で
 //! `set_inner_html` による実 DOM 反映まで含めた製品経路**を検証する点に
@@ -22,7 +22,7 @@
 //!
 //! 仕様上の成果物パスは `wasm-client/tests/xss_escape_wasm.rs` だが、本コミット
 //! 時点で `wasm-client/`（TASK-6.2b・#48）は未作成である。REQ-1 が検証対象と
-//! する「イベント処理・DOM 更新」の実装実体は本クレート（`rws-wasm-full`、
+//! する「イベント処理・DOM 更新」の実装実体は本クレート（`fandhe-frontend-wasm-full`、
 //! `events.rs`/`dom.rs`）であるため、存在しないクレートを本イシューの範囲外
 //! で新設することを避け、安全側の判断として本クレートに配置する
 //! （実装計画 §2・§9、`out-of-scope-tracking.md` に基づき #48 マージ後の
@@ -30,8 +30,8 @@
 //!
 //! # 検証する経路と不変条件
 //!
-//! - `rws_wasm_full::render_component_html`（[`dom` モジュール](../src/dom.rs)、
-//!   `rws_core::render` の呼び出しのみ）が返す文字列だけが `set_inner_html` に
+//! - `fandhe_frontend_wasm_full::render_component_html`（[`dom` モジュール](../src/dom.rs)、
+//!   `fandhe_frontend_core::render` の呼び出しのみ）が返す文字列だけが `set_inner_html` に
 //!   渡ること。本ファイルは `format!` 等による HTML 文字列直接組み立てを
 //!   一切行わず、`raw_html()` も呼ばない（不変条件、`.claude/rules/coding-rust.md`）。
 //! - テキストノード経由（`items` へ確定した値）・属性値経由（`draft` の
@@ -39,7 +39,7 @@
 //! - `wire_events`（`events.rs`）によるイベント委譲配線を経由しても、
 //!   直接 `dispatch` した場合と同一のエスケープ保証が成立すること
 //!   （REQ-1 の本旨: イベント処理経路でも保証が弱まらないこと）。
-//! - SSR 相当の直接呼び出し（`rws_core::render(&state.view())`）と、WASM 経路
+//! - SSR 相当の直接呼び出し（`fandhe_frontend_core::render(&state.view())`）と、WASM 経路
 //!   （`render_component_html` → `set_inner_html` → 実 DOM 読み戻し）とで、
 //!   エスケープ保証の観点に矛盾がないこと（経路間一貫性）。
 //!
@@ -50,7 +50,7 @@
 //! 第 6 節「XSS 回帰」）
 //!
 //! `render_for_hydration`（`interactive/src/lib.rs`）が付与する `data-hydrate-*`
-//! 属性も `rws_core::render` の既定エスケープ経路を通るため、ハイドレーション
+//! 属性も `fandhe_frontend_core::render` の既定エスケープ経路を通るため、ハイドレーション
 //! フォーマット層の追加が既存のエスケープ保証を弱めていないことを回帰確認する。
 //! `Runtime::hydrate`（`wasm-full/src/lib.rs`）で状態を復元 → 再描画した実 DOM
 //! に対し、上記の「テキストノード経由」「属性値経由」と同じ観点（生タグが
@@ -58,10 +58,10 @@
 
 #![cfg(target_arch = "wasm32")]
 
-use rws_interactive::{dispatch, render_for_hydration, AppState, Component};
-use rws_wasm_full::events::{wire_events, ActionRef};
-use rws_wasm_full::render_component_html;
-use rws_wasm_full::Runtime;
+use fandhe_frontend_interactive::{dispatch, render_for_hydration, AppState, Component};
+use fandhe_frontend_wasm_full::events::{wire_events, ActionRef};
+use fandhe_frontend_wasm_full::render_component_html;
+use fandhe_frontend_wasm_full::Runtime;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen_test::*;
@@ -234,7 +234,7 @@ fn attribute_injection_payload_in_draft_value_is_escaped_in_real_dom() {
 ///
 /// 合成 `click` イベントを `data-action="set_draft"` / `data-payload=<ペイロード>`
 /// を持つ要素（`root` の子孫）に対して発火させ、`wire_events` の判定
-/// （[`rws_wasm_full::events::action_from_click`]）→ コールバック内での
+/// （[`fandhe_frontend_wasm_full::events::action_from_click`]）→ コールバック内での
 /// `dispatch` → 再描画（`render_component_html` → `set_inner_html`）という
 /// 製品経路を通しで検証する。
 #[wasm_bindgen_test]
@@ -254,7 +254,7 @@ fn set_draft_via_wired_click_event_preserves_escape_guarantee() {
 
     // マウント時に 1 回だけイベント配線する契約（events.rs 冒頭コメント）。
     // コールバックは dispatch → 再描画のみを行い、HTML 文字列を独自に
-    // 組み立てない（唯一の生成経路は render_component_html = rws_core::render）。
+    // 組み立てない（唯一の生成経路は render_component_html = fandhe_frontend_core::render）。
     {
         let state = Rc::clone(&state);
         let container = container.clone();
@@ -322,11 +322,11 @@ fn set_draft_via_wired_click_event_preserves_escape_guarantee() {
 }
 
 /// REQ-1 回帰（経路間一貫性）: SSR 相当の直接呼び出し
-/// （`rws_core::render(&state.view())`）と WASM 経路
+/// （`fandhe_frontend_core::render(&state.view())`）と WASM 経路
 /// （`render_component_html` → `set_inner_html` → 実 DOM 読み戻し）とで、
 /// エスケープ保証の観点に矛盾がないことを確認する。
 ///
-/// `render_component_html`（`dom.rs`）は `rws_core::render` を呼ぶだけの薄い
+/// `render_component_html`（`dom.rs`）は `fandhe_frontend_core::render` を呼ぶだけの薄い
 /// 層のため、両者の出力文字列は本来完全に一致する契約である
 /// （`wasm-full/src/dom.rs` 冒頭コメント）。本テストはその契約に加え、
 /// ブラウザの HTML パーサを一度経由した実 DOM 上でも同じ保証
@@ -342,14 +342,14 @@ fn ssr_equivalent_render_and_wasm_dom_path_agree_on_escape_guarantee() {
     let payload = "<img src=x onerror=alert(1)>";
     let state = state_with_item(payload);
 
-    // SSR 相当: rws_core::render を直接呼ぶ（rws-wasm-full を経由しない）。
-    let ssr_html = rws_core::render(&state.view());
+    // SSR 相当: fandhe_frontend_core::render を直接呼ぶ（fandhe-frontend-wasm-full を経由しない）。
+    let ssr_html = fandhe_frontend_core::render(&state.view());
     // WASM 経路: render_component_html（dom.rs）経由。
     let wasm_html = render_component_html(&state);
 
     assert_eq!(
         ssr_html, wasm_html,
-        "render_component_html は rws_core::render の薄いラッパーであり、\
+        "render_component_html は fandhe_frontend_core::render の薄いラッパーであり、\
          SSR 相当の出力と完全に一致する契約であること"
     );
 
@@ -379,7 +379,7 @@ fn ssr_equivalent_render_and_wasm_dom_path_agree_on_escape_guarantee() {
 ///
 /// ことを確認する。ハイドレーション属性フォーマット層
 /// （`wasm-full/src/hydration.rs`）の追加が `render_for_hydration`
-/// （`rws_core::render` の既定エスケープ経路）を迂回していないことの回帰。
+/// （`fandhe_frontend_core::render` の既定エスケープ経路）を迂回していないことの回帰。
 #[wasm_bindgen_test]
 fn hydrate_restores_xss_payload_in_draft_without_escape_regression() {
     let window = web_sys::window().expect("window must exist");
@@ -389,11 +389,11 @@ fn hydrate_restores_xss_payload_in_draft_without_escape_regression() {
     let mut seed_state = AppState::new();
     assert!(dispatch(&mut seed_state, "set_draft", payload));
 
-    // `render_for_hydration` は rws_core::render の既定エスケープ経路のみを
+    // `render_for_hydration` は fandhe_frontend_core::render の既定エスケープ経路のみを
     // 通す唯一の生成経路（`.claude/rules/coding-rust.md`: HTML 文字列直接
     // 組み立て・raw_html() 禁止）。ルート要素（id="interactive-root"）へ
-    // hydration_attrs を後付けした Node を rws_core::render でそのまま文字列化する。
-    let ssr_html = rws_core::render(&render_for_hydration(&seed_state));
+    // hydration_attrs を後付けした Node を fandhe_frontend_core::render でそのまま文字列化する。
+    let ssr_html = fandhe_frontend_core::render(&render_for_hydration(&seed_state));
 
     let container = create_container(&document, "xss-hydrate-draft-root");
     let _cleanup = RemoveOnDrop(container.clone());
@@ -444,7 +444,7 @@ fn hydrate_then_repaint_via_wired_event_preserves_escape_guarantee_for_xss_paylo
     let mut seed_state = AppState::new();
     assert!(dispatch(&mut seed_state, "set_draft", payload));
 
-    let ssr_html = rws_core::render(&render_for_hydration(&seed_state));
+    let ssr_html = fandhe_frontend_core::render(&render_for_hydration(&seed_state));
 
     let container = create_container(&document, "xss-hydrate-repaint-root");
     let _cleanup = RemoveOnDrop(container.clone());
@@ -509,8 +509,8 @@ fn hydrate_then_repaint_via_wired_event_preserves_escape_guarantee_for_xss_paylo
 }
 
 /// REQ-1 拡張回帰（URL スキーム経路・実 DOM、イシュー #373）:
-/// `rws_core::render` が SSR/CSR いずれのモードでも通る `render_into` の URL
-/// スキーム検証（`rws_core::is_safe_url`）が、実ブラウザの `set_inner_html`
+/// `fandhe_frontend_core::render` が SSR/CSR いずれのモードでも通る `render_into` の URL
+/// スキーム検証（`fandhe_frontend_core::is_safe_url`）が、実ブラウザの `set_inner_html`
 /// 経由の DOM 構築でも保証されることを確認する。既定エスケープ
 /// （`escape_html`）は属性値コンテキストからの breakout は防ぐが、脱出を
 /// 伴わない `javascript:` href はエスケープだけでは防げない別種の脅威で
@@ -523,16 +523,16 @@ fn javascript_scheme_href_does_not_appear_as_a_real_dom_attribute() {
     let container = create_container(&document, "xss-url-scheme-root");
     let _cleanup = RemoveOnDrop(container.clone());
 
-    let node = rws_core::el(
+    let node = fandhe_frontend_core::el(
         "a",
         vec![
             ("id", "xss-url-link"),
             ("href", "javascript:alert(1)"),
             ("data-testid", "safe"),
         ],
-        vec![rws_core::text("link")],
+        vec![fandhe_frontend_core::text("link")],
     );
-    let html = rws_core::render(&node);
+    let html = fandhe_frontend_core::render(&node);
     container.set_inner_html(&html);
 
     let link = container
@@ -566,12 +566,12 @@ fn safe_relative_href_is_applied_normally_in_real_dom() {
     let container = create_container(&document, "xss-url-safe-root");
     let _cleanup = RemoveOnDrop(container.clone());
 
-    let node = rws_core::el(
+    let node = fandhe_frontend_core::el(
         "a",
         vec![("id", "safe-url-link"), ("href", "/items/1")],
-        vec![rws_core::text("link")],
+        vec![fandhe_frontend_core::text("link")],
     );
-    let html = rws_core::render(&node);
+    let html = fandhe_frontend_core::render(&node);
     container.set_inner_html(&html);
 
     let link = container

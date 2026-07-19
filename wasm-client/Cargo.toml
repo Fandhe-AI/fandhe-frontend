@@ -1,8 +1,8 @@
 [package]
-name = "rws-wasm-client"
+name = "fandhe-frontend-wasm-client"
 version = "0.1.0"
 edition = "2021"
-description = "rws-wasm-client: REQ-6 最小ハイドレーション方式のクライアントランタイム。サーバー出力済み DOM を再構築せず、イベントリスナーを後付けする hydrate() と、SSR/SSG と同一関数を呼ぶ CSR 用 mount_csr() を提供する。"
+description = "fandhe-frontend-wasm-client: REQ-6 最小ハイドレーション方式のクライアントランタイム。サーバー出力済み DOM を再構築せず、イベントリスナーを後付けする hydrate() と、SSR/SSG と同一関数を呼ぶ CSR 用 mount_csr() を提供する。"
 license = "MIT OR Apache-2.0"
 publish = false
 
@@ -21,14 +21,14 @@ publish = false
 # のため、本クレート追加で新規外部パッケージは増えない
 # （`cargo metadata` 実測: パッケージ総数 71 件のまま。PR 本文に記録）。
 #
-# rws-interactive（#343、束縛点ベースの最小更新の一般化）: DirtyTracked
+# fandhe-frontend-interactive（#343、束縛点ベースの最小更新の一般化）: DirtyTracked
 # トレイト境界に必要。ワークスペース内 path 依存であり外部依存ゼロの
 # クレートのため、新規外部パッケージの増加はゼロ（REQ-3 整理、PR 本文に
 # `cargo metadata` 実測を記録）。
 [dependencies]
-rws-core = { path = "../core" }
-rws-app = { path = "../app" }
-rws-interactive = { path = "../interactive" }
+fandhe-frontend-core = { path = "../core" }
+fandhe-frontend-app = { path = "../app" }
+fandhe-frontend-interactive = { path = "../interactive" }
 wasm-bindgen = "0.2"
 
 # イシュー #345（束縛点更新 + keyed list への置換）で以下 3 feature を追加。
@@ -83,12 +83,12 @@ wasm-bindgen-test = "0.3"
 
 # 三モード（SSR/SSG/CSR）整合テスト（wasm-client/tests/three_mode_integration.rs、
 # イシュー #375）専用の dev-dependency。ワークスペース内 path 依存かつ
-# rws-server 自体は外部依存ゼロ（server/Cargo.toml 参照）のため、新規外部
+# fandhe-frontend-server 自体は外部依存ゼロ（server/Cargo.toml 参照）のため、新規外部
 # パッケージの追加はゼロ（REQ-3、`cargo metadata` 実測を PR 本文に記録）。
 # native (host) ターゲットのみのテストで使うため target.'cfg(not(target_arch = "wasm32"))'
 # の記法は使わず、通常の dev-dependencies に置く（wasm32 ビルドでは
 # integration test バイナリ自体を wasm-pack が実行しないため実害はない）。
-rws-server = { path = "../server" }
+fandhe-frontend-server = { path = "../server" }
 
 # 合成 DOM 構築（テスト専用）に必要な追加 feature。製品面の
 # [dependencies.web-sys] の features には触れず、テスト専用の feature 拡張に

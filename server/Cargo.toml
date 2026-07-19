@@ -1,20 +1,20 @@
 [package]
-name = "rws-server"
+name = "fandhe-frontend-server"
 version = "0.1.0"
 edition = "2021"
-description = "rws-server: パスマッチングルーティング（router.rs）+ SSR/SSG エントリ（ssr.rs/ssg.rs）。外部依存ゼロ。HTTP 配信は rws-dist-server へ委譲する。"
+description = "fandhe-frontend-server: パスマッチングルーティング（router.rs）+ SSR/SSG エントリ（ssr.rs/ssg.rs）。外部依存ゼロ。HTTP 配信は fandhe-frontend-dist-server へ委譲する。"
 license = "MIT OR Apache-2.0"
 publish = false
-# `src/bin/ssg.rs`（SSG エントリ）と同居するため、`cargo run -p rws-server` の
+# `src/bin/ssg.rs`（SSG エントリ）と同居するため、`cargo run -p fandhe-frontend-server` の
 # 既定バイナリを SSR エントリ（`src/main.rs`）に固定する。
-default-run = "rws-server"
+default-run = "fandhe-frontend-server"
 
 # REQ-3 / coding-rust.md: 依存クレート追加は事前承認が必要。
-# TASK-6.1c で ssr.rs/ssg.rs が rws-app のページ関数を呼ぶため、rws-core/rws-app を
+# TASK-6.1c で ssr.rs/ssg.rs が fandhe-frontend-app のページ関数を呼ぶため、fandhe-frontend-core/fandhe-frontend-app を
 # 通常の path 依存へ昇格した（外部クレートの追加は行っていない）。本クレートは
 # 引き続き外部クレートを一切追加しない自前実装のみで構成する。
 [dependencies]
-rws-core = { path = "../core" }
-rws-app = { path = "../app" }
+fandhe-frontend-core = { path = "../core" }
+fandhe-frontend-app = { path = "../app" }
 
 [dev-dependencies]

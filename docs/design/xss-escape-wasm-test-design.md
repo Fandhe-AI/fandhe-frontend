@@ -31,7 +31,7 @@
 仕様（`docs/spec/05-tasks.md` TASK-1.3）が示す成果物パス
 `wasm-client/tests/xss_escape_wasm.rs` は計画時点のクレート名であり、現行
 workspace で「クライアント WASM のイベント処理・DOM 更新」を実装しているのは
-`rws-wasm-full`（`wasm-full/`）である。以下のマッピングを本書で確定し、
+`fandhe-frontend-wasm-full`（`wasm-full/`）である。以下のマッピングを本書で確定し、
 TASK-1.3b（#92）の実装対象として固定する。
 
 - **一次成果物（#92 実装対象）**: `wasm-full/tests/xss_escape_wasm.rs`
@@ -40,7 +40,7 @@ TASK-1.3b（#92）の実装対象として固定する。
      （`wasm-full/src/events.rs`・`wasm-full/src/dom.rs`・
      `wasm-full/src/hydration.rs`）は現行 workspace では `wasm-full` にのみ
      存在する。
-  2. `wasm-client/`（`rws-wasm-client`）クレートの新設は TASK-6.2b（#48）の
+  2. `wasm-client/`（`fandhe-frontend-wasm-client`）クレートの新設は TASK-6.2b（#48）の
      スコープである。`docs/guides/browser-testing.md` 第 2 節が同様の判断
      （`wasm-client/` 未作成を前提にクレート新設を自スコープに含めない）を
      既に確立しており、本書はその判断を踏襲する。TASK-1.3a で `wasm-client/`
@@ -60,7 +60,7 @@ TASK-1.3b（#92）の実装対象として固定する。
 
 | 観点 ID | 経路 | 検証内容 |
 |---------|------|---------|
-| N-1 | `rws_interactive::dispatch` → `wasm_full::render_component_html` | 全ペイロード（第 5 節）× テキストノード文脈: 生 `<script>`・`<img onerror>` 等の実タグ構文が出力に現れず、対応するエスケープ済み表現（`&lt;script&gt;` 等）が出力に現れる（両方向 assert。空出力による偽陰性を防ぐ） |
+| N-1 | `fandhe_frontend_interactive::dispatch` → `wasm_full::render_component_html` | 全ペイロード（第 5 節）× テキストノード文脈: 生 `<script>`・`<img onerror>` 等の実タグ構文が出力に現れず、対応するエスケープ済み表現（`&lt;script&gt;` 等）が出力に現れる（両方向 assert。空出力による偽陰性を防ぐ） |
 | N-2 | 同上 | 全ペイロード × 属性値文脈: `"` `'` による属性境界破壊（例: `onmouseover="..."` の生成、属性値からの breakout）が発生しない |
 | N-3 | `events::action_from_click` / `events::action_from_input`（純粋関数） → `dispatch` → `render_component_html` | イベント処理を経由して state に取り込まれたペイロードにもエスケープが貫通する（TASK-1.3 の要件文言「イベント処理を経由した出力」に直接対応する観点） |
 | N-4 | `hydration::restore_state` → 状態復元後の `view()` → `render` | `data-hydrate-*` 属性値として注入されたペイロードが、状態復元・再描画を経てもエスケープされたまま出力される（DOM 更新経由の観点） |
@@ -140,9 +140,9 @@ Rule #1 準拠、CSR 経路テストが使用する共有集合）と観点を�
 
 - `cargo test --workspace --locked` に自動的に含まれる。
 - 加えて、既存の「XSS regression tests (REQ-1)」ステップ
-  （`.github/workflows/ci.yml` の `test` ジョブ、`cargo test -p rws-core --test
+  （`.github/workflows/ci.yml` の `test` ジョブ、`cargo test -p fandhe-frontend-core --test
   xss_escape --locked`）に**独立したステップ**として
-  `cargo test -p rws-wasm-full --test xss_escape_wasm --locked` を追加し、
+  `cargo test -p fandhe-frontend-wasm-full --test xss_escape_wasm --locked` を追加し、
   WASM 経路の回帰を CI 上で可視化する。
 
 ### 6.2 `browser-test` ジョブ（第 2 層・実機）

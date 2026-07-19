@@ -1,14 +1,14 @@
 [package]
-name = "rws-app"
+name = "fandhe-frontend-app"
 version = "0.1.0"
 edition = "2021"
-description = "rws-app: SSR/SSG/CSR 三モード共通のモード非依存コンポーネントライブラリ（rws-core のみに依存）。"
+description = "fandhe-frontend-app: SSR/SSG/CSR 三モード共通のモード非依存コンポーネントライブラリ（fandhe-frontend-core のみに依存）。"
 license = "MIT OR Apache-2.0"
 publish = false
 
 # REQ-3 / coding-rust.md: 依存クレート追加は事前承認が必要。
-# rws-app は rws-core（path 依存）のみを持ち、外部クレートは追加しない。
+# fandhe-frontend-app は fandhe-frontend-core（path 依存）のみを持ち、外部クレートは追加しない。
 [dependencies]
-rws-core = { path = "../core" }
+fandhe-frontend-core = { path = "../core" }
 
 [dev-dependencies]

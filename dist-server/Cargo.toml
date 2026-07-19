@@ -1,8 +1,8 @@
 [package]
-name = "rws-dist-server"
+name = "fandhe-frontend-dist-server"
 version = "0.1.0"
 edition = "2021"
-description = "rws-dist-server: TASK-9.1b。rws-core / rws-app / rws-server を単一実行ファイルへ統合し、コンパイル時埋め込みの静的アセットと rws-app の SSR ページを配信する配布用サーバー。"
+description = "fandhe-frontend-dist-server: TASK-9.1b。fandhe-frontend-core / fandhe-frontend-app / fandhe-frontend-server を単一実行ファイルへ統合し、コンパイル時埋め込みの静的アセットと fandhe-frontend-app の SSR ページを配信する配布用サーバー。"
 license = "MIT OR Apache-2.0"
 publish = false
 
@@ -23,15 +23,15 @@ publish = false
 # そのため axum 自体を採用せず、hyper（1.x, "http1"+"server"）+ hyper-util
 # （0.1, "http1"+"server"+"tokio"。この "tokio" feature は tokio/rt・tokio/time のみを
 # 要求し macros を要求しない）+ http-body-util + tokio
-# （"rt-multi-thread"+"net"）の直接構成とする。ルーティングは rws-server::router
+# （"rt-multi-thread"+"net"）の直接構成とする。ルーティングは fandhe-frontend-server::router
 # （外部依存ゼロ）が担うため、axum::Router 相当の機能は不要。
 #
 # 実測（2026-07-17、cargo metadata 経由、xtask check-deps と同じ定義）:
 #   packages: 21（上限 60）/ max depth: 5（上限 6）→ result: PASS
 [dependencies]
-rws-core = { path = "../core" }
-rws-app = { path = "../app" }
-rws-server = { path = "../server" }
+fandhe-frontend-core = { path = "../core" }
+fandhe-frontend-app = { path = "../app" }
+fandhe-frontend-server = { path = "../server" }
 hyper = { version = "1", default-features = false, features = ["http1", "server"] }
 hyper-util = { version = "0.1", default-features = false, features = ["http1", "server", "tokio"] }
 http-body-util = { version = "0.1", default-features = false }

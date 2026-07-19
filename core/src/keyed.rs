@@ -131,7 +131,7 @@ impl std::error::Error for KeyedListError {}
 /// # Examples
 ///
 /// ```
-/// use rws_core::{el, text, render, keyed::keyed_list};
+/// use fandhe_frontend_core::{el, text, render, keyed::keyed_list};
 ///
 /// let list = keyed_list(
 ///     "ul",

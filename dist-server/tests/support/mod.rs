@@ -175,7 +175,7 @@ fn spawn_with_etxtbsy_retry(command: &mut Command) -> Child {
     unreachable!("loop above always returns or panics");
 }
 
-/// stderr から `"rws-dist-server: listening on <addr>"` 行を探し、
+/// stderr から `"fandhe-frontend-dist-server: listening on <addr>"` 行を探し、
 /// `<addr>`（`127.0.0.1:34567` 等の完全なアドレス文字列）を返す。
 /// 5 秒待っても見つからなければ panic する。
 ///
@@ -264,14 +264,14 @@ pub fn wait_with_timeout(child: &mut Child, timeout: Duration) -> std::process::
     }
 }
 
-/// `"rws-dist-server: listening on <addr>"` 形式の 1 行から完全なバインド
+/// `"fandhe-frontend-dist-server: listening on <addr>"` 形式の 1 行から完全なバインド
 /// アドレス文字列（`127.0.0.1:34567` 等）を抽出する（`main.rs` の起動ログ
 /// 契約に対応）。
 ///
 /// `tests/bind_addr.rs` はこの戻り値のホスト部・ポート部の両方を検証する
 /// （`RWS_BIND_ADDR` の値がそのまま反映されたことの直接証明のため）。
 pub fn parse_listening_addr(line: &str) -> Option<&str> {
-    line.strip_prefix("rws-dist-server: listening on ")
+    line.strip_prefix("fandhe-frontend-dist-server: listening on ")
 }
 
 /// [`parse_listening_addr`] からポート番号のみを取り出す薄いラッパ。

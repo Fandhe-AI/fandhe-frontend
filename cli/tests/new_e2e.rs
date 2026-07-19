@@ -308,7 +308,7 @@ fn package_name_is_substituted_and_other_files_are_byte_identical_to_template() 
         assert_eq!(code, 0, "template `{name}` stderr: {stderr}");
 
         let target = scratch.join("demo-app");
-        let needle = format!("rws-template-{name}");
+        let needle = format!("fandhe-frontend-template-{name}");
 
         let cargo_toml = fs::read_to_string(target.join("Cargo.toml")).unwrap();
         assert!(cargo_toml.contains("name = \"demo-app\""));
@@ -332,7 +332,7 @@ fn package_name_is_substituted_and_other_files_are_byte_identical_to_template() 
 
 /// `embed` テンプレート（イシュー #410）は cargo パッケージを持たず
 /// `substituted_files` が空（`cli/src/new_template.rs::TEMPLATES`）のため、
-/// `needle`（`rws-template-embed`）はどのファイルにも出現せず、生成物は
+/// `needle`（`fandhe-frontend-template-embed`）はどのファイルにも出現せず、生成物は
 /// テンプレート正本と全ファイルバイト一致になる。
 #[test]
 fn embed_template_output_is_byte_identical_to_template_and_contains_no_needle() {
@@ -355,7 +355,7 @@ fn embed_template_output_is_byte_identical_to_template_and_contains_no_needle() 
         "embed template has no package-name substitution, so output must be byte-identical to templates/embed/"
     );
 
-    let needle = "rws-template-embed";
+    let needle = "fandhe-frontend-template-embed";
     for (rel_path, bytes, _) in &generated {
         assert!(
             !String::from_utf8_lossy(bytes).contains(needle),

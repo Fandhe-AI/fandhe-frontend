@@ -1,5 +1,5 @@
 //! v1 共通コアのパスマッチングルーター（TASK-7.2b、イシュー #407 で
-//! `rws-server` から `rws-app` へ移設）。
+//! `fandhe-frontend-server` から `fandhe-frontend-app` へ移設）。
 //!
 //! PoC-3 では axum の `Router` を直接利用していたが、本モジュールは
 //! **外部クレートに一切依存しないパスマッチング実装**として製品化した
@@ -11,9 +11,9 @@
 //! # 移設の経緯（イシュー #407）
 //!
 //! server（SSR/SSG）・wasm-full（CSR/ハイドレーション）の双方がルート表を
-//! 共有できるよう、エンジンを `rws-app`（`server`・`wasm-full` の双方から
+//! 共有できるよう、エンジンを `fandhe-frontend-app`（`server`・`wasm-full` の双方から
 //! 依存可能な唯一の層、`structure.toml` の `allowed_dependents` 参照）へ
-//! 移設した。`rws-server` は [`crate::routes`] と同様、`rws_server::router`
+//! 移設した。`fandhe-frontend-server` は [`crate::routes`] と同様、`fandhe_frontend_server::router`
 //! で本モジュールを再エクスポートし、`server/tests/router_resolution.rs`
 //! 等の既存呼び出し元は無修正のまま利用継続できる（公開 API パス非破壊）。
 //! ルート表自体（パターン + ハンドラ + タイトル）の単一定義は
@@ -22,12 +22,12 @@
 //! # 呼び出し文脈
 //!
 //! - HTTP・HTML を一切知らない。ハンドラ型 `H` はジェネリクスとして完全に
-//!   分離しており、SSR（`rws-server` の SSR エントリ、TASK-6.1c）・SSG（静的
-//!   書き出しバイナリ）・CSR（`rws-wasm-full` の `nav` モジュール、#407）・
+//!   分離しており、SSR（`fandhe-frontend-server` の SSR エントリ、TASK-6.1c）・SSG（静的
+//!   書き出しバイナリ）・CSR（`fandhe-frontend-wasm-full` の `nav` モジュール、#407）・
 //!   単一バイナリ配布（TASK-9.1）のいずれの上位層からも同一の [`Router`] /
 //!   [`Router::resolve`] を呼び出せることを想定する。
 //! - 本モジュールの出力（[`Params`]）は生文字列のまま返す。HTML へ出力する
-//!   際は呼び出し元が必ず `rws_core::text` / `rws_core::el` の attrs 経由で
+//!   際は呼び出し元が必ず `fandhe_frontend_core::text` / `fandhe_frontend_core::el` の attrs 経由で
 //!   既定エスケープ（REQ-1）を通すこと。本モジュール自身は `format!` 等で
 //!   HTML 文字列を組み立てない。
 //!
@@ -74,7 +74,7 @@ struct Route<H> {
 ///
 /// 登録順に先勝ちで解決する（`resolve()` 参照）。ハンドラ型 `H` は本モジュール
 /// が一切関知しない不透明な値であり、HTTP レスポンス生成等の責務は呼び出し元
-/// （`rws-server` の SSR エントリ等）が担う。
+/// （`fandhe-frontend-server` の SSR エントリ等）が担う。
 pub struct Router<H> {
     routes: Vec<Route<H>>,
 }
@@ -118,13 +118,13 @@ impl<H> Router<H> {
     /// # Examples
     ///
     /// ```
-    /// use rws_app::router::Router;
+    /// use fandhe_frontend_app::router::Router;
     ///
     /// let router: Router<&str> = Router::new()
     ///     .route("/", "home")?
     ///     .route("/items/:id", "item_detail")?
     ///     .route("/search", "search")?;
-    /// # Ok::<(), rws_app::router::RouterError>(())
+    /// # Ok::<(), fandhe_frontend_app::router::RouterError>(())
     /// ```
     pub fn route(mut self, pattern: &str, handler: H) -> Result<Self, RouterError> {
         let segments = parse_pattern(pattern)?;
@@ -141,13 +141,13 @@ impl<H> Router<H> {
     /// # Examples
     ///
     /// ```
-    /// use rws_app::router::Router;
+    /// use fandhe_frontend_app::router::Router;
     ///
     /// let router: Router<&str> = Router::new().route("/items/:id", "item_detail")?;
     /// let m = router.resolve("/items/42?ref=top").expect("matches");
     /// assert_eq!(*m.handler, "item_detail");
     /// assert_eq!(m.params.get("id"), Some("42"));
-    /// # Ok::<(), rws_app::router::RouterError>(())
+    /// # Ok::<(), fandhe_frontend_app::router::RouterError>(())
     /// ```
     pub fn resolve(&self, path: &str) -> Option<RouteMatch<'_, H>> {
         let path_without_query = match path.split_once('?') {
@@ -182,7 +182,7 @@ pub struct RouteMatch<'a, H> {
 /// `:name` セグメントから抽出したパスパラメータ。
 ///
 /// 値は URL デコードされていない生文字列のまま保持する。HTML へ出力する際は
-/// 呼び出し元が必ず `rws_core::text` / `rws_core::el` の attrs 経由で既定
+/// 呼び出し元が必ず `fandhe_frontend_core::text` / `fandhe_frontend_core::el` の attrs 経由で既定
 /// エスケープ（REQ-1）を通すこと。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Params(Vec<(String, String)>);
@@ -403,7 +403,7 @@ mod tests {
 
     #[test]
     fn xss_payload_like_path_is_captured_as_raw_string() {
-        // rws-app の demo_items()[1] と同種の XSS ペイロードをパスパラメータに
+        // fandhe-frontend-app の demo_items()[1] と同種の XSS ペイロードをパスパラメータに
         // 見立てたテスト。router は生文字列のまま返すのみでエスケープは行わ
         // ない契約であることを固定する（既定エスケープは描画側の責務）。
         let router: Router<&str> = Router::new().route("/items/:id", "item_detail").unwrap();
@@ -415,9 +415,11 @@ mod tests {
         let matched = router.resolve(&path).expect("should match");
         assert_eq!(matched.params.get("id"), Some(payload));
 
-        // 描画側（rws-core::text）を通すと既定エスケープされることを確認し、
+        // 描画側（fandhe-frontend-core::text）を通すと既定エスケープされることを確認し、
         // router がエスケープ責務を持たないことの実証にする。
-        let escaped = rws_core::render(&rws_core::text(matched.params.get("id").unwrap()));
+        let escaped = fandhe_frontend_core::render(&fandhe_frontend_core::text(
+            matched.params.get("id").unwrap(),
+        ));
         assert!(!escaped.contains("<img"));
         assert!(escaped.contains("&lt;img"));
     }
@@ -483,9 +485,9 @@ mod tests {
         );
     }
 
-    /// 同一クレート（rws-app）の Item / demo_items() を実データに見立て、
+    /// 同一クレート（fandhe-frontend-app）の Item / demo_items() を実データに見立て、
     /// router が抽出した id で一覧から該当データを引けることを確認する
-    /// （rws-server の SSR エントリ・rws-wasm-full の nav が行う想定の
+    /// （fandhe-frontend-server の SSR エントリ・fandhe-frontend-wasm-full の nav が行う想定の
     /// 一連の流れの縮小版）。
     #[test]
     fn resolved_param_can_look_up_item() {

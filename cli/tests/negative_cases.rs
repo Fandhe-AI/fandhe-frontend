@@ -98,31 +98,32 @@ fn inject_banned_dependency(project: &Path) {
 }
 
 /// ケース 4（イシュー #315: `--all-targets` 検出境界差回帰）向けに、ダミーの
-/// `rws-core` path クレート（`pub fn raw_html`）を追加し、`app` の
+/// `fandhe-frontend-core` path クレート（`pub fn raw_html`）を追加し、`app` の
 /// `[dev-dependencies]` へ登録したうえで `app/tests/raw_html_leak.rs` から
 /// レビューマーカーなしで呼び出し、`Cargo.lock` を再生成する。
 ///
-/// 実際の `rws-core`（本ワークスペースの描画コア）は一切参照しない。ローカル
-/// path クレートに同名 `rws_core::raw_html` を再現するだけで、workspace
+/// 実際の `fandhe-frontend-core`（本ワークスペースの描画コア）は一切参照しない。ローカル
+/// path クレートに同名 `fandhe_frontend_core::raw_html` を再現するだけで、workspace
 /// ルート `clippy.toml`（[`clippy_toml_content`] 相当、`disallowed-methods`
-/// の `rws_core::raw_html` エントリ）が name-based に検出できる
+/// の `fandhe_frontend_core::raw_html` エントリ）が name-based に検出できる
 /// （完全オフライン、security.md A06 と同じヘルメチック方針）。
 fn inject_raw_html_call_in_test_target(project: &Path) {
     use std::fs;
     use std::process::Command;
 
-    let dummy_dir = project.join("rws-core");
-    fs::create_dir_all(dummy_dir.join("src")).expect("ダミー rws-core クレートの作成に失敗した");
+    let dummy_dir = project.join("fandhe-frontend-core");
+    fs::create_dir_all(dummy_dir.join("src"))
+        .expect("ダミー fandhe-frontend-core クレートの作成に失敗した");
     fs::write(
         dummy_dir.join("Cargo.toml"),
-        "[package]\nname = \"rws-core\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n",
+        "[package]\nname = \"fandhe-frontend-core\"\nversion = \"0.1.0\"\nedition = \"2021\"\nlicense = \"MIT\"\npublish = false\n",
     )
-    .expect("ダミー rws-core の Cargo.toml 書き込みに失敗した");
+    .expect("ダミー fandhe-frontend-core の Cargo.toml 書き込みに失敗した");
     fs::write(
         dummy_dir.join("src").join("lib.rs"),
         "pub fn raw_html(s: String) -> String {\n    s\n}\n",
     )
-    .expect("ダミー rws-core の lib.rs 書き込みに失敗した");
+    .expect("ダミー fandhe-frontend-core の lib.rs 書き込みに失敗した");
 
     let workspace_toml = project.join("Cargo.toml");
     let original =
@@ -130,7 +131,7 @@ fn inject_raw_html_call_in_test_target(project: &Path) {
     let injected = replace_unique(
         &original,
         "members = [\"app\"]",
-        "members = [\"app\", \"rws-core\"]",
+        "members = [\"app\", \"fandhe-frontend-core\"]",
     );
     fs::write(&workspace_toml, injected).expect("workspace Cargo.toml の書き込みに失敗した");
 
@@ -138,9 +139,9 @@ fn inject_raw_html_call_in_test_target(project: &Path) {
     let original = fs::read_to_string(&app_toml).expect("app/Cargo.toml の読み込みに失敗した");
     // `[dev-dependencies]` に限定することで、本ケースが「テストターゲット
     // 経由でのみ到達可能な raw_html 呼び出し」であることを固定する
-    // （通常ビルド・`cargo check` では rws-core 自体がコンパイル対象にならない）。
+    // （通常ビルド・`cargo check` では fandhe-frontend-core 自体がコンパイル対象にならない）。
     let injected =
-        format!("{original}\n[dev-dependencies]\nrws-core = {{ path = \"../rws-core\" }}\n");
+        format!("{original}\n[dev-dependencies]\nfandhe-frontend-core = {{ path = \"../fandhe-frontend-core\" }}\n");
     fs::write(&app_toml, injected).expect("app/Cargo.toml の書き込みに失敗した");
 
     let app_tests = project.join("app").join("tests");
@@ -152,7 +153,7 @@ fn inject_raw_html_call_in_test_target(project: &Path) {
          //! 到達しないターゲットであることが本ケースの前提。\n\n\
          #[test]\n\
          fn calls_raw_html_without_review_marker() {\n    \
-         let _ = rws_core::raw_html(\"<script>alert(1)</script>\".to_string());\n\
+         let _ = fandhe_frontend_core::raw_html(\"<script>alert(1)</script>\".to_string());\n\
          }\n",
     )
     .expect("app/tests/raw_html_leak.rs の書き込みに失敗した");

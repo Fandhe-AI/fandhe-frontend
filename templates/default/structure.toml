@@ -28,5 +28,5 @@ version = 1
 
 [directories.root]
 role = "distribution"
-crate = "rws-template-default"
+crate = "fandhe-frontend-template-default"
 description = "fw new が生成する単一バイナリプロジェクトの骨格（クレートはプロジェクトルート直下に配置）"

@@ -3,9 +3,9 @@
 //!
 //! # 責務境界・独立ファイルにした理由
 //!
-//! `wasm-full/tests/nav_browser.rs` が配線層（`rws_wasm_full::nav::
+//! `wasm-full/tests/nav_browser.rs` が配線層（`fandhe_frontend_wasm_full::nav::
 //! start_router`）の大半のブラウザ挙動を検証済み。本ファイルはそこへ
-//! 追加した `pagehide` リスナー（[`rws_wasm_full::nav`] モジュール doc・
+//! 追加した `pagehide` リスナー（[`fandhe_frontend_wasm_full::nav`] モジュール doc・
 //! `mod wiring::start_router` 参照）のみを対象とする。
 //!
 //! `wasm-pack test`/`cargo test --target wasm32-unknown-unknown` は
@@ -21,7 +21,7 @@
 
 #![cfg(target_arch = "wasm32")]
 
-use rws_app::{assemble_list_page, DemoItemsLoader};
+use fandhe_frontend_app::{assemble_list_page, DemoItemsLoader};
 use wasm_bindgen_test::*;
 use web_sys::{Document, Element};
 
@@ -47,7 +47,7 @@ fn create_app_root(document: &Document, container_test_id: &str, initial_html: &
 
 fn ssr_equivalent_list_inner_html() -> String {
     let body = assemble_list_page(&DemoItemsLoader, &()).expect("infallible loader");
-    rws_core::render(&body)
+    fandhe_frontend_core::render(&body)
 }
 
 /// `nav_browser.rs::append_tall_spacer` と同型（イシュー #406）。ヘッドレス
@@ -99,7 +99,7 @@ fn pagehide_saves_current_scroll_position_to_history_state() {
     );
     append_tall_spacer(&document, &container);
 
-    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+    fandhe_frontend_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
     // `push_state` 直後のエントリ（state は JsValue::NULL のまま）を作る。
     let history = window.history().expect("history must exist");
@@ -128,7 +128,7 @@ fn pagehide_saves_current_scroll_position_to_history_state() {
         .expect("state must not fail")
         .as_string()
         .expect("pagehide 後の history.state は文字列エンコードされたスクロールレコードであること");
-    let (x, y) = rws_wasm_full::nav::decode_scroll_state(&saved_state)
+    let (x, y) = fandhe_frontend_wasm_full::nav::decode_scroll_state(&saved_state)
         .expect("pagehide 後の history.state は decode_scroll_state で復号できる形式であること");
     assert_eq!(x, 0.0);
     assert!(

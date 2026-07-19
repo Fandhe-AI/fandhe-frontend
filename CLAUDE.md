@@ -4,10 +4,10 @@
 
 Rust 製フロントエンドフレームワーク。AI 時代のセキュリティリスク低減を目的に、プレーンな HTML / JavaScript / CSS を尊重しつつ SSR / SPA / SSG / トランジションなどモダン機能を網羅する。部分埋め込みの最小構成からフル機能構成までのグラデーションを持ち、単一実行ファイルでのデプロイ（Docker 想定）を目標とする。
 
-- 正式名称は `fandhe-frontend`（確定、2026-07-19）。決定記録・新旧マッピング表・段階的移行計画は `docs/design/framework-naming.md` を参照。crate 名 `rws-*` は #435 以降で段階的に `fandhe-frontend-*` へ改名予定（本 CLAUDE.md 内の crate 名・ディレクトリ構成の記述は現行実態のまま）
+- 正式名称は `fandhe-frontend`（確定、2026-07-19）。決定記録・新旧マッピング表・段階的移行計画は `docs/design/framework-naming.md` を参照。crate 名 `fandhe-frontend-*` は #435 以降で段階的に `fandhe-frontend-*` へ改名予定（本 CLAUDE.md 内の crate 名・ディレクトリ構成の記述は現行実態のまま）
 - 仕様書は [Fandhe-AI/frontend-framework-spec](https://github.com/Fandhe-AI/frontend-framework-spec) を `docs/spec/` サブモジュールとして取り込み管理
-- 開発は `docs/spec/06-roadmap.md` のマイルストーン MS-1〜MS-5 に従う（最初のタスクは TASK-1.1: `rws-core` 既定エスケープの製品化）
-- 計画クレート: `rws-core`（描画コア・外部依存ゼロ）/ `rws-app` / `rws-server`（SSR/SSG）/ `rws-wasm-client`・`rws-wasm-full`（WASM/CSR）/ `rws-interactive`（状態管理）/ `xtask`（CI 計測）/ `rws-cli`（`fw` コマンド・AI 自己保守フック、REQ-13）
+- 開発は `docs/spec/06-roadmap.md` のマイルストーン MS-1〜MS-5 に従う（最初のタスクは TASK-1.1: `fandhe-frontend-core` 既定エスケープの製品化）
+- 計画クレート: `fandhe-frontend-core`（描画コア・外部依存ゼロ）/ `fandhe-frontend-app` / `fandhe-frontend-server`（SSR/SSG）/ `fandhe-frontend-wasm-client`・`fandhe-frontend-wasm-full`（WASM/CSR）/ `fandhe-frontend-interactive`（状態管理）/ `xtask`（CI 計測）/ `fandhe-frontend-cli`（`fw` コマンド・AI 自己保守フック、REQ-13）
 
 ## Repository Structure
 
@@ -40,9 +40,9 @@ frontend-framework/
 │   │       └── workflows/
 │   │           ├── deny.yml            # 禁止クレート追加を CI でブロックするテンプレートワークフロー（TASK-4.2 / REQ-4）
 │   │           └── npm-asset-gate.yml  # NPM 静的アセットゲート（install.sh 経由）のテンプレートワークフロー（REQ-12, イシュー #316）
-│   ├── app/                   # `fw new --template app`（イシュー #378/#411）: rws-core/rws-app 依存の拡充テンプレート（wasm ビルド込み CSR 完全実体を同梱）
+│   ├── app/                   # `fw new --template app`（イシュー #378/#411）: fandhe-frontend-core/fandhe-frontend-app 依存の拡充テンプレート（wasm ビルド込み CSR 完全実体を同梱）
 │   │   ├── src/main.rs       # Loader・束縛点 API（bind_text/keyed_list）・render の実体サンプル
-│   │   ├── vendor/           # rws-core/rws-app/rws-interactive/rws-wasm-client のソース vendor 同梱（publish=false のため。正本との乖離は cli/tests/template_vendor_drift.rs が検知）
+│   │   ├── vendor/           # fandhe-frontend-core/fandhe-frontend-app/fandhe-frontend-interactive/fandhe-frontend-wasm-client のソース vendor 同梱（publish=false のため。正本との乖離は cli/tests/template_vendor_drift.rs が検知）
 │   │   ├── wasm/              # CSR wasm ビルド用の独立ワークスペース（glue クレート app-csr-wasm、root の依存グラフから隔離）
 │   │   ├── tools/wasm/build.sh # wasm ビルド手順（wasm-bindgen-cli バージョン整合の fail-closed 検証込み）
 │   │   └── static/embed.html # CSR マウント骨格（templates/embed/embed.html の同梱コピー、build.sh 実行後に動作）
@@ -56,7 +56,7 @@ frontend-framework/
     └── settings.json         # SessionStart / PostToolUse hooks
 ```
 
-（実装着手後は `core/` `app/` `server/` `wasm-client/` `interactive/` `xtask/` `cli/`（`rws-cli`: `fw` コマンド、structure.toml のスキーマ・パース・生成）等の cargo workspace が加わる想定 — `docs/spec/05-tasks.md` 参照）
+（実装着手後は `core/` `app/` `server/` `wasm-client/` `interactive/` `xtask/` `cli/`（`fandhe-frontend-cli`: `fw` コマンド、structure.toml のスキーマ・パース・生成）等の cargo workspace が加わる想定 — `docs/spec/05-tasks.md` 参照）
 
 ## 委譲方針（必読）
 
