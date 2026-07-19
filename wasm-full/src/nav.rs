@@ -5,14 +5,15 @@
 //!
 //! `rws-wasm-full` は `rws-server`（`server/src/ssr.rs`）へ依存できない
 //! （`structure.toml` の `server.allowed_dependents = ["dist-server"]`）ため、
-//! クライアント側のルート解決（パス → `PageRoute` 相当の判定）は本モジュールに
-//! `rws_server::router::Router` を使わず独自実装する。`docs/api/router-path-matching.md`
-//! v1 仕様（クエリ切り落とし・セグメント厳格一致・末尾スラッシュ非正規化・
-//! `:id` 捕捉）のうち、本アプリの 2 ルート（`/`・`/items/:id`）に必要な範囲のみを
-//! 実装する。`server/src/ssr.rs::build_page_router()` のルートパターン
-//! リテラル・ページタイトルリテラルとの一致は `wasm-full/tests/route_sync_static.rs`
-//! （静的ソース走査、`core/tests/no_branching_across_modes.rs` と同方式）が
-//! ドリフト検知として強制する。
+//! クライアント側のルート解決は `rws-server` を経由しない。イシュー #407 で
+//! `rws-app`（`server`・`wasm-full` 双方から依存可能な唯一の層）へルート定義
+//! （パターン・マッチングエンジン・ページタイトル）を単一化したため、本
+//! モジュールは [`rws_app::routes::resolve`] / [`rws_app::routes::title`] を
+//! そのまま呼ぶ（`server/src/ssr.rs` と同じ関数を共有し、パターンリテラル・
+//! タイトルリテラル・マッチング意味論のいずれも本ファイルで再定義しない）。
+//! `wasm-full/tests/route_shared_static.rs`（静的ソース走査、
+//! `core/tests/no_branching_across_modes.rs` と同方式）が単一定義の強制を
+//! 継続検証する。
 //!
 //! [`crate::csr`]（イシュー #349）の `resolve_list_node`/`resolve_detail_node`
 //! を loader ジェネリックなまま呼び出し、遷移時のデータ解決を行う
@@ -64,11 +65,13 @@
 //!   による寿命管理、`forget()` を使わない）。
 
 use crate::csr::{resolve_detail_node, resolve_list_node};
+use rws_app::routes::{resolve as resolve_route, title as route_title, AppRoute};
 use rws_app::{Item, Loader};
 use rws_core::Node;
 
-/// クライアント側で解決したルート（`server/src/ssr.rs::PageRoute` に対応する
-/// クライアント側の等価表現。`rws-server` への依存を避けるため独自定義する）。
+/// クライアント側で解決したルート。`rws_app::routes::ResolvedRoute`
+/// （イシュー #407 の単一定義）を [`resolve_path`] がクライアント側の呼び出し
+/// 形へ変換した表現であり、パターン・意味論は再定義しない。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ClientRoute {
     /// `/` — 一覧画面。
@@ -79,34 +82,19 @@ pub enum ClientRoute {
 
 /// パスをルートへ解決する（DOM 非依存の純粋関数）。
 ///
-/// `docs/api/router-path-matching.md` v1 仕様のうち、本アプリの 2 ルートに
-/// 必要な範囲を実装する:
-///
-/// - クエリ文字列（`?` 以降）は照合前に切り落とす
-/// - 末尾スラッシュは正規化しない厳格一致（`/items/1/` は一致しない）
-/// - 連続スラッシュ（空セグメント）は一致しない
-/// - `id` は空でない 1 セグメントのみを捕捉する（`/items/` は一致しない）
-///
+/// マッチング本体は [`rws_app::routes::resolve`]（`rws_app::router::Router`
+/// 経由、`docs/api/router-path-matching.md` v1 仕様準拠）に委譲する。
 /// 一致しないパスは `None`（呼び出し側はブラウザ既定遷移に委ねる、
 /// 安全側フォールバック）。
 pub fn resolve_path(path: &str) -> Option<ClientRoute> {
-    let path_only = path.split('?').next().unwrap_or(path);
-    if !path_only.starts_with('/') {
-        return None;
-    }
-    if path_only == "/" {
-        return Some(ClientRoute::List);
-    }
-    let segments: Vec<&str> = path_only[1..].split('/').collect();
-    if segments.iter().any(|s| s.is_empty()) {
-        // 連続スラッシュ・末尾スラッシュはいずれかのセグメントが空文字列に
-        // なるため、ここで一括して非一致とする（v1 仕様の「空セグメント」
-        // 「末尾スラッシュ非正規化」の双方を満たす）。
-        return None;
-    }
-    match segments.as_slice() {
-        ["items", id] => Some(ClientRoute::Detail((*id).to_string())),
-        _ => None,
+    let resolved = resolve_route(path)?;
+    match resolved.route {
+        AppRoute::List => Some(ClientRoute::List),
+        // `AppRoute::Detail` は `rws_app::routes::resolve` の契約上、常に
+        // `id` を捕捉して返す（`resolved.id` が `None` になるのは `List`
+        // 側のみ）。万一 `None` の場合でも `unwrap_or_default` で空文字列に
+        // フォールバックし、panic しない（ライブラリコードの規約継承）。
+        AppRoute::Detail => Some(ClientRoute::Detail(resolved.id.unwrap_or_default())),
     }
 }
 
@@ -115,13 +103,14 @@ pub fn resolve_path(path: &str) -> Option<ClientRoute> {
 /// `server/src/ssr.rs::respond_with` と同じ分岐構造を踏襲する:
 ///
 /// - `List`: `list_loader` を解決し `resolve_list_node`（内部で `Err` を
-///   [`crate::csr::loader_error_view`] へ変換、fail-closed）を呼ぶ。タイトルは常に
-///   `"記事一覧"`（ssr.rs と同一リテラル、`route_sync_static.rs` が固定）。
+///   [`crate::csr::loader_error_view`] へ変換、fail-closed）を呼ぶ。タイトルは
+///   [`rws_app::routes::title`]（単一定義、イシュー #407）を使う。
 /// - `Detail`: `detail_loader` を解決し `resolve_detail_node` を呼ぶ。未知の
-///   `id`（`Ok(None)`）も `Err` もいずれもタイトルは `"記事詳細"` のまま
+///   `id`（`Ok(None)`）も `Err` もいずれもタイトルは変わらない
 ///   （`page_shell` へ渡すタイトルは `Ok`/`Err`/`None` のいずれでも
-///   `respond_with` が "記事詳細" を使う契約と一致させる。ページ内の見出し
-///   文言 "見つかりません" とは独立した `<title>` 相当の値である）。
+///   `respond_with` と同じ [`rws_app::routes::title`] の値と一致させる。
+///   ページ内の見出し文言 "見つかりません" とは独立した `<title>` 相当の値
+///   である）。
 pub fn resolve_route_view_with<L, D>(
     list_loader: &L,
     detail_loader: &D,
@@ -132,8 +121,11 @@ where
     D: Loader<Input = String, Output = Option<Item>>,
 {
     match route {
-        ClientRoute::List => ("記事一覧", resolve_list_node(list_loader)),
-        ClientRoute::Detail(id) => ("記事詳細", resolve_detail_node(detail_loader, id)),
+        ClientRoute::List => (route_title(AppRoute::List), resolve_list_node(list_loader)),
+        ClientRoute::Detail(id) => (
+            route_title(AppRoute::Detail),
+            resolve_detail_node(detail_loader, id),
+        ),
     }
 }
 

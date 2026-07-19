@@ -60,7 +60,7 @@ depends_on = ["..."]              # 依存を許可する directories キー（�
 allowed_dependents = ["..."]      # 被依存を許可する directories キー（既定 []）
 
 [routing]
-definition_dir = "server"        # ルート定義を許すディレクトリ（directories キー参照）
+definition_dir = "app"           # ルート定義を許すディレクトリ（directories キー参照）
 extractor = "rws-router-v1"      # 組み込み抽出器 ID
 ```
 
@@ -182,8 +182,12 @@ PoC-7 は `role` を自由記述文字列としていたが、本スキーマで
   はこれを反映して `["core", "interactive", "app"]` を、
   `directories.app.allowed_dependents` は `["server", "dist-server",
   "wasm-full"]` を宣言する（対称性、本節冒頭 §2.3 検証 6）。
-- `[routing] definition_dir = "server"` は「ルートは `server/src/ssr.rs` の
-  `Router::route(...)` 呼び出しに定義される」という規約を宣言する。
+- `[routing] definition_dir = "app"` は「ルートは `app/src/routes.rs` の
+  `Router::route(...)` 呼び出しに定義される」という規約を宣言する
+  （イシュー #407: server / client 単一定義からのルート生成（共有機構）
+  採用に伴い、ルート表の正本を `server` から `app` へ移設した。
+  `server/src/ssr.rs`・`wasm-full/src/nav.rs` はいずれも `rws_app::routes`
+  経由で同一定義を参照する。詳細は `docs/design/route-definition-sharing.md`）。
   実際の抽出処理（`rws-router-v1` 抽出器、`cli/src/routes.rs`）は
   `definition_dir` 配下の `src/`（Cargo の慣例に基づき `tests/` 等の
   integration test は対象外）を走査し、コメント・`#[cfg(test)]` 以降の
