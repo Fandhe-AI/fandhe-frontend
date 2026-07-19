@@ -141,7 +141,14 @@ fn nth_element_child(list_element: &Element, index: usize) -> Option<Element> {
 /// `binding_dom.rs` と同一の URL 検証（`srcset` のカンマ区切り候補分割検証
 /// を含む）・イベントハンドラ属性ブロックを本経路にも適用する
 /// （イシュー #373。`docs/policy/attribute-output-policy.md`）。
-fn build_element(document: &Document, node: &Node) -> Option<web_sys::Node> {
+///
+/// [`apply_keyed_list`]（本モジュール内、keyed list 挿入）に加え、
+/// `rws-wasm-full` の遷移描画（`nav.rs`、イシュー #374）からも
+/// `rws_wasm_client::build_dom_node` として呼ばれる公開 API（`lib.rs` の
+/// `pub use keyed_dom::build_dom_node` 経由）。挿入先で `RawHtml` を `None`
+/// として fail-closed に拒否する契約は呼び出し元を問わず不変（不変条件 4
+/// を遷移経路にも継承）。
+pub fn build_dom_node(document: &Document, node: &Node) -> Option<web_sys::Node> {
     match node {
         Node::Text(text) => Some(document.create_text_node(text).into()),
         Node::Element {
@@ -169,7 +176,7 @@ fn build_element(document: &Document, node: &Node) -> Option<web_sys::Node> {
                 let _ = element.set_attribute(name, value);
             }
             for child in children {
-                if let Some(child_node) = build_element(document, child) {
+                if let Some(child_node) = build_dom_node(document, child) {
                     let _ = element.append_child(&child_node);
                 }
             }
@@ -197,7 +204,7 @@ fn build_element(document: &Document, node: &Node) -> Option<web_sys::Node> {
 /// 想定）。`list_element` は実 DOM 上の対応する親要素（`data-bind-list`
 /// で走査済み）。
 ///
-/// キー照合に失敗する要素（`Insert` で `build_element` が `None` を返す
+/// キー照合に失敗する要素（`Insert` で `build_dom_node` が `None` を返す
 /// ケース = `RawHtml` 子や不正タグ名）は skip し、当該 1 件のみ未適用のまま
 /// 残す（fail-closed。他の正当な操作の適用を妨げない）。
 pub fn apply_keyed_list(document: &Document, list_element: &Element, new_list_node: &Node) {
@@ -217,7 +224,7 @@ pub fn apply_keyed_list(document: &Document, list_element: &Element, new_list_no
                 let Some((_, node)) = new_items.iter().find(|(k, _)| k == &key) else {
                     continue;
                 };
-                let Some(new_child) = build_element(document, node) else {
+                let Some(new_child) = build_dom_node(document, node) else {
                     continue;
                 };
                 let reference = nth_element_child(list_element, index);
@@ -348,7 +355,7 @@ mod tests {
 
     /// `srcset` はカンマ区切りの URL 候補を持つ特殊構文のため `URL_ATTRS`
     /// （単一 URL 属性の正リスト）に非該当。候補の 1 件でも危険スキームを
-    /// 含む場合、`build_element` が `is_safe_srcset` による候補分割検証を
+    /// 含む場合、`build_dom_node` が `is_safe_srcset` による候補分割検証を
     /// 経由して `srcset` 属性そのものを書き込まないこと（イシュー #373
     /// レビュー指摘対応: keyed list 経由のプログラム的ノード構築でも
     /// `render_into`/`binding_dom.rs` と同一の保証を持たせる契約の実ブラウザ

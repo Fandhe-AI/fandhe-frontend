@@ -503,28 +503,49 @@ fn policy_check(runner: &dyn CommandRunner, project_dir: &Path) -> GateCheck {
 /// バイトオフセットを列挙する状態機械の最小走査（正規表現クレートを使わず
 /// 手書きで判定する。`cli` 外部依存ゼロ方針）。
 ///
-/// `content` 中の `raw_html` の各出現位置について、直後の空白文字（半角
-/// スペース・タブ・改行を含む ASCII 空白）を読み飛ばした先が `(` であれば
-/// 呼び出しとみなす。コメント内の出現も検出対象とする（偽陽性は許容・
-/// 偽陰性は不許容の保守側実装、計画 §3.2）。
+/// `content` 中の `raw_html` の各出現位置について、以下 2 条件をいずれも
+/// 満たす場合のみ呼び出しとみなす（イシュー #372: 走査の「コード文脈限定」への
+/// 精密化。詳細な設計根拠は `docs/design/gate-design.md` §2.2 を参照）。
+/// 1. [`code_context_mask`] 上で出現開始位置がコード文脈（コメント・文字列
+///    リテラル・文字リテラルの外側）であること
+/// 2. 出現開始位置の直前バイトが識別子構成文字（`[A-Za-z0-9_]`）でないこと
+///    （`..._raw_html(` のような別識別子のサフィックスを呼び出しと誤認しない。
+///    `rws_core::raw_html(`（直前 `:`）や `.raw_html(`（メソッド形）は
+///    直前バイトが識別子構成文字でないため引き続き検出する）
+///
+/// さらに、直後の空白文字（半角スペース・タブ・改行を含む ASCII 空白）を
+/// 読み飛ばした先が `(` であれば呼び出しとみなす。
+///
+/// コメント・文字列リテラル・別識別子は Rust の字句規則上 `raw_html()` の
+/// 呼び出しになり得ないため、これらの除外は偽陽性（誤検知）のみを削り
+/// 偽陰性（見逃し）を生まない。主防御は従来どおり `lint` チェック
+/// （`cargo clippy` + `disallowed-methods`、HIR パス解決）であり無変更
+/// （モジュール冒頭 doc コメント参照）。
 ///
 /// 行単位走査（旧 `line_has_raw_html_call`）では `raw_html` 識別子と `(` が
 /// 改行を挟んで別々の行に置かれた呼び出し（`raw_html\n    (user_input)` 等）
 /// を見逃していた（「見逃しなし」方針に反する検出漏れ、Bugbot 指摘:
-/// PR #261 #1）。空白の読み飛ばしを改行にも及ぼすことでこれを解消する。
+/// PR #261 #1）。空白の読み飛ばしを改行にも及ぼすことでこれを解消する
+/// （この挙動は本変更でも維持する）。
 fn find_raw_html_call_positions(content: &str) -> Vec<usize> {
     let bytes = content.as_bytes();
     let needle = b"raw_html";
+    let mask = code_context_mask(content);
     let mut positions = Vec::new();
     let mut start = 0;
     while let Some(rel) = find_subslice(&bytes[start..], needle) {
         let match_start = start + rel;
-        let mut i = match_start + needle.len();
-        while i < bytes.len() && bytes[i].is_ascii_whitespace() {
-            i += 1;
-        }
-        if i < bytes.len() && bytes[i] == b'(' {
-            positions.push(match_start);
+        let in_code_context = mask.get(match_start).copied().unwrap_or(true);
+        let has_ident_left_neighbor = match_start > 0
+            && (bytes[match_start - 1].is_ascii_alphanumeric() || bytes[match_start - 1] == b'_');
+        if in_code_context && !has_ident_left_neighbor {
+            let mut i = match_start + needle.len();
+            while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+                i += 1;
+            }
+            if i < bytes.len() && bytes[i] == b'(' {
+                positions.push(match_start);
+            }
         }
         start = match_start + 1;
         if start >= bytes.len() {
@@ -532,6 +553,265 @@ fn find_raw_html_call_positions(content: &str) -> Vec<usize> {
         }
     }
     positions
+}
+
+/// Rust ソース `content` の各バイト位置が「コード文脈」か否かを表すマスクを
+/// 構築する状態機械（イシュー #372）。[`find_raw_html_call_positions`] の
+/// 偽陽性（コメント・文字列リテラル中の `raw_html(` 言及の誤検知）を削減する
+/// ための専用の簡易近似実装であり、完全な Rust 字句解析器ではない
+/// （正規表現・字句解析クレートを使わず手書きで判定する。`cli` 外部依存
+/// ゼロ方針）。
+///
+/// 除外する非コード文脈:
+/// - 行コメント（`//` `///` `//!`）・ブロックコメント（`/* */`、ネスト対応）
+/// - 通常文字列リテラル（`"..."`、`\` エスケープ対応）・バイト文字列
+///   （`b"..."`）
+/// - raw 文字列リテラル（`r"..."` / `r#"..."#` 等）・raw バイト文字列
+///   （`br"..."` 等）
+/// - 文字リテラル（`'x'`、エスケープ・Unicode エスケープ対応）
+///
+/// 文字リテラルとライフタイム（`'a`）の判別は「`'` の直後がエスケープ列
+/// または任意 1 文字＋閉じ `'`」であるかの近似で行う。判別不能・曖昧な
+/// 入力（ライフタイムの可能性を排除できない `'`、不正な UTF-8 境界等）は
+/// **コード文脈（true）側に倒す**（fail-closed、security.md A05: 保険層の
+/// 偽陰性ゼロを優先し、偽陽性の残存は許容する）。
+fn code_context_mask(content: &str) -> Vec<bool> {
+    #[derive(Clone, Copy)]
+    enum State {
+        Code,
+        LineComment,
+        BlockComment(u32),
+        Str,
+        RawStr(u32),
+    }
+
+    let bytes = content.as_bytes();
+    let mut mask = vec![true; bytes.len()];
+    let mut state = State::Code;
+    let mut i = 0usize;
+    while i < bytes.len() {
+        let b = bytes[i];
+        match state {
+            State::Code => {
+                let prev_is_ident_char =
+                    i > 0 && (bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'_');
+                if b == b'/' && bytes.get(i + 1) == Some(&b'/') {
+                    mask[i] = false;
+                    mask[i + 1] = false;
+                    state = State::LineComment;
+                    i += 2;
+                    continue;
+                }
+                if b == b'/' && bytes.get(i + 1) == Some(&b'*') {
+                    mask[i] = false;
+                    mask[i + 1] = false;
+                    state = State::BlockComment(1);
+                    i += 2;
+                    continue;
+                }
+                if b == b'"' {
+                    mask[i] = false;
+                    state = State::Str;
+                    i += 1;
+                    continue;
+                }
+                // raw 文字列 / raw バイト文字列プレフィックス（`r"..`, `r#"..`#,
+                // `br"..`, `br#"..`#）。トークンの途中（識別子のサフィックスと
+                // しての `r`/`b`、例: `bar"x"` は構文上不成立だが念のため）で
+                // 誤爆しないよう、直前バイトが識別子構成文字でないことを要求する。
+                if !prev_is_ident_char {
+                    if b == b'r' {
+                        if let Some(hashes) = raw_string_hash_count(bytes, i + 1) {
+                            mask[i] = false;
+                            let mut j = i + 1;
+                            for _ in 0..hashes {
+                                mask[j] = false;
+                                j += 1;
+                            }
+                            mask[j] = false; // 開き `"`
+                            state = State::RawStr(hashes as u32);
+                            i = j + 1;
+                            continue;
+                        }
+                    }
+                    if b == b'b' {
+                        if bytes.get(i + 1) == Some(&b'"') {
+                            mask[i] = false;
+                            mask[i + 1] = false;
+                            state = State::Str;
+                            i += 2;
+                            continue;
+                        }
+                        if bytes.get(i + 1) == Some(&b'r') {
+                            if let Some(hashes) = raw_string_hash_count(bytes, i + 2) {
+                                mask[i] = false;
+                                mask[i + 1] = false;
+                                let mut j = i + 2;
+                                for _ in 0..hashes {
+                                    mask[j] = false;
+                                    j += 1;
+                                }
+                                mask[j] = false; // 開き `"`
+                                state = State::RawStr(hashes as u32);
+                                i = j + 1;
+                                continue;
+                            }
+                        }
+                    }
+                }
+                if b == b'\'' {
+                    if let Some(end) = char_literal_end(bytes, i) {
+                        mask[i..=end].fill(false);
+                        i = end + 1;
+                        continue;
+                    }
+                    // ライフタイムまたは判別不能: Code のまま次バイトへ進める
+                    // （fail-closed: 誤ってコメント/文字列扱いにしない）。
+                }
+                i += 1;
+            }
+            State::LineComment => {
+                mask[i] = false;
+                if b == b'\n' {
+                    state = State::Code;
+                }
+                i += 1;
+            }
+            State::BlockComment(depth) => {
+                mask[i] = false;
+                if b == b'/' && bytes.get(i + 1) == Some(&b'*') {
+                    mask[i + 1] = false;
+                    state = State::BlockComment(depth + 1);
+                    i += 2;
+                    continue;
+                }
+                if b == b'*' && bytes.get(i + 1) == Some(&b'/') {
+                    mask[i + 1] = false;
+                    state = if depth <= 1 {
+                        State::Code
+                    } else {
+                        State::BlockComment(depth - 1)
+                    };
+                    i += 2;
+                    continue;
+                }
+                i += 1;
+            }
+            State::Str => {
+                mask[i] = false;
+                if b == b'\\' {
+                    if i + 1 < bytes.len() {
+                        mask[i + 1] = false;
+                    }
+                    i += 2;
+                    continue;
+                }
+                if b == b'"' {
+                    state = State::Code;
+                }
+                i += 1;
+            }
+            State::RawStr(hashes) => {
+                mask[i] = false;
+                if b == b'"' {
+                    let mut k = 0u32;
+                    while k < hashes && bytes.get(i + 1 + k as usize) == Some(&b'#') {
+                        k += 1;
+                    }
+                    if k == hashes {
+                        for j in 0..hashes as usize {
+                            mask[i + 1 + j] = false;
+                        }
+                        i += 1 + hashes as usize;
+                        state = State::Code;
+                        continue;
+                    }
+                }
+                i += 1;
+            }
+        }
+    }
+    mask
+}
+
+/// `bytes[start..]` が raw 文字列の「開き部分」（0 個以上の `#` の後に `"`）
+/// として成立するかを判定し、成立する場合はハッシュ数を返す
+/// （[`code_context_mask`] の raw 文字列プレフィックス判定の共通処理）。
+fn raw_string_hash_count(bytes: &[u8], start: usize) -> Option<usize> {
+    let mut i = start;
+    let mut hashes = 0usize;
+    while bytes.get(i) == Some(&b'#') {
+        hashes += 1;
+        i += 1;
+    }
+    if bytes.get(i) == Some(&b'"') {
+        Some(hashes)
+    } else {
+        None
+    }
+}
+
+/// `bytes[quote_pos]`（`'`）が文字リテラルの開始であるとみなせる場合、
+/// 閉じ `'` のバイト位置を返す。ライフタイム（`'a` 等）や判別不能な入力では
+/// `None` を返す（[`code_context_mask`] 呼び出し元が Code 文脈のまま扱う）。
+fn char_literal_end(bytes: &[u8], quote_pos: usize) -> Option<usize> {
+    let start = quote_pos + 1;
+    match bytes.get(start) {
+        Some(b'\\') => {
+            // エスケープ列: `\u{...}` / `\xNN` / 単純エスケープ（`\n` `\t` `\\` `\'` `\"` `\0` 等）。
+            let mut i = start + 1;
+            if bytes.get(i) == Some(&b'u') && bytes.get(i + 1) == Some(&b'{') {
+                i += 2;
+                while bytes.get(i).is_some_and(|c| *c != b'}') {
+                    i += 1;
+                }
+                if bytes.get(i) == Some(&b'}') {
+                    i += 1;
+                }
+            } else if bytes.get(i) == Some(&b'x') {
+                i += 1;
+                for _ in 0..2 {
+                    if bytes.get(i).is_some_and(u8::is_ascii_hexdigit) {
+                        i += 1;
+                    }
+                }
+            } else if i < bytes.len() {
+                i += 1;
+            }
+            if bytes.get(i) == Some(&b'\'') {
+                Some(i)
+            } else {
+                None
+            }
+        }
+        Some(&c) if c != b'\'' => {
+            // 通常の 1 文字（マルチバイト UTF-8 文字を含む）+ 閉じ `'`。
+            let char_len = utf8_char_len(c);
+            let after = start + char_len;
+            if bytes.get(after) == Some(&b'\'') {
+                Some(after)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+/// UTF-8 先頭バイトからその文字の総バイト長を求める（不正な先頭バイトは
+/// 1 バイトとして扱い、無限ループ・パニックを避ける保守側の近似）。
+fn utf8_char_len(first_byte: u8) -> usize {
+    if first_byte & 0x80 == 0 {
+        1
+    } else if first_byte & 0xE0 == 0xC0 {
+        2
+    } else if first_byte & 0xF0 == 0xE0 {
+        3
+    } else if first_byte & 0xF8 == 0xF0 {
+        4
+    } else {
+        1
+    }
 }
 
 fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
@@ -1115,6 +1395,127 @@ mod tests {
         assert_eq!(
             find_raw_html_call_positions("let x = raw_html\n    (user_input);").len(),
             1
+        );
+    }
+
+    // イシュー #372: 走査の「コード文脈限定」への精密化。以下は誤検知解消
+    // （passed 側）の固定テスト群。コメント・文字列リテラル・識別子サフィックス
+    // は Rust の字句規則上 `raw_html()` の呼び出しになり得ないため、これらの
+    // 除外は偽陽性のみを削る（docs/design/gate-design.md §2.2 参照）。
+
+    #[test]
+    fn find_raw_html_call_positions_ignores_line_comment_call_like_text() {
+        assert!(
+            find_raw_html_call_positions("// raw_html(x) is the opt-in escape hatch").is_empty()
+        );
+    }
+
+    #[test]
+    fn find_raw_html_call_positions_ignores_doc_comment_call_like_text() {
+        assert!(find_raw_html_call_positions("/// raw_html()\nfn f() {}").is_empty());
+    }
+
+    #[test]
+    fn find_raw_html_call_positions_ignores_block_comment_including_nested() {
+        assert!(
+            find_raw_html_call_positions("/* outer /* raw_html(x) */ still comment */").is_empty()
+        );
+    }
+
+    #[test]
+    fn find_raw_html_call_positions_ignores_string_literal_occurrence() {
+        assert!(
+            find_raw_html_call_positions("let msg = \"unreviewed raw_html(x) call\";").is_empty()
+        );
+    }
+
+    #[test]
+    fn find_raw_html_call_positions_ignores_raw_string_literal_occurrence() {
+        assert!(find_raw_html_call_positions("let msg = r#\"raw_html(x)\"#;").is_empty());
+    }
+
+    #[test]
+    fn find_raw_html_call_positions_ignores_identifier_suffix_occurrence() {
+        // `fn detects_unreviewed_raw_html() {}` のような別識別子のサフィックスは
+        // 呼び出しではない（cli/src/gate.rs 自身のテスト関数名がこの形）。
+        assert!(find_raw_html_call_positions("fn detects_unreviewed_raw_html() {}").is_empty());
+    }
+
+    // 非弱体化（敵対的、failed 側）: 字句判定を狂わせる試みを含め、実際の
+    // 呼び出しは引き続き検出されることを固定する。
+
+    #[test]
+    fn find_raw_html_call_positions_still_detects_call_after_char_literal_confusion_attempt() {
+        // 文字リテラル `'"'` で文字列状態を狂わせようとしても、実呼び出しは
+        // 検出されなければならない。
+        assert_eq!(
+            find_raw_html_call_positions("let _ = '\"'; raw_html(x);").len(),
+            1
+        );
+    }
+
+    #[test]
+    fn find_raw_html_call_positions_still_detects_call_after_string_with_comment_marker() {
+        // 文字列内の `/*` でコメント状態を狂わせようとしても、実呼び出しは
+        // 検出されなければならない。
+        assert_eq!(
+            find_raw_html_call_positions("let a = \"/*\"; raw_html(x);").len(),
+            1
+        );
+    }
+
+    #[test]
+    fn find_raw_html_call_positions_still_detects_method_form_call() {
+        assert_eq!(find_raw_html_call_positions("node.raw_html(x);").len(), 1);
+    }
+
+    #[test]
+    fn find_raw_html_call_positions_still_detects_path_qualified_call() {
+        assert_eq!(
+            find_raw_html_call_positions("rws_core::raw_html(x);").len(),
+            1
+        );
+    }
+
+    #[test]
+    fn find_raw_html_call_positions_still_detects_call_immediately_after_comment() {
+        assert_eq!(
+            find_raw_html_call_positions("// note\nraw_html(x);").len(),
+            1
+        );
+    }
+
+    #[test]
+    fn find_raw_html_call_positions_still_detects_call_immediately_after_string() {
+        assert_eq!(
+            find_raw_html_call_positions("let s = \"ok\"; raw_html(x);").len(),
+            1
+        );
+    }
+
+    /// イシュー #372 自己適用回帰: 本リポジトリ自身の `structure.toml` を
+    /// [`structure::load`] で読み込み、`default_escape_check`（純粋関数・
+    /// 外部コマンド起動なし）を本リポジトリ自身へ適用して passed を固定する。
+    /// 将来ソースに未レビュー実呼び出しが混入すれば即座に本テストが検知する。
+    #[test]
+    fn default_escape_check_passes_on_this_repository_itself() {
+        let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("cli crate must have a parent directory (repository root)");
+        let structure_path = repo_root.join("structure.toml");
+        if !structure_path.is_file() {
+            // structure.toml がリポジトリ直下に未整備の場合、本テストは
+            // 対象外とする（fw new 前提の環境差異。gate 本体の fail-closed
+            // 契約には影響しない）。
+            return;
+        }
+        let manifest = structure::load(&structure_path)
+            .expect("repository structure.toml must be parseable for this regression test");
+        let check = default_escape_check(&manifest, repo_root);
+        assert!(
+            check.passed,
+            "default_escape_check must pass when self-applied to this repository: {}",
+            check.output
         );
     }
 

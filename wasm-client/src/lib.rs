@@ -60,7 +60,7 @@ pub mod keyed_diff;
 #[cfg(target_arch = "wasm32")]
 mod keyed_dom;
 #[cfg(target_arch = "wasm32")]
-pub use keyed_dom::{apply_keyed_list, find_keyed_list_node, find_list_element};
+pub use keyed_dom::{apply_keyed_list, build_dom_node, find_keyed_list_node, find_list_element};
 
 #[cfg(all(target_arch = "wasm32", feature = "wasm-bindgen-exports"))]
 mod registry;
