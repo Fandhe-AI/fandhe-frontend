@@ -41,13 +41,18 @@
 //!   従来の「何も格納しない」不変条件を限定緩和）。`push_state` に渡す state は
 //!   従来どおり `JsValue::NULL` のまま（新規履歴エントリは URL のみを状態の
 //!   正とする）で、離脱元エントリへ `replace_state` でスクロール位置を書き戻す
-//!   点のみが変更点。読み取りは [`decode_scroll_state`] による厳格検証
+//!   点、および `pagehide`（ドキュメント破棄直前、リロード・外部遷移・タブ
+//!   クローズを含む）で**現在エントリ**へも同様に `replace_state` で書き戻す
+//!   点が変更点（後者はリロード時にスクロール位置が復元できない不具合の
+//!   修正、イシュー #406 追加分）。読み取りは [`decode_scroll_state`] による厳格検証
 //!   （fail-closed: 形式不一致・非数・非有限・負値はすべて `None`）を経てから
 //!   `Window::scroll_to_with_x_and_y`（数値専用 API）にのみ渡し、DOM・URL・
 //!   HTML へは一切流さない（改ざんされても表示位置がずれるだけで注入面を
 //!   持たない）。
-//! - リスナー登録は起動時の定数回（click 1 + popstate 1）の `Closure::forget`
-//!   に限定する（`events.rs` と同方針、無制限リークの構造的回避）。
+//! - リスナー登録は起動時の定数回（click 1 + popstate 1 + pagehide 1、
+//!   後者はイシュー #406 のリロード時スクロール消失修正で追加）の
+//!   `Closure::forget` に限定する（`events.rs` と同方針、無制限リークの
+//!   構造的回避）。
 //! - 遷移後の `data-hydrate` 要素へのイベント再配線（イシュー #403）は
 //!   [`rws_wasm_client::wire_hydrate_targets`] の呼び出しに限定する。同関数は
 //!   `add_event_listener_with_callback` の後付けのみを行い `set_inner_html`
@@ -286,6 +291,37 @@ mod wiring {
         window.scroll_to_with_x_and_y(target.0, target.1);
     }
 
+    /// 現在の history エントリへ最新スクロール位置を `replace_state` で
+    /// 書き戻す（イシュー #406 追加分、リロード時にスクロール位置が失われる
+    /// 不具合の修正）。
+    ///
+    /// [`push_and_render`] は**離脱元**エントリへのみ保存するため、
+    /// `push_state` で新規に作られたエントリ自身の `state` は、そのページ上で
+    /// ユーザーがスクロールしても `JsValue::NULL` のまま更新されない
+    /// （そのままリロードすると復元先の記録が存在せず先頭へ戻ってしまう）。
+    /// 本関数を `pagehide`（ドキュメント破棄直前。リロード・外部サイトへの
+    /// 遷移・タブクローズ等、`popstate` を伴わない離脱を広く捕捉する）から
+    /// 呼び出し、破棄直前の時点の現在エントリへスクロール位置を書き戻すことで、
+    /// 次回ロード時に [`start_router`] が読み取れる状態にする。
+    ///
+    /// `window`/`history` の取得失敗・`scroll_x`/`scroll_y` の取得失敗は
+    /// best-effort で無視する（`pagehide` はドキュメント破棄直前のため、
+    /// 失敗時にリトライする機会がなく、遷移自体を妨げてはならない）。
+    fn save_current_scroll_state() {
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        let Ok(history) = window.history() else {
+            return;
+        };
+        if let (Ok(x), Ok(y)) = (window.scroll_x(), window.scroll_y()) {
+            let encoded = JsValue::from_str(&encode_scroll_state(x, y));
+            // 第 3 引数 `None` で現在の URL を維持したまま state のみを
+            // 差し替える（`push_and_render` の離脱元保存と同じ方針）。
+            let _ = history.replace_state_with_url(&encoded, "", None);
+        }
+    }
+
     /// `path` が [`resolve_path`] で解決可能な場合のみ `history.pushState`
     /// で URL を進め、描画する（`popstate` からは呼ばない。history へ
     /// エントリを追加するのはユーザー操作起点のクリック遷移のみ）。
@@ -350,6 +386,13 @@ mod wiring {
     ///   `PopStateEvent::state()` をデコードしてスクロール位置を復元する
     ///   （成功なら保存位置へ・失敗/NULL なら先頭 `(0, 0)` へ、イシュー
     ///   #406）。ルート未解決パスはスクロールも含めて完全 no-op のまま。
+    /// - `window` へ `pagehide` を 1 回だけ登録し、[`save_current_scroll_state`]
+    ///   を呼ぶ（イシュー #406 追加分）。リロード・外部遷移・タブクローズ等、
+    ///   `popstate` を伴わないドキュメント破棄の直前に現在エントリへスクロール
+    ///   位置を書き戻すことで、リロード後も本関数の起動時処理が復元できる
+    ///   ようにする（従来は `push_state` 直後のエントリの `state` が
+    ///   `JsValue::NULL` のままのため、そのページ上でリロードするとスクロール
+    ///   位置が失われていた）。
     /// - **起動時（本関数呼び出し時点）は描画を一切行わない**（SSR 済み
     ///   DOM をそのまま維持する。初期表示で loader を再実行しない凍結事項
     ///   の遵守、`docs/design/loader-trait-design.md` §4・§7.3）。
@@ -474,6 +517,21 @@ mod wiring {
                 popstate_closure.as_ref().unchecked_ref(),
             )?;
         popstate_closure.forget();
+
+        // イシュー #406 追加分: リロード・外部遷移・タブクローズ等の
+        // ドキュメント破棄直前に現在エントリへスクロール位置を書き戻す
+        // （`popstate` を伴わない離脱では `push_and_render` の離脱元保存が
+        // 発火しないため、そのままでは復元先の記録が残らない）。
+        let pagehide_closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+            save_current_scroll_state();
+        });
+        web_sys::window()
+            .ok_or_else(|| JsValue::from_str("window is unavailable"))?
+            .add_event_listener_with_callback(
+                "pagehide",
+                pagehide_closure.as_ref().unchecked_ref(),
+            )?;
+        pagehide_closure.forget();
 
         Ok(())
     }

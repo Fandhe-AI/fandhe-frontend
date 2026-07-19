@@ -278,7 +278,8 @@ WASM 完全方式固有の不変条件を追加する。
 | `start_router` 起動時 | `scrollRestoration = "manual"` を設定（失敗は best-effort で無視）。現エントリの `history.state` が有効なスクロールレコードならその位置へ復元（リロード・クロスドキュメント traversal 後の復元。DOM は SSR 済みのまま変更しない §10 相当の凍結事項を維持し、state が無効/不在の通常初回ロードでは先頭 `(0, 0)` を強制しない） |
 | クリック遷移（`push_and_render`） | ①現在の `scroll_x`/`scroll_y` をエンコードし `replace_state`（第 3 引数 `None` で URL は維持）で**離脱元エントリ**へ保存 → ②`push_state`（state は従来どおり `JsValue::NULL`）→ ③描画 → ④`scroll_to(0, 0)`（新規遷移は先頭表示） |
 | popstate（戻る/進む） | ルート解決成功時のみ: 再描画 → `PopStateEvent::state()` をデコードし、成功なら保存位置へ・失敗/`NULL` なら `(0, 0)` へスクロール。ルート未解決パスは従来どおり完全 no-op（スクロールも触らない） |
+| `pagehide`（イシュー #406 追加分） | ドキュメント破棄直前（リロード・外部遷移・タブクローズ等、`popstate` を伴わない離脱を含む）に**現在エントリ**の `scroll_x`/`scroll_y` をエンコードし `replace_state` で書き戻す。`push_state` 直後のエントリは `push_and_render` の離脱元保存の対象外で `state` が `JsValue::NULL` のまま残るため、この書き戻しなしにはリロード後の復元先が存在しなかった（Bugbot 指摘、PR #423） |
 
 ### 11.4 既知の制限
 
-戻る/進む操作自体でエントリを離脱した場合、その離脱元の最新スクロール位置は再保存されない（popstate 発火時点で history は既に移動済みのため）。完全対応には scroll リスナー + スロットリング保存が必要で、`nav.rs` の「リスナー登録は起動時定数回」不変条件に関わる変更となるため、本イシューのスコープ外として別 Issue 化をユーザーへ提案する（`.claude/rules/out-of-scope-tracking.md`）。遷移中ローディング表示（§10 残項目）も引き続き別 Issue。
+戻る/進む操作自体でエントリを離脱した場合、その離脱元の最新スクロール位置は再保存されない（popstate 発火時点で history は既に移動済みであり、かつ SPA 内遷移のため `pagehide` も発火しないため）。完全対応には scroll リスナー + スロットリング保存が必要で、`nav.rs` の「リスナー登録は起動時定数回」不変条件に関わる変更となるため、本イシューのスコープ外として別 Issue 化をユーザーへ提案する（`.claude/rules/out-of-scope-tracking.md`）。遷移中ローディング表示（§10 残項目）も引き続き別 Issue。
