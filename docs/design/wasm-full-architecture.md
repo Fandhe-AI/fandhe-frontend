@@ -242,7 +242,7 @@ WASM 完全方式固有の不変条件を追加する。
 |------|------|
 | ~~遷移後ページ内のインタラクティブ要素の再配線（詳細ページの `data-hydrate="like"` ボタン）~~ | **イシュー #403 で解消**。`rws-wasm-client` の配線本体（`wasm-client/src/lib.rs` の `hydrate_dom::wire_hydrate_targets`）を `wasm-bindgen-exports` feature 非依存の共有 Rust API へ切り出し、`nav::wiring::render_route`（本ファイル §10 の対象外リストから除外）が遷移完了後（子要素差し替え・`document.title` 更新の直後）にこれを呼ぶことで解消した。詳細は下記「#403 再配線設計」参照 |
 | SPA 内 View Transitions（`document.startViewTransition` 連携） | 現状は Cross-Document View Transitions の CSS のみ（`page_shell` の `@view-transition` at-rule） |
-| `wasm-client`（最小ハイドレーション方式）側の遷移対応・loader 移行 | イシュー #349 の out-of-scope 事項と同項 |
+| `wasm-client`（最小ハイドレーション方式）側の遷移対応・loader 移行 | イシュー #349 の out-of-scope 事項と同項。**イシュー #405 で非採用確定**（`docs/policy/intentional-non-adoption.md` §3.19） |
 | スクロール位置の復元制御（`history.scrollRestoration`）・遷移中のローディング表示 | 本イシューの受け入れ条件に含まれない |
 | 汎用ルート定義共有機構（ルート表を server / client で単一定義から生成する仕組み） | `fw structure` の `rws-router-v1` 抽出器（`cli/src/routes.rs`）は `server/` 内の文字列リテラルのみを走査するため定数共有は取れない。現状は `wasm-full/tests/route_sync_static.rs` の静的走査によるドリフト検知で代替する（判断 9） |
 
