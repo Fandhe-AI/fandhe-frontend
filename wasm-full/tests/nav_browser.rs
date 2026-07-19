@@ -33,20 +33,38 @@
 //!    shadow）では同期的に DOM が差し替わること（graceful degradation）
 //! 9. （#404）連続遷移が loader 解決との競合なく最後のルートへ収束し、
 //!    SSR 相当出力とバイト一致すること
-//! 10. （#404）実 `startViewTransition` が存在する環境でのスモーク: クリック
-//!     遷移後、最終 DOM が SSR 相当出力とバイト一致すること
 //! 11. 遷移後の `data-hydrate` 再配線（イシュー #403）: 遷移 → いいねボタン
 //!     操作 → `class="liked"` 付与・トグル、往復遷移後の再配線、初期表示
 //!     ページ非配線の契約、XSS 複合ケース
 //!
+//! # 不変条件: ネイティブ `startViewTransition` を必ずスタブする
+//!
+//! **遷移を発生させる（`with_view_transition` を経由する）テストは、
+//! ネイティブ `document.startViewTransition` を必ずスタブする**
+//! （[`ViewTransitionStub`] または検証 8 専用の
+//! [`NonFunctionViewTransitionShadow`] のいずれか。遷移に到達しないテスト
+//! （検証 3・5 等、`resolve_path` が `None` を返す・`start_router` 呼び出し
+//! のみで完結する等）は対象外であり、各テストの doc comment に非対象である
+//! 理由を明記する）。self-hosted CI の
+//! headless Chrome はネイティブ実装を持つため、ネイティブ経路を素通しする
+//! テストは `wasm-bindgen-test-runner` の完了検出に失敗し、ジョブが
+//! `timeout-minutes` に達するまでハングする事象が実証された
+//! （CI run 29695628266 / job 88215777129、`navigating_to_xss_payload_item_
+//! keeps_payload_as_text_not_element` で発生）。以前は検証 4 のみがこの理由で
+//! スタブ化されていたが、検証 1 等が同じネイティブ経路を素通しし続けて
+//! いたためハングリスクが残っていた（レビュー指摘・#404 フォローアップ）。
+//! ネイティブ実装の実ブラウザ挙動検証（旧検証 10）は決定性を欠くため本ファイル
+//! からは削除し、実ブラウザでの手動確認事項とする。
+//!
 //! # 非同期化の方針（#404）
 //!
 //! `document.startViewTransition()` の update コールバックは実ブラウザでは
-//! 非同期実行されうるため、遷移後の DOM/タイトル断定はすべて [`wait_until`]
-//! （`requestAnimationFrame` ベースのポーリング）を介して行う。同期実行環境
-//! （非対応ブラウザ相当のフォールバック経路）では 1 回目のチェックで即座に
-//! 条件が満たされるため、待機コストは実質ゼロで従来どおりの決定的な検証を
-//! 維持する。
+//! 非同期実行されうるため（[`ViewTransitionStub`] もこれを模してマイクロ
+//! タスクで非同期実行する）、遷移後の DOM/タイトル断定はすべて
+//! [`wait_until`]（`requestAnimationFrame` ベースのポーリング）を介して行う。
+//! 同期実行環境（検証 8 の非対応ブラウザ相当フォールバック経路）では 1 回目の
+//! チェックで即座に条件が満たされるため、待機コストは実質ゼロで従来どおりの
+//! 決定的な検証を維持する。
 
 #![cfg(target_arch = "wasm32")]
 
@@ -356,9 +374,12 @@ impl Drop for NonFunctionViewTransitionShadow {
 /// 検証 1・6: `/` → `/items/1` → `/` の連続クリック遷移で URL・DOM・
 /// `document.title` が追従し、往復後もクリック配線が生きていること。
 ///
-/// `startViewTransition` はスタブせず、実行環境（ヘッドレス Chrome）が
-/// ネイティブに持つ実装（存在すれば）またはフォールバック経路のいずれかを
-/// そのまま通す。[`wait_until`] は両ケースを同一コードで許容する。
+/// `startViewTransition` は [`ViewTransitionStub`] で決定的にスタブする
+/// （ファイル冒頭の不変条件参照。以前はスタブせずネイティブ経路を素通しして
+/// いたが、headless Chrome での完了検出ハングの原因となったため #404
+/// フォローアップでスタブへ切り替えた）。[`wait_until`] はスタブの非同期
+/// update コールバックとフォールバック経路の同期実行の両方を同一コードで
+/// 許容する。
 #[wasm_bindgen_test]
 async fn click_navigation_updates_url_dom_and_title_across_round_trip() {
     let window = web_sys::window().expect("window must exist");
@@ -371,6 +392,7 @@ async fn click_navigation_updates_url_dom_and_title_across_round_trip() {
         &ssr_equivalent_list_inner_html(),
     );
     let _cleanup = RemoveOnDrop(container);
+    let _stub = ViewTransitionStub::install(&document);
 
     rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
@@ -451,7 +473,8 @@ async fn click_navigation_updates_url_dom_and_title_across_round_trip() {
 
 /// 検証 2: `history.replace_state` で `/` へ揃えたのち合成 `popstate` を
 /// dispatch すると、一覧 DOM・タイトルへ復帰する（`history.back()` の
-/// 非同期性を避けた決定的な契約固定）。
+/// 非同期性を避けた決定的な契約固定）。`startViewTransition` は
+/// [`ViewTransitionStub`] でスタブする（ファイル冒頭の不変条件参照）。
 #[wasm_bindgen_test]
 async fn popstate_event_re_resolves_and_renders_without_pushing_history() {
     let window = web_sys::window().expect("window must exist");
@@ -465,6 +488,7 @@ async fn popstate_event_re_resolves_and_renders_without_pushing_history() {
         create_app_root(&document, "nav-test-popstate", &rws_core::render(&body));
     let _cleanup = RemoveOnDrop(container);
     document.set_title("記事詳細");
+    let _stub = ViewTransitionStub::install(&document);
 
     rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
@@ -833,55 +857,6 @@ async fn consecutive_navigations_with_stub_converge_to_last_route_and_match_ssr(
     );
 }
 
-/// 検証 10（イシュー #404）: 実 `document.startViewTransition` が存在する
-/// 環境でのスモークテスト。存在しない環境（非対応ブラウザ）では
-/// スタブ・shadow を一切使わず、機能検出により同期フォールバックへ委ねる
-/// （検証 8 が直接固定済みのため、ここでは早期リターンして trivial pass
-/// とする。`#[ignore]` は使わない、`.claude/rules/coding-rust.md` 準拠）。
-#[wasm_bindgen_test]
-async fn native_start_view_transition_smoke_if_supported() {
-    let window = web_sys::window().expect("window must exist");
-    let document = window.document().expect("document must exist");
-
-    let has_native_support = Reflect::get(
-        &document_as_value(&document),
-        &JsValue::from_str("startViewTransition"),
-    )
-    .map(|v| v.is_function())
-    .unwrap_or(false);
-    if !has_native_support {
-        // 非対応環境: 検証 8 が同期フォールバックを直接固定済みのため、
-        // 本テストは何も検証せず trivial pass とする。
-        return;
-    }
-
-    set_location_path("/");
-    let (container, root) = create_app_root(
-        &document,
-        "nav-test-vt-native-smoke",
-        &ssr_equivalent_list_inner_html(),
-    );
-    let _cleanup = RemoveOnDrop(container);
-
-    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
-
-    let link = document
-        .query_selector("a[data-nav=\"/items/1\"]")
-        .expect("query_selector must not fail")
-        .expect("list page must contain a data-nav link to /items/1");
-    link.dispatch_event(&synthetic_click_event())
-        .expect("dispatch_event must not fail");
-
-    assert!(
-        wait_until(
-            || root.outer_html() == ssr_equivalent_detail_outer_html(&document, "1"),
-            120
-        )
-        .await,
-        "実 startViewTransition 環境でも最終 DOM が SSR 相当出力とバイト一致すること"
-    );
-}
-
 /// `#like-btn`（`rws_app::LIKE_BUTTON_ID`、`data-hydrate="like"`）へ合成
 /// クリックを dispatch する（`nav::wiring::render_route` が登録する
 /// `click` リスナーは要素へ直接付く後付けのため、`document` 委譲リスナー
@@ -1189,9 +1164,11 @@ fn start_router_sets_scroll_restoration_to_manual() {
 ///
 /// イシュー #404 との統合により先頭スクロールは `apply_render_with_post` の
 /// `post_apply`（`with_view_transition` の update コールバック内、実ブラウザ
-/// では非同期になりうる）として実行されるため、`startViewTransition` を
-/// スタブせずそのまま通す本テストは [`wait_until`] で断定する（他の
-/// View Transitions 関連検証と同じ方針）。
+/// では非同期になりうる）として実行されるため、[`wait_until`] で断定する。
+/// `startViewTransition` は [`ViewTransitionStub`] でスタブする（ファイル
+/// 冒頭の不変条件参照。以前はスタブせずネイティブ経路を素通ししていたが、
+/// headless Chrome での完了検出ハングの原因となったため #404 フォローアップ
+/// でスタブへ切り替えた）。
 #[wasm_bindgen_test]
 async fn click_navigation_scrolls_to_top_on_new_entry() {
     let window = web_sys::window().expect("window must exist");
@@ -1206,6 +1183,7 @@ async fn click_navigation_scrolls_to_top_on_new_entry() {
     );
     append_tall_spacer(&document, &container);
     let _cleanup = RemoveOnDrop(container);
+    let _stub = ViewTransitionStub::install(&document);
 
     rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
@@ -1246,8 +1224,10 @@ async fn click_navigation_scrolls_to_top_on_new_entry() {
 /// イシュー #404 との統合によりスクロール復元は
 /// `navigate_render_with_post` の `post_apply`（`with_view_transition` の
 /// update コールバック内、実ブラウザでは非同期になりうる）として実行される
-/// ため、`startViewTransition` をスタブせずそのまま通す本テストは
-/// [`wait_until`] で断定する。
+/// ため、[`wait_until`] で断定する。`startViewTransition` は
+/// [`ViewTransitionStub`] でスタブする（ファイル冒頭の不変条件参照。以前は
+/// スタブせずネイティブ経路を素通ししていたが、headless Chrome での完了
+/// 検出ハングの原因となったため #404 フォローアップでスタブへ切り替えた）。
 #[wasm_bindgen_test]
 async fn popstate_with_encoded_state_restores_saved_scroll_position() {
     let window = web_sys::window().expect("window must exist");
@@ -1265,6 +1245,7 @@ async fn popstate_with_encoded_state_restores_saved_scroll_position() {
     append_tall_spacer(&document, &container);
     let _cleanup = RemoveOnDrop(container);
     document.set_title("記事詳細");
+    let _stub = ViewTransitionStub::install(&document);
 
     rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
@@ -1307,8 +1288,10 @@ async fn popstate_with_encoded_state_restores_saved_scroll_position() {
 /// イシュー #404 との統合によりスクロール復元は
 /// `navigate_render_with_post` の `post_apply`（`with_view_transition` の
 /// update コールバック内、実ブラウザでは非同期になりうる）として実行される
-/// ため、`startViewTransition` をスタブせずそのまま通す本テストは
-/// [`wait_until`] で断定する。
+/// ため、[`wait_until`] で断定する。`startViewTransition` は
+/// [`ViewTransitionStub`] でスタブする（ファイル冒頭の不変条件参照。以前は
+/// スタブせずネイティブ経路を素通ししていたが、headless Chrome での完了
+/// 検出ハングの原因となったため #404 フォローアップでスタブへ切り替えた）。
 #[wasm_bindgen_test]
 async fn popstate_with_null_or_invalid_state_falls_back_to_top() {
     let window = web_sys::window().expect("window must exist");
@@ -1326,6 +1309,7 @@ async fn popstate_with_null_or_invalid_state_falls_back_to_top() {
     append_tall_spacer(&document, &container);
     let _cleanup = RemoveOnDrop(container);
     document.set_title("記事詳細");
+    let _stub = ViewTransitionStub::install(&document);
 
     rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
 
