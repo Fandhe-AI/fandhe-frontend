@@ -152,6 +152,132 @@ fn extract_section<'a>(toml: &'a str, header: &str) -> &'a str {
     }
 }
 
+// --- rws-interactive vendor drift（イシュー #411） ---
+
+#[test]
+fn vendored_rws_interactive_src_is_byte_identical_to_source_crate() {
+    let root = workspace_root();
+    let src = root.join("interactive/src/lib.rs");
+    let vendored = root.join("templates/app/vendor/rws-interactive/src/lib.rs");
+    assert_eq!(
+        read_bytes(&src),
+        read_bytes(&vendored),
+        "vendored rws-interactive/src/lib.rs has drifted from interactive/src/lib.rs \
+         (正本の変更を templates/app/vendor/rws-interactive/src/lib.rs へ手動同期すること)"
+    );
+}
+
+/// vendored `rws-interactive/Cargo.toml` の `rws-core` path 依存が
+/// vendor 配下の実ディレクトリ名（`../rws-core`）を指すこと
+/// （正本は `../core`、vendor 化に伴う既知の変換）を検証する。
+#[test]
+fn vendored_rws_interactive_cargo_toml_points_at_vendored_rws_core() {
+    let root = workspace_root();
+    let vendored = read(&root.join("templates/app/vendor/rws-interactive/Cargo.toml"));
+    assert!(
+        vendored.contains(r#"rws-core = { path = "../rws-core" }"#),
+        "templates/app/vendor/rws-interactive/Cargo.toml は vendor 配下の rws-core \
+         （../rws-core）を path 依存で参照する必要がある: {vendored:?}"
+    );
+}
+
+// --- rws-wasm-client vendor drift（イシュー #411） ---
+
+const WASM_CLIENT_SRC_FILES: &[&str] = &[
+    "binding.rs",
+    "binding_dom.rs",
+    "keyed_diff.rs",
+    "keyed_dom.rs",
+    "lib.rs",
+    "registry.rs",
+];
+
+#[test]
+fn vendored_rws_wasm_client_src_is_byte_identical_to_source_crate() {
+    let root = workspace_root();
+    for file in WASM_CLIENT_SRC_FILES {
+        let src = root.join("wasm-client/src").join(file);
+        let vendored = root
+            .join("templates/app/vendor/rws-wasm-client/src")
+            .join(file);
+        assert_eq!(
+            read_bytes(&src),
+            read_bytes(&vendored),
+            "vendored rws-wasm-client/src/{file} has drifted from wasm-client/src/{file} \
+             (正本の変更を templates/app/vendor/rws-wasm-client/src/{file} へ手動同期すること)"
+        );
+    }
+}
+
+/// vendored `rws-wasm-client/Cargo.toml` の path 依存が vendor 配下の
+/// 実ディレクトリ名（`../rws-core`・`../rws-app`・`../rws-interactive`）を
+/// 指すこと（正本は `../core`・`../app`・`../interactive`、vendor 化に伴う
+/// 既知の変換）と、`[dev-dependencies]` を持たないこと（実装計画 §2.3:
+/// rws-server への vendor 連鎖を断つ意図的な除去）を検証する。
+#[test]
+fn vendored_rws_wasm_client_cargo_toml_points_at_vendored_paths_and_has_no_dev_dependencies() {
+    let root = workspace_root();
+    let vendored = read(&root.join("templates/app/vendor/rws-wasm-client/Cargo.toml"));
+    for expected in [
+        r#"rws-core = { path = "../rws-core" }"#,
+        r#"rws-app = { path = "../rws-app" }"#,
+        r#"rws-interactive = { path = "../rws-interactive" }"#,
+    ] {
+        assert!(
+            vendored.contains(expected),
+            "templates/app/vendor/rws-wasm-client/Cargo.toml must contain `{expected}`: {vendored:?}"
+        );
+    }
+    assert!(
+        !vendored.contains("[dev-dependencies]"),
+        "templates/app/vendor/rws-wasm-client/Cargo.toml must not declare [dev-dependencies] \
+         (dev-dependencies pulls in rws-server, breaking the vendor scope, 実装計画 §2.3): {vendored:?}"
+    );
+}
+
+// --- wasm/Cargo.lock の wasm-bindgen / web-sys バージョン整合（イシュー #411） ---
+
+/// `templates/app/wasm/Cargo.lock` の wasm-bindgen / web-sys バージョンが
+/// リポジトリ本体 `Cargo.lock` の解決値と同一であることを検証する
+/// （REQ-3 整理: 新規外部クレート追加ゼロ、既存解決値の参照のみという
+/// 前提が崩れていないことの機械的検証。手動同期に頼らない、実装計画 §3）。
+#[test]
+fn wasm_lockfile_wasm_bindgen_version_matches_repo_root_lockfile() {
+    let root = workspace_root();
+    let repo_lock = read(&root.join("Cargo.lock"));
+    let wasm_lock = read(&root.join("templates/app/wasm/Cargo.lock"));
+
+    for pkg in ["wasm-bindgen", "web-sys"] {
+        let repo_version = package_version(&repo_lock, pkg);
+        let wasm_version = package_version(&wasm_lock, pkg);
+        assert_eq!(
+            repo_version, wasm_version,
+            "templates/app/wasm/Cargo.lock の `{pkg}` バージョンがリポジトリ本体 Cargo.lock \
+             と乖離している（新規外部クレート追加ゼロという REQ-3 整理の前提が崩れている \
+             可能性がある。手動同期すること）"
+        );
+    }
+}
+
+/// `Cargo.lock` 内の `[[package]] name = "<pkg>"` に対応する `version` を
+/// 抽出する（外部 TOML パーサは追加しない方針、行ベースの単純な抽出）。
+fn package_version(lockfile: &str, pkg: &str) -> String {
+    let marker = format!("name = \"{pkg}\"\n");
+    let start = lockfile
+        .find(&marker)
+        .unwrap_or_else(|| panic!("package `{pkg}` not found in lockfile"));
+    let after = &lockfile[start + marker.len()..];
+    let version_line = after
+        .lines()
+        .next()
+        .unwrap_or_else(|| panic!("no line after `name = \"{pkg}\"` in lockfile"));
+    version_line
+        .strip_prefix("version = \"")
+        .and_then(|s| s.strip_suffix('"'))
+        .unwrap_or_else(|| panic!("unexpected version line for `{pkg}`: {version_line:?}"))
+        .to_string()
+}
+
 // --- 共有ファイル同一性: templates/default/ と templates/app/ ---
 
 /// `templates/default/<rel>` と `templates/app/<rel>` がバイト単位で一致する

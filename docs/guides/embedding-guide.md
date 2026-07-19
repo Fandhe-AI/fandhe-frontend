@@ -99,6 +99,16 @@ PoC-3（`docs/spec/03-poc/rendering-web-standards/`、差別化空白 E への�
 > 直接参照してください。本節のコード例と実物が乖離した場合は、実物
 > （`templates/embed/embed.html`）を正とします。
 
+> **`fw new --template embed` での生成（イシュー #410）**: 上記テンプレートを
+> 手動コピーする代わりに `fw new <project-name> --template embed` を実行すると、
+> `embed.html`（上記正典テンプレートとバイト一致）と `structure.toml`
+> （`fw gate` が唯一の情報源として読む静的専用マニフェスト）の 2 ファイルが
+> 決定的に生成されます。生成直後に `fw gate --project <project-name>` を
+> 実行すると、cargo パッケージを持たない静的単一ファイル構成として
+> 無編集で PASS します（詳細は `docs/design/fw-new-design.md` §3.3・
+> `docs/design/gate-design.md` §2.5 を参照）。手動コピーの手順（本節）は
+> 既存ページへ後から部分埋め込みを追加する場合に引き続き使えます。
+
 ### 3.2 WASM を初期化してマウントする
 
 `<script type="module">` から WASM を初期化し、`mount_csr(root_id)` を呼びます。

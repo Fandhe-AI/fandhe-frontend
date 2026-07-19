@@ -1314,6 +1314,109 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # イシュー #411: `fw new --template app` が生成する CSR wasm ビルド込み
+  # 完全実体（vendor/rws-wasm-client + wasm/ 独立ワークスペース +
+  # tools/wasm/build.sh）が実際にビルド可能であることを CI で回帰検証する。
+  # wasm-bindgen-cli の導入パターンは `wasm-node-smoke` ジョブと同一
+  # （バージョン固定 + SHA256 チェックサム検証）。ドリフト検出は
+  # `cli/tests/template_vendor_drift.rs::wasm_lockfile_wasm_bindgen_version_matches_repo_root_lockfile`
+  # が `templates/app/wasm/Cargo.lock` とリポジトリ本体 `Cargo.lock` の
+  # バージョン一致を機械的に検証する（`test` ジョブの `cargo test` で実行済み）。
+  template-app-wasm-smoke:
+    name: "fw new --template app: wasm ビルド込み CSR 完全実体の e2e 検証（issue #411）"
+    runs-on: self-hosted
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+
+      - name: Add wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      # `wasm-node-smoke` ジョブと同一パターン（バージョン固定 + SHA256
+      # チェックサム検証 + atomic install）。バージョン・SHA256 の pin 値は
+      # 同ジョブと同一（リポジトリ本体 Cargo.lock 解決値、wasm-bindgen 0.2.126）。
+      - name: Install wasm-bindgen-cli (pinned + checksum-verified, atomic install)
+        run: |
+          set -euo pipefail
+          WASM_BINDGEN_VERSION="0.2.126"
+          WASM_BINDGEN_SHA256="064948d58e2d6c0a745216477a639ba696216d6309aaa902939d1b865b1d869d"
+          SHARE_DIR="${HOME}/.local/share/wasm-bindgen"
+          INSTALL_DIR="${SHARE_DIR}/${WASM_BINDGEN_VERSION}"
+          mkdir -p "${SHARE_DIR}"
+          if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ]; then
+            tmp_root="$(mktemp -d "${SHARE_DIR}/.tmp-XXXXXX")"
+            trap 'rm -rf "${tmp_root}"' EXIT
+            ARCHIVE="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+            URL="https://github.com/rustwasm/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${ARCHIVE}"
+            curl -sSfL -o "${tmp_root}/${ARCHIVE}" "${URL}"
+            echo "${WASM_BINDGEN_SHA256}  ${tmp_root}/${ARCHIVE}" | sha256sum -c -
+            tar xzf "${tmp_root}/${ARCHIVE}" -C "${tmp_root}"
+            if ! mv -T "${tmp_root}/wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl" "${INSTALL_DIR}" 2>/dev/null; then
+              if [ ! -x "${INSTALL_DIR}/wasm-bindgen" ]; then
+                echo "::error::failed to install wasm-bindgen-cli to ${INSTALL_DIR}" >&2
+                exit 1
+              fi
+            fi
+          fi
+          echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
+
+      - name: fw new --template app（フィクスチャ専用 CARGO_TARGET_DIR）
+        # 共有 CARGO_TARGET_DIR との衝突回避は `.claude/rules/ci.md`
+        # 「Self-hosted 環境の前提」に従う。
+        env:
+          CARGO_TARGET_DIR: /tmp/rws-template-app-wasm-smoke-target
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/rws-template-app-wasm-smoke
+          cargo run --locked -p rws-cli --bin fw -- new template-app-wasm-smoke \
+            --template app --dir /tmp/rws-template-app-wasm-smoke
+
+      - name: tools/wasm/build.sh の実行
+        # 直前ステップと同じくフィクスチャ専用 CARGO_TARGET_DIR を明示指定する
+        # （`.claude/rules/ci.md` 「Self-hosted 環境の前提」）。未指定だと
+        # self-hosted runner の共有 CARGO_TARGET_DIR=/cargo-target が使われ、
+        # build.sh が期待する `wasm/target/...` とパスが一致しなくなる
+        # （イシュー #411 CI 失敗の原因）。
+        env:
+          CARGO_TARGET_DIR: /tmp/rws-template-app-wasm-smoke-target/wasm-build
+        run: |
+          set -euo pipefail
+          cd /tmp/rws-template-app-wasm-smoke/template-app-wasm-smoke
+          ./tools/wasm/build.sh
+
+      - name: 生成物の存在・mount_csr/hydrate エクスポートの検証
+        run: |
+          set -euo pipefail
+          project="/tmp/rws-template-app-wasm-smoke/template-app-wasm-smoke"
+          js="${project}/static/wasm/rws_wasm_client.js"
+          wasm="${project}/static/wasm/rws_wasm_client_bg.wasm"
+          if [ ! -f "${js}" ]; then
+            echo "::error::missing ${js}" >&2
+            exit 1
+          fi
+          if [ ! -f "${wasm}" ]; then
+            echo "::error::missing ${wasm}" >&2
+            exit 1
+          fi
+          if ! grep -q "export function mount_csr" "${js}"; then
+            echo "::error::mount_csr export not found in ${js}" >&2
+            exit 1
+          fi
+          if ! grep -q "export function hydrate" "${js}"; then
+            echo "::error::hydrate export not found in ${js}" >&2
+            exit 1
+          fi
+          echo "template-app-wasm-smoke: mount_csr/hydrate exports verified"
+
   # TASK-12.2c（#124、REQ-12 受け入れ基準 2）: install.sh の --ignore-scripts
   # 強制（前段、TASK-12.1a・#38・マージ済み）と check_static_only.py の
   # 静的アセット判定（後段ゲート、TASK-12.2b・#123・マージ済み）の多層防御を
