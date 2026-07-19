@@ -178,3 +178,63 @@ fn fw_new_output_passes_fw_gate() {
         );
     }
 }
+
+/// PR #358 Bugbot 指摘（イシュー #351）の e2e 回帰テスト:
+/// `fw_new_output_passes_fw_gate` の `default_escape_check == Some(true)` は
+/// 「未レビュー `raw_html()` が存在しないので PASS」と「走査対象パスが
+/// 実在せず走査自体がスキップされたので PASS（無意味な PASS）」を区別
+/// できない。本テストは `fw new` 生成直後のプロジェクトの実クレート配置先
+/// （プロジェクトルート直下 `src/`）に未レビューの `raw_html()` 呼び出しを
+/// 注入し、`default_escape_check` が実際に走査を実行して violation を
+/// 検出（failed）することを断定する。これにより `structure.toml` の
+/// `[directories.root]` 予約名規約と `fw gate`（`escape_check_src_dir`,
+/// `cli/src/gate.rs`）の前提が一致していること（保険層が生成直後の
+/// プロジェクトで機能していること）を固定する。
+#[test]
+fn fw_new_output_default_escape_check_detects_injected_violation_in_root_src() {
+    let scratch = unique_scratch_dir();
+    let _scratch_guard = ScratchProject(scratch.clone());
+
+    let (new_code, new_stdout, new_stderr) = run_fw_new(&[
+        "gate-pass-violation-app",
+        "--dir",
+        &scratch.to_string_lossy(),
+    ]);
+    assert_eq!(
+        new_code, 0,
+        "fw new が失敗した: stdout={new_stdout} stderr={new_stderr}"
+    );
+
+    let project_dir = scratch.join("gate-pass-violation-app");
+
+    // `fw new` が展開したクレートは `<project_dir>/src/main.rs`
+    // （プロジェクトルート直下、テンプレートの `[directories.root]` 規約）
+    // に配置される。ここへ未レビューの `raw_html()` 呼び出しを追記する
+    // （`#[expect(clippy::disallowed_methods, ...)]` を伴わないため
+    // `default_escape_check` の違反として検出されるはず）。
+    let main_rs = project_dir.join("src").join("main.rs");
+    let mut content = std::fs::read_to_string(&main_rs).expect("failed to read src/main.rs");
+    content.push_str("\nfn unreviewed_raw_html_probe() {\n    raw_html(\"x\");\n}\n");
+    std::fs::write(&main_rs, content).expect("failed to write src/main.rs");
+
+    let (gate_code, gate_stdout, gate_stderr) = run_fw_gate(&project_dir);
+
+    assert_eq!(
+        check_passed(&gate_stdout, "default_escape_check"),
+        Some(false),
+        "src/ 直下（`root` 規約）に注入した未レビュー raw_html() 呼び出しが \
+         default_escape_check で検出されなかった（走査がスキップされている \
+         疑い、PR #358 Bugbot 指摘のドリフト再発）: stdout={gate_stdout} \
+         stderr={gate_stderr}"
+    );
+    assert!(
+        gate_stdout.contains("main.rs"),
+        "default_escape_check の failed 出力は違反ファイルを file:line で \
+         列挙するはず: stdout={gate_stdout}"
+    );
+    assert_ne!(
+        gate_code, 0,
+        "default_escape_check が failed の場合 fw gate 全体も非ゼロで \
+         終了するはず: stdout={gate_stdout}"
+    );
+}
