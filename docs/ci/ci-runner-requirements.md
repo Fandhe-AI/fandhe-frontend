@@ -87,7 +87,87 @@ GitHub Actions には「self-hosted プール内の全インスタンスに対�
 - 存在チェック付きのため、常設済み環境では実質的にスキップされ実行コストは
   小さい
 
-## 5. スコープ外・フォローアップ
+## 6. Chrome for Testing の `/dev/shm` 制約対策（イシュー #404 実 CI 実行で判明）
+
+PR #420（イシュー #404、View Transitions 連携ブランチ）の `browser-test`
+ジョブで、`wasm-pack test --headless --chrome wasm-full --test nav_browser`
+実行中に `chromedriver` が `driver stderr: [SEVERE]: Unable to receive message
+from renderer` の後 `signal: 9 (SIGKILL)` で強制終了し、ジョブが
+`cancelled`（20 分タイムアウト）になる事象が発生した。
+
+原因調査（コード側の不具合切り分け）:
+
+- 既定エスケープ（`rws-core`/`rws-app` の XSS 回帰ユニットテスト）は native
+  実行で全て通過しており、クライアント遷移経路（`rws_wasm_client::build_dom_node`）
+  も `createElement`/`createTextNode` のみで `set_inner_html` を使わないことを
+  確認済み。ペイロード内容起因のエスケープ回帰ではない
+- `wasm-bindgen-test` のブラウザ内実行順は `Vec::pop`（LIFO）で決まり、失敗した
+  テストは「特定のテスト内容」ではなく単に「そのジョブで 10 番目に実行された
+  テスト」であることをランタイム実装（`wasm-bindgen-test` crate の
+  `rt/mod.rs::ExecuteTests::poll`）から確認済み。テスト内容（View Transitions
+  スタブ・XSS ペイロード）と症状の因果関係は否定される
+- `Unable to receive message from renderer` + `SIGKILL` はコンテナ内 root 実行の
+  Chromium でよく知られる `/dev/shm` 枯渇の兆候であり、`wasm-full` の
+  browser-test ステップ群の中で `nav_browser`（同一ジョブ内で最後に実行される
+  ステップ）に達した時点で先行ステップ（`wasm-client`/`runtime_browser`/
+  `hydration_browser`/`three_mode_browser`）が起動した Chrome インスタンスの
+  共有メモリ使用が蓄積し、閾値を超えた可能性が高い
+
+対策として `wasm-full/webdriver.json` に `--disable-dev-shm-usage`
+（`goog:chromeOptions.args`）を追加した。`wasm-bindgen-test-runner` は
+`--no-sandbox` を常に自動付与する実装のため（`wasm-bindgen-cli` crate
+`src/wasm_bindgen_test_runner/headless.rs`）、本設定は両フラグが併存する形で
+マージされる。本対策は `wasm-full` の browser-test ステップ全体（`nav_browser`
+以外の `runtime_browser`/`hydration_browser`/`three_mode_browser`/
+`xss_escape_wasm`/`perf_browser` も含む）へ適用される。
+
+本事象はコード（`wasm-full/src/nav.rs`）側の View Transitions 実装の不具合では
+なく CI 実行環境（self-hosted・コンテナ・root 実行）起因と判断し、
+アプリケーションコードは変更していない。本対策適用後の CI 再実行で解消しない
+場合は `/dev/shm` 以外の要因（コンテナ全体のメモリ上限等）を追加調査する。
+
+### 6.1 再発と根本原因の特定（`--disable-dev-shm-usage` 適用後も再発、PR #420）
+
+`wasm-full/webdriver.json` の `disable-dev-shm-usage` に `--` プレフィックスが
+欠落していた不備を修正した（コミット `c22e9eb`）後の CI 再実行（run
+29696865573・job 88219045218）でも、`nav_browser` が同一の症状
+（`Unable to receive message from renderer` → `signal: 9 (SIGKILL)`）で
+失敗した。§6 の「10 番目に実行されたテストが症状を示すに過ぎない」という
+実行順の切り分け（`Vec::pop` LIFO）は今回も成立したが、今回はコード側に
+具体的な原因を特定できた。
+
+**根本原因**: `wasm-full/tests/nav_browser.rs::non_matching_clicks_are_not_
+intercepted` の Ctrl+クリック検証ケースが、`prevent_default` が呼ばれない
+ことを確認した後もブラウザの既定動作（新規タブで開く等）を止めていなかった。
+検証対象は実 `href="/items/1"` を持つ実 DOM `<a>` 要素であり、合成
+`dispatchEvent`（`isTrusted: false`）であっても `preventDefault` されない
+`<a href>` の既定動作は実行され得る。headless Chrome のテスト実行ページ
+自身が新規タブ生成・フォーカス遷移に巻き込まれると
+`document.visibilityState` がバックグラウンド化し、以後のテストが依存する
+`requestAnimationFrame`（バックグラウンドタブでは抑制されうる）ベースの
+`wait_until` ポーリングが無期限に停止しうる。`wasm-bindgen-test` の LIFO
+実行順で当該テストの直後に来る、最初に `wait_until`（rAF ポーリング）を
+使うテストが `navigating_to_xss_payload_item_keeps_payload_as_text_not_
+element` であったことが、症状の局在と整合する。
+
+**修正**（詳細は `wasm-full/tests/nav_browser.rs` 冒頭のドキュメンテーション
+コメント参照）:
+
+1. `non_matching_clicks_are_not_intercepted` で、検証用アサーション確定後に
+   `ctrl_event.prevent_default()` をテスト側から明示的に呼び、実ブラウザの
+   既定動作そのものを発生させないようにした（検証意図は弱めない）
+2. `next_animation_frame`（`wait_until` の内部実装）へ壁時計ベースの
+   `setTimeout` フォールバック（`FRAME_FALLBACK_TIMEOUT_MS = 100`）を追加し、
+   1. で根本原因を解消した後も rAF が発火しない未知の環境要因が残る場合に
+   「原因不明の無限ハング」ではなく「診断可能な `assert!` 失敗」へ確実に
+   変換する多層防御とした（既存の `max_frames` 上限との組み合わせでも
+   `wasm-bindgen-test` の既定タイムアウト 20 秒に対し十分な余裕を残す）
+
+本事象は `wasm-full/src/nav.rs`（View Transitions 実装本体）の不具合ではなく
+テストコード（`wasm-full/tests/nav_browser.rs`）側の副作用管理の不備であり、
+アプリケーションコードは変更していない。
+
+## 7. スコープ外・フォローアップ
 
 - **runner イメージへの libnss3/libnspr4 焼き込み本体**: インフラ側作業。
   #295 をトラッキングとして継続する

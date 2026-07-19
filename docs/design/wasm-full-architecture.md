@@ -88,7 +88,7 @@ Phase 1（#336・`docs/design/dom-binding-update-design.md`）で束縛点最小
 | `dom`（内部） | `paint()`（`rws_core::render()` 出力への `set_inner_html` 適用） | TASK-11.2c（#76） |
 | `hydration` | `data-hydrate-*` 属性からの状態復元の実配線 | **TASK-11.4（#81/#82）に予約**。本書では配置とシグネチャ方針のみ規定する |
 | `csr` | `rws_app::Loader` 経由の CSR データ解決層（`rws_app::Item` 系ページ）。DOM 非依存の純粋層で `Runtime`/`hydration` とは独立した別系統。初期表示（ハイドレーション）では呼ばない | TASK-CSR-loader（#349） |
-| `nav` | クライアント側ルーティング（history API 連携・URL 同期・遷移時 loader 配線）。`csr` の loader 解決層を再利用し、`data-nav` クリック委譲・`popstate` 連携・`rws_wasm_client::build_dom_node` 経由の DOM サブツリー差し替え（`set_inner_html` 不使用）を担う独立系統 | イシュー #374 |
+| `nav` | クライアント側ルーティング（history API 連携・URL 同期・遷移時 loader 配線）。`csr` の loader 解決層を再利用し、`data-nav` クリック委譲・`popstate` 連携・`rws_wasm_client::build_dom_node` 経由の DOM サブツリー差し替え（`set_inner_html` 不使用）を担う独立系統。SPA 内遷移の DOM 差し替え + タイトル更新（apply 段）は `document.startViewTransition()` でラップする（イシュー #404、機能検出により非対応ブラウザでは同期フォールバック） | イシュー #374 / #404 |
 
 ### 3.2 公開 API 凍結表
 
@@ -146,6 +146,7 @@ Phase 1（#336・`docs/design/dom-binding-update-design.md`）で束縛点最小
 | 7 | `rws-wasm-thin`（TASK-11.3）はオプトインであり本書のスコープ外とする | 安全性境界の差分（PoC-2 / PoC-5 の脅威モデル (c)(d) 面）への参照のみ本書第 6 節に記載し、詳細設計は TASK-11.3 側の設計確定書に委ねる |
 | 8 | `nav::start_router` の click/popstate リスナーは `root_id` 要素ではなく `document`/`window` へ登録する（イシュー #374） | 遷移描画は `root_id` 要素の**子要素のみ**を差し替える（`root` 自身は再生成しない）ため理論上は `root` へ登録しても生存するが、`events.rs::wire_events` の「ルート要素へ登録」慣行とは異なり、より外側の不変な親（`document`/`window`）へ登録することで将来の描画方式変更（`root` 自体の再生成を伴う変更）に対しても委譲リスナーの生存を保証する（`wasm-full/tests/nav_browser.rs` の連続遷移テストで直接固定） |
 | 9 | `nav` は `rws-server` へ依存せず、ルート解決を `rws_app::routes`（`rws-app`、`server`・`wasm-full` 双方から依存可能な唯一の層）経由で共有定義から取得する（イシュー #374 で独自実装として導入 → **イシュー #407 で単一定義へ統合**） | `structure.toml` の `server.allowed_dependents = ["dist-server"]` により `wasm-full` は `rws-server` へ依存できないが、`rws-app` へは依存可能（`app.allowed_dependents` 参照）。イシュー #407 でルート表（パターン + マッチングエンジン + ページタイトル）を `rws-app`（`router.rs`/`routes.rs`）へ集約し、`server/src/ssr.rs`・`wasm-full/src/nav.rs` の双方が `rws_app::routes::resolve`/`title` を呼ぶ構成へ移行した。旧来の独自実装 + `wasm-full/tests/route_sync_static.rs`（静的走査によるドリフト**検知**）は廃止し、`wasm-full/tests/route_shared_static.rs`（単一定義の**強制**）へ置き換えた。設計比較・採用判断根拠は `docs/design/route-definition-sharing.md` を参照 |
+| 10 | SPA 内遷移への View Transitions 連携（イシュー #404）は、web-sys の unstable API（`Document::start_view_transition`、`#[cfg(web_sys_unstable_apis)]` ゲート付き）を採用せず、`nav.rs` の wiring 層に安定版 wasm-bindgen のみで完結するカスタム duck-typing `extern "C"` 型（`DocumentViewTransitions`）を定義する。`render_route` は「loader 解決 + 新 DOM 構築（prepare 段、遷移の外・同期）」と「`root` への差し替え + タイトル更新（apply 段、`document.startViewTransition()` の update コールバック内）」の 2 段に分割し、apply 段のみを遷移でラップする。update コールバックは `Closure::once_into_js`（呼び出し後に自己解放、`forget` 不使用）で JS へ所有権を移す | unstable API の有効化には `RUSTFLAGS='--cfg web_sys_unstable_apis'` をワークスペース全体へ適用する必要があり、共有 `CARGO_TARGET_DIR` 運用（`.claude/rules/ci.md`）・他クレートのビルドフラグ汚染を招くため不採用とする。`js_sys::Reflect` 方式は `js-sys` の直接依存追加（製品依存への追加は事前承認必須）が必要になるため製品コードでは避ける。loader 解決を遷移の外（prepare 段）に置くことで「遷移中に loader 解決が走らない」ことを構造的に保証し、旧ビューはデータ準備完了まで表示され続ける（View Transitions の推奨パターン）。`startViewTransition` の update コールバックは遷移がスキップされる場合でも仕様上必ず一度呼ばれるため、`once_into_js` による自己解放は無制限リークを構造的に回避する（`wasm-full/tests/nav_browser.rs` のスタブ検証テストで直接固定） |
 
 ## 5. 既定実装化の方針（TASK-11.2d への引き継ぎ）
 
@@ -241,18 +242,21 @@ WASM 完全方式固有の不変条件を追加する。
 | 項目 | 理由 |
 |------|------|
 | ~~遷移後ページ内のインタラクティブ要素の再配線（詳細ページの `data-hydrate="like"` ボタン）~~ | **イシュー #403 で解消**。`rws-wasm-client` の配線本体（`wasm-client/src/lib.rs` の `hydrate_dom::wire_hydrate_targets`）を `wasm-bindgen-exports` feature 非依存の共有 Rust API へ切り出し、`nav::wiring::render_route`（本ファイル §10 の対象外リストから除外）が遷移完了後（子要素差し替え・`document.title` 更新の直後）にこれを呼ぶことで解消した。詳細は下記「#403 再配線設計」参照 |
-| SPA 内 View Transitions（`document.startViewTransition` 連携） | 現状は Cross-Document View Transitions の CSS のみ（`page_shell` の `@view-transition` at-rule） |
+| ~~SPA 内 View Transitions（`document.startViewTransition` 連携）~~ | **消化済み（イシュー #404）**。`nav.rs` の `render_route` prepare/apply 分割 + カスタム duck-typing extern バインディングで実装（第 4 節・判断 10） |
 | `wasm-client`（最小ハイドレーション方式）側の遷移対応・loader 移行 | イシュー #349 の out-of-scope 事項と同項。**イシュー #405 で非採用確定**（`docs/policy/intentional-non-adoption.md` §3.19） |
 | ~~スクロール位置の復元制御（`history.scrollRestoration`）~~ | **イシュー #406 で実装済み**。詳細は下記「§11 スクロール位置復元制御設計」参照 |
 | 遷移中のローディング表示 | 本イシューの受け入れ条件に含まれない（#406 でも未対応のまま） |
 | ~~汎用ルート定義共有機構（ルート表を server / client で単一定義から生成する仕組み）~~ | **イシュー #407 で解消**。`rws-app`（`server`・`wasm-full` 双方から依存可能な唯一の層）へルート表・マッチングエンジンを集約する構成（案 B-1）を採用し、`fw structure` の `rws-router-v1` 抽出器（`cli/src/routes.rs`、AST 不使用・文字列走査）は `structure.toml` の `[routing] definition_dir` を `"server"` → `"app"` へ変更するのみで無改修のまま追随できることを確認した。設計比較・詳細は `docs/design/route-definition-sharing.md`、判断 9（本節上部の表）参照 |
+| `prefers-reduced-motion` に応じた遷移スキップ制御（イシュー #404 スコープ外） | View Transitions API 自体はブラウザが `prefers-reduced-motion` を尊重する実装を持つが、アプリ側での明示的な制御は本イシューの受け入れ条件に含まれない |
+| `view-transition-name` によるパーツ単位アニメーション・遷移タイプ（`StartViewTransitionOptions`）対応（イシュー #404 スコープ外） | 本イシューは「連携の導入」までを対象とし、細粒度カスタマイズは別 Issue とする |
+| `ViewTransition` オブジェクト（`finished`/`ready` promise）の公開 API 化（イシュー #404 スコープ外） | `nav::start_router` の公開シグネチャは不変のため、呼び出し元へ `ViewTransition` を露出しない |
 
 ### #403 再配線設計（per-element + registry 方式）
 
 遷移で `nav::wiring::render_route` が [`rws_wasm_client::build_dom_node`]（`createElement`/`createTextNode`/`set_attribute` のみ）から新規構築するサブツリーは、イベントリスナーを一切持たない。詳細ページの「いいね」ボタン（`data-hydrate="like"`、`rws_app::LIKE_BUTTON_ID`）を機能させるため、以下の設計を採る。
 
 - **配線本体の共有**: `wasm-client/src/lib.rs` の配線ロジック（旧 `wiring::hydrate` 本体）を `wasm-bindgen-exports` feature 非依存の公開 API `wire_hydrate_targets(registry_key: &str, root: &Element) -> Result<(), JsValue>` として切り出した（`hydrate_dom` モジュール）。`rws-wasm-client` の REQ-6 デモ用エクスポート `hydrate`（`wiring::hydrate`、feature `wasm-bindgen-exports` 限定）はこれを `root_id` をキーとして呼ぶ薄いラッパーへ縮小し、`rws-wasm-full`（`default-features = false` で依存）からも同じ本体を呼べるようにした（重複コピー禁止、`csr.rs` の再エクスポートパターンと同方針）。
-- **呼び出し点**: `nav.rs::render_route` が子要素差し替え・`document.title` 更新の直後に `rws_wasm_client::wire_hydrate_targets(&root.id(), root)` を呼ぶ。`Err` 時は固定英語文言の `console::warn_1` で継続する（fail-safe、遷移自体は成立させる）。
+- **呼び出し点**: `nav.rs::render_route_with_post`（実体は `apply_render_with_post` の `startViewTransition` update コールバック内、イシュー #404 の prepare/apply 分割との統合）が子要素差し替え・`document.title` 更新の直後に `rws_wasm_client::wire_hydrate_targets(&root.id(), &root)` を呼ぶ。`Err` 時は固定英語文言の `console::warn_1` で継続する（fail-safe、遷移自体は成立させる）。
 - **per-element 方式を採用した理由（`document` レベル委譲リスナー方式の不採用）**: 初期表示ページの like ボタンは `page_shell` 同梱の REQ-6 デモ（`rws-wasm-client::wiring::hydrate`）が per-element リスナーを付けうる。`document` レベルの委譲リスナーで `[data-hydrate]` クリックを一括処理する方式だと、遷移前に配線済みの初期ページ要素と遷移後に配線される要素が同一セレクタで二重に処理され、`class_list().toggle("liked")` が 2 回発火して実質 no-op になる（誤動作）。per-element 再配線（`query_selector_all` → 個別 `add_event_listener_with_callback`）は「遷移で新規構築されたサブツリー」のみを対象とし、旧要素はサブツリーごと破棄済みのため二重配線が構造的に起きない。
 - **リスナー寿命管理**: registry キーは root 要素の `id`（実運用 `app-root`）。`rws-wasm-client::registry::replace_handles` が同一キーへの再呼び出しで旧ハンドルを解除してから差し替えるため、`nav.rs` の「`Closure::forget` は起動時定数回（click 1 + popstate 1）」という既存不変条件とは独立に、遷移ごとの再配線を呼んでもリスナー・Closure は現存 DOM 分に有界（無制限リーク蓄積を回避）。`wasm-client` のデモ用 registry（キー `app` 等）とは呼び出し元・wasm インスタンスが異なるため衝突しない。
 - **初期表示ページの配線は変えない**: `nav::wiring::start_router` は起動時に描画を一切行わない凍結事項（本書冒頭の判断）をそのまま維持し、初期ページの配線は引き続き REQ-6 デモ（`wasm-client::wiring::hydrate`）の管轄のまま変更していない。
@@ -276,8 +280,8 @@ WASM 完全方式固有の不変条件を追加する。
 | 操作 | 挙動 |
 |------|------|
 | `start_router` 起動時 | `scrollRestoration = "manual"` を設定（失敗は best-effort で無視）。現エントリの `history.state` が有効なスクロールレコードならその位置へ復元（リロード・クロスドキュメント traversal 後の復元。DOM は SSR 済みのまま変更しない §10 相当の凍結事項を維持し、state が無効/不在の通常初回ロードでは先頭 `(0, 0)` を強制しない） |
-| クリック遷移（`push_and_render`） | ①現在の `scroll_x`/`scroll_y` をエンコードし `replace_state`（第 3 引数 `None` で URL は維持）で**離脱元エントリ**へ保存 → ②`push_state`（state は従来どおり `JsValue::NULL`）→ ③描画（`render_route`）→ ④描画成立後に `scroll_to(0, 0)`（新規遷移は先頭表示）。scroll を描画より先に行わないのは、`render_route` 失敗時に URL だけ進んで旧ページがトップへスクロールされる不整合を避けるため（Bugbot 指摘、PR #423） |
-| popstate（戻る/進む） | ルート解決成功時のみ: 再描画 → `PopStateEvent::state()` をデコードし、成功なら保存位置へ・失敗/`NULL` なら `(0, 0)` へスクロール。ルート未解決パスは従来どおり完全 no-op（スクロールも触らない） |
+| クリック遷移（`push_and_render`） | ①現在の `scroll_x`/`scroll_y` をエンコードし `replace_state`（第 3 引数 `None` で URL は維持）で**離脱元エントリ**へ保存 → ②`push_state`（state は従来どおり `JsValue::NULL`）→ ③`apply_render_with_post` を呼び、`scroll_to(0, 0)`（新規遷移は先頭表示）を `post_apply` として渡す。`post_apply` は DOM 差し替えが実際に成立した後（`with_view_transition` の update コールバック内、View Transitions 対応ブラウザでは非同期）に実行されるため、`prepare_render` 失敗時（`post_apply` 自体が登録されない）や View Transitions 連携（イシュー #404）との統合後も、旧ページがトップへスクロールされる不整合は生じない（Bugbot 指摘、PR #423 の意図を継承） |
+| popstate（戻る/進む） | ルート解決成功時のみ: `navigate_render_with_post` が再描画し、`post_apply`（DOM 差し替え成立後に実行）として渡した `PopStateEvent::state()` のデコード結果に基づくスクロール（成功なら保存位置へ・失敗/`NULL` なら `(0, 0)`）を実行する。ルート未解決パスは `post_apply` 自体が呼ばれないため従来どおり完全 no-op（スクロールも触らない） |
 | `pagehide`（イシュー #406 追加分） | ドキュメント破棄直前（リロード・外部遷移・タブクローズ等、`popstate` を伴わない離脱を含む）に**現在エントリ**の `scroll_x`/`scroll_y` をエンコードし `replace_state` で書き戻す。`push_state` 直後のエントリは `push_and_render` の離脱元保存の対象外で `state` が `JsValue::NULL` のまま残るため、この書き戻しなしにはリロード後の復元先が存在しなかった（Bugbot 指摘、PR #423） |
 
 ### 11.4 既知の制限
