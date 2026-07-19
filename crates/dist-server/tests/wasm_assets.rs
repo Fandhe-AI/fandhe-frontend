@@ -2,7 +2,7 @@
 //! 配信検証。
 //!
 //! `build.rs` は WASM ステージが実際に埋め込みテーブルへ合流したときのみ
-//! `wasm_assets_embedded` cfg を有効にする（`RWS_WASM_BUILD=0` でオプトアウト
+//! `wasm_assets_embedded` cfg を有効にする（`FANDHE_FRONTEND_WASM_BUILD=0` でオプトアウト
 //! した場合や、wasm ツールチェーン不在でビルド自体が失敗する経路では
 //! 立たない）。本ファイル全体をこの cfg でゲートすることで、
 //! - オプトアウトしたジョブ（例: forbid-unsafe。self-hosted で `RUSTFLAGS`

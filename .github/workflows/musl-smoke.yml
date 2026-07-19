@@ -18,7 +18,7 @@ name: x86_64 musl startup smoke (REQ-9)
 #   起動検証。本ワークフローはアーキテクチャ特化の CI スモーク（実バイナリ・
 #   実コンテナ）であり、対象レイヤーが異なるため重複させない。
 # - #114（TASK-10.3、コンテナ内 WASM 再ビルド）: スコープ外。Dockerfile の
-#   RWS_WASM_BUILD=0（ホスト側事前ビルド前提）は変更しない。
+#   FANDHE_FRONTEND_WASM_BUILD=0（ホスト側事前ビルド前提）は変更しない。
 #
 # aarch64 側の CI 実測・イメージサイズや起動時間の性能再検証は本イシューの
 # 対象外（イシュー本文で明示的に除外）。
@@ -168,7 +168,7 @@ jobs:
         # 直接プロセスとして起動し、応答を確認してから終了させる。
         run: |
           set -euo pipefail
-          RWS_BIND_ADDR=127.0.0.1:3101 ./dist-server-extracted &
+          FANDHE_FRONTEND_BIND_ADDR=127.0.0.1:3101 ./dist-server-extracted &
           server_pid=$!
           # GitHub Actions の run: は既定で `bash -eo pipefail` のため、curl が
           # 失敗すると trap 以外のクリーンアップは実行されない。バックグラウンド
@@ -209,7 +209,7 @@ jobs:
         #
         # 上記 "Resolve own container ID" の出力に応じて起動方式を切り替える
         # （image-size.yml と同一パターン）。コンテナ内部の待受ポートは
-        # `RWS_BIND_ADDR` で 3103 に固定する（`--network container:` 方式では
+        # `FANDHE_FRONTEND_BIND_ADDR` で 3103 に固定する（`--network container:` 方式では
         # runner のネットワーク名前空間を image-size.yml の fandhe-frontend-ci コンテナ
         # （3100）・本ジョブの「Host direct startup smoke」（3101）と共有する
         # ため、既定の 3100 のままだと bind 競合し得るため明示的に分離する）。
@@ -219,10 +219,10 @@ jobs:
           set -euo pipefail
           if [ -n "${RUNNER_CID}" ]; then
             docker run -d --rm --name fandhe-frontend-musl-smoke --network "container:${RUNNER_CID}" \
-              -e RWS_BIND_ADDR=0.0.0.0:3103 fandhe-frontend-dist-server:musl-smoke
+              -e FANDHE_FRONTEND_BIND_ADDR=0.0.0.0:3103 fandhe-frontend-dist-server:musl-smoke
           else
             docker run -d --rm --name fandhe-frontend-musl-smoke -p 127.0.0.1:3103:3103 \
-              -e RWS_BIND_ADDR=0.0.0.0:3103 fandhe-frontend-dist-server:musl-smoke
+              -e FANDHE_FRONTEND_BIND_ADDR=0.0.0.0:3103 fandhe-frontend-dist-server:musl-smoke
           fi
           base_url="http://127.0.0.1:3103"
 
@@ -257,7 +257,7 @@ jobs:
           # （`fandhe-frontend-dist-server: listening on {addr}` / `fandhe-frontend-dist-server:
           # assets={mode}`）に依存する。release ビルドでは active_mode() が
           # 常に AssetMode::Embedded を返すため assets=embedded 固定。ポートは
-          # 上記 RWS_BIND_ADDR で 3103 に固定しているため、grep も追随させる
+          # 上記 FANDHE_FRONTEND_BIND_ADDR で 3103 に固定しているため、grep も追随させる
           # （他クレートとの契約、code-comment-style.md）。
           docker logs fandhe-frontend-musl-smoke > /tmp/container.log 2>&1
           grep -q "listening on 0.0.0.0:3103" /tmp/container.log

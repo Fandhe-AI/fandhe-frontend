@@ -34,7 +34,7 @@
 //! 境界（子プロセス起動 + 素の TCP）で固定した。
 //!
 //! スコープ境界（重複実装を避けるための担当分け）:
-//! - `RWS_BIND_ADDR` によるバインドアドレス自体の切り替え検証 → `tests/bind_addr.rs`（#162）
+//! - `FANDHE_FRONTEND_BIND_ADDR` によるバインドアドレス自体の切り替え検証 → `tests/bind_addr.rs`（#162）
 //! - XSS エスケープの単一バイナリ経路での本格的な統合検証（複数ペイロード・
 //!   属性コンテキスト等の網羅）→ TASK-9.4（#104、本ファイルは疎通レベルの
 //!   軽い回帰のみを担う）
@@ -174,7 +174,7 @@ fn bind_conflict_exits_non_zero_with_fixed_stderr_message() {
     let occupied_addr = occupied.local_addr().expect("must read local_addr");
 
     let mut child = Command::new(env!("CARGO_BIN_EXE_dist-server"))
-        .env("RWS_BIND_ADDR", occupied_addr.to_string())
+        .env("FANDHE_FRONTEND_BIND_ADDR", occupied_addr.to_string())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()

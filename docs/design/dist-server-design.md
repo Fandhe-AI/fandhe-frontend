@@ -67,7 +67,7 @@ frontend-framework-spec リポジトリで行う）。
   `MAX_DEPTH = 6` が正）を強制。運用ポリシーは `docs/policy/dependency-graph-policy.md`。
 - 並行イシュー（すべて OPEN）: #44（TASK-6.1c fandhe-frontend-server SSR/SSG エントリ実装）・
   #55（TASK-7.2a パスマッチング仕様設計）・#51/#52（TASK-7.1/7.1a
-  `templates/embed/embed.html`）・#162（`RWS_BIND_ADDR` 検証）・#96（TASK-9.1b）・
+  `templates/embed/embed.html`）・#162（`FANDHE_FRONTEND_BIND_ADDR` 検証）・#96（TASK-9.1b）・
   #97（TASK-9.1c）。本書はこれらが未確定であることを前提に、確定済みの現物
   （`router.rs` / `app/src/lib.rs` の公開 API）への参照を基本とし、未確定要素は
   「追従方針」として条件付き記述にする（第 8 節）。
@@ -336,7 +336,7 @@ PoC-4 は `axum::Router` で `/`・`/items/:id`・`/static/*path` を直接ル�
   自前 MIME 表（4.4 節）で付与し、`X-Content-Type-Options: nosniff` の付与を
   TASK-9.1b の実装検討事項として記録する。
 - **A05 セキュリティ設定ミス**: 既定バインドは `127.0.0.1:3100`（ループバック、
-  PoC-4 踏襲）とし、外部公開は `RWS_BIND_ADDR` 環境変数の明示設定によるオプトイン
+  PoC-4 踏襲）とし、外部公開は `FANDHE_FRONTEND_BIND_ADDR` 環境変数の明示設定によるオプトイン
   とする（`docs/spec/04-requirements.md` 200 行目と整合）。
 - **A06 脆弱な依存 / サプライチェーン（REQ-3・security.md）**: 4.2 節の実測に
   基づき、追加依存は `tokio`（機能を `rt-multi-thread`/`net`/`io-util` に限定）・
@@ -356,12 +356,12 @@ PoC-4 は `axum::Router` で `/`・`/items/:id`・`/static/*path` を直接ル�
   `eprintln!("failed to bind {addr}")` 等、bind アドレス以外の内部情報
   （ファイルパス・環境変数値・スタックトレース）を含めない stderr 出力とする。
 - **本タスク自体の混入防止**: 本書はドキュメントのみの変更であり、設定例の
-  値（`RWS_BIND_ADDR=127.0.0.1:3100` 等）はすべてダミー値。シークレット・
+  値（`FANDHE_FRONTEND_BIND_ADDR=127.0.0.1:3100` 等）はすべてダミー値。シークレット・
   実クレデンシャルは含まない。
 
 ## 7. 起動・設定
 
-- `RWS_BIND_ADDR`（既定 `127.0.0.1:3100`、PoC-4 踏襲。`docs/spec/04-requirements.md`
+- `FANDHE_FRONTEND_BIND_ADDR`（既定 `127.0.0.1:3100`、PoC-4 踏襲。`docs/spec/04-requirements.md`
   200 行目と整合）。
 - bind 失敗時は `panic!`/`unwrap()`/`expect()` を使わず、`main() -> Result<(), ..>`
   として `?` で伝播し、`Err` はプロセス終了コード非 0 で終える（`coding-rust.md`
@@ -396,7 +396,7 @@ TASK-9.1c・#97 のスコープ、本節は観点の列挙のみ）。
 | 上記の起動・エンドポイント疎通テスト | TASK-9.1c（#97、本節） |
 | 「ビルド成果物を無関係なディレクトリへコピーして起動」の CI 自動化 | TASK-9.2 |
 | XSS エスケープの単一バイナリ経路での統合検証 | TASK-9.4 |
-| `RWS_BIND_ADDR` の切り替え自体の検証（環境変数未設定/設定時の bind 先） | #162 |
+| `FANDHE_FRONTEND_BIND_ADDR` の切り替え自体の検証（環境変数未設定/設定時の bind 先） | #162 |
 | Docker イメージサイズ計測 | TASK-9.3 |
 
 **実装状況（#94 側での前倒し実装、#97 で残ギャップ解消）**: 親イシュー #94

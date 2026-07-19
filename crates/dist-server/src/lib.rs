@@ -56,6 +56,11 @@ pub mod assets;
 pub mod bench_support;
 pub mod mime;
 pub mod routes;
+/// WASM ビルドステージの有効・無効判定（`FANDHE_FRONTEND_WASM_BUILD`）。
+/// `wasm_stage_cache` と同様に `build.rs` から `#[path]` でソースレベル共有
+/// する（`src/wasm_build_gate.rs` 冒頭コメント参照）。
+#[doc(hidden)]
+pub mod wasm_build_gate;
 /// TASK-10.2c（イシュー #111）: `build.rs` の WASM ビルドステージ キャッシュ
 /// 判定ロジック（fingerprint 計算・成果物完全性チェック）。`build.rs` 自身は
 /// パッケージ自身の lib を `build-dependencies` にできないため、

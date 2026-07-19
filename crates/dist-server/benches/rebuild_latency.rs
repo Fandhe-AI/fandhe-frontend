@@ -18,7 +18,7 @@
 //! cargo bench -p fandhe-frontend-dist-server --bench rebuild_latency
 //! ```
 //!
-//! wasm ツールチェーン未整備環境では `RWS_WASM_BUILD=0` を付与すると
+//! wasm ツールチェーン未整備環境では `FANDHE_FRONTEND_WASM_BUILD=0` を付与すると
 //! `dist-server/build.rs` の WASM ビルドステージをスキップできる
 //! （`build.rs` の `wasm_build_enabled` 参照。本ベンチは環境変数を
 //! 読み替えず、子プロセスへそのまま継承させるだけ）。
@@ -51,7 +51,7 @@
 //!
 //! 子プロセス起動は固定引数・固定パスのみで構成し、外部入力を文字列連結で
 //! シェルへ渡す経路は存在しない（`Command` の引数は配列として個別に渡され、
-//! シェル展開を経由しない）。`RWS_WASM_BUILD` は値を解釈せず子プロセスへ
+//! シェル展開を経由しない）。`FANDHE_FRONTEND_WASM_BUILD` は値を解釈せず子プロセスへ
 //! 透過するのみで、コマンドライン組み立てには一切関与しない。
 
 use fandhe_frontend_dist_server::bench_support::{format_summary_line, judge, Sample};

@@ -39,7 +39,7 @@
 //! `.claude/rules/coding-rust.md` が定めるとおりテストコードでの `unwrap`/
 //! `expect` は許容される）。
 //!
-//! 唯一の明示的スキップ経路は `RWS_WASM_BUILD=0`（`skip`/`false` も同義、
+//! 唯一の明示的スキップ経路は `FANDHE_FRONTEND_WASM_BUILD=0`（`skip`/`false` も同義、
 //! 大文字小文字を区別しない）で、`dist-server/build.rs::wasm_build_enabled` と
 //! 同一契約。wasm ツールチェーンが常設されない環境（例: 本リポジトリの
 //! `forbid-unsafe` self-hosted ジョブ）向けの逃げ道であり、既定は有効
@@ -133,19 +133,60 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
-/// WASM ビルドステージが有効かどうかを環境変数 `RWS_WASM_BUILD` から判定する。
-///
-/// `dist-server/build.rs::wasm_build_enabled` と同一契約（`0`/`skip`/`false`
-/// のいずれかで無効化、既定は有効）。両ファイルで判定ロジックを重複させて
-/// いるのは、本テストが `dist-server` に依存させたくない（`wasm-full` 単体で
-/// 完結させたい）ためで、契約の変更時は両方を合わせて更新すること。
+/// WASM ビルドステージが有効かどうかを環境変数 `FANDHE_FRONTEND_WASM_BUILD`
+/// から判定する薄いラッパ。判定本体は [`wasm_build_enabled_for`]（純関数）に
+/// 分離してあり、`dist-server/src/wasm_build_gate.rs::wasm_build_enabled_for`
+/// と同一契約（`0`/`skip`/`false` のいずれかで無効化、既定は有効）。
+/// 両ファイルで判定ロジックを重複させているのは、本テストが `dist-server` に
+/// 依存させたくない（`wasm-full` 単体で完結させたい）ためで、契約の変更時は
+/// 両方を合わせて更新すること（#437 で `RWS_WASM_BUILD` →
+/// `FANDHE_FRONTEND_WASM_BUILD` へ改名した際も両ファイルを同時更新した）。
 fn wasm_build_enabled() -> bool {
-    match env::var("RWS_WASM_BUILD") {
-        Ok(value) => {
+    wasm_build_enabled_for(env::var("FANDHE_FRONTEND_WASM_BUILD").ok().as_deref())
+}
+
+/// [`wasm_build_enabled`] の判定本体。環境変数の実読み取りを行わない純関数と
+/// することで、環境変数のミューテーションを伴わない決定的なユニットテスト
+/// （`None`＝未設定・`Some("0")` 等）を可能にする。
+fn wasm_build_enabled_for(env_value: Option<&str>) -> bool {
+    match env_value {
+        Some(value) => {
             let normalized = value.trim().to_ascii_lowercase();
             !(normalized == "0" || normalized == "skip" || normalized == "false")
         }
-        Err(_) => true,
+        None => true,
+    }
+}
+
+#[cfg(test)]
+mod wasm_build_enabled_tests {
+    use super::wasm_build_enabled_for;
+
+    /// 未設定（新名 `FANDHE_FRONTEND_WASM_BUILD` を一切指定しない状態）は
+    /// 既定で有効（安全側）であることを固定する回帰テスト（#437）。
+    #[test]
+    fn unset_defaults_to_enabled() {
+        assert!(wasm_build_enabled_for(None));
+    }
+
+    #[test]
+    fn explicit_disable_values_disable_the_stage() {
+        for value in ["0", "skip", "false", "SKIP", "FALSE"] {
+            assert!(
+                !wasm_build_enabled_for(Some(value)),
+                "expected {value:?} to disable the wasm build stage"
+            );
+        }
+    }
+
+    #[test]
+    fn other_values_keep_the_stage_enabled() {
+        for value in ["1", "true", "yes", ""] {
+            assert!(
+                wasm_build_enabled_for(Some(value)),
+                "expected {value:?} to keep the wasm build stage enabled"
+            );
+        }
     }
 }
 
@@ -426,7 +467,7 @@ mod judge_and_format_report_tests {
     }
 }
 
-/// TASK-11.6・REQ-11 の受け入れ基準本体。`RWS_WASM_BUILD` が明示的に無効化
+/// TASK-11.6・REQ-11 の受け入れ基準本体。`FANDHE_FRONTEND_WASM_BUILD` が明示的に無効化
 /// されていない限り、製品ビルドと同一のコマンド列で `fandhe-frontend-wasm-full` を
 /// ビルド・`wasm-bindgen` 変換し、実測 gzip 合計サイズが 200KB 以内であることを
 /// アサートする（fail-closed。詳細はファイル冒頭の doc comment 参照）。
@@ -434,7 +475,7 @@ mod judge_and_format_report_tests {
 fn wasm_full_bundle_gzip_size_within_req11_limit() {
     if !wasm_build_enabled() {
         eprintln!(
-            "bundle-size: skipped (RWS_WASM_BUILD is disabled; wasm toolchain not assumed present)"
+            "bundle-size: skipped (FANDHE_FRONTEND_WASM_BUILD is disabled; wasm toolchain not assumed present)"
         );
         return;
     }
