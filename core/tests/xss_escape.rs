@@ -722,3 +722,105 @@ mod bind_points {
         );
     }
 }
+
+/// `keyed_list`（イシュー #344）の XSS 回帰テスト。
+///
+/// キー・項目テキスト・親属性値の 3 箇所に XSS ペイロードを注入し、
+/// `data-key`/`data-bind-list` を含む出力が SSR/SSG いずれの経路でも
+/// 既定エスケープを経由することを固定する。`keyed_list` は新しい
+/// レンダリング経路・新しいエスケープ処理を追加しない（`core/src/keyed.rs`
+/// 冒頭の不変条件参照）ため、本モジュールのテストは既存の
+/// `page_with_text_payload`/`ssg_write_and_read_back` と同じ検証形式を踏襲する。
+mod keyed_list_xss {
+    use super::*;
+    use rws_core::keyed::keyed_list;
+
+    /// キーはアプリ側の識別子（データベース ID 等）由来であり、外部入力に
+    /// 汚染され得る前提で扱う。XSS ペイロードをキーとして渡しても
+    /// `data-key` 属性値としてエスケープされることを検証する。
+    #[test]
+    fn key_attribute_value_is_escaped_on_both_paths() {
+        for payload in XSS_PAYLOADS {
+            let list = keyed_list(
+                "ul",
+                vec![],
+                "items",
+                vec![((*payload).to_string(), el("li", vec![], vec![text("item")]))],
+            )
+            .expect("payload はキー欠落・重複に該当しないため構築できる");
+            let ssr_html = render(&list);
+
+            assert!(
+                !ssr_html.contains("<script>"),
+                "data-key 経由で <script> の breakout が発生した（payload: {payload:?}）: {ssr_html}"
+            );
+            let expected_key_attr = format!("data-key=\"{}\"", escape_html(payload));
+            assert!(
+                ssr_html.contains(&expected_key_attr),
+                "data-key 属性値が期待どおりエスケープされていない（payload: {payload:?}）: {ssr_html}"
+            );
+
+            let ssg_html = ssg_write_and_read_back(&ssr_html, "keyed-key");
+            assert_eq!(
+                ssr_html, ssg_html,
+                "SSR/SSG 出力が一致しない（keyed_list キー、payload: {payload:?}）"
+            );
+        }
+    }
+
+    /// 項目テキストに XSS ペイロードを埋め込んでも、通常の `text()` 経路と
+    /// 同様にエスケープされることを確認する（`keyed_list` が子ノードの
+    /// テキストエスケープに影響しないことの回帰）。
+    #[test]
+    fn item_text_content_is_escaped_on_both_paths() {
+        for payload in XSS_PAYLOADS {
+            let list = keyed_list(
+                "ul",
+                vec![],
+                "items",
+                vec![("k1".to_string(), el("li", vec![], vec![text(*payload)]))],
+            )
+            .unwrap();
+            let ssr_html = render(&list);
+            assert_text_payload_neutralized(&ssr_html, payload);
+
+            let ssg_html = ssg_write_and_read_back(&ssr_html, "keyed-text");
+            assert_text_payload_neutralized(&ssg_html, payload);
+        }
+    }
+
+    /// 親要素の呼び出し側属性（`data-bind-list` を除く）に XSS ペイロードを
+    /// 埋め込んでも属性値としてエスケープされることを確認する。
+    #[test]
+    fn parent_attribute_value_is_escaped_on_both_paths() {
+        for payload in XSS_PAYLOADS {
+            let list = keyed_list(
+                "ul",
+                vec![("data-testid", payload)],
+                "items",
+                vec![("k1".to_string(), el("li", vec![], vec![text("item")]))],
+            )
+            .unwrap();
+            let ssr_html = render(&list);
+
+            assert!(
+                !ssr_html.contains("<script>"),
+                "親属性経由で <script> の breakout が発生した（payload: {payload:?}）: {ssr_html}"
+            );
+            let expected_attr = format!("data-testid=\"{}\"", escape_html(payload));
+            assert!(
+                ssr_html.contains(&expected_attr),
+                "親属性値が期待どおりエスケープされていない（payload: {payload:?}）: {ssr_html}"
+            );
+            // data-bind-list マーカー属性自体は呼び出し側入力に依存しない固定値
+            // （field は &'static str）であり、常にそのまま出力される。
+            assert!(ssr_html.contains("data-bind-list=\"items\""));
+
+            let ssg_html = ssg_write_and_read_back(&ssr_html, "keyed-parent-attr");
+            assert_eq!(
+                ssr_html, ssg_html,
+                "SSR/SSG 出力が一致しない（keyed_list 親属性、payload: {payload:?}）"
+            );
+        }
+    }
+}

@@ -62,7 +62,7 @@
 | テキスト束縛 | `data-bind-text="<field>"` | `data-bind-text="counter"` | 要素の唯一のテキスト子ノードが state フィールド `counter` に束縛される |
 | 属性束縛 | `data-bind-attr="<attr>:<field>"` | `data-bind-attr="aria-pressed:liked"` | 属性 `aria-pressed` の値が `liked` フィールドに束縛される。1 要素が複数属性を束縛する場合は空白区切りで複数トークンを列挙する（`data-bind-attr="aria-pressed:liked disabled:busy"`） |
 | class 束縛 | `data-bind-class="<class>:<field>"` | `data-bind-class="liked:liked"` | `bool` フィールドの真偽で class のオン/オフを切り替える。複数 class も属性束縛と同じ空白区切り規約に従う |
-| リスト束縛 | `data-bind-list="<field>"` | `data-bind-list="items"` | 親要素の子ノード列が `field`（keyed list）の現在値の並び順・要素集合に束縛される。子ノード自体は `data-key` を持つ（第 5.1 節） |
+| リスト束縛 | `data-bind-list="<field>"` | `data-bind-list="items"` | 親要素の子ノード列が `field`（keyed list）の現在値の並び順・要素集合に束縛される。子ノード自体は `data-key` を持つ（第 5.1 節）。キー一意性は**当該親の直下子のみ**が対象（子孫にネストした別の `data-bind-list` のキー空間とは独立、第 5.1 節） |
 
 - 属性名は `data-bind-text` / `data-bind-attr` / `data-bind-class` の 3 種に
   固定し、いずれも `core/src/lib.rs:175` の `is_valid_attr_name`（英数字・
@@ -250,29 +250,69 @@ dispatch（文字列 → Action、既存 #341 以前の経路） →
 
 ## 5. keyed list プリミティブ（#344 の入力）
 
-### 5.1 SSR 出力形式
+### 5.1 SSR 出力形式（#344 実装確定）
+
+当初案 `keyed_list(field, items) -> Node` は、(a) 親要素のタグ名・呼び出し
+側属性を受け取れない、(b) fail-closed（キー衝突・欠落で `Err`）を戻り値
+なしで表現できない、の 2 点で実装不能であったため、実装（`core/src/keyed.rs`）
+着手前に本節を以下の確定形へ改訂する（#342 が第 3.3 節で行ったのと同じ
+「設計書を先に改訂してから実装する」手順）。
 
 ```rust
-// rws-core: keyed list ヘルパー（#344 で追加）
-pub fn keyed_list(field: &'static str, items: Vec<(String, Node)>) -> Node;
+// rws-core::keyed（#344 で追加。core/src/keyed.rs）
+pub const BIND_LIST_ATTR: &str = "data-bind-list";
+pub const KEY_ATTR: &str = "data-key";
+
+pub enum KeyedListError {
+    EmptyKey { index: usize },
+    DuplicateKey { first_index: usize, duplicate_index: usize },
+    NonElementItem { index: usize },
+    ReservedAttr { attr: &'static str },
+}
+
+pub fn keyed_list(
+    tag: &'static str,
+    attrs: Vec<(&str, &str)>,
+    field: &'static str,
+    items: Vec<(String, Node)>,
+) -> Result<Node, KeyedListError>;
 ```
 
-- 各子ノードは `data-key="<key>"` 属性を持つ要素としてレンダリングされる。
-  `key` は文字列（アプリ側が一意性を保証する）。
-- 親要素は `data-bind-list="<field>"` 属性を持ち、子の並び順が
-  `field` の現在値の並び順と一致することを表す（`data-bind-*` 系列の
-  第 4 の種別として、第 3.1 節の表に追記する）。
+- 各子ノードは元の属性列の末尾へ `data-key="<key>"` を付加した要素として
+  レンダリングされる。`key` は文字列（アプリ側が一意性を保証する）。
+- 親要素は呼び出し側 `attrs` の末尾へ `data-bind-list="<field>"` を付加した
+  要素として構築される。子の並び順が `field` の現在値の並び順と一致する
+  ことを表す（`data-bind-*` 系列の第 4 の種別として、第 3.1 節の表に
+  追記済み）。
+- `field` は `&'static str` 固定（第 3.3 節と同じ設計原理: 実行時文字列
+  によるフィールド偽装の型レベル遮断）。`key` は実行時データ（`String`）
+  であり、一意性はアプリ側責務 + 本関数の検証で fail-closed。
+- キー一意性検査は**直下の子のみ**が対象（同一親の直下子スコープに限定。
+  子孫にネストした別の `keyed_list` 呼び出しのキー空間とは独立）。
+- 出力は通常の `Node::Element` 木であり、新しい `Node` バリアント・新しい
+  レンダリング経路・新しいエスケープ処理を追加しない。
 
-### 5.2 fail-closed の定義（#344 受け入れ条件）
+### 5.2 fail-closed の定義（#344 受け入れ条件、実装確定）
 
 | 異常系 | 挙動 |
 |--------|------|
-| キー衝突（同一親内で `key` が重複） | `render()`（SSR/SSG 生成時）が `Result::Err` を返し、衝突した HTML を出力しない。`unwrap()`/`panic!` は使わない（`.claude/rules/coding-rust.md` のエラーハンドリング規約） |
-| キー欠落（`keyed_list` の要素に空文字列キーを渡す） | 同上、`render()` 時点で `Err` とし出力しない |
-| クライアント側でキー照合に失敗（改ざん等により `data-key` が想定外の値） | 該当ノードを更新対象から除外し、束縛点対応表の再構築（フルスキャン）にフォールバックする。個別ノードの不整合が全体のクラッシュへ波及しない設計とする |
+| キー欠落（`keyed_list` の要素に空文字列キーを渡す） | `keyed_list()` **構築時点**で `KeyedListError::EmptyKey` を返す。不正な `Node` はそもそも構築されない |
+| キー衝突（同一親の直下子内で `key` が重複） | `keyed_list()` 構築時点で `KeyedListError::DuplicateKey` を返す。同上 |
+| 子が `Node::Element` でない（`Text`/`RawHtml`） | `data-key` を付与できないため `keyed_list()` 構築時点で `KeyedListError::NonElementItem` を返す |
+| 予約属性の手渡し（`data-key`/`data-bind-list` を呼び出し側 `attrs` に含める） | `keyed_list()` 構築時点で `KeyedListError::ReservedAttr` を返し、マーカー属性の重複・偽装を防ぐ |
+| クライアント側でキー照合に失敗（改ざん等により `data-key` が想定外の値） | 該当ノードを更新対象から除外し、束縛点対応表の再構築（フルスキャン）にフォールバックする。個別ノードの不整合が全体のクラッシュへ波及しない設計とする（#343/#345 のスコープ） |
 
-いずれも「安全側（変更を適用しない・エラーとして扱う）に倒す」方針を
-採用し、未定義動作を残さない。
+いずれの場合も `unwrap()`/`panic!` は使わない
+（`.claude/rules/coding-rust.md` のエラーハンドリング規約）。
+
+**改訂理由**: 当初案「`render()` 時点で `Result::Err`」は、モード非依存
+レンダラ `render(&Node) -> String`（SSR/SSG/CSR 全層が共通使用する凍結 API、
+第 10 節の出力一致保証の土台）が戻り値型を変更すると破壊的変更になる
+こと、および infallible な `render()` が残る限り検証迂回経路が残ることから、
+**構築時点の `Err`（不正な keyed list ノードをそもそも表現不能にする）へ
+強化**する。「衝突した HTML を出力しない」という fail-closed の目的は
+より早い段階（ノード構築時点）で満たされ、`render()` のシグネチャは
+一切変更しない。
 
 ### 5.3 CSR 側の最小 DOM 操作
 
@@ -445,8 +485,9 @@ pub fn keyed_list(field: &'static str, items: Vec<(String, Node)>) -> Node;
    経由して出力される。フィールド名は `&'static str`（第 3.3 節）に
    固定され、実行時の外部入力から構築されないため、属性名自体への
    注入面も存在しない。
-6. **fail-closed（A05 相当）**: keyed list のキー衝突・欠落は `render()`
-   時点で `Err` とし、`unwrap()`/`panic!` を使わない（第 5.2 節）。
+6. **fail-closed（A05 相当）**: keyed list のキー衝突・欠落・非 Element
+   子・予約属性の混入は `keyed_list()` 構築時点で `Err` とし（`render()`
+   のシグネチャは変更しない）、`unwrap()`/`panic!` を使わない（第 5.2 節）。
    クライアント側のキー照合失敗も安全側（更新を適用しない）に倒す。
 7. **エラー・ログの機微情報非露出（A09 相当）**: dirty tracking・束縛点
    対応表構築・keyed list 照合のいずれのエラーメッセージも、内部状態
