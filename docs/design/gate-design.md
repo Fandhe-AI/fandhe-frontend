@@ -339,6 +339,20 @@ TASK-13.3c（#141、`policy`/`test` チェックの実連携固定）の対応:
   （インフラ側管理）の領分として継続追跡し、本対応はその安全網として
   位置づける。
 
+イシュー #400（#372/PR #382 で PASS 化した自己適用のリグレッション検出）の
+対応:
+
+- `.github/workflows/ci.yml`（`gate-self-apply` ジョブ）: `RWS_WASM_BUILD=0`
+  下で `tools/ci/ensure-gate-tools.sh` を前置したうえで
+  `cargo run -p rws-cli --locked -- gate --project .` を PR ごと・main push
+  ごとに実行し、`gate_result: "PASS"`（終了コード 0）を継続保証する。
+  BLOCKED 時は JSON レポートの `checks[].output` 先頭の
+  `"environment error: "`（§2.3a・`ENVIRONMENT_ERROR_PREFIX`）の有無で
+  GitHub Actions アノテーション（`::error::`）を出し分け、runner 環境未整備と
+  コード起因の FAIL（自己参照誤検知の再発・`deny.toml` 弱体化・
+  `structure.toml` と実構成のドリフト等）を CI ログ上で判別可能にする。
+  緩和経路（`continue-on-error`・スキップ input）は設けず fail-closed を維持する。
+
 ## 7. スコープ外
 
 - **意味的脆弱性・ロジック誤りの検出**: `fw gate` が検出できるのは構文・
