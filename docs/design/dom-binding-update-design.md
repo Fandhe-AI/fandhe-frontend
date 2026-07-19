@@ -1,0 +1,410 @@
+# 実 DOM 束縛点更新・keyed list の設計確定（イシュー #340）
+
+## 1. 目的とトレーサビリティ
+
+本書は #335（v2: AI 開発効率のための実 DOM 更新・契約型化・決定的生成の
+トラッキング）配下の #336（feat(phase-1): 実 DOM 直接更新基盤 — 束縛点最小
+更新 + keyed list、仮想 DOM 非採用）の**設計確定書**であり、REQ-1（既定
+エスケープ）・REQ-11（WASM 完全方式）を実装で担保する後続タスク
+
+- #341 `feat(interactive)`: `update()` の変更フィールド追跡（dirty tracking）API
+- #342 `feat(core)`: 束縛点マーキングの Node 木 API
+- #343 `feat(wasm-client)`: 束縛点ベースの最小更新への一般化
+- #344 `feat(core)`: keyed list プリミティブ
+- #345 `feat(wasm-full)`: `set_inner_html` 全置換を束縛点更新 + keyed list へ置換
+
+の実装範囲・API 形状・移行手順を判断可能にするために書く。
+
+**本文書のステータス**: #340 設計確定書。#341〜#345 の実装と本書の記述に
+乖離が生じた場合は本書を正とし、PR レビューで指摘する。乖離が実装上
+不可避と判明した場合は本書を改訂してから実装を進める。
+
+本書は `docs/design/wasm-full-architecture.md`・`docs/design/hydration-nested-state.md`・
+`docs/api/interactive-api.md`・`docs/api/component-api.md` と同じ書式
+（ステータス・トレーサビリティ・凍結表・設計判断表・スコープ外表・
+セキュリティ不変条件・受け入れ基準対応表）に揃える。
+
+`docs/spec/04-requirements.md` の REQ-1（既定エスケープ）・REQ-11（WASM 完全
+方式）に対応する。`docs/spec/` はサブモジュールのため編集禁止であり、
+仕様本文側の追随（v2 相当の要件反映）が必要と判断した項目は第 8 節の
+スコープ外表に frontend-framework-spec リポジトリへの Issue 提案として
+記録するに留める。
+
+## 2. 現状と課題
+
+- `wasm-full/src/dom.rs` の `paint()` は `render_component_html()`（`rws_core::render`
+  の出力）を `web_sys::Element::set_inner_html` へ**全置換**で渡す
+  （`wasm-full/src/dom.rs:44`）。イベントごとに DOM 全体を文字列化 →
+  ブラウザの HTML パーサで再パースする経路であり、フォーカス・入力途中の
+  値・スクロール位置・IME 変換状態を破壊する。
+- `wasm-full/src/events.rs` は、入力ハンドラで `should_repaint: false`
+  を返すことで再描画自体を抑止する暫定運用でこれを回避している
+  （`wasm-full/src/events.rs:93` 付近のコメント）。これは症状を避けている
+  だけであり、入力以外の更新（カウンタ増減等）では依然として全置換が
+  発生する。
+- 一方 `wasm-client/src/lib.rs` は既にこの問題を避けた設計になっている。
+  `hydrate()` は再構築系 API を一切呼ばず（不変条件 2）、ハンドラ内更新は
+  `set_text_content` / `class_list` に限定される（不変条件 3、
+  `wasm-client/src/lib.rs:27-31`）。ただし対応するのは `data-hydrate="like"`
+  という単一の具象実装のみであり、任意の `Component` へ一般化されていない。
+- 本書は `wasm-client` が既に守っている最小更新路線を、`rws-core` の
+  Node 木 API・`rws-interactive` の dirty tracking・`wasm-full` の適用層の
+  三層に一般化する設計を確定する。構造変化（リストの増減・並べ替え）
+  だけは仮想 DOM 的な汎用 diff を採用せず、keyed list という**単一の
+  専用経路**に限定する。
+
+## 3. 束縛点対応表の表現（#342 の入力）
+
+### 3.1 属性によるマーキング規約（SSR 出力に現れる形式として凍結）
+
+| 種別 | 属性形式 | 例 | 意味 |
+|------|---------|-----|------|
+| テキスト束縛 | `data-bind-text="<field>"` | `data-bind-text="counter"` | 要素の唯一のテキスト子ノードが state フィールド `counter` に束縛される |
+| 属性束縛 | `data-bind-attr="<attr>:<field>"` | `data-bind-attr="aria-pressed:liked"` | 属性 `aria-pressed` の値が `liked` フィールドに束縛される。1 要素が複数属性を束縛する場合は空白区切りで複数トークンを列挙する（`data-bind-attr="aria-pressed:liked disabled:busy"`） |
+| class 束縛 | `data-bind-class="<class>:<field>"` | `data-bind-class="liked:liked"` | `bool` フィールドの真偽で class のオン/オフを切り替える。複数 class も属性束縛と同じ空白区切り規約に従う |
+| リスト束縛 | `data-bind-list="<field>"` | `data-bind-list="items"` | 親要素の子ノード列が `field`（keyed list）の現在値の並び順・要素集合に束縛される。子ノード自体は `data-key` を持つ（第 5.1 節） |
+
+- 属性名は `data-bind-text` / `data-bind-attr` / `data-bind-class` の 3 種に
+  固定し、いずれも `core/src/lib.rs:175` の `is_valid_attr_name`（英数字・
+  ハイフンで構成される既存ホワイトリスト検証)をそのまま通過する
+  形式である（新たな属性名パターンを核の検証ロジックへ追加する必要は
+  ない）。
+- 属性**値**（`<field>` 名・`<attr>:<field>` の組）は既定エスケープ
+  （`rws_core::render` の属性値エスケープ）をそのまま経由して出力される。
+  フィールド名は `&'static str` としてコンパイル時に固定される値であり
+  （第 3.3 節）、実行時の外部入力から組み立てられることはない。
+- コロン `:` ・空白は区切り文字として予約する。フィールド名にコロン・
+  空白を含めることは許容しない（`#342` 実装時に構築 API 側でアサート
+  する。実行時に外部から改ざんされる経路がないため `panic!`/`debug_assert!`
+  ではなく型設計 — `&'static str` 定数のみを受理 — で防ぐ）。
+
+### 3.2 `data-hydrate-*`（#163）との役割の直交性
+
+- `data-hydrate-<field>`（`interactive::HYDRATE_ATTR_PREFIX`、
+  `interactive/src/lib.rs:130`）は**状態値そのもの**をハイドレーション時に
+  復元するための注入である（`codec::Value` によるエンコード、
+  `docs/design/hydration-nested-state.md`）。
+- `data-bind-*` は**更新先ノード位置**のマーキングであり、値を運ばない
+  （値は state 側にのみ存在する）。両者は同一要素・別要素いずれにも
+  独立して付与でき、どちらか一方の有無がもう一方の動作に影響しない。
+- クライアント側は起動時（`hydrate()` 相当の初期化）に `data-bind-*` を
+  持つ全ノードを 1 回だけ `query_selector_all` で走査し、
+  `Vec<(&'static str, BindingTarget)>`（`field` → 束縛点リスト）の対応表を
+  構築してメモリ上に保持する。この走査パターンは `rws_core::find_attr_values`
+  （`core/src/lib.rs:230`）・`wasm-client` が `data-nav` に対して行う走査と
+  同一の考え方（属性値を手掛かりにした DOM 走査、HTML 再パースを伴わない）
+  を踏襲する。
+
+### 3.3 core API 形状（案）
+
+```rust
+// rws-core: 束縛点付きノード構築ヘルパー（#342 で追加）
+pub fn bind_text(field: &'static str, value: impl Into<String>) -> Node;
+pub fn bind_attr(attr: &'static str, field: &'static str, value: impl Into<String>) -> (String, String);
+pub fn bind_class(class: &'static str, field: &'static str, active: bool) -> Option<String>;
+```
+
+- `field` を `&'static str` に固定するのは、`Node::Element.tag`
+  （`core/src/lib.rs:80` 以降）が `&'static str` 固定であることと同じ設計
+  原理である。動的文字列（実行時に組み立てた `String`）をフィールド名として
+  受理しないことで、束縛点対応表の走査キーが常にコンパイル時に確定した
+  有限集合であることを型で保証し、任意文字列注入によるフィールド偽装の
+  余地を構造的に排除する。
+- `bind_text` は `Node::Element` の子として `data-bind-text` 属性と
+  `Node::Text(value)` を同時に生成するヘルパーとする（要素本体の構築は
+  呼び出し側の既存 `el`/`div` 等と組み合わせる）。
+- `bind_attr`/`bind_class` は属性タプル・class トークンを返す薄いヘルパー
+  とし、`is_valid_attr_name` の検証は既存の `render()` 経路（属性出力時の
+  ホワイトリスト検証、`core/src/lib.rs:320` 付近）へそのまま委ねる。新しい
+  検証ロジックを追加しない（既存の防御を再利用する）。
+- SSR 出力の決定性: 束縛点マーキングを使わない既存の `Node` 構築
+  （`el`/`div`/`text` 等）の出力には**一切影響しない**（`bind_*` は既存
+  ヘルパーに属性・テキストを付加するオプトイン API であり、未使用時の
+  `render()` 出力はバイト単位で不変）。これを凍結条件とする。
+
+## 4. 更新の種別（#341・#343 の入力）
+
+### 4.1 4 種別への固定
+
+DOM 変異は以下の 4 種別に限定し、これ以外の DOM 変異経路を持たないことを
+不変条件とする（第 7 節）。
+
+| 種別 | 適用 Web API | 対象 |
+|------|-------------|------|
+| テキスト更新 | `Node.textContent`（`set_text_content`） | `data-bind-text` を持つ要素の子テキスト |
+| 属性更新 | `Element.setAttribute`（`set_attribute`） | `data-bind-attr` で指定された属性 |
+| class 更新 | `Element.classList`（`DomTokenList`、`class_list`） | `data-bind-class` で指定された class |
+| 構造変化 | keyed list 専用手続き（第 5 節） | `data-key` を持つ子リストの挿入・削除・並べ替え |
+
+### 4.2 dirty tracking API 形状（#341 の入力・設計判断確定）
+
+`docs/api/interactive-api.md` 第 3 節で `Component::update` は
+`fn update(&mut self, action: Self::Action)`（戻り値なし）として**既に
+凍結済み**である。このシグネチャを変更すること（戻り値方式で変更
+フィールド集合を返す案）は凍結 API への破壊的変更となり、`rws-wasm-full`
+（TASK-11.2、既に `Component` へ依存する実装）を巻き込む影響が大きい
+ため**採用しない**。
+
+代わりに、`update()` と**対になる別関数**として dirty tracking を提供する
+方式を採用する。
+
+```rust
+// rws-interactive: dirty tracking API 形状案（#341 で追加）
+pub trait DirtyTracked: Component {
+    /// `update()` によって直前の呼び出しで変更されたフィールド名の集合。
+    /// フィールド名は `&'static str`（第 3.3 節と同じ設計原理）。
+    fn dirty_fields(&self) -> &[&'static str];
+}
+```
+
+- `Component` トレイト自体（凍結済み、`docs/api/interactive-api.md` 第 3 節）
+  は変更しない。dirty tracking が不要な既存実装（`AppState` 等）は
+  `DirtyTracked` を実装しなくてよい。
+- 呼び出し側（`wasm-full` の適用層）は `update()` の直後に
+  `dirty_fields()` を呼び、返された集合と第 3 節の束縛点対応表を突き合わせて
+  該当ノードのみ更新する。無関係フィールドの束縛点には触れない
+  （#343 受け入れ条件「無関係ノードの DOM 変異ゼロ」に対応）。
+- `dirty_fields()` の実装は、各 `update()` 実装がアクション処理の中で
+  変更したフィールド名を `&'static str` の集合（`Vec<&'static str>` 等、
+  重複排除は呼び出し側の責務としない — 束縛点対応表側の走査は同一
+  フィールドへの複数回の更新適用が冪等であることを前提とする）へ
+  積み上げる形とする。マクロ生成は提供しない（#163 の判断 6 と同じ理由:
+  proc-macro 依存追加は REQ-3 に反する。手書き実装とする）。
+
+### 4.3 更新駆動の流れ（固定）
+
+```
+dispatch（文字列 → Action、既存 #341 以前の経路） →
+  Component::update（凍結 API、状態を変更） →
+    DirtyTracked::dirty_fields（変更フィールド集合） →
+      束縛点対応表から該当エントリのみ抽出 →
+        種別ごとに set_text_content / set_attribute / class_list を適用
+```
+
+- リストの増減・並べ替えが必要な変更フィールドは、通常の 3 種別
+  （テキスト/属性/class）では扱わず、必ず第 5 節の keyed list 経路を
+  通る（`dirty_fields()` にリストフィールド名が含まれる場合、束縛点
+  対応表側でそのフィールドが keyed list 束縛点として登録されている
+  ことを呼び出し側が判別する）。
+
+## 5. keyed list プリミティブ（#344 の入力）
+
+### 5.1 SSR 出力形式
+
+```rust
+// rws-core: keyed list ヘルパー（#344 で追加）
+pub fn keyed_list(field: &'static str, items: Vec<(String, Node)>) -> Node;
+```
+
+- 各子ノードは `data-key="<key>"` 属性を持つ要素としてレンダリングされる。
+  `key` は文字列（アプリ側が一意性を保証する）。
+- 親要素は `data-bind-list="<field>"` 属性を持ち、子の並び順が
+  `field` の現在値の並び順と一致することを表す（`data-bind-*` 系列の
+  第 4 の種別として、第 3.1 節の表に追記する）。
+
+### 5.2 fail-closed の定義（#344 受け入れ条件）
+
+| 異常系 | 挙動 |
+|--------|------|
+| キー衝突（同一親内で `key` が重複） | `render()`（SSR/SSG 生成時）が `Result::Err` を返し、衝突した HTML を出力しない。`unwrap()`/`panic!` は使わない（`.claude/rules/coding-rust.md` のエラーハンドリング規約） |
+| キー欠落（`keyed_list` の要素に空文字列キーを渡す） | 同上、`render()` 時点で `Err` とし出力しない |
+| クライアント側でキー照合に失敗（改ざん等により `data-key` が想定外の値） | 該当ノードを更新対象から除外し、束縛点対応表の再構築（フルスキャン）にフォールバックする。個別ノードの不整合が全体のクラッシュへ波及しない設計とする |
+
+いずれも「安全側（変更を適用しない・エラーとして扱う）に倒す」方針を
+採用し、未定義動作を残さない。
+
+### 5.3 CSR 側の最小 DOM 操作
+
+- キー照合により、新しい `field` の値（キー付きリスト）と現在の DOM 上の
+  `data-key` 列を比較し、**挿入・削除・移動のみ**を行う。**汎用 diff
+  アルゴリズム（morphdom 型の任意ノード比較）は実装しない**。構造変化は
+  この keyed list 経路が唯一である。
+- 新規挿入ノードの構築は `innerHTML`/`insertAdjacentHTML` を使わず、
+  `Node` 木（`keyed_list` が生成した子 `Node`）から
+  `document.create_element` → `set_attribute`（属性ごと）→
+  `set_text_content`（テキスト子ごと）→ `append_child` という
+  プログラム的構築で行う。これは第 4.1 節のテキスト更新不変条件
+  （HTML パーサを経由しない）を新規ノード挿入にも延長するものである。
+- 移動（並べ替え）は既存 DOM ノードの参照を保持したまま
+  `Node.insertBefore`（`web_sys::Node::insert_before` 相当）で位置のみを
+  変更し、ノードの再生成を行わない（フォーカス・入力状態の保持、
+  第 2 節の課題に対応）。
+- SSR / SSG 出力一致保証: `keyed_list` は既存の `Node` 木 API の一部として
+  実装するため、`render()` の出力は SSR・SSG・CSR 初回マウントで同一の
+  関数（`rws_core::render`）を経由し続ける。決定性は他の `Node` 種別と
+  同じ既存保証（`docs/design/wasm-full-architecture.md` 等の凍結表）を
+  継承する。
+
+## 6. `set_inner_html` 全置換の移行方針（#345 の入力）
+
+本節は #345 が実施する将来の移行手順を**記述**するものであり、本書
+（#340）自体はコード変更を含まない。現時点の防御（`should_repaint` 等）は
+本書によって一切弱体化されない。
+
+### 6.1 撤去手順
+
+1. `wasm-full/src/dom.rs` の `paint()`（`set_inner_html` 全置換、
+   `wasm-full/src/dom.rs:44`）を、第 4.3 節の更新駆動フローに置き換える。
+2. `wasm-full/src/events.rs` の `should_repaint: false` による入力時再描画
+   抑止（`wasm-full/src/events.rs:93` 付近）は、束縛点更新が実 DOM を
+   再構築しないため入力状態を破壊しなくなり、暫定運用として不要になる。
+   ただし「入力ハンドラは呼ばれたが対応する束縛点更新が存在しない」
+   ケースの扱いは #345 実装時に個別確認する（本書は撤去を許可する設計
+   条件を示すのみで、撤去自体は #345 のスコープ）。
+
+### 6.2 `mount_csr`（初回マウント）の `set_inner_html` の扱い（設計判断確定）
+
+初回マウント時は DOM 上に既存ノードが存在しない（保持すべきフォーカス・
+入力状態がない）ため、`set_inner_html` を使うこと自体は第 2 節の課題
+（既存状態の破壊）を引き起こさない。したがって、初回マウント用の
+`set_inner_html` 呼び出しは**撤去せず存置する**。ただし以下の条件で
+明示的な限定 API として文書化する。
+
+- `rws_core::render(component.view())` の出力（既定エスケープ済み HTML
+  文字列）**のみ**を渡す用途に限定した内部関数（例:
+  `mount_initial(root: &Element, html: &str)`）として切り出し、汎用の
+  DOM 更新経路（第 4〜5 節）とは呼び出し元を分離する。
+- 上記関数以外から `set_inner_html` を呼ばないことを、#345 実装時の
+  受け入れ条件（コードレビュー・grep 確認）に加える。
+
+### 6.3 移行順序と段階条件
+
+依存関係に従い `#341 → #342 → #343 → #344 → #345` の順に直列で実装する
+（`interactive` の dirty tracking が確定しないと `core` の束縛点 API の
+消費側要件が固まらず、`core` の束縛点 API が確定しないと `wasm-client`
+一般化・`wasm-full` 移行が着手できないため）。各段階で以下を非劣化条件
+とする。
+
+- XSS 回帰テスト（`interactive/tests/xss_escape.rs` 等、SSR/SSG/CSR/WASM
+  各経路）が削除・弱体化されないこと。
+- ハイドレーション roundtrip テスト（#163 系、
+  `wasm-full/tests/nested_hydration_state.rs`）が非劣化であること。
+- WASM バンドルサイズ上限（REQ-11）に対する影響を各段階で計測すること。
+
+## 7. 仮想 DOM・汎用 diff 非採用の根拠
+
+### 7.1 性能
+
+毎イベントで全 `Node` 木を再構築し文字列化 → ブラウザが再パースする
+現行 `paint()` 経路（計算量は木サイズに比例）に対し、束縛点更新は
+変更フィールド数に比例する計算量で完結する。仮想 DOM の diff アルゴリズム
+自体（新旧木の比較コード）を実装・保守する必要がなく、WASM バンドル
+サイズ上限（REQ-11）・glue コード行数の増加を避けられる。
+
+### 7.2 DOM 状態の保持
+
+実 DOM ノードを再構築しないため、フォーカス位置・入力途中のテキスト値・
+スクロール位置・IME 変換状態が構造的に保持される。現行の
+`should_repaint: false` による回避策（第 6.1 節）は対症療法であり、本設計
+はその根本原因（DOM 再構築そのもの）を解消する。
+
+### 7.3 XSS 面の構造的縮小
+
+更新経路が `set_text_content` / `set_attribute` / `class_list` / keyed list の
+プログラム的ノード構築（第 5.3 節）に閉じるため、HTML 文字列を実行時に
+組み立てて再パースする経路が消える。これにより「`raw_html()` 以外に
+エスケープ迂回が存在しない」という REQ-1 の保証を、**実行時の規律
+（レビューで守る）から API 形状（呼び出せる関数の集合そのものが HTML
+文字列を受け付けない）へ引き上げる**。第 8 節の不変条件がこれを凍結する。
+
+### 7.4 AI 開発前提の評価軸（#335 に対応）
+
+- **明示性**: 束縛点が `data-bind-*` 属性として HTML に現れるため、
+  `grep -r 'data-bind-'` や静的解析で「どの DOM ノードがどの状態フィールド
+  に依存するか」を人間・AI いずれも即座に確認できる。仮想 DOM の diff
+  結果はランタイムでしか観測できない。
+- **決定性**: 更新は「dirty フィールド集合 → 束縛点対応表引き → 種別
+  ごとの API 呼び出し」という一本道であり、diff アルゴリズムの内部
+  ヒューリスティック（key 推定・要素種別推定等）に依存しない。
+- **機械検証可能性**: `fw gate` やブラウザテストで「特定の束縛点のみが
+  更新され、無関係ノードが変異していないこと」を DOM 属性ベースで
+  アサーションできる（#343・#345 の受け入れ条件）。
+- **コンテキスト消費**: 汎用 diff アルゴリズムを実装しないことで
+  コード量が小さく保たれ、AI がこの経路を読み解く・レビューする際の
+  コンテキスト消費が小さい。
+
+### 7.5 却下案の記録
+
+| 却下案 | 却下理由 |
+|--------|---------|
+| 仮想 DOM（React 型、新旧木の diff + パッチ適用） | diff アルゴリズム自体の実装・保守コストが発生し、REQ-3（依存上限）・REQ-11（バンドルサイズ）に対する圧が大きい。第 7.4 節の明示性（束縛点が属性として現れない）も失われる |
+| 汎用 diff（morphdom 型、実 DOM 同士の比較） | 実 DOM ノード比較のヒューリスティックはブラウザの実装差・要素種別により挙動が変わりやすく、決定性（第 7.4 節）を損なう。構造変化は keyed list という単一の明示的経路に絞る方が AI にとって扱いやすい |
+| signal ベースの細粒度リアクティビティ（Solid 型） | ランタイムの依存追跡機構（signal グラフ構築・購読）自体が新たな抽象層であり、`forbid(unsafe_code)`・外部依存ゼロの `core`/`interactive` の制約下では自作コストが大きい。#352（意図的非採用の横断記録）側で棲み分けて記録する（本書は Phase 1 の実装判断として signal を採用しない理由を述べるに留め、横断的な位置づけの記録は #352 が担う） |
+
+## 8. スコープ外の明記
+
+| 項目 | 引き継ぎ先 |
+|------|-----------|
+| #341〜#345 のコード実装（`core`/`interactive`/`wasm-client`/`wasm-full` への実装反映） | 各対応イシュー（本書はいずれも設計のみ） |
+| Loader trait（Phase 2 相当の非同期データ取得層） | 別途 Phase として起票（本書スコープ外） |
+| `structure.toml` / `fw impact` / `fw gate` の束縛点・Loader・`fw new` への追従 | #353 |
+| 意図的非採用の横断記録（仮想 DOM・ファイルベースルーティング・HMR・signal 一括） | #352（本書第 7.5 節は Phase 1 実装判断としての却下記録であり、#352 の横断記録とは別建てで併存する） |
+| `docs/spec/` 本文（REQ-1/REQ-11 等）への v2 要件反映 | frontend-framework-spec リポジトリへの Issue 提案をユーザーへ別途提案する（本書はサブモジュール編集禁止のため直接反映しない） |
+
+## 9. セキュリティ不変条件
+
+1. **テキスト更新経路は HTML 解釈されない（受け入れ条件の中核）**:
+   テキスト束縛（`data-bind-text`）の更新は `Node.textContent`
+   （`set_text_content`）のみを経由する。DOM 仕様上 `textContent` への
+   代入は常にプレーンテキストとして扱われ、HTML マークアップとして
+   パースされない（新しい子ノードは単一のテキストノードとして生成
+   される）。`innerHTML` / `insertAdjacentHTML` はテキスト更新経路
+   （第 4 節）からは一切呼ばない。これにより、テキスト補間の更新に
+   関する XSS は構造的に不可能となる（既定エスケープの実行時規律に
+   加え、呼び出せる API そのものが HTML 注入を受け付けない）。
+2. **属性更新は `setAttribute` のみを経由する**: `data-bind-attr` の
+   更新対象属性は core の属性名ホワイトリスト（`is_valid_attr_name`、
+   第 3.3 節）で許可された名前と整合する。`on*` イベントハンドラ属性・
+   `href`/`src` 等 URL 系属性への `javascript:` スキーム注入面は本設計
+   自体では拡大しない（既存の `core::render()` 側の属性値エスケープ
+   保証をそのまま継承し、`data-bind-attr` は更新**先**を示すのみで
+   属性値自体は既定エスケープ済み state から渡される）。URL スキーム
+   検証の要否は既存の属性出力ポリシーの範囲内であり、本書で新たな
+   ホワイトリスト緩和は行わない。
+3. **keyed list の新規ノード構築は `Node` 木からのプログラム的構築のみ**
+   （第 5.3 節）とし、HTML 文字列を経由しない。挿入されるノードも
+   テキスト子は `set_text_content` で設定され、不変条件 1 と同じ保証を
+   継承する。
+4. **`raw_html()` は本経路から呼ばない**。束縛点更新・keyed list 更新
+   いずれの経路にもエスケープ迂回オプトインを組み込まない。新たな
+   エスケープ迂回経路を作らない（REQ-1、`.claude/rules/coding-rust.md`）。
+5. **束縛点属性・キー属性の値は既定エスケープ済み出力にのみ現れる**:
+   `data-bind-*`/`data-key` は `rws_core::render()` の属性値エスケープを
+   経由して出力される。フィールド名は `&'static str`（第 3.3 節）に
+   固定され、実行時の外部入力から構築されないため、属性名自体への
+   注入面も存在しない。
+6. **fail-closed（A05 相当）**: keyed list のキー衝突・欠落は `render()`
+   時点で `Err` とし、`unwrap()`/`panic!` を使わない（第 5.2 節）。
+   クライアント側のキー照合失敗も安全側（更新を適用しない）に倒す。
+7. **エラー・ログの機微情報非露出（A09 相当）**: dirty tracking・束縛点
+   対応表構築・keyed list 照合のいずれのエラーメッセージも、内部状態
+   の値そのものを含めず英語・固定文言とする（`wasm-client` 不変条件 6・
+   `docs/design/hydration-nested-state.md` 第 8 節と同じ方針の継承）。
+8. **サプライチェーン（REQ-3・REQ-11）**: #341〜#345 のいずれも依存
+   クレート追加をゼロとする前提で設計している（`core`/`interactive` の
+   外部依存ゼロ・依存上限 60 件/深さ 6 を維持）。依存追加が必要と判明
+   した場合は事前にユーザー承認を得る（`.claude/rules/coding-rust.md`）。
+
+## 10. 受け入れ基準対応表
+
+| イシュー #340 の受け入れ条件 | 対応する本書の節 |
+|------------------------------|------------------|
+| `docs/design/` に設計文書を追加し、後続タスクの実装範囲・API 形状・移行手順が判断可能である | 第 3 節（束縛点対応表・core API 形状）・第 4 節（更新種別・dirty tracking API 形状）・第 5 節（keyed list API 形状・fail-closed 定義）・第 6 節（`set_inner_html` 撤去手順・移行順序） |
+| セキュリティ不変条件（テキスト更新経路は HTML 解釈されない）を明記している | 第 9 節・不変条件 1（`set_text_content` が DOM 仕様上 HTML パースを経由しないことの明示） |
+
+## 11. 関連文書との整合確認
+
+- `docs/design/wasm-full-architecture.md` の冒頭ステータス節に、本書への
+  移行予告を追記する（既存記述の削除・改変は行わない。第 6 節の内容が
+  将来 #345 で反映されることのみを追記する）。
+- `docs/api/interactive-api.md` 第 3 節の `Component` 凍結表
+  （`fn update(&mut self, action: Self::Action)`、戻り値なし）を変更せず、
+  第 4.2 節の dirty tracking は対になる別トレイト（`DirtyTracked`）として
+  提供する設計とした。
+- `docs/design/hydration-nested-state.md` が確立した `data-hydrate-*` の
+  役割（状態値の注入）と、本書が新設する `data-bind-*`（更新先ノード
+  位置のマーキング）の役割分担を第 3.2 節で明示した。
+- `core/src/lib.rs` の `is_valid_attr_name`（属性名ホワイトリスト）・
+  `find_attr_values`（属性値走査、`data-hydrate`/`data-nav` が使用する
+  既存パターン）を、本書の `data-bind-*` 走査（第 3.2 節）・属性検証
+  （第 3.3 節）がそのまま再利用する設計とした。

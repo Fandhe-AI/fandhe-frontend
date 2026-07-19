@@ -42,6 +42,14 @@ PoC-5（`docs/spec/03-poc/wasm-runtime-split/wasm-full/src/lib.rs`）で実証�
 場合は、`docs/api/interactive-api.md` の凍結表を正として TASK-11.2b 実装時に調整する
 （`docs/api/app-api.md`・`docs/api/hydration-api.md` の運用に倣う）。
 
+**将来の移行予告（イシュー #336・#340）**: 第 5 節以降が確定する
+`dom::paint`（`web_sys::Element::set_inner_html` によるイベントごとの全置換）は、
+Phase 1（#336・`docs/design/dom-binding-update-design.md`）で束縛点最小更新
+（`set_text_content`/`set_attribute`/`class_list`）+ keyed list プリミティブへの
+移行が計画されている。移行方針・API 形状・セキュリティ不変条件は
+`docs/design/dom-binding-update-design.md` を正とする。本書の以下の記述・
+既存の防御（`should_repaint` 等）は移行完了（#345）までは変更されない。
+
 ## 2. クレート構成の確定
 
 - **パッケージ名**: `rws-wasm-full`
