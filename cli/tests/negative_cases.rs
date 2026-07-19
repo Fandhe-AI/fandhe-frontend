@@ -432,3 +432,66 @@ fn unreviewed_raw_html_in_test_target_is_blocked_by_lint() {
          まま通過するはず（ブロック理由の特定性）: stdout={stdout}"
     );
 }
+
+/// イシュー #372 e2e 回帰（自己参照様ソース）。コメント言及・フィクスチャ風
+/// 文字列リテラル・「別識別子のサフィックス」のみで構成されたソース
+/// （本リポジトリ自身の `cli/src/gate.rs` に実在する自己参照パターンの縮図）を
+/// `default_escape_check` に通しても passed のままであることを固定する。
+/// [`code_context_mask`]（`cli/src/gate.rs`）の精密化が退行すると、いずれかの
+/// 行が誤って違反として検出され `default_escape_check` が failed に変わる。
+#[test]
+fn self_referential_source_does_not_block_default_escape_check() {
+    let injected = baseline_main_rs().replacen(
+        "fn main() {",
+        "// raw_html(x) is the opt-in escape hatch documented here\n\
+         /// see raw_html() for details\n\
+         fn detects_unreviewed_raw_html() {}\n\n\
+         fn main() {\n    \
+         let _fixture = \"unreviewed raw_html(x) call\";\n",
+        1,
+    );
+
+    let project = write_case_project("self-referential-source", &injected);
+    let (code, stdout, stderr) = run_fw_gate(&project);
+
+    assert_eq!(
+        check_passed(&stdout, "default_escape_check"),
+        Some(true),
+        "コメント・文字列リテラル・識別子サフィックスのみの自己参照様ソースが \
+         誤って違反として検出されている（イシュー #372 の走査精密化が退行）: \
+         code={code} stdout={stdout} stderr={stderr}"
+    );
+}
+
+/// 上記の自己参照様ソースへ実際の未レビュー `raw_html()` 呼び出しを追加すると、
+/// 引き続き `default_escape_check` が failed（BLOCKED）になることを固定する
+/// （非弱体化の確認。誤検知解消が偽陰性を生んでいないことの対）。
+#[test]
+fn self_referential_source_still_blocks_on_actual_raw_html_call() {
+    let injected = baseline_main_rs().replacen(
+        "fn main() {",
+        "// raw_html(x) is the opt-in escape hatch documented here\n\
+         /// see raw_html() for details\n\
+         fn detects_unreviewed_raw_html() {}\n\n\
+         fn raw_html(s: String) -> String {\n    s\n}\n\n\
+         fn main() {\n    \
+         let _fixture = \"unreviewed raw_html(x) call\";\n    \
+         let _ = raw_html(\"actual call\".to_string());\n",
+        1,
+    );
+
+    let project = write_case_project("self-referential-source-with-call", &injected);
+    let (code, stdout, stderr) = run_fw_gate(&project);
+
+    assert_eq!(
+        code, 1,
+        "自己参照様ソースに混在する実際の raw_html() 呼び出しが検出されず \
+         fw gate を通過してしまった: stdout={stdout} stderr={stderr}"
+    );
+    assert_eq!(
+        check_passed(&stdout, "default_escape_check"),
+        Some(false),
+        "実際の raw_html() 呼び出しは default_escape_check で検出され続ける \
+         はず（誤検知解消が偽陰性を生んでいないことの確認）: stdout={stdout}"
+    );
+}

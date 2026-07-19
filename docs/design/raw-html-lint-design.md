@@ -88,6 +88,16 @@ REQ-1（既定エスケープ）の唯一の許容迂回経路は `rws_core::raw
      `line_has_reviewed_expect_attribute`）。単独のコメントはもはや受理しない
      （回帰テスト: `scan_file_rejects_comment_only_marker_as_spoofable`・
      `fw_gate_still_blocks_comment_only_spoofed_marker`）。
+   - **走査の「コード文脈限定」への精密化（イシュー #372）**: 当初の走査は
+     `raw_html` の全出現（コメント・文字列リテラル内を含む）を対象としていた
+     ため、`fw gate` を本リポジトリ自身（doc コメントで `raw_html()` に言及する
+     `interactive`/`wasm-*` 系クレート、メッセージ文言・テストフィクスチャ
+     文字列を持つ `cli` 自身）へ適用すると自己参照誤検知で恒常 BLOCKED になる
+     問題があった。コメント・文字列リテラル・文字リテラルの内側と、識別子
+     サフィックス（`..._raw_html(` 等）を字句規則上呼び出しになり得ない文脈と
+     して除外する状態機械（`code_context_mask`）へ精密化し解消した。除外は
+     偽陽性のみを削り偽陰性を生まないため主防御・多層防御の構成は変えない
+     （詳細は `docs/design/gate-design.md` §2.2a）。
    - **ブランケット抑止の監査**を追加する。`#![allow(clippy::disallowed_methods)]`
      や `#![expect(clippy::disallowed_methods)]`（ファイル・モジュール冒頭の
      内部属性、ファイル全体の検出を一括無効化する）は、呼び出し個別のレビュー
