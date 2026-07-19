@@ -354,9 +354,12 @@ mod wiring {
     /// アップ、Cursor Bugbot 指摘 `27cc68fd`）。構築失敗時に `pushState` が
     /// 先行して実行されると、URL だけが進みアドレスバーと表示中の DOM が
     /// 食い違う状態になり得るため、prepare 成功を `pushState` の前提条件と
-    /// する（apply 段の `root` 再解決失敗（要素消失）はこの時点では検知
-    /// できないため対象外。通常運用でこのアプリの `root` 自身は
-    /// `render_route`/`apply_render` から差し替えられないため消失しない）。
+    /// する。apply 段の `root` 再解決失敗（要素消失）はこの関数自身は検知
+    /// できないため、呼び出し元の `start_router` クリックハンドラ側で
+    /// `root_id` 要素の存在確認を `prevent_default`/本関数呼び出しの前提
+    /// 条件としている（イシュー #404 レビュー指摘。要素消失時に
+    /// `prevent_default` だけ呼んでブラウザ既定のフォールバック遷移まで
+    /// 止めてしまう「詰み」状態を防ぐ）。
     fn push_and_render(document: &Document, root_id: &str, path: &str) {
         let Some(route) = resolve_path(path) else {
             return;
@@ -459,9 +462,21 @@ mod wiring {
                 // に定めのない値をクライアント側で誤判定しない）。
                 return;
             }
-            // `render_route`（`push_and_render` 経由）の apply 段が
-            // `root_id` 要素を `get_element_by_id` で再解決するため、ここでの
-            // 存在確認は不要（イシュー #404 で apply 段へ移動）。
+            // `root_id` 要素が現に存在する場合のみ `prevent_default` する
+            // （イシュー #404 レビュー指摘。`push_and_render` は
+            // `prepare_render` 成功後に `pushState` するため通常は URL/DOM
+            // 不整合を防げるが、`root_id` 要素自体が消失している場合は
+            // `prepare_render` は成功しうる一方 `apply_render` 側の
+            // `get_element_by_id` が `None` になり no-op で終わる。この状態で
+            // `prevent_default` を呼ぶと、ブラウザ既定のフルページ遷移
+            // フォールバックも止めた上で `pushState` により URL のみが進み
+            // DOM・タイトルが更新されない「詰み」状態になる。ここで存在確認
+            // した上で `prevent_default`/`push_and_render` の実行有無を
+            // 決めることで、要素消失時はブラウザ既定の遷移に委ねる
+            // （fail-closed ではなく安全側フォールバック）。
+            if click_document.get_element_by_id(&root_id_owned).is_none() {
+                return;
+            }
             mouse_event.prevent_default();
             push_and_render(&click_document, &root_id_owned, &value);
         });
