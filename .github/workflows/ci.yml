@@ -1381,6 +1381,13 @@ jobs:
             --template app --dir /tmp/rws-template-app-wasm-smoke
 
       - name: tools/wasm/build.sh の実行
+        # 直前ステップと同じくフィクスチャ専用 CARGO_TARGET_DIR を明示指定する
+        # （`.claude/rules/ci.md` 「Self-hosted 環境の前提」）。未指定だと
+        # self-hosted runner の共有 CARGO_TARGET_DIR=/cargo-target が使われ、
+        # build.sh が期待する `wasm/target/...` とパスが一致しなくなる
+        # （イシュー #411 CI 失敗の原因）。
+        env:
+          CARGO_TARGET_DIR: /tmp/rws-template-app-wasm-smoke-target/wasm-build
         run: |
           set -euo pipefail
           cd /tmp/rws-template-app-wasm-smoke/template-app-wasm-smoke
