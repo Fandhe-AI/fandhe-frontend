@@ -30,15 +30,19 @@ frontend-framework/
 │       ├── 05-tasks.md         # タスク分解（依存・工数）
 │       └── 06-roadmap.md       # MS-1〜MS-5・着手判定
 ├── templates/
-│   └── default/
-│       ├── deny.toml         # 標準プロジェクトテンプレート同梱の cargo-deny 設定（TASK-4.1 / REQ-4）
-│       ├── structure.toml    # fw gate が唯一の情報源として読む構造マニフェスト（生成直後 fw gate PASS 保証、イシュー #351）
-│       ├── tools/
-│       │   └── npm-asset-build/  # NPM 静的アセットゲートの同梱コピー（正本は tools/npm-asset-build/、イシュー #316）
-│       └── .github/
-│           └── workflows/
-│               ├── deny.yml            # 禁止クレート追加を CI でブロックするテンプレートワークフロー（TASK-4.2 / REQ-4）
-│               └── npm-asset-gate.yml  # NPM 静的アセットゲート（install.sh 経由）のテンプレートワークフロー（REQ-12, イシュー #316）
+│   ├── default/
+│   │   ├── deny.toml         # 標準プロジェクトテンプレート同梱の cargo-deny 設定（TASK-4.1 / REQ-4）
+│   │   ├── structure.toml    # fw gate が唯一の情報源として読む構造マニフェスト（生成直後 fw gate PASS 保証、イシュー #351）
+│   │   ├── tools/
+│   │   │   └── npm-asset-build/  # NPM 静的アセットゲートの同梱コピー（正本は tools/npm-asset-build/、イシュー #316）
+│   │   └── .github/
+│   │       └── workflows/
+│   │           ├── deny.yml            # 禁止クレート追加を CI でブロックするテンプレートワークフロー（TASK-4.2 / REQ-4）
+│   │           └── npm-asset-gate.yml  # NPM 静的アセットゲート（install.sh 経由）のテンプレートワークフロー（REQ-12, イシュー #316）
+│   └── app/                  # `fw new --template app`（イシュー #378）: rws-core/rws-app 依存の拡充テンプレート
+│       ├── src/main.rs       # Loader・束縛点 API（bind_text/keyed_list）・render の実体サンプル
+│       ├── vendor/           # rws-core / rws-app のソース vendor 同梱（publish=false のため。正本との乖離は cli/tests/template_vendor_drift.rs が検知）
+│       └── static/embed.html # CSR マウント骨格（templates/embed/embed.html の同梱コピー）
 └── .claude/
     ├── agents/               # カテゴリ別 sub-agent 定義
     ├── rules/                # 委譲・コーディング・セキュリティ規約

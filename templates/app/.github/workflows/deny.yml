@@ -1,0 +1,101 @@
+name: deny
+
+# TASK-4.2（REQ-4: AI 生成コード・依存の検証フック）— 本テンプレートを使って
+# 生成されたプロジェクト（テンプレート利用者のリポジトリ）向けの CI ワークフロー。
+# `templates/` 配下にあるため本フレームワーク自身の CI としては発火しない
+# （本リポジトリ自身への cargo-deny 組み込みはスコープ外。PR 本文参照）。
+#
+# 役割: 同梱の `deny.toml`（TASK-4.1）が定義する禁止クレート・許可外ライセンス・
+# 不審な取得元のポリシーを、生成プロジェクトの CI で強制する。PoC-7
+# （docs/spec/03-poc/ai-self-maintenance）の `negative-banned-dependency` ケースで
+# 実測した `policy(cargo-deny bans/licenses)` の `BLOCKED` を、テンプレート利用者の
+# 実運用で再現するのが目的。
+#
+# セキュリティ不変条件（security.md 準拠）:
+# - ポリシーの正は `deny.toml` のみ。本ワークフローには継続を許す input・
+#   環境変数・`continue-on-error`・`|| true` を一切設けない（fail-closed）。
+#   AI エージェントが本ワークフロー側に緩和の迂回経路を作ってはならない。
+# - `advisories`（既知脆弱性 DB 照合）は本 PR のスコープ外として TASK-4.3 へ
+#   意図的に委譲する（bans/licenses/sources の 3 チェックに限定する。
+#   deny.toml 内コメント参照）。advisories を含めたオンライン CI 運用手順は
+#   `docs/policy/cargo-deny-advisories.md`（TASK-4.3）に文書化されている。
+# - 第三者製 Action（例: EmbarkStudios/cargo-deny-action）は採用しない。
+#   全 Action 参照はフル SHA 固定とする。
+# - cargo-deny の導入はイシュー #314（cargo-deny 導入パターンの全ワークフロー
+#   統一）に従い、`tools/ci/ensure-gate-tools.sh`（本リポジトリ自身の CI・
+#   ローカル開発・AI 自己保守フックが使う導入パターン）と同一の
+#   「公式リリースの SHA256 検証済みプリビルトバイナリをバージョン固定で
+#   導入する」パターンに統一する（`cargo install` による任意最新版の
+#   ソースからのコンパイルは行わない）。本テンプレートは配布先リポジトリに
+#   `tools/ci/` を同梱しないため、同スクリプトを直接呼び出せず、同一
+#   パターンをここへインラインで複製する。バージョン + SHA256 の pin 値は
+#   `xtask/tests/template_deny_workflow.rs` のドリフト検知テストが
+#   `ensure-gate-tools.sh` 側の pin と一致することを強制する
+#   （本リポジトリの `cargo test -p xtask` / CI で検証。テンプレート単体の
+#   利用者側 CI では本コメントと pin 値の追従が前提）。
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deny-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deny:
+    name: REQ-4 banned dependency / license / source gate (cargo-deny)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # actions/checkout v6.0.3（本リポジトリの既存ワークフローと同一 SHA に固定）
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+
+      - name: Setup Rust toolchain
+        # dtolnay/rust-toolchain（本リポジトリの deps-check.yml と同一 SHA に固定）
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+
+      - name: Install cargo-deny
+        # `tools/ci/ensure-gate-tools.sh`（本フレームワーク自身の CI）と同一の
+        # 「バージョン固定 + SHA256 チェックサム検証付きプリビルトバイナリ」
+        # パターン（上記コメント参照）。`cargo install` によるソースからの
+        # 任意最新版コンパイルは行わない。
+        #
+        # 既存導入済みバイナリの再利用判定は完全一致のみで行う（部分文字列
+        # 一致だと `0.19.80` のような上位バージョンにも誤マッチし、pinned
+        # バイナリの検証を素通りしてしまうため。ensure-gate-tools.sh と同一の
+        # fail-closed 方針）。
+        run: |
+          set -euo pipefail
+          CARGO_DENY_VERSION="0.19.8"
+          CARGO_DENY_SHA256="70e769ae3872e34d45132b17040859175e11401dc12dddb0303e0b8c7d088f3f"
+
+          existing_version=""
+          if existing_version="$(cargo deny --version 2>/dev/null)"; then
+            existing_semver="$(awk '{print $2}' <<<"${existing_version}")"
+            if [ "${existing_semver}" = "${CARGO_DENY_VERSION}" ]; then
+              echo "cargo-deny ${CARGO_DENY_VERSION} は導入済みのためインストールをスキップする"
+              exit 0
+            fi
+          fi
+
+          archive="cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          url="https://github.com/EmbarkStudios/cargo-deny/releases/download/${CARGO_DENY_VERSION}/${archive}"
+          tmp_dir="$(mktemp -d)"
+          curl -sSfL -o "${tmp_dir}/${archive}" "${url}"
+          echo "${CARGO_DENY_SHA256}  ${tmp_dir}/${archive}" | sha256sum -c -
+          tar xzf "${tmp_dir}/${archive}" -C "${tmp_dir}"
+          install_dir="${tmp_dir}/cargo-deny-${CARGO_DENY_VERSION}-x86_64-unknown-linux-musl"
+          echo "${install_dir}" >> "${GITHUB_PATH}"
+
+      - name: Run cargo deny check (bans / licenses / sources)
+        # fail-closed: 終了コードをそのまま CI の成否に伝播させる。
+        # advisories は docs/policy/cargo-deny-advisories.md（TASK-4.3）へスコープ委譲のため
+        # 対象外（上記コメント参照）。禁止クレート追加時はここで非 0 終了しジョブが失敗する。
+        run: |
+          cargo deny check bans licenses sources --config deny.toml

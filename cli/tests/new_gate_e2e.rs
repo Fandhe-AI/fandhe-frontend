@@ -300,3 +300,122 @@ fn fw_new_output_fw_structure_succeeds_and_fw_impact_does_not_hit_root_scan_erro
          stderr={impact_stderr}"
     );
 }
+
+/// イシュー #378 受け入れ条件 2: `fw new --template app`（rws-core/rws-app
+/// 依存の拡充テンプレート、vendor 同梱）が生成直後に `fw gate` PASS する
+/// ことを固定する。`fw_new_output_passes_fw_gate`（`default` テンプレート）
+/// と同一の断定方針（環境依存の `policy` のみ両分岐を確認、他 4 チェックは
+/// 常に PASS）を踏襲する。vendored crate 群のコンパイルを伴うため
+/// `default` より実行時間が長い（PR 本文に記載する既知事項）。
+#[test]
+fn fw_new_app_template_output_passes_fw_gate() {
+    let scratch = unique_scratch_dir();
+    let _scratch_guard = ScratchProject(scratch.clone());
+
+    let (new_code, new_stdout, new_stderr) = run_fw_new(&[
+        "gate-pass-app-template",
+        "--template",
+        "app",
+        "--dir",
+        &scratch.to_string_lossy(),
+    ]);
+    assert_eq!(
+        new_code, 0,
+        "fw new --template app が失敗した: stdout={new_stdout} stderr={new_stderr}"
+    );
+
+    let project_dir = scratch.join("gate-pass-app-template");
+    let (gate_code, gate_stdout, gate_stderr) = run_fw_gate(&project_dir);
+
+    for name in [
+        "type_check",
+        "default_escape_check",
+        "lint",
+        "test",
+        "policy",
+    ] {
+        assert!(
+            gate_stdout.contains(&format!("\"name\":\"{name}\"")),
+            "fw gate のレポートにチェック `{name}` が現れない: stdout={gate_stdout}"
+        );
+    }
+
+    for name in ["type_check", "default_escape_check", "lint", "test"] {
+        assert_eq!(
+            check_passed(&gate_stdout, name),
+            Some(true),
+            "fw new --template app 生成直後のプロジェクトで `{name}` が失敗した \
+             （app テンプレートと fw gate の前提がドリフトしている）: \
+             stdout={gate_stdout} stderr={gate_stderr}"
+        );
+    }
+
+    if cargo_deny_available() {
+        assert_eq!(
+            gate_code, 0,
+            "cargo-deny 導入環境では fw new --template app 生成直後は PASS するはず: \
+             stdout={gate_stdout} stderr={gate_stderr}"
+        );
+        assert!(
+            gate_stdout.contains("\"gate_result\":\"PASS\""),
+            "stdout={gate_stdout}"
+        );
+    } else {
+        assert_eq!(
+            gate_code, 1,
+            "cargo-deny 未導入環境では policy の fail-closed により BLOCKED \
+             (終了コード 1) のはず: stdout={gate_stdout}"
+        );
+        assert!(
+            gate_stdout.contains("environment error: "),
+            "policy の failed 出力は environment error であることを明示する \
+             プレフィックスを含むはず: stdout={gate_stdout}"
+        );
+    }
+}
+
+/// イシュー #378: `fw new --template app` 生成物への未レビュー `raw_html()`
+/// 注入が `default_escape_check` で検出されることを固定する
+/// （`fw_new_output_default_escape_check_detects_injected_violation_in_root_src`
+/// の app テンプレート版）。app は rws-core に依存するため `raw_html()` が
+/// 実際に解決可能な呼び出しになる点が `default`（rws-core 非依存）との
+/// 差分であり、clippy.toml の disallowed-methods が依存追加によって
+/// 初めて実効化されることを固定する（実装計画 §7 セキュリティ考慮）。
+#[test]
+fn fw_new_app_template_default_escape_check_detects_injected_violation() {
+    let scratch = unique_scratch_dir();
+    let _scratch_guard = ScratchProject(scratch.clone());
+
+    let (new_code, new_stdout, new_stderr) = run_fw_new(&[
+        "gate-pass-app-violation",
+        "--template",
+        "app",
+        "--dir",
+        &scratch.to_string_lossy(),
+    ]);
+    assert_eq!(
+        new_code, 0,
+        "fw new --template app が失敗した: stdout={new_stdout} stderr={new_stderr}"
+    );
+
+    let project_dir = scratch.join("gate-pass-app-violation");
+    let main_rs = project_dir.join("src").join("main.rs");
+    let mut content = std::fs::read_to_string(&main_rs).expect("failed to read src/main.rs");
+    content.push_str("\nfn unreviewed_raw_html_probe() {\n    rws_core::raw_html(\"x\");\n}\n");
+    std::fs::write(&main_rs, content).expect("failed to write src/main.rs");
+
+    let (gate_code, gate_stdout, gate_stderr) = run_fw_gate(&project_dir);
+
+    assert_eq!(
+        check_passed(&gate_stdout, "default_escape_check"),
+        Some(false),
+        "app テンプレート生成物の src/ 直下に注入した未レビュー raw_html() \
+         呼び出しが default_escape_check で検出されなかった: \
+         stdout={gate_stdout} stderr={gate_stderr}"
+    );
+    assert_ne!(
+        gate_code, 0,
+        "default_escape_check が failed の場合 fw gate 全体も非ゼロで \
+         終了するはず: stdout={gate_stdout}"
+    );
+}

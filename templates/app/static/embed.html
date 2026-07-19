@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <!-- charset 宣言は HTML の先頭 1024 バイト以内に置く必要がある（ブラウザの
+       文字コード自動判定の仕様）。下の日本語コメントが長いため、charset を
+       このファイル冒頭近くに先出しし、詳細な説明コメントはこの後ろに置く。 -->
+  <meta charset="utf-8">
+  <!--
+    TASK-7.1a（#52）の成果物: 最小埋め込み構成の製品版テンプレート。
+
+    このファイルは「既存の静的 HTML ページに、フレームワーク管理下の <div> を
+    一つだけ追加する」という最小埋め込み構成（REQ-7）の骨格そのものであり、
+    利用者はこのファイルをコピーして自分のページに合わせて書き換える想定。
+
+    責務境界（重要・セキュリティ不変条件）:
+      フレームワークが安全性（既定エスケープ）を保証するのは、下記の
+      マウントポイント <div id="app-list"> の内側だけ。それ以外の素の HTML
+      （見出し・段落・このページの他の <script> 等）はフレームワークの管理外
+      であり、その安全性はページ作者の責務（docs/guides/embedding-guide.md 5 節）。
+
+    呼び出し契約（docs/api/hydration-api.md 第 3 節で凍結済み）:
+      mount_csr(root_id) は rws-wasm-client（TASK-6.2b・#48、本テンプレート
+      作成時点で未マージ）が提供する #[wasm_bindgen] 関数。内部で
+      rws_app::list_page 等（SSR/SSG からも同一関数が呼ばれる、REQ-6 の
+      分岐なし契約）を呼び、rws_core::render() 済み（＝既定エスケープ済み）の
+      HTML を root_id 要素へ反映する。このテンプレート自身は HTML 文字列組み立てや
+      DOM API を直接呼ぶコードを一切含まない
+      （.claude/rules/coding-rust.md「HTML 文字列の直接組み立て禁止」）。
+  -->
+  <title>既存ページへの部分埋め込みサンプル</title>
+  <!--
+    TASK-8.1（#59）: SSR ページ遷移（クロスドキュメントナビゲーション）を
+    JS 0 行で有効化する宣言的機構。`rws_app::page_shell()`（SSR/SSG 標準構成）が
+    既定同梱する at-rule と同一のものを、最小埋め込み構成側にも明示的に置く。
+
+    View Transitions Level 2 で標準化された `@view-transition` at-rule により
+    ブラウザ既定のクロスドキュメント遷移アニメーションが有効になる。
+    旧世代の meta タグベースの実験的構文は標準化過程で廃止されたため使用しない
+    （経緯は app/src/lib.rs の page_shell 実装・docs/guides/view-transitions.md 参照）。
+
+    非対応ブラウザではこの at-rule は単に無視され、通常のナビゲーションへ
+    フォールバックする（graceful degradation、追加の JS 分岐は不要）。
+    同一文書内（SPA 的）の遷移は static/view-transitions.js の
+    withViewTransition() が別途担う（役割分担は docs/guides/view-transitions.md）。
+    このページはフレームワーク管理外の静的 HTML のため、この <style> は
+    利用者がコピー後に削除しても構わない（責務境界は本ファイル冒頭のコメント参照）。
+  -->
+  <style>@view-transition { navigation: auto; }</style>
+</head>
+<body>
+  <h1>既存の静的ページ（フレームワーク外で書かれた想定）</h1>
+  <p>この段落は素の HTML であり、フレームワークの管理下にありません。</p>
+
+  <!-- ここだけ rws-app の CSR コンポーネントで埋める（アイランド的な最小構成）。
+       初期状態は空で、mount_csr() 呼び出し後に既定エスケープ済み HTML が入る。 -->
+  <div id="app-list"></div>
+
+  <p>この段落も素の HTML です。フレームワークは上の div の中身にしか関与しません。</p>
+
+  <script type="module">
+    /**
+     * WASM モジュールを初期化し、mount_csr でマウントポイントへ描画する。
+     *
+     * 参照する rws_wasm_client.js は rws-wasm-client クレート（#48）が
+     * 生成するグルーコードで、このページと同一オリジンに配置する
+     * （外部 CDN からの読み込みはサプライチェーン面のリスク拡大につながる
+     * ため行わない。.claude/rules/security.md）。
+     */
+    import init, { mount_csr } from "./wasm/rws_wasm_client.js";
+
+    async function main() {
+      await init();
+      // "app-list" は上記マウントポイント <div id="app-list"> と対応する。
+      mount_csr("app-list");
+    }
+
+    main();
+  </script>
+</body>
+</html>

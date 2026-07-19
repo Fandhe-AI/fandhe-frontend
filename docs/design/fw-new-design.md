@@ -1,4 +1,5 @@
-# `fw new` 設計（TASK-13.4 相当、イシュー #350）
+# `fw new` 設計（TASK-13.4 相当、イシュー #350／複数テンプレート選択、
+イシュー #378）
 
 ## 1. 目的とトレーサビリティ
 
@@ -7,7 +8,7 @@
 - **背景**: AI エージェントが `fw new` なしで毎回 boilerplate を生成すると
   プロジェクト構成がドリフトし、`fw gate` / `fw impact` / `structure.toml`
   が前提とする「全プロジェクトが同一構成」を維持できなくなる。`fw new` は
-  `templates/default/` を決定的に展開することでこれを防ぐ。
+  `templates/<name>/` を決定的に展開することでこれを防ぐ。
 - **受け入れ条件**:
   1. 同一引数での 2 回実行が同一出力（決定性）
   2. 既存ディレクトリへの上書きは fail-closed（明示フラグなしでは拒否）
@@ -17,16 +18,21 @@
   PASS する構成保証」（兄弟イシュー）でテンプレートへの `structure.toml`
   追加・「生成直後 `fw gate` PASS」の e2e（`cli/tests/new_gate_e2e.rs`）が
   実装済み。§3・§4・§8 参照。
+- **関連 Issue（追補 2）**: #378「feat(cli): fw new の複数テンプレート選択と
+  テンプレート骨格の拡充」で `--template` 選択 UI と、rws-core / rws-app
+  依存の拡充テンプレート `app`（Loader・束縛点 API・`rws_core::render` の
+  実体サンプル）を追加。§2・§3・§3a・§9 参照。
 
 ## 2. CLI 契約
 
 ```
-fw new <project-name> [--dir <parent-dir>] [--force]
+fw new <project-name> [--template <template>] [--dir <parent-dir>] [--force]
 ```
 
 | 要素 | 説明 |
 |------|------|
-| `<project-name>` | 必須の第 1 位置引数。§3 の検証規則を満たさない場合は使用法エラー（終了コード 2） |
+| `<project-name>` | 必須の第 1 位置引数。§5 の検証規則を満たさない場合は使用法エラー（終了コード 2） |
+| `--template <template>` | 使用するテンプレート名（イシュー #378）。省略時は `default`。未知の名前は使用法エラー（終了コード 2）で、stderr に利用可能テンプレート一覧を出す。allowlist は `cli/src/new_template.rs::TEMPLATES` |
 | `--dir <parent-dir>` | 展開先の親ディレクトリ。省略時はカレントディレクトリ。ターゲットは `<parent-dir>/<project-name>` |
 | `--force` | ターゲットが既存でも展開を許可する。テンプレート該当ファイルのみ上書きし、テンプレート外の既存ファイルは削除しない（`rm -rf` 相当の自動削除は行わない） |
 
@@ -47,34 +53,47 @@ fw new <project-name> [--dir <parent-dir>] [--force]
 （`json_out.rs` の既存契約、security.md A08 対策）。
 
 ```json
-{"created":"<target-path>","files":["<rel-path-1>","<rel-path-2>", ...]}
+{"created":"<target-path>","template":"<template-name>","files":["<rel-path-1>","<rel-path-2>", ...]}
 ```
 
-`files` は展開順（[`TEMPLATE_FILES`](#3-テンプレートの取得方式コンパイル時埋め込み--ドリフト検知テスト)
-の固定配列順）で並ぶ。
+`template` フィールド（イシュー #378 追加、既存フィールドへの追加的変更）は
+使用したテンプレート名（`default`/`app`）を表す。`files` は展開順
+（テンプレートの `files` 固定配列順、§3）で並ぶ。
 
-## 3. テンプレートの取得方式: コンパイル時埋め込み + ドリフト検知テスト
+## 3. テンプレートの取得方式: コンパイル時埋め込み + レジストリ化 + ドリフト検知テスト
 
 `fw` は単一実行ファイル配布（Docker 想定）が目標のため、実行時に
-`templates/default/` のファイルシステム配置へ依存させず、`include_str!`
+`templates/<name>/` のファイルシステム配置へ依存させず、`include_str!`
 によるコンパイル時埋め込みとする。
 
-`cli/src/new_template.rs` に静的マニフェスト `TEMPLATE_FILES: &[TemplateFile]`
-を定義する:
+`cli/src/new_template.rs` に静的マニフェスト `Template`/`TemplateFile` を
+定義する（イシュー #378 で単一 `TEMPLATE_FILES` 配列から一般化）:
 
 ```rust
 pub(crate) struct TemplateFile {
     pub(crate) rel_path: &'static str,   // 例: "src/main.rs"（コンパイル時定数のみ）
-    pub(crate) contents: &'static str,   // include_str!("../../templates/default/...")
+    pub(crate) contents: &'static str,   // include_str!("../../templates/<name>/...")
     pub(crate) executable: bool,         // git mode 100755 のファイルのみ true
 }
+
+pub(crate) struct Template {
+    pub(crate) name: &'static str,                    // "--template <name>" の照合値
+    pub(crate) files: &'static [TemplateFile],
+    pub(crate) needle: &'static str,                   // パッケージ名置換対象
+    pub(crate) substituted_files: &'static [&'static str],
+}
+
+pub(crate) const TEMPLATES: &[Template] = &[/* "default", "app" */];
 ```
 
-正本は従来どおり `templates/default/`。埋め込みとの乖離は
-`cli/tests/new_e2e.rs::embedded_template_matches_templates_default_on_disk`
-（ドリフト検知テスト）が機械的に検出する。テンプレートにファイルが
-増減・変更されたら CI で必ず落ちる仕組みとし、手動同期に頼らない
-（`.claude/rules/ci.md` の cargo-deny pin ドリフト検知と同じ運用方針）。
+正本は従来どおり `templates/<name>/`。埋め込みとの乖離は
+`cli/tests/new_e2e.rs::embedded_template_matches_templates_on_disk`
+（全テンプレートをパラメタ化したドリフト検知テスト）が機械的に検出する。
+テンプレートにファイルが増減・変更されたら CI で必ず落ちる仕組みとし、
+手動同期に頼らない（`.claude/rules/ci.md` の cargo-deny pin ドリフト検知と
+同じ運用方針）。
+
+### 3.1 `default`（TASK-4.4 負例検出テスト土台、変更なし）
 
 `templates/default/` の対象 13 ファイル（git mode 込み）:
 
@@ -85,6 +104,67 @@ pub(crate) struct TemplateFile {
 - 100755: `tools/npm-asset-build/apply_exempt.py` /
   `tools/npm-asset-build/check_static_only.py` /
   `tools/npm-asset-build/install.sh`
+
+イシュー #378 以前と完全後方互換（`--template` 省略時は `default`、同一
+バイト出力）。
+
+### 3.2 `app`（イシュー #378 新設。rws-core / rws-app 依存の拡充テンプレート）
+
+`templates/default/`（rws-core 非依存の最小骨格）に対し、フレームワークの
+実 API（`Loader` trait 実装・束縛点 API・`rws_core::render`）を使う出発点を
+提供する。`templates/app/` の対象 22 ファイル:
+
+- プロジェクト骨格: `Cargo.toml`（`rws-core`/`rws-app` へ vendor path 依存）・
+  `Cargo.lock`・`structure.toml`（`crate = "rws-template-app"`）・
+  `src/main.rs`（`DemoItemsLoader`/`DemoItemDetailLoader` → `list_page`/
+  `detail_page` → `render` で `dist/` へ書き出す SSG 的最小 SSR。
+  `bind_text`/`keyed_list` の束縛点 API 使用サンプルも含む）・
+  `tests/escape_regression.rs`（XSS 回帰テスト）
+- 共有ファイル（`templates/default/` とバイト単位で同一。
+  `cli/tests/template_vendor_drift.rs` が検証）: `.github/workflows/deny.yml`
+  / `.github/workflows/npm-asset-gate.yml` / `clippy.toml` / `deny.toml` /
+  `tools/npm-asset-build/*`（4 ファイル）
+- `static/embed.html`: `templates/embed/embed.html`（既存の CSR マウント
+  骨格）を同梱したもの。wasm ビルド自体は本テンプレートのスコープ外
+  （§9）
+- `vendor/rws-core/`・`vendor/rws-app/`: rws-core / rws-app のソース
+  vendor 同梱（§3a）
+
+#### 3a. vendor 同梱の選定根拠
+
+rws-core / rws-app は `publish = false`（crates.io 未公開）のため、生成
+プロジェクトが依存する方式には次の選択肢があった:
+
+| 方式 | 判定 |
+|------|------|
+| git 依存 | 却下: ビルド時ネットワーク依存（`security.md` サプライチェーン対策・オフライン決定性と矛盾） |
+| フレームワークリポへの path 依存 | 却下: 生成プロジェクトが配布先で独立して成立しなくなる |
+| **vendor 同梱（採用）** | rws-core / rws-app とも外部依存ゼロのため自己完結・オフライン・決定的。既存の「正本 + ドリフト検知テスト」運用にそのまま乗る |
+
+vendored `Cargo.toml`（`templates/app/vendor/{rws-core,rws-app}/Cargo.toml`）
+は正本から 1 点のみ変換する: `rws-app` の `rws-core` path 依存の参照先を
+`../core` → `../rws-core`（vendor 配下の実ディレクトリ名に合わせる）。
+
+**重要**: vendor 側 `Cargo.toml` に `[workspace]` を追加してはならない。
+生成プロジェクトの `Cargo.toml`（`rws-template-app`）は `[workspace]
+members = ["."]` を明示することで、path 依存先（`vendor/rws-core`/
+`vendor/rws-app`）が workspace member として自動編入されるのを防いでいる。
+この状態で vendor 側にも独立した `[workspace]` を持たせると、cargo が
+"multiple workspace roots found in the same workspace" で拒否する
+（実装時に実測で確認済み。`templates/app/vendor/*/Cargo.toml` のコメント
+参照）。
+
+生成プロジェクトの依存グラフは vendored 2 crate のみ・外部クレートゼロ
+（REQ-3 の 60 件 / 深さ 6 に対し余裕。依存クレートの新規追加なし）。
+
+`structure.toml` は `vendor/rws-core`/`vendor/rws-app` を宣言しない
+（`[directories.*]` 宣言外）。`fw gate` の `default_escape_check`・
+`fw structure`・`fw impact` はいずれも宣言済みディレクトリのみを走査・
+解決対象とするため、vendor 配下（正本の写しであり生成プロジェクトの
+記述対象ではない）は意図的に走査対象から除外される。`lint` チェック
+（`cargo clippy --all-targets -p rws-template-app`）はクレート境界で
+検査するため、vendored crate 内部の `raw_html` 定義自体は違反にならない
+（既存 gate 仕様どおり）。
 
 `structure.toml`（イシュー #351 で追加）は `fw gate`（`cli/src/gate.rs`）が
 検証対象クレートを決定する唯一の情報源であり、これを同梱しない限り生成
@@ -105,15 +185,23 @@ fail-closed）。クレートはプロジェクトルート直下（`src/`）に
 
 ## 4. 変数置換: 明示的 allowlist + 置換回数の fail-closed 検証
 
-置換対象は allowlist で固定する。置換 needle は `rws-template-default`
-（`Cargo.toml` の `name = "rws-template-default"`、`Cargo.lock` の同キー）
-で、対象ファイルと期待出現回数は以下のとおり:
+置換対象は allowlist で固定する。置換 needle はテンプレートごとに異なる
+仮パッケージ名（`Template::needle`、イシュー #378 でテンプレートごとに
+一般化）: `default` は `rws-template-default`、`app` は `rws-template-app`
+（`Cargo.toml` の `name = "..."`、`Cargo.lock` の同キー）。対象ファイルと
+期待出現回数は両テンプレート共通で以下のとおり:
 
 | ファイル | 期待出現回数 |
 |---------|-------------|
 | `Cargo.toml` | 1 |
 | `Cargo.lock` | 1 |
 | `structure.toml` | 1（`[directories.root]` の `crate` 値。イシュー #351） |
+
+`app` テンプレートの `structure.toml` はコメント中に置換 needle と同じ
+部分文字列を含めないよう配慮する必要がある（`replace_exact` の
+出現回数 fail-closed 検証により、意図しない 2 箇所目のマッチはエラーに
+なる。実装時に実際に検出・修正した経緯があり、テンプレート改稿時の注意点
+として明記する）。
 
 実装は `cli/src/new.rs::replace_exact(contents, needle, replacement,
 expected_count) -> Result<String, String>` とし、**出現回数が期待値と
@@ -141,8 +229,8 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
 
 ## 6. 決定性の保証
 
-- 展開は `TEMPLATE_FILES` の配列順（固定）で実行する。内容はコンパイル時
-  定数であり、プロジェクト名以外の入力を混ぜない。
+- 展開は選択した `Template::files` の配列順（固定）で実行する。内容は
+  コンパイル時定数であり、プロジェクト名以外の入力を混ぜない。
 - タイムスタンプ・乱数・環境変数由来の値を出力ファイルへ一切書き込まない。
 - パーミッション: `executable: true` のファイルへ Unix では 0o755 を明示
   設定する（`std::os::unix::fs::PermissionsExt`、`#[cfg(unix)]`）。
@@ -151,6 +239,28 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
 - 書き込み途中の失敗は該当パス付きで stderr へ報告して終了コード 1 とする
   （部分生成物は削除しない = 成功と誤認させないことのみ保証する。
   `--force` でも削除系操作は一切行わない）。
+
+### 6.1 非 Unix プラットフォームでのパーミッション挙動（イシュー #378 で明確化）
+
+- `set_permissions` は非 Unix（`#[cfg(not(unix))]`）で no-op。実行ビットの
+  設定自体が行われず、エラーにもならない（黙示的にスキップされる）。
+- 決定性の保証（§6）は**バイト内容の同一性**が主であり、実行ビットは
+  Unix のみで担保される副次的な性質と位置づける。非 Unix 環境での
+  `same_args_produce_byte_identical_output_across_two_runs` 相当のテストは、
+  `collect_tree`（`cli/tests/new_e2e.rs`）が `#[cfg(not(unix))]` で
+  `executable = false` を返すため、実行ビット差異を検知対象に含めない
+  （プラットフォーム条件分岐込みで決定性の定義が閉じている）。
+- `tools/npm-asset-build/*`（`executable: true` の 3 ファイル）は
+  `.github/workflows/npm-asset-gate.yml` 等の CI ワークフローから
+  インタープリタ経由（`bash install.sh` / `python3 check_static_only.py`
+  等）で起動される契約であり、実行ビット欠落そのものが動作を妨げない
+  （呼び出し側がシェバン実行に依存しない）。非 Unix でのローカル直接実行
+  （ダブルクリック相当）は本フレームワークの配布形態（Docker/Linux 想定）
+  のスコープ外とする。
+- 各テンプレートの実行可能ファイル集合は `cli/src/new_template.rs`
+  （`executable_file_sets_match_expected_fixed_lists` テスト）が期待固定
+  リストとの一致をプラットフォーム非依存に検証する（メタデータの記述内容
+  のみを比較するため、どの OS でも実行できる）。
 
 ## 7. セキュリティ考慮（OWASP Top 10 観点）
 
@@ -177,6 +287,16 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
 - **REQ-1/REQ-2/REQ-3**: HTML 生成なし（既定エスケープ非関与）・
   `forbid(unsafe_code)` 維持（`PermissionsExt` は safe API）・依存追加ゼロ
   （`cli` は外部依存ゼロを維持）。
+- **テンプレート名の allowlist 照合（イシュー #378）**: `--template` は
+  コンパイル時定数 `TEMPLATES` との完全一致照合のみで解決し、ユーザー
+  入力から動的にパス・`include_str!` 対象を組み立てない（A01/A03）。
+- **`app` テンプレート固有（イシュー #378）**: `raw_html()` は使用しない
+  （REQ-1、`clippy.toml` の `disallowed-methods` が依存追加により初めて
+  実効化される。`cli/tests/new_gate_e2e.rs::fw_new_app_template_default_escape_check_detects_injected_violation`
+  が実際に注入検出を固定）。`templates/app/tests/escape_regression.rs`
+  （生成プロジェクト内 XSS 回帰テスト）が `fw gate` の `test` チェックで
+  常時実行される。vendor 同梱（rws-core / rws-app）は正本とのドリフト検知
+  （`cli/tests/template_vendor_drift.rs`）で改ざん・陳腐化を検出する。
 
 ## 8. テスト（`cli/tests/new_e2e.rs`）
 
@@ -195,18 +315,36 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
    マニフェストと相対パス集合・内容バイト列（`Cargo.toml`/`Cargo.lock`/
    `structure.toml` を除く）・実行ビットが 1:1 対応することを確認する。
 
-さらに `cli/tests/new_gate_e2e.rs`（イシュー #351）が `fw new` → `fw gate`
-の直列 e2e を実バイナリで実行し、生成直後のプロジェクトが無編集で
+さらに `cli/tests/new_gate_e2e.rs`（イシュー #351／#378）が `fw new` →
+`fw gate` の直列 e2e を実バイナリで実行し、生成直後のプロジェクトが無編集で
 `fw gate` の 5 チェック（type_check / default_escape_check / lint / test /
-policy）全 PASS になることを固定する。`policy`（cargo-deny 依存）のみ実行
-環境で分岐するため、`cli/tests/scenarios/bugfix_escape.rs::baseline_passes_gate`
-と同一方針でスキップ・`#[ignore]` を使わず両分岐（PASS / 環境エラーによる
-BLOCKED）を断定する。`.github/workflows/ci.yml` の test ジョブへ明示ステップ
-として組み込み済み。
+policy）全 PASS になることをテンプレートごとに固定する。`policy`
+（cargo-deny 依存）のみ実行環境で分岐するため、
+`cli/tests/scenarios/bugfix_escape.rs::baseline_passes_gate` と同一方針で
+スキップ・`#[ignore]` を使わず両分岐（PASS / 環境エラーによる BLOCKED）を
+断定する。`.github/workflows/ci.yml` の test ジョブへ明示ステップとして
+組み込み済み。`app` テンプレートの gate e2e は vendored 2 crate の
+コンパイルを伴うため `default` より実行時間が長い。
+
+`cli/tests/template_vendor_drift.rs`（イシュー #378 新設）は vendor 同梱
+（rws-core / rws-app）と正本 `core/`/`app/` の乖離検知、および
+`templates/default/` と `templates/app/` の共有ファイル（`.github/workflows/*`・
+`clippy.toml`・`deny.toml`・`tools/npm-asset-build/*`）のバイト同一性を検証する。
 
 ## 9. 非目標（Non-goals）
 
-- 複数テンプレート選択（`fw new --template embed` 等）は本イシューの範囲外。
+- **静的単一ファイル `embed` テンプレート**（`fw new --template embed` で
+  `templates/embed/embed.html` 単体を gate 対象外の cargo プロジェクトでない
+  形で展開すること）は本イシュー（#378）の範囲外。`app` テンプレートは
+  `static/embed.html` として embed.html を同梱することで CSR マウント骨格の
+  サンプル自体は提供する。
+- **wasm ビルドを含む CSR の完全実体**は `app` テンプレートのスコープ外
+  （`rws-wasm-client` は wasm-bindgen 外部依存のため vendor 不可）。
+- **crates.io 公開後の vendor → バージョン依存への切替**は本イシューの
+  範囲外（publish = false が解消された時点で再検討する）。
+- **Windows 実機 CI での非 Unix 挙動の実測**は行わない（self-hosted Linux
+  runner のみのため、設計書明文化（§6.1）とプラットフォーム非依存テスト
+  （`executable_file_sets_match_expected_fixed_lists`）で担保する）。
 - 非 Unix でのパーミッション再現（ACL 相当の代替設定等）は行わない。
 - ルート直下クレートの `structure.toml` スキーマ上の正式化（`root` 慣習の
   一般化）と `fw structure`/`fw impact`/`default_escape_check` の当該盲点の
