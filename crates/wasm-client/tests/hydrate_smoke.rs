@@ -2,7 +2,7 @@
 //!
 //! `.github/workflows/ci.yml` の `browser-test` ジョブは `wasm-client/Cargo.toml`
 //! の存在ガードにより、本クレート新設と同時に
-//! `wasm-pack test --headless --chrome wasm-client` を自動実行する状態になる
+//! `wasm-pack test --headless --chrome crates/wasm-client` を自動実行する状態になる
 //! （`docs/api/hydration-api.md` 第 7 節）。本ファイルはそのジョブを green に保つ
 //! ための最小限のスモークテストであり、REQ-6 受け入れ基準の**正式な実証**
 //! （クリック発火・状態復元を含む網羅的なブラウザ E2E）は TASK-6.3b（#66）の

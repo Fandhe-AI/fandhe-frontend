@@ -91,7 +91,7 @@ const PAGE_TITLE_LITERALS: &[&str] = &["\"記事一覧\"", "\"記事詳細\""];
 #[test]
 fn app_routes_defines_the_shared_route_table_literals() {
     let root = workspace_root();
-    let routes_path = root.join("app/src/routes.rs");
+    let routes_path = root.join("crates/app/src/routes.rs");
     let stripped = read_stripped(&routes_path);
 
     for pattern in ROUTE_PATTERN_LITERALS {
@@ -114,7 +114,7 @@ fn app_routes_defines_the_shared_route_table_literals() {
 #[test]
 fn server_ssr_does_not_redefine_route_literals_and_references_shared_routes() {
     let root = workspace_root();
-    let ssr_path = root.join("server/src/ssr.rs");
+    let ssr_path = root.join("crates/server/src/ssr.rs");
     let stripped = read_stripped(&ssr_path);
 
     for pattern in ROUTE_PATTERN_LITERALS {
@@ -142,7 +142,7 @@ fn server_ssr_does_not_redefine_route_literals_and_references_shared_routes() {
 #[test]
 fn wasm_full_nav_does_not_redefine_route_literals_and_references_shared_routes() {
     let root = workspace_root();
-    let nav_path = root.join("wasm-full/src/nav.rs");
+    let nav_path = root.join("crates/wasm-full/src/nav.rs");
     let stripped = read_stripped(&nav_path);
 
     for pattern in ROUTE_PATTERN_LITERALS {
@@ -174,7 +174,7 @@ fn wasm_full_nav_does_not_redefine_route_literals_and_references_shared_routes()
 #[test]
 fn server_router_module_is_a_reexport_shim_not_a_duplicate_engine() {
     let root = workspace_root();
-    let router_path = root.join("server/src/router.rs");
+    let router_path = root.join("crates/server/src/router.rs");
     let stripped = read_stripped(&router_path);
 
     assert!(

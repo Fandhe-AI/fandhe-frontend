@@ -208,7 +208,7 @@ jobs:
             }
           }
           if ($missingExec.Count -gt 0) {
-            Write-Host "::error::expected executable-flagged files not found in generated tree (list is stale vs cli/src/new_template.rs, or fw new failed silently): $($missingExec -join ', ')"
+            Write-Host "::error::expected executable-flagged files not found in generated tree (list is stale vs crates/cli/src/new_template.rs, or fw new failed silently): $($missingExec -join ', ')"
             exit 1
           }
           Write-Host "OK: executable-flagged template files generated without error on Windows (no-op permission skip confirmed harmless)"

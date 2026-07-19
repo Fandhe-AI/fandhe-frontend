@@ -74,7 +74,7 @@ default = ["wasm-bindgen-exports"]
 wasm-bindgen-exports = []
 
 # TASK-6.2c（#49）: CI の browser-test ジョブ（.github/workflows/ci.yml）が
-# 本クレート新設と同時に `wasm-pack test --headless --chrome wasm-client` を
+# 本クレート新設と同時に `wasm-pack test --headless --chrome crates/wasm-client` を
 # 自動実行するため（存在ガード解除）、最小スモークテスト
 # （tests/hydrate_smoke.rs）に必要な dev 依存。`wasm-full`（#65 と同一運用）と
 # 同一バージョンを指定する。

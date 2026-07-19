@@ -460,8 +460,8 @@ fn ffi_deny_crates_contain_no_unsafe_token_nor_allow_override() {
 #[test]
 fn core_has_zero_external_dependencies() {
     let root = workspace_root();
-    let manifest = fs::read_to_string(root.join("core/Cargo.toml"))
-        .expect("core/Cargo.toml の読み取りに失敗した");
+    let manifest = fs::read_to_string(root.join("crates/core/Cargo.toml"))
+        .expect("crates/core/Cargo.toml の読み取りに失敗した");
 
     let deps_start = manifest
         .find("[dependencies]")
