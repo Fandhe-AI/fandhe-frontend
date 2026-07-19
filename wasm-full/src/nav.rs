@@ -260,18 +260,19 @@ mod wiring {
     ///
     /// # prepare/apply 2 段構成（イシュー #404）
     ///
-    /// loader 解決 + `build_dom_node` による新 DOM 構築（**prepare 段**）は
-    /// `document.startViewTransition()` の呼び出しより前、同期に行う。
-    /// `root` への差し替え + `document.set_title`（**apply 段**）のみを
-    /// [`with_view_transition`] の update コールバック内で実行する。これに
-    /// より「遷移中に loader 解決が走らない」（旧ビューはデータ準備完了まで
-    /// 表示され続ける、View Transitions の推奨パターン）ことが構造的に
-    /// 保証される。`root` はコールバック実行時に `document.get_element_by_id`
-    /// で再解決する（`root` 自身は `replace_child`/`replaceWith` で入れ替え
-    /// ないため通常は起動時の要素のままでも有効だが、prepare と apply の間に
-    /// 時間差が生まれる非同期構成のため、将来 `root_id` 要素自体が差し替え
-    /// られる変更が入った場合に備え明示的に再解決する。要素が消えていた場合は
-    /// no-op、panic しない）。
+    /// loader 解決 + `build_dom_node` による新 DOM 構築（**prepare 段**、
+    /// [`prepare_render`]）は `document.startViewTransition()` の呼び出しより
+    /// 前、同期に行う。`root` への差し替え + `document.set_title`
+    /// （**apply 段**、[`apply_render`]）のみを [`with_view_transition`] の
+    /// update コールバック内で実行する。これにより「遷移中に loader 解決が
+    /// 走らない」（旧ビューはデータ準備完了まで表示され続ける、View
+    /// Transitions の推奨パターン）ことが構造的に保証される。`root` は
+    /// コールバック実行時に `document.get_element_by_id` で再解決する
+    /// （`root` 自身は `replace_child`/`replaceWith` で入れ替えないため通常は
+    /// 起動時の要素のままでも有効だが、prepare と apply の間に時間差が生まれる
+    /// 非同期構成のため、将来 `root_id` 要素自体が差し替えられる変更が入った
+    /// 場合に備え明示的に再解決する。要素が消えていた場合は no-op、panic
+    /// しない）。
     ///
     /// 描画は [`rws_wasm_client::build_dom_node`]（`createElement`/
     /// `createTextNode`/`set_attribute` のみ）経由で `resolve_route_view_with`
@@ -280,21 +281,33 @@ mod wiring {
     /// （`root` の属性（`id`/`data-rws`）はナビゲーション間で不変のため
     /// コピー不要）。既定 loader（`DemoItemsLoader`/`DemoItemDetailLoader`、
     /// `server/src/ssr.rs::respond` と同じ既定）を使う。
-    fn render_route(document: &Document, root_id: &str, route: &ClientRoute) {
-        // prepare 段: loader 解決 + 新 DOM 構築（遷移の外、同期）。
+    ///
+    /// prepare 段のみを独立関数 [`prepare_render`] に切り出しているのは、
+    /// `push_and_render` が `history.pushState` より**前**に構築結果を
+    /// 必要とするため（イシュー #404 フォローアップ、Cursor Bugbot 指摘
+    /// `27cc68fd`）。構築に失敗した場合（`RawHtml` 混入等の構造的にあり得ない
+    /// ケース、fail-closed）は `None` を返し、呼び出し側は「URL・DOM の
+    /// いずれも変更しない」no-op として扱う。
+    fn prepare_render(
+        document: &Document,
+        route: &ClientRoute,
+    ) -> Option<(&'static str, web_sys::Node)> {
         let (title, node) = resolve_route_view_with(&DemoItemsLoader, &DemoItemDetailLoader, route);
+        let new_dom_node = rws_wasm_client::build_dom_node(document, &node)?;
+        Some((title, new_dom_node))
+    }
 
-        let Some(new_dom_node) = rws_wasm_client::build_dom_node(document, &node) else {
-            // RawHtml 混入等の構造的にあり得ないケース（fail-closed）。
-            // 現在の DOM を維持したまま no-op（panic しない）。
-            web_sys::console::warn_1(
-                &"rws-wasm-full: nav render_route failed to build replacement DOM node".into(),
-            );
-            return;
-        };
-
-        // apply 段: `root` への差し替え + タイトル更新のみを View Transitions
-        // でラップする。
+    /// apply 段（`root` への差し替え + タイトル更新）を
+    /// `document.startViewTransition()` でラップして実行する。
+    /// `prepare_render` が返した `title`/`new_dom_node` を受け取る側で、
+    /// この関数自体は失敗しない（`root` 消失時は `with_view_transition`
+    /// 経由の no-op、既存の fail-closed 方針を維持）。
+    fn apply_render(
+        document: &Document,
+        root_id: &str,
+        title: &'static str,
+        new_dom_node: web_sys::Node,
+    ) {
         let apply_document = document.clone();
         let root_id_owned = root_id.to_string();
         with_view_transition(document, move || {
@@ -311,6 +324,17 @@ mod wiring {
         });
     }
 
+    fn render_route(document: &Document, root_id: &str, route: &ClientRoute) {
+        let Some((title, new_dom_node)) = prepare_render(document, route) else {
+            // 現在の DOM を維持したまま no-op（panic しない）。
+            web_sys::console::warn_1(
+                &"rws-wasm-full: nav render_route failed to build replacement DOM node".into(),
+            );
+            return;
+        };
+        apply_render(document, root_id, title, new_dom_node);
+    }
+
     /// `path`（`location.pathname` + `location.search` 相当）を再解決して
     /// 描画する。一致しないパスは no-op（現在の DOM を維持、安全側
     /// フォールバック）。
@@ -324,8 +348,24 @@ mod wiring {
     /// `path` が [`resolve_path`] で解決可能な場合のみ `history.pushState`
     /// で URL を進め、描画する（`popstate` からは呼ばない。history へ
     /// エントリを追加するのはユーザー操作起点のクリック遷移のみ）。
+    ///
+    /// `prepare_render`（loader 解決 + DOM 構築）を `pushState` より**前**に
+    /// 実行し、成功した場合のみ `pushState` する（イシュー #404 フォロー
+    /// アップ、Cursor Bugbot 指摘 `27cc68fd`）。構築失敗時に `pushState` が
+    /// 先行して実行されると、URL だけが進みアドレスバーと表示中の DOM が
+    /// 食い違う状態になり得るため、prepare 成功を `pushState` の前提条件と
+    /// する（apply 段の `root` 再解決失敗（要素消失）はこの時点では検知
+    /// できないため対象外。通常運用でこのアプリの `root` 自身は
+    /// `render_route`/`apply_render` から差し替えられないため消失しない）。
     fn push_and_render(document: &Document, root_id: &str, path: &str) {
         let Some(route) = resolve_path(path) else {
+            return;
+        };
+        let Some((title, new_dom_node)) = prepare_render(document, &route) else {
+            web_sys::console::warn_1(
+                &"rws-wasm-full: nav push_and_render failed to build replacement DOM node, URL not updated"
+                    .into(),
+            );
             return;
         };
         if let Some(window) = web_sys::window() {
@@ -336,7 +376,7 @@ mod wiring {
                 let _ = history.push_state_with_url(&JsValue::NULL, "", Some(path));
             }
         }
-        render_route(document, root_id, &route);
+        apply_render(document, root_id, title, new_dom_node);
     }
 
     /// クリックが左クリック・無修飾キーかを判定する（新規タブで開く等の
