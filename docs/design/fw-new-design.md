@@ -83,7 +83,7 @@ pub(crate) struct Template {
     pub(crate) substituted_files: &'static [&'static str],
 }
 
-pub(crate) const TEMPLATES: &[Template] = &[/* "default", "app" */];
+pub(crate) const TEMPLATES: &[Template] = &[/* "default", "app", "embed" */];
 ```
 
 正本は従来どおり `templates/<name>/`。埋め込みとの乖離は
@@ -182,6 +182,37 @@ fail-closed）。クレートはプロジェクトルート直下（`src/`）に
 --all-targets -p <crate>` 経由の `disallowed-methods`）もクレートの配置
 ディレクトリに依存せず全ソースを検査するため、REQ-1 の検出保証は二重に
 保たれる（詳細は `docs/design/structure-manifest.md` §2.2 を参照）。
+
+### 3.3 `embed`（イシュー #410 新設。静的単一ファイルの部分埋め込み構成）
+
+`app` §9（旧非目標）が申し送っていた「静的単一ファイルの `embed` テンプ
+レート」を製品化する。`templates/embed/` の対象 2 ファイル:
+
+- `embed.html`: `templates/embed/embed.html`（TASK-7.1a・#52 の正本）を
+  バイト無変更で流用（`xtask/tests/template_embed_html.rs`・
+  `cli/tests/template_vendor_drift.rs` が参照する正本と同一であることが
+  前提のため、本テンプレート追加時も一切変更しない）
+- `structure.toml`: `fw gate` が唯一の情報源として読む静的専用
+  （asset-only）マニフェスト。`[directories.root]` は `role = "asset"` の
+  みを宣言し `crate` キーを持たない（cargo パッケージが存在しないため）
+
+`default`/`app` と異なり **cargo パッケージを持たない**ため、
+`Template::substituted_files` は空配列（`&[]`）とする。`needle`
+（`rws-template-embed`）はどのファイルにも出現しないダミー文字列であり、
+置換ループは素通りする。生成物はテンプレート正本と全ファイルバイト一致
+になり、`cli/tests/new_e2e.rs::embed_template_output_is_byte_identical_to_template_and_contains_no_needle`
+がこれを固定する。
+
+cargo パッケージを持たない構成のまま `fw gate` PASS を保証するには、
+`fw gate`（`cli/src/gate.rs::is_asset_only_project`）側に静的専用プロジェ
+クトの明示的オプトインモードが必要だった（`docs/design/gate-design.md`
+§2.5 参照）。判定条件は「宣言クレートが 0 件、かつ宣言ディレクトリ全件が
+`role = "asset"`」で、満たす場合のみ cargo 系 4 チェック
+（`type_check`/`lint`/`test`/`policy`）を not-applicable PASS 化する。
+`default_escape_check`・`url_validation_check`（テキスト走査ベースの保険層）
+は cargo パッケージの有無に依存しないため、静的専用モードでも通常どおり
+実行され、`root` 慣習ディレクトリ配下（プロジェクトルート直下 `src/`）へ
+Rust コードが混入した場合の回帰を検出する。
 
 ## 4. 変数置換: 明示的 allowlist + 置換回数の fail-closed 検証
 
@@ -315,17 +346,19 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
    マニフェストと相対パス集合・内容バイト列（`Cargo.toml`/`Cargo.lock`/
    `structure.toml` を除く）・実行ビットが 1:1 対応することを確認する。
 
-さらに `cli/tests/new_gate_e2e.rs`（イシュー #351／#378／#401）が `fw new` →
-`fw gate` の直列 e2e を実バイナリで実行し、生成直後のプロジェクトが無編集で
-`fw gate` の 6 チェック（type_check / default_escape_check /
+さらに `cli/tests/new_gate_e2e.rs`（イシュー #351／#378／#401／#410）が
+`fw new` → `fw gate` の直列 e2e を実バイナリで実行し、生成直後のプロジェ
+クトが無編集で `fw gate` の 6 チェック（type_check / default_escape_check /
 url_validation_check / lint / test / policy）全 PASS になることをテンプレート
-ごとに固定する。`policy`
-（cargo-deny 依存）のみ実行環境で分岐するため、
-`cli/tests/scenarios/bugfix_escape.rs::baseline_passes_gate` と同一方針で
-スキップ・`#[ignore]` を使わず両分岐（PASS / 環境エラーによる BLOCKED）を
-断定する。`.github/workflows/ci.yml` の test ジョブへ明示ステップとして
-組み込み済み。`app` テンプレートの gate e2e は vendored 2 crate の
-コンパイルを伴うため `default` より実行時間が長い。
+ごとに固定する。`default`/`app` は `policy`（cargo-deny 依存）のみ実行環境で
+分岐するため、`cli/tests/scenarios/bugfix_escape.rs::baseline_passes_gate`
+と同一方針でスキップ・`#[ignore]` を使わず両分岐（PASS / 環境エラーによる
+BLOCKED）を断定する。`.github/workflows/ci.yml` の test ジョブへ明示ステップ
+として組み込み済み。`app` テンプレートの gate e2e は vendored 2 crate の
+コンパイルを伴うため `default` より実行時間が長い。`embed`
+（静的専用モード、§3.3）は cargo を一切起動しないため cargo-deny の
+導入有無に依存せず、6 チェック全 PASS・`gate_result: "PASS"`・終了コード 0
+を無条件に断定する。
 
 `cli/tests/template_vendor_drift.rs`（イシュー #378 新設）は vendor 同梱
 （rws-core / rws-app）と正本 `core/`/`app/` の乖離検知、および
@@ -334,11 +367,8 @@ url_validation_check / lint / test / policy）全 PASS になることをテン�
 
 ## 9. 非目標（Non-goals）
 
-- **静的単一ファイル `embed` テンプレート**（`fw new --template embed` で
-  `templates/embed/embed.html` 単体を gate 対象外の cargo プロジェクトでない
-  形で展開すること）は本イシュー（#378）の範囲外。`app` テンプレートは
-  `static/embed.html` として embed.html を同梱することで CSR マウント骨格の
-  サンプル自体は提供する。
+- **静的単一ファイル `embed` テンプレート**は #378 の範囲外だったが、
+  イシュー #410 で `fw new --template embed`（§3.3）として製品化済み。
 - **wasm ビルドを含む CSR の完全実体**は `app` テンプレートのスコープ外
   （`rws-wasm-client` は wasm-bindgen 外部依存のため vendor 不可）。
 - **crates.io 公開後の vendor → バージョン依存への切替**は本イシューの

@@ -52,13 +52,17 @@
 
 use js_sys::{Function, Reflect};
 use rws_app::{assemble_list_page, demo_items, DemoItemsLoader};
+use rws_wasm_full::nav::encode_scroll_state;
 use std::cell::Cell;
 use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use wasm_bindgen_test::*;
-use web_sys::{Document, Element, MouseEvent, MouseEventInit, PopStateEvent, PopStateEventInit};
+use web_sys::{
+    Document, Element, MouseEvent, MouseEventInit, PopStateEvent, PopStateEventInit,
+    ScrollRestoration,
+};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -95,6 +99,30 @@ fn create_app_root(
         .expect("query_selector must not fail")
         .expect("initial_html must contain a single #app-root element (rws_app::layout output)");
     (container, root)
+}
+
+/// スクロール復元テスト用に、`container`（`create_app_root` が返す外側
+/// コンテナ）へヘッドレスビューポートより十分に高い（3000px）スペーサーを
+/// 追加する（イシュー #406）。テストは `RemoveOnDrop` により `container`
+/// ごと除去されるため、後続テストの `window.scroll_y()` に影響を残さない。
+fn append_tall_spacer(document: &Document, container: &Element) {
+    let spacer = document
+        .create_element("div")
+        .expect("create_element must not fail for a plain div");
+    spacer
+        .set_attribute("style", "height: 3000px;")
+        .expect("set_attribute must not fail");
+    container
+        .append_child(&spacer)
+        .expect("append_child must not fail");
+}
+
+/// スクロール復元テストの前提を揃える（他テストとの `window.scroll_y()`
+/// 干渉を避けるため、各テスト冒頭で先頭へ揃える）。
+fn reset_scroll_to_top() {
+    web_sys::window()
+        .expect("window must exist")
+        .scroll_to_with_x_and_y(0.0, 0.0);
 }
 
 /// SSR 相当の詳細ページ（`item_id`）を独立したプレースホルダへ実 DOM 展開し、
@@ -1122,5 +1150,263 @@ async fn like_button_works_after_navigating_to_xss_payload_item() {
     assert!(
         has_liked_class(&like_button),
         "XSS ペイロード item への遷移後も like ボタンの再配線が成立すること"
+    );
+}
+
+// -----------------------------------------------------------------------
+// スクロール位置復元制御（イシュー #406）
+// -----------------------------------------------------------------------
+
+/// 検証 1: `start_router` 呼び出し後、`history.scrollRestoration` が
+/// `"manual"` へ設定されていること（§2 の方針決定の直接証明）。
+#[wasm_bindgen_test]
+fn start_router_sets_scroll_restoration_to_manual() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    set_location_path("/");
+    let (container, _root) = create_app_root(
+        &document,
+        "nav-test-scroll-restoration-manual",
+        &ssr_equivalent_list_inner_html(),
+    );
+    let _cleanup = RemoveOnDrop(container);
+
+    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+
+    let history = window.history().expect("history must exist");
+    assert_eq!(
+        history
+            .scroll_restoration()
+            .expect("scroll_restoration must not fail"),
+        ScrollRestoration::Manual,
+        "start_router は history.scrollRestoration を \"manual\" に設定すること"
+    );
+}
+
+/// 検証 2: 新規遷移（クリック遷移）は常にページ先頭（`scroll_y == 0`）から
+/// 表示すること（§2.2）。
+///
+/// イシュー #404 との統合により先頭スクロールは `apply_render_with_post` の
+/// `post_apply`（`with_view_transition` の update コールバック内、実ブラウザ
+/// では非同期になりうる）として実行されるため、`startViewTransition` を
+/// スタブせずそのまま通す本テストは [`wait_until`] で断定する（他の
+/// View Transitions 関連検証と同じ方針）。
+#[wasm_bindgen_test]
+async fn click_navigation_scrolls_to_top_on_new_entry() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    reset_scroll_to_top();
+    set_location_path("/");
+    let (container, root) = create_app_root(
+        &document,
+        "nav-test-scroll-new-entry",
+        &ssr_equivalent_list_inner_html(),
+    );
+    append_tall_spacer(&document, &container);
+    let _cleanup = RemoveOnDrop(container);
+
+    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+
+    window.scroll_to_with_x_and_y(0.0, 800.0);
+    assert!(
+        window.scroll_y().unwrap() > 0.0,
+        "テスト前提条件: 遷移前にスクロール済みであること"
+    );
+
+    let link = document
+        .query_selector("a[data-nav=\"/items/1\"]")
+        .expect("query_selector must not fail")
+        .expect("list page must contain a data-nav link to /items/1");
+    link.dispatch_event(&synthetic_click_event())
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        wait_until(
+            || root
+                .query_selector("[data-testid=\"item-detail\"]")
+                .unwrap()
+                .is_some(),
+            60
+        )
+        .await,
+        "テスト前提条件: 遷移先の DOM が確定していること"
+    );
+    assert!(
+        wait_until(|| window.scroll_y().unwrap() == 0.0, 60).await,
+        "新規遷移後はページ先頭（scroll_y == 0）から表示すること"
+    );
+}
+
+/// 検証 3: `history.state` に保存済みのスクロールレコードを持つ合成
+/// `popstate` を dispatch すると、その位置へ復元すること（戻る/進む操作の
+/// 決定的な契約固定、`history.back()` はヘッドレスで不安定なため使わない）。
+///
+/// イシュー #404 との統合によりスクロール復元は
+/// `navigate_render_with_post` の `post_apply`（`with_view_transition` の
+/// update コールバック内、実ブラウザでは非同期になりうる）として実行される
+/// ため、`startViewTransition` をスタブせずそのまま通す本テストは
+/// [`wait_until`] で断定する。
+#[wasm_bindgen_test]
+async fn popstate_with_encoded_state_restores_saved_scroll_position() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    reset_scroll_to_top();
+    set_location_path("/items/1");
+    let body = rws_app::assemble_detail_page(&rws_app::DemoItemDetailLoader, &"1".to_string())
+        .expect("infallible loader");
+    let (container, root) = create_app_root(
+        &document,
+        "nav-test-scroll-popstate-restore",
+        &rws_core::render(&body),
+    );
+    append_tall_spacer(&document, &container);
+    let _cleanup = RemoveOnDrop(container);
+    document.set_title("記事詳細");
+
+    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+
+    // 「戻る」操作を模した状態遷移: URL を書き換え、離脱元エントリの
+    // スクロール位置を積んだ state 付きの合成 popstate を dispatch する
+    // （`push_and_render` が実運用で `replace_state` に積む値と同じ形式）。
+    set_location_path("/");
+    let init = PopStateEventInit::new();
+    init.set_state(&wasm_bindgen::JsValue::from_str(&encode_scroll_state(
+        0.0, 500.0,
+    )));
+    let event = PopStateEvent::new_with_event_init_dict("popstate", &init)
+        .expect("PopStateEvent construction must not fail");
+    window
+        .dispatch_event(&event)
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        wait_until(
+            || root
+                .query_selector("[data-testid=\"item-list\"]")
+                .unwrap()
+                .is_some(),
+            60
+        )
+        .await,
+        "テスト前提条件: popstate によりルートが再解決・再描画されていること"
+    );
+    assert!(
+        wait_until(|| (window.scroll_y().unwrap() - 500.0).abs() < 1.0, 60).await,
+        "state に積まれたスクロール位置（500）へサブピクセル許容で復元すること: {}",
+        window.scroll_y().unwrap()
+    );
+}
+
+/// 検証 4: state が `NULL`（`push_state` が積む通常値）または不正な形式の
+/// 合成 `popstate` では、スクロール済みの状態からも先頭 `(0, 0)` へ
+/// フォールバックすること（fail-closed、§2.2）。
+///
+/// イシュー #404 との統合によりスクロール復元は
+/// `navigate_render_with_post` の `post_apply`（`with_view_transition` の
+/// update コールバック内、実ブラウザでは非同期になりうる）として実行される
+/// ため、`startViewTransition` をスタブせずそのまま通す本テストは
+/// [`wait_until`] で断定する。
+#[wasm_bindgen_test]
+async fn popstate_with_null_or_invalid_state_falls_back_to_top() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    reset_scroll_to_top();
+    set_location_path("/items/1");
+    let body = rws_app::assemble_detail_page(&rws_app::DemoItemDetailLoader, &"1".to_string())
+        .expect("infallible loader");
+    let (container, root) = create_app_root(
+        &document,
+        "nav-test-scroll-popstate-fallback",
+        &rws_core::render(&body),
+    );
+    append_tall_spacer(&document, &container);
+    let _cleanup = RemoveOnDrop(container);
+    document.set_title("記事詳細");
+
+    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+
+    window.scroll_to_with_x_and_y(0.0, 900.0);
+    assert!(
+        window.scroll_y().unwrap() > 0.0,
+        "テスト前提条件: popstate 前にスクロール済みであること"
+    );
+
+    // NULL state（`push_state` が積む通常値と同じ）。
+    set_location_path("/");
+    window
+        .dispatch_event(&synthetic_popstate_event())
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        wait_until(
+            || root
+                .query_selector("[data-testid=\"item-list\"]")
+                .unwrap()
+                .is_some(),
+            60
+        )
+        .await,
+        "テスト前提条件: popstate によりルートが再解決・再描画されていること"
+    );
+    assert!(
+        wait_until(|| window.scroll_y().unwrap() == 0.0, 60).await,
+        "NULL state の popstate では先頭 (0, 0) へフォールバックすること"
+    );
+
+    // 不正な形式の state。
+    window.scroll_to_with_x_and_y(0.0, 900.0);
+    set_location_path("/items/1");
+    let init = PopStateEventInit::new();
+    init.set_state(&wasm_bindgen::JsValue::from_str("not-a-scroll-record"));
+    let invalid_event = PopStateEvent::new_with_event_init_dict("popstate", &init)
+        .expect("PopStateEvent construction must not fail");
+    window
+        .dispatch_event(&invalid_event)
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        wait_until(|| window.scroll_y().unwrap() == 0.0, 60).await,
+        "不正な形式の state を持つ popstate でも先頭 (0, 0) へフォールバックすること（fail-closed）"
+    );
+}
+
+/// 検証 5: ルート表に一致しないパスへの合成 `popstate` はスクロール位置を
+/// 変更しないこと（従来どおり完全 no-op、§2.2）。
+#[wasm_bindgen_test]
+fn popstate_for_unresolved_path_does_not_change_scroll_position() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+
+    reset_scroll_to_top();
+    set_location_path("/");
+    let (container, _root) = create_app_root(
+        &document,
+        "nav-test-scroll-popstate-noop",
+        &ssr_equivalent_list_inner_html(),
+    );
+    append_tall_spacer(&document, &container);
+    let _cleanup = RemoveOnDrop(container);
+
+    rws_wasm_full::nav::start_router("app-root").expect("start_router must succeed");
+
+    window.scroll_to_with_x_and_y(0.0, 700.0);
+    assert!(
+        window.scroll_y().unwrap() > 0.0,
+        "テスト前提条件: popstate 前にスクロール済みであること"
+    );
+
+    set_location_path("/no-such-route");
+    window
+        .dispatch_event(&synthetic_popstate_event())
+        .expect("dispatch_event must not fail");
+
+    assert_eq!(
+        window.scroll_y().unwrap(),
+        700.0,
+        "ルート表に一致しないパスへの popstate はスクロール位置を変更しない（完全 no-op）こと"
     );
 }

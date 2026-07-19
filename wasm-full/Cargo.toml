@@ -50,6 +50,13 @@ publish = false
 # `[dependencies.web-sys]` の features 拡張のみ（History/Location/PopStateEvent
 # 連携用の `History`/`Location`/`MouseEvent` を追加）。`cargo metadata` 実測
 # （パッケージ数・依存グラフ深さ）に変化がないことを PR 本文に記録する。
+# イシュー #406（クライアント遷移のスクロール位置復元制御）: 新規外部クレート
+# 追加ゼロ。`PopStateEvent`（popstate クロージャで `state()` を読み取るため。
+# 既存の `dev-dependencies.web-sys` には #374 時点でテスト専用として追加済み
+# だったが、本イシューで製品面の配線層 `nav::wiring` が直接使うため
+# `[dependencies.web-sys]` 側にも追加する）・`ScrollRestoration`（`history.
+# set_scroll_restoration` の引数型）を追加する。`cargo metadata` 実測
+# （パッケージ数・依存グラフ深さ）に変化がないことを PR 本文に記録する。
 [dependencies]
 rws-app = { path = "../app" }
 rws-core = { path = "../core" }
@@ -76,6 +83,8 @@ features = [
   "Location",
   "MouseEvent",
   "NamedNodeMap",
+  "PopStateEvent",
+  "ScrollRestoration",
   "Window",
   "console",
 ]

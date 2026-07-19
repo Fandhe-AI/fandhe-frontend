@@ -277,6 +277,29 @@ const APP_TEMPLATE_FILES: &[TemplateFile] = &[
     },
 ];
 
+/// `templates/embed/` の全ファイル（2 件）を埋め込んだ固定配列
+/// （イシュー #410）。
+///
+/// cargo パッケージを持たない「静的単一ファイルの部分埋め込み構成」
+/// （REQ-7）。`embed.html` は TASK-7.1a（#52）の正本をバイト無変更で流用し
+/// （`xtask/tests/template_embed_html.rs`・`cli/tests/template_vendor_drift.rs`
+/// が参照する正本と同一であることが前提のため、本テンプレート追加時に
+/// 一切変更しない）、`structure.toml` は `fw gate` が唯一の情報源として読む
+/// 静的専用（asset-only）マニフェスト（`cli/src/gate.rs::is_asset_only_project`
+/// が明示宣言として認識、`templates/embed/structure.toml` 冒頭コメント参照）。
+const EMBED_TEMPLATE_FILES: &[TemplateFile] = &[
+    TemplateFile {
+        rel_path: "embed.html",
+        contents: include_str!("../../templates/embed/embed.html"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "structure.toml",
+        contents: include_str!("../../templates/embed/structure.toml"),
+        executable: false,
+    },
+];
+
 /// `--template` の allowlist（イシュー #378）。
 ///
 /// テンプレート名はここに列挙したコンパイル時定数との完全一致照合のみで
@@ -296,6 +319,17 @@ pub(crate) const TEMPLATES: &[Template] = &[
         files: APP_TEMPLATE_FILES,
         needle: "rws-template-app",
         substituted_files: &["Cargo.toml", "Cargo.lock", "structure.toml"],
+    },
+    Template {
+        name: "embed",
+        files: EMBED_TEMPLATE_FILES,
+        // cargo パッケージが存在しないテンプレートのため置換対象の仮パッケージ名
+        // 自体を持たない。この `needle` はどのファイルにも出現しないダミー
+        // 文字列であり（`substituted_files` が空のため置換ループは素通りする、
+        // `new.rs::expand_template` 参照）、生成物はテンプレートと全ファイル
+        // バイト一致になる（`cli/tests/new_e2e.rs` が固定）。
+        needle: "rws-template-embed",
+        substituted_files: &[],
     },
 ];
 
@@ -326,6 +360,21 @@ mod tests {
     }
 
     #[test]
+    fn embed_template_is_registered() {
+        let t = find_template("embed").expect("embed template must be registered");
+        assert_eq!(t.name, "embed");
+        assert_eq!(
+            t.files.len(),
+            2,
+            "embed template must contain exactly embed.html and structure.toml"
+        );
+        assert!(
+            t.substituted_files.is_empty(),
+            "embed template has no cargo package, so no package-name substitution applies"
+        );
+    }
+
+    #[test]
     fn unknown_template_name_resolves_to_none() {
         assert!(find_template("nonexistent").is_none());
     }
@@ -344,8 +393,13 @@ mod tests {
             "tools/npm-asset-build/install.sh",
         ];
         let expected_app: &[&str] = expected_default;
+        let expected_embed: &[&str] = &[];
 
-        for (name, expected) in [("default", expected_default), ("app", expected_app)] {
+        for (name, expected) in [
+            ("default", expected_default),
+            ("app", expected_app),
+            ("embed", expected_embed),
+        ] {
             let t = find_template(name).unwrap_or_else(|| panic!("template `{name}` must exist"));
             let mut actual: Vec<&str> = t
                 .files
