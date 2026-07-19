@@ -39,10 +39,24 @@ publish = false
 # PR 本文に記録する（`.claude/rules/coding-rust.md` の事前承認要件は
 # `docs/design/loader-trait-design.md` §3.1 が「CSR（wasm-full）が Loader を
 # 参照する」ことを想定し `rws-app` 配置を選んでいる時点で承認整理済み）。
+# イシュー #345（set_inner_html 全置換を束縛点更新 + keyed list へ置換）:
+# `rws-wasm-client`（`BindingTable`/`keyed_diff`/`keyed_dom`、#343/#344）を
+# rlib 経由で消費するため追加する。`wasm-client/src/binding_dom.rs` 冒頭 doc
+# が「#345 が rlib 経由で消費できる公開 API として設計」と明記済みであり、
+# 承認整理済みの方向（`docs/design/dom-binding-update-design.md` §3.2a）。
+# workspace 内 path 依存であり新規外部パッケージの追加はゼロ
+# （`cargo metadata` 実測結果を PR 本文に記録する）。
 [dependencies]
 rws-app = { path = "../app" }
 rws-core = { path = "../core" }
 rws-interactive = { path = "../interactive" }
+# `default-features = false`: 本クレート独自の `wasm_bindgen` エクスポート
+# （`entry.rs` の `hydrate`/`mount`）と `rws-wasm-client` の REQ-6 デモ用
+# エクスポート（`hydrate`/`mount_csr`）とのシンボル重複（wasm-bindgen の
+# "describe" シンボルはクレート非依存の関数名ベース）を避けるため、
+# `wasm-client` 側の `wasm-bindgen-exports` feature を無効化する
+# （`wasm-client/Cargo.toml`・`wasm-client/src/lib.rs` の `wiring` doc 参照）。
+rws-wasm-client = { path = "../wasm-client", default-features = false }
 wasm-bindgen = "0.2"
 
 [dependencies.web-sys]
@@ -94,6 +108,16 @@ wasm-bindgen-test = "0.3"
 # root まで届く前提。events.rs 冒頭コメント参照）。新規クレート追加ではなく
 # 既存 web-sys の feature 追加のみで、`cargo metadata` 実測（パッケージ数・
 # 依存グラフ深さ）に変化がないことを確認済み（PR 本文に記録）。
+# イシュー #345: `runtime_browser.rs` の keyed list ノード同一性テストが
+# `Element::children()`（`HtmlCollection`）・`query_selector_all`
+# （`NodeList`）を使うため追加。テスト専用の feature 拡張。
 [dev-dependencies.web-sys]
 version = "0.3"
-features = ["Performance", "NamedNodeMap", "Attr", "EventInit"]
+features = [
+  "Performance",
+  "NamedNodeMap",
+  "Attr",
+  "EventInit",
+  "HtmlCollection",
+  "NodeList",
+]

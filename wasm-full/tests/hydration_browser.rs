@@ -292,7 +292,9 @@ fn ssr_output_hydrate_then_click_updates_from_injected_server_resolved_state() {
         "注入値（5）を起点としたクライアント更新（+1 = 6）が状態へ反映されること"
     );
     assert!(
-        placeholder.inner_html().contains("カウント: 6"),
+        placeholder
+            .inner_html()
+            .contains(r#"data-bind-text="counter">6</span>"#),
         "注入値を起点とした更新が実 DOM へ反映されていること: {}",
         placeholder.inner_html()
     );

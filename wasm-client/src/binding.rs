@@ -175,6 +175,34 @@ pub fn element_binding_specs(
     specs
 }
 
+/// [`rws_interactive::AppState`] を [`BindingSource`] へ接続する（イシュー
+/// #345）。孤児則（orphan rule）により、この実装は `BindingSource`（本クレート
+/// 定義）と `AppState`（`rws_interactive` 定義）のいずれか一方を所有する
+/// クレートでのみ書ける。`AppState` を所有する `rws-interactive` は
+/// `wasm-client`（DOM 依存クレート）へ依存できない設計方針であるため、
+/// 実装先は `wasm-client` 側一択となる（`docs/design/dom-binding-update-design.md`
+/// #345 実装確定節）。
+///
+/// `counter`/`draft` の 2 フィールドのみを扱う。`items`（keyed list）は
+/// [`BindingSource`] の対象外（[`crate::binding_dom::BindingTable`] の
+/// text/attr/class 更新経路ではなく、[`crate::keyed_diff`]/[`crate::keyed_dom`]
+/// の構造変化専用経路が扱う。設計書 §5 が定める「構造変化を表現できる唯一の
+/// 経路」の原則をクライアント側の型でも保つ）。未知 field は `None`
+/// （fail-closed、`BindingSource` のドキュメント参照）。
+impl BindingSource for rws_interactive::AppState {
+    fn bound_value(&self, field: &str) -> Option<BoundValue> {
+        match field {
+            f if f == rws_interactive::AppState::FIELD_COUNTER => {
+                Some(BoundValue::Text(self.counter.to_string()))
+            }
+            f if f == rws_interactive::AppState::FIELD_DRAFT => {
+                Some(BoundValue::Text(self.draft.clone()))
+            }
+            _ => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -280,5 +308,32 @@ mod tests {
     #[test]
     fn element_binding_specs_ignores_empty_text_field() {
         assert_eq!(element_binding_specs(Some(""), None, None), Vec::new());
+    }
+
+    #[test]
+    fn app_state_bound_value_returns_counter_and_draft_as_text() {
+        let mut state = rws_interactive::AppState::new();
+        state.counter = 5;
+        state.draft = "hello".to_string();
+        assert_eq!(
+            state.bound_value(rws_interactive::AppState::FIELD_COUNTER),
+            Some(BoundValue::Text("5".to_string()))
+        );
+        assert_eq!(
+            state.bound_value(rws_interactive::AppState::FIELD_DRAFT),
+            Some(BoundValue::Text("hello".to_string()))
+        );
+    }
+
+    #[test]
+    fn app_state_bound_value_returns_none_for_items_and_unknown_fields() {
+        let state = rws_interactive::AppState::new();
+        // items は keyed list 専用経路（`keyed_diff`/`keyed_dom`）が扱うため、
+        // BindingSource（text/attr/class 更新経路）の対象外とする。
+        assert_eq!(
+            state.bound_value(rws_interactive::AppState::FIELD_ITEMS),
+            None
+        );
+        assert_eq!(state.bound_value("unknown-field"), None);
     }
 }

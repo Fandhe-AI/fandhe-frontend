@@ -5,19 +5,27 @@
 //! [`rws_wasm_full::dispatch_and_render_headless`]（DOM 非依存）までを
 //! 検証済みである。本ファイルはその先、`Runtime::mount`/`Runtime::hydrate`
 //! が実 DOM（headless Chromium）上で以下を満たすことを検証する
-//! （`docs/design/wasm-full-architecture.md` 第 3.2 節・第 5 節）。
+//! （`docs/design/wasm-full-architecture.md` 第 3.2 節・第 5 節、
+//! イシュー #345 で束縛点更新 + keyed list 更新へ置き換え後の契約）。
 //!
 //! 1. `Runtime::mount` → クリック（`increment`/`add_item`）→ DOM 更新反映
-//! 2. `input` イベント中は再描画がスキップされること（`events.rs` の
-//!    `should_repaint == false` 契約が `Runtime` 経由でも保たれること）
+//! 2. イベント後更新は束縛点更新（`set_text_content`/`set_attribute`）に
+//!    限定され、無関係ノードの参照（`is_same_node`）・フォーカス・
+//!    入力途中の値・スクロール位置が保持されること（#345 の実装動機。
+//!    旧 `should_repaint`（`set_inner_html` 全置換回避のための再描画抑止）
+//!    は不要になり撤去済み、`events.rs` doc 参照）
 //! 3. `rws_interactive::render_for_hydration` 出力相当の DOM への
 //!    `Runtime::hydrate` → 状態復元・イベント配線
 //! 4. 改ざんされた `data-hydrate-*` 属性 → panic せず初期状態 CSR フォール
 //!    バック（`docs/design/wasm-full-architecture.md` 第 4 節・判断 5）
-//! 5. XSS ペイロードを持つ状態での `Runtime::mount` → 実 DOM に `script`
-//!    要素が生成されないこと（REQ-1、`wasm-full/tests/xss_escape_wasm.rs`
-//!    が検証する `render_component_html` 単体の保証を `Runtime::mount` の
-//!    製品経路まで通しで確認する）
+//! 5. XSS ペイロードを持つ状態での `Runtime::mount`・keyed list への項目
+//!    追加 → 実 DOM に `script` 要素が生成されないこと（REQ-1、
+//!    `wasm-full/tests/xss_escape_wasm.rs` が検証する
+//!    `render_component_html` 単体の保証を `Runtime::mount`/イベント後更新
+//!    という製品経路まで通しで確認する）
+//! 6. keyed list（`items`）への追加・削除で該当ノードのみが増減し、
+//!    無関係ノードの参照が保持されること（#345 受け入れ条件、
+//!    `rws_wasm_client::keyed_dom` の DOM 適用契約の統合確認）
 //!
 //! `AppState::view`（`interactive/src/lib.rs`）はルート要素へ固定 id
 //! `interactive-root` を付与するため、本ファイルの `root_id` は一貫して
@@ -104,7 +112,9 @@ fn mount_then_click_updates_state_and_dom() {
 
     assert_eq!(runtime.component().counter, 0);
     assert!(
-        placeholder.inner_html().contains("カウント: 0"),
+        placeholder
+            .inner_html()
+            .contains(r#"data-bind-text="counter">0</span>"#),
         "mount 直後に初期状態が DOM へ反映されていること: {}",
         placeholder.inner_html()
     );
@@ -125,7 +135,9 @@ fn mount_then_click_updates_state_and_dom() {
         "click 後に Runtime が保持する状態が更新されていること"
     );
     assert!(
-        placeholder.inner_html().contains("カウント: 1"),
+        placeholder
+            .inner_html()
+            .contains(r#"data-bind-text="counter">1</span>"#),
         "click 後に DOM が再描画され最新の状態を反映していること: {}",
         placeholder.inner_html()
     );
@@ -169,16 +181,20 @@ fn mount_then_click_updates_state_and_dom() {
     );
 }
 
-/// `input` イベント中は再描画がスキップされること（観点 2）。
+/// `input` イベント後も要素参照（フォーカス・入力途中の値の保持の土台）が
+/// 保たれること（観点 2、イシュー #345）。
 ///
-/// `events::action_from_input` は `should_repaint: false` を返す契約
-/// （`set_inner_html` によるフォーカス・キャレット破壊回避、PoC-5 準拠）。
-/// `Runtime::wire` がこの契約を守っていれば、`input` イベント後も
-/// `draft-input` 要素の `value` 属性（描画時点の値）は更新前のまま
-/// （dispatch 自体は行われ内部状態は変わるが、DOM への反映は次の
-/// `should_repaint: true` なアクションまで持ち越される）。
+/// 旧実装（`should_repaint: false`）は `set_inner_html` 全置換による
+/// フォーカス破壊を避けるため、input イベント後の再描画そのものをスキップ
+/// していた。#345 以降はイベント後更新が束縛点更新
+/// （`set_text_content`/`set_attribute`、`draft-input` は
+/// `HtmlInputElement::set_value` の等値ガード付き同期）に一本化され、
+/// `set_inner_html` を一切呼ばない。本テストは
+/// 「`draft-input` 要素自身が再生成されず（`is_same_node`）、無関係な兄弟
+/// ノード（`inc-btn` 等）も同一参照のまま残ること」を確認し、
+/// フォーカス・キャレット位置が破壊されないことの DOM 上の根拠とする。
 #[wasm_bindgen_test]
-fn input_event_updates_state_without_repainting_dom() {
+fn input_event_preserves_element_identity_and_updates_state() {
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
     let placeholder = create_placeholder(&document, "runtime-mount-input-root");
@@ -191,7 +207,10 @@ fn input_event_updates_state_without_repainting_dom() {
         .query_selector("#draft-input")
         .expect("query_selector must not fail")
         .expect("draft-input must exist");
-    let value_attr_before_input = draft_input.get_attribute("value");
+    let inc_button_before = placeholder
+        .query_selector("[data-testid='inc-btn']")
+        .expect("query_selector must not fail")
+        .expect("increment button must exist");
 
     draft_input
         .dyn_ref::<HtmlInputElement>()
@@ -204,19 +223,80 @@ fn input_event_updates_state_without_repainting_dom() {
     assert_eq!(
         runtime.component().draft,
         "入力中のテキスト",
-        "input イベントで内部状態（draft）自体は更新されること"
+        "input イベントで内部状態（draft）が更新されること"
     );
 
-    // 再描画されていれば新しい draft-input 要素が生成され value 属性へ
-    // 反映されるはずだが、should_repaint=false のため反映されないこと。
     let draft_input_after = placeholder
         .query_selector("#draft-input")
         .expect("query_selector must not fail")
-        .expect("draft-input must still exist (no repaint occurred)");
+        .expect("draft-input must still exist");
+    assert!(
+        draft_input.is_same_node(Some(&draft_input_after)),
+        "draft-input は再生成されず同一ノード参照が保持されること \
+         （set_inner_html 全置換を経由しないことの DOM 上の根拠）"
+    );
     assert_eq!(
-        draft_input_after.get_attribute("value"),
-        value_attr_before_input,
-        "input イベント直後は再描画がスキップされ value 属性が変化しないこと"
+        draft_input_after
+            .dyn_ref::<HtmlInputElement>()
+            .expect("must be HtmlInputElement")
+            .value(),
+        "入力中のテキスト",
+        "現在値と一致する再同期は no-op だが、ブラウザ自身の入力反映により \
+         表示値は入力内容のまま保たれること"
+    );
+
+    let inc_button_after = placeholder
+        .query_selector("[data-testid='inc-btn']")
+        .expect("query_selector must not fail")
+        .expect("increment button must exist");
+    assert!(
+        inc_button_before.is_same_node(Some(&inc_button_after)),
+        "draft の更新は無関係な inc-btn ノードへ触れないこと \
+         （束縛点更新の対象限定、受け入れ条件: 無関係ノードの DOM 変異なし）"
+    );
+}
+
+/// `add_item` 後、`draft-input` の live value プロパティが同期されクリア
+/// されること（`set_attribute` だけでは live value が更新されない DOM
+/// 仕様上の非対称性への対応、イシュー #345・
+/// `docs/design/dom-binding-update-design.md` #345 実装確定節）。
+#[wasm_bindgen_test]
+fn add_item_clears_draft_input_live_value_via_property_sync() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "runtime-add-item-clears-value-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let runtime = Runtime::mount("runtime-add-item-clears-value-root", AppState::new())
+        .expect("mount must succeed");
+
+    let draft_input = placeholder
+        .query_selector("#draft-input")
+        .expect("query_selector must not fail")
+        .expect("draft-input must exist");
+    let input_el = draft_input
+        .dyn_ref::<HtmlInputElement>()
+        .expect("draft-input must be an HtmlInputElement");
+    input_el.set_value("新規タスク");
+    draft_input
+        .dispatch_event(&bubbling_event("input"))
+        .expect("dispatch_event must not fail");
+    assert_eq!(input_el.value(), "新規タスク");
+
+    let add_button = placeholder
+        .query_selector("[data-testid='add-btn']")
+        .expect("query_selector must not fail")
+        .expect("add button must exist");
+    add_button
+        .dispatch_event(&bubbling_event("click"))
+        .expect("dispatch_event must not fail");
+
+    assert_eq!(runtime.component().draft, "");
+    assert_eq!(
+        input_el.value(),
+        "",
+        "add_item 後は live value プロパティも同期されクリアされること \
+         （set_attribute のみでは live value に反映されない DOM 仕様の対応）"
     );
 }
 
@@ -320,7 +400,9 @@ fn hydrate_falls_back_to_initial_state_csr_on_corrupted_attrs() {
         "改ざん属性は復元せず初期状態（counter=0）へフォールバックすること"
     );
     assert!(
-        placeholder.inner_html().contains("カウント: 0"),
+        placeholder
+            .inner_html()
+            .contains(r#"data-bind-text="counter">0</span>"#),
         "フォールバック時は初期状態で CSR 再描画されること: {}",
         placeholder.inner_html()
     );
@@ -350,6 +432,12 @@ fn mount_with_xss_payload_state_produces_no_script_element_in_real_dom() {
     let mut state = AppState::new();
     state.draft = "<script>alert(1)</script>".to_string();
     state.items.push("<script>alert(2)</script>".to_string());
+    // `items` への直接代入は `item_ids`（keyed list の安定キー、イシュー
+    // #345）を追随させないため、ここで揃える（`interactive` クレートの
+    // `AppState::item_ids` 型ドキュメント参照。揃えないと `view()` の
+    // `zip` により 2 件目の項目が描画から欠落し、本来検証したい
+    // 「keyed list 経由の挿入項目の XSS」を確認できなくなる）。
+    state.item_ids = (0..state.items.len() as u64).collect();
 
     let _runtime = Runtime::mount("runtime-mount-xss-root", state).expect("mount must succeed");
 
@@ -368,5 +456,168 @@ fn mount_with_xss_payload_state_produces_no_script_element_in_real_dom() {
     assert!(
         inner.contains("&lt;script&gt;"),
         "inner_html にエスケープ済みペイロードが含まれること: {inner}"
+    );
+}
+
+/// 観点 6: `add_item`（keyed list への挿入）で既存項目ノードの参照が保持され
+/// つつ、新規項目のみが末尾へ追加されること（設計書 §5.3「既存ノード参照を
+/// 保持したまま」の統合確認）。
+#[wasm_bindgen_test]
+fn add_item_appends_new_node_without_recreating_existing_list_items() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "runtime-keyed-insert-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let runtime =
+        Runtime::mount("runtime-keyed-insert-root", AppState::new()).expect("mount must succeed");
+
+    let list = placeholder
+        .query_selector("[data-testid='item-list']")
+        .expect("query_selector must not fail")
+        .expect("item list must exist");
+    assert_eq!(list.children().length(), 1, "初期状態は項目 1 件");
+    let existing_first_item = list.children().item(0).expect("first item must exist");
+
+    let draft_input = placeholder
+        .query_selector("#draft-input")
+        .expect("query_selector must not fail")
+        .expect("draft-input must exist");
+    draft_input
+        .dyn_ref::<HtmlInputElement>()
+        .expect("must be HtmlInputElement")
+        .set_value("2 件目の項目");
+    draft_input
+        .dispatch_event(&bubbling_event("input"))
+        .expect("dispatch_event must not fail");
+    placeholder
+        .query_selector("[data-testid='add-btn']")
+        .expect("query_selector must not fail")
+        .expect("add button must exist")
+        .dispatch_event(&bubbling_event("click"))
+        .expect("dispatch_event must not fail");
+
+    assert_eq!(runtime.component().items.len(), 2);
+    assert_eq!(
+        list.children().length(),
+        2,
+        "keyed list への挿入で子要素が 1 件増えること"
+    );
+    let first_item_after = list.children().item(0).expect("first item must exist");
+    assert!(
+        existing_first_item.is_same_node(Some(&first_item_after)),
+        "既存の 1 件目ノードは再生成されず同一参照が保持されること \
+         （keyed list 挿入が set_inner_html 全置換を経由しないことの根拠）"
+    );
+    let second_item = list.children().item(1).expect("second item must exist");
+    assert!(
+        second_item
+            .text_content()
+            .unwrap_or_default()
+            .contains("2 件目の項目"),
+        "新規項目が末尾へ追加されること"
+    );
+}
+
+/// 観点 6: `remove_item`（keyed list からの削除）で対象項目のみが除去され、
+/// 無関係な項目ノードの参照が保持されること。
+#[wasm_bindgen_test]
+fn remove_item_removes_target_node_preserving_sibling_identity() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "runtime-keyed-remove-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let mut state = AppState::new();
+    state.items.push("2 件目".to_string());
+    state.items.push("3 件目".to_string());
+    state.item_ids = (0..state.items.len() as u64).collect();
+    state.next_item_id = state.item_ids.len() as u64;
+
+    let runtime = Runtime::mount("runtime-keyed-remove-root", state).expect("mount must succeed");
+
+    let list = placeholder
+        .query_selector("[data-testid='item-list']")
+        .expect("query_selector must not fail")
+        .expect("item list must exist");
+    assert_eq!(list.children().length(), 3);
+    let third_item_before = list.children().item(2).expect("third item must exist");
+
+    // 中間（2 件目、id=1）の削除ボタンをクリックする。
+    let remove_buttons = list
+        .query_selector_all("[data-testid='remove-btn']")
+        .expect("query_selector_all must not fail");
+    let middle_remove_button = remove_buttons
+        .get(1)
+        .expect("middle remove button must exist");
+    middle_remove_button
+        .dispatch_event(&bubbling_event("click"))
+        .expect("dispatch_event must not fail");
+
+    assert_eq!(
+        runtime.component().items,
+        vec!["最初の項目".to_string(), "3 件目".to_string()],
+        "id=1（2 件目）のみが削除されること"
+    );
+    assert_eq!(list.children().length(), 2);
+    let third_item_after = list.children().item(1).expect("remaining second item");
+    assert!(
+        third_item_before.is_same_node(Some(&third_item_after)),
+        "削除対象以外のノード（3 件目）は再生成されず同一参照が保持されること"
+    );
+}
+
+/// 観点 5・6 の複合: keyed list への挿入経路（`add_item`）で script 相当の
+/// 文字列を追加しても `<script>` 要素が生成されず、`innerHTML` を経由しない
+/// プログラム的構築（`create_element`/`set_text_content`）でテキストとして
+/// 安全に挿入されること（`wasm-client::keyed_dom` の不変条件の統合確認）。
+#[wasm_bindgen_test]
+fn add_item_with_script_payload_inserts_as_text_not_script_element() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "runtime-keyed-insert-xss-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let runtime = Runtime::mount("runtime-keyed-insert-xss-root", AppState::new())
+        .expect("mount must succeed");
+
+    let malicious = "<script>alert(1)</script>";
+    let draft_input = placeholder
+        .query_selector("#draft-input")
+        .expect("query_selector must not fail")
+        .expect("draft-input must exist");
+    draft_input
+        .dyn_ref::<HtmlInputElement>()
+        .expect("must be HtmlInputElement")
+        .set_value(malicious);
+    draft_input
+        .dispatch_event(&bubbling_event("input"))
+        .expect("dispatch_event must not fail");
+    placeholder
+        .query_selector("[data-testid='add-btn']")
+        .expect("query_selector must not fail")
+        .expect("add button must exist")
+        .dispatch_event(&bubbling_event("click"))
+        .expect("dispatch_event must not fail");
+
+    assert!(runtime
+        .component()
+        .items
+        .iter()
+        .any(|item| item == malicious));
+    assert!(
+        placeholder
+            .query_selector("script")
+            .expect("query_selector must not fail")
+            .is_none(),
+        "keyed list への挿入経路でも <script> 要素が実 DOM に生成されないこと"
+    );
+    let list = placeholder
+        .query_selector("[data-testid='item-list']")
+        .expect("query_selector must not fail")
+        .expect("item list must exist");
+    assert!(
+        list.text_content().unwrap_or_default().contains(malicious),
+        "script 文字列はテキストとして安全に挿入されること"
     );
 }

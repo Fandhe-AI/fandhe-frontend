@@ -10,7 +10,7 @@
 //! [`dom::render_component_html`]（DOM 非依存の描画純粋関数）・[`hydration`]
 //! （`data-hydrate-*` 属性からの状態復元、`docs/api/hydration-state-format.md`
 //! 第 5 節）に加え、[`Runtime`]（`mount`/`hydrate` の公開 API・`set_inner_html`
-//! を伴う `dom::paint` 本体・イベント配線・ハイドレーション関数群の統合、
+//! を伴う `dom::mount_initial`（旧 paint）本体・イベント配線・ハイドレーション関数群の統合、
 //! `docs/design/wasm-full-architecture.md` 第 3.2 節の公開 API 凍結表）と
 //! [`dispatch_and_render_headless`]（DOM 非依存のヘッドレス補助 API）を提供する。
 //!
@@ -72,7 +72,7 @@ use rws_interactive::Component;
 /// 経由しない。native の単体テスト・Node 計測（TASK-11.5/11.6）が
 /// wasm32 ターゲット・実 DOM を介さずに「dispatch 後の状態」を検証できるように
 /// するためのヘルパーであり、[`Runtime::mount`]/[`Runtime::hydrate`] の
-/// 内部実装（`dom::paint` 経由で `rws_core::render()` の既定エスケープ済み
+/// 内部実装（`dom::mount_initial` 経由で `rws_core::render()` の既定エスケープ済み
 /// 出力のみを DOM へ渡す）とは別経路である。
 ///
 /// 未知のアクション名（`rws_interactive::dispatch` が `false` を返す場合）でも
@@ -105,16 +105,19 @@ pub fn dispatch_and_render_headless<C: Component>(
 /// として維持されるようにする。
 #[cfg(target_arch = "wasm32")]
 pub struct Runtime<C: Component> {
-    /// dispatch 後の再描画（`dom::paint`）で共有参照する必要があるため
+    /// イベント後更新（束縛点更新 + keyed list 更新、`Self::wire`）で共有参照する必要があるため
     /// `Rc<RefCell<_>>` で保持する（[`events::wire_events`] の `on_action`
     /// コールバックと `Runtime` 自身が同じ状態を共有する）。
     component: std::rc::Rc<std::cell::RefCell<C>>,
-    /// マウント先ルート要素。再描画（`dom::paint`）の対象。
+    /// マウント先ルート要素。イベント後更新（`Self::wire`）の対象。
     root: web_sys::Element,
 }
 
 #[cfg(target_arch = "wasm32")]
-impl<C: Component + 'static> Runtime<C> {
+impl<C> Runtime<C>
+where
+    C: Component + rws_interactive::DirtyTracked + rws_wasm_client::BindingSource + 'static,
+{
     /// `root_id` 要素を解決する。`window`/`document` 非存在・要素不在は
     /// いずれも `Err`（panic しない、`.claude/rules/coding-rust.md`）。
     /// エラー文字列は固定の英語文言とし内部状態を含めない
@@ -128,10 +131,45 @@ impl<C: Component + 'static> Runtime<C> {
             .ok_or_else(|| wasm_bindgen::JsValue::from_str("root element not found"))
     }
 
-    /// `component`/`root` を共有し、dispatch 成功かつ `should_repaint` の
-    /// 場合のみ [`dom::paint`] を呼ぶ `on_action` コールバックを組み立てる。
-    /// [`Self::mount`]・[`Self::hydrate`] のいずれからもイベント配線は
-    /// この 1 箇所からのみ行う（配線は 1 回のみという契約を型で保証する）。
+    /// `document`（`window().document()`）を取得する。[`Self::get_root`] と
+    /// 同じ理由・同じ固定文言方針で `Err` を返す（内部状態を含めない）。
+    fn document() -> Result<web_sys::Document, wasm_bindgen::JsValue> {
+        web_sys::window()
+            .ok_or_else(|| wasm_bindgen::JsValue::from_str("window is unavailable"))?
+            .document()
+            .ok_or_else(|| wasm_bindgen::JsValue::from_str("document is unavailable"))
+    }
+
+    /// `component`/`root` を共有し、dispatch 成功後に**束縛点更新 + keyed
+    /// list 更新**（イシュー #345、`set_inner_html` 全置換の撤去）を適用する
+    /// `on_action` コールバックを組み立てる。[`Self::mount`]・[`Self::hydrate`]
+    /// のいずれからもイベント配線はこの 1 箇所からのみ行う（配線は 1 回のみ
+    /// という契約を型で保証する）。
+    ///
+    /// 束縛点対応表（[`rws_wasm_client::BindingTable`]）は `root` の DOM が
+    /// 既に構築済み（`mount`/`hydrate` が [`dom::mount_initial`] または
+    /// SSR 済み DOM を用意した後）である前提でクロージャ生成時に 1 回
+    /// `scan` する。keyed list の構造変化（挿入・削除・並べ替え）が起きた
+    /// dirty field については、更新後に対応表を**再スキャン**する
+    /// （挿入された新規ノード内の束縛点を拾うため。設計書 §5.2 のフォール
+    /// バックと同じ機構）。
+    ///
+    /// - テキスト・属性・class 更新: `BindingTable::apply_dirty` が
+    ///   `set_text_content`/`set_attribute`/`class_list` のみを呼ぶ
+    ///   （`set_inner_html` 不使用）。
+    /// - keyed list 更新: dirty field ごとに `root` 配下の
+    ///   `[data-bind-list="<field>"]` 要素を探し（
+    ///   `rws_wasm_client::find_list_element`）、見つかった場合のみ
+    ///   `component.view()` の新しい木から対応するリストノードを特定して
+    ///   （`rws_wasm_client::find_keyed_list_node`）
+    ///   `rws_wasm_client::apply_keyed_list` を適用する。どちらかが
+    ///   見つからない場合は当該 field を no-op とする（fail-closed。
+    ///   `field` が keyed list ではなく通常の束縛点だった場合の通常経路）。
+    ///
+    /// 束縛点更新は冪等かつ変更フィールド数に比例するコストのため、旧実装の
+    /// `should_repaint`（input イベント時の再描画抑止）は不要になり撤去した
+    /// （`events.rs` doc 参照）。キャレット位置の保持は
+    /// `wasm-client::binding_dom` の value プロパティ等値ガードが担う。
     ///
     /// `try_borrow_mut` が失敗する場合（イベントハンドラ内からの再入等）は
     /// 状態変更・再描画のいずれも行わず no-op とする。安全側フォールバック
@@ -142,14 +180,56 @@ impl<C: Component + 'static> Runtime<C> {
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
     ) -> impl FnMut(events::ActionRef) + 'static {
+        let binding_table = std::rc::Rc::new(std::cell::RefCell::new(
+            rws_wasm_client::BindingTable::scan(&root).ok(),
+        ));
+
         move |action_ref: events::ActionRef| {
             let Ok(mut state) = component.try_borrow_mut() else {
                 return;
             };
             let dispatched =
                 rws_interactive::dispatch(&mut *state, &action_ref.action, &action_ref.payload);
-            if dispatched && action_ref.should_repaint {
-                dom::paint(&root, &*state);
+            if !dispatched {
+                return;
+            }
+
+            // `dirty_fields()` は `state` への借用であり、以降 `state.view()`
+            // （同じく `&self` メソッド）も呼ぶため、先に所有値へコピーして
+            // 借用の競合を避ける（`state` は `RefMut` の排他借用 1 つで両者を
+            // 呼べるが、`Vec` へ写して後段のロジックを単純にする）。
+            let dirty: Vec<&'static str> = state.dirty_fields().to_vec();
+            if dirty.is_empty() {
+                return;
+            }
+
+            if let Some(table) = binding_table.borrow().as_ref() {
+                table.apply_dirty(&dirty, &*state);
+            }
+
+            let mut structural_change = false;
+            if let Ok(document) = Self::document() {
+                for field in &dirty {
+                    let Ok(Some(list_element)) = rws_wasm_client::find_list_element(&root, field)
+                    else {
+                        continue;
+                    };
+                    let view = state.view();
+                    if let Some(list_node) = rws_wasm_client::find_keyed_list_node(&view, field) {
+                        rws_wasm_client::apply_keyed_list(&document, &list_element, list_node);
+                        structural_change = true;
+                    }
+                }
+            }
+
+            // keyed list の挿入で新規ノードが増えた場合、その内部の
+            // `data-bind-text`/`data-bind-attr`/`data-bind-class` 束縛点は
+            // 直前の対応表に含まれていない。構造変化があった呼び出しに限り
+            // 対応表を再スキャンする（設計書 §5.2 のフォールバックと同じ
+            // 機構。毎呼び出しで再スキャンしないことで通常の
+            // テキスト/属性更新のコストを最小限に保つ）。
+            if structural_change {
+                *binding_table.borrow_mut() = rws_wasm_client::BindingTable::scan(&root).ok();
             }
         }
     }
@@ -157,7 +237,7 @@ impl<C: Component + 'static> Runtime<C> {
     /// CSR 経路（`docs/design/wasm-full-architecture.md` 第 3.2 節）。
     ///
     /// `component.view()` → [`dom::render_component_html`]（既定エスケープ済み
-    /// 出力）を `root_id` 要素へ [`dom::paint`] で反映し、続けて
+    /// 出力）を `root_id` 要素へ [`dom::mount_initial`] で反映し、続けて
     /// [`events::wire_events`] によりイベント委譲を 1 回だけ登録する。
     ///
     /// # Errors
@@ -166,7 +246,7 @@ impl<C: Component + 'static> Runtime<C> {
     /// （`add_event_listener_with_callback`）が失敗した場合に `Err` を返す。
     pub fn mount(root_id: &str, component: C) -> Result<Self, wasm_bindgen::JsValue> {
         let root = Self::get_root(root_id)?;
-        dom::paint(&root, &component);
+        dom::mount_initial(&root, &component);
 
         let component = std::rc::Rc::new(std::cell::RefCell::new(component));
         let on_action = Self::wire(component.clone(), root.clone());
@@ -179,8 +259,8 @@ impl<C: Component + 'static> Runtime<C> {
     ///
     /// SSR 済み DOM を再構築せず、[`hydration::read_hydration_attrs`] →
     /// [`hydration::restore_state`] の順に状態復元を試みる。復元成功時は
-    /// （SSR 出力と一致する前提の）DOM をそのまま維持し `dom::paint` を
-    /// 呼ばない。復元失敗（`Err`）時は引数の `component`（初期状態）のまま
+    /// （SSR 出力と一致する前提の）DOM をそのまま維持し [`dom::mount_initial`]
+    /// を呼ばない。復元失敗（`Err`）時は引数の `component`（初期状態）のまま
     /// [`Self::mount`] 相当の CSR 再描画へフォールバックする
     /// （同書第 4 節・判断 5。改ざんされうるクライアント入力を信頼しない、
     /// panic しない不変条件）。成功・失敗いずれの経路でもイベント配線は
@@ -204,7 +284,7 @@ impl<C: Component + 'static> Runtime<C> {
                 // 改ざん・欠落・破損した data-hydrate-* 属性は信頼できない
                 // クライアント入力として扱い、初期状態での CSR 再描画へ
                 // 安全側フォールバックする（panic しない）。
-                dom::paint(&root, &component);
+                dom::mount_initial(&root, &component);
                 component
             }
         };

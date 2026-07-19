@@ -31,6 +31,18 @@ rws-app = { path = "../app" }
 rws-interactive = { path = "../interactive" }
 wasm-bindgen = "0.2"
 
+# イシュー #345（束縛点更新 + keyed list への置換）で以下 3 feature を追加。
+# 新規外部クレート追加ではなく既存 web-sys の feature 追加のみであり、
+# `cargo metadata` の総パッケージ数・依存グラフ深さに変化がないことを実測
+# 確認済み（PR 本文に記録）。
+# - "Text": keyed list 挿入時、`document.create_text_node` の戻り値型
+#   （`build_element`、`keyed_dom.rs`）。
+# - "HtmlInputElement": `data-bind-attr="value:..."` の value プロパティ同期
+#   （`apply_one`、`binding_dom.rs`）。`wasm-full` と同一 feature。
+# - "HtmlCollection": `apply_keyed_list`（`keyed_dom.rs`）が
+#   `Element::children()` を使わないため実際には不要 — dev のみで足りるため
+#   ここには追加しない（既存 dev-dependencies.web-sys の HtmlCollection を
+#   引き続き使う）。
 [dependencies.web-sys]
 version = "0.3"
 features = [
@@ -38,14 +50,28 @@ features = [
   "Element",
   "Event",
   "EventTarget",
+  "HtmlInputElement",
   "Node",
   "NodeList",
+  "Text",
   "Window",
   "DomTokenList",
+  "console",
 ]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+# イシュー #345: `wasm-full`（`entry.rs`）が独自に `#[wasm_bindgen] pub fn
+# hydrate`/`mount` をエクスポートするため、本クレートの REQ-6 デモ用
+# エクスポート（`hydrate`/`mount_csr`）と同一 wasm バイナリへリンクすると
+# `wasm-bindgen` の "describe" シンボル（クレート非依存の関数名ベース）が
+# 重複してリンクエラーになる。`wasm-full` は `default-features = false` で
+# 依存し、本クレート単体利用者（既定）には影響を与えない
+# （`wasm-client/src/lib.rs` の `wiring` モジュール doc 参照）。
+[features]
+default = ["wasm-bindgen-exports"]
+wasm-bindgen-exports = []
 
 # TASK-6.2c（#49）: CI の browser-test ジョブ（.github/workflows/ci.yml）が
 # 本クレート新設と同時に `wasm-pack test --headless --chrome wasm-client` を

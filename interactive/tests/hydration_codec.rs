@@ -13,7 +13,7 @@
 //! `codec::encode_list`/`decode_list` は `codec` モジュール内の単体テストで
 //! 別途カバーする（`lib.rs` 参照）。
 
-use rws_interactive::{Action, AppState, Component, Hydrate, HydrateError};
+use rws_interactive::{codec, Action, AppState, Component, Hydrate, HydrateError};
 use std::collections::HashMap;
 
 /// [`Hydrate::hydration_attrs`] の戻り値を `HashMap` へ変換し、キー名でアクセスできるようにする。
@@ -278,8 +278,12 @@ fn reset_counter_recovers_from_extreme_restored_value() {
 
 // --- hydration_attrs のキー集合固定（wasm-full/TASK-11.4 との契約） --------
 
+// イシュー #345 レビュー指摘の是正で `data-hydrate-item-ids` を追加した
+// ため、契約するキー集合を 3 件から 4 件へ更新する（下記
+// `item_ids_hydration_attr_roundtrips_and_matches_ssr_data_key` が
+// 追加属性の往復・SSR `data-key` との一致を検証する）。
 #[test]
-fn hydration_attrs_key_set_is_fixed_to_three_entries() {
+fn hydration_attrs_key_set_is_fixed_to_four_entries() {
     let s = AppState::new();
     let attrs = s.hydration_attrs();
     let mut keys: Vec<&str> = attrs.iter().map(|(k, _)| k.as_str()).collect();
@@ -289,7 +293,138 @@ fn hydration_attrs_key_set_is_fixed_to_three_entries() {
         vec![
             "data-hydrate-counter",
             "data-hydrate-draft",
+            "data-hydrate-item-ids",
             "data-hydrate-items",
         ]
     );
+}
+
+// --- item_ids の往復・SSR data-key との一致（イシュー #345 レビュー指摘） -
+
+/// 中間削除で `item_ids` に欠番が生じた状態
+/// （`AddItem` × 3 → 中間の `RemoveItem` 相当）を組み立てるヘルパー。
+fn state_with_gappy_item_ids() -> AppState {
+    let mut s = AppState::new();
+    s.items = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+    s.item_ids = vec![10, 20, 30];
+    s.next_item_id = 31;
+    s
+}
+
+/// `item_ids` に欠番（非連番）があっても、`hydration_attrs` →
+/// `from_hydration_attrs` の往復で正確に復元されること。
+/// これが失敗する（`0..items.len()` へ再割当てされる）と、SSR が
+/// keyed list の `data-key` として出力した実 id とクライアント側
+/// `item_ids` が食い違い、ハイドレーション後の最初の構造変化で
+/// 既存ノードを誤って破棄・再生成してしまう（レビュー指摘の再現条件）。
+#[test]
+fn item_ids_hydration_attr_roundtrips_and_matches_ssr_data_key() {
+    let s = state_with_gappy_item_ids();
+    let attrs = s.hydration_attrs();
+    let restored = AppState::from_hydration_attrs(&attrs).expect("valid attrs");
+    assert_eq!(restored.item_ids, vec![10, 20, 30]);
+    // 次発行 id は既存 id と衝突しない値（最大値 + 1）であること。
+    assert_eq!(restored.next_item_id, 31);
+}
+
+/// `data-hydrate-item-ids` 属性が欠落している場合（旧バージョンの SSR
+/// 出力・手動改ざん等）は、`0..items.len()` への再割当てへ安全側
+/// フォールバックすること（panic しない、不変条件 3）。
+#[test]
+fn item_ids_hydration_attr_falls_back_when_missing() {
+    let attrs = vec![
+        ("data-hydrate-counter".to_string(), "0".to_string()),
+        ("data-hydrate-draft".to_string(), String::new()),
+        (
+            "data-hydrate-items".to_string(),
+            codec::encode_list(&["a".to_string(), "b".to_string()]),
+        ),
+    ];
+    let restored = AppState::from_hydration_attrs(&attrs).expect("missing item-ids is not fatal");
+    assert_eq!(restored.item_ids, vec![0, 1]);
+    assert_eq!(restored.next_item_id, 2);
+}
+
+/// 長さ不一致（`items` とは無関係な件数の `item_ids`。改ざんの一種）は
+/// 破棄し、`0..items.len()` への再割当てへフォールバックすること。
+#[test]
+fn item_ids_hydration_attr_falls_back_on_length_mismatch() {
+    let attrs = vec![
+        ("data-hydrate-counter".to_string(), "0".to_string()),
+        ("data-hydrate-draft".to_string(), String::new()),
+        (
+            "data-hydrate-items".to_string(),
+            codec::encode_list(&["a".to_string(), "b".to_string()]),
+        ),
+        (
+            "data-hydrate-item-ids".to_string(),
+            codec::encode_list(&["10".to_string()]),
+        ),
+    ];
+    let restored = AppState::from_hydration_attrs(&attrs).expect("mismatch is not fatal");
+    assert_eq!(restored.item_ids, vec![0, 1]);
+}
+
+/// 重複 id（改ざん・破損）は `keyed_list` のキー一意性契約に反するため
+/// 破棄し、`0..items.len()` への再割当てへフォールバックすること。
+#[test]
+fn item_ids_hydration_attr_falls_back_on_duplicate_ids() {
+    let attrs = vec![
+        ("data-hydrate-counter".to_string(), "0".to_string()),
+        ("data-hydrate-draft".to_string(), String::new()),
+        (
+            "data-hydrate-items".to_string(),
+            codec::encode_list(&["a".to_string(), "b".to_string()]),
+        ),
+        (
+            "data-hydrate-item-ids".to_string(),
+            codec::encode_list(&["5".to_string(), "5".to_string()]),
+        ),
+    ];
+    let restored = AppState::from_hydration_attrs(&attrs).expect("duplicates are not fatal");
+    assert_eq!(restored.item_ids, vec![0, 1]);
+}
+
+/// `item_ids` の最大値が `u64::MAX`（改ざんで注入可能な極端値）でも、
+/// `next_item_id` 算出の `+ 1` が debug ビルドで overflow panic しないこと。
+/// `Action::Increment`/`Decrement` の `saturating_add`/`saturating_sub`
+/// と同じ「クライアント制御下の極端値から panic しない」不変条件。
+#[test]
+fn item_ids_hydration_attr_does_not_panic_on_u64_max() {
+    let attrs = vec![
+        ("data-hydrate-counter".to_string(), "0".to_string()),
+        ("data-hydrate-draft".to_string(), String::new()),
+        (
+            "data-hydrate-items".to_string(),
+            codec::encode_list(&["a".to_string()]),
+        ),
+        (
+            "data-hydrate-item-ids".to_string(),
+            codec::encode_list(&[u64::MAX.to_string()]),
+        ),
+    ];
+    let restored = AppState::from_hydration_attrs(&attrs).expect("u64::MAX id is not fatal");
+    assert_eq!(restored.item_ids, vec![u64::MAX]);
+    // saturating_add により u64::MAX で頭打ちになる（panic しない）。
+    assert_eq!(restored.next_item_id, u64::MAX);
+}
+
+/// 非数値要素混入（改ざん）は `u64` パース失敗として扱い、
+/// `0..items.len()` への再割当てへフォールバックすること（panic しない）。
+#[test]
+fn item_ids_hydration_attr_falls_back_on_non_numeric_id() {
+    let attrs = vec![
+        ("data-hydrate-counter".to_string(), "0".to_string()),
+        ("data-hydrate-draft".to_string(), String::new()),
+        (
+            "data-hydrate-items".to_string(),
+            codec::encode_list(&["a".to_string(), "b".to_string()]),
+        ),
+        (
+            "data-hydrate-item-ids".to_string(),
+            codec::encode_list(&["not-a-number".to_string(), "1".to_string()]),
+        ),
+    ];
+    let restored = AppState::from_hydration_attrs(&attrs).expect("non-numeric is not fatal");
+    assert_eq!(restored.item_ids, vec![0, 1]);
 }

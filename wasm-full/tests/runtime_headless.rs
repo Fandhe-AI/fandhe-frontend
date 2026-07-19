@@ -6,8 +6,8 @@
 //! 第 3.2 節）であり、native `cargo test` から wasm32 ターゲット・実 DOM を
 //! 介さずに「dispatch 後の状態」を検証できる。
 //!
-//! `Runtime::mount`/`Runtime::hydrate`・イベント配線経由の
-//! `should_repaint == false`（input 中の再描画スキップ）契約は
+//! `Runtime::mount`/`Runtime::hydrate`・イベント配線経由の束縛点更新 +
+//! keyed list 更新（イシュー #345、`set_inner_html` 全置換の撤去）は
 //! `web_sys::Element` に依存する wasm32 専用コードのため、本ファイルでは
 //! 検証できない（`wasm-full/tests/runtime_browser.rs` の実ブラウザ統合テストへ
 //! 委ねる）。本ファイルはヘッドレス経路（状態遷移・XSS 回帰）のみを扱う。
@@ -22,14 +22,17 @@ use rws_wasm_full::dispatch_and_render_headless;
 fn dispatch_and_render_headless_reflects_state_after_dispatch() {
     let mut state = AppState::new();
 
+    // カウンター値はイシュー #345 で束縛点（`<span data-bind-text="counter">`）
+    // に分離出力されるため「カウント: N」は連続部分文字列にならない
+    // （`interactive/src/lib.rs` の `render_with_root_attrs` 参照）。
     let node = dispatch_and_render_headless(&mut state, "increment", "");
-    assert!(render(&node).contains("カウント: 1"));
+    assert!(render(&node).contains(r#"data-bind-text="counter">1</span>"#));
 
     let node = dispatch_and_render_headless(&mut state, "increment", "");
-    assert!(render(&node).contains("カウント: 2"));
+    assert!(render(&node).contains(r#"data-bind-text="counter">2</span>"#));
 
     let node = dispatch_and_render_headless(&mut state, "decrement", "");
-    assert!(render(&node).contains("カウント: 1"));
+    assert!(render(&node).contains(r#"data-bind-text="counter">1</span>"#));
 }
 
 /// 未知アクションの安全側 no-op（`rws_interactive::dispatch` の不変条件 4）:

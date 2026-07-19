@@ -210,6 +210,11 @@ fn render_html_stays_safe_with_malicious_input_across_all_fields() {
     let mut s = AppState::new();
     s.draft = payloads::SINGLE_QUOTE_BREAKOUT.to_string();
     s.items = payloads::all().iter().map(|p| p.to_string()).collect();
+    // `items` への直接代入は `item_ids`（keyed list の安定キー、イシュー
+    // #345）を追随させない。`view()` は両者を `zip` して構築するため、id 数が
+    // 足りないと後続項目が黙って描画から落ちてしまう（このテストが検出
+    // しようとしている偽陰性リグレッションと紛れるため、明示的に揃える）。
+    s.item_ids = (0..s.items.len() as u64).collect();
 
     let csr_html = render_html(&s);
     let ssr_html = render_html_for_hydration(&s);

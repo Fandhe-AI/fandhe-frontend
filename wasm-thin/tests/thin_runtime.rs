@@ -59,6 +59,12 @@ fn hydrate_from_attrs_roundtrip_matches_ssr_view() {
     source.update(rws_interactive::Action::Increment);
     source.items.push("separator:\u{1f}here".to_string());
     source.items.push("backslash:\\here".to_string());
+    // `items` への直接代入は `item_ids`（keyed list の安定キー、イシュー
+    // #345）を追随させない。`hydrate_from_attrs` 側は復元時に
+    // `item_ids = 0..items.len()` を決定的に再構築するため（`interactive`
+    // クレートの `AppState::item_ids` 型ドキュメント参照）、比較対象の
+    // `source.view()` 側もここで揃えておく。
+    source.item_ids = (0..source.items.len() as u64).collect();
     source.update(rws_interactive::Action::SetDraft("draft text".to_string()));
 
     let attrs = source.hydration_attrs();
@@ -113,11 +119,14 @@ fn hydrate_from_attrs_rejects_invalid_input_without_panicking() {
 /// native 上でも通常の Rust 関数として呼び出せる）。
 #[test]
 fn demo_boundary_layer_smoke() {
+    // カウンター値はイシュー #345 で束縛点（`<span data-bind-text="counter">`）
+    // に分離出力されるため「カウント: N」は連続部分文字列にならない
+    // （`interactive/src/lib.rs` の `render_with_root_attrs` 参照）。
     let initial = demo::initial_html();
-    assert!(initial.contains("カウント: 0"));
+    assert!(initial.contains(r#"data-bind-text="counter">0</span>"#));
 
     let after_increment = demo::apply("increment", "");
-    assert!(after_increment.contains("カウント: 1"));
+    assert!(after_increment.contains(r#"data-bind-text="counter">1</span>"#));
 
     // 不正な attrs（names/values の長さ不一致）は false を返し panic しない。
     let ok = demo::hydrate_from_attrs(vec!["only-one".to_string()], Vec::new());
