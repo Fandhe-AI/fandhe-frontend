@@ -15,6 +15,36 @@
 //! の順で呼ばれ、双方が通ってはじめて TASK-13.1c の実体突き合わせ・JSON 出力へ進む
 //! （`main.rs` 側の契約: パース・検証いずれかの失敗でも黙示的成功を返さない）。
 
+/// `[directories.<name>]` の予約名: プロジェクトルート直下（ワークスペース
+/// ルート自身）にクレートを直接配置する慣習を表す（`fw new`、イシュー #350/#351）。
+///
+/// 現行スキーマ（`^[a-z0-9_-]+$`）にはワークスペースルート自身を指す記号
+/// （`.` 等）が無いため、`root` を予約名として正式化する（イシュー #353）。
+/// `[directories.<name>]` のディレクトリ名 → 実ファイルシステムパスの解決は
+/// [`dir_fs_path`] を単一の情報源とし、`main.rs`（実在確認）・`gate.rs`
+/// （`default_escape_check` の走査対象解決）・`routes.rs`（`scan_root` の
+/// 走査起点解決）・`impact.rs`（`member_dir_name` の逆変換）がいずれもこの
+/// 定数・ヘルパーを参照する契約とする（個別特例の重複実装を防ぐ、
+/// `docs/design/structure-manifest.md` §2.2 参照）。
+pub(crate) const ROOT_DIR_KEY: &str = "root";
+
+/// `[directories.<name>]` の `<name>` から実ファイルシステムパスを解決する
+/// （[`ROOT_DIR_KEY`] の意味論の単一情報源、イシュー #353）。
+///
+/// `root`（予約名）は `project_dir` 自身（ワークスペースルート）へ写像し、
+/// それ以外は従来どおり `project_dir.join(dir_name)` へ写像する。
+/// `dir_name` は [`is_valid_directory_name`] を満たす値（呼び出し側で検証済み、
+/// または `cargo metadata` から導出した安全な 1 段ディレクトリ名）を渡す契約
+/// とし、本関数自体はパストラバーサル対策の検証を行わない（呼び出し元の
+/// `routes::resolve_within_root` 等が別途境界検証を担う）。
+pub(crate) fn dir_fs_path(project_dir: &std::path::Path, dir_name: &str) -> std::path::PathBuf {
+    if dir_name == ROOT_DIR_KEY {
+        project_dir.to_path_buf()
+    } else {
+        project_dir.join(dir_name)
+    }
+}
+
 /// ディレクトリ名として許可する文字集合の検証。
 ///
 /// `^[a-z0-9_-]+$` 相当（正規表現クレートを使わず手書きで判定する。
@@ -798,6 +828,18 @@ mod tests {
         assert!(errors
             .iter()
             .any(|e| matches!(e, ValidationError::UnknownRoutingDefinitionDir(t) if t == "ghost")));
+    }
+
+    #[test]
+    fn dir_fs_path_maps_root_key_to_project_dir_itself() {
+        let project_dir = std::path::Path::new("/tmp/some-project");
+        assert_eq!(dir_fs_path(project_dir, ROOT_DIR_KEY), project_dir);
+    }
+
+    #[test]
+    fn dir_fs_path_maps_normal_name_to_nested_dir() {
+        let project_dir = std::path::Path::new("/tmp/some-project");
+        assert_eq!(dir_fs_path(project_dir, "app"), project_dir.join("app"));
     }
 
     #[test]

@@ -596,7 +596,11 @@ fn line_has_real_blanket_attribute(line: &str) -> bool {
 /// `"` は文字列の開始・終了とみなさない）。TOML/Rust の完全なパーサではなく、
 /// 「引用符の個数の偶奇」による簡易判定であるため、複数行文字列・生文字列
 /// （`r"..."` 等）までは追跡しない（この用途では十分な近似）。
-fn position_is_inside_string_literal(line: &str, pos: usize) -> bool {
+///
+/// `pub(crate)`: `loaders.rs`（`extract_loader_impls_from_source`、イシュー #353）も
+/// 同種の「文字列リテラル内の疑似マッチを誤検知しない」判定を必要とするため、
+/// 同一ロジックを共有する（重複実装しない）。
+pub(crate) fn position_is_inside_string_literal(line: &str, pos: usize) -> bool {
     let mut in_string = false;
     let mut escaped = false;
     for c in line[..pos].chars() {
@@ -664,20 +668,16 @@ fn default_escape_check(manifest: &StructureManifest, project_dir: &Path) -> Gat
 /// `structure.toml` の `[directories.<name>]` エントリ名 `dir_name` に対応する
 /// 走査対象 `src/` ディレクトリを解決する。
 ///
-/// `templates/default/structure.toml` 冒頭コメントが明文化する予約名
-/// `root`（クレートがプロジェクトルート直下 `<project_dir>/src` に直接配置
-/// される規約。現行スキーマにルート自身を指す名前が無いための慣習）は、
-/// 通常のエントリ名解釈（`<project_dir>/<name>/src`）を適用すると実在しない
+/// 予約名 `root`（`crate::structure::ROOT_DIR_KEY`。クレートがプロジェクト
+/// ルート直下 `<project_dir>/src` に直接配置される規約、`fw new`）を
+/// 通常のエントリ名解釈（`<project_dir>/<name>/src`）で扱うと実在しない
 /// `<project_dir>/root/src` を指してしまい `default_escape_check` が常に
-/// スキップされる（PR #358 Bugbot 指摘、イシュー #351）。この関数はその
-/// 特例を一箇所に閉じ込め、`root` の場合のみ `<project_dir>/src` を返す。
-/// 一般化（`root` 慣習のスキーマ正式化）はイシュー #353 のスコープ。
+/// スキップされる（PR #358 Bugbot 指摘、イシュー #351）。`root` 慣習の
+/// ディレクトリ名 → 実パス解決は `crate::structure::dir_fs_path` を単一の
+/// 情報源とし、本関数はそこに `src` を連結するだけの薄いラッパーとする
+/// （個別特例をこの関数に閉じ込めない一般化、イシュー #353）。
 fn escape_check_src_dir(project_dir: &Path, dir_name: &str) -> PathBuf {
-    if dir_name == "root" {
-        project_dir.join("src")
-    } else {
-        project_dir.join(dir_name).join("src")
-    }
+    crate::structure::dir_fs_path(project_dir, dir_name).join("src")
 }
 
 /// `dir` 配下（再帰）の `*.rs` ファイルを走査する。I/O エラー（読み取り不可等）は
@@ -1148,6 +1148,40 @@ mod tests {
         scan_file_for_violations(&file, &mut violations);
         assert_eq!(violations.len(), 1, "violations: {violations:?}");
         assert!(violations[0].contains("lib.rs:2"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// イシュー #353: 束縛点 API（`data-bind-text` 等の属性文字列・`bind_text(`
+    /// 呼び出し）・keyed list（`keyed_list(` 呼び出し）を使うソースが
+    /// `default_escape_check` に誤検知されないこと（新 API は `raw_html()` を
+    /// 経由しないため無関係）。同一ファイル内の未レビュー `raw_html()` 呼び出しは
+    /// 引き続き検出されること（新 API 混在時の見逃しがないこと）も併せて固定する。
+    #[test]
+    fn scan_file_ignores_new_api_usage_but_still_detects_unreviewed_raw_html() {
+        let dir = std::env::temp_dir().join(format!(
+            "fw-gate-test-escape-new-api-mix-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("lib.rs");
+        std::fs::write(
+            &file,
+            "fn f() -> Node {\n    let n = bind_text(\"counter\", \"0\");\n    let m = keyed_list(\"items\", &[]);\n    let attr = \"data-bind-text\";\n    raw_html(x);\n    n\n}\n",
+        )
+        .unwrap();
+
+        let mut violations = Vec::new();
+        scan_file_for_violations(&file, &mut violations);
+        assert_eq!(
+            violations.len(),
+            1,
+            "束縛点/keyed list の利用自体は違反として検出されないはず（誤検知なし）: {violations:?}"
+        );
+        assert!(
+            violations[0].contains("lib.rs:5"),
+            "同一ファイル内の未レビュー raw_html() は引き続き検出されるはず: {violations:?}"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }

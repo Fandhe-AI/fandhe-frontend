@@ -121,6 +121,13 @@ pub struct ImpactReport {
     /// 影響を受けるルート定義（`routes::extract_routes` の結果のうち、
     /// `defined_in` が `affected_files` に含まれるもの、#134 が構築）。
     pub affected_routes: Vec<String>,
+    /// 影響を受ける `Loader` 実装の型名（重複なし・昇順ソート済み）。
+    ///
+    /// `affected_files` の内容を [`crate::loaders::extract_loader_impls_from_source`]
+    /// に通して抽出する（イシュー #353）。Loader は SSR/SSG/CSR 三モード共通の
+    /// データ取得契約であり、`affected_routes` と同格の「ユーザー可視の契約面」
+    /// として扱う（`docs/design/impact-analysis-design.md` 追記節参照）。
+    pub affected_loaders: Vec<String>,
     pub breaking_risk: BreakingRisk,
     pub requires_human_approval: bool,
 }
@@ -240,22 +247,29 @@ pub fn judge_breaking_risk(affected_crates: &[String]) -> BreakingRisk {
     }
 }
 
-/// `breaking_risk` / 影響ルート有無 / 多重定義から人間承認要否を判定する。
+/// `breaking_risk` / 影響ルート有無 / 影響 Loader 有無 / 多重定義から
+/// 人間承認要否を判定する。
 ///
-/// `breaking_risk` が `High` / `Medium`、影響ルートが 1 件以上、または
-/// 定義元が曖昧（`ambiguous`）のいずれかで `true`（`docs/design/impact-analysis-design.md`
-/// §3.4）。`ambiguous` は PoC-7 にない製品固有の追加条件: 定義元特定の前提
-/// （シンボル 1 つに定義は 1 つ）が崩れている場合、他の判定材料
-/// （`affected_crates` 等）自体の信頼性が下がるため、常に人間承認へ倒す
-/// （安全側 / fail-closed、security.md A05）。
+/// `breaking_risk` が `High` / `Medium`、影響ルートが 1 件以上、影響 Loader が
+/// 1 件以上、または定義元が曖昧（`ambiguous`）のいずれかで `true`
+/// （`docs/design/impact-analysis-design.md` §3.4）。`ambiguous` は PoC-7 にない
+/// 製品固有の追加条件: 定義元特定の前提（シンボル 1 つに定義は 1 つ）が
+/// 崩れている場合、他の判定材料（`affected_crates` 等）自体の信頼性が下がる
+/// ため、常に人間承認へ倒す（安全側 / fail-closed、security.md A05）。
+/// `affected_loaders_is_empty` はイシュー #353 で追加した条件: Loader は
+/// SSR/SSG/CSR 三モード共通のデータ取得契約であり `affected_routes` と同格の
+/// ユーザー可視の契約面であるため、非空なら `affected_routes` と同じく
+/// 安全側（人間承認要求）に倒す（実装計画 §2 の判断根拠）。
 pub fn requires_human_approval(
     breaking_risk: BreakingRisk,
     affected_routes_is_empty: bool,
+    affected_loaders_is_empty: bool,
     ambiguous: bool,
 ) -> bool {
     ambiguous
         || matches!(breaking_risk, BreakingRisk::High | BreakingRisk::Medium)
         || !affected_routes_is_empty
+        || !affected_loaders_is_empty
 }
 
 /// 定義元候補 1 件（クレート名 + ワークスペースルート相対ファイルパス）。
@@ -286,6 +300,14 @@ fn scan_err(e: routes::ExtractError) -> ImpactError {
 /// 名」のみを受け付ける契約であるため、`manifest_dir` がワークスペースルート
 /// 直下の単一ディレクトリでない場合（多段パス・ルート外）は fail-closed で
 /// [`ImpactError::Scan`] を返す（`docs/design/impact-analysis-design.md` §6 A05 対策）。
+///
+/// `manifest_dir == workspace_root`（クレートがワークスペースルート直下に
+/// 直接配置される構成。`fw new` が生成するプロジェクトの唯一のクレート、
+/// イシュー #350/#351）はエラーにせず、予約名
+/// [`crate::structure::ROOT_DIR_KEY`]（`"root"`）を返す（イシュー #353。
+/// `structure.toml` の `[directories.root]` 慣習と対応関係を持たせる）。
+/// これにより `fw impact` は `fw new` 生成直後のプロジェクトでも解析可能に
+/// なる（従来は本関数がここで `Scan` エラーを返し `fw impact` 全体が失敗していた）。
 fn member_dir_name(workspace_root: &Path, member: &MemberPackage) -> Result<String, ImpactError> {
     let rel = member
         .manifest_dir
@@ -297,12 +319,9 @@ fn member_dir_name(workspace_root: &Path, member: &MemberPackage) -> Result<Stri
             ))
         })?;
     let mut components = rel.components();
-    let first = components.next().ok_or_else(|| {
-        ImpactError::Scan(format!(
-            "member `{}` manifest_dir equals workspace_root",
-            member.name
-        ))
-    })?;
+    let Some(first) = components.next() else {
+        return Ok(crate::structure::ROOT_DIR_KEY.to_string());
+    };
     if components.next().is_some() {
         return Err(ImpactError::Scan(format!(
             "member `{}` manifest_dir is not a single top-level directory",
@@ -456,6 +475,12 @@ fn reverse_dependency_closure(
 ///
 /// パスの先頭 1 段（ディレクトリ名）を [`member_dir_name`] の結果と突き合わせる。
 /// 一致する member がない場合（走査対象外のファイル等）は `None`。
+///
+/// `root` member（[`crate::structure::ROOT_DIR_KEY`]、イシュー #353）は
+/// `<workspace_root>/root/...` ではなく `<workspace_root>/src/...` を走査するため
+/// （[`crate::routes::scan_root`] の `root` 慣習対応）、`rel_file` の先頭 1 段は
+/// `"root"` ではなく `"src"` になる。そのため `root` member のみ先頭 1 段を
+/// `"src"` と突き合わせる特例判定を行う。
 fn crate_name_for_file(
     workspace_root: &Path,
     members: &[MemberPackage],
@@ -464,7 +489,12 @@ fn crate_name_for_file(
     let first_component = rel_file.split('/').next().unwrap_or("");
     for member in members {
         let dir_name = member_dir_name(workspace_root, member)?;
-        if dir_name == first_component {
+        let matches = if dir_name == crate::structure::ROOT_DIR_KEY {
+            first_component == "src"
+        } else {
+            dir_name == first_component
+        };
+        if matches {
             return Ok(Some(member.name.clone()));
         }
     }
@@ -493,6 +523,30 @@ fn affected_route_paths(
         }
     }
     Ok(routes_found.into_iter().collect())
+}
+
+/// `affected_files` の内容を [`crate::loaders::extract_loader_impls_from_source`]
+/// に通し、影響を受ける `Loader` 実装の型名を重複除去・昇順ソートして返す
+/// （影響 Loader 突き合わせ、イシュー #353）。
+///
+/// [`affected_route_paths`] と同型のファイル単位の粗粒度突き合わせであり、
+/// `structure.toml` の宣言には依存しない（過検知容認）。
+fn affected_loader_types(
+    workspace_root: &Path,
+    affected_files: &[AffectedFile],
+) -> Result<Vec<String>, ImpactError> {
+    let canonical_root = std::fs::canonicalize(workspace_root)
+        .map_err(|e| ImpactError::Scan(format!("{:?}", e.kind())))?;
+    let mut loaders_found: BTreeSet<String> = BTreeSet::new();
+    for affected in affected_files {
+        let abs = canonical_root.join(&affected.file);
+        let content = std::fs::read_to_string(&abs)
+            .map_err(|e| ImpactError::Scan(format!("{:?}", e.kind())))?;
+        for type_name in crate::loaders::extract_loader_impls_from_source(&content) {
+            loaders_found.insert(type_name);
+        }
+    }
+    Ok(loaders_found.into_iter().collect())
 }
 
 /// `fw impact <symbol>` の解析エンジン本体（TASK-13.2b, #134）。
@@ -536,10 +590,15 @@ pub(crate) fn analyze(
         .collect();
 
     let affected_routes = affected_route_paths(workspace_root, &affected_files)?;
+    let affected_loaders = affected_loader_types(workspace_root, &affected_files)?;
 
     let breaking_risk = judge_breaking_risk(&affected_crates);
-    let approval_required =
-        requires_human_approval(breaking_risk, affected_routes.is_empty(), ambiguous);
+    let approval_required = requires_human_approval(
+        breaking_risk,
+        affected_routes.is_empty(),
+        affected_loaders.is_empty(),
+        ambiguous,
+    );
 
     Ok(ImpactReport {
         symbol: symbol.to_string(),
@@ -549,6 +608,7 @@ pub(crate) fn analyze(
         affected_files,
         affected_crates,
         affected_routes,
+        affected_loaders,
         breaking_risk,
         requires_human_approval: approval_required,
     })
@@ -632,6 +692,9 @@ pub(crate) fn render_report(report: &ImpactReport) -> String {
 
     buf.push_str(",\"affected_routes\":");
     buf.push_str(&json_out::string_array(&report.affected_routes));
+
+    buf.push_str(",\"affected_loaders\":");
+    buf.push_str(&json_out::string_array(&report.affected_loaders));
 
     buf.push_str(",\"breaking_risk\":");
     buf.push_str(&json_out::quoted(report.breaking_risk.as_str()));
@@ -768,28 +831,60 @@ mod tests {
     // --- requires_human_approval ---
 
     #[test]
-    fn approval_not_required_for_low_risk_no_routes_unambiguous() {
-        assert!(!requires_human_approval(BreakingRisk::Low, true, false));
+    fn approval_not_required_for_low_risk_no_routes_no_loaders_unambiguous() {
+        assert!(!requires_human_approval(
+            BreakingRisk::Low,
+            true,
+            true,
+            false
+        ));
     }
 
     #[test]
     fn approval_required_for_medium_risk() {
-        assert!(requires_human_approval(BreakingRisk::Medium, true, false));
+        assert!(requires_human_approval(
+            BreakingRisk::Medium,
+            true,
+            true,
+            false
+        ));
     }
 
     #[test]
     fn approval_required_for_high_risk() {
-        assert!(requires_human_approval(BreakingRisk::High, true, false));
+        assert!(requires_human_approval(
+            BreakingRisk::High,
+            true,
+            true,
+            false
+        ));
     }
 
     #[test]
     fn approval_required_when_routes_affected_even_if_low_risk() {
-        assert!(requires_human_approval(BreakingRisk::Low, false, false));
+        assert!(requires_human_approval(
+            BreakingRisk::Low,
+            false,
+            true,
+            false
+        ));
+    }
+
+    /// イシュー #353: `affected_loaders` が非空の場合も `affected_routes` と
+    /// 同じく安全側（人間承認要求）に倒すこと。
+    #[test]
+    fn approval_required_when_loaders_affected_even_if_low_risk_no_routes() {
+        assert!(requires_human_approval(
+            BreakingRisk::Low,
+            true,
+            false,
+            false
+        ));
     }
 
     #[test]
-    fn approval_required_when_ambiguous_even_if_low_risk_no_routes() {
-        assert!(requires_human_approval(BreakingRisk::Low, true, true));
+    fn approval_required_when_ambiguous_even_if_low_risk_no_routes_no_loaders() {
+        assert!(requires_human_approval(BreakingRisk::Low, true, true, true));
     }
 
     // --- BreakingRisk::as_str / Display ---
@@ -1085,6 +1180,39 @@ mod tests {
         assert!(report.requires_human_approval);
     }
 
+    /// イシュー #353: 変更の波及先に `impl Loader for <Type>` があれば
+    /// `affected_loaders` に型名が入り、`requires_human_approval` が true になること。
+    #[test]
+    fn analyze_marks_affected_loaders_and_requires_approval() {
+        let ws = TempWorkspace::new("analyze-loaders");
+        let core = ws.write_member("rws-core", "lib.rs", "pub fn fetch_items() {}\n", &[]);
+        let app = ws.write_member(
+            "rws-app",
+            "lib.rs",
+            "struct DemoItemsLoader;\nimpl Loader for DemoItemsLoader {\n    fn load(&self) {\n        fetch_items();\n    }\n}\n",
+            &["rws-core"],
+        );
+        let report = analyze(&ws.root, &[core, app], "fetch_items").expect("should analyze");
+        assert_eq!(report.affected_loaders, vec!["DemoItemsLoader".to_string()]);
+        assert!(report.requires_human_approval);
+    }
+
+    /// イシュー #353: 波及先に `impl Loader` が一切なければ `affected_loaders`
+    /// は空のままであること（誤検知なし）。
+    #[test]
+    fn analyze_reports_empty_affected_loaders_when_no_loader_impl_touched() {
+        let ws = TempWorkspace::new("analyze-no-loaders");
+        let core = ws.write_member("rws-core", "lib.rs", "pub fn render() {}\n", &[]);
+        let app = ws.write_member(
+            "rws-app",
+            "lib.rs",
+            "fn use_it() {\n    render();\n}\n",
+            &["rws-core"],
+        );
+        let report = analyze(&ws.root, &[core, app], "render").expect("should analyze");
+        assert!(report.affected_loaders.is_empty());
+    }
+
     #[test]
     fn analyze_reports_ambiguous_and_requires_approval_when_multiply_defined() {
         let ws = TempWorkspace::new("analyze-ambiguous");
@@ -1120,6 +1248,47 @@ mod tests {
         };
         let err = member_dir_name(workspace_root, &member).unwrap_err();
         assert!(matches!(err, ImpactError::Scan(_)));
+    }
+
+    /// イシュー #353: `manifest_dir == workspace_root`（`fw new` が生成する
+    /// プロジェクトのようにクレートがワークスペースルート直下に直接配置される
+    /// 構成）は `Scan` エラーではなく `ROOT_DIR_KEY`（`"root"`）を返すこと。
+    /// 従来はここで「manifest_dir equals workspace_root」エラーとなり
+    /// `fw impact` 全体が失敗していた（リグレッション封じ）。
+    #[test]
+    fn member_dir_name_maps_workspace_root_manifest_dir_to_root_key() {
+        let workspace_root = std::path::Path::new("/ws");
+        let member = MemberPackage {
+            name: "rws-template-default".to_string(),
+            manifest_dir: std::path::PathBuf::from("/ws"),
+            normal_workspace_deps: vec![],
+        };
+        let dir_name = member_dir_name(workspace_root, &member).expect("should resolve to root");
+        assert_eq!(dir_name, crate::structure::ROOT_DIR_KEY);
+    }
+
+    /// イシュー #353: `root` member 配下のファイル（先頭 1 段が `"src"`）は
+    /// `crate_name_for_file` が正しくその member 名へ帰属させること。
+    /// 通常のディレクトリ名 member と `"src"` という名前が衝突しないことも
+    /// 併せて確認する（誤検知なし）。
+    #[test]
+    fn crate_name_for_file_attributes_src_files_to_root_member() {
+        let workspace_root = std::path::Path::new("/ws");
+        let root_member = MemberPackage {
+            name: "rws-template-default".to_string(),
+            manifest_dir: std::path::PathBuf::from("/ws"),
+            normal_workspace_deps: vec![],
+        };
+        let members = vec![root_member];
+
+        let found =
+            crate_name_for_file(workspace_root, &members, "src/main.rs").expect("should resolve");
+        assert_eq!(found, Some("rws-template-default".to_string()));
+
+        // 走査対象外のファイル（member に属さない先頭コンポーネント）は None。
+        let not_found = crate_name_for_file(workspace_root, &members, "docs/readme.md")
+            .expect("should resolve");
+        assert_eq!(not_found, None);
     }
 
     /// レビュー指摘 #127 相当の保証（`routes.rs` の
@@ -1193,6 +1362,7 @@ mod tests {
             }],
             affected_crates: vec!["rws-app".to_string()],
             affected_routes: vec!["/items/:id".to_string()],
+            affected_loaders: vec!["DemoItemsLoader".to_string()],
             breaking_risk: BreakingRisk::Medium,
             requires_human_approval: true,
         }
@@ -1211,6 +1381,7 @@ mod tests {
              \"affected_files\":[{\"file\":\"app/src/main.rs\",\"lines\":[3,10]}],\
              \"affected_crates\":[\"rws-app\"],\
              \"affected_routes\":[\"/items/:id\"],\
+             \"affected_loaders\":[\"DemoItemsLoader\"],\
              \"breaking_risk\":\"medium\",\
              \"requires_human_approval\":true,\
              \"verdict\":\"requires human approval (impact spans multiple crates or public routes)\"}"
@@ -1248,12 +1419,14 @@ mod tests {
         report.affected_files = vec![];
         report.affected_crates = vec![];
         report.affected_routes = vec![];
+        report.affected_loaders = vec![];
         report.breaking_risk = BreakingRisk::Low;
         report.requires_human_approval = false;
         let json = render_report(&report);
         assert!(json.contains("\"affected_files\":[]"));
         assert!(json.contains("\"affected_crates\":[]"));
         assert!(json.contains("\"affected_routes\":[]"));
+        assert!(json.contains("\"affected_loaders\":[]"));
         assert!(json.contains("\"breaking_risk\":\"low\""));
         assert!(json.contains(
             "\"verdict\":\"auto-applicable (impact is limited; automatic application allowed subject to gate pass)\""
@@ -1293,6 +1466,7 @@ mod tests {
         }];
         report.affected_crates = vec!["crate\"with\\quotes".to_string()];
         report.affected_routes = vec!["/a\"b".to_string()];
+        report.affected_loaders = vec!["Loader\"with\\quotes".to_string()];
         let json = render_report(&report);
 
         // エスケープ済みの `"` `\` を含む文字列としてそのまま値に現れ、
@@ -1300,6 +1474,7 @@ mod tests {
         assert!(json.contains("\\\"injected\\\""));
         assert!(json.contains("crate\\\"with\\\\quotes"));
         assert!(json.contains("/a\\\"b"));
+        assert!(json.contains("Loader\\\"with\\\\quotes"));
         // 注入されたキーがトップレベルのキーとして解釈されていないこと
         // （エスケープされた文字列値の内部にのみ現れる）。
         assert!(!json.contains("\"injected\":true"));

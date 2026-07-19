@@ -36,7 +36,7 @@ mod support;
 
 use std::path::PathBuf;
 use std::process::Command;
-use support::{cargo_deny_available, check_passed, run_fw_gate, ScratchProject};
+use support::{cargo_deny_available, check_passed, run_fw, run_fw_gate, ScratchProject};
 
 /// `fw new` を実バイナリとして起動し (終了コード, stdout, stderr) を返す
 /// （`cli/tests/new_e2e.rs::run_fw_new` と同一方針。テストターゲット独立の
@@ -236,5 +236,67 @@ fn fw_new_output_default_escape_check_detects_injected_violation_in_root_src() {
         gate_code, 0,
         "default_escape_check が failed の場合 fw gate 全体も非ゼロで \
          終了するはず: stdout={gate_stdout}"
+    );
+}
+
+/// イシュー #353: `fw new` 生成直後のプロジェクトで `fw structure` /
+/// `fw impact` が「`root` 慣習未対応」由来の解析不能に陥らないことを固定する。
+///
+/// - `fw structure`: 旧実装は `project_dir.join("root")`（実在しないパス）を
+///   見て「declared directory does not exist」で必ず exit 1 だった
+///   （`structure::dir_fs_path` 導入により修正）。
+/// - `fw impact`: 旧実装は `member_dir_name` が `manifest_dir == workspace_root`
+///   を `ImpactError::Scan`（「manifest_dir equals workspace_root」）として
+///   拒否するため `fw impact` 全体が exit 1 で失敗していた。テンプレートの
+///   `find_item`/`Item`（`templates/default/src/main.rs`）はいずれも
+///   トップレベル非公開宣言（`pub` ではない）であるため定義元が見つからず
+///   `ImpactError::SymbolNotFound` になるのが**新実装での正しい**挙動である
+///   （`component_boundary::extract_from_source` はトップレベル `pub` 宣言のみ
+///   走査対象とする契約、`cli/src/component_boundary.rs` 参照）。本テストは
+///   終了コードそのものではなく、エラーメッセージが新実装の
+///   `SymbolNotFound`（"no definition found for symbol"）であり、旧実装の
+///   `Scan` エラー（"manifest_dir equals workspace_root"）ではないことを
+///   断定することで、`root` 慣習未対応の解析不能状態からの回復を固定する。
+#[test]
+fn fw_new_output_fw_structure_succeeds_and_fw_impact_does_not_hit_root_scan_error() {
+    let scratch = unique_scratch_dir();
+    let _scratch_guard = ScratchProject(scratch.clone());
+
+    let (new_code, new_stdout, new_stderr) =
+        run_fw_new(&["structure-impact-app", "--dir", &scratch.to_string_lossy()]);
+    assert_eq!(
+        new_code, 0,
+        "fw new が失敗した: stdout={new_stdout} stderr={new_stderr}"
+    );
+
+    let project_dir = scratch.join("structure-impact-app");
+
+    let (structure_code, structure_stdout, structure_stderr) =
+        run_fw("structure", &[], &project_dir);
+    assert_eq!(
+        structure_code, 0,
+        "fw new 生成直後のプロジェクトで fw structure は exit 0 のはず \
+         （`root` 慣習のディレクトリ実在誤検知の非回帰）: \
+         stdout={structure_stdout} stderr={structure_stderr}"
+    );
+
+    let (impact_code, impact_stdout, impact_stderr) =
+        run_fw("impact", &["find_item"], &project_dir);
+    assert_eq!(
+        impact_code, 1,
+        "find_item は非公開宣言のため symbol not found（検証違反、終了コード 1）が \
+         正しい新実装の挙動: stdout={impact_stdout} stderr={impact_stderr}"
+    );
+    assert!(
+        impact_stderr.contains("no definition found for symbol"),
+        "新実装では SymbolNotFound として fail-closed するはず（旧実装は \
+         root member の Scan エラーで別メッセージになっていた）: \
+         stderr={impact_stderr}"
+    );
+    assert!(
+        !impact_stderr.contains("manifest_dir equals workspace_root"),
+        "旧実装の root member 解決エラー（member_dir_name の Scan エラー）が \
+         再発していないこと（イシュー #353 のリグレッション封じ）: \
+         stderr={impact_stderr}"
     );
 }
