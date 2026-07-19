@@ -21,7 +21,22 @@ use rws_wasm_client::{
     find_hydrate_target_kinds, find_list_nav_targets, loader_error_view, render_detail_page_html,
     render_list_page_html, resolve_detail_node, resolve_list_node, LIKE_HYDRATE_VALUE,
 };
-use std::convert::Infallible;
+use std::fmt;
+
+/// `AlwaysOkListLoader` 用のダミー `Error` 型（イシュー #375、Bugbot 指摘対応）。
+///
+/// 値を構築する経路を持たない never 型相当の enum。`resolve_list_node` が
+/// `Loader::Error = Infallible` 以外の成功パスでも正しく型接続すること
+/// （ドキュメント記載どおりの検証）を、実際に `Infallible` から区別できる
+/// 型で確認する。
+#[derive(Debug)]
+enum NeverConstructed {}
+
+impl fmt::Display for NeverConstructed {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {}
+    }
+}
 
 /// 一覧 loader が必ず失敗するテストフィクスチャ。`Error` にダミーの機微情報
 /// 風文字列（実クレデンシャルは使わない）を含め、[`resolve_list_node`] の
@@ -54,15 +69,18 @@ impl Loader for FailingDetailLoader {
 
 /// 常に成功する参照実装と同一入力を返すが `Error` 型を `Infallible` 以外に
 /// している以外は等価な loader。`resolve_*_node` が失敗系だけでなく成功系も
-/// 型に対して正しく動作すること（`where` 束縛の型接続確認）を補強する。
+/// 型に対して正しく動作すること（`where` 束縛の型接続確認）を補強する
+/// （イシュー #375、Bugbot 指摘対応: `Error = Infallible` のままでは
+/// `DemoItemsLoader` と型が重複し非 `Infallible` の成功パスを一度も
+/// カバーしないため、[`NeverConstructed`] へ変更）。
 struct AlwaysOkListLoader;
 
 impl Loader for AlwaysOkListLoader {
     type Input = ();
     type Output = Vec<Item>;
-    type Error = Infallible;
+    type Error = NeverConstructed;
 
-    fn load(&self, _input: &()) -> Result<Vec<Item>, Infallible> {
+    fn load(&self, _input: &()) -> Result<Vec<Item>, NeverConstructed> {
         Ok(demo_items())
     }
 }

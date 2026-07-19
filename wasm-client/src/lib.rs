@@ -88,8 +88,10 @@ pub const HYDRATE_ATTR: &str = "data-hydrate";
 /// （`rws_app::LIKE_BUTTON_ID` と対になる契約）。
 pub const LIKE_HYDRATE_VALUE: &str = "like";
 
-/// loader 解決失敗時の fail-closed ビュー（`server/src/ssr.rs::loader_error_response`・
-/// `wasm-full/src/csr.rs::loader_error_view` と同型の構造的保証、イシュー #375）。
+/// loader 解決失敗時の fail-closed ビュー（`server/src/ssr.rs::loader_error_response`
+/// と同型の構造的保証、イシュー #375）。`rws-wasm-full` は本関数を独自実装せず
+/// `wasm-full/src/csr.rs` から再エクスポートして共有する（Bugbot 指摘対応、
+/// 重複コピーの解消）。
 ///
 /// **呼び出し元はこの関数へ `Loader::Error` の値を渡さない**（意図的に
 /// シグネチャへ含めない）。`Display`/`Debug` を一切経由しないため、loader
@@ -113,8 +115,9 @@ pub fn loader_error_view() -> Node {
     )
 }
 
-/// 一覧画面向け CSR loader 解決（`wasm-full/src/csr.rs::resolve_list_node` と
-/// 同型、イシュー #375）。
+/// 一覧画面向け CSR loader 解決（イシュー #375）。`rws-wasm-full` は
+/// `wasm-full/src/csr.rs` から本関数を再エクスポートして共有する
+/// （Bugbot 指摘対応、重複コピーの解消）。
 ///
 /// `assemble_list_page(loader, &())` の `Ok` はそのまま返し、`Err(_)` は
 /// 値に一切触れず [`loader_error_view`] へ変換する（fail-closed、未解決
@@ -130,8 +133,9 @@ where
     }
 }
 
-/// 詳細画面向け CSR loader 解決（`wasm-full/src/csr.rs::resolve_detail_node` と
-/// 同型、イシュー #375）。
+/// 詳細画面向け CSR loader 解決（イシュー #375）。`rws-wasm-full` は
+/// `wasm-full/src/csr.rs` から本関数を再エクスポートして共有する
+/// （Bugbot 指摘対応、重複コピーの解消）。
 ///
 /// `assemble_detail_page(loader, id)` の `Ok` はそのまま返す。`Output`
 /// （`Option<Item>`）が `None`（未知の id、404 相当）の場合は
