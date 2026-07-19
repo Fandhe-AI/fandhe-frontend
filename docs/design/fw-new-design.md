@@ -292,6 +292,14 @@ TOML 文字列・ロックファイルへの構文注入は構造的に不可能
   （`executable_file_sets_match_expected_fixed_lists` テスト）が期待固定
   リストとの一致をプラットフォーム非依存に検証する（メタデータの記述内容
   のみを比較するため、どの OS でも実行できる）。
+- **実機検証ハーネス（イシュー #413）**: 上記は設計上の主張であり、
+  self-hosted Linux runner のみでの CI 実行では Windows 上での実挙動は
+  未検証だった。イシュー #413 で `.github/workflows/fw-new-windows-verify.yml`
+  （`workflow_dispatch` 専用）を確立し、Windows self-hosted runner 上で
+  ビルド・`new_template`/`new_e2e` テスト・`fw new` 生成物のバイト決定性・
+  fail-closed 契約・`executable: true` ファイルの no-op 生成を検証する。
+  runner 調達要件は `docs/ci/ci-runner-requirements.md` §6、検証結果は
+  `docs/reports/fw-new-windows-verification-report.md` に記録する。
 
 ## 7. セキュリティ考慮（OWASP Top 10 観点）
 
@@ -373,9 +381,12 @@ BLOCKED）を断定する。`.github/workflows/ci.yml` の test ジョブへ明�
   （`rws-wasm-client` は wasm-bindgen 外部依存のため vendor 不可）。
 - **crates.io 公開後の vendor → バージョン依存への切替**は本イシューの
   範囲外（publish = false が解消された時点で再検討する）。
-- **Windows 実機 CI での非 Unix 挙動の実測**は行わない（self-hosted Linux
-  runner のみのため、設計書明文化（§6.1）とプラットフォーム非依存テスト
-  （`executable_file_sets_match_expected_fixed_lists`）で担保する）。
+- **Windows 実機 CI での非 Unix 挙動の実測**: 本イシュー（#378）時点では
+  self-hosted Linux runner のみのため未実施だったが、イシュー #413 で
+  `.github/workflows/fw-new-windows-verify.yml`（`workflow_dispatch` 専用）
+  として実機検証ハーネスを確立した（§6.1・`docs/ci/ci-runner-requirements.md`
+  §6・`docs/reports/fw-new-windows-verification-report.md` 参照）。Windows
+  self-hosted runner の調達（登録）完了までは実行待ちの状態。
 - 非 Unix でのパーミッション再現（ACL 相当の代替設定等）は行わない。
 - ルート直下クレートの `structure.toml` スキーマ上の正式化（`root` 慣習の
   一般化）と `fw structure`/`fw impact`/`default_escape_check` の当該盲点の
