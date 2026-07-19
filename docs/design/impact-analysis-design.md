@@ -116,6 +116,8 @@
 
 - `breaking_risk` が `high` または `medium`
 - `affected_routes` が非空
+- `affected_loaders` が非空（イシュー #353 で追加。Loader は
+  `affected_routes` と同格のユーザー可視の契約面であるため同じ扱いとする）
 - `ambiguous`（定義元が複数）
 
 テスト観点一覧（#137 が統合テストとして実装する想定）:
@@ -153,6 +155,7 @@
   "affected_files": [{ "file": "string", "lines": [1, 2] }],
   "affected_crates": ["string", "..."],
   "affected_routes": ["string", "..."],
+  "affected_loaders": ["string", "..."],
   "breaking_risk": "high | medium | low",
   "requires_human_approval": "boolean",
   "verdict": "string（人間可読な要約、PoC-7 互換）"
@@ -166,6 +169,15 @@
   自体は `ambiguous` フィールドが伝えるため、単数化変換はどちらの先頭要素を
   出すかで場合分けしない。空 Vec の場合は防御的に `null` を出力し
   panic させない）。
+
+  **`affected_loaders`（イシュー #353 で追加、後方互換な追加フィールド）**:
+  `affected_files` の内容を `cli/src/loaders.rs::extract_loader_impls_from_source`
+  に通し、`impl Loader for <Type>`（`docs/design/loader-trait-design.md`）の
+  型名を重複除去・昇順ソートして列挙する。Loader は SSR/SSG/CSR 三モード
+  共通のデータ取得契約であり、`affected_routes` と同格の「ユーザー可視の
+  契約面」として扱う。既存フィールドの意味・型・出現有無は変更しておらず、
+  末尾へのフィールド追加のみのため後方互換を保つ（既存コンシューマは未知
+  フィールドを無視できる JSON パーサ前提で影響を受けない）。
 
 ### 判断 D1（#136 で確定・自動運転による決定）: `verdict` 文言
 
@@ -247,6 +259,16 @@ PoC-7 は `verdict` を日本語 2 値（「要人間承認（…）」/「自�
   （`affected_files` のファイルパスと `routes::extract_routes` の
   `defined_in` の一致のみ）。同一ファイル内の他ルートも影響ありと
   誤判定しうるが、過検知側であり安全側の設計として許容する。
+- **束縛点（`data-bind-*`）の影響反映は非対応（イシュー #353 で非採用と
+  判断）**: 束縛トークンは状態フィールド名の**文字列**であり、本書 §3.1 の
+  Rust シンボル単位のファイル粗粒度ヒューリスティックのモデル外にある
+  （シンボル探索は Rust 識別子境界判定 `contains_symbol_at_boundary` が前提）。
+  状態フィールド定数（例: `AppState::FIELD_COUNTER`）自体は通常の Rust
+  シンボルとして既存の走査対象に含まれるため、シンボル名を介した影響追跡は
+  引き続き機能する。束縛点更新の実動作検証（DOM 反映の正しさ）は
+  `wasm-client`/`wasm-full` のブラウザテストの領分であり、`grep data-bind-`
+  等の機械検証と組み合わせることで代替する
+  （`docs/design/dom-binding-update-design.md` §8 参照）。
 
 ## 8. スコープ外（後続サブタスクの領分・混入させない）
 

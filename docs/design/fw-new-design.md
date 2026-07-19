@@ -90,14 +90,18 @@ pub(crate) struct TemplateFile {
 検証対象クレートを決定する唯一の情報源であり、これを同梱しない限り生成
 直後のプロジェクトは `fw gate` が即 BLOCKED になる（宣言クレート不在の
 fail-closed）。クレートはプロジェクトルート直下（`src/`）に置かれるため、
-`[directories.root]` という慣習名で宣言する（`root` 自体を指す予約ディレクトリ
-名は現行スキーマに存在しないため）。この構成では `fw gate` の
-`default_escape_check`（保険層、`<project>/root/src` を走査）は実在しない
-パスとしてスキップされるが、主防御である `lint` チェック
-（`cargo clippy --all-targets -p <crate>` 経由の `disallowed-methods`）は
-クレートの配置ディレクトリに依存せず全ソースを検査するため REQ-1 の検出
-保証は失われない。ルート直下クレートのスキーマ上の正式化はイシュー #353
-のスコープとする（詳細は `templates/default/structure.toml` 冒頭コメント）。
+`[directories.root]` という慣習名で宣言する。`root` はスキーマ v1 の正式な
+予約名（`cli/src/structure.rs::ROOT_DIR_KEY`、イシュー #353 で正式化）で
+あり、ディレクトリ名 → 実ファイルシステムパスの解決は
+`structure::dir_fs_path` を単一の情報源とする（`root` は `<project>` 自身へ
+写像する）。`fw gate` の `default_escape_check`（保険層）・`fw structure` の
+ディレクトリ実在確認・`fw impact` の member 解決はいずれもこの単一情報源
+（または `routes::resolve_within_root`/`scan_root` に一般化した同じ写像）を
+経由するため、`<project>/root/...`（実在しないパス）を参照してのスキップ・
+解析不能は発生しない。主防御である `lint` チェック（`cargo clippy
+--all-targets -p <crate>` 経由の `disallowed-methods`）もクレートの配置
+ディレクトリに依存せず全ソースを検査するため、REQ-1 の検出保証は二重に
+保たれる（詳細は `docs/design/structure-manifest.md` §2.2 を参照）。
 
 ## 4. 変数置換: 明示的 allowlist + 置換回数の fail-closed 検証
 
@@ -205,5 +209,6 @@ BLOCKED）を断定する。`.github/workflows/ci.yml` の test ジョブへ明�
 - 複数テンプレート選択（`fw new --template embed` 等）は本イシューの範囲外。
 - 非 Unix でのパーミッション再現（ACL 相当の代替設定等）は行わない。
 - ルート直下クレートの `structure.toml` スキーマ上の正式化（`root` 慣習の
-  一般化）と `default_escape_check` の当該盲点の一般対応はイシュー #353
-  のスコープとする。
+  一般化）と `fw structure`/`fw impact`/`default_escape_check` の当該盲点の
+  一般対応はイシュー #353 で完了した（`docs/design/structure-manifest.md`
+  §2.2 / `cli/tests/impact_root_crate.rs` / `cli/tests/new_gate_e2e.rs` 参照）。

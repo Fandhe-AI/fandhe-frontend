@@ -88,6 +88,13 @@ pub fn extract_routes(
 /// 走査ルートを決定する: `workspace_root / dir_name / src` が存在すればそこを、
 /// なければ `workspace_root / dir_name` 自体を返す。
 ///
+/// `dir_name` が予約名 [`crate::structure::ROOT_DIR_KEY`]（`root`。クレートが
+/// ワークスペースルート直下に直接配置される慣習、`fw new`・イシュー #353）の
+/// 場合は [`resolve_within_root`] が `workspace_root` 自身を返すため、
+/// 本関数はその配下の `src/`（`<workspace_root>/src`）を走査ルートとして
+/// 解決する（通常のディレクトリ名と同じ「`<dir>/src` があればそこを使う」
+/// ロジックがそのまま適用される）。
+///
 /// Cargo の慣例上 `tests/`（integration test）・`benches/`・`examples/` は
 /// `src/` の外に置かれる。これらは `#[cfg(test)]` 属性を持たない（cargo が
 /// ビルドグラフ自体でテスト専用と扱うため）ので、[`truncate_before_test_cfg`]
@@ -108,6 +115,12 @@ pub(crate) fn scan_root(workspace_root: &Path, dir_name: &str) -> Result<PathBuf
 /// リンク解決後も含む）に収まることを確認する。収まらない場合・
 /// 存在しない場合はエラーを返す（`unsafe` を使わず `std::fs::canonicalize` のみで
 /// パストラバーサル面を塞ぐ）。
+///
+/// `dir_name` が予約名 [`crate::structure::ROOT_DIR_KEY`] の場合は
+/// `workspace_root` 自身を候補パスとする（`workspace_root / root` という
+/// 実在しないパスへ解決してしまうことを防ぐ、イシュー #353）。この場合も
+/// 「`workspace_root` 配下に収まる」チェックは自明に成立するが、`is_dir` の
+/// 確認は引き続き通す。
 pub(crate) fn resolve_within_root(
     workspace_root: &Path,
     dir_name: &str,
@@ -122,7 +135,11 @@ pub(crate) fn resolve_within_root(
         return Err(ExtractError::EscapesWorkspaceRoot);
     }
 
-    let candidate = workspace_root.join(dir_name);
+    let candidate = if dir_name == crate::structure::ROOT_DIR_KEY {
+        workspace_root.to_path_buf()
+    } else {
+        workspace_root.join(dir_name)
+    };
     let canonical_root = std::fs::canonicalize(workspace_root)
         .map_err(|e| ExtractError::Io(format!("{:?}", e.kind())))?;
     let canonical_candidate = std::fs::canonicalize(&candidate).map_err(|e| {
@@ -191,7 +208,11 @@ fn list_rs_files_inner(
 /// 最初の `#[cfg(test)]` 行より前の部分だけを返す（テストモジュール除外。
 /// このリポジトリのコーディング規約上、テストモジュールはファイル末尾に
 /// `#[cfg(test)] mod tests { ... }` として置かれる想定に依拠する軽量な前処理）。
-fn truncate_before_test_cfg(content: &str) -> &str {
+///
+/// `pub(crate)`: `loaders.rs`（`extract_loader_impls_from_source`、イシュー #353）も
+/// 同じ「テストモジュール以降を製品コードの走査対象から除外する」前処理を
+/// 必要とするため共有する（重複実装しない）。
+pub(crate) fn truncate_before_test_cfg(content: &str) -> &str {
     match content.find("#[cfg(test)]") {
         Some(idx) => &content[..idx],
         None => content,
@@ -202,7 +223,9 @@ fn truncate_before_test_cfg(content: &str) -> &str {
 /// 文字列リテラル内の `//`（現状のルート定義に現れない想定）は区別しないが、
 /// rustdoc の使用例（`.route(...)` を含む説明文）を実ルートと誤認しないための
 /// 簡易フィルタとして十分な精度を持つ。
-fn strip_comment_lines(content: &str) -> String {
+///
+/// `pub(crate)`: [`truncate_before_test_cfg`] と同じ理由で `loaders.rs` と共有する。
+pub(crate) fn strip_comment_lines(content: &str) -> String {
     content
         .lines()
         .filter(|line| !line.trim_start().starts_with("//"))
@@ -346,6 +369,85 @@ mod tests {
     fn ignores_route_calls_without_string_first_argument() {
         let src = r#".route(path_var, "home")"#;
         assert!(extract_routes_from_source(src).is_empty());
+    }
+
+    /// イシュー #353: 予約名 `root`（`crate::structure::ROOT_DIR_KEY`）を
+    /// `scan_root` へ渡した場合、`workspace_root` 自身の `src/` を走査すること
+    /// （`workspace_root/root/src` という実在しないパスへ解決されないこと）。
+    #[test]
+    fn scan_root_resolves_root_convention_to_workspace_root_src() {
+        let tmp = std::env::temp_dir().join(format!(
+            "fw-routes-root-convention-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let src = tmp.join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("main.rs"), "pub fn main() {}").unwrap();
+
+        let target = scan_root(&tmp, crate::structure::ROOT_DIR_KEY).expect("scan should succeed");
+        let canonical_src = std::fs::canonicalize(&src).unwrap();
+        assert_eq!(target, canonical_src);
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// イシュー #353: `root` 慣習下でもワークスペースルート「全体」を走査対象に
+    /// せず `src/` に限定すること（`target/` 等の混入・過検知防止、実装計画
+    /// §3.1 の非目標）。
+    #[test]
+    fn scan_root_root_convention_does_not_scan_entire_workspace_root() {
+        let tmp = std::env::temp_dir().join(format!(
+            "fw-routes-root-convention-scope-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        let src = tmp.join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("main.rs"), "pub fn main() {}").unwrap();
+        // src/ の外（ワークスペースルート直下）に .rs ファイルを置く。
+        std::fs::write(tmp.join("build.rs"), "fn main() {}").unwrap();
+
+        let target = scan_root(&tmp, crate::structure::ROOT_DIR_KEY).expect("scan should succeed");
+        let files = list_rs_files(&target).expect("scan should succeed");
+        assert_eq!(
+            files.len(),
+            1,
+            "must scan only src/, not build.rs at workspace root: {files:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    /// イシュー #353: `resolve_within_root` に `root` を渡した場合、
+    /// パストラバーサル境界検証（ワークスペースルート配下チェック）が
+    /// 弱体化していないこと（`workspace_root` 自身は自明にルート配下）。
+    #[test]
+    fn resolve_within_root_accepts_root_convention_key() {
+        let tmp = std::env::temp_dir().join(format!(
+            "fw-routes-resolve-root-key-test-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+
+        let resolved =
+            resolve_within_root(&tmp, crate::structure::ROOT_DIR_KEY).expect("should resolve");
+        assert_eq!(resolved, std::fs::canonicalize(&tmp).unwrap());
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]

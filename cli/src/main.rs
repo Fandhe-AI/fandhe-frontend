@@ -15,6 +15,7 @@ mod gate;
 mod impact;
 mod json;
 mod json_out;
+mod loaders;
 mod metadata;
 mod new;
 mod new_template;
@@ -118,8 +119,12 @@ fn run_structure(args: &[String]) -> i32 {
 
     // ディレクトリ実在確認: `structure.toml` が宣言する各ディレクトリが
     // 実際にプロジェクト内に存在するかを確認する（TASK-13.1c の実体突き合わせ）。
+    // 予約名 `root`（`structure::ROOT_DIR_KEY`。クレートがプロジェクトルート
+    // 直下に配置される慣習、`fw new`）は `structure::dir_fs_path` が
+    // `project_dir` 自身へ写像するため、`fw new` 生成直後のプロジェクトでも
+    // 「`<project>/root` が実在しない」という誤検知が起きない（イシュー #353）。
     for dir in &manifest.directories {
-        let path = project_dir.join(&dir.name);
+        let path = structure::dir_fs_path(&project_dir, &dir.name);
         if !path.is_dir() {
             problems.push(format!(
                 "directories.{}: declared directory does not exist",

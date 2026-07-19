@@ -64,6 +64,36 @@ definition_dir = "server"        # ルート定義を許すディレクトリ（
 extractor = "rws-router-v1"      # 組み込み抽出器 ID
 ```
 
+#### 2.2.0 予約名 `root`（イシュー #353 で正式化）
+
+`[directories.<name>]` の `<name>` に予約名 `root`（`cli/src/structure.rs::ROOT_DIR_KEY`）
+を使うと、そのディレクトリはワークスペースルート**自身**（クレートが
+プロジェクトルート直下 `<project>/src` に直接配置される構成）を表す。
+現行スキーマの命名規則（`^[a-z0-9_-]+$`）にはワークスペースルート自身を
+指す記号（`.` 等）が無いため、通常のディレクトリ名と同じ命名規則の範囲内で
+`root` を予約語として扱う（TOML 形式・既存フィールドは不変。スキーマ v1 の
+**意味論の明確化**であり `[manifest] version` の bump は不要）。
+
+`fw new`（イシュー #350/#351）が生成するプロジェクトは常にこの慣習を使う
+（`templates/default/structure.toml` の `[directories.root]`）。
+
+ディレクトリ名 → 実ファイルシステムパスの解決は `cli/src/structure.rs::dir_fs_path`
+を**単一の情報源**とし、`root` は `<project>` 自身へ、それ以外は従来どおり
+`<project>/<name>` へ写像する。以下の消費箇所はいずれもこのヘルパー
+（または `routes::resolve_within_root`／`routes::scan_root` に一般化した
+同じ写像）を経由し、`root` 慣習の特例を個別に再実装しない:
+
+| 消費箇所 | 用途 |
+|---------|------|
+| `main.rs::run_structure` | ディレクトリ実在確認 |
+| `gate.rs::escape_check_src_dir` | `default_escape_check`（保険層）の走査対象解決 |
+| `routes.rs::resolve_within_root` / `scan_root` | ルート抽出・コンポーネント境界抽出・`fw impact` 走査の走査起点解決 |
+| `impact.rs::member_dir_name` | `cargo metadata` の member（`manifest_dir == workspace_root`）から `root` への逆変換 |
+
+`root` 慣習下でも走査はワークスペースルート「全体」ではなく `<project>/src`
+に限定する（`target/` 等の混入・過検知防止、`routes.rs::scan_root` の
+既存方針をそのまま適用）。
+
 #### 2.2.1 `role` の閉じた語彙
 
 PoC-7 は `role` を自由記述文字列としていたが、本スキーマでは機械的に
@@ -204,3 +234,12 @@ $ cargo run -p rws-cli --bin fw -- structure
   frontend-framework-spec 側の仕様検討を提案する。
 - 仕様（`docs/spec/`）自体の変更は本リポジトリでは行わない
   （PoC-7 マニフェストとの差分理由は本書側に記載した）。
+- **`[loaders]` / 束縛点セクションの新設（イシュー #353 で非採用と判断）**:
+  `app::Loader` の実装（`impl Loader for <Type>`）は通常の pub Rust シンボルと
+  同じ扱いであり、`role = "component"` ディレクトリのコンポーネント境界抽出・
+  `fw impact <symbol>` の走査（`affected_loaders`、§4 参照）で既にカバーされる。
+  束縛点（`data-bind-text` 等）は HTML/ソース中の属性文字列として現れ
+  `grep` 等で機械検証可能（`docs/design/dom-binding-update-design.md` §7.4 の
+  明示性）。マニフェストへの重複宣言はコードとのドリフト（二重管理）を
+  生みやすく、`[routing] handler_pattern` を v1 で廃止した理由（§2.2.2）と
+  同じ判断で、新セクションは追加しない。
