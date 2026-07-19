@@ -1737,3 +1737,66 @@ jobs:
         # --all-targets によりテストターゲット（#[cfg(test)] / tests/ 配下）
         # もコンパイル・lint 対象に含む（イシュー #299）。
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+  # イシュー #400（親 #394、出典: PR #382 out-of-scope）: `fw gate --project .`
+  # の自己適用（#372 で PASS 化、PR #382）を CI で常時実行し、自己適用 PASS の
+  # リグレッション（自己参照誤検知の再発・deny.toml 弱体化・structure.toml と
+  # 実構成のドリフト等）を検出する。`fw gate` 本体（cli/src/gate.rs）は
+  # type_check/lint/test/policy/default_escape_check の 5 チェックを直列実行し
+  # リポジトリ直下 structure.toml の宣言クレートを対象とする。
+  gate-self-apply:
+    name: "fw gate --project . self-apply (issue #400)"
+    runs-on: self-hosted
+    # gate は check + clippy + test + deny を直列実行するため test ジョブより
+    # 長めに確保する。
+    timeout-minutes: 40
+    # forbid-unsafe / clippy ジョブと同じ理由: gate の type_check / test は
+    # -p rws-dist-server を含み、dist-server/build.rs の WASM ネストビルド
+    # （wasm32 target・wasm-bindgen-cli 起動）は本ジョブの runner に常設保証が
+    # ないため明示オプトアウトする。統合 WASM ビルドの実証は test ジョブが
+    # 専任する。
+    env:
+      RWS_WASM_BUILD: "0"
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2（test/clippy ジョブと同一 SHA に固定）。
+        # docs/spec サブモジュールは gate の検証対象外のため取得しない。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # 他ジョブと同一 SHA 固定。gate の lint チェックが clippy を要求する
+        # ため components: clippy を明示する。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+          components: clippy
+
+      - name: Install cargo-deny / clippy component (ensure-gate-tools.sh)
+        # `fw gate` の policy チェック（cargo deny）・lint チェック（clippy
+        # component）が要求するツールを、バージョン固定 + SHA256 検証済み
+        # プリビルトバイナリで用意する（イシュー #292/#314、ci.md 規約）。
+        run: tools/ci/ensure-gate-tools.sh
+
+      - name: "fw gate --project . 自己適用（PASS 常時保証, issue #400）"
+        run: |
+          set -euo pipefail
+          # gate は JSON レポートを stdout へ出力し、gate_result に応じた
+          # 終了コード（PASS=0 / BLOCKED=1）を返す（fail-closed、緩和経路なし）。
+          # BLOCKED 時は各 checks[].output 先頭の固定プレフィックス
+          # "environment error: "（ENVIRONMENT_ERROR_PREFIX、gate-design.md
+          # §2.3a）の有無で「runner 環境未整備」と「コード起因の FAIL」を
+          # GitHub Actions アノテーションとして区別する（受け入れ条件 2）。
+          # gate の JSON は compact 出力（キー間に空白なし）のため
+          # `"environment error: ` を緩く grep する。
+          if cargo run -p rws-cli --locked -- gate --project . | tee gate-report.json; then
+            exit 0
+          fi
+          if grep -q '"environment error: ' gate-report.json; then
+            echo "::error::fw gate BLOCKED: environment error (runner setup issue, not code). See 'environment error:' entries in the JSON report above; ensure tools/ci/ensure-gate-tools.sh ran successfully (see .claude/rules/ci.md)."
+          else
+            echo "::error::fw gate BLOCKED: code-caused check failure. See failing checks in the JSON report above."
+          fi
+          exit 1
