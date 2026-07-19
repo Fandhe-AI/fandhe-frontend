@@ -222,7 +222,7 @@ Phase 4 #352「意図的非採用の記録（仮想 DOM・ファイルベース�
 | async loader | 将来必要になった場合に別 Issue を提案（第 3.2 節の判断根拠） |
 | キャッシュ・再検証（revalidation） | 将来必要になった場合に別 Issue を提案 |
 | 複数 loader 合成（複数データソースの結合） | 将来必要になった場合に別 Issue を提案 |
-| `structure.toml`・`fw impact`・`fw gate` の新 API 追従 | #353（Phase 4）が担う |
+| `structure.toml`・`fw impact`・`fw gate` の新 API 追従 | #353（Phase 4）で完了。`fw impact` の `affected_loaders` フィールド追加・`fw gate` へのチェック追加は非採用（既存 3 層・`test` チェックでカバー）と判断（`docs/design/impact-analysis-design.md` §3.5/§7、`docs/design/gate-design.md` §7 参照） |
 | RSC 相当の多段レンダリング機構 | 非採用（第 6 節）。再検討が必要になった場合は改めて設計判断を行う |
 
 新規の Issue 起票が必要な事項が本書執筆時点で確定した場合は、PR 本文で提案に留め、

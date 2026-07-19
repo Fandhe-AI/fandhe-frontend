@@ -299,3 +299,17 @@ TASK-13.3c（#141、`policy`/`test` チェックの実連携固定）の対応:
   完了済み。本書は現状の実装を正式化するものであり、振る舞いの変更提案は
   別 Issue・別 PR で扱う（out-of-scope-tracking.md、切り出し提案は本 PR の
   本文に記載する）。
+- **新 API（束縛点・keyed list・Loader）に対するチェック追加は非採用
+  （イシュー #353 で判断）**: いずれもノード木 API 経由で HTML を構築し、
+  REQ-1 は既存 3 層（`disallowed-methods` lint の主防御 + `default_escape_check`
+  の保険層 + XSS 回帰テスト、§2.2）で担保される。`default_escape_check` は
+  ソース走査ベースのため新 API の呼び出し自体には反応しないが誤検知もしない
+  （束縛点属性文字列・`keyed_list(` 呼び出しは `raw_html()` 呼び出しの
+  パターンに一致しない、単体テスト
+  `gate::tests::scan_file_ignores_new_api_usage_but_still_detects_unreviewed_raw_html`
+  で固定）。Loader の fail-closed 契約は `app`/`server`/`wasm-full` 各クレートの
+  既存テスト（#348/#349 で追加済み）が担い、`test` チェック
+  （`cargo test --locked -p <crate>`）経由でそのままカバーされる。束縛点更新の
+  DOM 反映検証はブラウザテストの領分であり、`fw gate` はネイティブ高速
+  チェックに限定する方針を維持する。5 チェック・JSON 契約（PoC-7 互換）は
+  本イシューで変更していない。
