@@ -164,6 +164,18 @@ DOM 操作・イベント配線は行いません。
 `state_from_hydration_attrs` を内部で呼び出す薄いラッパーであり、状態機械
 そのものは `rws-wasm-full` と共通の `rws-interactive` を使用します。
 
+**補足（イシュー #376）**: `AppState::view()` / `render_html` が共通コード
+であるため、`initial_html()` / `apply()` の出力 HTML には `rws-wasm-full`
+と同様に `data-bind-*` / `data-key` / `data-hydrate-item-ids` マーカーが
+含まれます。ただし `rws-wasm-thin` の更新経路は本節の `apply` の説明の
+とおり戻り値の全置換 `innerHTML` 代入のみであり、これらのマーカーは
+`wasm-thin` 経路では**不活性（inert）**です（束縛点更新・keyed list の
+差分適用ロジック自体を `wasm-thin` / JS グルー側は持たないため）。属性値は
+既定エスケープ済みであり、不活性であっても無害です。この方針を束縛点更新
+一般化の対象に含めるかどうかの検討・結論は
+`docs/policy/intentional-non-adoption.md` §3.10 に記録しています
+（非採用確定）。
+
 ### 4.3 JS 実効行数の操作的定義
 
 PoC-3 のルーブリック（0〜10 行 = 薄い、11〜40 行 = 中）を JS グルーの LOC 判定に
@@ -319,4 +331,5 @@ WASM 関数呼び出しスループット計測による代替値である点に
 | 実ブラウザでの初期ロード・DOM 操作性能の正式計測 | TASK-11.5【Conditional Go 条件 1】（#85〜） |
 | バンドルサイズ検証の自動化 | TASK-11.6（#85〜#89） |
 | `docs/policy/unsafe-boundary.md` の `wasm-thin` 行の更新（`rws-wasm-thin` は `web-sys` 非依存のため `unsafe` を使用しない見込みだが、確定は実装時に行う） | TASK-11.3a（#79） |
+| 束縛点更新・keyed list（イシュー #345 の一般化方針）を `wasm-thin` の JS グルー側更新経路にも適用するか | `docs/policy/intentional-non-adoption.md` §3.10（イシュー #376）で非採用確定 |
 | 仕様（`docs/spec/`）自体の変更が必要な事項が生じた場合 | frontend-framework-spec リポジトリの Issue として起票を提案する（本書の対象外） |
