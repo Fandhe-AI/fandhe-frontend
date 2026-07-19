@@ -109,12 +109,12 @@ COPY static ./static
 
 # --locked で Cargo.lock 固定ビルドを強制し、依存解決の非決定性を排除する
 # （REQ-3・security.md のサプライチェーン対策）。この単一コマンドの内部で
-# `dist-server/build.rs`（TASK-10.2b・#110）が既定（RWS_WASM_BUILD 未設定＝
-# 有効）で発火し、ネスト `cargo build -p fandhe-frontend-wasm-full --target
+# `dist-server/build.rs`（TASK-10.2b・#110）が既定（FANDHE_FRONTEND_WASM_BUILD
+# 未設定＝有効）で発火し、ネスト `cargo build -p fandhe-frontend-wasm-full --target
 # wasm32-unknown-unknown` + `wasm-bindgen` を実行して WASM 資産を
 # `OUT_DIR` へ生成・埋め込む。`docs/design/wasm-build-integration.md` §7 が定義する
 # 「単一コマンドでネイティブ + WASM 双方の成果物を生成する」構成をここで
-# 満たす（`ENV RWS_WASM_BUILD=0` によるオプトアウトは行わない）。
+# 満たす（`ENV FANDHE_FRONTEND_WASM_BUILD=0` によるオプトアウトは行わない）。
 RUN cargo build --release --locked --target "$(cat /musl_target)" -p fandhe-frontend-dist-server \
     && strip "target/$(cat /musl_target)/release/dist-server" \
     && cp "target/$(cat /musl_target)/release/dist-server" /dist-server-out
@@ -138,7 +138,7 @@ USER 65532:65532
 # なため、コンテナ境界内での待ち受けとして 0.0.0.0 を明示する。ホスト側への
 # 実際の公開は利用者の `docker run -p` 指定によるオプトインであり、この
 # ENV 自体が外部公開を意味しない。
-ENV RWS_BIND_ADDR=0.0.0.0:3100
+ENV FANDHE_FRONTEND_BIND_ADDR=0.0.0.0:3100
 EXPOSE 3100
 
 ENTRYPOINT ["/dist-server"]

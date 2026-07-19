@@ -28,9 +28,9 @@
 > 有効であることを再確認済みです。§3.1 の設計どおり `Dockerfile` の
 > builder ステージを拡張し（`rustup target add wasm32-unknown-unknown`・
 > `wasm-bindgen-cli` バージョン固定 + SHA256 検証付き導入・`ENV
-> RWS_WASM_BUILD=0` の削除）、実装が完了しています。aarch64 archive は
+> FANDHE_FRONTEND_WASM_BUILD=0` の削除）、実装が完了しています。aarch64 archive は
 > 実在を確認できたため §3.1 のフォールバック（aarch64 での
-> `RWS_WASM_BUILD=0` 維持）は不採用とし、両アーキで WASM ビルドステージを
+> `FANDHE_FRONTEND_WASM_BUILD=0` 維持）は不採用とし、両アーキで WASM ビルドステージを
 > 有効化しました。以降の §2.2・§5 の「未整備」「TASK-10.3b で追加」という
 > 記述は実装済みを表すよう更新しています。
 
@@ -79,7 +79,7 @@ TASK-10.3a の設計は「ゼロから WASM ビルドを Docker に組み込む�
      `OUT_DIR/wasm-assets/` へ出力する。
   6. 生成物を `/static/wasm/<ファイル名>` として `EMBEDDED_ASSETS` テーブルへ
      合流する。
-- `RWS_WASM_BUILD=0`（`skip`/`false` も可、大小文字不問）で本ステージ全体を
+- `FANDHE_FRONTEND_WASM_BUILD=0`（`skip`/`false` も可、大小文字不問）で本ステージ全体を
   明示的に無効化できます（wasm ツールチェーン未整備環境向けの逃げ道。既定は
   有効＝フェイルクローズ）。
 
@@ -88,7 +88,7 @@ TASK-10.3a の設計は「ゼロから WASM ビルドを Docker に組み込む�
 - TASK-10.3b（#116）の実装により、`Dockerfile` の builder ステージへ
   `rustup target add wasm32-unknown-unknown`・`wasm-bindgen-cli`
   （バージョン固定 + SHA256 検証付き、x86_64/aarch64 双方）を導入し、
-  `ENV RWS_WASM_BUILD=0` によるオプトアウトを削除しました。
+  `ENV FANDHE_FRONTEND_WASM_BUILD=0` によるオプトアウトを削除しました。
 - これにより `cargo build -p fandhe-frontend-dist-server` 実行時に `build.rs` の
   WASM ビルドステージが実際に発火し、コンテナ内で生成された WASM 資産が
   `/static/wasm/*` として埋め込まれます。`Dockerfile` の
@@ -104,8 +104,8 @@ TASK-10.3a の設計は「ゼロから WASM ビルドを Docker に組み込む�
 2. `wasm-bindgen-cli` のバージョン固定 + SHA256 チェックサム検証付き導入
    （`WASM_BINDGEN_VERSION`/`WASM_BINDGEN_SHA256` を環境変数で固定し、
    ダウンロード後 `sha256sum -c -` で検証してから `install -m 755` で配置）
-3. `RWS_WASM_BUILD` を明示的に制御（同ワークフローの他ジョブ、例えば
-   AssetMode 切り替え検証ジョブでは `RWS_WASM_BUILD: "0"` で明示的に
+3. `FANDHE_FRONTEND_WASM_BUILD` を明示的に制御（同ワークフローの他ジョブ、例えば
+   AssetMode 切り替え検証ジョブでは `FANDHE_FRONTEND_WASM_BUILD: "0"` で明示的に
    スキップする一方、WASM ビルドを検証するジョブでは有効のまま実行する）
 
 この `wasm-bindgen-cli` 導入手順は既に CI で実績があるため、TASK-10.3b は
@@ -155,7 +155,7 @@ builder`）に、既存の musl ターゲット導入と同じ並びで次を追
    - builder イメージが `slim-bookworm`（glibc）である点は
      `wasm-bindgen-cli` 単体バイナリ（musl 静的リンク）の実行には
      影響しない。
-3. 既存の `ENV RWS_WASM_BUILD=0` を削除する（既定値＝有効のまま
+3. 既存の `ENV FANDHE_FRONTEND_WASM_BUILD=0` を削除する（既定値＝有効のまま
    `cargo build --release --locked --target "$(cat /musl_target)" -p
    fandhe-frontend-dist-server` を実行し、ネスト WASM ビルドを発火させる）。
 
@@ -169,7 +169,7 @@ fandhe-frontend-dist-server` 単一コマンドを Docker ビルドステージ�
 本書執筆時点では `aarch64-unknown-linux-musl` 版が存在しますが、将来
 バージョンで欠落する可能性を設計契約として排除できません。TASK-10.3b の
 実装では、選定したバージョンの aarch64 archive が存在しない場合、
-aarch64 ビルドホストでは `ENV RWS_WASM_BUILD=0`
+aarch64 ビルドホストでは `ENV FANDHE_FRONTEND_WASM_BUILD=0`
 （現行 §2.2 のオプトアウトと同じ機構）を維持し、x86_64 ビルドホストでの
 み WASM ビルドステージを有効化するフォールバック方針を明記します。この
 場合、`docker build` はアーキによって最終イメージの WASM 同梱有無が
@@ -266,7 +266,7 @@ WASM ビルド経路の 2 系統が並存し、`docs/design/wasm-build-integrati
 本書は設計契約であり、`docker build` の実測検証は行いません。以下は
 TASK-10.3c（#117）が実施すべき検証観点として引き継ぎます。
 
-1. `RWS_WASM_BUILD=0` の削除後、`docker build` が成功し、最終イメージの
+1. `FANDHE_FRONTEND_WASM_BUILD=0` の削除後、`docker build` が成功し、最終イメージの
    `static/wasm/` 相当の URL パスから WASM 成果物が配信されること。
 2. `wasm-bindgen-cli` バージョン不一致時に、`build.rs` のフェイルクローズ
    （`expected_wasm_bindgen_version` との突き合わせ失敗）がビルダーステージの
@@ -281,7 +281,7 @@ TASK-10.3c（#117）が実施すべき検証観点として引き継ぎます。
 6. `docker build` を x86_64・aarch64 の両ビルドホスト（例: GitHub Actions
    の x86_64 ランナーと Apple Silicon の Docker Desktop）で実行し、§3.1
    のアーキ分岐（archive 名・チェックサム選択）が両方で成功すること。
-   aarch64 側で §3.1 のフォールバック（`RWS_WASM_BUILD=0`）を採用した
+   aarch64 側で §3.1 のフォールバック（`FANDHE_FRONTEND_WASM_BUILD=0`）を採用した
    場合は、最終イメージに WASM 成果物が同梱されないことが期待どおりで
    あることも確認する。
 
@@ -327,7 +327,7 @@ TASK-10.3c（#117）が実施すべき検証観点として引き継ぎます。
 
 | REQ-10 受け入れ基準（4 点目） | 対応状況 |
 |------------------------------|---------|
-| Docker マルチステージビルド内で WASM ターゲットの再ビルドが行われること | §3.1 の設計（builder ステージ拡張・`ENV RWS_WASM_BUILD=0` 削除）で対応方針を確定。実装は TASK-10.3b（#116） |
+| Docker マルチステージビルド内で WASM ターゲットの再ビルドが行われること | §3.1 の設計（builder ステージ拡張・`ENV FANDHE_FRONTEND_WASM_BUILD=0` 削除）で対応方針を確定。実装は TASK-10.3b（#116） |
 | CI 環境での再現性が担保されること | §4（`--locked`・digest 固定・`wasm-bindgen-cli` バージョン同期運用）で担保方式を確定。実測検証は TASK-10.3c（#117） |
 
 親イシュー #114（TASK-10.3）・#115（本タスク）の受け入れ条件との対応:
@@ -374,4 +374,4 @@ TASK-10.3c（#117）が実施すべき検証観点として引き継ぎます。
   `aarch64-unknown-linux-musl` archive が GitHub Releases に実在することを
   再確認する必要があります（バージョンごとに提供状況が変わり得るため）。
   存在しない場合は §3.1 のフォールバック（aarch64 ホストでの
-  `RWS_WASM_BUILD=0` 維持）を採用します。
+  `FANDHE_FRONTEND_WASM_BUILD=0` 維持）を採用します。

@@ -1,5 +1,7 @@
 # WASM ビルド統合 検証レポート（TASK-10.2e・Conditional Go 条件 3 解消判定）
 
+> **注記（#437）**: 本レポート中の `RWS_BIND_ADDR` / `RWS_WASM_BUILD` はその後 #437 で `FANDHE_FRONTEND_BIND_ADDR` / `FANDHE_FRONTEND_WASM_BUILD` へ改名されました。以下の記録は当時の実測値・環境変数名のまま残しています。
+
 ## 1. 目的とトレーサビリティ
 
 - TASK-10.2【Conditional Go 条件 3】（親イシュー #108、`docs/spec/05-tasks.md`

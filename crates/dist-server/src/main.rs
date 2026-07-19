@@ -1,6 +1,6 @@
 //! `fandhe-frontend-dist-server` の起動エントリ。
 //!
-//! `RWS_BIND_ADDR`（既定 `127.0.0.1:3100`）で TCP リッスンし、1 接続ごとに
+//! `FANDHE_FRONTEND_BIND_ADDR`（既定 `127.0.0.1:3100`）で TCP リッスンし、1 接続ごとに
 //! `hyper`（HTTP/1.1）で処理する。実際のルーティング・レスポンス生成は
 //! `fandhe_frontend_dist_server::routes::route_request`（HTTP に依存しない純粋関数）に
 //! 委譲し、本ファイルは「hyper の接続を受けてバイト列に変換する」薄い
@@ -9,7 +9,7 @@
 //! # セキュリティ設定（`security.md` A05 セキュリティ設定ミス）
 //!
 //! 既定 bind アドレスはループバック（`127.0.0.1`）とし、外部公開は
-//! `RWS_BIND_ADDR` の明示的なオプトインを要求する。bind 失敗時は `panic!`
+//! `FANDHE_FRONTEND_BIND_ADDR` の明示的なオプトインを要求する。bind 失敗時は `panic!`
 //! せず、アドレスと OS エラーのみを stderr に出力して非 0 終了する
 //! （内部パス・スタックトレース等の機微情報は出力しない）。
 
@@ -30,7 +30,7 @@ use std::convert::Infallible;
 use std::process::ExitCode;
 use tokio::net::TcpListener;
 
-/// 既定の bind アドレス。`RWS_BIND_ADDR` 未設定時に使う
+/// 既定の bind アドレス。`FANDHE_FRONTEND_BIND_ADDR` 未設定時に使う
 /// （ループバック限定。`security.md` 参照）。
 const DEFAULT_BIND_ADDR: &str = "127.0.0.1:3100";
 
@@ -54,8 +54,8 @@ fn main() -> ExitCode {
 /// 非同期本体。bind 成功後は無限に接続を受け付け続ける
 /// （通常運用では戻らない。bind 失敗時のみ `ExitCode::FAILURE` を返す）。
 async fn run() -> ExitCode {
-    let bind_addr =
-        std::env::var("RWS_BIND_ADDR").unwrap_or_else(|_| DEFAULT_BIND_ADDR.to_string());
+    let bind_addr = std::env::var("FANDHE_FRONTEND_BIND_ADDR")
+        .unwrap_or_else(|_| DEFAULT_BIND_ADDR.to_string());
 
     let listener = match TcpListener::bind(&bind_addr).await {
         Ok(listener) => listener,
@@ -65,7 +65,7 @@ async fn run() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    // `RWS_BIND_ADDR=127.0.0.1:0`（ポート 0 = OS 割当）で起動した場合、
+    // `FANDHE_FRONTEND_BIND_ADDR=127.0.0.1:0`（ポート 0 = OS 割当）で起動した場合、
     // 設定文字列 `bind_addr` をそのままログに出すと実際に割り当てられた
     // ポート番号が外部から分からない。`listener.local_addr()`（bind 済み
     // ソケットの実アドレス）を使うことで、TASK-9.1c（イシュー #97）の

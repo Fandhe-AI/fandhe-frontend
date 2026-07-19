@@ -69,7 +69,7 @@
 
 ## 3. 開発フロー手順
 
-1. `cargo run -p fandhe-frontend-dist-server`（または `RWS_WASM_BUILD=0 cargo run -p fandhe-frontend-dist-server`
+1. `cargo run -p fandhe-frontend-dist-server`（または `FANDHE_FRONTEND_WASM_BUILD=0 cargo run -p fandhe-frontend-dist-server`
    — WASM ビルドステージをスキップする場合。`dist-server/build.rs` 冒頭
    ドキュメント参照）で debug ビルドを起動する。既定で `DevFilesystem`
    モードになる。

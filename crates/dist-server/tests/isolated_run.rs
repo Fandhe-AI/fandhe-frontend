@@ -46,7 +46,7 @@ use support::{send_http_request, spawn_and_wait_for_port, status_code};
 // `response_body_bytes` / `send_http_request_bytes` / `status_code_bytes` は
 // `isolated_wasm_assets_served`（下記 `#[cfg(wasm_assets_embedded)]`）専用の
 // バイト列 API のため、同じ cfg でのみ import する。WASM ビルドステージを
-// オプトアウトしたジョブ（`dist-server-embedded-mode`、`RWS_WASM_BUILD=0`）
+// オプトアウトしたジョブ（`dist-server-embedded-mode`、`FANDHE_FRONTEND_WASM_BUILD=0`）
 // では未使用 import になり `-D warnings` に抵触するため。
 #[cfg(wasm_assets_embedded)]
 use support::{response_body_bytes, send_http_request_bytes, status_code_bytes};
@@ -195,7 +195,7 @@ fn isolated_static_assets_served_from_embedded_table() {
 /// WASM ビルドステージ（`dist-server/build.rs`、TASK-10.2b・イシュー #110）
 /// が実際に埋め込みテーブルへ合流したときのみコンパイルされる
 /// （`tests/wasm_assets.rs` と同じ cfg ゲート）。`dist-server-embedded-mode`
-/// ジョブは `RWS_WASM_BUILD: "0"` で WASM ステージをオプトアウトしている
+/// ジョブは `FANDHE_FRONTEND_WASM_BUILD: "0"` で WASM ステージをオプトアウトしている
 /// ため、本テストは当該ジョブではコンパイル対象外となり偽陽性を出さない
 /// （実装計画 §2.3 参照）。
 #[cfg(wasm_assets_embedded)]

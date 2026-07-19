@@ -10,7 +10,7 @@
 //! （`#[path = "support/mod.rs"] mod support;` 不要 — ディレクトリ名がモジュール
 //! 名と一致するため通常の `mod` 宣言で解決される）で利用する。
 //!
-//! `tests/bind_addr.rs`（イシュー #162）は `RWS_BIND_ADDR` によるバインド
+//! `tests/bind_addr.rs`（イシュー #162）は `FANDHE_FRONTEND_BIND_ADDR` によるバインド
 //! アドレス・ポートの切り替え自体を検証対象とするため、`127.0.0.1:0`（OS
 //! 割当ポート）固定だった従来のヘルパでは検証できない（「指定した値が実際に
 //! 反映されたか」を確かめるには任意のアドレスを明示指定できる必要がある）。
@@ -66,7 +66,7 @@ impl Drop for ChildGuard {
     }
 }
 
-/// `binary` を起動し、`RWS_BIND_ADDR=127.0.0.1:0`（OS 割当ポート）で bind
+/// `binary` を起動し、`FANDHE_FRONTEND_BIND_ADDR=127.0.0.1:0`（OS 割当ポート）で bind
 /// させたうえで stderr の `listening on` 行から実際のポートを読み取る。
 ///
 /// `cwd` を指定すると子プロセスの作業ディレクトリを固定する
@@ -96,11 +96,11 @@ pub fn spawn_and_wait_for_port(binary: &Path, cwd: Option<&Path>) -> (ChildGuard
     (guard, port)
 }
 
-/// `binary` を `RWS_BIND_ADDR=<bind_addr>` で起動し、stderr の
+/// `binary` を `FANDHE_FRONTEND_BIND_ADDR=<bind_addr>` で起動し、stderr の
 /// `listening on` 行から実際のバインドアドレス（`127.0.0.2:34567` 等の
 /// 完全な文字列）を読み取る。
 ///
-/// `tests/bind_addr.rs`（イシュー #162）が `RWS_BIND_ADDR` の値そのものを
+/// `tests/bind_addr.rs`（イシュー #162）が `FANDHE_FRONTEND_BIND_ADDR` の値そのものを
 /// 明示指定してポート・アドレスの切り替えを検証するために使う。
 /// `cwd` は [`spawn_and_wait_for_port`] と同様の意味を持つ。
 ///
@@ -114,7 +114,7 @@ pub fn spawn_with_bind_addr(
 ) -> (ChildGuard, String) {
     let mut command = Command::new(binary);
     command
-        .env("RWS_BIND_ADDR", bind_addr)
+        .env("FANDHE_FRONTEND_BIND_ADDR", bind_addr)
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
     if let Some(dir) = cwd {
@@ -269,7 +269,7 @@ pub fn wait_with_timeout(child: &mut Child, timeout: Duration) -> std::process::
 /// 契約に対応）。
 ///
 /// `tests/bind_addr.rs` はこの戻り値のホスト部・ポート部の両方を検証する
-/// （`RWS_BIND_ADDR` の値がそのまま反映されたことの直接証明のため）。
+/// （`FANDHE_FRONTEND_BIND_ADDR` の値がそのまま反映されたことの直接証明のため）。
 pub fn parse_listening_addr(line: &str) -> Option<&str> {
     line.strip_prefix("fandhe-frontend-dist-server: listening on ")
 }
@@ -296,7 +296,7 @@ pub fn send_http_request(port: u16, method: &str, path: &str) -> String {
 }
 
 /// [`send_http_request`] の接続先ホストを可変化した版。`tests/bind_addr.rs`
-/// が `RWS_BIND_ADDR=127.0.0.2:0` 等、ループバック /8 内の非既定アドレスへの
+/// が `FANDHE_FRONTEND_BIND_ADDR=127.0.0.2:0` 等、ループバック /8 内の非既定アドレスへの
 /// 到達性を検証するために使う。
 pub fn send_http_request_to(host: &str, port: u16, method: &str, path: &str) -> String {
     let mut stream = TcpStream::connect((host, port)).expect("must connect to dist-server");

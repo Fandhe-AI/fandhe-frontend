@@ -42,7 +42,7 @@ jobs:
     #     正当に使う unsafe と衝突する）ため、本ジョブに限り明示オプトアウトする。
     # 統合ビルドの実証は `test` ジョブが担う。
     env:
-      RWS_WASM_BUILD: "0"
+      FANDHE_FRONTEND_WASM_BUILD: "0"
     steps:
       - name: Checkout
         # actions/checkout v6.0.3（update-external.yml と同一 SHA に固定）
@@ -268,7 +268,7 @@ jobs:
     # ビルドステージの統合検証は `test` ジョブが専任する。責務を分離し
     # 本ジョブの実行時間・依存ツールチェーンを増やさないためオプトアウトする。
     env:
-      RWS_WASM_BUILD: "0"
+      FANDHE_FRONTEND_WASM_BUILD: "0"
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。
@@ -1810,7 +1810,7 @@ jobs:
     # panic（wasm-bindgen-cli 不在）で本ジョブ本来の目的（raw_html() 検出）と
     # 無関係に失敗する。統合ビルドの実証は別ジョブ（test 等）が担う。
     env:
-      RWS_WASM_BUILD: "0"
+      FANDHE_FRONTEND_WASM_BUILD: "0"
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（test/loc-check ジョブと同一 SHA に固定）。
@@ -1859,7 +1859,7 @@ jobs:
     # ないため明示オプトアウトする。統合 WASM ビルドの実証は test ジョブが
     # 専任する。
     env:
-      RWS_WASM_BUILD: "0"
+      FANDHE_FRONTEND_WASM_BUILD: "0"
     steps:
       - name: Checkout
         # actions/checkout v4.2.2（test/clippy ジョブと同一 SHA に固定）。

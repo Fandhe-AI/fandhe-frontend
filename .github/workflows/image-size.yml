@@ -125,7 +125,7 @@ jobs:
         # その「別コンテナ」に誤ってヒットして false pass を返しうる。
         # GitHub Actions の式構文には算術演算子（+, %, *）が無いため、ここで
         # run_id/run_attempt から bash の算術評価でポートを決定的に算出し
-        # （20000-31999 のレンジ、fandhe-frontend-dist-server の `RWS_BIND_ADDR` 環境変数
+        # （20000-31999 のレンジ、fandhe-frontend-dist-server の `FANDHE_FRONTEND_BIND_ADDR` 環境変数
         # で切り替え）、CONTAINER_NAME と同様に run 単位・rerun 単位でポート
         # も分離する。Linux の一時ポート（エフェメラルポート）範囲は既定で
         # 32768-60999 であり、そこと重なる値を割り当てると OS が偶然その番号を
@@ -167,7 +167,7 @@ jobs:
         # base_url は 127.0.0.1 に固定できるため、以降のロジックは単純化される。
         #
         # APP_PORT（イシュー #294 Bugbot 指摘1対応）: fandhe-frontend-dist-server の
-        # `RWS_BIND_ADDR` 環境変数でリスニングポートを run 単位・rerun 単位の
+        # `FANDHE_FRONTEND_BIND_ADDR` 環境変数でリスニングポートを run 単位・rerun 単位の
         # 動的ポートに切り替える。固定 3100 のままだと、`--network container:`
         # 経由（runner 自身とネットワーク名前空間を共有）でもホスト公開経由でも、
         # 同一 self-hosted runner 上の別ジョブ・別試行のコンテナが同じ
@@ -185,12 +185,12 @@ jobs:
           if [ -n "${RUNNER_CID}" ]; then
             docker run -d --name "${CONTAINER_NAME}" \
               --network "container:${RUNNER_CID}" \
-              -e "RWS_BIND_ADDR=127.0.0.1:${APP_PORT}" \
+              -e "FANDHE_FRONTEND_BIND_ADDR=127.0.0.1:${APP_PORT}" \
               fandhe-frontend-dist-server:ci
           else
             docker run -d --name "${CONTAINER_NAME}" \
               -p "127.0.0.1:${APP_PORT}:${APP_PORT}" \
-              -e "RWS_BIND_ADDR=0.0.0.0:${APP_PORT}" \
+              -e "FANDHE_FRONTEND_BIND_ADDR=0.0.0.0:${APP_PORT}" \
               fandhe-frontend-dist-server:ci
           fi
           base_url="http://127.0.0.1:${APP_PORT}"

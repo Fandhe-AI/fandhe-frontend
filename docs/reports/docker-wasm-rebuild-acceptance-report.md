@@ -1,5 +1,7 @@
 # Docker マルチステージビルド内 WASM 再ビルド 受け入れ基準検証レポート（TASK-10.3c）
 
+> **注記（#437）**: 本レポート中の `RWS_BIND_ADDR` / `RWS_WASM_BUILD` はその後 #437 で `FANDHE_FRONTEND_BIND_ADDR` / `FANDHE_FRONTEND_WASM_BUILD` へ改名されました。以下の記録は当時の実測値・環境変数名のまま残しています。
+
 ## 1. 目的とトレーサビリティ
 
 - **関連要件**: REQ-10 受け入れ基準 4 点目「Docker マルチステージビルド内で

@@ -471,7 +471,7 @@ TASK-13.3c（#141、`policy`/`test` チェックの実連携固定）の対応:
 イシュー #400（#372/PR #382 で PASS 化した自己適用のリグレッション検出）の
 対応:
 
-- `.github/workflows/ci.yml`（`gate-self-apply` ジョブ）: `RWS_WASM_BUILD=0`
+- `.github/workflows/ci.yml`（`gate-self-apply` ジョブ）: `FANDHE_FRONTEND_WASM_BUILD=0`
   下で `tools/ci/ensure-gate-tools.sh` を前置したうえで
   `cargo run -p fandhe-frontend-cli --locked -- gate --project .` を PR ごと・main push
   ごとに実行し、`gate_result: "PASS"`（終了コード 0）を継続保証する。

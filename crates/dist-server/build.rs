@@ -34,7 +34,7 @@
 //! （`static/` は本ファイルが `rerun-if-changed` で監視しているため、書き込むと
 //! 際限ない再ビルドループになる）。
 //!
-//! `RWS_WASM_BUILD=0`（`skip`/`false` も可）で本ステージ全体を明示的に無効化
+//! `FANDHE_FRONTEND_WASM_BUILD=0`（`skip`/`false` も可）で本ステージ全体を明示的に無効化
 //! できる（wasm ツールチェーン未整備環境向けの逃げ道。既定は有効 = フェイル
 //! クローズ。Dockerfile ビルダーステージはこのオプトアウトを使う、TASK-10.3・
 //! イシュー #114 で Docker 内 WASM 再ビルドが統合されるまでの暫定措置）。
@@ -72,6 +72,12 @@ use std::process::Command;
 // （`bench_support.rs` と同型のパターン。詳細は当該ファイル冒頭コメント参照）。
 #[path = "src/wasm_stage_cache.rs"]
 mod wasm_stage_cache;
+
+// WASM ビルドステージの有効・無効判定（`FANDHE_FRONTEND_WASM_BUILD`）。
+// `wasm_stage_cache` と同型のパターンでソースレベル共有する
+// （`src/wasm_build_gate.rs` 冒頭コメント参照）。
+#[path = "src/wasm_build_gate.rs"]
+mod wasm_build_gate;
 
 fn main() {
     // `CARGO_MANIFEST_DIR` は `crates/dist-server/` を指す。埋め込み対象の
@@ -124,7 +130,7 @@ fn main() {
         }
     } else {
         println!(
-            "cargo:warning=RWS_WASM_BUILD is disabled; skipping the WASM build stage \
+            "cargo:warning=FANDHE_FRONTEND_WASM_BUILD is disabled; skipping the WASM build stage \
              (/static/wasm/* will not be embedded or served)"
         );
     }
@@ -184,24 +190,17 @@ fn main() {
         "cargo:rerun-if-changed={}",
         workspace_root.join("Cargo.lock").display()
     );
-    println!("cargo:rerun-if-env-changed=RWS_WASM_BUILD");
+    println!("cargo:rerun-if-env-changed=FANDHE_FRONTEND_WASM_BUILD");
 }
 
-/// WASM ビルドステージが有効かどうかを環境変数 `RWS_WASM_BUILD` から判定する。
-///
-/// 既定（未設定）は有効。`0`・`skip`・`false`（大文字小文字を区別しない）の
-/// いずれかを設定した場合のみ無効化する。wasm ツールチェーン未整備環境
-/// （Docker ビルダーステージ・一部 CI ジョブ）向けの明示オプトアウト
-/// （設計 4.4 節。既定は統合ビルド有効という「安全側」を保つため、無効化は
-/// 明示的な合言葉を要求する）。
+/// WASM ビルドステージが有効かどうかを環境変数 `FANDHE_FRONTEND_WASM_BUILD` から
+/// 判定する薄いラッパ。判定ロジック本体は `wasm_build_gate::wasm_build_enabled_for`
+/// （純関数、`src/wasm_build_gate.rs`）に分離してあり、そちらは
+/// `cargo test -p fandhe-frontend-dist-server` のユニットテスト対象、かつ
+/// `crates/wasm-full/tests/bundle_size.rs` が同一契約の判定を独立実装として
+/// 重複させている（契約を変更する場合は両ファイルを揃えて更新すること）。
 fn wasm_build_enabled() -> bool {
-    match env::var("RWS_WASM_BUILD") {
-        Ok(value) => {
-            let normalized = value.trim().to_ascii_lowercase();
-            !(normalized == "0" || normalized == "skip" || normalized == "false")
-        }
-        Err(_) => true,
-    }
+    wasm_build_gate::wasm_build_enabled_for(env::var("FANDHE_FRONTEND_WASM_BUILD").ok().as_deref())
 }
 
 /// WASM ビルドステージ本体。バージョン整合検証 → ネスト `cargo build` →
