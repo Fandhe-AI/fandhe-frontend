@@ -74,8 +74,12 @@ fn render_component_html_reflects_state_after_dispatch() {
 
     let html = render_component_html(&state);
 
+    // カウンター値はイシュー #345 で静的テキストと分離した束縛点
+    // （`<span data-bind-text="counter">`）に出力されるため、
+    // 「カウント: 1」は連続した部分文字列にならない
+    // （`interactive/src/lib.rs` の `render_with_root_attrs` 参照）。
     assert!(
-        html.contains("カウント: 1"),
+        html.contains(r#"data-bind-text="counter">1</span>"#),
         "dispatch 後の状態（counter=1）が描画へ反映されること: {html}"
     );
 }

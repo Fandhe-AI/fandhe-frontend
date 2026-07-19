@@ -356,6 +356,7 @@ dependencies = [
  "rws-app",
  "rws-core",
  "rws-interactive",
+ "rws-wasm-client",
  "wasm-bindgen",
  "wasm-bindgen-test",
  "web-sys",

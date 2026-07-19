@@ -263,7 +263,11 @@ fn set_draft_via_wired_click_event_preserves_escape_guarantee() {
                 let mut state = state.borrow_mut();
                 dispatch(&mut *state, &action_ref.action, &action_ref.payload)
             };
-            if dispatched && action_ref.should_repaint {
+            // イシュー #345 で `should_repaint` は撤去された（`events.rs`
+            // doc 参照）。本テストは `events.rs` の配線契約のみを検証する
+            // 目的の手組み再描画であり、製品経路（`Runtime::wire`）とは
+            // 異なり束縛点更新を使わず常に再描画する簡易実装のままでよい。
+            if dispatched {
                 let html = render_component_html(&*state.borrow());
                 container.set_inner_html(&html);
             }
@@ -291,7 +295,7 @@ fn set_draft_via_wired_click_event_preserves_escape_guarantee() {
         .dispatch_event(&bubbling_click_event())
         .expect("dispatch_event must not fail");
 
-    // set_draft は should_repaint=true（action_from_click の契約）のため、
+    // set_draft は click 経由で dispatch されるため、
     // コールバック内で再描画済み。container 配下（新しい root）から
     // draft-input を再取得して検証する。
     let input = container
@@ -451,7 +455,7 @@ fn hydrate_then_repaint_via_wired_event_preserves_escape_guarantee_for_xss_paylo
     assert_eq!(runtime.component().draft, payload);
 
     // `add-btn`（data-action="add_item"）をクリックし、draft を items へ確定
-    // させて再描画をトリガーする（events.rs: click は should_repaint=true）。
+    // させて再描画をトリガーする（events.rs: click は常に dispatch される）。
     let add_button = container
         .query_selector("[data-testid='add-btn']")
         .expect("query_selector must not fail")

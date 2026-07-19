@@ -42,7 +42,9 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-use rws_core::{el, li, text, ul, Node};
+use rws_core::{
+    bind_attr_token, bind_text, el, keyed::keyed_list, li, text, ul, Node, BIND_ATTR_ATTR,
+};
 
 /// アプリ状態と描画・遷移を結ぶ中核トレイト。
 ///
@@ -919,12 +921,27 @@ pub struct AppState {
     /// 型ドキュメント参照）。テストコード等からの直接変更（`push` 等）は
     /// 追跡されない点にも注意。
     pub dirty: Vec<&'static str>,
+    /// `items` と同じ長さ・同じ順序で対応する keyed list 用の安定キー
+    /// （イシュー #345）。
+    ///
+    /// `items[i]` の keyed list 上のキーは `item_ids[i].to_string()`。
+    /// index をキーに使うと中間削除時に後続項目のキーがずれ、
+    /// `rws_core::keyed::keyed_list` を消費するクライアント側（#345
+    /// `wasm-client::keyed_diff`）が別項目のノードを誤って再利用してしまう
+    /// （フォーカス・入力途中の値が別項目へ飛ぶ事故）ため、生成順に単調増加
+    /// する安定 id で置き換える。`dirty` と同様の**描画同期メタデータ**であり
+    /// アプリ状態そのものではない（[`PartialEq`] 比較対象外・ハイドレーション
+    /// 非対象）。
+    pub item_ids: Vec<u64>,
+    /// 次に発行する項目 id（単調増加カウンタ）。[`Self::item_ids`] と同じ
+    /// 理由で描画同期メタデータとして扱う。
+    pub next_item_id: u64,
 }
 
-// `dirty` を除外した手動 `PartialEq`/`Eq`（上記の型ドキュメント参照）。
-// `counter`/`draft`/`items` の 3 フィールドのみを比較することで、
-// `update()` 呼び出し後（dirty 非空）とハイドレーション復元直後
-// （dirty 空）の状態を「同じアプリ状態」として同一視できる。
+// `dirty`/`item_ids`/`next_item_id` を除外した手動 `PartialEq`/`Eq`（上記の
+// 型ドキュメント参照）。`counter`/`draft`/`items` の 3 フィールドのみを比較
+// することで、`update()` 呼び出し後とハイドレーション復元直後（id 再割当て
+// 後）の状態を「同じアプリ状態」として同一視できる。
 impl PartialEq for AppState {
     fn eq(&self, other: &Self) -> bool {
         self.counter == other.counter && self.draft == other.draft && self.items == other.items
@@ -940,6 +957,8 @@ impl Default for AppState {
             draft: String::new(),
             items: vec!["最初の項目".to_string()],
             dirty: Vec::new(),
+            item_ids: vec![0],
+            next_item_id: 1,
         }
     }
 }
@@ -984,8 +1003,9 @@ pub enum Action {
     SetDraft(String),
     /// 下書きをリストへ追加する。
     AddItem,
-    /// 指定インデックスの項目を削除する。
-    RemoveItem(usize),
+    /// 指定 id の項目を削除する（イシュー #345 で index から安定 id へ変更。
+    /// 上記 [`AppState::item_ids`] 参照）。
+    RemoveItem(u64),
 }
 
 impl Component for AppState {
@@ -1035,18 +1055,32 @@ impl Component for AppState {
                 let trimmed = self.draft.trim();
                 if !trimmed.is_empty() {
                     self.items.push(trimmed.to_string());
+                    // 新規項目には常に新しい単調増加 id を割り当てる（既存 id
+                    // との衝突なし。keyed list のキー一意性は
+                    // `rws_core::keyed::keyed_list` が構築時に検査する）。
+                    self.item_ids.push(self.next_item_id);
+                    self.next_item_id = self.next_item_id.saturating_add(1);
                     self.draft.clear();
                     // コード上の変更順で固定（items へ追加 → draft をクリア）。
                     self.mark_dirty(Self::FIELD_ITEMS);
                     self.mark_dirty(Self::FIELD_DRAFT);
                 }
             }
-            // 範囲外インデックスは何もしない（安全側フォールバック、dirty も
-            // 空のまま）。
-            Action::RemoveItem(index) => {
-                if index < self.items.len() {
-                    self.items.remove(index);
-                    self.mark_dirty(Self::FIELD_ITEMS);
+            // 未知の id（既に削除済み・DOM 改ざん由来の偽装 payload 等）は
+            // 何もしない（安全側フォールバック、dirty も空のまま。不変条件 4）。
+            Action::RemoveItem(id) => {
+                // `index < self.items.len()` の追加防御は、`items`/`item_ids`
+                // が本来は常に同じ長さで対になる（`AddItem`/本アーム以外では
+                // 変更しない）契約を、テストコード等からの直接フィールド
+                //操作（`state.items = ...` 等、上記 [`Component`] doc 参照）が
+                // 破った場合でも `Vec::remove` の範囲外 panic を起こさないため
+                // の fail-closed フォールバック（不変条件 4 の精神を継承）。
+                if let Some(index) = self.item_ids.iter().position(|&existing| existing == id) {
+                    if index < self.items.len() {
+                        self.items.remove(index);
+                        self.item_ids.remove(index);
+                        self.mark_dirty(Self::FIELD_ITEMS);
+                    }
                 }
             }
         }
@@ -1063,9 +1097,9 @@ impl Component for AppState {
             "reset" => Some(Action::Reset),
             "set_draft" => Some(Action::SetDraft(payload.to_string())),
             "add_item" => Some(Action::AddItem),
-            // 未知のインデックス表現（パース失敗）は復号失敗として扱い、
-            // 呼び出し元（dispatch）で no-op になる（不変条件 4）。
-            "remove_item" => payload.parse::<usize>().ok().map(Action::RemoveItem),
+            // 未知の id 表現（パース失敗）は復号失敗として扱い、呼び出し元
+            // （dispatch）で no-op になる（不変条件 4）。
+            "remove_item" => payload.parse::<u64>().ok().map(Action::RemoveItem),
             _ => None,
         }
     }
@@ -1112,6 +1146,16 @@ impl Hydrate for AppState {
         let draft = find(&draft_attr)?.to_string();
         let items = codec::decode_list(find(&items_attr)?);
 
+        // `item_ids`/`next_item_id` はハイドレーション対象外（描画同期
+        // メタデータ。上記 `AppState::item_ids` の型ドキュメント参照）。
+        // クライアント制御下の属性値から復元すると偽装 id を注入できて
+        // しまうため、`0..items.len()` を決定的に再割当てする
+        // （SSR 出力済み DOM の keyed list（`data-key`）とは無関係になるが、
+        // ハイドレーション直後は `wasm-full` 側が対応表を DOM から再走査する
+        // ため実害はない）。
+        let item_ids: Vec<u64> = (0..items.len() as u64).collect();
+        let next_item_id = item_ids.len() as u64;
+
         // ハイドレーション直後は SSR 出力済み DOM と状態が一致しているため、
         // dirty は常に空で復元する（クライアント入力（改ざんされうる属性値）
         // から dirty を注入する経路を作らない。本クレートの不変条件 3 と
@@ -1121,6 +1165,8 @@ impl Hydrate for AppState {
             draft,
             items,
             dirty: Vec::new(),
+            item_ids,
+            next_item_id,
         })
     }
 }
@@ -1149,11 +1195,24 @@ impl DirtyTracked for AppState {
 /// テキスト・属性値はすべて `rws_core::text`/`el` の attrs 経由で出力する
 /// ため、`rws_core::render` が既定エスケープを必ず適用する（不変条件 1）。
 fn render_with_root_attrs(state: &AppState) -> Node {
+    // カウンター値のみを束縛点（`data-bind-text="counter"`）として切り出す
+    // （イシュー #345）。以前は「カウント: {counter}」を丸ごと合成テキストに
+    // していたが、それだと差分更新側（`wasm-client::BindingTable`）が
+    // 静的な接頭辞「カウント: 」ごと `set_text_content` してしまい、束縛点の
+    // 粒度がテキスト全体まで広がってしまう。静的テキストと束縛点を別ノード
+    // に分離することで、更新対象を値部分のみへ限定する。
+    let counter_value = bind_text(
+        "span",
+        vec![("data-testid", "counter-value")],
+        AppState::FIELD_COUNTER,
+        state.counter.to_string(),
+    );
     let counter_section = el(
         "div",
         vec![("data-testid", "counter")],
         vec![
-            text(format!("カウント: {}", state.counter)),
+            text("カウント: "),
+            counter_value,
             el(
                 "button",
                 vec![("data-action", "increment"), ("data-testid", "inc-btn")],
@@ -1172,6 +1231,12 @@ fn render_with_root_attrs(state: &AppState) -> Node {
         ],
     );
 
+    // input の value は SSR 出力用の `value` 属性（初回マウント時の表示）に
+    // 加え、`data-bind-attr="value:draft"` を付与する。`wasm-client` の
+    // `apply_one`（#345 拡張）はこの束縛点が `HtmlInputElement` の場合、
+    // `set_attribute` に加え `set_value`（live value プロパティ）も呼ぶ
+    // 契約（`docs/design/dom-binding-update-design.md` #345 実装確定節）。
+    let draft_bind_attr = bind_attr_token("value", AppState::FIELD_DRAFT);
     let form_section = el(
         "div",
         vec![("data-testid", "form")],
@@ -1182,6 +1247,7 @@ fn render_with_root_attrs(state: &AppState) -> Node {
                     ("id", "draft-input"),
                     ("data-testid", "draft-input"),
                     ("value", &state.draft),
+                    (BIND_ATTR_ATTR, &draft_bind_attr),
                 ],
                 vec![],
             ),
@@ -1193,37 +1259,48 @@ fn render_with_root_attrs(state: &AppState) -> Node {
         ],
     );
 
-    let items: Vec<Node> = state
+    // 動的リストは keyed list（イシュー #344/#345）として構築する。キーは
+    // index ではなく `AppState::item_ids` の安定 id（上記型ドキュメント参照）。
+    // `data-payload` も同じ id を使う（`remove_item` の payload 契約を id 化。
+    // `data-idx` は撤去 — index は keyed 更新後にずれるため公開しない）。
+    let items: Vec<(String, Node)> = state
         .items
         .iter()
-        .enumerate()
-        .map(|(i, item)| {
-            li(
-                vec![("data-idx", &i.to_string())],
+        .zip(state.item_ids.iter())
+        .map(|(item, id)| {
+            let key = id.to_string();
+            let node = li(
+                vec![],
                 vec![
                     text(item.clone()),
                     el(
                         "button",
                         vec![
                             ("data-action", "remove_item"),
-                            // `dispatch`/`decode_action` は WASM 境界の
-                            // `data-action`/`data-payload` 属性契約（本ファイル冒頭
-                            // doc コメント参照）に従って payload を読み取る。
-                            // `data-idx` のみでは payload が空文字列のまま渡され
-                            // `remove_item` の index パースが常に失敗する
-                            // （Bugbot 指摘: Medium Severity）ため、同じ値を
-                            // `data-payload` としても公開する。
-                            ("data-payload", &i.to_string()),
-                            ("data-idx", &i.to_string()),
+                            ("data-payload", &key),
                             ("data-testid", "remove-btn"),
                         ],
                         vec![text("削除")],
                     ),
                 ],
-            )
+            );
+            (key, node)
         })
         .collect();
-    let list_section = ul(vec![("data-testid", "item-list")], items);
+
+    // `keyed_list` は id 設計上（`item_ids` は常に非空キー・一意）失敗し
+    // 得ないが、ライブラリコードで panic/unwrap しない規約（`coding-rust.md`）
+    // に従い、万一 `Err` を返した場合は束縛なしのプレーン `ul` へ
+    // フォールバックする（keyed 更新は行われず全置換に戻るだけで、描画自体は
+    // 壊れない）。
+    let plain_items: Vec<Node> = items.iter().map(|(_, node)| node.clone()).collect();
+    let list_section = keyed_list(
+        "ul",
+        vec![("data-testid", "item-list")],
+        AppState::FIELD_ITEMS,
+        items,
+    )
+    .unwrap_or_else(|_| ul(vec![("data-testid", "item-list")], plain_items));
 
     let root_attrs = vec![
         ("id", "interactive-root"),
@@ -1280,6 +1357,8 @@ mod tests {
     fn remove_item_by_index() {
         let mut s = AppState::new();
         s.items.push("second".into());
+        s.item_ids.push(s.next_item_id);
+        s.next_item_id += 1;
         s.update(Action::RemoveItem(0));
         assert_eq!(s.items, vec!["second".to_string()]);
     }
@@ -1316,7 +1395,11 @@ mod tests {
         let mut s = AppState::new();
         s.update(Action::Increment);
         let html = rws_core::render(&s.view());
-        assert!(html.contains("カウント: 1"));
+        // カウンター値は静的テキストと分離した束縛点（span）に出力される
+        // （イシュー #345、`render_with_root_attrs` 参照）。
+        assert!(
+            html.contains(r#"<span data-testid="counter-value" data-bind-text="counter">1</span>"#)
+        );
         assert!(html.contains("最初の項目"));
     }
 
@@ -1406,6 +1489,8 @@ mod tests {
     fn render_remove_button_exposes_index_via_data_payload() {
         let mut s = AppState::new();
         s.items.push("second".to_string());
+        s.item_ids.push(s.next_item_id);
+        s.next_item_id += 1;
         let html = rws_core::render(&s.view());
         assert!(html.contains(r#"data-payload="0""#));
         assert!(html.contains(r#"data-payload="1""#));
@@ -1435,7 +1520,8 @@ mod tests {
         // ハイドレーション属性を除けば、CSR（view）と同一の DOM 構造を持つ
         // （サーバーが出す本文とクライアントが後で描画する本文が一致することの保証）。
         let csr_html = rws_core::render(&s.view());
-        assert!(ssr_html.contains("カウント: 1"));
+        assert!(ssr_html
+            .contains(r#"<span data-testid="counter-value" data-bind-text="counter">1</span>"#));
         assert_eq!(
             ssr_html.replace(
                 " data-hydrate-counter=\"1\" data-hydrate-draft=\"\" data-hydrate-items=\"\u{1f}最初の項目\"",

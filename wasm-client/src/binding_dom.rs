@@ -17,7 +17,7 @@
 use crate::binding::{BindingKind, BindingSource, BindingSpec, BoundValue};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
-use web_sys::Element;
+use web_sys::{Element, HtmlInputElement};
 
 /// `data-bind-text` / `data-bind-attr` / `data-bind-class` の 3 マーカー属性を
 /// 対象とする `query_selector_all` の CSS セレクタを組み立てる。
@@ -133,7 +133,25 @@ fn apply_one(kind: &BindingKind, element: &Element, value: &BoundValue) {
             element.set_text_content(Some(&bound_value_as_text(value)));
         }
         BindingKind::Attr(name) => {
-            let _ = element.set_attribute(name, &bound_value_as_text(value));
+            let text = bound_value_as_text(value);
+            let _ = element.set_attribute(name, &text);
+            // `set_attribute("value", ...)` は HTML 属性（初期値）のみを
+            // 更新し、ブラウザの live value プロパティ（`HTMLInputElement.value`）
+            // には反映されない（DOM 仕様上の既知の非対称性）。これにより
+            // 例えば「項目追加後に入力欄をクリアする」操作が `set_attribute`
+            // だけでは効かない（イシュー #345、
+            // `docs/design/dom-binding-update-design.md` #345 実装確定節）。
+            // 対象要素が `HtmlInputElement` の場合のみプロパティも同期する。
+            if name == "value" {
+                if let Ok(input) = element.clone().dyn_into::<HtmlInputElement>() {
+                    // 現在値と等しい場合は no-op とする（入力中の自己反映で
+                    // キャレット位置が飛ぶ事故を防ぐ等値ガード。ユーザーが
+                    // 入力途中の値と一致する限り `set_value` を呼ばない）。
+                    if input.value() != text {
+                        input.set_value(&text);
+                    }
+                }
+            }
         }
         BindingKind::Class(name) => {
             if let BoundValue::Flag(flag) = value {

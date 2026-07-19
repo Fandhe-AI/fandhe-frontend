@@ -53,7 +53,16 @@ mod binding_dom;
 #[cfg(target_arch = "wasm32")]
 pub use binding_dom::BindingTable;
 
+/// keyed list（`rws_core::keyed`、#344）の DOM 適用: 純粋 diff 層（イシュー
+/// #345）。`binding`/`binding_dom` と同じ 2 層構成方針を踏襲する。
+pub mod keyed_diff;
+
 #[cfg(target_arch = "wasm32")]
+mod keyed_dom;
+#[cfg(target_arch = "wasm32")]
+pub use keyed_dom::{apply_keyed_list, find_keyed_list_node, find_list_element};
+
+#[cfg(all(target_arch = "wasm32", feature = "wasm-bindgen-exports"))]
 mod registry;
 
 /// ハイドレーション対象を示す属性名（`rws_app::detail_page` が「いいね」
@@ -158,7 +167,20 @@ pub fn find_list_nav_targets() -> Vec<String> {
 // native の `cargo test -p rws-wasm-client` にはコンパイル対象外
 // （wasm-full/src/events.rs の wiring モジュールと同じ切り分け方針）。
 // ---------------------------------------------------------------------
-#[cfg(target_arch = "wasm32")]
+// イシュー #345: `rws-wasm-full` が本クレートを rlib として依存し
+// `BindingTable`/`keyed_diff`/`keyed_dom`（DOM 依存だが `#[wasm_bindgen]`
+// ではない通常の Rust API）のみを消費する。`wiring::hydrate`/`mount_csr`
+// は REQ-6（本クレート独自の最小ハイドレーション CSR デモ、#48）向けの
+// `#[wasm_bindgen]` エクスポートであり、`wasm-full` 側にも同名の
+// `#[wasm_bindgen] pub fn hydrate`/`mount`（`entry.rs`）が存在するため、
+// 両クレートを 1 つの wasm バイナリへ静的リンクすると
+// `__wbindgen_describe_hydrate`/`hydrate` のシンボルが重複しリンクエラーに
+// なる（`wasm-bindgen` の "describe" シンボルはクレートで名前空間分離され
+// ない）。`wasm-bindgen-exports` feature（既定 on）でこの 2 エクスポートを
+// 切り離せるようにし、`wasm-full/Cargo.toml` は
+// `default-features = false` で依存することでこの衝突を避ける
+// （本クレートを単体で使う既存の利用者には影響しない、既定 on のまま）。
+#[cfg(all(target_arch = "wasm32", feature = "wasm-bindgen-exports"))]
 mod wiring {
     use super::{HYDRATE_ATTR, LIKE_HYDRATE_VALUE};
     use crate::registry;
@@ -273,5 +295,5 @@ mod wiring {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(target_arch = "wasm32", feature = "wasm-bindgen-exports"))]
 pub use wiring::{hydrate, mount_csr};

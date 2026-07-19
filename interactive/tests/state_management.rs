@@ -13,6 +13,20 @@
 
 use rws_interactive::{dispatch, Action, AppState, Component, DirtyTracked, Hydrate};
 
+/// `items`/`item_ids` を一貫した状態（id は `0..items.len()`）へ直接差し替える
+/// テスト用ヘルパー。
+///
+/// イシュー #345 で `RemoveItem` の payload が index から `AppState::item_ids`
+/// 由来の安定 id へ変わったため、`state.items = vec![...]` のような直接代入
+/// だけでは `item_ids` が追随せず `RemoveItem` の照合対象がずれる
+/// （`lib.rs` の `AppState::item_ids` 型ドキュメント参照）。本ヘルパーで
+/// 両フィールドを一貫させ、テストの意図（「指定 id の項目を消す」）を保つ。
+fn set_items(s: &mut AppState, items: &[&str]) {
+    s.items = items.iter().map(|s| s.to_string()).collect();
+    s.item_ids = (0..s.items.len() as u64).collect();
+    s.next_item_id = s.item_ids.len() as u64;
+}
+
 // --- AppState 既定値 -------------------------------------------------------
 
 #[test]
@@ -128,7 +142,7 @@ fn add_item_preserves_internal_whitespace() {
 #[test]
 fn remove_item_removes_head() {
     let mut s = AppState::new();
-    s.items = vec!["a".into(), "b".into(), "c".into()];
+    set_items(&mut s, &["a", "b", "c"]);
     s.update(Action::RemoveItem(0));
     assert_eq!(s.items, vec!["b".to_string(), "c".to_string()]);
 }
@@ -136,7 +150,7 @@ fn remove_item_removes_head() {
 #[test]
 fn remove_item_removes_tail() {
     let mut s = AppState::new();
-    s.items = vec!["a".into(), "b".into(), "c".into()];
+    set_items(&mut s, &["a", "b", "c"]);
     s.update(Action::RemoveItem(2));
     assert_eq!(s.items, vec!["a".to_string(), "b".to_string()]);
 }
@@ -144,8 +158,9 @@ fn remove_item_removes_tail() {
 #[test]
 fn remove_item_out_of_range_is_noop() {
     let mut s = AppState::new();
-    s.items = vec!["a".into(), "b".into()];
+    set_items(&mut s, &["a", "b"]);
     let before = s.items.clone();
+    // id 5 は割り当て済み id (0, 1) に存在しないため no-op。
     s.update(Action::RemoveItem(5));
     assert_eq!(s.items, before);
 }
@@ -153,7 +168,7 @@ fn remove_item_out_of_range_is_noop() {
 #[test]
 fn remove_item_on_empty_list_is_noop_and_does_not_panic() {
     let mut s = AppState::new();
-    s.items.clear();
+    set_items(&mut s, &[]);
     // 空リストに対する remove_item は範囲外呼び出しと同様 no-op であり
     // panic しないこと（不変条件 4 相当の安全側フォールバック）を確認する。
     s.update(Action::RemoveItem(0));
@@ -203,9 +218,9 @@ fn dispatch_add_item_ignores_payload_and_uses_current_draft() {
 }
 
 #[test]
-fn dispatch_remove_item_parses_payload_as_index() {
+fn dispatch_remove_item_parses_payload_as_id() {
     let mut s = AppState::new();
-    s.items = vec!["a".into(), "b".into()];
+    set_items(&mut s, &["a", "b"]);
     dispatch(&mut s, "remove_item", "0");
     assert_eq!(s.items, vec!["b".to_string()]);
 }
@@ -255,7 +270,7 @@ fn dispatch_remove_item_with_non_numeric_payload_is_noop() {
 
 #[test]
 fn dispatch_remove_item_with_negative_payload_is_noop() {
-    // `usize` へのパースが失敗する（符号付き文字列は usize として不正）ため
+    // `u64` へのパースが失敗する（符号付き文字列は u64 として不正）ため
     // no-op になる。
     let mut s = AppState::new();
     let before = s.items.clone();
@@ -273,7 +288,7 @@ fn dispatch_remove_item_with_empty_payload_is_noop() {
 
 #[test]
 fn dispatch_remove_item_with_overflowing_numeric_string_does_not_panic() {
-    // `usize::MAX` を超える巨大な数値文字列は parse::<usize>() が Err を返す
+    // `u64::MAX` を超える巨大な数値文字列は parse::<u64>() が Err を返す
     // ため、no-op になる（panic しないことがこのテストの主眼）。
     let mut s = AppState::new();
     let before = s.items.clone();
@@ -283,12 +298,12 @@ fn dispatch_remove_item_with_overflowing_numeric_string_does_not_panic() {
 }
 
 #[test]
-fn dispatch_remove_item_with_usize_max_is_noop_when_out_of_range() {
-    // usize::MAX 自体は正当にパースできる値だが、通常の items 長より
-    // 大きいため範囲外 no-op になる。
+fn dispatch_remove_item_with_u64_max_is_noop_when_out_of_range() {
+    // u64::MAX 自体は正当にパースできる値だが、割り当て済み id には存在
+    // しないため no-op になる。
     let mut s = AppState::new();
     let before = s.items.clone();
-    dispatch(&mut s, "remove_item", &usize::MAX.to_string());
+    dispatch(&mut s, "remove_item", &u64::MAX.to_string());
     assert_eq!(s.items, before);
 }
 

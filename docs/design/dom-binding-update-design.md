@@ -382,6 +382,109 @@ pub fn keyed_list(
   `wasm-full/tests/nested_hydration_state.rs`）が非劣化であること。
 - WASM バンドルサイズ上限（REQ-11）に対する影響を各段階で計測すること。
 
+### 6.4 #345 実装確定（設計の乖離改訂）
+
+本節は #345 実装時に判明し、上記 6.1〜6.3 の記述から乖離が生じた事項を
+先行して確定する（`.claude/rules/coding-rust.md` の「乖離時は文書を先に
+改訂」規約に従う）。
+
+#### 6.4.1 `should_repaint` は撤去する（6.1 の確定）
+
+6.1 は撤去可否を「#345 実装時に個別確認」としていたが、実装の結果、
+束縛点更新（`set_text_content`/`set_attribute`/`class_list`）は**冪等**
+かつ**変更フィールド数に比例するコスト**であるため、input イベントでも
+毎回適用してよいと確定した。`should_repaint`（`wasm-full/src/events.rs`
+の `ActionRef`）はフィールドごと撤去し、`click`/`input` いずれのイベント
+後も同一の更新経路（6.4.4 参照）を通す。
+
+#### 6.4.2 `value` 属性は「属性 + live value プロパティ」の両方を更新する
+
+`set_attribute("value", ...)` は HTML 属性（要素の初期値）のみを更新し、
+ブラウザの live value プロパティ（`HTMLInputElement.value`）には反映
+されない（DOM 仕様上の既知の非対称性）。これにより、例えば
+`add_item` 後に入力欄をクリアする操作が `set_attribute` だけでは効かない。
+
+`wasm-client::binding_dom::apply_one` は、束縛先が `value` 属性かつ対象
+要素が `HtmlInputElement` へダウンキャストできる場合、`set_attribute` に
+加えて `HtmlInputElement::set_value` も呼ぶ。**現在の live value と新しい
+値が等しい場合は `set_value` を呼ばない**（等値ガード）。これは、ユーザー
+が入力中の値と状態側の値が一致している限り（＝自分自身の入力による
+更新である限り）不要な `set_value` 呼び出しを避け、キャレット位置が
+飛ぶ事故を防ぐための不変条件である。
+
+#### 6.4.3 keyed list の安定キー戦略と `remove_item` の id 化
+
+`rws_interactive::AppState` の動的リストは、当初 index をキーとする案が
+想定されたが、中間削除でキーがずれる（削除後、後続項目の index が
+1 つずつ繰り上がり、別項目のキーと衝突する）ため、`AppState` に
+`item_ids: Vec<u64>`（`items` と同じ長さ・順序で対応する安定キー）・
+`next_item_id: u64`（単調増加カウンタ）を追加した。`item_ids`/
+`next_item_id` は `dirty` と同様の**描画同期メタデータ**であり、
+`PartialEq`/ハイドレーション対象外とする（`from_hydration_attrs` は
+`0..items.len()` を決定的に再割当てする。クライアント制御下の属性値から
+`item_ids` を復元すると偽装 id を注入できてしまうため）。
+
+これに伴い、`Action::RemoveItem` の payload を index（`usize`）から安定
+id（`u64`）へ変更する。keyed 更新では既存 DOM ノードの `data-payload`
+（削除ボタンの payload）が自動的には再描画されないため、index のままだと
+中間削除後に別項目の削除ボタンが stale な index を指し続け、意図しない
+項目が削除される事故が構造的に起こり得る。id 化によりこれを防止する。
+
+#### 6.4.4 keyed list の DOM 適用層は `wasm-client` に置く（2 層構成）
+
+`rws-wasm-client`（#343 で新設済み）に以下 2 モジュールを追加する。
+
+- `wasm-client/src/keyed_diff.rs`（純粋層・native テスト可）: 「現在の
+  DOM 上のキー列」と「新しい `Node` 木のキー列」の 2 つの文字列列から、
+  最小の操作列（`KeyedOp::{Remove, Insert, Move}`）を計画する DOM 非依存
+  関数 `diff_keys`。
+- `wasm-client/src/keyed_dom.rs`（`wasm32` 配線層）: 操作列を実 DOM へ
+  適用する `apply_keyed_list`。挿入ノードは `rws_core::Node` 木から
+  `create_element`/`set_text_content`/`append_child` によりプログラム的に
+  構築し、`innerHTML`/`insert_adjacent_html` を一切使わない。移動は
+  既存ノード参照を保持したまま `insert_before` のみで行う（再生成しない
+  ためフォーカス・入力途中の値が保持される）。`Node::RawHtml` 子は
+  fail-closed で skip し、`console` へ英語固定文言の警告を出す。
+
+`wasm-full` は `rws-wasm-client` を workspace path 依存として追加し、
+これらを rlib 経由で消費する（`structure.toml` の
+`[directories.wasm-client]`（新設）・`[directories.wasm-full].depends_on`
+へ追加）。外部クレートの追加はゼロ。
+
+**シンボル衝突への対応**: `rws-wasm-client` は独自の `#[wasm_bindgen] pub
+fn hydrate`/`mount_csr`（REQ-6 最小ハイドレーション方式のデモ、#48）を
+既に公開しており、`rws-wasm-full` も独自に `#[wasm_bindgen] pub fn
+hydrate`/`mount`（`entry.rs`）を公開する。両クレートを 1 つの wasm
+バイナリへ静的リンクすると、`wasm-bindgen` の "describe" シンボル
+（クレートで名前空間分離されない）が重複しリンクエラーになる。この衝突を
+避けるため、`rws-wasm-client` に `wasm-bindgen-exports` feature（既定
+on）を新設し、`wiring` モジュール（`hydrate`/`mount_csr` の
+`#[wasm_bindgen]` エクスポート）をこの feature でゲートする。
+`rws-wasm-full` は `default-features = false` で依存することでこの
+feature を無効化し、シンボル衝突を構造的に回避する。本クレートを単体で
+利用する既存の呼び出し元（feature 既定 on）には影響しない。
+
+#### 6.4.5 `wasm-full::Runtime` の更新駆動
+
+`Runtime<C>` の型境界を `C: Component + DirtyTracked + BindingSource +
+'static` へ拡張する（`entry.rs` の `AppState` 具象化は `wasm-client` 側の
+`impl BindingSource for AppState` により成立する。孤児則により実装先は
+`wasm-client` 一択）。
+
+`Runtime::wire` は dispatch 成功後、`dirty_fields()` を読み、
+`BindingTable::apply_dirty`（テキスト・属性・class）と、dirty field ごとに
+`wasm-client::{find_list_element, find_keyed_list_node, apply_keyed_list}`
+（keyed list、field が実際に `data-bind-list` を持つ場合のみ）の両方を
+試みる。束縛点対応表（`BindingTable`）はイベント配線時に 1 回 `scan` し、
+keyed list の構造変化が発生した呼び出しに限り**対応表を再スキャン**する
+（挿入された新規ノード内の束縛点を拾うため。第 5.2 節の「フォールバック
+としてのフルスキャン再構築」と同じ機構を、通常の構造変化後更新にも転用
+する形になる）。
+
+`wasm-full/src/dom.rs::paint` は `mount_initial` へ改名し、6.2 の限定 API
+方針どおり初回マウント・ハイドレーション CSR フォールバックからのみ
+呼ばれる（イベント後更新からは呼ばれない）。
+
 ## 7. 仮想 DOM・汎用 diff 非採用の根拠
 
 ### 7.1 性能

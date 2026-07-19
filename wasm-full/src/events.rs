@@ -45,13 +45,6 @@ pub struct ActionRef {
     pub action: String,
     /// dispatch へ渡す payload（`rws_interactive::Component::decode_action` の `payload`）。
     pub payload: String,
-    /// この操作の直後に再描画を要求してよいか。
-    ///
-    /// `input` イベント中（1 文字入力ごと）は `false` を返し、呼び出し側
-    /// （#76/#77）が再描画をスキップする前提とする。PoC-5 の知見（
-    /// `set_inner_html` を伴う再描画がフォーカス・キャレット位置を破壊する）を
-    /// 踏襲したフラグであり、本モジュールは実際の再描画処理を持たない。
-    pub should_repaint: bool,
 }
 
 /// イベントターゲット（祖先方向の探索結果を含む）の属性読み取り抽象。
@@ -77,11 +70,7 @@ pub trait AttrSource {
 pub fn action_from_click<T: AttrSource>(target: &T) -> Option<ActionRef> {
     let action = target.attr("data-action")?;
     let payload = target.attr("data-payload").unwrap_or_default();
-    Some(ActionRef {
-        action,
-        payload,
-        should_repaint: true,
-    })
+    Some(ActionRef { action, payload })
 }
 
 /// input イベントから draft 更新アクションを判定する。
@@ -90,9 +79,15 @@ pub fn action_from_click<T: AttrSource>(target: &T) -> Option<ActionRef> {
 /// `render_with_root_attrs` が出力するフォーム入力欄の id 契約に合わせる）。
 /// 他 id の input イベントはフレームワーク管轄外として `None` を返す。
 ///
-/// `should_repaint` は常に `false`: 入力中の再描画は `set_inner_html` による
-/// フォーカス・キャレット破壊を招くため、呼び出し側は状態更新のみ行い
-/// 再描画をスキップする（PoC-5 準拠）。
+/// イシュー #345 より前は `should_repaint: false` を返し、`set_inner_html`
+/// 全置換によるフォーカス・キャレット破壊を避けるため input イベント後の
+/// 再描画自体をスキップしていた（PoC-5 由来の対症療法）。#345 でイベント後
+/// 更新が束縛点更新（`set_text_content`/`set_attribute`、変更フィールド数に
+/// 比例する冪等な最小更新）へ置き換わったため、この特別扱いは不要になり
+/// `should_repaint` フィールド自体を撤去した（`docs/design/dom-binding-update-design.md`
+/// #345 実装確定節 §6.1）。キャレット位置の保持は `wasm-client::binding_dom`
+/// の value プロパティ等値ガード（現在値と等しければ `set_value` を呼ばない）
+/// が担う。
 pub fn action_from_input(id: &str, value: &str) -> Option<ActionRef> {
     if id != "draft-input" {
         return None;
@@ -100,7 +95,6 @@ pub fn action_from_input(id: &str, value: &str) -> Option<ActionRef> {
     Some(ActionRef {
         action: "set_draft".to_string(),
         payload: value.to_string(),
-        should_repaint: false,
     })
 }
 
@@ -253,7 +247,6 @@ mod tests {
         let action_ref = action_from_click(&target).expect("data-action present");
         assert_eq!(action_ref.action, "remove_item");
         assert_eq!(action_ref.payload, "2");
-        assert!(action_ref.should_repaint);
     }
 
     #[test]
@@ -281,11 +274,10 @@ mod tests {
     }
 
     #[test]
-    fn input_on_draft_input_dispatches_set_draft_without_repaint() {
+    fn input_on_draft_input_dispatches_set_draft() {
         let action_ref = action_from_input("draft-input", "hello").expect("draft-input matches");
         assert_eq!(action_ref.action, "set_draft");
         assert_eq!(action_ref.payload, "hello");
-        assert!(!action_ref.should_repaint);
     }
 
     #[test]
