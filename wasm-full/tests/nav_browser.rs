@@ -489,14 +489,34 @@ async fn click_navigation_updates_url_dom_and_title_across_round_trip() {
     // `pushState` は apply 段より前（同期）で実行されるため URL は即座に反映
     // される（イシュー #404 実装計画・判断 B）。
     assert_eq!(window.location().pathname().unwrap(), "/items/1");
+    // 真因修正（CI 再発、PR #420 フォローアップ）: `wait_until` の待機条件は
+    // `document.title()` のような document 全体で共有され、テスト間で
+    // リセットされないグローバル状態を単独の判定基準にしない。`document.title`
+    // は直前に実行された別テストの最終状態を引き継ぐため、たまたま
+    // 遷移前から目的の文字列と一致していると `wait_until` が「本テスト自身の
+    // apply」が実際に走るより前の 1 回目のチェックで早期に `true` を返して
+    // しまい、直後の DOM 断定が「まだ差し替わっていない」状態を検出して
+    // 失敗する（apply 自体は非同期のまま宙に浮き、後続テストの
+    // `#app-root` を後から巻き込んで壊す事象にもつながる）。判定は本テスト
+    // 自身にスコープされた `root`（`create_app_root` が返す本テスト専用の
+    // 要素）の DOM 内容を主条件とし、`document.title` の検証は DOM 確定後の
+    // 同期断定へ切り出す。
     assert!(
-        wait_until(|| document.title() == "記事詳細", 60).await,
+        wait_until(
+            || root
+                .query_selector("[data-testid=\"item-detail\"]")
+                .unwrap()
+                .is_some(),
+            60
+        )
+        .await,
+        "遷移後、詳細 DOM が確定すること"
+    );
+    assert_eq!(
+        document.title(),
+        "記事詳細",
         "遷移後に document.title が「記事詳細」へ確定すること"
     );
-    assert!(root
-        .query_selector("[data-testid=\"item-detail\"]")
-        .unwrap()
-        .is_some());
     // 受け入れ条件 4（三モード整合）: クライアント遷移後の `#app-root` の
     // 実 DOM シリアライズが SSR 相当出力とバイト一致すること
     // （`three_mode_browser.rs` と同じ「独立プレースホルダへの実 DOM 展開 +
@@ -522,14 +542,24 @@ async fn click_navigation_updates_url_dom_and_title_across_round_trip() {
         .expect("dispatch_event must not fail");
 
     assert_eq!(window.location().pathname().unwrap(), "/");
+    // 上記 1 回目と同じ理由（`document.title` を単独の待機条件にしない）で
+    // `root` スコープの DOM を主条件とする。
     assert!(
-        wait_until(|| document.title() == "記事一覧", 60).await,
+        wait_until(
+            || root
+                .query_selector("[data-testid=\"item-list\"]")
+                .unwrap()
+                .is_some(),
+            60
+        )
+        .await,
+        "遷移後、一覧 DOM が確定すること"
+    );
+    assert_eq!(
+        document.title(),
+        "記事一覧",
         "遷移後に document.title が「記事一覧」へ確定すること"
     );
-    assert!(root
-        .query_selector("[data-testid=\"item-list\"]")
-        .unwrap()
-        .is_some());
 
     // 3 回目: 一覧 → 詳細（2 往復目）。委譲リスナーが継続して機能すること。
     let link_again = document
@@ -582,14 +612,27 @@ async fn popstate_event_re_resolves_and_renders_without_pushing_history() {
         .dispatch_event(&synthetic_popstate_event())
         .expect("dispatch_event must not fail");
 
+    // 真因修正（CI 再発、PR #420 フォローアップ）: 待機条件は `document.title`
+    // のようなテスト間でリセットされないグローバル状態ではなく、本テスト
+    // 専用の `root` の DOM 内容を主条件とする
+    // （`click_navigation_updates_url_dom_and_title_across_round_trip` と
+    // 同じ理由。詳細は同テストのコメント参照）。
     assert!(
-        wait_until(|| document.title() == "記事一覧", 60).await,
+        wait_until(
+            || root
+                .query_selector("[data-testid=\"item-list\"]")
+                .unwrap()
+                .is_some(),
+            60
+        )
+        .await,
+        "popstate 後、一覧 DOM が確定すること"
+    );
+    assert_eq!(
+        document.title(),
+        "記事一覧",
         "popstate 後に document.title が「記事一覧」へ確定すること"
     );
-    assert!(root
-        .query_selector("[data-testid=\"item-list\"]")
-        .unwrap()
-        .is_some());
 }
 
 /// 検証 3: SSR 済み DOM の上で `start_router` を呼んでも DOM は不変
@@ -824,14 +867,28 @@ async fn view_transition_stub_is_called_once_and_dom_updates_after_async_callbac
     // スタブの update コールバックはマイクロタスクで非同期実行するため、
     // dispatch_event 直後の時点では DOM は未確定でありうる
     // （実装が真に非同期実行を経由していることの間接証明）。
+    //
+    // 真因修正（CI 再発、PR #420 フォローアップ）: 待機条件は `document.title`
+    // のようなテスト間でリセットされないグローバル状態ではなく、本テスト
+    // 専用の `root` の DOM 内容を主条件とする（`click_navigation_updates_
+    // url_dom_and_title_across_round_trip` と同じ理由。詳細は同テストの
+    // コメント参照）。
     assert!(
-        wait_until(|| document.title() == "記事詳細", 60).await,
+        wait_until(
+            || root
+                .query_selector("[data-testid=\"item-detail\"]")
+                .unwrap()
+                .is_some(),
+            60
+        )
+        .await,
+        "非同期 update コールバック実行後に詳細 DOM が確定すること"
+    );
+    assert_eq!(
+        document.title(),
+        "記事詳細",
         "非同期 update コールバック実行後に document.title が確定すること"
     );
-    assert!(root
-        .query_selector("[data-testid=\"item-detail\"]")
-        .unwrap()
-        .is_some());
 }
 
 /// 検証 8（イシュー #404）: `document.startViewTransition` を非関数値で
