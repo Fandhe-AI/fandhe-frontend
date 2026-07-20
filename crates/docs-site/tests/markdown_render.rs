@@ -120,6 +120,41 @@ fn nested_list_one_level() {
     );
 }
 
+#[test]
+fn list_nesting_beyond_max_depth_falls_back_to_continuation_text() {
+    // MAX_DEPTH（16）を超えるネストはスタックオーバーフロー防止のため打ち切られ、
+    // それ以降のマーカー行は子リストにならず直前アイテムへの継続テキストとして
+    // 結合される（境界値のリグレッション回帰、非ブロッキング指摘への対応）。
+    //
+    // 18 段のマーカー行（インデント 2 段刻み）を用意すると、0〜16 段目
+    // （`parse_list` が `depth < MAX_DEPTH` を満たす限り再帰する範囲）までは
+    // 実際に `<ul>` としてネストされ（計 17 個）、17 段目のマーカー行は
+    // `depth(16) < MAX_DEPTH(16)` が偽になるため子リスト化されず、
+    // 直前の `<li>` テキストへ生のマーカー文字列（`- deepest`）ごと結合される。
+    let mut lines: Vec<String> = Vec::new();
+    for level in 0..18 {
+        lines.push(format!("{}- L{level}", "  ".repeat(level)));
+    }
+    let input = lines.join("\n");
+
+    let output = render_all(&input);
+
+    assert_eq!(
+        output.matches("<ul>").count(),
+        17,
+        "MAX_DEPTH（16）に対応する <ul> ネスト段数は 17 段（0〜16）であるべき: {output}"
+    );
+    assert!(
+        output.contains("L16 - L17"),
+        "17 段目のマーカー行は子リスト化されず、生の \"- L17\" ごと直前 li の継続テキストへ \
+         結合されるべき: {output}"
+    );
+    assert!(
+        !output.contains("<ul><li>L17"),
+        "17 段目が独立した <ul><li> を形成してはならない（MAX_DEPTH 打ち切りの回帰）: {output}"
+    );
+}
+
 // ---------------------------------------------------------------------
 // フェンスコードブロック
 // ---------------------------------------------------------------------
@@ -199,6 +234,35 @@ fn blockquote_with_nested_list() {
         render_all("> - item one\n> - item two"),
         "<blockquote><ul><li>item one</li><li>item two</li></ul></blockquote>"
     );
+}
+
+#[test]
+fn blockquote_nesting_beyond_max_depth_falls_back_to_paragraph() {
+    // MAX_DEPTH（16、引用とリストで共有）を超える引用ネストはスタックオーバーフロー
+    // 防止のため打ち切られ、それ以降の `>` は再帰的に剥がされず、残った `>` ごと
+    // 単一の段落テキストとして扱われる（境界値のリグレッション回帰、
+    // 非ブロッキング指摘への対応）。
+    //
+    // `>` を 20 個連続させると、`parse_quote` は depth 0〜16（計 17 回）呼び出され
+    // その都度先頭の `>` を 1 個ずつ剥がして `blockquote` を生成するが、
+    // 17 回目（depth=16）の呼び出しは `depth(16) >= MAX_DEPTH(16)` が真になるため
+    // それ以上再帰せず、残り 3 個の `>` を含む本文をそのまま段落へ格納する
+    // （エスケープにより `&gt;&gt;&gt;x` として出力される）。
+    let input = format!("{}x", ">".repeat(20));
+
+    let output = render_all(&input);
+
+    assert_eq!(
+        output.matches("<blockquote>").count(),
+        17,
+        "MAX_DEPTH（16）に対応する <blockquote> ネスト段数は 17 段（0〜16）であるべき: {output}"
+    );
+    let expected = format!(
+        "{}<p>&gt;&gt;&gt;x</p>{}",
+        "<blockquote>".repeat(17),
+        "</blockquote>".repeat(17)
+    );
+    assert_eq!(output, expected);
 }
 
 // ---------------------------------------------------------------------
