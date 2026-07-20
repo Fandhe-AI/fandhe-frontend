@@ -307,17 +307,23 @@ pub fn docs_page(title: &str, base_path: &str, sidebar: Node, body: Node) -> Nod
         ],
     );
 
-    let mut main_children = vec![article(
-        vec![("class", "docs-content")],
-        vec![annotated_body],
-    )];
+    // 「on this page」目次は本文の前（`main` 内の先頭）に置く。読者が本文を
+    // 読み始める前に目次へ気付けるようにするための並び順であり、
+    // `site/assets/site.css` はこの `.docs-content` 前という位置関係を
+    // 前提にスタイルしていない（`.docs-toc` 単体で完結する見た目にしている
+    // ため、並び順を変えてもレイアウトは崩れない）。
+    let mut main_children = Vec::new();
     if let Some(toc_node) = toc {
         main_children.push(toc_node);
     }
+    main_children.push(article(
+        vec![("class", "docs-content")],
+        vec![annotated_body],
+    ));
 
     let root_href = asset_href(base_path, "");
     let header_node = header(
-        vec![],
+        vec![("class", "docs-header")],
         vec![a(vec![("href", &root_href)], vec![text("fandhe-frontend")])],
     );
 
@@ -330,7 +336,7 @@ pub fn docs_page(title: &str, base_path: &str, sidebar: Node, body: Node) -> Nod
                 vec![("class", "docs-container")],
                 vec![
                     aside(vec![("class", "docs-sidebar")], vec![sidebar]),
-                    main_tag(vec![], main_children),
+                    main_tag(vec![("class", "docs-main")], main_children),
                 ],
             ),
         ],
