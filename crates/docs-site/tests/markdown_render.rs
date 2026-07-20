@@ -453,3 +453,274 @@ fn raw_html_tag_in_paragraph_is_treated_as_text() {
         "<p>&lt;div class=&quot;x&quot;&gt;hello&lt;/div&gt;</p>"
     );
 }
+
+// ---------------------------------------------------------------------
+// インライン構文（イシュー #467）
+// ---------------------------------------------------------------------
+
+#[test]
+fn inline_code_basic() {
+    assert_eq!(
+        render_all("this is `code` here"),
+        "<p>this is <code>code</code> here</p>"
+    );
+}
+
+#[test]
+fn inline_code_escapes_special_characters() {
+    assert_eq!(
+        render_all("`<a & b>`"),
+        "<p><code>&lt;a &amp; b&gt;</code></p>"
+    );
+}
+
+#[test]
+fn inline_code_with_double_backtick_can_contain_backtick() {
+    // 開始と同じ本数（2 個）の連続で閉じるため、コード中に単独のバッククォート
+    // （`` ` ``）を 1 個含められる（CommonMark 簡略版）。
+    assert_eq!(render_all("``a`b``"), "<p><code>a`b</code></p>");
+}
+
+#[test]
+fn inline_code_unclosed_falls_back_to_literal_backtick() {
+    assert_eq!(render_all("`unclosed"), "<p>`unclosed</p>");
+}
+
+#[test]
+fn inline_code_content_is_not_reinterpreted() {
+    // コード内はリテラル（リンク・強調を解釈しない）。
+    assert_eq!(
+        render_all("`[not a link](x) **not strong**`"),
+        "<p><code>[not a link](x) **not strong**</code></p>"
+    );
+}
+
+#[test]
+fn emphasis_strong() {
+    assert_eq!(
+        render_all("**bold** text"),
+        "<p><strong>bold</strong> text</p>"
+    );
+}
+
+#[test]
+fn emphasis_em() {
+    assert_eq!(render_all("*em* text"), "<p><em>em</em> text</p>");
+}
+
+#[test]
+fn emphasis_strong_containing_em() {
+    assert_eq!(
+        render_all("**a *b* c**"),
+        "<p><strong>a <em>b</em> c</strong></p>"
+    );
+}
+
+#[test]
+fn emphasis_unclosed_star_falls_back_to_literal() {
+    assert_eq!(render_all("*unclosed"), "<p>*unclosed</p>");
+}
+
+#[test]
+fn emphasis_underscore_is_not_interpreted() {
+    // `_`/`__` によるアンダースコア強調は意図的に非対応（既存 docs で不使用、
+    // かつ識別子中の `_` を誤解釈するリスクがあるため）。
+    assert_eq!(
+        render_all("raw_html_lint_e2e is a test name"),
+        "<p>raw_html_lint_e2e is a test name</p>"
+    );
+}
+
+#[test]
+fn link_relative_url() {
+    assert_eq!(
+        render_all("[docs](/guide)"),
+        "<p><a href=\"/guide\">docs</a></p>"
+    );
+}
+
+#[test]
+fn link_https_url() {
+    assert_eq!(
+        render_all("[site](https://example.com)"),
+        "<p><a href=\"https://example.com\">site</a></p>"
+    );
+}
+
+#[test]
+fn link_text_can_contain_code_and_emphasis() {
+    assert_eq!(
+        render_all("[`code` and **bold**](/x)"),
+        "<p><a href=\"/x\"><code>code</code> and <strong>bold</strong></a></p>"
+    );
+}
+
+#[test]
+fn link_nesting_is_disallowed_inner_bracket_is_literal() {
+    // 最初に完成した [text](url) パターンが優先され、内側の `[` はリンクの
+    // 一部（リテラル）として取り込まれる（リンクのネスト禁止、設計どおり）。
+    assert_eq!(render_all("[a[b](/u)"), "<p><a href=\"/u\">a[b</a></p>");
+}
+
+#[test]
+fn link_unclosed_bracket_falls_back_to_literal() {
+    assert_eq!(render_all("[not a link"), "<p>[not a link</p>");
+}
+
+#[test]
+fn link_missing_paren_falls_back_to_literal_bracket_text() {
+    assert_eq!(render_all("[text] no parens"), "<p>[text] no parens</p>");
+}
+
+#[test]
+fn inline_syntax_applies_in_heading() {
+    assert_eq!(
+        render_all("# **Bold** heading with `code`"),
+        "<h1><strong>Bold</strong> heading with <code>code</code></h1>"
+    );
+}
+
+#[test]
+fn inline_syntax_applies_in_list_item() {
+    assert_eq!(
+        render_all("- [link](/a) and **bold**"),
+        "<ul><li><a href=\"/a\">link</a> and <strong>bold</strong></li></ul>"
+    );
+}
+
+#[test]
+fn inline_syntax_applies_in_table_cell() {
+    let input = "| a |\n|---|\n| **bold** |";
+    assert_eq!(
+        render_all(input),
+        "<table><thead><tr><th>a</th></tr></thead><tbody><tr><td><strong>bold</strong></td></tr></tbody></table>"
+    );
+}
+
+#[test]
+fn inline_syntax_applies_in_blockquote() {
+    assert_eq!(
+        render_all("> `code` inside quote"),
+        "<blockquote><p><code>code</code> inside quote</p></blockquote>"
+    );
+}
+
+// ---------------------------------------------------------------------
+// XSS 回帰（インライン経路、REQ-1・受け入れ条件対応）
+// ---------------------------------------------------------------------
+
+#[test]
+fn xss_payload_in_link_text_is_escaped() {
+    let out = render_all(&format!("[{SCRIPT_PAYLOAD}](/x)"));
+    assert!(!out.contains("<script"));
+    assert_eq!(
+        out,
+        "<p><a href=\"/x\">&lt;script&gt;alert(1)&lt;/script&gt;</a></p>"
+    );
+}
+
+#[test]
+fn xss_payload_in_emphasis_is_escaped() {
+    let out = render_all(&format!("**{SCRIPT_PAYLOAD}**"));
+    assert!(!out.contains("<script"));
+    assert_eq!(
+        out,
+        "<p><strong>&lt;script&gt;alert(1)&lt;/script&gt;</strong></p>"
+    );
+}
+
+#[test]
+fn xss_payload_in_inline_code_is_escaped() {
+    let out = render_all(&format!("`{SCRIPT_PAYLOAD}`"));
+    assert!(!out.contains("<script"));
+    assert_eq!(
+        out,
+        "<p><code>&lt;script&gt;alert(1)&lt;/script&gt;</code></p>"
+    );
+}
+
+#[test]
+fn xss_link_attribute_injection_is_confined_to_href_value() {
+    // href への属性 breakout（" 注入による onerror= の混入）を試みても、
+    // core の属性値エスケープにより " が &quot; へエスケープされ href 値内に
+    // 閉じ込められる。onerror が実際の属性として出力されないことを確認する。
+    let out = render_all("[x](/a\" onerror=\"y)");
+    assert!(!out.contains(" onerror=\""));
+    assert_eq!(out, "<p><a href=\"/a&quot; onerror=&quot;y\">x</a></p>");
+}
+
+#[test]
+fn xss_javascript_scheme_link_does_not_generate_anchor() {
+    // url 内の丸括弧はネストを数えず最初の ")" で閉じる簡略実装のため、
+    // url は "javascript:alert(1"（末尾の ")" 欠落）として切り出され、続く
+    // 単独の ")" はリンク外のリテラルとして出力される。丸括弧の対応追跡は
+    // 既存 docs で URL 内に丸括弧を使う実態がないためスコープ外（計画参照）。
+    // 本テストの主眼である「javascript: スキームは <a> を生成しない」という
+    // 安全性は url の断片化に関わらず成立する。
+    let out = render_all("[click](javascript:alert(1))");
+    assert!(!out.contains("<a "));
+    assert!(!out.contains("javascript:"));
+    assert_eq!(out, "<p>click)</p>");
+}
+
+#[test]
+fn xss_javascript_scheme_uppercase_is_rejected() {
+    let out = render_all("[click](JAVASCRIPT:alert(1))");
+    assert!(!out.contains("<a "));
+}
+
+#[test]
+fn xss_javascript_scheme_tab_obfuscation_is_rejected() {
+    let out = render_all("[click](java\tscript:alert(1))");
+    assert!(!out.contains("<a "));
+}
+
+#[test]
+fn xss_javascript_scheme_leading_space_is_rejected() {
+    let out = render_all("[click]( javascript:alert(1))");
+    assert!(!out.contains("<a "));
+}
+
+#[test]
+fn xss_data_scheme_link_is_rejected() {
+    let out = render_all("[click](data:text/html,alert(1))");
+    assert!(!out.contains("<a "));
+}
+
+#[test]
+fn xss_vbscript_scheme_link_is_rejected() {
+    let out = render_all("[click](vbscript:alert(1))");
+    assert!(!out.contains("<a "));
+}
+
+#[test]
+fn xss_mailto_scheme_link_is_rejected() {
+    // core の is_safe_url は mailto: を許可するが、docs-site 独自の第 1 層は
+    // 受け入れ条件（http/https/相対のみ）どおりより厳しく拒否する。
+    let out = render_all("[mail](mailto:a@example.com)");
+    assert!(!out.contains("<a "));
+    assert_eq!(out, "<p>mail</p>");
+}
+
+#[test]
+fn xss_tel_scheme_link_is_rejected() {
+    let out = render_all("[call](tel:0123456789)");
+    assert!(!out.contains("<a "));
+    assert_eq!(out, "<p>call</p>");
+}
+
+#[test]
+fn safe_http_scheme_link_is_allowed() {
+    assert_eq!(
+        render_all("[a](http://example.com)"),
+        "<p><a href=\"http://example.com\">a</a></p>"
+    );
+}
+
+#[test]
+fn safe_protocol_relative_link_is_allowed() {
+    assert_eq!(
+        render_all("[a](//example.com/x)"),
+        "<p><a href=\"//example.com/x\">a</a></p>"
+    );
+}

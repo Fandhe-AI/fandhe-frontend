@@ -18,14 +18,20 @@
 //! - 外部入力（信頼できない Markdown）を将来受け取る可能性を見越し、本モジュール
 //!   の入力は常に「信頼できない入力」として扱う（`docs/` 配下はリポジトリ管理下だが
 //!   脅威モデル上の扱いは緩めない）
+//! - インライン構文（イシュー #467）のリンク URL は `is_safe_link_url`
+//!   （本モジュール内、第 1 層: http/https/相対のみ許可）→ core の
+//!   [`fandhe_frontend_core::is_safe_url`]（第 2 層、`render_into` が属性出力時に
+//!   適用）の多層で検証する。不合格の URL は `<a>` を生成せずリンクテキストのみを
+//!   出力する（fail-closed）。属性値自体も core が出力時にエスケープするため
+//!   `"` によるリンクテキスト/URL からの属性 breakout は core 側でも遮断される
 //!
 //! パニックしない全域関数として実装する（ライブラリコードでの `unwrap()` /
 //! `panic!` 回避規約、`.claude/rules/coding-rust.md`）。未知の行・不正な構文は
 //! 段落として扱うフォールバックにより、任意の `&str` を受理する。
 
 use fandhe_frontend_core::{
-    blockquote, code, h1, h2, h3, h4, h5, h6, li, ol, p, pre, table, tbody, td, text, th, thead,
-    tr, ul, Node,
+    a, blockquote, code, em, h1, h2, h3, h4, h5, h6, is_safe_url, li, ol, p, pre, strong, table,
+    tbody, td, text, th, thead, tr, ul, Node,
 };
 
 /// 引用・ネストリストの再帰的解釈における最大深さ。
@@ -47,16 +53,251 @@ fn is_valid_lang_token(s: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '+' | '.' | '-'))
 }
 
-/// ブロック内テキストをインライン Node 列へ変換する継ぎ目関数。
+/// ブロック内テキストをインライン Node 列へ変換する継ぎ目関数（イシュー #467）。
 ///
-/// 本イシュー（#466）時点ではインライン構文（リンク・強調・インラインコード）
-/// を未実装のため、入力全体を単一の [`text`]（既定エスケープ経由）として
-/// 返すのみ。後続イシュー #467 がこの関数の内部実装のみを差し替える契約であり、
-/// 差し替え後も全呼び出し元（見出し・段落・リスト項目・テーブルセル・引用）は
-/// 本関数経由でテキストを取得するため、既定エスケープの迂回経路を増やさずに
-/// インライン構文を追加できる（`raw_html()` を導入しない限り契約は保たれる）。
+/// インラインコード（`` `code` ``）/ 強調（`**strong**` / `*em*`）/ リンク
+/// （`[text](url)`）を解釈し、それ以外の文字は [`text`]（既定エスケープ経由）
+/// として出力する。全呼び出し元（見出し・段落・リスト項目・テーブルセル・
+/// 引用、`inline_nodes` 継ぎ目契約）は本関数経由でテキストを取得するため、
+/// ここだけ差し替えれば全ブロック文脈にインライン構文が波及する
+/// （`raw_html()` は使わない、既定エスケープの迂回経路を増やさない、REQ-1）。
+///
+/// # スコープ外
+///
+/// 画像構文 `![alt](url)`（`!` はリテラル、続く `[...](...)` は通常リンク
+/// として解釈される）・`_`/`__` によるアンダースコア強調（既存 docs で未使用
+/// かつ `raw_html_lint_e2e` 等の識別子を誤解釈するリスクがあるため意図的に
+/// 非対応）・自動リンク・参照形式リンクは非対応（イシュー #467 計画のスコープ外）。
 fn inline_nodes(s: &str) -> Vec<Node> {
-    vec![text(s)]
+    parse_inline(s, 0, false)
+}
+
+/// [`inline_nodes`] の内部実装。強調・リンクテキストの再帰的解釈のために
+/// 深さカウンタ（`depth`）とリンクネスト禁止フラグ（`in_link`）を保持する。
+///
+/// `depth` は [`MAX_DEPTH`]（引用・リストと共通の定数値。カウンタ自体は
+/// ブロック側と独立した別軸）に達すると強調・リンクの開始マーカーを
+/// リテラル文字として扱いそれ以上再帰しない（OWASP A04、スタック
+/// オーバーフロー対策の設計をインラインにも適用）。
+///
+/// `in_link` は `true` の間 `[` をリンク開始として解釈しない（リンクの
+/// ネストを禁止し、内側の `[` はリテラル扱いにする設計どおり）。
+fn parse_inline(s: &str, depth: usize, in_link: bool) -> Vec<Node> {
+    let chars: Vec<char> = s.chars().collect();
+    let mut nodes: Vec<Node> = Vec::new();
+    let mut literal = String::new();
+    let mut i = 0usize;
+
+    while i < chars.len() {
+        let c = chars[i];
+
+        if c == '`' {
+            if let Some((mut parsed, next)) = try_inline_code(&chars, i) {
+                flush_literal(&mut literal, &mut nodes);
+                nodes.append(&mut parsed);
+                i = next;
+                continue;
+            }
+        } else if c == '*' {
+            if let Some((mut parsed, next)) = try_emphasis(&chars, i, depth, in_link) {
+                flush_literal(&mut literal, &mut nodes);
+                nodes.append(&mut parsed);
+                i = next;
+                continue;
+            }
+        } else if c == '[' && !in_link {
+            if let Some((mut parsed, next)) = try_link(&chars, i, depth) {
+                flush_literal(&mut literal, &mut nodes);
+                nodes.append(&mut parsed);
+                i = next;
+                continue;
+            }
+        }
+
+        // どの構文にも一致しなかった（または閉じマーカーが見つからなかった）
+        // 場合は開始文字をリテラルとして 1 文字だけ進める（fail-safe、
+        // バックトラック蓄積による O(n²) を避ける設計どおり）。
+        literal.push(c);
+        i += 1;
+    }
+
+    flush_literal(&mut literal, &mut nodes);
+    nodes
+}
+
+/// 蓄積中のリテラル文字列を 1 つの [`text`] ノードとして `nodes` へ確定する。
+fn flush_literal(literal: &mut String, nodes: &mut Vec<Node>) {
+    if !literal.is_empty() {
+        nodes.push(text(literal.as_str()));
+        literal.clear();
+    }
+}
+
+/// `chars[start..]` から、`ch` が過不足なく `run_len` 個連続する箇所を探す。
+///
+/// インラインコードの閉じバッククォート（`run_len` = 開始と同じ本数）・
+/// 強調の閉じマーカー（`*` を `run_len` = 1 または 2）の探索を共通化する。
+/// 目的の本数と異なる連続（例: 強調の閉じを探索中に遭遇した `**`）はまるごと
+/// 読み飛ばして続行するため、部分一致による誤閉じを避けられる。見つかった
+/// 場合は連続の開始インデックスを返す。
+fn find_closing_run(chars: &[char], start: usize, ch: char, run_len: usize) -> Option<usize> {
+    let mut k = start;
+    while k < chars.len() {
+        if chars[k] == ch {
+            let run_start = k;
+            let mut m = 0usize;
+            while k < chars.len() && chars[k] == ch {
+                k += 1;
+                m += 1;
+            }
+            if m == run_len {
+                return Some(run_start);
+            }
+            // 本数が異なる連続は内容の一部として読み飛ばす。
+            continue;
+        }
+        k += 1;
+    }
+    None
+}
+
+/// `i` が指すバッククォート連続を開始とみなし、インラインコードを試みる。
+///
+/// 開始と同じ本数の連続で閉じる（CommonMark 簡略版、`` ``a`b`` `` のように
+/// コード中にバッククォートを含められる）。中身はリテラル（リンク・強調を
+/// 解釈しない）とし、`raw_html()` を使わず [`text`] 経由でエスケープする。
+/// 閉じが見つからない場合は `None` を返し、呼び出し元がバッククォートを
+/// リテラル文字へフォールバックする。
+fn try_inline_code(chars: &[char], i: usize) -> Option<(Vec<Node>, usize)> {
+    let open_len = {
+        let mut n = 0usize;
+        while i + n < chars.len() && chars[i + n] == '`' {
+            n += 1;
+        }
+        n
+    };
+    let content_start = i + open_len;
+    let close_start = find_closing_run(chars, content_start, '`', open_len)?;
+    let content: String = chars[content_start..close_start].iter().collect();
+    let node = code(vec![], vec![text(content.as_str())]);
+    Some((vec![node], close_start + open_len))
+}
+
+/// `i` が指す `*` を開始とみなし、強調（`**strong**` を先に判定、次いで
+/// `*em*`）を試みる。`_`/`__` による強調は意図的に非対応（既存 docs で
+/// 不使用かつ識別子中の `_` を誤解釈するため、モジュール rustdoc 参照）。
+///
+/// 中身は再帰的にインライン解釈する（強調のネスト・コード内包可）。
+/// `depth` が [`MAX_DEPTH`] に達している場合は再帰せず `None` を返し、
+/// 呼び出し元が `*` をリテラル文字へフォールバックする。対応する閉じ
+/// マーカーが見つからない場合も同様にフォールバックする。
+fn try_emphasis(
+    chars: &[char],
+    i: usize,
+    depth: usize,
+    in_link: bool,
+) -> Option<(Vec<Node>, usize)> {
+    if depth >= MAX_DEPTH {
+        return None;
+    }
+    let is_strong = i + 1 < chars.len() && chars[i + 1] == '*';
+    let marker_len = if is_strong { 2 } else { 1 };
+    let content_start = i + marker_len;
+    let close_start = find_closing_run(chars, content_start, '*', marker_len)?;
+    let inner: String = chars[content_start..close_start].iter().collect();
+    let children = parse_inline(&inner, depth + 1, in_link);
+    let node = if is_strong {
+        strong(vec![], children)
+    } else {
+        em(vec![], children)
+    };
+    Some((vec![node], close_start + marker_len))
+}
+
+/// `i` が指す `[` を開始とみなし、`[text](url)` 形式のリンクを試みる。
+///
+/// `url` は [`is_safe_link_url`] を通過した場合のみ `<a href="...">` を
+/// 生成する。不合格時は `<a>` を生成せず、リンクテキストのみを
+/// インライン解釈して返す（fail-closed かつ内容の取りこぼしをしない）。
+/// リンクテキスト内は `in_link = true` で再帰するため、内側の `[` は
+/// リテラル扱いとなりリンクのネストは発生しない（設計どおり）。
+///
+/// 閉じ括弧 `]` 不在・直後の `(` 不在・`)` 不在のいずれかの場合は `None` を
+/// 返し、呼び出し元が `[` をリテラル文字へフォールバックする。
+fn try_link(chars: &[char], i: usize, depth: usize) -> Option<(Vec<Node>, usize)> {
+    if depth >= MAX_DEPTH {
+        return None;
+    }
+    let close_bracket = find_char(chars, i + 1, ']')?;
+    if chars.get(close_bracket + 1) != Some(&'(') {
+        return None;
+    }
+    let url_start = close_bracket + 2;
+    let close_paren = find_char(chars, url_start, ')')?;
+
+    let link_text: String = chars[i + 1..close_bracket].iter().collect();
+    let url: String = chars[url_start..close_paren].iter().collect();
+    let next = close_paren + 1;
+
+    let children = parse_inline(&link_text, depth + 1, true);
+    if is_safe_link_url(&url) {
+        Some((vec![a(vec![("href", url.as_str())], children)], next))
+    } else {
+        Some((children, next))
+    }
+}
+
+/// `chars[start..]` から最初に一致する `target` のインデックスを返す。
+fn find_char(chars: &[char], start: usize, target: char) -> Option<usize> {
+    chars[start..]
+        .iter()
+        .position(|&c| c == target)
+        .map(|offset| start + offset)
+}
+
+/// リンク URL の第 1 層スキーム検証（受け入れ条件: http / https / 相対のみ許可）。
+///
+/// core の [`is_safe_url`]（`fandhe_frontend_core::is_safe_url`、`render_into`
+/// が `href` 等の属性出力時に適用する第 2 層）をまず通し、`javascript:` /
+/// `data:` 等の危険スキームをタブ・改行除去/先頭制御文字トリムを含む共通
+/// 正規化ロジックで遮断する（`crates/core/src/url.rs`、イシュー #373）。
+///
+/// その上で本関数は docs-site 独自の追加制限として、core と同じ正規化
+/// （`\t`/`\n`/`\r` の全除去 → 先頭の制御文字・空白トリム）を適用した値が
+/// `mailto:` / `tel:`（ASCII 大文字小文字非依存）で始まる場合を拒否する
+/// （core は許可するが、本関数は受け入れ条件どおりそれより厳しい集合のみ
+/// 許可する）。正規化を経ない値で判定すると `mai\tlto:` のような偽装が
+/// すり抜けるため、必ず正規化後の値で前方一致判定する。
+///
+/// 結果として許可されるのは相対 URL（protocol-relative `//host` 含む）と
+/// `http:` / `https:` のみ。拒否時の挙動は呼び出し元 [`try_link`] を参照。
+fn is_safe_link_url(url: &str) -> bool {
+    if !is_safe_url(url) {
+        return false;
+    }
+    let normalized: String = url
+        .chars()
+        .filter(|c| !matches!(c, '\t' | '\n' | '\r'))
+        .collect();
+    let trimmed = normalized.trim_start_matches(|c: char| c.is_control() || c.is_whitespace());
+    !(starts_with_ignore_case_ascii(trimmed, "mailto:")
+        || starts_with_ignore_case_ascii(trimmed, "tel:"))
+}
+
+/// `s` が `prefix`（ASCII のみを想定）で始まるかを大文字小文字非依存で判定する。
+///
+/// バイト境界パニックを避けるため文字単位で比較する（`s` の先頭が非 ASCII
+/// マルチバイト文字の場合に `s[..prefix.len()]` のようなバイト添字スライスは
+/// 文字境界を跨いでパニックし得るため使わない）。
+fn starts_with_ignore_case_ascii(s: &str, prefix: &str) -> bool {
+    let mut s_chars = s.chars();
+    for p in prefix.chars() {
+        match s_chars.next() {
+            Some(c) if c.is_ascii() && c.eq_ignore_ascii_case(&p) => continue,
+            _ => return false,
+        }
+    }
+    true
 }
 
 /// Markdown 文字列をブロック単位で解釈し、Node のブロック列へレンダリングする。
