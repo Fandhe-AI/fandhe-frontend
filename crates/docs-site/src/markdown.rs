@@ -18,6 +18,13 @@
 //! - 外部入力（信頼できない Markdown）を将来受け取る可能性を見越し、本モジュール
 //!   の入力は常に「信頼できない入力」として扱う（`docs/` 配下はリポジトリ管理下だが
 //!   脅威モデル上の扱いは緩めない）
+//! - インライン構文の閉じマーカー探索（[`find_closing_run`] / [`find_char`]）
+//!   は 1 回の探索でスキャンする文字数を [`MAX_INLINE_SCAN_WINDOW`] に
+//!   制限する。無制限に末尾まで走査すると、閉じマーカーが見つからない
+//!   `*` / `` ` `` / `[` の連続に対し開始位置ごとの走査が最悪 O(n^2) の
+//!   アルゴリズム的計算量 DoS（OWASP A04）を招くため、上限超過分は
+//!   「閉じマーカーなし」と同じ fail-safe フォールバック（リテラル文字
+//!   として扱う）で打ち切る
 //! - インライン構文（イシュー #467）のリンク URL は `is_safe_link_url`
 //!   （本モジュール内、第 1 層: http/https/相対のみ許可）→ core の
 //!   [`fandhe_frontend_core::is_safe_url`]（第 2 層、`render_into` が属性出力時に
@@ -40,6 +47,24 @@ use fandhe_frontend_core::{
 /// オーバーフローを防ぐための DoS 対策（OWASP A04 安全でない設計）。超過分は
 /// 通常の段落テキストとして扱い、取りこぼしをしない fail-safe とする。
 const MAX_DEPTH: usize = 16;
+
+/// インライン構文の閉じマーカー探索（[`find_closing_run`] / [`find_char`]）
+/// が開始位置から前方走査する文字数の上限（レビュー指摘イシュー #467、
+/// OWASP A04 安全でない設計 — アルゴリズム的計算量 DoS 対策）。
+///
+/// 閉じマーカーが見つからない `*` / `` ` `` / `[` の連続に対し、この上限
+/// なしでは各開始位置ごとに残り入力の末尾まで走査するため最悪計算量が
+/// O(n^2) になる（実測: 全て `*` の入力で release ビルド n=40,000 のとき
+/// 約 156ms、n=262,144 で約 6.5s、debug ビルドはさらに数倍遅い）。本定数
+/// により 1 回の探索コストを O(`MAX_INLINE_SCAN_WINDOW`) に固定し、
+/// `parse_inline` 全体の計算量を入力長 n に対し O(n) に抑える。
+///
+/// 値（2,000 文字）は GFM の強調・リンク・インラインコードスパンの実用的な
+/// 長さ（通常は数十文字、長文の強調でも数百文字程度）を大きく超えており、
+/// 正当な Markdown コンテンツの解釈結果には影響しない。上限に達した場合は
+/// 「閉じマーカーなし」と同じフォールバック（リテラル文字として扱う）に
+/// より取りこぼしなく処理を継続する（fail-safe）。
+const MAX_INLINE_SCAN_WINDOW: usize = 2000;
 
 /// フェンスコードブロックの `class` 属性へ許可する info string の文字集合。
 ///
@@ -140,15 +165,29 @@ fn flush_literal(literal: &mut String, nodes: &mut Vec<Node>) {
 /// 目的の本数と異なる連続（例: 強調の閉じを探索中に遭遇した `**`）はまるごと
 /// 読み飛ばして続行するため、部分一致による誤閉じを避けられる。見つかった
 /// 場合は連続の開始インデックスを返す。
+///
+/// 走査は `start` から高々 [`MAX_INLINE_SCAN_WINDOW`] 文字までに限定する
+/// （超過分は「閉じマーカーなし」と同じ `None` を返す）。上限なしで
+/// `chars.len()` まで無条件に走査すると、呼び出し元（[`try_emphasis`] /
+/// [`try_inline_code`]）が開始位置ごとに本関数を呼ぶ構造と組み合わさって
+/// 最悪計算量が O(n^2) になる（アルゴリズム的計算量 DoS、OWASP A04、
+/// レビュー指摘イシュー #467）。
 fn find_closing_run(chars: &[char], start: usize, ch: char, run_len: usize) -> Option<usize> {
+    let limit = chars.len().min(start + MAX_INLINE_SCAN_WINDOW);
     let mut k = start;
-    while k < chars.len() {
+    while k < limit {
         if chars[k] == ch {
             let run_start = k;
             let mut m = 0usize;
-            while k < chars.len() && chars[k] == ch {
+            while k < limit && chars[k] == ch {
                 k += 1;
                 m += 1;
+            }
+            if k == limit && k < chars.len() && chars[k] == ch {
+                // 走査上限に達した時点でもまだ同じ文字の連続が続いており、
+                // 真の本数が確定できない。誤って一致と判定しないよう、ここで
+                // 探索を打ち切る（fail-safe、「見つからない」と同じ扱い）。
+                return None;
             }
             if m == run_len {
                 return Some(run_start);
@@ -248,8 +287,13 @@ fn try_link(chars: &[char], i: usize, depth: usize) -> Option<(Vec<Node>, usize)
 }
 
 /// `chars[start..]` から最初に一致する `target` のインデックスを返す。
+///
+/// [`find_closing_run`] と同様、走査は `start` から高々
+/// [`MAX_INLINE_SCAN_WINDOW`] 文字までに限定する（[`try_link`] が `[` の
+/// 出現ごとに本関数を呼ぶため、無制限走査は同種の O(n^2) DoS を招く）。
 fn find_char(chars: &[char], start: usize, target: char) -> Option<usize> {
-    chars[start..]
+    let limit = chars.len().min(start + MAX_INLINE_SCAN_WINDOW);
+    chars[start..limit]
         .iter()
         .position(|&c| c == target)
         .map(|offset| start + offset)

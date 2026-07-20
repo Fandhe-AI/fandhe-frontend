@@ -724,3 +724,65 @@ fn safe_protocol_relative_link_is_allowed() {
         "<p><a href=\"//example.com/x\">a</a></p>"
     );
 }
+
+// ---------------------------------------------------------------------
+// インライン閉じマーカー探索の走査幅上限
+// （アルゴリズム的計算量 DoS 対策、レビュー指摘イシュー #467）
+// ---------------------------------------------------------------------
+//
+// find_closing_run / find_char は開始位置ごとに閉じマーカーを前方走査する
+// ため、上限なしでは「閉じマーカーが見つからない `*`/`` ` ``/`[` の連続」
+// に対し最悪 O(n^2) の計算量になる（対策前の実測: 全て `*` の debug ビルド
+// で n=262,144 のとき約 33 秒）。MAX_INLINE_SCAN_WINDOW による走査幅の
+// 打ち切りで 1 回の探索コストを定数に抑え、全体を O(n) に落とす。
+
+#[test]
+fn oversized_unclosed_emphasis_run_completes_within_bounded_time() {
+    // 全て `*` の入力（強調の閉じマーカーがほぼ見つからない最悪ケース）でも
+    // 走査幅上限により処理時間が入力サイズに対して線形にとどまることを
+    // 確認する。対策前は O(n^2) で発散し、同サイズの入力は debug ビルドでも
+    // 数十秒かかった（本テストの回帰対象）。
+    let huge_input = "*".repeat(400_000);
+    let start = std::time::Instant::now();
+    let out = render_all(&huge_input);
+    let elapsed = start.elapsed();
+    assert!(
+        elapsed < std::time::Duration::from_secs(5),
+        "走査幅上限が機能していれば debug ビルドでも数秒以内に完了するはず: {elapsed:?}"
+    );
+    assert!(!out.is_empty());
+}
+
+#[test]
+fn oversized_unclosed_link_bracket_run_completes_within_bounded_time() {
+    // `[` が閉じ `]` を伴わず大量に連続する入力（try_link の find_char が
+    // 各開始位置で走査幅ぶん走査する最悪ケース）でも走査幅上限により線形に
+    // とどまることを確認する。閉じ `]` が存在しないため <a> は一切生成
+    // されない。
+    let huge_input = "[".repeat(400_000);
+    let start = std::time::Instant::now();
+    let out = render_all(&huge_input);
+    let elapsed = start.elapsed();
+    assert!(
+        elapsed < std::time::Duration::from_secs(5),
+        "走査幅上限が機能していれば debug ビルドでも数秒以内に完了するはず: {elapsed:?}"
+    );
+    assert!(!out.contains("<a "));
+}
+
+#[test]
+fn emphasis_marker_run_longer_than_scan_window_does_not_panic_or_hang() {
+    // find_closing_run の境界処理の回帰: 走査幅上限（2,000 文字）をまたぐ
+    // 長さの `*` 連続に対して、走査打ち切り時（同じ文字がまだ続いている
+    // 状態で上限に達した場合）に誤って `Some` を返し panic や無限ループを
+    // 引き起こさないことを確認する（本文字列に対し `**` を直後に置いた
+    // ネストした呼び出しも発生するため、境界条件の組み合わせを踏む）。
+    //
+    // なお、走査幅の内側に真に閉じる 2 連続が偶然出現した場合に <strong>
+    // を生成すること自体は、走査開始位置ごとに再試行する既存の貪欲な
+    // バックトラック設計（本モジュール導入時点から変わらない挙動）による
+    // ものであり、本テストが検証する不変条件ではない。
+    let input = format!("**{}X", "*".repeat(2001));
+    let out = render_all(&input);
+    assert!(!out.is_empty());
+}
