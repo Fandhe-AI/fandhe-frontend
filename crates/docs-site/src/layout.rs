@@ -88,8 +88,20 @@ fn inject_heading_anchors(
             let mut new_attrs = attrs;
             let id = match existing_id {
                 Some(id) => {
-                    used_ids.insert(id.clone());
-                    id
+                    // 著者指定 id が自動生成スラグ（または別の著者指定 id）と衝突する
+                    // 場合、`used_ids.insert` は false を返す。ここで戻り値を無視すると
+                    // 両見出しが同一 id を持ち TOC・静的 `#...` リンクが最初の見出ししか
+                    // 指さなくなる（「既存 id を尊重する」契約は壊さず、衝突時のみ
+                    // `unique_slug` で一意な variant を採番する）。
+                    if used_ids.insert(id.clone()) {
+                        id
+                    } else {
+                        let generated = unique_slug(&id, used_ids);
+                        if let Some(entry) = new_attrs.iter_mut().find(|(name, _)| name == "id") {
+                            entry.1 = generated.clone();
+                        }
+                        generated
+                    }
                 }
                 None => {
                     let generated = unique_slug(&slugify(&title), used_ids);
