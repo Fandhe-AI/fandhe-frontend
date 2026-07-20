@@ -18,3 +18,8 @@
 # implement-issue-tree / Workflow が実装隔離に使う一時 git worktree の配置先
 # （worktree 自体は各所の掃除処理で削除されるが、untracked 表示を防ぐ）
 /.claude/worktrees/
+
+# イシュー #470: `cargo run -p fandhe-frontend-docs-site -- --out dist/` の
+# 既定出力先（受け入れ条件のコマンド例どおりリポジトリ直下に生成される）。
+# 生成物であり配布物にも含めないため追跡しない。
+/dist/
