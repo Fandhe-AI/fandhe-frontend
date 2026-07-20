@@ -291,12 +291,23 @@ fn try_link(chars: &[char], i: usize, depth: usize) -> Option<(Vec<Node>, usize)
 /// [`find_closing_run`] と同様、走査は `start` から高々
 /// [`MAX_INLINE_SCAN_WINDOW`] 文字までに限定する（[`try_link`] が `[` の
 /// 出現ごとに本関数を呼ぶため、無制限走査は同種の O(n^2) DoS を招く）。
+///
+/// [`find_closing_run`] と同じ生の添字ループで実装する（イテレータ
+/// アダプタ + クロージャは debug ビルドでインライン化されず要素あたり
+/// コストが増え、閉じ `]` が存在しない最悪ケース（`[` の大量連続）で
+/// [`find_closing_run`] 側より実測所要時間が悪化していた。走査幅上限
+/// という設計上の計算量オーダーは変えず、定数係数のみ揃える。イシュー
+/// #467 レビュー指摘、CI 実測 5.738s / 上限 5s）。
 fn find_char(chars: &[char], start: usize, target: char) -> Option<usize> {
     let limit = chars.len().min(start + MAX_INLINE_SCAN_WINDOW);
-    chars[start..limit]
-        .iter()
-        .position(|&c| c == target)
-        .map(|offset| start + offset)
+    let mut k = start;
+    while k < limit {
+        if chars[k] == target {
+            return Some(k);
+        }
+        k += 1;
+    }
+    None
 }
 
 /// リンク URL の第 1 層スキーム検証（受け入れ条件: http / https / 相対のみ許可）。
