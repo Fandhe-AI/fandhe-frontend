@@ -61,13 +61,26 @@ TASK-11.5c（#88）はこの行を収集して正式計測・レポートに用�
 | `FRAME_BUDGET_MS` | 16.0 | `dom_update`（`p95_ms` 基準、1 操作あたり） |
 | `FRAME_OVERAGE_RATIO_BUDGET` | 0.05 | `dom_update`（16ms 超過率の目安） |
 
-CI 共有ランナーのノイズで正式判定できないため、**既定（feature 無効）では
-しきい値アサーションを有効化しない**。既定のテストはハーネス自己検証
-（サンプル数 > 0・値が有限かつ非負・出力行の形式）のみを行う。統制された
-ローカル環境でのみ `--features perf-assert` を付けて実行し、
-`initial_load_meets_budget`/`dom_update_meets_frame_budget` のしきい値
-アサーションを有効化する（第 5 節、TASK-11.5b・#87 で実施済み。実測値は
-`docs/reports/perf-browser-report.md` 第 4 節を参照）。
+既定（feature 無効）ではしきい値アサーションを有効化しない。既定のテストは
+ハーネス自己検証（サンプル数 > 0・値が有限かつ非負・出力行の形式）のみを行う。
+`--features perf-assert` を付けて実行すると、`initial_load_meets_budget`/
+`dom_update_meets_frame_budget` のしきい値アサーションを有効化する。
+
+CI（`perf-harness` ジョブ）では 2026-07-17 実測（`docs/reports/perf-browser-report.md`
+第 4 節、initial_load mean 0.034〜0.343ms・dom_update p95 0.090〜0.105ms）が
+しきい値（300ms/16ms）に対し約 1000 倍の余裕を持つことを踏まえ、共有
+self-hosted runner の負荷変動を考慮してもフレークリスクは低いと判断し、
+`--features perf-assert` を**常時有効化**して性能リグレッションの検知ゲートと
+している（イシュー #451、採用案 B、2026-07-20 決定。第 6 節参照）。統制された
+ローカル環境での正式計測・`docs/reports/perf-browser-report.md` 更新を伴う
+計測の位置づけは変更しない（TASK-11.5b・#87 で実施済み）。
+
+CI と統制ローカル環境の使い分けは以下の通り。
+
+| 実行環境 | 目的 | feature | レポート更新 |
+|---------|------|---------|--------------|
+| CI（`perf-harness` ジョブ、PR・main push ごと） | 性能リグレッションのしきい値検知ゲート（常時実行） | `perf-assert` 有効（イシュー #451） | しない |
+| 統制されたローカル環境 | 正式計測・レポート確定 | `perf-assert` 有効（手動実行） | `docs/reports/perf-browser-report.md` を更新する |
 
 ## 5. ローカル実行手順
 
@@ -102,11 +115,17 @@ Chrome/Chromium と対応する chromedriver がローカルに必要（バー�
 - wasm32 target 追加 → wasm-pack v0.13.1 の SHA256 検証付き導入（`browser-test`
   ジョブと同一バージョン・同一チェックサム）→ ランナー内蔵 chromedriver
   （`CHROMEWEBDRIVER`）を明示指定して `wasm-pack test --headless --chrome
-  wasm-full --test perf_browser` を実行
+  crates/wasm-full --test perf_browser --features perf-assert` を実行
 - 実行結果から `perf-browser:` サマリ行を `$GITHUB_STEP_SUMMARY` へ転記（
   `loc-check` ジョブのパターン踏襲）
-- 役割は**ハーネスのスモーク実行**（ハーネス自己検証テストの通過確認）であり、
-  性能判定は行わない
+- 役割は `--features perf-assert` 付きで仕様しきい値（`INITIAL_LOAD_BUDGET_MS`
+  300ms・`FRAME_BUDGET_MS` 16ms・16ms 超過率 5% 以下）に対するリグレッション
+  検知を**常時実行**すること（イシュー #451、採用案 B、2026-07-20 決定）。
+  当初（TASK-11.5a・#86）はハーネス自己検証テストの通過確認のみのスモーク
+  実行だったが、TASK-11.5b・#87 での正式計測実施（第 4 節）を経て、共有
+  self-hosted runner の負荷変動を考慮してもフレークリスクが低いと判断し
+  CI 常時アサートへ移行した。統制されたローカル環境での正式計測・レポート
+  更新の位置づけは変更しない（第 4 節の表を参照）
 
 `wasm-pack` 導入ステップが `browser-test` ジョブと重複している点は認識済みで、
 両ジョブの統合は TASK-11.2d（#77）マージ後の整理事項として本節に記録する
