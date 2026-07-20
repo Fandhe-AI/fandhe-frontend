@@ -818,3 +818,63 @@ fn emphasis_marker_run_longer_than_scan_window_does_not_panic_or_hang() {
     let out = render_all(&input);
     assert!(!out.is_empty());
 }
+
+#[test]
+fn oversized_unclosed_backtick_run_completes_within_bounded_time() {
+    // レビュー指摘イシュー #467: try_inline_code は開始バッククォート連続
+    // の本数カウントに走査幅上限がなかったため、closing-marker 側の探索
+    // （find_closing_run）に上限があるにも関わらず、長いバッククォート
+    // 連続一つに対して開始位置ごとに O(n) の再カウントが発生し全体で
+    // O(n^2) になっていた（本テストの回帰対象）。上限を適用した後は
+    // 他の閉じマーカー走査幅上限テストと同様に線形時間で完了する。
+    // 先頭を `a` にして行頭バッククォート連続によるフェンスコードブロック
+    // 判定（`fence_open`、ブロックレベル）を回避し、インライン経路
+    // （try_inline_code）を確実に通す。
+    let huge_input = format!("a{}", "`".repeat(400_000));
+    let start = std::time::Instant::now();
+    let out = render_all(&huge_input);
+    let elapsed = start.elapsed();
+    assert!(
+        elapsed < std::time::Duration::from_secs(5),
+        "開始バッククォート連続のカウントに走査幅上限が機能していれば debug ビルドでも数秒以内に完了するはず: {elapsed:?}"
+    );
+    assert!(!out.contains("<code>"));
+}
+
+// ---------------------------------------------------------------------
+// 3 連続 `*` による strong+em のネスト
+// （レビュー指摘イシュー #467: `***bold***` が常にリテラルへ
+// フォールバックしていた不具合の回帰）
+// ---------------------------------------------------------------------
+
+#[test]
+fn triple_star_emphasis_nests_em_and_strong() {
+    // CommonMark 同様、em が strong を包む（`<em><strong>...</strong></em>`）。
+    assert_eq!(
+        render_all("***bold***"),
+        "<p><em><strong>bold</strong></em></p>"
+    );
+}
+
+#[test]
+fn triple_star_emphasis_inside_sentence() {
+    assert_eq!(
+        render_all("a ***bold*** b"),
+        "<p>a <em><strong>bold</strong></em> b</p>"
+    );
+}
+
+#[test]
+fn mismatched_triple_and_double_star_closer_does_not_nest_em_and_strong() {
+    // 開始 `***`・閉じ `**` のように本数が一致しない混在ケースはスコープ外
+    // （find_closing_run は開始と過不足なく一致する本数の閉じ連続のみを
+    // 受理するため、marker_len=3 での照合はここでは成立しない）。GFM の
+    // 非対称デリミタ解決（flanking rule）は実装しないため、本関数が
+    // 3 連続として厳密解釈することはない。開始位置ごとに再試行する既存の
+    // 貪欲な走査（`try_emphasis` 呼び出し自体は本テストの対象外）により、
+    // 先頭の `*` 1 文字がリテラルへ落ち、続く `**bold**` 相当の部分が
+    // `<strong>` として解釈される場合がある。「常にリテラル」ではなく
+    // 「em+strong のネストにはならない」ことが本テストで固定したい不変
+    // 条件である。
+    assert_eq!(render_all("***bold**"), "<p>*<strong>bold</strong></p>");
+}

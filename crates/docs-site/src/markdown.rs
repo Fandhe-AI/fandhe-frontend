@@ -272,11 +272,27 @@ fn skip_backtick_span(chars: &[char], k: usize, limit: usize) -> usize {
 /// 解釈しない）とし、`raw_html()` を使わず [`text`] 経由でエスケープする。
 /// 閉じが見つからない場合は `None` を返し、呼び出し元がバッククォートを
 /// リテラル文字へフォールバックする。
+///
+/// 開始バッククォート連続の本数カウントも [`find_closing_run`] と同じ
+/// [`MAX_INLINE_SCAN_WINDOW`] を上限に打ち切る（レビュー指摘イシュー #467:
+/// closing-marker 側の走査には上限があるにも関わらず、この開始連続の
+/// カウントだけ無制限だと、開始位置ごとに `parse_inline` が本関数を呼ぶ
+/// 構造と組み合わさって長いバッククォート連続一つに対し O(n^2) の
+/// アルゴリズム的計算量 DoS になる。上限に達してもなお連続が続く場合は
+/// 「本数が確定できない」として `None` を返し、呼び出し元が 1 文字だけ
+/// リテラルへフォールバックする fail-safe 動作に委ねる）。
 fn try_inline_code(chars: &[char], i: usize) -> Option<(Vec<Node>, usize)> {
+    let scan_limit = chars.len().min(i + MAX_INLINE_SCAN_WINDOW);
     let open_len = {
         let mut n = 0usize;
-        while i + n < chars.len() && chars[i + n] == '`' {
+        while i + n < scan_limit && chars[i + n] == '`' {
             n += 1;
+        }
+        if i + n < chars.len() && chars[i + n] == '`' {
+            // 上限に達してもまだ連続しており真の本数が確定できない。
+            // find_closing_run の fail-safe（本数不確定時は None）と
+            // 同じ扱いにする。
+            return None;
         }
         n
     };
@@ -287,9 +303,31 @@ fn try_inline_code(chars: &[char], i: usize) -> Option<(Vec<Node>, usize)> {
     Some((vec![node], close_start + open_len))
 }
 
-/// `i` が指す `*` を開始とみなし、強調（`**strong**` を先に判定、次いで
-/// `*em*`）を試みる。`_`/`__` による強調は意図的に非対応（既存 docs で
-/// 不使用かつ識別子中の `_` を誤解釈するため、モジュール rustdoc 参照）。
+/// `i` が指す `*` を開始とみなし、強調（`***strong+em***` を最優先で判定、
+/// 次いで `**strong**`、最後に `*em*`）を試みる。`_`/`__` による強調は
+/// 意図的に非対応（既存 docs で不使用かつ識別子中の `_` を誤解釈するため、
+/// モジュール rustdoc 参照）。
+///
+/// 開始マーカーの本数（1〜3、4 本以上は 3 本として扱う）と閉じマーカーの
+/// 本数が過不足なく一致した場合にのみ成立する（[`find_closing_run`] の
+/// 契約どおり）。`***bold***` のような 3 連続 `*` は CommonMark 同様
+/// `<em><strong>...</strong></em>`（em が strong を包む）として木を組む
+/// （レビュー指摘イシュー #467: 開始が `**` の場合に無条件で `strong` を
+/// 確定させていたため、3 連続 `*` は `strong` 用の run_len=2 にも `em` 用の
+/// run_len=1 にも一致せず、`***bold***` が常にリテラルへフォールバックして
+/// いた不具合の修正）。
+///
+/// 混在した閉じ記号（例: `***bold**` や `*text***`、開始と閉じの本数が
+/// 異なるケース）は本関数のスコープ外。[`find_closing_run`] が開始と
+/// 過不足なく一致する本数の閉じ連続のみを受理する設計のため、当該開始
+/// 位置での本関数呼び出し自体は `None` を返す（GFM の非対称デリミタ解決
+/// ＝ flanking rule は実装しない、既存の強調実装と同じ簡略化方針）。
+/// ただし呼び出し元 [`parse_inline`] は `None` の場合に開始文字 1 個だけ
+/// リテラルへ落として次の位置から再試行する貪欲な設計のため、`***bold**`
+/// のような混在ケースは「全体がリテラル」にはならず、後続位置での再試行
+/// が短い方の本数（例では `**`）にたまたま一致し `strong`/`em` を形成する
+/// ことがある。「本関数が過不足のない一致のみ受理する」ことが不変条件で
+/// あり、「入力全体がどう解釈されるか」までは本関数の責務外。
 ///
 /// 中身は再帰的にインライン解釈する（強調のネスト・コード内包可）。
 /// `depth` が [`MAX_DEPTH`] に達している場合は再帰せず `None` を返し、
@@ -304,16 +342,22 @@ fn try_emphasis(
     if depth >= MAX_DEPTH {
         return None;
     }
-    let is_strong = i + 1 < chars.len() && chars[i + 1] == '*';
-    let marker_len = if is_strong { 2 } else { 1 };
+    // 開始マーカーの本数を数える（`*` であることは呼び出し元 parse_inline
+    // が保証済みのため最低 1）。CommonMark の strong+em 組み合わせは 3 本
+    // までなので、それ以上は 3 本として扱い、はみ出した `*` は inner の
+    // 内容として再帰解釈に委ねる。
+    let mut marker_len = 0usize;
+    while marker_len < 3 && i + marker_len < chars.len() && chars[i + marker_len] == '*' {
+        marker_len += 1;
+    }
     let content_start = i + marker_len;
     let close_start = find_closing_run(chars, content_start, '*', marker_len)?;
     let inner: String = chars[content_start..close_start].iter().collect();
     let children = parse_inline(&inner, depth + 1, in_link);
-    let node = if is_strong {
-        strong(vec![], children)
-    } else {
-        em(vec![], children)
+    let node = match marker_len {
+        3 => em(vec![], vec![strong(vec![], children)]),
+        2 => strong(vec![], children),
+        _ => em(vec![], children),
     };
     Some((vec![node], close_start + marker_len))
 }
