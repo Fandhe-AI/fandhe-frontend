@@ -1,0 +1,96 @@
+name: npm-asset-gate
+
+# イシュー #316（REQ-12 継続タスク）— 本テンプレートを使って生成されたプロジェクト
+# （テンプレート利用者のリポジトリ）向けの CI ワークフロー。`templates/` 配下に
+# あるため本フレームワーク自身の CI としては発火しない（本リポジトリ自身の検証は
+# .github/workflows/ci.yml の npm-asset-build ジョブが担う。deny.yml と同じ位置づけ）。
+#
+# 役割: 同梱の tools/npm-asset-build/install.sh（--ignore-scripts 強制の入口・
+# npm audit 統合）と check_static_only.py（静的アセット限定の後段ゲート、
+# allowlist 自動連携）を、テンプレート利用者の CI 上で実行する。
+# package.json / package-lock.json / allowlist.toml / tools/npm-asset-build/**
+# のいずれかが変更された場合に発火する。
+#
+# 注意（イシュー #316 Bugbot 指摘対応）: tools/npm-asset-build/** は
+# ツール自体の追従修正（本フレームワーク側の更新取り込み等）で変更され
+# 得るが、Rust プロジェクト等 package.json を持たないテンプレート利用者
+# では npm プロジェクトではない。そのため「package.json が存在するか」を
+# 最初のステップで判定し、存在しない場合は install.sh を実行せずジョブを
+# 正常終了させる（NPM アセットを利用しないプロジェクトを誤って fail させ
+# ない）。package.json / package-lock.json / allowlist.toml 自体の変更は
+# package.json が存在する前提のプロジェクトでのみ意味を持つため、この判定
+# によって「NPM アセットを利用する場合は必ずゲートが働く」という
+# fail-closed の性質は損なわれない。
+#
+# セキュリティ不変条件（security.md 準拠、deny.yml と同様の方針）:
+# - 緩和を許す input・環境変数・continue-on-error・`|| true` を一切設けない
+#   （fail-closed）。AI エージェントが本ワークフロー側に迂回経路を作ってはならない。
+# - 第三者製 Action は採用しない。全 Action 参照はフル SHA 固定とする
+#   （本リポジトリの .github/workflows/ci.yml と同一 SHA）。
+# - 本ワークフローが呼び出す install.sh は既定で --ignore-scripts・npm audit・
+#   check_static_only.py 自動連携を有効にする（テンプレート利用者側で
+#   フラグを追加しない限り、既定の安全側設定のまま動く）。
+on:
+  pull_request:
+    paths:
+      - "package.json"
+      - "package-lock.json"
+      - "allowlist.toml"
+      - "tools/npm-asset-build/**"
+  push:
+    branches: [main]
+    paths:
+      - "package.json"
+      - "package-lock.json"
+      - "allowlist.toml"
+      - "tools/npm-asset-build/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-asset-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  npm-asset-gate:
+    name: REQ-12 NPM static asset gate (install.sh + check_static_only.py)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # actions/checkout（本リポジトリの既存ワークフローと同一 SHA に固定）
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Check for package.json
+        # package.json が存在しない場合、本プロジェクトは NPM アセットを
+        # 利用していない（Rust プロジェクト等）と判断し、後続の install.sh
+        # 実行をスキップする。tools/npm-asset-build/** のみの変更（ツール
+        # 追従更新）で非 npm プロジェクトの CI を誤って落とさないための
+        # ガード（イシュー #316 Bugbot 指摘対応）。
+        id: check-package-json
+        run: |
+          if [ -f package.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "package.json not found; this project does not use NPM assets. Skipping npm-asset-gate."
+          fi
+
+      - name: Setup Node.js
+        # actions/setup-node（本リポジトリの既存ワークフローと同一 SHA に固定）。
+        # ubuntu-latest には node/npm がプリインストールされているが、
+        # バージョンを明示固定するためセットアップする。
+        if: steps.check-package-json.outputs.exists == 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "20"
+
+      - name: Run install.sh (--ignore-scripts + npm audit + static-asset check)
+        # install.sh は既定で --ignore-scripts・npm audit・check_static_only.py
+        # 自動連携（allowlist 自動解決）を有効にする。いずれかが失敗すれば
+        # 本ステップが非 0 終了し、ジョブ全体が fail-closed で失敗する。
+        # package.json が存在するプロジェクトでのみ実行する（上記ガード）。
+        if: steps.check-package-json.outputs.exists == 'true'
+        run: bash tools/npm-asset-build/install.sh --dir .

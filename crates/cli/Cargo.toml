@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "fandhe-frontend-cli: AI 自己保守フック向け `fw` コマンド（TASK-13.1、structure.toml のスキーマ・パース・生成）。外部依存ゼロ。"
 license = "MIT OR Apache-2.0"
-publish = false
+repository = "https://github.com/Fandhe-AI/fandhe-frontend"
+readme = "../../README.md"
+keywords = ["frontend", "cli", "scaffolding"]
+categories = ["command-line-utilities", "web-programming"]
 
 [[bin]]
 name = "fw"

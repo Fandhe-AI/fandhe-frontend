@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
-publish = false
+repository = "https://github.com/Fandhe-AI/fandhe-frontend"
+readme = "../../README.md"
+keywords = ["wasm", "csr", "hydration", "frontend"]
+categories = ["wasm", "web-programming"]
 
 # TASK-11.2b（#75）でイベント処理（events モジュール）・wasm-bindgen/web-sys
 # 依存を追加。TASK-11.2c（#76）は #75 マージ後の rebase により、DOM 非依存の
@@ -58,16 +61,16 @@ publish = false
 # set_scroll_restoration` の引数型）を追加する。`cargo metadata` 実測
 # （パッケージ数・依存グラフ深さ）に変化がないことを PR 本文に記録する。
 [dependencies]
-fandhe-frontend-app = { path = "../app" }
-fandhe-frontend-core = { path = "../core" }
-fandhe-frontend-interactive = { path = "../interactive" }
+fandhe-frontend-app = { path = "../app", version = "0.1.0" }
+fandhe-frontend-core = { path = "../core", version = "0.1.0" }
+fandhe-frontend-interactive = { path = "../interactive", version = "0.1.0" }
 # `default-features = false`: 本クレート独自の `wasm_bindgen` エクスポート
 # （`entry.rs` の `hydrate`/`mount`）と `fandhe-frontend-wasm-client` の REQ-6 デモ用
 # エクスポート（`hydrate`/`mount_csr`）とのシンボル重複（wasm-bindgen の
 # "describe" シンボルはクレート非依存の関数名ベース）を避けるため、
 # `wasm-client` 側の `wasm-bindgen-exports` feature を無効化する
 # （`wasm-client/Cargo.toml`・`wasm-client/src/lib.rs` の `wiring` doc 参照）。
-fandhe-frontend-wasm-client = { path = "../wasm-client", default-features = false }
+fandhe-frontend-wasm-client = { path = "../wasm-client", version = "0.1.0", default-features = false }
 wasm-bindgen = "0.2"
 
 [dependencies.web-sys]

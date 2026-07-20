@@ -1,20 +1,29 @@
-//! `templates/app/vendor/`（fandhe-frontend-core / fandhe-frontend-app の vendor 同梱、イシュー #378）
-//! と正本 `core/`/`app/` の乖離検知テスト。
+//! `templates/app` の crates.io バージョン依存（fandhe-frontend-core /
+//! fandhe-frontend-app / fandhe-frontend-interactive / fandhe-frontend-wasm-client、
+//! イシュー #412 で vendor 同梱から切替）の整合性検知テスト。
 //!
 //! # 背景
 //!
-//! fandhe-frontend-core / fandhe-frontend-app は `publish = false`（crates.io 未公開）のため、
-//! `templates/app` は git 依存・上位ワークスペースへの path 依存のいずれも
-//! 採らず、ソースを vendor 同梱する（イシュー #378 実装計画 §3.2）。
-//! vendor 同梱は正本の複製であるため、正本側の変更（バグ修正・API 追加）が
-//! vendor 側へ手動同期されないまま陳腐化するリスクを本テストが機械的に
-//! 検出する（`.claude/rules/ci.md` の cargo-deny pin ドリフト検知と同じ
-//! 運用方針。手動同期に頼らない）。
+//! `templates/app` は当初、fandhe-frontend-core / fandhe-frontend-app が
+//! `publish = false`（crates.io 未公開）であったため、ソースを vendor 同梱
+//! （`templates/app/vendor/`）して path 依存させていた（イシュー #378）。
+//! 全 9 クレートが crates.io へ v0.1.0 で公開されたことを受け、イシュー #412
+//! （`docs/design/template-vendor-to-version-switch.md`）の切替手順に従い、
+//! vendor 同梱を廃止し通常の crates.io バージョン依存へ切り替えた。
 //!
-//! `src/` はバイト単位で完全一致することを要求する。`Cargo.toml` は
-//! vendor 化に伴う既知の変換（path 依存の参照先ディレクトリ名変更、
-//! `[workspace]` を持たない）を考慮した緩やかな比較を行う（vendor 側
-//! Cargo.toml のコメントに変換理由を明記している）。
+//! 本ファイルはこのファイル名が指す検知対象を「vendor 同梱の drift」から
+//! 「バージョン依存の整合性・vendor 同梱の再発防止」へ更新する
+//! （ファイル名自体は `new_template.rs`/`template_publish_copy_drift.rs` 等
+//! 他ファイルからの参照を保つため維持する）。検知能力は弱体化させない
+//! （`.claude/rules/coding-rust.md`）:
+//!
+//! - `templates/app/Cargo.toml`・`templates/app/wasm/Cargo.toml` が
+//!   フレームワーク側クレートを path 依存で宣言していないこと
+//! - それらのバージョン依存が正本 `crates/*/Cargo.toml` の `version` と
+//!   一致すること（正本がバージョンアップした際にテンプレートが追随せず
+//!   陳腐化するのを機械検知する。手動同期に頼らない）
+//! - `templates/*/vendor/` ディレクトリが存在しないこと（vendor 同梱の再発を
+//!   防止する）
 //!
 //! # 共有ファイル同一性
 //!
@@ -36,10 +45,9 @@
 //! スコープ外とする（`fw new` の生成対象としての `embed` テンプレート自体は
 //! イシュー #378 の対象外、実装計画 §9）。
 
-use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-/// workspace ルート（`cli/` の親ディレクトリ）の絶対パスを返す。
+/// workspace ルート（`cli/` の親の親ディレクトリ）の絶対パスを返す。
 fn workspace_root() -> PathBuf {
     // このテストバイナリは `crates/cli/` 配下でビルドされるため、2 段の
     // 親ディレクトリを辿る（イシュー #436）。
@@ -59,92 +67,6 @@ fn read_bytes(path: &Path) -> Vec<u8> {
     std::fs::read(path).unwrap_or_else(|e| panic!("failed to read `{}`: {e}", path.display()))
 }
 
-// --- fandhe-frontend-core vendor drift ---
-
-const CORE_SRC_FILES: &[&str] = &[
-    "bind.rs",
-    "escape.rs",
-    "keyed.rs",
-    "lib.rs",
-    "tags.rs",
-    "url.rs",
-];
-
-#[test]
-fn vendored_fandhe_frontend_core_src_is_byte_identical_to_source_crate() {
-    let root = workspace_root();
-    for file in CORE_SRC_FILES {
-        let src = root.join("crates/core/src").join(file);
-        let vendored = root
-            .join("templates/app/vendor/fandhe-frontend-core/src")
-            .join(file);
-        assert_eq!(
-            read_bytes(&src),
-            read_bytes(&vendored),
-            "vendored fandhe-frontend-core/src/{file} has drifted from core/src/{file} \
-             (正本の変更を templates/app/vendor/fandhe-frontend-core/src/{file} へ手動同期すること)"
-        );
-    }
-}
-
-/// vendored `fandhe-frontend-core/Cargo.toml` は正本 `core/Cargo.toml` と `[dependencies]`
-/// セクションが空であること（外部依存ゼロ、REQ-3）が一致することを検証する。
-/// vendor 側は `[workspace]` を持たない（`cargo` の多重 workspace root
-/// エラーを避けるための既知の差分、`templates/app/vendor/fandhe-frontend-core/Cargo.toml`
-/// のコメント参照）ため、`[dependencies]` セクションの内容一致のみを比較する
-/// （行単位の完全一致は求めない。パッケージ名・description 等のメタデータは
-/// vendor 化に伴い変わり得るため）。
-#[test]
-fn vendored_fandhe_frontend_core_cargo_toml_has_no_external_dependencies() {
-    let root = workspace_root();
-    let vendored = read(&root.join("templates/app/vendor/fandhe-frontend-core/Cargo.toml"));
-    let deps_section = extract_section(&vendored, "[dependencies]");
-    assert!(
-        deps_section.trim().is_empty() || deps_section.trim().starts_with('['),
-        "templates/app/vendor/fandhe-frontend-core/Cargo.toml の [dependencies] は空である必要がある \
-         （REQ-3: core は外部依存ゼロを厳守）: section={deps_section:?}"
-    );
-}
-
-// --- fandhe-frontend-app vendor drift ---
-
-/// 正本 `app/src/` のうち vendor 同梱・`fw new --template app` 生成対象の
-/// ファイル一覧（イシュー #407 で `router.rs` / `routes.rs` を追加）。
-/// `CORE_SRC_FILES` と同様、ここに列挙されていないファイルは本テストの
-/// ドリフト検知対象外になる点に注意する。
-const APP_SRC_FILES: &[&str] = &["lib.rs", "router.rs", "routes.rs"];
-
-#[test]
-fn vendored_fandhe_frontend_app_src_is_byte_identical_to_source_crate() {
-    let root = workspace_root();
-    for file in APP_SRC_FILES {
-        let src = root.join("crates/app/src").join(file);
-        let vendored = root
-            .join("templates/app/vendor/fandhe-frontend-app/src")
-            .join(file);
-        assert_eq!(
-            read_bytes(&src),
-            read_bytes(&vendored),
-            "vendored fandhe-frontend-app/src/{file} has drifted from app/src/{file} \
-             (正本の変更を templates/app/vendor/fandhe-frontend-app/src/{file} へ手動同期すること)"
-        );
-    }
-}
-
-/// vendored `fandhe-frontend-app/Cargo.toml` の `fandhe-frontend-core` path 依存が
-/// vendor 配下の実ディレクトリ名（`../fandhe-frontend-core`）を指すこと
-/// （正本は `../core`、vendor 化に伴う既知の変換、実装計画 §3.2）を検証する。
-#[test]
-fn vendored_fandhe_frontend_app_cargo_toml_points_at_vendored_fandhe_frontend_core() {
-    let root = workspace_root();
-    let vendored = read(&root.join("templates/app/vendor/fandhe-frontend-app/Cargo.toml"));
-    assert!(
-        vendored.contains(r#"fandhe-frontend-core = { path = "../fandhe-frontend-core" }"#),
-        "templates/app/vendor/fandhe-frontend-app/Cargo.toml は vendor 配下の fandhe-frontend-core \
-         （../fandhe-frontend-core）を path 依存で参照する必要がある: {vendored:?}"
-    );
-}
-
 /// `[dependencies]` セクションの内容を抽出する（次の `[` で始まる行の直前まで）。
 /// 外部 TOML パーサは追加しない方針（cli の依存グラフを不必要に増やさない）
 /// ため、行ベースの単純な抽出に留める。
@@ -159,88 +81,104 @@ fn extract_section<'a>(toml: &'a str, header: &str) -> &'a str {
     }
 }
 
-// --- fandhe-frontend-interactive vendor drift（イシュー #411） ---
-
-#[test]
-fn vendored_fandhe_frontend_interactive_src_is_byte_identical_to_source_crate() {
-    let root = workspace_root();
-    let src = root.join("crates/interactive/src/lib.rs");
-    let vendored = root.join("templates/app/vendor/fandhe-frontend-interactive/src/lib.rs");
-    assert_eq!(
-        read_bytes(&src),
-        read_bytes(&vendored),
-        "vendored fandhe-frontend-interactive/src/lib.rs has drifted from interactive/src/lib.rs \
-         (正本の変更を templates/app/vendor/fandhe-frontend-interactive/src/lib.rs へ手動同期すること)"
-    );
-}
-
-/// vendored `fandhe-frontend-interactive/Cargo.toml` の `fandhe-frontend-core` path 依存が
-/// vendor 配下の実ディレクトリ名（`../fandhe-frontend-core`）を指すこと
-/// （正本は `../core`、vendor 化に伴う既知の変換）を検証する。
-#[test]
-fn vendored_fandhe_frontend_interactive_cargo_toml_points_at_vendored_fandhe_frontend_core() {
-    let root = workspace_root();
-    let vendored = read(&root.join("templates/app/vendor/fandhe-frontend-interactive/Cargo.toml"));
-    assert!(
-        vendored.contains(r#"fandhe-frontend-core = { path = "../fandhe-frontend-core" }"#),
-        "templates/app/vendor/fandhe-frontend-interactive/Cargo.toml は vendor 配下の fandhe-frontend-core \
-         （../fandhe-frontend-core）を path 依存で参照する必要がある: {vendored:?}"
-    );
-}
-
-// --- fandhe-frontend-wasm-client vendor drift（イシュー #411） ---
-
-const WASM_CLIENT_SRC_FILES: &[&str] = &[
-    "binding.rs",
-    "binding_dom.rs",
-    "keyed_diff.rs",
-    "keyed_dom.rs",
-    "lib.rs",
-    "registry.rs",
-];
-
-#[test]
-fn vendored_fandhe_frontend_wasm_client_src_is_byte_identical_to_source_crate() {
-    let root = workspace_root();
-    for file in WASM_CLIENT_SRC_FILES {
-        let src = root.join("crates/wasm-client/src").join(file);
-        let vendored = root
-            .join("templates/app/vendor/fandhe-frontend-wasm-client/src")
-            .join(file);
-        assert_eq!(
-            read_bytes(&src),
-            read_bytes(&vendored),
-            "vendored fandhe-frontend-wasm-client/src/{file} has drifted from wasm-client/src/{file} \
-             (正本の変更を templates/app/vendor/fandhe-frontend-wasm-client/src/{file} へ手動同期すること)"
-        );
+/// 正本 `Cargo.toml` の `[package]` セクションから `version` の値を抽出する。
+fn package_version(manifest_toml: &str) -> String {
+    let section = extract_section(manifest_toml, "[package]");
+    for line in section.lines() {
+        let trimmed = line.trim();
+        if let Some(rest) = trimmed.strip_prefix("version") {
+            let rest = rest.trim_start();
+            if let Some(rest) = rest.strip_prefix('=') {
+                let rest = rest.trim();
+                if let Some(v) = rest.strip_prefix('"').and_then(|s| s.strip_suffix('"')) {
+                    return v.to_string();
+                }
+            }
+        }
     }
+    panic!("`version` not found in [package] section: {section:?}");
 }
 
-/// vendored `fandhe-frontend-wasm-client/Cargo.toml` の path 依存が vendor 配下の
-/// 実ディレクトリ名（`../fandhe-frontend-core`・`../fandhe-frontend-app`・`../fandhe-frontend-interactive`）を
-/// 指すこと（正本は `../core`・`../app`・`../interactive`、vendor 化に伴う
-/// 既知の変換）と、`[dev-dependencies]` を持たないこと（実装計画 §2.3:
-/// fandhe-frontend-server への vendor 連鎖を断つ意図的な除去）を検証する。
+/// `manifest_toml` 内で `dep_name = "X.Y.Z"`（バージョン文字列の直接指定）
+/// として宣言された依存のバージョンを返す。
+///
+/// `{ path = "..." }` のようなテーブル形式（path 依存・vendor 同梱の典型的な
+/// 書き方）は本関数のパターンにマッチしないため、path 依存が再導入された
+/// 場合はここで panic し fail-closed に検知する（vendor 同梱の再発防止）。
+fn version_dependency(manifest_toml: &str, dep_name: &str) -> String {
+    let prefix = format!("{dep_name} = \"");
+    for line in manifest_toml.lines() {
+        let trimmed = line.trim();
+        if let Some(rest) = trimmed.strip_prefix(prefix.as_str()) {
+            if let Some(end) = rest.find('"') {
+                return rest[..end].to_string();
+            }
+        }
+    }
+    panic!(
+        "`{dep_name}` はバージョン文字列依存（`{dep_name} = \"X.Y.Z\"`）として \
+         宣言されている必要がある（path 依存・vendor 同梱への回帰の可能性）: \
+         {manifest_toml:?}"
+    );
+}
+
+// --- templates/app のバージョン依存整合性（イシュー #412） ---
+
 #[test]
-fn vendored_fandhe_frontend_wasm_client_cargo_toml_points_at_vendored_paths_and_has_no_dev_dependencies(
-) {
+fn templates_app_cargo_toml_declares_version_dependency_matching_source_crates() {
     let root = workspace_root();
-    let vendored = read(&root.join("templates/app/vendor/fandhe-frontend-wasm-client/Cargo.toml"));
-    for expected in [
-        r#"fandhe-frontend-core = { path = "../fandhe-frontend-core" }"#,
-        r#"fandhe-frontend-app = { path = "../fandhe-frontend-app" }"#,
-        r#"fandhe-frontend-interactive = { path = "../fandhe-frontend-interactive" }"#,
+    let app_manifest = read(&root.join("templates/app/Cargo.toml"));
+
+    for (dep_name, source_manifest_rel) in [
+        ("fandhe-frontend-core", "crates/core/Cargo.toml"),
+        ("fandhe-frontend-app", "crates/app/Cargo.toml"),
     ] {
-        assert!(
-            vendored.contains(expected),
-            "templates/app/vendor/fandhe-frontend-wasm-client/Cargo.toml must contain `{expected}`: {vendored:?}"
+        let source_manifest = read(&root.join(source_manifest_rel));
+        let expected_version = package_version(&source_manifest);
+        let declared_version = version_dependency(&app_manifest, dep_name);
+        assert_eq!(
+            declared_version, expected_version,
+            "templates/app/Cargo.toml の `{dep_name}` バージョン依存が正本 \
+             {source_manifest_rel} の version（{expected_version}）と乖離している \
+             （正本のバージョンアップをテンプレートへ反映すること）"
         );
     }
-    assert!(
-        !vendored.contains("[dev-dependencies]"),
-        "templates/app/vendor/fandhe-frontend-wasm-client/Cargo.toml must not declare [dev-dependencies] \
-         (dev-dependencies pulls in fandhe-frontend-server, breaking the vendor scope, 実装計画 §2.3): {vendored:?}"
+}
+
+#[test]
+fn templates_app_wasm_cargo_toml_declares_version_dependency_matching_source_crate() {
+    let root = workspace_root();
+    let wasm_manifest = read(&root.join("templates/app/wasm/Cargo.toml"));
+    let source_manifest = read(&root.join("crates/wasm-client/Cargo.toml"));
+    let expected_version = package_version(&source_manifest);
+    let declared_version = version_dependency(&wasm_manifest, "fandhe-frontend-wasm-client");
+    assert_eq!(
+        declared_version, expected_version,
+        "templates/app/wasm/Cargo.toml の `fandhe-frontend-wasm-client` バージョン \
+         依存が正本 crates/wasm-client/Cargo.toml の version（{expected_version}）と \
+         乖離している（正本のバージョンアップをテンプレートへ反映すること）"
     );
+}
+
+/// `templates/*/vendor/` ディレクトリが存在しないことを検証する
+/// （vendor 同梱（イシュー #378）から crates.io バージョン依存（イシュー #412）
+/// への切替が完了した状態を固定し、vendor 同梱の再発を防止する）。
+#[test]
+fn no_template_vendors_local_crate_sources() {
+    let root = workspace_root();
+    let templates_root = root.join("templates");
+    let template_dirs = std::fs::read_dir(&templates_root)
+        .unwrap_or_else(|e| panic!("failed to read {}: {e}", templates_root.display()));
+    for entry in template_dirs.flatten() {
+        let vendor_dir = entry.path().join("vendor");
+        assert!(
+            !vendor_dir.exists(),
+            "{} が存在する。テンプレートはフレームワーク側クレートを vendor \
+             同梱せず、crates.io バージョン依存を使う方針（イシュー #412、\
+             docs/design/template-vendor-to-version-switch.md）",
+            vendor_dir.display()
+        );
+    }
 }
 
 // --- wasm/Cargo.lock の wasm-bindgen / web-sys バージョン整合（イシュー #411） ---
@@ -256,8 +194,8 @@ fn wasm_lockfile_wasm_bindgen_version_matches_repo_root_lockfile() {
     let wasm_lock = read(&root.join("templates/app/wasm/Cargo.lock"));
 
     for pkg in ["wasm-bindgen", "web-sys"] {
-        let repo_version = package_version(&repo_lock, pkg);
-        let wasm_version = package_version(&wasm_lock, pkg);
+        let repo_version = package_lockfile_version(&repo_lock, pkg);
+        let wasm_version = package_lockfile_version(&wasm_lock, pkg);
         assert_eq!(
             repo_version, wasm_version,
             "templates/app/wasm/Cargo.lock の `{pkg}` バージョンがリポジトリ本体 Cargo.lock \
@@ -269,7 +207,7 @@ fn wasm_lockfile_wasm_bindgen_version_matches_repo_root_lockfile() {
 
 /// `Cargo.lock` 内の `[[package]] name = "<pkg>"` に対応する `version` を
 /// 抽出する（外部 TOML パーサは追加しない方針、行ベースの単純な抽出）。
-fn package_version(lockfile: &str, pkg: &str) -> String {
+fn package_lockfile_version(lockfile: &str, pkg: &str) -> String {
     let marker = format!("name = \"{pkg}\"\n");
     let start = lockfile
         .find(&marker)
@@ -313,129 +251,6 @@ fn default_and_app_templates_share_identical_bytes_for_common_files() {
             "templates/default/{rel} と templates/app/{rel} はバイト単位で \
              一致する契約（イシュー #378 実装計画 §3.3）。一方だけを変更した \
              場合は他方にも反映すること"
-        );
-    }
-}
-
-// --- vendor 同梱 → バージョン依存への切替トリガー検知（イシュー #412） ---
-//
-// fandhe-frontend-core / fandhe-frontend-app は `publish = false`（crates.io 未公開）を根拠に vendor
-// 同梱を採用している（§3a、`docs/design/fw-new-design.md`）。この根拠が
-// 消える（= 正本 Cargo.toml から `publish = false` が解除される）ことは
-// crates.io 公開の準備・実施を意味し、テンプレートを vendor 同梱から
-// バージョン依存へ切り替えるべきタイミングであることの代理指標になる。
-// 本テストは crates.io の公開状態そのものへネットワーク問い合わせを行わず
-// （オフライン決定性維持）、リポジトリ内で完結するこの代理指標を機械検知し、
-// トリガー成立を「手動同期・人の記憶」に頼らず CI で強制する。
-
-/// vendor されるクレート名 → 正本 `Cargo.toml` の相対パス対応表。
-///
-/// **fail-closed 契約**: この対応表に未登録のクレートが `templates/*/vendor/`
-/// 配下に見つかった場合、本テストは（トリガー検知ではなく）「対応表の
-/// 更新漏れ」として失敗する（`vendored_crates_not_covered_by_known_map`）。
-/// 新規テンプレートが vendor 対象クレートを追加する場合は、ここへの追記を
-/// 併せて行うこと（監視対象からの漏れを防ぐ）。
-const VENDORED_CRATE_SOURCE_MANIFESTS: &[(&str, &str)] = &[
-    ("fandhe-frontend-core", "crates/core/Cargo.toml"),
-    ("fandhe-frontend-app", "crates/app/Cargo.toml"),
-    // イシュー #411（PR #428）で app テンプレートへ追加された vendor クレート。
-    // いずれも正本は publish = false（crates.io 未公開）であり、canary の
-    // 監視対象に含める。
-    (
-        "fandhe-frontend-interactive",
-        "crates/interactive/Cargo.toml",
-    ),
-    (
-        "fandhe-frontend-wasm-client",
-        "crates/wasm-client/Cargo.toml",
-    ),
-];
-
-/// `templates/` 配下の全テンプレートを走査し、`<template>/vendor/<crate>/`
-/// の形で vendor 同梱されているクレート名の集合を返す（特定テンプレート名の
-/// ハードコードを避け、他イシューでの新規テンプレート追加によるマージ順序
-/// 依存を避ける）。
-fn discover_vendored_crate_names(templates_root: &Path) -> BTreeSet<String> {
-    let mut names = BTreeSet::new();
-    // fail-closed 契約の維持: templates/ 自体が読めない場合に空集合を返すと
-    // `vendored_crates_not_covered_by_known_map` が何も走査せず PASS してしまう
-    // （監視の空振り）。IO エラーはテスト失敗として顕在化させる。
-    let template_dirs = std::fs::read_dir(templates_root)
-        .unwrap_or_else(|e| panic!("failed to read {}: {e}", templates_root.display()));
-    for template_dir in template_dirs.flatten() {
-        let vendor_dir = template_dir.path().join("vendor");
-        // vendor/ を持たないテンプレートは正常（スキップ）。存在するのに
-        // 読めない場合は上と同じく fail-closed でテスト失敗にする。
-        if !vendor_dir.is_dir() {
-            continue;
-        }
-        let crate_dirs = std::fs::read_dir(&vendor_dir)
-            .unwrap_or_else(|e| panic!("failed to read {}: {e}", vendor_dir.display()));
-        for crate_dir in crate_dirs.flatten() {
-            if crate_dir.path().is_dir() {
-                if let Some(name) = crate_dir.file_name().to_str() {
-                    names.insert(name.to_string());
-                }
-            }
-        }
-    }
-    names
-}
-
-/// 非コメント行として `publish = false` を含むかどうかを判定する。
-///
-/// 誤 FAIL（trigger を見逃す）より誤 PASS（トリガー成立を見逃す）を避ける
-/// 方が安全という判断（実装計画 §8）から、行頭が `#` のコメント行のみを
-/// 除外する単純な判定に留める（外部 TOML パーサは追加しない、REQ-3）。
-fn has_publish_false_line(toml: &str) -> bool {
-    toml.lines().any(|line| {
-        let trimmed = line.trim();
-        !trimmed.starts_with('#') && trimmed == "publish = false"
-    })
-}
-
-/// `templates/*/vendor/` に現れる vendor クレートが、すべて
-/// `VENDORED_CRATE_SOURCE_MANIFESTS` に登録済みであることを検証する
-/// （fail-closed: 未登録クレートの vendor 化を黙って見逃さない）。
-#[test]
-fn vendored_crates_not_covered_by_known_map() {
-    let root = workspace_root();
-    let discovered = discover_vendored_crate_names(&root.join("templates"));
-    let known: BTreeSet<&str> = VENDORED_CRATE_SOURCE_MANIFESTS
-        .iter()
-        .map(|(name, _)| *name)
-        .collect();
-    let unknown: Vec<&String> = discovered
-        .iter()
-        .filter(|name| !known.contains(name.as_str()))
-        .collect();
-    assert!(
-        unknown.is_empty(),
-        "templates/*/vendor/ に未登録の vendor クレートが見つかった: {unknown:?}。 \
-         cli/tests/template_vendor_drift.rs の VENDORED_CRATE_SOURCE_MANIFESTS へ \
-         対応する正本 Cargo.toml のパスを追記すること（イシュー #412 の \
-         canary 監視対象から漏らさないため）"
-    );
-}
-
-/// vendor 同梱の根拠（`publish = false`）が正本側で維持されていることを
-/// 検証する canary テスト。FAIL した場合はトリガー成立（crates.io 公開の
-/// 準備・実施）を意味する。
-#[test]
-fn vendor_to_version_switch_trigger_has_not_fired() {
-    let root = workspace_root();
-    for (crate_name, manifest_rel) in VENDORED_CRATE_SOURCE_MANIFESTS {
-        let manifest_path = root.join(manifest_rel);
-        let manifest = read(&manifest_path);
-        assert!(
-            has_publish_false_line(&manifest),
-            "{manifest_rel}（{crate_name} の正本）から `publish = false` が \
-             解除されている。これは crates.io 公開の準備が整った（= vendor \
-             同梱 → バージョン依存への切替トリガーが成立した）ことを意味する。 \
-             `docs/design/template-vendor-to-version-switch.md`（イシュー #412）の \
-             切替手順に従い、テンプレートをバージョン依存へ切り替えてから \
-             本テスト（および同ファイルの vendor drift テスト群）を更新する \
-             こと"
         );
     }
 }

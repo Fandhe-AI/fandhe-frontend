@@ -4,13 +4,33 @@
 //!
 //! `fw` は単一実行ファイル配布（Docker 想定）を目標とするため、実行時に
 //! `templates/<name>/` のファイルシステム配置へ依存させず、`include_str!`
-//! でバイナリへ埋め込む。正本は引き続き `templates/<name>/`（`default` は
-//! `xtask/tests/template_*.rs`、`app` は
-//! `cli/tests/template_vendor_drift.rs` が正本として参照する）であり、
-//! 本ファイルはその写しにすぎない。両者の乖離は `cli/tests/new_e2e.rs` の
-//! ドリフト検知テストが `templates/<name>/` を再帰走査して機械的に検出する
-//! （手動同期に頼らない。`.claude/rules/ci.md` の cargo-deny pin ドリフト検知と
-//! 同じ運用方針）。
+//! でバイナリへ埋め込む。正本は引き続きリポジトリルート `templates/<name>/`
+//! であり、ルート `templates/<name>/` と `crates/cli/templates/<name>/`
+//! 同梱コピーの乖離検知は `cli/tests/template_publish_copy_drift.rs` が担う
+//! （`app` テンプレート固有のバージョン依存整合性・共有ファイル同一性は
+//! `cli/tests/template_vendor_drift.rs`、`default` は `xtask/tests/template_*.rs`
+//! が別途検証する）。
+//!
+//! `include_str!` はクレートディレクトリ外を参照できない（`cargo package` の
+//! tarball 検証で拒否される）ため、本クレートは `crates/cli/templates/` に
+//! 正本のバイト単位同梱コピーを置き、そちらを参照する
+//! （`templates/default/tools/npm-asset-build/` が `tools/npm-asset-build/` の
+//! 同梱コピーであるのと同じ「正本 + 同梱コピー + ドリフト検知テスト」運用、
+//! イシュー #316）。ルート `templates/<name>/` と `crates/cli/templates/<name>/`
+//! の乖離は `cli/tests/template_publish_copy_drift.rs` が両ディレクトリを
+//! 再帰走査してバイト単位比較し機械的に検出する（手動同期に頼らない。
+//! `.claude/rules/ci.md` の cargo-deny pin ドリフト検知と同じ運用方針）。
+//!
+//! `crates/cli/templates/` 配下の `Cargo.toml` は `Cargo.toml.embed` に
+//! リネームしてコピーする。`cargo package` はサブディレクトリに
+//! `Cargo.toml` が存在すると、それをネストした別パッケージとみなし
+//! `include`/`exclude` の指定に関わらずファイル列挙から機械的に除外する
+//! ため（cargo の既知の仕様）、元ファイル名のままでは同梱できない。内容は
+//! 正本 `templates/<name>/(.../)?Cargo.toml` とバイト単位で同一であり、
+//! `template_publish_copy_drift.rs` が拡張子差異を許容した上で内容一致を
+//! 検証する。`fw new` が生成するプロジェクトへの書き出しファイル名
+//! （`rel_path`）は `Cargo.toml` のまま変わらない（[`TemplateFile::rel_path`]
+//! 参照）。
 //!
 //! `new.rs::run_new` から呼ばれ、[`Template::files`] の配列順（固定）で
 //! 展開することが決定性（同一入力 → バイト単位で同一出力）を担保する。
@@ -67,307 +87,189 @@ pub(crate) const DEFAULT_TEMPLATE_NAME: &str = "default";
 const DEFAULT_TEMPLATE_FILES: &[TemplateFile] = &[
     TemplateFile {
         rel_path: ".github/workflows/deny.yml",
-        contents: include_str!("../../../templates/default/.github/workflows/deny.yml"),
+        contents: include_str!("../templates/default/.github/workflows/deny.yml"),
         executable: false,
     },
     TemplateFile {
         rel_path: ".github/workflows/npm-asset-gate.yml",
-        contents: include_str!("../../../templates/default/.github/workflows/npm-asset-gate.yml"),
+        contents: include_str!("../templates/default/.github/workflows/npm-asset-gate.yml"),
         executable: false,
     },
     TemplateFile {
         rel_path: "Cargo.lock",
-        contents: include_str!("../../../templates/default/Cargo.lock"),
+        contents: include_str!("../templates/default/Cargo.lock"),
         executable: false,
     },
     TemplateFile {
         rel_path: "Cargo.toml",
-        contents: include_str!("../../../templates/default/Cargo.toml"),
+        contents: include_str!("../templates/default/Cargo.toml.embed"),
         executable: false,
     },
     TemplateFile {
         rel_path: "README.md",
-        contents: include_str!("../../../templates/default/README.md"),
+        contents: include_str!("../templates/default/README.md"),
         executable: false,
     },
     TemplateFile {
         rel_path: "clippy.toml",
-        contents: include_str!("../../../templates/default/clippy.toml"),
+        contents: include_str!("../templates/default/clippy.toml"),
         executable: false,
     },
     TemplateFile {
         rel_path: "deny.toml",
-        contents: include_str!("../../../templates/default/deny.toml"),
+        contents: include_str!("../templates/default/deny.toml"),
         executable: false,
     },
     TemplateFile {
         rel_path: "src/main.rs",
-        contents: include_str!("../../../templates/default/src/main.rs"),
+        contents: include_str!("../templates/default/src/main.rs"),
         executable: false,
     },
     TemplateFile {
         rel_path: "structure.toml",
-        contents: include_str!("../../../templates/default/structure.toml"),
+        contents: include_str!("../templates/default/structure.toml"),
         executable: false,
     },
     TemplateFile {
         rel_path: "tests/negative_type_error.rs",
-        contents: include_str!("../../../templates/default/tests/negative_type_error.rs"),
+        contents: include_str!("../templates/default/tests/negative_type_error.rs"),
         executable: false,
     },
     TemplateFile {
         rel_path: "tools/npm-asset-build/allowlist.toml",
-        contents: include_str!("../../../templates/default/tools/npm-asset-build/allowlist.toml"),
+        contents: include_str!("../templates/default/tools/npm-asset-build/allowlist.toml"),
         executable: false,
     },
     TemplateFile {
         rel_path: "tools/npm-asset-build/apply_exempt.py",
-        contents: include_str!("../../../templates/default/tools/npm-asset-build/apply_exempt.py"),
+        contents: include_str!("../templates/default/tools/npm-asset-build/apply_exempt.py"),
         executable: true,
     },
     TemplateFile {
         rel_path: "tools/npm-asset-build/check_static_only.py",
-        contents: include_str!(
-            "../../../templates/default/tools/npm-asset-build/check_static_only.py"
-        ),
+        contents: include_str!("../templates/default/tools/npm-asset-build/check_static_only.py"),
         executable: true,
     },
     TemplateFile {
         rel_path: "tools/npm-asset-build/install.sh",
-        contents: include_str!("../../../templates/default/tools/npm-asset-build/install.sh"),
+        contents: include_str!("../templates/default/tools/npm-asset-build/install.sh"),
         executable: true,
     },
 ];
 
-/// `templates/app/` の全ファイル（35 件）を埋め込んだ固定配列（イシュー #378、
-/// イシュー #411 で wasm ビルド込み CSR 完全実体を追加）。
+/// `templates/app/` の全ファイル（18 件）を埋め込んだ固定配列（イシュー #378、
+/// イシュー #411 で wasm ビルド込み CSR 完全実体を追加、イシュー #412 で
+/// vendor 同梱から crates.io バージョン依存へ切替）。
 ///
-/// fandhe-frontend-core / fandhe-frontend-app（vendor 同梱、`vendor/fandhe-frontend-core` / `vendor/fandhe-frontend-app`）に
+/// fandhe-frontend-core / fandhe-frontend-app（crates.io バージョン依存）に
 /// 依存する拡張テンプレート。`Loader` trait 実装・束縛点 API
 /// （`bind_text`/`keyed_list`）・`fandhe_frontend_core::render` を使う実体サンプルを含む
 /// （`templates/app/src/main.rs`）。`.github/workflows/*`・`clippy.toml`・
 /// `deny.toml`・`tools/npm-asset-build/*` は `templates/default/` と共有
 /// ファイル同一性を保つ（`cli/tests/template_vendor_drift.rs` が検証）。
 ///
-/// イシュー #411: `vendor/fandhe-frontend-interactive` / `vendor/fandhe-frontend-wasm-client`（正本
-/// `interactive/` / `wasm-client/` の vendor 同梱）と、独立ワークスペース
-/// `wasm/`（glue クレート `app-csr-wasm`）・`tools/wasm/build.sh`（wasm ビルド
-/// 手順）を追加し、生成プロジェクトが自力で CSR（`mount_csr`/`hydrate`）の
-/// wasm 成果物をビルドできる完全実体を同梱する（root（`fandhe-frontend-template-app`）の
-/// 依存グラフ・`fw gate` 対象は不変、実装計画 §2.2 参照）。
+/// イシュー #411: fandhe-frontend-interactive / fandhe-frontend-wasm-client
+/// （crates.io バージョン依存、正本は `interactive/` / `wasm-client/`）に
+/// 依存する独立ワークスペース `wasm/`（glue クレート `app-csr-wasm`）・
+/// `tools/wasm/build.sh`（wasm ビルド手順）を追加し、生成プロジェクトが
+/// 自力で CSR（`mount_csr`/`hydrate`）の wasm 成果物をビルドできる完全実体を
+/// 同梱する（root（`fandhe-frontend-template-app`）の依存グラフ・`fw gate`
+/// 対象は不変、実装計画 §2.2 参照）。イシュー #412（vendor 同梱 → バージョン
+/// 依存への切替）により、root・wasm/ いずれも自前のクレートソースを持たなく
+/// なった（`crates.io` から取得）。
 const APP_TEMPLATE_FILES: &[TemplateFile] = &[
     TemplateFile {
         rel_path: ".github/workflows/deny.yml",
-        contents: include_str!("../../../templates/app/.github/workflows/deny.yml"),
+        contents: include_str!("../templates/app/.github/workflows/deny.yml"),
         executable: false,
     },
     TemplateFile {
         rel_path: ".github/workflows/npm-asset-gate.yml",
-        contents: include_str!("../../../templates/app/.github/workflows/npm-asset-gate.yml"),
+        contents: include_str!("../templates/app/.github/workflows/npm-asset-gate.yml"),
         executable: false,
     },
     TemplateFile {
         rel_path: "Cargo.lock",
-        contents: include_str!("../../../templates/app/Cargo.lock"),
+        contents: include_str!("../templates/app/Cargo.lock"),
         executable: false,
     },
     TemplateFile {
         rel_path: "Cargo.toml",
-        contents: include_str!("../../../templates/app/Cargo.toml"),
+        contents: include_str!("../templates/app/Cargo.toml.embed"),
         executable: false,
     },
     TemplateFile {
         rel_path: "clippy.toml",
-        contents: include_str!("../../../templates/app/clippy.toml"),
+        contents: include_str!("../templates/app/clippy.toml"),
         executable: false,
     },
     TemplateFile {
         rel_path: "deny.toml",
-        contents: include_str!("../../../templates/app/deny.toml"),
+        contents: include_str!("../templates/app/deny.toml"),
         executable: false,
     },
     TemplateFile {
         rel_path: "src/main.rs",
-        contents: include_str!("../../../templates/app/src/main.rs"),
+        contents: include_str!("../templates/app/src/main.rs"),
         executable: false,
     },
     TemplateFile {
         rel_path: "static/embed.html",
-        contents: include_str!("../../../templates/app/static/embed.html"),
+        contents: include_str!("../templates/app/static/embed.html"),
         executable: false,
     },
     TemplateFile {
         rel_path: "structure.toml",
-        contents: include_str!("../../../templates/app/structure.toml"),
+        contents: include_str!("../templates/app/structure.toml"),
         executable: false,
     },
     TemplateFile {
         rel_path: "tests/escape_regression.rs",
-        contents: include_str!("../../../templates/app/tests/escape_regression.rs"),
+        contents: include_str!("../templates/app/tests/escape_regression.rs"),
         executable: false,
     },
     TemplateFile {
         rel_path: "tools/npm-asset-build/allowlist.toml",
-        contents: include_str!("../../../templates/app/tools/npm-asset-build/allowlist.toml"),
+        contents: include_str!("../templates/app/tools/npm-asset-build/allowlist.toml"),
         executable: false,
     },
     TemplateFile {
         rel_path: "tools/npm-asset-build/apply_exempt.py",
-        contents: include_str!("../../../templates/app/tools/npm-asset-build/apply_exempt.py"),
+        contents: include_str!("../templates/app/tools/npm-asset-build/apply_exempt.py"),
         executable: true,
     },
     TemplateFile {
         rel_path: "tools/npm-asset-build/check_static_only.py",
-        contents: include_str!("../../../templates/app/tools/npm-asset-build/check_static_only.py"),
+        contents: include_str!("../templates/app/tools/npm-asset-build/check_static_only.py"),
         executable: true,
     },
     TemplateFile {
         rel_path: "tools/npm-asset-build/install.sh",
-        contents: include_str!("../../../templates/app/tools/npm-asset-build/install.sh"),
+        contents: include_str!("../templates/app/tools/npm-asset-build/install.sh"),
         executable: true,
     },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-app/Cargo.toml",
-        contents: include_str!("../../../templates/app/vendor/fandhe-frontend-app/Cargo.toml"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-app/src/lib.rs",
-        contents: include_str!("../../../templates/app/vendor/fandhe-frontend-app/src/lib.rs"),
-        executable: false,
-    },
-    // イシュー #407: server / client 単一定義からのルート生成（共有機構）を
-    // fandhe-frontend-app へ集約したため、router.rs / routes.rs も vendor 同梱する。
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-app/src/router.rs",
-        contents: include_str!("../../../templates/app/vendor/fandhe-frontend-app/src/router.rs"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-app/src/routes.rs",
-        contents: include_str!("../../../templates/app/vendor/fandhe-frontend-app/src/routes.rs"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-core/Cargo.toml",
-        contents: include_str!("../../../templates/app/vendor/fandhe-frontend-core/Cargo.toml"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-core/src/bind.rs",
-        contents: include_str!("../../../templates/app/vendor/fandhe-frontend-core/src/bind.rs"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-core/src/escape.rs",
-        contents: include_str!("../../../templates/app/vendor/fandhe-frontend-core/src/escape.rs"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-core/src/keyed.rs",
-        contents: include_str!("../../../templates/app/vendor/fandhe-frontend-core/src/keyed.rs"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-core/src/lib.rs",
-        contents: include_str!("../../../templates/app/vendor/fandhe-frontend-core/src/lib.rs"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-core/src/tags.rs",
-        contents: include_str!("../../../templates/app/vendor/fandhe-frontend-core/src/tags.rs"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-core/src/url.rs",
-        contents: include_str!("../../../templates/app/vendor/fandhe-frontend-core/src/url.rs"),
-        executable: false,
-    },
     // イシュー #411: CSR wasm ビルド込みの完全実体。fandhe-frontend-interactive /
-    // fandhe-frontend-wasm-client の vendor 同梱（正本は interactive/ / wasm-client/）と、
-    // それらをビルドする独立ワークスペース wasm/・手順スクリプト
+    // fandhe-frontend-wasm-client（crates.io バージョン依存、イシュー #412 で
+    // vendor 同梱から切替）をビルドする独立ワークスペース wasm/・手順スクリプト
     // tools/wasm/build.sh を追加する（実装計画 §2.2・§2.3）。
     TemplateFile {
-        rel_path: "vendor/fandhe-frontend-interactive/Cargo.toml",
-        contents: include_str!(
-            "../../../templates/app/vendor/fandhe-frontend-interactive/Cargo.toml"
-        ),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-interactive/src/lib.rs",
-        contents: include_str!(
-            "../../../templates/app/vendor/fandhe-frontend-interactive/src/lib.rs"
-        ),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-wasm-client/Cargo.toml",
-        contents: include_str!(
-            "../../../templates/app/vendor/fandhe-frontend-wasm-client/Cargo.toml"
-        ),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-wasm-client/src/binding.rs",
-        contents: include_str!(
-            "../../../templates/app/vendor/fandhe-frontend-wasm-client/src/binding.rs"
-        ),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-wasm-client/src/binding_dom.rs",
-        contents: include_str!(
-            "../../../templates/app/vendor/fandhe-frontend-wasm-client/src/binding_dom.rs"
-        ),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-wasm-client/src/keyed_diff.rs",
-        contents: include_str!(
-            "../../../templates/app/vendor/fandhe-frontend-wasm-client/src/keyed_diff.rs"
-        ),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-wasm-client/src/keyed_dom.rs",
-        contents: include_str!(
-            "../../../templates/app/vendor/fandhe-frontend-wasm-client/src/keyed_dom.rs"
-        ),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-wasm-client/src/lib.rs",
-        contents: include_str!(
-            "../../../templates/app/vendor/fandhe-frontend-wasm-client/src/lib.rs"
-        ),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-wasm-client/src/registry.rs",
-        contents: include_str!(
-            "../../../templates/app/vendor/fandhe-frontend-wasm-client/src/registry.rs"
-        ),
-        executable: false,
-    },
-    TemplateFile {
         rel_path: "wasm/Cargo.lock",
-        contents: include_str!("../../../templates/app/wasm/Cargo.lock"),
+        contents: include_str!("../templates/app/wasm/Cargo.lock"),
         executable: false,
     },
     TemplateFile {
         rel_path: "wasm/Cargo.toml",
-        contents: include_str!("../../../templates/app/wasm/Cargo.toml"),
+        contents: include_str!("../templates/app/wasm/Cargo.toml.embed"),
         executable: false,
     },
     TemplateFile {
         rel_path: "wasm/src/lib.rs",
-        contents: include_str!("../../../templates/app/wasm/src/lib.rs"),
+        contents: include_str!("../templates/app/wasm/src/lib.rs"),
         executable: false,
     },
     TemplateFile {
         rel_path: "tools/wasm/build.sh",
-        contents: include_str!("../../../templates/app/tools/wasm/build.sh"),
+        contents: include_str!("../templates/app/tools/wasm/build.sh"),
         executable: true,
     },
 ];
@@ -385,12 +287,12 @@ const APP_TEMPLATE_FILES: &[TemplateFile] = &[
 const EMBED_TEMPLATE_FILES: &[TemplateFile] = &[
     TemplateFile {
         rel_path: "embed.html",
-        contents: include_str!("../../../templates/embed/embed.html"),
+        contents: include_str!("../templates/embed/embed.html"),
         executable: false,
     },
     TemplateFile {
         rel_path: "structure.toml",
-        contents: include_str!("../../../templates/embed/structure.toml"),
+        contents: include_str!("../templates/embed/structure.toml"),
         executable: false,
     },
 ];

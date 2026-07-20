@@ -266,8 +266,9 @@ A05）。JSON 契約（`checks[].name`/`passed`/`output` の形状、PoC-7 互�
 `disallowed-methods` による `web_sys::Element::set_attribute` の主防御化
 （`raw_html` と同じ 3 層体制への昇格）・`web_sys` の型付きセッター
 （`set_href`/`set_src` 等）や `insert_adjacent_html` 経路の検出・
-`fw new` テンプレート vendor 配下の弱体化検出（`template_vendor_drift.rs`
-が別途担保）は本イシューのスコープ外。
+`fw new` テンプレートの crates.io バージョン依存整合性検出
+（`crates/cli/tests/template_vendor_drift.rs` が `templates_app_cargo_toml_declares_version_dependency_matching_source_crates` 等で担保）は
+本イシューのスコープ外。
 
 ### 2.5 静的専用（asset-only）プロジェクトの判定（イシュー #410）
 

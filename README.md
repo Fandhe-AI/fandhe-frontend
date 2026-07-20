@@ -20,6 +20,29 @@ cargo run -p fandhe-frontend-docs-site -- --out dist/
 内蔵されており、リンク切れを検出した場合は非 0 終了します。コンテンツの正は
 `docs/guides/`・`docs/api/` 配下、サイト構成は `site/nav.toml` です。
 
+## インストール
+
+### CLI ツール
+
+`fw` コマンド（プロジェクト生成・検査ツール）は crates.io で公開されており、
+以下のコマンドで導入できます。
+
+```bash
+cargo install fandhe-frontend-cli
+```
+
+### ライブラリとして使う場合
+
+コア描画ライブラリやアプリ構築層などのクレートは個別に crates.io から利用できます。
+例えば、描画コアの `fandhe-frontend-core` を使う場合は以下のコマンドを実行してください。
+
+```bash
+cargo add fandhe-frontend-core
+```
+
+その他のクレート（`fandhe-frontend-app`・`fandhe-frontend-server` 等）も同様に
+追加・導入できます。詳細はドキュメントサイトの Getting Started を参照してください。
+
 ## 仕様
 
 仕様書（ブレスト〜PoC〜要件定義〜タスク分解〜ロードマップ）は [Fandhe-AI/fandhe-frontend-spec](https://github.com/Fandhe-AI/fandhe-frontend-spec) で管理し、`docs/spec/` にサブモジュールとして取り込んでいます。

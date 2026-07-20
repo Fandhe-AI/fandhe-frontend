@@ -1,0 +1,32 @@
+# `fw new`（イシュー #350）が展開する標準プロジェクトの構造マニフェスト
+# （REQ-13、`cli/src/structure.rs` のスキーマ v1）。
+#
+# `fw gate`（`cli/src/gate.rs::run_gate`）は本ファイルを唯一の情報源として
+# 検証対象クレートを決定するため、`fw new` 生成直後に `fw gate` を無編集で
+# PASS させるにはこのファイルの同梱が必須（イシュー #351）。下記
+# `[directories.root]` の `crate` の値（テンプレートのパッケージ名）は
+# `fw new` が `Cargo.toml` / `Cargo.lock` と同様にプロジェクト名へ置換する
+# 対象に含める（`cli/src/new.rs::SUBSTITUTED_FILES`）。
+#
+# ディレクトリ名 `root` について: 本テンプレートのクレートはプロジェクト
+# ルート直下（`src/`）に置かれる。`root` はスキーマ v1 の正式な予約名
+# （`cli/src/structure.rs::ROOT_DIR_KEY`、イシュー #353 で正式化）であり、
+# ディレクトリ名 → 実ファイルシステムパスの解決は `structure::dir_fs_path`
+# を単一の情報源とする（`root` は `<project>` 自身へ写像する）。`fw gate` の
+# `default_escape_check`（保険層、`cli/src/gate.rs::escape_check_src_dir`）・
+# `fw structure` のディレクトリ実在確認（`main.rs::run_structure`）・
+# `fw impact` の member 解決（`impact.rs::member_dir_name`）はいずれも
+# この単一情報源を参照するため、`<project>/root/...`（実在しないパス）を
+# 参照してスキップ・解析不能に陥ることはない。主防御である `lint` チェック
+# （`cargo clippy --all-targets -p <crate>`、`clippy.toml` の
+# `disallowed-methods` 経由で REQ-1 を検出）も クレートの配置ディレクトリに
+# 依存せず全ソースを検査するため、REQ-1 の検出保証は二重に保たれる。
+# 詳細は `docs/design/structure-manifest.md` §2.2 を参照。
+
+[manifest]
+version = 1
+
+[directories.root]
+role = "distribution"
+crate = "fandhe-frontend-template-default"
+description = "fw new が生成する単一バイナリプロジェクトの骨格（クレートはプロジェクトルート直下に配置）"
