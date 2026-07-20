@@ -39,6 +39,25 @@
 //! クローズ。Dockerfile ビルダーステージはこのオプトアウトを使う、TASK-10.3・
 //! イシュー #114 で Docker 内 WASM 再ビルドが統合されるまでの暫定措置）。
 //!
+//! # パッケージ単体ビルドでの WASM ステージ静的スキップ
+//!
+//! `cargo publish -p fandhe-frontend-dist-server`（tarball 検証を含む）・
+//! crates.io から取得した利用者の `cargo build` は、本クレートを
+//! `target/package/<name>-<version>/` のようなワークスペース外の一時
+//! ディレクトリへ単体展開してビルドする。この経路では `workspace_root`
+//! （`CARGO_MANIFEST_DIR` から機械的に 2 段上がった先）にワークスペース
+//! ルート Cargo.toml も `static/` も存在せず、Cargo.lock も読めないため、
+//! WASM ビルドステージ（バージョン整合検証・ネスト `cargo build`・
+//! `wasm-bindgen` 実行）は原理的に成立しない。
+//!
+//! [`workspace_detect::is_workspace_root`]（判定根拠はその関数の doc 参照）で
+//! この状態を構造的に検出し、非ワークスペース時は WASM ビルドステージ
+//! 全体を静かにスキップする（`FANDHE_FRONTEND_WASM_BUILD` の明示オプトアウト
+//! 時とは異なり `cargo:warning` は出さない — crates.io 利用者の通常ケースで
+//! あり、環境不備ではないため）。`wasm_assets_embedded` cfg は立たず、
+//! `assets.rs::lookup` は WASM 成果物なしの経路（既存の cfg 分岐）へ合流する。
+//! ワークスペース内ビルド（従来経路）の挙動・fail-closed 検証は一切変えない。
+//!
 //! # キャッシュ・再ビルド制御（TASK-10.2c、イシュー #111）
 //!
 //! ネスト `cargo build --target wasm32-unknown-unknown`（[`run_wasm_build`]）は
@@ -79,6 +98,12 @@ mod wasm_stage_cache;
 #[path = "src/wasm_build_gate.rs"]
 mod wasm_build_gate;
 
+// パッケージ単体ビルド（ワークスペース外）かどうかの構造的判定。
+// `wasm_stage_cache`・`wasm_build_gate` と同型のパターンでソースレベル共有する
+// （`src/workspace_detect.rs` 冒頭コメント参照）。
+#[path = "src/workspace_detect.rs"]
+mod workspace_detect;
+
 fn main() {
     // `CARGO_MANIFEST_DIR` は `crates/dist-server/` を指す。埋め込み対象の
     // `static/`（ワークスペースルート直下、クレートではないため移設対象外）や
@@ -115,7 +140,35 @@ fn main() {
     // 宣言だけは常に行う。
     println!("cargo::rustc-check-cfg=cfg(wasm_assets_embedded)");
 
-    if wasm_build_enabled() {
+    // パッケージ単体ビルド（ワークスペース外）の構造的判定。判定根拠は
+    // `workspace_detect::is_workspace_root` の doc コメント参照。
+    // 「非ワークスペース」への縮退はファイル不在（NotFound）のみを根拠とする。
+    // 権限エラー等の予期しない読み取り失敗まで静かに非ワークスペース扱いに
+    // すると、fail-closed であるべき WASM 検証ステージが気づかれずに欠落する
+    // ため、その場合はビルドを失敗させる。
+    let root_cargo_toml = match fs::read_to_string(workspace_root.join("Cargo.toml")) {
+        Ok(contents) => Some(contents),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => None,
+        Err(err) => panic!(
+            "failed to read the workspace root Cargo.toml (not a missing file): {}. \
+             Fix the file permissions or filesystem state and rebuild.",
+            err.kind()
+        ),
+    };
+    let dist_server_manifest_exists = workspace_root
+        .join("crates/dist-server/Cargo.toml")
+        .exists();
+    let in_workspace = workspace_detect::is_workspace_root(
+        root_cargo_toml.as_deref(),
+        dist_server_manifest_exists,
+    );
+
+    if !in_workspace {
+        // crates.io からの利用者ビルド・`cargo publish`/`cargo package` の
+        // tarball 検証の通常ケース。環境不備ではないため `cargo:warning` は
+        // 出さず静かにスキップする（冒頭ドキュメンテーションコメント参照）。
+        // `wasm_assets_embedded` cfg は立てない。
+    } else if wasm_build_enabled() {
         match run_wasm_stage(&workspace_root, &out_dir) {
             Ok(wasm_entries) => {
                 entries.extend(wasm_entries);

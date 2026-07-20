@@ -70,3 +70,9 @@ pub mod wasm_build_gate;
 /// API 面を汚さないよう `#[doc(hidden)]` とする。
 #[doc(hidden)]
 pub mod wasm_stage_cache;
+/// `build.rs` がワークスペース内ビルドかパッケージ単体ビルド（`cargo publish`
+/// の tarball 検証・crates.io 利用者ビルド等）かを判定する純粋関数。
+/// `wasm_build_gate`・`wasm_stage_cache` と同様に `build.rs` から `#[path]` で
+/// ソースレベル共有する（`src/workspace_detect.rs` 冒頭コメント参照）。
+#[doc(hidden)]
+pub mod workspace_detect;
