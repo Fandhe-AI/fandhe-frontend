@@ -24,7 +24,7 @@ version = 1
 role = "core"
 crate = "fandhe-frontend-core"
 description = "外部依存ゼロのレンダリングコア（ノード木 API・render・既定エスケープ）"
-allowed_dependents = ["interactive", "app", "server", "wasm-full", "wasm-thin", "wasm-client", "dist-server"]
+allowed_dependents = ["interactive", "app", "server", "wasm-full", "wasm-thin", "wasm-client", "dist-server", "docs-site"]
 path = "crates/core"
 
 [directories.interactive]
@@ -40,7 +40,7 @@ role = "component"
 crate = "fandhe-frontend-app"
 description = "モード非依存の共通コンポーネント（SSR/CSR/SSG から共通利用）。パスマッチングルーティング（router.rs）+ server/client 単一ルート定義（routes.rs、イシュー #407）も本クレートに集約する"
 depends_on = ["core"]
-allowed_dependents = ["server", "dist-server", "wasm-full", "wasm-client"]
+allowed_dependents = ["server", "dist-server", "wasm-full", "wasm-client", "docs-site"]
 path = "crates/app"
 
 [directories.server]
@@ -48,7 +48,7 @@ role = "server-entrypoint"
 crate = "fandhe-frontend-server"
 description = "SSR/SSG エントリ（ssr.rs/ssg.rs、TASK-6.1c）。ルーティングは fandhe-frontend-app::router / fandhe-frontend-app::routes（イシュー #407）を再エクスポート・参照する。fandhe-frontend-core/fandhe-frontend-app への依存は通常依存（path 依存のみ、外部クレート追加なし）"
 depends_on = ["core", "app"]
-allowed_dependents = ["dist-server"]
+allowed_dependents = ["dist-server", "docs-site"]
 path = "crates/server"
 
 [directories.wasm-client]
@@ -79,6 +79,13 @@ crate = "fandhe-frontend-dist-server"
 description = "単一実行ファイル配布サーバー（core/app/server を束ねる）"
 depends_on = ["core", "app", "server"]
 path = "crates/dist-server"
+
+[directories.docs-site]
+role = "tooling"
+crate = "fandhe-frontend-docs-site"
+description = "docs サイトジェネレータ（外部依存ゼロ・配布物に含めない開発者/CI 用ツール。イシュー #465/#458）"
+depends_on = ["core", "app", "server"]
+path = "crates/docs-site"
 
 [directories.static]
 role = "asset"

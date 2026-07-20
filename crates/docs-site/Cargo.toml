@@ -1,0 +1,26 @@
+[package]
+name = "fandhe-frontend-docs-site"
+version = "0.1.0"
+edition = "2021"
+description = "fandhe-frontend-docs-site: イシュー #465/#458。fandhe-frontend-core / fandhe-frontend-app / fandhe-frontend-server を用いて公式 docs サイトを自フレームワークの SSG で生成するジェネレータ（ドッグフーディング）。配布物には含めない開発者・CI 用ツール。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# REQ-3（依存グラフ上限 60 件/深さ 6, docs/spec/04-requirements.md）非影響の根拠:
+#
+# `.github/workflows/deps-check.yml` の check-deps は `--package fandhe-frontend-core
+# --package xtask --package fandhe-frontend-app --package fandhe-frontend-dist-server
+# --package fandhe-frontend-server` の明示列挙であり、本クレート
+# （fandhe-frontend-docs-site）は計測対象に含まれない。加えて依存は内部 path 依存
+# （core/app/server）のみで外部クレート・build.rs を一切追加しないため、既存の
+# 計測値（dist-server 実測: 21 件/深さ 5）にも影響しない（イシュー #465 実装計画）。
+[dependencies]
+fandhe-frontend-core = { path = "../core" }
+fandhe-frontend-app = { path = "../app" }
+fandhe-frontend-server = { path = "../server" }
+
+[dev-dependencies]
+
+[[bin]]
+name = "docs-site"
+path = "src/main.rs"
