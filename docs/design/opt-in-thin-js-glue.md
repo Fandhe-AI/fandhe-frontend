@@ -124,6 +124,14 @@ PoC-3 が定めた LOC ベースの操作的ルーブリック（0〜10 行 = �
 `fandhe-frontend-wasm-thin` を採用しても、JS の記述量が `fandhe-frontend-wasm-full` より少なくなる
 とは限らない点に注意してください（第 4.3 節「JS 実効行数の操作的定義」も参照）。
 
+#### 整合方針の確定（イシュー #452、2026-07-20）
+
+REQ-11 の受け入れ基準「アプリ側 JS グルーの実効行数が 10 行以内」は、**既定方式（`fandhe-frontend-wasm-full`）のアプリ側グルー**（`glue-full.js` 相当、実測 3 行）を対象とし、CI の LOC ゲート（REQ-8/REQ-11 glue JS effective LOC limit ジョブ）で既に PASS 済みです。
+
+一方、**オプトイン参考実装である `fandhe-frontend-wasm-thin` のグルーは、この「薄い」ルーブリックの適用対象外**とします。理由として、`wasm-thin` は「JS グルーが薄くなること」ではなく「WASM 側 API を最小化し JS 側に配線責務を移す」方式の参考実装であり、LOC 削減を保証する設計目標を持ちません。第 3.3 節の実測ズレ（16 行 > 10 行）は、この方式の性質そのものによるものです。
+
+仕様側（`docs/spec/`）への適用範囲の明示は、fandhe-frontend-spec リポジトリの Issue として別途起票します。
+
 ### 3.4 サプライチェーン誘因
 
 `fandhe-frontend-wasm-thin` 自体は `web-sys` にすら依存せず、依存面では最小です。しかし
