@@ -1,27 +1,33 @@
 /*
- * fandhe-frontend docs サイト共通スタイル（イシュー #472）。
+ * fandhe-frontend docs サイト共通スタイル（イシュー #472、CSS 契約修正 #488）。
  *
  * 役割・責務境界:
  *   docs サイトジェネレータ（crates/docs-site）が生成する全ページに読み込ませる
  *   プレーン CSS。外部リソース参照（CDN・Web フォント・リモート画像）を一切
  *   持たず、単一ファイルのみでレイアウト・タイポグラフィが完結する。
  *
- * クラス名契約（イシュー #469 layout.rs 実装者向け）:
- *   layout.rs が生成する HTML は、下記のクラス名・要素構造に従うことを前提とする。
- *   - body 直下 header.site-header  … ヘッダバー（サイトタイトル）
- *   - .site-layout                  … 2 カラムのグリッドコンテナ（header の下）
- *     - aside.site-sidebar          … サイドバーナビのラッパー（layout.rs が
- *       `nav::sidebar()`（`crates/docs-site/src/nav.rs`、イシュー #481）の
- *       戻り値をそのまま内側に配置する契約）
- *       - nav.sidebar               … `nav::sidebar()` の実出力。セクション
- *         見出しは素の `h2`、ページ列は `ul` > `li` > `a`（`.nav-section` /
- *         `.nav-section-title` のような専用クラスは付与されない）
- *       - a[aria-current="page"] / a.current … 現在ページのリンク
- *         （`nav::sidebar()` は両方を同時に付与する。強調表示）
- *     - main.site-main              … 本文カラム（Markdown レンダラの出力をそのまま置く）
- *       - .site-toc（任意）         … ページ内目次
- *   クラス名が万一ズレても崩れないよう、`header` / `nav` / `main` / `aside` の
- *   セマンティック要素セレクタを併用したベーススタイルも定義している。
+ * クラス名契約（`crates/docs-site/src/layout.rs` / `nav.rs` / `markdown.rs` の
+ * 実出力が正。ここに書かれたセレクタはすべて実際に生成される class 値であり、
+ * `crates/docs-site/tests/site_css_contract.rs` が両者の乖離を検知する）:
+ *
+ *   body
+ *     header.docs-header            … ヘッダバー（サイトタイトルへのリンク）
+ *     div.docs-container            … 2 カラムのグリッドコンテナ（header の下）
+ *       aside.docs-sidebar          … サイドバーのラッパー（`layout::docs_page`
+ *         が `nav::sidebar()`（`crates/docs-site/src/nav.rs`）の戻り値を
+ *         そのまま内側に配置する契約）
+ *         nav.sidebar               … `nav::sidebar()` の実出力。セクション
+ *           見出しは素の `h2`、ページ列は `ul` > `li` > `a`
+ *           （`.nav-section` 等の専用クラスは付与されない）
+ *           a[aria-current="page"] / a.current … 現在ページのリンク
+ *             （`nav::sidebar()` は両方を同時に付与する）
+ *       main.docs-main              … 本文カラムのラッパー
+ *         nav.docs-toc（任意・先頭）… ページ内目次。`li` に
+ *           `docs-toc-level-2` / `docs-toc-level-3` でネスト深さを表現する
+ *         article.docs-content      … Markdown レンダラの出力 + ページ内
+ *           `nav.prev-next`（`a.prev` / `a.next`）を内包する
+ *           - `pre > code.language-*` … フェンス付きコードブロック
+ *             （言語トークンが無効な場合 class 自体が付かない）
  *
  * 不変条件:
  *   - @import / @font-face / リモート url() を追加しない（外部参照ゼロを維持する）
@@ -29,28 +35,43 @@
  */
 
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
 
-  --site-color-bg: #ffffff;
-  --site-color-bg-subtle: #f6f7f9;
-  --site-color-text: #1a1f26;
-  --site-color-text-muted: #5b6472;
-  --site-color-border: #e2e5ea;
-  --site-color-accent: #2f6feb;
-  --site-color-accent-bg: #eaf1fd;
-  --site-color-code-bg: #f2f3f5;
+  --docs-color-bg: #ffffff;
+  --docs-color-bg-subtle: #f6f7f9;
+  --docs-color-bg-raised: #ffffff;
+  --docs-color-text: #1a1f26;
+  --docs-color-text-muted: #5b6472;
+  --docs-color-border: #e2e5ea;
+  --docs-color-accent: #4d5eff;
+  --docs-color-accent-bg: #eef0ff;
+  --docs-color-code-bg: #f2f3f5;
+  --docs-color-code-text: #1a1f26;
 
-  --site-font-sans: system-ui, -apple-system, "Segoe UI", "Hiragino Sans",
+  --docs-font-sans: system-ui, -apple-system, "Segoe UI", "Hiragino Sans",
     "Noto Sans CJK JP", "Yu Gothic", sans-serif;
-  --site-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas,
+  --docs-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas,
     "Liberation Mono", monospace;
 
-  --site-sidebar-width: 16rem;
-  --site-max-content-width: 44rem;
-  --site-header-height: 3.05rem;
+  --docs-sidebar-width: 16rem;
+  --docs-max-content-width: 46rem;
+  --docs-header-height: 3.25rem;
 }
 
-/* ライト基調固定。OS のダークモード設定に追従しない（計画書の明示指定）。 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --docs-color-bg: #0d1117;
+    --docs-color-bg-subtle: #131a22;
+    --docs-color-bg-raised: #161d26;
+    --docs-color-text: #e6edf3;
+    --docs-color-text-muted: #8b96a5;
+    --docs-color-border: #24303c;
+    --docs-color-accent: #8d9bff;
+    --docs-color-accent-bg: #1c2233;
+    --docs-color-code-bg: #131a22;
+    --docs-color-code-text: #e6edf3;
+  }
+}
 
 *,
 *::before,
@@ -58,51 +79,47 @@
   box-sizing: border-box;
 }
 
+html {
+  color-scheme: light dark;
+}
+
 body {
   margin: 0;
-  background: var(--site-color-bg);
-  color: var(--site-color-text);
-  font-family: var(--site-font-sans);
-  line-height: 1.7;
+  background: var(--docs-color-bg);
+  color: var(--docs-color-text);
+  font-family: var(--docs-font-sans);
+  font-size: 15.5px;
+  line-height: 1.65;
   -webkit-font-smoothing: antialiased;
 }
 
 /* ---- ヘッダー ---- */
 
-body > header,
-.site-header {
-  /*
-   * .site-sidebar は position: sticky; top: var(--site-header-height) で
-   * ヘッダー分オフセットして常時可視のヘッダー直下に張り付く前提のため、
-   * ヘッダー自身も position: sticky; top: 0 で常時可視にしておく必要がある。
-   * ヘッダーが通常フローのままだと、スクロールでヘッダーが視界外へ流れた
-   * 後もサイドバーはヘッダー分のオフセットを保持し続け、ビューポート上部に
-   * 空白の帯が残る（イシュー #472 Bugbot 指摘対応）。
-   */
+.docs-header {
   position: sticky;
   top: 0;
   z-index: 10;
   display: flex;
   align-items: center;
-  height: var(--site-header-height);
+  height: var(--docs-header-height);
   padding: 0 1.5rem;
-  border-bottom: 1px solid var(--site-color-border);
-  background: var(--site-color-bg);
+  border-bottom: 1px solid var(--docs-color-border);
+  background: var(--docs-color-bg);
 }
 
-.site-header .site-title,
-.site-header a {
-  font-weight: 700;
-  font-size: 1.05rem;
-  color: var(--site-color-text);
+.docs-header a {
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+  color: var(--docs-color-text);
   text-decoration: none;
 }
 
 /* ---- 2 カラムレイアウト ---- */
 
-.site-layout {
+.docs-container {
   display: grid;
-  grid-template-columns: var(--site-sidebar-width) minmax(0, 1fr);
+  grid-template-columns: var(--docs-sidebar-width) minmax(0, 1fr);
   align-items: start;
   max-width: 72rem;
   margin: 0 auto;
@@ -110,77 +127,66 @@ body > header,
 
 /* ---- サイドバー ---- */
 
-aside.site-sidebar,
-.site-sidebar {
+.docs-sidebar {
   /*
-   * body > header がページ最上部に固定表示ではなく通常フローで
-   * .site-layout の上に存在するため、初期スクロール位置では
-   * ヘッダー分だけ可視領域が 100vh より狭い。top / max-height を
-   * --site-header-height でオフセットし、サイドバー全体（ナビ末尾まで）
-   * が可視領域内でスクロール可能な状態を保つ（イシュー #472 Bugbot 指摘対応）。
+   * `.docs-header` が sticky top: 0 で常時可視のため、`.docs-sidebar` は
+   * ヘッダー分オフセットして常時可視のヘッダー直下に張り付く。
    */
   position: sticky;
-  top: var(--site-header-height);
+  top: var(--docs-header-height);
   align-self: start;
-  max-height: calc(100vh - var(--site-header-height));
+  max-height: calc(100vh - var(--docs-header-height));
   overflow-y: auto;
-  padding: 1.5rem 1rem;
-  border-right: 1px solid var(--site-color-border);
-  background: var(--site-color-bg-subtle);
-  font-size: 0.9rem;
+  padding: 1.75rem 1rem 2rem;
+  border-right: 1px solid var(--docs-color-border);
+  font-size: 0.875rem;
 }
 
-.site-sidebar nav {
+.docs-sidebar nav.sidebar {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.2rem;
 }
 
-/*
- * `nav::sidebar()`（crates/docs-site/src/nav.rs、イシュー #481）はセクション
- * ごとに素の `h2`（見出し）と `ul` > `li` > `a`（ページ列）を直接列挙する。
- * `.nav-section` / `.nav-section-title` のような専用クラスは付与されないため、
- * 要素セレクタで直接スタイルする（上部コメントのクラス名契約を参照）。
- * `nav.sidebar` に限定するのは、同一 `.site-sidebar` 配下へ将来
- * `prev_next_nav()`（`class="prev-next"`）が誤って配置された場合に
- * h2/ul の見た目を継承させないため。
- */
-.site-sidebar nav.sidebar h2 {
+.docs-sidebar nav.sidebar h2 {
   font-weight: 600;
-  font-size: 0.75rem;
-  letter-spacing: 0.04em;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--site-color-text-muted);
-  margin: 1rem 0 0.15rem;
+  color: var(--docs-color-text-muted);
+  margin: 1.1rem 0.5rem 0.3rem;
 }
 
-.site-sidebar nav.sidebar h2:first-child {
+.docs-sidebar nav.sidebar h2:first-child {
   margin-top: 0;
 }
 
-.site-sidebar nav.sidebar ul {
+.docs-sidebar nav.sidebar ul {
   list-style: none;
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.4rem;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.05rem;
 }
 
-.site-sidebar nav.sidebar li {
+.docs-sidebar nav.sidebar li {
   margin: 0;
 }
 
-.site-sidebar a {
+.docs-sidebar nav.sidebar a {
   display: block;
-  padding: 0.3rem 0.5rem;
-  border-radius: 0.35rem;
-  color: var(--site-color-text);
+  padding: 0.32rem 0.5rem;
+  border-radius: 0.4rem;
+  color: var(--docs-color-text-muted);
   text-decoration: none;
+  font-size: 0.875rem;
+  border-left: 2px solid transparent;
 }
 
-.site-sidebar a:hover {
-  background: var(--site-color-accent-bg);
+.docs-sidebar nav.sidebar a:hover {
+  color: var(--docs-color-text);
+  background: var(--docs-color-bg-subtle);
 }
 
 /*
@@ -188,144 +194,226 @@ aside.site-sidebar,
  * `class="current"` の両方を同時に付与する（nav.rs 参照）。どちらか一方の
  * みに依存せず両セレクタを併記する。
  */
-.site-sidebar a[aria-current="page"],
-.site-sidebar a.current {
-  background: var(--site-color-accent-bg);
-  color: var(--site-color-accent);
+.docs-sidebar nav.sidebar a[aria-current="page"],
+.docs-sidebar nav.sidebar a.current {
+  background: var(--docs-color-accent-bg);
+  color: var(--docs-color-accent);
+  border-left-color: var(--docs-color-accent);
   font-weight: 600;
 }
 
 /* ---- 本文カラム ---- */
 
-main.site-main,
-.site-main {
+.docs-main {
   min-width: 0;
-  padding: 1.5rem 2rem 4rem;
+  padding: 2.25rem 2rem 5rem;
 }
 
-.site-main > * {
-  max-width: var(--site-max-content-width);
+.docs-content {
+  display: block;
+  max-width: var(--docs-max-content-width);
+  margin: 0 auto;
 }
 
-.site-main h1,
-.site-main h2,
-.site-main h3 {
+.docs-content h1,
+.docs-content h2,
+.docs-content h3 {
   line-height: 1.35;
-  font-weight: 700;
+  font-weight: 650;
+  letter-spacing: -0.01em;
 }
 
-.site-main h1 {
-  font-size: 1.9rem;
-  margin: 0 0 1rem;
+.docs-content h1 {
+  font-size: 2rem;
+  margin: 0 0 1.1rem;
 }
 
-.site-main h2 {
-  font-size: 1.4rem;
-  margin: 2rem 0 0.75rem;
-  padding-top: 0.25rem;
-  border-top: 1px solid var(--site-color-border);
+.docs-content h2 {
+  font-size: 1.375rem;
+  margin: 2.25rem 0 0.85rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--docs-color-border);
 }
 
-.site-main h3 {
+.docs-content h3 {
   font-size: 1.1rem;
-  margin: 1.5rem 0 0.5rem;
+  margin: 1.6rem 0 0.5rem;
 }
 
-.site-main p {
-  margin: 0 0 1rem;
+.docs-content p {
+  margin: 0 0 1.05rem;
 }
 
-.site-main ul,
-.site-main ol {
-  margin: 0 0 1rem;
+.docs-content ul,
+.docs-content ol {
+  margin: 0 0 1.05rem;
   padding-left: 1.4rem;
 }
 
-.site-main li {
-  margin: 0.25rem 0;
+.docs-content li {
+  margin: 0.3rem 0;
 }
 
-.site-main a {
-  color: var(--site-color-accent);
+.docs-content a {
+  color: var(--docs-color-accent);
+  text-decoration: none;
 }
 
-.site-main blockquote {
-  margin: 0 0 1rem;
+.docs-content a:hover {
+  text-decoration: underline;
+}
+
+.docs-content blockquote {
+  margin: 0 0 1.05rem;
   padding: 0.5rem 1rem;
-  border-left: 3px solid var(--site-color-border);
-  color: var(--site-color-text-muted);
+  border-left: 3px solid var(--docs-color-border);
+  color: var(--docs-color-text-muted);
 }
 
-.site-main code {
-  font-family: var(--site-font-mono);
-  font-size: 0.9em;
-  background: var(--site-color-code-bg);
-  padding: 0.1em 0.35em;
-  border-radius: 0.3em;
+.docs-content code {
+  font-family: var(--docs-font-mono);
+  font-size: 0.875em;
+  color: var(--docs-color-code-text);
+  background: var(--docs-color-code-bg);
+  padding: 0.15em 0.4em;
+  border-radius: 0.35em;
 }
 
-.site-main pre {
-  margin: 0 0 1rem;
-  padding: 1rem;
-  background: var(--site-color-code-bg);
-  border-radius: 0.5rem;
+.docs-content pre {
+  margin: 0 0 1.05rem;
+  padding: 1rem 1.1rem;
+  background: var(--docs-color-code-bg);
+  border: 1px solid var(--docs-color-border);
+  border-radius: 0.6rem;
   overflow-x: auto;
 }
 
-.site-main pre code {
+.docs-content pre code {
   background: none;
+  border: none;
   padding: 0;
+  font-size: 0.85em;
 }
 
-.site-main table {
+.docs-content table {
   display: block;
   overflow-x: auto;
   border-collapse: collapse;
-  margin: 0 0 1rem;
+  margin: 0 0 1.05rem;
   max-width: 100%;
+  font-size: 0.925em;
 }
 
-.site-main th,
-.site-main td {
-  border: 1px solid var(--site-color-border);
-  padding: 0.4rem 0.7rem;
+.docs-content th,
+.docs-content td {
+  border: 1px solid var(--docs-color-border);
+  padding: 0.45rem 0.75rem;
   text-align: left;
 }
 
-/* ---- ページ内目次（任意） ---- */
-
-.site-toc {
-  font-size: 0.85rem;
-  padding: 0.75rem 1rem;
-  margin: 0 0 1.5rem;
-  border: 1px solid var(--site-color-border);
-  border-radius: 0.5rem;
-  background: var(--site-color-bg-subtle);
+.docs-content th {
+  background: var(--docs-color-bg-subtle);
+  font-weight: 600;
 }
 
-.site-toc ul {
+/* ---- ページ内目次（任意、本文の前に配置） ---- */
+
+.docs-toc {
+  font-size: 0.85rem;
+  padding: 0.9rem 1.1rem;
+  margin: 0 auto 1.75rem;
+  max-width: var(--docs-max-content-width);
+  border: 1px solid var(--docs-color-border);
+  border-radius: 0.65rem;
+  background: var(--docs-color-bg-subtle);
+}
+
+.docs-toc ul {
+  list-style: none;
   margin: 0.5rem 0 0;
-  padding-left: 1.2rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.docs-toc a {
+  color: var(--docs-color-text-muted);
+  text-decoration: none;
+}
+
+.docs-toc a:hover {
+  color: var(--docs-color-accent);
+}
+
+.docs-toc-level-2 {
+  padding-left: 0;
+}
+
+.docs-toc-level-3 {
+  padding-left: 1rem;
+}
+
+/* ---- 前後ページナビ（本文末尾、カード風） ---- */
+
+nav.prev-next {
+  display: flex;
+  gap: 0.75rem;
+  margin: 2.5rem 0 0;
+  max-width: var(--docs-max-content-width);
+}
+
+nav.prev-next a {
+  flex: 1 1 0;
+  display: block;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--docs-color-border);
+  border-radius: 0.65rem;
+  color: var(--docs-color-text);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  background: var(--docs-color-bg-raised);
+}
+
+nav.prev-next a:hover {
+  border-color: var(--docs-color-accent);
+  color: var(--docs-color-accent);
+}
+
+nav.prev-next a.prev {
+  text-align: left;
+}
+
+nav.prev-next a.next {
+  text-align: right;
 }
 
 /* ---- モバイル対応: 768px 以下で 1 カラムに畳む ---- */
 
 @media (max-width: 768px) {
-  .site-layout {
+  .docs-container {
     display: block;
   }
 
-  aside.site-sidebar,
-  .site-sidebar {
+  .docs-sidebar {
     position: static;
     max-height: none;
     width: 100%;
     border-right: none;
-    border-bottom: 1px solid var(--site-color-border);
+    border-bottom: 1px solid var(--docs-color-border);
+    padding: 1rem;
   }
 
-  main.site-main,
-  .site-main {
-    padding: 1.25rem 1rem 3rem;
+  .docs-main {
+    padding: 1.5rem 1.1rem 3rem;
+  }
+
+  nav.prev-next {
+    flex-direction: column;
+  }
+
+  nav.prev-next a.next {
+    text-align: left;
   }
 }
