@@ -33,7 +33,7 @@ Docker イメージ最小化」）のうち、PoC-4（`docs/spec/03-poc/single-b
 `.github/workflows/*.yml` の変更はいずれも TASK-9.1b（#96）以降のスコープであり、
 本タスクでは行わない。起動検証テストの実装は TASK-9.1c（#97）のスコープ。
 `docs/spec/` はサブモジュールのため編集禁止（変更が必要な場合は
-frontend-framework-spec リポジトリで行う）。
+fandhe-frontend-spec リポジトリで行う）。
 
 **親イシュー #94 の受け入れ条件**には「既定エスケープ・`forbid(unsafe_code)`・
 依存グラフ上限（60 件/深さ 6）を弱めない」が明記されている。本書はこの条件を

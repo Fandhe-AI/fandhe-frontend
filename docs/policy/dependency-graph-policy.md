@@ -125,7 +125,7 @@ deps-check: packages=13/60 depth=7/6 result=FAIL  (fandhe-frontend-wasm-thin)
 この FAIL 表示はあくまで参考値であり、`deps-check` CI（`.github/workflows/deps-check.yml`）はこれらのクレートを
 計測対象に含めていないため CI 上の判定には影響しません。上限緩和・WASM 専用の別基準の新設は行わず、
 「WASM クライアント向け基準が別途必要か」は本リポジトリの判断で決めず、REQ-3 の対象定義自体の見直しとして
-`frontend-framework-spec` リポジトリへの提案事項に留めます（本リポジトリでは既存ゲートを一切緩和しません）。
+`fandhe-frontend-spec` リポジトリへの提案事項に留めます（本リポジトリでは既存ゲートを一切緩和しません）。
 
 ## 5. 上限超過時の対応フロー
 
@@ -138,7 +138,7 @@ deps-check: packages=13/60 depth=7/6 result=FAIL  (fandhe-frontend-wasm-thin)
    3. 該当機能の自前実装の検討
 4. **依存追加が不可避な場合**: `.claude/rules/coding-rust.md` / `.claude/rules/security.md` に従い、
    `cargo metadata` で影響を事前確認し、`build.rs` の有無を確認したうえで、**ユーザー承認**を得てから追加する
-5. **上限値自体の見直しが必要な場合**: 本リポジトリ内では変更しません。上限値は REQ-3（`frontend-framework-spec`
+5. **上限値自体の見直しが必要な場合**: 本リポジトリ内では変更しません。上限値は REQ-3（`fandhe-frontend-spec`
    リポジトリ管理）に由来するため、まず同リポジトリへ仕様変更（REQ-3 改訂）を提案し、承認を経たうえで
    `crates/xtask/src/check_deps.rs` の定数変更 PR（レビュー必須）を行います。CI ワークフロー側に一時的な緩和手順・
    スキップ手順は設けません
@@ -253,7 +253,7 @@ TASK-9.1a（rust-embed 統合設計、`docs/design/dist-server-design.md` 4.3 �
 4. **仕様（REQ-3）側への注記提案はユーザー承認事項に留めます**。`docs/spec/04-requirements.md`
    の REQ-3 受け入れ基準にある「PoC-3 実績: 52 件/深さ 5 を基準に」という記述には
    計測基準の注記が望ましいですが、`docs/spec/` は編集禁止（サブモジュール）かつ
-   Issue 起票は事前承認必須のため、frontend-framework-spec への計測基準注記 Issue の
+   Issue 起票は事前承認必須のため、fandhe-frontend-spec への計測基準注記 Issue の
    起票は本節では**提案のみ**とし、起票自体は行いません
 
 ### 9.4 再検証時点の実測値（イシュー #298 判定時点）
@@ -281,7 +281,7 @@ deps-check: packages=2/60  depth=2/6 result=PASS  (fandhe-frontend-server)
 
 `docs/design/dist-server-design.md` 4.3 節のとおり、axum / rust-embed 系スタックを標準サーバー
 構成として採用する場合、現行アルゴリズムでは深さ 9 前後となり現行上限（6）で構造的に
-FAIL します。この構成を将来採用するには、frontend-framework-spec 側での REQ-3 改訂
+FAIL します。この構成を将来採用するには、fandhe-frontend-spec 側での REQ-3 改訂
 （計測基準を踏まえた上限値の再設計）が前提となります。本イシューはこの前提整理の
 確認に留まり、上限値自体の変更判断は行いません（第 7 節「対応外」参照）。
 

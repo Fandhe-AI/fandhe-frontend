@@ -278,7 +278,7 @@ $ cargo run -p fandhe-frontend-cli --bin fw -- structure
 - **影響範囲判定の AST 精密化**: REQ-13 自体が現時点でスコープ外と
   している制約（`docs/spec/04-requirements.md`）。
 - **抽出器の複数対応・正規表現ベース抽出の一般化**: 必要になった時点で
-  frontend-framework-spec 側の仕様検討を提案する。
+  fandhe-frontend-spec 側の仕様検討を提案する。
 - 仕様（`docs/spec/`）自体の変更は本リポジトリでは行わない
   （PoC-7 マニフェストとの差分理由は本書側に記載した）。
 - **`[loaders]` / 束縛点セクションの新設（イシュー #353 で非採用と判断）**:

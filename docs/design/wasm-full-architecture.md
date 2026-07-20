@@ -32,7 +32,7 @@ PoC-5（`docs/spec/03-poc/wasm-runtime-split/wasm-full/src/lib.rs`）で実証�
 `.github/workflows/ci.yml` の変更はいずれも TASK-11.2b（#75）以降のスコープで
 あり、本タスクでは行わない。DOM 更新の実装は TASK-11.2c（#76）、既定実装化・
 統合テストは TASK-11.2d（#77）のスコープ。`docs/spec/` はサブモジュールのため
-編集禁止（変更が必要な場合は frontend-framework-spec リポジトリで行う）。
+編集禁止（変更が必要な場合は fandhe-frontend-spec リポジトリで行う）。
 
 **先行依存関係**: 本書は `fandhe-frontend-core`（マージ済み、`docs/api/component-api.md` 第 2 節の
 凍結表）・`fandhe-frontend-interactive`（TASK-11.1a #70 で設計確定済み、`docs/api/interactive-api.md`
@@ -178,7 +178,7 @@ TASK-11.2b（#75）で実施する作業として引き継ぐ。
 | `unmount`（明示的な `Closure` 解放）API | 本書では将来課題として記録するのみ（第 4 節・判断 2、第 5 節） |
 | `.github/workflows/ci.yml` への `wasm-full` 存在ガードジョブ追加 | TASK-11.2d（#77）（第 5 節） |
 | `docs/policy/unsafe-boundary.md` 第 2 節 `wasm-full` 行の「未作成」から「作成済み」への更新 | TASK-11.2b（#75） |
-| 仕様（`docs/spec/`）自体の変更が必要な事項が生じた場合 | frontend-framework-spec リポジトリの Issue として起票を提案する（本書の対象外） |
+| 仕様（`docs/spec/`）自体の変更が必要な事項が生じた場合 | fandhe-frontend-spec リポジトリの Issue として起票を提案する（本書の対象外） |
 
 ## 7. セキュリティ不変条件
 

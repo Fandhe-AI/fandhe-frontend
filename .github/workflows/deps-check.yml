@@ -19,7 +19,7 @@ name: deps-check
 #   ZERO_DEP_CRATES（外部依存ゼロ強制対象）定数のみ。
 #   このワークフローには緩和用の input・環境変数・continue-on-error を一切設けない
 #   （迂回経路を作らない設計。しきい値変更はコード定数の変更 = レビュー必須の PR のみ）。
-# - 上限超過時の原則対応は依存削減。上限値自体の見直しは frontend-framework-spec
+# - 上限超過時の原則対応は依存削減。上限値自体の見直しは fandhe-frontend-spec
 #   リポジトリでの仕様変更を経る。
 # - 運用ドキュメント本体は TASK-3.3（docs/policy/dependency-graph-policy.md 相当）で整備予定。
 #   本ワークフローはあくまで CI 組み込みの実体。

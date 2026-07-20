@@ -29,7 +29,7 @@
 
 - 本書は**設計検討・判断確定のみ**を扱う。3 項目とも実装（コード変更）は行わない。
 - `docs/spec/` サブモジュールは編集対象外（仕様変更が必要な場合は
-  frontend-framework-spec リポジトリ側で別途提案する）。
+  fandhe-frontend-spec リポジトリ側で別途提案する）。
 - `Loader` trait のシグネチャ（`crates/app/src/lib.rs:104`〜`121`）・三モード解決シーケンス
   （`loader-trait-design.md` §4）・エラー契約（同 §5）はいずれも変更しない。
 

@@ -24,7 +24,7 @@ TASK-5.1c（利用者向けチュートリアル）は本書とはファイル�
 **本タスクのスコープ**: 設計確定書の作成のみ（docs-only 変更）。`crates/core/src/lib.rs` の
 コード変更は TASK-5.1b（#31）のスコープであり、本タスクでは行わない。
 `docs/spec/` はサブモジュールのため編集禁止（変更が必要な場合は
-frontend-framework-spec リポジトリで行う）。
+fandhe-frontend-spec リポジトリで行う）。
 
 ## 2. 確定 API 表面（凍結表）
 
