@@ -10,9 +10,12 @@
 //! - [`layout`]: docs レイアウトコンポーネント（イシュー #469）
 //! - [`markdown`]: Markdown ブロック構文 → Node 木レンダラ（イシュー #466）
 //! - [`nav`]: `site/nav.toml` のパース・サイドバー / 前後ナビ生成（イシュー #468）
-//!
-//! `main.rs` 側の統合（`nav::parse_nav` の呼び出し・`layout` との結合・
-//! `generate_pages()` への引き渡し）は後続イシュー #470 のスコープ。
+//! - [`linkcheck`]: `.md` リンクのサイト内パスへの書き換え・内部リンク突合検証
+//!   （イシュー #470）
+//! - [`build`]: `nav.toml` 読込 → ページ組み立て → linkcheck →
+//!   `generate_pages()` 書き出し → アセットコピーの一連のビルドパイプライン
+//!   本体（イシュー #470）。`main.rs`（バイナリ本体）は本モジュールの
+//!   [`build::build_site`] を呼ぶ薄いラッパーとして統合済み。
 //!
 //! `fandhe-frontend-core` / `fandhe-frontend-app` / `fandhe-frontend-server` のみに
 //! 依存し、外部クレートは追加しない（`Cargo.toml` の REQ-3 非影響コメント参照）。
@@ -22,6 +25,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod build;
 pub mod layout;
+pub mod linkcheck;
 pub mod markdown;
 pub mod nav;
