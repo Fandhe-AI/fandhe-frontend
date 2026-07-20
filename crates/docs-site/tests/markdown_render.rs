@@ -556,6 +556,38 @@ fn link_text_can_contain_code_and_emphasis() {
 }
 
 #[test]
+fn emphasis_closing_marker_inside_inline_code_is_not_treated_as_closer() {
+    // レビュー指摘イシュー #467: find_closing_run はコードスパンの中身を
+    // 読み飛ばさずに走査すると、コード内の `*` を外側の強調の閉じ
+    // マーカーと誤認識し、`` `b*c` `` の途中で強調が閉じてしまっていた。
+    // コードスパンを丸ごと読み飛ばすことで、外側の強調は末尾の `*` まで
+    // 正しく開いたままになる。
+    assert_eq!(
+        render_all("*a `b*c` d*"),
+        "<p><em>a <code>b*c</code> d</em></p>"
+    );
+}
+
+#[test]
+fn strong_closing_marker_inside_inline_code_is_not_treated_as_closer() {
+    assert_eq!(
+        render_all("**a `b**c` d**"),
+        "<p><strong>a <code>b**c</code> d</strong></p>"
+    );
+}
+
+#[test]
+fn link_label_closing_bracket_inside_inline_code_is_not_treated_as_closer() {
+    // レビュー指摘イシュー #467: find_char がコードスパンの中身を読み飛ば
+    // さずに走査すると、コード内の `]` をリンクラベルの閉じ括弧と誤認識
+    // し、`` `a]b` `` の途中でラベルが閉じてしまっていた。
+    assert_eq!(
+        render_all("[`a]b`](/x)"),
+        "<p><a href=\"/x\"><code>a]b</code></a></p>"
+    );
+}
+
+#[test]
 fn link_nesting_is_disallowed_inner_bracket_is_literal() {
     // 最初に完成した [text](url) パターンが優先され、内側の `[` はリンクの
     // 一部（リテラル）として取り込まれる（リンクのネスト禁止、設計どおり）。

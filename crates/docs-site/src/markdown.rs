@@ -26,19 +26,28 @@
 //!   「閉じマーカーなし」と同じ fail-safe フォールバック（リテラル文字
 //!   として扱う）で打ち切る
 //! - インライン構文（イシュー #467）のリンク URL は `is_safe_link_url`
-//!   （本モジュール内、第 1 層: http/https/相対のみ許可）→ core の
+//!   （本モジュール内、第 1 層: http/https/相対のみを許可する allow-list。
+//!   `mailto:`/`tel:`/`javascript:`/`data:` 等、その他すべてのスキームを
+//!   拒否する。core が許可するスキーム集合から一部を除くデナイリスト方式
+//!   にはしない — 将来 core 側の許可集合が広がっても本関数の許可範囲は
+//!   自己完結して変わらない、レビュー指摘イシュー #467）→ core の
 //!   [`fandhe_frontend_core::is_safe_url`]（第 2 層、`render_into` が属性出力時に
-//!   適用）の多層で検証する。不合格の URL は `<a>` を生成せずリンクテキストのみを
+//!   独立に適用）の多層で検証する。不合格の URL は `<a>` を生成せずリンクテキストのみを
 //!   出力する（fail-closed）。属性値自体も core が出力時にエスケープするため
 //!   `"` によるリンクテキスト/URL からの属性 breakout は core 側でも遮断される
+//! - インライン構文の閉じマーカー探索（[`find_closing_run`] / [`find_char`]）
+//!   はインラインコードスパン（`` `...` ``）の中身を [`skip_backtick_span`]
+//!   で読み飛ばす。読み飛ばさない場合、コードスパン内の `*`/`]` が外側の
+//!   強調・リンクの閉じマーカーと誤って一致し、ネストしたコードスパンを
+//!   含む強調・リンクが壊れたリテラルになる（レビュー指摘イシュー #467）
 //!
 //! パニックしない全域関数として実装する（ライブラリコードでの `unwrap()` /
 //! `panic!` 回避規約、`.claude/rules/coding-rust.md`）。未知の行・不正な構文は
 //! 段落として扱うフォールバックにより、任意の `&str` を受理する。
 
 use fandhe_frontend_core::{
-    a, blockquote, code, em, h1, h2, h3, h4, h5, h6, is_safe_url, li, ol, p, pre, strong, table,
-    tbody, td, text, th, thead, tr, ul, Node,
+    a, blockquote, code, em, h1, h2, h3, h4, h5, h6, li, ol, p, pre, strong, table, tbody, td,
+    text, th, thead, tr, ul, Node,
 };
 
 /// 引用・ネストリストの再帰的解釈における最大深さ。
@@ -166,16 +175,29 @@ fn flush_literal(literal: &mut String, nodes: &mut Vec<Node>) {
 /// 読み飛ばして続行するため、部分一致による誤閉じを避けられる。見つかった
 /// 場合は連続の開始インデックスを返す。
 ///
+/// `ch` がバッククォート以外（強調の閉じ探索）の場合、走査中に遭遇した
+/// インラインコードスパン（`` `...` ``）は [`skip_backtick_span`] で内容ごと
+/// 読み飛ばす。これによりコードスパン内の `*` が外側の強調の閉じマーカーと
+/// 誤って一致することを防ぐ（レビュー指摘イシュー #467: 例えば
+/// `` *a `b*c` d* `` のようにコード内に `*` を含む入力で、コード内の `*` が
+/// 外側の強調を早期に閉じてしまい壊れたリテラルになる不具合の修正）。
+///
 /// 走査は `start` から高々 [`MAX_INLINE_SCAN_WINDOW`] 文字までに限定する
 /// （超過分は「閉じマーカーなし」と同じ `None` を返す）。上限なしで
 /// `chars.len()` まで無条件に走査すると、呼び出し元（[`try_emphasis`] /
 /// [`try_inline_code`]）が開始位置ごとに本関数を呼ぶ構造と組み合わさって
 /// 最悪計算量が O(n^2) になる（アルゴリズム的計算量 DoS、OWASP A04、
-/// レビュー指摘イシュー #467）。
+/// レビュー指摘イシュー #467）。[`skip_backtick_span`] 呼び出しも同じ
+/// `limit` を上限として渡すため、この計算量オーダーは変わらない
+/// （コードスパンの読み飛ばし分だけ `k` が前進するのみで、逆戻りはしない）。
 fn find_closing_run(chars: &[char], start: usize, ch: char, run_len: usize) -> Option<usize> {
     let limit = chars.len().min(start + MAX_INLINE_SCAN_WINDOW);
     let mut k = start;
     while k < limit {
+        if ch != '`' && chars[k] == '`' {
+            k = skip_backtick_span(chars, k, limit);
+            continue;
+        }
         if chars[k] == ch {
             let run_start = k;
             let mut m = 0usize;
@@ -198,6 +220,49 @@ fn find_closing_run(chars: &[char], start: usize, ch: char, run_len: usize) -> O
         k += 1;
     }
     None
+}
+
+/// `chars[k]` が指すバッククォート連続（インラインコードスパンの開始）を
+/// 内容ごと読み飛ばし、閉じ後の次インデックスを返す。
+///
+/// [`find_closing_run`]・[`find_char`] が強調・リンクの閉じマーカーを探索
+/// する際、途中に現れたインラインコードスパンの中身は「別構文として解釈
+/// しない」という [`try_inline_code`] の契約を外側の探索でも守るために使う
+/// （レビュー指摘イシュー #467: コードスパン内の `*`/`]` が外側構文の閉じ
+/// マーカーと誤って一致し、ネストしたコードスパンを含む強調・リンクが
+/// 壊れたリテラルになる不具合の修正）。
+///
+/// 走査は `limit`（呼び出し元が渡す [`MAX_INLINE_SCAN_WINDOW`] 由来の上限）
+/// までに限定し、その中で閉じるバッククォート連続（開始と同じ本数）が
+/// 見つかればその直後のインデックスを返す。見つからない場合はコードスパン
+/// として解釈しない（開始のバッククォート連続のみを読み飛ばしたインデックス
+/// を返し、以降は呼び出し元が通常どおり 1 文字ずつ走査を続ける。
+/// [`try_inline_code`] が閉じなしバッククォートをリテラル扱いする
+/// フォールバックと整合させるため）。
+fn skip_backtick_span(chars: &[char], k: usize, limit: usize) -> usize {
+    let mut idx = k;
+    let mut open_len = 0usize;
+    while idx < chars.len() && chars[idx] == '`' {
+        idx += 1;
+        open_len += 1;
+    }
+    let content_start = idx;
+    let mut m = content_start;
+    while m < limit {
+        if chars[m] == '`' {
+            let mut close_len = 0usize;
+            while m < limit && chars[m] == '`' {
+                m += 1;
+                close_len += 1;
+            }
+            if close_len == open_len {
+                return m;
+            }
+            continue;
+        }
+        m += 1;
+    }
+    content_start
 }
 
 /// `i` が指すバッククォート連続を開始とみなし、インラインコードを試みる。
@@ -298,10 +363,20 @@ fn try_link(chars: &[char], i: usize, depth: usize) -> Option<(Vec<Node>, usize)
 /// [`find_closing_run`] 側より実測所要時間が悪化していた。走査幅上限
 /// という設計上の計算量オーダーは変えず、定数係数のみ揃える。イシュー
 /// #467 レビュー指摘、CI 実測 5.738s / 上限 5s）。
+///
+/// `target` は `]`/`)` のみが渡される呼び出し契約（[`try_link`] 参照）で
+/// あり、バッククォート自体を探すことはない。そのため [`find_closing_run`]
+/// と同様に、走査中に遭遇したインラインコードスパンは
+/// [`skip_backtick_span`] で内容ごと読み飛ばし、スパン内の `]` を外側の
+/// リンクラベル閉じ括弧と誤って一致させない（レビュー指摘イシュー #467）。
 fn find_char(chars: &[char], start: usize, target: char) -> Option<usize> {
     let limit = chars.len().min(start + MAX_INLINE_SCAN_WINDOW);
     let mut k = start;
     while k < limit {
+        if chars[k] == '`' {
+            k = skip_backtick_span(chars, k, limit);
+            continue;
+        }
         if chars[k] == target {
             return Some(k);
         }
@@ -312,47 +387,64 @@ fn find_char(chars: &[char], start: usize, target: char) -> Option<usize> {
 
 /// リンク URL の第 1 層スキーム検証（受け入れ条件: http / https / 相対のみ許可）。
 ///
-/// core の [`is_safe_url`]（`fandhe_frontend_core::is_safe_url`、`render_into`
-/// が `href` 等の属性出力時に適用する第 2 層）をまず通し、`javascript:` /
-/// `data:` 等の危険スキームをタブ・改行除去/先頭制御文字トリムを含む共通
-/// 正規化ロジックで遮断する（`crates/core/src/url.rs`、イシュー #373）。
+/// docs-site 独自のホワイトリスト（allow-list）として、`\t`/`\n`/`\r` の
+/// 全除去 → 先頭の制御文字・空白トリムという正規化を行った上で、その値が
+/// URI スキーム（[`extract_scheme`]）を持つ場合は `http:` / `https:`
+/// （ASCII 大文字小文字非依存）のみを許可し、それ以外のスキーム
+/// （`javascript:` / `data:` / `mailto:` / `tel:` / `vbscript:` 等）は
+/// すべて拒否する。スキームを持たない値（相対 URL、protocol-relative
+/// `//host` を含む）は許可する。正規化を経ない値で判定すると
+/// `java\tscript:` のような偽装スキームがすり抜けるため、必ず正規化後の
+/// 値でスキーム抽出・判定する。
 ///
-/// その上で本関数は docs-site 独自の追加制限として、core と同じ正規化
-/// （`\t`/`\n`/`\r` の全除去 → 先頭の制御文字・空白トリム）を適用した値が
-/// `mailto:` / `tel:`（ASCII 大文字小文字非依存）で始まる場合を拒否する
-/// （core は許可するが、本関数は受け入れ条件どおりそれより厳しい集合のみ
-/// 許可する）。正規化を経ない値で判定すると `mai\tlto:` のような偽装が
-/// すり抜けるため、必ず正規化後の値で前方一致判定する。
+/// 「許可スキームのみを列挙する」実装であることが本関数の安全性の核心。
+/// 当初は core の [`is_safe_url`]（`fandhe_frontend_core::is_safe_url`、
+/// `render_into` が `href` 等の属性出力時に適用する第 2 層、
+/// `crates/core/src/url.rs`、イシュー #373）を先に通した上で `mailto:` /
+/// `tel:` のみを追加拒否するデナイリスト（deny-list）方式だったが、これは
+/// 「本関数が独自に許可する集合」ではなく「core が許可する集合から一部を
+/// 除いたもの」になってしまい、将来 core 側で新しいスキームが許可される
+/// と本関数もそれを暗黙に許可してしまう構造上の弱点があった（レビュー
+/// 指摘イシュー #467）。本関数を allow-list として自己完結させることで、
+/// core 側のスキーム許可判断（第 2 層）に変化があっても docs-site の
+/// 一次防御ポリシー（http / https / 相対のみ）は変わらない。core の
+/// `is_safe_url` は `render_into` の属性出力時に引き続き独立して適用され、
+/// 多層防御は維持される。
 ///
 /// 結果として許可されるのは相対 URL（protocol-relative `//host` 含む）と
 /// `http:` / `https:` のみ。拒否時の挙動は呼び出し元 [`try_link`] を参照。
 fn is_safe_link_url(url: &str) -> bool {
-    if !is_safe_url(url) {
-        return false;
-    }
     let normalized: String = url
         .chars()
         .filter(|c| !matches!(c, '\t' | '\n' | '\r'))
         .collect();
     let trimmed = normalized.trim_start_matches(|c: char| c.is_control() || c.is_whitespace());
-    !(starts_with_ignore_case_ascii(trimmed, "mailto:")
-        || starts_with_ignore_case_ascii(trimmed, "tel:"))
+    match extract_scheme(trimmed) {
+        Some(scheme) => scheme.eq_ignore_ascii_case("http") || scheme.eq_ignore_ascii_case("https"),
+        None => true,
+    }
 }
 
-/// `s` が `prefix`（ASCII のみを想定）で始まるかを大文字小文字非依存で判定する。
+/// `s` の先頭にある URI スキーム（RFC 3986 `scheme = ALPHA *( ALPHA / DIGIT
+/// / "+" / "-" / "." ) ":"`）を抽出する。スキームが存在しない（先頭の `:`
+/// より前が空、先頭文字が英字でない、スキーム許容文字以外を含む、または
+/// `:` 自体が存在しない）場合は `None` を返す。
 ///
-/// バイト境界パニックを避けるため文字単位で比較する（`s` の先頭が非 ASCII
-/// マルチバイト文字の場合に `s[..prefix.len()]` のようなバイト添字スライスは
-/// 文字境界を跨いでパニックし得るため使わない）。
-fn starts_with_ignore_case_ascii(s: &str, prefix: &str) -> bool {
-    let mut s_chars = s.chars();
-    for p in prefix.chars() {
-        match s_chars.next() {
-            Some(c) if c.is_ascii() && c.eq_ignore_ascii_case(&p) => continue,
-            _ => return false,
-        }
+/// [`is_safe_link_url`] が allow-list 判定の入口として使う。スキームを
+/// 持たない値は相対参照（protocol-relative `//host` を含む）とみなす。
+fn extract_scheme(s: &str) -> Option<&str> {
+    let colon_at = s.find(':')?;
+    let candidate = &s[..colon_at];
+    let mut chars = candidate.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() => {}
+        _ => return None,
     }
-    true
+    if chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.')) {
+        Some(candidate)
+    } else {
+        None
+    }
 }
 
 /// Markdown 文字列をブロック単位で解釈し、Node のブロック列へレンダリングする。
@@ -809,4 +901,45 @@ fn parse_paragraph(lines: &[&str], start: usize) -> (Node, usize) {
     }
     let joined = collected.join(" ");
     (p(vec![], inline_nodes(&joined)), i)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// [`is_safe_link_url`] が http/https/相対のみを許可する allow-list で
+    /// あり、core が許可するスキーム集合（`http`/`https`/`mailto`/`tel`）
+    /// から一部を除くデナイリストではないことを直接検証する
+    /// （レビュー指摘イシュー #467）。`mailto`/`tel` は core は許可するが
+    /// 本関数は拒否する組み合わせが、この非依存性を示す最小のケース。
+    #[test]
+    fn is_safe_link_url_allows_only_http_https_and_relative() {
+        assert!(is_safe_link_url("/relative/path"));
+        assert!(is_safe_link_url("//example.com/x"));
+        assert!(is_safe_link_url("http://example.com"));
+        assert!(is_safe_link_url("https://example.com"));
+        assert!(is_safe_link_url("HTTPS://example.com"));
+
+        assert!(!is_safe_link_url("mailto:a@example.com"));
+        assert!(!is_safe_link_url("tel:0123456789"));
+        assert!(!is_safe_link_url("javascript:alert(1)"));
+        assert!(!is_safe_link_url("data:text/html,alert(1)"));
+        // core が許可も拒否もしない未知スキームであっても、本関数の
+        // allow-list は http/https 以外をすべて拒否する（core の集合に
+        // 追従しない自己完結した判定であることの確認）。
+        assert!(!is_safe_link_url("ftp://example.com"));
+    }
+
+    /// [`extract_scheme`] が RFC 3986 のスキーム文法（先頭は英字、以降は
+    /// 英数字・`+`・`-`・`.`）に一致する場合のみ `:` 手前の部分を返し、
+    /// 相対参照（`/` 始まり・スキームなし）では `None` を返すことを確認する。
+    #[test]
+    fn extract_scheme_parses_valid_scheme_and_rejects_relative() {
+        assert_eq!(extract_scheme("http://x"), Some("http"));
+        assert_eq!(extract_scheme("a+b-c.d://x"), Some("a+b-c.d"));
+        assert_eq!(extract_scheme("/path:with:colons"), None);
+        assert_eq!(extract_scheme("//example.com/x"), None);
+        assert_eq!(extract_scheme("no-colon-here"), None);
+        assert_eq!(extract_scheme(""), None);
+    }
 }
