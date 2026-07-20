@@ -176,6 +176,38 @@ fn fence_with_comma_info_string_uses_first_token() {
 }
 
 #[test]
+fn fence_with_leading_space_before_lang_token_is_recognized() {
+    // フェンス直後に空白を挟んだ info string（```` ``` rust ````）でも言語
+    // トークンを正しく認識する（先に trim してから分割する回帰テスト）。
+    assert_eq!(
+        render_all("``` rust\nfn main() {}\n```"),
+        "<pre><code class=\"language-rust\">fn main() {}</code></pre>"
+    );
+}
+
+#[test]
+fn indented_fence_strips_body_indent_matching_open_fence() {
+    // 開始フェンスが（最大 3 スペースまで）字下げされている場合、本文行から
+    // 同じ幅の字下げを取り除く（字下げをそのまま残すと `pre`/`code` の
+    // 空白が意味を持つ出力に余分な字下げが混入する）。
+    assert_eq!(
+        render_all("  ```\n  fn main() {}\n  ```"),
+        "<pre><code>fn main() {}</code></pre>"
+    );
+}
+
+#[test]
+fn closing_fence_with_trailing_whitespace_is_recognized() {
+    // 閉じフェンス行の末尾に空白・タブが付いていても閉じ行として認識する。
+    // 認識できないと開始フェンスが閉じられず、残り全入力がコードとして
+    // 飲み込まれてしまう（見出し等の後続構文が描画から消える回帰）。
+    assert_eq!(
+        render_all("```\ncode\n```   \n# heading"),
+        "<pre><code>code</code></pre><h1>heading</h1>"
+    );
+}
+
+#[test]
 fn fence_without_info_string_has_no_class() {
     assert_eq!(
         render_all("```\nplain text\n```"),
@@ -284,6 +316,20 @@ fn table_with_alignment_markers_is_ignored() {
     assert_eq!(
         render_all(input),
         "<table><thead><tr><th>a</th><th>b</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table>"
+    );
+}
+
+#[test]
+fn delimiter_row_requires_at_least_one_dash_per_cell() {
+    // GFM 仕様上、区切りセルは `:` のみでは不成立（最低 1 つの `-` が必須）。
+    // `::` のみのセルを許容すると通常テキスト行が誤ってテーブル区切り行と
+    // 判定され、後続の `|` 開始行が意図せずテーブルへ取り込まれてしまう
+    // （誤爆防止の回帰テスト）。
+    // 区切り行と誤認されなくなった結果、テーブルとして開始されず、後続の
+    // 通常行と合わせて 1 つの段落（改行はスペース結合）として扱われる。
+    assert_eq!(
+        render_all("| a | b |\n|::|::|\n| 1 | 2 |"),
+        "<p>| a | b | |::|::| | 1 | 2 |</p>"
     );
 }
 

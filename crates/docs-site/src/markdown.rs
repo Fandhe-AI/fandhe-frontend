@@ -187,9 +187,18 @@ fn fence_open(line: &str) -> Option<(char, usize)> {
 /// 閉じフェンスが見つからず EOF に達した場合は、残り全行をコード内容として
 /// 扱う（取りこぼしをテキスト化しない fail-safe、設計どおり）。
 fn parse_fence(lines: &[&str], start: usize, open: &(char, usize)) -> (Node, usize) {
-    let open_line = lines[start].trim_start();
-    let info = open_line.trim_start_matches(open.0);
-    let lang_token = info.split([' ', ',', '\t']).next().unwrap_or("");
+    let open_line = lines[start];
+    let open_trimmed = open_line.trim_start();
+    // 開始フェンスの字下げ幅（`fence_open` が許容する最大 3 スペース）。
+    // インデント付きフェンス内の本文行から、開始フェンスと同じ幅だけ字下げを
+    // 取り除くために保持する（CommonMark 準拠、字下げは内容の意味を変えるため
+    // 除去しないと `pre`/`code` 出力に余分な先頭空白が残ってしまう）。
+    let open_indent = open_line.len() - open_trimmed.len();
+    let info = open_trimmed.trim_start_matches(open.0);
+    // 言語トークンは info string 全体を trim してから分割する。先に空白分割
+    // すると「フェンス直後にスペースを挟んだ info string」（例: ``` ` ``` rust`）
+    // の第 1 トークンが空文字列になり、有効な言語指定が誤って棄却される。
+    let lang_token = info.trim().split([' ', ',', '\t']).next().unwrap_or("");
 
     let mut body_lines: Vec<&str> = Vec::new();
     let mut i = start + 1;
@@ -197,15 +206,27 @@ fn parse_fence(lines: &[&str], start: usize, open: &(char, usize)) -> (Node, usi
     while i < lines.len() {
         let candidate = lines[i].trim_start();
         let indent_ok = lines[i].len() - candidate.len() <= 3;
-        let backticks = candidate.chars().take_while(|&c| c == '`').count();
+        // 閉じフェンス行は行末の空白・タブを許容する（CommonMark 準拠）。
+        // 行頭側は `indent_ok` の判定に使うため別途保持し、末尾のみ trim する。
+        let candidate_end_trimmed = candidate.trim_end();
+        let backticks = candidate_end_trimmed
+            .chars()
+            .take_while(|&c| c == '`')
+            .count();
         // 閉じフェンスは「同じフェンス文字が開始フェンス以上の長さ連続し、
         // それ以外の文字を含まない行」（CommonMark のフェンス閉じ規則の簡略版）。
-        if indent_ok && backticks >= open.1 && candidate.chars().all(|c| c == open.0) {
+        if indent_ok && backticks >= open.1 && candidate_end_trimmed.chars().all(|c| c == open.0) {
             closed = true;
             i += 1;
             break;
         }
-        body_lines.push(lines[i]);
+        // 開始フェンスと同じ幅（最大 3 スペース）だけ本文行の先頭字下げを
+        // 除去する。本文行の字下げが開始フェンスより浅い場合は全除去に留める
+        // （取りこぼし防止、CommonMark の「共通字下げの除去」規則の簡略版）。
+        let line = lines[i];
+        let strip_len = line.len() - line.trim_start_matches(' ').len();
+        let strip_len = strip_len.min(open_indent);
+        body_lines.push(&line[strip_len..]);
         i += 1;
     }
     // EOF まで閉じフェンスがなかった場合も body_lines は蓄積済みであり、
@@ -412,7 +433,11 @@ fn is_table_delimiter_row(line: &str) -> bool {
     }
     inner.split('|').all(|cell| {
         let c = cell.trim();
-        !c.is_empty() && c.chars().all(|ch| matches!(ch, '-' | ':'))
+        // GFM 仕様上、区切りセルは `-`/`:` のみで構成されることに加え、最低
+        // 1 つの `-` を含む必要がある。`::` のようなコロンのみのセルを許容
+        // すると `|::|::|` のような通常テキスト行が誤ってテーブル区切り行と
+        // 判定され、後続の `|` 始まりの行が意図せず tbody に取り込まれる。
+        !c.is_empty() && c.chars().all(|ch| matches!(ch, '-' | ':')) && c.contains('-')
     })
 }
 
