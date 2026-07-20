@@ -10,9 +10,14 @@
  *   layout.rs が生成する HTML は、下記のクラス名・要素構造に従うことを前提とする。
  *   - body 直下 header.site-header  … ヘッダバー（サイトタイトル）
  *   - .site-layout                  … 2 カラムのグリッドコンテナ（header の下）
- *     - aside.site-sidebar          … サイドバーナビ
- *       - nav > .nav-section        … セクション見出しブロック（見出し + ページリンク群）
- *       - a[aria-current="page"]    … 現在ページのリンク（強調表示）
+ *     - aside.site-sidebar          … サイドバーナビのラッパー（layout.rs が
+ *       `nav::sidebar()`（`crates/docs-site/src/nav.rs`、イシュー #481）の
+ *       戻り値をそのまま内側に配置する契約）
+ *       - nav.sidebar               … `nav::sidebar()` の実出力。セクション
+ *         見出しは素の `h2`、ページ列は `ul` > `li` > `a`（`.nav-section` /
+ *         `.nav-section-title` のような専用クラスは付与されない）
+ *       - a[aria-current="page"] / a.current … 現在ページのリンク
+ *         （`nav::sidebar()` は両方を同時に付与する。強調表示）
  *     - main.site-main              … 本文カラム（Markdown レンダラの出力をそのまま置く）
  *       - .site-toc（任意）         … ページ内目次
  *   クラス名が万一ズレても崩れないよう、`header` / `nav` / `main` / `aside` の
@@ -66,6 +71,17 @@ body {
 
 body > header,
 .site-header {
+  /*
+   * .site-sidebar は position: sticky; top: var(--site-header-height) で
+   * ヘッダー分オフセットして常時可視のヘッダー直下に張り付く前提のため、
+   * ヘッダー自身も position: sticky; top: 0 で常時可視にしておく必要がある。
+   * ヘッダーが通常フローのままだと、スクロールでヘッダーが視界外へ流れた
+   * 後もサイドバーはヘッダー分のオフセットを保持し続け、ビューポート上部に
+   * 空白の帯が残る（イシュー #472 Bugbot 指摘対応）。
+   */
+  position: sticky;
+  top: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
   height: var(--site-header-height);
@@ -117,22 +133,42 @@ aside.site-sidebar,
 .site-sidebar nav {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-}
-
-.site-sidebar .nav-section {
-  display: flex;
-  flex-direction: column;
   gap: 0.35rem;
 }
 
-.site-sidebar .nav-section-title {
+/*
+ * `nav::sidebar()`（crates/docs-site/src/nav.rs、イシュー #481）はセクション
+ * ごとに素の `h2`（見出し）と `ul` > `li` > `a`（ページ列）を直接列挙する。
+ * `.nav-section` / `.nav-section-title` のような専用クラスは付与されないため、
+ * 要素セレクタで直接スタイルする（上部コメントのクラス名契約を参照）。
+ * `nav.sidebar` に限定するのは、同一 `.site-sidebar` 配下へ将来
+ * `prev_next_nav()`（`class="prev-next"`）が誤って配置された場合に
+ * h2/ul の見た目を継承させないため。
+ */
+.site-sidebar nav.sidebar h2 {
   font-weight: 600;
   font-size: 0.75rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--site-color-text-muted);
-  margin: 0 0 0.15rem;
+  margin: 1rem 0 0.15rem;
+}
+
+.site-sidebar nav.sidebar h2:first-child {
+  margin-top: 0;
+}
+
+.site-sidebar nav.sidebar ul {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.site-sidebar nav.sidebar li {
+  margin: 0;
 }
 
 .site-sidebar a {
@@ -147,7 +183,13 @@ aside.site-sidebar,
   background: var(--site-color-accent-bg);
 }
 
-.site-sidebar a[aria-current="page"] {
+/*
+ * `nav::sidebar()` は現在ページのリンクに `aria-current="page"` と
+ * `class="current"` の両方を同時に付与する（nav.rs 参照）。どちらか一方の
+ * みに依存せず両セレクタを併記する。
+ */
+.site-sidebar a[aria-current="page"],
+.site-sidebar a.current {
   background: var(--site-color-accent-bg);
   color: var(--site-color-accent);
   font-weight: 600;
