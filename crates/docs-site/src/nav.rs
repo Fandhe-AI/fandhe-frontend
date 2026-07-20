@@ -284,9 +284,20 @@ fn validate_page_path(path: &str) -> Result<(), NavError> {
     if !path.starts_with('/') || !path.ends_with('/') {
         return Err(NavError::UnsafePagePath(path.to_string()));
     }
+    if path.len() == 1 {
+        // "/"（サイトトップ）はセグメントなしで許可する。
+        //
+        // 単一文字 "/" は開始・終了の '/' が同一バイトを指すため、下の
+        // `path[1..path.len() - 1]` スライス（1..0）は範囲が逆転してパニック
+        // する（イシュー #473 実装時に検出）。長さ 1 の場合はスライス計算に
+        // 入る前に早期リターンする。
+        return Ok(());
+    }
     let inner = &path[1..path.len() - 1];
     if inner.is_empty() {
-        // "/"（サイトトップ）はセグメントなしで許可する。
+        // "//" のような縮退ケース。セグメントなしとして許可する
+        // （現状 nav.toml では使用しないが、ホワイトリスト方式の
+        // 対称性のため拒否しない）。
         return Ok(());
     }
     if inner.split('/').all(is_safe_path_segment) {
@@ -822,6 +833,29 @@ source = "/etc/passwd"
 path = "/p1/"
 "#;
         assert!(matches!(parse_nav(input), Err(NavError::UnsafeSource(_))));
+    }
+
+    /// イシュー #473 実装時に検出した回帰テスト。`path = "/"`
+    /// （サイトトップ）は `validate_page_path` 内のスライス計算
+    /// （`path[1..path.len() - 1]`）が `1..0` の逆転範囲になりパニックして
+    /// いた。長さ 1 の早期リターンで解消したことを確認する。
+    #[test]
+    fn accepts_site_root_page_path() {
+        let input = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "A"
+
+[[section.page]]
+title = "Top"
+source = "index.md"
+path = "/"
+"#;
+        let nav = parse_nav(input).expect("path = \"/\" should be accepted as the site root");
+        assert_eq!(nav.sections[0].pages[0].path, "/");
     }
 
     #[test]

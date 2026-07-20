@@ -1,0 +1,75 @@
+# docs サイトのナビゲーション構成マニフェスト（イシュー #473）。
+# スキーマ: crates/docs-site/src/nav.rs（fail-closed TOML サブセット）。
+# パーサ・検証ロジックの契約はドキュメンテーションコメントを参照。
+[site]
+title = "fandhe-frontend"
+base_path = "/fandhe-frontend"
+
+[[section]]
+title = "Getting Started"
+
+[[section.page]]
+title = "はじめに"
+source = "site/index.md"
+path = "/"
+
+[[section.page]]
+title = "クイックスタート"
+source = "docs/guides/quickstart.md"
+path = "/getting-started/quickstart/"
+
+[[section]]
+title = "Guides"
+
+[[section.page]]
+title = "コンポーネント記述ガイド"
+source = "docs/guides/component-authoring.md"
+path = "/guides/component-authoring/"
+
+[[section.page]]
+title = "最小埋め込みガイド"
+source = "docs/guides/embedding-guide.md"
+path = "/guides/embedding-guide/"
+
+[[section.page]]
+title = "View Transitions"
+source = "docs/guides/view-transitions.md"
+path = "/guides/view-transitions/"
+
+[[section.page]]
+title = "NPM アセットビルド"
+source = "docs/guides/npm-asset-build.md"
+path = "/guides/npm-asset-build/"
+
+[[section]]
+title = "API Reference"
+
+[[section.page]]
+title = "コンポーネント記述 API"
+source = "docs/api/component-api.md"
+path = "/api/component-api/"
+
+[[section.page]]
+title = "fandhe-frontend-app API"
+source = "docs/api/app-api.md"
+path = "/api/app-api/"
+
+[[section.page]]
+title = "状態管理 API"
+source = "docs/api/interactive-api.md"
+path = "/api/interactive-api/"
+
+[[section.page]]
+title = "hydrate() API"
+source = "docs/api/hydration-api.md"
+path = "/api/hydration-api/"
+
+[[section.page]]
+title = "ハイドレーション状態フォーマット"
+source = "docs/api/hydration-state-format.md"
+path = "/api/hydration-state-format/"
+
+[[section.page]]
+title = "ルーター パスマッチング"
+source = "docs/api/router-path-matching.md"
+path = "/api/router-path-matching/"
