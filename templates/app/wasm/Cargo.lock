@@ -22,22 +22,59 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
-name = "futures-core"
-version = "0.3.32"
+name = "fandhe-frontend-app"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e3450815272ef58cec6d564423f6e755e25379b217b0bc688e295ba24df6b1d"
+checksum = "26370aaf609e7d4ca9685bdd834dac934cb4292e5731ad0603ac1ffa5590cf7d"
+dependencies = [
+ "fandhe-frontend-core",
+]
+
+[[package]]
+name = "fandhe-frontend-core"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85f638536b70d59dabcd12e0e3261ed5de4244849c9c8502de48c166bd507984"
+
+[[package]]
+name = "fandhe-frontend-interactive"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1af0463bdfcc8909580272a64518440fc2eeecb1a837f1931fd5aee65dcc93c4"
+dependencies = [
+ "fandhe-frontend-core",
+]
+
+[[package]]
+name = "fandhe-frontend-wasm-client"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c6f6a10041962a928680cf1ecd581a4cb3542d9b3f6e0a93698427720acd0f8"
+dependencies = [
+ "fandhe-frontend-app",
+ "fandhe-frontend-core",
+ "fandhe-frontend-interactive",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "futures-core"
+version = "0.3.33"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2cd50c473c80f6d7c3670a752354b8e569b1a7cbfdc0419ec88e5edad85e0dc7"
 
 [[package]]
 name = "futures-task"
-version = "0.3.32"
+version = "0.3.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "037711b3d59c33004d3856fbdc83b99d4ff37a24768fa1be9ce3538a1cde4393"
+checksum = "b231ed28831efb4a61a08580c4bc233ec56bc009f4cd8f52da2c3cb97df0c109"
 
 [[package]]
 name = "futures-util"
-version = "0.3.32"
+version = "0.3.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "389ca41296e6190b48053de0321d02a77f32f8a5d2461dd38762c0593805c6d6"
+checksum = "a77a90a256fce34da66415271e30f94ee91c57b04b8a2c042d9cf3220179deaa"
 dependencies = [
  "futures-core",
  "futures-task",
@@ -70,18 +107,18 @@ checksum = "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.106"
+version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fd00f0bb2e90d81d1044c2b32617f68fcb9fa3bb7640c23e9c748e53fb30934"
+checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
 dependencies = [
  "unicode-ident",
 ]
 
 [[package]]
 name = "quote"
-version = "1.0.46"
+version = "1.0.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfbc457d0c7a0759a614551b11a6409e5951f6c7537be1f1b7682b9ae9230368"
+checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
 dependencies = [
  "proc-macro2",
 ]
@@ -91,35 +128,6 @@ name = "rustversion"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
-
-[[package]]
-name = "fandhe-frontend-app"
-version = "0.1.0"
-dependencies = [
- "fandhe-frontend-core",
-]
-
-[[package]]
-name = "fandhe-frontend-core"
-version = "0.1.0"
-
-[[package]]
-name = "fandhe-frontend-interactive"
-version = "0.1.0"
-dependencies = [
- "fandhe-frontend-core",
-]
-
-[[package]]
-name = "fandhe-frontend-wasm-client"
-version = "0.1.0"
-dependencies = [
- "fandhe-frontend-app",
- "fandhe-frontend-core",
- "fandhe-frontend-interactive",
- "wasm-bindgen",
- "web-sys",
-]
 
 [[package]]
 name = "slab"

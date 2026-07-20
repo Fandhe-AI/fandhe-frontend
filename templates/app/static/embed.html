@@ -34,10 +34,10 @@
       wasm ビルド込みの CSR 完全実体（イシュー #411）: 下記 <script> が参照する
       ./wasm/fandhe_frontend_wasm_client.js / fandhe_frontend_wasm_client_bg.wasm は `fw new
       --template app` 生成直後には存在しない。生成プロジェクトルートで
-      `tools/wasm/build.sh` を実行すると、vendor 同梱の fandhe-frontend-wasm-client
-      （vendor/fandhe-frontend-wasm-client、正本は wasm-client/）を wasm/（独立ワーク
-      スペースの glue クレート app-csr-wasm）経由でビルドし、この 2 ファイルを
-      static/wasm/ へ生成する。
+      `tools/wasm/build.sh` を実行すると、crates.io バージョン依存の
+      fandhe-frontend-wasm-client（イシュー #412 で vendor 同梱から切替、正本は
+      wasm-client/）を wasm/（独立ワークスペースの glue クレート app-csr-wasm）
+      経由でビルドし、この 2 ファイルを static/wasm/ へ生成する。
   -->
   <title>既存ページへの部分埋め込みサンプル</title>
   <!--

@@ -1,8 +1,8 @@
 //! `templates/app`（`fw new --template app` 拡張プロジェクトテンプレート、
 //! イシュー #378）の XSS 回帰テスト。
 //!
-//! REQ-1（既定エスケープ）の実証: `fandhe_frontend_app::demo_items()`（vendor 同梱
-//! `vendor/fandhe-frontend-app`）は `items()[1]` に意図的な XSS ペイロード
+//! REQ-1（既定エスケープ）の実証: `fandhe_frontend_app::demo_items()`（crates.io
+//! バージョン依存、イシュー #412 で vendor 同梱から切替）は `items()[1]` に意図的な XSS ペイロード
 //! （`<script>alert('xss')</script>` 等）を含む。本テストは `list_page` /
 //! `detail_page` を経由して `fandhe_frontend_core::render` した出力にそのペイロードが
 //! 生タグとして現れないことを固定する。`fw gate` の `test` チェック

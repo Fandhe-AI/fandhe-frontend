@@ -4,8 +4,8 @@
 //! # 役割・契約
 //!
 //! `templates/default`（fandhe-frontend-core 非依存の最小骨格、TASK-4.4 の負例検出
-//! テスト土台）に対し、本テンプレートは fandhe-frontend-core / fandhe-frontend-app（vendor 同梱、
-//! `vendor/fandhe-frontend-core` / `vendor/fandhe-frontend-app`）へ依存し、フレームワークの実 API
+//! テスト土台）に対し、本テンプレートは fandhe-frontend-core / fandhe-frontend-app（crates.io
+//! バージョン依存、イシュー #412 で vendor 同梱から切替）へ依存し、フレームワークの実 API
 //! （`Loader` trait 実装・束縛点 API・`fandhe_frontend_core::render`）を使う出発点を
 //! 提供する。AI エージェントが SSR/SSG 実体を自作して構成ドリフトするのを
 //! 防ぐことが目的（イシュー #378 背景）。
@@ -40,7 +40,8 @@ fn main() {
     let items = items_loader
         .load(&())
         .expect("DemoItemsLoader::load never fails (Error = Infallible)");
-    let list_html = fandhe_frontend_app::page_shell("記事一覧", fandhe_frontend_app::list_page(&items));
+    let list_html =
+        fandhe_frontend_app::page_shell("記事一覧", fandhe_frontend_app::list_page(&items));
     write_page(dist_dir, "index.html", &list_html);
 
     // 詳細画面: 項目ごとに DemoItemDetailLoader → detail_page → render。
@@ -49,7 +50,10 @@ fn main() {
         let detail = detail_loader
             .load(&item.id)
             .expect("DemoItemDetailLoader::load never fails (Error = Infallible)");
-        let detail_html = fandhe_frontend_app::page_shell("記事詳細", fandhe_frontend_app::detail_page(detail.as_ref()));
+        let detail_html = fandhe_frontend_app::page_shell(
+            "記事詳細",
+            fandhe_frontend_app::detail_page(detail.as_ref()),
+        );
         write_page(dist_dir, &format!("items-{}.html", item.id), &detail_html);
     }
 

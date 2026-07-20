@@ -5,8 +5,11 @@
 //! `fw` は単一実行ファイル配布（Docker 想定）を目標とするため、実行時に
 //! `templates/<name>/` のファイルシステム配置へ依存させず、`include_str!`
 //! でバイナリへ埋め込む。正本は引き続きリポジトリルート `templates/<name>/`
-//! （`default` は `xtask/tests/template_*.rs`、`app` は
-//! `cli/tests/template_vendor_drift.rs` が正本として参照する）である。
+//! であり、ルート `templates/<name>/` と `crates/cli/templates/<name>/`
+//! 同梱コピーの乖離検知は `cli/tests/template_publish_copy_drift.rs` が担う
+//! （`app` テンプレート固有のバージョン依存整合性・共有ファイル同一性は
+//! `cli/tests/template_vendor_drift.rs`、`default` は `xtask/tests/template_*.rs`
+//! が別途検証する）。
 //!
 //! `include_str!` はクレートディレクトリ外を参照できない（`cargo package` の
 //! tarball 検証で拒否される）ため、本クレートは `crates/cli/templates/` に
@@ -154,22 +157,26 @@ const DEFAULT_TEMPLATE_FILES: &[TemplateFile] = &[
     },
 ];
 
-/// `templates/app/` の全ファイル（35 件）を埋め込んだ固定配列（イシュー #378、
-/// イシュー #411 で wasm ビルド込み CSR 完全実体を追加）。
+/// `templates/app/` の全ファイル（18 件）を埋め込んだ固定配列（イシュー #378、
+/// イシュー #411 で wasm ビルド込み CSR 完全実体を追加、イシュー #412 で
+/// vendor 同梱から crates.io バージョン依存へ切替）。
 ///
-/// fandhe-frontend-core / fandhe-frontend-app（vendor 同梱、`vendor/fandhe-frontend-core` / `vendor/fandhe-frontend-app`）に
+/// fandhe-frontend-core / fandhe-frontend-app（crates.io バージョン依存）に
 /// 依存する拡張テンプレート。`Loader` trait 実装・束縛点 API
 /// （`bind_text`/`keyed_list`）・`fandhe_frontend_core::render` を使う実体サンプルを含む
 /// （`templates/app/src/main.rs`）。`.github/workflows/*`・`clippy.toml`・
 /// `deny.toml`・`tools/npm-asset-build/*` は `templates/default/` と共有
 /// ファイル同一性を保つ（`cli/tests/template_vendor_drift.rs` が検証）。
 ///
-/// イシュー #411: `vendor/fandhe-frontend-interactive` / `vendor/fandhe-frontend-wasm-client`（正本
-/// `interactive/` / `wasm-client/` の vendor 同梱）と、独立ワークスペース
-/// `wasm/`（glue クレート `app-csr-wasm`）・`tools/wasm/build.sh`（wasm ビルド
-/// 手順）を追加し、生成プロジェクトが自力で CSR（`mount_csr`/`hydrate`）の
-/// wasm 成果物をビルドできる完全実体を同梱する（root（`fandhe-frontend-template-app`）の
-/// 依存グラフ・`fw gate` 対象は不変、実装計画 §2.2 参照）。
+/// イシュー #411: fandhe-frontend-interactive / fandhe-frontend-wasm-client
+/// （crates.io バージョン依存、正本は `interactive/` / `wasm-client/`）に
+/// 依存する独立ワークスペース `wasm/`（glue クレート `app-csr-wasm`）・
+/// `tools/wasm/build.sh`（wasm ビルド手順）を追加し、生成プロジェクトが
+/// 自力で CSR（`mount_csr`/`hydrate`）の wasm 成果物をビルドできる完全実体を
+/// 同梱する（root（`fandhe-frontend-template-app`）の依存グラフ・`fw gate`
+/// 対象は不変、実装計画 §2.2 参照）。イシュー #412（vendor 同梱 → バージョン
+/// 依存への切替）により、root・wasm/ いずれも自前のクレートソースを持たなく
+/// なった（`crates.io` から取得）。
 const APP_TEMPLATE_FILES: &[TemplateFile] = &[
     TemplateFile {
         rel_path: ".github/workflows/deny.yml",
@@ -241,126 +248,10 @@ const APP_TEMPLATE_FILES: &[TemplateFile] = &[
         contents: include_str!("../templates/app/tools/npm-asset-build/install.sh"),
         executable: true,
     },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-app/Cargo.toml",
-        contents: include_str!("../templates/app/vendor/fandhe-frontend-app/Cargo.toml.embed"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-app/src/lib.rs",
-        contents: include_str!("../templates/app/vendor/fandhe-frontend-app/src/lib.rs"),
-        executable: false,
-    },
-    // イシュー #407: server / client 単一定義からのルート生成（共有機構）を
-    // fandhe-frontend-app へ集約したため、router.rs / routes.rs も vendor 同梱する。
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-app/src/router.rs",
-        contents: include_str!("../templates/app/vendor/fandhe-frontend-app/src/router.rs"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-app/src/routes.rs",
-        contents: include_str!("../templates/app/vendor/fandhe-frontend-app/src/routes.rs"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-core/Cargo.toml",
-        contents: include_str!("../templates/app/vendor/fandhe-frontend-core/Cargo.toml.embed"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-core/src/bind.rs",
-        contents: include_str!("../templates/app/vendor/fandhe-frontend-core/src/bind.rs"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-core/src/escape.rs",
-        contents: include_str!("../templates/app/vendor/fandhe-frontend-core/src/escape.rs"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-core/src/keyed.rs",
-        contents: include_str!("../templates/app/vendor/fandhe-frontend-core/src/keyed.rs"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-core/src/lib.rs",
-        contents: include_str!("../templates/app/vendor/fandhe-frontend-core/src/lib.rs"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-core/src/tags.rs",
-        contents: include_str!("../templates/app/vendor/fandhe-frontend-core/src/tags.rs"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-core/src/url.rs",
-        contents: include_str!("../templates/app/vendor/fandhe-frontend-core/src/url.rs"),
-        executable: false,
-    },
     // イシュー #411: CSR wasm ビルド込みの完全実体。fandhe-frontend-interactive /
-    // fandhe-frontend-wasm-client の vendor 同梱（正本は interactive/ / wasm-client/）と、
-    // それらをビルドする独立ワークスペース wasm/・手順スクリプト
+    // fandhe-frontend-wasm-client（crates.io バージョン依存、イシュー #412 で
+    // vendor 同梱から切替）をビルドする独立ワークスペース wasm/・手順スクリプト
     // tools/wasm/build.sh を追加する（実装計画 §2.2・§2.3）。
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-interactive/Cargo.toml",
-        contents: include_str!(
-            "../templates/app/vendor/fandhe-frontend-interactive/Cargo.toml.embed"
-        ),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-interactive/src/lib.rs",
-        contents: include_str!("../templates/app/vendor/fandhe-frontend-interactive/src/lib.rs"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-wasm-client/Cargo.toml",
-        contents: include_str!(
-            "../templates/app/vendor/fandhe-frontend-wasm-client/Cargo.toml.embed"
-        ),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-wasm-client/src/binding.rs",
-        contents: include_str!(
-            "../templates/app/vendor/fandhe-frontend-wasm-client/src/binding.rs"
-        ),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-wasm-client/src/binding_dom.rs",
-        contents: include_str!(
-            "../templates/app/vendor/fandhe-frontend-wasm-client/src/binding_dom.rs"
-        ),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-wasm-client/src/keyed_diff.rs",
-        contents: include_str!(
-            "../templates/app/vendor/fandhe-frontend-wasm-client/src/keyed_diff.rs"
-        ),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-wasm-client/src/keyed_dom.rs",
-        contents: include_str!(
-            "../templates/app/vendor/fandhe-frontend-wasm-client/src/keyed_dom.rs"
-        ),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-wasm-client/src/lib.rs",
-        contents: include_str!("../templates/app/vendor/fandhe-frontend-wasm-client/src/lib.rs"),
-        executable: false,
-    },
-    TemplateFile {
-        rel_path: "vendor/fandhe-frontend-wasm-client/src/registry.rs",
-        contents: include_str!(
-            "../templates/app/vendor/fandhe-frontend-wasm-client/src/registry.rs"
-        ),
-        executable: false,
-    },
     TemplateFile {
         rel_path: "wasm/Cargo.lock",
         contents: include_str!("../templates/app/wasm/Cargo.lock"),

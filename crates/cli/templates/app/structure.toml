@@ -9,16 +9,11 @@
 # `Cargo.lock` と同様にプロジェクト名へ置換する対象に含める
 # （`cli/src/new.rs` のテンプレート別 SUBSTITUTED_FILES）。
 #
-# `vendor/fandhe-frontend-core` / `vendor/fandhe-frontend-app` / `vendor/fandhe-frontend-interactive` /
-# `vendor/fandhe-frontend-wasm-client`（templates/app 固有の同梱物、イシュー #378 §3.2・
-# #411 §2.3）は本マニフェストへ宣言しない。`fw gate` の
-# `default_escape_check`（保険層）・`fw structure`・`fw impact` はいずれも
-# `[directories.*]` 宣言済みのディレクトリのみを走査・解決対象とするため、
-# vendor 配下（正本 core/app/interactive/wasm-client からの写しであり生成
-# プロジェクトの記述対象ではない）は宣言外として意図的に走査対象から除外する
-# （`lint` チェックは本ファイル `[directories.root]` の `crate` 宣言（1 クレート
-# のみ）を対象に検査するため vendored crate 内部の `raw_html` 定義自体は違反に
-# ならない、既存 gate 仕様どおり）。
+# fandhe-frontend-core / fandhe-frontend-app / fandhe-frontend-interactive /
+# fandhe-frontend-wasm-client は crates.io バージョン依存（イシュー #412 で
+# vendor 同梱から切替）であり、生成プロジェクト配下にソースを持たないため
+# 本マニフェストへ宣言しない（`fw gate` の検証対象クレート決定は
+# `[directories.*]` 宣言済みのディレクトリのみが対象）。
 #
 # `wasm/`（イシュー #411、独立ワークスペースの CSR wasm ビルド用 glue クレート
 # `app-csr-wasm`）も同じ理由で本マニフェストへ宣言しない。`wasm/` は

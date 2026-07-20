@@ -3,8 +3,8 @@
 //!
 //! # 役割・責務境界
 //!
-//! `vendor/fandhe-frontend-wasm-client`（イシュー #378/#411 で vendor 同梱、正本は
-//! `wasm-client/`）が `#[wasm_bindgen]` エクスポートとして既に定義している
+//! `fandhe-frontend-wasm-client`（crates.io バージョン依存、イシュー #412 で
+//! vendor 同梱から切替。正本は `wasm-client/`）が `#[wasm_bindgen]` エクスポートとして既に定義している
 //! `hydrate` / `mount_csr`（`wasm-client/src/lib.rs` の `wiring` モジュール）を
 //! 再エクスポートするのみで、このクレート自身は HTML 組み立て・DOM 直接
 //! 操作・`raw_html()` の呼び出しを一切行わない
