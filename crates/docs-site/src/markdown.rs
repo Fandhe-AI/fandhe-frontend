@@ -304,7 +304,9 @@ fn strip_list_marker(line: &str) -> (usize, &str) {
 
 /// リストブロックを解析する。同一項目の継続行（マーカーなしインデント行）は
 /// 前 `li` のテキストへ結合し、2 スペース以上インデントされたマーカー行は
-/// 1 段のみの子リストとして再帰処理する（設計どおり、`MAX_DEPTH` は引用と共通）。
+/// 子リストとして再帰処理する。ネストは `depth < MAX_DEPTH`（`MAX_DEPTH` は
+/// 引用と共通）を条件に何段でも許容し、上限に達した段のみ継続行として
+/// 直前アイテムのテキストへ結合される。
 fn parse_list(lines: &[&str], start: usize, kind: ListKind, depth: usize) -> (Node, usize) {
     let base_indent = {
         let trimmed = lines[start].trim_start();
