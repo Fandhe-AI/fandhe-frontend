@@ -164,11 +164,14 @@ members = ["."]` を明示することで、path 依存先（`vendor/fandhe-fron
 
 vendor 同梱は「`publish = false`（crates.io 未公開）である間」の暫定措置
 であり、公開後はバージョン依存へ切り替えるべきものである。切替の
-トリガー条件（正本 `Cargo.toml` から `publish = false` が解除されること）
-と切替手順は `docs/design/template-vendor-to-version-switch.md`
-（イシュー #412）に定める。トリガー成立は
-`crates/cli/tests/template_vendor_drift.rs` の canary テスト
-（`vendor_to_version_switch_trigger_has_not_fired`）が機械検知する。
+トリガー条件と切替手順は `docs/design/template-vendor-to-version-switch.md`
+（イシュー #412）に定めた。イシュー #493 において全 9 クレートが
+v0.1.0 で crates.io へ公開されたことを受け、本手順に従い切替を実施した
+（`templates/app/vendor/` 削除、`templates/app/Cargo.toml` の crates.io
+バージョン依存化、`crates/cli/tests/template_vendor_drift.rs` の テスト
+更新）。`templates/app/Cargo.toml` は現在 `fandhe-frontend-core = "0.1.0"`・
+`fandhe-frontend-app = "0.1.0"` でバージョン依存を宣言し、生成プロジェクト
+のビルド時に crates.io から依存を取得する。
 
 `structure.toml` は `vendor/fandhe-frontend-core`/`vendor/fandhe-frontend-app` を宣言しない
 （`[directories.*]` 宣言外）。`fw gate` の `default_escape_check`・
@@ -200,35 +203,18 @@ fail-closed）。クレートはプロジェクトルート直下（`src/`）に
 
 `fandhe-frontend-wasm-client`（正本 `crates/wasm-client/`）は `wasm-bindgen`/`web-sys` という
 外部依存を持つため、§3a のソース vendor 方式（外部依存ゼロが前提）を
-そのまま適用できない。以下のハイブリッド方式を採る:
+そのまま適用できない。当初はハイブリッド方式（`fandhe-frontend-interactive`/`fandhe-frontend-wasm-client`
+をソース vendor、`wasm-bindgen`/`web-sys` のみ `wasm/Cargo.lock` でバージョン依存）を採択
+していたが、イシュー #493（§3a 参照）の crates.io バージョン依存への切替に伴い、
+以下の現在の構成へ移行した:
 
-| 方式 | 判定 |
-|------|------|
-| wasm-bindgen 一族まで全ソース vendor | 却下: 数十クレート規模の複製となり `include_str!` によるコンパイル時埋め込みが非現実的 |
-| ビルド済み `.wasm`/JS グルーコードの同梱 | 却下: 監査不能なビルド成果物の配布（OWASP A08） |
-| **ハイブリッド（採用）**: `fandhe-frontend-interactive`/`fandhe-frontend-wasm-client`（外部依存ゼロのフレームワーク部分）はソース vendor。`wasm-bindgen`/`web-sys` は独立ワークスペース `wasm/` の `Cargo.lock` で crates.io バージョン依存として固定 | 正本ドリフト検知の既存運用に乗る。外部クレートは新規追加ゼロ（リポジトリ本体 `Cargo.lock` と同一バージョンの参照のみ） |
-
-**独立ワークスペースへの隔離（root のオフライン決定性を守る）**: `wasm/` は
-`templates/app`（root、`fandhe-frontend-template-app`）の `[workspace] members = ["."]`
-に含まれない別の `[workspace]`（`templates/app/wasm/Cargo.toml`）として
-切り離す。wasm-bindgen の取得にはビルド時ネットワークが必要であり、これを
-root の依存グラフに混ぜると `cargo build`/`cargo test`/`fw gate` の既定経路
-（オフライン・自己完結が前提、§3a）を壊すため。`structure.toml` は
-`wasm/` を宣言しない（§3a の vendor 除外と同一根拠）ため `fw gate` の
-検証対象クレート決定にも影響しない。
-
-**構成**:
-- `vendor/fandhe-frontend-interactive/`・`vendor/fandhe-frontend-wasm-client/`: 正本 `crates/interactive/`・
-  `crates/wasm-client/` の `src/*` バイト同一コピー（`crates/cli/tests/template_vendor_drift.rs`
-  が検証）。`Cargo.toml` は既知変換（path 依存先を vendor 配下の実ディレクトリ名へ
-  変更、dev-dependencies を除去。dev-dependencies は `fandhe-frontend-server` への vendor
-  連鎖を招くため）を適用する。
-- `wasm/Cargo.toml`（glue クレート `app-csr-wasm`、cdylib）: `vendor/fandhe-frontend-wasm-client`
-  の `hydrate`/`mount_csr`（`#[wasm_bindgen]` エクスポート）を再エクスポート
-  するのみ。HTML 組み立て・DOM 直接操作・`raw_html()` を持たない。
-- `wasm/Cargo.lock`: wasm-bindgen 0.2.126 / web-sys 0.3.103（リポジトリ本体
-  `Cargo.lock` の解決値と同一）へピン。バージョン一致は
-  `crates/cli/tests/template_vendor_drift.rs::wasm_lockfile_wasm_bindgen_version_matches_repo_root_lockfile`
+**構成（§3a 切替後）**:
+- `wasm/Cargo.toml`（glue クレート `app-csr-wasm`、cdylib）: `fandhe-frontend-wasm-client`
+  の `hydrate`/`mount_csr`（`#[wasm_bindgen]` エクスポート）を crates.io バージョン
+  依存（`fandhe-frontend-wasm-client = "0.1.0"`）で再エクスポートするのみ。
+  HTML 組み立て・DOM 直接操作・`raw_html()` を持たない。
+- `wasm/Cargo.lock`: wasm-bindgen / web-sys をリポジトリ本体 `Cargo.lock` と同一
+  バージョンへピン。バージョン一致は `crates/cli/tests/template_vendor_drift.rs`
   が機械的に検証する（手動同期に頼らない）。
 - `tools/wasm/build.sh`（実行ビット 100755）: (a) rustup target・wasm-bindgen-cli
   の存在チェック、(b) `wasm/Cargo.lock` から読んだ wasm-bindgen バージョンと
@@ -237,11 +223,17 @@ root の依存グラフに混ぜると `cargo build`/`cargo test`/`fw gate` の�
   --target wasm32-unknown-unknown --release`、(d) `wasm-bindgen --target web
   --out-dir static/wasm --out-name fandhe_frontend_wasm_client` を実行する固定コマンド列。
 
+**独立ワークスペースへの隔離**: `wasm/` は
+`templates/app`（root、`fandhe-frontend-template-app`）の `[workspace] members = ["."]`
+に含まれない別の `[workspace]`（`templates/app/wasm/Cargo.toml`）として
+切り離す。wasm-bindgen の取得にはビルド時ネットワークが必要である。
+`structure.toml` は `wasm/` を宣言しない（§3a の除外と同一根拠）ため `fw gate` の
+検証対象クレート決定にも影響しない。
+
 **REQ-3（60 件/深さ 6）への影響**: root（`fandhe-frontend-template-app`）の依存グラフ・
-`xtask check-deps` の計測対象は不変（`include_str!` 追加のみ）。`wasm/` は
+`xtask check-deps` の計測対象は変わらない（§3a のバージョン依存化後）。`wasm/` は
 「標準サーバー構成」の外にあるオプトイン CSR 成果物であり REQ-3 の計測
-基準へ影響しない。新規外部クレートの追加はゼロ（wasm-bindgen/web-sys とも
-リポジトリ本体で既に解決済みのバージョンを参照するのみ）。
+基準へ影響しない。新規外部クレートの追加はゼロ。
 
 **CI 回帰検証**: `.github/workflows/ci.yml` の `template-app-wasm-smoke`
 ジョブが `fw new --template app` → `tools/wasm/build.sh` →
@@ -451,14 +443,10 @@ wasm-bindgen/web-sys バージョンとリポジトリ本体 `Cargo.lock` の一
 - **静的単一ファイル `embed` テンプレート**は #378 の範囲外だったが、
   イシュー #410 で `fw new --template embed`（§3.3）として製品化済み。
 - **wasm ビルドを含む CSR の完全実体**は本イシュー（#378）の範囲外だったが、
-  イシュー #411 でハイブリッド方式（fandhe-frontend-wasm-client 本体はソース vendor、
-  wasm-bindgen / web-sys のみ独立ワークスペース `wasm/` でバージョン依存）
-  により同梱済み（§3b 参照）。
-- **crates.io 公開後の vendor → バージョン依存への切替**は本イシューの
-  範囲外（publish = false が解消された時点で再検討する）。トリガー条件の
-  機械検知（canary テスト）と切替手順書の整備はイシュー #412 で追跡済み
-  （`docs/design/template-vendor-to-version-switch.md`）。実際の切替実施は
-  トリガー成立後、別イシュー・別 PR で行う。
+  イシュー #411 で同梱済み（§3b 参照）。その後イシュー #493 の crates.io
+  バージョン依存への切替に伴い、§3b の構成も更新された。
+- **crates.io 公開後の vendor → バージョン依存への切替**はイシュー #412 の
+  チェックリストに従い、イシュー #493 で実施完了（§3a・§3b 参照）。
 - **Windows 実機 CI での非 Unix 挙動の実測**: 本イシュー（#378）時点では
   self-hosted Linux runner のみのため未実施だったが、イシュー #413 で
   `.github/workflows/fw-new-windows-verify.yml`（`workflow_dispatch` 専用）

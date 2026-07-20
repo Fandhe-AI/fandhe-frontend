@@ -105,11 +105,17 @@ $ fw new my-app --template app
 - `wasm/`: CSR（WASM）ビルド用の独立ワークスペース
 - `static/embed.html`: CSR のマウント骨格（後述のビルド後に動作します）
 - `structure.toml`: `fw gate` が読む構造マニフェスト（生成直後から PASS する構成です）
-- `vendor/`: 依存クレートのソースを同梱済みで、追加のダウンロードは不要です
 
 ## 5. ビルドとブラウザ確認（SSR/SSG 出力）
 
-生成したプロジェクトのディレクトリへ移動し、テストとビルドを実行します。
+生成したプロジェクトのディレクトリへ移動します。初回ビルド時は `Cargo.toml` で宣言された fandhe-frontend-core / fandhe-frontend-app を crates.io から取得するため、インターネット接続が必要です。
+
+```
+$ cd my-app
+$ cargo test
+```
+
+テストとビルドを実行します。
 
 ```
 $ cd my-app

@@ -126,7 +126,7 @@
 | `crates/wasm-full/tests/route_sync_static.rs` → `route_shared_static.rs`（置換） | 検証内容は §7 参照（受け入れ条件 2） |
 | `structure.toml` | `[routing] definition_dir = "app"`。`app`/`server` の `description` を移設内容に合わせて更新 |
 | `crates/cli/src/routes.rs` | 統合回帰テスト `extract_routes_reads_real_router_source` の走査先・期待ハンドラ名（`AppRoute::List`/`AppRoute::Detail`）を追随（抽出器本体は無改修） |
-| `templates/app/vendor/fandhe-frontend-app/src/{lib,router,routes}.rs` | `crates/app/src/` の vendor 同梱コピー（`crates/cli/tests/template_vendor_drift.rs` がバイト一致を強制）を追随。`crates/cli/src/new_template.rs::TEMPLATES` に `router.rs`/`routes.rs` の 2 エントリを追加 |
+| `templates/app/Cargo.toml` | `fandhe-frontend-app = "0.1.0"` への crates.io バージョン依存宣言により、生成プロジェクトが公開クレートから `router.rs`/`routes.rs` を取得する形に変更（イシュー #493）。`crates/cli/tests/template_vendor_drift.rs` が依存バージョンの整合性を検証 |
 
 ## 7. ドリフト検知テストの置き換え（受け入れ条件 2: 弱体化しない）
 

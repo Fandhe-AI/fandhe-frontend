@@ -4,7 +4,7 @@
 
 Rust 製フロントエンドフレームワーク。AI 時代のセキュリティリスク低減を目的に、プレーンな HTML / JavaScript / CSS を尊重しつつ SSR / SPA / SSG / トランジションなどモダン機能を網羅する。部分埋め込みの最小構成からフル機能構成までのグラデーションを持ち、単一実行ファイルでのデプロイ（Docker 想定）を目標とする。
 
-- 正式名称は `fandhe-frontend`（確定、2026-07-19）。決定記録・新旧マッピング表は `docs/design/framework-naming.md` を参照。crate 名は #441 で `rws-*` から `fandhe-frontend-*` へ改名済み。リポジトリ名は #439 で `Fandhe-AI/fandhe-frontend` へ改名済み
+- 正式名称は `fandhe-frontend`（確定、2026-07-19）。決定記録・新旧マッピング表は `docs/design/framework-naming.md` を参照。crate 名は #441 で `rws-*` から `fandhe-frontend-*` へ改名済み。リポジトリ名は #439 で `Fandhe-AI/fandhe-frontend` へ改名済み。全 9 クレート（fandhe-frontend-core / -interactive / -app / -server / -wasm-client / -wasm-full / -wasm-thin / -dist-server / -cli）は v0.1.0 で 2026-07-20 に crates.io へ公開済み
 - 仕様書は [Fandhe-AI/fandhe-frontend-spec](https://github.com/Fandhe-AI/fandhe-frontend-spec) を `docs/spec/` サブモジュールとして取り込み管理
 - 開発は `docs/spec/06-roadmap.md` のマイルストーン MS-1〜MS-5 に従う（最初のタスクは TASK-1.1: `fandhe-frontend-core` 既定エスケープの製品化）
 - 計画クレート: `fandhe-frontend-core`（描画コア・外部依存ゼロ）/ `fandhe-frontend-app` / `fandhe-frontend-server`（SSR/SSG）/ `fandhe-frontend-wasm-client`・`fandhe-frontend-wasm-full`（WASM/CSR）/ `fandhe-frontend-interactive`（状態管理）/ `xtask`（CI 計測）/ `fandhe-frontend-cli`（`fw` コマンド・AI 自己保守フック、REQ-13）
@@ -42,7 +42,6 @@ fandhe-frontend/
 │   │           └── npm-asset-gate.yml  # NPM 静的アセットゲート（install.sh 経由）のテンプレートワークフロー（REQ-12, イシュー #316）
 │   ├── app/                   # `fw new --template app`（イシュー #378/#411）: fandhe-frontend-core/fandhe-frontend-app 依存の拡充テンプレート（wasm ビルド込み CSR 完全実体を同梱）
 │   │   ├── src/main.rs       # Loader・束縛点 API（bind_text/keyed_list）・render の実体サンプル
-│   │   ├── vendor/           # fandhe-frontend-core/fandhe-frontend-app/fandhe-frontend-interactive/fandhe-frontend-wasm-client のソース vendor 同梱（publish=false のため。正本との乖離は crates/cli/tests/template_vendor_drift.rs が検知）
 │   │   ├── wasm/              # CSR wasm ビルド用の独立ワークスペース（glue クレート app-csr-wasm、root の依存グラフから隔離）
 │   │   ├── tools/wasm/build.sh # wasm ビルド手順（wasm-bindgen-cli バージョン整合の fail-closed 検証込み）
 │   │   └── static/embed.html # CSR マウント骨格（templates/embed/embed.html の同梱コピー、build.sh 実行後に動作）
@@ -70,6 +69,7 @@ crates/
 ├── dist-server/   # fandhe-frontend-dist-server: 単一実行ファイル配布サーバー
 ├── docs-site/     # fandhe-frontend-docs-site: docs サイトジェネレータ（外部依存ゼロ・配布物に含めない開発者/CI 用ツール）
 ├── cli/           # fandhe-frontend-cli: `fw` コマンド（structure.toml のスキーマ・パース・生成、REQ-13）
+│   └── templates/ # `fw new` 埋め込み用の同梱コピー（正本はルート `templates/`。`new_template.rs` が `include_str!` で吸収、乖離は `tests/template_publish_copy_drift.rs` が検知）
 └── xtask/         # CI 計測用の開発者ツール
 ```
 

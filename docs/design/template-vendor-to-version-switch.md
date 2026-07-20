@@ -1,5 +1,16 @@
 # テンプレート vendor 同梱 → バージョン依存への切替手順（イシュー #412）
 
+## 実施記録
+
+全 9 クレート（fandhe-frontend-core / -interactive / -app / -server /
+-wasm-client / -wasm-full / -wasm-thin / -dist-server / -cli）が v0.1.0 で
+crates.io へ公開されたことを受け、イシュー #493 で本手順に従い切替を実施した
+（`templates/app/vendor/` 削除、`templates/app/Cargo.toml` /
+`templates/app/wasm/Cargo.toml` の crates.io バージョン依存化、
+`crates/cli/src/new_template.rs` の vendor エントリ除去、
+`crates/cli/tests/template_vendor_drift.rs` のテスト更新）。以下の手順は
+実施済みの記録として残す。
+
 ## 背景
 
 `templates/app`（`fw new --template app`、イシュー #378）は、fandhe-frontend-core /
