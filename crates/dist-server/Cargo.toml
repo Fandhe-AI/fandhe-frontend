@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "fandhe-frontend-dist-server: TASK-9.1b。fandhe-frontend-core / fandhe-frontend-app / fandhe-frontend-server を単一実行ファイルへ統合し、コンパイル時埋め込みの静的アセットと fandhe-frontend-app の SSR ページを配信する配布用サーバー。"
 license = "MIT OR Apache-2.0"
-publish = false
+repository = "https://github.com/Fandhe-AI/fandhe-frontend"
+readme = "../../README.md"
+keywords = ["frontend", "server", "ssr", "distribution"]
+categories = ["web-programming"]
 
 # REQ-3（依存グラフ上限 60 件/深さ 6, docs/spec/04-requirements.md）実測根拠:
 #
@@ -29,9 +32,9 @@ publish = false
 # 実測（2026-07-17、cargo metadata 経由、xtask check-deps と同じ定義）:
 #   packages: 21（上限 60）/ max depth: 5（上限 6）→ result: PASS
 [dependencies]
-fandhe-frontend-core = { path = "../core" }
-fandhe-frontend-app = { path = "../app" }
-fandhe-frontend-server = { path = "../server" }
+fandhe-frontend-core = { path = "../core", version = "0.1.0" }
+fandhe-frontend-app = { path = "../app", version = "0.1.0" }
+fandhe-frontend-server = { path = "../server", version = "0.1.0" }
 hyper = { version = "1", default-features = false, features = ["http1", "server"] }
 hyper-util = { version = "0.1", default-features = false, features = ["http1", "server", "tokio"] }
 http-body-util = { version = "0.1", default-features = false }

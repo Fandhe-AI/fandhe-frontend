@@ -4,7 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "fandhe-frontend-wasm-client: REQ-6 最小ハイドレーション方式のクライアントランタイム。サーバー出力済み DOM を再構築せず、イベントリスナーを後付けする hydrate() と、SSR/SSG と同一関数を呼ぶ CSR 用 mount_csr() を提供する。"
 license = "MIT OR Apache-2.0"
-publish = false
+repository = "https://github.com/Fandhe-AI/fandhe-frontend"
+readme = "../../README.md"
+keywords = ["wasm", "hydration", "frontend", "dom"]
+categories = ["wasm", "web-programming"]
 
 # TASK-6.2b（#48）で本クレートを新設。`docs/api/hydration-api.md`（TASK-6.2a・#47、
 # 凍結済み設計書）第 2 節の凍結内容に従う。実装と本書に乖離が生じた場合は
@@ -26,9 +29,9 @@ publish = false
 # クレートのため、新規外部パッケージの増加はゼロ（REQ-3 整理、PR 本文に
 # `cargo metadata` 実測を記録）。
 [dependencies]
-fandhe-frontend-core = { path = "../core" }
-fandhe-frontend-app = { path = "../app" }
-fandhe-frontend-interactive = { path = "../interactive" }
+fandhe-frontend-core = { path = "../core", version = "0.1.0" }
+fandhe-frontend-app = { path = "../app", version = "0.1.0" }
+fandhe-frontend-interactive = { path = "../interactive", version = "0.1.0" }
 wasm-bindgen = "0.2"
 
 # イシュー #345（束縛点更新 + keyed list への置換）で以下 3 feature を追加。
