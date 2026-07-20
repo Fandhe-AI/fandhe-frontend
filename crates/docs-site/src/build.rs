@@ -223,9 +223,10 @@ fn list_regular_files(dir: &Path) -> Result<Vec<PathBuf>, BuildError> {
             path: PathBuf::from("site/assets"),
             source,
         })?;
-        // `symlink_metadata` はシンボリックリンク自体の種別を返す
-        // （`metadata` はリンク先を追跡してしまい、リンク先がリポジトリ外の
-        // 通常ファイルの場合に判定をすり抜ける）。
+        // `DirEntry::metadata` はシンボリックリンク自体の種別を返す
+        // （`std::fs::metadata` のようにリンク先を追跡することはない。
+        // リンク先を追跡してしまうと、リンク先がリポジトリ外の通常ファイルの
+        // 場合に判定をすり抜ける）。
         let file_type = entry
             .metadata()
             .map_err(|source| BuildError::Io {
