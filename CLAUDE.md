@@ -68,6 +68,7 @@ crates/
 ├── wasm-full/     # fandhe-frontend-wasm-full: CSR/ハイドレーション フルセット
 ├── wasm-thin/     # fandhe-frontend-wasm-thin: CSR/ハイドレーション 最小構成
 ├── dist-server/   # fandhe-frontend-dist-server: 単一実行ファイル配布サーバー
+├── docs-site/     # fandhe-frontend-docs-site: docs サイトジェネレータ（外部依存ゼロ・配布物に含めない開発者/CI 用ツール）
 ├── cli/           # fandhe-frontend-cli: `fw` コマンド（structure.toml のスキーマ・パース・生成、REQ-13）
 └── xtask/         # CI 計測用の開発者ツール
 ```
