@@ -683,17 +683,30 @@ jobs:
   # しきい値超過と同様に終了コード 1 として扱う（crates/xtask/src/check_loc.rs 参照）。
   # そのため TASK-8.2a（イシュー #61）のマージ前にこのジョブが実行されると
   # 意図的に FAIL する。
-  # TASK-11.5a（#86）: 実ブラウザ性能計測ハーネス（crates/wasm-full/tests/perf_browser.rs）の
-  # スモーク実行ジョブ。TASK-6.3a（#65）の browser-test ジョブと同じ環境構築
+  # TASK-11.5a（#86）: 実ブラウザ性能計測ハーネス（crates/wasm-full/tests/perf_browser.rs）を
+  # 実行するジョブ（当初はハーネス自己検証のみのスモーク実行だったが、イシュー
+  # #451（採用案 B、2026-07-20 決定）により `--features perf-assert` 付きの
+  # しきい値アサーション実行へ移行済み）。TASK-6.3a（#65）の browser-test
+  # ジョブと同じ環境構築
   # パターン（wasm32 target・wasm-pack バージョン固定＋チェックサム検証・ランナー
   # 内蔵 chromedriver 明示指定）を踏襲するが、対象クレート（wasm-client と
   # wasm-full）が異なり、browser-test ジョブは TASK-11.2d（#77）が担当する
   # wasm-full 存在ガード追加のスコープであるため、コンフリクトを避けて独立
   # ジョブとして追加する（`docs/ci/perf-browser-harness.md` 引き継ぎ表参照）。
   #
-  # 本ジョブの役割は「ハーネス自己検証テストの通過確認（スモーク実行）」のみ
-  # であり、REQ-11 の性能予算（300ms/16ms）に対する正式判定は行わない
-  # （しきい値アサーションの有効化は TASK-11.5b・#87 のスコープ）。
+  # 本ジョブは REQ-11 の性能予算（300ms/16ms・16ms 超過率 5% 以下）を
+  # `--features perf-assert` 付きで常時アサートする（イシュー #451、採用案 B、
+  # 2026-07-20 決定）。実測（`docs/reports/perf-browser-report.md`、2026-07-17）は
+  # initial_load mean 0.034〜0.343ms・dom_update p95 0.090〜0.105ms と
+  # しきい値に対し約 1000 倍の余裕があり、共有 self-hosted runner の負荷変動を
+  # 考慮してもフレークリスクは低いと判断し、PR CI での常時判定を採用した。
+  # 統制されたローカル環境での正式計測・`docs/reports/perf-browser-report.md`
+  # 更新を伴う計測の位置づけは変更しない（`docs/ci/perf-browser-harness.md`
+  # 第 4・6 節参照）。
+  #
+  # ジョブ `name:` はブランチ保護の required checks に登録されている可能性が
+  # あるため、実態変更後も据え置く（`.claude/rules/ci.md` 参照。CI 常時実行の
+  # 実態変更はステップ名・コメント・Step Summary 見出しで表す）。
   perf-harness:
     name: Perf browser harness smoke (wasm-pack --headless --chrome)
     runs-on: self-hosted
@@ -953,11 +966,11 @@ jobs:
       # `-- --nocapture` を付与しないと、テストが成功した場合に libtest が
       # console 出力（`perf-browser:` サマリ行）を握りつぶすため、次ステップの
       # 転記が常に「no summary line found」になる（出力契約が成立しない）。
-      - name: Run perf harness smoke (headless Chrome)
+      - name: "Run perf harness with perf-assert thresholds (headless Chrome, issue #451)"
         if: steps.check.outputs.exists == 'true'
         run: |
           set -o pipefail
-          CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test perf_browser -- --nocapture 2>&1 | tee perf-harness.log
+          CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test perf_browser --features perf-assert -- --nocapture 2>&1 | tee perf-harness.log
 
       - name: Publish perf-harness summary
         if: always() && steps.check.outputs.exists == 'true'
@@ -965,9 +978,12 @@ jobs:
         # 「perf-browser: metric=<name> samples=<n> mean_ms=<x> p95_ms=<x> max_ms=<x>」を
         # Step Summary に転記する（loc-check ジョブのパターン踏襲）。この契約は
         # perf_browser.rs 内の format_summary_line テストで固定される。
+        # `--features perf-assert` により、この summary 転記の前段でしきい値
+        # （300ms/16ms・超過率 5%）を満たさない場合は本ステップに到達する前に
+        # 実行コマンドが非ゼロ終了しジョブが FAIL する（イシュー #451）。
         run: |
           {
-            echo '## perf-harness smoke (TASK-11.5a, issue #86)'
+            echo '## perf-harness with perf-assert thresholds (issue #451, formerly TASK-11.5a/issue #86)'
             echo '```'
             grep '^perf-browser:' perf-harness.log || echo 'perf-browser: no summary line found'
             echo '```'
