@@ -198,6 +198,12 @@ fn unique_slug(base: &str, used_ids: &mut HashSet<String>) -> String {
 /// [`TocEntry`] 列からページ内目次の `nav` `Node` を生成する。空なら
 /// `None`（目次を出さない。見出しの無いページで空の `nav` を出力しない
 /// ため）。
+///
+/// 各項目には `entry.level` に応じたレベルクラス
+/// （`docs-toc-level-2` / `docs-toc-level-3`）を付与し、`h2`/`h3` の階層を
+/// CSS 側のインデント表現で区別できるようにする（Bugbot 指摘 b0e41098:
+/// 従来はフラットな `<li>` 列で `level` を一切参照しておらず、見出し階層が
+/// マークアップ上で表現できなかった）。
 pub fn toc_nav(entries: &[TocEntry]) -> Option<Node> {
     if entries.is_empty() {
         return None;
@@ -206,8 +212,9 @@ pub fn toc_nav(entries: &[TocEntry]) -> Option<Node> {
         .iter()
         .map(|entry| {
             let href = format!("#{}", entry.id);
+            let level_class = format!("docs-toc-level-{}", entry.level);
             li(
-                vec![],
+                vec![("class", &level_class)],
                 vec![a(vec![("href", &href)], vec![text(entry.title.clone())])],
             )
         })

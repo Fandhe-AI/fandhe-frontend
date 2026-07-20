@@ -166,6 +166,30 @@ fn toc_nav_links_use_anchor_hrefs_matching_injected_ids() {
 }
 
 #[test]
+fn toc_nav_items_carry_level_class_distinguishing_h2_and_h3() {
+    // Bugbot 指摘 b0e41098: toc_nav が TocEntry::level を無視してフラットな
+    // <li> を出すと h2/h3 の階層がマークアップから読み取れなくなる。
+    // レベルクラス（docs-toc-level-2 / docs-toc-level-3）で区別できることを
+    // 確認する回帰テスト。
+    let body = fandhe_frontend_core::div(
+        vec![],
+        vec![
+            h2(vec![], vec![text("導入")]),
+            h3(vec![], vec![text("背景")]),
+        ],
+    );
+    let (_, entries) = with_heading_anchors(body.clone());
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[0].level, 2);
+    assert_eq!(entries[1].level, 3);
+
+    let toc = toc_nav(&entries).expect("toc_nav must return Some for non-empty entries");
+    let html = render(&toc);
+    assert!(html.contains(r#"class="docs-toc-level-2""#));
+    assert!(html.contains(r#"class="docs-toc-level-3""#));
+}
+
+#[test]
 fn asset_href_normalizes_base_path_variants() {
     assert_eq!(asset_href("", "assets/site.css"), "/assets/site.css");
     assert_eq!(
