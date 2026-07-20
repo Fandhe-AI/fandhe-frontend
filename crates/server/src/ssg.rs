@@ -19,6 +19,13 @@
 //!   rustdoc の「型で保証する範囲」注記と同じ位置づけ）。
 //! - `std::fs` のみを使用し、外部クレート（`tempfile` 等）を追加しない
 //!   （REQ-3、`coding-rust.md`）。
+//! - [`generate_pages`]（イシュー #463）は上記 2 API とは別系統の汎用 SSG
+//!   API で、固定ルート表・`Loader`・`respond_with` を経由せず、呼び出し側
+//!   が渡した任意の (リクエストパス, [`fandhe_frontend_core::Node`]) 列を直接
+//!   `fandhe_frontend_core::render` してファイル化する。後続の
+//!   `fandhe-frontend-docs-site`（イシュー #457 系）が任意階層のドキュメント
+//!   ページを `dist/` へ書き出す土台として呼ぶ想定（親イシュー #457
+//!   Phase 1-1）。
 //!
 //! # セキュリティ不変条件（OWASP A01 パストラバーサル対策・fail-closed）
 //!
@@ -27,7 +34,14 @@
 //!   構成する。`Item::id` は `fandhe-frontend-app` の公開フィールドであり loader 由来の
 //!   任意の値を持ちうるため、`..`・`/`・`\` を含む id はエラーとして拒否し、
 //!   英数字・`-`・`_` のみを許可するホワイトリスト検証を loader 出力の各
-//!   `item.id` に対して従来どおり適用する。
+//!   `item.id` に対して従来どおり適用する（この段落は [`generate`] /
+//!   [`generate_with`] の固定ルート表に限定される）。
+//! - [`generate_pages`] の任意ページパス（例: `/guide/foo/`）も同じ
+//!   `is_safe_path_segment` ホワイトリストを全セグメントに適用して検証する
+//!   （先頭 `/` 必須・`..`/`.`/空セグメント拒否）。1 件でも検証・重複判定に
+//!   失敗した場合は **どのページも書き出さずに** エラーを返す（fail-closed。
+//!   `generate_with` の「ルート単位で逐次書き出し」より強い、全件事前検証の
+//!   保証）。
 //! - loader が解決に失敗した場合（一覧列挙・各ルート描画のいずれでも）は
 //!   [`SsgError::LoaderError`] としてビルドを即座に失敗させ、それまでに
 //!   書き出したファイルの有無に関わらずエラーを返す（部分成功で握り
@@ -40,6 +54,7 @@
 
 use crate::ssr::respond_with;
 use fandhe_frontend_app::{DemoItemDetailLoader, DemoItemsLoader, Item, Loader};
+use fandhe_frontend_core::{render, Node};
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -88,6 +103,15 @@ pub enum SsgError {
         /// 解決に失敗したルートパス（一覧列挙自体の失敗時は `"/"`）。
         path: String,
     },
+    /// [`generate_pages`] に渡されたページパスが検証を通らなかった
+    /// （先頭 `/` が無い・`..`/`.` を含む・空セグメントを含む・非許可文字を
+    /// 含む、のいずれか）。`Display` は呼び出し元が渡したパス文字列のみを
+    /// 含み、内部パス等の機微情報は含めない。
+    UnsafePagePath(String),
+    /// [`generate_pages`] で複数のページパスが正規化後に同じ出力先
+    /// （例: `/a` と `/a/` はいずれも `a/index.html`）を指した。サイレント
+    /// 上書きを避けるため fail-closed でエラー化する。
+    DuplicatePagePath(String),
 }
 
 impl fmt::Display for SsgError {
@@ -113,6 +137,12 @@ impl fmt::Display for SsgError {
             }
             SsgError::LoaderError { path } => {
                 write!(f, "loader failed to resolve data for route {path:?}")
+            }
+            SsgError::UnsafePagePath(path) => {
+                write!(f, "page path failed validation: {path:?}")
+            }
+            SsgError::DuplicatePagePath(path) => {
+                write!(f, "page path resolves to a duplicate output: {path:?}")
             }
         }
     }
@@ -225,6 +255,16 @@ where
         });
     }
 
+    write_file(out_dir, relative_path, &response.body)
+}
+
+/// `out_dir/relative_path` へ `body` を書き出す共通 I/O ヘルパー。
+///
+/// [`write_route`]（固定ルート表・`respond_with` 経由）と [`generate_pages`]
+/// （任意ページパス・`render` 経由）の両方から呼ばれる、ディレクトリ作成 +
+/// ファイル書き込みのみを担う末端処理。呼び出し元がそれぞれの契約
+/// （ステータス検証・パス検証）を満たした後にのみ呼ぶこと。
+fn write_file(out_dir: &Path, relative_path: &str, body: &str) -> Result<PathBuf, SsgError> {
     let file_path = out_dir.join(relative_path);
     if let Some(parent) = file_path.parent() {
         fs::create_dir_all(parent).map_err(|source| SsgError::CreateDir {
@@ -232,12 +272,101 @@ where
             source,
         })?;
     }
-    fs::write(&file_path, response.body.as_bytes()).map_err(|source| SsgError::WriteFile {
+    fs::write(&file_path, body.as_bytes()).map_err(|source| SsgError::WriteFile {
         path: file_path.clone(),
         source,
     })?;
 
     Ok(file_path)
+}
+
+/// [`generate_pages`] 用のページパス正規化・検証。
+///
+/// - `/` → `"index.html"`
+/// - `/guide/foo/`・`/guide/foo`（末尾スラッシュの有無を問わない）→
+///   `"guide/foo/index.html"`
+/// - 先頭 `/` が無い・`..`/`.` を含む・空セグメント（`//`）を含む・
+///   非許可文字（英数字・`-`・`_` 以外）を含む場合は
+///   [`SsgError::UnsafePagePath`] を返す。
+///
+/// セグメント単位の検証は [`generate`]/[`generate_with`] の `item.id`
+/// 検証と同じ [`is_safe_path_segment`] を再利用し、ホワイトリストの
+/// 二重管理を避ける。先頭 `/` 必須 + 全セグメントホワイトリスト通過に
+/// より、戻り値を `out_dir.join(..)` した結果が `out_dir` 外を指す経路は
+/// 構造的に存在しない（OWASP A01）。
+fn normalize_page_path(path: &str) -> Result<String, SsgError> {
+    let Some(rest) = path.strip_prefix('/') else {
+        return Err(SsgError::UnsafePagePath(path.to_string()));
+    };
+
+    if rest.is_empty() {
+        return Ok("index.html".to_string());
+    }
+
+    let trimmed = rest.strip_suffix('/').unwrap_or(rest);
+    if trimmed.is_empty() {
+        // 入力が "/" のみだった場合はここに到達しない（rest.is_empty() で
+        // 先に処理済み）。"//" のように先頭スラッシュ直後が空セグメントの
+        // ケースはここで拒否する。
+        return Err(SsgError::UnsafePagePath(path.to_string()));
+    }
+
+    for segment in trimmed.split('/') {
+        if !is_safe_path_segment(segment) {
+            return Err(SsgError::UnsafePagePath(path.to_string()));
+        }
+    }
+
+    Ok(format!("{trimmed}/index.html"))
+}
+
+/// 任意の (リクエストパス, [`Node`]) 列を `out_dir` 配下へ静的書き出しする
+/// 汎用 SSG API（イシュー #463）。
+///
+/// [`generate`]/[`generate_with`] が固定ルート表（`/` と `/items/{id}`）に
+/// 限定されるのに対し、本関数は任意階層のページ（例: `/guide/foo/`）を
+/// 書き出せる。後続の `fandhe-frontend-docs-site`（イシュー #457 系）から、
+/// Markdown 等をレンダリングして得た `Node` 列を渡して `dist/` を生成する
+/// 想定で呼ばれる。
+///
+/// # 契約
+///
+/// - 各ページの HTML 化は `format!("<!DOCTYPE html>\n{}", fandhe_frontend_core::render(node))`
+///   で行う。`render()` を経由するため `Node::Text`・属性値は必ず既定
+///   エスケープを通る（REQ-1）。`<!DOCTYPE html>` はユーザー入力を含まない
+///   固定リテラルの前置のみであり、[`fandhe_frontend_app::page_shell`] と
+///   同一の許容済みパターン（新たなエスケープ迂回経路ではない）。
+/// - `pages` 全件のパスを先に [`normalize_page_path`] で検証し、正規化後の
+///   出力先の重複も検出する。1 件でも不正・重複があれば
+///   **ファイルを 1 つも書き出さずに** エラーを返す（fail-closed。
+///   `generate_with` のルート単位の逐次書き出しより強い保証）。
+/// - `pages` が空なら `Ok(vec![])` を返し、何も書き出さない。
+///
+/// # Errors
+///
+/// - [`SsgError::UnsafePagePath`][]: いずれかのページパスが検証に失敗した。
+/// - [`SsgError::DuplicatePagePath`][]: 正規化後の出力先が重複した。
+/// - [`SsgError::CreateDir`][]/[`SsgError::WriteFile`][]: I/O エラー。
+pub fn generate_pages(pages: &[(String, Node)], out_dir: &Path) -> Result<Vec<PathBuf>, SsgError> {
+    // fail-closed: 書き出し前に全ページのパスを検証・重複判定する。
+    // 途中まで書き出してからエラーで打ち切ると、失敗時に「一部だけ更新
+    // された dist/」が残り部分成功を招く（設計書 §5 と同じ方針）。
+    let mut relative_paths = Vec::with_capacity(pages.len());
+    for (path, _) in pages {
+        let relative = normalize_page_path(path)?;
+        if relative_paths.contains(&relative) {
+            return Err(SsgError::DuplicatePagePath(path.clone()));
+        }
+        relative_paths.push(relative);
+    }
+
+    let mut written = Vec::with_capacity(pages.len());
+    for (relative, (_, node)) in relative_paths.iter().zip(pages.iter()) {
+        let body = format!("<!DOCTYPE html>\n{}", render(node));
+        written.push(write_file(out_dir, relative, &body)?);
+    }
+
+    Ok(written)
 }
 
 #[cfg(test)]
@@ -343,6 +472,42 @@ mod tests {
         assert!(fs::read_dir(&dir.0)
             .map(|mut entries| entries.next().is_none())
             .unwrap_or(true));
+    }
+
+    /// 受け入れ条件 1: `normalize_page_path` の正常系（多階層・末尾スラッシュ
+    /// の有無・ルート）を固定する。
+    #[test]
+    fn normalize_page_path_accepts_valid_paths() {
+        assert_eq!(normalize_page_path("/").unwrap(), "index.html");
+        assert_eq!(
+            normalize_page_path("/guide/foo/").unwrap(),
+            "guide/foo/index.html"
+        );
+        assert_eq!(
+            normalize_page_path("/guide/foo").unwrap(),
+            "guide/foo/index.html"
+        );
+        assert_eq!(normalize_page_path("/about").unwrap(), "about/index.html");
+    }
+
+    /// 受け入れ条件 2: `normalize_page_path` の拒否系（先頭 `/` 無し・
+    /// `..`・空セグメント・非許可文字）を固定する。
+    #[test]
+    fn normalize_page_path_rejects_unsafe_paths() {
+        for input in [
+            "guide/foo",       // 先頭 / なし
+            "/../etc",         // .. トラバーサル
+            "/guide/..",       // .. トラバーサル
+            "//",              // 空セグメント
+            "/a//b",           // 中間の空セグメント
+            "/guide/foo\\bar", // バックスラッシュ
+            "/guide/./foo",    // ドットセグメント
+        ] {
+            assert!(
+                matches!(normalize_page_path(input), Err(SsgError::UnsafePagePath(_))),
+                "expected UnsafePagePath for {input:?}"
+            );
+        }
     }
 
     /// `SsgError::Display` の文言にダミー機微文字列が含まれないこと
