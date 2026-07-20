@@ -453,3 +453,428 @@ fn raw_html_tag_in_paragraph_is_treated_as_text() {
         "<p>&lt;div class=&quot;x&quot;&gt;hello&lt;/div&gt;</p>"
     );
 }
+
+// ---------------------------------------------------------------------
+// インライン構文（イシュー #467）
+// ---------------------------------------------------------------------
+
+#[test]
+fn inline_code_basic() {
+    assert_eq!(
+        render_all("this is `code` here"),
+        "<p>this is <code>code</code> here</p>"
+    );
+}
+
+#[test]
+fn inline_code_escapes_special_characters() {
+    assert_eq!(
+        render_all("`<a & b>`"),
+        "<p><code>&lt;a &amp; b&gt;</code></p>"
+    );
+}
+
+#[test]
+fn inline_code_with_double_backtick_can_contain_backtick() {
+    // 開始と同じ本数（2 個）の連続で閉じるため、コード中に単独のバッククォート
+    // （`` ` ``）を 1 個含められる（CommonMark 簡略版）。
+    assert_eq!(render_all("``a`b``"), "<p><code>a`b</code></p>");
+}
+
+#[test]
+fn inline_code_unclosed_falls_back_to_literal_backtick() {
+    assert_eq!(render_all("`unclosed"), "<p>`unclosed</p>");
+}
+
+#[test]
+fn inline_code_content_is_not_reinterpreted() {
+    // コード内はリテラル（リンク・強調を解釈しない）。
+    assert_eq!(
+        render_all("`[not a link](x) **not strong**`"),
+        "<p><code>[not a link](x) **not strong**</code></p>"
+    );
+}
+
+#[test]
+fn emphasis_strong() {
+    assert_eq!(
+        render_all("**bold** text"),
+        "<p><strong>bold</strong> text</p>"
+    );
+}
+
+#[test]
+fn emphasis_em() {
+    assert_eq!(render_all("*em* text"), "<p><em>em</em> text</p>");
+}
+
+#[test]
+fn emphasis_strong_containing_em() {
+    assert_eq!(
+        render_all("**a *b* c**"),
+        "<p><strong>a <em>b</em> c</strong></p>"
+    );
+}
+
+#[test]
+fn emphasis_unclosed_star_falls_back_to_literal() {
+    assert_eq!(render_all("*unclosed"), "<p>*unclosed</p>");
+}
+
+#[test]
+fn emphasis_underscore_is_not_interpreted() {
+    // `_`/`__` によるアンダースコア強調は意図的に非対応（既存 docs で不使用、
+    // かつ識別子中の `_` を誤解釈するリスクがあるため）。
+    assert_eq!(
+        render_all("raw_html_lint_e2e is a test name"),
+        "<p>raw_html_lint_e2e is a test name</p>"
+    );
+}
+
+#[test]
+fn link_relative_url() {
+    assert_eq!(
+        render_all("[docs](/guide)"),
+        "<p><a href=\"/guide\">docs</a></p>"
+    );
+}
+
+#[test]
+fn link_https_url() {
+    assert_eq!(
+        render_all("[site](https://example.com)"),
+        "<p><a href=\"https://example.com\">site</a></p>"
+    );
+}
+
+#[test]
+fn link_text_can_contain_code_and_emphasis() {
+    assert_eq!(
+        render_all("[`code` and **bold**](/x)"),
+        "<p><a href=\"/x\"><code>code</code> and <strong>bold</strong></a></p>"
+    );
+}
+
+#[test]
+fn emphasis_closing_marker_inside_inline_code_is_not_treated_as_closer() {
+    // レビュー指摘イシュー #467: find_closing_run はコードスパンの中身を
+    // 読み飛ばさずに走査すると、コード内の `*` を外側の強調の閉じ
+    // マーカーと誤認識し、`` `b*c` `` の途中で強調が閉じてしまっていた。
+    // コードスパンを丸ごと読み飛ばすことで、外側の強調は末尾の `*` まで
+    // 正しく開いたままになる。
+    assert_eq!(
+        render_all("*a `b*c` d*"),
+        "<p><em>a <code>b*c</code> d</em></p>"
+    );
+}
+
+#[test]
+fn strong_closing_marker_inside_inline_code_is_not_treated_as_closer() {
+    assert_eq!(
+        render_all("**a `b**c` d**"),
+        "<p><strong>a <code>b**c</code> d</strong></p>"
+    );
+}
+
+#[test]
+fn link_label_closing_bracket_inside_inline_code_is_not_treated_as_closer() {
+    // レビュー指摘イシュー #467: find_char がコードスパンの中身を読み飛ば
+    // さずに走査すると、コード内の `]` をリンクラベルの閉じ括弧と誤認識
+    // し、`` `a]b` `` の途中でラベルが閉じてしまっていた。
+    assert_eq!(
+        render_all("[`a]b`](/x)"),
+        "<p><a href=\"/x\"><code>a]b</code></a></p>"
+    );
+}
+
+#[test]
+fn link_nesting_is_disallowed_inner_bracket_is_literal() {
+    // 最初に完成した [text](url) パターンが優先され、内側の `[` はリンクの
+    // 一部（リテラル）として取り込まれる（リンクのネスト禁止、設計どおり）。
+    assert_eq!(render_all("[a[b](/u)"), "<p><a href=\"/u\">a[b</a></p>");
+}
+
+#[test]
+fn link_unclosed_bracket_falls_back_to_literal() {
+    assert_eq!(render_all("[not a link"), "<p>[not a link</p>");
+}
+
+#[test]
+fn link_missing_paren_falls_back_to_literal_bracket_text() {
+    assert_eq!(render_all("[text] no parens"), "<p>[text] no parens</p>");
+}
+
+#[test]
+fn inline_syntax_applies_in_heading() {
+    assert_eq!(
+        render_all("# **Bold** heading with `code`"),
+        "<h1><strong>Bold</strong> heading with <code>code</code></h1>"
+    );
+}
+
+#[test]
+fn inline_syntax_applies_in_list_item() {
+    assert_eq!(
+        render_all("- [link](/a) and **bold**"),
+        "<ul><li><a href=\"/a\">link</a> and <strong>bold</strong></li></ul>"
+    );
+}
+
+#[test]
+fn inline_syntax_applies_in_table_cell() {
+    let input = "| a |\n|---|\n| **bold** |";
+    assert_eq!(
+        render_all(input),
+        "<table><thead><tr><th>a</th></tr></thead><tbody><tr><td><strong>bold</strong></td></tr></tbody></table>"
+    );
+}
+
+#[test]
+fn inline_syntax_applies_in_blockquote() {
+    assert_eq!(
+        render_all("> `code` inside quote"),
+        "<blockquote><p><code>code</code> inside quote</p></blockquote>"
+    );
+}
+
+// ---------------------------------------------------------------------
+// XSS 回帰（インライン経路、REQ-1・受け入れ条件対応）
+// ---------------------------------------------------------------------
+
+#[test]
+fn xss_payload_in_link_text_is_escaped() {
+    let out = render_all(&format!("[{SCRIPT_PAYLOAD}](/x)"));
+    assert!(!out.contains("<script"));
+    assert_eq!(
+        out,
+        "<p><a href=\"/x\">&lt;script&gt;alert(1)&lt;/script&gt;</a></p>"
+    );
+}
+
+#[test]
+fn xss_payload_in_emphasis_is_escaped() {
+    let out = render_all(&format!("**{SCRIPT_PAYLOAD}**"));
+    assert!(!out.contains("<script"));
+    assert_eq!(
+        out,
+        "<p><strong>&lt;script&gt;alert(1)&lt;/script&gt;</strong></p>"
+    );
+}
+
+#[test]
+fn xss_payload_in_inline_code_is_escaped() {
+    let out = render_all(&format!("`{SCRIPT_PAYLOAD}`"));
+    assert!(!out.contains("<script"));
+    assert_eq!(
+        out,
+        "<p><code>&lt;script&gt;alert(1)&lt;/script&gt;</code></p>"
+    );
+}
+
+#[test]
+fn xss_link_attribute_injection_is_confined_to_href_value() {
+    // href への属性 breakout（" 注入による onerror= の混入）を試みても、
+    // core の属性値エスケープにより " が &quot; へエスケープされ href 値内に
+    // 閉じ込められる。onerror が実際の属性として出力されないことを確認する。
+    let out = render_all("[x](/a\" onerror=\"y)");
+    assert!(!out.contains(" onerror=\""));
+    assert_eq!(out, "<p><a href=\"/a&quot; onerror=&quot;y\">x</a></p>");
+}
+
+#[test]
+fn xss_javascript_scheme_link_does_not_generate_anchor() {
+    // url 内の丸括弧はネストを数えず最初の ")" で閉じる簡略実装のため、
+    // url は "javascript:alert(1"（末尾の ")" 欠落）として切り出され、続く
+    // 単独の ")" はリンク外のリテラルとして出力される。丸括弧の対応追跡は
+    // 既存 docs で URL 内に丸括弧を使う実態がないためスコープ外（計画参照）。
+    // 本テストの主眼である「javascript: スキームは <a> を生成しない」という
+    // 安全性は url の断片化に関わらず成立する。
+    let out = render_all("[click](javascript:alert(1))");
+    assert!(!out.contains("<a "));
+    assert!(!out.contains("javascript:"));
+    assert_eq!(out, "<p>click)</p>");
+}
+
+#[test]
+fn xss_javascript_scheme_uppercase_is_rejected() {
+    let out = render_all("[click](JAVASCRIPT:alert(1))");
+    assert!(!out.contains("<a "));
+}
+
+#[test]
+fn xss_javascript_scheme_tab_obfuscation_is_rejected() {
+    let out = render_all("[click](java\tscript:alert(1))");
+    assert!(!out.contains("<a "));
+}
+
+#[test]
+fn xss_javascript_scheme_leading_space_is_rejected() {
+    let out = render_all("[click]( javascript:alert(1))");
+    assert!(!out.contains("<a "));
+}
+
+#[test]
+fn xss_data_scheme_link_is_rejected() {
+    let out = render_all("[click](data:text/html,alert(1))");
+    assert!(!out.contains("<a "));
+}
+
+#[test]
+fn xss_vbscript_scheme_link_is_rejected() {
+    let out = render_all("[click](vbscript:alert(1))");
+    assert!(!out.contains("<a "));
+}
+
+#[test]
+fn xss_mailto_scheme_link_is_rejected() {
+    // core の is_safe_url は mailto: を許可するが、docs-site 独自の第 1 層は
+    // 受け入れ条件（http/https/相対のみ）どおりより厳しく拒否する。
+    let out = render_all("[mail](mailto:a@example.com)");
+    assert!(!out.contains("<a "));
+    assert_eq!(out, "<p>mail</p>");
+}
+
+#[test]
+fn xss_tel_scheme_link_is_rejected() {
+    let out = render_all("[call](tel:0123456789)");
+    assert!(!out.contains("<a "));
+    assert_eq!(out, "<p>call</p>");
+}
+
+#[test]
+fn safe_http_scheme_link_is_allowed() {
+    assert_eq!(
+        render_all("[a](http://example.com)"),
+        "<p><a href=\"http://example.com\">a</a></p>"
+    );
+}
+
+#[test]
+fn safe_protocol_relative_link_is_allowed() {
+    assert_eq!(
+        render_all("[a](//example.com/x)"),
+        "<p><a href=\"//example.com/x\">a</a></p>"
+    );
+}
+
+// ---------------------------------------------------------------------
+// インライン閉じマーカー探索の走査幅上限
+// （アルゴリズム的計算量 DoS 対策、レビュー指摘イシュー #467）
+// ---------------------------------------------------------------------
+//
+// find_closing_run / find_char は開始位置ごとに閉じマーカーを前方走査する
+// ため、上限なしでは「閉じマーカーが見つからない `*`/`` ` ``/`[` の連続」
+// に対し最悪 O(n^2) の計算量になる（対策前の実測: 全て `*` の debug ビルド
+// で n=262,144 のとき約 33 秒）。MAX_INLINE_SCAN_WINDOW による走査幅の
+// 打ち切りで 1 回の探索コストを定数に抑え、全体を O(n) に落とす。
+
+#[test]
+fn oversized_unclosed_emphasis_run_completes_within_bounded_time() {
+    // 全て `*` の入力（強調の閉じマーカーがほぼ見つからない最悪ケース）でも
+    // 走査幅上限により処理時間が入力サイズに対して線形にとどまることを
+    // 確認する。対策前は O(n^2) で発散し、同サイズの入力は debug ビルドでも
+    // 数十秒かかった（本テストの回帰対象）。
+    let huge_input = "*".repeat(400_000);
+    let start = std::time::Instant::now();
+    let out = render_all(&huge_input);
+    let elapsed = start.elapsed();
+    assert!(
+        elapsed < std::time::Duration::from_secs(5),
+        "走査幅上限が機能していれば debug ビルドでも数秒以内に完了するはず: {elapsed:?}"
+    );
+    assert!(!out.is_empty());
+}
+
+#[test]
+fn oversized_unclosed_link_bracket_run_completes_within_bounded_time() {
+    // `[` が閉じ `]` を伴わず大量に連続する入力（try_link の find_char が
+    // 各開始位置で走査幅ぶん走査する最悪ケース）でも走査幅上限により線形に
+    // とどまることを確認する。閉じ `]` が存在しないため <a> は一切生成
+    // されない。
+    let huge_input = "[".repeat(400_000);
+    let start = std::time::Instant::now();
+    let out = render_all(&huge_input);
+    let elapsed = start.elapsed();
+    assert!(
+        elapsed < std::time::Duration::from_secs(5),
+        "走査幅上限が機能していれば debug ビルドでも数秒以内に完了するはず: {elapsed:?}"
+    );
+    assert!(!out.contains("<a "));
+}
+
+#[test]
+fn emphasis_marker_run_longer_than_scan_window_does_not_panic_or_hang() {
+    // find_closing_run の境界処理の回帰: 走査幅上限（2,000 文字）をまたぐ
+    // 長さの `*` 連続に対して、走査打ち切り時（同じ文字がまだ続いている
+    // 状態で上限に達した場合）に誤って `Some` を返し panic や無限ループを
+    // 引き起こさないことを確認する（本文字列に対し `**` を直後に置いた
+    // ネストした呼び出しも発生するため、境界条件の組み合わせを踏む）。
+    //
+    // なお、走査幅の内側に真に閉じる 2 連続が偶然出現した場合に <strong>
+    // を生成すること自体は、走査開始位置ごとに再試行する既存の貪欲な
+    // バックトラック設計（本モジュール導入時点から変わらない挙動）による
+    // ものであり、本テストが検証する不変条件ではない。
+    let input = format!("**{}X", "*".repeat(2001));
+    let out = render_all(&input);
+    assert!(!out.is_empty());
+}
+
+#[test]
+fn oversized_unclosed_backtick_run_completes_within_bounded_time() {
+    // レビュー指摘イシュー #467: try_inline_code は開始バッククォート連続
+    // の本数カウントに走査幅上限がなかったため、closing-marker 側の探索
+    // （find_closing_run）に上限があるにも関わらず、長いバッククォート
+    // 連続一つに対して開始位置ごとに O(n) の再カウントが発生し全体で
+    // O(n^2) になっていた（本テストの回帰対象）。上限を適用した後は
+    // 他の閉じマーカー走査幅上限テストと同様に線形時間で完了する。
+    // 先頭を `a` にして行頭バッククォート連続によるフェンスコードブロック
+    // 判定（`fence_open`、ブロックレベル）を回避し、インライン経路
+    // （try_inline_code）を確実に通す。
+    let huge_input = format!("a{}", "`".repeat(400_000));
+    let start = std::time::Instant::now();
+    let out = render_all(&huge_input);
+    let elapsed = start.elapsed();
+    assert!(
+        elapsed < std::time::Duration::from_secs(5),
+        "開始バッククォート連続のカウントに走査幅上限が機能していれば debug ビルドでも数秒以内に完了するはず: {elapsed:?}"
+    );
+    assert!(!out.contains("<code>"));
+}
+
+// ---------------------------------------------------------------------
+// 3 連続 `*` による strong+em のネスト
+// （レビュー指摘イシュー #467: `***bold***` が常にリテラルへ
+// フォールバックしていた不具合の回帰）
+// ---------------------------------------------------------------------
+
+#[test]
+fn triple_star_emphasis_nests_em_and_strong() {
+    // CommonMark 同様、em が strong を包む（`<em><strong>...</strong></em>`）。
+    assert_eq!(
+        render_all("***bold***"),
+        "<p><em><strong>bold</strong></em></p>"
+    );
+}
+
+#[test]
+fn triple_star_emphasis_inside_sentence() {
+    assert_eq!(
+        render_all("a ***bold*** b"),
+        "<p>a <em><strong>bold</strong></em> b</p>"
+    );
+}
+
+#[test]
+fn mismatched_triple_and_double_star_closer_does_not_nest_em_and_strong() {
+    // 開始 `***`・閉じ `**` のように本数が一致しない混在ケースはスコープ外
+    // （find_closing_run は開始と過不足なく一致する本数の閉じ連続のみを
+    // 受理するため、marker_len=3 での照合はここでは成立しない）。GFM の
+    // 非対称デリミタ解決（flanking rule）は実装しないため、本関数が
+    // 3 連続として厳密解釈することはない。開始位置ごとに再試行する既存の
+    // 貪欲な走査（`try_emphasis` 呼び出し自体は本テストの対象外）により、
+    // 先頭の `*` 1 文字がリテラルへ落ち、続く `**bold**` 相当の部分が
+    // `<strong>` として解釈される場合がある。「常にリテラル」ではなく
+    // 「em+strong のネストにはならない」ことが本テストで固定したい不変
+    // 条件である。
+    assert_eq!(render_all("***bold**"), "<p>*<strong>bold</strong></p>");
+}

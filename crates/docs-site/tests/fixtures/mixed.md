@@ -5,6 +5,8 @@ two lines.
 
 ## Installation
 
+Run `cargo build` to compile, then see the [guide](/guide) for **details**.
+
 - step one
 - step two
   - nested detail
