@@ -4,6 +4,22 @@ Rust 製のフロントエンドフレームワークです。AI 時代のセキ
 
 > 正式名称は `fandhe-frontend`（確定、2026-07-19）です。決定根拠・新旧マッピング表・段階的移行計画は [`docs/design/framework-naming.md`](./docs/design/framework-naming.md) を参照してください。現行のクレート名は `fandhe-frontend-core` 系のまま段階的移行中です（仕様上のクレート名の想定については [仕様リポジトリの `05-tasks.md`](./docs/spec/05-tasks.md) 参照）。
 
+## ドキュメント
+
+公開 docs サイト（Getting Started / Guides / API Reference 構成）は以下で閲覧できます。
+
+- https://fandhe-ai.github.io/fandhe-frontend/
+
+ローカルでビルドして確認する場合は次のコマンドを実行してください。
+
+```bash
+cargo run -p fandhe-frontend-docs-site -- --out dist/
+```
+
+生成物は `dist/index.html` から閲覧できます。ビルドには内部リンク検証（linkcheck）が
+内蔵されており、リンク切れを検出した場合は非 0 終了します。コンテンツの正は
+`docs/guides/`・`docs/api/` 配下、サイト構成は `site/nav.toml` です。
+
 ## 仕様
 
 仕様書（ブレスト〜PoC〜要件定義〜タスク分解〜ロードマップ）は [Fandhe-AI/fandhe-frontend-spec](https://github.com/Fandhe-AI/fandhe-frontend-spec) で管理し、`docs/spec/` にサブモジュールとして取り込んでいます。
