@@ -1,0 +1,32 @@
+[package]
+name = "fandhe-frontend-template-app"
+version = "0.1.0"
+edition = "2021"
+description = "fandhe-frontend フレームワークの拡張プロジェクトテンプレート（fandhe-frontend-core / fandhe-frontend-app 依存、Loader・束縛点・render の実体サンプル、イシュー #378）。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# REQ-3 / coding-rust.md: fandhe-frontend-core / fandhe-frontend-app は crates.io 未公開
+# （publish = false）のため、vendor 同梱（templates/app/vendor/）を
+# path 依存する。外部クレートは追加しない（生成プロジェクトの依存グラフは
+# vendored 2 crate のみ、外部依存ゼロ。REQ-3 の 60 件/深さ 6 に対し余裕）。
+# crates.io 公開後のバージョン依存への切替はイシュー #412（トリガー条件付き、
+# cli/tests/template_vendor_drift.rs の canary が検知）で追跡する。
+[dependencies]
+fandhe-frontend-core = { path = "vendor/fandhe-frontend-core" }
+fandhe-frontend-app = { path = "vendor/fandhe-frontend-app" }
+
+[dev-dependencies]
+
+# root workspace（リポジトリ直下 Cargo.toml の members）から意図的に切り離す。
+# templates/app は「フレームワーク利用者へ配布される独立プロジェクトの雛形」
+# であり、root workspace に巻き込まれると `cargo new` 直後の単体プロジェクト
+# としての `cargo check`/`cargo test`/`fw gate` の挙動を検証できなくなる
+# （templates/default の Cargo.toml と同一方針）。
+#
+# `members` をこの crate 自身のみに明示することで、`vendor/fandhe-frontend-core` /
+# `vendor/fandhe-frontend-app`（path 依存）が本 workspace の member として自動編入
+# されないようにする（vendor 側は独立クレートとして扱い、本プロジェクトの
+# workspace には含めない。イシュー #378 §3.2）。
+[workspace]
+members = ["."]

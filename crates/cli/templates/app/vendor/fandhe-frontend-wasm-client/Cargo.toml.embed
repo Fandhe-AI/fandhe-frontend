@@ -1,0 +1,57 @@
+[package]
+name = "fandhe-frontend-wasm-client"
+version = "0.1.0"
+edition = "2021"
+description = "fandhe-frontend-wasm-client: REQ-6 最小ハイドレーション方式のクライアントランタイム。サーバー出力済み DOM を再構築せず、イベントリスナーを後付けする hydrate() と、SSR/SSG と同一関数を呼ぶ CSR 用 mount_csr() を提供する。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# REQ-3 / coding-rust.md: 依存クレート追加は事前承認が必要。
+#
+# vendor 同梱物（templates/app、イシュー #411）: 正本 wasm-client/Cargo.toml から
+# 以下の既知変換を適用した写し（変換理由は templates/app/vendor/fandhe-frontend-app/Cargo.toml
+# と同一方針、多重 workspace root エラーの回避のため [workspace] は追加しない）:
+#   - path 依存の参照先ディレクトリ名を vendor 配下の実ディレクトリ名へ変更
+#     （../core → ../fandhe-frontend-core、../app → ../fandhe-frontend-app、../interactive → ../fandhe-frontend-interactive）
+#   - dev-dependencies セクション（wasm-bindgen-test・fandhe-frontend-server・テスト専用
+#     web-sys feature）を除去する。dev-dependencies は fandhe-frontend-server（SSR/SSG）への
+#     vendor 連鎖を招き、templates/app が「CSR 完全実体の同梱」という
+#     スコープを超えて肥大化するため（イシュー #411 実装計画 §2.3）。
+#     ブラウザテスト（three_mode_integration 等）は正本リポで実行済みという
+#     整理とし、vendor 側はビルド専用に絞る。
+#
+# wasm-bindgen / web-sys のバージョンは templates/app/wasm/Cargo.lock で
+# リポ本体 Cargo.lock と同一バージョンへピンする（新規外部クレート追加は
+# ゼロ、REQ-3 整理はイシュー #411 実装計画 §3 参照）。
+[dependencies]
+fandhe-frontend-core = { path = "../fandhe-frontend-core" }
+fandhe-frontend-app = { path = "../fandhe-frontend-app" }
+fandhe-frontend-interactive = { path = "../fandhe-frontend-interactive" }
+wasm-bindgen = "0.2"
+
+[dependencies.web-sys]
+version = "0.3"
+features = [
+  "Document",
+  "Element",
+  "Event",
+  "EventTarget",
+  "HtmlInputElement",
+  "Node",
+  "NodeList",
+  "Text",
+  "Window",
+  "DomTokenList",
+  "console",
+]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# `templates/app/wasm`（glue クレート）は wasm-bindgen-exports feature を
+# 既定（on）のまま依存する（正本 wasm-client/Cargo.toml と同一の feature
+# 設計、wasm-full 由来の describe シンボル重複回避は vendor 側では
+# 発生しないため既定のままでよい）。
+[features]
+default = ["wasm-bindgen-exports"]
+wasm-bindgen-exports = []

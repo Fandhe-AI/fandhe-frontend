@@ -1,0 +1,36 @@
+[package]
+name = "app-csr-wasm"
+version = "0.1.0"
+edition = "2021"
+description = "fw new --template app（イシュー #411）が同梱する CSR wasm ビルド用の薄い glue クレート。vendor/fandhe-frontend-wasm-client の hydrate/mount_csr を再エクスポートするのみ。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# 独立ワークスペース（イシュー #411 実装計画 §2.2）:
+#
+# このクレートは templates/app（fandhe-frontend-template-app、外部依存ゼロの既定経路）
+# とは意図的に別ワークスペースとして切り離す。wasm-bindgen / web-sys の
+# 取得にはビルド時ネットワークが必要であり、これを root クレートの依存
+# グラフへ混ぜると `cargo build`/`cargo test`/`fw gate` の既定経路（オフライン・
+# 自己完結が前提、docs/design/fw-new-design.md §3a）を壊してしまう。
+#
+# `[workspace] members = ["."]` により、このディレクトリ（templates/app/wasm/）
+# を独立したワークスペースルートとして確定させる。これがないと cargo は
+# 親ディレクトリを遡って templates/app/Cargo.toml の `[workspace]`
+# （members = ["."]、このクレートを含まない）を見つけてしまい、
+# 「current package believes it's in a workspace when it's not」エラーになる
+# （templates/app/vendor/fandhe-frontend-core/Cargo.toml のコメントと同種の事情）。
+[workspace]
+members = ["."]
+
+# REQ-3 整理（イシュー #411 実装計画 §3）: wasm-bindgen / web-sys は
+# リポジトリ本体 Cargo.lock が既に解決済みのバージョン系列
+# （wasm-bindgen 0.2.126 / web-sys 0.3.103）と同一を wasm/Cargo.lock で
+# ピンする。新規外部クレートの追加はゼロ（既存解決値の参照のみ）。
+# root（templates/app 直下）の依存グラフには一切含まれないため、
+# REQ-3（60 件/深さ 6）の計測基準（標準サーバー構成）への影響もない。
+[dependencies]
+fandhe-frontend-wasm-client = { path = "../vendor/fandhe-frontend-wasm-client" }
+
+[lib]
+crate-type = ["cdylib"]

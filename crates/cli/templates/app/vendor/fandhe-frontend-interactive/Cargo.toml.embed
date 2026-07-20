@@ -1,0 +1,20 @@
+[package]
+name = "fandhe-frontend-interactive"
+version = "0.1.0"
+edition = "2021"
+description = "fandhe-frontend-interactive: 状態管理コア（DOM/wasm-bindgen 非依存の状態機械・ハイドレーション契約）。外部依存は fandhe-frontend-core のみ。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# REQ-3 / coding-rust.md: 依存クレート追加は事前承認が必要。
+# fandhe-frontend-interactive は fandhe-frontend-core（path 依存）のみを持ち、外部クレートは追加しない。
+[dependencies]
+fandhe-frontend-core = { path = "../fandhe-frontend-core" }
+
+[dev-dependencies]
+
+# vendor 同梱物（templates/app、イシュー #411）: 正本 interactive/Cargo.toml から
+# path 依存の参照先ディレクトリ名のみ変換した写し（../core → ../fandhe-frontend-core、
+# vendor 配下の実ディレクトリ名に合わせる）。[workspace] を追加しない理由は
+# ../fandhe-frontend-core/Cargo.toml のコメントと同一（多重 workspace root エラーの回避、
+# templates/app/vendor/fandhe-frontend-app/Cargo.toml と同一方針）。

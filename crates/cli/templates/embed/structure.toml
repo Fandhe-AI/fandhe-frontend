@@ -1,0 +1,31 @@
+# `fw new --template embed`（イシュー #410）が展開する静的単一ファイル
+# プロジェクトの構造マニフェスト（REQ-13、`cli/src/structure.rs` のスキーマ v1）。
+#
+# `fw gate`（`cli/src/gate.rs::run_gate`）は本ファイルを唯一の情報源として
+# 検証対象クレートを決定する。本テンプレートは cargo パッケージを一切持たない
+# 「静的単一ファイルの部分埋め込み構成」（REQ-7）であるため、`[directories.root]`
+# は `crate` キーを持たず `role = "asset"` のみを宣言する。
+#
+# `fw gate` は「宣言クレートが 0 件、かつ宣言ディレクトリ全件が
+# `role = "asset"`」の場合のみ、これを静的専用（asset-only）プロジェクトの
+# 明示的オプトインとみなし、cargo 系 4 チェック（type_check/lint/test/policy）を
+# not-applicable PASS 化する（黙示的 PASS ではなく本ファイルによる明示宣言、
+# security.md A05）。`default_escape_check`・`url_validation_check`
+# （テキスト走査ベースの保険層）はこのモードでも通常どおり実行され、
+# 万一 `src/` 配下に Rust コードが混入した場合の回帰を検出する
+# （`cli/tests/new_gate_e2e.rs` の embed 用 e2e が固定）。
+#
+# 予約名 `root` はプロジェクトルート自身へ写像される
+# （`cli/src/structure.rs::dir_fs_path`、イシュー #353）ため、
+# `embed.html` をプロジェクトルート直下に置く本テンプレートの構成と一致する。
+#
+# `fw new` はパッケージ名置換の対象に本ファイルを含めない
+# （cargo パッケージが存在せず置換対象がないため、`substituted_files: &[]`。
+# `cli/src/new_template.rs` 参照）。生成物はテンプレートと全ファイルバイト一致になる。
+
+[manifest]
+version = 1
+
+[directories.root]
+role = "asset"
+description = "fw new --template embed が生成する静的単一ファイル埋め込み構成（cargo パッケージを持たない最小埋め込み構成、REQ-7）"

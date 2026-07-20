@@ -1,0 +1,38 @@
+# `fw new --template app`（イシュー #378）が展開する拡張プロジェクトの構造
+# マニフェスト（REQ-13、`cli/src/structure.rs` のスキーマ v1）。
+#
+# `fw gate`（`cli/src/gate.rs::run_gate`）は本ファイルを唯一の情報源として
+# 検証対象クレートを決定するため、`fw new --template app` 生成直後に
+# `fw gate` を無編集で PASS させるにはこのファイルの同梱が必須
+# （`templates/default/structure.toml` と同一方針、イシュー #351）。
+# `[directories.root]` の `crate` の値は `fw new` が `Cargo.toml` /
+# `Cargo.lock` と同様にプロジェクト名へ置換する対象に含める
+# （`cli/src/new.rs` のテンプレート別 SUBSTITUTED_FILES）。
+#
+# `vendor/fandhe-frontend-core` / `vendor/fandhe-frontend-app` / `vendor/fandhe-frontend-interactive` /
+# `vendor/fandhe-frontend-wasm-client`（templates/app 固有の同梱物、イシュー #378 §3.2・
+# #411 §2.3）は本マニフェストへ宣言しない。`fw gate` の
+# `default_escape_check`（保険層）・`fw structure`・`fw impact` はいずれも
+# `[directories.*]` 宣言済みのディレクトリのみを走査・解決対象とするため、
+# vendor 配下（正本 core/app/interactive/wasm-client からの写しであり生成
+# プロジェクトの記述対象ではない）は宣言外として意図的に走査対象から除外する
+# （`lint` チェックは本ファイル `[directories.root]` の `crate` 宣言（1 クレート
+# のみ）を対象に検査するため vendored crate 内部の `raw_html` 定義自体は違反に
+# ならない、既存 gate 仕様どおり）。
+#
+# `wasm/`（イシュー #411、独立ワークスペースの CSR wasm ビルド用 glue クレート
+# `app-csr-wasm`）も同じ理由で本マニフェストへ宣言しない。`wasm/` は
+# root（本ファイル `[directories.root]` が指すプロジェクトルートクレート）の
+# `[workspace] members = ["."]` にも含まれないオプトイン経路であり、
+# `fw gate` の検証対象クレート決定
+# （本ファイルのみが情報源）にも影響しない。`tools/wasm/build.sh` は
+# `structure.toml`/`fw gate` を経由せず、プロジェクトルートから直接
+# `wasm/Cargo.toml` を `--manifest-path` 指定してビルドする独立経路。
+
+[manifest]
+version = 1
+
+[directories.root]
+role = "distribution"
+crate = "fandhe-frontend-template-app"
+description = "fw new --template app が生成する単一バイナリプロジェクトの骨格（クレートはプロジェクトルート直下に配置、fandhe-frontend-core/fandhe-frontend-app 依存）"

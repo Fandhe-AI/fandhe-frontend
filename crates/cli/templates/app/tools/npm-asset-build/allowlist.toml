@@ -1,0 +1,54 @@
+# allowlist.toml
+#
+# 役割: check_static_only.py（TASK-12.2b）が参照する免除表の雛形。
+# docs/policy/npm-static-asset-rules.md §3.4 に定義される「1 パッケージ・1 ルール単位
+# のみ・ワイルドカード不可・reason 必須」という fail-closed な免除機構に従う。
+#
+# install.sh（イシュー #296）から自動連携される際の標準雛形でもある:
+# `--allowlist` 明示指定・`<project-dir>/allowlist.toml` のいずれも無い場合、
+# install.sh はこのファイルを allowlist として check_static_only.py に渡す
+# （このファイル自体への自動書き込みは行わない。追記は人間のレビューを経て
+# 手動で行う）。
+#
+# ここには実運用の免除エントリを置かない（本タスクの完了条件は雛形提供まで）。
+# 実際に例外が必要になった場合は、以下の形式で [[exempt]] を追記する。
+#
+# --- R1-bin / R1-entry / R1-scripts（パッケージ + ルール単位）---
+# [[exempt]]
+# package = "example-css-pkg"   # 完全一致のみ（ワイルドカード不可）
+# rule = "R1-scripts"           # 1 ルール単位のみ（ルール全体の無効化は不可）
+# reason = "..."                # 必須・空文字不可。免除の根拠を具体的に書く
+#
+# --- R2-ext（対象拡張子 or 個別ファイルパス単位が必須。§3.4）---
+# 「パッケージ + ルール」単位だけでは免除できない。ext / file のどちらか
+# 一方を必ず指定する（両方指定・両方欠落はどちらも拒否される）。
+#
+# [[exempt]]
+# package = "example-font-pkg"
+# rule = "R2-ext"
+# ext = ".xyz"                  # 対象拡張子単位（同一拡張子の全ファイルを免除）
+# reason = "..."
+#
+# [[exempt]]
+# package = "example-font-pkg"
+# rule = "R2-ext"
+# file = "vendor/legacy.dat"    # 個別ファイルパス単位（パッケージ相対パス）
+# reason = "..."
+#
+# 実行コード拡張子（.js/.mjs/.cjs/.node/.wasm・.min.js を含む）に対する
+# R2-ext の拒否は、ext/file いずれの指定でも免除不可（ハード拒否）であり、
+# そのようなエントリはパース時に拒否される（§3.4）。
+#
+# 不正なエントリ（reason 欠落・空、未知の rule ID、ワイルドカード的指定、
+# R2-ext での ext/file 指定不備、実行コード拡張子への免除試行）は
+# check_static_only.py の起動時に exit 2（fail-closed）として拒否される。
+#
+# 半自動追記（イシュー #316）: `check_static_only.py --suggest-exempt` の提案を
+# 人間がレビュー・編集して保存した TOML ファイルは、
+# `apply_exempt.py --suggestions <reviewed.toml> --allowlist allowlist.toml`
+# でこのファイルへ適用できる（自動書き込みは行わない。適用は必ず人間の明示実行）。
+#
+# テンプレート同梱: 本ファイルは templates/default/tools/npm-asset-build/ へ
+# バイト同一のままコピー同梱される。正本はこのファイル（tools/npm-asset-build/）
+# であり、変更時は tools/npm-asset-build/tests/test_template_sync.sh がドリフトを
+# 検知する。
