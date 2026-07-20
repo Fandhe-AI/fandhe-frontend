@@ -40,22 +40,11 @@ rustup 1.29.0 (28d1352db 2026-03-05)
 
 ## 3. `fw` CLI の導入
 
-`fw` コマンド（`fandhe-frontend-cli`）は現時点では crates.io に公開されていない
-ため（公開後の切替は別イシューで追跡中）、リポジトリを clone してソースから
-導入します。CLI の導入だけであれば `docs/spec/` サブモジュールの取得は不要
-です。
+`fw` コマンド（`fandhe-frontend-cli`）は crates.io で公開されており、次の
+コマンドで導入できます。
 
 ```
-$ git clone git@github.com:Fandhe-AI/fandhe-frontend.git
-$ cd fandhe-frontend
-$ cargo install --path crates/cli
-```
-
-`cargo install` を使わずに、リポジトリ内から都度実行することもできます
-（グローバル環境を汚したくない場合に便利です）。
-
-```
-$ cargo run -p fandhe-frontend-cli --bin fw -- <サブコマンド>
+$ cargo install fandhe-frontend-cli
 ```
 
 導入できたかどうかは、引数なしで `fw` を実行して確認します。サブコマンド
@@ -72,9 +61,23 @@ Subcommands:
   new          deterministically scaffold a new project from templates/default
 ```
 
-以降のコマンド例は `fw <サブコマンド>` の形式で書きますが、`cargo install`
-していない場合は `cargo run -p fandhe-frontend-cli --bin fw -- <サブコマンド>`
-に読み替えてください。
+### 開発版を使う場合
+
+開発版の `fw` を使いたい場合は、リポジトリを clone してソースから導入します。
+CLI の導入だけであれば `docs/spec/` サブモジュールの取得は不要です。
+
+```
+$ git clone git@github.com:Fandhe-AI/fandhe-frontend.git
+$ cd fandhe-frontend
+$ cargo install --path crates/cli
+```
+
+`cargo install` を使わずに、リポジトリ内から都度実行することもできます
+（グローバル環境を汚したくない場合に便利です）。
+
+```
+$ cargo run -p fandhe-frontend-cli --bin fw -- <サブコマンド>
+```
 
 ## 4. プロジェクト作成（`fw new --template app`）
 
