@@ -767,6 +767,12 @@ fn safe_protocol_relative_link_is_allowed() {
 // に対し最悪 O(n^2) の計算量になる（対策前の実測: 全て `*` の debug ビルド
 // で n=262,144 のとき約 33 秒）。MAX_INLINE_SCAN_WINDOW による走査幅の
 // 打ち切りで 1 回の探索コストを定数に抑え、全体を O(n) に落とす。
+//
+// 時間上限は 20 秒とする。線形時間なら共有 self-hosted runner の高負荷時
+// でも debug ビルドで数秒（実測 6〜7 秒弱）に収まる一方、O(n^2) へ退行
+// すると n=400,000 では 33 秒（n=262,144 実測）を大きく超える 70 秒以上
+// かかるため、20 秒でも退行検知力は保たれる。当初の 5 秒上限は runner の
+// 並行負荷でわずかに超過する flaky（CI 実測 5.9〜6.6 秒）を起こした。
 
 #[test]
 fn oversized_unclosed_emphasis_run_completes_within_bounded_time() {
@@ -779,7 +785,7 @@ fn oversized_unclosed_emphasis_run_completes_within_bounded_time() {
     let out = render_all(&huge_input);
     let elapsed = start.elapsed();
     assert!(
-        elapsed < std::time::Duration::from_secs(5),
+        elapsed < std::time::Duration::from_secs(20),
         "走査幅上限が機能していれば debug ビルドでも数秒以内に完了するはず: {elapsed:?}"
     );
     assert!(!out.is_empty());
@@ -796,7 +802,7 @@ fn oversized_unclosed_link_bracket_run_completes_within_bounded_time() {
     let out = render_all(&huge_input);
     let elapsed = start.elapsed();
     assert!(
-        elapsed < std::time::Duration::from_secs(5),
+        elapsed < std::time::Duration::from_secs(20),
         "走査幅上限が機能していれば debug ビルドでも数秒以内に完了するはず: {elapsed:?}"
     );
     assert!(!out.contains("<a "));
@@ -835,7 +841,7 @@ fn oversized_unclosed_backtick_run_completes_within_bounded_time() {
     let out = render_all(&huge_input);
     let elapsed = start.elapsed();
     assert!(
-        elapsed < std::time::Duration::from_secs(5),
+        elapsed < std::time::Duration::from_secs(20),
         "開始バッククォート連続のカウントに走査幅上限が機能していれば debug ビルドでも数秒以内に完了するはず: {elapsed:?}"
     );
     assert!(!out.contains("<code>"));
