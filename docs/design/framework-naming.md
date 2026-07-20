@@ -86,6 +86,25 @@ User-Agent では Cloudflare 由来の 403 を返す環境がある、fandhe-bac
 - `docs/spec/`（別リポジトリ `Fandhe-AI/fandhe-frontend-spec`）側の
   名称関連記述の更新（submodule のため本リポジトリ側からは書き換えない）
 
+**実施記録（#439）**: 2026-07-19、org 管理者権限（admin@fandhe.com）の gh
+資格情報（`permissions.admin == true` を事前確認）により
+`gh repo rename fandhe-frontend --repo Fandhe-AI/frontend-framework --yes`
+を実施し、`gh repo edit` で description を確定名称版へ更新した。実施前に
+新名 `Fandhe-AI/fandhe-frontend` が未使用（404）であることを確認済み
+（フェイルクローズ方針。上記「責務分界」冒頭の判断根拠）。rename は
+リポジトリ ID を不変に保つため理論上 secrets・branch 保護は維持されるが、
+実施直後の実測ではリポジトリ直下の `actions/runners` `actions/secrets` API
+応答はいずれも件数 0 であった（org レベル runner group を利用しているか
+元々未登録の可能性があり、rename による影響とは切り分けられていない）。
+継続監視が必要な場合は別途 Issue 化を検討する。
+
+**旧名を再作成しない運用注記（サプライチェーン対策）**: リネーム後、旧名
+`Fandhe-AI/frontend-framework` は空き名として再作成可能になる。org 内で
+旧名の新リポジトリを作成すると GitHub の旧 URL リダイレクトが失われ、
+過去の PR・レポート・外部からの旧 URL 参照（`git clone` 手順等）が
+別内容へ向くなりすましリスクが生じる（OWASP A08 相当）。org 管理者は
+`Fandhe-AI/frontend-framework` を再作成しないこと。
+
 ## 段階的移行計画
 
 親イシュー #433 の段階別実装計画（実行順 = 直列依存）をそのまま転記する。
@@ -98,7 +117,7 @@ User-Agent では Cloudflare 由来の 403 を返す環境がある、fandhe-bac
 | 3 | #436 | クレートディレクトリの `crates/` 配下移設（完了。`structure.toml` の任意 `path` キーで論理名と実配置を分離し、`Cargo.toml` は `members = ["crates/*"]` へ集約） |
 | 4 | #437 | 環境変数 `RWS_*` → `FANDHE_FRONTEND_*` 改名 |
 | 5 | #438 | docs・CI・スクリプトの表記統一 |
-| 6 | #439 | リポジトリ名変更（GitHub リネーム・remote 追随、人間管理者実施） |
+| 6 | #439 | リポジトリ名変更（GitHub リネーム・remote 追随、人間管理者実施）（完了。2026-07-19、org 管理者権限の gh 資格情報による `gh repo rename` で実施） |
 
 ## 参照
 
