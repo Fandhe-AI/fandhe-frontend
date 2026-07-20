@@ -21,6 +21,10 @@ fandhe-frontend-server = { path = "../server" }
 
 [dev-dependencies]
 
+[lib]
+name = "fandhe_frontend_docs_site"
+path = "src/lib.rs"
+
 [[bin]]
 name = "docs-site"
 path = "src/main.rs"
