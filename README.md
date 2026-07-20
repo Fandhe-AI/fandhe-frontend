@@ -31,3 +31,12 @@ git submodule update --init
 - **MS-5**: AI 自己保守・改修フックの確立（`impact` → 変更適用 → `gate`）
 
 実装着手の最初のタスクは TASK-1.1（`fandhe-frontend-core` 既定エスケープの製品化）です。
+
+## ライセンス
+
+本プロジェクトは [MIT ライセンス](./LICENSE-MIT) と [Apache License 2.0](./LICENSE-APACHE) の
+デュアルライセンスで提供されます。
+
+あなたが明示的に別段の定めをしない限り、あなたが本プロジェクトへ提出する Contribution は、
+Apache License 2.0 のセクション 5 に定義される条件に従い、追加の条項なしに上記デュアル
+ライセンスの下で提供されるものとみなされます。
