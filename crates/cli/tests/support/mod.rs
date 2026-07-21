@@ -61,12 +61,39 @@ use std::process::Command;
 /// `extra_args` はサブコマンド固有の追加引数（例: `fw impact <symbol>` の
 /// `<symbol>`）を `--project` より前に渡す。
 pub fn run_fw(subcommand: &str, extra_args: &[&str], project_dir: &Path) -> (i32, String, String) {
+    run_fw_with_target_dir(
+        subcommand,
+        extra_args,
+        project_dir,
+        &project_dir.join("target"),
+    )
+}
+
+/// [`run_fw`] の一般化版（イシュー #505）: `CARGO_TARGET_DIR` を
+/// `project_dir/target` 固定ではなく呼び出し側が指定した `target_dir` に
+/// 差し替えて `fw` バイナリを起動する。
+///
+/// 用途は `crates/cli/tests/new_gate_e2e.rs` の examples e2e 4 件
+/// （`fw_new_example_*_output_passes_fw_gate`）が、パッケージ名の相互一意な
+/// examples 間でのみビルドキャッシュ（crates.io 依存の再ビルド）を共有する
+/// ためのもの。`negative_cases.rs` 等の欠陥注入フィクスチャ（同名パッケージを
+/// 異内容で再利用する）は本関数を使わず引き続き [`run_fw`]（フィクスチャ
+/// ごとに専用の `project_dir/target`）を使うこと。フィンガープリント衝突に
+/// よる偽陰性（欠陥注入ケースの誤 PASS）を防ぐための区別であり、
+/// `new_gate_e2e.rs` 側の安全性根拠は同ファイルの `example_shared_target_dir`
+/// doc コメントを参照。
+pub fn run_fw_with_target_dir(
+    subcommand: &str,
+    extra_args: &[&str],
+    project_dir: &Path,
+    target_dir: &Path,
+) -> (i32, String, String) {
     let output = Command::new(env!("CARGO_BIN_EXE_fw"))
         .arg(subcommand)
         .args(extra_args)
         .arg("--project")
         .arg(project_dir)
-        .env("CARGO_TARGET_DIR", project_dir.join("target"))
+        .env("CARGO_TARGET_DIR", target_dir)
         .output()
         .expect("failed to spawn `fw` binary");
     (
@@ -81,6 +108,14 @@ pub fn run_fw(subcommand: &str, extra_args: &[&str], project_dir: &Path) -> (i32
 /// 薄いラッパー。実体は [`run_fw`] へ委譲する）。
 pub fn run_fw_gate(project_dir: &Path) -> (i32, String, String) {
     run_fw("gate", &[], project_dir)
+}
+
+/// [`run_fw_gate`] の一般化版（イシュー #505）: `CARGO_TARGET_DIR` を
+/// `target_dir` に差し替えて `fw gate --project <dir>` を起動する。実体は
+/// [`run_fw_with_target_dir`] へ委譲する（`run_fw_gate` と [`run_fw`] の関係と
+/// 同じ薄いラッパー）。
+pub fn run_fw_gate_with_target_dir(project_dir: &Path, target_dir: &Path) -> (i32, String, String) {
+    run_fw_with_target_dir("gate", &[], project_dir, target_dir)
 }
 
 /// `stdout`（`fw gate` の JSON レポート）中の `"name":"<name>"` エントリの

@@ -176,8 +176,30 @@ jobs:
       # ため、上記ステップで導入済みの cargo-deny を用いて strict 分岐
       # （6 チェック全 PASS）を本ジョブで常時実証する
       # （`crates/cli/tests/new_gate_e2e.rs` 冒頭コメント参照）。
-      - name: "fw new 生成直後の fw gate PASS 構成保証 (issue #351)"
-        run: cargo test -p fandhe-frontend-cli --test new_gate_e2e --locked
+      - name: "fw new 生成直後の fw gate PASS 構成保証 (issue #351、examples 除く)"
+        run: cargo test -p fandhe-frontend-cli --test new_gate_e2e --locked -- --skip example_
+
+      # イシュー #505: examples e2e 4 件（`fw_new_example_*_output_passes_fw_gate`、
+      # crates.io 依存の cargo ビルドを伴う `fw gate` 検証）の所要時間を
+      # ステップ単位で常時計測可視化する。上のステップと合わせて
+      # `new_gate_e2e.rs` 全件を実行する（`--skip example_` と `example_` の
+      # フィルタは相補的で重複・漏れがないことを確認済み）。
+      #
+      # 前提: self-hosted runner が crates.io（https://index.crates.io・
+      # https://static.crates.io）へ到達可能であること（`.claude/rules/ci.md`
+      # #412/#493 と同一前提。到達不可は環境エラーとして扱い、テストの
+      # 弱体化で対処しない）。
+      #
+      # 実測（#505 時点、main push run 29824015053）: 4 件合計で数秒
+      # （ステップ全体で約 8 秒）であり、ジョブ分離判断基準（+10 分超）に
+      # 遠く及ばないため `examples-gate-e2e` ジョブへの分離は行っていない。
+      # 本ステップの所要時間が恒常的に 10 分超となった場合、`test` ジョブ側は
+      # `--skip example_` のみ残し、本ステップの内容を専用の
+      # `examples-gate-e2e` ジョブ（同構成の checkout / rust-toolchain /
+      # ensure-gate-tools.sh を前置、runs-on: self-hosted）へ分離することを
+      # 再検討する。
+      - name: "examples gate e2e 4 件の実行と時間計測 (issue #505)"
+        run: cargo test -p fandhe-frontend-cli --test new_gate_e2e --locked -- example_
 
       # TASK-10.2b（#110、REQ-10 条件 3）: crates/dist-server/build.rs が既定で実行する
       # WASM ビルドステージ（ネスト `cargo build --target wasm32-unknown-unknown`
