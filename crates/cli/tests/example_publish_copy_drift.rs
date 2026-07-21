@@ -51,9 +51,19 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
+/// `examples/<name>/` 配下でビルド成果物として生成されうるディレクトリ名
+/// （`.gitignore` の `/examples/*/target`・`/examples/*/dist/` に対応、
+/// イシュー #501 レビュー指摘）。README の「動かし方」が案内する
+/// `cargo run`（`dist/` 生成）・`cargo test`（`target/` 生成）を実行した
+/// ワークツリーで本テストを走らせても偽陽性ドリフト検知を起こさないよう、
+/// 走査対象から除外する。同梱コピー `crates/cli/embedded-examples/` 側は
+/// これらのディレクトリを含まないため非対称除外で問題ない。
+const IGNORED_BUILD_ARTIFACT_DIRS: &[&str] = &["target", "dist"];
+
 /// `root` 配下の全ファイルの相対パス集合を再帰的に収集する
-/// （ディレクトリ自体は含めない。fail-closed: 読み取りエラーはテスト失敗と
-/// して顕在化させる）。
+/// （ディレクトリ自体は含めない。`IGNORED_BUILD_ARTIFACT_DIRS` に該当する
+/// ディレクトリは丸ごとスキップする。fail-closed: 読み取りエラーはテスト
+/// 失敗として顕在化させる）。
 fn collect_relative_files(root: &Path) -> BTreeSet<PathBuf> {
     let mut out = BTreeSet::new();
     collect_relative_files_into(root, root, &mut out);
@@ -68,6 +78,13 @@ fn collect_relative_files_into(base: &Path, dir: &Path, out: &mut BTreeSet<PathB
             entry.unwrap_or_else(|e| panic!("failed to read entry in {}: {e}", dir.display()));
         let path = entry.path();
         if path.is_dir() {
+            let is_ignored_build_artifact = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|name| IGNORED_BUILD_ARTIFACT_DIRS.contains(&name));
+            if is_ignored_build_artifact {
+                continue;
+            }
             collect_relative_files_into(base, &path, out);
         } else {
             let rel = path
