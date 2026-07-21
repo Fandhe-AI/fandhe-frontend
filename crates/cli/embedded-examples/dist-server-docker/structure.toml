@@ -1,0 +1,16 @@
+# `fw gate`（`crates/cli/src/gate.rs::run_gate`）が唯一の情報源として読む
+# 構造マニフェスト（イシュー #351 の方針を examples/dist-server-docker にも
+# 適用する。詳細は `docs/design/structure-manifest.md` §2.2 を参照）。
+#
+# ディレクトリ名 `root` について: 本サンプルのクレートはプロジェクトルート
+# 直下（`src/`）に置かれる。`root` はスキーマ v1 の正式な予約名
+# （`cli/src/structure.rs::ROOT_DIR_KEY`）であり、`examples/ssr-routing` と
+# 同じ配置規約に従う。
+
+[manifest]
+version = 1
+
+[directories.root]
+role = "distribution"
+crate = "fandhe-frontend-example-dist-server-docker"
+description = "単一バイナリ配布 + Docker の正本サンプル（examples 規約 2 例目、イシュー #502）"

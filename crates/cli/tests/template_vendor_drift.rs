@@ -278,3 +278,25 @@ fn default_template_and_ssr_routing_example_share_identical_bytes_for_common_fil
         );
     }
 }
+
+/// `templates/default/` と `examples/dist-server-docker/` の間でバイト単位で
+/// 一致することを検証する共有ファイルの一覧（イシュー #502 実装計画 §3。
+/// `SSR_ROUTING_SHARED_RELATIVE_FILES` と同じ契約を 2 例目のサンプルにも
+/// 適用する）。
+const DIST_SERVER_DOCKER_SHARED_RELATIVE_FILES: &[&str] = &["clippy.toml", "deny.toml"];
+
+#[test]
+fn default_template_and_dist_server_docker_example_share_identical_bytes_for_common_files() {
+    let root = workspace_root();
+    for rel in DIST_SERVER_DOCKER_SHARED_RELATIVE_FILES {
+        let default_path = root.join("templates/default").join(rel);
+        let example_path = root.join("examples/dist-server-docker").join(rel);
+        assert_eq!(
+            read_bytes(&default_path),
+            read_bytes(&example_path),
+            "templates/default/{rel} と examples/dist-server-docker/{rel} は \
+             バイト単位で一致する契約（イシュー #502 実装計画 §3）。一方だけを \
+             変更した場合は他方にも反映すること"
+        );
+    }
+}

@@ -1,0 +1,9 @@
+/* examples/dist-server-docker の実演用最小 CSS。
+   `include_bytes!` でバイナリへコンパイル時埋め込みされ、
+   /static/style.css として配信される（src/main.rs 参照）。 */
+body {
+  font-family: system-ui, sans-serif;
+  margin: 2rem;
+  color: #1a1a1a;
+  background-color: #fafafa;
+}
