@@ -73,7 +73,7 @@ python3 -m http.server --directory static 8000
 | `deny.toml` | 依存ポリシー（`templates/default/` と内容同一） |
 | `src/main.rs` | native デモ（`AppState` の `dispatch` 実演）+ `dist/index.html` への SSR HTML 書き出し |
 | `tests/state_machine.rs` | `dispatch` の状態遷移・未知アクション no-op・`render_for_hydration`・既定エスケープ回帰テスト |
-| `static/embed.html` | ブラウザマウント骨格。`tools/wasm/build.sh` 実行後に動作（`hydrate("interactive-root")` + `start_router("app-root")`） |
+| `static/embed.html` | ブラウザマウント骨格。`tools/wasm/build.sh` 実行後に動作（`hydrate("interactive-root")` + `start_router("app-root")`）。`interactive-root` は `cargo run` が書き出す `dist/index.html` 同要素（`data-hydrate-*` 属性付き）を事前に埋め込み済みで、`hydrate()` の状態復元が成功する（空のまま呼ぶと CSR フォールバックが `AppState::view()` を二重に差し込み id 衝突するため） |
 | `tools/wasm/build.sh` | `wasm/`（独立ワークスペースの glue クレート）を wasm32 へビルドする手順 |
 | `wasm/` | `fandhe-frontend-wasm-full` の `hydrate` / `mount` / `start_router` を再エクスポートする薄い glue クレート（root の依存グラフから隔離） |
 

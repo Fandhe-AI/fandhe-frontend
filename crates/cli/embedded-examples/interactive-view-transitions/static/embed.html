@@ -10,10 +10,18 @@
 
       1. `<div id="interactive-root">` — `hydrate("interactive-root")` が
          `fandhe_frontend_interactive::AppState`（カウンター・フォーム・
-         動的リスト状態機械）をマウントする。初期状態は空で、`hydrate()`
-         呼び出し後に既定エスケープ済み HTML が入る（CSR フォールバック。
-         真のハイドレーション再現には `cargo run` が書き出す
-         `dist/index.html` の同要素をコピーして使うこと。README.md 参照）。
+         動的リスト状態機械）をマウントする。中身は `cargo run` が書き出す
+         `dist/index.html` の同要素（`data-hydrate-*` 属性付き SSR 出力）を
+         整形して転記した「初期状態がすでに描画済みの」マークアップであり、
+         意図的に空にしていない（Bugbot 指摘 #510 review comment
+         3621300109）。空のまま `hydrate()` を呼ぶと `data-hydrate-*`
+         属性が存在せず状態復元 (`restore_state`) が失敗し、CSR フォール
+         バック（`dom::mount_initial`）が `AppState::view()`（自身も
+         `id="interactive-root"` を持つ、interactive/src/lib.rs 参照）を
+         この `<div>` の中へ丸ごと差し込むため、同一 id が入れ子で重複
+         する（フレームワークが文書化するマウントコンテナ契約に反する）。
+         あらかじめ SSR 済みマークアップを置くことで復元が成功し、
+         `mount_initial` は呼ばれず二重 id を生まない。
       2. `<div id="app-root">` — `start_router("app-root")` が
          `fandhe_frontend_app::layout`/`list_page`/`detail_page`
          （`data-nav` リンク付き記事一覧・詳細）のクライアント側ルーティング
@@ -50,8 +58,19 @@
   <p>この段落は素の HTML であり、フレームワークの管理下にありません。</p>
 
   <h2>hydrate 系統（AppState: カウンター・フォーム・動的リスト）</h2>
-  <!-- hydrate("interactive-root") が状態機械コンポーネントをマウントする。 -->
-  <div id="interactive-root"></div>
+  <!--
+    hydrate("interactive-root") が状態機械コンポーネントをマウントする。
+    中身は `cargo run` が書き出す dist/index.html の
+    `<div id="interactive-root">` 要素と同一（`AppState::new()` の初期状態
+    + render_for_hydration が付与する data-hydrate-* 属性）。CSR フォール
+    バック（属性なし → mount_initial → view() 二重差し込み）を発生させず、
+    `hydrate()` が状態復元に成功する経路を実演する（head 内コメント参照）。
+  -->
+  <div id="interactive-root" data-testid="interactive-root" data-hydrate-counter="0" data-hydrate-draft="" data-hydrate-items="最初の項目" data-hydrate-item-ids="0">
+    <div data-testid="counter">カウント: <span data-testid="counter-value" data-bind-text="counter">0</span><button data-action="increment" data-testid="inc-btn">+1</button><button data-action="decrement" data-testid="dec-btn">-1</button><button data-action="reset" data-testid="reset-btn">リセット</button></div>
+    <div data-testid="form"><input id="draft-input" data-testid="draft-input" value="" data-bind-attr="value:draft"></input><button data-action="add_item" data-testid="add-btn">追加</button></div>
+    <ul data-testid="item-list" data-bind-list="items"><li data-key="0">最初の項目<button data-action="remove_item" data-payload="0" data-testid="remove-btn">削除</button></li></ul>
+  </div>
 
   <h2>start_router 系統（記事一覧・詳細、data-nav リンク + View Transitions）</h2>
   <!--
