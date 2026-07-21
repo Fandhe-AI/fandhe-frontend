@@ -466,7 +466,7 @@ fn embedded_template_matches_templates_on_disk() {
 // --- `fw new --example`（イシュー #500） ---
 
 /// `--example` の allowlist（`cli/src/new_template.rs::EXAMPLES` と手動同期）。
-const EXAMPLE_NAMES: &[&str] = &["ssr-routing", "dist-server-docker"];
+const EXAMPLE_NAMES: &[&str] = &["ssr-routing", "ssg-blog", "dist-server-docker"];
 
 fn example_root_dir(name: &str) -> PathBuf {
     // このテストバイナリは `crates/cli/` 配下でビルドされるため、`examples/`

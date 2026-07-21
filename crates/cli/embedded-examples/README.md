@@ -1,8 +1,8 @@
 # crates/cli/embedded-examples/ — 同梱コピー（正本ではない）
 
 このディレクトリはリポジトリルート `examples/`（`ssr-routing/` /
-`dist-server-docker/`）のバイト単位同梱コピーです。**正本はルート
-`examples/` のまま**であり、本ディレクトリを直接編集しないでください。
+`ssg-blog/` / `dist-server-docker/`）のバイト単位同梱コピーです。**正本は
+ルート `examples/` のまま**であり、本ディレクトリを直接編集しないでください。
 
 ## なぜ必要か
 
