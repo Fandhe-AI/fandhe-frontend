@@ -66,7 +66,7 @@
     バック（属性なし → mount_initial → view() 二重差し込み）を発生させず、
     `hydrate()` が状態復元に成功する経路を実演する（head 内コメント参照）。
   -->
-  <div id="interactive-root" data-testid="interactive-root" data-hydrate-counter="0" data-hydrate-draft="" data-hydrate-items="最初の項目" data-hydrate-item-ids="0">
+  <div id="interactive-root" data-testid="interactive-root" data-hydrate-counter="0" data-hydrate-draft="" data-hydrate-items="最初の項目" data-hydrate-item-ids="0">
     <div data-testid="counter">カウント: <span data-testid="counter-value" data-bind-text="counter">0</span><button data-action="increment" data-testid="inc-btn">+1</button><button data-action="decrement" data-testid="dec-btn">-1</button><button data-action="reset" data-testid="reset-btn">リセット</button></div>
     <div data-testid="form"><input id="draft-input" data-testid="draft-input" value="" data-bind-attr="value:draft"></input><button data-action="add_item" data-testid="add-btn">追加</button></div>
     <ul data-testid="item-list" data-bind-list="items"><li data-key="0">最初の項目<button data-action="remove_item" data-payload="0" data-testid="remove-btn">削除</button></li></ul>

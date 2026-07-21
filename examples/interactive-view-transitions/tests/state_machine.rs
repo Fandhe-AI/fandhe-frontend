@@ -133,3 +133,65 @@ fn embed_html_interactive_root_has_hydrate_attrs_to_avoid_csr_fallback_id_collis
         );
     }
 }
+
+/// `static/embed.html` の回帰テスト（PR #510 Bugbot 指摘「Hydrate list attrs
+/// miss separator」、review thread 未解決分）。
+///
+/// `data-hydrate-items` / `data-hydrate-item-ids` は `codec::decode_list`
+/// が要求する先頭の Unit Separator（`\u{1f}`、`codec::encode_list` 契約）を
+/// 欠くと、`decode_list` が空文字列を空リストと誤認して空ベクタを返し、
+/// `hydrate()` は復元「成功」のまま `mount_initial` を呼ばずスキップして
+/// しまう（DOM は「最初の項目」を表示したまま `AppState.items` が空になる
+/// サイレントな状態不整合）。本テストは `fandhe_frontend_interactive::codec`
+/// の実装（正）を基準に、embed.html の属性値が実際に
+/// `["最初の項目"]` / `["0"]` へ decode できることを固定する
+/// （静的検査に留めず、正本の codec 経由でラウンドトリップ検証する）。
+#[test]
+fn embed_html_interactive_root_hydrate_list_attrs_roundtrip_via_codec() {
+    use fandhe_frontend_interactive::codec;
+
+    let embed_html_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("static/embed.html");
+    let html = std::fs::read_to_string(&embed_html_path)
+        .unwrap_or_else(|e| panic!("failed to read {}: {e}", embed_html_path.display()));
+
+    let root_start = html
+        .find(r#"<div id="interactive-root" data-testid="interactive-root""#)
+        .expect("static/embed.html must contain the #interactive-root mount tag");
+    let tag_end = html[root_start..]
+        .find('>')
+        .map(|offset| root_start + offset)
+        .expect("static/embed.html #interactive-root start tag must be closed with '>'");
+    let tag_slice = &html[root_start..tag_end];
+
+    let items_value = extract_attr_value(tag_slice, "data-hydrate-items")
+        .expect("data-hydrate-items attribute must be present");
+    let item_ids_value = extract_attr_value(tag_slice, "data-hydrate-item-ids")
+        .expect("data-hydrate-item-ids attribute must be present");
+
+    assert_eq!(
+        codec::decode_list(&items_value),
+        vec!["最初の項目".to_string()],
+        "data-hydrate-items must decode to the non-empty initial item list \
+         (missing leading U+001F Unit Separator makes decode_list return an \
+         empty Vec, PR #510 Bugbot 指摘の回帰). raw value was: {items_value:?}"
+    );
+    assert_eq!(
+        codec::decode_list(&item_ids_value),
+        vec!["0".to_string()],
+        "data-hydrate-item-ids must decode to the matching id list. \
+         raw value was: {item_ids_value:?}"
+    );
+}
+
+/// `tag_slice`（開始タグ内部の文字列）から `attr="..."` 形式の属性値を
+/// 抽出するテスト専用ヘルパー。embed.html の属性値は既定エスケープ済み
+/// SSR 出力の転記であり `"` 自体は含まれない前提（`&quot;` にエスケープ
+/// される、`fandhe_frontend_core::escape` 契約）ため、単純な `"..."` の
+/// 対応で十分。
+fn extract_attr_value(tag_slice: &str, attr_name: &str) -> Option<String> {
+    let needle = format!(r#"{attr_name}=""#);
+    let start = tag_slice.find(&needle)? + needle.len();
+    let rest = &tag_slice[start..];
+    let end = rest.find('"')?;
+    Some(rest[..end].to_string())
+}
