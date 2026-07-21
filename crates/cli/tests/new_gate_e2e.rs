@@ -804,3 +804,92 @@ fn fw_new_example_ssg_blog_output_passes_fw_gate() {
         );
     }
 }
+
+/// `fw new --example dist-server-docker` で生成した直後のプロジェクトが
+/// `fw gate` を PASS すること（イシュー #502、`fw_new_example_ssr_routing_output_passes_fw_gate`
+/// と同型のモデル）。
+///
+/// `cargo build`/`fw gate` はいずれも crates.io
+/// （`https://index.crates.io`・`https://static.crates.io`）への到達性を
+/// 前提とする。到達不可の場合は環境エラーとして扱い、テストの弱体化で
+/// 対処しない（`fw_new_app_template_output_passes_fw_gate` と同じ前提）。
+///
+/// `dist-server-docker` は常駐型サーバー（`accept()` ループが戻らない設計、
+/// `src/main.rs` 参照）のため、`fw_new_example_ssr_routing_output_passes_fw_gate`
+/// 末尾のような `cargo run` 追撃は行わない。HTTP 応答検証（GET / ・
+/// GET /static/style.css ・404）は生成プロジェクト内 `tests/boot.rs`
+/// （実プロセス起動 + 素の TCP）が担い、下記の `test` チェック PASS 断定を
+/// もって検証済みとする。
+#[test]
+fn fw_new_example_dist_server_docker_output_passes_fw_gate() {
+    let scratch = unique_scratch_dir();
+    let _scratch_guard = ScratchProject(scratch.clone());
+
+    let (new_code, new_stdout, new_stderr) = run_fw_new(&[
+        "gate-pass-example-dist-server-docker",
+        "--example",
+        "dist-server-docker",
+        "--dir",
+        &scratch.to_string_lossy(),
+    ]);
+    assert_eq!(
+        new_code, 0,
+        "fw new --example dist-server-docker が失敗した: stdout={new_stdout} stderr={new_stderr}"
+    );
+
+    let project_dir = scratch.join("gate-pass-example-dist-server-docker");
+    let (gate_code, gate_stdout, gate_stderr) = run_fw_gate(&project_dir);
+
+    for name in [
+        "type_check",
+        "default_escape_check",
+        "url_validation_check",
+        "lint",
+        "test",
+        "policy",
+    ] {
+        assert!(
+            gate_stdout.contains(&format!("\"name\":\"{name}\"")),
+            "fw gate のレポートにチェック `{name}` が現れない: stdout={gate_stdout}"
+        );
+    }
+
+    for name in [
+        "type_check",
+        "default_escape_check",
+        "url_validation_check",
+        "lint",
+        "test",
+    ] {
+        assert_eq!(
+            check_passed(&gate_stdout, name),
+            Some(true),
+            "fw new --example dist-server-docker 生成直後のプロジェクトで `{name}` が \
+             失敗した（dist-server-docker サンプルと fw gate の前提がドリフトしている）: \
+             stdout={gate_stdout} stderr={gate_stderr}"
+        );
+    }
+
+    if cargo_deny_available() {
+        assert_eq!(
+            gate_code, 0,
+            "cargo-deny 導入環境では fw new --example dist-server-docker 生成直後は \
+             PASS するはず: stdout={gate_stdout} stderr={gate_stderr}"
+        );
+        assert!(
+            gate_stdout.contains("\"gate_result\":\"PASS\""),
+            "stdout={gate_stdout}"
+        );
+    } else {
+        assert_eq!(
+            gate_code, 1,
+            "cargo-deny 未導入環境では policy の fail-closed により BLOCKED \
+             (終了コード 1) のはず: stdout={gate_stdout}"
+        );
+        assert!(
+            gate_stdout.contains("environment error: "),
+            "policy の failed 出力は environment error であることを明示する \
+             プレフィックスを含むはず: stdout={gate_stdout}"
+        );
+    }
+}

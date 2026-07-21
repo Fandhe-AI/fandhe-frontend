@@ -464,6 +464,72 @@ const SSG_BLOG_EXAMPLE_FILES: &[TemplateFile] = &[
     },
 ];
 
+/// `examples/dist-server-docker/` の全ファイル（11 件）を git の相対パス順・
+/// 実行ビットどおりに埋め込んだ固定配列（イシュー #502）。
+///
+/// `crates/cli/embedded-examples/dist-server-docker/` は正本
+/// `examples/dist-server-docker/` のバイト単位同梱コピーであり、乖離は
+/// [`SSR_ROUTING_EXAMPLE_FILES`] と同じく
+/// `cli/tests/example_publish_copy_drift.rs` が検知する。全ファイル
+/// `executable: false`（正本側に実行ビット付きファイルが存在しないため）。
+const DIST_SERVER_DOCKER_EXAMPLE_FILES: &[TemplateFile] = &[
+    TemplateFile {
+        rel_path: ".dockerignore",
+        contents: include_str!("../embedded-examples/dist-server-docker/.dockerignore"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "Cargo.lock",
+        contents: include_str!("../embedded-examples/dist-server-docker/Cargo.lock"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "Cargo.toml",
+        contents: include_str!("../embedded-examples/dist-server-docker/Cargo.toml.embed"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "Dockerfile",
+        contents: include_str!("../embedded-examples/dist-server-docker/Dockerfile"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "README.md",
+        contents: include_str!("../embedded-examples/dist-server-docker/README.md"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "clippy.toml",
+        contents: include_str!("../embedded-examples/dist-server-docker/clippy.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "deny.toml",
+        contents: include_str!("../embedded-examples/dist-server-docker/deny.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "src/main.rs",
+        contents: include_str!("../embedded-examples/dist-server-docker/src/main.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "static/style.css",
+        contents: include_str!("../embedded-examples/dist-server-docker/static/style.css"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "structure.toml",
+        contents: include_str!("../embedded-examples/dist-server-docker/structure.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "tests/boot.rs",
+        contents: include_str!("../embedded-examples/dist-server-docker/tests/boot.rs"),
+        executable: false,
+    },
+];
+
 /// `--example` の allowlist（イシュー #500）。
 ///
 /// サンプル名はここに列挙したコンパイル時定数との完全一致照合のみで解決し、
@@ -471,7 +537,8 @@ const SSG_BLOG_EXAMPLE_FILES: &[TemplateFile] = &[
 /// （`security.md` A01/A03、[`TEMPLATES`] と同じ方針）。配列順は
 /// `fw new --example <unknown>` のエラーメッセージが提示する利用可能サンプル
 /// 一覧の表示順（固定）にもなる。並列実装（イシュー #497）との競合軽微化の
-/// ため、新規サンプルは配列末尾へ追記する運用とする。
+/// ため、新規サンプルは配列末尾へ追記する運用とする（イシュー #502 実装計画
+/// §7「並列競合」参照）。
 pub(crate) const EXAMPLES: &[Template] = &[
     Template {
         name: "ssr-routing",
@@ -488,6 +555,13 @@ pub(crate) const EXAMPLES: &[Template] = &[
         name: "ssg-blog",
         files: SSG_BLOG_EXAMPLE_FILES,
         // 同上（ssr-routing と同じダミー needle。イシュー #501）。
+        needle: "fandhe-frontend-example-placeholder-unused",
+        substituted_files: &[],
+    },
+    Template {
+        name: "dist-server-docker",
+        files: DIST_SERVER_DOCKER_EXAMPLE_FILES,
+        // ssr-routing と同じ理由でパッケージ名を置換しない。
         needle: "fandhe-frontend-example-placeholder-unused",
         substituted_files: &[],
     },
@@ -579,6 +653,26 @@ mod tests {
         assert!(
             e.files.iter().all(|f| !f.executable),
             "ssg-blog example has no executable files in the source"
+        );
+    }
+
+    #[test]
+    fn dist_server_docker_example_is_registered() {
+        let e = find_example("dist-server-docker")
+            .expect("dist-server-docker example must be registered");
+        assert_eq!(e.name, "dist-server-docker");
+        assert_eq!(
+            e.files.len(),
+            11,
+            "dist-server-docker example must contain exactly 11 files"
+        );
+        assert!(
+            e.substituted_files.is_empty(),
+            "examples do not substitute package names (see module doc comment, issue #500)"
+        );
+        assert!(
+            e.files.iter().all(|f| !f.executable),
+            "dist-server-docker example has no executable files in the source"
         );
     }
 
