@@ -462,3 +462,159 @@ fn embedded_template_matches_templates_on_disk() {
         let _ = fs::remove_dir_all(&scratch);
     }
 }
+
+// --- `fw new --example`（イシュー #500） ---
+
+/// `--example` の allowlist（`cli/src/new_template.rs::EXAMPLES` と手動同期）。
+const EXAMPLE_NAMES: &[&str] = &["ssr-routing"];
+
+fn example_root_dir(name: &str) -> PathBuf {
+    // このテストバイナリは `crates/cli/` 配下でビルドされるため、`examples/`
+    // （ワークスペースルート直下、クレートではないため移設対象外）へは
+    // 2 段の親ディレクトリを辿る（イシュー #436）。
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .expect("crates/cli/ has a workspace root two levels up")
+        .join("examples")
+        .join(name)
+}
+
+/// 成功時 JSON は `"example":"<name>"` キーを持ち、`--template` 経路専用の
+/// `"template"` キーは含めない（実装計画 §2.5）。
+#[test]
+fn example_success_json_has_example_key_and_no_template_key() {
+    for name in EXAMPLE_NAMES {
+        let scratch = unique_scratch_dir(&format!("example-json-{name}"));
+        let (code, stdout, stderr) = run_fw_new(&[
+            "demo-example",
+            "--example",
+            name,
+            "--dir",
+            &scratch.to_string_lossy(),
+        ]);
+        assert_eq!(code, 0, "example `{name}` stderr: {stderr}");
+        assert!(stdout.contains("\"created\""));
+        assert!(stdout.contains("\"files\""));
+        assert!(
+            stdout.contains(&format!("\"example\":\"{name}\"")),
+            "stdout must echo the selected example name: {stdout}"
+        );
+        assert!(
+            !stdout.contains("\"template\""),
+            "example output must not contain the `--template` JSON key: {stdout}"
+        );
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+/// 決定性（イシュー #350 の受け入れ条件 1 を `--example` 経路にも適用）。
+#[test]
+fn example_same_args_produce_byte_identical_output_across_two_runs() {
+    for name in EXAMPLE_NAMES {
+        let scratch = unique_scratch_dir(&format!("example-determinism-{name}"));
+        let dir_a = scratch.join("a");
+        let dir_b = scratch.join("b");
+        fs::create_dir_all(&dir_a).unwrap();
+        fs::create_dir_all(&dir_b).unwrap();
+
+        let (code_a, _, stderr_a) = run_fw_new(&[
+            "demo-example",
+            "--example",
+            name,
+            "--dir",
+            &dir_a.to_string_lossy(),
+        ]);
+        assert_eq!(code_a, 0, "example `{name}` first run: {stderr_a}");
+
+        let (code_b, _, stderr_b) = run_fw_new(&[
+            "demo-example",
+            "--example",
+            name,
+            "--dir",
+            &dir_b.to_string_lossy(),
+        ]);
+        assert_eq!(code_b, 0, "example `{name}` second run: {stderr_b}");
+
+        let tree_a = collect_tree(&dir_a.join("demo-example"));
+        let tree_b = collect_tree(&dir_b.join("demo-example"));
+        assert_eq!(
+            tree_a, tree_b,
+            "example `{name}`: two runs with identical arguments must produce byte-identical output"
+        );
+        assert!(
+            !tree_a.is_empty(),
+            "example `{name}`: expansion must not be empty"
+        );
+
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+/// examples は置換を行わない（実装計画 §2.2）ため、生成物は正本
+/// `examples/<name>/` と全ファイルバイト一致になる。これは
+/// `crates/cli/embedded-examples/<name>/` ↔ 正本のドリフト検知も兼ねる
+/// （埋め込みマニフェストが正本と乖離していれば本テストが検出する）。
+#[test]
+fn example_output_is_byte_identical_to_source_example() {
+    for name in EXAMPLE_NAMES {
+        let scratch = unique_scratch_dir(&format!("example-drift-{name}"));
+        let (code, _, stderr) = run_fw_new(&[
+            "demo-example",
+            "--example",
+            name,
+            "--dir",
+            &scratch.to_string_lossy(),
+        ]);
+        assert_eq!(code, 0, "example `{name}` stderr: {stderr}");
+
+        let target = scratch.join("demo-example");
+        let source_root = example_root_dir(name);
+        let generated = collect_tree(&target);
+        let original = collect_tree(&source_root);
+        assert_eq!(
+            generated, original,
+            "example `{name}` has no package-name substitution, so output must be byte-identical to examples/{name}/"
+        );
+
+        let _ = fs::remove_dir_all(&scratch);
+    }
+}
+
+/// `--template` と `--example` の同時指定は使用法エラー（終了コード 2）。
+#[test]
+fn template_and_example_together_is_usage_error() {
+    let (code, _, _) = run_fw_new(&[
+        "demo-example",
+        "--template",
+        "default",
+        "--example",
+        "ssr-routing",
+    ]);
+    assert_eq!(code, 2);
+}
+
+/// 未知の `--example` 値は使用法エラー（終了コード 2）とし、stderr に
+/// 利用可能サンプル一覧を出す（`--template` と同じ契約）。
+#[test]
+fn unknown_example_is_usage_error_and_lists_available_examples() {
+    let (code, _, stderr) = run_fw_new(&["demo-example", "--example", "nonexistent"]);
+    assert_eq!(code, 2);
+    assert!(
+        stderr.contains("nonexistent"),
+        "stderr must mention the rejected example name: {stderr}"
+    );
+    for name in EXAMPLE_NAMES {
+        assert!(
+            stderr.contains(name),
+            "stderr must list available example `{name}`: {stderr}"
+        );
+    }
+}
+
+/// `--example` の値欠落は使用法エラー（`--template`/`--dir` と同様の解析規則）。
+#[test]
+fn example_flag_missing_value_is_usage_error() {
+    let (code, _, _) = run_fw_new(&["demo-example", "--example"]);
+    assert_eq!(code, 2);
+}

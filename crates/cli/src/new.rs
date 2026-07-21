@@ -19,31 +19,43 @@
 //! イシュー #378 以前の `fw new` 呼び出しと完全後方互換（同一バイト出力）を
 //! 保つ。未知のテンプレート名は使用法エラー（終了コード 2）とし、stderr へ
 //! 利用可能テンプレート一覧（固定順）を出す。
+//!
+//! `--example <name>`（イシュー #500）は `--template` と対になる別系統の
+//! 選択肢で、[`crate::new_template::EXAMPLES`]（`examples/<name>/` の正本
+//! サンプル、イシュー #499）を展開する。`--template` と `--example` は
+//! 同時指定できない（使用法エラー・終了コード 2）。成功時の JSON は
+//! `--template` 経路の `"template"` キーの代わりに `"example"` キーを持つ
+//! （[`run_new`] 参照）。
 
 use crate::json_out::{quoted, string_array};
-use crate::new_template::{find_template, Template, DEFAULT_TEMPLATE_NAME, TEMPLATES};
+use crate::new_template::{
+    find_example, find_template, Template, DEFAULT_TEMPLATE_NAME, EXAMPLES, TEMPLATES,
+};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const USAGE: &str =
-    "fw new: usage: fw new <project-name> [--template <template>] [--dir <parent-dir>] [--force]";
+const USAGE: &str = "fw new: usage: fw new <project-name> [--template <template> | --example <example>] [--dir <parent-dir>] [--force]";
 
 /// `fw new` サブコマンド本体。
 ///
 /// 1. 引数を解析する（第 1 位置引数 `<project-name>` 必須、`--template` /
-///    `--dir` / `--force` はオプション）。引数の使い方が誤っている場合は
-///    使用法エラー（終了コード 2）
+///    `--example` / `--dir` / `--force` はオプション。`--template` と
+///    `--example` は排他）。引数の使い方が誤っている場合は使用法エラー
+///    （終了コード 2）
 /// 2. [`validate_project_name`] でプロジェクト名を検証する（違反は終了コード 2。
 ///    パストラバーサル対策として `/` `\` `..` 等を構造的に排除する）
-/// 3. `--template` をコンパイル時 allowlist（[`TEMPLATES`]）と完全一致照合する。
-///    未知の名前は使用法エラー（終了コード 2）
+/// 3. [`Selection`] に応じて `--template` は [`TEMPLATES`]、`--example` は
+///    [`EXAMPLES`] のコンパイル時 allowlist と完全一致照合する。未知の名前は
+///    使用法エラー（終了コード 2）
 /// 4. ターゲットパス（`<parent-dir>/<project-name>`）の存在確認。`--force`
 ///    なしで既存の場合は fail-closed で拒否（終了コード 1）
-/// 5. 選択したテンプレートの `files` を配列順（固定）で展開し、
-///    `Cargo.toml` / `Cargo.lock` / `structure.toml` の package 名を
-///    プロジェクト名へ置換する
-/// 6. 成功時は展開したファイル一覧・使用テンプレート名を JSON で stdout へ
-///    出力し終了コード 0
+/// 5. 選択した [`Template`] の `files` を配列順（固定）で展開する。
+///    `--template` 経路のみ `Cargo.toml` / `Cargo.lock` / `structure.toml` の
+///    package 名をプロジェクト名へ置換する（`--example` 経路は置換しない、
+///    `new_template.rs` モジュール doc コメント参照）
+/// 6. 成功時は展開したファイル一覧を JSON で stdout へ出力し終了コード 0。
+///    `--template` 経路は `"template"` キー、`--example` 経路は `"example"`
+///    キーを持つ（[`Selection`] 参照）
 pub(crate) fn run_new(args: &[String]) -> i32 {
     let parsed = match parse_args(args) {
         Ok(p) => p,
@@ -59,19 +71,33 @@ pub(crate) fn run_new(args: &[String]) -> i32 {
         return 2;
     }
 
-    let template = match find_template(&parsed.template_name) {
-        Some(t) => t,
-        None => {
-            let available: Vec<&str> = TEMPLATES.iter().map(|t| t.name).collect();
-            eprintln!(
-                "fw new: unknown template `{}` (available: {})",
-                parsed.template_name,
-                available.join(", ")
-            );
-            eprintln!("{USAGE}");
-            return 2;
-        }
+    let (template, key, name) = match &parsed.selection {
+        Selection::Template(name) => match find_template(name) {
+            Some(t) => (t, "template", name.as_str()),
+            None => {
+                let available: Vec<&str> = TEMPLATES.iter().map(|t| t.name).collect();
+                eprintln!(
+                    "fw new: unknown template `{name}` (available: {})",
+                    available.join(", ")
+                );
+                eprintln!("{USAGE}");
+                return 2;
+            }
+        },
+        Selection::Example(name) => match find_example(name) {
+            Some(t) => (t, "example", name.as_str()),
+            None => {
+                let available: Vec<&str> = EXAMPLES.iter().map(|t| t.name).collect();
+                eprintln!(
+                    "fw new: unknown example `{name}` (available: {})",
+                    available.join(", ")
+                );
+                eprintln!("{USAGE}");
+                return 2;
+            }
+        },
     };
+    debug_assert_eq!(template.name, name);
 
     let target = parsed.parent_dir.join(&parsed.project_name);
 
@@ -90,7 +116,7 @@ pub(crate) fn run_new(args: &[String]) -> i32 {
         Ok(files) => {
             let files_json = string_array(&files);
             println!(
-                "{{\"created\":{},\"template\":{},\"files\":{}}}",
+                "{{\"created\":{},\"{key}\":{},\"files\":{}}}",
                 quoted(&target.to_string_lossy()),
                 quoted(template.name),
                 files_json
@@ -104,24 +130,36 @@ pub(crate) fn run_new(args: &[String]) -> i32 {
     }
 }
 
+/// `--template <name>` と `--example <name>` の排他選択（イシュー #500）。
+///
+/// [`parse_args`] が構築し、[`run_new`] が対応する allowlist
+/// （[`TEMPLATES`] / [`EXAMPLES`]）へ照合する。バリアント名がそのまま
+/// 成功時 JSON のキー名（`"template"` / `"example"`）を決める。
+enum Selection {
+    Template(String),
+    Example(String),
+}
+
 struct ParsedArgs {
     project_name: String,
     parent_dir: PathBuf,
-    template_name: String,
+    selection: Selection,
     force: bool,
 }
 
-/// `fw new <project-name> [--template <template>] [--dir <parent-dir>] [--force]`
+/// `fw new <project-name> [--template <template> | --example <example>] [--dir <parent-dir>] [--force]`
 /// を解析する。
 ///
-/// `Err(2)` は使用法エラー（引数欠落・`--dir`/`--template` 値欠落・未知
-/// フラグ）を表す。`--template` 未指定時は
-/// [`DEFAULT_TEMPLATE_NAME`] を採用する（テンプレート名自体の allowlist
-/// 照合は呼び出し元 [`run_new`] が行う。ここでは値の欠落のみを検査する）。
+/// `Err(2)` は使用法エラー（引数欠落・`--dir`/`--template`/`--example` 値欠落・
+/// `--template` と `--example` の同時指定・未知フラグ）を表す。いずれも
+/// 未指定時は [`DEFAULT_TEMPLATE_NAME`]（`--template` 経路）を採用する
+/// （テンプレート名・サンプル名自体の allowlist 照合は呼び出し元 [`run_new`]
+/// が行う。ここでは値の欠落・排他性のみを検査する）。
 fn parse_args(args: &[String]) -> Result<ParsedArgs, i32> {
     let mut project_name: Option<String> = None;
     let mut parent_dir: Option<PathBuf> = None;
     let mut template_name: Option<String> = None;
+    let mut example_name: Option<String> = None;
     let mut force = false;
 
     let mut i = 0;
@@ -135,6 +173,11 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, i32> {
             "--template" => {
                 let value = args.get(i + 1).ok_or(2)?;
                 template_name = Some(value.clone());
+                i += 2;
+            }
+            "--example" => {
+                let value = args.get(i + 1).ok_or(2)?;
+                example_name = Some(value.clone());
                 i += 2;
             }
             "--force" => {
@@ -158,12 +201,19 @@ fn parse_args(args: &[String]) -> Result<ParsedArgs, i32> {
         Some(dir) => dir,
         None => std::env::current_dir().map_err(|_| 1)?,
     };
-    let template_name = template_name.unwrap_or_else(|| DEFAULT_TEMPLATE_NAME.to_string());
+
+    // `--template` と `--example` は排他（同時指定は使用法エラー）。
+    let selection = match (template_name, example_name) {
+        (Some(_), Some(_)) => return Err(2),
+        (Some(t), None) => Selection::Template(t),
+        (None, Some(e)) => Selection::Example(e),
+        (None, None) => Selection::Template(DEFAULT_TEMPLATE_NAME.to_string()),
+    };
 
     Ok(ParsedArgs {
         project_name,
         parent_dir,
-        template_name,
+        selection,
         force,
     })
 }
@@ -373,6 +423,71 @@ mod tests {
     #[test]
     fn run_new_without_args_is_usage_error() {
         assert_eq!(run_new(&[]), 2);
+    }
+
+    // --- `--example`（イシュー #500） ---
+
+    #[test]
+    fn parse_args_accepts_example_alone() {
+        let parsed = parse_args(&[
+            "demo".to_string(),
+            "--example".to_string(),
+            "ssr-routing".to_string(),
+        ])
+        .unwrap();
+        assert_eq!(parsed.project_name, "demo");
+        assert!(matches!(parsed.selection, Selection::Example(ref n) if n == "ssr-routing"));
+    }
+
+    #[test]
+    fn parse_args_rejects_missing_example_value() {
+        assert!(parse_args(&["demo".to_string(), "--example".to_string()]).is_err());
+    }
+
+    #[test]
+    fn parse_args_rejects_template_and_example_together() {
+        assert!(parse_args(&[
+            "demo".to_string(),
+            "--template".to_string(),
+            "default".to_string(),
+            "--example".to_string(),
+            "ssr-routing".to_string(),
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn parse_args_default_selection_is_default_template() {
+        let parsed = parse_args(&["demo".to_string()]).unwrap();
+        assert!(
+            matches!(parsed.selection, Selection::Template(ref n) if n == DEFAULT_TEMPLATE_NAME)
+        );
+    }
+
+    #[test]
+    fn run_new_template_and_example_together_is_usage_error() {
+        assert_eq!(
+            run_new(&[
+                "demo".to_string(),
+                "--template".to_string(),
+                "default".to_string(),
+                "--example".to_string(),
+                "ssr-routing".to_string(),
+            ]),
+            2
+        );
+    }
+
+    #[test]
+    fn run_new_unknown_example_name_is_usage_error() {
+        assert_eq!(
+            run_new(&[
+                "demo".to_string(),
+                "--example".to_string(),
+                "nonexistent".to_string()
+            ]),
+            2
+        );
     }
 
     #[test]

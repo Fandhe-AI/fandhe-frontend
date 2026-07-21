@@ -254,3 +254,27 @@ fn default_and_app_templates_share_identical_bytes_for_common_files() {
         );
     }
 }
+
+// --- 共有ファイル同一性: templates/default/ と examples/ssr-routing/（イシュー #500） ---
+
+/// `templates/default/<rel>` と `examples/ssr-routing/<rel>` がバイト単位で
+/// 一致することを検証する共有ファイルの一覧（イシュー #500 実装計画 §3。
+/// `examples/` は `templates/` とは独立した規約だが、静的解析設定
+/// （`clippy.toml`）・サプライチェーン設定（`deny.toml`）は流用する契約）。
+const SSR_ROUTING_SHARED_RELATIVE_FILES: &[&str] = &["clippy.toml", "deny.toml"];
+
+#[test]
+fn default_template_and_ssr_routing_example_share_identical_bytes_for_common_files() {
+    let root = workspace_root();
+    for rel in SSR_ROUTING_SHARED_RELATIVE_FILES {
+        let default_path = root.join("templates/default").join(rel);
+        let example_path = root.join("examples/ssr-routing").join(rel);
+        assert_eq!(
+            read_bytes(&default_path),
+            read_bytes(&example_path),
+            "templates/default/{rel} と examples/ssr-routing/{rel} はバイト単位で \
+             一致する契約（イシュー #500 実装計画 §3）。一方だけを変更した \
+             場合は他方にも反映すること"
+        );
+    }
+}

@@ -566,3 +566,123 @@ fn fw_new_embed_template_gate_detects_injected_rust_violation() {
         "stdout={gate_stdout}"
     );
 }
+
+/// イシュー #500: `fw new --example ssr-routing` 生成直後のプロジェクトに対し
+/// `fw gate` を実行し、`app`/`default` テンプレートと同じ 6 チェック断定方針
+/// （`policy` のみ cargo-deny 導入有無で分岐、他 5 チェックは常に PASS）を
+/// 適用する。さらに受け入れ条件 1（`fw new demo --example ssr-routing && cd
+/// demo && cargo run -- /items/1` が動作する）を `cargo run` 実行で直接固定
+/// する。
+///
+/// `--example` はパッケージ名を置換しない（`new_template.rs` モジュール doc
+/// コメント参照）ため、生成プロジェクトのパッケージ名は正本と同じ
+/// `fandhe-frontend-example-ssr-routing` のまま。
+///
+/// # 前提（`.claude/rules/ci.md` 準拠）
+///
+/// `examples/ssr-routing` は fandhe-frontend-core/-app/-server への crates.io
+/// バージョン依存で完結する（vendor 同梱なし、イシュー #499）。本テストの
+/// `cargo build`/`cargo run`/`fw gate` はいずれも crates.io
+/// （`https://index.crates.io`・`https://static.crates.io`）への到達性を
+/// 前提とする。到達不可の場合は環境エラーとして扱い、テストの弱体化で
+/// 対処しない（`fw_new_app_template_output_passes_fw_gate` と同じ前提）。
+#[test]
+fn fw_new_example_ssr_routing_output_passes_fw_gate() {
+    let scratch = unique_scratch_dir();
+    let _scratch_guard = ScratchProject(scratch.clone());
+
+    let (new_code, new_stdout, new_stderr) = run_fw_new(&[
+        "gate-pass-example-ssr-routing",
+        "--example",
+        "ssr-routing",
+        "--dir",
+        &scratch.to_string_lossy(),
+    ]);
+    assert_eq!(
+        new_code, 0,
+        "fw new --example ssr-routing が失敗した: stdout={new_stdout} stderr={new_stderr}"
+    );
+
+    let project_dir = scratch.join("gate-pass-example-ssr-routing");
+    let (gate_code, gate_stdout, gate_stderr) = run_fw_gate(&project_dir);
+
+    for name in [
+        "type_check",
+        "default_escape_check",
+        "url_validation_check",
+        "lint",
+        "test",
+        "policy",
+    ] {
+        assert!(
+            gate_stdout.contains(&format!("\"name\":\"{name}\"")),
+            "fw gate のレポートにチェック `{name}` が現れない: stdout={gate_stdout}"
+        );
+    }
+
+    for name in [
+        "type_check",
+        "default_escape_check",
+        "url_validation_check",
+        "lint",
+        "test",
+    ] {
+        assert_eq!(
+            check_passed(&gate_stdout, name),
+            Some(true),
+            "fw new --example ssr-routing 生成直後のプロジェクトで `{name}` が \
+             失敗した（ssr-routing サンプルと fw gate の前提がドリフトしている）: \
+             stdout={gate_stdout} stderr={gate_stderr}"
+        );
+    }
+
+    if cargo_deny_available() {
+        assert_eq!(
+            gate_code, 0,
+            "cargo-deny 導入環境では fw new --example ssr-routing 生成直後は \
+             PASS するはず: stdout={gate_stdout} stderr={gate_stderr}"
+        );
+        assert!(
+            gate_stdout.contains("\"gate_result\":\"PASS\""),
+            "stdout={gate_stdout}"
+        );
+    } else {
+        assert_eq!(
+            gate_code, 1,
+            "cargo-deny 未導入環境では policy の fail-closed により BLOCKED \
+             (終了コード 1) のはず: stdout={gate_stdout}"
+        );
+        assert!(
+            gate_stdout.contains("environment error: "),
+            "policy の failed 出力は environment error であることを明示する \
+             プレフィックスを含むはず: stdout={gate_stdout}"
+        );
+    }
+
+    // 受け入れ条件 1（実装計画 §2.2 の起点）: `fw new demo --example
+    // ssr-routing && cd demo && cargo run -- /items/1` が動作すること。
+    // `examples/ssr-routing/tests/routing.rs::run_cli` と同一の呼び出し方
+    // （引数 1 個の CLI、標準出力にステータス行 + body）を生成プロジェクト
+    // 直下で `cargo run` 経由で再現する。
+    let run_output = Command::new("cargo")
+        .arg("run")
+        .arg("--quiet")
+        .arg("--")
+        .arg("/items/1")
+        .current_dir(&project_dir)
+        .output()
+        .expect("failed to spawn `cargo run` in generated example project");
+    assert!(
+        run_output.status.success(),
+        "cargo run -- /items/1 が生成直後の ssr-routing サンプルで失敗した: \
+         stdout={} stderr={}",
+        String::from_utf8_lossy(&run_output.stdout),
+        String::from_utf8_lossy(&run_output.stderr)
+    );
+    let run_stdout = String::from_utf8_lossy(&run_output.stdout);
+    assert!(run_stdout.starts_with("200\n"), "stdout was: {run_stdout}");
+    assert!(
+        run_stdout.contains("Content-Type: text/html"),
+        "stdout was: {run_stdout}"
+    );
+}

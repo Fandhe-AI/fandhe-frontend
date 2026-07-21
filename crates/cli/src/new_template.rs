@@ -37,6 +37,27 @@
 //! `--template` 未指定時の既定は [`DEFAULT_TEMPLATE_NAME`]（`default`）で
 //! あり、イシュー #378 以前の `fw new` 呼び出し（テンプレート選択なし）と
 //! 完全後方互換（同一バイト出力）を保つ。
+//!
+//! ## `fw new --example`（イシュー #500）
+//!
+//! 上記の `TEMPLATES`（`fw new --template <name>`、雛形の生成でパッケージ名を
+//! プロジェクト名へ置換する）とは別に、[`EXAMPLES`]（`fw new --example <name>`）
+//! を提供する。`examples/<name>/`（イシュー #499 で確立した「crates.io 公開済み
+//! クレートを実際に使う正本サンプル」規約）を `templates/` と同じ「正本 +
+//! `include_str!` 同梱コピー + ドリフト検知テスト」運用で取得できるようにする
+//! 機構であり、`crates/cli/embedded-examples/` に正本のバイト単位同梱コピーを
+//! 置く（`crates/cli/embedded-examples/README.md` 参照）。乖離検知は
+//! `cli/tests/example_publish_copy_drift.rs` が担う。
+//!
+//! `Template` / `TemplateFile` struct を完全再利用するが、`EXAMPLES` の各
+//! `Template::substituted_files` は空配列に固定する（パッケージ名置換を行わない）。
+//! `examples/ssr-routing/tests/routing.rs` が
+//! `env!("CARGO_BIN_EXE_fandhe-frontend-example-ssr-routing")` でバイナリ名を
+//! 直接参照するため、`Cargo.toml` のパッケージ名だけを置換すると
+//! `CARGO_BIN_EXE_*` が未定義になり生成直後の `cargo test` がコンパイル不能に
+//! なる。examples は「雛形の生成」ではなく「正本サンプルの取得」であり、生成物が
+//! 正本 `examples/<name>/` と全ファイルバイト一致になることが決定性・ドリフト
+//! 検知の観点で最も強い保証になる（`EMBED_TEMPLATE_FILES` と同じ整理）。
 
 /// テンプレート 1 ファイル分のコンパイル時定数。
 ///
@@ -338,6 +359,83 @@ pub(crate) fn find_template(name: &str) -> Option<&'static Template> {
     TEMPLATES.iter().find(|t| t.name == name)
 }
 
+/// `examples/ssr-routing/` の全ファイル（8 件）を git の相対パス順・実行ビット
+/// どおりに埋め込んだ固定配列（イシュー #500）。
+///
+/// `crates/cli/embedded-examples/ssr-routing/` は正本 `examples/ssr-routing/`
+/// のバイト単位同梱コピーであり、乖離は
+/// `cli/tests/example_publish_copy_drift.rs` が検知する。全ファイル
+/// `executable: false`（正本側に実行ビット付きファイルが存在しないため）。
+const SSR_ROUTING_EXAMPLE_FILES: &[TemplateFile] = &[
+    TemplateFile {
+        rel_path: "Cargo.lock",
+        contents: include_str!("../embedded-examples/ssr-routing/Cargo.lock"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "Cargo.toml",
+        contents: include_str!("../embedded-examples/ssr-routing/Cargo.toml.embed"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "README.md",
+        contents: include_str!("../embedded-examples/ssr-routing/README.md"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "clippy.toml",
+        contents: include_str!("../embedded-examples/ssr-routing/clippy.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "deny.toml",
+        contents: include_str!("../embedded-examples/ssr-routing/deny.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "src/main.rs",
+        contents: include_str!("../embedded-examples/ssr-routing/src/main.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "structure.toml",
+        contents: include_str!("../embedded-examples/ssr-routing/structure.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "tests/routing.rs",
+        contents: include_str!("../embedded-examples/ssr-routing/tests/routing.rs"),
+        executable: false,
+    },
+];
+
+/// `--example` の allowlist（イシュー #500）。
+///
+/// サンプル名はここに列挙したコンパイル時定数との完全一致照合のみで解決し、
+/// ユーザー入力から動的にパス・`include_str!` 対象を組み立てない
+/// （`security.md` A01/A03、[`TEMPLATES`] と同じ方針）。配列順は
+/// `fw new --example <unknown>` のエラーメッセージが提示する利用可能サンプル
+/// 一覧の表示順（固定）にもなる。
+pub(crate) const EXAMPLES: &[Template] = &[Template {
+    name: "ssr-routing",
+    files: SSR_ROUTING_EXAMPLE_FILES,
+    // examples はパッケージ名を置換しない（モジュール doc コメント参照）。
+    // この `needle` はどのファイルにも出現しないダミー文字列であり
+    // （`substituted_files` が空のため置換ループは素通りする、
+    // `new.rs::expand_template` 参照）、生成物はサンプルと全ファイル
+    // バイト一致になる（`cli/tests/new_e2e.rs` が固定）。
+    needle: "fandhe-frontend-example-placeholder-unused",
+    substituted_files: &[],
+}];
+
+/// `name` に一致する [`Template`]（`EXAMPLES` 由来）を検索する。
+///
+/// 未知の名前は `None`（`new.rs::run_new` が使用法エラー・終了コード 2 へ
+/// 変換する）。
+pub(crate) fn find_example(name: &str) -> Option<&'static Template> {
+    EXAMPLES.iter().find(|t| t.name == name)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -374,6 +472,30 @@ mod tests {
     #[test]
     fn unknown_template_name_resolves_to_none() {
         assert!(find_template("nonexistent").is_none());
+    }
+
+    #[test]
+    fn ssr_routing_example_is_registered() {
+        let e = find_example("ssr-routing").expect("ssr-routing example must be registered");
+        assert_eq!(e.name, "ssr-routing");
+        assert_eq!(
+            e.files.len(),
+            8,
+            "ssr-routing example must contain exactly 8 files"
+        );
+        assert!(
+            e.substituted_files.is_empty(),
+            "examples do not substitute package names (see module doc comment, issue #500)"
+        );
+        assert!(
+            e.files.iter().all(|f| !f.executable),
+            "ssr-routing example has no executable files in the source"
+        );
+    }
+
+    #[test]
+    fn unknown_example_name_resolves_to_none() {
+        assert!(find_example("nonexistent").is_none());
     }
 
     /// 各テンプレートの実行可能ファイル集合（`executable: true` の
