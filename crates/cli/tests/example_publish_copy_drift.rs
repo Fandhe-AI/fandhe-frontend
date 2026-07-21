@@ -38,7 +38,12 @@ use std::path::{Path, PathBuf};
 /// （本テストクレートは `fandhe-frontend-cli` の内部モジュールへアクセス
 /// できない統合テストのため、独立した固定リストとして維持する。新規
 /// サンプル追加時は `new_template.rs::EXAMPLES` とあわせて更新すること）。
-const EXAMPLE_NAMES: &[&str] = &["ssr-routing", "interactive-view-transitions"];
+const EXAMPLE_NAMES: &[&str] = &[
+    "ssr-routing",
+    "ssg-blog",
+    "dist-server-docker",
+    "interactive-view-transitions",
+];
 
 /// workspace ルート（`cli/` の親の親ディレクトリ）の絶対パスを返す。
 fn workspace_root() -> PathBuf {
@@ -51,9 +56,19 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
+/// `examples/<name>/` 配下でビルド成果物として生成されうるディレクトリ名
+/// （`.gitignore` の `/examples/*/target`・`/examples/*/dist/` に対応、
+/// イシュー #501 レビュー指摘）。README の「動かし方」が案内する
+/// `cargo run`（`dist/` 生成）・`cargo test`（`target/` 生成）を実行した
+/// ワークツリーで本テストを走らせても偽陽性ドリフト検知を起こさないよう、
+/// 走査対象から除外する。同梱コピー `crates/cli/embedded-examples/` 側は
+/// これらのディレクトリを含まないため非対称除外で問題ない。
+const IGNORED_BUILD_ARTIFACT_DIRS: &[&str] = &["target", "dist"];
+
 /// `root` 配下の全ファイルの相対パス集合を再帰的に収集する
-/// （ディレクトリ自体は含めない。fail-closed: 読み取りエラーはテスト失敗と
-/// して顕在化させる）。
+/// （ディレクトリ自体は含めない。`IGNORED_BUILD_ARTIFACT_DIRS` に該当する
+/// ディレクトリは丸ごとスキップする。fail-closed: 読み取りエラーはテスト
+/// 失敗として顕在化させる）。
 fn collect_relative_files(root: &Path) -> BTreeSet<PathBuf> {
     let mut out = BTreeSet::new();
     collect_relative_files_into(root, root, &mut out);
@@ -82,12 +97,14 @@ fn collect_relative_files_into(base: &Path, dir: &Path, out: &mut BTreeSet<PathB
             // （レビュー指摘: `build.sh` 実行後にローカルで
             // `cargo test -p fandhe-frontend-cli` を実行すると
             // `static/wasm/` が誤検知でドリフトテストを失敗させていた）。
-            let dir_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            let is_ignored_build_artifact = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|name| IGNORED_BUILD_ARTIFACT_DIRS.contains(&name));
             let rel_from_base = path.strip_prefix(base).unwrap_or(&path);
             // `wasm/` そのもの（正本ソース）は除外せず、`static/wasm/`
             // （`build.sh` の生成物）のみをディレクトリ単位で除外する。
-            if dir_name == "target" || dir_name == "dist" || rel_from_base.ends_with("static/wasm")
-            {
+            if is_ignored_build_artifact || rel_from_base.ends_with("static/wasm") {
                 continue;
             }
             collect_relative_files_into(base, &path, out);

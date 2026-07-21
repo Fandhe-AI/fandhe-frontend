@@ -16,7 +16,9 @@
 # `dist/index.html`）。生成物であり正本サンプルには含めないため追跡しない
 # （`example_publish_copy_drift.rs`/`new_e2e.rs` の正本比較を汚染しないよう
 # 走査対象からも除外する運用と対をなす）。
-/examples/*/dist
+# イシュー #501: examples/ssg-blog の `cargo run` が生成する静的サイト出力先も
+# 同じワイルドカードで一括無視する（並列実装との衝突を避けるため個別列挙しない）。
+/examples/*/dist/
 
 # イシュー #503: examples/interactive-view-transitions/wasm（独立
 # ワークスペースの glue クレート interactive-vt-wasm）のビルド成果物と、

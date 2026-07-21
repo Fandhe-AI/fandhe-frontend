@@ -1,0 +1,31 @@
+[package]
+name = "fandhe-frontend-example-dist-server-docker"
+version = "0.1.0"
+edition = "2021"
+description = "fandhe-frontend フレームワークの単一バイナリ配布 + Docker 正本サンプル（examples 規約 2 例目、イシュー #502）。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# examples/ は「crates.io 公開済みクレートを実際に使う正本サンプル」であり、
+# templates/（`fw new` が展開する雛形）とは異なりバージョン依存で完結する
+# （examples/ssr-routing で確立した規約、イシュー #499）。
+#
+# 依存は fandhe-frontend-dist-server（v0.1.0、crates.io 公開済み）が要求する
+# hyper/hyper-util/http-body-util/tokio の直接構成と同一指定にする
+# （`crates/dist-server/Cargo.toml` の REQ-3 実測コメント: 21 件/深さ 5・PASS
+# を引き継ぐ。rust-embed・axum を採用しない理由も同コメント参照）。本サンプルは
+# `fandhe-frontend-dist-server` の hyper トランスポート層（`src/main.rs`）を
+# 雛形にした薄いバイナリを自前で持つため、hyper 系クレートを直接依存に含める。
+[dependencies]
+fandhe-frontend-dist-server = "0.1.0"
+hyper = { version = "1", default-features = false, features = ["http1", "server"] }
+hyper-util = { version = "0.1", default-features = false, features = ["http1", "server", "tokio"] }
+http-body-util = { version = "0.1", default-features = false }
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "net"] }
+
+[dev-dependencies]
+
+# root workspace（リポジトリ直下 Cargo.toml の `members = ["crates/*"]`）から
+# 意図的に切り離す（examples/ssr-routing と同じ方針、`ci.md` #412/#493 参照）。
+[workspace]
+members = ["."]
