@@ -70,15 +70,24 @@ fn collect_relative_files_into(base: &Path, dir: &Path, out: &mut BTreeSet<PathB
         if path.is_dir() {
             // イシュー #503: `examples/interactive-view-transitions/` は
             // `cargo run`（`dist/index.html` を書き出す）・`cargo build`
-            // （`target/`・`wasm/target/`）をローカルで実行すると生成物
+            // （`target/`・`wasm/target/`）・`tools/wasm/build.sh`
+            // （`static/wasm/` へ `fandhe_frontend_wasm_full.js` /
+            // `_bg.wasm` を書き出す）をローカルで実行すると生成物
             // ディレクトリが正本ツリーに現れる（`.gitignore` の
             // `/examples/*/dist`・`/examples/*/target`・
-            // `/examples/*/wasm/target` が git 管理からは除外するが、本関数は
-            // ファイルシステムを直接走査するため無関係）。これらは同梱コピー
-            // 側には存在しないため、走査対象から除外しないと本テストの
-            // ファイル集合比較が汚染される。
+            // `/examples/*/wasm/target`・`/examples/*/static/wasm` が
+            // git 管理からは除外するが、本関数はファイルシステムを直接
+            // 走査するため無関係）。これらは同梱コピー側には存在しないため、
+            // 走査対象から除外しないと本テストのファイル集合比較が汚染される
+            // （レビュー指摘: `build.sh` 実行後にローカルで
+            // `cargo test -p fandhe-frontend-cli` を実行すると
+            // `static/wasm/` が誤検知でドリフトテストを失敗させていた）。
             let dir_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if dir_name == "target" || dir_name == "dist" {
+            let rel_from_base = path.strip_prefix(base).unwrap_or(&path);
+            // `wasm/` そのもの（正本ソース）は除外せず、`static/wasm/`
+            // （`build.sh` の生成物）のみをディレクトリ単位で除外する。
+            if dir_name == "target" || dir_name == "dist" || rel_from_base.ends_with("static/wasm")
+            {
                 continue;
             }
             collect_relative_files_into(base, &path, out);
