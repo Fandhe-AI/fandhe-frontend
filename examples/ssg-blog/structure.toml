@@ -1,0 +1,17 @@
+# `fw gate`（`crates/cli/src/gate.rs::run_gate`）が唯一の情報源として読む
+# 構造マニフェスト（イシュー #351: 生成直後 `fw gate` PASS 保証と同じ方針を
+# examples/ssg-blog にも適用する。詳細は `docs/design/structure-manifest.md`
+# §2.2 を参照）。
+#
+# ディレクトリ名 `root` について: 本サンプルのクレートはプロジェクトルート
+# 直下（`src/`）に置かれる。`root` はスキーマ v1 の正式な予約名
+# （`cli/src/structure.rs::ROOT_DIR_KEY`）であり、`templates/default` /
+# `templates/app` / `examples/ssr-routing` と同じ配置規約に従う。
+
+[manifest]
+version = 1
+
+[directories.root]
+role = "distribution"
+crate = "fandhe-frontend-example-ssg-blog"
+description = "SSG（generate_pages）による静的ブログの正本サンプル（イシュー #501）"

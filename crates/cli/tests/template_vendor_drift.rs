@@ -278,3 +278,26 @@ fn default_template_and_ssr_routing_example_share_identical_bytes_for_common_fil
         );
     }
 }
+
+// --- 共有ファイル同一性: templates/default/ と examples/ssg-blog/（イシュー #501） ---
+
+/// `templates/default/<rel>` と `examples/ssg-blog/<rel>` がバイト単位で
+/// 一致することを検証する共有ファイルの一覧（`SSR_ROUTING_SHARED_RELATIVE_FILES`
+/// と同じ静的解析設定・サプライチェーン設定の流用契約、イシュー #501）。
+const SSG_BLOG_SHARED_RELATIVE_FILES: &[&str] = &["clippy.toml", "deny.toml"];
+
+#[test]
+fn default_template_and_ssg_blog_example_share_identical_bytes_for_common_files() {
+    let root = workspace_root();
+    for rel in SSG_BLOG_SHARED_RELATIVE_FILES {
+        let default_path = root.join("templates/default").join(rel);
+        let example_path = root.join("examples/ssg-blog").join(rel);
+        assert_eq!(
+            read_bytes(&default_path),
+            read_bytes(&example_path),
+            "templates/default/{rel} と examples/ssg-blog/{rel} はバイト単位で \
+             一致する契約（イシュー #501）。一方だけを変更した場合は他方にも \
+             反映すること"
+        );
+    }
+}

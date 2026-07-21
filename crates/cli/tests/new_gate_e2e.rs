@@ -686,3 +686,121 @@ fn fw_new_example_ssr_routing_output_passes_fw_gate() {
         "stdout was: {run_stdout}"
     );
 }
+
+/// イシュー #501: `fw new --example ssg-blog` 生成直後のプロジェクトに対し
+/// `fw gate` を実行し、`ssr-routing` 分（`fw_new_example_ssr_routing_output_passes_fw_gate`）
+/// と同じ 6 チェック断定方針（`policy` のみ cargo-deny 導入有無で分岐、他 5
+/// チェックは常に PASS）を適用する。さらに受け入れ条件 1（`cargo run` で
+/// `dist/` に静的サイトが生成される）を `cargo run` 実行で直接固定する。
+///
+/// `--example` はパッケージ名を置換しない（`new_template.rs` モジュール doc
+/// コメント参照）ため、生成プロジェクトのパッケージ名は正本と同じ
+/// `fandhe-frontend-example-ssg-blog` のまま。
+///
+/// # 前提（`.claude/rules/ci.md` 準拠）
+///
+/// `examples/ssg-blog` は fandhe-frontend-core/-server への crates.io
+/// バージョン依存で完結する（vendor 同梱なし、イシュー #501）。本テストの
+/// `cargo build`/`cargo run`/`fw gate` はいずれも crates.io
+/// （`https://index.crates.io`・`https://static.crates.io`）への到達性を
+/// 前提とする。到達不可の場合は環境エラーとして扱い、テストの弱体化で
+/// 対処しない（`fw_new_example_ssr_routing_output_passes_fw_gate` と同じ前提）。
+#[test]
+fn fw_new_example_ssg_blog_output_passes_fw_gate() {
+    let scratch = unique_scratch_dir();
+    let _scratch_guard = ScratchProject(scratch.clone());
+
+    let (new_code, new_stdout, new_stderr) = run_fw_new(&[
+        "gate-pass-example-ssg-blog",
+        "--example",
+        "ssg-blog",
+        "--dir",
+        &scratch.to_string_lossy(),
+    ]);
+    assert_eq!(
+        new_code, 0,
+        "fw new --example ssg-blog が失敗した: stdout={new_stdout} stderr={new_stderr}"
+    );
+
+    let project_dir = scratch.join("gate-pass-example-ssg-blog");
+    let (gate_code, gate_stdout, gate_stderr) = run_fw_gate(&project_dir);
+
+    for name in [
+        "type_check",
+        "default_escape_check",
+        "url_validation_check",
+        "lint",
+        "test",
+        "policy",
+    ] {
+        assert!(
+            gate_stdout.contains(&format!("\"name\":\"{name}\"")),
+            "fw gate のレポートにチェック `{name}` が現れない: stdout={gate_stdout}"
+        );
+    }
+
+    for name in [
+        "type_check",
+        "default_escape_check",
+        "url_validation_check",
+        "lint",
+        "test",
+    ] {
+        assert_eq!(
+            check_passed(&gate_stdout, name),
+            Some(true),
+            "fw new --example ssg-blog 生成直後のプロジェクトで `{name}` が \
+             失敗した（ssg-blog サンプルと fw gate の前提がドリフトしている）: \
+             stdout={gate_stdout} stderr={gate_stderr}"
+        );
+    }
+
+    if cargo_deny_available() {
+        assert_eq!(
+            gate_code, 0,
+            "cargo-deny 導入環境では fw new --example ssg-blog 生成直後は \
+             PASS するはず: stdout={gate_stdout} stderr={gate_stderr}"
+        );
+        assert!(
+            gate_stdout.contains("\"gate_result\":\"PASS\""),
+            "stdout={gate_stdout}"
+        );
+    } else {
+        assert_eq!(
+            gate_code, 1,
+            "cargo-deny 未導入環境では policy の fail-closed により BLOCKED \
+             (終了コード 1) のはず: stdout={gate_stdout}"
+        );
+        assert!(
+            gate_stdout.contains("environment error: "),
+            "policy の failed 出力は environment error であることを明示する \
+             プレフィックスを含むはず: stdout={gate_stdout}"
+        );
+    }
+
+    // 受け入れ条件 1: `cargo run` で `dist/` に静的サイトが生成されること。
+    let run_output = Command::new("cargo")
+        .arg("run")
+        .arg("--quiet")
+        .current_dir(&project_dir)
+        .output()
+        .expect("failed to spawn `cargo run` in generated example project");
+    assert!(
+        run_output.status.success(),
+        "cargo run が生成直後の ssg-blog サンプルで失敗した: stdout={} stderr={}",
+        String::from_utf8_lossy(&run_output.stdout),
+        String::from_utf8_lossy(&run_output.stderr)
+    );
+
+    let dist = project_dir.join("dist");
+    assert!(
+        dist.join("index.html").is_file(),
+        "dist/index.html が生成されていない"
+    );
+    for slug in ["hello-ssg", "default-escaping", "view-transitions"] {
+        assert!(
+            dist.join("posts").join(slug).join("index.html").is_file(),
+            "dist/posts/{slug}/index.html が生成されていない"
+        );
+    }
+}
