@@ -1,0 +1,26 @@
+[package]
+name = "fandhe-frontend-example-ssr-routing"
+version = "0.1.0"
+edition = "2021"
+description = "fandhe-frontend フレームワークの SSR + ルーティング正本サンプル（examples 規約の初例、イシュー #499）。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# examples/ は「crates.io 公開済みクレートを実際に使う正本サンプル」であり、
+# templates/（`fw new` が展開する雛形）とは異なりバージョン依存で完結する。
+# 依存クレートはいずれも v0.1.0 で crates.io へ公開済み（イシュー #499 実装時に
+# sparse index への再照会で非 yanked を確認済み。詳細は PR 本文参照）。
+[dependencies]
+fandhe-frontend-core = "0.1.0"
+fandhe-frontend-app = "0.1.0"
+fandhe-frontend-server = "0.1.0"
+
+[dev-dependencies]
+
+# root workspace（リポジトリ直下 Cargo.toml の `members = ["crates/*"]`）から
+# 意図的に切り離す。examples/ssr-routing は「フレームワーク利用者へ提示する
+# 独立プロジェクトの正本サンプル」であり、root workspace に巻き込まれると
+# crates.io バージョン依存と root の path 依存（`crates/*`）が衝突しうる。
+# templates/default・templates/app と同じ方針（`ci.md` #412/#493 参照）。
+[workspace]
+members = ["."]

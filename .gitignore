@@ -6,6 +6,11 @@
 # /target ルールでは無視されない。
 /templates/default/target
 
+# examples/ 配下の各サンプルも root workspace の members に含まれない独立
+# cargo プロジェクト（イシュー #499、examples 規約）のため、同様にビルド
+# 成果物ディレクトリを個別に無視する。
+/examples/*/target
+
 # TASK-10.4a（イシュー #119）: rebuild_latency ベンチが static/ 配下へ書き込む
 # 一時プローブファイル。ベンチ終了時に Drop ガードで削除するが、強制終了時の
 # 残留に備えた保険（次回実行での自己回復とは独立の安全策）。

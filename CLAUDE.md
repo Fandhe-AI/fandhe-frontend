@@ -30,6 +30,8 @@ fandhe-frontend/
 │       ├── 04-requirements.md  # MoSCoW 要件・受け入れ基準
 │       ├── 05-tasks.md         # タスク分解（依存・工数）
 │       └── 06-roadmap.md       # MS-1〜MS-5・着手判定
+├── examples/
+│   └── ssr-routing/          # SSR + ルーティング正本サンプル・examples 規約の初例（crates.io バージョン依存、イシュー #499）
 ├── templates/
 │   ├── default/
 │   │   ├── deny.toml         # 標準プロジェクトテンプレート同梱の cargo-deny 設定（TASK-4.1 / REQ-4）
