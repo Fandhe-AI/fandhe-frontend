@@ -1,0 +1,30 @@
+[package]
+name = "interactive-vt-wasm"
+version = "0.1.0"
+edition = "2021"
+description = "examples/interactive-view-transitions（イシュー #503）が同梱する CSR wasm ビルド用の薄い glue クレート。fandhe-frontend-wasm-full（crates.io バージョン依存）の hydrate/mount/start_router を再エクスポートするのみ。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# 独立ワークスペース（templates/app/wasm/Cargo.toml と同じ方針、イシュー #411）:
+#
+# このクレートは examples/interactive-view-transitions（root、外部依存
+# ゼロではないが crates.io バージョン依存のみで完結する既定経路）とは
+# 意図的に別ワークスペースとして切り離す。wasm-bindgen / web-sys の取得には
+# ビルド時ネットワークが必要であり、これを root クレートの依存グラフへ
+# 混ぜると `cargo build`/`cargo test`/`fw gate` の既定経路を壊してしまう。
+#
+# `[workspace] members = ["."]` により、このディレクトリ
+# （examples/interactive-view-transitions/wasm/）を独立したワークスペース
+# ルートとして確定させる。これがないと cargo は親ディレクトリを遡って
+# examples/interactive-view-transitions/Cargo.toml の `[workspace]`
+# （members = ["."]、このクレートを含まない）を見つけてしまい、
+# 「current package believes it's in a workspace when it's not」エラーになる。
+[workspace]
+members = ["."]
+
+[dependencies]
+fandhe-frontend-wasm-full = "0.1.0"
+
+[lib]
+crate-type = ["cdylib"]

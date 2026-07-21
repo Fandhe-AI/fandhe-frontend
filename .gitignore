@@ -11,6 +11,20 @@
 # 成果物ディレクトリを個別に無視する。
 /examples/*/target
 
+# イシュー #503: examples/interactive-view-transitions/src/main.rs が
+# `cargo run` 時に書き出す検分用 SSR HTML の出力先（固定相対パス
+# `dist/index.html`）。生成物であり正本サンプルには含めないため追跡しない
+# （`example_publish_copy_drift.rs`/`new_e2e.rs` の正本比較を汚染しないよう
+# 走査対象からも除外する運用と対をなす）。
+/examples/*/dist
+
+# イシュー #503: examples/interactive-view-transitions/wasm（独立
+# ワークスペースの glue クレート interactive-vt-wasm）のビルド成果物と、
+# tools/wasm/build.sh が生成する wasm-bindgen 後処理結果。templates/app と
+# 同じ理由（TASK-4.4）で root の /target ルールでは無視されない。
+/examples/*/wasm/target
+/examples/*/static/wasm
+
 # TASK-10.4a（イシュー #119）: rebuild_latency ベンチが static/ 配下へ書き込む
 # 一時プローブファイル。ベンチ終了時に Drop ガードで削除するが、強制終了時の
 # 残留に備えた保険（次回実行での自己回復とは独立の安全策）。

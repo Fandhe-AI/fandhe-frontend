@@ -38,7 +38,7 @@ use std::path::{Path, PathBuf};
 /// （本テストクレートは `fandhe-frontend-cli` の内部モジュールへアクセス
 /// できない統合テストのため、独立した固定リストとして維持する。新規
 /// サンプル追加時は `new_template.rs::EXAMPLES` とあわせて更新すること）。
-const EXAMPLE_NAMES: &[&str] = &["ssr-routing"];
+const EXAMPLE_NAMES: &[&str] = &["ssr-routing", "interactive-view-transitions"];
 
 /// workspace ルート（`cli/` の親の親ディレクトリ）の絶対パスを返す。
 fn workspace_root() -> PathBuf {
@@ -68,6 +68,19 @@ fn collect_relative_files_into(base: &Path, dir: &Path, out: &mut BTreeSet<PathB
             entry.unwrap_or_else(|e| panic!("failed to read entry in {}: {e}", dir.display()));
         let path = entry.path();
         if path.is_dir() {
+            // イシュー #503: `examples/interactive-view-transitions/` は
+            // `cargo run`（`dist/index.html` を書き出す）・`cargo build`
+            // （`target/`・`wasm/target/`）をローカルで実行すると生成物
+            // ディレクトリが正本ツリーに現れる（`.gitignore` の
+            // `/examples/*/dist`・`/examples/*/target`・
+            // `/examples/*/wasm/target` が git 管理からは除外するが、本関数は
+            // ファイルシステムを直接走査するため無関係）。これらは同梱コピー
+            // 側には存在しないため、走査対象から除外しないと本テストの
+            // ファイル集合比較が汚染される。
+            let dir_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            if dir_name == "target" || dir_name == "dist" {
+                continue;
+            }
             collect_relative_files_into(base, &path, out);
         } else {
             let rel = path

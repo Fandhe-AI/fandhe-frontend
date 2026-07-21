@@ -409,24 +409,121 @@ const SSR_ROUTING_EXAMPLE_FILES: &[TemplateFile] = &[
     },
 ];
 
-/// `--example` の allowlist（イシュー #500）。
+/// `examples/interactive-view-transitions/` の全ファイル（13 件）を git の
+/// 相対パス順・実行ビットどおりに埋め込んだ固定配列（イシュー #503）。
+///
+/// `crates/cli/embedded-examples/interactive-view-transitions/` は正本
+/// `examples/interactive-view-transitions/` のバイト単位同梱コピーであり、
+/// 乖離は `cli/tests/example_publish_copy_drift.rs` が検知する。
+/// `tools/wasm/build.sh` のみ実行ビット付き（`git ls-files -s` の mode
+/// 100755、正本側の実行ビットをそのまま反映）。
+const INTERACTIVE_VIEW_TRANSITIONS_EXAMPLE_FILES: &[TemplateFile] = &[
+    TemplateFile {
+        rel_path: "Cargo.lock",
+        contents: include_str!("../embedded-examples/interactive-view-transitions/Cargo.lock"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "Cargo.toml",
+        contents: include_str!(
+            "../embedded-examples/interactive-view-transitions/Cargo.toml.embed"
+        ),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "README.md",
+        contents: include_str!("../embedded-examples/interactive-view-transitions/README.md"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "clippy.toml",
+        contents: include_str!("../embedded-examples/interactive-view-transitions/clippy.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "deny.toml",
+        contents: include_str!("../embedded-examples/interactive-view-transitions/deny.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "src/main.rs",
+        contents: include_str!("../embedded-examples/interactive-view-transitions/src/main.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "static/embed.html",
+        contents: include_str!(
+            "../embedded-examples/interactive-view-transitions/static/embed.html"
+        ),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "structure.toml",
+        contents: include_str!("../embedded-examples/interactive-view-transitions/structure.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "tests/state_machine.rs",
+        contents: include_str!(
+            "../embedded-examples/interactive-view-transitions/tests/state_machine.rs"
+        ),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "tools/wasm/build.sh",
+        contents: include_str!(
+            "../embedded-examples/interactive-view-transitions/tools/wasm/build.sh"
+        ),
+        executable: true,
+    },
+    TemplateFile {
+        rel_path: "wasm/Cargo.lock",
+        contents: include_str!("../embedded-examples/interactive-view-transitions/wasm/Cargo.lock"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "wasm/Cargo.toml",
+        contents: include_str!(
+            "../embedded-examples/interactive-view-transitions/wasm/Cargo.toml.embed"
+        ),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "wasm/src/lib.rs",
+        contents: include_str!("../embedded-examples/interactive-view-transitions/wasm/src/lib.rs"),
+        executable: false,
+    },
+];
+
+/// `--example` の allowlist（イシュー #500・#503）。
 ///
 /// サンプル名はここに列挙したコンパイル時定数との完全一致照合のみで解決し、
 /// ユーザー入力から動的にパス・`include_str!` 対象を組み立てない
 /// （`security.md` A01/A03、[`TEMPLATES`] と同じ方針）。配列順は
 /// `fw new --example <unknown>` のエラーメッセージが提示する利用可能サンプル
 /// 一覧の表示順（固定）にもなる。
-pub(crate) const EXAMPLES: &[Template] = &[Template {
-    name: "ssr-routing",
-    files: SSR_ROUTING_EXAMPLE_FILES,
-    // examples はパッケージ名を置換しない（モジュール doc コメント参照）。
-    // この `needle` はどのファイルにも出現しないダミー文字列であり
-    // （`substituted_files` が空のため置換ループは素通りする、
-    // `new.rs::expand_template` 参照）、生成物はサンプルと全ファイル
-    // バイト一致になる（`cli/tests/new_e2e.rs` が固定）。
-    needle: "fandhe-frontend-example-placeholder-unused",
-    substituted_files: &[],
-}];
+pub(crate) const EXAMPLES: &[Template] = &[
+    Template {
+        name: "ssr-routing",
+        files: SSR_ROUTING_EXAMPLE_FILES,
+        // examples はパッケージ名を置換しない（モジュール doc コメント参照）。
+        // この `needle` はどのファイルにも出現しないダミー文字列であり
+        // （`substituted_files` が空のため置換ループは素通りする、
+        // `new.rs::expand_template` 参照）、生成物はサンプルと全ファイル
+        // バイト一致になる（`cli/tests/new_e2e.rs` が固定）。
+        needle: "fandhe-frontend-example-placeholder-unused",
+        substituted_files: &[],
+    },
+    Template {
+        name: "interactive-view-transitions",
+        files: INTERACTIVE_VIEW_TRANSITIONS_EXAMPLE_FILES,
+        // 上記 "ssr-routing" と同じ理由でパッケージ名置換を行わない
+        // （このサンプルは wasm/ 独立ワークスペースを持つが、そちらの
+        // パッケージ名 `interactive-vt-wasm` も同様に置換対象外）。
+        needle: "fandhe-frontend-example-placeholder-unused-interactive-view-transitions",
+        substituted_files: &[],
+    },
+];
 
 /// `name` に一致する [`Template`]（`EXAMPLES` 由来）を検索する。
 ///
@@ -496,6 +593,35 @@ mod tests {
     #[test]
     fn unknown_example_name_resolves_to_none() {
         assert!(find_example("nonexistent").is_none());
+    }
+
+    #[test]
+    fn interactive_view_transitions_example_is_registered() {
+        let e = find_example("interactive-view-transitions")
+            .expect("interactive-view-transitions example must be registered");
+        assert_eq!(e.name, "interactive-view-transitions");
+        assert_eq!(
+            e.files.len(),
+            13,
+            "interactive-view-transitions example must contain exactly 13 files"
+        );
+        assert!(
+            e.substituted_files.is_empty(),
+            "examples do not substitute package names (see module doc comment, issue #500)"
+        );
+        let mut executable: Vec<&str> = e
+            .files
+            .iter()
+            .filter(|f| f.executable)
+            .map(|f| f.rel_path)
+            .collect();
+        executable.sort_unstable();
+        assert_eq!(
+            executable,
+            vec!["tools/wasm/build.sh"],
+            "interactive-view-transitions example must have exactly one executable file \
+             (tools/wasm/build.sh)"
+        );
     }
 
     /// 各テンプレートの実行可能ファイル集合（`executable: true` の
