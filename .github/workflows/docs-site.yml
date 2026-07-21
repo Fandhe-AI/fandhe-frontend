@@ -21,6 +21,7 @@ on:
       - "docs/**"
       - "site/**"
       - "crates/docs-site/**"
+      - "examples/*/README.md" # site/nav.toml が Examples セクションの source として参照（イシュー #504）
       - ".github/workflows/docs-site.yml" # image-size.yml と同じ自己参照パターン
   workflow_dispatch:
 
@@ -40,8 +41,8 @@ jobs:
     steps:
       - name: Checkout
         # actions/checkout v6.0.3（ci.yml / deps-check.yml と同一 SHA 固定）。
-        # site/nav.toml が参照するのは docs/guides・docs/api のみのため
-        # docs/spec サブモジュールは不要（submodules 既定 false）。
+        # site/nav.toml が参照するのは docs/guides・docs/api・examples/*/README.md
+        # のみのため docs/spec サブモジュールは不要（submodules 既定 false）。
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
 
       - name: Setup Rust toolchain

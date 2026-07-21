@@ -100,5 +100,5 @@ curl -sS http://127.0.0.1:3100/
 ## 関連ガイド
 
 - [`docs/guides/quickstart.md`](../../docs/guides/quickstart.md)
-- [`docs/design/dist-server-design.md`](../../docs/design/dist-server-design.md)
+- [`docs/design/dist-server-design.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/design/dist-server-design.md)
 - [`examples/ssr-routing/README.md`](../ssr-routing/README.md)（examples 規約の初例）
