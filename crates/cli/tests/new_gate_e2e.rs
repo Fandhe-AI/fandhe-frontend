@@ -36,7 +36,10 @@ mod support;
 
 use std::path::PathBuf;
 use std::process::Command;
-use support::{cargo_deny_available, check_passed, run_fw, run_fw_gate, ScratchProject};
+use support::{
+    cargo_deny_available, check_passed, run_fw, run_fw_gate, run_fw_gate_with_target_dir,
+    ScratchProject,
+};
 
 /// `fw new` を実バイナリとして起動し (終了コード, stdout, stderr) を返す
 /// （`cli/tests/new_e2e.rs::run_fw_new` と同一方針。テストターゲット独立の
@@ -80,6 +83,47 @@ fn support_scratch_root() -> PathBuf {
     std::env::var("CARGO_TARGET_TMPDIR")
         .map(PathBuf::from)
         .unwrap_or_else(|_| std::env::temp_dir())
+}
+
+/// examples e2e 4 件（`fw_new_example_*_output_passes_fw_gate`）が共有する
+/// `CARGO_TARGET_DIR`（イシュー #505）。
+///
+/// # 背景
+///
+/// `run_fw_gate`（`support::run_fw` 既定）は `project_dir/target` を専用
+/// `CARGO_TARGET_DIR` として起動するため、examples 4 例は毎回コールドで
+/// fandhe-frontend-core/-app/-server 等の crates.io 依存を重複ビルドしていた。
+/// 本ヘルパーが返す共有ディレクトリを [`run_fw_gate_with_target_dir`] と
+/// `cargo run` smoke（各テスト末尾）の双方に明示指定することで、2 例目
+/// 以降は依存クレートの再ビルドを避けられる。
+///
+/// # 安全性根拠（`support::run_fw` の偽陰性警告との関係）
+///
+/// `support::run_fw` doc コメントが警告する偽陰性リスク（`CARGO_TARGET_DIR`
+/// 共有によりフィンガープリント衝突で直前フィクスチャの結果を誤って
+/// 再利用する）は「同名パッケージを異内容で再利用する欠陥注入フィクスチャ」
+/// （`negative_cases.rs` 等）に固有のリスクである。examples 4 例は
+/// パッケージ名が相互に一意（`fandhe-frontend-example-ssr-routing` /
+/// `-ssg-blog` / `-dist-server-docker` / `-interactive-view-transitions`）で
+/// あり、リーフクレート自体は `fw new` が [`unique_scratch_dir`] 配下へ
+/// 毎回新規展開する（mtime が必ず新しくなる）ため必ず再ビルドされる。
+/// crates.io 依存側もバージョン不変であり、cargo 自身の build-dir ロック
+/// （複数 `cargo` 起動の直列化）により並行実行も安全。
+///
+/// # クリーンアップ方針
+///
+/// 特定のテストが所有者ではない（4 テストが共有し、最後に終わるテストの
+/// 特定が不安定）ため `ScratchProject` の Drop ガードでは消さない。
+/// `CARGO_TARGET_TMPDIR` 配下（CI では `/cargo-target/tmp`、ローカルでは
+/// `target/tmp`）に置くことで、`cargo clean`・
+/// `.github/workflows/runner-maintenance.yml`（stale tmp 検査）の既存管理
+/// 範囲に収める。PID サフィックスにより「同一テストバイナリ内の 4 テスト
+/// 間でのみ共有・並行 CI ジョブ／別回とは隔離」を保証する。
+fn example_shared_target_dir() -> PathBuf {
+    support_scratch_root().join(format!(
+        "fw-example-gate-shared-target-{}",
+        std::process::id()
+    ))
 }
 
 /// `fw new` で生成した直後のプロジェクトに対し `fw gate` を実行し、
@@ -604,7 +648,9 @@ fn fw_new_example_ssr_routing_output_passes_fw_gate() {
     );
 
     let project_dir = scratch.join("gate-pass-example-ssr-routing");
-    let (gate_code, gate_stdout, gate_stderr) = run_fw_gate(&project_dir);
+    let shared_target = example_shared_target_dir();
+    let (gate_code, gate_stdout, gate_stderr) =
+        run_fw_gate_with_target_dir(&project_dir, &shared_target);
 
     for name in [
         "type_check",
@@ -670,6 +716,7 @@ fn fw_new_example_ssr_routing_output_passes_fw_gate() {
         .arg("--")
         .arg("/items/1")
         .current_dir(&project_dir)
+        .env("CARGO_TARGET_DIR", &shared_target)
         .output()
         .expect("failed to spawn `cargo run` in generated example project");
     assert!(
@@ -723,7 +770,9 @@ fn fw_new_example_ssg_blog_output_passes_fw_gate() {
     );
 
     let project_dir = scratch.join("gate-pass-example-ssg-blog");
-    let (gate_code, gate_stdout, gate_stderr) = run_fw_gate(&project_dir);
+    let shared_target = example_shared_target_dir();
+    let (gate_code, gate_stdout, gate_stderr) =
+        run_fw_gate_with_target_dir(&project_dir, &shared_target);
 
     for name in [
         "type_check",
@@ -783,6 +832,7 @@ fn fw_new_example_ssg_blog_output_passes_fw_gate() {
         .arg("run")
         .arg("--quiet")
         .current_dir(&project_dir)
+        .env("CARGO_TARGET_DIR", &shared_target)
         .output()
         .expect("failed to spawn `cargo run` in generated example project");
     assert!(
@@ -838,7 +888,9 @@ fn fw_new_example_dist_server_docker_output_passes_fw_gate() {
     );
 
     let project_dir = scratch.join("gate-pass-example-dist-server-docker");
-    let (gate_code, gate_stdout, gate_stderr) = run_fw_gate(&project_dir);
+    let shared_target = example_shared_target_dir();
+    let (gate_code, gate_stdout, gate_stderr) =
+        run_fw_gate_with_target_dir(&project_dir, &shared_target);
 
     for name in [
         "type_check",
@@ -938,7 +990,9 @@ fn fw_new_example_interactive_view_transitions_output_passes_fw_gate() {
     );
 
     let project_dir = scratch.join("gate-pass-example-interactive-view-transitions");
-    let (gate_code, gate_stdout, gate_stderr) = run_fw_gate(&project_dir);
+    let shared_target = example_shared_target_dir();
+    let (gate_code, gate_stdout, gate_stderr) =
+        run_fw_gate_with_target_dir(&project_dir, &shared_target);
 
     for name in [
         "type_check",
@@ -1001,6 +1055,7 @@ fn fw_new_example_interactive_view_transitions_output_passes_fw_gate() {
         .arg("run")
         .arg("--quiet")
         .current_dir(&project_dir)
+        .env("CARGO_TARGET_DIR", &shared_target)
         .output()
         .expect("failed to spawn `cargo run` in generated example project");
     assert!(
