@@ -12,9 +12,10 @@
 //! 200 を返すことを機械的に固定する。`fw gate --project examples/dist-server-docker`
 //! の `test` チェック経由でも本ファイルは実行される。
 
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 use std::process::{Child, Command, Stdio};
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 /// 子プロセスを確実に kill・wait する RAII ガード。アサート失敗時の
@@ -33,6 +34,16 @@ impl Drop for ChildGuard {
 /// 起動し、stderr の `listening on` 行から実際に割り当てられたポート番号を
 /// 読み取る。タイムアウト（5 秒）を超えても起動ログが得られない場合は
 /// テストを失敗させる（無限ハングを避ける、`ci.md` の非対話実行前提）。
+///
+/// `BufReader::read_line` は子プロセスの `ChildStderr` パイプに対する
+/// ブロッキング呼び出しで、読み取り自体にタイムアウトを設定する手段が
+/// 標準ライブラリにはない（`TcpStream::set_read_timeout` 相当が存在しない）。
+/// 読み取りをそのまま本スレッドで行うと `Instant::now() < deadline` の
+/// チェックは呼び出しの「間」でしか働かず、`read()` 自体が返らない限り
+/// タイムアウトが実効化しない（`crates/dist-server/tests/support/mod.rs::
+/// read_listening_addr` と同じ既知の問題）。そのため読み取りを別スレッドへ
+/// 切り出し、本スレッドは `mpsc::Receiver::recv_timeout` でデッドラインまで
+/// 待つことでタイムアウトを実効化する。
 fn spawn_and_wait_for_port() -> (ChildGuard, u16) {
     let mut child = Command::new(env!(
         "CARGO_BIN_EXE_fandhe-frontend-example-dist-server-docker"
@@ -43,30 +54,52 @@ fn spawn_and_wait_for_port() -> (ChildGuard, u16) {
     .spawn()
     .expect("dist-server-docker example binary must spawn");
 
-    let mut stderr = child
+    let stderr = child
         .stderr
         .take()
         .expect("stderr must be piped for spawned child");
 
+    let (tx, rx) = mpsc::channel::<String>();
+
+    // 読み取りスレッドは検出後も本体側から join しない（detach する）。
+    // 本関数はポートが見つかり次第 return するため、join すると子プロセスの
+    // 後続出力を待ち続けてしまい、タイムアウト対策そのものが無意味になる。
+    // 受信側が既に return してチャネルが閉じている場合は素直に終了する。
+    std::thread::spawn(move || {
+        let mut reader = BufReader::new(stderr);
+        let mut line = String::new();
+        loop {
+            line.clear();
+            match reader.read_line(&mut line) {
+                Ok(0) => break, // EOF: プロセスが起動前に終了した
+                Ok(_) => {
+                    if tx.send(line.clone()).is_err() {
+                        break; // 受信側は既に return 済み
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    });
+
     let deadline = Instant::now() + Duration::from_secs(5);
     let mut collected = String::new();
-    let mut byte = [0u8; 1];
     let mut port: Option<u16> = None;
 
-    while Instant::now() < deadline {
-        match stderr.read(&mut byte) {
-            Ok(0) => break,
-            Ok(_) => {
-                collected.push(byte[0] as char);
-                if byte[0] == b'\n' {
-                    if let Some(found) = extract_port(&collected) {
-                        port = Some(found);
-                        break;
-                    }
-                    collected.clear();
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        match rx.recv_timeout(remaining) {
+            Ok(line) => {
+                collected.push_str(&line);
+                if let Some(found) = extract_port(&line) {
+                    port = Some(found);
+                    break;
                 }
             }
-            Err(_) => break,
+            Err(_) => break, // タイムアウトまたは送信側が終了（EOF）
         }
     }
 
