@@ -409,24 +409,89 @@ const SSR_ROUTING_EXAMPLE_FILES: &[TemplateFile] = &[
     },
 ];
 
+/// `examples/ssg-blog/` の全ファイル（9 件）を git の相対パス順・実行ビット
+/// どおりに埋め込んだ固定配列（イシュー #501）。
+///
+/// `crates/cli/embedded-examples/ssg-blog/` は正本 `examples/ssg-blog/` の
+/// バイト単位同梱コピーであり、乖離は
+/// `cli/tests/example_publish_copy_drift.rs` が検知する。全ファイル
+/// `executable: false`（正本側に実行ビット付きファイルが存在しないため）。
+const SSG_BLOG_EXAMPLE_FILES: &[TemplateFile] = &[
+    TemplateFile {
+        rel_path: "Cargo.lock",
+        contents: include_str!("../embedded-examples/ssg-blog/Cargo.lock"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "Cargo.toml",
+        contents: include_str!("../embedded-examples/ssg-blog/Cargo.toml.embed"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "README.md",
+        contents: include_str!("../embedded-examples/ssg-blog/README.md"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "clippy.toml",
+        contents: include_str!("../embedded-examples/ssg-blog/clippy.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "deny.toml",
+        contents: include_str!("../embedded-examples/ssg-blog/deny.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "src/main.rs",
+        contents: include_str!("../embedded-examples/ssg-blog/src/main.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "src/posts.rs",
+        contents: include_str!("../embedded-examples/ssg-blog/src/posts.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "structure.toml",
+        contents: include_str!("../embedded-examples/ssg-blog/structure.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "tests/ssg_output.rs",
+        contents: include_str!("../embedded-examples/ssg-blog/tests/ssg_output.rs"),
+        executable: false,
+    },
+];
+
 /// `--example` の allowlist（イシュー #500）。
 ///
 /// サンプル名はここに列挙したコンパイル時定数との完全一致照合のみで解決し、
 /// ユーザー入力から動的にパス・`include_str!` 対象を組み立てない
 /// （`security.md` A01/A03、[`TEMPLATES`] と同じ方針）。配列順は
 /// `fw new --example <unknown>` のエラーメッセージが提示する利用可能サンプル
-/// 一覧の表示順（固定）にもなる。
-pub(crate) const EXAMPLES: &[Template] = &[Template {
-    name: "ssr-routing",
-    files: SSR_ROUTING_EXAMPLE_FILES,
-    // examples はパッケージ名を置換しない（モジュール doc コメント参照）。
-    // この `needle` はどのファイルにも出現しないダミー文字列であり
-    // （`substituted_files` が空のため置換ループは素通りする、
-    // `new.rs::expand_template` 参照）、生成物はサンプルと全ファイル
-    // バイト一致になる（`cli/tests/new_e2e.rs` が固定）。
-    needle: "fandhe-frontend-example-placeholder-unused",
-    substituted_files: &[],
-}];
+/// 一覧の表示順（固定）にもなる。並列実装（イシュー #497）との競合軽微化の
+/// ため、新規サンプルは配列末尾へ追記する運用とする。
+pub(crate) const EXAMPLES: &[Template] = &[
+    Template {
+        name: "ssr-routing",
+        files: SSR_ROUTING_EXAMPLE_FILES,
+        // examples はパッケージ名を置換しない（モジュール doc コメント参照）。
+        // この `needle` はどのファイルにも出現しないダミー文字列であり
+        // （`substituted_files` が空のため置換ループは素通りする、
+        // `new.rs::expand_template` 参照）、生成物はサンプルと全ファイル
+        // バイト一致になる（`cli/tests/new_e2e.rs` が固定）。
+        needle: "fandhe-frontend-example-placeholder-unused",
+        substituted_files: &[],
+    },
+    Template {
+        name: "ssg-blog",
+        files: SSG_BLOG_EXAMPLE_FILES,
+        // 同上（ssr-routing と同じダミー needle。イシュー #501）。
+        needle: "fandhe-frontend-example-placeholder-unused",
+        substituted_files: &[],
+    },
+];
 
 /// `name` に一致する [`Template`]（`EXAMPLES` 由来）を検索する。
 ///
@@ -496,6 +561,25 @@ mod tests {
     #[test]
     fn unknown_example_name_resolves_to_none() {
         assert!(find_example("nonexistent").is_none());
+    }
+
+    #[test]
+    fn ssg_blog_example_is_registered() {
+        let e = find_example("ssg-blog").expect("ssg-blog example must be registered");
+        assert_eq!(e.name, "ssg-blog");
+        assert_eq!(
+            e.files.len(),
+            9,
+            "ssg-blog example must contain exactly 9 files"
+        );
+        assert!(
+            e.substituted_files.is_empty(),
+            "examples do not substitute package names (see module doc comment, issue #500)"
+        );
+        assert!(
+            e.files.iter().all(|f| !f.executable),
+            "ssg-blog example has no executable files in the source"
+        );
     }
 
     /// 各テンプレートの実行可能ファイル集合（`executable: true` の

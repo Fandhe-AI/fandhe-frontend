@@ -38,7 +38,7 @@ use std::path::{Path, PathBuf};
 /// （本テストクレートは `fandhe-frontend-cli` の内部モジュールへアクセス
 /// できない統合テストのため、独立した固定リストとして維持する。新規
 /// サンプル追加時は `new_template.rs::EXAMPLES` とあわせて更新すること）。
-const EXAMPLE_NAMES: &[&str] = &["ssr-routing"];
+const EXAMPLE_NAMES: &[&str] = &["ssr-routing", "ssg-blog"];
 
 /// workspace ルート（`cli/` の親の親ディレクトリ）の絶対パスを返す。
 fn workspace_root() -> PathBuf {
