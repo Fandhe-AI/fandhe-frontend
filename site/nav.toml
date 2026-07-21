@@ -42,6 +42,34 @@ source = "docs/guides/npm-asset-build.md"
 path = "/guides/npm-asset-build/"
 
 [[section]]
+title = "Examples"
+
+[[section.page]]
+title = "サンプル集"
+source = "docs/guides/examples.md"
+path = "/examples/"
+
+[[section.page]]
+title = "ssr-routing"
+source = "examples/ssr-routing/README.md"
+path = "/examples/ssr-routing/"
+
+[[section.page]]
+title = "ssg-blog"
+source = "examples/ssg-blog/README.md"
+path = "/examples/ssg-blog/"
+
+[[section.page]]
+title = "dist-server-docker"
+source = "examples/dist-server-docker/README.md"
+path = "/examples/dist-server-docker/"
+
+[[section.page]]
+title = "interactive-view-transitions"
+source = "examples/interactive-view-transitions/README.md"
+path = "/examples/interactive-view-transitions/"
+
+[[section]]
 title = "API Reference"
 
 [[section.page]]

@@ -82,4 +82,4 @@ python3 -m http.server --directory static 8000
 - [`docs/guides/quickstart.md`](../../docs/guides/quickstart.md)
 - [`docs/api/interactive-api.md`](../../docs/api/interactive-api.md)
 - [`docs/api/hydration-api.md`](../../docs/api/hydration-api.md)
-- [`docs/design/wasm-full-architecture.md`](../../docs/design/wasm-full-architecture.md)
+- [`docs/design/wasm-full-architecture.md`](https://github.com/Fandhe-AI/fandhe-frontend/blob/main/docs/design/wasm-full-architecture.md)

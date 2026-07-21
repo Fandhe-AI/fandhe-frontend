@@ -43,6 +43,30 @@ cargo add fandhe-frontend-core
 その他のクレート（`fandhe-frontend-app`・`fandhe-frontend-server` 等）も同様に
 追加・導入できます。詳細はドキュメントサイトの Getting Started を参照してください。
 
+## サンプル集（examples/）
+
+動くサンプルは [`examples/`](./examples/) 配下に「正本」として置かれています。
+いずれも crates.io へ公開済みのクレートへのバージョン依存のみで完結する
+独立した cargo プロジェクトです。
+
+| サンプル | 学べること | 主要クレート |
+|---|---|---|
+| [ssr-routing](./examples/ssr-routing/README.md) | SSR（`Loader`・`respond_with`・`Router`）+ 既定エスケープ（REQ-1） | `fandhe-frontend-core` / `-app` / `-server` |
+| [ssg-blog](./examples/ssg-blog/README.md) | `generate_pages` による静的サイト書き出し・fail-closed なパス検証 | `fandhe-frontend-core` / `-server` |
+| [dist-server-docker](./examples/dist-server-docker/README.md) | 単一バイナリ配布 + `FROM scratch` の Docker イメージ最小化 | `fandhe-frontend-dist-server` |
+| [interactive-view-transitions](./examples/interactive-view-transitions/README.md) | 状態管理（`Component`/`dispatch`）+ View Transitions の自動有効化 | `fandhe-frontend-core` / `-app` / `-interactive` |
+
+`fw` CLI の `--example` オプションで、各サンプルを自分のプロジェクトとして
+展開できます。
+
+```bash
+cargo install fandhe-frontend-cli
+fw new my-app --example ssr-routing
+```
+
+一覧・選び方の詳細は [`examples/README.md`](./examples/README.md)、docs サイト版は
+https://fandhe-ai.github.io/fandhe-frontend/examples/ を参照してください。
+
 ## 仕様
 
 仕様書（ブレスト〜PoC〜要件定義〜タスク分解〜ロードマップ）は [Fandhe-AI/fandhe-frontend-spec](https://github.com/Fandhe-AI/fandhe-frontend-spec) で管理し、`docs/spec/` にサブモジュールとして取り込んでいます。

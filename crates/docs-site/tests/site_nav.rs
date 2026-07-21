@@ -15,6 +15,11 @@
 //! 列挙されたページ集合（トップ 1 + quickstart 1 + guides 4 + api 6 =
 //! 実質 12 ページ）を正としてすべて登録する。
 //!
+//! イシュー #504（examples 導線）で Examples セクション（概説ページ 1 +
+//! サンプル README 4 = 5 ページ）が追加され、登録ページ総数は 17 ページ・
+//! セクション数は 4（Getting Started / Guides / Examples / API Reference）
+//! となった。
+//!
 //! `site/index.md`（イシュー #472）は本テスト実行時点で未マージのことが
 //! あるため、存在すれば厳格検証（他ページと同様に `render_markdown` の
 //! 健全性を確認）し、存在しなければ「他 11 ページの検証」のみに縮退する。
@@ -51,18 +56,22 @@ fn site_nav_parses_successfully() {
 }
 
 #[test]
-fn site_nav_registers_three_sections_with_expected_titles() {
+fn site_nav_registers_four_sections_with_expected_titles() {
     let nav = load_nav();
     let titles: Vec<&str> = nav.sections.iter().map(|s| s.title.as_str()).collect();
-    assert_eq!(titles, vec!["Getting Started", "Guides", "API Reference"]);
+    assert_eq!(
+        titles,
+        vec!["Getting Started", "Guides", "Examples", "API Reference"]
+    );
 }
 
 /// 受け入れ条件 1: 既存の利用者向けドキュメント（トップ + quickstart +
-/// guides 4 本 + api 6 本 = 12 ページ）がサイト生成対象として登録されている
-/// （イシュー本文の「全 11 ページ」表記と列挙内容の数値差異はモジュール冒頭の
-/// コメント参照）。
+/// guides 4 本 + api 6 本 = 12 ページ）と、イシュー #504 で追加された
+/// Examples セクション（概説ページ 1 + サンプル README 4 = 5 ページ）が
+/// サイト生成対象として登録されている（イシュー本文の「全 11 ページ」表記と
+/// 列挙内容の数値差異はモジュール冒頭のコメント参照）。
 #[test]
-fn site_nav_registers_all_twelve_pages_with_expected_paths() {
+fn site_nav_registers_all_seventeen_pages_with_expected_paths() {
     let nav = load_nav();
     let pages: Vec<(&str, &str)> = nav
         .sections
@@ -71,7 +80,7 @@ fn site_nav_registers_all_twelve_pages_with_expected_paths() {
         .map(|p| (p.source.as_str(), p.path.as_str()))
         .collect();
 
-    assert_eq!(pages.len(), 12, "expected 12 pages, got {pages:?}");
+    assert_eq!(pages.len(), 17, "expected 17 pages, got {pages:?}");
 
     let expected = vec![
         ("site/index.md", "/"),
@@ -86,6 +95,17 @@ fn site_nav_registers_all_twelve_pages_with_expected_paths() {
             "/guides/view-transitions/",
         ),
         ("docs/guides/npm-asset-build.md", "/guides/npm-asset-build/"),
+        ("docs/guides/examples.md", "/examples/"),
+        ("examples/ssr-routing/README.md", "/examples/ssr-routing/"),
+        ("examples/ssg-blog/README.md", "/examples/ssg-blog/"),
+        (
+            "examples/dist-server-docker/README.md",
+            "/examples/dist-server-docker/",
+        ),
+        (
+            "examples/interactive-view-transitions/README.md",
+            "/examples/interactive-view-transitions/",
+        ),
         ("docs/api/component-api.md", "/api/component-api/"),
         ("docs/api/app-api.md", "/api/app-api/"),
         ("docs/api/interactive-api.md", "/api/interactive-api/"),
@@ -101,7 +121,7 @@ fn site_nav_registers_all_twelve_pages_with_expected_paths() {
     ];
     // "site/index.md" は #472（未マージのことがある）依存のため、期待値の
     // 先頭は上のリストに含めつつ後段の実在チェックでは条件付きにする。
-    // ここでは path/source の宣言内容そのもの（10 + 1 件）を厳格検証する。
+    // ここでは path/source の宣言内容そのもの（15 + 1 件）を厳格検証する。
     assert_eq!(pages.len(), expected.len());
     for expected_pair in &expected {
         assert!(
