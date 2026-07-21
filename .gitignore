@@ -11,10 +11,21 @@
 # 成果物ディレクトリを個別に無視する。
 /examples/*/target
 
-# examples/ssg-blog（イシュー #501）の `cargo run` が生成する静的サイト
-# 出力先。他の examples/* サンプルが追加時に SSG 出力を持つ場合にも備え、
-# ワイルドカードで一括無視する（並列実装との衝突を避けるため個別列挙しない）。
+# イシュー #503: examples/interactive-view-transitions/src/main.rs が
+# `cargo run` 時に書き出す検分用 SSR HTML の出力先（固定相対パス
+# `dist/index.html`）。生成物であり正本サンプルには含めないため追跡しない
+# （`example_publish_copy_drift.rs`/`new_e2e.rs` の正本比較を汚染しないよう
+# 走査対象からも除外する運用と対をなす）。
+# イシュー #501: examples/ssg-blog の `cargo run` が生成する静的サイト出力先も
+# 同じワイルドカードで一括無視する（並列実装との衝突を避けるため個別列挙しない）。
 /examples/*/dist/
+
+# イシュー #503: examples/interactive-view-transitions/wasm（独立
+# ワークスペースの glue クレート interactive-vt-wasm）のビルド成果物と、
+# tools/wasm/build.sh が生成する wasm-bindgen 後処理結果。templates/app と
+# 同じ理由（TASK-4.4）で root の /target ルールでは無視されない。
+/examples/*/wasm/target
+/examples/*/static/wasm
 
 # TASK-10.4a（イシュー #119）: rebuild_latency ベンチが static/ 配下へ書き込む
 # 一時プローブファイル。ベンチ終了時に Drop ガードで削除するが、強制終了時の

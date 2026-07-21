@@ -530,7 +530,93 @@ const DIST_SERVER_DOCKER_EXAMPLE_FILES: &[TemplateFile] = &[
     },
 ];
 
-/// `--example` の allowlist（イシュー #500）。
+/// `examples/interactive-view-transitions/` の全ファイル（13 件）を git の
+/// 相対パス順・実行ビットどおりに埋め込んだ固定配列（イシュー #503）。
+///
+/// `crates/cli/embedded-examples/interactive-view-transitions/` は正本
+/// `examples/interactive-view-transitions/` のバイト単位同梱コピーであり、
+/// 乖離は `cli/tests/example_publish_copy_drift.rs` が検知する。
+/// `tools/wasm/build.sh` のみ実行ビット付き（`git ls-files -s` の mode
+/// 100755、正本側の実行ビットをそのまま反映）。
+const INTERACTIVE_VIEW_TRANSITIONS_EXAMPLE_FILES: &[TemplateFile] = &[
+    TemplateFile {
+        rel_path: "Cargo.lock",
+        contents: include_str!("../embedded-examples/interactive-view-transitions/Cargo.lock"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "Cargo.toml",
+        contents: include_str!(
+            "../embedded-examples/interactive-view-transitions/Cargo.toml.embed"
+        ),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "README.md",
+        contents: include_str!("../embedded-examples/interactive-view-transitions/README.md"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "clippy.toml",
+        contents: include_str!("../embedded-examples/interactive-view-transitions/clippy.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "deny.toml",
+        contents: include_str!("../embedded-examples/interactive-view-transitions/deny.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "src/main.rs",
+        contents: include_str!("../embedded-examples/interactive-view-transitions/src/main.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "static/embed.html",
+        contents: include_str!(
+            "../embedded-examples/interactive-view-transitions/static/embed.html"
+        ),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "structure.toml",
+        contents: include_str!("../embedded-examples/interactive-view-transitions/structure.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "tests/state_machine.rs",
+        contents: include_str!(
+            "../embedded-examples/interactive-view-transitions/tests/state_machine.rs"
+        ),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "tools/wasm/build.sh",
+        contents: include_str!(
+            "../embedded-examples/interactive-view-transitions/tools/wasm/build.sh"
+        ),
+        executable: true,
+    },
+    TemplateFile {
+        rel_path: "wasm/Cargo.lock",
+        contents: include_str!("../embedded-examples/interactive-view-transitions/wasm/Cargo.lock"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "wasm/Cargo.toml",
+        contents: include_str!(
+            "../embedded-examples/interactive-view-transitions/wasm/Cargo.toml.embed"
+        ),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "wasm/src/lib.rs",
+        contents: include_str!("../embedded-examples/interactive-view-transitions/wasm/src/lib.rs"),
+        executable: false,
+    },
+];
+
+/// `--example` の allowlist（イシュー #500・#501・#502・#503）。
 ///
 /// サンプル名はここに列挙したコンパイル時定数との完全一致照合のみで解決し、
 /// ユーザー入力から動的にパス・`include_str!` 対象を組み立てない
@@ -563,6 +649,15 @@ pub(crate) const EXAMPLES: &[Template] = &[
         files: DIST_SERVER_DOCKER_EXAMPLE_FILES,
         // ssr-routing と同じ理由でパッケージ名を置換しない。
         needle: "fandhe-frontend-example-placeholder-unused",
+        substituted_files: &[],
+    },
+    Template {
+        name: "interactive-view-transitions",
+        files: INTERACTIVE_VIEW_TRANSITIONS_EXAMPLE_FILES,
+        // 上記 "ssr-routing" と同じ理由でパッケージ名置換を行わない
+        // （このサンプルは wasm/ 独立ワークスペースを持つが、そちらの
+        // パッケージ名 `interactive-vt-wasm` も同様に置換対象外）。
+        needle: "fandhe-frontend-example-placeholder-unused-interactive-view-transitions",
         substituted_files: &[],
     },
 ];
@@ -673,6 +768,35 @@ mod tests {
         assert!(
             e.files.iter().all(|f| !f.executable),
             "dist-server-docker example has no executable files in the source"
+        );
+    }
+
+    #[test]
+    fn interactive_view_transitions_example_is_registered() {
+        let e = find_example("interactive-view-transitions")
+            .expect("interactive-view-transitions example must be registered");
+        assert_eq!(e.name, "interactive-view-transitions");
+        assert_eq!(
+            e.files.len(),
+            13,
+            "interactive-view-transitions example must contain exactly 13 files"
+        );
+        assert!(
+            e.substituted_files.is_empty(),
+            "examples do not substitute package names (see module doc comment, issue #500)"
+        );
+        let mut executable: Vec<&str> = e
+            .files
+            .iter()
+            .filter(|f| f.executable)
+            .map(|f| f.rel_path)
+            .collect();
+        executable.sort_unstable();
+        assert_eq!(
+            executable,
+            vec!["tools/wasm/build.sh"],
+            "interactive-view-transitions example must have exactly one executable file \
+             (tools/wasm/build.sh)"
         );
     }
 

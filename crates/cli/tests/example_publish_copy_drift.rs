@@ -38,7 +38,12 @@ use std::path::{Path, PathBuf};
 /// （本テストクレートは `fandhe-frontend-cli` の内部モジュールへアクセス
 /// できない統合テストのため、独立した固定リストとして維持する。新規
 /// サンプル追加時は `new_template.rs::EXAMPLES` とあわせて更新すること）。
-const EXAMPLE_NAMES: &[&str] = &["ssr-routing", "ssg-blog", "dist-server-docker"];
+const EXAMPLE_NAMES: &[&str] = &[
+    "ssr-routing",
+    "ssg-blog",
+    "dist-server-docker",
+    "interactive-view-transitions",
+];
 
 /// workspace ルート（`cli/` の親の親ディレクトリ）の絶対パスを返す。
 fn workspace_root() -> PathBuf {
@@ -78,11 +83,28 @@ fn collect_relative_files_into(base: &Path, dir: &Path, out: &mut BTreeSet<PathB
             entry.unwrap_or_else(|e| panic!("failed to read entry in {}: {e}", dir.display()));
         let path = entry.path();
         if path.is_dir() {
+            // イシュー #503: `examples/interactive-view-transitions/` は
+            // `cargo run`（`dist/index.html` を書き出す）・`cargo build`
+            // （`target/`・`wasm/target/`）・`tools/wasm/build.sh`
+            // （`static/wasm/` へ `fandhe_frontend_wasm_full.js` /
+            // `_bg.wasm` を書き出す）をローカルで実行すると生成物
+            // ディレクトリが正本ツリーに現れる（`.gitignore` の
+            // `/examples/*/dist`・`/examples/*/target`・
+            // `/examples/*/wasm/target`・`/examples/*/static/wasm` が
+            // git 管理からは除外するが、本関数はファイルシステムを直接
+            // 走査するため無関係）。これらは同梱コピー側には存在しないため、
+            // 走査対象から除外しないと本テストのファイル集合比較が汚染される
+            // （レビュー指摘: `build.sh` 実行後にローカルで
+            // `cargo test -p fandhe-frontend-cli` を実行すると
+            // `static/wasm/` が誤検知でドリフトテストを失敗させていた）。
             let is_ignored_build_artifact = path
                 .file_name()
                 .and_then(|n| n.to_str())
                 .is_some_and(|name| IGNORED_BUILD_ARTIFACT_DIRS.contains(&name));
-            if is_ignored_build_artifact {
+            let rel_from_base = path.strip_prefix(base).unwrap_or(&path);
+            // `wasm/` そのもの（正本ソース）は除外せず、`static/wasm/`
+            // （`build.sh` の生成物）のみをディレクトリ単位で除外する。
+            if is_ignored_build_artifact || rel_from_base.ends_with("static/wasm") {
                 continue;
             }
             collect_relative_files_into(base, &path, out);

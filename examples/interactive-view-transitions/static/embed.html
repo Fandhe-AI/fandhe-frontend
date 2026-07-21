@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <!--
+    examples/interactive-view-transitions（イシュー #503）のブラウザ実動作
+    確認用マウント骨格。`templates/app/static/embed.html`（TASK-7.1a / #52
+    最小埋め込み構成）を下敷きにしつつ、本サンプルは 2 つの別系統・別 DOM
+    （fandhe-frontend-wasm-full::entry の doc 参照）を同一ページに同居させる:
+
+      1. `<div id="interactive-root">` — `hydrate("interactive-root")` が
+         `fandhe_frontend_interactive::AppState`（カウンター・フォーム・
+         動的リスト状態機械）をマウントする。中身は `cargo run` が書き出す
+         `dist/index.html` の同要素（`data-hydrate-*` 属性付き SSR 出力）を
+         整形して転記した「初期状態がすでに描画済みの」マークアップであり、
+         意図的に空にしていない（Bugbot 指摘 #510 review comment
+         3621300109）。空のまま `hydrate()` を呼ぶと `data-hydrate-*`
+         属性が存在せず状態復元 (`restore_state`) が失敗し、CSR フォール
+         バック（`dom::mount_initial`）が `AppState::view()`（自身も
+         `id="interactive-root"` を持つ、interactive/src/lib.rs 参照）を
+         この `<div>` の中へ丸ごと差し込むため、同一 id が入れ子で重複
+         する（フレームワークが文書化するマウントコンテナ契約に反する）。
+         あらかじめ SSR 済みマークアップを置くことで復元が成功し、
+         `mount_initial` は呼ばれず二重 id を生まない。
+      2. `<div id="app-root">` — `start_router("app-root")` が
+         `fandhe_frontend_app::layout`/`list_page`/`detail_page`
+         （`data-nav` リンク付き記事一覧・詳細）のクライアント側ルーティング
+         を配線する。起動時点では描画を行わない契約（`start_router` の doc）
+         のため、初期表示用に `list_page` 相当の最小骨格をあらかじめ置く。
+
+    責務境界（重要・セキュリティ不変条件）:
+      フレームワークが安全性（既定エスケープ）を保証するのは上記 2 つの
+      マウントポイントの内側だけ。それ以外の素の HTML（見出し・段落等）は
+      フレームワークの管理外（docs/guides/embedding-guide.md 5 節）。
+
+    wasm ビルド: 下記 <script> が参照する ./wasm/fandhe_frontend_wasm_full.js /
+    fandhe_frontend_wasm_full_bg.wasm は生成直後には存在しない。
+    `tools/wasm/build.sh` を実行すると、crates.io バージョン依存の
+    fandhe-frontend-wasm-full を wasm/（独立ワークスペースの glue クレート
+    interactive-vt-wasm）経由でビルドし、この 2 ファイルを static/wasm/ へ
+    生成する。
+  -->
+  <title>状態管理 + View Transitions サンプル（埋め込み）</title>
+  <!--
+    `fandhe_frontend_app::page_shell()`（SSR 標準構成、`src/main.rs` が
+    `dist/index.html` へ書き出す側）が既定同梱する at-rule と同一のものを、
+    ブラウザ直接確認用の本ファイルにも明示的に置く（JS 0 行で
+    クロスドキュメント遷移の View Transitions を有効化。View Transitions
+    Level 2 の標準 at-rule、旧世代の meta タグベース構文は使わない）。
+    非対応ブラウザではこの at-rule は単に無視され、通常のナビゲーションへ
+    フォールバックする（graceful degradation）。同一文書内（SPA）の
+    ページ遷移は `start_router` が配線する history API 連携が別途担う。
+  -->
+  <style>@view-transition { navigation: auto; }</style>
+</head>
+<body>
+  <h1>状態管理 (REQ-8) + View Transitions のブラウザ実動作確認</h1>
+  <p>この段落は素の HTML であり、フレームワークの管理下にありません。</p>
+
+  <h2>hydrate 系統（AppState: カウンター・フォーム・動的リスト）</h2>
+  <!--
+    hydrate("interactive-root") が状態機械コンポーネントをマウントする。
+    中身は `cargo run` が書き出す dist/index.html の
+    `<div id="interactive-root">` 要素と同一（`AppState::new()` の初期状態
+    + render_for_hydration が付与する data-hydrate-* 属性）。CSR フォール
+    バック（属性なし → mount_initial → view() 二重差し込み）を発生させず、
+    `hydrate()` が状態復元に成功する経路を実演する（head 内コメント参照）。
+  -->
+  <div id="interactive-root" data-testid="interactive-root" data-hydrate-counter="0" data-hydrate-draft="" data-hydrate-items="最初の項目" data-hydrate-item-ids="0">
+    <div data-testid="counter">カウント: <span data-testid="counter-value" data-bind-text="counter">0</span><button data-action="increment" data-testid="inc-btn">+1</button><button data-action="decrement" data-testid="dec-btn">-1</button><button data-action="reset" data-testid="reset-btn">リセット</button></div>
+    <div data-testid="form"><input id="draft-input" data-testid="draft-input" value="" data-bind-attr="value:draft"></input><button data-action="add_item" data-testid="add-btn">追加</button></div>
+    <ul data-testid="item-list" data-bind-list="items"><li data-key="0">最初の項目<button data-action="remove_item" data-payload="0" data-testid="remove-btn">削除</button></li></ul>
+  </div>
+
+  <h2>start_router 系統（記事一覧・詳細、data-nav リンク + View Transitions）</h2>
+  <!--
+    start_router は起動時点で描画しない契約のため、初期表示用に
+    `layout()`/`list_page()` 相当の最小骨格をあらかじめ置く
+    （`data-nav` 属性のリンクは fandhe_frontend_app::list_page が生成する
+    ものと同じ構造。実データは fandhe-frontend-server 側の SSR/SSG が
+    埋める運用を想定した実演用のプレースホルダ）。
+  -->
+  <div id="app-root" data-fandhe-frontend="root">
+    <h1>記事一覧</h1>
+    <main>
+      <ul data-testid="item-list">
+        <li><a href="/items/1" data-nav="/items/1">記事 1（cargo run が書き出す dist/index.html を参照）</a></li>
+      </ul>
+    </main>
+  </div>
+
+  <p>この段落も素の HTML です。フレームワークは上記 2 つの div の中身にしか関与しません。</p>
+
+  <script type="module">
+    /**
+     * WASM モジュールを初期化し、hydrate/start_router を別 root_id で
+     * それぞれ呼び出す。
+     *
+     * 参照する fandhe_frontend_wasm_full.js は wasm/（glue クレート
+     * interactive-vt-wasm）を tools/wasm/build.sh でビルドした生成物で、
+     * このページと同一オリジンに配置する（外部 CDN からの読み込みは
+     * サプライチェーン面のリスク拡大につながるため行わない、
+     * .claude/rules/security.md）。
+     */
+    import init, { hydrate, start_router } from "./wasm/fandhe_frontend_wasm_full.js";
+
+    async function main() {
+      await init();
+      // "interactive-root" は AppState（カウンター・フォーム・動的リスト）系統。
+      hydrate("interactive-root");
+      // "app-root" は記事一覧・詳細（data-nav リンク）系統。hydrate とは
+      // 別系統・別 DOM のため異なる root_id を渡す（entry.rs の doc 参照）。
+      start_router("app-root");
+    }
+
+    main();
+  </script>
+</body>
+</html>

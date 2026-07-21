@@ -1,0 +1,28 @@
+[package]
+name = "fandhe-frontend-example-interactive-view-transitions"
+version = "0.1.0"
+edition = "2021"
+description = "fandhe-frontend フレームワークの状態管理 (REQ-8) + View Transitions 正本サンプル（イシュー #503）。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# examples/ は「crates.io 公開済みクレートを実際に使う正本サンプル」であり、
+# templates/（`fw new` が展開する雛形）とは異なりバージョン依存で完結する
+# （examples 規約、イシュー #499）。依存クレートはいずれも v0.1.0 で
+# crates.io へ公開済み（#499 実装時に sparse index への再照会で非 yanked を
+# 確認済み。詳細はイシュー #503 実装計画参照）。
+[dependencies]
+fandhe-frontend-core = "0.1.0"
+fandhe-frontend-app = "0.1.0"
+fandhe-frontend-interactive = "0.1.0"
+
+[dev-dependencies]
+
+# root workspace（リポジトリ直下 Cargo.toml の `members = ["crates/*"]`）から
+# 意図的に切り離す。examples/interactive-view-transitions は「フレームワーク
+# 利用者へ提示する独立プロジェクトの正本サンプル」であり、root workspace に
+# 巻き込まれると crates.io バージョン依存と root の path 依存（`crates/*`）が
+# 衝突しうる。templates/default・templates/app・examples/ssr-routing と同じ
+# 方針（`ci.md` #412/#493/#499 参照）。
+[workspace]
+members = ["."]

@@ -893,3 +893,141 @@ fn fw_new_example_dist_server_docker_output_passes_fw_gate() {
         );
     }
 }
+
+/// `fw new <name> --example interactive-view-transitions` が生成直後の
+/// プロジェクトに対しても `fw gate` PASS を保証し、`cargo run` が native
+/// デモ出力 + `dist/index.html`（`data-hydrate-*`・`@view-transition` を含む
+/// SSR HTML）を生成することを固定する（イシュー #503、
+/// `fw_new_example_ssr_routing_output_passes_fw_gate` と同型の e2e）。
+///
+/// `--example` はパッケージ名を置換しない（`new_template.rs` モジュール doc
+/// コメント参照）ため、生成プロジェクトのパッケージ名は正本と同じ
+/// `fandhe-frontend-example-interactive-view-transitions` のまま。
+///
+/// `wasm/`（独立ワークスペースの glue クレート `interactive-vt-wasm`）と
+/// `tools/wasm/build.sh` によるブラウザ実動作確認は本テストのスコープ外
+/// （wasm ビルド + ブラウザ操作の smoke テスト CI 化は後続 issue、README.md
+/// 参照）。`structure.toml` が `wasm/` を宣言しないため `fw gate` の
+/// 検証対象クレート決定にも影響しない（`templates/app` と同じ方針）。
+///
+/// # 前提（`.claude/rules/ci.md` 準拠）
+///
+/// `examples/interactive-view-transitions` は fandhe-frontend-core/-app/
+/// -interactive への crates.io バージョン依存で完結する（vendor 同梱なし、
+/// イシュー #499/#503）。本テストの `cargo build`/`cargo run`/`fw gate` は
+/// いずれも crates.io（`https://index.crates.io`・`https://static.crates.io`）
+/// への到達性を前提とする。到達不可の場合は環境エラーとして扱い、テストの
+/// 弱体化で対処しない（`fw_new_example_ssr_routing_output_passes_fw_gate` と
+/// 同じ前提）。
+#[test]
+fn fw_new_example_interactive_view_transitions_output_passes_fw_gate() {
+    let scratch = unique_scratch_dir();
+    let _scratch_guard = ScratchProject(scratch.clone());
+
+    let (new_code, new_stdout, new_stderr) = run_fw_new(&[
+        "gate-pass-example-interactive-view-transitions",
+        "--example",
+        "interactive-view-transitions",
+        "--dir",
+        &scratch.to_string_lossy(),
+    ]);
+    assert_eq!(
+        new_code, 0,
+        "fw new --example interactive-view-transitions が失敗した: \
+         stdout={new_stdout} stderr={new_stderr}"
+    );
+
+    let project_dir = scratch.join("gate-pass-example-interactive-view-transitions");
+    let (gate_code, gate_stdout, gate_stderr) = run_fw_gate(&project_dir);
+
+    for name in [
+        "type_check",
+        "default_escape_check",
+        "url_validation_check",
+        "lint",
+        "test",
+        "policy",
+    ] {
+        assert!(
+            gate_stdout.contains(&format!("\"name\":\"{name}\"")),
+            "fw gate のレポートにチェック `{name}` が現れない: stdout={gate_stdout}"
+        );
+    }
+
+    for name in [
+        "type_check",
+        "default_escape_check",
+        "url_validation_check",
+        "lint",
+        "test",
+    ] {
+        assert_eq!(
+            check_passed(&gate_stdout, name),
+            Some(true),
+            "fw new --example interactive-view-transitions 生成直後のプロジェクトで \
+             `{name}` が失敗した（サンプルと fw gate の前提がドリフトしている）: \
+             stdout={gate_stdout} stderr={gate_stderr}"
+        );
+    }
+
+    if cargo_deny_available() {
+        assert_eq!(
+            gate_code, 0,
+            "cargo-deny 導入環境では fw new --example interactive-view-transitions \
+             生成直後は PASS するはず: stdout={gate_stdout} stderr={gate_stderr}"
+        );
+        assert!(
+            gate_stdout.contains("\"gate_result\":\"PASS\""),
+            "stdout={gate_stdout}"
+        );
+    } else {
+        assert_eq!(
+            gate_code, 1,
+            "cargo-deny 未導入環境では policy の fail-closed により BLOCKED \
+             (終了コード 1) のはず: stdout={gate_stdout}"
+        );
+        assert!(
+            gate_stdout.contains("environment error: "),
+            "policy の failed 出力は environment error であることを明示する \
+             プレフィックスを含むはず: stdout={gate_stdout}"
+        );
+    }
+
+    // 受け入れ条件 1: `fw new demo --example interactive-view-transitions &&
+    // cd demo && cargo run` が native デモ出力（`AppState::dispatch` 実演）と
+    // `dist/index.html`（`data-hydrate-*`・`@view-transition` を含む SSR
+    // HTML）を生成すること。
+    let run_output = Command::new("cargo")
+        .arg("run")
+        .arg("--quiet")
+        .current_dir(&project_dir)
+        .output()
+        .expect("failed to spawn `cargo run` in generated example project");
+    assert!(
+        run_output.status.success(),
+        "cargo run が生成直後の interactive-view-transitions サンプルで失敗した: \
+         stdout={} stderr={}",
+        String::from_utf8_lossy(&run_output.stdout),
+        String::from_utf8_lossy(&run_output.stderr)
+    );
+    let run_stdout = String::from_utf8_lossy(&run_output.stdout);
+    assert!(
+        run_stdout.contains("native state machine demo"),
+        "stdout was: {run_stdout}"
+    );
+    assert!(
+        run_stdout.contains("wrote dist/index.html"),
+        "stdout was: {run_stdout}"
+    );
+
+    let dist_html = std::fs::read_to_string(project_dir.join("dist/index.html"))
+        .expect("cargo run should have written dist/index.html");
+    assert!(
+        dist_html.contains("data-hydrate-"),
+        "dist/index.html was: {dist_html}"
+    );
+    assert!(
+        dist_html.contains("@view-transition"),
+        "dist/index.html was: {dist_html}"
+    );
+}
