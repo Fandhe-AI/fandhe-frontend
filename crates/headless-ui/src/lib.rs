@@ -94,6 +94,13 @@
 //!   が [`state::Disclosure`]/[`state::SingleSelect`] のいずれにも写像
 //!   できないため）。`data-state`（`"visible"`/`"hidden"`）は Image/Fallback
 //!   のみに付与し、ark-ui 準拠で Root には付与しない。
+//! - [`mod@progress`]: Root / Label / ValueText / Track / Range の 5 anatomy
+//!   パーツと、数値 `value`（`min`..=`max`、または indeterminate を表す
+//!   `None`）を持つ [`progress::Progress`] 状態機械（#544、親 #542）。
+//!   [`mod@switch`] と同じく `data-state` 値語彙（`"indeterminate"`/
+//!   `"loading"`/`"complete"`）が [`state::Disclosure`] と異なるため、
+//!   [`state`] を埋め込まず [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
 //!
 //! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
 //! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
@@ -116,6 +123,7 @@ pub mod dialog;
 pub mod field;
 pub mod menu;
 pub mod popover;
+pub mod progress;
 pub mod radio_group;
 pub mod select;
 pub mod state;
@@ -137,6 +145,7 @@ pub use data_attrs::{
 pub use dialog::Dialog;
 pub use field::FieldProps;
 pub use menu::Menu;
+pub use progress::{Progress, ProgressAction};
 pub use radio_group::RadioGroup;
 pub use state::{
     Disclosure, DisclosureAction, OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CLOSED,
