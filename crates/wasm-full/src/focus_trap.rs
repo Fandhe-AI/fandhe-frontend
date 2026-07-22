@@ -308,8 +308,9 @@ mod wiring {
                     // ボタンが無いダイアログ）。この経路で `prevent_default()`
                     // を呼ばずに早期 return すると、ブラウザの既定動作で Tab が
                     // `aria-modal` content の外へフォーカスを漏らし、トラップが
-                    // 破られる（イシュー #586 レビュー指摘、CVE-XSS 相当の
-                    // ではないが WAI-ARIA dialog パターン違反）。
+                    // 破られる（イシュー #586 レビュー指摘。XSS 等の脆弱性では
+                    // ないが、WAI-ARIA dialog パターン違反によるアクセシビリ
+                    // ティ上の欠陥）。
                     // `push_trap`/[`focus_content_itself`] が既に `content` へ
                     // `tabindex="-1"` を付与済みのため、ここでは Tab を消費し
                     // フォーカスを `content` へ固定し直す。
