@@ -10,9 +10,12 @@ API（enum ベース）で定義し、クラス名と静的 CSS を決定的に�
 
 - 親: Phase 3 親イシュー #545、トラッキング #520
 - 実装: `crates/pre-styled-ui/src/css.rs`（低レベル宣言・検証・シリアライズ）・
-  `crates/pre-styled-ui/src/recipe.rs`（`SlotRecipe`/`VariantValue`/`Size`）
+  `crates/pre-styled-ui/src/recipe.rs`（`SlotRecipe`/`VariantValue`/`Size`、
+  compoundVariants 相当は `VariantCondition`/`when`/`SlotRecipe::compound_variant`、
+  イシュー #604）
 - テスト: `crates/pre-styled-ui/tests/recipe_css.rs`（golden・headless 接続・
-  fail-closed）・`crates/pre-styled-ui/tests/recipe_determinism.rs`（決定性）
+  fail-closed・compound variant）・`crates/pre-styled-ui/tests/recipe_determinism.rs`
+  （決定性、compound variant を含む）
 
 **本タスクのスコープ**: variant 定義 API（base / variants / defaultVariants 相当）・
 静的 CSS 生成・headless 層セレクタとの接続・決定性の担保のみ。テーマトークン・
@@ -45,10 +48,15 @@ impl SlotRecipe {
     pub fn base(self, slot: &'static str, declarations: Vec<Declaration>) -> Self;
     pub fn variant<V: VariantValue>(self, v: V, slot: &'static str, declarations: Vec<Declaration>) -> Self;
     pub fn default_variant<V: VariantValue>(self, v: V) -> Self;
+    pub fn compound_variant(self, conditions: Vec<VariantCondition>, slot: &'static str, declarations: Vec<Declaration>) -> Self;
     pub fn css(&self) -> String;
     pub fn variant_class<V: VariantValue>(&self, v: V) -> String;
     pub fn variant_classes(&self, selection: &[(&str, &str)]) -> String;
 }
+
+// compoundVariants 相当（イシュー #604）
+pub struct VariantCondition { /* axis, value: &'static str（型消去済み） */ }
+pub fn when<V: VariantValue>(v: V) -> VariantCondition;
 ```
 
 `SlotRecipe::new`/`base`/`variant`/`default_variant` は自己消費の builder
@@ -58,8 +66,22 @@ impl SlotRecipe {
 `colorPalette` 相当は独立の仕組みではなく通常の variant 軸として表現できる
 （`docs/api` 掲載の例・`tests/recipe_css.rs` の `ColorPalette` enum 参照）。
 
-`compoundVariants` 相当（複数軸の組み合わせ条件スタイル）は本イシューのスコープ外
-（`§5` 参照）。
+`compoundVariants` 相当（複数軸の組み合わせ条件スタイル、イシュー #604）は
+[`SlotRecipe::compound_variant`] で表現する。条件部は [`when()`] で
+[`VariantValue`] 実装 enum から作った [`VariantCondition`] の `Vec`（AND
+条件）として渡す:
+
+```rust
+recipe.compound_variant(
+    vec![when(Size::Sm), when(ColorPalette::Red)],
+    "trigger",
+    vec![decl("font-weight", "bold")],
+)
+```
+
+生の文字列ではなく `when()` を介した enum ベースの構築のみを許すことで、
+`variant()` と同じ型安全性を条件部でも保つ（`tests/recipe_css.rs` の
+`tabs_recipe()` 参照）。
 
 ## 3. `scope` と headless 層との契約
 
@@ -86,13 +108,29 @@ fail-closed で返す（`slot`/`axis`/`value` 側の検証だけでは `scope` �
 - base セレクタ: `[data-scope="<scope>"][data-part="<slot>"]`（詳細度 (0,2,0)）
 - variant セレクタ: `[data-scope="<scope>"][data-part="<slot>"].fd-<scope>--<axis>-<value>`
   （詳細度 (0,3,0)。base に必ず勝つため、CSS 記述順に依存しない上書きを保証する）
+- compound variant セレクタ（イシュー #604）:
+  `[data-scope="<scope>"][data-part="<slot>"].fd-<scope>--<a1>-<v1>.fd-<scope>--<a2>-<v2>...`
+  （`conditions` の登録順に条件クラスを連結する。新しいクラス名は生成せず、
+  `variant_classes()` が emit する既存の軸別クラスの共起にセレクタとして
+  反応するだけなので、HTML 側への影響はない）
 - クラス名形式: `fd-{scope}--{axis}-{value}`（prefix `fd` はライブラリ固定。変更用
   API は設けない）
 - 出力書式（golden テストの前提、変更しない）:
   - 規則単位: `<selector> {\n  <property>: <value>;\n  ...\n}\n`（インデント 2
     スペース、1 宣言 1 行）
   - 規則間は空行 1 つ
-  - `SlotRecipe::css()` 全体の出力順: base（`slots` 宣言順）→ variants（登録順）
+  - `SlotRecipe::css()` 全体の出力順: base（`slots` 宣言順）→ variants
+    （登録順）→ compound variants（登録順、イシュー #604）
+
+### 4.1 compound variant の上書き保証（2 段、イシュー #604）
+
+- 条件 2 個以上: セレクタの詳細度が (0,4,0) 以上となり、単一 variant
+  セレクタ (0,3,0) に記述順へ依存せず必ず勝つ
+- 条件 1 個: 詳細度は単一 variant と同じ (0,3,0) だが、compound ブロックを
+  variants ブロックより後に出力するため CSS カスケードの後勝ちで上書きされる
+
+chakra-ui の「compoundVariants は variants を上書きする」という意味論に
+この 2 段の保証で対応する。
 
 ## 5. 順序規約・決定性
 
@@ -106,7 +144,8 @@ fail-closed で返す（`slot`/`axis`/`value` 側の検証だけでは `scope` �
   で最初に現れた順）で連結したクラス文字列
 - 決定性は `crates/pre-styled-ui/tests/recipe_determinism.rs` が固定する: 同一入力
   から独立に構築した 2 インスタンスの `css()`/`variant_classes()` が byte 一致する
-  こと、同一インスタンスへの繰り返し呼び出しが安定していること
+  こと、同一インスタンスへの繰り返し呼び出しが安定していること（compound variant
+  を含む場合も同様、イシュー #604）
 
 ## 6. fail-closed 検証ポリシー
 
@@ -122,7 +161,17 @@ fail-closed で返す（`slot`/`axis`/`value` 側の検証だけでは `scope` �
   `<` の拒否は、下流（styled 部品・examples 等）が生成 CSS を `<style>` へ
   インライン埋め込みした場合の `</style>` 突破（HTML コンテキスト脱出）を防ぐ
   セキュリティ上の不変条件である
-- `slots` に宣言していない slot への `base`/`variant` 登録は出力から除外する
+- `slots` に宣言していない slot への `base`/`variant`/`compound_variant` 登録は
+  出力から除外する
+- compound variant 固有の検証（イシュー #604、`crates/pre-styled-ui/tests/recipe_css.rs::compound_variant_fail_closed_cases_are_skipped_not_panicking`
+  が固定する）:
+  - `conditions` が空の規則は base と同義になる無意味な規則として除外する
+  - `conditions` 内に同一 axis が重複する規則は、`variant_classes()` が 1 軸
+    につき高々 1 クラスしか emit しないため決して同時に一致しない矛盾条件で
+    あるとみなし、dead CSS の混入防止として除外する
+  - 条件の `(axis, value)` の組が `variant()`/`default_variant()` のいずれにも
+    未登録の規則は、axis/value のタイポによる dead CSS の混入防止として除外する
+    （検証は `css()` 呼び出し時に行うため builder の呼び出し順には依存しない）
 - いずれも panic なし・スキップ動作。`crates/pre-styled-ui/tests/recipe_css.rs::invalid_identifiers_and_structural_chars_are_skipped_not_panicking`
   が固定する
 
@@ -150,7 +199,6 @@ styled 部品は `border-radius`/`box-shadow` の値としてこれらを参照�
 
 ## 8. スコープ外（Issue 化候補）
 
-- `compoundVariants` 相当（複数軸の組み合わせ条件スタイル）
 - recipe 出力の CSS ファイル書き出し・`<style>` 埋め込みヘルパ:
   **イシュー #605 で実装済み**。`crate::stylesheet::StyleSheet`
   （[`docs/api/pre-styled-ui-api.md`](./pre-styled-ui-api.md) 参照）が
@@ -158,3 +206,10 @@ styled 部品は `border-radius`/`box-shadow` の値としてこれらを参照�
   `write_css_file`（静的 `.css` 書き出し）・`style_element`（SSR 用
   `<style>` 要素、`raw_html()` を内部に閉じ込めた検証済み CSS 型経由）の
   2 経路を提供する。
+- `#547` テーマトークンとの palette 実配線（colorPalette 軸の意味付け）:
+  **イシュー #606 で実装済み**（`palette_declarations`・`ColorPalette`）。
+- 既存 styled 部品（button/alert 等）への compound variant の実適用（必要に
+  なった時点で該当部品のイシューで対応）
+
+`compoundVariants` 相当（複数軸の組み合わせ条件スタイル）は本ドキュメントの
+`§2`〜`§6` に記載のとおりイシュー #604 で実装済み。

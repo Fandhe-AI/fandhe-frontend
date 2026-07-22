@@ -3,21 +3,20 @@
 //! ark-ui の Switch
 //!（`.claude/skills/ark-ui/references/components/form/switch.md`）を
 //! 参考に、Root / Control / Thumb / Label / HiddenInput の 5 anatomy パーツと、
-//! Phase 1（#524）の [`fandhe_frontend_interactive::Component`]/
-//! [`fandhe_frontend_interactive::Hydrate`] 抽象へ直接乗る開閉状態機械
-//! [`Switch`] を提供する。
+//! [`crate::state::Checkable`] を埋め込んだチェック状態機械 [`Switch`] を
+//! 提供する。
 //!
-//! # `data-state` 語彙について（[`crate::state::Disclosure`] を使わない理由）
+//! # `data-state` 語彙について（[`crate::state::Checkable`] を埋め込む理由）
 //!
 //! [`crate::state::Disclosure`] の `data-state` 語彙は `"open"`/`"closed"` に
 //! 固定されている（[`crate::state::OpenState`]）。Switch は ark-ui 準拠で
 //! `"checked"`/`"unchecked"` を使うため、[`Disclosure`](crate::state::Disclosure)
-//! を埋め込むと表示用 `data-state` と hydration 属性の語彙が分裂する。
-//! これを避けるため、本モジュールは [`fandhe_frontend_interactive::Component`]/
-//! [`fandhe_frontend_interactive::Hydrate`] を直接実装し、Phase 1 が確立した
-//! dispatch 契約（未知アクション no-op）・fail-closed hydration という
-//! **統合様式**にのみ準拠する（`"checked"/"unchecked"` 状態機械の
-//! `state.rs` への共通化昇格は Checkbox 実装後の別イシューとする）。
+//! ではなく [`crate::state::Checkable`] を埋め込む（[`crate::collapsible::Collapsible`]
+//! が `Disclosure` を埋め込むのと同型の様式）。`"checked"/"unchecked"`
+//! 状態機械は当初本モジュール内に個別実装していたが、`radio_group`/
+//! `checkbox` との値語彙・dispatch 契約の分散を解消するため、イシュー
+//! #595 で [`crate::state::Checkable`] へ共通化昇格した（本モジュールの
+//! 公開 API・HTML 出力・hydration 属性は昇格前と完全互換）。
 //!
 //! # 呼び出し文脈
 //!
@@ -36,8 +35,9 @@
 //! - 動的値（`name`/`value`/呼び出し側 `attrs`/`children` テキスト）は
 //!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
 //!   `raw_html()` は使用せず、HTML 文字列を直接組み立てない。
-//! - `data-state` 値語彙（`"checked"`/`"unchecked"`）は本モジュール内で
-//!   一元管理し（[`state_str`]）、パーツ関数間で分裂させない。
+//! - `data-state` 値語彙（`"checked"`/`"unchecked"`）は [`crate::state`]
+//!   （[`crate::state::checked_data_state`]）が一元管理し、本モジュールは
+//!   パーツ関数間で分裂させない。
 //! - hidden input は `<input type="checkbox" role="switch">`（WAI-ARIA APG
 //!   の「Switch Example Using HTML Checkbox Input」パターン）。native の
 //!   `checked` 状態がブラウザによって `aria-checked` へマップされるため、
@@ -45,44 +45,19 @@
 //!   `radio_group` の native input 方針と同型）。
 //! - hydration 属性（`data-hydrate-checked`）はクライアント側で改ざんされ
 //!   うる入力として扱う。[`Switch`] の
-//!   [`fandhe_frontend_interactive::Hydrate`] 実装は panic せず
-//!   `HydrateError` を返す。
+//!   [`fandhe_frontend_interactive::Hydrate`] 実装は [`crate::state::Checkable`]
+//!   へ全委譲することで、panic せず `HydrateError` を返す既存保証をそのまま
+//!   継承する。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::aria_hidden;
 use crate::data_attrs::{data_disabled, data_required, data_state};
+use crate::state::{checked_data_state, Checkable};
 use fandhe_frontend_core::Node;
-use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
+use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
 
 /// Switch の anatomy（`data-scope="switch"`）。
 const ANATOMY: Anatomy = anatomy("switch");
-
-/// `data-state` 属性値 "checked"（ark-ui Switch 準拠の値語彙。本モジュールが
-/// 一元管理し、パーツ関数間で分裂させない）。
-const DATA_STATE_CHECKED: &str = "checked";
-/// `data-state` 属性値 "unchecked"。[`DATA_STATE_CHECKED`] 参照。
-const DATA_STATE_UNCHECKED: &str = "unchecked";
-
-/// `checked` から `data-state`/`data-hydrate-checked` の属性値文字列へ変換する。
-const fn state_str(checked: bool) -> &'static str {
-    if checked {
-        DATA_STATE_CHECKED
-    } else {
-        DATA_STATE_UNCHECKED
-    }
-}
-
-/// `data-state`/`data-hydrate-checked` 属性値から `checked` を復元する。
-///
-/// 未知の値（改ざん・タイポ）は `None` を返す（安全側、呼び出し元が
-/// [`HydrateError::InvalidValue`] へ変換する）。
-fn checked_from_state_str(s: &str) -> Option<bool> {
-    match s {
-        DATA_STATE_CHECKED => Some(true),
-        DATA_STATE_UNCHECKED => Some(false),
-        _ => None,
-    }
-}
 
 /// Root パーツ（`label`）。
 ///
@@ -96,7 +71,7 @@ pub fn root<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state_str(checked))];
+    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(checked_data_state(checked))];
     merged.extend(data_disabled(disabled));
     merged.extend(attrs);
     ANATOMY.part("root", "label", merged, children)
@@ -115,7 +90,7 @@ pub fn control<'a>(
     children: Vec<Node>,
 ) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> =
-        vec![data_state(state_str(checked)), aria_hidden(true)];
+        vec![data_state(checked_data_state(checked)), aria_hidden(true)];
     merged.extend(data_disabled(disabled));
     merged.extend(attrs);
     ANATOMY.part("control", "span", merged, children)
@@ -125,7 +100,7 @@ pub fn control<'a>(
 /// 最小主義な装飾用パーツ（[`crate::collapsible::indicator`] と同じ最小主義）。
 #[must_use]
 pub fn thumb<'a>(checked: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state_str(checked))];
+    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(checked_data_state(checked))];
     merged.extend(attrs);
     ANATOMY.part("thumb", "span", merged, children)
 }
@@ -134,7 +109,7 @@ pub fn thumb<'a>(checked: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<No
 /// （意味論的なラベル関連付けは [`root`] の `<label>` 要素が担う）。
 #[must_use]
 pub fn label<'a>(checked: bool, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state_str(checked))];
+    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(checked_data_state(checked))];
     merged.extend(attrs);
     ANATOMY.part("label", "span", merged, children)
 }
@@ -177,49 +152,52 @@ pub fn hidden_input<'a>(
 
 /// Switch のアクション（WASM 境界の文字列 dispatch と
 /// [`Switch::decode_action`] で接続する）。payload は使用しない。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SwitchAction {
-    /// オンにする。
-    Check,
-    /// オフにする。
-    Uncheck,
-    /// オン/オフを反転する。
-    Toggle,
-}
+///
+/// [`crate::state::CheckableAction`] の互換 re-export（イシュー #595 で
+/// [`crate::state::Checkable`] へ状態機械を昇格した後も、既存利用箇所の
+/// `SwitchAction::Check` 等の記法をそのまま使えるようにする）。
+pub use crate::state::CheckableAction as SwitchAction;
 
 /// Switch の開閉（オン/オフ）状態機械。
 ///
-/// `data-state` と実際のチェック状態の整合を型レベルで保証する入口として、
-/// 各パーツ関数（[`root`]/[`control`]/[`thumb`]/[`label`]/[`hidden_input`]）へ
+/// [`crate::state::Checkable`]（#595 で昇格した共通チェック状態機械）を
+/// フィールドとして埋め込み（[`crate::collapsible::Collapsible`] が
+/// [`crate::state::Disclosure`] を埋め込むのと同じ様式）、`data-state` と
+/// 実際のチェック状態の整合を型レベルで保証する入口として、各パーツ関数
+/// （[`root`]/[`control`]/[`thumb`]/[`label`]/[`hidden_input`]）へ
 /// `self.is_checked()` を注入する利便メソッドを提供する。SSR での自由関数
 /// 直接利用（本型を経由しない構成）も引き続き可能。`Default` は未チェック
 /// （SSR の状態なし初期描画に対応する既定値）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Switch {
-    checked: bool,
+    checkable: Checkable,
 }
 
 impl Switch {
     /// `data-hydrate-checked` 属性名のフィールド部分
-    /// （`docs/api/hydration-state-format.md` の `<field>` 命名規約に従う）。
-    pub const FIELD_CHECKED: &'static str = "checked";
+    /// （`docs/api/hydration-state-format.md` の `<field>` 命名規約に従う。
+    /// [`Checkable::FIELD_CHECKED`] と同一値であり、hydration 属性名
+    /// `data-hydrate-checked` は昇格前後で不変）。
+    pub const FIELD_CHECKED: &'static str = Checkable::FIELD_CHECKED;
 
     /// 指定した初期状態で Switch を生成する。
     #[must_use]
     pub fn new(checked: bool) -> Self {
-        Self { checked }
+        Self {
+            checkable: Checkable::new(checked),
+        }
     }
 
     /// 現在チェックされているかどうか。
     #[must_use]
     pub fn is_checked(&self) -> bool {
-        self.checked
+        self.checkable.is_checked()
     }
 
     /// 現在の `data-state` 属性値（`"checked"`/`"unchecked"`）。
     #[must_use]
     pub fn data_state(&self) -> &'static str {
-        state_str(self.checked)
+        self.checkable.data_state()
     }
 
     /// [`root`] へ現在の状態を注入する利便メソッド。
@@ -230,7 +208,7 @@ impl Switch {
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        root(self.checked, disabled, attrs, children)
+        root(self.checkable.is_checked(), disabled, attrs, children)
     }
 
     /// [`control`] へ現在の状態を注入する利便メソッド。
@@ -241,19 +219,19 @@ impl Switch {
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        control(self.checked, disabled, attrs, children)
+        control(self.checkable.is_checked(), disabled, attrs, children)
     }
 
     /// [`thumb`] へ現在の状態を注入する利便メソッド。
     #[must_use]
     pub fn thumb<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        thumb(self.checked, attrs, children)
+        thumb(self.checkable.is_checked(), attrs, children)
     }
 
     /// [`label`] へ現在の状態を注入する利便メソッド。
     #[must_use]
     pub fn label<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-        label(self.checked, attrs, children)
+        label(self.checkable.is_checked(), attrs, children)
     }
 
     /// [`hidden_input`] へ現在の状態を注入する利便メソッド。
@@ -266,7 +244,14 @@ impl Switch {
         required: bool,
         attrs: Vec<(&'a str, &'a str)>,
     ) -> Node {
-        hidden_input(name, value, self.checked, disabled, required, attrs)
+        hidden_input(
+            name,
+            value,
+            self.checkable.is_checked(),
+            disabled,
+            required,
+            attrs,
+        )
     }
 }
 
@@ -274,11 +259,7 @@ impl Component for Switch {
     type Action = SwitchAction;
 
     fn update(&mut self, action: SwitchAction) {
-        self.checked = match action {
-            SwitchAction::Check => true,
-            SwitchAction::Uncheck => false,
-            SwitchAction::Toggle => !self.checked,
-        };
+        self.checkable.update(action);
     }
 
     /// 共通契約（`data-state` 整合・hydration ルート）のみを表す最小正準
@@ -290,44 +271,28 @@ impl Component for Switch {
             false,
             Vec::new(),
             vec![control(
-                self.checked,
+                self.checkable.is_checked(),
                 false,
                 Vec::new(),
-                vec![thumb(self.checked, Vec::new(), Vec::new())],
+                vec![thumb(self.checkable.is_checked(), Vec::new(), Vec::new())],
             )],
         )
     }
 
-    fn decode_action(name: &str, _payload: &str) -> Option<SwitchAction> {
-        match name {
-            "check" => Some(SwitchAction::Check),
-            "uncheck" => Some(SwitchAction::Uncheck),
-            "toggle" => Some(SwitchAction::Toggle),
-            _ => None,
-        }
+    fn decode_action(name: &str, payload: &str) -> Option<SwitchAction> {
+        Checkable::decode_action(name, payload)
     }
 }
 
 impl Hydrate for Switch {
     fn hydration_attrs(&self) -> Vec<(String, String)> {
-        vec![(
-            format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_CHECKED),
-            self.data_state().to_string(),
-        )]
+        self.checkable.hydration_attrs()
     }
 
     fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
-        let attr_name = format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_CHECKED);
-        let raw = attrs
-            .iter()
-            .find(|(k, _)| *k == attr_name)
-            .map(|(_, v)| v.as_str())
-            .ok_or_else(|| HydrateError::MissingAttr(attr_name.clone()))?;
-        let checked = checked_from_state_str(raw).ok_or_else(|| HydrateError::InvalidValue {
-            attr: attr_name.clone(),
-            reason: "expected \"checked\" or \"unchecked\"".to_string(),
-        })?;
-        Ok(Self { checked })
+        Ok(Self {
+            checkable: Checkable::from_hydration_attrs(attrs)?,
+        })
     }
 }
 

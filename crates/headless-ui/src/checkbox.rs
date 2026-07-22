@@ -24,13 +24,23 @@
 //!
 //! # 状態機械 / dispatch 統合との境界
 //!
-//! 本モジュールは [`CheckedState`] を受け取って HTML を組み立てるだけであり、
-//! 状態そのものは保持しない（SSR/SSG 初期描画で完結する）。クリックによる
-//! トグル等の動的状態遷移（`Component`/`Hydrate` + `dispatch` 統合）は
-//! **既存 open イシュー #524**（開閉状態機械の `fandhe-frontend-interactive`
-//! 連携共通化）のスコープであり、本モジュールには含めない。
-//! `crates/headless-ui/Cargo.toml` は `fandhe-frontend-interactive` に依存しない
-//! （#524 未完のため）。
+//! パーツ関数群（[`root`]/[`control`]/[`indicator`]/[`label`]/
+//! [`hidden_input`]）は [`CheckedState`] を受け取って HTML を組み立てるだけの
+//! 純粋関数であり、状態そのものは保持しない（SSR/SSG 初期描画で完結する。
+//! 元 #535 の実装方針をそのまま維持する）。
+//!
+//! クリックトグル等の動的状態遷移（`Component`/`Hydrate` + `dispatch`
+//! 統合）は [`Checkbox`] が担う。[`Checkbox`] は
+//! [`crate::state::Checkable`]（イシュー #524 で確立し #595 で Switch から
+//! 共通化昇格した 2 値チェック状態機械）を埋め込み、dispatch 語彙
+//! （`"check"`/`"uncheck"`/`"toggle"`）・fail-closed hydration を
+//! [`crate::switch::Switch`] と揃える。indeterminate（3 値目）は
+//! [`Checkable`](crate::state::Checkable) のスコープ外のため、[`Checkbox`]
+//! の dispatch/hydration 経路では表現できない — インタラクティブな
+//! tri-state 対応（プログラム的な indeterminate 設定の dispatch/hydration
+//! 化）は #595 の out-of-scope（PR 本文参照）。SSR 静的 props
+//! （[`CheckedState::Indeterminate`]）としての表現は本モジュールのパーツ
+//! 関数群で引き続き可能。
 //!
 //! # セキュリティ不変条件
 //!
@@ -52,7 +62,9 @@
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_checked, aria_hidden, AriaChecked};
 use crate::data_attrs::{data_disabled, data_invalid, data_readonly, data_required, data_state};
+use crate::state::Checkable;
 use fandhe_frontend_core::Node;
+use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
 
 /// このコンポーネントの anatomy（`data-scope="checkbox"` を固定）。
 const ANATOMY: Anatomy = anatomy("checkbox");
@@ -73,14 +85,26 @@ pub enum CheckedState {
     Indeterminate,
 }
 
+/// `"indeterminate"` の `data-state` 値。3 値目のみ本モジュール local で
+/// 定義する（[`crate::state::DATA_STATE_CHECKED`]/
+/// [`crate::state::DATA_STATE_UNCHECKED`] は 2 値の共通機械
+/// [`crate::state::Checkable`] が管理する値であり、`"indeterminate"` を
+/// 含まない。§設計判断はモジュール冒頭「状態機械 / dispatch 統合との境界」
+/// 節・イシュー #595 参照）。
+const DATA_STATE_INDETERMINATE: &str = "indeterminate";
+
 impl CheckedState {
-    /// `data-state` の属性値文字列を返す。
+    /// `data-state` の属性値文字列を返す。`Unchecked`/`Checked` は
+    /// [`crate::state::Checkable`] が一元管理する共通値語彙
+    /// （[`crate::state::checked_data_state`]）を再利用し、`Indeterminate`
+    /// のみ本モジュール固有の値を返す（3 値のうち 2 値は Switch/RadioGroup
+    /// と共有、1 値は Checkbox 固有というイシュー #595 の設計判断を反映）。
     #[must_use]
     pub const fn as_data_state(self) -> &'static str {
         match self {
-            Self::Unchecked => "unchecked",
-            Self::Checked => "checked",
-            Self::Indeterminate => "indeterminate",
+            Self::Unchecked => crate::state::DATA_STATE_UNCHECKED,
+            Self::Checked => crate::state::DATA_STATE_CHECKED,
+            Self::Indeterminate => DATA_STATE_INDETERMINATE,
         }
     }
 
@@ -116,6 +140,24 @@ pub struct CheckboxProps {
     /// 読み取り専用状態。`true` で `data-readonly` を付与する
     /// （ネイティブ `readonly` 属性はチェックボックスに意味を持たないため
     /// 付与しない。ark-ui も `data-readonly` のみを付与する）。
+    pub readonly: bool,
+}
+
+/// [`Checkbox`] の利便メソッドが受け取る disabled/invalid/required/readonly
+/// フラグ束（`checked` は含まない — [`Checkbox::props`] が
+/// `self.checkable.is_checked()` から自動算出するため呼び出し側が渡す
+/// 必要はない）。4 個の独立した `bool` 引数のままだと各利便メソッドの
+/// 引数数が clippy `too_many_arguments`（既定閾値 7）を超えるため、
+/// [`CheckboxProps`] と対になる薄い構造体としてまとめる。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CheckboxFlags {
+    /// [`CheckboxProps::disabled`] 参照。
+    pub disabled: bool,
+    /// [`CheckboxProps::invalid`] 参照。
+    pub invalid: bool,
+    /// [`CheckboxProps::required`] 参照。
+    pub required: bool,
+    /// [`CheckboxProps::readonly`] 参照。
     pub readonly: bool,
 }
 
@@ -278,6 +320,171 @@ pub fn hidden_input<'a>(
     }
     merged.extend(attrs);
     ANATOMY.part("hidden-input", "input", merged, vec![])
+}
+
+/// Checkbox のアクション（WASM 境界の文字列 dispatch と
+/// [`Checkbox::decode_action`] で接続する）。payload は使用しない。
+///
+/// [`crate::state::CheckableAction`] の互換 re-export（[`crate::switch::SwitchAction`]
+/// と同じ様式。indeterminate へ遷移するアクションは存在しない —
+/// モジュール冒頭「状態機械 / dispatch 統合との境界」節参照）。
+pub use crate::state::CheckableAction as CheckboxAction;
+
+/// [`crate::state::Checkable`]（#524 で確立・#595 で Switch から共通化
+/// 昇格した 2 値チェック状態機械）を埋め込んだ Checkbox の動的状態機械。
+///
+/// [`CheckboxProps`]（SSR 静的 props、indeterminate を含む 3 値）とは異なり、
+/// 本型は dispatch/hydration で遷移可能な checked/unchecked の 2 値のみを
+/// 保持する。各パーツ関数（[`root`]/[`control`]/[`indicator`]/[`label`]/
+/// [`hidden_input`]）へ現在の checked 状態から導いた [`CheckboxProps`] を
+/// 注入する利便メソッドを提供する（[`crate::switch::Switch`] と同じ利便
+/// メソッド様式）。`Default` は unchecked（SSR の状態なし初期描画に対応する
+/// 既定値）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Checkbox {
+    checkable: Checkable,
+}
+
+impl Checkbox {
+    /// `data-hydrate-checked` 属性名のフィールド部分
+    /// （[`Checkable::FIELD_CHECKED`] と同一値。
+    /// `docs/api/hydration-state-format.md` の `<field>` 命名規約に従う）。
+    pub const FIELD_CHECKED: &'static str = Checkable::FIELD_CHECKED;
+
+    /// 指定した初期状態で Checkbox を生成する。
+    #[must_use]
+    pub fn new(checked: bool) -> Self {
+        Self {
+            checkable: Checkable::new(checked),
+        }
+    }
+
+    /// 現在チェックされているかどうか。
+    #[must_use]
+    pub fn is_checked(&self) -> bool {
+        self.checkable.is_checked()
+    }
+
+    /// 現在の `data-state` 属性値（`"checked"`/`"unchecked"`）。
+    #[must_use]
+    pub fn data_state(&self) -> &'static str {
+        self.checkable.data_state()
+    }
+
+    /// 現在の checked 状態と呼び出し側の [`CheckboxFlags`] から
+    /// [`CheckboxProps`] を組み立てる非公開ヘルパ。indeterminate は本型の
+    /// スコープ外のため常に `Checked`/`Unchecked` のいずれかになる。
+    fn props(&self, flags: CheckboxFlags) -> CheckboxProps {
+        CheckboxProps {
+            checked: if self.is_checked() {
+                CheckedState::Checked
+            } else {
+                CheckedState::Unchecked
+            },
+            disabled: flags.disabled,
+            invalid: flags.invalid,
+            required: flags.required,
+            readonly: flags.readonly,
+        }
+    }
+
+    /// [`root`] へ現在の状態を注入する利便メソッド。
+    #[must_use]
+    pub fn root<'a>(
+        &self,
+        flags: CheckboxFlags,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        root(&self.props(flags), attrs, children)
+    }
+
+    /// [`control`] へ現在の状態を注入する利便メソッド。
+    #[must_use]
+    pub fn control<'a>(
+        &self,
+        flags: CheckboxFlags,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        control(&self.props(flags), attrs, children)
+    }
+
+    /// [`indicator`] へ現在の状態を注入する利便メソッド。
+    #[must_use]
+    pub fn indicator<'a>(
+        &self,
+        flags: CheckboxFlags,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        indicator(&self.props(flags), attrs, children)
+    }
+
+    /// [`label`] へ現在の状態を注入する利便メソッド。
+    #[must_use]
+    pub fn label<'a>(
+        &self,
+        flags: CheckboxFlags,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        label(&self.props(flags), attrs, children)
+    }
+
+    /// [`hidden_input`] へ現在の状態を注入する利便メソッド。
+    #[must_use]
+    pub fn hidden_input<'a>(
+        &self,
+        name: &'a str,
+        value: &'a str,
+        flags: CheckboxFlags,
+        attrs: Vec<(&'a str, &'a str)>,
+    ) -> Node {
+        hidden_input(&self.props(flags), name, value, attrs)
+    }
+}
+
+impl Component for Checkbox {
+    type Action = CheckboxAction;
+
+    fn update(&mut self, action: CheckboxAction) {
+        self.checkable.update(action);
+    }
+
+    /// 共通契約（`data-state` 整合・hydration ルート）のみを表す最小正準
+    /// ビュー（root > control(indicator)、`name`/`value` を要する
+    /// [`hidden_input`] は含めない。[`crate::switch::Switch::view`] と同じ
+    /// 位置付け）。公開 UI としての利用は想定しない（実際の UI 構築は
+    /// §パーツ関数群・利便メソッドを呼び出し側が組み合わせる）。
+    fn view(&self) -> Node {
+        let props = self.props(CheckboxFlags::default());
+        root(
+            &props,
+            Vec::new(),
+            vec![control(
+                &props,
+                Vec::new(),
+                vec![indicator(&props, Vec::new(), Vec::new())],
+            )],
+        )
+    }
+
+    fn decode_action(name: &str, payload: &str) -> Option<CheckboxAction> {
+        Checkable::decode_action(name, payload)
+    }
+}
+
+impl Hydrate for Checkbox {
+    fn hydration_attrs(&self) -> Vec<(String, String)> {
+        self.checkable.hydration_attrs()
+    }
+
+    fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
+        Ok(Self {
+            checkable: Checkable::from_hydration_attrs(attrs)?,
+        })
+    }
 }
 
 #[cfg(test)]
@@ -552,5 +759,102 @@ mod tests {
             vec![],
         );
         assert_eq!(render(&via_control), render(&via_el));
+    }
+
+    // --- Checkbox: dispatch 統合（イシュー #595） ---
+
+    use fandhe_frontend_interactive::{dispatch, render_for_hydration};
+
+    #[test]
+    fn checkbox_default_is_unchecked() {
+        assert!(!Checkbox::default().is_checked());
+    }
+
+    #[test]
+    fn checkbox_dispatch_check_uncheck_toggle() {
+        let mut cb = Checkbox::default();
+
+        assert!(dispatch(&mut cb, "check", ""));
+        assert!(cb.is_checked());
+
+        assert!(dispatch(&mut cb, "uncheck", ""));
+        assert!(!cb.is_checked());
+
+        assert!(dispatch(&mut cb, "toggle", ""));
+        assert!(cb.is_checked());
+        assert!(dispatch(&mut cb, "toggle", ""));
+        assert!(!cb.is_checked());
+    }
+
+    #[test]
+    fn checkbox_dispatch_ignores_unknown_action() {
+        let mut cb = Checkbox::new(true);
+        assert!(!dispatch(&mut cb, "no_such_action", "x"));
+        assert!(cb.is_checked());
+    }
+
+    #[test]
+    fn checkbox_convenience_methods_reflect_state_and_flags() {
+        let mut cb = Checkbox::default();
+        assert!(dispatch(&mut cb, "check", ""));
+
+        let all_flags = CheckboxFlags {
+            disabled: true,
+            invalid: true,
+            required: true,
+            readonly: true,
+        };
+        let root_html = render(&cb.root(all_flags, vec![], vec![]));
+        assert!(root_html.contains(r#"data-state="checked""#));
+        assert!(root_html.contains(r#"data-disabled="""#));
+        assert!(root_html.contains(r#"data-invalid="""#));
+        assert!(root_html.contains(r#"data-required="""#));
+        assert!(root_html.contains(r#"data-readonly="""#));
+
+        let hidden_input_html =
+            render(&cb.hidden_input("terms", "on", CheckboxFlags::default(), vec![]));
+        assert!(hidden_input_html.contains(r#"checked="""#));
+    }
+
+    #[test]
+    fn checkbox_default_ssr_view_has_no_hydrate_attr() {
+        let rendered = render(&Checkbox::default().view());
+        assert!(rendered.contains(r#"data-state="unchecked""#));
+        assert!(!rendered.contains("data-hydrate-"));
+    }
+
+    #[test]
+    fn checkbox_hydration_round_trip() {
+        let cb = Checkbox::new(true);
+        let rendered = render(&render_for_hydration(&cb));
+        assert!(rendered.contains(r#"data-hydrate-checked="checked""#));
+
+        let restored = Checkbox::from_hydration_attrs(&cb.hydration_attrs()).unwrap();
+        assert_eq!(restored, cb);
+    }
+
+    #[test]
+    fn checkbox_from_hydration_attrs_missing_attr_does_not_panic() {
+        let err = Checkbox::from_hydration_attrs(&[]).unwrap_err();
+        assert_eq!(
+            err,
+            fandhe_frontend_interactive::HydrateError::MissingAttr(
+                "data-hydrate-checked".to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn checkbox_from_hydration_attrs_rejects_indeterminate_and_unknown_values() {
+        // 共通機械 Checkable は 2 値のみを扱うため、"indeterminate" を含む
+        // 未知値は改ざん入力として一律拒否する（§設計判断 2.2 参照）。
+        for bogus in ["indeterminate", "CHECKED", "<script>alert(1)</script>", ""] {
+            let attrs = vec![("data-hydrate-checked".to_string(), bogus.to_string())];
+            let err = Checkbox::from_hydration_attrs(&attrs).unwrap_err();
+            assert!(matches!(
+                err,
+                fandhe_frontend_interactive::HydrateError::InvalidValue { .. }
+            ));
+        }
     }
 }

@@ -23,11 +23,15 @@
 //!
 //! WAI-ARIA radio パターンの状態語彙は [`crate::state::OpenState`] の
 //! `"open"`/`"closed"` とは異なる（「開閉」ではなく「選択」を表すため）。
-//! そのため本モジュールは [`DATA_STATE_CHECKED`]/[`DATA_STATE_UNCHECKED`] を
-//! 独自定数として定義する。Checkbox（#535）/ Switch（#537）と語彙が重複
-//! する可能性があるが、両者マージ前の共通化（`data_attrs` への昇格）は
-//! 並列実装との競合を避けるため本イシューでは行わない（`out-of-scope-tracking.md`
-//! 準拠、PR 本文で Issue 化を提案する）。
+//! [`DATA_STATE_CHECKED`]/[`DATA_STATE_UNCHECKED`] は Checkbox（#535）/
+//! Switch（#537）と共有する値語彙であり、イシュー #595 で
+//! [`crate::state::DATA_STATE_CHECKED`]/[`crate::state::DATA_STATE_UNCHECKED`]
+//! （共通機械 [`crate::state::Checkable`] が使う値定数）へ共通化した。本
+//! モジュールの `DATA_STATE_CHECKED`/`DATA_STATE_UNCHECKED` はその
+//! 互換 re-export であり、既存公開パス `radio_group::DATA_STATE_CHECKED`
+//! を維持する。状態機械そのもの（「選択値」を持つ [`SingleSelect`]）は
+//! 2 値の [`crate::state::Checkable`] へ写像できないため、引き続き
+//! [`SingleSelect`] を埋め込む（値語彙の共通化のみが #595 の対象）。
 //!
 //! # ネイティブ semantics
 //!
@@ -67,38 +71,30 @@
 //!   indicator 除外と同じ判断」を踏襲）。
 //! - **キーボードナビゲーション（矢印キー・roving tabindex）**: SSR 静的
 //!   マークアップに寄与しない CSR 挙動層のため未提供。
-//! - **`"checked"`/`"unchecked"` 語彙の共通化**: Checkbox #535 / Switch #537
-//!   マージ後に `data_attrs` へ昇格するかを判断する。
 //! - **Field（#538）との `aria-describedby` / `data-invalid` 連携**: #538 の
 //!   スコープ。
+//!
+//! `"checked"`/`"unchecked"` 語彙の共通化（Checkbox #535 / Switch #537 と
+//! 揃える）は #595 で解消済み（本モジュール冒頭「data-state 語彙」節参照）。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_labelledby, aria_orientation, role};
 use crate::data_attrs::{data_disabled, data_orientation, data_state, Orientation};
-use crate::state::{SingleSelect, SingleSelectAction};
+use crate::state::{checked_data_state, SingleSelect, SingleSelectAction};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
 
 /// `data-state` 属性値 "checked"。WAI-ARIA radio パターンの選択語彙
 /// （[`crate::state::OpenState`] の `"open"`/`"closed"` とは別語彙。
-/// モジュール doc 参照）。
-pub const DATA_STATE_CHECKED: &str = "checked";
+/// モジュール doc 参照）。[`crate::state::DATA_STATE_CHECKED`] の互換
+/// re-export（イシュー #595 で共通化。既存公開パス
+/// `radio_group::DATA_STATE_CHECKED` を維持する）。
+pub use crate::state::DATA_STATE_CHECKED;
 /// `data-state` 属性値 "unchecked"。[`DATA_STATE_CHECKED`] 参照。
-pub const DATA_STATE_UNCHECKED: &str = "unchecked";
+pub use crate::state::DATA_STATE_UNCHECKED;
 
 /// RadioGroup の anatomy（`data-scope="radio-group"` 固定）。
 const ANATOMY: Anatomy = anatomy("radio-group");
-
-/// `checked` から `data-state` の値（`"checked"`/`"unchecked"`）を導く内部
-/// ヘルパ。[`item`] / [`item_control`] / [`item_text`] / [`item_hidden_input`]
-/// で値語彙を統一するために共用する。
-const fn data_state_str(checked: bool) -> &'static str {
-    if checked {
-        DATA_STATE_CHECKED
-    } else {
-        DATA_STATE_UNCHECKED
-    }
-}
 
 /// Root パーツ（`div`、`role="radiogroup"`）。
 ///
@@ -162,8 +158,10 @@ pub fn item<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> =
-        vec![data_state(data_state_str(checked)), ("data-value", value)];
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        data_state(checked_data_state(checked)),
+        ("data-value", value),
+    ];
     merged.extend(data_disabled(disabled));
     merged.extend(attrs);
     ANATOMY.part("item", "label", merged, children)
@@ -176,7 +174,7 @@ pub fn item<'a>(
 /// `aria-checked` は付与しない（二重読み上げ防止、モジュール doc 参照）。
 #[must_use]
 pub fn item_control<'a>(checked: bool, disabled: bool, attrs: Vec<(&'a str, &'a str)>) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(data_state_str(checked))];
+    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(checked_data_state(checked))];
     merged.extend(data_disabled(disabled));
     merged.extend(attrs);
     ANATOMY.part("item-control", "span", merged, vec![])
@@ -190,7 +188,7 @@ pub fn item_text<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(data_state_str(checked))];
+    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(checked_data_state(checked))];
     merged.extend(data_disabled(disabled));
     merged.extend(attrs);
     ANATOMY.part("item-text", "span", merged, children)
@@ -218,7 +216,7 @@ pub fn item_hidden_input<'a>(
     let mut merged: Vec<(&'a str, &'a str)> = vec![
         ("type", "radio"),
         ("value", value),
-        data_state(data_state_str(checked)),
+        data_state(checked_data_state(checked)),
     ];
     if let Some(name) = name {
         merged.push(("name", name));
@@ -263,7 +261,7 @@ impl RadioGroup {
     /// 項目 `value` の現在の `data-state` 値（`"checked"`/`"unchecked"`）。
     #[must_use]
     pub fn item_checked_data_state(&self, value: &str) -> &'static str {
-        data_state_str(self.is_checked(value))
+        checked_data_state(self.is_checked(value))
     }
 
     /// [`item`] へ項目 `value` の現在状態を注入する利便メソッド。

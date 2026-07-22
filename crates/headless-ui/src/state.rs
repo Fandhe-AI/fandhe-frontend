@@ -2,13 +2,17 @@
 //!
 //! Dialog / Accordion / Tabs / Collapsible / Popover / Tooltip（Phase 2 の
 //! #526〜#533）は「open/closed・selected」という同型の状態遷移を持つ。
-//! これを各コンポーネントで個別実装すると、dispatch 契約（未知アクション
-//! no-op）・`data-state` 整合・SSR/hydration 契約の実装が分散し、レビュー・
-//! XSS 回帰の検証面が増える。本モジュールは
+//! Switch / Checkbox / RadioGroup（Phase 2 の #535〜#537）は「checked/
+//! unchecked」という別語彙の同型の状態遷移を持つ。これを各コンポーネントで
+//! 個別実装すると、dispatch 契約（未知アクション no-op）・`data-state`
+//! 整合・SSR/hydration 契約の実装が分散し、レビュー・XSS 回帰の検証面が
+//! 増える（イシュー #595 で Switch/RadioGroup/Checkbox に分散していた
+//! `"checked"/"unchecked"` 語彙・状態機械を本モジュールへ集約した）。本
+//! モジュールは
 //! [`fandhe_frontend_interactive::Component`]/[`fandhe_frontend_interactive::Hydrate`]
-//! にそのまま乗る形で、この 2 種の状態機械（[`Disclosure`]/[`SingleSelect`]）
-//! を一度だけ実装し、Phase 2 の各コンポーネントがフィールドとして埋め込み
-//! `decode_action`/`update` を委譲することで再利用する。
+//! にそのまま乗る形で、この 3 種の状態機械（[`Disclosure`]/[`SingleSelect`]/
+//! [`Checkable`]）を一度だけ実装し、Phase 2 の各コンポーネントがフィールド
+//! として埋め込み `decode_action`/`update` を委譲することで再利用する。
 //!
 //! signal/store は導入しない（`docs/policy/intentional-non-adoption.md`
 //! §3.4 準拠。細粒度リアクティブは採用せず、単一状態機械＋明示的 dispatch
@@ -541,6 +545,158 @@ impl Component for MultiSelect {
     }
 }
 
+/// `data-state` 属性値 "checked"（Switch/Checkbox/RadioGroup の
+/// クリックトグル系コンポーネントが共有する値語彙。イシュー #595 で
+/// `crates/headless-ui/src/switch.rs` から本モジュールへ昇格した。
+/// [`DATA_STATE_OPEN`] と同様、属性名 `"data-state"` 自体は
+/// [`crate::data_attrs::data_state`] が一元管理し、本モジュールは値のみを
+/// 定数化する）。
+pub const DATA_STATE_CHECKED: &str = "checked";
+/// `data-state` 属性値 "unchecked"。[`DATA_STATE_CHECKED`] 参照。
+pub const DATA_STATE_UNCHECKED: &str = "unchecked";
+
+/// `checked` から `data-state`/`data-hydrate-checked` の属性値文字列へ
+/// 変換する（[`OpenState::as_data_state`] の bool 版）。
+#[must_use]
+pub const fn checked_data_state(checked: bool) -> &'static str {
+    if checked {
+        DATA_STATE_CHECKED
+    } else {
+        DATA_STATE_UNCHECKED
+    }
+}
+
+/// `data-state`/`data-hydrate-checked` 属性値から `checked` を復元する
+/// （[`OpenState::from_data_state`] の bool 版）。
+///
+/// 未知の値（改ざん・タイポ・`"indeterminate"` を含む）は `None` を返す
+/// （安全側、呼び出し元が [`HydrateError::InvalidValue`] 等へ変換する。
+/// 共通機械は 2 値のみを扱い、3 値 tri-state は本モジュールのスコープ外
+/// — `crates/headless-ui/src/checkbox.rs` の `CheckedState::Indeterminate`
+/// 参照）。
+#[must_use]
+pub fn checked_from_data_state(s: &str) -> Option<bool> {
+    match s {
+        DATA_STATE_CHECKED => Some(true),
+        DATA_STATE_UNCHECKED => Some(false),
+        _ => None,
+    }
+}
+
+/// [`Checkable`] に対する型付きアクション。
+///
+/// WASM 境界の文字列 dispatch（`name`/`payload`）とは
+/// [`Checkable::decode_action`] で接続する（[`Component::decode_action`] 実装）。
+/// payload は使用しない。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckableAction {
+    /// チェックする（オンにする）。
+    Check,
+    /// チェックを外す（オフにする）。
+    Uncheck,
+    /// チェック状態を反転する。
+    Toggle,
+}
+
+/// checked/unchecked（bool）の 2 値を持つチェック状態機械。
+///
+/// Switch / Checkbox / RadioGroup（の各項目）等、クリックで on/off を
+/// トグルする headless コンポーネントが埋め込んで使う共通状態機械。
+/// `Default` は unchecked（SSR の状態なし初期描画に対応する既定値）。
+///
+/// indeterminate（tri-state）は本型のスコープ外である。WAI-ARIA / ark-ui
+/// とも indeterminate はアプリがプログラム的に設定する派生状態であり、
+/// クリックトグルのジェスチャ遷移先は checked/unchecked の 2 値に閉じる
+/// ため、共通機械へ 3 値目を持ち込むと大半の利用箇所（Switch/RadioGroup/
+/// Menu CheckboxItem）で不正値域だけが増える。tri-state Checkbox の
+/// dispatch/hydration 対応は #595 の out-of-scope（PR 本文参照）。
+///
+/// [`Component`]/[`Hydrate`] の `view()`/`hydration_attrs()` は
+/// [`Disclosure`] と同様「`data-state` 整合・hydration ルート」という
+/// 共通契約のみを担う最小正準ビューであり、Phase 2 の具象コンポーネント
+/// （[`crate::switch::Switch`] 等）は本型をフィールドとして埋め込み、
+/// `decode_action`/`update` を委譲したうえで独自の anatomy を別途組み立てる
+/// 想定である。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Checkable {
+    checked: bool,
+}
+
+impl Checkable {
+    /// `data-hydrate-checked` 属性名のフィールド部分
+    /// （`docs/api/hydration-state-format.md` の `<field>` 命名規約に従う）。
+    pub const FIELD_CHECKED: &'static str = "checked";
+
+    /// 指定した初期状態でチェック状態機械を生成する。
+    #[must_use]
+    pub fn new(checked: bool) -> Self {
+        Self { checked }
+    }
+
+    /// 現在チェックされているかどうか。
+    #[must_use]
+    pub fn is_checked(&self) -> bool {
+        self.checked
+    }
+
+    /// 現在の `data-state` 属性値（`"checked"`/`"unchecked"`）。
+    #[must_use]
+    pub fn data_state(&self) -> &'static str {
+        checked_data_state(self.checked)
+    }
+}
+
+impl Component for Checkable {
+    type Action = CheckableAction;
+
+    fn update(&mut self, action: CheckableAction) {
+        self.checked = match action {
+            CheckableAction::Check => true,
+            CheckableAction::Uncheck => false,
+            CheckableAction::Toggle => !self.checked,
+        };
+    }
+
+    /// 共通契約（`data-state` 整合・hydration ルート）のみを表す最小正準
+    /// ビュー。Phase 2 の具象コンポーネントは自身の anatomy を別途組み立て、
+    /// 本メソッドの出力をそのまま公開 API として使うことは想定しない。
+    fn view(&self) -> Node {
+        el("div", vec![data_state_attr(self.data_state())], Vec::new())
+    }
+
+    fn decode_action(name: &str, _payload: &str) -> Option<CheckableAction> {
+        match name {
+            "check" => Some(CheckableAction::Check),
+            "uncheck" => Some(CheckableAction::Uncheck),
+            "toggle" => Some(CheckableAction::Toggle),
+            _ => None,
+        }
+    }
+}
+
+impl Hydrate for Checkable {
+    fn hydration_attrs(&self) -> Vec<(String, String)> {
+        vec![(
+            format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_CHECKED),
+            self.data_state().to_string(),
+        )]
+    }
+
+    fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
+        let attr_name = format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_CHECKED);
+        let raw = attrs
+            .iter()
+            .find(|(k, _)| *k == attr_name)
+            .map(|(_, v)| v.as_str())
+            .ok_or_else(|| HydrateError::MissingAttr(attr_name.clone()))?;
+        let checked = checked_from_data_state(raw).ok_or_else(|| HydrateError::InvalidValue {
+            attr: attr_name.clone(),
+            reason: "expected \"checked\" or \"unchecked\"".to_string(),
+        })?;
+        Ok(Self { checked })
+    }
+}
+
 impl Hydrate for MultiSelect {
     /// [`codec::encode_list`] で選択値を運ぶ（0 件以上、[`SingleSelect`] と
     /// 同じ codec を流用しシリアライズを再実装しない）。
@@ -940,6 +1096,120 @@ mod tests {
         // 属性を合成する（`crates/interactive/src/lib.rs` 参照）。本型の
         // view() が常に Element を返すことを固定する回帰テスト。
         let node = Disclosure::default().view();
+        assert!(matches!(node, Node::Element { .. }));
+    }
+
+    // --- Checkable: checked_data_state / checked_from_data_state ---
+
+    #[test]
+    fn checked_data_state_round_trips_through_checked_from_data_state() {
+        for checked in [true, false] {
+            assert_eq!(
+                checked_from_data_state(checked_data_state(checked)),
+                Some(checked)
+            );
+        }
+    }
+
+    #[test]
+    fn checked_from_data_state_rejects_unknown_value() {
+        assert_eq!(checked_from_data_state("CHECKED"), None);
+        assert_eq!(checked_from_data_state(""), None);
+        assert_eq!(checked_from_data_state("<script>"), None);
+        // 3 値 tri-state は共通機械のスコープ外（checkbox.rs 参照）であり、
+        // "indeterminate" も未知値として拒否される。
+        assert_eq!(checked_from_data_state("indeterminate"), None);
+    }
+
+    // --- Checkable: dispatch 経由の遷移 ---
+
+    #[test]
+    fn checkable_default_is_unchecked() {
+        assert!(!Checkable::default().is_checked());
+    }
+
+    #[test]
+    fn checkable_dispatch_check_uncheck_toggle() {
+        let mut c = Checkable::default();
+
+        assert!(dispatch(&mut c, "check", ""));
+        assert!(c.is_checked());
+
+        assert!(dispatch(&mut c, "uncheck", ""));
+        assert!(!c.is_checked());
+
+        assert!(dispatch(&mut c, "toggle", ""));
+        assert!(c.is_checked());
+        assert!(dispatch(&mut c, "toggle", ""));
+        assert!(!c.is_checked());
+    }
+
+    #[test]
+    fn checkable_dispatch_ignores_unknown_action() {
+        let mut c = Checkable::new(true);
+        assert!(!dispatch(&mut c, "no_such_action", "x"));
+        assert!(c.is_checked());
+    }
+
+    // --- Checkable: data-state 整合 ---
+
+    #[test]
+    fn checkable_view_data_state_matches_current_state() {
+        let unchecked = Checkable::new(false);
+        assert!(render(&unchecked.view()).contains(r#"data-state="unchecked""#));
+
+        let checked = Checkable::new(true);
+        assert!(render(&checked.view()).contains(r#"data-state="checked""#));
+    }
+
+    // --- Checkable: SSR 状態なし初期描画 ---
+
+    #[test]
+    fn checkable_default_ssr_view_has_no_hydrate_attr() {
+        let rendered = render(&Checkable::default().view());
+        assert!(rendered.contains(r#"data-state="unchecked""#));
+        assert!(!rendered.contains("data-hydrate-"));
+    }
+
+    // --- Checkable: hydration 経路 ---
+
+    #[test]
+    fn checkable_hydration_round_trip() {
+        let c = Checkable::new(true);
+        let rendered = render(&render_for_hydration(&c));
+        assert!(rendered.contains(r#"data-hydrate-checked="checked""#));
+
+        let restored = Checkable::from_hydration_attrs(&c.hydration_attrs()).unwrap();
+        assert_eq!(restored, c);
+    }
+
+    // --- Checkable: 改ざん耐性 ---
+
+    #[test]
+    fn checkable_from_hydration_attrs_missing_attr() {
+        let err = Checkable::from_hydration_attrs(&[]).unwrap_err();
+        assert_eq!(
+            err,
+            HydrateError::MissingAttr("data-hydrate-checked".to_string())
+        );
+    }
+
+    #[test]
+    fn checkable_from_hydration_attrs_invalid_value_does_not_panic() {
+        for bogus in ["CHECKED", "indeterminate", "<script>alert(1)</script>", ""] {
+            let attrs = vec![("data-hydrate-checked".to_string(), bogus.to_string())];
+            let err = Checkable::from_hydration_attrs(&attrs).unwrap_err();
+            assert!(matches!(err, HydrateError::InvalidValue { .. }));
+        }
+    }
+
+    #[test]
+    fn checkable_view_root_is_element_for_render_for_hydration() {
+        // render_for_hydration はルートが Node::Element であることを前提に
+        // 属性を合成する。本型の view() が常に Element を返すことを固定する
+        // 回帰テスト（disclosure_view_root_is_element_for_render_for_hydration
+        // と同型）。
+        let node = Checkable::default().view();
         assert!(matches!(node, Node::Element { .. }));
     }
 
