@@ -34,6 +34,14 @@
 //! 提供する。初期表示（ハイドレーション）では呼ばない
 //! （`docs/design/loader-trait-design.md` §4・§7.3、`csr` モジュール doc 参照）。
 //!
+//! [`headless`] モジュール（イシュー #580）は headless-ui（`fandhe-frontend-headless-ui`）の
+//! `data-scope`/`data-part`（anatomy セレクタ）クリックを
+//! `fandhe_frontend_interactive::dispatch` の文字列アクションへ写像する、
+//! [`events`] とは独立した配線基盤を提供する。headless-ui のマークアップは
+//! `data-action` を持たないため [`events::wire_events`] の対象外であり、
+//! 本モジュールが (`data-scope`, `data-part`) の静的マッピング表を持つ別系統
+//! の配線層として補う。
+//!
 //! [`nav`] モジュール（イシュー #374）はクライアント側ルーティング
 //! （history API 連携・URL 同期・遷移時 loader 配線）を担う。[`csr`] の
 //! loader 解決層を再利用しつつ、`data-nav` クリック委譲・`popstate` 連携・
@@ -93,6 +101,7 @@
 pub mod csr;
 pub mod events;
 pub mod focus_trap;
+pub mod headless;
 pub mod headless_avatar;
 pub mod hydration;
 pub mod keynav;
