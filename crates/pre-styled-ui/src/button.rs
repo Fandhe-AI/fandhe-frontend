@@ -235,7 +235,7 @@ pub fn button<'a>(
 
     let mut node_children = Vec::with_capacity(children.len() + 1);
     if props.loading {
-        node_children.push(spinner_decorative(Size::Sm));
+        node_children.push(spinner_decorative(Size::Sm, props.palette));
     }
     node_children.extend(children);
 
@@ -393,6 +393,23 @@ mod tests {
         assert!(!html.contains(r#"role="status""#));
         assert!(!html.contains("aria-label"));
         assert!(html.contains(r#"aria-hidden="true""#));
+    }
+
+    /// Bugbot 指摘（PR #628）の回帰テスト: 非 accent palette かつ
+    /// `loading: true` のボタンで、埋め込まれる装飾用途 Spinner が
+    /// ボタン自身の `colorPalette` 軸を継承すること（`variant_classes` が
+    /// `color-palette` 軸未指定時に既定の accent へ補完し、親ボタンの
+    /// palette を上書きしてしまう不具合の是正）。
+    #[test]
+    fn loading_spinner_inherits_button_palette_instead_of_default_accent() {
+        let props = ButtonProps {
+            loading: true,
+            palette: ColorPalette::Danger,
+            ..ButtonProps::default()
+        };
+        let html = render(&button(&props, vec![], vec![text("Save")]));
+        assert!(html.contains("fd-spinner--color-palette-danger"));
+        assert!(!html.contains("fd-spinner--color-palette-accent"));
     }
 
     #[test]
