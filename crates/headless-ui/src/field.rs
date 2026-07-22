@@ -117,8 +117,16 @@ impl FieldProps<'_> {
     /// 組み立てる（`id`・ネイティブ存在属性・`aria-invalid`・
     /// `aria-describedby`・data-* 4 種）。`extra_attrs` は呼び出し側が
     /// 追加で渡す属性（`name`/`type`/`value` 等）で、末尾に連結する。
+    ///
+    /// `self` は戻り値へ実際には借用を持ち越さない（`state_data_attrs`/
+    /// `aria_invalid` はいずれも `'static` を返す）ため、`self` は出力
+    /// ライフタイム `'a` に紐付けない（無名ライフタイムで受ける）。これに
+    /// より [`input`]/[`textarea`]/[`select`] を [`root`]/[`label`] と同じ
+    /// `&FieldProps<'_>` で受けられ、長寿命の props と短寿命の
+    /// `extra_attrs` を組み合わせても不要な借用チェッカーエラーに当たらない
+    /// （PR #567 レビュー指摘の是正）。
     fn control_attrs<'a>(
-        &'a self,
+        &self,
         control_id: &'a str,
         extra_attrs: Vec<(&'a str, &'a str)>,
     ) -> Vec<(&'a str, &'a str)> {
@@ -214,7 +222,7 @@ pub fn label(props: &FieldProps<'_>, attrs: Vec<(&str, &str)>, children: Vec<Nod
 /// どちらも `false` なら属性自体を出力しない。[`textarea`]/[`select`] も
 /// 同じ合成則に従う。
 #[must_use]
-pub fn input<'a>(props: &'a FieldProps<'a>, extra_attrs: Vec<(&'a str, &'a str)>) -> Node {
+pub fn input<'a>(props: &FieldProps<'_>, extra_attrs: Vec<(&'a str, &'a str)>) -> Node {
     let control_id = props.control_id();
     let described_by = describedby_value(props);
     let mut attrs = props.control_attrs(&control_id, extra_attrs);
@@ -227,7 +235,7 @@ pub fn input<'a>(props: &'a FieldProps<'a>, extra_attrs: Vec<(&'a str, &'a str)>
 /// `textarea` パーツ（`textarea`）。[`input`] と同一の属性則に従う。
 #[must_use]
 pub fn textarea<'a>(
-    props: &'a FieldProps<'a>,
+    props: &FieldProps<'_>,
     extra_attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -249,7 +257,7 @@ pub fn textarea<'a>(
 /// `core` の他タグ関数との混同リスクは低い。
 #[must_use]
 pub fn select<'a>(
-    props: &'a FieldProps<'a>,
+    props: &FieldProps<'_>,
     extra_attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
