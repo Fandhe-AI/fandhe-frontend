@@ -1,0 +1,19 @@
+[package]
+name = "fandhe-frontend-headless-ui"
+version = "0.1.0"
+edition = "2021"
+description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522）。外部依存は fandhe-frontend-core のみ。"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Fandhe-AI/fandhe-frontend"
+readme = "../../README.md"
+keywords = ["frontend", "headless", "ui", "components", "aria"]
+categories = ["web-programming", "gui"]
+
+# 外部依存は fandhe-frontend-core（path）のみを厳守する（イシュー #520 設計前提・
+# .claude/rules/coding-rust.md）。fandhe-frontend-interactive への依存はイシュー #524
+# （開閉状態機械の共通化）で実使用と同時に追加する（fw structure の
+# depends_on 完全一致検証があるため、未使用の先行宣言はしない）。
+[dependencies]
+fandhe-frontend-core = { path = "../core", version = "0.1.0" }
+
+[dev-dependencies]
