@@ -266,7 +266,7 @@ pub fn helper_text(props: &FieldProps<'_>, attrs: Vec<(&str, &str)>, children: V
     merged.extend(crate::data_attrs::data_required(props.required));
     merged.extend(crate::data_attrs::data_readonly(props.readonly));
     merged.extend(attrs);
-    ANATOMY.part("helper_text", "span", merged, children)
+    ANATOMY.part("helper-text", "span", merged, children)
 }
 
 /// `error_text` パーツ（`span`）。`invalid` でないときは `hidden` 存在属性を
@@ -284,7 +284,7 @@ pub fn error_text(props: &FieldProps<'_>, attrs: Vec<(&str, &str)>, children: Ve
     merged.extend(crate::data_attrs::data_required(props.required));
     merged.extend(crate::data_attrs::data_readonly(props.readonly));
     merged.extend(attrs);
-    ANATOMY.part("error_text", "span", merged, children)
+    ANATOMY.part("error-text", "span", merged, children)
 }
 
 /// `required_indicator` パーツ（`span`）。装飾目的の印であるため
@@ -305,7 +305,7 @@ pub fn required_indicator(
     merged.extend(crate::data_attrs::data_required(props.required));
     merged.extend(crate::data_attrs::data_readonly(props.readonly));
     merged.extend(attrs);
-    ANATOMY.part("required_indicator", "span", merged, children)
+    ANATOMY.part("required-indicator", "span", merged, children)
 }
 
 #[cfg(test)]
@@ -436,7 +436,7 @@ mod tests {
         let node = helper_text(&props, vec![], vec![text("hint")]);
         assert_eq!(
             render(&node),
-            r#"<span data-scope="field" data-part="helper_text" id="f-helper-text" data-disabled="">hint</span>"#
+            r#"<span data-scope="field" data-part="helper-text" id="f-helper-text" data-disabled="">hint</span>"#
         );
     }
 

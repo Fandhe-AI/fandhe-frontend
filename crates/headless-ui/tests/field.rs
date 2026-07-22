@@ -52,7 +52,7 @@ fn field_public_api_is_usable_from_crate_root_and_renders_expected_scaffolding()
     assert!(html.contains(r#"aria-hidden="true""#));
     assert!(html.contains(r#"aria-live="polite""#));
     // required なので required_indicator（aria-hidden="true")は非表示にならない。
-    assert!(html.contains(r#"data-part="required_indicator""#));
+    assert!(html.contains(r#"data-part="required-indicator""#));
     // error_text は invalid でないため hidden。一方 required_indicator は
     // required のため hidden ではない（両パーツの hidden 出現数は 1 のみ）。
     assert_eq!(html.matches(r#"hidden="""#).count(), 1);
