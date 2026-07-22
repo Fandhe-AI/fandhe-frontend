@@ -301,9 +301,9 @@ where
     ///
     /// `component.view()` → [`dom::render_component_html`]（既定エスケープ済み
     /// 出力）を `root_id` 要素へ [`dom::mount_initial`] で反映し、続けて
-    /// [`events::wire_events`]・[`keynav::wire_keynav`]（イシュー #582、
-    /// Tabs/Accordion のキーボード操作）の順にイベント委譲を 1 回だけ
-    /// 登録する。`keynav::wire_keynav` は DOM 属性のみを読み書きする
+    /// [`events::wire_events`]・[`keynav::wire_keynav`]（イシュー #582・#583、
+    /// Tabs/Accordion/Menu/Select/RadioGroup のキーボード操作）の順に
+    /// イベント委譲を 1 回だけ登録する。`keynav::wire_keynav` は DOM 属性のみを読み書きする
     /// ステートレス配線であり、`Self::wire`（束縛点更新・keyed list 更新）
     /// とは独立した経路のため、失敗しても状態管理側の配線
     /// （`events::wire_events`）の成立を妨げない。
