@@ -43,6 +43,10 @@
 //! - [`mod@accordion`]: Root / Item / ItemTrigger / ItemIndicator / ItemContent の
 //!   5 anatomy パーツと [`state::SingleSelect`] を埋め込んだ single モード
 //!   Accordion（[`accordion::Accordion`]、#527）。
+//! - [`mod@tooltip`]: Root/Trigger/Positioner/Content/Arrow/ArrowTip の anatomy
+//!   パーツ関数群と、[`state::Disclosure`] を埋め込んだ [`tooltip::Tooltip`]
+//!   状態機械（#533、親 #530）。WAI-ARIA tooltip パターンに従い `aria-describedby`
+//!   を使う点が [`mod@collapsible`] との違い。
 //! - [`mod@dialog`]: [`dialog::Dialog`] — Root / Trigger / Backdrop /
 //!   Positioner / Content / Title / Description / CloseTrigger の 8 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだモーダルダイアログ（#531）。
@@ -52,6 +56,23 @@
 //!   dispatch は `"select"` のみを受理する（WAI-ARIA radio パターンに選択解除
 //!   ジェスチャは存在しないため、型付き API の `Deselect` のみプログラム的な
 //!   選択解除を許す）。
+//! - [`popover`]: Root / Trigger / Anchor / Positioner / Arrow / ArrowTip /
+//!   Content / Title / Description / CloseTrigger / Indicator の 11 anatomy
+//!   パーツと [`state::Disclosure`] を埋め込んだ [`popover::Popover`] を提供する
+//!   headless Popover コンポーネント（#532）。
+//! - [`mod@menu`]: Root / Trigger / Indicator / Positioner / Content / Arrow /
+//!   ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator の 11 anatomy
+//!   パーツと [`state::Disclosure`] を埋め込んだ [`menu::Menu`]
+//!   （headless Menu コンポーネント、#540）。構造上最も近い先行例は
+//!   [`popover::Popover`]（trigger 起点のオーバーレイ + `Disclosure` 埋め込み）
+//!   であり、本モジュールはそのパターンに完全準拠する。
+//! - [`mod@switch`]: Root / Control / Thumb / Label / HiddenInput の 5 anatomy
+//!   パーツと、`"checked"`/`"unchecked"` 語彙の [`switch::Switch`] 状態機械
+//!   （#537、親 #534）。ark-ui 準拠の値語彙が [`state::Disclosure`] の
+//!   `"open"`/`"closed"` と異なるため、[`state`] を埋め込まず
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する点が
+//!   [`mod@collapsible`] との違い。
 //!
 //! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
 //! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
@@ -70,9 +91,13 @@ pub mod aria;
 pub mod collapsible;
 pub mod data_attrs;
 pub mod dialog;
+pub mod menu;
+pub mod popover;
 pub mod radio_group;
 pub mod state;
+pub mod switch;
 pub mod tabs;
+pub mod tooltip;
 
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
@@ -85,9 +110,12 @@ pub use data_attrs::{
     Orientation,
 };
 pub use dialog::Dialog;
+pub use menu::Menu;
 pub use radio_group::RadioGroup;
 pub use state::{
     Disclosure, DisclosureAction, OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CLOSED,
     DATA_STATE_OPEN,
 };
+pub use switch::{Switch, SwitchAction};
 pub use tabs::{tabs, TabItem, TabsProps};
+pub use tooltip::Tooltip;
