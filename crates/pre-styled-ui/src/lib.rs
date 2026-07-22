@@ -12,8 +12,12 @@
 //!    `fandhe_frontend_core::Node` を返す通常の Rust 関数として実装する
 //!    （REQ-5、マクロ DSL は採用しない）。
 //! 2. 出力は `fandhe_frontend_core::render` の既定エスケープを必ず経由する。
-//!    **本クレート内では `raw_html()` を使用しない**（新たなエスケープ迂回経路を
-//!    作らない）。
+//!    **`raw_html()` の使用は [`stylesheet::StyleSheet::style_element`] 内の
+//!    レビュー済み 1 箇所（`#[expect(clippy::disallowed_methods, reason =
+//!    "ESCAPE-REVIEWED: ...")]` 付き）に限定する**（イシュー #605）。
+//!    [`StyleSheet`] は検証済み CSS のみを保持する型であり、任意文字列からの
+//!    直接構築経路を公開しないため、新たなエスケープ迂回経路を作らない
+//!    （詳細は [`stylesheet`] モジュール doc 参照）。
 //! 3. **`unsafe` コード禁止**: `#![forbid(unsafe_code)]` によりクレート全体で
 //!    機械的に禁止する（`crates/core/tests/unsafe_boundary.rs` が workspace
 //!    member を自動発見して強制する）。
@@ -62,16 +66,27 @@
 //! （`Dialog`/`Accordion`/`Menu`/`Select`）は headless 層からそのまま
 //! 再エクスポートし（`pub use ...::*`）、新たな出力経路・エスケープ迂回は
 //! 一切持たない。各モジュールの `stylesheet()` が生成する CSS は静的
-//! `.css` ファイルとして配信する利用形態を前提とし、`<style>` タグへの
-//! インライン埋め込み（`raw_html()` が必要になる）は本クレートの責務外
+//! `.css` ファイルとして配信する、または [`stylesheet::StyleSheet`]（#605）へ
+//! 取り込んで `<style>` タグへインライン埋め込む、両方の利用形態を前提とする
 //! （不変条件 2 を参照）。variant（size 等）ごとのクラス切り替えは
 //! headless ラッパー第 2 弾以降のスコープとする（各モジュール rustdoc の
 //! スコープ外節を参照）。
 //!
-//! [`theme`] が生成する CSS は静的 `.css` ファイルとして配信する利用形態を
-//! 前提とし、`<style>` タグへの埋め込み（`raw_html` が必要になる）は本クレート
-//! では提供しない（不変条件 2 を参照）。styled 部品各モジュールの `css()` も
-//! 同じ利用形態を前提とする。
+//! [`theme`] が生成する CSS・styled 部品各モジュールの `css()`/`stylesheet()` は
+//! いずれも静的 `.css` ファイルとして配信する利用形態、または
+//! [`stylesheet::StyleSheet`]（#605）へ取り込んでの `<style>` 要素埋め込みの
+//! 両方の利用形態を前提とする。
+//!
+//! # CSS の書き出し・埋め込みヘルパ（#605）
+//!
+//! [`stylesheet::StyleSheet`] は [`recipe::SlotRecipe::css`]・[`theme::Theme::to_css`]
+//! ・各 styled 部品の `css()`/`stylesheet()` が返す決定的 CSS 文字列を集約し、
+//! (a) [`stylesheet::StyleSheet::write_css_file`] による静的 `.css` ファイル
+//! 書き出し（SSG・ビルドスクリプト向け）と、(b)
+//! [`stylesheet::StyleSheet::style_element`] による SSR 用 `<style>` 要素
+//! 埋め込みの 2 経路を提供する。検証済み CSS のみを保持する型で `raw_html()`
+//! を内部に閉じ込め、呼び出し側へエスケープ迂回経路を公開しない（不変条件 2 の
+//! 唯一の例外、詳細は [`stylesheet`] モジュール doc 参照）。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -88,6 +103,7 @@ pub mod menu;
 pub mod recipe;
 pub mod select;
 pub mod spinner;
+pub mod stylesheet;
 pub mod tabs;
 pub mod theme;
 
@@ -98,3 +114,4 @@ pub use card::CardVariant;
 pub use css::{decl, Declaration};
 pub use recipe::{Size, SlotRecipe, VariantValue};
 pub use spinner::{spinner, SpinnerProps};
+pub use stylesheet::{StyleSheet, StylesheetError};

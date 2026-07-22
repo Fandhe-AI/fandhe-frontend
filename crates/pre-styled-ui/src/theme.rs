@@ -8,9 +8,12 @@
 //!
 //! # 他クレート・他モジュールとの契約
 //!
-//! - [`Theme::to_css`] の出力は `<style>` タグへの埋め込みを想定しない。本クレートの
-//!   不変条件（`raw_html()` 不使用、[`crate`] の rustdoc 参照）を維持するため、静的
-//!   `.css` ファイルとして配信する利用形態を前提とする。
+//! - [`Theme::to_css`] の出力は静的 `.css` ファイルとして配信する利用形態、または
+//!   [`crate::stylesheet::StyleSheet::push_theme`] で取り込んで
+//!   [`crate::stylesheet::StyleSheet::style_element`] により `<style>` 要素へ
+//!   埋め込む利用形態の両方を前提とする（#605、`raw_html()` は
+//!   [`crate::stylesheet::StyleSheet`] 内のレビュー済み 1 箇所に限定、
+//!   [`crate`] の rustdoc 参照）。
 //! - [`color_var`] / [`space_var`] / [`typography_var`] は、イシュー #548（variant
 //!   API）・#550/#551（styled 部品）が `var(--fandhe-...)` 参照を組み立てる際に使う
 //!   想定のヘルパ。
@@ -369,9 +372,9 @@ impl Theme {
     /// 3 と 4 の dark トークン列は同一の内部ヘルパ（[`Theme::write_dark_declarations`]）
     /// から生成し、二重管理による乖離を構造的に防ぐ。
     ///
-    /// 呼び出し元は返り値を静的 `.css` ファイルとして配信する想定であり、
-    /// `<style>` タグへの埋め込みは本クレートの責務外（[`crate`] 冒頭の
-    /// 不変条件を参照）。
+    /// 呼び出し元は返り値を静的 `.css` ファイルとして配信する、または
+    /// [`crate::stylesheet::StyleSheet::push_theme`] へ渡して `<style>` 要素へ
+    /// 埋め込む（#605、[`crate`] 冒頭の不変条件を参照）。
     #[must_use]
     pub fn to_css(&self) -> String {
         let mut out = String::new();
