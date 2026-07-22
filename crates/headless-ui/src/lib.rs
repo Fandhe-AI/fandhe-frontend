@@ -46,6 +46,12 @@
 //! - [`mod@dialog`]: [`dialog::Dialog`] — Root / Trigger / Backdrop /
 //!   Positioner / Content / Title / Description / CloseTrigger の 8 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだモーダルダイアログ（#531）。
+//! - [`mod@radio_group`]: Root / Label / Item / ItemControl / ItemText /
+//!   ItemHiddenInput の 6 anatomy パーツと [`state::SingleSelect`] を埋め込んだ
+//!   [`radio_group::RadioGroup`]（#536、親 #534）。クライアント由来の文字列
+//!   dispatch は `"select"` のみを受理する（WAI-ARIA radio パターンに選択解除
+//!   ジェスチャは存在しないため、型付き API の `Deselect` のみプログラム的な
+//!   選択解除を許す）。
 //!
 //! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
 //! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
@@ -64,6 +70,7 @@ pub mod aria;
 pub mod collapsible;
 pub mod data_attrs;
 pub mod dialog;
+pub mod radio_group;
 pub mod state;
 pub mod tabs;
 
@@ -78,6 +85,7 @@ pub use data_attrs::{
     Orientation,
 };
 pub use dialog::Dialog;
+pub use radio_group::RadioGroup;
 pub use state::{
     Disclosure, DisclosureAction, OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CLOSED,
     DATA_STATE_OPEN,
