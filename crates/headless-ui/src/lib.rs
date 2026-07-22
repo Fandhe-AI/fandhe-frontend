@@ -40,6 +40,10 @@
 //! - [`mod@accordion`]: Root / Item / ItemTrigger / ItemIndicator / ItemContent の
 //!   5 anatomy パーツと [`state::SingleSelect`] を埋め込んだ single モード
 //!   Accordion（[`accordion::Accordion`]、#527）。
+//! - [`mod@tooltip`]: Root/Trigger/Positioner/Content/Arrow/ArrowTip の anatomy
+//!   パーツ関数群と、[`state::Disclosure`] を埋め込んだ [`tooltip::Tooltip`]
+//!   状態機械（#533、親 #530）。WAI-ARIA tooltip パターンに従い `aria-describedby`
+//!   を使う点が [`mod@collapsible`] との違い。
 //!
 //! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
 //! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
@@ -58,6 +62,7 @@ pub mod aria;
 pub mod collapsible;
 pub mod data_attrs;
 pub mod state;
+pub mod tooltip;
 
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
