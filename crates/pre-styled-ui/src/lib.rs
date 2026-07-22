@@ -33,9 +33,12 @@
 //! - [`theme`]（#547/#606）: テーマトークン・ダークモード基盤。#606 で
 //!   角丸（`radii`）・影（`shadows`）トークングループを追加した。
 //! - [`css`]（#548）: CSS 宣言の低レベル表現・検証・シリアライズ。
-//! - [`recipe`]（#548/#606）: slot recipe 本体・[`recipe::SlotRecipe`]・
+//! - [`recipe`]（#548/#606/#604）: slot recipe 本体・[`recipe::SlotRecipe`]・
 //!   [`recipe::VariantValue`]。#606 で標準 `colorPalette` 軸
-//!   （[`recipe::ColorPalette`]）を追加した。
+//!   （[`recipe::ColorPalette`]）を追加した。compoundVariants 相当（複数
+//!   variant 軸の組み合わせ条件スタイル）は
+//!   [`recipe::SlotRecipe::compound_variant`]・[`recipe::VariantCondition`]・
+//!   [`recipe::when`]（イシュー #604）。
 //! - 状態機械を要しない単純 styled 部品 5 種（#550、#606 で colorPalette 軸・
 //!   radii/shadow トークン参照へ配線）:
 //!   - [`mod@button`]: [`button::button`]（単一 recipe、`<button type="button">`。
@@ -119,6 +122,6 @@ pub use badge::{badge, BadgeProps, BadgeVariant};
 pub use button::{button, ButtonProps, ButtonVariant};
 pub use card::CardVariant;
 pub use css::{decl, Declaration};
-pub use recipe::{ColorPalette, Size, SlotRecipe, VariantValue};
+pub use recipe::{when, ColorPalette, Size, SlotRecipe, VariantCondition, VariantValue};
 pub use spinner::{spinner, SpinnerProps};
 pub use stylesheet::{StyleSheet, StylesheetError};
