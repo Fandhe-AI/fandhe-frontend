@@ -54,6 +54,13 @@
 //!   Content / Title / Description / CloseTrigger / Indicator の 11 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだ [`popover::Popover`] を提供する
 //!   headless Popover コンポーネント（#532）。
+//! - [`mod@switch`]: Root / Control / Thumb / Label / HiddenInput の 5 anatomy
+//!   パーツと、`"checked"`/`"unchecked"` 語彙の [`switch::Switch`] 状態機械
+//!   （#537、親 #534）。ark-ui 準拠の値語彙が [`state::Disclosure`] の
+//!   `"open"`/`"closed"` と異なるため、[`state`] を埋め込まず
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する点が
+//!   [`mod@collapsible`] との違い。
 //!
 //! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
 //! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
@@ -74,6 +81,7 @@ pub mod data_attrs;
 pub mod dialog;
 pub mod popover;
 pub mod state;
+pub mod switch;
 pub mod tabs;
 pub mod tooltip;
 
@@ -92,5 +100,6 @@ pub use state::{
     Disclosure, DisclosureAction, OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CLOSED,
     DATA_STATE_OPEN,
 };
+pub use switch::{Switch, SwitchAction};
 pub use tabs::{tabs, TabItem, TabsProps};
 pub use tooltip::Tooltip;
