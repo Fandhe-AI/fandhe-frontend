@@ -373,20 +373,30 @@ impl Progress {
     /// 出力し、実際の値は styled 層/呼び出し側が CSS で定義する（headless
     /// 中立）。`data-orientation` は circular に意味を持たないため付与
     /// しない（モジュール doc の circular 節を参照）。
+    ///
+    /// `attrs` に呼び出し側が `("style", ...)` を渡した場合は
+    /// [`Anatomy::part`](crate::anatomy::Anatomy::part) の
+    /// `data-scope`/`data-part` dedup と同様の理由（重複属性による無効な
+    /// HTML 出力・後勝ちの非決定的な描画の回避）でフレームワーク側の
+    /// 固定 `style` を優先し、呼び出し側の `style` は無視する（`root`/
+    /// `track`/`range` は固定 `style` を持たないため、この dedup は
+    /// circle 系 3 パーツ固有の挙動）。
     #[must_use]
     pub fn circle<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
         let mut merged: Vec<(&'a str, &'a str)> =
             vec![data_state(self.data_state()), ("style", CIRCLE_STYLE)];
-        merged.extend(attrs);
+        merged.extend(drop_style_attr(attrs));
         ANATOMY.part("circle", "svg", merged, children)
     }
 
     /// CircleTrack パーツ（`circle`）。Circle の背景となる輪郭円。
+    ///
+    /// `style` の dedup 方針は [`Progress::circle`] のドキュメントを参照。
     #[must_use]
     pub fn circle_track<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
         let mut merged: Vec<(&'a str, &'a str)> =
             vec![data_state(self.data_state()), ("style", CIRCLE_TRACK_STYLE)];
-        merged.extend(attrs);
+        merged.extend(drop_style_attr(attrs));
         ANATOMY.part("circle-track", "circle", merged, children)
     }
 
@@ -397,7 +407,8 @@ impl Progress {
     /// `style` を出力する（[`circle_range_determinate_style`]）。
     /// indeterminate のときはジオメトリのみの [`CIRCLE_TRACK_STYLE`] と
     /// 同型の固定 `style` に留め、進捗系の値を捏造しない（モジュール doc
-    /// の circular 節を参照）。
+    /// の circular 節を参照）。`style` の dedup 方針は [`Progress::circle`]
+    /// のドキュメントを参照。
     #[must_use]
     pub fn circle_range<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
         let style = match self.percent() {
@@ -406,9 +417,26 @@ impl Progress {
         };
         let mut merged: Vec<(&str, &str)> =
             vec![data_state(self.data_state()), ("style", style.as_str())];
-        merged.extend(attrs);
+        merged.extend(drop_style_attr(attrs));
         ANATOMY.part("circle-range", "circle", merged, children)
     }
+}
+
+/// circle 系パーツ（[`Progress::circle`]/[`Progress::circle_track`]/
+/// [`Progress::circle_range`]）がフレームワーク側で固定 `style` を
+/// 先頭に積んだ後、呼び出し側 `attrs` を連結する前に使う dedup ヘルパ。
+///
+/// [`crate::anatomy::Anatomy::part`] が `data-scope`/`data-part` を
+/// 呼び出し側の指定より優先して dedup するのと同じ理由（重複属性による
+/// 無効な HTML 出力・後勝ちの非決定的な描画の回避、fail-closed）で、
+/// 呼び出し側が `("style", ...)`（大文字小文字を無視して比較）を渡しても
+/// 除外する。root/track/range（linear）は固定 `style` を持たないため
+/// この関数を通す必要がなく、circle 系 3 パーツのみが呼び出す。
+fn drop_style_attr<'a>(attrs: Vec<(&'a str, &'a str)>) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !k.eq_ignore_ascii_case("style"))
+        .collect()
 }
 
 /// Progress のアクション（WASM 境界の文字列 dispatch と
@@ -753,6 +781,27 @@ mod tests {
         let html =
             render(&p.circle_range(vec![("data-testid", "\" onmouseover=\"alert(1)")], vec![]));
         assert!(!html.contains("onmouseover=\"alert(1)"));
+    }
+
+    /// レビュー指摘（イシュー #600 aca1d78 レビュー、Low）回帰: circle 系
+    /// 3 パーツはフレームワーク側の固定 `style` を先頭に積むため、呼び出し
+    /// 側が `attrs` 経由で `("style", ...)` を渡しても `<svg style="..."
+    /// style="...">` のように重複出力してはならない（無効な HTML を防ぐ）。
+    #[test]
+    fn circular_caller_supplied_style_is_dropped_for_all_three_parts() {
+        let p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
+
+        let circle_html = render(&p.circle(vec![("style", "color: red")], vec![]));
+        assert_eq!(circle_html.matches("style=").count(), 1);
+        assert!(!circle_html.contains("color: red"));
+
+        let track_html = render(&p.circle_track(vec![("STYLE", "color: red")], vec![]));
+        assert_eq!(track_html.matches("style=").count(), 1);
+        assert!(!track_html.contains("color: red"));
+
+        let range_html = render(&p.circle_range(vec![("style", "color: red")], vec![]));
+        assert_eq!(range_html.matches("style=").count(), 1);
+        assert!(!range_html.contains("color: red"));
     }
 
     // --- Anatomy::part fail-closed 回帰 ---
