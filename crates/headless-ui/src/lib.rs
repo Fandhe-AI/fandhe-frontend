@@ -109,6 +109,9 @@
 //! 呼び出して値（`"open"`/`"closed"`）を決める側に徹する（属性名の重複定義を
 //! 避ける）。各コンポーネントの anatomy 定義（Accordion / Dialog 等の parts
 //! 一覧）は Phase 2（#526〜#544）のスコープ。
+//!
+//! - [`mod@checkbox`]: ark-ui Checkbox 相当の anatomy（イシュー #535）。
+//!   dispatch 統合（クリックトグル等の動的状態遷移）は #524 のスコープ。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -117,6 +120,7 @@ pub mod accordion;
 pub mod anatomy;
 pub mod aria;
 pub mod avatar;
+pub mod checkbox;
 pub mod collapsible;
 pub mod data_attrs;
 pub mod dialog;
