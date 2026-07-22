@@ -34,6 +34,12 @@
 //!   #526〜#533）が共通で使う「open/closed・selected」の dispatch 契約・
 //!   `data-state` 整合・SSR/hydration 契約をここに一度だけ実装し、各コンポーネントは
 //!   フィールドとして埋め込んで再利用する。
+//! - [`mod@collapsible`]: Root/Trigger/Indicator/Content の anatomy パーツ関数群と、
+//!   [`state::Disclosure`] を埋め込んだ [`collapsible::Collapsible`] 状態機械
+//!   （#529、親 #526）。Phase 2 で [`state`] を具象コンポーネントへ適用する最初の例。
+//! - [`mod@accordion`]: Root / Item / ItemTrigger / ItemIndicator / ItemContent の
+//!   5 anatomy パーツと [`state::SingleSelect`] を埋め込んだ single モード
+//!   Accordion（[`accordion::Accordion`]、#527）。
 //! - [`popover`]: Root / Trigger / Anchor / Positioner / Arrow / ArrowTip /
 //!   Content / Title / Description / CloseTrigger / Indicator の 11 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだ [`popover::Popover`] を提供する
@@ -50,8 +56,10 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod accordion;
 pub mod anatomy;
 pub mod aria;
+pub mod collapsible;
 pub mod data_attrs;
 pub mod popover;
 pub mod state;
