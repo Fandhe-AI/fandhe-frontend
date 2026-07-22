@@ -40,7 +40,9 @@ fn full_assembly_wires_aria_controls_labelledby_and_all_parts_appear() {
     let item = select::item(
         OpenState::Open,
         false,
+        true,
         "vue",
+        Some("item-vue"),
         vec![],
         vec![item_text, item_indicator],
     );
@@ -52,6 +54,7 @@ fn full_assembly_wires_aria_controls_labelledby_and_all_parts_appear() {
         OpenState::Open,
         Some("select-content-1"),
         Some("select-label-1"),
+        Some("item-vue"),
         vec![],
         vec![item_group],
     );
@@ -108,6 +111,12 @@ fn full_assembly_wires_aria_controls_labelledby_and_all_parts_appear() {
     assert!(html.contains(r#"role="group""#));
     assert!(html.contains(r#"aria-selected="true""#));
 
+    // highlight の SSR 表現（イシュー #599）: item の data-highlighted/id と
+    // content の aria-activedescendant が同一 id で対応する。
+    assert!(html.contains(r#"data-highlighted="""#));
+    assert!(html.contains(r#"id="item-vue""#));
+    assert!(html.contains(r#"aria-activedescendant="item-vue""#));
+
     // hidden_select のフォーム統合。
     assert!(html.contains(r#"<select"#));
     assert!(html.contains(r#"aria-hidden="true""#));
@@ -122,7 +131,7 @@ fn full_assembly_wires_aria_controls_labelledby_and_all_parts_appear() {
 
 #[test]
 fn positioner_and_content_closed_have_hidden_and_no_role_leak() {
-    let content = select::content(OpenState::Closed, None, None, vec![], vec![]);
+    let content = select::content(OpenState::Closed, None, None, None, vec![], vec![]);
     let positioner = select::positioner(OpenState::Closed, vec![], vec![content]);
     let html = render(&positioner);
     assert!(html.contains(r#"data-state="closed""#));
@@ -134,7 +143,7 @@ fn positioner_and_content_closed_have_hidden_and_no_role_leak() {
 fn dispatch_open_close_toggle_flip_data_state_across_parts() {
     let mut s = Select::default();
     assert!(!s.is_open());
-    assert!(render(&s.content(None, None, vec![], vec![])).contains(r#"hidden="""#));
+    assert!(render(&s.content(None, None, None, vec![], vec![])).contains(r#"hidden="""#));
 
     assert!(dispatch(&mut s, "open", ""));
     assert!(s.is_open());
@@ -143,7 +152,7 @@ fn dispatch_open_close_toggle_flip_data_state_across_parts() {
         render(&s.trigger(false, None, None, vec![], vec![])).contains(r#"aria-expanded="true""#)
     );
     assert!(render(&s.positioner(vec![], vec![])).contains(r#"data-state="open""#));
-    assert!(!render(&s.content(None, None, vec![], vec![])).contains("hidden"));
+    assert!(!render(&s.content(None, None, None, vec![], vec![])).contains("hidden"));
 
     assert!(dispatch(&mut s, "close", ""));
     assert!(!s.is_open());
@@ -164,8 +173,10 @@ fn dispatch_select_updates_value_and_closes_listbox_close_on_select() {
     assert_eq!(s.selected(), Some("vue"));
     assert!(!s.is_open());
 
-    assert!(render(&s.item("vue", false, vec![], vec![])).contains(r#"aria-selected="true""#));
-    assert!(render(&s.item("react", false, vec![], vec![])).contains(r#"aria-selected="false""#));
+    assert!(render(&s.item("vue", false, false, None, vec![], vec![]))
+        .contains(r#"aria-selected="true""#));
+    assert!(render(&s.item("react", false, false, None, vec![], vec![]))
+        .contains(r#"aria-selected="false""#));
 }
 
 #[test]
@@ -258,7 +269,23 @@ fn controls_labelledby_value_and_option_payloads_are_escaped_end_to_end() {
         vec![],
         vec![],
     );
-    let item = select::item(OpenState::Closed, false, ATTR_BREAK_PAYLOAD, vec![], vec![]);
+    let item = select::item(
+        OpenState::Closed,
+        false,
+        false,
+        ATTR_BREAK_PAYLOAD,
+        Some(ATTR_BREAK_PAYLOAD),
+        vec![],
+        vec![],
+    );
+    let content = select::content(
+        OpenState::Closed,
+        None,
+        None,
+        Some(ATTR_BREAK_PAYLOAD),
+        vec![],
+        vec![],
+    );
     let hidden_select = select::hidden_select(
         None,
         None,
@@ -269,7 +296,7 @@ fn controls_labelledby_value_and_option_payloads_are_escaped_end_to_end() {
     let html = render(&select::root(
         OpenState::Closed,
         vec![],
-        vec![trigger, item, hidden_select],
+        vec![trigger, item, content, hidden_select],
     ));
 
     assert!(!html.contains("onmouseover=\"alert(1)"));

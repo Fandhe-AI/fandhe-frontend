@@ -1,18 +1,19 @@
-//! `fandhe_frontend_wasm_full::keynav`（Tabs/Accordion のキーボード操作・
-//! イシュー #582、親 #581）の native テスト。
+//! `fandhe_frontend_wasm_full::keynav`（Tabs/Accordion/Menu/Select/RadioGroup
+//! のキーボード操作・イシュー #582・#583、親 #581）の native テスト。
 //!
-//! `keynav` モジュールの純粋層（[`tabs_next_index`]/[`accordion_next_index`]）
-//! は web-sys に依存しないため、`wasm32` ターゲット・実 DOM を介さず native の
-//! `cargo test --workspace` から公開 API 経由で直接検証できる
-//! （`wasm-full/tests/nav_native.rs` と同じ 2 層構成方針）。詳細な網羅ケース
-//! （orientation 別 Arrow・disabled スキップ・loopFocus 有無等）はモジュール内
-//! 単体テスト（`crates/wasm-full/src/keynav.rs`）に既に持つため、本ファイルは
-//! 「公開 API 経由で壊れていないか」の統合確認に絞る。配線層
-//! （`wire_keynav`、`#[cfg(target_arch = "wasm32")]`）の検証は
+//! `keynav` モジュールの純粋層（[`tabs_next_index`]/[`accordion_next_index`]/
+//! [`highlight_next_index`]/[`radio_next_index`]）は web-sys に依存しないため、
+//! `wasm32` ターゲット・実 DOM を介さず native の `cargo test --workspace` から
+//! 公開 API 経由で直接検証できる（`wasm-full/tests/nav_native.rs` と同じ
+//! 2 層構成方針）。詳細な網羅ケース（orientation 別 Arrow・disabled スキップ・
+//! loopFocus 有無等）はモジュール内単体テスト（`crates/wasm-full/src/keynav.rs`）
+//! に既に持つため、本ファイルは「公開 API 経由で壊れていないか」の統合確認に
+//! 絞る。配線層（`wire_keynav`、`#[cfg(target_arch = "wasm32")]`）の検証は
 //! `wasm-full/tests/keynav_browser.rs`（実ブラウザ）が担う。
 
 use fandhe_frontend_wasm_full::keynav::{
-    accordion_next_index, loop_focus_from_attr, tabs_next_index, Modifiers, Orientation,
+    accordion_next_index, highlight_next_index, loop_focus_from_attr, menu_loop_focus_from_attr,
+    radio_next_index, tabs_next_index, Modifiers, Orientation,
 };
 
 /// 検証 1: Tabs horizontal の ArrowRight/ArrowLeft がフォーカスを移動する。
@@ -209,6 +210,66 @@ fn empty_all_disabled_and_out_of_range_are_noop_not_panic() {
             "ArrowRight",
             Orientation::Horizontal,
             true,
+            Modifiers::default(),
+            &disabled
+        ),
+        None
+    );
+}
+
+/// 検証 8: Menu/Select 共用の [`highlight_next_index`] は、highlight 位置
+/// なし（`None`）からの ArrowDown で先頭、ArrowUp で末尾へ移動し、既定では
+/// 循環しない（`menu_loop_focus_from_attr` の既定 false、Tabs の
+/// `loop_focus_from_attr`・既定 true とは逆）。
+#[test]
+fn highlight_next_index_defaults_to_no_loop_and_menu_loop_focus_defaults_false() {
+    let disabled = [false, false, false];
+    assert!(!menu_loop_focus_from_attr(None));
+    assert!(menu_loop_focus_from_attr(Some("true")));
+
+    assert_eq!(
+        highlight_next_index(None, "ArrowDown", false, Modifiers::default(), &disabled),
+        Some(0)
+    );
+    assert_eq!(
+        highlight_next_index(None, "ArrowUp", false, Modifiers::default(), &disabled),
+        Some(2)
+    );
+    assert_eq!(
+        highlight_next_index(Some(2), "ArrowDown", false, Modifiers::default(), &disabled),
+        None
+    );
+    assert_eq!(
+        highlight_next_index(Some(2), "ArrowDown", true, Modifiers::default(), &disabled),
+        Some(0)
+    );
+}
+
+/// 検証 9: RadioGroup 専用の [`radio_next_index`] は常に循環し、
+/// `orientation` が `Some` のときその軸のキーのみを受理する
+/// （`None` のときは両軸を受理する）。
+#[test]
+fn radio_next_index_always_loops_and_orientation_restricts_axis() {
+    let disabled = [false, false, false];
+    assert_eq!(
+        radio_next_index(2, "ArrowRight", None, Modifiers::default(), &disabled),
+        Some(0)
+    );
+    assert_eq!(
+        radio_next_index(
+            0,
+            "ArrowDown",
+            Some(Orientation::Horizontal),
+            Modifiers::default(),
+            &disabled
+        ),
+        None
+    );
+    assert_eq!(
+        radio_next_index(
+            0,
+            "ArrowRight",
+            Some(Orientation::Vertical),
             Modifiers::default(),
             &disabled
         ),

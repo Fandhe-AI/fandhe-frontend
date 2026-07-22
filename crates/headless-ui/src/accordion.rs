@@ -4,22 +4,27 @@
 //!（`.claude/skills/ark-ui/references/components/disclosure/accordion.md`）を
 //! 参考に、Root / Item / ItemTrigger / ItemIndicator / ItemContent の 5
 //! anatomy パーツと、Phase 1（#524）の [`crate::state::SingleSelect`] を
-//! 埋め込んだ「高々 1 項目が開く」状態機械 [`Accordion`] を提供する。
+//! 埋め込んだ「高々 1 項目が開く」状態機械 [`Accordion`]、および
+//! [`crate::state::MultiSelect`]（イシュー #594）を埋め込んだ「複数項目が
+//! 同時に開く」状態機械 [`MultiAccordion`] を提供する。
 //!
 //! # 呼び出し文脈
 //!
 //! SSR は本モジュールの自由関数（[`root`]/[`item`]/[`item_trigger`]/
 //! [`item_indicator`]/[`item_content`]、いずれも純粋関数で完結）を直接呼んで
 //! 組み立てる。各パーツは項目ごとの [`crate::state::OpenState`] を引数で
-//! 受け取るため、自由関数を呼び出し側が項目数分ループさせるだけで複数項目
-//! 同時 open のマークアップも表現できる（dispatch 統合付きの multiple モード
-//! は本イシューのスコープ外。§out-of-scope 参照）。
+//! 受け取るため single/multiple のどちらのモードでも共用できる。
 //!
-//! CSR/hydration は [`Accordion`]（[`fandhe_frontend_interactive::Component`]/
-//! [`fandhe_frontend_interactive::Hydrate`] 実装）を経由し、dispatch
-//! （`"select"`/`"deselect"`/`"toggle"`）で「高々 1 項目が開く」single モードの
-//! 状態遷移をする。`fandhe-frontend-pre-styled-ui`（#546〜）が本モジュールを
-//! 呼んでスタイル済み Accordion を組み立てる想定である。
+//! CSR/hydration は用途に応じて [`Accordion`] または [`MultiAccordion`]
+//! （いずれも [`fandhe_frontend_interactive::Component`]/
+//! [`fandhe_frontend_interactive::Hydrate`] 実装）を使い分ける。
+//! [`Accordion`] は「高々 1 項目が開く」single モード
+//! （dispatch: `"select"`/`"deselect"`/`"toggle"`、`"deselect"` は payload
+//! なしで全解除）を、[`MultiAccordion`] は「複数項目が同時に開く」
+//! multiple モード（dispatch: `"select"`/`"deselect"`/`"toggle"`、
+//! `"deselect"` は項目値 payload 必須で当該項目のみ解除）を提供する。
+//! `fandhe-frontend-pre-styled-ui`（#546〜）が本モジュールを呼んで
+//! スタイル済み Accordion を組み立てる想定である。
 //!
 //! # セキュリティ不変条件
 //!
@@ -40,18 +45,17 @@
 //!   [`crate::state::SingleSelect`] へ全委譲することで、panic せず
 //!   `HydrateError` を返す既存保証をそのまま継承する。
 //!
-//! # out-of-scope（本イシュー #527 のスコープ外）
+//! # out-of-scope（本イシュー #527/#594 のスコープ外）
 //!
-//! - **multiple モード（`MultiSelect` 状態機械）**: 複数項目を同時に dispatch
-//!   経由で開閉する状態機械の新設は行わない（[`crate::state::SingleSelect`]
-//!   の rustdoc が「#527 で判断」としていた対象）。自由関数パーツは項目ごとに
-//!   `OpenState` を受け取る設計のため SSR マークアップとしては複数同時 open
-//!   を表現できるが、dispatch 統合（[`Accordion`]）は single モードのみを
-//!   提供する。
+//! - **全項目一括 close（`MultiSelect` の payload なし deselect 相当）**:
+//!   [`crate::state::MultiSelectAction::Deselect`] は項目単位（payload
+//!   必須）のみを提供する。「どれを閉じるか」の指定なしに全解除する
+//!   アクションはイシュー #594 の dispatch 契約に含まれないため未実装。
 //! - **orientation / キーボードナビゲーション**: SSR 静的マークアップに
-//!   寄与しない CSR 挙動層の責務のため未提供（Tabs の indicator 除外と同じ
-//!   判断）。`data-orientation` が必要な呼び出し側は各パーツの `attrs`
-//!   引数で付与できる（既定エスケープ経由のまま、迂回経路ではない）。
+//!   寄与しない CSR 挙動層の責務のため未提供（Tabs の `data-orientation`
+//!   と異なり、Accordion の orientation は本イシューのスコープ外のまま）。
+//!   `data-orientation` が必要な呼び出し側は各パーツの `attrs` 引数で
+//!   付与できる（既定エスケープ経由のまま、迂回経路ではない）。
 //! - **lazyMount / unmountOnExit / CSS 変数（`--height` 等）**: アニメーション
 //!   対応はスコープ外（[`item_content`] は `hidden` 存在属性のみで closed を
 //!   表現する）。
@@ -62,7 +66,7 @@
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_controls, aria_expanded, aria_labelledby, role};
 use crate::data_attrs::{data_disabled, data_state};
-use crate::state::{OpenState, SingleSelect, SingleSelectAction};
+use crate::state::{MultiSelect, MultiSelectAction, OpenState, SingleSelect, SingleSelectAction};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
 
@@ -298,6 +302,133 @@ impl Hydrate for Accordion {
     fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
         Ok(Self {
             select: SingleSelect::from_hydration_attrs(attrs)?,
+        })
+    }
+}
+
+/// [`MultiSelect`]（イシュー #594）を埋め込んだ Accordion（multiple モード）
+/// の状態機械。
+///
+/// [`Accordion`]（single モード）と対称の API を提供する。「複数項目が同時に
+/// 開く」ことを許すため [`Self::expanded`] は `&[String]` を返す。
+/// [`Component::Action`] は関連型が 1 つのため、single/multiple 双方を 1 型で
+/// 扱おうとすると dispatch 契約（`"deselect"` の payload 有無）が衝突する。
+/// 型を分けることで hydration の解釈（2 件以上のリストを拒否/受理のどちらで
+/// 扱うか）も静的に確定し、fail-closed 性を保つ（詳細は
+/// `docs/design`（該当があれば）または本イシューの実装計画を参照）。
+/// `Default` は全項目 closed（SSR の状態なし初期描画に対応する既定値）。
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MultiAccordion {
+    select: MultiSelect,
+}
+
+impl MultiAccordion {
+    /// 現在開いている項目値（選択順）。
+    #[must_use]
+    pub fn expanded(&self) -> &[String] {
+        self.select.selected()
+    }
+
+    /// 指定した項目値が開いているかどうか。
+    #[must_use]
+    pub fn is_open(&self, value: &str) -> bool {
+        self.select.is_selected(value)
+    }
+
+    /// 項目 `value` の現在の [`OpenState`]。
+    #[must_use]
+    pub fn item_state(&self, value: &str) -> OpenState {
+        if self.is_open(value) {
+            OpenState::Open
+        } else {
+            OpenState::Closed
+        }
+    }
+
+    /// [`item`] へ項目 `value` の現在状態を注入する利便メソッド。
+    #[must_use]
+    pub fn item<'a>(
+        &self,
+        value: &str,
+        disabled: bool,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        item(self.item_state(value), disabled, attrs, children)
+    }
+
+    /// [`item_trigger`] へ項目 `value` の現在状態を注入する利便メソッド。
+    #[must_use]
+    pub fn item_trigger<'a>(
+        &self,
+        value: &str,
+        disabled: bool,
+        id: Option<&'a str>,
+        controls: Option<&'a str>,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        item_trigger(
+            self.item_state(value),
+            disabled,
+            id,
+            controls,
+            attrs,
+            children,
+        )
+    }
+
+    /// [`item_indicator`] へ項目 `value` の現在状態を注入する利便メソッド。
+    #[must_use]
+    pub fn item_indicator<'a>(
+        &self,
+        value: &str,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        item_indicator(self.item_state(value), attrs, children)
+    }
+
+    /// [`item_content`] へ項目 `value` の現在状態を注入する利便メソッド。
+    #[must_use]
+    pub fn item_content<'a>(
+        &self,
+        value: &str,
+        id: Option<&'a str>,
+        labelled_by: Option<&'a str>,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        item_content(self.item_state(value), id, labelled_by, attrs, children)
+    }
+}
+
+impl Component for MultiAccordion {
+    type Action = MultiSelectAction;
+
+    fn update(&mut self, action: MultiSelectAction) {
+        self.select.update(action);
+    }
+
+    /// 共通契約（hydration ルート）のみを表す最小正準ビュー（root、children
+    /// 空）。[`MultiSelect::view`] と同じ位置付け。
+    fn view(&self) -> Node {
+        root(Vec::new(), Vec::new())
+    }
+
+    fn decode_action(name: &str, payload: &str) -> Option<MultiSelectAction> {
+        MultiSelect::decode_action(name, payload)
+    }
+}
+
+impl Hydrate for MultiAccordion {
+    fn hydration_attrs(&self) -> Vec<(String, String)> {
+        self.select.hydration_attrs()
+    }
+
+    fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
+        Ok(Self {
+            select: MultiSelect::from_hydration_attrs(attrs)?,
         })
     }
 }
@@ -716,6 +847,163 @@ mod tests {
         // 属性を合成する（`crates/interactive/src/lib.rs` 参照）。本型の
         // view() が常に Element を返すことを固定する回帰テスト。
         let node = Accordion::default().view();
+        assert!(matches!(node, Node::Element { .. }));
+    }
+
+    // --- MultiAccordion: dispatch 統合（multiple モード） ---
+
+    #[test]
+    fn multi_accordion_default_is_all_closed() {
+        let a = MultiAccordion::default();
+        assert_eq!(a.expanded(), &[] as &[String]);
+        assert!(!a.is_open("a"));
+        assert!(!a.is_open("b"));
+    }
+
+    #[test]
+    fn multi_accordion_dispatch_select_opens_multiple_items_simultaneously() {
+        let mut a = MultiAccordion::default();
+        assert!(dispatch(&mut a, "select", "a"));
+        assert!(a.is_open("a"));
+        assert!(!a.is_open("b"));
+
+        // 複数項目同時 open が本型の存在理由（Accordion は select 2 回目で
+        // 前項目が閉じるが、MultiAccordion は両方 open のまま維持する）。
+        assert!(dispatch(&mut a, "select", "b"));
+        assert!(a.is_open("a"));
+        assert!(a.is_open("b"));
+    }
+
+    #[test]
+    fn multi_accordion_dispatch_toggle_and_deselect_close_only_target_item() {
+        let mut a = MultiAccordion::default();
+        dispatch(&mut a, "select", "a");
+        dispatch(&mut a, "select", "b");
+
+        assert!(dispatch(&mut a, "deselect", "a"));
+        assert!(!a.is_open("a"));
+        assert!(a.is_open("b"));
+
+        assert!(dispatch(&mut a, "toggle", "b"));
+        assert!(!a.is_open("b"));
+        assert_eq!(a.expanded(), &[] as &[String]);
+    }
+
+    #[test]
+    fn multi_accordion_dispatch_ignores_unknown_action() {
+        let mut a = MultiAccordion::default();
+        dispatch(&mut a, "select", "a");
+        assert!(!dispatch(&mut a, "no_such_action", "b"));
+        assert!(a.is_open("a"));
+    }
+
+    // --- MultiAccordion: 利便メソッド経由の描画が状態機械と一致（複数同時 open） ---
+
+    #[test]
+    fn multi_accordion_convenience_methods_reflect_state_for_two_open_items() {
+        let mut a = MultiAccordion::default();
+        dispatch(&mut a, "select", "a");
+        dispatch(&mut a, "select", "b");
+
+        let trigger_a = render(&a.item_trigger("a", false, None, None, vec![], vec![]));
+        assert!(trigger_a.contains(r#"aria-expanded="true""#));
+        let trigger_b = render(&a.item_trigger("b", false, None, None, vec![], vec![]));
+        assert!(trigger_b.contains(r#"aria-expanded="true""#));
+        let trigger_c = render(&a.item_trigger("c", false, None, None, vec![], vec![]));
+        assert!(trigger_c.contains(r#"aria-expanded="false""#));
+
+        let content_a = render(&a.item_content("a", None, None, vec![], vec![]));
+        assert!(!content_a.contains("hidden"));
+        let content_b = render(&a.item_content("b", None, None, vec![], vec![]));
+        assert!(!content_b.contains("hidden"));
+        let content_c = render(&a.item_content("c", None, None, vec![], vec![]));
+        assert!(content_c.contains(r#"hidden="""#));
+    }
+
+    // --- MultiAccordion: SSR 状態なし初期描画 ---
+
+    #[test]
+    fn multi_accordion_default_ssr_view_has_no_hydrate_attr() {
+        let rendered = render(&MultiAccordion::default().view());
+        assert!(!rendered.contains("data-hydrate-"));
+    }
+
+    // --- MultiAccordion: hydration 経路（複数同時 open のラウンドトリップ） ---
+
+    #[test]
+    fn multi_accordion_hydration_round_trip_multiple_selected() {
+        let mut a = MultiAccordion::default();
+        dispatch(&mut a, "select", "tab-1");
+        dispatch(&mut a, "select", "tab-2");
+        let rendered = render(&render_for_hydration(&a));
+        assert!(rendered.contains("data-hydrate-selected="));
+        assert!(rendered.contains("tab-1"));
+        assert!(rendered.contains("tab-2"));
+
+        let restored = MultiAccordion::from_hydration_attrs(&a.hydration_attrs()).unwrap();
+        assert_eq!(restored, a);
+    }
+
+    #[test]
+    fn multi_accordion_hydration_round_trip_unselected() {
+        let a = MultiAccordion::default();
+        let restored = MultiAccordion::from_hydration_attrs(&a.hydration_attrs()).unwrap();
+        assert_eq!(restored, a);
+    }
+
+    #[test]
+    fn multi_accordion_from_hydration_attrs_missing_attr_does_not_panic() {
+        let err = MultiAccordion::from_hydration_attrs(&[]).unwrap_err();
+        assert_eq!(
+            err,
+            HydrateError::MissingAttr("data-hydrate-selected".to_string())
+        );
+    }
+
+    #[test]
+    fn multi_accordion_from_hydration_attrs_duplicate_value_rejected_not_panicking() {
+        use fandhe_frontend_interactive::codec;
+        let bogus = codec::encode_list(&["a".to_string(), "a".to_string()]);
+        let attrs = vec![("data-hydrate-selected".to_string(), bogus)];
+        let err = MultiAccordion::from_hydration_attrs(&attrs).unwrap_err();
+        assert!(matches!(err, HydrateError::InvalidValue { .. }));
+    }
+
+    // --- XSS 回帰: MultiAccordion の dispatch payload/hydration 経路 ---
+
+    #[test]
+    fn multi_accordion_dispatch_select_payload_is_escaped_on_render() {
+        let mut a = MultiAccordion::default();
+        let payload = "\"><script>alert(1)</script>";
+        assert!(dispatch(&mut a, "select", payload));
+
+        let rendered = render(&render_for_hydration(&a));
+        assert!(rendered.contains("data-hydrate-selected="));
+        assert!(rendered.contains("&lt;script&gt;"));
+        assert!(!rendered.contains("<script>alert(1)</script>"));
+        assert!(!rendered.contains(r#""><script"#));
+    }
+
+    #[test]
+    fn multi_accordion_xss_payload_in_hydration_selected_is_rejected_not_rendered() {
+        // 改ざん耐性: from_hydration_attrs は不正な値（重複）を panic せず
+        // 拒否する（MultiSelect の既存保証を MultiAccordion 経由でも固定）。
+        use fandhe_frontend_interactive::codec;
+        let bogus = codec::encode_list(&[
+            "<script>alert(1)</script>".to_string(),
+            "<script>alert(1)</script>".to_string(),
+        ]);
+        let attrs = vec![("data-hydrate-selected".to_string(), bogus)];
+        let err = MultiAccordion::from_hydration_attrs(&attrs).unwrap_err();
+        assert!(matches!(err, HydrateError::InvalidValue { .. }));
+    }
+
+    #[test]
+    fn multi_accordion_view_root_is_element_for_render_for_hydration() {
+        // render_for_hydration はルートが Node::Element であることを前提に
+        // 属性を合成する（`crates/interactive/src/lib.rs` 参照）。本型の
+        // view() が常に Element を返すことを固定する回帰テスト。
+        let node = MultiAccordion::default().view();
         assert!(matches!(node, Node::Element { .. }));
     }
 }

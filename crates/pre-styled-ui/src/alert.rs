@@ -49,6 +49,14 @@ impl VariantValue for AlertStatus {
 }
 
 /// Alert の recipe（scope `"alert"`、[`SLOTS`] の 5 パーツ）。
+///
+/// 公開 API は [`AlertStatus`] のまま変えず（イシュー #606 のスコープ境界:
+/// #572 が示した「colorPalette は通常の variant 軸として表現可能」という
+/// 設計を Alert では表出させない）、各 status の宣言内で
+/// [`crate::recipe::palette_declarations`] が使う `--fandhe-palette-*` 系
+/// custom property を対応するセマンティック色へ束ねたうえで
+/// `color: var(--fandhe-palette)` を参照する（chakra-ui の status→colorPalette
+/// 内部マッピングと同型）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("alert", SLOTS)
         .base(
@@ -57,7 +65,7 @@ fn recipe() -> SlotRecipe {
                 decl("display", "flex"),
                 decl("gap", "0.75rem"),
                 decl("padding", "1rem"),
-                decl("border-radius", "0.375rem"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
             ],
         )
         .base("indicator", vec![decl("flex-shrink", "0")])
@@ -80,39 +88,44 @@ fn recipe() -> SlotRecipe {
             "description",
             vec![decl("font-size", "var(--fandhe-font-font-size-sm)")],
         )
-        .variant(
-            AlertStatus::Info,
-            "root",
-            vec![
-                decl("background", "var(--fandhe-color-bg-subtle)"),
-                decl("color", "var(--fandhe-color-info)"),
-            ],
-        )
-        .variant(
-            AlertStatus::Success,
-            "root",
-            vec![
-                decl("background", "var(--fandhe-color-bg-subtle)"),
-                decl("color", "var(--fandhe-color-success)"),
-            ],
-        )
-        .variant(
-            AlertStatus::Warning,
-            "root",
-            vec![
-                decl("background", "var(--fandhe-color-bg-subtle)"),
-                decl("color", "var(--fandhe-color-warning)"),
-            ],
-        )
-        .variant(
-            AlertStatus::Error,
-            "root",
-            vec![
-                decl("background", "var(--fandhe-color-bg-subtle)"),
-                decl("color", "var(--fandhe-color-danger)"),
-            ],
-        )
+        .variant(AlertStatus::Info, "root", status_declarations("info"))
+        .variant(AlertStatus::Success, "root", status_declarations("success"))
+        .variant(AlertStatus::Warning, "root", status_declarations("warning"))
+        .variant(AlertStatus::Error, "root", status_declarations("danger"))
         .default_variant(AlertStatus::Info)
+}
+
+/// `status` に対応するセマンティック色トークン名（`theme_name`、例:
+/// `AlertStatus::Error` → `"danger"`）から、root slot への宣言列を組み立てる。
+///
+/// `--fandhe-palette`/`--fandhe-palette-emphasized`/`--fandhe-palette-fg` は
+/// [`crate::recipe::palette_declarations`] と同一の名前空間を使うが、Alert は
+/// `ColorPalette` variant を公開しないため直接 `palette_declarations` は使わず、
+/// `status` → セマンティック色の対応をここで固定する。
+fn status_declarations(theme_name: &'static str) -> Vec<crate::css::Declaration> {
+    match theme_name {
+        "info" => vec![
+            decl("--fandhe-palette", "var(--fandhe-color-info)"),
+            decl("background", "var(--fandhe-color-bg-subtle)"),
+            decl("color", "var(--fandhe-palette)"),
+        ],
+        "success" => vec![
+            decl("--fandhe-palette", "var(--fandhe-color-success)"),
+            decl("background", "var(--fandhe-color-bg-subtle)"),
+            decl("color", "var(--fandhe-palette)"),
+        ],
+        "warning" => vec![
+            decl("--fandhe-palette", "var(--fandhe-color-warning)"),
+            decl("background", "var(--fandhe-color-bg-subtle)"),
+            decl("color", "var(--fandhe-palette)"),
+        ],
+        // "danger" および将来呼び出し漏れに対する fail-closed な既定値。
+        _ => vec![
+            decl("--fandhe-palette", "var(--fandhe-color-danger)"),
+            decl("background", "var(--fandhe-color-bg-subtle)"),
+            decl("color", "var(--fandhe-palette)"),
+        ],
+    }
 }
 
 /// Alert の静的 CSS 全文。
@@ -252,5 +265,19 @@ mod tests {
         let html = render(&title(vec![], vec![text("<script>alert(1)</script>")]));
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+    }
+
+    /// イシュー #606: 公開 API（[`AlertStatus`]）のクラス出力は不変のまま、
+    /// 内部で status ごとに `--fandhe-palette` を対応するセマンティック色へ
+    /// 束ね、radii トークンを参照することを固定する。
+    #[test]
+    fn css_output_declares_status_palette_mapping_and_radius_token() {
+        let out = css();
+        assert!(out.contains("border-radius: var(--fandhe-radius-md);"));
+        assert!(out.contains("--fandhe-palette: var(--fandhe-color-info)"));
+        assert!(out.contains("--fandhe-palette: var(--fandhe-color-success)"));
+        assert!(out.contains("--fandhe-palette: var(--fandhe-color-warning)"));
+        assert!(out.contains("--fandhe-palette: var(--fandhe-color-danger)"));
+        assert!(out.contains("color: var(--fandhe-palette);"));
     }
 }
