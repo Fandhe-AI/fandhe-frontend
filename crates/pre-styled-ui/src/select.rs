@@ -13,6 +13,17 @@
 //! `trigger`（listbox 開閉）・`item`（選択有無、`data-state` を再利用）の
 //! `data-state` に応じた見た目の切り替えを [`state_css`] で追加する
 //! （[`crate::dialog`] と同じ手法）。
+//!
+//! # hidden-select の視覚的非表示化・positioner のオーバーレイ配置（PR #575 Bugbot 指摘対応）
+//!
+//! `hidden-select` は form 送信用のネイティブ `<select>` を保持する専用パーツで、
+//! headless 層（`crates/headless-ui/src/select.rs`）は `aria-hidden`/`tabindex`
+//! のみを設定し視覚的な非表示化は行わない契約になっている。styled 層である
+//! 本モジュールが visually-hidden パターン（`position: absolute` + 1px クリップ）
+//! で覆い隠す責務を負う（[`recipe`] の `hidden-select` 規則）。また `positioner`
+//! は `control`（`position: relative` 済み）を基準に `position: absolute` で
+//! 配置し、開いた listbox が通常のフローに残らずオーバーレイ表示になるようにする
+//! （[`crate::dialog`] の `positioner` と同じ配置責務）。
 
 use crate::css::{decl, serialize_rule};
 use crate::recipe::SlotRecipe;
@@ -71,6 +82,16 @@ fn recipe() -> SlotRecipe {
             ],
         )
         .base(
+            "positioner",
+            vec![
+                decl("position", "absolute"),
+                decl("top", "100%"),
+                decl("left", "0"),
+                decl("z-index", "10"),
+                decl("margin-top", "var(--fandhe-space-1)"),
+            ],
+        )
+        .base(
             "content",
             vec![
                 decl("background", "var(--fandhe-color-bg)"),
@@ -102,6 +123,20 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("cursor", "pointer"),
                 decl("color", "var(--fandhe-color-fg-muted)"),
+            ],
+        )
+        .base(
+            "hidden-select",
+            vec![
+                decl("position", "absolute"),
+                decl("width", "1px"),
+                decl("height", "1px"),
+                decl("padding", "0"),
+                decl("margin", "-1px"),
+                decl("overflow", "hidden"),
+                decl("clip", "rect(0, 0, 0, 0)"),
+                decl("white-space", "nowrap"),
+                decl("border", "0"),
             ],
         )
 }
@@ -152,6 +187,17 @@ mod tests {
         let css = stylesheet();
         assert!(!css.contains("</style"));
         assert!(!css.contains('<'));
+    }
+
+    #[test]
+    fn hidden_select_is_visually_hidden_and_positioner_is_absolute() {
+        // PR #575 Bugbot 指摘対応: hidden-select が視覚的に隠され、positioner が
+        // オーバーレイ配置になっていることを固定する。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="select"][data-part="hidden-select"]"#));
+        assert!(css.contains("clip: rect(0, 0, 0, 0);"));
+        assert!(css.contains(r#"[data-scope="select"][data-part="positioner"]"#));
+        assert!(css.contains("position: absolute;"));
     }
 
     #[test]

@@ -11,6 +11,14 @@
 //!
 //! `trigger`/`content` の開閉 `data-state`（open/closed）に応じた見た目の
 //! 切り替えを [`state_css`] で追加する（[`crate::dialog`] と同じ手法）。
+//!
+//! # positioner のオーバーレイ配置（PR #575 Bugbot 指摘対応）
+//!
+//! `positioner` に `position: absolute` を設定し、開いた menu が通常のフローに
+//! 残らずオーバーレイ表示になるようにする（[`crate::dialog`] の `positioner`・
+//! [`crate::select`] の `positioner` と同じ配置責務。呼び出し側で `trigger` の
+//! 祖先に `position: relative` 相当を与える前提は headless 側 `control`/`trigger`
+//! anatomy のレイアウト方針に委ねる）。
 
 use crate::css::{decl, serialize_rule};
 use crate::recipe::SlotRecipe;
@@ -39,12 +47,23 @@ fn recipe() -> SlotRecipe {
         .base(
             "trigger",
             vec![
+                decl("position", "relative"),
                 decl("cursor", "pointer"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
                 decl("border-radius", "0.375rem"),
                 decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
+            ],
+        )
+        .base(
+            "positioner",
+            vec![
+                decl("position", "absolute"),
+                decl("top", "100%"),
+                decl("left", "0"),
+                decl("z-index", "10"),
+                decl("margin-top", "var(--fandhe-space-1)"),
             ],
         )
         .base(
@@ -131,6 +150,15 @@ mod tests {
         let css = stylesheet();
         assert!(!css.contains("</style"));
         assert!(!css.contains('<'));
+    }
+
+    #[test]
+    fn positioner_is_absolutely_positioned_for_overlay() {
+        // PR #575 Bugbot 指摘対応: positioner がオーバーレイ配置になっている
+        // ことを固定する（通常のフローに残ったままにならない）。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="menu"][data-part="positioner"]"#));
+        assert!(css.contains("position: absolute;"));
     }
 
     #[test]

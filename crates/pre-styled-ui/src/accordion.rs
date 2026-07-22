@@ -13,7 +13,11 @@
 //! 項目の開閉 `data-state`（open/closed）に応じて `item-trigger`/
 //! `item-indicator` の見た目を切り替える CSS を [`stylesheet`] へ追加する
 //! （[`state_css`] 参照。[`crate::dialog`] と同じ手法で
-//! [`crate::css::serialize_rule`] を直接使う）。
+//! [`crate::css::serialize_rule`] を直接使う）。`item-indicator` は headless 層
+//! （`crates/headless-ui/src/accordion.rs`）でデフォルト `span`（非置換インライン
+//! 要素）としてレンダリングされ `transform` が効かないため、[`recipe`] の
+//! base 規則で `display: inline-block` を設定し `rotate(180deg)` が実際に
+//! 適用されるようにする（PR #575 Bugbot 指摘対応）。
 
 use crate::css::{decl, serialize_rule};
 use crate::recipe::SlotRecipe;
@@ -63,7 +67,10 @@ fn recipe() -> SlotRecipe {
         )
         .base(
             "item-indicator",
-            vec![decl("color", "var(--fandhe-color-fg-muted)")],
+            vec![
+                decl("display", "inline-block"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+            ],
         )
         .base(
             "item-content",
@@ -119,6 +126,17 @@ mod tests {
         let css = stylesheet();
         assert!(!css.contains("</style"));
         assert!(!css.contains('<'));
+    }
+
+    #[test]
+    fn item_indicator_has_transformable_display() {
+        // PR #575 Bugbot 指摘対応: item-indicator が transform 可能な display
+        // （非デフォルトのインラインボックス）を持つことを固定する。base の
+        // `display: inline-block` がないと `transform: rotate(180deg)`
+        // （state_css）が実際には効かない。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="accordion"][data-part="item-indicator"] {"#));
+        assert!(css.contains("display: inline-block;"));
     }
 
     #[test]

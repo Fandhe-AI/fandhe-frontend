@@ -33,6 +33,15 @@
 //! - フォーカストラップ・Escape キー閉鎖・外側クリック閉鎖・アニメーションは
 //!   headless 層のドキュメント（`crates/headless-ui/src/dialog.rs`）で既に
 //!   スコープ外と明記済みであり、本モジュールもそれを継承する。
+//!
+//! # overlay の stacking context（PR #575 Bugbot 指摘対応）
+//!
+//! `backdrop`/`positioner` は `position: fixed; inset: 0` のビューポート全体
+//! オーバーレイだが、`z-index` を宣言しないとページ内の他の position 指定 UI
+//! （ヘッダー・スティッキーバー・[`crate::menu`]/[`crate::select`] の
+//! `positioner` 等）の下に隠れて操作不能になり得る。[`recipe`] の base 規則で
+//! 両パーツに `z-index` を設定し、常に最前面に来るようにする（menu/select の
+//! dropdown positioner（z-index: 10）より高い値にする）。
 
 use crate::css::{decl, serialize_rule};
 use crate::recipe::SlotRecipe;
@@ -62,6 +71,7 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("position", "fixed"),
                 decl("inset", "0"),
+                decl("z-index", "1000"),
                 decl("background", "rgba(0, 0, 0, 0.4)"),
             ],
         )
@@ -70,6 +80,7 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("position", "fixed"),
                 decl("inset", "0"),
+                decl("z-index", "1001"),
                 decl("display", "flex"),
                 decl("align-items", "center"),
                 decl("justify-content", "center"),
@@ -183,6 +194,16 @@ mod tests {
         let css = stylesheet();
         assert!(!css.contains("</style"));
         assert!(!css.contains('<'));
+    }
+
+    #[test]
+    fn backdrop_and_positioner_declare_stacking_order() {
+        // PR #575 Bugbot 指摘対応: backdrop/positioner が z-index を宣言し、
+        // 他の position 指定 UI の下に隠れないことを固定する。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="dialog"][data-part="backdrop"] {"#));
+        assert!(css.contains("z-index: 1000;"));
+        assert!(css.contains("z-index: 1001;"));
     }
 
     #[test]
