@@ -4,7 +4,7 @@
 
 Rust 製フロントエンドフレームワーク。AI 時代のセキュリティリスク低減を目的に、プレーンな HTML / JavaScript / CSS を尊重しつつ SSR / SPA / SSG / トランジションなどモダン機能を網羅する。部分埋め込みの最小構成からフル機能構成までのグラデーションを持ち、単一実行ファイルでのデプロイ（Docker 想定）を目標とする。
 
-- 正式名称は `fandhe-frontend`（確定、2026-07-19）。決定記録・新旧マッピング表は `docs/design/framework-naming.md` を参照。crate 名は #441 で `rws-*` から `fandhe-frontend-*` へ改名済み。リポジトリ名は #439 で `Fandhe-AI/fandhe-frontend` へ改名済み。全 9 クレート（fandhe-frontend-core / -interactive / -app / -server / -wasm-client / -wasm-full / -wasm-thin / -dist-server / -cli）は v0.1.0 で 2026-07-20 に crates.io へ公開済み。加えて `fandhe-frontend-headless-ui` / `fandhe-frontend-pre-styled-ui`（ark-ui / chakra-ui 参考の 2 層 UI コンポーネント構成、親トラッキング #520 で新設）は crates.io 未公開で開発中
+- 正式名称は `fandhe-frontend`（確定、2026-07-19）。決定記録・新旧マッピング表は `docs/design/framework-naming.md` を参照。crate 名は #441 で `rws-*` から `fandhe-frontend-*` へ改名済み。リポジトリ名は #439 で `Fandhe-AI/fandhe-frontend` へ改名済み。全 9 クレート（fandhe-frontend-core / -interactive / -app / -server / -wasm-client / -wasm-full / -wasm-thin / -dist-server / -cli）は v0.1.0 で 2026-07-20 に crates.io へ公開済み。加えて `fandhe-frontend-headless-ui` / `fandhe-frontend-pre-styled-ui`（ark-ui / chakra-ui 参考の 2 層 UI コンポーネント構成、親トラッキング #520 で新設）も v0.1.0 で crates.io へ公開済み（イシュー #608）
 - 仕様書は [Fandhe-AI/fandhe-frontend-spec](https://github.com/Fandhe-AI/fandhe-frontend-spec) を `docs/spec/` サブモジュールとして取り込み管理
 - 開発は `docs/spec/06-roadmap.md` のマイルストーン MS-1〜MS-5 に従う（最初のタスクは TASK-1.1: `fandhe-frontend-core` 既定エスケープの製品化）
 - 計画クレート: `fandhe-frontend-core`（描画コア・外部依存ゼロ）/ `fandhe-frontend-app` / `fandhe-frontend-server`（SSR/SSG）/ `fandhe-frontend-wasm-client`・`fandhe-frontend-wasm-full`（WASM/CSR）/ `fandhe-frontend-interactive`（状態管理）/ `fandhe-frontend-headless-ui`（headless UI コンポーネント層、#520）/ `fandhe-frontend-pre-styled-ui`（pre-styled UI コンポーネント層、#520）/ `xtask`（CI 計測）/ `fandhe-frontend-cli`（`fw` コマンド・AI 自己保守フック、REQ-13）
@@ -35,7 +35,7 @@ fandhe-frontend/
 │   ├── ssg-blog/             # SSG（generate_pages）による静的ブログ正本サンプル（crates.io バージョン依存、イシュー #501）
 │   ├── dist-server-docker/  # 単一バイナリ配布 + Docker 正本サンプル（crates.io バージョン依存、イシュー #502）
 │   ├── interactive-view-transitions/  # 状態管理（fandhe-frontend-interactive）+ View Transitions 正本サンプル（イシュー #503）
-│   └── headless-pre-styled-ui/  # headless-ui / pre-styled-ui コンポーネントショーケース（crates.io 未公開のため path 依存、`fw new --example` 非対応、イシュー #552）
+│   └── headless-pre-styled-ui/  # headless-ui / pre-styled-ui コンポーネントショーケース（crates.io バージョン依存、`fw new --example` 対応、イシュー #609）
 ├── templates/
 │   ├── default/
 │   │   ├── deny.toml         # 標準プロジェクトテンプレート同梱の cargo-deny 設定（TASK-4.1 / REQ-4）
