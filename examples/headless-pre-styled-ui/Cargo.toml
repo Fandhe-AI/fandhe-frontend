@@ -1,0 +1,28 @@
+[package]
+name = "fandhe-frontend-example-headless-pre-styled-ui"
+version = "0.1.0"
+edition = "2021"
+description = "fandhe-frontend-headless-ui / fandhe-frontend-pre-styled-ui（ark-ui / chakra-ui 参考の 2 層 UI コンポーネント構成）のショーケース正本サンプル（イシュー #552）。"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# 注記（イシュー #552・examples 規約 #499 からの意図的な例外）:
+# `fandhe-frontend-headless-ui` / `fandhe-frontend-pre-styled-ui` は本サンプル
+# 作成時点（2026-07-22）で crates.io 未公開（親トラッキング #520）。他の
+# examples/（ssr-routing・ssg-blog・dist-server-docker・
+# interactive-view-transitions）は crates.io バージョン依存のみで完結する
+# 規約に従うが、本サンプルは暫定的に path 依存を使う（イシュー #552 本文が
+# 明示的に許容）。crates.io 公開後はバージョン依存へ切り替え、`fw new
+# --example` にも登録する（フォローアップ、PR 本文・#520 コメント参照）。
+# `fandhe-frontend-core` も headless-ui 内部の path 依存と `Node` 型を
+# 一致させるため、crates.io バージョン依存ではなく同じ path を指す。
+[dependencies]
+fandhe-frontend-core = { path = "../../crates/core", version = "0.1.0" }
+fandhe-frontend-headless-ui = { path = "../../crates/headless-ui", version = "0.1.0" }
+
+[dev-dependencies]
+
+# root workspace（リポジトリ直下 Cargo.toml の `members = ["crates/*"]`）から
+# 意図的に切り離す。他の examples/* と同じ方針（`ci.md` 参照）。
+[workspace]
+members = ["."]

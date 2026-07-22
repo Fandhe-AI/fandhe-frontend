@@ -1,0 +1,17 @@
+# `fw gate`（`crates/cli/src/gate.rs::run_gate`）が唯一の情報源として読む
+# 構造マニフェスト（イシュー #351 と同じ方針: 生成直後 `fw gate` PASS 保証を
+# examples/headless-pre-styled-ui にも適用する。詳細は
+# `docs/design/structure-manifest.md` §2.2 を参照）。
+#
+# ディレクトリ名 `root` について: 本サンプルのクレートはプロジェクトルート
+# 直下（`src/`）に置かれる。`root` はスキーマ v1 の正式な予約名
+# （`cli/src/structure.rs::ROOT_DIR_KEY`）であり、`examples/ssg-blog` 等と
+# 同じ配置規約に従う。
+
+[manifest]
+version = 1
+
+[directories.root]
+role = "distribution"
+crate = "fandhe-frontend-example-headless-pre-styled-ui"
+description = "headless-ui / pre-styled-ui コンポーネントショーケースの正本サンプル（イシュー #552）"
