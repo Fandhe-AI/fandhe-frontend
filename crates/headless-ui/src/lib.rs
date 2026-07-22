@@ -33,12 +33,16 @@
 //! 一致保証は `fandhe-frontend-interactive` と連携するイシュー #524 のスコープ。
 //! 各コンポーネントの anatomy 定義（Accordion / Dialog 等の parts 一覧）は
 //! Phase 2（#526〜#544）のスコープ。
+//!
+//! - [`mod@checkbox`]: ark-ui Checkbox 相当の anatomy（イシュー #535）。
+//!   dispatch 統合（クリックトグル等の動的状態遷移）は #524 のスコープ。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
 pub mod anatomy;
 pub mod aria;
+pub mod checkbox;
 pub mod data_attrs;
 
 pub use anatomy::{anatomy, Anatomy};
