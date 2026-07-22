@@ -29,20 +29,33 @@
 //! - [`aria`]: `role` / `aria-*` の WAI-ARIA 属性ヘルパ（#523）。
 //! - [`state`]: `fandhe-frontend-interactive` の
 //!   [`fandhe_frontend_interactive::Component`]/[`fandhe_frontend_interactive::Hydrate`]
-//!   抽象へ乗る開閉系状態機械（[`state::Disclosure`]/[`state::SingleSelect`]、#524）。
+//!   抽象へ乗る開閉系状態機械（[`state::Disclosure`]/[`state::SingleSelect`]/
+//!   [`state::MultiSelect`]、#524/#594）。
 //!   Dialog / Accordion / Tabs / Collapsible / Popover / Tooltip（Phase 2 の
 //!   #526〜#533）が共通で使う「open/closed・selected」の dispatch 契約・
 //!   `data-state` 整合・SSR/hydration 契約をここに一度だけ実装し、各コンポーネントは
-//!   フィールドとして埋め込んで再利用する。
+//!   フィールドとして埋め込んで再利用する。[`state::MultiSelect`]（#594）は
+//!   0 個以上の同時選択（[`accordion::MultiAccordion`] の multiple モード）
+//!   向けに [`state::SingleSelect`]（高々 1 個選択）を補完する。
 //! - [`mod@tabs`]: WAI-ARIA APG の Tabs パターンに準拠したマークアップを組み立てる
-//!   [`tabs::tabs`]（#528）。SSR 時点の静的な選択状態のみを扱い、クリック/
-//!   キーボード操作・状態機械連携は後続イシューのスコープ。
+//!   [`tabs::tabs`]（#528）。SSR 時点の静的な選択状態のみを扱い、クリック操作・
+//!   状態機械連携は後続イシューのスコープ。[`tabs::TabsProps`] の
+//!   `activation_mode`/`loop_focus`（イシュー #582）は `list` パーツへ
+//!   `data-activation-mode`/`data-loop-focus` として出力され、
+//!   `fandhe-frontend-wasm-full` の `keynav` モジュールがキーボード操作時の
+//!   活性化タイミング・フォーカス循環を分岐するために読む契約。
+//!   [`tabs::TabsProps::indicator`]（イシュー #601、既定 `false` の opt-in）
+//!   は選択タブの位置を示す `indicator` パーツを追加し、SSR では
+//!   `data-*` フックと CSS 変数（`--left`/`--top`/`--width`/`--height`）の
+//!   初期値のみを出力する（動的計測は wasm/CSR 層の後続責務）。
 //! - [`mod@collapsible`]: Root/Trigger/Indicator/Content の anatomy パーツ関数群と、
 //!   [`state::Disclosure`] を埋め込んだ [`collapsible::Collapsible`] 状態機械
 //!   （#529、親 #526）。Phase 2 で [`state`] を具象コンポーネントへ適用する最初の例。
 //! - [`mod@accordion`]: Root / Item / ItemTrigger / ItemIndicator / ItemContent の
 //!   5 anatomy パーツと [`state::SingleSelect`] を埋め込んだ single モード
-//!   Accordion（[`accordion::Accordion`]、#527）。
+//!   Accordion（[`accordion::Accordion`]、#527）、および
+//!   [`state::MultiSelect`] を埋め込んだ multiple モード Accordion
+//!   （[`accordion::MultiAccordion`]、#594）。
 //! - [`mod@tooltip`]: Root/Trigger/Positioner/Content/Arrow/ArrowTip の anatomy
 //!   パーツ関数群と、[`state::Disclosure`] を埋め込んだ [`tooltip::Tooltip`]
 //!   状態機械（#533、親 #530）。WAI-ARIA tooltip パターンに従い `aria-describedby`
@@ -65,20 +78,31 @@
 //!   （[`field::FieldProps`] から決定的に描画する純粋関数、#538）。
 //!   `invalid`/`disabled`/`required`/`readonly` は SSR 静的な props であり、
 //!   開閉のような時間変化する内部状態を持たないため [`mod@state`] の状態機械を
-//!   適用しない（[`mod@tabs`] と同型の判断）。
+//!   適用しない（[`mod@tabs`] と同型の判断）。[`field::FieldProps::ids`]
+//!   （[`field::FieldIds`]）による派生 id の個別上書き、[`field::textarea`]
+//!   の `autoresize` 引数（`data-autoresize` フックのみ）、[`field::select`]
+//!   の readonly 解消（`<select readonly>` は無効な HTML のためネイティブ
+//!   属性を出力しない）はイシュー #602 で追加。
+//! - [`mod@fieldset`]: Root / Legend / HelperText / ErrorText の 4 anatomy
+//!   パーツ関数群（[`fieldset::FieldsetProps`] から決定的に描画する純粋関数、
+//!   #602、親 #578）。[`fieldset::FieldsetProps::merge_field_props`] で
+//!   `disabled` を内包する [`field::FieldProps`] へ OR 伝播する（`invalid` は
+//!   伝播しない）。[`mod@field`] と同じく状態機械を適用しない。
 //! - [`mod@menu`]: Root / Trigger / Indicator / Positioner / Content / Arrow /
-//!   ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator の 11 anatomy
-//!   パーツと [`state::Disclosure`] を埋め込んだ [`menu::Menu`]
-//!   （headless Menu コンポーネント、#540）。構造上最も近い先行例は
-//!   [`popover::Popover`]（trigger 起点のオーバーレイ + `Disclosure` 埋め込み）
-//!   であり、本モジュールはそのパターンに完全準拠する。
+//!   ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator / TriggerItem /
+//!   ContextTrigger の 13 anatomy パーツと [`state::Disclosure`] を埋め込んだ
+//!   [`menu::Menu`]（headless Menu コンポーネント、#540/#598）。構造上最も
+//!   近い先行例は [`popover::Popover`]（trigger 起点のオーバーレイ +
+//!   `Disclosure` 埋め込み）であり、本モジュールはそのパターンに完全準拠する。
 //! - [`mod@select`]: Root / Label / Control / Trigger / ValueText /
 //!   ClearTrigger / Indicator / Positioner / Content / ItemGroup /
 //!   ItemGroupLabel / Item / ItemText / ItemIndicator / HiddenSelect の 15
 //!   anatomy パーツと、[`state::Disclosure`]（listbox 開閉）+
 //!   [`state::SingleSelect`]（選択値）を合成した [`select::Select`] 状態機械
 //!   （#541、親 #539）。Disclosure と SingleSelect を 1 コンポーネントに
-//!   合成する初の例。
+//!   合成する初の例。[`select::item`] の `highlighted`/`id` 引数と
+//!   [`select::content`] の `activedescendant` 引数が `data-highlighted`/
+//!   `aria-activedescendant` の SSR 静的表現を提供する（イシュー #599）。
 //! - [`mod@switch`]: Root / Control / Thumb / Label / HiddenInput の 5 anatomy
 //!   パーツと、`"checked"`/`"unchecked"` 語彙の [`switch::Switch`] 状態機械
 //!   （#537、親 #534）。ark-ui 準拠の値語彙が [`state::Disclosure`] の
@@ -100,7 +124,11 @@
 //!   [`mod@switch`] と同じく `data-state` 値語彙（`"indeterminate"`/
 //!   `"loading"`/`"complete"`）が [`state::Disclosure`] と異なるため、
 //!   [`state`] を埋め込まず [`fandhe_frontend_interactive::Component`]/
-//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。加えて
+//!   Circular（SVG）用の Circle/CircleTrack/CircleRange の 3 パーツ
+//!   （#600、親 #542）を持つ。CSS 変数（`--size`/`--thickness`）参照の
+//!   固定 `style` で描画し、状態機械・hydration フォーマットへの追加は
+//!   ない（詳細は [`progress`] モジュール doc の circular 節を参照）。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
@@ -136,6 +164,7 @@ pub mod collapsible;
 pub mod data_attrs;
 pub mod dialog;
 pub mod field;
+pub mod fieldset;
 pub mod menu;
 pub mod popover;
 pub mod progress;
@@ -153,24 +182,25 @@ pub use fandhe_frontend_core;
 
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
-    aria_checked, aria_controls, aria_describedby, aria_disabled, aria_expanded, aria_haspopup,
-    aria_hidden, aria_invalid, aria_label, aria_labelledby, aria_modal, aria_orientation,
-    aria_selected, role, AriaChecked, AriaPopup,
+    aria_activedescendant, aria_checked, aria_controls, aria_describedby, aria_disabled,
+    aria_expanded, aria_haspopup, aria_hidden, aria_invalid, aria_label, aria_labelledby,
+    aria_modal, aria_orientation, aria_selected, role, AriaChecked, AriaPopup,
 };
 pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use data_attrs::{
-    data_disabled, data_invalid, data_orientation, data_readonly, data_required, data_state,
-    Orientation,
+    data_disabled, data_highlighted, data_invalid, data_orientation, data_readonly, data_required,
+    data_state, Orientation,
 };
 pub use dialog::Dialog;
-pub use field::FieldProps;
+pub use field::{FieldIds, FieldProps};
+pub use fieldset::FieldsetProps;
 pub use menu::Menu;
 pub use progress::{Progress, ProgressAction};
 pub use radio_group::RadioGroup;
 pub use state::{
-    Disclosure, DisclosureAction, OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CLOSED,
-    DATA_STATE_OPEN,
+    Disclosure, DisclosureAction, MultiSelect, MultiSelectAction, OpenState, SingleSelect,
+    SingleSelectAction, DATA_STATE_CLOSED, DATA_STATE_OPEN,
 };
 pub use switch::{Switch, SwitchAction};
-pub use tabs::{tabs, TabItem, TabsProps};
+pub use tabs::{tabs, ActivationMode, TabItem, TabsProps};
 pub use tooltip::Tooltip;

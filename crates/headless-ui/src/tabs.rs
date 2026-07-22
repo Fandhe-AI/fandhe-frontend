@@ -3,9 +3,12 @@
 //! WAI-ARIA APG の Tabs パターン（`role="tablist"`/`"tab"`/`"tabpanel"`・
 //! `aria-selected`・`aria-controls`/`aria-labelledby` の相互参照・roving
 //! tabindex）に準拠したマークアップを、[`fandhe_frontend_core::Node`] 木として
-//! 組み立てる。anatomy は ark-ui 相当の `root` / `list` / `trigger` / `content`
-//! の 4 パーツ構成（`indicator` は静的 SSR マークアップに意味を持たないため
-//! 本イシューのスコープ外。要否は #524/#546 側の判断に委ねる）。
+//! 組み立てる。anatomy は ark-ui 相当の `root` / `list` / `trigger` / `content` /
+//! `indicator`（#601、[`TabsProps::indicator`] で opt-in）の 5 パーツ構成。
+//! `indicator` は選択タブの位置を示す装飾パーツで、Phase 1 の positioner
+//! （`crate::popover` の判断: 位置決めロジック＝計測は SSR の責務外）と同じ
+//! 整理に基づき、SSR では `data-*` フックと CSS 変数の**初期値**のみを出力する
+//! （動的計測・`--transition-*` 系は wasm/CSR 層の後続責務）。
 //!
 //! # 呼び出し文脈
 //!
@@ -35,7 +38,8 @@
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
-    aria_controls, aria_disabled, aria_labelledby, aria_orientation, aria_selected, role,
+    aria_controls, aria_disabled, aria_hidden, aria_labelledby, aria_orientation, aria_selected,
+    role,
 };
 use crate::data_attrs::{data_disabled, data_orientation, data_state, Orientation};
 use fandhe_frontend_core::Node;
@@ -48,6 +52,42 @@ const ANATOMY: Anatomy = anatomy("tabs");
 const DATA_STATE_ACTIVE: &str = "active";
 /// `data-state` 属性値 "inactive"（非選択の trigger/content が持つ値）。
 const DATA_STATE_INACTIVE: &str = "inactive";
+
+/// `indicator` パーツの `style` 属性の初期値（#601）。
+///
+/// ark-ui / Zag.js の Tabs Indicator が公開する CSS 変数と同名
+/// （`--left`/`--top`/`--width`/`--height`）で、styled 層・利用者 CSS が
+/// `var(--left)` 等でそのまま参照できるようにする。値は `0px` 固定の
+/// `&'static str` リテラルであり、`format!` を経由しない（動的値の混入経路
+/// ゼロ）。実測に基づく動的な位置・サイズの反映（Zag の
+/// `setIndicatorRect` 相当）は wasm/CSR 層の後続責務であり、本モジュールは
+/// SSR 時点の決定的な初期値のみを出力する。
+const INDICATOR_STYLE_INITIAL: &str = "--left: 0px; --top: 0px; --width: 0px; --height: 0px";
+
+/// タブ活性化のタイミング(WAI-ARIA APG Tabs パターンの `automatic`/`manual`
+/// activation の区別)。SSR 出力(`data-activation-mode`)としては本 enum の
+/// 固定 2 値のみを語彙とし、`crates/wasm-full/src/keynav.rs`(イシュー #582)が
+/// この属性を読んでキーボード操作時の挙動を分岐する契約となる。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ActivationMode {
+    /// フォーカス移動と同時にタブを活性化する(既定)。
+    #[default]
+    Automatic,
+    /// フォーカス移動のみを行い、Enter/Space(ネイティブ button の click)で
+    /// 活性化する。
+    Manual,
+}
+
+impl ActivationMode {
+    /// `data-activation-mode` の属性値文字列を返す。
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Automatic => "automatic",
+            Self::Manual => "manual",
+        }
+    }
+}
 
 /// タブ 1 枚の定義（trigger ラベルと対応する content パネル）。
 ///
@@ -83,6 +123,31 @@ pub struct TabsProps<'a> {
     /// 向き。`data-orientation`（root/list/trigger/content 共通）・
     /// list の `aria-orientation` の双方に反映する。
     pub orientation: Orientation,
+    /// タブ活性化のタイミング。`list` パーツへ `data-activation-mode` として
+    /// 出力し、`crates/wasm-full/src/keynav.rs`（イシュー #582）がキーボード
+    /// 操作時の活性化挙動（automatic: フォーカス移動と同時に活性化 / manual:
+    /// Enter・Space で活性化）を分岐するために読む。
+    pub activation_mode: ActivationMode,
+    /// roving tabindex のフォーカス循環（Arrow キーで端から反対端へ移動する
+    /// か）。`list` パーツへ `data-loop-focus`（`"true"`/`"false"`）として
+    /// 出力する。ark-ui の既定に合わせ `true` を既定値とする
+    /// （[`Default`] 実装は持たないため、呼び出し側が明示的に指定する）。
+    pub loop_focus: bool,
+    /// `indicator` パーツ（選択タブの位置を示す装飾要素）を出力するかどうか
+    /// （#601、既定 `false` で既存出力を変えない opt-in）。
+    ///
+    /// `true` の場合、`list` の最終子として `data-part="indicator"` の
+    /// `<span>` を追加する。`data-state`（active タブがあれば `"active"`、
+    /// なければ `"inactive"`）・`data-orientation`・`aria-hidden="true"`
+    /// （装飾要素のため a11y ツリーから除外し、`role="tablist"` の子は
+    /// tab のみという APG の前提を壊さない）・`style` 属性（CSS 変数の
+    /// 初期値、`INDICATOR_STYLE_INITIAL`）を持つ。inactive な場合は
+    /// 指す対象がないため `hidden` を付与する（hydration 前に誤表示
+    /// しないための fail-safe）。動的な位置・サイズの計測
+    /// （Zag の `setIndicatorRect` 相当）は wasm/CSR 層の後続責務であり、
+    /// 本パーツは SSR 時点の決定的な初期値のみを出力する（Phase 1 の
+    /// positioner、`crate::popover` と同じ整理）。
+    pub indicator: bool,
 }
 
 /// Tabs 全体を 1 つの [`Node`] 木として組み立てる。
@@ -128,7 +193,14 @@ pub struct TabsProps<'a> {
 /// use fandhe_frontend_headless_ui::{tabs, TabItem, TabsProps};
 ///
 /// let node = tabs(
-///     &TabsProps { id: "t", selected: "a", orientation: Orientation::Horizontal },
+///     &TabsProps {
+///         id: "t",
+///         selected: "a",
+///         orientation: Orientation::Horizontal,
+///         activation_mode: fandhe_frontend_headless_ui::tabs::ActivationMode::Automatic,
+///         loop_focus: true,
+///         indicator: false,
+///     },
 ///     vec![
 ///         TabItem { value: "a", trigger: vec![text("A")], content: vec![text("panel A")], disabled: false },
 ///         TabItem { value: "b", trigger: vec![text("B")], content: vec![text("panel B")], disabled: false },
@@ -231,10 +303,38 @@ pub fn tabs(props: &TabsProps<'_>, items: Vec<TabItem<'_>>) -> Node {
         root_extra_children.push(ANATOMY.part("content", "div", content_attrs, item.content));
     }
 
+    if props.indicator {
+        // indicator は選択タブの位置を示す装飾パーツ（#601）。装飾要素のため
+        // aria-hidden="true" で a11y ツリーから除外し、role="tablist" の子は
+        // tab のみという APG の前提を壊さない。data-state は「active タブが
+        // 存在するか」で決まる（個々の item の active_index とは独立。indicator
+        // は選択状態そのものではなく「示す対象があるか」を表す）。
+        let indicator_data_state = if active_index.is_some() {
+            DATA_STATE_ACTIVE
+        } else {
+            DATA_STATE_INACTIVE
+        };
+        let mut indicator_attrs: Vec<(&str, &str)> = vec![
+            data_state(indicator_data_state),
+            data_orientation_attr,
+            aria_hidden(true),
+        ];
+        if active_index.is_none() {
+            // 指す対象（active タブ）がない場合、hydration 前に位置不定の
+            // indicator が誤って表示され続けないための fail-safe。
+            indicator_attrs.push(("hidden", ""));
+        }
+        indicator_attrs.push(("style", INDICATOR_STYLE_INITIAL));
+        list_children.push(ANATOMY.part("indicator", "span", indicator_attrs, vec![]));
+    }
+
+    let loop_focus_value: &str = if props.loop_focus { "true" } else { "false" };
     let list_attrs: Vec<(&str, &str)> = vec![
         role("tablist"),
         aria_orientation_attr,
         data_orientation_attr,
+        ("data-activation-mode", props.activation_mode.as_str()),
+        ("data-loop-focus", loop_focus_value),
     ];
     let list_node = ANATOMY.part("list", "div", list_attrs, list_children);
 
@@ -265,6 +365,9 @@ mod tests {
             id,
             selected,
             orientation: Orientation::Horizontal,
+            activation_mode: ActivationMode::Automatic,
+            loop_focus: true,
+            indicator: false,
         }
     }
 
@@ -275,7 +378,7 @@ mod tests {
             render(&node),
             concat!(
                 r#"<div data-scope="tabs" data-part="root" id="t" data-orientation="horizontal">"#,
-                r#"<div data-scope="tabs" data-part="list" role="tablist" aria-orientation="horizontal" data-orientation="horizontal">"#,
+                r#"<div data-scope="tabs" data-part="list" role="tablist" aria-orientation="horizontal" data-orientation="horizontal" data-activation-mode="automatic" data-loop-focus="true">"#,
                 r#"<button data-scope="tabs" data-part="trigger" type="button" id="t-trigger-a" role="tab" aria-selected="true" aria-controls="t-content-a" data-state="active" data-orientation="horizontal" tabindex="0" data-value="a">a</button>"#,
                 r#"<button data-scope="tabs" data-part="trigger" type="button" id="t-trigger-b" role="tab" aria-selected="false" aria-controls="t-content-b" data-state="inactive" data-orientation="horizontal" tabindex="-1" data-value="b">b</button>"#,
                 r#"</div>"#,
@@ -387,6 +490,9 @@ mod tests {
                 id: "t",
                 selected: "a",
                 orientation: Orientation::Vertical,
+                activation_mode: ActivationMode::Automatic,
+                loop_focus: true,
+                indicator: false,
             },
             vec![item("a", false)],
         );
@@ -479,7 +585,7 @@ mod tests {
             render(&node),
             concat!(
                 r#"<div data-scope="tabs" data-part="root" id="t" data-orientation="horizontal">"#,
-                r#"<div data-scope="tabs" data-part="list" role="tablist" aria-orientation="horizontal" data-orientation="horizontal"></div>"#,
+                r#"<div data-scope="tabs" data-part="list" role="tablist" aria-orientation="horizontal" data-orientation="horizontal" data-activation-mode="automatic" data-loop-focus="true"></div>"#,
                 r#"</div>"#,
             )
         );
@@ -505,5 +611,180 @@ mod tests {
         assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
         assert!(html.contains("&lt;script&gt;alert(2)&lt;/script&gt;"));
         assert!(html.contains("&quot;"));
+    }
+
+    // --- イシュー #582: activation_mode/loop_focus の SSR 属性出力 ---
+
+    #[test]
+    fn manual_activation_mode_and_loop_focus_false_are_reflected_in_list_attrs() {
+        let node = tabs(
+            &TabsProps {
+                id: "t",
+                selected: "a",
+                orientation: Orientation::Horizontal,
+                activation_mode: ActivationMode::Manual,
+                loop_focus: false,
+                indicator: false,
+            },
+            vec![item("a", false), item("b", false)],
+        );
+        let html = render(&node);
+        assert!(html.contains(r#"data-activation-mode="manual""#));
+        assert!(html.contains(r#"data-loop-focus="false""#));
+    }
+
+    #[test]
+    fn default_activation_mode_and_loop_focus_true_are_reflected_in_list_attrs() {
+        let node = tabs(&props("t", "a"), vec![item("a", false)]);
+        let html = render(&node);
+        assert!(html.contains(r#"data-activation-mode="automatic""#));
+        assert!(html.contains(r#"data-loop-focus="true""#));
+    }
+
+    #[test]
+    fn activation_mode_as_str_returns_expected_literals() {
+        assert_eq!(ActivationMode::Automatic.as_str(), "automatic");
+        assert_eq!(ActivationMode::Manual.as_str(), "manual");
+        assert_eq!(ActivationMode::default(), ActivationMode::Automatic);
+    }
+
+    // --- イシュー #601: indicator パーツ ---
+
+    #[test]
+    fn indicator_false_omits_indicator_part() {
+        // 既定（indicator: false）では data-part="indicator" が出力されない
+        // （既存出力のスナップショットが不変であることの裏付け）。
+        let node = tabs(&props("t", "a"), vec![item("a", false), item("b", false)]);
+        let html = render(&node);
+        assert!(!html.contains(r#"data-part="indicator""#));
+    }
+
+    #[test]
+    fn indicator_true_with_active_tab_full_html_snapshot() {
+        let node = tabs(
+            &TabsProps {
+                indicator: true,
+                ..props("t", "a")
+            },
+            vec![item("a", false), item("b", false)],
+        );
+        assert_eq!(
+            render(&node),
+            concat!(
+                r#"<div data-scope="tabs" data-part="root" id="t" data-orientation="horizontal">"#,
+                r#"<div data-scope="tabs" data-part="list" role="tablist" aria-orientation="horizontal" data-orientation="horizontal" data-activation-mode="automatic" data-loop-focus="true">"#,
+                r#"<button data-scope="tabs" data-part="trigger" type="button" id="t-trigger-a" role="tab" aria-selected="true" aria-controls="t-content-a" data-state="active" data-orientation="horizontal" tabindex="0">a</button>"#,
+                r#"<button data-scope="tabs" data-part="trigger" type="button" id="t-trigger-b" role="tab" aria-selected="false" aria-controls="t-content-b" data-state="inactive" data-orientation="horizontal" tabindex="-1">b</button>"#,
+                r#"<span data-scope="tabs" data-part="indicator" data-state="active" data-orientation="horizontal" aria-hidden="true" style="--left: 0px; --top: 0px; --width: 0px; --height: 0px"></span>"#,
+                r#"</div>"#,
+                r#"<div data-scope="tabs" data-part="content" id="t-content-a" role="tabpanel" aria-labelledby="t-trigger-a" data-state="active" data-orientation="horizontal" tabindex="0">a</div>"#,
+                r#"<div data-scope="tabs" data-part="content" id="t-content-b" role="tabpanel" aria-labelledby="t-trigger-b" data-state="inactive" data-orientation="horizontal" tabindex="0" hidden="">b</div>"#,
+                r#"</div>"#,
+            )
+        );
+    }
+
+    #[test]
+    fn indicator_true_with_unmatched_selected_is_inactive_and_hidden() {
+        let node = tabs(
+            &TabsProps {
+                indicator: true,
+                ..props("t", "does-not-exist")
+            },
+            vec![item("a", false), item("b", false)],
+        );
+        let html = render(&node);
+        assert!(html.contains(
+            r#"<span data-scope="tabs" data-part="indicator" data-state="inactive" data-orientation="horizontal" aria-hidden="true" hidden="" style="--left: 0px; --top: 0px; --width: 0px; --height: 0px"></span>"#
+        ));
+    }
+
+    #[test]
+    fn indicator_true_with_selected_matching_disabled_item_is_inactive_and_hidden() {
+        // selected が disabled item を指す場合も「未選択」扱い（既存の選択決定則を継承）。
+        let node = tabs(
+            &TabsProps {
+                indicator: true,
+                ..props("t", "a")
+            },
+            vec![item("a", true), item("b", false)],
+        );
+        let html = render(&node);
+        assert!(html.contains(
+            r#"<span data-scope="tabs" data-part="indicator" data-state="inactive" data-orientation="horizontal" aria-hidden="true" hidden="" style="--left: 0px; --top: 0px; --width: 0px; --height: 0px"></span>"#
+        ));
+    }
+
+    #[test]
+    fn indicator_true_with_empty_items_does_not_panic() {
+        let node = tabs(
+            &TabsProps {
+                indicator: true,
+                ..props("t", "a")
+            },
+            vec![],
+        );
+        let html = render(&node);
+        assert!(html.contains(r#"data-part="indicator""#));
+        assert!(html.contains(r#"data-state="inactive""#));
+        assert!(html.contains("hidden"));
+    }
+
+    #[test]
+    fn indicator_true_with_vertical_orientation_reflects_data_orientation() {
+        let node = tabs(
+            &TabsProps {
+                orientation: Orientation::Vertical,
+                indicator: true,
+                ..props("t", "a")
+            },
+            vec![item("a", false)],
+        );
+        let html = render(&node);
+        // list/trigger/content/root/indicator の 5 パーツすべてが
+        // data-orientation="vertical" を持つ。
+        assert_eq!(html.matches(r#"data-orientation="vertical""#).count(), 5);
+        assert!(html.contains(r#"data-part="indicator""#));
+    }
+
+    #[test]
+    fn indicator_style_attribute_is_fixed_literal_with_no_dynamic_value() {
+        // 動的値が混入しない不変条件の固定（#601 セキュリティ考慮）。
+        let node = tabs(
+            &TabsProps {
+                indicator: true,
+                ..props("t", "a")
+            },
+            vec![item("a", false)],
+        );
+        let html = render(&node);
+        assert!(html.contains(r#"style="--left: 0px; --top: 0px; --width: 0px; --height: 0px""#));
+    }
+
+    #[test]
+    fn xss_payload_in_value_with_indicator_true_does_not_leak_into_indicator_attrs() {
+        // XSS 回帰（indicator 版）: payload は選択判定にのみ使われ、indicator の
+        // 属性（特に style）は固定リテラルのままで payload が現れないことを確認する。
+        let payload_value = "x\" onmouseover=\"alert(1)";
+        let node = tabs(
+            &TabsProps {
+                indicator: true,
+                ..props("t", payload_value)
+            },
+            vec![TabItem {
+                value: payload_value,
+                trigger: vec![text("<script>alert(1)</script>")],
+                content: vec![text("<script>alert(2)</script>")],
+                disabled: false,
+            }],
+        );
+        let html = render(&node);
+        assert!(!html.contains("<script>alert"));
+        assert!(!html.contains("onmouseover=\"alert"));
+        assert!(html.contains(r#"style="--left: 0px; --top: 0px; --width: 0px; --height: 0px""#));
+        // indicator は active（selected が一致・disabled でない）なので data-state="active"。
+        assert!(html.contains(
+            r#"<span data-scope="tabs" data-part="indicator" data-state="active" data-orientation="horizontal" aria-hidden="true" style="--left: 0px; --top: 0px; --width: 0px; --height: 0px"></span>"#
+        ));
     }
 }

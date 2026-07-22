@@ -115,6 +115,9 @@ fn tabs_section() -> Node {
             id: "showcase-tabs",
             selected: "profile",
             orientation: Orientation::Horizontal,
+            activation_mode: fandhe_frontend_headless_ui::ActivationMode::Automatic,
+            loop_focus: true,
+            indicator: false,
         },
         vec![
             TabItem {

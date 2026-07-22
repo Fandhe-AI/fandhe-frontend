@@ -90,6 +90,8 @@ Phase 1（#336・`docs/design/dom-binding-update-design.md`）で束縛点最小
 | `csr` | `fandhe_frontend_app::Loader` 経由の CSR データ解決層（`fandhe_frontend_app::Item` 系ページ）。DOM 非依存の純粋層で `Runtime`/`hydration` とは独立した別系統。初期表示（ハイドレーション）では呼ばない | TASK-CSR-loader（#349） |
 | `nav` | クライアント側ルーティング（history API 連携・URL 同期・遷移時 loader 配線）。`csr` の loader 解決層を再利用し、`data-nav` クリック委譲・`popstate` 連携・`fandhe_frontend_wasm_client::build_dom_node` 経由の DOM サブツリー差し替え（`set_inner_html` 不使用）を担う独立系統。SPA 内遷移の DOM 差し替え + タイトル更新（apply 段）は `document.startViewTransition()` でラップする（イシュー #404、機能検出により非対応ブラウザでは同期フォールバック） | イシュー #374 / #404 |
 | `headless` | headless-ui（`fandhe-frontend-headless-ui`）の `data-scope`/`data-part`（anatomy セレクタ）クリックを `fandhe_frontend_interactive::dispatch` の文字列アクションへ写像する配線基盤。`events` モジュール（`data-action`/`data-payload` ベース）とは独立した別系統（headless-ui は `data-action` を出力しないため）。詳細は第 12 節 | イシュー #580 |
+| `overlay` | `fandhe-frontend-headless-ui` の Dialog/Popover/Menu/Tooltip 共通の閉鎖制御（Escape キー・外側インタラクション）。document へ委譲登録し、実際の `"close"` dispatch・再描画は呼び出し側（#580 統合層）の責務として通知のみ提供する | イシュー #585（親 #584） |
+| `tooltip` | Tooltip の `openDelay`/`closeDelay`/`interactive`（表示・非表示遅延タイマーと content 内ポインタ移動時の維持）。`pointerenter`/`pointerleave` がバブリングしないため、`overlay` の document 委譲方式とは異なり trigger/content 要素へ直接登録する。実際の `"open"`/`"close"` dispatch・再描画は呼び出し側（#580 統合層）の責務として通知のみ提供する | イシュー #587（親 #584） |
 
 ### 3.2 公開 API 凍結表
 
@@ -346,3 +348,28 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 - キーボード操作（Enter/Space/矢印キー・roving tabindex）・ESC/外側クリックでの close・Tooltip の hover 開閉。
 - headless コンポーネントの自動再描画（束縛点更新/`Runtime` 統合。`Runtime<C>` は `DirtyTracked + BindingSource` 境界を要求するため headless コンポーネントはそのままでは載らない）。
 - CLAUDE.md 委譲マッピング表への `crates/headless-ui/` 行の追加。
+
+## 13. `headless_avatar` モジュール（イシュー #591、親 #520/#542/#543）
+
+`fandhe-frontend-headless-ui` の Avatar（`crates/headless-ui/src/avatar.rs`）は Root/Image/Fallback の 3 anatomy パーツと `ImageStatus`（loading/loaded/error）状態機械を提供するが、実 DOM の `img` 要素の `load`/`error` イベントを検知して dispatch（`"loaded"`/`"error"`）へ橋渡しするクライアント側グルーは同モジュール冒頭の rustdoc「スコープ外」節が明記するとおり本クレート（wasm 層）の後続スコープとされていた。`headless_avatar` モジュール（`crates/wasm-full/src/headless_avatar.rs`）がそのグルーを実装する。
+
+### 13.1 `events`/`keynav`/`overlay` と同じ 2 層構成、ただし capture フェーズ委譲
+
+`events.rs`（クリック/入力委譲）・`keynav.rs`（キーボード操作配線）・`overlay.rs`（Escape/外側クリックの閉鎖制御）と同じ「DOM 非依存の純粋ロジック層 + `#[cfg(target_arch = "wasm32")]` 配線層」の 2 層構成を踏襲する。ただし `load`/`error` イベントは click/keydown とは異なり**バブリングしない**ため、`root` への委譲リスナーはバブリングフェーズではなく **capture フェーズ**（`add_event_listener_with_callback_and_bool(..., true)`）で登録する。capture フェーズは伝播パス上の祖先で非バブリングイベントも受信できるため、再描画で `img` が入れ替わっても `root` のリスナーは保持されたまま新しい `img` のイベントも受信できる。この配線方式の違いが、本モジュールを既存の委譲リスナーへ単純に相乗りできず独立モジュールとして切り出した設計上の根拠である。
+
+### 13.2 判定関数（純粋ロジック層）
+
+- `avatar_action_for_image_event(event_type, scope, part) -> Option<ActionRef>`: ターゲットが `data-scope="avatar"` かつ `data-part="image"` の場合のみ `"load"` → `ActionRef { action: "loaded", .. }`・`"error"` → `ActionRef { action: "error", .. }` を返す（fail-closed、改ざん `data-*` を dispatch へ流さない）。
+- `avatar_action_for_settled_image(complete, natural_width) -> Option<&'static str>`: 配線時点で既に決着済みの画像に対する合成 dispatch 判定。`complete && natural_width > 0` → `"loaded"`、`complete && natural_width == 0` → `"error"`（ark-ui/Zag.js と同じヒューリスティック。SVG は `naturalWidth` が常に `0` を返し得る既知のエッジケース）、`!complete` → `None`。
+- `image_visible_after_action(action) -> Option<bool>`: `fandhe_frontend_headless_ui::avatar::ImageStatus::is_image_visible` と同一の可視性規則を文字列語彙（`"loaded"`/`"error"`/`"reset"`）で複製する。本クレートは `fandhe-frontend-headless-ui` を製品依存に持たず `[dev-dependencies]` のみのため文字列複製とし、ドリフトは `wasm-full/tests/headless_avatar.rs`/インラインテストのドリフト検知テストで固定する。
+
+### 13.3 配線層（wasm32 限定）
+
+- `wire_avatar_events(root, on_action)`: `load`/`error` を capture フェーズで委譲登録する（`Closure::forget` は 2 回のみ、A04 対策）。配線と同時に `root` 配下の `[data-scope="avatar"][data-part="image"]` を `query_selector_all` で列挙し、`avatar_action_for_settled_image` の判定結果に応じて決着済み画像へ即座に合成 dispatch する（**受け入れ条件「hydration 復元後のイベント接続が正しく動作すること」の中核**。wasm 初期化・hydration 復元より前に画像読み込みが完了して `load`/`error` イベントがもう発火しないレースを塞ぐ）。
+- `wire_avatar_component(root, component, on_update)`: `wire_avatar_events` の便宜 API。`fandhe_frontend_interactive::dispatch` へ橋渡しし、成功時のみ `on_update` を呼ぶ（`try_borrow_mut` 失敗時は再入とみなし no-op）。
+- `apply_avatar_visibility(root, image_visible)`: dispatch 後の DOM 反映ヘルパ（**受け入れ条件「画像読み込み成功/失敗で data-state が切り替わること」**）。`[data-scope="avatar"][data-part="image"/"fallback"]` へ `data-state`（`"visible"`/`"hidden"`）と `hidden` 存在属性を反映する。`set_attribute`/`remove_attribute` のみで HTML 文字列組み立て・`innerHTML` は一切使わない（REQ-1）。属性名・属性値の書き込みは `keynav.rs::wiring::set_dom_attribute` と同じガード付きラッパー（`is_event_handler_attr`/`is_url_attr`/`is_safe_url`/`is_safe_srcset` 経由、イシュー #401 の `fw gate` `url_validation_check` 契約）を通す。
+
+### 13.4 スコープ境界
+
+- 配線対象 `root` は「Avatar の root パーツ要素（または Avatar を 1 個含むコンテナ）」を契約とし、1 root : 1 状態機械。複数 Avatar の一括統括・束縛点差分更新との統合は別スコープとする。
+- `src` 差し替え検知（`MutationObserver`）→ `"reset"` 自動発火はスコープ外（`crates/headless-ui/src/avatar.rs` の「スコープ外」節と同一の判断を引き継ぐ）。

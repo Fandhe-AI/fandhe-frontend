@@ -57,6 +57,71 @@
 //!   vertical Progress が horizontal へ静かに反転する不変条件違反が生じる
 //!   ため（イシュー #544 PR #570 レビュー指摘）、他フィールドと同様に
 //!   fail-closed（未知の値・欠落は `HydrateError`）で往復させる。
+//!
+//! # Circular（SVG パーツ、イシュー #600・親 #542）
+//!
+//! PR #570（#544）で Circular（Circle/CircleTrack/CircleRange、SVG）は
+//! 明示的に out-of-scope とされた。本節はその後続実装であり、既存の値状態
+//! 機械 [`Progress`]・`data-state` 語彙・hydration をそのまま再利用し、
+//! 描画のみを追加する（状態機械・hydration フォーマットへの変更はない）。
+//!
+//! ## core 側拡張は不要（判断根拠）
+//!
+//! `fandhe_frontend_core` の `is_valid_tag_name`（先頭 ASCII 英字 + 以降
+//! 英数字・`-`）・`is_valid_attr_name`（英数字・`-`・`_`・`:`）はいずれも
+//! `svg`/`circle` タグや `viewBox`/`stroke-width`/`stroke-dasharray`/
+//! `stroke-dashoffset`/`cx`/`cy`/`r`/`fill` 等の SVG 属性を既に許容する
+//! ため、[`crate::anatomy::Anatomy::part`] へ `"svg"`/`"circle"` を
+//! タグ名として渡すだけで描画できる。`fandhe-frontend-core` の
+//! タグショートカット（`crates/core/src/tags.rs`）は HTML の一般的な
+//! 構造・テキスト・フォーム・テーブル要素に限定する設計判断があり、
+//! 本イシューはショートカットを追加せずとも `el("svg", ...)` 相当の
+//! 汎用パス経由で満たせるため、**core への変更は 0 行**とする。
+//!
+//! ## anatomy（Zag.js/ark-ui 準拠）
+//!
+//! | パーツ | メソッド | タグ | `data-part` |
+//! |---|---|---|---|
+//! | Circle | [`Progress::circle`] | `svg` | `circle` |
+//! | CircleTrack | [`Progress::circle_track`] | `circle` | `circle-track` |
+//! | CircleRange | [`Progress::circle_range`] | `circle` | `circle-range` |
+//!
+//! 3 パーツすべてに `data-state`（既存の [`Progress::data_state`] と同じ
+//! 語彙）を付与する。`data-orientation` は linear（Track/Range）のみの
+//! 概念であり circular には意味を持たないため、意図的に付与しない
+//! （linear との差分）。
+//!
+//! ## SVG ジオメトリ（CSS 変数方式、headless 中立）
+//!
+//! linear の [`Progress::range`] は「幅スタイルを付与しない」設計だが、
+//! SVG はジオメトリなしでは描画不能なため、Zag.js と同じ CSS 変数参照の
+//! 固定リテラルでジオメトリを表現する。動的値は正規化済み `percent`
+//! （[`Progress::percent`]）のみであり、呼び出し側入力が style 値へ
+//! 混入する経路はない。可視スタイル（`--size`/`--thickness` の既定値・
+//! indeterminate 時のアニメーション）は styled 層（
+//! `fandhe-frontend-pre-styled-ui`）・利用者側が CSS で定義する
+//! headless 中立設計とする。
+//!
+//! indeterminate（`percent()` が `None`）のとき、CircleRange は
+//! `--percent`/`stroke-dasharray`/`stroke-dashoffset` を出力せず
+//! `data-state="indeterminate"` のみで表現する（root の `aria-valuenow`
+//! 省略と同型の fail-closed 方針。不定値を捏造しない）。Zag.js は
+//! indeterminate 時に `opacity: 0` を出すが、可視表現は styled 層が
+//! `[data-state="indeterminate"]` セレクタで担う headless 中立方針を
+//! 優先し、本モジュールでは出力しない（Zag.js との意図的な差分）。
+//!
+//! `viewBox` は付与しない（Zag.js 同様、サイズは `--size` の CSS 変数に
+//! 委ねる）。呼び出し側は `attrs` 経由で `viewBox` 等を追加できる
+//! （[`crate::anatomy::Anatomy::part`] が anatomy 属性の後ろに連結する
+//! 既存仕様のまま）。
+//!
+//! ## hydration 対象外（判断根拠）
+//!
+//! circular パーツは既存の [`Progress`] 状態から導出される純粋な描画で
+//! あり、`data-hydrate-*` フォーマットへのフィールド追加はない。
+//! `--size`/`--thickness` は `orientation` と異なり値状態機械が保持する
+//! フィールドではなく、呼び出し側が CSS で静的に決めるレイアウト選択
+//! であるため、hydration ラウンドトリップの対象にしない。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::role;
@@ -75,6 +140,39 @@ const DATA_STATE_INDETERMINATE: &str = "indeterminate";
 const DATA_STATE_LOADING: &str = "loading";
 /// `data-state` 属性値 "complete"（`value == max` のとき）。
 const DATA_STATE_COMPLETE: &str = "complete";
+
+/// Circle（`svg`）パーツの `style` 属性値。
+///
+/// `--size`/`--thickness` は styled 層/利用者が CSS で定義する
+/// headless 中立の入力変数。`--radius` はその 2 変数から導出する
+/// 固定リテラルの CSS 式であり、動的値を含まない。
+const CIRCLE_STYLE: &str =
+    "--radius: calc(var(--size) / 2 - var(--thickness) / 2); width: var(--size); height: var(--size)";
+
+/// CircleTrack（`circle`）パーツの `style` 属性値。
+///
+/// SVG2 のジオメトリプロパティ（`cx`/`cy`/`r`）を CSS 側で `--size`/
+/// `--radius` から導出する固定リテラル。`fill: transparent` により
+/// トラックは塗りつぶさず輪郭のみを描く（`stroke-width` は
+/// `--thickness` 経由）。
+const CIRCLE_TRACK_STYLE: &str = "cx: calc(var(--size) / 2); cy: calc(var(--size) / 2); r: var(--radius); fill: transparent; stroke-width: var(--thickness)";
+
+/// CircleRange（`circle`、determinate）の共通ジオメトリ部分。
+/// CircleTrack と同一のジオメトリを共有した上で、`--percent` を起点に
+/// 円周長 `--circumference` から `stroke-dasharray`/`stroke-dashoffset`
+/// を導出し、12 時方向を起点に時計回りへ回転させる（`transform`）。
+/// この定数自体には動的値を含まない（`--percent` は
+/// [`circle_range_determinate_style`] が呼び出し時に連結する）。
+const CIRCLE_RANGE_STYLE_BASE: &str = "cx: calc(var(--size) / 2); cy: calc(var(--size) / 2); r: var(--radius); fill: transparent; stroke-width: var(--thickness); --circumference: calc(2 * 3.14159265 * var(--radius)); stroke-dasharray: var(--circumference); stroke-dashoffset: calc(var(--circumference) * ((100 - var(--percent)) / 100)); transform: rotate(-90deg); transform-origin: center";
+
+/// CircleRange の determinate 時 `style` 属性値を組み立てる。
+///
+/// 動的値は [`Progress::percent`] が返す正規化済み有限 `f64`
+/// （`[0.0, 100.0]`）を [`fmt_num`] で文字列化した 1 箇所のみであり、
+/// 呼び出し側の任意文字列がこの style 値へ混入する経路はない。
+fn circle_range_determinate_style(percent: f64) -> String {
+    format!("--percent: {}; {CIRCLE_RANGE_STYLE_BASE}", fmt_num(percent))
+}
 
 /// f64 数値属性値の文字列化を一元化するヘルパ。
 ///
@@ -268,6 +366,77 @@ impl Progress {
         merged.extend(attrs);
         ANATOMY.part("range", "div", merged, children)
     }
+
+    /// Circle パーツ（`svg`）。Circular 表示のコンテナ。
+    ///
+    /// `--size`/`--thickness` を参照する固定 `style`（[`CIRCLE_STYLE`]）を
+    /// 出力し、実際の値は styled 層/呼び出し側が CSS で定義する（headless
+    /// 中立）。`data-orientation` は circular に意味を持たないため付与
+    /// しない（モジュール doc の circular 節を参照）。
+    ///
+    /// `attrs` に呼び出し側が `("style", ...)` を渡した場合は
+    /// [`Anatomy::part`](crate::anatomy::Anatomy::part) の
+    /// `data-scope`/`data-part` dedup と同様の理由（重複属性による無効な
+    /// HTML 出力・後勝ちの非決定的な描画の回避）でフレームワーク側の
+    /// 固定 `style` を優先し、呼び出し側の `style` は無視する（`root`/
+    /// `track`/`range` は固定 `style` を持たないため、この dedup は
+    /// circle 系 3 パーツ固有の挙動）。
+    #[must_use]
+    pub fn circle<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+        let mut merged: Vec<(&'a str, &'a str)> =
+            vec![data_state(self.data_state()), ("style", CIRCLE_STYLE)];
+        merged.extend(drop_style_attr(attrs));
+        ANATOMY.part("circle", "svg", merged, children)
+    }
+
+    /// CircleTrack パーツ（`circle`）。Circle の背景となる輪郭円。
+    ///
+    /// `style` の dedup 方針は [`Progress::circle`] のドキュメントを参照。
+    #[must_use]
+    pub fn circle_track<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+        let mut merged: Vec<(&'a str, &'a str)> =
+            vec![data_state(self.data_state()), ("style", CIRCLE_TRACK_STYLE)];
+        merged.extend(drop_style_attr(attrs));
+        ANATOMY.part("circle-track", "circle", merged, children)
+    }
+
+    /// CircleRange パーツ（`circle`）。進捗を表す弧。
+    ///
+    /// determinate（[`Progress::percent`] が `Some`）のときのみ
+    /// `--percent`/`stroke-dasharray`/`stroke-dashoffset` を含む
+    /// `style` を出力する（[`circle_range_determinate_style`]）。
+    /// indeterminate のときはジオメトリのみの [`CIRCLE_TRACK_STYLE`] と
+    /// 同型の固定 `style` に留め、進捗系の値を捏造しない（モジュール doc
+    /// の circular 節を参照）。`style` の dedup 方針は [`Progress::circle`]
+    /// のドキュメントを参照。
+    #[must_use]
+    pub fn circle_range<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+        let style = match self.percent() {
+            Some(percent) => circle_range_determinate_style(percent),
+            None => CIRCLE_TRACK_STYLE.to_string(),
+        };
+        let mut merged: Vec<(&str, &str)> =
+            vec![data_state(self.data_state()), ("style", style.as_str())];
+        merged.extend(drop_style_attr(attrs));
+        ANATOMY.part("circle-range", "circle", merged, children)
+    }
+}
+
+/// circle 系パーツ（[`Progress::circle`]/[`Progress::circle_track`]/
+/// [`Progress::circle_range`]）がフレームワーク側で固定 `style` を
+/// 先頭に積んだ後、呼び出し側 `attrs` を連結する前に使う dedup ヘルパ。
+///
+/// [`crate::anatomy::Anatomy::part`] が `data-scope`/`data-part` を
+/// 呼び出し側の指定より優先して dedup するのと同じ理由（重複属性による
+/// 無効な HTML 出力・後勝ちの非決定的な描画の回避、fail-closed）で、
+/// 呼び出し側が `("style", ...)`（大文字小文字を無視して比較）を渡しても
+/// 除外する。root/track/range（linear）は固定 `style` を持たないため
+/// この関数を通す必要がなく、circle 系 3 パーツのみが呼び出す。
+fn drop_style_attr<'a>(attrs: Vec<(&'a str, &'a str)>) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !k.eq_ignore_ascii_case("style"))
+        .collect()
 }
 
 /// Progress のアクション（WASM 境界の文字列 dispatch と
@@ -532,6 +701,107 @@ mod tests {
         assert!(range_html.contains(r#"data-orientation="vertical""#));
         // headless 中立: 幅スタイルは付与しない。
         assert!(!range_html.contains("style"));
+    }
+
+    // --- Circular（Circle/CircleTrack/CircleRange, SVG）---
+
+    #[test]
+    fn circle_outputs_scope_part_state_tag_and_style() {
+        let p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
+        let html = render(&p.circle(vec![], vec![]));
+        assert!(html.starts_with("<svg"));
+        assert!(html.contains(r#"data-scope="progress""#));
+        assert!(html.contains(r#"data-part="circle""#));
+        assert!(html.contains(r#"data-state="loading""#));
+        assert!(html.contains("--size"));
+        assert!(html.contains("--thickness"));
+        // circular に data-orientation は付与しない（linear との意図的な差分）。
+        assert!(!html.contains("data-orientation"));
+    }
+
+    #[test]
+    fn circle_track_outputs_scope_part_state_tag_and_geometry_style() {
+        let p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
+        let html = render(&p.circle_track(vec![], vec![]));
+        assert!(html.starts_with("<circle"));
+        assert!(html.contains(r#"data-part="circle-track""#));
+        assert!(html.contains(r#"data-state="loading""#));
+        assert!(html.contains("fill: transparent"));
+        assert!(html.contains("stroke-width: var(--thickness)"));
+        assert!(!html.contains("data-orientation"));
+    }
+
+    #[test]
+    fn circle_range_determinate_includes_percent_and_dash_style() {
+        let p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
+        let html = render(&p.circle_range(vec![], vec![]));
+        assert!(html.starts_with("<circle"));
+        assert!(html.contains(r#"data-part="circle-range""#));
+        assert!(html.contains("--percent: 40"));
+        assert!(html.contains("stroke-dasharray"));
+        assert!(html.contains("stroke-dashoffset"));
+    }
+
+    #[test]
+    fn circle_range_indeterminate_omits_percent_and_dash_style() {
+        let p = Progress::new(0.0, 100.0, None, Orientation::Horizontal);
+        let html = render(&p.circle_range(vec![], vec![]));
+        assert!(html.contains(r#"data-state="indeterminate""#));
+        assert!(!html.contains("--percent"));
+        assert!(!html.contains("stroke-dasharray"));
+        assert!(!html.contains("stroke-dashoffset"));
+    }
+
+    #[test]
+    fn circle_data_state_reflects_complete() {
+        let p = Progress::new(0.0, 100.0, Some(100.0), Orientation::Horizontal);
+        let circle_html = render(&p.circle(vec![], vec![]));
+        let track_html = render(&p.circle_track(vec![], vec![]));
+        let range_html = render(&p.circle_range(vec![], vec![]));
+        assert!(circle_html.contains(r#"data-state="complete""#));
+        assert!(track_html.contains(r#"data-state="complete""#));
+        assert!(range_html.contains(r#"data-state="complete""#));
+    }
+
+    #[test]
+    fn circular_caller_supplied_scope_and_part_are_dropped() {
+        let p = Progress::default();
+        let html = render(&p.circle(
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="progress""#));
+        assert!(html.contains(r#"data-part="circle""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn circular_caller_attrs_payload_is_escaped_on_render() {
+        let p = Progress::default();
+        let html =
+            render(&p.circle_range(vec![("data-testid", "\" onmouseover=\"alert(1)")], vec![]));
+        assert!(!html.contains("onmouseover=\"alert(1)"));
+    }
+
+    /// レビュー指摘（イシュー #600 aca1d78 レビュー、Low）回帰: circle 系
+    /// 3 パーツはフレームワーク側の固定 `style` を先頭に積むため、呼び出し
+    /// 側が `attrs` 経由で `("style", ...)` を渡しても `<svg style="..."
+    /// style="...">` のように重複出力してはならない（無効な HTML を防ぐ）。
+    #[test]
+    fn circular_caller_supplied_style_is_dropped_for_all_three_parts() {
+        let p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
+
+        let circle_html = render(&p.circle(vec![("style", "color: red")], vec![]));
+        assert_eq!(circle_html.matches("style=").count(), 1);
+        assert!(!circle_html.contains("color: red"));
+
+        let track_html = render(&p.circle_track(vec![("STYLE", "color: red")], vec![]));
+        assert_eq!(track_html.matches("style=").count(), 1);
+        assert!(!track_html.contains("color: red"));
+
+        let range_html = render(&p.circle_range(vec![("style", "color: red")], vec![]));
+        assert_eq!(range_html.matches("style=").count(), 1);
+        assert!(!range_html.contains("color: red"));
     }
 
     // --- Anatomy::part fail-closed 回帰 ---

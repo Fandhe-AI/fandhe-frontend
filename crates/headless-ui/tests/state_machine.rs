@@ -8,8 +8,10 @@
 //! 想定の外部からの利用形態を固定する回帰テスト。
 
 use fandhe_frontend_core::render;
-use fandhe_frontend_headless_ui::{Disclosure, OpenState, SingleSelect};
-use fandhe_frontend_interactive::{dispatch, render_for_hydration, Component, Hydrate};
+use fandhe_frontend_headless_ui::{Disclosure, MultiSelect, OpenState, SingleSelect};
+use fandhe_frontend_interactive::{
+    dispatch, render_for_hydration, Component, DirtyTracked, Hydrate,
+};
 
 #[test]
 fn disclosure_full_cycle_ssr_then_dispatch_then_hydration() {
@@ -64,4 +66,69 @@ fn disclosure_and_single_select_ignore_unknown_dispatch_actions() {
     dispatch(&mut single_select, "select", "a");
     assert!(!dispatch(&mut single_select, "unknown", "b"));
     assert_eq!(single_select.selected(), Some("a"));
+}
+
+#[test]
+fn multi_select_full_cycle_ssr_then_dispatch_then_hydration() {
+    // SSR: 状態なし初期描画（Default = 空選択）。
+    let initial = MultiSelect::default();
+    let ssr_html = render(&initial.view());
+    assert!(ssr_html.contains(r#"data-state="closed""#));
+    assert!(!ssr_html.contains("data-hydrate-"));
+
+    // クライアント側（wasm-full 相当）の dispatch で複数項目を同時選択。
+    let mut client_state = initial;
+    assert!(dispatch(&mut client_state, "select", "panel-1"));
+    assert!(dispatch(&mut client_state, "select", "panel-2"));
+    assert_eq!(
+        client_state.selected(),
+        &["panel-1".to_string(), "panel-2".to_string()]
+    );
+    assert_eq!(client_state.item_data_state("panel-1"), "open");
+    assert_eq!(client_state.item_data_state("panel-2"), "open");
+    assert_eq!(client_state.item_data_state("panel-3"), "closed");
+
+    // 別の SSR リクエスト（複数選択中）はハイドレーション属性込みで出力される。
+    let hydrated_html = render(&render_for_hydration(&client_state));
+    assert!(hydrated_html.contains(r#"data-state="open""#));
+    assert!(hydrated_html.contains("data-hydrate-selected="));
+
+    // クライアント側は data-hydrate-* 属性から状態を復元できる（ラウンドトリップ）。
+    let restored = MultiSelect::from_hydration_attrs(&client_state.hydration_attrs()).unwrap();
+    assert_eq!(restored, client_state);
+
+    // 項目単位の deselect（全解除ではなく指定項目のみ閉じる）を確認する。
+    assert!(dispatch(&mut client_state, "deselect", "panel-1"));
+    assert_eq!(client_state.selected(), &["panel-2".to_string()]);
+}
+
+#[test]
+fn multi_select_ignores_unknown_dispatch_action() {
+    let mut multi_select = MultiSelect::default();
+    dispatch(&mut multi_select, "select", "a");
+    assert!(!dispatch(&mut multi_select, "unknown", "b"));
+    assert_eq!(multi_select.selected(), &["a".to_string()]);
+}
+
+// --- DirtyTracked（イシュー #592） ------------------------------------
+//
+// `fandhe-frontend-wasm-full`/`fandhe-frontend-wasm-client` は `dispatch`
+// （WASM 境界の文字列 dispatch 契約）経由で `Disclosure`/`SingleSelect` を
+// 駆動し、直後に `dirty_fields()` を読んで `BindingTable`（束縛点対応表）へ
+// 接続する。本テストは `fandhe-frontend-headless-ui` の公開 API のみを
+// 経由してこの利用形態を固定する（`crates/headless-ui/src/state.rs` 内の
+// ユニットテストは内部実装を含めた網羅を担う）。
+
+#[test]
+fn disclosure_dispatch_then_dirty_fields_reflects_changed_field_via_public_api() {
+    let mut d = Disclosure::default();
+    assert!(dispatch(&mut d, "toggle", ""));
+    assert_eq!(d.dirty_fields(), &[Disclosure::FIELD_STATE]);
+}
+
+#[test]
+fn single_select_dispatch_then_dirty_fields_reflects_changed_field_via_public_api() {
+    let mut s = SingleSelect::default();
+    assert!(dispatch(&mut s, "select", "panel-1"));
+    assert_eq!(s.dirty_fields(), &[SingleSelect::FIELD_SELECTED]);
 }

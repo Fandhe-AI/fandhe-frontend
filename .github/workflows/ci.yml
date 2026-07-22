@@ -123,10 +123,12 @@ jobs:
         # SSR/SSG/CSR 経路の XSS 回帰テストを独立ステップとして可視化する。
         # headless-ui / pre-styled-ui（イシュー #553）も REQ-1 ゲートとして
         # 独立ステップで可視化する（`cargo test --workspace` の暗黙包含に依存しない）。
+        # pre-styled-ui は styled 部品公開 API 経由の回帰（イシュー #607、
+        # xss_escape_styled.rs）も独立ファイルとして追加し、両ファイルを実行する。
         run: |
           cargo test -p fandhe-frontend-core --test xss_escape --locked
           cargo test -p fandhe-frontend-headless-ui --test xss_escape --locked
-          cargo test -p fandhe-frontend-pre-styled-ui --test xss_escape --locked
+          cargo test -p fandhe-frontend-pre-styled-ui --test xss_escape --test xss_escape_styled --locked
 
       # TASK-13.3c（#141）: `fw gate`（crates/cli/src/gate.rs）の `policy` チェックは
       # `cargo deny check bans licenses sources` を実際に起動する。cargo-deny
@@ -706,6 +708,15 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test headless_wiring_browser
 
+      # イシュー #582（Tabs/Accordion のキーボード操作、親 #581）: `keynav`
+      # モジュール（crates/wasm-full/src/keynav.rs）配線層の実ブラウザ統合
+      # テスト（crates/wasm-full/tests/keynav_browser.rs）。runtime_browser/
+      # hydration_browser/three_mode_browser/nav_browser ステップと同じ
+      # check-wasm-full 存在ガードを再利用し、新規ガードは追加しない。
+      - name: Run wasm-full keynav browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test keynav_browser
+
       # イシュー #585（親 #584）: オーバーレイ共通の閉鎖制御（Escape キー・
       # 外側インタラクション、crates/wasm-full/src/overlay.rs）の実ブラウザ
       # 統合テスト（crates/wasm-full/tests/overlay_close_browser.rs）。
@@ -715,6 +726,37 @@ jobs:
       - name: Run wasm-full overlay close browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test overlay_close_browser
+
+      # イシュー #587（親 #584）: Tooltip の openDelay/closeDelay/interactive
+      # （crates/wasm-full/src/tooltip.rs）の実ブラウザ統合テスト
+      # （crates/wasm-full/tests/tooltip_delay_browser.rs）。
+      # runtime_browser/hydration_browser/three_mode_browser/nav_browser/
+      # keynav_browser/overlay_close_browser ステップと同じ check-wasm-full
+      # 存在ガードを再利用し、新規ガードは追加しない。
+      - name: Run wasm-full tooltip delay browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test tooltip_delay_browser
+
+      # イシュー #591（親 #520/#542/#543）: Avatar（`fandhe-frontend-headless-ui`
+      # `avatar` モジュール）の `load`/`error` イベント検知グルー
+      # （crates/wasm-full/src/headless_avatar.rs）の実ブラウザ統合テスト
+      # （crates/wasm-full/tests/headless_avatar_browser.rs）。runtime_browser/
+      # hydration_browser/three_mode_browser/nav_browser/keynav_browser/
+      # overlay_close_browser ステップと同じ check-wasm-full 存在ガードを
+      # 再利用し、新規ガードは追加しない。
+      - name: Run wasm-full headless avatar browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test headless_avatar_browser
+
+      # イシュー #586（親 #584）: Dialog のフォーカストラップ・トリガー復帰
+      # （crates/wasm-full/src/focus_trap.rs）の実ブラウザ統合テスト
+      # （crates/wasm-full/tests/focus_trap_browser.rs）。runtime_browser/
+      # hydration_browser/three_mode_browser/nav_browser/keynav_browser/
+      # overlay_close_browser ステップと同じ check-wasm-full 存在ガードを
+      # 再利用し、新規ガードは追加しない。
+      - name: Run wasm-full focus trap browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test focus_trap_browser
 
   # TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）: 同一文書内更新向け
   # ラッパー関数（`static/view-transitions.js` の `withViewTransition`、

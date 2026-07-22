@@ -24,7 +24,7 @@ version = 1
 role = "core"
 crate = "fandhe-frontend-core"
 description = "外部依存ゼロのレンダリングコア（ノード木 API・render・既定エスケープ）"
-allowed_dependents = ["interactive", "app", "server", "wasm-full", "wasm-thin", "wasm-client", "dist-server", "docs-site", "headless-ui"]
+allowed_dependents = ["interactive", "app", "server", "wasm-full", "wasm-thin", "wasm-client", "dist-server", "docs-site", "headless-ui", "xtask"]
 path = "crates/core"
 
 [directories.interactive]
@@ -32,7 +32,7 @@ role = "state"
 crate = "fandhe-frontend-interactive"
 description = "状態管理コア（forbid(unsafe_code) 域）"
 depends_on = ["core"]
-allowed_dependents = ["wasm-full", "wasm-thin", "wasm-client", "headless-ui"]
+allowed_dependents = ["wasm-full", "wasm-thin", "wasm-client", "headless-ui", "xtask"]
 path = "crates/interactive"
 
 [directories.app]
@@ -90,9 +90,9 @@ path = "crates/docs-site"
 [directories.headless-ui]
 role = "component"
 crate = "fandhe-frontend-headless-ui"
-description = "headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA、イシュー #520/#522）。styled 層（pre-styled-ui）の下層。開閉状態機械（Disclosure/SingleSelect）は interactive の Component/Hydrate 抽象に乗る（イシュー #524）"
+description = "headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA、イシュー #520/#522）。styled 層（pre-styled-ui）の下層。開閉状態機械（Disclosure/SingleSelect）は interactive の Component/Hydrate 抽象に乗り、DirtyTracked（束縛点差分更新）も実装済み（イシュー #592）"
 depends_on = ["core", "interactive"]
-allowed_dependents = ["pre-styled-ui"]
+allowed_dependents = ["pre-styled-ui", "xtask"]
 path = "crates/headless-ui"
 
 [directories.pre-styled-ui]
@@ -109,7 +109,8 @@ description = "静的アセット（HTML/CSS/JS グルー、対応クレート�
 [directories.xtask]
 role = "tooling"
 crate = "xtask"
-description = "CI 計測用の開発者ツール（依存グラフ件数・深さ計測・上限判定等）。配布物には含めない"
+description = "CI 計測用の開発者ツール（依存グラフ件数・深さ計測・上限判定・全再描画 vs 束縛点差分更新の計測、イシュー #592）。配布物には含めない"
+depends_on = ["core", "interactive", "headless-ui"]
 path = "crates/xtask"
 
 [directories.cli]

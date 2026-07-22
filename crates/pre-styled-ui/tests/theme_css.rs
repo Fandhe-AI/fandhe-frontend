@@ -6,7 +6,9 @@
 //! 固定する CSS custom property 名（`--fandhe-<group>-<name>`）に依存するため、
 //! 破壊的変更時は本ファイルの更新とあわせて周知する。
 
-use fandhe_frontend_pre_styled_ui::theme::{color_var, space_var, typography_var, Theme};
+use fandhe_frontend_pre_styled_ui::theme::{
+    color_var, radius_var, shadow_var, space_var, typography_var, Theme,
+};
 
 #[test]
 fn default_theme_css_contains_expected_structure() {
@@ -22,6 +24,20 @@ fn default_theme_css_contains_expected_structure() {
     assert!(css.contains(":root:not([data-theme=\"light\"]) {"));
     assert!(css.contains(":root[data-theme=\"dark\"] {"));
     assert!(css.contains("--fandhe-color-bg: #111111;"));
+    assert!(css.contains("--fandhe-radius-md: 0.375rem;"));
+    assert!(css.contains("--fandhe-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);"));
+}
+
+#[test]
+fn default_theme_shadow_dark_value_appears_in_media_and_data_theme_blocks() {
+    // shadow はダークモードで光量の異なる値を持つ（イシュー #606）。既定テーマの
+    // `shadow-sm` について、colors と同じ「media クエリブロック + data-theme
+    // ブロックの計 2 箇所」という dark 値の出力規約を満たすことを固定する。
+    let css = Theme::default().to_css();
+    let dark_count = css
+        .matches("--fandhe-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.32);")
+        .count();
+    assert_eq!(dark_count, 2);
 }
 
 #[test]
@@ -117,8 +133,54 @@ fn var_reference_helpers_match_generated_property_names() {
         typography_var("font-size-md").unwrap(),
         "var(--fandhe-font-font-size-md)"
     );
+    assert_eq!(radius_var("md").unwrap(), "var(--fandhe-radius-md)");
+    assert_eq!(shadow_var("sm").unwrap(), "var(--fandhe-shadow-sm)");
 
     assert!(css.contains("--fandhe-color-bg:"));
     assert!(css.contains("--fandhe-space-4:"));
     assert!(css.contains("--fandhe-font-font-size-md:"));
+    assert!(css.contains("--fandhe-radius-md:"));
+    assert!(css.contains("--fandhe-shadow-sm:"));
+}
+
+#[test]
+fn custom_radii_and_shadows_extend_full_snapshot_without_breaking_pre_606_output() {
+    // radii/shadows を push しないテーマは `custom_theme_output_matches_full_snapshot`
+    // （本ファイル）の既存スナップショットとバイト同一のままであることが
+    // #606 の後方互換要件。ここでは radii/shadows を追加した場合の出力構造を
+    // 個別に固定する（フルスナップショットへ混入させ既存テストを壊さない）。
+    let mut theme = Theme::empty();
+    theme.push_color("bg", "#ffffff", "#000000").unwrap();
+    theme.push_radius("md", "0.375rem").unwrap();
+    theme
+        .push_shadow(
+            "sm",
+            "0 1px 3px rgba(0, 0, 0, 0.12)",
+            "0 1px 3px rgba(0, 0, 0, 0.32)",
+        )
+        .unwrap();
+
+    let expected = "\
+:root {
+  color-scheme: light dark;
+  --fandhe-color-bg: #ffffff;
+  --fandhe-radius-md: 0.375rem;
+  --fandhe-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+:root[data-theme=\"light\"] { color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme=\"light\"]) {
+    color-scheme: dark;
+    --fandhe-color-bg: #000000;
+    --fandhe-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.32);
+  }
+}
+:root[data-theme=\"dark\"] {
+  color-scheme: dark;
+  --fandhe-color-bg: #000000;
+  --fandhe-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.32);
+}
+";
+
+    assert_eq!(theme.to_css(), expected);
 }

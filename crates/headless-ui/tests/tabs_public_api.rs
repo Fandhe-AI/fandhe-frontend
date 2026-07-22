@@ -7,7 +7,7 @@
 
 use fandhe_frontend_core::{render, text};
 use fandhe_frontend_headless_ui::data_attrs::Orientation;
-use fandhe_frontend_headless_ui::{tabs, TabItem, TabsProps};
+use fandhe_frontend_headless_ui::{tabs, ActivationMode, TabItem, TabsProps};
 
 #[test]
 fn tabs_public_api_is_usable_from_crate_root_and_renders_expected_html() {
@@ -16,6 +16,9 @@ fn tabs_public_api_is_usable_from_crate_root_and_renders_expected_html() {
             id: "settings",
             selected: "profile",
             orientation: Orientation::Horizontal,
+            activation_mode: ActivationMode::Automatic,
+            loop_focus: true,
+            indicator: false,
         },
         vec![
             TabItem {
@@ -56,6 +59,9 @@ fn tabs_public_api_escapes_xss_payload_in_value_and_children() {
             id: "t",
             selected: payload_value,
             orientation: Orientation::Horizontal,
+            activation_mode: ActivationMode::Automatic,
+            loop_focus: true,
+            indicator: false,
         },
         vec![TabItem {
             value: payload_value,
@@ -72,4 +78,40 @@ fn tabs_public_api_escapes_xss_payload_in_value_and_children() {
     assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
     assert!(html.contains("&lt;script&gt;alert(2)&lt;/script&gt;"));
     assert!(html.contains("&quot;"));
+}
+
+// --- イシュー #601: indicator パーツを公開 API 経由で確認する ---
+#[test]
+fn tabs_public_api_indicator_true_renders_data_part_css_vars_and_aria_hidden() {
+    let node = tabs(
+        &TabsProps {
+            id: "settings",
+            selected: "profile",
+            orientation: Orientation::Horizontal,
+            activation_mode: ActivationMode::Automatic,
+            loop_focus: true,
+            indicator: true,
+        },
+        vec![
+            TabItem {
+                value: "profile",
+                trigger: vec![text("Profile")],
+                content: vec![text("Profile panel")],
+                disabled: false,
+            },
+            TabItem {
+                value: "billing",
+                trigger: vec![text("Billing")],
+                content: vec![text("Billing panel")],
+                disabled: false,
+            },
+        ],
+    );
+    let html = render(&node);
+
+    assert!(html.contains(r#"data-scope="tabs" data-part="indicator""#));
+    assert!(html.contains(r#"aria-hidden="true""#));
+    assert!(html.contains(r#"style="--left: 0px; --top: 0px; --width: 0px; --height: 0px""#));
+    // 選択タブ（profile）が存在するため indicator は active・hidden なし。
+    assert!(html.contains(r#"data-part="indicator" data-state="active""#));
 }

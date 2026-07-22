@@ -177,3 +177,111 @@ fn caller_attrs_payload_is_escaped_end_to_end() {
     ));
     assert!(!html.contains("onmouseover=\"alert(1)"));
 }
+
+// --- TriggerItem/ContextTrigger（サブメニュー・右クリック、イシュー #598） ---
+
+/// 親 Menu（open）の content 内に子 Menu（closed）由来の trigger_item +
+/// positioner + content を入れ子で組み立て、haspopup 連鎖・role="menu" の
+/// 二重出現・aria-controls/id 配線・親 open/子 closed の hidden 差異を固定する。
+#[test]
+fn nested_menu_assembly_wires_haspopup_chain_and_hidden_state() {
+    let parent = Menu::new(OpenState::Open);
+    let sub = Menu::new(OpenState::Closed);
+
+    let sub_content = sub.content(
+        Some("sub-1"),
+        None,
+        vec![],
+        vec![menu::item("x", false, false, vec![], vec![])],
+    );
+    let sub_positioner = sub.positioner(vec![], vec![sub_content]);
+
+    let trigger_item = sub.trigger_item(false, false, Some("sub-1"), vec![], vec![]);
+    let regular_item = menu::item("a", false, false, vec![], vec![]);
+
+    let parent_content = parent.content(
+        None,
+        None,
+        vec![],
+        vec![regular_item, trigger_item, sub_positioner],
+    );
+    let parent_trigger = parent.trigger(false, None, vec![], vec![]);
+    let parent_positioner = parent.positioner(vec![], vec![parent_content]);
+    let root = parent.root(vec![], vec![parent_trigger, parent_positioner]);
+
+    let html = render(&root);
+
+    // (a) aria-haspopup="menu" が親 trigger と子 trigger-item の 2 箇所に出る。
+    assert_eq!(html.matches(r#"aria-haspopup="menu""#).count(), 2);
+    // (b) role="menu" が親 content と子 content の 2 箇所に出る。
+    assert_eq!(html.matches(r#"role="menu""#).count(), 2);
+    // (c) aria-controls="sub-1" <-> id="sub-1" の配線。
+    assert!(html.contains(r#"aria-controls="sub-1""#));
+    assert!(html.contains(r#"id="sub-1""#));
+    // (d) 親 open なので親 content には hidden が付かず、子 closed なので
+    //     子 positioner には hidden が付く。
+    let sub_positioner_html = render(&sub.positioner(vec![], vec![]));
+    assert!(sub_positioner_html.contains(r#"hidden="""#));
+    let parent_content_only = render(&parent.content(None, None, vec![], vec![]));
+    assert!(!parent_content_only.contains("hidden"));
+}
+
+#[test]
+fn nested_menu_dispatch_is_independent_between_parent_and_child() {
+    let parent = Menu::new(OpenState::Open);
+    let mut sub = Menu::default();
+    assert_eq!(sub.state(), OpenState::Closed);
+
+    assert!(dispatch(&mut sub, "open", ""));
+
+    // 子だけ open になり、親は不変（open のまま）。
+    assert!(
+        render(&sub.trigger_item(false, false, None, vec![], vec![]))
+            .contains(r#"aria-expanded="true""#)
+    );
+    assert_eq!(parent.state(), OpenState::Open);
+}
+
+#[test]
+fn context_trigger_assembly_outputs_data_hooks_without_aria() {
+    let m = Menu::new(OpenState::Closed);
+    let content = m.content(
+        None,
+        None,
+        vec![],
+        vec![menu::item("a", false, false, vec![], vec![])],
+    );
+    let positioner = m.positioner(vec![], vec![content]);
+    let ctx_trigger = m.context_trigger(vec![], vec![]);
+    let root = m.root(vec![], vec![ctx_trigger, positioner]);
+
+    let html = render(&root);
+    assert!(html.contains(r#"data-part="context-trigger""#));
+    assert!(html.contains(r#"<button"#));
+    assert!(html.contains(r#"type="button""#));
+    assert!(!html.contains("aria-haspopup"));
+    assert!(!html.contains("aria-expanded"));
+}
+
+#[test]
+fn nested_menu_assembly_xss_payload_is_escaped_end_to_end() {
+    let sub = Menu::new(OpenState::Closed);
+    let sub_content = sub.content(Some(ATTR_BREAK_PAYLOAD), None, vec![], vec![]);
+    let sub_positioner = sub.positioner(vec![], vec![sub_content]);
+    let trigger_item = sub.trigger_item(
+        false,
+        false,
+        Some(ATTR_BREAK_PAYLOAD),
+        vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+        vec![],
+    );
+
+    let parent = Menu::new(OpenState::Open);
+    let parent_content = parent.content(None, None, vec![], vec![trigger_item, sub_positioner]);
+    let parent_trigger = parent.trigger(false, None, vec![], vec![]);
+    let root = parent.root(vec![], vec![parent_trigger, parent_content]);
+
+    let html = render(&root);
+    assert!(!html.contains("onmouseover=\"alert(1)"));
+    assert!(html.contains("&quot;"));
+}
