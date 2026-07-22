@@ -39,6 +39,7 @@ use crate::aria::{
 };
 use crate::data_attrs::{data_disabled, data_orientation, data_state, Orientation};
 use fandhe_frontend_core::Node;
+use std::collections::HashMap;
 
 /// `data-scope="tabs"` を固定した本コンポーネントの anatomy。
 const ANATOMY: Anatomy = anatomy("tabs");
@@ -53,7 +54,9 @@ const DATA_STATE_INACTIVE: &str = "inactive";
 /// `value` は同一 [`tabs`] 呼び出し内で一意であることが呼び出し側の契約
 /// である（[`TabsProps::id`] と組み合わせて trigger/content の `id` を
 /// 決定的に生成するため）。重複した場合の挙動は [`tabs`] の rustdoc を
-/// 参照（先勝ち・fail-closed、panic しない）。
+/// 参照（選択判定は先勝ち・fail-closed で panic しない。`id` の一意性は
+/// 2 件目以降の重複 `value` に出現順インデックスを付与して機械的に確保する。
+/// 呼び出し側は `value` を一意にすることが望ましい契約であることに変わりはない）。
 pub struct TabItem<'a> {
     /// タブの識別 value。
     pub value: &'a str,
@@ -93,6 +96,14 @@ pub struct TabsProps<'a> {
 /// - `props.selected` と一致する最初の [`TabItem::value`] のみを active と
 ///   する。2 件目以降の重複 `value` はすべて inactive として描画する
 ///   （先勝ち）。
+/// - `id` の一意性（REQ 相当、レビュー指摘 PR #560）: 重複 `value` を持つ
+///   複数の [`TabItem`] がそのまま `"{id}-trigger-{value}"` から `id` を
+///   導出すると HTML 上で `id` が衝突し、`aria-controls`/`aria-labelledby`
+///   の参照先が曖昧になる。これを防ぐため、同一 `value` の 2 件目以降には
+///   その `value` 内での出現順インデックス（0 始まり、初回は付与しない）を
+///   `"{id}-trigger-{value}-{n}"`/`"{id}-content-{value}-{n}"` として
+///   付与し、`id` を一意に保つ（描画自体は先勝ち・fail-closed のまま拒否
+///   しない）。
 /// - `props.selected` がどの `value` とも一致しない場合、全 trigger/content
 ///   が inactive として描画される。
 /// - `props.selected` が一致した item が disabled の場合も同様に「未選択」
@@ -153,12 +164,29 @@ pub fn tabs(props: &TabsProps<'_>, items: Vec<TabItem<'_>>) -> Node {
 
     let mut list_children: Vec<Node> = Vec::with_capacity(items.len());
     let mut root_extra_children: Vec<Node> = Vec::with_capacity(items.len());
+    // `value` の出現回数を追跡し、重複 `value` の 2 件目以降に一意化サフィックスを
+    // 付与するために使う（レビュー指摘、PR #560）。初回出現（0 件目）はサフィックス
+    // なしのまま既存の `id` 形式（"{id}-trigger-{value}"）を維持し、後方互換を保つ。
+    let mut value_occurrence: HashMap<&str, u32> = HashMap::with_capacity(items.len());
 
     for (index, item) in items.into_iter().enumerate() {
         let is_active = active_index == Some(index);
         let is_tabbable = tabbable_index == Some(index);
-        let trigger_id = format!("{}-trigger-{}", props.id, item.value);
-        let content_id = format!("{}-content-{}", props.id, item.value);
+        let occurrence = value_occurrence.entry(item.value).or_insert(0);
+        let occurrence_index = *occurrence;
+        *occurrence += 1;
+        let (trigger_id, content_id) = if occurrence_index == 0 {
+            (
+                format!("{}-trigger-{}", props.id, item.value),
+                format!("{}-content-{}", props.id, item.value),
+            )
+        } else {
+            // 同一 value の重複衝突を避けるため出現順インデックスを付与する。
+            (
+                format!("{}-trigger-{}-{}", props.id, item.value, occurrence_index),
+                format!("{}-content-{}-{}", props.id, item.value, occurrence_index),
+            )
+        };
         let data_state_value = if is_active {
             DATA_STATE_ACTIVE
         } else {
@@ -372,6 +400,42 @@ mod tests {
         assert_eq!(html.matches(r#"data-state="active""#).count(), 2); // trigger 1 + content 1 のみ（2 件目の重複 item は inactive）
         assert_eq!(html.matches(r#"aria-selected="true""#).count(), 1);
         assert_eq!(html.matches(r#"aria-selected="false""#).count(), 1);
+    }
+
+    #[test]
+    fn duplicate_value_gets_unique_ids_via_occurrence_suffix() {
+        // レビュー指摘（PR #560, Cursor Bugbot）: 重複 value を持つ TabItem が
+        // 同一 id を生成すると aria-controls/aria-labelledby の参照先が曖昧になる。
+        // 2 件目以降には出現順インデックスを付与して id を一意に保つ。
+        let node = tabs(&props("t", "a"), vec![item("a", false), item("a", false)]);
+        let html = render(&node);
+        // 1 件目（初回出現）は従来どおりサフィックスなし。
+        assert!(html.contains(r#"id="t-trigger-a""#));
+        assert!(html.contains(r#"id="t-content-a""#));
+        // 2 件目（重複）は出現順インデックス "-1" が付与され、id が一意になる。
+        assert!(html.contains(r#"id="t-trigger-a-1""#));
+        assert!(html.contains(r#"id="t-content-a-1""#));
+        // 2 件目の aria-controls/aria-labelledby も一意化後の id を正しく参照する。
+        assert!(html.contains(r#"aria-controls="t-content-a-1""#));
+        assert!(html.contains(r#"aria-labelledby="t-trigger-a-1""#));
+        // "id=" の総出現回数がちょうど 5 件（root 1 + trigger 2 + content 2）で、
+        // 衝突（同一 id 文字列の重複出現）がないことを裏付ける。
+        assert_eq!(html.matches(" id=\"").count(), 5);
+    }
+
+    #[test]
+    fn triple_duplicate_value_gets_sequential_occurrence_suffixes() {
+        let node = tabs(
+            &props("t", "does-not-exist"),
+            vec![item("a", false), item("a", false), item("a", false)],
+        );
+        let html = render(&node);
+        assert!(html.contains(r#"id="t-trigger-a""#));
+        assert!(html.contains(r#"id="t-trigger-a-1""#));
+        assert!(html.contains(r#"id="t-trigger-a-2""#));
+        assert!(html.contains(r#"id="t-content-a""#));
+        assert!(html.contains(r#"id="t-content-a-1""#));
+        assert!(html.contains(r#"id="t-content-a-2""#));
     }
 
     #[test]
