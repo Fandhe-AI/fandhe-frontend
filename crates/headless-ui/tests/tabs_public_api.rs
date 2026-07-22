@@ -7,7 +7,7 @@
 
 use fandhe_frontend_core::{render, text};
 use fandhe_frontend_headless_ui::data_attrs::Orientation;
-use fandhe_frontend_headless_ui::{tabs, TabItem, TabsProps};
+use fandhe_frontend_headless_ui::{tabs, ActivationMode, TabItem, TabsProps};
 
 #[test]
 fn tabs_public_api_is_usable_from_crate_root_and_renders_expected_html() {
@@ -16,6 +16,8 @@ fn tabs_public_api_is_usable_from_crate_root_and_renders_expected_html() {
             id: "settings",
             selected: "profile",
             orientation: Orientation::Horizontal,
+            activation_mode: ActivationMode::Automatic,
+            loop_focus: true,
         },
         vec![
             TabItem {
@@ -56,6 +58,8 @@ fn tabs_public_api_escapes_xss_payload_in_value_and_children() {
             id: "t",
             selected: payload_value,
             orientation: Orientation::Horizontal,
+            activation_mode: ActivationMode::Automatic,
+            loop_focus: true,
         },
         vec![TabItem {
             value: payload_value,

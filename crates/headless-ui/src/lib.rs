@@ -35,8 +35,12 @@
 //!   `data-state` 整合・SSR/hydration 契約をここに一度だけ実装し、各コンポーネントは
 //!   フィールドとして埋め込んで再利用する。
 //! - [`mod@tabs`]: WAI-ARIA APG の Tabs パターンに準拠したマークアップを組み立てる
-//!   [`tabs::tabs`]（#528）。SSR 時点の静的な選択状態のみを扱い、クリック/
-//!   キーボード操作・状態機械連携は後続イシューのスコープ。
+//!   [`tabs::tabs`]（#528）。SSR 時点の静的な選択状態のみを扱い、クリック操作・
+//!   状態機械連携は後続イシューのスコープ。[`tabs::TabsProps`] の
+//!   `activation_mode`/`loop_focus`（イシュー #582）は `list` パーツへ
+//!   `data-activation-mode`/`data-loop-focus` として出力され、
+//!   `fandhe-frontend-wasm-full` の `keynav` モジュールがキーボード操作時の
+//!   活性化タイミング・フォーカス循環を分岐するために読む契約。
 //! - [`mod@collapsible`]: Root/Trigger/Indicator/Content の anatomy パーツ関数群と、
 //!   [`state::Disclosure`] を埋め込んだ [`collapsible::Collapsible`] 状態機械
 //!   （#529、親 #526）。Phase 2 で [`state`] を具象コンポーネントへ適用する最初の例。
@@ -172,5 +176,5 @@ pub use state::{
     DATA_STATE_OPEN,
 };
 pub use switch::{Switch, SwitchAction};
-pub use tabs::{tabs, TabItem, TabsProps};
+pub use tabs::{tabs, ActivationMode, TabItem, TabsProps};
 pub use tooltip::Tooltip;

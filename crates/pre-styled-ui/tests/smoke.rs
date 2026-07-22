@@ -90,6 +90,8 @@ mod wrapper_escape_and_stylesheet_safety {
             id: "t1",
             selected: "one",
             orientation: Orientation::Horizontal,
+            activation_mode: tabs::ActivationMode::Automatic,
+            loop_focus: true,
         };
         let items = vec![tabs::TabItem {
             value: "one",
