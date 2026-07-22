@@ -66,6 +66,13 @@
 //!   （headless Menu コンポーネント、#540）。構造上最も近い先行例は
 //!   [`popover::Popover`]（trigger 起点のオーバーレイ + `Disclosure` 埋め込み）
 //!   であり、本モジュールはそのパターンに完全準拠する。
+//! - [`mod@select`]: Root / Label / Control / Trigger / ValueText /
+//!   ClearTrigger / Indicator / Positioner / Content / ItemGroup /
+//!   ItemGroupLabel / Item / ItemText / ItemIndicator / HiddenSelect の 15
+//!   anatomy パーツと、[`state::Disclosure`]（listbox 開閉）+
+//!   [`state::SingleSelect`]（選択値）を合成した [`select::Select`] 状態機械
+//!   （#541、親 #539）。Disclosure と SingleSelect を 1 コンポーネントに
+//!   合成する初の例。
 //! - [`mod@switch`]: Root / Control / Thumb / Label / HiddenInput の 5 anatomy
 //!   パーツと、`"checked"`/`"unchecked"` 語彙の [`switch::Switch`] 状態機械
 //!   （#537、親 #534）。ark-ui 準拠の値語彙が [`state::Disclosure`] の
@@ -103,6 +110,7 @@ pub mod dialog;
 pub mod menu;
 pub mod popover;
 pub mod radio_group;
+pub mod select;
 pub mod state;
 pub mod switch;
 pub mod tabs;
