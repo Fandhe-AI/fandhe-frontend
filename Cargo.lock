@@ -117,6 +117,7 @@ version = "0.1.0"
 dependencies = [
  "fandhe-frontend-core",
  "fandhe-frontend-headless-ui",
+ "fandhe-frontend-interactive",
 ]
 
 [[package]]
