@@ -42,6 +42,21 @@
 //! `positioner` 等）の下に隠れて操作不能になり得る。[`recipe`] の base 規則で
 //! 両パーツに `z-index` を設定し、常に最前面に来るようにする（menu/select の
 //! dropdown positioner（z-index: 10）より高い値にする）。
+//!
+//! # closed 時の `positioner` は必ず非表示化する（PR #575 Bugbot 指摘対応、High）
+//!
+//! headless 層（`crates/headless-ui/src/dialog.rs`）は dialog が closed の
+//! とき `positioner`（`backdrop`/`content` も同様）に `hidden` 存在属性を
+//! 付与し、UA 既定スタイル `[hidden] { display: none }` によって非表示化
+//! させる契約になっている。ところが [`recipe`] の base 規則は `positioner`
+//! に `display: flex` を宣言しており、この author スタイルが UA スタイルより
+//! 詳細度で優先されるため `[hidden]` 単体では非表示化できず、closed でも
+//! `position: fixed; inset: 0; z-index: 1001` のフルビューポート層が残存して
+//! 背後のページのクリックを遮断してしまう（`backdrop`/`content` は
+//! base 規則が `display` を宣言しないため UA 既定で問題ない）。
+//! [`state_css`] に `[data-scope="dialog"][data-part="positioner"][hidden]`
+//! に対する `display: none` の明示的な上書き規則を追加し、`display: flex`
+//! より詳細度・出現順の両方で優先させることでこれを固定する。
 
 use crate::css::{decl, serialize_rule};
 use crate::recipe::SlotRecipe;
@@ -158,6 +173,17 @@ fn state_css() -> String {
     ) {
         out.push_str(&css);
     }
+    // PR #575 Bugbot 指摘対応（High）: positioner の base 規則が
+    // `display: flex` を宣言しており、UA 既定の `[hidden] { display: none }`
+    // を詳細度で上書きしてしまう。closed 時に headless 層が付与する
+    // `hidden` 属性を確実に非表示化として機能させるため、より詳細度の高い
+    // `[hidden]` 属性セレクタで `display: none` を明示的に上書きする。
+    if let Some(css) = serialize_rule(
+        r#"[data-scope="dialog"][data-part="positioner"][hidden]"#,
+        &[decl("display", "none")],
+    ) {
+        out.push_str(&css);
+    }
     out
 }
 
@@ -204,6 +230,23 @@ mod tests {
         assert!(css.contains(r#"[data-scope="dialog"][data-part="backdrop"] {"#));
         assert!(css.contains("z-index: 1000;"));
         assert!(css.contains("z-index: 1001;"));
+    }
+
+    #[test]
+    fn closed_positioner_hidden_attr_overrides_display_flex() {
+        // PR #575 Bugbot 指摘対応（High）: positioner の base 規則
+        // `display: flex` が UA 既定の `[hidden] { display: none }` を
+        // 上書きし、closed でもフルビューポート層が残存して背後のページの
+        // クリックを遮断する不具合の回帰。`[hidden]` 属性セレクタでの
+        // 明示的な `display: none` 上書きが出力されることを固定する。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="dialog"][data-part="positioner"][hidden] {"#));
+        let positioner_hidden_rule_start = css
+            .find(r#"[data-scope="dialog"][data-part="positioner"][hidden] {"#)
+            .expect("positioner[hidden] rule must be present");
+        let rule_body = &css[positioner_hidden_rule_start..];
+        let rule_end = rule_body.find('}').expect("rule must be closed");
+        assert!(rule_body[..rule_end].contains("display: none;"));
     }
 
     #[test]
