@@ -34,6 +34,9 @@
 //!   #526〜#533）が共通で使う「open/closed・selected」の dispatch 契約・
 //!   `data-state` 整合・SSR/hydration 契約をここに一度だけ実装し、各コンポーネントは
 //!   フィールドとして埋め込んで再利用する。
+//! - [`mod@collapsible`]: Root/Trigger/Indicator/Content の anatomy パーツ関数群と、
+//!   [`state::Disclosure`] を埋め込んだ [`collapsible::Collapsible`] 状態機械
+//!   （#529、親 #526）。Phase 2 で [`state`] を具象コンポーネントへ適用する最初の例。
 //!
 //! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
 //! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
@@ -48,6 +51,7 @@
 
 pub mod anatomy;
 pub mod aria;
+pub mod collapsible;
 pub mod data_attrs;
 pub mod state;
 
