@@ -54,6 +54,12 @@
 //!   Content / Title / Description / CloseTrigger / Indicator の 11 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだ [`popover::Popover`] を提供する
 //!   headless Popover コンポーネント（#532）。
+//! - [`mod@field`]: Root / Label / Input / Textarea / Select / HelperText /
+//!   ErrorText / RequiredIndicator の 8 anatomy パーツ関数群
+//!   （[`field::FieldProps`] から決定的に描画する純粋関数、#538）。
+//!   `invalid`/`disabled`/`required`/`readonly` は SSR 静的な props であり、
+//!   開閉のような時間変化する内部状態を持たないため [`mod@state`] の状態機械を
+//!   適用しない（[`mod@tabs`] と同型の判断）。
 //!
 //! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
 //! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
@@ -72,6 +78,7 @@ pub mod aria;
 pub mod collapsible;
 pub mod data_attrs;
 pub mod dialog;
+pub mod field;
 pub mod popover;
 pub mod state;
 pub mod tabs;
@@ -80,14 +87,15 @@ pub mod tooltip;
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
     aria_checked, aria_controls, aria_describedby, aria_disabled, aria_expanded, aria_haspopup,
-    aria_hidden, aria_label, aria_labelledby, aria_modal, aria_orientation, aria_selected, role,
-    AriaChecked, AriaPopup,
+    aria_hidden, aria_invalid, aria_label, aria_labelledby, aria_modal, aria_orientation,
+    aria_selected, role, AriaChecked, AriaPopup,
 };
 pub use data_attrs::{
     data_disabled, data_invalid, data_orientation, data_readonly, data_required, data_state,
     Orientation,
 };
 pub use dialog::Dialog;
+pub use field::FieldProps;
 pub use state::{
     Disclosure, DisclosureAction, OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CLOSED,
     DATA_STATE_OPEN,
