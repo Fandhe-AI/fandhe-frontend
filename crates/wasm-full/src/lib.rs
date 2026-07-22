@@ -60,6 +60,14 @@
 //! いる（`overlay.rs` 冒頭 doc 参照）。実際の `"open"`/`"close"` dispatch・
 //! 再描画は呼び出し側（#580 統合層）の責務として通知のみを提供する。
 //!
+//! [`headless_avatar`] モジュール（イシュー #591、親 #520/#542/#543）は
+//! `fandhe-frontend-headless-ui` の Avatar（`avatar` モジュール）が公開する
+//! `data-scope="avatar"`/`data-part="image"/"fallback"` 契約に対し、実 DOM の
+//! `img` 要素の `load`/`error` イベント検知グルーを提供する。`load`/`error`
+//! はバブリングしないため、`events`/`keynav`/`overlay` の委譲（バブリング
+//! フェーズ）とは異なり **capture フェーズ**でルート要素へ委譲する
+//! （同モジュール doc 参照）。
+//!
 //! [`focus_trap`] モジュール（イシュー #586、親 #584）は Dialog の
 //! `aria-modal="true"` 時のフォーカストラップ（Tab 循環・初期フォーカス）と、
 //! 閉鎖時のトリガーへのフォーカス復帰を担う。[`overlay`] と同じ 2 層構成
@@ -85,6 +93,7 @@
 pub mod csr;
 pub mod events;
 pub mod focus_trap;
+pub mod headless_avatar;
 pub mod hydration;
 pub mod keynav;
 pub mod nav;

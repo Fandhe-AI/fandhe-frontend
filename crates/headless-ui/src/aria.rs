@@ -164,6 +164,17 @@ pub fn aria_label(label: &str) -> (&'static str, &str) {
     ("aria-label", label)
 }
 
+/// `aria-activedescendant` 属性。[`aria_controls`] と同じくエスケープ経由。
+///
+/// composite ロール（`listbox`/`combobox` 等）にのみ有効な属性であり、
+/// 呼び出し側は当該ロールを持つ要素（[`crate::select::content`] の
+/// `role="listbox"` 等）へのみ付与する（素の `button` 等へ付与しない）。
+/// 値は参照先要素（[`crate::select::item`] 等）の `id` と対応させる。
+#[must_use]
+pub fn aria_activedescendant(id: &str) -> (&'static str, &str) {
+    ("aria-activedescendant", id)
+}
+
 fn bool_str(value: bool) -> &'static str {
     if value {
         "true"
@@ -225,5 +236,9 @@ mod tests {
         assert_eq!(aria_labelledby(&id), ("aria-labelledby", "panel-1"));
         assert_eq!(aria_describedby(&id), ("aria-describedby", "panel-1"));
         assert_eq!(aria_label("Close"), ("aria-label", "Close"));
+        assert_eq!(
+            aria_activedescendant(&id),
+            ("aria-activedescendant", "panel-1")
+        );
     }
 }
