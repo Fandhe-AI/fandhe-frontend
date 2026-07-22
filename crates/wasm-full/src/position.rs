@@ -263,7 +263,13 @@ mod wiring {
     /// あれば優先し、なければ `[data-part="trigger"]` を anchor として扱う
     /// （Popover の `anchor` パーツ、他コンポーネントの `trigger` パーツの
     /// いずれも実 DOM 上の参照要素として妥当という設計判断、ADR §4.1 の
-    /// 「anchor（トリガー等）矩形」記述に対応）。
+    /// 「anchor（トリガー等）矩形」記述に対応）。Menu のサブメニュー
+    /// （`trigger-item`）・コンテキストメニュー（`context-trigger`）は
+    /// `trigger`/`anchor` パーツを持たず、これら固有の part 名がそれぞれの
+    /// scope root 直下の参照要素であるため、フォールバック先へ追加する
+    /// （イシュー #622 レビュー指摘の回帰: 追加しないと `find_anchor` が
+    /// `None` を返し `reposition_one` が no-op となって開いている
+    /// positioner へ CSS 変数が届かなくなる）。
     fn find_anchor(scope_root: &Element) -> Option<Element> {
         scope_root
             .query_selector("[data-part=\"anchor\"]")
@@ -272,6 +278,18 @@ mod wiring {
             .or_else(|| {
                 scope_root
                     .query_selector("[data-part=\"trigger\"]")
+                    .ok()
+                    .flatten()
+            })
+            .or_else(|| {
+                scope_root
+                    .query_selector("[data-part=\"trigger-item\"]")
+                    .ok()
+                    .flatten()
+            })
+            .or_else(|| {
+                scope_root
+                    .query_selector("[data-part=\"context-trigger\"]")
                     .ok()
                     .flatten()
             })

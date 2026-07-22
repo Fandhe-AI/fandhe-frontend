@@ -18,7 +18,9 @@
 //!
 //! (a) `reposition_now()` 呼び出し後、開いている positioner（
 //!     `data-state="open"`）へ `style` 属性が反映され `--fandhe-x`/
-//!     `--fandhe-y`/`--fandhe-reference-width` を含む
+//!     `--fandhe-y` を含む（Popover フィクスチャは
+//!     `same_width_default() == false` のため `--fandhe-reference-width`
+//!     は含まないことも併せて検証する）
 //! (b) `data-side`/`data-align` 属性が [`fandhe_frontend_headless_ui::Placement`]
 //!     の語彙のいずれかへ書き換わる（欠落時の既定 `bottom`/`center` を含む）
 //! (c) 閉じている positioner（`data-state` が `"open"` でない）は対象外
@@ -30,6 +32,7 @@
 #![cfg(target_arch = "wasm32")]
 
 use fandhe_frontend_core::render;
+use fandhe_frontend_headless_ui::menu;
 use fandhe_frontend_headless_ui::popover;
 use fandhe_frontend_headless_ui::state::OpenState;
 use fandhe_frontend_wasm_full::position::PositionController;
@@ -113,7 +116,13 @@ fn reposition_now_sets_style_and_placement_attrs_on_open_positioner() {
         .expect("open positioner must receive a style attribute after reposition_now");
     assert!(style.contains("--fandhe-x:"));
     assert!(style.contains("--fandhe-y:"));
-    assert!(style.contains("--fandhe-reference-width:"));
+    // Popover は `PositionedKind::same_width_default()` が `false` のため
+    // `css_vars_style` は `--fandhe-reference-width` を出力しない契約
+    // （イシュー #622 レビュー指摘の回帰、native 側の
+    // `same_width_default_true_for_menu_and_select_only`/
+    // `resolve_position_includes_reference_width_for_menu_and_select_only`
+    // と同じ契約をブラウザ経路でも確認する）。
+    assert!(!style.contains("--fandhe-reference-width:"));
 
     // positioner に data-side/data-align が付与されていなかったため
     // 既定（bottom/center）へフォールバックする（fail-closed、
@@ -127,6 +136,56 @@ fn reposition_now_sets_style_and_placement_attrs_on_open_positioner() {
         positioner.get_attribute("data-align").as_deref(),
         Some("center")
     );
+
+    drop(controller);
+}
+
+/// サブメニュー（`trigger-item` が anchor）1 個を `container` 配下へ展開し、
+/// 子 Menu の positioner 要素を返す（イシュー #622 レビュー指摘の回帰:
+/// `find_anchor` が `trigger-item` を anchor フォールバックへ含めることを
+/// 確認する。親 Menu の `content` 内に子 Menu インスタンス由来の
+/// `trigger_item`/`positioner`/`content` を入れ子で配置する構成は
+/// `menu.rs` doc の「サブメニュー」契約どおり）。
+fn mount_open_submenu(document: &Document, container: &Element, id_prefix: &str) -> Element {
+    let positioner_id = format!("{id_prefix}-positioner");
+    let html = render(&menu::root(
+        OpenState::Open,
+        vec![],
+        vec![
+            menu::trigger_item(OpenState::Open, false, false, None, vec![], vec![]),
+            menu::positioner(
+                OpenState::Open,
+                vec![("id", positioner_id.as_str())],
+                vec![menu::content(OpenState::Open, None, None, vec![], vec![])],
+            ),
+        ],
+    ));
+    container.set_inner_html(&html);
+    document
+        .get_element_by_id(&positioner_id)
+        .expect("positioner element must exist")
+}
+
+#[wasm_bindgen_test]
+fn reposition_now_resolves_trigger_item_as_anchor_for_submenu() {
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+    let container = create_placeholder(&document, "position-browser-submenu");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let positioner = mount_open_submenu(&document, &container, "position-browser-submenu");
+    assert!(positioner.get_attribute("style").is_none());
+
+    let controller =
+        PositionController::new(&window).expect("PositionController::new must succeed");
+    controller.reposition_now();
+
+    let style = positioner.get_attribute("style").expect(
+        "submenu positioner must receive a style attribute after reposition_now \
+         (find_anchor must resolve [data-part=\"trigger-item\"] as the anchor)",
+    );
+    assert!(style.contains("--fandhe-x:"));
+    assert!(style.contains("--fandhe-y:"));
 
     drop(controller);
 }
