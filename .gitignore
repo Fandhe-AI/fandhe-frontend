@@ -32,6 +32,10 @@
 # 残留に備えた保険（次回実行での自己回復とは独立の安全策）。
 /static/rebuild-latency-probe.txt
 
+# 秘密情報を含むローカル env（.claude/rules/security.md: .env 系はコミット禁止）。
+# 追跡対象の雛形は .env.example のみとし、実値は各環境で .env に置く。
+/.env
+
 # implement-issue-tree 等のスキルが使うローカル状態ディレクトリ
 # （_/issue-trees/<N>.json・_/local-plans/ 等。git 管理外・コミット禁止）
 /_/
