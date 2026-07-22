@@ -18,7 +18,9 @@
 //! イシュー #504（examples 導線）で Examples セクション（概説ページ 1 +
 //! サンプル README 4 = 5 ページ）が追加され、登録ページ総数は 17 ページ・
 //! セクション数は 4（Getting Started / Guides / Examples / API Reference）
-//! となった。
+//! となった。イシュー #548 で API Reference セクションへ
+//! `docs/api/pre-styled-recipe-api.md` が追加され、登録ページ総数は
+//! 18 ページとなった。
 //!
 //! `site/index.md`（イシュー #472）は本テスト実行時点で未マージのことが
 //! あるため、存在すれば厳格検証（他ページと同様に `render_markdown` の
@@ -67,11 +69,12 @@ fn site_nav_registers_four_sections_with_expected_titles() {
 
 /// 受け入れ条件 1: 既存の利用者向けドキュメント（トップ + quickstart +
 /// guides 4 本 + api 6 本 = 12 ページ）と、イシュー #504 で追加された
-/// Examples セクション（概説ページ 1 + サンプル README 4 = 5 ページ）が
+/// Examples セクション（概説ページ 1 + サンプル README 4 = 5 ページ）、
+/// イシュー #548 で追加された `docs/api/pre-styled-recipe-api.md`（1 ページ）が
 /// サイト生成対象として登録されている（イシュー本文の「全 11 ページ」表記と
 /// 列挙内容の数値差異はモジュール冒頭のコメント参照）。
 #[test]
-fn site_nav_registers_all_seventeen_pages_with_expected_paths() {
+fn site_nav_registers_all_eighteen_pages_with_expected_paths() {
     let nav = load_nav();
     let pages: Vec<(&str, &str)> = nav
         .sections
@@ -80,7 +83,7 @@ fn site_nav_registers_all_seventeen_pages_with_expected_paths() {
         .map(|p| (p.source.as_str(), p.path.as_str()))
         .collect();
 
-    assert_eq!(pages.len(), 17, "expected 17 pages, got {pages:?}");
+    assert_eq!(pages.len(), 18, "expected 18 pages, got {pages:?}");
 
     let expected = vec![
         ("site/index.md", "/"),
@@ -118,10 +121,14 @@ fn site_nav_registers_all_seventeen_pages_with_expected_paths() {
             "docs/api/router-path-matching.md",
             "/api/router-path-matching/",
         ),
+        (
+            "docs/api/pre-styled-recipe-api.md",
+            "/api/pre-styled-recipe-api/",
+        ),
     ];
     // "site/index.md" は #472（未マージのことがある）依存のため、期待値の
     // 先頭は上のリストに含めつつ後段の実在チェックでは条件付きにする。
-    // ここでは path/source の宣言内容そのもの（15 + 1 件）を厳格検証する。
+    // ここでは path/source の宣言内容そのもの（16 + 1 件）を厳格検証する。
     assert_eq!(pages.len(), expected.len());
     for expected_pair in &expected {
         assert!(

@@ -22,13 +22,15 @@
 //!    追加しない。`fandhe-frontend-core` への直接依存は headless-ui 経由で
 //!    間接的に得る（dev-dependency としてのみ利用、後述）。
 //!
-//! # 本ファイルのスコープ（イシュー #546/#547）
+//! # 本ファイルのスコープ（イシュー #546/#547/#548）
 //!
 //! イシュー #546 のスコープは「クレートが workspace・`structure.toml`・`fw gate` の
-//! 管理下に正しく組み込まれた状態」の確立であった。本イシュー #547 で
-//! [`theme`] モジュール（テーマトークン・ダークモード基盤）を追加した。
-//! variant API・クラス名/静的 CSS 生成はイシュー #548、styled 部品実装は
-//! イシュー #550/#551、examples・利用ガイドはイシュー #552 のスコープ。
+//! 管理下に正しく組み込まれた状態」の確立であった。イシュー #547 で
+//! [`theme`] モジュール（テーマトークン・ダークモード基盤）を追加し、本イシュー
+//! （#548）で [`css`]（CSS 宣言の低レベル表現・検証・シリアライズ）と
+//! [`recipe`]（slot recipe 本体・`SlotRecipe`・`VariantValue`）を実装した。
+//! styled 部品実装（Button 等 #550・Dialog 等ラッパー #551）、examples・
+//! 利用ガイド（#552）は別イシューのスコープ。
 //!
 //! [`theme`] が生成する CSS は静的 `.css` ファイルとして配信する利用形態を
 //! 前提とし、`<style>` タグへの埋め込み（`raw_html` が必要になる）は本クレート
@@ -37,4 +39,9 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod css;
+pub mod recipe;
 pub mod theme;
+
+pub use css::{decl, Declaration};
+pub use recipe::{Size, SlotRecipe, VariantValue};
