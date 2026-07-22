@@ -289,6 +289,32 @@ mod wiring {
     /// `Closure::forget` は本関数呼び出しにつき 1 回のみに限定する
     /// （`events.rs` と同じ判断。無制限リークによるメモリ枯渇 DoS を構造的
     /// に回避、A04 対策）。
+    ///
+    /// # ネストした headless root 間のクロスディスパッチ防止（イシュー #580
+    /// PR #611 Bugbot 指摘の修正）
+    ///
+    /// 本関数はルート要素ごとに click リスナーを 1 個登録する委譲方式のため、
+    /// 例えば `Select` を内包する `Dialog` のように headless root が入れ子に
+    /// なっている場合、内側 root（Select）と外側 root（Dialog）の双方に
+    /// リスナーが登録される。DOM の bubble 順は「内側 root → 外側 root」で
+    /// あり、内側で `action_from_parts` がアクションを解決できた時点で
+    /// `Event::stop_propagation` を呼ばないと、同一 click イベントが外側の
+    /// リスナーまで届いてしまう。Disclosure（`toggle`/`close`）・
+    /// SingleSelect（`select`）は語彙が全 headless コンポーネントで共有
+    /// されているため、外側の `find_map` が内側の part を誤って自分の
+    /// アクションとして解決し、Dialog/Select/Collapsible の組み合わせで
+    /// 意図しない外側コンポーネントへの二重ディスパッチが発生しうる。
+    ///
+    /// 解決できた場合のみ `stop_propagation` を呼ぶことで、この二重
+    /// ディスパッチを防ぐ。解決できなかった場合（fail-closed で `None`）は
+    /// 伝播を止めない。`disabled` 起因で内側が `None` を返すケースでも
+    /// 安全性は保たれる: 内側で disabled と判定された part は外側の
+    /// `collect_part_refs` が辿る祖先列にも同じ要素として含まれるため、
+    /// 外側の [`action_from_parts`] も同じ disabled 判定で `None` を返す
+    /// （`crate::events::wire_events` とは異なり、本関数は
+    /// `stop_immediate_propagation` ではなく `stop_propagation` を使う。
+    /// 同一要素上の他リスナーは阻害せず、祖先の別 root リスナーへの伝播
+    /// のみを止めるため）。
     pub fn wire_headless_events(
         root: Element,
         on_action: impl FnMut(ActionRef) + 'static,
@@ -314,6 +340,10 @@ mod wiring {
             };
             let parts = collect_part_refs(&click_root, &target_element);
             if let Some(action_ref) = action_from_parts(&parts) {
+                // ネストした外側 root（例: Dialog の外側リスナー）へ同一
+                // click イベントが bubble して二重解決されるのを防ぐ
+                // （上記関数 doc 参照）。
+                event.stop_propagation();
                 (on_action.borrow_mut())(action_ref);
             }
         });

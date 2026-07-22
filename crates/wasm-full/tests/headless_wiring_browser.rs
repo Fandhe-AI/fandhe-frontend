@@ -393,6 +393,98 @@ fn select_item_without_data_value_is_noop_in_real_dom() {
     );
 }
 
+// --- ネストした headless root 間のクロスディスパッチ防止回帰
+// （イシュー #580 PR #611 Bugbot 指摘: Dialog 内に Select をネストして双方を
+// wire_headless_component すると、内側 Select の trigger/item クリックが
+// bubble して外側 Dialog の共有語彙（"toggle"）へ誤って二重ディスパッチ
+// されていた） ---
+
+#[wasm_bindgen_test]
+fn nested_select_inside_dialog_click_does_not_cross_dispatch_to_outer_dialog() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-nested-dialog-select-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let dialog_open = fandhe_frontend_headless_ui::state::OpenState::Closed;
+    let select_open = fandhe_frontend_headless_ui::state::OpenState::Closed;
+    let html = fandhe_frontend_core::render(&dialog::root(
+        dialog_open,
+        vec![],
+        vec![
+            dialog::trigger(
+                dialog_open,
+                None,
+                vec![],
+                vec![fandhe_frontend_core::text("Open dialog")],
+            ),
+            select::root(
+                select_open,
+                vec![],
+                vec![
+                    select::trigger(
+                        select_open,
+                        false,
+                        None,
+                        None,
+                        vec![],
+                        vec![fandhe_frontend_core::text("Open select")],
+                    ),
+                    select::content(
+                        select_open,
+                        None,
+                        None,
+                        vec![],
+                        vec![select::item(select_open, false, "opt-1", vec![], vec![])],
+                    ),
+                ],
+            ),
+        ],
+    ));
+    container.set_inner_html(&html);
+    let dialog_root = container
+        .first_element_child()
+        .expect("dialog root must exist");
+    let select_root = dialog_root
+        .query_selector(r#"[data-scope="select"]"#)
+        .expect("query_selector must not fail")
+        .expect("nested select root must exist");
+    let select_trigger = select_root
+        .query_selector(r#"[data-part="trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("select trigger element must exist");
+
+    let dialog_component = Rc::new(RefCell::new(Dialog::default()));
+    let select_component = Rc::new(RefCell::new(Select::default()));
+    // 外側（Dialog）を先に配線し、内側（Select）を後から配線する
+    // （実装上の配線順に依存しないことも合わせて確認する）。
+    wire_headless_component(
+        dialog_root.clone(),
+        dialog_component.clone(),
+        |_state, _root| {},
+    )
+    .expect("outer wire_headless_component must not fail");
+    wire_headless_component(
+        select_root.clone(),
+        select_component.clone(),
+        |_state, _root| {},
+    )
+    .expect("inner wire_headless_component must not fail");
+
+    dispatch_click(&select_trigger);
+
+    assert!(
+        select_component.borrow().is_open(),
+        "内側 Select の trigger クリックで Select 自身は開くこと"
+    );
+    assert!(
+        !dialog_component.borrow().is_open(),
+        "内側 Select の trigger クリックが bubble して外側 Dialog の \
+         共有語彙（toggle）へ誤ってクロスディスパッチされてはならない \
+         （イシュー #580 PR #611 Bugbot 指摘の回帰）"
+    );
+}
+
 // --- REQ-1 回帰: マッピング結果の payload は実 DOM 再描画時も既定エスケープを経由する ---
 
 #[wasm_bindgen_test]
