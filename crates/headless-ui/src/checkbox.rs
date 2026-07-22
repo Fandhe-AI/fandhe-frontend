@@ -131,6 +131,20 @@ fn state_attrs(props: &CheckboxProps) -> Vec<(&'static str, &'static str)> {
     attrs
 }
 
+/// [`state_attrs`] が全パーツへ一律付与する属性キー一覧。呼び出し側 `attrs`
+/// にこれらと同名キーが含まれていても fail-closed で除去する対象
+/// （モジュール冒頭「セキュリティ不変条件」参照）。`root`/`control`/
+/// `indicator`/`label`/`hidden_input` の全パーツが `state_attrs` を
+/// マージするため、各パーツ個別の予約リストとは別にこの共通リストを
+/// 必ず適用する（適用漏れは `data-state` 等の重複属性・状態偽装を招く）。
+const STATE_RESERVED: &[&str] = &[
+    "data-state",
+    "data-disabled",
+    "data-invalid",
+    "data-required",
+    "data-readonly",
+];
+
 /// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
 /// 除外する。`Anatomy::part` の `data-scope`/`data-part` フィルタと同型の
 /// fail-closed 防御であり、各パーツが追加で持つ固定属性（`type`/`checked`
@@ -155,6 +169,7 @@ pub fn root<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
     let mut merged = state_attrs(props);
     merged.extend(attrs);
     ANATOMY.part("root", "label", merged, children)
@@ -170,7 +185,7 @@ pub fn control<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let attrs = drop_reserved(attrs, &["aria-hidden"]);
+    let attrs = drop_reserved(drop_reserved(attrs, STATE_RESERVED), &["aria-hidden"]);
     let mut merged = state_attrs(props);
     merged.push(aria_hidden(true));
     merged.extend(attrs);
@@ -186,7 +201,7 @@ pub fn indicator<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let attrs = drop_reserved(attrs, &["hidden"]);
+    let attrs = drop_reserved(drop_reserved(attrs, STATE_RESERVED), &["hidden"]);
     let mut merged = state_attrs(props);
     if props.checked == CheckedState::Unchecked {
         merged.push(("hidden", ""));
@@ -202,6 +217,7 @@ pub fn label<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
     let mut merged = state_attrs(props);
     merged.extend(attrs);
     ANATOMY.part("label", "span", merged, children)
@@ -240,7 +256,7 @@ pub fn hidden_input<'a>(
     value: &'a str,
     attrs: Vec<(&'a str, &'a str)>,
 ) -> Node {
-    let attrs = drop_reserved(attrs, HIDDEN_INPUT_RESERVED);
+    let attrs = drop_reserved(drop_reserved(attrs, STATE_RESERVED), HIDDEN_INPUT_RESERVED);
     let mut merged = state_attrs(props);
     merged.push(("type", "checkbox"));
     merged.push(("name", name));
@@ -330,6 +346,68 @@ mod tests {
         assert_eq!(
             render(&node),
             r#"<label data-scope="checkbox" data-part="root" data-state="checked" data-disabled="" data-invalid="" data-required="" data-readonly=""></label>"#
+        );
+    }
+
+    #[test]
+    fn root_drops_caller_supplied_state_attrs_case_insensitively() {
+        // レビュー指摘: state_attrs() 系キーが drop_reserved の対象外で
+        // 重複属性・状態偽装が起きていた回帰を固定する。
+        let node = root(
+            &checked(),
+            vec![
+                ("data-state", "unchecked"),
+                ("Data-Disabled", ""),
+                ("DATA-INVALID", ""),
+                ("data-required", ""),
+                ("data-readonly", ""),
+            ],
+            vec![],
+        );
+        assert_eq!(
+            render(&node),
+            r#"<label data-scope="checkbox" data-part="root" data-state="checked"></label>"#
+        );
+    }
+
+    #[test]
+    fn control_drops_caller_supplied_state_attrs() {
+        let node = control(&checked(), vec![("data-state", "unchecked")], vec![]);
+        assert_eq!(
+            render(&node),
+            r#"<div data-scope="checkbox" data-part="control" data-state="checked" aria-hidden="true"></div>"#
+        );
+    }
+
+    #[test]
+    fn indicator_drops_caller_supplied_state_attrs() {
+        let node = indicator(&checked(), vec![("data-disabled", "")], vec![]);
+        assert_eq!(
+            render(&node),
+            r#"<div data-scope="checkbox" data-part="indicator" data-state="checked"></div>"#
+        );
+    }
+
+    #[test]
+    fn label_drops_caller_supplied_state_attrs() {
+        let node = label(&checked(), vec![("data-invalid", "")], vec![text("x")]);
+        assert_eq!(
+            render(&node),
+            r#"<span data-scope="checkbox" data-part="label" data-state="checked">x</span>"#
+        );
+    }
+
+    #[test]
+    fn hidden_input_drops_caller_supplied_state_attrs() {
+        let node = hidden_input(
+            &checked(),
+            "terms",
+            "on",
+            vec![("data-state", "unchecked"), ("data-required", "")],
+        );
+        assert_eq!(
+            render(&node),
+            r#"<input data-scope="checkbox" data-part="hidden-input" data-state="checked" type="checkbox" name="terms" value="on" checked=""></input>"#
         );
     }
 
