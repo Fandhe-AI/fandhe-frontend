@@ -44,6 +44,10 @@
 //!   `data-activation-mode`/`data-loop-focus` として出力され、
 //!   `fandhe-frontend-wasm-full` の `keynav` モジュールがキーボード操作時の
 //!   活性化タイミング・フォーカス循環を分岐するために読む契約。
+//!   [`tabs::TabsProps::indicator`]（イシュー #601、既定 `false` の opt-in）
+//!   は選択タブの位置を示す `indicator` パーツを追加し、SSR では
+//!   `data-*` フックと CSS 変数（`--left`/`--top`/`--width`/`--height`）の
+//!   初期値のみを出力する（動的計測は wasm/CSR 層の後続責務）。
 //! - [`mod@collapsible`]: Root/Trigger/Indicator/Content の anatomy パーツ関数群と、
 //!   [`state::Disclosure`] を埋め込んだ [`collapsible::Collapsible`] 状態機械
 //!   （#529、親 #526）。Phase 2 で [`state`] を具象コンポーネントへ適用する最初の例。
@@ -74,7 +78,16 @@
 //!   （[`field::FieldProps`] から決定的に描画する純粋関数、#538）。
 //!   `invalid`/`disabled`/`required`/`readonly` は SSR 静的な props であり、
 //!   開閉のような時間変化する内部状態を持たないため [`mod@state`] の状態機械を
-//!   適用しない（[`mod@tabs`] と同型の判断）。
+//!   適用しない（[`mod@tabs`] と同型の判断）。[`field::FieldProps::ids`]
+//!   （[`field::FieldIds`]）による派生 id の個別上書き、[`field::textarea`]
+//!   の `autoresize` 引数（`data-autoresize` フックのみ）、[`field::select`]
+//!   の readonly 解消（`<select readonly>` は無効な HTML のためネイティブ
+//!   属性を出力しない）はイシュー #602 で追加。
+//! - [`mod@fieldset`]: Root / Legend / HelperText / ErrorText の 4 anatomy
+//!   パーツ関数群（[`fieldset::FieldsetProps`] から決定的に描画する純粋関数、
+//!   #602、親 #578）。[`fieldset::FieldsetProps::merge_field_props`] で
+//!   `disabled` を内包する [`field::FieldProps`] へ OR 伝播する（`invalid` は
+//!   伝播しない）。[`mod@field`] と同じく状態機械を適用しない。
 //! - [`mod@menu`]: Root / Trigger / Indicator / Positioner / Content / Arrow /
 //!   ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator / TriggerItem /
 //!   ContextTrigger の 13 anatomy パーツと [`state::Disclosure`] を埋め込んだ
@@ -87,7 +100,9 @@
 //!   anatomy パーツと、[`state::Disclosure`]（listbox 開閉）+
 //!   [`state::SingleSelect`]（選択値）を合成した [`select::Select`] 状態機械
 //!   （#541、親 #539）。Disclosure と SingleSelect を 1 コンポーネントに
-//!   合成する初の例。
+//!   合成する初の例。[`select::item`] の `highlighted`/`id` 引数と
+//!   [`select::content`] の `activedescendant` 引数が `data-highlighted`/
+//!   `aria-activedescendant` の SSR 静的表現を提供する（イシュー #599）。
 //! - [`mod@switch`]: Root / Control / Thumb / Label / HiddenInput の 5 anatomy
 //!   パーツと、`"checked"`/`"unchecked"` 語彙の [`switch::Switch`] 状態機械
 //!   （#537、親 #534）。ark-ui 準拠の値語彙が [`state::Disclosure`] の
@@ -109,7 +124,11 @@
 //!   [`mod@switch`] と同じく `data-state` 値語彙（`"indeterminate"`/
 //!   `"loading"`/`"complete"`）が [`state::Disclosure`] と異なるため、
 //!   [`state`] を埋め込まず [`fandhe_frontend_interactive::Component`]/
-//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。加えて
+//!   Circular（SVG）用の Circle/CircleTrack/CircleRange の 3 パーツ
+//!   （#600、親 #542）を持つ。CSS 変数（`--size`/`--thickness`）参照の
+//!   固定 `style` で描画し、状態機械・hydration フォーマットへの追加は
+//!   ない（詳細は [`progress`] モジュール doc の circular 節を参照）。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
@@ -145,6 +164,7 @@ pub mod collapsible;
 pub mod data_attrs;
 pub mod dialog;
 pub mod field;
+pub mod fieldset;
 pub mod menu;
 pub mod popover;
 pub mod progress;
@@ -162,17 +182,18 @@ pub use fandhe_frontend_core;
 
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
-    aria_checked, aria_controls, aria_describedby, aria_disabled, aria_expanded, aria_haspopup,
-    aria_hidden, aria_invalid, aria_label, aria_labelledby, aria_modal, aria_orientation,
-    aria_selected, role, AriaChecked, AriaPopup,
+    aria_activedescendant, aria_checked, aria_controls, aria_describedby, aria_disabled,
+    aria_expanded, aria_haspopup, aria_hidden, aria_invalid, aria_label, aria_labelledby,
+    aria_modal, aria_orientation, aria_selected, role, AriaChecked, AriaPopup,
 };
 pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use data_attrs::{
-    data_disabled, data_invalid, data_orientation, data_readonly, data_required, data_state,
-    Orientation,
+    data_disabled, data_highlighted, data_invalid, data_orientation, data_readonly, data_required,
+    data_state, Orientation,
 };
 pub use dialog::Dialog;
-pub use field::FieldProps;
+pub use field::{FieldIds, FieldProps};
+pub use fieldset::FieldsetProps;
 pub use menu::Menu;
 pub use progress::{Progress, ProgressAction};
 pub use radio_group::RadioGroup;

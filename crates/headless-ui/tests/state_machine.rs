@@ -9,7 +9,9 @@
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_headless_ui::{Disclosure, MultiSelect, OpenState, SingleSelect};
-use fandhe_frontend_interactive::{dispatch, render_for_hydration, Component, Hydrate};
+use fandhe_frontend_interactive::{
+    dispatch, render_for_hydration, Component, DirtyTracked, Hydrate,
+};
 
 #[test]
 fn disclosure_full_cycle_ssr_then_dispatch_then_hydration() {
@@ -106,4 +108,27 @@ fn multi_select_ignores_unknown_dispatch_action() {
     dispatch(&mut multi_select, "select", "a");
     assert!(!dispatch(&mut multi_select, "unknown", "b"));
     assert_eq!(multi_select.selected(), &["a".to_string()]);
+}
+
+// --- DirtyTracked（イシュー #592） ------------------------------------
+//
+// `fandhe-frontend-wasm-full`/`fandhe-frontend-wasm-client` は `dispatch`
+// （WASM 境界の文字列 dispatch 契約）経由で `Disclosure`/`SingleSelect` を
+// 駆動し、直後に `dirty_fields()` を読んで `BindingTable`（束縛点対応表）へ
+// 接続する。本テストは `fandhe-frontend-headless-ui` の公開 API のみを
+// 経由してこの利用形態を固定する（`crates/headless-ui/src/state.rs` 内の
+// ユニットテストは内部実装を含めた網羅を担う）。
+
+#[test]
+fn disclosure_dispatch_then_dirty_fields_reflects_changed_field_via_public_api() {
+    let mut d = Disclosure::default();
+    assert!(dispatch(&mut d, "toggle", ""));
+    assert_eq!(d.dirty_fields(), &[Disclosure::FIELD_STATE]);
+}
+
+#[test]
+fn single_select_dispatch_then_dirty_fields_reflects_changed_field_via_public_api() {
+    let mut s = SingleSelect::default();
+    assert!(dispatch(&mut s, "select", "panel-1"));
+    assert_eq!(s.dirty_fields(), &[SingleSelect::FIELD_SELECTED]);
 }

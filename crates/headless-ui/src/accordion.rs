@@ -52,9 +52,10 @@
 //!   必須）のみを提供する。「どれを閉じるか」の指定なしに全解除する
 //!   アクションはイシュー #594 の dispatch 契約に含まれないため未実装。
 //! - **orientation / キーボードナビゲーション**: SSR 静的マークアップに
-//!   寄与しない CSR 挙動層の責務のため未提供（Tabs の indicator 除外と同じ
-//!   判断）。`data-orientation` が必要な呼び出し側は各パーツの `attrs`
-//!   引数で付与できる（既定エスケープ経由のまま、迂回経路ではない）。
+//!   寄与しない CSR 挙動層の責務のため未提供（Tabs の `data-orientation`
+//!   と異なり、Accordion の orientation は本イシューのスコープ外のまま）。
+//!   `data-orientation` が必要な呼び出し側は各パーツの `attrs` 引数で
+//!   付与できる（既定エスケープ経由のまま、迂回経路ではない）。
 //! - **lazyMount / unmountOnExit / CSS 変数（`--height` 等）**: アニメーション
 //!   対応はスコープ外（[`item_content`] は `hidden` 存在属性のみで closed を
 //!   表現する）。

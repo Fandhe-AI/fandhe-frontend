@@ -68,6 +68,47 @@ headless-ui の `data-scope`/`data-part`/`data-state` セレクタへ手書き�
 - **styled 部品**（#550/#551）: #550 は Button 等の単純な部品、#551 は
   headless-ui の Accordion/Dialog 等をラップした styled 版を提供する予定。
 
+## 4a. `stylesheet::StyleSheet`（recipe / theme CSS の書き出し・埋め込みヘルパ、イシュー #605）
+
+`SlotRecipe::css()`・`Theme::to_css()`・各 styled 部品の `css()`/`stylesheet()`
+は決定的な CSS 文字列を返すのみで、その先の配布は呼び出し側任せだった
+（`examples/headless-pre-styled-ui` の手書き `static/ui.css` コピーが実例）。
+`stylesheet::StyleSheet` はこれを集約し、2 つの配布経路を提供する。
+
+- `StyleSheet::new()` / `push_css(&mut self, css: &str) -> Result<(), StylesheetError>`:
+  唯一の fallible な取り込み口。`<` を含む、または改行・タブ・復帰以外の
+  制御文字を含む入力は `Err(StylesheetError::CssRejected { .. })` になる
+  （fail-closed）。
+- `push_recipe(&mut self, recipe: &SlotRecipe)` / `push_theme(&mut self, theme: &Theme)`:
+  生成側 allowlist 検証（`<` を構成不能にする）に依拠した infallible な
+  薄いラッパ。
+- `as_css(&self) -> &str`: 取り込んだ CSS 全量。
+- `write_css_file(&self, path: &Path) -> std::io::Result<()>`: 静的 `.css`
+  ファイルへの書き出し（SSG・ビルドスクリプト向け。親ディレクトリを自動作成）。
+- `style_element(&self) -> Node`: SSR 用 `<style>` 要素ノード。本クレートで
+  `raw_html()` を使用する唯一の箇所（`src/lib.rs` 冒頭の不変条件 2 の例外）
+  であり、呼び出し文に
+  `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: ...")]`
+  を付与済み。`StyleSheet` は private フィールドのみで構成され、検証済み
+  CSS 以外から構築する経路を公開しないため、呼び出し側へエスケープ迂回
+  経路を公開しない。
+
+```rust
+use fandhe_frontend_pre_styled_ui::stylesheet::StyleSheet;
+use fandhe_frontend_pre_styled_ui::theme::Theme;
+
+let mut sheet = StyleSheet::new();
+sheet.push_theme(&Theme::default());
+sheet.push_css(&fandhe_frontend_pre_styled_ui::button::css()).unwrap();
+
+// SSG: 静的ファイルとして配信する
+sheet.write_css_file(std::path::Path::new("static/ui.css")).unwrap();
+
+// SSR: <style> 要素として埋め込む（render() が既定エスケープを適用する
+// 他のノードと同様に合成できる）
+let _style_node = sheet.style_element();
+```
+
 ## 5. 関連ドキュメント
 
 - [`docs/api/headless-ui-api.md`](./headless-ui-api.md): 本クレートの下層
