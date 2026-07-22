@@ -46,7 +46,7 @@
 //!   付与する fail-closed 描画とし、JS 不在の SSR でも誤表示しない。
 
 use crate::anatomy::{anatomy, Anatomy};
-use crate::aria::{aria_hidden, aria_invalid};
+use crate::aria::{aria_describedby, aria_hidden, aria_invalid};
 use fandhe_frontend_core::Node;
 
 /// `data-scope="field"` を固定した本コンポーネントの anatomy。
@@ -135,13 +135,26 @@ impl FieldProps<'_> {
         if self.invalid {
             attrs.push(aria_invalid(true));
         }
-        attrs.extend(crate::data_attrs::data_disabled(self.disabled));
-        attrs.extend(crate::data_attrs::data_invalid(self.invalid));
-        attrs.extend(crate::data_attrs::data_required(self.required));
-        attrs.extend(crate::data_attrs::data_readonly(self.readonly));
+        attrs.extend(state_data_attrs(self));
         attrs.extend(extra_attrs);
         attrs
     }
+}
+
+/// `disabled`/`invalid`/`required`/`readonly` フラグに対応する
+/// `data-disabled`/`data-invalid`/`data-required`/`data-readonly` 存在属性を
+/// まとめて組み立てる。`root`/`label`/`control_attrs`/`helper_text`/
+/// `error_text`/`required_indicator` の 6 箇所が同一のフラグ集合を data-*
+/// へ写像するため、コピペによる将来のドリフト（フラグ変更時の同期漏れ）を
+/// 避けるために共通化する。
+#[must_use]
+fn state_data_attrs(props: &FieldProps<'_>) -> Vec<(&'static str, &'static str)> {
+    let mut attrs: Vec<(&'static str, &'static str)> = Vec::with_capacity(4);
+    attrs.extend(crate::data_attrs::data_disabled(props.disabled));
+    attrs.extend(crate::data_attrs::data_invalid(props.invalid));
+    attrs.extend(crate::data_attrs::data_required(props.required));
+    attrs.extend(crate::data_attrs::data_readonly(props.readonly));
+    attrs
 }
 
 /// `aria-describedby` の合成則（zag.js Field の実装意味論を SSR 静的に写像）。
@@ -174,10 +187,7 @@ pub fn root<'a>(
     children: Vec<Node>,
 ) -> Node {
     let mut merged: Vec<(&str, &str)> = Vec::with_capacity(attrs.len() + 4);
-    merged.extend(crate::data_attrs::data_disabled(props.disabled));
-    merged.extend(crate::data_attrs::data_invalid(props.invalid));
-    merged.extend(crate::data_attrs::data_required(props.required));
-    merged.extend(crate::data_attrs::data_readonly(props.readonly));
+    merged.extend(state_data_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
 }
@@ -190,10 +200,7 @@ pub fn label(props: &FieldProps<'_>, attrs: Vec<(&str, &str)>, children: Vec<Nod
     let label_id = props.label_id();
     let mut merged: Vec<(&str, &str)> =
         vec![("for", control_id.as_str()), ("id", label_id.as_str())];
-    merged.extend(crate::data_attrs::data_disabled(props.disabled));
-    merged.extend(crate::data_attrs::data_invalid(props.invalid));
-    merged.extend(crate::data_attrs::data_required(props.required));
-    merged.extend(crate::data_attrs::data_readonly(props.readonly));
+    merged.extend(state_data_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("label", "label", merged, children)
 }
@@ -212,7 +219,7 @@ pub fn input<'a>(props: &'a FieldProps<'a>, extra_attrs: Vec<(&'a str, &'a str)>
     let described_by = describedby_value(props);
     let mut attrs = props.control_attrs(&control_id, extra_attrs);
     if let Some(ref value) = described_by {
-        attrs.push(("aria-describedby", value.as_str()));
+        attrs.push(aria_describedby(value.as_str()));
     }
     ANATOMY.part("input", "input", attrs, vec![])
 }
@@ -228,7 +235,7 @@ pub fn textarea<'a>(
     let described_by = describedby_value(props);
     let mut attrs = props.control_attrs(&control_id, extra_attrs);
     if let Some(ref value) = described_by {
-        attrs.push(("aria-describedby", value.as_str()));
+        attrs.push(aria_describedby(value.as_str()));
     }
     ANATOMY.part("textarea", "textarea", attrs, children)
 }
@@ -250,7 +257,7 @@ pub fn select<'a>(
     let described_by = describedby_value(props);
     let mut attrs = props.control_attrs(&control_id, extra_attrs);
     if let Some(ref value) = described_by {
-        attrs.push(("aria-describedby", value.as_str()));
+        attrs.push(aria_describedby(value.as_str()));
     }
     ANATOMY.part("select", "select", attrs, children)
 }
@@ -261,10 +268,7 @@ pub fn select<'a>(
 pub fn helper_text(props: &FieldProps<'_>, attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
     let helper_id = props.helper_text_id();
     let mut merged: Vec<(&str, &str)> = vec![("id", helper_id.as_str())];
-    merged.extend(crate::data_attrs::data_disabled(props.disabled));
-    merged.extend(crate::data_attrs::data_invalid(props.invalid));
-    merged.extend(crate::data_attrs::data_required(props.required));
-    merged.extend(crate::data_attrs::data_readonly(props.readonly));
+    merged.extend(state_data_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("helper-text", "span", merged, children)
 }
@@ -279,10 +283,7 @@ pub fn error_text(props: &FieldProps<'_>, attrs: Vec<(&str, &str)>, children: Ve
     if !props.invalid {
         merged.push(("hidden", ""));
     }
-    merged.extend(crate::data_attrs::data_disabled(props.disabled));
-    merged.extend(crate::data_attrs::data_invalid(props.invalid));
-    merged.extend(crate::data_attrs::data_required(props.required));
-    merged.extend(crate::data_attrs::data_readonly(props.readonly));
+    merged.extend(state_data_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("error-text", "span", merged, children)
 }
@@ -300,10 +301,7 @@ pub fn required_indicator(
     if !props.required {
         merged.push(("hidden", ""));
     }
-    merged.extend(crate::data_attrs::data_disabled(props.disabled));
-    merged.extend(crate::data_attrs::data_invalid(props.invalid));
-    merged.extend(crate::data_attrs::data_required(props.required));
-    merged.extend(crate::data_attrs::data_readonly(props.readonly));
+    merged.extend(state_data_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("required-indicator", "span", merged, children)
 }
