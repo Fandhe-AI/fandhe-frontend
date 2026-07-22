@@ -43,6 +43,10 @@
 //! - [`mod@accordion`]: Root / Item / ItemTrigger / ItemIndicator / ItemContent の
 //!   5 anatomy パーツと [`state::SingleSelect`] を埋め込んだ single モード
 //!   Accordion（[`accordion::Accordion`]、#527）。
+//! - [`mod@tooltip`]: Root/Trigger/Positioner/Content/Arrow/ArrowTip の anatomy
+//!   パーツ関数群と、[`state::Disclosure`] を埋め込んだ [`tooltip::Tooltip`]
+//!   状態機械（#533、親 #530）。WAI-ARIA tooltip パターンに従い `aria-describedby`
+//!   を使う点が [`mod@collapsible`] との違い。
 //! - [`mod@dialog`]: [`dialog::Dialog`] — Root / Trigger / Backdrop /
 //!   Positioner / Content / Title / Description / CloseTrigger の 8 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだモーダルダイアログ（#531）。
@@ -71,6 +75,7 @@ pub mod dialog;
 pub mod popover;
 pub mod state;
 pub mod tabs;
+pub mod tooltip;
 
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
@@ -88,3 +93,4 @@ pub use state::{
     DATA_STATE_OPEN,
 };
 pub use tabs::{tabs, TabItem, TabsProps};
+pub use tooltip::Tooltip;
