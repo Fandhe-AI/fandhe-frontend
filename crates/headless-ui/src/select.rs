@@ -28,9 +28,10 @@
 //!   おり、動的値が属性名スロットへ混入する経路はない（[`mod@crate::anatomy`]/
 //!   [`crate::aria`]/[`crate::data_attrs`] の既存不変条件をそのまま継承する）。
 //! - 動的値（選択値 `value`/`id`/`controls`/`labelledby`/`name`/option の
-//!   ラベルテキスト/呼び出し側 `attrs`/`children`）は
-//!   [`fandhe_frontend_core::render`] の既定エスケープを必ず経由する。
-//!   `raw_html()` は使用せず、HTML 文字列を直接組み立てない。
+//!   ラベルテキスト/[`item`] の `id`/[`content`] の `activedescendant`/
+//!   呼び出し側 `attrs`/`children`）は [`fandhe_frontend_core::render`] の
+//!   既定エスケープを必ず経由する。`raw_html()` は使用せず、HTML 文字列を
+//!   直接組み立てない。
 //! - `data-state` 値語彙（`"open"`/`"closed"`）は [`crate::state::OpenState`]
 //!   に一元化し、本モジュールで独自の値を作らない。[`item`]/[`item_indicator`]
 //!   の `data-state` も同語彙を選択有無の表現に再利用する（[`crate::accordion`]
@@ -53,9 +54,17 @@
 //!   form 系（#535 Checkbox）の判断に委ねる。
 //! - **multiple 選択**: 高々 1 個の選択のみ扱う（[`crate::state::SingleSelect`]
 //!   の既存スコープをそのまま継承）。
-//! - **highlight（`data-highlighted`/`aria-activedescendant`）・typeahead・
-//!   キーボードナビゲーション**: CSR 挙動層の責務であり、wasm 層の将来
-//!   イシューのスコープ。
+//! - **highlight 移動・typeahead・キーボードナビゲーション**: [`item`] の
+//!   `highlighted` 引数・[`content`] の `activedescendant` 引数は
+//!   `data-highlighted`/`aria-activedescendant` の SSR 静的表現（イシュー
+//!   #599）を提供するのみであり、ハイライト位置の移動・typeahead・
+//!   キーボード操作自体は引き続き CSR 挙動層（wasm 層の Phase 1
+//!   キーボードナビゲーション実装）のスコープである。
+//! - **trigger の combobox 化**（`role="combobox"` + trigger 側
+//!   `aria-activedescendant` の select-only combobox パターン）: 現行の
+//!   anatomy（`trigger` は素の `button`、`aria-haspopup="listbox"` のみ）の
+//!   変更を伴うため別イシューのスコープとする（#599 では [`content`]
+//!   （`role="listbox"`）側にのみ `aria-activedescendant` を配線する）。
 //! - **`closeOnSelect` 以外の close 制御・lazyMount・portal**: クライアント
 //!   ランタイム側のイベント処理・DOM 操作であり、wasm 層の将来イシューの
 //!   スコープ。
@@ -68,10 +77,10 @@
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
-    aria_controls, aria_disabled, aria_expanded, aria_haspopup, aria_labelledby, aria_selected,
-    role, AriaPopup,
+    aria_activedescendant, aria_controls, aria_disabled, aria_expanded, aria_haspopup,
+    aria_labelledby, aria_selected, role, AriaPopup,
 };
-use crate::data_attrs::{data_disabled, data_state};
+use crate::data_attrs::{data_disabled, data_highlighted, data_state};
 use crate::state::{Disclosure, OpenState, SingleSelect, SingleSelectAction};
 use fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
@@ -214,11 +223,21 @@ pub fn positioner<'a>(
 /// `controls` と対で関連付ける。`labelledby` が `Some` のとき
 /// `aria-labelledby` で [`label`] と関連付ける。closed のとき `hidden`
 /// 存在属性を付与し、JS なしの SSR でも閉状態を表現する。
+///
+/// `activedescendant` が `Some` のとき `aria-activedescendant` を付与し、
+/// 値は現在ハイライト中の [`item`] の `id` と対応させる（イシュー #599）。
+/// `aria-activedescendant` は composite ロール（`listbox`/`combobox` 等）に
+/// のみ有効な属性であり、本パーツが `role="listbox"` を持つため配線先に
+/// 選んでいる（[`trigger`] は素の `button` のため付与しない。モジュール doc
+/// §out-of-scope 参照）。ハイライト位置自体の移動・キーボードナビゲーション
+/// は CSR 挙動層（wasm 層）のスコープであり、本関数は SSR 静的表現のみを
+/// 提供する。
 #[must_use]
 pub fn content<'a>(
     state: OpenState,
     id: Option<&'a str>,
     labelledby: Option<&'a str>,
+    activedescendant: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -229,6 +248,9 @@ pub fn content<'a>(
     }
     if let Some(labelledby) = labelledby {
         merged.push(aria_labelledby(labelledby));
+    }
+    if let Some(activedescendant) = activedescendant {
+        merged.push(aria_activedescendant(activedescendant));
     }
     if !state.is_open() {
         merged.push(("hidden", ""));
@@ -285,11 +307,20 @@ pub fn item_group_label<'a>(
 /// `div[role="option"]` でありネイティブの `disabled` 属性を持たないため、
 /// 支援技術へは ARIA 経由でのみ伝達できる。[`crate::menu::item`] と同じ
 /// 判断）。
+///
+/// `highlighted`（キーボードナビゲーション等によるフォーカス位置）は
+/// クライアントランタイムの領域だが、SSR でも `data-highlighted` を出力
+/// できるよう `bool` 引数として受ける（状態機械には持たせない。
+/// [`crate::menu::item`] と同じ契約、イシュー #599）。`id` が `Some` の
+/// とき、[`content`] の `activedescendant` 引数の参照先として使う識別子
+/// になる（`aria-activedescendant` は対象要素の `id` を参照する属性のため）。
 #[must_use]
 pub fn item<'a>(
     selected_state: OpenState,
     disabled: bool,
+    highlighted: bool,
     value: &'a str,
+    id: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
@@ -299,10 +330,14 @@ pub fn item<'a>(
         data_state(selected_state.as_data_state()),
         ("data-value", value),
     ];
+    if let Some(id) = id {
+        merged.push(("id", id));
+    }
     if disabled {
         merged.push(aria_disabled(true));
     }
     merged.extend(data_disabled(disabled));
+    merged.extend(data_highlighted(highlighted));
     merged.extend(attrs);
     ANATOMY.part("item", "div", merged, children)
 }
@@ -532,10 +567,18 @@ impl Select {
         &self,
         id: Option<&'a str>,
         labelledby: Option<&'a str>,
+        activedescendant: Option<&'a str>,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        content(self.open_state(), id, labelledby, attrs, children)
+        content(
+            self.open_state(),
+            id,
+            labelledby,
+            activedescendant,
+            attrs,
+            children,
+        )
     }
 
     /// [`item`] へ項目 `value` の現在の選択状態を注入する利便メソッド。
@@ -544,10 +587,20 @@ impl Select {
         &self,
         value: &'a str,
         disabled: bool,
+        highlighted: bool,
+        id: Option<&'a str>,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        item(self.item_state(value), disabled, value, attrs, children)
+        item(
+            self.item_state(value),
+            disabled,
+            highlighted,
+            value,
+            id,
+            attrs,
+            children,
+        )
     }
 
     /// [`item_indicator`] へ項目 `value` の現在の選択状態を注入する利便メソッド。
@@ -612,7 +665,7 @@ impl Component for Select {
                 positioner(
                     state,
                     Vec::new(),
-                    vec![content(state, None, None, Vec::new(), Vec::new())],
+                    vec![content(state, None, None, None, Vec::new(), Vec::new())],
                 ),
             ],
         )
@@ -818,17 +871,24 @@ mod tests {
 
     #[test]
     fn content_has_role_listbox_and_state() {
-        let html = render(&content(OpenState::Open, None, None, vec![], vec![]));
+        let html = render(&content(OpenState::Open, None, None, None, vec![], vec![]));
         assert!(html.contains(r#"role="listbox""#));
         assert!(html.contains(r#"data-state="open""#));
     }
 
     #[test]
     fn content_closed_has_hidden_attr_open_does_not() {
-        let closed = render(&content(OpenState::Closed, None, None, vec![], vec![]));
+        let closed = render(&content(
+            OpenState::Closed,
+            None,
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
         assert!(closed.contains(r#"hidden="""#));
 
-        let open = render(&content(OpenState::Open, None, None, vec![], vec![]));
+        let open = render(&content(OpenState::Open, None, None, None, vec![], vec![]));
         assert!(!open.contains("hidden"));
     }
 
@@ -838,11 +898,28 @@ mod tests {
             OpenState::Open,
             Some("select-content-1"),
             Some("select-label-1"),
+            None,
             vec![],
             vec![],
         ));
         assert!(html.contains(r#"id="select-content-1""#));
         assert!(html.contains(r#"aria-labelledby="select-label-1""#));
+    }
+
+    #[test]
+    fn content_activedescendant_some_outputs_attr_none_omits() {
+        let html = render(&content(
+            OpenState::Open,
+            None,
+            None,
+            Some("item-vue"),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"aria-activedescendant="item-vue""#));
+
+        let without = render(&content(OpenState::Open, None, None, None, vec![], vec![]));
+        assert!(!without.contains("aria-activedescendant"));
     }
 
     #[test]
@@ -867,20 +944,44 @@ mod tests {
 
     #[test]
     fn item_has_role_option_aria_selected_and_data_value() {
-        let html = render(&item(OpenState::Open, false, "vue", vec![], vec![]));
+        let html = render(&item(
+            OpenState::Open,
+            false,
+            false,
+            "vue",
+            None,
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"role="option""#));
         assert!(html.contains(r#"aria-selected="true""#));
         assert!(html.contains(r#"data-state="open""#));
         assert!(html.contains(r#"data-value="vue""#));
 
-        let unselected = render(&item(OpenState::Closed, false, "react", vec![], vec![]));
+        let unselected = render(&item(
+            OpenState::Closed,
+            false,
+            false,
+            "react",
+            None,
+            vec![],
+            vec![],
+        ));
         assert!(unselected.contains(r#"aria-selected="false""#));
         assert!(unselected.contains(r#"data-state="closed""#));
     }
 
     #[test]
     fn item_disabled_true_adds_data_disabled() {
-        let html = render(&item(OpenState::Closed, true, "svelte", vec![], vec![]));
+        let html = render(&item(
+            OpenState::Closed,
+            true,
+            false,
+            "svelte",
+            None,
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-disabled="""#));
     }
 
@@ -890,11 +991,77 @@ mod tests {
         // 支援技術へは `aria-disabled` 経由でのみ伝達できる（Bugbot 指摘:
         // crates/headless-ui/src/select.rs#L277-L294、`menu::item` と同じ
         // 契約）。
-        let html = render(&item(OpenState::Closed, true, "svelte", vec![], vec![]));
+        let html = render(&item(
+            OpenState::Closed,
+            true,
+            false,
+            "svelte",
+            None,
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"aria-disabled="true""#));
 
-        let enabled = render(&item(OpenState::Closed, false, "svelte", vec![], vec![]));
+        let enabled = render(&item(
+            OpenState::Closed,
+            false,
+            false,
+            "svelte",
+            None,
+            vec![],
+            vec![],
+        ));
         assert!(!enabled.contains("aria-disabled"));
+    }
+
+    #[test]
+    fn item_highlighted_true_adds_data_highlighted_false_omits() {
+        let highlighted = render(&item(
+            OpenState::Closed,
+            false,
+            true,
+            "svelte",
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(highlighted.contains(r#"data-highlighted="""#));
+
+        let not_highlighted = render(&item(
+            OpenState::Closed,
+            false,
+            false,
+            "svelte",
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(!not_highlighted.contains("data-highlighted"));
+    }
+
+    #[test]
+    fn item_id_some_outputs_id_none_omits() {
+        let with_id = render(&item(
+            OpenState::Closed,
+            false,
+            false,
+            "svelte",
+            Some("item-svelte"),
+            vec![],
+            vec![],
+        ));
+        assert!(with_id.contains(r#"id="item-svelte""#));
+
+        let without_id = render(&item(
+            OpenState::Closed,
+            false,
+            false,
+            "svelte",
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(!without_id.contains(" id="));
     }
 
     #[test]
@@ -1047,10 +1214,10 @@ mod tests {
         // select の副作用で listbox は閉じるため、比較用に再度開く。
         dispatch(&mut s, "open", "");
 
-        let item_vue = render(&s.item("vue", false, vec![], vec![]));
+        let item_vue = render(&s.item("vue", false, false, None, vec![], vec![]));
         assert!(item_vue.contains(r#"aria-selected="true""#));
 
-        let item_react = render(&s.item("react", false, vec![], vec![]));
+        let item_react = render(&s.item("react", false, false, None, vec![], vec![]));
         assert!(item_react.contains(r#"aria-selected="false""#));
 
         let value_text_html = render(&s.value_text(vec![], vec![]));
@@ -1156,7 +1323,38 @@ mod tests {
         let html = render(&item(
             OpenState::Closed,
             false,
+            false,
             ATTR_BREAK_PAYLOAD,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("onmouseover=\"alert(1)"));
+        assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn item_id_payload_is_escaped_on_render() {
+        let html = render(&item(
+            OpenState::Closed,
+            false,
+            false,
+            "svelte",
+            Some(ATTR_BREAK_PAYLOAD),
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("onmouseover=\"alert(1)"));
+        assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn content_activedescendant_payload_is_escaped_on_render() {
+        let html = render(&content(
+            OpenState::Open,
+            None,
+            None,
+            Some(ATTR_BREAK_PAYLOAD),
             vec![],
             vec![],
         ));

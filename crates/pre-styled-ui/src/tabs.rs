@@ -1,7 +1,7 @@
 //! styled Tabs（headless ラッパー第 1 弾、イシュー #551、親 #520/#545）。
 //!
 //! `fandhe_frontend_headless_ui::tabs`（イシュー #528）は Root / List /
-//! Trigger / Content の 4 anatomy パーツを [`tabs`] 単一の合成関数として
+//! Trigger / Content / Indicator（#601、opt-in）の 5 anatomy パーツを [`tabs`] 単一の合成関数として
 //! 組み立てる（パーツごとの自由関数・attrs 注入点を持たない、他 4 コンポーネント
 //! との非対称点）。本モジュールは [`tabs`]・[`TabsProps`]・[`TabItem`] を
 //! そのまま再エクスポートし、[`stylesheet`] で `data-scope="tabs"`/
@@ -23,7 +23,7 @@ pub use fandhe_frontend_headless_ui::tabs::*;
 
 /// headless `tabs` anatomy の `data-part` 一覧（`crates/headless-ui/src/tabs.rs`
 /// の `ANATOMY.part(...)` 呼び出しと同期させる契約）。
-const SLOTS: &[&str] = &["root", "list", "trigger", "content"];
+const SLOTS: &[&str] = &["root", "list", "trigger", "content", "indicator"];
 
 /// この styled Tabs の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
@@ -115,6 +115,7 @@ mod tests {
             orientation: Orientation::Horizontal,
             activation_mode: ActivationMode::Automatic,
             loop_focus: true,
+            indicator: false,
         };
         let items = vec![TabItem {
             value: "one",
@@ -149,6 +150,7 @@ mod tests {
             orientation: Orientation::Horizontal,
             activation_mode: ActivationMode::Automatic,
             loop_focus: true,
+            indicator: false,
         };
         let items = vec![
             TabItem {

@@ -92,6 +92,7 @@ mod wrapper_escape_and_stylesheet_safety {
             orientation: Orientation::Horizontal,
             activation_mode: tabs::ActivationMode::Automatic,
             loop_focus: true,
+            indicator: false,
         };
         let items = vec![tabs::TabItem {
             value: "one",
@@ -160,8 +161,8 @@ fn badge_children_xss_payload_is_escaped() {
 #[test]
 fn spinner_label_attribute_xss_payload_is_escaped() {
     let node = spinner(&SpinnerProps {
-        size: fandhe_frontend_pre_styled_ui::Size::Md,
         label: "\" onmouseover=\"alert(1)",
+        ..SpinnerProps::default()
     });
     let html = render(&node);
     assert!(!html.contains("onmouseover=\"alert"), "{html}");

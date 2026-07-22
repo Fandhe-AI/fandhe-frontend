@@ -17,7 +17,7 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, VariantValue};
+use crate::recipe::{palette_declarations, ColorPalette, Size, SlotRecipe, VariantValue};
 use crate::spinner::spinner_decorative;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, aria_disabled, data_disabled, Anatomy};
@@ -61,6 +61,10 @@ pub struct ButtonProps {
     pub variant: ButtonVariant,
     /// サイズ variant（既定 `Md`）。
     pub size: Size,
+    /// colorPalette 軸（既定 `Accent`、イシュー #606）。[`crate::theme`] の
+    /// セマンティック色（`accent`/`info`/`success`/`warning`/`danger`）から
+    /// 選択する。
+    pub palette: ColorPalette,
     /// 無効化。`true` のとき `disabled` 属性・`data-disabled`・
     /// `aria-disabled="true"` を付与する。
     pub disabled: bool,
@@ -77,6 +81,7 @@ impl Default for ButtonProps {
         ButtonProps {
             variant: ButtonVariant::Solid,
             size: Size::Md,
+            palette: ColorPalette::Accent,
             disabled: false,
             loading: false,
         }
@@ -84,8 +89,14 @@ impl Default for ButtonProps {
 }
 
 /// Button の recipe（scope `"button"`、slot `"root"` のみ）。
+///
+/// 色は [`crate::recipe::palette_declarations`] が生成する
+/// `--fandhe-palette`/`--fandhe-palette-emphasized`/`--fandhe-palette-fg`
+/// （イシュー #606）経由で参照し、`var(--fandhe-color-accent)` 等の
+/// セマンティック色を直接参照しない（`palette` variant の切り替えだけで
+/// 全 variant の色が追従する）。
 fn recipe() -> SlotRecipe {
-    SlotRecipe::new("button", &["root"])
+    let mut recipe = SlotRecipe::new("button", &["root"])
         .base(
             "root",
             vec![
@@ -93,7 +104,7 @@ fn recipe() -> SlotRecipe {
                 decl("align-items", "center"),
                 decl("justify-content", "center"),
                 decl("gap", "0.5rem"),
-                decl("border-radius", "0.375rem"),
+                decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("font-family", "var(--fandhe-font-font-body)"),
                 decl("cursor", "pointer"),
             ],
@@ -126,8 +137,8 @@ fn recipe() -> SlotRecipe {
             ButtonVariant::Solid,
             "root",
             vec![
-                decl("background", "var(--fandhe-color-accent)"),
-                decl("color", "var(--fandhe-color-accent-fg)"),
+                decl("background", "var(--fandhe-palette)"),
+                decl("color", "var(--fandhe-palette-fg)"),
                 decl("border", "none"),
             ],
         )
@@ -136,8 +147,8 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("background", "transparent"),
-                decl("color", "var(--fandhe-color-accent)"),
-                decl("border", "1px solid var(--fandhe-color-accent)"),
+                decl("color", "var(--fandhe-palette)"),
+                decl("border", "1px solid var(--fandhe-palette)"),
             ],
         )
         .variant(
@@ -145,7 +156,7 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("background", "transparent"),
-                decl("color", "var(--fandhe-color-accent)"),
+                decl("color", "var(--fandhe-palette)"),
                 decl("border", "none"),
             ],
         )
@@ -154,12 +165,24 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("background", "var(--fandhe-color-bg-subtle)"),
-                decl("color", "var(--fandhe-color-accent)"),
+                decl("color", "var(--fandhe-palette)"),
                 decl("border", "none"),
             ],
         )
         .default_variant(Size::Md)
         .default_variant(ButtonVariant::Solid)
+        .default_variant(ColorPalette::Accent);
+
+    for palette in [
+        ColorPalette::Accent,
+        ColorPalette::Info,
+        ColorPalette::Success,
+        ColorPalette::Warning,
+        ColorPalette::Danger,
+    ] {
+        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+    }
+    recipe
 }
 
 /// Button の静的 CSS 全文。
@@ -195,6 +218,7 @@ pub fn button<'a>(
     let class = recipe.variant_classes(&[
         ("variant", props.variant.value()),
         ("size", props.size.value()),
+        ("color-palette", props.palette.value()),
     ]);
 
     let mut merged: Vec<(&str, &str)> = vec![("type", "button"), ("class", class.as_str())];
@@ -211,7 +235,7 @@ pub fn button<'a>(
 
     let mut node_children = Vec::with_capacity(children.len() + 1);
     if props.loading {
-        node_children.push(spinner_decorative(Size::Sm));
+        node_children.push(spinner_decorative(Size::Sm, props.palette));
     }
     node_children.extend(children);
 
@@ -231,7 +255,7 @@ mod tests {
             html,
             concat!(
                 r#"<button data-scope="button" data-part="root" type="button" "#,
-                r#"class="fd-button--size-md fd-button--variant-solid">Save</button>"#,
+                r#"class="fd-button--size-md fd-button--variant-solid fd-button--color-palette-accent">Save</button>"#,
             )
         );
     }
@@ -250,7 +274,9 @@ mod tests {
             };
             let html = render(&button(&props, vec![], vec![]));
             assert!(
-                html.contains(&format!("class=\"fd-button--size-md {class}\"")),
+                html.contains(&format!(
+                    "class=\"fd-button--size-md {class} fd-button--color-palette-accent\""
+                )),
                 "variant={variant:?} -> {html}"
             );
         }
@@ -269,10 +295,52 @@ mod tests {
             };
             let html = render(&button(&props, vec![], vec![]));
             assert!(
-                html.contains(&format!("{class} fd-button--variant-solid")),
+                html.contains(&format!(
+                    "{class} fd-button--variant-solid fd-button--color-palette-accent"
+                )),
                 "size={size:?} -> {html}"
             );
         }
+    }
+
+    /// イシュー #606: `palette` の 5 値が期待どおりのクラス
+    /// （`fd-button--color-palette-<value>`）へ写像されることを固定する。
+    #[test]
+    fn palette_enumeration_maps_to_expected_classes() {
+        for (palette, class) in [
+            (ColorPalette::Accent, "fd-button--color-palette-accent"),
+            (ColorPalette::Info, "fd-button--color-palette-info"),
+            (ColorPalette::Success, "fd-button--color-palette-success"),
+            (ColorPalette::Warning, "fd-button--color-palette-warning"),
+            (ColorPalette::Danger, "fd-button--color-palette-danger"),
+        ] {
+            let props = ButtonProps {
+                palette,
+                ..ButtonProps::default()
+            };
+            let html = render(&button(&props, vec![], vec![]));
+            assert!(
+                html.contains(&format!(
+                    "class=\"fd-button--size-md fd-button--variant-solid {class}\""
+                )),
+                "palette={palette:?} -> {html}"
+            );
+        }
+    }
+
+    /// イシュー #606: recipe の静的 CSS に `--fandhe-palette` 系の宣言と
+    /// `var(--fandhe-radius-md)` の参照が含まれることを固定する。
+    #[test]
+    fn css_output_declares_palette_custom_properties_and_radius_token() {
+        let out = css();
+        assert!(out.contains("--fandhe-palette: var(--fandhe-color-accent)"));
+        assert!(out.contains("--fandhe-palette: var(--fandhe-color-info)"));
+        assert!(out.contains("--fandhe-palette: var(--fandhe-color-success)"));
+        assert!(out.contains("--fandhe-palette: var(--fandhe-color-warning)"));
+        assert!(out.contains("--fandhe-palette: var(--fandhe-color-danger)"));
+        assert!(out.contains("background: var(--fandhe-palette);"));
+        assert!(out.contains("color: var(--fandhe-palette-fg);"));
+        assert!(out.contains("border-radius: var(--fandhe-radius-md);"));
     }
 
     #[test]
@@ -325,6 +393,23 @@ mod tests {
         assert!(!html.contains(r#"role="status""#));
         assert!(!html.contains("aria-label"));
         assert!(html.contains(r#"aria-hidden="true""#));
+    }
+
+    /// Bugbot 指摘（PR #628）の回帰テスト: 非 accent palette かつ
+    /// `loading: true` のボタンで、埋め込まれる装飾用途 Spinner が
+    /// ボタン自身の `colorPalette` 軸を継承すること（`variant_classes` が
+    /// `color-palette` 軸未指定時に既定の accent へ補完し、親ボタンの
+    /// palette を上書きしてしまう不具合の是正）。
+    #[test]
+    fn loading_spinner_inherits_button_palette_instead_of_default_accent() {
+        let props = ButtonProps {
+            loading: true,
+            palette: ColorPalette::Danger,
+            ..ButtonProps::default()
+        };
+        let html = render(&button(&props, vec![], vec![text("Save")]));
+        assert!(html.contains("fd-spinner--color-palette-danger"));
+        assert!(!html.contains("fd-spinner--color-palette-accent"));
     }
 
     #[test]

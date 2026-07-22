@@ -84,6 +84,12 @@ categories = ["wasm", "web-programming"]
 # を対応して更新済み。`DomRect`（`Element::get_bounding_client_rect` の戻り値
 # 型、anchor/floating 要素の実 DOM 計測に必要）を `[dependencies.web-sys]` へ
 # 追加する。
+# イシュー #591（Avatar load/error イベント検知グルー）: `HtmlImageElement`
+# （`headless_avatar::wiring` が settle 検査で `complete()`/`natural_width()` を
+# 読み取るために必要）を追加する。`NodeList` は既に本セクションへ追加済み
+# （#582）のため流用する。新規外部クレート追加ゼロ、既存 web-sys の feature
+# 追加のみ。`cargo metadata` 実測（パッケージ数・依存グラフ深さ）に変化が
+# ないことを PR 本文に記録する。
 [dependencies]
 fandhe-frontend-app = { path = "../app", version = "0.1.0" }
 fandhe-frontend-core = { path = "../core", version = "0.1.0" }
@@ -109,6 +115,7 @@ features = [
   "EventTarget",
   "History",
   "HtmlElement",
+  "HtmlImageElement",
   "HtmlInputElement",
   "KeyboardEvent",
   "Location",

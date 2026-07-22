@@ -10,6 +10,18 @@ publish = false
 # ユーザー承認を得ること。自動運転（承認取得不可）時は既定で「追加しない」側に倒す。
 # xtask 自身も依存グラフ上限の計測対象になり得るため、計測ツール自体が依存を
 # 増やして基準をぼかすことのないよう外部依存ゼロを維持する。
+#
+# 以下の 3 件は workspace 内部の path 依存のみ（サードパーティ外部クレートでは
+# ない。`cargo metadata` の新規外部パッケージ数への寄与はゼロ）。イシュー #592
+# の `bench-binding-update` サブコマンド（全再描画 vs 束縛点差分更新の計測）が
+# `fandhe_frontend_interactive::{AppState, DirtyTracked, dispatch}` と
+# `fandhe_frontend_headless_ui::{Disclosure, SingleSelect}` を直接駆動するために
+# 必要（criterion 等の外部ベンチクレートは追加しない側に倒す判断、
+# `docs/design/dom-binding-update-design.md` 追補節参照）。`structure.toml` の
+# `[directories.xtask] depends_on` と完全一致させること（fw gate が検証する）。
 [dependencies]
+fandhe-frontend-core = { path = "../core", version = "0.1.0" }
+fandhe-frontend-interactive = { path = "../interactive", version = "0.1.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.1.0" }
 
 [dev-dependencies]

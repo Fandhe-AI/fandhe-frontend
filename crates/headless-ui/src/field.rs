@@ -44,6 +44,22 @@
 //!   する「HTML 文字列の直接組み立て」ではない（[`mod@crate::tabs`] の注記と同型）。
 //! - `error_text`/`required_indicator` は非該当状態で `hidden` 存在属性を
 //!   付与する fail-closed 描画とし、JS 不在の SSR でも誤表示しない。
+//!
+//! # ids カスタマイズ / autoresize / select readonly 解消（イシュー #602）
+//!
+//! - [`FieldIds`]（`FieldProps::ids`）: ark-ui `Field` の `ids: ElementIds`
+//!   相当。既定（`FieldIds::default()`、全フィールド `None`）では従来どおり
+//!   `"{id}-*"` 派生 id を使うが、個別に上書きすると `control_id`/`label_id`/
+//!   `helper_text_id`/`error_text_id` の導出メソッドを経由する全参照箇所
+//!   （label の `for`・各パーツの `id`・`aria-describedby` 合成）へ一貫伝播
+//!   する。呼び出し側の再導出（別経路での id 組み立て）は作らない。
+//! - [`textarea`] の `autoresize` 引数: SSR では実際の高さ調整はできないため
+//!   `data-autoresize` 存在属性のみを出力する宣言的フックであり、実装は
+//!   CSR/wasm 層（#580 系）または styled 層のセレクタの責務。
+//! - `<select readonly>` は HTML 仕様上存在しない無効な属性であるため、
+//!   [`select`] はネイティブ `readonly` を出力しない（`data-readonly` は
+//!   styled 層セレクタ・CSR フック用に他コントロール同様に維持する）。実効的な
+//!   読み取り専用化はアプリ側（disabled option 等）または CSR 層の責務。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_describedby, aria_hidden, aria_invalid};
@@ -51,6 +67,30 @@ use fandhe_frontend_core::Node;
 
 /// `data-scope="field"` を固定した本コンポーネントの anatomy。
 const ANATOMY: Anatomy = anatomy("field");
+
+/// 派生 id（`"{id}-control"` 等）を個別に上書きするカスタム id 集合
+/// （ark-ui `Field` の `ids: Partial<ElementIds>` 相当、イシュー #602）。
+///
+/// 各フィールドが `None` のとき（[`Default`]、既定挙動）は
+/// [`FieldProps`] の `id` から `"{id}-*"` を導出する従来どおりの挙動になる。
+/// `Some` を与えると該当パーツの id 導出メソッド（`FieldProps::control_id`
+/// 等、いずれも非公開）がその値を返すようになり、`for`/`aria-describedby`
+/// 等の参照箇所へも同じ値が一貫して伝播する（個別箇所での再導出は行わない）。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct FieldIds<'a> {
+    /// `root` パーツの `id` 属性。`None` のとき `root` は `id` を出力しない
+    /// （従来どおり id なしで挙動不変）。
+    pub root: Option<&'a str>,
+    /// コントロール（input/textarea/select）の `id`。`label` の `for` 属性
+    /// もこの値を参照する。
+    pub control: Option<&'a str>,
+    /// `label` パーツの `id`。
+    pub label: Option<&'a str>,
+    /// `helper_text` パーツの `id`。`aria-describedby` 合成にも使われる。
+    pub helper_text: Option<&'a str>,
+    /// `error_text` パーツの `id`。`aria-describedby` 合成にも使われる。
+    pub error_text: Option<&'a str>,
+}
 
 /// `field` モジュールの各パーツ関数（[`root`]/[`label`]/[`input`]/[`textarea`]/
 /// [`select`]/[`helper_text`]/[`error_text`]/[`required_indicator`]）へ
@@ -63,7 +103,12 @@ pub struct FieldProps<'a> {
     /// ベース id。コントロール/label/helper_text/error_text の決定的 id 生成
     /// （`"{id}-control"`/`"{id}-label"`/`"{id}-helper-text"`/`"{id}-error-text"`）
     /// に使う。「1 Field = 1 コントロール」が呼び出し側の契約である。
+    /// [`FieldIds`]（`ids` フィールド）で個別パーツの id を上書きしない限り
+    /// この値から派生 id を導出する。
     pub id: &'a str,
+    /// 派生 id の個別上書き（イシュー #602、[`FieldIds`] 参照）。既定
+    /// （`FieldIds::default()`）では従来どおり `id` からの派生のみを使う。
+    pub ids: FieldIds<'a>,
     /// フィールド全体の無効化。`true` のとき `root` に `data-disabled` を、
     /// コントロールパーツにネイティブ `disabled` 存在属性・`data-disabled`
     /// を付与する。
@@ -78,6 +123,9 @@ pub struct FieldProps<'a> {
     pub required: bool,
     /// 読み取り専用。`true` のとき `root` に `data-readonly` を、コントロール
     /// パーツにネイティブ `readonly` 存在属性・`data-readonly` を付与する。
+    /// ただし [`select`] は HTML 仕様上 `<select readonly>` が無効なため
+    /// ネイティブ属性は出力しない（`data-readonly` は出力する。モジュール
+    /// doc 「select readonly 解消」節参照）。
     pub readonly: bool,
     /// `helper_text` パーツを併用するかどうか。`true` のとき
     /// `aria-describedby`（`invalid` なら error id を先頭に、続けて helper id
@@ -87,36 +135,68 @@ pub struct FieldProps<'a> {
     pub has_helper_text: bool,
 }
 
+/// コントロールパーツの種別（イシュー #602）。
+///
+/// `<select readonly>` が HTML 仕様上無効な属性であるため、
+/// [`FieldProps::control_attrs`] がネイティブ `readonly` を出力するか否かを
+/// 分岐するためだけに使う内部区分。これ以外の属性則（`disabled`/`required`/
+/// `aria-invalid`/data-*）は 3 種で共通のため列挙子はこの 1 点にのみ影響する。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ControlKind {
+    Input,
+    Textarea,
+    Select,
+}
+
 impl FieldProps<'_> {
     /// コントロール（input/textarea/select）が共有する id
-    /// （`"{id}-control"`）。label の `for` 属性もこの id を参照する。
+    /// （既定 `"{id}-control"`、[`FieldIds::control`] で上書き可能）。
+    /// label の `for` 属性もこの id を参照する。
     #[must_use]
     fn control_id(&self) -> String {
-        format!("{}-control", self.id)
+        self.ids
+            .control
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("{}-control", self.id))
     }
 
-    /// label の id（`"{id}-label"`）。
+    /// label の id（既定 `"{id}-label"`、[`FieldIds::label`] で上書き可能）。
     #[must_use]
     fn label_id(&self) -> String {
-        format!("{}-label", self.id)
+        self.ids
+            .label
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("{}-label", self.id))
     }
 
-    /// helper_text の id（`"{id}-helper-text"`）。
+    /// helper_text の id（既定 `"{id}-helper-text"`、[`FieldIds::helper_text`]
+    /// で上書き可能）。
     #[must_use]
     fn helper_text_id(&self) -> String {
-        format!("{}-helper-text", self.id)
+        self.ids
+            .helper_text
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("{}-helper-text", self.id))
     }
 
-    /// error_text の id（`"{id}-error-text"`）。
+    /// error_text の id（既定 `"{id}-error-text"`、[`FieldIds::error_text`]
+    /// で上書き可能）。
     #[must_use]
     fn error_text_id(&self) -> String {
-        format!("{}-error-text", self.id)
+        self.ids
+            .error_text
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("{}-error-text", self.id))
     }
 
     /// コントロールパーツ（input/textarea/select）に共通する属性列を
     /// 組み立てる（`id`・ネイティブ存在属性・`aria-invalid`・
     /// `aria-describedby`・data-* 4 種）。`extra_attrs` は呼び出し側が
     /// 追加で渡す属性（`name`/`type`/`value` 等）で、末尾に連結する。
+    ///
+    /// `kind` が [`ControlKind::Select`] のときのみネイティブ `readonly` の
+    /// 出力を止める（select readonly 解消、イシュー #602）。それ以外の
+    /// 属性則は 3 種共通。
     ///
     /// `self` は戻り値へ実際には借用を持ち越さない（`state_data_attrs`/
     /// `aria_invalid` はいずれも `'static` を返す）ため、`self` は出力
@@ -127,6 +207,7 @@ impl FieldProps<'_> {
     /// （PR #567 レビュー指摘の是正）。
     fn control_attrs<'a>(
         &self,
+        kind: ControlKind,
         control_id: &'a str,
         extra_attrs: Vec<(&'a str, &'a str)>,
     ) -> Vec<(&'a str, &'a str)> {
@@ -137,7 +218,7 @@ impl FieldProps<'_> {
         if self.required {
             attrs.push(("required", ""));
         }
-        if self.readonly {
+        if self.readonly && kind != ControlKind::Select {
             attrs.push(("readonly", ""));
         }
         if self.invalid {
@@ -187,14 +268,19 @@ fn describedby_value(props: &FieldProps<'_>) -> Option<String> {
 }
 
 /// `root` パーツ（`div`）。`disabled`/`invalid`/`required`/`readonly` の
-/// data-* フラグを反映する。
+/// data-* フラグを反映する。[`FieldIds::root`] が `Some` のときのみ `id`
+/// 属性を出力する（`None` のときは従来どおり id なし、イシュー #602）。
 #[must_use]
 pub fn root<'a>(
     props: &FieldProps<'_>,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&str, &str)> = Vec::with_capacity(attrs.len() + 4);
+    let root_id = props.ids.root;
+    let mut merged: Vec<(&str, &str)> = Vec::with_capacity(attrs.len() + 5);
+    if let Some(id) = root_id {
+        merged.push(("id", id));
+    }
     merged.extend(state_data_attrs(props));
     merged.extend(attrs);
     ANATOMY.part("root", "div", merged, children)
@@ -225,7 +311,7 @@ pub fn label(props: &FieldProps<'_>, attrs: Vec<(&str, &str)>, children: Vec<Nod
 pub fn input<'a>(props: &FieldProps<'_>, extra_attrs: Vec<(&'a str, &'a str)>) -> Node {
     let control_id = props.control_id();
     let described_by = describedby_value(props);
-    let mut attrs = props.control_attrs(&control_id, extra_attrs);
+    let mut attrs = props.control_attrs(ControlKind::Input, &control_id, extra_attrs);
     if let Some(ref value) = described_by {
         attrs.push(aria_describedby(value.as_str()));
     }
@@ -233,22 +319,35 @@ pub fn input<'a>(props: &FieldProps<'_>, extra_attrs: Vec<(&'a str, &'a str)>) -
 }
 
 /// `textarea` パーツ（`textarea`）。[`input`] と同一の属性則に従う。
+///
+/// `autoresize`: ark-ui `Field.Textarea` の `autoresize` 相当（イシュー
+/// #602）。`true` のとき `data-autoresize=""` 存在属性を付与する宣言的
+/// フックのみを出力する。SSR は実際の高さ調整を行わない（実装は CSR/wasm 層
+/// （#580 系）または styled 層のセレクタの責務。モジュール doc 参照）。
 #[must_use]
 pub fn textarea<'a>(
     props: &FieldProps<'_>,
+    autoresize: bool,
     extra_attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
     let control_id = props.control_id();
     let described_by = describedby_value(props);
-    let mut attrs = props.control_attrs(&control_id, extra_attrs);
+    let mut attrs = props.control_attrs(ControlKind::Textarea, &control_id, extra_attrs);
     if let Some(ref value) = described_by {
         attrs.push(aria_describedby(value.as_str()));
+    }
+    if autoresize {
+        attrs.push(("data-autoresize", ""));
     }
     ANATOMY.part("textarea", "textarea", attrs, children)
 }
 
-/// `select` パーツ（`select`）。[`input`] と同一の属性則に従う。
+/// `select` パーツ（`select`）。[`input`] と同一の属性則に従うが、
+/// `props.readonly` が `true` でもネイティブ `readonly` 属性は出力しない
+/// （HTML 仕様上 `<select readonly>` は無効な属性のため、イシュー #602 で
+/// 解消。`data-readonly` は他コントロールと同様に出力する）。実効的な
+/// 読み取り専用化はアプリ側（disabled option 等）または CSR 層の責務。
 ///
 /// `option` 子ノードは呼び出し側が [`fandhe_frontend_core::el`]（例:
 /// `el("option", ..., ...)`）で組み立てて `children` に渡す（`core` が
@@ -263,7 +362,7 @@ pub fn select<'a>(
 ) -> Node {
     let control_id = props.control_id();
     let described_by = describedby_value(props);
-    let mut attrs = props.control_attrs(&control_id, extra_attrs);
+    let mut attrs = props.control_attrs(ControlKind::Select, &control_id, extra_attrs);
     if let Some(ref value) = described_by {
         attrs.push(aria_describedby(value.as_str()));
     }
@@ -322,6 +421,7 @@ mod tests {
     fn base_props(id: &str) -> FieldProps<'_> {
         FieldProps {
             id,
+            ids: FieldIds::default(),
             disabled: false,
             invalid: false,
             required: false,
@@ -424,7 +524,7 @@ mod tests {
     fn textarea_and_select_share_input_attribute_rules() {
         let mut props = base_props("f");
         props.invalid = true;
-        let ta = render(&textarea(&props, vec![], vec![]));
+        let ta = render(&textarea(&props, false, vec![], vec![]));
         assert!(ta.contains(r#"data-scope="field" data-part="textarea""#));
         assert!(ta.contains(r#"id="f-control""#));
         assert!(ta.contains(r#"aria-invalid="true""#));
@@ -433,6 +533,99 @@ mod tests {
         assert!(sel.contains(r#"data-scope="field" data-part="select""#));
         assert!(sel.contains(r#"id="f-control""#));
         assert!(sel.contains(r#"aria-invalid="true""#));
+    }
+
+    // --- select readonly 解消（イシュー #602） ---
+
+    #[test]
+    fn select_omits_native_readonly_but_keeps_data_readonly() {
+        let mut props = base_props("f");
+        props.readonly = true;
+        let sel_html = render(&select(&props, vec![], vec![]));
+        // `data-readonly=""` を含む文字列全体には部分文字列として
+        // `readonly=""` が含まれてしまうため、ネイティブ属性（先頭が空白
+        // かクォートで区切られる） `" readonly=\"\""` の非存在で検証する。
+        assert!(!sel_html.contains(r#" readonly="""#));
+        assert!(sel_html.contains(r#"data-readonly=""#));
+
+        // input/textarea は従来どおりネイティブ readonly を出力する（回帰）。
+        let input_html = render(&input(&props, vec![]));
+        assert!(input_html.contains(r#"readonly="""#));
+        let ta_html = render(&textarea(&props, false, vec![], vec![]));
+        assert!(ta_html.contains(r#"readonly="""#));
+    }
+
+    // --- autoresize（イシュー #602） ---
+
+    #[test]
+    fn textarea_autoresize_true_emits_data_autoresize() {
+        let props = base_props("f");
+        let html = render(&textarea(&props, true, vec![], vec![]));
+        assert!(html.contains(r#"data-autoresize=""#));
+    }
+
+    #[test]
+    fn textarea_autoresize_false_omits_data_autoresize() {
+        let props = base_props("f");
+        let html = render(&textarea(&props, false, vec![], vec![]));
+        assert!(!html.contains("data-autoresize"));
+    }
+
+    // --- FieldIds（イシュー #602） ---
+
+    #[test]
+    fn ids_all_none_preserves_default_derivation() {
+        let props = base_props("f");
+        let root_html = render(&root(&props, vec![], vec![]));
+        assert_eq!(
+            root_html,
+            r#"<div data-scope="field" data-part="root"></div>"#
+        );
+        let label_html = render(&label(&props, vec![], vec![text("Name")]));
+        assert_eq!(
+            label_html,
+            r#"<label data-scope="field" data-part="label" for="f-control" id="f-label">Name</label>"#
+        );
+    }
+
+    #[test]
+    fn ids_control_override_propagates_to_input_and_label_for() {
+        let mut props = base_props("f");
+        props.ids.control = Some("custom-control");
+        let input_html = render(&input(&props, vec![]));
+        assert!(input_html.contains(r#"id="custom-control""#));
+        let label_html = render(&label(&props, vec![], vec![text("Name")]));
+        assert!(label_html.contains(r#"for="custom-control""#));
+        // label 自身の id は上書き対象外（別フィールド）のため従来どおり。
+        assert!(label_html.contains(r#"id="f-label""#));
+    }
+
+    #[test]
+    fn ids_error_and_helper_override_propagate_to_describedby() {
+        let mut props = base_props("f");
+        props.invalid = true;
+        props.has_helper_text = true;
+        props.ids.error_text = Some("custom-error");
+        props.ids.helper_text = Some("custom-helper");
+        let html = render(&input(&props, vec![]));
+        assert!(html.contains(r#"aria-describedby="custom-error custom-helper""#));
+
+        let error_html = render(&error_text(&props, vec![], vec![text("bad")]));
+        assert!(error_html.contains(r#"id="custom-error""#));
+        let helper_html = render(&helper_text(&props, vec![], vec![text("hint")]));
+        assert!(helper_html.contains(r#"id="custom-helper""#));
+    }
+
+    #[test]
+    fn ids_root_some_emits_id_none_omits_it() {
+        let props_default = base_props("f");
+        let default_html = render(&root(&props_default, vec![], vec![]));
+        assert!(!default_html.contains(" id="));
+
+        let mut props_with_root_id = base_props("f");
+        props_with_root_id.ids.root = Some("custom-root");
+        let with_id_html = render(&root(&props_with_root_id, vec![], vec![]));
+        assert!(with_id_html.contains(r#"id="custom-root""#));
     }
 
     #[test]
@@ -515,5 +708,33 @@ mod tests {
             render(&node),
             r#"<div data-scope="field" data-part="root"></div>"#
         );
+    }
+
+    #[test]
+    fn xss_payload_in_ids_override_is_escaped_on_render() {
+        // FieldIds（イシュー #602）で上書きされた id 値も root/control/label と
+        // 同じ既定エスケープ経路（render()）を通ることを固定する。
+        let payload = "x\" onmouseover=\"alert(1)";
+        let mut props = base_props("f");
+        props.ids.root = Some(payload);
+        props.ids.control = Some(payload);
+        props.ids.label = Some(payload);
+        props.ids.helper_text = Some(payload);
+        props.ids.error_text = Some(payload);
+        props.invalid = true;
+        props.has_helper_text = true;
+
+        let html = render(&root(
+            &props,
+            vec![],
+            vec![
+                label(&props, vec![], vec![text("Name")]),
+                input(&props, vec![]),
+                helper_text(&props, vec![], vec![text("hint")]),
+                error_text(&props, vec![], vec![text("bad")]),
+            ],
+        ));
+        assert!(!html.contains("onmouseover=\"alert"));
+        assert!(html.contains("&quot;"));
     }
 }

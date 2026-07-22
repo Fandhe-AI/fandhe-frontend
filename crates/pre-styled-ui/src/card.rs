@@ -48,6 +48,11 @@ impl VariantValue for CardVariant {
 }
 
 /// Card の recipe（scope `"card"`、[`SLOTS`] の 6 パーツ）。
+///
+/// 中立的なレイアウトコンテナであり、Button/Badge/Spinner/Alert と異なり
+/// colorPalette 軸は付与しない（イシュー #606。Card は特定のセマンティック
+/// 色を持つ意味論を持たず、`header`/`footer` の枠線色等は既存どおり
+/// `--fandhe-color-*` を直接参照する）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("card", SLOTS)
         .base(
@@ -55,7 +60,7 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "flex"),
                 decl("flex-direction", "column"),
-                decl("border-radius", "0.5rem"),
+                decl("border-radius", "var(--fandhe-radius-lg)"),
             ],
         )
         .base(
@@ -92,7 +97,7 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("background", "var(--fandhe-color-bg)"),
-                decl("box-shadow", "0 1px 3px rgba(0, 0, 0, 0.12)"),
+                decl("box-shadow", "var(--fandhe-shadow-sm)"),
             ],
         )
         .variant(
@@ -253,5 +258,14 @@ mod tests {
         let html = render(&title(vec![], vec![text("<script>alert(1)</script>")]));
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+    }
+
+    /// イシュー #606: recipe の静的 CSS に radii/shadow トークン参照が
+    /// 含まれることを固定する。
+    #[test]
+    fn css_output_declares_radius_and_shadow_tokens() {
+        let out = css();
+        assert!(out.contains("border-radius: var(--fandhe-radius-lg);"));
+        assert!(out.contains("box-shadow: var(--fandhe-shadow-sm);"));
     }
 }

@@ -4,18 +4,28 @@
 //! ark-ui の Menu
 //!（`.claude/skills/ark-ui/references/components/collections/menu.md`）を
 //! 参考に、Root / Trigger / Indicator / Positioner / Content / Arrow /
-//! ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator の 11 anatomy
-//! パーツと、Phase 1（#524）の [`crate::state::Disclosure`] を埋め込んだ
-//! 開閉状態機械 [`Menu`] を提供する。**構造上最も近い先行例は
-//! [`crate::popover::Popover`]**（trigger 起点のオーバーレイ + `Disclosure`
-//! 埋め込み）であり、本モジュールはそのパターンに完全準拠する。
+//! ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator / TriggerItem /
+//! ContextTrigger の 13 anatomy パーツと、Phase 1（#524）の
+//! [`crate::state::Disclosure`] を埋め込んだ開閉状態機械 [`Menu`] を提供する。
+//! **構造上最も近い先行例は [`crate::popover::Popover`]**（trigger 起点の
+//! オーバーレイ + `Disclosure` 埋め込み）であり、本モジュールはそのパターンに
+//! 完全準拠する。TriggerItem/ContextTrigger（イシュー #598、親 #596/#593）は
+//! いずれも既存 [`Menu`] インスタンスをそのまま流用する合成であり、新しい
+//! 状態機械は追加しない（サブメニューは「子 Menu インスタンス 1 個」、
+//! ContextTrigger は「右クリックで開かれる Menu インスタンス自身」を指す）。
 //!
 //! # 呼び出し文脈
 //!
 //! SSR は本モジュールの自由関数（[`root`]/[`trigger`]/[`indicator`]/
 //! [`positioner`]/[`content`]/[`arrow`]/[`arrow_tip`]/[`item`]/
-//! [`item_group`]/[`item_group_label`]/[`separator`]、純粋関数で完結）を
-//! 直接呼んで組み立てる。CSR/hydration は [`Menu`]
+//! [`item_group`]/[`item_group_label`]/[`separator`]/[`trigger_item`]/
+//! [`context_trigger`]、純粋関数で完結）を直接呼んで組み立てる。
+//! サブメニューは「親 `Menu` インスタンスの `content` 内に子 `Menu`
+//! インスタンス由来の `trigger_item`/`positioner`/`content` を入れ子で配置
+//! する」ことで表現する（親子は別インスタンスであり、`aria-haspopup`
+//! 連鎖 — 親 [`trigger`] と子 [`trigger_item`] の双方に
+//! `aria-haspopup="menu"` — でネストしたメニューであることを示す）。
+//! CSR/hydration は [`Menu`]
 //!（[`fandhe_frontend_interactive::Component`]/
 //! [`fandhe_frontend_interactive::Hydrate`] 実装）を経由し、dispatch
 //! （`"open"`/`"close"`/`"toggle"`）で状態遷移する。`fandhe-frontend-pre-styled-ui`
@@ -42,9 +52,10 @@
 //! - `CheckboxItem`/`RadioGroup`/`RadioItem`: form 系（Checkbox #534 系列）の
 //!   checked 状態設計と整合させるべきであり、別イシュー化をユーザーへ提案する
 //!   （`out-of-scope-tracking.md` 準拠、勝手に起票しない）。
-//! - `ContextTrigger`（右クリック）/`TriggerItem`（サブメニュー・入れ子）:
-//!   クライアントイベント処理・複数 `Disclosure` の合成が必要で工数超過のため
-//!   別イシュー化を提案する。
+//! - [`trigger_item`]/[`context_trigger`] の**クライアントイベント処理**
+//!   （右クリック検知・ホバー/矢印キーでのサブメニュー展開・フォーカス管理）:
+//!   本イシュー（#598）は SSR マークアップ（anatomy 表現）のみを対象とし、
+//!   配線は wasm ランタイム側の将来イシュー（#580/PR #611 系列）のスコープ。
 //! - `loopFocus`/`typeahead`/`closeOnSelect`/キーボード操作・portal・
 //!   `lazyMount`: wasm クライアントランタイム側の将来イシューのスコープ
 //!   （Popover/Tooltip と共通の判断）。
@@ -59,7 +70,7 @@ use crate::aria::{
     aria_controls, aria_disabled, aria_expanded, aria_haspopup, aria_labelledby, aria_orientation,
     role, AriaPopup,
 };
-use crate::data_attrs::{data_disabled, data_state, Orientation};
+use crate::data_attrs::{data_disabled, data_highlighted, data_state, Orientation};
 use crate::state::{Disclosure, DisclosureAction, OpenState};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
@@ -213,9 +224,7 @@ pub fn item<'a>(
         merged.push(aria_disabled(true));
         merged.extend(data_disabled(true));
     }
-    if highlighted {
-        merged.push(("data-highlighted", ""));
-    }
+    merged.extend(data_highlighted(highlighted));
     merged.extend(attrs);
     ANATOMY.part("item", "div", merged, children)
 }
@@ -268,6 +277,68 @@ pub fn separator<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Nod
         vec![role("separator"), aria_orientation(Orientation::Horizontal)];
     merged.extend(attrs);
     ANATOMY.part("separator", "hr", merged, children)
+}
+
+/// TriggerItem パーツ（`div`）。サブメニューを開く項目（イシュー #598）。
+///
+/// [`item`] と同型（`div` ベース、native `disabled` を持たない）だが、
+/// `role="menuitem"` に加えて `aria-haspopup="menu"` を固定付与し、親
+/// [`trigger`] と同じ「haspopup 連鎖」でネストしたメニューであることを
+/// 支援技術へ伝える。`aria-expanded`/`data-state` は**このトリガーが開閉する
+/// サブメニュー側**の `sub_state` から導出する（呼び出し側は子 `Menu`
+/// インスタンスの状態をここへ注入する。[`Menu::trigger_item`] は子
+/// インスタンスの `self.state()` を自動注入する利便メソッド）。`controls` が
+/// `Some` のときサブメニュー [`content`] の `id` と `aria-controls` で
+/// 関連付ける。`disabled`/`highlighted` の扱いは [`item`] と同判断。
+#[must_use]
+pub fn trigger_item<'a>(
+    sub_state: OpenState,
+    disabled: bool,
+    highlighted: bool,
+    controls: Option<&'a str>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        role("menuitem"),
+        aria_haspopup(AriaPopup::Menu),
+        aria_expanded(sub_state.is_open()),
+        data_state(sub_state.as_data_state()),
+    ];
+    if let Some(id) = controls {
+        merged.push(aria_controls(id));
+    }
+    if disabled {
+        merged.push(aria_disabled(true));
+        merged.extend(data_disabled(true));
+    }
+    if highlighted {
+        merged.push(("data-highlighted", ""));
+    }
+    merged.extend(attrs);
+    ANATOMY.part("trigger-item", "div", merged, children)
+}
+
+/// ContextTrigger パーツ（`button`）。右クリックで Menu を開くトリガー
+/// （イシュー #598）。
+///
+/// [`trigger`] と同じくフォーム内配置時の意図しない submit を防ぐため
+/// `type="button"` を固定付与し、`data-state` で開閉状態を反映する。
+/// **ARIA 属性は一切付与しない**（`aria-haspopup`/`aria-expanded` 等）。
+/// 右クリックというジェスチャは SSR/no-JS では成立せず、ARIA を付けると
+/// JS なしでは実現できない操作性を支援技術へ誤って約束することになるため、
+/// 受け入れ条件どおり `data-*` フックのみで表現する（クライアント配線時に
+/// wasm ランタイム側で ARIA 拡張するかどうかは #580/PR #611 系列で再検討）。
+#[must_use]
+pub fn context_trigger<'a>(
+    state: OpenState,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> =
+        vec![("type", "button"), data_state(state.as_data_state())];
+    merged.extend(attrs);
+    ANATOMY.part("context-trigger", "button", merged, children)
 }
 
 /// [`Disclosure`]（#524）を埋め込んだ Menu の状態機械。
@@ -353,6 +424,39 @@ impl Menu {
         children: Vec<Node>,
     ) -> Node {
         content(self.state(), id, labelledby, attrs, children)
+    }
+
+    /// [`trigger_item`] へ現在の状態を注入する利便メソッド。
+    ///
+    /// **親メニューではなく、このトリガーが開くサブメニュー側の `Menu`
+    /// インスタンスから呼ぶ**（`aria-expanded`/`data-state` はサブメニュー
+    /// 自身の開閉状態を反映するため。親 `Menu` から呼ぶと親の状態が誤って
+    /// サブメニュートリガーへ反映されてしまう）。
+    #[must_use]
+    pub fn trigger_item<'a>(
+        &self,
+        disabled: bool,
+        highlighted: bool,
+        controls: Option<&'a str>,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        trigger_item(
+            self.state(),
+            disabled,
+            highlighted,
+            controls,
+            attrs,
+            children,
+        )
+    }
+
+    /// [`context_trigger`] へ現在の状態を注入する利便メソッド。
+    ///
+    /// 右クリックで開かれる Menu 自身のインスタンスから呼ぶ。
+    #[must_use]
+    pub fn context_trigger<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+        context_trigger(self.state(), attrs, children)
     }
 }
 
@@ -630,6 +734,168 @@ mod tests {
         assert!(html.contains(r#"aria-orientation="horizontal""#));
     }
 
+    // --- trigger_item（サブメニュートリガー、イシュー #598） ---
+
+    #[test]
+    fn trigger_item_has_kebab_case_part_role_and_haspopup_menu() {
+        let html = render(&trigger_item(
+            OpenState::Closed,
+            false,
+            false,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-part="trigger-item""#));
+        assert!(html.contains(r#"role="menuitem""#));
+        assert!(html.contains(r#"aria-haspopup="menu""#));
+    }
+
+    #[test]
+    fn trigger_item_aria_expanded_and_data_state_follow_sub_state() {
+        let closed = render(&trigger_item(
+            OpenState::Closed,
+            false,
+            false,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(closed.contains(r#"aria-expanded="false""#));
+        assert!(closed.contains(r#"data-state="closed""#));
+
+        let open = render(&trigger_item(
+            OpenState::Open,
+            false,
+            false,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(open.contains(r#"aria-expanded="true""#));
+        assert!(open.contains(r#"data-state="open""#));
+    }
+
+    #[test]
+    fn trigger_item_controls_some_outputs_aria_controls_none_omits() {
+        let with_controls = render(&trigger_item(
+            OpenState::Closed,
+            false,
+            false,
+            Some("sub-1"),
+            vec![],
+            vec![],
+        ));
+        assert!(with_controls.contains(r#"aria-controls="sub-1""#));
+
+        let without_controls = render(&trigger_item(
+            OpenState::Closed,
+            false,
+            false,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(!without_controls.contains("aria-controls"));
+    }
+
+    #[test]
+    fn trigger_item_disabled_true_adds_aria_disabled_and_data_disabled_no_native() {
+        let html = render(&trigger_item(
+            OpenState::Closed,
+            true,
+            false,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"aria-disabled="true""#));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(!html.contains(r#" disabled"#));
+
+        let not_disabled = render(&trigger_item(
+            OpenState::Closed,
+            false,
+            false,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(!not_disabled.contains("aria-disabled"));
+        assert!(!not_disabled.contains("data-disabled"));
+    }
+
+    #[test]
+    fn trigger_item_highlighted_true_adds_data_highlighted_false_omits() {
+        let highlighted = render(&trigger_item(
+            OpenState::Closed,
+            false,
+            true,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(highlighted.contains(r#"data-highlighted="""#));
+
+        let not_highlighted = render(&trigger_item(
+            OpenState::Closed,
+            false,
+            false,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(!not_highlighted.contains("data-highlighted"));
+    }
+
+    #[test]
+    fn trigger_item_caller_supplied_scope_and_part_are_dropped() {
+        let html = render(&trigger_item(
+            OpenState::Closed,
+            false,
+            false,
+            None,
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="menu""#));
+        assert!(html.contains(r#"data-part="trigger-item""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    // --- context_trigger（右クリックトリガー、イシュー #598） ---
+
+    #[test]
+    fn context_trigger_has_button_tag_type_button_and_kebab_case_part() {
+        let html = render(&context_trigger(OpenState::Closed, vec![], vec![]));
+        assert!(html.contains(r#"<button"#));
+        assert!(html.contains(r#"type="button""#));
+        assert!(html.contains(r#"data-part="context-trigger""#));
+        assert!(html.contains(r#"data-state="closed""#));
+    }
+
+    #[test]
+    fn context_trigger_has_no_aria_attributes() {
+        let closed = render(&context_trigger(OpenState::Closed, vec![], vec![]));
+        assert!(!closed.contains("aria-"));
+
+        let open = render(&context_trigger(OpenState::Open, vec![], vec![]));
+        assert!(!open.contains("aria-"));
+        assert!(open.contains(r#"data-state="open""#));
+    }
+
+    #[test]
+    fn context_trigger_caller_supplied_scope_and_part_are_dropped() {
+        let html = render(&context_trigger(
+            OpenState::Closed,
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="menu""#));
+        assert!(html.contains(r#"data-part="context-trigger""#));
+        assert!(!html.contains("attacker"));
+    }
+
     // --- Anatomy::part fail-closed 回帰（呼び出し側の data-scope/data-part 偽装除去） ---
 
     #[test]
@@ -690,6 +956,23 @@ mod tests {
         let mut m = Menu::new(OpenState::Open);
         assert!(!dispatch(&mut m, "no_such_action", "x"));
         assert_eq!(m.state(), OpenState::Open);
+    }
+
+    #[test]
+    fn menu_trigger_item_and_context_trigger_reflect_own_state() {
+        let mut sub = Menu::default();
+        assert!(
+            render(&sub.trigger_item(false, false, None, vec![], vec![]))
+                .contains(r#"aria-expanded="false""#)
+        );
+        assert!(dispatch(&mut sub, "open", ""));
+        assert!(
+            render(&sub.trigger_item(false, false, None, vec![], vec![]))
+                .contains(r#"aria-expanded="true""#)
+        );
+
+        let ctx = Menu::new(OpenState::Open);
+        assert!(render(&ctx.context_trigger(vec![], vec![])).contains(r#"data-state="open""#));
     }
 
     // --- Menu: SSR 状態なし初期描画 ---
@@ -786,6 +1069,60 @@ mod tests {
             vec![],
         ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
+    }
+
+    #[test]
+    fn trigger_item_controls_payload_is_escaped_on_render() {
+        let html = render(&trigger_item(
+            OpenState::Closed,
+            false,
+            false,
+            Some(ATTR_BREAK_PAYLOAD),
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("onmouseover=\"alert(1)"));
+        assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn trigger_item_and_context_trigger_caller_attrs_payload_is_escaped_on_render() {
+        let trigger_item_html = render(&trigger_item(
+            OpenState::Closed,
+            false,
+            false,
+            None,
+            vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+            vec![],
+        ));
+        let context_trigger_html = render(&context_trigger(
+            OpenState::Closed,
+            vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+            vec![],
+        ));
+        assert!(!trigger_item_html.contains("onmouseover=\"alert(1)"));
+        assert!(!context_trigger_html.contains("onmouseover=\"alert(1)"));
+    }
+
+    #[test]
+    fn trigger_item_and_context_trigger_children_text_is_escaped_on_render() {
+        let trigger_item_html = render(&trigger_item(
+            OpenState::Closed,
+            false,
+            false,
+            None,
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        let context_trigger_html = render(&context_trigger(
+            OpenState::Closed,
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        assert!(!trigger_item_html.contains("<script>alert(1)</script>"));
+        assert!(!context_trigger_html.contains("<script>alert(1)</script>"));
+        assert!(trigger_item_html.contains("&lt;script&gt;"));
+        assert!(context_trigger_html.contains("&lt;script&gt;"));
     }
 
     #[test]

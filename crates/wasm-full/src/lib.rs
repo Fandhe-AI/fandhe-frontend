@@ -58,6 +58,33 @@
 //! scroll/resize イベント契機の離散的な再計算（`autoUpdate` 相当の連続監視は
 //! 非採用、`docs/design/anchor-positioning-design.md` §4.3）を提供する。
 //!
+//! [`tooltip`] モジュール（イシュー #587、親 #584）は Tooltip の
+//! `openDelay`/`closeDelay`/`interactive`（表示・非表示遅延タイマーと
+//! content 内ポインタ移動時の維持）を担う。`overlay` と同じ 2 層構成を
+//! 踏襲するが、`pointerenter`/`pointerleave` がバブリングしないため
+//! document への委譲登録ではなく trigger/content 要素への直接登録を行う点が
+//! 異なる。`overlay` の `OverlayKind::Tooltip` は本モジュールと競合しない
+//! よう `close_on_interact_outside = false`（スタック非参加）を既定として
+//! いる（`overlay.rs` 冒頭 doc 参照）。実際の `"open"`/`"close"` dispatch・
+//! 再描画は呼び出し側（#580 統合層）の責務として通知のみを提供する。
+//!
+//! [`headless_avatar`] モジュール（イシュー #591、親 #520/#542/#543）は
+//! `fandhe-frontend-headless-ui` の Avatar（`avatar` モジュール）が公開する
+//! `data-scope="avatar"`/`data-part="image"/"fallback"` 契約に対し、実 DOM の
+//! `img` 要素の `load`/`error` イベント検知グルーを提供する。`load`/`error`
+//! はバブリングしないため、`events`/`keynav`/`overlay` の委譲（バブリング
+//! フェーズ）とは異なり **capture フェーズ**でルート要素へ委譲する
+//! （同モジュール doc 参照）。
+//!
+//! [`focus_trap`] モジュール（イシュー #586、親 #584）は Dialog の
+//! `aria-modal="true"` 時のフォーカストラップ（Tab 循環・初期フォーカス）と、
+//! 閉鎖時のトリガーへのフォーカス復帰を担う。[`overlay`] と同じ 2 層構成
+//! （DOM 非依存の純粋ロジック層 + `#[cfg(target_arch = "wasm32")]` 配線層）を
+//! 踏襲し、`"close"` dispatch・再描画・DOM の open/close 属性更新は行わない
+//! （`FocusTrapController::push_trap`/`FocusTrapController::pop_trap`
+//! （`#[cfg(target_arch = "wasm32")]` のみ公開）を Dialog の open/close
+//! タイミングで呼ぶのは #580 統合層の責務）。
+//!
 //! 本クレートの自作コードは safe Rust のみとし、`unsafe` は `wasm-bindgen` /
 //! `web-sys` の FFI 境界（依存クレート内部・自動生成コード）に限定する
 //! （`docs/policy/unsafe-boundary.md` 第 2 節）。自作コードでの新規 `unsafe` 追加を
@@ -73,11 +100,14 @@
 
 pub mod csr;
 pub mod events;
+pub mod focus_trap;
+pub mod headless_avatar;
 pub mod hydration;
 pub mod keynav;
 pub mod nav;
 pub mod overlay;
 pub mod position;
+pub mod tooltip;
 
 #[cfg(target_arch = "wasm32")]
 pub mod entry;
@@ -280,9 +310,9 @@ where
     ///
     /// `component.view()` → [`dom::render_component_html`]（既定エスケープ済み
     /// 出力）を `root_id` 要素へ [`dom::mount_initial`] で反映し、続けて
-    /// [`events::wire_events`]・[`keynav::wire_keynav`]（イシュー #582、
-    /// Tabs/Accordion のキーボード操作）の順にイベント委譲を 1 回だけ
-    /// 登録する。`keynav::wire_keynav` は DOM 属性のみを読み書きする
+    /// [`events::wire_events`]・[`keynav::wire_keynav`]（イシュー #582・#583、
+    /// Tabs/Accordion/Menu/Select/RadioGroup のキーボード操作）の順に
+    /// イベント委譲を 1 回だけ登録する。`keynav::wire_keynav` は DOM 属性のみを読み書きする
     /// ステートレス配線であり、`Self::wire`（束縛点更新・keyed list 更新）
     /// とは独立した経路のため、失敗しても状態管理側の配線
     /// （`events::wire_events`）の成立を妨げない。

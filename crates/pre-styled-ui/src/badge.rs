@@ -4,7 +4,7 @@
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, VariantValue};
+use crate::recipe::{palette_declarations, ColorPalette, Size, SlotRecipe, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -44,6 +44,9 @@ pub struct BadgeProps {
     pub variant: BadgeVariant,
     /// サイズ variant（既定 `Md`）。
     pub size: Size,
+    /// colorPalette 軸（既定 `Accent`、イシュー #606）。[`crate::theme`] の
+    /// セマンティック色から選択する。
+    pub palette: ColorPalette,
 }
 
 impl Default for BadgeProps {
@@ -51,19 +54,24 @@ impl Default for BadgeProps {
         BadgeProps {
             variant: BadgeVariant::Subtle,
             size: Size::Md,
+            palette: ColorPalette::Accent,
         }
     }
 }
 
 /// Badge の recipe（scope `"badge"`、slot `"root"` のみ）。
+///
+/// 色は [`crate::recipe::palette_declarations`] 経由の
+/// `--fandhe-palette`/`--fandhe-palette-fg`（イシュー #606）を参照する
+/// （[`crate::button::recipe`] の rustdoc 参照）。
 fn recipe() -> SlotRecipe {
-    SlotRecipe::new("badge", &["root"])
+    let mut recipe = SlotRecipe::new("badge", &["root"])
         .base(
             "root",
             vec![
                 decl("display", "inline-flex"),
                 decl("align-items", "center"),
-                decl("border-radius", "0.25rem"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
                 decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
             ],
         )
@@ -95,8 +103,8 @@ fn recipe() -> SlotRecipe {
             BadgeVariant::Solid,
             "root",
             vec![
-                decl("background", "var(--fandhe-color-accent)"),
-                decl("color", "var(--fandhe-color-accent-fg)"),
+                decl("background", "var(--fandhe-palette)"),
+                decl("color", "var(--fandhe-palette-fg)"),
             ],
         )
         .variant(
@@ -104,7 +112,7 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("background", "var(--fandhe-color-bg-subtle)"),
-                decl("color", "var(--fandhe-color-accent)"),
+                decl("color", "var(--fandhe-palette)"),
             ],
         )
         .variant(
@@ -112,12 +120,24 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("background", "transparent"),
-                decl("color", "var(--fandhe-color-accent)"),
+                decl("color", "var(--fandhe-palette)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
             ],
         )
         .default_variant(Size::Md)
         .default_variant(BadgeVariant::Subtle)
+        .default_variant(ColorPalette::Accent);
+
+    for palette in [
+        ColorPalette::Accent,
+        ColorPalette::Info,
+        ColorPalette::Success,
+        ColorPalette::Warning,
+        ColorPalette::Danger,
+    ] {
+        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+    }
+    recipe
 }
 
 /// Badge の静的 CSS 全文。
@@ -143,6 +163,7 @@ pub fn badge<'a>(props: &BadgeProps, attrs: Vec<(&'a str, &'a str)>, children: V
     let class = recipe.variant_classes(&[
         ("variant", props.variant.value()),
         ("size", props.size.value()),
+        ("color-palette", props.palette.value()),
     ]);
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     merged.extend(drop_class_attr(attrs));
@@ -160,7 +181,7 @@ mod tests {
         let html = render(&node);
         assert_eq!(
             html,
-            r#"<span data-scope="badge" data-part="root" class="fd-badge--size-md fd-badge--variant-subtle">New</span>"#
+            r#"<span data-scope="badge" data-part="root" class="fd-badge--size-md fd-badge--variant-subtle fd-badge--color-palette-accent">New</span>"#
         );
     }
 
@@ -177,10 +198,45 @@ mod tests {
             };
             let html = render(&badge(&props, vec![], vec![]));
             assert!(
-                html.contains(&format!("class=\"fd-badge--size-md {class}\"")),
+                html.contains(&format!(
+                    "class=\"fd-badge--size-md {class} fd-badge--color-palette-accent\""
+                )),
                 "variant={variant:?} -> {html}"
             );
         }
+    }
+
+    /// イシュー #606: `palette` の 5 値が期待どおりのクラスへ写像されることを
+    /// 固定する。
+    #[test]
+    fn palette_enumeration_maps_to_expected_classes() {
+        for (palette, class) in [
+            (ColorPalette::Accent, "fd-badge--color-palette-accent"),
+            (ColorPalette::Info, "fd-badge--color-palette-info"),
+            (ColorPalette::Success, "fd-badge--color-palette-success"),
+            (ColorPalette::Warning, "fd-badge--color-palette-warning"),
+            (ColorPalette::Danger, "fd-badge--color-palette-danger"),
+        ] {
+            let props = BadgeProps {
+                palette,
+                ..BadgeProps::default()
+            };
+            let html = render(&badge(&props, vec![], vec![]));
+            assert!(
+                html.contains(&format!(
+                    "class=\"fd-badge--size-md fd-badge--variant-subtle {class}\""
+                )),
+                "palette={palette:?} -> {html}"
+            );
+        }
+    }
+
+    /// イシュー #606: recipe の静的 CSS に radii トークン参照が含まれることを
+    /// 固定する。
+    #[test]
+    fn css_output_declares_radius_token() {
+        let out = css();
+        assert!(out.contains("border-radius: var(--fandhe-radius-sm);"));
     }
 
     #[test]

@@ -13,7 +13,9 @@ use fandhe_frontend_core::render;
 use fandhe_frontend_headless_ui::tabs::{tabs, TabItem, TabsProps};
 use fandhe_frontend_headless_ui::Orientation;
 use fandhe_frontend_pre_styled_ui::decl;
-use fandhe_frontend_pre_styled_ui::recipe::{Size, SlotRecipe, VariantValue};
+use fandhe_frontend_pre_styled_ui::recipe::{
+    palette_declarations, ColorPalette as StdColorPalette, Size, SlotRecipe, VariantValue,
+};
 
 /// `colorPalette` 相当を独立の仕組みとしてではなく通常の variant 軸として
 /// 表現できることを示すための variant enum（イシューの設計方針 §3.2 参照）。
@@ -153,6 +155,7 @@ fn base_selectors_match_actual_headless_markup() {
         orientation: Orientation::Horizontal,
         activation_mode: fandhe_frontend_headless_ui::ActivationMode::Automatic,
         loop_focus: true,
+        indicator: false,
     };
     let items = vec![
         TabItem {
@@ -264,4 +267,54 @@ fn base_output_order_follows_slots_declaration_not_registration_order() {
         root_pos < trigger_pos,
         "base 出力は slots 宣言順（root → trigger）であるべき: {css}"
     );
+}
+
+/// イシュー #606: 標準 `ColorPalette` 軸の `axis()`/`value()` を固定する
+/// （`fd-<scope>--color-palette-<value>` 形式のクラス名生成の前提）。
+#[test]
+fn color_palette_axis_and_value_are_stable() {
+    for (variant, value) in [
+        (StdColorPalette::Accent, "accent"),
+        (StdColorPalette::Info, "info"),
+        (StdColorPalette::Success, "success"),
+        (StdColorPalette::Warning, "warning"),
+        (StdColorPalette::Danger, "danger"),
+    ] {
+        assert_eq!(variant.axis(), "color-palette");
+        assert_eq!(variant.value(), value);
+    }
+    assert_eq!(StdColorPalette::default(), StdColorPalette::Accent);
+}
+
+/// イシュー #606: `palette_declarations` が各 palette 値に対して
+/// `--fandhe-palette`/`--fandhe-palette-emphasized`/`--fandhe-palette-fg` の
+/// 3 宣言を、対応するテーマ色トークン（`--fandhe-color-<name>*`）への
+/// `var()` 参照として返すことを固定する。
+#[test]
+fn palette_declarations_reference_matching_theme_color_tokens() {
+    for (variant, theme_name) in [
+        (StdColorPalette::Accent, "accent"),
+        (StdColorPalette::Info, "info"),
+        (StdColorPalette::Success, "success"),
+        (StdColorPalette::Warning, "warning"),
+        (StdColorPalette::Danger, "danger"),
+    ] {
+        let decls = palette_declarations(variant);
+        assert_eq!(decls.len(), 3);
+        assert_eq!(decls[0].property(), "--fandhe-palette");
+        assert_eq!(
+            decls[0].value(),
+            format!("var(--fandhe-color-{theme_name})")
+        );
+        assert_eq!(decls[1].property(), "--fandhe-palette-emphasized");
+        assert_eq!(
+            decls[1].value(),
+            format!("var(--fandhe-color-{theme_name}-emphasized)")
+        );
+        assert_eq!(decls[2].property(), "--fandhe-palette-fg");
+        assert_eq!(
+            decls[2].value(),
+            format!("var(--fandhe-color-{theme_name}-fg)")
+        );
+    }
 }
