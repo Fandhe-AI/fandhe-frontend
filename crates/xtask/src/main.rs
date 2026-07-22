@@ -69,6 +69,7 @@
 
 #![forbid(unsafe_code)]
 
+mod bench_binding_update;
 mod check_deps;
 mod check_image_size;
 mod check_loc;
@@ -87,6 +88,7 @@ fn main() -> ExitCode {
         Some("check-loc") => run_check_loc(&args[2..]),
         Some("check-image-size") => run_check_image_size(&args[2..]),
         Some("wasm-node-smoke") => run_wasm_node_smoke(&args[2..]),
+        Some("bench-binding-update") => run_bench_binding_update(&args[2..]),
         Some(other) => {
             eprintln!("xtask: unknown subcommand `{other}`");
             print_usage();
@@ -134,6 +136,10 @@ fn print_usage() {
     eprintln!("      build for wasm32-unknown-unknown, generate `--target nodejs` bindings,");
     eprintln!("      and (unless --build-only) run a node smoke check including a default-");
     eprintln!("      escape (REQ-1) regression check (issue #297).");
+    eprintln!("  bench-binding-update");
+    eprintln!("      Measure full re-render vs dirty-tracked update cost (native, report-only,");
+    eprintln!("      no threshold judgement) for AppState/Disclosure/SingleSelect dispatch");
+    eprintln!("      (issue #592). Takes no arguments by design.");
 }
 
 /// `check-deps` サブコマンド: `--package <NAME>` を 1 つ以上受け取り、
@@ -466,4 +472,28 @@ fn run_wasm_node_smoke(args: &[String]) -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+/// `bench-binding-update` サブコマンド（イシュー #592）: 引数を取らない。
+/// [`bench_binding_update::run_all_scenarios`] を実行し、シナリオごとに
+/// 1 行サマリ（[`bench_binding_update::ScenarioReport`] の `Display`）を
+/// stdout へ出力する。
+///
+/// 計測値は実行環境依存で非決定的なため report-only（しきい値判定なし）とし、
+/// 終了コードは常に `ExitCode::SUCCESS`（計測自体が実行できたことのみを
+/// 保証する。CI ゲート化はしない設計、`bench_binding_update` モジュール doc
+/// 参照）。不明な引数のみ終了コード 2（usage エラー）とする。
+fn run_bench_binding_update(args: &[String]) -> ExitCode {
+    if let Some(unknown) = args.first() {
+        eprintln!(
+            "xtask bench-binding-update: unknown argument `{unknown}` (this subcommand takes no arguments)"
+        );
+        return ExitCode::from(2);
+    }
+
+    for report in bench_binding_update::run_all_scenarios() {
+        println!("{report}");
+    }
+
+    ExitCode::SUCCESS
 }

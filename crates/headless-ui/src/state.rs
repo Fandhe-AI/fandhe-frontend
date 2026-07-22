@@ -27,7 +27,9 @@
 
 use crate::data_attrs::data_state as data_state_attr;
 use fandhe_frontend_core::{el, Node};
-use fandhe_frontend_interactive::{codec, Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
+use fandhe_frontend_interactive::{
+    codec, Component, DirtyTracked, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX,
+};
 
 /// `data-state` 属性値 "open"（#523 の [`crate::data_attrs::data_state`] が
 /// 属性名 `"data-state"` 自体を一元管理するため、本モジュールは値のみを
@@ -113,10 +115,30 @@ pub enum DisclosureAction {
 /// 正準ビューであり、Phase 2 の具象コンポーネントは本型をフィールドとして
 /// 埋め込み、`decode_action`/`update` を委譲したうえで独自の anatomy
 /// （トリガー・パネル・オーバーレイ等）を別途組み立てる想定である。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+///
+/// `dirty` は [`DirtyTracked::dirty_fields`] の実体（イシュー #592）。
+/// 状態値そのものではなく「直前の `update()` で `state` が実変更されたか」
+/// を表す描画同期メタデータであり、[`PartialEq`]/[`Eq`] の比較対象から
+/// 除外する（手動実装、下記。`fandhe_frontend_interactive::AppState` の
+/// 前例と同じ設計判断）。
+#[derive(Debug, Clone, Copy, Default)]
 pub struct Disclosure {
     state: OpenState,
+    dirty: bool,
 }
+
+// `dirty` を除外した手動 `PartialEq`/`Eq`（上記の型ドキュメント参照）。
+// `state` の同値性のみを比較することで、`update()` 直後とハイドレーション
+// 復元直後（dirty 常に false）の状態を「同じ状態」として同一視できる。
+// 本型を埋め込む Popover/Collapsible/Menu/Tooltip/Dialog 等の derive
+// `PartialEq` はこの実装を経由するため、埋め込み側の変更は不要。
+impl PartialEq for Disclosure {
+    fn eq(&self, other: &Self) -> bool {
+        self.state == other.state
+    }
+}
+
+impl Eq for Disclosure {}
 
 impl Disclosure {
     /// `data-hydrate-state` 属性名のフィールド部分
@@ -126,7 +148,10 @@ impl Disclosure {
     /// 指定した初期状態で開閉状態機械を生成する。
     #[must_use]
     pub fn new(initial: OpenState) -> Self {
-        Self { state: initial }
+        Self {
+            state: initial,
+            dirty: false,
+        }
     }
 
     /// 現在の開閉状態。
@@ -146,11 +171,15 @@ impl Component for Disclosure {
     type Action = DisclosureAction;
 
     fn update(&mut self, action: DisclosureAction) {
-        self.state = match action {
+        let next = match action {
             DisclosureAction::Open => OpenState::Open,
             DisclosureAction::Close => OpenState::Closed,
             DisclosureAction::Toggle => self.state.toggled(),
         };
+        // [`DirtyTracked`] の契約: 「直前の update() 呼び出し」で実変更が
+        // あった場合のみ記録する（同値遷移・no-op 相当では false のまま）。
+        self.dirty = next != self.state;
+        self.state = next;
     }
 
     /// 共通契約（`data-state` 整合・hydration ルート）のみを表す最小正準
@@ -189,7 +218,27 @@ impl Hydrate for Disclosure {
             attr: attr_name.clone(),
             reason: "expected \"open\" or \"closed\"".to_string(),
         })?;
-        Ok(Self { state })
+        // ハイドレーション復元直後は dirty 常に false（描画同期メタデータで
+        // あり、クライアント側で直前の update() 履歴が存在しないため）。
+        Ok(Self {
+            state,
+            dirty: false,
+        })
+    }
+}
+
+impl DirtyTracked for Disclosure {
+    /// 直前の [`Component::update`] で `state` が実変更された場合のみ
+    /// [`Self::FIELD_STATE`] を含む 1 要素スライスを返す（`Vec` ではなく
+    /// 静的スライスの条件分岐で表現し、`Copy`/`Clone` を維持したまま
+    /// `wasm-full`/`wasm-client` の `BindingTable` へ接続可能にする、
+    /// イシュー #592）。
+    fn dirty_fields(&self) -> &[&'static str] {
+        if self.dirty {
+            &[Self::FIELD_STATE]
+        } else {
+            &[]
+        }
     }
 }
 
@@ -219,10 +268,24 @@ pub enum SingleSelectAction {
 /// 複数同時選択（Accordion multiple モード）は本型のスコープ外。
 /// 高々 1 個ではなく 0 個以上の同時選択が必要な場合は [`MultiSelect`]
 /// （イシュー #594）を使う。
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+///
+/// `dirty` は [`DirtyTracked::dirty_fields`] の実体（イシュー #592）。
+/// [`Disclosure`] と同じ理由で [`PartialEq`]/[`Eq`] の比較対象から除外する
+/// （手動実装、下記）。
+#[derive(Debug, Clone, Default)]
 pub struct SingleSelect {
     selected: Option<String>,
+    dirty: bool,
 }
+
+// `dirty` を除外した手動 `PartialEq`/`Eq`（上記の型ドキュメント参照）。
+impl PartialEq for SingleSelect {
+    fn eq(&self, other: &Self) -> bool {
+        self.selected == other.selected
+    }
+}
+
+impl Eq for SingleSelect {}
 
 impl SingleSelect {
     /// `data-hydrate-selected` 属性名のフィールド部分。
@@ -267,17 +330,21 @@ impl Component for SingleSelect {
     type Action = SingleSelectAction;
 
     fn update(&mut self, action: SingleSelectAction) {
-        match action {
-            SingleSelectAction::Select(value) => self.selected = Some(value),
-            SingleSelectAction::Deselect => self.selected = None,
+        let next = match action {
+            SingleSelectAction::Select(value) => Some(value),
+            SingleSelectAction::Deselect => None,
             SingleSelectAction::Toggle(value) => {
                 if self.is_selected(&value) {
-                    self.selected = None;
+                    None
                 } else {
-                    self.selected = Some(value);
+                    Some(value)
                 }
             }
-        }
+        };
+        // [`DirtyTracked`] の契約: 「直前の update() 呼び出し」で実変更が
+        // あった場合のみ記録する（同値遷移・no-op 相当では false のまま）。
+        self.dirty = next != self.selected;
+        self.selected = next;
     }
 
     /// 共通契約（ルート `data-state` 整合・hydration ルート）のみを表す
@@ -323,9 +390,15 @@ impl Hydrate for SingleSelect {
             .ok_or_else(|| HydrateError::MissingAttr(attr_name.clone()))?;
         let items = codec::decode_list(raw);
         match items.len() {
-            0 => Ok(Self { selected: None }),
+            // ハイドレーション復元直後は dirty 常に false（Disclosure と
+            // 同じ理由、上記型ドキュメント参照）。
+            0 => Ok(Self {
+                selected: None,
+                dirty: false,
+            }),
             1 => Ok(Self {
                 selected: items.into_iter().next(),
+                dirty: false,
             }),
             // 2 件以上のリストは本型の不変条件（高々 1 個選択）に反する
             // 改ざん入力。panic せず InvalidValue を返す（不変条件 3）。
@@ -333,6 +406,19 @@ impl Hydrate for SingleSelect {
                 attr: attr_name.clone(),
                 reason: "expected at most one selected item".to_string(),
             }),
+        }
+    }
+}
+
+impl DirtyTracked for SingleSelect {
+    /// 直前の [`Component::update`] で `selected` が実変更された場合のみ
+    /// [`Self::FIELD_SELECTED`] を含む 1 要素スライスを返す（[`Disclosure`]
+    /// と同じ設計、イシュー #592）。
+    fn dirty_fields(&self) -> &[&'static str] {
+        if self.dirty {
+            &[Self::FIELD_SELECTED]
+        } else {
+            &[]
         }
     }
 }
@@ -613,6 +699,53 @@ mod tests {
         }
     }
 
+    // --- Disclosure: DirtyTracked（イシュー #592） -------------------------
+    //
+    // `wasm-full`/`wasm-client` は `dispatch`（WASM 境界の文字列 dispatch
+    // 契約）経由で呼ぶため、`dirty_fields()` も `dispatch` 経由での取得を
+    // 固定する（`crates/interactive/tests/state_management.rs` の
+    // `AppState` 契約テストと同型）。
+
+    #[test]
+    fn disclosure_dispatch_open_marks_state_dirty() {
+        let mut d = Disclosure::default();
+        assert!(dispatch(&mut d, "open", ""));
+        assert_eq!(d.dirty_fields(), &[Disclosure::FIELD_STATE]);
+    }
+
+    #[test]
+    fn disclosure_dispatch_same_state_transition_leaves_dirty_empty() {
+        // 既に Open な状態への "open" dispatch は実変更なし（no-op 相当）
+        // であり、dirty も空のままであること（過少報告防止の回帰）。
+        let mut d = Disclosure::new(OpenState::Open);
+        assert!(dispatch(&mut d, "open", ""));
+        assert!(d.dirty_fields().is_empty());
+    }
+
+    #[test]
+    fn disclosure_dispatch_unknown_action_leaves_dirty_unchanged() {
+        let mut d = Disclosure::default();
+        dispatch(&mut d, "open", "");
+        let before = d.dirty_fields().to_vec();
+        assert!(!dispatch(&mut d, "no_such_action", ""));
+        assert_eq!(d.dirty_fields(), before.as_slice());
+    }
+
+    #[test]
+    fn disclosure_hydration_round_trip_resets_dirty() {
+        // ハイドレーション復元直後は dirty 常に false（描画同期メタデータで
+        // あり、クライアント側に直前の update() 履歴が存在しないため）。
+        let mut d = Disclosure::default();
+        dispatch(&mut d, "open", "");
+        assert!(!d.dirty_fields().is_empty());
+
+        let restored = Disclosure::from_hydration_attrs(&d.hydration_attrs()).unwrap();
+        assert!(restored.dirty_fields().is_empty());
+        // dirty を比較対象から除外した手動 PartialEq により、dirty の有無に
+        // 依存せず同一状態として一致すること。
+        assert_eq!(restored, d);
+    }
+
     // --- SingleSelect: dispatch 経由の遷移 ---
 
     #[test]
@@ -738,6 +871,47 @@ mod tests {
         let attrs = vec![("data-hydrate-selected".to_string(), bogus)];
         let err = SingleSelect::from_hydration_attrs(&attrs).unwrap_err();
         assert!(matches!(err, HydrateError::InvalidValue { .. }));
+    }
+
+    // --- SingleSelect: DirtyTracked（イシュー #592） -----------------------
+    //
+    // Disclosure と同様、`dispatch` 経由での取得を固定する。
+
+    #[test]
+    fn single_select_dispatch_select_marks_selected_dirty() {
+        let mut s = SingleSelect::default();
+        assert!(dispatch(&mut s, "select", "a"));
+        assert_eq!(s.dirty_fields(), &[SingleSelect::FIELD_SELECTED]);
+    }
+
+    #[test]
+    fn single_select_dispatch_same_value_select_leaves_dirty_empty() {
+        // 既に選択中の同値への再 select は実変更なし（過少報告防止の回帰）。
+        let mut s = SingleSelect::default();
+        dispatch(&mut s, "select", "a");
+        let mut s2 = s.clone();
+        assert!(dispatch(&mut s2, "select", "a"));
+        assert!(s2.dirty_fields().is_empty());
+    }
+
+    #[test]
+    fn single_select_dispatch_unknown_action_leaves_dirty_unchanged() {
+        let mut s = SingleSelect::default();
+        dispatch(&mut s, "select", "a");
+        let before = s.dirty_fields().to_vec();
+        assert!(!dispatch(&mut s, "no_such_action", "a"));
+        assert_eq!(s.dirty_fields(), before.as_slice());
+    }
+
+    #[test]
+    fn single_select_hydration_round_trip_resets_dirty() {
+        let mut s = SingleSelect::default();
+        dispatch(&mut s, "select", "a");
+        assert!(!s.dirty_fields().is_empty());
+
+        let restored = SingleSelect::from_hydration_attrs(&s.hydration_attrs()).unwrap();
+        assert!(restored.dirty_fields().is_empty());
+        assert_eq!(restored, s);
     }
 
     // --- XSS 回帰: 選択値に攻撃者制御文字列が入っても既定エスケープが効く ---
