@@ -755,17 +755,29 @@ API 形状確定）であり、`fandhe_frontend_wasm_full::Runtime<C>`
 self-hosted 相当のローカル環境・1 回の実行）:
 
 ```
-bench-binding-update: scenario=appstate-increment full_ns=3044 dirty_ns=29 ratio=104.97
-bench-binding-update: scenario=disclosure-toggle full_ns=126 dirty_ns=0 ratio=inf
-bench-binding-update: scenario=single-select-select full_ns=136 dirty_ns=9 ratio=15.11
+bench-binding-update: scenario=appstate-increment full_ns=3697.33 dirty_ns=29.11 ratio=127.02
+bench-binding-update: scenario=disclosure-toggle full_ns=133.84 dirty_ns=0.20 ratio=686.35
+bench-binding-update: scenario=single-select-select full_ns=144.79 dirty_ns=9.89 ratio=14.63
 ```
 
 `disclosure-toggle`/`single-select-select` はハーネス実装後（headless-ui
 状態機械への `DirtyTracked` 実装後）に計測したものであり、全再描画経路
 （`view()` + `render()`）に対し差分更新経路（`dirty_fields()` 読み出しの
-み）が一貫して優位（13〜100 倍超）であることを確認した。数値は実行環境
+み）が一貫して優位（14〜690 倍超）であることを確認した。数値は実行環境
 依存（CPU・負荷）のため厳密な再現性は保証しないが、性能面の判断基準
 （5 倍以上）は大きく上回っており、正しさ根拠と合わせて採用を補強する。
+
+**計測精度の補足（イシュー #592 PR #623 レビュー指摘・修正済み）**: 当初の
+`measure()` 実装は 1 回あたり平均を `Duration`（整数ナノ秒）で保持しており、
+`disclosure-toggle` のようにサブ ns 級の平均（前掲の通り実測 0.20ns 相当）が
+整数除算で `0ns` に切り捨てられ、`speedup_ratio()` が「計測不能なほど高速」
+と誤認して `ratio=inf` を返していた（実際には精度不足で判別できないだけで
+あり、高速性の根拠として扱うべきではなかった）。修正後は平均を `f64`
+（ナノ秒）で保持し、合計経過時間を反復回数の `f64` で割ることでサブ ns の
+平均を保持する。また計測クロージャの戻り値を `std::hint::black_box` へ
+通し、リリースビルドで dirty パス自体がコンパイラに最適化除去されることも
+防いだ（`crates/xtask/src/bench_binding_update.rs` 参照）。上記の再測定値は
+修正後のハーネスによるものであり、`ratio=inf` は発生していない。
 
 **計測の限界**: 本ハーネスはネイティブ実行（DOM 操作を伴わない）であり、
 実際の DOM 反映コスト（`set_attribute`/`textContent` 書き換え等）は
