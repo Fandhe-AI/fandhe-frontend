@@ -50,6 +50,12 @@
 //! - [`mod@dialog`]: [`dialog::Dialog`] — Root / Trigger / Backdrop /
 //!   Positioner / Content / Title / Description / CloseTrigger の 8 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだモーダルダイアログ（#531）。
+//! - [`mod@radio_group`]: Root / Label / Item / ItemControl / ItemText /
+//!   ItemHiddenInput の 6 anatomy パーツと [`state::SingleSelect`] を埋め込んだ
+//!   [`radio_group::RadioGroup`]（#536、親 #534）。クライアント由来の文字列
+//!   dispatch は `"select"` のみを受理する（WAI-ARIA radio パターンに選択解除
+//!   ジェスチャは存在しないため、型付き API の `Deselect` のみプログラム的な
+//!   選択解除を許す）。
 //! - [`popover`]: Root / Trigger / Anchor / Positioner / Arrow / ArrowTip /
 //!   Content / Title / Description / CloseTrigger / Indicator の 11 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだ [`popover::Popover`] を提供する
@@ -94,6 +100,7 @@ pub mod dialog;
 pub mod field;
 pub mod menu;
 pub mod popover;
+pub mod radio_group;
 pub mod state;
 pub mod switch;
 pub mod tabs;
@@ -112,6 +119,7 @@ pub use data_attrs::{
 pub use dialog::Dialog;
 pub use field::FieldProps;
 pub use menu::Menu;
+pub use radio_group::RadioGroup;
 pub use state::{
     Disclosure, DisclosureAction, OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CLOSED,
     DATA_STATE_OPEN,
