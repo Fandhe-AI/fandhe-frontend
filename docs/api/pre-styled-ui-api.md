@@ -25,6 +25,12 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | #548 | slot recipe 相当の variant API・静的 CSS 生成 | 実装中（未マージ） |
 | #550 | Button 等の単純な styled 部品 | 未着手 |
 | #551 | headless-ui ラッパー（Accordion/Dialog 等の styled 版） | 未着手 |
+| #606 | colorPalette 軸の実配線・radii/shadow トークン追加 | 実装中（未マージ） |
+
+**本節の既知の陳腐化**: 上表は #550/#551/#606 のマージ後も未更新のまま残って
+いる（本項目は #606 実装時点の out-of-scope 候補として記録。全面改訂は別
+イシューで扱う）。実装済み API の正本は `crates/pre-styled-ui/src/lib.rs`
+冒頭の rustdoc を参照。
 
 `examples/headless-pre-styled-ui`（#552）は本クレートが未実装のため、
 headless-ui の `data-scope`/`data-part`/`data-state` セレクタへ手書きで

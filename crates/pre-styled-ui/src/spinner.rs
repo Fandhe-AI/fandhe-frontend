@@ -14,7 +14,7 @@
 //! 静的文字列として別途連結する）。
 
 use crate::css::decl;
-use crate::recipe::{Size, SlotRecipe, VariantValue};
+use crate::recipe::{palette_declarations, ColorPalette, Size, SlotRecipe, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, aria_hidden, aria_label, role, Anatomy};
 
@@ -40,15 +40,18 @@ macro_rules! spin_keyframes_name_lit {
 const SPIN_KEYFRAMES_NAME: &str = spin_keyframes_name_lit!();
 
 /// Spinner の recipe（scope `"spinner"`、slot `"root"` のみ）。
+///
+/// `border-top-color` は [`crate::recipe::palette_declarations`] 経由の
+/// `--fandhe-palette`（イシュー #606）を参照する。
 fn recipe() -> SlotRecipe {
-    SlotRecipe::new("spinner", &["root"])
+    let mut recipe = SlotRecipe::new("spinner", &["root"])
         .base(
             "root",
             vec![
                 decl("display", "inline-block"),
-                decl("border-radius", "9999px"),
+                decl("border-radius", "var(--fandhe-radius-full)"),
                 decl("border", "2px solid var(--fandhe-color-border)"),
-                decl("border-top-color", "var(--fandhe-color-accent)"),
+                decl("border-top-color", "var(--fandhe-palette)"),
                 decl(
                     "animation",
                     concat!(spin_keyframes_name_lit!(), " 0.6s linear infinite"),
@@ -71,6 +74,18 @@ fn recipe() -> SlotRecipe {
             vec![decl("width", "2rem"), decl("height", "2rem")],
         )
         .default_variant(Size::Md)
+        .default_variant(ColorPalette::Accent);
+
+    for palette in [
+        ColorPalette::Accent,
+        ColorPalette::Info,
+        ColorPalette::Success,
+        ColorPalette::Warning,
+        ColorPalette::Danger,
+    ] {
+        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+    }
+    recipe
 }
 
 /// Spinner の静的 CSS 全文（決定的。呼び出し元が `.css` ファイルとして
@@ -99,6 +114,9 @@ pub fn css() -> String {
 pub struct SpinnerProps<'a> {
     /// サイズ variant（既定 `Md`）。
     pub size: Size,
+    /// colorPalette 軸（既定 `Accent`、イシュー #606）。[`crate::theme`] の
+    /// セマンティック色から選択する。
+    pub palette: ColorPalette,
     /// `aria-label` に渡すラベル文字列（既定 `"Loading"`）。属性値として
     /// 既定エスケープ（REQ-1）を経由する。
     pub label: &'a str,
@@ -108,6 +126,7 @@ impl<'a> Default for SpinnerProps<'a> {
     fn default() -> Self {
         SpinnerProps {
             size: Size::Md,
+            palette: ColorPalette::Accent,
             label: "Loading",
         }
     }
@@ -135,7 +154,10 @@ impl<'a> Default for SpinnerProps<'a> {
 #[must_use]
 pub fn spinner(props: &SpinnerProps<'_>) -> Node {
     let recipe = recipe();
-    let class = recipe.variant_classes(&[("size", props.size.value())]);
+    let class = recipe.variant_classes(&[
+        ("size", props.size.value()),
+        ("color-palette", props.palette.value()),
+    ]);
     let attrs: Vec<(&str, &str)> = vec![
         ("class", class.as_str()),
         role("status"),
@@ -150,10 +172,18 @@ pub fn spinner(props: &SpinnerProps<'_>) -> Node {
 /// 状態を伝えるため、入れ子のライブリージョンでラベルテキストがボタンの
 /// アクセシブルネームへ混入する事故を防ぐ）。crate 内限定 API のため
 /// 公開 API 面には出さない。
+///
+/// `palette` は呼び出し元（Button）の `colorPalette` 軸をそのまま伝播する
+/// 引数。省略して `size` のみ選択すると `variant_classes` が
+/// `color-palette` 軸の既定値（`ColorPalette::Accent`）を補完してしまい、
+/// 非 accent palette のボタンでもスピナーの `--fandhe-palette` が accent
+/// 固定になり親ボタンの palette を上書きする（Medium severity のバグ
+/// 指摘の是正、PR #628 レビュー）。
 #[must_use]
-pub(crate) fn spinner_decorative(size: Size) -> Node {
+pub(crate) fn spinner_decorative(size: Size, palette: ColorPalette) -> Node {
     let recipe = recipe();
-    let class = recipe.variant_classes(&[("size", size.value())]);
+    let class =
+        recipe.variant_classes(&[("size", size.value()), ("color-palette", palette.value())]);
     let attrs: Vec<(&str, &str)> = vec![("class", class.as_str()), aria_hidden(true)];
     ANATOMY.part("root", "span", attrs, vec![])
 }
@@ -169,7 +199,7 @@ mod tests {
         let html = render(&node);
         assert_eq!(
             html,
-            r#"<span data-scope="spinner" data-part="root" class="fd-spinner--size-md" role="status" aria-label="Loading"></span>"#
+            r#"<span data-scope="spinner" data-part="root" class="fd-spinner--size-md fd-spinner--color-palette-accent" role="status" aria-label="Loading"></span>"#
         );
     }
 
@@ -182,12 +212,37 @@ mod tests {
         ] {
             let node = spinner(&SpinnerProps {
                 size,
-                label: "Loading",
+                ..SpinnerProps::default()
             });
             let html = render(&node);
             assert!(
-                html.contains(&format!(r#"class="{class}""#)),
+                html.contains(&format!(
+                    r#"class="{class} fd-spinner--color-palette-accent""#
+                )),
                 "size={size:?} -> {html}"
+            );
+        }
+    }
+
+    /// イシュー #606: `palette` の 5 値が期待どおりのクラスへ写像されることを
+    /// 固定する。
+    #[test]
+    fn palette_enumeration_maps_to_expected_classes() {
+        for (palette, class) in [
+            (ColorPalette::Accent, "fd-spinner--color-palette-accent"),
+            (ColorPalette::Info, "fd-spinner--color-palette-info"),
+            (ColorPalette::Success, "fd-spinner--color-palette-success"),
+            (ColorPalette::Warning, "fd-spinner--color-palette-warning"),
+            (ColorPalette::Danger, "fd-spinner--color-palette-danger"),
+        ] {
+            let node = spinner(&SpinnerProps {
+                palette,
+                ..SpinnerProps::default()
+            });
+            let html = render(&node);
+            assert!(
+                html.contains(&format!(r#"class="fd-spinner--size-md {class}""#)),
+                "palette={palette:?} -> {html}"
             );
         }
     }
@@ -195,8 +250,8 @@ mod tests {
     #[test]
     fn label_override_is_reflected_and_escaped() {
         let node = spinner(&SpinnerProps {
-            size: Size::Md,
             label: "\"><script>alert(1)</script>",
+            ..SpinnerProps::default()
         });
         let html = render(&node);
         assert!(!html.contains("<script>"));
@@ -221,13 +276,36 @@ mod tests {
         assert!(out.contains("transform: rotate(360deg);"));
     }
 
+    /// イシュー #606: recipe の静的 CSS に radii トークン参照・`--fandhe-palette`
+    /// 系の宣言が含まれることを固定する。
+    #[test]
+    fn css_output_declares_radius_token_and_palette_custom_properties() {
+        let out = css();
+        assert!(out.contains("border-radius: var(--fandhe-radius-full);"));
+        assert!(out.contains("border-top-color: var(--fandhe-palette);"));
+        assert!(out.contains("--fandhe-palette: var(--fandhe-color-accent)"));
+        assert!(out.contains("--fandhe-palette: var(--fandhe-color-danger)"));
+    }
+
     #[test]
     fn decorative_variant_has_no_role_or_label_but_is_aria_hidden() {
-        let node = spinner_decorative(Size::Sm);
+        let node = spinner_decorative(Size::Sm, ColorPalette::Accent);
         let html = render(&node);
         assert!(!html.contains("role="));
         assert!(!html.contains("aria-label"));
         assert!(html.contains(r#"aria-hidden="true""#));
         assert!(html.contains("fd-spinner--size-sm"));
+    }
+
+    /// Bugbot 指摘（PR #628）の回帰テスト: 非 accent palette のボタンに
+    /// 埋め込まれる装飾用途 Spinner が、その palette 軸を正しく反映する
+    /// クラス（例: `fd-spinner--color-palette-danger`）を持ち、既定の
+    /// `color-palette-accent` へ補完されないこと。
+    #[test]
+    fn decorative_variant_reflects_caller_palette_instead_of_default_accent() {
+        let node = spinner_decorative(Size::Sm, ColorPalette::Danger);
+        let html = render(&node);
+        assert!(html.contains("fd-spinner--color-palette-danger"));
+        assert!(!html.contains("fd-spinner--color-palette-accent"));
     }
 }

@@ -39,6 +39,7 @@ use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::dialog;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
+use fandhe_frontend_pre_styled_ui::ColorPalette;
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
 ///
@@ -128,6 +129,7 @@ fn spinner_label_attribute_is_escaped_for_all_payloads() {
     for payload in payloads::all() {
         let node = spinner(&SpinnerProps {
             size: fandhe_frontend_pre_styled_ui::Size::Md,
+            palette: ColorPalette::Accent,
             label: payload,
         });
         let html = render(&node);

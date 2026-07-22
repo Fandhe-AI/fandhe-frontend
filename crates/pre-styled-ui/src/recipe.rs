@@ -15,8 +15,20 @@
 //! slot・同一 axis/value への複数回登録は「後に登録された規則が CSS 中で後に
 //! 出力される」（CSS のカスケードにおいて後勝ちになる）という素直な規約に
 //! 従う。この規約より複雑な優先順位判定は行わない。
+//!
+//! # colorPalette 軸（イシュー #606）
+//!
+//! [`ColorPalette`] は `size` と並ぶ標準 variant 軸で、[`crate::theme`] の
+//! セマンティック色（`accent`/`info`/`success`/`warning`/`danger`）と 1:1
+//! 対応する。[`palette_declarations`] が返す宣言を palette 値ごとの
+//! `SlotRecipe::variant` として root slot へ登録すると、選択された palette に
+//! 応じて `--fandhe-palette`/`--fandhe-palette-emphasized`/`--fandhe-palette-fg`
+//! （chakra-ui の virtual token 方式に相当するローカル custom property）が
+//! 切り替わる。styled 部品側の色宣言は `var(--fandhe-palette)` 等を参照する
+//! だけでよく、palette 軸の追加を機に既存の `var(--fandhe-color-accent)` 直書き
+//! を書き換える（Button/Badge/Spinner/Alert、`crate` rustdoc 参照）。
 
-use crate::css::{is_valid_identifier, serialize_rule, Declaration};
+use crate::css::{decl, is_valid_identifier, serialize_rule, Declaration};
 
 /// クラス名プレフィックス（ライブラリ固定）。変更用の API は設けない
 /// （`fd-{scope}--{axis}-{value}` の形式を全 styled 部品で一貫させるため）。
@@ -58,6 +70,100 @@ impl VariantValue for Size {
             Size::Md => "md",
             Size::Lg => "lg",
         }
+    }
+}
+
+/// 標準の `color-palette` 軸（chakra-ui の `colorPalette` 相当、イシュー #606）。
+///
+/// [`crate::theme`] の既定パレット（`accent`/`info`/`success`/`warning`/
+/// `danger`）と 1:1 対応する。Button/Badge/Spinner がこの軸を公開 API の
+/// variant として持ち、[`palette_declarations`] が生成する宣言を通じて
+/// `--fandhe-palette` 系のローカル custom property を上書きする。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ColorPalette {
+    /// 強調色（既定）。
+    #[default]
+    Accent,
+    /// 情報提供色。
+    Info,
+    /// 成功色。
+    Success,
+    /// 警告色。
+    Warning,
+    /// 危険・エラー色。
+    Danger,
+}
+
+impl VariantValue for ColorPalette {
+    fn axis(self) -> &'static str {
+        "color-palette"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            ColorPalette::Accent => "accent",
+            ColorPalette::Info => "info",
+            ColorPalette::Success => "success",
+            ColorPalette::Warning => "warning",
+            ColorPalette::Danger => "danger",
+        }
+    }
+}
+
+/// `palette` が選択されたときに root slot へ登録する宣言列を返す
+/// （chakra-ui の virtual token 方式の静的 CSS 版、イシュー #606）。
+///
+/// [`crate::theme`] が生成する `--fandhe-color-*`（テーマ層の名前空間）とは
+/// 別の `--fandhe-palette-*` 名前空間へ、選択された palette に対応する
+/// `accent`/`info`/`success`/`warning`/`danger` の 3 役割（base/emphasized/fg）
+/// を `var()` 参照として束ねる。styled 部品側は `var(--fandhe-palette)` 等を
+/// 参照するだけで、どの colorPalette が選択されたかに関わらず同じ宣言で
+/// 色を切り替えられる。名前空間を分離しているため、ユーザーがカスタム
+/// テーマへ独自の `palette` という名の色トークンを追加しても
+/// （`Theme::push_color("palette", ...)`）本ヘルパの出力とは衝突しない。
+#[must_use]
+pub fn palette_declarations(p: ColorPalette) -> Vec<Declaration> {
+    match p {
+        ColorPalette::Accent => vec![
+            decl("--fandhe-palette", "var(--fandhe-color-accent)"),
+            decl(
+                "--fandhe-palette-emphasized",
+                "var(--fandhe-color-accent-emphasized)",
+            ),
+            decl("--fandhe-palette-fg", "var(--fandhe-color-accent-fg)"),
+        ],
+        ColorPalette::Info => vec![
+            decl("--fandhe-palette", "var(--fandhe-color-info)"),
+            decl(
+                "--fandhe-palette-emphasized",
+                "var(--fandhe-color-info-emphasized)",
+            ),
+            decl("--fandhe-palette-fg", "var(--fandhe-color-info-fg)"),
+        ],
+        ColorPalette::Success => vec![
+            decl("--fandhe-palette", "var(--fandhe-color-success)"),
+            decl(
+                "--fandhe-palette-emphasized",
+                "var(--fandhe-color-success-emphasized)",
+            ),
+            decl("--fandhe-palette-fg", "var(--fandhe-color-success-fg)"),
+        ],
+        ColorPalette::Warning => vec![
+            decl("--fandhe-palette", "var(--fandhe-color-warning)"),
+            decl(
+                "--fandhe-palette-emphasized",
+                "var(--fandhe-color-warning-emphasized)",
+            ),
+            decl("--fandhe-palette-fg", "var(--fandhe-color-warning-fg)"),
+        ],
+        ColorPalette::Danger => vec![
+            decl("--fandhe-palette", "var(--fandhe-color-danger)"),
+            decl(
+                "--fandhe-palette-emphasized",
+                "var(--fandhe-color-danger-emphasized)",
+            ),
+            decl("--fandhe-palette-fg", "var(--fandhe-color-danger-fg)"),
+        ],
     }
 }
 
