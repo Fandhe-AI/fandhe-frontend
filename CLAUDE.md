@@ -73,6 +73,7 @@ crates/
 ├── wasm-thin/     # fandhe-frontend-wasm-thin: CSR/ハイドレーション 最小構成
 ├── dist-server/   # fandhe-frontend-dist-server: 単一実行ファイル配布サーバー
 ├── headless-ui/   # fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-*・WAI-ARIA、イシュー #520/#522）
+├── pre-styled-ui/ # fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）
 ├── docs-site/     # fandhe-frontend-docs-site: docs サイトジェネレータ（外部依存ゼロ・配布物に含めない開発者/CI 用ツール）
 ├── cli/           # fandhe-frontend-cli: `fw` コマンド（structure.toml のスキーマ・パース・生成、REQ-13）
 │   ├── templates/          # `fw new --template` 埋め込み用の同梱コピー（正本はルート `templates/`。`new_template.rs` が `include_str!` で吸収、乖離は `tests/template_publish_copy_drift.rs` が検知）
