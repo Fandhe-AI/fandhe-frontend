@@ -936,8 +936,26 @@ mod wiring {
             let Some(target) = event.target() else {
                 return;
             };
-            let Some(target_element) = target.dyn_ref::<Element>().cloned() else {
-                return;
+            // `event.target()` はクリックされた最も深いノードを指し、Tabs
+            // trigger のテキストラベル（`fandhe_frontend_core::text` が生成する
+            // テキストノード）であることがある。テキストノードは `Element` では
+            // ないため `dyn_ref::<Element>()` は `None` を返すが、これは
+            // 「フレームワーク管轄外のクリック」ではなく「祖先探索の起点を
+            // 要素まで遡る必要がある」ケースである。`events::wire_events` と
+            // 同方針で `Node::parent_element()` により直近の親要素へ遡ってから
+            // `closest` を呼び、テキストラベルクリックでも trigger 祖先探索を
+            // 取りこぼさないようにする（Cursor Bugbot 指摘、PR #612）。
+            let target_element: Element = match target.dyn_ref::<Element>() {
+                Some(element) => element.clone(),
+                None => {
+                    let Some(node) = target.dyn_ref::<web_sys::Node>() else {
+                        return;
+                    };
+                    let Some(parent) = node.parent_element() else {
+                        return;
+                    };
+                    parent
+                }
             };
             if !click_root.contains(Some(&target_element)) {
                 return;

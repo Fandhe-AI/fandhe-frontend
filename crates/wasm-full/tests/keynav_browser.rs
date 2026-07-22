@@ -441,6 +441,52 @@ fn click_on_disabled_trigger_is_noop() {
     );
 }
 
+/// クリックが trigger のテキストラベル（子テキストノード）を `event.target()`
+/// として届く場合でも活性化される（`events::wire_events` と同方針で
+/// `Node::parent_element()` を経由した祖先探索を要求する回帰、Cursor Bugbot
+/// 指摘・PR #612）。ブラウザは実際のマウスクリックでテキストノードを
+/// `target` に含めるため、trigger 要素ではなくその最初の子ノード（テキスト
+/// ノード）へ直接 `dispatch_event` することで実クリックを模する。
+#[wasm_bindgen_test]
+fn click_on_trigger_text_label_activates_manual_tab() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_tabs_dom(
+        &document,
+        "kn-textlabel1",
+        &[("a", "A", false), ("b", "B", false)],
+        Some("a"),
+        "horizontal",
+        "manual",
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger_b = document
+        .get_element_by_id("kn-textlabel1-trigger-b")
+        .unwrap();
+    let content_a = document
+        .get_element_by_id("kn-textlabel1-content-a")
+        .unwrap();
+    let content_b = document
+        .get_element_by_id("kn-textlabel1-content-b")
+        .unwrap();
+    let label_text_node = trigger_b
+        .first_child()
+        .expect("trigger must contain its label text node");
+
+    label_text_node
+        .dispatch_event(&click_event())
+        .expect("dispatch_event on text node must not fail");
+
+    assert_eq!(
+        trigger_b.get_attribute("aria-selected").as_deref(),
+        Some("true")
+    );
+    assert!(content_a.has_attribute("hidden"));
+    assert!(!content_b.has_attribute("hidden"));
+}
+
 /// 検証 7: Accordion は ArrowDown/ArrowUp/Home/End でフォーカス移動する
 /// （非循環・disabled スキップ、roving tabindex・活性化は変更しない）。
 #[wasm_bindgen_test]
