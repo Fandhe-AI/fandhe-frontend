@@ -60,6 +60,10 @@ categories = ["wasm", "web-programming"]
 # `[dependencies.web-sys]` 側にも追加する）・`ScrollRestoration`（`history.
 # set_scroll_restoration` の引数型）を追加する。`cargo metadata` 実測
 # （パッケージ数・依存グラフ深さ）に変化がないことを PR 本文に記録する。
+# イシュー #585（オーバーレイ共通閉鎖制御）: `KeyboardEvent`（`overlay::wiring`
+# の keydown リスナーが `key() == "Escape"` を判定するために必要）を追加する。
+# 新規外部クレート追加ゼロ、既存 web-sys の feature 追加のみ。`cargo metadata`
+# 実測（パッケージ数・依存グラフ深さ）に変化がないことを PR 本文に記録する。
 [dependencies]
 fandhe-frontend-app = { path = "../app", version = "0.1.0" }
 fandhe-frontend-core = { path = "../core", version = "0.1.0" }
@@ -83,6 +87,7 @@ features = [
   "EventTarget",
   "History",
   "HtmlInputElement",
+  "KeyboardEvent",
   "Location",
   "MouseEvent",
   "NamedNodeMap",
@@ -132,6 +137,11 @@ perf-assert = []
 # dependency のため製品バイナリ・標準サーバー構成（REQ-3 の 60 件/深さ 6 の
 # 対象）には影響しない。workspace 内 path 依存であり新規外部パッケージの
 # 追加はゼロ（`cargo metadata` 実測結果は PR 本文に記録する）。
+#
+# イシュー #585（オーバーレイ共通閉鎖制御）: `wasm-full/tests/overlay_close_browser.rs`
+# が実際の Dialog/Popover マークアップ（`data-scope`/`data-part`/`data-state`）を
+# `fandhe_frontend_core::render` 経由で生成するため同じ `fandhe-frontend-headless-ui`
+# dev-dependency を利用する（追加の依存追加はゼロ）。
 [dev-dependencies]
 fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.1.0" }
 wasm-bindgen-test = "0.3"
@@ -156,6 +166,11 @@ js-sys = "0.3"
 # 組み立てるために `MouseEventInit`/`PopStateEventInit` を追加する
 # （テスト専用の feature 拡張。既存の `EventInit` 追加時の判断・PR #92
 # と同じ承認整理）。
+# イシュー #585: `wasm-full/tests/overlay_close_browser.rs` が合成
+# `KeyboardEvent`（Escape キー押下の回帰）を組み立てるために
+# `KeyboardEventInit` を追加する（テスト専用の feature 拡張。`KeyboardEvent`
+# 自体は製品面の `[dependencies.web-sys]` に追加済みのため、ここでは
+# init 型のみを追加すれば足りる）。
 [dev-dependencies.web-sys]
 version = "0.3"
 features = [
@@ -168,4 +183,5 @@ features = [
   "MouseEventInit",
   "PopStateEvent",
   "PopStateEventInit",
+  "KeyboardEventInit",
 ]
