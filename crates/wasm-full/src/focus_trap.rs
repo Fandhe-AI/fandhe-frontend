@@ -147,11 +147,20 @@ mod wiring {
     use web_sys::{Document, Element, Event, HtmlElement, KeyboardEvent};
 
     /// tabbable 候補を収集する `querySelectorAll` セレクタ。WAI-ARIA dialog
-    /// パターンで一般的にフォーカス可能とされる要素 + `data-autofocus`
-    /// を明示するカスタム要素を対象にする（headless-ui は任意のタグへ
-    /// `data-autofocus` を付与できるため、他の要素も拾えるよう含める）。
-    const TABBABLE_SELECTOR: &str =
-        "a[href],button,input,select,textarea,[tabindex],[data-autofocus]";
+    /// パターンで一般的にフォーカス可能とされる要素のみを対象にする。
+    ///
+    /// 裸の `[data-autofocus]` は含めない（イシュー #586 レビュー指摘）:
+    /// `data-autofocus` は「tabbable 候補の中から初期フォーカス先を選ぶ」
+    /// 優先度マーカーであり、それ自体が要素をフォーカス可能にする属性
+    /// ではない。裸の `[data-autofocus]` をセレクタに含めると、`<div
+    /// data-autofocus>` のようなネイティブに非フォーカス可能な要素まで
+    /// `is_tabbable` を素通りして tabbable 候補に混入し、Tab 押下時に
+    /// `prevent_default()` した上で no-op な `focus()` を呼ぶ（実際には
+    /// フォーカスが移動しない）ため、以降 `document.active_element()` が
+    /// 候補内のどれとも一致せず Tab 循環が固着する。`data-autofocus` を
+    /// ネイティブに非フォーカス可能な要素へ付与したい呼び出し側は、
+    /// `tabindex` も併せて付与する必要がある（`[tabindex]` 節で拾われる）。
+    const TABBABLE_SELECTOR: &str = "a[href],button,input,select,textarea,[tabindex]";
 
     /// `web_sys::Element` を [`AttrSource`] へ橋渡しする薄いラッパー
     /// （`events.rs::wiring::ElementAttrSource`/`overlay.rs::wiring::ElementAttrSource`
@@ -294,10 +303,20 @@ mod wiring {
 
                 let candidates = collect_tabbable(&content);
                 if candidates.is_empty() {
-                    // tabbable な子が無いトラップは Tab を消費しない
-                    // （content 自身へプログラム的フォーカス済みのため、
-                    // 通常はここへ到達しない想定だが、DOM 変化で候補が
-                    // ゼロになった場合の安全側フォールバック）。
+                    // tabbable な子が無い「空ダイアログ」は稀なフォールバックでは
+                    // なく通常発生しうるケース（例: 確認メッセージのみで
+                    // ボタンが無いダイアログ）。この経路で `prevent_default()`
+                    // を呼ばずに早期 return すると、ブラウザの既定動作で Tab が
+                    // `aria-modal` content の外へフォーカスを漏らし、トラップが
+                    // 破られる（イシュー #586 レビュー指摘、CVE-XSS 相当の
+                    // ではないが WAI-ARIA dialog パターン違反）。
+                    // `push_trap`/[`focus_content_itself`] が既に `content` へ
+                    // `tabindex="-1"` を付与済みのため、ここでは Tab を消費し
+                    // フォーカスを `content` へ固定し直す。
+                    event.prevent_default();
+                    if let Ok(html_el) = content.clone().dyn_into::<HtmlElement>() {
+                        let _ = html_el.focus();
+                    }
                     return;
                 }
 

@@ -18,7 +18,11 @@
 //! (a) `push_trap` で初期フォーカスが最初の tabbable へ移る
 //! (b) `data-autofocus` 付き要素が優先される
 //! (c) tabbable ゼロの content では content 自身へ `tabindex="-1"` 付与のうえ
-//!     フォーカス
+//!     フォーカス。かつ、その状態での Tab は `prevent_default()` されフォーカスが
+//!     content 自身に留まる（イシュー #586 レビュー指摘・High の回帰）
+//! (c') 裸の `[data-autofocus]`（`tabindex` 無しの非フォーカス可能要素）は
+//!      tabbable 候補から除外され、Tab 循環が固着せず後続要素へ進む
+//!      （イシュー #586 レビュー指摘・Medium の回帰）
 //! (d) 末尾要素フォーカス中の合成 Tab で先頭へ循環、先頭での Shift+Tab で
 //!     末尾へ循環（`default_prevented` も検証）
 //! (e) `pop_trap` で trigger（スナップショット済み active element）へフォーカス
@@ -137,6 +141,51 @@ fn mount_modal_dialog(
         .expect("content element must exist")
 }
 
+/// 裸の `[data-autofocus]` を持つネイティブに非フォーカス可能な `<div>` を、
+/// tabbable な `<button>` 群の間に挟んだ Dialog content を組み立てる
+/// （イシュー #586 レビュー指摘（Medium）の回帰テスト専用フィクスチャ、
+/// [`push_trap_ignores_bare_data_autofocus_div_and_cycle_keeps_working`] 参照）。
+fn mount_modal_dialog_with_non_focusable_autofocus_div(
+    document: &Document,
+    container: &Element,
+    content_id: &str,
+    button_a_id: &str,
+    div_id: &str,
+    button_b_id: &str,
+) -> Element {
+    let children: Vec<fandhe_frontend_core::Node> = vec![
+        el(
+            "button",
+            vec![("id", button_a_id), ("type", "button")],
+            vec![],
+        ),
+        el("div", vec![("id", div_id), ("data-autofocus", "")], vec![]),
+        el(
+            "button",
+            vec![("id", button_b_id), ("type", "button")],
+            vec![],
+        ),
+    ];
+
+    let html = render(&dialog::content(
+        OpenState::Open,
+        dialog::DialogRole::Dialog,
+        true,
+        dialog::ContentIds {
+            id: Some(content_id),
+            ..Default::default()
+        },
+        vec![],
+        children,
+    ));
+    container
+        .insert_adjacent_html("beforeend", &html)
+        .expect("insert_adjacent_html must not fail");
+    document
+        .get_element_by_id(content_id)
+        .expect("content element must exist")
+}
+
 /// `aria-modal="false"`（非 modal）の Dialog content を組み立てる。
 fn mount_non_modal_dialog(document: &Document, container: &Element, content_id: &str) -> Element {
     let html = render(&dialog::content(
@@ -222,6 +271,46 @@ fn push_trap_prefers_data_autofocus() {
     controller.pop_trap(index);
 }
 
+/// イシュー #586 レビュー指摘（Medium）の回帰テスト: 裸の
+/// `[data-autofocus]`（`tabindex` 無し、ネイティブに非フォーカス可能な
+/// `<div>`）は tabbable 候補から除外され、Tab 循環が固着せず後続の
+/// `<button>` へ正しく到達すること。
+#[wasm_bindgen_test]
+fn push_trap_ignores_bare_data_autofocus_div_and_cycle_keeps_working() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "focus-trap-bare-autofocus-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let content = mount_modal_dialog_with_non_focusable_autofocus_div(
+        &document,
+        &placeholder,
+        "focus-trap-bare-autofocus-content",
+        "focus-trap-bare-autofocus-a",
+        "focus-trap-bare-autofocus-div",
+        "focus-trap-bare-autofocus-b",
+    );
+
+    let controller = FocusTrapController::new(&document).expect("controller must be created");
+    let index = controller
+        .push_trap(&content, None)
+        .expect("aria-modal=true dialog must be trapped");
+
+    // 初期フォーカスは先頭 tabbable（div は非 tabbable のため候補から除外
+    // され、初期フォーカス先の選定にも影響しない）。
+    assert_eq!(active_element_id(&document), "focus-trap-bare-autofocus-a");
+
+    let event = tab_event(false);
+    document
+        .dispatch_event(&event)
+        .expect("dispatch_event must not fail");
+
+    // 裸の data-autofocus div へ固着せず、次の tabbable（button b）へ
+    // 直接進むこと。
+    assert_eq!(active_element_id(&document), "focus-trap-bare-autofocus-b");
+    controller.pop_trap(index);
+}
+
 // --- (c) tabbable ゼロ ---
 
 #[wasm_bindgen_test]
@@ -243,6 +332,44 @@ fn push_trap_focuses_content_itself_when_no_tabbable_children() {
         content.get_attribute("tabindex").as_deref(),
         Some("-1"),
         "tabbable な子が無い content には固定リテラル tabindex=\"-1\" を付与すること"
+    );
+    controller.pop_trap(index);
+}
+
+/// イシュー #586 レビュー指摘（High）の回帰テスト: tabbable な子が無い
+/// 「空ダイアログ」で Tab を押しても、`content` 自身へフォーカスが固定され
+/// たまま `prevent_default()` されること（既定動作でフォーカスが
+/// `aria-modal` content の外へ漏れないこと）。
+#[wasm_bindgen_test]
+fn tab_in_empty_dialog_prevents_default_and_stays_on_content() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "focus-trap-empty-tab-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let content = mount_modal_dialog(&document, &placeholder, "focus-trap-empty-tab-content", &[]);
+
+    let controller = FocusTrapController::new(&document).expect("controller must be created");
+    let index = controller
+        .push_trap(&content, None)
+        .expect("aria-modal=true dialog must be trapped");
+
+    assert_eq!(active_element_id(&document), "focus-trap-empty-tab-content");
+
+    let event = tab_event(false);
+    document
+        .dispatch_event(&event)
+        .expect("dispatch_event must not fail");
+
+    assert!(
+        event.default_prevented(),
+        "tabbable な子が無い空ダイアログでも Tab は既定動作を prevent すること \
+         （そうでなければフォーカスが aria-modal content の外へ漏れる）"
+    );
+    assert_eq!(
+        active_element_id(&document),
+        "focus-trap-empty-tab-content",
+        "Tab 後もフォーカスが content 自身に留まること"
     );
     controller.pop_trap(index);
 }
