@@ -102,6 +102,17 @@
 //!   [`state`] を埋め込まず [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
 //!
+//! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
+//!
+//! `fandhe-frontend-pre-styled-ui` は方針上 `fandhe-frontend-core` を直接の
+//! ランタイム依存に持たず（`crates/pre-styled-ui/Cargo.toml` 参照。`core` は
+//! dev-dependency のみ）、styled 部品が組み立てる [`fandhe_frontend_core::Node`]
+//! への型参照は本クレート経由の間接依存で得る契約になっている。そのため
+//! [`fandhe_frontend_core`] クレート自体を本クレートのルートから再エクスポート
+//! する（`pre_styled_ui` 側は `fandhe_frontend_headless_ui::fandhe_frontend_core::Node`
+//! のようにアクセスする）。新規の外部依存追加ではなく、既存 path 依存の可視性を
+//! 広げるだけであり `structure.toml` の depends_on 検証には影響しない。
+//!
 //! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
 //! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
 //! （`docs/api/component-api.md` 不変条件準拠）。`data-state` 属性名自体は
@@ -134,6 +145,11 @@ pub mod state;
 pub mod switch;
 pub mod tabs;
 pub mod tooltip;
+
+// `pub use fandhe_frontend_core;` はクレートそのものの再エクスポート（型/値の
+// 再エクスポートではない）。`missing_docs` は extern crate 再エクスポートには
+// 適用されないため doc コメントは不要（rustc の既定挙動）。
+pub use fandhe_frontend_core;
 
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
