@@ -20,13 +20,34 @@
 //! 4. **外部依存は `fandhe-frontend-core`（path）のみ**: `headless-ui/Cargo.toml` の
 //!    `[dependencies]` にサードパーティクレートを追加しない。
 //!
-//! # 本ファイルのスコープ（イシュー #522）
+//! # 実装済み API（イシュー #523）
 //!
-//! 本イシューのスコープは「クレートが workspace・`structure.toml`・`fw gate` の
-//! 管理下に正しく組み込まれた状態」の確立のみであり、anatomy・`data-*`・ARIA
-//! ヘルパ API の実装はイシュー #523、`fandhe-frontend-interactive` と連携する
-//! 開閉状態機械はイシュー #524 のスコープ。本クレートは現時点で公開 API を
-//! 持たない（空クレートでも `fw gate` の type_check / lint / test は成立する）。
+//! - [`mod@anatomy`]: `data-scope` / `data-part` を付与してパーツノードを組み立てる
+//!   [`anatomy::Anatomy`]（全コンポーネント共通の anatomy 基盤）。
+//! - [`data_attrs`]: `data-state` / `data-disabled` 等の状態属性ヘルパ。
+//! - [`aria`]: `role` / `aria-*` の WAI-ARIA 属性ヘルパ。
+//!
+//! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
+//! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
+//! （`docs/api/component-api.md` 不変条件準拠）。`data-state` と状態機械の
+//! 一致保証は `fandhe-frontend-interactive` と連携するイシュー #524 のスコープ。
+//! 各コンポーネントの anatomy 定義（Accordion / Dialog 等の parts 一覧）は
+//! Phase 2（#526〜#544）のスコープ。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+
+pub mod anatomy;
+pub mod aria;
+pub mod data_attrs;
+
+pub use anatomy::{anatomy, Anatomy};
+pub use aria::{
+    aria_checked, aria_controls, aria_describedby, aria_disabled, aria_expanded, aria_haspopup,
+    aria_hidden, aria_label, aria_labelledby, aria_modal, aria_orientation, aria_selected, role,
+    AriaChecked, AriaPopup,
+};
+pub use data_attrs::{
+    data_disabled, data_invalid, data_orientation, data_readonly, data_required, data_state,
+    Orientation,
+};
