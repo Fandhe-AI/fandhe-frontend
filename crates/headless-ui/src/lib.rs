@@ -37,6 +37,9 @@
 //! - [`mod@collapsible`]: Root/Trigger/Indicator/Content の anatomy パーツ関数群と、
 //!   [`state::Disclosure`] を埋め込んだ [`collapsible::Collapsible`] 状態機械
 //!   （#529、親 #526）。Phase 2 で [`state`] を具象コンポーネントへ適用する最初の例。
+//! - [`mod@accordion`]: Root / Item / ItemTrigger / ItemIndicator / ItemContent の
+//!   5 anatomy パーツと [`state::SingleSelect`] を埋め込んだ single モード
+//!   Accordion（[`accordion::Accordion`]、#527）。
 //!
 //! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
 //! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
@@ -49,6 +52,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod accordion;
 pub mod anatomy;
 pub mod aria;
 pub mod collapsible;
