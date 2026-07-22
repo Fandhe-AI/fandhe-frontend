@@ -44,6 +44,10 @@
 //!   `data-activation-mode`/`data-loop-focus` として出力され、
 //!   `fandhe-frontend-wasm-full` の `keynav` モジュールがキーボード操作時の
 //!   活性化タイミング・フォーカス循環を分岐するために読む契約。
+//!   [`tabs::TabsProps::indicator`]（イシュー #601、既定 `false` の opt-in）
+//!   は選択タブの位置を示す `indicator` パーツを追加し、SSR では
+//!   `data-*` フックと CSS 変数（`--left`/`--top`/`--width`/`--height`）の
+//!   初期値のみを出力する（動的計測は wasm/CSR 層の後続責務）。
 //! - [`mod@collapsible`]: Root/Trigger/Indicator/Content の anatomy パーツ関数群と、
 //!   [`state::Disclosure`] を埋め込んだ [`collapsible::Collapsible`] 状態機械
 //!   （#529、親 #526）。Phase 2 で [`state`] を具象コンポーネントへ適用する最初の例。
@@ -111,7 +115,11 @@
 //!   [`mod@switch`] と同じく `data-state` 値語彙（`"indeterminate"`/
 //!   `"loading"`/`"complete"`）が [`state::Disclosure`] と異なるため、
 //!   [`state`] を埋め込まず [`fandhe_frontend_interactive::Component`]/
-//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。加えて
+//!   Circular（SVG）用の Circle/CircleTrack/CircleRange の 3 パーツ
+//!   （#600、親 #542）を持つ。CSS 変数（`--size`/`--thickness`）参照の
+//!   固定 `style` で描画し、状態機械・hydration フォーマットへの追加は
+//!   ない（詳細は [`progress`] モジュール doc の circular 節を参照）。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!

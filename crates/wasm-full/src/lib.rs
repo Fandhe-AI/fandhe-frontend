@@ -50,6 +50,16 @@
 //! 踏襲し、実際の `"close"` dispatch・再描画は呼び出し側（#580 統合層）の
 //! 責務として通知（コールバック）のみを提供する。
 //!
+//! [`tooltip`] モジュール（イシュー #587、親 #584）は Tooltip の
+//! `openDelay`/`closeDelay`/`interactive`（表示・非表示遅延タイマーと
+//! content 内ポインタ移動時の維持）を担う。`overlay` と同じ 2 層構成を
+//! 踏襲するが、`pointerenter`/`pointerleave` がバブリングしないため
+//! document への委譲登録ではなく trigger/content 要素への直接登録を行う点が
+//! 異なる。`overlay` の `OverlayKind::Tooltip` は本モジュールと競合しない
+//! よう `close_on_interact_outside = false`（スタック非参加）を既定として
+//! いる（`overlay.rs` 冒頭 doc 参照）。実際の `"open"`/`"close"` dispatch・
+//! 再描画は呼び出し側（#580 統合層）の責務として通知のみを提供する。
+//!
 //! [`headless_avatar`] モジュール（イシュー #591、親 #520/#542/#543）は
 //! `fandhe-frontend-headless-ui` の Avatar（`avatar` モジュール）が公開する
 //! `data-scope="avatar"`/`data-part="image"/"fallback"` 契約に対し、実 DOM の
@@ -88,6 +98,7 @@ pub mod hydration;
 pub mod keynav;
 pub mod nav;
 pub mod overlay;
+pub mod tooltip;
 
 #[cfg(target_arch = "wasm32")]
 pub mod entry;

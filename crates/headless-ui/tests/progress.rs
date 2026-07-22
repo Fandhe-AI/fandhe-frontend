@@ -131,6 +131,67 @@ fn hydration_missing_attrs_returns_error_not_panic() {
     );
 }
 
+// --- Circular（Circle/CircleTrack/CircleRange, SVG, イシュー #600）---
+
+#[test]
+fn circular_assembly_wires_root_label_value_text_circle_track_range() {
+    let p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
+
+    let circle_range = p.circle_range(vec![], vec![]);
+    let circle_track = p.circle_track(vec![], vec![]);
+    let circle = p.circle(vec![], vec![circle_track, circle_range]);
+    let label = p.label(vec![], vec![text("Upload progress")]);
+    let value_text = p.value_text(vec![], vec![text("40%")]);
+    let root = p.root(Some("40 percent"), vec![], vec![label, value_text, circle]);
+
+    let html = render(&root);
+    assert!(html.contains(r#"data-scope="progress""#));
+    assert!(html.contains(r#"data-part="root""#));
+    assert!(html.contains(r#"data-part="label""#));
+    assert!(html.contains(r#"data-part="value-text""#));
+    assert!(html.contains(r#"data-part="circle""#));
+    assert!(html.contains(r#"data-part="circle-track""#));
+    assert!(html.contains(r#"data-part="circle-range""#));
+    assert!(html.contains("<svg"));
+    assert!(html.contains("<circle"));
+    assert!(html.contains(r#"data-state="loading""#));
+    assert!(html.contains(r#"role="progressbar""#));
+    assert!(html.contains(r#"aria-valuenow="40""#));
+    // circular パーツに data-orientation は付与しない（linear との意図的な差分）。
+    assert!(!html.contains(r#"data-part="circle" data-orientation"#));
+    assert!(html.contains("Upload progress"));
+    assert!(html.contains("40%"));
+}
+
+#[test]
+fn circular_indeterminate_assembly_omits_progress_style_values() {
+    let p = Progress::new(0.0, 100.0, None, Orientation::Horizontal);
+
+    let circle_range = p.circle_range(vec![], vec![]);
+    let circle_track = p.circle_track(vec![], vec![]);
+    let circle = p.circle(vec![], vec![circle_track, circle_range]);
+    let root = p.root(None, vec![], vec![circle]);
+
+    let html = render(&root);
+    assert!(html.contains(r#"data-state="indeterminate""#));
+    assert!(!html.contains("aria-valuenow"));
+    assert!(!html.contains("--percent"));
+    assert!(!html.contains("stroke-dasharray"));
+    assert!(!html.contains("stroke-dashoffset"));
+}
+
+#[test]
+fn circular_caller_attrs_and_children_payload_is_escaped_end_to_end() {
+    let p = Progress::default();
+    let circle_html = render(&p.circle(
+        vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+        vec![text("<script>alert(1)</script>")],
+    ));
+    assert!(!circle_html.contains("onmouseover=\"alert(1)"));
+    assert!(!circle_html.contains("<script>alert(1)</script>"));
+    assert!(circle_html.contains("&lt;script&gt;"));
+}
+
 // --- XSS 回帰: 呼び出し側が制御しうる動的値すべてに攻撃ペイロードを通す ---
 
 const ATTR_BREAK_PAYLOAD: &str = "\" onmouseover=\"alert(1)";

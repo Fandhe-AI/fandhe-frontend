@@ -130,6 +130,11 @@ fail-closed で返す（`slot`/`axis`/`value` 側の検証だけでは `scope` �
 ## 8. スコープ外（Issue 化候補）
 
 - `compoundVariants` 相当（複数軸の組み合わせ条件スタイル）
-- recipe 出力の CSS ファイル書き出し・`<style>` 埋め込みヘルパ（#550/#552 で
-  必要性を判断）
+- recipe 出力の CSS ファイル書き出し・`<style>` 埋め込みヘルパ:
+  **イシュー #605 で実装済み**。`crate::stylesheet::StyleSheet`
+  （[`docs/api/pre-styled-ui-api.md`](./pre-styled-ui-api.md) 参照）が
+  `SlotRecipe::css()`/`Theme::to_css()` の出力を集約し、
+  `write_css_file`（静的 `.css` 書き出し）・`style_element`（SSR 用
+  `<style>` 要素、`raw_html()` を内部に閉じ込めた検証済み CSS 型経由）の
+  2 経路を提供する。
 - `#547` テーマトークンとの palette 実配線（colorPalette 軸の意味付け）

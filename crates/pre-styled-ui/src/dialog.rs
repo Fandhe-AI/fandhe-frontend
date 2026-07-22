@@ -192,9 +192,9 @@ fn state_css() -> String {
 /// の契約をそのまま継承する）。base 規則（[`recipe`]）の後に `data-state`
 /// 連動規則（[`state_css`]）を連結する。
 ///
-/// 呼び出し元は返り値を静的 `.css` ファイルとして配信する利用形態を想定し、
-/// `<style>` タグへの埋め込み（`raw_html()` が必要になる）は本クレートの
-/// 責務外（[`crate`] 冒頭の不変条件を参照）。
+/// 呼び出し元は返り値を静的 `.css` ファイルとして配信する、または
+/// [`crate::stylesheet::StyleSheet::push_css`] へ渡して `<style>` 要素へ
+/// 埋め込む（#605、[`crate`] 冒頭の不変条件を参照）。
 #[must_use]
 pub fn stylesheet() -> String {
     recipe().css() + &state_css()
