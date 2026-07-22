@@ -60,6 +60,15 @@
 //! いる（`overlay.rs` 冒頭 doc 参照）。実際の `"open"`/`"close"` dispatch・
 //! 再描画は呼び出し側（#580 統合層）の責務として通知のみを提供する。
 //!
+//! [`focus_trap`] モジュール（イシュー #586、親 #584）は Dialog の
+//! `aria-modal="true"` 時のフォーカストラップ（Tab 循環・初期フォーカス）と、
+//! 閉鎖時のトリガーへのフォーカス復帰を担う。[`overlay`] と同じ 2 層構成
+//! （DOM 非依存の純粋ロジック層 + `#[cfg(target_arch = "wasm32")]` 配線層）を
+//! 踏襲し、`"close"` dispatch・再描画・DOM の open/close 属性更新は行わない
+//! （`FocusTrapController::push_trap`/`FocusTrapController::pop_trap`
+//! （`#[cfg(target_arch = "wasm32")]` のみ公開）を Dialog の open/close
+//! タイミングで呼ぶのは #580 統合層の責務）。
+//!
 //! 本クレートの自作コードは safe Rust のみとし、`unsafe` は `wasm-bindgen` /
 //! `web-sys` の FFI 境界（依存クレート内部・自動生成コード）に限定する
 //! （`docs/policy/unsafe-boundary.md` 第 2 節）。自作コードでの新規 `unsafe` 追加を
@@ -75,6 +84,7 @@
 
 pub mod csr;
 pub mod events;
+pub mod focus_trap;
 pub mod hydration;
 pub mod keynav;
 pub mod nav;
