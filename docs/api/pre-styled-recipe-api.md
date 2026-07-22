@@ -70,6 +70,12 @@ impl SlotRecipe {
 （`crates/pre-styled-ui/tests/recipe_css.rs::base_selectors_match_actual_headless_markup`
 が `fandhe_frontend_headless_ui::tabs::tabs()` の実マークアップと照合して固定する）。
 
+`scope` はセレクタ・クラス名へ `slot`/`axis`/`value` と同様にそのまま埋め込まれるため、
+`SlotRecipe::css()`/`variant_class()`/`variant_classes()` はいずれも呼び出し時に
+`scope` を `is_valid_identifier`（`css.rs`）で検証し、不正な場合は空文字列を
+fail-closed で返す（`slot`/`axis`/`value` 側の検証だけでは `scope` 経由の
+セレクタ脱出・`</style>` 混入を防げないため、`scope` にも同じ検証を適用する）。
+
 ## 4. セレクタ・クラス命名規則・出力書式（凍結）
 
 - base セレクタ: `[data-scope="<scope>"][data-part="<slot>"]`（詳細度 (0,2,0)）

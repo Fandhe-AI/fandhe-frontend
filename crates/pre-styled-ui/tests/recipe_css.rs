@@ -222,3 +222,44 @@ fn invalid_identifiers_and_structural_chars_are_skipped_not_panicking() {
     assert!(css.contains("background: blue;"));
     assert_eq!(recipe.variant_class(BadAxis), "");
 }
+
+/// #572 レビュー指摘（Medium）: `scope` は `slot`/`axis`/`value` と同様に
+/// セレクタ・クラス名へそのまま埋め込まれるため、不正な `scope`（構造破壊
+/// 文字・大文字・空文字等）を渡した recipe は `css()`/`variant_class()`/
+/// `variant_classes()` のいずれも fail-closed で空文字列を返す（`value` 側の
+/// denylist だけでは防げない `scope` 経由のセレクタ脱出・`</style>` 混入を防ぐ）。
+#[test]
+fn invalid_scope_is_rejected_fail_closed_across_all_outputs() {
+    let recipe = SlotRecipe::new("widget\" ] {}</style><script>", &["root"])
+        .base("root", vec![decl("color", "red")])
+        .variant(Size::Sm, "root", vec![decl("padding", "2px")])
+        .default_variant(Size::Sm);
+
+    assert_eq!(recipe.css(), "");
+    assert_eq!(recipe.variant_class(Size::Sm), "");
+    assert_eq!(recipe.variant_classes(&[("size", "sm")]), "");
+    assert_eq!(recipe.variant_classes(&[]), "");
+}
+
+/// #572 レビュー指摘（Low）: `base()` を `slots` の宣言順と異なる順序で
+/// 呼び出しても、`css()` の base 出力は `slots` 宣言順に固定される
+/// （`docs/api/pre-styled-recipe-api.md` §4 が凍結する契約）。
+#[test]
+fn base_output_order_follows_slots_declaration_not_registration_order() {
+    let recipe = SlotRecipe::new("widget", &["root", "trigger"])
+        // 登録順は trigger → root（slots 宣言順 root → trigger とは逆）。
+        .base("trigger", vec![decl("cursor", "pointer")])
+        .base("root", vec![decl("display", "flex")]);
+
+    let css = recipe.css();
+    let root_pos = css
+        .find("[data-part=\"root\"]")
+        .expect("root selector present");
+    let trigger_pos = css
+        .find("[data-part=\"trigger\"]")
+        .expect("trigger selector present");
+    assert!(
+        root_pos < trigger_pos,
+        "base 出力は slots 宣言順（root → trigger）であるべき: {css}"
+    );
+}

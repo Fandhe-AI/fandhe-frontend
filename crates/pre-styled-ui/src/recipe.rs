@@ -173,21 +173,32 @@ impl SlotRecipe {
     /// variant が `[data-scope="<scope>"][data-part="<slot>"].fd-<scope>--<axis>-<value>`
     /// （詳細度 (0,3,0) が base の (0,2,0) に必ず勝つため、CSS 記述順に
     /// 依存しない上書きを保証する）。
+    ///
+    /// `scope`（[`SlotRecipe::new`] に渡した値）が識別子として不正な場合は
+    /// 空文字列を返す（fail-closed。`slot`/`axis`/`value` と同様に `scope` も
+    /// セレクタ・クラス名へそのまま埋め込まれるため、ここで検証しないと
+    /// `</style>` やセレクタ脱出を許す構造破壊文字が CSS 生成経路に残ってしまう）。
     #[must_use]
     pub fn css(&self) -> String {
+        if !is_valid_identifier(self.scope) {
+            return String::new();
+        }
+
         let mut out = String::new();
 
-        for rule in &self.base {
-            if !self.is_declared_slot(rule.slot) || !is_valid_identifier(rule.slot) {
-                continue;
-            }
-            let selector = format!(
-                "[data-scope=\"{}\"][data-part=\"{}\"]",
-                self.scope, rule.slot
-            );
-            if let Some(css) = serialize_rule(&selector, &rule.declarations) {
-                out.push_str(&css);
-                out.push('\n');
+        for slot in self.slots {
+            for rule in self.base.iter().filter(|rule| rule.slot == *slot) {
+                if !is_valid_identifier(rule.slot) {
+                    continue;
+                }
+                let selector = format!(
+                    "[data-scope=\"{}\"][data-part=\"{}\"]",
+                    self.scope, rule.slot
+                );
+                if let Some(css) = serialize_rule(&selector, &rule.declarations) {
+                    out.push_str(&css);
+                    out.push('\n');
+                }
             }
         }
 
@@ -231,7 +242,10 @@ impl SlotRecipe {
     pub fn variant_class<V: VariantValue>(&self, v: V) -> String {
         let axis = v.axis();
         let value = v.value();
-        if !is_valid_identifier(axis) || !is_valid_identifier(value) {
+        if !is_valid_identifier(self.scope)
+            || !is_valid_identifier(axis)
+            || !is_valid_identifier(value)
+        {
             return String::new();
         }
         format!("{CLASS_PREFIX}-{}--{axis}-{value}", self.scope)
@@ -243,8 +257,15 @@ impl SlotRecipe {
     /// で登録した既定値で補完する。戻り値は axis の登録順（`variant`/
     /// `default_variant` で最初に現れた順）で連結したクラス文字列
     /// （スペース区切り、`class="..."` にそのまま渡せる形式）。
+    ///
+    /// `scope` が識別子として不正な場合は空文字列を返す（[`SlotRecipe::css`]・
+    /// [`SlotRecipe::variant_class`] と同じ fail-closed 方針）。
     #[must_use]
     pub fn variant_classes(&self, selection: &[(&str, &str)]) -> String {
+        if !is_valid_identifier(self.scope) {
+            return String::new();
+        }
+
         let mut axes: Vec<&'static str> = Vec::new();
         for rule in &self.variants {
             if !axes.contains(&rule.axis) {
