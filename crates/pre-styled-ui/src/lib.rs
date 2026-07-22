@@ -24,23 +24,30 @@
 //!    `Node` 型参照は `fandhe_frontend_headless_ui::fandhe_frontend_core::Node`
 //!    （headless-ui が再エクスポートする core、イシュー #550）経由で得る。
 //!
-//! # 実装済み API（イシュー #546/#547/#548/#550/#551）
+//! # 実装済み API（イシュー #546/#547/#548/#550/#551/#606）
 //!
-//! - [`theme`]（#547）: テーマトークン・ダークモード基盤。
+//! - [`theme`]（#547/#606）: テーマトークン・ダークモード基盤。#606 で
+//!   角丸（`radii`）・影（`shadows`）トークングループを追加した。
 //! - [`css`]（#548）: CSS 宣言の低レベル表現・検証・シリアライズ。
-//! - [`recipe`]（#548）: slot recipe 本体・[`recipe::SlotRecipe`]・
-//!   [`recipe::VariantValue`]。
-//! - 状態機械を要しない単純 styled 部品 5 種（#550）:
+//! - [`recipe`]（#548/#606）: slot recipe 本体・[`recipe::SlotRecipe`]・
+//!   [`recipe::VariantValue`]。#606 で標準 `colorPalette` 軸
+//!   （[`recipe::ColorPalette`]）を追加した。
+//! - 状態機械を要しない単純 styled 部品 5 種（#550、#606 で colorPalette 軸・
+//!   radii/shadow トークン参照へ配線）:
 //!   - [`mod@button`]: [`button::button`]（単一 recipe、`<button type="button">`。
-//!     `loading` 時は [`mod@spinner`] を子ノード先頭へ埋め込む）。
-//!   - [`mod@badge`]: [`badge::badge`]（単一 recipe、`<span>`）。
+//!     `loading` 時は [`mod@spinner`] を子ノード先頭へ埋め込む。`palette`
+//!     variant で色を切り替える）。
+//!   - [`mod@badge`]: [`badge::badge`]（単一 recipe、`<span>`。`palette` variant
+//!     を持つ）。
 //!   - [`mod@spinner`]: [`spinner::spinner`]（単一 recipe、
-//!     `<span role="status">`）。
+//!     `<span role="status">`。`palette` variant を持つ）。
 //!   - [`mod@alert`]: [`alert::root`] ほかパーツ関数群（slot recipe、
-//!     root/indicator/content/title/description の 5 パーツ、`role="alert"`）。
+//!     root/indicator/content/title/description の 5 パーツ、`role="alert"`。
+//!     公開 API は [`alert::AlertStatus`] のまま、内部で `status` を
+//!     `--fandhe-palette-*` へ束ねる）。
 //!   - [`mod@card`]: [`card::root`] ほかパーツ関数群（slot recipe、
 //!     root/header/body/footer/title/description の 6 パーツ、装飾的コンテナ、
-//!     role 付与なし）。
+//!     role 付与なし。中立コンテナのため colorPalette 軸は付与しない）。
 //!
 //!   いずれも variant/size/status は Rust enum（[`recipe::VariantValue`] 実装）
 //!   として型安全に表現し、クラス名文字列を動的合成しない
@@ -96,5 +103,5 @@ pub use badge::{badge, BadgeProps, BadgeVariant};
 pub use button::{button, ButtonProps, ButtonVariant};
 pub use card::CardVariant;
 pub use css::{decl, Declaration};
-pub use recipe::{Size, SlotRecipe, VariantValue};
+pub use recipe::{ColorPalette, Size, SlotRecipe, VariantValue};
 pub use spinner::{spinner, SpinnerProps};

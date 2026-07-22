@@ -34,6 +34,11 @@ pub trait VariantValue: Copy {
 
 pub enum Size { Sm, Md, Lg } // axis = "size"
 
+// イシュー #606: 標準 colorPalette 軸。crate::theme のセマンティック色
+// （accent/info/success/warning/danger）と 1:1 対応する。
+pub enum ColorPalette { Accent, Info, Success, Warning, Danger } // axis = "color-palette"
+pub fn palette_declarations(p: ColorPalette) -> Vec<Declaration>;
+
 pub struct SlotRecipe { /* ... */ }
 impl SlotRecipe {
     pub const fn new(scope: &'static str, slots: &'static [&'static str]) -> Self;
@@ -125,11 +130,26 @@ fail-closed で返す（`slot`/`axis`/`value` 側の検証だけでは `scope` �
 
 宣言値は不透明な `&'static str` として扱うため、トークン参照は
 `decl("color", "var(--fd-color-primary)")` のような値として自然に載る。
-本イシューの実装は `#547` の API へコード依存を持たない。
+本イシュー（#548）の実装自体は `#547` の API へコード依存を持たない。
+
+`#606` で colorPalette 軸を実配線した際、`palette_declarations` は
+`crate::theme` が生成する `--fandhe-color-*`（テーマ層の名前空間）とは別の
+`--fandhe-palette-*` 名前空間へ、選択された palette に対応する
+`accent`/`info`/`success`/`warning`/`danger` の 3 役割（base/emphasized/fg）を
+`var()` 参照として束ねる（chakra-ui の virtual token 方式の静的 CSS 版）。
+styled 部品（Button/Badge/Spinner、`crates/pre-styled-ui/src/button.rs` 等）は
+`var(--fandhe-palette)` 等を参照するだけで、`palette` variant の選択に応じて
+色が切り替わる。名前空間を分離しているため、ユーザーがカスタムテーマへ
+`Theme::push_color("palette", ...)` のような独自トークンを追加しても
+`--fandhe-palette-*` の生成とは衝突しない。
+
+`#606` では加えて `crate::theme` に radii（`--fandhe-radius-<name>`）・shadow
+（`--fandhe-shadow-<name>`、light/dark 2 値）トークングループを追加した。
+styled 部品は `border-radius`/`box-shadow` の値としてこれらを参照する
+（例: `decl("border-radius", "var(--fandhe-radius-md)")`）。
 
 ## 8. スコープ外（Issue 化候補）
 
 - `compoundVariants` 相当（複数軸の組み合わせ条件スタイル）
 - recipe 出力の CSS ファイル書き出し・`<style>` 埋め込みヘルパ（#550/#552 で
   必要性を判断）
-- `#547` テーマトークンとの palette 実配線（colorPalette 軸の意味付け）

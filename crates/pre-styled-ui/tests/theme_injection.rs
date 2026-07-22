@@ -86,3 +86,71 @@ fn duplicate_token_name_is_rejected_fail_closed() {
     // 明示的に `Err` とする（fail-closed）。
     assert!(theme.push_color("bg", "#000000", "#ffffff").is_err());
 }
+
+#[test]
+fn push_radius_rejects_injection_payloads_and_duplicate_name() {
+    // イシュー #606 で追加した radii グループも、colors/spaces/typography と
+    // 同じ `CssValue`/`TokenName` allowlist（fail-closed）を経由することを固定する。
+    let mut theme = Theme::empty();
+    assert!(theme.push_radius("md", "0.375rem; } .evil {").is_err());
+    assert!(theme.push_radius("m d", "0.375rem").is_err());
+
+    theme.push_radius("md", "0.375rem").unwrap();
+    assert!(theme.push_radius("md", "0.5rem").is_err());
+}
+
+#[test]
+fn push_shadow_rejects_injection_payloads_and_duplicate_name() {
+    // イシュー #606 で追加した shadows グループも、colors と同じ light/dark
+    // 2 値のいずれについても allowlist 検証・重複拒否を通ることを固定する。
+    let mut theme = Theme::empty();
+    assert!(theme
+        .push_shadow("sm", "0 1px 3px rgba(0,0,0,.12)", "</style><script>")
+        .is_err());
+    assert!(theme
+        .push_shadow(
+            "sm",
+            "expression(alert(1))",
+            "0 1px 3px rgba(0, 0, 0, 0.32)"
+        )
+        .is_err());
+
+    theme
+        .push_shadow(
+            "sm",
+            "0 1px 3px rgba(0, 0, 0, 0.12)",
+            "0 1px 3px rgba(0, 0, 0, 0.32)",
+        )
+        .unwrap();
+    assert!(theme
+        .push_shadow(
+            "sm",
+            "0 1px 3px rgba(0, 0, 0, 0.2)",
+            "0 1px 3px rgba(0, 0, 0, 0.5)"
+        )
+        .is_err());
+}
+
+#[test]
+fn validated_theme_with_radii_and_shadows_output_never_contains_angle_bracket() {
+    // radii/shadows を含めても、`<` を拒否文字に含める allowlist 検証の帰結として
+    // `</style>` 脱出が原理的に混入し得ないことを固定する
+    // （`validated_theme_output_never_contains_angle_bracket` の #606 拡張）。
+    let mut theme = Theme::empty();
+    theme
+        .push_radius("md", "0.375rem")
+        .expect("valid literal must pass validation");
+    theme
+        .push_shadow(
+            "sm",
+            "0 1px 3px rgba(0, 0, 0, 0.12)",
+            "0 1px 3px rgba(0, 0, 0, 0.32)",
+        )
+        .expect("valid literal must pass validation");
+
+    let css = theme.to_css();
+
+    assert!(!css.contains('<'));
+    assert!(!css.contains('>'));
+    assert!(!css.contains("</style>"));
+}

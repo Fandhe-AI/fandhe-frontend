@@ -183,9 +183,14 @@ impl TokenName {
     }
 }
 
-/// ライト/ダーク値を持つ色トークン 1 件。
+/// ライト/ダークの 2 値を持つトークン 1 件。
+///
+/// colors（イシュー #547）・shadows（イシュー #606）が共用する内部表現。
+/// shadow はダークモードで光量の異なる影が必要になる（chakra-ui も同様に
+/// カラーモードごとに異なる `box-shadow` 値を持つ）ため、color と同じ
+/// light/dark 2 値構造を採用し、二重定義を避ける。
 #[derive(Debug, Clone)]
-struct ColorToken {
+struct DualModeToken {
     name: TokenName,
     light: CssValue,
     dark: CssValue,
@@ -202,15 +207,17 @@ struct ScaleToken {
 /// 名前空間で var() 参照を組み立てられるよう固定する。
 const VAR_PREFIX: &str = "--fandhe";
 
-/// テーマ全体（色・余白・タイポグラフィトークンの集合）。
+/// テーマ全体（色・余白・タイポグラフィ・角丸・影トークンの集合）。
 ///
 /// フィールドは `Vec`（挿入順 = 出力順）で保持し、[`Theme::to_css`] の出力の
 /// 決定性を構造的に保証する（`HashMap` 等の非決定順コレクションを使わない）。
 #[derive(Debug, Clone)]
 pub struct Theme {
-    colors: Vec<ColorToken>,
+    colors: Vec<DualModeToken>,
     spaces: Vec<ScaleToken>,
     typography: Vec<ScaleToken>,
+    radii: Vec<ScaleToken>,
+    shadows: Vec<DualModeToken>,
 }
 
 impl Default for Theme {
@@ -226,6 +233,8 @@ impl Default for Theme {
             colors: Vec::new(),
             spaces: Vec::new(),
             typography: Vec::new(),
+            radii: Vec::new(),
+            shadows: Vec::new(),
         };
 
         for (name, light, dark) in DEFAULT_COLORS {
@@ -240,6 +249,16 @@ impl Default for Theme {
         }
         for (name, value) in DEFAULT_TYPOGRAPHY {
             theme.push_typography(name, value).expect(
+                "既定パレットの定数は allowlist を満たすよう手動で検証済み（ユニットテストで固定）",
+            );
+        }
+        for (name, value) in DEFAULT_RADII {
+            theme.push_radius(name, value).expect(
+                "既定パレットの定数は allowlist を満たすよう手動で検証済み（ユニットテストで固定）",
+            );
+        }
+        for (name, light, dark) in DEFAULT_SHADOWS {
+            theme.push_shadow(name, light, dark).expect(
                 "既定パレットの定数は allowlist を満たすよう手動で検証済み（ユニットテストで固定）",
             );
         }
@@ -262,9 +281,54 @@ const DEFAULT_COLORS: &[(&str, &str, &str)] = &[
     ("accent-emphasized", "#2b6cb0", "#63b3ed"),
     ("accent-fg", "#ffffff", "#0b1720"),
     ("info", "#3182ce", "#63b3ed"),
+    ("info-emphasized", "#2b6cb0", "#90cdf4"),
+    ("info-fg", "#ffffff", "#0b1720"),
     ("success", "#2f855a", "#68d391"),
+    ("success-emphasized", "#276749", "#9ae6b4"),
+    ("success-fg", "#ffffff", "#0b1a12"),
     ("warning", "#b7791f", "#f6ad55"),
+    ("warning-emphasized", "#975a16", "#fbd38d"),
+    ("warning-fg", "#ffffff", "#1a1203"),
     ("danger", "#c53030", "#fc8181"),
+    ("danger-emphasized", "#9b2c2c", "#feb2b2"),
+    ("danger-fg", "#ffffff", "#1a0b0b"),
+];
+
+/// 既定の角丸トークン（name, value）。モード非依存。既存 styled 部品
+/// （Button/Badge/Spinner/Alert/Card、イシュー #550）のリテラル値をそのまま
+/// 吸収する初期スケール（イシュー #606）。
+const DEFAULT_RADII: &[(&str, &str)] = &[
+    ("sm", "0.25rem"),
+    ("md", "0.375rem"),
+    ("lg", "0.5rem"),
+    ("xl", "0.75rem"),
+    ("full", "9999px"),
+];
+
+/// 既定の影トークン（name, light, dark）。ダークモードは light 比で不透明度を
+/// 上げ、暗背景上でも輪郭が視認できるようにする（イシュー #606）。`sm` の
+/// light 値は Card Elevated の既存リテラル（イシュー #550）を踏襲する。
+const DEFAULT_SHADOWS: &[(&str, &str, &str)] = &[
+    (
+        "xs",
+        "0 1px 2px rgba(0, 0, 0, 0.06)",
+        "0 1px 2px rgba(0, 0, 0, 0.24)",
+    ),
+    (
+        "sm",
+        "0 1px 3px rgba(0, 0, 0, 0.12)",
+        "0 1px 3px rgba(0, 0, 0, 0.32)",
+    ),
+    (
+        "md",
+        "0 4px 6px rgba(0, 0, 0, 0.1)",
+        "0 4px 6px rgba(0, 0, 0, 0.3)",
+    ),
+    (
+        "lg",
+        "0 10px 15px rgba(0, 0, 0, 0.16)",
+        "0 10px 15px rgba(0, 0, 0, 0.4)",
+    ),
 ];
 
 /// 既定の余白トークン（name, value）。chakra 風のスケール。モード非依存。
@@ -312,6 +376,8 @@ impl Theme {
             colors: Vec::new(),
             spaces: Vec::new(),
             typography: Vec::new(),
+            radii: Vec::new(),
+            shadows: Vec::new(),
         }
     }
 
@@ -332,7 +398,7 @@ impl Theme {
             });
         }
 
-        self.colors.push(ColorToken { name, light, dark });
+        self.colors.push(DualModeToken { name, light, dark });
         Ok(())
     }
 
@@ -354,15 +420,55 @@ impl Theme {
         push_scale(&mut self.typography, name, value)
     }
 
+    /// モード非依存の角丸（`border-radius`）トークンを追加する（イシュー #606）。
+    ///
+    /// `fandhe-frontend-pre-styled-ui` の styled 部品（Button/Badge/Spinner/
+    /// Alert/Card）が `border-radius: var(--fandhe-radius-<name>)` として
+    /// 参照する想定のトークン。
+    ///
+    /// # Errors
+    ///
+    /// [`Theme::push_color`] と同様（`name`/`value` の検証・重複拒否）。
+    pub fn push_radius(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
+        push_scale(&mut self.radii, name, value)
+    }
+
+    /// ライト/ダーク値を持つ影（`box-shadow`）トークンを追加する（イシュー #606）。
+    ///
+    /// ダークモードで光量の異なる影が必要になるため、[`Theme::push_color`] と
+    /// 同じ light/dark 2 値構造を取る（内部表現は [`DualModeToken`] を共用）。
+    ///
+    /// # Errors
+    ///
+    /// - `name` / `light` / `dark` のいずれかが allowlist 検証を通過しない場合
+    /// - `name` が shadows グループ内で既に登録済みの場合（[`ThemeError::DuplicateTokenName`]）
+    pub fn push_shadow(&mut self, name: &str, light: &str, dark: &str) -> Result<(), ThemeError> {
+        let name = TokenName::new(name)?;
+        let light = CssValue::new(light)?;
+        let dark = CssValue::new(dark)?;
+
+        if self.shadows.iter().any(|t| t.name == name) {
+            return Err(ThemeError::DuplicateTokenName {
+                name: name.as_str().to_string(),
+            });
+        }
+
+        self.shadows.push(DualModeToken { name, light, dark });
+        Ok(())
+    }
+
     /// テーマを決定的なプレーン CSS 文字列へ変換する。
     ///
     /// 出力構造（固定順、`docs` は伴わず本 rustdoc が正）:
     ///
     /// 1. `:root { color-scheme: light dark; --fandhe-... }`（light 値、
-    ///    colors → spaces → typography の順）
+    ///    colors → spaces → typography → radii → shadows の順。radii は
+    ///    モード非依存のため 1 値、shadows は light 値をここに出力する。
+    ///    イシュー #606 で追加した 2 グループは末尾に純追加する構成のため、
+    ///    radii/shadows を push しないテーマの出力は変更前とバイト同一になる）
     /// 2. `:root[data-theme="light"] { color-scheme: light; }`
     /// 3. `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { ... } }`
-    ///    （dark 値。OS 設定追従）
+    ///    （dark 値。OS 設定追従。colors → shadows の順）
     /// 4. `:root[data-theme="dark"] { ... }`（dark 値。明示指定は常に勝つ。
     ///    3 と同特異度のため、末尾に置く出力順序でメディアクエリより優先させる）
     ///
@@ -399,6 +505,20 @@ impl Theme {
                 token.value.as_str()
             ));
         }
+        for token in &self.radii {
+            out.push_str(&format!(
+                "  {VAR_PREFIX}-radius-{}: {};\n",
+                token.name.as_str(),
+                token.value.as_str()
+            ));
+        }
+        for token in &self.shadows {
+            out.push_str(&format!(
+                "  {VAR_PREFIX}-shadow-{}: {};\n",
+                token.name.as_str(),
+                token.light.as_str()
+            ));
+        }
         out.push_str("}\n");
 
         out.push_str(":root[data-theme=\"light\"] { color-scheme: light; }\n");
@@ -421,12 +541,20 @@ impl Theme {
     /// dark モードの custom property 宣言列を書き出す内部ヘルパ。
     ///
     /// `@media` ブロックと `:root[data-theme="dark"]` ブロックの双方が本関数を
-    /// 経由することで、同一のトークン列（`self.colors` の dark 値）から生成し、
-    /// 2 箇所の出力が構造的に一致することを保証する（手書きの二重管理を避ける）。
+    /// 経由することで、同一のトークン列（`self.colors`/`self.shadows` の dark
+    /// 値）から生成し、2 箇所の出力が構造的に一致することを保証する
+    /// （手書きの二重管理を避ける）。radii はモード非依存のため対象外。
     fn write_dark_declarations(&self, out: &mut String, indent: &str) {
         for token in &self.colors {
             out.push_str(&format!(
                 "{indent}{VAR_PREFIX}-color-{}: {};\n",
+                token.name.as_str(),
+                token.dark.as_str()
+            ));
+        }
+        for token in &self.shadows {
+            out.push_str(&format!(
+                "{indent}{VAR_PREFIX}-shadow-{}: {};\n",
                 token.name.as_str(),
                 token.dark.as_str()
             ));
@@ -471,6 +599,28 @@ pub fn color_var(name: &str) -> Result<String, ThemeError> {
 pub fn space_var(name: &str) -> Result<String, ThemeError> {
     let name = TokenName::new(name)?;
     Ok(format!("var({VAR_PREFIX}-space-{})", name.as_str()))
+}
+
+/// 角丸トークン名から `var(--fandhe-radius-<name>)` 参照を組み立てる（イシュー
+/// #606）。styled 部品が `border-radius` の値として参照する想定。
+///
+/// # Errors
+///
+/// [`color_var`] と同様。
+pub fn radius_var(name: &str) -> Result<String, ThemeError> {
+    let name = TokenName::new(name)?;
+    Ok(format!("var({VAR_PREFIX}-radius-{})", name.as_str()))
+}
+
+/// 影トークン名から `var(--fandhe-shadow-<name>)` 参照を組み立てる（イシュー
+/// #606）。styled 部品が `box-shadow` の値として参照する想定。
+///
+/// # Errors
+///
+/// [`color_var`] と同様。
+pub fn shadow_var(name: &str) -> Result<String, ThemeError> {
+    let name = TokenName::new(name)?;
+    Ok(format!("var({VAR_PREFIX}-shadow-{})", name.as_str()))
 }
 
 /// タイポグラフィトークン名から `var(--fandhe-font-<name>)` 参照を組み立てる。
@@ -577,6 +727,8 @@ mod tests {
             typography_var("font-size-md").unwrap(),
             "var(--fandhe-font-font-size-md)"
         );
+        assert_eq!(radius_var("md").unwrap(), "var(--fandhe-radius-md)");
+        assert_eq!(shadow_var("sm").unwrap(), "var(--fandhe-shadow-sm)");
         assert!(color_var("Bg").is_err());
     }
 
@@ -585,5 +737,65 @@ mod tests {
         let a = Theme::default().to_css();
         let b = Theme::default().to_css();
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn push_radius_and_shadow_reject_duplicate_name() {
+        let mut theme = Theme::empty();
+        theme.push_radius("md", "0.375rem").unwrap();
+        assert!(theme.push_radius("md", "0.5rem").is_err());
+
+        theme
+            .push_shadow(
+                "sm",
+                "0 1px 3px rgba(0, 0, 0, 0.12)",
+                "0 1px 3px rgba(0, 0, 0, 0.32)",
+            )
+            .unwrap();
+        assert!(theme
+            .push_shadow(
+                "sm",
+                "0 1px 3px rgba(0, 0, 0, 0.2)",
+                "0 1px 3px rgba(0, 0, 0, 0.5)"
+            )
+            .is_err());
+    }
+
+    #[test]
+    fn radii_and_shadows_appear_in_css_output_light_and_dark() {
+        let mut theme = Theme::empty();
+        theme.push_radius("md", "0.375rem").unwrap();
+        theme
+            .push_shadow(
+                "sm",
+                "0 1px 3px rgba(0, 0, 0, 0.12)",
+                "0 1px 3px rgba(0, 0, 0, 0.32)",
+            )
+            .unwrap();
+
+        let css = theme.to_css();
+        assert!(css.contains("--fandhe-radius-md: 0.375rem;"));
+        assert!(css.contains("--fandhe-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);"));
+        let dark_count = css
+            .matches("--fandhe-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.32);")
+            .count();
+        assert_eq!(
+            dark_count, 2,
+            "dark shadow value must appear in both the media query and data-theme blocks"
+        );
+    }
+
+    #[test]
+    fn theme_without_radii_or_shadows_matches_pre_606_snapshot() {
+        // radii/shadows を一切 push しないテーマの `to_css()` 出力が、本イシュー
+        // （#606）で追加したグループの純追加であることを保証する回帰テスト
+        // （既存 `tests/theme_css.rs::custom_theme_output_matches_full_snapshot`
+        // と対をなす）。
+        let mut theme = Theme::empty();
+        theme.push_color("bg", "#ffffff", "#111111").unwrap();
+
+        let css = theme.to_css();
+        assert!(!css.contains("--fandhe-radius-"));
+        assert!(!css.contains("--fandhe-shadow-"));
     }
 }
