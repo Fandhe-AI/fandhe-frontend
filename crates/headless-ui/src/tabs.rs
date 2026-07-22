@@ -673,8 +673,8 @@ mod tests {
             concat!(
                 r#"<div data-scope="tabs" data-part="root" id="t" data-orientation="horizontal">"#,
                 r#"<div data-scope="tabs" data-part="list" role="tablist" aria-orientation="horizontal" data-orientation="horizontal" data-activation-mode="automatic" data-loop-focus="true">"#,
-                r#"<button data-scope="tabs" data-part="trigger" type="button" id="t-trigger-a" role="tab" aria-selected="true" aria-controls="t-content-a" data-state="active" data-orientation="horizontal" tabindex="0">a</button>"#,
-                r#"<button data-scope="tabs" data-part="trigger" type="button" id="t-trigger-b" role="tab" aria-selected="false" aria-controls="t-content-b" data-state="inactive" data-orientation="horizontal" tabindex="-1">b</button>"#,
+                r#"<button data-scope="tabs" data-part="trigger" type="button" id="t-trigger-a" role="tab" aria-selected="true" aria-controls="t-content-a" data-state="active" data-orientation="horizontal" tabindex="0" data-value="a">a</button>"#,
+                r#"<button data-scope="tabs" data-part="trigger" type="button" id="t-trigger-b" role="tab" aria-selected="false" aria-controls="t-content-b" data-state="inactive" data-orientation="horizontal" tabindex="-1" data-value="b">b</button>"#,
                 r#"<span data-scope="tabs" data-part="indicator" data-state="active" data-orientation="horizontal" aria-hidden="true" style="--left: 0px; --top: 0px; --width: 0px; --height: 0px"></span>"#,
                 r#"</div>"#,
                 r#"<div data-scope="tabs" data-part="content" id="t-content-a" role="tabpanel" aria-labelledby="t-trigger-a" data-state="active" data-orientation="horizontal" tabindex="0">a</div>"#,

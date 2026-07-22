@@ -189,7 +189,9 @@ fn select_trigger_opens_item_click_selects_and_closes_clear_trigger_deselects() 
     let item_html = render(&select::item(
         OpenState::Closed,
         false,
+        false,
         "opt-1",
+        None,
         vec![],
         vec![],
     ));
@@ -230,6 +232,9 @@ fn tabs_trigger_click_selects_value_on_single_select() {
             id: "t",
             selected: "a",
             orientation: fandhe_frontend_headless_ui::data_attrs::Orientation::Horizontal,
+            activation_mode: tabs::ActivationMode::Automatic,
+            loop_focus: true,
+            indicator: false,
         },
         vec![
             TabItem {
