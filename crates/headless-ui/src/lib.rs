@@ -76,11 +76,11 @@
 //!   開閉のような時間変化する内部状態を持たないため [`mod@state`] の状態機械を
 //!   適用しない（[`mod@tabs`] と同型の判断）。
 //! - [`mod@menu`]: Root / Trigger / Indicator / Positioner / Content / Arrow /
-//!   ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator の 11 anatomy
-//!   パーツと [`state::Disclosure`] を埋め込んだ [`menu::Menu`]
-//!   （headless Menu コンポーネント、#540）。構造上最も近い先行例は
-//!   [`popover::Popover`]（trigger 起点のオーバーレイ + `Disclosure` 埋め込み）
-//!   であり、本モジュールはそのパターンに完全準拠する。
+//!   ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator / TriggerItem /
+//!   ContextTrigger の 13 anatomy パーツと [`state::Disclosure`] を埋め込んだ
+//!   [`menu::Menu`]（headless Menu コンポーネント、#540/#598）。構造上最も
+//!   近い先行例は [`popover::Popover`]（trigger 起点のオーバーレイ +
+//!   `Disclosure` 埋め込み）であり、本モジュールはそのパターンに完全準拠する。
 //! - [`mod@select`]: Root / Label / Control / Trigger / ValueText /
 //!   ClearTrigger / Indicator / Positioner / Content / ItemGroup /
 //!   ItemGroupLabel / Item / ItemText / ItemIndicator / HiddenSelect の 15
