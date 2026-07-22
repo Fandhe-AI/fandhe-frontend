@@ -276,9 +276,11 @@ pub struct PositioningConfig {
     /// shift（viewport 内クランプ）を有効にするか。
     pub shift: bool,
     /// sameWidth（`--fandhe-reference-width` を anchor 幅に固定するか）を
-    /// 有効にするか。無効の場合 [`css_vars_style`] は
-    /// `--fandhe-reference-width` を出力しない呼び出し側判断に使える
-    /// （本モジュール自体は常に anchor 幅を計算結果へ含める）。
+    /// 有効にするか。[`css_vars_style`] へそのまま渡すことで、無効時は
+    /// `--fandhe-reference-width` を出力しない（イシュー #622 レビュー指摘:
+    /// 従来 `compute_position`/`css_vars_style` のいずれもこのフィールドを
+    /// 一切参照せず、`PositionedKind::same_width_default` によるコンポーネント
+    /// 種別ごとの既定値が実行時挙動に何の影響も与えていなかった）。
     pub same_width: bool,
 }
 
@@ -542,6 +544,14 @@ fn sanitize_for_output(value: f64) -> f64 {
 /// から `style` 属性値文字列を組み立てる純粋関数（ADR §4.4 手順 2 の
 /// 具体化）。
 ///
+/// `same_width` が `false` の場合は `--fandhe-reference-width` 自体を
+/// 出力しない（[`PositioningConfig::same_width`] をそのまま渡す契約。
+/// イシュー #622 レビュー指摘: 従来 `same_width` の値によらず常に出力して
+/// おり、コンポーネント種別ごとの sameWidth 既定値が実行時挙動に影響しない
+/// 不具合があった）。`ResolvedPosition` 自体は幾何計算結果のみを保持する
+/// 型として据え置き、sameWidth の可否は出力層である本関数の引数として
+/// 独立に扱う。
+///
 /// 出力は内部生成の数値書式（px）のみからなる。呼び出し側は本関数の
 /// 戻り値を `("style", &value)` として既存の `attrs: Vec<(&'a str, &'a str)>`
 /// 引数へ渡し、[`fandhe_frontend_core::render`] の既定エスケープ経由で
@@ -550,17 +560,23 @@ fn sanitize_for_output(value: f64) -> f64 {
 /// `arrow` が `Some` の場合のみ `--fandhe-arrow-x`/`--fandhe-arrow-y` を
 /// 追加で出力する。
 #[must_use]
-pub fn css_vars_style(position: &ResolvedPosition, reference_width: f64) -> String {
+pub fn css_vars_style(
+    position: &ResolvedPosition,
+    reference_width: f64,
+    same_width: bool,
+) -> String {
     let x = sanitize_for_output(position.x);
     let y = sanitize_for_output(position.y);
-    let reference_width = sanitize_for_output(reference_width);
 
-    let mut style = format!(
-        "{}: {x}px; {}: {y}px; {}: {reference_width}px;",
-        css_vars::X,
-        css_vars::Y,
-        css_vars::REFERENCE_WIDTH,
-    );
+    let mut style = format!("{}: {x}px; {}: {y}px;", css_vars::X, css_vars::Y,);
+
+    if same_width {
+        let reference_width = sanitize_for_output(reference_width);
+        style.push_str(&format!(
+            " {}: {reference_width}px;",
+            css_vars::REFERENCE_WIDTH,
+        ));
+    }
 
     if let Some(arrow) = position.arrow {
         let arrow_x = sanitize_for_output(arrow.x);
@@ -837,7 +853,7 @@ mod tests {
     // をそのまま reference_width として使う契約を確認する） ---
 
     #[test]
-    fn css_vars_style_reference_width_matches_anchor_width() {
+    fn css_vars_style_reference_width_matches_anchor_width_when_same_width_true() {
         let resolved = compute_position(
             anchor(),
             floating(),
@@ -845,8 +861,23 @@ mod tests {
             &config(Placement::new(Side::Bottom, Align::Center)),
             false,
         );
-        let style = css_vars_style(&resolved, anchor().width);
+        let style = css_vars_style(&resolved, anchor().width, true);
         assert!(style.contains("--fandhe-reference-width: 50px;"));
+    }
+
+    #[test]
+    fn css_vars_style_omits_reference_width_when_same_width_false() {
+        // イシュー #622 レビュー指摘: same_width が実行時挙動へ影響しない
+        // 不具合（Low）の回帰。`false` のとき変数自体を出力しないことを固定する。
+        let resolved = compute_position(
+            anchor(),
+            floating(),
+            viewport(),
+            &config(Placement::new(Side::Bottom, Align::Center)),
+            false,
+        );
+        let style = css_vars_style(&resolved, anchor().width, false);
+        assert!(!style.contains("--fandhe-reference-width"));
     }
 
     // --- arrow 座標 ---
@@ -961,7 +992,7 @@ mod tests {
                 y: 10.0,
             }),
         };
-        let style = css_vars_style(&position, f64::NAN);
+        let style = css_vars_style(&position, f64::NAN, true);
         assert!(style.contains("--fandhe-x: 0px;"));
         assert!(style.contains("--fandhe-y: 0px;"));
         assert!(style.contains("--fandhe-reference-width: 0px;"));
@@ -981,7 +1012,7 @@ mod tests {
             &config(Placement::new(Side::Bottom, Align::Center)),
             true,
         );
-        let style = css_vars_style(&resolved, anchor().width);
+        let style = css_vars_style(&resolved, anchor().width, true);
         assert!(!style.contains('"'));
         assert!(!style.contains('<'));
         assert!(!style.contains('>'));

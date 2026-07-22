@@ -164,6 +164,27 @@ anchor positioning の CSS 変数は、既存の `positioner`/`arrow`/`arrow_tip
 （`style` 属性の CSS サニタイザ非採用、代替として属性値エスケープの breakout 防止に
 依拠する判断）とも整合する。
 
+### 4.4a 実装補記（PR #622 レビュー指摘の反映）
+
+#590 の実装（`crates/wasm-full/src/position.rs`・`crates/headless-ui/src/positioning.rs`）
+に対する PR #622 のレビューで判明した、本書執筆時点の記述と実装の乖離 2 点を反映する:
+
+- **`--fandhe-reference-width` は `sameWidth` が有効なときのみ出力する**:
+  `css_vars_style(position, reference_width, same_width)` は `same_width` を追加引数
+  として受け取り、`false` の場合は変数自体を出力しない。本書 §4.4 の表・§4.3 の
+  「sameWidth: 採用」自体は変わらないが、`PositioningConfig::same_width`
+  （`PositionedKind::same_width_default`: Menu/Select は `true`、Popover/Tooltip は
+  `false`）が実際に出力へ反映されることを明記する。
+- **`data-side`/`data-align` は「確定」side/align の出力専用であり、「希望
+  placement」の入力としては使わない**: §4.2 が定める `data-side`/`data-align` の
+  役割（flip 適用後の確定値を分解して反映する）自体は変わらないが、`wasm-full` の
+  再計算（`reposition_all`/`reposition_one`）はこれらを**書き込み専用**として扱う。
+  「希望 placement」（flip 適用前の入力）は独立した `data-requested-side`/
+  `data-requested-align` 属性（`reposition_one` が初回のみ書き込み、以後は上書き
+  しない永続化領域）に保持する。`data-side`/`data-align` 自体を希望として読み戻すと、
+  flip 後の side が次回の希望として扱われてしまい、viewport のスペースが戻っても
+  元の希望へ戻せない不具合があったため（PR #622 レビュー指摘）。
+
 ### 4.5 CSS Anchor Positioning（Web 標準）採用可否の評価
 
 CSS Anchor Positioning（`anchor-name` / `position-anchor` / `position-try-fallbacks` 等）

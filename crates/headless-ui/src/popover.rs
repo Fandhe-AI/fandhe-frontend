@@ -479,12 +479,15 @@ mod tests {
             same_width: false,
         };
         let resolved = compute_position(anchor, floating, viewport, &config, true);
-        let style = css_vars_style(&resolved, anchor.width);
+        let style = css_vars_style(&resolved, anchor.width, config.same_width);
         let mut attrs: Vec<(&str, &str)> = vec![("style", &style)];
         attrs.extend(placement_attrs(resolved.placement));
 
         let html = render(&positioner(OpenState::Open, attrs, vec![]));
         assert!(html.contains("--fandhe-x:"));
+        // same_width: false のため --fandhe-reference-width は出力されない
+        // （イシュー #622 レビュー指摘の回帰）。
+        assert!(!html.contains("--fandhe-reference-width"));
         assert!(html.contains(r#"data-side="bottom""#));
         assert!(html.contains(r#"data-align="center""#));
     }

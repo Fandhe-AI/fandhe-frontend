@@ -143,6 +143,7 @@ fn mount_tooltip(
                 vec![fandhe_frontend_core::text("Trigger")],
             ),
             tooltip::positioner(
+                OpenState::Open,
                 vec![],
                 vec![tooltip::content(
                     OpenState::Open,

@@ -541,7 +541,7 @@ mod tests {
             same_width: true,
         };
         let resolved = compute_position(anchor, floating, viewport, &config, true);
-        let style = css_vars_style(&resolved, anchor.width);
+        let style = css_vars_style(&resolved, anchor.width, config.same_width);
         let mut attrs: Vec<(&str, &str)> = vec![("style", &style)];
         attrs.extend(placement_attrs(resolved.placement));
 

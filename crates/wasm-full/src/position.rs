@@ -23,6 +23,15 @@
 //!   [`fandhe_frontend_headless_ui::Placement`] の語彙で読み書きする。
 //!   DOM 上の値は改ざんされうるクライアント入力として扱い、未知値は既定
 //!   （`bottom`/`center`）へフォールバックする（fail-closed）。
+//! - `data-side`/`data-align` は flip 適用後の**確定** side/align（CSS
+//!   セレクタ用に毎回上書きされる出力）であり、「希望 placement」の入力
+//!   としては使わない。希望 placement は独立の `data-requested-side`/
+//!   `data-requested-align` 属性（[`wiring::reposition_one`] が初回のみ
+//!   書き込み、以後は上書きしない永続化領域）で保持する
+//!   （[`resolve_requested_placement`] 参照。イシュー #622 レビュー指摘:
+//!   従来 `data-side`/`data-align` 自体を希望として読み戻していたため、
+//!   flip 後の side が新しい希望として扱われ、スペースが戻っても元の希望へ
+//!   戻せなかった）。
 //! - 実際の `"close"` dispatch・状態機械の更新は行わない。本モジュールは
 //!   `positioner`/`arrow` 要素へ `style`/`data-side`/`data-align` 属性を
 //!   直接 `set_attribute` するのみであり（ADR 第 4.4 節の経路とは別に、
@@ -113,6 +122,40 @@ pub fn parse_align_attr(value: Option<&str>) -> Align {
     value.and_then(Align::from_str).unwrap_or(Align::Center)
 }
 
+/// 「希望 placement」（flip 適用前の入力、[`resolve_position`] の
+/// `requested` 引数）を解決する純粋関数（native `cargo test` で検証可能。
+/// [`wiring::reposition_one`] が実 DOM 属性から抽出した値を渡す）。
+///
+/// `persisted_side`/`persisted_align` は `data-requested-side`/
+/// `data-requested-align`（[`wiring`] が一度だけ書き込み、以後は flip
+/// 結果で上書きしない永続化領域）の現在値。存在すればそれを希望
+/// placement として最優先で採用する。存在しない場合（初回の再計算・SSR
+/// マークアップに元々なかった場合）は `fallback_side`/`fallback_align`
+/// （`data-side`/`data-align` の現在値、SSR が出力した初期値でまだ flip
+/// されていない）を希望 placement の初期値として採用する。
+///
+/// イシュー #622 レビュー指摘（High）: 従来 `reposition_one` は
+/// `data-side`/`data-align` を「希望 placement」として直接読み取り、flip
+/// 後の結果を同じ属性へ書き戻していた。そのため 2 回目以降の再計算では
+/// 直前の flip 後の side が新しい希望として扱われてしまい、スペースが
+/// 戻っても元の希望へ戻せず、大きすぎる floating 要素は再計算のたびに
+/// 左右反転を繰り返しうる不具合があった。本関数と `data-requested-*` の
+/// 永続化により、「希望 placement」（不変）と「確定 side/align」
+/// （`data-side`/`data-align`、CSS セレクタ用に毎回更新される出力）を
+/// 分離する。
+#[must_use]
+pub fn resolve_requested_placement(
+    persisted_side: Option<&str>,
+    persisted_align: Option<&str>,
+    fallback_side: Option<&str>,
+    fallback_align: Option<&str>,
+) -> Placement {
+    Placement::new(
+        parse_side_attr(persisted_side.or(fallback_side)),
+        parse_align_attr(persisted_align.or(fallback_align)),
+    )
+}
+
 /// 実 DOM 計測値（[`wiring`] が `getBoundingClientRect`/`window` から
 /// 組み立てる、native テストではテストダブルから組み立てる）。
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -166,7 +209,7 @@ pub fn resolve_position(
         &config,
         kind.has_arrow(),
     );
-    let style = css_vars_style(&resolved, measurement.anchor.width);
+    let style = css_vars_style(&resolved, measurement.anchor.width, config.same_width);
     RepositionResult {
         style,
         side: resolved.placement.side(),
@@ -181,8 +224,8 @@ pub fn resolve_position(
 // ---------------------------------------------------------------------
 #[cfg(target_arch = "wasm32")]
 mod wiring {
-    use super::{parse_align_attr, parse_side_attr, resolve_position, Measurement, PositionedKind};
-    use fandhe_frontend_headless_ui::{Placement, Rect, Size};
+    use super::{resolve_position, resolve_requested_placement, Measurement, PositionedKind};
+    use fandhe_frontend_headless_ui::{Rect, Size};
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{Element, Event, Window};
@@ -192,6 +235,12 @@ mod wiring {
     /// positioner は非表示のため `getBoundingClientRect` が意味を持たず、
     /// 再計算する必要がない）。
     const OPEN_POSITIONER_SELECTOR: &str = "[data-part=\"positioner\"][data-state=\"open\"]";
+
+    /// 希望 placement の永続化領域（[`super::resolve_requested_placement`]
+    /// 参照）。`data-side`/`data-align`（flip 後の確定値で毎回上書きされる）
+    /// とは独立した属性とし、flip 書き戻しの影響を受けない「希望」を保持する。
+    const REQUESTED_SIDE_ATTR: &str = "data-requested-side";
+    const REQUESTED_ALIGN_ATTR: &str = "data-requested-align";
 
     /// `element` の祖先方向へ anatomy の scope root（`data-part="root"`）を
     /// 探す。
@@ -314,10 +363,28 @@ mod wiring {
         };
         let viewport = measure_viewport(window);
 
-        let requested = Placement::new(
-            parse_side_attr(positioner.get_attribute("data-side").as_deref()),
-            parse_align_attr(positioner.get_attribute("data-align").as_deref()),
+        // 希望 placement は data-requested-side/data-requested-align
+        // （永続化領域、flip 書き戻しの影響を受けない）を最優先で読み、
+        // 未設定（初回）なら現在の data-side/data-align（SSR 初期値）へ
+        // フォールバックする（[`super::resolve_requested_placement`] 参照）。
+        let persisted_side = positioner.get_attribute(REQUESTED_SIDE_ATTR);
+        let persisted_align = positioner.get_attribute(REQUESTED_ALIGN_ATTR);
+        let requested = resolve_requested_placement(
+            persisted_side.as_deref(),
+            persisted_align.as_deref(),
+            positioner.get_attribute("data-side").as_deref(),
+            positioner.get_attribute("data-align").as_deref(),
         );
+
+        // 初回（data-requested-* が未設定）は希望 placement をここで確定させ
+        // 永続化する。以後の再計算は flip 後の data-side/data-align を
+        // 希望として読み直さず、この永続化値のみを希望として扱い続ける。
+        if persisted_side.is_none() {
+            set_dom_attribute(positioner, REQUESTED_SIDE_ATTR, requested.side().as_str());
+        }
+        if persisted_align.is_none() {
+            set_dom_attribute(positioner, REQUESTED_ALIGN_ATTR, requested.align().as_str());
+        }
 
         let result = resolve_position(
             kind,
@@ -373,6 +440,17 @@ mod wiring {
     /// `Closure::forget` は scroll/resize の 2 個のみに限定する
     /// （[`crate::events::wire_events`] と同じ「マウントがアプリ生存期間に
     /// 1 度」という前提でのリーク許容であり、無制限に増加しない）。
+    ///
+    /// scroll リスナーはキャプチャフェーズ（`useCapture: true`）で登録する
+    /// （イシュー #622 レビュー指摘: `scroll` イベントはバブリングしない
+    /// ため、`window` へバブリングフェーズのみで登録すると overflow
+    /// コンテナ内側のスクロールを検知できず、スクロール可能なペイン内の
+    /// menu/select/popover が古い座標のまま残ってしまう。キャプチャ
+    /// フェーズは `window` から実イベントターゲットへ向けて先に通過する
+    /// ため、`window` に登録しておけば任意の祖先要素上のスクロールも
+    /// 捕捉できる、Floating UI 等が採用する既知のパターン）。`resize` は
+    /// `window` 自身がターゲットのイベントであり capture/bubble の区別が
+    /// 意味を持たないため既定（`false`、バブリングフェーズ）のままとする。
     pub struct PositionController {
         window: Window,
         scroll_closure: Closure<dyn FnMut(Event)>,
@@ -380,19 +458,22 @@ mod wiring {
     }
 
     impl PositionController {
-        /// `window` へ `scroll`/`resize` リスナーを登録する。
+        /// `window` へ `scroll`（キャプチャフェーズ）/`resize`（バブリング
+        /// フェーズ）リスナーを登録する。
         ///
         /// # Errors
         ///
-        /// `add_event_listener_with_callback` が失敗した場合に `Err` を返す。
+        /// `add_event_listener_with_callback_and_bool` が失敗した場合に
+        /// `Err` を返す。
         pub fn new(window: &Window) -> Result<Self, JsValue> {
             let scroll_window = window.clone();
             let scroll_closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
                 reposition_all(&scroll_window);
             });
-            window.add_event_listener_with_callback(
+            window.add_event_listener_with_callback_and_bool(
                 "scroll",
                 scroll_closure.as_ref().unchecked_ref(),
+                true,
             )?;
 
             let resize_window = window.clone();
@@ -402,9 +483,10 @@ mod wiring {
             if let Err(err) = window
                 .add_event_listener_with_callback("resize", resize_closure.as_ref().unchecked_ref())
             {
-                let _ = window.remove_event_listener_with_callback(
+                let _ = window.remove_event_listener_with_callback_and_bool(
                     "scroll",
                     scroll_closure.as_ref().unchecked_ref(),
+                    true,
                 );
                 return Err(err);
             }
@@ -433,11 +515,15 @@ mod wiring {
 
     impl Drop for PositionController {
         /// scroll/resize リスナーを対称的に解除する（`overlay::wiring` と
-        /// 同じ、無制限リークを避ける設計）。
+        /// 同じ、無制限リークを避ける設計）。`scroll` は登録時と同じ
+        /// `useCapture: true` を指定する（DOM 仕様上 `removeEventListener`
+        /// は capture フラグの一致でリスナーを識別するため、登録時と揃えない
+        /// と解除が効かない）。
         fn drop(&mut self) {
-            let _ = self.window.remove_event_listener_with_callback(
+            let _ = self.window.remove_event_listener_with_callback_and_bool(
                 "scroll",
                 self.scroll_closure.as_ref().unchecked_ref(),
+                true,
             );
             let _ = self.window.remove_event_listener_with_callback(
                 "resize",
@@ -545,9 +631,43 @@ mod tests {
         );
         assert!(result.style.contains("--fandhe-x:"));
         assert!(result.style.contains("--fandhe-y:"));
-        assert!(result.style.contains("--fandhe-reference-width:"));
+        // Popover は same_width_default() == false のため
+        // --fandhe-reference-width は出力されない（イシュー #622 レビュー
+        // 指摘の回帰、`PositionedKind::same_width_default` 参照）。
+        assert!(!result.style.contains("--fandhe-reference-width:"));
         assert!(result.style.contains("--fandhe-arrow-x:"));
         assert!(result.style.contains("--fandhe-arrow-y:"));
+    }
+
+    #[test]
+    fn resolve_position_includes_reference_width_for_menu_and_select_only() {
+        // same_width_default() が true の Menu/Select のみ
+        // --fandhe-reference-width を出力し、false の Popover/Tooltip では
+        // 出力しないことを resolve_position 経由（wasm-full 側）で固定する
+        // （イシュー #622 レビュー指摘: same_width が実行時挙動に影響しない
+        // 不具合の回帰。headless-ui 側の同種テストと二重化する）。
+        for kind in [PositionedKind::Menu, PositionedKind::Select] {
+            let result = resolve_position(
+                kind,
+                measurement(),
+                Placement::new(Side::Bottom, Align::Center),
+            );
+            assert!(
+                result.style.contains("--fandhe-reference-width:"),
+                "kind={kind:?}"
+            );
+        }
+        for kind in [PositionedKind::Popover, PositionedKind::Tooltip] {
+            let result = resolve_position(
+                kind,
+                measurement(),
+                Placement::new(Side::Bottom, Align::Center),
+            );
+            assert!(
+                !result.style.contains("--fandhe-reference-width:"),
+                "kind={kind:?}"
+            );
+        }
     }
 
     #[test]
@@ -593,5 +713,65 @@ mod tests {
         assert!(!result.style.contains('"'));
         assert!(!result.style.contains('<'));
         assert!(!result.style.contains('>'));
+    }
+
+    // --- resolve_requested_placement（イシュー #622 レビュー指摘: flip が
+    // 希望 placement を上書きする不具合の回帰。`wiring::reposition_one` の
+    // 決定ロジックを純粋関数として抽出し native `cargo test` で検証する） ---
+
+    #[test]
+    fn resolve_requested_placement_prefers_persisted_over_fallback() {
+        // 永続化済みの希望（data-requested-*）があれば、現在の
+        // data-side/data-align（flip 後の確定値かもしれない）より優先する。
+        let placement =
+            resolve_requested_placement(Some("top"), Some("start"), Some("bottom"), Some("center"));
+        assert_eq!(placement.side(), Side::Top);
+        assert_eq!(placement.align(), Align::Start);
+    }
+
+    #[test]
+    fn resolve_requested_placement_falls_back_when_not_yet_persisted() {
+        // 初回（data-requested-* 未設定）は現在の data-side/data-align を
+        // 希望の初期値として採用する。
+        let placement = resolve_requested_placement(None, None, Some("left"), Some("end"));
+        assert_eq!(placement.side(), Side::Left);
+        assert_eq!(placement.align(), Align::End);
+    }
+
+    #[test]
+    fn resolve_requested_placement_defaults_when_nothing_present() {
+        let placement = resolve_requested_placement(None, None, None, None);
+        assert_eq!(placement.side(), Side::Bottom);
+        assert_eq!(placement.align(), Align::Center);
+    }
+
+    #[test]
+    fn resolve_requested_placement_ignores_unknown_values_fail_closed() {
+        let placement = resolve_requested_placement(
+            Some("diagonal"),
+            Some("middle"),
+            Some("top"),
+            Some("start"),
+        );
+        assert_eq!(placement.side(), Side::Bottom);
+        assert_eq!(placement.align(), Align::Center);
+    }
+
+    #[test]
+    fn resolve_requested_placement_survives_repeated_flip_writebacks() {
+        // 元の不具合の再現シナリオ: 希望は top/start のまま、flip により
+        // data-side/data-align が bottom/start へ書き換わり続けたとしても、
+        // data-requested-* が最初に "top"/"start" で永続化されていれば、
+        // 何度目の呼び出しでも希望は top/start のまま変わらない。
+        for flipped_side in ["bottom", "top", "bottom"] {
+            let placement = resolve_requested_placement(
+                Some("top"),
+                Some("start"),
+                Some(flipped_side),
+                Some("start"),
+            );
+            assert_eq!(placement.side(), Side::Top, "flipped_side={flipped_side}");
+            assert_eq!(placement.align(), Align::Start);
+        }
     }
 }
