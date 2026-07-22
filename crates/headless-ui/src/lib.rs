@@ -80,6 +80,14 @@
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する点が
 //!   [`mod@collapsible`] との違い。
+//! - [`mod@avatar`]: Root / Image / Fallback の 3 anatomy パーツと、画像読み込み
+//!   ステータス（`"loading"`/`"loaded"`/`"error"`）の [`avatar::Avatar`] 状態
+//!   機械（#543、親 #542）。[`mod@switch`] と同様、[`state`] を埋め込まず
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する（3 値ステータス
+//!   が [`state::Disclosure`]/[`state::SingleSelect`] のいずれにも写像
+//!   できないため）。`data-state`（`"visible"`/`"hidden"`）は Image/Fallback
+//!   のみに付与し、ark-ui 準拠で Root には付与しない。
 //!
 //! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
 //! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
@@ -95,6 +103,7 @@
 pub mod accordion;
 pub mod anatomy;
 pub mod aria;
+pub mod avatar;
 pub mod collapsible;
 pub mod data_attrs;
 pub mod dialog;
@@ -113,6 +122,7 @@ pub use aria::{
     aria_hidden, aria_label, aria_labelledby, aria_modal, aria_orientation, aria_selected, role,
     AriaChecked, AriaPopup,
 };
+pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use data_attrs::{
     data_disabled, data_invalid, data_orientation, data_readonly, data_required, data_state,
     Orientation,
