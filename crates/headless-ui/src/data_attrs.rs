@@ -66,6 +66,19 @@ pub fn data_readonly(readonly: bool) -> Option<(&'static str, &'static str)> {
     readonly.then_some(("data-readonly", ""))
 }
 
+/// `data-highlighted` 存在属性。[`data_disabled`] と同じ規約に従う。
+///
+/// `highlighted`（キーボードナビゲーション等によるフォーカス位置）は
+/// クライアントランタイム（`fandhe-frontend-wasm-full`/`-thin` の Phase 1
+/// キーボードナビゲーション実装）が管理する transient 状態であり、本関数は
+/// その SSR 上の静的表現のみを提供する。状態機械（[`crate::state`]）には
+/// 持たせない契約は [`crate::menu::item`] で先行導入済みであり、本関数は
+/// それを一元化するヘルパである（イシュー #599）。
+#[must_use]
+pub fn data_highlighted(highlighted: bool) -> Option<(&'static str, &'static str)> {
+    highlighted.then_some(("data-highlighted", ""))
+}
+
 /// `data-orientation` 属性。値は [`Orientation`] で固定された 2 値のみを取り、
 /// 任意文字列は受け付けない。
 #[must_use]
@@ -92,6 +105,8 @@ mod tests {
         assert_eq!(data_required(false), None);
         assert_eq!(data_readonly(true), Some(("data-readonly", "")));
         assert_eq!(data_readonly(false), None);
+        assert_eq!(data_highlighted(true), Some(("data-highlighted", "")));
+        assert_eq!(data_highlighted(false), None);
     }
 
     #[test]

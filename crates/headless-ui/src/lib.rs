@@ -87,7 +87,9 @@
 //!   anatomy パーツと、[`state::Disclosure`]（listbox 開閉）+
 //!   [`state::SingleSelect`]（選択値）を合成した [`select::Select`] 状態機械
 //!   （#541、親 #539）。Disclosure と SingleSelect を 1 コンポーネントに
-//!   合成する初の例。
+//!   合成する初の例。[`select::item`] の `highlighted`/`id` 引数と
+//!   [`select::content`] の `activedescendant` 引数が `data-highlighted`/
+//!   `aria-activedescendant` の SSR 静的表現を提供する（イシュー #599）。
 //! - [`mod@switch`]: Root / Control / Thumb / Label / HiddenInput の 5 anatomy
 //!   パーツと、`"checked"`/`"unchecked"` 語彙の [`switch::Switch`] 状態機械
 //!   （#537、親 #534）。ark-ui 準拠の値語彙が [`state::Disclosure`] の
@@ -162,14 +164,14 @@ pub use fandhe_frontend_core;
 
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
-    aria_checked, aria_controls, aria_describedby, aria_disabled, aria_expanded, aria_haspopup,
-    aria_hidden, aria_invalid, aria_label, aria_labelledby, aria_modal, aria_orientation,
-    aria_selected, role, AriaChecked, AriaPopup,
+    aria_activedescendant, aria_checked, aria_controls, aria_describedby, aria_disabled,
+    aria_expanded, aria_haspopup, aria_hidden, aria_invalid, aria_label, aria_labelledby,
+    aria_modal, aria_orientation, aria_selected, role, AriaChecked, AriaPopup,
 };
 pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use data_attrs::{
-    data_disabled, data_invalid, data_orientation, data_readonly, data_required, data_state,
-    Orientation,
+    data_disabled, data_highlighted, data_invalid, data_orientation, data_readonly, data_required,
+    data_state, Orientation,
 };
 pub use dialog::Dialog;
 pub use field::FieldProps;
