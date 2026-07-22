@@ -3,6 +3,7 @@
     "playwright": {
       "command": "npx",
       "args": [
+        "-y",
         "@playwright/mcp@0.0.68",
         "--browser",
         "chromium",
@@ -14,7 +15,7 @@
       "command": "npx",
       "args": ["-y", "@chakra-ui/react-mcp@2.1.1"],
       "env": {
-        "CHAKRA_PRO_API_KEY": "${CHAKRA_PRO_API_KEY}"
+        "CHAKRA_PRO_API_KEY": "${CHAKRA_PRO_API_KEY:-}"
       }
     }
   }
