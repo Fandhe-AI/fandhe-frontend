@@ -11,11 +11,12 @@ use fandhe_frontend_core::{render, text};
 use fandhe_frontend_headless_ui::field::{
     error_text, helper_text, input, label, required_indicator, root, select, textarea,
 };
-use fandhe_frontend_headless_ui::FieldProps;
+use fandhe_frontend_headless_ui::{FieldIds, FieldProps};
 
 fn base_props(id: &str) -> FieldProps<'_> {
     FieldProps {
         id,
+        ids: FieldIds::default(),
         disabled: false,
         invalid: false,
         required: false,
@@ -102,7 +103,7 @@ fn data_attrs_are_absent_when_all_flags_false() {
 #[test]
 fn textarea_and_select_parts_render_expected_scopes() {
     let props = base_props("bio");
-    let ta_html = render(&textarea(&props, vec![], vec![text("hello")]));
+    let ta_html = render(&textarea(&props, false, vec![], vec![text("hello")]));
     assert!(ta_html.contains(r#"data-scope="field" data-part="textarea""#));
     assert!(ta_html.contains(r#"id="bio-control""#));
     assert!(ta_html.contains("hello"));
@@ -110,6 +111,63 @@ fn textarea_and_select_parts_render_expected_scopes() {
     let sel_html = render(&select(&props, vec![], vec![]));
     assert!(sel_html.contains(r#"data-scope="field" data-part="select""#));
     assert!(sel_html.contains(r#"id="bio-control""#));
+}
+
+#[test]
+fn select_does_not_emit_native_readonly_while_input_and_textarea_do() {
+    let mut props = base_props("bio");
+    props.readonly = true;
+
+    let sel_html = render(&select(&props, vec![], vec![]));
+    // `data-readonly=""` 自体に部分文字列として `readonly=""` を含むため、
+    // ネイティブ属性は先頭空白付きで区別して検証する。
+    assert!(!sel_html.contains(r#" readonly="""#));
+    assert!(sel_html.contains(r#"data-readonly=""#));
+
+    let input_html = render(&input(&props, vec![]));
+    assert!(input_html.contains(r#"readonly="""#));
+
+    let ta_html = render(&textarea(&props, false, vec![], vec![]));
+    assert!(ta_html.contains(r#"readonly="""#));
+}
+
+#[test]
+fn textarea_autoresize_flag_toggles_data_autoresize() {
+    let props = base_props("bio");
+    let with_autoresize = render(&textarea(&props, true, vec![], vec![]));
+    assert!(with_autoresize.contains(r#"data-autoresize=""#));
+
+    let without_autoresize = render(&textarea(&props, false, vec![], vec![]));
+    assert!(!without_autoresize.contains("data-autoresize"));
+}
+
+#[test]
+fn field_ids_override_propagates_across_public_api() {
+    let mut props = base_props("f");
+    props.ids.root = Some("custom-root");
+    props.ids.control = Some("custom-control");
+    props.ids.label = Some("custom-label");
+    props.ids.helper_text = Some("custom-helper");
+    props.ids.error_text = Some("custom-error");
+    props.invalid = true;
+    props.has_helper_text = true;
+
+    let root_html = render(&root(&props, vec![], vec![]));
+    assert!(root_html.contains(r#"id="custom-root""#));
+
+    let label_html = render(&label(&props, vec![], vec![text("Name")]));
+    assert!(label_html.contains(r#"for="custom-control""#));
+    assert!(label_html.contains(r#"id="custom-label""#));
+
+    let input_html = render(&input(&props, vec![]));
+    assert!(input_html.contains(r#"id="custom-control""#));
+    assert!(input_html.contains(r#"aria-describedby="custom-error custom-helper""#));
+
+    let helper_html = render(&helper_text(&props, vec![], vec![text("hint")]));
+    assert!(helper_html.contains(r#"id="custom-helper""#));
+
+    let error_html = render(&error_text(&props, vec![], vec![text("bad")]));
+    assert!(error_html.contains(r#"id="custom-error""#));
 }
 
 #[test]

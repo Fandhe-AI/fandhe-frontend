@@ -78,7 +78,16 @@
 //!   （[`field::FieldProps`] から決定的に描画する純粋関数、#538）。
 //!   `invalid`/`disabled`/`required`/`readonly` は SSR 静的な props であり、
 //!   開閉のような時間変化する内部状態を持たないため [`mod@state`] の状態機械を
-//!   適用しない（[`mod@tabs`] と同型の判断）。
+//!   適用しない（[`mod@tabs`] と同型の判断）。[`field::FieldProps::ids`]
+//!   （[`field::FieldIds`]）による派生 id の個別上書き、[`field::textarea`]
+//!   の `autoresize` 引数（`data-autoresize` フックのみ）、[`field::select`]
+//!   の readonly 解消（`<select readonly>` は無効な HTML のためネイティブ
+//!   属性を出力しない）はイシュー #602 で追加。
+//! - [`mod@fieldset`]: Root / Legend / HelperText / ErrorText の 4 anatomy
+//!   パーツ関数群（[`fieldset::FieldsetProps`] から決定的に描画する純粋関数、
+//!   #602、親 #578）。[`fieldset::FieldsetProps::merge_field_props`] で
+//!   `disabled` を内包する [`field::FieldProps`] へ OR 伝播する（`invalid` は
+//!   伝播しない）。[`mod@field`] と同じく状態機械を適用しない。
 //! - [`mod@menu`]: Root / Trigger / Indicator / Positioner / Content / Arrow /
 //!   ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator / TriggerItem /
 //!   ContextTrigger の 13 anatomy パーツと [`state::Disclosure`] を埋め込んだ
@@ -155,6 +164,7 @@ pub mod collapsible;
 pub mod data_attrs;
 pub mod dialog;
 pub mod field;
+pub mod fieldset;
 pub mod menu;
 pub mod popover;
 pub mod progress;
@@ -182,7 +192,8 @@ pub use data_attrs::{
     data_state, Orientation,
 };
 pub use dialog::Dialog;
-pub use field::FieldProps;
+pub use field::{FieldIds, FieldProps};
+pub use fieldset::FieldsetProps;
 pub use menu::Menu;
 pub use progress::{Progress, ProgressAction};
 pub use radio_group::RadioGroup;
