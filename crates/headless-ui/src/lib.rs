@@ -29,11 +29,14 @@
 //! - [`aria`]: `role` / `aria-*` の WAI-ARIA 属性ヘルパ（#523）。
 //! - [`state`]: `fandhe-frontend-interactive` の
 //!   [`fandhe_frontend_interactive::Component`]/[`fandhe_frontend_interactive::Hydrate`]
-//!   抽象へ乗る開閉系状態機械（[`state::Disclosure`]/[`state::SingleSelect`]、#524）。
+//!   抽象へ乗る開閉系状態機械（[`state::Disclosure`]/[`state::SingleSelect`]/
+//!   [`state::MultiSelect`]、#524/#594）。
 //!   Dialog / Accordion / Tabs / Collapsible / Popover / Tooltip（Phase 2 の
 //!   #526〜#533）が共通で使う「open/closed・selected」の dispatch 契約・
 //!   `data-state` 整合・SSR/hydration 契約をここに一度だけ実装し、各コンポーネントは
-//!   フィールドとして埋め込んで再利用する。
+//!   フィールドとして埋め込んで再利用する。[`state::MultiSelect`]（#594）は
+//!   0 個以上の同時選択（[`accordion::MultiAccordion`] の multiple モード）
+//!   向けに [`state::SingleSelect`]（高々 1 個選択）を補完する。
 //! - [`mod@tabs`]: WAI-ARIA APG の Tabs パターンに準拠したマークアップを組み立てる
 //!   [`tabs::tabs`]（#528）。SSR 時点の静的な選択状態のみを扱い、クリック操作・
 //!   状態機械連携は後続イシューのスコープ。[`tabs::TabsProps`] の
@@ -46,7 +49,9 @@
 //!   （#529、親 #526）。Phase 2 で [`state`] を具象コンポーネントへ適用する最初の例。
 //! - [`mod@accordion`]: Root / Item / ItemTrigger / ItemIndicator / ItemContent の
 //!   5 anatomy パーツと [`state::SingleSelect`] を埋め込んだ single モード
-//!   Accordion（[`accordion::Accordion`]、#527）。
+//!   Accordion（[`accordion::Accordion`]、#527）、および
+//!   [`state::MultiSelect`] を埋め込んだ multiple モード Accordion
+//!   （[`accordion::MultiAccordion`]、#594）。
 //! - [`mod@tooltip`]: Root/Trigger/Positioner/Content/Arrow/ArrowTip の anatomy
 //!   パーツ関数群と、[`state::Disclosure`] を埋め込んだ [`tooltip::Tooltip`]
 //!   状態機械（#533、親 #530）。WAI-ARIA tooltip パターンに従い `aria-describedby`
@@ -172,8 +177,8 @@ pub use menu::Menu;
 pub use progress::{Progress, ProgressAction};
 pub use radio_group::RadioGroup;
 pub use state::{
-    Disclosure, DisclosureAction, OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CLOSED,
-    DATA_STATE_OPEN,
+    Disclosure, DisclosureAction, MultiSelect, MultiSelectAction, OpenState, SingleSelect,
+    SingleSelectAction, DATA_STATE_CLOSED, DATA_STATE_OPEN,
 };
 pub use switch::{Switch, SwitchAction};
 pub use tabs::{tabs, ActivationMode, TabItem, TabsProps};

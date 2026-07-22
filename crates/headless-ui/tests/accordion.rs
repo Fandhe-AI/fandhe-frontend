@@ -10,7 +10,7 @@
 
 use fandhe_frontend_core::{render, text};
 use fandhe_frontend_headless_ui::accordion::{
-    item, item_content, item_indicator, item_trigger, root, Accordion,
+    item, item_content, item_indicator, item_trigger, root, Accordion, MultiAccordion,
 };
 use fandhe_frontend_headless_ui::OpenState;
 use fandhe_frontend_interactive::{dispatch, render_for_hydration, Component, Hydrate};
@@ -174,6 +174,82 @@ fn xss_payload_in_ids_and_children_is_escaped_on_render() {
 #[test]
 fn xss_payload_in_dispatch_select_value_is_escaped_on_render_for_hydration() {
     let mut a = Accordion::default();
+    let payload = "\"><script>alert(1)</script>";
+    assert!(dispatch(&mut a, "select", payload));
+
+    let rendered = render(&render_for_hydration(&a));
+    assert!(rendered.contains("data-hydrate-selected="));
+    assert!(rendered.contains("&lt;script&gt;"));
+    assert!(!rendered.contains("<script>alert(1)</script>"));
+    assert!(!rendered.contains(r#""><script"#));
+}
+
+// --- MultiAccordion: multiple モード（イシュー #594） ---
+
+#[test]
+fn multi_accordion_component_full_cycle_ssr_then_dispatch_then_hydration() {
+    // SSR: 状態なし初期描画（Default = 全項目 closed）。
+    let initial = MultiAccordion::default();
+    let ssr_view_html = render(&initial.view());
+    assert!(!ssr_view_html.contains("data-hydrate-"));
+    assert!(!initial.is_open("a"));
+    assert!(!initial.is_open("b"));
+
+    // クライアント側（wasm-full 相当）の dispatch で複数項目を同時選択。
+    let mut client_state = initial;
+    assert!(dispatch(&mut client_state, "select", "a"));
+    assert!(client_state.is_open("a"));
+    assert!(!client_state.is_open("b"));
+
+    // MultiAccordion は Accordion と異なり、別項目の select が既存の open を
+    // 閉じない（複数同時 open が本イシューの存在理由）。
+    assert!(dispatch(&mut client_state, "select", "b"));
+    assert!(client_state.is_open("a"));
+    assert!(client_state.is_open("b"));
+
+    // 利便メソッド経由の描画が状態機械と一致する（2 項目とも aria-expanded="true"）。
+    let trigger_a_html = render(&client_state.item_trigger("a", false, None, None, vec![], vec![]));
+    assert!(trigger_a_html.contains(r#"aria-expanded="true""#));
+    let trigger_b_html = render(&client_state.item_trigger("b", false, None, None, vec![], vec![]));
+    assert!(trigger_b_html.contains(r#"aria-expanded="true""#));
+
+    // 別の SSR リクエストはハイドレーション属性込みで出力される。
+    let hydrated_html = render(&render_for_hydration(&client_state));
+    assert!(hydrated_html.contains("data-hydrate-selected="));
+    assert!(hydrated_html.contains('a'));
+    assert!(hydrated_html.contains('b'));
+
+    // クライアント側は data-hydrate-* 属性から状態を復元できる（ラウンドトリップ）。
+    let restored = MultiAccordion::from_hydration_attrs(&client_state.hydration_attrs()).unwrap();
+    assert_eq!(restored, client_state);
+
+    // 項目単位の deselect（a のみ）。
+    assert!(dispatch(&mut client_state, "deselect", "a"));
+    assert!(!client_state.is_open("a"));
+    assert!(client_state.is_open("b"));
+}
+
+#[test]
+fn multi_accordion_component_toggle_cycle() {
+    let mut a = MultiAccordion::default();
+    assert!(dispatch(&mut a, "toggle", "a"));
+    assert!(a.is_open("a"));
+    assert!(dispatch(&mut a, "toggle", "a"));
+    assert!(!a.is_open("a"));
+    assert_eq!(a.expanded(), &[] as &[String]);
+}
+
+#[test]
+fn multi_accordion_component_ignores_unknown_dispatch_action() {
+    let mut a = MultiAccordion::default();
+    dispatch(&mut a, "select", "a");
+    assert!(!dispatch(&mut a, "unknown", "b"));
+    assert!(a.is_open("a"));
+}
+
+#[test]
+fn multi_accordion_xss_payload_in_dispatch_select_value_is_escaped_on_render_for_hydration() {
+    let mut a = MultiAccordion::default();
     let payload = "\"><script>alert(1)</script>";
     assert!(dispatch(&mut a, "select", payload));
 

@@ -8,7 +8,7 @@
 //! 想定の外部からの利用形態を固定する回帰テスト。
 
 use fandhe_frontend_core::render;
-use fandhe_frontend_headless_ui::{Disclosure, OpenState, SingleSelect};
+use fandhe_frontend_headless_ui::{Disclosure, MultiSelect, OpenState, SingleSelect};
 use fandhe_frontend_interactive::{dispatch, render_for_hydration, Component, Hydrate};
 
 #[test]
@@ -64,4 +64,46 @@ fn disclosure_and_single_select_ignore_unknown_dispatch_actions() {
     dispatch(&mut single_select, "select", "a");
     assert!(!dispatch(&mut single_select, "unknown", "b"));
     assert_eq!(single_select.selected(), Some("a"));
+}
+
+#[test]
+fn multi_select_full_cycle_ssr_then_dispatch_then_hydration() {
+    // SSR: 状態なし初期描画（Default = 空選択）。
+    let initial = MultiSelect::default();
+    let ssr_html = render(&initial.view());
+    assert!(ssr_html.contains(r#"data-state="closed""#));
+    assert!(!ssr_html.contains("data-hydrate-"));
+
+    // クライアント側（wasm-full 相当）の dispatch で複数項目を同時選択。
+    let mut client_state = initial;
+    assert!(dispatch(&mut client_state, "select", "panel-1"));
+    assert!(dispatch(&mut client_state, "select", "panel-2"));
+    assert_eq!(
+        client_state.selected(),
+        &["panel-1".to_string(), "panel-2".to_string()]
+    );
+    assert_eq!(client_state.item_data_state("panel-1"), "open");
+    assert_eq!(client_state.item_data_state("panel-2"), "open");
+    assert_eq!(client_state.item_data_state("panel-3"), "closed");
+
+    // 別の SSR リクエスト（複数選択中）はハイドレーション属性込みで出力される。
+    let hydrated_html = render(&render_for_hydration(&client_state));
+    assert!(hydrated_html.contains(r#"data-state="open""#));
+    assert!(hydrated_html.contains("data-hydrate-selected="));
+
+    // クライアント側は data-hydrate-* 属性から状態を復元できる（ラウンドトリップ）。
+    let restored = MultiSelect::from_hydration_attrs(&client_state.hydration_attrs()).unwrap();
+    assert_eq!(restored, client_state);
+
+    // 項目単位の deselect（全解除ではなく指定項目のみ閉じる）を確認する。
+    assert!(dispatch(&mut client_state, "deselect", "panel-1"));
+    assert_eq!(client_state.selected(), &["panel-2".to_string()]);
+}
+
+#[test]
+fn multi_select_ignores_unknown_dispatch_action() {
+    let mut multi_select = MultiSelect::default();
+    dispatch(&mut multi_select, "select", "a");
+    assert!(!dispatch(&mut multi_select, "unknown", "b"));
+    assert_eq!(multi_select.selected(), &["a".to_string()]);
 }
