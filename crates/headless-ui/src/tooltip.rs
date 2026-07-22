@@ -28,12 +28,20 @@
 //! # スコープ外（out-of-scope）
 //!
 //! `openDelay`/`closeDelay`（表示・非表示までの遅延タイマー）・
-//! `interactive`（tooltip 内へのポインタ移動時の維持）・`closeOnEscape`・
-//! `positioning`（フローティング位置計算）は、タイマーやポインタ座標などの
-//! クライアントサイド実行時挙動であり、headless な anatomy/状態機械を
-//! 提供する本イシューのスコープ外とする（`fandhe-frontend-wasm-full`/
-//! `fandhe-frontend-wasm-thin` 層または styled 層側の実装課題として別途
-//! 検討する）。
+//! `interactive`（tooltip 内へのポインタ移動時の維持）・`closeOnEscape`は、
+//! タイマーやポインタ座標などのクライアントサイド実行時挙動であり、
+//! headless な anatomy/状態機械を提供する本イシューのスコープ外とする
+//! （`fandhe-frontend-wasm-full`/`fandhe-frontend-wasm-thin` 層または styled
+//! 層側の実装課題として別途検討する）。
+//!
+//! フローティング位置計算（Floating UI 相当の placement / `sameWidth` /
+//! CSS 変数出力）は本イシュー（#533）時点ではスコープ外だったが、イシュー
+//! #590（親 #588）で [`crate::positioning`] として実装済みである。
+//! [`positioner`]/[`arrow`]/[`arrow_tip`] は引き続き `attrs` 経由で
+//! `style`/`data-side`/`data-align` を受け取る薄いラッパーのままであり、
+//! 計算自体は `fandhe-frontend-wasm-full`（`position` モジュール）が
+//! [`crate::positioning::compute_position`] を呼び出して行う（本モジュール
+//! 自体は `web-sys` 非依存を維持する）。
 //!
 //! # セキュリティ不変条件
 //!
@@ -100,12 +108,33 @@ pub fn trigger<'a>(
     ANATOMY.part("trigger", "button", merged, children)
 }
 
-/// Positioner パーツ（`div`）。フローティング位置計算はスコープ外
-/// （モジュール doc §スコープ外参照）であり、本関数は `data-scope`/
-/// `data-part` のみを付与する位置決めラッパーである。
+/// Positioner パーツ（`div`）。位置計算自体は本関数の責務ではなく
+/// [`crate::positioning::compute_position`]（#590）が担う。本関数は
+/// `data-scope`/`data-part` に加え、呼び出し側が `attrs` 経由で渡す
+/// `style`（`--fandhe-*` CSS 変数）・`data-side`/`data-align` をそのまま
+/// 透過させる薄いラッパーである（モジュール doc §スコープ外参照）。
+///
+/// `state` から `data-state` を出力する（[`popover::positioner`]/
+/// [`menu::positioner`]/[`select::positioner`] と同型。イシュー #622 レビュー
+/// 指摘: 従来 `data-state` を出力していなかったため、`fandhe-frontend-wasm-full`
+/// の `reposition_all` が使う `[data-part="positioner"][data-state="open"]`
+/// セレクタに tooltip の positioner がマッチせず、開いている tooltip が
+/// 再計算対象から漏れていた）。closed のとき `hidden` 存在属性を付与し、
+/// arrow/arrow_tip が positioner 内にネストされる anatomy 構造上、
+/// closed 時にポインタ層を SSR/no-JS マークアップへ表示させない
+/// （[`popover::positioner`] と同じ判断、イシュー #532 レビュー指摘参照）。
 #[must_use]
-pub fn positioner<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("positioner", "div", attrs, children)
+pub fn positioner<'a>(
+    state: OpenState,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
+    if !state.is_open() {
+        merged.push(("hidden", ""));
+    }
+    merged.extend(attrs);
+    ANATOMY.part("positioner", "div", merged, children)
 }
 
 /// Content パーツ（`div`）。
@@ -220,6 +249,12 @@ impl Tooltip {
     ) -> Node {
         content(self.state(), id, attrs, children)
     }
+
+    /// [`positioner`] へ現在の状態を注入する利便メソッド。
+    #[must_use]
+    pub fn positioner<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+        positioner(self.state(), attrs, children)
+    }
 }
 
 impl Component for Tooltip {
@@ -241,6 +276,7 @@ impl Component for Tooltip {
             vec![
                 trigger(state, false, None, Vec::new(), Vec::new()),
                 positioner(
+                    state,
                     Vec::new(),
                     vec![content(state, None, Vec::new(), Vec::new())],
                 ),
@@ -270,6 +306,47 @@ mod tests {
     use super::*;
     use fandhe_frontend_core::{render, text};
     use fandhe_frontend_interactive::{dispatch, render_for_hydration};
+
+    // --- positioning（#590）接続 ---
+
+    #[test]
+    fn positioner_accepts_computed_style_and_placement_attrs_via_attrs() {
+        use crate::positioning::{
+            compute_position, css_vars_style, placement_attrs, Align, Placement, PositioningConfig,
+            Rect, Side, Size,
+        };
+
+        let anchor = Rect {
+            x: 100.0,
+            y: 100.0,
+            width: 50.0,
+            height: 20.0,
+        };
+        let floating = Size {
+            width: 200.0,
+            height: 80.0,
+        };
+        let viewport = Size {
+            width: 800.0,
+            height: 600.0,
+        };
+        let config = PositioningConfig {
+            placement: Placement::new(Side::Top, Align::Start),
+            offset: 0.0,
+            flip: true,
+            shift: true,
+            same_width: false,
+        };
+        let resolved = compute_position(anchor, floating, viewport, &config, true);
+        let style = css_vars_style(&resolved, anchor.width, config.same_width);
+        let mut attrs: Vec<(&str, &str)> = vec![("style", &style)];
+        attrs.extend(placement_attrs(resolved.placement));
+
+        let html = render(&positioner(OpenState::Open, attrs, vec![]));
+        assert!(html.contains("--fandhe-arrow-x:"));
+        assert!(html.contains(r#"data-side="top""#));
+        assert!(html.contains(r#"data-align="start""#));
+    }
 
     // --- 各パーツの data-scope/data-part/data-state 出力 ---
 
@@ -322,10 +399,24 @@ mod tests {
     }
 
     #[test]
-    fn positioner_outputs_scope_and_part_only() {
-        let html = render(&positioner(vec![], vec![]));
+    fn positioner_outputs_scope_part_and_state() {
+        let html = render(&positioner(OpenState::Open, vec![], vec![]));
         assert!(html.contains(r#"data-scope="tooltip""#));
         assert!(html.contains(r#"data-part="positioner""#));
+        assert!(html.contains(r#"data-state="open""#));
+    }
+
+    #[test]
+    fn positioner_closed_has_hidden_attr_open_does_not() {
+        // arrow/arrow_tip が positioner 内にネストされる anatomy 構造上、
+        // positioner 自体を hidden にしないと closed でも SSR/no-JS
+        // マークアップにポインタ層が表示され続ける
+        // （[`popover::positioner`] と同じ判断、イシュー #532 レビュー指摘参照）。
+        let closed = render(&positioner(OpenState::Closed, vec![], vec![]));
+        assert!(closed.contains(r#"hidden="""#));
+
+        let open = render(&positioner(OpenState::Open, vec![], vec![]));
+        assert!(!open.contains("hidden"));
     }
 
     #[test]

@@ -63,7 +63,7 @@ path = "crates/wasm-client"
 role = "client-entrypoint"
 crate = "fandhe-frontend-wasm-full"
 description = "CSR/ハイドレーション フルセット構成（wasm32 ターゲット）"
-depends_on = ["core", "interactive", "app", "wasm-client"]
+depends_on = ["core", "interactive", "app", "wasm-client", "headless-ui"]
 path = "crates/wasm-full"
 
 [directories.wasm-thin]
@@ -92,7 +92,7 @@ role = "component"
 crate = "fandhe-frontend-headless-ui"
 description = "headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA、イシュー #520/#522）。styled 層（pre-styled-ui）の下層。開閉状態機械（Disclosure/SingleSelect）は interactive の Component/Hydrate 抽象に乗り、DirtyTracked（束縛点差分更新）も実装済み（イシュー #592）"
 depends_on = ["core", "interactive"]
-allowed_dependents = ["pre-styled-ui", "xtask"]
+allowed_dependents = ["pre-styled-ui", "wasm-full", "xtask"]
 path = "crates/headless-ui"
 
 [directories.pre-styled-ui]

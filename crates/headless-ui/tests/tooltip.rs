@@ -18,7 +18,7 @@ fn full_assembly_wires_aria_describedby_to_content_id() {
     let trigger = tooltip::trigger(OpenState::Open, false, Some("tip-1"), vec![], vec![]);
     let arrow = tooltip::arrow(vec![], vec![tooltip::arrow_tip(vec![], vec![])]);
     let content = tooltip::content(OpenState::Open, Some("tip-1"), vec![], vec![arrow]);
-    let positioner = tooltip::positioner(vec![], vec![content]);
+    let positioner = tooltip::positioner(OpenState::Open, vec![], vec![content]);
     let root = tooltip::root(OpenState::Open, vec![], vec![trigger, positioner]);
 
     let html = render(&root);

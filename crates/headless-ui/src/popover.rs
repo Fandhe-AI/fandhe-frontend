@@ -35,14 +35,15 @@
 //!
 //! # スコープ外（ark-ui Popover のクライアントサイド機能）
 //!
-//! - 位置決めロジック（Floating UI 相当の placement / `sameWidth` / CSS 変数
-//!   出力）: [`positioner`]/[`arrow`]/[`arrow_tip`] は CSS フック（data-*
-//!   セレクタ）のみを提供する。Tooltip（#533）とも共通するため、overlays 親
-//!   （#530）配下での共通化検討をユーザー承認のうえ別イシューへ切り出す想定。
 //! - フォーカストラップ / `autoFocus` / `closeOnEscape` /
 //!   `closeOnInteractOutside` / portal / modal モード / `lazyMount`:
 //!   クライアントランタイム側のイベント処理・DOM 操作であり、wasm 層の
 //!   将来イシューのスコープ。
+//!
+//! 位置決めロジック（Floating UI 相当の placement / `sameWidth` / CSS 変数
+//! 出力）は本イシュー（#532）時点ではスコープ外だったが、Tooltip（#533）との
+//! 共通化検討を経てイシュー #590（親 #588）で [`crate::positioning`] として
+//! 実装済みである。詳細は [`positioner`] の doc を参照。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
@@ -105,8 +106,12 @@ pub fn anchor<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 }
 
 /// Positioner パーツ（`div`）。位置決めロジックのコンテナ。開閉状態を
-/// `data-*` へ反映するのみで、Floating UI 相当の placement 計算はスコープ外
-/// （モジュール doc §スコープ外参照）。
+/// `data-*` へ反映する。placement 計算自体は
+/// [`crate::positioning::compute_position`]（#590）が担い、算出された
+/// `style`（`--fandhe-*` CSS 変数）・`data-side`/`data-align` は呼び出し側が
+/// `attrs` 経由で渡す（`fandhe-frontend-wasm-full` の `position` モジュールが
+/// 実 DOM 計測を行ったうえで計算する。本関数自体は `web-sys` 非依存の
+/// ままである）。
 ///
 /// anatomy 上 [`arrow`]/[`arrow_tip`] は [`content`] と並んで本パーツ内に
 /// 配置される想定であり、closed のとき `hidden` 存在属性を本パーツへ付与
@@ -439,6 +444,52 @@ mod tests {
 
         let open = render(&positioner(OpenState::Open, vec![], vec![]));
         assert!(!open.contains("hidden"));
+    }
+
+    // --- positioning（#590）接続: positioner/arrow が attrs 経由で
+    // style/data-side/data-align を透過し、既定エスケープを経由することを
+    // 確認する ---
+
+    #[test]
+    fn positioner_accepts_computed_style_and_placement_attrs_via_attrs() {
+        use crate::positioning::{
+            compute_position, css_vars_style, placement_attrs, Align, Placement, PositioningConfig,
+            Rect, Side, Size,
+        };
+
+        let anchor = Rect {
+            x: 100.0,
+            y: 100.0,
+            width: 50.0,
+            height: 20.0,
+        };
+        let floating = Size {
+            width: 200.0,
+            height: 80.0,
+        };
+        let viewport = Size {
+            width: 800.0,
+            height: 600.0,
+        };
+        let config = PositioningConfig {
+            placement: Placement::new(Side::Bottom, Align::Center),
+            offset: 0.0,
+            flip: true,
+            shift: true,
+            same_width: false,
+        };
+        let resolved = compute_position(anchor, floating, viewport, &config, true);
+        let style = css_vars_style(&resolved, anchor.width, config.same_width);
+        let mut attrs: Vec<(&str, &str)> = vec![("style", &style)];
+        attrs.extend(placement_attrs(resolved.placement));
+
+        let html = render(&positioner(OpenState::Open, attrs, vec![]));
+        assert!(html.contains("--fandhe-x:"));
+        // same_width: false のため --fandhe-reference-width は出力されない
+        // （イシュー #622 レビュー指摘の回帰）。
+        assert!(!html.contains("--fandhe-reference-width"));
+        assert!(html.contains(r#"data-side="bottom""#));
+        assert!(html.contains(r#"data-align="center""#));
     }
 
     #[test]
