@@ -1,0 +1,122 @@
+/* fandhe-frontend-headless-ui コンポーネントショーケース（イシュー #552）の
+ * 最小デモ CSS。`fandhe-frontend-pre-styled-ui`（イシュー #520/#546）が
+ * 現時点では公開 API を持たない（#547/#548/#550/#551 が並列進行中）ため、
+ * 本サンプルは headless-ui が出力する `data-scope`/`data-part`/`data-state`
+ * セレクタへ直接スタイルを当てる「もし pre-styled-ui が存在したら生成する
+ * であろう最小限の静的 CSS」の手書き代替として同梱する。
+ *
+ * pre-styled-ui の静的 CSS 生成 API（#548）が実装され次第、本ファイルは
+ * その出力へ置き換える想定（フォローアップ、README.md 参照）。
+ */
+
+body {
+  font-family: system-ui, sans-serif;
+  margin: 2rem auto;
+  max-width: 42rem;
+  line-height: 1.6;
+  color: #1a1a1a;
+  background: #ffffff;
+}
+
+section {
+  margin-bottom: 2.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #d0d0d0;
+}
+
+/* Tabs（data-scope="tabs"） */
+[data-scope="tabs"][data-part="list"] {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 2px solid #d0d0d0;
+}
+
+[data-scope="tabs"][data-part="trigger"] {
+  padding: 0.5rem 1rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+[data-scope="tabs"][data-part="trigger"][data-state="active"] {
+  border-bottom: 2px solid #2b6cb0;
+  font-weight: bold;
+}
+
+/* Accordion（data-scope="accordion"） */
+[data-scope="accordion"][data-part="item-trigger"] {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem;
+  border: 1px solid #d0d0d0;
+  background: #f7f7f7;
+  cursor: pointer;
+}
+
+[data-scope="accordion"][data-part="item-content"] {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d0d0d0;
+  border-top: none;
+}
+
+/* Dialog（data-scope="dialog"） */
+[data-scope="dialog"][data-part="backdrop"] {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+[data-scope="dialog"][data-part="content"] {
+  position: relative;
+  max-width: 28rem;
+  margin: 4rem auto;
+  padding: 1.5rem;
+  background: #ffffff;
+  border: 1px solid #d0d0d0;
+  border-radius: 0.5rem;
+}
+
+/* Switch（data-scope="switch"） */
+[data-scope="switch"][data-part="control"] {
+  display: inline-block;
+  width: 2.5rem;
+  height: 1.4rem;
+  border-radius: 999px;
+  background: #d0d0d0;
+}
+
+[data-scope="switch"][data-part="control"][data-state="checked"] {
+  background: #2b6cb0;
+}
+
+/* RadioGroup（data-scope="radio-group"） */
+[data-scope="radio-group"][data-part="item"] {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+/* Avatar（data-scope="avatar"） */
+[data-scope="avatar"][data-part="root"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 999px;
+  background: #edf2f7;
+  overflow: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    color: #f0f0f0;
+    background: #1a1a1a;
+  }
+  [data-scope="accordion"][data-part="item-trigger"] {
+    background: #2a2a2a;
+    color: #f0f0f0;
+  }
+}

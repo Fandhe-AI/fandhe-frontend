@@ -85,13 +85,13 @@ fn support_scratch_root() -> PathBuf {
         .unwrap_or_else(|_| std::env::temp_dir())
 }
 
-/// examples e2e 4 件（`fw_new_example_*_output_passes_fw_gate`）が共有する
-/// `CARGO_TARGET_DIR`（イシュー #505）。
+/// examples e2e 5 件（`fw_new_example_*_output_passes_fw_gate`）が共有する
+/// `CARGO_TARGET_DIR`（イシュー #505・#609）。
 ///
 /// # 背景
 ///
 /// `run_fw_gate`（`support::run_fw` 既定）は `project_dir/target` を専用
-/// `CARGO_TARGET_DIR` として起動するため、examples 4 例は毎回コールドで
+/// `CARGO_TARGET_DIR` として起動するため、examples 5 例は毎回コールドで
 /// fandhe-frontend-core/-app/-server 等の crates.io 依存を重複ビルドしていた。
 /// 本ヘルパーが返す共有ディレクトリを [`run_fw_gate_with_target_dir`] と
 /// `cargo run` smoke（各テスト末尾）の双方に明示指定することで、2 例目
@@ -102,13 +102,13 @@ fn support_scratch_root() -> PathBuf {
 /// `support::run_fw` doc コメントが警告する偽陰性リスク（`CARGO_TARGET_DIR`
 /// 共有によりフィンガープリント衝突で直前フィクスチャの結果を誤って
 /// 再利用する）は「同名パッケージを異内容で再利用する欠陥注入フィクスチャ」
-/// （`negative_cases.rs` 等）に固有のリスクである。examples 4 例は
+/// （`negative_cases.rs` 等）に固有のリスクである。examples 5 例は
 /// パッケージ名が相互に一意（`fandhe-frontend-example-ssr-routing` /
-/// `-ssg-blog` / `-dist-server-docker` / `-interactive-view-transitions`）で
-/// あり、リーフクレート自体は `fw new` が [`unique_scratch_dir`] 配下へ
-/// 毎回新規展開する（mtime が必ず新しくなる）ため必ず再ビルドされる。
-/// crates.io 依存側もバージョン不変であり、cargo 自身の build-dir ロック
-/// （複数 `cargo` 起動の直列化）により並行実行も安全。
+/// `-ssg-blog` / `-dist-server-docker` / `-interactive-view-transitions` /
+/// `-headless-pre-styled-ui`）であり、リーフクレート自体は `fw new` が
+/// [`unique_scratch_dir`] 配下へ毎回新規展開する（mtime が必ず新しくなる）
+/// ため必ず再ビルドされる。crates.io 依存側もバージョン不変であり、cargo
+/// 自身の build-dir ロック（複数 `cargo` 起動の直列化）により並行実行も安全。
 ///
 /// # クリーンアップ方針
 ///
@@ -1084,5 +1084,128 @@ fn fw_new_example_interactive_view_transitions_output_passes_fw_gate() {
     assert!(
         dist_html.contains("@view-transition"),
         "dist/index.html was: {dist_html}"
+    );
+}
+
+/// `fw new --example headless-pre-styled-ui` で生成した直後のプロジェクトが
+/// `fw gate` を PASS すること（イシュー #609、
+/// `fw_new_example_ssg_blog_output_passes_fw_gate` と同型の e2e）。
+///
+/// `--example` はパッケージ名を置換しない（`new_template.rs` モジュール doc
+/// コメント参照）ため、生成プロジェクトのパッケージ名は正本と同じ
+/// `fandhe-frontend-example-headless-pre-styled-ui` のまま。
+///
+/// # 前提（`.claude/rules/ci.md` 準拠）
+///
+/// `examples/headless-pre-styled-ui` は当初 `fandhe-frontend-headless-ui` が
+/// crates.io 未公開のため `fw new --example` 非対応だった（イシュー #552）が、
+/// 前提クレート公開（イシュー #608）を受けて fandhe-frontend-core/
+/// -headless-ui（推移的に -interactive）への crates.io バージョン依存へ
+/// 切り替え、本テストで初めて登録した（イシュー #609）。本テストの
+/// `cargo build`/`cargo run`/`fw gate` はいずれも crates.io
+/// （`https://index.crates.io`・`https://static.crates.io`）への到達性を
+/// 前提とする。到達不可の場合は環境エラーとして扱い、テストの弱体化で
+/// 対処しない（`fw_new_example_ssr_routing_output_passes_fw_gate` と同じ前提）。
+#[test]
+fn fw_new_example_headless_pre_styled_ui_output_passes_fw_gate() {
+    let scratch = unique_scratch_dir();
+    let _scratch_guard = ScratchProject(scratch.clone());
+
+    let (new_code, new_stdout, new_stderr) = run_fw_new(&[
+        "gate-pass-example-headless-pre-styled-ui",
+        "--example",
+        "headless-pre-styled-ui",
+        "--dir",
+        &scratch.to_string_lossy(),
+    ]);
+    assert_eq!(
+        new_code, 0,
+        "fw new --example headless-pre-styled-ui が失敗した: \
+         stdout={new_stdout} stderr={new_stderr}"
+    );
+
+    let project_dir = scratch.join("gate-pass-example-headless-pre-styled-ui");
+    let shared_target = example_shared_target_dir();
+    let (gate_code, gate_stdout, gate_stderr) =
+        run_fw_gate_with_target_dir(&project_dir, &shared_target);
+
+    for name in [
+        "type_check",
+        "default_escape_check",
+        "url_validation_check",
+        "lint",
+        "test",
+        "policy",
+    ] {
+        assert!(
+            gate_stdout.contains(&format!("\"name\":\"{name}\"")),
+            "fw gate のレポートにチェック `{name}` が現れない: stdout={gate_stdout}"
+        );
+    }
+
+    for name in [
+        "type_check",
+        "default_escape_check",
+        "url_validation_check",
+        "lint",
+        "test",
+    ] {
+        assert_eq!(
+            check_passed(&gate_stdout, name),
+            Some(true),
+            "fw new --example headless-pre-styled-ui 生成直後のプロジェクトで \
+             `{name}` が失敗した（サンプルと fw gate の前提がドリフトしている）: \
+             stdout={gate_stdout} stderr={gate_stderr}"
+        );
+    }
+
+    if cargo_deny_available() {
+        assert_eq!(
+            gate_code, 0,
+            "cargo-deny 導入環境では fw new --example headless-pre-styled-ui \
+             生成直後は PASS するはず: stdout={gate_stdout} stderr={gate_stderr}"
+        );
+        assert!(
+            gate_stdout.contains("\"gate_result\":\"PASS\""),
+            "stdout={gate_stdout}"
+        );
+    } else {
+        assert_eq!(
+            gate_code, 1,
+            "cargo-deny 未導入環境では policy の fail-closed により BLOCKED \
+             (終了コード 1) のはず: stdout={gate_stdout}"
+        );
+        assert!(
+            gate_stdout.contains("environment error: "),
+            "policy の failed 出力は environment error であることを明示する \
+             プレフィックスを含むはず: stdout={gate_stdout}"
+        );
+    }
+
+    // 受け入れ条件: `cargo run` で `dist/index.html` と `dist/assets/ui.css`
+    // が生成されること（正本 README.md「動かし方」参照）。
+    let run_output = Command::new("cargo")
+        .arg("run")
+        .arg("--quiet")
+        .current_dir(&project_dir)
+        .env("CARGO_TARGET_DIR", &shared_target)
+        .output()
+        .expect("failed to spawn `cargo run` in generated example project");
+    assert!(
+        run_output.status.success(),
+        "cargo run が生成直後の headless-pre-styled-ui サンプルで失敗した: \
+         stdout={} stderr={}",
+        String::from_utf8_lossy(&run_output.stdout),
+        String::from_utf8_lossy(&run_output.stderr)
+    );
+
+    let dist = project_dir.join("dist");
+    assert!(
+        dist.join("index.html").is_file(),
+        "dist/index.html が生成されていない"
+    );
+    assert!(
+        dist.join("assets").join("ui.css").is_file(),
+        "dist/assets/ui.css が生成されていない"
     );
 }
