@@ -50,6 +50,23 @@
 //! 踏襲し、実際の `"close"` dispatch・再描画は呼び出し側（#580 統合層）の
 //! 責務として通知（コールバック）のみを提供する。
 //!
+//! [`headless_avatar`] モジュール（イシュー #591、親 #520/#542/#543）は
+//! `fandhe-frontend-headless-ui` の Avatar（`avatar` モジュール）が公開する
+//! `data-scope="avatar"`/`data-part="image"/"fallback"` 契約に対し、実 DOM の
+//! `img` 要素の `load`/`error` イベント検知グルーを提供する。`load`/`error`
+//! はバブリングしないため、`events`/`keynav`/`overlay` の委譲（バブリング
+//! フェーズ）とは異なり **capture フェーズ**でルート要素へ委譲する
+//! （同モジュール doc 参照）。
+//!
+//! [`focus_trap`] モジュール（イシュー #586、親 #584）は Dialog の
+//! `aria-modal="true"` 時のフォーカストラップ（Tab 循環・初期フォーカス）と、
+//! 閉鎖時のトリガーへのフォーカス復帰を担う。[`overlay`] と同じ 2 層構成
+//! （DOM 非依存の純粋ロジック層 + `#[cfg(target_arch = "wasm32")]` 配線層）を
+//! 踏襲し、`"close"` dispatch・再描画・DOM の open/close 属性更新は行わない
+//! （`FocusTrapController::push_trap`/`FocusTrapController::pop_trap`
+//! （`#[cfg(target_arch = "wasm32")]` のみ公開）を Dialog の open/close
+//! タイミングで呼ぶのは #580 統合層の責務）。
+//!
 //! 本クレートの自作コードは safe Rust のみとし、`unsafe` は `wasm-bindgen` /
 //! `web-sys` の FFI 境界（依存クレート内部・自動生成コード）に限定する
 //! （`docs/policy/unsafe-boundary.md` 第 2 節）。自作コードでの新規 `unsafe` 追加を
@@ -65,6 +82,8 @@
 
 pub mod csr;
 pub mod events;
+pub mod focus_trap;
+pub mod headless_avatar;
 pub mod hydration;
 pub mod keynav;
 pub mod nav;
