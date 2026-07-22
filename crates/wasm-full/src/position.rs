@@ -259,49 +259,80 @@ mod wiring {
         element.closest("[data-part=\"root\"]").ok().flatten()
     }
 
+    /// `selector` に一致する `scope_root` 配下の要素のうち、**`scope_root`
+    /// 自身に属する**（ネストした子スコープの子孫ではない）最初の 1 件を
+    /// 返す。
+    ///
+    /// `Element::query_selector` は子孫全体を対象にした単純な CSS セレクタ
+    /// マッチのため、Menu のサブメニュー（親 scope root の `content` 配下に
+    /// 子 `Menu` インスタンスの scope root がネストする構造）のように
+    /// scope root が入れ子になる場合、親 scope root からの検索で子スコープ
+    /// 内の同名パーツ（例: 子の `trigger-item`）まで拾ってしまう。各候補
+    /// 要素について `closest("[data-part=\"root\"]")`（[`find_scope_root`]
+    /// と同じ「最近傍の scope root」解決）が `scope_root` 自身と一致するかを
+    /// 確認し、一致するものだけを採用することでこの誤検出を防ぐ。
+    fn find_direct_scope_match(scope_root: &Element, selector: &str) -> Option<Element> {
+        let list = scope_root.query_selector_all(selector).ok()?;
+        for i in 0..list.length() {
+            // `reposition_all`（`document.query_selector_all` を走査する
+            // 呼び出し元）と同じ「取得できなかった要素はスキップして続行」
+            // という fail-closed 方針に合わせる（`i < list.length()` のため
+            // 通常 `None` にはならないが、想定外の `None` で探索全体を
+            // 打ち切らないための防御）。
+            let Some(node) = list.item(i) else {
+                continue;
+            };
+            let Ok(element) = node.dyn_into::<Element>() else {
+                continue;
+            };
+            let belongs_to_scope_root = element
+                .closest("[data-part=\"root\"]")
+                .ok()
+                .flatten()
+                .is_some_and(|nearest_root| nearest_root.is_same_node(Some(scope_root.as_ref())));
+            if belongs_to_scope_root {
+                return Some(element);
+            }
+        }
+        None
+    }
+
     /// scope root 配下の anchor 要素を解決する。`[data-part="anchor"]` が
     /// あれば優先し、なければ `[data-part="trigger"]` を anchor として扱う
     /// （Popover の `anchor` パーツ、他コンポーネントの `trigger` パーツの
     /// いずれも実 DOM 上の参照要素として妥当という設計判断、ADR §4.1 の
-    /// 「anchor（トリガー等）矩形」記述に対応）。Menu のサブメニュー
-    /// （`trigger-item`）・コンテキストメニュー（`context-trigger`）は
-    /// `trigger`/`anchor` パーツを持たず、これら固有の part 名がそれぞれの
-    /// scope root 直下の参照要素であるため、フォールバック先へ追加する
-    /// （イシュー #622 レビュー指摘の回帰: 追加しないと `find_anchor` が
-    /// `None` を返し `reposition_one` が no-op となって開いている
-    /// positioner へ CSS 変数が届かなくなる）。
+    /// 「anchor（トリガー等）矩形」記述に対応）。Menu のコンテキストメニュー
+    /// （`context-trigger`）・サブメニュー（`trigger-item`）は `trigger`/
+    /// `anchor` パーツを持たず、これら固有の part 名がそれぞれの scope root
+    /// 直下の参照要素であるため、フォールバック先へ追加する（イシュー #622
+    /// レビュー指摘の回帰: 追加しないと `find_anchor` が `None` を返し
+    /// `reposition_one` が no-op となって開いている positioner へ CSS 変数が
+    /// 届かなくなる）。
+    ///
+    /// `context-trigger` を `trigger-item` より先に判定する
+    /// （イシュー #622 Bugbot 指摘: サブメニューを含むコンテキストメニューで
+    /// `query_selector` が入れ子の `trigger-item` を自身の `context-trigger`
+    /// より先に拾ってしまい、開いている positioner が誤った要素を anchor に
+    /// して座標計算されていた）。加えて全パーツの探索を
+    /// [`find_direct_scope_match`] 経由にし、ネストした子スコープ配下の
+    /// 同名パーツを拾わないようにする。
     fn find_anchor(scope_root: &Element) -> Option<Element> {
-        scope_root
-            .query_selector("[data-part=\"anchor\"]")
-            .ok()
-            .flatten()
-            .or_else(|| {
-                scope_root
-                    .query_selector("[data-part=\"trigger\"]")
-                    .ok()
-                    .flatten()
-            })
-            .or_else(|| {
-                scope_root
-                    .query_selector("[data-part=\"trigger-item\"]")
-                    .ok()
-                    .flatten()
-            })
-            .or_else(|| {
-                scope_root
-                    .query_selector("[data-part=\"context-trigger\"]")
-                    .ok()
-                    .flatten()
-            })
+        find_direct_scope_match(scope_root, "[data-part=\"anchor\"]")
+            .or_else(|| find_direct_scope_match(scope_root, "[data-part=\"trigger\"]"))
+            .or_else(|| find_direct_scope_match(scope_root, "[data-part=\"context-trigger\"]"))
+            .or_else(|| find_direct_scope_match(scope_root, "[data-part=\"trigger-item\"]"))
     }
 
     /// scope root 配下の arrow 要素（存在しないコンポーネント・マークアップ
     /// では `None`）。
+    ///
+    /// [`find_anchor`] と同じ理由（ネストした子スコープの子孫を誤って
+    /// 拾わない）で [`find_direct_scope_match`] 経由にする。単純な
+    /// `query_selector` のままだと、サブメニューを持つ Menu で自身に
+    /// arrow が無くても入れ子のサブメニューの arrow を拾ってしまい、
+    /// 外側 positioner の `style` へ誤った要素の座標が複製されうる。
     fn find_arrow(scope_root: &Element) -> Option<Element> {
-        scope_root
-            .query_selector("[data-part=\"arrow\"]")
-            .ok()
-            .flatten()
+        find_direct_scope_match(scope_root, "[data-part=\"arrow\"]")
     }
 
     /// `Element::get_bounding_client_rect` から [`Rect`] を組み立てる。

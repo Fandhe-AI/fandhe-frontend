@@ -190,6 +190,158 @@ fn reposition_now_resolves_trigger_item_as_anchor_for_submenu() {
     drop(controller);
 }
 
+/// `style` 属性の値から `--fandhe-x` の数値（px 前の部分）を取り出す。
+/// 座標の大小関係で「どの anchor 要素が使われたか」を判定するための
+/// テスト専用ヘルパー（実装側の書式契約には依存しない緩い抽出）。
+fn extract_fandhe_x(style: &str) -> f64 {
+    let after = style
+        .split("--fandhe-x:")
+        .nth(1)
+        .expect("style must contain --fandhe-x:");
+    let number_part = after.split("px").next().expect("value must end with px");
+    number_part
+        .trim()
+        .parse::<f64>()
+        .expect("--fandhe-x value must be a valid number")
+}
+
+/// コンテキストメニュー（`context-trigger` が自身の anchor）配下に、
+/// サブメニュー（入れ子の `Menu` インスタンス。`trigger-item` を自身の
+/// anchor とする別の scope root）を 1 個ネストして `container` 配下へ
+/// 展開する（イシュー #622 Bugbot 指摘の回帰: `find_anchor` が
+/// `query_selector` の descendant マッチにより、外側 scope root
+/// （コンテキストメニュー自身）の探索でネストしたサブメニューの
+/// `trigger-item` を自身の `context-trigger` より先に拾ってしまい、
+/// 外側 positioner が誤った座標で位置決めされていた）。
+///
+/// `context-trigger`（`context_trigger_left_px`）とネストした
+/// `trigger-item`（`nested_trigger_item_left_px`）を大きく離れた
+/// `left` へ `position: fixed` で固定し、外側 positioner の
+/// `--fandhe-x` がどちらの矩形に由来するかを座標値の大小で判別できる
+/// ようにする。返り値は `(外側 positioner, 内側/サブメニューの positioner)`。
+fn mount_open_context_menu_with_nested_submenu(
+    document: &Document,
+    container: &Element,
+    id_prefix: &str,
+) -> (Element, Element) {
+    let outer_positioner_id = format!("{id_prefix}-outer-positioner");
+    let inner_positioner_id = format!("{id_prefix}-inner-positioner");
+    let context_trigger_style = "position: fixed; left: 5px; top: 5px; width: 10px; height: 10px;";
+    let nested_trigger_item_style =
+        "position: fixed; left: 500px; top: 500px; width: 10px; height: 10px;";
+    let html = render(&menu::root(
+        OpenState::Open,
+        vec![],
+        vec![
+            menu::context_trigger(
+                OpenState::Open,
+                vec![("style", context_trigger_style)],
+                vec![],
+            ),
+            menu::positioner(
+                OpenState::Open,
+                vec![("id", outer_positioner_id.as_str())],
+                vec![menu::content(
+                    OpenState::Open,
+                    None,
+                    None,
+                    vec![],
+                    vec![
+                        // ネストしたサブメニュー本体（子 Menu インスタンス）。
+                        // 自身の `data-part="root"` を持つため、
+                        // `find_scope_root`/`find_anchor` はこの `root` を
+                        // 越えて外側の `context-trigger` を誤って拾わない
+                        // ことが期待される（逆方向の回帰も同時に確認する）。
+                        menu::root(
+                            OpenState::Open,
+                            vec![],
+                            vec![
+                                menu::trigger_item(
+                                    OpenState::Open,
+                                    false,
+                                    false,
+                                    None,
+                                    vec![("style", nested_trigger_item_style)],
+                                    vec![],
+                                ),
+                                menu::positioner(
+                                    OpenState::Open,
+                                    vec![("id", inner_positioner_id.as_str())],
+                                    vec![menu::content(
+                                        OpenState::Open,
+                                        None,
+                                        None,
+                                        vec![],
+                                        vec![],
+                                    )],
+                                ),
+                            ],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    ));
+    container.set_inner_html(&html);
+    let outer_positioner = document
+        .get_element_by_id(&outer_positioner_id)
+        .expect("outer positioner element must exist");
+    let inner_positioner = document
+        .get_element_by_id(&inner_positioner_id)
+        .expect("inner (submenu) positioner element must exist");
+    (outer_positioner, inner_positioner)
+}
+
+#[wasm_bindgen_test]
+fn reposition_now_anchors_context_menu_to_its_own_context_trigger_not_nested_submenu_trigger_item()
+{
+    // イシュー #622 Bugbot 指摘（High Severity）の回帰: サブメニューを
+    // 含むコンテキストメニューで `find_anchor` が入れ子の `trigger-item`
+    // を自身の `context-trigger` より先に拾い、外側 positioner が誤った
+    // `--fandhe-*` 座標で位置決めされていた。
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+    let container = create_placeholder(&document, "position-browser-context-menu-submenu");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let (outer_positioner, inner_positioner) =
+        mount_open_context_menu_with_nested_submenu(&document, &container, "ctx-submenu");
+
+    let controller =
+        PositionController::new(&window).expect("PositionController::new must succeed");
+    controller.reposition_now();
+
+    let outer_style = outer_positioner.get_attribute("style").expect(
+        "outer (context menu) positioner must receive a style attribute after reposition_now",
+    );
+    let inner_style = inner_positioner
+        .get_attribute("style")
+        .expect("inner (submenu) positioner must receive a style attribute after reposition_now");
+
+    let outer_x = extract_fandhe_x(&outer_style);
+    let inner_x = extract_fandhe_x(&inner_style);
+
+    // 外側 positioner は `context-trigger`（left: 5px）由来の小さい座標を
+    // 使うべきで、ネストした `trigger-item`（left: 500px）由来の大きい
+    // 座標を使ってはならない。
+    assert!(
+        outer_x < 100.0,
+        "outer positioner must anchor to context-trigger (left: 5px), not the nested \
+         trigger-item (left: 500px); got --fandhe-x: {outer_x}"
+    );
+    // 内側（サブメニュー）positioner は自身の `trigger-item`
+    // （left: 500px）由来の大きい座標を使うべき（外側と逆方向の回帰、
+    // `find_scope_root`/`find_anchor` のスコープ越えが起きていないことの
+    // 確認）。
+    assert!(
+        inner_x > 400.0,
+        "inner (submenu) positioner must anchor to its own trigger-item (left: 500px); \
+         got --fandhe-x: {inner_x}"
+    );
+
+    drop(controller);
+}
+
 #[wasm_bindgen_test]
 fn reposition_now_skips_closed_positioner() {
     let window = web_sys::window().expect("window must exist in browser test environment");
