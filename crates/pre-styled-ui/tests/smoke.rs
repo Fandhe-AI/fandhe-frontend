@@ -1,16 +1,21 @@
-//! `fandhe-frontend-pre-styled-ui` のスモークテスト（イシュー #546、拡充 #551）。
+//! `fandhe-frontend-pre-styled-ui` のスモークテスト（イシュー #546、拡充 #550/#551）。
 //!
 //! 骨格段階（#546）では公開 API を持たなかったため `fandhe-frontend-headless-ui`
-//! への path 依存の存在確認のみだったが、#551 で headless 5 コンポーネント
-//! （Dialog / Tabs / Accordion / Menu / Select）のラッパーを実装したため、
-//! ここではラッパー経由の XSS 回帰（REQ-1）を集約する。#553（XSS 回帰テスト
-//! 本格整備）の先行アンカーであり、本ファイルの個別テストを削除・弱体化しない
+//! への path 依存の存在確認のみだったが、#550 で単純 styled 部品（Button/Badge/
+//! Card/Alert/Spinner）、#551 で headless 5 コンポーネント（Dialog / Tabs /
+//! Accordion / Menu / Select）のラッパーを実装したため、ここでは両方の公開 API
+//! 経由の XSS 回帰（REQ-1）を集約する。#553（XSS 回帰テスト本格整備）の先行
+//! アンカーであり、本ファイルの個別テストを削除・弱体化しない
 //! （`.claude/rules/coding-rust.md` のテスト方針）。
 
 use fandhe_frontend_core::{el, render, text};
 use fandhe_frontend_headless_ui::data_attrs::Orientation;
 use fandhe_frontend_headless_ui::state::OpenState;
+use fandhe_frontend_pre_styled_ui::alert::{self, AlertStatus};
+use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, select, tabs};
+use fandhe_frontend_pre_styled_ui::{badge, button, spinner};
+use fandhe_frontend_pre_styled_ui::{BadgeProps, ButtonProps, SpinnerProps};
 
 /// XSS ペイロード（`<script>` タグ）。テキスト子ノード・属性値の両方へ
 /// 使い回し、既定エスケープ（REQ-1）が両経路で効くことを固定する。
@@ -121,4 +126,80 @@ mod wrapper_escape_and_stylesheet_safety {
         assert_eq!(menu::stylesheet(), menu::stylesheet());
         assert_eq!(select::stylesheet(), select::stylesheet());
     }
+}
+
+/// XSS 回帰: Button の子ノード経由。
+#[test]
+fn button_children_xss_payload_is_escaped() {
+    let node = button(
+        &ButtonProps::default(),
+        vec![],
+        vec![text("<script>alert('xss')</script>")],
+    );
+    let html = render(&node);
+    assert!(!html.contains("<script>"), "{html}");
+    assert!(html.contains("&lt;script&gt;"));
+}
+
+/// XSS 回帰: Badge の子ノード経由。
+#[test]
+fn badge_children_xss_payload_is_escaped() {
+    let node = badge(
+        &BadgeProps::default(),
+        vec![],
+        vec![text("<script>alert('xss')</script>")],
+    );
+    let html = render(&node);
+    assert!(!html.contains("<script>"), "{html}");
+    assert!(html.contains("&lt;script&gt;"));
+}
+
+/// XSS 回帰: Spinner の `label` 属性値経由。
+#[test]
+fn spinner_label_attribute_xss_payload_is_escaped() {
+    let node = spinner(&SpinnerProps {
+        size: fandhe_frontend_pre_styled_ui::Size::Md,
+        label: "\" onmouseover=\"alert(1)",
+    });
+    let html = render(&node);
+    assert!(!html.contains("onmouseover=\"alert"), "{html}");
+    assert!(html.contains("&quot;"));
+}
+
+/// XSS 回帰: Card の title/description 子ノード経由。
+#[test]
+fn card_title_and_description_xss_payload_is_escaped() {
+    let node = card::root(
+        CardVariant::default(),
+        vec![],
+        vec![
+            card::title(vec![], vec![text("<script>alert(1)</script>")]),
+            card::description(vec![], vec![text("<img src=x onerror=alert(1)>")]),
+        ],
+    );
+    let html = render(&node);
+    assert!(!html.contains("<script>"), "{html}");
+    assert!(!html.contains("<img src=x onerror"), "{html}");
+    assert!(html.contains("&lt;script&gt;"));
+    assert!(html.contains("&lt;img"));
+}
+
+/// XSS 回帰: Alert の title/description 子ノード経由。
+#[test]
+fn alert_title_and_description_xss_payload_is_escaped() {
+    let node = alert::root(
+        AlertStatus::default(),
+        vec![],
+        vec![alert::content(
+            vec![],
+            vec![
+                alert::title(vec![], vec![text("<script>alert(1)</script>")]),
+                alert::description(vec![], vec![text("<script>alert(2)</script>")]),
+            ],
+        )],
+    );
+    let html = render(&node);
+    assert!(!html.contains("<script>alert"), "{html}");
+    assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+    assert!(html.contains("&lt;script&gt;alert(2)&lt;/script&gt;"));
 }

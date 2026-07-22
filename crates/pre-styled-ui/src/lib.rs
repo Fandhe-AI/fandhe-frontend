@@ -20,19 +20,38 @@
 //! 4. **外部依存は `fandhe-frontend-headless-ui`（path）のみ**:
 //!    `pre-styled-ui/Cargo.toml` の `[dependencies]` にサードパーティクレートを
 //!    追加しない。`fandhe-frontend-core` への直接依存は headless-ui 経由で
-//!    間接的に得る（dev-dependency としてのみ利用、後述）。
+//!    間接的に得る（dev-dependency としてのみ利用、後述）。styled 部品の
+//!    `Node` 型参照は `fandhe_frontend_headless_ui::fandhe_frontend_core::Node`
+//!    （headless-ui が再エクスポートする core、イシュー #550）経由で得る。
 //!
-//! # 本ファイルのスコープ（イシュー #546/#547/#548/#551）
+//! # 実装済み API（イシュー #546/#547/#548/#550/#551）
 //!
-//! イシュー #546 のスコープは「クレートが workspace・`structure.toml`・`fw gate` の
-//! 管理下に正しく組み込まれた状態」の確立であった。イシュー #547 で
-//! [`theme`] モジュール（テーマトークン・ダークモード基盤）を追加し、イシュー
-//! #548 で [`css`]（CSS 宣言の低レベル表現・検証・シリアライズ）と
-//! [`recipe`]（slot recipe 本体・`SlotRecipe`・`VariantValue`）を実装した。
-//! 本イシュー（#551）では headless 5 コンポーネント（[`mod@dialog`] /
-//! [`mod@tabs`] / [`mod@accordion`] / [`mod@menu`] / [`mod@select`]）の
-//! ラッパー第 1 弾を実装した。styled 部品（Button 等、#550）・examples・
-//! 利用ガイド（#552）は別イシューのスコープ。
+//! - [`theme`]（#547）: テーマトークン・ダークモード基盤。
+//! - [`css`]（#548）: CSS 宣言の低レベル表現・検証・シリアライズ。
+//! - [`recipe`]（#548）: slot recipe 本体・[`recipe::SlotRecipe`]・
+//!   [`recipe::VariantValue`]。
+//! - 状態機械を要しない単純 styled 部品 5 種（#550）:
+//!   - [`mod@button`]: [`button::button`]（単一 recipe、`<button type="button">`。
+//!     `loading` 時は [`mod@spinner`] を子ノード先頭へ埋め込む）。
+//!   - [`mod@badge`]: [`badge::badge`]（単一 recipe、`<span>`）。
+//!   - [`mod@spinner`]: [`spinner::spinner`]（単一 recipe、
+//!     `<span role="status">`）。
+//!   - [`mod@alert`]: [`alert::root`] ほかパーツ関数群（slot recipe、
+//!     root/indicator/content/title/description の 5 パーツ、`role="alert"`）。
+//!   - [`mod@card`]: [`card::root`] ほかパーツ関数群（slot recipe、
+//!     root/header/body/footer/title/description の 6 パーツ、装飾的コンテナ、
+//!     role 付与なし）。
+//!
+//!   いずれも variant/size/status は Rust enum（[`recipe::VariantValue`] 実装）
+//!   として型安全に表現し、クラス名文字列を動的合成しない
+//!   （[`recipe::SlotRecipe::variant_classes`] が決定的に生成する）。
+//!   呼び出し側 `attrs` に含まれる `class` は `class_attr`（内部専用モジュール）
+//!   が除去してから recipe 生成クラスと合成し、`class` 属性が常に単一になる
+//!   ことを保証する。
+//!
+//! - headless 状態機械を持つ複合部品 5 種の styled ラッパー第 1 弾（#551）:
+//!   [`mod@dialog`] / [`mod@tabs`] / [`mod@accordion`] / [`mod@menu`] /
+//!   [`mod@select`]。examples・利用ガイド（#552）は別イシューのスコープ。
 //!
 //! # headless ラッパーの設計（#551）
 //!
@@ -51,19 +70,31 @@
 //!
 //! [`theme`] が生成する CSS は静的 `.css` ファイルとして配信する利用形態を
 //! 前提とし、`<style>` タグへの埋め込み（`raw_html` が必要になる）は本クレート
-//! では提供しない（不変条件 2 を参照）。
+//! では提供しない（不変条件 2 を参照）。styled 部品各モジュールの `css()` も
+//! 同じ利用形態を前提とする。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
 pub mod accordion;
+pub mod alert;
+pub mod badge;
+pub mod button;
+pub mod card;
+mod class_attr;
 pub mod css;
 pub mod dialog;
 pub mod menu;
 pub mod recipe;
 pub mod select;
+pub mod spinner;
 pub mod tabs;
 pub mod theme;
 
+pub use alert::AlertStatus;
+pub use badge::{badge, BadgeProps, BadgeVariant};
+pub use button::{button, ButtonProps, ButtonVariant};
+pub use card::CardVariant;
 pub use css::{decl, Declaration};
 pub use recipe::{Size, SlotRecipe, VariantValue};
+pub use spinner::{spinner, SpinnerProps};
