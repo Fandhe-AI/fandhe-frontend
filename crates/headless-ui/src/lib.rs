@@ -109,7 +109,11 @@
 //!   [`mod@switch`] と同じく `data-state` 値語彙（`"indeterminate"`/
 //!   `"loading"`/`"complete"`）が [`state::Disclosure`] と異なるため、
 //!   [`state`] を埋め込まず [`fandhe_frontend_interactive::Component`]/
-//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。加えて
+//!   Circular（SVG）用の Circle/CircleTrack/CircleRange の 3 パーツ
+//!   （#600、親 #542）を持つ。CSS 変数（`--size`/`--thickness`）参照の
+//!   固定 `style` で描画し、状態機械・hydration フォーマットへの追加は
+//!   ない（詳細は [`progress`] モジュール doc の circular 節を参照）。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
