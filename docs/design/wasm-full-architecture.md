@@ -89,6 +89,8 @@ Phase 1（#336・`docs/design/dom-binding-update-design.md`）で束縛点最小
 | `hydration` | `data-hydrate-*` 属性からの状態復元の実配線 | **TASK-11.4（#81/#82）に予約**。本書では配置とシグネチャ方針のみ規定する |
 | `csr` | `fandhe_frontend_app::Loader` 経由の CSR データ解決層（`fandhe_frontend_app::Item` 系ページ）。DOM 非依存の純粋層で `Runtime`/`hydration` とは独立した別系統。初期表示（ハイドレーション）では呼ばない | TASK-CSR-loader（#349） |
 | `nav` | クライアント側ルーティング（history API 連携・URL 同期・遷移時 loader 配線）。`csr` の loader 解決層を再利用し、`data-nav` クリック委譲・`popstate` 連携・`fandhe_frontend_wasm_client::build_dom_node` 経由の DOM サブツリー差し替え（`set_inner_html` 不使用）を担う独立系統。SPA 内遷移の DOM 差し替え + タイトル更新（apply 段）は `document.startViewTransition()` でラップする（イシュー #404、機能検出により非対応ブラウザでは同期フォールバック） | イシュー #374 / #404 |
+| `overlay` | `fandhe-frontend-headless-ui` の Dialog/Popover/Menu/Tooltip 共通の閉鎖制御（Escape キー・外側インタラクション）。document へ委譲登録し、実際の `"close"` dispatch・再描画は呼び出し側（#580 統合層）の責務として通知のみ提供する | イシュー #585（親 #584） |
+| `tooltip` | Tooltip の `openDelay`/`closeDelay`/`interactive`（表示・非表示遅延タイマーと content 内ポインタ移動時の維持）。`pointerenter`/`pointerleave` がバブリングしないため、`overlay` の document 委譲方式とは異なり trigger/content 要素へ直接登録する。実際の `"open"`/`"close"` dispatch・再描画は呼び出し側（#580 統合層）の責務として通知のみ提供する | イシュー #587（親 #584） |
 
 ### 3.2 公開 API 凍結表
 
