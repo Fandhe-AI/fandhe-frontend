@@ -25,7 +25,7 @@
 
 ## scope
 
-クレート・領域名を使う: `core` / `interactive` / `app` / `server` / `dist-server`（fandhe-frontend-dist-server: 単一バイナリ配布サーバー） / `docs-site`（fandhe-frontend-docs-site: docs サイトジェネレータ） / `wasm-client` / `wasm-full` / `xtask` / `spec` / `claude`（.claude 体系） / `global`（横断）
+クレート・領域名を使う: `core` / `interactive` / `app` / `server` / `dist-server`（fandhe-frontend-dist-server: 単一バイナリ配布サーバー） / `docs-site`（fandhe-frontend-docs-site: docs サイトジェネレータ） / `headless-ui`（fandhe-frontend-headless-ui: headless UI コンポーネント層、イシュー #520/#522） / `wasm-client` / `wasm-full` / `xtask` / `spec` / `claude`（.claude 体系） / `global`（横断）
 
 例:
 

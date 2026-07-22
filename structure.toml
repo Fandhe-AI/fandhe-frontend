@@ -24,7 +24,7 @@ version = 1
 role = "core"
 crate = "fandhe-frontend-core"
 description = "外部依存ゼロのレンダリングコア（ノード木 API・render・既定エスケープ）"
-allowed_dependents = ["interactive", "app", "server", "wasm-full", "wasm-thin", "wasm-client", "dist-server", "docs-site"]
+allowed_dependents = ["interactive", "app", "server", "wasm-full", "wasm-thin", "wasm-client", "dist-server", "docs-site", "headless-ui"]
 path = "crates/core"
 
 [directories.interactive]
@@ -86,6 +86,13 @@ crate = "fandhe-frontend-docs-site"
 description = "docs サイトジェネレータ（外部依存ゼロ・配布物に含めない開発者/CI 用ツール。イシュー #465/#458）"
 depends_on = ["core", "app", "server"]
 path = "crates/docs-site"
+
+[directories.headless-ui]
+role = "component"
+crate = "fandhe-frontend-headless-ui"
+description = "headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA、イシュー #520/#522）。styled 層（pre-styled-ui）の下層。interactive への依存はイシュー #524 で追加する"
+depends_on = ["core"]
+path = "crates/headless-ui"
 
 [directories.static]
 role = "asset"
