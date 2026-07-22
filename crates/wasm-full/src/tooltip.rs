@@ -263,7 +263,10 @@ pub enum DelayEffect {
 /// 「フォーカスされたトリガーは、ポインタが離脱しても説明を表示し続ける」
 /// という WAI-ARIA tooltip パターンの要求を満たす（モジュール冒頭 doc
 /// 「フォーカスと遅延の使い分け」節参照、イシュー #587 の Cursor Bugbot
-/// 指摘の回帰）。
+/// 指摘の回帰）。この契約は `Open` フェーズだけでなく `OpenPending`
+/// フェーズの `PointerLeaveTrigger`/`BlurTrigger` にも同様に適用する
+/// （`openDelay` 満了待ち中の早期離脱でも、もう一方のチャネルが表示継続を
+/// 要求していれば pending open を取消さず `OpenPending` に留まる）。
 #[must_use]
 pub fn transition(
     mut state: DelayState,
@@ -310,11 +313,28 @@ pub fn transition(
         (Closed, FocusTrigger) => (Open, RequestOpen),
 
         // --- OpenPending: 満了待ち。早期離脱でタイマー取消・フォーカスは
-        // 即時 open へ昇格 ---
-        (OpenPending, PointerLeaveTrigger) => (Closed, CancelTimer),
+        // 即時 open へ昇格。ただし `stay_open`（もう一方のチャネルがまだ
+        // 表示継続を要求している）が真のときは pending open を取消さず
+        // 留まる（`Open` フェーズと同じ multi-channel 契約、イシュー #587
+        // Cursor Bugbot 指摘の回帰: `openDelay` 中の focusout や、
+        // interactive content がまだホバーされている状態でのトリガー離脱で
+        // pending open を誤ってキャンセルしない）---
+        (OpenPending, PointerLeaveTrigger) => {
+            if stay_open {
+                (OpenPending, NoEffect)
+            } else {
+                (Closed, CancelTimer)
+            }
+        }
         (OpenPending, OpenTimerFired) => (Open, RequestOpen),
         (OpenPending, FocusTrigger) => (Open, RequestOpen),
-        (OpenPending, BlurTrigger) => (Closed, CancelTimer),
+        (OpenPending, BlurTrigger) => {
+            if stay_open {
+                (OpenPending, NoEffect)
+            } else {
+                (Closed, CancelTimer)
+            }
+        }
 
         // --- Open: 表示中。トリガー離脱で close 遅延予約、interactive
         // なら content 側の進入/離脱も同様に扱う。ただし `stay_open` が
@@ -1205,6 +1225,87 @@ mod tests {
         let hovering_trigger = state_with(DelayPhase::Open, true, true, false);
         let (next, effect) = transition(hovering_trigger, DelayEvent::PointerLeaveContent, &cfg);
         assert_eq!(next.phase, DelayPhase::Open);
+        assert_eq!(effect, DelayEffect::None);
+    }
+
+    #[test]
+    fn open_pending_blur_trigger_stays_pending_while_pointer_still_hovers_trigger() {
+        // `openDelay` 待ち中にフォーカスが外れても、ポインタが trigger
+        // 上にまだある間は pending open を取消してはならない
+        // （イシュー #587 Cursor Bugbot 指摘・回帰）。
+        let cfg = config(400, 150, false);
+        let hovering_and_focused = state_with(DelayPhase::OpenPending, true, false, true);
+        let (next, effect) = transition(hovering_and_focused, DelayEvent::BlurTrigger, &cfg);
+        assert_eq!(
+            next.phase,
+            DelayPhase::OpenPending,
+            "ポインタがまだ trigger 上にある間は blur で pending open を取消してはならない"
+        );
+        assert_eq!(effect, DelayEffect::None);
+        assert!(
+            !next.focused,
+            "focused フラグ自体は blur で false に更新される"
+        );
+    }
+
+    #[test]
+    fn open_pending_pointer_leave_trigger_stays_pending_while_trigger_still_focused() {
+        // `openDelay` 待ち中にポインタが trigger から離脱しても、
+        // フォーカスがまだ trigger にある限り pending open を取消しては
+        // ならない（イシュー #587 Cursor Bugbot 指摘・回帰）。
+        let cfg = config(400, 150, false);
+        let hovering_and_focused = state_with(DelayPhase::OpenPending, true, false, true);
+        let (next, effect) =
+            transition(hovering_and_focused, DelayEvent::PointerLeaveTrigger, &cfg);
+        assert_eq!(
+            next.phase,
+            DelayPhase::OpenPending,
+            "trigger がまだフォーカスされている間は pointerleave で pending open を取消してはならない"
+        );
+        assert_eq!(effect, DelayEffect::None);
+        assert!(
+            !next.pointer_over_trigger,
+            "pointer_over_trigger フラグ自体は leave で false に更新される"
+        );
+    }
+
+    #[test]
+    fn open_pending_blur_trigger_cancels_when_pointer_already_left() {
+        // ポインタも trigger 上になければ、`openDelay` 待ち中の blur は
+        // 従来通り pending open を即時取消する（回帰: stay_open 判定の
+        // 追加が「両方離脱時の即時キャンセル」を弱めていないことを固定
+        // する）。
+        let cfg = config(400, 150, false);
+        let focused_only = state_with(DelayPhase::OpenPending, false, false, true);
+        let (next, effect) = transition(focused_only, DelayEvent::BlurTrigger, &cfg);
+        assert_eq!(next.phase, DelayPhase::Closed);
+        assert_eq!(effect, DelayEffect::CancelTimer);
+    }
+
+    #[test]
+    fn open_pending_pointer_leave_trigger_cancels_when_not_focused() {
+        // フォーカスもされていなければ、`openDelay` 待ち中の pointerleave
+        // は従来通り pending open を即時取消する（回帰）。
+        let cfg = config(400, 150, false);
+        let hovering_only = state_with(DelayPhase::OpenPending, true, false, false);
+        let (next, effect) = transition(hovering_only, DelayEvent::PointerLeaveTrigger, &cfg);
+        assert_eq!(next.phase, DelayPhase::Closed);
+        assert_eq!(effect, DelayEffect::CancelTimer);
+    }
+
+    #[test]
+    fn open_pending_pointer_leave_trigger_stays_pending_while_interactive_content_hovered() {
+        // interactive=true で `openDelay` 待ち中に content がまだホバー
+        // されていれば、トリガー離脱で pending open を取消してはならない
+        // （Bugbot 指摘のもう一方のシナリオ: interactive content hover）。
+        let cfg = config(400, 150, true);
+        let hovering_content = state_with(DelayPhase::OpenPending, true, true, false);
+        let (next, effect) = transition(hovering_content, DelayEvent::PointerLeaveTrigger, &cfg);
+        assert_eq!(
+            next.phase,
+            DelayPhase::OpenPending,
+            "interactive content がまだホバーされている間は pending open を取消してはならない"
+        );
         assert_eq!(effect, DelayEffect::None);
     }
 
