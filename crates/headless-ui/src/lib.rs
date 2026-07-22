@@ -46,6 +46,10 @@
 //! - [`mod@dialog`]: [`dialog::Dialog`] — Root / Trigger / Backdrop /
 //!   Positioner / Content / Title / Description / CloseTrigger の 8 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだモーダルダイアログ（#531）。
+//! - [`popover`]: Root / Trigger / Anchor / Positioner / Arrow / ArrowTip /
+//!   Content / Title / Description / CloseTrigger / Indicator の 11 anatomy
+//!   パーツと [`state::Disclosure`] を埋め込んだ [`popover::Popover`] を提供する
+//!   headless Popover コンポーネント（#532）。
 //!
 //! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
 //! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
@@ -64,6 +68,7 @@ pub mod aria;
 pub mod collapsible;
 pub mod data_attrs;
 pub mod dialog;
+pub mod popover;
 pub mod state;
 pub mod tabs;
 
