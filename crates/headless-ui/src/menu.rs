@@ -45,9 +45,14 @@
 //! - `ContextTrigger`（右クリック）/`TriggerItem`（サブメニュー・入れ子）:
 //!   クライアントイベント処理・複数 `Disclosure` の合成が必要で工数超過のため
 //!   別イシュー化を提案する。
-//! - 位置決めロジック（Floating UI 相当）・`loopFocus`/`typeahead`/
-//!   `closeOnSelect`/キーボード操作・portal・`lazyMount`: wasm クライアント
-//!   ランタイム側の将来イシューのスコープ（Popover/Tooltip と共通の判断）。
+//! - `loopFocus`/`typeahead`/`closeOnSelect`/キーボード操作・portal・
+//!   `lazyMount`: wasm クライアントランタイム側の将来イシューのスコープ
+//!   （Popover/Tooltip と共通の判断）。
+//!
+//! 位置決めロジック（Floating UI 相当の placement / `sameWidth` / CSS 変数
+//! 出力）は本イシュー（#540）時点ではスコープ外だったが、イシュー #590
+//! （親 #588）で [`crate::positioning`] として実装済みである。詳細は
+//! [`positioner`] の doc を参照。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
@@ -117,8 +122,12 @@ pub fn indicator<'a>(
 }
 
 /// Positioner パーツ（`div`）。位置決めロジックのコンテナ。開閉状態を
-/// `data-*` へ反映するのみで、Floating UI 相当の placement 計算はスコープ外
-/// （モジュール doc §スコープ外参照）。
+/// `data-*` へ反映する。placement 計算自体は
+/// [`crate::positioning::compute_position`]（#590）が担い、算出された
+/// `style`（`--fandhe-*` CSS 変数）・`data-side`/`data-align` は呼び出し側が
+/// `attrs` 経由で渡す（`fandhe-frontend-wasm-full` の `position` モジュールが
+/// 実 DOM 計測を行ったうえで計算する。本関数自体は `web-sys` 非依存の
+/// ままである）。
 ///
 /// anatomy 上 [`arrow`]/[`arrow_tip`] は [`content`] と並んで本パーツ内に
 /// 配置される想定であり、closed のとき `hidden` 存在属性を本パーツへ付与
@@ -396,6 +405,47 @@ mod tests {
     use super::*;
     use fandhe_frontend_core::{render, text};
     use fandhe_frontend_interactive::{dispatch, render_for_hydration};
+
+    // --- positioning（#590）接続 ---
+
+    #[test]
+    fn positioner_accepts_computed_style_and_placement_attrs_via_attrs() {
+        use crate::positioning::{
+            compute_position, css_vars_style, placement_attrs, Align, Placement, PositioningConfig,
+            Rect, Side, Size,
+        };
+
+        let anchor = Rect {
+            x: 100.0,
+            y: 100.0,
+            width: 50.0,
+            height: 20.0,
+        };
+        let floating = Size {
+            width: 200.0,
+            height: 80.0,
+        };
+        let viewport = Size {
+            width: 800.0,
+            height: 600.0,
+        };
+        let config = PositioningConfig {
+            placement: Placement::new(Side::Bottom, Align::Start),
+            offset: 0.0,
+            flip: true,
+            shift: true,
+            same_width: true,
+        };
+        let resolved = compute_position(anchor, floating, viewport, &config, true);
+        let style = css_vars_style(&resolved, anchor.width);
+        let mut attrs: Vec<(&str, &str)> = vec![("style", &style)];
+        attrs.extend(placement_attrs(resolved.placement));
+
+        let html = render(&positioner(OpenState::Open, attrs, vec![]));
+        assert!(html.contains("--fandhe-reference-width:"));
+        assert!(html.contains(r#"data-side="bottom""#));
+        assert!(html.contains(r#"data-align="start""#));
+    }
 
     // --- 各パーツの data-scope/data-part 出力 ---
 

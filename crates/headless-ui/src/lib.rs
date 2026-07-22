@@ -127,6 +127,14 @@
 //!
 //! - [`mod@checkbox`]: ark-ui Checkbox 相当の anatomy（イシュー #535）。
 //!   dispatch 統合（クリックトグル等の動的状態遷移）は #524 のスコープ。
+//! - [`mod@positioning`]: anchor positioning の位置計算純粋関数モジュール
+//!   （[`positioning::compute_position`]、イシュー #590、親 #588、正の規範
+//!   文書は `docs/design/anchor-positioning-design.md`）。12 placement 語彙
+//!   （[`positioning::Placement`]）・flip/shift/sameWidth・CSS 変数出力
+//!   （[`positioning::css_vars_style`]）を提供し、Popover/Tooltip/Menu/Select
+//!   の `positioner`/`arrow`/`arrow_tip` が「CSS フックのみ」だったスコープ
+//!   外事項を解消する。実 DOM 計測は `fandhe-frontend-wasm-full`（`position`
+//!   モジュール）の責務であり、本クレートは `web-sys` 非依存のまま維持する。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -142,6 +150,7 @@ pub mod dialog;
 pub mod field;
 pub mod menu;
 pub mod popover;
+pub mod positioning;
 pub mod progress;
 pub mod radio_group;
 pub mod select;
@@ -169,6 +178,10 @@ pub use data_attrs::{
 pub use dialog::Dialog;
 pub use field::FieldProps;
 pub use menu::Menu;
+pub use positioning::{
+    compute_position, css_vars_style, data_align, data_side, placement_attrs, Align, ArrowPosition,
+    Placement, PositioningConfig, Rect, ResolvedPosition, Side, Size,
+};
 pub use progress::{Progress, ProgressAction};
 pub use radio_group::RadioGroup;
 pub use state::{

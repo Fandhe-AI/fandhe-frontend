@@ -56,11 +56,15 @@
 //! - **highlight（`data-highlighted`/`aria-activedescendant`）・typeahead・
 //!   キーボードナビゲーション**: CSR 挙動層の責務であり、wasm 層の将来
 //!   イシューのスコープ。
-//! - **位置決めロジック（Floating UI 相当）**: [`positioner`] は CSS フック
-//!   （data-* セレクタ）のみを提供する（Popover/Tooltip と同じ判断）。
 //! - **`closeOnSelect` 以外の close 制御・lazyMount・portal**: クライアント
 //!   ランタイム側のイベント処理・DOM 操作であり、wasm 層の将来イシューの
 //!   スコープ。
+//!
+//! 位置決めロジック（Floating UI 相当の placement / `sameWidth` / CSS 変数
+//! 出力）は本イシュー（#541）時点ではスコープ外だったが、イシュー #590
+//! （親 #588）で [`crate::positioning`] として実装済みである。詳細は
+//! [`positioner`] の doc を参照（Select は arrow を持たないため
+//! `data-side`/`data-align` のみを出力する、ADR §4.2）。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
@@ -186,8 +190,10 @@ pub fn indicator<'a>(
 /// Positioner パーツ（`div`）。位置決めロジックのコンテナ。開閉状態を
 /// `data-*` へ反映し、closed のとき `hidden` 存在属性を付与することで
 /// [`content`] を含めて SSR/no-JS マークアップから閉状態を表現する
-/// （Popover/Tooltip の `positioner` と同じ判断）。位置決め計算自体は
-/// スコープ外（モジュール doc §out-of-scope 参照）。
+/// （Popover/Tooltip の `positioner` と同じ判断）。placement 計算自体は
+/// [`crate::positioning::compute_position`]（#590）が担い、算出された
+/// `style`（`--fandhe-*` CSS 変数、arrow 座標は含まない）・`data-side`/
+/// `data-align` は呼び出し側が `attrs` 経由で渡す。
 #[must_use]
 pub fn positioner<'a>(
     state: OpenState,
@@ -644,6 +650,49 @@ mod tests {
     use super::*;
     use fandhe_frontend_core::{render, text};
     use fandhe_frontend_interactive::{dispatch, render_for_hydration};
+
+    // --- positioning（#590）接続: Select は arrow を持たないため
+    // has_arrow=false で呼び出す（ADR §4.2） ---
+
+    #[test]
+    fn positioner_accepts_computed_style_and_placement_attrs_via_attrs() {
+        use crate::positioning::{
+            compute_position, css_vars_style, placement_attrs, Align, Placement, PositioningConfig,
+            Rect, Side, Size,
+        };
+
+        let anchor = Rect {
+            x: 100.0,
+            y: 100.0,
+            width: 50.0,
+            height: 20.0,
+        };
+        let floating = Size {
+            width: 200.0,
+            height: 80.0,
+        };
+        let viewport = Size {
+            width: 800.0,
+            height: 600.0,
+        };
+        let config = PositioningConfig {
+            placement: Placement::new(Side::Bottom, Align::Center),
+            offset: 0.0,
+            flip: true,
+            shift: true,
+            same_width: true,
+        };
+        let resolved = compute_position(anchor, floating, viewport, &config, false);
+        let style = css_vars_style(&resolved, anchor.width);
+        let mut attrs: Vec<(&str, &str)> = vec![("style", &style)];
+        attrs.extend(placement_attrs(resolved.placement));
+
+        let html = render(&positioner(OpenState::Open, attrs, vec![]));
+        assert!(html.contains("--fandhe-reference-width:"));
+        assert!(!html.contains("--fandhe-arrow-x:"));
+        assert!(html.contains(r#"data-side="bottom""#));
+        assert!(html.contains(r#"data-align="center""#));
+    }
 
     // --- 各パーツの data-scope/data-part/data-state 出力 ---
 

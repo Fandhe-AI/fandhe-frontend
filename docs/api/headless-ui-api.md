@@ -63,6 +63,39 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 **未実装（open イシュー、後続で追補）**: Checkbox（#535）・Progress（#544）。
 本表はこれらの実装完了時に更新する。
 
+## 4a. 位置決め（anchor positioning、イシュー #590、親 #588）
+
+Popover/Tooltip/Menu/Select の `positioner`/`arrow`/`arrow_tip` は「CSS フック
+（`data-*` セレクタ）のみ」だったが、イシュー #590（正の規範文書は
+`docs/design/anchor-positioning-design.md`）で Floating UI 相当の placement
+計算が実装済みとなった。
+
+- `positioning` モジュール（`crates/headless-ui/src/positioning.rs`）が外部
+  依存ゼロの純粋関数として提供する:
+  - [`Placement`]（12 placement 語彙: `top`/`top-start`/`top-end`/
+    `bottom`/`bottom-start`/`bottom-end`/`left`/`left-start`/`left-end`/
+    `right`/`right-start`/`right-end`）・[`Side`]/[`Align`]。
+  - `compute_position(anchor, floating, viewport, config, has_arrow)`:
+    flip（主軸の単純反転 1 候補のみ）・shift（viewport 内クランプ）・
+    sameWidth を適用した確定座標・確定 placement・arrow 座標を返す
+    決定的関数。異常入力（`NaN`/`Infinity`/負の幅高さ・寸法 0）は
+    fail-closed（既定 placement のまま座標 `(0.0, 0.0)`）。
+  - `css_vars_style(resolved, reference_width)`: `--fandhe-x`/`--fandhe-y`/
+    `--fandhe-reference-width`/`--fandhe-arrow-x`/`--fandhe-arrow-y` の
+    5 つの CSS 変数（内部生成の数値書式のみ）からなる `style` 属性値文字列
+    を組み立てる。
+  - `data_side`/`data_align`/`placement_attrs`: `data-side`/`data-align`
+    属性ヘルパ（SSR/SSG のフォールバック出力にも使う）。
+- 実 DOM 計測（`getBoundingClientRect`・viewport 寸法）とスクロール/リサイズ
+  契機の再計算は `fandhe-frontend-wasm-full` の `position` モジュールが担う
+  （`headless-ui` は `web-sys` 非依存のまま維持する）。SSR/SSG では計算を
+  スキップし `data-side`/`data-align` の静的出力 + `pre-styled-ui` 側の
+  静的 CSS フォールバックで初期表示を描画する。
+- `autoPlacement`/`inline`/`hide`/`size`（sameWidth 以外）/`VirtualElement`/
+  `autoUpdate` 相当の連続監視は意図的非対応（ADR §4.3、
+  `docs/policy/intentional-non-adoption.md` への転記は別途ユーザー承認が
+  必要な追跡事項）。
+
 ## 5. 呼び出し規約（SSR / CSR 共通の前提）
 
 - 各コンポーネントの anatomy パーツ（`root`/`trigger`/`content` 等）は
@@ -95,6 +128,10 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 5. `#![forbid(unsafe_code)]`（REQ-2）。`unsafe` はクレート全体で使用しない。
 6. 外部依存は `fandhe-frontend-core` / `fandhe-frontend-interactive`
    （いずれも path）のみ（`.claude/rules/coding-rust.md`）。
+7. `positioning::css_vars_style` が返す `style` 属性値は内部生成の数値書式
+   （px）のみからなり、呼び出し側は必ず既存の `attrs` 引数 → 上記 2 の
+   既定エスケープを経由して出力する（イシュー #590、
+   `docs/design/anchor-positioning-design.md` §7）。
 
 ## 7. 関連ドキュメント
 
@@ -104,4 +141,6 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
   上層（chakra-ui 相当）
 - [`examples/headless-pre-styled-ui/README.md`](../../examples/headless-pre-styled-ui/README.md):
   本クレートのショーケース正本サンプル
+- [`docs/design/anchor-positioning-design.md`](../design/anchor-positioning-design.md):
+  anchor positioning の設計確定書（イシュー #589、正の規範文書）
 - `.claude/skills/ark-ui/`: 設計時の参考にした ark-ui リファレンススキル

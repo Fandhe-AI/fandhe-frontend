@@ -27,7 +27,7 @@
 
 use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::{
-    aria_controls, aria_label, avatar, data_state, dialog, ImageStatus,
+    aria_controls, aria_label, avatar, data_state, dialog, popover, ImageStatus, OpenState,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -158,6 +158,24 @@ fn avatar_image_src_rejects_dangerous_url_schemes() {
             html.contains(r#"alt="safe alt text""#),
             "src 属性の拒否によって兄弟属性 alt まで欠落している: html={html}"
         );
+    }
+}
+
+/// (2) 属性値経路（style、イシュー #590 anchor positioning 追加分）:
+/// [`popover::positioner`] の `attrs` 経由で渡す `style` 属性値（ADR §4.4 の
+/// CSS 変数出力経路）へ属性境界脱出（`"` breakout）系ペイロードを注入し、
+/// エスケープが貫通することを固定する。
+///
+/// `positioning::css_vars_style` 自体は内部生成の数値書式のみを組み立てる
+/// ため実運用でこの経路にユーザー入力が流れることはないが、`attrs` 引数は
+/// 型上 `&str` を受け取れる（既存の動的値契約、ADR §4.4）ため、`style`
+/// 属性という経路自体が既定エスケープを迂回しないことを回帰として固定する。
+#[test]
+fn positioner_style_attr_payload_is_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let node = popover::positioner(OpenState::Open, vec![("style", payload)], vec![]);
+        let html = render(&node);
+        assert_payload_is_escaped(payload, &html, "positioner の style 属性値コンテキスト");
     }
 }
 

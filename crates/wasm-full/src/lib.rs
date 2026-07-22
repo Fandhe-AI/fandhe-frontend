@@ -50,6 +50,14 @@
 //! 踏襲し、実際の `"close"` dispatch・再描画は呼び出し側（#580 統合層）の
 //! 責務として通知（コールバック）のみを提供する。
 //!
+//! [`position`] モジュール（イシュー #590、親 #588）は `fandhe-frontend-headless-ui`
+//! の `positioning`（`compute_position`/`css_vars_style`、純粋関数）へ実 DOM
+//! 計測値（anchor 矩形・floating/viewport 寸法）を注入し、Popover/Tooltip/
+//! Menu/Select の `positioner`/`arrow` へ算出済み `style`/`data-side`/
+//! `data-align` を反映する。`events`/`overlay` と同じ 2 層構成を踏襲し、
+//! scroll/resize イベント契機の離散的な再計算（`autoUpdate` 相当の連続監視は
+//! 非採用、`docs/design/anchor-positioning-design.md` §4.3）を提供する。
+//!
 //! 本クレートの自作コードは safe Rust のみとし、`unsafe` は `wasm-bindgen` /
 //! `web-sys` の FFI 境界（依存クレート内部・自動生成コード）に限定する
 //! （`docs/policy/unsafe-boundary.md` 第 2 節）。自作コードでの新規 `unsafe` 追加を
@@ -69,6 +77,7 @@ pub mod hydration;
 pub mod keynav;
 pub mod nav;
 pub mod overlay;
+pub mod position;
 
 #[cfg(target_arch = "wasm32")]
 pub mod entry;

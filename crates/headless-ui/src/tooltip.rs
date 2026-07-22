@@ -28,12 +28,20 @@
 //! # スコープ外（out-of-scope）
 //!
 //! `openDelay`/`closeDelay`（表示・非表示までの遅延タイマー）・
-//! `interactive`（tooltip 内へのポインタ移動時の維持）・`closeOnEscape`・
-//! `positioning`（フローティング位置計算）は、タイマーやポインタ座標などの
-//! クライアントサイド実行時挙動であり、headless な anatomy/状態機械を
-//! 提供する本イシューのスコープ外とする（`fandhe-frontend-wasm-full`/
-//! `fandhe-frontend-wasm-thin` 層または styled 層側の実装課題として別途
-//! 検討する）。
+//! `interactive`（tooltip 内へのポインタ移動時の維持）・`closeOnEscape`は、
+//! タイマーやポインタ座標などのクライアントサイド実行時挙動であり、
+//! headless な anatomy/状態機械を提供する本イシューのスコープ外とする
+//! （`fandhe-frontend-wasm-full`/`fandhe-frontend-wasm-thin` 層または styled
+//! 層側の実装課題として別途検討する）。
+//!
+//! フローティング位置計算（Floating UI 相当の placement / `sameWidth` /
+//! CSS 変数出力）は本イシュー（#533）時点ではスコープ外だったが、イシュー
+//! #590（親 #588）で [`crate::positioning`] として実装済みである。
+//! [`positioner`]/[`arrow`]/[`arrow_tip`] は引き続き `attrs` 経由で
+//! `style`/`data-side`/`data-align` を受け取る薄いラッパーのままであり、
+//! 計算自体は `fandhe-frontend-wasm-full`（`position` モジュール）が
+//! [`crate::positioning::compute_position`] を呼び出して行う（本モジュール
+//! 自体は `web-sys` 非依存を維持する）。
 //!
 //! # セキュリティ不変条件
 //!
@@ -100,9 +108,11 @@ pub fn trigger<'a>(
     ANATOMY.part("trigger", "button", merged, children)
 }
 
-/// Positioner パーツ（`div`）。フローティング位置計算はスコープ外
-/// （モジュール doc §スコープ外参照）であり、本関数は `data-scope`/
-/// `data-part` のみを付与する位置決めラッパーである。
+/// Positioner パーツ（`div`）。位置計算自体は本関数の責務ではなく
+/// [`crate::positioning::compute_position`]（#590）が担う。本関数は
+/// `data-scope`/`data-part` に加え、呼び出し側が `attrs` 経由で渡す
+/// `style`（`--fandhe-*` CSS 変数）・`data-side`/`data-align` をそのまま
+/// 透過させる薄いラッパーである（モジュール doc §スコープ外参照）。
 #[must_use]
 pub fn positioner<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
     ANATOMY.part("positioner", "div", attrs, children)
@@ -270,6 +280,47 @@ mod tests {
     use super::*;
     use fandhe_frontend_core::{render, text};
     use fandhe_frontend_interactive::{dispatch, render_for_hydration};
+
+    // --- positioning（#590）接続 ---
+
+    #[test]
+    fn positioner_accepts_computed_style_and_placement_attrs_via_attrs() {
+        use crate::positioning::{
+            compute_position, css_vars_style, placement_attrs, Align, Placement, PositioningConfig,
+            Rect, Side, Size,
+        };
+
+        let anchor = Rect {
+            x: 100.0,
+            y: 100.0,
+            width: 50.0,
+            height: 20.0,
+        };
+        let floating = Size {
+            width: 200.0,
+            height: 80.0,
+        };
+        let viewport = Size {
+            width: 800.0,
+            height: 600.0,
+        };
+        let config = PositioningConfig {
+            placement: Placement::new(Side::Top, Align::Start),
+            offset: 0.0,
+            flip: true,
+            shift: true,
+            same_width: false,
+        };
+        let resolved = compute_position(anchor, floating, viewport, &config, true);
+        let style = css_vars_style(&resolved, anchor.width);
+        let mut attrs: Vec<(&str, &str)> = vec![("style", &style)];
+        attrs.extend(placement_attrs(resolved.placement));
+
+        let html = render(&positioner(attrs, vec![]));
+        assert!(html.contains("--fandhe-arrow-x:"));
+        assert!(html.contains(r#"data-side="top""#));
+        assert!(html.contains(r#"data-align="start""#));
+    }
 
     // --- 各パーツの data-scope/data-part/data-state 出力 ---
 
