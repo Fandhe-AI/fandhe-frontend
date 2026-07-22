@@ -22,13 +22,19 @@
 //!    追加しない。`fandhe-frontend-core` への直接依存は headless-ui 経由で
 //!    間接的に得る（dev-dependency としてのみ利用、後述）。
 //!
-//! # 本ファイルのスコープ（イシュー #546）
+//! # 本ファイルのスコープ
 //!
-//! 本イシューのスコープは「クレートが workspace・`structure.toml`・`fw gate` の
-//! 管理下に正しく組み込まれた状態」の確立のみであり、テーマトークン・ダークモード
-//! 基盤の実装はイシュー #547、variant API・静的 CSS 生成はイシュー #548、styled
-//! 部品実装はイシュー #550/#551 のスコープ。本クレートは現時点で公開 API を
-//! 持たない（空クレートでも `fw gate` の type_check / lint / test は成立する）。
+//! イシュー #546 でクレートが workspace・`structure.toml`・`fw gate` の管理下に
+//! 組み込まれ、本イシュー（#548）で [`css`]（CSS 宣言の低レベル表現・検証・
+//! シリアライズ）と [`recipe`]（slot recipe 本体・`SlotRecipe`・`VariantValue`）
+//! を実装した。テーマトークン・ダークモード基盤はイシュー #547、styled 部品実装
+//! （Button 等 #550・Dialog 等ラッパー #551）は別イシューのスコープ。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+
+pub mod css;
+pub mod recipe;
+
+pub use css::{decl, Declaration};
+pub use recipe::{Size, SlotRecipe, VariantValue};

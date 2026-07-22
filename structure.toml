@@ -98,7 +98,7 @@ path = "crates/headless-ui"
 [directories.pre-styled-ui]
 role = "component"
 crate = "fandhe-frontend-pre-styled-ui"
-description = "pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。テーマトークン・ダークモード基盤はイシュー #547、variant API・静的 CSS 生成はイシュー #548 で追加する"
+description = "pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。variant API（SlotRecipe/VariantValue）・静的 CSS 生成はイシュー #548 で実装済み。テーマトークン・ダークモード基盤はイシュー #547、styled 部品実装はイシュー #550/#551 で追加する"
 depends_on = ["headless-ui"]
 path = "crates/pre-styled-ui"
 
