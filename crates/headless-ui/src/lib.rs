@@ -60,6 +60,13 @@
 //!   `invalid`/`disabled`/`required`/`readonly` は SSR 静的な props であり、
 //!   開閉のような時間変化する内部状態を持たないため [`mod@state`] の状態機械を
 //!   適用しない（[`mod@tabs`] と同型の判断）。
+//! - [`mod@switch`]: Root / Control / Thumb / Label / HiddenInput の 5 anatomy
+//!   パーツと、`"checked"`/`"unchecked"` 語彙の [`switch::Switch`] 状態機械
+//!   （#537、親 #534）。ark-ui 準拠の値語彙が [`state::Disclosure`] の
+//!   `"open"`/`"closed"` と異なるため、[`state`] を埋め込まず
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する点が
+//!   [`mod@collapsible`] との違い。
 //!
 //! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
 //! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
@@ -81,6 +88,7 @@ pub mod dialog;
 pub mod field;
 pub mod popover;
 pub mod state;
+pub mod switch;
 pub mod tabs;
 pub mod tooltip;
 
@@ -100,5 +108,6 @@ pub use state::{
     Disclosure, DisclosureAction, OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CLOSED,
     DATA_STATE_OPEN,
 };
+pub use switch::{Switch, SwitchAction};
 pub use tabs::{tabs, TabItem, TabsProps};
 pub use tooltip::Tooltip;
