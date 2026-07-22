@@ -50,11 +50,13 @@
 //!   [`fandhe_frontend_interactive::Hydrate`] 実装は panic せず
 //!   `HydrateError` を返す（パース不能・非有限・`min >= max`・範囲外 value を
 //!   すべて拒否する）。
-//! - `orientation` はレイアウト上の静的な選択であり、クライアント改ざんの
-//!   対象となる状態（`min`/`max`/`value`）とは性質が異なるため hydration
-//!   属性には含めない（呼び出し側が SSR/CSR で同じ値を再指定する前提。
-//!   `docs/api/hydration-state-format.md` の `<field>` 命名規約が要求する
-//!   フィールドではない）。
+//! - `orientation` は `min`/`max`/`value` と同じくクライアント改ざんの
+//!   対象として扱い、`data-hydrate-orientation` を経由して hydration に
+//!   含める（`docs/api/hydration-state-format.md` の `<field>` 命名規約に
+//!   従う）。含めない設計だと `Hydrate` ラウンドトリップ後に
+//!   vertical Progress が horizontal へ静かに反転する不変条件違反が生じる
+//!   ため（イシュー #544 PR #570 レビュー指摘）、他フィールドと同様に
+//!   fail-closed（未知の値・欠落は `HydrateError`）で往復させる。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::role;
@@ -132,6 +134,8 @@ impl Progress {
     pub const FIELD_VALUE: &'static str = "value";
     /// indeterminate（不定進捗）を表す `data-hydrate-value` の予約値。
     pub const HYDRATE_VALUE_INDETERMINATE: &str = "indeterminate";
+    /// `data-hydrate-orientation` 属性名のフィールド部分。
+    pub const FIELD_ORIENTATION: &'static str = "orientation";
 
     /// 指定した値で [`Progress`] を生成する（[`normalize`] で fail-closed
     /// 正規化する。呼び出し側の不正な入力で panic しない）。
@@ -162,6 +166,12 @@ impl Progress {
     #[must_use]
     pub fn max(&self) -> f64 {
         self.max
+    }
+
+    /// 現在の向き（`data-orientation`/hydration ラウンドトリップの対象）。
+    #[must_use]
+    pub fn orientation(&self) -> Orientation {
+        self.orientation
     }
 
     /// 進捗率（0.0..=100.0）。indeterminate のときは `None`。
@@ -273,10 +283,17 @@ pub enum ProgressAction {
 impl Component for Progress {
     type Action = ProgressAction;
 
+    /// `ProgressAction::SetValue` は非有限（`NaN`/`inf`）を fail-closed に
+    /// 無視する（no-op）。[`normalize`]/[`Progress::decode_action`] が課す
+    /// 「`value` は有限値または `None`」という本モジュールの不変条件を
+    /// `update()` 単体でも維持するため（`decode_action` を経由しない直接
+    /// `ProgressAction::SetValue` 構築・呼び出しからも同じ不変条件を守る）。
     fn update(&mut self, action: ProgressAction) {
         match action {
             ProgressAction::SetValue(v) => {
-                self.value = Some(v.clamp(self.min, self.max));
+                if v.is_finite() {
+                    self.value = Some(v.clamp(self.min, self.max));
+                }
             }
             ProgressAction::SetIndeterminate => {
                 self.value = None;
@@ -330,15 +347,19 @@ impl Hydrate for Progress {
                 format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_VALUE),
                 value_s,
             ),
+            (
+                format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_ORIENTATION),
+                self.orientation.as_str().to_string(),
+            ),
         ]
     }
 
     /// クライアント改ざん入力として扱う。欠落は
     /// [`HydrateError::MissingAttr`]、パース不能・非有限・`min >= max`・
-    /// 範囲外 value は [`HydrateError::InvalidValue`]（panic しない）。
-    /// `orientation` はモジュール doc に記載のとおり hydration 対象外の
-    /// ため、復元後の値は常に [`Orientation::Horizontal`] になる
-    /// （呼び出し側が SSR/CSR で同じ値を再指定する前提）。
+    /// 範囲外 value・未知の `orientation` 値は
+    /// [`HydrateError::InvalidValue`]（panic しない）。`orientation` も
+    /// `min`/`max`/`value` と同じくラウンドトリップの対象であり
+    /// （モジュール doc 参照）、`"horizontal"`/`"vertical"` 以外は拒否する。
     fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
         let find = |field: &str| -> Result<&str, HydrateError> {
             let name = format!("{HYDRATE_ATTR_PREFIX}{field}");
@@ -352,6 +373,7 @@ impl Hydrate for Progress {
         let min_raw = find(Self::FIELD_MIN)?;
         let max_raw = find(Self::FIELD_MAX)?;
         let value_raw = find(Self::FIELD_VALUE)?;
+        let orientation_raw = find(Self::FIELD_ORIENTATION)?;
 
         let attr_name_min = format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_MIN);
         let min = min_raw
@@ -401,11 +423,23 @@ impl Hydrate for Progress {
             Some(v)
         };
 
+        let attr_name_orientation = format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_ORIENTATION);
+        let orientation = match orientation_raw {
+            "horizontal" => Orientation::Horizontal,
+            "vertical" => Orientation::Vertical,
+            _ => {
+                return Err(HydrateError::InvalidValue {
+                    attr: attr_name_orientation,
+                    reason: "expected \"horizontal\" or \"vertical\"".to_string(),
+                })
+            }
+        };
+
         Ok(Self {
             min,
             max,
             value,
-            orientation: Orientation::Horizontal,
+            orientation,
         })
     }
 }
@@ -588,6 +622,22 @@ mod tests {
         }
     }
 
+    /// イシュー #544 PR #570 レビュー指摘: `decode_action` を経由せず
+    /// `ProgressAction::SetValue` を直接構築して `update()` を呼んでも、
+    /// 非有限値（`NaN`/`inf`）が `value` へ混入して
+    /// `aria-valuenow`/`data-value`/`percent`/`data-state` を汚染しない
+    /// （「有限値または `None`」不変条件を `update()` 単体でも維持する）。
+    #[test]
+    fn progress_update_rejects_non_finite_set_value_directly() {
+        let mut p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
+        for bogus in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            Component::update(&mut p, ProgressAction::SetValue(bogus));
+            assert_eq!(p.value(), Some(40.0));
+            assert_eq!(p.data_state(), DATA_STATE_LOADING);
+            assert_eq!(p.percent(), Some(40.0));
+        }
+    }
+
     #[test]
     fn progress_dispatch_ignores_unknown_action() {
         let mut p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
@@ -613,6 +663,7 @@ mod tests {
         assert!(rendered.contains(r#"data-hydrate-min="0""#));
         assert!(rendered.contains(r#"data-hydrate-max="100""#));
         assert!(rendered.contains(r#"data-hydrate-value="40""#));
+        assert!(rendered.contains(r#"data-hydrate-orientation="horizontal""#));
 
         let restored = Progress::from_hydration_attrs(&p.hydration_attrs()).unwrap();
         assert_eq!(restored, p);
@@ -625,6 +676,20 @@ mod tests {
         assert!(rendered.contains(r#"data-hydrate-value="indeterminate""#));
 
         let restored = Progress::from_hydration_attrs(&p.hydration_attrs()).unwrap();
+        assert_eq!(restored, p);
+    }
+
+    /// イシュー #544 PR #570 レビュー指摘: hydration ラウンドトリップ後に
+    /// vertical Progress が horizontal へ静かに反転しないことを保証する
+    /// （`orientation` も他フィールドと同じくラウンドトリップ対象）。
+    #[test]
+    fn progress_hydration_round_trip_preserves_vertical_orientation() {
+        let p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Vertical);
+        let rendered = render(&render_for_hydration(&p));
+        assert!(rendered.contains(r#"data-hydrate-orientation="vertical""#));
+
+        let restored = Progress::from_hydration_attrs(&p.hydration_attrs()).unwrap();
+        assert_eq!(restored.orientation(), Orientation::Vertical);
         assert_eq!(restored, p);
     }
 
@@ -645,18 +710,30 @@ mod tests {
                 ("data-hydrate-min".to_string(), "NaN".to_string()),
                 ("data-hydrate-max".to_string(), "100".to_string()),
                 ("data-hydrate-value".to_string(), "40".to_string()),
+                (
+                    "data-hydrate-orientation".to_string(),
+                    "horizontal".to_string(),
+                ),
             ],
             // min >= max。
             vec![
                 ("data-hydrate-min".to_string(), "100".to_string()),
                 ("data-hydrate-max".to_string(), "0".to_string()),
                 ("data-hydrate-value".to_string(), "40".to_string()),
+                (
+                    "data-hydrate-orientation".to_string(),
+                    "horizontal".to_string(),
+                ),
             ],
             // value が範囲外。
             vec![
                 ("data-hydrate-min".to_string(), "0".to_string()),
                 ("data-hydrate-max".to_string(), "100".to_string()),
                 ("data-hydrate-value".to_string(), "150".to_string()),
+                (
+                    "data-hydrate-orientation".to_string(),
+                    "horizontal".to_string(),
+                ),
             ],
             // value が XSS ペイロード。
             vec![
@@ -665,6 +742,20 @@ mod tests {
                 (
                     "data-hydrate-value".to_string(),
                     "<script>alert(1)</script>".to_string(),
+                ),
+                (
+                    "data-hydrate-orientation".to_string(),
+                    "horizontal".to_string(),
+                ),
+            ],
+            // orientation が未知の語彙。
+            vec![
+                ("data-hydrate-min".to_string(), "0".to_string()),
+                ("data-hydrate-max".to_string(), "100".to_string()),
+                ("data-hydrate-value".to_string(), "40".to_string()),
+                (
+                    "data-hydrate-orientation".to_string(),
+                    "diagonal".to_string(),
                 ),
             ],
         ];
