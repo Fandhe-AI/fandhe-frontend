@@ -1,29 +1,45 @@
-//! Tabs / Accordion のキーボード操作（イシュー #582、親 #581）。
+//! Tabs / Accordion / Menu / Select / RadioGroup のキーボード操作
+//! （イシュー #582・#583、親 #581）。
 //!
 //! PR #560（Tabs）/#561（Accordion）は `fandhe-frontend-headless-ui` 側の SSR
 //! 静的マークアップ（roving tabindex・`data-state`/`aria-selected`/`hidden`）
 //! のみを実装し、Arrow/Home/End によるフォーカス移動・`activationMode`
 //! （`crates/headless-ui/src/tabs.rs` の `ActivationMode`、イシュー #582）・
 //! `loopFocus` の実挙動を本クレート（`fandhe-frontend-wasm-full`）へ委ねていた。
-//! 本モジュールはその実装であり、[`events`] と同じ「純粋ロジック層
-//! （native `cargo test` 可）+ `#[cfg(target_arch = "wasm32")]` 配線層」の
-//! 2 層構成を踏襲する。
+//! 同様に PR #566（Menu）/#568（Select）/#558（RadioGroup）も、Arrow 移動・
+//! Home/End・Enter/Space 決定・highlight 追随の実挙動を本クレートへ申し送って
+//! いた（各モジュール冒頭 doc の out-of-scope 節）。Select の highlight SSR
+//! 表現（`data-highlighted`/`aria-activedescendant`/item `id`）は PR #617 で
+//! 整備済みであり、本イシュー（#583）はその前提の上で Menu/Select/RadioGroup の
+//! キーボード操作配線を実装する。本モジュールはその実装であり、[`events`] と
+//! 同じ「純粋ロジック層（native `cargo test` 可）+
+//! `#[cfg(target_arch = "wasm32")]` 配線層」の 2 層構成を踏襲する。
 //!
 //! # 設計: DOM 属性を単一情報源とするステートレス配線
 //!
 //! - 状態（roving tabindex・選択状態・orientation・activationMode・
-//!   loopFocus・disabled）はすべて DOM 属性（`tabindex`/`data-state`/
-//!   `aria-selected`/`hidden`/`data-orientation`/`data-activation-mode`/
-//!   `data-loop-focus`/`disabled`/`data-disabled`）から都度読み取り、DOM
-//!   属性へのみ書き戻す。`fandhe_frontend_interactive::Component`/
+//!   loopFocus・disabled・highlight・radio チェック状態）はすべて DOM 属性
+//!   （`tabindex`/`data-state`/`aria-selected`/`hidden`/`data-orientation`/
+//!   `data-activation-mode`/`data-loop-focus`/`disabled`/`data-disabled`/
+//!   `data-highlighted`/`aria-activedescendant`/`checked`）から都度読み取り、
+//!   DOM 属性へのみ書き戻す。`fandhe_frontend_interactive::Component`/
 //!   `SingleSelect` のような複製状態を新設しない（hydration 状態を介さず
 //!   SSR 出力とクライアント操作後 DOM の一貫性が構造的に保たれる）。
-//! - `Closure::forget` はマウント時に keydown/click の 2 回のみ（[`wire_keynav`]）。
+//! - Menu/Select の「決定」（Enter/Space/クリックによる項目選択）は、DOM を
+//!   直接書き換えるのではなく highlight 中の項目要素へ `HtmlElement::click()`
+//!   を合成することで、既存の click → `data-action` → dispatch 経路
+//!   （[`events::wire_events`]）へ委譲する。マウスクリックとキーボード決定の
+//!   経路を完全に一致させ、アプリ状態（開閉・選択値）へ波及する分岐処理を
+//!   二重実装しない。
+//! - `Closure::forget` はマウント時に keydown/click/change の 3 回のみ
+//!   （[`wire_keynav`]。RadioGroup のネイティブ `<input type="radio">` の
+//!   `change` 委譲を追加したため Tabs/Accordion 時代の 2 回から 1 回増える）。
 //!   [`events::wire_events`] と合わせても定数個であり、無制限リークを構造的に
 //!   回避する（A04 対策、events.rs と同方針）。
-//! - 純粋層（[`tabs_next_index`]/[`accordion_next_index`]）は web-sys に
-//!   依存しない `&str`/`&[bool]` ベースの関数として切り出し、native の
-//!   `cargo test`（`tests/keynav_native.rs`）で網羅的に検証する。
+//! - 純粋層（[`tabs_next_index`]/[`accordion_next_index`]/
+//!   [`highlight_next_index`]/[`radio_next_index`]）は web-sys に依存しない
+//!   `&str`/`&[bool]` ベースの関数として切り出し、native の `cargo test`
+//!   （`tests/keynav_native.rs`）で網羅的に検証する。
 //!
 //! # Tabs のキーボード仕様（WAI-ARIA APG Tabs パターン準拠）
 //!
@@ -56,14 +72,78 @@
 //!   accordion には適用しない（全 trigger が tabbable という APG 仕様のまま、
 //!   `crates/headless-ui/src/accordion.rs` の SSR 出力を変更しない）。
 //!
+//! # Menu / Select のキーボード仕様（WAI-ARIA APG Menu Button / Listbox 準拠）
+//!
+//! Menu（`crates/headless-ui/src/menu.rs`）・Select（`crates/headless-ui/src/select.rs`）
+//! はいずれも「trigger（`button`）にフォーカスが留まり続け、`data-highlighted`/
+//! `aria-activedescendant` で仮想的な項目フォーカスを表現する」パターン
+//! （ネイティブ `<select>` に近い combobox 系の設計）を採る。ark-ui の Menu
+//! 自体は項目へ実 DOM フォーカスを移す設計だが、本リポジトリの headless-ui は
+//! Menu Item も Select Item も `div` ベースで `tabindex` を持たない（SSR 側の
+//! 既存契約を変更しない）ため、本モジュールは trigger 上の keydown のみを
+//! 監視し、フォーカス移動を伴わない highlight 更新に統一する。
+//!
+//! - **closed のとき**: ArrowDown/ArrowUp で trigger へ `click()` を合成して
+//!   開く（`prevent_default`）。Enter/Space はネイティブ `<button>` が
+//!   click を発火するため合成しない（[`events::wire_events`] が
+//!   `data-action` 経由で開閉 dispatch を処理する既存経路に委ねる）。
+//! - **open のとき**: ArrowDown/ArrowUp/Home/End で [`highlight_next_index`]
+//!   により次の highlight 対象を求め、`data-highlighted` の付け替えと
+//!   content の `aria-activedescendant` を highlight 対象の `id` へ更新する
+//!   （`id` 欠落時は属性を除去する fail-safe）。**循環は既定なし**
+//!   （zag/ark-ui の menu `loopFocus: false` 既定に合わせる。content の
+//!   `data-loop-focus="true"` が明示されたときのみ循環する fail-closed
+//!   パース、[`menu_loop_focus_from_attr`]。Tabs の
+//!   [`loop_focus_from_attr`]（既定 true）とは逆既定のため専用関数とする）。
+//!   Enter/Space は highlight 中の項目へ `click()` を合成し、選択・開閉制御
+//!   （`closeOnSelect` 等）は click 経路の dispatch と再描画へ委譲する。
+//!   highlight 対象が disabled・不在なら no-op（fail-closed）。
+//! - content の解決は trigger の `aria-controls` を優先し、欠落時は
+//!   `closest("[data-part=\"root\"]")` 配下の content パーツへフォール
+//!   バックする。
+//! - Escape による閉鎖は [`overlay`] モジュール（イシュー #585/#610）の
+//!   既存責務のため本モジュールでは扱わない。
+//! - サブメニュー（`trigger-item`）の ArrowRight/ArrowLeft 開閉ナビゲーション・
+//!   typeahead は本イシュー（#583）のスコープ外（PR 本文で Issue 化を提案）。
+//!
+//! # RadioGroup のキーボード仕様（WAI-ARIA APG Radio Group パターン準拠）
+//!
+//! [`crate::keynav`] が監視するのはネイティブ `<input type="radio">`
+//! （`crates/headless-ui/src/radio_group.rs::item_hidden_input`）上の
+//! keydown/change であり、Menu/Select と異なり実 DOM フォーカスがそのまま
+//! 各項目を移動する（ネイティブ input のフォーカス可能性をそのまま使う）。
+//!
+//! - ArrowRight/ArrowDown で次、ArrowLeft/ArrowUp で前の非 disabled 項目へ
+//!   移動する（[`radio_next_index`]）。root の `data-orientation` が
+//!   `"horizontal"` のとき左右キーのみ、`"vertical"` のとき上下キーのみを
+//!   受理し、欠落時は両軸を受理する（ark-ui 準拠）。**循環あり**（APG Radio
+//!   Group パターンは端で反対側へ回り込む）。Home/End で先頭/末尾の非
+//!   disabled 項目へ移動する（APG のオプション挙動として採用）。
+//! - 移動先の input へ `focus()` + ネイティブ `checked = true` を設定し
+//!   （APG「移動と同時に選択」）、グループ内全項目の `data-state`
+//!   （`item`/`item-control`/`item-text`/`item-hidden-input` の
+//!   `"checked"`/`"unchecked"`）を同期する。ブラウザの `name` 属性ベースの
+//!   自動排他選択に頼らず、`HtmlInputElement::set_checked` で明示的に全項目
+//!   へ反映することで `name` 欠落時も決定的に動作する。
+//! - Space によるネイティブな決定（チェック + `change` 発火）はブラウザに
+//!   委ね、`wire_keynav` が追加する `change` 委譲リスナーが `data-state`
+//!   群を同期する（マウスクリックによる選択変更も同じ経路で追随する）。
+//!   Enter は APG Radio パターンの対象外のため no-op。
+//!
 //! # セキュリティ不変条件
 //!
-//! - DOM 書き込みは `set_attribute`/`remove_attribute`/`focus()` のみで、
-//!   属性名は `&'static str` リテラル固定・属性値は固定語彙
-//!   （`"0"`/`"-1"`/`"true"`/`"false"`/`"active"`/`"inactive"`）のみ。
-//!   `set_inner_html`・HTML 文字列組み立ては一切行わない（REQ-1 不変条件）。
-//! - `data-activation-mode`/`data-loop-focus` の欠落・未知値は文書化された
-//!   既定（automatic / loop true）へ決定的にフォールバックし、panic しない。
+//! - DOM 書き込みは `set_attribute`/`remove_attribute`/`focus()`/`click()`/
+//!   `HtmlInputElement::set_checked` のみで、属性名は `&'static str`
+//!   リテラル固定・属性値は固定語彙（`"0"`/`"-1"`/`"true"`/`"false"`/
+//!   `"active"`/`"inactive"`/`"checked"`/`"unchecked"`/`""`）のみ。
+//!   `aria-activedescendant` の値のみ DOM 上の既存 `id` 属性の転記であり、
+//!   新規の注入面を作らない。`set_inner_html`・HTML 文字列組み立ては
+//!   一切行わない（REQ-1 不変条件）。
+//! - `data-activation-mode`/`data-loop-focus`/`data-orientation` の欠落・
+//!   未知値は文書化された既定（automatic / menu は loop false・tabs は
+//!   loop true / 両軸許容）へ決定的にフォールバックし、panic しない。
+//! - highlight・radio 決定はいずれも disabled 項目に対して no-op
+//!   （fail-closed）。
 
 /// パーツの向き（`crates/headless-ui/src/data_attrs.rs::Orientation` の値語彙
 /// と対応する、web-sys 非依存の純粋層専用の複製）。
@@ -83,6 +163,23 @@ impl Orientation {
         match value {
             Some("vertical") => Self::Vertical,
             _ => Self::Horizontal,
+        }
+    }
+
+    /// `data-orientation` 属性値文字列から解釈する任意版（RadioGroup 専用）。
+    ///
+    /// [`Self::from_attr`] と異なり、欠落・未知値は `None`（軸制限なし＝両軸
+    /// 受理）として扱う。RadioGroup の `data-orientation` は
+    /// `crates/headless-ui/src/radio_group.rs::root` の `orientation: Option<Orientation>`
+    /// 引数が `None` のとき出力されない任意属性であり、「horizontal 既定」に
+    /// フォールバックする Tabs の [`Self::from_attr`] とは契約が異なる
+    /// （ark-ui 準拠：orientation 未指定時は上下左右いずれのキーも受理する）。
+    #[must_use]
+    pub fn from_attr_optional(value: Option<&str>) -> Option<Self> {
+        match value {
+            Some("vertical") => Some(Self::Vertical),
+            Some("horizontal") => Some(Self::Horizontal),
+            _ => None,
         }
     }
 }
@@ -139,12 +236,16 @@ fn step_non_disabled(
 }
 
 /// 最初の非 disabled インデックス（Home キー用）。全 disabled・空なら `None`。
-fn first_non_disabled(disabled: &[bool]) -> Option<usize> {
+///
+/// `pub(crate)`: 配線層（`wiring::handle_menu_or_select_trigger_keydown`）が
+/// Menu/Select を開いた直後の初期 highlight 計算に流用するため公開する。
+pub(crate) fn first_non_disabled(disabled: &[bool]) -> Option<usize> {
     disabled.iter().position(|&d| !d)
 }
 
 /// 最後の非 disabled インデックス（End キー用）。全 disabled・空なら `None`。
-fn last_non_disabled(disabled: &[bool]) -> Option<usize> {
+/// `pub(crate)` の理由は [`first_non_disabled`] 参照。
+pub(crate) fn last_non_disabled(disabled: &[bool]) -> Option<usize> {
     disabled.iter().rposition(|&d| !d)
 }
 
@@ -230,6 +331,96 @@ pub fn accordion_next_index(
         "End" => last_non_disabled(disabled),
         "ArrowDown" => step_non_disabled(current, 1, disabled, false),
         "ArrowUp" => step_non_disabled(current, -1, disabled, false),
+        _ => None,
+    }
+}
+
+/// Menu/Select の content `data-loop-focus` 属性値文字列から解釈する。
+/// [`loop_focus_from_attr`]（Tabs、既定 true）とは**逆の既定**を持つ。
+/// `"true"` のときのみ循環し、それ以外（欠落・`"false"`・未知値）は
+/// 非循環（zag/ark-ui の menu `loopFocus: false` 既定に合わせる、
+/// モジュール doc §Menu/Select 参照）。
+#[must_use]
+pub fn menu_loop_focus_from_attr(value: Option<&str>) -> bool {
+    value == Some("true")
+}
+
+/// Menu/Select の keydown に対する「次に highlight すべきインデックス」を
+/// 計算する純粋関数（web-sys 非依存、native `cargo test` 可）。
+///
+/// [`tabs_next_index`]/[`accordion_next_index`] と異なり、実 DOM フォーカスの
+/// 現在位置ではなく `data-highlighted` の現在位置（`current`、`None` は
+/// 「まだ何も highlight されていない」）を起点にする（モジュール doc
+/// §Menu/Select 参照）。`current` が `Some` かつ範囲外の場合は「highlight
+/// なし」と同じ扱いにフォールバックする（fail-closed、panic しない）。
+///
+/// - `Home`/`End`: 先頭/末尾の非 disabled 項目。
+/// - `ArrowDown`: `current` があれば次の非 disabled 項目（`loop_focus` に
+///   従う）、なければ先頭の非 disabled 項目。
+/// - `ArrowUp`: `current` があれば前の非 disabled 項目、なければ末尾の非
+///   disabled 項目。
+/// - 修飾キー付き・未知キーは `None`（no-op）。
+#[must_use]
+pub fn highlight_next_index(
+    current: Option<usize>,
+    key: &str,
+    loop_focus: bool,
+    modifiers: Modifiers,
+    disabled: &[bool],
+) -> Option<usize> {
+    if modifiers.any() {
+        return None;
+    }
+    let current_in_range = current.filter(|&i| i < disabled.len());
+    match key {
+        "Home" => first_non_disabled(disabled),
+        "End" => last_non_disabled(disabled),
+        "ArrowDown" => match current_in_range {
+            Some(i) => step_non_disabled(i, 1, disabled, loop_focus),
+            None => first_non_disabled(disabled),
+        },
+        "ArrowUp" => match current_in_range {
+            Some(i) => step_non_disabled(i, -1, disabled, loop_focus),
+            None => last_non_disabled(disabled),
+        },
+        _ => None,
+    }
+}
+
+/// RadioGroup の keydown に対する「次にチェック・移動すべきインデックス」を
+/// 計算する純粋関数。APG Radio Group パターンに従い**常に循環する**
+/// （固定 `loop_focus = true`、[`step_non_disabled`] へ委譲）。`orientation`
+/// が `Some` のとき、その軸のキーのみを受理する（`Horizontal` なら
+/// ArrowLeft/ArrowRight のみ、`Vertical` なら ArrowUp/ArrowDown のみ）。
+/// `None`（`data-orientation` 欠落）のときは両軸のキーを受理する
+/// （[`Orientation::from_attr_optional`] の契約、ark-ui 準拠）。Home/End は
+/// orientation に関わらず先頭/末尾の非 disabled 項目へ移動する。
+#[must_use]
+pub fn radio_next_index(
+    current: usize,
+    key: &str,
+    orientation: Option<Orientation>,
+    modifiers: Modifiers,
+    disabled: &[bool],
+) -> Option<usize> {
+    if modifiers.any() || current >= disabled.len() {
+        return None;
+    }
+    match key {
+        "Home" => first_non_disabled(disabled),
+        "End" => last_non_disabled(disabled),
+        "ArrowRight" if orientation != Some(Orientation::Vertical) => {
+            step_non_disabled(current, 1, disabled, true)
+        }
+        "ArrowLeft" if orientation != Some(Orientation::Vertical) => {
+            step_non_disabled(current, -1, disabled, true)
+        }
+        "ArrowDown" if orientation != Some(Orientation::Horizontal) => {
+            step_non_disabled(current, 1, disabled, true)
+        }
+        "ArrowUp" if orientation != Some(Orientation::Horizontal) => {
+            step_non_disabled(current, -1, disabled, true)
+        }
         _ => None,
     }
 }
@@ -626,6 +817,317 @@ mod tests {
             None
         );
     }
+
+    // --- Orientation::from_attr_optional ---
+
+    #[test]
+    fn orientation_from_attr_optional_none_for_unknown_or_missing() {
+        assert_eq!(
+            Orientation::from_attr_optional(Some("vertical")),
+            Some(Orientation::Vertical)
+        );
+        assert_eq!(
+            Orientation::from_attr_optional(Some("horizontal")),
+            Some(Orientation::Horizontal)
+        );
+        assert_eq!(Orientation::from_attr_optional(Some("bogus")), None);
+        assert_eq!(Orientation::from_attr_optional(None), None);
+    }
+
+    // --- menu_loop_focus_from_attr（既定 false、tabs の loop_focus_from_attr と逆） ---
+
+    #[test]
+    fn menu_loop_focus_from_attr_is_false_unless_explicitly_true() {
+        assert!(!menu_loop_focus_from_attr(None));
+        assert!(!menu_loop_focus_from_attr(Some("false")));
+        assert!(!menu_loop_focus_from_attr(Some("bogus")));
+        assert!(menu_loop_focus_from_attr(Some("true")));
+    }
+
+    // --- highlight_next_index（Menu/Select 共用） ---
+
+    #[test]
+    fn highlight_next_index_no_current_arrow_down_picks_first_enabled() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            highlight_next_index(None, "ArrowDown", false, mods(), &disabled),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn highlight_next_index_no_current_arrow_up_picks_last_enabled() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            highlight_next_index(None, "ArrowUp", false, mods(), &disabled),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn highlight_next_index_steps_from_current_and_skips_disabled() {
+        let disabled = [false, true, false];
+        assert_eq!(
+            highlight_next_index(Some(0), "ArrowDown", false, mods(), &disabled),
+            Some(2)
+        );
+        assert_eq!(
+            highlight_next_index(Some(2), "ArrowUp", false, mods(), &disabled),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn highlight_next_index_home_end_skip_disabled() {
+        let disabled = [true, false, false, true];
+        assert_eq!(
+            highlight_next_index(Some(2), "Home", false, mods(), &disabled),
+            Some(1)
+        );
+        assert_eq!(
+            highlight_next_index(Some(1), "End", false, mods(), &disabled),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn highlight_next_index_default_no_loop_is_noop_at_ends() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            highlight_next_index(Some(2), "ArrowDown", false, mods(), &disabled),
+            None
+        );
+        assert_eq!(
+            highlight_next_index(Some(0), "ArrowUp", false, mods(), &disabled),
+            None
+        );
+    }
+
+    #[test]
+    fn highlight_next_index_loop_focus_true_wraps_at_ends() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            highlight_next_index(Some(2), "ArrowDown", true, mods(), &disabled),
+            Some(0)
+        );
+        assert_eq!(
+            highlight_next_index(Some(0), "ArrowUp", true, mods(), &disabled),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn highlight_next_index_out_of_range_current_falls_back_to_no_current_behavior() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            highlight_next_index(Some(99), "ArrowDown", false, mods(), &disabled),
+            Some(0)
+        );
+        assert_eq!(
+            highlight_next_index(Some(99), "ArrowUp", false, mods(), &disabled),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn highlight_next_index_unknown_key_and_modifiers_are_noop() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            highlight_next_index(None, "PageDown", false, mods(), &disabled),
+            None
+        );
+        assert_eq!(
+            highlight_next_index(
+                None,
+                "ArrowDown",
+                false,
+                Modifiers {
+                    ctrl: true,
+                    ..Modifiers::default()
+                },
+                &disabled
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn highlight_next_index_all_disabled_or_empty_yields_none() {
+        let all_disabled = [true, true];
+        assert_eq!(
+            highlight_next_index(None, "ArrowDown", false, mods(), &all_disabled),
+            None
+        );
+        let empty: [bool; 0] = [];
+        assert_eq!(
+            highlight_next_index(None, "ArrowDown", false, mods(), &empty),
+            None
+        );
+    }
+
+    // --- radio_next_index（RadioGroup 専用、常に循環） ---
+
+    #[test]
+    fn radio_next_index_no_orientation_accepts_both_axes() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            radio_next_index(0, "ArrowRight", None, mods(), &disabled),
+            Some(1)
+        );
+        assert_eq!(
+            radio_next_index(0, "ArrowDown", None, mods(), &disabled),
+            Some(1)
+        );
+        assert_eq!(
+            radio_next_index(0, "ArrowLeft", None, mods(), &disabled),
+            Some(2)
+        );
+        assert_eq!(
+            radio_next_index(0, "ArrowUp", None, mods(), &disabled),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn radio_next_index_horizontal_orientation_restricts_to_left_right() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            radio_next_index(
+                0,
+                "ArrowRight",
+                Some(Orientation::Horizontal),
+                mods(),
+                &disabled
+            ),
+            Some(1)
+        );
+        assert_eq!(
+            radio_next_index(
+                0,
+                "ArrowDown",
+                Some(Orientation::Horizontal),
+                mods(),
+                &disabled
+            ),
+            None
+        );
+        assert_eq!(
+            radio_next_index(
+                0,
+                "ArrowUp",
+                Some(Orientation::Horizontal),
+                mods(),
+                &disabled
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn radio_next_index_vertical_orientation_restricts_to_up_down() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            radio_next_index(
+                0,
+                "ArrowDown",
+                Some(Orientation::Vertical),
+                mods(),
+                &disabled
+            ),
+            Some(1)
+        );
+        assert_eq!(
+            radio_next_index(
+                0,
+                "ArrowRight",
+                Some(Orientation::Vertical),
+                mods(),
+                &disabled
+            ),
+            None
+        );
+        assert_eq!(
+            radio_next_index(
+                0,
+                "ArrowLeft",
+                Some(Orientation::Vertical),
+                mods(),
+                &disabled
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn radio_next_index_always_loops_at_ends() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            radio_next_index(2, "ArrowRight", None, mods(), &disabled),
+            Some(0)
+        );
+        assert_eq!(
+            radio_next_index(0, "ArrowLeft", None, mods(), &disabled),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn radio_next_index_home_end_ignore_orientation_and_skip_disabled() {
+        let disabled = [true, false, false, true];
+        assert_eq!(
+            radio_next_index(2, "Home", Some(Orientation::Vertical), mods(), &disabled),
+            Some(1)
+        );
+        assert_eq!(
+            radio_next_index(1, "End", Some(Orientation::Horizontal), mods(), &disabled),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn radio_next_index_skips_disabled_items() {
+        let disabled = [false, true, true, false];
+        assert_eq!(
+            radio_next_index(0, "ArrowRight", None, mods(), &disabled),
+            Some(3)
+        );
+    }
+
+    #[test]
+    fn radio_next_index_out_of_range_or_modifiers_are_noop_not_panic() {
+        let disabled = [false, false];
+        assert_eq!(
+            radio_next_index(99, "ArrowRight", None, mods(), &disabled),
+            None
+        );
+        assert_eq!(
+            radio_next_index(
+                0,
+                "ArrowRight",
+                None,
+                Modifiers {
+                    alt: true,
+                    ..Modifiers::default()
+                },
+                &disabled
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn radio_next_index_all_disabled_or_empty_yields_none() {
+        let all_disabled = [true, true];
+        assert_eq!(
+            radio_next_index(0, "ArrowRight", None, mods(), &all_disabled),
+            None
+        );
+        let empty: [bool; 0] = [];
+        assert_eq!(
+            radio_next_index(0, "ArrowRight", None, mods(), &empty),
+            None
+        );
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -636,17 +1138,47 @@ mod tests {
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::{
-        accordion_next_index, loop_focus_from_attr, tabs_next_index, Modifiers, Orientation,
+        accordion_next_index, first_non_disabled, highlight_next_index, last_non_disabled,
+        loop_focus_from_attr, menu_loop_focus_from_attr, radio_next_index, tabs_next_index,
+        Modifiers, Orientation,
     };
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Element, Event, HtmlElement, KeyboardEvent};
+    use web_sys::{Element, Event, HtmlElement, HtmlInputElement, KeyboardEvent};
 
     /// `[data-scope="tabs"][data-part="trigger"]` セレクタ。
     const TABS_TRIGGER_SELECTOR: &str = "[data-scope=\"tabs\"][data-part=\"trigger\"]";
     /// `[data-scope="accordion"][data-part="item-trigger"]` セレクタ。
     const ACCORDION_TRIGGER_SELECTOR: &str =
         "[data-scope=\"accordion\"][data-part=\"item-trigger\"]";
+    /// `[data-scope="menu"][data-part="trigger"]` セレクタ。
+    const MENU_TRIGGER_SELECTOR: &str = "[data-scope=\"menu\"][data-part=\"trigger\"]";
+    /// `[data-scope="menu"][data-part="content"]` セレクタ。
+    const MENU_CONTENT_SELECTOR: &str = "[data-scope=\"menu\"][data-part=\"content\"]";
+    /// `[data-scope="menu"][data-part="item"]`/`[data-scope="menu"][data-part="trigger-item"]`
+    /// セレクタ（いずれも highlight 対象、モジュール doc §Menu/Select 参照）。
+    const MENU_ITEM_SELECTOR: &str =
+        "[data-scope=\"menu\"][data-part=\"item\"], [data-scope=\"menu\"][data-part=\"trigger-item\"]";
+    /// `[data-scope="select"][data-part="trigger"]` セレクタ。
+    const SELECT_TRIGGER_SELECTOR: &str = "[data-scope=\"select\"][data-part=\"trigger\"]";
+    /// `[data-scope="select"][data-part="content"]` セレクタ。
+    const SELECT_CONTENT_SELECTOR: &str = "[data-scope=\"select\"][data-part=\"content\"]";
+    /// `[data-scope="select"][data-part="item"]` セレクタ。
+    const SELECT_ITEM_SELECTOR: &str = "[data-scope=\"select\"][data-part=\"item\"]";
+    /// `[data-scope="radio-group"][data-part="root"]` セレクタ。
+    const RADIO_GROUP_ROOT_SELECTOR: &str = "[data-scope=\"radio-group\"][data-part=\"root\"]";
+    /// `[data-scope="radio-group"][data-part="item-hidden-input"]` セレクタ
+    /// （ネイティブ `<input type="radio">`、キーボード操作・change 監視の対象）。
+    const RADIO_GROUP_INPUT_SELECTOR: &str =
+        "[data-scope=\"radio-group\"][data-part=\"item-hidden-input\"]";
+    /// `[data-scope="radio-group"][data-part="item"]` セレクタ。
+    const RADIO_GROUP_ITEM_SELECTOR: &str = "[data-scope=\"radio-group\"][data-part=\"item\"]";
+    /// `[data-scope="radio-group"][data-part="item-control"]` セレクタ。
+    const RADIO_GROUP_ITEM_CONTROL_SELECTOR: &str =
+        "[data-scope=\"radio-group\"][data-part=\"item-control\"]";
+    /// `[data-scope="radio-group"][data-part="item-text"]` セレクタ。
+    const RADIO_GROUP_ITEM_TEXT_SELECTOR: &str =
+        "[data-scope=\"radio-group\"][data-part=\"item-text\"]";
 
     /// `element.closest(selector)` の失敗（`Err`）・不一致（`None`）をまとめて
     /// `None` として扱う薄いヘルパ。DOM API のクエリ不正は本モジュールの
@@ -849,6 +1381,239 @@ mod wiring {
         }
     }
 
+    /// Menu/Select の content 要素を解決する。`trigger` の `aria-controls` を
+    /// 優先し、欠落・解決失敗時は `closest("[data-part=\"root\"]")` 配下の
+    /// `content_selector` へフォールバックする（モジュール doc §Menu/Select
+    /// 参照）。
+    fn resolve_menu_select_content(trigger: &Element, content_selector: &str) -> Option<Element> {
+        if let Some(controls_id) = trigger.get_attribute("aria-controls") {
+            if let Some(document) = trigger.owner_document() {
+                if let Some(content) = document.get_element_by_id(&controls_id) {
+                    return Some(content);
+                }
+            }
+        }
+        let root_part = closest(trigger, "[data-part=\"root\"]")?;
+        root_part.query_selector(content_selector).ok().flatten()
+    }
+
+    /// `items` 中で `data-highlighted` 属性を持つ要素のインデックスを探す
+    /// （現在 highlight されている項目、モジュール doc §Menu/Select 参照）。
+    fn find_highlighted_index(items: &[Element]) -> Option<usize> {
+        items
+            .iter()
+            .position(|item| item.has_attribute("data-highlighted"))
+    }
+
+    /// `items[next_index]` のみへ `data-highlighted` を付与し、他項目からは
+    /// 除去する。`content` の `aria-activedescendant` を highlight 対象の
+    /// `id` へ更新し、`id` が欠落している場合は属性ごと除去する
+    /// （fail-safe、モジュール doc §Menu/Select 参照）。
+    fn set_highlight(items: &[Element], next_index: usize, content: &Element) {
+        for (i, item) in items.iter().enumerate() {
+            if i == next_index {
+                set_dom_attribute(item, "data-highlighted", "");
+            } else {
+                let _ = item.remove_attribute("data-highlighted");
+            }
+        }
+        match items
+            .get(next_index)
+            .and_then(|item| item.get_attribute("id"))
+        {
+            Some(id) => set_dom_attribute(content, "aria-activedescendant", &id),
+            None => {
+                let _ = content.remove_attribute("aria-activedescendant");
+            }
+        }
+    }
+
+    /// Menu/Select trigger 上の keydown を処理する（モジュール doc
+    /// §Menu/Select 参照）。`content_selector`/`item_selector` で Menu/Select
+    /// のいずれのスコープかを切り替える薄い共通実装。
+    ///
+    /// - content が closed のとき: ArrowDown/ArrowUp で trigger へ `click()`
+    ///   を合成して開く（`prevent_default`）。開いた直後、可能であれば
+    ///   content/items を再解決して初期 highlight（ArrowDown なら先頭、
+    ///   ArrowUp なら末尾の非 disabled 項目）を設定する（再描画後の DOM
+    ///   差し替えで解決に失敗しても no-op、fail-closed）。
+    /// - content が open のとき: ArrowDown/ArrowUp/Home/End で
+    ///   [`highlight_next_index`] へ委譲し `data-highlighted`/
+    ///   `aria-activedescendant` を更新する。Enter/Space は highlight 中の
+    ///   項目へ `click()` を合成する（disabled・highlight 不在は no-op）。
+    ///   ページスクロール抑止・trigger 自身の再クリック抑止のため、
+    ///   ハンドリング対象キーは常に `prevent_default` する。
+    fn handle_menu_or_select_trigger_keydown(
+        root: &Element,
+        trigger: &Element,
+        event: &KeyboardEvent,
+        content_selector: &str,
+        item_selector: &str,
+    ) {
+        let Some(content) = resolve_menu_select_content(trigger, content_selector) else {
+            return;
+        };
+        if !root.contains(Some(&content)) {
+            return;
+        }
+        let modifiers = modifiers_of(event);
+        if modifiers.any() {
+            return;
+        }
+        let key = event.key();
+        let is_open = !content.has_attribute("hidden");
+
+        if !is_open {
+            if key == "ArrowDown" || key == "ArrowUp" {
+                event.prevent_default();
+                if let Ok(html_trigger) = trigger.clone().dyn_into::<HtmlElement>() {
+                    html_trigger.click();
+                }
+                // 開いた直後の初期 highlight。click() 経由の dispatch/再描画で
+                // content/items が新しい要素に差し替わっている可能性があるため
+                // 再解決する（解決失敗・依然 closed は no-op、fail-closed）。
+                if let Some(content_after) = resolve_menu_select_content(trigger, content_selector)
+                {
+                    if root.contains(Some(&content_after)) && !content_after.has_attribute("hidden")
+                    {
+                        let items = collect_parts(&content_after, item_selector);
+                        let disabled = disabled_flags(&items);
+                        let initial = if key == "ArrowDown" {
+                            first_non_disabled(&disabled)
+                        } else {
+                            last_non_disabled(&disabled)
+                        };
+                        if let Some(idx) = initial {
+                            set_highlight(&items, idx, &content_after);
+                        }
+                    }
+                }
+            }
+            return;
+        }
+
+        match key.as_str() {
+            "ArrowDown" | "ArrowUp" | "Home" | "End" => {
+                let items = collect_parts(&content, item_selector);
+                let disabled = disabled_flags(&items);
+                let current = find_highlighted_index(&items);
+                let loop_focus =
+                    menu_loop_focus_from_attr(content.get_attribute("data-loop-focus").as_deref());
+                if let Some(next_index) =
+                    highlight_next_index(current, &key, loop_focus, modifiers, &disabled)
+                {
+                    event.prevent_default();
+                    set_highlight(&items, next_index, &content);
+                }
+            }
+            "Enter" | " " => {
+                event.prevent_default();
+                let items = collect_parts(&content, item_selector);
+                if let Some(idx) = find_highlighted_index(&items) {
+                    let disabled = disabled_flags(&items);
+                    if !disabled[idx] {
+                        if let Ok(html_item) = items[idx].clone().dyn_into::<HtmlElement>() {
+                            html_item.click();
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// 項目 1 個分の RadioGroup `data-state`（`"checked"`/`"unchecked"`）を
+    /// `item-hidden-input` 自身・祖先 `item`・その子孫 `item-control`/
+    /// `item-text` へ同期する（`crates/headless-ui/src/radio_group.rs` の
+    /// `DATA_STATE_CHECKED`/`DATA_STATE_UNCHECKED` 語彙と一致させる）。
+    /// 祖先 `item`・子孫パーツが見つからない場合はその部分のみ no-op
+    /// （fail-closed）。
+    fn apply_radio_item_state(input: &Element, checked: bool) {
+        let state_value = if checked { "checked" } else { "unchecked" };
+        set_dom_attribute(input, "data-state", state_value);
+        let Some(item) = closest(input, RADIO_GROUP_ITEM_SELECTOR) else {
+            return;
+        };
+        set_dom_attribute(&item, "data-state", state_value);
+        if let Ok(Some(control)) = item.query_selector(RADIO_GROUP_ITEM_CONTROL_SELECTOR) {
+            set_dom_attribute(&control, "data-state", state_value);
+        }
+        if let Ok(Some(text)) = item.query_selector(RADIO_GROUP_ITEM_TEXT_SELECTOR) {
+            set_dom_attribute(&text, "data-state", state_value);
+        }
+    }
+
+    /// `inputs` 全体のネイティブ `checked` と `data-state` 群を
+    /// `checked_index` のみが選択された状態に同期する
+    /// （[`apply_radio_item_state`] を各項目へ適用）。
+    fn sync_radio_group_states(inputs: &[Element], checked_index: usize) {
+        for (i, input) in inputs.iter().enumerate() {
+            let checked = i == checked_index;
+            if let Ok(html_input) = input.clone().dyn_into::<HtmlInputElement>() {
+                html_input.set_checked(checked);
+            }
+            apply_radio_item_state(input, checked);
+        }
+    }
+
+    /// RadioGroup のネイティブ `<input type="radio">` 上の keydown を処理する
+    /// （モジュール doc §RadioGroup 参照）。root 封じ込め検査・disabled 除外・
+    /// 純粋層（[`radio_next_index`]）への委譲・フォーカス移動 + ネイティブ
+    /// `checked` 設定 + `data-state` 群の同期をこの 1 関数にまとめる。
+    fn handle_radio_keydown(root: &Element, input: &Element, event: &KeyboardEvent) {
+        let Some(group_root) = closest(input, RADIO_GROUP_ROOT_SELECTOR) else {
+            return;
+        };
+        if !root.contains(Some(&group_root)) {
+            return;
+        }
+        let inputs = collect_parts(&group_root, RADIO_GROUP_INPUT_SELECTOR);
+        let Some(current) = index_of(&inputs, input) else {
+            return;
+        };
+        let disabled = disabled_flags(&inputs);
+        let orientation = Orientation::from_attr_optional(
+            group_root.get_attribute("data-orientation").as_deref(),
+        );
+        let modifiers = modifiers_of(event);
+
+        let Some(next_index) =
+            radio_next_index(current, &event.key(), orientation, modifiers, &disabled)
+        else {
+            return;
+        };
+
+        event.prevent_default();
+        if let Some(next_input) = inputs.get(next_index) {
+            if let Ok(html_input) = next_input.clone().dyn_into::<HtmlElement>() {
+                let _ = html_input.focus();
+            }
+        }
+        sync_radio_group_states(&inputs, next_index);
+    }
+
+    /// RadioGroup のネイティブ `change`（マウスクリック・ネイティブ Space 決定
+    /// が発火する）を処理する。ブラウザが既に反映したネイティブ `checked` の
+    /// 実態を読み取り、グループ全体の `data-state` 群を追随させるのみで
+    /// `checked` 自体は変更しない（モジュール doc §RadioGroup 参照）。
+    fn handle_radio_change(root: &Element, changed_input: &Element) {
+        let Some(group_root) = closest(changed_input, RADIO_GROUP_ROOT_SELECTOR) else {
+            return;
+        };
+        if !root.contains(Some(&group_root)) {
+            return;
+        }
+        let inputs = collect_parts(&group_root, RADIO_GROUP_INPUT_SELECTOR);
+        for input in &inputs {
+            let checked = input
+                .clone()
+                .dyn_into::<HtmlInputElement>()
+                .map(|html_input| html_input.checked())
+                .unwrap_or(false);
+            apply_radio_item_state(input, checked);
+        }
+    }
+
     /// Tabs trigger クリック（マウスクリック・ネイティブ button の
     /// Enter/Space が発火する click イベントの双方）による活性化を処理する。
     /// disabled trigger のクリックは no-op（fail-closed。ネイティブ
@@ -874,29 +1639,51 @@ mod wiring {
         }
     }
 
-    /// キーボードイベントのターゲットを、[`TABS_TRIGGER_SELECTOR`]/
-    /// [`ACCORDION_TRIGGER_SELECTOR`] のいずれかに一致する祖先要素まで
-    /// 解決する。`matches` の失敗（不正セレクタ等）は不一致として扱う。
-    fn matching_trigger(target: &Element) -> Option<(&'static str, Element)> {
+    /// キーボードイベントのターゲットを、Tabs trigger / Accordion
+    /// item-trigger / Menu trigger / Select trigger / RadioGroup ネイティブ
+    /// `<input type="radio">` のいずれかに一致する要素として解決する
+    /// （返り値の `&'static str` はスコープ識別子）。`matches` の失敗
+    /// （不正セレクタ等）は不一致として扱う。Menu/Select/RadioGroup は
+    /// いずれも keydown 時に実 DOM フォーカスがそのままターゲット
+    /// （trigger button / radio input）上にあるため、Tabs/Accordion と同じく
+    /// `closest` を介さず `target` 自身の一致判定のみで足りる
+    /// （モジュール doc §Menu/Select/RadioGroup 参照）。
+    fn matching_keydown_target(target: &Element) -> Option<(&'static str, Element)> {
         if target.matches(TABS_TRIGGER_SELECTOR).unwrap_or(false) {
             return Some(("tabs", target.clone()));
         }
         if target.matches(ACCORDION_TRIGGER_SELECTOR).unwrap_or(false) {
             return Some(("accordion", target.clone()));
         }
+        if target.matches(MENU_TRIGGER_SELECTOR).unwrap_or(false) {
+            return Some(("menu", target.clone()));
+        }
+        if target.matches(SELECT_TRIGGER_SELECTOR).unwrap_or(false) {
+            return Some(("select", target.clone()));
+        }
+        if target.matches(RADIO_GROUP_INPUT_SELECTOR).unwrap_or(false) {
+            return Some(("radio", target.clone()));
+        }
         None
     }
 
-    /// ルート要素へ `keydown` / `click` の委譲リスナーをマウント時に 1 回
-    /// だけ登録する（`Closure::forget` は 2 回のみ、[`events::wire_events`]
-    /// と同方針）。
+    /// ルート要素へ `keydown` / `click` / `change` の委譲リスナーをマウント時に
+    /// 1 回だけ登録する（`Closure::forget` は 3 回のみ、モジュール doc
+    /// §設計参照。[`events::wire_events`] と合わせても定数個）。
     ///
     /// - `keydown`: イベントターゲットが Tabs trigger / Accordion
-    ///   item-trigger のいずれかに一致する場合のみ処理する
-    ///   （[`handle_tabs_keydown`]/[`handle_accordion_keydown`]）。
+    ///   item-trigger / Menu trigger / Select trigger / RadioGroup ネイティブ
+    ///   `<input type="radio">` のいずれかに一致する場合のみ処理する
+    ///   （[`handle_tabs_keydown`]/[`handle_accordion_keydown`]/
+    ///   [`handle_menu_or_select_trigger_keydown`]/[`handle_radio_keydown`]）。
     /// - `click`: Tabs trigger への委譲クリックで [`handle_trigger_click`]
     ///   を呼び、マウスクリック・manual activationMode 下の Enter/Space の
-    ///   双方をカバーする。
+    ///   双方をカバーする（Menu/Select の決定はキーボード側で highlight 中
+    ///   項目へ `click()` を合成する設計のため、本リスナーでの追加処理は
+    ///   不要）。
+    /// - `change`: RadioGroup のネイティブ `<input type="radio">` の
+    ///   `change`（マウスクリック・ネイティブ Space 決定）を
+    ///   [`handle_radio_change`] で `data-state` 群へ同期する。
     ///
     /// `root` より外側の要素にヒットした場合は採用しない（`contains` 検査、
     /// [`events::wire_events`] と同じ封じ込め）。
@@ -919,12 +1706,27 @@ mod wiring {
             if !keydown_root.contains(Some(&target_element)) {
                 return;
             }
-            let Some((scope, matched)) = matching_trigger(&target_element) else {
+            let Some((scope, matched)) = matching_keydown_target(&target_element) else {
                 return;
             };
             match scope {
                 "tabs" => handle_tabs_keydown(&keydown_root, &matched, &keyboard_event),
                 "accordion" => handle_accordion_keydown(&keydown_root, &matched, &keyboard_event),
+                "menu" => handle_menu_or_select_trigger_keydown(
+                    &keydown_root,
+                    &matched,
+                    &keyboard_event,
+                    MENU_CONTENT_SELECTOR,
+                    MENU_ITEM_SELECTOR,
+                ),
+                "select" => handle_menu_or_select_trigger_keydown(
+                    &keydown_root,
+                    &matched,
+                    &keyboard_event,
+                    SELECT_CONTENT_SELECTOR,
+                    SELECT_ITEM_SELECTOR,
+                ),
+                "radio" => handle_radio_keydown(&keydown_root, &matched, &keyboard_event),
                 _ => {}
             }
         });
@@ -970,6 +1772,34 @@ mod wiring {
         });
         root.add_event_listener_with_callback("click", click_closure.as_ref().unchecked_ref())?;
         click_closure.forget();
+
+        // RadioGroup のネイティブ `<input type="radio">` の `change`
+        // （マウスクリック・ネイティブ Space 決定の双方で発火、バブリングする
+        // ため他モジュール（headless_avatar の load/error）と異なり capture
+        // フェーズ不要）を委譲する。`data-state` 群の同期のみを行い、
+        // `checked` 自体はブラウザのネイティブ挙動に委ねる
+        // （[`handle_radio_change`] 参照）。
+        let change_root = root.clone();
+        let change_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            let Some(target) = event.target() else {
+                return;
+            };
+            let Some(target_element) = target.dyn_ref::<Element>().cloned() else {
+                return;
+            };
+            if !change_root.contains(Some(&target_element)) {
+                return;
+            }
+            if !target_element
+                .matches(RADIO_GROUP_INPUT_SELECTOR)
+                .unwrap_or(false)
+            {
+                return;
+            }
+            handle_radio_change(&change_root, &target_element);
+        });
+        root.add_event_listener_with_callback("change", change_closure.as_ref().unchecked_ref())?;
+        change_closure.forget();
 
         Ok(())
     }
