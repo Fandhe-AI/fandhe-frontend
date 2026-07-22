@@ -73,6 +73,13 @@
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する点が
 //!   [`mod@collapsible`] との違い。
+//! - [`mod@progress`]: Root / Label / ValueText / Track / Range の 5 anatomy
+//!   パーツと、数値 `value`（`min`..=`max`、または indeterminate を表す
+//!   `None`）を持つ [`progress::Progress`] 状態機械（#544、親 #542）。
+//!   [`mod@switch`] と同じく `data-state` 値語彙（`"indeterminate"`/
+//!   `"loading"`/`"complete"`）が [`state::Disclosure`] と異なるため、
+//!   [`state`] を埋め込まず [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
 //!
 //! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
 //! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
@@ -93,6 +100,7 @@ pub mod data_attrs;
 pub mod dialog;
 pub mod menu;
 pub mod popover;
+pub mod progress;
 pub mod radio_group;
 pub mod state;
 pub mod switch;
@@ -111,6 +119,7 @@ pub use data_attrs::{
 };
 pub use dialog::Dialog;
 pub use menu::Menu;
+pub use progress::{Progress, ProgressAction};
 pub use radio_group::RadioGroup;
 pub use state::{
     Disclosure, DisclosureAction, OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CLOSED,
