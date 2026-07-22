@@ -33,7 +33,13 @@
 //! - select 系 part（`data-value` を要求する行）で `data-value` が欠落して
 //!   いる場合は `None`（改ざん・欠損入力を dispatch へ流さない）。
 //! - part 要素（または祖先の part）に `data-disabled` が付与されている
-//!   場合は `None`。
+//!   場合は `None`。[`action_from_parts`] はクリック位置から根方向へ並べた
+//!   part 列（[`PartRef`]）**全体**を見て判定する。祖先 part（例:
+//!   `radio-group`/`collapsible` の root）が `disabled` の場合、その内側に
+//!   ある enabled な子 part（`item`/`trigger` 等）へのマッチが
+//!   `find_map`（内側優先）で先に成立してしまわないよう、列内のいずれか 1
+//!   要素でも `disabled` なら全体を `None` とする（fail-closed、イシュー
+//!   #580 PR #611 Bugbot 指摘の修正）。
 //! - 未知アクション名は `fandhe_frontend_interactive::dispatch`/
 //!   `Component::decode_action` 側の既存契約（不変条件 4）により no-op と
 //!   なる（本モジュールの fail-closed と合わせた二重の安全網）。
@@ -192,8 +198,20 @@ pub fn action_for_part(part: &PartRef) -> Option<ActionRef> {
 /// するための抽象。配線層（[`wire_headless_events`]）は event.target から
 /// root 方向へ祖先を辿りながら `data-scope`/`data-part` を持つ要素ごとに
 /// [`PartRef`] を構築し、本関数へ内側優先の順で渡す。
+///
+/// fail-closed（受け入れ条件 3）: 列内のいずれかの part（クリックされた
+/// part 自身、または祖先方向の part）が `disabled` の場合、列全体を
+/// `None` とする。[`action_for_part`] 単体は要素自身の `disabled` しか
+/// 見ないため、`find_map` で内側から順に呼ぶだけでは「無効化された
+/// root（例: `radio-group`/`collapsible` の root）の配下にある enabled な
+/// 子 part（`item`/`trigger`）」がすり抜けてしまう（イシュー #580 PR #611
+/// Bugbot 指摘）。祖先の disabled 伝播はここで一括判定し、
+/// [`action_for_part`] 側の判定に依存しない。
 #[must_use]
 pub fn action_from_parts(parts: &[PartRef]) -> Option<ActionRef> {
+    if parts.iter().any(|part| part.disabled) {
+        return None;
+    }
     parts.iter().find_map(action_for_part)
 }
 
@@ -232,12 +250,15 @@ mod wiring {
     /// 採用しない。
     ///
     /// `data-disabled` は「クリックされた part 自身」だけでなく祖先の part
-    /// にも付与されうる（例: 無効化された `Select` の `item` グループ）ため、
-    /// 各 part 要素ごとに独立して [`to_part_ref`] が読み取る
-    /// （`has_attribute` は要素自身の属性のみを見るため、無効化された祖先の
-    /// 影響を受けた子 part は個別に `data-disabled` を持つ実装が前提。
-    /// 影響範囲は headless-ui 側の各コンポーネントの `data-disabled` 付与
-    /// 実装に委ねる）。
+    /// にも付与されうる（例: 無効化された `radio-group`/`collapsible` の
+    /// root）。`to_part_ref` は要素自身の `has_attribute("data-disabled")`
+    /// しか見ないため、本関数は祖先方向の各 part を個別の [`PartRef`] とし
+    /// て列に積むだけに留める（祖先の disabled を子へ伝播させる集約判定は
+    /// 行わない）。列全体を見て「いずれかの part が disabled なら全体を
+    /// `None`」とする fail-closed 判定は呼び出し元の
+    /// [`action_from_parts`] が担う（イシュー #580 PR #611 Bugbot 指摘の
+    /// 修正。本関数側で祖先 disabled を子 `PartRef` に書き戻す実装ではない
+    /// ことに注意）。
     fn collect_part_refs(root: &Element, target: &Element) -> Vec<PartRef> {
         let mut refs = Vec::new();
         let mut current = Some(target.clone());
@@ -500,6 +521,41 @@ mod tests {
         let parts = vec![
             part("unknown", "a", None, false),
             part("unknown", "b", None, false),
+        ];
+        assert_eq!(action_from_parts(&parts), None);
+    }
+
+    // --- fail-closed 回帰: 祖先 part が disabled の場合、enabled な内側の
+    // 子 part（item/trigger）へのマッチは成立してはならない（イシュー #580
+    // PR #611 Bugbot 指摘: root disabled でも find_map が内側の enabled な
+    // マッチを先に見つけて素通りしていた）。
+
+    #[test]
+    fn action_from_parts_is_none_when_ancestor_root_is_disabled_radio_group() {
+        // radio-group の root が disabled、内側の item 自体は enabled。
+        let parts = vec![
+            part("radio-group", "item", Some("red"), false),
+            part("radio-group", "root", None, true),
+        ];
+        assert_eq!(action_from_parts(&parts), None);
+    }
+
+    #[test]
+    fn action_from_parts_is_none_when_ancestor_root_is_disabled_collapsible() {
+        // collapsible の root が disabled、内側の trigger 自体は enabled。
+        let parts = vec![
+            part("collapsible", "trigger", None, false),
+            part("collapsible", "root", None, true),
+        ];
+        assert_eq!(action_from_parts(&parts), None);
+    }
+
+    #[test]
+    fn action_from_parts_is_none_when_ancestor_root_is_disabled_select() {
+        // select の root が disabled、内側の item（value あり）は enabled。
+        let parts = vec![
+            part("select", "item", Some("opt-1"), false),
+            part("select", "root", None, true),
         ];
         assert_eq!(action_from_parts(&parts), None);
     }
