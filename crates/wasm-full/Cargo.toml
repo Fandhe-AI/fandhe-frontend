@@ -60,6 +60,12 @@ categories = ["wasm", "web-programming"]
 # `[dependencies.web-sys]` 側にも追加する）・`ScrollRestoration`（`history.
 # set_scroll_restoration` の引数型）を追加する。`cargo metadata` 実測
 # （パッケージ数・依存グラフ深さ）に変化がないことを PR 本文に記録する。
+# イシュー #582（Tabs/Accordion のキーボード操作、親 #581）: 新規外部クレート
+# 追加ゼロ。`[dependencies.web-sys]` の features 拡張のみ（`keynav` モジュールの
+# 配線層が使う `KeyboardEvent`（`key()`/`ctrl_key()`/`alt_key()`/`meta_key()`）・
+# `HtmlElement`（`focus()`）・`NodeList`（`query_selector_all` の戻り値、
+# trigger/item-trigger 集合の走査）を追加する）。`cargo metadata` 実測
+# （パッケージ数・依存グラフ深さ）に変化がないことを PR 本文に記録する。
 [dependencies]
 fandhe-frontend-app = { path = "../app", version = "0.1.0" }
 fandhe-frontend-core = { path = "../core", version = "0.1.0" }
@@ -82,10 +88,13 @@ features = [
   "Event",
   "EventTarget",
   "History",
+  "HtmlElement",
   "HtmlInputElement",
+  "KeyboardEvent",
   "Location",
   "MouseEvent",
   "NamedNodeMap",
+  "NodeList",
   "PopStateEvent",
   "ScrollRestoration",
   "Window",
@@ -148,6 +157,10 @@ js-sys = "0.3"
 # 組み立てるために `MouseEventInit`/`PopStateEventInit` を追加する
 # （テスト専用の feature 拡張。既存の `EventInit` 追加時の判断・PR #92
 # と同じ承認整理）。
+# イシュー #582: `wasm-full/tests/keynav_browser.rs` が合成 `KeyboardEvent`
+# （Arrow/Home/End キー操作テスト）を組み立てるために `KeyboardEventInit` を
+# 追加する（テスト専用の feature 拡張。既存の `EventInit`/`MouseEventInit`
+# 追加時の判断・PR #92/#374 と同じ承認整理）。
 [dev-dependencies.web-sys]
 version = "0.3"
 features = [
@@ -160,4 +173,5 @@ features = [
   "MouseEventInit",
   "PopStateEvent",
   "PopStateEventInit",
+  "KeyboardEventInit",
 ]

@@ -59,6 +59,7 @@
 pub mod csr;
 pub mod events;
 pub mod hydration;
+pub mod keynav;
 pub mod nav;
 
 #[cfg(target_arch = "wasm32")]
@@ -262,7 +263,12 @@ where
     ///
     /// `component.view()` → [`dom::render_component_html`]（既定エスケープ済み
     /// 出力）を `root_id` 要素へ [`dom::mount_initial`] で反映し、続けて
-    /// [`events::wire_events`] によりイベント委譲を 1 回だけ登録する。
+    /// [`events::wire_events`]・[`keynav::wire_keynav`]（イシュー #582、
+    /// Tabs/Accordion のキーボード操作）の順にイベント委譲を 1 回だけ
+    /// 登録する。`keynav::wire_keynav` は DOM 属性のみを読み書きする
+    /// ステートレス配線であり、`Self::wire`（束縛点更新・keyed list 更新）
+    /// とは独立した経路のため、失敗しても状態管理側の配線
+    /// （`events::wire_events`）の成立を妨げない。
     ///
     /// # Errors
     ///
@@ -275,6 +281,7 @@ where
         let component = std::rc::Rc::new(std::cell::RefCell::new(component));
         let on_action = Self::wire(component.clone(), root.clone());
         events::wire_events(root.clone(), on_action)?;
+        keynav::wire_keynav(root.clone())?;
 
         Ok(Self { component, root })
     }
@@ -316,6 +323,7 @@ where
         let component = std::rc::Rc::new(std::cell::RefCell::new(component));
         let on_action = Self::wire(component.clone(), root.clone());
         events::wire_events(root.clone(), on_action)?;
+        keynav::wire_keynav(root.clone())?;
 
         Ok(Self { component, root })
     }
