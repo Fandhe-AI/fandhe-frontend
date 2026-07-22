@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@0.0.68",
+        "--browser",
+        "chromium",
+        "--user-data-dir=./_/playwright/profile",
+        "--output-dir=./_/playwright/output"
+      ]
+    },
+    "chakra-ui": {
+      "command": "npx",
+      "args": ["-y", "@chakra-ui/react-mcp@2.1.1"],
+      "env": {
+        "CHAKRA_PRO_API_KEY": "${CHAKRA_PRO_API_KEY:-}"
+      }
+    }
+  }
+}
