@@ -145,21 +145,23 @@ perf-assert = []
 # **新規外部パッケージの追加はゼロ**（`cargo metadata` 実測: パッケージ数・
 # 依存グラフ深さ不変。実測結果は PR 本文に記録する）。製品依存
 # （`[dependencies]`）には一切追加しない（REQ-3 不変）。
+# イシュー #580（headless-ui dispatch の DOM イベント配線基盤）: `headless.rs`
+# の native テスト（マッピング表ドリフト検知・`action_for_part` → `dispatch`
+# の橋渡し検証）が実際の headless-ui 出力・`state::SingleSelect` を使うため
+# `fandhe-frontend-headless-ui` を dev-dependency として追加する。dev
+# dependency のため製品バイナリ・標準サーバー構成（REQ-3 の 60 件/深さ 6 の
+# 対象）には影響しない。workspace 内 path 依存であり新規外部パッケージの
+# 追加はゼロ（`cargo metadata` 実測結果は PR 本文に記録する）。
 #
 # イシュー #585（オーバーレイ共通閉鎖制御）: `wasm-full/tests/overlay_close_browser.rs`
 # が実際の Dialog/Popover マークアップ（`data-scope`/`data-part`/`data-state`）を
-# `fandhe_frontend_core::render` 経由で生成するため `fandhe-frontend-headless-ui`
-# を追加する。`fandhe-frontend-headless-ui` は外部依存が `fandhe-frontend-core`/
-# `fandhe-frontend-interactive`（いずれも path）のみのクレート
-# （`crates/headless-ui/Cargo.toml` 冒頭コメント参照）であり、workspace 内 path
-# dev 依存として追加するため新規外部パッケージの追加はゼロ。製品依存
-# （`[dependencies]`）には追加しない（REQ-3 不変、`cargo metadata` 実測結果を
-# PR 本文に記録する）。
+# `fandhe_frontend_core::render` 経由で生成するため同じ `fandhe-frontend-headless-ui`
+# dev-dependency を利用する（追加の依存追加はゼロ）。
 [dev-dependencies]
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.1.0" }
 wasm-bindgen-test = "0.3"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.1.0" }
 
 # Performance API（性能計測ハーネス専用）。製品面の [dependencies.web-sys] の
 # features には触れず、テスト専用の feature 拡張に閉じる。

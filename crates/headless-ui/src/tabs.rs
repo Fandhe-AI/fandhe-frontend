@@ -275,6 +275,12 @@ pub fn tabs(props: &TabsProps<'_>, items: Vec<TabItem<'_>>) -> Node {
             data_state(data_state_value),
             data_orientation_attr,
             ("tabindex", tabindex_value),
+            // イシュー #580: `fandhe-frontend-wasm-full` の headless 配線基盤
+            // （`wasm-full/src/headless.rs`）が `(scope, part) = ("tabs", "trigger")`
+            // クリックを `"select"` アクションへ写像する際の payload 源として
+            // `data-value` を参照する。動的値だが `ANATOMY.part` 経由で
+            // `render()` の既定エスケープを必ず経由する（REQ-1）。
+            ("data-value", item.value),
         ];
         if item.disabled {
             trigger_attrs.push(("disabled", ""));
@@ -373,8 +379,8 @@ mod tests {
             concat!(
                 r#"<div data-scope="tabs" data-part="root" id="t" data-orientation="horizontal">"#,
                 r#"<div data-scope="tabs" data-part="list" role="tablist" aria-orientation="horizontal" data-orientation="horizontal" data-activation-mode="automatic" data-loop-focus="true">"#,
-                r#"<button data-scope="tabs" data-part="trigger" type="button" id="t-trigger-a" role="tab" aria-selected="true" aria-controls="t-content-a" data-state="active" data-orientation="horizontal" tabindex="0">a</button>"#,
-                r#"<button data-scope="tabs" data-part="trigger" type="button" id="t-trigger-b" role="tab" aria-selected="false" aria-controls="t-content-b" data-state="inactive" data-orientation="horizontal" tabindex="-1">b</button>"#,
+                r#"<button data-scope="tabs" data-part="trigger" type="button" id="t-trigger-a" role="tab" aria-selected="true" aria-controls="t-content-a" data-state="active" data-orientation="horizontal" tabindex="0" data-value="a">a</button>"#,
+                r#"<button data-scope="tabs" data-part="trigger" type="button" id="t-trigger-b" role="tab" aria-selected="false" aria-controls="t-content-b" data-state="inactive" data-orientation="horizontal" tabindex="-1" data-value="b">b</button>"#,
                 r#"</div>"#,
                 r#"<div data-scope="tabs" data-part="content" id="t-content-a" role="tabpanel" aria-labelledby="t-trigger-a" data-state="active" data-orientation="horizontal" tabindex="0">a</div>"#,
                 r#"<div data-scope="tabs" data-part="content" id="t-content-b" role="tabpanel" aria-labelledby="t-trigger-b" data-state="inactive" data-orientation="horizontal" tabindex="0" hidden="">b</div>"#,
@@ -422,7 +428,7 @@ mod tests {
         let node = tabs(&props("t", "a"), vec![item("a", false), item("b", true)]);
         let html = render(&node);
         assert!(html.contains(
-            r#"id="t-trigger-b" role="tab" aria-selected="false" aria-controls="t-content-b" data-state="inactive" data-orientation="horizontal" tabindex="-1" disabled="" data-disabled="" aria-disabled="true""#
+            r#"id="t-trigger-b" role="tab" aria-selected="false" aria-controls="t-content-b" data-state="inactive" data-orientation="horizontal" tabindex="-1" data-value="b" disabled="" data-disabled="" aria-disabled="true""#
         ));
     }
 
@@ -437,16 +443,44 @@ mod tests {
         let html = render(&node);
         // a は disabled のため未選択扱い: aria-selected="false"・data-state="inactive"・tabindex="-1"。
         assert!(html.contains(
-            r#"id="t-trigger-a" role="tab" aria-selected="false" aria-controls="t-content-a" data-state="inactive" data-orientation="horizontal" tabindex="-1" disabled="" data-disabled="" aria-disabled="true""#
+            r#"id="t-trigger-a" role="tab" aria-selected="false" aria-controls="t-content-a" data-state="inactive" data-orientation="horizontal" tabindex="-1" data-value="a" disabled="" data-disabled="" aria-disabled="true""#
         ));
         // b は最初の非 disabled item なので tabindex="0" を得る（inactive のまま）。
         assert!(html.contains(
-            r#"id="t-trigger-b" role="tab" aria-selected="false" aria-controls="t-content-b" data-state="inactive" data-orientation="horizontal" tabindex="0""#
+            r#"id="t-trigger-b" role="tab" aria-selected="false" aria-controls="t-content-b" data-state="inactive" data-orientation="horizontal" tabindex="0" data-value="b""#
         ));
         // どの trigger も active でないため、両方の panel が hidden
         // （表示中パネルに対応する trigger が unreachable になる状態を防ぐ）。
         assert_eq!(html.matches(r#"hidden="""#).count(), 2);
         assert!(!html.contains(r#"aria-selected="true""#));
+    }
+
+    #[test]
+    fn trigger_outputs_data_value_matching_item_value() {
+        // イシュー #580: `fandhe-frontend-wasm-full` の headless 配線基盤が
+        // `(scope, part) = ("tabs", "trigger")` クリックの select payload 源として
+        // `data-value` を参照する契約を固定する回帰テスト。
+        let node = tabs(&props("t", "a"), vec![item("a", false), item("b", false)]);
+        let html = render(&node);
+        assert!(html.contains(r#"data-value="a""#));
+        assert!(html.contains(r#"data-value="b""#));
+    }
+
+    #[test]
+    fn trigger_data_value_payload_is_escaped_on_render() {
+        let payload_value = "\"><script>alert(1)</script>";
+        let node = tabs(
+            &props("t", "unmatched"),
+            vec![TabItem {
+                value: payload_value,
+                trigger: vec![text("t")],
+                content: vec![text("c")],
+                disabled: false,
+            }],
+        );
+        let html = render(&node);
+        assert!(!html.contains("<script>alert(1)</script>"));
+        assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
     }
 
     #[test]
@@ -479,10 +513,10 @@ mod tests {
         assert!(!html.contains(r#"data-state="active""#));
         // a が最初の非 disabled item なので tabindex="0" を得る。
         assert!(html.contains(
-            r#"id="t-trigger-a" role="tab" aria-selected="false" aria-controls="t-content-a" data-state="inactive" data-orientation="horizontal" tabindex="0""#
+            r#"id="t-trigger-a" role="tab" aria-selected="false" aria-controls="t-content-a" data-state="inactive" data-orientation="horizontal" tabindex="0" data-value="a""#
         ));
         assert!(html.contains(
-            r#"id="t-trigger-b" role="tab" aria-selected="false" aria-controls="t-content-b" data-state="inactive" data-orientation="horizontal" tabindex="-1""#
+            r#"id="t-trigger-b" role="tab" aria-selected="false" aria-controls="t-content-b" data-state="inactive" data-orientation="horizontal" tabindex="-1" data-value="b""#
         ));
         // 全 content が hidden。
         assert_eq!(html.matches(r#"hidden="""#).count(), 2);
@@ -639,8 +673,8 @@ mod tests {
             concat!(
                 r#"<div data-scope="tabs" data-part="root" id="t" data-orientation="horizontal">"#,
                 r#"<div data-scope="tabs" data-part="list" role="tablist" aria-orientation="horizontal" data-orientation="horizontal" data-activation-mode="automatic" data-loop-focus="true">"#,
-                r#"<button data-scope="tabs" data-part="trigger" type="button" id="t-trigger-a" role="tab" aria-selected="true" aria-controls="t-content-a" data-state="active" data-orientation="horizontal" tabindex="0">a</button>"#,
-                r#"<button data-scope="tabs" data-part="trigger" type="button" id="t-trigger-b" role="tab" aria-selected="false" aria-controls="t-content-b" data-state="inactive" data-orientation="horizontal" tabindex="-1">b</button>"#,
+                r#"<button data-scope="tabs" data-part="trigger" type="button" id="t-trigger-a" role="tab" aria-selected="true" aria-controls="t-content-a" data-state="active" data-orientation="horizontal" tabindex="0" data-value="a">a</button>"#,
+                r#"<button data-scope="tabs" data-part="trigger" type="button" id="t-trigger-b" role="tab" aria-selected="false" aria-controls="t-content-b" data-state="inactive" data-orientation="horizontal" tabindex="-1" data-value="b">b</button>"#,
                 r#"<span data-scope="tabs" data-part="indicator" data-state="active" data-orientation="horizontal" aria-hidden="true" style="--left: 0px; --top: 0px; --width: 0px; --height: 0px"></span>"#,
                 r#"</div>"#,
                 r#"<div data-scope="tabs" data-part="content" id="t-content-a" role="tabpanel" aria-labelledby="t-trigger-a" data-state="active" data-orientation="horizontal" tabindex="0">a</div>"#,

@@ -616,7 +616,67 @@ const INTERACTIVE_VIEW_TRANSITIONS_EXAMPLE_FILES: &[TemplateFile] = &[
     },
 ];
 
-/// `--example` の allowlist（イシュー #500・#501・#502・#503）。
+/// `examples/headless-pre-styled-ui/` の全ファイル（9 件）を git の相対パス
+/// 順・実行ビットどおりに埋め込んだ固定配列（イシュー #609）。
+///
+/// `crates/cli/embedded-examples/headless-pre-styled-ui/` は正本
+/// `examples/headless-pre-styled-ui/` のバイト単位同梱コピーであり、乖離は
+/// [`SSR_ROUTING_EXAMPLE_FILES`] と同じく
+/// `cli/tests/example_publish_copy_drift.rs` が検知する。当初は
+/// `fandhe-frontend-headless-ui` が crates.io 未公開のため `fw new --example`
+/// 非対応（イシュー #552）だったが、前提クレート公開（イシュー #608）を
+/// 受けて crates.io バージョン依存へ切り替え、本配列を追加した（#609）。
+/// 全ファイル `executable: false`（正本側に実行ビット付きファイルが存在しない
+/// ため）。
+const HEADLESS_PRE_STYLED_UI_EXAMPLE_FILES: &[TemplateFile] = &[
+    TemplateFile {
+        rel_path: "Cargo.lock",
+        contents: include_str!("../embedded-examples/headless-pre-styled-ui/Cargo.lock"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "Cargo.toml",
+        contents: include_str!("../embedded-examples/headless-pre-styled-ui/Cargo.toml.embed"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "README.md",
+        contents: include_str!("../embedded-examples/headless-pre-styled-ui/README.md"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "clippy.toml",
+        contents: include_str!("../embedded-examples/headless-pre-styled-ui/clippy.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "deny.toml",
+        contents: include_str!("../embedded-examples/headless-pre-styled-ui/deny.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "src/main.rs",
+        contents: include_str!("../embedded-examples/headless-pre-styled-ui/src/main.rs"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "static/ui.css",
+        contents: include_str!("../embedded-examples/headless-pre-styled-ui/static/ui.css"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "structure.toml",
+        contents: include_str!("../embedded-examples/headless-pre-styled-ui/structure.toml"),
+        executable: false,
+    },
+    TemplateFile {
+        rel_path: "tests/cli_output.rs",
+        contents: include_str!("../embedded-examples/headless-pre-styled-ui/tests/cli_output.rs"),
+        executable: false,
+    },
+];
+
+/// `--example` の allowlist（イシュー #500・#501・#502・#503・#609）。
 ///
 /// サンプル名はここに列挙したコンパイル時定数との完全一致照合のみで解決し、
 /// ユーザー入力から動的にパス・`include_str!` 対象を組み立てない
@@ -658,6 +718,13 @@ pub(crate) const EXAMPLES: &[Template] = &[
         // （このサンプルは wasm/ 独立ワークスペースを持つが、そちらの
         // パッケージ名 `interactive-vt-wasm` も同様に置換対象外）。
         needle: "fandhe-frontend-example-placeholder-unused-interactive-view-transitions",
+        substituted_files: &[],
+    },
+    Template {
+        name: "headless-pre-styled-ui",
+        files: HEADLESS_PRE_STYLED_UI_EXAMPLE_FILES,
+        // 上記 "ssr-routing" と同じ理由でパッケージ名置換を行わない（イシュー #609）。
+        needle: "fandhe-frontend-example-placeholder-unused-headless-pre-styled-ui",
         substituted_files: &[],
     },
 ];

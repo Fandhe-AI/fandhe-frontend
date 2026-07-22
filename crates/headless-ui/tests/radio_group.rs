@@ -28,6 +28,7 @@ fn full_anatomy_renders_expected_html() {
             radio_group::item(
                 true,
                 false,
+                "basic",
                 vec![],
                 vec![
                     radio_group::item_hidden_input(true, false, Some("plan"), "basic", vec![]),
@@ -38,6 +39,7 @@ fn full_anatomy_renders_expected_html() {
             radio_group::item(
                 false,
                 false,
+                "pro",
                 vec![],
                 vec![
                     radio_group::item_hidden_input(false, false, Some("plan"), "pro", vec![]),
@@ -53,12 +55,12 @@ fn full_anatomy_renders_expected_html() {
     let expected = concat!(
         r#"<div data-scope="radio-group" data-part="root" role="radiogroup" aria-orientation="vertical" data-orientation="vertical" aria-labelledby="plan-label">"#,
         r#"<span data-scope="radio-group" data-part="label" id="plan-label">Plan</span>"#,
-        r#"<label data-scope="radio-group" data-part="item" data-state="checked">"#,
+        r#"<label data-scope="radio-group" data-part="item" data-state="checked" data-value="basic">"#,
         r#"<input data-scope="radio-group" data-part="item-hidden-input" type="radio" value="basic" data-state="checked" name="plan" checked=""></input>"#,
         r#"<span data-scope="radio-group" data-part="item-control" data-state="checked"></span>"#,
         r#"<span data-scope="radio-group" data-part="item-text" data-state="checked">Basic</span>"#,
         r#"</label>"#,
-        r#"<label data-scope="radio-group" data-part="item" data-state="unchecked">"#,
+        r#"<label data-scope="radio-group" data-part="item" data-state="unchecked" data-value="pro">"#,
         r#"<input data-scope="radio-group" data-part="item-hidden-input" type="radio" value="pro" data-state="unchecked" name="plan"></input>"#,
         r#"<span data-scope="radio-group" data-part="item-control" data-state="unchecked"></span>"#,
         r#"<span data-scope="radio-group" data-part="item-text" data-state="unchecked">Pro</span>"#,
@@ -77,7 +79,7 @@ fn disabled_root_and_item_emit_data_disabled_presence_attr() {
     assert!(!html.contains("aria-labelledby"));
     assert!(!html.contains("orientation"));
 
-    let item_html = render(&radio_group::item(false, true, vec![], vec![]));
+    let item_html = render(&radio_group::item(false, true, "basic", vec![], vec![]));
     assert!(item_html.contains(r#"data-disabled=""#));
 
     let input_html = render(&radio_group::item_hidden_input(
@@ -88,6 +90,17 @@ fn disabled_root_and_item_emit_data_disabled_presence_attr() {
         vec![],
     ));
     assert!(input_html.contains("disabled"));
+}
+
+#[test]
+fn item_data_value_payload_is_escaped_on_render() {
+    // イシュー #580: `fandhe-frontend-wasm-full` の headless 配線基盤が
+    // `(scope, part) = ("radio-group", "item")` クリックの select payload 源
+    // として `data-value` を参照する契約を固定する回帰テスト。
+    let payload = "\"><script>alert(1)</script>";
+    let html = render(&radio_group::item(false, false, payload, vec![], vec![]));
+    assert!(!html.contains("<script>alert(1)</script>"));
+    assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
 }
 
 #[test]

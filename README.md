@@ -47,10 +47,9 @@ cargo add fandhe-frontend-core
 
 ark-ui / chakra-ui を参考にした 2 層の UI コンポーネント構成（親トラッキング
 #520）として `fandhe-frontend-headless-ui`（headless UI コンポーネント層）・
-`fandhe-frontend-pre-styled-ui`（pre-styled UI コンポーネント層）を開発中です。
-**両クレートとも本書執筆時点（2026-07-22）で crates.io 未公開**のため、
-`cargo add` では導入できません。リポジトリを取得したうえで path 依存として
-利用してください（実例は
+`fandhe-frontend-pre-styled-ui`（pre-styled UI コンポーネント層）を提供します。
+両クレートとも v0.1.0 で crates.io へ公開済み（イシュー #608）のため、
+`cargo add fandhe-frontend-headless-ui` 等で通常どおり導入できます（実例は
 [`examples/headless-pre-styled-ui`](./examples/headless-pre-styled-ui/README.md)、
 API 詳細は
 [`docs/api/headless-ui-api.md`](./docs/api/headless-ui-api.md) /
@@ -68,11 +67,10 @@ API 詳細は
 | [ssg-blog](./examples/ssg-blog/README.md) | `generate_pages` による静的サイト書き出し・fail-closed なパス検証 | `fandhe-frontend-core` / `-server` |
 | [dist-server-docker](./examples/dist-server-docker/README.md) | 単一バイナリ配布 + `FROM scratch` の Docker イメージ最小化 | `fandhe-frontend-dist-server` |
 | [interactive-view-transitions](./examples/interactive-view-transitions/README.md) | 状態管理（`Component`/`dispatch`）+ View Transitions の自動有効化 | `fandhe-frontend-core` / `-app` / `-interactive` |
-| [headless-pre-styled-ui](./examples/headless-pre-styled-ui/README.md) | headless-ui コンポーネント（Tabs/Accordion/Dialog/Switch/RadioGroup/Avatar）の anatomy・`data-*`・WAI-ARIA（crates.io 未公開のため path 依存、`fw new --example` 非対応） | `fandhe-frontend-core` / `-headless-ui` |
+| [headless-pre-styled-ui](./examples/headless-pre-styled-ui/README.md) | headless-ui コンポーネント（Tabs/Accordion/Dialog/Switch/RadioGroup/Avatar）の anatomy・`data-*`・WAI-ARIA | `fandhe-frontend-core` / `-headless-ui` |
 
-`fw` CLI の `--example` オプションで、上記のうち crates.io 公開済みクレートに
-依存するサンプルを自分のプロジェクトとして展開できます
-（`headless-pre-styled-ui` は path 依存のため非対応です）。
+`fw` CLI の `--example` オプションで、上記のサンプルをすべて自分の
+プロジェクトとして展開できます。
 
 ```bash
 cargo install fandhe-frontend-cli
