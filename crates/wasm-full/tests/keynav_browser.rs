@@ -365,6 +365,11 @@ fn build_radio_group_dom(
             .set_attribute("data-part", "item-hidden-input")
             .unwrap();
         input.set_attribute("type", "radio").unwrap();
+        // 実マークアップのフォーム統合（同一 `name` によるネイティブ排他選択・
+        // ブラウザ既定のキーボードグループ化）を再現する（Bugbot 指摘、
+        // イシュー #583。`name` 省略下ではブラウザ既定の移動が発生せず
+        // orientation 制限の非有効化を検出できなかった）。
+        input.set_attribute("name", root_id).unwrap();
         input.set_attribute("value", value).unwrap();
         input.set_attribute("data-state", state).unwrap();
         input.set_id(&format!("{root_id}-input-{value}"));
@@ -393,10 +398,14 @@ fn build_radio_group_dom(
     root
 }
 
-/// 合成 `keydown` イベント（`bubbles: true`）を組み立てる。
+/// 合成 `keydown` イベント（`bubbles: true, cancelable: true`）を組み立てる。
+/// `cancelable: true` により `dispatch_event` の戻り値（`false` ==
+/// `prevent_default()` が呼ばれた）でハンドラの prevent_default 呼び出しを
+/// 検証できる（イシュー #583 Bugbot 指摘の回帰テスト用）。
 fn keydown_event(key: &str) -> Event {
     let init = KeyboardEventInit::new();
     init.set_bubbles(true);
+    init.set_cancelable(true);
     init.set_key(key);
     KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
         .expect("KeyboardEvent::new must not fail")
@@ -903,8 +912,15 @@ fn menu_open_arrow_and_home_end_move_highlight_and_skip_disabled_without_looping
     trigger.dispatch_event(&keydown_event("End")).unwrap();
     assert!(item_d.has_attribute("data-highlighted"));
 
-    // 既定非循環: 末尾から ArrowDown は no-op。
-    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    // 既定非循環: 末尾から ArrowDown は highlight 移動としては no-op だが、
+    // 開いている間はページスクロール抑止のため prevent_default は呼ばれる
+    // （`dispatch_event` は cancelable なイベントで prevent_default される
+    // と false を返す。Bugbot 指摘、イシュー #583 の回帰）。
+    let not_default_prevented = trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(
+        !not_default_prevented,
+        "非ループ既定動作で端に到達しても prevent_default が呼ばれるべき"
+    );
     assert!(item_d.has_attribute("data-highlighted"));
 
     // Home → 先頭（a）。
@@ -1187,7 +1203,15 @@ fn radio_group_horizontal_orientation_ignores_vertical_keys() {
         .unwrap();
     html_element(&input_a).focus().unwrap();
 
-    input_a.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    // orientation により却下される ArrowDown も、同一 `name` によるネイティブ
+    // radio グループ化のブラウザ既定移動を抑止するため prevent_default
+    // される（`dispatch_event` は cancelable なイベントで prevent_default
+    // されると false を返す。Bugbot 指摘、イシュー #583 の回帰）。
+    let not_default_prevented = input_a.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(
+        !not_default_prevented,
+        "orientation で却下される矢印キーでも prevent_default が呼ばれるべき"
+    );
     assert_eq!(
         document.active_element().map(|el| el.id()),
         Some("kn-radio-horiz1-input-a".to_string())

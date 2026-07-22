@@ -1494,6 +1494,11 @@ mod wiring {
 
         match key.as_str() {
             "ArrowDown" | "ArrowUp" | "Home" | "End" => {
+                // 非ループ既定動作で端に到達し highlight_next_index が None を
+                // 返す場合でも、開いている間はこれらのキーを常にキャンセルする
+                // （モジュール doc の契約）。preventDefault を怠るとページ
+                // スクロールが素通りしてしまう（Bugbot 指摘、イシュー #583）。
+                event.prevent_default();
                 let items = collect_parts(&content, item_selector);
                 let disabled = disabled_flags(&items);
                 let current = find_highlighted_index(&items);
@@ -1502,7 +1507,6 @@ mod wiring {
                 if let Some(next_index) =
                     highlight_next_index(current, &key, loop_focus, modifiers, &disabled)
                 {
-                    event.prevent_default();
                     set_highlight(&items, next_index, &content);
                 }
             }
@@ -1576,14 +1580,27 @@ mod wiring {
             group_root.get_attribute("data-orientation").as_deref(),
         );
         let modifiers = modifiers_of(event);
+        let key = event.key();
 
-        let Some(next_index) =
-            radio_next_index(current, &event.key(), orientation, modifiers, &disabled)
+        // ネイティブ radio グループ化（同一 name 属性）は data-orientation を
+        // 知らず、4 方向いずれの矢印キーでもブラウザ既定でフォーカス・選択を
+        // 移動させてしまう。orientation により radio_next_index が None を
+        // 返す（却下される）場合も、このハンドラが対象とする Home/End/矢印
+        // キーである限り常に prevent_default し、その既定動作を抑止する
+        // （Bugbot 指摘、イシュー #583。修飾キー付きは対象外のまま）。
+        let is_handled_key = matches!(
+            key.as_str(),
+            "Home" | "End" | "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown"
+        );
+        if !modifiers.any() && is_handled_key {
+            event.prevent_default();
+        }
+
+        let Some(next_index) = radio_next_index(current, &key, orientation, modifiers, &disabled)
         else {
             return;
         };
 
-        event.prevent_default();
         if let Some(next_input) = inputs.get(next_index) {
             if let Ok(html_input) = next_input.clone().dyn_into::<HtmlElement>() {
                 let _ = html_input.focus();
