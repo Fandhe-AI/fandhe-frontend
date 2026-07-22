@@ -54,6 +54,12 @@
 //!   Content / Title / Description / CloseTrigger / Indicator の 11 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだ [`popover::Popover`] を提供する
 //!   headless Popover コンポーネント（#532）。
+//! - [`mod@menu`]: Root / Trigger / Indicator / Positioner / Content / Arrow /
+//!   ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator の 11 anatomy
+//!   パーツと [`state::Disclosure`] を埋め込んだ [`menu::Menu`]
+//!   （headless Menu コンポーネント、#540）。構造上最も近い先行例は
+//!   [`popover::Popover`]（trigger 起点のオーバーレイ + `Disclosure` 埋め込み）
+//!   であり、本モジュールはそのパターンに完全準拠する。
 //! - [`mod@switch`]: Root / Control / Thumb / Label / HiddenInput の 5 anatomy
 //!   パーツと、`"checked"`/`"unchecked"` 語彙の [`switch::Switch`] 状態機械
 //!   （#537、親 #534）。ark-ui 準拠の値語彙が [`state::Disclosure`] の
@@ -79,6 +85,7 @@ pub mod aria;
 pub mod collapsible;
 pub mod data_attrs;
 pub mod dialog;
+pub mod menu;
 pub mod popover;
 pub mod state;
 pub mod switch;
@@ -96,6 +103,7 @@ pub use data_attrs::{
     Orientation,
 };
 pub use dialog::Dialog;
+pub use menu::Menu;
 pub use state::{
     Disclosure, DisclosureAction, OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CLOSED,
     DATA_STATE_OPEN,
