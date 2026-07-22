@@ -1,5 +1,5 @@
 //! `fandhe-frontend-headless-ui`: headless UI コンポーネント層（外部依存は
-//! `fandhe-frontend-core` のみ）。
+//! `fandhe-frontend-core` / `fandhe-frontend-interactive`（いずれも path）のみ）。
 //!
 //! ark-ui 相当の headless（unstyled）UI コンポーネント層を提供する。
 //! anatomy（部品構成）・`data-*` 属性・WAI-ARIA 属性付与のための共通 API を
@@ -17,22 +17,43 @@
 //! 3. **`unsafe` コード禁止**: `#![forbid(unsafe_code)]` によりクレート全体で
 //!    機械的に禁止する（`crates/core/tests/unsafe_boundary.rs` が workspace
 //!    member を自動発見して強制する）。
-//! 4. **外部依存は `fandhe-frontend-core`（path）のみ**: `headless-ui/Cargo.toml` の
-//!    `[dependencies]` にサードパーティクレートを追加しない。
+//! 4. **外部依存は `fandhe-frontend-core` / `fandhe-frontend-interactive`
+//!    （いずれも path）のみ**: `headless-ui/Cargo.toml` の `[dependencies]` に
+//!    サードパーティクレートを追加しない。
 //!
-//! # 実装済み API（イシュー #523）
+//! # 実装済み API（イシュー #523/#524）
 //!
 //! - [`mod@anatomy`]: `data-scope` / `data-part` を付与してパーツノードを組み立てる
 //!   [`anatomy::Anatomy`]（全コンポーネント共通の anatomy 基盤）。
-//! - [`data_attrs`]: `data-state` / `data-disabled` 等の状態属性ヘルパ。
-//! - [`aria`]: `role` / `aria-*` の WAI-ARIA 属性ヘルパ。
+//! - [`data_attrs`]: `data-state` / `data-disabled` 等の状態属性ヘルパ（#523）。
+//! - [`aria`]: `role` / `aria-*` の WAI-ARIA 属性ヘルパ（#523）。
+//! - [`state`]: `fandhe-frontend-interactive` の
+//!   [`fandhe_frontend_interactive::Component`]/[`fandhe_frontend_interactive::Hydrate`]
+//!   抽象へ乗る開閉系状態機械（[`state::Disclosure`]/[`state::SingleSelect`]、#524）。
+//!   Dialog / Accordion / Tabs / Collapsible / Popover / Tooltip（Phase 2 の
+//!   #526〜#533）が共通で使う「open/closed・selected」の dispatch 契約・
+//!   `data-state` 整合・SSR/hydration 契約をここに一度だけ実装し、各コンポーネントは
+//!   フィールドとして埋め込んで再利用する。
+//! - [`mod@tabs`]: WAI-ARIA APG の Tabs パターンに準拠したマークアップを組み立てる
+//!   [`tabs::tabs`]（#528）。SSR 時点の静的な選択状態のみを扱い、クリック/
+//!   キーボード操作・状態機械連携は後続イシューのスコープ。
+//! - [`mod@collapsible`]: Root/Trigger/Indicator/Content の anatomy パーツ関数群と、
+//!   [`state::Disclosure`] を埋め込んだ [`collapsible::Collapsible`] 状態機械
+//!   （#529、親 #526）。Phase 2 で [`state`] を具象コンポーネントへ適用する最初の例。
+//! - [`mod@accordion`]: Root / Item / ItemTrigger / ItemIndicator / ItemContent の
+//!   5 anatomy パーツと [`state::SingleSelect`] を埋め込んだ single モード
+//!   Accordion（[`accordion::Accordion`]、#527）。
+//! - [`mod@dialog`]: [`dialog::Dialog`] — Root / Trigger / Backdrop /
+//!   Positioner / Content / Title / Description / CloseTrigger の 8 anatomy
+//!   パーツと [`state::Disclosure`] を埋め込んだモーダルダイアログ（#531）。
 //!
 //! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
 //! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
-//! （`docs/api/component-api.md` 不変条件準拠）。`data-state` と状態機械の
-//! 一致保証は `fandhe-frontend-interactive` と連携するイシュー #524 のスコープ。
-//! 各コンポーネントの anatomy 定義（Accordion / Dialog 等の parts 一覧）は
-//! Phase 2（#526〜#544）のスコープ。
+//! （`docs/api/component-api.md` 不変条件準拠）。`data-state` 属性名自体は
+//! [`data_attrs::data_state`] が一元管理し、[`state`] モジュールはそれを
+//! 呼び出して値（`"open"`/`"closed"`）を決める側に徹する（属性名の重複定義を
+//! 避ける）。各コンポーネントの anatomy 定義（Accordion / Dialog 等の parts
+//! 一覧）は Phase 2（#526〜#544）のスコープ。
 //!
 //! - [`mod@checkbox`]: ark-ui Checkbox 相当の anatomy（イシュー #535）。
 //!   dispatch 統合（クリックトグル等の動的状態遷移）は #524 のスコープ。
@@ -40,10 +61,15 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod accordion;
 pub mod anatomy;
 pub mod aria;
 pub mod checkbox;
+pub mod collapsible;
 pub mod data_attrs;
+pub mod dialog;
+pub mod state;
+pub mod tabs;
 
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
@@ -55,3 +81,9 @@ pub use data_attrs::{
     data_disabled, data_invalid, data_orientation, data_readonly, data_required, data_state,
     Orientation,
 };
+pub use dialog::Dialog;
+pub use state::{
+    Disclosure, DisclosureAction, OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CLOSED,
+    DATA_STATE_OPEN,
+};
+pub use tabs::{tabs, TabItem, TabsProps};
