@@ -54,7 +54,7 @@ use crate::aria::{
     aria_controls, aria_disabled, aria_expanded, aria_haspopup, aria_labelledby, aria_orientation,
     role, AriaPopup,
 };
-use crate::data_attrs::{data_disabled, data_state, Orientation};
+use crate::data_attrs::{data_disabled, data_highlighted, data_state, Orientation};
 use crate::state::{Disclosure, DisclosureAction, OpenState};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
@@ -204,9 +204,7 @@ pub fn item<'a>(
         merged.push(aria_disabled(true));
         merged.extend(data_disabled(true));
     }
-    if highlighted {
-        merged.push(("data-highlighted", ""));
-    }
+    merged.extend(data_highlighted(highlighted));
     merged.extend(attrs);
     ANATOMY.part("item", "div", merged, children)
 }
