@@ -92,7 +92,15 @@ role = "component"
 crate = "fandhe-frontend-headless-ui"
 description = "headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA、イシュー #520/#522）。styled 層（pre-styled-ui）の下層。interactive への依存はイシュー #524 で追加する"
 depends_on = ["core"]
+allowed_dependents = ["pre-styled-ui"]
 path = "crates/headless-ui"
+
+[directories.pre-styled-ui]
+role = "component"
+crate = "fandhe-frontend-pre-styled-ui"
+description = "pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）。テーマトークン・ダークモード基盤はイシュー #547、variant API・静的 CSS 生成はイシュー #548 で追加する"
+depends_on = ["headless-ui"]
+path = "crates/pre-styled-ui"
 
 [directories.static]
 role = "asset"

@@ -111,6 +111,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "fandhe-frontend-pre-styled-ui"
+version = "0.1.0"
+dependencies = [
+ "fandhe-frontend-core",
+ "fandhe-frontend-headless-ui",
+]
+
+[[package]]
 name = "fandhe-frontend-server"
 version = "0.1.0"
 dependencies = [
