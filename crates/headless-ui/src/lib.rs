@@ -93,10 +93,14 @@
 //!   伝播しない）。[`mod@field`] と同じく状態機械を適用しない。
 //! - [`mod@menu`]: Root / Trigger / Indicator / Positioner / Content / Arrow /
 //!   ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator / TriggerItem /
-//!   ContextTrigger の 13 anatomy パーツと [`state::Disclosure`] を埋め込んだ
-//!   [`menu::Menu`]（headless Menu コンポーネント、#540/#598）。構造上最も
-//!   近い先行例は [`popover::Popover`]（trigger 起点のオーバーレイ +
-//!   `Disclosure` 埋め込み）であり、本モジュールはそのパターンに完全準拠する。
+//!   ContextTrigger / CheckboxItem / RadioItemGroup / RadioItem の 16 anatomy
+//!   パーツと [`state::Disclosure`] を埋め込んだ [`menu::Menu`]
+//!   （headless Menu コンポーネント、#540/#598）。構造上最も近い先行例は
+//!   [`popover::Popover`]（trigger 起点のオーバーレイ + `Disclosure` 埋め込み）
+//!   であり、本モジュールはそのパターンに完全準拠する。CheckboxItem/
+//!   RadioItemGroup/RadioItem（#597）は checked 状態を [`state::Checkable`]/
+//!   [`state::SingleSelect`] を埋め込んだ [`menu::MenuCheckboxItem`]/
+//!   [`menu::MenuRadioItemGroup`] で表現し、`Menu` の開閉状態とは独立させる。
 //! - [`mod@select`]: Root / Label / Control / Trigger / ValueText /
 //!   ClearTrigger / Indicator / Positioner / Content / ItemGroup /
 //!   ItemGroupLabel / Item / ItemText / ItemIndicator / HiddenSelect の 15
@@ -201,7 +205,7 @@ pub use data_attrs::{
 pub use dialog::Dialog;
 pub use field::{FieldIds, FieldProps};
 pub use fieldset::FieldsetProps;
-pub use menu::Menu;
+pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
 pub use progress::{Progress, ProgressAction};
 pub use radio_group::RadioGroup;
 pub use state::{

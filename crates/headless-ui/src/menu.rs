@@ -5,21 +5,29 @@
 //!（`.claude/skills/ark-ui/references/components/collections/menu.md`）を
 //! 参考に、Root / Trigger / Indicator / Positioner / Content / Arrow /
 //! ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator / TriggerItem /
-//! ContextTrigger の 13 anatomy パーツと、Phase 1（#524）の
-//! [`crate::state::Disclosure`] を埋め込んだ開閉状態機械 [`Menu`] を提供する。
-//! **構造上最も近い先行例は [`crate::popover::Popover`]**（trigger 起点の
-//! オーバーレイ + `Disclosure` 埋め込み）であり、本モジュールはそのパターンに
-//! 完全準拠する。TriggerItem/ContextTrigger（イシュー #598、親 #596/#593）は
-//! いずれも既存 [`Menu`] インスタンスをそのまま流用する合成であり、新しい
-//! 状態機械は追加しない（サブメニューは「子 Menu インスタンス 1 個」、
-//! ContextTrigger は「右クリックで開かれる Menu インスタンス自身」を指す）。
+//! ContextTrigger / CheckboxItem / RadioItemGroup / RadioItem の 16 anatomy
+//! パーツと、Phase 1（#524）の [`crate::state::Disclosure`] を埋め込んだ
+//! 開閉状態機械 [`Menu`] を提供する。**構造上最も近い先行例は
+//! [`crate::popover::Popover`]**（trigger 起点のオーバーレイ + `Disclosure`
+//! 埋め込み）であり、本モジュールはそのパターンに完全準拠する。
+//! TriggerItem/ContextTrigger（イシュー #598、親 #596/#593）はいずれも
+//! 既存 [`Menu`] インスタンスをそのまま流用する合成であり、新しい状態機械は
+//! 追加しない（サブメニューは「子 Menu インスタンス 1 個」、ContextTrigger は
+//! 「右クリックで開かれる Menu インスタンス自身」を指す）。CheckboxItem/
+//! RadioItemGroup/RadioItem（イシュー #597、親 #596/#593）は checked 状態の
+//! 表現に [`crate::state::Checkable`]/[`crate::state::SingleSelect`]
+//! （#595 で共通化昇格した checked/unchecked 状態機械）を埋め込んだ
+//! [`MenuCheckboxItem`]/[`MenuRadioItemGroup`] を新設する（[`Menu`] の開閉
+//! 状態とは独立であり、[`Menu::trigger_item`] 等の利便メソッドには追加しない
+//! — checked 状態を持つ項目は開閉状態を持つ `Menu` インスタンスとは別物のため）。
 //!
 //! # 呼び出し文脈
 //!
 //! SSR は本モジュールの自由関数（[`root`]/[`trigger`]/[`indicator`]/
 //! [`positioner`]/[`content`]/[`arrow`]/[`arrow_tip`]/[`item`]/
 //! [`item_group`]/[`item_group_label`]/[`separator`]/[`trigger_item`]/
-//! [`context_trigger`]、純粋関数で完結）を直接呼んで組み立てる。
+//! [`context_trigger`]/[`checkbox_item`]/[`radio_item_group`]/[`radio_item`]、
+//! 純粋関数で完結）を直接呼んで組み立てる。
 //! サブメニューは「親 `Menu` インスタンスの `content` 内に子 `Menu`
 //! インスタンス由来の `trigger_item`/`positioner`/`content` を入れ子で配置
 //! する」ことで表現する（親子は別インスタンスであり、`aria-haspopup`
@@ -28,8 +36,11 @@
 //! CSR/hydration は [`Menu`]
 //!（[`fandhe_frontend_interactive::Component`]/
 //! [`fandhe_frontend_interactive::Hydrate`] 実装）を経由し、dispatch
-//! （`"open"`/`"close"`/`"toggle"`）で状態遷移する。`fandhe-frontend-pre-styled-ui`
-//! （#546〜、#551）が本モジュールを呼んでスタイル済み Menu を組み立てる想定である。
+//! （`"open"`/`"close"`/`"toggle"`）で状態遷移する。CheckboxItem/RadioItemGroup
+//! は [`MenuCheckboxItem`]（dispatch `"check"`/`"uncheck"`/`"toggle"`）/
+//! [`MenuRadioItemGroup`]（dispatch `"select"`）を経由する。
+//! `fandhe-frontend-pre-styled-ui`（#546〜、#551）が本モジュールを呼んで
+//! スタイル済み Menu を組み立てる想定である。
 //!
 //! # セキュリティ不変条件
 //!
@@ -41,32 +52,42 @@
 //!   `children` テキスト）は [`fandhe_frontend_core::render`] の既定エスケープを
 //!   必ず経由する。`raw_html()` は使用せず、HTML 文字列を直接組み立てない。
 //! - `data-state` 値語彙（`"open"`/`"closed"`）は [`crate::state::OpenState`]
-//!   に一元化し、本モジュールで独自の値を作らない。
+//!   に一元化し、本モジュールで独自の値を作らない。CheckboxItem/RadioItem の
+//!   `data-state` 値語彙（`"checked"`/`"unchecked"`）も同様に
+//!   [`crate::state::checked_data_state`] へ一元化し、本モジュール独自の
+//!   値語彙を作らない（Switch/RadioGroup と共有）。
 //! - hydration 属性（`data-hydrate-state`）はクライアント側で改ざんされうる
 //!   入力として扱う。[`Menu`] の [`fandhe_frontend_interactive::Hydrate`]
 //!   実装は [`crate::state::Disclosure`] へ全委譲することで、panic せず
-//!   `HydrateError` を返す既存保証をそのまま継承する。
+//!   `HydrateError` を返す既存保証をそのまま継承する。同様に
+//!   [`MenuCheckboxItem`]/[`MenuRadioItemGroup`] の hydration 属性
+//!   （`data-hydrate-checked`/`data-hydrate-selected`）は
+//!   [`crate::state::Checkable`]/[`crate::state::SingleSelect`] へ全委譲する。
 //!
 //! # スコープ外（ark-ui Menu のうち本イシューで実装しないもの）
 //!
-//! - `CheckboxItem`/`RadioGroup`/`RadioItem`: form 系（Checkbox #534 系列）の
-//!   checked 状態設計と整合させるべきであり、別イシュー化をユーザーへ提案する
-//!   （`out-of-scope-tracking.md` 準拠、勝手に起票しない）。
-//! - [`trigger_item`]/[`context_trigger`] の**クライアントイベント処理**
-//!   （右クリック検知・ホバー/矢印キーでのサブメニュー展開・フォーカス管理）:
-//!   本イシュー（#598）は SSR マークアップ（anatomy 表現）のみを対象とし、
-//!   配線は wasm ランタイム側の将来イシュー（#580/PR #611 系列）のスコープ。
+//! - [`trigger_item`]/[`context_trigger`]/[`checkbox_item`]/[`radio_item`] の
+//!   **クライアントイベント処理**（右クリック検知・クリックによる
+//!   checked トグル・ホバー/矢印キーでのサブメニュー展開・フォーカス管理・
+//!   `closeOnSelect`）: 本イシュー（#597/#598）は SSR マークアップ（anatomy
+//!   表現）のみを対象とし、配線は wasm ランタイム側の将来イシュー（#580/
+//!   PR #611・#626 系列）のスコープ。
+//! - ark-ui `Menu.ItemIndicator`/`Menu.ItemText` 相当パーツ: 本イシュー
+//!   （#597）の受け入れ条件外。
 //! - 位置決めロジック（Floating UI 相当）・`loopFocus`/`typeahead`/
 //!   `closeOnSelect`/キーボード操作・portal・`lazyMount`: wasm クライアント
 //!   ランタイム側の将来イシューのスコープ（Popover/Tooltip と共通の判断）。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
-    aria_controls, aria_disabled, aria_expanded, aria_haspopup, aria_labelledby, aria_orientation,
-    role, AriaPopup,
+    aria_checked, aria_controls, aria_disabled, aria_expanded, aria_haspopup, aria_labelledby,
+    aria_orientation, role, AriaChecked, AriaPopup,
 };
 use crate::data_attrs::{data_disabled, data_highlighted, data_state, Orientation};
-use crate::state::{Disclosure, DisclosureAction, OpenState};
+use crate::state::{
+    checked_data_state, Checkable, CheckableAction, Disclosure, DisclosureAction, OpenState,
+    SingleSelect, SingleSelectAction,
+};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
 
@@ -332,6 +353,101 @@ pub fn context_trigger<'a>(
     ANATOMY.part("context-trigger", "button", merged, children)
 }
 
+/// CheckboxItem パーツ（`div`）。checked/unchecked を切り替えるメニュー項目
+/// （イシュー #597）。
+///
+/// [`item`] と同型（`div` ベース、native `disabled` を持たない）だが、
+/// `role="menuitemcheckbox"`・`aria-checked`（[`AriaChecked::True`]/
+/// [`AriaChecked::False`] の 2 値のみ、indeterminate は
+/// [`crate::state::Checkable`] のスコープ外につき本関数でも扱わない）・
+/// `data-state`（[`checked_data_state`] 経由、Switch/RadioGroup と共有する
+/// 値語彙）を固定付与する。`disabled`/`highlighted` の扱いは [`item`] と
+/// 同判断（native `disabled` を持たないため ARIA/`data-*` のみで無効状態を
+/// 表現する）。
+#[must_use]
+pub fn checkbox_item<'a>(
+    checked: bool,
+    value: &'a str,
+    disabled: bool,
+    highlighted: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        role("menuitemcheckbox"),
+        aria_checked(if checked {
+            AriaChecked::True
+        } else {
+            AriaChecked::False
+        }),
+        data_state(checked_data_state(checked)),
+        ("data-value", value),
+    ];
+    if disabled {
+        merged.push(aria_disabled(true));
+        merged.extend(data_disabled(true));
+    }
+    merged.extend(data_highlighted(highlighted));
+    merged.extend(attrs);
+    ANATOMY.part("checkbox-item", "div", merged, children)
+}
+
+/// RadioItemGroup パーツ（`div`）。関連する [`radio_item`] 群をまとめる
+/// コンテナ（イシュー #597）。
+///
+/// [`item_group`] と同型。`role="group"` を固定付与し、`labelledby` が
+/// `Some` のとき [`item_group_label`] の `id` と対で `aria-labelledby`
+/// 関連付けを成立させる（見出しは既存 [`item_group_label`] をそのまま流用
+/// できる）。`data-part="radio-item-group"`（ark-ui 準拠の kebab-case）。
+#[must_use]
+pub fn radio_item_group<'a>(
+    labelledby: Option<&'a str>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = vec![role("group")];
+    if let Some(labelledby) = labelledby {
+        merged.push(aria_labelledby(labelledby));
+    }
+    merged.extend(attrs);
+    ANATOMY.part("radio-item-group", "div", merged, children)
+}
+
+/// RadioItem パーツ（`div`）。[`radio_item_group`] 内で排他選択される
+/// メニュー項目（イシュー #597）。
+///
+/// [`checkbox_item`] と同型だが `role="menuitemradio"` を付与する。checked
+/// 状態は呼び出し側（[`radio_item_group`] 内の排他制御は
+/// [`crate::state::SingleSelect`]、[`MenuRadioItemGroup::radio_item`] 参照）
+/// が注入する。`disabled`/`highlighted` の扱いは [`checkbox_item`] と同判断。
+#[must_use]
+pub fn radio_item<'a>(
+    checked: bool,
+    value: &'a str,
+    disabled: bool,
+    highlighted: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        role("menuitemradio"),
+        aria_checked(if checked {
+            AriaChecked::True
+        } else {
+            AriaChecked::False
+        }),
+        data_state(checked_data_state(checked)),
+        ("data-value", value),
+    ];
+    if disabled {
+        merged.push(aria_disabled(true));
+        merged.extend(data_disabled(true));
+    }
+    merged.extend(data_highlighted(highlighted));
+    merged.extend(attrs);
+    ANATOMY.part("radio-item", "div", merged, children)
+}
+
 /// [`Disclosure`]（#524）を埋め込んだ Menu の状態機械。
 ///
 /// `data-state` と実際の開閉状態の整合を型レベルで保証する入口として、
@@ -491,6 +607,198 @@ impl Hydrate for Menu {
     fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
         Ok(Self {
             disclosure: Disclosure::from_hydration_attrs(attrs)?,
+        })
+    }
+}
+
+/// [`Checkable`]（#595 で共通化昇格した checked/unchecked 状態機械）を
+/// 埋め込んだ [`checkbox_item`] の状態機械（イシュー #597）。
+///
+/// `Menu` 本体の開閉状態（[`Disclosure`]）とは独立しており、[`Menu`] の
+/// フィールドとしては保持しない（呼び出し側が `Menu` インスタンスと並べて
+/// 個別に保持する想定。[`crate::switch::Switch`] が [`Checkable`] を埋め込む
+/// のと同型）。`Default` は unchecked（SSR の状態なし初期描画に対応する
+/// 既定値）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct MenuCheckboxItem {
+    checkable: Checkable,
+}
+
+impl MenuCheckboxItem {
+    /// 指定した初期状態で生成する。
+    #[must_use]
+    pub fn new(checked: bool) -> Self {
+        Self {
+            checkable: Checkable::new(checked),
+        }
+    }
+
+    /// 現在チェックされているかどうか。
+    #[must_use]
+    pub fn is_checked(&self) -> bool {
+        self.checkable.is_checked()
+    }
+
+    /// 現在の `data-state` 属性値（`"checked"`/`"unchecked"`）。
+    #[must_use]
+    pub fn data_state(&self) -> &'static str {
+        self.checkable.data_state()
+    }
+
+    /// [`checkbox_item`] へ現在の状態を注入する利便メソッド。
+    #[must_use]
+    pub fn checkbox_item<'a>(
+        &self,
+        value: &'a str,
+        disabled: bool,
+        highlighted: bool,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        checkbox_item(
+            self.checkable.is_checked(),
+            value,
+            disabled,
+            highlighted,
+            attrs,
+            children,
+        )
+    }
+}
+
+impl Component for MenuCheckboxItem {
+    type Action = CheckableAction;
+
+    fn update(&mut self, action: CheckableAction) {
+        self.checkable.update(action);
+    }
+
+    /// 共通契約（`data-state` 整合・hydration ルート）のみを表す最小正準
+    /// ビュー（`value` 空・children 空の [`checkbox_item`]）。[`Checkable::view`]・
+    /// [`crate::switch::Switch::view`] と同じ位置付けであり、公開 UI としての
+    /// 利用は想定しない（実際の UI 構築は [`Self::checkbox_item`] を呼び出し
+    /// 側が組み合わせる）。
+    fn view(&self) -> Node {
+        self.checkbox_item("", false, false, Vec::new(), Vec::new())
+    }
+
+    fn decode_action(name: &str, payload: &str) -> Option<CheckableAction> {
+        Checkable::decode_action(name, payload)
+    }
+}
+
+impl Hydrate for MenuCheckboxItem {
+    fn hydration_attrs(&self) -> Vec<(String, String)> {
+        self.checkable.hydration_attrs()
+    }
+
+    fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
+        Ok(Self {
+            checkable: Checkable::from_hydration_attrs(attrs)?,
+        })
+    }
+}
+
+/// [`SingleSelect`]（#524）を埋め込んだ [`radio_item_group`]/[`radio_item`]
+/// の状態機械（イシュー #597）。
+///
+/// 「高々 1 項目が選択される」制約を型レベルで保証する入口として、
+/// [`Self::is_checked`] が各項目値のチェック状態を決定し、[`radio_item`]/
+/// [`radio_item_group`] へ注入する利便メソッドを提供する（[`crate::radio_group::RadioGroup`]
+/// と同型）。`Menu` 本体の開閉状態とは独立しており `Menu` のフィールドとして
+/// は保持しない。`Default` は未選択（SSR の状態なし初期描画に対応する既定値）。
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MenuRadioItemGroup {
+    select: SingleSelect,
+}
+
+impl MenuRadioItemGroup {
+    /// 現在選択中の項目値（未選択なら `None`）。
+    #[must_use]
+    pub fn value(&self) -> Option<&str> {
+        self.select.selected()
+    }
+
+    /// 指定した項目値が選択中かどうか。
+    #[must_use]
+    pub fn is_checked(&self, value: &str) -> bool {
+        self.select.is_selected(value)
+    }
+
+    /// 項目 `value` の現在の `data-state` 値（`"checked"`/`"unchecked"`）。
+    #[must_use]
+    pub fn item_checked_data_state(&self, value: &str) -> &'static str {
+        checked_data_state(self.is_checked(value))
+    }
+
+    /// [`radio_item_group`] へ `labelledby` をそのまま渡す利便メソッド
+    /// （状態非依存だが呼び出しの一貫性のため提供する）。
+    #[must_use]
+    pub fn radio_item_group<'a>(
+        &self,
+        labelledby: Option<&'a str>,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        radio_item_group(labelledby, attrs, children)
+    }
+
+    /// [`radio_item`] へ項目 `value` の現在状態を注入する利便メソッド。
+    #[must_use]
+    pub fn radio_item<'a>(
+        &self,
+        value: &'a str,
+        disabled: bool,
+        highlighted: bool,
+        attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
+    ) -> Node {
+        radio_item(
+            self.is_checked(value),
+            value,
+            disabled,
+            highlighted,
+            attrs,
+            children,
+        )
+    }
+}
+
+impl Component for MenuRadioItemGroup {
+    type Action = SingleSelectAction;
+
+    /// 型付き API では [`SingleSelectAction::Deselect`] も許す
+    /// （[`crate::radio_group::RadioGroup::update`] と同判断）。
+    fn update(&mut self, action: SingleSelectAction) {
+        self.select.update(action);
+    }
+
+    /// 共通契約（hydration ルート）のみを表す最小正準ビュー
+    /// （[`radio_item_group`]、children 空。[`crate::radio_group::RadioGroup::view`]
+    /// と同じ位置付け）。
+    fn view(&self) -> Node {
+        radio_item_group(None, Vec::new(), Vec::new())
+    }
+
+    /// クライアント由来の文字列アクション名を `"select"` のみに絞る
+    /// （fail-closed、[`crate::radio_group::RadioGroup::decode_action`] と
+    /// 同判断。WAI-ARIA radio パターンには選択解除ジェスチャが存在しない）。
+    fn decode_action(name: &str, payload: &str) -> Option<SingleSelectAction> {
+        match name {
+            "select" => Some(SingleSelectAction::Select(payload.to_string())),
+            _ => None,
+        }
+    }
+}
+
+impl Hydrate for MenuRadioItemGroup {
+    fn hydration_attrs(&self) -> Vec<(String, String)> {
+        self.select.hydration_attrs()
+    }
+
+    fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
+        Ok(Self {
+            select: SingleSelect::from_hydration_attrs(attrs)?,
         })
     }
 }
@@ -1099,6 +1407,362 @@ mod tests {
             "<script>alert(1)</script>".to_string(),
         )];
         let err = Menu::from_hydration_attrs(&attrs).unwrap_err();
+        assert!(matches!(err, HydrateError::InvalidValue { .. }));
+    }
+
+    // --- checkbox_item / radio_item_group / radio_item（イシュー #597） ---
+
+    #[test]
+    fn checkbox_item_has_kebab_case_part_role_and_data_value() {
+        let html = render(&checkbox_item(
+            false,
+            "item-1",
+            false,
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-part="checkbox-item""#));
+        assert!(html.contains(r#"role="menuitemcheckbox""#));
+        assert!(html.contains(r#"data-value="item-1""#));
+    }
+
+    #[test]
+    fn checkbox_item_checked_true_false_outputs_aria_checked_and_data_state() {
+        let unchecked = render(&checkbox_item(
+            false,
+            "item-1",
+            false,
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(unchecked.contains(r#"aria-checked="false""#));
+        assert!(unchecked.contains(r#"data-state="unchecked""#));
+
+        let checked = render(&checkbox_item(true, "item-1", false, false, vec![], vec![]));
+        assert!(checked.contains(r#"aria-checked="true""#));
+        assert!(checked.contains(r#"data-state="checked""#));
+    }
+
+    #[test]
+    fn checkbox_item_disabled_true_adds_aria_disabled_and_data_disabled_no_native() {
+        let html = render(&checkbox_item(false, "item-1", true, false, vec![], vec![]));
+        assert!(html.contains(r#"aria-disabled="true""#));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(!html.contains(r#" disabled"#));
+
+        let not_disabled = render(&checkbox_item(
+            false,
+            "item-1",
+            false,
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(!not_disabled.contains("aria-disabled"));
+        assert!(!not_disabled.contains("data-disabled"));
+    }
+
+    #[test]
+    fn checkbox_item_highlighted_true_adds_data_highlighted_false_omits() {
+        let highlighted = render(&checkbox_item(false, "item-1", false, true, vec![], vec![]));
+        assert!(highlighted.contains(r#"data-highlighted="""#));
+
+        let not_highlighted = render(&checkbox_item(
+            false,
+            "item-1",
+            false,
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(!not_highlighted.contains("data-highlighted"));
+    }
+
+    #[test]
+    fn checkbox_item_caller_supplied_scope_and_part_are_dropped() {
+        let html = render(&checkbox_item(
+            false,
+            "item-1",
+            false,
+            false,
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="menu""#));
+        assert!(html.contains(r#"data-part="checkbox-item""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn radio_item_group_has_role_group_and_kebab_case_part() {
+        let html = render(&radio_item_group(None, vec![], vec![]));
+        assert!(html.contains(r#"role="group""#));
+        assert!(html.contains(r#"data-part="radio-item-group""#));
+        assert!(!html.contains("aria-labelledby"));
+    }
+
+    #[test]
+    fn radio_item_group_labelledby_some_outputs_aria_labelledby() {
+        let html = render(&radio_item_group(Some("label-1"), vec![], vec![]));
+        assert!(html.contains(r#"aria-labelledby="label-1""#));
+    }
+
+    #[test]
+    fn radio_item_has_kebab_case_part_role_and_data_value() {
+        let html = render(&radio_item(false, "item-1", false, false, vec![], vec![]));
+        assert!(html.contains(r#"data-part="radio-item""#));
+        assert!(html.contains(r#"role="menuitemradio""#));
+        assert!(html.contains(r#"data-value="item-1""#));
+    }
+
+    #[test]
+    fn radio_item_checked_true_false_outputs_aria_checked_and_data_state() {
+        let unchecked = render(&radio_item(false, "item-1", false, false, vec![], vec![]));
+        assert!(unchecked.contains(r#"aria-checked="false""#));
+        assert!(unchecked.contains(r#"data-state="unchecked""#));
+
+        let checked = render(&radio_item(true, "item-1", false, false, vec![], vec![]));
+        assert!(checked.contains(r#"aria-checked="true""#));
+        assert!(checked.contains(r#"data-state="checked""#));
+    }
+
+    #[test]
+    fn radio_item_disabled_and_highlighted_flags() {
+        let disabled = render(&radio_item(false, "item-1", true, false, vec![], vec![]));
+        assert!(disabled.contains(r#"aria-disabled="true""#));
+        assert!(disabled.contains(r#"data-disabled="""#));
+
+        let highlighted = render(&radio_item(false, "item-1", false, true, vec![], vec![]));
+        assert!(highlighted.contains(r#"data-highlighted="""#));
+    }
+
+    #[test]
+    fn radio_item_caller_supplied_scope_and_part_are_dropped() {
+        let html = render(&radio_item(
+            false,
+            "item-1",
+            false,
+            false,
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="menu""#));
+        assert!(html.contains(r#"data-part="radio-item""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    // --- MenuCheckboxItem: dispatch 統合 ---
+
+    #[test]
+    fn menu_checkbox_item_default_is_unchecked() {
+        assert!(!MenuCheckboxItem::default().is_checked());
+    }
+
+    #[test]
+    fn menu_checkbox_item_dispatch_toggle_check_uncheck() {
+        let mut c = MenuCheckboxItem::default();
+        assert!(
+            render(&c.checkbox_item("item-1", false, false, vec![], vec![]))
+                .contains(r#"data-state="unchecked""#)
+        );
+
+        assert!(dispatch(&mut c, "toggle", ""));
+        assert!(c.is_checked());
+        assert!(
+            render(&c.checkbox_item("item-1", false, false, vec![], vec![]))
+                .contains(r#"data-state="checked""#)
+        );
+        assert!(
+            render(&c.checkbox_item("item-1", false, false, vec![], vec![]))
+                .contains(r#"aria-checked="true""#)
+        );
+
+        assert!(dispatch(&mut c, "uncheck", ""));
+        assert!(!c.is_checked());
+        assert!(dispatch(&mut c, "check", ""));
+        assert!(c.is_checked());
+    }
+
+    #[test]
+    fn menu_checkbox_item_dispatch_ignores_unknown_action() {
+        let mut c = MenuCheckboxItem::new(true);
+        assert!(!dispatch(&mut c, "no_such_action", "x"));
+        assert!(c.is_checked());
+    }
+
+    #[test]
+    fn menu_checkbox_item_default_ssr_view_has_no_hydrate_attr() {
+        let rendered = render(&MenuCheckboxItem::default().view());
+        assert!(rendered.contains(r#"data-state="unchecked""#));
+        assert!(!rendered.contains("data-hydrate-"));
+    }
+
+    #[test]
+    fn menu_checkbox_item_hydration_round_trip() {
+        let c = MenuCheckboxItem::new(true);
+        let rendered = render(&render_for_hydration(&c));
+        assert!(rendered.contains(r#"data-hydrate-checked="checked""#));
+
+        let restored = MenuCheckboxItem::from_hydration_attrs(&c.hydration_attrs()).unwrap();
+        assert_eq!(restored, c);
+    }
+
+    #[test]
+    fn menu_checkbox_item_from_hydration_attrs_missing_attr_does_not_panic() {
+        let err = MenuCheckboxItem::from_hydration_attrs(&[]).unwrap_err();
+        assert_eq!(
+            err,
+            HydrateError::MissingAttr("data-hydrate-checked".to_string())
+        );
+    }
+
+    #[test]
+    fn menu_checkbox_item_from_hydration_attrs_invalid_value_does_not_panic() {
+        for bogus in ["CHECKED", "<script>alert(1)</script>", ""] {
+            let attrs = vec![("data-hydrate-checked".to_string(), bogus.to_string())];
+            let err = MenuCheckboxItem::from_hydration_attrs(&attrs).unwrap_err();
+            assert!(matches!(err, HydrateError::InvalidValue { .. }));
+        }
+    }
+
+    // --- MenuRadioItemGroup: dispatch 統合 ---
+
+    #[test]
+    fn menu_radio_item_group_default_is_unselected() {
+        assert_eq!(MenuRadioItemGroup::default().value(), None);
+    }
+
+    #[test]
+    fn menu_radio_item_group_dispatch_select_is_exclusive() {
+        let mut g = MenuRadioItemGroup::default();
+        assert!(dispatch(&mut g, "select", "a"));
+        assert!(g.is_checked("a"));
+        assert!(!g.is_checked("b"));
+        assert!(render(&g.radio_item("a", false, false, vec![], vec![]))
+            .contains(r#"data-state="checked""#));
+        assert!(render(&g.radio_item("b", false, false, vec![], vec![]))
+            .contains(r#"data-state="unchecked""#));
+
+        assert!(dispatch(&mut g, "select", "b"));
+        assert!(!g.is_checked("a"));
+        assert!(g.is_checked("b"));
+    }
+
+    #[test]
+    fn menu_radio_item_group_hydration_round_trip() {
+        let mut g = MenuRadioItemGroup::default();
+        assert!(dispatch(&mut g, "select", "a"));
+        let rendered = render(&render_for_hydration(&g));
+        assert!(rendered.contains("data-hydrate-selected="));
+
+        let restored = MenuRadioItemGroup::from_hydration_attrs(&g.hydration_attrs()).unwrap();
+        assert_eq!(restored, g);
+    }
+
+    #[test]
+    fn menu_radio_item_group_from_hydration_attrs_invalid_value_does_not_panic() {
+        // `SingleSelect` は高々 1 個選択の不変条件を持つため、2 件以上の
+        // エンコード済みリストは改ざん入力として拒否される
+        // （crate::state の SingleSelect 相当テストと同判断）。
+        use fandhe_frontend_interactive::codec;
+        let bogus = codec::encode_list(&["a".to_string(), "b".to_string()]);
+        let attrs = vec![("data-hydrate-selected".to_string(), bogus)];
+        let err = MenuRadioItemGroup::from_hydration_attrs(&attrs).unwrap_err();
+        assert!(matches!(err, HydrateError::InvalidValue { .. }));
+    }
+
+    // --- XSS 回帰: checkbox_item/radio_item/radio_item_group ---
+
+    #[test]
+    fn checkbox_item_value_payload_is_escaped_on_render() {
+        let html = render(&checkbox_item(
+            false,
+            ATTR_BREAK_PAYLOAD,
+            false,
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("onmouseover=\"alert(1)"));
+        assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn radio_item_value_payload_is_escaped_on_render() {
+        let html = render(&radio_item(
+            false,
+            ATTR_BREAK_PAYLOAD,
+            false,
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("onmouseover=\"alert(1)"));
+        assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn radio_item_group_labelledby_payload_is_escaped_on_render() {
+        let html = render(&radio_item_group(Some(ATTR_BREAK_PAYLOAD), vec![], vec![]));
+        assert!(!html.contains("onmouseover=\"alert(1)"));
+        assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn checkbox_item_and_radio_item_caller_attrs_payload_is_escaped_on_render() {
+        let checkbox_html = render(&checkbox_item(
+            false,
+            "item-1",
+            false,
+            false,
+            vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+            vec![],
+        ));
+        let radio_html = render(&radio_item(
+            false,
+            "item-1",
+            false,
+            false,
+            vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+            vec![],
+        ));
+        assert!(!checkbox_html.contains("onmouseover=\"alert(1)"));
+        assert!(!radio_html.contains("onmouseover=\"alert(1)"));
+    }
+
+    #[test]
+    fn checkbox_item_and_radio_item_children_text_is_escaped_on_render() {
+        let checkbox_html = render(&checkbox_item(
+            false,
+            "item-1",
+            false,
+            false,
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        let radio_html = render(&radio_item(
+            false,
+            "item-1",
+            false,
+            false,
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        assert!(!checkbox_html.contains("<script>alert(1)</script>"));
+        assert!(!radio_html.contains("<script>alert(1)</script>"));
+        assert!(checkbox_html.contains("&lt;script&gt;"));
+        assert!(radio_html.contains("&lt;script&gt;"));
+    }
+
+    #[test]
+    fn menu_checkbox_item_xss_payload_in_hydration_checked_is_rejected_not_rendered() {
+        let attrs = vec![(
+            "data-hydrate-checked".to_string(),
+            "<script>alert(1)</script>".to_string(),
+        )];
+        let err = MenuCheckboxItem::from_hydration_attrs(&attrs).unwrap_err();
         assert!(matches!(err, HydrateError::InvalidValue { .. }));
     }
 }
