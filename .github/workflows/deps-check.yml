@@ -41,6 +41,13 @@ name: deps-check
 #   20 packages/depth 9、wasm-thin 13 packages/depth 7（いずれも深さ上限 6 を
 #   超過するが、これは対象外の結果であって理由ではない。対象外の理由は上記の
 #   スコープ定義そのものであり、深さ超過を根拠に対象外化したわけではない）。
+#   イシュー #553 で fandhe-frontend-headless-ui（crates/headless-ui/、
+#   fandhe-frontend-core/-interactive への path 依存のみ）・fandhe-frontend-pre-styled-ui
+#   （crates/pre-styled-ui/、fandhe-frontend-headless-ui への path 依存のみ）を計測対象に
+#   追加した。UI コンポーネント層はサーバー構成に組み込まれ得るライブラリクレートで
+#   あり REQ-3 の対象と判断する。実測: headless-ui packages=2/60 depth=2/6（PASS）、
+#   pre-styled-ui packages=3/60 depth=3/6（PASS）。計測対象は 5 → 7 パッケージへ拡張
+#   （詳細は docs/policy/dependency-graph-policy.md 第 4 節参照）。
 # - `check-core-deps` は引数を取らず、`check_deps::ZERO_DEP_CRATES` と実 workspace
 #   メンバーの積集合を xtask 内部で自動解決する（`fandhe-frontend-interactive` 追加時も
 #   ワークフロー変更は不要）。
@@ -91,7 +98,7 @@ jobs:
         # 一致しなくなる（fail-closed の前提が崩れる）ため必須。
         run: |
           set -o pipefail
-          cargo run --locked -p xtask -- check-deps --package fandhe-frontend-core --package xtask --package fandhe-frontend-app --package fandhe-frontend-dist-server --package fandhe-frontend-server | tee deps-check.log
+          cargo run --locked -p xtask -- check-deps --package fandhe-frontend-core --package xtask --package fandhe-frontend-app --package fandhe-frontend-dist-server --package fandhe-frontend-server --package fandhe-frontend-headless-ui --package fandhe-frontend-pre-styled-ui | tee deps-check.log
 
       - name: Publish deps-check summary
         if: always()
@@ -155,7 +162,7 @@ jobs:
         if: always()
         run: |
           set -o pipefail
-          cargo run --locked -p xtask -- list-build-scripts --package fandhe-frontend-core --package xtask --package fandhe-frontend-app --package fandhe-frontend-dist-server --package fandhe-frontend-server | tee build-scripts.log
+          cargo run --locked -p xtask -- list-build-scripts --package fandhe-frontend-core --package xtask --package fandhe-frontend-app --package fandhe-frontend-dist-server --package fandhe-frontend-server --package fandhe-frontend-headless-ui --package fandhe-frontend-pre-styled-ui | tee build-scripts.log
 
       - name: Publish build-scripts summary
         if: always()

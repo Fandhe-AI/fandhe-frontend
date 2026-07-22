@@ -87,7 +87,7 @@ CI 組み込みは `.github/workflows/deps-check.yml` が担い、fail-closed（
 
 ## 4. 計測対象パッケージ
 
-現時点の計測対象は次の 5 パッケージです（`.github/workflows/deps-check.yml` と一致）。
+現時点の計測対象は次の 7 パッケージです（`.github/workflows/deps-check.yml` と一致）。
 
 - `fandhe-frontend-core`（ディレクトリは `crates/core/`。外部依存ゼロ契約）
 - `xtask`（外部依存ゼロ契約）
@@ -95,6 +95,14 @@ CI 組み込みは `.github/workflows/deps-check.yml` が担い、fail-closed（
 - `fandhe-frontend-dist-server`（ディレクトリは `crates/dist-server/`。REQ-3 が対象とする「標準サーバー構成」の実体。
   hyper 直接構成、実測 21 packages/depth 5）
 - `fandhe-frontend-server`（ディレクトリは `crates/server/`。パスマッチングルーティングのみ、外部依存ゼロ）
+- `fandhe-frontend-headless-ui`（ディレクトリは `crates/headless-ui/`。イシュー #553 で追加。
+  `fandhe-frontend-core`/`fandhe-frontend-interactive` への path 依存のみ、実測 2 packages/depth 2）
+- `fandhe-frontend-pre-styled-ui`（ディレクトリは `crates/pre-styled-ui/`。イシュー #553 で追加。
+  `fandhe-frontend-headless-ui` への path 依存のみ、実測 3 packages/depth 3）
+
+`fandhe-frontend-headless-ui`/`fandhe-frontend-pre-styled-ui` は UI コンポーネント層であり、サーバー構成へ
+組み込まれ得るライブラリクレートとして REQ-3 の対象に含めます（外部依存はいずれも workspace 内 path 依存のみで、
+新規サードパーティ依存の追加はありません）。
 
 `check-core-deps` は引数を取らず、`check_deps::ZERO_DEP_CRATES` と実 workspace メンバーの積集合を xtask 内部で
 自動解決します（`fandhe-frontend-interactive` 等の追加時もワークフロー変更は不要です）。
@@ -170,6 +178,8 @@ build-scripts: target=xtask count=0
 build-scripts: target=fandhe-frontend-app count=0
 build-scripts: target=fandhe-frontend-dist-server count=3   (httparse, libc, fandhe-frontend-dist-server)
 build-scripts: target=fandhe-frontend-server count=0
+build-scripts: target=fandhe-frontend-headless-ui count=0
+build-scripts: target=fandhe-frontend-pre-styled-ui count=0
 ```
 
 ## 7. サプライチェーンリスクの限界（安全性主張のスコープ）
