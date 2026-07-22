@@ -151,6 +151,8 @@ fn base_selectors_match_actual_headless_markup() {
         id: "demo",
         selected: "one",
         orientation: Orientation::Horizontal,
+        activation_mode: fandhe_frontend_headless_ui::ActivationMode::Automatic,
+        loop_focus: true,
     };
     let items = vec![
         TabItem {

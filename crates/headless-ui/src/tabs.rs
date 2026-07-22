@@ -49,6 +49,31 @@ const DATA_STATE_ACTIVE: &str = "active";
 /// `data-state` 属性値 "inactive"（非選択の trigger/content が持つ値）。
 const DATA_STATE_INACTIVE: &str = "inactive";
 
+/// タブ活性化のタイミング(WAI-ARIA APG Tabs パターンの `automatic`/`manual`
+/// activation の区別)。SSR 出力(`data-activation-mode`)としては本 enum の
+/// 固定 2 値のみを語彙とし、`crates/wasm-full/src/keynav.rs`(イシュー #582)が
+/// この属性を読んでキーボード操作時の挙動を分岐する契約となる。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ActivationMode {
+    /// フォーカス移動と同時にタブを活性化する(既定)。
+    #[default]
+    Automatic,
+    /// フォーカス移動のみを行い、Enter/Space(ネイティブ button の click)で
+    /// 活性化する。
+    Manual,
+}
+
+impl ActivationMode {
+    /// `data-activation-mode` の属性値文字列を返す。
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Automatic => "automatic",
+            Self::Manual => "manual",
+        }
+    }
+}
+
 /// タブ 1 枚の定義（trigger ラベルと対応する content パネル）。
 ///
 /// `value` は同一 [`tabs`] 呼び出し内で一意であることが呼び出し側の契約
@@ -83,6 +108,16 @@ pub struct TabsProps<'a> {
     /// 向き。`data-orientation`（root/list/trigger/content 共通）・
     /// list の `aria-orientation` の双方に反映する。
     pub orientation: Orientation,
+    /// タブ活性化のタイミング。`list` パーツへ `data-activation-mode` として
+    /// 出力し、`crates/wasm-full/src/keynav.rs`（イシュー #582）がキーボード
+    /// 操作時の活性化挙動（automatic: フォーカス移動と同時に活性化 / manual:
+    /// Enter・Space で活性化）を分岐するために読む。
+    pub activation_mode: ActivationMode,
+    /// roving tabindex のフォーカス循環（Arrow キーで端から反対端へ移動する
+    /// か）。`list` パーツへ `data-loop-focus`（`"true"`/`"false"`）として
+    /// 出力する。ark-ui の既定に合わせ `true` を既定値とする
+    /// （[`Default`] 実装は持たないため、呼び出し側が明示的に指定する）。
+    pub loop_focus: bool,
 }
 
 /// Tabs 全体を 1 つの [`Node`] 木として組み立てる。
@@ -128,7 +163,13 @@ pub struct TabsProps<'a> {
 /// use fandhe_frontend_headless_ui::{tabs, TabItem, TabsProps};
 ///
 /// let node = tabs(
-///     &TabsProps { id: "t", selected: "a", orientation: Orientation::Horizontal },
+///     &TabsProps {
+///         id: "t",
+///         selected: "a",
+///         orientation: Orientation::Horizontal,
+///         activation_mode: fandhe_frontend_headless_ui::tabs::ActivationMode::Automatic,
+///         loop_focus: true,
+///     },
 ///     vec![
 ///         TabItem { value: "a", trigger: vec![text("A")], content: vec![text("panel A")], disabled: false },
 ///         TabItem { value: "b", trigger: vec![text("B")], content: vec![text("panel B")], disabled: false },
@@ -225,10 +266,13 @@ pub fn tabs(props: &TabsProps<'_>, items: Vec<TabItem<'_>>) -> Node {
         root_extra_children.push(ANATOMY.part("content", "div", content_attrs, item.content));
     }
 
+    let loop_focus_value: &str = if props.loop_focus { "true" } else { "false" };
     let list_attrs: Vec<(&str, &str)> = vec![
         role("tablist"),
         aria_orientation_attr,
         data_orientation_attr,
+        ("data-activation-mode", props.activation_mode.as_str()),
+        ("data-loop-focus", loop_focus_value),
     ];
     let list_node = ANATOMY.part("list", "div", list_attrs, list_children);
 
@@ -259,6 +303,8 @@ mod tests {
             id,
             selected,
             orientation: Orientation::Horizontal,
+            activation_mode: ActivationMode::Automatic,
+            loop_focus: true,
         }
     }
 
@@ -269,7 +315,7 @@ mod tests {
             render(&node),
             concat!(
                 r#"<div data-scope="tabs" data-part="root" id="t" data-orientation="horizontal">"#,
-                r#"<div data-scope="tabs" data-part="list" role="tablist" aria-orientation="horizontal" data-orientation="horizontal">"#,
+                r#"<div data-scope="tabs" data-part="list" role="tablist" aria-orientation="horizontal" data-orientation="horizontal" data-activation-mode="automatic" data-loop-focus="true">"#,
                 r#"<button data-scope="tabs" data-part="trigger" type="button" id="t-trigger-a" role="tab" aria-selected="true" aria-controls="t-content-a" data-state="active" data-orientation="horizontal" tabindex="0">a</button>"#,
                 r#"<button data-scope="tabs" data-part="trigger" type="button" id="t-trigger-b" role="tab" aria-selected="false" aria-controls="t-content-b" data-state="inactive" data-orientation="horizontal" tabindex="-1">b</button>"#,
                 r#"</div>"#,
@@ -353,6 +399,8 @@ mod tests {
                 id: "t",
                 selected: "a",
                 orientation: Orientation::Vertical,
+                activation_mode: ActivationMode::Automatic,
+                loop_focus: true,
             },
             vec![item("a", false)],
         );
@@ -445,7 +493,7 @@ mod tests {
             render(&node),
             concat!(
                 r#"<div data-scope="tabs" data-part="root" id="t" data-orientation="horizontal">"#,
-                r#"<div data-scope="tabs" data-part="list" role="tablist" aria-orientation="horizontal" data-orientation="horizontal"></div>"#,
+                r#"<div data-scope="tabs" data-part="list" role="tablist" aria-orientation="horizontal" data-orientation="horizontal" data-activation-mode="automatic" data-loop-focus="true"></div>"#,
                 r#"</div>"#,
             )
         );
@@ -471,5 +519,39 @@ mod tests {
         assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
         assert!(html.contains("&lt;script&gt;alert(2)&lt;/script&gt;"));
         assert!(html.contains("&quot;"));
+    }
+
+    // --- イシュー #582: activation_mode/loop_focus の SSR 属性出力 ---
+
+    #[test]
+    fn manual_activation_mode_and_loop_focus_false_are_reflected_in_list_attrs() {
+        let node = tabs(
+            &TabsProps {
+                id: "t",
+                selected: "a",
+                orientation: Orientation::Horizontal,
+                activation_mode: ActivationMode::Manual,
+                loop_focus: false,
+            },
+            vec![item("a", false), item("b", false)],
+        );
+        let html = render(&node);
+        assert!(html.contains(r#"data-activation-mode="manual""#));
+        assert!(html.contains(r#"data-loop-focus="false""#));
+    }
+
+    #[test]
+    fn default_activation_mode_and_loop_focus_true_are_reflected_in_list_attrs() {
+        let node = tabs(&props("t", "a"), vec![item("a", false)]);
+        let html = render(&node);
+        assert!(html.contains(r#"data-activation-mode="automatic""#));
+        assert!(html.contains(r#"data-loop-focus="true""#));
+    }
+
+    #[test]
+    fn activation_mode_as_str_returns_expected_literals() {
+        assert_eq!(ActivationMode::Automatic.as_str(), "automatic");
+        assert_eq!(ActivationMode::Manual.as_str(), "manual");
+        assert_eq!(ActivationMode::default(), ActivationMode::Automatic);
     }
 }

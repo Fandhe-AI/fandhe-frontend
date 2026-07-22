@@ -113,6 +113,8 @@ mod tests {
             id: "t1",
             selected: "one",
             orientation: Orientation::Horizontal,
+            activation_mode: ActivationMode::Automatic,
+            loop_focus: true,
         };
         let items = vec![TabItem {
             value: "one",
@@ -145,6 +147,8 @@ mod tests {
             id: "t1",
             selected: "one",
             orientation: Orientation::Horizontal,
+            activation_mode: ActivationMode::Automatic,
+            loop_focus: true,
         };
         let items = vec![
             TabItem {
