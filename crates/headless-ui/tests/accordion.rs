@@ -1,0 +1,185 @@
+//! `fandhe-frontend-headless-ui` の Accordion（[`accordion`] モジュール、
+//! イシュー #527）の公開 API 経由の統合テスト。
+//!
+//! `crates/headless-ui/src/accordion.rs` 内の `#[cfg(test)]` ユニットテストが
+//! 内部実装を含めた網羅を担うのに対し、本ファイルは
+//! `fandhe_frontend_headless_ui::accordion` の公開 API（自由関数群 +
+//! [`Accordion`]）のみを経由し、`fandhe-frontend-pre-styled-ui`（#546〜）が
+//! 実際に使う想定の外部からの利用形態（SSR 組み立て・dispatch・
+//! hydration・XSS 回帰）を固定する回帰テスト。
+
+use fandhe_frontend_core::{render, text};
+use fandhe_frontend_headless_ui::accordion::{
+    item, item_content, item_indicator, item_trigger, root, Accordion,
+};
+use fandhe_frontend_headless_ui::OpenState;
+use fandhe_frontend_interactive::{dispatch, render_for_hydration, Component, Hydrate};
+
+/// 2 項目 Accordion（a/b）を id 相互参照付きで組み立てるヘルパ。
+/// Tabs（#528）の `"{id}-trigger-{value}"`/`"{id}-content-{value}"` 命名規約を踏襲する。
+fn two_item_accordion(open_value: &str) -> String {
+    let items = [("a", "Panel A"), ("b", "Panel B")];
+    let children = items
+        .iter()
+        .map(|(value, label)| {
+            let trigger_id = format!("acc-trigger-{value}");
+            let content_id = format!("acc-content-{value}");
+            let state = if *value == open_value {
+                OpenState::Open
+            } else {
+                OpenState::Closed
+            };
+            item(
+                state,
+                false,
+                vec![],
+                vec![
+                    item_trigger(
+                        state,
+                        false,
+                        Some(&trigger_id),
+                        Some(&content_id),
+                        vec![],
+                        vec![text(*label)],
+                    ),
+                    item_content(
+                        state,
+                        Some(&content_id),
+                        Some(&trigger_id),
+                        vec![],
+                        vec![text(*label)],
+                    ),
+                ],
+            )
+        })
+        .collect();
+    render(&root(vec![], children))
+}
+
+#[test]
+fn ssr_assembly_reflects_selected_item_open_state_and_id_cross_reference() {
+    let html = two_item_accordion("a");
+
+    assert!(html.contains(r#"id="acc-trigger-a""#));
+    assert!(html.contains(r#"aria-controls="acc-content-a""#));
+    assert!(html.contains(r#"id="acc-content-a""#));
+    assert!(html.contains(r#"aria-labelledby="acc-trigger-a""#));
+
+    // a は open: aria-expanded="true"・hidden なし。b は closed。
+    assert!(html.matches(r#"aria-expanded="true""#).count() == 1);
+    assert!(html.matches(r#"aria-expanded="false""#).count() == 1);
+    // b は closed のため content が hidden。
+    assert_eq!(html.matches(r#"hidden="""#).count(), 1);
+}
+
+#[test]
+fn ssr_assembly_can_express_multiple_simultaneous_open_items_without_dispatch() {
+    // 自由関数パーツは項目ごとに OpenState を受け取るため、dispatch 統合
+    // （single モードの Accordion 型）を経由しない SSR マークアップとしては
+    // 複数項目同時 open を表現できる（モジュール doc §out-of-scope 参照）。
+    let a_open = item(OpenState::Open, false, vec![], vec![]);
+    let b_open = item(OpenState::Open, false, vec![], vec![]);
+    let html = render(&root(vec![], vec![a_open, b_open]));
+    assert_eq!(html.matches(r#"data-state="open""#).count(), 2);
+}
+
+#[test]
+fn accordion_component_full_cycle_ssr_then_dispatch_then_hydration() {
+    // SSR: 状態なし初期描画（Default = 全項目 closed）。
+    let initial = Accordion::default();
+    let ssr_view_html = render(&initial.view());
+    assert!(!ssr_view_html.contains("data-hydrate-"));
+    assert!(!initial.is_open("a"));
+    assert!(!initial.is_open("b"));
+
+    // クライアント側（wasm-full 相当）の dispatch で選択。
+    let mut client_state = initial;
+    assert!(dispatch(&mut client_state, "select", "a"));
+    assert!(client_state.is_open("a"));
+    assert!(!client_state.is_open("b"));
+
+    // 高々 1 個選択の制約: 別項目を select すると a は自動的に閉じる。
+    assert!(dispatch(&mut client_state, "select", "b"));
+    assert!(!client_state.is_open("a"));
+    assert!(client_state.is_open("b"));
+
+    // 利便メソッド経由の描画が状態機械と一致する。
+    let trigger_b_html = render(&client_state.item_trigger("b", false, None, None, vec![], vec![]));
+    assert!(trigger_b_html.contains(r#"aria-expanded="true""#));
+
+    // 別の SSR リクエストはハイドレーション属性込みで出力される。
+    let hydrated_html = render(&render_for_hydration(&client_state));
+    assert!(hydrated_html.contains("data-hydrate-selected="));
+
+    // クライアント側は data-hydrate-* 属性から状態を復元できる（ラウンドトリップ）。
+    let restored = Accordion::from_hydration_attrs(&client_state.hydration_attrs()).unwrap();
+    assert_eq!(restored, client_state);
+}
+
+#[test]
+fn accordion_component_collapsible_toggle_cycle() {
+    let mut a = Accordion::default();
+    assert!(dispatch(&mut a, "toggle", "a"));
+    assert!(a.is_open("a"));
+    assert!(dispatch(&mut a, "toggle", "a"));
+    assert!(!a.is_open("a"));
+    assert_eq!(a.expanded(), None);
+}
+
+#[test]
+fn accordion_component_ignores_unknown_dispatch_action() {
+    let mut a = Accordion::default();
+    dispatch(&mut a, "select", "a");
+    assert!(!dispatch(&mut a, "unknown", "b"));
+    assert!(a.is_open("a"));
+}
+
+// --- XSS 回帰: 統合レベルでも value/id/children にペイロードを渡してエスケープを確認する ---
+
+#[test]
+fn xss_payload_in_ids_and_children_is_escaped_on_render() {
+    let payload = "\"><script>alert(1)</script>";
+    let html = render(&root(
+        vec![],
+        vec![item(
+            OpenState::Open,
+            false,
+            vec![],
+            vec![
+                item_trigger(
+                    OpenState::Open,
+                    false,
+                    Some(payload),
+                    Some(payload),
+                    vec![],
+                    vec![text(payload)],
+                ),
+                item_content(
+                    OpenState::Open,
+                    Some(payload),
+                    Some(payload),
+                    vec![],
+                    vec![text(payload)],
+                ),
+                item_indicator(OpenState::Open, vec![], vec![text(payload)]),
+            ],
+        )],
+    ));
+    assert!(!html.contains("<script>alert(1)</script>"));
+    assert!(!html.contains(r#""><script"#));
+    assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+    assert!(html.contains("&quot;"));
+}
+
+#[test]
+fn xss_payload_in_dispatch_select_value_is_escaped_on_render_for_hydration() {
+    let mut a = Accordion::default();
+    let payload = "\"><script>alert(1)</script>";
+    assert!(dispatch(&mut a, "select", payload));
+
+    let rendered = render(&render_for_hydration(&a));
+    assert!(rendered.contains("data-hydrate-selected="));
+    assert!(rendered.contains("&lt;script&gt;"));
+    assert!(!rendered.contains("<script>alert(1)</script>"));
+    assert!(!rendered.contains(r#""><script"#));
+}

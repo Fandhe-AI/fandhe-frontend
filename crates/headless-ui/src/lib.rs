@@ -34,6 +34,9 @@
 //!   #526〜#533）が共通で使う「open/closed・selected」の dispatch 契約・
 //!   `data-state` 整合・SSR/hydration 契約をここに一度だけ実装し、各コンポーネントは
 //!   フィールドとして埋め込んで再利用する。
+//! - [`mod@accordion`]: Root / Item / ItemTrigger / ItemIndicator / ItemContent の
+//!   5 anatomy パーツと [`state::SingleSelect`] を埋め込んだ single モード
+//!   Accordion（[`accordion::Accordion`]、#527）。
 //!
 //! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
 //! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
@@ -46,6 +49,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod accordion;
 pub mod anatomy;
 pub mod aria;
 pub mod data_attrs;
