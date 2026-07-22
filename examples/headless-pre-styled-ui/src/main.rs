@@ -413,7 +413,11 @@ fn build_page() -> Node {
 /// 実行時ファイルシステム探索を行わない（配布バイナリ単体でも動作する）。
 fn main() {
     let page = build_page();
-    let html = render(&page);
+    // `<!DOCTYPE html>` はユーザー入力を一切含まない固定リテラルとして
+    // `render()` 済みの既定エスケープ済み HTML の前に結合するのみであり、
+    // 新たなエスケープ迂回経路ではない（`crates/app/src/lib.rs` の
+    // `page_shell` と同じ方針）。
+    let html = format!("<!DOCTYPE html>\n{}", render(&page));
 
     let dist = Path::new("dist");
     let assets = dist.join("assets");
