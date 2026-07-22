@@ -113,6 +113,10 @@ fn hydration_tampered_value_returns_error_not_panic() {
             "data-hydrate-value".to_string(),
             "<script>alert(1)</script>".to_string(),
         ),
+        (
+            "data-hydrate-orientation".to_string(),
+            "horizontal".to_string(),
+        ),
     ];
     let err = Progress::from_hydration_attrs(&attrs).unwrap_err();
     assert!(matches!(err, HydrateError::InvalidValue { .. }));
