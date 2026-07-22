@@ -483,6 +483,20 @@ mod tests {
     }
 
     #[test]
+    fn single_select_dispatch_toggle_switches_to_other_value_while_selected() {
+        // "a" 選択中に別の値 "b" を toggle した場合、"a" の解除ではなく
+        // "b" への選択切り替えとなることを確認する（Toggle は「選択中の値と
+        // 同じ場合のみ解除し、異なる場合は新しい値を選択する」契約）。
+        let mut s = SingleSelect::default();
+
+        assert!(dispatch(&mut s, "select", "a"));
+        assert_eq!(s.selected(), Some("a"));
+
+        assert!(dispatch(&mut s, "toggle", "b"));
+        assert_eq!(s.selected(), Some("b"));
+    }
+
+    #[test]
     fn single_select_dispatch_ignores_unknown_action() {
         let mut s = SingleSelect::default();
         dispatch(&mut s, "select", "tab-1");
