@@ -44,6 +44,9 @@
 //!   パーツ関数群と、[`state::Disclosure`] を埋め込んだ [`tooltip::Tooltip`]
 //!   状態機械（#533、親 #530）。WAI-ARIA tooltip パターンに従い `aria-describedby`
 //!   を使う点が [`mod@collapsible`] との違い。
+//! - [`mod@dialog`]: [`dialog::Dialog`] — Root / Trigger / Backdrop /
+//!   Positioner / Content / Title / Description / CloseTrigger の 8 anatomy
+//!   パーツと [`state::Disclosure`] を埋め込んだモーダルダイアログ（#531）。
 //!
 //! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
 //! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
@@ -61,6 +64,7 @@ pub mod anatomy;
 pub mod aria;
 pub mod collapsible;
 pub mod data_attrs;
+pub mod dialog;
 pub mod state;
 pub mod tooltip;
 
@@ -74,7 +78,9 @@ pub use data_attrs::{
     data_disabled, data_invalid, data_orientation, data_readonly, data_required, data_state,
     Orientation,
 };
+pub use dialog::Dialog;
 pub use state::{
     Disclosure, DisclosureAction, OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CLOSED,
     DATA_STATE_OPEN,
 };
+pub use tooltip::Tooltip;
