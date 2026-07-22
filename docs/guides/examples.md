@@ -14,6 +14,7 @@ cargo プロジェクトです。本ページはサンプルの一覧と選び�
 | [ssg-blog](../../examples/ssg-blog/README.md) | `generate_pages` による静的サイト書き出し・パス検証の fail-closed 契約・View Transitions の有効化 | `fandhe-frontend-core` / `-server` |
 | [dist-server-docker](../../examples/dist-server-docker/README.md) | 単一バイナリ配布・`FROM scratch` の Docker イメージ最小化・外部依存利用時の静的アセット配信の制約と対処 | `fandhe-frontend-dist-server` |
 | [interactive-view-transitions](../../examples/interactive-view-transitions/README.md) | `Component` trait による状態機械・`dispatch`/`hydrate`・`start_router` による SPA 内 View Transitions の自動有効化 | `fandhe-frontend-core` / `-app` / `-interactive`（+ `-wasm-full`） |
+| [headless-pre-styled-ui](../../examples/headless-pre-styled-ui/README.md) | `fandhe-frontend-headless-ui`（ark-ui 相当）の anatomy・`data-*`・WAI-ARIA 属性（Tabs/Accordion/Dialog/Switch/RadioGroup/Avatar）。crates.io 未公開のため path 依存（§4 参照） | `fandhe-frontend-core` / `-headless-ui` |
 
 ## 2. 選び方
 
@@ -21,6 +22,7 @@ cargo プロジェクトです。本ページはサンプルの一覧と選び�
 - **静的サイト生成（ブログ等）を作りたい**: [ssg-blog](../../examples/ssg-blog/README.md) が `generate_pages` の使い方と fail-closed なパス検証を実演します。
 - **単一バイナリ・Docker でデプロイしたい**: [dist-server-docker](../../examples/dist-server-docker/README.md) が `fandhe-frontend-dist-server` を使った最小構成の配布サーバーを示します。
 - **クライアント側の状態管理・ページ遷移アニメーションを試したい**: [interactive-view-transitions](../../examples/interactive-view-transitions/README.md) が `fandhe-frontend-interactive` の状態機械と View Transitions を実演します。
+- **headless UI コンポーネント（ark-ui 相当）を試したい**: [headless-pre-styled-ui](../../examples/headless-pre-styled-ui/README.md) が `fandhe-frontend-headless-ui` の Tabs/Accordion/Dialog/Switch/RadioGroup/Avatar を実演します（crates.io 未公開のため `fw new --example` 非対応、§4 参照）。
 
 ## 3. `fw new --example` での取得
 
@@ -47,6 +49,11 @@ test` / `fw gate --project .` が通る状態です。
 - `structure.toml` / `clippy.toml` / `deny.toml` を同梱し、`fw gate --project examples/<name>` がそのまま通る
 - 既定エスケープ（REQ-1）: ノード木 API のみで HTML を組み立て、`raw_html()` や `format!` による HTML 文字列の直接組み立てを行わない
 - README は「概要 / 学べること / 前提 / 動かし方 / 主要ファイル / 関連ガイド」の節構成
+
+**例外（イシュー #552）**: [headless-pre-styled-ui](../../examples/headless-pre-styled-ui/README.md)
+のみ、依存する `fandhe-frontend-headless-ui` が crates.io 未公開（親トラッキング
+#520）であるため path 依存を使う意図的な例外です。`fw new --example` には
+対応せず、crates.io 公開後にバージョン依存へ切り替える予定です。
 
 ## 5. 次のステップ
 

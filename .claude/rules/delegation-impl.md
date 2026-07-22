@@ -10,6 +10,8 @@
 |---------|-------------|-------|
 | `crates/core/`（fandhe-frontend-core: 描画コア） | core-builder | sonnet |
 | `crates/interactive/`（fandhe-frontend-interactive: 状態管理コア） | core-builder | sonnet |
+| `crates/headless-ui/`（fandhe-frontend-headless-ui: headless UI コンポーネント層） | core-builder | sonnet |
+| `crates/pre-styled-ui/`（fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層） | core-builder | sonnet |
 | `crates/app/`（fandhe-frontend-app: アプリ構築層） | server-builder | sonnet |
 | `crates/server/`（fandhe-frontend-server: SSR/SSG/ルーティング） | server-builder | sonnet |
 | `crates/wasm-client/` `crates/wasm-full/` `crates/wasm-thin/` | wasm-builder | sonnet |
