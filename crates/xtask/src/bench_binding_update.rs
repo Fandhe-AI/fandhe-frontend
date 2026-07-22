@@ -1,0 +1,236 @@
+//! 「全再描画 vs 束縛点差分更新」のネイティブ計測ハーネス（イシュー #592）。
+//!
+//! PR #557（headless-ui の Disclosure/SingleSelect 状態機械）は
+//! 「`DirtyTracked` 実装（wasm 束縛点差分更新用）は Phase 2 の具象コンポーネント
+//! 束縛点設計と同時に判断」として out-of-scope とした。本モジュールはこの
+//! 判断のための定量データを採取する。`fandhe_frontend_interactive::DirtyTracked`
+//! 自体は既に実装済み（イシュー #341）で `fandhe_frontend_wasm_full::Runtime<C>`
+//! が消費している。本モジュールが計測するのは「headless-ui 状態機械へ同トレイト
+//! を実装する追加コストが、全再描画（`view()` + `core::render()` の HTML
+//! 再生成）比で不利にならないか」という採否判断の根拠。
+//!
+//! # 計測対象・限界
+//!
+//! 計測はすべてネイティブ実行（DOM 操作を伴わない）。実際の DOM 反映コスト
+//! （`set_attribute`/`textContent` 書き換え等）は既存 `docs/ci/perf-browser-harness.md`
+//! （wasm-full 実ブラウザ計測）が別途裏付けており、本モジュールは「再描画
+//! ペイロード生成コスト（`view()` + `render()`）vs dirty 列挙・値解決コスト
+//! （`dirty_fields()` 呼び出しのみ）」という Rust 側の相対比較に限定する。
+//! 数値は実行環境（CPU・負荷）に依存するため、しきい値判定は行わない
+//! report-only ハーネスであり、CI ゲート化はしない（`bench-binding-update`
+//! サブコマンドの終了コードは常に成功。`xtask/tests/cli_bench_binding_update.rs`
+//! が出力形式のみを検証する）。
+//!
+//! # シナリオ
+//!
+//! - `appstate-increment`: [`fandhe_frontend_interactive::AppState`] の
+//!   `Action::Increment` dispatch。全再描画経路は `view()` の `Node` 生成 +
+//!   `fandhe_frontend_core::render()` による HTML 文字列化、差分経路は
+//!   `dirty_fields()` の読み出しのみ。
+//! - `disclosure-toggle`: [`fandhe_frontend_headless_ui::Disclosure`] の
+//!   `"toggle"` dispatch。同様の比較。
+//! - `single-select-select`: [`fandhe_frontend_headless_ui::SingleSelect`] の
+//!   `"select"` dispatch。同様の比較。
+
+use std::fmt;
+use std::time::{Duration, Instant};
+
+use fandhe_frontend_core::render;
+use fandhe_frontend_headless_ui::{Disclosure, SingleSelect};
+use fandhe_frontend_interactive::{dispatch, AppState, Component, DirtyTracked};
+
+/// 1 シナリオあたりの反復回数。ウォームアップ分は測定に含めない。
+///
+/// ネイティブ実行の 1 回あたりコストはマイクロ秒未満になりうるため、
+/// `Instant` の分解能に対して十分な回数を反復し、反復回数で割った平均値を
+/// 採る（中央値ではなく単純平均。report-only でありゲート化しないため、
+/// 実装の単純さ（明示性・機械検証可能性）を優先する判断）。
+const ITERATIONS: u32 = 10_000;
+/// 反復開始前のウォームアップ回数（JIT 相当の最適化・キャッシュ温めは
+/// Rust ネイティブでは主要因ではないが、測定開始直後の外れ値を避けるため
+/// 最小限のウォームアップを行う）。
+const WARMUP_ITERATIONS: u32 = 100;
+
+/// 1 シナリオの計測結果。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ScenarioReport {
+    /// シナリオ名（`bench-binding-update: scenario=<name> ...` の `<name>`）。
+    pub scenario: &'static str,
+    /// 全再描画経路（`view()` + `render()`）の 1 回あたり平均所要時間。
+    pub full_rerender: Duration,
+    /// 差分更新経路（`dirty_fields()` 読み出しのみ）の 1 回あたり平均所要時間。
+    pub dirty_update: Duration,
+}
+
+impl ScenarioReport {
+    /// 全再描画に対する差分更新の高速化倍率（`full_rerender / dirty_update`）。
+    ///
+    /// `dirty_update` が 0ns の場合（計測不能なほど高速、通常は起こらない）は
+    /// `f64::INFINITY` を返す（除算 panic を避ける fail-closed フォールバック）。
+    #[must_use]
+    pub fn speedup_ratio(&self) -> f64 {
+        let dirty_ns = self.dirty_update.as_nanos() as f64;
+        if dirty_ns == 0.0 {
+            return f64::INFINITY;
+        }
+        self.full_rerender.as_nanos() as f64 / dirty_ns
+    }
+}
+
+impl fmt::Display for ScenarioReport {
+    /// 機械可読な 1 行サマリ（既存 `check_deps::format_report` 等のパターン
+    /// 踏襲）。呼び出し元（`main.rs::run_bench_binding_update`）が
+    /// シナリオごとに 1 行ずつ stdout へ出力する。
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "bench-binding-update: scenario={} full_ns={} dirty_ns={} ratio={:.2}",
+            self.scenario,
+            self.full_rerender.as_nanos(),
+            self.dirty_update.as_nanos(),
+            self.speedup_ratio()
+        )
+    }
+}
+
+/// `AppState` の `"increment"` dispatch について全再描画 vs 差分更新を計測する。
+#[must_use]
+pub fn bench_appstate_increment() -> ScenarioReport {
+    let full_rerender = measure(|| {
+        let mut state = AppState::new();
+        dispatch(&mut state, "increment", "");
+        // 全再描画経路: view() の Node 生成 + render() による HTML 文字列化。
+        let _html = render(&state.view());
+    });
+
+    let dirty_update = measure(|| {
+        let mut state = AppState::new();
+        dispatch(&mut state, "increment", "");
+        // 差分更新経路: dirty_fields() の読み出しのみ（DOM 反映自体は
+        // wasm-full 側の BindingTable::apply_dirty の責務であり、本モジュールの
+        // 計測対象は「どのフィールドを更新すべきか」を特定するコストに限定）。
+        let _dirty = state.dirty_fields();
+    });
+
+    ScenarioReport {
+        scenario: "appstate-increment",
+        full_rerender,
+        dirty_update,
+    }
+}
+
+/// [`Disclosure`] の `"toggle"` dispatch について全再描画 vs 差分更新を計測する。
+#[must_use]
+pub fn bench_disclosure_toggle() -> ScenarioReport {
+    let full_rerender = measure(|| {
+        let mut state = Disclosure::default();
+        dispatch(&mut state, "toggle", "");
+        let _html = render(&state.view());
+    });
+
+    let dirty_update = measure(|| {
+        let mut state = Disclosure::default();
+        dispatch(&mut state, "toggle", "");
+        let _dirty = state.dirty_fields();
+    });
+
+    ScenarioReport {
+        scenario: "disclosure-toggle",
+        full_rerender,
+        dirty_update,
+    }
+}
+
+/// [`SingleSelect`] の `"select"` dispatch について全再描画 vs 差分更新を計測する。
+#[must_use]
+pub fn bench_single_select_select() -> ScenarioReport {
+    let full_rerender = measure(|| {
+        let mut state = SingleSelect::default();
+        dispatch(&mut state, "select", "panel-1");
+        let _html = render(&state.view());
+    });
+
+    let dirty_update = measure(|| {
+        let mut state = SingleSelect::default();
+        dispatch(&mut state, "select", "panel-1");
+        let _dirty = state.dirty_fields();
+    });
+
+    ScenarioReport {
+        scenario: "single-select-select",
+        full_rerender,
+        dirty_update,
+    }
+}
+
+/// 全シナリオを計測順（宣言順）に実行する。`main.rs::run_bench_binding_update`
+/// が本関数の戻り値を 1 行ずつ表示する。
+#[must_use]
+pub fn run_all_scenarios() -> Vec<ScenarioReport> {
+    vec![
+        bench_appstate_increment(),
+        bench_disclosure_toggle(),
+        bench_single_select_select(),
+    ]
+}
+
+/// `f` を [`WARMUP_ITERATIONS`] 回実行した後、[`ITERATIONS`] 回計測し
+/// 1 回あたりの平均所要時間を返す（内部ヘルパ）。
+///
+/// `f` の戻り値は破棄する（呼び出し元クロージャが `let _ = ...` で結果を
+/// 消費し、コンパイラによる最適化除去を避ける）。
+fn measure(mut f: impl FnMut()) -> Duration {
+    for _ in 0..WARMUP_ITERATIONS {
+        f();
+    }
+    let start = Instant::now();
+    for _ in 0..ITERATIONS {
+        f();
+    }
+    start.elapsed() / ITERATIONS
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // report-only（しきい値判定なし）のため、計測値そのものは検証しない。
+    // シナリオ名・シナリオ数（呼び出し契約）のみを固定する。
+
+    #[test]
+    fn run_all_scenarios_returns_three_reports_with_expected_names() {
+        let reports = run_all_scenarios();
+        let names: Vec<&str> = reports.iter().map(|r| r.scenario).collect();
+        assert_eq!(
+            names,
+            vec![
+                "appstate-increment",
+                "disclosure-toggle",
+                "single-select-select",
+            ]
+        );
+    }
+
+    #[test]
+    fn scenario_report_display_matches_expected_format() {
+        let report = ScenarioReport {
+            scenario: "example",
+            full_rerender: Duration::from_nanos(1000),
+            dirty_update: Duration::from_nanos(100),
+        };
+        assert_eq!(
+            report.to_string(),
+            "bench-binding-update: scenario=example full_ns=1000 dirty_ns=100 ratio=10.00"
+        );
+    }
+
+    #[test]
+    fn scenario_report_speedup_ratio_does_not_panic_on_zero_dirty_duration() {
+        let report = ScenarioReport {
+            scenario: "example",
+            full_rerender: Duration::from_nanos(1000),
+            dirty_update: Duration::from_nanos(0),
+        };
+        assert_eq!(report.speedup_ratio(), f64::INFINITY);
+    }
+}
