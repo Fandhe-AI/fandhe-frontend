@@ -1,6 +1,18 @@
 {
   "version": 1,
   "skills": {
+    "ark-ui": {
+      "source": "Fandhe-AI/agent-reference-skills",
+      "sourceType": "github",
+      "skillPath": "skills/ark-ui/SKILL.md",
+      "computedHash": "8f357aee39f97e5f546a212daacef101fd559a1362925f117935fa8bbc4a40bf"
+    },
+    "chakra-ui": {
+      "source": "Fandhe-AI/agent-reference-skills",
+      "sourceType": "github",
+      "skillPath": "skills/chakra-ui/SKILL.md",
+      "computedHash": "ae8f06473b7fff96ea865d80047f69ac95acc35899b87f16080603758f7217f7"
+    },
     "comment-code": {
       "source": "Fandhe-AI/agent-cli-skills",
       "sourceType": "github",
