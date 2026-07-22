@@ -186,7 +186,7 @@ jobs:
       - name: "fw new 生成直後の fw gate PASS 構成保証 (issue #351、examples 除く)"
         run: cargo test -p fandhe-frontend-cli --test new_gate_e2e --locked -- --skip example_
 
-      # イシュー #505: examples e2e 4 件（`fw_new_example_*_output_passes_fw_gate`、
+      # イシュー #505/#609: examples e2e 5 件（`fw_new_example_*_output_passes_fw_gate`、
       # crates.io 依存の cargo ビルドを伴う `fw gate` 検証）の所要時間を
       # ステップ単位で常時計測可視化する。上のステップと合わせて
       # `new_gate_e2e.rs` 全件を実行する（`--skip example_` と `example_` の
@@ -199,13 +199,14 @@ jobs:
       #
       # 実測（#505 時点、main push run 29824015053）: 4 件合計で数秒
       # （ステップ全体で約 8 秒）であり、ジョブ分離判断基準（+10 分超）に
-      # 遠く及ばないため `examples-gate-e2e` ジョブへの分離は行っていない。
-      # 本ステップの所要時間が恒常的に 10 分超となった場合、`test` ジョブ側は
+      # 遠く及ばないため `examples-gate-e2e` ジョブへの分離は行っていない
+      # （#609 で 5 件目を追加後も同一判断基準を適用する）。本ステップの
+      # 所要時間が恒常的に 10 分超となった場合、`test` ジョブ側は
       # `--skip example_` のみ残し、本ステップの内容を専用の
       # `examples-gate-e2e` ジョブ（同構成の checkout / rust-toolchain /
       # ensure-gate-tools.sh を前置、runs-on: self-hosted）へ分離することを
       # 再検討する。
-      - name: "examples gate e2e 4 件の実行と時間計測 (issue #505)"
+      - name: "examples gate e2e 5 件の実行と時間計測 (issue #505/#609)"
         run: cargo test -p fandhe-frontend-cli --test new_gate_e2e --locked -- example_
 
       # TASK-10.2b（#110、REQ-10 条件 3）: crates/dist-server/build.rs が既定で実行する
@@ -697,6 +698,16 @@ jobs:
       - name: Run wasm-full nav browser tests (headless Chrome)
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test nav_browser
+
+      # イシュー #580: headless-ui（fandhe-frontend-headless-ui）dispatch の
+      # DOM イベント配線基盤（crates/wasm-full/src/headless.rs）の実ブラウザ
+      # 回帰テスト（crates/wasm-full/tests/headless_wiring_browser.rs）。
+      # runtime_browser/hydration_browser/three_mode_browser/nav_browser
+      # ステップと同じ check-wasm-full 存在ガードを再利用し、新規ガードは
+      # 追加しない。
+      - name: Run wasm-full headless-ui wiring browser tests (headless Chrome)
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test headless_wiring_browser
 
       # イシュー #582（Tabs/Accordion のキーボード操作、親 #581）: `keynav`
       # モジュール（crates/wasm-full/src/keynav.rs）配線層の実ブラウザ統合

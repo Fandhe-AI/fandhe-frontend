@@ -11,8 +11,8 @@ anatomy・`data-*`・WAI-ARIA 出力を前提にスタイルを重ねる。
 **spec 未反映の注記**: 本クレートに対応する REQ / TASK は
 `docs/spec/04-requirements.md` / `05-tasks.md` に存在しない（要件提案は
 fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 参照）。
-本書は実装（crates.io 未公開）の現状を記録する位置づけであり、
-`docs/api/component-api.md` のような「凍結表」ではない。
+本書は実装の現状を記録する位置づけであり、`docs/api/component-api.md`
+のような「凍結表」ではない。
 
 `docs/api/component-api.md` との整合: 本クレートのコンポーネントはすべて
 「`fandhe_frontend_core::Node` を返す通常の Rust 関数」（REQ-5 の凍結 API
@@ -24,8 +24,8 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 - **親トラッキング**: #520（ark-ui / chakra-ui 参考の 2 層 UI コンポーネント構成）
 - **本クレートの担当領域**: Phase 1（#521、共通基盤）・Phase 2（#526〜#544、
   個別コンポーネント）
-- **crates.io 公開状況**: 未公開（2026-07-22 時点）。`fandhe-frontend-core` /
-  `fandhe-frontend-interactive`（いずれも path 依存）のみへ依存する
+- **crates.io 公開状況**: v0.1.0 で公開済み（イシュー #608）。`fandhe-frontend-core` /
+  `fandhe-frontend-interactive`（いずれも crates.io バージョン依存）のみへ依存する
 
 ## 3. 共通基盤 API（Phase 1、#523/#524）
 

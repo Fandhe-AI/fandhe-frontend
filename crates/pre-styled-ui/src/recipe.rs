@@ -11,10 +11,19 @@
 //!
 //! 内部ストレージは `Vec` のみを使い、`HashMap`/`HashSet` は使わない
 //! （反復順序がプロセスごとに変わりうる型を持ち込まない）。[`SlotRecipe::css`]
-//! の出力順は「base（`slots` の宣言順）→ variants（登録順）」に固定し、同一
-//! slot・同一 axis/value への複数回登録は「後に登録された規則が CSS 中で後に
-//! 出力される」（CSS のカスケードにおいて後勝ちになる）という素直な規約に
-//! 従う。この規約より複雑な優先順位判定は行わない。
+//! の出力順は「base（`slots` の宣言順）→ variants（登録順）→ compound variants
+//! （登録順、イシュー #604）」に固定し、同一 slot・同一 axis/value への複数回
+//! 登録は「後に登録された規則が CSS 中で後に出力される」（CSS のカスケードに
+//! おいて後勝ちになる）という素直な規約に従う。この規約より複雑な優先順位
+//! 判定は行わない。
+//!
+//! compound variant（[`SlotRecipe::compound_variant`]）は複数軸の条件を
+//! `.fd-<scope>--<a1>-<v1>.fd-<scope>--<a2>-<v2>...` のように連結したセレクタ
+//! として出力する。条件 2 個以上なら詳細度が単一 variant セレクタより必ず
+//! 高くなるため記述順に依存せず上書きが決まり、条件 1 個の場合でも compound
+//! ブロックを variants ブロックより後に出力するため CSS カスケードの後勝ちで
+//! 上書きされる（chakra-ui の「compoundVariants は variants を上書きする」
+//! 意味論に対応する 2 段の保証）。
 //!
 //! # colorPalette 軸（イシュー #606）
 //!
@@ -187,6 +196,37 @@ struct DefaultVariant {
     value: &'static str,
 }
 
+/// compound variant の条件 1 件（axis, value の型消去された組）。
+///
+/// [`when()`] を通じてのみ [`VariantValue`] 実装 enum から構築できる（生の
+/// 文字列を受け付けない。既存 `variant()` と同じ enum ベースの型安全性を
+/// [`SlotRecipe::compound_variant`] の条件部でも保つ）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct VariantCondition {
+    axis: &'static str,
+    value: &'static str,
+}
+
+/// `VariantValue` の具象値から [`VariantCondition`] を作る（chakra-ui の
+/// `compoundVariants: [{ size: "sm", tone: "outline", css: {...} }]` の
+/// 条件部 1 軸分に相当）。[`SlotRecipe::compound_variant`] の `conditions`
+/// 引数は本関数の戻り値を並べた `Vec` として組み立てる。
+#[must_use]
+pub fn when<V: VariantValue>(v: V) -> VariantCondition {
+    VariantCondition {
+        axis: v.axis(),
+        value: v.value(),
+    }
+}
+
+/// 複数 variant 軸の組み合わせ条件が揃ったときの slot への宣言登録
+/// （内部表現。chakra-ui の `compoundVariants` 1 件に相当、イシュー #604）。
+struct CompoundVariantRule {
+    conditions: Vec<VariantCondition>,
+    slot: &'static str,
+    declarations: Vec<Declaration>,
+}
+
 /// slot recipe: `scope`（headless anatomy と同一値）・`slots`・base・variants・
 /// defaultVariants を保持し、静的 CSS とクラス名を決定的に生成する。
 ///
@@ -204,6 +244,7 @@ pub struct SlotRecipe {
     base: Vec<BaseRule>,
     variants: Vec<VariantRule>,
     default_variants: Vec<DefaultVariant>,
+    compound_variants: Vec<CompoundVariantRule>,
 }
 
 impl SlotRecipe {
@@ -217,6 +258,7 @@ impl SlotRecipe {
             base: Vec::new(),
             variants: Vec::new(),
             default_variants: Vec::new(),
+            compound_variants: Vec::new(),
         }
     }
 
@@ -265,20 +307,74 @@ impl SlotRecipe {
         self
     }
 
+    /// 複数 variant 軸の組み合わせ条件が満たされたときの `slot` への宣言を
+    /// 登録する（builder、自己消費。chakra-ui の `compoundVariants` 相当、
+    /// イシュー #604）。
+    ///
+    /// `conditions` は [`when()`] で作った [`VariantCondition`] の列（AND
+    /// 条件、すべて満たされたときのみ適用される）。以下のいずれかに該当する
+    /// 規則は [`SlotRecipe::css`] の出力から除外される（fail-closed。既存
+    /// `base`/`variant` と同じ「不正入力は panic せず出力から除外する」方針）:
+    ///
+    /// - `slot` が `slots` に未宣言、または識別子として不正
+    /// - いずれかの条件の `axis`/`value` が識別子として不正
+    /// - `conditions` が空（base と同義になる無意味な規則の混入防止）
+    /// - `conditions` 内に同一 `axis` が重複（[`SlotRecipe::variant_classes`]
+    ///   は 1 軸につき高々 1 クラスしか emit しないため、同一軸に異なる値を
+    ///   要求する条件は決して同時に一致しない矛盾条件であり、dead CSS の
+    ///   混入を防ぐ）
+    /// - 条件の `(axis, value)` の組が [`SlotRecipe::variant`] /
+    ///   [`SlotRecipe::default_variant`] のいずれにも未登録（axis/value の
+    ///   タイポによる dead CSS の混入を防ぐ。検証は `css()` 呼び出し時に
+    ///   行うため builder の呼び出し順には依存しない）
+    #[must_use]
+    pub fn compound_variant(
+        mut self,
+        conditions: Vec<VariantCondition>,
+        slot: &'static str,
+        declarations: Vec<Declaration>,
+    ) -> Self {
+        self.compound_variants.push(CompoundVariantRule {
+            conditions,
+            slot,
+            declarations,
+        });
+        self
+    }
+
     /// この slot に属するかどうかを判定する（`slots` 未宣言の slot を
     /// fail-closed で除外するための内部ヘルパ）。
     fn is_declared_slot(&self, slot: &str) -> bool {
         self.slots.contains(&slot)
     }
 
+    /// `(axis, value)` の組が `variant()`（任意 slot）または
+    /// `default_variant()` に既に登録済みかどうかを判定する
+    /// （[`SlotRecipe::compound_variant`] の fail-closed 検証専用の内部
+    /// ヘルパ。axis/value のタイポによる dead CSS 混入を防ぐ）。
+    fn is_registered_variant_value(&self, axis: &str, value: &str) -> bool {
+        self.variants
+            .iter()
+            .any(|rule| rule.axis == axis && rule.value == value)
+            || self
+                .default_variants
+                .iter()
+                .any(|d| d.axis == axis && d.value == value)
+    }
+
     /// この recipe が生成する静的 CSS 全量を返す（決定的: 同一の `self` に
     /// 対する複数回の呼び出しは常にバイト単位で同一の文字列を返す）。
     ///
-    /// 出力順は「base（`slots` の宣言順）→ variants（登録順）」。
-    /// セレクタは base が `[data-scope="<scope>"][data-part="<slot>"]`、
-    /// variant が `[data-scope="<scope>"][data-part="<slot>"].fd-<scope>--<axis>-<value>`
+    /// 出力順は「base（`slots` の宣言順）→ variants（登録順）→ compound
+    /// variants（登録順、イシュー #604）」。セレクタは base が
+    /// `[data-scope="<scope>"][data-part="<slot>"]`、variant が
+    /// `[data-scope="<scope>"][data-part="<slot>"].fd-<scope>--<axis>-<value>`
     /// （詳細度 (0,3,0) が base の (0,2,0) に必ず勝つため、CSS 記述順に
-    /// 依存しない上書きを保証する）。
+    /// 依存しない上書きを保証する）、compound variant は条件クラスを
+    /// 登録順に連結した
+    /// `[data-scope="<scope>"][data-part="<slot>"].fd-<scope>--<a1>-<v1>.fd-<scope>--<a2>-<v2>...`
+    /// （条件 2 個以上なら詳細度が単一 variant を必ず上回り、1 個の場合でも
+    /// 出力順が variants より後のため CSS カスケードの後勝ちで上書きされる）。
     ///
     /// `scope`（[`SlotRecipe::new`] に渡した値）が識別子として不正な場合は
     /// 空文字列を返す（fail-closed。`slot`/`axis`/`value` と同様に `scope` も
@@ -324,6 +420,47 @@ impl SlotRecipe {
                 "[data-scope=\"{}\"][data-part=\"{}\"].{class_name}",
                 self.scope, rule.slot
             );
+            if let Some(css) = serialize_rule(&selector, &rule.declarations) {
+                out.push_str(&css);
+                out.push('\n');
+            }
+        }
+
+        'compound: for rule in &self.compound_variants {
+            if rule.conditions.is_empty()
+                || !self.is_declared_slot(rule.slot)
+                || !is_valid_identifier(rule.slot)
+            {
+                continue;
+            }
+
+            // 同一 axis の重複は矛盾条件（variant_classes は 1 軸につき
+            // 高々 1 クラスしか emit しないため決して同時に一致しない）と
+            // みなし、dead CSS の混入を防ぐため規則ごと除外する。
+            let mut seen_axes: Vec<&str> = Vec::new();
+            for cond in &rule.conditions {
+                if !is_valid_identifier(cond.axis) || !is_valid_identifier(cond.value) {
+                    continue 'compound;
+                }
+                if seen_axes.contains(&cond.axis) {
+                    continue 'compound;
+                }
+                seen_axes.push(cond.axis);
+                if !self.is_registered_variant_value(cond.axis, cond.value) {
+                    continue 'compound;
+                }
+            }
+
+            let mut selector = format!(
+                "[data-scope=\"{}\"][data-part=\"{}\"]",
+                self.scope, rule.slot
+            );
+            for cond in &rule.conditions {
+                selector.push_str(&format!(
+                    ".{CLASS_PREFIX}-{}--{}-{}",
+                    self.scope, cond.axis, cond.value
+                ));
+            }
             if let Some(css) = serialize_rule(&selector, &rule.declarations) {
                 out.push_str(&css);
                 out.push('\n');

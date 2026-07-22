@@ -1,14 +1,14 @@
-//! `fandhe-frontend-headless-ui` の開閉状態機械（[`state`] モジュール、
-//! イシュー #524）の公開 API 経由の統合テスト。
+//! `fandhe-frontend-headless-ui` の状態機械（[`state`] モジュール、
+//! イシュー #524・#595）の公開 API 経由の統合テスト。
 //!
 //! `crates/headless-ui/src/state.rs` 内の `#[cfg(test)]` ユニットテストが
 //! 内部実装を含めた網羅を担うのに対し、本ファイルは
 //! `fandhe-frontend-headless-ui` の公開 API（`lib.rs` の再エクスポート）
-//! のみを経由し、Phase 2 の具象コンポーネント（Dialog 等）が実際に使う
-//! 想定の外部からの利用形態を固定する回帰テスト。
+//! のみを経由し、Phase 2 の具象コンポーネント（Dialog / Switch 等）が実際に
+//! 使う想定の外部からの利用形態を固定する回帰テスト。
 
 use fandhe_frontend_core::render;
-use fandhe_frontend_headless_ui::{Disclosure, MultiSelect, OpenState, SingleSelect};
+use fandhe_frontend_headless_ui::{Checkable, Disclosure, MultiSelect, OpenState, SingleSelect};
 use fandhe_frontend_interactive::{
     dispatch, render_for_hydration, Component, DirtyTracked, Hydrate,
 };
@@ -66,6 +66,36 @@ fn disclosure_and_single_select_ignore_unknown_dispatch_actions() {
     dispatch(&mut single_select, "select", "a");
     assert!(!dispatch(&mut single_select, "unknown", "b"));
     assert_eq!(single_select.selected(), Some("a"));
+}
+
+#[test]
+fn checkable_full_cycle_ssr_then_dispatch_then_hydration() {
+    // SSR: 状態なし初期描画（Default = unchecked）。
+    let initial = Checkable::default();
+    let ssr_html = render(&initial.view());
+    assert!(ssr_html.contains(r#"data-state="unchecked""#));
+    assert!(!ssr_html.contains("data-hydrate-"));
+
+    // クライアント側（wasm-full 相当）の dispatch でトグル。
+    let mut client_state = initial;
+    assert!(dispatch(&mut client_state, "toggle", ""));
+    assert!(client_state.is_checked());
+
+    // 別の SSR リクエスト（checked 状態）はハイドレーション属性込みで出力される。
+    let hydrated_html = render(&render_for_hydration(&client_state));
+    assert!(hydrated_html.contains(r#"data-state="checked""#));
+    assert!(hydrated_html.contains(r#"data-hydrate-checked="checked""#));
+
+    // クライアント側は data-hydrate-* 属性から状態を復元できる（ラウンドトリップ）。
+    let restored = Checkable::from_hydration_attrs(&client_state.hydration_attrs()).unwrap();
+    assert_eq!(restored, client_state);
+}
+
+#[test]
+fn checkable_ignores_unknown_dispatch_action() {
+    let mut checkable = Checkable::new(true);
+    assert!(!dispatch(&mut checkable, "unknown", "payload"));
+    assert!(checkable.is_checked());
 }
 
 #[test]

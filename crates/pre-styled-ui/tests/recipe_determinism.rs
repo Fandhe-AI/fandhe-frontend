@@ -7,7 +7,7 @@
 //! 回帰検知でもある。
 
 use fandhe_frontend_pre_styled_ui::decl;
-use fandhe_frontend_pre_styled_ui::recipe::{Size, SlotRecipe, VariantValue};
+use fandhe_frontend_pre_styled_ui::recipe::{when, Size, SlotRecipe, VariantValue};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Tone {
@@ -41,6 +41,13 @@ fn build_recipe() -> SlotRecipe {
         )
         .default_variant(Size::Md)
         .default_variant(Tone::Solid)
+        // イシュー #604: compound variant も他の規則と同じ決定性保証（byte
+        // 一致・繰り返し呼び出し安定性）の対象であることを回帰検知する。
+        .compound_variant(
+            vec![when(Size::Sm), when(Tone::Outline)],
+            "root",
+            vec![decl("border-width", "1px")],
+        )
 }
 
 #[test]

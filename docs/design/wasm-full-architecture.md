@@ -89,6 +89,7 @@ Phase 1（#336・`docs/design/dom-binding-update-design.md`）で束縛点最小
 | `hydration` | `data-hydrate-*` 属性からの状態復元の実配線 | **TASK-11.4（#81/#82）に予約**。本書では配置とシグネチャ方針のみ規定する |
 | `csr` | `fandhe_frontend_app::Loader` 経由の CSR データ解決層（`fandhe_frontend_app::Item` 系ページ）。DOM 非依存の純粋層で `Runtime`/`hydration` とは独立した別系統。初期表示（ハイドレーション）では呼ばない | TASK-CSR-loader（#349） |
 | `nav` | クライアント側ルーティング（history API 連携・URL 同期・遷移時 loader 配線）。`csr` の loader 解決層を再利用し、`data-nav` クリック委譲・`popstate` 連携・`fandhe_frontend_wasm_client::build_dom_node` 経由の DOM サブツリー差し替え（`set_inner_html` 不使用）を担う独立系統。SPA 内遷移の DOM 差し替え + タイトル更新（apply 段）は `document.startViewTransition()` でラップする（イシュー #404、機能検出により非対応ブラウザでは同期フォールバック） | イシュー #374 / #404 |
+| `headless` | headless-ui（`fandhe-frontend-headless-ui`）の `data-scope`/`data-part`（anatomy セレクタ）クリックを `fandhe_frontend_interactive::dispatch` の文字列アクションへ写像する配線基盤。`events` モジュール（`data-action`/`data-payload` ベース）とは独立した別系統（headless-ui は `data-action` を出力しないため）。詳細は第 12 節 | イシュー #580 |
 | `overlay` | `fandhe-frontend-headless-ui` の Dialog/Popover/Menu/Tooltip 共通の閉鎖制御（Escape キー・外側インタラクション）。document へ委譲登録し、実際の `"close"` dispatch・再描画は呼び出し側（#580 統合層）の責務として通知のみ提供する | イシュー #585（親 #584） |
 | `tooltip` | Tooltip の `openDelay`/`closeDelay`/`interactive`（表示・非表示遅延タイマーと content 内ポインタ移動時の維持）。`pointerenter`/`pointerleave` がバブリングしないため、`overlay` の document 委譲方式とは異なり trigger/content 要素へ直接登録する。実際の `"open"`/`"close"` dispatch・再描画は呼び出し側（#580 統合層）の責務として通知のみ提供する | イシュー #587（親 #584） |
 
@@ -290,27 +291,85 @@ WASM 完全方式固有の不変条件を追加する。
 
 戻る/進む操作自体でエントリを離脱した場合、その離脱元の最新スクロール位置は再保存されない（popstate 発火時点で history は既に移動済みであり、かつ SPA 内遷移のため `pagehide` も発火しないため）。完全対応には scroll リスナー + スロットリング保存が必要で、`nav.rs` の「リスナー登録は起動時定数回」不変条件に関わる変更となるため、本イシューのスコープ外として別 Issue 化をユーザーへ提案する（`.claude/rules/out-of-scope-tracking.md`）。遷移中ローディング表示（§10 残項目）も引き続き別 Issue。
 
-## 12. `headless_avatar` モジュール（イシュー #591、親 #520/#542/#543）
+## 12. `headless` モジュール（headless-ui dispatch の DOM イベント配線基盤、イシュー #580）
+
+### 12.1 背景
+
+headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosure`/`state::SingleSelect` およびそれらを埋め込む `Collapsible`/`Dialog`/`Popover`/`Tooltip`/`Menu`/`RadioGroup`/`Select` 等）は `fandhe_frontend_interactive::dispatch`（文字列アクション）で駆動できるが、DOM イベントから dispatch へ接続する共通配線が存在しなかった（第 1 弾 PR 群で「クライアントサイド配線は wasm 層の後続スコープ」と明記されていた部分）。既存の `events`（`data-action`/`data-payload` ベース）は headless-ui のマークアップ（`data-scope`/`data-part` の anatomy セレクタが正、`data-action` は出力しない）に適合しないため、`headless` モジュールを `events` とは独立した別系統として追加した。
+
+### 12.2 公開 API
+
+| API | シグネチャ | 役割 |
+|-----|-----------|------|
+| `headless::PartRef` | `pub struct PartRef { pub scope: String, pub part: String, pub value: Option<String>, pub disabled: bool }` | クリックされた要素（またはその祖先方向の 1 要素）の anatomy 属性を表す純粋データ型。`web_sys::Element` から独立しており native の `cargo test` で検証できる |
+| `headless::action_for_part` | `pub fn action_for_part(part: &PartRef) -> Option<events::ActionRef>` | (`scope`, `part`) の静的マッピング表 1 段の判定。表にない組・`data-value` 欠落・`disabled` はいずれも `None`（fail-closed） |
+| `headless::action_from_parts` | `pub fn action_from_parts(parts: &[PartRef]) -> Option<events::ActionRef>` | クリック位置から根方向へ並べた part 列（内側優先）で最初に解決できたアクションを返す。`item-text` 等「表にない内側 part」のクリックでも祖先の `item`/`trigger` で解決するための抽象 |
+| `headless::wire_headless_events` | `pub fn wire_headless_events(root: web_sys::Element, on_action: impl FnMut(events::ActionRef) + 'static) -> Result<(), JsValue>`（wasm32 限定） | ルート要素へ click 委譲リスナーを 1 回だけ登録する。`event.target()` から root 方向へ祖先を辿り `data-scope`/`data-part` を持つ要素ごとに `PartRef` を構築、`action_from_parts` で解決する |
+| `headless::wire_headless_component` | `pub fn wire_headless_component<C: fandhe_frontend_interactive::Component + 'static>(root: web_sys::Element, component: Rc<RefCell<C>>, on_update: impl FnMut(&C, &web_sys::Element) + 'static) -> Result<(), JsValue>`（wasm32 限定） | dispatch への橋渡し便宜 API。`try_borrow_mut` 失敗（再入）は no-op、dispatch 成功時のみ `on_update` を呼ぶ（DOM への `data-state` 反映は呼び出し側の責務） |
+
+### 12.3 (scope, part) → 文字列アクションの静的マッピング表
+
+| data-scope | data-part | action | payload |
+|---|---|---|---|
+| `collapsible`/`dialog`/`popover`/`tooltip`/`menu` | `trigger` | `"toggle"` | `""` |
+| `dialog`/`popover` | `close-trigger` | `"close"` | `""` |
+| `tabs` | `trigger` | `"select"` | `data-value` |
+| `radio-group` | `item` | `"select"` | `data-value` |
+| `select` | `trigger` | `"toggle"` | `""` |
+| `select` | `item` | `"select"` | `data-value` |
+| `select` | `clear-trigger` | `"deselect"` | `""` |
+
+マッピング表は `&'static str` リテラル固定の静的配列であり、動的登録経路は持たない。`crates/wasm-full/tests/headless_wiring.rs` が headless-ui 実出力（`data-scope`/`data-part` 文字列）とのドリフトを機械検知する。
+
+### 12.4 fail-closed 契約（受け入れ条件 3）
+
+- マッピング表にない (scope, part) の組は `None`（no-op）。
+- `data-value` を要求する行（select 系）でその属性が欠落している場合は `None`（改ざん・欠損入力を dispatch へ流さない）。
+- part 要素に `data-disabled` が付与されている場合は `None`。
+- 未知アクション名は `fandhe_frontend_interactive::dispatch`/`Component::decode_action` 側の既存契約（不変条件 4）により no-op となる（本モジュールの fail-closed と合わせた二重の安全網）。
+
+### 12.5 payload の扱い（REQ-1 との関係）
+
+`data-value` はクライアント側で改ざんされうる入力であり、`headless` モジュールはこれを HTML/セレクタとして一切解釈せず、文字列のまま `events::ActionRef::payload` へ渡す。再描画時のエスケープは呼び出し側が経由する `fandhe_frontend_core::render`（既定エスケープ）が担う（`events` モジュールの既存契約と同一）。
+
+### 12.6 headless-ui 側の前提整備（`data-value` 契約）
+
+`select::item`/`menu::item` は元々 `data-value` を出力していたが、`tabs::trigger` と `radio_group::item` には value を表す属性がなかったため、本イシューで以下を加算的に追加した。
+
+- `tabs.rs`: trigger パーツの属性列へ `("data-value", item.value)` を追加。
+- `radio_group.rs`: `item()`（自由関数）へ `value: &'a str` 引数を追加して `("data-value", value)` を出力し、`RadioGroup::item` の利便メソッドも同様に `value: &'a str` へ変更した（公開 API のシグネチャ変更のため、対応するコミットは `feat(headless-ui)!:` として破壊的変更を明示する）。
+
+`RadioGroup` の `item`（`<label>`）はネイティブ `<label>` によるクリック転送で、内包する `item_hidden_input`（隠し `<input type="radio">`）への合成クリックも発火しうるため、同一クリックが `wire_headless_events` の委譲リスナーへ 2 回届く可能性がある。`"select"`（同一値）は冪等のため実害はない。
+
+### 12.7 スコープ外（Issue 化をユーザーへ提案）
+
+- Menu item クリックでの close、Select の選択時 close 以外の close 制御（`select` は既存の `SelectAction::Select` 実装が closeOnSelect 相当を担うため対象外）。
+- Switch/Checkbox/Accordion/Avatar の配線（Switch は label 転送による click 二重発火と toggle 非冪等性の対策設計が必要）。
+- キーボード操作（Enter/Space/矢印キー・roving tabindex）・ESC/外側クリックでの close・Tooltip の hover 開閉。
+- headless コンポーネントの自動再描画（束縛点更新/`Runtime` 統合。`Runtime<C>` は `DirtyTracked + BindingSource` 境界を要求するため headless コンポーネントはそのままでは載らない）。
+- CLAUDE.md 委譲マッピング表への `crates/headless-ui/` 行の追加。
+
+## 13. `headless_avatar` モジュール（イシュー #591、親 #520/#542/#543）
 
 `fandhe-frontend-headless-ui` の Avatar（`crates/headless-ui/src/avatar.rs`）は Root/Image/Fallback の 3 anatomy パーツと `ImageStatus`（loading/loaded/error）状態機械を提供するが、実 DOM の `img` 要素の `load`/`error` イベントを検知して dispatch（`"loaded"`/`"error"`）へ橋渡しするクライアント側グルーは同モジュール冒頭の rustdoc「スコープ外」節が明記するとおり本クレート（wasm 層）の後続スコープとされていた。`headless_avatar` モジュール（`crates/wasm-full/src/headless_avatar.rs`）がそのグルーを実装する。
 
-### 12.1 `events`/`keynav`/`overlay` と同じ 2 層構成、ただし capture フェーズ委譲
+### 13.1 `events`/`keynav`/`overlay` と同じ 2 層構成、ただし capture フェーズ委譲
 
 `events.rs`（クリック/入力委譲）・`keynav.rs`（キーボード操作配線）・`overlay.rs`（Escape/外側クリックの閉鎖制御）と同じ「DOM 非依存の純粋ロジック層 + `#[cfg(target_arch = "wasm32")]` 配線層」の 2 層構成を踏襲する。ただし `load`/`error` イベントは click/keydown とは異なり**バブリングしない**ため、`root` への委譲リスナーはバブリングフェーズではなく **capture フェーズ**（`add_event_listener_with_callback_and_bool(..., true)`）で登録する。capture フェーズは伝播パス上の祖先で非バブリングイベントも受信できるため、再描画で `img` が入れ替わっても `root` のリスナーは保持されたまま新しい `img` のイベントも受信できる。この配線方式の違いが、本モジュールを既存の委譲リスナーへ単純に相乗りできず独立モジュールとして切り出した設計上の根拠である。
 
-### 12.2 判定関数（純粋ロジック層）
+### 13.2 判定関数（純粋ロジック層）
 
 - `avatar_action_for_image_event(event_type, scope, part) -> Option<ActionRef>`: ターゲットが `data-scope="avatar"` かつ `data-part="image"` の場合のみ `"load"` → `ActionRef { action: "loaded", .. }`・`"error"` → `ActionRef { action: "error", .. }` を返す（fail-closed、改ざん `data-*` を dispatch へ流さない）。
 - `avatar_action_for_settled_image(complete, natural_width) -> Option<&'static str>`: 配線時点で既に決着済みの画像に対する合成 dispatch 判定。`complete && natural_width > 0` → `"loaded"`、`complete && natural_width == 0` → `"error"`（ark-ui/Zag.js と同じヒューリスティック。SVG は `naturalWidth` が常に `0` を返し得る既知のエッジケース）、`!complete` → `None`。
 - `image_visible_after_action(action) -> Option<bool>`: `fandhe_frontend_headless_ui::avatar::ImageStatus::is_image_visible` と同一の可視性規則を文字列語彙（`"loaded"`/`"error"`/`"reset"`）で複製する。本クレートは `fandhe-frontend-headless-ui` を製品依存に持たず `[dev-dependencies]` のみのため文字列複製とし、ドリフトは `wasm-full/tests/headless_avatar.rs`/インラインテストのドリフト検知テストで固定する。
 
-### 12.3 配線層（wasm32 限定）
+### 13.3 配線層（wasm32 限定）
 
 - `wire_avatar_events(root, on_action)`: `load`/`error` を capture フェーズで委譲登録する（`Closure::forget` は 2 回のみ、A04 対策）。配線と同時に `root` 配下の `[data-scope="avatar"][data-part="image"]` を `query_selector_all` で列挙し、`avatar_action_for_settled_image` の判定結果に応じて決着済み画像へ即座に合成 dispatch する（**受け入れ条件「hydration 復元後のイベント接続が正しく動作すること」の中核**。wasm 初期化・hydration 復元より前に画像読み込みが完了して `load`/`error` イベントがもう発火しないレースを塞ぐ）。
 - `wire_avatar_component(root, component, on_update)`: `wire_avatar_events` の便宜 API。`fandhe_frontend_interactive::dispatch` へ橋渡しし、成功時のみ `on_update` を呼ぶ（`try_borrow_mut` 失敗時は再入とみなし no-op）。
 - `apply_avatar_visibility(root, image_visible)`: dispatch 後の DOM 反映ヘルパ（**受け入れ条件「画像読み込み成功/失敗で data-state が切り替わること」**）。`[data-scope="avatar"][data-part="image"/"fallback"]` へ `data-state`（`"visible"`/`"hidden"`）と `hidden` 存在属性を反映する。`set_attribute`/`remove_attribute` のみで HTML 文字列組み立て・`innerHTML` は一切使わない（REQ-1）。属性名・属性値の書き込みは `keynav.rs::wiring::set_dom_attribute` と同じガード付きラッパー（`is_event_handler_attr`/`is_url_attr`/`is_safe_url`/`is_safe_srcset` 経由、イシュー #401 の `fw gate` `url_validation_check` 契約）を通す。
 
-### 12.4 スコープ境界
+### 13.4 スコープ境界
 
 - 配線対象 `root` は「Avatar の root パーツ要素（または Avatar を 1 個含むコンテナ）」を契約とし、1 root : 1 状態機械。複数 Avatar の一括統括・束縛点差分更新との統合は別スコープとする。
 - `src` 差し替え検知（`MutationObserver`）→ `"reset"` 自動発火はスコープ外（`crates/headless-ui/src/avatar.rs` の「スコープ外」節と同一の判断を引き継ぐ）。
