@@ -21,11 +21,23 @@ use fandhe_frontend_headless_ui::{anatomy, aria_hidden, aria_label, role, Anatom
 /// `data-scope="spinner"` を固定した本コンポーネントの anatomy。
 const ANATOMY: Anatomy = anatomy("spinner");
 
+/// 回転アニメーションの `@keyframes` 名リテラル。`decl()` が要求する
+/// `&'static str` は実行時 `format!` で組み立てられないため、リテラルの
+/// 単一情報源をマクロとして持ち、[`SPIN_KEYFRAMES_NAME`]（値としての参照・
+/// `format!` 用）と `recipe()` の `animation` 宣言（`concat!` によるコンパイル
+/// 時連結）の両方がこのマクロ経由で同一文字列を得る。
+macro_rules! spin_keyframes_name_lit {
+    () => {
+        "fd-spinner-spin"
+    };
+}
+
 /// 回転アニメーションの `@keyframes` 名。`recipe()` の `animation` 宣言
 /// （値としてのみ参照、`decl()` の値検証は `{`/`}`/`;` を拒否するため
 /// キーフレーム本体は宣言として表現できない）と [`css`] が追記する
-/// `@keyframes` ブロックの両方で共有する識別子。
-const SPIN_KEYFRAMES_NAME: &str = "fd-spinner-spin";
+/// `@keyframes` ブロックの両方で共有する識別子（[`spin_keyframes_name_lit`]
+/// を単一情報源として生成）。
+const SPIN_KEYFRAMES_NAME: &str = spin_keyframes_name_lit!();
 
 /// Spinner の recipe（scope `"spinner"`、slot `"root"` のみ）。
 fn recipe() -> SlotRecipe {
@@ -37,7 +49,10 @@ fn recipe() -> SlotRecipe {
                 decl("border-radius", "9999px"),
                 decl("border", "2px solid var(--fandhe-color-border)"),
                 decl("border-top-color", "var(--fandhe-color-accent)"),
-                decl("animation", "fd-spinner-spin 0.6s linear infinite"),
+                decl(
+                    "animation",
+                    concat!(spin_keyframes_name_lit!(), " 0.6s linear infinite"),
+                ),
             ],
         )
         .variant(
