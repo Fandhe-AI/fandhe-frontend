@@ -109,7 +109,14 @@ impl fmt::Display for ScenarioReport {
 pub fn bench_appstate_increment() -> ScenarioReport {
     let full_rerender_ns = measure(|| {
         let mut state = AppState::new();
-        dispatch(&mut state, "increment", "");
+        // dispatch() の引数を black_box に通し、コンパイラに「常に同一の
+        // "increment"/"" が渡される」ことを静的証明させない（イシュー #592
+        // PR #623 レビュー指摘: 引数リテラルが不変な入力である場合、
+        // `black_box(戻り値)` だけでは呼び出し全体がループ不変（loop-invariant）
+        // と判断され、リリースビルドで実質 1 回だけ計算してループ外へ
+        // 巻き上げられ得る。引数側も black_box で不透明化することで
+        // 巻き上げ・定数畳み込みの両方を防ぐ）。
+        dispatch(&mut state, black_box("increment"), black_box(""));
         // 全再描画経路: view() の Node 生成 + render() による HTML 文字列化。
         // 戻り値を measure() 経由で black_box に通し、リリースビルドでの
         // 最適化除去（デッドコード化）を避ける。
@@ -118,7 +125,9 @@ pub fn bench_appstate_increment() -> ScenarioReport {
 
     let dirty_update_ns = measure(|| {
         let mut state = AppState::new();
-        dispatch(&mut state, "increment", "");
+        // 理由は full_rerender_ns 側のコメント参照（イシュー #592 PR #623
+        // レビュー指摘）。
+        dispatch(&mut state, black_box("increment"), black_box(""));
         // 差分更新経路: dirty_fields() の読み出しのみ（DOM 反映自体は
         // wasm-full 側の BindingTable::apply_dirty の責務であり、本モジュールの
         // 計測対象は「どのフィールドを更新すべきか」を特定するコストに限定）。
@@ -140,13 +149,16 @@ pub fn bench_appstate_increment() -> ScenarioReport {
 pub fn bench_disclosure_toggle() -> ScenarioReport {
     let full_rerender_ns = measure(|| {
         let mut state = Disclosure::default();
-        dispatch(&mut state, "toggle", "");
+        // 引数側も black_box で不透明化する理由は
+        // bench_appstate_increment 冒頭コメント参照（イシュー #592 PR #623
+        // レビュー指摘）。
+        dispatch(&mut state, black_box("toggle"), black_box(""));
         render(&state.view())
     });
 
     let dirty_update_ns = measure(|| {
         let mut state = Disclosure::default();
-        dispatch(&mut state, "toggle", "");
+        dispatch(&mut state, black_box("toggle"), black_box(""));
         // dirty_fields() は state を借用する &[&'static str] を返すため
         // measure() の戻り値としてそのまま持ち出せない。ここで black_box に
         // 通してから破棄し、呼び出し自体の最適化除去を避ける。
@@ -165,13 +177,16 @@ pub fn bench_disclosure_toggle() -> ScenarioReport {
 pub fn bench_single_select_select() -> ScenarioReport {
     let full_rerender_ns = measure(|| {
         let mut state = SingleSelect::default();
-        dispatch(&mut state, "select", "panel-1");
+        // 引数側も black_box で不透明化する理由は
+        // bench_appstate_increment 冒頭コメント参照（イシュー #592 PR #623
+        // レビュー指摘）。
+        dispatch(&mut state, black_box("select"), black_box("panel-1"));
         render(&state.view())
     });
 
     let dirty_update_ns = measure(|| {
         let mut state = SingleSelect::default();
-        dispatch(&mut state, "select", "panel-1");
+        dispatch(&mut state, black_box("select"), black_box("panel-1"));
         // dirty_fields() は state を借用する &[&'static str] を返すため
         // measure() の戻り値としてそのまま持ち出せない。ここで black_box に
         // 通してから破棄し、呼び出し自体の最適化除去を避ける。
@@ -206,6 +221,19 @@ pub fn run_all_scenarios() -> Vec<ScenarioReport> {
 /// （イシュー #592 PR #623 レビュー指摘）。`f` の戻り値は
 /// [`std::hint::black_box`] へ通してから破棄し、リリースビルドで dirty パス
 /// 自体がコンパイラに最適化除去されることを避ける。
+///
+/// 戻り値側の `black_box` だけでは不十分な場合がある（イシュー #592 PR #623
+/// 2 件目のレビュー指摘）: 呼び出し元クロージャが `AppState::new()` →
+/// `dispatch(&mut state, "increment", "")` → `dirty_fields()` のように
+/// 毎回まったく同一のリテラル引数から同一の決定的な値を計算する場合、
+/// 最適化器はループ全体が「同じ値を 10,000 回計算している」ことを証明でき、
+/// ループ不変コード移動（LICM）で計算自体をループ外へ巻き上げ、実質 1 回
+/// だけ実行して結果を使い回してしまい得る（実測で `disclosure-toggle` の
+/// `dirty_ns` が `0.20ns` という非現実的な値になった一因）。この巻き上げは
+/// `measure()` 側の戻り値 `black_box` では防げないため、各シナリオの
+/// `dispatch()` 呼び出し引数（アクション名・ペイロード）側も呼び出し元で
+/// `black_box` に通し、最適化器から見て入力が不透明（巻き上げ・定数畳み込み
+/// 不能）になるようにしている（`bench_appstate_increment` 等参照）。
 fn measure<T>(mut f: impl FnMut() -> T) -> f64 {
     for _ in 0..WARMUP_ITERATIONS {
         black_box(f());

@@ -755,15 +755,15 @@ API 形状確定）であり、`fandhe_frontend_wasm_full::Runtime<C>`
 self-hosted 相当のローカル環境・1 回の実行）:
 
 ```
-bench-binding-update: scenario=appstate-increment full_ns=3697.33 dirty_ns=29.11 ratio=127.02
-bench-binding-update: scenario=disclosure-toggle full_ns=133.84 dirty_ns=0.20 ratio=686.35
-bench-binding-update: scenario=single-select-select full_ns=144.79 dirty_ns=9.89 ratio=14.63
+bench-binding-update: scenario=appstate-increment full_ns=3087.65 dirty_ns=28.44 ratio=108.55
+bench-binding-update: scenario=disclosure-toggle full_ns=133.74 dirty_ns=0.89 ratio=149.90
+bench-binding-update: scenario=single-select-select full_ns=144.35 dirty_ns=10.08 ratio=14.33
 ```
 
 `disclosure-toggle`/`single-select-select` はハーネス実装後（headless-ui
 状態機械への `DirtyTracked` 実装後）に計測したものであり、全再描画経路
 （`view()` + `render()`）に対し差分更新経路（`dirty_fields()` 読み出しの
-み）が一貫して優位（14〜690 倍超）であることを確認した。数値は実行環境
+み）が一貫して優位（14〜150 倍前後）であることを確認した。数値は実行環境
 依存（CPU・負荷）のため厳密な再現性は保証しないが、性能面の判断基準
 （5 倍以上）は大きく上回っており、正しさ根拠と合わせて採用を補強する。
 
@@ -778,6 +778,23 @@ bench-binding-update: scenario=single-select-select full_ns=144.79 dirty_ns=9.89
 通し、リリースビルドで dirty パス自体がコンパイラに最適化除去されることも
 防いだ（`crates/xtask/src/bench_binding_update.rs` 参照）。上記の再測定値は
 修正後のハーネスによるものであり、`ratio=inf` は発生していない。
+
+**計測精度の補足その 2（イシュー #592 PR #623 レビュー指摘・修正済み）**:
+戻り値側の `black_box` のみでは、`disclosure-toggle` の `dirty_ns` が
+`0.20ns` という非現実的に低い値になり得た。`AppState::new()`/
+`Disclosure::default()` → `dispatch(&mut state, "toggle", "")` →
+`dirty_fields()` は毎回まったく同一のリテラル引数から決定的な値を計算する
+ため、リリースビルドの最適化器がループ全体を「同じ値を `ITERATIONS` 回
+計算している」と証明し、ループ不変コード移動（LICM）で計算自体を
+ループ外へ巻き上げて実質 1 回しか実行しない可能性があった（戻り値の
+`black_box` はデッドコード除去は防ぐが、この巻き上げまでは防げない）。
+修正として各シナリオの `dispatch()` 呼び出し引数（アクション名・
+ペイロード文字列）も呼び出し元で `std::hint::black_box` に通し、最適化器
+から見て入力を不透明化することで巻き上げ・定数畳み込みの双方を防いだ
+（`crates/xtask/src/bench_binding_update.rs::bench_disclosure_toggle` 等
+参照）。修正後の再測定では `disclosure-toggle` の `dirty_ns` は `0.89ns`
+前後で安定し（複数回実行で `0.20ns` 相当への逆戻りは確認されず）、上記
+の再測定値はこの修正後のハーネスによるものである。
 
 **計測の限界**: 本ハーネスはネイティブ実行（DOM 操作を伴わない）であり、
 実際の DOM 反映コスト（`set_attribute`/`textContent` 書き換え等）は
