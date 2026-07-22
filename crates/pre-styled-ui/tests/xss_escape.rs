@@ -9,9 +9,11 @@
 //! と同型のテキスト・属性値・URL 属性の 3 経路を、本クレートが実際に依存する
 //! 経路（`[dependencies]` の `fandhe-frontend-headless-ui`・
 //! `[dev-dependencies]` の `fandhe-frontend-core`、`crates/pre-styled-ui/Cargo.toml`
-//! 参照）を通して固定する。styled 部品（Button/Badge/Card/Alert 等）経由の
-//! 回帰テスト拡充は #550/#551 側のスコープであり、本イシューでは追跡提案に
-//! 留める（`.claude/rules/out-of-scope-tracking.md`）。
+//! 参照）を通して固定する。styled 部品（Button/Badge/Card/Alert 等）公開 API
+//! 経由の回帰テスト拡充は、#550/#551 で本クレートの公開 API が揃ったことを
+//! 受けてイシュー #607 で `tests/xss_escape_styled.rs` として実施済み。本
+//! ファイルは headless-ui 依存経路（本クレートの依存グラフ末端）の固定として
+//! 引き続き維持する。
 //!
 //! 既存の `tests/smoke.rs`（headless-ui への path 依存の実体確認 + core
 //! dev-dependency 経由の既定エスケープ 1 件）は削除・変更しない。本ファイルは

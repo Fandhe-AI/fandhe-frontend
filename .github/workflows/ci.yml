@@ -123,10 +123,12 @@ jobs:
         # SSR/SSG/CSR 経路の XSS 回帰テストを独立ステップとして可視化する。
         # headless-ui / pre-styled-ui（イシュー #553）も REQ-1 ゲートとして
         # 独立ステップで可視化する（`cargo test --workspace` の暗黙包含に依存しない）。
+        # pre-styled-ui は styled 部品公開 API 経由の回帰（イシュー #607、
+        # xss_escape_styled.rs）も独立ファイルとして追加し、両ファイルを実行する。
         run: |
           cargo test -p fandhe-frontend-core --test xss_escape --locked
           cargo test -p fandhe-frontend-headless-ui --test xss_escape --locked
-          cargo test -p fandhe-frontend-pre-styled-ui --test xss_escape --locked
+          cargo test -p fandhe-frontend-pre-styled-ui --test xss_escape --test xss_escape_styled --locked
 
       # TASK-13.3c（#141）: `fw gate`（crates/cli/src/gate.rs）の `policy` チェックは
       # `cargo deny check bans licenses sources` を実際に起動する。cargo-deny
