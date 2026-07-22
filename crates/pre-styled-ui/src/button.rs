@@ -1,16 +1,24 @@
 //! Button（イシュー #550）: 単一 recipe styled 部品。`<button type="button">`
 //! を組み立てる。
 //!
-//! `loading: true` のとき [`crate::spinner::spinner`] を子ノード先頭へ埋め込む
+//! `loading: true` のとき [`crate::spinner::spinner_decorative`]（`role`/
+//! `aria-label` を持たない装飾用途の Spinner）を子ノード先頭へ埋め込む
 //! （呼び出し先の契約: Spinner は状態機械を要しない静的部品であり、Button の
-//! 内部でのみ組み立てて返す）。呼び出し側 `attrs` は `class_attr::drop_class_attr`
-//! を経由して `class` を除去してから合成し、recipe が生成するクラスが常に
-//! 唯一の `class` 属性値になる。
+//! 内部でのみ組み立てて返す。ボタン自身の `aria-busy` が既に読み上げ状態を
+//! 伝えるため、公開 API の [`crate::spinner::spinner`] が持つ
+//! `role="status"` + `aria-label` のライブリージョンを二重に埋め込まない）。
+//! また `loading: true` のときは `disabled: true` と同様に `disabled` 属性・
+//! `data-disabled`・`aria-disabled="true"` も付与し、読み込み中のクリック・
+//! 暗黙 submit による重複アクションの発火を防ぐ（Medium severity のバグ
+//! 指摘の是正、`aria-busy`/`data-loading` だけでは操作を止められないため）。
+//! 呼び出し側 `attrs` は `class_attr::drop_class_attr` を経由して `class` を
+//! 除去してから合成し、recipe が生成するクラスが常に唯一の `class` 属性値に
+//! なる。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{Size, SlotRecipe, VariantValue};
-use crate::spinner::{spinner, SpinnerProps};
+use crate::spinner::spinner_decorative;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, aria_disabled, data_disabled, Anatomy};
 
@@ -57,7 +65,10 @@ pub struct ButtonProps {
     /// `aria-disabled="true"` を付与する。
     pub disabled: bool,
     /// 読み込み中。`true` のとき `aria-busy="true"`・`data-loading` を付与し、
-    /// [`crate::spinner::spinner`] を子ノード先頭へ埋め込む。
+    /// [`crate::spinner::spinner_decorative`] を子ノード先頭へ埋め込む。
+    /// [`Self::disabled`] と同様に `disabled` 属性・`data-disabled`・
+    /// `aria-disabled="true"` も付与し、読み込み中のクリック・暗黙 submit
+    /// を止める。
     pub loading: bool,
 }
 
@@ -187,7 +198,7 @@ pub fn button<'a>(
     ]);
 
     let mut merged: Vec<(&str, &str)> = vec![("type", "button"), ("class", class.as_str())];
-    if props.disabled {
+    if props.disabled || props.loading {
         merged.push(("disabled", ""));
         merged.extend(data_disabled(true));
         merged.push(aria_disabled(true));
@@ -200,10 +211,7 @@ pub fn button<'a>(
 
     let mut node_children = Vec::with_capacity(children.len() + 1);
     if props.loading {
-        node_children.push(spinner(&SpinnerProps {
-            size: Size::Sm,
-            label: "Loading",
-        }));
+        node_children.push(spinner_decorative(Size::Sm));
     }
     node_children.extend(children);
 
@@ -293,6 +301,30 @@ mod tests {
         let spinner_pos = html.find("data-scope=\"spinner\"").unwrap();
         let save_pos = html.find("Save").unwrap();
         assert!(spinner_pos < save_pos);
+    }
+
+    #[test]
+    fn loading_also_disables_button_to_prevent_duplicate_actions() {
+        let props = ButtonProps {
+            loading: true,
+            ..ButtonProps::default()
+        };
+        let html = render(&button(&props, vec![], vec![text("Save")]));
+        assert!(html.contains(r#"disabled="""#));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"aria-disabled="true""#));
+    }
+
+    #[test]
+    fn loading_spinner_is_decorative_and_does_not_break_button_name() {
+        let props = ButtonProps {
+            loading: true,
+            ..ButtonProps::default()
+        };
+        let html = render(&button(&props, vec![], vec![text("Save")]));
+        assert!(!html.contains(r#"role="status""#));
+        assert!(!html.contains("aria-label"));
+        assert!(html.contains(r#"aria-hidden="true""#));
     }
 
     #[test]
