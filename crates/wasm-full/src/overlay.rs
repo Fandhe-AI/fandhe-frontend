@@ -207,6 +207,36 @@ pub struct OverlayCloseRequest {
     /// スタック上の index（呼び出し側が対応する content 要素・状態を
     /// 特定するために使う。[`wiring::OverlayCloseController::push_overlay`]
     /// が返す index と対応する）。
+    ///
+    /// # 不変条件: index は非最上位の remove でシフトする
+    ///
+    /// この index は [`wiring::OverlayCloseController`] が内部で保持する
+    /// `Vec` 上の**現在位置**であり、要素へのモノトニックなハンドルでは
+    /// ない。最上位でないエントリを
+    /// [`wiring::OverlayCloseController::remove_overlay`] で取り除くと、
+    /// それより上位（大きい index）の全エントリの index が 1 ずつ
+    /// シフトする（`Vec::remove` の仕様）。
+    ///
+    /// そのため、呼び出し側（イシュー #580 統合層）が「内部 close（既存
+    /// close button 等、本コントローラの keydown/pointerdown 経路を通らず
+    /// 独自に `remove_overlay` を呼ぶ経路）」で非最上位のオーバーレイを
+    /// 閉じる場合、呼び出し側が保持する「index → オーバーレイ状態」の
+    /// 対応表は `remove_overlay` 呼び出し直後にその上位分だけ古くなる。
+    /// 具体例: `push_overlay` で Dialog(A) が index 0、Popover(B) が
+    /// index 1 として開いている状態で、A を内部 close ボタンで閉じ
+    /// `remove_overlay(0)` を呼ぶと、B は内部的に index 0 へシフトする。
+    /// この後 B で Escape を押すと発行される `OverlayCloseRequest` の
+    /// `index` は 0（コントローラ内では正しい最上位）だが、呼び出し側が
+    /// 「B は index 1」のまま対応表を更新していないと取り違いが起きる。
+    ///
+    /// 呼び出し側は次のいずれかで対処する必要がある:
+    /// - 内部 close で `remove_overlay` を呼ぶたびに、対応表上のそれより
+    ///   大きい index を全て 1 減算して同期する
+    /// - index を対応表のキーに使わず、push 時に呼び出し側が発行する
+    ///   シフトに強いモノトニックなハンドル（オーバーレイ ID 等）を別途
+    ///   管理し、[`wiring::OverlayCloseController::push_overlay`] が返す
+    ///   index はコントローラへの操作（`remove_overlay` の引数）専用の
+    ///   一時的な値として扱う
     pub index: usize,
 }
 
@@ -356,10 +386,22 @@ mod wiring {
                     callback(request);
                 }
             });
-            document.add_event_listener_with_callback(
+            if let Err(err) = document.add_event_listener_with_callback(
                 "pointerdown",
                 pointerdown_closure.as_ref().unchecked_ref(),
-            )?;
+            ) {
+                // keydown の登録は既に成功しているが、この時点では
+                // `Self` を構築できておらず `Drop` が走らない
+                // （対称的な登録・解除を保証する本型の doc 冒頭の前提が
+                // 崩れる）。ここで明示的に keydown を解除し、リスナー
+                // リークを防ぐ（戻り値は無視: 解除自体の失敗は復旧不能な
+                // 異常系であり、呼び出し元へは元の登録エラーを伝える）。
+                let _ = document.remove_event_listener_with_callback(
+                    "keydown",
+                    keydown_closure.as_ref().unchecked_ref(),
+                );
+                return Err(err);
+            }
 
             Ok(Self {
                 document: document.clone(),
@@ -379,7 +421,9 @@ mod wiring {
         /// [`OverlayEntry`] へスナップショットする。
         ///
         /// 戻り値の index は [`OverlayCloseRequest::index`] と対応し、呼び出し側が
-        /// [`Self::remove_overlay`] を呼ぶ際に使う。
+        /// [`Self::remove_overlay`] を呼ぶ際に使う。この index は
+        /// **push 時点のスタック末尾位置**であり、以降の非最上位 remove で
+        /// シフトしうる（[`OverlayCloseRequest::index`] の「不変条件」節参照）。
         #[must_use]
         pub fn push_overlay(&self, content: &Element, trigger: Option<&Element>) -> Option<usize> {
             let scope = content.get_attribute("data-scope")?;
@@ -403,6 +447,16 @@ mod wiring {
         /// 対称の呼び出しを呼び出し側の契約とする）。`index` が範囲外の場合は
         /// panic せず no-op とする（呼び出し側の二重 remove・契約違反に対する
         /// 安全側フォールバック）。
+        ///
+        /// # 不変条件: 非最上位の remove は上位 index を全てシフトさせる
+        ///
+        /// 内部的には `Vec::remove(index)` を使うため、`index` が最上位
+        /// （`stack_len() - 1`）でない場合、それより上位にある全エントリの
+        /// index が 1 ずつ詰められる（シフトする）。呼び出し側が
+        /// 「index → オーバーレイ状態」の対応表を保持している場合、この
+        /// シフトにより対応表が実体と乖離しうる。詳細な失敗シナリオと
+        /// 呼び出し側が取るべき対処は [`OverlayCloseRequest::index`] の
+        /// doc を参照。
         pub fn remove_overlay(&self, index: usize) {
             let mut stack = self.stack.borrow_mut();
             if index < stack.len() {
