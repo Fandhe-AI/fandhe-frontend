@@ -867,6 +867,65 @@ fn menu_closed_arrow_down_opens_via_synthesized_click_and_sets_initial_highlight
     );
 }
 
+/// closed の trigger 上で Enter/Space を押した場合も ArrowDown と同じく
+/// `click()` が合成され初期 highlight（先頭の非 disabled 項目）が設定される。
+/// ネイティブ `<button>` の既定 click 発火に任せた場合、本ハンドラが戻った
+/// 後で非同期に click が発火し初期 highlight を設定する機会がないまま open
+/// してしまう回帰（Bugbot 指摘、イシュー #583）のテスト。
+#[wasm_bindgen_test]
+fn menu_closed_enter_and_space_open_via_synthesized_click_and_set_initial_highlight() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    for (root_id, key) in [("kn-menu-open-enter", "Enter"), ("kn-menu-open-space", " ")] {
+        let root = build_menu_dom(
+            &document,
+            root_id,
+            &[("a", "A", false), ("b", "B", false)],
+            false,
+            false,
+        );
+        let _cleanup = RemoveOnDrop(root.clone());
+
+        let content = document
+            .get_element_by_id(&format!("{root_id}-content"))
+            .unwrap();
+        let open_closure = wasm_bindgen::closure::Closure::<dyn FnMut(Event)>::new({
+            let content = content.clone();
+            move |_event: Event| {
+                let _ = content.remove_attribute("hidden");
+            }
+        });
+        let trigger = document
+            .get_element_by_id(&format!("{root_id}-trigger"))
+            .unwrap();
+        trigger
+            .add_event_listener_with_callback("click", open_closure.as_ref().unchecked_ref())
+            .unwrap();
+        open_closure.forget();
+
+        wire_keynav(root.clone()).expect("wire_keynav must succeed");
+        html_element(&trigger).focus().unwrap();
+
+        let not_default_prevented = trigger.dispatch_event(&keydown_event(key)).unwrap();
+        assert!(
+            !not_default_prevented,
+            "closed trigger 上の Enter/Space は prevent_default されるべき"
+        );
+
+        assert!(!content.has_attribute("hidden"));
+        let item_a = document
+            .get_element_by_id(&format!("{root_id}-item-a"))
+            .unwrap();
+        assert!(
+            item_a.has_attribute("data-highlighted"),
+            "key={key}: Enter/Space で開いた直後も先頭項目が highlight されるべき"
+        );
+        assert_eq!(
+            content.get_attribute("aria-activedescendant").as_deref(),
+            Some(format!("{root_id}-item-a").as_str())
+        );
+    }
+}
+
 /// open の Menu で ArrowDown/ArrowUp/Home/End が highlight を移動し、
 /// `aria-activedescendant` が追随し、disabled をスキップし、既定では端で
 /// 循環しない。
@@ -954,6 +1013,109 @@ fn menu_open_with_explicit_loop_focus_true_wraps_at_ends() {
     trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
     assert!(item_a.has_attribute("data-highlighted"));
     assert!(!item_b.has_attribute("data-highlighted"));
+}
+
+/// 親 Menu の item 収集がネストしたサブメニュー（`trigger-item` が開く子
+/// Menu の content）配下の item/trigger-item まで拾ってしまい、親の
+/// Arrow/Home/End 操作がスコープ外のサブメニュー項目を移動・highlight して
+/// しまう回帰（Bugbot 指摘、イシュー #583）のテスト。
+///
+/// 親 content 直下に item "a"・trigger-item "sub" を置き、"sub" の子孫に
+/// （open 状態の）ネストした子 Menu content（item "x"・"y"）を配置する。
+/// `query_selector_all` は subtree 全体を対象にするため、フィルタが無ければ
+/// `[a, sub, x, y]` の 4 件が親の highlight 候補に混入する。
+#[wasm_bindgen_test]
+fn menu_open_arrow_and_end_do_not_reach_into_nested_submenu_items() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom(
+        &document,
+        "kn-menu-nested1",
+        &[("a", "A", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let content = document
+        .get_element_by_id("kn-menu-nested1-content")
+        .unwrap();
+
+    // 親 content 直下に trigger-item "sub" を追加する。
+    let trigger_item = document.create_element("div").unwrap();
+    trigger_item.set_attribute("data-scope", "menu").unwrap();
+    trigger_item
+        .set_attribute("data-part", "trigger-item")
+        .unwrap();
+    trigger_item
+        .set_attribute("id", "kn-menu-nested1-item-sub")
+        .unwrap();
+    trigger_item.set_text_content(Some("Sub"));
+    content.append_child(&trigger_item).unwrap();
+
+    // "sub" の子孫にネストした子 Menu（root/content/item x, y）を配置する
+    // （open 状態、`hidden` 属性なし）。
+    let nested_root = document.create_element("div").unwrap();
+    nested_root.set_attribute("data-scope", "menu").unwrap();
+    nested_root.set_attribute("data-part", "root").unwrap();
+    let nested_content = document.create_element("div").unwrap();
+    nested_content.set_attribute("data-scope", "menu").unwrap();
+    nested_content
+        .set_attribute("data-part", "content")
+        .unwrap();
+    nested_content
+        .set_attribute("id", "kn-menu-nested1-nested-content")
+        .unwrap();
+    for value in ["x", "y"] {
+        let item = document.create_element("div").unwrap();
+        item.set_attribute("data-scope", "menu").unwrap();
+        item.set_attribute("data-part", "item").unwrap();
+        item.set_attribute("id", &format!("kn-menu-nested1-item-{value}"))
+            .unwrap();
+        nested_content.append_child(&item).unwrap();
+    }
+    nested_root.append_child(&nested_content).unwrap();
+    trigger_item.append_child(&nested_root).unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-menu-nested1-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    let item_a = document
+        .get_element_by_id("kn-menu-nested1-item-a")
+        .unwrap();
+    let item_sub = document
+        .get_element_by_id("kn-menu-nested1-item-sub")
+        .unwrap();
+    let item_x = document
+        .get_element_by_id("kn-menu-nested1-item-x")
+        .unwrap();
+    let item_y = document
+        .get_element_by_id("kn-menu-nested1-item-y")
+        .unwrap();
+
+    // End は親スコープの末尾（sub）へ。ネスト内の y へは到達しない。
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(item_sub.has_attribute("data-highlighted"));
+    assert!(!item_y.has_attribute("data-highlighted"));
+    assert!(!item_x.has_attribute("data-highlighted"));
+
+    // Home で親スコープの先頭（a）へ。
+    trigger.dispatch_event(&keydown_event("Home")).unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+    assert!(!item_sub.has_attribute("data-highlighted"));
+
+    // ArrowDown で次（sub）。末尾到達のため、更に ArrowDown してもネスト内の
+    // x/y へは進まない（親スコープは a, sub の 2 件のみ）。
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(item_sub.has_attribute("data-highlighted"));
+    let not_default_prevented = trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(!not_default_prevented);
+    assert!(item_sub.has_attribute("data-highlighted"));
+    assert!(!item_x.has_attribute("data-highlighted"));
+    assert!(!item_y.has_attribute("data-highlighted"));
 }
 
 /// open の Menu で Enter/Space を押すと highlight 中の項目へ `click()` が

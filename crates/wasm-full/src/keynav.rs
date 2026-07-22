@@ -83,10 +83,13 @@
 //! 既存契約を変更しない）ため、本モジュールは trigger 上の keydown のみを
 //! 監視し、フォーカス移動を伴わない highlight 更新に統一する。
 //!
-//! - **closed のとき**: ArrowDown/ArrowUp で trigger へ `click()` を合成して
-//!   開く（`prevent_default`）。Enter/Space はネイティブ `<button>` が
-//!   click を発火するため合成しない（[`events::wire_events`] が
-//!   `data-action` 経由で開閉 dispatch を処理する既存経路に委ねる）。
+//! - **closed のとき**: ArrowDown/ArrowUp/Enter/Space で trigger へ `click()`
+//!   を合成して開く（`prevent_default`）。Enter/Space もネイティブ
+//!   `<button>` の既定 click 発火に任せず明示的に合成する。ネイティブ発火に
+//!   任せると本ハンドラが戻った後で非同期に click が発火し、初期 highlight を
+//!   設定する機会がないまま open してしまうため（Bugbot 指摘、イシュー
+//!   #583）。開いた直後、可能であれば初期 highlight（先頭または末尾の非
+//!   disabled 項目）を設定する。
 //! - **open のとき**: ArrowDown/ArrowUp/Home/End で [`highlight_next_index`]
 //!   により次の highlight 対象を求め、`data-highlighted` の付け替えと
 //!   content の `aria-activedescendant` を highlight 対象の `id` へ更新する
@@ -1405,6 +1408,32 @@ mod wiring {
             .position(|item| item.has_attribute("data-highlighted"))
     }
 
+    /// `items` から、`content`（keydown を受けた Menu/Select 自身の content）に
+    /// 属さない項目を除外する。`collect_parts` は `query_selector_all` で
+    /// content 配下の subtree 全体を対象にするため、ネストしたサブメニュー
+    /// （`trigger-item` が開く子 Menu の content）配下の item/trigger-item も
+    /// 混入してしまう。各項目から `closest(content_selector)` で最も近い
+    /// content 祖先を求め、それが `content` 自身と一致する項目のみを残すことで、
+    /// 親の Arrow/Home/End・Enter/Space 操作がスコープ外のサブメニュー項目を
+    /// 移動・アクティブ化するのを防ぐ（Bugbot 指摘、イシュー #583）。
+    /// `content_selector` は呼び出し元（Menu/Select 共通実装）から渡される
+    /// スコープ固有セレクタで、`MENU_CONTENT_SELECTOR` 固定にすると Select
+    /// （`data-scope="select"`）側の項目がすべて誤って除外されてしまう。
+    /// `closest` が失敗する（祖先に content が無い）場合も安全側で除外する。
+    fn filter_own_scope_items(
+        items: Vec<Element>,
+        content: &Element,
+        content_selector: &str,
+    ) -> Vec<Element> {
+        items
+            .into_iter()
+            .filter(|item| {
+                closest(item, content_selector)
+                    .is_some_and(|nearest| nearest.is_same_node(Some(content)))
+            })
+            .collect()
+    }
+
     /// `items[next_index]` のみへ `data-highlighted` を付与し、他項目からは
     /// 除去する。`content` の `aria-activedescendant` を highlight 対象の
     /// `id` へ更新し、`id` が欠落している場合は属性ごと除去する
@@ -1432,17 +1461,25 @@ mod wiring {
     /// §Menu/Select 参照）。`content_selector`/`item_selector` で Menu/Select
     /// のいずれのスコープかを切り替える薄い共通実装。
     ///
-    /// - content が closed のとき: ArrowDown/ArrowUp で trigger へ `click()`
-    ///   を合成して開く（`prevent_default`）。開いた直後、可能であれば
-    ///   content/items を再解決して初期 highlight（ArrowDown なら先頭、
-    ///   ArrowUp なら末尾の非 disabled 項目）を設定する（再描画後の DOM
-    ///   差し替えで解決に失敗しても no-op、fail-closed）。
+    /// - content が closed のとき: ArrowDown/ArrowUp/Enter/Space で trigger へ
+    ///   `click()` を合成して開く（`prevent_default`）。Enter/Space も
+    ///   ArrowDown と同じく `prevent_default` した上で明示的に `click()` を
+    ///   合成する（ネイティブ `<button>` の既定 click 発火に任せない）。
+    ///   ネイティブ発火に任せると、本ハンドラが戻った後で非同期に click が
+    ///   発火し初期 highlight を設定する機会がないまま open してしまい、
+    ///   直後の Enter/Space が highlight 不在で no-op になる（Bugbot 指摘、
+    ///   イシュー #583）。開いた直後、可能であれば content/items を再解決して
+    ///   初期 highlight（ArrowDown・Enter・Space なら先頭、ArrowUp なら末尾の
+    ///   非 disabled 項目）を設定する（再描画後の DOM 差し替えで解決に
+    ///   失敗しても no-op、fail-closed）。
     /// - content が open のとき: ArrowDown/ArrowUp/Home/End で
     ///   [`highlight_next_index`] へ委譲し `data-highlighted`/
     ///   `aria-activedescendant` を更新する。Enter/Space は highlight 中の
     ///   項目へ `click()` を合成する（disabled・highlight 不在は no-op）。
     ///   ページスクロール抑止・trigger 自身の再クリック抑止のため、
-    ///   ハンドリング対象キーは常に `prevent_default` する。
+    ///   ハンドリング対象キーは常に `prevent_default` する。項目集合は
+    ///   [`filter_own_scope_items`] でこの content 直下（ネストしたサブメニュー
+    ///   content を除く）にスコープする。
     fn handle_menu_or_select_trigger_keydown(
         root: &Element,
         trigger: &Element,
@@ -1464,7 +1501,13 @@ mod wiring {
         let is_open = !content.has_attribute("hidden");
 
         if !is_open {
-            if key == "ArrowDown" || key == "ArrowUp" {
+            // ArrowUp のみ末尾の非 disabled 項目を初期 highlight にする。
+            // ArrowDown・Enter・Space はいずれも先頭から開始する
+            // （WAI-ARIA APG Menu Button/Listbox パターン準拠）。
+            let initial_from_end = key == "ArrowUp";
+            let should_open =
+                key == "ArrowDown" || key == "ArrowUp" || key == "Enter" || key == " ";
+            if should_open {
                 event.prevent_default();
                 if let Ok(html_trigger) = trigger.clone().dyn_into::<HtmlElement>() {
                     html_trigger.click();
@@ -1476,12 +1519,16 @@ mod wiring {
                 {
                     if root.contains(Some(&content_after)) && !content_after.has_attribute("hidden")
                     {
-                        let items = collect_parts(&content_after, item_selector);
+                        let items = filter_own_scope_items(
+                            collect_parts(&content_after, item_selector),
+                            &content_after,
+                            content_selector,
+                        );
                         let disabled = disabled_flags(&items);
-                        let initial = if key == "ArrowDown" {
-                            first_non_disabled(&disabled)
-                        } else {
+                        let initial = if initial_from_end {
                             last_non_disabled(&disabled)
+                        } else {
+                            first_non_disabled(&disabled)
                         };
                         if let Some(idx) = initial {
                             set_highlight(&items, idx, &content_after);
@@ -1499,7 +1546,11 @@ mod wiring {
                 // （モジュール doc の契約）。preventDefault を怠るとページ
                 // スクロールが素通りしてしまう（Bugbot 指摘、イシュー #583）。
                 event.prevent_default();
-                let items = collect_parts(&content, item_selector);
+                let items = filter_own_scope_items(
+                    collect_parts(&content, item_selector),
+                    &content,
+                    content_selector,
+                );
                 let disabled = disabled_flags(&items);
                 let current = find_highlighted_index(&items);
                 let loop_focus =
@@ -1512,7 +1563,11 @@ mod wiring {
             }
             "Enter" | " " => {
                 event.prevent_default();
-                let items = collect_parts(&content, item_selector);
+                let items = filter_own_scope_items(
+                    collect_parts(&content, item_selector),
+                    &content,
+                    content_selector,
+                );
                 if let Some(idx) = find_highlighted_index(&items) {
                     let disabled = disabled_flags(&items);
                     if !disabled[idx] {
