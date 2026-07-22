@@ -28,7 +28,8 @@
 //! 8. Menu/Select: closed 時 ArrowDown で open + 初期 highlight、open 時
 //!    Arrow/Home/End で highlight 移動・`aria-activedescendant` 追随・
 //!    disabled スキップ・既定非循環・`data-loop-focus="true"` で循環、
-//!    Enter/Space で highlight 項目へ click 合成
+//!    Enter/Space で highlight 項目へ click 合成、Escape で highlight の
+//!    みクリア（close 自体は行わない、Bugbot 指摘・イシュー #583 回帰）
 //! 9. RadioGroup: Arrow 移動 + 同時 check + `data-state` 4 パーツ同期・循環・
 //!    disabled スキップ・orientation 制限・Home/End・`change` 同期
 //!
@@ -1214,6 +1215,96 @@ fn select_open_arrow_moves_highlight_and_enter_clicks_highlighted_item() {
 
     trigger.dispatch_event(&keydown_event("Enter")).unwrap();
     assert!(item_banana.has_attribute("data-clicked"));
+}
+
+/// Menu が open のまま Escape を受けると、`data-highlighted`/
+/// `aria-activedescendant` がクリアされる（本モジュールが書き込んだ
+/// highlight 表現の後始末のみで、`hidden`/`data-state` の実際の close は
+/// 依然として overlay モジュール（#580 統合層）の責務、モジュール doc
+/// §Menu/Select 参照）。Bugbot 指摘（イシュー #583）の回帰固定:
+/// Escape 後にマウス等で reopen した際、最初の Arrow キーが古い highlight
+/// から続かず先頭から開始することを、highlight クリア済みの状態で検証する。
+#[wasm_bindgen_test]
+fn menu_open_escape_clears_highlight_without_closing() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom(
+        &document,
+        "kn-menu-esc1",
+        &[("a", "A", false), ("b", "B", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-menu-esc1-trigger").unwrap();
+    let content = document.get_element_by_id("kn-menu-esc1-content").unwrap();
+    let item_a = document.get_element_by_id("kn-menu-esc1-item-a").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+    assert_eq!(
+        content.get_attribute("aria-activedescendant").as_deref(),
+        Some("kn-menu-esc1-item-a")
+    );
+
+    trigger.dispatch_event(&keydown_event("Escape")).unwrap();
+    assert!(
+        !item_a.has_attribute("data-highlighted"),
+        "Escape で古い highlight がクリアされるべき"
+    );
+    assert!(
+        content.get_attribute("aria-activedescendant").is_none(),
+        "Escape で aria-activedescendant もクリアされるべき"
+    );
+    // 本モジュールは close 自体（`hidden`/`data-state`）を行わない
+    // （overlay モジュールの責務、モジュール doc 参照）。
+    assert!(
+        !content.has_attribute("hidden"),
+        "本モジュールは Escape で content を close しない"
+    );
+
+    // 再オープン相当の次の ArrowDown は、古い highlight が残っていないため
+    // 先頭（a）から開始する。
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+}
+
+/// Select も Menu と同じ Escape highlight クリア契約を共有する
+/// （`select_open_arrow_moves_highlight_and_enter_clicks_highlighted_item`
+/// と同じ SSR 契約、Bugbot 指摘、イシュー #583）。
+#[wasm_bindgen_test]
+fn select_open_escape_clears_highlight_without_closing() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_select_dom(
+        &document,
+        "kn-select-esc1",
+        &[("apple", "Apple", false), ("banana", "Banana", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-select-esc1-trigger")
+        .unwrap();
+    let content = document
+        .get_element_by_id("kn-select-esc1-content")
+        .unwrap();
+    let item_apple = document
+        .get_element_by_id("kn-select-esc1-item-apple")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(item_apple.has_attribute("data-highlighted"));
+
+    trigger.dispatch_event(&keydown_event("Escape")).unwrap();
+    assert!(!item_apple.has_attribute("data-highlighted"));
+    assert!(content.get_attribute("aria-activedescendant").is_none());
+    assert!(!content.has_attribute("hidden"));
 }
 
 // ---------------------------------------------------------------------

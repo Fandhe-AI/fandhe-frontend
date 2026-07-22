@@ -104,8 +104,20 @@
 //! - content の解決は trigger の `aria-controls` を優先し、欠落時は
 //!   `closest("[data-part=\"root\"]")` 配下の content パーツへフォール
 //!   バックする。
-//! - Escape による閉鎖は [`overlay`] モジュール（イシュー #585/#610）の
-//!   既存責務のため本モジュールでは扱わない。
+//! - Escape による**閉鎖**（`hidden`/`data-state` の更新）は [`overlay`]
+//!   モジュール（イシュー #585/#610、#580 統合層）の既存責務のため本
+//!   モジュールでは扱わない。ただし highlight（`data-highlighted`/
+//!   `aria-activedescendant`）は本モジュール自身が書き込む状態であり
+//!   overlay 側は関知しないため、open のまま Escape を受けた時点で
+//!   [`set_highlight`] の逆操作（highlight のクリア）のみを行う
+//!   （実装は [`handle_menu_or_select_trigger_keydown`] の `"Escape"` 腕・
+//!   [`clear_highlight`]）。これにより、閉鎖経路（クリックによる再オープン・
+//!   将来の #580 統合層による Escape/outside click 閉鎖のいずれも）を問わず
+//!   reopen 後の最初の Arrow キーが古い highlight から続くのを防ぐ
+//!   （Bugbot 指摘、イシュー #583）。**outside click（overlay の
+//!   document 単位 pointerdown 委譲）による閉鎖時の highlight 後始末は、
+//!   本モジュールが root スコープの委譲リスナーしか持たず outside click を
+//!   観測できないため対象外**（#580 統合層側で対応する）。
 //! - サブメニュー（`trigger-item`）の ArrowRight/ArrowLeft 開閉ナビゲーション・
 //!   typeahead は本イシュー（#583）のスコープ外（PR 本文で Issue 化を提案）。
 //!
@@ -1457,6 +1469,24 @@ mod wiring {
         }
     }
 
+    /// `items` すべてから `data-highlighted` を除去し、`content` の
+    /// `aria-activedescendant` も除去する（[`set_highlight`] の逆操作）。
+    ///
+    /// Escape キーで highlight をクリアするために使う（モジュール doc
+    /// §Menu/Select「Escape によるクローズ」節参照、Bugbot 指摘、イシュー
+    /// #583）。**Menu/Select の実際の close（`hidden`/`data-state` の更新）は
+    /// 依然として [`overlay`](crate::overlay) モジュール（#580 統合層）の責務であり、
+    /// 本関数はキーボード配線層自身が書き込んだ highlight 表現の後始末のみを
+    /// 行う（クローズそのものではない）**。呼び出し時点で content がまだ
+    /// open のままでも副作用として問題はない（highlight 表示が一時的に消える
+    /// だけで、fail-closed な no-op と同じ安全側の状態になる）。
+    fn clear_highlight(items: &[Element], content: &Element) {
+        for item in items {
+            let _ = item.remove_attribute("data-highlighted");
+        }
+        let _ = content.remove_attribute("aria-activedescendant");
+    }
+
     /// Menu/Select trigger 上の keydown を処理する（モジュール doc
     /// §Menu/Select 参照）。`content_selector`/`item_selector` で Menu/Select
     /// のいずれのスコープかを切り替える薄い共通実装。
@@ -1576,6 +1606,24 @@ mod wiring {
                         }
                     }
                 }
+            }
+            "Escape" => {
+                // Menu/Select 自体の close は [`overlay`](crate::overlay) モジュール
+                // （#580 統合層）の責務のため、ここでは `hidden`/`data-state` を
+                // 一切書き換えない。だが highlight（`data-highlighted`/
+                // `aria-activedescendant`）は本モジュール自身が書き込む状態
+                // であり、overlay 側は関知しないため、ここで放置すると
+                // Escape → 再度マウス等で reopen → 最初の Arrow キーが古い
+                // highlight から続いてしまう（Bugbot 指摘、イシュー #583）。
+                // `prevent_default`/`stop_propagation` は呼ばない
+                // （overlay.rs の document keydown リスナーが同じ Escape を
+                // 引き続き観測して実際の close 判定を行える必要がある）。
+                let items = filter_own_scope_items(
+                    collect_parts(&content, item_selector),
+                    &content,
+                    content_selector,
+                );
+                clear_highlight(&items, &content);
             }
             _ => {}
         }
