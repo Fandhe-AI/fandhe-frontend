@@ -37,6 +37,9 @@
 //! - [`mod@tabs`]: WAI-ARIA APG の Tabs パターンに準拠したマークアップを組み立てる
 //!   [`tabs::tabs`]（#528）。SSR 時点の静的な選択状態のみを扱い、クリック/
 //!   キーボード操作・状態機械連携は後続イシューのスコープ。
+//! - [`mod@collapsible`]: Root/Trigger/Indicator/Content の anatomy パーツ関数群と、
+//!   [`state::Disclosure`] を埋め込んだ [`collapsible::Collapsible`] 状態機械
+//!   （#529、親 #526）。Phase 2 で [`state`] を具象コンポーネントへ適用する最初の例。
 //!
 //! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
 //! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
@@ -51,6 +54,7 @@
 
 pub mod anatomy;
 pub mod aria;
+pub mod collapsible;
 pub mod data_attrs;
 pub mod state;
 pub mod tabs;
