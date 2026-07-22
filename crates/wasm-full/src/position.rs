@@ -193,11 +193,21 @@ mod wiring {
     /// 再計算する必要がない）。
     const OPEN_POSITIONER_SELECTOR: &str = "[data-part=\"positioner\"][data-state=\"open\"]";
 
-    /// `element` の祖先方向へ `data-scope` を持つ要素（anatomy の scope
-    /// root）を探す（`closest` の代替。`web_sys::Element::closest` は
-    /// セレクタ文字列を要求するため `[data-scope]` を渡す）。
+    /// `element` の祖先方向へ anatomy の scope root（`data-part="root"`）を
+    /// 探す。
+    ///
+    /// `anatomy::Anatomy::part` は `root` を含む**全ての**パーツへ
+    /// `data-scope` を付与するため（`headless-ui` の `popover`/`tooltip`/
+    /// `menu`/`select` いずれも `root`/`trigger`/`anchor`/`positioner`/
+    /// `content` 等すべてが同じ `data-scope` 値を持つ）、単に
+    /// `[data-scope]` で `closest` すると `positioner` 自身が自己マッチして
+    /// しまい、真の scope root（`anchor`/`trigger` を子孫に持つ祖先）まで
+    /// 辿り着けない（`closest` は呼び出し要素自身も候補に含む DOM 仕様の
+    /// ため）。`data-part="root"` は 4 コンポーネントいずれも scope root
+    /// にのみ付与される固有の part 名であるため、これを直接セレクタへ
+    /// 指定することで自己マッチを避ける。
     fn find_scope_root(element: &Element) -> Option<Element> {
-        element.closest("[data-scope]").ok().flatten()
+        element.closest("[data-part=\"root\"]").ok().flatten()
     }
 
     /// scope root 配下の anchor 要素を解決する。`[data-part="anchor"]` が
@@ -259,6 +269,29 @@ mod wiring {
     ///
     /// anchor が見つからない・`data-scope` が未知の場合は no-op とする
     /// （fail-closed。マークアップが不完全でも panic しない）。
+    /// `element.set_attribute(name, value)` の薄いガード付きラッパー
+    /// （イシュー #401 の `fw gate` `url_validation_check` 契約に準拠、
+    /// `.claude/rules/security.md`）。本モジュールが書き込む属性
+    /// （`style`/`data-side`/`data-align`）はいずれも `&'static str`
+    /// リテラルで固定された非 URL・非イベントハンドラ属性であり、`style`
+    /// 値も内部生成の数値のみで実害はないが、`fandhe_frontend_core::url`
+    /// のガード関数群（`is_event_handler_attr`/`is_url_attr`/
+    /// `is_safe_url`/`is_safe_srcset`）を経由することで、将来 `name`/
+    /// `value` が動的な入力から組み立てられるよう変更された場合の防御
+    /// としても機能する（`keynav::set_dom_attribute` と同じガード方針）。
+    fn set_dom_attribute(element: &Element, name: &str, value: &str) {
+        if fandhe_frontend_core::is_event_handler_attr(name) {
+            return;
+        }
+        if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value) {
+            return;
+        }
+        if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
+            return;
+        }
+        let _ = element.set_attribute(name, value);
+    }
+
     fn reposition_one(positioner: &Element, window: &Window) {
         let Some(scope_root) = find_scope_root(positioner) else {
             return;
@@ -296,9 +329,9 @@ mod wiring {
             requested,
         );
 
-        let _ = positioner.set_attribute("style", &result.style);
-        let _ = positioner.set_attribute("data-side", result.side.as_str());
-        let _ = positioner.set_attribute("data-align", result.align.as_str());
+        set_dom_attribute(positioner, "style", &result.style);
+        set_dom_attribute(positioner, "data-side", result.side.as_str());
+        set_dom_attribute(positioner, "data-align", result.align.as_str());
 
         if kind.has_arrow() {
             if let Some(arrow_element) = find_arrow(&scope_root) {
@@ -309,7 +342,7 @@ mod wiring {
                 // だが、arrow 要素自身の `style` にも明示反映することで
                 // pre-styled-ui 側のセレクタ設計を CSS 変数継承に限定しない
                 // 柔軟性を残す）。
-                let _ = arrow_element.set_attribute("style", &result.style);
+                set_dom_attribute(&arrow_element, "style", &result.style);
             }
         }
     }

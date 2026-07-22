@@ -141,6 +141,7 @@ Popover/Tooltip/Menu/Select の `positioner`/`arrow`/`arrow_tip` は「CSS フ�
   上層（chakra-ui 相当）
 - [`examples/headless-pre-styled-ui/README.md`](../../examples/headless-pre-styled-ui/README.md):
   本クレートのショーケース正本サンプル
-- [`docs/design/anchor-positioning-design.md`](../design/anchor-positioning-design.md):
-  anchor positioning の設計確定書（イシュー #589、正の規範文書）
+- `docs/design/anchor-positioning-design.md`: anchor positioning の設計確定書
+  （イシュー #589、正の規範文書。docs サイト nav.toml 未登録の内部設計文書
+  のためリンク化しない）
 - `.claude/skills/ark-ui/`: 設計時の参考にした ark-ui リファレンススキル
