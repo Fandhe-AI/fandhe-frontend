@@ -64,7 +64,8 @@
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
-    aria_controls, aria_expanded, aria_haspopup, aria_labelledby, aria_selected, role, AriaPopup,
+    aria_controls, aria_disabled, aria_expanded, aria_haspopup, aria_labelledby, aria_selected,
+    role, AriaPopup,
 };
 use crate::data_attrs::{data_disabled, data_state};
 use crate::state::{Disclosure, OpenState, SingleSelect, SingleSelectAction};
@@ -273,7 +274,11 @@ pub fn item_group_label<'a>(
 /// [`crate::state::OpenState`] の既存語彙（`"open"`/`"closed"`）で表現する
 /// （モジュール doc §out-of-scope 参照。ark-ui の `checked`/`unchecked` は
 /// 採用しない）。`value` は `data-value` として動的値のまま出力し、
-/// `render()` の既定エスケープを必ず経由する。
+/// `render()` の既定エスケープを必ず経由する。`disabled` が `true` のとき
+/// `aria-disabled="true"` と `data-disabled` を対で付与する（本パーツは
+/// `div[role="option"]` でありネイティブの `disabled` 属性を持たないため、
+/// 支援技術へは ARIA 経由でのみ伝達できる。[`crate::menu::item`] と同じ
+/// 判断）。
 #[must_use]
 pub fn item<'a>(
     selected_state: OpenState,
@@ -288,6 +293,9 @@ pub fn item<'a>(
         data_state(selected_state.as_data_state()),
         ("data-value", value),
     ];
+    if disabled {
+        merged.push(aria_disabled(true));
+    }
     merged.extend(data_disabled(disabled));
     merged.extend(attrs);
     ANATOMY.part("item", "div", merged, children)
@@ -337,6 +345,14 @@ pub fn item_indicator<'a>(
 /// 各要素は `el("option", ..)` として組み立てる。`selected` と `value` が
 /// 一致する option にのみ `selected` 存在属性を付与する。値・ラベルは
 /// いずれも動的だが `render()` の既定エスケープを必ず経由する。
+///
+/// `selected` が `None`（未選択・deselect 後・placeholder 表示中）のときは
+/// `value=""` の非表示 placeholder option（`selected` かつ `disabled` 存在
+/// 属性つき）を先頭へ挿入する。HTML の `<select>` 仕様上、選択済み option が
+/// 一つもない場合ブラウザは自動的に先頭の有効 option を選択済み扱いにして
+/// フォーム送信してしまうため、これを行わないと未選択状態にもかかわらず
+/// 先頭の実 option 値が送信され、呼び出し側（`fandhe-frontend-pre-styled-ui`
+/// 等）が前提とする「未選択なら空値」というフォーム連携契約が壊れる。
 #[must_use]
 pub fn hidden_select<'a>(
     selected: Option<&'a str>,
@@ -354,16 +370,21 @@ pub fn hidden_select<'a>(
     }
     merged.extend(attrs);
 
-    let option_nodes: Vec<Node> = options
-        .into_iter()
-        .map(|(value, option_label)| {
-            let mut option_attrs: Vec<(&'a str, &'a str)> = vec![("value", value)];
-            if selected == Some(value) {
-                option_attrs.push(("selected", ""));
-            }
-            el("option", option_attrs, vec![text(option_label)])
-        })
-        .collect();
+    let mut option_nodes: Vec<Node> = Vec::with_capacity(options.len() + 1);
+    if selected.is_none() {
+        option_nodes.push(el(
+            "option",
+            vec![("value", ""), ("selected", ""), ("disabled", "")],
+            vec![],
+        ));
+    }
+    option_nodes.extend(options.into_iter().map(|(value, option_label)| {
+        let mut option_attrs: Vec<(&'a str, &'a str)> = vec![("value", value)];
+        if selected == Some(value) {
+            option_attrs.push(("selected", ""));
+        }
+        el("option", option_attrs, vec![text(option_label)])
+    }));
 
     ANATOMY.part("hidden-select", "select", merged, option_nodes)
 }
@@ -815,6 +836,19 @@ mod tests {
     }
 
     #[test]
+    fn item_disabled_true_adds_aria_disabled() {
+        // `div[role="option"]` はネイティブの `disabled` を持たないため、
+        // 支援技術へは `aria-disabled` 経由でのみ伝達できる（Bugbot 指摘:
+        // crates/headless-ui/src/select.rs#L277-L294、`menu::item` と同じ
+        // 契約）。
+        let html = render(&item(OpenState::Closed, true, "svelte", vec![], vec![]));
+        assert!(html.contains(r#"aria-disabled="true""#));
+
+        let enabled = render(&item(OpenState::Closed, false, "svelte", vec![], vec![]));
+        assert!(!enabled.contains("aria-disabled"));
+    }
+
+    #[test]
     fn item_text_id_some_outputs_id() {
         let html = render(&item_text(Some("item-text-1"), vec![], vec![text("Vue")]));
         assert!(html.contains(r#"id="item-text-1""#));
@@ -858,6 +892,36 @@ mod tests {
     fn hidden_select_disabled_true_adds_native_disabled() {
         let html = render(&hidden_select(None, None, true, vec![], vec![]));
         assert!(html.contains(r#"disabled="""#));
+    }
+
+    #[test]
+    fn hidden_select_unselected_does_not_default_to_first_option() {
+        // 未選択（selected == None）のとき、ブラウザの暗黙選択（先頭 option
+        // の自動選択）に頼らず、選択済み placeholder option を明示挿入する
+        // ことで先頭の実 option 値が誤ってフォーム送信されないことを保証する
+        // 回帰テスト（Bugbot 指摘: crates/headless-ui/src/select.rs#L356-L366）。
+        let html = render(&hidden_select(
+            None,
+            Some("framework"),
+            false,
+            vec![],
+            vec![("vue", "Vue"), ("react", "React")],
+        ));
+        assert!(html.contains(r#"<option value="" selected="" disabled=""></option>"#));
+        assert!(!html.contains(r#"<option value="vue" selected="">Vue</option>"#));
+        assert!(!html.contains(r#"<option value="react" selected="">React</option>"#));
+    }
+
+    #[test]
+    fn hidden_select_selected_some_omits_placeholder_option() {
+        let html = render(&hidden_select(
+            Some("vue"),
+            None,
+            false,
+            vec![],
+            vec![("vue", "Vue"), ("react", "React")],
+        ));
+        assert!(!html.contains(r#"<option value="" selected="""#));
     }
 
     // --- Anatomy::part fail-closed 回帰（呼び出し側の data-scope/data-part 偽装除去） ---
