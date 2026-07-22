@@ -107,6 +107,12 @@ pub fn anchor<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 /// Positioner パーツ（`div`）。位置決めロジックのコンテナ。開閉状態を
 /// `data-*` へ反映するのみで、Floating UI 相当の placement 計算はスコープ外
 /// （モジュール doc §スコープ外参照）。
+///
+/// anatomy 上 [`arrow`]/[`arrow_tip`] は [`content`] と並んで本パーツ内に
+/// 配置される想定であり、closed のとき `hidden` 存在属性を本パーツへ付与
+/// することで、[`content`] だけでなく arrow 等のポインタ層も含めて
+/// SSR/no-JS マークアップから隠す（[`Dialog`](crate::dialog::Dialog) の
+/// `positioner` と同じ判断、イシュー #532 レビュー指摘）。
 #[must_use]
 pub fn positioner<'a>(
     state: OpenState,
@@ -114,6 +120,9 @@ pub fn positioner<'a>(
     children: Vec<Node>,
 ) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
+    if !state.is_open() {
+        merged.push(("hidden", ""));
+    }
     merged.extend(attrs);
     ANATOMY.part("positioner", "div", merged, children)
 }
@@ -417,6 +426,19 @@ mod tests {
         let html = render(&positioner(OpenState::Open, vec![], vec![]));
         assert!(html.contains(r#"data-part="positioner""#));
         assert!(html.contains(r#"data-state="open""#));
+    }
+
+    #[test]
+    fn positioner_closed_has_hidden_attr_open_does_not() {
+        // anatomy 上 arrow/arrow_tip は content と並んで positioner 内に
+        // あるため、positioner 自体を hidden にしないと closed でも
+        // ポインタ層（arrow）が SSR/no-JS マークアップに表示され続ける
+        // （イシュー #532 レビュー指摘、Bugbot f6f5796c-8365-4534-8e07-38cc499b2449）。
+        let closed = render(&positioner(OpenState::Closed, vec![], vec![]));
+        assert!(closed.contains(r#"hidden="""#));
+
+        let open = render(&positioner(OpenState::Open, vec![], vec![]));
+        assert!(!open.contains("hidden"));
     }
 
     #[test]
