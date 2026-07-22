@@ -96,8 +96,10 @@ pub struct TabsProps<'a> {
 /// - `props.selected` がどの `value` とも一致しない場合、全 trigger/content
 ///   が inactive として描画される。
 /// - roving tabindex（WAI-ARIA APG: tablist 内に常に `tabindex="0"` を
-///   ちょうど 1 つ）は、active な trigger があればそれに `tabindex="0"` を
-///   与える。active がない場合は最初の非 disabled trigger に与える。
+///   ちょうど 1 つ）は、active な trigger があり、かつそれが disabled で
+///   なければそれに `tabindex="0"` を与える。active がない場合、または
+///   active な item が disabled の場合は最初の非 disabled trigger に与える
+///   （disabled item に `tabindex="0"` と `disabled` が同居する状態を避ける）。
 ///   全 trigger が disabled、または `items` が空の場合は誰にも `0` を
 ///   与えない（全て `-1`、あるいは trigger 自体が存在しない）。
 /// - `items` が空の場合は `root`/`list` のみを描画する（panic しない）。
@@ -129,9 +131,14 @@ pub fn tabs(props: &TabsProps<'_>, items: Vec<TabItem<'_>>) -> Node {
     // 選択判定: value が一致する最初の item のみ active（先勝ち、fail-closed）。
     let active_index = items.iter().position(|item| item.value == props.selected);
 
-    // roving tabindex: active があればそれが 0。なければ最初の非 disabled item。
+    // roving tabindex: active かつ非 disabled ならそれが 0。
+    // active が disabled（selected が disabled item の value と一致するケースを含む）、
+    // または active 自体が無い場合は最初の非 disabled item にフォールバックする。
+    // disabled かつ tabindex="0" が同一要素に同居する状態を避けるための意図的なガード。
     // 該当なし（items 空・全 disabled）なら誰にも 0 を与えない。
-    let tabbable_index = active_index.or_else(|| items.iter().position(|item| !item.disabled));
+    let tabbable_index = active_index
+        .filter(|&index| !items[index].disabled)
+        .or_else(|| items.iter().position(|item| !item.disabled));
 
     let mut list_children: Vec<Node> = Vec::with_capacity(items.len());
     let mut root_extra_children: Vec<Node> = Vec::with_capacity(items.len());
@@ -274,6 +281,24 @@ mod tests {
         let html = render(&node);
         assert!(html.contains(
             r#"id="t-trigger-b" role="tab" aria-selected="false" aria-controls="t-content-b" data-state="inactive" data-orientation="horizontal" tabindex="-1" disabled="" data-disabled="" aria-disabled="true""#
+        ));
+    }
+
+    #[test]
+    fn selected_matching_disabled_item_does_not_get_tabindex_zero() {
+        // props.selected が disabled item の value と一致するケース（レビュー指摘）:
+        // active な item であっても disabled なら tabindex="0" を与えず、
+        // 最初の非 disabled item にフォールバックする。
+        // disabled と tabindex="0" が同一要素に同居する状態を避ける。
+        let node = tabs(&props("t", "a"), vec![item("a", true), item("b", false)]);
+        let html = render(&node);
+        // a は active（aria-selected="true"）だが disabled のため tabindex="-1"。
+        assert!(html.contains(
+            r#"id="t-trigger-a" role="tab" aria-selected="true" aria-controls="t-content-a" data-state="active" data-orientation="horizontal" tabindex="-1" disabled="" data-disabled="" aria-disabled="true""#
+        ));
+        // b は最初の非 disabled item なので tabindex="0" を得る（inactive のまま）。
+        assert!(html.contains(
+            r#"id="t-trigger-b" role="tab" aria-selected="false" aria-controls="t-content-b" data-state="inactive" data-orientation="horizontal" tabindex="0""#
         ));
     }
 
