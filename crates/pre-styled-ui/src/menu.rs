@@ -16,9 +16,11 @@
 //!
 //! `positioner` に `position: absolute` を設定し、開いた menu が通常のフローに
 //! 残らずオーバーレイ表示になるようにする（[`crate::dialog`] の `positioner`・
-//! [`crate::select`] の `positioner` と同じ配置責務。呼び出し側で `trigger` の
-//! 祖先に `position: relative` 相当を与える前提は headless 側 `control`/`trigger`
-//! anatomy のレイアウト方針に委ねる）。
+//! [`crate::select`] の `positioner` と同じ配置責務）。`trigger`/`positioner` は
+//! headless 側 `root`（`crates/headless-ui/src/menu.rs`）の子として並置される
+//! 兄弟要素であり、`trigger` は `positioner` の祖先になれない。そのため
+//! containing block を提供する `position: relative` は共通の祖先である `root`
+//! に付与する（PR #575 Bugbot 指摘 1 対応、`trigger` への誤付与を修正）。
 
 use crate::css::{decl, serialize_rule};
 use crate::recipe::SlotRecipe;
@@ -44,10 +46,10 @@ const SLOTS: &[&str] = &[
 /// この styled Menu の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("menu", SLOTS)
+        .base("root", vec![decl("position", "relative")])
         .base(
             "trigger",
             vec![
-                decl("position", "relative"),
                 decl("cursor", "pointer"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
@@ -159,6 +161,18 @@ mod tests {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="menu"][data-part="positioner"]"#));
         assert!(css.contains("position: absolute;"));
+    }
+
+    #[test]
+    fn root_provides_containing_block_for_positioner() {
+        // PR #575 Bugbot 指摘 1 対応: `trigger` と `positioner` は headless
+        // `root` の下の兄弟要素であり、`trigger` は `positioner` の祖先には
+        // なれない。そのため `position: relative` は共通祖先である `root`
+        // に付与されていることを固定する（`trigger` への誤付与への回帰防止）。
+        let css = stylesheet();
+        assert!(
+            css.contains("[data-scope=\"menu\"][data-part=\"root\"] {\n  position: relative;\n}\n")
+        );
     }
 
     #[test]

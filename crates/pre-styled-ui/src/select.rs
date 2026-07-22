@@ -21,9 +21,13 @@
 //! のみを設定し視覚的な非表示化は行わない契約になっている。styled 層である
 //! 本モジュールが visually-hidden パターン（`position: absolute` + 1px クリップ）
 //! で覆い隠す責務を負う（[`recipe`] の `hidden-select` 規則）。また `positioner`
-//! は `control`（`position: relative` 済み）を基準に `position: absolute` で
-//! 配置し、開いた listbox が通常のフローに残らずオーバーレイ表示になるようにする
-//! （[`crate::dialog`] の `positioner` と同じ配置責務）。
+//! は `position: absolute` で配置し、開いた listbox が通常のフローに残らず
+//! オーバーレイ表示になるようにする（[`crate::dialog`] の `positioner` と同じ
+//! 配置責務）。`control`/`positioner` は headless 側 `root`（同ファイル）の子と
+//! して並置される兄弟要素であり、`control` は `positioner` の祖先になれない。
+//! そのため containing block を提供する `position: relative` は共通の祖先で
+//! ある `root` に付与する（PR #575 Bugbot 指摘 2 対応、`control` への誤付与を
+//! 修正）。
 
 use crate::css::{decl, serialize_rule};
 use crate::recipe::SlotRecipe;
@@ -53,6 +57,7 @@ const SLOTS: &[&str] = &[
 /// この styled Select の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("select", SLOTS)
+        .base("root", vec![decl("position", "relative")])
         .base(
             "label",
             vec![
@@ -62,10 +67,7 @@ fn recipe() -> SlotRecipe {
                 decl("margin-bottom", "var(--fandhe-space-1)"),
             ],
         )
-        .base(
-            "control",
-            vec![decl("display", "inline-flex"), decl("position", "relative")],
-        )
+        .base("control", vec![decl("display", "inline-flex")])
         .base(
             "trigger",
             vec![
@@ -198,6 +200,17 @@ mod tests {
         assert!(css.contains("clip: rect(0, 0, 0, 0);"));
         assert!(css.contains(r#"[data-scope="select"][data-part="positioner"]"#));
         assert!(css.contains("position: absolute;"));
+    }
+
+    #[test]
+    fn root_provides_containing_block_for_positioner() {
+        // PR #575 Bugbot 指摘 2 対応: `control` と `positioner` は headless
+        // `root` の下の兄弟要素であり、`control` は `positioner` の祖先には
+        // なれない。そのため `position: relative` は共通祖先である `root`
+        // に付与されていることを固定する（`control` への誤付与への回帰防止）。
+        let css = stylesheet();
+        assert!(css
+            .contains("[data-scope=\"select\"][data-part=\"root\"] {\n  position: relative;\n}\n"));
     }
 
     #[test]
