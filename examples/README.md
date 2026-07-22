@@ -17,6 +17,7 @@ https://fandhe-ai.github.io/fandhe-frontend/examples/ ）でも閲覧できま�
 | [ssg-blog](./ssg-blog/README.md) | `generate_pages` による静的サイト書き出し・パス検証の fail-closed 契約・View Transitions の有効化 | `fandhe-frontend-core` / `-server` |
 | [dist-server-docker](./dist-server-docker/README.md) | 単一バイナリ配布・`FROM scratch` の Docker イメージ最小化・外部依存利用時の静的アセット配信の制約と対処 | `fandhe-frontend-dist-server` |
 | [interactive-view-transitions](./interactive-view-transitions/README.md) | `Component` trait による状態機械・`dispatch`/`hydrate`・`start_router` による SPA 内 View Transitions の自動有効化 | `fandhe-frontend-core` / `-app` / `-interactive`（+ `-wasm-full`） |
+| [headless-pre-styled-ui](./headless-pre-styled-ui/README.md) | `fandhe-frontend-headless-ui`（ark-ui 相当）の anatomy・`data-*`・WAI-ARIA 属性（Tabs/Accordion/Dialog/Switch/RadioGroup/Avatar）。crates.io 未公開のため path 依存（§7 参照） | `fandhe-frontend-core` / `-headless-ui` |
 
 ## 2. 選び方
 
@@ -24,6 +25,7 @@ https://fandhe-ai.github.io/fandhe-frontend/examples/ ）でも閲覧できま�
 - **静的サイト生成（ブログ等）を作りたい**: [ssg-blog](./ssg-blog/README.md) が `generate_pages` と fail-closed なパス検証を実演します。
 - **単一バイナリ・Docker でデプロイしたい**: [dist-server-docker](./dist-server-docker/README.md) が `fandhe-frontend-dist-server` を使った最小構成の配布サーバーを示します。
 - **クライアント側の状態管理・ページ遷移アニメーションを試したい**: [interactive-view-transitions](./interactive-view-transitions/README.md) が `fandhe-frontend-interactive` の状態機械と View Transitions を実演します。
+- **headless UI コンポーネント（ark-ui 相当）を試したい**: [headless-pre-styled-ui](./headless-pre-styled-ui/README.md) が `fandhe-frontend-headless-ui` の Tabs/Accordion/Dialog/Switch/RadioGroup/Avatar を実演します（crates.io 未公開のため `fw new --example` 非対応、§7 参照）。
 
 ## 3. `fw new --example` での取得
 
@@ -77,3 +79,17 @@ fw new my-app --example ssr-routing
   プロジェクト作成までの入門ガイド
 - [docs/guides/examples.md](../docs/guides/examples.md): 本ページの
   docs サイト版（選び方の解説つき）
+
+## 7. 例外: `headless-pre-styled-ui` の path 依存（イシュー #552）
+
+`headless-pre-styled-ui` が依存する `fandhe-frontend-headless-ui` は本節
+執筆時点（2026-07-22）で crates.io 未公開（親トラッキング #520）です。§4
+「crates.io バージョン依存のみ」の原則に対する意図的な例外として、同サンプル
+のみ path 依存（`{ path = "../../crates/headless-ui" }` 等）を使います
+（イシュー #552 本文が「公開前はローカル path 依存で暫定可・公開時に切替」を
+明示的に許容）。このため同サンプルは §3 の `fw new --example` に対応せず、
+`crates/cli/embedded-examples/`（§5）への同梱も行っていません。
+`fandhe-frontend-headless-ui` の crates.io 公開後、バージョン依存への切替・
+`fw new --example` 登録・`embedded-examples/` への追随をフォローアップする
+予定です（詳細は
+[headless-pre-styled-ui/README.md](./headless-pre-styled-ui/README.md)）。

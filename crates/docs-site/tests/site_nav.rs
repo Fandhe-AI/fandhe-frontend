@@ -20,7 +20,10 @@
 //! セクション数は 4（Getting Started / Guides / Examples / API Reference）
 //! となった。イシュー #548 で API Reference セクションへ
 //! `docs/api/pre-styled-recipe-api.md` が追加され、登録ページ総数は
-//! 18 ページとなった。
+//! 18 ページとなった。イシュー #552 で Examples セクションへ
+//! `examples/headless-pre-styled-ui/README.md` が、API Reference セクションへ
+//! `docs/api/headless-ui-api.md` / `docs/api/pre-styled-ui-api.md` が追加され、
+//! 登録ページ総数は 21 ページとなった。
 //!
 //! `site/index.md`（イシュー #472）は本テスト実行時点で未マージのことが
 //! あるため、存在すれば厳格検証（他ページと同様に `render_markdown` の
@@ -70,11 +73,13 @@ fn site_nav_registers_four_sections_with_expected_titles() {
 /// 受け入れ条件 1: 既存の利用者向けドキュメント（トップ + quickstart +
 /// guides 4 本 + api 6 本 = 12 ページ）と、イシュー #504 で追加された
 /// Examples セクション（概説ページ 1 + サンプル README 4 = 5 ページ）、
-/// イシュー #548 で追加された `docs/api/pre-styled-recipe-api.md`（1 ページ）が
+/// イシュー #548 で追加された `docs/api/pre-styled-recipe-api.md`（1 ページ）、
+/// イシュー #552 で追加された `examples/headless-pre-styled-ui/README.md`・
+/// `docs/api/headless-ui-api.md`・`docs/api/pre-styled-ui-api.md`（3 ページ）が
 /// サイト生成対象として登録されている（イシュー本文の「全 11 ページ」表記と
 /// 列挙内容の数値差異はモジュール冒頭のコメント参照）。
 #[test]
-fn site_nav_registers_all_eighteen_pages_with_expected_paths() {
+fn site_nav_registers_all_twenty_one_pages_with_expected_paths() {
     let nav = load_nav();
     let pages: Vec<(&str, &str)> = nav
         .sections
@@ -83,7 +88,7 @@ fn site_nav_registers_all_eighteen_pages_with_expected_paths() {
         .map(|p| (p.source.as_str(), p.path.as_str()))
         .collect();
 
-    assert_eq!(pages.len(), 18, "expected 18 pages, got {pages:?}");
+    assert_eq!(pages.len(), 21, "expected 21 pages, got {pages:?}");
 
     let expected = vec![
         ("site/index.md", "/"),
@@ -109,6 +114,10 @@ fn site_nav_registers_all_eighteen_pages_with_expected_paths() {
             "examples/interactive-view-transitions/README.md",
             "/examples/interactive-view-transitions/",
         ),
+        (
+            "examples/headless-pre-styled-ui/README.md",
+            "/examples/headless-pre-styled-ui/",
+        ),
         ("docs/api/component-api.md", "/api/component-api/"),
         ("docs/api/app-api.md", "/api/app-api/"),
         ("docs/api/interactive-api.md", "/api/interactive-api/"),
@@ -121,6 +130,8 @@ fn site_nav_registers_all_eighteen_pages_with_expected_paths() {
             "docs/api/router-path-matching.md",
             "/api/router-path-matching/",
         ),
+        ("docs/api/headless-ui-api.md", "/api/headless-ui-api/"),
+        ("docs/api/pre-styled-ui-api.md", "/api/pre-styled-ui-api/"),
         (
             "docs/api/pre-styled-recipe-api.md",
             "/api/pre-styled-recipe-api/",
