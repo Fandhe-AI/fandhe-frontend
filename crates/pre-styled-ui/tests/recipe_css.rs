@@ -14,7 +14,7 @@ use fandhe_frontend_headless_ui::tabs::{tabs, TabItem, TabsProps};
 use fandhe_frontend_headless_ui::Orientation;
 use fandhe_frontend_pre_styled_ui::decl;
 use fandhe_frontend_pre_styled_ui::recipe::{
-    palette_declarations, ColorPalette as StdColorPalette, Size, SlotRecipe, VariantValue,
+    palette_declarations, when, ColorPalette as StdColorPalette, Size, SlotRecipe, VariantValue,
 };
 
 /// `colorPalette` 相当を独立の仕組みとしてではなく通常の variant 軸として
@@ -65,6 +65,13 @@ fn tabs_recipe() -> SlotRecipe {
         )
         .default_variant(Size::Md)
         .default_variant(ColorPalette::Blue)
+        // イシュー #604: 「sm サイズ かつ red カラー」の組み合わせ条件のみに
+        // 適用する compound variant（chakra-ui compoundVariants 相当）。
+        .compound_variant(
+            vec![when(Size::Sm), when(ColorPalette::Red)],
+            "trigger",
+            vec![decl("font-weight", "bold")],
+        )
 }
 
 #[test]
@@ -107,6 +114,10 @@ fn css_output_matches_golden_fixture() {
         "\n",
         "[data-scope=\"tabs\"][data-part=\"trigger\"].fd-tabs--colorpalette-red {\n",
         "  color: var(--fd-color-red-solid);\n",
+        "}\n",
+        "\n",
+        "[data-scope=\"tabs\"][data-part=\"trigger\"].fd-tabs--size-sm.fd-tabs--colorpalette-red {\n",
+        "  font-weight: bold;\n",
         "}\n",
     );
     assert_eq!(recipe.css(), expected);
@@ -317,4 +328,71 @@ fn palette_declarations_reference_matching_theme_color_tokens() {
             format!("var(--fandhe-color-{theme_name}-fg)")
         );
     }
+}
+
+/// イシュー #604: compound variant の適用条件（2 個以上の軸が同時に
+/// 一致した場合のみ）を golden fixture 以外の recipe でも固定する。
+/// 単一 variant（`fd-tabs--size-sm` のみ）にはヒットせず、両条件を満たす
+/// クラスの組み合わせにのみヒットすることを確認する。
+#[test]
+fn compound_variant_selector_requires_all_conditions() {
+    let recipe = tabs_recipe();
+    let css = recipe.css();
+    assert!(css.contains(
+        "[data-scope=\"tabs\"][data-part=\"trigger\"].fd-tabs--size-sm.fd-tabs--colorpalette-red {\n  font-weight: bold;\n}\n"
+    ));
+}
+
+/// イシュー #604 fail-closed 検証（§3.3 の各条件）:
+/// compound variant は不正入力を panic せず出力から除外する。
+#[test]
+fn compound_variant_fail_closed_cases_are_skipped_not_panicking() {
+    #[derive(Clone, Copy)]
+    struct BadAxis;
+    impl VariantValue for BadAxis {
+        fn axis(self) -> &'static str {
+            "Bad Axis"
+        }
+        fn value(self) -> &'static str {
+            "1nvalid"
+        }
+    }
+
+    let recipe = SlotRecipe::new("widget", &["root"])
+        .variant(Size::Sm, "root", vec![decl("padding", "2px")])
+        .variant(Size::Md, "root", vec![decl("padding", "4px")])
+        .default_variant(Size::Md)
+        // 1. slot が slots 未宣言。
+        .compound_variant(
+            vec![when(Size::Sm)],
+            "ghost-slot",
+            vec![decl("color", "red")],
+        )
+        // 2. 条件の axis が識別子として不正。
+        .compound_variant(vec![when(BadAxis)], "root", vec![decl("color", "green")])
+        // 3. conditions が空（base と同義になる無意味な規則）。
+        .compound_variant(vec![], "root", vec![decl("color", "purple")])
+        // 4. conditions 内に同一 axis が重複する矛盾条件。
+        .compound_variant(
+            vec![when(Size::Sm), when(Size::Md)],
+            "root",
+            vec![decl("color", "orange")],
+        )
+        // 5. (axis, value) の組が variant()/default_variant() のいずれにも未登録。
+        .compound_variant(vec![when(Size::Lg)], "root", vec![decl("color", "yellow")])
+        // 構造破壊文字を含む宣言値は既存の serialize_rule 検証で個別にスキップされる。
+        .compound_variant(
+            vec![when(Size::Sm)],
+            "root",
+            vec![decl("color", "blue; } .evil {")],
+        );
+
+    let css = recipe.css();
+    assert!(!css.contains("ghost-slot"));
+    assert!(!css.contains("green"));
+    assert!(!css.contains("purple"));
+    assert!(!css.contains("orange"));
+    assert!(!css.contains("yellow"));
+    assert!(!css.contains("evil"));
+    assert!(!css.contains("blue"));
 }
