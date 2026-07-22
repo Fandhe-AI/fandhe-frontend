@@ -145,14 +145,25 @@ pub fn label<'a>(id: Option<&'a str>, attrs: Vec<(&'a str, &'a str)>, children: 
 /// Item パーツ（`label`）。選択肢 1 個のラップ要素。ネイティブ `<label>`
 /// により、この要素内の [`item_hidden_input`] へのクリック委譲（フォーカス・
 /// 選択）が JS なしで機能する。
+///
+/// `value` は `data-value` として動的値のまま出力し、`render()` の既定
+/// エスケープを必ず経由する（REQ-1）。イシュー #580:
+/// `fandhe-frontend-wasm-full` の headless 配線基盤（`wasm-full/src/headless.rs`）が
+/// `(scope, part) = ("radio-group", "item")` クリックを `"select"` アクションへ
+/// 写像する際の payload 源として参照する契約。[`item`] はネイティブ
+/// `<label>` のため、内包する [`item_hidden_input`] へのクリック転送で同一
+/// クリックが 2 回配線に届き得るが、`"select"`（同一値）は冪等のため実害は
+/// ない（モジュール doc 参照）。
 #[must_use]
 pub fn item<'a>(
     checked: bool,
     disabled: bool,
+    value: &'a str,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(data_state_str(checked))];
+    let mut merged: Vec<(&'a str, &'a str)> =
+        vec![data_state(data_state_str(checked)), ("data-value", value)];
     merged.extend(data_disabled(disabled));
     merged.extend(attrs);
     ANATOMY.part("item", "label", merged, children)
@@ -259,12 +270,12 @@ impl RadioGroup {
     #[must_use]
     pub fn item<'a>(
         &self,
-        value: &str,
+        value: &'a str,
         disabled: bool,
         attrs: Vec<(&'a str, &'a str)>,
         children: Vec<Node>,
     ) -> Node {
-        item(self.is_checked(value), disabled, attrs, children)
+        item(self.is_checked(value), disabled, value, attrs, children)
     }
 
     /// [`item_control`] へ項目 `value` の現在状態を注入する利便メソッド。
@@ -415,12 +426,14 @@ mod tests {
 
     #[test]
     fn item_reflects_checked_state_and_disabled() {
-        let checked = render(&item(true, false, vec![], vec![]));
+        let checked = render(&item(true, false, "red", vec![], vec![]));
         assert!(checked.contains(r#"data-state="checked""#));
+        assert!(checked.contains(r#"data-value="red""#));
         assert!(!checked.contains("data-disabled"));
 
-        let unchecked_disabled = render(&item(false, true, vec![], vec![]));
+        let unchecked_disabled = render(&item(false, true, "blue", vec![], vec![]));
         assert!(unchecked_disabled.contains(r#"data-state="unchecked""#));
+        assert!(unchecked_disabled.contains(r#"data-value="blue""#));
         assert!(unchecked_disabled.contains(r#"data-disabled="""#));
     }
 
@@ -479,6 +492,7 @@ mod tests {
         let html = render(&item(
             true,
             false,
+            "red",
             vec![("data-scope", "attacker"), ("data-part", "attacker")],
             vec![],
         ));
@@ -501,6 +515,7 @@ mod tests {
                 item(
                     true,
                     false,
+                    "red",
                     vec![],
                     vec![
                         item_hidden_input(true, false, Some("color"), "red", vec![]),
@@ -511,6 +526,7 @@ mod tests {
                 item(
                     false,
                     false,
+                    "blue",
                     vec![],
                     vec![
                         item_hidden_input(false, false, Some("color"), "blue", vec![]),
@@ -525,12 +541,12 @@ mod tests {
             concat!(
                 r#"<div data-scope="radio-group" data-part="root" role="radiogroup" aria-labelledby="group-label">"#,
                 r#"<span data-scope="radio-group" data-part="label" id="group-label">Color</span>"#,
-                r#"<label data-scope="radio-group" data-part="item" data-state="checked">"#,
+                r#"<label data-scope="radio-group" data-part="item" data-state="checked" data-value="red">"#,
                 r#"<input data-scope="radio-group" data-part="item-hidden-input" type="radio" value="red" data-state="checked" name="color" checked=""></input>"#,
                 r#"<span data-scope="radio-group" data-part="item-control" data-state="checked"></span>"#,
                 r#"<span data-scope="radio-group" data-part="item-text" data-state="checked">Red</span>"#,
                 r#"</label>"#,
-                r#"<label data-scope="radio-group" data-part="item" data-state="unchecked">"#,
+                r#"<label data-scope="radio-group" data-part="item" data-state="unchecked" data-value="blue">"#,
                 r#"<input data-scope="radio-group" data-part="item-hidden-input" type="radio" value="blue" data-state="unchecked" name="color"></input>"#,
                 r#"<span data-scope="radio-group" data-part="item-control" data-state="unchecked"></span>"#,
                 r#"<span data-scope="radio-group" data-part="item-text" data-state="unchecked">Blue</span>"#,

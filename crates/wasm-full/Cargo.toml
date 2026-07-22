@@ -125,7 +125,15 @@ perf-assert = []
 # **新規外部パッケージの追加はゼロ**（`cargo metadata` 実測: パッケージ数・
 # 依存グラフ深さ不変。実測結果は PR 本文に記録する）。製品依存
 # （`[dependencies]`）には一切追加しない（REQ-3 不変）。
+# イシュー #580（headless-ui dispatch の DOM イベント配線基盤）: `headless.rs`
+# の native テスト（マッピング表ドリフト検知・`action_for_part` → `dispatch`
+# の橋渡し検証）が実際の headless-ui 出力・`state::SingleSelect` を使うため
+# `fandhe-frontend-headless-ui` を dev-dependency として追加する。dev
+# dependency のため製品バイナリ・標準サーバー構成（REQ-3 の 60 件/深さ 6 の
+# 対象）には影響しない。workspace 内 path 依存であり新規外部パッケージの
+# 追加はゼロ（`cargo metadata` 実測結果は PR 本文に記録する）。
 [dev-dependencies]
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.1.0" }
 wasm-bindgen-test = "0.3"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"

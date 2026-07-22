@@ -296,6 +296,7 @@ fn radio_group_section() -> Node {
         items.push(radio_group::item(
             checked,
             false,
+            value,
             vec![],
             vec![
                 radio_group::item_hidden_input(checked, false, Some("render-mode"), value, vec![]),
