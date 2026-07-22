@@ -216,8 +216,9 @@ pub enum SingleSelectAction {
 /// `Default` は未選択（全項目 closed。SSR の状態なし初期描画に対応する
 /// 既定値）。
 ///
-/// 複数同時選択（Accordion multiple モード）は本型のスコープ外（イシュー
-/// #524 では未実装。Phase 2 の #527 で別途 `MultiSelect` として判断する）。
+/// 複数同時選択（Accordion multiple モード）は本型のスコープ外。
+/// 高々 1 個ではなく 0 個以上の同時選択が必要な場合は [`MultiSelect`]
+/// （イシュー #594）を使う。
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SingleSelect {
     selected: Option<String>,
@@ -333,6 +334,162 @@ impl Hydrate for SingleSelect {
                 reason: "expected at most one selected item".to_string(),
             }),
         }
+    }
+}
+
+/// [`MultiSelect`] に対する型付きアクション（イシュー #594）。
+///
+/// `payload`（WASM 境界の `data-payload` 属性値、改ざんされうるクライアント
+/// 入力）は項目値としてそのまま保持し、HTML として解釈しない
+/// （呼び出し元の [`fandhe_frontend_core::render`] が既定エスケープする）。
+/// [`SingleSelectAction::Deselect`]（payload なし・全解除）と異なり、
+/// [`MultiSelectAction::Deselect`] は「どの項目を閉じるか」の指定が複数選択
+/// では必須のため項目単位（payload あり）とする。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MultiSelectAction {
+    /// 指定した項目値を選択に追加する（既に選択中なら no-op）。
+    Select(String),
+    /// 指定した項目値を選択から除去する（未選択なら no-op）。
+    Deselect(String),
+    /// 指定した項目値を選択/除去の間でトグルする。
+    Toggle(String),
+}
+
+/// 0 個以上の項目値が同時に「開いている」状態機械（イシュー #594）。
+///
+/// Accordion（multiple モード）等、複数項目を同時に開いた状態にできる
+/// headless コンポーネントが埋め込んで使う共通状態機械。`Default` は
+/// 空選択（全項目 closed。SSR の状態なし初期描画に対応する既定値）。
+///
+/// 内部表現は選択順を保持する `Vec<String>`（重複なしを不変条件とする）。
+/// 順序保持により [`Hydrate::hydration_attrs`] の出力が決定的になり、
+/// ラウンドトリップの等値比較が成立する。
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MultiSelect {
+    selected: Vec<String>,
+}
+
+impl MultiSelect {
+    /// `data-hydrate-selected` 属性名のフィールド部分。[`SingleSelect`] と
+    /// 同名を使う（型が異なるため衝突しない。hydration フォーマットの
+    /// 一貫性のため揃えている）。
+    pub const FIELD_SELECTED: &'static str = "selected";
+
+    /// 現在選択中の項目値（選択順）。
+    #[must_use]
+    pub fn selected(&self) -> &[String] {
+        &self.selected
+    }
+
+    /// 指定した項目値が選択中かどうか。
+    #[must_use]
+    pub fn is_selected(&self, value: &str) -> bool {
+        self.selected.iter().any(|v| v == value)
+    }
+
+    /// 項目 `value` ごとの `data-state` 値。選択中なら `"open"`、
+    /// それ以外は `"closed"`。Phase 2 の各コンポーネントが項目ごとの
+    /// anatomy（`data-state` 付与）を組む際に使う。
+    #[must_use]
+    pub fn item_data_state(&self, value: &str) -> &'static str {
+        if self.is_selected(value) {
+            DATA_STATE_OPEN
+        } else {
+            DATA_STATE_CLOSED
+        }
+    }
+
+    /// ルート全体の `data-state` 値。いずれかの項目が選択中なら `"open"`、
+    /// 全未選択なら `"closed"`。
+    fn root_data_state(&self) -> &'static str {
+        if self.selected.is_empty() {
+            DATA_STATE_CLOSED
+        } else {
+            DATA_STATE_OPEN
+        }
+    }
+}
+
+impl Component for MultiSelect {
+    type Action = MultiSelectAction;
+
+    fn update(&mut self, action: MultiSelectAction) {
+        match action {
+            MultiSelectAction::Select(value) => {
+                if !self.is_selected(&value) {
+                    self.selected.push(value);
+                }
+            }
+            MultiSelectAction::Deselect(value) => {
+                self.selected.retain(|v| *v != value);
+            }
+            MultiSelectAction::Toggle(value) => {
+                if self.is_selected(&value) {
+                    self.selected.retain(|v| *v != value);
+                } else {
+                    self.selected.push(value);
+                }
+            }
+        }
+    }
+
+    /// 共通契約（ルート `data-state` 整合・hydration ルート）のみを表す
+    /// 最小正準ビュー。項目ごとの anatomy 構築（[`Self::item_data_state`]
+    /// を使う）は具象コンポーネント（[`crate::accordion::MultiAccordion`]
+    /// 等）の責務。
+    fn view(&self) -> Node {
+        el(
+            "div",
+            vec![data_state_attr(self.root_data_state())],
+            Vec::new(),
+        )
+    }
+
+    fn decode_action(name: &str, payload: &str) -> Option<MultiSelectAction> {
+        match name {
+            "select" => Some(MultiSelectAction::Select(payload.to_string())),
+            "deselect" => Some(MultiSelectAction::Deselect(payload.to_string())),
+            "toggle" => Some(MultiSelectAction::Toggle(payload.to_string())),
+            _ => None,
+        }
+    }
+}
+
+impl Hydrate for MultiSelect {
+    /// [`codec::encode_list`] で選択値を運ぶ（0 件以上、[`SingleSelect`] と
+    /// 同じ codec を流用しシリアライズを再実装しない）。
+    fn hydration_attrs(&self) -> Vec<(String, String)> {
+        vec![(
+            format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_SELECTED),
+            codec::encode_list(&self.selected),
+        )]
+    }
+
+    fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
+        let attr_name = format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_SELECTED);
+        let raw = attrs
+            .iter()
+            .find(|(k, _)| *k == attr_name)
+            .map(|(_, v)| v.as_str())
+            .ok_or_else(|| HydrateError::MissingAttr(attr_name.clone()))?;
+        let items = codec::decode_list(raw);
+
+        // 重複値を含むリストは本型の不変条件（選択値は重複なし）に反する
+        // 改ざん入力。黙って dedupe せず panic もしない fail-closed な
+        // 拒否とする（不変条件 3。`SingleSelect` が 2 件以上を拒否するのと
+        // 同じ思想）。
+        let mut seen = Vec::with_capacity(items.len());
+        for item in &items {
+            if seen.contains(item) {
+                return Err(HydrateError::InvalidValue {
+                    attr: attr_name.clone(),
+                    reason: "expected no duplicate selected items".to_string(),
+                });
+            }
+            seen.push(item.clone());
+        }
+
+        Ok(Self { selected: items })
     }
 }
 
@@ -609,6 +766,175 @@ mod tests {
         // 属性を合成する（`crates/interactive/src/lib.rs` 参照）。本型の
         // view() が常に Element を返すことを固定する回帰テスト。
         let node = Disclosure::default().view();
+        assert!(matches!(node, Node::Element { .. }));
+    }
+
+    // --- MultiSelect: dispatch 経由の遷移 ---
+
+    #[test]
+    fn multi_select_default_is_empty() {
+        assert_eq!(MultiSelect::default().selected(), &[] as &[String]);
+    }
+
+    #[test]
+    fn multi_select_dispatch_select_deselect_toggle() {
+        let mut m = MultiSelect::default();
+
+        assert!(dispatch(&mut m, "select", "a"));
+        assert_eq!(m.selected(), &["a".to_string()]);
+
+        assert!(dispatch(&mut m, "select", "b"));
+        assert_eq!(m.selected(), &["a".to_string(), "b".to_string()]);
+
+        assert!(dispatch(&mut m, "deselect", "a"));
+        assert_eq!(m.selected(), &["b".to_string()]);
+
+        assert!(dispatch(&mut m, "toggle", "c"));
+        assert_eq!(m.selected(), &["b".to_string(), "c".to_string()]);
+        assert!(dispatch(&mut m, "toggle", "c"));
+        assert_eq!(m.selected(), &["b".to_string()]);
+    }
+
+    #[test]
+    fn multi_select_dispatch_select_is_no_op_when_already_selected() {
+        let mut m = MultiSelect::default();
+        dispatch(&mut m, "select", "a");
+        assert!(dispatch(&mut m, "select", "a"));
+        assert_eq!(m.selected(), &["a".to_string()]);
+    }
+
+    #[test]
+    fn multi_select_dispatch_deselect_is_no_op_when_not_selected() {
+        let mut m = MultiSelect::default();
+        dispatch(&mut m, "select", "a");
+        assert!(dispatch(&mut m, "deselect", "b"));
+        assert_eq!(m.selected(), &["a".to_string()]);
+    }
+
+    #[test]
+    fn multi_select_preserves_selection_order() {
+        let mut m = MultiSelect::default();
+        dispatch(&mut m, "select", "c");
+        dispatch(&mut m, "select", "a");
+        dispatch(&mut m, "select", "b");
+        assert_eq!(
+            m.selected(),
+            &["c".to_string(), "a".to_string(), "b".to_string()]
+        );
+    }
+
+    #[test]
+    fn multi_select_dispatch_ignores_unknown_action() {
+        let mut m = MultiSelect::default();
+        dispatch(&mut m, "select", "a");
+        assert!(!dispatch(&mut m, "no_such_action", "b"));
+        assert_eq!(m.selected(), &["a".to_string()]);
+    }
+
+    // --- MultiSelect: data-state 整合 ---
+
+    #[test]
+    fn multi_select_item_data_state_matches_selection() {
+        let mut m = MultiSelect::default();
+        assert_eq!(m.item_data_state("a"), DATA_STATE_CLOSED);
+
+        dispatch(&mut m, "select", "a");
+        assert_eq!(m.item_data_state("a"), DATA_STATE_OPEN);
+        assert_eq!(m.item_data_state("b"), DATA_STATE_CLOSED);
+
+        dispatch(&mut m, "select", "b");
+        assert_eq!(m.item_data_state("a"), DATA_STATE_OPEN);
+        assert_eq!(m.item_data_state("b"), DATA_STATE_OPEN);
+    }
+
+    #[test]
+    fn multi_select_root_view_data_state_reflects_selection() {
+        let unselected = MultiSelect::default();
+        assert!(render(&unselected.view()).contains(r#"data-state="closed""#));
+
+        let mut selected = MultiSelect::default();
+        dispatch(&mut selected, "select", "a");
+        assert!(render(&selected.view()).contains(r#"data-state="open""#));
+    }
+
+    // --- MultiSelect: SSR 状態なし初期描画 ---
+
+    #[test]
+    fn multi_select_default_ssr_view_has_no_hydrate_attr() {
+        let rendered = render(&MultiSelect::default().view());
+        assert!(rendered.contains(r#"data-state="closed""#));
+        assert!(!rendered.contains("data-hydrate-"));
+    }
+
+    // --- MultiSelect: hydration 経路 ---
+
+    #[test]
+    fn multi_select_hydration_round_trip_empty() {
+        let m = MultiSelect::default();
+        let restored = MultiSelect::from_hydration_attrs(&m.hydration_attrs()).unwrap();
+        assert_eq!(restored, m);
+    }
+
+    #[test]
+    fn multi_select_hydration_round_trip_multiple_selected() {
+        let mut m = MultiSelect::default();
+        dispatch(&mut m, "select", "a");
+        dispatch(&mut m, "select", "b");
+        dispatch(&mut m, "select", "c");
+        let restored = MultiSelect::from_hydration_attrs(&m.hydration_attrs()).unwrap();
+        assert_eq!(restored, m);
+    }
+
+    #[test]
+    fn multi_select_hydration_round_trip_survives_separator_and_empty_string_values() {
+        let mut m = MultiSelect::default();
+        for value in ["", "with\u{1f}separator", "with\\backslash"] {
+            dispatch(&mut m, "select", value);
+        }
+        let restored = MultiSelect::from_hydration_attrs(&m.hydration_attrs()).unwrap();
+        assert_eq!(restored, m);
+    }
+
+    // --- MultiSelect: 改ざん耐性 ---
+
+    #[test]
+    fn multi_select_from_hydration_attrs_missing_attr() {
+        let err = MultiSelect::from_hydration_attrs(&[]).unwrap_err();
+        assert_eq!(
+            err,
+            HydrateError::MissingAttr("data-hydrate-selected".to_string())
+        );
+    }
+
+    #[test]
+    fn multi_select_from_hydration_attrs_rejects_duplicate_selected_without_panicking() {
+        let bogus = codec::encode_list(&["a".to_string(), "b".to_string(), "a".to_string()]);
+        let attrs = vec![("data-hydrate-selected".to_string(), bogus)];
+        let err = MultiSelect::from_hydration_attrs(&attrs).unwrap_err();
+        assert!(matches!(err, HydrateError::InvalidValue { .. }));
+    }
+
+    // --- XSS 回帰: 選択値に攻撃者制御文字列が入っても既定エスケープが効く ---
+
+    #[test]
+    fn multi_select_xss_payload_in_selected_value_is_escaped_on_render() {
+        let mut m = MultiSelect::default();
+        let payload = "\"><script>alert(1)</script>";
+        assert!(dispatch(&mut m, "select", payload));
+
+        let rendered = render(&render_for_hydration(&m));
+        // 正の確認: data-hydrate-selected 属性が実際に出力へ載っていること
+        // （SingleSelect の同種テストと同じ理由で、不在アサーションのみに
+        // 頼らず属性値そのものにエスケープ済み形跡が現れることを確認する）。
+        assert!(rendered.contains("data-hydrate-selected="));
+        assert!(rendered.contains("&lt;script&gt;"));
+        assert!(!rendered.contains("<script>alert(1)</script>"));
+        assert!(!rendered.contains(r#""><script"#));
+    }
+
+    #[test]
+    fn multi_select_view_root_is_element_for_render_for_hydration() {
+        let node = MultiSelect::default().view();
         assert!(matches!(node, Node::Element { .. }));
     }
 }
