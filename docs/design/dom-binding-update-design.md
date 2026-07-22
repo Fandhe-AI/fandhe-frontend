@@ -713,3 +713,101 @@ Vec<BindingSpec>` の 2 関数を追加した。
 によるコンパイル時強制）・§3.17（検証ユーティリティの他クレート横展開）
 に登録済み。再評価トリガーの正は台帳側とし、本節では詳細を重複管理
 しない。
+
+## 13. 追補: headless-ui 状態機械への `DirtyTracked` 適用判断（イシュー #592）
+
+### 13.1 背景
+
+PR #557（headless-ui の `Disclosure`/`SingleSelect` 状態機械、イシュー
+#524）は「`DirtyTracked` 実装（wasm 束縛点差分更新用）は Phase 2 の
+具象コンポーネント束縛点設計と同時に判断」として out-of-scope とした。
+イシュー #592 はこの判断を消化する。
+
+`DirtyTracked` trait 自体は既に実装済み（イシュー #341、第 4.2 節で
+API 形状確定）であり、`fandhe_frontend_wasm_full::Runtime<C>`
+（`C: Component + DirtyTracked + BindingSource`）が dispatch 成功後に
+`dirty_fields()` → `BindingTable::apply_dirty` を行う消費側も既存。
+未実装だったのは headless-ui 状態機械側（`crates/headless-ui/src/state.rs`
+の `Disclosure`/`SingleSelect`）のみ。
+
+### 13.2 判断基準（事前定義）
+
+計測前に固定した採否基準（後付けの恣意性を排除するため）:
+
+- **正しさ（最重要）**: headless-ui はフォーカス・`data-state` CSS
+  トランジション・入力値を持つ対話部品であり、全再描画（innerHTML 置換）は
+  DOM 状態を破壊する（第 6 節・第 7.2 節で確定済みの根拠。キーボード/
+  フォーカス管理・フォーカストラップと全再描画は両立しない）。この時点で
+  採用がほぼ既定路線であり、計測は「差分更新の追加コスト（dirty 記録・
+  列挙）が全再描画比で不利にならないこと」の確認と定量記録が主目的。
+- **性能**: 差分更新経路（dirty 列挙のみ）が全再描画経路（`view()` +
+  `render()` の HTML 再生成）より明確に優位（目安 5 倍以上高速）であれば
+  採用を補強する。
+- **評価軸**（`docs/policy/intentional-non-adoption.md` §2 準拠）:
+  明示的フィールド列挙（明示性）・決定的順序契約（決定性）・dispatch
+  経由の契約テストで検証可能（機械検証可能性）・`bool` フラグ 1 つで
+  済む最小実装（コンテキスト消費小）。
+
+### 13.3 計測結果
+
+`crates/xtask/src/bench_binding_update.rs`（`cargo run -p xtask --release
+-- bench-binding-update`）によるネイティブ計測の実測例（自動運転実行時、
+self-hosted 相当のローカル環境・1 回の実行）:
+
+```
+bench-binding-update: scenario=appstate-increment full_ns=3044 dirty_ns=29 ratio=104.97
+bench-binding-update: scenario=disclosure-toggle full_ns=126 dirty_ns=0 ratio=inf
+bench-binding-update: scenario=single-select-select full_ns=136 dirty_ns=9 ratio=15.11
+```
+
+`disclosure-toggle`/`single-select-select` はハーネス実装後（headless-ui
+状態機械への `DirtyTracked` 実装後）に計測したものであり、全再描画経路
+（`view()` + `render()`）に対し差分更新経路（`dirty_fields()` 読み出しの
+み）が一貫して優位（13〜100 倍超）であることを確認した。数値は実行環境
+依存（CPU・負荷）のため厳密な再現性は保証しないが、性能面の判断基準
+（5 倍以上）は大きく上回っており、正しさ根拠と合わせて採用を補強する。
+
+**計測の限界**: 本ハーネスはネイティブ実行（DOM 操作を伴わない）であり、
+実際の DOM 反映コスト（`set_attribute`/`textContent` 書き換え等）は
+含まない。DOM 実操作コストは既存 `docs/ci/perf-browser-harness.md`
+（wasm-full 実ブラウザ計測）が別途裏付ける。本ハーネスが計測するのは
+「再描画ペイロード生成コスト vs dirty 列挙コスト」という Rust 側の相対
+比較に限定される（`bench_binding_update` モジュール doc 参照）。
+
+### 13.4 判断: 採用
+
+上記 13.2 の基準（正しさ・性能・評価軸）をすべて充足したため、
+`Disclosure`/`SingleSelect` へ `DirtyTracked` を実装した
+（`crates/headless-ui/src/state.rs`）。実装は `dirty: bool` フィールド +
+`FIELD_STATE`/`FIELD_SELECTED` 定数の組み合わせとし、`dirty_fields()` は
+実変更時のみ 1 要素の静的スライスを返す（`Vec` を使わないことで両型の
+`Copy`/`Clone` 特性を維持し、`Disclosure` を埋め込む `Popover`/
+`Collapsible`/`Menu`/`Tooltip`/`Dialog` 等の既存 API を破壊しない）。
+`PartialEq`/`Eq` は `AppState`（第 4.2 節・イシュー #341）の前例と同様に
+`dirty` を比較対象から除外する手動実装へ変更し、hydration ラウンド
+トリップテストが dirty の有無に依存しないようにした。
+
+interactive クレートへの新規公開 API 追加は行わなかった（既存
+`DirtyTracked` trait の再利用のみで充足したため、想定していた
+`DirtyLog` 相当ユーティリティの追加は不要と判明した）。
+
+### 13.5 スコープ外（後続作業）
+
+- **DOM 実配線への統合**: dirty 分岐を実際のイベント配線（DOM
+  イベントリスナー → dispatch → `dirty_fields()` → `BindingTable`
+  適用）へ組み込む作業はイシュー #580（headless-ui dispatch の DOM
+  イベント配線基盤、wasm-full）とその後続のスコープとする。本イシュー
+  （#592）は「状態機械が `DirtyTracked` を実装済みで配線側から即利用
+  可能」な状態までを完了条件とした
+- **`data-state` 属性の `BindingTable` 更新対象への橋渡し**:
+  `dirty_fields()` が返すフィールド名（`"state"`/`"selected"`）と
+  `data-state` DOM 属性の対応付けを行う適用層設計は未着手（#580 後続）
+- **`MultiSelect` の `DirtyTracked` 実装**: イシュー #594 で新設された
+  型であり、本イシューのスコープ外（`Disclosure`/`SingleSelect` のみが
+  対象）。必要になった時点で別途判断する
+- **Phase 2 の具象コンポーネント（Dialog/Accordion/Tabs/Collapsible/
+  Popover/Tooltip/Menu 等）自体への `DirtyTracked` 実装**: これらは
+  `Disclosure`/`SingleSelect` をフィールドとして埋め込み `Component`
+  実装を委譲する構成（第 1 節参照）であり、埋め込み型に `DirtyTracked`
+  を実装させるかどうかは #580 の配線設計と合わせて判断する
+しない。
