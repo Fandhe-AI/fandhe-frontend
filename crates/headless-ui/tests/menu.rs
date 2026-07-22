@@ -8,7 +8,7 @@
 //! （`tests/popover.rs` の構成に準拠）。
 
 use fandhe_frontend_core::render;
-use fandhe_frontend_headless_ui::menu::{self, Menu};
+use fandhe_frontend_headless_ui::menu::{self, Menu, MenuCheckboxItem, MenuRadioItemGroup};
 use fandhe_frontend_headless_ui::OpenState;
 use fandhe_frontend_interactive::{
     dispatch, render_for_hydration, Component, Hydrate, HydrateError,
@@ -280,6 +280,154 @@ fn nested_menu_assembly_xss_payload_is_escaped_end_to_end() {
     let parent_content = parent.content(None, None, vec![], vec![trigger_item, sub_positioner]);
     let parent_trigger = parent.trigger(false, None, vec![], vec![]);
     let root = parent.root(vec![], vec![parent_trigger, parent_content]);
+
+    let html = render(&root);
+    assert!(!html.contains("onmouseover=\"alert(1)"));
+    assert!(html.contains("&quot;"));
+}
+
+// --- checkbox_item / radio_item_group / radio_item 組み立て統合（イシュー #597） ---
+
+#[test]
+fn full_assembly_with_checkbox_item_and_radio_item_group_wires_roles_and_checked_state() {
+    let checkbox = menu::checkbox_item(true, "notifications", false, false, vec![], vec![]);
+
+    let group_label = menu::item_group_label(Some("radio-group-1-label"), vec![], vec![]);
+    let radio_a = menu::radio_item(true, "a", false, false, vec![], vec![]);
+    let radio_b = menu::radio_item(false, "b", false, false, vec![], vec![]);
+    let radio_group = menu::radio_item_group(
+        Some("radio-group-1-label"),
+        vec![],
+        vec![group_label, radio_a, radio_b],
+    );
+
+    let content = menu::content(
+        OpenState::Open,
+        None,
+        None,
+        vec![],
+        vec![checkbox, radio_group],
+    );
+    let positioner = menu::positioner(OpenState::Open, vec![], vec![content]);
+    let trigger = menu::trigger(OpenState::Open, false, None, vec![], vec![]);
+    let root = menu::root(OpenState::Open, vec![], vec![trigger, positioner]);
+
+    let html = render(&root);
+    assert!(html.contains(r#"data-part="checkbox-item""#));
+    assert!(html.contains(r#"role="menuitemcheckbox""#));
+    assert!(html.contains(r#"data-part="radio-item-group""#));
+    assert!(html.contains(r#"role="group""#));
+    assert!(html.contains(r#"data-part="radio-item""#));
+    assert!(html.contains(r#"role="menuitemradio""#));
+    assert!(html.contains(r#"aria-labelledby="radio-group-1-label""#));
+    assert!(html.contains(r#"id="radio-group-1-label""#));
+    // checkbox は checked=true、radio a は checked、radio b は unchecked が
+    // 同時に成立する（互いの状態機械が独立していることの固定）。
+    assert!(html.matches(r#"aria-checked="true""#).count() == 2);
+    assert!(html.contains(r#"aria-checked="false""#));
+}
+
+#[test]
+fn menu_checkbox_item_toggle_dispatch_reflects_in_rendering() {
+    let mut c = MenuCheckboxItem::default();
+    assert!(
+        render(&c.checkbox_item("notifications", false, false, vec![], vec![]))
+            .contains(r#"data-state="unchecked""#)
+    );
+
+    assert!(dispatch(&mut c, "toggle", ""));
+    let html = render(&c.checkbox_item("notifications", false, false, vec![], vec![]));
+    assert!(html.contains(r#"data-state="checked""#));
+    assert!(html.contains(r#"aria-checked="true""#));
+}
+
+#[test]
+fn menu_radio_item_group_select_dispatch_reflects_in_rendering() {
+    let mut g = MenuRadioItemGroup::default();
+    assert!(dispatch(&mut g, "select", "a"));
+
+    let radio_a = g.radio_item("a", false, false, vec![], vec![]);
+    let radio_b = g.radio_item("b", false, false, vec![], vec![]);
+    assert!(render(&radio_a).contains(r#"data-state="checked""#));
+    assert!(render(&radio_b).contains(r#"data-state="unchecked""#));
+
+    assert!(dispatch(&mut g, "select", "b"));
+    let radio_a = g.radio_item("a", false, false, vec![], vec![]);
+    let radio_b = g.radio_item("b", false, false, vec![], vec![]);
+    assert!(render(&radio_a).contains(r#"data-state="unchecked""#));
+    assert!(render(&radio_b).contains(r#"data-state="checked""#));
+}
+
+#[test]
+fn menu_checkbox_item_hydration_round_trip_via_public_api() {
+    let c = MenuCheckboxItem::new(true);
+    let rendered = render(&render_for_hydration(&c));
+    assert!(rendered.contains(r#"data-hydrate-checked="checked""#));
+
+    let restored = MenuCheckboxItem::from_hydration_attrs(&c.hydration_attrs()).unwrap();
+    assert_eq!(restored, c);
+}
+
+#[test]
+fn menu_checkbox_item_hydration_rejects_tampered_value() {
+    let attrs = vec![(
+        "data-hydrate-checked".to_string(),
+        "<script>alert(1)</script>".to_string(),
+    )];
+    let err = MenuCheckboxItem::from_hydration_attrs(&attrs).unwrap_err();
+    assert!(matches!(err, HydrateError::InvalidValue { .. }));
+}
+
+#[test]
+fn menu_radio_item_group_hydration_round_trip_via_public_api() {
+    let mut g = MenuRadioItemGroup::default();
+    assert!(dispatch(&mut g, "select", "a"));
+    let rendered = render(&render_for_hydration(&g));
+    assert!(rendered.contains("data-hydrate-selected="));
+
+    let restored = MenuRadioItemGroup::from_hydration_attrs(&g.hydration_attrs()).unwrap();
+    assert_eq!(restored, g);
+}
+
+#[test]
+fn menu_radio_item_group_hydration_rejects_missing_attr() {
+    let err = MenuRadioItemGroup::from_hydration_attrs(&[]).unwrap_err();
+    assert_eq!(
+        err,
+        HydrateError::MissingAttr("data-hydrate-selected".to_string())
+    );
+}
+
+#[test]
+fn checkbox_item_and_radio_item_group_assembly_xss_payload_is_escaped_end_to_end() {
+    let checkbox = menu::checkbox_item(
+        false,
+        ATTR_BREAK_PAYLOAD,
+        false,
+        false,
+        vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+        vec![],
+    );
+    let radio_group = menu::radio_item_group(
+        Some(ATTR_BREAK_PAYLOAD),
+        vec![],
+        vec![menu::radio_item(
+            false,
+            ATTR_BREAK_PAYLOAD,
+            false,
+            false,
+            vec![],
+            vec![],
+        )],
+    );
+    let content = menu::content(
+        OpenState::Open,
+        None,
+        None,
+        vec![],
+        vec![checkbox, radio_group],
+    );
+    let root = menu::root(OpenState::Open, vec![], vec![content]);
 
     let html = render(&root);
     assert!(!html.contains("onmouseover=\"alert(1)"));
