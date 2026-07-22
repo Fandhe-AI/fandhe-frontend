@@ -79,7 +79,9 @@ impl OverlayKind {
         true
     }
 
-    /// 外側インタラクションでの閉鎖既定値。
+    /// 外側インタラクションでの閉鎖既定値（**kind 単位**の既定であり、
+    /// `role="alertdialog"` 等コンテンツ属性による上書きは含まない。実効値は
+    /// [`close_on_interact_outside_for`] を使う）。
     ///
     /// Dialog/Popover/Menu は `true`。Tooltip のみ `false` とする —
     /// Tooltip の非表示はポインタ離脱・遅延タイマー（イシュー #587）が
@@ -89,6 +91,26 @@ impl OverlayKind {
     /// 設計次第。現時点で Tooltip 用の opt-in 属性は未定義）。
     #[must_use]
     pub const fn close_on_interact_outside(self) -> bool {
+        !matches!(self, Self::Tooltip)
+    }
+
+    /// 「外側インタラクションで閉鎖しない」ことが、下層オーバーレイへの
+    /// 伝播（[`outside_close_indices`]）を遮断する「意図的な永続化」を
+    /// 意味するか。
+    ///
+    /// Tooltip のみ `false` とする —Tooltip が閉じない既定値は
+    /// [`close_on_interact_outside`] の doc の通り「オーバーレイスタックへの
+    /// 非参加」であり、永続化を選んだわけではない。そのため Tooltip が
+    /// 開いている間も、その下にある Dialog/Popover/Menu は外側クリックで
+    /// 閉じられるべきであり、Tooltip の存在で伝播を止めてはならない。
+    ///
+    /// Dialog（`role="alertdialog"` を含む）/Popover/Menu は `true` —
+    /// これらが外側クリックで閉じない場合（`role="alertdialog"` の既定、
+    /// または `data-close-on-interact-outside="false"` の明示 opt-out）は
+    /// 呼び出し側が意図的に永続化を選んだものであり、子を孤児化させてまで
+    /// 親オーバーレイを閉じない安全側の判断を維持する。
+    #[must_use]
+    pub const fn outside_dismiss_blocks_propagation_by_default(self) -> bool {
         !matches!(self, Self::Tooltip)
     }
 }
@@ -113,12 +135,51 @@ pub fn close_on_escape_for<T: AttrSource>(kind: OverlayKind, content: &T) -> boo
 /// [`OverlayKind::close_on_interact_outside`] の既定値へ反映する。
 ///
 /// [`close_on_escape_for`] と同じ fail-closed 方針（`"false"` のみ無効化、
-/// 他は既定値へフォールバック）。
+/// 他は既定値へフォールバック）。加えて、`kind` が [`OverlayKind::Dialog`]
+/// かつ `content` の `role` 属性が `"alertdialog"` の場合、属性が明示的に
+/// 与えられていない限り既定値を `false` に上書きする — ark-ui / WAI-ARIA の
+/// alertdialog パターン（外側クリックで閉じない。エラー・破壊的操作の確認
+/// など、ユーザーに明示的な選択を強制する用途のため）に合わせる。
+/// `role="dialog"`（通常ダイアログ）はこの上書きの対象外。
 #[must_use]
 pub fn close_on_interact_outside_for<T: AttrSource>(kind: OverlayKind, content: &T) -> bool {
     match content.attr("data-close-on-interact-outside").as_deref() {
         Some("false") => false,
-        _ => kind.close_on_interact_outside(),
+        _ => {
+            if matches!(kind, OverlayKind::Dialog) && is_alertdialog(content) {
+                false
+            } else {
+                kind.close_on_interact_outside()
+            }
+        }
+    }
+}
+
+/// `content` の `role` 属性が `"alertdialog"` かどうかを判定する
+/// （[`close_on_interact_outside_for`] の alertdialog 既定上書き専用の
+/// 内部ヘルパー）。
+fn is_alertdialog<T: AttrSource>(content: &T) -> bool {
+    content.attr("role").as_deref() == Some("alertdialog")
+}
+
+/// 「外側インタラクションで閉鎖しない」ことが下層への伝播を遮断する
+/// 「意図的な永続化」を意味するかを判定する
+/// （[`OverlayKind::outside_dismiss_blocks_propagation_by_default`] 参照）。
+///
+/// `data-close-on-interact-outside="false"` の明示 opt-out は、kind を問わず
+/// 常に「意図的な永続化」として扱い、伝播を遮断する（属性を明示した以上、
+/// 呼び出し側の意図は明確なため）。属性が欠落・その他の不正値の場合は
+/// kind 既定値へフォールバックする（Tooltip の既定非参加は遮断しない。
+/// `role="alertdialog"` の既定非閉鎖は kind 既定値 `true` により遮断する
+/// ——Dialog kind である以上、role によらず遮断側の既定を維持する）。
+#[must_use]
+pub fn outside_dismiss_blocks_propagation_for<T: AttrSource>(
+    kind: OverlayKind,
+    content: &T,
+) -> bool {
+    match content.attr("data-close-on-interact-outside").as_deref() {
+        Some("false") => true,
+        _ => kind.outside_dismiss_blocks_propagation_by_default(),
     }
 }
 
@@ -137,6 +198,18 @@ pub struct OverlayEntry {
     pub close_on_escape: bool,
     /// 外側インタラクションでの閉鎖を許可するか。
     pub close_on_interact_outside: bool,
+    /// `close_on_interact_outside == false` のとき、それが
+    /// [`outside_close_indices`] の下層への伝播を遮断する「意図的な永続化」
+    /// を意味するか。`close_on_interact_outside == true` のときは無関係
+    /// （伝播判定に使われない）。
+    ///
+    /// 「オーバーレイスタックへの非参加」（Tooltip の既定）と「意図的な
+    /// 永続化オプトアウト」（明示 opt-out・`role="alertdialog"` の既定）は
+    /// 別概念であり、前者は `false`（下層を閉じさせる）、後者は `true`
+    /// （下層を巻き添えで閉じない）とする（
+    /// [`OverlayKind::outside_dismiss_blocks_propagation_by_default`] /
+    /// [`outside_dismiss_blocks_propagation_for`] 参照）。
+    pub outside_dismiss_blocks_propagation: bool,
 }
 
 /// 開いているオーバーレイのスタック（下から古い順、末尾が最上位/topmost）
@@ -168,9 +241,16 @@ pub fn escape_close_index(stack: &[OverlayEntry]) -> Option<usize> {
 /// - ターゲットを含む（`contains_target[i] == true`）: そこで走査を打ち切る
 ///   （このエントリより下は閉鎖対象に含めない。ターゲットが属する
 ///   オーバーレイより外側にある祖先オーバーレイまで巻き添えで閉じない）。
-/// - opt-out（`close_on_interact_outside == false`）: そこで走査を打ち切る
-///   （永続化を選んだエントリの下にある親オーバーレイを、子を孤児化させて
-///   まで閉じない安全側の判断）。
+/// - 外側インタラクションで閉じない（`close_on_interact_outside == false`）
+///   場合、`outside_dismiss_blocks_propagation` で 2 通りに分岐する:
+///   - `true`（意図的な永続化オプトアウト。明示 opt-out・
+///     `role="alertdialog"` の既定）: そこで走査を打ち切る（永続化を選んだ
+///     エントリの下にある親オーバーレイを、子を孤児化させてまで閉じない
+///     安全側の判断）。
+///   - `false`（スタック非参加。Tooltip の既定）: このエントリは閉鎖対象に
+///     含めず、かつ走査も打ち切らずに次（1 つ下層）へ進む（Tooltip が
+///     開いている間も、その下の Dialog/Popover/Menu の外側クリック閉鎖を
+///     妨げない）。
 /// - 上記いずれでもない: 閉鎖対象へ積み、次（1 つ下層）へ進む。
 ///
 /// `stack`/`contains_target` の長さが一致しない場合は空を返す（呼び出し側の
@@ -187,7 +267,10 @@ pub fn outside_close_indices(stack: &[OverlayEntry], contains_target: &[bool]) -
         }
         let entry = &stack[i];
         if !entry.close_on_interact_outside {
-            break;
+            if entry.outside_dismiss_blocks_propagation {
+                break;
+            }
+            continue;
         }
         closing.push(i);
     }
@@ -249,7 +332,8 @@ pub struct OverlayCloseRequest {
 mod wiring {
     use super::{
         close_on_escape_for, close_on_interact_outside_for, escape_close_index,
-        outside_close_indices, OverlayCloseRequest, OverlayEntry, OverlayKind,
+        outside_close_indices, outside_dismiss_blocks_propagation_for, OverlayCloseRequest,
+        OverlayEntry, OverlayKind,
     };
     use crate::events::AttrSource;
     use wasm_bindgen::closure::Closure;
@@ -433,6 +517,9 @@ mod wiring {
                 kind,
                 close_on_escape: close_on_escape_for(kind, &source),
                 close_on_interact_outside: close_on_interact_outside_for(kind, &source),
+                outside_dismiss_blocks_propagation: outside_dismiss_blocks_propagation_for(
+                    kind, &source,
+                ),
             };
             let mut stack = self.stack.borrow_mut();
             stack.push(MountedOverlay {
@@ -520,10 +607,33 @@ mod tests {
         close_on_escape: bool,
         close_on_interact_outside: bool,
     ) -> OverlayEntry {
+        // `close_on_interact_outside == true` の呼び出し元では
+        // `outside_dismiss_blocks_propagation` は判定に使われないため、
+        // kind の既定値をそのまま使う（Tooltip 固有の非遮断挙動を検証する
+        // テストは `entry_with_propagation` を使う）。
         OverlayEntry {
             kind,
             close_on_escape,
             close_on_interact_outside,
+            outside_dismiss_blocks_propagation: kind
+                .outside_dismiss_blocks_propagation_by_default(),
+        }
+    }
+
+    /// `outside_dismiss_blocks_propagation` を明示指定する版（Tooltip の
+    /// スタック非参加 vs 意図的な永続化オプトアウトの区別を検証するテスト
+    /// 専用）。
+    fn entry_with_propagation(
+        kind: OverlayKind,
+        close_on_escape: bool,
+        close_on_interact_outside: bool,
+        outside_dismiss_blocks_propagation: bool,
+    ) -> OverlayEntry {
+        OverlayEntry {
+            kind,
+            close_on_escape,
+            close_on_interact_outside,
+            outside_dismiss_blocks_propagation,
         }
     }
 
@@ -630,6 +740,89 @@ mod tests {
         }
     }
 
+    // --- alertdialog 既定上書き（指摘 2: role="alertdialog" は既定で
+    // 外側インタラクション閉鎖の対象外とする） ---
+
+    #[test]
+    fn close_on_interact_outside_for_alertdialog_defaults_to_false() {
+        let content = element(&[("role", "alertdialog")]);
+        assert!(
+            !close_on_interact_outside_for(OverlayKind::Dialog, &content),
+            "role=\"alertdialog\" は外側クリックで閉じない既定であるべき"
+        );
+    }
+
+    #[test]
+    fn close_on_interact_outside_for_plain_dialog_role_keeps_default_true() {
+        let content = element(&[("role", "dialog")]);
+        assert!(
+            close_on_interact_outside_for(OverlayKind::Dialog, &content),
+            "role=\"dialog\"（通常ダイアログ）は既定通り外側クリックで閉じる"
+        );
+    }
+
+    #[test]
+    fn close_on_interact_outside_for_alertdialog_explicit_false_still_disables() {
+        // 明示 opt-out ("false") は alertdialog 既定と結果が同じだが、
+        // 経路として重複していても panic・矛盾しないことを確認する。
+        let content = element(&[
+            ("role", "alertdialog"),
+            ("data-close-on-interact-outside", "false"),
+        ]);
+        assert!(!close_on_interact_outside_for(
+            OverlayKind::Dialog,
+            &content
+        ));
+    }
+
+    #[test]
+    fn close_on_interact_outside_for_non_dialog_kind_ignores_alertdialog_role() {
+        // role="alertdialog" は Dialog kind 専用の上書きであり、他 kind
+        // （改ざん・非対応の組み合わせ）には影響しない。
+        let content = element(&[("role", "alertdialog")]);
+        assert!(close_on_interact_outside_for(
+            OverlayKind::Popover,
+            &content
+        ));
+    }
+
+    // --- outside_dismiss_blocks_propagation_for（指摘 1: スタック非参加
+    // と意図的な永続化オプトアウトの区別） ---
+
+    #[test]
+    fn outside_dismiss_blocks_propagation_for_tooltip_default_is_false() {
+        let content = element(&[]);
+        assert!(
+            !outside_dismiss_blocks_propagation_for(OverlayKind::Tooltip, &content),
+            "Tooltip の既定非参加は下層への伝播を遮断しない"
+        );
+    }
+
+    #[test]
+    fn outside_dismiss_blocks_propagation_for_dialog_default_is_true() {
+        let content = element(&[]);
+        assert!(outside_dismiss_blocks_propagation_for(
+            OverlayKind::Dialog,
+            &content
+        ));
+    }
+
+    #[test]
+    fn outside_dismiss_blocks_propagation_for_explicit_opt_out_always_true() {
+        let content = element(&[("data-close-on-interact-outside", "false")]);
+        for kind in [
+            OverlayKind::Dialog,
+            OverlayKind::Popover,
+            OverlayKind::Menu,
+            OverlayKind::Tooltip,
+        ] {
+            assert!(
+                outside_dismiss_blocks_propagation_for(kind, &content),
+                "kind={kind:?}: 明示 opt-out は kind を問わず遮断する"
+            );
+        }
+    }
+
     // --- escape_close_index ---
 
     #[test]
@@ -713,5 +906,54 @@ mod tests {
     #[test]
     fn outside_close_indices_empty_stack_returns_empty() {
         assert_eq!(outside_close_indices(&[], &[]), Vec::<usize>::new());
+    }
+
+    // --- 指摘 1 回帰: Tooltip のスタック非参加は下層の閉鎖を妨げない ---
+
+    #[test]
+    fn outside_close_indices_tooltip_on_top_does_not_block_dialog_below() {
+        let stack = [
+            // index 0: 親 Dialog（外側クリックで閉じる）。
+            entry_with_propagation(OverlayKind::Dialog, true, true, true),
+            // index 1: 最上位 Tooltip。既定 close_on_interact_outside=false、
+            // outside_dismiss_blocks_propagation=false（スタック非参加）。
+            entry_with_propagation(OverlayKind::Tooltip, true, false, false),
+        ];
+        let contains_target = [false, false];
+        assert_eq!(
+            outside_close_indices(&stack, &contains_target),
+            vec![0],
+            "Tooltip 自身は閉鎖対象に含めないが、下の Dialog は外側クリックで閉じる"
+        );
+    }
+
+    #[test]
+    fn outside_close_indices_persistent_opt_out_still_blocks_below() {
+        // 指摘 1 の対比: 明示的な永続化オプトアウト（
+        // outside_dismiss_blocks_propagation == true）は Tooltip と異なり、
+        // 従来通り下層への伝播を遮断する。
+        let stack = [
+            entry_with_propagation(OverlayKind::Dialog, true, true, true),
+            entry_with_propagation(OverlayKind::Popover, true, false, true),
+        ];
+        let contains_target = [false, false];
+        assert_eq!(
+            outside_close_indices(&stack, &contains_target),
+            Vec::<usize>::new(),
+            "意図的な永続化オプトアウトは下の Dialog も巻き添えで閉じさせない"
+        );
+    }
+
+    #[test]
+    fn outside_close_indices_multiple_non_participating_tooltips_skip_through() {
+        // 複数の Tooltip が入れ子でスタックされていても、いずれも走査を
+        // 打ち切らず、最下層の Dialog まで到達して閉じる。
+        let stack = [
+            entry_with_propagation(OverlayKind::Dialog, true, true, true),
+            entry_with_propagation(OverlayKind::Tooltip, true, false, false),
+            entry_with_propagation(OverlayKind::Tooltip, true, false, false),
+        ];
+        let contains_target = [false, false, false];
+        assert_eq!(outside_close_indices(&stack, &contains_target), vec![0]);
     }
 }
