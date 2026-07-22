@@ -24,13 +24,13 @@
 //!    `Node` 型参照は `fandhe_frontend_headless_ui::fandhe_frontend_core::Node`
 //!    （headless-ui が再エクスポートする core、イシュー #550）経由で得る。
 //!
-//! # 実装済み API（イシュー #546/#547/#548/#550）
+//! # 実装済み API（イシュー #546/#547/#548/#550/#551）
 //!
 //! - [`theme`]（#547）: テーマトークン・ダークモード基盤。
 //! - [`css`]（#548）: CSS 宣言の低レベル表現・検証・シリアライズ。
 //! - [`recipe`]（#548）: slot recipe 本体・[`recipe::SlotRecipe`]・
 //!   [`recipe::VariantValue`]。
-//! - 状態機械を要しない単純 styled 部品 5 種（#550、本イシュー）:
+//! - 状態機械を要しない単純 styled 部品 5 種（#550）:
 //!   - [`mod@button`]: [`button::button`]（単一 recipe、`<button type="button">`。
 //!     `loading` 時は [`mod@spinner`] を子ノード先頭へ埋め込む）。
 //!   - [`mod@badge`]: [`badge::badge`]（単一 recipe、`<span>`）。
@@ -49,8 +49,24 @@
 //!   が除去してから recipe 生成クラスと合成し、`class` 属性が常に単一になる
 //!   ことを保証する。
 //!
-//! headless 状態機械を持つ複合部品の styled 版（Dialog/Tabs 等ラッパー）は
-//! イシュー #551 のスコープ（本クレートでは未実装）。
+//! - headless 状態機械を持つ複合部品 5 種の styled ラッパー第 1 弾（#551）:
+//!   [`mod@dialog`] / [`mod@tabs`] / [`mod@accordion`] / [`mod@menu`] /
+//!   [`mod@select`]。examples・利用ガイド（#552）は別イシューのスコープ。
+//!
+//! # headless ラッパーの設計（#551）
+//!
+//! [`mod@dialog`]・[`mod@accordion`]・[`mod@menu`]・[`mod@select`]・
+//! [`mod@tabs`] はいずれも `fandhe_frontend_headless_ui` の対応モジュールが
+//! 出力する `data-scope`/`data-part` 属性セレクタへ [`recipe::SlotRecipe`]
+//! で静的 CSS を対応付ける薄い委譲層である。パーツ関数・状態機械
+//! （`Dialog`/`Accordion`/`Menu`/`Select`）は headless 層からそのまま
+//! 再エクスポートし（`pub use ...::*`）、新たな出力経路・エスケープ迂回は
+//! 一切持たない。各モジュールの `stylesheet()` が生成する CSS は静的
+//! `.css` ファイルとして配信する利用形態を前提とし、`<style>` タグへの
+//! インライン埋め込み（`raw_html()` が必要になる）は本クレートの責務外
+//! （不変条件 2 を参照）。variant（size 等）ごとのクラス切り替えは
+//! headless ラッパー第 2 弾以降のスコープとする（各モジュール rustdoc の
+//! スコープ外節を参照）。
 //!
 //! [`theme`] が生成する CSS は静的 `.css` ファイルとして配信する利用形態を
 //! 前提とし、`<style>` タグへの埋め込み（`raw_html` が必要になる）は本クレート
@@ -60,14 +76,19 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod accordion;
 pub mod alert;
 pub mod badge;
 pub mod button;
 pub mod card;
 mod class_attr;
 pub mod css;
+pub mod dialog;
+pub mod menu;
 pub mod recipe;
+pub mod select;
 pub mod spinner;
+pub mod tabs;
 pub mod theme;
 
 pub use alert::AlertStatus;

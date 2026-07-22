@@ -17,7 +17,11 @@ categories = ["web-programming", "gui"]
 fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.1.0" }
 
 # core はスモークテストで既定エスケープ（REQ-1）を固定するための dev-dependency。
-# depends_on 完全一致検証（crates/cli/src/metadata.rs）は通常の [dependencies] のみを
-# 対象とするため、structure.toml の depends_on には現れない（docs/design/structure-manifest.md §3）。
+# interactive は styled ラッパー（Dialog 等）の SSR/hydration 往復テスト
+# （`dispatch`/`render_for_hydration`、イシュー #551 受け入れ条件）を固定するための
+# dev-dependency。いずれも depends_on 完全一致検証（crates/cli/src/metadata.rs）は
+# 通常の [dependencies] のみを対象とするため、structure.toml の depends_on には
+# 現れない（docs/design/structure-manifest.md §3）。
 [dev-dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.1.0" }
+fandhe-frontend-interactive = { path = "../interactive", version = "0.1.0" }
