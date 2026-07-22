@@ -9,7 +9,7 @@
 //!
 //! [`crate::events`]/[`crate::overlay`]/[`crate::keynav`] と同じ 2 層構成を
 //! 踏襲する: web-sys に依存しない純粋ロジック層（[`TooltipDelayConfig`]・
-//! [`DelayPhase`]・[`transition`]、native の `cargo test` で検証可能）と、
+//! [`DelayState`]・[`transition`]、native の `cargo test` で検証可能）と、
 //! `#[cfg(target_arch = "wasm32")]` でゲートした配線層
 //! （[`wiring::TooltipDelayController`]）に分離する。
 //!
@@ -46,6 +46,22 @@
 //! 挙動に合わせた意図的な判断である（WAI-ARIA tooltip パターン: フォーカス
 //! 可能なトリガーにフォーカスが当たった瞬間に説明が読めることを保証する
 //! 必要があり、遅延を挟むとキーボード操作者の体験を損なう）。
+//!
+//! ポインタとフォーカスは独立した入力チャネルであり、どちらか一方が
+//! まだ「表示継続の理由」を持っている限り非表示にしてはならない
+//! （WAI-ARIA tooltip パターン: フォーカスされたトリガーは、ポインタが
+//! 離脱しても説明を表示し続ける必要がある）。そのため [`DelayState`] は
+//! `phase` に加えて `pointer_over_trigger`/`pointer_over_content`/`focused`
+//! を独立に保持し、[`transition`] は非表示へつながるイベント
+//! （`PointerLeaveTrigger`/`BlurTrigger`/`PointerLeaveContent`）到着時に
+//! 「もう一方のチャネルがまだ表示継続を要求していないか」を必ず確認して
+//! から遷移を決定する（`transition` 内 `stay_open` 判定）。片方のチャネル
+//! 由来の離脱イベントだけを見て即座に非表示化すると、Tab 操作後もポインタ
+//! がホバーしたままの状態・ポインタ離脱後もフォーカスが残ったままの状態の
+//! いずれでも tooltip が消えてしまう不具合になる（イシュー #587 の
+//! Cursor Bugbot 指摘・回帰は `tests/tooltip_delay_browser.rs::
+//! blur_does_not_close_while_pointer_still_hovers_trigger`/
+//! `pointer_leave_does_not_close_while_trigger_still_focused` 参照）。
 //!
 //! # セキュリティ不変条件
 //!
@@ -142,6 +158,41 @@ pub enum DelayPhase {
     ClosePending,
 }
 
+/// [`transition`] が保持する完全な状態（表示フェーズ + 独立した入力
+/// チャネルの現況）。
+///
+/// `phase` のみでは「ポインタとフォーカスのどちらが表示継続を要求して
+/// いるか」を区別できず、一方の離脱イベントだけで非表示にしてしまう
+/// （モジュール冒頭 doc「フォーカスと遅延の使い分け」節参照、イシュー #587
+/// の Cursor Bugbot 指摘）。`pointer_over_trigger`/`pointer_over_content`/
+/// `focused` を独立に追跡し、[`transition`] がいずれかの離脱イベントを
+/// 受けた際に「もう一方のチャネルがまだ表示継続を要求していないか」を
+/// 判定できるようにする。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DelayState {
+    /// 現在の表示フェーズ。
+    pub phase: DelayPhase,
+    /// ポインタが現在 trigger 上にあるか。
+    pointer_over_trigger: bool,
+    /// ポインタが現在 content 上にあるか（`interactive` 時のみ意味を持つ）。
+    pointer_over_content: bool,
+    /// trigger が現在フォーカスされているか。
+    focused: bool,
+}
+
+impl DelayState {
+    /// 初期状態（非表示・いずれの入力チャネルも非アクティブ）を返す。
+    #[must_use]
+    pub fn closed() -> Self {
+        Self {
+            phase: DelayPhase::Closed,
+            pointer_over_trigger: false,
+            pointer_over_content: false,
+            focused: false,
+        }
+    }
+}
+
 /// [`transition`] への入力イベント（web-sys 非依存の抽象化。実 DOM イベント
 /// との対応は [`wiring`] が担う）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -194,18 +245,31 @@ pub enum DelayEffect {
     RequestClose,
 }
 
-/// 現在の [`DelayPhase`] と [`DelayEvent`] から次のフェーズと副作用を
+/// 現在の [`DelayState`] と [`DelayEvent`] から次の状態と副作用を
 /// 決定する（web-sys 非依存の純粋関数、native `cargo test` で検証可能）。
 ///
 /// 各フェーズ・イベントの組み合わせで未列挙のもの（当該フェーズで意味を
-/// 持たないイベント）はいずれも `(phase, DelayEffect::None)`
+/// 持たないイベント）はいずれも `(state, DelayEffect::None)`
 /// （フェーズ変更なし・副作用なし）とし、panic しない（fail-closed）。
+///
+/// # ポインタ/フォーカス競合の解決（`stay_open`）
+///
+/// `PointerLeaveTrigger`/`BlurTrigger`/`PointerLeaveContent`（非表示へ
+/// つながりうるイベント）は、まず [`DelayState`] の該当チャネルを更新した
+/// 上で `stay_open`（`focused || pointer_over_trigger ||
+/// (interactive && pointer_over_content)`）を評価し、**もう一方の
+/// チャネルがまだ表示継続を要求している場合は非表示へ遷移しない**
+/// （タイマー開始・`RequestClose` のいずれも発行しない）。これにより
+/// 「フォーカスされたトリガーは、ポインタが離脱しても説明を表示し続ける」
+/// という WAI-ARIA tooltip パターンの要求を満たす（モジュール冒頭 doc
+/// 「フォーカスと遅延の使い分け」節参照、イシュー #587 の Cursor Bugbot
+/// 指摘の回帰）。
 #[must_use]
 pub fn transition(
-    phase: DelayPhase,
+    mut state: DelayState,
     event: DelayEvent,
     config: &TooltipDelayConfig,
-) -> (DelayPhase, DelayEffect) {
+) -> (DelayState, DelayEffect) {
     use DelayEffect::{
         CancelTimer, None as NoEffect, RequestClose, RequestOpen, StartCloseTimer, StartOpenTimer,
     };
@@ -215,7 +279,26 @@ pub fn transition(
     };
     use DelayPhase::{ClosePending, Closed, Open, OpenPending};
 
-    match (phase, event) {
+    // 各イベントの意味に沿って、まず入力チャネルの現況を更新する。
+    // `OpenTimerFired`/`CloseTimerFired` はどちらのチャネルにも属さない
+    // 内部イベントのため対象外。
+    match event {
+        PointerEnterTrigger => state.pointer_over_trigger = true,
+        PointerLeaveTrigger => state.pointer_over_trigger = false,
+        FocusTrigger => state.focused = true,
+        BlurTrigger => state.focused = false,
+        PointerEnterContent => state.pointer_over_content = true,
+        PointerLeaveContent => state.pointer_over_content = false,
+        DelayEvent::OpenTimerFired | DelayEvent::CloseTimerFired => {}
+    }
+
+    // もう一方のチャネルがまだ表示継続を要求しているか（doc 上記参照）。
+    let stay_open = state.focused
+        || state.pointer_over_trigger
+        || (config.interactive && state.pointer_over_content);
+
+    let phase = state.phase;
+    let (next_phase, effect) = match (phase, event) {
         // --- Closed: トリガーへの進入・フォーカスのみが表示へつながる ---
         (Closed, PointerEnterTrigger) => {
             if config.open_delay_ms == 0 {
@@ -234,17 +317,29 @@ pub fn transition(
         (OpenPending, BlurTrigger) => (Closed, CancelTimer),
 
         // --- Open: 表示中。トリガー離脱で close 遅延予約、interactive
-        // なら content 側の進入/離脱も同様に扱う ---
+        // なら content 側の進入/離脱も同様に扱う。ただし `stay_open` が
+        // 真（もう一方のチャネルが表示継続を要求している）のときは
+        // 非表示へ遷移せず Open に留まる（`stay_open` doc 参照） ---
         (Open, PointerLeaveTrigger) => {
-            if config.close_delay_ms == 0 {
+            if stay_open {
+                (Open, NoEffect)
+            } else if config.close_delay_ms == 0 {
                 (Closed, RequestClose)
             } else {
                 (ClosePending, StartCloseTimer(config.close_delay_ms))
             }
         }
-        (Open, BlurTrigger) => (Closed, RequestClose),
+        (Open, BlurTrigger) => {
+            if stay_open {
+                (Open, NoEffect)
+            } else {
+                (Closed, RequestClose)
+            }
+        }
         (Open, PointerLeaveContent) if config.interactive => {
-            if config.close_delay_ms == 0 {
+            if stay_open {
+                (Open, NoEffect)
+            } else if config.close_delay_ms == 0 {
                 (Closed, RequestClose)
             } else {
                 (ClosePending, StartCloseTimer(config.close_delay_ms))
@@ -262,7 +357,10 @@ pub fn transition(
         // --- 上記いずれにも一致しない組み合わせ: フェーズ非変更・no-op
         // （改ざん・未知の順序で発火したイベントに対する fail-closed） ---
         (current, _) => (current, NoEffect),
-    }
+    };
+
+    state.phase = next_phase;
+    (state, effect)
 }
 
 // ---------------------------------------------------------------------
@@ -272,7 +370,7 @@ pub fn transition(
 // ---------------------------------------------------------------------
 #[cfg(target_arch = "wasm32")]
 mod wiring {
-    use super::{transition, DelayEffect, DelayEvent, DelayPhase, TooltipDelayConfig};
+    use super::{transition, DelayEffect, DelayEvent, DelayState, TooltipDelayConfig};
     use crate::events::AttrSource;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
@@ -333,13 +431,34 @@ mod wiring {
     /// clippy `type_complexity` 回避も兼ねる）。
     type DelayListener = (Element, &'static str, Closure<dyn FnMut(Event)>);
 
+    /// 保留中タイマー 1 件分の `(handle, closure)`。
+    ///
+    /// `handle` のみを保持して `Closure` を `forget()` すると、キャンセル・
+    /// 発火のたびに Rust 側の `Closure` が回収されず恒久的にリークする
+    /// （イシュー #587 の Cursor Bugbot 指摘）。`Closure` を本構造体へ
+    /// 保持し、[`apply_event`] の保留中タイマー解除処理・
+    /// [`TooltipDelayController::remove_tooltip`]・[`Drop`] のいずれかで
+    /// `Some(PendingTimer)` を `take()` して破棄することで解放する。
+    ///
+    /// タイマー発火時（[`apply_event`] がこの `_closure` 自身の呼び出し中に
+    /// 実行される再帰呼び出し）に本構造体を破棄しても安全である:
+    /// `wasm_bindgen::closure::Closure` は内部で参照カウントを用いており、
+    /// 「自身の呼び出し中に `Closure` を drop しても、呼び出しが完了するまで
+    /// 実体の破棄を遅延する」設計になっている
+    /// （`wasm-bindgen` `convert/closures.rs` の `into_js_function` 実装
+    /// コメント・`Closure::once_into_js` が同じパターンで自己解放している
+    /// ことを根拠とする）。
+    struct PendingTimer {
+        handle: i32,
+        _closure: Closure<dyn FnMut()>,
+    }
+
     /// [`TooltipDelayController`] が管理する 1 tooltip エントリの実体。
     struct MountedTooltip {
         config: TooltipDelayConfig,
-        phase: DelayPhase,
-        /// 保留中タイマーの handle（`Window::set_timeout_with_callback_and_timeout_and_arguments_0`
-        /// の戻り値）。`None` は保留中タイマーなし。
-        timer_handle: Option<i32>,
+        state: DelayState,
+        /// 保留中タイマー（handle + closure）。`None` は保留中タイマーなし。
+        timer: Option<PendingTimer>,
         /// このエントリ専用の登録済みリスナー一覧（`(target element, event
         /// 名, closure)`）。[`TooltipDelayController::remove_tooltip`]/[`Drop`]
         /// で対称的に解除するために保持する。
@@ -504,8 +623,8 @@ mod wiring {
             let mut guard = entries.borrow_mut();
             let mounted = MountedTooltip {
                 config,
-                phase: DelayPhase::Closed,
-                timer_handle: None,
+                state: DelayState::closed(),
+                timer: None,
                 listeners,
             };
             if index < guard.len() {
@@ -531,8 +650,8 @@ mod wiring {
             let Some(mounted) = slot.take() else {
                 return;
             };
-            if let Some(handle) = mounted.timer_handle {
-                self.window.clear_timeout_with_handle(handle);
+            if let Some(timer) = mounted.timer {
+                self.window.clear_timeout_with_handle(timer.handle);
             }
             for (element, name, closure) in mounted.listeners {
                 let _ = element
@@ -556,8 +675,8 @@ mod wiring {
             let mut guard = self.entries.borrow_mut();
             for slot in guard.iter_mut() {
                 if let Some(mounted) = slot.take() {
-                    if let Some(handle) = mounted.timer_handle {
-                        self.window.clear_timeout_with_handle(handle);
+                    if let Some(timer) = mounted.timer {
+                        self.window.clear_timeout_with_handle(timer.handle);
                     }
                     for (element, name, closure) in mounted.listeners {
                         let _ = element.remove_event_listener_with_callback(
@@ -616,8 +735,8 @@ mod wiring {
             let Some(Some(mounted)) = guard.get_mut(index) else {
                 return;
             };
-            let (next_phase, effect) = transition(mounted.phase, event, &mounted.config);
-            mounted.phase = next_phase;
+            let (next_state, effect) = transition(mounted.state, event, &mounted.config);
+            mounted.state = next_state;
             // `DelayEffect::None`（未列挙の組み合わせ・現フェーズで意味を
             // 持たないイベント）は保留中タイマーへ一切干渉しない。
             // 例えば「非 interactive での content pointerenter」は no-op だが、
@@ -627,10 +746,13 @@ mod wiring {
             // `tests/tooltip_delay_browser.rs::interactive_false_closes_even_when_pointer_moves_into_content`）。
             // 保留中タイマーのキャンセルは `effect` が実際にタイマーへ
             // 影響する場合（`StartOpenTimer`/`StartCloseTimer`/`CancelTimer`/
-            // `RequestOpen`/`RequestClose`）に限定する。
+            // `RequestOpen`/`RequestClose`）に限定する。`timer.take()` は
+            // handle・`Closure` の双方を同時に破棄する（[`PendingTimer`] doc
+            // の「自己呼び出し中の drop も安全」根拠を参照。本呼び出しが
+            // まさにそのタイマー自身の発火経由であっても安全）。
             if !matches!(effect, DelayEffect::None) {
-                if let Some(handle) = mounted.timer_handle.take() {
-                    window.clear_timeout_with_handle(handle);
+                if let Some(timer) = mounted.timer.take() {
+                    window.clear_timeout_with_handle(timer.handle);
                 }
             }
             effect
@@ -662,23 +784,25 @@ mod wiring {
                         ms as i32,
                     )
                     .ok();
-                // タイマー起動後は `handle`/クロージャ本体をエントリへ格納する。
-                // クロージャは `timer_handle` を介して間接的に生存を制御する
-                // （`Closure` を `forget` せず、コントローラ/エントリの生存期間に
-                // 束縛する。`overlay.rs` の `Closure::forget` 非採用と同方針）。
-                let mut guard = entries.borrow_mut();
-                if let Some(Some(mounted)) = guard.get_mut(index) {
-                    mounted.timer_handle = handle;
+                // タイマー起動後は `handle`/クロージャ本体を [`PendingTimer`]
+                // としてエントリへ格納する。`Closure` は `forget()` せず、
+                // 本エントリ（[`MountedTooltip::timer`]）の生存期間に束縛
+                // する（キャンセル時・発火時・`remove_tooltip`/`Drop` の
+                // いずれかで確実に破棄され、`forget()` によるホバーごとの
+                // 恒久リークを避ける。[`PendingTimer`] doc 参照、
+                // イシュー #587 の Cursor Bugbot 指摘）。
+                // `set_timeout` が失敗し `handle` が `None` の場合は
+                // `Closure` を保持し続けても発火しないため、素直に drop する
+                // （タイマーが張られなかった以上、保留中タイマーは存在しない）。
+                if let Some(handle) = handle {
+                    let mut guard = entries.borrow_mut();
+                    if let Some(Some(mounted)) = guard.get_mut(index) {
+                        mounted.timer = Some(PendingTimer {
+                            handle,
+                            _closure: timer_closure,
+                        });
+                    }
                 }
-                // クロージャ自体は `set_timeout` 呼び出し後、JS 側が保持する
-                // 関数値としてのみ生存すればよいが、Rust 側の `Closure` を
-                // 即座に drop すると呼び出し前に解放されてしまうため、
-                // `forget` して JS 側のタイマーが担当する生存期間に委ねる。
-                // `clear_timeout_with_handle` により、対応するクロージャが
-                // 実際に呼ばれない場合でも JS 側の GC 対象になる
-                // （`web_sys`/`wasm-bindgen` の `Closure::forget` の一般的な
-                // 用法、`events.rs::wire_events` と同方針）。
-                timer_closure.forget();
             }
             DelayEffect::RequestOpen => {
                 (on_request.borrow_mut())(TooltipDelayRequest {
@@ -781,39 +905,78 @@ mod tests {
         }
     }
 
+    /// 指定 `phase` かつ全入力チャネル非アクティブな [`DelayState`] を作る
+    /// （既存の「フェーズのみ」の単体テストが暗黙に仮定していた初期状態）。
+    fn state(phase: DelayPhase) -> DelayState {
+        DelayState {
+            phase,
+            pointer_over_trigger: false,
+            pointer_over_content: false,
+            focused: false,
+        }
+    }
+
+    /// 入力チャネルを明示指定した [`DelayState`] を作る（ポインタ/フォーカス
+    /// 競合の回帰テスト用）。
+    fn state_with(
+        phase: DelayPhase,
+        pointer_over_trigger: bool,
+        pointer_over_content: bool,
+        focused: bool,
+    ) -> DelayState {
+        DelayState {
+            phase,
+            pointer_over_trigger,
+            pointer_over_content,
+            focused,
+        }
+    }
+
     #[test]
     fn closed_pointer_enter_trigger_schedules_open_timer() {
         let cfg = config(400, 150, false);
-        let (phase, effect) = transition(DelayPhase::Closed, DelayEvent::PointerEnterTrigger, &cfg);
-        assert_eq!(phase, DelayPhase::OpenPending);
+        let (next, effect) = transition(
+            state(DelayPhase::Closed),
+            DelayEvent::PointerEnterTrigger,
+            &cfg,
+        );
+        assert_eq!(next.phase, DelayPhase::OpenPending);
         assert_eq!(effect, DelayEffect::StartOpenTimer(400));
     }
 
     #[test]
     fn closed_pointer_enter_trigger_zero_delay_opens_immediately() {
         let cfg = config(0, 150, false);
-        let (phase, effect) = transition(DelayPhase::Closed, DelayEvent::PointerEnterTrigger, &cfg);
-        assert_eq!(phase, DelayPhase::Open);
+        let (next, effect) = transition(
+            state(DelayPhase::Closed),
+            DelayEvent::PointerEnterTrigger,
+            &cfg,
+        );
+        assert_eq!(next.phase, DelayPhase::Open);
         assert_eq!(effect, DelayEffect::RequestOpen);
     }
 
     #[test]
     fn open_pending_early_leave_cancels_timer_without_opening() {
         let cfg = config(400, 150, false);
-        let (phase, effect) = transition(
-            DelayPhase::OpenPending,
+        let (next, effect) = transition(
+            state(DelayPhase::OpenPending),
             DelayEvent::PointerLeaveTrigger,
             &cfg,
         );
-        assert_eq!(phase, DelayPhase::Closed);
+        assert_eq!(next.phase, DelayPhase::Closed);
         assert_eq!(effect, DelayEffect::CancelTimer);
     }
 
     #[test]
     fn open_pending_timer_fired_opens() {
         let cfg = config(400, 150, false);
-        let (phase, effect) = transition(DelayPhase::OpenPending, DelayEvent::OpenTimerFired, &cfg);
-        assert_eq!(phase, DelayPhase::Open);
+        let (next, effect) = transition(
+            state(DelayPhase::OpenPending),
+            DelayEvent::OpenTimerFired,
+            &cfg,
+        );
+        assert_eq!(next.phase, DelayPhase::Open);
         assert_eq!(effect, DelayEffect::RequestOpen);
     }
 
@@ -822,37 +985,48 @@ mod tests {
     #[test]
     fn open_pointer_leave_trigger_schedules_close_timer() {
         let cfg = config(400, 150, false);
-        let (phase, effect) = transition(DelayPhase::Open, DelayEvent::PointerLeaveTrigger, &cfg);
-        assert_eq!(phase, DelayPhase::ClosePending);
+        let (next, effect) = transition(
+            state(DelayPhase::Open),
+            DelayEvent::PointerLeaveTrigger,
+            &cfg,
+        );
+        assert_eq!(next.phase, DelayPhase::ClosePending);
         assert_eq!(effect, DelayEffect::StartCloseTimer(150));
     }
 
     #[test]
     fn open_pointer_leave_trigger_zero_delay_closes_immediately() {
         let cfg = config(400, 0, false);
-        let (phase, effect) = transition(DelayPhase::Open, DelayEvent::PointerLeaveTrigger, &cfg);
-        assert_eq!(phase, DelayPhase::Closed);
+        let (next, effect) = transition(
+            state(DelayPhase::Open),
+            DelayEvent::PointerLeaveTrigger,
+            &cfg,
+        );
+        assert_eq!(next.phase, DelayPhase::Closed);
         assert_eq!(effect, DelayEffect::RequestClose);
     }
 
     #[test]
     fn close_pending_re_enter_trigger_cancels_timer_and_stays_open() {
         let cfg = config(400, 150, false);
-        let (phase, effect) = transition(
-            DelayPhase::ClosePending,
+        let (next, effect) = transition(
+            state(DelayPhase::ClosePending),
             DelayEvent::PointerEnterTrigger,
             &cfg,
         );
-        assert_eq!(phase, DelayPhase::Open);
+        assert_eq!(next.phase, DelayPhase::Open);
         assert_eq!(effect, DelayEffect::CancelTimer);
     }
 
     #[test]
     fn close_pending_timer_fired_closes() {
         let cfg = config(400, 150, false);
-        let (phase, effect) =
-            transition(DelayPhase::ClosePending, DelayEvent::CloseTimerFired, &cfg);
-        assert_eq!(phase, DelayPhase::Closed);
+        let (next, effect) = transition(
+            state(DelayPhase::ClosePending),
+            DelayEvent::CloseTimerFired,
+            &cfg,
+        );
+        assert_eq!(next.phase, DelayPhase::Closed);
         assert_eq!(effect, DelayEffect::RequestClose);
     }
 
@@ -861,9 +1035,13 @@ mod tests {
     #[test]
     fn interactive_false_content_leave_from_open_is_noop() {
         let cfg = config(400, 150, false);
-        let (phase, effect) = transition(DelayPhase::Open, DelayEvent::PointerLeaveContent, &cfg);
+        let (next, effect) = transition(
+            state(DelayPhase::Open),
+            DelayEvent::PointerLeaveContent,
+            &cfg,
+        );
         assert_eq!(
-            phase,
+            next.phase,
             DelayPhase::Open,
             "非 interactive では content leave は無視される"
         );
@@ -873,33 +1051,37 @@ mod tests {
     #[test]
     fn interactive_true_content_leave_from_open_schedules_close_timer() {
         let cfg = config(400, 150, true);
-        let (phase, effect) = transition(DelayPhase::Open, DelayEvent::PointerLeaveContent, &cfg);
-        assert_eq!(phase, DelayPhase::ClosePending);
+        let (next, effect) = transition(
+            state(DelayPhase::Open),
+            DelayEvent::PointerLeaveContent,
+            &cfg,
+        );
+        assert_eq!(next.phase, DelayPhase::ClosePending);
         assert_eq!(effect, DelayEffect::StartCloseTimer(150));
     }
 
     #[test]
     fn interactive_true_content_enter_while_close_pending_cancels_timer() {
         let cfg = config(400, 150, true);
-        let (phase, effect) = transition(
-            DelayPhase::ClosePending,
+        let (next, effect) = transition(
+            state(DelayPhase::ClosePending),
             DelayEvent::PointerEnterContent,
             &cfg,
         );
-        assert_eq!(phase, DelayPhase::Open);
+        assert_eq!(next.phase, DelayPhase::Open);
         assert_eq!(effect, DelayEffect::CancelTimer);
     }
 
     #[test]
     fn interactive_false_content_enter_while_close_pending_is_noop() {
         let cfg = config(400, 150, false);
-        let (phase, effect) = transition(
-            DelayPhase::ClosePending,
+        let (next, effect) = transition(
+            state(DelayPhase::ClosePending),
             DelayEvent::PointerEnterContent,
             &cfg,
         );
         assert_eq!(
-            phase,
+            next.phase,
             DelayPhase::ClosePending,
             "非 interactive では content enter は close タイマーを取消さない"
         );
@@ -911,33 +1093,119 @@ mod tests {
     #[test]
     fn closed_focus_trigger_opens_immediately_ignoring_delay() {
         let cfg = config(400, 150, false);
-        let (phase, effect) = transition(DelayPhase::Closed, DelayEvent::FocusTrigger, &cfg);
-        assert_eq!(phase, DelayPhase::Open);
+        let (next, effect) = transition(state(DelayPhase::Closed), DelayEvent::FocusTrigger, &cfg);
+        assert_eq!(next.phase, DelayPhase::Open);
         assert_eq!(effect, DelayEffect::RequestOpen);
     }
 
     #[test]
     fn open_pending_focus_trigger_opens_immediately() {
         let cfg = config(400, 150, false);
-        let (phase, effect) = transition(DelayPhase::OpenPending, DelayEvent::FocusTrigger, &cfg);
-        assert_eq!(phase, DelayPhase::Open);
+        let (next, effect) = transition(
+            state(DelayPhase::OpenPending),
+            DelayEvent::FocusTrigger,
+            &cfg,
+        );
+        assert_eq!(next.phase, DelayPhase::Open);
         assert_eq!(effect, DelayEffect::RequestOpen);
     }
 
     #[test]
     fn open_blur_trigger_closes_immediately_ignoring_delay() {
         let cfg = config(400, 150, false);
-        let (phase, effect) = transition(DelayPhase::Open, DelayEvent::BlurTrigger, &cfg);
-        assert_eq!(phase, DelayPhase::Closed);
+        let (next, effect) = transition(state(DelayPhase::Open), DelayEvent::BlurTrigger, &cfg);
+        assert_eq!(next.phase, DelayPhase::Closed);
         assert_eq!(effect, DelayEffect::RequestClose);
     }
 
     #[test]
     fn close_pending_blur_trigger_closes_immediately() {
         let cfg = config(400, 150, false);
-        let (phase, effect) = transition(DelayPhase::ClosePending, DelayEvent::BlurTrigger, &cfg);
-        assert_eq!(phase, DelayPhase::Closed);
+        let (next, effect) = transition(
+            state(DelayPhase::ClosePending),
+            DelayEvent::BlurTrigger,
+            &cfg,
+        );
+        assert_eq!(next.phase, DelayPhase::Closed);
         assert_eq!(effect, DelayEffect::RequestClose);
+    }
+
+    // --- transition: ポインタ/フォーカス競合の解決（stay_open、イシュー #587
+    // Cursor Bugbot 指摘・回帰）---
+
+    #[test]
+    fn open_blur_trigger_stays_open_while_pointer_still_hovers_trigger() {
+        // Tab でフォーカスして Open した後、ポインタが trigger 上にまだ
+        // ある状態で Tab 移動（blur）しても、ポインタがまだ表示継続を
+        // 要求しているため非表示にしてはならない。
+        let cfg = config(400, 150, false);
+        let hovering_and_focused = state_with(DelayPhase::Open, true, false, true);
+        let (next, effect) = transition(hovering_and_focused, DelayEvent::BlurTrigger, &cfg);
+        assert_eq!(
+            next.phase,
+            DelayPhase::Open,
+            "ポインタがまだ trigger 上にある間は blur で非表示にしてはならない"
+        );
+        assert_eq!(effect, DelayEffect::None);
+        assert!(
+            !next.focused,
+            "focused フラグ自体は blur で false に更新される"
+        );
+    }
+
+    #[test]
+    fn open_pointer_leave_trigger_stays_open_while_trigger_still_focused() {
+        // フォーカスされたトリガーから素早くポインタが離脱しても、
+        // フォーカスがまだ trigger にある限り非表示にしてはならない
+        // （WAI-ARIA tooltip パターン）。
+        let cfg = config(400, 150, false);
+        let hovering_and_focused = state_with(DelayPhase::Open, true, false, true);
+        let (next, effect) =
+            transition(hovering_and_focused, DelayEvent::PointerLeaveTrigger, &cfg);
+        assert_eq!(
+            next.phase,
+            DelayPhase::Open,
+            "trigger がまだフォーカスされている間は pointerleave で非表示にしてはならない"
+        );
+        assert_eq!(effect, DelayEffect::None);
+        assert!(
+            !next.pointer_over_trigger,
+            "pointer_over_trigger フラグ自体は leave で false に更新される"
+        );
+    }
+
+    #[test]
+    fn open_blur_trigger_closes_when_pointer_already_left() {
+        // ポインタも trigger 上になければ、blur は従来通り即時に非表示化する
+        // （回帰: stay_open 判定の追加が「両方離脱時の即時 close」を弱めて
+        // いないことを固定する）。
+        let cfg = config(400, 150, false);
+        let focused_only = state_with(DelayPhase::Open, false, false, true);
+        let (next, effect) = transition(focused_only, DelayEvent::BlurTrigger, &cfg);
+        assert_eq!(next.phase, DelayPhase::Closed);
+        assert_eq!(effect, DelayEffect::RequestClose);
+    }
+
+    #[test]
+    fn open_pointer_leave_trigger_schedules_close_when_not_focused() {
+        // フォーカスもされていなければ、pointerleave は従来通り closeDelay
+        // タイマーを予約する（回帰）。
+        let cfg = config(400, 150, false);
+        let hovering_only = state_with(DelayPhase::Open, true, false, false);
+        let (next, effect) = transition(hovering_only, DelayEvent::PointerLeaveTrigger, &cfg);
+        assert_eq!(next.phase, DelayPhase::ClosePending);
+        assert_eq!(effect, DelayEffect::StartCloseTimer(150));
+    }
+
+    #[test]
+    fn interactive_true_content_leave_stays_open_while_trigger_still_hovered() {
+        // interactive=true で content から離脱しても、ポインタが trigger
+        // 上にまだある間は非表示にしてはならない。
+        let cfg = config(400, 150, true);
+        let hovering_trigger = state_with(DelayPhase::Open, true, true, false);
+        let (next, effect) = transition(hovering_trigger, DelayEvent::PointerLeaveContent, &cfg);
+        assert_eq!(next.phase, DelayPhase::Open);
+        assert_eq!(effect, DelayEffect::None);
     }
 
     // --- transition: 未知の遷移は no-op（fail-closed） ---
@@ -945,35 +1213,44 @@ mod tests {
     #[test]
     fn closed_pointer_leave_trigger_is_noop() {
         let cfg = config(400, 150, false);
-        let (phase, effect) = transition(DelayPhase::Closed, DelayEvent::PointerLeaveTrigger, &cfg);
-        assert_eq!(phase, DelayPhase::Closed);
+        let (next, effect) = transition(
+            state(DelayPhase::Closed),
+            DelayEvent::PointerLeaveTrigger,
+            &cfg,
+        );
+        assert_eq!(next.phase, DelayPhase::Closed);
         assert_eq!(effect, DelayEffect::None);
     }
 
     #[test]
     fn open_pointer_enter_trigger_is_noop() {
         let cfg = config(400, 150, false);
-        let (phase, effect) = transition(DelayPhase::Open, DelayEvent::PointerEnterTrigger, &cfg);
-        assert_eq!(phase, DelayPhase::Open);
+        let (next, effect) = transition(
+            state(DelayPhase::Open),
+            DelayEvent::PointerEnterTrigger,
+            &cfg,
+        );
+        assert_eq!(next.phase, DelayPhase::Open);
         assert_eq!(effect, DelayEffect::None);
     }
 
     #[test]
     fn close_pending_pointer_leave_content_is_noop() {
         let cfg = config(400, 150, true);
-        let (phase, effect) = transition(
-            DelayPhase::ClosePending,
+        let (next, effect) = transition(
+            state(DelayPhase::ClosePending),
             DelayEvent::PointerLeaveContent,
             &cfg,
         );
-        assert_eq!(phase, DelayPhase::ClosePending);
+        assert_eq!(next.phase, DelayPhase::ClosePending);
         assert_eq!(effect, DelayEffect::None);
     }
 
     #[test]
     fn all_phase_event_combinations_never_panic() {
-        // 全フェーズ × 全イベント × interactive on/off の組み合わせを走査し、
-        // 未列挙の組み合わせも panic しないことを回帰として固定する。
+        // 全フェーズ × 全イベント × interactive on/off × 入力チャネルの
+        // 組み合わせを走査し、未列挙の組み合わせも panic しないことを
+        // 回帰として固定する。
         let phases = [
             DelayPhase::Closed,
             DelayPhase::OpenPending,
@@ -993,8 +1270,20 @@ mod tests {
         for interactive in [false, true] {
             let cfg = config(400, 150, interactive);
             for phase in phases {
-                for event in events {
-                    let _ = transition(phase, event, &cfg);
+                for pointer_over_trigger in [false, true] {
+                    for pointer_over_content in [false, true] {
+                        for focused in [false, true] {
+                            let s = state_with(
+                                phase,
+                                pointer_over_trigger,
+                                pointer_over_content,
+                                focused,
+                            );
+                            for event in events {
+                                let _ = transition(s, event, &cfg);
+                            }
+                        }
+                    }
                 }
             }
         }

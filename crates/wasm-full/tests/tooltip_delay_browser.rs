@@ -29,6 +29,10 @@
 //!     （登録・解除・タイマー破棄の対称性の回帰固定）
 //! (g) 攻撃者が注入した `<script>` を含む children テキストが既定エスケープ
 //!     されタグとして解釈されないこと（XSS 回帰）
+//! (h) ポインタとフォーカスは独立した入力チャネルであり、どちらか一方が
+//!     まだ表示継続を要求している間はもう一方の離脱イベントで非表示に
+//!     しないこと（イシュー #587 の Cursor Bugbot 指摘の回帰、`src/tooltip.rs`
+//!     `transition` の `stay_open` 判定参照）
 
 #![cfg(target_arch = "wasm32")]
 
@@ -384,6 +388,115 @@ async fn focus_opens_and_blur_closes_immediately_ignoring_delay() {
     );
     assert_eq!(requests.borrow()[0].index, index);
     assert_eq!(requests.borrow()[1].index, index);
+
+    controller.remove_tooltip(index);
+}
+
+// --- (h): ポインタ/フォーカス競合の解決（イシュー #587 Cursor Bugbot 指摘） ---
+
+#[wasm_bindgen_test]
+async fn blur_does_not_close_while_pointer_still_hovers_trigger() {
+    let document = web_sys::window()
+        .expect("window must exist")
+        .document()
+        .unwrap();
+    let placeholder = create_placeholder(&document, "tooltip-blur-hover-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let (_root, trigger, content) = mount_tooltip(
+        &document,
+        &placeholder,
+        "tooltip-i",
+        "0",
+        "20",
+        "false",
+        "Tip I",
+    );
+    let (controller, requests) = recording_controller(&document);
+    let index = controller
+        .register_tooltip(&_root, &trigger, &content)
+        .expect("register_tooltip must succeed");
+
+    // Tab でフォーカスして即時表示（openDelay=0）。
+    dispatch(&trigger, "focusin");
+    assert_eq!(
+        requests.borrow().len(),
+        1,
+        "focusin で即時表示要求が出ること"
+    );
+
+    // ポインタが trigger 上にまだある状態を再現してから Tab で移動（blur）。
+    dispatch(&trigger, "pointerenter");
+    dispatch(&trigger, "focusout");
+    sleep_ms(60).await;
+    assert_eq!(
+        requests.borrow().len(),
+        1,
+        "ポインタが trigger 上にまだある間は blur で非表示要求を発行しないこと\
+         （イシュー #587 Cursor Bugbot 指摘の回帰）"
+    );
+
+    // 最後にポインタも離れれば closeDelay 経過後に非表示要求が発行される。
+    dispatch(&trigger, "pointerleave");
+    sleep_ms(60).await;
+    assert_eq!(
+        requests.borrow().len(),
+        2,
+        "両方の入力チャネルが離脱した後は非表示要求が発行されること"
+    );
+
+    controller.remove_tooltip(index);
+}
+
+#[wasm_bindgen_test]
+async fn pointer_leave_does_not_close_while_trigger_still_focused() {
+    let document = web_sys::window()
+        .expect("window must exist")
+        .document()
+        .unwrap();
+    let placeholder = create_placeholder(&document, "tooltip-leave-focus-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let (_root, trigger, content) = mount_tooltip(
+        &document,
+        &placeholder,
+        "tooltip-j",
+        "0",
+        "20",
+        "false",
+        "Tip J",
+    );
+    let (controller, requests) = recording_controller(&document);
+    let index = controller
+        .register_tooltip(&_root, &trigger, &content)
+        .expect("register_tooltip must succeed");
+
+    // ポインタで即時表示（openDelay=0）した後、キーボードフォーカスも
+    // trigger にある状態を再現してからポインタだけ離脱する。
+    dispatch(&trigger, "pointerenter");
+    assert_eq!(
+        requests.borrow().len(),
+        1,
+        "pointerenter で即時表示要求が出ること"
+    );
+
+    dispatch(&trigger, "focusin");
+    dispatch(&trigger, "pointerleave");
+    sleep_ms(60).await;
+    assert_eq!(
+        requests.borrow().len(),
+        1,
+        "trigger がまだフォーカスされている間は pointerleave で非表示要求を発行しないこと\
+         （イシュー #587 Cursor Bugbot 指摘の回帰）"
+    );
+
+    // フォーカスも外れれば即時（フォーカス/blur は遅延なし）に非表示要求が発行される。
+    dispatch(&trigger, "focusout");
+    assert_eq!(
+        requests.borrow().len(),
+        2,
+        "フォーカスも外れれば非表示要求が発行されること"
+    );
 
     controller.remove_tooltip(index);
 }
