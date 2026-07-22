@@ -87,6 +87,26 @@ fn image_element(container: &Element) -> Element {
         .expect("image part must exist")
 }
 
+/// `container` 内の Avatar image 要素の `src` プロパティを DOM 直接操作で
+/// 差し替える（`HtmlImageElement::set_src`、`render()`/SSR 経路を経由しない）。
+///
+/// `data:` スキームは `fandhe_frontend_core::is_safe_url`（REQ-1、
+/// `crates/core/src/url.rs`）が SSR 出力からは意図的に拒否するため、
+/// `mount_avatar` を経由した `render()` 出力には `data:` URI の `src` が
+/// そもそも乗らない（属性ごと出力されない）。本ヘルパはクライアント側で
+/// 動的に `img.src` を差し替える正規シナリオ（例: `createObjectURL`／署名
+/// 付き URL の遅延差し込み）を模した、実ブラウザの `load`/`error` イベント
+/// を実際に発火させるためのテスト専用の迂回であり、SSR エスケープ・URL
+/// 検証を弱める変更ではない（本モジュールの受け入れ条件はあくまで
+/// `wire_avatar_events`/`apply_avatar_visibility` が実 DOM 状態に対して
+/// 正しく振る舞うことであり、`src` がどう設定されたかは無関係）。
+fn set_image_src(container: &Element, src: &str) {
+    let img = image_element(container)
+        .dyn_into::<web_sys::HtmlImageElement>()
+        .expect("image part must be an HtmlImageElement");
+    img.set_src(src);
+}
+
 fn fallback_element(container: &Element) -> Element {
     container
         .query_selector("[data-scope='avatar'][data-part='fallback']")
@@ -153,7 +173,22 @@ async fn real_load_event_on_data_uri_image_makes_image_visible() {
     const ONE_PX_GIF: &str =
         "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 
-    mount_avatar(&container, ImageStatus::Loading, ONE_PX_GIF, "avatar");
+    // `mount_avatar` は `render()`（SSR 経路）を経由するため、`data:` URI は
+    // `is_safe_url`（REQ-1）に拒否されて `src` 属性ごと出力されない
+    // （`crates/core/src/url.rs` 参照）。まず安全な相対 URL で mount した上で、
+    // `set_image_src` で `img.src` を直接（`render()` を経由せず）差し替えて
+    // 実ブラウザの `load` イベントを発火させる。`wire_avatar_events` より
+    // 前に `src` を差し替えることで、配線時点の settle 検査
+    // （`avatar_action_for_settled_image`）がプレースホルダの空 `src`
+    // （`complete()==true`／`natural_width()==0`）を拾って誤った合成
+    // dispatch を行わないようにする。
+    mount_avatar(
+        &container,
+        ImageStatus::Loading,
+        "/placeholder.png",
+        "avatar",
+    );
+    set_image_src(&container, ONE_PX_GIF);
 
     let received = std::rc::Rc::new(std::cell::RefCell::new(None));
     let received_clone = received.clone();
@@ -182,7 +217,17 @@ async fn real_error_event_on_invalid_data_uri_image_makes_fallback_visible() {
     // 不正な data: URI（画像として decode できない）。
     const INVALID_DATA_URI: &str = "data:image/gif;base64,not-a-valid-gif";
 
-    mount_avatar(&container, ImageStatus::Loading, INVALID_DATA_URI, "avatar");
+    // (b) と同じ理由（`is_safe_url` が `data:` を SSR 出力から拒否する、
+    // `crates/core/src/url.rs` 参照）で、安全なプレースホルダで mount した
+    // 後に `img.src` を直接差し替えて実ブラウザの `error` イベントを
+    // 発火させる。
+    mount_avatar(
+        &container,
+        ImageStatus::Loading,
+        "/placeholder.png",
+        "avatar",
+    );
+    set_image_src(&container, INVALID_DATA_URI);
 
     let received = std::rc::Rc::new(std::cell::RefCell::new(None));
     let received_clone = received.clone();
@@ -214,7 +259,16 @@ async fn already_settled_image_before_wiring_dispatches_synthetically() {
 
     const ONE_PX_GIF: &str =
         "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
-    mount_avatar(&container, ImageStatus::Loading, ONE_PX_GIF, "avatar");
+    // (b) と同じ理由（`is_safe_url` が `data:` を SSR 出力から拒否する、
+    // `crates/core/src/url.rs` 参照）で、安全なプレースホルダで mount した
+    // 後に `img.src` を直接差し替える。
+    mount_avatar(
+        &container,
+        ImageStatus::Loading,
+        "/placeholder.png",
+        "avatar",
+    );
+    set_image_src(&container, ONE_PX_GIF);
 
     // 配線前に読み込み決着を待つ（`complete()` が true になるまでポーリング）。
     let img_before_wiring = image_element(&container);
