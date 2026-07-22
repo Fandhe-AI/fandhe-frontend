@@ -12,8 +12,8 @@
 //! **スコープ調整（イシュー #552 §3 シナリオ B）**: 本サンプル作成時点
 //! （2026-07-22）で `fandhe-frontend-pre-styled-ui`（chakra-ui 相当の上層、
 //! #520/#546）はクレート骨格のみで公開 API を持たない（テーマトークン #547・
-//! variant API #548・styled 部品 #550/#551 が並列進行中で未マージ）。本サンプ
-//! ンプルは headless-ui のみを依存に持ち、pre-styled-ui は
+//! variant API #548・styled 部品 #550/#551 が並列進行中で未マージ）。本サンプル
+//! は headless-ui のみを依存に持ち、pre-styled-ui は
 //! `static/ui.css`（headless-ui が出力する `data-scope`/`data-part`/
 //! `data-state` セレクタへ手書きで当てる最小 CSS）で代替する。pre-styled-ui
 //! の公開 API が揃い次第、本サンプルへの統合をフォローアップする
