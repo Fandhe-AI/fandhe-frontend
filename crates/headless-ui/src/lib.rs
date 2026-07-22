@@ -34,6 +34,9 @@
 //!   #526〜#533）が共通で使う「open/closed・selected」の dispatch 契約・
 //!   `data-state` 整合・SSR/hydration 契約をここに一度だけ実装し、各コンポーネントは
 //!   フィールドとして埋め込んで再利用する。
+//! - [`mod@tabs`]: WAI-ARIA APG の Tabs パターンに準拠したマークアップを組み立てる
+//!   [`tabs::tabs`]（#528）。SSR 時点の静的な選択状態のみを扱い、クリック/
+//!   キーボード操作・状態機械連携は後続イシューのスコープ。
 //! - [`mod@collapsible`]: Root/Trigger/Indicator/Content の anatomy パーツ関数群と、
 //!   [`state::Disclosure`] を埋め込んだ [`collapsible::Collapsible`] 状態機械
 //!   （#529、親 #526）。Phase 2 で [`state`] を具象コンポーネントへ適用する最初の例。
@@ -62,6 +65,7 @@ pub mod collapsible;
 pub mod data_attrs;
 pub mod dialog;
 pub mod state;
+pub mod tabs;
 
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
@@ -78,3 +82,4 @@ pub use state::{
     Disclosure, DisclosureAction, OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CLOSED,
     DATA_STATE_OPEN,
 };
+pub use tabs::{tabs, TabItem, TabsProps};
