@@ -101,6 +101,7 @@ name = "fandhe-frontend-headless-ui"
 version = "0.1.0"
 dependencies = [
  "fandhe-frontend-core",
+ "fandhe-frontend-interactive",
 ]
 
 [[package]]

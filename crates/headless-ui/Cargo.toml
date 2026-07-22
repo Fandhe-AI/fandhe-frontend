@@ -9,11 +9,14 @@ readme = "../../README.md"
 keywords = ["frontend", "headless", "ui", "components", "aria"]
 categories = ["web-programming", "gui"]
 
-# 外部依存は fandhe-frontend-core（path）のみを厳守する（イシュー #520 設計前提・
-# .claude/rules/coding-rust.md）。fandhe-frontend-interactive への依存はイシュー #524
-# （開閉状態機械の共通化）で実使用と同時に追加する（fw structure の
-# depends_on 完全一致検証があるため、未使用の先行宣言はしない）。
+# 外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）
+# のみを厳守する（イシュー #520 設計前提・.claude/rules/coding-rust.md）。
+# fandhe-frontend-interactive はイシュー #524（開閉状態機械の共通化）で
+# Component/Hydrate 抽象を再利用するために追加した（サードパーティ外部
+# クレートではなく本 workspace 内部の path 依存。structure.toml の
+# depends_on = ["core", "interactive"] と完全一致させること、fw gate が検証する）。
 [dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.1.0" }
+fandhe-frontend-interactive = { path = "../interactive", version = "0.1.0" }
 
 [dev-dependencies]

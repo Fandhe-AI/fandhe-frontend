@@ -32,7 +32,7 @@ role = "state"
 crate = "fandhe-frontend-interactive"
 description = "状態管理コア（forbid(unsafe_code) 域）"
 depends_on = ["core"]
-allowed_dependents = ["wasm-full", "wasm-thin", "wasm-client"]
+allowed_dependents = ["wasm-full", "wasm-thin", "wasm-client", "headless-ui"]
 path = "crates/interactive"
 
 [directories.app]
@@ -90,8 +90,8 @@ path = "crates/docs-site"
 [directories.headless-ui]
 role = "component"
 crate = "fandhe-frontend-headless-ui"
-description = "headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA、イシュー #520/#522）。styled 層（pre-styled-ui）の下層。interactive への依存はイシュー #524 で追加する"
-depends_on = ["core"]
+description = "headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA、イシュー #520/#522）。styled 層（pre-styled-ui）の下層。開閉状態機械（Disclosure/SingleSelect）は interactive の Component/Hydrate 抽象に乗る（イシュー #524）"
+depends_on = ["core", "interactive"]
 allowed_dependents = ["pre-styled-ui"]
 path = "crates/headless-ui"
 
