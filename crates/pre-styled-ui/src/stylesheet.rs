@@ -188,10 +188,7 @@ impl StyleSheet {
         if self.css.contains('<') {
             return el("style", vec![], vec![]);
         }
-        #[expect(
-            clippy::disallowed_methods,
-            reason = "ESCAPE-REVIEWED: StyleSheet は push_css の fail-closed 検証（`<` と改行/タブ/復帰以外の制御文字を拒否）を経由した CSS のみを保持し、直前に `<` 非含有を再検証してから埋め込む。生成元（SlotRecipe::css/Theme::to_css）も allowlist 検証で `<` を構成不能にしている。<style> は RAWTEXT 文脈であり `</style` 断片以外に脱出経路がなく、`<` 全面拒否で構造的に脱出不能。crates/pre-styled-ui/src/stylesheet.rs 参照。"
-        )]
+        #[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: 検証済み(doc)")]
         let style_node = raw_html(self.css.clone());
         el("style", vec![], vec![style_node])
     }
