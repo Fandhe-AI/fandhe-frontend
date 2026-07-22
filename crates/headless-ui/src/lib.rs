@@ -43,9 +43,64 @@
 //! - [`mod@accordion`]: Root / Item / ItemTrigger / ItemIndicator / ItemContent の
 //!   5 anatomy パーツと [`state::SingleSelect`] を埋め込んだ single モード
 //!   Accordion（[`accordion::Accordion`]、#527）。
+//! - [`mod@tooltip`]: Root/Trigger/Positioner/Content/Arrow/ArrowTip の anatomy
+//!   パーツ関数群と、[`state::Disclosure`] を埋め込んだ [`tooltip::Tooltip`]
+//!   状態機械（#533、親 #530）。WAI-ARIA tooltip パターンに従い `aria-describedby`
+//!   を使う点が [`mod@collapsible`] との違い。
 //! - [`mod@dialog`]: [`dialog::Dialog`] — Root / Trigger / Backdrop /
 //!   Positioner / Content / Title / Description / CloseTrigger の 8 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだモーダルダイアログ（#531）。
+//! - [`mod@radio_group`]: Root / Label / Item / ItemControl / ItemText /
+//!   ItemHiddenInput の 6 anatomy パーツと [`state::SingleSelect`] を埋め込んだ
+//!   [`radio_group::RadioGroup`]（#536、親 #534）。クライアント由来の文字列
+//!   dispatch は `"select"` のみを受理する（WAI-ARIA radio パターンに選択解除
+//!   ジェスチャは存在しないため、型付き API の `Deselect` のみプログラム的な
+//!   選択解除を許す）。
+//! - [`popover`]: Root / Trigger / Anchor / Positioner / Arrow / ArrowTip /
+//!   Content / Title / Description / CloseTrigger / Indicator の 11 anatomy
+//!   パーツと [`state::Disclosure`] を埋め込んだ [`popover::Popover`] を提供する
+//!   headless Popover コンポーネント（#532）。
+//! - [`mod@field`]: Root / Label / Input / Textarea / Select / HelperText /
+//!   ErrorText / RequiredIndicator の 8 anatomy パーツ関数群
+//!   （[`field::FieldProps`] から決定的に描画する純粋関数、#538）。
+//!   `invalid`/`disabled`/`required`/`readonly` は SSR 静的な props であり、
+//!   開閉のような時間変化する内部状態を持たないため [`mod@state`] の状態機械を
+//!   適用しない（[`mod@tabs`] と同型の判断）。
+//! - [`mod@menu`]: Root / Trigger / Indicator / Positioner / Content / Arrow /
+//!   ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator の 11 anatomy
+//!   パーツと [`state::Disclosure`] を埋め込んだ [`menu::Menu`]
+//!   （headless Menu コンポーネント、#540）。構造上最も近い先行例は
+//!   [`popover::Popover`]（trigger 起点のオーバーレイ + `Disclosure` 埋め込み）
+//!   であり、本モジュールはそのパターンに完全準拠する。
+//! - [`mod@select`]: Root / Label / Control / Trigger / ValueText /
+//!   ClearTrigger / Indicator / Positioner / Content / ItemGroup /
+//!   ItemGroupLabel / Item / ItemText / ItemIndicator / HiddenSelect の 15
+//!   anatomy パーツと、[`state::Disclosure`]（listbox 開閉）+
+//!   [`state::SingleSelect`]（選択値）を合成した [`select::Select`] 状態機械
+//!   （#541、親 #539）。Disclosure と SingleSelect を 1 コンポーネントに
+//!   合成する初の例。
+//! - [`mod@switch`]: Root / Control / Thumb / Label / HiddenInput の 5 anatomy
+//!   パーツと、`"checked"`/`"unchecked"` 語彙の [`switch::Switch`] 状態機械
+//!   （#537、親 #534）。ark-ui 準拠の値語彙が [`state::Disclosure`] の
+//!   `"open"`/`"closed"` と異なるため、[`state`] を埋め込まず
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する点が
+//!   [`mod@collapsible`] との違い。
+//! - [`mod@avatar`]: Root / Image / Fallback の 3 anatomy パーツと、画像読み込み
+//!   ステータス（`"loading"`/`"loaded"`/`"error"`）の [`avatar::Avatar`] 状態
+//!   機械（#543、親 #542）。[`mod@switch`] と同様、[`state`] を埋め込まず
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する（3 値ステータス
+//!   が [`state::Disclosure`]/[`state::SingleSelect`] のいずれにも写像
+//!   できないため）。`data-state`（`"visible"`/`"hidden"`）は Image/Fallback
+//!   のみに付与し、ark-ui 準拠で Root には付与しない。
+//! - [`mod@progress`]: Root / Label / ValueText / Track / Range の 5 anatomy
+//!   パーツと、数値 `value`（`min`..=`max`、または indeterminate を表す
+//!   `None`）を持つ [`progress::Progress`] 状態機械（#544、親 #542）。
+//!   [`mod@switch`] と同じく `data-state` 値語彙（`"indeterminate"`/
+//!   `"loading"`/`"complete"`）が [`state::Disclosure`] と異なるため、
+//!   [`state`] を埋め込まず [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
 //!
 //! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
 //! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
@@ -64,26 +119,42 @@
 pub mod accordion;
 pub mod anatomy;
 pub mod aria;
+pub mod avatar;
 pub mod checkbox;
 pub mod collapsible;
 pub mod data_attrs;
 pub mod dialog;
+pub mod field;
+pub mod menu;
+pub mod popover;
+pub mod progress;
+pub mod radio_group;
+pub mod select;
 pub mod state;
+pub mod switch;
 pub mod tabs;
+pub mod tooltip;
 
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
     aria_checked, aria_controls, aria_describedby, aria_disabled, aria_expanded, aria_haspopup,
-    aria_hidden, aria_label, aria_labelledby, aria_modal, aria_orientation, aria_selected, role,
-    AriaChecked, AriaPopup,
+    aria_hidden, aria_invalid, aria_label, aria_labelledby, aria_modal, aria_orientation,
+    aria_selected, role, AriaChecked, AriaPopup,
 };
+pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use data_attrs::{
     data_disabled, data_invalid, data_orientation, data_readonly, data_required, data_state,
     Orientation,
 };
 pub use dialog::Dialog;
+pub use field::FieldProps;
+pub use menu::Menu;
+pub use progress::{Progress, ProgressAction};
+pub use radio_group::RadioGroup;
 pub use state::{
     Disclosure, DisclosureAction, OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CLOSED,
     DATA_STATE_OPEN,
 };
+pub use switch::{Switch, SwitchAction};
 pub use tabs::{tabs, TabItem, TabsProps};
+pub use tooltip::Tooltip;

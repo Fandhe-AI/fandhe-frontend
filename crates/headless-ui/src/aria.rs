@@ -107,6 +107,18 @@ pub fn aria_modal(modal: bool) -> (&'static str, &'static str) {
     ("aria-modal", bool_str(modal))
 }
 
+/// `aria-invalid` 属性（Field 用、イシュー #538）。
+///
+/// [`crate::data_attrs::data_invalid`] と同じ「存在で真を表す」規約ではなく、
+/// `aria-invalid` は WAI-ARIA 仕様上 `"true"`/`"false"` の明示 2 値を取る属性
+/// のため、[`aria_expanded`] 等と同じ bool 値属性の形（`Option` にせず常に
+/// 属性を返す）で統一する。呼び出し側（[`crate::field`]）が「valid のときは
+/// 属性自体を省略する」判断をしたい場合は戻り値を捨てて分岐する。
+#[must_use]
+pub fn aria_invalid(invalid: bool) -> (&'static str, &'static str) {
+    ("aria-invalid", bool_str(invalid))
+}
+
 /// `aria-checked` 属性（Checkbox 用、tri-state 対応）。
 #[must_use]
 pub fn aria_checked(state: AriaChecked) -> (&'static str, &'static str) {
@@ -172,6 +184,8 @@ mod tests {
         assert_eq!(aria_disabled(true), ("aria-disabled", "true"));
         assert_eq!(aria_selected(false), ("aria-selected", "false"));
         assert_eq!(aria_modal(true), ("aria-modal", "true"));
+        assert_eq!(aria_invalid(true), ("aria-invalid", "true"));
+        assert_eq!(aria_invalid(false), ("aria-invalid", "false"));
     }
 
     #[test]

@@ -101,3 +101,8 @@ path = "/api/hydration-state-format/"
 title = "ルーター パスマッチング"
 source = "docs/api/router-path-matching.md"
 path = "/api/router-path-matching/"
+
+[[section.page]]
+title = "pre-styled-ui slot recipe API"
+source = "docs/api/pre-styled-recipe-api.md"
+path = "/api/pre-styled-recipe-api/"
