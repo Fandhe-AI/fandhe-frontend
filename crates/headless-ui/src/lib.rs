@@ -29,11 +29,14 @@
 //! - [`aria`]: `role` / `aria-*` の WAI-ARIA 属性ヘルパ（#523）。
 //! - [`state`]: `fandhe-frontend-interactive` の
 //!   [`fandhe_frontend_interactive::Component`]/[`fandhe_frontend_interactive::Hydrate`]
-//!   抽象へ乗る開閉系状態機械（[`state::Disclosure`]/[`state::SingleSelect`]、#524）。
-//!   Dialog / Accordion / Tabs / Collapsible / Popover / Tooltip（Phase 2 の
-//!   #526〜#533）が共通で使う「open/closed・selected」の dispatch 契約・
-//!   `data-state` 整合・SSR/hydration 契約をここに一度だけ実装し、各コンポーネントは
-//!   フィールドとして埋め込んで再利用する。
+//!   抽象へ乗る状態機械（[`state::Disclosure`]/[`state::SingleSelect`]/
+//!   [`state::Checkable`]、#524・#595）。Dialog / Accordion / Tabs /
+//!   Collapsible / Popover / Tooltip（Phase 2 の #526〜#533）が共通で使う
+//!   「open/closed・selected」の dispatch 契約・`data-state` 整合・
+//!   SSR/hydration 契約、および Switch / Checkbox / RadioGroup が共通で使う
+//!   「checked/unchecked」の同契約をここに一度だけ実装し、各コンポーネントは
+//!   フィールドとして埋め込んで再利用する（[`state::Checkable`] はイシュー
+//!   #595 で [`mod@switch`] から共通化昇格した）。
 //! - [`mod@tabs`]: WAI-ARIA APG の Tabs パターンに準拠したマークアップを組み立てる
 //!   [`tabs::tabs`]（#528）。SSR 時点の静的な選択状態のみを扱い、クリック操作・
 //!   状態機械連携は後続イシューのスコープ。[`tabs::TabsProps`] の
@@ -84,12 +87,12 @@
 //!   （#541、親 #539）。Disclosure と SingleSelect を 1 コンポーネントに
 //!   合成する初の例。
 //! - [`mod@switch`]: Root / Control / Thumb / Label / HiddenInput の 5 anatomy
-//!   パーツと、`"checked"`/`"unchecked"` 語彙の [`switch::Switch`] 状態機械
-//!   （#537、親 #534）。ark-ui 準拠の値語彙が [`state::Disclosure`] の
-//!   `"open"`/`"closed"` と異なるため、[`state`] を埋め込まず
-//!   [`fandhe_frontend_interactive::Component`]/
-//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する点が
-//!   [`mod@collapsible`] との違い。
+//!   パーツと、[`state::Checkable`] を埋め込んだ [`switch::Switch`] 状態機械
+//!   （#537、親 #534）。ark-ui 準拠の `"checked"`/`"unchecked"` 値語彙が
+//!   [`state::Disclosure`] の `"open"`/`"closed"` と異なるため
+//!   [`state::Checkable`]（[`state::Disclosure`] とは別の共通機械）を
+//!   埋め込む点が [`mod@collapsible`] との違い（#595 で共通化昇格するまでは
+//!   本モジュール内に個別実装していた）。
 //! - [`mod@avatar`]: Root / Image / Fallback の 3 anatomy パーツと、画像読み込み
 //!   ステータス（`"loading"`/`"loaded"`/`"error"`）の [`avatar::Avatar`] 状態
 //!   機械（#543、親 #542）。[`mod@switch`] と同様、[`state`] を埋め込まず
@@ -125,8 +128,11 @@
 //! 避ける）。各コンポーネントの anatomy 定義（Accordion / Dialog 等の parts
 //! 一覧）は Phase 2（#526〜#544）のスコープ。
 //!
-//! - [`mod@checkbox`]: ark-ui Checkbox 相当の anatomy（イシュー #535）。
-//!   dispatch 統合（クリックトグル等の動的状態遷移）は #524 のスコープ。
+//! - [`mod@checkbox`]: ark-ui Checkbox 相当の anatomy（イシュー #535）と、
+//!   [`state::Checkable`] を埋め込んだ [`checkbox::Checkbox`] 状態機械
+//!   （dispatch 統合、#595）。indeterminate（3 値目）は
+//!   [`state::Checkable`] のスコープ外のため SSR 静的 props
+//!   （[`checkbox::CheckedState`]）としてのみ表現する。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -162,6 +168,7 @@ pub use aria::{
     aria_selected, role, AriaChecked, AriaPopup,
 };
 pub use avatar::{Avatar, AvatarAction, ImageStatus};
+pub use checkbox::{Checkbox, CheckboxFlags};
 pub use data_attrs::{
     data_disabled, data_invalid, data_orientation, data_readonly, data_required, data_state,
     Orientation,
@@ -172,8 +179,9 @@ pub use menu::Menu;
 pub use progress::{Progress, ProgressAction};
 pub use radio_group::RadioGroup;
 pub use state::{
-    Disclosure, DisclosureAction, OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CLOSED,
-    DATA_STATE_OPEN,
+    Checkable, CheckableAction, Disclosure, DisclosureAction, OpenState, SingleSelect,
+    SingleSelectAction, DATA_STATE_CHECKED, DATA_STATE_CLOSED, DATA_STATE_OPEN,
+    DATA_STATE_UNCHECKED,
 };
 pub use switch::{Switch, SwitchAction};
 pub use tabs::{tabs, ActivationMode, TabItem, TabsProps};
