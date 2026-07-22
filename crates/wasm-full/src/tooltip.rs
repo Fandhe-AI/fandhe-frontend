@@ -264,9 +264,24 @@ pub enum DelayEffect {
 /// という WAI-ARIA tooltip パターンの要求を満たす（モジュール冒頭 doc
 /// 「フォーカスと遅延の使い分け」節参照、イシュー #587 の Cursor Bugbot
 /// 指摘の回帰）。この契約は `Open` フェーズだけでなく `OpenPending`
-/// フェーズの `PointerLeaveTrigger`/`BlurTrigger` にも同様に適用する
-/// （`openDelay` 満了待ち中の早期離脱でも、もう一方のチャネルが表示継続を
-/// 要求していれば pending open を取消さず `OpenPending` に留まる）。
+/// フェーズの `PointerLeaveTrigger`/`BlurTrigger`/`PointerLeaveContent`
+/// にも同様に適用する（`openDelay` 満了待ち中の早期離脱でも、もう一方の
+/// チャネルが表示継続を要求していれば pending open を取消さず
+/// `OpenPending` に留まる。`PointerLeaveContent` arm は PR #619 の
+/// Cursor Bugbot 再指摘で追加: 欠落時は catch-all no-op に落ち、
+/// `pointer_over_content` は更新されるのに open タイマーはキャンセル
+/// されないままだった）。
+///
+/// また `closeDelay == 0` かつ `interactive` のときも、`Open` からの
+/// `PointerLeaveTrigger`/`PointerLeaveContent` は直接 `Closed` へは
+/// 遷移せず `ClosePending` + `StartCloseTimer(0)` を経由する（PR #619
+/// の Cursor Bugbot 再指摘: 直接 `Closed` へ遷移すると「トリガー離脱 →
+/// content 進入」の通常シーケンスで content 進入を待たずに閉じてしまい、
+/// `interactive` の意味が失われていた。`StartCloseTimer(0)` は 0ms の
+/// `set_timeout` を予約するだけで同期的即時発火ではないため、直後に
+/// 届く `PointerEnterContent` がキャンセルする猶予が残る）。
+/// `interactive == false` のときは content へ移動する余地がないため、
+/// 従来通り直接 `Closed` へ遷移する。
 #[must_use]
 pub fn transition(
     mut state: DelayState,
@@ -335,6 +350,20 @@ pub fn transition(
                 (Closed, CancelTimer)
             }
         }
+        // `interactive` な content が `openDelay` 満了待ち中に既に描画・
+        // ホバーされている状態からの content 離脱（イシュー #587 Cursor
+        // Bugbot 指摘: 本 arm が欠落していると catch-all（no-op）に落ち、
+        // `pointer_over_content` は false 更新されるのに open タイマーは
+        // キャンセルされず、他チャネルもすべて clear のまま
+        // `OpenTimerFired` が発火して無操作なのに tooltip が開いてしまう）。
+        // `PointerLeaveTrigger`/`BlurTrigger` と同じ `stay_open` 判定に従う。
+        (OpenPending, PointerLeaveContent) if config.interactive => {
+            if stay_open {
+                (OpenPending, NoEffect)
+            } else {
+                (Closed, CancelTimer)
+            }
+        }
 
         // --- Open: 表示中。トリガー離脱で close 遅延予約、interactive
         // なら content 側の進入/離脱も同様に扱う。ただし `stay_open` が
@@ -343,9 +372,19 @@ pub fn transition(
         (Open, PointerLeaveTrigger) => {
             if stay_open {
                 (Open, NoEffect)
-            } else if config.close_delay_ms == 0 {
+            } else if config.close_delay_ms == 0 && !config.interactive {
+                // `interactive` が false のときは content へ移動する余地が
+                // ないため、`closeDelay == 0` は即時 `Closed` で問題ない。
                 (Closed, RequestClose)
             } else {
+                // `interactive` なら `closeDelay == 0` でも `ClosePending`
+                // を経由させる（`StartCloseTimer(0)` は 0ms の
+                // `set_timeout` を予約するのみで即時発火ではないため、
+                // 直後に届く `PointerEnterContent` がタイマーをキャンセル
+                // する猶予が残る。イシュー #587 Cursor Bugbot 指摘: 直接
+                // `Closed` へ遷移すると「トリガー離脱 → content 進入」の
+                // 通常シーケンスが content 進入を待たずに閉じてしまい
+                // `interactive` を破壊していた）。
                 (ClosePending, StartCloseTimer(config.close_delay_ms))
             }
         }
@@ -359,9 +398,10 @@ pub fn transition(
         (Open, PointerLeaveContent) if config.interactive => {
             if stay_open {
                 (Open, NoEffect)
-            } else if config.close_delay_ms == 0 {
-                (Closed, RequestClose)
             } else {
+                // `interactive` 経路のため上記 `PointerLeaveTrigger` と同じ
+                // 理由で `closeDelay == 0` でも常に `ClosePending` を経由し、
+                // `StartCloseTimer(0)` として直後の再進入に猶予を残す。
                 (ClosePending, StartCloseTimer(config.close_delay_ms))
             }
         }
@@ -1307,6 +1347,86 @@ mod tests {
             "interactive content がまだホバーされている間は pending open を取消してはならない"
         );
         assert_eq!(effect, DelayEffect::None);
+    }
+
+    #[test]
+    fn open_pending_pointer_leave_content_cancels_when_no_other_channel_stays_open() {
+        // イシュー #587 Cursor Bugbot 指摘（PR #619 レビュー）:
+        // interactive content が `openDelay` 満了待ち中にホバーされていた
+        // 状態から content を離脱すると、他の入力チャネル（トリガー
+        // ホバー・フォーカス）が clear のままなら pending open を
+        // 取消さなければならない。取消さない回帰が起きると、無操作なのに
+        // `OpenTimerFired` が `RequestOpen` を発行してしまう。
+        let cfg = config(400, 150, true);
+        let hovering_content_only = state_with(DelayPhase::OpenPending, false, true, false);
+        let (next, effect) =
+            transition(hovering_content_only, DelayEvent::PointerLeaveContent, &cfg);
+        assert_eq!(next.phase, DelayPhase::Closed);
+        assert_eq!(effect, DelayEffect::CancelTimer);
+    }
+
+    #[test]
+    fn open_pending_pointer_leave_content_stays_pending_while_trigger_still_hovered() {
+        // 上記と対の回帰: もう一方のチャネル（トリガーホバー）がまだ表示
+        // 継続を要求していれば、content 離脱だけで pending open を
+        // 取消してはならない（`stay_open` 契約は content leave arm にも
+        // 一貫して適用する）。
+        let cfg = config(400, 150, true);
+        let hovering_trigger_and_content = state_with(DelayPhase::OpenPending, true, true, false);
+        let (next, effect) = transition(
+            hovering_trigger_and_content,
+            DelayEvent::PointerLeaveContent,
+            &cfg,
+        );
+        assert_eq!(next.phase, DelayPhase::OpenPending);
+        assert_eq!(effect, DelayEffect::None);
+    }
+
+    #[test]
+    fn open_pending_pointer_leave_content_is_noop_when_not_interactive() {
+        // `interactive=false` では content leave イベント自体が意味を
+        // 持たないため、従来通り catch-all の no-op に落ちる（回帰）。
+        let cfg = config(400, 150, false);
+        let hovering_content_only = state_with(DelayPhase::OpenPending, false, true, false);
+        let (next, effect) =
+            transition(hovering_content_only, DelayEvent::PointerLeaveContent, &cfg);
+        assert_eq!(next.phase, DelayPhase::OpenPending);
+        assert_eq!(effect, DelayEffect::None);
+    }
+
+    #[test]
+    fn open_pointer_leave_trigger_zero_delay_interactive_goes_through_close_pending() {
+        // イシュー #587 Cursor Bugbot 指摘（PR #619 レビュー）:
+        // `interactive=true` かつ `closeDelay == 0` でも、トリガー離脱は
+        // 直接 `Closed` へ遷移してはならない。`ClosePending` +
+        // `StartCloseTimer(0)` を経由させることで、直後に届く
+        // `PointerEnterContent`（トリガー離脱 → content 進入の通常
+        // シーケンス）がタイマーをキャンセルする猶予を残す。直接
+        // `Closed` へ遷移すると content 進入を待たずに閉じてしまい
+        // `interactive` が機能しない。
+        let cfg = config(400, 0, true);
+        let (next, effect) = transition(
+            state(DelayPhase::Open),
+            DelayEvent::PointerLeaveTrigger,
+            &cfg,
+        );
+        assert_eq!(next.phase, DelayPhase::ClosePending);
+        assert_eq!(effect, DelayEffect::StartCloseTimer(0));
+    }
+
+    #[test]
+    fn open_pointer_leave_content_zero_delay_interactive_goes_through_close_pending() {
+        // 上記と対のシナリオ: content からの離脱（トリガー未進入のまま
+        // content 内を経由して離脱するケース）でも同様に `ClosePending`
+        // を経由させる。
+        let cfg = config(400, 0, true);
+        let (next, effect) = transition(
+            state(DelayPhase::Open),
+            DelayEvent::PointerLeaveContent,
+            &cfg,
+        );
+        assert_eq!(next.phase, DelayPhase::ClosePending);
+        assert_eq!(effect, DelayEffect::StartCloseTimer(0));
     }
 
     // --- transition: 未知の遷移は no-op（fail-closed） ---
