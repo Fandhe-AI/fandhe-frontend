@@ -54,6 +54,12 @@
 //!   Content / Title / Description / CloseTrigger / Indicator の 11 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだ [`popover::Popover`] を提供する
 //!   headless Popover コンポーネント（#532）。
+//! - [`mod@menu`]: Root / Trigger / Indicator / Positioner / Content / Arrow /
+//!   ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator の 11 anatomy
+//!   パーツと [`state::Disclosure`] を埋め込んだ [`menu::Menu`]
+//!   （headless Menu コンポーネント、#540）。構造上最も近い先行例は
+//!   [`popover::Popover`]（trigger 起点のオーバーレイ + `Disclosure` 埋め込み）
+//!   であり、本モジュールはそのパターンに完全準拠する。
 //!
 //! いずれも [`fandhe_frontend_core::el`] への薄い委譲・属性タプルの組み立てに
 //! 留め、独自のエスケープ経路や HTML 文字列組み立てを持たない
@@ -72,6 +78,7 @@ pub mod aria;
 pub mod collapsible;
 pub mod data_attrs;
 pub mod dialog;
+pub mod menu;
 pub mod popover;
 pub mod state;
 pub mod tabs;
@@ -88,6 +95,7 @@ pub use data_attrs::{
     Orientation,
 };
 pub use dialog::Dialog;
+pub use menu::Menu;
 pub use state::{
     Disclosure, DisclosureAction, OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CLOSED,
     DATA_STATE_OPEN,
