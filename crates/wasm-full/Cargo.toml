@@ -66,6 +66,10 @@ categories = ["wasm", "web-programming"]
 # `HtmlElement`（`focus()`）・`NodeList`（`query_selector_all` の戻り値、
 # trigger/item-trigger 集合の走査）を追加する）。`cargo metadata` 実測
 # （パッケージ数・依存グラフ深さ）に変化がないことを PR 本文に記録する。
+# イシュー #585（オーバーレイ共通閉鎖制御）: `KeyboardEvent`（`overlay::wiring`
+# の keydown リスナーが `key() == "Escape"` を判定するために必要）を追加する。
+# 新規外部クレート追加ゼロ、既存 web-sys の feature 追加のみ。`cargo metadata`
+# 実測（パッケージ数・依存グラフ深さ）に変化がないことを PR 本文に記録する。
 [dependencies]
 fandhe-frontend-app = { path = "../app", version = "0.1.0" }
 fandhe-frontend-core = { path = "../core", version = "0.1.0" }
@@ -134,10 +138,21 @@ perf-assert = []
 # **新規外部パッケージの追加はゼロ**（`cargo metadata` 実測: パッケージ数・
 # 依存グラフ深さ不変。実測結果は PR 本文に記録する）。製品依存
 # （`[dependencies]`）には一切追加しない（REQ-3 不変）。
+#
+# イシュー #585（オーバーレイ共通閉鎖制御）: `wasm-full/tests/overlay_close_browser.rs`
+# が実際の Dialog/Popover マークアップ（`data-scope`/`data-part`/`data-state`）を
+# `fandhe_frontend_core::render` 経由で生成するため `fandhe-frontend-headless-ui`
+# を追加する。`fandhe-frontend-headless-ui` は外部依存が `fandhe-frontend-core`/
+# `fandhe-frontend-interactive`（いずれも path）のみのクレート
+# （`crates/headless-ui/Cargo.toml` 冒頭コメント参照）であり、workspace 内 path
+# dev 依存として追加するため新規外部パッケージの追加はゼロ。製品依存
+# （`[dependencies]`）には追加しない（REQ-3 不変、`cargo metadata` 実測結果を
+# PR 本文に記録する）。
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.1.0" }
 
 # Performance API（性能計測ハーネス専用）。製品面の [dependencies.web-sys] の
 # features には触れず、テスト専用の feature 拡張に閉じる。
@@ -161,6 +176,11 @@ js-sys = "0.3"
 # （Arrow/Home/End キー操作テスト）を組み立てるために `KeyboardEventInit` を
 # 追加する（テスト専用の feature 拡張。既存の `EventInit`/`MouseEventInit`
 # 追加時の判断・PR #92/#374 と同じ承認整理）。
+# イシュー #585: `wasm-full/tests/overlay_close_browser.rs` が合成
+# `KeyboardEvent`（Escape キー押下の回帰）を組み立てるために
+# `KeyboardEventInit` を追加する（テスト専用の feature 拡張。`KeyboardEvent`
+# 自体は製品面の `[dependencies.web-sys]` に追加済みのため、ここでは
+# init 型のみを追加すれば足りる）。
 [dev-dependencies.web-sys]
 version = "0.3"
 features = [

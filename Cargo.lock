@@ -147,6 +147,7 @@ version = "0.1.0"
 dependencies = [
  "fandhe-frontend-app",
  "fandhe-frontend-core",
+ "fandhe-frontend-headless-ui",
  "fandhe-frontend-interactive",
  "fandhe-frontend-wasm-client",
  "js-sys",

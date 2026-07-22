@@ -43,6 +43,13 @@
 //! 遷移後のインタラクティブ要素再配線は本クレートのスコープ外（#374 計画
 //! §8 参照）。
 //!
+//! [`overlay`] モジュール（イシュー #585、親 #584）は `fandhe-frontend-headless-ui`
+//! の Dialog/Popover/Menu/Tooltip 共通の閉鎖制御（Escape キー・外側
+//! インタラクション）を担う。`events`/`nav` と同じ 2 層構成
+//! （DOM 非依存の純粋ロジック層 + `#[cfg(target_arch = "wasm32")]` 配線層）を
+//! 踏襲し、実際の `"close"` dispatch・再描画は呼び出し側（#580 統合層）の
+//! 責務として通知（コールバック）のみを提供する。
+//!
 //! 本クレートの自作コードは safe Rust のみとし、`unsafe` は `wasm-bindgen` /
 //! `web-sys` の FFI 境界（依存クレート内部・自動生成コード）に限定する
 //! （`docs/policy/unsafe-boundary.md` 第 2 節）。自作コードでの新規 `unsafe` 追加を
@@ -61,6 +68,7 @@ pub mod events;
 pub mod hydration;
 pub mod keynav;
 pub mod nav;
+pub mod overlay;
 
 #[cfg(target_arch = "wasm32")]
 pub mod entry;
