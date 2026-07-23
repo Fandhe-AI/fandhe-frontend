@@ -168,6 +168,16 @@
 //!   等と同型の判断）。placement（`start`/`end`/`top`/`bottom`）は variant
 //!   ではなく headless 層が出力する `data-placement` に連動する CSS で表現
 //!   する。詳細は [`mod@drawer`] rustdoc 参照。
+//! - headless ラッパー（Progress circular 対応、イシュー #763）:
+//!   [`mod@progress`]。headless の値状態機械
+//!   [`fandhe_frontend_headless_ui::progress::Progress`] が既に持つ Circle/
+//!   CircleTrack/CircleRange（SVG）の inherent メソッドへ CSS のみを追加提供
+//!   する薄い委譲層で、新規状態機械は持たない。`size` variant のみを持ち
+//!   `color-palette` 軸は提供しない（`Progress` 型はあえて再エクスポートせず、
+//!   `size` variant クラス付与のため styled root のみを新設する。
+//!   [`mod@dialog`]/[`mod@switch`] と同型の判断）。linear（Track/Range）用の
+//!   styled ラッパーは対応表（`docs/design/component-coverage-map.md`）が
+//!   本イシューと切り分けたスコープ外。詳細は [`mod@progress`] rustdoc 参照。
 //! - headless ラッパー 3 種（イシュー #756、#716 追加候補・最優先候補の消化）:
 //!   [`mod@link`]（Link、`variant` の下線表示切り替え + `aria-current="page"`
 //!   状態装飾）、[`mod@link_overlay`]（LinkOverlay、`::before` 疑似要素の
@@ -340,6 +350,7 @@ pub mod number_input;
 pub mod pagination;
 pub mod pin_input;
 pub mod popover;
+pub mod progress;
 pub mod radio_card;
 pub mod radio_group;
 pub mod rating_group;

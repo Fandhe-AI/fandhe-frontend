@@ -32,8 +32,9 @@ CheckboxCard/RadioCard styled バリエーション追加（#747）・Combobox s
 styled ラッパー追加（#755）・Carousel styled ラッパー追加（#754）・Drawer
 styled ラッパー追加（#758）・Link/LinkOverlay/NavList styled ラッパー追加
 （#756）・HoverCard styled ラッパー追加（#759）・ToggleTip styled ラッパー
-追加（#761）・Status/EmptyState 静的部品追加（#765、いずれも公開時点未
-反映）を経て 46 の公開モジュールを持つ。内訳は次の通り。
+追加（#761）・Progress circular 対応追加（#763）・Status/EmptyState 静的
+部品追加（#765、いずれも公開時点未反映）を経て 47 の公開モジュールを持つ。
+内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -66,6 +67,7 @@ styled ラッパー追加（#758）・Link/LinkOverlay/NavList styled ラッパ�
 | headless ラッパー | `link` / `link_overlay` / `nav_list` | #756（`docs/api/headless-ui-api.md` §4b 追加候補・最優先候補の消化。状態機械なし。`link_overlay` は `::before` 疑似要素の代わりに `overlay` 自身を `position: absolute; inset: 0;` で展開する。`nav_list` は `fandhe-frontend-docs-site::nav.rs::sidebar` が直接使う想定のため、`root` 以外（`heading`/`list`/`item`/`link`）は headless 自由関数をそのまま選択的に再エクスポートする） |
 | headless ラッパー | `hover_card` | #759（`popover`/`tooltip` と同型の判断で variant は非提供。構造上最も近い先行例は `tooltip`。`content` の開閉連動・`--fandhe-reference-width` 非消費・focus-visible リングを継承する） |
 | headless ラッパー | `toggle_tip` | #761（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。「見た目は Tooltip・挙動は Popover」の変種であり、`content` の視覚系は `tooltip` と同一値。状態機械は `state::Disclosure`） |
+| headless ラッパー | `progress` | #763（headless の値状態機械 `Progress`（#544/#600）が持つ Circle/CircleTrack/CircleRange（SVG）へ CSS のみ追加提供。`Progress` 型はあえて再エクスポートせず、`size` variant クラス付与のため styled `root` のみを新設する（`dialog`/`switch` と同型の判断）。circle 自身は headless の inherent メソッドをそのまま呼ばせる（クラス不要）。indeterminate 時の回転アニメーションは `[data-part="circle"][data-state="indeterminate"]` セレクタ + `@keyframes`（`spinner` と同型）で提供。linear（Track/Range）用の styled ラッパーは対応表（`docs/design/component-coverage-map.md`）が本イシューと切り分けたスコープ外） |
 | 状態機械を要しない静的部品 | `status` / `empty_state` | #765（§4h 参照。`status` は `size`/`color-palette` の 2 軸、`empty_state` は `card` と同型の中立コンテナで `color-palette` 軸は非提供） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
