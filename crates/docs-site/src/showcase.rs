@@ -52,6 +52,7 @@ use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
+use fandhe_frontend_pre_styled_ui::segment_group;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
@@ -138,7 +139,8 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 ///
 /// 内訳: テーマトークン（`Theme::default`、ライト/ダーク両対応）→ 掲載
 /// コンポーネントの recipe CSS（button/badge/spinner/alert/card/tabs/
-/// accordion/dialog/menu/select/popover/tooltip/switch/radio_group/avatar）
+/// accordion/dialog/menu/select/popover/tooltip/switch/radio_group/avatar/
+/// segment_group）
 /// → ショーケース配置スタイル、の順で決定的に連結する。
 ///
 /// # Errors
@@ -170,6 +172,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::segment_group::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -1275,6 +1278,58 @@ fn number_input_section() -> Node {
     )
 }
 
+/// SegmentGroup 節（イシュー #743）: 既定（選択済み）・disabled・Size 3 種の
+/// 静的掲示。状態機械（[`fandhe_frontend_pre_styled_ui::segment_group::SegmentGroup`]、
+/// `radio_group::RadioGroup` への全委譲）は使わず、他の docs-site 節と同じく
+/// SSR 静的マークアップのみを組み立てる（本モジュール冒頭「インタラクティブ
+/// 部品の扱い」節参照）。indicator の位置は選択項目の `(index, count)` から
+/// 手計算で `segment_group::indicator` へ渡す（headless 層の SSR 決定的な
+/// 位置表現契約、`crates/headless-ui/src/segment_group.rs` module doc 参照）。
+fn segment_group_demo(id_prefix: &str, size: Size, disabled: bool, selected_index: usize) -> Node {
+    let items = ["List", "Grid", "Table"];
+    let mut children = vec![segment_group::indicator(
+        Some((selected_index, items.len())),
+        None,
+        vec![],
+    )];
+    children.extend(items.iter().enumerate().map(|(index, label)| {
+        let checked = index == selected_index;
+        let value = label.to_lowercase();
+        segment_group::item(
+            checked,
+            disabled,
+            &value,
+            vec![],
+            vec![
+                segment_group::item_hidden_input(
+                    checked,
+                    disabled,
+                    Some(id_prefix),
+                    &value,
+                    vec![],
+                ),
+                segment_group::item_control(checked, disabled, vec![]),
+                segment_group::item_text(checked, disabled, vec![], vec![text(*label)]),
+            ],
+        )
+    }));
+    segment_group::root(size, disabled, None, None, vec![], children)
+}
+
+fn segment_group_section() -> Node {
+    let size_row = row(vec![
+        segment_group_demo("showcase-segment-sm", Size::Sm, false, 0),
+        segment_group_demo("showcase-segment-md", Size::Md, false, 1),
+        segment_group_demo("showcase-segment-lg", Size::Lg, false, 2),
+    ]);
+    let disabled_demo = segment_group_demo("showcase-segment-disabled", Size::Md, true, 0);
+    section(
+        "SegmentGroup",
+        "単一選択のセグメント UI（segmented control）。ネイティブ input[type=\"radio\"] による排他選択を data-scope=\"segment-group\" の anatomy へ重ね、選択中の項目を indicator の CSS 変数（--fandhe-segment-group-index/-count）で示します。状態機械は RadioGroup（SingleSelect）への全委譲です。",
+        vec![size_row, disabled_demo],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -1310,6 +1365,7 @@ fn showcase_body() -> Node {
             checkbox_section(),
             form_controls_section(),
             number_input_section(),
+            segment_group_section(),
         ],
     )
 }
