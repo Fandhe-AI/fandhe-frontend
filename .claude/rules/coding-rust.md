@@ -8,6 +8,7 @@
 - **`core` は外部依存ゼロ**: `crates/core/Cargo.toml` に外部クレートを追加しない
 - **HTML 文字列の直接組み立て禁止**: `format!("<div>{}</div>", user_input)` のようなコードは書かない。必ずノード木 API を使う
 - **意図的非採用機能の再導入提案には評価軸の充足確認が必須**: 仮想 DOM・ファイルベースルーティング・HMR・signal/store は AI 開発・保守前提（明示性・決定性・機械検証可能性・コンテキスト消費）に基づき意図的に非採用としている。再導入を提案する場合は `docs/policy/intentional-non-adoption.md` の評価軸・再評価トリガーの充足を確認し、Issue・PR に明記する
+- **公開済みクレート（crates.io）の実体変更時は semver バンプ必須（イシュー #638）**: `crates/*` のうち crates.io へ公開済みのクレート（`Cargo.toml` に `publish = false` を持たないもの）は、`src/` ・ `Cargo.toml` ・ `build.rs` を変更する PR で必ず `version` をバンプする。0.x の破壊的変更はマイナーバンプとする（依存元クレートの `version = "..."` 指定・release 手順への波及に注意）。公開 API に影響しない変更（ドキュメントのみ・内部実装のみ等）に限り、PR 本文に `version-bump-exempt: <crate-name>`（理由を続けて記載）を宣言することでバンプを免除できる。機械検知は `xtask check-version-bump`（CI: `version-bump-guard` ジョブ）が行う（`.claude/rules/ci.md` 参照）
 
 ## 一般規約
 
