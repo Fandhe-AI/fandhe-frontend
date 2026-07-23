@@ -7,7 +7,10 @@
 出典 PR #386 / #390）。§3.19 は非採用確定（イシュー #405、出典 PR #383 /
 `docs/design/wasm-full-architecture.md` §10）。§3.20〜§3.21 は非採用確定
 （イシュー #639、出典 `docs/design/anchor-positioning-design.md` §4.3・
-§4.5 / PR #613）。
+§4.5 / PR #613）。§3.21 は、CSS Anchor Positioning の progressive
+enhancement（`@supports` 段階適用）のフォールバック設計案・非採用の論点
+整理をイシュー #644（出典: 同書 §4.5a）でも参照されている（判断・節本文は
+変更なし）。
 
 **節番号の採番規則**（イシュー #398、§3.6〜§3.8 の重複発覚を受けて明記）:
 
@@ -49,7 +52,9 @@
   で anchor positioning 実装（イシュー #590）における Floating UI 相当の
   高度 positioning middleware 群・CSS Anchor Positioning（Web 標準）の採否
   （イシュー #639、出典 `docs/design/anchor-positioning-design.md` §4.3・
-  §4.5 / PR #613）を追加記録する。
+  §4.5 / PR #613）を追加記録する。§3.21 は、CSS Anchor Positioning の
+  progressive enhancement 設計検討（イシュー #644、出典: 同書 §4.5a）の
+  結果（判断は非採用のまま変更なし）もあわせて参照する。
 - **対象外**: 本書は `docs/spec/` の内容を変更するものではない。仕様自体の
   変更が必要と判断された場合は、fandhe-frontend-spec リポジトリ側で
   提案する（`.claude/rules/out-of-scope-tracking.md` 準拠）。
@@ -877,6 +882,13 @@ AI エージェントが変更の影響範囲を判断するために読み込�
      の再改訂を伴う。
   2. ブラウザサポート状況の実測が ADR 第 4.5 節の記載と乖離したことが
      判明した場合。
+- **追加検討記録（イシュー #644）**: 上記トリガー 1 の `@supports` progressive
+  enhancement 案について、CSS 側（`pre-styled-ui` の `SlotRecipe::css` へ
+  `@supports (anchor-name: --a)` ブロックを追加）・wasm 側（`reposition_all`/
+  `reposition_one` 入口での `CSS.supports` 機能検出）・SSR/no-JS 側（既存の
+  静的フォールバックのまま変更不要）の具体的なフォールバック設計案を
+  `docs/design/anchor-positioning-design.md` 第 4.5a 節に記録した。判断
+  （非採用）自体は変更しない。
 
 ## 4. 運用（再導入提案時の手続き）
 
