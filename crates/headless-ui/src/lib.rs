@@ -149,6 +149,14 @@
 //!   （#600、親 #542）を持つ。CSS 変数（`--size`/`--thickness`）参照の
 //!   固定 `style` で描画し、状態機械・hydration フォーマットへの追加は
 //!   ない（詳細は [`progress`] モジュール doc の circular 節を参照）。
+//! - [`mod@number_input`]: Root / Label / Control / Input / IncrementTrigger /
+//!   DecrementTrigger の 6 anatomy パーツと、数値 `value`（`min`..=`max`、
+//!   または未入力を表す `None`）を持つ [`number_input::NumberInput`] 値状態
+//!   機械（#738、親 #736）。[`mod@progress`] と同じく `data-state` を持たず、
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。ark-ui の
+//!   Scrubber パーツ・キーボード操作の DOM 配線は本イシューのスコープ外
+//!   （[`number_input`] モジュール doc 参照）。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
@@ -205,6 +213,7 @@ pub mod dialog;
 pub mod field;
 pub mod fieldset;
 pub mod menu;
+pub mod number_input;
 pub mod password_input;
 pub mod popover;
 pub mod positioning;
@@ -253,6 +262,7 @@ pub use dialog::Dialog;
 pub use field::{FieldIds, FieldProps};
 pub use fieldset::FieldsetProps;
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
+pub use number_input::{NumberInput, NumberInputAction, NumberInputFlags};
 pub use password_input::{
     PasswordAutocomplete, PasswordInput, PasswordInputAction, PasswordInputProps,
 };
