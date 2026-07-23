@@ -201,6 +201,18 @@
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`control` は
 //!   `role="listbox"`、`item_preview` は `role="option"`（イシュー本文が
 //!   指定する listbox 相当の ARIA）。
+//! - [`mod@carousel`]: Root / Control / PrevTrigger / NextTrigger /
+//!   ItemGroup / Item / IndicatorGroup / Indicator の 8 anatomy パーツと、
+//!   `0..slide_count` を循環し得る index 値を持つ [`carousel::Carousel`]
+//!   状態機械（#754、親 #748/#520）。[`mod@slider`]/[`mod@number_input`] と
+//!   同じく [`state`] の既存語彙に収まらないため、
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`item` は
+//!   `role="group"` + `aria-roledescription="slide"` + 位置ラベル
+//!   （`"{n} of {m}"`）、`indicator` は `aria-current`（現在位置のみ）を
+//!   出力する ARIA carousel パターン準拠。autoplay（play/pause/`aria-live`
+//!   切替）・pointer ドラッグ/キーボード操作の DOM 配線は本イシューの
+//!   スコープ外（[`carousel`] モジュール doc 参照）。
 //! - [`mod@pagination`]: Root / Item / Ellipsis / PrevTrigger / NextTrigger の
 //!   5 anatomy パーツと、[`pagination::page_range`]（総件数・ページサイズ・
 //!   現在ページ・sibling/boundary 件数から省略記号を含むページ列を導出する
@@ -302,6 +314,7 @@ pub mod anatomy;
 pub mod aria;
 pub mod avatar;
 pub mod breadcrumb;
+pub mod carousel;
 pub mod checkbox;
 pub mod collapsible;
 pub mod combobox;
@@ -358,11 +371,12 @@ pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
     aria_activedescendant, aria_autocomplete, aria_checked, aria_controls, aria_current,
     aria_describedby, aria_disabled, aria_expanded, aria_haspopup, aria_hidden, aria_invalid,
-    aria_label, aria_labelledby, aria_modal, aria_orientation, aria_pressed, aria_selected, role,
-    AriaAutocomplete, AriaChecked, AriaCurrent, AriaPopup,
+    aria_label, aria_labelledby, aria_modal, aria_orientation, aria_pressed, aria_roledescription,
+    aria_selected, role, AriaAutocomplete, AriaChecked, AriaCurrent, AriaPopup,
 };
 pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use breadcrumb::{breadcrumb, BreadcrumbItem};
+pub use carousel::{Carousel, CarouselAction};
 pub use checkbox::{Checkbox, CheckboxFlags};
 pub use combobox::{Combobox, ComboboxAction};
 pub use data_attrs::{
