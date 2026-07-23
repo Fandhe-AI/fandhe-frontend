@@ -42,6 +42,9 @@ use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::clipboard;
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
+use fandhe_frontend_pre_styled_ui::editable::{
+    self, EditMode, EditableInputFlags, EditableInputProps,
+};
 use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps};
@@ -992,7 +995,6 @@ fn editable_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         assert_payload_is_escaped(payload, &html, "editable::preview children コンテキスト");
     }
 }
-
 
 /// QrCode（イシュー #774）: styled `root` の呼び出し側 `attrs`・`class`、
 /// 選択的再エクスポートした `overlay` の children・`frame` の `aria_label`

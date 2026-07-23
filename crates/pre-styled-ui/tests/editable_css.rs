@@ -20,10 +20,11 @@ const EDITABLE_GOLDEN_CSS: &str = r#"[data-scope="editable"][data-part="root"] {
 
 [data-scope="editable"][data-part="area"] {
   position: relative;
-  display: inline-flex;
+  display: inline-grid;
 }
 
 [data-scope="editable"][data-part="input"] {
+  grid-area: 1 / 1;
   box-sizing: border-box;
   width: 100%;
   padding: var(--fandhe-space-1) var(--fandhe-space-2);
@@ -34,6 +35,7 @@ const EDITABLE_GOLDEN_CSS: &str = r#"[data-scope="editable"][data-part="root"] {
 }
 
 [data-scope="editable"][data-part="preview"] {
+  grid-area: 1 / 1;
   display: inline-block;
   padding: var(--fandhe-space-1) var(--fandhe-space-2);
   font-size: var(--fandhe-editable-font-size, var(--fandhe-font-font-size-sm));

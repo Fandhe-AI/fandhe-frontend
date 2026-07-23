@@ -39,12 +39,19 @@
 //! を経由しない headless 直接利用マークアップでも現行外観を維持する
 //! （fail-safe）。
 //!
-//! # `input`/`preview` の重ね合わせレイアウト
+//! # `input`/`preview` の重ね合わせレイアウト（PR #792 Bugbot 指摘対応、Medium）
 //!
-//! `area` を `position: relative` のコンテナとし、`input`/`preview`を同一
-//! 位置に重ねる（chakra-ui Editable の既定見た目に近づける判断）。両者は
-//! headless 層の `hidden` 属性で排他表示されるため、レイアウト上の重なりが
-//! 視覚的な二重表示を招くことはない。
+//! `area` を CSS Grid の単一セル（`display: grid`）とし、`input`/`preview`
+//! の双方に `grid-area: 1 / 1` を与えて同一グリッドセルへ重ねる
+//! （chakra-ui Editable の既定見た目に近づける判断）。両者は headless 層の
+//! `hidden` 属性で排他表示され、非表示側は `display: none`（`preview` は
+//! 直上の `[hidden]` 規則、`input` は要素の UA 既定 `display` に対し本
+//! モジュールが `display` を宣言しないため UA 既定の `[hidden]{display:none}`
+//! がそのまま効く）になるため、グリッドの track サイズは表示中の 1 パーツ
+//! のみで決まる。`position: relative` だけを宣言し `input`/`preview` を
+//! 通常フローに残した旧実装は、両者が `area` の `inline-flex` 内で並んで
+//! 描画され「重ね合わせ」にならず、chakra-ui 由来の見た目契約に反していた
+//! （Bugbot 指摘）。
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
@@ -113,11 +120,12 @@ fn recipe() -> SlotRecipe {
         )
         .base(
             "area",
-            vec![decl("position", "relative"), decl("display", "inline-flex")],
+            vec![decl("position", "relative"), decl("display", "inline-grid")],
         )
         .base(
             "input",
             vec![
+                decl("grid-area", "1 / 1"),
                 decl("box-sizing", "border-box"),
                 decl("width", "100%"),
                 decl("padding", "var(--fandhe-space-1) var(--fandhe-space-2)"),
@@ -138,6 +146,7 @@ fn recipe() -> SlotRecipe {
         .base(
             "preview",
             vec![
+                decl("grid-area", "1 / 1"),
                 decl("display", "inline-block"),
                 decl("padding", "var(--fandhe-space-1) var(--fandhe-space-2)"),
                 decl(
