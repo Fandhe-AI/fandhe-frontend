@@ -2362,3 +2362,110 @@ fn typography_static_parts_are_escaped_for_all_payloads() {
         assert!(html.contains(r#"aria-hidden="true""#));
     }
 }
+/// イシュー #768: Tag / Kbd / Code の styled 公開 API 経由の XSS 回帰。
+///
+/// 対象の入力面:
+/// 1. テキスト経路: `tag::root`/`tag::label`/`kbd::kbd`/`code::code` の
+///    children。
+/// 2. 属性値経路: `tag::close_trigger` の `action` 引数（`data-action`
+///    属性値として出力される）・呼び出し側 `attrs`。
+/// 3. class 破棄経路: `tag::root`/`kbd::kbd`/`code::code` へ `class` を渡し、
+///    recipe 生成クラスへの完全置換（`kbd`/`code` は variant を持たないため
+///    `class` 属性自体が出力されないことも併せて固定する）ことを確認する。
+#[test]
+fn tag_kbd_code_styled_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::code::code;
+    use fandhe_frontend_pre_styled_ui::kbd::kbd;
+    use fandhe_frontend_pre_styled_ui::tag::{self, TagProps};
+
+    for payload in payloads::all() {
+        // (1) テキスト経路。
+        let html = render(&tag::root(
+            &TagProps::default(),
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "tag::root children コンテキスト");
+
+        let html = render(&tag::label(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "tag::label children コンテキスト");
+
+        let html = render(&kbd(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "kbd children コンテキスト");
+
+        let html = render(&code(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "code children コンテキスト");
+
+        // (2) 属性値経路: close_trigger の action（data-action 属性値）。
+        let html = render(&tag::close_trigger(Some(payload), vec![], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tag::close_trigger data-action 属性値コンテキスト",
+        );
+
+        // (2) 属性値経路: 呼び出し側 attrs。
+        let html = render(&tag::root(
+            &TagProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "tag::root 呼び出し側 attrs コンテキスト");
+
+        let html = render(&tag::close_trigger(
+            None,
+            vec![("aria-label", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tag::close_trigger 呼び出し側 attrs コンテキスト",
+        );
+
+        // (3) class 破棄経路: tag::root は recipe 生成クラスへ完全置換。
+        let html = render(&tag::root(
+            &TagProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "tag::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "tag::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-tag--"),
+            "tag::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // (3) class 破棄経路: kbd/code は variant を持たず class 属性自体を
+        // 出力しない（drop_class_attr により生ペイロードも一切残らない）。
+        let html = render(&kbd(vec![("class", payload)], vec![]));
+        assert!(
+            !html.contains(payload),
+            "kbd の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(
+            !html.contains("class="),
+            "kbd は variant を持たないため class 属性を出力しないはず: html={html}"
+        );
+
+        let html = render(&code(vec![("class", payload)], vec![]));
+        assert!(
+            !html.contains(payload),
+            "code の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(
+            !html.contains("class="),
+            "code は variant を持たないため class 属性を出力しないはず: html={html}"
+        );
+    }
+}
