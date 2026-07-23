@@ -129,6 +129,102 @@ popover,tooltip}.rs` の各ファイル冒頭の `pub use` 直後のコメント
 （import を `fandhe_frontend_pre_styled_ui::` パスのみに限定し、コンパイル
 と実行時アサーションの両方で契約を固定する）。
 
+## 3b. interactive 層の再エクスポート契約と判断根拠（イシュー #712）
+
+### 背景
+
+§3a（イシュー #685）で確立した契約は SSR 描画（`Node` を組み立てて
+`render()` する経路）を pre-styled-ui 単独依存で完結させるものだったが、
+hydration / dispatch まで書く場合に必要な `fandhe-frontend-interactive` の
+公開 API（`Component`/`Hydrate`/`dispatch`/`HydrateError`/
+`render_for_hydration`/`HYDRATE_ATTR_PREFIX`/`codec` モジュール/
+`DirtyTracked`）は対象外のままだった。実際に
+`crates/pre-styled-ui/tests/headless_reexports.rs` は #685 時点で
+`fandhe_frontend_interactive::{dispatch, Component}` を dev-dependency 経由で
+直接 import しており、「SSR は単独依存で完結するが hydration/dispatch は
+完結しない半端な状態」だった（PR #699/#695 の out-of-scope 節で検出）。
+
+### 採用方針: interactive 層をクレート再エクスポートする（案 A）
+
+`fandhe-frontend-headless-ui` に `pub use fandhe_frontend_interactive;`
+（クレート再エクスポート）を追加し、`fandhe-frontend-pre-styled-ui` はそれを
+推移的に `pub use fandhe_frontend_headless_ui::fandhe_frontend_interactive;`
+で再エクスポートする。ルートへの個別型再エクスポート（`Component` 等を
+ルート直下へ置く案）は行わない。
+
+**根拠**:
+
+1. **確立済み先例との一貫性**: core について headless-ui（#550）→「クレート
+   そのものの再エクスポートで単独依存パスを完結させるエスケープハッチ」、
+   pre-styled-ui（#685）→ 推移的再エクスポート、というパターンが既に確立
+   している。interactive も同型で扱うのが最も予測可能（AI 保守前提の明示性・
+   決定性・機械検証可能性）。
+2. **トレイト同一性の保証**: 利用者が interactive を明示依存する現状維持案
+   では、利用者側の `fandhe-frontend-interactive` のバージョン指定が
+   headless-ui の内部依存とずれた場合、「別バージョンの `Component` を実装
+   している」という初学者に解読困難なトレイト不一致エラーを踏み得る。
+   再エクスポート経由ならクレート同一性が cargo の解決に依らず常に成立する
+   （core 再エクスポートと同じ動機）。
+3. **依存グラフ方針への影響ゼロ**: `docs/policy/dependency-graph-policy.md`
+   の実測値は不変。`Cargo.toml` の依存エッジ追加は一切なく、
+   `structure.toml` の `depends_on` も不変（fw gate 完全一致検証に影響しない）。
+4. **不変条件の維持**: pre-styled-ui の「外部依存は
+   `fandhe-frontend-headless-ui` のみ」（`crates/pre-styled-ui/Cargo.toml`
+   コメント・§3 不変条件 4）を崩さずに実現できる唯一の再エクスポート経路
+   である。
+5. **ルート個別再エクスポートを見送る理由**: `dispatch` のような汎用名を UI
+   クレートのルートへ置くと名前衝突・責務の混濁を招く。#685 でルートへ
+   置いた `OpenState`/`Orientation` は docs-site の実利用パス（#693）という
+   実績に基づくが、interactive 系項目には現時点で in-repo の実利用者が
+   おらず、必要になれば非破壊的に追加できる。
+
+**棄却案 B（現状維持 + 明示依存ガイド）**: 追加実装ゼロで済むが、(a) core と
+interactive で「単独依存完結」の到達範囲が非対称になり契約が説明困難、
+(b) 上記 2 のトレイト不一致リスクが残る、(c) §3a が掲げた「pre-styled-ui
+のみに依存してラッパーを呼び出せる」保証が hydration を含む実用シナリオで
+成立しない、ため棄却。
+
+### 棚卸し表（クレート再エクスポートにより全到達可能）
+
+| 項目 | 到達パス |
+|---|---|
+| `Component` | `fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::Component` |
+| `Hydrate` | 同上 `::Hydrate` |
+| `dispatch` | 同上 `::dispatch` |
+| `HydrateError` | 同上 `::HydrateError` |
+| `render_for_hydration` | 同上 `::render_for_hydration` |
+| `HYDRATE_ATTR_PREFIX` | 同上 `::HYDRATE_ATTR_PREFIX` |
+| `codec` モジュール | 同上 `::codec` |
+| `DirtyTracked` | 同上 `::DirtyTracked` |
+
+同型で `fandhe_frontend_headless_ui::fandhe_frontend_interactive::{...}`
+（headless-ui 単独依存経由）でも到達可能。
+
+### 固定テスト
+
+- `crates/headless-ui/tests/interactive_reexport.rs`: headless-ui の
+  クレート再エクスポート到達性を、styled Dialog 相当（headless の `Dialog`）
+  の SSR → dispatch 往復と、改ざん属性による `HydrateError` 到達（panic
+  しない）で固定する。
+- `crates/pre-styled-ui/tests/interactive_reexports.rs`: pre-styled-ui の
+  推移的再エクスポート到達性を、styled Dialog/Accordion/Switch の
+  SSR/hydration/dispatch 往復と `HydrateError` 到達で固定する。import は
+  `fandhe_frontend_pre_styled_ui::` パスのみに限定する。
+- `crates/pre-styled-ui/tests/headless_reexports.rs` は本イシューで import を
+  `fandhe_frontend_interactive::{dispatch, Component}`（dev-dependency 直接
+  import）から `fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::{...}`
+  （再エクスポート経由）へ切り替え、契約テストとしての純度を上げた。
+
+### セキュリティ上の注意（REQ-1）
+
+`fandhe_frontend_interactive` は `raw_html()` を公開せず、
+`Component::view`/`render_for_hydration` の戻り値は `Node` のみで既定
+エスケープを必ず経由する（interactive の不変条件 1）。本再エクスポートは
+新たな出力経路・エスケープ迂回を一切作らない。`Hydrate::from_hydration_attrs`
+は DOM 属性を改ざんされうる入力として扱い panic せず `HydrateError` を返す
+契約（interactive 不変条件 3）も、再エクスポートで弱まらないことを固定
+テストで検証している。
+
 ## 4. 設計方針（予定、#547/#548 の実装完了後に本節を更新）
 
 - **テーマトークン**（#547）: 色・スペーシング等のデザイントークンと
