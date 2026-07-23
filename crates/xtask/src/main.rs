@@ -76,6 +76,20 @@
 //!   1 行サマリは `check_version_bump::format_report` 参照。CLI 契約の回帰テストは
 //!   `xtask/tests/cli_check_version_bump.rs`。
 //!
+//! - `check-dep-versions [--fix]`: イシュー #657。workspace 内メンバー間の
+//!   `path + version` 併記依存について、依存元の `version = "..."` 要求が
+//!   依存先の現行 version へ追随しているかを検知する（`check_dep_versions`
+//!   モジュール）。headless-ui 0.1.0 → 0.2.0 バンプ時、依存元（pre-styled-ui /
+//!   wasm-full / xtask）の `version = "..."` 追随が sed による手動一括変更を
+//!   要した実績（`check-version-bump` の是正メッセージによる注意喚起のみでは
+//!   機械検知手段がなかった、PR #647 out-of-scope）が動機。ネットワーク照会は
+//!   一切行わない（`cargo metadata --no-deps` のみ）。既定（引数なし）は検知の
+//!   みで fail-closed（CI: `.github/workflows/ci.yml` の `dep-version-check`
+//!   ジョブ）。`--fix` は version 不一致（ルール 1）のみをローカルで自動修正する
+//!   オプトイン手段で、書き換え位置を一意特定できない場合は一切書き換えない。
+//!   1 行サマリは `check_dep_versions::format_report` 参照。CLI 契約の回帰
+//!   テストは `xtask/tests/cli_check_dep_versions.rs`。
+//!
 //! `core` / `interactive` と異なりプロセス起動（`std::process::Command`）を行うが、
 //! `unsafe` は使わない（REQ-2 は core/interactive 限定だが、xtask でも forbid する。
 //! core/tests/unsafe_boundary.rs の WASM/FFI 境界許可リストにも含まれない）。
@@ -83,6 +97,7 @@
 #![forbid(unsafe_code)]
 
 mod bench_binding_update;
+mod check_dep_versions;
 mod check_deps;
 mod check_image_size;
 mod check_loc;
@@ -104,6 +119,7 @@ fn main() -> ExitCode {
         Some("wasm-node-smoke") => run_wasm_node_smoke(&args[2..]),
         Some("bench-binding-update") => run_bench_binding_update(&args[2..]),
         Some("check-version-bump") => run_check_version_bump(&args[2..]),
+        Some("check-dep-versions") => run_check_dep_versions(&args[2..]),
         Some(other) => {
             eprintln!("xtask: unknown subcommand `{other}`");
             print_usage();
@@ -162,6 +178,12 @@ fn print_usage() {
     eprintln!("      Cargo.toml, build.rs) while Cargo.toml's version is unchanged from an");
     eprintln!("      already-published version (issue #638). `--pr-body-file` may declare");
     eprintln!("      `version-bump-exempt: <crate-name>` to exempt non-breaking changes.");
+    eprintln!("  check-dep-versions [--fix]");
+    eprintln!("      Detect workspace-internal path+version dependencies whose `version =");
+    eprintln!("      \"...\"` requirement has not been kept in sync with the dependency's");
+    eprintln!("      current version (issue #657). No network access (cargo metadata only).");
+    eprintln!("      `--fix` auto-corrects version-mismatch failures in place; ambiguous or");
+    eprintln!("      unsupported requirement forms are left untouched and reported as errors.");
 }
 
 /// `check-deps` サブコマンド: `--package <NAME>` を 1 つ以上受け取り、
@@ -638,10 +660,10 @@ fn run_check_version_bump(args: &[String]) -> ExitCode {
             eprintln!(
                 "xtask check-version-bump: crate `{name}` version {version} is already \
 published on crates.io but its sources changed in this PR. Fix by either (a) bumping the \
-version in the crate's Cargo.toml (0.x breaking changes: bump the minor version; remember to \
-update dependents' `version = \"...\"` requirements too), or (b) declaring \
-`version-bump-exempt: {name}` (with rationale) in the PR body if this change is not a \
-public-API-breaking change.",
+version in the crate's Cargo.toml (0.x breaking changes: bump the minor version; then run \
+`cargo run -p xtask -- check-dep-versions --fix` to auto-sync dependents' `version = \"...\"` \
+requirements), or (b) declaring `version-bump-exempt: {name}` (with rationale) in the PR body \
+if this change is not a public-API-breaking change.",
                 name = c.name,
                 version = c.version,
             );
@@ -649,6 +671,133 @@ public-API-breaking change.",
     }
 
     if had_failure {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+/// `check-dep-versions` サブコマンド（イシュー #657）: `--fix`（任意）のみを
+/// 受け付ける。既定（`--fix` なし）は検知のみで、workspace 内の
+/// `path + version` 併記依存すべてについて 1 行サマリを出力し、1 件でも
+/// FAIL（ルール 1: version 不一致 / ルール 2: 公開対象クレートの version 欠落）
+/// があれば終了コード 1（fail-closed）を返す（呼び出し元:
+/// `.github/workflows/ci.yml` の `dep-version-check` ジョブ）。
+///
+/// `--fix` はルール 1 の FAIL のみをその場で自動修正するローカル向けオプトイン
+/// 手段。[`check_dep_versions::plan_fixes`] が 1 件でも書き換え位置を一意特定
+/// できなければ（未対応の req 形式・候補 0/複数件）**一切書き換えを行わず**
+/// エラーとして打ち切る（部分書き込みをしない）。修正適用後は
+/// `cargo metadata` を再実行して検知をやり直し、PASS を確認できて初めて
+/// 終了コード 0 を返す。ルール 2 の FAIL は `--fix` でも修正されず、残留して
+/// いれば終了コード 1 のままとなる（`docs` 上の設計どおり、`cargo publish` が
+/// 実際に失敗する構成を安易に隠さないため）。
+fn run_check_dep_versions(args: &[String]) -> ExitCode {
+    let mut fix = false;
+    for arg in args {
+        match arg.as_str() {
+            "--fix" => fix = true,
+            other => {
+                eprintln!("xtask check-dep-versions: unknown argument `{other}`");
+                return ExitCode::from(2);
+            }
+        }
+    }
+
+    let (workspace_root, members) =
+        match check_dep_versions::workspace_packages_from_cargo_metadata() {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("xtask check-dep-versions: {e}");
+                return ExitCode::FAILURE;
+            }
+        };
+
+    let edges = check_dep_versions::collect_edges(&members);
+    let reports: Vec<check_dep_versions::Report> =
+        edges.iter().map(check_dep_versions::judge_edge).collect();
+    for report in &reports {
+        print!("{}", check_dep_versions::format_report(report));
+    }
+
+    let mismatch_present = reports.iter().any(|r| {
+        matches!(
+            r.judgement,
+            check_dep_versions::Judgement::Fail(check_dep_versions::FailReason::VersionMismatch)
+        )
+    });
+    let missing_present = reports.iter().any(|r| {
+        matches!(
+            r.judgement,
+            check_dep_versions::Judgement::Fail(check_dep_versions::FailReason::MissingVersion)
+        )
+    });
+
+    if !fix {
+        if mismatch_present || missing_present {
+            eprintln!(
+                "xtask check-dep-versions: one or more workspace-internal `version = \"...\"` \
+requirements are out of sync with their dependency's current version, or missing where \
+required for a publishable crate. Run `cargo run -p xtask -- check-dep-versions --fix` to \
+auto-correct version-mismatch failures (missing-version failures must be fixed by hand: add an \
+explicit `version = \"...\"`)."
+            );
+            return ExitCode::FAILURE;
+        }
+        return ExitCode::SUCCESS;
+    }
+
+    // `--fix`: ルール 1 の FAIL がなければ何もしない（ルール 2 は対象外）。
+    if !mismatch_present {
+        if missing_present {
+            eprintln!(
+                "xtask check-dep-versions --fix: missing-version failures cannot be auto-fixed; \
+add an explicit `version = \"...\"` by hand."
+            );
+            return ExitCode::FAILURE;
+        }
+        return ExitCode::SUCCESS;
+    }
+
+    let plans = match check_dep_versions::plan_fixes(&workspace_root, &edges) {
+        Ok(p) => p,
+        Err(errors) => {
+            for e in errors {
+                eprintln!("xtask check-dep-versions --fix: {e}");
+            }
+            return ExitCode::FAILURE;
+        }
+    };
+
+    if let Err(e) = check_dep_versions::apply_fixes(&plans) {
+        eprintln!("xtask check-dep-versions --fix: {e}");
+        return ExitCode::FAILURE;
+    }
+
+    // 書き換え後、ディスクから再度読み直して検知をやり直し、PASS を確認する。
+    let (_, members_after) = match check_dep_versions::workspace_packages_from_cargo_metadata() {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("xtask check-dep-versions --fix: post-fix re-check failed: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let edges_after = check_dep_versions::collect_edges(&members_after);
+    let reports_after: Vec<check_dep_versions::Report> = edges_after
+        .iter()
+        .map(check_dep_versions::judge_edge)
+        .collect();
+    println!("xtask check-dep-versions --fix: re-checking after applying fixes");
+    for report in &reports_after {
+        print!("{}", check_dep_versions::format_report(report));
+    }
+
+    let still_failing = reports_after.iter().any(|r| !r.judgement.is_pass());
+    if still_failing {
+        eprintln!(
+            "xtask check-dep-versions --fix: some failures remain after --fix (missing-version \
+failures are not auto-fixable)."
+        );
         ExitCode::FAILURE
     } else {
         ExitCode::SUCCESS
