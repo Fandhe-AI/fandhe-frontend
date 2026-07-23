@@ -583,6 +583,28 @@ pub fn checked_from_data_state(s: &str) -> Option<bool> {
     }
 }
 
+/// `data-state` 属性値 "on"（Toggle が使う「押下状態」の値語彙、イシュー
+/// #746）。[`DATA_STATE_CHECKED`]/[`DATA_STATE_UNCHECKED`] とは意味論が
+/// 異なる別語彙のため、[`checked_data_state`] を再利用せず独立の定数・
+/// 変換関数（[`pressed_data_state`]）を設ける。[`crate::toggle`] モジュール
+/// doc の「Switch との意味論差」節を参照。
+pub const DATA_STATE_ON: &str = "on";
+/// `data-state` 属性値 "off"。[`DATA_STATE_ON`] 参照。
+pub const DATA_STATE_OFF: &str = "off";
+
+/// `pressed`（ボタンの押下状態）から `data-state` の属性値文字列へ変換する
+/// （[`checked_data_state`] の on/off 版。[`crate::toggle::Toggle`] が
+/// [`Checkable`] を埋め込みつつも公開 HTML の `data-state` 語彙は
+/// `"on"`/`"off"` を使うために本関数を経由する）。
+#[must_use]
+pub const fn pressed_data_state(pressed: bool) -> &'static str {
+    if pressed {
+        DATA_STATE_ON
+    } else {
+        DATA_STATE_OFF
+    }
+}
+
 /// [`Checkable`] に対する型付きアクション。
 ///
 /// WASM 境界の文字列 dispatch（`name`/`payload`）とは
@@ -1260,6 +1282,23 @@ mod tests {
         // 3 値 tri-state は共通機械のスコープ外（checkbox.rs 参照）であり、
         // "indeterminate" も未知値として拒否される。
         assert_eq!(checked_from_data_state("indeterminate"), None);
+    }
+
+    // --- pressed_data_state: Toggle 専用の on/off 語彙（イシュー #746） ---
+
+    #[test]
+    fn pressed_data_state_maps_on_and_off() {
+        assert_eq!(pressed_data_state(true), "on");
+        assert_eq!(pressed_data_state(false), "off");
+    }
+
+    #[test]
+    fn pressed_data_state_is_distinct_from_checked_data_state() {
+        // Toggle（on/off）と Switch（checked/unchecked）は共通機械
+        // （Checkable）を埋め込みつつも公開語彙が異なることを固定する
+        // （crate::toggle モジュール doc §意味論差参照）。
+        assert_ne!(pressed_data_state(true), checked_data_state(true));
+        assert_ne!(pressed_data_state(false), checked_data_state(false));
     }
 
     // --- Checkable: dispatch 経由の遷移 ---
