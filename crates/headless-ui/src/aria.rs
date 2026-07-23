@@ -228,10 +228,12 @@ pub fn aria_roledescription(value: &'static str) -> (&'static str, &'static str)
     ("aria-roledescription", value)
 }
 
-/// `aria-current` の値語彙（W3C ARIA 仕様、Breadcrumb 用イシュー #755）。
+/// `aria-current` の値語彙（W3C ARIA 仕様、Breadcrumb 用イシュー #755・
+/// Pagination の選択ページ表現用イシュー #751 の双方が共有する）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AriaCurrent {
-    /// 現在のページ（[`crate::breadcrumb::current_link`] が使う値）。
+    /// 現在のページ（[`crate::breadcrumb::current_link`] / [`crate::pagination`]
+    /// が使う値）。
     Page,
     /// 手順の現在ステップ。
     Step,
