@@ -93,6 +93,61 @@ use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR
 /// PasswordInput の anatomy（`data-scope="password-input"`）。
 const ANATOMY: Anatomy = anatomy("password-input");
 
+/// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
+/// 除外する（[`crate::checkbox`] の同名ヘルパと同型の fail-closed 防御）。
+///
+/// `Anatomy::part` が行う `data-scope`/`data-part` 偽装除去と同じ設計判断を
+/// 各パーツの固定属性（`type`/`id`/`aria-*` 等）にも適用し、呼び出し側
+/// `attrs` に含まれる同名キーで上書き・重複させない。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
+/// `root`/`control` パーツが固定する `data-*` 状態属性キー。
+const STATE_RESERVED: &[&str] = &["data-state", "data-invalid", "data-disabled"];
+
+/// [`input`] パーツが固定する属性キー。
+///
+/// **`value`/`type` を含む**: Cursor Bugbot 指摘（PR #786、イシュー #740）
+/// 対応。呼び出し側 `attrs` に `value=`（パスワード値そのもの）や `type=`
+/// （表示切替の型安全な導出を迂回する値）を混入されても、本モジュールの
+/// セキュリティ不変条件「パスワード値を出力に含めない」「`type` は
+/// `visible` から決定的に導出する」を破れないようにする。
+const INPUT_RESERVED: &[&str] = &[
+    "type",
+    "value",
+    "id",
+    "autocomplete",
+    "disabled",
+    "required",
+    "aria-invalid",
+    "data-invalid",
+    "data-disabled",
+    "data-required",
+];
+
+/// [`visibility_trigger`] パーツが固定する属性キー。
+const VISIBILITY_TRIGGER_RESERVED: &[&str] = &[
+    "type",
+    "aria-pressed",
+    "aria-controls",
+    "data-state",
+    "disabled",
+    "data-disabled",
+];
+
+/// [`indicator`] パーツが固定する属性キー。
+const INDICATOR_RESERVED: &[&str] = &["data-state", "aria-hidden"];
+
+/// [`label`] パーツが固定する属性キー。
+const LABEL_RESERVED: &[&str] = &["for"];
+
 /// `data-state`/`data-hydrate-visible` 属性値 "visible"。
 const DATA_STATE_VISIBLE: &str = "visible";
 /// `data-state`/`data-hydrate-visible` 属性値 "hidden"。
@@ -183,6 +238,7 @@ pub fn root(
     attrs: Vec<(&str, &str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
     let mut merged: Vec<(&str, &str)> = vec![data_state(visible_data_state(visible))];
     merged.extend(data_invalid(props.invalid));
     merged.extend(data_disabled(props.disabled));
@@ -197,6 +253,7 @@ pub fn label(
     attrs: Vec<(&str, &str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, LABEL_RESERVED);
     let input_id = control_input_id(props.id);
     let mut merged: Vec<(&str, &str)> = vec![("for", input_id.as_str())];
     merged.extend(attrs);
@@ -211,6 +268,7 @@ pub fn control(
     attrs: Vec<(&str, &str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
     let mut merged: Vec<(&str, &str)> = vec![data_state(visible_data_state(visible))];
     merged.extend(data_invalid(props.invalid));
     merged.extend(data_disabled(props.disabled));
@@ -225,6 +283,7 @@ pub fn control(
 /// doc 参照）。パスワード値の表示・保持・出力は一切行わない。
 #[must_use]
 pub fn input(visible: bool, props: &PasswordInputProps<'_>, attrs: Vec<(&str, &str)>) -> Node {
+    let attrs = drop_reserved(attrs, INPUT_RESERVED);
     let input_id = control_input_id(props.id);
     let ty = if visible { "text" } else { "password" };
     let mut merged: Vec<(&str, &str)> = vec![
@@ -260,6 +319,7 @@ pub fn visibility_trigger(
     attrs: Vec<(&str, &str)>,
     children: Vec<Node>,
 ) -> Node {
+    let attrs = drop_reserved(attrs, VISIBILITY_TRIGGER_RESERVED);
     let input_id = control_input_id(props.id);
     let mut merged: Vec<(&str, &str)> = vec![
         ("type", "button"),
@@ -279,6 +339,7 @@ pub fn visibility_trigger(
 /// 付与する（[`visibility_trigger`] の `aria-pressed` が意味論を担う）。
 #[must_use]
 pub fn indicator(visible: bool, attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
+    let attrs = drop_reserved(attrs, INDICATOR_RESERVED);
     let mut merged: Vec<(&str, &str)> =
         vec![data_state(visible_data_state(visible)), aria_hidden(true)];
     merged.extend(attrs);
@@ -584,6 +645,31 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn input_drops_caller_supplied_value_and_type_attrs() {
+        // Cursor Bugbot 指摘（PR #786、イシュー #740）の回帰テスト:
+        // 呼び出し側 attrs に `value=`（パスワード値そのもの）や `type=`
+        // （型安全な導出の迂回）を混入させても出力へ現れないことを固定する
+        // （`crate::checkbox::hidden_input_drops_caller_supplied_reserved_attrs_case_insensitively`
+        // と同型のガード）。
+        let props = default_props("pw");
+        let html = render(&input(
+            false,
+            &props,
+            vec![
+                ("value", "hunter2"),
+                ("type", "hidden"),
+                ("VALUE", "hunter2"),
+            ],
+        ));
+        assert!(
+            !html.contains("hunter2"),
+            "unexpected leaked value in {html}"
+        );
+        assert!(!html.contains(r#"type="hidden""#));
+        assert!(html.contains(r#"type="password""#));
     }
 
     #[test]
