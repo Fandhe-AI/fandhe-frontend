@@ -5,6 +5,10 @@
 //! （受け入れ条件 3）。出力順（base → variants → compound → states）が
 //! 崩れた場合や意図しない宣言の追加・欠落があった場合に、この golden
 //! テストが即座に検知する。
+//!
+//! `control` の `box-sizing: border-box` は PR #697 Cursor Bugbot 指摘
+//! （review 3636964684）対応で追加した宣言。詳細は
+//! `crates/pre-styled-ui/src/switch.rs` のモジュール doc を参照。
 
 use fandhe_frontend_pre_styled_ui::switch;
 
@@ -18,6 +22,7 @@ const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
 [data-scope="switch"][data-part="control"] {
   display: inline-flex;
   align-items: center;
+  box-sizing: border-box;
   width: 2.5rem;
   height: 1.4rem;
   border-radius: 999px;

@@ -25,6 +25,16 @@
 //! （`position: absolute` + 1px クリップ、PR #575 Bugbot 指摘対応の前例）を
 //! 採用する。
 //!
+//! # `control` の `box-sizing: border-box`（PR #697 Bugbot 指摘対応）
+//!
+//! `control` の `width`/水平 `padding` と、checked 時の `thumb` の
+//! `translateX` はいずれも border-box（`padding` を `width` に含める箱
+//! モデル）を前提に値を計算している。既定の content-box のままだと
+//! `width` に `padding` が加算されトラック内の実効幅がずれ、checked 時に
+//! `thumb` がトラック右端まで届かない／両端の余白が不均等になる。この
+//! クレート・利用側 embed にグローバルな border-box リセットは無いため、
+//! `control` へ明示的に `box-sizing: border-box` を設定して自己完結させる。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - variant（size/palette）ごとのクラス切り替えは headless ラッパー第 1 弾
@@ -72,6 +82,7 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "inline-flex"),
                 decl("align-items", "center"),
+                decl("box-sizing", "border-box"),
                 decl("width", "2.5rem"),
                 decl("height", "1.4rem"),
                 decl("border-radius", "999px"),
@@ -162,6 +173,23 @@ mod tests {
             r#"[data-scope="switch"][data-part="thumb"][data-state="checked"] {
   transform: translateX(1.1rem);
 }"#
+        ));
+    }
+
+    #[test]
+    fn control_uses_border_box_so_thumb_travel_matches_track_bounds() {
+        // Cursor Bugbot 指摘（PR #697, review 3636964684）対応の回帰:
+        // `control` の `width`/`padding` と `thumb` の `translateX` は
+        // border-box を前提に計算されている。`box-sizing: border-box` が
+        // 欠けると content-box 既定によりつまみの移動量とトラック内幅が
+        // ずれる（checked 時につまみが手前で止まる／両端の余白が不均等）。
+        let css = stylesheet();
+        assert!(css.contains(
+            r#"[data-scope="switch"][data-part="control"] {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  width: 2.5rem;"#
         ));
     }
 
