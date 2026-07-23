@@ -50,6 +50,7 @@ NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー�
 | headless ラッパー | `segment_group` | #743（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供。状態機械は `radio_group` へ全委譲） |
 | headless ラッパー第 10 弾 | `tags_input` | #744（`size` variant のみ。フォーム入力部品のため `color-palette` 軸は非提供、`pin_input`/`number_input` と同型の判断） |
 | headless ラッパー | `combobox` | #749（`select` と同型の `size` variant のみ・`color-palette` 軸は非提供。状態機械は `state::Disclosure` + `state::SingleSelect` + `state::TextInput` の合成。フォーカスは `input` が保持するため `:focus-visible` を `input` へ、`:focus-within` を `control` へ登録する） |
+| headless ラッパー | `tree_view` | #753（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。branch のインデントは CSS custom property（`--fandhe-tree-view-indent`）で表現し、DOM ネストにより深さ分が自然に累積する） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
@@ -131,6 +132,7 @@ popover,tooltip}.rs` の各ファイル冒頭の `pub use` 直後のコメント
 | `popover` | `OpenState` / `DisclosureAction` | `state` |
 | `tooltip` | `OpenState` / `DisclosureAction` | `state` |
 | `combobox` | `OpenState` | `state`（`select` と同型の選択的 re-export、イシュー #749） |
+| `tree_view` | `OpenState` / `MultiSelectAction` / `SingleSelectAction` | `state`（`tooltip` と同型の glob re-export、イシュー #753） |
 
 `ActivationMode`/`TabItem`/`TabsProps`（tabs）・`DialogRole`/`ContentIds`
 （dialog）・`SelectAction`（select）は各 headless モジュール内定義のため
@@ -422,6 +424,7 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | segment-group | ✓ | – | 実装済み（#743、選択状態は indicator の移動 + 文字強調で表現するため color-palette は非提供） |
 | tags-input | ✓ | – | 実装済み（#744、フォーム入力部品のため color-palette は非提供） |
 | popover / tooltip | 提供しない | 提供しない | 方針確定 |
+| tree-view | 提供しない | 提供しない | 実装済み（#753、popover/tooltip と同型の判断） |
 
 tabs/accordion/dialog/menu/select の実装詳細（イシュー #729）:
 

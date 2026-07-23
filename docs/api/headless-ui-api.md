@@ -71,6 +71,7 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | MultiToggleGroup（multiple モード） | `toggle_group` | Root/Item | `state::MultiSelect`（dispatch は `"toggle"` のみ受理） | #746 |
 | SegmentGroup | `segment_group` | Root/Indicator/Item/ItemText/ItemControl/ItemHiddenInput | `radio_group::RadioGroup`（`state::SingleSelect`）へ全委譲（独自の状態機械を新設せず、既存 RadioGroup の dispatch/hydration をそのまま再利用する） | #743 |
 | Combobox | `combobox` | Root/Label/Control/Input/Trigger/ClearTrigger/Positioner/Content/ItemGroup/ItemGroupLabel/Item/ItemText/ItemIndicator | `state::Disclosure` + `state::SingleSelect` + `state::TextInput`（開閉 + 選択値 + 入力値の合成）。ARIA 1.2 combobox パターンに準拠し `aria-activedescendant` は `content` ではなく `input` 側に配線する（Select との差異） | #749 |
+| TreeView | `tree_view` | Root/Label/Tree/Branch/BranchControl/BranchIndicator/BranchText/BranchContent/BranchIndentGuide/Item/ItemText/ItemIndicator | `state::MultiSelect`（展開中のブランチ値の集合）+ `state::SingleSelect`（選択中のノード値）の合成。両者とも `hydration_attrs` のフィールド名が `"selected"` で衝突するため、展開集合側のみ `"expanded"` へ書き換えて運ぶ（`tree_view` モジュール doc §hydration フィールド名参照）。`TreeView::render_nodes` が `TreeNode` 列から深さ・`aria-posinset`/`aria-setsize` を再帰的に計算する | #753 |
 
 **未実装（open イシュー、後続で追補）**: Checkbox（#535）・Progress（#544）。
 本表はこれらの実装完了時に更新する。
