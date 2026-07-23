@@ -35,7 +35,10 @@
 //! 維持する）。これにより [`Editable::current_text`]（表示すべき文字列を
 //! モードに応じて選ぶヘルパ）が単純になり、hydration ラウンドトリップの
 //! 一貫性も保ちやすくなる（`draft` は編集中の作業値としてのみ意味を持ち、
-//! プレビュー復帰後は確定値と一致させておく）。
+//! プレビュー復帰後は確定値と一致させておく）。改ざん耐性のため
+//! [`Editable::from_hydration_attrs`] も `mode="preview"` かつ `draft`/
+//! `value` が不一致な入力を [`HydrateError::InvalidValue`] で拒否し、
+//! hydration パスだけがこの不変条件の抜け穴にならないようにする。
 //!
 //! # dispatch の no-op 判断がすべて `update()` 側にある理由
 //!
@@ -782,6 +785,22 @@ impl Hydrate for Editable {
             }
         }
 
+        // Bugbot 指摘対応（Medium、PR #792）: モジュール doc（本ファイル冒頭
+        // 「`value`/`draft` の不変条件」節）が定める「`mode == Preview` の
+        // とき常に `draft == value`」は `new`/`"submit"`/`"cancel"` の各経路
+        // では機械的に保たれるが、hydration パスは改ざんされた属性を
+        // そのまま受け取るため、ここで検証しない限り
+        // `mode="preview"` かつ `draft != value` という不変条件違反状態を
+        // 受理してしまう（fail-closed の抜け穴）。`crate::number_input` 等と
+        // 同型の「改ざん入力は拒否する」契約に合わせ、mode 確定後にこの
+        // 組み合わせを弾く。
+        if mode == EditMode::Preview && draft_raw != value_raw {
+            return Err(HydrateError::InvalidValue {
+                attr: format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_DRAFT),
+                reason: "expected draft to equal value while mode is \"preview\"".to_string(),
+            });
+        }
+
         Ok(Self {
             mode,
             value: value_raw,
@@ -1189,6 +1208,38 @@ mod tests {
         ];
         let err = Editable::from_hydration_attrs(&attrs).unwrap_err();
         assert!(matches!(err, HydrateError::InvalidValue { .. }));
+    }
+
+    // Bugbot 指摘対応（Medium、PR #792）回帰: `mode="preview"` かつ
+    // `draft != value` の改ざん入力は、モジュール doc が定める
+    // 「preview 中は常に draft == value」の不変条件違反として拒否する
+    // （`new`/`"submit"`/`"cancel"` はこの組み合わせを構造上作れないが、
+    // hydration パスは改ざんされた属性をそのまま受け取るため個別に検証する）。
+    #[test]
+    fn from_hydration_attrs_preview_mode_with_mismatched_draft_is_rejected() {
+        let attrs = vec![
+            ("data-hydrate-mode".to_string(), "preview".to_string()),
+            ("data-hydrate-value".to_string(), "abc".to_string()),
+            ("data-hydrate-draft".to_string(), "xyz".to_string()),
+            ("data-hydrate-max-length".to_string(), "none".to_string()),
+        ];
+        let err = Editable::from_hydration_attrs(&attrs).unwrap_err();
+        assert!(matches!(err, HydrateError::InvalidValue { .. }));
+    }
+
+    #[test]
+    fn from_hydration_attrs_edit_mode_with_mismatched_draft_is_accepted() {
+        // edit モードでは draft は編集中の作業値であり、value と異なることが
+        // 通常状態であるため、preview 専用の不変条件チェックの対象外である。
+        let attrs = vec![
+            ("data-hydrate-mode".to_string(), "edit".to_string()),
+            ("data-hydrate-value".to_string(), "abc".to_string()),
+            ("data-hydrate-draft".to_string(), "xyz".to_string()),
+            ("data-hydrate-max-length".to_string(), "none".to_string()),
+        ];
+        let restored = Editable::from_hydration_attrs(&attrs).unwrap();
+        assert_eq!(restored.value, "abc");
+        assert_eq!(restored.draft, "xyz");
     }
 
     // --- XSS 回帰: name/value/attrs/children にペイロードを渡してもエスケープされる ---

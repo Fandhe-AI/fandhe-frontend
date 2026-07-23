@@ -85,6 +85,10 @@ const EDITABLE_GOLDEN_CSS: &str = r#"[data-scope="editable"][data-part="root"] {
   cursor: not-allowed;
 }
 
+[data-scope="editable"][data-part="preview"][hidden] {
+  display: none;
+}
+
 [data-scope="editable"][data-part="preview"][data-placeholder-shown] {
   color: var(--fandhe-color-fg-muted, currentColor);
 }

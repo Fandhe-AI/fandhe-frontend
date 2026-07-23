@@ -149,6 +149,19 @@ fn recipe() -> SlotRecipe {
                 decl("cursor", "text"),
             ],
         )
+        // PR #792 Bugbot 指摘対応（High）: preview の base 規則が
+        // `display: inline-block` を宣言しており、UA 既定の
+        // `[hidden] { display: none }`（詳細度 (0,1,0)）を
+        // `[data-scope][data-part]`（詳細度 (0,2,0)）が上書きしてしまう。
+        // edit モードで headless 層が付与する `hidden` 存在属性を確実に
+        // 非表示化として機能させるため、より詳細度の高い `[hidden]`
+        // 属性セレクタで `display: none` を明示的に上書きする
+        // （`crate::dialog` の positioner[hidden] と同型の対処）。
+        .state(
+            "preview",
+            StateCondition::Attr("hidden"),
+            vec![decl("display", "none")],
+        )
         .state(
             "preview",
             StateCondition::Attr("data-placeholder-shown"),
@@ -326,6 +339,37 @@ mod tests {
         let css = stylesheet();
         assert!(css
             .contains(r#"[data-scope="editable"][data-part="preview"][data-placeholder-shown] {"#));
+    }
+
+    #[test]
+    fn edit_mode_preview_hidden_attr_overrides_display_inline_block() {
+        // PR #792 Bugbot 指摘対応（High）: preview の base 規則
+        // `display: inline-block` が UA 既定の `[hidden] { display: none }`
+        // を詳細度で上書きし、edit モードで headless 層が付与する `hidden`
+        // 存在属性があっても preview が表示され続け、preview/edit の排他
+        // 表示が壊れる不具合の回帰（`crate::avatar`/`crate::dialog`/
+        // `crate::tooltip` で既に対処済みの同種の落とし穴）。`[hidden]`
+        // 属性セレクタでの明示的な `display: none` 上書きが出力され、
+        // base 規則より後段（= 詳細度同点時に優先される）で登録されることを
+        // 固定する。
+        let css = stylesheet();
+        let preview_hidden_selector = r#"[data-scope="editable"][data-part="preview"][hidden] {"#;
+        assert!(css.contains(preview_hidden_selector));
+        let rule_start = css
+            .find(preview_hidden_selector)
+            .expect("preview[hidden] rule must be present");
+        let rule_body = &css[rule_start..];
+        let rule_end = rule_body.find('}').expect("rule must be closed");
+        assert!(rule_body[..rule_end].contains("display: none;"));
+
+        // base 規則（`display: inline-block` を含む）より後に出現すること。
+        // 同一詳細度の CSS 規則はソース順で後者が勝つため、順序が逆転すると
+        // 上書きが機能しない。
+        let base_preview_selector = r#"[data-scope="editable"][data-part="preview"] {"#;
+        let base_start = css
+            .find(base_preview_selector)
+            .expect("base preview rule must be present");
+        assert!(base_start < rule_start);
     }
 
     #[test]
