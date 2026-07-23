@@ -56,6 +56,19 @@ fn effective_lines(n: usize) -> String {
         .join("\n")
 }
 
+/// 統合テストのスクラッチ基点。`CARGO_TARGET_TMPDIR` は cargo が統合テスト
+/// バイナリの**コンパイル時のみ**設定する（Cargo Book）ため `env!` で確定し、
+/// 実行時 env による明示上書きのみ許容する。`/tmp` へは一切フォールバック
+/// しない（イシュー #637 の事実誤認の再発防止、#658、`cli/tests/support/mod.rs`
+/// と同一パターン）。
+fn scratch_root() -> PathBuf {
+    let root = std::env::var("CARGO_TARGET_TMPDIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
+    let _ = fs::create_dir_all(&root);
+    root
+}
+
 /// テスト専用の一時ディレクトリに `static/` フィクスチャ群を配置する。
 ///
 /// `check_loc::LOC_CHECK_TARGETS` が複数ファイルを対象とするため（REQ-8 /
@@ -63,7 +76,7 @@ fn effective_lines(n: usize) -> String {
 /// プロセス PID とテスト名を組み合わせて一意なディレクトリ名にすることで、
 /// 並列テスト実行時の衝突を避ける。
 fn make_fixture_dir(test_name: &str, files: &[(&str, &str)]) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
+    let dir = scratch_root().join(format!(
         "xtask-check-loc-test-{test_name}-{}",
         std::process::id()
     ));
@@ -194,7 +207,7 @@ fn check_loc_fails_when_wasm_full_init_over_limit() {
 
 #[test]
 fn check_loc_fails_closed_when_all_target_files_are_missing() {
-    let dir = std::env::temp_dir().join(format!(
+    let dir = scratch_root().join(format!(
         "xtask-check-loc-test-missing-{}",
         std::process::id()
     ));

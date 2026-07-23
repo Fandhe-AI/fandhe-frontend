@@ -332,7 +332,7 @@ mod dev_fs {
         fn symlink_escaping_static_root_is_rejected_by_canonicalize_check() {
             use std::os::unix::fs::symlink;
 
-            let temp_root = std::env::temp_dir().join(format!(
+            let temp_root = crate::test_scratch::scratch_root().join(format!(
                 "fandhe-frontend-dist-server-dev-fs-symlink-test-{}-{:?}",
                 std::process::id(),
                 std::thread::current().id()
@@ -370,7 +370,7 @@ mod dev_fs {
         /// `resolve_under_root` へ直接ルートを注入して検証する
         /// （既存の symlink テストと同じ手法）。
         fn with_temp_static_root(test_name: &str, body: impl FnOnce(&std::path::Path)) {
-            let temp_root = std::env::temp_dir().join(format!(
+            let temp_root = crate::test_scratch::scratch_root().join(format!(
                 "fandhe-frontend-dist-server-dev-fs-{test_name}-{}-{:?}",
                 std::process::id(),
                 std::thread::current().id()

@@ -3,9 +3,22 @@
 // してリンクされるため unit test 側の `#[cfg(test)]` アイテムを参照できない）
 // の双方から `include!` マクロ経由で読み込むテスト専用ヘルパー。
 //
-// `tempfile` 等の外部クレートを追加せず、`std::env::temp_dir()` +
+// `tempfile` 等の外部クレートを追加せず、`<target>/tmp` 配下 +
 // プロセス固有サフィックスで一時ディレクトリを代用する
 // （REQ-3: `fandhe-frontend-server` は外部依存ゼロを維持する）。
+//
+// 本ファイルは `src/ssg.rs` の unit test（ユニットテストバイナリ、
+// `CARGO_TARGET_TMPDIR` はコンパイル時に設定されない）と
+// `tests/three_mode_integration.rs`（統合テストバイナリ、cargo が
+// コンパイル時のみ設定する、Cargo Book）の両方へ `include!` 展開される
+// ため、`env!("CARGO_TARGET_TMPDIR")` を無条件には使えない（unit test
+// 側でコンパイルエラーになる）。実行時 `CARGO_TARGET_DIR`
+// （self-hosted runner の共有 `/cargo-target` 環境下では
+// `/cargo-target/tmp` に収束し、統合テスト側の `env!` 既定と同一の
+// 管理範囲に閉じる）→ `CARGO_MANIFEST_DIR` 基準のローカル既定レイアウト
+// の順で解決し、`std::env::temp_dir()`（= `/tmp`）へは一切
+// フォールバックしない（self-hosted runner の tmpfs を恒常的に消費して
+// いたイシュー #637 の事実誤認の再発防止、#658）。
 //
 // 呼び出し文脈:
 // - `include!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/support/temp_dir.rs"))`
@@ -25,14 +38,25 @@ struct TempDir(std::path::PathBuf);
 
 impl TempDir {
     /// `tag` を含む一意なパス（プロセス ID + ナノ秒タイムスタンプ）を
-    /// `std::env::temp_dir()` 配下に生成する。ディレクトリ自体の作成は
+    /// `<target>/tmp` 配下に生成する。ディレクトリ自体の作成は
     /// 呼び出し先（`ssg::generate` 等）の `create_dir_all` に委ねる。
     fn new(tag: &str) -> Self {
         let unique = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos())
             .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!(
+        let root = std::env::var("CARGO_TARGET_TMPDIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| {
+                std::env::var("CARGO_TARGET_DIR")
+                    .map(|d| std::path::PathBuf::from(d).join("tmp"))
+                    .unwrap_or_else(|_| {
+                        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                            .join("../../target/tmp")
+                    })
+            });
+        let _ = std::fs::create_dir_all(&root);
+        let path = root.join(format!(
             "fandhe-frontend-server-test-{tag}-{}-{unique}",
             std::process::id()
         ));

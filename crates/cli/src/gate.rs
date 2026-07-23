@@ -1689,7 +1689,7 @@ mod tests {
     #[test]
     fn run_all_checks_treats_launch_failure_as_failed_not_skipped() {
         let manifest = manifest_with_one_crate();
-        let dir = std::env::temp_dir().join("fw-gate-test-launch-failure");
+        let dir = crate::test_scratch::scratch_root().join("fw-gate-test-launch-failure");
         let _ = std::fs::create_dir_all(&dir);
         // 6 チェックすべてがコマンド起動を試みるわけではない（escape_check /
         // url_validation_check は純粋関数、policy は deny.toml 欠落で早期
@@ -1763,7 +1763,7 @@ mod tests {
         // Bugbot 指摘: PR #261 #2 — 宣言クレートが 0 件のとき `-p` なしで
         // ワークスペース全体を検証してしまってはならない。cargo を一切起動せず
         // fail-closed することを検証する。
-        let dir = std::env::temp_dir();
+        let dir = crate::test_scratch::scratch_root();
         let check =
             run_locked_cargo_subcommand(&PanicIfCalledRunner, &dir, "type_check", &["check"], &[]);
         assert!(!check.passed);
@@ -1772,7 +1772,7 @@ mod tests {
 
     #[test]
     fn run_cargo_clippy_fails_closed_when_no_crates_declared() {
-        let dir = std::env::temp_dir();
+        let dir = crate::test_scratch::scratch_root();
         let check = run_cargo_clippy(&PanicIfCalledRunner, &dir, &[]);
         assert!(!check.passed);
         assert!(check.output.contains("no crate declared"));
@@ -1787,7 +1787,7 @@ mod tests {
 
     #[test]
     fn clippy_environment_preflight_passes_through_when_clippy_available() {
-        let dir = std::env::temp_dir();
+        let dir = crate::test_scratch::scratch_root();
         let runner = FakeRunner {
             responses: Mutex::new(vec![(true, "clippy 0.1.0".to_string())]),
         };
@@ -1796,7 +1796,7 @@ mod tests {
 
     #[test]
     fn clippy_environment_preflight_fails_closed_with_environment_error_when_unavailable() {
-        let dir = std::env::temp_dir();
+        let dir = crate::test_scratch::scratch_root();
         let runner = FakeRunner {
             responses: Mutex::new(vec![(
                 false,
@@ -1817,7 +1817,7 @@ mod tests {
 
     #[test]
     fn cargo_deny_environment_preflight_passes_through_when_deny_available() {
-        let dir = std::env::temp_dir();
+        let dir = crate::test_scratch::scratch_root();
         let runner = FakeRunner {
             responses: Mutex::new(vec![(true, "cargo-deny 0.16.4".to_string())]),
         };
@@ -1826,7 +1826,7 @@ mod tests {
 
     #[test]
     fn cargo_deny_environment_preflight_fails_closed_with_environment_error_when_unavailable() {
-        let dir = std::env::temp_dir();
+        let dir = crate::test_scratch::scratch_root();
         let runner = FakeRunner {
             responses: Mutex::new(vec![(
                 false,
@@ -1846,7 +1846,7 @@ mod tests {
 
     #[test]
     fn run_locked_cargo_subcommand_runs_when_crates_declared() {
-        let dir = std::env::temp_dir();
+        let dir = crate::test_scratch::scratch_root();
         let runner = FakeRunner {
             responses: Mutex::new(vec![(true, "ok".to_string())]),
         };
@@ -2017,7 +2017,7 @@ mod tests {
 
     #[test]
     fn scan_file_reports_unreviewed_call() {
-        let dir = std::env::temp_dir().join("fw-gate-test-escape-unreviewed");
+        let dir = crate::test_scratch::scratch_root().join("fw-gate-test-escape-unreviewed");
         let _ = std::fs::create_dir_all(&dir);
         let file = dir.join("lib.rs");
         std::fs::write(&file, "fn f() {\n    raw_html(x);\n}\n").unwrap();
@@ -2033,7 +2033,7 @@ mod tests {
         // Bugbot 指摘: PR #261 #1 — 行単位走査だと `raw_html` 識別子と `(` が
         // 別行にまたがる呼び出しを見逃す。`scan_file_for_violations` を通しても
         // 検出できることを回帰として固定する。
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-escape-multiline-{}",
             std::process::id()
         ));
@@ -2056,7 +2056,7 @@ mod tests {
     /// 引き続き検出されること（新 API 混在時の見逃しがないこと）も併せて固定する。
     #[test]
     fn scan_file_ignores_new_api_usage_but_still_detects_unreviewed_raw_html() {
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-escape-new-api-mix-{}",
             std::process::id()
         ));
@@ -2085,7 +2085,7 @@ mod tests {
 
     #[test]
     fn scan_file_allows_reviewed_expect_attribute_on_previous_line_for_split_call() {
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-escape-multiline-marker-{}",
             std::process::id()
         ));
@@ -2106,7 +2106,7 @@ mod tests {
 
     #[test]
     fn scan_file_allows_reviewed_expect_attribute_on_same_line() {
-        let dir = std::env::temp_dir().join("fw-gate-test-escape-same-line-marker");
+        let dir = crate::test_scratch::scratch_root().join("fw-gate-test-escape-same-line-marker");
         let _ = std::fs::create_dir_all(&dir);
         let file = dir.join("lib.rs");
         std::fs::write(
@@ -2122,7 +2122,7 @@ mod tests {
 
     #[test]
     fn scan_file_allows_reviewed_expect_attribute_on_previous_line() {
-        let dir = std::env::temp_dir().join("fw-gate-test-escape-prev-line-marker");
+        let dir = crate::test_scratch::scratch_root().join("fw-gate-test-escape-prev-line-marker");
         let _ = std::fs::create_dir_all(&dir);
         let file = dir.join("lib.rs");
         std::fs::write(
@@ -2142,7 +2142,7 @@ mod tests {
         // 単体（属性を伴わない）はもはや受理してはならない。TASK-13.3 時点の
         // 旧方式（マーカー方式）ではここが PASS していたが、コメントは
         // コンパイラに検証されず偽装できるため BLOCKED へ倒す。
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-escape-comment-only-spoof-{}",
             std::process::id()
         ));
@@ -2171,7 +2171,7 @@ mod tests {
         // イシュー #157: `#![allow(clippy::disallowed_methods)]` はファイル全体の
         // 主防御（clippy）を無効化するブランケット抑止であり、呼び出し個別の
         // レビュー宣言とは独立に違反として列挙されなければならない。
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-escape-blanket-allow-{}",
             std::process::id()
         ));
@@ -2197,7 +2197,7 @@ mod tests {
 
     #[test]
     fn scan_file_reports_blanket_expect_suppression() {
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-escape-blanket-expect-{}",
             std::process::id()
         ));
@@ -2227,7 +2227,7 @@ mod tests {
         // コメント中で `#![allow(clippy::disallowed_methods)]` を説明のために
         // 言及しているだけの行は、実際の inner attribute ではないため違反として
         // 検出してはならない。
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-escape-blanket-comment-{}",
             std::process::id()
         ));
@@ -2253,7 +2253,7 @@ mod tests {
     fn scan_file_ignores_blanket_marker_inside_string_literal() {
         // Bugbot 指摘 PR #263: 本ファイル自身のテストフィクスチャのような
         // 文字列リテラル内の出現（実際の attribute ではない）も除外する。
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-escape-blanket-literal-{}",
             std::process::id()
         ));
@@ -2277,7 +2277,7 @@ mod tests {
 
     #[test]
     fn clippy_policy_check_fails_closed_when_clippy_toml_missing() {
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-clippy-policy-missing-{}",
             std::process::id()
         ));
@@ -2296,7 +2296,7 @@ mod tests {
 
     #[test]
     fn clippy_policy_check_fails_closed_when_entry_missing() {
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-clippy-policy-entry-missing-{}",
             std::process::id()
         ));
@@ -2313,7 +2313,7 @@ mod tests {
 
     #[test]
     fn clippy_policy_check_passes_when_entry_present() {
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-clippy-policy-ok-{}",
             std::process::id()
         ));
@@ -2336,7 +2336,7 @@ mod tests {
         // アウトされた `disallowed-methods` ブロックがテキストとして
         // `disallowed-methods` / `fandhe_frontend_core::raw_html` を含んでいても、実際に
         // 有効な TOML エントリではないため「設定済み」と誤判定してはならない。
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-clippy-policy-commented-{}",
             std::process::id()
         ));
@@ -2360,7 +2360,7 @@ mod tests {
 
     #[test]
     fn default_escape_check_excludes_core_role_directories() {
-        let dir = std::env::temp_dir().join("fw-gate-test-escape-core-excluded");
+        let dir = crate::test_scratch::scratch_root().join("fw-gate-test-escape-core-excluded");
         let core_src = dir.join("core").join("src");
         let _ = std::fs::create_dir_all(&core_src);
         std::fs::write(core_src.join("lib.rs"), "raw_html(x);\n").unwrap();
@@ -2396,7 +2396,7 @@ mod tests {
         // まま無意味な PASS を返してしまう。`<project_dir>/src` 直下に仕込んだ
         // 未レビュー `raw_html()` 呼び出しが実際に violation として検出される
         // ことを断定し、スキップされていないことを確認する。
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-escape-root-convention-{}",
             std::process::id()
         ));
@@ -2441,7 +2441,7 @@ mod tests {
         // 辿ると無限再帰でスタックオーバーフローする（fail-closed 自体を阻害する
         // DoS）。`is_symlink()` による明示除外でリンクを一律スキップすることを
         // 検証する。
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-escape-symlink-dir-{}",
             std::process::id()
         ));
@@ -2449,7 +2449,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         // シンボリックリンクの走査先に violation を仕込み、辿られていれば
         // 検出されてしまうことをもってテストの有効性を担保する。
-        let outside = std::env::temp_dir().join(format!(
+        let outside = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-escape-symlink-outside-{}",
             std::process::id()
         ));
@@ -2474,13 +2474,13 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn scan_dir_for_violations_does_not_follow_symlinked_file() {
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-escape-symlink-file-{}",
             std::process::id()
         ));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let target = std::env::temp_dir().join(format!(
+        let target = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-escape-symlink-target-{}.rs",
             std::process::id()
         ));
@@ -2503,7 +2503,7 @@ mod tests {
         // Low 指摘: escape check の出力も他チェック（type_check/lint/test/policy）
         // と同様に `truncate_output` を通し、大量の未レビュー raw_html() 呼び出しが
         // ある場合でも JSON レポートが際限なく肥大化しないことを保証する。
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-escape-truncate-{}",
             std::process::id()
         ));
@@ -2632,7 +2632,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
 
     #[test]
     fn url_validation_check_flags_unguarded_set_attribute_call() {
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-url-u1-unguarded-{}",
             std::process::id()
         ));
@@ -2657,7 +2657,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
 
     #[test]
     fn url_validation_check_passes_when_guards_co_located() {
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-url-u1-guarded-{}",
             std::process::id()
         ));
@@ -2686,8 +2686,8 @@ pub fn is_safe_srcset(value: &str) -> bool {
 
     #[test]
     fn url_validation_check_detects_set_attribute_ns_call() {
-        let dir =
-            std::env::temp_dir().join(format!("fw-gate-test-url-u1-ns-{}", std::process::id()));
+        let dir = crate::test_scratch::scratch_root()
+            .join(format!("fw-gate-test-url-u1-ns-{}", std::process::id()));
         let app_src = dir.join("app").join("src");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&app_src).unwrap();
@@ -2710,7 +2710,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
     fn url_validation_check_ignores_comment_and_string_occurrences() {
         // #372 と同一方針: コメント・文字列リテラル・doc コメント中の
         // `set_attribute(` 言及は誤検知しない（保険層の偽陽性抑制）。
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-url-u1-comment-{}",
             std::process::id()
         ));
@@ -2737,7 +2737,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
 
     #[test]
     fn url_validation_check_passes_when_core_module_matches_pinned_baseline() {
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-url-u2-baseline-{}",
             std::process::id()
         ));
@@ -2764,7 +2764,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
 
     #[test]
     fn url_validation_check_fails_when_pinned_attribute_removed() {
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-url-u2-attr-removed-{}",
             std::process::id()
         ));
@@ -2792,7 +2792,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
 
     #[test]
     fn url_validation_check_fails_when_scheme_added() {
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-url-u2-scheme-added-{}",
             std::process::id()
         ));
@@ -2823,7 +2823,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
 
     #[test]
     fn url_validation_check_fails_when_core_role_has_no_url_module() {
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-url-u2-missing-module-{}",
             std::process::id()
         ));
@@ -2845,7 +2845,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
     fn url_validation_check_fails_when_guard_call_removed_from_core() {
         // U3: `fn is_url_attr` の定義のみが存在し、core src 内のどこからも
         // 呼ばれていない場合（`render_into` からのガード削除を模す）。
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-url-u3-no-call-{}",
             std::process::id()
         ));
@@ -2872,7 +2872,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
     fn url_validation_check_skips_u2_u3_when_no_core_role_declared() {
         // 既存フィクスチャ・`fw new` 生成物のように core role が宣言されて
         // いないプロジェクトでは、U2/U3 は対象なしで素通しする。
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-url-no-core-role-{}",
             std::process::id()
         ));
@@ -2976,7 +2976,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
 
     #[test]
     fn policy_check_does_not_invoke_cargo_deny_when_deny_toml_missing() {
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-policy-no-deny-toml-{}",
             std::process::id()
         ));
@@ -2992,7 +2992,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
 
     #[test]
     fn policy_check_invokes_cargo_deny_with_expected_args_when_deny_toml_present() {
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-policy-deny-args-{}",
             std::process::id()
         ));
@@ -3027,7 +3027,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
 
     #[test]
     fn policy_check_propagates_cargo_deny_failure_with_truncated_output() {
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-policy-deny-fail-{}",
             std::process::id()
         ));
@@ -3061,7 +3061,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
 
     #[test]
     fn run_cargo_check_invokes_cargo_with_locked_and_declared_crates() {
-        let dir = std::env::temp_dir();
+        let dir = crate::test_scratch::scratch_root();
         let runner = ArgsRecordingRunner::new(vec![(true, "ok".to_string())]);
         let check = run_cargo_check(
             &runner,
@@ -3087,7 +3087,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
 
     #[test]
     fn run_cargo_test_invokes_cargo_with_locked_and_declared_crates() {
-        let dir = std::env::temp_dir();
+        let dir = crate::test_scratch::scratch_root();
         let runner = ArgsRecordingRunner::new(vec![(true, "ok".to_string())]);
         let check = run_cargo_test(&runner, &dir, &["fandhe-frontend-core"]);
         assert!(check.passed);
@@ -3099,8 +3099,8 @@ pub fn is_safe_srcset(value: &str) -> bool {
 
     #[test]
     fn run_cargo_clippy_invokes_cargo_with_locked_deny_warnings_and_declared_crates() {
-        let dir =
-            std::env::temp_dir().join(format!("fw-gate-test-clippy-args-{}", std::process::id()));
+        let dir = crate::test_scratch::scratch_root()
+            .join(format!("fw-gate-test-clippy-args-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(
@@ -3153,7 +3153,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
 
     #[test]
     fn run_cargo_check_fails_closed_when_no_crates_declared() {
-        let dir = std::env::temp_dir();
+        let dir = crate::test_scratch::scratch_root();
         let check = run_cargo_check(&PanicIfCalledRunner, &dir, &[]);
         assert!(!check.passed);
         assert!(check.output.contains("no crate declared"));
@@ -3161,7 +3161,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
 
     #[test]
     fn run_cargo_test_fails_closed_when_no_crates_declared() {
-        let dir = std::env::temp_dir();
+        let dir = crate::test_scratch::scratch_root();
         let check = run_cargo_test(&PanicIfCalledRunner, &dir, &[]);
         assert!(!check.passed);
         assert!(check.output.contains("no crate declared"));
@@ -3220,7 +3220,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-run-all-checks-pass-{}-{unique}",
             std::process::id()
         ));
@@ -3371,7 +3371,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
     #[test]
     fn run_all_checks_asset_only_project_passes_all_checks_without_invoking_cargo() {
         let manifest = asset_only_manifest();
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-asset-only-pass-{}",
             std::process::id()
         ));
@@ -3421,7 +3421,7 @@ pub fn is_safe_srcset(value: &str) -> bool {
         // 未レビュー `raw_html()` 呼び出しが混入した場合は検出されなければならない
         // （security.md A05: 明示宣言によるオプトインが検証の全面停止を意味しない）。
         let manifest = asset_only_manifest();
-        let dir = std::env::temp_dir().join(format!(
+        let dir = crate::test_scratch::scratch_root().join(format!(
             "fw-gate-test-asset-only-violation-{}",
             std::process::id()
         ));

@@ -28,7 +28,19 @@ impl TempDir {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos())
             .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!(
+        // cargo が `CARGO_TARGET_TMPDIR` を設定するのはテストバイナリの
+        // コンパイル時のみ（Cargo Book）であり、実行時 `std::env::var` 参照は
+        // 常に失敗する。既定はコンパイル時に確定する
+        // `env!("CARGO_TARGET_TMPDIR")`（`<target>/tmp` 配下。本サンプルは
+        // root workspace から意図的に切り離された独立 `[workspace]` のため、
+        // ここでの `<target>` は `examples/ssg-blog/target`）を使い、`/tmp`
+        // へは一切フォールバックしない（イシュー #637/#658）。実行時 env
+        // による明示上書きは引き続き許容する。
+        let root = std::env::var("CARGO_TARGET_TMPDIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
+        let _ = std::fs::create_dir_all(&root);
+        let path = root.join(format!(
             "fandhe-frontend-example-ssg-blog-test-{tag}-{}-{unique}",
             std::process::id()
         ));

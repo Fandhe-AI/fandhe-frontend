@@ -29,6 +29,19 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
+/// 統合テストのスクラッチ基点。`CARGO_TARGET_TMPDIR` は cargo が統合テスト
+/// バイナリの**コンパイル時のみ**設定する（Cargo Book）ため `env!` で確定し、
+/// 実行時 env による明示上書きのみ許容する。`/tmp` へは一切フォールバック
+/// しない（イシュー #637 の事実誤認の再発防止、#658、`cli/tests/support/mod.rs`
+/// と同一パターン）。
+fn scratch_root() -> PathBuf {
+    let root = std::env::var("CARGO_TARGET_TMPDIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
+    let _ = std::fs::create_dir_all(&root);
+    root
+}
+
 fn run_wasm_node_smoke(extra_args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_xtask"))
         .arg("wasm-node-smoke")
@@ -55,7 +68,7 @@ fn wasm_node_smoke_fails_closed_when_required_tools_are_absent_from_path() {
     // 見つからない状態を作る。前提ツール検査（`verify_wasm_bindgen_version`
     // 内の `wasm-bindgen --version`）が最初に fail-closed で失敗するはず
     // （ビルド前の高速失敗、実装計画 §3.1 の設計どおり）。
-    let empty_dir = std::env::temp_dir().join(format!(
+    let empty_dir = scratch_root().join(format!(
         "xtask-wasm-node-smoke-test-empty-path-{}",
         std::process::id()
     ));
@@ -90,7 +103,7 @@ fn wasm_node_smoke_fails_closed_when_required_tools_are_absent_from_path() {
 fn wasm_node_smoke_build_only_still_requires_wasm_bindgen_cli() {
     // `--build-only` は node 実行検査のみをスキップする契約であり、
     // wasm-bindgen-cli のバージョン整合検査は省略しない（実装計画 §3.1）。
-    let empty_dir = std::env::temp_dir().join(format!(
+    let empty_dir = scratch_root().join(format!(
         "xtask-wasm-node-smoke-test-build-only-empty-path-{}",
         std::process::id()
     ));

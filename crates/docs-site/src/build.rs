@@ -280,7 +280,7 @@ mod tests {
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_nanos())
                 .unwrap_or(0);
-            let path = std::env::temp_dir().join(format!(
+            let path = crate::test_scratch::scratch_root().join(format!(
                 "fandhe-frontend-docs-site-build-test-{tag}-{}-{unique}",
                 std::process::id()
             ));
