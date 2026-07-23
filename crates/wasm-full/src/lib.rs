@@ -334,8 +334,10 @@ where
     /// Tabs/Accordion/Menu/Select/RadioGroup のキーボード操作）・
     /// [`focus_visible::wire_focus_visible`]（イシュー #709、hidden-input
     /// パターンのフォーカスリング）・
-    /// [`headless_avatar::wire_avatar_events`]（イシュー #591・#711、Avatar の
-    /// `img` 要素 `load`/`error` 検知）の順にイベント委譲を 1 回だけ登録する。
+    /// [`headless_avatar::wire_avatar_events`]（イシュー #591・#711・#731、
+    /// Avatar の `img` 要素 `load`/`error` 検知に加え、`src` 属性差し替えを
+    /// `MutationObserver` で検知して `"reset"` を自動 dispatch する）の順に
+    /// イベント委譲を 1 回だけ登録する。
     /// `keynav::wire_keynav`・`focus_visible::wire_focus_visible`・
     /// `headless_avatar::wire_avatar_events` はいずれも DOM 属性のみを読み書き
     /// するステートレス配線であり、`Self::wire`（束縛点更新・keyed list
@@ -405,9 +407,11 @@ where
     }
 
     /// Avatar（`fandhe-frontend-headless-ui` `avatar` モジュール）の `img` 要素
-    /// `load`/`error` イベントを [`headless_avatar::wire_avatar_events`] 経由で
-    /// `root` へ配線する（イシュー #591・#711）。`Self::mount`/`Self::hydrate`
-    /// の双方から `keynav::wire_keynav` の直後に 1 回だけ呼ばれる。
+    /// `load`/`error` イベント、および `src` 属性差し替え
+    /// （`MutationObserver` 経由の自動 `"reset"` dispatch、イシュー #731）を
+    /// [`headless_avatar::wire_avatar_events`] 経由で `root` へ配線する
+    /// （イシュー #591・#711・#731）。`Self::mount`/`Self::hydrate` の双方から
+    /// `keynav::wire_keynav` の直後に 1 回だけ呼ばれる。
     ///
     /// # fail-closed（Avatar 非搭載アプリへの副作用なし）
     ///

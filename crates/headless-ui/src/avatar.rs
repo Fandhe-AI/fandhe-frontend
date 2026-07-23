@@ -74,8 +74,9 @@
 //!   機能）
 //! - Progress は別イシュー #544
 //! - `src` 差し替え検知（`MutationObserver` 経由の自動 `"reset"` dispatch）は
-//!   `fandhe-frontend-wasm-full::headless_avatar` 側でも未実装のスコープ外
-//!   （同クレートのモジュール doc 参照）
+//!   headless 層では行わない（クライアント側の実 DOM 監視を要するため）が、
+//!   `fandhe-frontend-wasm-full::headless_avatar` で実装済み（イシュー #731、
+//!   同クレートのモジュール doc「`src` 差し替え検知」参照）
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::data_attrs::data_state;

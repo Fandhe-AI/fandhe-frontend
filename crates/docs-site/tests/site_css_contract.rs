@@ -260,3 +260,33 @@ fn admonition_markdown_output_classes_are_covered_by_generated_admonition_css() 
         .join("");
     assert_all_classes_covered(&html, &css_tokens, "markdown::render_markdown (admonition)");
 }
+
+/// イシュー #732 の乖離検知テスト: `admonition::stylesheet()` の
+/// [`crate::admonition::DARK_CSS`]（非公開）相当が参照する
+/// `--docs-color-bg-subtle` / `--docs-color-border` custom property が
+/// 実際に `site/assets/site.css` の `:root` 宣言に存在することを検証する。
+/// admonition 側は `var()` の第 2 引数フォールバックを持つため参照が
+/// 欠けてもビルドは壊れないが、意図した配色（docs サイトのダーク
+/// パレットへの追従）が黙って theme トークンへフォールバックし続ける
+/// 乖離を fail-closed で検知する。
+#[test]
+fn admonition_dark_css_custom_properties_exist_in_site_css() {
+    use fandhe_frontend_docs_site::admonition;
+
+    let admonition_css = admonition::stylesheet()
+        .expect("admonition stylesheet should assemble")
+        .as_css()
+        .to_string();
+    let site_css = site_css();
+
+    for property in ["--docs-color-bg-subtle", "--docs-color-border"] {
+        assert!(
+            admonition_css.contains(property),
+            "admonition stylesheet should reference {property} (dark mode contract)"
+        );
+        assert!(
+            site_css.contains(&format!("{property}:")),
+            "site/assets/site.css should declare {property}; admonition dark CSS の var() フォールバック契約が乖離している"
+        );
+    }
+}

@@ -21,8 +21,9 @@ rustdoc および各モジュール冒頭の rustdoc とする。本節はモジ
 記載しない。マージ済みイシューを本節から都度更新する運用は陳腐化しやすく、
 実際に骨格新設（#546）時点の記述が長期間放置されていた（イシュー #714）。
 
-本クレートは第 5 弾ツリー（#680）完了・crates.io v0.4.0 公開（#686）を経て
-19 の公開モジュールを持つ。内訳は次の通り。
+本クレートは第 5 弾ツリー（#680）完了・crates.io v0.4.0 公開（#686）・
+checkbox styled ラッパー追加（#730、v0.6.0 未公開）を経て 20 の公開
+モジュールを持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -36,14 +37,16 @@ rustdoc および各モジュール冒頭の rustdoc とする。本節はモジ
 | headless ラッパー第 3 弾 | `switch` | #682 |
 | headless ラッパー第 4 弾 | `radio_group` | #683（§4c 参照） |
 | headless ラッパー | `avatar` | #684（§4b 参照） |
+| headless ラッパー第 5 弾 | `checkbox` | #730（§4e 参照） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
 `stylesheet()`（モジュールにより `css()`）で既定 CSS を追加提供する共通
 設計方針を採る。詳細・スコープ外事項は各モジュール冒頭の rustdoc を参照
-（例: `switch` は `src/switch.rs`、`avatar`/`radio_group` は §4b/§4c）。
-`switch`/`radio_group` の `size`/`color-palette` variant 拡張（イシュー
-#708）の詳細は §4c・§4d を参照。
+（例: `switch` は `src/switch.rs`、`avatar`/`radio_group` は §4b/§4c、
+`checkbox` は §4e）。`switch`/`radio_group`/`checkbox` の `size`/
+`color-palette` variant 拡張（イシュー #708/#730）の詳細は §4c・§4d・§4e
+を参照。
 
 クレートルート再エクスポート（`fandhe_frontend_headless_ui` /
 `fandhe_frontend_core` / `OpenState` / `Orientation` ほか、イシュー #685）は
@@ -394,6 +397,7 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | avatar | ✓ | – (shape) | 実装済み（#684） |
 | switch | ✓ | ✓ | 実装済み（#708） |
 | radio-group | ✓ | ✓ | 実装済み（#708） |
+| checkbox | ✓ | ✓ | 実装済み（#730） |
 | tabs | ✓ | ✓（selected trigger の強調色） | 実装済み（#729） |
 | accordion / dialog / menu / select | ✓ | – | 実装済み（#729） |
 | popover / tooltip | 提供しない | 提供しない | 方針確定 |
@@ -448,9 +452,41 @@ hidden-input パターン（実フォーカスが visually-hidden なネイテ�
   RadioGroup の `item` `:focus-within`（#683）は wasm なしでも成立する
   no-JS フォールバックとして維持し、`data-focus-visible` はその補完
   （wasm 配線時のキーボード専用リング）として独立に共存する。
-- `checkbox` は headless 層の契約（`data_focus_visible`）が確立済みだが、
-  `fandhe-frontend-pre-styled-ui` の styled ラッパー自体がイシュー #709
-  時点で未実装のため、CSS 側の recipe 追加は対象外。
+- `checkbox` は headless 層の契約（`data_focus_visible`）が確立済みであり、
+  イシュー #709 時点では styled ラッパー未実装のため CSS 側の recipe 追加を
+  対象外としていたが、#730 で `switch` の `control` と同型の
+  `StateCondition::Attr("data-focus-visible")` 規則を実装済み（詳細は §4e）。
+
+## 4e. styled Checkbox ラッパー（イシュー #730）
+
+`checkbox` モジュールは `fandhe_frontend_headless_ui::checkbox`
+（イシュー #535/#595）の root/control/indicator/label/hidden-input 5
+anatomy パーツを選択的に再エクスポートし、`stylesheet()` で既定 CSS を
+追加提供する（設計方針は §4c/§4d と同型、`src/checkbox.rs` 冒頭の rustdoc
+参照）。
+
+- **`root(size, palette, props, attrs, children) -> Node`**: styled root
+  パーツ。`size`（`Size::Sm`/`Md`/`Lg`、既定 `Md`）・`palette`
+  （`ColorPalette` 5 値、既定 `Accent`）の 2 軸 variant クラス
+  （`fd-checkbox--size-<value>` / `fd-checkbox--color-palette-<value>`）を
+  付与する。headless 自由関数 `root` はチェック状態を含む
+  `CheckboxProps` を受け取るため（`switch`/`radio_group` の bool 個別引数と
+  異なる形）、styled `root` も `&CheckboxProps` を第 3 引数に取る。headless
+  `Checkbox` 状態機械（inherent `root()` を持つ）は `switch::Switch` と同じ
+  理由（未スタイル root の静かな適用漏れ防止）で再エクスポートしない。
+- **`indicator` の `hidden` 属性意味論の維持**: headless `indicator` は
+  unchecked 時に `hidden` 存在属性で非表示化する契約を持つ。styled recipe
+  の `indicator` base 規則に `display` 宣言を一切含めないことで、UA
+  stylesheet の `[hidden] { display: none }` を上書きしない（テスト
+  `indicator_base_has_no_display_declaration` で固定）。checked/
+  indeterminate 時の見た目切り替えは `border`/`transform`/`width`/`height`
+  の組み合わせで表現し、`display` を使わない。
+- **`data-focus-visible` フォーカスリング**: `control` slot へ `switch` の
+  `control` と同一の宣言（`outline: 2px solid var(--fandhe-color-accent);
+  outline-offset: 2px;`）を登録する。属性の付け外しは headless/wasm 層の
+  責務（`fandhe-frontend-wasm-full` の focus 配線に `("checkbox",
+  "hidden-input") => Some("root")` のマッピングが #709 時点で登録済み）で
+  あり、本イシューでの wasm 層変更は不要だった。
 
 ## 5. 関連ドキュメント
 

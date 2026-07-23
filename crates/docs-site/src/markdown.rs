@@ -51,13 +51,21 @@
 //!   `crate::markdown` 側の固定テーブルのみで決まり、入力由来の文字列を
 //!   `status`・`class` 属性へ流し込むことはない（`AlertStatus` は enum
 //!   固定値、`crates/pre-styled-ui/src/alert.rs` 参照）
+//! - `alert::indicator`（イシュー #732）へ渡す種別ごとのインライン SVG は
+//!   [`admonition_indicator`] が固定文字列定数（`viewBox`・`d`・`cx` 等の
+//!   属性値も含め [`AdmonitionKind`] の 5 種を key とする決め打ちテーブル）
+//!   のみを [`fandhe_frontend_core::el`] へ渡して組み立てる。Markdown 本文・
+//!   マーカー文字列由来の値がタグ名・属性名・属性値に流れ込む経路は存在
+//!   しない。`href`/`src`/`xlink:href`/外部フォント等、外部リソースを
+//!   参照する属性は一切使わない（自前の基本図形のみで描画し、外部アイコン
+//!   セットのパスデータを複製しない）
 //!
 //! パニックしない全域関数として実装する（ライブラリコードでの `unwrap()` /
 //! `panic!` 回避規約、`.claude/rules/coding-rust.md`）。未知の行・不正な構文は
 //! 段落として扱うフォールバックにより、任意の `&str` を受理する。
 
 use fandhe_frontend_core::{
-    a, blockquote, code, em, h1, h2, h3, h4, h5, h6, li, ol, p, pre, strong, table, tbody, td,
+    a, blockquote, code, el, em, h1, h2, h3, h4, h5, h6, li, ol, p, pre, strong, table, tbody, td,
     text, th, thead, tr, ul, Node,
 };
 use fandhe_frontend_pre_styled_ui::{alert, AlertStatus};
@@ -778,9 +786,10 @@ fn admonition_status_and_title(kind: AdmonitionKind) -> (AlertStatus, &'static s
 }
 
 /// admonition の `alert` ノード木を組み立てる。
-/// `alert::root(status)` > `alert::content` > [`alert::title`（固定ラベル）,
-/// `alert::description`（本文ブロック列、空なら省略）] という構成
-/// （イシュー #715 計画 §3.2。`indicator` はアイコン資産を持たないため使わない）。
+/// `alert::root(status)` > [`alert::indicator`（種別ごとのインライン
+/// SVG、[`admonition_indicator`]）, `alert::content` > [`alert::title`
+/// （固定ラベル）, `alert::description`（本文ブロック列、空なら省略）]]
+/// という構成（イシュー #715 計画 §3.2、indicator 追加はイシュー #732）。
 fn admonition_node(kind: AdmonitionKind, body: Vec<Node>) -> Node {
     let (status, title_label) = admonition_status_and_title(kind);
     let mut content_children = vec![alert::title(vec![], vec![text(title_label)])];
@@ -790,7 +799,247 @@ fn admonition_node(kind: AdmonitionKind, body: Vec<Node>) -> Node {
     alert::root(
         status,
         vec![],
-        vec![alert::content(vec![], content_children)],
+        vec![
+            admonition_indicator(kind),
+            alert::content(vec![], content_children),
+        ],
+    )
+}
+
+/// [`AdmonitionKind`] ごとの indicator（`alert::indicator`、装飾用インライン
+/// SVG）を組み立てる。
+///
+/// IMPORTANT と WARNING は同じ [`AlertStatus::Warning`]（`status_declarations`
+/// 参照）を共有し配色では区別できないため、アイコン形状は `kind` を key に
+/// [`admonition_icon_svg`] の固定テーブルで出し分ける（status 由来ではない）。
+/// `aria-hidden="true"` を付け、直前の [`alert::title`] 固定ラベル
+/// （"Note"/"Tip"/... のテキスト）で種別が既に読み上げられる装飾要素として
+/// 扱う（ARIA セマンティクスは alert 部品側の `role="alert"` のまま変更
+/// しない）。
+fn admonition_indicator(kind: AdmonitionKind) -> Node {
+    alert::indicator(
+        vec![("aria-hidden", "true")],
+        vec![admonition_icon_svg(kind)],
+    )
+}
+
+/// `viewBox="0 0 16 16"` の 16x16 インライン SVG を組み立てる共通ヘルパ。
+///
+/// `fill="none"` + `stroke="currentColor"` を既定とし、`alert::root` が
+/// `status_declarations`（`crates/pre-styled-ui/src/alert.rs`）で設定する
+/// `color: var(--fandhe-palette)` を `currentColor` 経由でそのまま継承する
+/// （light/dark どちらのテーマでも種別色に自動追従し、admonition 側で色を
+/// 個別管理しない）。`shapes` は [`admonition_icon_svg`] の固定テーブルが
+/// 渡す `path`/`circle`/`rect` ノード列のみを受け取る（呼び出し元は enum
+/// キーの固定テーブルに限定され、任意の外部入力は経由しない）。
+fn admonition_icon_svg(kind: AdmonitionKind) -> Node {
+    let shapes = match kind {
+        AdmonitionKind::Note => vec![
+            el(
+                "circle",
+                vec![
+                    ("cx", "8"),
+                    ("cy", "8"),
+                    ("r", "6.5"),
+                    ("stroke-width", "1.5"),
+                ],
+                vec![],
+            ),
+            el(
+                "circle",
+                vec![
+                    ("cx", "8"),
+                    ("cy", "5"),
+                    ("r", "0.9"),
+                    ("fill", "currentColor"),
+                    ("stroke", "none"),
+                ],
+                vec![],
+            ),
+            el(
+                "rect",
+                vec![
+                    ("x", "7.25"),
+                    ("y", "7"),
+                    ("width", "1.5"),
+                    ("height", "5"),
+                    ("rx", "0.5"),
+                    ("fill", "currentColor"),
+                    ("stroke", "none"),
+                ],
+                vec![],
+            ),
+        ],
+        AdmonitionKind::Tip => vec![
+            el(
+                "circle",
+                vec![
+                    ("cx", "8"),
+                    ("cy", "6.5"),
+                    ("r", "4.5"),
+                    ("stroke-width", "1.5"),
+                ],
+                vec![],
+            ),
+            el(
+                "rect",
+                vec![
+                    ("x", "6"),
+                    ("y", "11.5"),
+                    ("width", "4"),
+                    ("height", "1.5"),
+                    ("rx", "0.5"),
+                    ("fill", "currentColor"),
+                    ("stroke", "none"),
+                ],
+                vec![],
+            ),
+            el(
+                "rect",
+                vec![
+                    ("x", "6.5"),
+                    ("y", "13.5"),
+                    ("width", "3"),
+                    ("height", "1"),
+                    ("rx", "0.5"),
+                    ("fill", "currentColor"),
+                    ("stroke", "none"),
+                ],
+                vec![],
+            ),
+        ],
+        AdmonitionKind::Important => vec![
+            el(
+                "rect",
+                vec![
+                    ("x", "1.5"),
+                    ("y", "2"),
+                    ("width", "13"),
+                    ("height", "9"),
+                    ("rx", "2"),
+                    ("stroke-width", "1.5"),
+                ],
+                vec![],
+            ),
+            el(
+                "path",
+                vec![
+                    ("d", "M5 11 L3 14 L7.5 11 Z"),
+                    ("fill", "currentColor"),
+                    ("stroke", "none"),
+                ],
+                vec![],
+            ),
+            el(
+                "rect",
+                vec![
+                    ("x", "7.25"),
+                    ("y", "4.5"),
+                    ("width", "1.5"),
+                    ("height", "3.5"),
+                    ("rx", "0.5"),
+                    ("fill", "currentColor"),
+                    ("stroke", "none"),
+                ],
+                vec![],
+            ),
+            el(
+                "circle",
+                vec![
+                    ("cx", "8"),
+                    ("cy", "9.5"),
+                    ("r", "0.9"),
+                    ("fill", "currentColor"),
+                    ("stroke", "none"),
+                ],
+                vec![],
+            ),
+        ],
+        AdmonitionKind::Warning => vec![
+            el(
+                "path",
+                vec![
+                    ("d", "M8 1.5 L15 14.5 L1 14.5 Z"),
+                    ("stroke-width", "1.5"),
+                    ("stroke-linejoin", "round"),
+                ],
+                vec![],
+            ),
+            el(
+                "rect",
+                vec![
+                    ("x", "7.25"),
+                    ("y", "6.5"),
+                    ("width", "1.5"),
+                    ("height", "4"),
+                    ("rx", "0.5"),
+                    ("fill", "currentColor"),
+                    ("stroke", "none"),
+                ],
+                vec![],
+            ),
+            el(
+                "circle",
+                vec![
+                    ("cx", "8"),
+                    ("cy", "12.5"),
+                    ("r", "0.9"),
+                    ("fill", "currentColor"),
+                    ("stroke", "none"),
+                ],
+                vec![],
+            ),
+        ],
+        AdmonitionKind::Caution => vec![
+            el(
+                "path",
+                vec![
+                    (
+                        "d",
+                        "M5.5 1.5 L10.5 1.5 L14.5 5.5 L14.5 10.5 L10.5 14.5 L5.5 14.5 L1.5 10.5 L1.5 5.5 Z",
+                    ),
+                    ("stroke-width", "1.5"),
+                    ("stroke-linejoin", "round"),
+                ],
+                vec![],
+            ),
+            el(
+                "rect",
+                vec![
+                    ("x", "7.25"),
+                    ("y", "4.5"),
+                    ("width", "1.5"),
+                    ("height", "5"),
+                    ("rx", "0.5"),
+                    ("fill", "currentColor"),
+                    ("stroke", "none"),
+                ],
+                vec![],
+            ),
+            el(
+                "circle",
+                vec![
+                    ("cx", "8"),
+                    ("cy", "11.5"),
+                    ("r", "0.9"),
+                    ("fill", "currentColor"),
+                    ("stroke", "none"),
+                ],
+                vec![],
+            ),
+        ],
+    };
+    el(
+        "svg",
+        vec![
+            ("viewBox", "0 0 16 16"),
+            ("width", "16"),
+            ("height", "16"),
+            ("fill", "none"),
+            ("stroke", "currentColor"),
+            ("focusable", "false"),
+        ],
+        shapes,
     )
 }
 

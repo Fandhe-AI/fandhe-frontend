@@ -90,6 +90,21 @@ categories = ["wasm", "web-programming"]
 # （#582）のため流用する。新規外部クレート追加ゼロ、既存 web-sys の feature
 # 追加のみ。`cargo metadata` 実測（パッケージ数・依存グラフ深さ）に変化が
 # ないことを PR 本文に記録する。
+# イシュー #731（Avatar src 差し替えの MutationObserver 検知）:
+# `headless_avatar::wiring` が `root` へ `MutationObserver`（`attributes: true`
+# + `attributeFilter: ["src"]` + `subtree: true`）を登録し、`img.src` の
+# 差し替えを検知して `"reset"` を dispatch する。`MutationObserver`/
+# `MutationObserverInit`（`observe_with_options` の引数）・`MutationRecord`
+# （コールバック引数、`attribute_name()`/`type_()`/`target()` を読む）・
+# `Node`（`observe_with_options` の `target: &Node` 引数。`Element` から
+# 自動 deref される）を追加する。新規外部クレート追加ゼロ、既存 web-sys の
+# feature 追加のみ。
+# `cargo metadata` 実測（パッケージ数・依存グラフ深さ）に変化がないことを
+# PR 本文に記録する。合わせて、コールバック引数（`js_sys::Array` の
+# `MutationRecord` 列）を走査するため `js-sys` を `[dev-dependencies]` から
+# `[dependencies]` へ昇格する。`js-sys` は既に `web-sys` の推移依存として
+# Cargo.lock に存在するため、新規外部パッケージの追加はゼロ（`cargo metadata`
+# 実測結果は PR 本文に記録する）。
 [dependencies]
 fandhe-frontend-app = { path = "../app", version = "0.1.0" }
 fandhe-frontend-core = { path = "../core", version = "0.1.0" }
@@ -103,6 +118,7 @@ fandhe-frontend-interactive = { path = "../interactive", version = "0.1.0" }
 # （`wasm-client/Cargo.toml`・`wasm-client/src/lib.rs` の `wiring` doc 参照）。
 fandhe-frontend-wasm-client = { path = "../wasm-client", version = "0.1.0", default-features = false }
 wasm-bindgen = "0.2"
+js-sys = "0.3"
 
 [dependencies.web-sys]
 version = "0.3"
@@ -120,7 +136,11 @@ features = [
   "KeyboardEvent",
   "Location",
   "MouseEvent",
+  "MutationObserver",
+  "MutationObserverInit",
+  "MutationRecord",
   "NamedNodeMap",
+  "Node",
   "NodeList",
   "PopStateEvent",
   "ScrollRestoration",
@@ -176,10 +196,15 @@ perf-assert = []
 # を製品依存（`[dependencies]`、本ファイル冒頭参照）へ格上げしたため、
 # 同一クレートを重複して dev-dependencies にも宣言しない
 # （`[dependencies]` はテストからも解決できるため冗長）。
+#
+# イシュー #731: `js-sys` は `headless_avatar::wiring`（MutationObserver
+# コールバックの `MutationRecord` 列走査）が製品面で必要になったため
+# `[dependencies]`（本ファイル冒頭参照）へ昇格した。`[dependencies]` は
+# テストからも解決できるため、同一クレートを重複して dev-dependencies にも
+# 宣言しない（上記 `fandhe-frontend-headless-ui` と同じ整理）。
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
 wasm-bindgen-futures = "0.4"
-js-sys = "0.3"
 
 # Performance API（性能計測ハーネス専用）。製品面の [dependencies.web-sys] の
 # features には触れず、テスト専用の feature 拡張に閉じる。

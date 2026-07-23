@@ -30,13 +30,29 @@
 //! これが本モジュールを `events.rs` の委譲リスナーへ単純に相乗りできない
 //! 理由であり、独立モジュールとして切り出す設計上の根拠である。
 //!
+//! # `src` 差し替え検知（イシュー #731）
+//!
+//! `wire_avatar_events` は `load`/`error` イベント検知グルーに加えて、
+//! `MutationObserver`（`attributes: true` + `attributeFilter: ["src"]` +
+//! `subtree: true`）を `root` へ登録し、Avatar image 要素の `src` 属性差し
+//! 替えを検知して `"reset"`（→ `ImageStatus::Loading`）を自動 dispatch する
+//! （[`avatar_action_for_src_mutation`] が判定を担う純粋関数、
+//! `wiring::wire_avatar_src_observer` が配線を担う）。クライアント側で
+//! `img.src` を動的に差し替えた場合（署名付き URL の遅延差し込み・再描画に
+//! よる束縛点更新等）に、旧画像の `Loaded`/`Error` 状態を引きずらず新画像の
+//! 読み込み中を正しく `Loading` へ戻す（ark-ui/Zag.js と同じ挙動）。
+//! `subtree: true` により、再描画で `img` 要素自体が入れ替わっても
+//! （`root` 直下ではなくネストしていても）新要素の `src` 変異を検知できる。
+//! `attributeFilter: ["src"]` により、reset 後に `apply_avatar_visibility`
+//! が書き込む `data-state`/`hidden` 属性の変異は observer を再発火させない
+//! （無限ループの構造的な回避）。
+//!
 //! # 他クレート・他モジュールとの契約
 //!
 //! - [`avatar_action_for_image_event`] が判定するアクション名
 //!   （`"loaded"`/`"error"`）は `fandhe_frontend_headless_ui::avatar::Avatar::decode_action`
-//!   の対応する分岐と一致する（`"reset"` は本モジュールが自動発火する対象では
-//!   ない。同 rustdoc「スコープ外」節参照。`src` 差し替え検知
-//!   （`MutationObserver` 経由の自動 `"reset"`）も同様にスコープ外）。
+//!   の対応する分岐と一致する。[`avatar_action_for_src_mutation`] が判定する
+//!   `"reset"` も同分岐と一致する（上記「`src` 差し替え検知」節参照）。
 //! - [`image_visible_after_action`] は
 //!   `fandhe_frontend_headless_ui::avatar::ImageStatus::is_image_visible` と同一の
 //!   可視性規則を文字列語彙（`"loaded"`/`"error"`/`"reset"`）で表現する。
@@ -80,10 +96,12 @@ const DATA_STATE_HIDDEN: &str = "hidden";
 const ACTION_LOADED: &str = "loaded";
 /// dispatch アクション名 "error"。
 const ACTION_ERROR: &str = "error";
-/// dispatch アクション名 "reset"（[`image_visible_after_action`] の語彙としてのみ
-/// 登場し、本モジュールが自動発火することはない。呼び出し側 UI が `Reset`
-/// アクションを dispatch した後の DOM 反映に [`apply_avatar_visibility`] を
-/// 再利用できるようにするための語彙。上記モジュール doc「スコープ外」参照）。
+/// dispatch アクション名 "reset"。呼び出し側 UI が `Reset` アクションを
+/// dispatch した後の DOM 反映に [`image_visible_after_action`]/
+/// [`apply_avatar_visibility`] を再利用できるようにするための語彙であると
+/// 同時に、[`avatar_action_for_src_mutation`] が `src` 属性差し替え検知時に
+/// 自動発火するアクション名でもある（イシュー #731、モジュール doc
+/// 「`src` 差し替え検知」参照）。
 const ACTION_RESET: &str = "reset";
 
 /// `img`/`error` イベントのターゲット属性から dispatch すべきアクションを
@@ -113,6 +131,37 @@ pub fn avatar_action_for_image_event(
     };
     Some(crate::events::ActionRef {
         action: action.to_string(),
+        payload: String::new(),
+    })
+}
+
+/// `MutationObserver` が検知した属性変異から dispatch すべきアクションを
+/// 判定する（DOM 非依存の純粋関数、native `cargo test` で検証可能。
+/// イシュー #731）。
+///
+/// ターゲットが `data-scope="avatar"` かつ `data-part="image"` の場合のみ
+/// 判定を行い、変異した属性が `"src"` の場合のみ `"reset"` を返す
+/// （[`avatar_action_for_image_event`] と同型の fail-closed ガード。
+/// 改ざんされた `data-*` 値を持つ無関係要素・`src` 以外の属性変異は
+/// dispatch へ流さない）。`attribute_name` は `MutationRecord::attribute_name()`
+/// の戻り値（`Option<String>`）をそのまま受け取る想定。
+///
+/// `payload` は常に空文字列（`AvatarAction::Reset` は payload を使わない、
+/// `crates/headless-ui/src/avatar.rs` の `decode_action` 参照）。
+#[must_use]
+pub fn avatar_action_for_src_mutation(
+    attribute_name: Option<&str>,
+    scope: Option<&str>,
+    part: Option<&str>,
+) -> Option<crate::events::ActionRef> {
+    if attribute_name != Some("src") {
+        return None;
+    }
+    if scope != Some(AVATAR_SCOPE) || part != Some(AVATAR_IMAGE_PART) {
+        return None;
+    }
+    Some(crate::events::ActionRef {
+        action: ACTION_RESET.to_string(),
         payload: String::new(),
     })
 }
@@ -173,14 +222,17 @@ pub fn image_visible_after_action(action: &str) -> Option<bool> {
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::{
-        avatar_action_for_image_event, avatar_action_for_settled_image, AVATAR_FALLBACK_PART,
-        AVATAR_IMAGE_PART, AVATAR_SCOPE, DATA_STATE_HIDDEN, DATA_STATE_VISIBLE,
+        avatar_action_for_image_event, avatar_action_for_settled_image,
+        avatar_action_for_src_mutation, AVATAR_FALLBACK_PART, AVATAR_IMAGE_PART, AVATAR_SCOPE,
+        DATA_STATE_HIDDEN, DATA_STATE_VISIBLE,
     };
     use crate::events::ActionRef;
     use fandhe_frontend_interactive::Component;
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
-    use web_sys::{Element, Event, HtmlImageElement};
+    use web_sys::{
+        Element, Event, HtmlImageElement, MutationObserver, MutationObserverInit, MutationRecord,
+    };
 
     /// `[data-scope="avatar"][data-part="image"]` セレクタ（settle 検査の
     /// 走査対象を Avatar image 要素のみに絞る。有界な走査であり
@@ -297,10 +349,11 @@ mod wiring {
     /// 入れ替わっても `root` のリスナーは保持されたまま新しい `img` の
     /// イベントも受信できる。
     ///
-    /// `Closure::forget` は `load`/`error` の **2 回のみ**に限定する
-    /// （`events.rs::wire_events` と同じ「マウント時 1 回・定数個リーク」
-    /// 契約。A04: 安全でない設計への対策、無制限リークによるメモリ枯渇 DoS
-    /// の構造的回避）。
+    /// `Closure::forget` は `load`/`error`/`MutationObserver` コールバックの
+    /// **3 回のみ**に限定する（イシュー #731 で 2 回から 3 回へ増加。
+    /// `events.rs::wire_events` と同じ「マウント時 1 回・定数個リーク」契約は
+    /// 維持される。A04: 安全でない設計への対策、無制限リークによるメモリ枯渇
+    /// DoS の構造的回避）。
     ///
     /// 配線と同時に、`root` 配下で **既に読み込みが決着済み**の Avatar image
     /// （wasm 初期化前に `load`/`error` が発火し終えているケース）を
@@ -308,9 +361,15 @@ mod wiring {
     /// イベントを待たず即座に合成 dispatch を行う（受け入れ条件 2 の中核。
     /// hydration 復元後の接続で最も典型的なレースを塞ぐ）。
     ///
+    /// さらに `root` へ [`wire_avatar_src_observer`] で `MutationObserver` を
+    /// 登録し、Avatar image の `src` 属性差し替えを検知して `"reset"` を
+    /// 自動 dispatch する（イシュー #731、モジュール doc「`src` 差し替え
+    /// 検知」参照）。
+    ///
     /// # Errors
     ///
-    /// `add_event_listener_with_callback_and_bool` の失敗を伝播する。
+    /// `add_event_listener_with_callback_and_bool`・
+    /// `MutationObserver::observe_with_options` の失敗を伝播する。
     pub fn wire_avatar_events(
         root: Element,
         on_action: impl FnMut(ActionRef) + 'static,
@@ -357,6 +416,86 @@ mod wiring {
                 }
             }
         }
+
+        wire_avatar_src_observer(&root, on_action)?;
+
+        Ok(())
+    }
+
+    /// `root` 配下の Avatar image 要素の `src` 属性差し替えを
+    /// `MutationObserver` で検知し、`"reset"` を `on_action` へ dispatch する
+    /// （イシュー #731、[`wire_avatar_events`] から呼ばれる）。
+    ///
+    /// `attributes: true` + `attributeFilter: ["src"]` + `subtree: true` で
+    /// 登録する。`subtree: true` により `root` 配下にネストした `img`（再描画
+    /// で入れ替わった新要素を含む）の `src` 変異も検知できる。
+    /// `attributeFilter` で `src` 以外の属性変異（`apply_avatar_visibility`
+    /// が書き込む `data-state`/`hidden` を含む）を構造的に除外することで、
+    /// reset 後の DOM 反映が observer を再発火させる無限ループを起こさない。
+    ///
+    /// コールバック内では `MutationRecord::type_()`/`attribute_name()` を
+    /// 防御的に再検証したうえで（`attributeFilter` はブラウザ実装への委任で
+    /// あり、二重チェックにコストはほぼない）、`target()` が `root` の子孫
+    /// （`root` 自身を含む）であることを [`Element::contains`] で確認する
+    /// （`handle_image_event` の `contains` ガードと同じ意図。改ざんされた
+    /// `data-*` を持つ無関係要素・`root` の外側の変異を dispatch へ流さない
+    /// fail-closed 不変条件）。
+    ///
+    /// # Errors
+    ///
+    /// `MutationObserver::new`・`observe_with_options` の失敗を伝播する。
+    fn wire_avatar_src_observer(
+        root: &Element,
+        on_action: std::rc::Rc<std::cell::RefCell<impl FnMut(ActionRef) + 'static>>,
+    ) -> Result<(), JsValue> {
+        let observed_root = root.clone();
+        let callback = Closure::<dyn FnMut(js_sys::Array, MutationObserver)>::new(
+            move |records: js_sys::Array, _observer: MutationObserver| {
+                for record in records.iter() {
+                    let Ok(record) = record.dyn_into::<MutationRecord>() else {
+                        continue;
+                    };
+                    if record.type_() != "attributes" {
+                        continue;
+                    }
+                    let attribute_name = record.attribute_name();
+                    let Some(target) = record.target() else {
+                        continue;
+                    };
+                    let Some(element) = target.dyn_ref::<Element>() else {
+                        continue;
+                    };
+                    if !observed_root.contains(Some(element)) {
+                        continue;
+                    }
+                    let scope = element.get_attribute("data-scope");
+                    let part = element.get_attribute("data-part");
+                    let Some(action_ref) = avatar_action_for_src_mutation(
+                        attribute_name.as_deref(),
+                        scope.as_deref(),
+                        part.as_deref(),
+                    ) else {
+                        continue;
+                    };
+                    if let Ok(mut cb) = on_action.try_borrow_mut() {
+                        (cb)(action_ref);
+                    }
+                }
+            },
+        );
+
+        let observer = MutationObserver::new(callback.as_ref().unchecked_ref())?;
+        let init = MutationObserverInit::new();
+        init.set_attributes(true);
+        init.set_subtree(true);
+        init.set_attribute_filter(&js_sys::Array::of1(&JsValue::from_str("src")));
+        observer.observe_with_options(root, &init)?;
+
+        // `Closure::forget`: マウント時 1 回・定数個リーク契約（上記
+        // `wire_avatar_events` doc 参照）。`observer` 自体は `observe()` 対象
+        // ノードが登録済み observer として保持するため、`callback` を
+        // forget した後も生存する。
+        callback.forget();
 
         Ok(())
     }
@@ -503,6 +642,70 @@ mod tests {
     #[test]
     fn settled_complete_image_without_width_yields_error() {
         assert_eq!(avatar_action_for_settled_image(true, 0), Some("error"));
+    }
+
+    // --- avatar_action_for_src_mutation（イシュー #731） ---
+
+    #[test]
+    fn src_mutation_on_avatar_image_dispatches_reset() {
+        let action_ref =
+            avatar_action_for_src_mutation(Some("src"), Some("avatar"), Some("image")).unwrap();
+        assert_eq!(action_ref.action, "reset");
+        assert_eq!(action_ref.payload, "");
+    }
+
+    #[test]
+    fn non_src_attribute_mutation_is_ignored() {
+        assert_eq!(
+            avatar_action_for_src_mutation(Some("data-state"), Some("avatar"), Some("image")),
+            None
+        );
+        assert_eq!(
+            avatar_action_for_src_mutation(Some("hidden"), Some("avatar"), Some("image")),
+            None
+        );
+        assert_eq!(
+            avatar_action_for_src_mutation(None, Some("avatar"), Some("image")),
+            None
+        );
+    }
+
+    #[test]
+    fn src_mutation_with_mismatched_scope_or_part_is_ignored() {
+        assert_eq!(
+            avatar_action_for_src_mutation(Some("src"), Some("attacker"), Some("image")),
+            None
+        );
+        assert_eq!(
+            avatar_action_for_src_mutation(Some("src"), Some("avatar"), Some("fallback")),
+            None
+        );
+        assert_eq!(
+            avatar_action_for_src_mutation(Some("src"), None, None),
+            None
+        );
+    }
+
+    /// roundtrip: `avatar_action_for_src_mutation` → `dispatch` →
+    /// `Avatar::status() == ImageStatus::Loading`（`Loaded` 起点から）。
+    /// `wire_avatar_src_observer`（wasm32 配線層）が実際に呼ぶ経路を
+    /// native 側で固定する（イシュー #731 受け入れ条件）。
+    #[test]
+    fn src_mutation_reset_action_roundtrip_returns_avatar_to_loading() {
+        use fandhe_frontend_headless_ui::avatar::{Avatar, ImageStatus};
+
+        let action_ref =
+            avatar_action_for_src_mutation(Some("src"), Some("avatar"), Some("image")).unwrap();
+
+        let mut avatar = Avatar::new(ImageStatus::Loaded);
+        let dispatched = fandhe_frontend_interactive::dispatch(
+            &mut avatar,
+            &action_ref.action,
+            &action_ref.payload,
+        );
+        assert!(dispatched);
+        assert_eq!(avatar.status(), ImageStatus::Loading);
+        assert_eq!(image_visible_after_action(&action_ref.action), Some(false));
     }
 
     // --- image_visible_after_action ---
