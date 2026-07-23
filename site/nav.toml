@@ -75,6 +75,17 @@ source = "examples/headless-pre-styled-ui/README.md"
 path = "/examples/headless-pre-styled-ui/"
 
 [[section]]
+title = "Components"
+
+# Rust 生成コンテンツページ: source の Markdown（導入文）に加えて、
+# crates/docs-site/src/showcase.rs が pre-styled-ui コンポーネントの
+# 実レンダリング結果を path 照会（showcase::PAGE_PATH と一致）で追記する。
+[[section.page]]
+title = "pre-styled-ui ショーケース"
+source = "site/components-pre-styled-ui.md"
+path = "/components/pre-styled-ui/"
+
+[[section]]
 title = "API Reference"
 
 [[section.page]]

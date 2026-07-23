@@ -61,12 +61,18 @@ fn site_nav_parses_successfully() {
 }
 
 #[test]
-fn site_nav_registers_four_sections_with_expected_titles() {
+fn site_nav_registers_five_sections_with_expected_titles() {
     let nav = load_nav();
     let titles: Vec<&str> = nav.sections.iter().map(|s| s.title.as_str()).collect();
     assert_eq!(
         titles,
-        vec!["Getting Started", "Guides", "Examples", "API Reference"]
+        vec![
+            "Getting Started",
+            "Guides",
+            "Examples",
+            "Components",
+            "API Reference"
+        ]
     );
 }
 
@@ -75,11 +81,13 @@ fn site_nav_registers_four_sections_with_expected_titles() {
 /// Examples セクション（概説ページ 1 + サンプル README 4 = 5 ページ）、
 /// イシュー #548 で追加された `docs/api/pre-styled-recipe-api.md`（1 ページ）、
 /// イシュー #552 で追加された `examples/headless-pre-styled-ui/README.md`・
-/// `docs/api/headless-ui-api.md`・`docs/api/pre-styled-ui-api.md`（3 ページ）が
+/// `docs/api/headless-ui-api.md`・`docs/api/pre-styled-ui-api.md`（3 ページ）、
+/// pre-styled-ui ショーケース統合で追加された
+/// `site/components-pre-styled-ui.md`（1 ページ、Rust 生成コンテンツページ）が
 /// サイト生成対象として登録されている（イシュー本文の「全 11 ページ」表記と
 /// 列挙内容の数値差異はモジュール冒頭のコメント参照）。
 #[test]
-fn site_nav_registers_all_twenty_one_pages_with_expected_paths() {
+fn site_nav_registers_all_twenty_two_pages_with_expected_paths() {
     let nav = load_nav();
     let pages: Vec<(&str, &str)> = nav
         .sections
@@ -88,7 +96,7 @@ fn site_nav_registers_all_twenty_one_pages_with_expected_paths() {
         .map(|p| (p.source.as_str(), p.path.as_str()))
         .collect();
 
-    assert_eq!(pages.len(), 21, "expected 21 pages, got {pages:?}");
+    assert_eq!(pages.len(), 22, "expected 22 pages, got {pages:?}");
 
     let expected = vec![
         ("site/index.md", "/"),
@@ -117,6 +125,10 @@ fn site_nav_registers_all_twenty_one_pages_with_expected_paths() {
         (
             "examples/headless-pre-styled-ui/README.md",
             "/examples/headless-pre-styled-ui/",
+        ),
+        (
+            "site/components-pre-styled-ui.md",
+            "/components/pre-styled-ui/",
         ),
         ("docs/api/component-api.md", "/api/component-api/"),
         ("docs/api/app-api.md", "/api/app-api/"),
