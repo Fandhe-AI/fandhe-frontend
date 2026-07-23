@@ -197,6 +197,10 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-switch-track-height", "1.15rem"),
                 decl("--fandhe-switch-thumb-size", "0.85rem"),
                 decl("--fandhe-switch-thumb-travel", "0.85rem"),
+                decl(
+                    "--fandhe-switch-label-font-size",
+                    "var(--fandhe-font-font-size-sm)",
+                ),
             ],
         )
         .variant(
@@ -207,6 +211,10 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-switch-track-height", "1.4rem"),
                 decl("--fandhe-switch-thumb-size", "1.1rem"),
                 decl("--fandhe-switch-thumb-travel", "1.1rem"),
+                decl(
+                    "--fandhe-switch-label-font-size",
+                    "var(--fandhe-font-font-size-sm)",
+                ),
             ],
         )
         .variant(
@@ -217,6 +225,10 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-switch-track-height", "1.65rem"),
                 decl("--fandhe-switch-thumb-size", "1.35rem"),
                 decl("--fandhe-switch-thumb-travel", "1.35rem"),
+                decl(
+                    "--fandhe-switch-label-font-size",
+                    "var(--fandhe-font-font-size-md)",
+                ),
             ],
         )
         .default_variant(Size::Md)
@@ -427,6 +439,35 @@ mod tests {
         assert!(css.contains("--size-"));
         assert!(css.contains("--color-palette-"));
         assert!(css.contains("--fandhe-switch-track-width"));
+    }
+
+    #[test]
+    fn size_variants_set_label_font_size_custom_property() {
+        // Cursor Bugbot 指摘（PR #719 レビュー）対応の回帰: `label` の base
+        // 規則が参照する `--fandhe-switch-label-font-size` を各 size
+        // variant が設定していないと、control 自体はスケールしてもラベル
+        // 文字サイズがフォールバック（sm 相当）のまま変わらない
+        // （`radio_group.rs` の `--fandhe-radio-group-font-size` と対称の
+        // 契約）。
+        let css = stylesheet();
+        for size in [Size::Sm, Size::Md, Size::Lg] {
+            let selector = format!(
+                r#"[data-scope="switch"][data-part="root"].fd-switch--size-{}"#,
+                size.value()
+            );
+            let start = css
+                .find(&selector)
+                .unwrap_or_else(|| panic!("size variant selector not found: {selector} in {css}"));
+            let block_end = css[start..]
+                .find('}')
+                .map(|i| start + i)
+                .unwrap_or(css.len());
+            assert!(
+                css[start..block_end].contains("--fandhe-switch-label-font-size"),
+                "size={size:?} variant block missing --fandhe-switch-label-font-size: {}",
+                &css[start..block_end]
+            );
+        }
     }
 
     #[test]

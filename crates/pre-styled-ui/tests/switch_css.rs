@@ -67,6 +67,7 @@ const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
   --fandhe-switch-track-height: 1.15rem;
   --fandhe-switch-thumb-size: 0.85rem;
   --fandhe-switch-thumb-travel: 0.85rem;
+  --fandhe-switch-label-font-size: var(--fandhe-font-font-size-sm);
 }
 
 [data-scope="switch"][data-part="root"].fd-switch--size-md {
@@ -74,6 +75,7 @@ const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
   --fandhe-switch-track-height: 1.4rem;
   --fandhe-switch-thumb-size: 1.1rem;
   --fandhe-switch-thumb-travel: 1.1rem;
+  --fandhe-switch-label-font-size: var(--fandhe-font-font-size-sm);
 }
 
 [data-scope="switch"][data-part="root"].fd-switch--size-lg {
@@ -81,6 +83,7 @@ const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
   --fandhe-switch-track-height: 1.65rem;
   --fandhe-switch-thumb-size: 1.35rem;
   --fandhe-switch-thumb-travel: 1.35rem;
+  --fandhe-switch-label-font-size: var(--fandhe-font-font-size-md);
 }
 
 [data-scope="switch"][data-part="root"].fd-switch--color-palette-accent {
