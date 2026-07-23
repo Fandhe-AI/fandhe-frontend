@@ -27,7 +27,8 @@
 
 use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::{
-    aria_controls, aria_label, avatar, data_state, dialog, popover, ImageStatus, OpenState,
+    aria_controls, aria_label, avatar, data_state, dialog, number_input, popover, ImageStatus,
+    OpenState,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -176,6 +177,34 @@ fn positioner_style_attr_payload_is_escaped_for_all_payloads() {
         let node = popover::positioner(OpenState::Open, vec![("style", payload)], vec![]);
         let html = render(&node);
         assert_payload_is_escaped(payload, &html, "positioner の style 属性値コンテキスト");
+    }
+}
+
+/// (1)/(2) NumberInput（イシュー #738）: `name`（属性値経路）と
+/// `label` の children（テキスト経路）へ全ペイロードを注入し、エスケープが
+/// 貫通することを固定する。
+#[test]
+fn number_input_name_and_label_children_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let input_node = number_input::input(
+            payload,
+            None,
+            None,
+            "0",
+            "100",
+            number_input::NumberInputFlags::default(),
+            vec![],
+        );
+        let html = render(&input_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "number_input::input の name 属性値コンテキスト",
+        );
+
+        let label_node = number_input::label(false, false, None, vec![], vec![text(payload)]);
+        let html = render(&label_node);
+        assert_payload_is_escaped(payload, &html, "number_input::label のテキストコンテキスト");
     }
 }
 

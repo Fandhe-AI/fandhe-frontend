@@ -22,8 +22,9 @@ rustdoc および各モジュール冒頭の rustdoc とする。本節はモジ
 実際に骨格新設（#546）時点の記述が長期間放置されていた（イシュー #714）。
 
 本クレートは第 5 弾ツリー（#680）完了・crates.io v0.4.0 公開（#686）・
-checkbox styled ラッパー追加（#730）・静的フォーム部品 3 種追加（#737、
-v0.7.0 未公開）を経て 23 の公開モジュールを持つ。内訳は次の通り。
+checkbox styled ラッパー追加（#730）・静的フォーム部品 3 種追加（#737）・
+NumberInput styled ラッパー追加（#738、いずれも公開時点未反映）を経て
+24 の公開モジュールを持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -39,6 +40,7 @@ v0.7.0 未公開）を経て 23 の公開モジュールを持つ。内訳は次
 | headless ラッパー | `avatar` | #684（§4b 参照） |
 | headless ラッパー第 5 弾 | `checkbox` | #730（§4e 参照） |
 | 静的フォーム部品 | `input` / `textarea` / `native_select` | #737（§4f 参照） |
+| headless ラッパー第 6 弾 | `number_input` | #738（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
@@ -402,6 +404,7 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | input / textarea / native-select | ✓ | – | 実装済み（#737、§4f 参照。フォーム入力は選択・チェック状態を示す部品ではないため提供しない） |
 | tabs | ✓ | ✓（selected trigger の強調色） | 実装済み（#729） |
 | accordion / dialog / menu / select | ✓ | – | 実装済み（#729） |
+| number-input | ✓ | – | 実装済み（#738、フォーム入力部品のため color-palette は非提供） |
 | popover / tooltip | 提供しない | 提供しない | 方針確定 |
 
 tabs/accordion/dialog/menu/select の実装詳細（イシュー #729）:
