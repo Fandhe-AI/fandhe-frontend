@@ -226,6 +226,7 @@ const LIST_GOLDEN_CSS: &str = r#"[data-scope="list"][data-part="root"] {
 }
 
 [data-scope="list"][data-part="root"].fd-list--variant-marker {
+  list-style: revert;
   padding-inline-start: 1.5rem;
 }
 

@@ -76,7 +76,10 @@ fn recipe() -> SlotRecipe {
         .variant(
             ListVariant::Marker,
             "root",
-            vec![decl("padding-inline-start", "1.5rem")],
+            vec![
+                decl("list-style", "revert"),
+                decl("padding-inline-start", "1.5rem"),
+            ],
         )
         .variant(
             ListVariant::Plain,
