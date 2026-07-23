@@ -49,6 +49,7 @@ use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode};
 use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind};
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingItemFlags};
+use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps};
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
@@ -1335,6 +1336,45 @@ fn skeleton_attrs_and_class_are_escaped_for_all_payloads() {
         assert!(
             html.contains("fd-skeleton--"),
             "skeleton で recipe 生成クラスが失われている: html={html}"
+        );
+    }
+}
+
+/// イシュー #772: `separator::separator` の呼び出し側 `attrs`（`data-testid`
+/// 等）と `class` の 2 箇所で既定エスケープ（REQ-1）が貫通することを固定する
+/// （skeleton と同型の単一 recipe 静的部品、children を持たないためテキスト
+/// 経路は対象外）。契約属性（`role`/`aria-orientation`/`data-orientation`）
+/// の偽装除去そのものの回帰は `crates/pre-styled-ui/src/separator.rs` の
+/// ユニットテストが担う（本ファイルは公開 API 経由の XSS 貫通のみを担当）。
+#[test]
+fn separator_attrs_and_class_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // 属性値経路 b: 呼び出し側 attrs（data-testid 等）。
+        let html = render(&separator(
+            &SeparatorProps::default(),
+            vec![("data-testid", payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "separator 呼び出し側 attrs コンテキスト");
+
+        // 属性値経路 c: 呼び出し側 attrs の class（drop_class_attr により
+        // 生ペイロードは出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&separator(
+            &SeparatorProps::default(),
+            vec![("class", payload)],
+        ));
+        assert!(
+            !html.contains(payload),
+            "separator の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "separator の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-separator--"),
+            "separator で recipe 生成クラスが失われている: html={html}"
         );
     }
 }

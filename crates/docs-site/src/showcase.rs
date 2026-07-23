@@ -64,6 +64,7 @@ use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
 use fandhe_frontend_pre_styled_ui::segment_group;
+use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, SeparatorVariant};
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
@@ -184,6 +185,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::menu::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::select::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::skeleton::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::separator::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::combobox::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::popover::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tooltip::stylesheet())?;
@@ -405,6 +407,41 @@ fn skeleton_section() -> Node {
         "Skeleton",
         "データ読み込み中のコンテンツ形状を模した占位要素。常に aria-hidden=\"true\" を持ち、読み込み中であることをスクリーンリーダーへ伝える責務はコンテナ側（aria-busy）にあります。prefers-reduced-motion: reduce ではパルスアニメーションを停止します。",
         vec![variant_row],
+    )
+}
+
+/// Separator 節（イシュー #772）: `orientation`（horizontal/vertical）・
+/// `variant`（solid/dashed）の 2 軸。vertical は自身では高さを決定できない
+/// （`--fandhe-separator-height` フォールバック）ため、`style` で高さを
+/// 明示して並べる（`crates/pre-styled-ui/src/separator.rs` rustdoc 参照）。
+fn separator_section() -> Node {
+    let horizontal_row = row(vec![
+        separator(
+            &SeparatorProps {
+                orientation: Orientation::Horizontal,
+                variant: SeparatorVariant::Solid,
+            },
+            vec![("style", "width: 12rem;")],
+        ),
+        separator(
+            &SeparatorProps {
+                orientation: Orientation::Horizontal,
+                variant: SeparatorVariant::Dashed,
+            },
+            vec![("style", "width: 12rem;")],
+        ),
+    ]);
+    let vertical_row = row(vec![separator(
+        &SeparatorProps {
+            orientation: Orientation::Vertical,
+            variant: SeparatorVariant::Solid,
+        },
+        vec![("style", "height: 3rem;")],
+    )]);
+    section(
+        "Separator",
+        "区切り線。role=\"separator\" と aria-orientation/data-orientation を常時出力します。orientation（horizontal/vertical）と variant（solid/dashed）の 2 軸を持ちます。",
+        vec![horizontal_row, vertical_row],
     )
 }
 
@@ -2356,6 +2393,7 @@ fn showcase_body() -> Node {
             badge_section(),
             spinner_section(),
             skeleton_section(),
+            separator_section(),
             alert_section(),
             card_section(),
             tabs_section(),
