@@ -299,6 +299,12 @@ mod tests {
             ("nav_list", crate::nav_list::stylesheet()),
             ("status", crate::status::css()),
             ("empty_state", crate::empty_state::css()),
+            ("heading", crate::heading::css()),
+            ("text", crate::text::css()),
+            ("em", crate::em::css()),
+            ("mark", crate::mark::css()),
+            ("blockquote", crate::blockquote::css()),
+            ("list", crate::list::css()),
             ("highlight", crate::highlight::css()),
         ]
     }
