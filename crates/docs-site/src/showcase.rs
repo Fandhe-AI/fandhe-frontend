@@ -804,6 +804,8 @@ fn switch_section() -> Node {
         .iter()
         .map(|(checked, disabled, name, label)| {
             switch::root(
+                Size::Md,
+                ColorPalette::Accent,
                 *checked,
                 *disabled,
                 vec![],
@@ -864,6 +866,8 @@ fn radio_group_section() -> Node {
         )
     }));
     let demo = radio_group::root(
+        Size::Md,
+        ColorPalette::Accent,
         false,
         Some(Orientation::Vertical),
         Some(label_id),

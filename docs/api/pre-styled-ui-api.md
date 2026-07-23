@@ -32,13 +32,29 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 イシューで扱う）。実装済み API の正本は `crates/pre-styled-ui/src/lib.rs`
 冒頭の rustdoc を参照。同じ理由で headless ラッパー第 2 弾（#664:
 Popover/Tooltip）・第 3 弾（#682: Switch）も上表へは追加していない。
-`switch` モジュール（headless ラッパー第 3 弾、イシュー #682）は
-`fandhe_frontend_headless_ui::switch` の Root/Control/Thumb/Label/
-HiddenInput 5 パーツと `Switch` 状態機械を再エクスポートし、
-`switch::stylesheet()` で `data-state`（`"checked"`/`"unchecked"`）連動の
-既定 CSS を追加提供する。他の headless ラッパー（`dialog` 等）と同じ
-薄い委譲方針であり、詳細・スコープ外事項は `src/switch.rs` 冒頭の
-rustdoc を参照。
+`switch` モジュール（headless ラッパー第 3 弾、イシュー #682。`size`/
+`color-palette` variant 拡張はイシュー #708）は
+`fandhe_frontend_headless_ui::switch` の Control/Thumb/Label/HiddenInput
+4 パーツを再エクスポートし、`switch::stylesheet()` で `data-state`
+（`"checked"`/`"unchecked"`）連動の既定 CSS を追加提供する。styled `root`
+は `size`（`Size::Sm`/`Md`/`Lg`、既定 `Md`）・`palette`（`ColorPalette`
+5 値、既定 `Accent`）の 2 軸 variant クラスを付与するため本モジュールで
+再定義し（`fd-switch--size-<value>` / `fd-switch--color-palette-<value>`）、
+`Switch` 状態機械は再エクスポートしない（`avatar` の `Avatar` 非
+再エクスポートと同型、詳細は `src/switch.rs` 冒頭の rustdoc を参照）。
+
+`radio_group` モジュール（イシュー #683。`size`/`color-palette` variant
+拡張はイシュー #708）も同様に、styled `root` が `size`（既定 `Md`）・
+`palette`（既定 `Accent`）に応じたクラス（`fd-radio-group--size-<value>` /
+`fd-radio-group--color-palette-<value>`）を付与する。`RadioGroup` 状態機械
+は inherent `root()` を持たないため引き続き再エクスポートする（4c 節参照）。
+
+`switch`/`radio_group` いずれも、`size` variant は root スコープの CSS
+custom property（`--fandhe-switch-*`/`--fandhe-radio-group-*`）を root へ
+登録し、通常の CSS 継承で `control`/`item-control` 等の子孫パーツへ伝える
+（`SlotRecipe` へ子孫セレクタ機構は追加していない）。`palette` variant は
+既存の `recipe::palette_declarations`（`--fandhe-palette-*`、#606）を
+再利用する。
 
 `examples/headless-pre-styled-ui`（#552）は本クレートが未実装のため、
 headless-ui の `data-scope`/`data-part`/`data-state` セレクタへ手書きで
@@ -216,14 +232,13 @@ let _style_node = sheet.style_element();
   一致時の `display: none` は `SlotRecipe::state` 経由で多層防御として
   追加登録する（`src/avatar.rs` 冒頭の rustdoc 参照）。
 
-## 4c. styled RadioGroup ラッパー（イシュー #683）
+## 4c. styled RadioGroup ラッパー（イシュー #683、`size`/`palette` 拡張は #708）
 
 `radio_group` モジュールは `fandhe_frontend_headless_ui::radio_group`
-（イシュー #558/#536）の Root/Label/Item/ItemControl/ItemText/
-ItemHiddenInput 6 anatomy パーツと `RadioGroup` 状態機械をそのまま
-再エクスポート（`pub use fandhe_frontend_headless_ui::radio_group::*`）し、
+（イシュー #558/#536）の Label/Item/ItemControl/ItemText/ItemHiddenInput
+5 anatomy パーツと `RadioGroup` 状態機械を選択的に再エクスポートし、
 `stylesheet()` で既定 CSS を追加提供する（設計方針は #551/#664 の他
-headless ラッパーと同じ、`src/lib.rs` 冒頭の rustdoc 参照）。
+headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照）。
 
 - **`item-hidden-input` の視覚的非表示化**: headless 層はネイティブ
   `<input type="radio">` に `aria`/`data-*` のみを設定し視覚的な非表示化を
@@ -238,8 +253,41 @@ headless ラッパーと同じ、`src/lib.rs` 冒頭の rustdoc 参照）。
   `:focus-within` を当てるのが CSS 的に成立する唯一の経路のため、
   `recipe::StateCondition` へ `FocusWithin`（`:focus-within` 擬似クラス）を
   追加した（既存の `Attr`/`AttrEq`/`FocusVisible` に次ぐ 4 つ目の状態条件）。
-- 他の headless ラッパーと同様、variant（size 等）ごとのクラス切り替えは
-  スコープ外（単一既定スタイルのみ）。
+- **`root(size, palette, disabled, orientation, labelled_by, attrs,
+  children) -> Node`**（イシュー #708）: styled root パーツ。`size`
+  （`Size::Sm`/`Md`/`Lg`、既定 `Md`）・`palette`（`ColorPalette` 5 値、既定
+  `Accent`）の 2 軸 variant クラス（`fd-radio-group--size-<value>` /
+  `fd-radio-group--color-palette-<value>`）を付与する。headless 自由関数
+  `root` との名前衝突を避けるため本モジュールで再定義し、`pub use
+  ...::*` ではなく選択的 re-export とする。`RadioGroup` 状態機械は
+  inherent `root()` を持たないため（item 系メソッドのみ）、`avatar` の
+  `Avatar` と異なりそのまま再エクスポートを維持する。
+
+## 4d. 複合部品の variant 統一方針・variant 表（イシュー #708）
+
+単純部品（button/badge/spinner）・avatar に続き、headless 状態機械を持つ
+複合部品ラッパーへ `size`/`color-palette` variant を拡張する際の統一方針は
+`crates/pre-styled-ui/src/lib.rs` 冒頭の rustdoc「複合部品の variant 統一
+方針」節が正本。要旨:
+
+1. クラスは root slot のみに付与し、子孫パーツへの伝搬は root が登録する
+   CSS custom property の通常の継承で行う（`SlotRecipe` へ子孫セレクタ
+   機構は追加しない）。
+2. `var()` には Md/Accent 相当のフォールバック値を書き、headless 直接利用
+   でも現行外観を維持する。
+3. `size` はフォーム操作部品・トリガー系へ、`color-palette` は選択・
+   チェック状態を示す部品へ提供する。popover/tooltip は配置・寸法が
+   positioning 起因のため提供しない。
+
+| 部品 | size | color-palette | 状態 |
+|---|---|---|---|
+| button/badge/spinner | ✓ | ✓ | 実装済み（#550/#606） |
+| avatar | ✓ | – (shape) | 実装済み（#684） |
+| switch | ✓ | ✓ | 実装済み（#708） |
+| radio-group | ✓ | ✓ | 実装済み（#708） |
+| tabs | 候補 | 候補（selected trigger） | フォローアップ |
+| accordion / dialog / menu / select | 候補（size のみ） | – | フォローアップ |
+| popover / tooltip | 提供しない | 提供しない | 方針確定 |
 
 ## 5. 関連ドキュメント
 
