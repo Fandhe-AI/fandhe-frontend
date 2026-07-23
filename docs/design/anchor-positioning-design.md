@@ -369,7 +369,7 @@ css-anchor-positioning](https://caniuse.com/css-anchor-positioning) を参照）
 | 項目 | 引き継ぎ先 |
 |------|-----------|
 | 第 4.3 節で非対応と確定した Floating UI 高度 middleware（autoPlacement / inline / hide / size（sameWidth 以外）/ VirtualElement / ポインタ追従・連続再計算） | イシュー #639 で `docs/policy/intentional-non-adoption.md` §3.20 へ転記済み。同節が第 4.3 節・本節（第 6 節）への相互参照を持つ。CSS Anchor Positioning（第 4.5 節）の非採用判断は同書 §3.21 へ転記済み |
-| `docs/api/headless-ui-api.md` への本設計の反映 | #590（実装確定後）または別イシューでの追随を提案する |
+| `docs/api/headless-ui-api.md` への本設計の反映 | イシュー #666 で反映済み |
 | CSS Anchor Positioning の progressive enhancement 実装（第 4.5 節 (b)） | イシュー #644 で検討記録（フォールバック設計案・非採用の論点整理）を第 4.5a 節へ追加済み。判断（非採用）は変更なし。実装は Baseline「Widely available」到達後の再評価まで着手しない |
 
 新規の Issue 起票が必要な事項は、本書執筆時点では起票せず、PR 本文で提案に留め、
