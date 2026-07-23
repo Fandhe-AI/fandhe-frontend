@@ -168,6 +168,12 @@
 //!   [`nav_list::link`]）のみを使い、`site/assets/site.css` の自己完結
 //!   不変条件（§3.4）を維持したまま §3.1/§3.2 の意味論不整合を解消する
 //!   （[`mod@nav_list`] rustdoc 参照）。
+//! - headless ラッパー（イシュー #762）: [`mod@action_bar`]（ActionBar、
+//!   複数選択時に画面下部中央へ固定表示する操作バー）。`size`/`color-palette`
+//!   軸は持たず、`positioner` の `position: fixed; bottom: ...; left: 50%;
+//!   transform: translateX(-50%)` による画面下部固定配置と `data-state`
+//!   連動の見た目切り替えのみを提供する。詳細は [`mod@action_bar`] rustdoc
+//!   参照。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -294,6 +300,7 @@
 #![warn(missing_docs)]
 
 pub mod accordion;
+pub mod action_bar;
 pub mod alert;
 pub mod avatar;
 pub mod badge;

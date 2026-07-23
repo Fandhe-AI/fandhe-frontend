@@ -1204,3 +1204,41 @@ fn carousel_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         assert_payload_is_escaped(payload, &html, "carousel::item children コンテキスト");
     }
 }
+
+/// (11) action_bar 経路（イシュー #762）: 再エクスポートした `content` の
+/// `aria-label`（属性値経路）・`selection_trigger`/`close_trigger` の
+/// children（テキスト経路）で既定エスケープ（REQ-1）が貫通することを固定
+/// する（`tooltip_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn action_bar_reexported_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::action_bar;
+
+    for payload in payloads::all() {
+        let html = render(&action_bar::content(
+            OpenState::Open,
+            payload,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "action_bar::content aria-label コンテキスト",
+        );
+
+        let html = render(&action_bar::selection_trigger(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "action_bar::selection_trigger children コンテキスト",
+        );
+
+        let html = render(&action_bar::close_trigger(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "action_bar::close_trigger children コンテキスト",
+        );
+    }
+}

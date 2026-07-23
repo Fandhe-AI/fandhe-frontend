@@ -78,6 +78,7 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | Link | `link` | Root | なし（自由関数のみ。`external` オプトインで `target="_blank"` + `rel="noopener noreferrer"` を不可分に付与。現在位置は `aria-current="page"` + `data-current`） | #756 |
 | LinkOverlay | `link_overlay` | Root/Overlay | なし（自由関数のみ。`::before` 疑似要素の代わりに `overlay` 自身を styled 層で `position: absolute; inset: 0;` 展開するカード全面クリック化） | #756 |
 | NavList | `nav_list` | Root/Heading/List/Item/Link | なし（自由関数のみ。`role` を一切付与しない文書ナビ専用部品。`docs-site::nav.rs::sidebar` を本部品へ移行済み） | #756 |
+| ActionBar | `action_bar` | Root/Positioner/Content/SelectionTrigger/Separator/CloseTrigger | `state::Disclosure`（構造上最も近い先行例は Dialog。`content` は `role="toolbar"` + `aria-label`、`separator` は `role="separator"` + `aria-orientation="vertical"`。選択件数から `open` を導出する糖衣 API は持たず、開閉は呼び出し側が dispatch で制御する） | #762 |
 
 **未実装（open イシュー、後続で追補）**: Checkbox（#535）・Progress（#544）。
 本表はこれらの実装完了時に更新する。

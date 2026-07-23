@@ -45,6 +45,7 @@
 //! （recipe CSS・`site/assets/site.css` はいずれも変更しない）。
 
 use fandhe_frontend_core::{div, el, text, Node};
+use fandhe_frontend_pre_styled_ui::action_bar;
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
@@ -106,15 +107,17 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   開いた状態を固定掲示するとページ全体を覆ってしまうため掲示用にのみ隠す
 ///   （実際の modal 表示では backdrop は必須であり、ここでの非表示化は
 ///   ショーケースの掲示都合に限定する）。
-/// - dialog/menu/select/combobox/popover/tooltip の `[data-part="positioner"]` を
-///   `position: static` へ中和: recipe CSS は dialog を
-///   `position: fixed; inset: 0`、menu/select/combobox/popover を
+/// - dialog/menu/select/combobox/popover/tooltip/action-bar の
+///   `[data-part="positioner"]` を `position: static` へ中和: recipe CSS は
+///   dialog を `position: fixed; inset: 0`、menu/select/combobox/popover を
 ///   `position: absolute; top: 100%`、tooltip を
-///   `position: absolute; bottom: 100%` としており、いずれも開いた content を
-///   ページ内の別位置・別セクションに重ねてしまう。static 化してフロー内へ
-///   インライン表示させることで、後続セクションと重ならずに掲示できる
-///   （dialog はさらに `padding`/`justify-content` も中和し、中央寄せの
-///   ための余白・配置指定を解除する）。
+///   `position: absolute; bottom: 100%`、action-bar を
+///   `position: fixed; bottom: ...; left: 50%; transform: translateX(-50%)`
+///   としており、いずれも開いた content をページ内の別位置・別セクションに
+///   重ねてしまう。static 化してフロー内へインライン表示させることで、後続
+///   セクションと重ならずに掲示できる（dialog はさらに `padding`/
+///   `justify-content` も中和し、中央寄せのための余白・配置指定を解除する。
+///   action-bar はさらに `transform` も中和し、水平方向のずらしを解除する）。
 /// - dialog/popover の `title`（`h2`）見出しリセット: Accordion の `h3` と
 ///   同じ理由（`site.css` の `.docs-content h2` が漏れる）で、showcase 領域
 ///   内に限定して `border-top`/`padding-top`/`letter-spacing` を打ち消す
@@ -129,6 +132,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"backdrop\"] {\n  display: none;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: static;\n  padding: 0;\n  justify-content: flex-start;\n}\n\
 .pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"combobox\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
+.pre-styled-showcase [data-scope=\"action-bar\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n";
 
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
@@ -152,8 +156,8 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 /// コンポーネントの recipe CSS（button/badge/spinner/alert/card/tabs/
 /// accordion/dialog/menu/select/combobox/popover/tooltip/switch/radio_group/
 /// avatar/checkbox/checkbox_card/radio_card/input/textarea/native_select/
-/// number_input/tags_input/rating_group/slider/segment_group/breadcrumb）
-/// → ショーケース配置スタイル、の順で決定的に連結する。
+/// number_input/tags_input/rating_group/slider/segment_group/breadcrumb/
+/// action_bar）→ ショーケース配置スタイル、の順で決定的に連結する。
 ///
 /// # Errors
 ///
@@ -195,6 +199,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::pagination::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::breadcrumb::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::carousel::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::action_bar::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -2045,6 +2050,40 @@ fn breadcrumb_section() -> Node {
     )
 }
 
+/// ActionBar 節: 開いた状態の静的マークアップ（イシュー #762）。
+///
+/// 複数選択時に画面下部へ表示される操作バーの掲示。「2 selected」の選択件数
+/// 表示 + 全解除ボタン + separator + close trigger を組み立てる。`positioner`
+/// の画面下部固定配置は [`SHOWCASE_LAYOUT_CSS`] でフロー内配置へ中和する
+/// （[`dialog_section`]/[`tooltip_section`] と同じ方針。実 overlay 配置は
+/// recipe CSS に委ねる）。
+fn action_bar_section() -> Node {
+    let node = action_bar::root(
+        OpenState::Open,
+        vec![],
+        vec![action_bar::positioner(
+            OpenState::Open,
+            vec![],
+            vec![action_bar::content(
+                OpenState::Open,
+                "2 selected",
+                vec![],
+                vec![
+                    action_bar::selection_trigger(vec![], vec![text("2 selected")]),
+                    action_bar::separator(vec![], vec![]),
+                    action_bar::selection_trigger(vec![], vec![text("Delete")]),
+                    action_bar::close_trigger(vec![], vec![text("Close")]),
+                ],
+            )],
+        )],
+    );
+    section(
+        "ActionBar",
+        "headless-ui の ActionBar（role=\"toolbar\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています（実際の画面下部固定配置は recipe CSS が担います）。",
+        vec![node],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -2091,6 +2130,7 @@ fn showcase_body() -> Node {
             checkbox_card_section(),
             radio_card_section(),
             breadcrumb_section(),
+            action_bar_section(),
         ],
     )
 }
