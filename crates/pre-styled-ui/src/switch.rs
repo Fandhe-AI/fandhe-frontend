@@ -46,8 +46,7 @@
 //!   `data-focus-visible` 追加とあわせた Issue 化を別途提案する）。
 //! - [`crate::stylesheet::StyleSheet`] の
 //!   `push_recipe_is_infallible_for_all_styled_components` テストへの
-//!   popover/tooltip（#664）の未登録は本イシュー由来の欠落ではなく、別途の
-//!   Issue/PR で扱う。
+//!   popover/tooltip（#664）の登録漏れは #707 で解消済み。
 
 use crate::css::decl;
 use crate::recipe::{SlotRecipe, StateCondition};
