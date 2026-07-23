@@ -74,6 +74,7 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | TreeView | `tree_view` | Root/Label/Tree/Branch/BranchControl/BranchIndicator/BranchText/BranchContent/BranchIndentGuide/Item/ItemText/ItemIndicator | `state::MultiSelect`（展開中のブランチ値の集合）+ `state::SingleSelect`（選択中のノード値）の合成。両者とも `hydration_attrs` のフィールド名が `"selected"` で衝突するため、展開集合側のみ `"expanded"` へ書き換えて運ぶ（`tree_view` モジュール doc §hydration フィールド名参照）。`TreeView::render_nodes` が `TreeNode` 列から深さ・`aria-posinset`/`aria-setsize` を再帰的に計算する | #753 |
 | Pagination | `pagination` | Root/Item/Ellipsis/PrevTrigger/NextTrigger | 独自実装（総件数・ページサイズ・現在ページ・sibling/boundary 件数から省略記号を含むページ列を導出する `page_range`（決定的・`O(boundary_count + sibling_count)`）+ `Component`/`Hydrate` を直接実装する値状態機械。現在ページは `aria-current="page"`/`data-selected` で、端到達は `disabled`/`data-disabled` で表現する。§4b.3 の保留（#716）を解除） | #751 |
 | Breadcrumb | `breadcrumb` | Root/List/Item/Link/CurrentLink/Separator/Ellipsis | なし（自由関数のみ、SSR 静的な意味論ナビ。現在位置は `aria-current="page"` + `data-current` の併用で表現） | #755 |
+| HoverCard | `hover_card` | Root/Trigger/Positioner/Content/Arrow/ArrowTip | `state::Disclosure` | #759 |
 | Carousel | `carousel` | Root/Control/PrevTrigger/NextTrigger/ItemGroup/Item/IndicatorGroup/Indicator | 独自実装（`0..slide_count` を循環し得る index 値、`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。dispatch は `"next"`/`"prev"`/`"goto"`、`Goto` の範囲外 index は no-op で fail-closed。`item` は `role="group"` + `aria-roledescription="slide"` + 位置ラベル、`indicator` は `aria-current`。autoplay（play/pause/`aria-live` 切替/delay）は初期実装スコープ外） | #754 |
 | Drawer | `drawer` | Root/Trigger/Backdrop/Positioner/Content/Title/Description/CloseTrigger（Dialog と同一 8 パーツ、`data-scope="drawer"`） | `dialog::Dialog`（Dialog の状態機械へ全委譲。新規状態機械は作らない。固有に持つのは画面端の方向を表す `DrawerPlacement`（`start`/`end`/`top`/`bottom`）を `root`/`positioner`/`content` へ `data-placement` として出力する処理のみ） | #758 |
 | Link | `link` | Root | なし（自由関数のみ。`external` オプトインで `target="_blank"` + `rel="noopener noreferrer"` を不可分に付与。現在位置は `aria-current="page"` + `data-current`） | #756 |
@@ -100,6 +101,7 @@ placement 計算が実装済みとなった。
 | Menu | Positioner/Arrow/ArrowTip | `"menu"` | あり |
 | Select | Positioner のみ | `"select"` | なし |
 | Combobox | Positioner のみ（`data-scope="combobox"` の anatomy は #749 で実装済み） | `"combobox"` | なし |
+| HoverCard | Positioner/Arrow/ArrowTip | `"hover-card"` | あり |
 | ToggleTip | Positioner/Arrow/ArrowTip | `"toggle-tip"` | あり |
 
 Combobox の `positioner` は SSR 静的マークアップ（開閉状態の `data-state`/
@@ -107,6 +109,9 @@ Combobox の `positioner` は SSR 静的マークアップ（開閉状態の `da
 の `PositionedKind` への `Combobox` バリアント追加（実 DOM 計測・
 `OPEN_POSITIONER_SELECTOR` への組み込み）は後続イシューのスコープである
 （`select`/`menu`/`popover`/`tooltip` と同型の position 連携完了は未了）。
+HoverCard も同様に、`positioner`/`arrow`/`arrow_tip` anatomy とパーツ関数の
+attrs 透過（#759 時点で実装済み）に対し、`PositionedKind::from_scope` への
+`"hover-card"` 追加（実 DOM 計測対象化）は後続イシューのスコープである。
 
 再計算対象の走査は開いている positioner のみに限定する
 セレクタ `[data-part="positioner"][data-state="open"]`

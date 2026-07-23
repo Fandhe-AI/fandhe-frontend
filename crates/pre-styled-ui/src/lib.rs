@@ -140,6 +140,11 @@
 //!   下線表示切り替え）の 2 軸 variant を root のみへ付与し、`link` への
 //!   伝搬は root スコープ CSS custom property の継承で行う（[`mod@switch`]
 //!   と同型のパターン、[`mod@breadcrumb`] rustdoc 参照）。
+//! - headless ラッパー（イシュー #759）: [`mod@hover_card`]（HoverCard、
+//!   リンク先プレビュー等 hover/focus で開閉するオーバーレイ）。構造上
+//!   最も近い先行例は [`mod@tooltip`] であり、`content` の開閉連動・
+//!   `--fandhe-reference-width` 非消費・focus-visible リングの各方針を
+//!   継承する（[`mod@hover_card`] rustdoc 参照）。
 //! - カード型選択 UI 2 種（#747）: [`mod@checkbox_card`]/[`mod@radio_card`]。
 //!   chakra-ui の checkbox-card/radio-card 相当（ark-ui には対応する
 //!   headless anatomy が存在しないため、headless-ui は変更せず pre-styled
@@ -316,6 +321,7 @@ pub mod combobox;
 pub mod css;
 pub mod dialog;
 pub mod drawer;
+pub mod hover_card;
 pub mod input;
 pub mod link;
 pub mod link_overlay;
