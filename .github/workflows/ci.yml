@@ -2023,6 +2023,12 @@ jobs:
     name: "check-version-bump: published crate source changes require a version bump (issue #638)"
     if: ${{ github.event_name == 'pull_request' }}
     runs-on: self-hosted
+    # cargo metadata・git diff・crates.io sparse index 照会のみの軽量ジョブ
+    # だが、curl 呼び出しに `--connect-timeout`/`--max-time` を付けていても
+    # ジョブ全体（チェックアウト・ビルド込み）が無期限に self-hosted runner を
+    # 占有しないよう保険として timeout-minutes を明示する
+    # （イシュー #638 PR #647 レビュー指摘、他ジョブと同様の安全網）。
+    timeout-minutes: 10
     steps:
       - name: Checkout
         # actions/checkout（他ジョブと同一 SHA 固定）。docs/spec サブモジュールは
@@ -2065,24 +2071,41 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
+          # `if PIPELINE; then` の条件式内であれば、GitHub Actions 既定の
+          # `bash -e`（errexit）が有効なままでも pipefail によるパイプライン
+          # 失敗で即座にスクリプトが中断されることはない（gate-self-apply
+          # ジョブと同型のパターン）。旧実装は `set -uo pipefail`（-e を
+          # 明示的に含めない）としていたが、`set` は列挙しなかったオプションを
+          # 解除しない仕様のため、GitHub Actions のデフォルト起動オプション
+          # （`bash --noprofile --norc -eo pipefail {0}`）由来の -e が働いた
+          # ままとなり、パイプライン失敗時に `PIPESTATUS` 判定・"environment
+          # error: " grep 判定へ到達する前にジョブが中断していた
+          # （イシュー #638 PR #647 レビュー指摘）。
+          #
           # stdout/stderr をまとめて 1 ファイルへ tee する（プロセス置換
           # `2> >(...)` は書き込み完了を待たずに後続コマンドへ進むレースが
           # あるため使わない。標準出力の 1 行サマリ・標準エラーの
           # "environment error: " 判定のいずれもこのログファイルから行う）。
-          cargo run -p xtask --locked -- check-version-bump \
+          if cargo run -p xtask --locked -- check-version-bump \
               --base-ref "origin/${BASE_REF}" \
-              --pr-body-file pr-body.txt 2>&1 | tee check-version-bump.log
-          STATUS="${PIPESTATUS[0]}"
-          if [ "${STATUS}" -eq 0 ]; then
+              --pr-body-file pr-body.txt 2>&1 | tee check-version-bump.log; then
             exit 0
           fi
           # "environment error: " プレフィックス有無で「runner/ネットワーク
           # 起因」と「コード起因（バンプ漏れ）」を区別する（gate-self-apply と同型、
-          # ci.md 規約）。
+          # ci.md 規約）。さらに、バンプ漏れの断定は 1 行サマリの
+          # `result=FAIL` 行の有無で確認する: `cargo metadata`/`git diff` の
+          # 呼び出し自体が失敗した場合（例: `origin/${BASE_REF}` が fetch
+          # されていない）は `CommandFailed` として "environment error: "
+          # プレフィックスなしで報告されるが、バンプ漏れの断定ではないため
+          # 「バンプせよ」という誤った注釈を出さない
+          # （イシュー #638 PR #647 レビュー指摘）。
           if grep -q 'environment error: ' check-version-bump.log; then
             echo "::error::check-version-bump failed: environment error (runner/network issue, not code). See 'environment error:' lines above; verify this runner can reach https://index.crates.io."
-          else
+          elif grep -q '^version-bump-check:.*result=FAIL' check-version-bump.log; then
             echo "::error::check-version-bump failed: a published crate's sources changed but its version is unchanged from an already-published crates.io version (see 'version-bump-check:'/'result=FAIL' lines above). Either bump the version, or declare 'version-bump-exempt: <crate-name>' (with rationale) in the PR body if the change is not public-API-breaking."
+          else
+            echo "::error::check-version-bump failed for a reason other than a detected missing version bump (e.g. a 'cargo'/'git' command failure such as an unfetched base ref) or an already-classified environment error. See the log above for details; this is likely a runner/checkout issue rather than a version-bump omission."
           fi
           exit 1

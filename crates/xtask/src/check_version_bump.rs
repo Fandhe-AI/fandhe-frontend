@@ -323,6 +323,11 @@ pub fn extract_versions(body: &str) -> Vec<String> {
 /// stdout の末尾に `\n%{http_code}` を追記させ、最後の改行より後ろを
 /// status 行として分離する（sparse index の応答は改行区切り JSON のため、
 /// 本文自体が末尾に生の 3 桁の数字だけの行を持つことはない）。
+///
+/// `--connect-timeout`/`--max-time` を指定し、`index.crates.io` への接続・
+/// 応答がハングした場合でも self-hosted runner を無期限に占有しない
+/// （イシュー #638 PR #647 レビュー指摘。ジョブ側の `timeout-minutes` と
+/// 二重の安全網を構成する）。
 pub fn query_index(base_url: &str, crate_name: &str) -> Result<IndexLookup, CheckVersionBumpError> {
     if !curl_available() {
         return Err(CheckVersionBumpError::EnvironmentError(
@@ -336,7 +341,15 @@ pub fn query_index(base_url: &str, crate_name: &str) -> Result<IndexLookup, Chec
         index_path(crate_name)
     );
     let output = Command::new("curl")
-        .args(["-sS", "-w", "\n%{http_code}"])
+        .args([
+            "-sS",
+            "--connect-timeout",
+            "10",
+            "--max-time",
+            "30",
+            "-w",
+            "\n%{http_code}",
+        ])
         .arg(&url)
         .output()
         .map_err(|e| {
@@ -347,7 +360,7 @@ pub fn query_index(base_url: &str, crate_name: &str) -> Result<IndexLookup, Chec
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(CheckVersionBumpError::EnvironmentError(format!(
-            "curl exited with {status} while fetching {url} (network unreachable?): {stderr}",
+            "curl exited with {status} while fetching {url} (network unreachable or timed out?): {stderr}",
             status = output.status,
         )));
     }
@@ -363,7 +376,20 @@ pub fn query_index(base_url: &str, crate_name: &str) -> Result<IndexLookup, Chec
         return Ok(IndexLookup::NotPublished);
     }
     if status.len() == 3 && status.starts_with('2') {
-        return Ok(IndexLookup::Published(extract_versions(body)));
+        let versions = extract_versions(body);
+        // HTTP 200 系はクレートが存在する場合にのみ返るため、本来は最低 1
+        // バージョン行を含むはずである。0 件（空 body・全行パース不能等）は
+        // 「レジストリ側の異常応答」を示す信号であり、これを `Published([])`
+        // （→ `judge` で Pass 扱い）として通してしまうと、実際にはバンプ漏れの
+        // ある PR が index 応答の欠損に紛れて fail-open してしまう
+        // （イシュー #638 PR #647 レビュー指摘）。fail-closed の原則に従い
+        // environment error として扱い、判定を打ち切る。
+        if versions.is_empty() {
+            return Err(CheckVersionBumpError::EnvironmentError(format!(
+                "empty or unparseable sparse index response for `{crate_name}` despite HTTP {status} ({url}); cannot determine published versions"
+            )));
+        }
+        return Ok(IndexLookup::Published(versions));
     }
     Err(CheckVersionBumpError::EnvironmentError(format!(
         "unexpected HTTP status `{status}` from crates.io sparse index ({url})"

@@ -331,6 +331,36 @@ fn source_change_with_bump_passes() {
 }
 
 #[test]
+fn empty_200_response_is_environment_error_not_a_silent_pass() {
+    // イシュー #638 PR #647 レビュー指摘: HTTP 200 だが body が空/パース不能
+    // （sparse index の異常応答）の場合、`Published([])` として PASS 扱い
+    // してしまうと fail-open になる。fail-closed（終了コード 1・
+    // "environment error: " プレフィックス）であることを固定する。
+    if !curl_available() {
+        eprintln!("curl が利用できない環境のためネットワーク照会シナリオをスキップする");
+        return;
+    }
+    let dir = ScratchDir(unique_fixture_dir("empty-index-body"));
+    init_fixture_repo(&dir.0, "0.1.0");
+    commit_source_change(&dir.0, None);
+
+    let server = FakeIndexServer::start("200", "");
+    let output = run_xtask_check_version_bump(&dir.0, &["--index-base-url", &server.base_url]);
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "空 body の 200 応答は fail-closed（終了コード 1）契約。stdout: {} stderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("environment error: "),
+        "空 body の 200 応答は environment error として区別される契約: {stderr}"
+    );
+}
+
+#[test]
 fn unpublished_crate_passes_on_404() {
     if !curl_available() {
         eprintln!("curl が利用できない環境のためネットワーク照会シナリオをスキップする");
