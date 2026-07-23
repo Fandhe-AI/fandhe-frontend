@@ -134,13 +134,7 @@ fn build_tabs_dom(
             .set_attribute("data-state", if is_active { "active" } else { "inactive" })
             .unwrap();
         // roving tabindex: active があればそれが 0、なければ最初の非 disabled。
-        let is_tabbable = if is_active {
-            true
-        } else if !first_tabbable_set && !disabled && selected.is_none() {
-            true
-        } else {
-            false
-        };
+        let is_tabbable = is_active || (!first_tabbable_set && !disabled && selected.is_none());
         if is_tabbable {
             first_tabbable_set = true;
         }
