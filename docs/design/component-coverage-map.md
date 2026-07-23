@@ -36,8 +36,8 @@ Phase 3〜6（#736/#748/#757/#766 配下、#737〜#747・#749〜#756・#758〜#7
 
 `crates/headless-ui/src/lib.rs` の基盤 mod（anatomy / aria / data_attrs /
 positioning / state）を除く 15 mod、`crates/pre-styled-ui/src/lib.rs` の
-基盤 mod（css / recipe / stylesheet / theme）を除く 16 mod（styled ラッパー
-11 + 静的部品 5）が、本書の「実装済み」区分と一致することを次のコマンドで
+基盤 mod（css / recipe / stylesheet / theme）を除く 19 mod（styled ラッパー
+11 + 静的部品 8）が、本書の「実装済み」区分と一致することを次のコマンドで
 確認できる。
 
 ```bash
@@ -47,15 +47,17 @@ grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs \
   | grep -vE 'css|recipe|stylesheet|theme'
 ```
 
-2026-07-23 時点の実測（本書作成時に再取得・反映済み）:
+2026-07-23 時点の実測（本書作成時に再取得・反映済み。#737 マージにより
+pre-styled-ui の静的部品へ input / textarea / native_select の 3 件を追加
+反映）:
 
 - headless-ui 15: accordion / avatar / checkbox / collapsible / dialog /
   field / fieldset / menu / popover / progress / radio_group / select /
   switch / tabs / tooltip
-- pre-styled-ui 16（styled ラッパー 11 + 静的部品 5）:
+- pre-styled-ui 19（styled ラッパー 11 + 静的部品 8）:
   accordion / avatar / checkbox / dialog / menu / popover / radio_group /
   select / switch / tabs / tooltip（styled）+ alert / badge / button /
-  card / spinner（静的）
+  card / spinner / input / textarea / native_select（静的）
 
 ## 4. 抜けの機械確認手順
 
@@ -404,9 +406,9 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/forms/fieldset.md` | Fieldset | Fieldset | fieldset | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装 |
 | `.agents/skills/chakra-ui/references/components/forms/radio.md` | RadioGroup | Radio | radio_group | radio_group | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/forms/switch.md` | Switch | Switch | switch | switch | 実装済み | headless+styled 実装済み |
-| `.agents/skills/chakra-ui/references/components/forms/input.md` | — | Input | — | — | 実装対象 | #737 |
-| `.agents/skills/chakra-ui/references/components/forms/textarea.md` | — | Textarea | — | — | 実装対象 | #737 |
-| `.agents/skills/chakra-ui/references/components/forms/native-select.md` | — | NativeSelect | — | — | 実装対象 | #737 |
+| `.agents/skills/chakra-ui/references/components/forms/input.md` | — | Input | — | input | 実装済み | pre-styled 静的部品として実装済み（#737） |
+| `.agents/skills/chakra-ui/references/components/forms/textarea.md` | — | Textarea | — | textarea | 実装済み | pre-styled 静的部品として実装済み（#737） |
+| `.agents/skills/chakra-ui/references/components/forms/native-select.md` | — | NativeSelect | — | native_select | 実装済み | pre-styled 静的部品として実装済み（#737） |
 | `.agents/skills/chakra-ui/references/components/forms/number-input.md` | NumberInput | NumberInput | — | — | 実装対象 | #738 |
 | `.agents/skills/chakra-ui/references/components/forms/pin-input.md` | PinInput | PinInput | — | — | 実装対象 | #739 |
 | `.agents/skills/chakra-ui/references/components/forms/password-input.md` | PasswordInput | PasswordInput | — | — | 実装対象 | #740 |

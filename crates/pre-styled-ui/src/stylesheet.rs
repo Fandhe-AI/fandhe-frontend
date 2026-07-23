@@ -268,7 +268,11 @@ mod tests {
             ("radio_group", crate::radio_group::stylesheet()),
             ("avatar", crate::avatar::stylesheet()),
             ("checkbox", crate::checkbox::stylesheet()),
+            ("input", crate::input::css()),
+            ("textarea", crate::textarea::css()),
+            ("native_select", crate::native_select::css()),
             ("number_input", crate::number_input::stylesheet()),
+            ("pin_input", crate::pin_input::stylesheet()),
             ("rating_group", crate::rating_group::stylesheet()),
         ]
     }

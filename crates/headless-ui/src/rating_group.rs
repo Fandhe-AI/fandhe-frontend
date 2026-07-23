@@ -233,6 +233,16 @@ pub enum RatingGroupAction {
 /// モジュール doc「hover は SSR 非活性・hydration で直列化しない」参照）。
 /// `Default` は `count=5`・未評価・hover なし・`readonly=false`（SSR の
 /// 「未評価」初期描画に対応する既定値）。
+///
+/// [`Self::item`]/[`Self::hidden_input`] のみ利便メソッドを提供し、[`root`]
+/// への利便メソッドはあえて持たない（[`crate::radio_group::RadioGroup`]
+/// と同じ判断）。`fandhe_frontend_pre_styled_ui::rating_group` は
+/// `size`/`color-palette` variant クラス付与のため styled `root` を独自に
+/// 再定義しており、本型が `root()` を提供すると呼び出し側が styled 版を
+/// 経由せず本型経由で未スタイルの `root` を暗黙に呼べてしまう（variant
+/// クラスが静かに欠落する）。この事故を型レベルで防ぐため、`root` の組み
+/// 立ては呼び出し側が明示的に自由関数 [`root`]（または styled
+/// `rating_group::root`）を呼ぶ構成に限定する。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RatingGroup {
     count: u32,
@@ -332,17 +342,6 @@ impl RatingGroup {
     #[must_use]
     pub fn value_text(&self) -> String {
         self.value.map(|v| v.to_string()).unwrap_or_default()
-    }
-
-    /// [`root`] へ現在の状態を注入する利便メソッド。
-    #[must_use]
-    pub fn root<'a>(
-        &self,
-        disabled: bool,
-        attrs: Vec<(&'a str, &'a str)>,
-        children: Vec<Node>,
-    ) -> Node {
-        root(disabled, self.readonly, attrs, children)
     }
 
     /// [`item`] へ星番号 `index` の現在状態を注入する利便メソッド。
