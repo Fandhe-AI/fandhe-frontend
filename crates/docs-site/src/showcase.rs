@@ -50,6 +50,7 @@ use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
+use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
@@ -163,6 +164,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::avatar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::checkbox::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::rating_group::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -1177,6 +1179,70 @@ fn number_input_section() -> Node {
     )
 }
 
+/// RatingGroup 節: 選択中（value=3）・readonly（他ユーザーの平均評価想定）・
+/// disabled の 3 態。星形 indicator は外部リソース非参照の `clip-path`
+/// インライン表現（`fandhe_frontend_pre_styled_ui::rating_group` のモジュール
+/// doc「星形 indicator」節参照）。`hidden_input` はフォーム送信用の現在値を
+/// 送るネイティブ input（視覚上非表示、`display: none` の既定 CSS）。
+fn rating_group_section() -> Node {
+    let build = |id_prefix: &'static str, value: Option<u32>, disabled: bool, readonly: bool| {
+        let g = RatingGroup::new(5, value, readonly);
+        let label_id = format!("{id_prefix}-label");
+        let mut children = vec![rating_group::label(
+            Some(label_id.as_str()),
+            vec![],
+            vec![text("Rate this product")],
+        )];
+        let items: Vec<Node> = (1..=g.count())
+            .map(|i| {
+                let checked = g.is_checked(i);
+                let highlighted = g.is_highlighted(i);
+                rating_group::item(
+                    i,
+                    RatingItemFlags {
+                        checked,
+                        highlighted,
+                        disabled,
+                        readonly,
+                    },
+                    &format!("{i} star{}", if i == 1 { "" } else { "s" }),
+                    vec![],
+                    vec![],
+                )
+            })
+            .collect();
+        children.push(rating_group::control(
+            Some(label_id.as_str()),
+            vec![],
+            items,
+        ));
+        children.push(rating_group::hidden_input(
+            Some("rating"),
+            g.value_text().as_str(),
+            disabled,
+            vec![],
+        ));
+        rating_group::root(
+            Size::Md,
+            ColorPalette::Accent,
+            disabled,
+            readonly,
+            vec![],
+            children,
+        )
+    };
+
+    let selected = build("showcase-rating-selected", Some(3), false, false);
+    let readonly = build("showcase-rating-readonly", Some(4), false, true);
+    let disabled = build("showcase-rating-disabled", Some(2), true, false);
+
+    section(
+        "RatingGroup",
+        "1..=count の星評価。data-highlighted が塗り表示（hover プレビュー優先）、data-checked が確定選択を表します。星形は SVG/画像 URL を使わない clip-path によるインライン表現です。",
+        vec![row(vec![selected, readonly, disabled])],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -1211,6 +1277,7 @@ fn showcase_body() -> Node {
             avatar_section(),
             checkbox_section(),
             number_input_section(),
+            rating_group_section(),
         ],
     )
 }
@@ -1248,6 +1315,7 @@ mod tests {
             "avatar",
             "checkbox",
             "number-input",
+            "rating-group",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),

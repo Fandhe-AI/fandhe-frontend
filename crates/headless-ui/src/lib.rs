@@ -157,6 +157,12 @@
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。ark-ui の
 //!   Scrubber パーツ・キーボード操作の DOM 配線は本イシューのスコープ外
 //!   （[`number_input`] モジュール doc 参照）。
+//! - [`mod@rating_group`]: Root / Label / Control / Item / HiddenInput の 5
+//!   anatomy パーツと、`1..=count` の数値評価値（未評価は `None`）+ hover
+//!   プレビューを持つ [`rating_group::RatingGroup`] 状態機械（#742、親
+//!   #736）。`hover` は SSR 非活性・hydration 非直列化（[`rating_group`]
+//!   モジュール doc 参照）。`allow_half`（0.5 刻み）・hover/クリック/
+//!   キーボードナビの DOM 配線は本イシューのスコープ外。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
@@ -210,6 +216,7 @@ pub mod popover;
 pub mod positioning;
 pub mod progress;
 pub mod radio_group;
+pub mod rating_group;
 pub mod select;
 pub mod state;
 pub mod switch;
@@ -246,8 +253,8 @@ pub use aria::{
 pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use checkbox::{Checkbox, CheckboxFlags};
 pub use data_attrs::{
-    data_disabled, data_highlighted, data_invalid, data_orientation, data_readonly, data_required,
-    data_state, Orientation,
+    data_checked, data_disabled, data_highlighted, data_invalid, data_orientation, data_readonly,
+    data_required, data_state, Orientation,
 };
 pub use dialog::Dialog;
 pub use field::{FieldIds, FieldProps};
@@ -260,6 +267,7 @@ pub use positioning::{
 };
 pub use progress::{Progress, ProgressAction};
 pub use radio_group::RadioGroup;
+pub use rating_group::{RatingGroup, RatingGroupAction, RatingItemFlags};
 pub use state::{
     Checkable, CheckableAction, Disclosure, DisclosureAction, MultiSelect, MultiSelectAction,
     OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CHECKED, DATA_STATE_CLOSED,

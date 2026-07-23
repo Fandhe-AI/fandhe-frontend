@@ -27,8 +27,8 @@
 
 use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::{
-    aria_controls, aria_label, avatar, data_state, dialog, number_input, popover, ImageStatus,
-    OpenState,
+    aria_controls, aria_label, avatar, data_state, dialog, number_input, popover, rating_group,
+    ImageStatus, OpenState,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -205,6 +205,26 @@ fn number_input_name_and_label_children_are_escaped_for_all_payloads() {
         let label_node = number_input::label(false, false, None, vec![], vec![text(payload)]);
         let html = render(&label_node);
         assert_payload_is_escaped(payload, &html, "number_input::label のテキストコンテキスト");
+    }
+}
+
+/// (1)/(2) RatingGroup（イシュー #742）: `hidden_input` の `name`（属性値
+/// 経路）と `label` の children（テキスト経路）へ全ペイロードを注入し、
+/// エスケープが貫通することを固定する（`number_input` 分と同型）。
+#[test]
+fn rating_group_name_and_label_children_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let hidden_input_node = rating_group::hidden_input(Some(payload), "3", false, vec![]);
+        let html = render(&hidden_input_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "rating_group::hidden_input の name 属性値コンテキスト",
+        );
+
+        let label_node = rating_group::label(None, vec![], vec![text(payload)]);
+        let html = render(&label_node);
+        assert_payload_is_escaped(payload, &html, "rating_group::label のテキストコンテキスト");
     }
 }
 

@@ -23,8 +23,8 @@ rustdoc および各モジュール冒頭の rustdoc とする。本節はモジ
 
 本クレートは第 5 弾ツリー（#680）完了・crates.io v0.4.0 公開（#686）・
 checkbox styled ラッパー追加（#730）・NumberInput styled ラッパー追加
-（#738、いずれも公開時点未反映）を経て 21 の公開モジュールを持つ。内訳は
-次の通り。
+（#738）・RatingGroup styled ラッパー追加（#742、いずれも公開時点未反映）を
+経て 22 の公開モジュールを持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -40,6 +40,7 @@ checkbox styled ラッパー追加（#730）・NumberInput styled ラッパー�
 | headless ラッパー | `avatar` | #684（§4b 参照） |
 | headless ラッパー第 5 弾 | `checkbox` | #730（§4e 参照） |
 | headless ラッパー第 6 弾 | `number_input` | #738（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） |
+| headless ラッパー第 7 弾 | `rating_group` | #742（`size`/`color-palette` 両軸、星形 indicator は `clip-path` インライン表現） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
@@ -403,6 +404,7 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | tabs | ✓ | ✓（selected trigger の強調色） | 実装済み（#729） |
 | accordion / dialog / menu / select | ✓ | – | 実装済み（#729） |
 | number-input | ✓ | – | 実装済み（#738、フォーム入力部品のため color-palette は非提供） |
+| rating-group | ✓ | ✓ | 実装済み（#742、星形 indicator の寸法・点灯色に反映） |
 | popover / tooltip | 提供しない | 提供しない | 方針確定 |
 
 tabs/accordion/dialog/menu/select の実装詳細（イシュー #729）:
