@@ -28,13 +28,44 @@
 //! (d) `PositionController::new` → `Drop` の対称性（scroll/resize リスナー
 //!     登録・解除、`overlay_close_browser.rs` と同じ回帰観点）が panic せず
 //!     完走する
+//!
+//! 以下 (e)〜(j) はイシュー #645（親 #588 クローズコメントで追跡が要請された
+//! 残課題）で追加した検証観点。(a)〜(d) までは Popover 中心だったのに対し、
+//! Menu/Select/Tooltip の配線（`PositionedKind::has_arrow`/
+//! `same_width_default` の分岐・希望 placement の永続化・scroll/resize 契機の
+//! 再配置）が実 DOM 経路（`getBoundingClientRect` 実測 → `--fandhe-*` CSS 変数・
+//! `data-side`/`data-align` 反映）でも成立することを固定する。
+//!
+//! (e) Menu の positioner は `same_width_default() == true` のため
+//!     `--fandhe-reference-width` を含み、`has_arrow() == true` のため
+//!     arrow 要素にも `style`（`--fandhe-arrow-x`/`--fandhe-arrow-y`）が
+//!     複製される
+//! (f) Select の positioner も `--fandhe-reference-width` を含み、その値は
+//!     anchor（trigger）の実測幅と一致する。Select は
+//!     `has_arrow() == false` のため、scope 内にデコイの arrow 要素を
+//!     置いても `style` が複製されない（fail-closed 契約の実 DOM 確認）
+//! (g) Tooltip の positioner は `same_width_default() == false` のため
+//!     `--fandhe-reference-width` を含まないが、`has_arrow() == true` の
+//!     ため arrow 要素へ `style` が複製される（イシュー #622 レビュー指摘:
+//!     tooltip positioner の `data-state` 出力漏れで再計算対象から漏れて
+//!     いた回帰の実ブラウザ固定）
+//! (h) `attrs` 経由で渡した希望 placement（`data-side`/`data-align`）が
+//!     `reposition_now()` 後も維持され、`data-requested-side`/
+//!     `data-requested-align` へ永続化される
+//! (i) trigger の位置を書き換えたうえで合成 `resize`/`scroll` イベントを
+//!     `window.dispatch_event` すると、`PositionController` のリスナー配線
+//!     経由で `--fandhe-x` が新しい anchor 位置へ再計算される
+//! (j) Menu の item ラベル・Select の item_text・Tooltip の content・属性値へ
+//!     XSS ペイロードを既定エスケープ経由（`fandhe_frontend_core::text`）で
+//!     渡しても、位置決め配線（`set_dom_attribute` の `style`/`data-*` 書き
+//!     込み）が既定エスケープ保証を弱めないこと（REQ-1 の位置決め経路への
+//!     拡張回帰）
 
 #![cfg(target_arch = "wasm32")]
 
-use fandhe_frontend_core::render;
-use fandhe_frontend_headless_ui::menu;
-use fandhe_frontend_headless_ui::popover;
+use fandhe_frontend_core::{el, render, text};
 use fandhe_frontend_headless_ui::state::OpenState;
+use fandhe_frontend_headless_ui::{menu, popover, select, tooltip};
 use fandhe_frontend_wasm_full::position::PositionController;
 use wasm_bindgen_test::*;
 use web_sys::{Document, Element};
@@ -400,4 +431,720 @@ fn controller_new_and_drop_are_symmetric_and_do_not_panic() {
         controller.reposition_now();
         drop(controller);
     }
+}
+
+// ---------------------------------------------------------------------
+// イシュー #645（親 #588 残課題）: Menu/Select/Tooltip の配線検証。
+// 冒頭 doc の検証観点 (e)〜(j) 参照。
+// ---------------------------------------------------------------------
+
+/// `style` 属性の値から任意の `--fandhe-*` CSS 変数の数値（px 前の部分）を
+/// 取り出す（[`extract_fandhe_x`] の汎用版。実装側の書式契約
+/// （`"name: 123.4px;"`）に依存しない緩い抽出とし、変数名の前後の空白の
+/// 有無に関わらず値を取得できるようにする）。
+fn extract_css_var_px(style: &str, var_name: &str) -> f64 {
+    let marker = format!("{var_name}:");
+    let after = style
+        .split(marker.as_str())
+        .nth(1)
+        .unwrap_or_else(|| panic!("style must contain {marker}: {style}"));
+    let number_part = after.split("px").next().expect("value must end with px");
+    number_part
+        .trim()
+        .parse::<f64>()
+        .expect("css var value must be a valid number")
+}
+
+/// 単一の Menu（trigger + positioner + content + item + arrow、open 状態）を
+/// `container` 配下へ展開し、`(trigger, positioner, arrow)` を返す。
+/// `trigger_style` は anchor 矩形を決定的にするための inline style
+/// （`position: fixed` で viewport 上の位置・サイズを固定する）。
+fn mount_open_menu_with_arrow(
+    document: &Document,
+    container: &Element,
+    id_prefix: &str,
+    trigger_style: &str,
+) -> (Element, Element, Element) {
+    let trigger_id = format!("{id_prefix}-trigger");
+    let positioner_id = format!("{id_prefix}-positioner");
+    let arrow_id = format!("{id_prefix}-arrow");
+    let html = render(&menu::root(
+        OpenState::Open,
+        vec![],
+        vec![
+            menu::trigger(
+                OpenState::Open,
+                false,
+                None,
+                vec![("id", trigger_id.as_str()), ("style", trigger_style)],
+                vec![],
+            ),
+            menu::positioner(
+                OpenState::Open,
+                vec![("id", positioner_id.as_str())],
+                vec![
+                    menu::content(
+                        OpenState::Open,
+                        None,
+                        None,
+                        vec![],
+                        vec![menu::item(
+                            "item-1",
+                            false,
+                            false,
+                            vec![],
+                            vec![text("Item 1")],
+                        )],
+                    ),
+                    menu::arrow(vec![("id", arrow_id.as_str())], vec![]),
+                ],
+            ),
+        ],
+    ));
+    container.set_inner_html(&html);
+    let trigger = document
+        .get_element_by_id(&trigger_id)
+        .expect("trigger element must exist");
+    let positioner = document
+        .get_element_by_id(&positioner_id)
+        .expect("positioner element must exist");
+    let arrow = document
+        .get_element_by_id(&arrow_id)
+        .expect("arrow element must exist");
+    (trigger, positioner, arrow)
+}
+
+#[wasm_bindgen_test]
+fn reposition_now_sets_reference_width_and_arrow_style_for_menu() {
+    // Menu は `PositionedKind::same_width_default() == true` かつ
+    // `has_arrow() == true`（native 側の
+    // `same_width_default_true_for_menu_and_select_only`/
+    // `only_select_lacks_arrow` と同じ契約をブラウザ経路でも確認する）。
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+    let container = create_placeholder(&document, "position-browser-menu-arrow");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let (_trigger, positioner, arrow) = mount_open_menu_with_arrow(
+        &document,
+        &container,
+        "position-browser-menu-arrow",
+        "position: fixed; left: 10px; top: 10px; width: 40px; height: 20px;",
+    );
+
+    let controller =
+        PositionController::new(&window).expect("PositionController::new must succeed");
+    controller.reposition_now();
+
+    let style = positioner
+        .get_attribute("style")
+        .expect("Menu positioner must receive a style attribute after reposition_now");
+    assert!(style.contains("--fandhe-x:"));
+    assert!(style.contains("--fandhe-y:"));
+    assert!(
+        style.contains("--fandhe-reference-width:"),
+        "Menu (same_width_default() == true) must output --fandhe-reference-width: {style}"
+    );
+
+    let arrow_style = arrow.get_attribute("style").expect(
+        "Menu arrow element must receive a style attribute after reposition_now \
+         (has_arrow() == true, find_arrow must resolve [data-part=\"arrow\"])",
+    );
+    assert!(arrow_style.contains("--fandhe-arrow-x:"));
+    assert!(arrow_style.contains("--fandhe-arrow-y:"));
+
+    drop(controller);
+}
+
+/// 単一の Select（control + trigger + positioner + content + item、open
+/// 状態）を `container` 配下へ展開する。`decoy_arrow` として
+/// `data-part="arrow"` のデコイ要素を positioner 配下へ追加し、
+/// `PositionedKind::Select::has_arrow() == false` の fail-closed 契約
+/// （`style` が付与されないこと）をブラウザ経路で確認できるようにする。
+/// `(trigger, positioner, decoy_arrow)` を返す。
+fn mount_open_select_with_decoy_arrow(
+    document: &Document,
+    container: &Element,
+    id_prefix: &str,
+    trigger_style: &str,
+) -> (Element, Element, Element) {
+    let trigger_id = format!("{id_prefix}-trigger");
+    let positioner_id = format!("{id_prefix}-positioner");
+    let decoy_arrow_id = format!("{id_prefix}-decoy-arrow");
+    let html = render(&select::root(
+        OpenState::Open,
+        vec![],
+        vec![
+            select::control(
+                OpenState::Open,
+                vec![],
+                vec![select::trigger(
+                    OpenState::Open,
+                    false,
+                    None,
+                    None,
+                    vec![("id", trigger_id.as_str()), ("style", trigger_style)],
+                    vec![],
+                )],
+            ),
+            select::positioner(
+                OpenState::Open,
+                vec![("id", positioner_id.as_str())],
+                vec![
+                    select::content(
+                        OpenState::Open,
+                        None,
+                        None,
+                        None,
+                        vec![],
+                        vec![select::item(
+                            OpenState::Closed,
+                            false,
+                            false,
+                            "option-1",
+                            None,
+                            vec![],
+                            vec![select::item_text(None, vec![], vec![text("Option 1")])],
+                        )],
+                    ),
+                    // headless-ui の select モジュールは arrow パーツを
+                    // 提供しない（`has_arrow() == false`）。誤ってマークアップに
+                    // 混入した `data-part="arrow"` 要素が repositioning から
+                    // 除外されることを確認するためのデコイ。
+                    el(
+                        "div",
+                        vec![("data-part", "arrow"), ("id", decoy_arrow_id.as_str())],
+                        vec![],
+                    ),
+                ],
+            ),
+        ],
+    ));
+    container.set_inner_html(&html);
+    let trigger = document
+        .get_element_by_id(&trigger_id)
+        .expect("trigger element must exist");
+    let positioner = document
+        .get_element_by_id(&positioner_id)
+        .expect("positioner element must exist");
+    let decoy_arrow = document
+        .get_element_by_id(&decoy_arrow_id)
+        .expect("decoy arrow element must exist");
+    (trigger, positioner, decoy_arrow)
+}
+
+#[wasm_bindgen_test]
+fn reposition_now_sets_reference_width_matching_anchor_width_for_select_and_skips_decoy_arrow() {
+    // Select は `PositionedKind::same_width_default() == true` かつ
+    // `has_arrow() == false`（`only_select_lacks_arrow` の native 契約を
+    // ブラウザ経路で確認する）。`--fandhe-reference-width` の値が実測した
+    // anchor（trigger）幅と一致することも end-to-end で確認する。
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+    let container = create_placeholder(&document, "position-browser-select-width");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let (_trigger, positioner, decoy_arrow) = mount_open_select_with_decoy_arrow(
+        &document,
+        &container,
+        "position-browser-select-width",
+        "position: fixed; left: 20px; top: 20px; width: 150px; height: 24px;",
+    );
+
+    let controller =
+        PositionController::new(&window).expect("PositionController::new must succeed");
+    controller.reposition_now();
+
+    let style = positioner
+        .get_attribute("style")
+        .expect("Select positioner must receive a style attribute after reposition_now");
+    assert!(style.contains("--fandhe-x:"));
+    assert!(style.contains("--fandhe-y:"));
+    assert!(
+        style.contains("--fandhe-reference-width:"),
+        "Select (same_width_default() == true) must output --fandhe-reference-width: {style}"
+    );
+
+    let reference_width = extract_css_var_px(&style, "--fandhe-reference-width");
+    assert!(
+        (reference_width - 150.0).abs() < 1.0,
+        "--fandhe-reference-width must match the anchor (trigger) measured width (150px); \
+         got {reference_width}"
+    );
+
+    assert!(
+        decoy_arrow.get_attribute("style").is_none(),
+        "Select (has_arrow() == false) must not receive a style attribute on a decoy \
+         [data-part=\"arrow\"] element"
+    );
+
+    drop(controller);
+}
+
+/// 単一の Tooltip（trigger + positioner + arrow + content、open 状態）を
+/// `container` 配下へ展開し、`(positioner, arrow)` を返す。
+fn mount_open_tooltip_with_arrow(
+    document: &Document,
+    container: &Element,
+    id_prefix: &str,
+) -> (Element, Element) {
+    let positioner_id = format!("{id_prefix}-positioner");
+    let arrow_id = format!("{id_prefix}-arrow");
+    let html = render(&tooltip::root(
+        OpenState::Open,
+        vec![],
+        vec![
+            tooltip::trigger(OpenState::Open, false, None, vec![], vec![]),
+            tooltip::positioner(
+                OpenState::Open,
+                vec![("id", positioner_id.as_str())],
+                vec![
+                    tooltip::arrow(vec![("id", arrow_id.as_str())], vec![]),
+                    tooltip::content(OpenState::Open, None, vec![], vec![text("Tip")]),
+                ],
+            ),
+        ],
+    ));
+    container.set_inner_html(&html);
+    let positioner = document
+        .get_element_by_id(&positioner_id)
+        .expect("positioner element must exist");
+    let arrow = document
+        .get_element_by_id(&arrow_id)
+        .expect("arrow element must exist");
+    (positioner, arrow)
+}
+
+#[wasm_bindgen_test]
+fn reposition_now_sets_style_and_arrow_but_omits_reference_width_for_tooltip() {
+    // Tooltip は `PositionedKind::same_width_default() == false`（任意サイズの
+    // コンテンツを想定）かつ `has_arrow() == true`。加えて
+    // `tooltip::positioner` が `data-state` を出力すること（イシュー #622
+    // レビュー指摘: 従来出力されておらず `reposition_all` の
+    // `[data-part="positioner"][data-state="open"]` セレクタにマッチせず
+    // 再計算対象から漏れていた）の回帰をブラウザ経路で固定する。
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+    let container = create_placeholder(&document, "position-browser-tooltip-arrow");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let (positioner, arrow) =
+        mount_open_tooltip_with_arrow(&document, &container, "position-browser-tooltip-arrow");
+    assert_eq!(
+        positioner.get_attribute("data-state").as_deref(),
+        Some("open"),
+        "tooltip::positioner must output data-state (issue #622 review regression guard)"
+    );
+
+    let controller =
+        PositionController::new(&window).expect("PositionController::new must succeed");
+    controller.reposition_now();
+
+    let style = positioner
+        .get_attribute("style")
+        .expect("Tooltip positioner must receive a style attribute after reposition_now");
+    assert!(style.contains("--fandhe-x:"));
+    assert!(style.contains("--fandhe-y:"));
+    assert!(
+        !style.contains("--fandhe-reference-width:"),
+        "Tooltip (same_width_default() == false) must not output --fandhe-reference-width: {style}"
+    );
+
+    let arrow_style = arrow
+        .get_attribute("style")
+        .expect("Tooltip arrow element must receive a style attribute after reposition_now");
+    assert!(arrow_style.contains("--fandhe-arrow-x:"));
+    assert!(arrow_style.contains("--fandhe-arrow-y:"));
+
+    drop(controller);
+}
+
+#[wasm_bindgen_test]
+fn reposition_now_preserves_requested_placement_and_persists_it_across_recalculation() {
+    // SSR マークアップの positioner へ最初から data-side="right"/
+    // data-align="start" を渡した Menu を展開する。trigger は viewport 左上の
+    // 小さい矩形に fixed 固定し、flip が決定的に発生しない配置にする
+    // （右側に十分な余白を確保）。
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+    let container = create_placeholder(&document, "position-browser-menu-placement");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let trigger_id = "position-browser-menu-placement-trigger";
+    let positioner_id = "position-browser-menu-placement-positioner";
+    let html = render(&menu::root(
+        OpenState::Open,
+        vec![],
+        vec![
+            menu::trigger(
+                OpenState::Open,
+                false,
+                None,
+                vec![
+                    ("id", trigger_id),
+                    (
+                        "style",
+                        "position: fixed; left: 5px; top: 100px; width: 10px; height: 10px;",
+                    ),
+                ],
+                vec![],
+            ),
+            menu::positioner(
+                OpenState::Open,
+                vec![
+                    ("id", positioner_id),
+                    ("data-side", "right"),
+                    ("data-align", "start"),
+                ],
+                vec![menu::content(
+                    OpenState::Open,
+                    None,
+                    None,
+                    vec![],
+                    vec![menu::item(
+                        "item-1",
+                        false,
+                        false,
+                        vec![],
+                        vec![text("Item 1")],
+                    )],
+                )],
+            ),
+        ],
+    ));
+    container.set_inner_html(&html);
+    let positioner = document
+        .get_element_by_id(positioner_id)
+        .expect("positioner element must exist");
+
+    let controller =
+        PositionController::new(&window).expect("PositionController::new must succeed");
+    controller.reposition_now();
+
+    assert_eq!(
+        positioner.get_attribute("data-side").as_deref(),
+        Some("right"),
+        "requested placement (data-side=\"right\") must be honored when there is no need to flip"
+    );
+    assert_eq!(
+        positioner.get_attribute("data-align").as_deref(),
+        Some("start"),
+        "requested placement (data-align=\"start\") must be honored"
+    );
+    assert_eq!(
+        positioner.get_attribute("data-requested-side").as_deref(),
+        Some("right"),
+        "the initial data-side must be persisted into data-requested-side \
+         (resolve_requested_placement's fallback_side input, issue #622 review fix)"
+    );
+    assert_eq!(
+        positioner.get_attribute("data-requested-align").as_deref(),
+        Some("start"),
+        "the initial data-align must be persisted into data-requested-align"
+    );
+
+    drop(controller);
+}
+
+#[wasm_bindgen_test]
+fn reposition_all_recalculates_positioner_after_resize_event_moves_the_anchor() {
+    // trigger を `position: fixed` で固定した Select を展開し、
+    // `reposition_now()` で初回の `--fandhe-x` を記録したうえで、trigger の
+    // `style` 属性を書き換えたあと合成 `resize` イベントを
+    // `window.dispatch_event` する。`PositionController::new` が登録した
+    // resize リスナー（`wiring::PositionController::new` 参照）経由で
+    // `reposition_all` が呼ばれ、開いている positioner が新しい anchor 位置へ
+    // 再計算されることを確認する（`nav_pagehide_browser.rs` と同じ合成
+    // イベント dispatch パターン）。
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+    let container = create_placeholder(&document, "position-browser-resize-reflow");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let (trigger, positioner, _decoy_arrow) = mount_open_select_with_decoy_arrow(
+        &document,
+        &container,
+        "position-browser-resize-reflow",
+        "position: fixed; left: 5px; top: 50px; width: 10px; height: 10px;",
+    );
+
+    let controller =
+        PositionController::new(&window).expect("PositionController::new must succeed");
+    controller.reposition_now();
+
+    let initial_style = positioner
+        .get_attribute("style")
+        .expect("Select positioner must receive a style attribute after the initial reposition");
+    let initial_x = extract_fandhe_x(&initial_style);
+    assert!(
+        initial_x < 100.0,
+        "initial --fandhe-x must reflect the anchor fixed at left: 5px; got {initial_x}"
+    );
+
+    trigger
+        .set_attribute(
+            "style",
+            "position: fixed; left: 400px; top: 50px; width: 10px; height: 10px;",
+        )
+        .expect("set_attribute must not fail for a plain style rewrite");
+
+    let resize_event = web_sys::Event::new("resize").expect("Event construction must not fail");
+    window
+        .dispatch_event(&resize_event)
+        .expect("dispatch_event must not fail");
+
+    let updated_style = positioner.get_attribute("style").expect(
+        "Select positioner must still have a style attribute after the resize-triggered recalculation",
+    );
+    let updated_x = extract_fandhe_x(&updated_style);
+    assert!(
+        updated_x > 300.0,
+        "after moving the anchor to left: 400px and dispatching resize, --fandhe-x must be \
+         recalculated to reflect the new anchor position; got {updated_x}"
+    );
+
+    drop(controller);
+}
+
+#[wasm_bindgen_test]
+fn reposition_all_recalculates_positioner_after_scroll_event_moves_the_anchor() {
+    // resize 版（上記テスト）と対の scroll 契機の回帰確認。scroll リスナーは
+    // キャプチャフェーズで登録される（`wiring::PositionController::new` 参照）
+    // が、`window.dispatch_event` された合成イベントもキャプチャ登録済み
+    // リスナーへ届く（バブリング段階を待たず、ターゲットフェーズで発火する
+    // ため）。
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+    let container = create_placeholder(&document, "position-browser-scroll-reflow");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let (trigger, positioner, _decoy_arrow) = mount_open_select_with_decoy_arrow(
+        &document,
+        &container,
+        "position-browser-scroll-reflow",
+        "position: fixed; left: 5px; top: 50px; width: 10px; height: 10px;",
+    );
+
+    let controller =
+        PositionController::new(&window).expect("PositionController::new must succeed");
+    controller.reposition_now();
+
+    trigger
+        .set_attribute(
+            "style",
+            "position: fixed; left: 400px; top: 50px; width: 10px; height: 10px;",
+        )
+        .expect("set_attribute must not fail for a plain style rewrite");
+
+    let scroll_event = web_sys::Event::new("scroll").expect("Event construction must not fail");
+    window
+        .dispatch_event(&scroll_event)
+        .expect("dispatch_event must not fail");
+
+    let updated_style = positioner.get_attribute("style").expect(
+        "Select positioner must still have a style attribute after the scroll-triggered recalculation",
+    );
+    let updated_x = extract_fandhe_x(&updated_style);
+    assert!(
+        updated_x > 300.0,
+        "after moving the anchor to left: 400px and dispatching scroll, --fandhe-x must be \
+         recalculated to reflect the new anchor position; got {updated_x}"
+    );
+
+    drop(controller);
+}
+
+#[wasm_bindgen_test]
+fn reposition_now_does_not_weaken_default_escaping_for_menu_select_and_tooltip_content() {
+    // REQ-1（既定エスケープ）の位置決め経路への拡張回帰（イシュー #645
+    // 検証観点 (j)）: 位置決め配線（`set_dom_attribute` の `style`/`data-*`
+    // 書き込み）は positioner/arrow 要素のみを対象とし、他のノード木 API
+    // 経由コンテンツの既定エスケープ保証には触れない契約であることを、
+    // 実際に XSS ペイロードを含むフィクスチャで確認する
+    // （`xss_escape_wasm.rs` のペイロード集合と対応させる）。
+    let window = web_sys::window().expect("window must exist in browser test environment");
+    let document = window.document().expect("document must exist");
+    let container = create_placeholder(&document, "position-browser-xss");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let script_payload = "<script>alert('fandhe-xss')</script>";
+    let img_payload = "<img src=x onerror=alert(1)>";
+    let attr_payload = "\" onmouseover=\"alert(1)";
+
+    let menu_trigger_id = "position-browser-xss-menu-trigger";
+    let menu_positioner_id = "position-browser-xss-menu-positioner";
+    let select_positioner_id = "position-browser-xss-select-positioner";
+    let tooltip_positioner_id = "position-browser-xss-tooltip-positioner";
+
+    let html = render(&el(
+        "div",
+        vec![],
+        vec![
+            menu::root(
+                OpenState::Open,
+                vec![],
+                vec![
+                    menu::trigger(
+                        OpenState::Open,
+                        false,
+                        None,
+                        vec![("id", menu_trigger_id), ("data-testid", attr_payload)],
+                        vec![],
+                    ),
+                    menu::positioner(
+                        OpenState::Open,
+                        vec![("id", menu_positioner_id)],
+                        vec![menu::content(
+                            OpenState::Open,
+                            None,
+                            None,
+                            vec![],
+                            vec![menu::item(
+                                "item-1",
+                                false,
+                                false,
+                                vec![],
+                                vec![text(script_payload)],
+                            )],
+                        )],
+                    ),
+                ],
+            ),
+            select::root(
+                OpenState::Open,
+                vec![],
+                vec![
+                    select::control(
+                        OpenState::Open,
+                        vec![],
+                        vec![select::trigger(
+                            OpenState::Open,
+                            false,
+                            None,
+                            None,
+                            vec![],
+                            vec![],
+                        )],
+                    ),
+                    select::positioner(
+                        OpenState::Open,
+                        vec![("id", select_positioner_id)],
+                        vec![select::content(
+                            OpenState::Open,
+                            None,
+                            None,
+                            None,
+                            vec![],
+                            vec![select::item(
+                                OpenState::Closed,
+                                false,
+                                false,
+                                "option-1",
+                                None,
+                                vec![],
+                                vec![select::item_text(None, vec![], vec![text(img_payload)])],
+                            )],
+                        )],
+                    ),
+                ],
+            ),
+            tooltip::root(
+                OpenState::Open,
+                vec![],
+                vec![
+                    tooltip::trigger(OpenState::Open, false, None, vec![], vec![]),
+                    tooltip::positioner(
+                        OpenState::Open,
+                        vec![("id", tooltip_positioner_id)],
+                        vec![tooltip::content(
+                            OpenState::Open,
+                            None,
+                            vec![],
+                            vec![text(script_payload)],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    ));
+    container.set_inner_html(&html);
+
+    assert!(
+        container
+            .query_selector("script")
+            .expect("query_selector must not fail")
+            .is_none(),
+        "no real <script> element must be created from the escaped payload"
+    );
+    assert!(
+        container
+            .query_selector("img")
+            .expect("query_selector must not fail")
+            .is_none(),
+        "no real <img> element must be created from the escaped payload"
+    );
+
+    let text_content = container.text_content().unwrap_or_default();
+    assert!(
+        text_content.contains(script_payload),
+        "the script payload must survive as literal text content (escaped, not executed): {text_content}"
+    );
+    assert!(
+        text_content.contains(img_payload),
+        "the img payload must survive as literal text content (escaped, not executed): {text_content}"
+    );
+
+    let menu_trigger = document
+        .get_element_by_id(menu_trigger_id)
+        .expect("menu trigger element must exist");
+    assert_eq!(
+        menu_trigger.get_attribute("data-testid").as_deref(),
+        Some(attr_payload),
+        "the attribute-injection payload must be preserved literally as the data-testid value"
+    );
+    assert!(
+        menu_trigger.get_attribute("onmouseover").is_none(),
+        "the attribute-injection payload must not break out into a real onmouseover attribute"
+    );
+
+    let menu_positioner = document
+        .get_element_by_id(menu_positioner_id)
+        .expect("menu positioner element must exist");
+    let select_positioner = document
+        .get_element_by_id(select_positioner_id)
+        .expect("select positioner element must exist");
+    let tooltip_positioner = document
+        .get_element_by_id(tooltip_positioner_id)
+        .expect("tooltip positioner element must exist");
+
+    let controller =
+        PositionController::new(&window).expect("PositionController::new must succeed");
+    controller.reposition_now();
+
+    // 位置決め配線（style/data-side/data-align 書き込み）が正常に完走し、
+    // XSS ペイロードを含むコンテンツの存在が再計算そのものを妨げないこと
+    // （position wiring は positioner/arrow の attrs のみを書き込み、既定
+    // エスケープ保証を弱める経路にはならない契約の確認）。
+    assert!(menu_positioner.get_attribute("style").is_some());
+    assert!(select_positioner.get_attribute("style").is_some());
+    assert!(tooltip_positioner.get_attribute("style").is_some());
+
+    // reposition_now() 実行後も escape 済みコンテンツ・属性境界は不変のまま
+    // であること（位置決め配線が既定エスケープ保証を弱めていないことの
+    // 回帰）。
+    assert!(container
+        .query_selector("script")
+        .expect("query_selector must not fail")
+        .is_none());
+    assert!(container
+        .query_selector("img")
+        .expect("query_selector must not fail")
+        .is_none());
+    assert_eq!(
+        menu_trigger.get_attribute("data-testid").as_deref(),
+        Some(attr_payload)
+    );
+    assert!(menu_trigger.get_attribute("onmouseover").is_none());
+
+    drop(controller);
 }
