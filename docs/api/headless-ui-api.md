@@ -67,34 +67,136 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 
 Popover/Tooltip/Menu/Select の `positioner`/`arrow`/`arrow_tip` は「CSS フック
 （`data-*` セレクタ）のみ」だったが、イシュー #590（正の規範文書は
-`docs/design/anchor-positioning-design.md`）で Floating UI 相当の placement
-計算が実装済みとなった。
+`docs/design/anchor-positioning-design.md`。以下 ADR）で Floating UI 相当の
+placement 計算が実装済みとなった。
 
-- `positioning` モジュール（`crates/headless-ui/src/positioning.rs`）が外部
-  依存ゼロの純粋関数として提供する:
-  - [`Placement`]（12 placement 語彙: `top`/`top-start`/`top-end`/
-    `bottom`/`bottom-start`/`bottom-end`/`left`/`left-start`/`left-end`/
-    `right`/`right-start`/`right-end`）・[`Side`]/[`Align`]。
-  - `compute_position(anchor, floating, viewport, config, has_arrow)`:
-    flip（主軸の単純反転 1 候補のみ）・shift（viewport 内クランプ）・
-    sameWidth を適用した確定座標・確定 placement・arrow 座標を返す
-    決定的関数。異常入力（`NaN`/`Infinity`/負の幅高さ・寸法 0）は
-    fail-closed（既定 placement のまま座標 `(0.0, 0.0)`）。
-  - `css_vars_style(resolved, reference_width)`: `--fandhe-x`/`--fandhe-y`/
-    `--fandhe-reference-width`/`--fandhe-arrow-x`/`--fandhe-arrow-y` の
-    5 つの CSS 変数（内部生成の数値書式のみ）からなる `style` 属性値文字列
-    を組み立てる。
-  - `data_side`/`data_align`/`placement_attrs`: `data-side`/`data-align`
-    属性ヘルパ（SSR/SSG のフォールバック出力にも使う）。
-- 実 DOM 計測（`getBoundingClientRect`・viewport 寸法）とスクロール/リサイズ
-  契機の再計算は `fandhe-frontend-wasm-full` の `position` モジュールが担う
-  （`headless-ui` は `web-sys` 非依存のまま維持する）。SSR/SSG では計算を
-  スキップし `data-side`/`data-align` の静的出力 + `pre-styled-ui` 側の
-  静的 CSS フォールバックで初期表示を描画する。
-- `autoPlacement`/`inline`/`hide`/`size`（sameWidth 以外）/`VirtualElement`/
-  `autoUpdate` 相当の連続監視は意図的非対応（ADR §4.3、
-  `docs/policy/intentional-non-adoption.md` への転記は別途ユーザー承認が
-  必要な追跡事項）。
+### 4a.1 対象コンポーネントと anatomy
+
+| コンポーネント | 対応パーツ | `data-scope` | arrow の有無 |
+|---|---|---|---|
+| Popover | Positioner/Arrow/ArrowTip | `"popover"` | あり |
+| Tooltip | Positioner/Arrow/ArrowTip | `"tooltip"` | あり |
+| Menu | Positioner/Arrow/ArrowTip | `"menu"` | あり |
+| Select | Positioner のみ | `"select"` | なし |
+
+再計算対象の走査は開いている positioner のみに限定する
+セレクタ `[data-part="positioner"][data-state="open"]`
+（`crates/wasm-full/src/position.rs` の `OPEN_POSITIONER_SELECTOR`）を使う。
+
+### 4a.2 placement API（`positioning` モジュール、クレートルート再エクスポート）
+
+`crates/headless-ui/src/positioning.rs` が外部依存ゼロの純粋関数として
+提供し、クレートルート（`lib.rs`）から次の型・関数を再エクスポートする:
+`compute_position` / `css_vars_style` / `data_align` / `data_side` /
+`placement_attrs` / `Align` / `ArrowPosition` / `Placement` /
+`PositioningConfig` / `Rect` / `ResolvedPosition` / `Side` / `Size`。
+CSS 変数名定数は `positioning::css_vars`（`X`/`Y`/`REFERENCE_WIDTH`/
+`ARROW_X`/`ARROW_Y`）としてクレートルートとは別に公開される。
+
+- [`Placement`] は `Side`（`top`/`bottom`/`left`/`right`）× `Align`
+  （`start`/`center`/`end`）の組み合わせで、12 placement 語彙
+  （`top`/`top-start`/`top-end`/`bottom`/`bottom-start`/`bottom-end`/
+  `left`/`left-start`/`left-end`/`right`/`right-start`/`right-end`）を
+  型として一元化する。`as_str()`/`from_str()` は相互に逆写像であり、
+  `from_str()` は未知の値に対し `None` を返す（fail-closed）。
+- `data-*` 契約:
+  - `data-side`（`top`/`bottom`/`left`/`right`）・`data-align`
+    （`start`/`center`/`end`）は **flip 適用後の確定値の出力専用**で
+    あり、再計算のたびに上書きされる CSS セレクタ用の属性である。
+  - 希望 placement（flip 適用前）は別の永続化領域である
+    `data-requested-side`/`data-requested-align` 属性に保持する
+    （wasm 層の `reposition_one` が初回のみ書き込む。`data-side`/
+    `data-align` を希望値の保持先に流用すると flip 後に希望値が
+    失われるため分離した、詳細は ADR §4.4a）。
+  - SSR/SSG では位置計算そのものをスキップし、[`placement_attrs`] による
+    `data-side`/`data-align` の静的出力と `pre-styled-ui` 側の静的 CSS
+    フォールバックで初期表示を描画する。
+
+### 4a.3 位置計算 API（純粋関数・外部依存ゼロ・`web-sys` 非依存）
+
+入力型:
+
+- [`Rect`]（`x`/`y`/`width`/`height`）: anchor（参照要素）の矩形。
+- [`Size`]（`width`/`height`）: floating 要素・viewport の寸法。
+- [`PositioningConfig`]（`placement`/`offset`/`flip`/`shift`/`same_width`）:
+  `Default` は `bottom-center`・`offset: 0.0`・`flip`/`shift` 有効・
+  `same_width: false`。
+
+`compute_position(anchor: Rect, floating: Size, viewport: Size, config: &PositioningConfig, has_arrow: bool) -> ResolvedPosition`:
+
+1. `config.placement` で主軸・交差軸座標を計算する。
+2. `flip`（主軸の単純反転 1 候補のみ）が有効かつ主軸方向で viewport を
+   はみ出す場合、反転後の座標で置き換える（反転後も収まらない場合は
+   反転後の座標をそのまま採用する）。
+3. `shift`（交差軸方向の viewport 内クランプ）を適用する。
+4. `has_arrow` が `true` のときのみ arrow 座標（[`ArrowPosition`]、floating
+   要素左上原点の相対座標）を計算する（Select は arrow を持たないため
+   呼び出し側が `false` を渡す）。
+
+異常入力（`NaN`/`Infinity`・負の幅高さ・viewport 寸法 0 等）は
+fail-closed: `panic!`/`unwrap()` を使わず、`config.placement` のまま座標
+`(0.0, 0.0)`・`arrow: None` を返す。
+
+出力型 [`ResolvedPosition`]（`x`/`y`/確定 `placement`/`Option<ArrowPosition>`）。
+
+### 4a.4 CSS 変数契約（`--fandhe-*`）
+
+| 変数 | 内容 |
+|---|---|
+| `--fandhe-x` | floating 要素の確定 x 座標（px） |
+| `--fandhe-y` | floating 要素の確定 y 座標（px） |
+| `--fandhe-reference-width` | anchor 幅（sameWidth 用、`same_width` 有効時のみ出力） |
+| `--fandhe-arrow-x` | arrow の x 座標（px、arrow を持つ場合のみ出力） |
+| `--fandhe-arrow-y` | arrow の y 座標（px、arrow を持つ場合のみ出力） |
+
+`css_vars_style(position: &ResolvedPosition, reference_width: f64, same_width: bool) -> String`:
+
+- `same_width == false` のときは `--fandhe-reference-width` 自体を
+  出力しない（`PositioningConfig::same_width` をそのまま渡す契約。
+  イシュー #622 レビュー指摘: 従来は `same_width` の値によらず常に
+  出力しており、コンポーネント種別ごとの sameWidth 既定値が実行時挙動に
+  影響しない不具合があった）。
+- `position.arrow` が `Some` のときのみ arrow 2 変数を出力する。
+- 出力は内部生成の数値書式（px）のみからなり、非有限値は最終防御線として
+  `0.0` へ丸める。
+- 戻り値は `("style", &value)` として既存の `attrs: Vec<(&'a str, &'a str)>`
+  引数へ渡し、[`fandhe_frontend_core::render`] の既定エスケープ経由で
+  出力する契約とする（§6 不変条件 7 と同一）。
+
+コンポーネント別の sameWidth 既定（`fandhe-frontend-wasm-full` の
+`PositionedKind::same_width_default`）: Menu/Select は `true`、
+Popover/Tooltip は `false`。
+
+### 4a.5 計測注入・再計算（`fandhe-frontend-wasm-full` の `position` モジュール）
+
+`headless-ui` は `web-sys` 非依存のまま維持し、実 DOM 計測
+（`getBoundingClientRect`・viewport 寸法）とスクロール/リサイズ契機の
+再計算は `fandhe-frontend-wasm-full`（`position` モジュール）が担う。
+再計算はスクロール・リサイズイベントを契機とした**離散的**な呼び出しであり、
+`autoUpdate` 相当の連続監視は非採用。
+
+- 純粋ロジック層（native `cargo test` 可）: `PositionedKind`
+  （`from_scope`: 未知の `data-scope` 値は `None` の fail-closed /
+  `has_arrow`: Select のみ `false` / `same_width_default`: 上記表）・
+  `parse_side_attr`/`parse_align_attr`（属性欠落・未知値は
+  `bottom`/`center` へ fail-closed）・`resolve_requested_placement`・
+  `Measurement`・`resolve_position(kind, measurement, requested) -> RepositionResult`
+  （flip/shift 常時有効・offset `0.0` 固定）。
+- 配線層（`#[cfg(target_arch = "wasm32")]`）: `reposition_all`（開いている
+  positioner を `OPEN_POSITIONER_SELECTOR` で走査）・`PositionController`
+  （scroll/resize リスナー）。
+- DOM 属性値（`data-side`/`data-requested-side` 等）は改ざんされうる
+  クライアント入力として扱い、fail-closed でパースする。
+
+### 4a.6 意図的非対応
+
+Floating UI 高度 middleware（`autoPlacement`/`inline`/`hide`/`size`
+（sameWidth 以外）/`VirtualElement`/`autoUpdate` 相当の連続監視）の非採用
+判断は `docs/policy/intentional-non-adoption.md` §3.20（正、イシュー #639
+で転記済み）を参照する。CSS Anchor Positioning（Web 標準）の非採用は
+同書 §3.21 を参照し、一次記録・progressive enhancement の検討経緯は ADR
+第 4.5 節・第 4.5a 節を参照する（評価軸・再評価トリガーの表は本書へ
+複製しない）。
 
 ## 5. 呼び出し規約（SSR / CSR 共通の前提）
 
@@ -128,10 +230,11 @@ Popover/Tooltip/Menu/Select の `positioner`/`arrow`/`arrow_tip` は「CSS フ�
 5. `#![forbid(unsafe_code)]`（REQ-2）。`unsafe` はクレート全体で使用しない。
 6. 外部依存は `fandhe-frontend-core` / `fandhe-frontend-interactive`
    （いずれも path）のみ（`.claude/rules/coding-rust.md`）。
-7. `positioning::css_vars_style` が返す `style` 属性値は内部生成の数値書式
-   （px）のみからなり、呼び出し側は必ず既存の `attrs` 引数 → 上記 2 の
-   既定エスケープを経由して出力する（イシュー #590、
-   `docs/design/anchor-positioning-design.md` §7）。
+7. `positioning::css_vars_style(position, reference_width, same_width)` が
+   返す `style` 属性値は内部生成の数値書式（px）のみからなり、呼び出し側は
+   必ず既存の `attrs` 引数 → 上記 2 の既定エスケープを経由して出力する
+   （`same_width == false` のとき `--fandhe-reference-width` は出力しない、
+   イシュー #590、`docs/design/anchor-positioning-design.md` §7）。
 
 ## 7. 関連ドキュメント
 
@@ -144,4 +247,7 @@ Popover/Tooltip/Menu/Select の `positioner`/`arrow`/`arrow_tip` は「CSS フ�
 - `docs/design/anchor-positioning-design.md`: anchor positioning の設計確定書
   （イシュー #589、正の規範文書。docs サイト nav.toml 未登録の内部設計文書
   のためリンク化しない）
+- `docs/policy/intentional-non-adoption.md` §3.20/§3.21: anchor positioning
+  関連（Floating UI 高度 middleware・CSS Anchor Positioning）の非採用判断の
+  正（同様に nav.toml 未登録のためリンク化しない）
 - `.claude/skills/ark-ui/`: 設計時の参考にした ark-ui リファレンススキル
