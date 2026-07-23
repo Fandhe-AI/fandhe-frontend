@@ -1,9 +1,32 @@
-//! styled Dialog（headless ラッパー第 1 弾、イシュー #551、親 #520/#545）。
+//! styled Dialog（headless ラッパー第 1 弾、イシュー #551、親 #520/#545。
+//! `size` variant 展開はイシュー #729、親 #708）。
 //!
 //! `fandhe_frontend_headless_ui::dialog`（イシュー #531）の Root / Trigger /
 //! Backdrop / Positioner / Content / Title / Description / CloseTrigger
-//! 8 anatomy パーツと [`fandhe_frontend_headless_ui::dialog::Dialog`] 状態機械を
-//! そのまま再エクスポートし、[`stylesheet`] で既定 CSS を追加提供する。
+//! 8 anatomy パーツを再エクスポートし、[`stylesheet`] で既定 CSS を追加提供する。
+//!
+//! # 選択的 re-export（`pub use ...::*` を使わない理由、`Dialog` 型・headless
+//! `root` を再エクスポートしない理由、イシュー #729）
+//!
+//! `size` variant クラス付与のため styled [`root`]（[`crate::switch::root`]
+//! と同型）を本モジュールで新設する。headless 自由関数 `root` と名前が
+//! 衝突するため、`pub use ...::*` ではなく必要な識別子（[`trigger`]/
+//! [`backdrop`]/[`positioner`]/[`content`]/[`title`]/[`description`]/
+//! [`close_trigger`]/[`ContentIds`]/[`DialogRole`]）のみを選択的に再エクスポート
+//! する。
+//!
+//! 状態機械 [`fandhe_frontend_headless_ui::dialog::Dialog`] は**あえて**
+//! 再エクスポートしない（[`crate::switch`] の `Switch` 非再エクスポートと
+//! 同じ理由、イシュー #684/PR #695 Bugbot 指摘の一般化）。`Dialog` は
+//! `.root(attrs, children)` という inherent メソッドを持つが、これは
+//! headless 自由関数 `root` へそのまま委譲するのみで `size` variant クラス
+//! を一切付与しない未スタイルの実体である。本モジュールが `Dialog` を丸ごと
+//! 再エクスポートすると、呼び出し側が（styled 層のつもりで）
+//! `dialog_instance.root(...)` を呼んでしまい、`size` が付与されず見た目が
+//! 静かに崩れる事故を誘発する。`Dialog` による状態管理・hydration が必要な
+//! 呼び出し側は `fandhe_frontend_headless_ui::dialog::Dialog` を直接 import
+//! し、実際の描画は本モジュールの styled [`root`]（および再エクスポート済み
+//! のパーツ関数）を組み合わせて構築すること。
 //!
 //! # 薄い委譲の根拠（本モジュールが新たな出力経路を持たない理由）
 //!
@@ -31,11 +54,21 @@
 //! キーボード操作時のみフォーカスリングを表示する `:focus-visible`
 //! （[`crate::recipe::StateCondition::FocusVisible`]）を [`recipe`] へ登録する。
 //!
+//! # `size` variant（イシュー #729）
+//!
+//! `size`（[`Size`]）は [`root`] へのみクラスを付与し、[`recipe`] が登録する
+//! `--fandhe-dialog-content-padding`/`-content-max-width`/`-title-font-size`
+//! の root スコープ CSS custom property（通常の CSS 継承により `content`/
+//! `title` へ伝わる。`root` は両パーツを内包する祖先要素であるため、
+//! [`crate::recipe::SlotRecipe`] へ子孫セレクタ機構を追加せずに実現できる）
+//! 経由で寸法を切り替える。`base` 規則の `var()` には Md サイズ相当の
+//! フォールバック値を書き、styled `root` を経由しない headless 直接利用
+//! マークアップでも現行外観を維持する（fail-safe、`crate::lib` rustdoc
+//! 「複合部品の variant 統一方針」節参照）。dialog は `color-palette` 軸を
+//! 持たない（variant 表の方針、`docs/api/pre-styled-ui-api.md` §4d 参照）。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
-//! - variant（size 等）ごとのクラス切り替え・呼び出し側 `attrs` へのクラス
-//!   注入は、#548 の `SlotRecipe::variant`/`variant_classes` を使えば追加可能
-//!   だが、本イシュー（headless ラッパー第 1 弾）のスコープには含めない。
 //! - フォーカストラップ・Escape キー閉鎖・外側クリック閉鎖・アニメーションは
 //!   headless 層のドキュメント（`crates/headless-ui/src/dialog.rs`）で既に
 //!   スコープ外と明記済みであり、本モジュールもそれを継承する。
@@ -64,13 +97,21 @@
 //! に対する `display: none` の明示的な上書き規則を追加し、`display: flex`
 //! より詳細度・出現順の両方で優先させることでこれを固定する。
 
+use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, StateCondition};
+use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
 
-pub use fandhe_frontend_headless_ui::dialog::*;
-// `root`/`trigger`/`backdrop` 等の `state` 引数・`Dialog::new`/`state`・
-// `Dialog` の `Component::Action`（dispatch 対象）はいずれも `state` モジュール
-// 由来で上記 glob 再エクスポートでは到達しない。呼び出し側が
+// headless 自由関数 `root`・状態機械 `Dialog` はあえて再エクスポートしない
+// （本モジュール冒頭の rustdoc「選択的 re-export」節参照）。未スタイル・
+// variant クラス非付与の実体・状態管理が必要な呼び出し側は
+// `fandhe_frontend_headless_ui::dialog` を直接 import する。
+pub use fandhe_frontend_headless_ui::dialog::{
+    backdrop, close_trigger, content, description, positioner, title, trigger, ContentIds,
+    DialogRole,
+};
+use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
+// `trigger`/`backdrop` 等の `state` 引数はいずれも `state` モジュール由来で
+// 上記選択的再エクスポートでは到達しない。呼び出し側が
 // `fandhe-frontend-pre-styled-ui` のみに依存して呼び出せることを保証するための
 // 明示再エクスポート（イシュー #685）。
 pub use fandhe_frontend_headless_ui::state::{DisclosureAction, OpenState};
@@ -120,15 +161,21 @@ fn recipe() -> SlotRecipe {
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border-radius", "0.5rem"),
-                decl("padding", "var(--fandhe-space-6)"),
-                decl("max-width", "32rem"),
+                decl(
+                    "padding",
+                    "var(--fandhe-dialog-content-padding, var(--fandhe-space-6))",
+                ),
+                decl("max-width", "var(--fandhe-dialog-content-max-width, 32rem)"),
                 decl("width", "100%"),
             ],
         )
         .base(
             "title",
             vec![
-                decl("font-size", "var(--fandhe-font-font-size-lg)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-dialog-title-font-size, var(--fandhe-font-font-size-lg))",
+                ),
                 decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
                 decl("margin", "0 0 var(--fandhe-space-2) 0"),
             ],
@@ -203,6 +250,45 @@ fn recipe() -> SlotRecipe {
                 decl("outline-offset", "2px"),
             ],
         )
+        // イシュー #729: `size` variant（root スコープの CSS custom property。
+        // Md はフォールバック値と同一の現行外観を維持する）。
+        .variant(
+            Size::Sm,
+            "root",
+            vec![
+                decl("--fandhe-dialog-content-padding", "var(--fandhe-space-4)"),
+                decl("--fandhe-dialog-content-max-width", "24rem"),
+                decl(
+                    "--fandhe-dialog-title-font-size",
+                    "var(--fandhe-font-font-size-md)",
+                ),
+            ],
+        )
+        .variant(
+            Size::Md,
+            "root",
+            vec![
+                decl("--fandhe-dialog-content-padding", "var(--fandhe-space-6)"),
+                decl("--fandhe-dialog-content-max-width", "32rem"),
+                decl(
+                    "--fandhe-dialog-title-font-size",
+                    "var(--fandhe-font-font-size-lg)",
+                ),
+            ],
+        )
+        .variant(
+            Size::Lg,
+            "root",
+            vec![
+                decl("--fandhe-dialog-content-padding", "var(--fandhe-space-8)"),
+                decl("--fandhe-dialog-content-max-width", "42rem"),
+                decl(
+                    "--fandhe-dialog-title-font-size",
+                    "var(--fandhe-font-font-size-xl)",
+                ),
+            ],
+        )
+        .default_variant(Size::Md)
 }
 
 /// この styled Dialog が生成する静的 CSS 全量を返す（決定的。同一プロセス内で
@@ -215,6 +301,35 @@ fn recipe() -> SlotRecipe {
 #[must_use]
 pub fn stylesheet() -> String {
     recipe().css()
+}
+
+/// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
+/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// 合成する）。実体は [`fandhe_frontend_headless_ui::dialog::root`] へ
+/// 委譲する。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::dialog::{self, OpenState};
+/// use fandhe_frontend_pre_styled_ui::Size;
+///
+/// let node = dialog::root(Size::Md, OpenState::Open, vec![], vec![]);
+/// assert!(render(&node).contains(r#"data-scope="dialog" data-part="root""#));
+/// ```
+#[must_use]
+pub fn root<'a>(
+    size: Size,
+    state: OpenState,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let recipe = recipe();
+    let class = recipe.variant_classes(&[("size", size.value())]);
+    let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
+    merged.extend(drop_class_attr(attrs));
+    fandhe_frontend_headless_ui::dialog::root(state, merged, children)
 }
 
 #[cfg(test)]
@@ -268,12 +383,42 @@ mod tests {
 
     #[test]
     fn reexported_root_renders_with_headless_anatomy_attrs() {
-        // 再エクスポートされたパーツ関数が headless 層と同一の出力になることを固定する
-        // （薄い委譲であることの回帰。呼び出し文脈: pre-styled-ui 経由でも
-        // headless の data-scope/data-part 契約が保たれる）。
-        let html = render(&root(OpenState::Closed, vec![], vec![]));
+        // styled root が headless 層と同一の data-scope/data-part 出力になる
+        // ことを固定する（薄い委譲であることの回帰）。
+        let html = render(&root(Size::Md, OpenState::Closed, vec![], vec![]));
         assert!(html.contains(r#"data-scope="dialog""#));
         assert!(html.contains(r#"data-part="root""#));
+    }
+
+    // --- イシュー #729: size variant ---
+
+    #[test]
+    fn size_variant_appends_single_class_to_root_and_drops_caller_class() {
+        for size in [Size::Sm, Size::Md, Size::Lg] {
+            let html = render(&root(
+                size,
+                OpenState::Closed,
+                vec![("class", "attacker")],
+                vec![],
+            ));
+            let expected_class = format!("fd-dialog--size-{}", size.value());
+            assert!(html.contains(&expected_class), "html={html}");
+            assert!(!html.contains("attacker"));
+            assert_eq!(html.matches("class=\"").count(), 1);
+        }
+    }
+
+    #[test]
+    fn default_variant_is_md_and_matches_pre_729_fallback() {
+        // Md はフォールバック値と同一の現行外観を維持する（不変条件）。
+        let css = stylesheet();
+        assert!(
+            css.contains("padding: var(--fandhe-dialog-content-padding, var(--fandhe-space-6));")
+        );
+        assert!(css.contains("max-width: var(--fandhe-dialog-content-max-width, 32rem);"));
+        assert!(css.contains(
+            "font-size: var(--fandhe-dialog-title-font-size, var(--fandhe-font-font-size-lg));"
+        ));
     }
 
     #[test]
@@ -299,8 +444,11 @@ mod tests {
     #[test]
     fn ssr_and_hydration_round_trip_via_reexported_dialog_state_machine() {
         // イシュー #551 受け入れ条件: 「SSR / hydration 両経路の動作確認」を
-        // 再エクスポートされた `Dialog`（headless の Component/Hydrate 実装を
-        // そのまま継承）経由で固定する。
+        // headless `Dialog`（headless の Component/Hydrate 実装を継承。イシュー
+        // #729 により本モジュールから再エクスポートしないため、状態機械を
+        // 使う呼び出し側と同じくエスケープハッチ経由で直接 import する。
+        // モジュール冒頭の rustdoc「選択的 re-export」節参照）経由で固定する。
+        use fandhe_frontend_headless_ui::dialog::Dialog;
         use fandhe_frontend_interactive::{dispatch, render_for_hydration, Hydrate};
 
         let mut d = Dialog::default();

@@ -446,6 +446,8 @@ fn card_section() -> Node {
 /// Tabs 節: 1 番目のタブが選択された静的マークアップ。
 fn tabs_section() -> Node {
     let node = tabs(
+        Size::Md,
+        ColorPalette::Accent,
         &TabsProps {
             id: "showcase-tabs",
             selected: "overview",
@@ -536,7 +538,7 @@ fn accordion_section() -> Node {
     section(
         "Accordion",
         "開閉状態（data-state=\"open\" / \"closed\"）に応じてスタイルが切り替わる開閉パネルの静的掲示です。",
-        vec![accordion::root(vec![], children)],
+        vec![accordion::root(Size::Md, vec![], children)],
     )
 }
 
@@ -556,6 +558,7 @@ fn dialog_section() -> Node {
                 vec![text("Open dialog")],
             ),
             dialog::root(
+                Size::Md,
                 OpenState::Open,
                 vec![],
                 vec![
@@ -603,6 +606,7 @@ fn dialog_section() -> Node {
 /// が開いた静的マークアップ（イシュー #691）。
 fn menu_section() -> Node {
     let node = menu::root(
+        Size::Md,
         OpenState::Open,
         vec![],
         vec![
@@ -642,6 +646,7 @@ fn menu_section() -> Node {
 /// （イシュー #691）。
 fn select_section() -> Node {
     let node = select::root(
+        Size::Md,
         OpenState::Open,
         vec![],
         vec![
