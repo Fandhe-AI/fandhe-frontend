@@ -187,6 +187,19 @@
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`control` は
 //!   `role="listbox"`、`item_preview` は `role="option"`（イシュー本文が
 //!   指定する listbox 相当の ARIA）。
+//! - [`mod@pagination`]: Root / Item / Ellipsis / PrevTrigger / NextTrigger の
+//!   5 anatomy パーツと、[`pagination::page_range`]（総件数・ページサイズ・
+//!   現在ページ・sibling/boundary 件数から省略記号を含むページ列を導出する
+//!   決定的な純粋関数）、および [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する
+//!   [`pagination::Pagination`] 値状態機械を提供する（#751、
+//!   `docs/api/headless-ui-api.md` §4b.3 の保留を解除、先行判断は #716）。
+//!   [`mod@number_input`]/[`mod@progress`] と同じく `data-state` を持たず、
+//!   現在ページは `aria-current="page"`/`data-selected` で、端到達は
+//!   `disabled`/`data-disabled` で表現する。ページ列生成は
+//!   `O(boundary_count + sibling_count)` で `total_pages` を全列挙しない
+//!   （巨大 `count` でも有界、モジュール doc 参照）。wasm 層のクリック配線・
+//!   キーボードナビゲーションは本イシューのスコープ外。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
@@ -246,6 +259,7 @@ pub mod field;
 pub mod fieldset;
 pub mod menu;
 pub mod number_input;
+pub mod pagination;
 pub mod pin_input;
 pub mod popover;
 pub mod positioning;
@@ -286,9 +300,10 @@ pub use fandhe_frontend_interactive;
 
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
-    aria_activedescendant, aria_checked, aria_controls, aria_describedby, aria_disabled,
-    aria_expanded, aria_haspopup, aria_hidden, aria_invalid, aria_label, aria_labelledby,
-    aria_modal, aria_orientation, aria_pressed, aria_selected, role, AriaChecked, AriaPopup,
+    aria_activedescendant, aria_checked, aria_controls, aria_current, aria_describedby,
+    aria_disabled, aria_expanded, aria_haspopup, aria_hidden, aria_invalid, aria_label,
+    aria_labelledby, aria_modal, aria_orientation, aria_pressed, aria_selected, role, AriaChecked,
+    AriaPopup,
 };
 pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use checkbox::{Checkbox, CheckboxFlags};
@@ -301,6 +316,7 @@ pub use field::{FieldIds, FieldProps};
 pub use fieldset::FieldsetProps;
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
 pub use number_input::{NumberInput, NumberInputAction, NumberInputFlags};
+pub use pagination::{ItemMode, PageEntry, Pagination, PaginationAction};
 pub use pin_input::{PinInput, PinInputAction, PinInputKind};
 pub use positioning::{
     compute_position, css_vars_style, data_align, data_side, placement_attrs, Align, ArrowPosition,

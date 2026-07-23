@@ -53,6 +53,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
+use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
 use fandhe_frontend_pre_styled_ui::segment_group;
 use fandhe_frontend_pre_styled_ui::slider;
@@ -180,6 +181,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::rating_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::slider::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::segment_group::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::pagination::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -1595,6 +1597,47 @@ fn segment_group_section() -> Node {
     )
 }
 
+/// Pagination 節（イシュー #751）: `page_entries()` から ellipsis を含む
+/// ページ列を組み立てた静的掲示 + 現在ページ・prev/next の disabled 連動。
+/// 状態機械は SSR 静的な現在ページの固定表示のみ（クリック挙動は wasm 層の
+/// スコープ外、モジュール冒頭「インタラクティブ部品の扱い」節参照）。
+fn pagination_section() -> Node {
+    // 総ページ数 20（count=200, page_size=10）、page=10 で両側 ellipsis を
+    // 固定掲示する（headless 層のテスト `both_ellipsis` と同じ入力）。
+    let p = Pagination::new(200, 10, 1, 1, 10);
+    let mut children = vec![p.prev_trigger(ItemMode::Button, vec![], vec![text("Prev")])];
+    for entry in p.page_entries() {
+        match entry {
+            pagination::PageEntry::Page(n) => {
+                children.push(p.item(
+                    ItemMode::Button,
+                    n,
+                    false,
+                    vec![],
+                    vec![text(n.to_string())],
+                ));
+            }
+            pagination::PageEntry::Ellipsis => {
+                children.push(pagination::ellipsis(vec![], vec![text("…")]));
+            }
+        }
+    }
+    children.push(p.next_trigger(ItemMode::Button, vec![], vec![text("Next")]));
+
+    let demo = pagination::root(
+        Size::Md,
+        ColorPalette::Accent,
+        "pagination",
+        vec![],
+        children,
+    );
+    section(
+        "Pagination",
+        "総件数・ページサイズ・現在ページから省略記号（ellipsis）を含むページ列を決定的に導出する headless Pagination の静的掲示。現在ページは aria-current=\"page\"/data-selected で、端到達は prev/next の disabled で表現します（クリック挙動は wasm 層のスコープ外）。",
+        vec![row(vec![demo])],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -1634,6 +1677,7 @@ fn showcase_body() -> Node {
             rating_group_section(),
             slider_section(),
             segment_group_section(),
+            pagination_section(),
         ],
     )
 }
@@ -1676,6 +1720,7 @@ mod tests {
             "rating-group",
             "slider",
             "segment-group",
+            "pagination",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),

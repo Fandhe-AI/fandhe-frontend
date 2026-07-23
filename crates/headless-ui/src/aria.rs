@@ -184,6 +184,18 @@ pub fn aria_activedescendant(id: &str) -> (&'static str, &str) {
     ("aria-activedescendant", id)
 }
 
+/// `aria-current` 属性（[`crate::pagination`] の選択ページ表現用、
+/// イシュー #751）。
+///
+/// WAI-ARIA `aria-current` は `"page"`/`"step"`/`"location"`/`"date"`/
+/// `"time"`/`"true"`/`"false"` の語彙を取る。呼び出し側が `&'static str`
+/// リテラルで固定値を渡す想定であり（[`role`]/[`aria_haspopup`] と同型の
+/// 設計）、動的文字列が属性値スロットへ流し込まれる経路はない。
+#[must_use]
+pub fn aria_current(value: &'static str) -> (&'static str, &'static str) {
+    ("aria-current", value)
+}
+
 fn bool_str(value: bool) -> &'static str {
     if value {
         "true"
@@ -229,6 +241,12 @@ mod tests {
             ("aria-haspopup", "dialog")
         );
         assert_eq!(aria_haspopup(AriaPopup::True), ("aria-haspopup", "true"));
+    }
+
+    #[test]
+    fn aria_current_passes_through_literal_value() {
+        assert_eq!(aria_current("page"), ("aria-current", "page"));
+        assert_eq!(aria_current("false"), ("aria-current", "false"));
     }
 
     #[test]
