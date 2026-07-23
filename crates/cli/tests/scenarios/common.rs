@@ -48,14 +48,25 @@ impl Drop for ScenarioProject {
     }
 }
 
-/// 一時プロジェクトを書き出すスクラッチルート。`CARGO_TARGET_TMPDIR`
-/// （cargo がテストバイナリ実行時に設定する target 配下の一時ディレクトリ）が
-/// あればそこに閉じ、未設定環境向けに OS 標準の一時領域へフォールバックする
-/// （`negative_cases.rs` と同一パターン、パストラバーサル対策の一環）。
+/// 一時プロジェクトを書き出すスクラッチルート。
+///
+/// cargo が `CARGO_TARGET_TMPDIR` を設定するのはテストバイナリの
+/// **コンパイル時のみ**であり、実行時の `std::env::var` 参照は常に失敗
+/// する。既定はコンパイル時に確定する `env!("CARGO_TARGET_TMPDIR")`
+/// （`<target>/tmp` 配下）を使い、`cargo clean` /
+/// `.github/workflows/runner-maintenance.yml` の既存管理範囲に閉じ、
+/// `/tmp` への恒常的な一時領域リークを避ける（イシュー #637。
+/// `cli/tests/support/mod.rs::scratch_root` と同一方針、テストターゲット
+/// 独立の制約による意図的な複製）。実行時 env による明示上書きは引き続き
+/// 許容する。`<target>/tmp` は cargo が実在を保証しないため
+/// `create_dir_all` で作成する（`negative_cases.rs` と同一パターン、
+/// パストラバーサル対策の一環）。
 pub fn scratch_root() -> PathBuf {
-    std::env::var("CARGO_TARGET_TMPDIR")
+    let root = std::env::var("CARGO_TARGET_TMPDIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir())
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
+    let _ = fs::create_dir_all(&root);
+    root
 }
 
 /// ベースライン（正例）となる `app/src/main.rs` の内容。PoC-7
