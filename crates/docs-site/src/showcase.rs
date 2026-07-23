@@ -111,6 +111,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
 .showcase-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 0.75rem;\n  align-items: center;\n  margin: 1rem 0;\n}\n\
 .showcase-stack {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n  margin: 1rem 0;\n  max-width: 36rem;\n}\n\
+.showcase-form-field-group {\n  display: flex;\n  flex-direction: column;\n  gap: 0.25rem;\n  width: 100%;\n}\n\
 .pre-styled-showcase [data-scope=\"accordion\"] h3 {\n  margin: 0;\n  font-size: 1rem;\n  font-weight: 400;\n  line-height: 1.5;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"backdrop\"] {\n  display: none;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: static;\n  padding: 0;\n  justify-content: flex-start;\n}\n\
@@ -1064,8 +1065,15 @@ fn form_controls_section() -> Node {
         // `{id}-error-text` を出力する（`field.rs` の describedby 合成則）。
         // 参照先の id を持つ `field::error_text` を併設し、存在しない id への
         // 参照を残さない（Bugbot 指摘、PR #783）。
+        //
+        // ラッパー div には `.showcase-form-field-group`（`width: 100%`）を
+        // 付与する。付与しないと `showcase-row` の直接 flex item がこの div
+        // になり、兄弟 input が持つ `width: 100%`（`field` recipe base）による
+        // flex-basis 解決を div 自身が持たず auto（contents 由来の縮小）に
+        // なってしまい、Invalid デモだけ Default/Disabled より狭く描画される
+        // （Bugbot 指摘、PR #783 review）。
         div(
-            vec![],
+            vec![("class", "showcase-form-field-group")],
             vec![
                 input::input(
                     &InputProps::default(),
