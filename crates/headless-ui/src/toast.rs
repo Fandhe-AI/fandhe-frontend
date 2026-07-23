@@ -477,6 +477,24 @@ impl Hydrate for Toaster {
             });
         }
 
+        // max 超過チェックを id 重複チェックより先に行う: 重複チェックは O(n^2)
+        // であり、改ざんされた data-hydrate-ids に巨大な重複 id 列を仕込まれると
+        // max による早期棄却がないまま走査コストを払ってしまう。max 超過は
+        // ids の長さのみで判定できるため、先に安価な O(1) チェックとして通す
+        // ことで fail-closed な拒否を早め、無駄な走査を避ける。
+        let max_raw = find(Self::FIELD_MAX)?;
+        let max: usize = max_raw.parse().map_err(|_| HydrateError::InvalidValue {
+            attr: format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_MAX),
+            reason: "expected a non-negative decimal integer".to_string(),
+        })?;
+
+        if len > max {
+            return Err(HydrateError::InvalidValue {
+                attr: format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_IDS),
+                reason: "entry count exceeds max".to_string(),
+            });
+        }
+
         // id の重複はキュー不変条件（Toaster::push が同一 id を単一エントリへ
         // 収束させる契約）に反するため、改ざん入力として fail-closed に拒否する。
         for (i, id) in ids.iter().enumerate() {
@@ -496,19 +514,6 @@ impl Hydrate for Toaster {
                     reason: "expected \"info\", \"success\", \"warning\", or \"error\"".to_string(),
                 }
             })?);
-        }
-
-        let max_raw = find(Self::FIELD_MAX)?;
-        let max: usize = max_raw.parse().map_err(|_| HydrateError::InvalidValue {
-            attr: format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_MAX),
-            reason: "expected a non-negative decimal integer".to_string(),
-        })?;
-
-        if len > max {
-            return Err(HydrateError::InvalidValue {
-                attr: format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_IDS),
-                reason: "entry count exceeds max".to_string(),
-            });
         }
 
         let placement_raw = find(Self::FIELD_PLACEMENT)?;
