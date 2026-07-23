@@ -103,6 +103,20 @@ const MAPPING_TABLE: &[MappingRow] = &[
         action: "toggle",
         requires_value: false,
     },
+    // trigger-item（サブメニューを開く menu item、`Menu::trigger_item`）も
+    // Disclosure の "toggle" を dispatch する。サブメニューは「子 Menu
+    // インスタンス由来の trigger-item/positioner/content を親 content 内に
+    // 入れ子配置する」契約（`crates/headless-ui/src/menu.rs` モジュール doc）
+    // であり、trigger-item も `data-scope="menu"` を持つため、この行を欠くと
+    // マウスクリックでの開閉が no-op になる（キーボード操作 ArrowRight/
+    // ArrowLeft が合成する `click()` もこの経路を辿るため、同じく no-op に
+    // なっていた。イシュー #662 PR #674 Bugbot 指摘の修正）。
+    MappingRow {
+        scope: "menu",
+        part: "trigger-item",
+        action: "toggle",
+        requires_value: false,
+    },
     // close-trigger（Dialog/Popover）は "close"。
     MappingRow {
         scope: "dialog",

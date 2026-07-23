@@ -312,6 +312,7 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 | data-scope | data-part | action | payload |
 |---|---|---|---|
 | `collapsible`/`dialog`/`popover`/`tooltip`/`menu` | `trigger` | `"toggle"` | `""` |
+| `menu` | `trigger-item` | `"toggle"` | `""` |
 | `dialog`/`popover` | `close-trigger` | `"close"` | `""` |
 | `tabs` | `trigger` | `"select"` | `data-value` |
 | `radio-group` | `item` | `"select"` | `data-value` |
@@ -320,6 +321,8 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 | `select` | `clear-trigger` | `"deselect"` | `""` |
 
 マッピング表は `&'static str` リテラル固定の静的配列であり、動的登録経路は持たない。`crates/wasm-full/tests/headless_wiring.rs` が headless-ui 実出力（`data-scope`/`data-part` 文字列）とのドリフトを機械検知する。
+
+`menu`/`trigger-item` 行は当初欠落しており、`keynav.rs` のサブメニュー ArrowRight/ArrowLeft 開閉（§後述、イシュー #662）が合成する `click()` およびマウスでの実クリックの双方が no-op になっていた（イシュー #662 PR #674 Bugbot 指摘）。サブメニューは「子 `Menu` インスタンス由来の `trigger-item`/`positioner`/`content` を親 `content` 内に入れ子配置する」契約（`crates/headless-ui/src/menu.rs`）であり、`trigger-item` も `data-scope="menu"` を持つため、`trigger` と同じ `"toggle"` を割り当てて解決する。
 
 ### 12.4 fail-closed 契約（受け入れ条件 3）
 

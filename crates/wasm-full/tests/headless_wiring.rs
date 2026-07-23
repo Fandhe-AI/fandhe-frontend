@@ -146,6 +146,28 @@ fn menu_trigger_click_toggles_open_closed() {
     assert!(m.is_open());
 }
 
+/// サブメニューを開く `trigger-item`（`Menu::trigger_item`）クリックが
+/// 子 `Menu` インスタンスの `"toggle"` dispatch を経由して開閉することを
+/// 検証する。サブメニューは「子 `Menu` インスタンス由来の
+/// `trigger-item`/`positioner`/`content` を親 `content` 内に入れ子配置
+/// する」契約（`crates/headless-ui/src/menu.rs`）であり、`trigger-item` も
+/// `trigger` と同じ `data-scope="menu"` を持つため、マッピング表に
+/// `menu`/`trigger-item` 行が無いと（`keynav.rs` のサブメニュー
+/// ArrowRight/ArrowLeft が合成する `click()` も含めて）no-op になっていた
+/// （イシュー #662 PR #674 Bugbot 指摘の回帰テスト）。
+#[test]
+fn menu_trigger_item_click_toggles_submenu_open_closed() {
+    let sub_menu = Menu::default();
+    let html = render(&sub_menu.trigger_item(false, false, None, vec![], vec![]));
+    assert_scope_part_present(&html, "menu", "trigger-item");
+
+    let action_ref = action_for_part(&part("menu", "trigger-item", None, false)).unwrap();
+
+    let mut m = Menu::default();
+    assert!(dispatch(&mut m, &action_ref.action, &action_ref.payload));
+    assert!(m.is_open());
+}
+
 // --- 受け入れ条件 2: Tabs/RadioGroup/Select の select dispatch ---
 
 #[test]

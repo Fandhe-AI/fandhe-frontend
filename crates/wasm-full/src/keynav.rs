@@ -144,8 +144,11 @@
 //!   継承）: keynav は `hidden`/`data-state`/`aria-expanded` を一切書かない。
 //!   ArrowRight はアクティブ content の highlight 中項目（非 disabled・
 //!   `trigger-item` かつサブメニュー解決可）へ `HtmlElement::click()` を
-//!   合成し、閉鎖経路と同一の click → `data-action` → `dispatch("toggle")`
-//!   → 再描画へ委譲する。展開後、サブメニュー content を再解決して先頭の
+//!   合成し、閉鎖経路と同一の click → `crate::headless`（`data-scope`/
+//!   `data-part` の静的マッピング表、`menu`/`trigger-item` → `"toggle"`）→
+//!   `dispatch("toggle")` → 再描画へ委譲する（headless-ui は `data-action`
+//!   を出力しないため、`events::wire_events` ではなく `headless` モジュール
+//!   経由である点に注意）。展開後、サブメニュー content を再解決して先頭の
 //!   非 disabled 項目へ highlight を設定する（click 経由の再描画で content
 //!   が差し替わりうるため再解決するパターンは closed→open 時の既存実装
 //!   （[`wiring::handle_menu_or_select_trigger_keydown`]）と同型）。
@@ -2088,15 +2091,46 @@ mod wiring {
     /// の anatomy 契約）があればその `text_content()` を使い、無ければ
     /// （Menu item のように子パーツを持たない場合）item 自身の
     /// `text_content()` へフォールバックする。DOM への書き戻しは行わない。
+    ///
+    /// `trigger-item` は自身の子孫に子 `Menu` インスタンスの content（サブ
+    /// メニュー、[`MENU_CONTENT_SELECTOR`]）を入れ子配置する契約
+    /// （`resolve_submenu_content` 参照）であるため、素朴に
+    /// `text_content()` を使うとサブメニューが `hidden` でも子孫アイテムの
+    /// テキストまで拾ってしまい、親レベルの typeahead が `trigger-item`
+    /// 自身のラベルではなく入れ子アイテムのテキストに誤マッチしてしまう
+    /// （Bugbot 指摘、イシュー #662 PR #674）。`strip_nested_submenu_content`
+    /// で（DOM への書き戻しを伴わない）クローン上からサブメニュー content
+    /// を除去してから `text_content()` を読むことでこれを防ぐ。
     fn item_label(item: &Element) -> String {
         let text = item
             .query_selector("[data-part=\"item-text\"]")
             .ok()
             .flatten()
             .and_then(|el| el.text_content())
-            .or_else(|| item.text_content())
+            .or_else(|| strip_nested_submenu_content(item).and_then(|el| el.text_content()))
             .unwrap_or_default();
         text.trim().to_string()
+    }
+
+    /// `item` の（DOM へ書き戻さない）ディープクローンを作り、その中に
+    /// 含まれるサブメニュー content（[`MENU_CONTENT_SELECTOR`]、
+    /// `trigger-item` が開く子 `Menu` インスタンスの content）をすべて
+    /// 除去して返す（[`item_label`] 専用）。クローン操作自体が失敗した
+    /// 場合は安全側として `None` を返し、呼び出し元は素の `text_content()`
+    /// を使わず空文字列にフォールバックする（サブメニュー内容混入より
+    /// ラベル取得失敗の方が安全、fail-closed）。
+    fn strip_nested_submenu_content(item: &Element) -> Option<Element> {
+        let clone: Element = item.clone_node_with_deep(true).ok()?.dyn_into().ok()?;
+        if let Ok(nested) = clone.query_selector_all(MENU_CONTENT_SELECTOR) {
+            for i in 0..nested.length() {
+                if let Some(node) = nested.item(i) {
+                    if let Ok(el) = node.dyn_into::<Element>() {
+                        el.remove();
+                    }
+                }
+            }
+        }
+        Some(clone)
     }
 
     /// Menu/Select の typeahead（文字キー入力による項目ジャンプ、イシュー
@@ -2428,8 +2462,11 @@ mod wiring {
                 }
                 event.prevent_default();
                 if let Ok(html_trigger_item) = trigger_item.clone().dyn_into::<HtmlElement>() {
-                    // 開閉は既存の click → `data-action` → dispatch 経路
-                    // （マウスクリックと同一経路）へ委譲する。keynav 自身は
+                    // 開閉は既存の click → `crate::headless`（`data-scope`/
+                    // `data-part` の静的マッピング表、`menu`/`trigger-item` →
+                    // `"toggle"`）→ dispatch 経路（マウスクリックと同一経路）
+                    // へ委譲する（headless-ui は `data-action` を出力しない
+                    // ため `events::wire_events` ではない）。keynav 自身は
                     // `hidden`/`data-state`/`aria-expanded` を一切書かない
                     // （モジュール doc §設計）。
                     html_trigger_item.click();

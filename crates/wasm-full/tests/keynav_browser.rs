@@ -2914,3 +2914,43 @@ fn submenu_arrow_navigation_with_attacker_controlled_labels_does_not_inject_scri
     assert!(sub_content.has_attribute("hidden"));
     assert!(root.query_selector("script, img").unwrap().is_none());
 }
+
+/// 回帰テスト（Bugbot 指摘、イシュー #662 PR #674）: `trigger-item` 自身の
+/// 表示テキストが空（アイコンのみ等、実 UI でありうる形）で、かつサブ
+/// メニューが `hidden`（未展開）のとき、親レベルの typeahead が
+/// `trigger-item` 自身のラベルではなく子孫（隠れたサブメニュー項目）の
+/// テキストへ誤マッチしないことを検証する。修正前は `item_label` が単純に
+/// `text_content()` を使っており、`trigger-item` 自身が空文字でも隠れた
+/// サブメニュー項目 "Zeta" のテキストを拾って "z" 入力にマッチしてしまって
+/// いた。
+#[wasm_bindgen_test]
+fn menu_open_typeahead_does_not_match_hidden_nested_submenu_item_text() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-typeahead2",
+        &[("m", "Mango", false)],
+        "sub",
+        "",
+        false,
+        &[("z", "Zeta", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-sub-typeahead2-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    assert!(sub_content.has_attribute("hidden"));
+    assert!(!trigger_item.has_attribute("data-highlighted"));
+
+    // 隠れたサブメニュー項目 "Zeta" の先頭文字 "z" を入力しても、
+    // 表示テキストを持たない trigger-item 自身はマッチしないため
+    // highlight されない（修正前は誤って highlight されていた）。
+    trigger.dispatch_event(&keydown_event("z")).unwrap();
+    assert!(!trigger_item.has_attribute("data-highlighted"));
+}
