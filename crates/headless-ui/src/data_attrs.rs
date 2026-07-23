@@ -123,9 +123,17 @@ pub fn data_pressed(pressed: bool) -> Option<(&'static str, &'static str)> {
     pressed.then_some(("data-pressed", ""))
 }
 
-/// `data-current` 存在属性（Breadcrumb 用、イシュー #755）。[`data_disabled`]
-/// と同じ規約に従う。[`crate::breadcrumb::current_link`] が
-/// [`crate::aria::aria_current`] と併用し、現在位置（末尾項目）を表す。
+/// `data-current` 存在属性（Breadcrumb 用イシュー #755・Carousel 用イシュー
+/// #754 の双方が使う共有ヘルパ）。[`data_disabled`] と同じ「存在で真を表す」
+/// 規約に従う。
+///
+/// - Breadcrumb: [`crate::breadcrumb::current_link`] が
+///   [`crate::aria::aria_current`] と併用し、現在位置（末尾項目）を表す。
+/// - Carousel: 現在スライド/インジケータの表現に使う。`data-checked`
+///   （確定選択）/`data-highlighted`（キーボードナビゲーション等の一時的
+///   フォーカス位置）とは意味論が異なり、「連続する複数項目中の現在位置」
+///   （carousel のスライド送り）を表す。他コンポーネント（radio/checkbox 系）の
+///   選択セマンティクスとは独立した第 3 の軸。
 #[must_use]
 pub fn data_current(current: bool) -> Option<(&'static str, &'static str)> {
     current.then_some(("data-current", ""))

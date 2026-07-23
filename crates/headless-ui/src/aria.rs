@@ -216,6 +216,18 @@ pub fn aria_autocomplete(kind: AriaAutocomplete) -> (&'static str, &'static str)
     ("aria-autocomplete", kind.as_str())
 }
 
+/// `aria-roledescription` 属性（Carousel 用、イシュー #754）。WAI-ARIA
+/// carousel パターンに従い、`role="region"`（[`crate::carousel::root`]）や
+/// `role="group"`（[`crate::carousel::item`]）へ人間可読な役割名
+/// （`"carousel"`/`"slide"`）を追加提供する。値は本モジュールが定義する
+/// 固定語彙（[`crate::carousel`] が渡す `&'static str` リテラル）のみを
+/// 想定し、任意文字列を受け付ける汎用属性ではない（[`aria_label`] のような
+/// 動的文字列専用ヘルパとは異なる）。
+#[must_use]
+pub fn aria_roledescription(value: &'static str) -> (&'static str, &'static str) {
+    ("aria-roledescription", value)
+}
+
 /// `aria-current` の値語彙（W3C ARIA 仕様、Breadcrumb 用イシュー #755・
 /// Pagination の選択ページ表現用イシュー #751 の双方が共有する）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -353,6 +365,18 @@ mod tests {
             ("aria-haspopup", "dialog")
         );
         assert_eq!(aria_haspopup(AriaPopup::True), ("aria-haspopup", "true"));
+    }
+
+    #[test]
+    fn aria_roledescription_passes_through_static_value() {
+        assert_eq!(
+            aria_roledescription("carousel"),
+            ("aria-roledescription", "carousel")
+        );
+        assert_eq!(
+            aria_roledescription("slide"),
+            ("aria-roledescription", "slide")
+        );
     }
 
     #[test]

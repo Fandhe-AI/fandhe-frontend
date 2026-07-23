@@ -81,6 +81,12 @@
 //! - [`mod@dialog`]: [`dialog::Dialog`] — Root / Trigger / Backdrop /
 //!   Positioner / Content / Title / Description / CloseTrigger の 8 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだモーダルダイアログ（#531）。
+//! - [`mod@drawer`]: Dialog パターンの変種（画面端からスライドインするパネル）
+//!   である [`drawer::Drawer`]。dialog と同じ 8 anatomy パーツ（`data-scope="drawer"`）
+//!   を持つが、開閉状態機械は新設せず [`dialog::Dialog`] へ全委譲する
+//!   （[`segment_group::SegmentGroup`] が [`radio_group::RadioGroup`] へ
+//!   全委譲するのと同型のパターン）。固有に持つのは画面端の方向を表す
+//!   [`drawer::DrawerPlacement`]（`data-placement`）のみ（#758）。
 //! - [`mod@radio_group`]: Root / Label / Item / ItemControl / ItemText /
 //!   ItemHiddenInput の 6 anatomy パーツと [`state::SingleSelect`] を埋め込んだ
 //!   [`radio_group::RadioGroup`]（#536、親 #534）。クライアント由来の文字列
@@ -201,6 +207,18 @@
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`control` は
 //!   `role="listbox"`、`item_preview` は `role="option"`（イシュー本文が
 //!   指定する listbox 相当の ARIA）。
+//! - [`mod@carousel`]: Root / Control / PrevTrigger / NextTrigger /
+//!   ItemGroup / Item / IndicatorGroup / Indicator の 8 anatomy パーツと、
+//!   `0..slide_count` を循環し得る index 値を持つ [`carousel::Carousel`]
+//!   状態機械（#754、親 #748/#520）。[`mod@slider`]/[`mod@number_input`] と
+//!   同じく [`state`] の既存語彙に収まらないため、
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`item` は
+//!   `role="group"` + `aria-roledescription="slide"` + 位置ラベル
+//!   （`"{n} of {m}"`）、`indicator` は `aria-current`（現在位置のみ）を
+//!   出力する ARIA carousel パターン準拠。autoplay（play/pause/`aria-live`
+//!   切替）・pointer ドラッグ/キーボード操作の DOM 配線は本イシューの
+//!   スコープ外（[`carousel`] モジュール doc 参照）。
 //! - [`mod@pagination`]: Root / Item / Ellipsis / PrevTrigger / NextTrigger の
 //!   5 anatomy パーツと、[`pagination::page_range`]（総件数・ページサイズ・
 //!   現在ページ・sibling/boundary 件数から省略記号を含むページ列を導出する
@@ -224,6 +242,15 @@
 //!   [`toast::ToastStatus`] から決定的に導出し（`Error` のみ `"assertive"`）、
 //!   タイマーによる自動 dismiss の実配線・`"push"` の文字列 dispatch は
 //!   `fandhe-frontend-wasm-full` の後続イシューのスコープ。
+//! - [`mod@toggle_tip`]: Root / Trigger / Positioner / Content / Arrow /
+//!   ArrowTip の 6 anatomy パーツと、[`state::Disclosure`] を埋め込んだ
+//!   [`toggle_tip::ToggleTip`] 状態機械（#761、親トラッキング #520）。
+//!   chakra-ui の ToggleTip（「見た目は Tooltip・挙動は Popover」の変種）に
+//!   倣い、[`toggle_tip::trigger`] は `aria-expanded`/`aria-controls` を持つが
+//!   `aria-haspopup` は付与せず、[`toggle_tip::content`] は `role="tooltip"`
+//!   を持たない（[`mod@tooltip`]・[`mod@popover`] との 3 者境界は
+//!   [`mod@toggle_tip`] モジュール doc §3 者境界参照）。click-outside
+//!   dismiss・Escape 閉鎖の DOM 配線は本イシューのスコープ外。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
@@ -312,11 +339,13 @@ pub mod anatomy;
 pub mod aria;
 pub mod avatar;
 pub mod breadcrumb;
+pub mod carousel;
 pub mod checkbox;
 pub mod collapsible;
 pub mod combobox;
 pub mod data_attrs;
 pub mod dialog;
+pub mod drawer;
 pub mod field;
 pub mod fieldset;
 pub mod link;
@@ -341,6 +370,7 @@ pub mod tags_input;
 pub mod toast;
 pub mod toggle;
 pub mod toggle_group;
+pub mod toggle_tip;
 pub mod tooltip;
 pub mod tree_view;
 
@@ -370,11 +400,12 @@ pub use aria::{
     aria_activedescendant, aria_atomic, aria_autocomplete, aria_checked, aria_controls,
     aria_current, aria_describedby, aria_disabled, aria_expanded, aria_haspopup, aria_hidden,
     aria_invalid, aria_label, aria_labelledby, aria_live, aria_modal, aria_orientation,
-    aria_pressed, aria_selected, role, AriaAutocomplete, AriaChecked, AriaCurrent, AriaLive,
-    AriaPopup,
+    aria_pressed, aria_roledescription, aria_selected, role, AriaAutocomplete, AriaChecked,
+    AriaCurrent, AriaLive, AriaPopup,
 };
 pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use breadcrumb::{breadcrumb, BreadcrumbItem};
+pub use carousel::{Carousel, CarouselAction};
 pub use checkbox::{Checkbox, CheckboxFlags};
 pub use combobox::{Combobox, ComboboxAction};
 pub use data_attrs::{
@@ -382,6 +413,7 @@ pub use data_attrs::{
     data_pressed, data_readonly, data_required, data_state, Orientation,
 };
 pub use dialog::Dialog;
+pub use drawer::{Drawer, DrawerPlacement};
 pub use field::{FieldIds, FieldProps};
 pub use fieldset::FieldsetProps;
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
@@ -408,5 +440,6 @@ pub use tags_input::{TagsInput, TagsInputAction};
 pub use toast::{ToastAction, ToastEntry, ToastPlacement, ToastStatus, Toaster};
 pub use toggle::{Toggle, ToggleAction};
 pub use toggle_group::{MultiToggleGroup, ToggleGroup};
+pub use toggle_tip::ToggleTip;
 pub use tooltip::Tooltip;
 pub use tree_view::{TreeNode, TreeView, TreeViewAction};

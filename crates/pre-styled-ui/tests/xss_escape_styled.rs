@@ -39,6 +39,7 @@ use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
+use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
@@ -129,6 +130,13 @@ fn styled_text_children_are_escaped_for_all_payloads() {
             payload,
             &html,
             "pre-styled-ui 再エクスポート dialog::title children コンテキスト",
+        );
+
+        let html = render(&drawer::title(None, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "pre-styled-ui 再エクスポート drawer::title children コンテキスト",
         );
     }
 }
@@ -323,6 +331,20 @@ fn size_variant_root_caller_class_attr_is_dropped_not_merged_raw_for_all_payload
         );
         assert_eq!(html.matches("class=\"").count(), 1);
         assert!(html.contains("fd-select--"));
+
+        let html = render(&drawer::root(
+            Size::Md,
+            OpenState::Closed,
+            DrawerPlacement::End,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "drawer::root の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-drawer--"));
     }
 }
 
@@ -365,6 +387,15 @@ fn size_variant_root_caller_attrs_are_escaped_for_all_payloads() {
             vec![],
         ));
         assert_payload_is_escaped(payload, &html, "select::root 呼び出し側 attrs コンテキスト");
+
+        let html = render(&drawer::root(
+            Size::Md,
+            OpenState::Closed,
+            DrawerPlacement::End,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "drawer::root 呼び出し側 attrs コンテキスト");
     }
 }
 
@@ -1216,5 +1247,79 @@ fn toast_styled_group_root_and_reexported_parts_are_escaped_for_all_payloads() {
 
         let html = render(&toast::close_trigger(vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "toast::close_trigger children コンテキスト");
+    }
+}
+
+/// (10) carousel 経路（イシュー #754）: styled `root` の呼び出し側 `attrs`・
+/// `class`（`aria-label` 引数含む）、および headless-ui から選択的
+/// 再エクスポートした `prev_trigger`/`indicator` の `aria-label`・`item` の
+/// children の各所すべてで既定エスケープ（REQ-1）が貫通することを固定する
+/// （`slider_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn carousel_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::carousel;
+    use fandhe_frontend_pre_styled_ui::carousel::Orientation;
+
+    for payload in payloads::all() {
+        // styled root の `aria-label` 引数経路。
+        let html = render(&carousel::root(
+            Size::Md,
+            Orientation::Horizontal,
+            payload,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "carousel::root aria-label コンテキスト");
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&carousel::root(
+            Size::Md,
+            Orientation::Horizontal,
+            "Products",
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "carousel::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&carousel::root(
+            Size::Md,
+            Orientation::Horizontal,
+            "Products",
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "carousel::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "carousel::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-carousel--"),
+            "carousel::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした prev_trigger の aria-label 経路。
+        let html = render(&carousel::prev_trigger(false, payload, vec![], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "carousel::prev_trigger aria-label コンテキスト",
+        );
+
+        // 選択的再エクスポートした item の children 経路。
+        let html = render(&carousel::item(0, 1, false, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "carousel::item children コンテキスト");
     }
 }

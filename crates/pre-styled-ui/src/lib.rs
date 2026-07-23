@@ -148,6 +148,21 @@
 //!   [`fandhe_frontend_headless_ui::checkbox::Checkbox`]/
 //!   [`fandhe_frontend_headless_ui::radio_group::RadioGroup`] をそのまま
 //!   再利用し、新規状態機械は作らない。詳細は各モジュール rustdoc 参照。
+//! - headless 状態機械を持つ複合部品の styled ラッパー（イシュー #754）:
+//!   [`mod@carousel`]。`size` variant のみを持ち（`item-group` の縦横
+//!   transform 切替は `data-orientation` 属性条件、[`mod@segment_group`] と
+//!   同型）、`color-palette` 軸は提供しない（選択・チェック状態を示す部品
+//!   ではないため）。`--fandhe-carousel-index` CSS カスタムプロパティによる
+//!   決定的なスライド位置表現・autoplay スコープ外は [`mod@carousel`]
+//!   rustdoc 参照。
+//! - headless ラッパー（イシュー #758）: [`mod@drawer`]（Drawer、dialog の
+//!   変種。WAI-ARIA 上は同じ Dialog パターンのため、開閉状態機械は
+//!   [`mod@dialog`] を再利用する headless 層の設計をそのまま引き継ぎ、本
+//!   モジュールも新規状態機械を持たない）。`size`（drawer の占有幅/高さ）
+//!   variant のみを持ち `color-palette` 軸は提供しない（[`mod@number_input`]
+//!   等と同型の判断）。placement（`start`/`end`/`top`/`bottom`）は variant
+//!   ではなく headless 層が出力する `data-placement` に連動する CSS で表現
+//!   する。詳細は [`mod@drawer`] rustdoc 参照。
 //! - headless ラッパー（イシュー #760）: [`mod@toast`]（Toast、`placement`
 //!   （`group` slot）/`status`（`root` slot、[`mod@alert`] と同じ配色マッピング）
 //!   の 2 軸 variant を持つが、通常の複合部品と異なり各軸が別 slot へ付与される
@@ -298,12 +313,14 @@ pub mod badge;
 pub mod breadcrumb;
 pub mod button;
 pub mod card;
+pub mod carousel;
 pub mod checkbox;
 pub mod checkbox_card;
 mod class_attr;
 pub mod combobox;
 pub mod css;
 pub mod dialog;
+pub mod drawer;
 pub mod input;
 pub mod link;
 pub mod link_overlay;
@@ -331,6 +348,7 @@ pub mod theme;
 pub mod toast;
 pub mod toggle;
 pub mod toggle_group;
+pub mod toggle_tip;
 pub mod tooltip;
 pub mod tree_view;
 

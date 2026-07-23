@@ -28,9 +28,11 @@ NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー�
 追加（#742）・SegmentGroup styled ラッパー追加（#743）・TagsInput styled
 ラッパー追加（#744）・Toggle/ToggleGroup styled ラッパー追加（#746）・
 CheckboxCard/RadioCard styled バリエーション追加（#747）・Combobox styled
-ラッパー追加（#749）・Breadcrumb styled ラッパー追加（#755）・Link/
-LinkOverlay/NavList styled ラッパー追加（#756、いずれも公開時点未反映）を
-経て 38 の公開モジュールを持つ。内訳は次の通り。
+ラッパー追加（#749）・Pagination styled ラッパー追加（#751）・Breadcrumb
+styled ラッパー追加（#755）・Carousel styled ラッパー追加（#754）・Drawer
+styled ラッパー追加（#758）・Link/LinkOverlay/NavList styled ラッパー追加
+（#756）・ToggleTip styled ラッパー追加（#761、いずれも公開時点未反映）を
+経て 43 の公開モジュールを持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -58,8 +60,11 @@ LinkOverlay/NavList styled ラッパー追加（#756、いずれも公開時点�
 | headless ラッパー | `tree_view` | #753（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。branch のインデントは CSS custom property（`--fandhe-tree-view-indent`）で表現し、DOM ネストにより深さ分が自然に累積する） |
 | headless ラッパー | `pagination` | #751（`size`/`color-palette` 両軸提供。headless-ui 側の保留解除は #716 → #751） |
 | headless ラッパー | `breadcrumb` | #755（`docs/api/headless-ui-api.md` §4b の追加候補消化。状態機械なし。`size`/`BreadcrumbVariant`（`link` の下線表示切り替え）の 2 軸 variant を root のみへ付与し、`link` への伝搬は root スコープ CSS custom property の継承で行う） |
+| headless ラッパー | `carousel` | #754（`size` variant のみ・`color-palette` 軸は非提供（選択・チェック状態を示す部品ではないため）。`item-group` の transform は `--fandhe-carousel-index` CSS カスタムプロパティ 1 点のみで伝搬し、`data-orientation="vertical"` で `translateX`/`translateY` を切り替える。autoplay は初期実装スコープ外） |
+| headless ラッパー | `drawer` | #758（dialog の変種。状態機械は headless の `dialog::Dialog` をそのまま再利用し新規状態機械は作らない。`size`（drawer の占有幅/高さ）variant のみを root へ付与し `color-palette` 軸は非提供。placement（`start`/`end`/`top`/`bottom`）は variant ではなく headless 層が出力する `data-placement` に連動する CSS で表現する） |
 | headless ラッパー | `link` / `link_overlay` / `nav_list` | #756（`docs/api/headless-ui-api.md` §4b 追加候補・最優先候補の消化。状態機械なし。`link_overlay` は `::before` 疑似要素の代わりに `overlay` 自身を `position: absolute; inset: 0;` で展開する。`nav_list` は `fandhe-frontend-docs-site::nav.rs::sidebar` が直接使う想定のため、`root` 以外（`heading`/`list`/`item`/`link`）は headless 自由関数をそのまま選択的に再エクスポートする） |
 | headless ラッパー | `toast` | #760（`placement`（`group` slot）/`status`（`root` slot、`alert` と同じ配色マッピング）の 2 軸 variant を持つが、各軸が別 slot へ付与されるため `variant_class`（単一軸専用 API）をスロットごとに個別に呼ぶ。`Toaster` 状態機械は再エクスポートしない（`switch`/`avatar` と同型の判断）。タイマー自動 dismiss・`ActionTrigger` の動作配線は wasm-full 後続イシューのスコープ外） |
+| headless ラッパー | `toggle_tip` | #761（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。「見た目は Tooltip・挙動は Popover」の変種であり、`content` の視覚系は `tooltip` と同一値。状態機械は `state::Disclosure`） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
@@ -142,6 +147,7 @@ popover,tooltip}.rs` の各ファイル冒頭の `pub use` 直後のコメント
 | `tooltip` | `OpenState` / `DisclosureAction` | `state` |
 | `combobox` | `OpenState` | `state`（`select` と同型の選択的 re-export、イシュー #749） |
 | `tree_view` | `OpenState` / `MultiSelectAction` / `SingleSelectAction` | `state`（`tooltip` と同型の glob re-export、イシュー #753） |
+| `toggle_tip` | `OpenState` / `DisclosureAction` | `state`（`tooltip` と同型の glob re-export、イシュー #761） |
 
 `ActivationMode`/`TabItem`/`TabsProps`（tabs）・`DialogRole`/`ContentIds`
 （dialog）・`SelectAction`（select）は各 headless モジュール内定義のため
@@ -436,7 +442,9 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | pagination | ✓ | ✓ | 実装済み（#751、現在ページの強調色に反映。root scope の CSS custom property は `--fandhe-pagination-item-size`/`-item-font-size`） |
 | popover / tooltip | 提供しない | 提供しない | 方針確定 |
 | tree-view | 提供しない | 提供しない | 実装済み（#753、popover/tooltip と同型の判断） |
+| toggle-tip | 提供しない | 提供しない | 実装済み（#761、popover/tooltip と同型の判断） |
 | breadcrumb | ✓ | – (`BreadcrumbVariant`: `link` の下線表示切り替え) | 実装済み（#755。アクセント色による選択・チェック状態を示す部品ではないため color-palette は非提供） |
+| drawer | ✓ | – | 実装済み（#758。dialog と同じく選択・チェック状態を示す部品ではないため color-palette は非提供。root scope の CSS custom property は `--fandhe-drawer-size`。placement（`start`/`end`/`top`/`bottom`）は variant 軸ではなく headless 層が出力する `data-placement` に連動する CSS で表現する） |
 | link | 提供しない | 提供しない | 実装済み（#756。`LinkVariant`（下線表示切り替え）のみの単軸 variant。インラインテキストリンクは寸法・強調色の variant 対象外） |
 | link-overlay / nav-list | 提供しない | 提供しない | 実装済み（#756。構造・意味論部品のため variant 軸を持たない） |
 | toast | ✓（`placement`、`group` slot） | ✓（`status`、`root` slot、`alert` と同じ配色マッピング） | 実装済み（#760。各軸が別 slot のため `variant_class` をスロットごとに個別呼び出し） |
