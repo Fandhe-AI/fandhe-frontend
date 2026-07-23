@@ -168,6 +168,20 @@ fn recipe() -> SlotRecipe {
             StateCondition::AttrEq("data-state", "open"),
             vec![decl("transform", "rotate(90deg)")],
         )
+        // Cursor Bugbot 指摘（PR #798、High）: `branch-content` の base 規則が
+        // `display: flex` を宣言しており、UA 既定の `[hidden] { display: none }`
+        // を詳細度（`[data-scope][data-part]` の (0,2,0) > `[hidden]` の
+        // (0,1,0)）で上書きしてしまう。closed 時に headless 層
+        // （[`fandhe_frontend_headless_ui::tree_view::branch_content`]）が
+        // 付与する `hidden` 属性を確実に非表示化として機能させるため、
+        // より詳細度の高い `[hidden]` 属性セレクタで `display: none` を
+        // 明示的に上書きする（[`crate::dialog`] の `positioner` と同型の対応、
+        // PR #575 で同種の不具合を修正済み）。
+        .state(
+            "branch-content",
+            StateCondition::Attr("hidden"),
+            vec![decl("display", "none")],
+        )
         // 選択状態の見た目切り替え（branch/item 共通）。
         .state(
             "branch-control",
@@ -243,6 +257,23 @@ mod tests {
         let b = stylesheet();
         assert_eq!(a, b);
         assert!(a.contains(r#"[data-scope="tree-view"][data-part="branch-content"]"#));
+    }
+
+    #[test]
+    fn closed_branch_content_hidden_attr_overrides_display_flex() {
+        // Cursor Bugbot 指摘（PR #798、High）対応の回帰: branch-content の
+        // base 規則 `display: flex` が UA 既定の `[hidden] { display: none }`
+        // を上書きし、closed でも子ノード列が表示され続ける不具合。`[hidden]`
+        // 属性セレクタでの明示的な `display: none` 上書きが出力されることを
+        // 固定する（[`crate::dialog`] の同型テストと対称）。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="tree-view"][data-part="branch-content"][hidden] {"#));
+        let rule_start = css
+            .find(r#"[data-scope="tree-view"][data-part="branch-content"][hidden] {"#)
+            .expect("branch-content[hidden] rule must be present");
+        let rule_body = &css[rule_start..];
+        let rule_end = rule_body.find('}').expect("rule must be closed");
+        assert!(rule_body[..rule_end].contains("display: none;"));
     }
 
     #[test]
