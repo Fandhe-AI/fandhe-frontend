@@ -52,6 +52,16 @@ impl VariantValue for BlockquoteVariant {
 /// 統一方針、`crate` 冒頭 rustdoc「クラスは root slot のみに付与する」）。
 /// 装飾（背景・罫線色）も `root` 自身が直接宣言する（子孫セレクタ機構は
 /// 追加しない）。
+///
+/// `caption` の文字色は `--fandhe-blockquote-caption-fg`（既定
+/// `var(--fandhe-color-fg-muted)`）というローカル custom property 経由で
+/// 参照する（[`palette_declarations`] と同型のパターン）。custom property は
+/// クラスの有無に関わらず DOM の継承で子要素（`caption` は `root` の子）へ
+/// 伝わるため、`caption` 自身にクラスを付けなくても `root` 側の variant
+/// 宣言で上書きできる。`Solid` variant は `root` の背景を `--fandhe-palette`
+/// で塗る（`caption` はその子孫）ため、`--fandhe-blockquote-caption-fg` を
+/// `var(--fandhe-palette-fg)` へ上書きし、muted な前景色が solid 背景の上で
+/// コントラスト不足になることを防ぐ（Bugbot 指摘）。
 fn recipe() -> SlotRecipe {
     let mut recipe = SlotRecipe::new("blockquote", SLOTS)
         .base(
@@ -60,6 +70,10 @@ fn recipe() -> SlotRecipe {
                 decl("margin", "0"),
                 decl("padding-inline-start", "1rem"),
                 decl("padding-block", "0.5rem"),
+                decl(
+                    "--fandhe-blockquote-caption-fg",
+                    "var(--fandhe-color-fg-muted)",
+                ),
             ],
         )
         .base("content", vec![decl("margin", "0")])
@@ -69,7 +83,7 @@ fn recipe() -> SlotRecipe {
                 decl("display", "block"),
                 decl("margin-block-start", "0.5rem"),
                 decl("font-size", "var(--fandhe-font-font-size-sm)"),
-                decl("color", "var(--fandhe-color-fg-muted)"),
+                decl("color", "var(--fandhe-blockquote-caption-fg)"),
             ],
         )
         .variant(
@@ -92,6 +106,7 @@ fn recipe() -> SlotRecipe {
                     "4px solid var(--fandhe-palette-emphasized)",
                 ),
                 decl("border-radius", "var(--fandhe-radius-sm)"),
+                decl("--fandhe-blockquote-caption-fg", "var(--fandhe-palette-fg)"),
             ],
         )
         .variant(
@@ -256,5 +271,19 @@ mod tests {
         let out = css();
         assert!(out.contains("border-radius: var(--fandhe-radius-sm);"));
         assert!(out.contains("border-inline-start: 4px solid var(--fandhe-palette);"));
+    }
+
+    /// Solid variant では `caption` の文字色が muted 固定ではなく
+    /// `--fandhe-palette-fg`（solid 背景の上で読める前景色）へ切り替わる
+    /// ことを確認する（Bugbot 指摘の contrast 不足の回帰防止）。
+    #[test]
+    fn solid_variant_overrides_caption_color_for_contrast() {
+        let out = css();
+        assert!(out.contains(
+            "[data-part=\"caption\"] {\n  display: block;\n  margin-block-start: 0.5rem;\n  font-size: var(--fandhe-font-font-size-sm);\n  color: var(--fandhe-blockquote-caption-fg);\n}"
+        ));
+        assert!(out.contains(
+            "[data-part=\"root\"].fd-blockquote--variant-solid {\n  background: var(--fandhe-palette);\n  color: var(--fandhe-palette-fg);\n  border-inline-start: 4px solid var(--fandhe-palette-emphasized);\n  border-radius: var(--fandhe-radius-sm);\n  --fandhe-blockquote-caption-fg: var(--fandhe-palette-fg);\n}"
+        ));
     }
 }

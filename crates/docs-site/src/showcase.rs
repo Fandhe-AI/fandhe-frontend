@@ -132,6 +132,19 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   内に限定して `border-top`/`padding-top`/`letter-spacing` を打ち消す
 ///   （margin/font-size/font-weight は recipe が宣言済みで自然に勝つため
 ///   宣言しない。recipe との二重管理を避ける最小リセット）。
+/// - `[data-scope="blockquote"][data-part="content"]`（素の `<blockquote>`
+///   要素）のリセット（イシュー #771 タイポグラフィ節掲示、Bugbot 指摘）:
+///   `site.css` の `.docs-content blockquote` が `padding`/`border-left`/
+///   `color`（muted）を素の `blockquote` 要素へ直接宣言しており、Blockquote
+///   recipe（`crates/pre-styled-ui/src/blockquote.rs`）の `content` slot は
+///   この要素そのものである。recipe 側は `content` slot へ `margin: 0` しか
+///   宣言せず `padding`/`border-left`/`color` を宣言しないため、`.docs-content
+///   blockquote`（詳細度 (0,1,1)）がそのまま適用され、`root`（`<figure>`）
+///   自身の padding・左ボーダーと二重になり、かつ引用文字色が意図せず
+///   muted 化する。Accordion `h3`/Dialog `h2` と同じ理由（`site.css` 側は
+///   変更せず、showcase 領域内に限定した `data-scope`/`data-part` 属性
+///   セレクタで打ち消す）で、`.pre-styled-showcase` + 属性 2 個 = (0,3,0) が
+///   `.docs-content blockquote` = (0,1,1) より優先されるようにリセットする。
 const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
 .showcase-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 0.75rem;\n  align-items: center;\n  margin: 1rem 0;\n}\n\
@@ -142,7 +155,8 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: static;\n  padding: 0;\n  justify-content: flex-start;\n}\n\
 .pre-styled-showcase [data-scope=\"drawer\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"combobox\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"hover-card\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
-.pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n";
+.pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
+.pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n";
 
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
 /// 追記する `Node` 木を返す。

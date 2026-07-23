@@ -148,6 +148,7 @@ const BLOCKQUOTE_GOLDEN_CSS: &str = r#"[data-scope="blockquote"][data-part="root
   margin: 0;
   padding-inline-start: 1rem;
   padding-block: 0.5rem;
+  --fandhe-blockquote-caption-fg: var(--fandhe-color-fg-muted);
 }
 
 [data-scope="blockquote"][data-part="content"] {
@@ -158,7 +159,7 @@ const BLOCKQUOTE_GOLDEN_CSS: &str = r#"[data-scope="blockquote"][data-part="root
   display: block;
   margin-block-start: 0.5rem;
   font-size: var(--fandhe-font-font-size-sm);
-  color: var(--fandhe-color-fg-muted);
+  color: var(--fandhe-blockquote-caption-fg);
 }
 
 [data-scope="blockquote"][data-part="root"].fd-blockquote--variant-subtle {
@@ -172,6 +173,7 @@ const BLOCKQUOTE_GOLDEN_CSS: &str = r#"[data-scope="blockquote"][data-part="root
   color: var(--fandhe-palette-fg);
   border-inline-start: 4px solid var(--fandhe-palette-emphasized);
   border-radius: var(--fandhe-radius-sm);
+  --fandhe-blockquote-caption-fg: var(--fandhe-palette-fg);
 }
 
 [data-scope="blockquote"][data-part="root"].fd-blockquote--variant-plain {
