@@ -1494,32 +1494,38 @@ jobs:
 
       - name: fw new --template app（フィクスチャ専用 CARGO_TARGET_DIR）
         # 共有 CARGO_TARGET_DIR との衝突回避は `.claude/rules/ci.md`
-        # 「Self-hosted 環境の前提」に従う。
+        # 「Self-hosted 環境の前提」に従う。フィクスチャ専用パスは `/tmp` 固定では
+        # なく `RUNNER_TEMP`（`${{ runner.temp }}`）配下に置く。runner がジョブ
+        # 前後で自動清掃するため、`/tmp` 固定パスのようにジョブ間で残置が
+        # 恒久蓄積しない（イシュー #659。PR #648／イシュー #637 で是正した
+        # テストコード側 `env!("CARGO_TARGET_TMPDIR")` 方針と対をなす。
+        # `docs-site.yml` の RUNNER_TEMP 運用と同一パターン）。
         env:
-          CARGO_TARGET_DIR: /tmp/fandhe-frontend-template-app-wasm-smoke-target
+          CARGO_TARGET_DIR: ${{ runner.temp }}/fandhe-frontend-template-app-wasm-smoke-target
         run: |
           set -euo pipefail
-          rm -rf /tmp/fandhe-frontend-template-app-wasm-smoke
+          rm -rf "${RUNNER_TEMP}/fandhe-frontend-template-app-wasm-smoke"
           cargo run --locked -p fandhe-frontend-cli --bin fw -- new template-app-wasm-smoke \
-            --template app --dir /tmp/fandhe-frontend-template-app-wasm-smoke
+            --template app --dir "${RUNNER_TEMP}/fandhe-frontend-template-app-wasm-smoke"
 
       - name: tools/wasm/build.sh の実行
         # 直前ステップと同じくフィクスチャ専用 CARGO_TARGET_DIR を明示指定する
         # （`.claude/rules/ci.md` 「Self-hosted 環境の前提」）。未指定だと
         # self-hosted runner の共有 CARGO_TARGET_DIR=/cargo-target が使われ、
         # build.sh が期待する `wasm/target/...` とパスが一致しなくなる
-        # （イシュー #411 CI 失敗の原因）。
+        # （イシュー #411 CI 失敗の原因）。配置先を `RUNNER_TEMP` 配下にする
+        # 理由は直前ステップのコメント（イシュー #659）を参照。
         env:
-          CARGO_TARGET_DIR: /tmp/fandhe-frontend-template-app-wasm-smoke-target/wasm-build
+          CARGO_TARGET_DIR: ${{ runner.temp }}/fandhe-frontend-template-app-wasm-smoke-target/wasm-build
         run: |
           set -euo pipefail
-          cd /tmp/fandhe-frontend-template-app-wasm-smoke/template-app-wasm-smoke
+          cd "${RUNNER_TEMP}/fandhe-frontend-template-app-wasm-smoke/template-app-wasm-smoke"
           ./tools/wasm/build.sh
 
       - name: 生成物の存在・mount_csr/hydrate エクスポートの検証
         run: |
           set -euo pipefail
-          project="/tmp/fandhe-frontend-template-app-wasm-smoke/template-app-wasm-smoke"
+          project="${RUNNER_TEMP}/fandhe-frontend-template-app-wasm-smoke/template-app-wasm-smoke"
           js="${project}/static/wasm/fandhe_frontend_wasm_client.js"
           wasm="${project}/static/wasm/fandhe_frontend_wasm_client_bg.wasm"
           if [ ! -f "${js}" ]; then

@@ -244,3 +244,63 @@ runner イメージ・インスタンスの調達自体はインフラ側作業�
 完了し `fw-new-windows-verify.yml` の実行結果が
 `docs/reports/fw-new-windows-verification-report.md` に実測値として記録される
 までイシュー #413 はクローズしない。
+
+## 8. `template-app-wasm-smoke` の `/tmp` 固定 target の扱い（イシュー #659）
+
+### 8.1 経緯
+
+`.github/workflows/ci.yml` の `template-app-wasm-smoke` ジョブ（イシュー #411）
+は、self-hosted runner の共有 `CARGO_TARGET_DIR=/cargo-target` との衝突回避の
+ため、フィクスチャ専用 `CARGO_TARGET_DIR` と生成プロジェクトを `/tmp` 直下の
+固定パスへ明示指定していた。PR #648（イシュー #637、マージ済み）はテストコード
+側（`crates/cli/tests/*`）の `/tmp` リークを `env!("CARGO_TARGET_TMPDIR")` 固定
+＋ stale sweep で是正したが、このワークフロー側明示指定は「ジョブ終了後に
+削除されず runner インスタンスへ恒久蓄積する」問題を残したまま out-of-scope
+として記録されていた。本節はイシュー #659 でのその是正内容と判断根拠を記録する。
+
+### 8.2 選択肢と採用理由
+
+検討した選択肢は次の 3 案。
+
+1. **ci.yml 側の自前クリーンアップ**（`if: always()` の `rm -rf` ステップ追加）:
+   ジョブ cancel・runner 強制終了時に走らない穴が残るため単独では不十分
+2. **runner-maintenance.yml への掃除追加のみ**: `workflow_dispatch` 起点の
+   統計的カバーに留まり、保証としては弱い
+3. **`RUNNER_TEMP`（`${{ runner.temp }}`）配下へのパス移設 + runner-maintenance.yml
+   への旧パス掃除追加**（**採用**）: `RUNNER_TEMP` は GitHub Actions がジョブ
+   開始・終了時に自動清掃する領域のため、掃除コードなしで残置ゼロを構造的に
+   保証できる。「掃除を足す」より「残らない場所に置く」方が決定的であり、
+   本リポジトリの fail-closed 方針と整合する。リポジトリ内に既に先例がある
+   （`docs-site.yml`・`fw-new-windows-verify.yml`・`release.yml`）
+
+3 を主対策として採用し、補助対策として runner-maintenance.yml に旧 `/tmp`
+固定パス（`fandhe-frontend-template-app-wasm-smoke-target` /
+`fandhe-frontend-template-app-wasm-smoke`）の掃除ステップを追加した。これは
+(a) 過去実行が残した残骸、(b) 移設前の ci.yml のままの open ブランチ CI が
+引き続き旧パスへ書く分、の回収経路として維持する。
+
+トレードオフ: 移設前は `/tmp` の target が同一 runner インスタンス上で偶発的に
+ビルドキャッシュとして機能する場合があったが、移設後は毎ジョブ cold build に
+なる。新規インスタンスでは元々 cold build であり、`timeout-minutes: 15` は
+その前提で成立しているため、悪化しても既存の cold ケースと同等と判断した。
+
+### 8.3 旧パス回収の運用
+
+- 対象は固定パス 2 件のみ（ワイルドカード削除はしない）
+- 削除前に `du -sh` でサイズを Step Summary へ報告する
+- 直前の stale tmp ステップと同じく mtime 24 時間ガードを適用する（実行中の
+  他 CI ジョブが旧パスを使用中の場合の誤削除防止）
+- サイズ実績・残置有無の確認は以下の dry-run dispatch で行う。
+
+```bash
+gh workflow run runner-maintenance.yml -f parallelism=8 -f cleanup=false
+gh run watch
+```
+
+Step Summary に残置サイズ・削除見込みが表示される。統計的カバー方式のため
+1 回の dispatch で全インスタンスに到達するとは限らない点は `docs/ci/
+ci-runner-requirements.md` 冒頭（`parallelism` 入力の説明）と同様の限界を持つ。
+
+- 旧パスを書くブランチが消滅した後もステップ自体は固定パス限定・冪等のため
+  維持コストが無視できる。恒久的に残す運用とする（別途削除する場合は本節を
+  更新すること）。
