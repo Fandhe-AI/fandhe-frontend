@@ -81,6 +81,11 @@ fn real_site_build_emits_showcase_page_and_dedicated_css() {
         "card",
         "tabs",
         "accordion",
+        "dialog",
+        "menu",
+        "select",
+        "popover",
+        "tooltip",
     ] {
         assert!(
             html.contains(&format!(r#"data-scope="{scope}""#)),
@@ -100,6 +105,7 @@ fn real_site_build_emits_showcase_page_and_dedicated_css() {
     assert!(css.contains("--fandhe-color-"));
     assert!(css.contains(".fd-button--variant-solid"));
     assert!(css.contains(r#"[data-scope="tabs"][data-part="trigger"]"#));
+    assert!(css.contains(r#"[data-scope="dialog"][data-part="content"]"#));
     // site.css の `.docs-content h3` が Accordion anatomy の h3 へ漏れるのを
     // 遮断する見出しリセットが専用 CSS 側に含まれる（site.css は変更しない
     // 分離契約のまま showcase 側で上書きする。Bugbot 指摘の回帰防止）。
@@ -107,8 +113,9 @@ fn real_site_build_emits_showcase_page_and_dedicated_css() {
     assert!(!css.contains('<'));
 
     // ページ内目次（docs-toc）にはセクション見出しのみが載り、コンポーネント
-    // anatomy 内の見出し（Accordion trigger の h3・Card title の h3）は
-    // 混入しない（`layout::with_heading_anchors` の data-scope 部分木除外）。
+    // anatomy 内の見出し（Accordion trigger の h3・Card title の h3・
+    // Dialog/Popover の title h2）は混入しない
+    // （`layout::with_heading_anchors` の data-scope 部分木除外、イシュー #691）。
     let toc = html
         .split(r#"<nav class="docs-toc">"#)
         .nth(1)
@@ -116,6 +123,8 @@ fn real_site_build_emits_showcase_page_and_dedicated_css() {
         .expect("showcase page should have a docs-toc nav");
     assert!(toc.contains(">Accordion<"));
     assert!(toc.contains(">Card<"));
+    assert!(toc.contains(">Dialog<"));
+    assert!(toc.contains(">Popover<"));
     assert!(
         !toc.contains("pre-styled-ui とは何ですか"),
         "accordion trigger heading must not leak into TOC: {toc}"
@@ -123,6 +132,14 @@ fn real_site_build_emits_showcase_page_and_dedicated_css() {
     assert!(
         !toc.contains(">Elevated<"),
         "card title heading must not leak into TOC: {toc}"
+    );
+    assert!(
+        !toc.contains("Confirm action"),
+        "dialog title heading must not leak into TOC: {toc}"
+    );
+    assert!(
+        !toc.contains("About this feature"),
+        "popover title heading must not leak into TOC: {toc}"
     );
 }
 

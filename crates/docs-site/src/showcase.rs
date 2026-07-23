@@ -30,20 +30,28 @@
 //!
 //! # インタラクティブ部品の扱い
 //!
-//! Tabs / Accordion 等の状態機械を持つ部品は、SSR 静的マークアップ
-//! （選択中・開いた状態を `data-state` で固定した掲示）のみを載せる。実際の
+//! Tabs / Accordion / Dialog / Menu / Select / Popover / Tooltip 等の状態
+//! 機械を持つ部品は、SSR 静的マークアップ（選択中・開いた状態を
+//! `data-state="open"`/`"active"` 等で固定した掲示）のみを載せる。実際の
 //! クリック挙動（dispatch 状態遷移）は wasm 層の責務であり docs サイトの
 //! スコープ外（`examples/headless-pre-styled-ui` と同じ方針）。
+//!
+//! Dialog/Menu/Select/Popover/Tooltip は開いた状態を固定して掲示するため、
+//! recipe CSS のオーバーレイ配置（`position: fixed`/`absolute` + `z-index`）
+//! をそのまま反映するとページ全体を覆う・後続セクションに重なってしまう。
+//! [`SHOWCASE_LAYOUT_CSS`] がショーケース内に限定してこれを中和する
+//! （recipe CSS・`site/assets/site.css` はいずれも変更しない）。
 
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_headless_ui::{OpenState, Orientation};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
+use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::{
-    accordion, alert, badge, card, AlertStatus, BadgeProps, BadgeVariant, CardVariant,
-    ColorPalette, Size, StyleSheet, StylesheetError,
+    accordion, alert, badge, card, menu, popover, select, tooltip, AlertStatus, BadgeProps,
+    BadgeVariant, CardVariant, ColorPalette, Size, StyleSheet, StylesheetError,
 };
 
 /// ショーケースページの `page.path`（`site/nav.toml` の宣言と一致させる契約。
@@ -67,11 +75,40 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 /// 壊さない）、`data-scope` 属性ベースの決定的セレクタで showcase 領域内に
 /// 限定して上書きする（`.pre-styled-showcase` + 属性 + 型 = (0,2,1) が
 /// `.docs-content h3` = (0,1,1) より優先される）。
+///
+/// Dialog/Menu/Select/Popover/Tooltip の掲示（イシュー #691）に伴い、以下の
+/// オーバーレイ配置中和ルールを追加している（いずれも recipe CSS（
+/// `crates/pre-styled-ui/src/{dialog,menu,select,popover,tooltip}.rs`）・
+/// `site.css` は変更せず、showcase 領域内に限定した上書きのみで完結させる）:
+///
+/// - `[data-scope="dialog"][data-part="backdrop"]` の非表示化: dialog の
+///   backdrop は `position: fixed; inset: 0` のビューポート全体暗幕であり、
+///   開いた状態を固定掲示するとページ全体を覆ってしまうため掲示用にのみ隠す
+///   （実際の modal 表示では backdrop は必須であり、ここでの非表示化は
+///   ショーケースの掲示都合に限定する）。
+/// - dialog/menu/select/popover/tooltip の `[data-part="positioner"]` を
+///   `position: static` へ中和: recipe CSS は dialog を
+///   `position: fixed; inset: 0`、menu/select/popover を
+///   `position: absolute; top: 100%`、tooltip を
+///   `position: absolute; bottom: 100%` としており、いずれも開いた content を
+///   ページ内の別位置・別セクションに重ねてしまう。static 化してフロー内へ
+///   インライン表示させることで、後続セクションと重ならずに掲示できる
+///   （dialog はさらに `padding`/`justify-content` も中和し、中央寄せの
+///   ための余白・配置指定を解除する）。
+/// - dialog/popover の `title`（`h2`）見出しリセット: Accordion の `h3` と
+///   同じ理由（`site.css` の `.docs-content h2` が漏れる）で、showcase 領域
+///   内に限定して `border-top`/`padding-top`/`letter-spacing` を打ち消す
+///   （margin/font-size/font-weight は recipe が宣言済みで自然に勝つため
+///   宣言しない。recipe との二重管理を避ける最小リセット）。
 const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
 .showcase-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 0.75rem;\n  align-items: center;\n  margin: 1rem 0;\n}\n\
 .showcase-stack {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n  margin: 1rem 0;\n  max-width: 36rem;\n}\n\
-.pre-styled-showcase [data-scope=\"accordion\"] h3 {\n  margin: 0;\n  font-size: 1rem;\n  font-weight: 400;\n  line-height: 1.5;\n  letter-spacing: normal;\n}\n";
+.pre-styled-showcase [data-scope=\"accordion\"] h3 {\n  margin: 0;\n  font-size: 1rem;\n  font-weight: 400;\n  line-height: 1.5;\n  letter-spacing: normal;\n}\n\
+.pre-styled-showcase [data-scope=\"dialog\"][data-part=\"backdrop\"] {\n  display: none;\n}\n\
+.pre-styled-showcase [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: static;\n  padding: 0;\n  justify-content: flex-start;\n}\n\
+.pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
+.pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n";
 
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
 /// 追記する `Node` 木を返す。
@@ -92,7 +129,8 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 ///
 /// 内訳: テーマトークン（`Theme::default`、ライト/ダーク両対応）→ 掲載
 /// コンポーネントの recipe CSS（button/badge/spinner/alert/card/tabs/
-/// accordion）→ ショーケース配置スタイル、の順で決定的に連結する。
+/// accordion/dialog/menu/select/popover/tooltip）→ ショーケース配置スタイル、
+/// の順で決定的に連結する。
 ///
 /// # Errors
 ///
@@ -110,6 +148,11 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::card::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tabs::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::accordion::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::dialog::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::menu::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::select::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::popover::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::tooltip::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -485,6 +528,259 @@ fn accordion_section() -> Node {
     )
 }
 
+/// Dialog 節: 開いた状態の静的マークアップ（イシュー #691）。
+///
+/// backdrop は掲示用に非表示化し（[`SHOWCASE_LAYOUT_CSS`]）、positioner は
+/// フロー内配置へ中和している。実際の modal オーバーレイ配置は recipe CSS
+/// （`crates/pre-styled-ui/src/dialog.rs`）がそのまま担う。
+fn dialog_section() -> Node {
+    let node = div(
+        vec![],
+        vec![
+            dialog::trigger(
+                OpenState::Open,
+                Some("showcase-dialog-content"),
+                vec![],
+                vec![text("Open dialog")],
+            ),
+            dialog::root(
+                OpenState::Open,
+                vec![],
+                vec![
+                    dialog::backdrop(OpenState::Open, vec![], vec![]),
+                    dialog::positioner(
+                        OpenState::Open,
+                        vec![],
+                        vec![dialog::content(
+                            OpenState::Open,
+                            DialogRole::Dialog,
+                            true,
+                            ContentIds {
+                                id: Some("showcase-dialog-content"),
+                                labelledby: Some("showcase-dialog-title"),
+                                describedby: Some("showcase-dialog-desc"),
+                            },
+                            vec![],
+                            vec![
+                                dialog::title(
+                                    Some("showcase-dialog-title"),
+                                    vec![],
+                                    vec![text("Confirm action")],
+                                ),
+                                dialog::description(
+                                    Some("showcase-dialog-desc"),
+                                    vec![],
+                                    vec![text("この操作は取り消せません。")],
+                                ),
+                                dialog::close_trigger(vec![], vec![text("Close")]),
+                            ],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    );
+    section(
+        "Dialog",
+        "headless-ui の Dialog（WAI-ARIA dialog パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています（実際の overlay 配置は recipe CSS が担います）。",
+        vec![node],
+    )
+}
+
+/// Menu 節: highlighted / 通常 / separator / disabled の各状態を持つ項目リスト
+/// が開いた静的マークアップ（イシュー #691）。
+fn menu_section() -> Node {
+    let node = menu::root(
+        OpenState::Open,
+        vec![],
+        vec![
+            menu::trigger(
+                OpenState::Open,
+                false,
+                Some("showcase-menu-content"),
+                vec![],
+                vec![text("Actions")],
+            ),
+            menu::positioner(
+                OpenState::Open,
+                vec![],
+                vec![menu::content(
+                    OpenState::Open,
+                    Some("showcase-menu-content"),
+                    None,
+                    vec![],
+                    vec![
+                        menu::item("edit", false, true, vec![], vec![text("Edit")]),
+                        menu::item("duplicate", false, false, vec![], vec![text("Duplicate")]),
+                        menu::separator(vec![], vec![]),
+                        menu::item("delete", true, false, vec![], vec![text("Delete")]),
+                    ],
+                )],
+            ),
+        ],
+    );
+    section(
+        "Menu",
+        "headless-ui の Menu（role=\"menu\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。highlighted（キーボードフォーカス位置）・separator・disabled の各状態を含みます。positioner はフロー内配置へ中和しています。",
+        vec![node],
+    )
+}
+
+/// Select 節: 1 項目が選択済みの listbox が開いた静的マークアップ
+/// （イシュー #691）。
+fn select_section() -> Node {
+    let node = select::root(
+        OpenState::Open,
+        vec![],
+        vec![
+            select::label(
+                Some("showcase-select-label"),
+                vec![],
+                vec![text("Framework")],
+            ),
+            select::control(
+                OpenState::Open,
+                vec![],
+                vec![select::trigger(
+                    OpenState::Open,
+                    false,
+                    Some("showcase-select-content"),
+                    Some("showcase-select-label"),
+                    vec![],
+                    vec![
+                        select::value_text(false, vec![], vec![text("fandhe-frontend")]),
+                        select::indicator(OpenState::Open, vec![], vec![text("▾")]),
+                    ],
+                )],
+            ),
+            select::positioner(
+                OpenState::Open,
+                vec![],
+                vec![select::content(
+                    OpenState::Open,
+                    Some("showcase-select-content"),
+                    Some("showcase-select-label"),
+                    None,
+                    vec![],
+                    vec![
+                        select::item(
+                            OpenState::Open,
+                            false,
+                            false,
+                            "fandhe-frontend",
+                            Some("showcase-select-item-fandhe"),
+                            vec![],
+                            vec![
+                                select::item_text(None, vec![], vec![text("fandhe-frontend")]),
+                                select::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
+                            ],
+                        ),
+                        select::item(
+                            OpenState::Closed,
+                            false,
+                            false,
+                            "other",
+                            None,
+                            vec![],
+                            vec![
+                                select::item_text(None, vec![], vec![text("Other framework")]),
+                                select::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
+                            ],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    );
+    section(
+        "Select",
+        "headless-ui の Select（role=\"listbox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。1 項目が選択済み（data-state=\"open\"）の listbox が開いた状態を固定表示しています。positioner はフロー内配置へ中和しています。",
+        vec![node],
+    )
+}
+
+/// Popover 節: 開いた状態の静的マークアップ（イシュー #691）。
+///
+/// [`dialog_section`] と同じく、実際の overlay 配置は recipe CSS
+/// （`crates/pre-styled-ui/src/popover.rs`）が担い、掲示用にのみフロー内配置へ
+/// 中和している。
+fn popover_section() -> Node {
+    let node = popover::root(
+        OpenState::Open,
+        vec![],
+        vec![
+            popover::trigger(
+                OpenState::Open,
+                false,
+                Some("showcase-popover-content"),
+                vec![],
+                vec![text("More info")],
+            ),
+            popover::positioner(
+                OpenState::Open,
+                vec![],
+                vec![popover::content(
+                    OpenState::Open,
+                    Some("showcase-popover-content"),
+                    Some("showcase-popover-title"),
+                    Some("showcase-popover-desc"),
+                    vec![],
+                    vec![
+                        popover::title(
+                            Some("showcase-popover-title"),
+                            vec![],
+                            vec![text("About this feature")],
+                        ),
+                        popover::description(
+                            Some("showcase-popover-desc"),
+                            vec![],
+                            vec![text("必要なときだけ表示される補足情報です。")],
+                        ),
+                        popover::close_trigger(vec![], vec![text("Close")]),
+                    ],
+                )],
+            ),
+        ],
+    );
+    section(
+        "Popover",
+        "headless-ui の Popover（role=\"dialog\"、非モーダル）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています（実際の overlay 配置は recipe CSS が担います）。",
+        vec![node],
+    )
+}
+
+/// Tooltip 節: 開いた状態の静的マークアップ（イシュー #691）。
+fn tooltip_section() -> Node {
+    let node = tooltip::root(
+        OpenState::Open,
+        vec![],
+        vec![
+            tooltip::trigger(
+                OpenState::Open,
+                false,
+                Some("showcase-tooltip-content"),
+                vec![],
+                vec![text("Hover target")],
+            ),
+            tooltip::positioner(
+                OpenState::Open,
+                vec![],
+                vec![tooltip::content(
+                    OpenState::Open,
+                    Some("showcase-tooltip-content"),
+                    vec![],
+                    vec![text("補足のヒントテキストです。")],
+                )],
+            ),
+        ],
+    );
+    section(
+        "Tooltip",
+        "headless-ui の Tooltip（role=\"tooltip\"、WAI-ARIA tooltip パターン）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています。",
+        vec![node],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -509,6 +805,11 @@ fn showcase_body() -> Node {
             card_section(),
             tabs_section(),
             accordion_section(),
+            dialog_section(),
+            menu_section(),
+            select_section(),
+            popover_section(),
+            tooltip_section(),
         ],
     )
 }
@@ -536,6 +837,11 @@ mod tests {
             "card",
             "tabs",
             "accordion",
+            "dialog",
+            "menu",
+            "select",
+            "popover",
+            "tooltip",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
@@ -545,6 +851,22 @@ mod tests {
         // 静的掲示の状態固定: 選択中タブ・開いた Accordion 項目。
         assert!(html.contains(r#"data-state="active""#));
         assert!(html.contains(r#"data-state="open""#));
+    }
+
+    #[test]
+    fn showcase_markup_fixes_overlay_components_open_with_wai_aria_roles() {
+        // イシュー #691 受け入れ条件: Dialog/Menu/Select/Popover/Tooltip は
+        // 開いた状態を固定し、対応する WAI-ARIA role/属性が出力されることを
+        // 固定する（headless 層の既存保証をショーケース掲示側でも回帰させる）。
+        let html = render(&showcase_body());
+        assert!(html.contains(r#"aria-modal="true""#)); // dialog content
+        assert!(html.contains(r#"role="menu""#));
+        assert!(html.contains(r#"role="listbox""#));
+        assert!(html.contains(r#"role="tooltip""#));
+        assert!(html.contains(r#"aria-expanded="true""#)); // trigger 群（開状態）
+        assert!(html.contains(r#"aria-haspopup="dialog""#)); // dialog/popover trigger
+        assert!(html.contains(r#"aria-haspopup="menu""#));
+        assert!(html.contains(r#"aria-haspopup="listbox""#));
     }
 
     #[test]
@@ -568,12 +890,25 @@ mod tests {
         assert!(css.contains(".fd-badge--variant-subtle"));
         assert!(css.contains(r#"[data-scope="tabs"][data-part="trigger"]"#));
         assert!(css.contains(r#"[data-scope="accordion"]"#));
+        assert!(css.contains(r#"[data-scope="dialog"][data-part="content"]"#));
+        assert!(css.contains(r#"[data-scope="menu"][data-part="content"]"#));
+        assert!(css.contains(r#"[data-scope="select"][data-part="content"]"#));
+        assert!(css.contains(r#"[data-scope="popover"][data-part="content"]"#));
+        assert!(css.contains(r#"[data-scope="tooltip"][data-part="content"]"#));
         // ショーケース配置スタイル。
         assert!(css.contains(".showcase-row"));
         assert!(css.contains(".showcase-stack"));
         // Accordion anatomy の h3 への `.docs-content h3`（site.css）漏れを
         // 遮断する見出しリセット（Bugbot 指摘の回帰防止）。
         assert!(css.contains(r#".pre-styled-showcase [data-scope="accordion"] h3"#));
+        // オーバーレイ配置中和ルール（イシュー #691）。
+        assert!(css.contains(r#".pre-styled-showcase [data-scope="dialog"][data-part="backdrop"]"#));
+        assert!(
+            css.contains(r#".pre-styled-showcase [data-scope="dialog"][data-part="positioner"]"#)
+        );
+        assert!(css.contains(r#".pre-styled-showcase [data-scope="menu"][data-part="positioner"]"#));
+        assert!(css.contains(r#".pre-styled-showcase [data-scope="dialog"] h2"#));
+        assert!(css.contains(r#".pre-styled-showcase [data-scope="popover"] h2"#));
         // StyleSheet の不変条件（<style> 埋め込み・CSS ファイル双方で安全）。
         assert!(!css.contains('<'));
     }
