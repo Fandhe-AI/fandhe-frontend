@@ -51,12 +51,14 @@ use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::carousel;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
+use fandhe_frontend_pre_styled_ui::code::code;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
+use fandhe_frontend_pre_styled_ui::kbd::kbd;
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
@@ -66,6 +68,7 @@ use fandhe_frontend_pre_styled_ui::segment_group;
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
+use fandhe_frontend_pre_styled_ui::tag::{self, TagProps, TagVariant};
 use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
@@ -203,6 +206,9 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::pagination::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::breadcrumb::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::carousel::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::tag::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::kbd::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::code::css())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -2193,6 +2199,98 @@ fn breadcrumb_section() -> Node {
     )
 }
 
+/// Tag 節（イシュー #768）: variant / size / colorPalette と、
+/// close-trigger（`data-action` 配線のみ、クリック処理は wasm 層の
+/// スコープ外）の掲示。
+fn tag_section() -> Node {
+    let variants = [
+        (TagVariant::Solid, "Solid"),
+        (TagVariant::Subtle, "Subtle"),
+        (TagVariant::Outline, "Outline"),
+    ];
+    let variant_row = row(variants
+        .iter()
+        .map(|(variant, label)| {
+            tag::root(
+                &TagProps {
+                    variant: *variant,
+                    ..TagProps::default()
+                },
+                vec![],
+                vec![text(*label)],
+            )
+        })
+        .collect());
+    let size_row = row([Size::Sm, Size::Md, Size::Lg]
+        .iter()
+        .map(|size| {
+            tag::root(
+                &TagProps {
+                    size: *size,
+                    ..TagProps::default()
+                },
+                vec![],
+                vec![text("Tag")],
+            )
+        })
+        .collect());
+    let palette_row = row(palettes()
+        .iter()
+        .map(|(palette, label)| {
+            tag::root(
+                &TagProps {
+                    palette: *palette,
+                    ..TagProps::default()
+                },
+                vec![],
+                vec![text(*label)],
+            )
+        })
+        .collect());
+    let closable = tag::root(
+        &TagProps::default(),
+        vec![],
+        vec![
+            tag::label(vec![], vec![text("Removable")]),
+            tag::close_trigger(
+                Some("remove_tag"),
+                vec![("aria-label", "Remove")],
+                vec![text("×")],
+            ),
+        ],
+    );
+    section(
+        "Tag",
+        "ラベル・分類・除去可能なチップ表示。variant / size / colorPalette を組み合わせます。close-trigger は data-action 属性の出力のみを担い、実際のクリック処理は wasm 層のスコープです。",
+        vec![variant_row, size_row, palette_row, row(vec![closable])],
+    )
+}
+
+/// Kbd 節（イシュー #768）: variant 軸を持たない単一 slot 部品。
+fn kbd_section() -> Node {
+    let row_node = row(vec![
+        kbd(vec![], vec![text("Ctrl")]),
+        text(" + "),
+        kbd(vec![], vec![text("K")]),
+    ]);
+    section(
+        "Kbd",
+        "キーボード入力・ショートカット表示。variant 軸を持たない単一 slot の静的部品です。",
+        vec![row_node],
+    )
+}
+
+/// Code 節（イシュー #768）: インライン `<code>` のみを扱う（CodeBlock は
+/// 対象外確定済み）。
+fn code_section() -> Node {
+    let row_node = row(vec![code(vec![], vec![text("cargo build")])]);
+    section(
+        "Code",
+        "インラインコード片の表示。chakra-ui の CodeBlock 相当は対象外です。",
+        vec![row_node],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -2242,6 +2340,9 @@ fn showcase_body() -> Node {
             checkbox_card_section(),
             radio_card_section(),
             breadcrumb_section(),
+            tag_section(),
+            kbd_section(),
+            code_section(),
         ],
     )
 }
@@ -2291,6 +2392,9 @@ mod tests {
             "checkbox-card",
             "radio-card",
             "breadcrumb",
+            "tag",
+            "kbd",
+            "code",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
@@ -2382,6 +2486,9 @@ mod tests {
         assert!(css.contains(r#"[data-scope="field"][data-part="select"]"#));
         assert!(css.contains(r#"[data-scope="number-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="tags-input"][data-part="control"]"#));
+        assert!(css.contains(".fd-tag--variant-subtle"));
+        assert!(css.contains(r#"[data-scope="kbd"][data-part="root"]"#));
+        assert!(css.contains(r#"[data-scope="code"][data-part="root"]"#));
         // ショーケース配置スタイル。
         assert!(css.contains(".showcase-row"));
         assert!(css.contains(".showcase-stack"));
