@@ -232,7 +232,7 @@ css-anchor-positioning](https://caniuse.com/css-anchor-positioning) を参照）
 
 | 項目 | 引き継ぎ先 |
 |------|-----------|
-| 第 4.3 節で非対応と確定した Floating UI 高度 middleware（autoPlacement / inline / hide / size（sameWidth 以外）/ VirtualElement / ポインタ追従・連続再計算） | `docs/policy/intentional-non-adoption.md` への §3.x としての転記。ユーザー承認を得たうえで #590 以降の別イシューとして追跡する（本書執筆時点では転記を実施していない。本書の第 4.3 節が一次記録である） |
+| 第 4.3 節で非対応と確定した Floating UI 高度 middleware（autoPlacement / inline / hide / size（sameWidth 以外）/ VirtualElement / ポインタ追従・連続再計算） | イシュー #639 で `docs/policy/intentional-non-adoption.md` §3.20 へ転記済み。同節が第 4.3 節・本節（第 6 節）への相互参照を持つ。CSS Anchor Positioning（第 4.5 節）の非採用判断は同書 §3.21 へ転記済み |
 | `docs/api/headless-ui-api.md` への本設計の反映 | #590（実装確定後）または別イシューでの追随を提案する |
 | CSS Anchor Positioning の progressive enhancement 実装（第 4.5 節 (b)） | Baseline 到達後の再評価まで着手しない |
 
@@ -278,7 +278,7 @@ css-anchor-positioning](https://caniuse.com/css-anchor-positioning) を参照）
 | 対応する placement 範囲の明記 | 第 4.2 節（12 placement 語彙） |
 | flip / shift / sameWidth の採否 | 第 4.3 節 |
 | CSS Anchor Positioning（Web 標準）採用可否の評価 | 第 4.5 節 |
-| 意図的非対応の明記 | 第 4.3 節（Floating UI 高度 middleware の非採用表）・第 6 節（`intentional-non-adoption.md` への転記追跡） |
+| 意図的非対応の明記 | 第 4.3 節（Floating UI 高度 middleware の非採用表）・第 6 節（`intentional-non-adoption.md` §3.20〜§3.21 への転記済み） |
 
 ## 9. 関連文書との整合確認
 
@@ -292,8 +292,10 @@ css-anchor-positioning](https://caniuse.com/css-anchor-positioning) を参照）
   URL スキーム検証の対象外（値が URL を含まない）であり、新たな脅威面を追加しない。
 - `docs/policy/intentional-non-adoption.md` §2（AI 開発前提の評価軸）・§3.4（signal/store
   非採用）・§3.7（`style` 属性の CSS サニタイザ非採用）と、本書第 3 節・第 4.3 節・
-  第 4.4 節・第 7 節はそれぞれ整合する。本書第 4.3 節の非採用表は、同文書への転記
-  （第 6 節、追跡先明記済み）を前提に、同じ評価軸・書式で記述している。
+  第 4.4 節・第 7 節はそれぞれ整合する。本書第 4.3 節の非採用表は、同文書
+  §3.20（イシュー #639 で転記済み、第 6 節参照）へ同じ評価軸・書式で転記
+  されている。本書第 4.5 節（CSS Anchor Positioning 非採用）も同様に同文書
+  §3.21 へ転記済みである。
 - `crates/pre-styled-ui/src/css.rs` の `Declaration`/`decl()`（静的 CSS 宣言、
   `&'static str` 固定）と、本書第 4.4 節（動的な `style` 属性値、既存 `attrs` 引数
   経由）は異なる経路であることを明記し、両者の整合を混同しないよう区別した
