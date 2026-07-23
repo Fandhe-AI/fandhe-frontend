@@ -59,6 +59,7 @@ use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
+use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps};
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps};
@@ -208,6 +209,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::select::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::skeleton::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::separator::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::highlight::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::combobox::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::popover::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tooltip::stylesheet())?;
@@ -607,6 +609,43 @@ fn separator_section() -> Node {
         "Separator",
         "区切り線。role=\"separator\" と aria-orientation/data-orientation を常時出力します。orientation（horizontal/vertical）と variant（solid/dashed）の 2 軸を持ちます。",
         vec![horizontal_row, vertical_row],
+    )
+}
+
+/// Highlight 節（イシュー #775）: 単一一致・複数一致（`match_all`）・
+/// `ignore_case` の実演。一致判定は正規表現を使わない決定的な部分文字列
+/// 検索（`crates/pre-styled-ui/src/highlight.rs` rustdoc 参照）。
+fn highlight_section() -> Node {
+    let single_match_row = row(vec![highlight(
+        &HighlightProps {
+            query: &["brown fox"],
+            ..HighlightProps::default()
+        },
+        vec![],
+        "The quick brown fox jumps over the lazy dog",
+    )]);
+    let match_all_row = row(vec![highlight(
+        &HighlightProps {
+            query: &["o"],
+            match_all: true,
+            ..HighlightProps::default()
+        },
+        vec![],
+        "The quick brown fox jumps over the lazy dog",
+    )]);
+    let ignore_case_row = row(vec![highlight(
+        &HighlightProps {
+            query: &["LAZY"],
+            ignore_case: true,
+            ..HighlightProps::default()
+        },
+        vec![],
+        "The quick brown fox jumps over the lazy dog",
+    )]);
+    section(
+        "Highlight",
+        "テキスト中の一致語句を <mark> で強調します。正規表現ではなく決定的な部分文字列検索のみで一致判定します。query（複数可）・match_all（全一致 or 最初の 1 件）・ignore_case（ASCII 限定）の 3 プロパティを持ちます。",
+        vec![single_match_row, match_all_row, ignore_case_row],
     )
 }
 
@@ -2657,6 +2696,7 @@ fn showcase_body() -> Node {
             skeleton_section(),
             typography_section(),
             separator_section(),
+            highlight_section(),
             alert_section(),
             card_section(),
             tabs_section(),
