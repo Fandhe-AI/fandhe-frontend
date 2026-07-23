@@ -201,6 +201,18 @@
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`control` は
 //!   `role="listbox"`、`item_preview` は `role="option"`（イシュー本文が
 //!   指定する listbox 相当の ARIA）。
+//! - [`mod@carousel`]: Root / Control / PrevTrigger / NextTrigger /
+//!   ItemGroup / Item / IndicatorGroup / Indicator の 8 anatomy パーツと、
+//!   `0..slide_count` を循環し得る index 値を持つ [`carousel::Carousel`]
+//!   状態機械（#754、親 #748/#520）。[`mod@slider`]/[`mod@number_input`] と
+//!   同じく [`state`] の既存語彙に収まらないため、
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`item` は
+//!   `role="group"` + `aria-roledescription="slide"` + 位置ラベル
+//!   （`"{n} of {m}"`）、`indicator` は `aria-current`（現在位置のみ）を
+//!   出力する ARIA carousel パターン準拠。autoplay（play/pause/`aria-live`
+//!   切替）・pointer ドラッグ/キーボード操作の DOM 配線は本イシューの
+//!   スコープ外（[`carousel`] モジュール doc 参照）。
 //! - [`mod@pagination`]: Root / Item / Ellipsis / PrevTrigger / NextTrigger の
 //!   5 anatomy パーツと、[`pagination::page_range`]（総件数・ページサイズ・
 //!   現在ページ・sibling/boundary 件数から省略記号を含むページ列を導出する
@@ -288,6 +300,21 @@
 //!   意味論ナビであり状態機械を持たない。現在位置は `aria-current="page"`
 //!   （[`aria::AriaCurrent`]）+ `data-current`（[`data_attrs::data_current`]）
 //!   の併用で表現する。
+//! - [`mod@link`]: `root`（`a`）1 anatomy パーツ（イシュー #756、
+//!   `docs/api/headless-ui-api.md` §4b の追加候補消化）。`external`
+//!   オプトインは `target="_blank"` + `rel="noopener noreferrer"` を不可分に
+//!   付与する（reverse tabnabbing 対策）。`current` は [`mod@breadcrumb`] と
+//!   同じ `aria-current`/`data-current` 語彙を共有する。
+//! - [`mod@link_overlay`]: `root`（`div`）/ `overlay`（`a`）の 2 anatomy
+//!   パーツ（イシュー #756）。chakra-ui の LinkBox/LinkOverlay パターンに
+//!   倣い、カード全面クリック化を提供する。`::before` 疑似要素の代わりに
+//!   `overlay` 自身を `position: absolute; inset: 0;` で展開する方式を採る
+//!   （styled 層の CSS 責務、モジュール doc「全面拡張の実装方針」参照）。
+//! - [`mod@nav_list`]: `root`（`nav`）/ `heading`（`h2`）/ `list`（`ul`）/
+//!   `item`（`li`）/ `link`（`a`）の 5 anatomy パーツ（イシュー #756、#716
+//!   最優先候補）。`docs/design/docs-site-styled-ui-adoption.md` §3.1 が
+//!   指摘した「`menu` ロールの文書ナビへの誤転用」を解消するため、**`role`
+//!   を一切付与しない**（モジュール doc 参照）。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -297,6 +324,7 @@ pub mod anatomy;
 pub mod aria;
 pub mod avatar;
 pub mod breadcrumb;
+pub mod carousel;
 pub mod checkbox;
 pub mod collapsible;
 pub mod combobox;
@@ -305,7 +333,10 @@ pub mod dialog;
 pub mod field;
 pub mod fieldset;
 pub mod hover_card;
+pub mod link;
+pub mod link_overlay;
 pub mod menu;
+pub mod nav_list;
 pub mod number_input;
 pub mod pagination;
 pub mod pin_input;
@@ -351,11 +382,12 @@ pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
     aria_activedescendant, aria_autocomplete, aria_checked, aria_controls, aria_current,
     aria_describedby, aria_disabled, aria_expanded, aria_haspopup, aria_hidden, aria_invalid,
-    aria_label, aria_labelledby, aria_modal, aria_orientation, aria_pressed, aria_selected, role,
-    AriaAutocomplete, AriaChecked, AriaCurrent, AriaPopup,
+    aria_label, aria_labelledby, aria_modal, aria_orientation, aria_pressed, aria_roledescription,
+    aria_selected, role, AriaAutocomplete, AriaChecked, AriaCurrent, AriaPopup,
 };
 pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use breadcrumb::{breadcrumb, BreadcrumbItem};
+pub use carousel::{Carousel, CarouselAction};
 pub use checkbox::{Checkbox, CheckboxFlags};
 pub use combobox::{Combobox, ComboboxAction};
 pub use data_attrs::{

@@ -153,6 +153,26 @@
 //!   [`fandhe_frontend_headless_ui::checkbox::Checkbox`]/
 //!   [`fandhe_frontend_headless_ui::radio_group::RadioGroup`] をそのまま
 //!   再利用し、新規状態機械は作らない。詳細は各モジュール rustdoc 参照。
+//! - headless 状態機械を持つ複合部品の styled ラッパー（イシュー #754）:
+//!   [`mod@carousel`]。`size` variant のみを持ち（`item-group` の縦横
+//!   transform 切替は `data-orientation` 属性条件、[`mod@segment_group`] と
+//!   同型）、`color-palette` 軸は提供しない（選択・チェック状態を示す部品
+//!   ではないため）。`--fandhe-carousel-index` CSS カスタムプロパティによる
+//!   決定的なスライド位置表現・autoplay スコープ外は [`mod@carousel`]
+//!   rustdoc 参照。
+//! - headless ラッパー 3 種（イシュー #756、#716 追加候補・最優先候補の消化）:
+//!   [`mod@link`]（Link、`variant` の下線表示切り替え + `aria-current="page"`
+//!   状態装飾）、[`mod@link_overlay`]（LinkOverlay、`::before` 疑似要素の
+//!   代わりに `overlay` 自身を `position: absolute; inset: 0;` で展開する
+//!   カード全面クリック化。詳細は headless 層 rustdoc 参照）、
+//!   [`mod@nav_list`]（NavList、`docs/design/docs-site-styled-ui-adoption.md`
+//!   §3.1 が指摘した `menu` ロール誤転用を解消する文書ナビ専用部品。`role`
+//!   を一切付与しない）。`fandhe-frontend-docs-site` は本クレートの styled
+//!   `root`/`stylesheet` ではなく headless 再エクスポート
+//!   （[`nav_list::heading`]/[`nav_list::list`]/[`nav_list::item`]/
+//!   [`nav_list::link`]）のみを使い、`site/assets/site.css` の自己完結
+//!   不変条件（§3.4）を維持したまま §3.1/§3.2 の意味論不整合を解消する
+//!   （[`mod@nav_list`] rustdoc 参照）。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -285,6 +305,7 @@ pub mod badge;
 pub mod breadcrumb;
 pub mod button;
 pub mod card;
+pub mod carousel;
 pub mod checkbox;
 pub mod checkbox_card;
 mod class_attr;
@@ -293,8 +314,11 @@ pub mod css;
 pub mod dialog;
 pub mod hover_card;
 pub mod input;
+pub mod link;
+pub mod link_overlay;
 pub mod menu;
 pub mod native_select;
+pub mod nav_list;
 pub mod number_input;
 pub mod pagination;
 pub mod pin_input;

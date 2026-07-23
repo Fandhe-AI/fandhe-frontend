@@ -27,9 +27,9 @@
 
 use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::{
-    aria_controls, aria_label, avatar, data_state, dialog, hover_card, number_input, pin_input,
-    popover, rating_group, segment_group, slider, tags_input, tree_view, ImageStatus, OpenState,
-    Orientation,
+    aria_controls, aria_label, avatar, carousel, data_state, dialog, hover_card, number_input,
+    pin_input, popover, rating_group, segment_group, slider, tags_input, tree_view, ImageStatus,
+    OpenState, Orientation,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -290,6 +290,34 @@ fn slider_name_label_and_valuetext_are_escaped_for_all_payloads() {
             &html,
             "slider::thumb の aria-valuetext 属性値コンテキスト",
         );
+    }
+}
+
+/// (1)/(2) Carousel（イシュー #754）: `root`/`prev_trigger` の `aria-label`
+/// （属性値経路）・`item` の children（テキスト経路）へ全ペイロードを注入し、
+/// エスケープが貫通することを固定する。
+#[test]
+fn carousel_aria_label_and_item_children_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let root_node = carousel::root(Orientation::Horizontal, payload, vec![], vec![]);
+        let html = render(&root_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "carousel::root の aria-label 属性値コンテキスト",
+        );
+
+        let prev_trigger_node = carousel::prev_trigger(false, payload, vec![], vec![]);
+        let html = render(&prev_trigger_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "carousel::prev_trigger の aria-label 属性値コンテキスト",
+        );
+
+        let item_node = carousel::item(0, 1, false, vec![], vec![text(payload)]);
+        let html = render(&item_node);
+        assert_payload_is_escaped(payload, &html, "carousel::item のテキストコンテキスト");
     }
 }
 
