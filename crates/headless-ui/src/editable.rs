@@ -457,10 +457,22 @@ impl Editable {
     pub const MODE_EDIT: &str = "edit";
 
     /// 初期値・最大文字数で [`Editable`] を生成する（常に `Preview` から
-    /// 開始する）。
+    /// 開始する）。`value` が `max_length` を超える場合は
+    /// [`crate::number_input::NumberInput::new`]/
+    /// [`crate::tags_input::TagsInput::new`] と同様に構築時点で正規化し、
+    /// 先頭から `max_length` 文字に切り詰める（`Preview` 中は
+    /// `draft == value` 不変条件を保つため `draft` も同じ値になる）。
+    /// これにより over-long な初期値で構築したインスタンスが
+    /// [`Self::from_hydration_attrs`] の `max_length` 検証（over-long を拒否）
+    /// と矛盾せず、hydration をラウンドトリップできることを保証する。
     #[must_use]
     pub fn new(value: impl Into<String>, max_length: Option<usize>) -> Self {
-        let value = value.into();
+        let mut value = value.into();
+        if let Some(ml) = max_length {
+            if value.chars().count() > ml {
+                value = value.chars().take(ml).collect();
+            }
+        }
         Self {
             mode: EditMode::Preview,
             draft: value.clone(),
@@ -1022,6 +1034,42 @@ mod tests {
         assert_eq!(e.value(), "Ada");
         assert_eq!(e.draft(), "Ada");
         assert!(!e.is_editing());
+    }
+
+    #[test]
+    fn new_truncates_over_long_initial_value_to_max_length() {
+        // Bugbot 指摘対応（Medium、PR #792）: `Editable::new` は
+        // `NumberInput::new`/`TagsInput::new` と同様に構築時点で
+        // `max_length` を強制する。over-long な初期値で構築しても
+        // `value`/`draft` が矛盾した `maxlength` を出力せず、
+        // `from_hydration_attrs` の検証（over-long を拒否）と
+        // ラウンドトリップできることを保証する。
+        let e = Editable::new("abcdef", Some(3));
+        assert_eq!(
+            e.value(),
+            "abc",
+            "over-long な初期値は max_length で切り詰める"
+        );
+        assert_eq!(
+            e.draft(),
+            "abc",
+            "Preview 中は draft == value 不変条件を保つ"
+        );
+        assert_eq!(e.max_length(), Some(3));
+
+        // 切り詰め後の hydration_attrs を from_hydration_attrs へ渡すと
+        // 受理できる（ラウンドトリップが壊れない）ことを確認する。
+        let attrs = Hydrate::hydration_attrs(&e);
+        let restored = Editable::from_hydration_attrs(&attrs)
+            .expect("truncated value/draft should round-trip through hydration");
+        assert_eq!(restored, e);
+    }
+
+    #[test]
+    fn new_with_value_within_max_length_is_unchanged() {
+        let e = Editable::new("ab", Some(3));
+        assert_eq!(e.value(), "ab");
+        assert_eq!(e.draft(), "ab");
     }
 
     #[test]
