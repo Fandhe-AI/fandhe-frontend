@@ -2027,7 +2027,12 @@ jobs:
       - name: Checkout
         # actions/checkout（他ジョブと同一 SHA 固定）。docs/spec サブモジュールは
         # 本チェックに不要なため取得しない。git diff の merge-base 算出に
-        # 履歴全体が必要なため fetch-depth: 0 を明示する。
+        # 履歴全体が必要なため fetch-depth: 0 を明示する。fetch-depth: 0 は
+        # `+refs/heads/*:refs/remotes/origin/*`（全ブランチ）を checkout 内部で
+        # フェッチするため、xtask が参照する `origin/${{ github.base_ref }}`
+        # はこの時点で既に存在する（別途 `git fetch origin <base>` は不要。
+        # 過去に別ステップで実行し `persist-credentials: false` により認証情報が
+        # 残らず失敗した実績があるため追加しないこと、イシュー #638 PR #647）。
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           submodules: false
@@ -2039,16 +2044,6 @@ jobs:
         uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
         with:
           toolchain: stable
-
-      - name: Fetch base branch
-        # xtask 側の `git diff --name-only origin/<base>...HEAD`
-        # （three-dot = merge-base 起点）が参照できるよう、base ブランチを
-        # 明示的に fetch する（shallow 相当を避けるため --no-tags）。
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          set -euo pipefail
-          git fetch --no-tags origin "${BASE_REF}"
 
       - name: "prepare: write PR body to file"
         # PR 本文はユーザー制御の信頼しない入力であり、シェルへ直接展開せず
