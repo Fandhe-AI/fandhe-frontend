@@ -256,6 +256,7 @@ pub mod popover;
 pub mod radio_group;
 pub mod recipe;
 pub mod select;
+pub mod slider;
 pub mod spinner;
 pub mod stylesheet;
 pub mod switch;

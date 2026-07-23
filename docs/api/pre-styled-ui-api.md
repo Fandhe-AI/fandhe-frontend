@@ -24,8 +24,8 @@ rustdoc および各モジュール冒頭の rustdoc とする。本節はモジ
 本クレートは第 5 弾ツリー（#680）完了・crates.io v0.4.0 公開（#686）・
 checkbox styled ラッパー追加（#730）・静的フォーム部品 3 種追加（#737）・
 NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー追加
-（#739）・PasswordInput styled ラッパー追加（#740、いずれも公開時点未反映）
-を経て 26 の公開モジュールを持つ。
+（#739）・PasswordInput styled ラッパー追加（#740）・Slider styled ラッパー
+追加（#741、いずれも公開時点未反映）を経て 27 の公開モジュールを持つ。
 内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
@@ -45,6 +45,7 @@ NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー�
 | headless ラッパー第 6 弾 | `number_input` | #738（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） |
 | headless ラッパー第 7 弾 | `pin_input` | #739（`size` variant のみ。palette は第 2 弾展開の既存方針に従い本イシューのスコープ外） |
 | headless ラッパー第 8 弾 | `password_input` | #740（`src/password_input.rs` 冒頭 rustdoc 参照） |
+| headless ラッパー第 9 弾 | `slider` | #741（`size`/`color-palette` 両軸提供。動的値は `--fandhe-slider-percent` custom property の 1 点のみで伝搬） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、

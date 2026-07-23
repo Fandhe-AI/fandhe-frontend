@@ -45,6 +45,7 @@ use fandhe_frontend_pre_styled_ui::password_input::{
     self, PasswordAutocomplete, PasswordInputProps,
 };
 use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind};
+use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, select};
@@ -660,7 +661,64 @@ fn password_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads(
     }
 }
 
-/// (8) pin_input 経路（イシュー #739）: styled `root` の呼び出し側 `attrs`・
+/// (8) Slider 経路（イシュー #741）: styled `root` の呼び出し側 `attrs`・
+/// `class`、および headless-ui から選択的再エクスポートした `label` の
+/// children・`hidden_input` の `name` の 4 箇所すべてで既定エスケープ
+/// （REQ-1）が貫通することを固定する（checkbox/number_input 経路と同粒度）。
+#[test]
+fn slider_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
+
+    for payload in payloads::all() {
+        let s = Slider::default();
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&slider::root(
+            Size::Md,
+            ColorPalette::Accent,
+            &s,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "slider::root 呼び出し側 attrs コンテキスト");
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&slider::root(
+            Size::Md,
+            ColorPalette::Accent,
+            &s,
+            false,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "slider::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "slider::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-slider--"),
+            "slider::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした label の children 経路。
+        let html = render(&slider::label(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "slider::label children コンテキスト");
+
+        // 選択的再エクスポートした hidden_input の name 経路。
+        let html = render(&slider::hidden_input(payload, "40", false, vec![]));
+        assert_payload_is_escaped(payload, &html, "slider::hidden_input name コンテキスト");
+    }
+}
+
+/// (9) pin_input 経路（イシュー #739）: styled `root` の呼び出し側 `attrs`・
 /// `class`、および headless-ui から選択的再エクスポートした `label` の
 /// children・`input` の `value`・`hidden_input` の `name`/`value` の 5 箇所
 /// すべてで既定エスケープ（REQ-1）が貫通することを固定する

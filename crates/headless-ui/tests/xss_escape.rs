@@ -28,7 +28,7 @@
 use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::{
     aria_controls, aria_label, avatar, data_state, dialog, number_input, password_input, pin_input,
-    popover, ImageStatus, OpenState, PasswordAutocomplete, PasswordInputProps,
+    popover, slider, ImageStatus, OpenState, Orientation, PasswordAutocomplete, PasswordInputProps,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -205,6 +205,43 @@ fn number_input_name_and_label_children_are_escaped_for_all_payloads() {
         let label_node = number_input::label(false, false, None, vec![], vec![text(payload)]);
         let html = render(&label_node);
         assert_payload_is_escaped(payload, &html, "number_input::label のテキストコンテキスト");
+    }
+}
+
+/// (1)/(2) Slider（イシュー #741）: `hidden_input` の `name`（属性値経路）・
+/// `label` の children（テキスト経路）・`thumb` の `aria-valuetext`（属性値
+/// 経路）へ全ペイロードを注入し、エスケープが貫通することを固定する。
+#[test]
+fn slider_name_label_and_valuetext_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let hidden_input_node = slider::hidden_input(payload, "40", false, vec![]);
+        let html = render(&hidden_input_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "slider::hidden_input の name 属性値コンテキスト",
+        );
+
+        let label_node = slider::label(vec![], vec![text(payload)]);
+        let html = render(&label_node);
+        assert_payload_is_escaped(payload, &html, "slider::label のテキストコンテキスト");
+
+        let thumb_node = slider::thumb(
+            Orientation::Horizontal,
+            "0",
+            "100",
+            "40",
+            Some(payload),
+            false,
+            vec![],
+            vec![],
+        );
+        let html = render(&thumb_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "slider::thumb の aria-valuetext 属性値コンテキスト",
+        );
     }
 }
 
