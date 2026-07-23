@@ -62,7 +62,7 @@ use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::{
-    accordion, alert, badge, card, menu, popover, radio_group, select, switch, tooltip,
+    accordion, alert, badge, card, combobox, menu, popover, radio_group, select, switch, tooltip,
     AlertStatus, BadgeProps, BadgeVariant, CardVariant, ColorPalette, OpenState, Orientation, Size,
     StyleSheet, StylesheetError,
 };
@@ -99,9 +99,9 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   開いた状態を固定掲示するとページ全体を覆ってしまうため掲示用にのみ隠す
 ///   （実際の modal 表示では backdrop は必須であり、ここでの非表示化は
 ///   ショーケースの掲示都合に限定する）。
-/// - dialog/menu/select/popover/tooltip の `[data-part="positioner"]` を
+/// - dialog/menu/select/combobox/popover/tooltip の `[data-part="positioner"]` を
 ///   `position: static` へ中和: recipe CSS は dialog を
-///   `position: fixed; inset: 0`、menu/select/popover を
+///   `position: fixed; inset: 0`、menu/select/combobox/popover を
 ///   `position: absolute; top: 100%`、tooltip を
 ///   `position: absolute; bottom: 100%` としており、いずれも開いた content を
 ///   ページ内の別位置・別セクションに重ねてしまう。static 化してフロー内へ
@@ -121,7 +121,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"accordion\"] h3 {\n  margin: 0;\n  font-size: 1rem;\n  font-weight: 400;\n  line-height: 1.5;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"backdrop\"] {\n  display: none;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: static;\n  padding: 0;\n  justify-content: flex-start;\n}\n\
-.pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
+.pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"combobox\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n";
 
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
@@ -143,8 +143,8 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 ///
 /// 内訳: テーマトークン（`Theme::default`、ライト/ダーク両対応）→ 掲載
 /// コンポーネントの recipe CSS（button/badge/spinner/alert/card/tabs/
-/// accordion/dialog/menu/select/popover/tooltip/switch/radio_group/avatar/
-/// segment_group）
+/// accordion/dialog/menu/select/combobox/popover/tooltip/switch/radio_group/
+/// avatar/segment_group）
 /// → ショーケース配置スタイル、の順で決定的に連結する。
 ///
 /// # Errors
@@ -166,6 +166,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::dialog::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::menu::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::select::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::combobox::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::popover::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tooltip::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::switch::stylesheet())?;
@@ -727,6 +728,84 @@ fn select_section() -> Node {
     section(
         "Select",
         "headless-ui の Select（role=\"listbox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。1 項目が選択済み（data-state=\"open\"）の listbox が開いた状態を固定表示しています。positioner はフロー内配置へ中和しています。",
+        vec![node],
+    )
+}
+
+/// Combobox 節: 入力によるフィルタリング後の listbox が開いた静的マークアップ
+/// （イシュー #749）。[`combobox::filter_options`] を実演し、入力値
+/// `"re"` に対するフィルタ結果（`"React"` のみ）をそのまま候補として掲示する。
+fn combobox_section() -> Node {
+    let options = [("vue", "Vue"), ("react", "React"), ("svelte", "Svelte")];
+    let query = "re";
+    let filtered = combobox::filter_options(&options, query);
+
+    let items = filtered
+        .into_iter()
+        .map(|(value, label)| {
+            combobox::item(
+                OpenState::Closed,
+                false,
+                false,
+                value,
+                None,
+                vec![],
+                vec![combobox::item_text(None, vec![], vec![text(label)])],
+            )
+        })
+        .collect();
+
+    let node = combobox::root(
+        Size::Md,
+        OpenState::Open,
+        vec![],
+        vec![
+            combobox::label(
+                Some("showcase-combobox-label"),
+                Some("showcase-combobox-input"),
+                vec![],
+                vec![text("Framework")],
+            ),
+            combobox::control(
+                OpenState::Open,
+                vec![],
+                vec![
+                    combobox::input(
+                        OpenState::Open,
+                        query,
+                        false,
+                        Some("showcase-combobox-content"),
+                        None,
+                        None,
+                        vec![("id", "showcase-combobox-input")],
+                    ),
+                    combobox::trigger(
+                        OpenState::Open,
+                        false,
+                        Some("showcase-combobox-content"),
+                        vec![],
+                        vec![text("▾")],
+                    ),
+                ],
+            ),
+            combobox::positioner(
+                OpenState::Open,
+                vec![],
+                vec![combobox::content(
+                    OpenState::Open,
+                    Some("showcase-combobox-content"),
+                    Some("showcase-combobox-label"),
+                    vec![],
+                    items,
+                )],
+            ),
+        ],
+    );
+    section(
+        "Combobox",
+        &format!(
+            "headless-ui の Combobox（role=\"combobox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。入力値 \"{query}\" による filter_options の絞り込み結果を候補として表示しています。positioner はフロー内配置へ中和しています。"
+        ),
         vec![node],
     )
 }
@@ -1622,6 +1701,7 @@ fn showcase_body() -> Node {
             dialog_section(),
             menu_section(),
             select_section(),
+            combobox_section(),
             popover_section(),
             tooltip_section(),
             switch_section(),
