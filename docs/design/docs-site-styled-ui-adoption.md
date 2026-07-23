@@ -57,13 +57,27 @@ pre-styled-ui の `card` 部品は `data-scope` anatomy を持つ `div` ベー�
 
 ### 3.3 注記ブロック（`alert` 部品）
 
-`markdown.rs` は admonition（注記）構文を持たず、`> ...` はそのまま素の
-`blockquote` として出力される。`alert` 部品を適用するには Markdown 側に
-新しい拡張構文（例: `> [!NOTE]`）を新設する必要があり、これはイシュー
-#694 のスコープ（サイト骨格への適用可否評価）を超える別のドキュメント
-機能追加である。
+**導入済み（イシュー #715）**。当初（イシュー #694 時点）は `markdown.rs`
+が admonition（注記）構文を持たず、`> ...` はそのまま素の `blockquote` と
+して出力されるのみだった。`alert` 部品を適用するには Markdown 側に新しい
+拡張構文（例: `> [!NOTE]`）を新設する必要があり、これはイシュー #694 の
+スコープ（サイト骨格への適用可否評価）を超えるとして見送っていた
+（§5 再評価トリガー 2）。
 
-**判断**: 見送り（スコープ超過。Markdown 拡張構文の新設は別イシュー相当）。
+イシュー #715 でこの拡張自体の導入可否を評価した結果、サイト掲載
+19 ページの棚卸しで「意味的に admonition である」ラベル付き注記が
+6 ブロック実在すること、GFM alerts（`> [!NOTE]` 等）が GitHub 上でも
+ネイティブ描画されリポジトリ直読みとサイト描画の意味が保たれること、
+構文が行頭マーカーの固定文字列一致で決定的にパース可能（AI 保守前提の
+評価軸を満たす）ことから、**導入する**と判断した。実装は
+`crates/docs-site/src/markdown.rs`（GFM alerts 5 種のマーカー判定・
+`AlertStatus` への固定マッピング）・`crates/docs-site/src/admonition.rs`
+（専用 CSS の分離配線）で、3.5 のショーケースページと同じ「分離 CSS
+方式」を踏襲し `site.css` のカスケードには影響させていない。
+
+**判断**: 導入する（詳細設計・実装は `crates/docs-site/src/markdown.rs`・
+`crates/docs-site/src/admonition.rs` の rustdoc・イシュー #715 実装計画を
+参照）。
 
 ### 3.4 テーマトークン（`--fandhe-*` の `site.css` への波及）
 
@@ -79,21 +93,31 @@ pre-styled-ui のトークン体系（`--fandhe-*`）が二重管理になり、
 
 **判断**: 見送り（不変条件の作り替えを要し、利得に対してコストが見合わない）。
 
-### 3.5 ショーケースページ（適用済み範囲）
+### 3.5 ショーケースページ・admonition（適用済み範囲）
 
 PR #679 で `/components/pre-styled-ui/` ページに適用済み。ショーケース
 専用の分離 CSS（`assets/pre-styled-ui.css`、`crates/docs-site/src/showcase.rs::stylesheet`）を `crate::layout::docs_page_with_assets` の
 追加 `<link>` で読み込む方式を採り、`site.css` のカスケードへは一切
-影響させていない。これが現時点で pre-styled-ui を docs サイトへ組み込む
-唯一の「適用境界」であり、本書が定める見送り判断はこの適用境界を変更
-しない。
+影響させていない。
+
+イシュー #715 で導入した admonition（3.3）も同型の適用境界を踏襲する。
+専用の分離 CSS（`assets/admonition.css`、
+`crates/docs-site/src/admonition.rs::stylesheet`）を admonition を実際に
+含むページにのみ `docs_page_with_assets` の追加 `<link>` で読み込ませ、
+含まないページ・フィクスチャサイトのビルド結果は変えない
+（`crates/docs-site/src/build.rs` の配線）。
+
+これらが現時点で pre-styled-ui を docs サイトへ組み込む「適用境界」の
+全体であり、本書が定める見送り判断（3.1・3.2・3.4）はこの適用境界を
+変更しない。
 
 ## 4. 結論
 
 サイト骨格（Linear 風 2 カラムレイアウト・`site.css`・ナビゲーション
 生成ロジック）への pre-styled-ui の styled 部品・テーマトークンの適用は、
-上記 3.1〜3.4 のいずれも見送る。適用範囲は 3.5 のショーケースページ
-（分離 CSS 方式）に限定したまま維持する。
+3.1・3.2・3.4 は見送る。3.3（注記ブロック）はイシュー #715 で導入済み。
+適用範囲は 3.5 のショーケースページ・admonition（いずれも分離 CSS 方式）
+に限定したまま維持する。
 
 ## 5. 再評価トリガー
 
@@ -104,8 +128,9 @@ PR #679 で `/components/pre-styled-ui/` ページに適用済み。ショーケ
 1. pre-styled-ui にレイアウト・ナビゲーション系部品（Breadcrumb /
    Pagination / 文書ナビ向け Link リスト / Container 等）が追加されたとき
    （3.1・3.2 の意味論不整合が解消され得る）
-2. docs-site の Markdown レンダラへ admonition（注記）構文を追加すると
-   き（3.3 の `alert` 適用を再評価する）
+2. ~~docs-site の Markdown レンダラへ admonition（注記）構文を追加すると
+   き（3.3 の `alert` 適用を再評価する）~~ → イシュー #715 で消化済み
+   （3.3 参照。admonition 構文を追加し `alert` 部品での描画を導入した）
 3. サイト骨格（Linear 風 2 カラムレイアウト・`site.css`）の大規模リ
    デザインを行うとき（3.4 のトークン波及コストの前提が変わり得る）
 4. `--docs-*` と `--fandhe-*` のトークン二重管理が実際の同期不具合・
@@ -118,5 +143,10 @@ PR #679 で `/components/pre-styled-ui/` ページに適用済み。ショーケ
   運用ルール本体
 - `crates/docs-site/src/showcase.rs`: 適用済み範囲（ショーケースページ）
   の実装
+- `crates/docs-site/src/markdown.rs` / `crates/docs-site/src/admonition.rs`:
+  イシュー #715 で導入した admonition 構文のパース・alert 部品への描画・
+  専用 CSS の分離配線の実装
 - `crates/docs-site/tests/site_css_contract.rs`: `site.css` とレイアウト
-  生成ロジックの class 契約を検証する回帰テスト
+  生成ロジックの class 契約を検証する回帰テスト（admonition の
+  `fd-alert--status-*` は `admonition::stylesheet()` 側の契約であることの
+  ドリフト検知も含む）

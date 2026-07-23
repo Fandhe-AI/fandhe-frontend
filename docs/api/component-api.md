@@ -81,6 +81,7 @@ div, p, ul, li, a, h1, main_tag（"main" タグへの薄い委譲）
 既存 backlog **Issue #164**（「ノード木記述の可読性向上（ヘルパー関数・インデント規約）」）
 のスコープとする。TASK-5.1b は上記最小セットのみを実装し、#164 との二重実装を避ける。
 
+> [!NOTE]
 > **追記（Issue #164 実装済み）**: 上記スコープ外としていた拡張ヘルパー群
 > （`span`/`h2`〜`h6`/`ol`/`strong`/`em`/`small`/`blockquote`/`pre`/`code`/
 > `form`/`label`/`input`/`button`/`textarea`/`table`/`thead`/`tbody`/`tr`/`th`/

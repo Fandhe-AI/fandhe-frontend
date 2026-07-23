@@ -6,6 +6,13 @@
  *   プレーン CSS。外部リソース参照（CDN・Web フォント・リモート画像）を一切
  *   持たず、単一ファイルのみでレイアウト・タイポグラフィが完結する。
  *
+ *   pre-styled-ui 由来の CSS（UI ショーケースページの `assets/pre-styled-ui.css`・
+ *   admonition 注記ブロックの `assets/admonition.css`、イシュー #715）は本
+ *   ファイルへ持ち込まず、`crates/docs-site/src/showcase.rs` /
+ *   `crates/docs-site/src/admonition.rs` がそれぞれビルド時に生成する分離
+ *   ファイルとして「使われているページだけ」へ配線する（本ファイルの
+ *   カスケード・クラス名契約には一切影響しない、`docs/design/docs-site-styled-ui-adoption.md` 参照）。
+ *
  * クラス名契約（`crates/docs-site/src/layout.rs` / `nav.rs` / `markdown.rs` の
  * 実出力が正。ここに書かれたセレクタはすべて実際に生成される class 値であり、
  * `crates/docs-site/tests/site_css_contract.rs` が両者の乖離を検知する）:
