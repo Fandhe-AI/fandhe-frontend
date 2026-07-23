@@ -257,6 +257,7 @@ mod tests {
         assert!(sheet.push_css(&crate::accordion::stylesheet()).is_ok());
         assert!(sheet.push_css(&crate::menu::stylesheet()).is_ok());
         assert!(sheet.push_css(&crate::select::stylesheet()).is_ok());
+        assert!(sheet.push_css(&crate::switch::stylesheet()).is_ok());
     }
 
     #[test]
