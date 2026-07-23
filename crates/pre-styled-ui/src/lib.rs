@@ -176,6 +176,24 @@
 //! オプトイン API であり新たな迂回経路ではない（REQ-1、`.claude/rules/security.md`
 //! A03 参照）。頻用の状態値 [`OpenState`]・[`Orientation`] はルートからも
 //! 再エクスポートし、docs-site 等の実利用パスと同型の import を可能にする。
+//!
+//! # interactive 層の再エクスポート契約と判断根拠（イシュー #712）
+//!
+//! 上記の headless-ui/core クレート再エクスポートに加え、
+//! `fandhe_frontend_headless_ui::fandhe_frontend_interactive`（推移的に
+//! [`fandhe_frontend_core`] と同格のクレートそのものの再エクスポート）を
+//! ルートへ追加する。hydration/dispatch まで書く場合に必要な `Component`/
+//! `Hydrate`/`dispatch`/`HydrateError`/`render_for_hydration`/
+//! `HYDRATE_ATTR_PREFIX`/`codec` モジュール/`DirtyTracked` は、この
+//! 再エクスポートにより `fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::{...}`
+//! パスで全て到達可能になる（SSR に限らず hydration まで単独依存で完結する）。
+//! ルート直下への個別型再エクスポート（`Component`/`dispatch` 等を
+//! `fandhe_frontend_pre_styled_ui::` 直下へ置く案）は、`dispatch` のような
+//! 汎用名が名前衝突・責務混濁を招くため見送った。`OpenState`/`Orientation`
+//! （#685）はルートへ置く実利用パス（docs-site）が既にあったため例外的に
+//! 採用したが、interactive 系項目には現時点で in-repo の実利用者がおらず、
+//! 必要になれば非破壊的に追加できる。詳細な判断根拠・棄却案は
+//! `docs/api/pre-styled-ui-api.md` §3b を参照。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -220,6 +238,23 @@ pub use fandhe_frontend_headless_ui;
 // `fandhe-frontend-core` への直接依存を追加せずに単独依存パスを完結させる
 // （不変条件 4 参照）。
 pub use fandhe_frontend_headless_ui::fandhe_frontend_core;
+// `fandhe_frontend_interactive` クレートそのものへの推移的再エクスポート
+// （イシュー #712）。hydration/dispatch まで書く場合に必要な
+// `Component`/`Hydrate`/`dispatch`/`HydrateError`/`render_for_hydration`/
+// `HYDRATE_ATTR_PREFIX`/`hydration` モジュール相当（`codec` モジュール）/
+// `DirtyTracked` は、これまで pre-styled-ui 経由で到達できず
+// `fandhe-frontend-interactive` への直接依存を利用者に強いていた
+// （`crates/pre-styled-ui/tests/headless_reexports.rs` の dev-dependency
+// import が実例）。core 再エクスポート（#550）・headless-ui 経由の core
+// 再エクスポート（本ファイル前段）と同型のクレート再エクスポートにすることで、
+// 利用者側の `fandhe-frontend-interactive` バージョン指定が headless-ui/
+// pre-styled-ui 内部の依存とズレて「別バージョンの `Component` を実装している」
+// というトレイト不一致エラーを踏む余地を無くす。ルート直下への個別型
+// 再エクスポート（`Component`/`dispatch` 等をルートへ置く）は、`dispatch`
+// のような汎用名の名前衝突・責務混濁を避けるため見送り、実利用パスが
+// 生まれた時点で非破壊的に追加する判断とした（イシュー #712、
+// `docs/api/pre-styled-ui-api.md` §3b 参照）。
+pub use fandhe_frontend_headless_ui::fandhe_frontend_interactive;
 // ラッパー呼び出しに頻出する状態値をルートからも再エクスポートする
 // （`docs-site` の実利用パス `fandhe_frontend_headless_ui::{OpenState,
 // Orientation}` と同型の import を pre-styled-ui 単独依存で可能にする）。
