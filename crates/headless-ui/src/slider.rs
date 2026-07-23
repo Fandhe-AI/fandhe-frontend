@@ -33,13 +33,18 @@
 //!   （`format!("{value}")`）を [`fmt_num`] として本モジュール内に個別定義
 //!   する（モジュール間の相互依存を避けるための意図的な重複）。
 //! - `value` は常に `min` を起点とした `step` 単位へスナップしてから
-//!   `[min, max]` へ clamp する（[`snap_to_step`]）。スナップ後の値は
-//!   [`crate::number_input`] の `round_to_step_precision`（[`step`] の小数
-//!   桁数へ丸め直す）と同じ手法で浮動小数点ドリフトを除去し、
+//!   `[min, max]` へ clamp する（[`snap_to_step_and_clamp`]）。スナップ後の
+//!   値は [`crate::number_input`] の `round_to_step_precision`（[`step`] の
+//!   小数桁数へ丸め直す）と同じ手法で浮動小数点ドリフトを除去し、
 //!   `snap_to_step(snap_to_step(v)) == snap_to_step(v)`（冪等性）を保つ。
-//! - clamp は「max へは常に到達可能」（`value == max` はどの `step` に対して
-//!   も許容する）ことを保証する。step 単位に厳密に整列しない `max` であって
-//!   も、clamp が最終的に `max` そのものへ丸め込む。
+//! - 「max/min へは常に到達可能」（`value >= max`/`value <= min` はどの
+//!   `step` に対しても許容する）ことを保証する。step 単位に厳密に整列しない
+//!   `max`/`min` であっても、`value` が境界以上/以下のときはスナップを
+//!   経由せず境界値そのものを返す（[`snap_to_step_and_clamp`]。単純な
+//!   スナップ + clamp では最も近いグリッド点が境界未満/超過へ丸まり
+//!   契約が破れることがあった、イシュー #741 PR #787 レビュー指摘）。
+//!   `Increment`/`Decrement` も同じ関数を経由するため、off-grid な境界に
+//!   着地した後の増減操作は `min` 起点の step グリッドへ再整列される。
 //!
 //! # セキュリティ不変条件
 //!
@@ -64,7 +69,7 @@
 //!   せず `HydrateError` を返す（パース不能・非有限・`min >= max`・
 //!   `step <= 0`・範囲外 value・未知 orientation をすべて拒否する。
 //!   [`crate::progress::Progress`] と同型の fail-closed 契約）。受理した
-//!   値はさらに [`snap_to_step`] へ通してから復元する（多層防御。値状態
+//!   値はさらに [`snap_to_step_and_clamp`] へ通してから復元する（多層防御。値状態
 //!   機械が常に step 整列済みであるという不変条件を hydration 経路でも
 //!   維持する）。
 //!
@@ -119,9 +124,31 @@ fn round_to_step_precision(value: f64, step: f64) -> f64 {
 /// この丸め直しにより `snap_to_step(snap_to_step(v), min, step) ==
 /// snap_to_step(v, min, step)`（冪等性）が成り立つ（モジュール doc
 /// 「決定的な数値整形・step 丸め」参照）。
+///
+/// `min`/`max` ちょうどの到達可能性はこの関数単体では保証しない
+/// （[`snap_to_step_and_clamp`] が担う）。
 fn snap_to_step(value: f64, min: f64, step: f64) -> f64 {
     let steps = ((value - min) / step).round();
     round_to_step_precision(min + steps * step, step)
+}
+
+/// [`snap_to_step`] のスナップ結果を `[min, max]` へ clamp しつつ、
+/// `min`/`max` ちょうどの値は常にその境界そのものへ到達させる。
+///
+/// `max`（`min`）が `min` 起点の `step` グリッドに乗っていない場合、
+/// 最も近いグリッド点が `max`（`min`）未満（より大きい）へ丸まることが
+/// あり、[`snap_to_step`] + 単純な `clamp` だけでは「`max`/`min` は常に
+/// 到達可能」というモジュール doc の契約が破れる（イシュー #741 PR #787
+/// レビュー指摘、Bugbot High severity）。本関数は `value` が境界以上/以下
+/// のときスナップを経由せず境界値そのものを返すことでこれを保証する。
+fn snap_to_step_and_clamp(value: f64, min: f64, max: f64, step: f64) -> f64 {
+    if value >= max {
+        max
+    } else if value <= min {
+        min
+    } else {
+        snap_to_step(value, min, step).clamp(min, max)
+    }
 }
 
 /// `min`/`max`/`step`/`value` を fail-closed に正規化する。
@@ -131,8 +158,8 @@ fn snap_to_step(value: f64, min: f64, step: f64) -> f64 {
 ///   同じ方針。呼び出し側の不正な入力で panic させない）。
 /// - `step` が非有限、または `0.0` 以下の場合は `1.0` へフォールバックする。
 /// - `value` が非有限な場合は `min` として扱う。有限な場合は
-///   [`snap_to_step`] でスナップしてから `[min, max]` へ clamp する
-///   （clamp は常に `max` へ到達可能）。
+///   [`snap_to_step_and_clamp`] でスナップしてから `[min, max]` へ clamp する
+///   （`max`/`min` へは常に到達可能）。
 fn normalize(min: f64, max: f64, step: f64, value: f64) -> (f64, f64, f64, f64) {
     let (min, max) = if min.is_finite() && max.is_finite() && min < max {
         (min, max)
@@ -145,7 +172,7 @@ fn normalize(min: f64, max: f64, step: f64, value: f64) -> (f64, f64, f64, f64) 
         1.0
     };
     let value = if value.is_finite() { value } else { min };
-    let value = snap_to_step(value, min, step).clamp(min, max);
+    let value = snap_to_step_and_clamp(value, min, max, step);
     (min, max, step, value)
 }
 
@@ -286,7 +313,8 @@ pub fn value_text<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> No
 /// [`Slider::decode_action`] で接続する）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum SliderAction {
-    /// 値を設定する（[`snap_to_step`] でスナップ後 `[min, max]` へ clamp）。
+    /// 値を設定する（[`snap_to_step_and_clamp`] でスナップ後 `[min, max]` へ
+    /// clamp。`max`/`min` ちょうどの値は常に到達可能）。
     SetValue(f64),
     /// `step` 分だけ増加する（丸めた後 `[min, max]` へ clamp）。
     Increment,
@@ -487,16 +515,23 @@ impl Component for Slider {
         match action {
             SliderAction::SetValue(v) => {
                 if v.is_finite() {
-                    self.value = snap_to_step(v, self.min, self.step).clamp(self.min, self.max);
+                    self.value = snap_to_step_and_clamp(v, self.min, self.max, self.step);
                 }
             }
             SliderAction::Increment => {
+                // `next` を単純 clamp するだけでなく `snap_to_step_and_clamp`
+                // へ通す。`SetToMax` 等で off-grid な値に着地した後でも、
+                // 以後の Increment/Decrement が `min` 起点の step グリッドへ
+                // 再整列されることを保証する（イシュー #741 PR #787 レビュー
+                // 指摘、Bugbot Medium severity: 再整列しないと off-grid の
+                // まま値がグリッドへ復帰できず、以後ずっとグリッド外に
+                // 取り残される）。
                 let next = round_to_step_precision(self.value + self.step, self.step);
-                self.value = next.clamp(self.min, self.max);
+                self.value = snap_to_step_and_clamp(next, self.min, self.max, self.step);
             }
             SliderAction::Decrement => {
                 let next = round_to_step_precision(self.value - self.step, self.step);
-                self.value = next.clamp(self.min, self.max);
+                self.value = snap_to_step_and_clamp(next, self.min, self.max, self.step);
             }
             SliderAction::SetToMin => {
                 self.value = self.min;
@@ -577,8 +612,10 @@ impl Hydrate for Slider {
     /// [`HydrateError::MissingAttr`]、パース不能・非有限・`min >= max`・
     /// `step <= 0`・範囲外 value・未知 orientation は
     /// [`HydrateError::InvalidValue`]（panic しない）。基本検証を通過した
-    /// 値はさらに [`snap_to_step`] へ通してから復元する（モジュール doc
-    /// 「セキュリティ不変条件」参照。多層防御）。
+    /// 値はさらに [`snap_to_step_and_clamp`] へ通してから復元する（モジュール
+    /// doc「セキュリティ不変条件」参照。多層防御。`max`/`min` ちょうどの値は
+    /// スナップで失われず境界そのものとして復元される、イシュー #741
+    /// PR #787 レビュー指摘）。
     fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
         let find = |field: &str| -> Result<&str, HydrateError> {
             let name = format!("{HYDRATE_ATTR_PREFIX}{field}");
@@ -660,7 +697,7 @@ impl Hydrate for Slider {
             }
         };
 
-        let value = snap_to_step(value, min, step).clamp(min, max);
+        let value = snap_to_step_and_clamp(value, min, max, step);
 
         Ok(Self {
             min,
@@ -872,6 +909,62 @@ mod tests {
         assert_eq!(s.value(), 20.0);
         let s = Slider::new(0.0, 100.0, 10.0, 26.0, Orientation::Horizontal);
         assert_eq!(s.value(), 30.0);
+    }
+
+    /// イシュー #741 PR #787 レビュー指摘（Bugbot High severity）の回帰:
+    /// `max`（94.0）が `min` 起点の `step`（10.0）グリッドに乗っておらず、
+    /// かつ最も近いグリッド点（90.0）が `max` 未満へ丸まる場合でも、
+    /// `value == max` を渡すと「max は常に到達可能」の契約どおり `max` その
+    /// ものが保持される（旧実装は `snap_to_step` の丸め結果を素直に
+    /// clamp するだけで `90.0` に落ちていた）。
+    #[test]
+    fn new_preserves_off_grid_max_when_value_equals_max() {
+        let s = Slider::new(0.0, 94.0, 10.0, 94.0, Orientation::Horizontal);
+        assert_eq!(s.value(), 94.0);
+    }
+
+    /// 同上の回帰を `SliderAction::SetValue` 経由（dispatch "set"）でも固定
+    /// する。
+    #[test]
+    fn dispatch_set_reaches_off_grid_max() {
+        let mut s = Slider::new(0.0, 94.0, 10.0, 0.0, Orientation::Horizontal);
+        assert!(dispatch(&mut s, "set", "94"));
+        assert_eq!(s.value(), 94.0);
+    }
+
+    /// 同上の回帰を hydration 経路（`from_hydration_attrs`）でも固定する
+    /// （レビュー指摘が名指しした「hydration round-trip で max を失う」
+    /// ケース）。
+    #[test]
+    fn from_hydration_attrs_preserves_off_grid_max_value() {
+        let s = Slider::from_hydration_attrs(&[
+            ("data-hydrate-min".to_string(), "0".to_string()),
+            ("data-hydrate-max".to_string(), "94".to_string()),
+            ("data-hydrate-step".to_string(), "10".to_string()),
+            ("data-hydrate-value".to_string(), "94".to_string()),
+            (
+                "data-hydrate-orientation".to_string(),
+                "horizontal".to_string(),
+            ),
+        ])
+        .unwrap();
+        assert_eq!(s.value(), 94.0);
+    }
+
+    /// イシュー #741 PR #787 レビュー指摘（Bugbot Medium severity）の回帰:
+    /// `SetToMax`（"end"）で off-grid な `max` に着地した後、`Decrement`
+    /// は `value - step` をそのまま採らず `min` 起点の step グリッドへ
+    /// 再整列する（80.0/70.0/... の系列。旧実装は `94.0 -> 84.0 -> 74.0`
+    /// と off-grid のまま推移し続けた）。
+    #[test]
+    fn dispatch_decrement_re_snaps_to_step_grid_after_off_grid_max() {
+        let mut s = Slider::new(0.0, 94.0, 10.0, 0.0, Orientation::Horizontal);
+        assert!(dispatch(&mut s, "end", ""));
+        assert_eq!(s.value(), 94.0);
+        assert!(dispatch(&mut s, "decrement", ""));
+        assert_eq!(s.value(), 80.0);
+        assert!(dispatch(&mut s, "decrement", ""));
+        assert_eq!(s.value(), 70.0);
     }
 
     #[test]
