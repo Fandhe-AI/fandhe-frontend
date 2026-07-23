@@ -16,10 +16,14 @@
 //! pre-styled-ui v0.3.1 で公開 API（styled 部品・headless ラッパー・
 //! [`StyleSheet`]/[`Theme`]）が揃ったため統合済み。現在の層別内訳:
 //!
-//! - **pre-styled-ui の headless ラッパー**: Tabs / Accordion / Dialog
-//!   （headless 層のパーツ関数を `pub use` 再エクスポートし、
-//!   `data-scope`/`data-part` セレクタへの既定 CSS を `stylesheet()` で追加
-//!   提供する薄い委譲層）
+//! - **pre-styled-ui の headless ラッパー**: Tabs / Accordion / Dialog /
+//!   Menu / Select / Popover / Tooltip（headless 層のパーツ関数を
+//!   `pub use` 再エクスポートし、`data-scope`/`data-part` セレクタへの既定
+//!   CSS を `stylesheet()` で追加提供する薄い委譲層。Menu / Select /
+//!   Popover / Tooltip はラッパー第 1 弾（#551）・第 2 弾（#664、PR #672）で
+//!   追加された 4 部品で、いずれも `positioner` が `position: absolute` の
+//!   オーバーレイ型のため、既存 Dialog 節と同じ「SSR 初期状態は closed、
+//!   全 anatomy を DOM に掲載（`hidden` 付き）」方針で掲示する）
 //! - **pre-styled-ui の単純 styled 部品**: Button / Badge / Card / Alert /
 //!   Spinner（variant/size/colorPalette を Rust enum で型安全に指定する）
 //! - **headless-ui + 手書き CSS（残存）**: Switch / RadioGroup / Avatar
@@ -40,8 +44,8 @@
 //! # 学べること
 //!
 //! - headless-ui の anatomy（`data-scope`/`data-part`）・`data-*` 状態属性・
-//!   WAI-ARIA 属性付与の実演（Tabs / Accordion / Dialog / Switch /
-//!   RadioGroup / Avatar）
+//!   WAI-ARIA 属性付与の実演（Tabs / Accordion / Dialog / Menu / Select /
+//!   Popover / Tooltip / Switch / RadioGroup / Avatar）
 //! - pre-styled-ui の variant API（`ButtonVariant`/`Size`/`ColorPalette` 等の
 //!   Rust enum によるクラス切り替え）と [`StyleSheet`] による静的 CSS 集約
 //! - 既定エスケープ（REQ-1）: 動的に見える値も含めすべて `text()` 経由でノード
@@ -75,10 +79,14 @@ use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
+use fandhe_frontend_pre_styled_ui::menu;
+use fandhe_frontend_pre_styled_ui::popover;
+use fandhe_frontend_pre_styled_ui::select;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::stylesheet::StyleSheet;
 use fandhe_frontend_pre_styled_ui::tabs::{self, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
+use fandhe_frontend_pre_styled_ui::tooltip;
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 use std::path::Path;
 
@@ -300,6 +308,256 @@ fn dialog_section() -> Node {
     section(
         "Dialog",
         "モーダルダイアログ。SSR 初期状態は closed。既定 CSS は fandhe_frontend_pre_styled_ui::dialog::stylesheet() が提供します。",
+        vec![node],
+    )
+}
+
+/// Menu コンポーネント節（`data-scope="menu"`）。SSR 初期状態は常に closed
+/// （`OpenState::Closed`）。開閉・項目選択の実挙動は wasm 層の責務。
+///
+/// pre-styled-ui の headless ラッパー（`fandhe_frontend_pre_styled_ui::menu`、
+/// ラッパー第 1 弾 #551）を使う。`positioner` が `position: absolute` の
+/// オーバーレイ型のため、[`dialog_section`] と同じ「closed のまま全 anatomy
+/// を DOM に掲載」方針で掲示する。1 件目の項目は `highlighted: true` を渡し、
+/// virtual focus パターン（実 DOM フォーカスは trigger に留まり、選択候補は
+/// `data-highlighted` で示す、イシュー #581/#643）を実演する。
+fn menu_section() -> Node {
+    let state = OpenState::Closed;
+    let items = vec![
+        menu::item_group(
+            Some("showcase-menu-group-label"),
+            vec![],
+            vec![
+                menu::item_group_label(
+                    Some("showcase-menu-group-label"),
+                    vec![],
+                    vec![text("Actions")],
+                ),
+                menu::item("duplicate", false, true, vec![], vec![text("Duplicate")]),
+                menu::item("rename", false, false, vec![], vec![text("Rename")]),
+            ],
+        ),
+        menu::separator(vec![], vec![]),
+        menu::item("delete", true, false, vec![], vec![text("Delete")]),
+    ];
+    let node = menu::root(
+        state,
+        vec![],
+        vec![
+            menu::trigger(
+                state,
+                false,
+                Some("showcase-menu-content"),
+                vec![("id", "showcase-menu-trigger")],
+                vec![text("Open menu")],
+            ),
+            menu::indicator(state, vec![], vec![]),
+            menu::positioner(
+                state,
+                vec![],
+                vec![menu::content(
+                    state,
+                    Some("showcase-menu-content"),
+                    Some("showcase-menu-trigger"),
+                    vec![],
+                    items,
+                )],
+            ),
+        ],
+    );
+    section(
+        "Menu",
+        "WAI-ARIA APG の Menu パターン。SSR 初期状態は closed。既定 CSS は fandhe_frontend_pre_styled_ui::menu::stylesheet() が提供します。",
+        vec![node],
+    )
+}
+
+/// Select コンポーネント節（`data-scope="select"`）。listbox（`positioner`/
+/// `content`）は closed のまま掲示しつつ、選択済み値（`value_text`/
+/// `aria-selected`/`hidden_select` の `selected` option）を実演する。
+///
+/// pre-styled-ui の headless ラッパー（`fandhe_frontend_pre_styled_ui::select`、
+/// ラッパー第 1 弾 #551）を使う。`name="deploy-target"` は
+/// [`radio_group_section`] の `name="render-mode"` と衝突しない値を選ぶ。
+fn select_section() -> Node {
+    let state = OpenState::Closed;
+    let options = [
+        ("ssr", "SSR", false),
+        ("ssg", "SSG", true),
+        ("csr", "CSR", false),
+    ];
+    let mut items = Vec::new();
+    for (value, label_text, selected) in options {
+        let selected_state = if selected {
+            OpenState::Open
+        } else {
+            OpenState::Closed
+        };
+        let item_id = format!("showcase-select-item-{value}");
+        items.push(select::item(
+            selected_state,
+            false,
+            false,
+            value,
+            Some(item_id.as_str()),
+            vec![],
+            vec![
+                select::item_text(None, vec![], vec![text(label_text)]),
+                select::item_indicator(selected_state, vec![], vec![text("✓")]),
+            ],
+        ));
+    }
+    let node = select::root(
+        state,
+        vec![],
+        vec![
+            select::label(
+                Some("showcase-select-label"),
+                vec![],
+                vec![text("Deploy target")],
+            ),
+            select::control(
+                state,
+                vec![],
+                vec![select::trigger(
+                    state,
+                    false,
+                    Some("showcase-select-content"),
+                    Some("showcase-select-label"),
+                    vec![],
+                    vec![
+                        select::value_text(false, vec![], vec![text("SSG")]),
+                        select::indicator(state, vec![], vec![]),
+                    ],
+                )],
+            ),
+            select::positioner(
+                state,
+                vec![],
+                vec![select::content(
+                    state,
+                    Some("showcase-select-content"),
+                    Some("showcase-select-label"),
+                    None,
+                    vec![],
+                    items,
+                )],
+            ),
+            select::hidden_select(
+                Some("ssg"),
+                Some("deploy-target"),
+                false,
+                vec![],
+                vec![("ssr", "SSR"), ("ssg", "SSG"), ("csr", "CSR")],
+            ),
+        ],
+    );
+    section(
+        "Select",
+        "WAI-ARIA APG の Listbox パターンに基づく Select。SSG が選択済みの状態を実演します。既定 CSS は fandhe_frontend_pre_styled_ui::select::stylesheet() が提供します。",
+        vec![node],
+    )
+}
+
+/// Popover コンポーネント節（`data-scope="popover"`）。SSR 初期状態は常に
+/// closed。開閉の実挙動は wasm 層の責務。
+///
+/// pre-styled-ui の headless ラッパー（`fandhe_frontend_pre_styled_ui::popover`、
+/// ラッパー第 2 弾 #664）を使う。[`dialog_section`] と異なり `close_trigger`
+/// にはテキスト内容がないため、アクセシブルネームを `aria-label`（`attrs`
+/// 経由）で明示する（headless 層の契約、`crates/headless-ui/src/popover.rs`
+/// 参照）。
+fn popover_section() -> Node {
+    let state = OpenState::Closed;
+    let node = popover::root(
+        state,
+        vec![],
+        vec![
+            popover::trigger(
+                state,
+                false,
+                Some("showcase-popover-content"),
+                vec![],
+                vec![text("Open popover")],
+            ),
+            popover::positioner(
+                state,
+                vec![],
+                vec![
+                    popover::arrow(vec![], vec![popover::arrow_tip(vec![], vec![])]),
+                    popover::content(
+                        state,
+                        Some("showcase-popover-content"),
+                        Some("showcase-popover-title"),
+                        Some("showcase-popover-description"),
+                        vec![],
+                        vec![
+                            popover::title(
+                                Some("showcase-popover-title"),
+                                vec![],
+                                vec![text("Share this page")],
+                            ),
+                            popover::description(
+                                Some("showcase-popover-description"),
+                                vec![],
+                                vec![text("リンクをコピーして共有できます。")],
+                            ),
+                            popover::close_trigger(
+                                vec![("aria-label", "Close popover")],
+                                vec![text("×")],
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    );
+    section(
+        "Popover",
+        "アンカー配置のオーバーレイ。SSR 初期状態は closed。既定 CSS は fandhe_frontend_pre_styled_ui::popover::stylesheet() が提供します。",
+        vec![node],
+    )
+}
+
+/// Tooltip コンポーネント節（`data-scope="tooltip"`）。SSR 初期状態は常に
+/// closed。開閉の実挙動は wasm 層の責務。
+///
+/// pre-styled-ui の headless ラッパー（`fandhe_frontend_pre_styled_ui::tooltip`、
+/// ラッパー第 2 弾 #664）を使う。WAI-ARIA tooltip パターンに従い
+/// `aria-expanded`/`aria-controls` は使わず `aria-describedby` のみで
+/// trigger と content を関連付ける（`crates/headless-ui/src/tooltip.rs`
+/// 参照）。
+fn tooltip_section() -> Node {
+    let state = OpenState::Closed;
+    let node = tooltip::root(
+        state,
+        vec![],
+        vec![
+            tooltip::trigger(
+                state,
+                false,
+                Some("showcase-tooltip-content"),
+                vec![],
+                vec![text("Hover me")],
+            ),
+            tooltip::positioner(
+                state,
+                vec![],
+                vec![
+                    tooltip::content(
+                        state,
+                        Some("showcase-tooltip-content"),
+                        vec![],
+                        vec![text("既定 CSS 変数によるダーク/ライト両対応です。")],
+                    ),
+                    tooltip::arrow(vec![], vec![tooltip::arrow_tip(vec![], vec![])]),
+                ],
+            ),
+        ],
+    );
+    section(
+        "Tooltip",
+        "WAI-ARIA tooltip パターン（aria-describedby のみで関連付け）。SSR 初期状態は closed。既定 CSS は fandhe_frontend_pre_styled_ui::tooltip::stylesheet() が提供します。",
         vec![node],
     )
 }
@@ -661,6 +919,10 @@ fn build_page() -> Node {
             tabs_section(),
             accordion_section(),
             dialog_section(),
+            menu_section(),
+            select_section(),
+            popover_section(),
+            tooltip_section(),
             button_section(),
             badge_section(),
             card_section(),
@@ -700,6 +962,10 @@ fn build_stylesheet() -> Result<StyleSheet, fandhe_frontend_pre_styled_ui::Style
         fandhe_frontend_pre_styled_ui::tabs::stylesheet(),
         fandhe_frontend_pre_styled_ui::accordion::stylesheet(),
         fandhe_frontend_pre_styled_ui::dialog::stylesheet(),
+        fandhe_frontend_pre_styled_ui::menu::stylesheet(),
+        fandhe_frontend_pre_styled_ui::select::stylesheet(),
+        fandhe_frontend_pre_styled_ui::popover::stylesheet(),
+        fandhe_frontend_pre_styled_ui::tooltip::stylesheet(),
         fandhe_frontend_pre_styled_ui::button::css(),
         fandhe_frontend_pre_styled_ui::badge::css(),
         fandhe_frontend_pre_styled_ui::card::css(),
@@ -763,6 +1029,10 @@ mod tests {
             "data-scope=\"tabs\"",
             "data-scope=\"accordion\"",
             "data-scope=\"dialog\"",
+            "data-scope=\"menu\"",
+            "data-scope=\"select\"",
+            "data-scope=\"popover\"",
+            "data-scope=\"tooltip\"",
             // pre-styled-ui の単純 styled 部品
             "data-scope=\"button\"",
             "data-scope=\"badge\"",
@@ -792,6 +1062,53 @@ mod tests {
         let html = render(&dialog_section());
         assert!(html.contains(r#"data-state="closed""#));
         assert!(html.contains(r#"aria-modal="true""#));
+        assert!(html.contains("hidden"));
+    }
+
+    /// anatomy・ARIA・`data-highlighted` の検証（closed 状態のまま virtual
+    /// focus の highlight 表示を実演することを固定する）。
+    #[test]
+    fn menu_section_renders_closed_state_with_menu_roles() {
+        let html = render(&menu_section());
+        assert!(html.contains(r#"role="menu""#));
+        assert!(html.contains(r#"role="menuitem""#));
+        assert!(html.contains(r#"aria-haspopup="menu""#));
+        assert!(html.contains(r#"data-state="closed""#));
+        assert!(html.contains("data-highlighted"));
+        assert!(html.contains(r#"role="separator""#));
+        assert!(html.contains("hidden"));
+    }
+
+    /// anatomy・ARIA・選択済み値の検証（listbox は closed のまま、SSG が
+    /// 選択済みであることを `aria-selected`/`hidden_select` で実演する）。
+    #[test]
+    fn select_section_renders_selected_value_and_listbox() {
+        let html = render(&select_section());
+        assert!(html.contains(r#"role="listbox""#));
+        assert!(html.contains(r#"role="option""#));
+        assert!(html.contains(r#"aria-selected="true""#));
+        assert!(html.contains(r#"aria-haspopup="listbox""#));
+        assert!(html.contains(r#"data-value="ssg""#));
+        assert!(html.contains(r#"value="ssg" selected="""#));
+    }
+
+    /// anatomy・ARIA の検証（Dialog 節と同じ closed 掲示方針を固定する）。
+    #[test]
+    fn popover_section_renders_closed_state_with_dialog_role() {
+        let html = render(&popover_section());
+        assert!(html.contains(r#"role="dialog""#));
+        assert!(html.contains(r#"aria-haspopup="dialog""#));
+        assert!(html.contains(r#"aria-expanded="false""#));
+        assert!(html.contains("hidden"));
+    }
+
+    /// anatomy・WAI-ARIA tooltip パターン（`aria-describedby` のみで
+    /// 関連付け、`aria-expanded`/`aria-controls` は使わない）の検証。
+    #[test]
+    fn tooltip_section_renders_closed_state_with_tooltip_role() {
+        let html = render(&tooltip_section());
+        assert!(html.contains(r#"role="tooltip""#));
+        assert!(html.contains(r#"aria-describedby="showcase-tooltip-content""#));
         assert!(html.contains("hidden"));
     }
 
@@ -840,6 +1157,10 @@ mod tests {
         assert!(css.contains(r#"[data-scope="switch"][data-part="control"]"#));
         // 3. pre-styled recipe（ラッパー分 + 単純 styled 部品分）
         assert!(css.contains(r#"[data-scope="tabs"][data-part="trigger"]"#));
+        assert!(css.contains(r#"[data-scope="menu"][data-part="content"]"#));
+        assert!(css.contains(r#"[data-scope="select"][data-part="trigger"]"#));
+        assert!(css.contains(r#"[data-scope="popover"][data-part="content"]"#));
+        assert!(css.contains(r#"[data-scope="tooltip"][data-part="content"]"#));
         assert!(css.contains(".fd-button--variant-solid"));
         assert!(!css.contains('<'));
     }

@@ -74,21 +74,28 @@
 //!   `hidden-input` の視覚的非表示化に [`crate::select`] の
 //!   `hidden-select` と同じ visually-hidden パターンを再利用する点は
 //!   [`mod@switch`] rustdoc 参照。
+//! - headless 状態機械を持つ複合部品の styled ラッパー第 4 弾（#683）:
+//!   [`mod@radio_group`]。`item-hidden-input` の visually-hidden 化は
+//!   [`mod@select`] の `hidden-select` と同じ責務分担、フォーカスリングは
+//!   新設の [`recipe::StateCondition::FocusWithin`] を使う（モジュール
+//!   rustdoc 参照）。
 //!
-//! # headless ラッパーの設計（#551/#664/#682）
+//! # headless ラッパーの設計（#551/#664/#682/#683）
 //!
 //! [`mod@dialog`]・[`mod@accordion`]・[`mod@menu`]・[`mod@select`]・
-//! [`mod@tabs`]・[`mod@popover`]・[`mod@tooltip`]・[`mod@switch`] はいずれも
+//! [`mod@tabs`]・[`mod@popover`]・[`mod@tooltip`]・[`mod@switch`]・
+//! [`mod@radio_group`] はいずれも
 //! `fandhe_frontend_headless_ui` の対応モジュールが出力する
 //! `data-scope`/`data-part` 属性セレクタへ [`recipe::SlotRecipe`] で静的 CSS
 //! を対応付ける薄い委譲層である。パーツ関数・状態機械
-//! （`Dialog`/`Accordion`/`Menu`/`Select`/`Popover`/`Tooltip`/`Switch`）は
+//! （`Dialog`/`Accordion`/`Menu`/`Select`/`Popover`/`Tooltip`/`Switch`/
+//! `RadioGroup`）は
 //! headless 層からそのまま再エクスポートし（`pub use ...::*`）、新たな
 //! 出力経路・エスケープ迂回は一切持たない。各モジュールの `stylesheet()` が
 //! 生成する CSS は静的 `.css` ファイルとして配信する、または
 //! [`stylesheet::StyleSheet`]（#605）へ取り込んで `<style>` タグへインライン
 //! 埋め込む、両方の利用形態を前提とする（不変条件 2 を参照）。variant
-//! （size 等）ごとのクラス切り替えは本第 3 弾でも引き続きスコープ外とする
+//! （size 等）ごとのクラス切り替えは本第 3・4 弾でも引き続きスコープ外とする
 //! （各モジュール rustdoc のスコープ外節を参照）。
 //!
 //! [`theme`] が生成する CSS・styled 部品各モジュールの `css()`/`stylesheet()` は
@@ -120,6 +127,7 @@ pub mod css;
 pub mod dialog;
 pub mod menu;
 pub mod popover;
+pub mod radio_group;
 pub mod recipe;
 pub mod select;
 pub mod spinner;

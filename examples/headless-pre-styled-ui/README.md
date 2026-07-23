@@ -29,9 +29,16 @@
 
 | コンポーネント | 使用する層 | 備考 |
 |---------------|-----------|------|
-| Tabs / Accordion / Dialog | pre-styled-ui（headless ラッパー） | マークアップは headless 層の再エクスポート、既定 CSS は各モジュールの `stylesheet()` |
+| Tabs / Accordion / Dialog / Menu / Select / Popover / Tooltip | pre-styled-ui（headless ラッパー） | マークアップは headless 層の再エクスポート、既定 CSS は各モジュールの `stylesheet()`。Menu / Select はラッパー第 1 弾（#551）、Popover / Tooltip は第 2 弾（#664、PR #672）で追加 |
 | Button / Badge / Card / Alert / Spinner | pre-styled-ui（単純 styled 部品） | variant / size / colorPalette を Rust enum で型安全に指定 |
 | Switch / RadioGroup / Avatar | headless-ui + 手書き CSS | pre-styled-ui に styled ラッパー未提供のため `static/ui.css` で直接スタイル |
+
+Menu / Select / Popover / Tooltip はいずれも `positioner` が `position:
+absolute` のオーバーレイ型のため、Dialog 節と同じ「SSR 初期状態は closed、
+全 anatomy を DOM に掲載（`hidden` 付き）」方針で掲示します。Select のみ、
+listbox を closed のまま「選択済み値」（`value_text`/`aria-selected`/
+`hidden_select` の `selected` option）を実演し、Menu は virtual focus による
+`data-highlighted` 項目の実演を含みます。
 
 CSS はテーマトークン（`Theme::default()`）・使用コンポーネントの recipe
 CSS・手書き残存分（`static/ui.css`）を `StyleSheet` へ集約し、
@@ -41,8 +48,8 @@ CSS・手書き残存分（`static/ui.css`）を `StyleSheet` へ集約し、
 ## 学べること
 
 - `fandhe-frontend-headless-ui` の anatomy（`data-scope`/`data-part`）・
-  `data-*` 状態属性・WAI-ARIA 属性付与（Tabs / Accordion / Dialog / Switch /
-  RadioGroup / Avatar）
+  `data-*` 状態属性・WAI-ARIA 属性付与（Tabs / Accordion / Dialog / Menu /
+  Select / Popover / Tooltip / Switch / RadioGroup / Avatar）
 - `fandhe-frontend-pre-styled-ui` の variant API（`ButtonVariant`/`Size`/
   `ColorPalette` 等の Rust enum によるクラス切り替え）・headless ラッパー・
   `StyleSheet`/`Theme` による静的 CSS 集約
