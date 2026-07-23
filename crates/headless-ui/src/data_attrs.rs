@@ -123,6 +123,22 @@ pub fn data_pressed(pressed: bool) -> Option<(&'static str, &'static str)> {
     pressed.then_some(("data-pressed", ""))
 }
 
+/// `data-current` 存在属性（Breadcrumb 用イシュー #755・Carousel 用イシュー
+/// #754 の双方が使う共有ヘルパ）。[`data_disabled`] と同じ「存在で真を表す」
+/// 規約に従う。
+///
+/// - Breadcrumb: [`crate::breadcrumb::current_link`] が
+///   [`crate::aria::aria_current`] と併用し、現在位置（末尾項目）を表す。
+/// - Carousel: 現在スライド/インジケータの表現に使う。`data-checked`
+///   （確定選択）/`data-highlighted`（キーボードナビゲーション等の一時的
+///   フォーカス位置）とは意味論が異なり、「連続する複数項目中の現在位置」
+///   （carousel のスライド送り）を表す。他コンポーネント（radio/checkbox 系）の
+///   選択セマンティクスとは独立した第 3 の軸。
+#[must_use]
+pub fn data_current(current: bool) -> Option<(&'static str, &'static str)> {
+    current.then_some(("data-current", ""))
+}
+
 /// `data-orientation` 属性。値は [`Orientation`] で固定された 2 値のみを取り、
 /// 任意文字列は受け付けない。
 #[must_use]
@@ -142,18 +158,23 @@ pub fn data_complete(complete: bool) -> Option<(&'static str, &'static str)> {
     complete.then_some(("data-complete", ""))
 }
 
-/// `data-current` 存在属性（[`crate::steps`] 用、イシュー #752）。
-/// [`data_complete`] と同じ規約に従う。
-#[must_use]
-pub fn data_current(current: bool) -> Option<(&'static str, &'static str)> {
-    current.then_some(("data-current", ""))
-}
-
 /// `data-incomplete` 存在属性（[`crate::steps`] 用、イシュー #752）。
-/// [`data_complete`] と同じ規約に従う。
+/// [`data_complete`] と同じ規約に従う。[`crate::steps`] の現在位置表現は
+/// 既存の [`data_current`]（Breadcrumb/Carousel と共有、上記参照）を流用する
+/// （Steps 独自の `data-current` 再定義はしない）。
 #[must_use]
 pub fn data_incomplete(incomplete: bool) -> Option<(&'static str, &'static str)> {
     incomplete.then_some(("data-incomplete", ""))
+}
+
+/// `data-copied` 存在属性（Clipboard 用、イシュー #773）。[`data_disabled`]
+/// と同じ「存在で真を表す」規約に従う。[`crate::clipboard`] の各パーツが
+/// コピー済み状態を表現するために使う唯一の属性であり、`data-state`
+/// （値語彙）ではなく存在属性を選ぶ理由は ark-ui/chakra-ui の Clipboard が
+/// 同じ規約を採用しているため（[`crate::clipboard`] モジュール doc 参照）。
+#[must_use]
+pub fn data_copied(copied: bool) -> Option<(&'static str, &'static str)> {
+    copied.then_some(("data-copied", ""))
 }
 
 #[cfg(test)]
@@ -189,6 +210,8 @@ mod tests {
         assert_eq!(data_current(false), None);
         assert_eq!(data_incomplete(true), Some(("data-incomplete", "")));
         assert_eq!(data_incomplete(false), None);
+        assert_eq!(data_copied(true), Some(("data-copied", "")));
+        assert_eq!(data_copied(false), None);
     }
 
     #[test]

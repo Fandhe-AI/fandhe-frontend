@@ -14,7 +14,7 @@ use fandhe_frontend_headless_ui::state::OpenState;
 use fandhe_frontend_pre_styled_ui::alert::{self, AlertStatus};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::{
-    accordion, dialog, menu, popover, select, switch, tabs, tooltip,
+    accordion, dialog, menu, popover, select, switch, tabs, toggle_tip, tooltip,
 };
 use fandhe_frontend_pre_styled_ui::{badge, button, spinner};
 use fandhe_frontend_pre_styled_ui::{BadgeProps, ButtonProps, ColorPalette, Size, SpinnerProps};
@@ -172,6 +172,34 @@ mod wrapper_escape_and_stylesheet_safety {
     fn popover_and_tooltip_stylesheets_are_deterministic_across_calls() {
         assert_eq!(popover::stylesheet(), popover::stylesheet());
         assert_eq!(tooltip::stylesheet(), tooltip::stylesheet());
+    }
+
+    #[test]
+    fn toggle_tip_content_children_are_escaped() {
+        // イシュー #761: styled ToggleTip 経由でも既定エスケープ（REQ-1）が
+        // 効くことを固定する（[`tooltip_content_children_are_escaped`] と同型）。
+        let html = render(&toggle_tip::content(
+            OpenState::Open,
+            None,
+            vec![],
+            vec![text(XSS_PAYLOAD)],
+        ));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;"));
+        assert!(html.contains(r#"data-scope="toggle-tip""#));
+    }
+
+    #[test]
+    fn toggle_tip_stylesheet_is_free_of_style_breakout_sequences() {
+        let css = toggle_tip::stylesheet();
+        assert!(!css.contains("</style"), "CSS breakout 発生: {css}");
+        assert!(!css.contains('<'), "CSS に '<' が混入: {css}");
+        assert!(!css.is_empty());
+    }
+
+    #[test]
+    fn toggle_tip_stylesheet_is_deterministic_across_calls() {
+        assert_eq!(toggle_tip::stylesheet(), toggle_tip::stylesheet());
     }
 
     #[test]

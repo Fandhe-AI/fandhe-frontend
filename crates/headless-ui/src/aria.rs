@@ -98,19 +98,6 @@ pub fn aria_hidden(hidden: bool) -> (&'static str, &'static str) {
     ("aria-hidden", bool_str(hidden))
 }
 
-/// `aria-current` 属性（[`crate::steps`] 用、イシュー #752）。
-///
-/// WAI-ARIA の `aria-current` はトークン語彙が複数（`"page"`/`"step"`/
-/// `"location"`/`"date"`/`"time"`/`"true"`/`"false"` 等）ある属性だが、
-/// 本関数は呼び出し側の任意文字列を受け付けず `&'static str` の固定
-/// リテラルのみを取る（`crates/core/src/tags.rs` のタグ名/属性名固定と
-/// 同型の判断）。現時点の呼び出し元は Steps の current トリガーが使う
-/// `"step"` のみで、他トークンは利用が確認できてから追加する。
-#[must_use]
-pub fn aria_current(value: &'static str) -> (&'static str, &'static str) {
-    ("aria-current", value)
-}
-
 /// `aria-disabled` 属性。
 #[must_use]
 pub fn aria_disabled(disabled: bool) -> (&'static str, &'static str) {
@@ -229,6 +216,59 @@ pub fn aria_autocomplete(kind: AriaAutocomplete) -> (&'static str, &'static str)
     ("aria-autocomplete", kind.as_str())
 }
 
+/// `aria-roledescription` 属性（Carousel 用、イシュー #754）。WAI-ARIA
+/// carousel パターンに従い、`role="region"`（[`crate::carousel::root`]）や
+/// `role="group"`（[`crate::carousel::item`]）へ人間可読な役割名
+/// （`"carousel"`/`"slide"`）を追加提供する。値は本モジュールが定義する
+/// 固定語彙（[`crate::carousel`] が渡す `&'static str` リテラル）のみを
+/// 想定し、任意文字列を受け付ける汎用属性ではない（[`aria_label`] のような
+/// 動的文字列専用ヘルパとは異なる）。
+#[must_use]
+pub fn aria_roledescription(value: &'static str) -> (&'static str, &'static str) {
+    ("aria-roledescription", value)
+}
+
+/// `aria-current` の値語彙（W3C ARIA 仕様、Breadcrumb 用イシュー #755・
+/// Pagination の選択ページ表現用イシュー #751・Steps の現在ステップ表現用
+/// イシュー #752 が共有する）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AriaCurrent {
+    /// 現在のページ（[`crate::breadcrumb::current_link`] / [`crate::pagination`]
+    /// が使う値）。
+    Page,
+    /// 手順の現在ステップ（[`crate::steps`] の current トリガーが使う値）。
+    Step,
+    /// 現在の所在地。
+    Location,
+    /// 現在の日付。
+    Date,
+    /// 現在の時刻。
+    Time,
+    /// 種別を限定しない汎用の「現在」。
+    True,
+}
+
+impl AriaCurrent {
+    /// `aria-current` の属性値文字列を返す。
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Page => "page",
+            Self::Step => "step",
+            Self::Location => "location",
+            Self::Date => "date",
+            Self::Time => "time",
+            Self::True => "true",
+        }
+    }
+}
+
+/// `aria-current` 属性（Breadcrumb 等の現在位置表現、イシュー #755）。
+#[must_use]
+pub fn aria_current(kind: AriaCurrent) -> (&'static str, &'static str) {
+    ("aria-current", kind.as_str())
+}
+
 fn bool_str(value: bool) -> &'static str {
     if value {
         "true"
@@ -253,7 +293,6 @@ mod tests {
         assert_eq!(aria_modal(true), ("aria-modal", "true"));
         assert_eq!(aria_invalid(true), ("aria-invalid", "true"));
         assert_eq!(aria_invalid(false), ("aria-invalid", "false"));
-        assert_eq!(aria_current("step"), ("aria-current", "step"));
     }
 
     #[test]
@@ -295,6 +334,31 @@ mod tests {
             ("aria-haspopup", "dialog")
         );
         assert_eq!(aria_haspopup(AriaPopup::True), ("aria-haspopup", "true"));
+    }
+
+    #[test]
+    fn aria_roledescription_passes_through_static_value() {
+        assert_eq!(
+            aria_roledescription("carousel"),
+            ("aria-roledescription", "carousel")
+        );
+        assert_eq!(
+            aria_roledescription("slide"),
+            ("aria-roledescription", "slide")
+        );
+    }
+
+    #[test]
+    fn aria_current_maps_variants() {
+        assert_eq!(aria_current(AriaCurrent::Page), ("aria-current", "page"));
+        assert_eq!(aria_current(AriaCurrent::Step), ("aria-current", "step"));
+        assert_eq!(
+            aria_current(AriaCurrent::Location),
+            ("aria-current", "location")
+        );
+        assert_eq!(aria_current(AriaCurrent::Date), ("aria-current", "date"));
+        assert_eq!(aria_current(AriaCurrent::Time), ("aria-current", "time"));
+        assert_eq!(aria_current(AriaCurrent::True), ("aria-current", "true"));
     }
 
     #[test]

@@ -56,7 +56,8 @@
 //!   モジュール内で一元管理し（[`Steps::item_state`]）、パーツ関数間で
 //!   分裂させない。
 //! - `aria-current="step"` は current な item の trigger のみに付与し、
-//!   任意文字列を受け付けない固定リテラル（[`crate::aria::aria_current`]）
+//!   任意文字列を受け付けない列挙値（[`crate::aria::AriaCurrent::Step`]、
+//!   Breadcrumb/Pagination と共有する [`crate::aria::aria_current`]）
 //!   経由で出力する。
 //! - hydration 属性（`data-hydrate-count`/`data-hydrate-step`）はクライアント
 //!   側で改ざんされうる入力として扱う。[`Steps`] の
@@ -75,7 +76,7 @@
 //!   の keynav 層の責務（本モジュールは属性・状態機械のみを提供する）。
 
 use crate::anatomy::{anatomy, Anatomy};
-use crate::aria::{aria_current, aria_hidden, role};
+use crate::aria::{aria_current, aria_hidden, role, AriaCurrent};
 use crate::data_attrs::{
     data_complete, data_current, data_incomplete, data_orientation, data_state, Orientation,
 };
@@ -253,7 +254,7 @@ impl Steps {
         merged.extend(data_current(state == ItemState::Current));
         merged.extend(data_incomplete(state == ItemState::Incomplete));
         if state == ItemState::Current {
-            merged.push(aria_current("step"));
+            merged.push(aria_current(AriaCurrent::Step));
         }
         merged.extend(attrs);
         ANATOMY.part("trigger", "button", merged, children)

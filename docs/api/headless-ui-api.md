@@ -72,9 +72,22 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | SegmentGroup | `segment_group` | Root/Indicator/Item/ItemText/ItemControl/ItemHiddenInput | `radio_group::RadioGroup`（`state::SingleSelect`）へ全委譲（独自の状態機械を新設せず、既存 RadioGroup の dispatch/hydration をそのまま再利用する） | #743 |
 | Combobox | `combobox` | Root/Label/Control/Input/Trigger/ClearTrigger/Positioner/Content/ItemGroup/ItemGroupLabel/Item/ItemText/ItemIndicator | `state::Disclosure` + `state::SingleSelect` + `state::TextInput`（開閉 + 選択値 + 入力値の合成）。ARIA 1.2 combobox パターンに準拠し `aria-activedescendant` は `content` ではなく `input` 側に配線する（Select との差異） | #749 |
 | Steps | `steps` | Root/List/Item/Trigger/Indicator/Separator/Content/CompletedContent/PrevTrigger/NextTrigger | 独自実装（`count`（全 step 数）+ `step`（現在位置、`0..=count`）を持つ。item は complete/current/incomplete の 3 状態、current な item の trigger のみ `aria-current="step"`。`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装） | #752（§4b.3 の保留解除） |
-
-**未実装（open イシュー、後続で追補）**: Checkbox（#535）・Progress（#544）。
-本表はこれらの実装完了時に更新する。
+| TreeView | `tree_view` | Root/Label/Tree/Branch/BranchControl/BranchIndicator/BranchText/BranchContent/BranchIndentGuide/Item/ItemText/ItemIndicator | `state::MultiSelect`（展開中のブランチ値の集合）+ `state::SingleSelect`（選択中のノード値）の合成。両者とも `hydration_attrs` のフィールド名が `"selected"` で衝突するため、展開集合側のみ `"expanded"` へ書き換えて運ぶ（`tree_view` モジュール doc §hydration フィールド名参照）。`TreeView::render_nodes` が `TreeNode` 列から深さ・`aria-posinset`/`aria-setsize` を再帰的に計算する | #753 |
+| Pagination | `pagination` | Root/Item/Ellipsis/PrevTrigger/NextTrigger | 独自実装（総件数・ページサイズ・現在ページ・sibling/boundary 件数から省略記号を含むページ列を導出する `page_range`（決定的・`O(boundary_count + sibling_count)`）+ `Component`/`Hydrate` を直接実装する値状態機械。現在ページは `aria-current="page"`/`data-selected` で、端到達は `disabled`/`data-disabled` で表現する。§4b.3 の保留（#716）を解除） | #751 |
+| Breadcrumb | `breadcrumb` | Root/List/Item/Link/CurrentLink/Separator/Ellipsis | なし（自由関数のみ、SSR 静的な意味論ナビ。現在位置は `aria-current="page"` + `data-current` の併用で表現） | #755 |
+| HoverCard | `hover_card` | Root/Trigger/Positioner/Content/Arrow/ArrowTip | `state::Disclosure` | #759 |
+| Carousel | `carousel` | Root/Control/PrevTrigger/NextTrigger/ItemGroup/Item/IndicatorGroup/Indicator | 独自実装（`0..slide_count` を循環し得る index 値、`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。dispatch は `"next"`/`"prev"`/`"goto"`、`Goto` の範囲外 index は no-op で fail-closed。`item` は `role="group"` + `aria-roledescription="slide"` + 位置ラベル、`indicator` は `aria-current`。autoplay（play/pause/`aria-live` 切替/delay）は初期実装スコープ外） | #754 |
+| Drawer | `drawer` | Root/Trigger/Backdrop/Positioner/Content/Title/Description/CloseTrigger（Dialog と同一 8 パーツ、`data-scope="drawer"`） | `dialog::Dialog`（Dialog の状態機械へ全委譲。新規状態機械は作らない。固有に持つのは画面端の方向を表す `DrawerPlacement`（`start`/`end`/`top`/`bottom`）を `root`/`positioner`/`content` へ `data-placement` として出力する処理のみ） | #758 |
+| Link | `link` | Root | なし（自由関数のみ。`external` オプトインで `target="_blank"` + `rel="noopener noreferrer"` を不可分に付与。現在位置は `aria-current="page"` + `data-current`） | #756 |
+| LinkOverlay | `link_overlay` | Root/Overlay | なし（自由関数のみ。`::before` 疑似要素の代わりに `overlay` 自身を styled 層で `position: absolute; inset: 0;` 展開するカード全面クリック化） | #756 |
+| NavList | `nav_list` | Root/Heading/List/Item/Link | なし（自由関数のみ。`role` を一切付与しない文書ナビ専用部品。`docs-site::nav.rs::sidebar` を本部品へ移行済み） | #756 |
+| Checkbox | `checkbox` | Root/Control/Indicator/Label/HiddenInput | 独自実装（`"checked"`/`"unchecked"`/`"indeterminate"` の 3 値、`Switch` と同じ理由で `Component`/`Hydrate` を直接実装。`hidden-input` がネイティブ `<input type="checkbox">` を担い、フォーム送信・ブラウザネイティブ操作との互換を保つ） | #535 |
+| Progress（linear + circular） | `progress` | Root/Label/ValueText/Track/Range（linear）+ Circle/CircleTrack/CircleRange（circular、SVG、イシュー #600・親 #542。`crates/headless-ui/src/progress.rs` rustdoc の「Circular」節参照） | 独自実装（`value`（`min`..=`max`、または indeterminate を表す `None`）を持つ連続量の値状態機械。`data-state`（`"indeterminate"`/`"loading"`/`"complete"`）は `Progress::data_state` が一元管理し、パーツ関数間で分裂させない。circular の SVG ジオメトリ（`--size`/`--thickness`/`--percent`/`stroke-dasharray`/`stroke-dashoffset`）は CSS 変数参照の固定リテラルで表現する headless 中立設計。indeterminate 時は `--percent` 等を出力せず進捗系の値を捏造しない fail-closed 方針） | #544（linear）/#600（circular） |
+| ToggleTip | `toggle_tip` | Root/Trigger/Positioner/Content/Arrow/ArrowTip | `state::Disclosure` | #761 |
+| VisuallyHidden | `visually_hidden` | Root | なし（自由関数のみ。視覚的には隠すが支援技術には読ませ続けるテキストコンテナ。`aria-hidden` を一切出力しない不変条件がある） | #776 |
+| SkipNav | `skip_nav` | Link/Content | なし（自由関数のみ。WCAG 2.1 SC 2.4.1 Bypass Blocks 対応の「本文へスキップ」リンク。`link` は呼び出し側から任意の URL を受け取らず常に `#<id>` のみを組み立てるためスキーム注入経路を構造的に持たない） | #776 |
+| Clipboard | `clipboard` | Root/Label/Control/Input/Trigger/Indicator/ValueText | 独自実装（コピー済みかどうかの 2 値、`Avatar`/`Switch` と同じ理由で `Component`/`Hydrate` を直接実装。コピー済み表示は `data-state` 値語彙ではなく `data-copied` 存在属性で表現する ark-ui/chakra-ui の慣習に従う。コピー対象値（`value`）は状態機械に持たせず `root` の `data-value` 属性としてのみ出力する。`navigator.clipboard.writeText` 実配線・タイムアウトによる自動リセットは `fandhe-frontend-wasm-full::headless_clipboard`（writeText 成功ゲート・fail-closed・値ログ禁止）が提供する） | #773 |
+| QrCode | `qr_code` | Root/Frame（`svg`）/Pattern（`path`）/Overlay | なし（自由関数のみ。`value`/`ecc` から一意に導出される純粋な変換であり遷移可能な状態を持たない。外部依存ゼロの QR Model 2（ISO/IEC 18004）byte モードエンコーダ（`qr_encode`、非公開実装）を内蔵。`DownloadTrigger`・`value` の動的更新・numeric/alphanumeric/kanji モードはスコープ外） | #774 |
 
 ## 4a. 位置決め（anchor positioning、イシュー #590、親 #588）
 
@@ -92,12 +105,17 @@ placement 計算が実装済みとなった。
 | Menu | Positioner/Arrow/ArrowTip | `"menu"` | あり |
 | Select | Positioner のみ | `"select"` | なし |
 | Combobox | Positioner のみ（`data-scope="combobox"` の anatomy は #749 で実装済み） | `"combobox"` | なし |
+| HoverCard | Positioner/Arrow/ArrowTip | `"hover-card"` | あり |
+| ToggleTip | Positioner/Arrow/ArrowTip | `"toggle-tip"` | あり |
 
 Combobox の `positioner` は SSR 静的マークアップ（開閉状態の `data-state`/
 `hidden`）のみを #749 時点で実装済みであり、`crates/wasm-full/src/position.rs`
 の `PositionedKind` への `Combobox` バリアント追加（実 DOM 計測・
 `OPEN_POSITIONER_SELECTOR` への組み込み）は後続イシューのスコープである
 （`select`/`menu`/`popover`/`tooltip` と同型の position 連携完了は未了）。
+HoverCard も同様に、`positioner`/`arrow`/`arrow_tip` anatomy とパーツ関数の
+attrs 透過（#759 時点で実装済み）に対し、`PositionedKind::from_scope` への
+`"hover-card"` 追加（実 DOM 計測対象化）は後続イシューのスコープである。
 
 再計算対象の走査は開いている positioner のみに限定する
 セレクタ `[data-part="positioner"][data-state="open"]`
@@ -276,10 +294,10 @@ ark-ui / chakra-ui のレイアウト・ナビゲーション系コンポーネ�
 
 | 候補 | 分類 | ark-ui / chakra-ui の実装状況 | docs-site 利用見込み | 工数参考 | 判断 |
 |---|---|---|---|---|---|
-| 文書ナビ向け Link リスト（`nav` + リンク一覧 + `aria-current="page"`） | (b) | ark-ui に専用コンポーネントはなく、chakra-ui も汎用 `Link`/`List` の組み合わせで表現する軽量パターン | `nav.rs::sidebar` の意味論不整合（§3.1）を直接解消しうる第一候補 | `field.rs`（740 行）程度。状態機械なし・anatomy と `aria-current`/`data-current` 出力のみ | **追加候補**（最優先） |
-| Link / LinkOverlay（アンカー要素全体のカード化） | (b) | chakra-ui に `Link`/`LinkOverlay`（`LinkBox` パターン、`position: absolute` でアンカーを親要素全面へ拡張する構成）あり。ark-ui に専用コンポーネントはなし | `nav.rs::prev_next_nav` の `card` 非対応（§3.2）を直接解消しうる | `avatar.rs` 相当（独自状態なしの小規模 anatomy）と同程度。工数小 | **追加候補** |
-| Breadcrumb | (b) | ark-ui に headless 実体はなく、chakra-ui も styled 合成のみ（状態機械を持たない） | 現時点で docs-site に階層パンくずの利用箇所はない（サイドバー1階層構成のため）。ユーザープロジェクトでの利用見込みはある | `tabs.rs`（790 行）程度。状態機械なし・`aria-current="page"` 出力のみ | **追加候補**（優先度中。工数小さく他 (b) 群と設計を共有できるが docs-site 側の直接解消対象ではない） |
-| Pagination | (a) | ark-ui に headless 実体あり（ページ番号・件数・現在ページの状態機械を持つ） | docs-site に該当箇所なし（現状ページ分割一覧を持たない）。現時点で利用見込みが確認できない | `select.rs`（1481 行）/`menu.rs`（1818 行）相当。状態機械の新規設計を要し工数大 | **保留**（利用見込みが確認できてから再評価。状態機械設計コストが (b) 群より大きく優先度を下げる） |
+| 文書ナビ向け Link リスト（`nav` + リンク一覧 + `aria-current="page"`） | (b) | ark-ui に専用コンポーネントはなく、chakra-ui も汎用 `Link`/`List` の組み合わせで表現する軽量パターン | `nav.rs::sidebar` の意味論不整合（§3.1）を直接解消しうる第一候補 | `field.rs`（740 行）程度。状態機械なし・anatomy と `aria-current`/`data-current` 出力のみ | **追加候補**（最優先）→ **イシュー #756 で実装済み**（headless `crates/headless-ui/src/nav_list.rs` + styled `crates/pre-styled-ui/src/nav_list.rs`。`nav.rs::sidebar` 自体を本部品へ移行済み、§3.1 解消） |
+| Link / LinkOverlay（アンカー要素全体のカード化） | (b) | chakra-ui に `Link`/`LinkOverlay`（`LinkBox` パターン、`position: absolute` でアンカーを親要素全面へ拡張する構成）あり。ark-ui に専用コンポーネントはなし | `nav.rs::prev_next_nav` の `card` 非対応（§3.2）を直接解消しうる | `avatar.rs` 相当（独自状態なしの小規模 anatomy）と同程度。工数小 | **追加候補**→ **イシュー #756 で実装済み**（headless `crates/headless-ui/src/link.rs`（Link）・`crates/headless-ui/src/link_overlay.rs`（LinkOverlay）+ styled 対）。`nav.rs::prev_next_nav` を LinkOverlay へ移行済み、§3.2 解消 |
+| Breadcrumb | (b) | ark-ui に headless 実体はなく、chakra-ui も styled 合成のみ（状態機械を持たない） | 現時点で docs-site に階層パンくずの利用箇所はない（サイドバー1階層構成のため）。ユーザープロジェクトでの利用見込みはある | `tabs.rs`（790 行）程度。状態機械なし・`aria-current="page"` 出力のみ | **追加候補**（優先度中）→ **イシュー #755 で実装済み**（headless `crates/headless-ui/src/breadcrumb.rs` + styled `crates/pre-styled-ui/src/breadcrumb.rs`。docs-site showcase へは掲示済みだが `nav.rs::sidebar` 自体の置き換えは行っていない、下記 §4b.5 参照） |
+| Pagination | (a) | ark-ui に headless 実体あり（ページ番号・件数・現在ページの状態機械を持つ） | 当初は docs-site に該当箇所なし・利用見込み未確認だったが、イシュー #751（親トラッキング #520 の全コンポーネント網羅方針）により保留を解除して実装した（§4 参照、`crates/docs-site/src/showcase.rs::pagination_section` に静的掲示あり） | `select.rs`（1481 行）/`menu.rs`（1818 行）相当だったが、実装は `page_range`（決定的・境界/sibling レンジのマージ）+ 値状態機械の直接実装で完結し想定より小規模だった | **実装済み**（#751。headless: `pagination` モジュール／pre-styled: `pagination` モジュール、golden CSS・`push_recipe` 登録・Size variant あり） |
 | Steps | (a) | ark-ui に headless 実体あり（進行状態を持つウィザード的ナビ） | docs-site・examples のいずれにも利用見込みなし | Pagination 同様に工数大 | **実装済み**（イシュー #752 で保留解除。§4 コンポーネント一覧表参照。工数はかかったが状態機械が `count`/`step` の 2 値のみで `progress`/`pin_input` と同型の独自 `Component`/`Hydrate` 直接実装で収まったため、着手障壁は当初見積もりより小さかった） |
 | Container / Stack / Flex / Grid / Center 等の純粋レイアウトプリミティブ | (c) | chakra-ui に styled プリミティブとして存在するが、ark-ui に headless 実体はない（ARIA 意味論を持たないため） | 適用対象なし。プレーンな `div` + CSS で代替可能 | — | **意図的非採用**（`docs/policy/intentional-non-adoption.md` の運用に準拠。headless-ui は anatomy・ARIA・状態機械の提供が責務であり、ARIA 意味論を持たない純粋レイアウトは本層の対象外。CSS プリミティブが必要な場合はユーザー側の素の CSS で足り、フレームワーク側の抽象化はコンテキスト消費を増やすだけで利得がない） |
 
@@ -300,13 +318,13 @@ ark-ui / chakra-ui のレイアウト・ナビゲーション系コンポーネ�
 
 ### 4b.5 再評価条件
 
-- 追加候補（文書ナビ向け Link リスト・Link/LinkOverlay・Breadcrumb）が
-  実際に実装された場合、`docs/design/docs-site-styled-ui-adoption.md`
-  §5 再評価トリガー 1 の発火条件を満たすため、同書 §3.1/§3.2 の再評価を
-  行う
-- 保留（Pagination）は、docs-site またはユーザープロジェクトでページ分割
-  一覧の利用見込みが具体化した時点で再評価する。Steps はイシュー #752 で
-  保留解除・実装済み（§4b.3 参照）
+- 追加候補（文書ナビ向け Link リスト・Link/LinkOverlay・Breadcrumb）は
+  すべて実装済み（Breadcrumb はイシュー #755、文書ナビ向け Link リスト・
+  Link/LinkOverlay はイシュー #756）。`docs/design/docs-site-styled-ui-adoption.md`
+  §5 再評価トリガー 1 の発火条件を満たしたため、同書 §3.1/§3.2 は
+  イシュー #756 で再評価し「解消済み」へ更新した（詳細は同書参照）。
+- 保留（Pagination・Steps）はいずれも実装済み（Pagination はイシュー #751、
+  Steps はイシュー #752 で保留解除・実装済み、§4b.3 参照）
 - 意図的非採用（純粋レイアウトプリミティブ）の再評価は
   `docs/policy/intentional-non-adoption.md` §4 の運用（評価軸の充足確認を
   Issue・PR に明記）に従う
