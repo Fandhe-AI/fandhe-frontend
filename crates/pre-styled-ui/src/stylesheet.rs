@@ -306,6 +306,7 @@ mod tests {
             ("mark", crate::mark::css()),
             ("blockquote", crate::blockquote::css()),
             ("list", crate::list::css()),
+            ("highlight", crate::highlight::css()),
         ]
     }
 

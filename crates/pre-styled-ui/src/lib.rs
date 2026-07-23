@@ -65,6 +65,10 @@
 //!     `orientation`（horizontal/vertical）・`variant`（solid/dashed）の
 //!     2 軸を持ち、`role="separator"`・`aria-orientation`・
 //!     `data-orientation` を常時出力する）。
+//!   - [`mod@highlight`]（#775）: [`highlight::highlight`]（単一 recipe、
+//!     `<span>` + `<mark>`。テキスト中の一致語句を決定的な部分文字列検索
+//!     （正規表現不使用、ReDoS 非該当）で `<mark>` へ分割する。装飾的な
+//!     強調表示のため colorPalette/size 軸は付与しない）。
 //!
 //!   いずれも variant/size/status は Rust enum（[`recipe::VariantValue`] 実装）
 //!   として型安全に表現し、クラス名文字列を動的合成しない
@@ -372,6 +376,7 @@ pub mod drawer;
 pub mod em;
 pub mod empty_state;
 pub mod heading;
+pub mod highlight;
 pub mod hover_card;
 pub mod icon;
 pub mod image;
@@ -422,6 +427,7 @@ pub use css::{decl, Declaration};
 pub use em::em;
 pub use empty_state::EmptyStateProps;
 pub use heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
+pub use highlight::{highlight, HighlightProps};
 pub use icon::{icon, IconProps};
 pub use image::{image, AspectRatio, ImageFit, ImageProps};
 pub use input::{input, InputProps, InputVariant};
