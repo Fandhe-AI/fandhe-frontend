@@ -47,9 +47,11 @@
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
+use fandhe_frontend_pre_styled_ui::carousel;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
@@ -186,6 +188,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::rating_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::slider::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::segment_group::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::carousel::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -1679,6 +1682,53 @@ fn segment_group_section() -> Node {
     )
 }
 
+/// Carousel 節: 3 スライド中の 2 番目を現在位置として固定表示（イシュー #754）。
+///
+/// headless の [`Carousel`] 状態機械（`index=1, slide_count=3, loop=false`）を
+/// 使って `item-group`/`item`/`indicator` へ現在位置を注入し、
+/// pre-styled-ui の recipe CSS（`--fandhe-carousel-index` CSS カスタム
+/// プロパティによる transform ベースのスライド位置表現）を適用した静的掲示
+/// です。実際のクリック操作（dispatch 状態遷移）は wasm 層の責務であり
+/// 本ショーケースのスコープ外（モジュール冒頭 rustdoc「インタラクティブ
+/// 部品の扱い」節参照）。
+fn carousel_section() -> Node {
+    let c = Carousel::new(1, 3, false, Orientation::Horizontal);
+    let slides = ["Slide A", "Slide B", "Slide C"];
+
+    let node = carousel::root(
+        Size::Md,
+        Orientation::Horizontal,
+        "Featured products",
+        vec![],
+        vec![
+            c.control(
+                vec![],
+                vec![
+                    c.prev_trigger("Previous slide", vec![], vec![]),
+                    c.item_group(
+                        vec![],
+                        slides
+                            .iter()
+                            .enumerate()
+                            .map(|(i, label)| c.item(i, vec![], vec![text(*label)]))
+                            .collect(),
+                    ),
+                    c.next_trigger("Next slide", vec![], vec![]),
+                ],
+            ),
+            c.indicator_group(
+                vec![],
+                (0..slides.len()).map(|i| c.indicator(i, vec![])).collect(),
+            ),
+        ],
+    );
+    section(
+        "Carousel",
+        "headless-ui の Carousel（role=\"region\" aria-roledescription=\"carousel\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。3 スライド中 2 番目（index=1）を現在位置として固定表示しています。--fandhe-carousel-index CSS カスタムプロパティによる transform ベースのスライド位置表現で、JS 計測に依存しません。autoplay・ドラッグ操作は本イシューのスコープ外です。",
+        vec![node],
+    )
+}
+
 /// CheckboxCard 節: unchecked / checked / disabled の 3 態（イシュー #747）。
 ///
 /// chakra-ui checkbox-card 相当のカード型選択 UI。状態機械は
@@ -1889,6 +1939,7 @@ fn showcase_body() -> Node {
             rating_group_section(),
             slider_section(),
             segment_group_section(),
+            carousel_section(),
             checkbox_card_section(),
             radio_card_section(),
         ],

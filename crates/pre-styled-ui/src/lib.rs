@@ -136,6 +136,13 @@
 //!   [`fandhe_frontend_headless_ui::checkbox::Checkbox`]/
 //!   [`fandhe_frontend_headless_ui::radio_group::RadioGroup`] をそのまま
 //!   再利用し、新規状態機械は作らない。詳細は各モジュール rustdoc 参照。
+//! - headless 状態機械を持つ複合部品の styled ラッパー（イシュー #754）:
+//!   [`mod@carousel`]。`size` variant のみを持ち（`item-group` の縦横
+//!   transform 切替は `data-orientation` 属性条件、[`mod@segment_group`] と
+//!   同型）、`color-palette` 軸は提供しない（選択・チェック状態を示す部品
+//!   ではないため）。`--fandhe-carousel-index` CSS カスタムプロパティによる
+//!   決定的なスライド位置表現・autoplay スコープ外は [`mod@carousel`]
+//!   rustdoc 参照。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -267,6 +274,7 @@ pub mod avatar;
 pub mod badge;
 pub mod button;
 pub mod card;
+pub mod carousel;
 pub mod checkbox;
 pub mod checkbox_card;
 mod class_attr;

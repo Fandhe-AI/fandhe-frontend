@@ -130,6 +130,18 @@ pub fn data_orientation(orientation: Orientation) -> (&'static str, &'static str
     ("data-orientation", orientation.as_str())
 }
 
+/// `data-current` 存在属性（Carousel の現在スライド/インジケータ用、
+/// イシュー #754）。[`data_disabled`] と同じ「存在で真を表す」規約に従う。
+///
+/// `data-checked`（確定選択）/`data-highlighted`（キーボードナビゲーション等の
+/// 一時的フォーカス位置）とは意味論が異なり、「連続する複数項目中の現在位置」
+/// （carousel のスライド送り）を表す。他コンポーネント（radio/checkbox 系）の
+/// 選択セマンティクスとは独立した第 3 の軸として本関数を追加する。
+#[must_use]
+pub fn data_current(current: bool) -> Option<(&'static str, &'static str)> {
+    current.then_some(("data-current", ""))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,6 +169,8 @@ mod tests {
         assert_eq!(data_focus_visible(false), None);
         assert_eq!(data_pressed(true), Some(("data-pressed", "")));
         assert_eq!(data_pressed(false), None);
+        assert_eq!(data_current(true), Some(("data-current", "")));
+        assert_eq!(data_current(false), None);
     }
 
     #[test]
