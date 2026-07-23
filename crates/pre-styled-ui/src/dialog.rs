@@ -68,6 +68,12 @@ use crate::css::decl;
 use crate::recipe::{SlotRecipe, StateCondition};
 
 pub use fandhe_frontend_headless_ui::dialog::*;
+// `root`/`trigger`/`backdrop` 等の `state` 引数・`Dialog::new`/`state`・
+// `Dialog` の `Component::Action`（dispatch 対象）はいずれも `state` モジュール
+// 由来で上記 glob 再エクスポートでは到達しない。呼び出し側が
+// `fandhe-frontend-pre-styled-ui` のみに依存して呼び出せることを保証するための
+// 明示再エクスポート（イシュー #685）。
+pub use fandhe_frontend_headless_ui::state::{DisclosureAction, OpenState};
 
 /// headless `dialog` anatomy の `data-part` 一覧（`crates/headless-ui/src/dialog.rs`
 /// の `ANATOMY.part(...)` 呼び出しと同期させる契約。ずれると [`stylesheet`] が

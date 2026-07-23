@@ -106,6 +106,30 @@
 //! 埋め込みの 2 経路を提供する。検証済み CSS のみを保持する型で `raw_html()`
 //! を内部に閉じ込め、呼び出し側へエスケープ迂回経路を公開しない（不変条件 2 の
 //! 唯一の例外、詳細は [`stylesheet`] モジュール doc 参照）。
+//!
+//! # headless 型の再エクスポート契約（イシュー #685）
+//!
+//! [`mod@dialog`]・[`mod@accordion`]・[`mod@menu`]・[`mod@select`]・
+//! [`mod@tabs`]・[`mod@popover`]・[`mod@tooltip`] の各 `pub fn` シグネチャ・
+//! `impl Component` の `Action` には、各モジュールの `pub use
+//! fandhe_frontend_headless_ui::<mod>::*;` では到達しない
+//! `fandhe_frontend_headless_ui::state`（[`OpenState`] 等の状態値・
+//! `DisclosureAction`/`SingleSelectAction`/`MultiSelectAction`/
+//! `CheckableAction` 等の dispatch action）・`data_attrs`（`tabs` の
+//! [`Orientation`]）由来の型が露出する。これらは呼び出し側が
+//! `fandhe-frontend-pre-styled-ui` のみに依存してラッパーを呼び出せることを
+//! 保証するため、各モジュール内で明示 `pub use` により再エクスポートする
+//! （棚卸し表は `docs/api/pre-styled-ui-api.md` 参照）。
+//!
+//! 加えて、`Node` を組み立てる `fandhe_frontend_core`（[`fandhe_frontend_core`]）
+//! と headless 層自体（[`fandhe_frontend_headless_ui`]）をクレートルートから
+//! 再エクスポートし、`fandhe_frontend_pre_styled_ui::fandhe_frontend_core::{el,
+//! text, render, Node}` のような単独依存パスを完結させる（headless-ui が
+//! core に対して行う #550 と同型のエスケープハッチ）。`raw_html()` への到達
+//! パスがこの再エクスポートにより増えるが、`raw_html()` 自体は既存の明示的
+//! オプトイン API であり新たな迂回経路ではない（REQ-1、`.claude/rules/security.md`
+//! A03 参照）。頻用の状態値 [`OpenState`]・[`Orientation`] はルートからも
+//! 再エクスポートし、docs-site 等の実利用パスと同型の import を可能にする。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -137,3 +161,18 @@ pub use css::{decl, Declaration};
 pub use recipe::{when, ColorPalette, Size, SlotRecipe, VariantCondition, VariantValue};
 pub use spinner::{spinner, SpinnerProps};
 pub use stylesheet::{StyleSheet, StylesheetError};
+
+// `fandhe_frontend_headless_ui` クレートそのものの再エクスポート（イシュー #685）。
+// headless-ui が core に対して行う #550 と同型のエスケープハッチであり、
+// 各ラッパーモジュールの glob 再エクスポートでは到達しない headless API 全域
+// （`positioning`/`aria` 等）への逃げ道を pre-styled-ui 経由でも確保する。
+pub use fandhe_frontend_headless_ui;
+// `Node` を組み立てる core API（`el`/`text`/`render` 等）への推移的再エクスポート。
+// headless-ui 経由で得ることで pre-styled-ui の `Cargo.toml` に
+// `fandhe-frontend-core` への直接依存を追加せずに単独依存パスを完結させる
+// （不変条件 4 参照）。
+pub use fandhe_frontend_headless_ui::fandhe_frontend_core;
+// ラッパー呼び出しに頻出する状態値をルートからも再エクスポートする
+// （`docs-site` の実利用パス `fandhe_frontend_headless_ui::{OpenState,
+// Orientation}` と同型の import を pre-styled-ui 単独依存で可能にする）。
+pub use fandhe_frontend_headless_ui::{OpenState, Orientation};

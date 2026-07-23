@@ -29,6 +29,13 @@ use crate::css::decl;
 use crate::recipe::{SlotRecipe, StateCondition};
 
 pub use fandhe_frontend_headless_ui::accordion::*;
+// `item`/`item_trigger`/`item_indicator`/`item_content` の `state` 引数・
+// `Accordion::item_state` 戻り値・`Accordion`/`MultiAccordion` の
+// `Component::Action`（dispatch 対象）はいずれも `state` モジュール由来で
+// 上記 glob 再エクスポートでは到達しない。呼び出し側が
+// `fandhe-frontend-pre-styled-ui` のみに依存して呼び出せることを保証するための
+// 明示再エクスポート（イシュー #685）。
+pub use fandhe_frontend_headless_ui::state::{MultiSelectAction, OpenState, SingleSelectAction};
 
 /// headless `accordion` anatomy の `data-part` 一覧（`crates/headless-ui/src/accordion.rs`
 /// の `ANATOMY.part(...)` 呼び出しと同期させる契約）。
