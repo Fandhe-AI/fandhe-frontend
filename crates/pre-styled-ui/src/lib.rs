@@ -393,6 +393,7 @@ pub mod pagination;
 pub mod pin_input;
 pub mod popover;
 pub mod progress;
+pub mod qr_code;
 pub mod radio_card;
 pub mod radio_group;
 pub mod rating_group;

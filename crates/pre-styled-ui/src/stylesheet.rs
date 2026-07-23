@@ -299,6 +299,7 @@ mod tests {
             ("nav_list", crate::nav_list::stylesheet()),
             ("status", crate::status::css()),
             ("empty_state", crate::empty_state::css()),
+            ("qr_code", crate::qr_code::stylesheet()),
             ("heading", crate::heading::css()),
             ("text", crate::text::css()),
             ("em", crate::em::css()),
