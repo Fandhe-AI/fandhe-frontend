@@ -40,6 +40,7 @@ use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
+use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
@@ -1163,6 +1164,68 @@ fn radio_card_styled_root_and_parts_are_escaped_for_all_payloads() {
     }
 }
 
+/// styled HoverCard（イシュー #759）の XSS 回帰。[`hover_card`] は headless
+/// 層をそのまま再エクスポートする薄い委譲層（`pub use ...::*`）であるため、
+/// `crates/headless-ui/tests/xss_escape.rs::hover_card_href_and_content_id_are_escaped_for_all_payloads`
+/// と同じ観点を `fandhe-frontend-pre-styled-ui` の公開 API 経由でも固定する
+/// （styled 層のみに依存する利用者が同じ保証を得られることの確認）。
+#[test]
+fn hover_card_styled_trigger_href_and_content_id_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // URL 属性経路: trigger の href。
+        let html = render(&hover_card::trigger(
+            OpenState::Closed,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "hover_card::trigger href コンテキスト");
+
+        // 属性値経路: content の id。
+        let html = render(&hover_card::content(
+            OpenState::Open,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "hover_card::content id コンテキスト");
+
+        // 属性値経路: root の呼び出し側 attrs（data-testid）。
+        let html = render(&hover_card::root(
+            OpenState::Closed,
+            HoverCardDelays::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "hover_card::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // テキスト経路: content の children。
+        let html = render(&hover_card::content(
+            OpenState::Open,
+            None,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "hover_card::content children コンテキスト");
+    }
+
+    // URL 属性経路: javascript: スキームは href 属性ごと出力から除去される
+    // （`avatar_image_src_rejects_dangerous_url_schemes` と同型の許可リスト
+    // 契約が styled 層の再エクスポート経由でも貫通することを固定する）。
+    let html = render(&hover_card::trigger(
+        OpenState::Closed,
+        Some("javascript:alert(1)"),
+        vec![],
+        vec![],
+    ));
+    assert!(!html.contains("javascript:"));
+    assert!(!html.contains("href="));
+}
+
 /// (10) carousel 経路（イシュー #754）: styled `root` の呼び出し側 `attrs`・
 /// `class`（`aria-label` 引数含む）、および headless-ui から選択的
 /// 再エクスポートした `prev_trigger`/`indicator` の `aria-label`・`item` の
@@ -1270,6 +1333,87 @@ fn skeleton_attrs_and_class_are_escaped_for_all_payloads() {
         assert!(
             html.contains("fd-skeleton--"),
             "skeleton で recipe 生成クラスが失われている: html={html}"
+        );
+    }
+}
+
+/// (11) progress 経路（circle 対応、イシュー #763）: styled `root` の
+/// `aria_valuetext` 引数・呼び出し側 `attrs`・`class`、および headless
+/// `Progress` の inherent メソッド（`circle`/`circle_track`/`circle_range`。
+/// styled 層の独自ラッパーを持たず headless をそのまま呼ぶ契約、
+/// `crates/pre-styled-ui/src/progress.rs` rustdoc 参照）の呼び出し側
+/// `attrs` すべてで既定エスケープ（REQ-1）が貫通することを固定する。
+#[test]
+fn progress_styled_root_and_headless_circle_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::Orientation;
+    use fandhe_frontend_pre_styled_ui::progress;
+
+    let p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
+
+    for payload in payloads::all() {
+        // styled root の aria_valuetext 引数経路。
+        let html = render(&progress::root(&p, Size::Md, Some(payload), vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "progress::root aria_valuetext コンテキスト");
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&progress::root(
+            &p,
+            Size::Md,
+            None,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "progress::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&progress::root(
+            &p,
+            Size::Md,
+            None,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "progress::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "progress::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-progress--"),
+            "progress::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // headless circle 系（styled 層の独自ラッパーなし）の呼び出し側 attrs 経路。
+        let html = render(&p.circle(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "Progress::circle 呼び出し側 attrs コンテキスト",
+        );
+
+        let html = render(&p.circle_track(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "Progress::circle_track 呼び出し側 attrs コンテキスト",
+        );
+
+        let html = render(&p.circle_range(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "Progress::circle_range 呼び出し側 attrs コンテキスト",
         );
     }
 }
