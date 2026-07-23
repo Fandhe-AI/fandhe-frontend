@@ -242,24 +242,98 @@ mod tests {
         assert_eq!(sheet.as_css(), before);
     }
 
+    /// 全 styled 部品の（モジュール名, 既定 CSS）一覧（イシュー #707 の一元化リスト）。
+    ///
+    /// `push_recipe_is_infallible_for_all_styled_components`（本リストの生成元が
+    /// `push_css` を常に `Ok` で通ることの機械検証）と
+    /// `all_styled_component_css_covers_every_component_module`（本リストの部品名
+    /// 集合が `src/` 配下の `css()`/`stylesheet()` 公開モジュール集合と一致する
+    /// ことの機械検証）の双方が参照する唯一の正。**新しい styled 部品を追加したら
+    /// 必ずここへ登録する**こと（登録漏れは後者のドリフト検知テストが検出する）。
+    fn all_styled_component_css() -> Vec<(&'static str, String)> {
+        vec![
+            ("button", crate::button::css()),
+            ("badge", crate::badge::css()),
+            ("spinner", crate::spinner::css()),
+            ("alert", crate::alert::css()),
+            ("card", crate::card::css()),
+            ("dialog", crate::dialog::stylesheet()),
+            ("tabs", crate::tabs::stylesheet()),
+            ("accordion", crate::accordion::stylesheet()),
+            ("menu", crate::menu::stylesheet()),
+            ("select", crate::select::stylesheet()),
+            ("popover", crate::popover::stylesheet()),
+            ("tooltip", crate::tooltip::stylesheet()),
+            ("switch", crate::switch::stylesheet()),
+            ("radio_group", crate::radio_group::stylesheet()),
+            ("avatar", crate::avatar::stylesheet()),
+        ]
+    }
+
     #[test]
     fn push_recipe_is_infallible_for_all_styled_components() {
-        // 全 styled 部品の css()/stylesheet() が push_css で常に Ok になることを
-        // 機械検証する（push_recipe/push_theme の「到達不能スキップ」の根拠）。
+        // 全 styled 部品（一元化リスト `all_styled_component_css`、イシュー #707）
+        // の css()/stylesheet() が push_css で常に Ok になることを機械検証する
+        // （push_recipe/push_theme の「到達不能スキップ」の根拠）。
         let mut sheet = StyleSheet::new();
-        assert!(sheet.push_css(&crate::button::css()).is_ok());
-        assert!(sheet.push_css(&crate::badge::css()).is_ok());
-        assert!(sheet.push_css(&crate::spinner::css()).is_ok());
-        assert!(sheet.push_css(&crate::alert::css()).is_ok());
-        assert!(sheet.push_css(&crate::card::css()).is_ok());
-        assert!(sheet.push_css(&crate::dialog::stylesheet()).is_ok());
-        assert!(sheet.push_css(&crate::tabs::stylesheet()).is_ok());
-        assert!(sheet.push_css(&crate::accordion::stylesheet()).is_ok());
-        assert!(sheet.push_css(&crate::menu::stylesheet()).is_ok());
-        assert!(sheet.push_css(&crate::select::stylesheet()).is_ok());
-        assert!(sheet.push_css(&crate::switch::stylesheet()).is_ok());
-        assert!(sheet.push_css(&crate::radio_group::stylesheet()).is_ok());
-        assert!(sheet.push_css(&crate::avatar::stylesheet()).is_ok());
+        for (name, css) in all_styled_component_css() {
+            assert!(
+                sheet.push_css(&css).is_ok(),
+                "component `{name}` css must pass push_css"
+            );
+        }
+    }
+
+    #[test]
+    fn all_styled_component_css_covers_every_component_module() {
+        // `all_styled_component_css`（一元化リスト）の部品名集合が、`src/` 配下で
+        // `pub fn css()`/`pub fn stylesheet()` を公開する実モジュール集合と
+        // 一致することを機械検証する（イシュー #707: #664 で追加された
+        // popover/tooltip の登録漏れの再発防止）。ネットワーク・`/tmp` に依存
+        // せず、コンパイル時確定の `CARGO_MANIFEST_DIR` のみを使う決定的判定
+        // （`.claude/rules/ci.md` の self-hosted 共有環境への配慮に合わせる）。
+        let src_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
+
+        let mut modules_with_css_fn: Vec<String> = Vec::new();
+        for entry in std::fs::read_dir(&src_dir).expect("src ディレクトリを読み取れること")
+        {
+            let entry = entry.expect("dir entry を読み取れること");
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+                continue;
+            }
+            let stem = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .expect("有効なファイル名であること")
+                .to_string();
+            // `lib.rs`（クレート入口）と `stylesheet.rs`（本ファイル自身）は
+            // styled 部品モジュールではない。特に本ファイルは
+            // `all_styled_component_css`/本テストの doc コメント中に
+            // "pub fn css()"/"pub fn stylesheet()" という文字列そのものが
+            // 出現するため、除外しないと自己参照で誤検知する。
+            if stem == "lib" || stem == "stylesheet" {
+                continue;
+            }
+            let source = std::fs::read_to_string(&path).expect("モジュールソースを読み取れること");
+            if source.contains("pub fn css()") || source.contains("pub fn stylesheet()") {
+                modules_with_css_fn.push(stem);
+            }
+        }
+        modules_with_css_fn.sort();
+
+        let mut listed: Vec<String> = all_styled_component_css()
+            .into_iter()
+            .map(|(name, _)| name.to_string())
+            .collect();
+        listed.sort();
+
+        assert_eq!(
+            modules_with_css_fn, listed,
+            "all_styled_component_css() の一覧と src/ 配下の css()/stylesheet() \
+             公開モジュール集合が一致しません（新規部品の登録漏れ、または \
+             削除・リネームへの追随漏れの可能性があります）"
+        );
     }
 
     #[test]

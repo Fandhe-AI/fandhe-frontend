@@ -21,6 +21,19 @@
 //!    （いずれも path）のみ**: `headless-ui/Cargo.toml` の `[dependencies]` に
 //!    サードパーティクレートを追加しない。
 //!
+//! # 再エクスポート契約（イシュー #550・#712）
+//!
+//! [`fandhe_frontend_core`]・[`fandhe_frontend_interactive`] はクレートその
+//! ものを再エクスポートする（型/値単位の個別再エクスポートではない）。これに
+//! より本クレートのみに依存する利用者も `fandhe_frontend_headless_ui::fandhe_frontend_core`
+//! / `fandhe_frontend_headless_ui::fandhe_frontend_interactive` 経由で
+//! `Component`/`Hydrate`/`dispatch`/`HydrateError`/`render_for_hydration` を
+//! 含む hydration API まで単独依存で到達できる（`docs/api/headless-ui-api.md`
+//! 参照）。ルート直下への個別型再エクスポート（例: `pub use
+//! fandhe_frontend_interactive::Component;`）は、実利用パスが確認できるまで
+//! 見送る判断とした（`dispatch` 等の汎用名を UI クレートのルートへ置くと
+//! 名前衝突・責務の混濁を招くため）。
+//!
 //! # 実装済み API（イシュー #523/#524）
 //!
 //! - [`mod@anatomy`]: `data-scope` / `data-part` を付与してパーツノードを組み立てる
@@ -198,6 +211,22 @@ pub mod tooltip;
 // 再エクスポートではない）。`missing_docs` は extern crate 再エクスポートには
 // 適用されないため doc コメントは不要（rustc の既定挙動）。
 pub use fandhe_frontend_core;
+
+// `pub use fandhe_frontend_interactive;` も同型のクレート再エクスポート
+// （イシュー #712）。[`state`] モジュールが `fandhe_frontend_interactive::Component`/
+// `Hydrate` を internal に利用しているが、hydration/dispatch まで書く利用者が
+// `Component`/`Hydrate`/`dispatch`/`HydrateError`/`render_for_hydration` へ
+// 到達するには、これまで本クレートを経由する手段がなく
+// `fandhe-frontend-interactive` への直接依存を強いていた（半端な状態、
+// PR #699/#695 の out-of-scope 節で検出）。クレート再エクスポートにすることで、
+// 依存元の `fandhe-frontend-interactive` バージョン指定が本クレート内部の
+// 依存（`Cargo.toml` 参照）とズレて「別バージョンの `Component` を実装している」
+// というトレイト不一致エラーを踏む余地を無くす（core 再エクスポートと同じ動機、
+// #550 に倣う）。`fandhe_frontend_interactive` は `raw_html()` を公開せず、
+// `Component::view`/`render_for_hydration` の戻り値は `Node` のみで既定
+// エスケープを必ず経由するため、この再エクスポートは新たなエスケープ迂回
+// 経路を作らない（REQ-1 を弱めない）。
+pub use fandhe_frontend_interactive;
 
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
