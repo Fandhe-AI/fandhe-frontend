@@ -258,6 +258,7 @@ mod tests {
             ("alert", crate::alert::css()),
             ("card", crate::card::css()),
             ("dialog", crate::dialog::stylesheet()),
+            ("drawer", crate::drawer::stylesheet()),
             ("tabs", crate::tabs::stylesheet()),
             ("accordion", crate::accordion::stylesheet()),
             ("menu", crate::menu::stylesheet()),

@@ -142,6 +142,14 @@
 //!   [`fandhe_frontend_headless_ui::checkbox::Checkbox`]/
 //!   [`fandhe_frontend_headless_ui::radio_group::RadioGroup`] をそのまま
 //!   再利用し、新規状態機械は作らない。詳細は各モジュール rustdoc 参照。
+//! - headless ラッパー（イシュー #758）: [`mod@drawer`]（Drawer、dialog の
+//!   変種。WAI-ARIA 上は同じ Dialog パターンのため、開閉状態機械は
+//!   [`mod@dialog`] を再利用する headless 層の設計をそのまま引き継ぎ、本
+//!   モジュールも新規状態機械を持たない）。`size`（drawer の占有幅/高さ）
+//!   variant のみを持ち `color-palette` 軸は提供しない（[`mod@number_input`]
+//!   等と同型の判断）。placement（`start`/`end`/`top`/`bottom`）は variant
+//!   ではなく headless 層が出力する `data-placement` に連動する CSS で表現
+//!   する。詳細は [`mod@drawer`] rustdoc 参照。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -280,6 +288,7 @@ mod class_attr;
 pub mod combobox;
 pub mod css;
 pub mod dialog;
+pub mod drawer;
 pub mod input;
 pub mod menu;
 pub mod native_select;

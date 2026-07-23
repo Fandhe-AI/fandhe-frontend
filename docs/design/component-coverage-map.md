@@ -180,7 +180,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/overlays/dialog.md` | Dialog | Dialog | dialog | dialog | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/overlays/popover.md` | Popover | Popover | popover | popover | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/overlays/tooltip.md` | Tooltip | Tooltip | tooltip | tooltip | 実装済み | headless+styled 実装済み |
-| `.agents/skills/ark-ui/references/components/overlays/drawer.md` | Drawer | Drawer | — | — | 実装対象 | #758 |
+| `.agents/skills/ark-ui/references/components/overlays/drawer.md` | Drawer | Drawer | drawer | drawer | 実装済み | headless+styled 実装済み（#758、dialog の状態機械を再利用） |
 | `.agents/skills/ark-ui/references/components/overlays/hover-card.md` | HoverCard | HoverCard | — | — | 実装対象 | #759 |
 | `.agents/skills/ark-ui/references/components/overlays/toast.md` | Toast | Toast | — | — | 実装対象 | #760 |
 | `.agents/skills/ark-ui/references/components/overlays/floating-panel.md` | FloatingPanel | FloatingPanel | — | — | 保留 | #735 で記録（装飾系） |
@@ -460,7 +460,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/overlays/menu.md` | Menu | Menu | menu | menu | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/overlays/popover.md` | Popover | Popover | popover | popover | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/overlays/tooltip.md` | Tooltip | Tooltip | tooltip | tooltip | 実装済み | headless+styled 実装済み |
-| `.agents/skills/chakra-ui/references/components/overlays/drawer.md` | Drawer | Drawer | — | — | 実装対象 | #758 |
+| `.agents/skills/chakra-ui/references/components/overlays/drawer.md` | Drawer | Drawer | drawer | drawer | 実装済み | headless+styled 実装済み（#758、dialog の状態機械を再利用） |
 | `.agents/skills/chakra-ui/references/components/overlays/hover-card.md` | HoverCard | HoverCard | — | — | 実装対象 | #759 |
 | `.agents/skills/chakra-ui/references/components/overlays/toggle-tip.md` | — | ToggleTip | — | — | 実装対象 | #761 |
 | `.agents/skills/chakra-ui/references/components/overlays/action-bar.md` | — | ActionBar | — | — | 実装対象 | #762 |

@@ -73,6 +73,7 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | Combobox | `combobox` | Root/Label/Control/Input/Trigger/ClearTrigger/Positioner/Content/ItemGroup/ItemGroupLabel/Item/ItemText/ItemIndicator | `state::Disclosure` + `state::SingleSelect` + `state::TextInput`（開閉 + 選択値 + 入力値の合成）。ARIA 1.2 combobox パターンに準拠し `aria-activedescendant` は `content` ではなく `input` 側に配線する（Select との差異） | #749 |
 | Pagination | `pagination` | Root/Item/Ellipsis/PrevTrigger/NextTrigger | 独自実装（総件数・ページサイズ・現在ページ・sibling/boundary 件数から省略記号を含むページ列を導出する `page_range`（決定的・`O(boundary_count + sibling_count)`）+ `Component`/`Hydrate` を直接実装する値状態機械。現在ページは `aria-current="page"`/`data-selected` で、端到達は `disabled`/`data-disabled` で表現する。§4b.3 の保留（#716）を解除） | #751 |
 | Breadcrumb | `breadcrumb` | Root/List/Item/Link/CurrentLink/Separator/Ellipsis | なし（自由関数のみ、SSR 静的な意味論ナビ。現在位置は `aria-current="page"` + `data-current` の併用で表現） | #755 |
+| Drawer | `drawer` | Root/Trigger/Backdrop/Positioner/Content/Title/Description/CloseTrigger（Dialog と同一 8 パーツ、`data-scope="drawer"`） | `dialog::Dialog`（Dialog の状態機械へ全委譲。新規状態機械は作らない。固有に持つのは画面端の方向を表す `DrawerPlacement`（`start`/`end`/`top`/`bottom`）を `root`/`positioner`/`content` へ `data-placement` として出力する処理のみ） | #758 |
 
 **未実装（open イシュー、後続で追補）**: Checkbox（#535）・Progress（#544）。
 本表はこれらの実装完了時に更新する。

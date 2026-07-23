@@ -13,7 +13,7 @@ pre-styled UI コンポーネント層、親トラッキング #520・骨格新�
 対応する REQ / TASK は `docs/spec/` に存在しない（要件提案は
 fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 参照）。
 
-## 2. 実装状況（v0.11.0 時点、2026-07-23 更新）
+## 2. 実装状況（v0.12.0 時点、2026-07-23 更新）
 
 **記載方針**: 実装済み API の正は `crates/pre-styled-ui/src/lib.rs` 冒頭の
 rustdoc および各モジュール冒頭の rustdoc とする。本節はモジュール一覧の
@@ -28,8 +28,9 @@ NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー�
 追加（#742）・SegmentGroup styled ラッパー追加（#743）・TagsInput styled
 ラッパー追加（#744）・Toggle/ToggleGroup styled ラッパー追加（#746）・
 CheckboxCard/RadioCard styled バリエーション追加（#747）・Combobox styled
-ラッパー追加（#749）・Breadcrumb styled ラッパー追加（#755、いずれも公開
-時点未反映）を経て 35 の公開モジュールを持つ。内訳は次の通り。
+ラッパー追加（#749）・Breadcrumb styled ラッパー追加（#755）・Drawer styled
+ラッパー追加（#758、いずれも公開時点未反映）を経て 36 の公開モジュールを
+持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -56,6 +57,7 @@ CheckboxCard/RadioCard styled バリエーション追加（#747）・Combobox s
 | headless ラッパー | `combobox` | #749（`select` と同型の `size` variant のみ・`color-palette` 軸は非提供。状態機械は `state::Disclosure` + `state::SingleSelect` + `state::TextInput` の合成。フォーカスは `input` が保持するため `:focus-visible` を `input` へ、`:focus-within` を `control` へ登録する） |
 | headless ラッパー | `pagination` | #751（`size`/`color-palette` 両軸提供。headless-ui 側の保留解除は #716 → #751） |
 | headless ラッパー | `breadcrumb` | #755（`docs/api/headless-ui-api.md` §4b の追加候補消化。状態機械なし。`size`/`BreadcrumbVariant`（`link` の下線表示切り替え）の 2 軸 variant を root のみへ付与し、`link` への伝搬は root スコープ CSS custom property の継承で行う） |
+| headless ラッパー | `drawer` | #758（dialog の変種。状態機械は headless の `dialog::Dialog` をそのまま再利用し新規状態機械は作らない。`size`（drawer の占有幅/高さ）variant のみを root へ付与し `color-palette` 軸は非提供。placement（`start`/`end`/`top`/`bottom`）は variant ではなく headless 層が出力する `data-placement` に連動する CSS で表現する） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
@@ -431,6 +433,7 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | pagination | ✓ | ✓ | 実装済み（#751、現在ページの強調色に反映。root scope の CSS custom property は `--fandhe-pagination-item-size`/`-item-font-size`） |
 | popover / tooltip | 提供しない | 提供しない | 方針確定 |
 | breadcrumb | ✓ | – (`BreadcrumbVariant`: `link` の下線表示切り替え) | 実装済み（#755。アクセント色による選択・チェック状態を示す部品ではないため color-palette は非提供） |
+| drawer | ✓ | – | 実装済み（#758。dialog と同じく選択・チェック状態を示す部品ではないため color-palette は非提供。root scope の CSS custom property は `--fandhe-drawer-size`。placement（`start`/`end`/`top`/`bottom`）は variant 軸ではなく headless 層が出力する `data-placement` に連動する CSS で表現する） |
 
 tabs/accordion/dialog/menu/select の実装詳細（イシュー #729）:
 
