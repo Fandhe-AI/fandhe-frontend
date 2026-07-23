@@ -9,6 +9,7 @@ API リファレンスです。各クレートの公開 API・不変条件その
 rustdoc（`cargo doc -p fandhe-frontend-core --open`）を一次情報源とし、本ドキュメントはそこへの
 導線とパターン集を提供します。
 
+> [!NOTE]
 > **対象バージョン**: 本ドキュメントは `crates/core/src/lib.rs` の公開 API（`Node` / `el` /
 > `text` / `raw_html` / `render` / `escape_html` / `escape_html_into`）と、
 > `crates/core/src/tags.rs`（`tags` モジュール）のタグショートカット群（`div()`/`p()`

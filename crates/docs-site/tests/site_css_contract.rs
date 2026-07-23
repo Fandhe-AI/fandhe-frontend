@@ -19,6 +19,13 @@
 //! クラス（コードブロックの言語トークン依存で無数の値を取りうる）は本テスト
 //! のスコープ外とする（`.docs-content pre code` の要素セレクタでスタイルが
 //! 適用されるため、契約ドリフトの対象にならない）。
+//!
+//! 同様に `markdown.rs` が admonition（`> [!NOTE]` 等）から生成する
+//! `fd-alert--status-*` class は `site/assets/site.css` の契約対象外
+//! （`site.css` は一切変更しない不変条件、イシュー #715）。代わりに
+//! `crate::admonition::stylesheet()` が生成する `assets/admonition.css` 側が
+//! 契約を持つため、`admonition_markdown_output_classes_are_covered_by_generated_admonition_css`
+//! が両者の乖離を検知する。
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -222,4 +229,34 @@ fn extract_css_class_selectors_ignores_decimal_numbers() {
     let tokens = extract_css_class_selectors(css);
     assert!(tokens.contains("docs-toc"));
     assert!(!tokens.contains("5rem"));
+}
+
+/// イシュー #715 の乖離検知テスト（モジュール doc 冒頭の追記参照）:
+/// `markdown.rs` の admonition レンダリングが生成する全 `fd-alert--status-*`
+/// class が `crate::admonition::stylesheet()`（`assets/admonition.css` の
+/// 実体）にセレクタとして存在することを固定する。`site/assets/site.css` 側は
+/// 対象外（分離 CSS 方式のため、`assert_all_classes_covered` は使わない）。
+#[test]
+fn admonition_markdown_output_classes_are_covered_by_generated_admonition_css() {
+    use fandhe_frontend_docs_site::admonition;
+    use fandhe_frontend_docs_site::markdown::render_markdown;
+
+    let admonition_css = admonition::stylesheet()
+        .expect("admonition stylesheet should assemble")
+        .as_css()
+        .to_string();
+    let css_tokens = extract_css_class_selectors(&admonition_css);
+
+    let markdown = "\
+> [!NOTE]\n> note body\n\n\
+> [!TIP]\n> tip body\n\n\
+> [!IMPORTANT]\n> important body\n\n\
+> [!WARNING]\n> warning body\n\n\
+> [!CAUTION]\n> caution body\n";
+    let html = render_markdown(markdown)
+        .iter()
+        .map(render)
+        .collect::<Vec<_>>()
+        .join("");
+    assert_all_classes_covered(&html, &css_tokens, "markdown::render_markdown (admonition)");
 }
