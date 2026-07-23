@@ -23,9 +23,10 @@ rustdoc および各モジュール冒頭の rustdoc とする。本節はモジ
 
 本クレートは第 5 弾ツリー（#680）完了・crates.io v0.4.0 公開（#686）・
 checkbox styled ラッパー追加（#730）・静的フォーム部品 3 種追加（#737）・
-NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー追加
-（#739）・SegmentGroup styled ラッパー追加（#743、いずれも公開時点未反映）
-を経て 26 の公開モジュールを持つ。内訳は次の通り。
+NumberInput styled ラッパー追加（#738）・Slider styled ラッパー追加
+（#741）・PinInput styled ラッパー追加（#739）・SegmentGroup styled
+ラッパー追加（#743、いずれも公開時点未反映）を経て 27 の公開モジュールを
+持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -42,7 +43,8 @@ NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー�
 | headless ラッパー第 5 弾 | `checkbox` | #730（§4e 参照） |
 | 静的フォーム部品 | `input` / `textarea` / `native_select` | #737（§4f 参照） |
 | headless ラッパー第 6 弾 | `number_input` | #738（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） |
-| headless ラッパー第 7 弾 | `pin_input` | #739（`size` variant のみ。palette は第 2 弾展開の既存方針に従い本イシューのスコープ外） |
+| headless ラッパー第 7 弾 | `slider` | #741（`size`/`color-palette` 両軸提供。動的値は `--fandhe-slider-percent` custom property の 1 点のみで伝搬） |
+| headless ラッパー第 8 弾 | `pin_input` | #739（`size` variant のみ。palette は第 2 弾展開の既存方針に従い本イシューのスコープ外） |
 | headless ラッパー | `segment_group` | #743（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供。状態機械は `radio_group` へ全委譲） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`

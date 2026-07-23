@@ -228,6 +228,7 @@ pub mod progress;
 pub mod radio_group;
 pub mod segment_group;
 pub mod select;
+pub mod slider;
 pub mod state;
 pub mod switch;
 pub mod tabs;
@@ -279,6 +280,7 @@ pub use positioning::{
 pub use progress::{Progress, ProgressAction};
 pub use radio_group::RadioGroup;
 pub use segment_group::SegmentGroup;
+pub use slider::{Slider, SliderAction};
 pub use state::{
     Checkable, CheckableAction, Disclosure, DisclosureAction, MultiSelect, MultiSelectAction,
     OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CHECKED, DATA_STATE_CLOSED,
