@@ -224,7 +224,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
-| `.agents/skills/ark-ui/references/utilities/highlight.md` | Highlight | Highlight | — | — | 実装対象 | #775 |
+| `.agents/skills/ark-ui/references/utilities/highlight.md` | Highlight | Highlight | — | `highlight` | 実装済み | #775。pre-styled 静的部品 実装済み |
 | `.agents/skills/ark-ui/references/utilities/client-only.md` | ClientOnly | ClientOnly | — | — | 保留 | #735 で記録（JS ランタイム固有 utilities） |
 | `.agents/skills/ark-ui/references/utilities/download-trigger.md` | DownloadTrigger | DownloadTrigger | — | — | 保留 | #735 で記録（JS ランタイム固有 utilities） |
 | `.agents/skills/ark-ui/references/utilities/environment.md` | Environment | EnvironmentProvider | — | — | 保留 | #735 で記録（JS ランタイム固有 utilities） |
@@ -368,8 +368,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/data-display/tag.md` | — | Tag | — | — | 実装対象 | #768 |
 | `.agents/skills/chakra-ui/references/components/data-display/stat.md` | — | Stat | — | — | 実装対象 | #769 |
 | `.agents/skills/chakra-ui/references/components/data-display/timeline.md` | — | Timeline | — | — | 実装対象 | #769 |
-| `.agents/skills/chakra-ui/references/components/data-display/image.md` | — | Image | — | — | 実装対象 | #770 |
-| `.agents/skills/chakra-ui/references/components/data-display/icon.md` | — | Icon | — | — | 実装対象 | #770 |
+| `.agents/skills/chakra-ui/references/components/data-display/image.md` | — | Image | — | image | 実装済み | #770。状態機械なし静的部品、pre-styled 層のみに実装（headless-ui は変更なし）。fit（object-fit）/aspect-ratio の 2 軸 variant、alt 必須引数 |
+| `.agents/skills/chakra-ui/references/components/data-display/icon.md` | — | Icon | — | icon | 実装済み | #770。状態機械なし静的部品、pre-styled 層のみに実装（headless-ui は変更なし）。size variant のみ、SVG 本体は呼び出し側がノード木 API で構築 |
 | `.agents/skills/chakra-ui/references/components/data-display/clipboard.md` | Clipboard | Clipboard | — | — | 実装対象 | #773（wasm 配線込み） |
 | `.agents/skills/chakra-ui/references/components/data-display/qr-code.md` | QrCode | QrCode | — | — | 実装対象 | #774 |
 | `.agents/skills/chakra-ui/references/components/data-display/marquee.md` | Marquee | Marquee | — | — | 保留 | #735 で記録（装飾系） |
@@ -444,7 +444,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
-| `.agents/skills/chakra-ui/references/components/layout/separator.md` | — | Separator | — | — | 実装対象 | #772 |
+| `.agents/skills/chakra-ui/references/components/layout/separator.md` | — | Separator | — | separator | 実装済み | #772。pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/layout/scroll-area.md` | ScrollArea | ScrollArea | — | — | 保留 | #735 で記録（装飾系） |
 | `.agents/skills/chakra-ui/references/components/layout/splitter.md` | Splitter | Splitter | — | — | 保留 | #735 で記録（装飾系） |
 | `.agents/skills/chakra-ui/references/components/layout/absolute-center.md` | — | AbsoluteCenter | — | — | 意図的非採用 | #716/#724 で非採用確定済み（layout プリミティブ） |
@@ -484,16 +484,16 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/typography/link-overlay.md` | — | LinkOverlay | — | — | 実装対象 | #756（#716 最優先候補の消化） |
 | `.agents/skills/chakra-ui/references/components/typography/kbd.md` | — | Kbd | — | — | 実装対象 | #768 |
 | `.agents/skills/chakra-ui/references/components/typography/code.md` | — | Code | — | — | 実装対象 | #768 |
-| `.agents/skills/chakra-ui/references/components/typography/heading.md` | — | Heading | — | — | 実装対象 | #771 |
-| `.agents/skills/chakra-ui/references/components/typography/text.md` | — | Text | — | — | 実装対象 | #771 |
-| `.agents/skills/chakra-ui/references/components/typography/em.md` | — | Em | — | — | 実装対象 | #771 |
-| `.agents/skills/chakra-ui/references/components/typography/mark.md` | — | Mark | — | — | 実装対象 | #771 |
-| `.agents/skills/chakra-ui/references/components/typography/blockquote.md` | — | Blockquote | — | — | 実装対象 | #771 |
-| `.agents/skills/chakra-ui/references/components/typography/list.md` | — | List | — | — | 実装対象 | #771 |
-| `.agents/skills/chakra-ui/references/components/typography/highlight.md` | Highlight | Highlight | — | — | 実装対象 | #775 |
+| `.agents/skills/chakra-ui/references/components/typography/heading.md` | — | Heading | — | heading | 実装済み | #771 |
+| `.agents/skills/chakra-ui/references/components/typography/text.md` | — | Text | — | text | 実装済み | #771 |
+| `.agents/skills/chakra-ui/references/components/typography/em.md` | — | Em | — | em | 実装済み | #771 |
+| `.agents/skills/chakra-ui/references/components/typography/mark.md` | — | Mark | — | mark | 実装済み | #771 |
+| `.agents/skills/chakra-ui/references/components/typography/blockquote.md` | — | Blockquote | — | blockquote | 実装済み | #771 |
+| `.agents/skills/chakra-ui/references/components/typography/list.md` | — | List | — | list | 実装済み | #771 |
+| `.agents/skills/chakra-ui/references/components/typography/highlight.md` | Highlight | Highlight | — | highlight | 実装済み | #775。pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/typography/rich-text-editor.md` | — | RichTextEditor | — | — | 保留 | #735 で記録（高度入力系） |
 | `.agents/skills/chakra-ui/references/components/typography/code-block.md` | — | CodeBlock | — | — | 対象外 | 対象外（docs-site 既存機構と役割分担） |
-| `.agents/skills/chakra-ui/references/components/typography/prose.md` | — | Prose | — | — | 対象外 | 対象外（docs-site 既存機構と役割分担） |
+| `.agents/skills/chakra-ui/references/components/typography/prose.md` | — | Prose | — | — | 対象外 | 対象外（docs-site 既存機構と役割分担。役割分担の詳細は #771 の `crates/pre-styled-ui/src/text.rs` rustdoc・`docs/api/pre-styled-ui-api.md` 参照） |
 
 #### `.agents/skills/chakra-ui/references/components/utilities/`
 
