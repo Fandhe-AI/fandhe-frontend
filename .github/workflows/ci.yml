@@ -2026,3 +2026,103 @@ jobs:
             echo "::error::fw gate BLOCKED: code-caused check failure. See failing checks in the JSON report above."
           fi
           exit 1
+
+  # イシュー #638: 公開済みクレート（crates.io）の実体（src/ Cargo.toml
+  # build.rs）が変更されているのに Cargo.toml の version が既公開バージョンの
+  # ままの PR を検知するゲート。headless-ui 0.1.0 公開直後、バージョンバンプ
+  # なしの破壊的変更（radio_group::item への引数追加, PR #611）がマージされ、
+  # crates.io バージョン依存の examples e2e が main を赤にした事故
+  # （復旧: PR #634 + 0.2.0 再公開）が直接の動機。
+  #
+  # base ブランチと PR 本文が必要なため PR コンテキストでのみ実行する
+  # （main push では対応する PR 情報がなく判定できないためスキップ）。
+  version-bump-guard:
+    name: "check-version-bump: published crate source changes require a version bump (issue #638)"
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: self-hosted
+    # cargo metadata・git diff・crates.io sparse index 照会のみの軽量ジョブ
+    # だが、curl 呼び出しに `--connect-timeout`/`--max-time` を付けていても
+    # ジョブ全体（チェックアウト・ビルド込み）が無期限に self-hosted runner を
+    # 占有しないよう保険として timeout-minutes を明示する
+    # （イシュー #638 PR #647 レビュー指摘、他ジョブと同様の安全網）。
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        # actions/checkout（他ジョブと同一 SHA 固定）。docs/spec サブモジュールは
+        # 本チェックに不要なため取得しない。git diff の merge-base 算出に
+        # 履歴全体が必要なため fetch-depth: 0 を明示する。fetch-depth: 0 は
+        # `+refs/heads/*:refs/remotes/origin/*`（全ブランチ）を checkout 内部で
+        # フェッチするため、xtask が参照する `origin/${{ github.base_ref }}`
+        # はこの時点で既に存在する（別途 `git fetch origin <base>` は不要。
+        # 過去に別ステップで実行し `persist-credentials: false` により認証情報が
+        # 残らず失敗した実績があるため追加しないこと、イシュー #638 PR #647）。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup Rust toolchain
+        # 他ジョブと同一 SHA 固定。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+
+      - name: "prepare: write PR body to file"
+        # PR 本文はユーザー制御の信頼しない入力であり、シェルへ直接展開せず
+        # env 経由で受け取ってファイル化してから xtask へ渡す
+        # （script injection 対策、security.md A03）。免除宣言
+        # （version-bump-exempt: <crate-name>）の判定にのみ使う。
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          printf '%s' "${PR_BODY}" > pr-body.txt
+
+      - name: "check-version-bump: 公開済みクレートのバージョンバンプ漏れ検知"
+        # crates.io（https://index.crates.io）への到達性を前提とする
+        # （到達不可の場合は "environment error: " プレフィックス付きの
+        # fail-closed な失敗として扱い、テストの弱体化で対処しない。
+        # ci.md の他の crates.io バージョン依存ワークフローと同じ方針）。
+        # PR 本文・base_ref は env 経由でのみ受け渡す（上記ステップ参照）。
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          # `if PIPELINE; then` の条件式内であれば、GitHub Actions 既定の
+          # `bash -e`（errexit）が有効なままでも pipefail によるパイプライン
+          # 失敗で即座にスクリプトが中断されることはない（gate-self-apply
+          # ジョブと同型のパターン）。旧実装は `set -uo pipefail`（-e を
+          # 明示的に含めない）としていたが、`set` は列挙しなかったオプションを
+          # 解除しない仕様のため、GitHub Actions のデフォルト起動オプション
+          # （`bash --noprofile --norc -eo pipefail {0}`）由来の -e が働いた
+          # ままとなり、パイプライン失敗時に `PIPESTATUS` 判定・"environment
+          # error: " grep 判定へ到達する前にジョブが中断していた
+          # （イシュー #638 PR #647 レビュー指摘）。
+          #
+          # stdout/stderr をまとめて 1 ファイルへ tee する（プロセス置換
+          # `2> >(...)` は書き込み完了を待たずに後続コマンドへ進むレースが
+          # あるため使わない。標準出力の 1 行サマリ・標準エラーの
+          # "environment error: " 判定のいずれもこのログファイルから行う）。
+          if cargo run -p xtask --locked -- check-version-bump \
+              --base-ref "origin/${BASE_REF}" \
+              --pr-body-file pr-body.txt 2>&1 | tee check-version-bump.log; then
+            exit 0
+          fi
+          # "environment error: " プレフィックス有無で「runner/ネットワーク
+          # 起因」と「コード起因（バンプ漏れ）」を区別する（gate-self-apply と同型、
+          # ci.md 規約）。さらに、バンプ漏れの断定は 1 行サマリの
+          # `result=FAIL` 行の有無で確認する: `cargo metadata`/`git diff` の
+          # 呼び出し自体が失敗した場合（例: `origin/${BASE_REF}` が fetch
+          # されていない）は `CommandFailed` として "environment error: "
+          # プレフィックスなしで報告されるが、バンプ漏れの断定ではないため
+          # 「バンプせよ」という誤った注釈を出さない
+          # （イシュー #638 PR #647 レビュー指摘）。
+          if grep -q 'environment error: ' check-version-bump.log; then
+            echo "::error::check-version-bump failed: environment error (runner/network issue, not code). See 'environment error:' lines above; verify this runner can reach https://index.crates.io."
+          elif grep -q '^version-bump-check:.*result=FAIL' check-version-bump.log; then
+            echo "::error::check-version-bump failed: a published crate's sources changed but its version is unchanged from an already-published crates.io version (see 'version-bump-check:'/'result=FAIL' lines above). Either bump the version, or declare 'version-bump-exempt: <crate-name>' (with rationale) in the PR body if the change is not public-API-breaking."
+          else
+            echo "::error::check-version-bump failed for a reason other than a detected missing version bump (e.g. a 'cargo'/'git' command failure such as an unfetched base ref) or an already-classified environment error. See the log above for details; this is likely a runner/checkout issue rather than a version-bump omission."
+          fi
+          exit 1

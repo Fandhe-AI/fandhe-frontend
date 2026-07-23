@@ -218,6 +218,47 @@ css-anchor-positioning](https://caniuse.com/css-anchor-positioning) を参照）
   到達したとき、またはブラウザサポート状況の実測が本節の記載と乖離したことが判明した
   とき。
 
+### 4.5a progressive enhancement 検討記録（イシュー #644）
+
+第 4.5 節の非採用判断（`intentional-non-adoption.md` §3.21 へ転記済み）を
+前提に、イシュー #644（親: #640）は「`@supports` による段階適用（対応
+ブラウザはネイティブ位置決め・非対応は本書 4.1〜4.4 節の wasm 計測実装へ
+フォールバック）」の設計自体を検討記録として残すことを受け入れ条件とする。
+本節はその検討結果であり、**判断（非採用）自体は変更しない**。
+
+**Baseline 再確認結果**: 本節執筆時点（2026-07-23、#644 着手時）でネットワーク
+経由の再調査は行わず、第 4.5 節（調査日 2026-07-22）の記載（Chrome/Edge
+125+・Firefox 147+・Safari 26.0+・グローバル使用率約 81.67%）を最新の一次
+記録として引用する。1 日の経過では Baseline「Widely available」判定（3
+エンジン対応後 30 か月経過）に影響する変化は生じ得ず、判断に影響しない。
+
+**フォールバック設計案（採用した場合の構成、記録のみ・実装しない）**:
+
+| 層 | 案 |
+|----|----|
+| CSS（`pre-styled-ui`） | `crates/pre-styled-ui/src/css.rs` の `SlotRecipe::css`（`&'static str` 固定の `decl()` 契約）内に `@supports (anchor-name: --a)` ブロックを追加し、trigger パーツ（`data-part` セレクタ）へ `anchor-name`、positioner パーツへ `position-anchor` / `position-area` / `position-try-fallbacks` を宣言する。sameWidth 相当は `anchor-size(width)` で表現する。宣言値はすべてビルド時に確定する `&'static str` であり、`decl()` の型制約と両立する（第 4.4 節の「動的 `style` 値」とは別経路） |
+| wasm（`fandhe-frontend-wasm-full`） | `reposition_all` / `reposition_one`（`crates/wasm-full/src/position.rs`）の入口で `CSS.supports("anchor-name: --a")` による機能検出を行い、対応ブラウザでは JS 計測・`--fandhe-x`/`--fandhe-y` の `style` 出力（第 4.4 節）をスキップして CSS 側へ委譲する |
+| SSR / no-JS | 変更不要。既存の `placement_attrs`（`data-side`/`data-align` の静的出力、第 4.2 節）+ pre-styled-ui の静的 CSS フォールバックのままとする |
+
+**非採用の論点整理（第 4.5 節・`intentional-non-adoption.md` §3.21 からの
+補足）**:
+
+- Baseline「Widely available」未達（再評価トリガー未成立、第 4.5 節 (c)）。
+- ネイティブ経路では `position-try-fallbacks` による flip 発生を
+  `data-side`/`data-align`（第 4.4a 節が定める「確定値の書き込み専用」契約）
+  へ反映する標準的な通知手段がなく、`data-requested-side`/
+  `data-requested-align` との分離契約とも乖離する。
+- 両経路（CSS ネイティブ / wasm 計測）のブラウザテスト行列が倍増し、
+  決定性・機械検証可能性・コンテキスト消費（`intentional-non-adoption.md`
+  §2）の評価軸で不利。
+- `position-try-fallbacks` の候補列挙モデルは第 4.3 節が凍結した「主軸単純
+  反転 1 候補のみの flip + viewport クランプ shift」より表現が広く、挙動の
+  同値性検証自体が新規コストになる。
+
+**結論**: 非採用（変更なし）。フォールバック設計案・論点整理は
+`intentional-non-adoption.md` §3.21 の参照行へ追記済み（新規節番号は
+追加しない。同文書の採番規則により §3.21 の内容自体は書き換えない）。
+
 ## 5. 後続タスク（#590）への引き継ぎ
 
 | 項目 | 内容 |
@@ -234,7 +275,7 @@ css-anchor-positioning](https://caniuse.com/css-anchor-positioning) を参照）
 |------|-----------|
 | 第 4.3 節で非対応と確定した Floating UI 高度 middleware（autoPlacement / inline / hide / size（sameWidth 以外）/ VirtualElement / ポインタ追従・連続再計算） | イシュー #639 で `docs/policy/intentional-non-adoption.md` §3.20 へ転記済み。同節が第 4.3 節・本節（第 6 節）への相互参照を持つ。CSS Anchor Positioning（第 4.5 節）の非採用判断は同書 §3.21 へ転記済み |
 | `docs/api/headless-ui-api.md` への本設計の反映 | #590（実装確定後）または別イシューでの追随を提案する |
-| CSS Anchor Positioning の progressive enhancement 実装（第 4.5 節 (b)） | Baseline 到達後の再評価まで着手しない |
+| CSS Anchor Positioning の progressive enhancement 実装（第 4.5 節 (b)） | イシュー #644 で検討記録（フォールバック設計案・非採用の論点整理）を第 4.5a 節へ追加済み。判断（非採用）は変更なし。実装は Baseline「Widely available」到達後の再評価まで着手しない |
 
 新規の Issue 起票が必要な事項は、本書執筆時点では起票せず、PR 本文で提案に留め、
 `out-of-scope-tracking.md` の手順（ユーザー承認を得てから起票）に従う。
@@ -295,7 +336,10 @@ css-anchor-positioning](https://caniuse.com/css-anchor-positioning) を参照）
   第 4.4 節・第 7 節はそれぞれ整合する。本書第 4.3 節の非採用表は、同文書
   §3.20（イシュー #639 で転記済み、第 6 節参照）へ同じ評価軸・書式で転記
   されている。本書第 4.5 節（CSS Anchor Positioning 非採用）も同様に同文書
-  §3.21 へ転記済みである。
+  §3.21 へ転記済みである。第 4.5a 節（イシュー #644、progressive
+  enhancement のフォールバック設計案・非採用の論点整理）は判断を変更せず
+  §3.21 の参照行へ追記されており、同節本文・節番号自体は変更しない
+  （同文書の採番規則、§3.6〜§3.8 の重複発覚を受けた明記部分を参照）。
 - `crates/pre-styled-ui/src/css.rs` の `Declaration`/`decl()`（静的 CSS 宣言、
   `&'static str` 固定）と、本書第 4.4 節（動的な `style` 属性値、既存 `attrs` 引数
   経由）は異なる経路であることを明記し、両者の整合を混同しないよう区別した

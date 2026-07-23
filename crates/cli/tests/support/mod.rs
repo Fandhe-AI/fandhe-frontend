@@ -166,14 +166,27 @@ impl Drop for ScratchProject {
     }
 }
 
-/// 一時プロジェクトを書き出すスクラッチルート。`CARGO_TARGET_TMPDIR`
-/// （cargo がテストバイナリ実行時に設定する target 配下の一時ディレクトリ）が
-/// あればそこに閉じ、未設定環境向けに OS 標準の一時領域へフォールバックする
-/// （`negative_type_error.rs` と同一パターン、パストラバーサル対策の一環）。
+/// 一時プロジェクトを書き出すスクラッチルート。
+///
+/// cargo が `CARGO_TARGET_TMPDIR` を設定するのはテストバイナリの
+/// **コンパイル時のみ**（Cargo Book「Environment variables Cargo sets for
+/// crates」）であり、実行時の `std::env::var` 参照は常に失敗する。かつて
+/// この事実誤認により実行時フォールバック（`std::env::temp_dir()` = `/tmp`）
+/// が常用され、self-hosted runner の tmpfs を恒常的に消費していた
+/// （イシュー #637）。既定はコンパイル時に確定する `env!("CARGO_TARGET_TMPDIR")`
+/// （`<target>/tmp` 配下）を使い、`cargo clean` /
+/// `.github/workflows/runner-maintenance.yml`（stale tmp 検査）の既存管理
+/// 範囲に閉じる。実行時 env による明示上書き（特殊なテスト実行環境向け）は
+/// 引き続き許容するが、既定経路としては期待しない。
+/// `<target>/tmp` は cargo が実在を保証しないため `create_dir_all` で
+/// 作成する（`negative_type_error.rs` と同一パターン、パストラバーサル
+/// 対策の一環）。
 pub fn scratch_root() -> PathBuf {
-    std::env::var("CARGO_TARGET_TMPDIR")
+    let root = std::env::var("CARGO_TARGET_TMPDIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir())
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
+    let _ = fs::create_dir_all(&root);
+    root
 }
 
 /// ベースライン（正例）となる `app/src/main.rs` の内容。PoC-7

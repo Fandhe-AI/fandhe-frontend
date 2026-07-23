@@ -36,6 +36,7 @@ mod support;
 
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::Once;
 use support::{
     cargo_deny_available, check_passed, run_fw, run_fw_gate, run_fw_gate_with_target_dir,
     ScratchProject,
@@ -57,15 +58,18 @@ fn run_fw_new(extra_args: &[&str]) -> (i32, String, String) {
     )
 }
 
-/// `fw new` の展開先となる一意な scratch ディレクトリ（`CARGO_TARGET_TMPDIR`
+/// `fw new` の展開先となる一意な scratch ディレクトリ（`support::scratch_root`
 /// 配下、`ScratchProject` の Drop ガードで後始末する）。
 ///
 /// self-hosted runner の共有 `/tmp`・共有 `CARGO_TARGET_DIR` との衝突を避ける
 /// ため、テスト名・PID・ナノ秒を含めて一意化する
 /// （`cli/tests/support/mod.rs::scratch_root` と同一方針、`.claude/rules/ci.md`
-/// 準拠）。
+/// 準拠）。呼び出しのたびに [`cleanup_stale_scratch`] を起動し、過去実行の
+/// 残置物（プロセス kill で `ScratchProject` の Drop ガードが走らなかった
+/// もの）を回収する（イシュー #637）。
 fn unique_scratch_dir() -> PathBuf {
-    let root = support_scratch_root();
+    cleanup_stale_scratch();
+    let root = support::scratch_root();
     let dir = root.join(format!(
         "fw-new-gate-e2e-{}-{}",
         std::process::id(),
@@ -79,10 +83,137 @@ fn unique_scratch_dir() -> PathBuf {
     dir
 }
 
-fn support_scratch_root() -> PathBuf {
-    std::env::var("CARGO_TARGET_TMPDIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir())
+/// 過去実行の残置物を起動時に 1 プロセス 1 回だけ回収する
+/// （イシュー #637 の根本原因: `CARGO_TARGET_TMPDIR` の実行時参照が cargo の
+/// 仕様上常に失敗し `/tmp` へ落ちていたため、本ファイルが命名する 2 プレフィックス
+/// （`fw-new-gate-e2e-*` / `fw-example-gate-shared-target-*`）のディレクトリが
+/// `/tmp` へ恒久的に蓄積していた）。
+///
+/// 配置是正（[`unique_scratch_dir`]・[`example_shared_target_dir`] が
+/// `support::scratch_root()` = コンパイル時 `CARGO_TARGET_TMPDIR` を使うよう
+/// 修正済み）を根本対策としつつ、本関数は (1) 旧配置先 `std::env::temp_dir()`
+/// に残る過去の `/tmp` 残置の自己回収、(2) 新配置先でも「所有者テストが
+/// 不安定」（`example_shared_target_dir` doc 参照）なため蓄積し得る世代の
+/// 上限管理、の 2 役を担う。`unique_scratch_dir`/`example_shared_target_dir`
+/// の双方から呼ばれ、`Once` により本ファイルの全テストのどれが最初に走っても
+/// 1 回だけ実行される。
+fn cleanup_stale_scratch() {
+    static ONCE: Once = Once::new();
+    ONCE.call_once(|| {
+        for root in [support::scratch_root(), std::env::temp_dir()] {
+            sweep_stale_scratch_dir(&root);
+        }
+    });
+}
+
+/// `root` 直下（非再帰）を走査し、本ファイルが命名する 2 プレフィックスに
+/// 一致し、かつ名前中の PID が非生存のエントリのみを削除する。
+///
+/// 再帰的に子ディレクトリへ潜らない・プレフィックス完全一致のみを対象・
+/// PID パース不能なら無視、という制約は「他プロセスが所有する無関係な
+/// ディレクトリを誤って削除しない」ための安全弁（`cleanup_stale_scratch`
+/// 呼び出し元の doc・イシュー #637 のセキュリティ考慮を参照）。
+/// `unique_scratch_dir`/`example_shared_target_dir` からは `Once` 経由で、
+/// 回帰テスト（`cleanup_stale_scratch_removes_dead_pid_entries_and_keeps_live_ones`）
+/// からは `Once` を経由せず直接呼ばれる。
+fn sweep_stale_scratch_dir(root: &std::path::Path) {
+    let entries = match std::fs::read_dir(root) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        // symlink は削除対象外（パス操作の安全弁）。実ディレクトリのみを見る。
+        let is_real_dir = std::fs::symlink_metadata(&path)
+            .map(|meta| meta.is_dir())
+            .unwrap_or(false);
+        if !is_real_dir {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        let Some(pid) = extract_scratch_dir_pid(name) else {
+            continue;
+        };
+        if scratch_dir_pid_is_stale(&path, pid) {
+            let _ = std::fs::remove_dir_all(&path);
+        }
+    }
+}
+
+/// ディレクトリ名からイシュー #637 が管理する 2 プレフィックス経由で PID を
+/// 抽出する。`fw-new-gate-e2e-<pid>-<nanos>` と
+/// `fw-example-gate-shared-target-<pid>` の 2 形式（[`unique_scratch_dir`]・
+/// [`example_shared_target_dir`] が命名）のみに反応し、それ以外の名前
+/// （無関係なディレクトリ）は `None` を返して素通りさせる。
+fn extract_scratch_dir_pid(name: &str) -> Option<u32> {
+    for prefix in ["fw-new-gate-e2e-", "fw-example-gate-shared-target-"] {
+        if let Some(rest) = name.strip_prefix(prefix) {
+            let pid_segment = rest.split('-').next().unwrap_or("");
+            if let Ok(pid) = pid_segment.parse::<u32>() {
+                return Some(pid);
+            }
+        }
+    }
+    None
+}
+
+/// 「非生存」の消去対象と判定するための最低経過時間（1 時間）。
+///
+/// self-hosted runner 上では `/cargo-target`（延いては本ファイルが使う
+/// `support::scratch_root()` = コンパイル時 `CARGO_TARGET_TMPDIR`）が
+/// コンテナ化された複数 CI ジョブ間で共有され得る。PID の生存確認
+/// （`/proc/<pid>` の存在）は **PID 名前空間ローカル** の判定であり、
+/// 別ジョブ（別 PID 名前空間）からは「このジョブ自身が現に使っている
+/// scratch ディレクトリ」の PID が常に非存在＝stale と誤判定され得る
+/// （イシュー #637 で発生した実障害: 直前まで `fw new`/`fw gate` を実行
+/// 中だった scratch ディレクトリが別ジョブの sweep に削除され、
+/// `fw_new_app_template_output_passes_fw_gate` が cargo の working
+/// directory 消失で FAILED になった）。
+///
+/// このため PID 生存確認のみでは安全側判定として不十分であり、
+/// 「PID 非生存**かつ** mtime が本閾値を超えている」の両条件を必須と
+/// する（[`scratch_dir_pid_is_stale`] 参照）。本閾値はテストプロジェクト
+/// 1 本の `fw gate`（cargo build/test/clippy 込み）が要する最大時間を
+/// 十分に超え、かつ旧世代の回収を過度に遅延させない値として 1 時間とする。
+const STALE_MIN_AGE: std::time::Duration = std::time::Duration::from_secs(60 * 60);
+
+/// `path` の mtime が [`STALE_MIN_AGE`] を超えているかを判定する
+/// （メタデータ取得・時刻計算に失敗した場合は「新しい」＝削除しない安全側
+/// フォールバック）。
+fn is_older_than_stale_threshold(path: &std::path::Path) -> bool {
+    std::fs::metadata(path)
+        .and_then(|meta| meta.modified())
+        .ok()
+        .and_then(|modified| modified.elapsed().ok())
+        .map(|elapsed| elapsed >= STALE_MIN_AGE)
+        .unwrap_or(false)
+}
+
+/// `pid` が生存していないかを判定する（生存していれば削除しない安全側判定）。
+///
+/// Linux self-hosted runner を前提に `/proc/<pid>` の存在確認を第一の
+/// シグナルとするが、これは PID 名前空間ローカルの判定であり、コンテナ化
+/// された別 CI ジョブから見ると「他ジョブが現に使っている生存 PID」も
+/// 「非存在」に見え得る（イシュー #637、[`STALE_MIN_AGE`] のコメント参照）。
+/// そのため `/proc` 判定だけでは削除の根拠として不十分とし、いずれの分岐
+/// （`/proc` 判定・`/proc` が使えない環境の mtime フォールバックの双方）でも
+/// 「`path` の mtime が [`STALE_MIN_AGE`] を超えている」ことを削除の
+/// **必須の追加条件**（AND 条件）とする。これにより、たとえ PID 判定が
+/// 別名前空間との衝突で誤って「非生存」と示しても、直近に作成・更新された
+/// （＝現に使用中の可能性が高い）ディレクトリは閾値時間が経過するまで
+/// 保護される。
+fn scratch_dir_pid_is_stale(path: &std::path::Path, pid: u32) -> bool {
+    if !is_older_than_stale_threshold(path) {
+        return false;
+    }
+    if std::path::Path::new("/proc/self").exists() {
+        return !std::path::Path::new(&format!("/proc/{pid}")).exists();
+    }
+    // `/proc` が使えない環境（非 Linux 等）では PID 生存を判定できないため、
+    // 上記の mtime 閾値チェック（既に通過済み）のみを根拠に stale 扱いにする。
+    true
 }
 
 /// examples e2e 5 件（`fw_new_example_*_output_passes_fw_gate`）が共有する
@@ -110,17 +241,26 @@ fn support_scratch_root() -> PathBuf {
 /// ため必ず再ビルドされる。crates.io 依存側もバージョン不変であり、cargo
 /// 自身の build-dir ロック（複数 `cargo` 起動の直列化）により並行実行も安全。
 ///
-/// # クリーンアップ方針
+/// # クリーンアップ方針（イシュー #637）
 ///
-/// 特定のテストが所有者ではない（4 テストが共有し、最後に終わるテストの
-/// 特定が不安定）ため `ScratchProject` の Drop ガードでは消さない。
-/// `CARGO_TARGET_TMPDIR` 配下（CI では `/cargo-target/tmp`、ローカルでは
-/// `target/tmp`）に置くことで、`cargo clean`・
-/// `.github/workflows/runner-maintenance.yml`（stale tmp 検査）の既存管理
-/// 範囲に収める。PID サフィックスにより「同一テストバイナリ内の 4 テスト
-/// 間でのみ共有・並行 CI ジョブ／別回とは隔離」を保証する。
+/// 特定のテストが所有者ではない（5 テストが共有し、最後に終わるテストの
+/// 特定が不安定）ため `ScratchProject` の Drop ガードでは消さない。代わりに
+/// 2 段構えで有界化する。
+///
+/// 1. **配置是正**: `support::scratch_root()` はコンパイル時に確定する
+///    `env!("CARGO_TARGET_TMPDIR")`（CI では `/cargo-target/tmp`、ローカルでは
+///    `target/tmp`）を既定とする（かつての実行時 `CARGO_TARGET_TMPDIR` 参照は
+///    cargo の仕様上常に失敗し `/tmp` へ落ちていた）。これにより `cargo clean`・
+///    `.github/workflows/runner-maintenance.yml`（stale tmp 検査）の既存管理
+///    範囲に収まる
+/// 2. **世代管理**: [`cleanup_stale_scratch`] が本関数呼び出し時に起動し、
+///    PID サフィックスが非生存（dead）の旧世代ディレクトリを回収する。
+///    「同一テストバイナリ内の 5 テスト間でのみ共有・並行 CI ジョブ／別回とは
+///    隔離」という PID サフィックスによる分離（本関数）は不変であり、
+///    ラン内キャッシュ共有の意図（イシュー #505）も維持される
 fn example_shared_target_dir() -> PathBuf {
-    support_scratch_root().join(format!(
+    cleanup_stale_scratch();
+    support::scratch_root().join(format!(
         "fw-example-gate-shared-target-{}",
         std::process::id()
     ))
@@ -1208,4 +1348,124 @@ fn fw_new_example_headless_pre_styled_ui_output_passes_fw_gate() {
         dist.join("assets").join("ui.css").is_file(),
         "dist/assets/ui.css が生成されていない"
     );
+}
+
+/// イシュー #637 の回帰テスト（受け入れ条件 1）: `support::scratch_root()` と
+/// [`example_shared_target_dir`] が、実行時 env 上書きがない前提でコンパイル
+/// 時に確定する `env!("CARGO_TARGET_TMPDIR")` 配下に固定され、`/tmp`
+/// （`std::env::temp_dir()`）へ一切置かれないことを断定する。かつての実行時
+/// `CARGO_TARGET_TMPDIR` 参照は cargo の仕様上常に失敗し `/tmp` へ落ちて
+/// いた（根本原因）ため、配置の是正自体をコードで固定する。
+#[test]
+fn scratch_root_is_pinned_under_cargo_target_tmpdir() {
+    let compiled_default = PathBuf::from(env!("CARGO_TARGET_TMPDIR"));
+
+    // テスト実行環境が実行時 `CARGO_TARGET_TMPDIR` を明示上書きしていない
+    // 通常運用でのみ、既定値との一致を断定する（上書き運用は許容するが
+    // その場合は本テストの対象外＝「実行時上書き」自体の正当性を検証する
+    // テストではない）。
+    if std::env::var("CARGO_TARGET_TMPDIR").is_err() {
+        assert_eq!(
+            support::scratch_root(),
+            compiled_default,
+            "scratch_root はコンパイル時 CARGO_TARGET_TMPDIR に固定されるべき"
+        );
+        assert_eq!(
+            example_shared_target_dir().parent(),
+            Some(compiled_default.as_path()),
+            "example_shared_target_dir も同じルート配下に置かれるべき"
+        );
+    }
+
+    let system_tmp = std::env::temp_dir();
+    assert_ne!(
+        support::scratch_root(),
+        system_tmp,
+        "scratch_root は OS 標準の一時領域（/tmp 等）と一致してはならない"
+    );
+}
+
+/// イシュー #637 の回帰テスト（受け入れ条件 1、および CI #648 障害を受けた
+/// 追加断定）: [`sweep_stale_scratch_dir`] が「本ファイルが命名する 2
+/// プレフィックスに一致し、かつ PID が非生存**かつ** mtime が
+/// [`STALE_MIN_AGE`] を超えている」エントリのみを削除し、生存 PID の
+/// エントリ・**PID 非生存でも mtime が新しい（＝現に使用中の可能性が高い）
+/// エントリ**・プレフィックス不一致の無関係なエントリは残置することを
+/// 断定する。mtime AND 条件を欠いた旧実装は、PID 名前空間が別のコンテナ化
+/// CI ジョブから見て生存 PID を「非存在」と誤判定し、他ジョブが現に
+/// `fw new`/`fw gate` を実行中の scratch ディレクトリを削除してしまう
+/// 実障害（`fw_new_app_template_output_passes_fw_gate` の cargo working
+/// directory 消失 FAILED）を CI #648 で引き起こした。
+#[test]
+fn cleanup_stale_scratch_removes_dead_pid_entries_and_keeps_live_ones() {
+    let test_root = support::scratch_root().join(format!(
+        "fw-637-sweep-test-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    let _ = std::fs::remove_dir_all(&test_root);
+    std::fs::create_dir_all(&test_root).expect("failed to create sweep test root");
+
+    // Linux の pid_max 上限（4194304）を超え、いかなる生存プロセスにも
+    // 割り当てられ得ない値を dead PID として使う。
+    let dead_pid = u32::MAX;
+    let live_pid = std::process::id();
+
+    let dead_new_gate = test_root.join(format!("fw-new-gate-e2e-{dead_pid}-123456789"));
+    let dead_shared_target = test_root.join(format!("fw-example-gate-shared-target-{dead_pid}"));
+    let live_new_gate = test_root.join(format!("fw-new-gate-e2e-{live_pid}-987654321"));
+    let dead_pid_fresh_mtime = test_root.join(format!("fw-new-gate-e2e-{dead_pid}-555555555"));
+    let unrelated = test_root.join("some-unrelated-directory");
+
+    for dir in [
+        &dead_new_gate,
+        &dead_shared_target,
+        &live_new_gate,
+        &dead_pid_fresh_mtime,
+        &unrelated,
+    ] {
+        std::fs::create_dir_all(dir).expect("failed to create fixture entry");
+    }
+
+    // dead pid の 2 エントリは [`STALE_MIN_AGE`] の mtime AND 条件（イシュー
+    // #637 の PID 名前空間跨ぎ誤判定対策）を満たすよう、作成直後の mtime を
+    // 閾値超過（2 時間前）へ巻き戻す。`live_new_gate`（生存 pid）はここで
+    // 触らず作成直後の新しい mtime のまま残し、「新しいディレクトリは
+    // PID 判定だけでは削除されない」ことも本テストで併せて固定する。
+    let stale_mtime = std::time::SystemTime::now() - (STALE_MIN_AGE * 2);
+    for dir in [&dead_new_gate, &dead_shared_target] {
+        let file = std::fs::File::open(dir).expect("failed to open fixture entry for mtime set");
+        file.set_modified(stale_mtime)
+            .expect("failed to backdate fixture entry mtime");
+    }
+
+    sweep_stale_scratch_dir(&test_root);
+
+    assert!(
+        !dead_new_gate.exists(),
+        "dead pid の fw-new-gate-e2e-* エントリは回収されるべき"
+    );
+    assert!(
+        !dead_shared_target.exists(),
+        "dead pid の fw-example-gate-shared-target-* エントリは回収されるべき"
+    );
+    assert!(
+        live_new_gate.exists(),
+        "生存 pid の fw-new-gate-e2e-* エントリは残置されるべき"
+    );
+    assert!(
+        dead_pid_fresh_mtime.exists(),
+        "PID 非生存判定でも mtime が STALE_MIN_AGE 未満（新しい＝現に使用中の \
+         可能性が高い）エントリは削除されてはならない（CI #648 障害の \
+         再発防止、PID 名前空間跨ぎの誤判定に対する mtime AND 条件）"
+    );
+    assert!(
+        unrelated.exists(),
+        "プレフィックス不一致のエントリは sweep 対象外であるべき"
+    );
+
+    let _ = std::fs::remove_dir_all(&test_root);
 }

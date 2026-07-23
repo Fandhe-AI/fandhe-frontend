@@ -1,19 +1,23 @@
 //! `fandhe_frontend_wasm_full::keynav`（Tabs/Accordion/Menu/Select/RadioGroup
-//! のキーボード操作・イシュー #582・#583、親 #581）の native テスト。
+//! のキーボード操作・イシュー #582・#583・#641（typeahead）、親 #581）の
+//! native テスト。
 //!
 //! `keynav` モジュールの純粋層（[`tabs_next_index`]/[`accordion_next_index`]/
-//! [`highlight_next_index`]/[`radio_next_index`]）は web-sys に依存しないため、
+//! [`highlight_next_index`]/[`radio_next_index`]/[`is_typeahead_key`]/
+//! [`typeahead_push`]/[`typeahead_next_index`]）は web-sys に依存しないため、
 //! `wasm32` ターゲット・実 DOM を介さず native の `cargo test --workspace` から
 //! 公開 API 経由で直接検証できる（`wasm-full/tests/nav_native.rs` と同じ
 //! 2 層構成方針）。詳細な網羅ケース（orientation 別 Arrow・disabled スキップ・
-//! loopFocus 有無等）はモジュール内単体テスト（`crates/wasm-full/src/keynav.rs`）
-//! に既に持つため、本ファイルは「公開 API 経由で壊れていないか」の統合確認に
-//! 絞る。配線層（`wire_keynav`、`#[cfg(target_arch = "wasm32")]`）の検証は
-//! `wasm-full/tests/keynav_browser.rs`（実ブラウザ）が担う。
+//! loopFocus 有無・typeahead のバッファ/循環等）はモジュール内単体テスト
+//! （`crates/wasm-full/src/keynav.rs`）に既に持つため、本ファイルは「公開 API
+//! 経由で壊れていないか」の統合確認に絞る。配線層（`wire_keynav`、
+//! `#[cfg(target_arch = "wasm32")]`）の検証は `wasm-full/tests/keynav_browser.rs`
+//! （実ブラウザ）が担う。
 
 use fandhe_frontend_wasm_full::keynav::{
-    accordion_next_index, highlight_next_index, loop_focus_from_attr, menu_loop_focus_from_attr,
-    radio_next_index, tabs_next_index, Modifiers, Orientation,
+    accordion_next_index, highlight_next_index, is_typeahead_key, loop_focus_from_attr,
+    menu_loop_focus_from_attr, radio_next_index, tabs_next_index, typeahead_next_index,
+    typeahead_push, Modifiers, Orientation, TYPEAHEAD_TIMEOUT_MS,
 };
 
 /// 検証 1: Tabs horizontal の ArrowRight/ArrowLeft がフォーカスを移動する。
@@ -273,6 +277,63 @@ fn radio_next_index_always_loops_and_orientation_restricts_axis() {
             Modifiers::default(),
             &disabled
         ),
+        None
+    );
+}
+
+/// 検証 10（イシュー #641）: typeahead の公開 API（[`is_typeahead_key`]/
+/// [`typeahead_push`]/[`typeahead_next_index`]）が単体テストと同じ挙動で
+/// 公開 API 経由でも壊れていないことを確認する統合確認。
+#[test]
+fn typeahead_public_api_matches_and_cycles_through_labels() {
+    // 単一文字は修飾キーなし・非制御文字のみ typeahead 対象。
+    assert!(is_typeahead_key("m", false, Modifiers::default()));
+    assert!(!is_typeahead_key("Enter", false, Modifiers::default()));
+    assert!(!is_typeahead_key(
+        "m",
+        false,
+        Modifiers {
+            ctrl: true,
+            ..Modifiers::default()
+        }
+    ));
+    // Space はバッファ有効時のみ typeahead 対象。
+    assert!(!is_typeahead_key(" ", false, Modifiers::default()));
+    assert!(is_typeahead_key(" ", true, Modifiers::default()));
+
+    // バッファはタイムアウト内で継続し、超過後は新規開始する。
+    let buffer = typeahead_push("", "a", f64::INFINITY);
+    assert_eq!(buffer, "a");
+    let buffer = typeahead_push(&buffer, "p", 10.0);
+    assert_eq!(buffer, "ap");
+    let buffer = typeahead_push(&buffer, "z", TYPEAHEAD_TIMEOUT_MS + 1.0);
+    assert_eq!(buffer, "z");
+
+    // ラベルマッチ: 同一文字の繰り返しは current の次から循環探索する。
+    let labels = ["Apple", "Banana", "Avocado"];
+    assert_eq!(
+        typeahead_next_index(Some(0), "a", &labels, &[false, false, false]),
+        Some(2)
+    );
+    assert_eq!(
+        typeahead_next_index(Some(2), "aa", &labels, &[false, false, false]),
+        Some(0)
+    );
+    // disabled はスキップし、全 disabled・空バッファは None（fail-closed）。
+    // current（Apple）自身は「次から」探索のため対象外、Banana は disabled
+    // のためスキップされ Avocado がマッチする。
+    assert_eq!(
+        typeahead_next_index(Some(0), "a", &labels, &[false, true, false]),
+        Some(2)
+    );
+    assert_eq!(
+        typeahead_next_index(None, "", &labels, &[false, false, false]),
+        None
+    );
+    let empty_labels: [&str; 0] = [];
+    let empty_disabled: [bool; 0] = [];
+    assert_eq!(
+        typeahead_next_index(None, "a", &empty_labels, &empty_disabled),
         None
     );
 }
