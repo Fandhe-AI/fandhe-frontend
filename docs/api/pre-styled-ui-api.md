@@ -22,9 +22,10 @@ rustdoc および各モジュール冒頭の rustdoc とする。本節はモジ
 実際に骨格新設（#546）時点の記述が長期間放置されていた（イシュー #714）。
 
 本クレートは第 5 弾ツリー（#680）完了・crates.io v0.4.0 公開（#686）・
-checkbox styled ラッパー追加（#730）・NumberInput styled ラッパー追加
-（#738）・Slider styled ラッパー追加（#741、いずれも公開時点未反映）を経て
-22 の公開モジュールを持つ。内訳は次の通り。
+checkbox styled ラッパー追加（#730）・静的フォーム部品 3 種追加（#737）・
+NumberInput styled ラッパー追加（#738）・Slider styled ラッパー追加
+（#741、いずれも公開時点未反映）を経て 25 の公開モジュールを持つ。内訳は
+次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -39,6 +40,7 @@ checkbox styled ラッパー追加（#730）・NumberInput styled ラッパー�
 | headless ラッパー第 4 弾 | `radio_group` | #683（§4c 参照） |
 | headless ラッパー | `avatar` | #684（§4b 参照） |
 | headless ラッパー第 5 弾 | `checkbox` | #730（§4e 参照） |
+| 静的フォーム部品 | `input` / `textarea` / `native_select` | #737（§4f 参照） |
 | headless ラッパー第 6 弾 | `number_input` | #738（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） |
 | headless ラッパー第 7 弾 | `slider` | #741（`size`/`color-palette` 両軸提供。動的値は `--fandhe-slider-percent` custom property の 1 点のみで伝搬） |
 
@@ -47,9 +49,9 @@ checkbox styled ラッパー追加（#730）・NumberInput styled ラッパー�
 `stylesheet()`（モジュールにより `css()`）で既定 CSS を追加提供する共通
 設計方針を採る。詳細・スコープ外事項は各モジュール冒頭の rustdoc を参照
 （例: `switch` は `src/switch.rs`、`avatar`/`radio_group` は §4b/§4c、
-`checkbox` は §4e）。`switch`/`radio_group`/`checkbox` の `size`/
-`color-palette` variant 拡張（イシュー #708/#730）の詳細は §4c・§4d・§4e
-を参照。
+`checkbox` は §4e、`input`/`textarea`/`native_select` は §4f）。
+`switch`/`radio_group`/`checkbox` の `size`/`color-palette` variant 拡張
+（イシュー #708/#730）の詳細は §4c・§4d・§4e を参照。
 
 クレートルート再エクスポート（`fandhe_frontend_headless_ui` /
 `fandhe_frontend_core` / `OpenState` / `Orientation` ほか、イシュー #685）は
@@ -401,6 +403,7 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | switch | ✓ | ✓ | 実装済み（#708） |
 | radio-group | ✓ | ✓ | 実装済み（#708） |
 | checkbox | ✓ | ✓ | 実装済み（#730） |
+| input / textarea / native-select | ✓ | – | 実装済み（#737、§4f 参照。フォーム入力は選択・チェック状態を示す部品ではないため提供しない） |
 | tabs | ✓ | ✓（selected trigger の強調色） | 実装済み（#729） |
 | accordion / dialog / menu / select | ✓ | – | 実装済み（#729） |
 | number-input | ✓ | – | 実装済み（#738、フォーム入力部品のため color-palette は非提供） |
@@ -491,6 +494,48 @@ anatomy パーツを選択的に再エクスポートし、`stylesheet()` で既
   責務（`fandhe-frontend-wasm-full` の focus 配線に `("checkbox",
   "hidden-input") => Some("root")` のマッピングが #709 時点で登録済み）で
   あり、本イシューでの wasm 層変更は不要だった。
+
+## 4f. 静的フォーム部品 `input`/`textarea`/`native_select`（イシュー #737）
+
+`input`/`textarea`/`native_select` の 3 モジュールは状態機械を持たない
+（ブラウザネイティブ挙動をそのまま尊重する）。`fandhe_frontend_headless_ui::field`
+（イシュー #538/#602）の `input`/`textarea`/`select` の 3 パーツへ
+`variant`/`size` variant クラスと既定 CSS を重ねる薄い委譲層で、アクセシ
+ビリティ配線（`id`・ネイティブ `disabled`/`required`/`readonly`・
+`aria-invalid`・`aria-describedby`・`data-*`）は headless `field::*` へ
+全面委譲する（詳細は `src/input.rs` 冒頭の rustdoc 参照）。
+
+- **`field` scope を共有する recipe 設計**: `SlotRecipe` が生成する CSS
+  セレクタは `[data-scope="<scope>"][data-part="<slot>"]` 固定であり、
+  headless `field::*` が実際にレンダリングする `data-scope="field"` と
+  一致させる必要がある。そのため 3 モジュールは独自の scope を新設せず
+  `"field"` を共有し、slot を `"input"`/`"textarea"`/`"select"` のみ
+  個別に宣言する（slot が相互排他のためセレクタ・宣言は衝突しない）。
+- **各モジュールの API 形**: `input(&InputProps, &FieldProps<'_>, extra_attrs)`
+  のように、見た目 variant（`InputProps`）とアクセシビリティ props
+  （headless から再エクスポートした `FieldProps`/`FieldIds`）を別引数として
+  受け取る（ark-ui/chakra-ui が見た目 props とフォーム状態 props を分離
+  する構成に合わせる）。
+- **`variant` 軸**: `Outline`（既定）/`Subtle`/`Flushed` の 3 値
+  （`native_select` のみ `Flushed` の代わりに枠なしの `Plain`）。
+- **`color-palette` 軸を提供しない**: §4d「複合部品の variant 統一方針」
+  の基準 3（`color-palette` は選択・チェック状態を示す部品へ提供する）に
+  従い、フォーム入力は該当しないため提供しない。フォーカスリングの
+  アクセントは `var(--fandhe-color-accent)` の直接参照のみで表現する。
+- **`textarea` の `autoresize` フックへの応答**: headless `field::textarea`
+  の `autoresize: bool` は SSR 時点で `data-autoresize=""` 存在属性のみを
+  出力する宣言的フック（実際の高さ調整は CSR/wasm 層またはスタイルの
+  責務）。`textarea` モジュールは `[data-autoresize]` 状態規則として
+  `field-sizing: content` + `resize: none` を登録し、この宣言的フックへ
+  styled 層として応答する。
+- **`native_select` はネイティブ矢印を維持する**: chakra-ui の
+  `NativeSelect` はカスタム矢印アイコンを重ねるため `appearance: none` を
+  使う構成が一般的だが、本モジュールは「ブラウザネイティブ挙動を尊重する」
+  という設計原則に従い `appearance` 宣言を持たず、ネイティブの矢印・開閉
+  挙動をそのまま残す最小サブセットとする。indicator パーツ（カスタム矢印）
+  は本イシューのスコープ外（フォローアップ）。`<select readonly>` が HTML 仕様上無効なため
+  ネイティブ `readonly` を出力しない判断は headless 層（イシュー #602）に
+  委譲済みで、本モジュールは再実装しない。
 
 ## 5. 関連ドキュメント
 
