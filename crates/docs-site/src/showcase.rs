@@ -203,6 +203,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::pagination::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::breadcrumb::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::carousel::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::progress::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -2193,6 +2194,55 @@ fn breadcrumb_section() -> Node {
     )
 }
 
+/// Progress（circle 対応、イシュー #763）節: determinate（40%）の size
+/// バリエーション・complete・indeterminate の 3 状態を掲示する。
+///
+/// `Progress` は headless の値状態機械（`fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress`）
+/// を直接 import して構築する（`progress::root` は `size` variant クラス
+/// 付与のみを担う薄いラッパーであり、状態は呼び出し側が headless 型で持つ
+/// 契約、`crates/pre-styled-ui/src/progress.rs` rustdoc 参照）。circle 系
+/// パーツ（Circle/CircleTrack/CircleRange）は styled 層の独自ラッパーを持たず
+/// headless の inherent メソッドをそのまま呼ぶ。
+fn progress_section() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+    use fandhe_frontend_pre_styled_ui::progress;
+
+    fn circle_demo(p: &Progress, size: Size, aria_valuetext: Option<&str>) -> Node {
+        progress::root(
+            p,
+            size,
+            aria_valuetext,
+            vec![],
+            vec![p.circle(
+                vec![],
+                vec![
+                    p.circle_track(vec![], vec![]),
+                    p.circle_range(vec![], vec![]),
+                ],
+            )],
+        )
+    }
+
+    let determinate = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
+    let size_row = row(vec![
+        circle_demo(&determinate, Size::Sm, Some("40%")),
+        circle_demo(&determinate, Size::Md, Some("40%")),
+        circle_demo(&determinate, Size::Lg, Some("40%")),
+    ]);
+
+    let complete = Progress::new(0.0, 100.0, Some(100.0), Orientation::Horizontal);
+    let complete_row = row(vec![circle_demo(&complete, Size::Md, Some("100%"))]);
+
+    let indeterminate = Progress::new(0.0, 100.0, None, Orientation::Horizontal);
+    let indeterminate_row = row(vec![circle_demo(&indeterminate, Size::Md, None)]);
+
+    section(
+        "Progress",
+        "Circular（SVG）表示の進捗インジケータ。size（sm/md/lg）で --fandhe-progress-size/--fandhe-progress-thickness を切り替えます。indeterminate（不定進捗）は data-state=\"indeterminate\" に連動した回転アニメーションで表示します。",
+        vec![size_row, complete_row, indeterminate_row],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -2242,6 +2292,7 @@ fn showcase_body() -> Node {
             checkbox_card_section(),
             radio_card_section(),
             breadcrumb_section(),
+            progress_section(),
         ],
     )
 }
