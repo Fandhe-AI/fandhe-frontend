@@ -187,6 +187,15 @@
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。activationMode/
 //!   submitMode の実挙動・autoResize は本イシューのスコープ外
 //!   （[`editable`] モジュール doc 参照）。
+//! - [`mod@tags_input`]: Root / Label / Control / Input / Item / ItemPreview /
+//!   ItemText / ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput の
+//!   11 anatomy パーツと、可変長タグ文字列リスト + 編集中インデックスを持つ
+//!   [`tags_input::TagsInput`] 状態機械（#744、親 #736/#726）。[`mod@pin_input`]/
+//!   [`mod@number_input`] と同じく [`state`] の既存語彙に収まらないため、
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`control` は
+//!   `role="listbox"`、`item_preview` は `role="option"`（イシュー本文が
+//!   指定する listbox 相当の ARIA）。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
@@ -249,6 +258,7 @@ pub mod slider;
 pub mod state;
 pub mod switch;
 pub mod tabs;
+pub mod tags_input;
 pub mod tooltip;
 
 // `pub use fandhe_frontend_core;` はクレートそのものの再エクスポート（型/値の
@@ -307,4 +317,5 @@ pub use state::{
 };
 pub use switch::{Switch, SwitchAction};
 pub use tabs::{tabs, ActivationMode, TabItem, TabsProps};
+pub use tags_input::{TagsInput, TagsInputAction};
 pub use tooltip::Tooltip;

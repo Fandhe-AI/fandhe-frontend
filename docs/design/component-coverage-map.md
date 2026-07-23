@@ -167,7 +167,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/form/slider.md` | Slider | Slider | slider | slider | 実装済み | headless+styled 実装済み（#741） |
 | `.agents/skills/ark-ui/references/components/form/rating-group.md` | RatingGroup | Rating | rating_group | rating_group | 実装済み | headless+styled 実装済み（#742） |
 | `.agents/skills/ark-ui/references/components/form/segment-group.md` | SegmentGroup | SegmentedControl | segment_group | segment_group | 実装済み | headless+styled 実装済み（#743） |
-| `.agents/skills/ark-ui/references/components/form/tags-input.md` | TagsInput | TagsInput | — | — | 実装対象 | #744 |
+| `.agents/skills/ark-ui/references/components/form/tags-input.md` | TagsInput | TagsInput | tags_input | tags_input | 実装済み | headless+styled 実装済み（#744） |
 | `.agents/skills/ark-ui/references/components/form/editable.md` | Editable | Editable | editable | editable | 実装済み | headless+styled 実装済み（#745） |
 | `.agents/skills/ark-ui/references/components/form/angle-slider.md` | AngleSlider | — | — | — | 保留 | #735 で記録（高度入力系） |
 | `.agents/skills/ark-ui/references/components/form/color-picker.md` | ColorPicker | ColorPicker | — | — | 保留 | #735 で記録（高度入力系） |
@@ -418,7 +418,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/forms/slider.md` | Slider | Slider | slider | slider | 実装済み | headless+styled 実装済み（#741） |
 | `.agents/skills/chakra-ui/references/components/forms/rating.md` | RatingGroup | Rating | rating_group | rating_group | 実装済み | headless+styled 実装済み（#742） |
 | `.agents/skills/chakra-ui/references/components/forms/segmented-control.md` | SegmentGroup | SegmentedControl | segment_group | segment_group | 実装済み | headless+styled 実装済み（#743） |
-| `.agents/skills/chakra-ui/references/components/forms/tags-input.md` | TagsInput | TagsInput | — | — | 実装対象 | #744 |
+| `.agents/skills/chakra-ui/references/components/forms/tags-input.md` | TagsInput | TagsInput | tags_input | tags_input | 実装済み | headless+styled 実装済み（#744） |
 | `.agents/skills/chakra-ui/references/components/forms/editable.md` | Editable | Editable | editable | editable | 実装済み | headless+styled 実装済み（#745） |
 | `.agents/skills/chakra-ui/references/components/forms/checkbox-card.md` | — | CheckboxCard | — | — | 実装対象 | #747 |
 | `.agents/skills/chakra-ui/references/components/forms/radio-card.md` | — | RadioCard | — | — | 実装対象 | #747 |
