@@ -64,6 +64,7 @@ use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
 use fandhe_frontend_pre_styled_ui::segment_group;
+use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
@@ -182,6 +183,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::drawer::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::menu::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::select::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::skeleton::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::combobox::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::popover::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tooltip::stylesheet())?;
@@ -376,6 +378,33 @@ fn spinner_section() -> Node {
         "Spinner",
         "読み込み中表示。role=\"status\" と aria-label でスクリーンリーダーへ状態を伝えます。",
         vec![size_row],
+    )
+}
+
+/// Skeleton 節（イシュー #764）: variant（text/circle/rect）バリエーション。
+fn skeleton_section() -> Node {
+    let variants = [
+        (SkeletonVariant::Text, "width: 12rem;"),
+        (SkeletonVariant::Circle, ""),
+        (SkeletonVariant::Rect, "width: 12rem;"),
+    ];
+    let variant_row = row(variants
+        .iter()
+        .map(|(variant, style)| {
+            skeleton(
+                &SkeletonProps { variant: *variant },
+                if style.is_empty() {
+                    vec![]
+                } else {
+                    vec![("style", *style)]
+                },
+            )
+        })
+        .collect());
+    section(
+        "Skeleton",
+        "データ読み込み中のコンテンツ形状を模した占位要素。常に aria-hidden=\"true\" を持ち、読み込み中であることをスクリーンリーダーへ伝える責務はコンテナ側（aria-busy）にあります。prefers-reduced-motion: reduce ではパルスアニメーションを停止します。",
+        vec![variant_row],
     )
 }
 
@@ -2326,6 +2355,7 @@ fn showcase_body() -> Node {
             button_section(),
             badge_section(),
             spinner_section(),
+            skeleton_section(),
             alert_section(),
             card_section(),
             tabs_section(),

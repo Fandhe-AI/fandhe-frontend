@@ -13,7 +13,7 @@ pre-styled UI コンポーネント層、親トラッキング #520・骨格新�
 対応する REQ / TASK は `docs/spec/` に存在しない（要件提案は
 fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 参照）。
 
-## 2. 実装状況（v0.15.0 時点、2026-07-23 更新）
+## 2. 実装状況（v0.16.0 時点、2026-07-23 更新）
 
 **記載方針**: 実装済み API の正は `crates/pre-styled-ui/src/lib.rs` 冒頭の
 rustdoc および各モジュール冒頭の rustdoc とする。本節はモジュール一覧の
@@ -32,9 +32,9 @@ CheckboxCard/RadioCard styled バリエーション追加（#747）・Combobox s
 styled ラッパー追加（#755）・Carousel styled ラッパー追加（#754）・Drawer
 styled ラッパー追加（#758）・Link/LinkOverlay/NavList styled ラッパー追加
 （#756）・HoverCard styled ラッパー追加（#759）・ToggleTip styled ラッパー
-追加（#761）・Progress circular 対応追加（#763）・Status/EmptyState 静的
-部品追加（#765、いずれも公開時点未反映）を経て 47 の公開モジュールを持つ。
-内訳は次の通り。
+追加（#761）・Progress circular 対応追加（#763）・Skeleton 静的部品追加
+（#764）・Status/EmptyState 静的部品追加（#765、いずれも公開時点未反映）を
+経て 48 の公開モジュールを持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -43,6 +43,7 @@ styled ラッパー追加（#758）・Link/LinkOverlay/NavList styled ラッパ�
 | 基盤 | `recipe` | #548/#606/#604（詳細は [`pre-styled-recipe-api.md`](./pre-styled-recipe-api.md)） |
 | 基盤 | `stylesheet` | #605（CSS 集約・配布ヘルパ、§4a 参照） |
 | 単純 styled 部品 | `button` / `badge` / `spinner` / `alert` / `card` | #550/#606 |
+| 単純 styled 部品 | `skeleton` | #764（ローディングプレースホルダー。`text`/`circle`/`rect` の 3 variant、常時 `aria-hidden="true"`、`color-palette`/`size` 軸は非提供、`prefers-reduced-motion: reduce` でアニメーション停止） |
 | headless ラッパー第 1 弾 | `dialog` / `tabs` / `accordion` / `menu` / `select` | #551 |
 | headless ラッパー第 2 弾 | `popover` / `tooltip` | #664 |
 | headless ラッパー第 3 弾 | `switch` | #682 |

@@ -77,6 +77,7 @@ fn real_site_build_emits_showcase_page_and_dedicated_css() {
         "button",
         "badge",
         "spinner",
+        "skeleton",
         "alert",
         "card",
         "tabs",
