@@ -21,7 +21,30 @@
 //!   決定的にマークアップを組み立てるのみである。
 //! - styled 層（`fandhe-frontend-pre-styled-ui`、#546）は本モジュールが
 //!   出力する `data-scope="tabs"`/`data-part="..."` セレクタを前提にスタイルを
-//!   当てる。
+//!   当てる。イシュー #729 では `size`/`color-palette` variant クラスを
+//!   root 要素へ付与する必要があり、そのため [`tabs_with_root_attrs`]
+//!   （root への attrs 注入点）を追加した（下記「root への attrs 注入点」節参照）。
+//!
+//! # root への attrs 注入点（イシュー #729、非破壊的な追加）
+//!
+//! 本モジュールは他 4 コンポーネント（accordion/dialog/menu/select）と異なり
+//! root への attrs 注入点を持たない非対称な API 形状だった（[`tabs`] は
+//! `TabsProps`/`items` のみを受け、root 自体へ呼び出し側属性を渡す経路が
+//! 存在しなかった）。styled 層が `size`/`color-palette` variant クラスを
+//! root へ付与するにはこの注入点が必須であるため、[`tabs_with_root_attrs`]
+//! を追加した。[`tabs`] は `root_attrs: vec![]` で
+//! [`tabs_with_root_attrs`] へ委譲する後方互換の薄いラッパーのままとし、
+//! 既存呼び出し側（`fandhe-frontend-docs-site` の直接利用等）を壊さない
+//! （`TabsProps` へのフィールド追加という破壊的変更ではなく、追加関数方式を
+//! 採ったため headless-ui 自体はパッチバンプで済む）。
+//!
+//! root のフレームワーク属性（`id`・`data-orientation`。`data-scope`/
+//! `data-part` は [`crate::anatomy::Anatomy::part`] が別途 fail-closed に
+//! 保護する）は呼び出し側 `root_attrs` より**先**に合成し、`root_attrs` 側に
+//! 同名キー（ASCII 大文字小文字を無視）が含まれていても除外する。これにより
+//! 呼び出し側（styled 層は `("class", ...)` のみを渡す契約だが、任意の
+//! `root_attrs` が渡されても）が `id`/`data-orientation` を偽装・上書きする
+//! 経路を型レベルではなく実行時 fail-closed で塞ぐ。
 //!
 //! # セキュリティ不変条件
 //!
@@ -213,6 +236,28 @@ pub struct TabsProps<'a> {
 /// ```
 #[must_use]
 pub fn tabs(props: &TabsProps<'_>, items: Vec<TabItem<'_>>) -> Node {
+    tabs_with_root_attrs(props, vec![], items)
+}
+
+/// [`tabs`] と同一の組み立てを行うが、root パーツへ追加の属性
+/// （`root_attrs`）を注入できる（イシュー #729、root への attrs 注入点）。
+///
+/// `fandhe-frontend-pre-styled-ui` の styled `tabs` はここへ `size`/
+/// `color-palette` variant クラス（`("class", ...)`）を渡すことで root へ
+/// スタイルを当てる。root のフレームワーク属性（`id`・`data-orientation`）は
+/// `root_attrs` より先に合成し、`root_attrs` 側の同名キー（ASCII 大文字
+/// 小文字を無視した比較）は除外する（呼び出し側による偽装・上書きを防ぐ
+/// fail-closed 処理。`data-scope`/`data-part` は [`Anatomy::part`] が別途
+/// 保護するため本関数では扱わない）。
+///
+/// 選択状態の決定則・roving tabindex・XSS 不変条件は [`tabs`] と完全に同一
+/// （本関数が実体であり [`tabs`] はそのまま委譲するだけの薄いラッパー）。
+#[must_use]
+pub fn tabs_with_root_attrs<'a>(
+    props: &TabsProps<'a>,
+    root_attrs: Vec<(&'a str, &'a str)>,
+    items: Vec<TabItem<'a>>,
+) -> Node {
     let data_orientation_attr = data_orientation(props.orientation);
     let aria_orientation_attr = aria_orientation(props.orientation);
 
@@ -342,8 +387,16 @@ pub fn tabs(props: &TabsProps<'_>, items: Vec<TabItem<'_>>) -> Node {
     root_children.push(list_node);
     root_children.extend(root_extra_children);
 
-    let root_attrs: Vec<(&str, &str)> = vec![("id", props.id), data_orientation_attr];
-    ANATOMY.part("root", "div", root_attrs, root_children)
+    // フレームワーク属性（id/data-orientation）を先頭に固定したうえで、呼び出し側
+    // `root_attrs` から同名キー（大文字小文字を無視）を除外して連結する（PR #729
+    // rustdoc「root への attrs 注入点」節参照。呼び出し側による id/data-orientation
+    // の偽装・上書きを防ぐ fail-closed 処理。`data-scope`/`data-part` は
+    // `ANATOMY.part` が別途保護する）。
+    let mut merged_root_attrs: Vec<(&str, &str)> = vec![("id", props.id), data_orientation_attr];
+    merged_root_attrs.extend(root_attrs.into_iter().filter(|(k, _)| {
+        !k.eq_ignore_ascii_case("id") && !k.eq_ignore_ascii_case("data-orientation")
+    }));
+    ANATOMY.part("root", "div", merged_root_attrs, root_children)
 }
 
 #[cfg(test)]
@@ -786,5 +839,71 @@ mod tests {
         assert!(html.contains(
             r#"<span data-scope="tabs" data-part="indicator" data-state="active" data-orientation="horizontal" aria-hidden="true" style="--left: 0px; --top: 0px; --width: 0px; --height: 0px"></span>"#
         ));
+    }
+
+    // --- イシュー #729: root への attrs 注入点（tabs_with_root_attrs） ---
+
+    #[test]
+    fn tabs_delegates_to_tabs_with_root_attrs_with_empty_root_attrs() {
+        // `tabs` は `tabs_with_root_attrs(props, vec![], items)` への薄い委譲のままで
+        // あることの回帰（既存出力のスナップショットが不変であることの裏付け）。
+        let via_tabs = render(&tabs(&props("t", "a"), vec![item("a", false)]));
+        let via_with_root_attrs = render(&tabs_with_root_attrs(
+            &props("t", "a"),
+            vec![],
+            vec![item("a", false)],
+        ));
+        assert_eq!(via_tabs, via_with_root_attrs);
+    }
+
+    #[test]
+    fn tabs_with_root_attrs_appends_caller_class_to_root() {
+        let node = tabs_with_root_attrs(
+            &props("t", "a"),
+            vec![("class", "fd-tabs--size-md")],
+            vec![item("a", false)],
+        );
+        let html = render(&node);
+        assert!(html.contains(
+            r#"<div data-scope="tabs" data-part="root" id="t" data-orientation="horizontal" class="fd-tabs--size-md">"#
+        ));
+    }
+
+    #[test]
+    fn tabs_with_root_attrs_drops_caller_supplied_id_and_data_orientation_case_insensitively() {
+        // fail-closed 回帰（イシュー #729）: 呼び出し側が `id`/`data-orientation`
+        // を偽装・上書きしようとしても、フレームワーク値（`props.id`/
+        // `props.orientation` 由来）が勝ち、呼び出し側の値は落ちる。
+        let node = tabs_with_root_attrs(
+            &props("t", "a"),
+            vec![
+                ("ID", "attacker"),
+                ("Data-Orientation", "attacker"),
+                ("class", "fd-tabs--size-md"),
+            ],
+            vec![item("a", false)],
+        );
+        let html = render(&node);
+        assert!(html.contains(
+            r#"<div data-scope="tabs" data-part="root" id="t" data-orientation="horizontal" class="fd-tabs--size-md">"#
+        ));
+        assert!(!html.contains("attacker"));
+        // id="..." の出現が root 分の 1 件のみ（trigger/content の id と重複しない）。
+        assert_eq!(html.matches(r#" id="t""#).count(), 1);
+    }
+
+    #[test]
+    fn tabs_with_root_attrs_drops_caller_supplied_data_scope_and_data_part() {
+        // `data-scope`/`data-part` の偽装除去は `ANATOMY.part` 側の既存保証
+        // （`crate::anatomy` テスト参照）だが、root への新しい attrs 注入点
+        // 経由でもその保証が貫通することを固定する。
+        let node = tabs_with_root_attrs(
+            &props("t", "a"),
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![item("a", false)],
+        );
+        let html = render(&node);
+        assert!(html.starts_with(r#"<div data-scope="tabs" data-part="root""#));
+        assert!(!html.contains("attacker"));
     }
 }

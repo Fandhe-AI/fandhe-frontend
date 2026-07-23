@@ -36,6 +36,7 @@ mod support;
 
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Once;
 use support::{
     cargo_deny_available, check_passed, run_fw, run_fw_gate, run_fw_gate_with_target_dir,
@@ -67,16 +68,36 @@ fn run_fw_new(extra_args: &[&str]) -> (i32, String, String) {
 /// 準拠）。呼び出しのたびに [`cleanup_stale_scratch`] を起動し、過去実行の
 /// 残置物（プロセス kill で `ScratchProject` の Drop ガードが走らなかった
 /// もの）を回収する（イシュー #637）。
+///
+/// # 単調カウンタによる同一プロセス内衝突対策（イシュー #729 PR #782 CI 障害）
+///
+/// 本ファイルの `fw_new_example_*_output_passes_fw_gate` 5 件はいずれも本関数を
+/// 引数なしで呼ぶため、名前の一意性は「PID + ナノ秒タイムスタンプ」のみに依存
+/// していた。cargo test の既定並列実行では libtest がこの 5 件をほぼ同時に
+/// 別スレッドへディスパッチするため、プロセス起動直後の狭い時間窓に複数
+/// スレッドが `SystemTime::now()` を呼ぶ状況が生じる。self-hosted runner
+/// （コンテナ／VM）ではクロックソースの実効分解能がナノ秒を下回らない場合が
+/// あり、この窓でナノ秒値が衝突すると 2 スレッドが同一パスを [`unique_scratch_dir`]
+/// で同時に扱うことになり、一方の `remove_dir_all`（本関数冒頭の掃除、または
+/// もう一方の `ScratchProject` Drop）がもう一方の `fw new`/`fw gate` 実行中の
+/// ディレクトリを消してしまう（実際に PR #782 の CI で `fw gate` が
+/// `Could not locate working directory` で BLOCKED になった障害と一致）。
+/// `AtomicU64` の単調カウンタを名前へ追加することで、PID・ナノ秒が偶然一致
+/// しても同一プロセス内で名前が重複しないことを保証する（クロック分解能に
+/// 依存しない一意性）。
 fn unique_scratch_dir() -> PathBuf {
     cleanup_stale_scratch();
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
     let root = support::scratch_root();
     let dir = root.join(format!(
-        "fw-new-gate-e2e-{}-{}",
+        "fw-new-gate-e2e-{}-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
-            .as_nanos()
+            .as_nanos(),
+        seq
     ));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("failed to create scratch dir");
