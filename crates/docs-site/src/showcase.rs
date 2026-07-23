@@ -49,9 +49,12 @@ use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
+use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
+use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::tags_input;
@@ -172,6 +175,8 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tags_input::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::rating_group::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::slider::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -1375,6 +1380,166 @@ fn tags_input_section() -> Node {
     )
 }
 
+/// RatingGroup 節: 選択中（value=3）・readonly（他ユーザーの平均評価想定）・
+/// disabled の 3 態。星形 indicator は外部リソース非参照の `clip-path`
+/// インライン表現（`fandhe_frontend_pre_styled_ui::rating_group` のモジュール
+/// doc「星形 indicator」節参照）。`hidden_input` はフォーム送信用の現在値を
+/// 送るネイティブ input（視覚上非表示、`display: none` の既定 CSS）。
+fn rating_group_section() -> Node {
+    let build = |id_prefix: &'static str, value: Option<u32>, disabled: bool, readonly: bool| {
+        let g = RatingGroup::new(5, value, readonly);
+        let label_id = format!("{id_prefix}-label");
+        let mut children = vec![rating_group::label(
+            Some(label_id.as_str()),
+            vec![],
+            vec![text("Rate this product")],
+        )];
+        let items: Vec<Node> = (1..=g.count())
+            .map(|i| {
+                let checked = g.is_checked(i);
+                let highlighted = g.is_highlighted(i);
+                rating_group::item(
+                    i,
+                    RatingItemFlags {
+                        checked,
+                        highlighted,
+                        disabled,
+                        readonly,
+                    },
+                    &format!("{i} star{}", if i == 1 { "" } else { "s" }),
+                    vec![],
+                    vec![],
+                )
+            })
+            .collect();
+        children.push(rating_group::control(
+            Some(label_id.as_str()),
+            vec![],
+            items,
+        ));
+        children.push(rating_group::hidden_input(
+            Some("rating"),
+            g.value_text().as_str(),
+            disabled,
+            vec![],
+        ));
+        rating_group::root(
+            Size::Md,
+            ColorPalette::Accent,
+            disabled,
+            readonly,
+            vec![],
+            children,
+        )
+    };
+
+    let selected = build("showcase-rating-selected", Some(3), false, false);
+    let readonly = build("showcase-rating-readonly", Some(4), false, true);
+    let disabled = build("showcase-rating-disabled", Some(2), true, false);
+
+    section(
+        "RatingGroup",
+        "1..=count の星評価。data-highlighted が塗り表示（hover プレビュー優先）、data-checked が確定選択を表します。星形は SVG/画像 URL を使わない clip-path によるインライン表現です。",
+        vec![row(vec![selected, readonly, disabled])],
+    )
+}
+
+/// Slider 節: 中間値・境界値（max 到達）・disabled の 3 態。
+///
+/// `range`/`thumb` の塗りつぶし・位置は headless 中立な
+/// [`Slider::percent`] から導出する `--fandhe-slider-percent` CSS custom
+/// property の 1 点のみで伝搬する
+/// （`fandhe_frontend_pre_styled_ui::slider` のモジュール doc 参照）。
+fn slider_section() -> Node {
+    let mid_state = Slider::new(0.0, 100.0, 1.0, 40.0, Orientation::Horizontal);
+    let mid = slider::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &mid_state,
+        false,
+        vec![],
+        vec![
+            slider::label(vec![], vec![text("Volume")]),
+            slider::control(
+                Orientation::Horizontal,
+                false,
+                vec![],
+                vec![
+                    slider::track(
+                        Orientation::Horizontal,
+                        false,
+                        vec![],
+                        vec![slider::range(&mid_state, false, vec![])],
+                    ),
+                    slider::thumb_styled(&mid_state, Some("40 percent"), false, vec![]),
+                ],
+            ),
+            slider::hidden_input("volume", "40", false, vec![]),
+        ],
+    );
+
+    let at_max_state = Slider::new(0.0, 100.0, 1.0, 100.0, Orientation::Horizontal);
+    let at_max = slider::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &at_max_state,
+        false,
+        vec![],
+        vec![
+            slider::label(vec![], vec![text("At max")]),
+            slider::control(
+                Orientation::Horizontal,
+                false,
+                vec![],
+                vec![
+                    slider::track(
+                        Orientation::Horizontal,
+                        false,
+                        vec![],
+                        vec![slider::range(&at_max_state, false, vec![])],
+                    ),
+                    slider::thumb_styled(&at_max_state, Some("100 percent"), false, vec![]),
+                ],
+            ),
+            slider::hidden_input("volume-max", "100", false, vec![]),
+        ],
+    );
+
+    let disabled_state = Slider::new(0.0, 100.0, 1.0, 25.0, Orientation::Horizontal);
+    let disabled = slider::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &disabled_state,
+        true,
+        vec![],
+        vec![
+            slider::label(vec![], vec![text("Disabled")]),
+            slider::control(
+                Orientation::Horizontal,
+                true,
+                vec![],
+                vec![
+                    slider::track(
+                        Orientation::Horizontal,
+                        true,
+                        vec![],
+                        vec![slider::range(&disabled_state, true, vec![])],
+                    ),
+                    slider::thumb_styled(&disabled_state, Some("25 percent"), true, vec![]),
+                ],
+            ),
+            slider::hidden_input("volume-disabled", "25", true, vec![]),
+        ],
+    );
+
+    let demo_row = row(vec![mid, at_max, disabled]);
+    section(
+        "Slider",
+        "min/max/step でクランプされる連続値スライダー。塗りつぶし・つまみの位置は --fandhe-slider-percent の 1 点で伝搬します。",
+        vec![demo_row],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -1411,6 +1576,8 @@ fn showcase_body() -> Node {
             form_controls_section(),
             number_input_section(),
             tags_input_section(),
+            rating_group_section(),
+            slider_section(),
         ],
     )
 }
@@ -1450,6 +1617,8 @@ mod tests {
             "field",
             "number-input",
             "tags-input",
+            "rating-group",
+            "slider",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
