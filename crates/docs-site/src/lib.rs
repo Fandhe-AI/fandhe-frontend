@@ -20,6 +20,9 @@
 //!   UI ショーケースページの Rust 生成コンテンツと専用 CSS
 //!   （`StyleSheet` 経由）。Markdown パイプラインの後段で [`build`] が
 //!   `page.path` 照会により合成する
+//! - [`admonition`]: `> [!NOTE]` 等の admonition 構文（[`markdown`] が検出し
+//!   pre-styled-ui の alert 部品で描画する）が参照する専用 CSS の組み立てと、
+//!   ページが admonition を含むかどうかの判定（イシュー #715）
 //!
 //! `fandhe-frontend-core` / `fandhe-frontend-app` / `fandhe-frontend-server` /
 //! `fandhe-frontend-pre-styled-ui` のみに依存し、外部クレートは追加しない
@@ -38,6 +41,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod admonition;
 pub mod build;
 pub mod layout;
 pub mod linkcheck;

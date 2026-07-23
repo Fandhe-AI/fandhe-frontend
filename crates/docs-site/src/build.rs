@@ -33,6 +33,18 @@
 //! [`showcase::stylesheet`] から書き出す。生成 CSS の組み立て（fallible）は
 //! linkcheck と同じく **書き出しより前** に行い、失敗時は `out_dir` を汚さない
 //! （fail-closed の処理順を維持する）。
+//!
+//! # admonition 構文（[`crate::markdown`]）が使う CSS（イシュー #715）
+//!
+//! `> [!NOTE]` 等の admonition マーカーは [`markdown::render_markdown`] が
+//! `alert` 部品へ描画するが、その専用 CSS（[`admonition::STYLESHEET_REL_PATH`]）
+//! は showcase と同型に「使われているページだけ」へ配線する。ステップ 2 の
+//! `rewritten_body` を [`admonition::contains_admonition`] で走査し、1 つでも
+//! 含むページには追加 `<link>` を差し込み・linkcheck の既知 href へ登録する。
+//! 1 ページでも使われていれば CSS 本体（[`admonition::stylesheet`]）を組み立て
+//! （showcase と同じく linkcheck より前・書き出しより前に完了させる
+//! fail-closed 処理順）、ステップ 5 の後に書き出す。admonition を含まない
+//! ページ・フィクスチャサイトのビルド結果は 1 バイトも変わらない。
 
 use std::fmt;
 use std::fs;
@@ -43,6 +55,7 @@ use fandhe_frontend_server::ssg::{self, SsgError};
 
 use fandhe_frontend_pre_styled_ui::StylesheetError;
 
+use crate::admonition;
 use crate::layout;
 use crate::linkcheck::{self, BrokenLink};
 use crate::markdown::render_markdown;
@@ -83,7 +96,8 @@ pub enum BuildError {
     /// エントリが存在し、通常ファイルのみ許可する方針に反した
     /// （リポジトリ外ファイルの持ち出し防止のための fail-closed 検証）。
     UnsupportedAssetEntry(PathBuf),
-    /// ショーケース専用 CSS（[`showcase::stylesheet`]）の組み立てが
+    /// ショーケース専用 CSS（[`showcase::stylesheet`]）・admonition 専用 CSS
+    /// （[`admonition::stylesheet`]）のいずれかの組み立てが
     /// [`StyleSheet`](fandhe_frontend_pre_styled_ui::StyleSheet) の検証に
     /// 落ちた（通常は到達しない。黙って CSS の欠けたページを公開しない
     /// fail-closed）。
@@ -115,7 +129,7 @@ impl fmt::Display for BuildError {
                 )
             }
             BuildError::Stylesheet(e) => {
-                write!(f, "failed to assemble the showcase stylesheet: {e}")
+                write!(f, "failed to assemble a generated stylesheet: {e}")
             }
         }
     }
@@ -166,6 +180,11 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     // href 登録は該当ページが nav に存在するときだけ行う（フィクスチャ
     // サイト等、showcase を持たないサイトのビルド結果を変えないため）。
     let mut has_generated_page = false;
+    // admonition 構文（`> [!NOTE]` 等）を 1 ページでも含んだか。showcase と
+    // 同型の判定で、専用 CSS（admonition::STYLESHEET_REL_PATH）の書き出し・
+    // linkcheck 用 href 登録を「実際に使われているときだけ」行う（モジュール
+    // doc の admonition 節参照）。
+    let mut has_admonition = false;
 
     for section in &nav.sections {
         for page in &section.pages {
@@ -187,15 +206,25 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
                 &mut broken,
             );
 
+            // このページの admonition 使用有無（Markdown 由来の rewritten_body
+            // のみを走査する。showcase の生成コンテンツは Markdown 外であり、
+            // admonition マーカーを含み得ないため対象外）。
+            let page_has_admonition = admonition::contains_admonition(&rewritten_body);
+            if page_has_admonition {
+                has_admonition = true;
+            }
+
             // Rust 生成コンテンツ（showcase）は Markdown 本文の直後・前後
             // ナビの手前へ追記する（モジュール doc の処理順注記参照）。
             let generated = showcase::generated_content(&page.path);
-            let extra_stylesheets: &[&str] = if generated.is_some() {
+            let mut extra_stylesheets: Vec<&str> = Vec::new();
+            if generated.is_some() {
                 has_generated_page = true;
-                &[showcase::STYLESHEET_REL_PATH]
-            } else {
-                &[]
-            };
+                extra_stylesheets.push(showcase::STYLESHEET_REL_PATH);
+            }
+            if page_has_admonition {
+                extra_stylesheets.push(admonition::STYLESHEET_REL_PATH);
+            }
 
             let mut body_children = vec![rewritten_body];
             if let Some(generated_body) = generated {
@@ -209,7 +238,7 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
                 &nav.site.base_path,
                 nav::sidebar(&nav, &page.path),
                 body,
-                extra_stylesheets,
+                &extra_stylesheets,
             );
 
             pages.push((page.path.clone(), document));
@@ -218,16 +247,26 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
 
     let mut asset_hrefs = collect_asset_hrefs(repo_root, &nav.site.base_path)?;
 
-    // showcase 専用 CSS はビルド時生成のため site/assets/ には存在しない。
-    // linkcheck が追加 <link> の href を「未知のターゲット」と誤検知しない
-    // よう、生成することが確定した時点で既知 href へ登録する。CSS 本体の
-    // 組み立ても linkcheck より前に済ませ、失敗時は書き出し前に打ち切る。
+    // showcase / admonition の専用 CSS はいずれもビルド時生成のため
+    // site/assets/ には存在しない。linkcheck が追加 <link> の href を
+    // 「未知のターゲット」と誤検知しないよう、生成することが確定した時点で
+    // 既知 href へ登録する。CSS 本体の組み立ても linkcheck より前に済ませ、
+    // 失敗時は書き出し前に打ち切る（fail-closed の処理順、モジュール doc 参照）。
     let showcase_sheet = if has_generated_page {
         asset_hrefs.push(layout::asset_href(
             &nav.site.base_path,
             showcase::STYLESHEET_REL_PATH,
         ));
         Some(showcase::stylesheet()?)
+    } else {
+        None
+    };
+    let admonition_sheet = if has_admonition {
+        asset_hrefs.push(layout::asset_href(
+            &nav.site.base_path,
+            admonition::STYLESHEET_REL_PATH,
+        ));
+        Some(admonition::stylesheet()?)
     } else {
         None
     };
@@ -250,6 +289,16 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
             .write_css_file(&css_path)
             .map_err(|source| BuildError::Io {
                 path: PathBuf::from(showcase::STYLESHEET_REL_PATH),
+                source,
+            })?;
+        assets.push(css_path);
+    }
+    if let Some(sheet) = admonition_sheet {
+        let css_path = out_dir.join(admonition::STYLESHEET_REL_PATH);
+        sheet
+            .write_css_file(&css_path)
+            .map_err(|source| BuildError::Io {
+                path: PathBuf::from(admonition::STYLESHEET_REL_PATH),
                 source,
             })?;
         assets.push(css_path);
