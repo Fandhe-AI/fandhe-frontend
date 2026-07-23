@@ -300,6 +300,7 @@ mod tests {
             ("status", crate::status::css()),
             ("empty_state", crate::empty_state::css()),
             ("clipboard", crate::clipboard::stylesheet()),
+            ("qr_code", crate::qr_code::stylesheet()),
             ("heading", crate::heading::css()),
             ("text", crate::text::css()),
             ("em", crate::em::css()),

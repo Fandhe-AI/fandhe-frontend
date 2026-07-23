@@ -26,6 +26,7 @@
 //! テストは以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
 use fandhe_frontend_core::{escape_html, render, text};
+use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::{
     aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog, hover_card,
     number_input, pin_input, popover, rating_group, segment_group, slider, tags_input, tree_view,
@@ -614,6 +615,66 @@ fn clipboard_value_text_children_are_escaped_for_all_payloads() {
             payload,
             &html,
             "clipboard::value_text のテキストコンテキスト",
+        );
+    }
+}
+
+/// QrCode（イシュー #774）: `value`（符号化対象文字列）はマークアップへ
+/// 一切出力されない契約（`crates/headless-ui/src/qr_code.rs`「セキュリティ
+/// 不変条件」参照）を、敵対的ペイロード全量で固定する。[`qr_code::pattern`]
+/// の `d` 属性値は暗モジュール座標から内部生成される固定文字集合
+/// （`M`/`h`/`v`/`z`/`-`/半角数字/`,`）のみであることも合わせて確認する。
+#[test]
+fn qr_code_value_never_leaks_into_output_for_all_payloads() {
+    for payload in payloads::all() {
+        let matrix = qr_code::encode(payload, qr_code::ErrorCorrectionLevel::L)
+            .expect("payload はいずれもバージョン 40 容量内に収まる");
+        let frame_node = qr_code::frame(&matrix, qr_code::DEFAULT_QUIET_ZONE, None, vec![], vec![]);
+        let pattern_node = qr_code::pattern(&matrix, qr_code::DEFAULT_QUIET_ZONE, vec![]);
+        let html = format!("{}{}", render(&frame_node), render(&pattern_node));
+
+        assert!(
+            !html.contains(payload),
+            "QrCode の value が出力へ漏出している: payload={payload:?}, html={html}"
+        );
+        assert!(
+            !html.contains("<script>") && !html.contains("<img"),
+            "QrCode 出力に実タグとしての <script>/<img> が出現している: html={html}"
+        );
+
+        let d_start = html.find(r#" d=""#).expect("d 属性が出力される") + 4;
+        let d_end = html[d_start..].find('"').expect("d 属性値の終端");
+        let d_value = &html[d_start..d_start + d_end];
+        assert!(
+            d_value
+                .chars()
+                .all(|c| matches!(c, 'M' | 'h' | 'v' | 'z' | '-' | ',' | '0'..='9')),
+            "d 属性値に想定外の文字が含まれている: d_value={d_value:?}"
+        );
+    }
+}
+
+/// QrCode の [`qr_code::root`]/[`qr_code::frame`]/[`qr_code::overlay`] は
+/// 他 anatomy パーツと同型に呼び出し側 `attrs`/`children` を
+/// [`fandhe_frontend_core::render`] の既定エスケープ経由で出力する
+/// （属性値経路・テキスト経路）。
+#[test]
+fn qr_code_root_attrs_and_overlay_children_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let root_node = qr_code::root(vec![("aria-label", payload)], vec![]);
+        let html = render(&root_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "qr_code::root の aria-label 属性値コンテキスト",
+        );
+
+        let overlay_node = qr_code::overlay(vec![], vec![text(payload)]);
+        let html = render(&overlay_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "qr_code::overlay の children テキストコンテキスト",
         );
     }
 }
