@@ -66,6 +66,18 @@ pub fn data_readonly(readonly: bool) -> Option<(&'static str, &'static str)> {
     readonly.then_some(("data-readonly", ""))
 }
 
+/// `data-checked` 存在属性。[`data_disabled`] と同じ規約に従う。
+///
+/// [`crate::radio_group`]/[`crate::checkbox`] 等が `data-state`
+/// （`"checked"`/`"unchecked"` の値語彙、[`data_state`] 経由）で選択状態を
+/// 表すのに対し、[`crate::rating_group::item`] は星の「塗り／未塗り」
+/// （[`data_highlighted`]）と「確定選択」の 2 軸を独立に持つため、確定選択
+/// のみを表す存在属性として本関数を追加する（イシュー #742）。
+#[must_use]
+pub fn data_checked(checked: bool) -> Option<(&'static str, &'static str)> {
+    checked.then_some(("data-checked", ""))
+}
+
 /// `data-highlighted` 存在属性。[`data_disabled`] と同じ規約に従う。
 ///
 /// `highlighted`（キーボードナビゲーション等によるフォーカス位置）は
@@ -126,6 +138,8 @@ mod tests {
         assert_eq!(data_required(false), None);
         assert_eq!(data_readonly(true), Some(("data-readonly", "")));
         assert_eq!(data_readonly(false), None);
+        assert_eq!(data_checked(true), Some(("data-checked", "")));
+        assert_eq!(data_checked(false), None);
         assert_eq!(data_highlighted(true), Some(("data-highlighted", "")));
         assert_eq!(data_highlighted(false), None);
         assert_eq!(data_focus_visible(true), Some(("data-focus-visible", "")));

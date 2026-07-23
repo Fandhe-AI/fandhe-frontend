@@ -162,7 +162,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/form/pin-input.md` | PinInput | PinInput | — | — | 実装対象 | #739 |
 | `.agents/skills/ark-ui/references/components/form/password-input.md` | PasswordInput | PasswordInput | — | — | 実装対象 | #740 |
 | `.agents/skills/ark-ui/references/components/form/slider.md` | Slider | Slider | slider | slider | 実装済み | headless+styled 実装済み（#741） |
-| `.agents/skills/ark-ui/references/components/form/rating-group.md` | RatingGroup | Rating | — | — | 実装対象 | #742 |
+| `.agents/skills/ark-ui/references/components/form/rating-group.md` | RatingGroup | Rating | rating_group | rating_group | 実装済み | headless+styled 実装済み（#742） |
 | `.agents/skills/ark-ui/references/components/form/segment-group.md` | SegmentGroup | SegmentedControl | — | — | 実装対象 | #743 |
 | `.agents/skills/ark-ui/references/components/form/tags-input.md` | TagsInput | TagsInput | — | — | 実装対象 | #744 |
 | `.agents/skills/ark-ui/references/components/form/editable.md` | Editable | Editable | — | — | 実装対象 | #745 |
@@ -413,7 +413,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/forms/pin-input.md` | PinInput | PinInput | — | — | 実装対象 | #739 |
 | `.agents/skills/chakra-ui/references/components/forms/password-input.md` | PasswordInput | PasswordInput | — | — | 実装対象 | #740 |
 | `.agents/skills/chakra-ui/references/components/forms/slider.md` | Slider | Slider | slider | slider | 実装済み | headless+styled 実装済み（#741） |
-| `.agents/skills/chakra-ui/references/components/forms/rating.md` | RatingGroup | Rating | — | — | 実装対象 | #742 |
+| `.agents/skills/chakra-ui/references/components/forms/rating.md` | RatingGroup | Rating | rating_group | rating_group | 実装済み | headless+styled 実装済み（#742） |
 | `.agents/skills/chakra-ui/references/components/forms/segmented-control.md` | SegmentGroup | SegmentedControl | — | — | 実装対象 | #743 |
 | `.agents/skills/chakra-ui/references/components/forms/tags-input.md` | TagsInput | TagsInput | — | — | 実装対象 | #744 |
 | `.agents/skills/chakra-ui/references/components/forms/editable.md` | Editable | Editable | — | — | 実装対象 | #745 |
