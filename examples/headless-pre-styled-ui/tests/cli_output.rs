@@ -104,10 +104,9 @@ fn cli_output_includes_all_component_scopes() {
         "data-scope=\"card\"",
         "data-scope=\"alert\"",
         "data-scope=\"spinner\"",
-        // pre-styled-ui の headless ラッパー第 3 弾（#682/#683）
+        // pre-styled-ui の styled root（variant 付与、#684・PR #719）
         "data-scope=\"switch\"",
         "data-scope=\"radio-group\"",
-        // pre-styled-ui の styled root（variant 付与、#684）
         "data-scope=\"avatar\"",
     ] {
         assert!(body.contains(scope), "missing {scope} in dist/index.html");
@@ -144,6 +143,12 @@ fn cli_output_includes_pre_styled_variant_classes() {
     // Avatar の styled root（size/shape variant、#684/#689）の回帰確認。
     assert!(body.contains("fd-avatar--size-md"));
     assert!(body.contains("fd-avatar--shape-circle"));
+    // Switch / RadioGroup の styled root（size/palette variant、pre-styled-ui
+    // 0.5.0・PR #719 で追加。イシュー #728 で 0.5.0 へ追随）の回帰確認。
+    assert!(body.contains("fd-switch--size-md"));
+    assert!(body.contains("fd-switch--color-palette-accent"));
+    assert!(body.contains("fd-radio-group--size-md"));
+    assert!(body.contains("fd-radio-group--color-palette-accent"));
 }
 
 /// `dist/assets/ui.css` がテーマトークン（`Theme::default`）・pre-styled

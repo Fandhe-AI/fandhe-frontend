@@ -18,21 +18,25 @@
 //! Avatar の styled ラッパーも v0.4.0（#682/#683/#684、公開 #686）で出揃い、
 //! 全部品が pre-styled-ui 経由の styled 提供となったため
 //! `fandhe-frontend-headless-ui` への直接依存を撤去した（イシュー #689）。
-//! 現在の層別内訳:
+//! さらに PR #719（pre-styled-ui 0.5.0、イシュー #728 で公開・追随）で
+//! Switch / RadioGroup の `root` が Avatar と同じ「styled root（`size`/
+//! `palette` variant 付与）」形へ変更されたため、現在の層別内訳は次のとおり:
 //!
 //! - **pre-styled-ui の headless ラッパー**: Tabs / Accordion / Dialog /
-//!   Menu / Select / Popover / Tooltip / Switch / RadioGroup（headless 層の
-//!   パーツ関数を `pub use` 再エクスポートし、`data-scope`/`data-part`
-//!   セレクタへの既定 CSS を `stylesheet()` で追加提供する薄い委譲層。
-//!   Menu / Select / Popover / Tooltip はラッパー第 1 弾（#551）・第 2 弾
-//!   （#664、PR #672）で追加された 4 部品で、いずれも `positioner` が
-//!   `position: absolute` のオーバーレイ型のため、既存 Dialog 節と同じ
-//!   「SSR 初期状態は closed、全 anatomy を DOM に掲載（`hidden` 付き）」
-//!   方針で掲示する。Switch / RadioGroup はラッパー第 3 弾（#682/#683）
-//!   で追加された）
+//!   Menu / Select / Popover / Tooltip（headless 層のパーツ関数を
+//!   `pub use` 再エクスポートし、`data-scope`/`data-part` セレクタへの
+//!   既定 CSS を `stylesheet()` で追加提供する薄い委譲層。Menu / Select /
+//!   Popover / Tooltip はラッパー第 1 弾（#551）・第 2 弾（#664、PR #672）
+//!   で追加された 4 部品で、いずれも `positioner` が `position: absolute`
+//!   のオーバーレイ型のため、既存 Dialog 節と同じ「SSR 初期状態は closed、
+//!   全 anatomy を DOM に掲載（`hidden` 付き）」方針で掲示する）
 //! - **pre-styled-ui の styled root（variant 付与）**: Avatar（headless の
 //!   自由関数 `root` とは別に、`size`/`shape` variant クラスを付与する
-//!   styled `root` を提供する。`image`/`fallback` は再エクスポート、#684）
+//!   styled `root` を提供する。`image`/`fallback` は再エクスポート、#684）・
+//!   Switch / RadioGroup（`size`/`palette` variant クラスを付与する styled
+//!   `root`。`control`/`thumb`/`label`/`item` 等の子パーツは引き続き
+//!   headless 層由来の自由関数、ラッパー第 3 弾 #682/#683 → PR #719 で
+//!   `root` のみ variant 付与化）
 //! - **pre-styled-ui の単純 styled 部品**: Button / Badge / Card / Alert /
 //!   Spinner（variant/size/colorPalette を Rust enum で型安全に指定する）
 //!
@@ -782,12 +786,17 @@ fn spinner_section() -> Node {
 
 /// Switch コンポーネント節（`data-scope="switch"`）。
 ///
-/// pre-styled-ui の headless ラッパー第 3 弾（`fandhe_frontend_pre_styled_ui::switch`、
-/// #682）を使う。既定 CSS は `switch::stylesheet()` が提供する（モジュール doc
-/// の層別内訳参照）。
+/// pre-styled-ui の styled `root`（`fandhe_frontend_pre_styled_ui::switch::root`、
+/// PR #719 で size/palette variant 引数を追加。イシュー #728 で 0.5.0 へ追随）
+/// を使う。headless の自由関数（`checked`/`disabled`/`attrs`/`children` のみ）
+/// とは異なり `size`/`palette` variant 引数を取り、recipe 生成クラス
+/// （`fd-switch--size-*`/`fd-switch--color-palette-*`）を付与する。既定 CSS は
+/// `switch::stylesheet()` が提供する（モジュール doc の層別内訳参照）。
 fn switch_section() -> Node {
     let checked = true;
     let node = switch::root(
+        Size::Md,
+        ColorPalette::Accent,
         checked,
         false,
         vec![],
@@ -811,8 +820,10 @@ fn switch_section() -> Node {
 
 /// RadioGroup コンポーネント節（`data-scope="radio-group"`）。
 ///
-/// pre-styled-ui の headless ラッパー第 3 弾（`fandhe_frontend_pre_styled_ui::radio_group`、
-/// #683）を使う。
+/// pre-styled-ui の styled `root`（`fandhe_frontend_pre_styled_ui::radio_group::root`、
+/// PR #719 で size/palette variant 引数を追加。イシュー #728 で 0.5.0 へ追随）
+/// を使う。`size`/`palette` variant 引数により recipe 生成クラス
+/// （`fd-radio-group--size-*`/`fd-radio-group--color-palette-*`）を付与する。
 fn radio_group_section() -> Node {
     let options = [
         ("ssr", "SSR", true),
@@ -834,6 +845,8 @@ fn radio_group_section() -> Node {
         ));
     }
     let node = radio_group::root(
+        Size::Md,
+        ColorPalette::Accent,
         false,
         Some(Orientation::Vertical),
         Some("render-mode-label"),
@@ -1059,10 +1072,9 @@ mod tests {
             "data-scope=\"card\"",
             "data-scope=\"alert\"",
             "data-scope=\"spinner\"",
-            // pre-styled-ui の headless ラッパー第 3 弾（#682/#683）
+            // pre-styled-ui の styled root（variant 付与、#684・PR #719）
             "data-scope=\"switch\"",
             "data-scope=\"radio-group\"",
-            // pre-styled-ui の styled root（variant 付与、#684）
             "data-scope=\"avatar\"",
         ] {
             assert!(html.contains(scope), "missing {scope} in rendered page");
@@ -1138,6 +1150,28 @@ mod tests {
         let html = render(&switch_section());
         assert!(html.contains(r#"data-state="checked""#));
         assert!(html.contains(r#"role="switch""#));
+    }
+
+    /// styled Switch の `root` が size/palette variant クラス
+    /// （`fd-switch--size-*`/`fd-switch--color-palette-*`）を出力することを
+    /// 固定する（pre-styled-ui 0.5.0・PR #719 で `root` が
+    /// `size`/`palette` variant 引数を取るようになった破壊的変更、
+    /// イシュー #728 で 0.5.0 へ追随）。
+    #[test]
+    fn switch_section_renders_size_and_palette_variant_classes() {
+        let html = render(&switch_section());
+        assert!(html.contains("fd-switch--size-md"));
+        assert!(html.contains("fd-switch--color-palette-accent"));
+    }
+
+    /// styled RadioGroup の `root` が size/palette variant クラス
+    /// （`fd-radio-group--size-*`/`fd-radio-group--color-palette-*`）を
+    /// 出力することを固定する（switch と同じ PR #719 破壊的変更・#728 追随）。
+    #[test]
+    fn radio_group_section_renders_size_and_palette_variant_classes() {
+        let html = render(&radio_group_section());
+        assert!(html.contains("fd-radio-group--size-md"));
+        assert!(html.contains("fd-radio-group--color-palette-accent"));
     }
 
     /// styled Avatar の `root` が size/shape variant クラス（`fd-avatar--size-*`/
