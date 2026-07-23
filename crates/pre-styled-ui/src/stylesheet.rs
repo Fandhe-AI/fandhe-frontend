@@ -283,6 +283,7 @@ mod tests {
             ("toggle_group", crate::toggle_group::stylesheet()),
             ("segment_group", crate::segment_group::stylesheet()),
             ("pagination", crate::pagination::stylesheet()),
+            ("breadcrumb", crate::breadcrumb::stylesheet()),
         ]
     }
 

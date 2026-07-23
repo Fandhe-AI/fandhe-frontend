@@ -69,7 +69,7 @@
 //!   完全な操作性再現は初期実装のスコープ外とする。
 
 use crate::anatomy::{anatomy, Anatomy};
-use crate::aria::{aria_current, aria_disabled, aria_hidden};
+use crate::aria::{aria_current, aria_disabled, aria_hidden, AriaCurrent};
 use crate::data_attrs::data_disabled;
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
@@ -237,7 +237,7 @@ pub fn item<'a>(
         }
     };
     if current {
-        merged.push(aria_current("page"));
+        merged.push(aria_current(AriaCurrent::Page));
         merged.push(("data-selected", ""));
     }
     if disabled {
