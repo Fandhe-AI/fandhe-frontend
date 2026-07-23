@@ -128,6 +128,12 @@
 //!   `color-palette` variant を最初から持つ（`toggle_group` は root のみへ
 //!   クラスを付与する複合部品の統一方針に従う）。詳細は [`mod@toggle`]
 //!   rustdoc 参照。
+//! - headless ラッパー（イシュー #755）: [`mod@breadcrumb`]（Breadcrumb、
+//!   `docs/api/headless-ui-api.md` §4b の追加候補消化。状態機械を持たない
+//!   静的意味論ナビ）。`size`/[`breadcrumb::BreadcrumbVariant`]（`link` の
+//!   下線表示切り替え）の 2 軸 variant を root のみへ付与し、`link` への
+//!   伝搬は root スコープ CSS custom property の継承で行う（[`mod@switch`]
+//!   と同型のパターン、[`mod@breadcrumb`] rustdoc 参照）。
 //! - カード型選択 UI 2 種（#747）: [`mod@checkbox_card`]/[`mod@radio_card`]。
 //!   chakra-ui の checkbox-card/radio-card 相当（ark-ui には対応する
 //!   headless anatomy が存在しないため、headless-ui は変更せず pre-styled
@@ -265,6 +271,7 @@ pub mod accordion;
 pub mod alert;
 pub mod avatar;
 pub mod badge;
+pub mod breadcrumb;
 pub mod button;
 pub mod card;
 pub mod checkbox;
