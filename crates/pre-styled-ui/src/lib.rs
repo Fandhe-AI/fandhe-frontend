@@ -68,6 +68,8 @@
 //!   [`mod@select`]。examples・利用ガイド（#552）は別イシューのスコープ。
 //! - headless 状態機械を持つ複合部品 2 種の styled ラッパー第 2 弾（#664）:
 //!   [`mod@popover`] / [`mod@tooltip`]。設計方針・スコープ外は第 1 弾と同じ。
+//! - headless ラッパー（#684）: [`mod@avatar`]（Avatar、`size`/`shape` の
+//!   2 軸 variant を持つ最初のラッパー）。
 //!
 //! # headless ラッパーの設計（#551/#664）
 //!
@@ -106,6 +108,7 @@
 
 pub mod accordion;
 pub mod alert;
+pub mod avatar;
 pub mod badge;
 pub mod button;
 pub mod card;

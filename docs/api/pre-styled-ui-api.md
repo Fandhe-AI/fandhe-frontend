@@ -109,6 +109,34 @@ sheet.write_css_file(std::path::Path::new("static/ui.css")).unwrap();
 let _style_node = sheet.style_element();
 ```
 
+## 4b. `avatar`（Avatar の styled ラッパー、イシュー #684）
+
+`fandhe_frontend_headless_ui::avatar`（Root/Image/Fallback の 3 anatomy
+パーツと `Avatar` 状態機械）を薄く再利用し、`stylesheet()` で既定 CSS を
+追加提供する（設計方針は `crate::dialog`/`crate::tooltip` と同じ、
+`src/avatar.rs` 冒頭の rustdoc 参照）。
+
+- **選択的 re-export**: `fallback`/`image`/`Avatar`/`AvatarAction`/
+  `ImageStatus` を headless 層からそのまま再エクスポートする。styled
+  `root` は本モジュールで variant クラス付与のために再定義するため、
+  `pub use ...::*` ではなく選択的 re-export とする（headless の自由関数
+  `root` との名前衝突を避けるため）。
+- **`root(size, shape, attrs, children) -> Node`**: styled root パーツ。
+  `size`（`Size::Sm`/`Md`/`Lg`、既定 `Md`）・`shape`（`AvatarShape::Circle`/
+  `Rounded`/`Square`、既定 `Circle`）の 2 軸 variant に応じたクラス
+  （`fd-avatar--size-<value>` / `fd-avatar--shape-<value>`）を付与する。
+  呼び出し側 `attrs` の `class` は除去してから合成するため `class` 属性は
+  常に単一。実体は `fandhe_frontend_headless_ui::avatar::root` へ委譲する
+  （呼び出し側 `data-scope`/`data-part` 偽装は headless 側で除去される）。
+- **`AvatarShape`**: `recipe::VariantValue` 実装 enum（`Size` と並ぶ本
+  クレート 2 例目の variant 軸）。
+- **`stylesheet() -> String`**: この styled Avatar の静的 CSS 全量を返す
+  （決定的）。`image`/`fallback` の base 規則は `display` を宣言せず、
+  headless 層が付与する `hidden` 存在属性（UA 既定 `[hidden] { display:
+  none }`）による JS なし SSR の表示制御を壊さない。`data-state="hidden"`
+  一致時の `display: none` は `SlotRecipe::state` 経由で多層防御として
+  追加登録する（`src/avatar.rs` 冒頭の rustdoc 参照）。
+
 ## 5. 関連ドキュメント
 
 - [`docs/api/headless-ui-api.md`](./headless-ui-api.md): 本クレートの下層
