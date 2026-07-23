@@ -141,7 +141,7 @@ mod tests {
     /// ヘルパー（`assets.rs::with_temp_static_root` と同じ手法。`tempfile`
     /// 等の外部クレートを追加しない REQ-3 方針）。
     fn with_temp_dir(test_name: &str, body: impl FnOnce(&Path)) {
-        let temp_root = std::env::temp_dir().join(format!(
+        let temp_root = crate::test_scratch::scratch_root().join(format!(
             "fandhe-frontend-dist-server-wasm-stage-cache-{test_name}-{}-{:?}",
             std::process::id(),
             std::thread::current().id()

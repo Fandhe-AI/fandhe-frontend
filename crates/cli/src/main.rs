@@ -21,6 +21,8 @@ mod new;
 mod new_template;
 mod routes;
 mod structure;
+#[cfg(test)]
+mod test_scratch;
 mod toml;
 
 use std::path::{Path, PathBuf};
@@ -450,7 +452,7 @@ mod tests {
 
     #[test]
     fn structure_subcommand_reports_failure_for_missing_manifest() {
-        let empty_dir = std::env::temp_dir().join("fw-structure-test-empty-project");
+        let empty_dir = crate::test_scratch::scratch_root().join("fw-structure-test-empty-project");
         let _ = std::fs::create_dir_all(&empty_dir);
         let code = run(&[
             "structure".to_string(),
@@ -492,7 +494,8 @@ mod tests {
                 extractor: "fandhe-frontend-router-v1".to_string(),
             }),
         };
-        let project_dir = std::env::temp_dir().join("fw-collect-routes-test-project");
+        let project_dir =
+            crate::test_scratch::scratch_root().join("fw-collect-routes-test-project");
         let _ = std::fs::create_dir_all(&project_dir);
 
         let mut problems: Vec<String> = Vec::new();
@@ -542,7 +545,8 @@ mod tests {
                 extractor: "unknown-extractor-v9".to_string(),
             }),
         };
-        let project_dir = std::env::temp_dir().join("fw-collect-routes-unknown-extractor-test");
+        let project_dir =
+            crate::test_scratch::scratch_root().join("fw-collect-routes-unknown-extractor-test");
         let _ = std::fs::create_dir_all(&project_dir);
 
         let mut problems: Vec<String> = Vec::new();
@@ -573,7 +577,8 @@ mod tests {
             }],
             routing: None,
         };
-        let project_dir = std::env::temp_dir().join("fw-collect-component-boundary-test-project");
+        let project_dir =
+            crate::test_scratch::scratch_root().join("fw-collect-component-boundary-test-project");
         let _ = std::fs::create_dir_all(&project_dir);
 
         let mut problems: Vec<String> = Vec::new();

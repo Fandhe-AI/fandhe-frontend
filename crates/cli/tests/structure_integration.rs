@@ -136,9 +136,15 @@ description = "desc"
     // 実体突き合わせに到達するには `cargo metadata` が動く最低限の Cargo.toml が要る。
     // 空メンバーの仮想ワークスペースは cargo 側で拒否される
     // （"the workspace has no members"）ため、パッケージとして成立させる。
+    // `[workspace]` 空テーブルを明示することで、本フィクスチャがこのリポジトリ
+    // 自身の workspace（スクラッチ基点が `<target>/tmp` 配下、すなわちこの
+    // ワークスペースの `target/` 内に置かれるため祖先ディレクトリ探索で
+    // 発見されてしまう）のメンバーだと誤認されるのを防ぐ（cargo が返す
+    // "current package believes it's in a workspace when it's not" の
+    // 回避策として cargo 自身が提示する対処、イシュー #658）。
     std::fs::write(
         tmp.join("Cargo.toml"),
-        "[package]\nname = \"fw-structure-test-fixture\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        "[package]\nname = \"fw-structure-test-fixture\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n",
     )
     .unwrap();
     std::fs::create_dir_all(tmp.join("src")).unwrap();
@@ -150,9 +156,22 @@ description = "desc"
     let _ = std::fs::remove_dir_all(&tmp);
 }
 
+/// 統合テストのスクラッチ基点。`CARGO_TARGET_TMPDIR` は cargo が統合テスト
+/// バイナリの**コンパイル時のみ**設定する（Cargo Book）ため `env!` で確定し、
+/// 実行時 env による明示上書きのみ許容する。`/tmp` へは一切フォールバック
+/// しない（イシュー #637 の事実誤認の再発防止、#658、`tests/support/mod.rs`
+/// と同一パターン）。
+fn scratch_root() -> PathBuf {
+    let root = std::env::var("CARGO_TARGET_TMPDIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
+    let _ = std::fs::create_dir_all(&root);
+    root
+}
+
 /// 呼び出しごとに一意な一時ディレクトリを作る（並列テスト実行下での衝突回避）。
 fn tempdir_for_test(label: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
+    let dir = scratch_root().join(format!(
         "{label}-{}-{:?}",
         std::process::id(),
         std::time::SystemTime::now()

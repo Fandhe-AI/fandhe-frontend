@@ -7,9 +7,17 @@
 // クレートにも同型のヘルパーを複製する（`core/tests/no_branching_across_modes.rs`
 // の `collect_rs_files`/`strip_comments` 複製と同じ理由）。
 //
-// `tempfile` 等の外部クレートを追加せず、`std::env::temp_dir()` +
+// `tempfile` 等の外部クレートを追加せず、`<target>/tmp` 配下 +
 // プロセス固有サフィックスで一時ディレクトリを代用する（REQ-3。本ヘルパーは
 // dev-dependency 経由でのみ使われ、`fandhe-frontend-wasm-client` の製品面依存を増やさない）。
+//
+// 本ファイルは統合テスト（`tests/three_mode_integration.rs`）からのみ
+// `include!` される（`server/tests/support/temp_dir.rs` と異なり `src/*.rs`
+// の unit test からは参照されない）ため、`env!("CARGO_TARGET_TMPDIR")`
+// （cargo が統合テストバイナリの**コンパイル時のみ**設定、Cargo Book）を
+// 直接使ってよい。`std::env::temp_dir()`（= `/tmp`）へは一切フォールバック
+// しない（self-hosted runner の tmpfs を恒常的に消費していたイシュー #637
+// の事実誤認の再発防止、#658）。
 //
 // 呼び出し文脈:
 // - `include!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/support/temp_dir.rs"))`
@@ -27,14 +35,18 @@ struct TempDir(std::path::PathBuf);
 
 impl TempDir {
     /// `tag` を含む一意なパス（プロセス ID + ナノ秒タイムスタンプ）を
-    /// `std::env::temp_dir()` 配下に生成する。ディレクトリ自体の作成は
+    /// `<target>/tmp` 配下に生成する。ディレクトリ自体の作成は
     /// 呼び出し先（`ssg::generate` 等）の `create_dir_all` に委ねる。
     fn new(tag: &str) -> Self {
         let unique = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos())
             .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!(
+        let root = std::env::var("CARGO_TARGET_TMPDIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
+        let _ = std::fs::create_dir_all(&root);
+        let path = root.join(format!(
             "fandhe-frontend-wasm-client-test-{tag}-{}-{unique}",
             std::process::id()
         ));

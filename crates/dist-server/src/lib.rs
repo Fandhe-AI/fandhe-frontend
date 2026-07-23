@@ -56,6 +56,8 @@ pub mod assets;
 pub mod bench_support;
 pub mod mime;
 pub mod routes;
+#[cfg(test)]
+mod test_scratch;
 /// WASM ビルドステージの有効・無効判定（`FANDHE_FRONTEND_WASM_BUILD`）。
 /// `wasm_stage_cache` と同様に `build.rs` から `#[path]` でソースレベル共有
 /// する（`src/wasm_build_gate.rs` 冒頭コメント参照）。

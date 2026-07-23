@@ -28,10 +28,23 @@ fn run_fw_gate(args: &[&str]) -> (i32, String, String) {
     )
 }
 
+/// 統合テストのスクラッチ基点。`CARGO_TARGET_TMPDIR` は cargo が統合テスト
+/// バイナリの**コンパイル時のみ**設定する（Cargo Book）ため `env!` で確定し、
+/// 実行時 env による明示上書きのみ許容する。`/tmp` へは一切フォールバック
+/// しない（イシュー #637 の事実誤認の再発防止、#658、`tests/support/mod.rs`
+/// と同一パターン）。
+fn scratch_root() -> PathBuf {
+    let root = std::env::var("CARGO_TARGET_TMPDIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
+    let _ = std::fs::create_dir_all(&root);
+    root
+}
+
 /// 呼び出しごとに一意な一時ディレクトリを作る（並列テスト実行下での衝突回避、
 /// `structure_integration.rs` と同じ命名戦略）。
 fn tempdir_for_test(label: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
+    let dir = scratch_root().join(format!(
         "{label}-{}-{:?}",
         std::process::id(),
         std::time::SystemTime::now()
