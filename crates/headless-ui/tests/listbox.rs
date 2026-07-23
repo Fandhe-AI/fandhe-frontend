@@ -2,8 +2,8 @@
 //!
 //! `crates/headless-ui/src/listbox.rs` の inline unit tests がパーツ単体の
 //! 属性出力・単一パーツの dispatch/hydration を固定するのに対し、本ファイルは
-//! `label + content(item_group(item_group_label, item(item_text, item_indicator)))
-//! + value_text` という全体の組み立てにおける data-*/ARIA 対応・single/multiple
+//! `label`・`content(item_group(item_group_label, item(item_text, item_indicator)))`・
+//! `value_text` を組み合わせた全体の組み立てにおける data-*/ARIA 対応・single/multiple
 //! 双方の dispatch 統合・SSR/hydration 両経路・XSS 回帰をクレート外部から
 //! （公開 API のみを使って）固定する（`crates/headless-ui/tests/select.rs` と
 //! 同型の観点）。
@@ -11,9 +11,7 @@
 use fandhe_frontend_core::{render, text};
 use fandhe_frontend_headless_ui::listbox::{self, Listbox, MultiListbox};
 use fandhe_frontend_headless_ui::OpenState;
-use fandhe_frontend_interactive::{
-    dispatch, render_for_hydration, Component, Hydrate, HydrateError,
-};
+use fandhe_frontend_interactive::{dispatch, render_for_hydration, Hydrate, HydrateError};
 
 #[test]
 fn full_assembly_wires_aria_labelledby_and_all_parts_appear() {
