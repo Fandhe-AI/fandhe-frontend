@@ -52,7 +52,9 @@
 //!   [`state::MultiSelect`]（#594）は 0 個以上の同時選択
 //!   （[`accordion::MultiAccordion`] の multiple モード）向けに
 //!   [`state::SingleSelect`]（高々 1 個選択）を補完する。[`state::Checkable`]
-//!   はイシュー #595 で [`mod@switch`] から共通化昇格した。
+//!   はイシュー #595 で [`mod@switch`] から共通化昇格した。[`state::TextInput`]
+//!   （#749）は自由入力文字列 1 個を持つ状態機械であり、[`mod@combobox`] が
+//!   埋め込む。
 //! - [`mod@tabs`]: WAI-ARIA APG の Tabs パターンに準拠したマークアップを組み立てる
 //!   [`tabs::tabs`]（#528）。SSR 時点の静的な選択状態のみを扱い、クリック操作・
 //!   状態機械連携は後続イシューのスコープ。[`tabs::TabsProps`] の
@@ -178,6 +180,18 @@
 //!   [`mod@progress`] と同じく [`state`] の既存語彙に収まらないため、
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
+//! - [`mod@combobox`]: Root / Label / Control / Input / Trigger /
+//!   ClearTrigger / Positioner / Content / ItemGroup / ItemGroupLabel /
+//!   Item / ItemText / ItemIndicator の 13 anatomy パーツと、
+//!   [`state::Disclosure`]（listbox 開閉）と [`state::SingleSelect`]（選択値）
+//!   と [`state::TextInput`]（入力値、本イシューで新設）を合成した
+//!   [`combobox::Combobox`] 状態機械（#749、親トラッキング #520）。候補列は
+//!   [`mod@select`] と同じ `(value, label)` タプル列で表現し、
+//!   [`combobox::filter_options`] が大文字小文字非区別の部分一致フィルタを
+//!   提供する。ARIA 1.2 combobox パターンに準拠し `aria-activedescendant`
+//!   は `content`（[`mod@select`]）ではなく `input` 側に配線する
+//!   （[`combobox`] モジュール doc 参照）。フィルタの実 DOM 配線・
+//!   キーボードナビゲーションは wasm 層の後続イシューのスコープ。
 //! - [`mod@tags_input`]: Root / Label / Control / Input / Item / ItemPreview /
 //!   ItemText / ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput の
 //!   11 anatomy パーツと、可変長タグ文字列リスト + 編集中インデックスを持つ
@@ -240,6 +254,7 @@ pub mod aria;
 pub mod avatar;
 pub mod checkbox;
 pub mod collapsible;
+pub mod combobox;
 pub mod data_attrs;
 pub mod dialog;
 pub mod field;
@@ -286,12 +301,14 @@ pub use fandhe_frontend_interactive;
 
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
-    aria_activedescendant, aria_checked, aria_controls, aria_describedby, aria_disabled,
-    aria_expanded, aria_haspopup, aria_hidden, aria_invalid, aria_label, aria_labelledby,
-    aria_modal, aria_orientation, aria_pressed, aria_selected, role, AriaChecked, AriaPopup,
+    aria_activedescendant, aria_autocomplete, aria_checked, aria_controls, aria_describedby,
+    aria_disabled, aria_expanded, aria_haspopup, aria_hidden, aria_invalid, aria_label,
+    aria_labelledby, aria_modal, aria_orientation, aria_pressed, aria_selected, role,
+    AriaAutocomplete, AriaChecked, AriaPopup,
 };
 pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use checkbox::{Checkbox, CheckboxFlags};
+pub use combobox::{Combobox, ComboboxAction};
 pub use data_attrs::{
     data_checked, data_disabled, data_highlighted, data_invalid, data_orientation, data_pressed,
     data_readonly, data_required, data_state, Orientation,
@@ -313,8 +330,8 @@ pub use segment_group::SegmentGroup;
 pub use slider::{Slider, SliderAction};
 pub use state::{
     Checkable, CheckableAction, Disclosure, DisclosureAction, MultiSelect, MultiSelectAction,
-    OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CHECKED, DATA_STATE_CLOSED,
-    DATA_STATE_OFF, DATA_STATE_ON, DATA_STATE_OPEN, DATA_STATE_UNCHECKED,
+    OpenState, SingleSelect, SingleSelectAction, TextInput, TextInputAction, DATA_STATE_CHECKED,
+    DATA_STATE_CLOSED, DATA_STATE_OFF, DATA_STATE_ON, DATA_STATE_OPEN, DATA_STATE_UNCHECKED,
 };
 pub use switch::{Switch, SwitchAction};
 pub use tabs::{tabs, ActivationMode, TabItem, TabsProps};

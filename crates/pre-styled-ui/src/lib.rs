@@ -270,6 +270,7 @@ pub mod card;
 pub mod checkbox;
 pub mod checkbox_card;
 mod class_attr;
+pub mod combobox;
 pub mod css;
 pub mod dialog;
 pub mod input;

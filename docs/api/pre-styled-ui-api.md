@@ -27,8 +27,9 @@ NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー�
 （#739）・Slider styled ラッパー追加（#741）・RatingGroup styled ラッパー
 追加（#742）・SegmentGroup styled ラッパー追加（#743）・TagsInput styled
 ラッパー追加（#744）・Toggle/ToggleGroup styled ラッパー追加（#746）・
-CheckboxCard/RadioCard styled バリエーション追加（#747、いずれも公開時点
-未反映）を経て 33 の公開モジュールを持つ。内訳は次の通り。
+CheckboxCard/RadioCard styled バリエーション追加（#747）・Combobox styled
+ラッパー追加（#749、いずれも公開時点未反映）を経て 34 の公開モジュールを
+持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -52,6 +53,7 @@ CheckboxCard/RadioCard styled バリエーション追加（#747、いずれも�
 | headless ラッパー第 10 弾 | `tags_input` | #744（`size` variant のみ。フォーム入力部品のため `color-palette` 軸は非提供、`pin_input`/`number_input` と同型の判断） |
 | headless ラッパー | `toggle` / `toggle_group` | #746（実フォーカスをネイティブ `<button>` 自身が受けるため `data-focus-visible` 配線ではなく `FocusVisible` state condition で対応。`size`/`color-palette` 両軸提供） |
 | カード型選択 UI（styled バリエーション） | `checkbox_card` / `radio_card` | #747（§4g 参照。headless-ui は変更なし、pre-styled 層で新規 anatomy `checkbox-card`/`radio-card` を定義。状態機械は headless `Checkbox`/`RadioGroup` を再利用） |
+| headless ラッパー | `combobox` | #749（`select` と同型の `size` variant のみ・`color-palette` 軸は非提供。状態機械は `state::Disclosure` + `state::SingleSelect` + `state::TextInput` の合成。フォーカスは `input` が保持するため `:focus-visible` を `input` へ、`:focus-within` を `control` へ登録する） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
@@ -132,6 +134,7 @@ popover,tooltip}.rs` の各ファイル冒頭の `pub use` 直後のコメント
 | `select` | `OpenState` | `state` |
 | `popover` | `OpenState` / `DisclosureAction` | `state` |
 | `tooltip` | `OpenState` / `DisclosureAction` | `state` |
+| `combobox` | `OpenState` | `state`（`select` と同型の選択的 re-export、イシュー #749） |
 
 `ActivationMode`/`TabItem`/`TabsProps`（tabs）・`DialogRole`/`ContentIds`
 （dialog）・`SelectAction`（select）は各 headless モジュール内定義のため
