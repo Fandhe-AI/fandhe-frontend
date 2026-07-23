@@ -247,6 +247,7 @@ pub mod input;
 pub mod menu;
 pub mod native_select;
 pub mod number_input;
+pub mod pin_input;
 pub mod popover;
 pub mod radio_group;
 pub mod recipe;

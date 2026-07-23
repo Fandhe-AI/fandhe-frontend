@@ -23,9 +23,9 @@ rustdoc および各モジュール冒頭の rustdoc とする。本節はモジ
 
 本クレートは第 5 弾ツリー（#680）完了・crates.io v0.4.0 公開（#686）・
 checkbox styled ラッパー追加（#730）・静的フォーム部品 3 種追加（#737）・
-NumberInput styled ラッパー追加（#738）・SegmentGroup styled ラッパー追加
-（#743、いずれも公開時点未反映）を経て 25 の公開モジュールを持つ。内訳は
-次の通り。
+NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー追加
+（#739）・SegmentGroup styled ラッパー追加（#743、いずれも公開時点未反映）
+を経て 26 の公開モジュールを持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -42,6 +42,7 @@ NumberInput styled ラッパー追加（#738）・SegmentGroup styled ラッパ�
 | headless ラッパー第 5 弾 | `checkbox` | #730（§4e 参照） |
 | 静的フォーム部品 | `input` / `textarea` / `native_select` | #737（§4f 参照） |
 | headless ラッパー第 6 弾 | `number_input` | #738（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） |
+| headless ラッパー第 7 弾 | `pin_input` | #739（`size` variant のみ。palette は第 2 弾展開の既存方針に従い本イシューのスコープ外） |
 | headless ラッパー | `segment_group` | #743（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供。状態機械は `radio_group` へ全委譲） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
@@ -407,6 +408,7 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | tabs | ✓ | ✓（selected trigger の強調色） | 実装済み（#729） |
 | accordion / dialog / menu / select | ✓ | – | 実装済み（#729） |
 | number-input | ✓ | – | 実装済み（#738、フォーム入力部品のため color-palette は非提供） |
+| pin-input | ✓ | – | 実装済み（#739、palette は第 2 弾展開のフォローアップ） |
 | segment-group | ✓ | – | 実装済み（#743、選択状態は indicator の移動 + 文字強調で表現するため color-palette は非提供） |
 | popover / tooltip | 提供しない | 提供しない | 方針確定 |
 
