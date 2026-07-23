@@ -112,6 +112,17 @@ pub fn data_focus_visible(focus_visible: bool) -> Option<(&'static str, &'static
     focus_visible.then_some(("data-focus-visible", ""))
 }
 
+/// `data-pressed` 存在属性（Toggle/ToggleGroup 用、イシュー #746）。
+/// [`data_disabled`] と同じ「存在で真を表す」規約に従う。`data-state`
+/// （`"on"`/`"off"`、[`crate::state::pressed_data_state`]）と重複する情報だが、
+/// ark-ui の Toggle anatomy が `data-pressed` 存在属性も併記する慣習
+/// （CSS セレクタで `[data-pressed]` の有無だけを見たい呼び出し側の利便性）
+/// に合わせる。
+#[must_use]
+pub fn data_pressed(pressed: bool) -> Option<(&'static str, &'static str)> {
+    pressed.then_some(("data-pressed", ""))
+}
+
 /// `data-orientation` 属性。値は [`Orientation`] で固定された 2 値のみを取り、
 /// 任意文字列は受け付けない。
 #[must_use]
@@ -144,6 +155,8 @@ mod tests {
         assert_eq!(data_highlighted(false), None);
         assert_eq!(data_focus_visible(true), Some(("data-focus-visible", "")));
         assert_eq!(data_focus_visible(false), None);
+        assert_eq!(data_pressed(true), Some(("data-pressed", "")));
+        assert_eq!(data_pressed(false), None);
     }
 
     #[test]
