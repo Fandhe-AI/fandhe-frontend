@@ -55,6 +55,11 @@
 //!   - [`mod@card`]: [`card::root`] ほかパーツ関数群（slot recipe、
 //!     root/header/body/footer/title/description の 6 パーツ、装飾的コンテナ、
 //!     role 付与なし。中立コンテナのため colorPalette 軸は付与しない）。
+//!   - [`mod@skeleton`]（#764）: [`skeleton::skeleton`]（単一 recipe、
+//!     `<div>`。ローディングプレースホルダー。`text`/`circle`/`rect` の
+//!     `variant`、常時 `aria-hidden="true"`、`prefers-reduced-motion: reduce`
+//!     でのアニメーション停止 CSS を持つ。装飾的占位要素のため card と同じ
+//!     判断で colorPalette 軸を付与しない）。
 //!
 //!   いずれも variant/size/status は Rust enum（[`recipe::VariantValue`] 実装）
 //!   として型安全に表現し、クラス名文字列を動的合成しない
@@ -332,6 +337,7 @@ pub mod rating_group;
 pub mod recipe;
 pub mod segment_group;
 pub mod select;
+pub mod skeleton;
 pub mod slider;
 pub mod spinner;
 pub mod stylesheet;
@@ -354,6 +360,7 @@ pub use css::{decl, Declaration};
 pub use input::{input, InputProps, InputVariant};
 pub use native_select::{native_select, NativeSelectProps, NativeSelectVariant};
 pub use recipe::{when, ColorPalette, Size, SlotRecipe, VariantCondition, VariantValue};
+pub use skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 pub use spinner::{spinner, SpinnerProps};
 pub use stylesheet::{StyleSheet, StylesheetError};
 pub use textarea::{textarea, TextareaProps, TextareaVariant};

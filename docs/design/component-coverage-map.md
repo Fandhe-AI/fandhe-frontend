@@ -393,7 +393,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/feedback/spinner.md` | — | Spinner | — | spinner | 実装済み | pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/feedback/toast.md` | Toast | Toast | — | — | 実装対象 | #760 |
 | `.agents/skills/chakra-ui/references/components/feedback/progress-circle.md` | Progress (circular) | ProgressCircle | progress | — | 実装対象 | #763（既存 progress mod を circular 対応へ拡張） |
-| `.agents/skills/chakra-ui/references/components/feedback/skeleton.md` | — | Skeleton | — | — | 実装対象 | #764 |
+| `.agents/skills/chakra-ui/references/components/feedback/skeleton.md` | — | Skeleton | — | skeleton | 実装済み | #764。pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/feedback/status.md` | — | Status | — | — | 実装対象 | #765 |
 | `.agents/skills/chakra-ui/references/components/feedback/empty-state.md` | — | EmptyState | — | — | 実装対象 | #765 |
 
