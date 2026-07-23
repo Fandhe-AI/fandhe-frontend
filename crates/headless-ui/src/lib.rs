@@ -81,6 +81,12 @@
 //! - [`mod@dialog`]: [`dialog::Dialog`] — Root / Trigger / Backdrop /
 //!   Positioner / Content / Title / Description / CloseTrigger の 8 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだモーダルダイアログ（#531）。
+//! - [`mod@drawer`]: Dialog パターンの変種（画面端からスライドインするパネル）
+//!   である [`drawer::Drawer`]。dialog と同じ 8 anatomy パーツ（`data-scope="drawer"`）
+//!   を持つが、開閉状態機械は新設せず [`dialog::Dialog`] へ全委譲する
+//!   （[`segment_group::SegmentGroup`] が [`radio_group::RadioGroup`] へ
+//!   全委譲するのと同型のパターン）。固有に持つのは画面端の方向を表す
+//!   [`drawer::DrawerPlacement`]（`data-placement`）のみ（#758）。
 //! - [`mod@radio_group`]: Root / Label / Item / ItemControl / ItemText /
 //!   ItemHiddenInput の 6 anatomy パーツと [`state::SingleSelect`] を埋め込んだ
 //!   [`radio_group::RadioGroup`]（#536、親 #534）。クライアント由来の文字列
@@ -330,6 +336,7 @@ pub mod collapsible;
 pub mod combobox;
 pub mod data_attrs;
 pub mod dialog;
+pub mod drawer;
 pub mod field;
 pub mod fieldset;
 pub mod hover_card;
@@ -395,6 +402,7 @@ pub use data_attrs::{
     data_pressed, data_readonly, data_required, data_state, Orientation,
 };
 pub use dialog::Dialog;
+pub use drawer::{Drawer, DrawerPlacement};
 pub use field::{FieldIds, FieldProps};
 pub use fieldset::FieldsetProps;
 pub use hover_card::{HoverCard, HoverCardDelays};

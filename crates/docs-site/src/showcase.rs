@@ -52,6 +52,7 @@ use fandhe_frontend_pre_styled_ui::carousel;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
+use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
@@ -102,21 +103,22 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 /// `crates/pre-styled-ui/src/{dialog,menu,select,popover,tooltip}.rs`）・
 /// `site.css` は変更せず、showcase 領域内に限定した上書きのみで完結させる）:
 ///
-/// - `[data-scope="dialog"][data-part="backdrop"]` の非表示化: dialog の
-///   backdrop は `position: fixed; inset: 0` のビューポート全体暗幕であり、
-///   開いた状態を固定掲示するとページ全体を覆ってしまうため掲示用にのみ隠す
-///   （実際の modal 表示では backdrop は必須であり、ここでの非表示化は
-///   ショーケースの掲示都合に限定する）。
-/// - dialog/menu/select/combobox/popover/tooltip/hover-card の
+/// - `[data-scope="dialog"][data-part="backdrop"]`/`[data-scope="drawer"][data-part="backdrop"]`
+///   の非表示化: dialog/drawer の backdrop は `position: fixed; inset: 0` の
+///   ビューポート全体暗幕であり、開いた状態を固定掲示するとページ全体を
+///   覆ってしまうため掲示用にのみ隠す（実際の modal 表示では backdrop は
+///   必須であり、ここでの非表示化はショーケースの掲示都合に限定する）。
+/// - dialog/drawer/menu/select/combobox/popover/tooltip/hover-card の
 ///   `[data-part="positioner"]` を `position: static` へ中和: recipe CSS は
-///   dialog を `position: fixed; inset: 0`、menu/select/combobox/popover/
-///   hover-card を `position: absolute; top: 100%`、tooltip を
+///   dialog/drawer を `position: fixed; inset: 0`、menu/select/combobox/
+///   popover/hover-card を `position: absolute; top: 100%`、tooltip を
 ///   `position: absolute; bottom: 100%` としており、いずれも開いた content を
 ///   ページ内の別位置・別セクションに重ねてしまう。static 化してフロー内へ
 ///   インライン表示させることで、後続セクションと重ならずに掲示できる
 ///   （dialog はさらに `padding`/`justify-content` も中和し、中央寄せの
-///   ための余白・配置指定を解除する）。
-/// - dialog/popover の `title`（`h2`）見出しリセット: Accordion の `h3` と
+///   ための余白・配置指定を解除する。drawer は recipe CSS が `padding`/
+///   `justify-content` を宣言しないため `position` のみで足りる）。
+/// - dialog/drawer/popover の `title`（`h2`）見出しリセット: Accordion の `h3` と
 ///   同じ理由（`site.css` の `.docs-content h2` が漏れる）で、showcase 領域
 ///   内に限定して `border-top`/`padding-top`/`letter-spacing` を打ち消す
 ///   （margin/font-size/font-weight は recipe が宣言済みで自然に勝つため
@@ -127,10 +129,11 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .showcase-stack {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n  margin: 1rem 0;\n  max-width: 36rem;\n}\n\
 .showcase-form-field-group {\n  display: flex;\n  flex-direction: column;\n  gap: 0.25rem;\n  width: 100%;\n}\n\
 .pre-styled-showcase [data-scope=\"accordion\"] h3 {\n  margin: 0;\n  font-size: 1rem;\n  font-weight: 400;\n  line-height: 1.5;\n  letter-spacing: normal;\n}\n\
-.pre-styled-showcase [data-scope=\"dialog\"][data-part=\"backdrop\"] {\n  display: none;\n}\n\
+.pre-styled-showcase [data-scope=\"dialog\"][data-part=\"backdrop\"],\n.pre-styled-showcase [data-scope=\"drawer\"][data-part=\"backdrop\"] {\n  display: none;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: static;\n  padding: 0;\n  justify-content: flex-start;\n}\n\
+.pre-styled-showcase [data-scope=\"drawer\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"combobox\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"hover-card\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
-.pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n";
+.pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n";
 
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
 /// 追記する `Node` 木を返す。
@@ -151,10 +154,11 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 ///
 /// 内訳: テーマトークン（`Theme::default`、ライト/ダーク両対応）→ 掲載
 /// コンポーネントの recipe CSS（button/badge/spinner/alert/card/tabs/
-/// accordion/dialog/menu/select/combobox/popover/tooltip/hover_card/switch/
-/// radio_group/avatar/checkbox/checkbox_card/radio_card/input/textarea/
-/// native_select/number_input/tags_input/rating_group/slider/segment_group/
-/// breadcrumb）→ ショーケース配置スタイル、の順で決定的に連結する。
+/// accordion/dialog/drawer/menu/select/combobox/popover/tooltip/hover_card/
+/// switch/radio_group/avatar/checkbox/checkbox_card/radio_card/input/
+/// textarea/native_select/number_input/tags_input/rating_group/slider/
+/// segment_group/pagination/breadcrumb）→ ショーケース配置スタイル、の順で
+/// 決定的に連結する。
 ///
 /// # Errors
 ///
@@ -173,6 +177,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tabs::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::accordion::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::dialog::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::drawer::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::menu::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::select::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::combobox::stylesheet())?;
@@ -630,6 +635,71 @@ fn dialog_section() -> Node {
     section(
         "Dialog",
         "headless-ui の Dialog（WAI-ARIA dialog パターン）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています（実際の overlay 配置は recipe CSS が担います）。",
+        vec![node],
+    )
+}
+
+/// Drawer 節: 開いた状態（`placement="end"`）の静的マークアップ（イシュー #758）。
+///
+/// Drawer は WAI-ARIA 上 Dialog パターンの変種であり、開閉状態機械は
+/// headless 層の [`dialog::Dialog`] をそのまま再利用する（`crates/headless-ui/src/drawer.rs`
+/// rustdoc 参照）。backdrop は [`dialog_section`] と同じく掲示用に非表示化し、
+/// positioner はフロー内配置へ中和している（[`SHOWCASE_LAYOUT_CSS`]）。
+/// 実際の画面端固定パネル配置・placement 別レイアウトは recipe CSS
+/// （`crates/pre-styled-ui/src/drawer.rs`）がそのまま担う。
+fn drawer_section() -> Node {
+    let node = div(
+        vec![],
+        vec![
+            drawer::trigger(
+                OpenState::Open,
+                Some("showcase-drawer-content"),
+                vec![],
+                vec![text("Open drawer")],
+            ),
+            drawer::root(
+                Size::Md,
+                OpenState::Open,
+                DrawerPlacement::End,
+                vec![],
+                vec![
+                    drawer::backdrop(OpenState::Open, vec![], vec![]),
+                    drawer::positioner(
+                        OpenState::Open,
+                        DrawerPlacement::End,
+                        vec![],
+                        vec![drawer::content(
+                            OpenState::Open,
+                            DrawerPlacement::End,
+                            true,
+                            ContentIds {
+                                id: Some("showcase-drawer-content"),
+                                labelledby: Some("showcase-drawer-title"),
+                                describedby: Some("showcase-drawer-desc"),
+                            },
+                            vec![],
+                            vec![
+                                drawer::title(
+                                    Some("showcase-drawer-title"),
+                                    vec![],
+                                    vec![text("Navigation")],
+                                ),
+                                drawer::description(
+                                    Some("showcase-drawer-desc"),
+                                    vec![],
+                                    vec![text("画面端からスライドインする補助パネルです。")],
+                                ),
+                                drawer::close_trigger(vec![], vec![text("Close")]),
+                            ],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    );
+    section(
+        "Drawer",
+        "headless-ui の Drawer（WAI-ARIA dialog パターンの変種、dialog の状態機械を再利用）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。placement=\"end\" を掲示しています。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています。",
         vec![node],
     )
 }
@@ -2111,6 +2181,7 @@ fn showcase_body() -> Node {
             tabs_section(),
             accordion_section(),
             dialog_section(),
+            drawer_section(),
             menu_section(),
             select_section(),
             combobox_section(),
@@ -2161,6 +2232,7 @@ mod tests {
             "tabs",
             "accordion",
             "dialog",
+            "drawer",
             "menu",
             "select",
             "popover",
@@ -2253,6 +2325,7 @@ mod tests {
         assert!(css.contains(r#"[data-scope="tabs"][data-part="trigger"]"#));
         assert!(css.contains(r#"[data-scope="accordion"]"#));
         assert!(css.contains(r#"[data-scope="dialog"][data-part="content"]"#));
+        assert!(css.contains(r#"[data-scope="drawer"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="menu"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="select"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="popover"][data-part="content"]"#));

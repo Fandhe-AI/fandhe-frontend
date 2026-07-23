@@ -39,6 +39,7 @@ use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
+use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
@@ -129,6 +130,13 @@ fn styled_text_children_are_escaped_for_all_payloads() {
             payload,
             &html,
             "pre-styled-ui 再エクスポート dialog::title children コンテキスト",
+        );
+
+        let html = render(&drawer::title(None, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "pre-styled-ui 再エクスポート drawer::title children コンテキスト",
         );
     }
 }
@@ -323,6 +331,20 @@ fn size_variant_root_caller_class_attr_is_dropped_not_merged_raw_for_all_payload
         );
         assert_eq!(html.matches("class=\"").count(), 1);
         assert!(html.contains("fd-select--"));
+
+        let html = render(&drawer::root(
+            Size::Md,
+            OpenState::Closed,
+            DrawerPlacement::End,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "drawer::root の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-drawer--"));
     }
 }
 
@@ -365,6 +387,15 @@ fn size_variant_root_caller_attrs_are_escaped_for_all_payloads() {
             vec![],
         ));
         assert_payload_is_escaped(payload, &html, "select::root 呼び出し側 attrs コンテキスト");
+
+        let html = render(&drawer::root(
+            Size::Md,
+            OpenState::Closed,
+            DrawerPlacement::End,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "drawer::root 呼び出し側 attrs コンテキスト");
     }
 }
 
