@@ -35,25 +35,58 @@ pre-styled-ui 適用候補を、以下 4 軸で評価する。
 
 ## 3. 適用候補ごとの評価
 
-### 3.1 サイドバーナビ（`nav.rs::sidebar`）
+### 3.1 サイドバーナビ（`nav.rs::sidebar`）【解消済み（イシュー #756）】
 
-pre-styled-ui には文書ナビゲーション（アプリ内固定サイドバーのリンク一覧）
-に相当する部品が存在しない。最も近い `menu` 部品は WAI-ARIA `menu` ロール
-（キーボード操作を伴う操作ドロップダウン・コマンドリスト向け）であり、
-`nav` 要素 + リンクリストという文書ナビの意味論とは異なる。`menu` ロールを
-文書ナビへ転用すると、スクリーンリーダー利用者に「操作可能なメニュー」と
-誤って伝わりアクセシビリティを毀損する。
+（当初の判断、イシュー #694 時点）pre-styled-ui には文書ナビゲーション
+（アプリ内固定サイドバーのリンク一覧）に相当する部品が存在しない。最も
+近い `menu` 部品は WAI-ARIA `menu` ロール（キーボード操作を伴う操作
+ドロップダウン・コマンドリスト向け）であり、`nav` 要素 + リンクリストと
+いう文書ナビの意味論とは異なる。`menu` ロールを文書ナビへ転用すると、
+スクリーンリーダー利用者に「操作可能なメニュー」と誤って伝わり
+アクセシビリティを毀損する。
 
-**判断**: 見送り（意味論不整合）。
+**当初の判断**: 見送り（意味論不整合）。
 
-### 3.2 前後ページャ（`nav.rs::prev_next_nav`、`nav.prev-next` のカード風リンク）
+**再評価（イシュー #756）**: `docs/api/headless-ui-api.md` §4b の検討で
+「文書ナビ向け Link リスト」を最優先の追加候補と判断し、`role` を一切
+付与しない専用 headless 部品 `nav_list`（`crates/headless-ui/src/nav_list.rs`）
++ styled ラッパー（`crates/pre-styled-ui/src/nav_list.rs`）を新設した。
+`nav.rs::sidebar` は本部品（`heading`/`list`/`item`/`link` の headless
+自由関数、`root` は headless 直接呼び出しで `class="sidebar"` を温存）へ
+移行済みであり、意味論不整合は解消した。視覚スタイルは §3.4 の不変条件
+どおり `site.css` の既存タグ・class セレクタが変更なしで適用され続ける
+（`nav_list` は class を持たない素の `nav`/`h2`/`ul`/`li`/`a` を出力する
+ため）。現在ページの表現は `class="current"` を廃止し `aria-current="page"`
+（+ `data-current`）のみへ一本化した。
 
-pre-styled-ui の `card` 部品は `data-scope` anatomy を持つ `div` ベースの
-コンテンツカードであり、アンカー要素全体をカード化するリンク部品ではない。
-適用するには `site_css_contract.rs` が固定する class 契約（`prev-next` /
-`prev` / `next`）自体の作り替えが必要になり、見た目上の利得もない。
+**判断**: 導入する（実装詳細は `crates/docs-site/src/nav.rs::sidebar` の
+rustdoc・イシュー #756 実装計画を参照）。
 
-**判断**: 見送り（`site_css_contract` への影響が大きく利得なし）。
+### 3.2 前後ページャ（`nav.rs::prev_next_nav`、`nav.prev-next` のカード風リンク）【解消済み（イシュー #756）】
+
+（当初の判断、イシュー #694 時点）pre-styled-ui の `card` 部品は
+`data-scope` anatomy を持つ `div` ベースのコンテンツカードであり、アンカー
+要素全体をカード化するリンク部品ではない。適用するには
+`site_css_contract.rs` が固定する class 契約（`prev-next` / `prev` /
+`next`）自体の作り替えが必要になり、見た目上の利得もない。
+
+**当初の判断**: 見送り（`site_css_contract` への影響が大きく利得なし）。
+
+**再評価（イシュー #756）**: `docs/api/headless-ui-api.md` §4b の検討で
+chakra-ui の LinkBox/LinkOverlay パターンに倣った `link_overlay`
+（`crates/headless-ui/src/link_overlay.rs`、Root/Overlay の 2 anatomy）+
+styled ラッパー（`crates/pre-styled-ui/src/link_overlay.rs`）を新設した。
+`nav.rs::prev_next_nav` は `div.prev`/`div.next`（`link_overlay::root`）配下に
+`[data-part="overlay"]`（`link_overlay::overlay`）を持つ構造へ移行し、
+カード全面クリック化の意味論を LinkOverlay 部品で表現するようになった
+（本ページの用途では overlay がカードの唯一の子でありフロー内で全面を
+占めるため、`link_overlay` の一般的な `position: absolute` 拡張パターンは
+使わず、overlay 自体に従来のカード CSS をそのまま当てる。`site_css_contract`
+が固定する class 契約は `prev-next`/`prev`/`next` のまま変更なし、属性
+セレクタ `[data-part="overlay"]` は同テストの class 抽出対象外）。
+
+**判断**: 導入する（実装詳細は `crates/docs-site/src/nav.rs::prev_next_nav`
+の rustdoc・イシュー #756 実装計画を参照）。
 
 ### 3.3 注記ブロック（`alert` 部品）
 
@@ -107,17 +140,22 @@ PR #679 で `/components/pre-styled-ui/` ページに適用済み。ショーケ
 含まないページ・フィクスチャサイトのビルド結果は変えない
 （`crates/docs-site/src/build.rs` の配線）。
 
-これらが現時点で pre-styled-ui を docs サイトへ組み込む「適用境界」の
-全体であり、本書が定める見送り判断（3.1・3.2・3.4）はこの適用境界を
-変更しない。
+これらに加え、イシュー #756 で 3.1（`nav_list` headless 部品）・3.2
+（`link_overlay` headless 部品）を導入済みである（headless 部品の
+markup 適用のみで、視覚スタイルは §3.4 の不変条件どおり `site.css` が
+自己完結したまま担う。pre-styled-ui の styled `stylesheet()`/生成 CSS は
+どちらも導入しない）。3.4（テーマトークン波及）は本イシューでも見送りの
+まま維持する。
 
 ## 4. 結論
 
 サイト骨格（Linear 風 2 カラムレイアウト・`site.css`・ナビゲーション
-生成ロジック）への pre-styled-ui の styled 部品・テーマトークンの適用は、
-3.1・3.2・3.4 は見送る。3.3（注記ブロック）はイシュー #715 で導入済み。
-適用範囲は 3.5 のショーケースページ・admonition（いずれも分離 CSS 方式）
-に限定したまま維持する。
+生成ロジック）への pre-styled-ui 適用は、3.1・3.2 はイシュー #756 で
+「headless 部品による markup 導入（視覚スタイルは `site.css` 継続）」の
+形で解消済み。3.3（注記ブロック）はイシュー #715 で導入済み。3.4
+（テーマトークン波及）は見送りのまま維持する。pre-styled-ui の styled
+部品・生成 CSS（`stylesheet()`）の適用範囲は 3.5 のショーケースページ・
+admonition（いずれも分離 CSS 方式）に限定したまま維持する。
 
 ## 5. 再評価トリガー
 
@@ -125,9 +163,12 @@ PR #679 で `/components/pre-styled-ui/` ページに適用済み。ショーケ
 `docs/policy/intentional-non-adoption.md` の運用（再導入提案時は評価軸の
 充足確認を Issue・PR に明記する）に準拠すること。
 
-1. pre-styled-ui にレイアウト・ナビゲーション系部品（Breadcrumb /
+1. ~~pre-styled-ui にレイアウト・ナビゲーション系部品（Breadcrumb /
    Pagination / 文書ナビ向け Link リスト / Container 等）が追加されたとき
-   （3.1・3.2 の意味論不整合が解消され得る）
+   （3.1・3.2 の意味論不整合が解消され得る）~~ → イシュー #756 で消化済み
+   （3.1 参照。`nav_list`/`link_overlay` headless 部品を追加し
+   `nav.rs::sidebar`/`nav.rs::prev_next_nav` へ適用、意味論不整合を
+   解消した）
 2. ~~docs-site の Markdown レンダラへ admonition（注記）構文を追加すると
    き（3.3 の `alert` 適用を再評価する）~~ → イシュー #715 で消化済み
    （3.3 参照。admonition 構文を追加し `alert` 部品での描画を導入した）
