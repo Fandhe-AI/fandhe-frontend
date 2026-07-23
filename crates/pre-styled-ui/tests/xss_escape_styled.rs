@@ -38,6 +38,7 @@ use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
+use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, select};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Size};
@@ -423,5 +424,74 @@ fn checkbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
             &html,
             "checkbox::hidden_input name/value コンテキスト",
         );
+    }
+}
+
+/// (7) NumberInput 経路（イシュー #738）: styled `root` の呼び出し側
+/// `attrs`・`class`、および headless-ui から選択的再エクスポートした
+/// `label` の children・`input` の `name` の 4 箇所すべてで既定エスケープ
+/// （REQ-1）が貫通することを固定する（checkbox 経路と同粒度）。
+#[test]
+fn number_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&number_input::root(
+            Size::Md,
+            false,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "number_input::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&number_input::root(
+            Size::Md,
+            false,
+            false,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "number_input::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "number_input::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-number-input--"),
+            "number_input::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした label の children 経路。
+        let html = render(&number_input::label(
+            false,
+            false,
+            None,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "number_input::label children コンテキスト");
+
+        // 選択的再エクスポートした input の name 経路。
+        let html = render(&number_input::input(
+            payload,
+            None,
+            None,
+            "0",
+            "100",
+            NumberInputFlags::default(),
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "number_input::input name コンテキスト");
     }
 }

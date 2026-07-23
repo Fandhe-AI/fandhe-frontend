@@ -85,6 +85,9 @@
 //! - [`mod@tabs`]/[`mod@accordion`]/[`mod@dialog`]/[`mod@menu`]/
 //!   [`mod@select`] への `size` variant 拡張（tabs のみ `color-palette` も、
 //!   イシュー #729）: 下記「複合部品の variant 統一方針」節を参照。
+//! - headless ラッパー（#738）: [`mod@number_input`]（NumberInput、`size`
+//!   variant のみを持つ。フォーム入力部品のため `color-palette` 軸は提供
+//!   しない。詳細は [`mod@number_input`] rustdoc 参照）。
 //! - headless 状態機械を持つ複合部品の styled ラッパー第 5 弾（#730）:
 //!   [`mod@checkbox`]。`size`/`color-palette` variant・`data-focus-visible`
 //!   フォーカスリングは [`mod@switch`] と同型で最初から実装する。`indicator`
@@ -226,6 +229,7 @@ mod class_attr;
 pub mod css;
 pub mod dialog;
 pub mod menu;
+pub mod number_input;
 pub mod popover;
 pub mod radio_group;
 pub mod recipe;

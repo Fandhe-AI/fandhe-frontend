@@ -49,6 +49,7 @@ use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
+use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
@@ -161,6 +162,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::radio_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::avatar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::checkbox::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -1026,6 +1028,155 @@ fn checkbox_section() -> Node {
     )
 }
 
+/// NumberInput 節: 中間値・境界値（min 到達で decrement disabled）・
+/// disabled の 3 態。
+///
+/// headless 層は連続量の値を扱うため `data-state` を持たず、境界到達は
+/// increment/decrement トリガーの `data-disabled` 存在属性のみで表現する
+/// （`fandhe_frontend_pre_styled_ui::number_input` のモジュール doc 参照）。
+fn number_input_section() -> Node {
+    let mid = number_input::root(
+        Size::Md,
+        false,
+        false,
+        vec![],
+        vec![
+            number_input::label(
+                false,
+                false,
+                Some("showcase-number-input-mid"),
+                vec![],
+                vec![text("Quantity")],
+            ),
+            number_input::control(
+                false,
+                false,
+                vec![],
+                vec![
+                    number_input::input(
+                        "quantity",
+                        Some("showcase-number-input-mid"),
+                        Some("5"),
+                        "0",
+                        "10",
+                        NumberInputFlags::default(),
+                        vec![],
+                    ),
+                    number_input::increment_trigger(
+                        Some("showcase-number-input-mid"),
+                        false,
+                        vec![],
+                        vec![text("+")],
+                    ),
+                    number_input::decrement_trigger(
+                        Some("showcase-number-input-mid"),
+                        false,
+                        vec![],
+                        vec![text("-")],
+                    ),
+                ],
+            ),
+        ],
+    );
+    let at_min = number_input::root(
+        Size::Md,
+        false,
+        false,
+        vec![],
+        vec![
+            number_input::label(
+                false,
+                false,
+                Some("showcase-number-input-min"),
+                vec![],
+                vec![text("At min")],
+            ),
+            number_input::control(
+                false,
+                false,
+                vec![],
+                vec![
+                    number_input::input(
+                        "quantity-min",
+                        Some("showcase-number-input-min"),
+                        Some("0"),
+                        "0",
+                        "10",
+                        NumberInputFlags::default(),
+                        vec![],
+                    ),
+                    number_input::increment_trigger(
+                        Some("showcase-number-input-min"),
+                        false,
+                        vec![],
+                        vec![text("+")],
+                    ),
+                    // 下限到達のため decrement トリガーを disabled にする
+                    // （境界到達時の唯一の視覚的合図、モジュール doc 参照）。
+                    number_input::decrement_trigger(
+                        Some("showcase-number-input-min"),
+                        true,
+                        vec![],
+                        vec![text("-")],
+                    ),
+                ],
+            ),
+        ],
+    );
+    let disabled = number_input::root(
+        Size::Md,
+        true,
+        false,
+        vec![],
+        vec![
+            number_input::label(
+                true,
+                false,
+                Some("showcase-number-input-disabled"),
+                vec![],
+                vec![text("Disabled")],
+            ),
+            number_input::control(
+                true,
+                false,
+                vec![],
+                vec![
+                    number_input::input(
+                        "quantity-disabled",
+                        Some("showcase-number-input-disabled"),
+                        Some("3"),
+                        "0",
+                        "10",
+                        NumberInputFlags {
+                            disabled: true,
+                            ..NumberInputFlags::default()
+                        },
+                        vec![],
+                    ),
+                    number_input::increment_trigger(
+                        Some("showcase-number-input-disabled"),
+                        true,
+                        vec![],
+                        vec![text("+")],
+                    ),
+                    number_input::decrement_trigger(
+                        Some("showcase-number-input-disabled"),
+                        true,
+                        vec![],
+                        vec![text("-")],
+                    ),
+                ],
+            ),
+        ],
+    );
+    let demo_row = row(vec![mid, at_min, disabled]);
+    section(
+        "NumberInput",
+        "min/max/step でクランプされる数値入力。increment/decrement トリガーは境界到達時に data-disabled を伴い無効化されます。",
+        vec![demo_row],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -1059,6 +1210,7 @@ fn showcase_body() -> Node {
             radio_group_section(),
             avatar_section(),
             checkbox_section(),
+            number_input_section(),
         ],
     )
 }
@@ -1095,6 +1247,7 @@ mod tests {
             "radio-group",
             "avatar",
             "checkbox",
+            "number-input",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
@@ -1156,6 +1309,7 @@ mod tests {
         assert!(css.contains(".fd-avatar--size-md"));
         assert!(css.contains(".fd-avatar--shape-circle"));
         assert!(css.contains(r#"[data-scope="checkbox"][data-part="control"]"#));
+        assert!(css.contains(r#"[data-scope="number-input"][data-part="control"]"#));
         // ショーケース配置スタイル。
         assert!(css.contains(".showcase-row"));
         assert!(css.contains(".showcase-stack"));
