@@ -267,6 +267,7 @@ mod tests {
             ("switch", crate::switch::stylesheet()),
             ("radio_group", crate::radio_group::stylesheet()),
             ("avatar", crate::avatar::stylesheet()),
+            ("checkbox", crate::checkbox::stylesheet()),
         ]
     }
 
