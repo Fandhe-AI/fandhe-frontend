@@ -68,16 +68,22 @@
 //!   [`mod@select`]。examples・利用ガイド（#552）は別イシューのスコープ。
 //! - headless 状態機械を持つ複合部品 2 種の styled ラッパー第 2 弾（#664）:
 //!   [`mod@popover`] / [`mod@tooltip`]。設計方針・スコープ外は第 1 弾と同じ。
+//! - headless 状態機械を持つ複合部品の styled ラッパー（#683）:
+//!   [`mod@radio_group`]。`item-hidden-input` の visually-hidden 化は
+//!   [`mod@select`] の `hidden-select` と同じ責務分担、フォーカスリングは
+//!   新設の [`recipe::StateCondition::FocusWithin`] を使う（モジュール
+//!   rustdoc 参照）。
 //!
-//! # headless ラッパーの設計（#551/#664）
+//! # headless ラッパーの設計（#551/#664/#683）
 //!
 //! [`mod@dialog`]・[`mod@accordion`]・[`mod@menu`]・[`mod@select`]・
-//! [`mod@tabs`]・[`mod@popover`]・[`mod@tooltip`] はいずれも
+//! [`mod@tabs`]・[`mod@popover`]・[`mod@tooltip`]・[`mod@radio_group`] は
+//! いずれも
 //! `fandhe_frontend_headless_ui` の対応モジュールが出力する
 //! `data-scope`/`data-part` 属性セレクタへ [`recipe::SlotRecipe`] で静的 CSS
 //! を対応付ける薄い委譲層である。パーツ関数・状態機械
-//! （`Dialog`/`Accordion`/`Menu`/`Select`/`Popover`/`Tooltip`）は headless 層
-//! からそのまま再エクスポートし（`pub use ...::*`）、新たな出力経路・
+//! （`Dialog`/`Accordion`/`Menu`/`Select`/`Popover`/`Tooltip`/`RadioGroup`）は
+//! headless 層からそのまま再エクスポートし（`pub use ...::*`）、新たな出力経路・
 //! エスケープ迂回は一切持たない。各モジュールの `stylesheet()` が生成する
 //! CSS は静的 `.css` ファイルとして配信する、または [`stylesheet::StyleSheet`]
 //! （#605）へ取り込んで `<style>` タグへインライン埋め込む、両方の利用形態を
@@ -114,6 +120,7 @@ pub mod css;
 pub mod dialog;
 pub mod menu;
 pub mod popover;
+pub mod radio_group;
 pub mod recipe;
 pub mod select;
 pub mod spinner;
