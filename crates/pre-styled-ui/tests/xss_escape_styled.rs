@@ -37,9 +37,9 @@ use fandhe_frontend_pre_styled_ui::alert::{self, AlertStatus};
 use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
-use fandhe_frontend_pre_styled_ui::dialog;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
-use fandhe_frontend_pre_styled_ui::ColorPalette;
+use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, select};
+use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Size};
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
 ///
@@ -253,5 +253,104 @@ fn safe_urls_in_caller_attrs_pass_through() {
             html.contains(&expected),
             "安全な URL が href 属性として透過していない: url={url:?}, html={html}"
         );
+    }
+}
+
+/// (6) 属性値経路 d（イシュー #729）: `accordion`/`dialog`/`menu`/`select` の
+/// 新設 styled `root`（`size` variant クラス付与）でも `class_attr::drop_class_attr`
+/// 契約により呼び出し側 `class` の生ペイロードが動的クラス名合成へ混入しない
+/// ことを固定する（`switch`/`avatar` 等の既存 styled root と同型の回帰、
+/// #708/#719 の一般化）。
+#[test]
+fn size_variant_root_caller_class_attr_is_dropped_not_merged_raw_for_all_payloads() {
+    for payload in payloads::all() {
+        let html = render(&accordion::root(Size::Md, vec![("class", payload)], vec![]));
+        assert!(
+            !html.contains(payload),
+            "accordion::root の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-accordion--"));
+
+        let html = render(&dialog::root(
+            Size::Md,
+            OpenState::Closed,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "dialog::root の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-dialog--"));
+
+        let html = render(&menu::root(
+            Size::Md,
+            OpenState::Closed,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "menu::root の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-menu--"));
+
+        let html = render(&select::root(
+            Size::Md,
+            OpenState::Closed,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "select::root の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-select--"));
+    }
+}
+
+/// (7) 属性値経路 e（イシュー #729）: 呼び出し側 `attrs` の `data-testid` 等が
+/// `size` variant root 経由でも既定エスケープを経由することを固定する。
+#[test]
+fn size_variant_root_caller_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let html = render(&accordion::root(
+            Size::Md,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "accordion::root 呼び出し側 attrs コンテキスト",
+        );
+
+        let html = render(&dialog::root(
+            Size::Md,
+            OpenState::Closed,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "dialog::root 呼び出し側 attrs コンテキスト");
+
+        let html = render(&menu::root(
+            Size::Md,
+            OpenState::Closed,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "menu::root 呼び出し側 attrs コンテキスト");
+
+        let html = render(&select::root(
+            Size::Md,
+            OpenState::Closed,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "select::root 呼び出し側 attrs コンテキスト");
     }
 }

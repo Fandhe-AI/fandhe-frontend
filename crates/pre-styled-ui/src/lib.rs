@@ -82,25 +82,31 @@
 //!   2 軸 variant を持つ最初のラッパー）。
 //! - [`mod@switch`]/[`mod@radio_group`] への `size`/`color-palette` variant
 //!   拡張（#708）: 下記「複合部品の variant 統一方針」節を参照。
+//! - [`mod@tabs`]/[`mod@accordion`]/[`mod@dialog`]/[`mod@menu`]/
+//!   [`mod@select`] への `size` variant 拡張（tabs のみ `color-palette` も、
+//!   イシュー #729）: 下記「複合部品の variant 統一方針」節を参照。
 //!
-//! # headless ラッパーの設計（#551/#664/#682/#683）
+//! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
 //! [`mod@dialog`]・[`mod@accordion`]・[`mod@menu`]・[`mod@select`]・
 //! [`mod@tabs`]・[`mod@popover`]・[`mod@tooltip`] はいずれも
 //! `fandhe_frontend_headless_ui` の対応モジュールが出力する
 //! `data-scope`/`data-part` 属性セレクタへ [`recipe::SlotRecipe`] で静的 CSS
-//! を対応付ける薄い委譲層である。パーツ関数・状態機械
-//! （`Dialog`/`Accordion`/`Menu`/`Select`/`Popover`/`Tooltip`）は
-//! headless 層からそのまま再エクスポートし（`pub use ...::*`）、新たな
-//! 出力経路・エスケープ迂回は一切持たない。各モジュールの `stylesheet()` が
-//! 生成する CSS は静的 `.css` ファイルとして配信する、または
+//! を対応付ける薄い委譲層である。各モジュールの `stylesheet()` が生成する
+//! CSS は静的 `.css` ファイルとして配信する、または
 //! [`stylesheet::StyleSheet`]（#605）へ取り込んで `<style>` タグへインライン
-//! 埋め込む、両方の利用形態を前提とする（不変条件 2 を参照）。variant
-//! （size 等）ごとのクラス切り替えは、これら 7 種については引き続き
-//! スコープ外とする（フォローアップ方針は次節参照）。[`mod@switch`]・
-//! [`mod@radio_group`] は #708 で `size`/`color-palette` variant を追加した
-//! ため、[`crate::avatar`]・[`crate::card`] と同型の選択的 re-export（薄い
-//! 委譲層である点は変わらない）へ移行済み（各モジュール rustdoc 参照）。
+//! 埋め込む、両方の利用形態を前提とする（不変条件 2 を参照）。新たな出力
+//! 経路・エスケープ迂回は一切持たない。
+//!
+//! [`mod@popover`]・[`mod@tooltip`] はパーツ関数・状態機械を
+//! headless 層からそのまま再エクスポートし（`pub use ...::*`）、variant
+//! （size 等）ごとのクラス切り替えはスコープ外のままとする（提供しない方針、
+//! 下記「複合部品の variant 統一方針」節 3 参照）。[`mod@switch`]・
+//! [`mod@radio_group`]（#708）・[`mod@tabs`]/[`mod@accordion`]/
+//! [`mod@dialog`]/[`mod@menu`]/[`mod@select`]（#729）は `size`（tabs のみ
+//! `color-palette` も）variant を追加したため、[`crate::avatar`]・
+//! [`crate::card`] と同型の選択的 re-export（薄い委譲層である点は変わらない）
+//! へ移行済み（各モジュール rustdoc 参照）。
 //!
 //! # 複合部品の variant 統一方針（イシュー #708）
 //!
@@ -131,10 +137,16 @@
 //!    適用漏れを防ぐ fail-closed）で再エクスポートしない。必要な呼び出し側
 //!    は [`fandhe_frontend_headless_ui`]（クレートルート再エクスポート、
 //!    #685 のエスケープハッチ）経由で到達できる。
-//! 5. **本イシューの実装範囲**: [`mod@switch`]・[`mod@radio_group`] の
-//!    2 部品へ `size`（sm/md/lg）+ `color-palette`（5 値）を実装した。
-//!    tabs/accordion/dialog/menu/select への展開は同方針の適用として
-//!    フォローアップとする（`docs/api/pre-styled-ui-api.md` の variant 表
+//! 5. **実装範囲**: [`mod@switch`]・[`mod@radio_group`]（#708）に続き、
+//!    [`mod@tabs`]・[`mod@accordion`]・[`mod@dialog`]・[`mod@menu`]・
+//!    [`mod@select`] の 5 部品へ `size`（sm/md/lg）を展開した（イシュー
+//!    #729、tabs のみ `color-palette`（5 値）も追加）。tabs は他 4 部品と
+//!    異なり headless 側に root への attrs 注入点自体が存在しなかったため、
+//!    追加的（非破壊）な
+//!    [`fandhe_frontend_headless_ui::tabs::tabs_with_root_attrs`] を新設した
+//!    （`crates/headless-ui/src/tabs.rs` rustdoc 参照）。popover/tooltip へは
+//!    引き続き提供しない（方針 3 参照）。accordion/dialog/menu/select は
+//!    `color-palette` 軸を持たない（variant 表の方針、`docs/api/pre-styled-ui-api.md`
 //!    参照）。
 //!
 //! [`theme`] が生成する CSS・styled 部品各モジュールの `css()`/`stylesheet()` は
