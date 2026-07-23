@@ -33,14 +33,25 @@
 //!   flip 後の side が新しい希望として扱われ、スペースが戻っても元の希望へ
 //!   戻せなかった）。
 //! - 実際の `"close"` dispatch・状態機械の更新は行わない。本モジュールは
-//!   `positioner`/`arrow` 要素へ `style`/`data-side`/`data-align` 属性を
-//!   直接 `set_attribute` するのみであり（ADR 第 4.4 節の経路とは別に、
-//!   wasm 層は DOM API で直接属性を書き込む。SSR/CSR いずれの初期表示も
+//!   `positioner`/`arrow` 要素へ `style`/`data-side`/`data-align`/
+//!   `data-positioned`（イシュー #663、以下参照）属性を直接 `set_attribute`
+//!   するのみであり（ADR 第 4.4 節の経路とは別に、wasm 層は DOM API で
+//!   直接属性を書き込む。SSR/CSR いずれの初期表示も
 //!   `fandhe_frontend_core::render` の既定エスケープ経由だが、本モジュールの
 //!   再計算は初期表示後の DOM 直接更新であり HTML 文字列を組み立てない
 //!   ため既定エスケープ経路の対象外である点に注意）、開閉 dispatch との
 //!   統合呼び出しはイシュー #580 統合層の責務とする（`overlay.rs` と同じ
 //!   責務分離）。
+//! - [`wiring::reposition_one`] は座標反映のたびに `positioner` へ
+//!   `data-positioned=""`（値なしの存在マーカー）を書き込む。
+//!   `fandhe-frontend-pre-styled-ui` はこの属性の有無で「SSR 静的
+//!   フォールバック（`position: absolute` + ローカル座標系）」と「wasm
+//!   確定座標（`position: fixed` + viewport 座標系、`--fandhe-x`/
+//!   `--fandhe-y` を `transform: translate3d` で消費）」を切り替える契約
+//!   （`docs/design/anchor-positioning-design.md` §4.4b、
+//!   `docs/api/headless-ui-api.md` §4a 参照）。headless 層はこの属性を
+//!   一切出力しないため、マーカー不在は「wasm 未稼働」を意味し fail-closed
+//!   に静的表示へ留まる。
 //!
 //! # セキュリティ不変条件
 //!
@@ -448,6 +459,15 @@ mod wiring {
         set_dom_attribute(positioner, "style", &result.style);
         set_dom_attribute(positioner, "data-side", result.side.as_str());
         set_dom_attribute(positioner, "data-align", result.align.as_str());
+        // イシュー #663: SSR 静的フォールバック（absolute + ローカル座標系）と
+        // wasm 確定座標（fixed + viewport 座標系）を pre-styled-ui 側の CSS
+        // セレクタで切り替えるための専用マーカー。headless 層（SSR/SSG）は
+        // この属性を一切出力しないため（`crates/headless-ui/src/positioning.rs`
+        // の `placement_attrs` は `data-side`/`data-align` のみ）、「マーカー
+        // なし = 静的フォールバック / マーカーあり = wasm 確定座標」が
+        // fail-closed に成立する（`docs/design/anchor-positioning-design.md`
+        // §4.4b 参照）。
+        set_dom_attribute(positioner, "data-positioned", "");
 
         if kind.has_arrow() {
             if let Some(arrow_element) = find_arrow(&scope_root) {

@@ -33,9 +33,36 @@
 //! 10rem)` として消費し、chakra-ui の `sameWidth` 相当（listbox 幅がトリガー
 //! 幅へ追随する見た目）を実現する。wasm 未稼働の SSR 静的表示では変数が
 //! 未定義のため `10rem`（従来の固定値）へフォールバックする。
-//! `--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-*`（座標ジオメトリ）は本イシュー
-//! の対象外（`docs/design/anchor-positioning-design.md` 拡張が必要な位置
-//! 座標系の設計課題のため、Issue 化して別途フォローアップする）。
+//! # 位置ジオメトリ（`--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-*`）の消費（イシュー #663）
+//!
+//! SSR 静的フォールバック（`positioner` の `position: absolute; top: 100%;
+//! left: 0`、`root` の `position: relative` をローカル座標系とする）と、
+//! `crates/wasm-full/src/position.rs::wiring::reposition_one` が書き込む
+//! 確定座標（`getBoundingClientRect`/`window.innerWidth/innerHeight` 由来の
+//! **viewport 原点**座標）は座標系が異なるため、`positioner` へ書き込まれる
+//! `data-positioned`（値なしの存在マーカー、wasm 層のみが付与し headless 層
+//! の SSR/SSG 出力には決して現れない）の有無で `position` 種別ごと切り替える
+//! （`docs/design/anchor-positioning-design.md` §4.4b 参照）。マーカーが
+//! 無い場合は本来の静的フォールバックのまま（wasm 未稼働環境でも表示が
+//! 壊れない fail-closed 動作）:
+//!
+//! ```css
+//! [data-scope="menu"][data-part="positioner"][data-positioned] {
+//!   position: fixed;
+//!   top: 0;
+//!   left: 0;
+//!   margin-top: 0;
+//!   transform: translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0);
+//! }
+//! ```
+//!
+//! `arrow`/`arrow-tip`（Menu のみ、ADR §4.2 で Select は arrow 非対象）は
+//! マーカー切り替え不要で変数フォールバックのみで両立する。
+//! `reposition_one` は positioner の `style`（CSS カスタムプロパティは
+//! 子孫へ継承される）に加えて arrow 要素自身の `style` へも同じ値を複製
+//! するため、arrow の base 規則で直接 `var(--fandhe-arrow-x, 50%)`/
+//! `var(--fandhe-arrow-y, 0)` を参照できる（フォールバック値は SSR 既定
+//! placement（bottom）で anchor 中央上端に相当する）。
 //!
 //! # positioner のオーバーレイ配置（PR #575 Bugbot 指摘対応）
 //!
@@ -105,6 +132,29 @@ fn recipe() -> SlotRecipe {
                 decl("min-width", "var(--fandhe-reference-width, 10rem)"),
             ],
         )
+        // イシュー #663: arrow はマーカー切り替え不要（モジュール rustdoc
+        // 参照）。フォールバック値は SSR 既定 placement（bottom）で anchor
+        // 中央上端に相当する。
+        .base(
+            "arrow",
+            vec![
+                decl("position", "absolute"),
+                decl("left", "var(--fandhe-arrow-x, 50%)"),
+                decl("top", "var(--fandhe-arrow-y, 0)"),
+                decl("transform", "translate(-50%, -50%)"),
+            ],
+        )
+        .base(
+            "arrow-tip",
+            vec![
+                decl("width", "0.5rem"),
+                decl("height", "0.5rem"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("border-left", "1px solid var(--fandhe-color-border)"),
+                decl("border-top", "1px solid var(--fandhe-color-border)"),
+                decl("transform", "rotate(45deg)"),
+            ],
+        )
         .base(
             "item",
             vec![
@@ -158,6 +208,24 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("outline", "2px solid var(--fandhe-color-accent)"),
                 decl("outline-offset", "2px"),
+            ],
+        )
+        // イシュー #663: wasm 層が `data-positioned` マーカーを付与したら
+        // 確定座標（viewport 座標系の `position: fixed`）へ切り替える
+        // （モジュール rustdoc 参照）。base の `positioner` 規則（absolute）
+        // より詳細度が高く、CSS 記述順（states は最後尾）でも上書きする。
+        .state(
+            "positioner",
+            StateCondition::Attr("data-positioned"),
+            vec![
+                decl("position", "fixed"),
+                decl("top", "0"),
+                decl("left", "0"),
+                decl("margin-top", "0"),
+                decl(
+                    "transform",
+                    "translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0)",
+                ),
             ],
         )
 }
@@ -267,5 +335,70 @@ mod tests {
         // 反映されることを固定する（SSR 静的表示では 10rem へフォールバック）。
         let css = stylesheet();
         assert!(css.contains("min-width: var(--fandhe-reference-width, 10rem);"));
+    }
+
+    #[test]
+    fn positioner_switches_to_fixed_geometry_when_data_positioned_marker_is_present() {
+        // イシュー #663 受け入れ条件: wasm 層が付与する `data-positioned`
+        // マーカーが立っているときのみ、positioner が確定座標（viewport
+        // 座標系の `position: fixed`）へ切り替わることをゴールデンで固定する。
+        let css = stylesheet();
+        assert!(css.contains(
+            "[data-scope=\"menu\"][data-part=\"positioner\"][data-positioned] {\n  \
+             position: fixed;\n  \
+             top: 0;\n  \
+             left: 0;\n  \
+             margin-top: 0;\n  \
+             transform: translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0);\n\
+             }\n"
+        ));
+    }
+
+    #[test]
+    fn positioner_base_rule_keeps_static_ssr_fallback_geometry() {
+        // イシュー #663: `data-positioned` マーカー不在（SSR 静的表示・wasm
+        // 未稼働）では従来どおり absolute + ローカル座標系のままであることの
+        // 回帰固定（`positioner_is_absolutely_positioned_for_overlay` と
+        // 重複しない観点として `top: 100%;` も確認する）。
+        let css = stylesheet();
+        assert!(css.contains("position: absolute;"));
+        assert!(css.contains("top: 100%;"));
+    }
+
+    #[test]
+    fn arrow_consumes_fandhe_arrow_geometry_css_vars_and_arrow_tip_is_declared() {
+        // イシュー #663 受け入れ条件: arrow はマーカー切り替え不要で
+        // `--fandhe-arrow-x`/`--fandhe-arrow-y` を変数フォールバックのみで
+        // 消費することを固定する（モジュール rustdoc 参照）。arrow-tip は
+        // 座標変数を持たない（arrow の子として相対配置される装飾要素）ため、
+        // base 規則が登録されていることのみ確認する。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="menu"][data-part="arrow"]"#));
+        assert!(css.contains("left: var(--fandhe-arrow-x, 50%);"));
+        assert!(css.contains("top: var(--fandhe-arrow-y, 0);"));
+        assert!(css.contains(r#"[data-scope="menu"][data-part="arrow-tip"]"#));
+    }
+
+    #[test]
+    fn position_geometry_var_references_never_lack_an_explicit_fallback() {
+        // fail-closed 回帰（イシュー #663 §5 手順 6）: 本イシューが導入する
+        // 位置ジオメトリ変数（`--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-*`）
+        // への参照はすべて明示フォールバック値を持つ（裸の `var(--x)` 禁止）。
+        // 変数未定義（SSR・wasm 失敗時）でも表示が壊れないことを保証する
+        // （テーマトークン系の `--fandhe-color-*` 等はフォールバック不要の
+        // 常時定義済み変数のため対象外とする）。
+        let css = stylesheet();
+        for marker in ["var(--fandhe-x", "var(--fandhe-y", "var(--fandhe-arrow-"] {
+            for (idx, _) in css.match_indices(marker) {
+                let close = css[idx..]
+                    .find(')')
+                    .expect("every var( occurrence must be closed within the stylesheet");
+                let inside = &css[idx + "var(".len()..idx + close];
+                assert!(
+                    inside.contains(','),
+                    "var() reference without an explicit fallback found: var({inside})"
+                );
+            }
+        }
     }
 }
