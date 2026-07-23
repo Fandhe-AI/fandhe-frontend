@@ -21,6 +21,7 @@ use fandhe_frontend_headless_ui::select::Select;
 use fandhe_frontend_headless_ui::state::SingleSelect;
 use fandhe_frontend_headless_ui::{collapsible, dialog, radio_group, select, Dialog, RadioGroup};
 use fandhe_frontend_wasm_full::headless::wire_headless_component;
+use fandhe_frontend_wasm_full::headless_select::wire_select_value_text;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen_test::*;
@@ -534,4 +535,274 @@ fn radio_group_item_data_value_xss_payload_click_does_not_produce_script_element
     );
     assert!(!rendered.contains("<script>alert(1)</script>"));
     assert!(rendered.contains("&lt;script&gt;"));
+}
+
+// --- イシュー #642: Select value-text のクライアント側同期 ---
+//
+// `select::value_text` の SSR 出力に付与された `data-bind-text` マーカー
+// （`fandhe_frontend_headless_ui::select::VALUE_TEXT_FIELD`）を頼りに、
+// `wire_select_value_text` が select/deselect dispatch 後にラベルを再同期
+// することを実ブラウザ上で固定する。
+
+const SELECT_PLACEHOLDER: &str = "Select a framework";
+
+/// value-text 同期テスト共通の Select マークアップを組み立てる
+/// （trigger + value_text(placeholder) + clear-trigger、content 配下に
+/// item-text 付き item を 2 個）。
+fn build_select_with_value_text_html(items: &[(&str, &str)]) -> String {
+    let open_state = fandhe_frontend_headless_ui::state::OpenState::Closed;
+    let item_nodes = items
+        .iter()
+        .map(|(value, label)| {
+            select::item(
+                open_state,
+                false,
+                false,
+                value,
+                None,
+                vec![],
+                vec![select::item_text(
+                    None,
+                    vec![],
+                    vec![fandhe_frontend_core::text(*label)],
+                )],
+            )
+        })
+        .collect::<Vec<_>>();
+
+    fandhe_frontend_core::render(&select::root(
+        open_state,
+        vec![],
+        vec![
+            select::control(
+                open_state,
+                vec![],
+                vec![
+                    select::trigger(
+                        open_state,
+                        false,
+                        None,
+                        None,
+                        vec![],
+                        vec![fandhe_frontend_core::text("Open")],
+                    ),
+                    select::value_text(
+                        true,
+                        vec![],
+                        vec![fandhe_frontend_core::text(SELECT_PLACEHOLDER)],
+                    ),
+                    select::clear_trigger(vec![], vec![fandhe_frontend_core::text("Clear")]),
+                ],
+            ),
+            select::positioner(
+                open_state,
+                vec![],
+                vec![select::content(
+                    open_state,
+                    None,
+                    None,
+                    None,
+                    vec![],
+                    item_nodes,
+                )],
+            ),
+        ],
+    ))
+}
+
+#[wasm_bindgen_test]
+fn select_item_click_updates_value_text_label() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-select-value-text-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let html = build_select_with_value_text_html(&[("vue", "Vue"), ("react", "React")]);
+    container.set_inner_html(&html);
+    let root = container
+        .first_element_child()
+        .expect("select root must exist");
+
+    let value_text_el = root
+        .query_selector(r#"[data-part="value-text"]"#)
+        .expect("query_selector must not fail")
+        .expect("value-text element must exist");
+    assert!(value_text_el.has_attribute("data-placeholder-shown"));
+
+    let component = Rc::new(RefCell::new(Select::default()));
+    wire_select_value_text(
+        root.clone(),
+        component.clone(),
+        SELECT_PLACEHOLDER.to_string(),
+    )
+    .expect("wire_select_value_text must not fail");
+
+    let trigger_el = root
+        .query_selector(r#"[data-part="trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("trigger element must exist");
+    dispatch_click(&trigger_el);
+
+    let item_react = root
+        .query_selector(r#"[data-value="react"]"#)
+        .expect("query_selector must not fail")
+        .expect("react item element must exist");
+    dispatch_click(&item_react);
+
+    assert_eq!(component.borrow().selected(), Some("react"));
+    assert_eq!(value_text_el.text_content(), Some("React".to_string()));
+    assert!(
+        !value_text_el.has_attribute("data-placeholder-shown"),
+        "選択が確定したら data-placeholder-shown は除去されること"
+    );
+
+    // マーカー自体は束縛点走査のため維持されたままであること。
+    assert!(value_text_el.has_attribute("data-bind-text"));
+}
+
+#[wasm_bindgen_test]
+fn select_clear_trigger_restores_placeholder_value_text() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-select-clear-value-text-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let html = build_select_with_value_text_html(&[("vue", "Vue")]);
+    container.set_inner_html(&html);
+    let root = container
+        .first_element_child()
+        .expect("select root must exist");
+
+    let component = Rc::new(RefCell::new(Select::default()));
+    wire_select_value_text(
+        root.clone(),
+        component.clone(),
+        SELECT_PLACEHOLDER.to_string(),
+    )
+    .expect("wire_select_value_text must not fail");
+
+    let value_text_el = root
+        .query_selector(r#"[data-part="value-text"]"#)
+        .expect("query_selector must not fail")
+        .expect("value-text element must exist");
+
+    let item_vue = root
+        .query_selector(r#"[data-value="vue"]"#)
+        .expect("query_selector must not fail")
+        .expect("vue item element must exist");
+    dispatch_click(&item_vue);
+    assert_eq!(value_text_el.text_content(), Some("Vue".to_string()));
+
+    let clear_el = root
+        .query_selector(r#"[data-part="clear-trigger"]"#)
+        .expect("query_selector must not fail")
+        .expect("clear-trigger element must exist");
+    dispatch_click(&clear_el);
+
+    assert_eq!(component.borrow().selected(), None);
+    assert_eq!(
+        value_text_el.text_content(),
+        Some(SELECT_PLACEHOLDER.to_string()),
+        "clear-trigger による deselect 後は placeholder 文言へ復帰すること"
+    );
+    assert!(
+        value_text_el.has_attribute("data-placeholder-shown"),
+        "deselect 後は data-placeholder-shown が再付与されること"
+    );
+}
+
+#[wasm_bindgen_test]
+fn select_stale_selected_value_without_matching_item_is_noop_for_value_text() {
+    // 改ざん・欠損入力（選択値に対応する item が root 配下に存在しない）は
+    // 同期を行わない no-op とする（fail-closed）。value-text は SSR 初期
+    // 表現（placeholder）のまま変化しない。
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-select-stale-value-text-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let html = build_select_with_value_text_html(&[("vue", "Vue")]);
+    container.set_inner_html(&html);
+    let root = container
+        .first_element_child()
+        .expect("select root must exist");
+
+    let value_text_el = root
+        .query_selector(r#"[data-part="value-text"]"#)
+        .expect("query_selector must not fail")
+        .expect("value-text element must exist");
+
+    // "svelte" は markup 上のどの item にも存在しない選択値（改ざん想定）。
+    let mut select_state = Select::default();
+    assert!(fandhe_frontend_interactive::dispatch(
+        &mut select_state,
+        "select",
+        "svelte"
+    ));
+    fandhe_frontend_wasm_full::headless_select::sync_select_value_text(
+        &select_state,
+        &root,
+        SELECT_PLACEHOLDER,
+    );
+
+    assert_eq!(
+        value_text_el.text_content(),
+        Some(SELECT_PLACEHOLDER.to_string()),
+        "一致する item が無い選択値では value-text を書き換えないこと"
+    );
+    assert!(value_text_el.has_attribute("data-placeholder-shown"));
+}
+
+#[wasm_bindgen_test]
+fn select_value_text_xss_label_click_does_not_produce_script_element() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "headless-select-value-text-xss-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let payload = "\"><script>alert(1)</script>";
+    let html = build_select_with_value_text_html(&[("evil", payload)]);
+    container.set_inner_html(&html);
+    assert!(
+        container
+            .query_selector("script")
+            .expect("query_selector must not fail")
+            .is_none(),
+        "item-text に XSS ペイロードを含む item の展開時点で script 要素が生成されてはならない"
+    );
+
+    let root = container
+        .first_element_child()
+        .expect("select root must exist");
+
+    let component = Rc::new(RefCell::new(Select::default()));
+    wire_select_value_text(
+        root.clone(),
+        component.clone(),
+        SELECT_PLACEHOLDER.to_string(),
+    )
+    .expect("wire_select_value_text must not fail");
+
+    let item_el = root
+        .query_selector(r#"[data-value="evil"]"#)
+        .expect("query_selector must not fail")
+        .expect("evil item element must exist");
+    dispatch_click(&item_el);
+
+    assert_eq!(component.borrow().selected(), Some("evil"));
+
+    let value_text_el = root
+        .query_selector(r#"[data-part="value-text"]"#)
+        .expect("query_selector must not fail")
+        .expect("value-text element must exist");
+    // `set_text_content` はテキストノードとして書き込むため、選択後も script
+    // 要素が生成されず、テキストとしてリテラルのまま保持されること。
+    assert!(
+        container
+            .query_selector("script")
+            .expect("query_selector must not fail")
+            .is_none(),
+        "value-text 更新後も script 要素が生成されてはならない"
+    );
+    assert_eq!(value_text_el.text_content(), Some(payload.to_string()));
 }
