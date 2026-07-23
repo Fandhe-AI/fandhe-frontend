@@ -943,7 +943,7 @@ mod tests {
 
     impl TempWorkspace {
         fn new(label: &str) -> Self {
-            let root = std::env::temp_dir().join(format!(
+            let root = crate::test_scratch::scratch_root().join(format!(
                 "fw-impact-test-{label}-{}-{}",
                 std::process::id(),
                 std::time::SystemTime::now()
@@ -1480,7 +1480,7 @@ mod tests {
         // ワークスペースルート（`ws.root`）とは兄弟関係にある、真にルート外の
         // ディレクトリにリンク先を用意する（`ws.root` 配下だと "workspace 外" の
         // 検証にならないため）。
-        let outside = std::env::temp_dir().join(format!(
+        let outside = crate::test_scratch::scratch_root().join(format!(
             "fw-impact-test-analyze-symlink-outside-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()

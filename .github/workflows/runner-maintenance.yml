@@ -10,8 +10,10 @@ name: Runner maintenance
 #       常設有無を可視化し、`docs/ci/ci-runner-requirements.md` の依頼内容が
 #       反映されたかどうかの確認に使う）
 #   (2) atomic install 化（PR #291）以前に $HOME/.local/bin へ直接導入された
-#       旧バイナリ・強制終了で残った一時ディレクトリのクリーンアップ
-#       （cleanup=false の場合は列挙のみの dry-run）
+#       旧バイナリ・強制終了で残った一時ディレクトリ・ci.yml の
+#       `template-app-wasm-smoke` ジョブが `RUNNER_TEMP` へ移設（イシュー
+#       #659）される前に `/tmp` 固定パスへ残置していた旧フィクスチャの
+#       クリーンアップ（cleanup=false の場合は列挙のみの dry-run）
 #
 # ci.yml / musl-smoke.yml / image-size.yml / deps-check.yml / update-external.yml
 # 側の存在チェック付きインストール（安全網）はこのワークフローの追加とは独立に
@@ -238,5 +240,51 @@ jobs:
                 echo "- would remove (dry-run, >24h old): ${stale}" >> "$GITHUB_STEP_SUMMARY"
               fi
             done
+          done
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+      # ci.yml の `template-app-wasm-smoke` ジョブは元々フィクスチャ専用
+      # CARGO_TARGET_DIR・生成プロジェクトを `/tmp` 固定パスへ直接展開しており、
+      # ジョブ終了後も削除されず runner インスタンス上に恒久蓄積していた
+      # （PR #648／イシュー #637 で発見・out-of-scope として記録）。イシュー
+      # #659 で当該ジョブは `RUNNER_TEMP`（ジョブ前後で runner が自動清掃する
+      # 領域）へ移設済みだが、(a) 過去実行が残した旧 `/tmp` 固定パスの残骸、
+      # (b) 旧 ci.yml のままの open ブランチ CI が引き続き旧パスへ書き込む分は
+      # 本ステップでの回収が必要。対象は固定パス 2 件のみに限定し（ワイルド
+      # カード削除はしない。上記ステップと同じ安全策）、直前ステップと同じ
+      # 24 時間 mtime ガードを適用する（並列実行中の他 CI ジョブが当該旧パスへ
+      # 書き込み中の場合に誤って壊さないため）。
+      - name: "cleanup: legacy /tmp fixture dirs (template-app-wasm-smoke, issue #659)"
+        env:
+          CLEANUP: ${{ inputs.cleanup }}
+        run: |
+          set -uo pipefail
+          LEGACY_PATHS="/tmp/fandhe-frontend-template-app-wasm-smoke-target /tmp/fandhe-frontend-template-app-wasm-smoke"
+          {
+            echo "### Legacy /tmp fixture dirs cleanup (shard ${{ matrix.shard }}, cleanup=${CLEANUP})"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+          for path in ${LEGACY_PATHS}; do
+            if [ ! -e "${path}" ]; then
+              echo "- ${path}: not present" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            # ディレクトリ自体が 24 時間以内に更新されていれば、実行中の CI
+            # ジョブが使用中の可能性があるため対象から除外する（時間ガード）。
+            recent="$(find "${path}" -maxdepth 0 -mmin -1440 2>/dev/null || true)"
+            if [ -n "${recent}" ]; then
+              echo "- ${path}: skipped (updated within 24h, possibly in use)" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            size="$(du -sh "${path}" 2>/dev/null | cut -f1 || echo unknown)"
+            if [ "${CLEANUP}" = "true" ]; then
+              if rm -rf "${path}"; then
+                echo "- removed: ${path} (size was ${size})" >> "$GITHUB_STEP_SUMMARY"
+              else
+                echo "- failed to remove: ${path} (size ${size})" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            else
+              echo "- would remove (dry-run, >24h old): ${path} (size ${size})" >> "$GITHUB_STEP_SUMMARY"
+            fi
           done
           echo "" >> "$GITHUB_STEP_SUMMARY"

@@ -400,17 +400,25 @@ fn page_with_attr_payload(payload: &str) -> fandhe_frontend_core::Node {
 
 /// SSG 経路（実ファイル書き出し）を再現するテストヘルパー。
 ///
-/// `render()` 出力を `std::env::temp_dir()` 配下のプロセス ID + テスト名
-/// 別サブディレクトリに `index.html` として書き出し、読み戻して返す。
-/// パストラバーサル防止のため、外部入力からパスを組み立てず固定パターン
-/// のみを使用する。並列テスト・並列イシュー実行との衝突をプロセス ID で
-/// 回避し、終了時にディレクトリを削除する。
+/// `render()` 出力を `<target>/tmp`（`env!("CARGO_TARGET_TMPDIR")`、cargo が
+/// 統合テストバイナリの**コンパイル時のみ**設定する、Cargo Book）配下の
+/// プロセス ID + テスト名別サブディレクトリに `index.html` として書き出し、
+/// 読み戻して返す。パストラバーサル防止のため、外部入力からパスを組み立てず
+/// 固定パターンのみを使用する。並列テスト・並列イシュー実行との衝突を
+/// プロセス ID で回避し、終了時にディレクトリを削除する。
 ///
 /// core は外部依存ゼロ（`core/Cargo.toml` 参照）のため `tempfile` 等の
-/// クレートは使わず、`std::fs`/`std::env::temp_dir` のみで実装する。
-/// テストコードのため `unwrap()`/`expect()` の使用を許容する。
+/// クレートは使わず、`std::fs`/`env!("CARGO_TARGET_TMPDIR")` のみで実装する。
+/// `std::env::temp_dir()`（= `/tmp`）へは実行時フォールバックしない
+/// （self-hosted runner の tmpfs を恒常的に消費していたイシュー #637 の
+/// 事実誤認の再発防止、#658）。テストコードのため `unwrap()`/`expect()`
+/// の使用を許容する。
 fn ssg_write_and_read_back(html: &str, test_name: &str) -> String {
-    let dir = std::env::temp_dir().join(format!(
+    let root = std::env::var("CARGO_TARGET_TMPDIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
+    let _ = std::fs::create_dir_all(&root);
+    let dir = root.join(format!(
         "fandhe-frontend-xss-ssg-{}-{}",
         std::process::id(),
         test_name

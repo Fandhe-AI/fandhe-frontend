@@ -1494,32 +1494,38 @@ jobs:
 
       - name: fw new --template app（フィクスチャ専用 CARGO_TARGET_DIR）
         # 共有 CARGO_TARGET_DIR との衝突回避は `.claude/rules/ci.md`
-        # 「Self-hosted 環境の前提」に従う。
+        # 「Self-hosted 環境の前提」に従う。フィクスチャ専用パスは `/tmp` 固定では
+        # なく `RUNNER_TEMP`（`${{ runner.temp }}`）配下に置く。runner がジョブ
+        # 前後で自動清掃するため、`/tmp` 固定パスのようにジョブ間で残置が
+        # 恒久蓄積しない（イシュー #659。PR #648／イシュー #637 で是正した
+        # テストコード側 `env!("CARGO_TARGET_TMPDIR")` 方針と対をなす。
+        # `docs-site.yml` の RUNNER_TEMP 運用と同一パターン）。
         env:
-          CARGO_TARGET_DIR: /tmp/fandhe-frontend-template-app-wasm-smoke-target
+          CARGO_TARGET_DIR: ${{ runner.temp }}/fandhe-frontend-template-app-wasm-smoke-target
         run: |
           set -euo pipefail
-          rm -rf /tmp/fandhe-frontend-template-app-wasm-smoke
+          rm -rf "${RUNNER_TEMP}/fandhe-frontend-template-app-wasm-smoke"
           cargo run --locked -p fandhe-frontend-cli --bin fw -- new template-app-wasm-smoke \
-            --template app --dir /tmp/fandhe-frontend-template-app-wasm-smoke
+            --template app --dir "${RUNNER_TEMP}/fandhe-frontend-template-app-wasm-smoke"
 
       - name: tools/wasm/build.sh の実行
         # 直前ステップと同じくフィクスチャ専用 CARGO_TARGET_DIR を明示指定する
         # （`.claude/rules/ci.md` 「Self-hosted 環境の前提」）。未指定だと
         # self-hosted runner の共有 CARGO_TARGET_DIR=/cargo-target が使われ、
         # build.sh が期待する `wasm/target/...` とパスが一致しなくなる
-        # （イシュー #411 CI 失敗の原因）。
+        # （イシュー #411 CI 失敗の原因）。配置先を `RUNNER_TEMP` 配下にする
+        # 理由は直前ステップのコメント（イシュー #659）を参照。
         env:
-          CARGO_TARGET_DIR: /tmp/fandhe-frontend-template-app-wasm-smoke-target/wasm-build
+          CARGO_TARGET_DIR: ${{ runner.temp }}/fandhe-frontend-template-app-wasm-smoke-target/wasm-build
         run: |
           set -euo pipefail
-          cd /tmp/fandhe-frontend-template-app-wasm-smoke/template-app-wasm-smoke
+          cd "${RUNNER_TEMP}/fandhe-frontend-template-app-wasm-smoke/template-app-wasm-smoke"
           ./tools/wasm/build.sh
 
       - name: 生成物の存在・mount_csr/hydrate エクスポートの検証
         run: |
           set -euo pipefail
-          project="/tmp/fandhe-frontend-template-app-wasm-smoke/template-app-wasm-smoke"
+          project="${RUNNER_TEMP}/fandhe-frontend-template-app-wasm-smoke/template-app-wasm-smoke"
           js="${project}/static/wasm/fandhe_frontend_wasm_client.js"
           wasm="${project}/static/wasm/fandhe_frontend_wasm_client_bg.wasm"
           if [ ! -f "${js}" ]; then
@@ -2126,3 +2132,58 @@ jobs:
             echo "::error::check-version-bump failed for a reason other than a detected missing version bump (e.g. a 'cargo'/'git' command failure such as an unfetched base ref) or an already-classified environment error. See the log above for details; this is likely a runner/checkout issue rather than a version-bump omission."
           fi
           exit 1
+
+  # イシュー #657: workspace 内メンバー間の `path + version` 併記依存につい
+  # て、依存元の `version = "..."` 要求が依存先の現行 version へ追随してい
+  # るかを検知するジョブ（`check_dep_versions` モジュール）。headless-ui
+  # 0.1.0 → 0.2.0 バンプ時、依存元（pre-styled-ui / wasm-full / xtask）の
+  # `version = "..."` 追随が sed による手動一括変更を要した実績
+  # （check-version-bump の是正メッセージによる注意喚起のみでは機械検知
+  # 手段がなかった、PR #647 out-of-scope）が動機。`cargo metadata --no-deps`
+  # のみで完結しネットワーク照会を一切行わないため、version-bump-guard と
+  # 異なり push・PR 双方（ワークフロー全体のトリガーに従う）で常時実行する。
+  dep-version-check:
+    name: "check-dep-versions: workspace 内 path+version 併記依存の version 追随検知（issue #657）"
+    runs-on: self-hosted
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        # actions/checkout v4.2.2（他ジョブと同一 SHA 固定）。docs/spec サブ
+        # モジュール・全ブランチ履歴は本チェックに不要なため取得しない
+        # （cargo metadata --no-deps のみで完結し git diff は使わない）。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        # 他ジョブと同一 SHA 固定。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+
+      - name: Run xtask check-dep-versions
+        # xtask check-dep-versions の終了コードをそのまま CI の成否に伝播
+        # させる（fail-closed）。set -o pipefail を明示し、tee 経由でも
+        # cargo run の終了コードが失われないようにする。`--locked` はこの
+        # 外側の cargo run が Cargo.lock を書き換えないことを保証する
+        # （deps-check/loc-check ジョブと同一の理由）。既定（--fix なし）は
+        # 検知のみで、書き換えはローカル用途に限定する。
+        run: |
+          set -o pipefail
+          cargo run --locked -p xtask -- check-dep-versions | tee dep-version-check.log
+
+      - name: Publish dep-version-check summary
+        if: always()
+        # format_report（crates/xtask/src/check_dep_versions.rs）の 1 行
+        # サマリ契約「dep-version-check: crate=<name> dep=<name>
+        # kind=<normal|dev|build> req=<req> actual=<v> result=<PASS|FAIL>」を
+        # Step Summary に転記する。この契約はテストで固定される
+        # （crates/xtask/tests/cli_check_dep_versions.rs）。
+        run: |
+          {
+            echo '## dep-version-check (issue #657)'
+            echo '```'
+            grep '^dep-version-check:' dep-version-check.log || echo 'dep-version-check: no summary line found'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

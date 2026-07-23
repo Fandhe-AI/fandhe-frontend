@@ -23,6 +23,19 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
+/// 統合テストのスクラッチ基点。`CARGO_TARGET_TMPDIR` は cargo が統合テスト
+/// バイナリの**コンパイル時のみ**設定する（Cargo Book）ため `env!` で確定し、
+/// 実行時 env による明示上書きのみ許容する。`/tmp` へは一切フォールバック
+/// しない（イシュー #637 の事実誤認の再発防止、#658、`cli/tests/support/mod.rs`
+/// と同一パターン）。
+fn scratch_root() -> PathBuf {
+    let root = std::env::var("CARGO_TARGET_TMPDIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
+    let _ = std::fs::create_dir_all(&root);
+    root
+}
+
 fn workflow_path() -> PathBuf {
     workspace_root().join("templates/default/.github/workflows/deny.yml")
 }
@@ -409,7 +422,7 @@ fn cargo_deny_check_blocks_banned_dependency_when_available() {
     );
 
     // プロセス ID を付与し、並列テスト実行時の一時ファイル名衝突を避ける。
-    let temp_path = std::env::temp_dir().join(format!(
+    let temp_path = scratch_root().join(format!(
         "xtask-template-deny-workflow-negative-test-deny-{}.toml",
         std::process::id()
     ));

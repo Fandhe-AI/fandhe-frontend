@@ -609,7 +609,7 @@ mod tests {
     use fandhe_frontend_core::render;
 
     /// テスト専用の一時ディレクトリ。`Drop` でベストエフォート削除する。
-    /// 外部クレート（`tempfile` 等）を追加せず `std::env::temp_dir()` +
+    /// 外部クレート（`tempfile` 等）を追加せず `crate::test_scratch::scratch_root()` +
     /// プロセス固有サフィックスで代用する（REQ-3: 外部依存ゼロを維持する。
     /// `crates/server/tests/support/temp_dir.rs` と同方針）。
     struct TempDir(std::path::PathBuf);
@@ -620,7 +620,7 @@ mod tests {
                 .duration_since(std::time::UNIX_EPOCH)
                 .map(|d| d.as_nanos())
                 .unwrap_or(0);
-            let path = std::env::temp_dir().join(format!(
+            let path = crate::test_scratch::scratch_root().join(format!(
                 "fandhe-frontend-docs-site-nav-test-{tag}-{}-{unique}",
                 std::process::id()
             ));
