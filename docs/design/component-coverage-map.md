@@ -388,12 +388,12 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
-| `.agents/skills/chakra-ui/references/components/feedback/progress.md` | Progress (linear) | Progress | progress | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装（circular 対応の #763 とはスコープを分離、follow-up イシュー起票を検討） |
+| `.agents/skills/chakra-ui/references/components/feedback/progress.md` | Progress (linear) | Progress | progress | progress | 実装済み | headless+styled（root）実装済み。linear（Track/Range）用 styled ラッパーは #763 とスコープを分離した対応表側の未実装事項（follow-up イシュー起票を検討） |
 | `.agents/skills/chakra-ui/references/components/feedback/alert.md` | — | Alert | — | alert | 実装済み | pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/feedback/spinner.md` | — | Spinner | — | spinner | 実装済み | pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/feedback/toast.md` | Toast | Toast | — | — | 実装対象 | #760 |
 | `.agents/skills/chakra-ui/references/components/feedback/progress-circle.md` | Progress (circular) | ProgressCircle | progress | progress | 実装済み | #763（既存 progress mod を circular 対応へ拡張。headless は #600 で実装済み、pre-styled ラッパーを #763 で追加） |
-| `.agents/skills/chakra-ui/references/components/feedback/skeleton.md` | — | Skeleton | — | — | 実装対象 | #764 |
+| `.agents/skills/chakra-ui/references/components/feedback/skeleton.md` | — | Skeleton | — | skeleton | 実装済み | #764。pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/feedback/status.md` | — | Status | — | — | 実装対象 | #765 |
 | `.agents/skills/chakra-ui/references/components/feedback/empty-state.md` | — | EmptyState | — | — | 実装対象 | #765 |
 
