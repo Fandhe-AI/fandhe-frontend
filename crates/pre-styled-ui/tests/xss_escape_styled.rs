@@ -47,6 +47,7 @@ use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode};
 use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind};
+use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingItemFlags};
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps};
@@ -898,6 +899,78 @@ fn rating_group_styled_root_and_reexported_parts_are_escaped_for_all_payloads() 
             payload,
             &html,
             "rating_group::hidden_input name コンテキスト",
+        );
+    }
+}
+
+/// QrCode（イシュー #774）: styled `root` の呼び出し側 `attrs`・`class`、
+/// 選択的再エクスポートした `overlay` の children・`frame` の `aria_label`
+/// の各所で既定エスケープ（REQ-1）が貫通することを固定する。`value`（符号化
+/// 対象文字列）そのものは出力へ一切漏出しないこと（`pattern` の `d` 属性値が
+/// 固定文字集合に閉じること）も headless 層と同型に確認する
+/// （`crates/headless-ui/tests/xss_escape.rs::qr_code_value_never_leaks_into_output_for_all_payloads`
+/// と対になる styled 層側の固定）。
+#[test]
+fn qr_code_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&qr_code::root(
+            Size::Md,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "qr_code::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&qr_code::root(Size::Md, vec![("class", payload)], vec![]));
+        assert!(
+            !html.contains(payload),
+            "qr_code::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "qr_code::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-qr-code--"),
+            "qr_code::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした overlay の children 経路。
+        let html = render(&qr_code::overlay(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "qr_code::overlay children コンテキスト");
+
+        // value 自体は出力へ一切漏出しない（headless 層と同型の不変条件）。
+        let matrix = qr_code::encode(payload, qr_code::ErrorCorrectionLevel::L)
+            .expect("payload はいずれもバージョン 40 容量内に収まる");
+        let frame_html = render(&qr_code::frame(
+            &matrix,
+            qr_code::DEFAULT_QUIET_ZONE,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &frame_html,
+            "qr_code::frame aria_label コンテキスト",
+        );
+
+        let pattern_html = render(&qr_code::pattern(
+            &matrix,
+            qr_code::DEFAULT_QUIET_ZONE,
+            vec![],
+        ));
+        assert!(
+            !pattern_html.contains(payload),
+            "qr_code::pattern の d 属性値へ value が漏出している: payload={payload:?}, html={pattern_html}"
         );
     }
 }

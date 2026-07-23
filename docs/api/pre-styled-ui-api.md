@@ -13,7 +13,7 @@ pre-styled UI コンポーネント層、親トラッキング #520・骨格新�
 対応する REQ / TASK は `docs/spec/` に存在しない（要件提案は
 fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 参照）。
 
-## 2. 実装状況（v0.16.0 時点、2026-07-23 更新）
+## 2. 実装状況（v0.17.0 時点、2026-07-23 更新）
 
 **記載方針**: 実装済み API の正は `crates/pre-styled-ui/src/lib.rs` 冒頭の
 rustdoc および各モジュール冒頭の rustdoc とする。本節はモジュール一覧の
@@ -33,8 +33,9 @@ styled ラッパー追加（#755）・Carousel styled ラッパー追加（#754�
 styled ラッパー追加（#758）・Link/LinkOverlay/NavList styled ラッパー追加
 （#756）・HoverCard styled ラッパー追加（#759）・ToggleTip styled ラッパー
 追加（#761）・Progress circular 対応追加（#763）・Skeleton 静的部品追加
-（#764）・Status/EmptyState 静的部品追加（#765、いずれも公開時点未反映）を
-経て 48 の公開モジュールを持つ。内訳は次の通り。
+（#764）・Status/EmptyState 静的部品追加（#765）・QrCode styled ラッパー
+追加（#774、いずれも公開時点未反映）を経て 49 の公開モジュールを持つ。
+内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -70,6 +71,7 @@ styled ラッパー追加（#758）・Link/LinkOverlay/NavList styled ラッパ�
 | headless ラッパー | `toggle_tip` | #761（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。「見た目は Tooltip・挙動は Popover」の変種であり、`content` の視覚系は `tooltip` と同一値。状態機械は `state::Disclosure`） |
 | headless ラッパー | `progress` | #763（headless の値状態機械 `Progress`（#544/#600）が持つ Circle/CircleTrack/CircleRange（SVG）へ CSS のみ追加提供。`Progress` 型はあえて再エクスポートせず、`size` variant クラス付与のため styled `root` のみを新設する（`dialog`/`switch` と同型の判断）。circle 自身は headless の inherent メソッドをそのまま呼ばせる（クラス不要）。indeterminate 時の回転アニメーションは `[data-part="circle"][data-state="indeterminate"]` セレクタ + `@keyframes`（`spinner` と同型）で提供。linear（Track/Range）用の styled ラッパーは対応表（`docs/design/component-coverage-map.md`）が本イシューと切り分けたスコープ外） |
 | 状態機械を要しない静的部品 | `status` / `empty_state` | #765（§4h 参照。`status` は `size`/`color-palette` の 2 軸、`empty_state` は `card` と同型の中立コンテナで `color-palette` 軸は非提供） |
+| headless ラッパー | `qr_code` | #774（headless の外部依存ゼロ QR Model 2 エンコーダ（`crates/headless-ui/src/qr_code.rs`）へ CSS のみ追加提供。`size` variant のみ・`color-palette` 軸は非提供（前景/背景色は固定トークンに閉じ、低コントラスト組み合わせを誘発しないための意図的判断、`qr_code` モジュール doc「`size` variant」節参照）。`Frame`/`Pattern`/`Overlay` は headless 自由関数をそのまま選択的に再エクスポートする） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
