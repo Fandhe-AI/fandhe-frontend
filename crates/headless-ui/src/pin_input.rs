@@ -220,6 +220,12 @@ pub fn input<'a>(
     if otp {
         merged.push(("autocomplete", "one-time-code"));
     }
+    if disabled {
+        // ネイティブ disabled 属性（switch/checkbox/radio_group/field と
+        // 同様、フォーカス・編集・フォーム送信を実際に無効化するのは
+        // data-disabled ではなくこちら）。
+        merged.push(("disabled", ""));
+    }
     merged.extend(data_complete(complete));
     merged.extend(data_disabled(disabled));
     merged.extend(attrs);
@@ -238,6 +244,11 @@ pub fn hidden_input<'a>(
 ) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> =
         vec![("type", "hidden"), ("name", name), ("value", value)];
+    if disabled {
+        // disabled な hidden input はフォーム送信対象から除外する
+        // （input パーツと同じ理由。data-disabled のみでは submit を防げない）。
+        merged.push(("disabled", ""));
+    }
     merged.extend(data_disabled(disabled));
     merged.extend(attrs);
     ANATOMY.part("hidden-input", "input", merged, Vec::new())
@@ -454,8 +465,16 @@ impl Component for PinInput {
                 if !chars.iter().all(|&c| self.kind.is_valid_char(c)) {
                     return;
                 }
-                for (i, c) in chars.iter().enumerate() {
-                    self.values[i] = c.to_string();
+                for (i, slot) in self.values.iter_mut().enumerate() {
+                    if let Some(c) = chars.get(i) {
+                        *slot = c.to_string();
+                    } else {
+                        // ペースト文字列が既存値より短い場合、末尾に残る旧桁を
+                        // クリアする（末尾の桁がペースト前の入力済み値のまま
+                        // 残留し value()/is_complete() が実際のペースト内容と
+                        // 食い違うのを防ぐ）。
+                        slot.clear();
+                    }
                 }
                 let filled = chars.len();
                 self.focused = Some(if filled < self.values.len() {
@@ -732,6 +751,25 @@ mod tests {
         ));
         assert!(html.contains(r#"data-disabled="""#));
         assert!(html.contains(r#"data-complete="""#));
+        // ネイティブ disabled 属性が出力されないと、無効化した PinInput が
+        // フォーカス可能・編集可能なままになってしまう（イシュー #739 PR #784 指摘）。
+        assert!(html.contains(r#"disabled="""#));
+    }
+
+    #[test]
+    fn input_disabled_false_does_not_output_native_disabled() {
+        let html = render(&input(
+            0,
+            4,
+            "1",
+            PinInputKind::Numeric,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+        ));
+        assert!(!html.contains("disabled"));
     }
 
     #[test]
@@ -749,6 +787,9 @@ mod tests {
     fn hidden_input_disabled_true_outputs_data_disabled() {
         let html = render(&hidden_input("otp", "", true, vec![]));
         assert!(html.contains(r#"data-disabled="""#));
+        // hidden input も disabled ならフォーム送信対象から除外されなければ
+        // ならない（ネイティブ disabled 属性、イシュー #739 PR #784 指摘）。
+        assert!(html.contains(r#"disabled="""#));
     }
 
     // --- Anatomy::part fail-closed 回帰 ---
@@ -886,6 +927,22 @@ mod tests {
         assert_eq!(p.digit(1), "2");
         assert_eq!(p.digit(2), "");
         assert_eq!(p.focused_index(), Some(2));
+    }
+
+    #[test]
+    fn paste_action_shorter_than_existing_clears_stale_trailing_digits() {
+        // 既存値がフル入力済みの状態で、より短いペーストを行った場合に
+        // 末尾へ旧桁が残留しないことを確認する（イシュー #739 PR #784 指摘）。
+        let mut p = PinInput::new(4, PinInputKind::Numeric);
+        assert!(dispatch(&mut p, "paste", "1234"));
+        assert!(p.is_complete());
+        assert!(dispatch(&mut p, "paste", "56"));
+        assert_eq!(p.value(), "56");
+        assert_eq!(p.digit(0), "5");
+        assert_eq!(p.digit(1), "6");
+        assert_eq!(p.digit(2), "");
+        assert_eq!(p.digit(3), "");
+        assert!(!p.is_complete());
     }
 
     #[test]
