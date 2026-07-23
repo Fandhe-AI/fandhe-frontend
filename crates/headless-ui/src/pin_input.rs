@@ -63,6 +63,7 @@
 //!   OTP をサーバー側で初期値としてプレフィルする用途には使わないこと。
 
 use crate::anatomy::{anatomy, Anatomy};
+use crate::data_attrs::data_disabled;
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{codec, Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 
@@ -74,11 +75,6 @@ const ANATOMY: Anatomy = anatomy("pin-input");
 /// PinInput 固有の語彙であるため、ここに閉じて一元管理する。
 fn data_complete(complete: bool) -> Option<(&'static str, &'static str)> {
     complete.then_some(("data-complete", ""))
-}
-
-/// `data-disabled` 存在属性。[`data_complete`] と同じ規約。
-fn data_disabled(disabled: bool) -> Option<(&'static str, &'static str)> {
-    disabled.then_some(("data-disabled", ""))
 }
 
 /// PinInput が受け付ける文字種別。`inputmode` 属性値・文字検証の両方を決める。
