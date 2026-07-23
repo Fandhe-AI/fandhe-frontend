@@ -13,7 +13,7 @@ pre-styled UI コンポーネント層、親トラッキング #520・骨格新�
 対応する REQ / TASK は `docs/spec/` に存在しない（要件提案は
 fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 参照）。
 
-## 2. 実装状況（v0.11.0 時点、2026-07-23 更新）
+## 2. 実装状況（v0.12.0 時点、2026-07-23 更新）
 
 **記載方針**: 実装済み API の正は `crates/pre-styled-ui/src/lib.rs` 冒頭の
 rustdoc および各モジュール冒頭の rustdoc とする。本節はモジュール一覧の
@@ -28,8 +28,9 @@ NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー�
 追加（#742）・SegmentGroup styled ラッパー追加（#743）・TagsInput styled
 ラッパー追加（#744）・Toggle/ToggleGroup styled ラッパー追加（#746）・
 CheckboxCard/RadioCard styled バリエーション追加（#747）・Combobox styled
-ラッパー追加（#749）・Breadcrumb styled ラッパー追加（#755、いずれも公開
-時点未反映）を経て 35 の公開モジュールを持つ。内訳は次の通り。
+ラッパー追加（#749）・Breadcrumb styled ラッパー追加（#755）・Link/
+LinkOverlay/NavList styled ラッパー追加（#756、いずれも公開時点未反映）を
+経て 38 の公開モジュールを持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -57,6 +58,7 @@ CheckboxCard/RadioCard styled バリエーション追加（#747）・Combobox s
 | headless ラッパー | `tree_view` | #753（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。branch のインデントは CSS custom property（`--fandhe-tree-view-indent`）で表現し、DOM ネストにより深さ分が自然に累積する） |
 | headless ラッパー | `pagination` | #751（`size`/`color-palette` 両軸提供。headless-ui 側の保留解除は #716 → #751） |
 | headless ラッパー | `breadcrumb` | #755（`docs/api/headless-ui-api.md` §4b の追加候補消化。状態機械なし。`size`/`BreadcrumbVariant`（`link` の下線表示切り替え）の 2 軸 variant を root のみへ付与し、`link` への伝搬は root スコープ CSS custom property の継承で行う） |
+| headless ラッパー | `link` / `link_overlay` / `nav_list` | #756（`docs/api/headless-ui-api.md` §4b 追加候補・最優先候補の消化。状態機械なし。`link_overlay` は `::before` 疑似要素の代わりに `overlay` 自身を `position: absolute; inset: 0;` で展開する。`nav_list` は `fandhe-frontend-docs-site::nav.rs::sidebar` が直接使う想定のため、`root` 以外（`heading`/`list`/`item`/`link`）は headless 自由関数をそのまま選択的に再エクスポートする） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
@@ -434,6 +436,8 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | popover / tooltip | 提供しない | 提供しない | 方針確定 |
 | tree-view | 提供しない | 提供しない | 実装済み（#753、popover/tooltip と同型の判断） |
 | breadcrumb | ✓ | – (`BreadcrumbVariant`: `link` の下線表示切り替え) | 実装済み（#755。アクセント色による選択・チェック状態を示す部品ではないため color-palette は非提供） |
+| link | 提供しない | 提供しない | 実装済み（#756。`LinkVariant`（下線表示切り替え）のみの単軸 variant。インラインテキストリンクは寸法・強調色の variant 対象外） |
+| link-overlay / nav-list | 提供しない | 提供しない | 実装済み（#756。構造・意味論部品のため variant 軸を持たない） |
 
 tabs/accordion/dialog/menu/select の実装詳細（イシュー #729）:
 

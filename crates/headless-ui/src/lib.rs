@@ -278,6 +278,21 @@
 //!   意味論ナビであり状態機械を持たない。現在位置は `aria-current="page"`
 //!   （[`aria::AriaCurrent`]）+ `data-current`（[`data_attrs::data_current`]）
 //!   の併用で表現する。
+//! - [`mod@link`]: `root`（`a`）1 anatomy パーツ（イシュー #756、
+//!   `docs/api/headless-ui-api.md` §4b の追加候補消化）。`external`
+//!   オプトインは `target="_blank"` + `rel="noopener noreferrer"` を不可分に
+//!   付与する（reverse tabnabbing 対策）。`current` は [`mod@breadcrumb`] と
+//!   同じ `aria-current`/`data-current` 語彙を共有する。
+//! - [`mod@link_overlay`]: `root`（`div`）/ `overlay`（`a`）の 2 anatomy
+//!   パーツ（イシュー #756）。chakra-ui の LinkBox/LinkOverlay パターンに
+//!   倣い、カード全面クリック化を提供する。`::before` 疑似要素の代わりに
+//!   `overlay` 自身を `position: absolute; inset: 0;` で展開する方式を採る
+//!   （styled 層の CSS 責務、モジュール doc「全面拡張の実装方針」参照）。
+//! - [`mod@nav_list`]: `root`（`nav`）/ `heading`（`h2`）/ `list`（`ul`）/
+//!   `item`（`li`）/ `link`（`a`）の 5 anatomy パーツ（イシュー #756、#716
+//!   最優先候補）。`docs/design/docs-site-styled-ui-adoption.md` §3.1 が
+//!   指摘した「`menu` ロールの文書ナビへの誤転用」を解消するため、**`role`
+//!   を一切付与しない**（モジュール doc 参照）。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -294,7 +309,10 @@ pub mod data_attrs;
 pub mod dialog;
 pub mod field;
 pub mod fieldset;
+pub mod link;
+pub mod link_overlay;
 pub mod menu;
+pub mod nav_list;
 pub mod number_input;
 pub mod pagination;
 pub mod pin_input;
