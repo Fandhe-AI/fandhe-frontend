@@ -27,7 +27,7 @@
 use fandhe_frontend_wasm_full::focus_visible::wire_focus_visible;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
-use web_sys::{Document, Element, HtmlElement};
+use web_sys::{Document, Element, Event, HtmlElement, MouseEvent, MouseEventInit};
 
 wasm_bindgen_test_configure!(run_in_browser);
 
@@ -46,6 +46,24 @@ fn html_element(element: &Element) -> HtmlElement {
         .clone()
         .dyn_into::<HtmlElement>()
         .expect("element must be an HtmlElement")
+}
+
+/// `target` へ `bubbles: true` の `MouseEvent` を dispatch する（pointerdown
+/// 名を渡しても `PointerEvent` ではなく `MouseEvent` として発火するが、
+/// `wire_focus_visible` 側のリスナーは `Event`/`event.target()` のみを見る
+/// ため検証上は問題ない。実ブラウザの `:focus-visible` 内部判定が
+/// スクリプト発火イベントに追随するかは Chromium の実装依存であり本テストは
+/// その挙動如何によらず「イベント発火直後、`data-focus-visible` の有無が
+/// 常に `:focus-visible` の実判定と一致する」という不変条件を検証する）。
+fn dispatch_mouse_event(target: &Element, event_type: &str) {
+    let init = MouseEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    let event = MouseEvent::new_with_mouse_event_init_dict(event_type, &init)
+        .expect("MouseEvent construction must not fail");
+    target
+        .dispatch_event(&Event::from(event))
+        .expect("dispatch_event must not fail");
 }
 
 /// `crates/headless-ui/src/switch.rs` の SSR 出力契約（root > control +
@@ -215,4 +233,48 @@ fn hidden_input_outside_wired_root_is_ignored() {
 
     assert!(!other_root.has_attribute("data-focus-visible"));
     assert!(!other_control.has_attribute("data-focus-visible"));
+}
+
+/// 検証 4（イシュー #709 PR #720 Cursor Bugbot 指摘の回帰テスト）:
+/// hidden-input がフォーカスを保持したまま pointerdown/mousedown/click を
+/// 受けても、`data-focus-visible` の有無は常にその時点の
+/// `:focus-visible` 実判定と一致し続ける（focusin/focusout のみに依存する
+/// 旧実装では、これらのイベントで判定が変化しても blur まで
+/// `data-focus-visible` が残留し不変条件が崩れ得た）。
+///
+/// スクリプト発火イベントが Chromium の `:focus-visible` 内部判定を実際に
+/// 変化させるかは実装依存のため、本テストは「変化の有無によらず追随する」
+/// ことを検証する（`dispatch_mouse_event` doc 参照）。
+#[wasm_bindgen_test]
+fn pointer_events_while_focus_retained_keep_data_focus_visible_in_sync_with_focus_visible_match() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, control, hidden_input) = build_switch_dom(&document, "fv-switch-pointer-sync");
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_focus_visible(root.clone()).expect("wire_focus_visible must succeed");
+
+    html_element(&hidden_input)
+        .focus()
+        .expect("focus must not fail");
+    assert!(
+        root.has_attribute("data-focus-visible"),
+        "root must gain data-focus-visible after hidden-input focus"
+    );
+
+    for event_type in ["pointerdown", "mousedown", "click"] {
+        dispatch_mouse_event(&hidden_input, event_type);
+
+        let expected = hidden_input.matches(":focus-visible").unwrap_or(false);
+        assert_eq!(
+            root.has_attribute("data-focus-visible"),
+            expected,
+            "root data-focus-visible must track :focus-visible after {event_type} \
+             while hidden-input retains focus"
+        );
+        assert_eq!(
+            control.has_attribute("data-focus-visible"),
+            expected,
+            "control data-focus-visible must track :focus-visible after {event_type} \
+             while hidden-input retains focus"
+        );
+    }
 }

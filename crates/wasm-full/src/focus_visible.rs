@@ -6,11 +6,17 @@
 //! なネイティブ `<input>`（`hidden-input`/`item-hidden-input`）に置く設計
 //! であり、視覚上のパーツ（`control`/`item-control`）へフォーカスリングを
 //! CSS だけで伝播できない。本モジュールはこの隙間を埋めるため、hidden-input
-//! の focusin/focusout イベントと `Element::matches(":focus-visible")`
-//! 判定に基づき、各 headless モジュールが契約する `data-focus-visible`
+//! の focusin/focusout イベントに加え pointerdown/mousedown/click イベント
+//! と `Element::matches(":focus-visible")` 判定に基づき、各 headless
+//! モジュールが契約する `data-focus-visible`
 //! 存在属性（`fandhe_frontend_headless_ui::data_attrs::data_focus_visible`）を
 //! 境界パーツと同一 `data-scope` を共有する descendant パーツへ動的に
-//! 付け外しする。`fandhe-frontend-pre-styled-ui` はこの属性を CSS セレクタ
+//! 付け外しする。フォーカスを保持したままポインター操作で
+//! `:focus-visible` 判定が変化するケース（Tab キーでフォーカス後、同じ
+//! コントロールをクリックする操作等）は focusin/focusout のいずれも発火
+//! しないため、pointerdown/mousedown/click でも再評価する
+//! （`wiring::wire_focus_visible` doc 参照、イシュー #709 PR #720 Cursor
+//! Bugbot 指摘）。`fandhe-frontend-pre-styled-ui` はこの属性を CSS セレクタ
 //! （例: `[data-scope="switch"][data-part="control"][data-focus-visible]`）
 //! で参照しフォーカスリングを表現する（`crates/pre-styled-ui/src/switch.rs`/
 //! `radio_group.rs` 参照）。
@@ -174,17 +180,52 @@ mod wiring {
         }
     }
 
+    /// `event.target()` を [`HIDDEN_INPUT_SELECTOR`]/`root` 境界に解決し、
+    /// 現在の `:focus-visible` 判定に応じて `data-focus-visible` を
+    /// 付け外しする共通処理。
+    ///
+    /// `allow_removal` が偽の場合は「一致すれば付与する」片方向のみ
+    /// （focusin の既存挙動: フォーカス直後は `:focus-visible` が真のときのみ
+    /// 付与し、偽の場合は何もしない。まだフォーカスしていない要素へ
+    /// 誤って除去処理が走らないための区別）。真の場合は「一致すれば付与・
+    /// 不一致なら除去」の双方向評価（pointerdown 等、既にフォーカス保持中の
+    /// 要素で `:focus-visible` 判定がその場で変化しうるイベント向け）。
+    fn sync_focus_visible(root: &Element, target_element: &Element, allow_removal: bool) {
+        let Some((scope, boundary)) = resolve_boundary(root, target_element) else {
+            return;
+        };
+        if target_element.matches(":focus-visible").unwrap_or(false) {
+            set_focus_visible(&scope, &boundary);
+        } else if allow_removal {
+            remove_focus_visible(&scope, &boundary);
+        }
+    }
+
     /// `root` 配下の hidden-input パターン（Switch/RadioGroup/Checkbox）へ
-    /// focusin/focusout の 2 リスナーを委譲登録する。
+    /// focusin/focusout に加え pointerdown/mousedown/click の計 5 リスナーを
+    /// 委譲登録する。
     ///
     /// - **focusin**: ターゲットが [`HIDDEN_INPUT_SELECTOR`] に一致し、かつ
     ///   `Element::matches(":focus-visible")`（キーボード操作等による
     ///   フォーカスをブラウザネイティブ実装へ判定委譲。独自のキーボード/
     ///   ポインタ判定は再実装しない、`.claude/rules/security.md` A04）が
-    ///   真のときのみ [`set_focus_visible`] する。
+    ///   真のときのみ [`set_focus_visible`] する（[`sync_focus_visible`]
+    ///   `allow_removal = false`）。
     /// - **focusout**: `:focus-visible` 判定を行わず常に
     ///   [`remove_focus_visible`]（フォーカスが外れた時点でリングは不要な
     ///   ため判定不要、未付与でも `remove_attribute` は no-op）。
+    /// - **pointerdown/mousedown/click**: hidden-input がフォーカスを
+    ///   保持したままポインター操作を受けた場合（例: Tab キーでフォーカス
+    ///   した後、同じコントロールをクリックする操作）、フォーカスイベントは
+    ///   一切発火しないため focusin/focusout だけでは `:focus-visible` の
+    ///   状態変化を検知できず `data-focus-visible` が blur まで残留する
+    ///   （Cursor Bugbot 指摘、イシュー #709 PR #720）。この 3 イベントは
+    ///   マウス/タッチ/ペン操作の開始から完了までを跨いで発火するため、
+    ///   いずれかの時点でブラウザの `:focus-visible` 内部判定が更新され
+    ///   次第 [`sync_focus_visible`]（`allow_removal = true`、双方向評価）
+    ///   で追随できる。3 イベントとも同じ再評価を行うだけの冪等な処理
+    ///   なので、重複発火しても副作用はない
+    ///   （`set_attribute`/`remove_attribute` の重ね書きは無害）。
     ///
     /// 状態機械（`fandhe_frontend_interactive::dispatch`）へは一切流さない
     /// 純粋な表示属性の付け替えであり、[`keynav::wire_keynav`](crate::keynav::wire_keynav)
@@ -203,13 +244,7 @@ mod wiring {
             let Some(target_element) = target.dyn_ref::<Element>().cloned() else {
                 return;
             };
-            let Some((scope, boundary)) = resolve_boundary(&focusin_root, &target_element) else {
-                return;
-            };
-            if !target_element.matches(":focus-visible").unwrap_or(false) {
-                return;
-            }
-            set_focus_visible(&scope, &boundary);
+            sync_focus_visible(&focusin_root, &target_element, false);
         });
         root.add_event_listener_with_callback("focusin", focusin_closure.as_ref().unchecked_ref())?;
         focusin_closure.forget();
@@ -232,6 +267,29 @@ mod wiring {
             focusout_closure.as_ref().unchecked_ref(),
         )?;
         focusout_closure.forget();
+
+        // pointerdown/mousedown/click: フォーカス保持中のポインター操作による
+        // `:focus-visible` 状態変化を拾うための追加リスナー（doc 参照）。
+        // 3 イベントとも同一ハンドラ相当のロジックを個別クロージャで登録する
+        // （`Closure::<dyn FnMut(Event)>` は 1 イベント種別につき 1 個の
+        // `add_event_listener_with_callback` 呼び出しを要するため）。
+        for event_name in ["pointerdown", "mousedown", "click"] {
+            let sync_root = root.clone();
+            let sync_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+                let Some(target) = event.target() else {
+                    return;
+                };
+                let Some(target_element) = target.dyn_ref::<Element>().cloned() else {
+                    return;
+                };
+                sync_focus_visible(&sync_root, &target_element, true);
+            });
+            root.add_event_listener_with_callback(
+                event_name,
+                sync_closure.as_ref().unchecked_ref(),
+            )?;
+            sync_closure.forget();
+        }
 
         Ok(())
     }
