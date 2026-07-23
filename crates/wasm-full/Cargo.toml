@@ -1,6 +1,6 @@
 [package]
 name = "fandhe-frontend-wasm-full"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
