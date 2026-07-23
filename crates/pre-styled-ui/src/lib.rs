@@ -214,6 +214,7 @@ mod class_attr;
 pub mod css;
 pub mod dialog;
 pub mod menu;
+pub mod pin_input;
 pub mod popover;
 pub mod radio_group;
 pub mod recipe;
