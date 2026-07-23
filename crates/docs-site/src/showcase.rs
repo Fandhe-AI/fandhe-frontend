@@ -53,6 +53,7 @@ use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState}
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
+use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
@@ -67,6 +68,7 @@ use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, Separa
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
+use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
@@ -208,6 +210,8 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::breadcrumb::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::carousel::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::progress::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::status::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::empty_state::css())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -2260,6 +2264,65 @@ fn breadcrumb_section() -> Node {
     )
 }
 
+/// Status 節（イシュー #765）: colorPalette 軸ごとのドット + ラベル表示。
+fn status_section() -> Node {
+    let palette_row = row(palettes()
+        .iter()
+        .map(|(palette, label)| {
+            status::root(
+                &StatusProps {
+                    palette: *palette,
+                    ..StatusProps::default()
+                },
+                vec![],
+                vec![status::indicator(vec![]), text(*label)],
+            )
+        })
+        .collect());
+    section(
+        "Status",
+        "ドット（indicator）+ ラベルで状態を示す静的表示。colorPalette で色を切り替えます。",
+        vec![palette_row],
+    )
+}
+
+/// EmptyState 節（イシュー #765）: indicator/title/description/actions の
+/// 構成例。`actions` 内は `button` を使い `href` を持たせない
+/// （`showcase_markup_has_no_href_attributes_for_linkcheck_neutrality` の
+/// linkcheck 中立性を維持する）。
+fn empty_state_section() -> Node {
+    let node = empty_state::root(
+        &EmptyStateProps::default(),
+        vec![],
+        vec![empty_state::content(
+            vec![],
+            vec![
+                empty_state::indicator(vec![], vec![text("∅")]),
+                empty_state::title(vec![], vec![text("No results found")]),
+                empty_state::description(
+                    vec![],
+                    vec![text(
+                        "Try adjusting your search or filter to find what you are looking for.",
+                    )],
+                ),
+                empty_state::actions(
+                    vec![],
+                    vec![button(
+                        &ButtonProps::default(),
+                        vec![],
+                        vec![text("Clear filters")],
+                    )],
+                ),
+            ],
+        )],
+    );
+    section(
+        "EmptyState",
+        "indicator / title / description / actions で構成する空状態レイアウト。colorPalette 軸は持たない中立コンテナです。",
+        vec![node],
+    )
+}
+
 /// Progress（circle 対応、イシュー #763）節: determinate（40%）の size
 /// バリエーション・complete・indeterminate の 3 状態を掲示する。
 ///
@@ -2361,6 +2424,8 @@ fn showcase_body() -> Node {
             radio_card_section(),
             breadcrumb_section(),
             progress_section(),
+            status_section(),
+            empty_state_section(),
         ],
     )
 }
@@ -2410,6 +2475,8 @@ mod tests {
             "checkbox-card",
             "radio-card",
             "breadcrumb",
+            "status",
+            "empty-state",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
@@ -2501,6 +2568,8 @@ mod tests {
         assert!(css.contains(r#"[data-scope="field"][data-part="select"]"#));
         assert!(css.contains(r#"[data-scope="number-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="tags-input"][data-part="control"]"#));
+        assert!(css.contains(r#"[data-scope="status"][data-part="indicator"]"#));
+        assert!(css.contains(r#"[data-scope="empty-state"][data-part="content"]"#));
         // ショーケース配置スタイル。
         assert!(css.contains(".showcase-row"));
         assert!(css.contains(".showcase-stack"));

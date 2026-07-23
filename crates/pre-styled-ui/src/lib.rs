@@ -201,6 +201,13 @@
 //!   [`nav_list::link`]）のみを使い、`site/assets/site.css` の自己完結
 //!   不変条件（§3.4）を維持したまま §3.1/§3.2 の意味論不整合を解消する
 //!   （[`mod@nav_list`] rustdoc 参照）。
+//! - 状態機械を要しない静的部品 2 種（イシュー #765）:
+//!   [`mod@status`]（Status、root/indicator の 2 パーツ、`size`/
+//!   `color-palette` の 2 軸 variant を持つ。ラベルテキスト自体が状態を
+//!   伝えるため `role`/live region は付与しない）・[`mod@empty_state`]
+//!   （EmptyState、root/content/indicator/title/description/actions の
+//!   6 パーツ、[`crate::card`] と同型の中立コンテナで `color-palette` 軸は
+//!   提供しない）。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -341,6 +348,7 @@ pub mod combobox;
 pub mod css;
 pub mod dialog;
 pub mod drawer;
+pub mod empty_state;
 pub mod hover_card;
 pub mod input;
 pub mod link;
@@ -363,6 +371,7 @@ pub mod separator;
 pub mod skeleton;
 pub mod slider;
 pub mod spinner;
+pub mod status;
 pub mod stylesheet;
 pub mod switch;
 pub mod tabs;
@@ -380,12 +389,14 @@ pub use badge::{badge, BadgeProps, BadgeVariant};
 pub use button::{button, ButtonProps, ButtonVariant};
 pub use card::CardVariant;
 pub use css::{decl, Declaration};
+pub use empty_state::EmptyStateProps;
 pub use input::{input, InputProps, InputVariant};
 pub use native_select::{native_select, NativeSelectProps, NativeSelectVariant};
 pub use recipe::{when, ColorPalette, Size, SlotRecipe, VariantCondition, VariantValue};
 pub use separator::{separator, SeparatorProps, SeparatorVariant};
 pub use skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 pub use spinner::{spinner, SpinnerProps};
+pub use status::StatusProps;
 pub use stylesheet::{StyleSheet, StylesheetError};
 pub use textarea::{textarea, TextareaProps, TextareaVariant};
 
