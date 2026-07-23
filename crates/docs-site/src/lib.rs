@@ -16,8 +16,13 @@
 //!   `generate_pages()` 書き出し → アセットコピーの一連のビルドパイプライン
 //!   本体（イシュー #470）。`main.rs`（バイナリ本体）は本モジュールの
 //!   [`build::build_site`] を呼ぶ薄いラッパーとして統合済み。
+//! - [`showcase`]: pre-styled-ui コンポーネントを実レンダリングして掲載する
+//!   UI ショーケースページの Rust 生成コンテンツと専用 CSS
+//!   （`StyleSheet` 経由）。Markdown パイプラインの後段で [`build`] が
+//!   `page.path` 照会により合成する
 //!
-//! `fandhe-frontend-core` / `fandhe-frontend-app` / `fandhe-frontend-server` のみに
+//! `fandhe-frontend-core` / `fandhe-frontend-app` / `fandhe-frontend-server` /
+//! `fandhe-frontend-headless-ui` / `fandhe-frontend-pre-styled-ui` のみに
 //! 依存し、外部クレートは追加しない（`Cargo.toml` の REQ-3 非影響コメント参照）。
 //!
 //! `#![forbid(unsafe_code)]` は `crates/core` / `crates/interactive` と同様に
@@ -30,5 +35,6 @@ pub mod layout;
 pub mod linkcheck;
 pub mod markdown;
 pub mod nav;
+pub mod showcase;
 #[cfg(test)]
 mod test_scratch;

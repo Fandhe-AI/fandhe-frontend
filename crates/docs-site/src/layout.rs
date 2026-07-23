@@ -45,6 +45,10 @@ pub struct TocEntry {
 /// （[`Node::RawHtml`] は連結対象に含めない。docs-site クレートは
 /// `raw_html()` を使わない方針のため通常は出現しないが、混入した場合でも
 /// TOC タイトルに生 HTML 断片を取り込まない防御的実装）。
+///
+/// `data-scope` 属性を持つ要素（headless-ui コンポーネントの anatomy）の
+/// 部分木は走査対象外とし、部品内部の見出し（Accordion trigger の `h3` 等）
+/// をアンカー注入・TOC 収集から決定的に除外する。
 pub fn with_heading_anchors(body: Node) -> (Node, Vec<TocEntry>) {
     let mut entries = Vec::new();
     let mut used_ids = HashSet::new();
@@ -65,6 +69,20 @@ fn inject_heading_anchors(
             attrs,
             children,
         } => {
+            // headless-ui コンポーネントの anatomy ルート（`data-scope` 属性を
+            // 持つ要素）配下の見出しは、文書アウトラインではなく部品構造の
+            // 一部（例: Accordion の item trigger を包む `h3`、Card の title
+            // `h3`）なので、部分木ごとアンカー注入・TOC 収集の対象外にする。
+            // showcase（`crate::showcase`）の生成コンテンツにも本関数が適用
+            // されるため、この除外が無いと部品内見出しがページ内目次へ混入
+            // する（`tests/site_showcase.rs` が実サイトビルドで固定）。
+            if attrs.iter().any(|(name, _)| name == "data-scope") {
+                return Node::Element {
+                    tag,
+                    attrs,
+                    children,
+                };
+            }
             let level = heading_level(tag);
             let new_children: Vec<Node> = children
                 .into_iter()
@@ -274,38 +292,67 @@ pub fn asset_href(base_path: &str, relative: &str) -> String {
 /// （`fandhe_frontend_server::ssg::generate_pages()`）の契約であり、本関数は
 /// 文書 `Node` を返すのみで DOCTYPE 文字列を出力しない。
 pub fn docs_page(title: &str, base_path: &str, sidebar: Node, body: Node) -> Node {
+    docs_page_with_assets(title, base_path, sidebar, body, &[])
+}
+
+/// [`docs_page`] の拡張版。`extra_stylesheets`（`assets/` 起点の相対パス列）を
+/// `assets/site.css` の後に追加の `<link rel="stylesheet">` として `<head>` へ
+/// 差し込む。
+///
+/// Rust 生成コンテンツページ（`crate::showcase` が pre-styled-ui コンポーネント
+/// を実レンダリングするショーケース、イシュー #520 系）だけが、
+/// `StyleSheet::write_css_file` で書き出す専用 CSS
+/// （`assets/pre-styled-ui.css`）を参照するために `crate::build::build_site`
+/// から呼ばれる。サイト骨格スタイル（`site/assets/site.css`）とコンポーネント
+/// CSS を分離ファイルに保ち、既存ページのカスケードへ影響させないための
+/// 注入点であり、Markdown ページは従来どおり [`docs_page`]（追加なし）を使う。
+/// href は [`asset_href`] を経由して `base_path` を考慮した単一実装点を守る。
+pub fn docs_page_with_assets(
+    title: &str,
+    base_path: &str,
+    sidebar: Node,
+    body: Node,
+    extra_stylesheets: &[&str],
+) -> Node {
     let (annotated_body, toc_entries) = with_heading_anchors(body);
     let toc = toc_nav(&toc_entries);
 
-    let head = el(
-        "head",
-        vec![],
-        vec![
-            el("meta", vec![("charset", "utf-8")], vec![]),
-            el(
-                "meta",
-                vec![
-                    ("name", "viewport"),
-                    ("content", "width=device-width, initial-scale=1"),
-                ],
-                vec![],
-            ),
-            el("title", vec![], vec![text(title.to_string())]),
-            el(
-                "style",
-                vec![],
-                vec![text("@view-transition { navigation: auto; }")],
-            ),
-            el(
-                "link",
-                vec![
-                    ("rel", "stylesheet"),
-                    ("href", &asset_href(base_path, "assets/site.css")),
-                ],
-                vec![],
-            ),
-        ],
-    );
+    let mut head_children = vec![
+        el("meta", vec![("charset", "utf-8")], vec![]),
+        el(
+            "meta",
+            vec![
+                ("name", "viewport"),
+                ("content", "width=device-width, initial-scale=1"),
+            ],
+            vec![],
+        ),
+        el("title", vec![], vec![text(title.to_string())]),
+        el(
+            "style",
+            vec![],
+            vec![text("@view-transition { navigation: auto; }")],
+        ),
+        el(
+            "link",
+            vec![
+                ("rel", "stylesheet"),
+                ("href", &asset_href(base_path, "assets/site.css")),
+            ],
+            vec![],
+        ),
+    ];
+    for relative in extra_stylesheets {
+        head_children.push(el(
+            "link",
+            vec![
+                ("rel", "stylesheet"),
+                ("href", &asset_href(base_path, relative)),
+            ],
+            vec![],
+        ));
+    }
+    let head = el("head", vec![], head_children);
 
     // 「on this page」目次は本文の前（`main` 内の先頭）に置く。読者が本文を
     // 読み始める前に目次へ気付けるようにするための並び順であり、

@@ -93,6 +93,8 @@ version = "0.1.0"
 dependencies = [
  "fandhe-frontend-app",
  "fandhe-frontend-core",
+ "fandhe-frontend-headless-ui",
+ "fandhe-frontend-pre-styled-ui",
  "fandhe-frontend-server",
 ]
 

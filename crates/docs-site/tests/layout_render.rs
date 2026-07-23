@@ -54,6 +54,34 @@ fn heading_anchors_are_extracted_in_document_order_with_correct_levels() {
 }
 
 #[test]
+fn headings_inside_data_scope_subtrees_are_excluded_from_anchors_and_toc() {
+    // headless-ui コンポーネントの anatomy（`data-scope` 属性を持つ要素）
+    // 配下の見出しは部品構造であり文書アウトラインではない（Accordion の
+    // item trigger を包む h3 等）。アンカー注入も TOC 収集も行わないことを
+    // 固定する（showcase ページの TOC 混入回帰防止、Bugbot 指摘）。
+    let body = fandhe_frontend_core::div(
+        vec![],
+        vec![
+            h2(vec![], vec![text("Accordion")]),
+            fandhe_frontend_core::div(
+                vec![("data-scope", "accordion"), ("data-part", "item")],
+                vec![h3(vec![], vec![text("trigger の質問見出し")])],
+            ),
+        ],
+    );
+    let (annotated, entries) = with_heading_anchors(body);
+
+    // TOC はセクション見出し（h2）のみ。部品内 h3 は収集されない。
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].level, 2);
+    assert_eq!(entries[0].title, "Accordion");
+
+    // 部品内 h3 には id が注入されず、元のマークアップのまま保たれる。
+    let html = render(&annotated);
+    assert!(html.contains("<h3>trigger の質問見出し</h3>"));
+}
+
+#[test]
 fn duplicate_heading_titles_get_deterministic_unique_ids() {
     let body = fandhe_frontend_core::div(
         vec![],

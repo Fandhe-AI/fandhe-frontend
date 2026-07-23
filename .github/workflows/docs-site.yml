@@ -13,6 +13,10 @@ name: docs-site
 # 既知の制約: レンダラ側クレート（crates/server / crates/app / crates/core）の
 # 変更は below の paths に含めないため自動再デプロイの対象外（イシュー本文の
 # トリガー仕様どおり）。反映が必要な場合は workflow_dispatch で手動再デプロイする。
+# ただし UI コンポーネントショーケースページ（crates/docs-site/src/showcase.rs）は
+# pre-styled-ui / headless-ui / interactive の実レンダリング結果・生成 CSS を
+# 直接掲載するため、これら 3 クレートは例外として paths に含め自動再デプロイの
+# 対象とする（見た目・マークアップの変更が docs サイトへ即反映される契約）。
 
 on:
   push:
@@ -21,6 +25,9 @@ on:
       - "docs/**"
       - "site/**"
       - "crates/docs-site/**"
+      - "crates/pre-styled-ui/**" # showcase ページが styled 部品・StyleSheet 生成 CSS を直接掲載
+      - "crates/headless-ui/**" # showcase の Tabs/Accordion マークアップ（pre-styled-ui が再エクスポート）
+      - "crates/interactive/**" # headless-ui の状態機械が依存（推移的にマークアップへ影響）
       - "examples/*/README.md" # site/nav.toml が Examples セクションの source として参照（イシュー #504）
       - ".github/workflows/docs-site.yml" # image-size.yml と同じ自己参照パターン
   workflow_dispatch:

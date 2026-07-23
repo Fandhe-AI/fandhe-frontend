@@ -21,6 +21,18 @@
 //!    （通常ファイルのみ許可。シンボリックリンク・ディレクトリ以外の特殊
 //!    エントリはエラーにする fail-closed。リポジトリ外ファイルの持ち出し
 //!    防止のため走査対象を固定ディレクトリに限定する）
+//!
+//! # Rust 生成コンテンツページ（[`crate::showcase`]）
+//!
+//! Markdown では表現できない「pre-styled-ui コンポーネントの実レンダリング」
+//! を掲載するページ（UI ショーケース）のため、ステップ 2 で
+//! [`showcase::generated_content`] を `page.path` で照会し、`Some` の場合のみ
+//! Markdown 本文の直後（前後ナビの手前）へ生成 `Node` を追記する。該当
+//! ページには専用 CSS（[`showcase::STYLESHEET_REL_PATH`]）への追加 `<link>` を
+//! [`layout::docs_page_with_assets`] で差し込み、CSS 本体はステップ 5 の後に
+//! [`showcase::stylesheet`] から書き出す。生成 CSS の組み立て（fallible）は
+//! linkcheck と同じく **書き出しより前** に行い、失敗時は `out_dir` を汚さない
+//! （fail-closed の処理順を維持する）。
 
 use std::fmt;
 use std::fs;
@@ -29,10 +41,13 @@ use std::path::{Path, PathBuf};
 use fandhe_frontend_core::{div, Node};
 use fandhe_frontend_server::ssg::{self, SsgError};
 
+use fandhe_frontend_pre_styled_ui::StylesheetError;
+
 use crate::layout;
 use crate::linkcheck::{self, BrokenLink};
 use crate::markdown::render_markdown;
 use crate::nav::{self, NavError};
+use crate::showcase;
 
 /// [`build_site`] が成功時に返すビルド結果のサマリ。
 #[derive(Debug, Clone)]
@@ -68,6 +83,11 @@ pub enum BuildError {
     /// エントリが存在し、通常ファイルのみ許可する方針に反した
     /// （リポジトリ外ファイルの持ち出し防止のための fail-closed 検証）。
     UnsupportedAssetEntry(PathBuf),
+    /// ショーケース専用 CSS（[`showcase::stylesheet`]）の組み立てが
+    /// [`StyleSheet`](fandhe_frontend_pre_styled_ui::StyleSheet) の検証に
+    /// 落ちた（通常は到達しない。黙って CSS の欠けたページを公開しない
+    /// fail-closed）。
+    Stylesheet(StylesheetError),
 }
 
 impl fmt::Display for BuildError {
@@ -94,6 +114,9 @@ impl fmt::Display for BuildError {
                     "unsupported entry under site/assets/ (only regular files are allowed): {path:?}"
                 )
             }
+            BuildError::Stylesheet(e) => {
+                write!(f, "failed to assemble the showcase stylesheet: {e}")
+            }
         }
     }
 }
@@ -109,6 +132,12 @@ impl From<NavError> for BuildError {
 impl From<SsgError> for BuildError {
     fn from(e: SsgError) -> Self {
         BuildError::Ssg(e)
+    }
+}
+
+impl From<StylesheetError> for BuildError {
+    fn from(e: StylesheetError) -> Self {
+        BuildError::Stylesheet(e)
     }
 }
 
@@ -132,6 +161,11 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
 
     let mut pages: Vec<(String, Node)> = Vec::new();
     let mut broken: Vec<BrokenLink> = Vec::new();
+    // Rust 生成コンテンツページ（showcase）を 1 件以上組み込んだか。
+    // 専用 CSS（showcase::STYLESHEET_REL_PATH）の書き出し・linkcheck 用
+    // href 登録は該当ページが nav に存在するときだけ行う（フィクスチャ
+    // サイト等、showcase を持たないサイトのビルド結果を変えないため）。
+    let mut has_generated_page = false;
 
     for section in &nav.sections {
         for page in &section.pages {
@@ -153,23 +187,50 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
                 &mut broken,
             );
 
-            let body = div(
-                vec![],
-                vec![rewritten_body, nav::prev_next_nav(&nav, &page.path)],
-            );
+            // Rust 生成コンテンツ（showcase）は Markdown 本文の直後・前後
+            // ナビの手前へ追記する（モジュール doc の処理順注記参照）。
+            let generated = showcase::generated_content(&page.path);
+            let extra_stylesheets: &[&str] = if generated.is_some() {
+                has_generated_page = true;
+                &[showcase::STYLESHEET_REL_PATH]
+            } else {
+                &[]
+            };
 
-            let document = layout::docs_page(
+            let mut body_children = vec![rewritten_body];
+            if let Some(generated_body) = generated {
+                body_children.push(generated_body);
+            }
+            body_children.push(nav::prev_next_nav(&nav, &page.path));
+            let body = div(vec![], body_children);
+
+            let document = layout::docs_page_with_assets(
                 &page.title,
                 &nav.site.base_path,
                 nav::sidebar(&nav, &page.path),
                 body,
+                extra_stylesheets,
             );
 
             pages.push((page.path.clone(), document));
         }
     }
 
-    let asset_hrefs = collect_asset_hrefs(repo_root, &nav.site.base_path)?;
+    let mut asset_hrefs = collect_asset_hrefs(repo_root, &nav.site.base_path)?;
+
+    // showcase 専用 CSS はビルド時生成のため site/assets/ には存在しない。
+    // linkcheck が追加 <link> の href を「未知のターゲット」と誤検知しない
+    // よう、生成することが確定した時点で既知 href へ登録する。CSS 本体の
+    // 組み立ても linkcheck より前に済ませ、失敗時は書き出し前に打ち切る。
+    let showcase_sheet = if has_generated_page {
+        asset_hrefs.push(layout::asset_href(
+            &nav.site.base_path,
+            showcase::STYLESHEET_REL_PATH,
+        ));
+        Some(showcase::stylesheet()?)
+    } else {
+        None
+    };
 
     let mut link_check_broken = linkcheck::check_links(&pages, &nav.site.base_path, &asset_hrefs);
     broken.append(&mut link_check_broken);
@@ -181,7 +242,18 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     }
 
     let written = ssg::generate_pages(&pages, out_dir)?;
-    let assets = copy_assets(repo_root, out_dir)?;
+    let mut assets = copy_assets(repo_root, out_dir)?;
+
+    if let Some(sheet) = showcase_sheet {
+        let css_path = out_dir.join(showcase::STYLESHEET_REL_PATH);
+        sheet
+            .write_css_file(&css_path)
+            .map_err(|source| BuildError::Io {
+                path: PathBuf::from(showcase::STYLESHEET_REL_PATH),
+                source,
+            })?;
+        assets.push(css_path);
+    }
 
     Ok(BuildReport { written, assets })
 }
