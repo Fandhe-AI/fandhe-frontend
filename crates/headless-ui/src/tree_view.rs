@@ -88,7 +88,9 @@
 //!   ペイロード組み立ての実配線は後続イシューのスコープ。
 
 use crate::anatomy::{anatomy, Anatomy};
-use crate::aria::{aria_label as aria_label_attr, aria_labelledby, aria_selected, role};
+use crate::aria::{
+    aria_disabled, aria_label as aria_label_attr, aria_labelledby, aria_selected, role,
+};
 use crate::data_attrs::{data_disabled, data_state};
 use crate::state::{MultiSelect, MultiSelectAction, OpenState, SingleSelect, SingleSelectAction};
 use fandhe_frontend_core::{text, Node};
@@ -181,6 +183,13 @@ pub fn branch<'a>(
         ("data-depth", depth),
     ];
     merged.extend(data_selected(selected));
+    // Cursor Bugbot 指摘（PR #798、Medium）: `div[role="treeitem"]` はネイティブ
+    // `disabled` 属性を持たないため、支援技術へは `aria-disabled` 経由でのみ
+    // 無効状態を伝達できる（`crate::select::item`/`crate::menu::item` と
+    // 同じ判断）。`data-disabled` は CSS フックのみで ARIA を代替しない。
+    if disabled {
+        merged.push(aria_disabled(true));
+    }
     merged.extend(data_disabled(disabled));
     merged.extend(attrs);
     ANATOMY.part("branch", "div", merged, children)
@@ -283,6 +292,11 @@ pub fn item<'a>(
         ("data-depth", depth),
     ];
     merged.extend(data_selected(selected));
+    // [`branch`] と同じ理由（Cursor Bugbot 指摘、PR #798、Medium）で
+    // `aria-disabled` を対で付与する。
+    if disabled {
+        merged.push(aria_disabled(true));
+    }
     merged.extend(data_disabled(disabled));
     merged.extend(attrs);
     ANATOMY.part("item", "div", merged, children)
@@ -736,6 +750,26 @@ mod tests {
         assert!(html.contains(r#"data-state="open""#));
         assert!(html.contains(r#"data-selected="""#));
         assert!(html.contains(r#"data-disabled="""#));
+        // Cursor Bugbot 指摘（PR #798、Medium）の回帰: `div[role="treeitem"]`
+        // はネイティブ `disabled` を持たないため `aria-disabled` も必要。
+        assert!(html.contains(r#"aria-disabled="true""#));
+    }
+
+    #[test]
+    fn branch_enabled_omits_aria_disabled() {
+        let html = render(&branch(
+            OpenState::Closed,
+            "src",
+            false,
+            false,
+            "1",
+            "1",
+            "2",
+            "0",
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("aria-disabled"));
     }
 
     #[test]
@@ -844,6 +878,24 @@ mod tests {
         assert!(html.contains(r#"aria-selected="true""#));
         assert!(html.contains(r#"data-selected="""#));
         assert!(html.contains(r#"data-disabled="""#));
+        // Cursor Bugbot 指摘（PR #798、Medium）の回帰。
+        assert!(html.contains(r#"aria-disabled="true""#));
+    }
+
+    #[test]
+    fn item_enabled_omits_aria_disabled() {
+        let html = render(&item(
+            "file.txt",
+            false,
+            false,
+            "1",
+            "1",
+            "1",
+            "0",
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("aria-disabled"));
     }
 
     #[test]
@@ -1182,5 +1234,8 @@ mod tests {
         let rendered = t.render_nodes(&nodes);
         let html = render(&rendered[0]);
         assert!(html.contains(r#"data-disabled="""#));
+        // Cursor Bugbot 指摘（PR #798、Medium）の回帰: render_nodes 経由でも
+        // aria-disabled が反映されることを固定する。
+        assert!(html.contains(r#"aria-disabled="true""#));
     }
 }
