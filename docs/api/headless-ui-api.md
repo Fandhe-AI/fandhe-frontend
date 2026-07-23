@@ -33,7 +33,7 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 |---|---|
 | `anatomy::Anatomy` / `anatomy::anatomy` | `data-scope`/`data-part` を付与してパーツノード（`div`/`button`/`span`/`input` 等）を組み立てる。全コンポーネント共通の anatomy 基盤 |
 | `data_attrs` | `data-state`/`data-disabled`/`data-invalid`/`data-orientation`/`data-readonly`/`data-required` 等の状態属性ヘルパ。`Orientation` enum（`Horizontal`/`Vertical`） |
-| `aria` | `role`/`aria-*`（`aria_checked`/`aria_controls`/`aria_describedby`/`aria_disabled`/`aria_expanded`/`aria_haspopup`/`aria_hidden`/`aria_invalid`/`aria_label`/`aria_labelledby`/`aria_modal`/`aria_orientation`/`aria_selected`）の WAI-ARIA 属性ヘルパ |
+| `aria` | `role`/`aria-*`（`aria_checked`/`aria_controls`/`aria_describedby`/`aria_disabled`/`aria_expanded`/`aria_haspopup`/`aria_hidden`/`aria_invalid`/`aria_label`/`aria_labelledby`/`aria_modal`/`aria_multiselectable`/`aria_orientation`/`aria_selected`）の WAI-ARIA 属性ヘルパ |
 | `state::OpenState` | `Open`/`Closed` の 2 値状態（`Default` は `Closed`。SSR の状態なし初期描画に対応）。`as_data_state()`/`is_open()`/`toggled()` |
 | `state::Disclosure` / `state::DisclosureAction` | 単一の開閉状態機械。`fandhe_frontend_interactive::Component`/`Hydrate` を実装し、dispatch アクション名 `"open"`/`"close"`/`"toggle"` を受理する |
 | `state::SingleSelect` / `state::SingleSelectAction` | 「高々 1 項目が選択される」状態機械（Accordion の single モード等が使用）。dispatch アクション名 `"select"`/`"deselect"`/`"toggle"` |
@@ -65,6 +65,7 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | TagsInput | `tags_input` | Root/Label/Control/Input/Item/ItemPreview/ItemText/ItemInput/ItemDeleteTrigger/ClearTrigger/HiddenInput | 独自実装（可変長タグ文字列リスト + 編集中インデックス、`SingleSelect`/`MultiSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`control` は `role="listbox"`、`item-preview` は `role="option"`） | #744 |
 | RatingGroup | `rating_group` | Root/Label/Control/Item/HiddenInput | 独自実装（`1..=count` の数値評価値 + hover プレビューを持つ。`hover` は SSR 非活性・hydration 非直列化。`Component`/`Hydrate` を直接実装） | #742 |
 | SegmentGroup | `segment_group` | Root/Indicator/Item/ItemText/ItemControl/ItemHiddenInput | `radio_group::RadioGroup`（`state::SingleSelect`）へ全委譲（独自の状態機械を新設せず、既存 RadioGroup の dispatch/hydration をそのまま再利用する） | #743 |
+| Listbox / MultiListbox | `listbox` | Root/Label/Content/ItemGroup/ItemGroupLabel/Item/ItemText/ItemIndicator/ValueText | `state::SingleSelect`（`Listbox`）/ `state::MultiSelect`（`MultiListbox`）へ全委譲。常時展開（trigger/positioner なし）で `Select` とは責務境界が異なる（詳細は `listbox` モジュール doc 参照） | #750 |
 
 **未実装（open イシュー、後続で追補）**: Checkbox（#535）・Progress（#544）。
 本表はこれらの実装完了時に更新する。

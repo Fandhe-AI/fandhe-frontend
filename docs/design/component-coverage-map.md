@@ -47,17 +47,19 @@ grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs \
   | grep -vE 'css|recipe|stylesheet|theme'
 ```
 
-2026-07-23 時点の実測（#743 マージにより segment_group を追加反映。#738
-マージ分の number_input を含め再実測）:
+2026-07-23 時点の実測（#750 マージにより listbox を追加反映。#743 マージに
+よる segment_group・#738 マージ分の number_input を含め再実測。この時点の
+実測は既に pin_input/rating_group/slider/tags_input 等の後続マージを
+反映しきれていない既知のドリフトがあり、次回更新時にあわせて解消する）:
 
-- headless-ui 17: accordion / avatar / checkbox / collapsible / dialog /
-  field / fieldset / menu / number_input / popover / progress /
+- headless-ui 18: accordion / avatar / checkbox / collapsible / dialog /
+  field / fieldset / listbox / menu / number_input / popover / progress /
   radio_group / segment_group / select / switch / tabs / tooltip
-- pre-styled-ui 21（styled ラッパー 13 + 静的部品 8）:
-  accordion / avatar / checkbox / dialog / menu / number_input / popover /
-  radio_group / segment_group / select / switch / tabs / tooltip（styled）+
-  alert / badge / button / card / spinner / input / textarea /
-  native_select（静的）
+- pre-styled-ui 22（styled ラッパー 14 + 静的部品 8）:
+  accordion / avatar / checkbox / dialog / listbox / menu / number_input /
+  popover / radio_group / segment_group / select / switch / tabs /
+  tooltip（styled）+ alert / badge / button / card / spinner / input /
+  textarea / native_select（静的）
 
 ## 4. 抜けの機械確認手順
 
@@ -108,7 +110,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/collections/menu.md` | Menu | Menu | menu | menu | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/collections/select.md` | Select | Select | select | select | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/collections/combobox.md` | Combobox | Combobox | — | — | 実装対象 | #749 |
-| `.agents/skills/ark-ui/references/components/collections/listbox.md` | Listbox | Listbox | — | — | 実装対象 | #750 |
+| `.agents/skills/ark-ui/references/components/collections/listbox.md` | Listbox | Listbox | listbox | listbox | 実装済み | headless+styled 実装済み（#750） |
 | `.agents/skills/ark-ui/references/components/collections/pagination.md` | Pagination | Pagination | — | — | 実装対象 | #751（#716 保留の解除） |
 | `.agents/skills/ark-ui/references/components/collections/steps.md` | Steps | Steps | — | — | 実装対象 | #752（#716 保留の解除） |
 | `.agents/skills/ark-ui/references/components/collections/tree-view.md` | TreeView | TreeView | — | — | 実装対象 | #753 |
@@ -333,7 +335,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 |---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/collections/select.md` | Select | Select | select | select | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/collections/combobox.md` | Combobox | Combobox | — | — | 実装対象 | #749 |
-| `.agents/skills/chakra-ui/references/components/collections/listbox.md` | Listbox | Listbox | — | — | 実装対象 | #750 |
+| `.agents/skills/chakra-ui/references/components/collections/listbox.md` | Listbox | Listbox | listbox | listbox | 実装済み | headless+styled 実装済み（#750） |
 | `.agents/skills/chakra-ui/references/components/collections/tree-view.md` | TreeView | TreeView | — | — | 実装対象 | #753 |
 
 #### `.agents/skills/chakra-ui/references/components/concepts/`

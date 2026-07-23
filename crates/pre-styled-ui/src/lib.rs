@@ -100,6 +100,11 @@
 //!   variant のみを持つ。[`mod@pin_input`]/[`mod@number_input`] と同型の
 //!   判断で `color-palette` 軸は提供しない。詳細は [`mod@tags_input`] rustdoc
 //!   参照）。
+//! - headless ラッパー（#750）: [`mod@listbox`]（Listbox/MultiListbox、
+//!   常時展開のリスト選択。`size` variant のみを持ち `color-palette` 軸は
+//!   提供しない。[`mod@select`]（ポップアップ型、trigger/positioner を持つ）
+//!   との責務境界・`content` 自身が DOM フォーカスを受ける設計は
+//!   [`mod@listbox`] rustdoc 参照）。
 //! - headless 状態機械を持つ複合部品の styled ラッパー第 5 弾（#730）:
 //!   [`mod@checkbox`]。`size`/`color-palette` variant・`data-focus-visible`
 //!   フォーカスリングは [`mod@switch`] と同型で最初から実装する。`indicator`
@@ -256,6 +261,7 @@ mod class_attr;
 pub mod css;
 pub mod dialog;
 pub mod input;
+pub mod listbox;
 pub mod menu;
 pub mod native_select;
 pub mod number_input;

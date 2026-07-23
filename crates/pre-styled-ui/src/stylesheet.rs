@@ -262,6 +262,7 @@ mod tests {
             ("accordion", crate::accordion::stylesheet()),
             ("menu", crate::menu::stylesheet()),
             ("select", crate::select::stylesheet()),
+            ("listbox", crate::listbox::stylesheet()),
             ("popover", crate::popover::stylesheet()),
             ("tooltip", crate::tooltip::stylesheet()),
             ("switch", crate::switch::stylesheet()),

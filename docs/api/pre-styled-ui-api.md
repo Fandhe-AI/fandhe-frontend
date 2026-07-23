@@ -49,6 +49,7 @@ NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー�
 | headless ラッパー第 9 弾 | `rating_group` | #742（`size`/`color-palette` 両軸、星形 indicator は `clip-path` インライン表現） |
 | headless ラッパー | `segment_group` | #743（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供。状態機械は `radio_group` へ全委譲） |
 | headless ラッパー第 10 弾 | `tags_input` | #744（`size` variant のみ。フォーム入力部品のため `color-palette` 軸は非提供、`pin_input`/`number_input` と同型の判断） |
+| headless ラッパー | `listbox` | #750（`size` variant のみ・`color-palette` 軸は非提供。常時展開（trigger/positioner なし）で `select` とは責務境界が異なる。詳細は `src/listbox.rs` 参照） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
