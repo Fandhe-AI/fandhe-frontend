@@ -369,6 +369,8 @@ pub mod pin_input;
 pub mod popover;
 pub mod positioning;
 pub mod progress;
+pub mod qr_code;
+mod qr_encode;
 pub mod radio_group;
 pub mod rating_group;
 pub mod segment_group;
@@ -437,6 +439,7 @@ pub use positioning::{
     Placement, PositioningConfig, Rect, ResolvedPosition, Side, Size,
 };
 pub use progress::{Progress, ProgressAction};
+pub use qr_code::{ErrorCorrectionLevel, QrEncodeError, QrMatrix};
 pub use radio_group::RadioGroup;
 pub use rating_group::{RatingGroup, RatingGroupAction, RatingItemFlags};
 pub use segment_group::SegmentGroup;
