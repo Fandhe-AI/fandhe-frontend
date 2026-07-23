@@ -2277,10 +2277,12 @@ fn progress_section() -> Node {
 }
 
 /// Image 節（イシュー #770）の demo `src`。実画像を同梱せず、外部フェッチ・
-/// 404 を発生させないダミー値を使う方針は [`AVATAR_EMPTY_IMAGE_SRC`] と同型
-/// （相対パスは `linkcheck`（`href` のみ突合、`src` は対象外）の対象にも
-/// ならない）。
-const IMAGE_DEMO_SRC: &str = "/assets/pre-styled-ui-showcase-placeholder.svg";
+/// 404 を発生させないインライン SVG data URI を使う（相対パスではなく
+/// [`AVATAR_INLINE_SVG_SRC`] と同じくパーセントエンコード済み data URI と
+/// することで、実在しないファイルパスによる 404 を防ぐ。矩形プレースホル
+/// ダー柄のアイコン）。
+const IMAGE_DEMO_SRC: &str =
+    "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2064%2064%27%3E%3Crect%20width%3D%2764%27%20height%3D%2764%27%20fill%3D%27%234a90d9%27%2F%3E%3C%2Fsvg%3E";
 
 /// Image 節: `fit`（object-fit）× `aspect_ratio` の 2 軸。
 fn image_section() -> Node {
