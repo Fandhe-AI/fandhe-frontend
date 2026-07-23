@@ -157,6 +157,12 @@
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。ark-ui の
 //!   Scrubber パーツ・キーボード操作の DOM 配線は本イシューのスコープ外
 //!   （[`number_input`] モジュール doc 参照）。
+//! - [`mod@pin_input`]: Root / Label / Control / Input / HiddenInput の 5
+//!   anatomy パーツと、固定桁数の文字配列 + フォーカス位置を持つ
+//!   [`pin_input::PinInput`] 状態機械（#739、親 #736/#726）。[`mod@switch`]/
+//!   [`mod@progress`] と同じく [`state`] の既存語彙に収まらないため、
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
@@ -206,6 +212,7 @@ pub mod field;
 pub mod fieldset;
 pub mod menu;
 pub mod number_input;
+pub mod pin_input;
 pub mod popover;
 pub mod positioning;
 pub mod progress;
@@ -254,6 +261,7 @@ pub use field::{FieldIds, FieldProps};
 pub use fieldset::FieldsetProps;
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
 pub use number_input::{NumberInput, NumberInputAction, NumberInputFlags};
+pub use pin_input::{PinInput, PinInputAction, PinInputKind};
 pub use positioning::{
     compute_position, css_vars_style, data_align, data_side, placement_attrs, Align, ArrowPosition,
     Placement, PositioningConfig, Rect, ResolvedPosition, Side, Size,
