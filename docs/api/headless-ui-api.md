@@ -214,6 +214,83 @@ fail-closed に留まる。arrow（Menu のみ、`has_arrow()` が Select を対
 とする、§4a.2）は `--fandhe-arrow-x`/`--fandhe-arrow-y` を変数フォール
 バックのみで消費し、マーカー切り替えを必要としない。
 
+## 4b. ロードマップ（レイアウト・ナビゲーション系部品、イシュー #716）
+
+### 4b.1 検討の背景
+
+`docs/design/docs-site-styled-ui-adoption.md`（イシュー #694）は、docs
+サイト骨格（`crates/docs-site/src/nav.rs`）への pre-styled-ui 適用を
+以下 2 点の意味論不整合を理由に見送った。
+
+- §3.1: `nav.rs::sidebar`（文書ナビ・リンク一覧）に対応する部品が
+  headless-ui に存在せず、最も近い `menu` は WAI-ARIA `menu` ロール
+  （操作可能なコマンドリスト向け）であり転用するとアクセシビリティを
+  毀損する
+- §3.2: `nav.rs::prev_next_nav`（前後ページャ、アンカー要素全体をカード化
+  するリンク）に対応する部品がなく、`card` はアンカー全体のカード化に
+  非対応
+
+同書 §5 再評価トリガー 1 は「pre-styled-ui にレイアウト・ナビゲーション系
+部品（Breadcrumb / Pagination / 文書ナビ向け Link リスト / Container 等）
+が追加されたとき」を明示しており、本イシュー #716 はこのトリガーに先立ち
+候補群の追加要否を検討し、恒久文書として記録するものである。
+
+**本節の位置づけ**: 本節は検討結果の記録であり、実装（コード追加）を含ま
+ない。追加候補と判断した部品も、実装着手には別途イシュー起票とユーザー
+承認を要する（`.claude/rules/out-of-scope-tracking.md`）。
+
+### 4b.2 候補の分類軸
+
+ark-ui / chakra-ui のレイアウト・ナビゲーション系コンポーネントを、
+本クレートの設計方針（anatomy + `data-*` + WAI-ARIA、状態機械は
+`fandhe_frontend_interactive::Component`/`Hydrate` 経由）に照らして
+3 分類する。
+
+| 分類 | 特徴 | 本クレートでの実装形態の見立て |
+|---|---|---|
+| (a) 状態機械を持つナビ | ページ番号・現在位置等のクライアント状態を持つ | `select`/`menu` と同型（`state::Disclosure`/`SingleSelect` 相当の新規状態機械 + anatomy）。工数大 |
+| (b) SSR 静的な意味論ナビ | 「現在位置のハイライト」のみで状態機械不要 | `tabs`/`field` と同型（自由関数のみ、SSR 静的 props で `aria-current`/`data-current` を出力）。工数小〜中 |
+| (c) 純粋レイアウトプリミティブ | CSS ボックスモデルのみで ARIA 意味論を持たない | 「プレーンな HTML / CSS を尊重する」という本フレームワークの中核価値（CLAUDE.md Overview）と `docs/policy/intentional-non-adoption.md` の評価軸（明示性・コンテキスト消費）に照らし、headless 層としての意味がない |
+
+### 4b.3 候補ごとの評価と判断
+
+| 候補 | 分類 | ark-ui / chakra-ui の実装状況 | docs-site 利用見込み | 工数参考 | 判断 |
+|---|---|---|---|---|---|
+| 文書ナビ向け Link リスト（`nav` + リンク一覧 + `aria-current="page"`） | (b) | ark-ui に専用コンポーネントはなく、chakra-ui も汎用 `Link`/`List` の組み合わせで表現する軽量パターン | `nav.rs::sidebar` の意味論不整合（§3.1）を直接解消しうる第一候補 | `field.rs`（740 行）程度。状態機械なし・anatomy と `aria-current`/`data-current` 出力のみ | **追加候補**（最優先） |
+| Link / LinkOverlay（アンカー要素全体のカード化） | (b) | chakra-ui に `Link`/`LinkOverlay`（`LinkBox` パターン、`position: absolute` でアンカーを親要素全面へ拡張する構成）あり。ark-ui に専用コンポーネントはなし | `nav.rs::prev_next_nav` の `card` 非対応（§3.2）を直接解消しうる | `avatar.rs` 相当（独自状態なしの小規模 anatomy）と同程度。工数小 | **追加候補** |
+| Breadcrumb | (b) | ark-ui に headless 実体はなく、chakra-ui も styled 合成のみ（状態機械を持たない） | 現時点で docs-site に階層パンくずの利用箇所はない（サイドバー1階層構成のため）。ユーザープロジェクトでの利用見込みはある | `tabs.rs`（790 行）程度。状態機械なし・`aria-current="page"` 出力のみ | **追加候補**（優先度中。工数小さく他 (b) 群と設計を共有できるが docs-site 側の直接解消対象ではない） |
+| Pagination | (a) | ark-ui に headless 実体あり（ページ番号・件数・現在ページの状態機械を持つ） | docs-site に該当箇所なし（現状ページ分割一覧を持たない）。現時点で利用見込みが確認できない | `select.rs`（1481 行）/`menu.rs`（1818 行）相当。状態機械の新規設計を要し工数大 | **保留**（利用見込みが確認できてから再評価。状態機械設計コストが (b) 群より大きく優先度を下げる） |
+| Steps | (a) | ark-ui に headless 実体あり（進行状態を持つウィザード的ナビ） | docs-site・examples のいずれにも利用見込みなし | Pagination 同様に工数大 | **保留** |
+| Container / Stack / Flex / Grid / Center 等の純粋レイアウトプリミティブ | (c) | chakra-ui に styled プリミティブとして存在するが、ark-ui に headless 実体はない（ARIA 意味論を持たないため） | 適用対象なし。プレーンな `div` + CSS で代替可能 | — | **意図的非採用**（`docs/policy/intentional-non-adoption.md` の運用に準拠。headless-ui は anatomy・ARIA・状態機械の提供が責務であり、ARIA 意味論を持たない純粋レイアウトは本層の対象外。CSS プリミティブが必要な場合はユーザー側の素の CSS で足り、フレームワーク側の抽象化はコンテキスト消費を増やすだけで利得がない） |
+
+### 4b.4 追加候補の実装方針（将来実装時の不変条件、参考）
+
+追加候補（文書ナビ向け Link リスト・Link/LinkOverlay・Breadcrumb）を
+将来実装する場合、以下を満たすこと。
+
+- 既存 (b) 群（`tabs`/`field`）と同様、自由関数のみで SSR 静的マークアップ
+  を組み立てられること（状態機械を必須にしない）
+- `href` 等のリンク属性値はすべて `fandhe_frontend_core::render` の既定
+  エスケープ（REQ-1）を経由し、`raw_html()` を使用しないこと
+- 外部依存はゼロのまま（`fandhe-frontend-core`/`-interactive` のみ）を
+  維持すること
+- 現在位置の表現は `aria-current`（値は `"page"` 等の APG 準拠語彙）と
+  `data-current` の併用とし、既存の `data-state` 値語彙一元化方針
+  （§6 不変条件 3）を踏襲すること
+
+### 4b.5 再評価条件
+
+- 追加候補（文書ナビ向け Link リスト・Link/LinkOverlay・Breadcrumb）が
+  実際に実装された場合、`docs/design/docs-site-styled-ui-adoption.md`
+  §5 再評価トリガー 1 の発火条件を満たすため、同書 §3.1/§3.2 の再評価を
+  行う
+- 保留（Pagination・Steps）は、docs-site またはユーザープロジェクトで
+  ページ分割一覧・ウィザード的ナビの利用見込みが具体化した時点で再評価
+  する
+- 意図的非採用（純粋レイアウトプリミティブ）の再評価は
+  `docs/policy/intentional-non-adoption.md` §4 の運用（評価軸の充足確認を
+  Issue・PR に明記）に従う
+
 ## 5. 呼び出し規約（SSR / CSR 共通の前提）
 
 - 各コンポーネントの anatomy パーツ（`root`/`trigger`/`content` 等）は
@@ -272,4 +349,8 @@ fail-closed に留まる。arrow（Menu のみ、`has_arrow()` が Select を対
 - `docs/policy/intentional-non-adoption.md` §3.20/§3.21: anchor positioning
   関連（Floating UI 高度 middleware・CSS Anchor Positioning）の非採用判断の
   正（同様に nav.toml 未登録のためリンク化しない）
+- `docs/design/docs-site-styled-ui-adoption.md`: docs サイト骨格への
+  pre-styled-ui 適用可否の評価記録。§5 再評価トリガー 1 は本書 §4b の
+  レイアウト・ナビゲーション系部品ロードマップと相互参照の関係にある
+  （同様に nav.toml 未登録のためリンク化しない）
 - `.claude/skills/ark-ui/`: 設計時の参考にした ark-ui リファレンススキル

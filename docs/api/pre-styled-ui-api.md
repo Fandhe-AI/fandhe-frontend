@@ -356,7 +356,9 @@ headless ラッパーと同じ、`src/lib.rs` 冒頭の rustdoc 参照）。
 
 ## 5. 関連ドキュメント
 
-- [`docs/api/headless-ui-api.md`](./headless-ui-api.md): 本クレートの下層
+- [`docs/api/headless-ui-api.md`](./headless-ui-api.md): 本クレートの下層。
+  §4b はレイアウト・ナビゲーション系部品（Breadcrumb / Pagination / 文書
+  ナビ向け Link リスト等）の追加要否の検討結果（イシュー #716）を記録する
 - [`docs/api/component-api.md`](./component-api.md): `Node`/`el`/`text`/
   `raw_html`/`render` の凍結 API 表面
 - [`examples/headless-pre-styled-ui/README.md`](../../examples/headless-pre-styled-ui/README.md):
