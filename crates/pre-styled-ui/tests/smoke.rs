@@ -13,7 +13,9 @@ use fandhe_frontend_headless_ui::data_attrs::Orientation;
 use fandhe_frontend_headless_ui::state::OpenState;
 use fandhe_frontend_pre_styled_ui::alert::{self, AlertStatus};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
-use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, popover, select, tabs, tooltip};
+use fandhe_frontend_pre_styled_ui::{
+    accordion, dialog, menu, popover, select, switch, tabs, tooltip,
+};
 use fandhe_frontend_pre_styled_ui::{badge, button, spinner};
 use fandhe_frontend_pre_styled_ui::{BadgeProps, ButtonProps, SpinnerProps};
 
@@ -170,6 +172,29 @@ mod wrapper_escape_and_stylesheet_safety {
     fn popover_and_tooltip_stylesheets_are_deterministic_across_calls() {
         assert_eq!(popover::stylesheet(), popover::stylesheet());
         assert_eq!(tooltip::stylesheet(), tooltip::stylesheet());
+    }
+
+    #[test]
+    fn switch_label_children_are_escaped() {
+        // イシュー #682: styled Switch 経由でも既定エスケープ（REQ-1）が
+        // 効くことを固定する（headless ラッパー第 3 弾）。
+        let html = render(&switch::label(false, vec![], vec![text(XSS_PAYLOAD)]));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;"));
+        assert!(html.contains(r#"data-scope="switch""#));
+    }
+
+    #[test]
+    fn switch_stylesheet_is_free_of_style_breakout_sequences() {
+        let css = switch::stylesheet();
+        assert!(!css.contains("</style"), "CSS breakout 発生: {css}");
+        assert!(!css.contains('<'), "CSS に '<' が混入: {css}");
+        assert!(!css.is_empty());
+    }
+
+    #[test]
+    fn switch_stylesheet_is_deterministic_across_calls() {
+        assert_eq!(switch::stylesheet(), switch::stylesheet());
     }
 }
 

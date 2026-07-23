@@ -30,7 +30,15 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 **本節の既知の陳腐化**: 上表は #550/#551/#606 のマージ後も未更新のまま残って
 いる（本項目は #606 実装時点の out-of-scope 候補として記録。全面改訂は別
 イシューで扱う）。実装済み API の正本は `crates/pre-styled-ui/src/lib.rs`
-冒頭の rustdoc を参照。
+冒頭の rustdoc を参照。同じ理由で headless ラッパー第 2 弾（#664:
+Popover/Tooltip）・第 3 弾（#682: Switch）も上表へは追加していない。
+`switch` モジュール（headless ラッパー第 3 弾、イシュー #682）は
+`fandhe_frontend_headless_ui::switch` の Root/Control/Thumb/Label/
+HiddenInput 5 パーツと `Switch` 状態機械を再エクスポートし、
+`switch::stylesheet()` で `data-state`（`"checked"`/`"unchecked"`）連動の
+既定 CSS を追加提供する。他の headless ラッパー（`dialog` 等）と同じ
+薄い委譲方針であり、詳細・スコープ外事項は `src/switch.rs` 冒頭の
+rustdoc を参照。
 
 `examples/headless-pre-styled-ui`（#552）は本クレートが未実装のため、
 headless-ui の `data-scope`/`data-part`/`data-state` セレクタへ手書きで
@@ -173,7 +181,42 @@ sheet.write_css_file(std::path::Path::new("static/ui.css")).unwrap();
 let _style_node = sheet.style_element();
 ```
 
-## 4b. styled RadioGroup ラッパー（イシュー #683）
+## 4b. `avatar`（Avatar の styled ラッパー、イシュー #684）
+
+`fandhe_frontend_headless_ui::avatar`（Root/Image/Fallback の 3 anatomy
+パーツと `Avatar` 状態機械）を薄く再利用し、`stylesheet()` で既定 CSS を
+追加提供する（設計方針は `crate::dialog`/`crate::tooltip` と同じ、
+`src/avatar.rs` 冒頭の rustdoc 参照）。
+
+- **選択的 re-export（`Avatar` 型は再エクスポートしない）**: `fallback`/
+  `image`/`AvatarAction`/`ImageStatus` を headless 層からそのまま再
+  エクスポートする。styled `root` は本モジュールで variant クラス付与の
+  ために再定義するため、`pub use ...::*` ではなく選択的 re-export とする
+  （headless の自由関数 `root` との名前衝突を避けるため）。状態機械
+  `Avatar` はあえて再エクスポートしない（PR #695 Bugbot 指摘、イシュー
+  #684 是正）: `Avatar::root()` は headless 自由関数 `root` へそのまま
+  委譲するのみで `size`/`shape` variant クラスを一切付与しないため、
+  再エクスポートすると呼び出し側が styled 層のつもりで `Avatar::root()`
+  を呼びレイアウトが静かに崩れる事故を誘発する。`Avatar` による状態
+  管理・hydration が必要な呼び出し側は
+  `fandhe_frontend_headless_ui::avatar::Avatar` を直接 import すること。
+- **`root(size, shape, attrs, children) -> Node`**: styled root パーツ。
+  `size`（`Size::Sm`/`Md`/`Lg`、既定 `Md`）・`shape`（`AvatarShape::Circle`/
+  `Rounded`/`Square`、既定 `Circle`）の 2 軸 variant に応じたクラス
+  （`fd-avatar--size-<value>` / `fd-avatar--shape-<value>`）を付与する。
+  呼び出し側 `attrs` の `class` は除去してから合成するため `class` 属性は
+  常に単一。実体は `fandhe_frontend_headless_ui::avatar::root` へ委譲する
+  （呼び出し側 `data-scope`/`data-part` 偽装は headless 側で除去される）。
+- **`AvatarShape`**: `recipe::VariantValue` 実装 enum（`Size` と並ぶ本
+  クレート 2 例目の variant 軸）。
+- **`stylesheet() -> String`**: この styled Avatar の静的 CSS 全量を返す
+  （決定的）。`image`/`fallback` の base 規則は `display` を宣言せず、
+  headless 層が付与する `hidden` 存在属性（UA 既定 `[hidden] { display:
+  none }`）による JS なし SSR の表示制御を壊さない。`data-state="hidden"`
+  一致時の `display: none` は `SlotRecipe::state` 経由で多層防御として
+  追加登録する（`src/avatar.rs` 冒頭の rustdoc 参照）。
+
+## 4c. styled RadioGroup ラッパー（イシュー #683）
 
 `radio_group` モジュールは `fandhe_frontend_headless_ui::radio_group`
 （イシュー #558/#536）の Root/Label/Item/ItemControl/ItemText/
