@@ -75,6 +75,9 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | Pagination | `pagination` | Root/Item/Ellipsis/PrevTrigger/NextTrigger | 独自実装（総件数・ページサイズ・現在ページ・sibling/boundary 件数から省略記号を含むページ列を導出する `page_range`（決定的・`O(boundary_count + sibling_count)`）+ `Component`/`Hydrate` を直接実装する値状態機械。現在ページは `aria-current="page"`/`data-selected` で、端到達は `disabled`/`data-disabled` で表現する。§4b.3 の保留（#716）を解除） | #751 |
 | Breadcrumb | `breadcrumb` | Root/List/Item/Link/CurrentLink/Separator/Ellipsis | なし（自由関数のみ、SSR 静的な意味論ナビ。現在位置は `aria-current="page"` + `data-current` の併用で表現） | #755 |
 | Carousel | `carousel` | Root/Control/PrevTrigger/NextTrigger/ItemGroup/Item/IndicatorGroup/Indicator | 独自実装（`0..slide_count` を循環し得る index 値、`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。dispatch は `"next"`/`"prev"`/`"goto"`、`Goto` の範囲外 index は no-op で fail-closed。`item` は `role="group"` + `aria-roledescription="slide"` + 位置ラベル、`indicator` は `aria-current`。autoplay（play/pause/`aria-live` 切替/delay）は初期実装スコープ外） | #754 |
+| Link | `link` | Root | なし（自由関数のみ。`external` オプトインで `target="_blank"` + `rel="noopener noreferrer"` を不可分に付与。現在位置は `aria-current="page"` + `data-current`） | #756 |
+| LinkOverlay | `link_overlay` | Root/Overlay | なし（自由関数のみ。`::before` 疑似要素の代わりに `overlay` 自身を styled 層で `position: absolute; inset: 0;` 展開するカード全面クリック化） | #756 |
+| NavList | `nav_list` | Root/Heading/List/Item/Link | なし（自由関数のみ。`role` を一切付与しない文書ナビ専用部品。`docs-site::nav.rs::sidebar` を本部品へ移行済み） | #756 |
 
 **未実装（open イシュー、後続で追補）**: Checkbox（#535）・Progress（#544）。
 本表はこれらの実装完了時に更新する。
@@ -279,8 +282,8 @@ ark-ui / chakra-ui のレイアウト・ナビゲーション系コンポーネ�
 
 | 候補 | 分類 | ark-ui / chakra-ui の実装状況 | docs-site 利用見込み | 工数参考 | 判断 |
 |---|---|---|---|---|---|
-| 文書ナビ向け Link リスト（`nav` + リンク一覧 + `aria-current="page"`） | (b) | ark-ui に専用コンポーネントはなく、chakra-ui も汎用 `Link`/`List` の組み合わせで表現する軽量パターン | `nav.rs::sidebar` の意味論不整合（§3.1）を直接解消しうる第一候補 | `field.rs`（740 行）程度。状態機械なし・anatomy と `aria-current`/`data-current` 出力のみ | **追加候補**（最優先） |
-| Link / LinkOverlay（アンカー要素全体のカード化） | (b) | chakra-ui に `Link`/`LinkOverlay`（`LinkBox` パターン、`position: absolute` でアンカーを親要素全面へ拡張する構成）あり。ark-ui に専用コンポーネントはなし | `nav.rs::prev_next_nav` の `card` 非対応（§3.2）を直接解消しうる | `avatar.rs` 相当（独自状態なしの小規模 anatomy）と同程度。工数小 | **追加候補** |
+| 文書ナビ向け Link リスト（`nav` + リンク一覧 + `aria-current="page"`） | (b) | ark-ui に専用コンポーネントはなく、chakra-ui も汎用 `Link`/`List` の組み合わせで表現する軽量パターン | `nav.rs::sidebar` の意味論不整合（§3.1）を直接解消しうる第一候補 | `field.rs`（740 行）程度。状態機械なし・anatomy と `aria-current`/`data-current` 出力のみ | **追加候補**（最優先）→ **イシュー #756 で実装済み**（headless `crates/headless-ui/src/nav_list.rs` + styled `crates/pre-styled-ui/src/nav_list.rs`。`nav.rs::sidebar` 自体を本部品へ移行済み、§3.1 解消） |
+| Link / LinkOverlay（アンカー要素全体のカード化） | (b) | chakra-ui に `Link`/`LinkOverlay`（`LinkBox` パターン、`position: absolute` でアンカーを親要素全面へ拡張する構成）あり。ark-ui に専用コンポーネントはなし | `nav.rs::prev_next_nav` の `card` 非対応（§3.2）を直接解消しうる | `avatar.rs` 相当（独自状態なしの小規模 anatomy）と同程度。工数小 | **追加候補**→ **イシュー #756 で実装済み**（headless `crates/headless-ui/src/link.rs`（Link）・`crates/headless-ui/src/link_overlay.rs`（LinkOverlay）+ styled 対）。`nav.rs::prev_next_nav` を LinkOverlay へ移行済み、§3.2 解消 |
 | Breadcrumb | (b) | ark-ui に headless 実体はなく、chakra-ui も styled 合成のみ（状態機械を持たない） | 現時点で docs-site に階層パンくずの利用箇所はない（サイドバー1階層構成のため）。ユーザープロジェクトでの利用見込みはある | `tabs.rs`（790 行）程度。状態機械なし・`aria-current="page"` 出力のみ | **追加候補**（優先度中）→ **イシュー #755 で実装済み**（headless `crates/headless-ui/src/breadcrumb.rs` + styled `crates/pre-styled-ui/src/breadcrumb.rs`。docs-site showcase へは掲示済みだが `nav.rs::sidebar` 自体の置き換えは行っていない、下記 §4b.5 参照） |
 | Pagination | (a) | ark-ui に headless 実体あり（ページ番号・件数・現在ページの状態機械を持つ） | 当初は docs-site に該当箇所なし・利用見込み未確認だったが、イシュー #751（親トラッキング #520 の全コンポーネント網羅方針）により保留を解除して実装した（§4 参照、`crates/docs-site/src/showcase.rs::pagination_section` に静的掲示あり） | `select.rs`（1481 行）/`menu.rs`（1818 行）相当だったが、実装は `page_range`（決定的・境界/sibling レンジのマージ）+ 値状態機械の直接実装で完結し想定より小規模だった | **実装済み**（#751。headless: `pagination` モジュール／pre-styled: `pagination` モジュール、golden CSS・`push_recipe` 登録・Size variant あり） |
 | Steps | (a) | ark-ui に headless 実体あり（進行状態を持つウィザード的ナビ） | docs-site・examples のいずれにも利用見込みなし | Pagination 同様に工数大 | **保留** |
@@ -303,18 +306,14 @@ ark-ui / chakra-ui のレイアウト・ナビゲーション系コンポーネ�
 
 ### 4b.5 再評価条件
 
-- 追加候補（文書ナビ向け Link リスト・Link/LinkOverlay・Breadcrumb）が
-  実際に実装された場合、`docs/design/docs-site-styled-ui-adoption.md`
-  §5 再評価トリガー 1 の発火条件を満たすため、同書 §3.1/§3.2 の再評価を
-  行う。**Breadcrumb はイシュー #755 で実装済みだが、`nav.rs::sidebar`
-  （§3.1）・`nav.rs::prev_next_nav`（§3.2）が解消する意味論不整合は
-  文書ナビ向け Link リスト・Link/LinkOverlay 側の課題であり Breadcrumb
-  自体では解消しない（Breadcrumb は階層パンくず専用の意味論を持つ別
-  コンポーネント）。そのため同書 §3.1/§3.2 の再評価は Link リスト・
-  Link/LinkOverlay の実装イシューのスコープとし、本イシューでは行わない**
-- 保留（Steps）は、docs-site またはユーザープロジェクトでウィザード的
-  ナビの利用見込みが具体化した時点で再評価する（Pagination はイシュー
-  #751 で保留を解除し実装済み、§4b.3 参照）
+- 追加候補（文書ナビ向け Link リスト・Link/LinkOverlay・Breadcrumb）は
+  すべて実装済み（Breadcrumb はイシュー #755、文書ナビ向け Link リスト・
+  Link/LinkOverlay はイシュー #756）。`docs/design/docs-site-styled-ui-adoption.md`
+  §5 再評価トリガー 1 の発火条件を満たしたため、同書 §3.1/§3.2 は
+  イシュー #756 で再評価し「解消済み」へ更新した（詳細は同書参照）。
+- 保留（Pagination・Steps）は、docs-site またはユーザープロジェクトで
+  ページ分割一覧・ウィザード的ナビの利用見込みが具体化した時点で再評価
+  する（Pagination はイシュー #751 で保留を解除し実装済み、§4b.3 参照）
 - 意図的非採用（純粋レイアウトプリミティブ）の再評価は
   `docs/policy/intentional-non-adoption.md` §4 の運用（評価軸の充足確認を
   Issue・PR に明記）に従う

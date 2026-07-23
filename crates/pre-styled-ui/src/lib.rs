@@ -155,6 +155,19 @@
 //!   ではないため）。`--fandhe-carousel-index` CSS カスタムプロパティによる
 //!   決定的なスライド位置表現・autoplay スコープ外は [`mod@carousel`]
 //!   rustdoc 参照。
+//! - headless ラッパー 3 種（イシュー #756、#716 追加候補・最優先候補の消化）:
+//!   [`mod@link`]（Link、`variant` の下線表示切り替え + `aria-current="page"`
+//!   状態装飾）、[`mod@link_overlay`]（LinkOverlay、`::before` 疑似要素の
+//!   代わりに `overlay` 自身を `position: absolute; inset: 0;` で展開する
+//!   カード全面クリック化。詳細は headless 層 rustdoc 参照）、
+//!   [`mod@nav_list`]（NavList、`docs/design/docs-site-styled-ui-adoption.md`
+//!   §3.1 が指摘した `menu` ロール誤転用を解消する文書ナビ専用部品。`role`
+//!   を一切付与しない）。`fandhe-frontend-docs-site` は本クレートの styled
+//!   `root`/`stylesheet` ではなく headless 再エクスポート
+//!   （[`nav_list::heading`]/[`nav_list::list`]/[`nav_list::item`]/
+//!   [`nav_list::link`]）のみを使い、`site/assets/site.css` の自己完結
+//!   不変条件（§3.4）を維持したまま §3.1/§3.2 の意味論不整合を解消する
+//!   （[`mod@nav_list`] rustdoc 参照）。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -295,8 +308,11 @@ pub mod combobox;
 pub mod css;
 pub mod dialog;
 pub mod input;
+pub mod link;
+pub mod link_overlay;
 pub mod menu;
 pub mod native_select;
+pub mod nav_list;
 pub mod number_input;
 pub mod pagination;
 pub mod pin_input;

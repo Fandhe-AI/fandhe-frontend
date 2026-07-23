@@ -286,6 +286,9 @@ mod tests {
             ("pagination", crate::pagination::stylesheet()),
             ("breadcrumb", crate::breadcrumb::stylesheet()),
             ("carousel", crate::carousel::stylesheet()),
+            ("link", crate::link::stylesheet()),
+            ("link_overlay", crate::link_overlay::stylesheet()),
+            ("nav_list", crate::nav_list::stylesheet()),
         ]
     }
 
