@@ -382,7 +382,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/disclosure/pagination.md` | Pagination | Pagination | — | — | 実装対象 | #751（#716 保留の解除） |
 | `.agents/skills/chakra-ui/references/components/disclosure/steps.md` | Steps | Steps | — | — | 実装対象 | #752（#716 保留の解除） |
 | `.agents/skills/chakra-ui/references/components/disclosure/carousel.md` | Carousel | Carousel | — | — | 実装対象 | #754 |
-| `.agents/skills/chakra-ui/references/components/disclosure/breadcrumb.md` | — | Breadcrumb | — | — | 実装対象 | #755（#716 追加候補の消化） |
+| `.agents/skills/chakra-ui/references/components/disclosure/breadcrumb.md` | — | Breadcrumb | breadcrumb | breadcrumb | 実装済み | #755（#716 追加候補の消化）。headless+styled 実装済み |
 
 #### `.agents/skills/chakra-ui/references/components/feedback/`
 
@@ -417,8 +417,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/forms/segmented-control.md` | SegmentGroup | SegmentedControl | segment_group | segment_group | 実装済み | headless+styled 実装済み（#743） |
 | `.agents/skills/chakra-ui/references/components/forms/tags-input.md` | TagsInput | TagsInput | tags_input | tags_input | 実装済み | headless+styled 実装済み（#744） |
 | `.agents/skills/chakra-ui/references/components/forms/editable.md` | Editable | Editable | — | — | 実装対象 | #745 |
-| `.agents/skills/chakra-ui/references/components/forms/checkbox-card.md` | — | CheckboxCard | — | — | 実装対象 | #747 |
-| `.agents/skills/chakra-ui/references/components/forms/radio-card.md` | — | RadioCard | — | — | 実装対象 | #747 |
+| `.agents/skills/chakra-ui/references/components/forms/checkbox-card.md` | — | CheckboxCard | — | checkbox_card | 実装済み | pre-styled styled バリエーション実装済み（#747。headless-ui は変更なし、状態機械は headless Checkbox を再利用） |
+| `.agents/skills/chakra-ui/references/components/forms/radio-card.md` | — | RadioCard | — | radio_card | 実装済み | pre-styled styled バリエーション実装済み（#747。headless-ui は変更なし、状態機械は headless RadioGroup を再利用） |
 | `.agents/skills/chakra-ui/references/components/forms/color-picker.md` | ColorPicker | ColorPicker | — | — | 保留 | #735 で記録（高度入力系） |
 | `.agents/skills/chakra-ui/references/components/forms/color-swatch.md` | — | ColorSwatch | — | — | 保留 | #735 で記録（高度入力系、ColorPicker 併設部品） |
 | `.agents/skills/chakra-ui/references/components/forms/file-upload.md` | FileUpload | FileUpload | — | — | 保留 | #735 で記録（高度入力系） |

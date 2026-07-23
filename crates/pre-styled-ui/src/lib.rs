@@ -134,6 +134,20 @@
 //!   いずれの variant も提供しない（[`mod@tree_view`] rustdoc 参照）。branch
 //!   のインデントは CSS custom property（`--fandhe-tree-view-indent`）で
 //!   表現し、DOM ネストにより深さ分が自然に累積する。
+//! - headless ラッパー（イシュー #755）: [`mod@breadcrumb`]（Breadcrumb、
+//!   `docs/api/headless-ui-api.md` §4b の追加候補消化。状態機械を持たない
+//!   静的意味論ナビ）。`size`/[`breadcrumb::BreadcrumbVariant`]（`link` の
+//!   下線表示切り替え）の 2 軸 variant を root のみへ付与し、`link` への
+//!   伝搬は root スコープ CSS custom property の継承で行う（[`mod@switch`]
+//!   と同型のパターン、[`mod@breadcrumb`] rustdoc 参照）。
+//! - カード型選択 UI 2 種（#747）: [`mod@checkbox_card`]/[`mod@radio_card`]。
+//!   chakra-ui の checkbox-card/radio-card 相当（ark-ui には対応する
+//!   headless anatomy が存在しないため、headless-ui は変更せず pre-styled
+//!   層で新規 anatomy `data-scope="checkbox-card"`/`"radio-card"` を定義する
+//!   [`crate::card`] 型の構成）。状態機械は headless の
+//!   [`fandhe_frontend_headless_ui::checkbox::Checkbox`]/
+//!   [`fandhe_frontend_headless_ui::radio_group::RadioGroup`] をそのまま
+//!   再利用し、新規状態機械は作らない。詳細は各モジュール rustdoc 参照。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -263,9 +277,11 @@ pub mod accordion;
 pub mod alert;
 pub mod avatar;
 pub mod badge;
+pub mod breadcrumb;
 pub mod button;
 pub mod card;
 pub mod checkbox;
+pub mod checkbox_card;
 mod class_attr;
 pub mod combobox;
 pub mod css;
@@ -276,6 +292,7 @@ pub mod native_select;
 pub mod number_input;
 pub mod pin_input;
 pub mod popover;
+pub mod radio_card;
 pub mod radio_group;
 pub mod rating_group;
 pub mod recipe;

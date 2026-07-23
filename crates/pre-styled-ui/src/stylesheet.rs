@@ -269,6 +269,8 @@ mod tests {
             ("radio_group", crate::radio_group::stylesheet()),
             ("avatar", crate::avatar::stylesheet()),
             ("checkbox", crate::checkbox::stylesheet()),
+            ("checkbox_card", crate::checkbox_card::stylesheet()),
+            ("radio_card", crate::radio_card::stylesheet()),
             ("input", crate::input::css()),
             ("textarea", crate::textarea::css()),
             ("native_select", crate::native_select::css()),
@@ -281,6 +283,7 @@ mod tests {
             ("toggle_group", crate::toggle_group::stylesheet()),
             ("segment_group", crate::segment_group::stylesheet()),
             ("tree_view", crate::tree_view::stylesheet()),
+            ("breadcrumb", crate::breadcrumb::stylesheet()),
         ]
     }
 

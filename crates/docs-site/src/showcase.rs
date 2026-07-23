@@ -46,13 +46,16 @@
 
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
+use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
+use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
+use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
 use fandhe_frontend_pre_styled_ui::segment_group;
 use fandhe_frontend_pre_styled_ui::slider;
@@ -145,7 +148,8 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 /// 内訳: テーマトークン（`Theme::default`、ライト/ダーク両対応）→ 掲載
 /// コンポーネントの recipe CSS（button/badge/spinner/alert/card/tabs/
 /// accordion/dialog/menu/select/combobox/popover/tooltip/switch/radio_group/
-/// avatar/segment_group）
+/// avatar/checkbox/checkbox_card/radio_card/input/textarea/native_select/
+/// number_input/tags_input/rating_group/slider/segment_group/breadcrumb）
 /// → ショーケース配置スタイル、の順で決定的に連結する。
 ///
 /// # Errors
@@ -174,6 +178,8 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::radio_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::avatar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::checkbox::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::checkbox_card::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::radio_card::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::input::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
@@ -183,6 +189,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::slider::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::segment_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tree_view::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::breadcrumb::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -1717,6 +1724,234 @@ fn segment_group_section() -> Node {
     )
 }
 
+/// CheckboxCard 節: unchecked / checked / disabled の 3 態（イシュー #747）。
+///
+/// chakra-ui checkbox-card 相当のカード型選択 UI。状態機械は
+/// [`fandhe_frontend_pre_styled_ui::checkbox`] 節と同じ headless `Checkbox`/
+/// `CheckboxProps` を再利用し、`data-scope="checkbox-card"` の新規 anatomy
+/// （`crates/pre-styled-ui/src/checkbox_card.rs` 参照）でカード外観を重ねる。
+fn checkbox_card_section() -> Node {
+    let states = [
+        (
+            CheckedState::Unchecked,
+            false,
+            "showcase-checkbox-card-unchecked",
+            "Starter",
+            "個人利用向けの基本プラン。",
+        ),
+        (
+            CheckedState::Checked,
+            false,
+            "showcase-checkbox-card-checked",
+            "Pro",
+            "チームでの共同作業に対応。",
+        ),
+        (
+            CheckedState::Checked,
+            true,
+            "showcase-checkbox-card-disabled",
+            "Enterprise",
+            "現在準備中のプランです。",
+        ),
+    ];
+    let demo_row = row(states
+        .iter()
+        .map(|(checked, disabled, name, label, description)| {
+            let props = CheckboxProps {
+                checked: *checked,
+                disabled: *disabled,
+                ..CheckboxProps::default()
+            };
+            checkbox_card::root(
+                Size::Md,
+                ColorPalette::Accent,
+                &props,
+                vec![],
+                vec![
+                    checkbox_card::hidden_input(&props, name, "on", vec![]),
+                    checkbox_card::control(
+                        &props,
+                        vec![],
+                        vec![
+                            checkbox_card::indicator(
+                                &props,
+                                vec![],
+                                vec![checkbox_card::indicator_check(&props, vec![], vec![])],
+                            ),
+                            checkbox_card::content(
+                                &props,
+                                vec![],
+                                vec![
+                                    checkbox_card::label(&props, vec![], vec![text(*label)]),
+                                    checkbox_card::description(
+                                        &props,
+                                        vec![],
+                                        vec![text(*description)],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            )
+        })
+        .collect());
+    section(
+        "CheckboxCard",
+        "chakra-ui checkbox-card 相当のカード型選択 UI。状態機械は Checkbox（headless）をそのまま再利用し、data-scope=\"checkbox-card\" の新規 anatomy でカード外観を重ねます。",
+        vec![demo_row],
+    )
+}
+
+/// RadioCard 節: 単一選択のカード型選択 UI（イシュー #747）。
+///
+/// 状態機械は [`fandhe_frontend_pre_styled_ui::radio_group`] 節と同じ headless
+/// `RadioGroup`（`SingleSelect`）をそのまま再利用し、
+/// `data-scope="radio-card"` の新規 anatomy（`crates/pre-styled-ui/src/radio_card.rs`
+/// 参照）でカード外観を重ねる。
+fn radio_card_section() -> Node {
+    let label_id = "showcase-radio-card-label";
+    let items = [
+        (
+            "plan-free-card",
+            "Free",
+            "基本機能のみ利用可能。",
+            true,
+            false,
+        ),
+        (
+            "plan-pro-card",
+            "Pro",
+            "チーム機能・優先サポート付き。",
+            false,
+            false,
+        ),
+        (
+            "plan-enterprise-card",
+            "Enterprise",
+            "SSO・監査ログに対応。",
+            false,
+            true,
+        ),
+    ];
+    let mut children = vec![radio_card::label(
+        Some(label_id),
+        vec![],
+        vec![text("Plan")],
+    )];
+    children.extend(
+        items
+            .iter()
+            .map(|(value, label, description, checked, disabled)| {
+                radio_card::item(
+                    *checked,
+                    *disabled,
+                    value,
+                    vec![],
+                    vec![
+                        radio_card::item_hidden_input(
+                            *checked,
+                            *disabled,
+                            Some("showcase-radio-card"),
+                            value,
+                            vec![],
+                        ),
+                        radio_card::item_control(
+                            *checked,
+                            *disabled,
+                            vec![],
+                            vec![
+                                radio_card::item_indicator(*checked, *disabled, vec![]),
+                                radio_card::item_content(
+                                    vec![],
+                                    vec![
+                                        radio_card::item_text(vec![], vec![text(*label)]),
+                                        radio_card::item_description(
+                                            vec![],
+                                            vec![text(*description)],
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                    ],
+                )
+            }),
+    );
+    let demo = radio_card::root(
+        Size::Md,
+        ColorPalette::Accent,
+        false,
+        Some(Orientation::Vertical),
+        Some(label_id),
+        vec![],
+        children,
+    );
+    section(
+        "RadioCard",
+        "chakra-ui radio-card 相当のカード型選択 UI。状態機械は RadioGroup（headless）をそのまま再利用し、data-scope=\"radio-card\" の新規 anatomy でカード外観を重ねます。",
+        vec![demo],
+    )
+}
+
+/// Breadcrumb 節: `size`/[`BreadcrumbVariant`] を既定値で掲示する（イシュー
+/// #755）。状態機械を持たない静的意味論ナビのため、開閉等の状態掲示は不要
+/// （3 階層のパンくずをそのまま組み立てる）。
+fn breadcrumb_section() -> Node {
+    // `href` は空文字列（`fandhe_frontend_core::render` の URL 検証上は
+    // 相対 URL として許可されるが、linkcheck 対象からは除外される。
+    // `crate::linkcheck::check_links` は空 href を無条件でスキップする
+    // 契約であり、生成コンテンツを linkcheck の突合対象へ含めない本モジュール
+    // の既存設計（`showcase_markup_has_no_href_attributes_for_linkcheck_neutrality`
+    // 参照）を壊さずに `link` パーツ（実際に `href` 属性を持つ要素）を掲示する
+    // ための選択。実サイトへの導線が必要な利用は呼び出し側アプリケーションの
+    // 責務（本ショーケースは recipe CSS の見た目確認が目的）。
+    let items = [
+        BreadcrumbItem {
+            label: "Docs",
+            href: "",
+        },
+        BreadcrumbItem {
+            label: "Components",
+            href: "",
+        },
+        BreadcrumbItem {
+            label: "Breadcrumb",
+            href: "",
+        },
+    ];
+    let node = breadcrumb::root(
+        Size::Md,
+        BreadcrumbVariant::Plain,
+        None,
+        vec![],
+        vec![breadcrumb::list(
+            vec![],
+            items
+                .iter()
+                .enumerate()
+                .flat_map(|(index, entry)| {
+                    let inner = if index == items.len() - 1 {
+                        breadcrumb::current_link(vec![], vec![text(entry.label)])
+                    } else {
+                        breadcrumb::link(entry.href, vec![], vec![text(entry.label)])
+                    };
+                    let mut parts = vec![breadcrumb::item(vec![], vec![inner])];
+                    if index != items.len() - 1 {
+                        parts.push(breadcrumb::separator(vec![], vec![text("/")]));
+                    }
+                    parts
+                })
+                .collect(),
+        )],
+    );
+    section(
+        "Breadcrumb",
+        "headless-ui の Breadcrumb（nav[aria-label=\"breadcrumb\"] + ol/li）に pre-styled-ui の recipe CSS を適用した静的掲示です。末尾項目のみ aria-current=\"page\"/data-current を持つ非対話の現在位置表示（span）として描画します。",
+        vec![node],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -1758,6 +1993,9 @@ fn showcase_body() -> Node {
             slider_section(),
             segment_group_section(),
             tree_view_section(),
+            checkbox_card_section(),
+            radio_card_section(),
+            breadcrumb_section(),
         ],
     )
 }
@@ -1800,6 +2038,9 @@ mod tests {
             "rating-group",
             "slider",
             "segment-group",
+            "checkbox-card",
+            "radio-card",
+            "breadcrumb",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
@@ -1841,11 +2082,24 @@ mod tests {
     #[test]
     fn showcase_markup_has_no_href_attributes_for_linkcheck_neutrality() {
         // build.rs の linkcheck は全 href を突合検証する。生成コンテンツは
-        // リンクを持たない設計とし、リンク検証対象を Markdown 側へ限定する
-        // （リンクを足す場合はこのテストを更新して linkcheck との整合を
-        // 明示的に設計し直すこと）。
+        // 実ページへ解決される href を持たない設計とし、リンク検証対象を
+        // Markdown 側へ限定する。イシュー #755 で Breadcrumb（`link` パーツ、
+        // 実際に `href` 属性を持つ anatomy）を掲示したため、本テストは
+        // 「`href=""`（空文字列、`crate::linkcheck::check_links` が無条件
+        // スキップする値）以外の href が存在しないこと」へ更新した
+        // （`showcase::breadcrumb_section` rustdoc 参照。空 href 以外を
+        // 足す場合はこのテストを更新して linkcheck との整合を明示的に
+        // 設計し直すこと）。
         let html = render(&showcase_body());
-        assert!(!html.contains("href="));
+        let non_empty_hrefs: Vec<&str> = html
+            .match_indices("href=\"")
+            .filter(|(i, _)| !html[i + 6..].starts_with('"'))
+            .map(|(i, _)| &html[i..i + 20.min(html.len() - i)])
+            .collect();
+        assert!(
+            non_empty_hrefs.is_empty(),
+            "non-empty href found: {non_empty_hrefs:?}"
+        );
     }
 
     #[test]
@@ -1869,6 +2123,8 @@ mod tests {
         assert!(css.contains(".fd-avatar--size-md"));
         assert!(css.contains(".fd-avatar--shape-circle"));
         assert!(css.contains(r#"[data-scope="checkbox"][data-part="control"]"#));
+        assert!(css.contains(r#"[data-scope="checkbox-card"][data-part="indicator"]"#));
+        assert!(css.contains(r#"[data-scope="radio-card"][data-part="item-indicator"]"#));
         assert!(css.contains(r#"[data-scope="field"][data-part="input"]"#));
         assert!(css.contains(r#"[data-scope="field"][data-part="textarea"]"#));
         assert!(css.contains(r#"[data-scope="field"][data-part="select"]"#));
