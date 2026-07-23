@@ -155,6 +155,14 @@
 //!   ではないため）。`--fandhe-carousel-index` CSS カスタムプロパティによる
 //!   決定的なスライド位置表現・autoplay スコープ外は [`mod@carousel`]
 //!   rustdoc 参照。
+//! - headless ラッパー（イシュー #758）: [`mod@drawer`]（Drawer、dialog の
+//!   変種。WAI-ARIA 上は同じ Dialog パターンのため、開閉状態機械は
+//!   [`mod@dialog`] を再利用する headless 層の設計をそのまま引き継ぎ、本
+//!   モジュールも新規状態機械を持たない）。`size`（drawer の占有幅/高さ）
+//!   variant のみを持ち `color-palette` 軸は提供しない（[`mod@number_input`]
+//!   等と同型の判断）。placement（`start`/`end`/`top`/`bottom`）は variant
+//!   ではなく headless 層が出力する `data-placement` に連動する CSS で表現
+//!   する。詳細は [`mod@drawer`] rustdoc 参照。
 //! - headless ラッパー 3 種（イシュー #756、#716 追加候補・最優先候補の消化）:
 //!   [`mod@link`]（Link、`variant` の下線表示切り替え + `aria-current="page"`
 //!   状態装飾）、[`mod@link_overlay`]（LinkOverlay、`::before` 疑似要素の
@@ -307,6 +315,7 @@ mod class_attr;
 pub mod combobox;
 pub mod css;
 pub mod dialog;
+pub mod drawer;
 pub mod input;
 pub mod link;
 pub mod link_overlay;
