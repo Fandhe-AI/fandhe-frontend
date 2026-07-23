@@ -49,9 +49,11 @@ use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
+use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
@@ -170,6 +172,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::slider::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -1275,6 +1278,102 @@ fn number_input_section() -> Node {
     )
 }
 
+/// Slider 節: 中間値・境界値（max 到達）・disabled の 3 態。
+///
+/// `range`/`thumb` の塗りつぶし・位置は headless 中立な
+/// [`Slider::percent`] から導出する `--fandhe-slider-percent` CSS custom
+/// property の 1 点のみで伝搬する
+/// （`fandhe_frontend_pre_styled_ui::slider` のモジュール doc 参照）。
+fn slider_section() -> Node {
+    let mid_state = Slider::new(0.0, 100.0, 1.0, 40.0, Orientation::Horizontal);
+    let mid = slider::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &mid_state,
+        false,
+        vec![],
+        vec![
+            slider::label(vec![], vec![text("Volume")]),
+            slider::control(
+                Orientation::Horizontal,
+                false,
+                vec![],
+                vec![
+                    slider::track(
+                        Orientation::Horizontal,
+                        false,
+                        vec![],
+                        vec![slider::range(&mid_state, false, vec![])],
+                    ),
+                    slider::thumb_styled(&mid_state, Some("40 percent"), false, vec![]),
+                ],
+            ),
+            slider::hidden_input("volume", "40", false, vec![]),
+        ],
+    );
+
+    let at_max_state = Slider::new(0.0, 100.0, 1.0, 100.0, Orientation::Horizontal);
+    let at_max = slider::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &at_max_state,
+        false,
+        vec![],
+        vec![
+            slider::label(vec![], vec![text("At max")]),
+            slider::control(
+                Orientation::Horizontal,
+                false,
+                vec![],
+                vec![
+                    slider::track(
+                        Orientation::Horizontal,
+                        false,
+                        vec![],
+                        vec![slider::range(&at_max_state, false, vec![])],
+                    ),
+                    slider::thumb_styled(&at_max_state, Some("100 percent"), false, vec![]),
+                ],
+            ),
+            slider::hidden_input("volume-max", "100", false, vec![]),
+        ],
+    );
+
+    let disabled_state = Slider::new(0.0, 100.0, 1.0, 25.0, Orientation::Horizontal);
+    let disabled = slider::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &disabled_state,
+        true,
+        vec![],
+        vec![
+            slider::label(vec![], vec![text("Disabled")]),
+            slider::control(
+                Orientation::Horizontal,
+                true,
+                vec![],
+                vec![
+                    slider::track(
+                        Orientation::Horizontal,
+                        true,
+                        vec![],
+                        vec![slider::range(&disabled_state, true, vec![])],
+                    ),
+                    slider::thumb_styled(&disabled_state, Some("25 percent"), true, vec![]),
+                ],
+            ),
+            slider::hidden_input("volume-disabled", "25", true, vec![]),
+        ],
+    );
+
+    let demo_row = row(vec![mid, at_max, disabled]);
+    section(
+        "Slider",
+        "min/max/step でクランプされる連続値スライダー。塗りつぶし・つまみの位置は --fandhe-slider-percent の 1 点で伝搬します。",
+        vec![demo_row],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -1310,6 +1409,7 @@ fn showcase_body() -> Node {
             checkbox_section(),
             form_controls_section(),
             number_input_section(),
+            slider_section(),
         ],
     )
 }
@@ -1348,6 +1448,7 @@ mod tests {
             "checkbox",
             "field",
             "number-input",
+            "slider",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
