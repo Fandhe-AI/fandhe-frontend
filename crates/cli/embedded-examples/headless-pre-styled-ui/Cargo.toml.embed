@@ -20,9 +20,12 @@ publish = false
 # への直接依存は撤去した（イシュー #689）。headless 層 API が必要な呼び出し側は
 # `fandhe_frontend_pre_styled_ui` の `pub use fandhe_frontend_headless_ui`
 # 再エクスポート経由で参照できる。
+# v0.5.0（PR #719、公開・追随はイシュー #728）で Switch::root / RadioGroup::root
+# が Avatar と同じ「styled root（size/palette variant 付与）」形へ変更された
+# ため追随した（`src/main.rs` の switch_section/radio_group_section 参照）。
 [dependencies]
 fandhe-frontend-core = "0.1.0"
-fandhe-frontend-pre-styled-ui = "0.4.0"
+fandhe-frontend-pre-styled-ui = "0.5.0"
 
 [dev-dependencies]
 

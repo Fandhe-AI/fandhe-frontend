@@ -20,7 +20,9 @@
 にも対応しました。Switch / RadioGroup / Avatar の styled ラッパーが v0.4.0
 （#682/#683/#684、公開 #686）で出揃い全部品が pre-styled-ui 経由の styled
 提供となったため、`fandhe-frontend-headless-ui` への直接依存は撤去しました
-（イシュー #689）。
+（イシュー #689）。さらに `fandhe-frontend-pre-styled-ui` v0.5.0（PR #719、
+公開・追随はイシュー #728）で Switch / RadioGroup の `root` が size/palette
+variant 引数を取る styled root 形へ変更されたため追随しました。
 
 ## pre-styled-ui 統合について
 
@@ -30,12 +32,14 @@
 `StyleSheet`/`Theme`）が揃ったため 2 層構成のデモとして統合し、v0.4.0 で
 Switch / RadioGroup / Avatar の styled ラッパーも出揃ったため、本サンプルは
 全コンポーネントが pre-styled-ui 経由の styled 提供です（イシュー #689）。
+v0.5.0（PR #719）で Switch / RadioGroup の `root` も Avatar と同じ
+「styled root（size/palette variant 付与）」形へ変更されました。
 各コンポーネントの層別内訳:
 
 | コンポーネント | 使用する層 | 備考 |
 |---------------|-----------|------|
-| Tabs / Accordion / Dialog / Menu / Select / Popover / Tooltip / Switch / RadioGroup | pre-styled-ui（headless ラッパー） | マークアップは headless 層の再エクスポート、既定 CSS は各モジュールの `stylesheet()`。Menu / Select はラッパー第 1 弾（#551）、Popover / Tooltip は第 2 弾（#664、PR #672）、Switch / RadioGroup は第 3 弾（#682/#683） |
-| Avatar | pre-styled-ui（styled root、size/shape variant） | `root` のみ styled（`fd-avatar--size-*`/`fd-avatar--shape-*`）、`image`/`fallback` は headless 層の再エクスポート（#684） |
+| Tabs / Accordion / Dialog / Menu / Select / Popover / Tooltip | pre-styled-ui（headless ラッパー） | マークアップは headless 層の再エクスポート、既定 CSS は各モジュールの `stylesheet()`。Menu / Select はラッパー第 1 弾（#551）、Popover / Tooltip は第 2 弾（#664、PR #672） |
+| Avatar / Switch / RadioGroup | pre-styled-ui（styled root、size/palette variant） | `root` のみ styled（`fd-<scope>--size-*`/`fd-<scope>--color-palette-*` 等）、子パーツは headless 層の再エクスポート。Avatar は #684（size/shape variant）、Switch / RadioGroup は第 3 弾（#682/#683）→ PR #719 で `root` が size/palette variant 付与化 |
 | Button / Badge / Card / Alert / Spinner | pre-styled-ui（単純 styled 部品） | variant / size / colorPalette を Rust enum で型安全に指定 |
 
 Menu / Select / Popover / Tooltip はいずれも `positioner` が `position:
