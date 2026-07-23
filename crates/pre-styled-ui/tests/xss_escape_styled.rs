@@ -45,6 +45,7 @@ use fandhe_frontend_pre_styled_ui::password_input::{
     self, PasswordAutocomplete, PasswordInputProps,
 };
 use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind};
+use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingItemFlags};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
@@ -789,6 +790,78 @@ fn pin_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
             payload,
             &html,
             "pin_input::hidden_input name/value コンテキスト",
+        );
+    }
+}
+
+#[test]
+fn rating_group_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&rating_group::root(
+            Size::Md,
+            ColorPalette::Accent,
+            false,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "rating_group::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&rating_group::root(
+            Size::Md,
+            ColorPalette::Accent,
+            false,
+            false,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "rating_group::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "rating_group::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-rating-group--"),
+            "rating_group::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした label の children 経路。
+        let html = render(&rating_group::label(None, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "rating_group::label children コンテキスト");
+
+        // 選択的再エクスポートした item の aria_label 経路。
+        let html = render(&rating_group::item(
+            1,
+            RatingItemFlags::default(),
+            payload,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "rating_group::item aria_label コンテキスト");
+
+        // 選択的再エクスポートした hidden_input の name 経路。
+        let html = render(&rating_group::hidden_input(
+            Some(payload),
+            "3",
+            false,
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "rating_group::hidden_input name コンテキスト",
         );
     }
 }
