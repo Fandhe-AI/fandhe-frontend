@@ -296,6 +296,7 @@ mod tests {
             ("nav_list", crate::nav_list::stylesheet()),
             ("status", crate::status::css()),
             ("empty_state", crate::empty_state::css()),
+            ("clipboard", crate::clipboard::stylesheet()),
         ]
     }
 
