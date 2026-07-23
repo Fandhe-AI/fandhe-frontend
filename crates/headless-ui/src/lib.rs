@@ -149,6 +149,12 @@
 //!   （#600、親 #542）を持つ。CSS 変数（`--size`/`--thickness`）参照の
 //!   固定 `style` で描画し、状態機械・hydration フォーマットへの追加は
 //!   ない（詳細は [`progress`] モジュール doc の circular 節を参照）。
+//! - [`mod@pin_input`]: Root / Label / Control / Input / HiddenInput の 5
+//!   anatomy パーツと、固定桁数の文字配列 + フォーカス位置を持つ
+//!   [`pin_input::PinInput`] 状態機械（#739、親 #736/#726）。[`mod@switch`]/
+//!   [`mod@progress`] と同じく [`state`] の既存語彙に収まらないため、
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
@@ -197,6 +203,7 @@ pub mod dialog;
 pub mod field;
 pub mod fieldset;
 pub mod menu;
+pub mod pin_input;
 pub mod popover;
 pub mod positioning;
 pub mod progress;
@@ -244,6 +251,7 @@ pub use dialog::Dialog;
 pub use field::{FieldIds, FieldProps};
 pub use fieldset::FieldsetProps;
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
+pub use pin_input::{PinInput, PinInputAction, PinInputKind};
 pub use positioning::{
     compute_position, css_vars_style, data_align, data_side, placement_attrs, Align, ArrowPosition,
     Placement, PositioningConfig, Rect, ResolvedPosition, Side, Size,
