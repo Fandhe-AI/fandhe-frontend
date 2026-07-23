@@ -57,6 +57,66 @@ headless-ui の `data-scope`/`data-part`/`data-state` セレクタへ手書き�
 （`.claude/rules/coding-rust.md`・`docs/api/headless-ui-api.md` §6 と同一の
 制約を上層でも維持する）。
 
+## 3a. headless 型の再エクスポート契約（イシュー #685）
+
+`fandhe-frontend-headless-ui` の 7 モジュール（`tabs`/`accordion`/`dialog`/
+`menu`/`select`/`popover`/`tooltip`）を薄くラップする各 pre-styled-ui
+モジュールは `pub use fandhe_frontend_headless_ui::<mod>::*;` で同名モジュールを
+再エクスポートするが、この glob 再エクスポートは**ラッパー呼び出しに必要な
+「モジュール外」の headless 型**（`state`/`data_attrs` モジュール由来）まで
+は届かない。PR #679 で `fandhe-frontend-docs-site` が `fandhe-frontend-headless-ui`
+へ直接依存せざるを得なかったのはこのためである（`Orientation`/`OpenState`
+を pre-styled-ui のパスから import できなかった）。
+
+本イシューはこれを解消し、**pre-styled-ui のみへの依存でラッパーを呼び出せる
+ことを保証する契約**として、以下を明示 `pub use` で再エクスポートする
+（棚卸し表、`crates/pre-styled-ui/src/{tabs,accordion,dialog,menu,select,
+popover,tooltip}.rs` の各ファイル冒頭の `pub use` 直後のコメント参照）。
+
+| pre-styled-ui モジュール | 再エクスポートする headless 型 | 由来 |
+|---|---|---|
+| `tabs` | `Orientation` | `data_attrs` |
+| `accordion` | `OpenState` / `SingleSelectAction` / `MultiSelectAction` | `state` |
+| `dialog` | `OpenState` / `DisclosureAction` | `state` |
+| `menu` | `OpenState` / `DisclosureAction` / `CheckableAction` / `SingleSelectAction` | `state` |
+| `select` | `OpenState` | `state` |
+| `popover` | `OpenState` / `DisclosureAction` | `state` |
+| `tooltip` | `OpenState` / `DisclosureAction` | `state` |
+
+`ActivationMode`/`TabItem`/`TabsProps`（tabs）・`DialogRole`/`ContentIds`
+（dialog）・`SelectAction`（select）は各 headless モジュール内定義のため
+既存の glob 再エクスポートで到達可能であり、追加の再エクスポートは不要
+（モジュール自身の `impl Component` の `Action` として使う場合を含む）。
+
+加えて、クレートルート（`crates/pre-styled-ui/src/lib.rs`）から次を
+再エクスポートする。
+
+- `pub use fandhe_frontend_headless_ui;`: headless 層クレートそのもの。
+  headless-ui が core に対して行う再エクスポート（イシュー #550）と同型の
+  エスケープハッチであり、各ラッパーモジュールの glob では届かない
+  headless API 全域（`positioning`/`aria` 等）への到達路を確保する。
+- `pub use fandhe_frontend_headless_ui::fandhe_frontend_core;`: `Node` を
+  組み立てる core API（`el`/`text`/`render` 等）への推移的再エクスポート。
+  `fandhe_frontend_pre_styled_ui::fandhe_frontend_core::{el, text, render,
+  Node}` という単独依存パスを完結させる（`Cargo.toml` へ
+  `fandhe-frontend-core` への直接依存を追加しない、不変条件 4 を維持）。
+- `pub use fandhe_frontend_headless_ui::{OpenState, Orientation};`:
+  ラッパー呼び出しに頻出する状態値。`fandhe-frontend-docs-site` の実利用
+  パス（`fandhe_frontend_headless_ui::{OpenState, Orientation}`）と同型の
+  import を pre-styled-ui 単独依存で可能にする。
+
+**セキュリティ上の注意（REQ-1、`.claude/rules/security.md` A03）**:
+`fandhe_frontend_pre_styled_ui::fandhe_frontend_core` 経由で `raw_html()` へ
+到達できる経路が増えるが、`raw_html()` 自体は既存の明示的オプトイン API
+であり、本変更は新たな迂回経路を作らない（headless-ui が #550 で確立した
+既存パターンの推移）。pre-styled-ui 内部の不変条件（`raw_html()` の使用は
+[`stylesheet::StyleSheet::style_element`] 内の 1 箇所限定）は「使用」に関する
+規約であり、`pub use` によるクレート到達性の追加はこれに抵触しない。
+
+固定テストは `crates/pre-styled-ui/tests/headless_reexports.rs`
+（import を `fandhe_frontend_pre_styled_ui::` パスのみに限定し、コンパイル
+と実行時アサーションの両方で契約を固定する）。
+
 ## 4. 設計方針（予定、#547/#548 の実装完了後に本節を更新）
 
 - **テーマトークン**（#547）: 色・スペーシング等のデザイントークンと
@@ -116,11 +176,18 @@ let _style_node = sheet.style_element();
 追加提供する（設計方針は `crate::dialog`/`crate::tooltip` と同じ、
 `src/avatar.rs` 冒頭の rustdoc 参照）。
 
-- **選択的 re-export**: `fallback`/`image`/`Avatar`/`AvatarAction`/
-  `ImageStatus` を headless 層からそのまま再エクスポートする。styled
-  `root` は本モジュールで variant クラス付与のために再定義するため、
-  `pub use ...::*` ではなく選択的 re-export とする（headless の自由関数
-  `root` との名前衝突を避けるため）。
+- **選択的 re-export（`Avatar` 型は再エクスポートしない）**: `fallback`/
+  `image`/`AvatarAction`/`ImageStatus` を headless 層からそのまま再
+  エクスポートする。styled `root` は本モジュールで variant クラス付与の
+  ために再定義するため、`pub use ...::*` ではなく選択的 re-export とする
+  （headless の自由関数 `root` との名前衝突を避けるため）。状態機械
+  `Avatar` はあえて再エクスポートしない（PR #695 Bugbot 指摘、イシュー
+  #684 是正）: `Avatar::root()` は headless 自由関数 `root` へそのまま
+  委譲するのみで `size`/`shape` variant クラスを一切付与しないため、
+  再エクスポートすると呼び出し側が styled 層のつもりで `Avatar::root()`
+  を呼びレイアウトが静かに崩れる事故を誘発する。`Avatar` による状態
+  管理・hydration が必要な呼び出し側は
+  `fandhe_frontend_headless_ui::avatar::Avatar` を直接 import すること。
 - **`root(size, shape, attrs, children) -> Node`**: styled root パーツ。
   `size`（`Size::Sm`/`Md`/`Lg`、既定 `Md`）・`shape`（`AvatarShape::Circle`/
   `Rounded`/`Square`、既定 `Circle`）の 2 軸 variant に応じたクラス
@@ -136,6 +203,31 @@ let _style_node = sheet.style_element();
   none }`）による JS なし SSR の表示制御を壊さない。`data-state="hidden"`
   一致時の `display: none` は `SlotRecipe::state` 経由で多層防御として
   追加登録する（`src/avatar.rs` 冒頭の rustdoc 参照）。
+
+## 4c. styled RadioGroup ラッパー（イシュー #683）
+
+`radio_group` モジュールは `fandhe_frontend_headless_ui::radio_group`
+（イシュー #558/#536）の Root/Label/Item/ItemControl/ItemText/
+ItemHiddenInput 6 anatomy パーツと `RadioGroup` 状態機械をそのまま
+再エクスポート（`pub use fandhe_frontend_headless_ui::radio_group::*`）し、
+`stylesheet()` で既定 CSS を追加提供する（設計方針は #551/#664 の他
+headless ラッパーと同じ、`src/lib.rs` 冒頭の rustdoc 参照）。
+
+- **`item-hidden-input` の視覚的非表示化**: headless 層はネイティブ
+  `<input type="radio">` に `aria`/`data-*` のみを設定し視覚的な非表示化を
+  行わない契約のため、styled 層が visually-hidden パターン（`position:
+  absolute` + 1px クリップ、`select` モジュールの `hidden-select` 規則と
+  同一の 9 宣言）で覆い隠し、`item-control` をカスタムラジオ円として描画
+  する。フォーム送信・キーボード操作・グループ内排他選択はネイティブ
+  semantics のまま維持される。
+- **`StateCondition::FocusWithin` の追加**: `item-hidden-input` を視覚的に
+  隠すと、ネイティブのフォーカスリングも見えなくなる。実フォーカスは
+  隠された `<input>` にあり、`item`（`<label>`、input の祖先）へ
+  `:focus-within` を当てるのが CSS 的に成立する唯一の経路のため、
+  `recipe::StateCondition` へ `FocusWithin`（`:focus-within` 擬似クラス）を
+  追加した（既存の `Attr`/`AttrEq`/`FocusVisible` に次ぐ 4 つ目の状態条件）。
+- 他の headless ラッパーと同様、variant（size 等）ごとのクラス切り替えは
+  スコープ外（単一既定スタイルのみ）。
 
 ## 5. 関連ドキュメント
 

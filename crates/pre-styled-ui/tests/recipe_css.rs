@@ -446,6 +446,26 @@ fn state_css_output_matches_golden_fixture_and_is_ordered_last() {
     assert_eq!(recipe.css(), expected);
 }
 
+/// イシュー #683 golden テスト: [`StateCondition::FocusWithin`] が
+/// `:focus-within` セレクタを生成することを固定する（visually-hidden 化した
+/// ネイティブ子孫要素へのフォーカスを、祖先要素の見た目へ反映する唯一の経路、
+/// `crate::radio_group` の `item` が最初の消費者）。
+#[test]
+fn state_focus_within_generates_pseudo_class_selector() {
+    let recipe = SlotRecipe::new("widget", &["item"]).state(
+        "item",
+        StateCondition::FocusWithin,
+        vec![decl("outline", "2px solid blue")],
+    );
+
+    let expected = concat!(
+        "[data-scope=\"widget\"][data-part=\"item\"]:focus-within {\n",
+        "  outline: 2px solid blue;\n",
+        "}\n",
+    );
+    assert_eq!(recipe.css(), expected);
+}
+
 /// イシュー #643 fail-closed テスト: [`SlotRecipe::state`] は不正な `slot`・
 /// 属性名・属性値を panic せず出力から除外する（既存 `base`/`variant`/
 /// `compound_variant` と同じ方針）。

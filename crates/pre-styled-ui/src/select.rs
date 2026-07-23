@@ -63,6 +63,11 @@ use crate::css::decl;
 use crate::recipe::{SlotRecipe, StateCondition};
 
 pub use fandhe_frontend_headless_ui::select::*;
+// `root`/`control` の `state` 引数・`Select::open_state`/`item_state` はいずれも
+// `state` モジュール由来で上記 glob 再エクスポートでは到達しない。呼び出し側が
+// `fandhe-frontend-pre-styled-ui` のみに依存して呼び出せることを保証するための
+// 明示再エクスポート（イシュー #685）。
+pub use fandhe_frontend_headless_ui::state::OpenState;
 
 /// headless `select` anatomy の `data-part` 一覧（`crates/headless-ui/src/select.rs`
 /// の `ANATOMY.part(...)` 呼び出しと同期させる契約）。

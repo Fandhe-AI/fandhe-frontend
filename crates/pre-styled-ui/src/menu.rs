@@ -78,6 +78,15 @@ use crate::css::decl;
 use crate::recipe::{SlotRecipe, StateCondition};
 
 pub use fandhe_frontend_headless_ui::menu::*;
+// `root`/`trigger`/`trigger_item`/`context_trigger` 等の `state` 引数・
+// `Menu::new`・`Menu`/`MenuCheckboxItem`/`MenuRadioItemGroup` の
+// `Component::Action`（dispatch 対象）はいずれも `state` モジュール由来で
+// 上記 glob 再エクスポートでは到達しない。呼び出し側が
+// `fandhe-frontend-pre-styled-ui` のみに依存して呼び出せることを保証するための
+// 明示再エクスポート（イシュー #685）。
+pub use fandhe_frontend_headless_ui::state::{
+    CheckableAction, DisclosureAction, OpenState, SingleSelectAction,
+};
 
 /// headless `menu` anatomy の `data-part` 一覧（`crates/headless-ui/src/menu.rs`
 /// の `ANATOMY.part(...)` 呼び出しと同期させる契約）。

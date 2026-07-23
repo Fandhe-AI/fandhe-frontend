@@ -230,6 +230,14 @@ pub enum StateCondition {
     /// 留まり続け、`data-highlighted`（[`StateCondition::Attr`]）が highlight
     /// 表示を担う契約であり、`item` へ `:focus-visible` は付けない）。
     FocusVisible,
+    /// `:focus-within` 擬似クラス（イシュー #683）。visually-hidden 化した
+    /// ネイティブフォーム部品（`<input>` 等）を子孫に内包する要素へ
+    /// フォーカスリングを付ける唯一の経路として追加した。実フォーカスは
+    /// 隠された子孫要素にあり、その要素自体へ `:focus-visible` を当てても
+    /// 視覚的に隠されたままのため意味を成さない。`item`（`<label>`、隠した
+    /// `item-hidden-input` の祖先）が最初の消費者（RadioGroup styled
+    /// ラッパー、`crate::radio_group` 参照）。
+    FocusWithin,
 }
 
 /// slot 1 個・状態条件 1 個への宣言登録（内部表現、イシュー #643）。
@@ -452,8 +460,9 @@ impl SlotRecipe {
     /// `[data-scope="<scope>"][data-part="<slot>"][<name>]`（`Attr`）・
     /// `[data-scope="<scope>"][data-part="<slot>"][<name>="<value>"]`
     /// （`AttrEq`）・`[data-scope="<scope>"][data-part="<slot>"]:focus-visible`
-    /// （`FocusVisible`）のいずれか（出力順が最後尾のため CSS カスケードの
-    /// 後勝ちで variant/compound variant を上書きする）。
+    /// （`FocusVisible`）・`[data-scope="<scope>"][data-part="<slot>"]:focus-within`
+    /// （`FocusWithin`、イシュー #683）のいずれか（出力順が最後尾のため CSS
+    /// カスケードの後勝ちで variant/compound variant を上書きする）。
     ///
     /// `scope`（[`SlotRecipe::new`] に渡した値）が識別子として不正な場合は
     /// 空文字列を返す（fail-closed。`slot`/`axis`/`value` と同様に `scope` も
@@ -556,6 +565,7 @@ impl SlotRecipe {
                     is_valid_identifier(name) && is_valid_identifier(value)
                 }
                 StateCondition::FocusVisible => true,
+                StateCondition::FocusWithin => true,
             };
             if !condition_valid {
                 continue;
@@ -570,6 +580,7 @@ impl SlotRecipe {
                     selector.push_str(&format!("[{name}=\"{value}\"]"));
                 }
                 StateCondition::FocusVisible => selector.push_str(":focus-visible"),
+                StateCondition::FocusWithin => selector.push_str(":focus-within"),
             }
             if let Some(css) = serialize_rule(&selector, &rule.declarations) {
                 out.push_str(&css);

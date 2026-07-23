@@ -258,6 +258,7 @@ mod tests {
         assert!(sheet.push_css(&crate::menu::stylesheet()).is_ok());
         assert!(sheet.push_css(&crate::select::stylesheet()).is_ok());
         assert!(sheet.push_css(&crate::avatar::stylesheet()).is_ok());
+        assert!(sheet.push_css(&crate::radio_group::stylesheet()).is_ok());
     }
 
     #[test]
