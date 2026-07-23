@@ -62,6 +62,7 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | NumberInput | `number_input` | Root/Label/Control/Input/IncrementTrigger/DecrementTrigger | 独自実装（連続量の値のため `data-state` を持たず `Component`/`Hydrate` を直接実装。数値整形・パースはロケール非依存で決定的、`step` 演算は小数桁への丸めで浮動小数点ドリフトを防ぐ） | #738 |
 | Slider | `slider` | Root/Label/Control/Track/Range/Thumb/HiddenInput/ValueText | 独自実装（連続量の値のため `data-state` を持たず `Component`/`Hydrate` を直接実装。`value` は常に `min` 起点で `step` 単位へスナップしてから `[min, max]` へ clamp する。`thumb` が `role="slider"` + `aria-valuemin/max/now`/`aria-orientation` を担う） | #741 |
 | PinInput | `pin_input` | Root/Label/Control/Input/HiddenInput | 独自実装（固定桁数の文字配列 + フォーカス位置、`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装） | #739 |
+| RatingGroup | `rating_group` | Root/Label/Control/Item/HiddenInput | 独自実装（`1..=count` の数値評価値 + hover プレビューを持つ。`hover` は SSR 非活性・hydration 非直列化。`Component`/`Hydrate` を直接実装） | #742 |
 | SegmentGroup | `segment_group` | Root/Indicator/Item/ItemText/ItemControl/ItemHiddenInput | `radio_group::RadioGroup`（`state::SingleSelect`）へ全委譲（独自の状態機械を新設せず、既存 RadioGroup の dispatch/hydration をそのまま再利用する） | #743 |
 
 **未実装（open イシュー、後続で追補）**: Checkbox（#535）・Progress（#544）。
