@@ -98,6 +98,47 @@ impl Drop for RemoveOnDrop {
     }
 }
 
+/// フィクスチャの floating（positioner）要素へ与える固定サイズ用の CSS
+/// クラス名。
+///
+/// `headless-ui` の positioner はスタイル不可知（headless）のため幅を
+/// 持たず、実運用では pre-styled-ui/利用者 CSS が `width`/`height` を
+/// 与える前提である。一方
+/// `crates/wasm-full/src/position.rs::wiring::reposition_one` は
+/// `style` 属性を再計算のたびに `--fandhe-*` CSS 変数のみへ**完全上書き**
+/// する契約（既存の author スタイルとマージしない）ため、floating 要素の
+/// `style` 属性へ直接 `width`/`height` を書いても最初の `reposition_now()`
+/// 呼び出しで消えてしまい、2 回目以降の `getBoundingClientRect()` が
+/// 無指定幅（親コンテナ全幅相当）を返してしまう（イシュー #645 の実
+/// ブラウザ検証で判明: resize/scroll 契機の再計算テストで anchor 移動後の
+/// 座標が shift クランプにより極小値へ潰れる偽陽性の原因だった）。
+/// `reposition_one` は `class` 属性には触れないため、`<style>` 経由の
+/// クラス指定で幅/高さを与えることで、何度再計算されても floating の
+/// 実測値が安定する。
+const FIXED_FLOATING_SIZE_CLASS: &str = "position-browser-fixed-floating-size";
+
+/// [`FIXED_FLOATING_SIZE_CLASS`] の定義を `document.head` へ 1 度だけ挿入
+/// する（`get_element_by_id` で冪等性を確保し、複数フィクスチャから呼ばれ
+/// ても重複挿入しない）。
+fn ensure_fixed_floating_size_stylesheet(document: &Document) {
+    const STYLE_ELEMENT_ID: &str = "position-browser-fixed-floating-size-style";
+    if document.get_element_by_id(STYLE_ELEMENT_ID).is_some() {
+        return;
+    }
+    let style = document
+        .create_element("style")
+        .expect("create_element must not fail for a style element");
+    style.set_id(STYLE_ELEMENT_ID);
+    style.set_text_content(Some(&format!(
+        ".{FIXED_FLOATING_SIZE_CLASS} {{ width: 100px; height: 50px; }}"
+    )));
+    document
+        .head()
+        .expect("document head must exist in browser test environment")
+        .append_child(&style)
+        .expect("append_child must not fail for a style element");
+}
+
 /// 単一の Popover（trigger + anchor + positioner + content、open 状態）を
 /// `container` 配下へ展開し、positioner 要素を返す。
 fn mount_open_popover(document: &Document, container: &Element, id_prefix: &str) -> Element {
@@ -255,6 +296,7 @@ fn mount_open_context_menu_with_nested_submenu(
     container: &Element,
     id_prefix: &str,
 ) -> (Element, Element) {
+    ensure_fixed_floating_size_stylesheet(document);
     let outer_positioner_id = format!("{id_prefix}-outer-positioner");
     let inner_positioner_id = format!("{id_prefix}-inner-positioner");
     let context_trigger_style = "position: fixed; left: 5px; top: 5px; width: 10px; height: 10px;";
@@ -271,7 +313,15 @@ fn mount_open_context_menu_with_nested_submenu(
             ),
             menu::positioner(
                 OpenState::Open,
-                vec![("id", outer_positioner_id.as_str())],
+                // floating 要素に固定サイズを与える理由は
+                // [`FIXED_FLOATING_SIZE_CLASS`] のドキュメントを参照
+                // （インライン `style` ではなく `class` を使うのは
+                // `reposition_one` が `style` 属性を再計算のたびに
+                // 完全上書きするため）。
+                vec![
+                    ("id", outer_positioner_id.as_str()),
+                    ("class", FIXED_FLOATING_SIZE_CLASS),
+                ],
                 vec![menu::content(
                     OpenState::Open,
                     None,
@@ -297,7 +347,14 @@ fn mount_open_context_menu_with_nested_submenu(
                                 ),
                                 menu::positioner(
                                     OpenState::Open,
-                                    vec![("id", inner_positioner_id.as_str())],
+                                    // 上の外側 positioner と同じ理由
+                                    // （[`FIXED_FLOATING_SIZE_CLASS`]
+                                    // 参照）で `class` により固定サイズ
+                                    // を与える。
+                                    vec![
+                                        ("id", inner_positioner_id.as_str()),
+                                        ("class", FIXED_FLOATING_SIZE_CLASS),
+                                    ],
                                     vec![menu::content(
                                         OpenState::Open,
                                         None,
@@ -568,6 +625,7 @@ fn mount_open_select_with_decoy_arrow(
     id_prefix: &str,
     trigger_style: &str,
 ) -> (Element, Element, Element) {
+    ensure_fixed_floating_size_stylesheet(document);
     let trigger_id = format!("{id_prefix}-trigger");
     let positioner_id = format!("{id_prefix}-positioner");
     let decoy_arrow_id = format!("{id_prefix}-decoy-arrow");
@@ -589,7 +647,15 @@ fn mount_open_select_with_decoy_arrow(
             ),
             select::positioner(
                 OpenState::Open,
-                vec![("id", positioner_id.as_str())],
+                // floating 要素に固定サイズを与える理由は
+                // [`FIXED_FLOATING_SIZE_CLASS`] のドキュメントを参照
+                // （インライン `style` ではなく `class` を使うのは
+                // `reposition_one` が `style` 属性を再計算のたびに
+                // 完全上書きするため）。
+                vec![
+                    ("id", positioner_id.as_str()),
+                    ("class", FIXED_FLOATING_SIZE_CLASS),
+                ],
                 vec![
                     select::content(
                         OpenState::Open,
@@ -769,6 +835,7 @@ fn reposition_now_preserves_requested_placement_and_persists_it_across_recalcula
     let document = window.document().expect("document must exist");
     let container = create_placeholder(&document, "position-browser-menu-placement");
     let _guard = RemoveOnDrop(container.clone());
+    ensure_fixed_floating_size_stylesheet(&document);
 
     let trigger_id = "position-browser-menu-placement-trigger";
     let positioner_id = "position-browser-menu-placement-positioner";
@@ -791,10 +858,16 @@ fn reposition_now_preserves_requested_placement_and_persists_it_across_recalcula
             ),
             menu::positioner(
                 OpenState::Open,
+                // floating 要素に固定サイズを与える理由は
+                // [`FIXED_FLOATING_SIZE_CLASS`] のドキュメントを参照
+                // （インライン `style` ではなく `class` を使うのは
+                // `reposition_one` が `style` 属性を再計算のたびに
+                // 完全上書きするため）。
                 vec![
                     ("id", positioner_id),
                     ("data-side", "right"),
                     ("data-align", "start"),
+                    ("class", FIXED_FLOATING_SIZE_CLASS),
                 ],
                 vec![menu::content(
                     OpenState::Open,

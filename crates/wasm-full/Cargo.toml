@@ -208,6 +208,11 @@ js-sys = "0.3"
 # `KeyboardEventInit` を追加する（テスト専用の feature 拡張。`KeyboardEvent`
 # 自体は製品面の `[dependencies.web-sys]` に追加済みのため、ここでは
 # init 型のみを追加すれば足りる）。
+# イシュー #645: `wasm-full/tests/position_browser.rs` が
+# `Document::head()`（`<style>` 要素を 1 度だけ挿入し、headless-ui の
+# positioner に `reposition_one` が上書きしない `class` 経由で固定
+# `width`/`height` を与えるフィクスチャ用ヘルパー）を呼ぶために
+# `HtmlHeadElement` を追加する（テスト専用の feature 拡張）。
 [dev-dependencies.web-sys]
 version = "0.3"
 features = [
@@ -221,4 +226,5 @@ features = [
   "PopStateEvent",
   "PopStateEventInit",
   "KeyboardEventInit",
+  "HtmlHeadElement",
 ]
