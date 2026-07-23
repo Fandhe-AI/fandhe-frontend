@@ -2009,3 +2009,85 @@ jobs:
             echo "::error::fw gate BLOCKED: code-caused check failure. See failing checks in the JSON report above."
           fi
           exit 1
+
+  # イシュー #638: 公開済みクレート（crates.io）の実体（src/ Cargo.toml
+  # build.rs）が変更されているのに Cargo.toml の version が既公開バージョンの
+  # ままの PR を検知するゲート。headless-ui 0.1.0 公開直後、バージョンバンプ
+  # なしの破壊的変更（radio_group::item への引数追加, PR #611）がマージされ、
+  # crates.io バージョン依存の examples e2e が main を赤にした事故
+  # （復旧: PR #634 + 0.2.0 再公開）が直接の動機。
+  #
+  # base ブランチと PR 本文が必要なため PR コンテキストでのみ実行する
+  # （main push では対応する PR 情報がなく判定できないためスキップ）。
+  version-bump-guard:
+    name: "check-version-bump: published crate source changes require a version bump (issue #638)"
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        # actions/checkout（他ジョブと同一 SHA 固定）。docs/spec サブモジュールは
+        # 本チェックに不要なため取得しない。git diff の merge-base 算出に
+        # 履歴全体が必要なため fetch-depth: 0 を明示する。
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          submodules: false
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup Rust toolchain
+        # 他ジョブと同一 SHA 固定。
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+
+      - name: Fetch base branch
+        # xtask 側の `git diff --name-only origin/<base>...HEAD`
+        # （three-dot = merge-base 起点）が参照できるよう、base ブランチを
+        # 明示的に fetch する（shallow 相当を避けるため --no-tags）。
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "${BASE_REF}"
+
+      - name: "prepare: write PR body to file"
+        # PR 本文はユーザー制御の信頼しない入力であり、シェルへ直接展開せず
+        # env 経由で受け取ってファイル化してから xtask へ渡す
+        # （script injection 対策、security.md A03）。免除宣言
+        # （version-bump-exempt: <crate-name>）の判定にのみ使う。
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          printf '%s' "${PR_BODY}" > pr-body.txt
+
+      - name: "check-version-bump: 公開済みクレートのバージョンバンプ漏れ検知"
+        # crates.io（https://index.crates.io）への到達性を前提とする
+        # （到達不可の場合は "environment error: " プレフィックス付きの
+        # fail-closed な失敗として扱い、テストの弱体化で対処しない。
+        # ci.md の他の crates.io バージョン依存ワークフローと同じ方針）。
+        # PR 本文・base_ref は env 経由でのみ受け渡す（上記ステップ参照）。
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -uo pipefail
+          # stdout/stderr をまとめて 1 ファイルへ tee する（プロセス置換
+          # `2> >(...)` は書き込み完了を待たずに後続コマンドへ進むレースが
+          # あるため使わない。標準出力の 1 行サマリ・標準エラーの
+          # "environment error: " 判定のいずれもこのログファイルから行う）。
+          cargo run -p xtask --locked -- check-version-bump \
+              --base-ref "origin/${BASE_REF}" \
+              --pr-body-file pr-body.txt 2>&1 | tee check-version-bump.log
+          STATUS="${PIPESTATUS[0]}"
+          if [ "${STATUS}" -eq 0 ]; then
+            exit 0
+          fi
+          # "environment error: " プレフィックス有無で「runner/ネットワーク
+          # 起因」と「コード起因（バンプ漏れ）」を区別する（gate-self-apply と同型、
+          # ci.md 規約）。
+          if grep -q 'environment error: ' check-version-bump.log; then
+            echo "::error::check-version-bump failed: environment error (runner/network issue, not code). See 'environment error:' lines above; verify this runner can reach https://index.crates.io."
+          else
+            echo "::error::check-version-bump failed: a published crate's sources changed but its version is unchanged from an already-published crates.io version (see 'version-bump-check:'/'result=FAIL' lines above). Either bump the version, or declare 'version-bump-exempt: <crate-name>' (with rationale) in the PR body if the change is not public-API-breaking."
+          fi
+          exit 1
