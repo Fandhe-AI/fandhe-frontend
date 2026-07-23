@@ -19,7 +19,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_core::{el, render, text};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::{dispatch, Component};
 use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, popover, select, tabs, tooltip};
 // ルート再エクスポート（docs-site 実利用パスと同型の import、イシュー #685）。
-use fandhe_frontend_pre_styled_ui::{OpenState, Orientation};
+use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Orientation, Size};
 
 /// [`tabs::TabsProps::orientation`] が pre-styled-ui のパスのみで組み立てられる
 /// ことを固定する（`data_attrs::Orientation` の再エクスポート）。
@@ -41,7 +41,7 @@ fn tabs_orientation_reexport_is_usable_via_pre_styled_ui_path_alone() {
         content: vec![],
         disabled: false,
     }];
-    let html = render(&tabs::tabs(&props, items));
+    let html = render(&tabs::tabs(Size::Md, ColorPalette::Accent, &props, items));
     assert!(html.contains(r#"data-orientation="horizontal""#));
 }
 
@@ -76,16 +76,20 @@ fn accordion_state_and_action_reexports_are_usable_via_pre_styled_ui_path_alone(
     assert!(multi.is_open("two"));
 }
 
-/// [`dialog::root`]/[`dialog::trigger`] 等の `state` 引数（`state::OpenState`）と
-/// `Dialog` の `Component::Action`（`DisclosureAction`）が pre-styled-ui の
-/// パスのみで組み立てられ、dispatch まで接続することを固定する。
+/// [`dialog::root`]/[`dialog::trigger`] 等の `state` 引数（`state::OpenState`）が
+/// pre-styled-ui のパスのみで組み立てられることを固定する。`Dialog`（headless
+/// 状態機械）はイシュー #729 により本モジュールから再エクスポートされないため
+/// （`crates/pre-styled-ui/src/dialog.rs` rustdoc「選択的 re-export」節参照）、
+/// dispatch まで接続する動作確認はエスケープハッチ
+/// （`fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::dialog::Dialog`）
+/// 経由で行う。
 #[test]
 fn dialog_state_and_action_reexports_are_usable_via_pre_styled_ui_path_alone() {
-    use fandhe_frontend_pre_styled_ui::dialog::{
-        Dialog, DisclosureAction, OpenState as DialogOpenState,
-    };
+    use fandhe_frontend_pre_styled_ui::dialog::{DisclosureAction, OpenState as DialogOpenState};
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::dialog::Dialog;
 
     let html = render(&dialog::root(
+        Size::Md,
         DialogOpenState::Open,
         vec![],
         vec![el("span", vec![], vec![text("body")])],
@@ -99,17 +103,23 @@ fn dialog_state_and_action_reexports_are_usable_via_pre_styled_ui_path_alone() {
     assert_eq!(d.state(), DialogOpenState::Closed);
 }
 
-/// [`menu::root`] 等の `state` 引数と `Menu`/`MenuCheckboxItem`/
-/// `MenuRadioItemGroup` の `Component::Action`
-/// （`DisclosureAction`/`CheckableAction`/`SingleSelectAction`）が
-/// pre-styled-ui のパスのみで組み立てられることを固定する。
+/// [`menu::root`] 等の `state` 引数と `MenuCheckboxItem`/`MenuRadioItemGroup`
+/// の `Component::Action`（`CheckableAction`/`SingleSelectAction`）が
+/// pre-styled-ui のパスのみで組み立てられることを固定する。`Menu`（headless
+/// 状態機械）はイシュー #729 により本モジュールから再エクスポートされないため
+/// （`crates/pre-styled-ui/src/menu.rs` rustdoc「選択的 re-export」節参照）、
+/// dispatch まで接続する動作確認はエスケープハッチ
+/// （`fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::menu::Menu`）
+/// 経由で行う。
 #[test]
 fn menu_state_and_action_reexports_are_usable_via_pre_styled_ui_path_alone() {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::menu::Menu;
     use fandhe_frontend_pre_styled_ui::menu::{
-        CheckableAction, DisclosureAction, Menu, OpenState as MenuOpenState, SingleSelectAction,
+        CheckableAction, DisclosureAction, OpenState as MenuOpenState, SingleSelectAction,
     };
 
     let html = render(&menu::root(
+        Size::Md,
         MenuOpenState::Open,
         vec![],
         vec![el("span", vec![], vec![text("body")])],
@@ -136,6 +146,7 @@ fn select_state_reexport_is_usable_via_pre_styled_ui_path_alone() {
     use fandhe_frontend_pre_styled_ui::select::OpenState as SelectOpenState;
 
     let html = render(&select::root(
+        Size::Md,
         SelectOpenState::Open,
         vec![],
         vec![el("span", vec![], vec![text("body")])],
