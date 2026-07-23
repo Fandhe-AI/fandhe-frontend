@@ -3243,3 +3243,264 @@ fn menu_open_typeahead_does_not_match_hidden_nested_submenu_item_text() {
     trigger.dispatch_event(&keydown_event("z")).unwrap();
     assert!(!trigger_item.has_attribute("data-highlighted"));
 }
+
+// ---------------------------------------------------------------------
+// サブメニュー兄弟配置回帰テスト（Cursor Bugbot Medium 指摘、イシュー #662
+// PR #674 追補）。`crates/headless-ui/src/menu.rs` モジュール doc の
+// 「親 Menu インスタンスの content 内に子 Menu インスタンス由来の
+// trigger_item/positioner/content を入れ子で配置する」契約では、子の
+// positioner/content は trigger-item の**兄弟**として親 content 直下に
+// 並ぶ配置が正当（かつ `aria-controls` は anatomy 上 optional）。
+// `resolve_submenu_content`（`crates/wasm-full/src/keynav.rs`）の兄弟方向
+// フォールバックがこの一般的な配置を解決できることを検証する。
+// ---------------------------------------------------------------------
+
+/// `parent_content` 直下へ、サブメニューを `trigger_item` の**兄弟**として
+/// 配置する構成（イシュー #662 Bugbot 指摘・PR #674 追補）で `trigger-item`
+/// + 子 Menu（`positioner`/`root`/`content`）を追加する。
+/// [`append_trigger_item_with_submenu`]（子孫配置・`aria-controls` 経路の
+/// 既存フィクスチャ）とは独立に保ち、既存の子孫配置テストへ影響を与えない。
+/// `trigger_item` には `aria-controls` を意図的に設定せず、
+/// `resolve_submenu_content` の兄弟方向フォールバックのみで解決できることを
+/// 検証できるようにする。`id_prefix`・`trigger_item_value` から
+/// `{id_prefix}-item-{trigger_item_value}`（trigger-item 自身）・
+/// `{id_prefix}-sub-content-{trigger_item_value}`（子 content）・
+/// `{id_prefix}-sub-item-{trigger_item_value}-{value}`（子 item）の id を
+/// 組み立てる（同一 `parent_content` 直下に複数のサブメニューを並べても id
+/// が衝突しないようにするため）。戻り値は `(trigger_item, sub_content)`。
+#[allow(clippy::too_many_arguments)]
+fn append_sibling_trigger_item_with_submenu(
+    document: &Document,
+    parent_content: &Element,
+    id_prefix: &str,
+    trigger_item_value: &str,
+    trigger_item_label: &str,
+    trigger_item_disabled: bool,
+    sub_items: &[(&str, &str, bool)],
+    sub_open: bool,
+) -> (Element, Element) {
+    let trigger_item = document.create_element("div").unwrap();
+    trigger_item.set_attribute("data-scope", "menu").unwrap();
+    trigger_item
+        .set_attribute("data-part", "trigger-item")
+        .unwrap();
+    trigger_item.set_attribute("role", "menuitem").unwrap();
+    trigger_item.set_attribute("aria-haspopup", "menu").unwrap();
+    let trigger_item_id = format!("{id_prefix}-item-{trigger_item_value}");
+    trigger_item.set_attribute("id", &trigger_item_id).unwrap();
+    trigger_item
+        .set_attribute("aria-expanded", if sub_open { "true" } else { "false" })
+        .unwrap();
+    trigger_item
+        .set_attribute("data-state", if sub_open { "open" } else { "closed" })
+        .unwrap();
+    if trigger_item_disabled {
+        trigger_item.set_attribute("aria-disabled", "true").unwrap();
+        trigger_item.set_attribute("data-disabled", "").unwrap();
+    }
+    trigger_item.set_text_content(Some(trigger_item_label));
+    parent_content.append_child(&trigger_item).unwrap();
+
+    // positioner: trigger-item の兄弟として、子 root/content をラップする
+    // 中間要素（`crates/headless-ui/src/menu.rs::positioner` 相当）。
+    let positioner = document.create_element("div").unwrap();
+    positioner.set_attribute("data-scope", "menu").unwrap();
+    positioner.set_attribute("data-part", "positioner").unwrap();
+
+    let sub_root = document.create_element("div").unwrap();
+    sub_root.set_attribute("data-scope", "menu").unwrap();
+    sub_root.set_attribute("data-part", "root").unwrap();
+    let sub_content = document.create_element("div").unwrap();
+    sub_content.set_attribute("data-scope", "menu").unwrap();
+    sub_content.set_attribute("data-part", "content").unwrap();
+    let sub_content_id = format!("{id_prefix}-sub-content-{trigger_item_value}");
+    sub_content.set_attribute("id", &sub_content_id).unwrap();
+    sub_content.set_attribute("role", "menu").unwrap();
+    if !sub_open {
+        sub_content.set_attribute("hidden", "").unwrap();
+    }
+    for (value, label, disabled) in sub_items {
+        let item = document.create_element("div").unwrap();
+        item.set_attribute("data-scope", "menu").unwrap();
+        item.set_attribute("data-part", "item").unwrap();
+        item.set_attribute("role", "menuitem").unwrap();
+        item.set_attribute("data-value", value).unwrap();
+        item.set_attribute(
+            "id",
+            &format!("{id_prefix}-sub-item-{trigger_item_value}-{value}"),
+        )
+        .unwrap();
+        if *disabled {
+            item.set_attribute("aria-disabled", "true").unwrap();
+            item.set_attribute("data-disabled", "").unwrap();
+        }
+        item.set_text_content(Some(label));
+        sub_content.append_child(&item).unwrap();
+    }
+    sub_root.append_child(&sub_content).unwrap();
+    positioner.append_child(&sub_root).unwrap();
+    // positioner（子 root/content 一式）を trigger_item の**兄弟**として
+    // parent_content 直下へ追加する（trigger_item の子孫にはしない）。
+    parent_content.append_child(&positioner).unwrap();
+
+    (trigger_item, sub_content)
+}
+
+/// ArrowRight: `aria-controls` を持たず、かつ子 content が `trigger-item`
+/// の兄弟として親 content 直下に配置される構成（`headless-ui` の一般的な
+/// anatomy 配置）でも、サブメニューが展開され先頭の非 disabled 項目へ
+/// highlight が移るべき（Cursor Bugbot Medium 指摘、イシュー #662 PR #674
+/// 追補。修正前は `resolve_submenu_content` が子孫方向フォールバックしか
+/// 持たず、この配置ではサイレント no-op になっていた）。
+#[wasm_bindgen_test]
+fn menu_open_arrow_right_expands_sibling_submenu_without_aria_controls() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom(
+        &document,
+        "kn-sub-sibling1",
+        &[("a", "A", false)],
+        true,
+        false,
+    );
+    let content = document
+        .get_element_by_id("kn-sub-sibling1-content")
+        .unwrap();
+    let (trigger_item, sub_content) = append_sibling_trigger_item_with_submenu(
+        &document,
+        &content,
+        "kn-sub-sibling1",
+        "sub",
+        "Sub",
+        false,
+        &[("x", "X", false), ("y", "Y", false)],
+        false,
+    );
+    wire_toggle_listener(&trigger_item, &sub_content);
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-sub-sibling1-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // 親スコープは [a, sub] の 2 件。End で末尾（trigger-item "sub"）へ。
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(trigger_item.has_attribute("data-highlighted"));
+
+    let not_default_prevented = trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(
+        !not_default_prevented,
+        "展開する ArrowRight は prevent_default されるべき"
+    );
+
+    assert!(
+        !sub_content.has_attribute("hidden"),
+        "aria-controls が無く兄弟配置でもサブメニューが展開されるべき"
+    );
+    let item_x = document
+        .get_element_by_id("kn-sub-sibling1-sub-item-sub-x")
+        .unwrap();
+    assert!(
+        item_x.has_attribute("data-highlighted"),
+        "展開直後は先頭の非 disabled 項目が highlight されるべき"
+    );
+    assert_eq!(
+        sub_content
+            .get_attribute("aria-activedescendant")
+            .as_deref(),
+        Some("kn-sub-sibling1-sub-item-sub-x")
+    );
+    // 親の highlight（trigger-item 上）は展開後も維持される。
+    assert!(trigger_item.has_attribute("data-highlighted"));
+}
+
+/// ArrowRight: 同一 content 直下に兄弟配置のサブメニューを持つ trigger-item
+/// が 2 つ並ぶ場合、各 trigger-item は自分のサブメニューだけを解決し、
+/// 隣の trigger-item のサブメニューを誤って展開しない（Cursor Bugbot
+/// Medium 指摘、イシュー #662 PR #674 追補。`resolve_submenu_content_via_sibling`
+/// の「次の trigger-item に到達したら打ち切る」ガードの検証）。
+#[wasm_bindgen_test]
+fn menu_open_arrow_right_resolves_only_own_sibling_submenu_when_two_adjacent() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom(&document, "kn-sub-sibling2", &[], true, false);
+    let content = document
+        .get_element_by_id("kn-sub-sibling2-content")
+        .unwrap();
+    let (trigger_item_1, sub_content_1) = append_sibling_trigger_item_with_submenu(
+        &document,
+        &content,
+        "kn-sub-sibling2",
+        "sub1",
+        "Sub1",
+        false,
+        &[("x", "X", false)],
+        false,
+    );
+    wire_toggle_listener(&trigger_item_1, &sub_content_1);
+    let (trigger_item_2, sub_content_2) = append_sibling_trigger_item_with_submenu(
+        &document,
+        &content,
+        "kn-sub-sibling2",
+        "sub2",
+        "Sub2",
+        false,
+        &[("y", "Y", false)],
+        false,
+    );
+    wire_toggle_listener(&trigger_item_2, &sub_content_2);
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-sub-sibling2-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // 親スコープは [sub1, sub2] の 2 件。Home で先頭（sub1）を highlight。
+    trigger.dispatch_event(&keydown_event("Home")).unwrap();
+    assert!(trigger_item_1.has_attribute("data-highlighted"));
+
+    trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    assert!(
+        !sub_content_1.has_attribute("hidden"),
+        "sub1 自身のサブメニューが展開されるべき"
+    );
+    assert!(
+        sub_content_2.has_attribute("hidden"),
+        "隣接する sub2 のサブメニューを誤って展開してはいけない"
+    );
+    let item_x = document
+        .get_element_by_id("kn-sub-sibling2-sub-item-sub1-x")
+        .unwrap();
+    assert!(item_x.has_attribute("data-highlighted"));
+
+    // 閉じて sub2 へ移り、対称に検証する。
+    trigger.dispatch_event(&keydown_event("ArrowLeft")).unwrap();
+    assert!(sub_content_1.has_attribute("hidden"));
+
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(trigger_item_2.has_attribute("data-highlighted"));
+
+    trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    assert!(
+        !sub_content_2.has_attribute("hidden"),
+        "sub2 自身のサブメニューが展開されるべき"
+    );
+    assert!(
+        sub_content_1.has_attribute("hidden"),
+        "sub1 のサブメニューは閉じたままであるべき"
+    );
+    let item_y = document
+        .get_element_by_id("kn-sub-sibling2-sub-item-sub2-y")
+        .unwrap();
+    assert!(item_y.has_attribute("data-highlighted"));
+}

@@ -131,9 +131,13 @@
 //!
 //! - **アクティブ content の解決**（[`wiring::resolve_active_content`]）:
 //!   「highlight 中の項目が `trigger-item` ∧ そのサブメニュー content が
-//!   解決でき（[`wiring::resolve_submenu_content`]、`aria-controls` 優先・
-//!   子孫 `[data-part="content"]` フォールバック）∧ root 内 ∧ open
-//!   （`hidden` なし）」の間、子孫方向へ降下してアクティブ content を求める。
+//!   解決でき（[`wiring::resolve_submenu_content`]、`aria-controls` →
+//!   `trigger-item` 子孫方向 `[data-part="content"]` → `trigger-item` 兄弟
+//!   方向 `[data-part="content"]` の 3 段フォールバック。`headless-ui` の
+//!   「子 `positioner`/`content` は `trigger-item` の兄弟として親 content
+//!   直下に並ぶ」契約に対応するのは兄弟方向であり、子孫方向は旧実装からの
+//!   後方互換）∧ root 内 ∧ open（`hidden` なし）」の間、階層を降下して
+//!   アクティブ content を求める。
 //!   ArrowDown/Up/Home/End・Enter/Space・typeahead・Escape の各既存キー
 //!   処理は、このアクティブ content を対象にする（トップレベル Menu/Select
 //!   ではアクティブ content は常に trigger 直下の content と一致し、
@@ -1886,15 +1890,25 @@ mod wiring {
         root_part.query_selector(content_selector).ok().flatten()
     }
 
-    /// サブメニュー（`trigger-item`）が制御する子 Menu content を解決する
-    /// （イシュー #662）。`aria-controls` を優先し、欠落・解決失敗時は
-    /// `trigger_item` の子孫方向へ `MENU_CONTENT_SELECTOR` でフォールバック
-    /// する（`crates/headless-ui/src/menu.rs` の「content 内に子インスタンスの
-    /// trigger_item/positioner/content を入れ子配置する」契約に対応、
-    /// `resolve_menu_select_content` の祖先方向フォールバックとは逆向き）。
-    /// 解決結果は必ず `root.contains` で封じ込め検査し、`root` 外を指す
-    /// 改ざん `aria-controls` は不採用として `None` を返す（fail-closed、
-    /// A01 対策）。
+    /// サブメニュー（`trigger_item`）が制御する子 Menu content を解決する
+    /// （イシュー #662、Bugbot 指摘・PR #674 追補）。`crates/headless-ui/src/menu.rs`
+    /// モジュール doc の「親 `Menu` インスタンスの `content` 内に子 `Menu`
+    /// インスタンス由来の `trigger_item`/`positioner`/`content` を入れ子で
+    /// 配置する」契約では、子の `positioner`/`content` は `trigger_item` の
+    /// **兄弟**として親 content 直下に並ぶ配置が正当である（`trigger_item`
+    /// の `aria-controls` も anatomy 上 optional）。3 段のフォールバックで
+    /// この兄弟配置を第一級に解決する:
+    /// 1. `aria-controls` による `document.get_element_by_id` 解決（最優先、
+    ///    改ざん時のなりすまし対策は 2. の `root.contains` 封じ込めで担保）
+    /// 2. `trigger_item` の子孫方向へ `MENU_CONTENT_SELECTOR` で解決
+    ///    （旧実装からの後方互換フォールバック。子 content を `trigger_item`
+    ///    自身の子孫へ配置する構成も引き続き許容する）
+    /// 3. `trigger_item` の兄弟方向フォールバック（[`resolve_submenu_content_via_sibling`]、
+    ///    新規）。1./2. がいずれも解決できない場合のみ試みる
+    ///
+    /// 解決結果は経路によらず必ず `root.contains` で封じ込め検査し、`root`
+    /// 外を指す改ざん `aria-controls` は不採用として `None` を返す
+    /// （fail-closed、A01 対策）。
     fn resolve_submenu_content(root: &Element, trigger_item: &Element) -> Option<Element> {
         let content = trigger_item
             .get_attribute("aria-controls")
@@ -1908,12 +1922,49 @@ mod wiring {
                     .query_selector(MENU_CONTENT_SELECTOR)
                     .ok()
                     .flatten()
-            })?;
+            })
+            .or_else(|| resolve_submenu_content_via_sibling(trigger_item))?;
         if root.contains(Some(&content)) {
             Some(content)
         } else {
             None
         }
+    }
+
+    /// [`resolve_submenu_content`] の第 3 フォールバック（兄弟方向、イシュー
+    /// #662 Bugbot 指摘・PR #674 追補）。`trigger_item` の
+    /// `next_element_sibling` チェーンを出現順に走査し、次の
+    /// `[data-scope="menu"][data-part="trigger-item"]`（[`TRIGGER_ITEM_SELECTOR`]）
+    /// に到達する**前**に現れる最初の子 Menu content を返す。
+    ///
+    /// - 候補要素自身が `MENU_CONTENT_SELECTOR` に一致すればそれを返す
+    ///   （`content` を直接 `trigger_item` の兄弟に置く最小構成）。
+    /// - 一致しない場合は候補要素の子孫方向へ `MENU_CONTENT_SELECTOR` を
+    ///   探す（`positioner` ラッパー越しに `root`/`content` を包む構成、
+    ///   `crates/headless-ui/src/menu.rs` の一般的な anatomy 配置）。
+    /// - 次の trigger-item に到達したら**必ず打ち切る**。これを怠ると、
+    ///   同一 content 直下に複数のサブメニューが並ぶ場合に、隣の
+    ///   trigger-item のサブメニューを誤って自分のものとして解決して
+    ///   しまう（`filter_own_scope_items` によるスコープ分離とは別に、
+    ///   本関数自身が誤マッチを防ぐ必要がある）。
+    ///
+    /// 呼び出し元 [`resolve_submenu_content`] が結果を `root.contains` で
+    /// 封じ込め検査するため、本関数自身は封じ込め判定を行わない。
+    fn resolve_submenu_content_via_sibling(trigger_item: &Element) -> Option<Element> {
+        let mut sibling = trigger_item.next_element_sibling();
+        while let Some(current) = sibling {
+            if current.matches(TRIGGER_ITEM_SELECTOR).unwrap_or(false) {
+                break;
+            }
+            if current.matches(MENU_CONTENT_SELECTOR).unwrap_or(false) {
+                return Some(current);
+            }
+            if let Some(descendant) = current.query_selector(MENU_CONTENT_SELECTOR).ok().flatten() {
+                return Some(descendant);
+            }
+            sibling = current.next_element_sibling();
+        }
+        None
     }
 
     /// `items` 中で `data-highlighted` 属性を持つ要素のインデックスを探す
@@ -2092,15 +2143,18 @@ mod wiring {
     /// （Menu item のように子パーツを持たない場合）item 自身の
     /// `text_content()` へフォールバックする。DOM への書き戻しは行わない。
     ///
-    /// `trigger-item` は自身の子孫に子 `Menu` インスタンスの content（サブ
-    /// メニュー、[`MENU_CONTENT_SELECTOR`]）を入れ子配置する契約
-    /// （`resolve_submenu_content` 参照）であるため、素朴に
-    /// `text_content()` を使うとサブメニューが `hidden` でも子孫アイテムの
-    /// テキストまで拾ってしまい、親レベルの typeahead が `trigger-item`
-    /// 自身のラベルではなく入れ子アイテムのテキストに誤マッチしてしまう
-    /// （Bugbot 指摘、イシュー #662 PR #674）。`strip_nested_submenu_content`
-    /// で（DOM への書き戻しを伴わない）クローン上からサブメニュー content
-    /// を除去してから `text_content()` を読むことでこれを防ぐ。
+    /// `trigger-item` は子 `Menu` インスタンスの content（サブメニュー、
+    /// [`MENU_CONTENT_SELECTOR`]）を自身の**子孫**として配置する構成
+    /// （`resolve_submenu_content` 参照、後方互換フォールバック）も許容する
+    /// ため、素朴に `text_content()` を使うとサブメニューが `hidden` でも
+    /// 子孫アイテムのテキストまで拾ってしまい、親レベルの typeahead が
+    /// `trigger-item` 自身のラベルではなく入れ子アイテムのテキストに誤マッチ
+    /// してしまう（Bugbot 指摘、イシュー #662 PR #674）。
+    /// `strip_nested_submenu_content` で（DOM への書き戻しを伴わない）
+    /// クローン上からサブメニュー content を除去してから `text_content()`
+    /// を読むことでこれを防ぐ（サブメニュー content が `trigger-item` の
+    /// **兄弟**として配置される正当な構成では、そもそも子孫に含まれない
+    /// ため本関数は no-op と同等に働く）。
     fn item_label(item: &Element) -> String {
         let text = item
             .query_selector("[data-part=\"item-text\"]")
