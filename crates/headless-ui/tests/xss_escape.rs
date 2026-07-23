@@ -27,7 +27,8 @@
 
 use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::{
-    aria_controls, aria_label, avatar, data_state, dialog, popover, ImageStatus, OpenState,
+    aria_controls, aria_label, avatar, data_state, dialog, password_input, popover, ImageStatus,
+    OpenState, PasswordAutocomplete, PasswordInputProps,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -195,5 +196,47 @@ fn avatar_image_src_passes_through_safe_urls() {
             html.contains(&expected),
             "安全な URL が src 属性として透過していない: url={url:?}, html={html}"
         );
+    }
+}
+
+/// (1)(2) テキスト・属性値経路（イシュー #740 追加分）: `password_input` の
+/// `id`（派生属性値へ伝播）・`label` の children テキストへ全ペイロードを
+/// 注入し、エスケープが貫通することを固定する。あわせて `value=` が
+/// いかなる経路でも出力に現れないこと（本コンポーネントのセキュリティ
+/// 不変条件、`crates/headless-ui/src/password_input.rs` モジュール doc 参照）
+/// も同時に確認する。
+#[test]
+fn password_input_id_and_label_text_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let field_props = PasswordInputProps {
+            id: payload,
+            disabled: false,
+            invalid: false,
+            required: false,
+            autocomplete: PasswordAutocomplete::CurrentPassword,
+        };
+        let html = render(&password_input::label(&field_props, vec![], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "password_input::label の for 属性値コンテキスト",
+        );
+        assert!(!html.contains("value="));
+
+        let default_props = PasswordInputProps {
+            id: "pw",
+            disabled: false,
+            invalid: false,
+            required: false,
+            autocomplete: PasswordAutocomplete::CurrentPassword,
+        };
+        let label_node = password_input::label(&default_props, vec![], vec![text(payload)]);
+        let html = render(&label_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "password_input::label のテキストコンテキスト",
+        );
+        assert!(!html.contains("value="));
     }
 }

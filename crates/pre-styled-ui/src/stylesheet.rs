@@ -268,6 +268,7 @@ mod tests {
             ("radio_group", crate::radio_group::stylesheet()),
             ("avatar", crate::avatar::stylesheet()),
             ("checkbox", crate::checkbox::stylesheet()),
+            ("password_input", crate::password_input::stylesheet()),
         ]
     }
 

@@ -49,6 +49,9 @@ use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
+use fandhe_frontend_pre_styled_ui::password_input::{
+    self, PasswordAutocomplete, PasswordInputProps,
+};
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
@@ -161,6 +164,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::radio_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::avatar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::checkbox::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::password_input::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -1021,6 +1025,62 @@ fn checkbox_section() -> Node {
     )
 }
 
+/// PasswordInput 節: 表示切替トリガー付きパスワード入力の Hidden/Visible/
+/// Invalid/Disabled 4 状態を静的掲示する（イシュー #740）。
+///
+/// `visibility_trigger` へ `aria-label` を呼び出し側 attrs として付与する
+/// お手本を示す（headless 層は固定文言を持たない、
+/// `crates/headless-ui/src/password_input.rs` rustdoc 参照）。
+fn password_input_section() -> Node {
+    let states = [
+        (false, false, false, "showcase-password-hidden", "Hidden"),
+        (true, false, false, "showcase-password-visible", "Visible"),
+        (false, true, false, "showcase-password-invalid", "Invalid"),
+        (false, false, true, "showcase-password-disabled", "Disabled"),
+    ];
+    let demo_row = row(states
+        .iter()
+        .map(|(visible, invalid, disabled, id, label)| {
+            let props = PasswordInputProps {
+                id,
+                disabled: *disabled,
+                invalid: *invalid,
+                required: false,
+                autocomplete: PasswordAutocomplete::CurrentPassword,
+            };
+            password_input::root(
+                Size::Md,
+                ColorPalette::Accent,
+                *visible,
+                &props,
+                vec![],
+                vec![
+                    password_input::label(&props, vec![], vec![text(*label)]),
+                    password_input::control(
+                        *visible,
+                        &props,
+                        vec![],
+                        vec![
+                            password_input::input(*visible, &props, vec![]),
+                            password_input::visibility_trigger(
+                                *visible,
+                                &props,
+                                vec![("aria-label", "Toggle password visibility")],
+                                vec![],
+                            ),
+                        ],
+                    ),
+                ],
+            )
+        })
+        .collect());
+    section(
+        "PasswordInput",
+        "data-state=\"visible\"/\"hidden\" で type=\"password\"/\"text\" が切り替わるパスワード入力。visibility-trigger は aria-pressed/aria-controls で意味論を担い、パスワード値そのものは一切保持しません。",
+        vec![demo_row],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -1054,6 +1114,7 @@ fn showcase_body() -> Node {
             radio_group_section(),
             avatar_section(),
             checkbox_section(),
+            password_input_section(),
         ],
     )
 }
@@ -1090,6 +1151,7 @@ mod tests {
             "radio-group",
             "avatar",
             "checkbox",
+            "password-input",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
@@ -1102,6 +1164,12 @@ mod tests {
         assert!(html.contains(r#"data-state="open""#));
         assert!(html.contains(r#"data-state="checked""#));
         assert!(html.contains(r#"data-state="indeterminate""#));
+        // PasswordInput（イシュー #740）: 表示切替の Visible/Hidden 両状態と
+        // aria-pressed によるトグルボタン意味論を固定する。
+        assert!(html.contains(r#"data-state="visible""#));
+        assert!(html.contains(r#"data-state="hidden""#));
+        assert!(html.contains(r#"aria-pressed="true""#));
+        assert!(html.contains(r#"aria-pressed="false""#));
     }
 
     #[test]
@@ -1151,6 +1219,7 @@ mod tests {
         assert!(css.contains(".fd-avatar--size-md"));
         assert!(css.contains(".fd-avatar--shape-circle"));
         assert!(css.contains(r#"[data-scope="checkbox"][data-part="control"]"#));
+        assert!(css.contains(r#"[data-scope="password-input"][data-part="control"]"#));
         // ショーケース配置スタイル。
         assert!(css.contains(".showcase-row"));
         assert!(css.contains(".showcase-stack"));

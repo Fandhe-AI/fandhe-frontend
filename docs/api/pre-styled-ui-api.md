@@ -22,8 +22,8 @@ rustdoc および各モジュール冒頭の rustdoc とする。本節はモジ
 実際に骨格新設（#546）時点の記述が長期間放置されていた（イシュー #714）。
 
 本クレートは第 5 弾ツリー（#680）完了・crates.io v0.4.0 公開（#686）・
-checkbox styled ラッパー追加（#730、v0.6.0 未公開）を経て 20 の公開
-モジュールを持つ。内訳は次の通り。
+checkbox styled ラッパー追加（#730）・PasswordInput styled ラッパー追加
+（#740、v0.7.0 未公開）を経て 21 の公開モジュールを持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -38,6 +38,7 @@ checkbox styled ラッパー追加（#730、v0.6.0 未公開）を経て 20 の�
 | headless ラッパー第 4 弾 | `radio_group` | #683（§4c 参照） |
 | headless ラッパー | `avatar` | #684（§4b 参照） |
 | headless ラッパー第 5 弾 | `checkbox` | #730（§4e 参照） |
+| headless ラッパー第 6 弾 | `password_input` | #740（`src/password_input.rs` 冒頭 rustdoc 参照） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
@@ -388,6 +389,7 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | switch | ✓ | ✓ | 実装済み（#708） |
 | radio-group | ✓ | ✓ | 実装済み（#708） |
 | checkbox | ✓ | ✓ | 実装済み（#730） |
+| password-input | ✓ | ✓ | 実装済み（#740） |
 | tabs | 候補 | 候補（selected trigger） | フォローアップ |
 | accordion / dialog / menu / select | 候補（size のみ） | – | フォローアップ |
 | popover / tooltip | 提供しない | 提供しない | 方針確定 |

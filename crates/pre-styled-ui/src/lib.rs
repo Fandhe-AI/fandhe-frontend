@@ -87,6 +87,14 @@
 //!   フォーカスリングは [`mod@switch`] と同型で最初から実装する。`indicator`
 //!   の `hidden` 属性意味論を CSS が壊さない設計（`display` 宣言を置かない）
 //!   は [`mod@checkbox`] rustdoc 参照。
+//! - headless 状態機械を持つ複合部品の styled ラッパー第 6 弾（#740）:
+//!   [`mod@password_input`]。`data-state` 語彙が `"visible"/"hidden"`
+//!   （表示切替）である点、実フォーカスを受ける `input` が `control` の子孫
+//!   であるため hidden-input パターンではなく `:focus-within`
+//!   （[`recipe::StateCondition::FocusWithin`]）でフォーカスリングを伝播する
+//!   点は [`mod@password_input`] rustdoc 参照。パスワード値は一切扱わない
+//!   （`value` を出力する API を持たない、headless 層のセキュリティ不変条件
+//!   をそのまま継承）。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683）
 //!
@@ -214,6 +222,7 @@ mod class_attr;
 pub mod css;
 pub mod dialog;
 pub mod menu;
+pub mod password_input;
 pub mod popover;
 pub mod radio_group;
 pub mod recipe;

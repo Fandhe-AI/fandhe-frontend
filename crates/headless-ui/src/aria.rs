@@ -101,6 +101,16 @@ pub fn aria_selected(selected: bool) -> (&'static str, &'static str) {
     ("aria-selected", bool_str(selected))
 }
 
+/// `aria-pressed` 属性（トグルボタンパターン、イシュー #740）。
+///
+/// `password_input::visibility_trigger` 等、`button` 要素自体がオン/オフの
+/// 押下状態を表す WAI-ARIA トグルボタンパターンで使う。[`aria_expanded`] と
+/// 同じ bool 値属性の形で統一する。
+#[must_use]
+pub fn aria_pressed(pressed: bool) -> (&'static str, &'static str) {
+    ("aria-pressed", bool_str(pressed))
+}
+
 /// `aria-modal` 属性（Dialog 用）。
 #[must_use]
 pub fn aria_modal(modal: bool) -> (&'static str, &'static str) {
@@ -197,6 +207,8 @@ mod tests {
         assert_eq!(aria_modal(true), ("aria-modal", "true"));
         assert_eq!(aria_invalid(true), ("aria-invalid", "true"));
         assert_eq!(aria_invalid(false), ("aria-invalid", "false"));
+        assert_eq!(aria_pressed(true), ("aria-pressed", "true"));
+        assert_eq!(aria_pressed(false), ("aria-pressed", "false"));
     }
 
     #[test]

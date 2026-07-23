@@ -182,6 +182,14 @@
 //!   の `positioner`/`arrow`/`arrow_tip` が「CSS フックのみ」だったスコープ
 //!   外事項を解消する。実 DOM 計測は `fandhe-frontend-wasm-full`（`position`
 //!   モジュール）の責務であり、本クレートは `web-sys` 非依存のまま維持する。
+//! - [`mod@password_input`]: Root / Label / Control / Input /
+//!   VisibilityTrigger / Indicator の 6 anatomy パーツと、表示切替
+//!   （`"visible"`/`"hidden"`）の [`password_input::PasswordInput`] 状態機械
+//!   （#740、親 #736）。[`mod@switch`]/[`mod@avatar`] と同じく、既存の
+//!   [`state::Checkable`]/[`state::Disclosure`] のいずれとも値語彙が一致
+//!   しないため [`state`] を埋め込まず個別実装する。**パスワード値そのもの
+//!   は一切扱わない**（`value` を出力する API を持たない。セキュリティ
+//!   不変条件はモジュール doc 参照）。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -197,6 +205,7 @@ pub mod dialog;
 pub mod field;
 pub mod fieldset;
 pub mod menu;
+pub mod password_input;
 pub mod popover;
 pub mod positioning;
 pub mod progress;
@@ -232,7 +241,7 @@ pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
     aria_activedescendant, aria_checked, aria_controls, aria_describedby, aria_disabled,
     aria_expanded, aria_haspopup, aria_hidden, aria_invalid, aria_label, aria_labelledby,
-    aria_modal, aria_orientation, aria_selected, role, AriaChecked, AriaPopup,
+    aria_modal, aria_orientation, aria_pressed, aria_selected, role, AriaChecked, AriaPopup,
 };
 pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use checkbox::{Checkbox, CheckboxFlags};
@@ -244,6 +253,9 @@ pub use dialog::Dialog;
 pub use field::{FieldIds, FieldProps};
 pub use fieldset::FieldsetProps;
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
+pub use password_input::{
+    PasswordAutocomplete, PasswordInput, PasswordInputAction, PasswordInputProps,
+};
 pub use positioning::{
     compute_position, css_vars_style, data_align, data_side, placement_attrs, Align, ArrowPosition,
     Placement, PositioningConfig, Rect, ResolvedPosition, Side, Size,

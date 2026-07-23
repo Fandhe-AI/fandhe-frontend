@@ -59,6 +59,7 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | Menu | `menu` | Root/Trigger/Indicator/Positioner/Content/Arrow/ArrowTip/Item/ItemGroup/ItemGroupLabel/Separator | `state::Disclosure` | #540 |
 | Select | `select` | Root/Label/Control/Trigger/ValueText/ClearTrigger/Indicator/Positioner/Content/ItemGroup/ItemGroupLabel/Item/ItemText/ItemIndicator/HiddenSelect | `state::Disclosure` + `state::SingleSelect`（開閉 + 選択値の合成） | #541 |
 | Avatar | `avatar` | Root/Image/Fallback | 独自実装（`"loading"`/`"loaded"`/`"error"` の 3 値ステータス、`ImageStatus`） | #543 |
+| PasswordInput | `password_input` | Root/Label/Control/Input/VisibilityTrigger/Indicator | 独自実装（`"visible"`/`"hidden"` 語彙が `Checkable` と異なるため `Component`/`Hydrate` を直接実装、`PasswordInput`）。パスワード値そのものは一切扱わない（§6 参照） | #740 |
 
 **未実装（open イシュー、後続で追補）**: Checkbox（#535）・Progress（#544）。
 本表はこれらの実装完了時に更新する。
@@ -334,6 +335,12 @@ ark-ui / chakra-ui のレイアウト・ナビゲーション系コンポーネ�
    必ず既存の `attrs` 引数 → 上記 2 の既定エスケープを経由して出力する
    （`same_width == false` のとき `--fandhe-reference-width` は出力しない、
    イシュー #590、`docs/design/anchor-positioning-design.md` §7）。
+8. `password_input` はパスワード値そのものを一切扱わない（イシュー #740）。
+   `input`/`PasswordInput` は `value` を出力・保持する API を持たず、状態
+   機械は表示切替の bool（`visible`）のみをフィールドに持つ。パスワード値が
+   `Debug`/`Hydrate` の出力・エラーメッセージ・ログのいずれにも現れる余地
+   がない設計であり、`crates/headless-ui/src/password_input.rs` の
+   inline test `input_never_outputs_value_attribute` が回帰を固定する。
 
 ## 7. 関連ドキュメント
 
