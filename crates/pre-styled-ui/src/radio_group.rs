@@ -50,6 +50,21 @@
 //! `FocusVisible` のみで兄弟・子孫セレクタを持たなかったため、本イシューで
 //! [`crate::recipe::StateCondition::FocusWithin`] を追加した）。
 //!
+//! # `data-focus-visible` によるキーボード専用フォーカスリング（イシュー #709）
+//!
+//! 上記 `:focus-within` は「input にフォーカスがある」ことのみを条件とし、
+//! マウスクリックによるフォーカスでも発火する（chakra-ui/ark-ui が区別する
+//! キーボード操作専用の `:focus-visible` 意味論とは異なる、包括的な
+//! フォールバック）。これを補完するため、headless 層
+//! （`fandhe_frontend_headless_ui::data_attrs::data_focus_visible`、
+//! `crates/headless-ui/src/radio_group.rs` のフォーカスリング契約 doc
+//! 参照）が出力し `fandhe-frontend-wasm-full` の focus 配線が `item`/
+//! `item-control` へ付け外しする `data-focus-visible` を `item-control`
+//! slot の状態規則として追加する。役割分担: `:focus-within`（`item`） =
+//! wasm なしでも成立する no-JS フォールバック / `data-focus-visible`
+//! （`item-control`） = wasm 配線時のみ有効なキーボード専用リング。両者は
+//! 独立した条件として共存し、どちらか一方が成立すればリングが表示される。
+//!
 //! # `size`/`palette` variant（イシュー #708）
 //!
 //! `size`（[`Size`]）は `root` へのみクラスを付与し、[`recipe`] が登録する
@@ -224,6 +239,17 @@ fn recipe() -> SlotRecipe {
                     "outline",
                     "2px solid var(--fandhe-palette, var(--fandhe-color-accent))",
                 ),
+                decl("outline-offset", "2px"),
+            ],
+        )
+        // イシュー #709: wasm 層が付け外しする `data-focus-visible` による
+        // キーボード操作専用のフォーカスリング（`:focus-within` の no-JS
+        // フォールバックとは独立に共存する。モジュール rustdoc 参照）。
+        .state(
+            "item-control",
+            StateCondition::Attr("data-focus-visible"),
+            vec![
+                decl("outline", "2px solid var(--fandhe-color-accent)"),
                 decl("outline-offset", "2px"),
             ],
         )

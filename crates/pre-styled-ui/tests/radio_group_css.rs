@@ -1,5 +1,6 @@
-//! styled RadioGroup（イシュー #683、`size`/`palette` variant 拡張は #708）の
-//! 決定的 CSS 出力ゴールデンテスト。
+//! styled RadioGroup（イシュー #683、`size`/`palette` variant 拡張は #708、
+//! `data-focus-visible` フォーカスリング反映は #709）の決定的 CSS 出力
+//! ゴールデンテスト。
 //!
 //! `crates/pre-styled-ui/tests/switch_css.rs` の golden fixture テストの
 //! 前例に倣い、`stylesheet()` が返す CSS 全文をバイト単位で固定する。
@@ -120,6 +121,11 @@ const RADIO_GROUP_GOLDEN_CSS: &str = r#"[data-scope="radio-group"][data-part="ro
 
 [data-scope="radio-group"][data-part="item"]:focus-within {
   outline: 2px solid var(--fandhe-palette, var(--fandhe-color-accent));
+  outline-offset: 2px;
+}
+
+[data-scope="radio-group"][data-part="item-control"][data-focus-visible] {
+  outline: 2px solid var(--fandhe-color-accent);
   outline-offset: 2px;
 }
 "#;

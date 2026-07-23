@@ -58,6 +58,20 @@
 //! クレート・利用側 embed にグローバルな border-box リセットは無いため、
 //! `control` へ明示的に `box-sizing: border-box` を設定して自己完結させる。
 //!
+//! # `hidden-input` フォーカス時の `control` へのフォーカスリング反映（イシュー #709）
+//!
+//! `hidden-input` フォーカス時に `control` へフォーカスリングを反映する
+//! 課題は、[`crate::recipe::StateCondition`] へ親子・兄弟関係の関係セレクタ
+//! （`:has()`・兄弟結合子）を追加するのではなく、headless 層
+//! （`fandhe_frontend_headless_ui::data_attrs::data_focus_visible`）が
+//! 出力する `data-focus-visible` 存在属性 + クライアントランタイム
+//! （`fandhe-frontend-wasm-full` の focus 配線）による `root`/`control`
+//! 双方への付け外しで解決する（`crates/headless-ui/src/switch.rs` の
+//! フォーカスリング契約 doc 参照）。本モジュールは `control` slot へ
+//! `StateCondition::Attr("data-focus-visible")` の状態規則を登録するのみで、
+//! 属性の付け外し自体は headless/wasm 層の責務のまま変えない（旧版で
+//! 本節に記載していた out-of-scope はこの解決により解消済み）。
+//!
 //! # `size`/`palette` variant（イシュー #708）
 //!
 //! `size`（[`Size`]）は `root` へのみクラスを付与し、[`recipe`] が登録する
@@ -77,11 +91,6 @@
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
-//! - `hidden-input` フォーカス時の `control` へのフォーカスリング反映は、
-//!   [`crate::recipe::StateCondition`] が親子・兄弟関係を表す関係セレクタ
-//!   （`:has()`・兄弟結合子）を持たず、headless 層も `data-focus-visible` を
-//!   出力しないため本イシューでは対応しない（headless 層への
-//!   `data-focus-visible` 追加とあわせた Issue 化を別途提案する）。
 //! - [`crate::stylesheet::StyleSheet`] の
 //!   `push_recipe_is_infallible_for_all_styled_components` テストへの
 //!   popover/tooltip（#664）の登録漏れは #707 で解消済み。
@@ -146,6 +155,19 @@ fn recipe() -> SlotRecipe {
                 "background",
                 "var(--fandhe-palette, var(--fandhe-color-accent))",
             )],
+        )
+        // イシュー #709: 実フォーカスは hidden-input が受けるため、wasm 層
+        // （`fandhe-frontend-wasm-full` の focus 配線）が `control` へも
+        // 付け外しする `data-focus-visible` をキーボード操作専用のフォーカス
+        // リング条件として使う（`select` の `trigger`
+        // `StateCondition::FocusVisible` と同じ視覚言語、モジュール rustdoc 参照）。
+        .state(
+            "control",
+            StateCondition::Attr("data-focus-visible"),
+            vec![
+                decl("outline", "2px solid var(--fandhe-color-accent)"),
+                decl("outline-offset", "2px"),
+            ],
         )
         .base(
             "thumb",
