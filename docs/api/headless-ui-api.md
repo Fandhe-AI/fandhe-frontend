@@ -245,7 +245,13 @@ fail-closed に留まる。arrow（Menu のみ、`has_arrow()` が Select を対
    `HydrateError` を返す保証を継承する。
 5. `#![forbid(unsafe_code)]`（REQ-2）。`unsafe` はクレート全体で使用しない。
 6. 外部依存は `fandhe-frontend-core` / `fandhe-frontend-interactive`
-   （いずれも path）のみ（`.claude/rules/coding-rust.md`）。
+   （いずれも path）のみ（`.claude/rules/coding-rust.md`）。加えて本クレートは
+   `fandhe_frontend_core`（#550）・`fandhe_frontend_interactive`（イシュー
+   #712）の両方をクレートそのものとして再エクスポートし、本クレート単独
+   依存の利用者が `Component`/`Hydrate`/`dispatch`/`HydrateError`/
+   `render_for_hydration` を含む hydration API まで到達できるようにしている
+   （`docs/api/pre-styled-ui-api.md` §3b・`crates/headless-ui/tests/
+   interactive_reexport.rs` 参照）。
 7. `positioning::css_vars_style(position, reference_width, same_width)` が
    返す `style` 属性値は内部生成の数値書式（px）のみからなり、呼び出し側は
    必ず既存の `attrs` 引数 → 上記 2 の既定エスケープを経由して出力する

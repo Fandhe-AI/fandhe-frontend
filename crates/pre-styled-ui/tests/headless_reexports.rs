@@ -8,11 +8,15 @@
 //! パス（クレート再エクスポート [`fandhe_frontend_pre_styled_ui::fandhe_frontend_core`]・
 //! [`fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui`] を含む）のみを
 //! 使用し、「pre-styled-ui 単独依存でラッパーを呼び出せる」契約をコンパイルで
-//! 固定する（dispatch/`Component` トレイトのみ `fandhe_frontend_interactive`
-//! dev-dependency を使う。イシュー #685 計画のスコープ外事項 3 参照）。
+//! 固定する。`dispatch`/`Component` は #685 時点では
+//! `fandhe_frontend_interactive` dev-dependency 経由の直接 import だったが、
+//! イシュー #712 で `fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive`
+//! クレート再エクスポートが確立したため、本ファイルもそちらへ切り替えて
+//! 契約テストとしての純度を上げる（`Component`/`Hydrate` 等の hydration まで
+//! 含めた単独依存到達性の固定は `interactive_reexports.rs` が担う）。
 
-use fandhe_frontend_interactive::{dispatch, Component};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_core::{el, render, text};
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::{dispatch, Component};
 use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, popover, select, tabs, tooltip};
 // ルート再エクスポート（docs-site 実利用パスと同型の import、イシュー #685）。
 use fandhe_frontend_pre_styled_ui::{OpenState, Orientation};
