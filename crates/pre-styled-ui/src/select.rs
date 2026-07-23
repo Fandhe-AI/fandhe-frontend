@@ -1,12 +1,26 @@
-//! styled Select（headless ラッパー第 1 弾、イシュー #551、親 #520/#545）。
+//! styled Select（headless ラッパー第 1 弾、イシュー #551、親 #520/#545。
+//! `size` variant 展開はイシュー #729、親 #708）。
 //!
 //! `fandhe_frontend_headless_ui::select`（イシュー #541）の Root / Label /
 //! Control / Trigger / ValueText / ClearTrigger / Indicator / Positioner /
 //! Content / ItemGroup / ItemGroupLabel / Item / ItemText / ItemIndicator /
-//! HiddenSelect 15 anatomy パーツと
-//! [`fandhe_frontend_headless_ui::select::Select`] 状態機械をそのまま
-//! 再エクスポートし、[`stylesheet`] で既定 CSS を追加提供する。薄い委譲の
-//! 根拠・スコープ外事項は [`crate::dialog`] の rustdoc と同じ方針に従う。
+//! HiddenSelect 15 anatomy パーツを再エクスポートし、[`stylesheet`] で既定
+//! CSS を追加提供する。薄い委譲の根拠・スコープ外事項は [`crate::dialog`] の
+//! rustdoc と同じ方針に従う。
+//!
+//! # 選択的 re-export（`pub use ...::*` を使わない理由、`Select` 型・headless
+//! `root` を再エクスポートしない理由、イシュー #729）
+//!
+//! `size` variant クラス付与のため styled [`root`]（[`crate::dialog::root`]
+//! と同型）を本モジュールで新設する。headless 自由関数 `root` と名前が
+//! 衝突するため、`pub use ...::*` ではなく必要な識別子のみを選択的に再
+//! エクスポートする。状態機械 [`fandhe_frontend_headless_ui::select::Select`]
+//! は**あえて**再エクスポートしない（[`crate::switch`]/[`crate::dialog`]/
+//! [`crate::menu`] の状態機械非再エクスポートと同じ理由）。`Select` による
+//! 状態管理・hydration が必要な呼び出し側は
+//! `fandhe_frontend_headless_ui::select::Select` を直接 import し、実際の
+//! 描画は本モジュールの styled [`root`]（および再エクスポート済みのパーツ
+//! 関数）を組み合わせて構築すること。
 //!
 //! # data-state とスタイルの連動（イシュー #551 受け入れ条件）
 //!
@@ -59,12 +73,21 @@
 //! ある `root` に付与する（PR #575 Bugbot 指摘 2 対応、`control` への誤付与を
 //! 修正）。
 
+use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, StateCondition};
+use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
 
-pub use fandhe_frontend_headless_ui::select::*;
-// `root`/`control` の `state` 引数・`Select::open_state`/`item_state` はいずれも
-// `state` モジュール由来で上記 glob 再エクスポートでは到達しない。呼び出し側が
+// headless 自由関数 `root`・状態機械 `Select` はあえて再エクスポートしない
+// （本モジュール冒頭の rustdoc「選択的 re-export」節参照）。未スタイル・
+// variant クラス非付与の実体・状態管理が必要な呼び出し側は
+// `fandhe_frontend_headless_ui::select` を直接 import する。
+use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
+pub use fandhe_frontend_headless_ui::select::{
+    clear_trigger, content, control, hidden_select, indicator, item, item_group, item_group_label,
+    item_indicator, item_text, label, positioner, trigger, value_text,
+};
+// `control`/`trigger` 等の `state` 引数はいずれも `state` モジュール由来で
+// 上記選択的再エクスポートでは到達しない。呼び出し側が
 // `fandhe-frontend-pre-styled-ui` のみに依存して呼び出せることを保証するための
 // 明示再エクスポート（イシュー #685）。
 pub use fandhe_frontend_headless_ui::state::OpenState;
@@ -114,7 +137,10 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
                 decl("border-radius", "0.375rem"),
-                decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
+                decl(
+                    "padding",
+                    "var(--fandhe-select-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-3))",
+                ),
                 decl("cursor", "pointer"),
             ],
         )
@@ -136,14 +162,20 @@ fn recipe() -> SlotRecipe {
                 decl("border", "1px solid var(--fandhe-color-border)"),
                 decl("border-radius", "0.375rem"),
                 decl("box-shadow", "0 4px 6px rgba(0, 0, 0, 0.15)"),
-                decl("padding", "var(--fandhe-space-2)"),
+                decl(
+                    "padding",
+                    "var(--fandhe-select-content-padding, var(--fandhe-space-2))",
+                ),
                 decl("min-width", "var(--fandhe-reference-width, auto)"),
             ],
         )
         .base(
             "item",
             vec![
-                decl("padding", "var(--fandhe-space-2) var(--fandhe-space-3)"),
+                decl(
+                    "padding",
+                    "var(--fandhe-select-item-padding, var(--fandhe-space-2) var(--fandhe-space-3))",
+                ),
                 decl("cursor", "pointer"),
                 decl("border-radius", "0.25rem"),
             ],
@@ -227,6 +259,56 @@ fn recipe() -> SlotRecipe {
                 ),
             ],
         )
+        // イシュー #729: `size` variant（root スコープの CSS custom property。
+        // Md はフォールバック値と同一の現行外観を維持する）。`--fandhe-reference-width`/
+        // `--fandhe-x`/`--fandhe-y`（wasm positioning 契約、#663）には手を
+        // 触れない（モジュール rustdoc 参照）。
+        .variant(
+            Size::Sm,
+            "root",
+            vec![
+                decl(
+                    "--fandhe-select-trigger-padding",
+                    "var(--fandhe-space-1) var(--fandhe-space-2)",
+                ),
+                decl(
+                    "--fandhe-select-item-padding",
+                    "var(--fandhe-space-1) var(--fandhe-space-2)",
+                ),
+                decl("--fandhe-select-content-padding", "var(--fandhe-space-1)"),
+            ],
+        )
+        .variant(
+            Size::Md,
+            "root",
+            vec![
+                decl(
+                    "--fandhe-select-trigger-padding",
+                    "var(--fandhe-space-2) var(--fandhe-space-3)",
+                ),
+                decl(
+                    "--fandhe-select-item-padding",
+                    "var(--fandhe-space-2) var(--fandhe-space-3)",
+                ),
+                decl("--fandhe-select-content-padding", "var(--fandhe-space-2)"),
+            ],
+        )
+        .variant(
+            Size::Lg,
+            "root",
+            vec![
+                decl(
+                    "--fandhe-select-trigger-padding",
+                    "var(--fandhe-space-3) var(--fandhe-space-4)",
+                ),
+                decl(
+                    "--fandhe-select-item-padding",
+                    "var(--fandhe-space-3) var(--fandhe-space-4)",
+                ),
+                decl("--fandhe-select-content-padding", "var(--fandhe-space-3)"),
+            ],
+        )
+        .default_variant(Size::Md)
 }
 
 /// この styled Select が生成する静的 CSS 全量を返す（決定的。[`crate::dialog::stylesheet`]
@@ -234,6 +316,34 @@ fn recipe() -> SlotRecipe {
 #[must_use]
 pub fn stylesheet() -> String {
     recipe().css()
+}
+
+/// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
+/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// 合成する）。実体は [`fandhe_frontend_headless_ui::select::root`] へ委譲する。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::select::{self, OpenState};
+/// use fandhe_frontend_pre_styled_ui::Size;
+///
+/// let node = select::root(Size::Md, OpenState::Open, vec![], vec![]);
+/// assert!(render(&node).contains(r#"data-scope="select" data-part="root""#));
+/// ```
+#[must_use]
+pub fn root<'a>(
+    size: Size,
+    state: OpenState,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let recipe = recipe();
+    let class = recipe.variant_classes(&[("size", size.value())]);
+    let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
+    merged.extend(drop_class_attr(attrs));
+    fandhe_frontend_headless_ui::select::root(state, merged, children)
 }
 
 #[cfg(test)]
@@ -281,9 +391,42 @@ mod tests {
 
     #[test]
     fn reexported_root_renders_with_headless_anatomy_attrs() {
-        let html = render(&root(OpenState::Closed, vec![], vec![]));
+        let html = render(&root(Size::Md, OpenState::Closed, vec![], vec![]));
         assert!(html.contains(r#"data-scope="select""#));
         assert!(html.contains(r#"data-part="root""#));
+    }
+
+    // --- イシュー #729: size variant ---
+
+    #[test]
+    fn size_variant_appends_single_class_to_root_and_drops_caller_class() {
+        for size in [Size::Sm, Size::Md, Size::Lg] {
+            let html = render(&root(
+                size,
+                OpenState::Closed,
+                vec![("class", "attacker")],
+                vec![],
+            ));
+            let expected_class = format!("fd-select--size-{}", size.value());
+            assert!(html.contains(&expected_class), "html={html}");
+            assert!(!html.contains("attacker"));
+            assert_eq!(html.matches("class=\"").count(), 1);
+        }
+    }
+
+    #[test]
+    fn default_variant_is_md_and_matches_pre_729_fallback() {
+        // Md はフォールバック値と同一の現行外観を維持する（不変条件）。
+        let css = stylesheet();
+        assert!(css.contains(
+            "padding: var(--fandhe-select-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-3));"
+        ));
+        assert!(css.contains(
+            "padding: var(--fandhe-select-item-padding, var(--fandhe-space-2) var(--fandhe-space-3));"
+        ));
+        assert!(
+            css.contains("padding: var(--fandhe-select-content-padding, var(--fandhe-space-2));")
+        );
     }
 
     #[test]
@@ -298,8 +441,10 @@ mod tests {
     #[test]
     fn ssr_and_hydration_round_trip_via_reexported_select_state_machine() {
         // イシュー #551 受け入れ条件: 「SSR / hydration 両経路の動作確認」を
-        // 再エクスポートされた `Select`（headless の Component/Hydrate 実装を
-        // そのまま継承）経由で固定する。
+        // headless `Select`（イシュー #729 により本モジュールから再エクスポート
+        // しないため、エスケープハッチ経由で直接 import する。モジュール
+        // 冒頭の rustdoc「選択的 re-export」節参照）経由で固定する。
+        use fandhe_frontend_headless_ui::select::Select;
         use fandhe_frontend_interactive::{dispatch, render_for_hydration, Hydrate};
 
         let mut s = Select::default();
