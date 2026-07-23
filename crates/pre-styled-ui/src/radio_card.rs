@@ -5,16 +5,14 @@
 //! RadioGroup 状態機械の上に独自 slot recipe として実装している構図を、本
 //! クレートでもそのまま踏襲する。**headless-ui には手を入れない**（受け入れ
 //! 条件）。設計判断は [`crate::checkbox_card`] rustdoc と同型（本モジュールは
-//! RadioCard 版）。ただしセキュリティ不変条件は完全に同型ではない: 本
-//! モジュールは [`crate::checkbox_card`] の `STATE_RESERVED`/
-//! `HIDDEN_INPUT_RESERVED`/`drop_reserved` に相当する「呼び出し側 `attrs` に
-//! よる `data-state`/`data-value`/`type`/`checked` 等の予約キーなりすまし」
-//! への fail-closed 除去を持たない（`class` の除去のみ、下記「セキュリティ
-//! 不変条件」節参照）。これは本モジュールが新規導入した退行ではなく、
-//! 既存の [`crate::radio_group`] と同じ踏襲であり、対象は「呼び出し側
-//! （アプリ開発者）が渡す attrs」でリモート未検証ユーザー入力を直接受ける
-//! 経路ではないため、実害は限定的と判断している（イシュー #747 レビュー
-//! 指摘・追跡）。
+//! RadioCard 版）。セキュリティ不変条件も [`crate::checkbox_card`] と同型に
+//! 統一した: 本モジュールは `STATE_RESERVED`/`HIDDEN_INPUT_RESERVED`/
+//! `drop_reserved` により、呼び出し側 `attrs` による `data-state`/
+//! `data-value`/`data-orientation`/`role`/`type`/`checked`/`name`/`value`/
+//! `disabled` 等の予約キーなりすましを fail-closed で除去する（下記
+//! 「セキュリティ不変条件」節参照）。イシュー #747 レビュー指摘を受けて
+//! 是正済み。既存の [`crate::radio_group`] 側には同型の欠落が残っており、
+//! 別イシューとして追跡する（下記「本イシューのスコープ外」節参照）。
 //!
 //! # anatomy は pre-styled 層で新規定義する（[`crate::card`]/[`crate::checkbox_card`] 先例準拠）
 //!
@@ -93,15 +91,22 @@
 //! [`fandhe_frontend_headless_ui::fandhe_frontend_core::render`] の既定
 //! エスケープを必ず経由する（REQ-1）。呼び出し側 `attrs` の `class` は
 //! [`drop_class_attr`] で除去してから合成し、`class` 属性は常に単一
-//! （[`crate::radio_group::root`] と同型）。[`crate::checkbox_card`] と異なり、
-//! `data-state`/`data-value`/`data-orientation`/`role`/`type`/`checked`/
-//! `name`/`value` 等、各パーツが固定付与する属性キーは呼び出し側 `attrs` から
-//! の除去（fail-closed な予約キー保護）を行わない。呼び出し側が誤ってこれら
-//! のキーを `attrs` へ混入させた場合、`type="radio" type="text"` のような
-//! 重複属性がフェイルオープンで出力されうる（[`crate::radio_group`] も同型、
-//! 本モジュールが新規導入した退行ではない）。ブラウザの属性解釈は一般に
-//! 先勝ちのため実害は限定的だが、契約としては [`crate::checkbox_card`] より
-//! 弱い。
+//! （[`crate::radio_group::root`] と同型）。[`ROOT_RESERVED`]（`role`/
+//! `data-orientation`/`aria-orientation`/`aria-labelledby`/`data-disabled`）・
+//! [`STATE_RESERVED`]（`data-state`/`data-value`/`data-disabled`）・
+//! [`HIDDEN_INPUT_RESERVED`]（`type`/`value`/`data-state`/`name`/`checked`/
+//! `disabled`）の各予約キーは、パーツごとに [`drop_reserved`] で呼び出し側
+//! `attrs` から fail-closed に除去してから合成する
+//! （[`crate::checkbox_card`] の `STATE_RESERVED`/`HIDDEN_INPUT_RESERVED`/
+//! `drop_reserved` と同型の判断を本モジュールで独立に実装する —
+//! [`fandhe_frontend_headless_ui::anatomy::Anatomy::part`] は
+//! `data-scope`/`data-part` のみを守るため、それ以外の予約キー保護は各
+//! styled 部品自身の責務であることは headless 側モジュール doc の
+//! 「セキュリティ不変条件」節と同じ）。呼び出し側が誤ってこれらのキーを
+//! `attrs` へ混入させても、フレームワーク側の固定値が優先され
+//! `type="radio" type="text"` のような重複属性は出力されない
+//! （[`crate::radio_group`] 側には同型の欠落が残っており、別イシューとして
+//! 追跡する）。
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
@@ -111,6 +116,9 @@
 //!   アクション写像の card scope 対応）。
 //! - `examples/headless-pre-styled-ui` への追随（pre-styled-ui 公開後に
 //!   別 PR で対応）。
+//! - [`crate::radio_group`] 側の同型の予約キー保護欠落（本モジュールの
+//!   是正で非対称になった。out-of-scope-tracking に従い別イシューとして
+//!   起票・追跡する）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
@@ -126,6 +134,45 @@ use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 /// `data-scope="radio-card"` を固定した本コンポーネントの anatomy
 /// （既存 `data-scope="radio-group"` とは独立、モジュール冒頭 rustdoc 参照）。
 const ANATOMY: Anatomy = anatomy("radio-card");
+
+/// [`root`] が固定付与する属性キー一覧（呼び出し側 `attrs` からの偽装を
+/// fail-closed で除去する対象。`class` は [`drop_class_attr`] が別途処理する
+/// ため含めない。モジュール冒頭 rustdoc「セキュリティ不変条件」節参照）。
+const ROOT_RESERVED: &[&str] = &[
+    "role",
+    "data-orientation",
+    "aria-orientation",
+    "aria-labelledby",
+    "data-disabled",
+];
+
+/// [`item`]/[`item_control`]/[`item_indicator`] が共通で固定付与する属性キー
+/// 一覧（`crates/pre-styled-ui/src/checkbox_card.rs` の `STATE_RESERVED` と
+/// 同型の判断、モジュール冒頭 rustdoc 参照）。[`item`] のみさらに `data-value`
+/// を追加で保護する。
+const STATE_RESERVED: &[&str] = &["data-state", "data-disabled"];
+
+/// [`item`] がさらに固定付与する属性キー（[`STATE_RESERVED`] に加えて保護）。
+const ITEM_RESERVED: &[&str] = &["data-state", "data-value", "data-disabled"];
+
+/// [`item_hidden_input`] が固定付与する属性キー一覧
+/// （`crates/pre-styled-ui/src/checkbox_card.rs` の `HIDDEN_INPUT_RESERVED` と
+/// 同型）。
+const HIDDEN_INPUT_RESERVED: &[&str] =
+    &["type", "value", "data-state", "name", "checked", "disabled"];
+
+/// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
+/// 除外する（`crates/headless-ui/src/checkbox.rs`・
+/// `crates/pre-styled-ui/src/checkbox_card.rs` の `drop_reserved` と同型）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
 
 /// [`SlotRecipe::new`] に渡す slot 一覧（recipe とレンダリング関数の両方が
 /// この配列を共有し、slot 名の乖離を防ぐ）。
@@ -406,7 +453,7 @@ pub fn root<'a>(
         merged.push(aria_labelledby(id));
     }
     merged.extend(data_disabled(disabled));
-    merged.extend(drop_class_attr(attrs));
+    merged.extend(drop_reserved(drop_class_attr(attrs), ROOT_RESERVED));
     ANATOMY.part("root", "div", merged, children)
 }
 
@@ -436,7 +483,7 @@ pub fn item<'a>(
         ("data-value", value),
     ];
     merged.extend(data_disabled(disabled));
-    merged.extend(attrs);
+    merged.extend(drop_reserved(attrs, ITEM_RESERVED));
     ANATOMY.part("item", "label", merged, children)
 }
 
@@ -451,7 +498,7 @@ pub fn item_control<'a>(
     let mut merged: Vec<(&'a str, &'a str)> =
         vec![data_state(if checked { "checked" } else { "unchecked" })];
     merged.extend(data_disabled(disabled));
-    merged.extend(attrs);
+    merged.extend(drop_reserved(attrs, STATE_RESERVED));
     ANATOMY.part("item-control", "div", merged, children)
 }
 
@@ -489,7 +536,7 @@ pub fn item_indicator<'a>(checked: bool, disabled: bool, attrs: Vec<(&'a str, &'
     let mut merged: Vec<(&'a str, &'a str)> =
         vec![data_state(if checked { "checked" } else { "unchecked" })];
     merged.extend(data_disabled(disabled));
-    merged.extend(attrs);
+    merged.extend(drop_reserved(attrs, STATE_RESERVED));
     ANATOMY.part("item-indicator", "span", merged, vec![])
 }
 
@@ -519,7 +566,7 @@ pub fn item_hidden_input<'a>(
     if disabled {
         merged.push(("disabled", ""));
     }
-    merged.extend(attrs);
+    merged.extend(drop_reserved(attrs, HIDDEN_INPUT_RESERVED));
     ANATOMY.part("item-hidden-input", "input", merged, vec![])
 }
 
@@ -707,6 +754,66 @@ mod tests {
         ));
         assert!(html.contains(r#"data-scope="radio-card""#));
         assert!(html.contains(r#"data-part="root""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn root_drops_caller_supplied_reserved_attrs() {
+        let html = render(&root(
+            Size::Md,
+            ColorPalette::Accent,
+            false,
+            None,
+            None,
+            vec![
+                ("role", "attacker"),
+                ("data-disabled", "attacker"),
+                ("aria-labelledby", "attacker"),
+            ],
+            vec![],
+        ));
+        assert!(html.contains(r#"role="radiogroup""#));
+        assert!(!html.contains("attacker"));
+        assert!(!html.contains("data-disabled"));
+        assert!(!html.contains("aria-labelledby"));
+    }
+
+    #[test]
+    fn item_drops_caller_supplied_reserved_attrs() {
+        let html = render(&item(
+            false,
+            false,
+            "red",
+            vec![("data-state", "checked"), ("data-value", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-state="unchecked""#));
+        assert!(html.contains(r#"data-value="red""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn item_hidden_input_drops_caller_supplied_reserved_attrs() {
+        // レビュー指摘（イシュー #747）の具体例: unchecked にもかかわらず
+        // 呼び出し側 attrs が `checked` を混入させても、フレームワーク側の
+        // 固定値（未 checked のため checked 属性なし）が優先され漏れ出ない。
+        let node = item_hidden_input(
+            false,
+            false,
+            Some("color"),
+            "red",
+            vec![
+                ("type", "text"),
+                ("name", "attacker"),
+                ("value", "attacker"),
+                ("checked", ""),
+            ],
+        );
+        let html = render(&node);
+        assert!(html.contains(r#"type="radio""#));
+        assert!(html.contains(r#"name="color""#));
+        assert!(html.contains(r#"value="red""#));
+        assert!(!html.contains("checked="));
         assert!(!html.contains("attacker"));
     }
 
