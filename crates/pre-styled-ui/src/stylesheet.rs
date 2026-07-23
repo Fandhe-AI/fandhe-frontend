@@ -294,6 +294,8 @@ mod tests {
             ("link", crate::link::stylesheet()),
             ("link_overlay", crate::link_overlay::stylesheet()),
             ("nav_list", crate::nav_list::stylesheet()),
+            ("status", crate::status::css()),
+            ("empty_state", crate::empty_state::css()),
         ]
     }
 
