@@ -63,6 +63,19 @@
 //!   `wasm-node-smoke` ジョブ。1 行サマリは `wasm_node_smoke::format_report`
 //!   参照。CLI 契約の回帰テストは `xtask/tests/cli_wasm_node_smoke.rs`。
 //!
+//! - `check-version-bump --base-ref <REF> [--pr-body-file <PATH>] [--index-base-url <URL>]`:
+//!   イシュー #638。公開済みクレート（crates.io）の実体（`src/` / `Cargo.toml` /
+//!   `build.rs`）が変更されているのに `Cargo.toml` の version が既公開バージョンの
+//!   ままの PR を検知する（`check_version_bump` モジュール）。headless-ui 0.1.0 公開後、
+//!   バージョンバンプなしの破壊的変更がマージされ main を赤にした事故（PR #611 → 復旧
+//!   PR #634）が動機。`--pr-body-file` に渡した PR 本文中の
+//!   `version-bump-exempt: <crate-name>` 宣言（クレート名の完全一致のみ）で誤検知を
+//!   免除できる。curl 不在・ネットワーク不達・想定外 HTTP status はすべて
+//!   `environment error: ` プレフィックス付きで fail-closed に扱う。呼び出し元は
+//!   `.github/workflows/ci.yml` の `version-bump-guard` ジョブ（PR コンテキストのみ）。
+//!   1 行サマリは `check_version_bump::format_report` 参照。CLI 契約の回帰テストは
+//!   `xtask/tests/cli_check_version_bump.rs`。
+//!
 //! `core` / `interactive` と異なりプロセス起動（`std::process::Command`）を行うが、
 //! `unsafe` は使わない（REQ-2 は core/interactive 限定だが、xtask でも forbid する。
 //! core/tests/unsafe_boundary.rs の WASM/FFI 境界許可リストにも含まれない）。
@@ -73,6 +86,7 @@ mod bench_binding_update;
 mod check_deps;
 mod check_image_size;
 mod check_loc;
+mod check_version_bump;
 mod json;
 mod list_build_scripts;
 mod wasm_node_smoke;
@@ -89,6 +103,7 @@ fn main() -> ExitCode {
         Some("check-image-size") => run_check_image_size(&args[2..]),
         Some("wasm-node-smoke") => run_wasm_node_smoke(&args[2..]),
         Some("bench-binding-update") => run_bench_binding_update(&args[2..]),
+        Some("check-version-bump") => run_check_version_bump(&args[2..]),
         Some(other) => {
             eprintln!("xtask: unknown subcommand `{other}`");
             print_usage();
@@ -140,6 +155,13 @@ fn print_usage() {
     eprintln!("      Measure full re-render vs dirty-tracked update cost (native, report-only,");
     eprintln!("      no threshold judgement) for AppState/Disclosure/SingleSelect dispatch");
     eprintln!("      (issue #592). Takes no arguments by design.");
+    eprintln!(
+        "  check-version-bump --base-ref <REF> [--pr-body-file <PATH>] [--index-base-url <URL>]"
+    );
+    eprintln!("      Detect published crates (crates.io) whose sources changed (src/**/,");
+    eprintln!("      Cargo.toml, build.rs) while Cargo.toml's version is unchanged from an");
+    eprintln!("      already-published version (issue #638). `--pr-body-file` may declare");
+    eprintln!("      `version-bump-exempt: <crate-name>` to exempt non-breaking changes.");
 }
 
 /// `check-deps` サブコマンド: `--package <NAME>` を 1 つ以上受け取り、
@@ -496,4 +518,139 @@ fn run_bench_binding_update(args: &[String]) -> ExitCode {
     }
 
     ExitCode::SUCCESS
+}
+
+/// `check-version-bump` サブコマンド（イシュー #638）: `--base-ref <REF>`
+/// （必須）・`--pr-body-file <PATH>`（任意、免除宣言の読み取り元）・
+/// `--index-base-url <URL>`（任意、既定 [`check_version_bump::DEFAULT_INDEX_BASE_URL`]、
+/// テスト専用の差し替え口）を受け取る。
+///
+/// 変更ファイルが 1 つも公開対象クレートの実体に触れていなければ
+/// 即座に PASS 扱い（終了コード 0）とする。`query_index` が
+/// `CheckVersionBumpError::EnvironmentError` を返した場合は、以降のクレートを
+/// 判定せず直ちに終了コード 1 で打ち切る（fail-closed。環境要因の失敗を
+/// 個別クレートの FAIL と混在させない）。引数不備は終了コード 2、
+/// バンプ漏れ検知・環境エラーはいずれも終了コード 1。
+fn run_check_version_bump(args: &[String]) -> ExitCode {
+    let mut base_ref: Option<String> = None;
+    let mut pr_body_file: Option<String> = None;
+    let mut index_base_url = check_version_bump::DEFAULT_INDEX_BASE_URL.to_string();
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--base-ref" => {
+                let Some(value) = args.get(i + 1) else {
+                    eprintln!("xtask check-version-bump: `--base-ref` requires a value");
+                    return ExitCode::from(2);
+                };
+                base_ref = Some(value.clone());
+                i += 2;
+            }
+            "--pr-body-file" => {
+                let Some(value) = args.get(i + 1) else {
+                    eprintln!("xtask check-version-bump: `--pr-body-file` requires a value");
+                    return ExitCode::from(2);
+                };
+                pr_body_file = Some(value.clone());
+                i += 2;
+            }
+            "--index-base-url" => {
+                let Some(value) = args.get(i + 1) else {
+                    eprintln!("xtask check-version-bump: `--index-base-url` requires a value");
+                    return ExitCode::from(2);
+                };
+                index_base_url = value.clone();
+                i += 2;
+            }
+            other => {
+                eprintln!("xtask check-version-bump: unknown argument `{other}`");
+                return ExitCode::from(2);
+            }
+        }
+    }
+
+    let Some(base_ref) = base_ref else {
+        eprintln!("xtask check-version-bump: `--base-ref <REF>` is required");
+        return ExitCode::from(2);
+    };
+
+    // `--pr-body-file` 未指定時は免除なし（fail-closed）。空文字列扱いにするのは
+    // 誤って全クレートを免除してしまう経路を作らないため（計画書 §3.1 参照）。
+    let exempt_crates = match &pr_body_file {
+        Some(path) => match std::fs::read_to_string(path) {
+            Ok(body) => check_version_bump::parse_exempt_crates(&body),
+            Err(e) => {
+                eprintln!(
+                    "xtask check-version-bump: failed to read `--pr-body-file` `{path}`: {e}"
+                );
+                return ExitCode::FAILURE;
+            }
+        },
+        None => std::collections::HashSet::new(),
+    };
+
+    let crates = match check_version_bump::published_crates_from_cargo_metadata() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("xtask check-version-bump: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let files = match check_version_bump::changed_files(&base_ref) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("xtask check-version-bump: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let affected = check_version_bump::affected_crates(&files, &crates);
+    if affected.is_empty() {
+        println!("version-bump-check: no published crate sources changed (base-ref={base_ref})");
+        return ExitCode::SUCCESS;
+    }
+
+    let mut had_failure = false;
+    for c in affected {
+        let exempt = exempt_crates.contains(&c.name);
+        let lookup = match check_version_bump::query_index(&index_base_url, &c.name) {
+            Ok(l) => l,
+            Err(e) => {
+                // 環境要因の失敗は個別クレートの FAIL とは区別し、以降の
+                // クレートを判定せず直ちに打ち切る（CI 側が
+                // "environment error: " プレフィックスで区別できるようにする）。
+                eprintln!("xtask check-version-bump: {e}");
+                return ExitCode::FAILURE;
+            }
+        };
+        let published = matches!(lookup, check_version_bump::IndexLookup::Published(_));
+        let judgement = check_version_bump::judge(&c.version, exempt, &lookup);
+        let report = check_version_bump::Report {
+            name: c.name.clone(),
+            version: c.version.clone(),
+            published,
+            judgement,
+        };
+        print!("{}", check_version_bump::format_report(&report));
+        if !judgement.is_pass() {
+            had_failure = true;
+            eprintln!(
+                "xtask check-version-bump: crate `{name}` version {version} is already \
+published on crates.io but its sources changed in this PR. Fix by either (a) bumping the \
+version in the crate's Cargo.toml (0.x breaking changes: bump the minor version; remember to \
+update dependents' `version = \"...\"` requirements too), or (b) declaring \
+`version-bump-exempt: {name}` (with rationale) in the PR body if this change is not a \
+public-API-breaking change.",
+                name = c.name,
+                version = c.version,
+            );
+        }
+    }
+
+    if had_failure {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
 }
