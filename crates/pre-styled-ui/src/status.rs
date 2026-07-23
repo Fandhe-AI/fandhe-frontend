@@ -1,0 +1,283 @@
+//! Status（イシュー #765）: slot recipe styled 部品。ドット（indicator）+
+//! ラベルで状態を示す静的マークアップ部品。
+//!
+//! [`crate::badge`] と同じく単一 axis の `size` に加え `color-palette` 軸
+//! （chakra-ui の `feedback/status.md` の `colorPalette` prop に対応、
+//! [`crate::recipe::palette_declarations`] 経由で Alert/Badge/Spinner と
+//! 同一のセマンティック色トークンへ束ねる）を持つ。ラベルテキスト自体が
+//! 状態を伝えるため、[`crate::spinner`] の単体 `spinner()` のような
+//! `role="status"`（WAI-ARIA live region）は付与しない（本部品は非同期の
+//! 状態更新をライブ告知する用途ではなく、レンダリング時点の静的な状態表示
+//! であるため。ライブ告知が必要な呼び出し文脈では、呼び出し側が `attrs` へ
+//! `role`/`aria-live` を明示的に足す設計とする）。
+
+use crate::class_attr::drop_class_attr;
+use crate::css::decl;
+use crate::recipe::{palette_declarations, ColorPalette, Size, SlotRecipe, VariantValue};
+use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
+use fandhe_frontend_headless_ui::{anatomy, Anatomy};
+
+/// `data-scope="status"` を固定した本コンポーネントの anatomy。
+const ANATOMY: Anatomy = anatomy("status");
+
+/// [`SlotRecipe::new`] に渡す slot 一覧（recipe とレンダリング関数の両方が
+/// この配列を共有し、slot 名の乖離を防ぐ）。
+const SLOTS: &[&str] = &["root", "indicator"];
+
+/// [`status_root`] の設定。
+#[derive(Debug, Clone, Copy)]
+pub struct StatusProps {
+    /// サイズ variant（既定 `Md`）。
+    pub size: Size,
+    /// colorPalette 軸（既定 `Accent`）。[`crate::theme`] のセマンティック色
+    /// から選択する（`info`/`success`/`warning`/`error` 相当は
+    /// [`ColorPalette::Info`]/[`ColorPalette::Success`]/
+    /// [`ColorPalette::Warning`]/[`ColorPalette::Danger`] に対応する）。
+    pub palette: ColorPalette,
+}
+
+impl Default for StatusProps {
+    fn default() -> Self {
+        StatusProps {
+            size: Size::Md,
+            palette: ColorPalette::Accent,
+        }
+    }
+}
+
+/// Status の recipe（scope `"status"`、[`SLOTS`] の 2 パーツ）。
+///
+/// `indicator` の直径は root の `size` variant が設定する
+/// `--fandhe-status-dot-size` カスタムプロパティを参照する（[`crate::card`]
+/// の「root variant が子孫スコープの custom property を設定し、子孫の base
+/// 宣言が継承経由で参照する」パターンと同型）。
+fn recipe() -> SlotRecipe {
+    let mut recipe = SlotRecipe::new("status", SLOTS)
+        .base(
+            "root",
+            vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("gap", "0.5rem"),
+            ],
+        )
+        .base(
+            "indicator",
+            vec![
+                decl("width", "var(--fandhe-status-dot-size, 0.5rem)"),
+                decl("height", "var(--fandhe-status-dot-size, 0.5rem)"),
+                decl("border-radius", "var(--fandhe-radius-full)"),
+                decl("background", "var(--fandhe-palette)"),
+                decl("flex-shrink", "0"),
+            ],
+        )
+        .variant(
+            Size::Sm,
+            "root",
+            vec![
+                decl("font-size", "var(--fandhe-font-font-size-xs)"),
+                decl("--fandhe-status-dot-size", "0.375rem"),
+            ],
+        )
+        .variant(
+            Size::Md,
+            "root",
+            vec![
+                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl("--fandhe-status-dot-size", "0.5rem"),
+            ],
+        )
+        .variant(
+            Size::Lg,
+            "root",
+            vec![
+                decl("font-size", "var(--fandhe-font-font-size-md)"),
+                decl("--fandhe-status-dot-size", "0.625rem"),
+            ],
+        )
+        .default_variant(Size::Md)
+        .default_variant(ColorPalette::Accent);
+
+    for palette in [
+        ColorPalette::Accent,
+        ColorPalette::Info,
+        ColorPalette::Success,
+        ColorPalette::Warning,
+        ColorPalette::Danger,
+    ] {
+        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+    }
+    recipe
+}
+
+/// Status の静的 CSS 全文。
+#[must_use]
+pub fn css() -> String {
+    recipe().css()
+}
+
+/// root パーツ（`<span>`）を組み立てる。`size`/`palette` に応じたクラスを
+/// 付与する唯一のパーツ（[`crate::class_attr::drop_class_attr`] により
+/// 呼び出し側の `class` は除去してから合成する）。ラベルテキストは
+/// children としてそのまま並べる（chakra-ui の `Status.Root` 直下にラベル
+/// を置く構成に対応）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::{render, text};
+/// use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
+///
+/// let node = status::root(
+///     &StatusProps::default(),
+///     vec![],
+///     vec![status::indicator(vec![]), text("Online")],
+/// );
+/// let html = render(&node);
+/// assert!(html.contains("Online"));
+/// ```
+#[must_use]
+pub fn root<'a>(props: &StatusProps, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let recipe = recipe();
+    let class = recipe.variant_classes(&[
+        ("size", props.size.value()),
+        ("color-palette", props.palette.value()),
+    ]);
+    let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
+    merged.extend(drop_class_attr(attrs));
+    ANATOMY.part("root", "span", merged, children)
+}
+
+/// indicator パーツ（`<span>`）を組み立てる。色ドットのみを描画する装飾的
+/// パーツで children を持たない（呼び出し側 `attrs` はそのまま連結する）。
+#[must_use]
+pub fn indicator<'a>(attrs: Vec<(&'a str, &'a str)>) -> Node {
+    ANATOMY.part("indicator", "span", attrs, vec![])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use fandhe_frontend_core::{render, text};
+
+    #[test]
+    fn default_props_render_md_accent() {
+        let html = render(&root(&StatusProps::default(), vec![], vec![]));
+        assert_eq!(
+            html,
+            r#"<span data-scope="status" data-part="root" class="fd-status--size-md fd-status--color-palette-accent"></span>"#
+        );
+    }
+
+    #[test]
+    fn size_variants_map_to_expected_classes() {
+        for (size, class) in [
+            (Size::Sm, "fd-status--size-sm"),
+            (Size::Md, "fd-status--size-md"),
+            (Size::Lg, "fd-status--size-lg"),
+        ] {
+            let props = StatusProps {
+                size,
+                ..StatusProps::default()
+            };
+            let html = render(&root(&props, vec![], vec![]));
+            assert!(
+                html.contains(&format!(
+                    "class=\"{class} fd-status--color-palette-accent\""
+                )),
+                "size={size:?} -> {html}"
+            );
+        }
+    }
+
+    #[test]
+    fn palette_enumeration_maps_to_expected_classes() {
+        for (palette, class) in [
+            (ColorPalette::Accent, "fd-status--color-palette-accent"),
+            (ColorPalette::Info, "fd-status--color-palette-info"),
+            (ColorPalette::Success, "fd-status--color-palette-success"),
+            (ColorPalette::Warning, "fd-status--color-palette-warning"),
+            (ColorPalette::Danger, "fd-status--color-palette-danger"),
+        ] {
+            let props = StatusProps {
+                palette,
+                ..StatusProps::default()
+            };
+            let html = render(&root(&props, vec![], vec![]));
+            assert!(
+                html.contains(&format!("class=\"fd-status--size-md {class}\"")),
+                "palette={palette:?} -> {html}"
+            );
+        }
+    }
+
+    #[test]
+    fn indicator_has_no_children_and_no_role() {
+        let html = render(&indicator(vec![]));
+        assert_eq!(
+            html,
+            r#"<span data-scope="status" data-part="indicator"></span>"#
+        );
+        assert!(!html.contains("role="));
+    }
+
+    #[test]
+    fn root_has_no_role_attribute() {
+        let html = render(&root(&StatusProps::default(), vec![], vec![]));
+        assert!(!html.contains("role="));
+    }
+
+    #[test]
+    fn composed_status_snapshot() {
+        let node = root(
+            &StatusProps::default(),
+            vec![],
+            vec![indicator(vec![]), text("Online")],
+        );
+        let html = render(&node);
+        assert_eq!(
+            html,
+            concat!(
+                r#"<span data-scope="status" data-part="root" class="fd-status--size-md fd-status--color-palette-accent">"#,
+                r#"<span data-scope="status" data-part="indicator"></span>"#,
+                "Online",
+                r#"</span>"#,
+            )
+        );
+    }
+
+    #[test]
+    fn caller_class_attr_on_root_is_dropped_not_duplicated() {
+        let html = render(&root(
+            &StatusProps::default(),
+            vec![("class", "attacker-controlled")],
+            vec![],
+        ));
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(!html.contains("attacker-controlled"));
+    }
+
+    #[test]
+    fn xss_payload_in_root_children_is_escaped() {
+        let html = render(&root(
+            &StatusProps::default(),
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+    }
+
+    #[test]
+    fn css_output_declares_dot_size_and_radius_tokens() {
+        let out = css();
+        assert!(out.contains("border-radius: var(--fandhe-radius-full);"));
+        assert!(out.contains("--fandhe-status-dot-size: 0.5rem;"));
+        assert!(out.contains("--fandhe-palette: var(--fandhe-color-danger)"));
+    }
+
+    #[test]
+    fn css_output_is_deterministic() {
+        assert_eq!(css(), css());
+    }
+}

@@ -33,8 +33,9 @@ styled ラッパー追加（#755）・Carousel styled ラッパー追加（#754�
 styled ラッパー追加（#758）・Link/LinkOverlay/NavList styled ラッパー追加
 （#756）・HoverCard styled ラッパー追加（#759）・ToggleTip styled ラッパー
 追加（#761）・Progress circular 対応追加（#763）・Skeleton 静的部品追加
-（#764）・Image/Icon 静的部品追加（#770、いずれも公開時点未反映）を経て
-48 の公開モジュールを持つ。内訳は次の通り。
+（#764）・Image/Icon 静的部品追加（#770）・Status/EmptyState 静的部品追加
+（#765、いずれも公開時点未反映）を経て 50 の公開モジュールを持つ。内訳は
+次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -71,6 +72,7 @@ styled ラッパー追加（#758）・Link/LinkOverlay/NavList styled ラッパ�
 | headless ラッパー | `hover_card` | #759（`popover`/`tooltip` と同型の判断で variant は非提供。構造上最も近い先行例は `tooltip`。`content` の開閉連動・`--fandhe-reference-width` 非消費・focus-visible リングを継承する） |
 | headless ラッパー | `toggle_tip` | #761（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。「見た目は Tooltip・挙動は Popover」の変種であり、`content` の視覚系は `tooltip` と同一値。状態機械は `state::Disclosure`） |
 | headless ラッパー | `progress` | #763（headless の値状態機械 `Progress`（#544/#600）が持つ Circle/CircleTrack/CircleRange（SVG）へ CSS のみ追加提供。`Progress` 型はあえて再エクスポートせず、`size` variant クラス付与のため styled `root` のみを新設する（`dialog`/`switch` と同型の判断）。circle 自身は headless の inherent メソッドをそのまま呼ばせる（クラス不要）。indeterminate 時の回転アニメーションは `[data-part="circle"][data-state="indeterminate"]` セレクタ + `@keyframes`（`spinner` と同型）で提供。linear（Track/Range）用の styled ラッパーは対応表（`docs/design/component-coverage-map.md`）が本イシューと切り分けたスコープ外） |
+| 状態機械を要しない静的部品 | `status` / `empty_state` | #765（§4h 参照。`status` は `size`/`color-palette` の 2 軸、`empty_state` は `card` と同型の中立コンテナで `color-palette` 軸は非提供） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
@@ -630,6 +632,40 @@ chakra-ui の `forms/checkbox-card.md`/`forms/radio-card.md` 相当。ark-ui に
     アクション写像の card scope 対応）。
   - `examples/headless-pre-styled-ui` への追随（pre-styled-ui 公開後に
     別 PR で対応）。
+
+## 4h. 静的部品 `status`/`empty_state`（イシュー #765）
+
+chakra-ui の `feedback/status.md`/`feedback/empty-state.md` 相当。状態機械を
+要しない静的マークアップ部品であり、`fandhe-frontend-headless-ui` には
+手を入れない（headless anatomy 自体が存在しないため `checkbox_card`/
+`radio_card` と同型に pre-styled 層のみで新規 anatomy を定義する）。
+
+- **`status`**（scope `"status"`、`root`/`indicator` の 2 パーツ）:
+  `size`（ドット径・フォントサイズ）/`color-palette`（Alert/Badge/Spinner と
+  同じ `--fandhe-palette-*` セマンティック色）の 2 軸 variant を `root` へ
+  付与する。`indicator` の直径は `root` の variant が設定する
+  `--fandhe-status-dot-size` custom property を継承経由で参照する
+  （§4d の「root variant が子孫スコープの custom property を設定する」
+  統一方針と同型）。**`role`/`aria-live` は付与しない**: ラベルテキスト
+  自体が状態を伝える静的表示であり、[`spinner::spinner`] のような非同期
+  読み込み中の live region 告知とは用途が異なる（呼び出し側が動的な状態
+  変化を告知したい場合は `attrs` へ明示的に `role`/`aria-live` を足す設計）。
+- **`empty_state`**（scope `"empty-state"`、`root`/`content`/`indicator`/
+  `title`/`description`/`actions` の 6 パーツ）: `crate::card` と同型の
+  中立レイアウトコンテナであり `color-palette` 軸は提供しない。`size`
+  （root の padding）のみを持つ。`title`/`description` は `<div>`（見出し
+  要素 `<h1>`〜`<h6>` にしない）とし、埋め込み位置に応じて見出しレベルが
+  変わり得る呼び出し文脈で固定レベルを強制しない（`crate::alert::title` と
+  同型の判断）。`indicator` はアイコン等を children として受け取り、外部
+  リソース・アイコンフォントを本クレートが直接参照することはない。
+- **XSS 回帰**: `tests/xss_escape_styled.rs` に両部品の root children・
+  呼び出し側 attrs・`class` 属性・パーツ children の各経路を追加。
+- **golden CSS**: `tests/status_empty_state_css.rs` が両部品の `css()` 全文を
+  バイト単位で固定する（`toggle_tip_css.rs` の複数部品 1 ファイル前例に
+  倣う）。
+- **スコープ外**（`.claude/rules/out-of-scope-tracking.md` 対応）:
+  `examples/headless-pre-styled-ui` への掲示は crates.io 公開後の追随
+  イシューとして扱う（`checkbox_card`/`radio_card` と同型の運用）。
 
 ## 5. 関連ドキュメント
 
