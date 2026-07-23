@@ -313,7 +313,7 @@ mod tests {
         let ssr_html = render(&c.root("v", vec![], vec![]));
         assert!(!ssr_html.contains("data-copied"));
 
-        assert!(dispatch(&mut c, "copy", ""));
+        assert!(dispatch(&mut c, "clipboard:copy", ""));
         let hydrate_html = render(&render_for_hydration(&c));
         assert!(hydrate_html.contains(r#"data-hydrate-copied="copied""#));
 

@@ -34,17 +34,35 @@
 //!
 //! ark-ui の Clipboard は `timeout`（既定 3000ms）経過後に自動で
 //! copied 表示を解除する。時間経過という副作用は SSR/hydration の純粋な
-//! 状態機械が持つべき責務ではないため、本モジュールは `"copy"`/`"reset"`
-//! の 2 アクションのみを提供し、タイマー予約・解除は
-//! `fandhe-frontend-wasm-full`（イシュー #773 後続、クライアント配線層）の
-//! 責務とする（[`crate::tooltip::Tooltip`] の開閉遅延と同型の責務分離）。
+//! 状態機械が持つべき責務ではないため、本モジュールは
+//! `"clipboard:copy"`/`"clipboard:reset"` の 2 アクションのみを提供し、
+//! タイマー予約・解除は `fandhe-frontend-wasm-full`（イシュー #773 後続、
+//! クライアント配線層）の責務とする（[`crate::tooltip::Tooltip`] の
+//! 開閉遅延と同型の責務分離）。
+//!
+//! # アクション名を `"clipboard:"` 名前空間で修飾する理由（イシュー #773
+//! PR #816 Bugbot 指摘）
+//!
+//! `fandhe-frontend-wasm-full` の `Runtime<C>` は、マウントされたページの
+//! ルート状態機械 `C` の型に関わらず Avatar/Clipboard 双方のイベント配線を
+//! 無条件に行う（`crate::lib::Runtime::mount`/`Runtime::hydrate` 参照）。
+//! そのため `C` が `Clipboard` 自身ではなく、たとえば独自の `AppState`
+//! （カウンタの `"reset"` アクションを持つ想定）や [`crate::avatar::Avatar`]
+//! （`"reset"` で `Loading` へ戻る）であっても、同一ページに Clipboard の
+//! trigger が存在すればタイムアウト経過後の自動リセットが裸の `"reset"`
+//! を `C::decode_action` へ dispatch してしまい、無関係な `C` の `"reset"`
+//! アクションと衝突する（コピー操作が後からカウンタをゼロにしたり Avatar を
+//! 強制的に loading 状態へ戻す）。`"clipboard:"` 接頭辞は他コンポーネントの
+//! 裸のアクション名（`"copy"`/`"reset"`）と構造的に衝突しない一意な名前空間
+//! を確保する。
 //!
 //! # 呼び出し文脈
 //!
 //! SSR は本モジュールの自由関数（[`root`]/[`label`]/[`control`]/[`input`]/
 //! [`trigger`]/[`indicator`]/[`value_text`]、純粋関数で完結）を直接呼んで
 //! 組み立てる。CSR/hydration は [`Clipboard`] を経由し、dispatch
-//! （`"copy"`/`"reset"`）で状態遷移する。`fandhe-frontend-pre-styled-ui`が
+//! （`"clipboard:copy"`/`"clipboard:reset"`）で状態遷移する。
+//! `fandhe-frontend-pre-styled-ui`が
 //! 本モジュールを呼んでスタイル済み Clipboard を組み立てる想定である。
 //!
 //! # ARIA について
@@ -319,9 +337,13 @@ impl Component for Clipboard {
     }
 
     fn decode_action(name: &str, _payload: &str) -> Option<ClipboardAction> {
+        // アクション名は "clipboard:" 名前空間で修飾する（モジュール冒頭
+        // 「アクション名を "clipboard:" 名前空間で修飾する理由」節参照。
+        // 裸の "copy"/"reset" は Avatar/独自 AppState の既存アクション名と
+        // 衝突しうるため使わない）。
         match name {
-            "copy" => Some(ClipboardAction::Copy),
-            "reset" => Some(ClipboardAction::Reset),
+            "clipboard:copy" => Some(ClipboardAction::Copy),
+            "clipboard:reset" => Some(ClipboardAction::Reset),
             _ => None,
         }
     }
@@ -518,17 +540,27 @@ mod tests {
 
     #[test]
     fn decode_action_accepts_copy_and_reset_and_rejects_unknown() {
-        assert!(<Clipboard as Component>::decode_action("copy", "").is_some());
-        assert!(<Clipboard as Component>::decode_action("reset", "").is_some());
+        assert!(<Clipboard as Component>::decode_action("clipboard:copy", "").is_some());
+        assert!(<Clipboard as Component>::decode_action("clipboard:reset", "").is_some());
         assert!(<Clipboard as Component>::decode_action("no_such_action", "").is_none());
+    }
+
+    /// 裸の `"copy"`/`"reset"` は Avatar/独自 AppState の既存アクション名と
+    /// 衝突しうるため受理しない回帰テスト（イシュー #773 PR #816 Bugbot
+    /// 指摘、モジュール冒頭「アクション名を "clipboard:" 名前空間で修飾する
+    /// 理由」節参照）。
+    #[test]
+    fn decode_action_rejects_unnamespaced_copy_and_reset() {
+        assert!(<Clipboard as Component>::decode_action("copy", "").is_none());
+        assert!(<Clipboard as Component>::decode_action("reset", "").is_none());
     }
 
     #[test]
     fn copy_action_sets_copied_true_and_reset_sets_false() {
         let mut c = Clipboard::default();
-        assert!(dispatch(&mut c, "copy", ""));
+        assert!(dispatch(&mut c, "clipboard:copy", ""));
         assert!(c.is_copied());
-        assert!(dispatch(&mut c, "reset", ""));
+        assert!(dispatch(&mut c, "clipboard:reset", ""));
         assert!(!c.is_copied());
     }
 
@@ -552,7 +584,7 @@ mod tests {
     #[test]
     fn ssr_and_hydration_round_trip() {
         let mut c = Clipboard::default();
-        assert!(dispatch(&mut c, "copy", ""));
+        assert!(dispatch(&mut c, "clipboard:copy", ""));
 
         let hydrate_html = render(&render_for_hydration(&c));
         assert!(hydrate_html.contains(r#"data-hydrate-copied="copied""#));

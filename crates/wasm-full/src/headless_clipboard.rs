@@ -4,7 +4,8 @@
 //!
 //! `crates/headless-ui/src/clipboard.rs` は Root/Label/Control/Input/
 //! Trigger/Indicator/ValueText の 7 anatomy パーツと `copied: bool` 状態機械
-//! （`"copy"`/`"reset"` dispatch）を提供する一方、実際にクリップボードへ
+//! （`"clipboard:copy"`/`"clipboard:reset"` dispatch）を提供する一方、
+//! 実際にクリップボードへ
 //! 書き込むクライアント側配線は同モジュール冒頭 rustdoc「スコープ外」節が
 //! 明記するとおり本クレート（wasm 層）の後続スコープとされていた。本
 //! モジュールがその配線を実装する。
@@ -52,9 +53,22 @@
 //! # タイムアウトによる自動リセット
 //!
 //! `writeText` 成功後、[`DEFAULT_RESET_TIMEOUT_MS`]（ark-ui 既定の 3000ms）
-//! 経過で `"reset"` を自動 dispatch する。再度コピーが成功した場合は
+//! 経過で [`ACTION_RESET`] を自動 dispatch する。再度コピーが成功した場合は
 //! 既存の保留中タイマーを `clear_timeout` してから新しいタイマーを予約する
 //! （多重リセットの防止、`crate::tooltip` の `PendingTimer` と同型のパターン）。
+//!
+//! # アクション名の `"clipboard:"` 名前空間（イシュー #773 PR #816 Bugbot
+//! 指摘）
+//!
+//! `crate::lib::Runtime::mount`/`Runtime::hydrate`（`crate::lib` 参照）は
+//! マウントされたページのルート状態機械 `C` の型に関わらず、本モジュールの
+//! [`wire_clipboard_events`] を無条件に配線する。裸の `"reset"` を dispatch
+//! すると、`C` が `Clipboard` 以外（独自 `AppState` のカウンタリセット・
+//! [`crate::headless_avatar`] の Avatar リセット等）であっても
+//! `C::decode_action` がそれを自身のアクションとして誤って受理し得る
+//! （コピー操作が無関係な状態を書き換えてしまう）。[`ACTION_COPY`]/
+//! [`ACTION_RESET`] は `"clipboard:"` を接頭辞に持つことで、他コンポーネント
+//! の裸のアクション名と構造的に衝突しない。
 //!
 //! # セキュリティ不変条件
 //!
@@ -102,11 +116,15 @@ const INDICATOR_PART: &str = "indicator";
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
 const DATA_COPIED_PARTS: &[&str] = &[ROOT_PART, CONTROL_PART, INPUT_PART, TRIGGER_PART];
 
-/// dispatch アクション名 "copy"（`ClipboardAction::Copy`/
-/// `Clipboard::decode_action` の対応する分岐と一致）。
-pub const ACTION_COPY: &str = "copy";
-/// dispatch アクション名 "reset"（`ClipboardAction::Reset` と一致）。
-pub const ACTION_RESET: &str = "reset";
+/// dispatch アクション名 "clipboard:copy"（`ClipboardAction::Copy`/
+/// `Clipboard::decode_action` の対応する分岐と一致）。`"clipboard:"`
+/// 名前空間の理由はモジュール冒頭「アクション名の `"clipboard:"` 名前空間」
+/// 節参照（裸の "copy" は他コンポーネント・アプリ独自の `AppState` の
+/// アクション名と衝突しうるため使わない）。
+pub const ACTION_COPY: &str = "clipboard:copy";
+/// dispatch アクション名 "clipboard:reset"（`ClipboardAction::Reset` と
+/// 一致、同上の理由）。
+pub const ACTION_RESET: &str = "clipboard:reset";
 
 /// コピー完了から自動リセットまでの既定タイムアウト（ミリ秒）。
 ///

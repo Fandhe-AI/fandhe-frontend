@@ -296,8 +296,16 @@ async fn resolving_stub_click_sets_data_copied_and_flips_indicator() {
         .dispatch_event(&synthetic_click())
         .expect("dispatch_event must not fail");
 
-    wait_for(|| received.borrow().iter().any(|a| a == "copy")).await;
-    assert!(received.borrow().contains(&"copy".to_string()));
+    wait_for(|| {
+        received
+            .borrow()
+            .iter()
+            .any(|a| a == fandhe_frontend_wasm_full::headless_clipboard::ACTION_COPY)
+    })
+    .await;
+    assert!(received
+        .borrow()
+        .contains(&fandhe_frontend_wasm_full::headless_clipboard::ACTION_COPY.to_string()));
 
     // DOM 反映は Runtime 統合層の責務だが、本テストは配線関数単体を直接
     // 呼んでいるため、受け取った action を手動で適用して契約を確認する
@@ -425,16 +433,30 @@ async fn resolving_stub_click_auto_resets_after_timeout() {
         .dispatch_event(&synthetic_click())
         .expect("dispatch_event must not fail");
 
-    wait_for(|| received.borrow().iter().any(|a| a == "copy")).await;
+    wait_for(|| {
+        received
+            .borrow()
+            .iter()
+            .any(|a| a == fandhe_frontend_wasm_full::headless_clipboard::ACTION_COPY)
+    })
+    .await;
 
     // `DEFAULT_RESET_TIMEOUT_MS`（3000ms）経過後の自動 reset をポーリングで
     // 待つ（`wait_for` の 300 回 x 10ms = 3000ms の上限に対し十分な余裕を
     // 見て 600 回まで許容する）。
     for _ in 0..2 {
-        wait_for(|| received.borrow().iter().any(|a| a == "reset")).await;
+        wait_for(|| {
+            received
+                .borrow()
+                .iter()
+                .any(|a| a == fandhe_frontend_wasm_full::headless_clipboard::ACTION_RESET)
+        })
+        .await;
     }
     assert!(
-        received.borrow().contains(&"reset".to_string()),
+        received
+            .borrow()
+            .contains(&fandhe_frontend_wasm_full::headless_clipboard::ACTION_RESET.to_string()),
         "自動 reset が既定タイムアウト内に dispatch されなかった: {:?}",
         received.borrow()
     );
