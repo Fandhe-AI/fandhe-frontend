@@ -2021,6 +2021,49 @@ mod wiring {
         }
     }
 
+    /// `top_content` から [`resolve_active_content`] と同型の降下を行いながら、
+    /// 通過するすべての階層（トップ content から最深のアクティブ content まで）
+    /// の highlight を [`clear_highlight`] で消す（イシュー #662、Bugbot 指摘）。
+    ///
+    /// Escape は `active_content`（最深階層）のみを対象にすると、サブメニューが
+    /// 開いている状態でその親 `trigger-item` の `data-highlighted` と親 content の
+    /// `aria-activedescendant` が残留してしまい、#583 の「reopen 契約」
+    /// （オーバーレイが閉じて再オープンした際、最初の Arrow キー操作は必ず
+    /// 新規状態から始まる）を破る。本関数はチェーン上の全階層を一括で
+    /// クリアすることでこれを保証する。降下回数は [`MAX_SUBMENU_DEPTH`] で
+    /// 上限を設ける（`resolve_active_content` と同じ理由、A04 対策）。
+    fn clear_active_chain_highlights(
+        root: &Element,
+        top_content: &Element,
+        item_selector: &str,
+        content_selector: &str,
+    ) {
+        let mut current = top_content.clone();
+        for _ in 0..MAX_SUBMENU_DEPTH {
+            let items = filter_own_scope_items(
+                collect_parts(&current, item_selector),
+                &current,
+                content_selector,
+            );
+            let highlighted_index = find_highlighted_index(&items);
+            clear_highlight(&items, &current);
+            let Some(highlighted_index) = highlighted_index else {
+                break;
+            };
+            let highlighted = &items[highlighted_index];
+            if !highlighted.matches(TRIGGER_ITEM_SELECTOR).unwrap_or(false) {
+                break;
+            }
+            let Some(sub_content) = resolve_submenu_content(root, highlighted) else {
+                break;
+            };
+            if sub_content.has_attribute("hidden") {
+                break;
+            }
+            current = sub_content;
+        }
+    }
+
     /// `items` すべてから `data-highlighted` を除去し、`content` の
     /// `aria-activedescendant` も除去する（[`set_highlight`] の逆操作）。
     ///
@@ -2432,20 +2475,43 @@ mod wiring {
                     html_parent_trigger.click();
                 }
                 // click() 後、親 content・親 trigger-item を再解決して
-                // highlight を復帰させる（再描画で要素が差し替わりうるため、
-                // ArrowRight と同型の再解決パターン）。
-                if let Some(parent_content) = closest(&parent_trigger, content_selector) {
-                    if root.contains(Some(&parent_content)) {
-                        let parent_items = filter_own_scope_items(
-                            collect_parts(&parent_content, item_selector),
-                            &parent_content,
-                            content_selector,
-                        );
-                        if let Some(parent_index) = parent_items
-                            .iter()
-                            .position(|item| item.is_same_node(Some(&parent_trigger)))
+                // highlight を復帰させる。ArrowRight は再描画後に
+                // `aria-controls` の id で子 content を再検索するのに対し、
+                // ここで `closest`/`is_same_node` を click 前の `parent_trigger`
+                // 要素へ適用すると、click → dispatch で親 content 側のノードが
+                // 差し替わった場合に静かに失敗し親項目が再ハイライトされない
+                // （Bugbot 指摘、イシュー #662）。そのため click 前に
+                // `parent_trigger` の `id` 属性を控え、click 後は
+                // `document.get_element_by_id` で改めて“今の” trigger-item
+                // 要素を取得してから `closest` で親 content を辿り、
+                // 復帰先項目も `id` の一致（ノード同一性ではなく）で照合する
+                // （ArrowRight の id ベース再解決と同型のパターン）。
+                // `id` が欠落している場合は照合の拠り所が無いため fail-closed
+                // で no-op とする（既存の各所と同じ方針）。
+                if let Some(parent_trigger_id) = parent_trigger.get_attribute("id") {
+                    if let Some(document) = parent_trigger.owner_document() {
+                        if let Some(fresh_parent_trigger) =
+                            document.get_element_by_id(&parent_trigger_id)
                         {
-                            set_highlight(&parent_items, parent_index, &parent_content);
+                            if let Some(parent_content) =
+                                closest(&fresh_parent_trigger, content_selector)
+                            {
+                                if root.contains(Some(&parent_content)) {
+                                    let parent_items = filter_own_scope_items(
+                                        collect_parts(&parent_content, item_selector),
+                                        &parent_content,
+                                        content_selector,
+                                    );
+                                    if let Some(parent_index) =
+                                        parent_items.iter().position(|item| {
+                                            item.get_attribute("id").as_deref()
+                                                == Some(parent_trigger_id.as_str())
+                                        })
+                                    {
+                                        set_highlight(&parent_items, parent_index, &parent_content);
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -2459,17 +2525,18 @@ mod wiring {
                 // であり、overlay 側は関知しないため、ここで放置すると
                 // Escape → 再度マウス等で reopen → 最初の Arrow キーが古い
                 // highlight から続いてしまう（Bugbot 指摘、イシュー #583）。
+                // サブメニューが開いている場合、`active_content`（最深階層）
+                // だけをクリアすると親 `trigger-item` の `data-highlighted` と
+                // 親 content の `aria-activedescendant` が残留し、同じ #583 の
+                // reopen 契約を破る（Bugbot 指摘、イシュー #662）。そのため
+                // トップ content から `active_content` までのチェーン全体を
+                // [`clear_active_chain_highlights`] で一括クリアする。
                 // `prevent_default`/`stop_propagation` は呼ばない
                 // （overlay.rs の document keydown リスナーが同じ Escape を
                 // 引き続き観測して実際の close 判定を行える必要がある）。
                 // typeahead バッファも合わせてリセットする（イシュー #641、
                 // Escape 後の再入力は新規バッファから始まるべきため）。
-                let items = filter_own_scope_items(
-                    collect_parts(&active_content, item_selector),
-                    &active_content,
-                    content_selector,
-                );
-                clear_highlight(&items, &active_content);
+                clear_active_chain_highlights(root, &content, item_selector, content_selector);
                 typeahead.reset();
             }
             _ if is_typeahead_key(&key, buffer_active, modifiers) => {
