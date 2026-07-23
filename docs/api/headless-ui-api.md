@@ -79,6 +79,7 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | Link | `link` | Root | なし（自由関数のみ。`external` オプトインで `target="_blank"` + `rel="noopener noreferrer"` を不可分に付与。現在位置は `aria-current="page"` + `data-current`） | #756 |
 | LinkOverlay | `link_overlay` | Root/Overlay | なし（自由関数のみ。`::before` 疑似要素の代わりに `overlay` 自身を styled 層で `position: absolute; inset: 0;` 展開するカード全面クリック化） | #756 |
 | NavList | `nav_list` | Root/Heading/List/Item/Link | なし（自由関数のみ。`role` を一切付与しない文書ナビ専用部品。`docs-site::nav.rs::sidebar` を本部品へ移行済み） | #756 |
+| ToggleTip | `toggle_tip` | Root/Trigger/Positioner/Content/Arrow/ArrowTip | `state::Disclosure` | #761 |
 
 **未実装（open イシュー、後続で追補）**: Checkbox（#535）・Progress（#544）。
 本表はこれらの実装完了時に更新する。
@@ -99,6 +100,7 @@ placement 計算が実装済みとなった。
 | Menu | Positioner/Arrow/ArrowTip | `"menu"` | あり |
 | Select | Positioner のみ | `"select"` | なし |
 | Combobox | Positioner のみ（`data-scope="combobox"` の anatomy は #749 で実装済み） | `"combobox"` | なし |
+| ToggleTip | Positioner/Arrow/ArrowTip | `"toggle-tip"` | あり |
 
 Combobox の `positioner` は SSR 静的マークアップ（開閉状態の `data-state`/
 `hidden`）のみを #749 時点で実装済みであり、`crates/wasm-full/src/position.rs`

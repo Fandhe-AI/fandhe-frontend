@@ -266,6 +266,7 @@ mod tests {
             ("combobox", crate::combobox::stylesheet()),
             ("popover", crate::popover::stylesheet()),
             ("tooltip", crate::tooltip::stylesheet()),
+            ("toggle_tip", crate::toggle_tip::stylesheet()),
             ("switch", crate::switch::stylesheet()),
             ("radio_group", crate::radio_group::stylesheet()),
             ("avatar", crate::avatar::stylesheet()),
