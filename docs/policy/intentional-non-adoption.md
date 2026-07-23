@@ -5,7 +5,9 @@
 （イシュー #379）。§3.12 は非採用確定（イシュー #381）。§3.13〜§3.15 は
 非採用確定（イシュー #377）。§3.16〜§3.18 は非採用確定（イシュー #399、
 出典 PR #386 / #390）。§3.19 は非採用確定（イシュー #405、出典 PR #383 /
-`docs/design/wasm-full-architecture.md` §10）。
+`docs/design/wasm-full-architecture.md` §10）。§3.20〜§3.21 は非採用確定
+（イシュー #639、出典 `docs/design/anchor-positioning-design.md` §4.3・
+§4.5 / PR #613）。
 
 **節番号の採番規則**（イシュー #398、§3.6〜§3.8 の重複発覚を受けて明記）:
 
@@ -43,7 +45,11 @@
   で束縛点整合性の型付き強制・検証ユーティリティ横展開・`<base href>` 等の
   間接的 URL 制御対策の採否（イシュー #399、出典 PR #386 / #390）、§3.19 で
   `fandhe-frontend-wasm-client`（最小ハイドレーション方式）側のクライアントルーティング
-  対応の採否（イシュー #405、出典 PR #383 の out-of-scope 節）を追加記録する。
+  対応の採否（イシュー #405、出典 PR #383 の out-of-scope 節）、§3.20〜§3.21
+  で anchor positioning 実装（イシュー #590）における Floating UI 相当の
+  高度 positioning middleware 群・CSS Anchor Positioning（Web 標準）の採否
+  （イシュー #639、出典 `docs/design/anchor-positioning-design.md` §4.3・
+  §4.5 / PR #613）を追加記録する。
 - **対象外**: 本書は `docs/spec/` の内容を変更するものではない。仕様自体の
   変更が必要と判断された場合は、fandhe-frontend-spec リポジトリ側で
   提案する（`.claude/rules/out-of-scope-tracking.md` 準拠）。
@@ -773,6 +779,105 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   も削除・弱体化・追加は不要である（`.claude/rules/coding-rust.md`「XSS 回帰
   テストは削除・弱体化しない」）。
 
+### 3.20 Floating UI 相当の高度 positioning middleware 群（イシュー #639、出典 ADR §4.3）
+
+- **概要**: anchor positioning 実装（`crates/headless-ui/src/positioning.rs` の
+  純粋関数 + `crates/wasm-full/src/position.rs` の計測注入層、イシュー #590 /
+  PR #622）は Floating UI 相当の middleware のうち flip（主軸の単純反転
+  1 候補のみ）・shift（viewport 内クランプのみ）・sameWidth の 3 種類に限定
+  採用している。本節は、それ以外の高度 middleware 6 種
+  （autoPlacement / inline / hide / size（sameWidth 以外）/ VirtualElement /
+  ポインタ追従・アニメーションフレーム連動の連続再計算（`autoUpdate` 相当））
+  を導入しない判断を確定する。一次記録は
+  `docs/design/anchor-positioning-design.md`（イシュー #589 / PR #613）
+  第 4.3 節の非採用表であり、本節はその転記である。
+- **一般的な採用動機**: Floating UI / ark-ui 互換の網羅的な配置制御（全方位
+  探索による最適配置決定・インライン要素対応・anchor 不可視時の自動非表示・
+  floating 要素自体の動的リサイズ・仮想参照要素・スクロール/リサイズに
+  依存しない連続追従等）。
+- **評価軸での評価**（§2 の 4 軸、ADR §4.3 の非採用表を展開）:
+  - **明示性**: `VirtualElement`（実 DOM 要素を持たない仮想参照要素、例:
+    マウスカーソル追従）は、本フレームワークの anchor が常に実 DOM 要素
+    （トリガー・アンカーパーツ）であるという入力契約（ADR 第 4.1 節）に
+    分岐を生む。
+  - **決定性**: `autoPlacement`（全方位から最適解を探索）は探索順序・評価
+    関数の実装差でエッジケースの結果が変わりやすく、本フレームワークの
+    flip（1 候補のみの単純反転）と比べ挙動の予測可能性を下げる。
+    ポインタ追従・アニメーションフレーム連動の連続再計算（`autoUpdate` 相当）
+    は `requestAnimationFrame` 連動の連続監視を要し、テストの決定性を弱める
+    （signal/store 非採用の評価軸、§3.4 と同根）。
+  - **機械検証可能性**: `hide`（anchor が viewport 外に出た際の非表示制御）
+    は「anchor の可視性」の判定にスクロール位置の連続監視を要し、本
+    フレームワークが定める「呼び出し側が明示的に呼ぶ」という単純な再計算
+    モデル（signal/store 非採用の継承）と相性が悪い。
+  - **コンテキスト消費**: `inline`（インライン折り返しテキストの矩形分割
+    対応）は、折り返しテキストを参照要素とするユースケースが本フレーム
+    ワークの 4 コンポーネント（Popover/Tooltip/Menu/Select、いずれもボタン・
+    トリガー要素が anchor）に存在しない。`size`（sameWidth 以外、floating
+    要素自体の高さ等を viewport に合わせて動的に縮小）は、高さの動的
+    リサイズが CSS（`max-height` + `overflow`）側で静的に対応可能な範囲が
+    大きく、JS 計算側に持ち込む必要性が低い。
+- **本フレームワークでの代替**: flip（主軸の単純反転 1 候補のみ）/
+  shift（viewport 内クランプのみ）/ sameWidth の限定 3 middleware
+  （ADR 第 4.3 節）と、スクロール・リサイズイベントを契機とした離散的な
+  再計算呼び出し（ADR 第 5 節「再計算タイミング」、連続監視は非採用）。
+- **再評価トリガー**: 以下のいずれかが実測・需要確定・ユーザー承認で
+  確認された場合に限る（ADR §4.3 表の per-middleware トリガーに対応）。
+  1. 単純な主軸反転（flip）では実運用上 viewport 内に収まらないケースが
+     実測で確認された場合（`autoPlacement`）。
+  2. インライン要素（`<a>` 内テキスト範囲等）を anchor とするコンポーネント
+     の需要が確定した場合（`inline`）。
+  3. スクロール連動の連続監視機構（IntersectionObserver 相当）の導入が
+     ユーザー承認を得て確定した場合（`hide`）。
+  4. 動的な高さ調整（viewport 残り高さに応じた `max-height` の実行時計算）
+     が pre-styled-ui 側の CSS だけでは表現できないケースが確定した場合
+     （`size`）。
+  5. コンテキストメニュー等、マウス座標を anchor とするコンポーネントの
+     実装が確定した場合（`VirtualElement`）。
+  6. スクロール・リサイズの都度呼び出し（イベント駆動の離散再計算）では
+     実用上不十分と判明した場合（`autoUpdate` 相当）。
+
+### 3.21 CSS Anchor Positioning（Web 標準）（イシュー #639、出典 ADR §4.5）
+
+- **概要**: `anchor-name` / `position-anchor` / `position-try-fallbacks` 等の
+  CSS プロパティのみで anchor 要素への相対配置を実現する Web 標準方式
+  （CSS Anchor Positioning）。一次記録は
+  `docs/design/anchor-positioning-design.md`（イシュー #589 / PR #613）
+  第 4.5 節であり、本節はその転記である。調査日 2026-07-22 時点のブラウザ
+  実装状況（[MDN CSS Anchor Positioning](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_anchor_positioning)・
+  [Can I Use: css-anchor-positioning](https://caniuse.com/css-anchor-positioning)
+  参照）は Chrome/Edge 125 以降・Firefox 147 以降・Safari 26.0 以降が対応
+  （グローバル使用率約 81.67%）であり、Baseline の「Widely available」判定
+  基準（主要 3 エンジン対応後 30 か月経過）を、Firefox・Safari の対応が
+  直近であるため満たしていない。
+- **判断（非採用）**: Baseline「Widely available」未達である限り、安全側の
+  既定として非採用とする。
+- **評価軸での評価**（§2 の 4 軸 + Web 標準成熟度の観点）:
+  - **決定性**: 未対応ブラウザ（Baseline 未達分の利用者環境）では、CSS の
+    みに依拠すると位置決めが機能しない挙動分岐が生じる。
+  - **機械検証可能性**: `position-try-fallbacks` が本フレームワークの
+    flip/shift 相当（ADR 第 4.3 節の限定版）をどこまでカバーするかの
+    再検証が必要であり、現行の決定的ユニットテスト
+    （`cargo test -p fandhe-frontend-headless-ui`、ADR 第 5 節）に相当する
+    機械検証手段が CSS のみの経路には確立していない。
+  - **コンテキスト消費**: JS（wasm 層計測）方式との二重経路化（progressive
+    enhancement）は、AI エージェントが読むべき位置決めロジックの経路を
+    実質的に倍加させる。
+  - **Web 標準成熟度**: Baseline「Widely available」未達は、本フレームワーク
+    が安全側の既定として採用可否判断に用いる代理指標である。
+- **本フレームワークでの代替**: wasm 層計測 + 純粋関数計算 + CSS カスタム
+  プロパティ出力（`--fandhe-x` 等）を正式方式として採用する
+  （ADR 第 4.1〜4.4 節）。
+- **再評価トリガー**: 以下のいずれかが確認された場合に限る。
+  1. CSS Anchor Positioning が Baseline「Widely available」へ到達した場合。
+     到達時は `@supports (anchor-name: --a)` 等の機能検出による progressive
+     enhancement（対応ブラウザは CSS のみで位置決めし、JS 計算をスキップ
+     する）を再評価候補とするが、SSR/no-JS 環境での初期表示・flip/shift の
+     挙動の再検証が必要であり、採用は ADR（`anchor-positioning-design.md`）
+     の再改訂を伴う。
+  2. ブラウザサポート状況の実測が ADR 第 4.5 節の記載と乖離したことが
+     判明した場合。
+
 ## 4. 運用（再導入提案時の手続き）
 
 上記各項目のいずれかを再導入したいと判断した場合、以下を Issue・PR に
@@ -834,6 +939,15 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   出典。§3.19 の非採用根拠）
 - `docs/api/hydration-api.md`（`fandhe-frontend-wasm-client` の最小ハイドレーション方式の
   凍結済み設計・不変条件。§3.19 の非採用根拠）
+- `docs/design/anchor-positioning-design.md`（イシュー #589 / PR #613、
+  anchor positioning の設計確定書。第 4.3 節が §3.20（Floating UI 相当の
+  高度 middleware 非採用）、第 4.5 節が §3.21（CSS Anchor Positioning
+  非採用）の一次記録）
+- `crates/headless-ui/src/positioning.rs`（イシュー #590 / PR #622、
+  anchor positioning の純粋関数実装。flip/shift/sameWidth の限定 3
+  middleware。§3.20 の代替実装）
+- `crates/wasm-full/src/position.rs`（イシュー #590 / PR #622、anchor
+  positioning の wasm 層計測注入層。§3.20 の代替実装）
 
 ## 6. スコープ外（放置しない事項）
 
