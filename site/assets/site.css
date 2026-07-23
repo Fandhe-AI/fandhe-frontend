@@ -32,6 +32,12 @@
  * 不変条件:
  *   - @import / @font-face / リモート url() を追加しない（外部参照ゼロを維持する）
  *   - フォントはシステムフォントスタックのみを使う
+ *   - pre-styled-ui のテーマトークン（`--fandhe-*`）・styled 部品の recipe を
+ *     持ち込まない（本ファイルは `--docs-*` トークンで自己完結する単一静的
+ *     ファイルのまま維持する。評価と再評価トリガーは
+ *     docs/design/docs-site-styled-ui-adoption.md 参照。ショーケースページ
+ *     専用の pre-styled-ui 適用は `assets/pre-styled-ui.css` に分離済みで
+ *     本ファイルのカスケードには影響しない）
  */
 
 :root {
