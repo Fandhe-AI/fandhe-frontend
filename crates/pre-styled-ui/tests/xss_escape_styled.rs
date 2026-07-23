@@ -1887,6 +1887,85 @@ fn highlight_text_query_and_attrs_are_escaped_for_all_payloads() {
     }
 }
 
+/// styled VisuallyHidden（イシュー #776）: children テキスト経路 + 呼び出し側
+/// `attrs`（`class` を含む）経路を横断してエスケープ貫通を固定する。
+#[test]
+fn visually_hidden_children_and_attrs_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::visually_hidden;
+
+    for payload in payloads::all() {
+        let html = render(&visually_hidden::root(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "visually_hidden::root children コンテキスト",
+        );
+
+        let html = render(&visually_hidden::root(
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "visually_hidden::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // 本部品は variant 軸を持たず class 属性自体を出力しないため
+        // （`crates/pre-styled-ui/src/visually_hidden.rs` rustdoc 参照）、
+        // 呼び出し側 `class` は出力から完全に消えることを確認する。
+        let html = render(&visually_hidden::root(vec![("class", payload)], vec![]));
+        assert!(
+            !html.contains(payload),
+            "visually_hidden::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            0,
+            "visually_hidden::root は class 属性自体を出力しない契約: html={html}"
+        );
+    }
+}
+
+/// styled SkipNav（イシュー #776）: [`skip_nav::link`] の `id`（`href` 属性へ
+/// 合成）・[`skip_nav::content`] の `id`（`id` 属性へ合成）・children・
+/// 呼び出し側 `attrs`（`class` を含む）経路を横断してエスケープ貫通を固定
+/// する。
+#[test]
+fn skip_nav_id_children_and_attrs_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::skip_nav;
+
+    for payload in payloads::all() {
+        let link_node = skip_nav::link(payload, vec![], vec![text(payload)]);
+        let html = render(&link_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "skip_nav::link の id(href 属性)/children コンテキスト",
+        );
+
+        let content_node = skip_nav::content(payload, vec![], vec![text(payload)]);
+        let html = render(&content_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "skip_nav::content の id(id 属性)/children コンテキスト",
+        );
+
+        let html = render(&skip_nav::link(
+            skip_nav::DEFAULT_ID,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "skip_nav::link の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+    }
+}
+
 /// (14) タイポグラフィ静的部品 6 種（イシュー #771: Heading / Text / Em /
 /// Mark / Blockquote / List）: children テキスト経路・呼び出し側 attrs 経路・
 /// `class` 除去経路のすべてで既定エスケープ（REQ-1）が貫通することを固定する。

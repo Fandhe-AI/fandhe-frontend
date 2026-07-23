@@ -499,8 +499,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
-| `.agents/skills/chakra-ui/references/components/utilities/visually-hidden.md` | — | VisuallyHidden | — | — | 実装対象 | #776 |
-| `.agents/skills/chakra-ui/references/components/utilities/skip-nav.md` | — | SkipNav | — | — | 実装対象 | #776 |
+| `.agents/skills/chakra-ui/references/components/utilities/visually-hidden.md` | — | VisuallyHidden | `visually_hidden` | `visually_hidden` | 実装済み | #776 |
+| `.agents/skills/chakra-ui/references/components/utilities/skip-nav.md` | — | SkipNav | `skip_nav` | `skip_nav` | 実装済み | #776 |
 | `.agents/skills/chakra-ui/references/components/utilities/client-only.md` | ClientOnly | ClientOnly | — | — | 保留 | #735 で記録（JS ランタイム固有 utilities） |
 | `.agents/skills/chakra-ui/references/components/utilities/environment-provider.md` | Environment | EnvironmentProvider | — | — | 保留 | #735 で記録（JS ランタイム固有 utilities） |
 | `.agents/skills/chakra-ui/references/components/utilities/presence.md` | Presence | Presence | — | — | 保留 | #735 で記録（JS ランタイム固有 utilities） |

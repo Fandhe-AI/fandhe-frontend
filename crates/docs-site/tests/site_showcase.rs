@@ -92,6 +92,7 @@ fn real_site_build_emits_showcase_page_and_dedicated_css() {
         "switch",
         "radio-group",
         "avatar",
+        "visually-hidden",
         "heading",
         "text",
         "em",

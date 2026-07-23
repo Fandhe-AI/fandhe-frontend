@@ -65,6 +65,13 @@
 //!     `orientation`（horizontal/vertical）・`variant`（solid/dashed）の
 //!     2 軸を持ち、`role="separator"`・`aria-orientation`・
 //!     `data-orientation` を常時出力する）。
+//!   - [`mod@visually_hidden`]（#776）: [`visually_hidden::root`]（単一
+//!     recipe、`<span>`。variant 軸を持たず clip 手法の CSS のみを持つ。
+//!     `aria-hidden` を一切出力しない）。
+//!   - [`mod@skip_nav`]（#776）: [`skip_nav::link`]/[`skip_nav::content`]
+//!     （2 slot recipe、`<a>`/`<div>`。`link` は [`mod@visually_hidden`] の
+//!     clip 手法を base に持ち、[`recipe::StateCondition::FocusVisible`] で
+//!     キーボードフォーカス時のみ視覚的に復元する）。
 //!   - [`mod@highlight`]（#775）: [`highlight::highlight`]（単一 recipe、
 //!     `<span>` + `<mark>`。テキスト中の一致語句を決定的な部分文字列検索
 //!     （正規表現不使用、ReDoS 非該当）で `<mark>` へ分割する。装飾的な
@@ -403,6 +410,7 @@ pub mod segment_group;
 pub mod select;
 pub mod separator;
 pub mod skeleton;
+pub mod skip_nav;
 pub mod slider;
 pub mod spinner;
 pub mod status;
@@ -418,6 +426,7 @@ pub mod toggle_group;
 pub mod toggle_tip;
 pub mod tooltip;
 pub mod tree_view;
+pub mod visually_hidden;
 
 pub use alert::AlertStatus;
 pub use badge::{badge, BadgeProps, BadgeVariant};

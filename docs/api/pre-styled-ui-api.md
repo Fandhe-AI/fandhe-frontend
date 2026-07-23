@@ -36,8 +36,9 @@ styled ラッパー追加（#758）・Link/LinkOverlay/NavList styled ラッパ�
 （#764）・Image/Icon 静的部品追加（#770）・Status/EmptyState 静的部品追加
 （#765）・タイポグラフィ静的部品 6 種追加（#771）・Separator 静的部品追加
 （#772）・Highlight 静的部品追加（#775）・Clipboard headless ラッパー追加
-（#773）・QrCode styled ラッパー追加（#774、いずれも公開時点未反映）を経て
-60 の公開モジュールを持つ。内訳は次の通り。
+（#773）・QrCode styled ラッパー追加（#774）・VisuallyHidden/SkipNav 静的
+部品追加（#776、いずれも公開時点未反映）を経て 62 の公開モジュールを持つ。
+内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -51,6 +52,8 @@ styled ラッパー追加（#758）・Link/LinkOverlay/NavList styled ラッパ�
 | 単純 styled 部品 | `icon` | #770（インライン SVG の寸法を統一する `<svg>` ラッパー。`size` variant のみ、`color: currentColor` 継承のため `color-palette` 軸は非提供。SVG 本体（`path` 等）は呼び出し側がノード木 API で構築し、外部リソース（`href`/`xlink:href`）は本モジュール自身が参照しない） |
 | 単純 styled 部品 | `separator` | #772（区切り線、`<hr>`。`orientation`（horizontal/vertical）・`variant`（solid/dashed）の 2 軸、常時 `role="separator"`/`aria-orientation`/`data-orientation` を出力、`color-palette`/`size` 軸は非提供） |
 | 単純 styled 部品 | `highlight` | #775（テキスト中の一致語句を `<mark>` で強調する `<span>` + `<mark>`。`query`（複数可）・`ignore_case`（ASCII 限定）・`match_all` の 3 プロパティ。一致判定は正規表現不使用の決定的な部分文字列検索のみ（ReDoS 非該当）。`color-palette`/`size` 軸は非提供） |
+| 単純 styled 部品 | `visually_hidden` | #776（視覚的には隠すが支援技術には読ませ続けるテキストコンテナ。variant 軸を持たず clip 手法の CSS のみ。`aria-hidden` を一切出力しない） |
+| 単純 styled 部品 | `skip_nav` | #776（WCAG 2.1 SC 2.4.1 Bypass Blocks 対応の「本文へスキップ」リンク。`link`/`content` の 2 slot recipe。`link` は `visually_hidden` の clip 手法を base に持ち `:focus-visible` でのみ視覚的に復元する。docs-site の全ページレイアウトへ実適用済み） |
 | headless ラッパー第 1 弾 | `dialog` / `tabs` / `accordion` / `menu` / `select` | #551 |
 | headless ラッパー第 2 弾 | `popover` / `tooltip` | #664 |
 | headless ラッパー第 3 弾 | `switch` | #682 |
