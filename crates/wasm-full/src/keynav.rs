@@ -118,8 +118,49 @@
 //!   document 単位 pointerdown 委譲）による閉鎖時の highlight 後始末は、
 //!   本モジュールが root スコープの委譲リスナーしか持たず outside click を
 //!   観測できないため対象外**（#580 統合層側で対応する）。
-//! - サブメニュー（`trigger-item`）の ArrowRight/ArrowLeft 開閉ナビゲーションは
-//!   本イシュー（#583）・#641 いずれのスコープ外（PR 本文で Issue 化を提案）。
+//!
+//! ## サブメニュー（`trigger-item`）の ArrowRight/ArrowLeft 開閉ナビゲーション
+//! （イシュー #662）
+//!
+//! `trigger-item`（`crates/headless-ui/src/menu.rs::trigger_item`。
+//! `role="menuitem"`・`aria-haspopup="menu"`・`aria-expanded`/`data-state` の
+//! sub_state・`aria-controls` を持つ、サブメニューを開く menu item）に対する
+//! ArrowRight（展開）/ArrowLeft（閉鎖 + 親への復帰）を実装する。#583（keynav
+//! 初期実装）・#641（typeahead）ではいずれもスコープ外として申し送られていた
+//! 残要素（モジュール doc 旧版・`crates/wasm-full` 変更履歴参照）。
+//!
+//! - **アクティブ content の解決**（[`wiring::resolve_active_content`]）:
+//!   「highlight 中の項目が `trigger-item` ∧ そのサブメニュー content が
+//!   解決でき（[`wiring::resolve_submenu_content`]、`aria-controls` 優先・
+//!   子孫 `[data-part="content"]` フォールバック）∧ root 内 ∧ open
+//!   （`hidden` なし）」の間、子孫方向へ降下してアクティブ content を求める。
+//!   ArrowDown/Up/Home/End・Enter/Space・typeahead・Escape の各既存キー
+//!   処理は、このアクティブ content を対象にする（トップレベル Menu/Select
+//!   ではアクティブ content は常に trigger 直下の content と一致し、
+//!   単層時の挙動は #583/#641 時点と完全に不変）。降下回数は
+//!   [`MAX_SUBMENU_DEPTH`] で上限を設け、改ざん DOM の `aria-controls`
+//!   循環参照による無限ループを構造的に遮断する（A04 対策）。
+//! - **開閉は click 合成で dispatch 経路へ委譲**（本モジュールの既存原則を
+//!   継承）: keynav は `hidden`/`data-state`/`aria-expanded` を一切書かない。
+//!   ArrowRight はアクティブ content の highlight 中項目（非 disabled・
+//!   `trigger-item` かつサブメニュー解決可）へ `HtmlElement::click()` を
+//!   合成し、閉鎖経路と同一の click → `data-action` → `dispatch("toggle")`
+//!   → 再描画へ委譲する。展開後、サブメニュー content を再解決して先頭の
+//!   非 disabled 項目へ highlight を設定する（click 経由の再描画で content
+//!   が差し替わりうるため再解決するパターンは closed→open 時の既存実装
+//!   （[`wiring::handle_menu_or_select_trigger_keydown`]）と同型）。
+//!   ArrowLeft は親 trigger-item へ `click()` を合成して閉鎖し、アクティブ
+//!   content の highlight をクリアした上で親 trigger-item へ highlight を
+//!   復帰させる（親 content の `aria-activedescendant` も追随）。
+//! - **fail-closed な no-op 条件**: highlight 中項目が `trigger-item` でない・
+//!   disabled・サブメニュー解決失敗のときの ArrowRight、チェーン深さ 0
+//!   （サブメニュー内でない）のときの ArrowLeft はいずれも `prevent_default`
+//!   せず no-op とし、ページの既定キー動作を奪わない（受け入れ条件 2）。
+//!   Select（`data-scope="select"`）は `trigger-item` が存在せずセレクタ
+//!   不一致となるため、これらの腕は自然に no-op のまま働かない。
+//! - typeahead バッファ（[`wiring::TypeaheadState`]）はアクティブ content
+//!   基準で有効性判定し、ArrowRight/ArrowLeft はいずれもバッファをリセット
+//!   する（展開/閉鎖後の再入力は新規バッファから始まる）。
 //!
 //! ## typeahead（文字キー入力による項目ジャンプ、イシュー #641）
 //!
@@ -194,6 +235,12 @@
 //!   loop true / 両軸許容）へ決定的にフォールバックし、panic しない。
 //! - highlight・radio 決定はいずれも disabled 項目に対して no-op
 //!   （fail-closed）。
+//! - サブメニューチェーン探索（[`wiring::resolve_active_content`]）は深さ上限
+//!   （[`MAX_SUBMENU_DEPTH`]）+ root 封じ込め検査（[`wiring::resolve_submenu_content`]
+//!   の `root.contains`）で、改ざん DOM の `aria-controls` 循環参照・
+//!   root 外要素への越境をいずれも fail-closed に遮断する（イシュー #662、
+//!   A01/A04 対策）。DOM 書き込み面（属性名リテラル固定・値語彙固定）は
+//!   本イシューでも不変。
 
 /// パーツの向き（`crates/headless-ui/src/data_attrs.rs::Orientation` の値語彙
 /// と対応する、web-sys 非依存の純粋層専用の複製）。
@@ -602,6 +649,48 @@ pub fn typeahead_next_index(
         }
     }
     None
+}
+
+/// サブメニュー（`trigger-item`）チェーン探索の深さ上限（イシュー #662）。
+///
+/// アクティブ content の解決（[`wiring::resolve_active_content`]）は
+/// `aria-controls` を辿って子孫方向へ降下するが、改ざんされた DOM が
+/// `aria-controls` を自身または祖先へ循環参照させた場合、封じ込め検査
+/// （`root.contains`）だけでは無限ループを止められない
+/// （`root.contains` は「root 配下か」を見るだけで「既に訪問済みか」を
+/// 見ないため）。本定数はその降下回数の fail-closed な上限であり、
+/// 通常の UI 構成（ネストは高々数段）を大きく超える値を確保しつつ、
+/// 攻撃者制御 DOM による DoS（A04 対策）を構造的に遮断する。
+pub const MAX_SUBMENU_DEPTH: usize = 16;
+
+/// ArrowRight/ArrowLeft によるサブメニュー（`trigger-item`）開閉操作の種別
+/// （イシュー #662、WAI-ARIA APG Menu パターン準拠）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SubmenuNav {
+    /// ArrowRight: highlight 中の trigger-item のサブメニューを展開する。
+    Open,
+    /// ArrowLeft: 現在アクティブなサブメニューを閉じ、親へ戻る。
+    Close,
+}
+
+/// keydown の `key`/`modifiers` からサブメニュー開閉操作を判定する純粋関数
+/// （web-sys 非依存、native `cargo test` 可）。修飾キー付き・ArrowRight/
+/// ArrowLeft 以外のキーは `None`（no-op）。実際に展開・閉鎖できるか
+/// （trigger-item か・disabled か・サブメニューが解決できるか・チェーン
+/// 深さ 0 で ArrowLeft を受けていないか等）は配線層
+/// （[`wiring::handle_menu_or_select_trigger_keydown`]）が DOM 状態を見て
+/// 判断する。本関数は「そもそもこのキーがサブメニュー操作の候補か」だけを
+/// 決定的に返す（モジュール doc §Menu/Select §サブメニュー参照）。
+#[must_use]
+pub fn submenu_nav(key: &str, modifiers: Modifiers) -> Option<SubmenuNav> {
+    if modifiers.any() {
+        return None;
+    }
+    match key {
+        "ArrowRight" => Some(SubmenuNav::Open),
+        "ArrowLeft" => Some(SubmenuNav::Close),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -1492,6 +1581,33 @@ mod tests {
             Some(1)
         );
     }
+
+    #[test]
+    fn submenu_nav_arrow_right_is_open() {
+        assert_eq!(submenu_nav("ArrowRight", mods()), Some(SubmenuNav::Open));
+    }
+
+    #[test]
+    fn submenu_nav_arrow_left_is_close() {
+        assert_eq!(submenu_nav("ArrowLeft", mods()), Some(SubmenuNav::Close));
+    }
+
+    #[test]
+    fn submenu_nav_rejects_modifier_keys() {
+        let ctrl = Modifiers {
+            ctrl: true,
+            ..Modifiers::default()
+        };
+        assert_eq!(submenu_nav("ArrowRight", ctrl), None);
+        assert_eq!(submenu_nav("ArrowLeft", ctrl), None);
+    }
+
+    #[test]
+    fn submenu_nav_rejects_unrelated_keys() {
+        assert_eq!(submenu_nav("ArrowDown", mods()), None);
+        assert_eq!(submenu_nav("Enter", mods()), None);
+        assert_eq!(submenu_nav("Escape", mods()), None);
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -1504,8 +1620,8 @@ mod wiring {
     use super::{
         accordion_next_index, first_non_disabled, highlight_next_index, is_typeahead_key,
         last_non_disabled, loop_focus_from_attr, menu_loop_focus_from_attr, radio_next_index,
-        tabs_next_index, typeahead_next_index, typeahead_push, Modifiers, Orientation,
-        TYPEAHEAD_TIMEOUT_MS,
+        submenu_nav, tabs_next_index, typeahead_next_index, typeahead_push, Modifiers, Orientation,
+        SubmenuNav, MAX_SUBMENU_DEPTH, TYPEAHEAD_TIMEOUT_MS,
     };
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
@@ -1524,6 +1640,11 @@ mod wiring {
     /// セレクタ（いずれも highlight 対象、モジュール doc §Menu/Select 参照）。
     const MENU_ITEM_SELECTOR: &str =
         "[data-scope=\"menu\"][data-part=\"item\"], [data-scope=\"menu\"][data-part=\"trigger-item\"]";
+    /// `[data-scope="menu"][data-part="trigger-item"]` セレクタ（サブメニューを
+    /// 開くための menu item、`crates/headless-ui/src/menu.rs::trigger_item` の
+    /// SSR 出力。イシュー #662、アクティブ content チェーン解決・
+    /// ArrowRight/ArrowLeft の対象判定に使う）。
+    const TRIGGER_ITEM_SELECTOR: &str = "[data-scope=\"menu\"][data-part=\"trigger-item\"]";
     /// `[data-scope="select"][data-part="trigger"]` セレクタ。
     const SELECT_TRIGGER_SELECTOR: &str = "[data-scope=\"select\"][data-part=\"trigger\"]";
     /// `[data-scope="select"][data-part="content"]` セレクタ。
@@ -1762,6 +1883,36 @@ mod wiring {
         root_part.query_selector(content_selector).ok().flatten()
     }
 
+    /// サブメニュー（`trigger-item`）が制御する子 Menu content を解決する
+    /// （イシュー #662）。`aria-controls` を優先し、欠落・解決失敗時は
+    /// `trigger_item` の子孫方向へ `MENU_CONTENT_SELECTOR` でフォールバック
+    /// する（`crates/headless-ui/src/menu.rs` の「content 内に子インスタンスの
+    /// trigger_item/positioner/content を入れ子配置する」契約に対応、
+    /// `resolve_menu_select_content` の祖先方向フォールバックとは逆向き）。
+    /// 解決結果は必ず `root.contains` で封じ込め検査し、`root` 外を指す
+    /// 改ざん `aria-controls` は不採用として `None` を返す（fail-closed、
+    /// A01 対策）。
+    fn resolve_submenu_content(root: &Element, trigger_item: &Element) -> Option<Element> {
+        let content = trigger_item
+            .get_attribute("aria-controls")
+            .and_then(|controls_id| {
+                trigger_item
+                    .owner_document()
+                    .and_then(|document| document.get_element_by_id(&controls_id))
+            })
+            .or_else(|| {
+                trigger_item
+                    .query_selector(MENU_CONTENT_SELECTOR)
+                    .ok()
+                    .flatten()
+            })?;
+        if root.contains(Some(&content)) {
+            Some(content)
+        } else {
+            None
+        }
+    }
+
     /// `items` 中で `data-highlighted` 属性を持つ要素のインデックスを探す
     /// （現在 highlight されている項目、モジュール doc §Menu/Select 参照）。
     fn find_highlighted_index(items: &[Element]) -> Option<usize> {
@@ -1794,6 +1945,57 @@ mod wiring {
                     .is_some_and(|nearest| nearest.is_same_node(Some(content)))
             })
             .collect()
+    }
+
+    /// `top_content`（trigger 直下の Menu/Select content）から出発し、
+    /// 「highlight 中の項目が `trigger-item` ∧ そのサブメニューが解決でき
+    /// （[`resolve_submenu_content`]）∧ open（`hidden` なし）」の間、子孫方向へ
+    /// 降下してアクティブ content を求める（イシュー #662、モジュール doc
+    /// §サブメニュー参照）。ArrowDown/Up/Home/End・Enter/Space・typeahead・
+    /// Escape の各既存キー処理は、サブメニューが開いている間その最深の
+    /// content へルーティングされるべきであり、本関数はその「今どの階層が
+    /// アクティブか」を DOM のみから都度導出する単一の入口である。
+    ///
+    /// 戻り値はアクティブ content と、深さ ≥ 1（サブメニュー内）のときのみ
+    /// `Some` になる親 trigger-item（ArrowLeft の復帰先）。サブメニューが
+    /// 一つも開いていない場合は `(top_content.clone(), None)` を返し、
+    /// 既存の Menu/Select 単層キー処理と完全に同じ経路（`active_content`
+    /// を素通しする）になる（既存の単層 Menu/Select の挙動を変えないための
+    /// 不変条件）。
+    ///
+    /// 降下回数は [`MAX_SUBMENU_DEPTH`] で上限を設ける（改ざん DOM による
+    /// `aria-controls` 循環参照からの無限ループ防止、A04 対策）。
+    fn resolve_active_content(
+        root: &Element,
+        top_content: &Element,
+        item_selector: &str,
+        content_selector: &str,
+    ) -> (Element, Option<Element>) {
+        let mut active = top_content.clone();
+        let mut parent_trigger_item: Option<Element> = None;
+        for _ in 0..MAX_SUBMENU_DEPTH {
+            let items = filter_own_scope_items(
+                collect_parts(&active, item_selector),
+                &active,
+                content_selector,
+            );
+            let Some(highlighted_index) = find_highlighted_index(&items) else {
+                break;
+            };
+            let highlighted = &items[highlighted_index];
+            if !highlighted.matches(TRIGGER_ITEM_SELECTOR).unwrap_or(false) {
+                break;
+            }
+            let Some(sub_content) = resolve_submenu_content(root, highlighted) else {
+                break;
+            };
+            if sub_content.has_attribute("hidden") {
+                break;
+            }
+            parent_trigger_item = Some(highlighted.clone());
+            active = sub_content;
+        }
+        (active, parent_trigger_item)
     }
 
     /// `items[next_index]` のみへ `data-highlighted` を付与し、他項目からは
@@ -2100,6 +2302,19 @@ mod wiring {
             return;
         }
 
+        // ここから open。サブメニュー（`trigger-item`）が展開されている間は、
+        // 以下すべてのキー操作を最深の open な content（アクティブ content）へ
+        // ルーティングする（イシュー #662）。サブメニューが一つも開いて
+        // いない単層 Menu/Select では `resolve_active_content` が常に
+        // `(content, None)` を返すため、`active_content` は従来の `content`
+        // と同一になり、以下の各腕は #583/#641 時点の挙動と完全に一致する
+        // （モジュール doc §サブメニュー不変条件）。`buffer_active` も
+        // トップレベルの `content` ではなく `active_content` を基準に
+        // 再判定する（typeahead はアクティブな階層の項目を対象にすべきため）。
+        let (active_content, parent_trigger_item) =
+            resolve_active_content(root, &content, item_selector, content_selector);
+        let buffer_active = typeahead.is_active_for(&active_content, now);
+
         match key.as_str() {
             "ArrowDown" | "ArrowUp" | "Home" | "End" => {
                 // 非ループ既定動作で端に到達し highlight_next_index が None を
@@ -2108,18 +2323,19 @@ mod wiring {
                 // スクロールが素通りしてしまう（Bugbot 指摘、イシュー #583）。
                 event.prevent_default();
                 let items = filter_own_scope_items(
-                    collect_parts(&content, item_selector),
-                    &content,
+                    collect_parts(&active_content, item_selector),
+                    &active_content,
                     content_selector,
                 );
                 let disabled = disabled_flags(&items);
                 let current = find_highlighted_index(&items);
-                let loop_focus =
-                    menu_loop_focus_from_attr(content.get_attribute("data-loop-focus").as_deref());
+                let loop_focus = menu_loop_focus_from_attr(
+                    active_content.get_attribute("data-loop-focus").as_deref(),
+                );
                 if let Some(next_index) =
                     highlight_next_index(current, &key, loop_focus, modifiers, &disabled)
                 {
-                    set_highlight(&items, next_index, &content);
+                    set_highlight(&items, next_index, &active_content);
                 }
                 // Arrow/Home/End によるナビゲーションは typeahead バッファを
                 // 継続利用する状態から外れる操作のため、ここでバッファを
@@ -2131,16 +2347,108 @@ mod wiring {
             }
             "Enter" => {
                 event.prevent_default();
-                activate_highlighted_item(&content, item_selector, content_selector);
+                activate_highlighted_item(&active_content, item_selector, content_selector);
                 // 選択確定後は typeahead バッファを継続する意味が無いため
                 // リセットする（Bugbot 指摘、イシュー #641）。
                 typeahead.reset();
             }
             " " if !buffer_active => {
                 event.prevent_default();
-                activate_highlighted_item(&content, item_selector, content_selector);
+                activate_highlighted_item(&active_content, item_selector, content_selector);
                 // Enter と同様、選択確定後はバッファをリセットする
                 // （Bugbot 指摘、イシュー #641）。
+                typeahead.reset();
+            }
+            "ArrowRight" if submenu_nav("ArrowRight", modifiers) == Some(SubmenuNav::Open) => {
+                // アクティブ content の highlight 中項目が trigger-item であり、
+                // 非 disabled・サブメニューが解決できるときのみ展開する
+                // （それ以外は `prevent_default` せず no-op。Select は
+                // trigger-item が存在せずセレクタ不一致で自然に no-op）。
+                let items = filter_own_scope_items(
+                    collect_parts(&active_content, item_selector),
+                    &active_content,
+                    content_selector,
+                );
+                let Some(highlighted_index) = find_highlighted_index(&items) else {
+                    return;
+                };
+                let trigger_item = &items[highlighted_index];
+                if !trigger_item.matches(TRIGGER_ITEM_SELECTOR).unwrap_or(false) {
+                    return;
+                }
+                let disabled = disabled_flags(&items);
+                if disabled[highlighted_index] {
+                    return;
+                }
+                if resolve_submenu_content(root, trigger_item).is_none() {
+                    return;
+                }
+                event.prevent_default();
+                if let Ok(html_trigger_item) = trigger_item.clone().dyn_into::<HtmlElement>() {
+                    // 開閉は既存の click → `data-action` → dispatch 経路
+                    // （マウスクリックと同一経路）へ委譲する。keynav 自身は
+                    // `hidden`/`data-state`/`aria-expanded` を一切書かない
+                    // （モジュール doc §設計）。
+                    html_trigger_item.click();
+                }
+                // click() による再描画で sub content が新しい要素に差し替わって
+                // いる可能性があるため再解決する（closed→open 時の既存パターン
+                // と同型、モジュール doc 参照）。解決失敗・依然 closed は
+                // no-op（fail-closed）。
+                if let Some(sub_content_after) = resolve_submenu_content(root, trigger_item) {
+                    if root.contains(Some(&sub_content_after))
+                        && !sub_content_after.has_attribute("hidden")
+                    {
+                        let sub_items = filter_own_scope_items(
+                            collect_parts(&sub_content_after, item_selector),
+                            &sub_content_after,
+                            content_selector,
+                        );
+                        let sub_disabled = disabled_flags(&sub_items);
+                        if let Some(idx) = first_non_disabled(&sub_disabled) {
+                            set_highlight(&sub_items, idx, &sub_content_after);
+                        }
+                    }
+                }
+                typeahead.reset();
+            }
+            "ArrowLeft" if submenu_nav("ArrowLeft", modifiers) == Some(SubmenuNav::Close) => {
+                // チェーン深さ 0（サブメニュー内ではない）は no-op。
+                // `prevent_default` もしない（受け入れ条件 2、トップレベルの
+                // ページ内既定動作を奪わない）。
+                let Some(parent_trigger) = parent_trigger_item else {
+                    return;
+                };
+                event.prevent_default();
+                let items = filter_own_scope_items(
+                    collect_parts(&active_content, item_selector),
+                    &active_content,
+                    content_selector,
+                );
+                clear_highlight(&items, &active_content);
+                if let Ok(html_parent_trigger) = parent_trigger.clone().dyn_into::<HtmlElement>() {
+                    // 開閉は click 合成で dispatch 経路へ委譲する（ArrowRight と
+                    // 対称、モジュール doc §設計）。
+                    html_parent_trigger.click();
+                }
+                // click() 後、親 content・親 trigger-item を再解決して
+                // highlight を復帰させる（再描画で要素が差し替わりうるため、
+                // ArrowRight と同型の再解決パターン）。
+                if let Some(parent_content) = closest(&parent_trigger, content_selector) {
+                    if root.contains(Some(&parent_content)) {
+                        let parent_items = filter_own_scope_items(
+                            collect_parts(&parent_content, item_selector),
+                            &parent_content,
+                            content_selector,
+                        );
+                        if let Some(parent_index) = parent_items
+                            .iter()
+                            .position(|item| item.is_same_node(Some(&parent_trigger)))
+                        {
+                            set_highlight(&parent_items, parent_index, &parent_content);
+                        }
+                    }
+                }
                 typeahead.reset();
             }
             "Escape" => {
@@ -2157,23 +2465,23 @@ mod wiring {
                 // typeahead バッファも合わせてリセットする（イシュー #641、
                 // Escape 後の再入力は新規バッファから始まるべきため）。
                 let items = filter_own_scope_items(
-                    collect_parts(&content, item_selector),
-                    &content,
+                    collect_parts(&active_content, item_selector),
+                    &active_content,
                     content_selector,
                 );
-                clear_highlight(&items, &content);
+                clear_highlight(&items, &active_content);
                 typeahead.reset();
             }
             _ if is_typeahead_key(&key, buffer_active, modifiers) => {
                 event.prevent_default();
-                let query = typeahead.push(&key, now, &content);
+                let query = typeahead.push(&key, now, &active_content);
                 let items = filter_own_scope_items(
-                    collect_parts(&content, item_selector),
-                    &content,
+                    collect_parts(&active_content, item_selector),
+                    &active_content,
                     content_selector,
                 );
                 let current = find_highlighted_index(&items);
-                apply_typeahead_match(&items, &content, current, &query);
+                apply_typeahead_match(&items, &active_content, current, &query);
             }
             _ => {}
         }
