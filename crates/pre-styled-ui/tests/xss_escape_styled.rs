@@ -42,6 +42,7 @@ use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
+use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode};
 use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind};
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingItemFlags};
@@ -866,6 +867,118 @@ fn rating_group_styled_root_and_reexported_parts_are_escaped_for_all_payloads() 
     }
 }
 
+/// (11) pagination 経路（イシュー #751）: styled `root` の呼び出し側
+/// `attrs`・`class`・`aria_label`、および headless-ui から選択的
+/// 再エクスポートした `item` の `href`（Link モード）・children、
+/// `ellipsis`/`prev_trigger`/`next_trigger` の呼び出し側 `attrs` の各所で
+/// 既定エスケープ（REQ-1）が貫通することを固定する
+/// （`tags_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn pagination_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の aria_label 経路。
+        let html = render(&pagination::root(
+            Size::Md,
+            ColorPalette::Accent,
+            payload,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "pagination::root aria_label コンテキスト");
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&pagination::root(
+            Size::Md,
+            ColorPalette::Accent,
+            "pagination",
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "pagination::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&pagination::root(
+            Size::Md,
+            ColorPalette::Accent,
+            "pagination",
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "pagination::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "pagination::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-pagination--"),
+            "pagination::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした item の Link モード href 経路。
+        let html = render(&pagination::item(
+            ItemMode::Link { href: payload },
+            false,
+            false,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "pagination::item href コンテキスト");
+
+        // 選択的再エクスポートした item の children 経路。
+        let html = render(&pagination::item(
+            ItemMode::Button,
+            false,
+            false,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "pagination::item children コンテキスト");
+
+        // 選択的再エクスポートした ellipsis の呼び出し側 attrs 経路。
+        let html = render(&pagination::ellipsis(
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "pagination::ellipsis attrs コンテキスト");
+
+        // 選択的再エクスポートした prev_trigger/next_trigger の呼び出し側
+        // attrs 経路。
+        let html = render(&pagination::prev_trigger(
+            ItemMode::Button,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "pagination::prev_trigger attrs コンテキスト",
+        );
+
+        let html = render(&pagination::next_trigger(
+            ItemMode::Button,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "pagination::next_trigger attrs コンテキスト",
+        );
+    }
+}
 /// styled CheckboxCard（イシュー #747）の XSS 回帰
 /// （`checkbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
 /// と同型）。

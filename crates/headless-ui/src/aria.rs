@@ -216,10 +216,12 @@ pub fn aria_autocomplete(kind: AriaAutocomplete) -> (&'static str, &'static str)
     ("aria-autocomplete", kind.as_str())
 }
 
-/// `aria-current` の値語彙（W3C ARIA 仕様、Breadcrumb 用イシュー #755）。
+/// `aria-current` の値語彙（W3C ARIA 仕様、Breadcrumb 用イシュー #755・
+/// Pagination の選択ページ表現用イシュー #751 の双方が共有する）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AriaCurrent {
-    /// 現在のページ（[`crate::breadcrumb::current_link`] が使う値）。
+    /// 現在のページ（[`crate::breadcrumb::current_link`] / [`crate::pagination`]
+    /// が使う値）。
     Page,
     /// 手順の現在ステップ。
     Step,
