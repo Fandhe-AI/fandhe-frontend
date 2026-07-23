@@ -35,9 +35,9 @@ Phase 3〜6（#736/#748/#757/#766 配下、#737〜#747・#749〜#756・#758〜#7
 ## 3. 実装済み部品と lib.rs の突合手順
 
 `crates/headless-ui/src/lib.rs` の基盤 mod（anatomy / aria / data_attrs /
-positioning / state）を除く 15 mod、`crates/pre-styled-ui/src/lib.rs` の
-基盤 mod（css / recipe / stylesheet / theme）を除く 19 mod（styled ラッパー
-11 + 静的部品 8）が、本書の「実装済み」区分と一致することを次のコマンドで
+positioning / state）を除く 20 mod、`crates/pre-styled-ui/src/lib.rs` の
+基盤 mod（css / recipe / stylesheet / theme）を除く 24 mod（styled ラッパー
+16 + 静的部品 8）が、本書の「実装済み」区分と一致することを次のコマンドで
 確認できる。
 
 ```bash
@@ -47,17 +47,19 @@ grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs \
   | grep -vE 'css|recipe|stylesheet|theme'
 ```
 
-2026-07-23 時点の実測（本書作成時に再取得・反映済み。#737 マージにより
-pre-styled-ui の静的部品へ input / textarea / native_select の 3 件を追加
-反映）:
+2026-07-23 時点の実測（#745 マージにより headless-ui / pre-styled-ui へ
+editable を追加反映。rating_group（#742）・number_input / pin_input /
+slider（#738/#739/#741）も本改訂で追随反映）:
 
-- headless-ui 15: accordion / avatar / checkbox / collapsible / dialog /
-  field / fieldset / menu / popover / progress / radio_group / select /
-  switch / tabs / tooltip
-- pre-styled-ui 19（styled ラッパー 11 + 静的部品 8）:
-  accordion / avatar / checkbox / dialog / menu / popover / radio_group /
-  select / switch / tabs / tooltip（styled）+ alert / badge / button /
-  card / spinner / input / textarea / native_select（静的）
+- headless-ui 20: accordion / avatar / checkbox / collapsible / dialog /
+  editable / field / fieldset / menu / number_input / pin_input / popover /
+  progress / radio_group / rating_group / select / slider / switch / tabs /
+  tooltip
+- pre-styled-ui 24（styled ラッパー 16 + 静的部品 8）:
+  accordion / avatar / checkbox / dialog / editable / menu / number_input /
+  pin_input / popover / radio_group / rating_group / select / slider /
+  switch / tabs / tooltip（styled）+ alert / badge / button / card /
+  spinner / input / textarea / native_select（静的）
 
 ## 4. 抜けの機械確認手順
 
@@ -165,7 +167,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/form/rating-group.md` | RatingGroup | Rating | rating_group | rating_group | 実装済み | headless+styled 実装済み（#742） |
 | `.agents/skills/ark-ui/references/components/form/segment-group.md` | SegmentGroup | SegmentedControl | — | — | 実装対象 | #743 |
 | `.agents/skills/ark-ui/references/components/form/tags-input.md` | TagsInput | TagsInput | — | — | 実装対象 | #744 |
-| `.agents/skills/ark-ui/references/components/form/editable.md` | Editable | Editable | — | — | 実装対象 | #745 |
+| `.agents/skills/ark-ui/references/components/form/editable.md` | Editable | Editable | editable | editable | 実装済み | headless+styled 実装済み（#745） |
 | `.agents/skills/ark-ui/references/components/form/angle-slider.md` | AngleSlider | — | — | — | 保留 | #735 で記録（高度入力系） |
 | `.agents/skills/ark-ui/references/components/form/color-picker.md` | ColorPicker | ColorPicker | — | — | 保留 | #735 で記録（高度入力系） |
 | `.agents/skills/ark-ui/references/components/form/file-upload.md` | FileUpload | FileUpload | — | — | 保留 | #735 で記録（高度入力系） |
@@ -416,7 +418,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/forms/rating.md` | RatingGroup | Rating | rating_group | rating_group | 実装済み | headless+styled 実装済み（#742） |
 | `.agents/skills/chakra-ui/references/components/forms/segmented-control.md` | SegmentGroup | SegmentedControl | — | — | 実装対象 | #743 |
 | `.agents/skills/chakra-ui/references/components/forms/tags-input.md` | TagsInput | TagsInput | — | — | 実装対象 | #744 |
-| `.agents/skills/chakra-ui/references/components/forms/editable.md` | Editable | Editable | — | — | 実装対象 | #745 |
+| `.agents/skills/chakra-ui/references/components/forms/editable.md` | Editable | Editable | editable | editable | 実装済み | headless+styled 実装済み（#745） |
 | `.agents/skills/chakra-ui/references/components/forms/checkbox-card.md` | — | CheckboxCard | — | — | 実装対象 | #747 |
 | `.agents/skills/chakra-ui/references/components/forms/radio-card.md` | — | RadioCard | — | — | 実装対象 | #747 |
 | `.agents/skills/chakra-ui/references/components/forms/color-picker.md` | ColorPicker | ColorPicker | — | — | 保留 | #735 で記録（高度入力系） |

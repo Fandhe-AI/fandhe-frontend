@@ -243,6 +243,7 @@ pub mod checkbox;
 mod class_attr;
 pub mod css;
 pub mod dialog;
+pub mod editable;
 pub mod input;
 pub mod menu;
 pub mod native_select;

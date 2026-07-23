@@ -169,6 +169,15 @@
 //!   [`mod@progress`] と同じく [`state`] の既存語彙に収まらないため、
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
+//! - [`mod@editable`]: Root / Label / Area / Input / Preview / Control /
+//!   EditTrigger / SubmitTrigger / CancelTrigger の 9 anatomy パーツと、
+//!   `preview`/`edit` の 2 モードを持つ [`editable::Editable`] 状態機械
+//!   （#745、親 #736）。[`mod@switch`]/[`mod@progress`]/[`mod@pin_input`]
+//!   と同じく [`state`] の既存語彙に収まらないため、
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。activationMode/
+//!   submitMode の実挙動・autoResize は本イシューのスコープ外
+//!   （[`editable`] モジュール doc 参照）。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
@@ -214,6 +223,7 @@ pub mod checkbox;
 pub mod collapsible;
 pub mod data_attrs;
 pub mod dialog;
+pub mod editable;
 pub mod field;
 pub mod fieldset;
 pub mod menu;
@@ -265,6 +275,7 @@ pub use data_attrs::{
     data_required, data_state, Orientation,
 };
 pub use dialog::Dialog;
+pub use editable::{Editable, EditableAction};
 pub use field::{FieldIds, FieldProps};
 pub use fieldset::FieldsetProps;
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
