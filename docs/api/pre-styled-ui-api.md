@@ -30,7 +30,15 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 **本節の既知の陳腐化**: 上表は #550/#551/#606 のマージ後も未更新のまま残って
 いる（本項目は #606 実装時点の out-of-scope 候補として記録。全面改訂は別
 イシューで扱う）。実装済み API の正本は `crates/pre-styled-ui/src/lib.rs`
-冒頭の rustdoc を参照。
+冒頭の rustdoc を参照。同じ理由で headless ラッパー第 2 弾（#664:
+Popover/Tooltip）・第 3 弾（#682: Switch）も上表へは追加していない。
+`switch` モジュール（headless ラッパー第 3 弾、イシュー #682）は
+`fandhe_frontend_headless_ui::switch` の Root/Control/Thumb/Label/
+HiddenInput 5 パーツと `Switch` 状態機械を再エクスポートし、
+`switch::stylesheet()` で `data-state`（`"checked"`/`"unchecked"`）連動の
+既定 CSS を追加提供する。他の headless ラッパー（`dialog` 等）と同じ
+薄い委譲方針であり、詳細・スコープ外事項は `src/switch.rs` 冒頭の
+rustdoc を参照。
 
 `examples/headless-pre-styled-ui`（#552）は本クレートが未実装のため、
 headless-ui の `data-scope`/`data-part`/`data-state` セレクタへ手書きで
