@@ -28,6 +28,11 @@ use crate::css::decl;
 use crate::recipe::{SlotRecipe, StateCondition};
 
 pub use fandhe_frontend_headless_ui::tabs::*;
+// `TabsProps.orientation` フィールドの型（`data_attrs` モジュール由来のため
+// 上記 glob 再エクスポートでは到達しない）。呼び出し側が
+// `fandhe-frontend-pre-styled-ui` のみに依存して `tabs()` を呼び出せることを
+// 保証するための明示再エクスポート（イシュー #685）。
+pub use fandhe_frontend_headless_ui::data_attrs::Orientation;
 
 /// headless `tabs` anatomy の `data-part` 一覧（`crates/headless-ui/src/tabs.rs`
 /// の `ANATOMY.part(...)` 呼び出しと同期させる契約）。

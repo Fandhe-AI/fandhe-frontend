@@ -60,6 +60,12 @@ use crate::css::decl;
 use crate::recipe::{SlotRecipe, StateCondition};
 
 pub use fandhe_frontend_headless_ui::popover::*;
+// `root`/`trigger` 等の `state` 引数・`Popover::new`・`Popover` の
+// `Component::Action`（dispatch 対象）はいずれも `state` モジュール由来で
+// 上記 glob 再エクスポートでは到達しない。呼び出し側が
+// `fandhe-frontend-pre-styled-ui` のみに依存して呼び出せることを保証するための
+// 明示再エクスポート（イシュー #685）。
+pub use fandhe_frontend_headless_ui::state::{DisclosureAction, OpenState};
 
 /// headless `popover` anatomy の `data-part` 一覧（`crates/headless-ui/src/popover.rs`
 /// の `ANATOMY.part(...)` 呼び出しと同期させる契約。ずれると [`stylesheet`] が
