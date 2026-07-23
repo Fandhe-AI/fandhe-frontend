@@ -12,19 +12,16 @@ publish = false
 # --package xtask --package fandhe-frontend-app --package fandhe-frontend-dist-server
 # --package fandhe-frontend-server` の明示列挙であり、本クレート
 # （fandhe-frontend-docs-site）は計測対象に含まれない。加えて依存は内部 path 依存
-# （core/app/server/headless-ui/pre-styled-ui）のみで外部クレート・build.rs を
+# （core/app/server/pre-styled-ui）のみで外部クレート・build.rs を
 # 一切追加しないため、既存の計測値（dist-server 実測: 21 件/深さ 5）にも影響しない
 # （イシュー #465 実装計画）。
 #
-# pre-styled-ui / headless-ui は UI コンポーネントショーケースページ
-# （src/showcase.rs、site/nav.toml の /components/pre-styled-ui/）が styled 部品の
-# 実レンダリングと StyleSheet による CSS 生成に使う。headless-ui を直接依存に
-# 持つのは、pre-styled-ui の headless ラッパー（tabs/accordion 等）が要求する
-# `Orientation` / `OpenState` 型を showcase.rs がそれらの定義元クレートから
-# 明示的に import するため（2 層アーキテクチャの層構造を import 経路でも
-# 明示する意図的な選択。pre-styled-ui は #685/#699 でこれらの型をルートから
-# 再エクスポート済みのため経由も可能だが、型実体自体は path 依存で単一クレート
-# 実体に統一されるため、どちらの経路でも同一の型として扱われる）。
+# pre-styled-ui は UI コンポーネントショーケースページ（src/showcase.rs、
+# site/nav.toml の /components/pre-styled-ui/）が styled 部品の実レンダリングと
+# StyleSheet による CSS 生成に使う。ラッパー呼び出しに必要な headless 型
+# （`OpenState` / `Orientation`）は pre-styled-ui のルート再エクスポート
+# （イシュー #685）経由で得るため、headless-ui への直接依存は持たない
+# （イシュー #693。型は path 依存で単一クレート実体に統一される）。
 #
 # 本クレートは publish = false のため、workspace 内 path 依存に version 併記は
 # 不要（xtask check-dep-versions のルール 2 は publish 対象クレートのみが対象）。
@@ -32,7 +29,6 @@ publish = false
 fandhe-frontend-core = { path = "../core" }
 fandhe-frontend-app = { path = "../app" }
 fandhe-frontend-server = { path = "../server" }
-fandhe-frontend-headless-ui = { path = "../headless-ui" }
 fandhe-frontend-pre-styled-ui = { path = "../pre-styled-ui" }
 
 [dev-dependencies]

@@ -22,9 +22,11 @@
 //!
 //! # セキュリティ不変条件（REQ-1）
 //!
-//! - マークアップはすべて `fandhe_frontend_core` /
-//!   `fandhe_frontend_pre_styled_ui` / `fandhe_frontend_headless_ui` のノード木
-//!   API で組み立てる。`raw_html()`・HTML 文字列の直接組み立ては使わない
+//! - マークアップはすべて `fandhe_frontend_core` / `fandhe_frontend_pre_styled_ui`
+//!   のノード木 API で組み立てる。`raw_html()`・HTML 文字列の直接組み立ては
+//!   使わない。headless 層の状態値（[`OpenState`] / [`Orientation`]）は
+//!   pre-styled-ui のルート再エクスポート（イシュー #685）経由で使用し、
+//!   headless-ui への直接依存は持たない（イシュー #693）
 //! - CSS は [`StyleSheet`]（検証済み CSS のみを保持し `<` を拒否する型、
 //!   `crates/pre-styled-ui/src/stylesheet.rs`）経由でのみ書き出す
 //!
@@ -43,7 +45,6 @@
 //! （recipe CSS・`site/assets/site.css` はいずれも変更しない）。
 
 use fandhe_frontend_core::{div, el, text, Node};
-use fandhe_frontend_headless_ui::{OpenState, Orientation};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
@@ -52,8 +53,8 @@ use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsPro
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::{
     accordion, alert, badge, card, menu, popover, radio_group, select, switch, tooltip,
-    AlertStatus, BadgeProps, BadgeVariant, CardVariant, ColorPalette, Size, StyleSheet,
-    StylesheetError,
+    AlertStatus, BadgeProps, BadgeVariant, CardVariant, ColorPalette, OpenState, Orientation, Size,
+    StyleSheet, StylesheetError,
 };
 
 /// ショーケースページの `page.path`（`site/nav.toml` の宣言と一致させる契約。

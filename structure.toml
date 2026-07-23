@@ -83,8 +83,8 @@ path = "crates/dist-server"
 [directories.docs-site]
 role = "tooling"
 crate = "fandhe-frontend-docs-site"
-description = "docs サイトジェネレータ（外部依存ゼロ・配布物に含めない開発者/CI 用ツール。イシュー #465/#458）。UI コンポーネントショーケースページ（src/showcase.rs）のために headless-ui / pre-styled-ui にも依存する"
-depends_on = ["core", "app", "server", "headless-ui", "pre-styled-ui"]
+description = "docs サイトジェネレータ（外部依存ゼロ・配布物に含めない開発者/CI 用ツール。イシュー #465/#458）。UI コンポーネントショーケースページ（src/showcase.rs）のために pre-styled-ui にも依存する"
+depends_on = ["core", "app", "server", "pre-styled-ui"]
 path = "crates/docs-site"
 
 [directories.headless-ui]
@@ -92,7 +92,7 @@ role = "component"
 crate = "fandhe-frontend-headless-ui"
 description = "headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA、イシュー #520/#522）。styled 層（pre-styled-ui）の下層。開閉状態機械（Disclosure/SingleSelect）は interactive の Component/Hydrate 抽象に乗り、DirtyTracked（束縛点差分更新）も実装済み（イシュー #592）"
 depends_on = ["core", "interactive"]
-allowed_dependents = ["pre-styled-ui", "wasm-full", "xtask", "docs-site"]
+allowed_dependents = ["pre-styled-ui", "wasm-full", "xtask"]
 path = "crates/headless-ui"
 
 [directories.pre-styled-ui]

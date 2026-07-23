@@ -22,8 +22,10 @@
 //!   `page.path` 照会により合成する
 //!
 //! `fandhe-frontend-core` / `fandhe-frontend-app` / `fandhe-frontend-server` /
-//! `fandhe-frontend-headless-ui` / `fandhe-frontend-pre-styled-ui` のみに
-//! 依存し、外部クレートは追加しない（`Cargo.toml` の REQ-3 非影響コメント参照）。
+//! `fandhe-frontend-pre-styled-ui` のみに依存し、外部クレートは追加しない
+//! （`Cargo.toml` の REQ-3 非影響コメント参照）。headless 型が必要な場合は
+//! pre-styled-ui のルート再エクスポート（イシュー #685）経由で得るため
+//! headless-ui への直接依存は持たない（イシュー #693）。
 //!
 //! サイト骨格（`layout` / `nav` / `markdown` が生成する `site/assets/site.css`
 //! のクラス名契約）への pre-styled-ui styled 部品・テーマトークンの適用は
