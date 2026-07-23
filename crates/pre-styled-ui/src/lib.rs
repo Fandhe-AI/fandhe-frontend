@@ -91,6 +91,11 @@
 //! - headless ラッパー（#739）: [`mod@pin_input`]（PinInput、`size` variant
 //!   のみを持つ。[`mod@number_input`] と同型の判断で `color-palette` 軸は
 //!   提供しない。詳細は [`mod@pin_input`] rustdoc 参照）。
+//! - headless ラッパー（#743）: [`mod@segment_group`]（SegmentGroup、
+//!   segmented control。`size` variant のみを持ち `color-palette` 軸は
+//!   提供しない。状態機械は [`mod@radio_group`] へ全委譲。indicator の
+//!   位置表現・visually-hidden 化・フォーカスリングの設計は
+//!   [`mod@segment_group`] rustdoc 参照）。
 //! - headless ラッパー（#744）: [`mod@tags_input`]（TagsInput、`size`
 //!   variant のみを持つ。[`mod@pin_input`]/[`mod@number_input`] と同型の
 //!   判断で `color-palette` 軸は提供しない。詳細は [`mod@tags_input`] rustdoc
@@ -259,6 +264,7 @@ pub mod popover;
 pub mod radio_group;
 pub mod rating_group;
 pub mod recipe;
+pub mod segment_group;
 pub mod select;
 pub mod slider;
 pub mod spinner;

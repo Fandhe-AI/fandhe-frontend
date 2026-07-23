@@ -28,7 +28,7 @@
 use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::{
     aria_controls, aria_label, avatar, data_state, dialog, number_input, pin_input, popover,
-    rating_group, slider, tags_input, ImageStatus, OpenState, Orientation,
+    rating_group, segment_group, slider, tags_input, ImageStatus, OpenState, Orientation,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -225,6 +225,33 @@ fn rating_group_name_and_label_children_are_escaped_for_all_payloads() {
         let label_node = rating_group::label(None, vec![], vec![text(payload)]);
         let html = render(&label_node);
         assert_payload_is_escaped(payload, &html, "rating_group::label のテキストコンテキスト");
+    }
+}
+
+/// (1)/(2) SegmentGroup（イシュー #743）: `item_hidden_input` の `name`/
+/// `value`（属性値経路）と `item_text` の children（テキスト経路）へ全
+/// ペイロードを注入し、エスケープが貫通することを固定する
+/// （`radio_group` の対応テストと同型、責務は委譲だが anatomy 出力経路は
+/// 本モジュール固有のため個別に固定する）。
+#[test]
+fn segment_group_name_value_and_item_text_children_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let input_node =
+            segment_group::item_hidden_input(false, false, Some(payload), payload, vec![]);
+        let html = render(&input_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "segment_group::item_hidden_input の name/value 属性値コンテキスト",
+        );
+
+        let item_text_node = segment_group::item_text(false, false, vec![], vec![text(payload)]);
+        let html = render(&item_text_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "segment_group::item_text のテキストコンテキスト",
+        );
     }
 }
 
