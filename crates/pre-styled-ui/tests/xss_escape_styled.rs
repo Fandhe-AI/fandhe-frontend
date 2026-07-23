@@ -40,6 +40,7 @@ use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
+use fandhe_frontend_pre_styled_ui::clipboard;
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
@@ -1772,6 +1773,37 @@ fn status_empty_state_styled_parts_and_class_attr_are_escaped_for_all_payloads()
             payload,
             &html,
             "empty_state::description children コンテキスト",
+        );
+    }
+}
+
+/// styled Clipboard（イシュー #773）の XSS 回帰。コピー対象値
+/// （`data-value`/`input` の `value`）はパスワード等の機微情報を含みうる
+/// ため、属性破りペイロードでも実タグ・属性破りが起きないことを固定する
+/// （`crates/headless-ui/tests/xss_escape.rs::clipboard_root_data_value_and_input_value_are_escaped_for_all_payloads`
+/// の styled 経由版）。
+#[test]
+fn clipboard_styled_root_data_value_and_value_text_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let html = render(&clipboard::root(payload, false, vec![], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "clipboard::root の data-value 属性値コンテキスト",
+        );
+
+        let html = render(&clipboard::input(payload, false, vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "clipboard::input の value 属性値コンテキスト",
+        );
+
+        let html = render(&clipboard::value_text(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "clipboard::value_text children コンテキスト",
         );
     }
 }

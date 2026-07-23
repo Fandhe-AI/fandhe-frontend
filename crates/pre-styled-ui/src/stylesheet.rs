@@ -301,6 +301,7 @@ mod tests {
             ("empty_state", crate::empty_state::css()),
             ("visually_hidden", crate::visually_hidden::css()),
             ("skip_nav", crate::skip_nav::stylesheet()),
+            ("clipboard", crate::clipboard::stylesheet()),
             ("qr_code", crate::qr_code::stylesheet()),
             ("heading", crate::heading::css()),
             ("text", crate::text::css()),

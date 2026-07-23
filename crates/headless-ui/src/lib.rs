@@ -261,6 +261,19 @@
 //!   「本文へスキップ」リンク。[`skip_nav::link`] は呼び出し側から任意の
 //!   URL を受け取らず常に `#<id>` のみを組み立てるため、スキーム注入経路を
 //!   構造的に持たない（[`mod@skip_nav`] モジュール doc §href の構成 参照）。
+//! - [`mod@clipboard`]: Root / Label / Control / Input / Trigger / Indicator /
+//!   ValueText の 7 anatomy パーツと、コピー済みかどうかの 2 値状態機械
+//!   [`clipboard::Clipboard`]（#773、親トラッキング #520）。[`mod@avatar`]/
+//!   [`mod@switch`] と同じく [`state`] の既存語彙に収まらないため、
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。コピー済み
+//!   表示は `data-state` 値語彙ではなく `data-copied`
+//!   （[`data_attrs::data_copied`]）存在属性で表現する ark-ui/chakra-ui の
+//!   慣習に従う。コピー対象値（`value`）は状態機械に持たせず、
+//!   [`clipboard::root`]の `data-value` 属性としてのみ出力する（[`clipboard`] モジュール doc
+//!   「`value` は状態機械に持たせない」節参照）。`navigator.clipboard`
+//!   実配線・タイムアウトによる自動リセットは
+//!   `fandhe-frontend-wasm-full`（#773 後続）のスコープ。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
@@ -351,6 +364,7 @@ pub mod avatar;
 pub mod breadcrumb;
 pub mod carousel;
 pub mod checkbox;
+pub mod clipboard;
 pub mod collapsible;
 pub mod combobox;
 pub mod data_attrs;
@@ -420,10 +434,11 @@ pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use breadcrumb::{breadcrumb, BreadcrumbItem};
 pub use carousel::{Carousel, CarouselAction};
 pub use checkbox::{Checkbox, CheckboxFlags};
+pub use clipboard::{Clipboard, ClipboardAction};
 pub use combobox::{Combobox, ComboboxAction};
 pub use data_attrs::{
-    data_checked, data_current, data_disabled, data_highlighted, data_invalid, data_orientation,
-    data_pressed, data_readonly, data_required, data_state, Orientation,
+    data_checked, data_copied, data_current, data_disabled, data_highlighted, data_invalid,
+    data_orientation, data_pressed, data_readonly, data_required, data_state, Orientation,
 };
 pub use dialog::Dialog;
 pub use drawer::{Drawer, DrawerPlacement};

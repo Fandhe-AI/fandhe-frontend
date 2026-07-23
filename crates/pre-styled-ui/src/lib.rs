@@ -376,6 +376,7 @@ pub mod carousel;
 pub mod checkbox;
 pub mod checkbox_card;
 mod class_attr;
+pub mod clipboard;
 pub mod combobox;
 pub mod css;
 pub mod dialog;

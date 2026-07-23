@@ -28,9 +28,9 @@
 use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::{
-    aria_controls, aria_label, avatar, carousel, data_state, dialog, hover_card, number_input,
-    pin_input, popover, rating_group, segment_group, slider, tags_input, tree_view, ImageStatus,
-    OpenState, Orientation,
+    aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog, hover_card,
+    number_input, pin_input, popover, rating_group, segment_group, slider, tags_input, tree_view,
+    ImageStatus, OpenState, Orientation,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -591,6 +591,48 @@ fn visually_hidden_children_text_is_escaped_for_all_payloads() {
             payload,
             &html,
             "visually_hidden::root の children テキストコンテキスト",
+        );
+    }
+}
+
+/// (2) 属性値経路（イシュー #773 Clipboard）: [`clipboard::root`] の
+/// `data-value` 属性・[`clipboard::input`] の `value` 属性へ全ペイロードを
+/// 注入し、エスケープ貫通を固定する。コピー対象値はパスワード等の機微情報を
+/// 含みうるため、属性破りペイロードでも実タグ・属性破りが起きないことを
+/// 特に固定する（`.claude/rules/security.md` A03 対応）。
+#[test]
+fn clipboard_root_data_value_and_input_value_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let root_node = clipboard::root(payload, false, vec![], vec![]);
+        let html = render(&root_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "clipboard::root の data-value 属性値コンテキスト",
+        );
+
+        let input_node = clipboard::input(payload, false, vec![]);
+        let html = render(&input_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "clipboard::input の value 属性値コンテキスト",
+        );
+    }
+}
+
+/// (1) テキスト経路（イシュー #773 Clipboard）: [`clipboard::value_text`] の
+/// children テキストへ全ペイロードを注入し、エスケープが貫通することを
+/// 固定する。
+#[test]
+fn clipboard_value_text_children_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let node = clipboard::value_text(vec![], vec![text(payload)]);
+        let html = render(&node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "clipboard::value_text のテキストコンテキスト",
         );
     }
 }
