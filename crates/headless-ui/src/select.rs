@@ -82,11 +82,23 @@ use crate::aria::{
 };
 use crate::data_attrs::{data_disabled, data_highlighted, data_state};
 use crate::state::{Disclosure, OpenState, SingleSelect, SingleSelectAction};
-use fandhe_frontend_core::{el, text, Node};
+use fandhe_frontend_core::{el, text, Node, BIND_TEXT_ATTR};
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError};
 
 /// Select の anatomy（`data-scope="select"`）。
 const ANATOMY: Anatomy = anatomy("select");
+
+/// [`value_text`] が発行する `data-bind-text` 束縛点のフィールド名
+/// （イシュー #642）。
+///
+/// `fandhe-frontend-wasm-full` の `headless_select` モジュール（クライアント
+/// 側で select dispatch 後にラベルを再同期する配線層）が
+/// [`fandhe_frontend_core::BIND_TEXT_ATTR`] 経由でこの値と一致する
+/// field を対象に `set_text_content` する契約であり、本定数が両クレート間の
+/// 唯一の合わせ込み箇所である（ドリフト検知は wasm-full 側の native テスト
+/// が担う）。値そのものは変更しても外部から不透明な識別子であり HTML
+/// として解釈されない。
+pub const VALUE_TEXT_FIELD: &str = "select-value-text";
 
 /// Root パーツ（`div`）。listbox の開閉状態を `data-*` へ反映する。
 #[must_use]
@@ -157,6 +169,17 @@ pub fn trigger<'a>(
 /// ValueText パーツ（`span`）。`data-part="value-text"`（ark-ui 準拠の
 /// kebab-case）。プレースホルダー表示中（未選択）のときのみ
 /// `data-placeholder-shown` 存在属性を付与する。
+///
+/// [`VALUE_TEXT_FIELD`] を field とする `data-bind-text` 束縛マーカー
+/// （[`fandhe_frontend_core::BIND_TEXT_ATTR`]）を常時付与する（イシュー
+/// #642）。これにより `fandhe-frontend-wasm-full` の `headless_select` 配線層
+/// が select/deselect dispatch 後にラベルテキストを
+/// `fandhe_frontend_wasm_client::binding_dom::BindingTable::apply_dirty`
+/// 経由（`set_text_content` のみ、`innerHTML` 不使用）で再同期できる。
+/// 呼び出し側 `attrs` に同名マーカーが混入していても
+/// `fandhe_frontend_core::bind::bind_text` と同じ「retain で除去してから
+/// 末尾へ 1 個だけ付与する」契約に従い、`data-bind-text` の重複（先頭のみ
+/// 有効になり残りが黙って無視される不整合）を防ぐ。
 #[must_use]
 pub fn value_text<'a>(
     placeholder_shown: bool,
@@ -167,7 +190,10 @@ pub fn value_text<'a>(
     if placeholder_shown {
         merged.push(("data-placeholder-shown", ""));
     }
+    let mut attrs = attrs;
+    attrs.retain(|(name, _)| *name != BIND_TEXT_ATTR);
     merged.extend(attrs);
+    merged.push((BIND_TEXT_ATTR, VALUE_TEXT_FIELD));
     ANATOMY.part("value-text", "span", merged, children)
 }
 
@@ -845,6 +871,29 @@ mod tests {
     }
 
     #[test]
+    fn value_text_carries_bind_text_marker_for_client_sync() {
+        // イシュー #642: wasm-full の headless_select 配線層が select/deselect
+        // dispatch 後にこのマーカーを頼りにラベルを再同期する。field 名が
+        // VALUE_TEXT_FIELD と一致することが両クレート間の契約。
+        let html = render(&value_text(false, vec![], vec![text("Apple")]));
+        assert!(html.contains(&format!(r#"data-bind-text="{VALUE_TEXT_FIELD}""#)));
+    }
+
+    #[test]
+    fn value_text_normalizes_caller_supplied_duplicate_bind_text_marker() {
+        // 呼び出し側が誤って同名マーカーを attrs へ渡しても 1 個に正規化され、
+        // 先頭のみ有効になる不整合（HTML パース時の属性重複）を防ぐ。
+        let html = render(&value_text(
+            false,
+            vec![("data-bind-text", "caller-supplied-stale-field")],
+            vec![text("Apple")],
+        ));
+        assert_eq!(html.matches("data-bind-text").count(), 1);
+        assert!(html.contains(&format!(r#"data-bind-text="{VALUE_TEXT_FIELD}""#)));
+        assert!(!html.contains("caller-supplied-stale-field"));
+    }
+
+    #[test]
     fn clear_trigger_has_type_button_and_kebab_case_part() {
         let html = render(&clear_trigger(vec![], vec![]));
         assert!(html.contains(r#"<button"#));
@@ -1229,6 +1278,16 @@ mod tests {
         let s = Select::default();
         let html = render(&s.value_text(vec![], vec![text("Select a fruit")]));
         assert!(html.contains(r#"data-placeholder-shown="""#));
+    }
+
+    #[test]
+    fn select_convenience_value_text_carries_bind_text_marker() {
+        // `Select::value_text` は自由関数 `value_text` へ委譲するのみだが、
+        // イシュー #642 の束縛マーカー付与が便宜メソッド経由でも確実に
+        // 効くことを固定する（委譲経路の回帰防止）。
+        let s = Select::default();
+        let html = render(&s.value_text(vec![], vec![text("Select a fruit")]));
+        assert!(html.contains(&format!(r#"data-bind-text="{VALUE_TEXT_FIELD}""#)));
     }
 
     // --- Select: SSR 状態なし初期描画 ---

@@ -111,6 +111,7 @@ pub mod events;
 pub mod focus_trap;
 pub mod headless;
 pub mod headless_avatar;
+pub mod headless_select;
 pub mod hydration;
 pub mod keynav;
 pub mod nav;

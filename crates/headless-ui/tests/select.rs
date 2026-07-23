@@ -127,6 +127,11 @@ fn full_assembly_wires_aria_controls_labelledby_and_all_parts_appear() {
     // （hidden_select パーツが `aria-hidden="true"` を固定で持つため、
     // 部分一致 "hidden" ではなく存在属性そのもの `hidden=""` の不在を見る）。
     assert!(!html.contains(r#" hidden="""#));
+
+    // value-text は data-bind-text 束縛マーカーを常時持つ（イシュー #642）。
+    // wasm-full の headless_select 配線層がこのマーカーを頼りに select/
+    // deselect dispatch 後のラベル再同期を行う契約。
+    assert!(html.contains(&format!(r#"data-bind-text="{}""#, select::VALUE_TEXT_FIELD)));
 }
 
 #[test]

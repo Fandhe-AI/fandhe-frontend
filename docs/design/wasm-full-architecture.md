@@ -373,3 +373,32 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 
 - 配線対象 `root` は「Avatar の root パーツ要素（または Avatar を 1 個含むコンテナ）」を契約とし、1 root : 1 状態機械。複数 Avatar の一括統括・束縛点差分更新との統合は別スコープとする。
 - `src` 差し替え検知（`MutationObserver`）→ `"reset"` 自動発火はスコープ外（`crates/headless-ui/src/avatar.rs` の「スコープ外」節と同一の判断を引き継ぐ）。
+
+## 14. `headless_select` モジュール（Select value-text のクライアント側同期、イシュー #642、親 #640/#581）
+
+`crates/headless-ui/src/select.rs` の `select::value_text`（trigger 内の選択中ラベル表示パーツ）は SSR 静的出力のみを提供し、`select`/`deselect` dispatch 後にクライアント側でラベルを再描画する配線は `headless`（#580）が「呼び出し側の責務」として申し送っていた残課題（イシュー #581 クローズコメント）。`headless_select` モジュール（`crates/wasm-full/src/headless_select.rs`）がこの残課題を埋める。
+
+### 14.1 headless-ui 側の前提（`data-bind-text` マーカー）
+
+`select::value_text` は `VALUE_TEXT_FIELD`（`"select-value-text"`）を field とする `data-bind-text` 束縛マーカー（`fandhe_frontend_core::BIND_TEXT_ATTR`）を常時付与する。呼び出し側 `attrs` に同名マーカーが混入していても `fandhe_frontend_core::bind_text` と同じ「retain で除去してから末尾へ 1 個だけ付与する」契約に従い重複を防ぐ。
+
+### 14.2 設計（2 層構成、`headless`/`keynav` と同型）
+
+- 純粋ロジック層（`resolve_selected_label`/`value_text_view`/`ValueTextView`）は web-sys に依存せず native の `cargo test` で検証できる。
+- 配線層（`sync_select_value_text`/`wire_select_value_text`）のみ `#[cfg(target_arch = "wasm32")]` でゲートする。
+
+### 14.3 公開 API
+
+- `resolve_selected_label(items: &[(String, String)], selected: Option<&str>) -> Option<&str>`: `(value, label)` 列から選択中の値と一致する item のラベルを文字列等値比較のみで解決する。`selected` が `None`、または一致する `value` が無い場合（改ざん・欠損入力）は `None`（fail-closed）。セレクタ補間は一切行わない。
+- `value_text_view(selected_label: Option<&str>, placeholder: &str) -> ValueTextView`: `Some(label)` → `{ text: label, placeholder_shown: false }`、`None` → `{ text: placeholder, placeholder_shown: true }`（SSR 初期状態の `select::value_text(true, ..)` と同じ表現に復帰する）。
+- `sync_select_value_text(select: &Select, root: &Element, placeholder: &str)`（wasm32 限定）: `root` 配下の `[data-scope="select"][data-part="item"]` を出現順に収集し `(data-value, [data-part="item-text"] の textContent)` 列を構築、`select.selected()` を `resolve_selected_label` で解決して `value_text_view` を組み立てる。テキスト反映は `fandhe_frontend_wasm_client::BindingTable::scan`/`apply_dirty`（`VALUE_TEXT_FIELD` のみ対象、`set_text_content` 経由）。`data-placeholder-shown` 存在属性は束縛点 API の対象外のため `set_attribute`/`remove_attribute` で直接トグルする（`headless_avatar.rs::wiring::set_dom_attribute` と同型のガード付きラッパーを経由、イシュー #401 `fw gate` `url_validation_check` 契約）。value-text 要素が root 配下に無い場合、または選択値に一致する item が無い場合（改ざん・欠損入力）は no-op（fail-closed）。
+- `wire_select_value_text(root: Element, component: Rc<RefCell<Select>>, placeholder: String) -> Result<(), JsValue>`（wasm32 限定）: `headless::wire_headless_component` へ委譲し、dispatch 成功時の `on_update` で `sync_select_value_text` を呼ぶ便宜 API。`placeholder` は SSR 初期描画時に `select::value_text` の children へ渡した文言と同一のものを呼び出し側が明示的に渡す契約とする（DOM からの逆算・キャプチャは行わない）。
+
+### 14.4 headless-ui とのフィールド名ドリフト検知
+
+`fandhe-frontend-headless-ui` は本クレートの製品依存（`[dependencies]`、イシュー #590 の `position.rs` で既に格上げ済み）だが、`VALUE_TEXT_FIELD` の値自体は両クレートに文字列リテラルとして重複管理されているため、一致は native テスト（`value_text_field_matches_headless_ui_constant`）で固定する。
+
+### 14.5 スコープ境界
+
+- キーボード決定（Enter/Space）は `keynav.rs` が highlight 中の item 要素へ `HtmlElement::click()` を合成することで既存の click → dispatch 経路へ委譲する既存設計のため、本モジュールは click 経路のみを扱えばキーボード決定も自動的に同期される。追加配線は行わない。
+- typeahead（#641）・pre-styled-ui へのスタイル反映（#643）はスコープ外。
