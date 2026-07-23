@@ -66,20 +66,23 @@
 //! - headless 状態機械を持つ複合部品 5 種の styled ラッパー第 1 弾（#551）:
 //!   [`mod@dialog`] / [`mod@tabs`] / [`mod@accordion`] / [`mod@menu`] /
 //!   [`mod@select`]。examples・利用ガイド（#552）は別イシューのスコープ。
+//! - headless 状態機械を持つ複合部品 2 種の styled ラッパー第 2 弾（#664）:
+//!   [`mod@popover`] / [`mod@tooltip`]。設計方針・スコープ外は第 1 弾と同じ。
 //!
-//! # headless ラッパーの設計（#551）
+//! # headless ラッパーの設計（#551/#664）
 //!
 //! [`mod@dialog`]・[`mod@accordion`]・[`mod@menu`]・[`mod@select`]・
-//! [`mod@tabs`] はいずれも `fandhe_frontend_headless_ui` の対応モジュールが
-//! 出力する `data-scope`/`data-part` 属性セレクタへ [`recipe::SlotRecipe`]
-//! で静的 CSS を対応付ける薄い委譲層である。パーツ関数・状態機械
-//! （`Dialog`/`Accordion`/`Menu`/`Select`）は headless 層からそのまま
-//! 再エクスポートし（`pub use ...::*`）、新たな出力経路・エスケープ迂回は
-//! 一切持たない。各モジュールの `stylesheet()` が生成する CSS は静的
-//! `.css` ファイルとして配信する、または [`stylesheet::StyleSheet`]（#605）へ
-//! 取り込んで `<style>` タグへインライン埋め込む、両方の利用形態を前提とする
-//! （不変条件 2 を参照）。variant（size 等）ごとのクラス切り替えは
-//! headless ラッパー第 2 弾以降のスコープとする（各モジュール rustdoc の
+//! [`mod@tabs`]・[`mod@popover`]・[`mod@tooltip`] はいずれも
+//! `fandhe_frontend_headless_ui` の対応モジュールが出力する
+//! `data-scope`/`data-part` 属性セレクタへ [`recipe::SlotRecipe`] で静的 CSS
+//! を対応付ける薄い委譲層である。パーツ関数・状態機械
+//! （`Dialog`/`Accordion`/`Menu`/`Select`/`Popover`/`Tooltip`）は headless 層
+//! からそのまま再エクスポートし（`pub use ...::*`）、新たな出力経路・
+//! エスケープ迂回は一切持たない。各モジュールの `stylesheet()` が生成する
+//! CSS は静的 `.css` ファイルとして配信する、または [`stylesheet::StyleSheet`]
+//! （#605）へ取り込んで `<style>` タグへインライン埋め込む、両方の利用形態を
+//! 前提とする（不変条件 2 を参照）。variant（size 等）ごとのクラス切り替えは
+//! 本第 2 弾でも引き続きスコープ外とする（各モジュール rustdoc の
 //! スコープ外節を参照）。
 //!
 //! [`theme`] が生成する CSS・styled 部品各モジュールの `css()`/`stylesheet()` は
@@ -110,12 +113,14 @@ mod class_attr;
 pub mod css;
 pub mod dialog;
 pub mod menu;
+pub mod popover;
 pub mod recipe;
 pub mod select;
 pub mod spinner;
 pub mod stylesheet;
 pub mod tabs;
 pub mod theme;
+pub mod tooltip;
 
 pub use alert::AlertStatus;
 pub use badge::{badge, BadgeProps, BadgeVariant};

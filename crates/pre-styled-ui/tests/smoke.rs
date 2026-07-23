@@ -13,7 +13,7 @@ use fandhe_frontend_headless_ui::data_attrs::Orientation;
 use fandhe_frontend_headless_ui::state::OpenState;
 use fandhe_frontend_pre_styled_ui::alert::{self, AlertStatus};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
-use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, select, tabs};
+use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, popover, select, tabs, tooltip};
 use fandhe_frontend_pre_styled_ui::{badge, button, spinner};
 use fandhe_frontend_pre_styled_ui::{BadgeProps, ButtonProps, SpinnerProps};
 
@@ -107,6 +107,31 @@ mod wrapper_escape_and_stylesheet_safety {
     }
 
     #[test]
+    fn popover_close_trigger_children_are_escaped() {
+        // イシュー #664: styled Popover 経由でも既定エスケープ（REQ-1）が
+        // 効くことを固定する（headless ラッパー第 2 弾）。
+        let html = render(&popover::close_trigger(vec![], vec![text(XSS_PAYLOAD)]));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;"));
+        assert!(html.contains(r#"data-scope="popover""#));
+    }
+
+    #[test]
+    fn tooltip_content_children_are_escaped() {
+        // イシュー #664: styled Tooltip 経由でも既定エスケープ（REQ-1）が
+        // 効くことを固定する（headless ラッパー第 2 弾）。
+        let html = render(&tooltip::content(
+            OpenState::Open,
+            None,
+            vec![],
+            vec![text(XSS_PAYLOAD)],
+        ));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;"));
+        assert!(html.contains(r#"data-scope="tooltip""#));
+    }
+
+    #[test]
     fn all_five_stylesheets_are_free_of_style_breakout_sequences() {
         for css in [
             dialog::stylesheet(),
@@ -128,6 +153,23 @@ mod wrapper_escape_and_stylesheet_safety {
         assert_eq!(accordion::stylesheet(), accordion::stylesheet());
         assert_eq!(menu::stylesheet(), menu::stylesheet());
         assert_eq!(select::stylesheet(), select::stylesheet());
+    }
+
+    #[test]
+    fn popover_and_tooltip_stylesheets_are_free_of_style_breakout_sequences() {
+        // イシュー #664: headless ラッパー第 2 弾（Popover/Tooltip）分を
+        // 既存の 5 種とは独立に固定する（第 1 弾のテストは変更しない）。
+        for css in [popover::stylesheet(), tooltip::stylesheet()] {
+            assert!(!css.contains("</style"), "CSS breakout 発生: {css}");
+            assert!(!css.contains('<'), "CSS に '<' が混入: {css}");
+            assert!(!css.is_empty());
+        }
+    }
+
+    #[test]
+    fn popover_and_tooltip_stylesheets_are_deterministic_across_calls() {
+        assert_eq!(popover::stylesheet(), popover::stylesheet());
+        assert_eq!(tooltip::stylesheet(), tooltip::stylesheet());
     }
 }
 
