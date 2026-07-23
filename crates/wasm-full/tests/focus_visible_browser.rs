@@ -235,16 +235,28 @@ fn hidden_input_outside_wired_root_is_ignored() {
     assert!(!other_control.has_attribute("data-focus-visible"));
 }
 
-/// 検証 4（イシュー #709 PR #720 Cursor Bugbot 指摘の回帰テスト）:
+/// 検証 4（イシュー #709 PR #720 Cursor Bugbot 指摘の配線確認テスト）:
 /// hidden-input がフォーカスを保持したまま pointerdown/mousedown/click を
 /// 受けても、`data-focus-visible` の有無は常にその時点の
 /// `:focus-visible` 実判定と一致し続ける（focusin/focusout のみに依存する
 /// 旧実装では、これらのイベントで判定が変化しても blur まで
 /// `data-focus-visible` が残留し不変条件が崩れ得た）。
 ///
-/// スクリプト発火イベントが Chromium の `:focus-visible` 内部判定を実際に
-/// 変化させるかは実装依存のため、本テストは「変化の有無によらず追随する」
-/// ことを検証する（`dispatch_mouse_event` doc 参照）。
+/// # このテストが実際に検証できる範囲（限界の明記）
+///
+/// `dispatch_event` で発火する `MouseEvent` は `isTrusted: false` の
+/// スクリプト発火イベントであり、Chromium の `:focus-visible` 内部判定
+/// （どのモダリティ＝キーボード/ポインタで直近の入力が行われたか）は
+/// 実ユーザー入力（trusted event）でのみ更新される。そのため本テストの
+/// `pointerdown`/`mousedown`/`click` 発火後も `matches(":focus-visible")`
+/// は変化せず真のまま留まり、除去（stale → removed）が実際に発生する
+/// 経路は本テストでは再現できない。本テストが検証しているのは
+/// 「新規リスナーがクラッシュせず、`data-focus-visible` の状態を
+/// `:focus-visible` の実判定（変化の有無によらず）と矛盾なく保つ」という
+/// 配線の健全性（smoke）であり、除去方向の回帰そのものの証明ではない
+/// （trusted なポインタ入力の再現には Chrome DevTools Protocol 経由の
+/// マウス操作等、本クレートの `wasm-bindgen-test` ハーネスの外側の
+/// 検証手段が必要）。
 #[wasm_bindgen_test]
 fn pointer_events_while_focus_retained_keep_data_focus_visible_in_sync_with_focus_visible_match() {
     let document = web_sys::window().unwrap().document().unwrap();
