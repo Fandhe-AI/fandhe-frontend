@@ -307,6 +307,13 @@ fn admonition_note_renders_as_alert_with_title_and_description() {
         render_all("> [!NOTE]\n> Something needs attention."),
         concat!(
             r#"<div data-scope="alert" data-part="root" role="alert" class="fd-alert--status-info">"#,
+            r#"<span data-scope="alert" data-part="indicator" aria-hidden="true">"#,
+            r#"<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" focusable="false">"#,
+            r#"<circle cx="8" cy="8" r="6.5" stroke-width="1.5"></circle>"#,
+            r#"<circle cx="8" cy="5" r="0.9" fill="currentColor"></circle>"#,
+            r#"<rect x="7.25" y="7" width="1.5" height="5" rx="0.5" fill="currentColor"></rect>"#,
+            "</svg>",
+            "</span>",
             r#"<div data-scope="alert" data-part="content">"#,
             r#"<div data-scope="alert" data-part="title">Note</div>"#,
             r#"<div data-scope="alert" data-part="description"><p>Something needs attention.</p></div>"#,
@@ -346,6 +353,13 @@ fn admonition_without_body_omits_description() {
         output,
         concat!(
             r#"<div data-scope="alert" data-part="root" role="alert" class="fd-alert--status-info">"#,
+            r#"<span data-scope="alert" data-part="indicator" aria-hidden="true">"#,
+            r#"<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" focusable="false">"#,
+            r#"<circle cx="8" cy="8" r="6.5" stroke-width="1.5"></circle>"#,
+            r#"<circle cx="8" cy="5" r="0.9" fill="currentColor"></circle>"#,
+            r#"<rect x="7.25" y="7" width="1.5" height="5" rx="0.5" fill="currentColor"></rect>"#,
+            "</svg>",
+            "</span>",
             r#"<div data-scope="alert" data-part="content">"#,
             r#"<div data-scope="alert" data-part="title">Note</div>"#,
             "</div>",
@@ -391,6 +405,57 @@ fn xss_payload_in_admonition_body_is_escaped() {
     let output = render_all("> [!NOTE]\n> <script>alert(1)</script>");
     assert!(!output.contains("<script>"));
     assert!(output.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+}
+
+#[test]
+fn admonition_indicator_svg_differs_per_kind_even_when_status_is_shared() {
+    // IMPORTANT と WARNING は同一 AlertStatus::Warning（`fd-alert--status-warning`）
+    // を共有するため、配色だけでは区別できない。indicator の SVG 形状が
+    // kind ごとに異なることを確認する（イシュー #732、markdown.rs
+    // admonition_indicator の doc コメント参照）。
+    let mut svgs = std::collections::HashSet::new();
+    for marker in [
+        "[!NOTE]",
+        "[!TIP]",
+        "[!IMPORTANT]",
+        "[!WARNING]",
+        "[!CAUTION]",
+    ] {
+        let output = render_all(&format!("> {marker}\n> body"));
+        assert!(
+            output.contains(r#"data-part="indicator" aria-hidden="true"><svg"#),
+            "marker={marker} -> {output}"
+        );
+        let start = output.find("<svg").expect("svg present");
+        let end = output.find("</svg>").expect("svg closed") + "</svg>".len();
+        let svg = output[start..end].to_string();
+        assert!(
+            svgs.insert(svg.clone()),
+            "marker={marker} produced a duplicate indicator svg: {svg}"
+        );
+    }
+}
+
+#[test]
+fn admonition_indicator_svg_references_no_external_resources() {
+    // アイコンは自前の基本図形（path/circle/rect）のみで描画し、外部
+    // アイコンセット・外部フォント・データ URI 等の外部リソースを一切
+    // 参照しない（イシュー #732 受け入れ条件）。
+    for marker in [
+        "[!NOTE]",
+        "[!TIP]",
+        "[!IMPORTANT]",
+        "[!WARNING]",
+        "[!CAUTION]",
+    ] {
+        let output = render_all(&format!("> {marker}\n> body"));
+        for forbidden in ["href=", "src=", "url(", "http://", "https://", "data:"] {
+            assert!(
+                !output.contains(forbidden),
+                "marker={marker} indicator should not reference external resources ({forbidden}): {output}"
+            );
+        }
+    }
 }
 
 #[test]
