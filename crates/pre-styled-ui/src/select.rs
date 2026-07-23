@@ -11,8 +11,30 @@
 //! # data-state とスタイルの連動（イシュー #551 受け入れ条件）
 //!
 //! `trigger`（listbox 開閉）・`item`（選択有無、`data-state` を再利用）の
-//! `data-state` に応じた見た目の切り替えを [`state_css`] で追加する
-//! （[`crate::dialog`] と同じ手法）。
+//! `data-state` に応じた見た目の切り替えを [`recipe`] へ登録する
+//! （[`crate::recipe::SlotRecipe::state`]、イシュー #643。`serialize_rule` を
+//! 直接呼ぶ手書きセレクタ機構は廃止した）。
+//!
+//! # キーボード操作系属性の反映（イシュー #643）
+//!
+//! `item` は [`crate::menu`] と同じ virtual focus パターン（イシュー #581）
+//! を使い、実 DOM フォーカスは `trigger` に留まる。ハイライト中の項目には
+//! `data-highlighted` が付与されるため、highlight 表示は
+//! [`crate::recipe::StateCondition::Attr`]`("data-highlighted")` で反映し
+//! （既存の選択済み `item[data-state="open"]` とは背景色を変えて視覚的に
+//! 区別する）、`item` へ `:focus-visible` は付けない。実際にフォーカスを
+//! 受ける `trigger` には `:focus-visible` を登録する。
+//!
+//! # `--fandhe-reference-width` の消費（イシュー #643）
+//!
+//! [`crate::menu`] と同じ理由（モジュール rustdoc 参照）で、`content` の
+//! `min-width` が `var(--fandhe-reference-width, auto)` を参照し、listbox
+//! 幅がトリガー幅へ追随する sameWidth 相当の見た目を実現する。Menu の
+//! フォールバック値（`10rem`）とは異なり `auto` を採用する: Select の
+//! `content` は元々固定 `min-width` を持たず（trigger 由来の `control`/
+//! `hidden-select` の幅で視覚的に揃う設計だった）、変数未設定時の SSR
+//! 静的表示での見た目変化を避けるため。
+
 //!
 //! # hidden-select の視覚的非表示化・positioner のオーバーレイ配置（PR #575 Bugbot 指摘対応）
 //!
@@ -29,8 +51,8 @@
 //! ある `root` に付与する（PR #575 Bugbot 指摘 2 対応、`control` への誤付与を
 //! 修正）。
 
-use crate::css::{decl, serialize_rule};
-use crate::recipe::SlotRecipe;
+use crate::css::decl;
+use crate::recipe::{SlotRecipe, StateCondition};
 
 pub use fandhe_frontend_headless_ui::select::*;
 
@@ -102,6 +124,7 @@ fn recipe() -> SlotRecipe {
                 decl("border-radius", "0.375rem"),
                 decl("box-shadow", "0 4px 6px rgba(0, 0, 0, 0.15)"),
                 decl("padding", "var(--fandhe-space-2)"),
+                decl("min-width", "var(--fandhe-reference-width, auto)"),
             ],
         )
         .base(
@@ -141,33 +164,46 @@ fn recipe() -> SlotRecipe {
                 decl("border", "0"),
             ],
         )
-}
-
-/// `data-state`（open/closed）に連動する CSS を組み立てる（内部ヘルパ、
-/// [`stylesheet`] のみが呼ぶ、イシュー #551 受け入れ条件）。
-fn state_css() -> String {
-    let mut out = String::new();
-    if let Some(css) = serialize_rule(
-        r#"[data-scope="select"][data-part="trigger"][data-state="open"]"#,
-        &[decl("border-color", "var(--fandhe-color-accent)")],
-    ) {
-        out.push_str(&css);
-    }
-    if let Some(css) = serialize_rule(
-        r#"[data-scope="select"][data-part="item"][data-state="open"]"#,
-        &[decl("background", "var(--fandhe-color-bg-muted)")],
-    ) {
-        out.push_str(&css);
-    }
-    out
+        // イシュー #551 受け入れ条件: `trigger`（開閉）・`item`（選択済み）の見た目の切り替え。
+        .state(
+            "trigger",
+            StateCondition::AttrEq("data-state", "open"),
+            vec![decl("border-color", "var(--fandhe-color-accent)")],
+        )
+        .state(
+            "item",
+            StateCondition::AttrEq("data-state", "open"),
+            vec![decl("background", "var(--fandhe-color-bg-muted)")],
+        )
+        // イシュー #643 受け入れ条件: virtual focus の highlight 表示
+        // （`item` は実 DOM フォーカスを受けないため `:focus-visible` ではなく
+        // `data-highlighted` で表現する。既存の選択済み表示（背景
+        // `bg-muted`）とは異なる強度にして視覚的に区別する、モジュール
+        // rustdoc 参照）。
+        .state(
+            "item",
+            StateCondition::Attr("data-highlighted"),
+            vec![
+                decl("background", "var(--fandhe-color-accent)"),
+                decl("color", "var(--fandhe-color-accent-fg)"),
+            ],
+        )
+        // イシュー #643: `trigger` はキーボード操作時のみのフォーカスリング。
+        .state(
+            "trigger",
+            StateCondition::FocusVisible,
+            vec![
+                decl("outline", "2px solid var(--fandhe-color-accent)"),
+                decl("outline-offset", "2px"),
+            ],
+        )
 }
 
 /// この styled Select が生成する静的 CSS 全量を返す（決定的。[`crate::dialog::stylesheet`]
-/// と同じ契約）。base 規則（[`recipe`]）の後に `data-state` 連動規則
-/// （[`state_css`]）を連結する。
+/// と同じ契約）。
 #[must_use]
 pub fn stylesheet() -> String {
-    recipe().css() + &state_css()
+    recipe().css()
 }
 
 #[cfg(test)]
@@ -248,5 +284,25 @@ mod tests {
 
         let restored = Select::from_hydration_attrs(&s.hydration_attrs()).unwrap();
         assert_eq!(restored.open_state(), OpenState::Open);
+    }
+
+    #[test]
+    fn item_highlighted_attr_is_styled_and_trigger_has_focus_visible_ring() {
+        // イシュー #643 受け入れ条件: virtual focus の highlight 表示
+        // （`data-highlighted`）とキーボード操作系属性（`:focus-visible`）が
+        // recipe 経由で反映されることを固定する。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="select"][data-part="item"][data-highlighted] {"#));
+        assert!(css.contains(r#"[data-scope="select"][data-part="trigger"]:focus-visible {"#));
+        assert!(css.contains("outline: 2px solid var(--fandhe-color-accent);"));
+    }
+
+    #[test]
+    fn content_min_width_consumes_fandhe_reference_width_css_var() {
+        // イシュー #643 受け入れ条件: `--fandhe-reference-width` を CSS
+        // 継承で消費する sameWidth 相当のスタイルが反映されることを固定する
+        // （SSR 静的表示では auto へフォールバックし従来の見た目を維持する）。
+        let css = stylesheet();
+        assert!(css.contains("min-width: var(--fandhe-reference-width, auto);"));
     }
 }

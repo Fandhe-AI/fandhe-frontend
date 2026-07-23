@@ -14,7 +14,8 @@ use fandhe_frontend_headless_ui::tabs::{tabs, TabItem, TabsProps};
 use fandhe_frontend_headless_ui::Orientation;
 use fandhe_frontend_pre_styled_ui::decl;
 use fandhe_frontend_pre_styled_ui::recipe::{
-    palette_declarations, when, ColorPalette as StdColorPalette, Size, SlotRecipe, VariantValue,
+    palette_declarations, when, ColorPalette as StdColorPalette, Size, SlotRecipe, StateCondition,
+    VariantValue,
 };
 
 /// `colorPalette` 相当を独立の仕組みとしてではなく通常の variant 軸として
@@ -395,4 +396,98 @@ fn compound_variant_fail_closed_cases_are_skipped_not_panicking() {
     assert!(!css.contains("yellow"));
     assert!(!css.contains("evil"));
     assert!(!css.contains("blue"));
+}
+
+/// イシュー #643 golden テスト: [`SlotRecipe::state`] が生成する 3 形式
+/// （`Attr`/`AttrEq`/`FocusVisible`）のセレクタが byte 単位で固定されることと、
+/// states が base/variants/compound variants より後に出力されることを固定する。
+#[test]
+fn state_css_output_matches_golden_fixture_and_is_ordered_last() {
+    let recipe = SlotRecipe::new("widget", &["root", "item"])
+        .base("root", vec![decl("display", "flex")])
+        .variant(Size::Sm, "root", vec![decl("padding", "2px")])
+        .state(
+            "item",
+            StateCondition::Attr("data-highlighted"),
+            vec![decl("background", "blue")],
+        )
+        .state(
+            "root",
+            StateCondition::AttrEq("data-state", "open"),
+            vec![decl("opacity", "1")],
+        )
+        .state(
+            "root",
+            StateCondition::FocusVisible,
+            vec![decl("outline", "2px solid red")],
+        );
+
+    let expected = concat!(
+        "[data-scope=\"widget\"][data-part=\"root\"] {\n",
+        "  display: flex;\n",
+        "}\n",
+        "\n",
+        "[data-scope=\"widget\"][data-part=\"root\"].fd-widget--size-sm {\n",
+        "  padding: 2px;\n",
+        "}\n",
+        "\n",
+        "[data-scope=\"widget\"][data-part=\"item\"][data-highlighted] {\n",
+        "  background: blue;\n",
+        "}\n",
+        "\n",
+        "[data-scope=\"widget\"][data-part=\"root\"][data-state=\"open\"] {\n",
+        "  opacity: 1;\n",
+        "}\n",
+        "\n",
+        "[data-scope=\"widget\"][data-part=\"root\"]:focus-visible {\n",
+        "  outline: 2px solid red;\n",
+        "}\n",
+    );
+    assert_eq!(recipe.css(), expected);
+}
+
+/// イシュー #643 fail-closed テスト: [`SlotRecipe::state`] は不正な `slot`・
+/// 属性名・属性値を panic せず出力から除外する（既存 `base`/`variant`/
+/// `compound_variant` と同じ方針）。
+#[test]
+fn state_fail_closed_cases_are_skipped_not_panicking() {
+    let recipe = SlotRecipe::new("widget", &["root"])
+        // 1. slot が slots 未宣言。
+        .state(
+            "ghost-slot",
+            StateCondition::Attr("hidden"),
+            vec![decl("color", "red")],
+        )
+        // 2. Attr の属性名が識別子として不正。
+        .state(
+            "root",
+            StateCondition::Attr("Data-Highlighted"),
+            vec![decl("color", "green")],
+        )
+        // 3. AttrEq の属性名が識別子として不正。
+        .state(
+            "root",
+            StateCondition::AttrEq("Data-State", "open"),
+            vec![decl("color", "purple")],
+        )
+        // 4. AttrEq の属性値が識別子として不正。
+        .state(
+            "root",
+            StateCondition::AttrEq("data-state", "Open"),
+            vec![decl("color", "orange")],
+        )
+        // 有効な規則も混在させ、無効規則の除外が他の規則へ波及しないことを確認する。
+        .state(
+            "root",
+            StateCondition::Attr("hidden"),
+            vec![decl("display", "none")],
+        );
+
+    let css = recipe.css();
+    assert!(!css.contains("ghost-slot"));
+    assert!(!css.contains("green"));
+    assert!(!css.contains("purple"));
+    assert!(!css.contains("orange"));
+    assert!(css.contains(r#"[data-scope="widget"][data-part="root"][hidden] {"#));
+    assert!(css.contains("display: none;"));
 }
