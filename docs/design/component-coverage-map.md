@@ -111,7 +111,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/collections/listbox.md` | Listbox | Listbox | — | — | 実装対象 | #750 |
 | `.agents/skills/ark-ui/references/components/collections/pagination.md` | Pagination | Pagination | — | — | 実装対象 | #751（#716 保留の解除） |
 | `.agents/skills/ark-ui/references/components/collections/steps.md` | Steps | Steps | — | — | 実装対象 | #752（#716 保留の解除） |
-| `.agents/skills/ark-ui/references/components/collections/tree-view.md` | TreeView | TreeView | — | — | 実装対象 | #753 |
+| `.agents/skills/ark-ui/references/components/collections/tree-view.md` | TreeView | TreeView | tree_view | tree_view | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/collections/carousel.md` | Carousel | Carousel | carousel | carousel | 実装済み | headless+styled 実装済み（#754）。autoplay（play/pause/aria-live 切替/delay）は初期実装スコープ外（`crates/headless-ui/src/carousel.rs` module doc 参照） |
 | `.agents/skills/ark-ui/references/components/collections/README.md` | README | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 
@@ -334,7 +334,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/collections/select.md` | Select | Select | select | select | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/collections/combobox.md` | Combobox | Combobox | — | — | 実装対象 | #749 |
 | `.agents/skills/chakra-ui/references/components/collections/listbox.md` | Listbox | Listbox | — | — | 実装対象 | #750 |
-| `.agents/skills/chakra-ui/references/components/collections/tree-view.md` | TreeView | TreeView | — | — | 実装対象 | #753 |
+| `.agents/skills/chakra-ui/references/components/collections/tree-view.md` | TreeView | TreeView | tree_view | tree_view | 実装済み | headless+styled 実装済み |
 
 #### `.agents/skills/chakra-ui/references/components/concepts/`
 

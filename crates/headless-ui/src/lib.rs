@@ -269,6 +269,19 @@
 //!   [`state::MultiSelect`] を埋め込んだ multiple モード
 //!   [`toggle_group::MultiToggleGroup`]（イシュー #746）。roving focus は
 //!   wasm keynav 層のスコープとして未提供（モジュール doc §out-of-scope 参照）。
+//! - [`mod@tree_view`]: Root / Label / Tree / Branch / BranchControl /
+//!   BranchIndicator / BranchText / BranchContent / BranchIndentGuide / Item /
+//!   ItemText / ItemIndicator の 12 anatomy パーツと、[`state::MultiSelect`]
+//!   （展開中のブランチ値の集合）+ [`state::SingleSelect`]（選択中のノード値）
+//!   を合成した [`tree_view::TreeView`] 状態機械（#753、親トラッキング
+//!   #748/#520）。ツリーデータは [`tree_view::TreeNode`]（決定的な静的
+//!   コレクション）で表現し、[`tree_view::TreeView::render_nodes`] が深さ・
+//!   `aria-posinset`/`aria-setsize` を再帰的に計算しながら描画する。両埋め込み
+//!   状態機械がともに `"selected"` フィールド名を使うため、hydration 属性名の
+//!   衝突回避（展開集合側のみ `"expanded"` へ書き換え）を行う点が
+//!   [`mod@combobox`] 以前の合成例と異なる（[`tree_view`] モジュール doc
+//!   §hydration フィールド名 参照）。キーボードナビゲーション・checkbox
+//!   モード・複数選択・lazy loading は本イシューのスコープ外。
 //! - [`mod@breadcrumb`]: `root`（`nav`）/ `list`（`ol`）/ `item`（`li`）/
 //!   `link`（`a`）/ `current-link`（`span`）/ `separator`（`li`）/
 //!   `ellipsis`（`li`）の 7 anatomy パーツと利便ビルダー
@@ -313,6 +326,7 @@ pub mod tags_input;
 pub mod toggle;
 pub mod toggle_group;
 pub mod tooltip;
+pub mod tree_view;
 
 // `pub use fandhe_frontend_core;` はクレートそのものの再エクスポート（型/値の
 // 再エクスポートではない）。`missing_docs` は extern crate 再エクスポートには
@@ -378,3 +392,4 @@ pub use tags_input::{TagsInput, TagsInputAction};
 pub use toggle::{Toggle, ToggleAction};
 pub use toggle_group::{MultiToggleGroup, ToggleGroup};
 pub use tooltip::Tooltip;
+pub use tree_view::{TreeNode, TreeView, TreeViewAction};
