@@ -108,6 +108,14 @@
 //!   参照しない `clip-path` によるインライン表現（外部リソース非参照）。
 //!   `size`（Sm/Md/Lg、星の寸法）/`color-palette`（点灯時の塗り色）の 2 軸
 //!   variant を最初から持つ。詳細は [`mod@rating_group`] rustdoc 参照。
+//! - headless 状態機械を持つ複合部品 2 種の styled ラッパー（イシュー #746）:
+//!   [`mod@toggle`] / [`mod@toggle_group`]。実フォーカスをネイティブ
+//!   `<button>` 自身が受けるため（Switch/RadioGroup の hidden-input パターン
+//!   非該当）、フォーカスリングは `data-focus-visible` 配線ではなく
+//!   [`recipe::StateCondition::FocusVisible`] で足りる。`size`/
+//!   `color-palette` variant を最初から持つ（`toggle_group` は root のみへ
+//!   クラスを付与する複合部品の統一方針に従う）。詳細は [`mod@toggle`]
+//!   rustdoc 参照。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -260,6 +268,8 @@ pub mod switch;
 pub mod tabs;
 pub mod textarea;
 pub mod theme;
+pub mod toggle;
+pub mod toggle_group;
 pub mod tooltip;
 
 pub use alert::AlertStatus;

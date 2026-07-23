@@ -412,6 +412,8 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | number-input | ✓ | – | 実装済み（#738、フォーム入力部品のため color-palette は非提供） |
 | pin-input | ✓ | – | 実装済み（#739、palette は第 2 弾展開のフォローアップ） |
 | rating-group | ✓ | ✓ | 実装済み（#742、星形 indicator の寸法・点灯色に反映） |
+| toggle | ✓ | ✓ | 実装済み（#746） |
+| toggle-group | ✓ | ✓ | 実装済み（#746、root のみへクラス付与） |
 | popover / tooltip | 提供しない | 提供しない | 方針確定 |
 
 tabs/accordion/dialog/menu/select の実装詳細（イシュー #729）:

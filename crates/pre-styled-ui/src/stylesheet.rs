@@ -275,6 +275,8 @@ mod tests {
             ("slider", crate::slider::stylesheet()),
             ("pin_input", crate::pin_input::stylesheet()),
             ("rating_group", crate::rating_group::stylesheet()),
+            ("toggle", crate::toggle::stylesheet()),
+            ("toggle_group", crate::toggle_group::stylesheet()),
         ]
     }
 

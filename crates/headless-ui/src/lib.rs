@@ -202,6 +202,16 @@
 //!   の `positioner`/`arrow`/`arrow_tip` が「CSS フックのみ」だったスコープ
 //!   外事項を解消する。実 DOM 計測は `fandhe-frontend-wasm-full`（`position`
 //!   モジュール）の責務であり、本クレートは `web-sys` 非依存のまま維持する。
+//! - [`mod@toggle`]: ark-ui Toggle 相当の Root/Indicator anatomy と、
+//!   [`state::Checkable`] を埋め込んだ [`toggle::Toggle`] 状態機械
+//!   （イシュー #746）。Switch と同じ [`state::Checkable`] を再利用しつつ
+//!   `data-state` 語彙は `"on"`/`"off"`（[`state::pressed_data_state`]）で
+//!   分離する（意味論差はモジュール doc 参照）。
+//! - [`mod@toggle_group`]: Root/Item anatomy と、[`state::SingleSelect`] を
+//!   埋め込んだ single モード [`toggle_group::ToggleGroup`]、
+//!   [`state::MultiSelect`] を埋め込んだ multiple モード
+//!   [`toggle_group::MultiToggleGroup`]（イシュー #746）。roving focus は
+//!   wasm keynav 層のスコープとして未提供（モジュール doc §out-of-scope 参照）。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -229,6 +239,8 @@ pub mod slider;
 pub mod state;
 pub mod switch;
 pub mod tabs;
+pub mod toggle;
+pub mod toggle_group;
 pub mod tooltip;
 
 // `pub use fandhe_frontend_core;` はクレートそのものの再エクスポート（型/値の
@@ -256,13 +268,13 @@ pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
     aria_activedescendant, aria_checked, aria_controls, aria_describedby, aria_disabled,
     aria_expanded, aria_haspopup, aria_hidden, aria_invalid, aria_label, aria_labelledby,
-    aria_modal, aria_orientation, aria_selected, role, AriaChecked, AriaPopup,
+    aria_modal, aria_orientation, aria_pressed, aria_selected, role, AriaChecked, AriaPopup,
 };
 pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use checkbox::{Checkbox, CheckboxFlags};
 pub use data_attrs::{
-    data_checked, data_disabled, data_highlighted, data_invalid, data_orientation, data_readonly,
-    data_required, data_state, Orientation,
+    data_checked, data_disabled, data_highlighted, data_invalid, data_orientation, data_pressed,
+    data_readonly, data_required, data_state, Orientation,
 };
 pub use dialog::Dialog;
 pub use field::{FieldIds, FieldProps};
@@ -281,8 +293,10 @@ pub use slider::{Slider, SliderAction};
 pub use state::{
     Checkable, CheckableAction, Disclosure, DisclosureAction, MultiSelect, MultiSelectAction,
     OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CHECKED, DATA_STATE_CLOSED,
-    DATA_STATE_OPEN, DATA_STATE_UNCHECKED,
+    DATA_STATE_OFF, DATA_STATE_ON, DATA_STATE_OPEN, DATA_STATE_UNCHECKED,
 };
 pub use switch::{Switch, SwitchAction};
 pub use tabs::{tabs, ActivationMode, TabItem, TabsProps};
+pub use toggle::{Toggle, ToggleAction};
+pub use toggle_group::{MultiToggleGroup, ToggleGroup};
 pub use tooltip::Tooltip;
