@@ -20,6 +20,19 @@ use std::process::Command;
 
 use fandhe_frontend_docs_site::build::{build_site, BuildError};
 
+/// 統合テストのスクラッチ基点。`CARGO_TARGET_TMPDIR` は cargo が統合テスト
+/// バイナリの**コンパイル時のみ**設定する（Cargo Book）ため `env!` で確定し、
+/// 実行時 env による明示上書きのみ許容する。`/tmp` へは一切フォールバック
+/// しない（イシュー #637 の事実誤認の再発防止、#658、`cli/tests/support/mod.rs`
+/// と同一パターン）。
+fn scratch_root() -> PathBuf {
+    let root = std::env::var("CARGO_TARGET_TMPDIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
+    let _ = std::fs::create_dir_all(&root);
+    root
+}
+
 /// テスト専用の一時出力ディレクトリ。`crates/docs-site/src/nav.rs` の
 /// `TempDir` と同方針（外部クレート `tempfile` を追加しない、REQ-3）。
 struct TempDir(PathBuf);
@@ -30,7 +43,7 @@ impl TempDir {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos())
             .unwrap_or(0);
-        let path = std::env::temp_dir().join(format!(
+        let path = scratch_root().join(format!(
             "fandhe-frontend-docs-site-e2e-{tag}-{}-{unique}",
             std::process::id()
         ));

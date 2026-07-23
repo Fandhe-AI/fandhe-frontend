@@ -28,15 +28,25 @@ fn template_root() -> PathBuf {
 
 /// 一時プロジェクトを書き出すスクラッチルート。
 ///
-/// `CARGO_TARGET_TMPDIR` は cargo がテストバイナリ実行時に設定する
-/// target 配下の一時ディレクトリで、target 内に閉じるため固定パスの
-/// `/tmp` 直書きや外部入力由来のパス組み立てを避けられる
-/// （パストラバーサル対策の一環）。未設定環境向けに OS 標準の一時領域へ
-/// フォールバックする。
+/// cargo が `CARGO_TARGET_TMPDIR` を設定するのはテストバイナリの
+/// **コンパイル時のみ**（Cargo Book「Environment variables Cargo sets for
+/// crates」）であり、実行時の `std::env::var` 参照は常に失敗する。かつて
+/// この事実誤認により実行時フォールバック（`std::env::temp_dir()` = `/tmp`）
+/// が常用され、self-hosted runner の tmpfs を恒常的に消費していた
+/// （イシュー #637/#658）。既定はコンパイル時に確定する
+/// `env!("CARGO_TARGET_TMPDIR")`（`<target>/tmp` 配下。本テンプレートは
+/// root workspace から意図的に切り離された独立 `[workspace]` のため、
+/// ここでの `<target>` は `templates/default/target`）を使い、`/tmp` へは
+/// 一切フォールバックしない。実行時 env による明示上書き（特殊なテスト
+/// 実行環境向け）は引き続き許容する。`<target>/tmp` は cargo が実在を
+/// 保証しないため `create_dir_all` で作成する（パストラバーサル対策の
+/// 一環）。
 fn scratch_root() -> PathBuf {
-    std::env::var("CARGO_TARGET_TMPDIR")
+    let root = std::env::var("CARGO_TARGET_TMPDIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir())
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
+    let _ = fs::create_dir_all(&root);
+    root
 }
 
 /// `write_case_project` が書き出した一時プロジェクトディレクトリを保持し、
