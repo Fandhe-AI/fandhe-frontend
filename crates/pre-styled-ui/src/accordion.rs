@@ -1,12 +1,26 @@
-//! styled Accordion（headless ラッパー第 1 弾、イシュー #551、親 #520/#545）。
+//! styled Accordion（headless ラッパー第 1 弾、イシュー #551、親 #520/#545。
+//! `size` variant 展開はイシュー #729、親 #708）。
 //!
 //! `fandhe_frontend_headless_ui::accordion`（イシュー #527）の Root / Item /
 //! ItemTrigger / ItemIndicator / ItemContent 5 anatomy パーツと
 //! [`fandhe_frontend_headless_ui::accordion::Accordion`] 状態機械（single
-//! モード）をそのまま再エクスポートし、[`stylesheet`] で既定 CSS を追加提供する。
+//! モード）を再エクスポートし、[`stylesheet`] で既定 CSS を追加提供する。
 //! 薄い委譲の根拠・スコープ外事項は [`crate::dialog`] の rustdoc と同じ方針に従う
 //! （`data-scope`/`data-part` セレクタへの CSS 適用のみで、パーツ関数へ手を
 //! 加えない）。
+//!
+//! # 選択的 re-export（`pub use ...::*` を使わない理由、イシュー #729）
+//!
+//! `size` variant クラス付与のため styled [`root`]（[`crate::switch::root`]
+//! と同型）を本モジュールで新設する。headless 自由関数 `root` と名前が
+//! 衝突するため、`pub use ...::*` ではなく必要な識別子（[`item`]/
+//! [`item_trigger`]/[`item_indicator`]/[`item_content`]/[`Accordion`]/
+//! [`MultiAccordion`] 等）のみを選択的に再エクスポートする。headless 自由
+//! 関数 `root`（未スタイル・variant クラス非付与）が必要な呼び出し側は
+//! `fandhe_frontend_headless_ui::accordion` を直接 import すること。
+//! `Accordion`/`MultiAccordion` は状態機械であり root への inherent メソッド
+//! を持たない（`item`/`item_trigger` 等のみを介する設計）ため、[`crate::switch`]
+//! の `Switch` 非再エクスポートとは異なり従来通り再エクスポートを維持する。
 //!
 //! # data-state とスタイルの連動（イシュー #551 受け入れ条件）
 //!
@@ -24,15 +38,36 @@
 //! `item-trigger` は roving tabindex でフォーカス移動するボタン要素であり、
 //! キーボード操作時のみのフォーカスリング（`:focus-visible`）を [`recipe`]
 //! へ登録する。
+//!
+//! # `size` variant（イシュー #729）
+//!
+//! `size`（[`Size`]）は [`root`] へのみクラスを付与し、[`recipe`] が登録する
+//! `--fandhe-accordion-trigger-padding`/`-content-padding` の root スコープ
+//! CSS custom property（通常の CSS 継承により `item-trigger`/`item-content`
+//! へ伝わる。`root` は両パーツを内包する祖先要素であるため、
+//! [`crate::recipe::SlotRecipe`] へ子孫セレクタ機構を追加せずに実現できる）
+//! 経由で寸法を切り替える。`base` 規則の `var()` には Md サイズ相当の
+//! フォールバック値を書き、styled `root` を経由しない headless 直接利用
+//! マークアップでも現行外観を維持する（fail-safe、`crate::lib` rustdoc
+//! 「複合部品の variant 統一方針」節参照）。accordion は `color-palette`
+//! 軸を持たない（variant 表の方針、`docs/api/pre-styled-ui-api.md` §4d 参照）。
 
+use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{SlotRecipe, StateCondition};
+use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
 
-pub use fandhe_frontend_headless_ui::accordion::*;
+// headless 自由関数 `root` はあえて再エクスポートしない（本モジュール冒頭の
+// rustdoc「選択的 re-export」節参照）。未スタイル・variant クラス非付与の
+// 実体が必要な呼び出し側は `fandhe_frontend_headless_ui::accordion` を
+// 直接 import する。
+pub use fandhe_frontend_headless_ui::accordion::{
+    item, item_content, item_indicator, item_trigger, Accordion, MultiAccordion,
+};
+use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 // `item`/`item_trigger`/`item_indicator`/`item_content` の `state` 引数・
 // `Accordion::item_state` 戻り値・`Accordion`/`MultiAccordion` の
 // `Component::Action`（dispatch 対象）はいずれも `state` モジュール由来で
-// 上記 glob 再エクスポートでは到達しない。呼び出し側が
+// 上記選択的再エクスポートでは到達しない。呼び出し側が
 // `fandhe-frontend-pre-styled-ui` のみに依存して呼び出せることを保証するための
 // 明示再エクスポート（イシュー #685）。
 pub use fandhe_frontend_headless_ui::state::{MultiSelectAction, OpenState, SingleSelectAction};
@@ -70,7 +105,10 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("display", "flex"),
                 decl("width", "100%"),
-                decl("padding", "var(--fandhe-space-4)"),
+                decl(
+                    "padding",
+                    "var(--fandhe-accordion-trigger-padding, var(--fandhe-space-4))",
+                ),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("cursor", "pointer"),
@@ -88,7 +126,10 @@ fn recipe() -> SlotRecipe {
         .base(
             "item-content",
             vec![
-                decl("padding", "var(--fandhe-space-4)"),
+                decl(
+                    "padding",
+                    "var(--fandhe-accordion-content-padding, var(--fandhe-space-4))",
+                ),
                 decl("color", "var(--fandhe-color-fg)"),
             ],
         )
@@ -112,6 +153,51 @@ fn recipe() -> SlotRecipe {
                 decl("outline-offset", "2px"),
             ],
         )
+        // イシュー #729: `size` variant（root スコープの CSS custom property。
+        // Md はフォールバック値と同一の現行外観を維持する）。
+        .variant(
+            Size::Sm,
+            "root",
+            vec![
+                decl(
+                    "--fandhe-accordion-trigger-padding",
+                    "var(--fandhe-space-3)",
+                ),
+                decl(
+                    "--fandhe-accordion-content-padding",
+                    "var(--fandhe-space-3)",
+                ),
+            ],
+        )
+        .variant(
+            Size::Md,
+            "root",
+            vec![
+                decl(
+                    "--fandhe-accordion-trigger-padding",
+                    "var(--fandhe-space-4)",
+                ),
+                decl(
+                    "--fandhe-accordion-content-padding",
+                    "var(--fandhe-space-4)",
+                ),
+            ],
+        )
+        .variant(
+            Size::Lg,
+            "root",
+            vec![
+                decl(
+                    "--fandhe-accordion-trigger-padding",
+                    "var(--fandhe-space-5)",
+                ),
+                decl(
+                    "--fandhe-accordion-content-padding",
+                    "var(--fandhe-space-5)",
+                ),
+            ],
+        )
+        .default_variant(Size::Md)
 }
 
 /// この styled Accordion が生成する静的 CSS 全量を返す（決定的。[`crate::dialog::stylesheet`]
@@ -119,6 +205,30 @@ fn recipe() -> SlotRecipe {
 #[must_use]
 pub fn stylesheet() -> String {
     recipe().css()
+}
+
+/// styled root パーツを組み立てる。`size` に応じたクラスを付与する唯一の
+/// パーツ（[`drop_class_attr`] により呼び出し側の `class` は除去してから
+/// 合成する）。実体は [`fandhe_frontend_headless_ui::accordion::root`] へ
+/// 委譲する。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::accordion;
+/// use fandhe_frontend_pre_styled_ui::Size;
+///
+/// let node = accordion::root(Size::Md, vec![], vec![]);
+/// assert!(render(&node).contains(r#"data-scope="accordion" data-part="root""#));
+/// ```
+#[must_use]
+pub fn root<'a>(size: Size, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let recipe = recipe();
+    let class = recipe.variant_classes(&[("size", size.value())]);
+    let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
+    merged.extend(drop_class_attr(attrs));
+    fandhe_frontend_headless_ui::accordion::root(merged, children)
 }
 
 #[cfg(test)]
@@ -154,9 +264,32 @@ mod tests {
 
     #[test]
     fn reexported_root_renders_with_headless_anatomy_attrs() {
-        let html = render(&root(vec![], vec![]));
+        let html = render(&root(Size::Md, vec![], vec![]));
         assert!(html.contains(r#"data-scope="accordion""#));
         assert!(html.contains(r#"data-part="root""#));
+    }
+
+    // --- イシュー #729: size variant ---
+
+    #[test]
+    fn size_variant_appends_single_class_to_root_and_drops_caller_class() {
+        for size in [Size::Sm, Size::Md, Size::Lg] {
+            let html = render(&root(size, vec![("class", "attacker")], vec![]));
+            let expected_class = format!("fd-accordion--size-{}", size.value());
+            assert!(html.contains(&expected_class), "html={html}");
+            assert!(!html.contains("attacker"));
+            assert_eq!(html.matches("class=\"").count(), 1);
+        }
+    }
+
+    #[test]
+    fn default_variant_is_md_and_matches_pre_729_fallback() {
+        // Md はフォールバック値と同一の現行外観を維持する（不変条件）。
+        let css = stylesheet();
+        assert!(css
+            .contains("padding: var(--fandhe-accordion-trigger-padding, var(--fandhe-space-4));"));
+        assert!(css
+            .contains("padding: var(--fandhe-accordion-content-padding, var(--fandhe-space-4));"));
     }
 
     #[test]

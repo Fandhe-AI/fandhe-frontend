@@ -17,7 +17,7 @@ use fandhe_frontend_pre_styled_ui::{
     accordion, dialog, menu, popover, select, switch, tabs, tooltip,
 };
 use fandhe_frontend_pre_styled_ui::{badge, button, spinner};
-use fandhe_frontend_pre_styled_ui::{BadgeProps, ButtonProps, SpinnerProps};
+use fandhe_frontend_pre_styled_ui::{BadgeProps, ButtonProps, ColorPalette, Size, SpinnerProps};
 
 /// XSS ペイロード（`<script>` タグ）。テキスト子ノード・属性値の両方へ
 /// 使い回し、既定エスケープ（REQ-1）が両経路で効くことを固定する。
@@ -102,7 +102,7 @@ mod wrapper_escape_and_stylesheet_safety {
             content: vec![],
             disabled: false,
         }];
-        let html = render(&tabs::tabs(&props, items));
+        let html = render(&tabs::tabs(Size::Md, ColorPalette::Accent, &props, items));
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;"));
         assert!(html.contains(r#"data-scope="tabs""#));

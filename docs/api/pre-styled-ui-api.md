@@ -89,12 +89,22 @@ v0.4.0（`fandhe-frontend-pre-styled-ui = "0.4.0"`、crates.io バージョン
 
 `fandhe-frontend-headless-ui` の 7 モジュール（`tabs`/`accordion`/`dialog`/
 `menu`/`select`/`popover`/`tooltip`）を薄くラップする各 pre-styled-ui
-モジュールは `pub use fandhe_frontend_headless_ui::<mod>::*;` で同名モジュールを
-再エクスポートするが、この glob 再エクスポートは**ラッパー呼び出しに必要な
-「モジュール外」の headless 型**（`state`/`data_attrs` モジュール由来）まで
-は届かない。PR #679 で `fandhe-frontend-docs-site` が `fandhe-frontend-headless-ui`
-へ直接依存せざるを得なかったのはこのためである（`Orientation`/`OpenState`
-を pre-styled-ui のパスから import できなかった）。
+モジュールは、本イシュー #685 当時は `pub use fandhe_frontend_headless_ui::<mod>::*;`
+で同名モジュールを再エクスポートしていたが、この glob 再エクスポートは
+**ラッパー呼び出しに必要な「モジュール外」の headless 型**（`state`/
+`data_attrs` モジュール由来）までは届かない。PR #679 で
+`fandhe-frontend-docs-site` が `fandhe-frontend-headless-ui` へ直接依存
+せざるを得なかったのはこのためである（`Orientation`/`OpenState` を
+pre-styled-ui のパスから import できなかった）。
+
+**イシュー #729 以降の変更**: `tabs`/`accordion`/`dialog`/`menu`/`select`
+の 5 モジュールは `size` variant クラス付与のため styled `root`（tabs のみ
+`tabs`）を各モジュールで新設し、headless 自由関数 `root`（tabs は `tabs`/
+`tabs_with_root_attrs`）との名前衝突を避けるため glob 再エクスポートから
+**選択的** re-export へ切り替えた（§4d 参照）。以下の表・「本イシューはこれを
+解消し」以降の再エクスポート契約自体は変わらないが、モジュール全体を
+`pub use ...::*` するわけではない点に注意。`popover`/`tooltip` は引き続き
+glob 再エクスポートのまま。
 
 本イシューはこれを解消し、**pre-styled-ui のみへの依存でラッパーを呼び出せる
 ことを保証する契約**として、以下を明示 `pub use` で再エクスポートする
@@ -390,10 +400,34 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | switch | ✓ | ✓ | 実装済み（#708） |
 | radio-group | ✓ | ✓ | 実装済み（#708） |
 | checkbox | ✓ | ✓ | 実装済み（#730） |
+| tabs | ✓ | ✓（selected trigger の強調色） | 実装済み（#729） |
+| accordion / dialog / menu / select | ✓ | – | 実装済み（#729） |
 | number-input | ✓ | – | 実装済み（#738、フォーム入力部品のため color-palette は非提供） |
-| tabs | 候補 | 候補（selected trigger） | フォローアップ |
-| accordion / dialog / menu / select | 候補（size のみ） | – | フォローアップ |
 | popover / tooltip | 提供しない | 提供しない | 方針確定 |
+
+tabs/accordion/dialog/menu/select の実装詳細（イシュー #729）:
+
+- クラスは root slot のみに付与する。tabs は他 4 部品と異なり headless 側に
+  root への attrs 注入点自体が存在しなかったため、追加的（非破壊）な
+  `fandhe_frontend_headless_ui::tabs::tabs_with_root_attrs` を新設した
+  （`crates/headless-ui/src/tabs.rs` rustdoc 参照。既存 `tabs()` はこれへ
+  `root_attrs: vec![]` で委譲する薄いラッパーのまま。headless-ui は
+  非破壊追加のためパッチバンプ）。
+- root スコープの CSS custom property: tabs
+  `--fandhe-tabs-trigger-padding`/`-content-padding`、accordion
+  `--fandhe-accordion-trigger-padding`/`-content-padding`、dialog
+  `--fandhe-dialog-content-padding`/`-content-max-width`/`-title-font-size`、
+  menu `--fandhe-menu-trigger-padding`/`-item-padding`/`-content-padding`、
+  select `--fandhe-select-trigger-padding`/`-item-padding`/`-content-padding`。
+  menu/select の `--fandhe-reference-width`/`--fandhe-arrow-*`/`--fandhe-x`/
+  `--fandhe-y`（wasm positioning 契約、#663/#588）には手を触れない。
+- tabs の `color-palette` は選択中 trigger の強調色
+  （`border-bottom-color: var(--fandhe-palette, var(--fandhe-color-accent))`）
+  にのみ反映する。
+- `Dialog`/`Menu`/`Select`（inherent `root()` を持つ状態機械型）は
+  `switch::Switch`（#708/#719）と同じ理由で再エクスポートから除外し
+  （未スタイル root の静かな適用漏れ防止）、選択的 re-export へ切り替えた。
+  `Accordion`/`MultiAccordion`（inherent root なし）は再エクスポート維持。
 
 ## 4d. `data-focus-visible` によるキーボード専用フォーカスリング（イシュー #709）
 
