@@ -30,3 +30,5 @@ pub mod layout;
 pub mod linkcheck;
 pub mod markdown;
 pub mod nav;
+#[cfg(test)]
+mod test_scratch;

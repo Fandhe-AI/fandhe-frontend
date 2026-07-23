@@ -47,14 +47,21 @@ fn curl_available() -> bool {
         .unwrap_or(false)
 }
 
-/// テストごとに衝突しない一時ディレクトリを
-/// `CARGO_TARGET_TMPDIR`（cargo がテストバイナリ実行時に設定、共有
-/// `CARGO_TARGET_DIR` 環境下でも安全）配下に作る
+/// テストごとに衝突しない一時ディレクトリを `<target>/tmp` 配下に作る
 /// （`crates/cli/tests/support/mod.rs::scratch_root` と同一方針）。
+///
+/// cargo が `CARGO_TARGET_TMPDIR` を設定するのはテストバイナリの
+/// **コンパイル時のみ**（Cargo Book）であり、実行時の `std::env::var`
+/// 参照は常に失敗する。既定はコンパイル時に確定する
+/// `env!("CARGO_TARGET_TMPDIR")` を使い、`/tmp` へは一切フォールバック
+/// しない（イシュー #637 の事実誤認の再発防止、#658）。実行時 env による
+/// 明示上書き（特殊なテスト実行環境向け）は引き続き許容する。
 fn scratch_root() -> PathBuf {
-    std::env::var("CARGO_TARGET_TMPDIR")
+    let root = std::env::var("CARGO_TARGET_TMPDIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir())
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
+    let _ = std::fs::create_dir_all(&root);
+    root
 }
 
 static FIXTURE_COUNTER: AtomicU64 = AtomicU64::new(0);

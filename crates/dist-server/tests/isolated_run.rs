@@ -51,7 +51,20 @@ use support::{send_http_request, spawn_and_wait_for_port, status_code};
 #[cfg(wasm_assets_embedded)]
 use support::{response_body_bytes, send_http_request_bytes, status_code_bytes};
 
-/// 隔離ディレクトリ（`std::env::temp_dir()` 配下）を確実に片付ける Drop ガード。
+/// 統合テストのスクラッチ基点。`CARGO_TARGET_TMPDIR` は cargo が統合テスト
+/// バイナリの**コンパイル時のみ**設定する（Cargo Book）ため `env!` で確定し、
+/// 実行時 env による明示上書きのみ許容する。`/tmp` へは一切フォールバック
+/// しない（イシュー #637 の事実誤認の再発防止、#658、`cli/tests/support/mod.rs`
+/// と同一パターン）。
+fn scratch_root() -> PathBuf {
+    let root = std::env::var("CARGO_TARGET_TMPDIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
+    let _ = fs::create_dir_all(&root);
+    root
+}
+
+/// 隔離ディレクトリ（`<target>/tmp` 配下）を確実に片付ける Drop ガード。
 ///
 /// 検証対象バイナリ以外の何も置かないディレクトリのため、テストの成否に
 /// 関わらず終了時に削除してよい。削除失敗（既に削除済み等）はテスト結果に
@@ -69,7 +82,7 @@ impl Drop for IsolatedDirGuard {
 /// カウンタ。ディレクトリ名の一意性を保証する主要な手段（下記 doc 参照）。
 static ISOLATED_DIR_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
-/// `std::env::temp_dir()` 配下に一意な隔離ディレクトリを作成し、
+/// `<target>/tmp` 配下に一意な隔離ディレクトリを作成し、
 /// `CARGO_BIN_EXE_dist-server` をその中へコピーする。
 ///
 /// ディレクトリ名にプロセス ID・ナノ秒タイムスタンプ・プロセス内カウンタを
@@ -93,8 +106,8 @@ fn create_isolated_binary() -> (IsolatedDirGuard, PathBuf) {
             .as_nanos(),
         sequence
     );
-    let dir = std::env::temp_dir().join(unique);
-    fs::create_dir_all(&dir).expect("isolated directory must be creatable under temp_dir");
+    let dir = scratch_root().join(unique);
+    fs::create_dir_all(&dir).expect("isolated directory must be creatable under scratch_root");
 
     let source_binary = Path::new(env!("CARGO_BIN_EXE_dist-server"));
     let binary_name = source_binary

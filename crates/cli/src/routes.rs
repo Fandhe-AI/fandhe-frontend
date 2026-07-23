@@ -396,7 +396,7 @@ mod tests {
     /// （`workspace_root/root/src` という実在しないパスへ解決されないこと）。
     #[test]
     fn scan_root_resolves_root_convention_to_workspace_root_src() {
-        let tmp = std::env::temp_dir().join(format!(
+        let tmp = crate::test_scratch::scratch_root().join(format!(
             "fw-routes-root-convention-test-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
@@ -421,7 +421,7 @@ mod tests {
     /// §3.1 の非目標）。
     #[test]
     fn scan_root_root_convention_does_not_scan_entire_workspace_root() {
-        let tmp = std::env::temp_dir().join(format!(
+        let tmp = crate::test_scratch::scratch_root().join(format!(
             "fw-routes-root-convention-scope-test-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
@@ -452,7 +452,7 @@ mod tests {
     /// 弱体化していないこと（`workspace_root` 自身は自明にルート配下）。
     #[test]
     fn resolve_within_root_accepts_root_convention_key() {
-        let tmp = std::env::temp_dir().join(format!(
+        let tmp = crate::test_scratch::scratch_root().join(format!(
             "fw-routes-resolve-root-key-test-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
@@ -472,14 +472,14 @@ mod tests {
 
     #[test]
     fn resolve_within_root_rejects_traversal_in_dir_name() {
-        let root = std::env::temp_dir();
+        let root = crate::test_scratch::scratch_root();
         let err = resolve_within_root(&root, "../etc").unwrap_err();
         assert_eq!(err, ExtractError::EscapesWorkspaceRoot);
     }
 
     #[test]
     fn resolve_within_root_rejects_missing_directory() {
-        let root = std::env::temp_dir();
+        let root = crate::test_scratch::scratch_root();
         let err = resolve_within_root(&root, "definitely-not-a-real-dir-name").unwrap_err();
         assert_eq!(err, ExtractError::NotADirectory);
     }
@@ -493,8 +493,8 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn list_rs_files_does_not_follow_symlinked_directory() {
-        let tmp =
-            std::env::temp_dir().join(format!("fw-routes-symlink-dir-test-{}", std::process::id()));
+        let tmp = crate::test_scratch::scratch_root()
+            .join(format!("fw-routes-symlink-dir-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
         let scan_root = tmp.join("scan_root");
         let outside = tmp.join("outside");
@@ -518,7 +518,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn list_rs_files_does_not_follow_symlinked_file() {
-        let tmp = std::env::temp_dir().join(format!(
+        let tmp = crate::test_scratch::scratch_root().join(format!(
             "fw-routes-symlink-file-test-{}",
             std::process::id()
         ));
