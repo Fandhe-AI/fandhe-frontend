@@ -12,26 +12,31 @@
 
 他の examples/（`ssr-routing` / `ssg-blog` / `dist-server-docker` /
 `interactive-view-transitions`）と同じく、`fandhe-frontend-core` /
-`fandhe-frontend-headless-ui` / `fandhe-frontend-pre-styled-ui` への crates.io
-バージョン依存のみで完結する正本サンプルです（examples 規約、イシュー #499）。
-作成当初（イシュー #552）は `fandhe-frontend-headless-ui` が crates.io 未公開
-だったため path 依存の意図的な例外でしたが、前提クレート公開（イシュー #608）
-を受けてイシュー #609 でバージョン依存へ切り替え、
-`fw new --example headless-pre-styled-ui` にも対応しました。
+`fandhe-frontend-pre-styled-ui` への crates.io バージョン依存のみで完結する
+正本サンプルです（examples 規約、イシュー #499）。作成当初（イシュー #552）
+は `fandhe-frontend-headless-ui` が crates.io 未公開だったため path 依存の
+意図的な例外でしたが、前提クレート公開（イシュー #608）を受けてイシュー
+#609 でバージョン依存へ切り替え、`fw new --example headless-pre-styled-ui`
+にも対応しました。Switch / RadioGroup / Avatar の styled ラッパーが v0.4.0
+（#682/#683/#684、公開 #686）で出揃い全部品が pre-styled-ui 経由の styled
+提供となったため、`fandhe-frontend-headless-ui` への直接依存は撤去しました
+（イシュー #689）。
 
 ## pre-styled-ui 統合について
 
 サンプル作成時点（イシュー #552、2026-07-22）では pre-styled-ui がクレート
 骨格のみだったため、headless-ui + 手書き CSS（`static/ui.css`）で代替して
 いました。pre-styled-ui v0.3.1 で公開 API（styled 部品・headless ラッパー・
-`StyleSheet`/`Theme`）が揃ったため、本サンプルは 2 層構成のデモとして統合
-済みです。各コンポーネントの層別内訳:
+`StyleSheet`/`Theme`）が揃ったため 2 層構成のデモとして統合し、v0.4.0 で
+Switch / RadioGroup / Avatar の styled ラッパーも出揃ったため、本サンプルは
+全コンポーネントが pre-styled-ui 経由の styled 提供です（イシュー #689）。
+各コンポーネントの層別内訳:
 
 | コンポーネント | 使用する層 | 備考 |
 |---------------|-----------|------|
-| Tabs / Accordion / Dialog / Menu / Select / Popover / Tooltip | pre-styled-ui（headless ラッパー） | マークアップは headless 層の再エクスポート、既定 CSS は各モジュールの `stylesheet()`。Menu / Select はラッパー第 1 弾（#551）、Popover / Tooltip は第 2 弾（#664、PR #672）で追加 |
+| Tabs / Accordion / Dialog / Menu / Select / Popover / Tooltip / Switch / RadioGroup | pre-styled-ui（headless ラッパー） | マークアップは headless 層の再エクスポート、既定 CSS は各モジュールの `stylesheet()`。Menu / Select はラッパー第 1 弾（#551）、Popover / Tooltip は第 2 弾（#664、PR #672）、Switch / RadioGroup は第 3 弾（#682/#683） |
+| Avatar | pre-styled-ui（styled root、size/shape variant） | `root` のみ styled（`fd-avatar--size-*`/`fd-avatar--shape-*`）、`image`/`fallback` は headless 層の再エクスポート（#684） |
 | Button / Badge / Card / Alert / Spinner | pre-styled-ui（単純 styled 部品） | variant / size / colorPalette を Rust enum で型安全に指定 |
-| Switch / RadioGroup / Avatar | headless-ui + 手書き CSS | pre-styled-ui に styled ラッパー未提供のため `static/ui.css` で直接スタイル |
 
 Menu / Select / Popover / Tooltip はいずれも `positioner` が `position:
 absolute` のオーバーレイ型のため、Dialog 節と同じ「SSR 初期状態は closed、
@@ -41,7 +46,7 @@ listbox を closed のまま「選択済み値」（`value_text`/`aria-selected`
 `data-highlighted` 項目の実演を含みます。
 
 CSS はテーマトークン（`Theme::default()`）・使用コンポーネントの recipe
-CSS・手書き残存分（`static/ui.css`）を `StyleSheet` へ集約し、
+CSS・ページ骨格のみの手書き CSS（`static/ui.css`）を `StyleSheet` へ集約し、
 `StyleSheet::write_css_file`（SSG 向け経路）で `dist/assets/ui.css` 1 ファイル
 へ書き出します（`src/main.rs` の `build_stylesheet()`）。
 
@@ -95,12 +100,12 @@ cargo run -p fandhe-frontend-cli -- gate --project examples/headless-pre-styled-
 
 | ファイル | 説明 |
 |---------|------|
-| `Cargo.toml` | `fandhe-frontend-core` / `-headless-ui` / `-pre-styled-ui` への crates.io バージョン依存 3 件。root workspace から独立した `[workspace] members = ["."]` |
+| `Cargo.toml` | `fandhe-frontend-core` / `-pre-styled-ui` への crates.io バージョン依存 2 件。root workspace から独立した `[workspace] members = ["."]`。`fandhe-frontend-headless-ui` 直接依存は v0.4.0 統合（#689）で撤去済み |
 | `structure.toml` | `fw gate` が唯一の情報源として読む構造マニフェスト |
 | `clippy.toml` | `raw_html()` 迂回検出ポリシー（`templates/default/` と内容同一） |
 | `deny.toml` | 依存ポリシー（`templates/default/` と内容同一） |
 | `src/main.rs` | ショーケースページ組み立て（`layout` + コンポーネントごとの `*_section` 関数）+ `build_stylesheet()` による CSS 集約 + `dist/` 書き出し |
-| `static/ui.css` | ページ骨格 + pre-styled-ui 未提供コンポーネント（Switch / RadioGroup / Avatar）向けの手書き残存 CSS（`build_stylesheet()` が `StyleSheet` へ取り込む） |
+| `static/ui.css` | ページ骨格（body / section / .showcase-row）のみの手書き CSS。コンポーネント CSS は v0.4.0 で全部品 recipe 提供となり撤去済み（`build_stylesheet()` が `StyleSheet` へ取り込む） |
 | `tests/cli_output.rs` | anatomy・ARIA・既定エスケープ回帰の CLI ブラックボックステスト（`src/main.rs` 内の `#[cfg(test)]` ユニットテストと二本立て） |
 
 ## 関連ガイド

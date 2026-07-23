@@ -14,24 +14,37 @@
 //! サンプル作成時点（2026-07-22）では pre-styled-ui がクレート骨格のみ
 //! だったため headless-ui + 手書き CSS（`static/ui.css`）で代替していたが、
 //! pre-styled-ui v0.3.1 で公開 API（styled 部品・headless ラッパー・
-//! [`StyleSheet`]/[`Theme`]）が揃ったため統合済み。現在の層別内訳:
+//! [`StyleSheet`]/[`Theme`]）が揃ったため統合済み。Switch / RadioGroup /
+//! Avatar の styled ラッパーも v0.4.0（#682/#683/#684、公開 #686）で出揃い、
+//! 全部品が pre-styled-ui 経由の styled 提供となったため
+//! `fandhe-frontend-headless-ui` への直接依存を撤去した（イシュー #689）。
+//! 現在の層別内訳:
 //!
 //! - **pre-styled-ui の headless ラッパー**: Tabs / Accordion / Dialog /
-//!   Menu / Select / Popover / Tooltip（headless 層のパーツ関数を
-//!   `pub use` 再エクスポートし、`data-scope`/`data-part` セレクタへの既定
-//!   CSS を `stylesheet()` で追加提供する薄い委譲層。Menu / Select /
-//!   Popover / Tooltip はラッパー第 1 弾（#551）・第 2 弾（#664、PR #672）で
-//!   追加された 4 部品で、いずれも `positioner` が `position: absolute` の
-//!   オーバーレイ型のため、既存 Dialog 節と同じ「SSR 初期状態は closed、
-//!   全 anatomy を DOM に掲載（`hidden` 付き）」方針で掲示する）
+//!   Menu / Select / Popover / Tooltip / Switch / RadioGroup（headless 層の
+//!   パーツ関数を `pub use` 再エクスポートし、`data-scope`/`data-part`
+//!   セレクタへの既定 CSS を `stylesheet()` で追加提供する薄い委譲層。
+//!   Menu / Select / Popover / Tooltip はラッパー第 1 弾（#551）・第 2 弾
+//!   （#664、PR #672）で追加された 4 部品で、いずれも `positioner` が
+//!   `position: absolute` のオーバーレイ型のため、既存 Dialog 節と同じ
+//!   「SSR 初期状態は closed、全 anatomy を DOM に掲載（`hidden` 付き）」
+//!   方針で掲示する。Switch / RadioGroup はラッパー第 3 弾（#682/#683）
+//!   で追加された）
+//! - **pre-styled-ui の styled root（variant 付与）**: Avatar（headless の
+//!   自由関数 `root` とは別に、`size`/`shape` variant クラスを付与する
+//!   styled `root` を提供する。`image`/`fallback` は再エクスポート、#684）
 //! - **pre-styled-ui の単純 styled 部品**: Button / Badge / Card / Alert /
 //!   Spinner（variant/size/colorPalette を Rust enum で型安全に指定する）
-//! - **headless-ui + 手書き CSS（残存）**: Switch / RadioGroup / Avatar
-//!   （pre-styled-ui にラッパー未提供のため。`static/ui.css` が
-//!   `data-scope`/`data-part`/`data-state` セレクタへ直接スタイルを当てる）
+//!
+//! headless-ui 直接依存を撤去しても headless 層の anatomy・`data-*`・
+//! WAI-ARIA 属性付与の実演は失われない。styled ラッパーは薄い委譲層で
+//! マークアップ自体は headless 層の自由関数がそのまま生成するため、本
+//! ページの各 `*_section` はこれまでどおり anatomy 実演を兼ねる（headless
+//! 素材 + 手書き CSS の対比節をあえて設けない判断理由も同じ: 対比節を
+//! 残すと手書き CSS が残存し「全部品 styled 化」の趣旨と矛盾するため）。
 //!
 //! CSS は [`StyleSheet`] へテーマトークン（[`Theme::default`]）・使用
-//! コンポーネントの recipe CSS・headless 残存分の手書き CSS を集約し、
+//! コンポーネントの recipe CSS・ページ骨格のみの手書き CSS を集約し、
 //! `dist/assets/ui.css` 1 ファイルへ書き出す（SSG 向け
 //! [`StyleSheet::write_css_file`] 経路の実演）。
 //!
@@ -68,26 +81,24 @@
 #![forbid(unsafe_code)]
 
 use fandhe_frontend_core::{el, render, text, Node};
-use fandhe_frontend_headless_ui::avatar::{self, ImageStatus};
-use fandhe_frontend_headless_ui::data_attrs::Orientation;
-use fandhe_frontend_headless_ui::radio_group;
-use fandhe_frontend_headless_ui::switch;
-use fandhe_frontend_headless_ui::OpenState;
 use fandhe_frontend_pre_styled_ui::accordion;
 use fandhe_frontend_pre_styled_ui::alert::{self, AlertStatus};
+use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps, BadgeVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::menu;
 use fandhe_frontend_pre_styled_ui::popover;
+use fandhe_frontend_pre_styled_ui::radio_group;
 use fandhe_frontend_pre_styled_ui::select;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::stylesheet::StyleSheet;
+use fandhe_frontend_pre_styled_ui::switch;
 use fandhe_frontend_pre_styled_ui::tabs::{self, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::tooltip;
-use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
+use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Orientation, Size};
 use std::path::Path;
 
 /// ページ共通の骨格（`<html>` 全体）を組み立てる。
@@ -741,7 +752,7 @@ fn alert_section() -> Node {
             make(
                 AlertStatus::Warning,
                 "Warning",
-                "Switch / RadioGroup / Avatar は headless-ui + 手書き CSS のままです。",
+                "この操作は取り消せません（デモ用の警告文です）。",
             ),
         ],
     )
@@ -771,8 +782,9 @@ fn spinner_section() -> Node {
 
 /// Switch コンポーネント節（`data-scope="switch"`）。
 ///
-/// pre-styled-ui に styled ラッパー未提供のため、headless-ui の自由関数 +
-/// 手書き CSS（`static/ui.css`）を維持する（モジュール doc の層別内訳参照）。
+/// pre-styled-ui の headless ラッパー第 3 弾（`fandhe_frontend_pre_styled_ui::switch`、
+/// #682）を使う。既定 CSS は `switch::stylesheet()` が提供する（モジュール doc
+/// の層別内訳参照）。
 fn switch_section() -> Node {
     let checked = true;
     let node = switch::root(
@@ -792,15 +804,15 @@ fn switch_section() -> Node {
     );
     section(
         "Switch",
-        "WAI-ARIA APG の Switch パターン（fandhe_frontend_headless_ui::switch + 手書き CSS。pre-styled-ui 未提供）。",
+        "WAI-ARIA APG の Switch パターン。既定 CSS は fandhe_frontend_pre_styled_ui::switch::stylesheet() が提供します。",
         vec![node],
     )
 }
 
 /// RadioGroup コンポーネント節（`data-scope="radio-group"`）。
 ///
-/// pre-styled-ui に styled ラッパー未提供のため、headless-ui の自由関数 +
-/// 手書き CSS（`static/ui.css`）を維持する。
+/// pre-styled-ui の headless ラッパー第 3 弾（`fandhe_frontend_pre_styled_ui::radio_group`、
+/// #683）を使う。
 fn radio_group_section() -> Node {
     let options = [
         ("ssr", "SSR", true),
@@ -836,7 +848,7 @@ fn radio_group_section() -> Node {
     );
     section(
         "RadioGroup",
-        "択一選択の RadioGroup（fandhe_frontend_headless_ui::radio_group + 手書き CSS。pre-styled-ui 未提供）。",
+        "択一選択の RadioGroup。既定 CSS は fandhe_frontend_pre_styled_ui::radio_group::stylesheet() が提供します。",
         vec![node],
     )
 }
@@ -845,11 +857,15 @@ fn radio_group_section() -> Node {
 /// （[`ImageStatus::Error`]）状態を実演し、フォールバック（イニシャル）が
 /// 表示されることを示す（実画像を同梱しない静的サンプルのため）。
 ///
-/// pre-styled-ui に styled ラッパー未提供のため、headless-ui の自由関数 +
-/// 手書き CSS（`static/ui.css`）を維持する。
+/// pre-styled-ui の styled `root`（`fandhe_frontend_pre_styled_ui::avatar::root`、
+/// #684）を使う。headless の自由関数 `root(attrs, children)` とは異なり
+/// `size`/`shape` variant 引数を取り、recipe 生成クラス（`fd-avatar--size-*`/
+/// `fd-avatar--shape-*`）を付与する。
 fn avatar_section() -> Node {
     let status = ImageStatus::Error;
     let node = avatar::root(
+        Size::Md,
+        AvatarShape::Circle,
         vec![],
         vec![
             avatar::image(status, "/nonexistent.png", "User avatar", vec![]),
@@ -858,7 +874,7 @@ fn avatar_section() -> Node {
     );
     section(
         "Avatar",
-        "画像読み込み状態（loading/loaded/error）に応じて表示を切り替える Avatar（fandhe_frontend_headless_ui::avatar + 手書き CSS。pre-styled-ui 未提供）。",
+        "画像読み込み状態（loading/loaded/error）に応じて表示を切り替える Avatar。既定 CSS は fandhe_frontend_pre_styled_ui::avatar::stylesheet() が提供します。",
         vec![node],
     )
 }
@@ -944,8 +960,9 @@ fn build_page() -> Node {
 ///
 /// 1. テーマトークン（[`Theme::default`]。ライト/ダーク両対応の
 ///    `--fandhe-color-*` 等）
-/// 2. ページ骨格 + headless 残存分（Switch / RadioGroup / Avatar）の手書き
-///    CSS（`static/ui.css`、`include_str!` でバイナリへ埋め込み）
+/// 2. ページ骨格のみの手書き CSS（`static/ui.css`、`include_str!` で
+///    バイナリへ埋め込み。コンポーネント CSS は v0.4.0 で全部品 recipe
+///    提供となったため撤去済み、#689）
 /// 3. 本ページで使用する pre-styled-ui コンポーネントの recipe CSS
 ///
 /// 手書き CSS は [`StyleSheet::push_css`] の fail-closed 検証（`<` 拒否）を
@@ -966,6 +983,9 @@ fn build_stylesheet() -> Result<StyleSheet, fandhe_frontend_pre_styled_ui::Style
         fandhe_frontend_pre_styled_ui::select::stylesheet(),
         fandhe_frontend_pre_styled_ui::popover::stylesheet(),
         fandhe_frontend_pre_styled_ui::tooltip::stylesheet(),
+        fandhe_frontend_pre_styled_ui::switch::stylesheet(),
+        fandhe_frontend_pre_styled_ui::radio_group::stylesheet(),
+        fandhe_frontend_pre_styled_ui::avatar::stylesheet(),
         fandhe_frontend_pre_styled_ui::button::css(),
         fandhe_frontend_pre_styled_ui::badge::css(),
         fandhe_frontend_pre_styled_ui::card::css(),
@@ -1039,9 +1059,10 @@ mod tests {
             "data-scope=\"card\"",
             "data-scope=\"alert\"",
             "data-scope=\"spinner\"",
-            // headless-ui + 手書き CSS（pre-styled-ui 未提供）
+            // pre-styled-ui の headless ラッパー第 3 弾（#682/#683）
             "data-scope=\"switch\"",
             "data-scope=\"radio-group\"",
+            // pre-styled-ui の styled root（variant 付与、#684）
             "data-scope=\"avatar\"",
         ] {
             assert!(html.contains(scope), "missing {scope} in rendered page");
@@ -1119,6 +1140,16 @@ mod tests {
         assert!(html.contains(r#"role="switch""#));
     }
 
+    /// styled Avatar の `root` が size/shape variant クラス（`fd-avatar--size-*`/
+    /// `fd-avatar--shape-*`）を出力することを固定する（イシュー #689、headless
+    /// 自由関数 `root` にはない styled 層固有の振る舞い）。
+    #[test]
+    fn avatar_section_renders_size_and_shape_variant_classes() {
+        let html = render(&avatar_section());
+        assert!(html.contains("fd-avatar--size-md"));
+        assert!(html.contains("fd-avatar--shape-circle"));
+    }
+
     /// pre-styled-ui の variant API（受け入れ条件: 統合後の styled 部品実演）:
     /// Button の recipe 生成クラスが variant/size/colorPalette の enum 指定
     /// どおりに出力へ現れることを固定する。
@@ -1144,23 +1175,27 @@ mod tests {
         assert!(html.contains("fd-alert--status-warning"));
     }
 
-    /// [`build_stylesheet`] がテーマトークン・pre-styled recipe・手書き残存
-    /// CSS の 3 系統すべてを集約し、`<` を含まない（`<style>` 文脈でも安全な）
-    /// CSS を返すことを固定する。
+    /// [`build_stylesheet`] がテーマトークン・pre-styled recipe・ページ骨格
+    /// のみの手書き CSS の 3 系統すべてを集約し、`<` を含まない（`<style>`
+    /// 文脈でも安全な）CSS を返すことを固定する。
     #[test]
     fn build_stylesheet_aggregates_theme_recipes_and_manual_css() {
         let sheet = build_stylesheet().expect("all CSS sources should pass validation");
         let css = sheet.as_css();
         // 1. テーマトークン（Theme::default）
         assert!(css.contains("--fandhe-color-"));
-        // 2. 手書き残存分（Switch は headless + 手書き CSS）
-        assert!(css.contains(r#"[data-scope="switch"][data-part="control"]"#));
-        // 3. pre-styled recipe（ラッパー分 + 単純 styled 部品分）
+        // 2. ページ骨格のみの手書き CSS（コンポーネント CSS は v0.4.0 で
+        //    全部品 recipe 提供となったため撤去済み、#689）
+        assert!(css.contains(".showcase-row"));
+        // 3. pre-styled recipe（ラッパー分 + styled root 分 + 単純 styled 部品分）
         assert!(css.contains(r#"[data-scope="tabs"][data-part="trigger"]"#));
         assert!(css.contains(r#"[data-scope="menu"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="select"][data-part="trigger"]"#));
         assert!(css.contains(r#"[data-scope="popover"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="tooltip"][data-part="content"]"#));
+        assert!(css.contains(r#"[data-scope="switch"][data-part="control"]"#));
+        assert!(css.contains(r#"[data-scope="radio-group"][data-part="item-control"]"#));
+        assert!(css.contains(r#"[data-scope="avatar"][data-part="root"]"#));
         assert!(css.contains(".fd-button--variant-solid"));
         assert!(!css.contains('<'));
     }

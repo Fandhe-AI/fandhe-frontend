@@ -104,9 +104,10 @@ fn cli_output_includes_all_component_scopes() {
         "data-scope=\"card\"",
         "data-scope=\"alert\"",
         "data-scope=\"spinner\"",
-        // headless-ui + 手書き CSS（pre-styled-ui 未提供）
+        // pre-styled-ui の headless ラッパー第 3 弾（#682/#683）
         "data-scope=\"switch\"",
         "data-scope=\"radio-group\"",
+        // pre-styled-ui の styled root（variant 付与、#684）
         "data-scope=\"avatar\"",
     ] {
         assert!(body.contains(scope), "missing {scope} in dist/index.html");
@@ -140,10 +141,13 @@ fn cli_output_includes_pre_styled_variant_classes() {
     assert!(body.contains("fd-button--variant-outline"));
     assert!(body.contains("fd-badge--variant-solid"));
     assert!(body.contains("fd-alert--status-warning"));
+    // Avatar の styled root（size/shape variant、#684/#689）の回帰確認。
+    assert!(body.contains("fd-avatar--size-md"));
+    assert!(body.contains("fd-avatar--shape-circle"));
 }
 
 /// `dist/assets/ui.css` がテーマトークン（`Theme::default`）・pre-styled
-/// recipe CSS・手書き残存分（Switch 等）の 3 系統すべてを含み、`<` を含まない
+/// recipe CSS・ページ骨格のみの手書き CSS の 3 系統すべてを含み、`<` を含まない
 /// （StyleSheet の fail-closed 検証を通過した）ことを固定する。
 #[test]
 fn cli_output_css_aggregates_theme_recipes_and_manual_css() {
@@ -153,18 +157,22 @@ fn cli_output_css_aggregates_theme_recipes_and_manual_css() {
 
     // 1. テーマトークン
     assert!(css.contains("--fandhe-color-accent"));
-    // 2. pre-styled recipe（headless ラッパー分 + 単純 styled 部品分。
-    //    ラッパーは `fd-*` variant クラスを持たない slot recipe のため、
-    //    variant クラス検証の新部品分拡張として data-scope セレクタで確認する）
+    // 2. pre-styled recipe（headless ラッパー分 + styled root 分 + 単純
+    //    styled 部品分。ラッパーは `fd-*` variant クラスを持たない slot
+    //    recipe のため、variant クラス検証の新部品分拡張として data-scope
+    //    セレクタで確認する）
     assert!(css.contains(r#"[data-scope="tabs"][data-part="trigger"]"#));
     assert!(css.contains(r#"[data-scope="select"][data-part="trigger"]"#));
     assert!(css.contains(r#"[data-scope="menu"][data-part="item"]"#));
     assert!(css.contains(r#"[data-scope="popover"][data-part="content"]"#));
     assert!(css.contains(r#"[data-scope="tooltip"][data-part="content"]"#));
-    assert!(css.contains(".fd-button--variant-solid"));
-    // 3. 手書き残存分（pre-styled-ui 未提供の headless コンポーネント）
     assert!(css.contains(r#"[data-scope="switch"][data-part="control"]"#));
+    assert!(css.contains(r#"[data-scope="radio-group"][data-part="item-control"]"#));
     assert!(css.contains(r#"[data-scope="avatar"][data-part="root"]"#));
+    assert!(css.contains(".fd-button--variant-solid"));
+    // 3. ページ骨格のみの手書き CSS（コンポーネント CSS は v0.4.0 で全部品
+    //    recipe 提供となったため撤去済み、#689）
+    assert!(css.contains(".showcase-row"));
     // StyleSheet の不変条件（`<style>` 文脈でも安全）
     assert!(!css.contains('<'));
 }
