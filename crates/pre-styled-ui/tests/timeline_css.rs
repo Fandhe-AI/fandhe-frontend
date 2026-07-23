@@ -42,6 +42,9 @@ const TIMELINE_GOLDEN_CSS: &str = r#"[data-scope="timeline"][data-part="root"] {
   width: var(--fandhe-timeline-indicator-size, 1.5rem);
   height: var(--fandhe-timeline-indicator-size, 1.5rem);
   border-radius: var(--fandhe-radius-full, 9999px);
+  background: var(--fandhe-timeline-indicator-bg, var(--fandhe-palette, var(--fandhe-color-accent)));
+  color: var(--fandhe-timeline-indicator-fg, var(--fandhe-palette-fg, var(--fandhe-color-accent-fg)));
+  border: var(--fandhe-timeline-indicator-border, none);
 }
 
 [data-scope="timeline"][data-part="content"] {
@@ -59,28 +62,28 @@ const TIMELINE_GOLDEN_CSS: &str = r#"[data-scope="timeline"][data-part="root"] {
   color: var(--fandhe-color-fg-muted);
 }
 
-[data-scope="timeline"][data-part="indicator"].fd-timeline--variant-solid {
-  background: var(--fandhe-palette, var(--fandhe-color-accent));
-  color: var(--fandhe-palette-fg, var(--fandhe-color-accent-fg));
-  border: none;
+[data-scope="timeline"][data-part="root"].fd-timeline--variant-solid {
+  --fandhe-timeline-indicator-bg: var(--fandhe-palette, var(--fandhe-color-accent));
+  --fandhe-timeline-indicator-fg: var(--fandhe-palette-fg, var(--fandhe-color-accent-fg));
+  --fandhe-timeline-indicator-border: none;
 }
 
-[data-scope="timeline"][data-part="indicator"].fd-timeline--variant-subtle {
-  background: var(--fandhe-color-bg-subtle);
-  color: var(--fandhe-palette, var(--fandhe-color-accent));
-  border: none;
+[data-scope="timeline"][data-part="root"].fd-timeline--variant-subtle {
+  --fandhe-timeline-indicator-bg: var(--fandhe-color-bg-subtle);
+  --fandhe-timeline-indicator-fg: var(--fandhe-palette, var(--fandhe-color-accent));
+  --fandhe-timeline-indicator-border: none;
 }
 
-[data-scope="timeline"][data-part="indicator"].fd-timeline--variant-outline {
-  background: var(--fandhe-color-bg);
-  color: var(--fandhe-palette, var(--fandhe-color-accent));
-  border: 2px solid var(--fandhe-palette, var(--fandhe-color-accent));
+[data-scope="timeline"][data-part="root"].fd-timeline--variant-outline {
+  --fandhe-timeline-indicator-bg: var(--fandhe-color-bg);
+  --fandhe-timeline-indicator-fg: var(--fandhe-palette, var(--fandhe-color-accent));
+  --fandhe-timeline-indicator-border: 2px solid var(--fandhe-palette, var(--fandhe-color-accent));
 }
 
-[data-scope="timeline"][data-part="indicator"].fd-timeline--variant-plain {
-  background: transparent;
-  color: var(--fandhe-palette, var(--fandhe-color-accent));
-  border: none;
+[data-scope="timeline"][data-part="root"].fd-timeline--variant-plain {
+  --fandhe-timeline-indicator-bg: transparent;
+  --fandhe-timeline-indicator-fg: var(--fandhe-palette, var(--fandhe-color-accent));
+  --fandhe-timeline-indicator-border: none;
 }
 
 [data-scope="timeline"][data-part="root"].fd-timeline--size-sm {

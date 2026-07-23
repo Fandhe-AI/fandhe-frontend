@@ -35,7 +35,15 @@
 //! root スコープの CSS custom property（`--fandhe-timeline-indicator-size`
 //! 等）の通常の CSS 継承で行う（[`crate::breadcrumb`]/[`crate::switch`] と
 //! 同型のパターン。[`crate::recipe::SlotRecipe`] へ子孫セレクタ機構は
-//! 追加しない）。
+//! 追加しない）。`variant`（塗り方）軸も同じ規約に従う: 塗り方ごとの
+//! 具体色（background/color/border）は `--fandhe-timeline-indicator-bg`
+//! 等の custom property として root へ登録し、`indicator` の base 宣言が
+//! `var()` で参照する（かつて `variant(TimelineVariant, "indicator", ...)`
+//! として `indicator` slot 自身へのコンパウンドセレクタで登録していたが、
+//! `indicator` パーツは `class` を一切出力しないためこのセレクタは実
+//! レンダリング結果に決して一致せず、4 種類の塗り方がすべて無効化する
+//! 死んだ CSS だった。イシュー #769 レビュー指摘で発覚し custom property
+//! 経由へ修正した）。
 //!
 //! # `showLastSeparator` 相当は実装しない（契約として呼び出し側責務）
 //!
@@ -176,6 +184,15 @@ fn recipe() -> SlotRecipe {
                 decl("width", "var(--fandhe-timeline-indicator-size, 1.5rem)"),
                 decl("height", "var(--fandhe-timeline-indicator-size, 1.5rem)"),
                 decl("border-radius", "var(--fandhe-radius-full, 9999px)"),
+                decl(
+                    "background",
+                    "var(--fandhe-timeline-indicator-bg, var(--fandhe-palette, var(--fandhe-color-accent)))",
+                ),
+                decl(
+                    "color",
+                    "var(--fandhe-timeline-indicator-fg, var(--fandhe-palette-fg, var(--fandhe-color-accent-fg)))",
+                ),
+                decl("border", "var(--fandhe-timeline-indicator-border, none)"),
             ],
         )
         .base(
@@ -201,47 +218,56 @@ fn recipe() -> SlotRecipe {
         )
         .variant(
             TimelineVariant::Solid,
-            "indicator",
+            "root",
             vec![
                 decl(
-                    "background",
+                    "--fandhe-timeline-indicator-bg",
                     "var(--fandhe-palette, var(--fandhe-color-accent))",
                 ),
                 decl(
-                    "color",
+                    "--fandhe-timeline-indicator-fg",
                     "var(--fandhe-palette-fg, var(--fandhe-color-accent-fg))",
                 ),
-                decl("border", "none"),
+                decl("--fandhe-timeline-indicator-border", "none"),
             ],
         )
         .variant(
             TimelineVariant::Subtle,
-            "indicator",
+            "root",
             vec![
-                decl("background", "var(--fandhe-color-bg-subtle)"),
-                decl("color", "var(--fandhe-palette, var(--fandhe-color-accent))"),
-                decl("border", "none"),
+                decl("--fandhe-timeline-indicator-bg", "var(--fandhe-color-bg-subtle)"),
+                decl(
+                    "--fandhe-timeline-indicator-fg",
+                    "var(--fandhe-palette, var(--fandhe-color-accent))",
+                ),
+                decl("--fandhe-timeline-indicator-border", "none"),
             ],
         )
         .variant(
             TimelineVariant::Outline,
-            "indicator",
+            "root",
             vec![
-                decl("background", "var(--fandhe-color-bg)"),
-                decl("color", "var(--fandhe-palette, var(--fandhe-color-accent))"),
+                decl("--fandhe-timeline-indicator-bg", "var(--fandhe-color-bg)"),
                 decl(
-                    "border",
+                    "--fandhe-timeline-indicator-fg",
+                    "var(--fandhe-palette, var(--fandhe-color-accent))",
+                ),
+                decl(
+                    "--fandhe-timeline-indicator-border",
                     "2px solid var(--fandhe-palette, var(--fandhe-color-accent))",
                 ),
             ],
         )
         .variant(
             TimelineVariant::Plain,
-            "indicator",
+            "root",
             vec![
-                decl("background", "transparent"),
-                decl("color", "var(--fandhe-palette, var(--fandhe-color-accent))"),
-                decl("border", "none"),
+                decl("--fandhe-timeline-indicator-bg", "transparent"),
+                decl(
+                    "--fandhe-timeline-indicator-fg",
+                    "var(--fandhe-palette, var(--fandhe-color-accent))",
+                ),
+                decl("--fandhe-timeline-indicator-border", "none"),
             ],
         )
         .variant(
@@ -557,5 +583,47 @@ mod tests {
     #[test]
     fn stylesheet_is_deterministic() {
         assert_eq!(css(), css());
+    }
+
+    /// レビュー指摘（イシュー #769）の回帰テスト: `variant`（塗り方）軸の
+    /// セレクタは実際にクラスが付与される `root` パーツを対象にしなければ
+    /// ならない。`indicator` は `class` を出力しないため、
+    /// `[data-part="indicator"]` を対象にしたセレクタは実レンダリング結果に
+    /// 一致しない死んだ CSS になる（かつての不具合、修正前は本テストが red
+    /// だった）。
+    #[test]
+    fn variant_selector_targets_root_not_indicator() {
+        let out = css();
+        for class in [
+            "fd-timeline--variant-solid",
+            "fd-timeline--variant-subtle",
+            "fd-timeline--variant-outline",
+            "fd-timeline--variant-plain",
+        ] {
+            assert!(
+                out.contains(&format!(r#"[data-part="root"].{class}"#)),
+                "expected root selector for {class} in {out}"
+            );
+            assert!(
+                !out.contains(&format!(r#"[data-part="indicator"].{class}"#)),
+                "unexpected dead indicator selector for {class} in {out}"
+            );
+        }
+    }
+
+    /// `indicator` の base 宣言が `variant` の custom property を `var()` で
+    /// 参照していることを固定する（root スコープの継承経由で
+    /// background/color/border が伝搬する契約、モジュール doc「variant 3 軸」
+    /// 参照）。
+    #[test]
+    fn indicator_paint_references_variant_custom_properties() {
+        let out = css();
+        assert!(out.contains("background: var(--fandhe-timeline-indicator-bg,"));
+        assert!(out.contains("color: var(--fandhe-timeline-indicator-fg,"));
+        assert!(out.contains("border: var(--fandhe-timeline-indicator-border, none);"));
+        assert!(out.contains("--fandhe-timeline-indicator-bg: var(--fandhe-color-bg-subtle);"));
+        assert!(out.contains(
+            "--fandhe-timeline-indicator-border: 2px solid var(--fandhe-palette, var(--fandhe-color-accent));"
+        ));
     }
 }

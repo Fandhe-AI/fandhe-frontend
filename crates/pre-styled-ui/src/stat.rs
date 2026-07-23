@@ -30,6 +30,16 @@
 //! `color-palette` 軸は提供しない。`size`（[`crate::recipe::Size`]、既定
 //! `Md`）のみを root へ付与する。
 //!
+//! クラスは `root` パーツのみへ付与し（[`root`] 参照）、`value-text` の
+//! `font-size` への伝搬は root スコープの CSS custom property
+//! （`--fandhe-stat-value-font-size`）の通常の CSS 継承で行う
+//! （[`crate::timeline`]/[`crate::switch`] と同型のパターン。かつて
+//! `variant(Size, "value-text", ...)` として `value-text` slot 自身への
+//! コンパウンドセレクタで登録していたが、`value-text` パーツは `class` を
+//! 一切出力しないためこのセレクタは実レンダリング結果に決して一致せず、
+//! Sm/Lg の font-size 変更が無効化する死んだ CSS だった。イシュー #769
+//! レビュー指摘で発覚し custom property 経由へ修正した）。
+//!
 //! # increase/decrease indicator の矢印表現（外部リソース非参照）
 //!
 //! [`crate::rating_group`] の星形 indicator と同型に、SVG ファイル・icon
@@ -106,7 +116,10 @@ fn recipe() -> SlotRecipe {
                 decl("display", "flex"),
                 decl("align-items", "baseline"),
                 decl("gap", "var(--fandhe-space-1)"),
-                decl("font-size", "var(--fandhe-font-font-size-2xl)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-stat-value-font-size, var(--fandhe-font-font-size-2xl))",
+                ),
                 decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
                 decl("margin", "0"),
             ],
@@ -151,18 +164,27 @@ fn recipe() -> SlotRecipe {
         )
         .variant(
             Size::Sm,
-            "value-text",
-            vec![decl("font-size", "var(--fandhe-font-font-size-lg)")],
+            "root",
+            vec![decl(
+                "--fandhe-stat-value-font-size",
+                "var(--fandhe-font-font-size-lg)",
+            )],
         )
         .variant(
             Size::Md,
-            "value-text",
-            vec![decl("font-size", "var(--fandhe-font-font-size-2xl)")],
+            "root",
+            vec![decl(
+                "--fandhe-stat-value-font-size",
+                "var(--fandhe-font-font-size-2xl)",
+            )],
         )
         .variant(
             Size::Lg,
-            "value-text",
-            vec![decl("font-size", "var(--fandhe-font-font-size-3xl)")],
+            "root",
+            vec![decl(
+                "--fandhe-stat-value-font-size",
+                "var(--fandhe-font-font-size-3xl)",
+            )],
         )
         .default_variant(Size::Md)
 }
@@ -362,5 +384,32 @@ mod tests {
         let out = css();
         assert!(out.contains("var(--fandhe-color-success-emphasized)"));
         assert!(out.contains("var(--fandhe-color-danger-emphasized)"));
+    }
+
+    /// レビュー指摘（イシュー #769）の回帰テスト: `size` variant のセレクタは
+    /// 実際にクラスが付与される `root` パーツを対象にしなければならない。
+    /// `value-text` は `class` を出力しないため、`[data-part="value-text"]`
+    /// を対象にしたセレクタは実レンダリング結果に一致しない死んだ CSS になる
+    /// （かつての不具合、修正前は本テストが red だった）。
+    #[test]
+    fn size_variant_selector_targets_root_not_value_text() {
+        let out = css();
+        assert!(out.contains(r#"[data-part="root"].fd-stat--size-sm"#));
+        assert!(out.contains(r#"[data-part="root"].fd-stat--size-lg"#));
+        assert!(!out.contains(r#"[data-part="value-text"].fd-stat--size-sm"#));
+        assert!(!out.contains(r#"[data-part="value-text"].fd-stat--size-lg"#));
+    }
+
+    /// `value-text` の base 宣言が `size` variant の custom property を
+    /// `var()` で参照していることを固定する（root スコープの継承経由で
+    /// font-size が伝搬する契約、モジュール doc「variant: `size` のみ」参照）。
+    #[test]
+    fn value_text_font_size_references_size_custom_property() {
+        let out = css();
+        assert!(out.contains(
+            "font-size: var(--fandhe-stat-value-font-size, var(--fandhe-font-font-size-2xl))"
+        ));
+        assert!(out.contains("--fandhe-stat-value-font-size: var(--fandhe-font-font-size-lg)"));
+        assert!(out.contains("--fandhe-stat-value-font-size: var(--fandhe-font-font-size-3xl)"));
     }
 }

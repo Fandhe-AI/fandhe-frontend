@@ -22,7 +22,7 @@ const STAT_GOLDEN_CSS: &str = r#"[data-scope="stat"][data-part="root"] {
   display: flex;
   align-items: baseline;
   gap: var(--fandhe-space-1);
-  font-size: var(--fandhe-font-font-size-2xl);
+  font-size: var(--fandhe-stat-value-font-size, var(--fandhe-font-font-size-2xl));
   font-weight: var(--fandhe-font-font-weight-semibold);
   margin: 0;
 }
@@ -54,16 +54,16 @@ const STAT_GOLDEN_CSS: &str = r#"[data-scope="stat"][data-part="root"] {
   background: var(--fandhe-color-danger-emphasized);
 }
 
-[data-scope="stat"][data-part="value-text"].fd-stat--size-sm {
-  font-size: var(--fandhe-font-font-size-lg);
+[data-scope="stat"][data-part="root"].fd-stat--size-sm {
+  --fandhe-stat-value-font-size: var(--fandhe-font-font-size-lg);
 }
 
-[data-scope="stat"][data-part="value-text"].fd-stat--size-md {
-  font-size: var(--fandhe-font-font-size-2xl);
+[data-scope="stat"][data-part="root"].fd-stat--size-md {
+  --fandhe-stat-value-font-size: var(--fandhe-font-font-size-2xl);
 }
 
-[data-scope="stat"][data-part="value-text"].fd-stat--size-lg {
-  font-size: var(--fandhe-font-font-size-3xl);
+[data-scope="stat"][data-part="root"].fd-stat--size-lg {
+  --fandhe-stat-value-font-size: var(--fandhe-font-font-size-3xl);
 }
 "#;
 
