@@ -49,12 +49,15 @@ use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
+use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
+use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::password_input::{
     self, PasswordAutocomplete, PasswordInputProps,
 };
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
+use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::{
     accordion, alert, badge, card, menu, popover, radio_group, select, switch, tooltip,
@@ -112,6 +115,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
 .showcase-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 0.75rem;\n  align-items: center;\n  margin: 1rem 0;\n}\n\
 .showcase-stack {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n  margin: 1rem 0;\n  max-width: 36rem;\n}\n\
+.showcase-form-field-group {\n  display: flex;\n  flex-direction: column;\n  gap: 0.25rem;\n  width: 100%;\n}\n\
 .pre-styled-showcase [data-scope=\"accordion\"] h3 {\n  margin: 0;\n  font-size: 1rem;\n  font-weight: 400;\n  line-height: 1.5;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"backdrop\"] {\n  display: none;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: static;\n  padding: 0;\n  justify-content: flex-start;\n}\n\
@@ -165,6 +169,9 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::radio_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::avatar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::checkbox::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::input::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::password_input::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
@@ -1032,6 +1039,97 @@ fn checkbox_section() -> Node {
     )
 }
 
+/// Input / Textarea / NativeSelect 節（イシュー #737）。
+///
+/// 状態機械を持たない静的フォーム部品 3 種。アクセシビリティ配線
+/// （`id`・ネイティブ `disabled`/`required`/`readonly`・`aria-invalid`・
+/// `aria-describedby`・`data-*`）は headless `field::*`（#538/#602）へ全面
+/// 委譲するため、本節では invalid/disabled の 2 態と variant/size の切り替え
+/// のみを掲示する（`fandhe_frontend_pre_styled_ui::input` モジュール doc
+/// 参照）。`color-palette` 軸は提供しない設計のため掲示しない。
+fn form_controls_section() -> Node {
+    let plain_field = |id: &'static str| FieldProps {
+        id,
+        ids: FieldIds::default(),
+        disabled: false,
+        invalid: false,
+        required: false,
+        readonly: false,
+        has_helper_text: false,
+    };
+    let invalid_field = |id: &'static str| FieldProps {
+        invalid: true,
+        ..plain_field(id)
+    };
+    let disabled_field = |id: &'static str| FieldProps {
+        disabled: true,
+        ..plain_field(id)
+    };
+
+    let input_row = row(vec![
+        input::input(
+            &InputProps::default(),
+            &plain_field("showcase-input-default"),
+            vec![("placeholder", "Outline (default)")],
+        ),
+        // invalid 時、headless `field::input` は `aria-describedby` に
+        // `{id}-error-text` を出力する（`field.rs` の describedby 合成則）。
+        // 参照先の id を持つ `field::error_text` を併設し、存在しない id への
+        // 参照を残さない（Bugbot 指摘、PR #783）。
+        //
+        // ラッパー div には `.showcase-form-field-group`（`width: 100%`）を
+        // 付与する。付与しないと `showcase-row` の直接 flex item がこの div
+        // になり、兄弟 input が持つ `width: 100%`（`field` recipe base）による
+        // flex-basis 解決を div 自身が持たず auto（contents 由来の縮小）に
+        // なってしまい、Invalid デモだけ Default/Disabled より狭く描画される
+        // （Bugbot 指摘、PR #783 review）。
+        div(
+            vec![("class", "showcase-form-field-group")],
+            vec![
+                input::input(
+                    &InputProps::default(),
+                    &invalid_field("showcase-input-invalid"),
+                    vec![("placeholder", "Invalid")],
+                ),
+                input::error_text(
+                    &invalid_field("showcase-input-invalid"),
+                    vec![],
+                    vec![text("This field is required.")],
+                ),
+            ],
+        ),
+        input::input(
+            &InputProps::default(),
+            &disabled_field("showcase-input-disabled"),
+            vec![("placeholder", "Disabled")],
+        ),
+    ]);
+
+    let textarea_row = row(vec![textarea::textarea(
+        &TextareaProps::default(),
+        &plain_field("showcase-textarea-default"),
+        false,
+        vec![("placeholder", "Outline (default)")],
+        vec![],
+    )]);
+
+    let native_select_row = row(vec![native_select::native_select(
+        &NativeSelectProps::default(),
+        &plain_field("showcase-native-select-default"),
+        vec![],
+        vec![
+            el("option", vec![("value", "jp")], vec![text("Japan")]),
+            el("option", vec![("value", "us")], vec![text("United States")]),
+        ],
+    )]);
+
+    section(
+        "Input / Textarea / NativeSelect",
+        "ブラウザネイティブ挙動をそのまま尊重する静的フォーム部品 3 種。invalid/disabled 状態は headless field:: へ委譲した data-* 属性・aria-invalid で表現します。",
+        vec![input_row, textarea_row, native_select_row],
+    )
+}
+
 /// NumberInput 節: 中間値・境界値（min 到達で decrement disabled）・
 /// disabled の 3 態。
 ///
@@ -1270,6 +1368,7 @@ fn showcase_body() -> Node {
             radio_group_section(),
             avatar_section(),
             checkbox_section(),
+            form_controls_section(),
             number_input_section(),
             password_input_section(),
         ],
@@ -1308,12 +1407,21 @@ mod tests {
             "radio-group",
             "avatar",
             "checkbox",
+            "field",
             "number-input",
             "password-input",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
                 "missing data-scope={scope}"
+            );
+        }
+        // Input / Textarea / NativeSelect（イシュー #737）: field scope 内の
+        // 3 パーツすべてが掲示されていることを固定する。
+        for part in ["input", "textarea", "select"] {
+            assert!(
+                html.contains(&format!(r#"data-scope="field" data-part="{part}""#)),
+                "missing data-scope=field data-part={part}"
             );
         }
         // 静的掲示の状態固定: 選択中タブ・開いた Accordion 項目・checked
@@ -1377,6 +1485,9 @@ mod tests {
         assert!(css.contains(".fd-avatar--size-md"));
         assert!(css.contains(".fd-avatar--shape-circle"));
         assert!(css.contains(r#"[data-scope="checkbox"][data-part="control"]"#));
+        assert!(css.contains(r#"[data-scope="field"][data-part="input"]"#));
+        assert!(css.contains(r#"[data-scope="field"][data-part="textarea"]"#));
+        assert!(css.contains(r#"[data-scope="field"][data-part="select"]"#));
         assert!(css.contains(r#"[data-scope="number-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="password-input"][data-part="control"]"#));
         // ショーケース配置スタイル。
