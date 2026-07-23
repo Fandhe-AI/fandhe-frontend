@@ -277,6 +277,7 @@ mod tests {
             ("rating_group", crate::rating_group::stylesheet()),
             ("toggle", crate::toggle::stylesheet()),
             ("toggle_group", crate::toggle_group::stylesheet()),
+            ("segment_group", crate::segment_group::stylesheet()),
         ]
     }
 

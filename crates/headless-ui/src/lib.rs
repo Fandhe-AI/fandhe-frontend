@@ -85,6 +85,15 @@
 //!   dispatch は `"select"` のみを受理する（WAI-ARIA radio パターンに選択解除
 //!   ジェスチャは存在しないため、型付き API の `Deselect` のみプログラム的な
 //!   選択解除を許す）。
+//! - [`mod@segment_group`]: Root / Indicator / Item / ItemText / ItemControl /
+//!   ItemHiddenInput の 6 anatomy パーツと、状態機械・dispatch・hydration の
+//!   すべてを [`radio_group::RadioGroup`] へ全委譲する
+//!   [`segment_group::SegmentGroup`]（#743、親トラッキング #520）。segmented
+//!   control は WAI-ARIA radio パターンそのものであるため独自の状態機械を
+//!   新設しない。固有に持つのは segment 用 anatomy と、選択項目の
+//!   `(index, count)` から CSS カスタムプロパティ 2 種を導出する
+//!   [`segment_group::indicator`] の SSR 決定的な位置表現のみ（詳細は
+//!   [`mod@segment_group`] module doc 参照）。
 //! - [`popover`]: Root / Trigger / Anchor / Positioner / Arrow / ArrowTip /
 //!   Content / Title / Description / CloseTrigger / Indicator の 11 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだ [`popover::Popover`] を提供する
@@ -234,6 +243,7 @@ pub mod positioning;
 pub mod progress;
 pub mod radio_group;
 pub mod rating_group;
+pub mod segment_group;
 pub mod select;
 pub mod slider;
 pub mod state;
@@ -289,6 +299,7 @@ pub use positioning::{
 pub use progress::{Progress, ProgressAction};
 pub use radio_group::RadioGroup;
 pub use rating_group::{RatingGroup, RatingGroupAction, RatingItemFlags};
+pub use segment_group::SegmentGroup;
 pub use slider::{Slider, SliderAction};
 pub use state::{
     Checkable, CheckableAction, Disclosure, DisclosureAction, MultiSelect, MultiSelectAction,

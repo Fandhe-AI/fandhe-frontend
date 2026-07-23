@@ -67,6 +67,7 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | Toggle | `toggle` | Root/Indicator | `state::Checkable`（`data-state` 語彙は `"on"`/`"off"`。`checked_data_state` ではなく `state::pressed_data_state` で変換し、Switch の `"checked"`/`"unchecked"` と分離する） | #746 |
 | ToggleGroup（single モード） | `toggle_group` | Root/Item | `state::SingleSelect`（dispatch は `"toggle"` のみ受理、常時 deselectable） | #746 |
 | MultiToggleGroup（multiple モード） | `toggle_group` | Root/Item | `state::MultiSelect`（dispatch は `"toggle"` のみ受理） | #746 |
+| SegmentGroup | `segment_group` | Root/Indicator/Item/ItemText/ItemControl/ItemHiddenInput | `radio_group::RadioGroup`（`state::SingleSelect`）へ全委譲（独自の状態機械を新設せず、既存 RadioGroup の dispatch/hydration をそのまま再利用する） | #743 |
 
 **未実装（open イシュー、後続で追補）**: Checkbox（#535）・Progress（#544）。
 本表はこれらの実装完了時に更新する。

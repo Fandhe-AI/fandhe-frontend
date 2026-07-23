@@ -88,6 +88,11 @@
 //! - headless ラッパー（#738）: [`mod@number_input`]（NumberInput、`size`
 //!   variant のみを持つ。フォーム入力部品のため `color-palette` 軸は提供
 //!   しない。詳細は [`mod@number_input`] rustdoc 参照）。
+//! - headless ラッパー（#743）: [`mod@segment_group`]（SegmentGroup、
+//!   segmented control。`size` variant のみを持ち `color-palette` 軸は
+//!   提供しない。状態機械は [`mod@radio_group`] へ全委譲。indicator の
+//!   位置表現・visually-hidden 化・フォーカスリングの設計は
+//!   [`mod@segment_group`] rustdoc 参照）。
 //! - headless 状態機械を持つ複合部品の styled ラッパー第 5 弾（#730）:
 //!   [`mod@checkbox`]。`size`/`color-palette` variant・`data-focus-visible`
 //!   フォーカスリングは [`mod@switch`] と同型で最初から実装する。`indicator`
@@ -260,6 +265,7 @@ pub mod popover;
 pub mod radio_group;
 pub mod rating_group;
 pub mod recipe;
+pub mod segment_group;
 pub mod select;
 pub mod slider;
 pub mod spinner;
