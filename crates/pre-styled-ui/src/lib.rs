@@ -60,6 +60,11 @@
 //!     `variant`、常時 `aria-hidden="true"`、`prefers-reduced-motion: reduce`
 //!     でのアニメーション停止 CSS を持つ。装飾的占位要素のため card と同じ
 //!     判断で colorPalette 軸を付与しない）。
+//!   - [`mod@separator`]（#772）: [`separator::separator`]（単一 recipe、
+//!     `<hr>`。区切り線であり中立的な罫線のため colorPalette 軸を付与しない。
+//!     `orientation`（horizontal/vertical）・`variant`（solid/dashed）の
+//!     2 軸を持ち、`role="separator"`・`aria-orientation`・
+//!     `data-orientation` を常時出力する）。
 //!
 //!   いずれも variant/size/status は Rust enum（[`recipe::VariantValue`] 実装）
 //!   として型安全に表現し、クラス名文字列を動的合成しない
@@ -371,6 +376,7 @@ pub mod rating_group;
 pub mod recipe;
 pub mod segment_group;
 pub mod select;
+pub mod separator;
 pub mod skeleton;
 pub mod slider;
 pub mod spinner;
@@ -398,6 +404,7 @@ pub use image::{image, AspectRatio, ImageFit, ImageProps};
 pub use input::{input, InputProps, InputVariant};
 pub use native_select::{native_select, NativeSelectProps, NativeSelectVariant};
 pub use recipe::{when, ColorPalette, Size, SlotRecipe, VariantCondition, VariantValue};
+pub use separator::{separator, SeparatorProps, SeparatorVariant};
 pub use skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 pub use spinner::{spinner, SpinnerProps};
 pub use status::StatusProps;
