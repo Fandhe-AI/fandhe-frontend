@@ -2933,6 +2933,68 @@ fn menu_open_arrow_left_closes_submenu_and_restores_parent_highlight() {
     );
 }
 
+/// ArrowLeft: `trigger_item` に `id` が無い場合でも、click 前に保持していた
+/// ノードを `is_same_node` で照合してサブメニューを閉じたうえで親
+/// trigger-item へ highlight を復帰させるべき（Bugbot 指摘 "ArrowLeft still
+/// requires trigger id"、イシュー #662 PR #674）。`open_submenu_and_focus_
+/// first_item`（ArrowRight/Enter/Space 側）は id なし trigger-item を
+/// `is_same_node` ベースの fallback で救済済みだが、ArrowLeft 側のみ `id`
+/// 欠落を理由に親 highlight 復帰をスキップしていた不整合の回帰テスト。
+#[wasm_bindgen_test]
+fn menu_open_arrow_left_closes_submenu_and_restores_parent_highlight_without_trigger_item_id() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-close-noid1",
+        &[("a", "A", false)],
+        "sub",
+        "Sub",
+        false,
+        &[("x", "X", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    // headless-ui の anatomy 上 `trigger_item` の `id` は optional。ここで
+    // 意図的に取り除き、`document.get_element_by_id` による再解決手段が
+    // 無い状態を再現する。
+    trigger_item.remove_attribute("id").unwrap();
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-sub-close-noid1-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    let item_x = document
+        .get_element_by_id("kn-sub-close-noid1-sub-item-x")
+        .unwrap();
+    assert!(!sub_content.has_attribute("hidden"));
+    assert!(item_x.has_attribute("data-highlighted"));
+
+    let not_default_prevented = trigger.dispatch_event(&keydown_event("ArrowLeft")).unwrap();
+    assert!(
+        !not_default_prevented,
+        "サブメニュー内での ArrowLeft は prevent_default されるべき"
+    );
+
+    assert!(
+        sub_content.has_attribute("hidden"),
+        "サブメニューが閉じるべき"
+    );
+    assert!(
+        !item_x.has_attribute("data-highlighted"),
+        "閉じた後サブメニュー項目の highlight は残らないべき"
+    );
+    assert!(
+        trigger_item.has_attribute("data-highlighted"),
+        "id-less な trigger-item でも閉じた後 highlight は親へ復帰するべき"
+    );
+}
+
 /// ArrowLeft: トップレベル（サブメニュー内でない）では no-op
 /// （`prevent_default` しない、受け入れ条件 2 後段）。
 #[wasm_bindgen_test]

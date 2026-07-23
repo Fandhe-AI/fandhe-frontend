@@ -2619,36 +2619,44 @@ mod wiring {
                 // 要素へ適用すると、click → dispatch で親 content 側のノードが
                 // 差し替わった場合に静かに失敗し親項目が再ハイライトされない
                 // （Bugbot 指摘、イシュー #662）。そのため click 前に
-                // `parent_trigger` の `id` 属性を控え、click 後は
-                // `document.get_element_by_id` で改めて“今の” trigger-item
-                // 要素を取得してから `closest` で親 content を辿り、
-                // 復帰先項目も `id` の一致（ノード同一性ではなく）で照合する
+                // `parent_trigger` の `id` 属性を控え、`id` がある場合は click
+                // 後に `document.get_element_by_id` で改めて“今の” trigger-item
+                // 要素を取得し、復帰先項目も `id` の一致で照合する
                 // （ArrowRight の id ベース再解決と同型のパターン）。
-                // `id` が欠落している場合は照合の拠り所が無いため fail-closed
-                // で no-op とする（既存の各所と同じ方針）。
-                if let Some(parent_trigger_id) = parent_trigger.get_attribute("id") {
-                    if let Some(document) = parent_trigger.owner_document() {
-                        if let Some(fresh_parent_trigger) =
-                            document.get_element_by_id(&parent_trigger_id)
-                        {
-                            if let Some(parent_content) =
-                                closest(&fresh_parent_trigger, content_selector)
-                            {
-                                if root.contains(Some(&parent_content)) {
-                                    let parent_items = filter_own_scope_items(
-                                        collect_parts(&parent_content, item_selector),
-                                        &parent_content,
-                                        content_selector,
-                                    );
-                                    if let Some(parent_index) =
-                                        parent_items.iter().position(|item| {
-                                            item.get_attribute("id").as_deref()
-                                                == Some(parent_trigger_id.as_str())
-                                        })
-                                    {
-                                        set_highlight(&parent_items, parent_index, &parent_content);
-                                    }
+                // `headless-ui` は `trigger_item` の `id` を必須にしておらず
+                // （anatomy 上 optional）、`id` が無い場合は再解決の手段が
+                // 無いため、click() 前に保持していた `parent_trigger` を
+                // そのまま解決に使い、復帰先項目の照合も `is_same_node` で
+                // 行う（`open_submenu_and_focus_first_item` の ArrowRight/
+                // Enter 側で採用した fallback と同型）。ここで `id` 欠落を
+                // 理由に highlight 復帰自体を no-op にすると、id なし
+                // trigger-item を ArrowLeft で閉じた際に親項目が再ハイライト
+                // されない不整合が残る（Bugbot 指摘 "ArrowLeft still requires
+                // trigger id"、イシュー #662）。`id` 再解決（`id` がある場合
+                // のみ）の失敗・親 content 未検出はいずれも no-op
+                // （fail-closed）。
+                let parent_trigger_id = parent_trigger.get_attribute("id");
+                let resolved_parent_trigger = match parent_trigger_id.as_deref() {
+                    Some(id) => parent_trigger
+                        .owner_document()
+                        .and_then(|document| document.get_element_by_id(id)),
+                    None => Some(parent_trigger.clone()),
+                };
+                if let Some(fresh_parent_trigger) = resolved_parent_trigger {
+                    if let Some(parent_content) = closest(&fresh_parent_trigger, content_selector) {
+                        if root.contains(Some(&parent_content)) {
+                            let parent_items = filter_own_scope_items(
+                                collect_parts(&parent_content, item_selector),
+                                &parent_content,
+                                content_selector,
+                            );
+                            if let Some(parent_index) = parent_items.iter().position(|item| {
+                                match parent_trigger_id.as_deref() {
+                                    Some(id) => item.get_attribute("id").as_deref() == Some(id),
+                                    None => item.is_same_node(Some(&fresh_parent_trigger)),
                                 }
+                            }) {
+                                set_highlight(&parent_items, parent_index, &parent_content);
                             }
                         }
                     }
