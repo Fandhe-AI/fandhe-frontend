@@ -5,15 +5,30 @@
 //! [`stylesheet`] で既定 CSS を追加提供する。薄い委譲の根拠・スコープ外事項は
 //! [`crate::dialog`]/[`crate::tooltip`] の rustdoc と同じ方針に従う。
 //!
-//! # 選択的 re-export（`pub use ...::*` を使わない理由）
+//! # 選択的 re-export（`pub use ...::*` を使わない理由、`Avatar` 型を
+//! 再エクスポートしない理由）
 //!
 //! [`crate::tooltip`]/[`crate::popover`] は headless モジュールを
 //! `pub use ...::*` で丸ごと再エクスポートするが、本モジュールは styled
 //! `root`（variant クラス付与のため本モジュールで再定義、`crate::card::root`
 //! と同型）と headless の自由関数 `root` が名前衝突するため、必要な識別子
-//! のみを選択的に再エクスポートする。headless 共通型
-//! （`Component`/`Hydrate` 等）の再エクスポート整備は別イシュー #685 の
-//! スコープであり、本モジュールでは avatar に必要な最小限に留める。
+//! のみを選択的に再エクスポートする。
+//!
+//! 状態機械 [`fandhe_frontend_headless_ui::avatar::Avatar`] は**あえて**
+//! 再エクスポートしない（PR #695 Bugbot 指摘、イシュー #684）。`Avatar` は
+//! `.root(attrs, children)` という inherent メソッドを持つが、これは
+//! headless 自由関数 `root` へそのまま委譲するのみで `size`/`shape`
+//! variant クラスを一切付与しない（[`root`] とは別の、未スタイルの実体）。
+//! 本モジュールが `Avatar` を丸ごと再エクスポートすると、呼び出し側が
+//! （styled 層のつもりで）`avatar_instance.root(...)` を呼んでしまい、
+//! base 属性のスタイルは効くが `size`/`shape` が付与されずレイアウトが
+//! 静かに崩れる事故を誘発する（Rust の可視性機構では外部型の inherent
+//! メソッドだけを選択的に隠せないため、型自体を再エクスポートしないことが
+//! 唯一の fail-closed な対策）。`Avatar` による状態管理・hydration が
+//! 必要な呼び出し側は `fandhe_frontend_headless_ui::avatar::Avatar` を
+//! 直接 import し、実際の描画は本モジュールの styled [`root`]（および
+//! 再エクスポート済みの [`image`]/[`fallback`]、`status()` は
+//! `Avatar::status()` から取得）を組み合わせて構築すること。
 //!
 //! # variant（size/shape）について
 //!
@@ -66,7 +81,10 @@
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{SlotRecipe, StateCondition, VariantValue};
-pub use fandhe_frontend_headless_ui::avatar::{fallback, image, Avatar, AvatarAction, ImageStatus};
+// `Avatar` 状態機械はあえて再エクスポートしない（本モジュール冒頭の rustdoc
+// 「`Avatar` 型を再エクスポートしない理由」参照）。状態管理・hydration が
+// 必要な呼び出し側は `fandhe_frontend_headless_ui::avatar::Avatar` を直接 import する。
+pub use fandhe_frontend_headless_ui::avatar::{fallback, image, AvatarAction, ImageStatus};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 
 /// [`SlotRecipe::new`] に渡す slot 一覧（`crates/headless-ui/src/avatar.rs`
@@ -309,7 +327,12 @@ mod tests {
     }
 
     #[test]
-    fn ssr_and_hydration_round_trip_via_reexported_avatar_state_machine() {
+    fn ssr_and_hydration_round_trip_via_headless_avatar_state_machine() {
+        // `Avatar` は本モジュールから再エクスポートしない（本モジュール冒頭の
+        // rustdoc「`Avatar` 型を再エクスポートしない理由」参照）ため、
+        // headless-ui から直接 import して state machine 契約のみ検証する。
+        use fandhe_frontend_headless_ui::avatar::Avatar;
+
         let mut a = Avatar::default();
         assert_eq!(a.status(), ImageStatus::Loading);
 
