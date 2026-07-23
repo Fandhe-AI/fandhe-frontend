@@ -38,6 +38,7 @@ checkbox styled ラッパー追加（#730、v0.6.0 未公開）を経て 20 の�
 | headless ラッパー第 4 弾 | `radio_group` | #683（§4c 参照） |
 | headless ラッパー | `avatar` | #684（§4b 参照） |
 | headless ラッパー第 5 弾 | `checkbox` | #730（§4e 参照） |
+| headless ラッパー | `pin_input` | #739（`size` variant のみ。palette は第 2 弾展開の既存方針に従い本イシューのスコープ外） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
@@ -388,6 +389,7 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | switch | ✓ | ✓ | 実装済み（#708） |
 | radio-group | ✓ | ✓ | 実装済み（#708） |
 | checkbox | ✓ | ✓ | 実装済み（#730） |
+| pin-input | ✓ | – | 実装済み（#739、palette は第 2 弾展開のフォローアップ） |
 | tabs | 候補 | 候補（selected trigger） | フォローアップ |
 | accordion / dialog / menu / select | 候補（size のみ） | – | フォローアップ |
 | popover / tooltip | 提供しない | 提供しない | 方針確定 |
