@@ -82,6 +82,11 @@
 //!   2 軸 variant を持つ最初のラッパー）。
 //! - [`mod@switch`]/[`mod@radio_group`] への `size`/`color-palette` variant
 //!   拡張（#708）: 下記「複合部品の variant 統一方針」節を参照。
+//! - headless 状態機械を持つ複合部品の styled ラッパー第 5 弾（#730）:
+//!   [`mod@checkbox`]。`size`/`color-palette` variant・`data-focus-visible`
+//!   フォーカスリングは [`mod@switch`] と同型で最初から実装する。`indicator`
+//!   の `hidden` 属性意味論を CSS が壊さない設計（`display` 宣言を置かない）
+//!   は [`mod@checkbox`] rustdoc 参照。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683）
 //!
@@ -204,6 +209,7 @@ pub mod avatar;
 pub mod badge;
 pub mod button;
 pub mod card;
+pub mod checkbox;
 mod class_attr;
 pub mod css;
 pub mod dialog;

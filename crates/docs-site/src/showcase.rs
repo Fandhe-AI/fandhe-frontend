@@ -47,6 +47,7 @@
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
+use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
@@ -159,6 +160,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::switch::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::radio_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::avatar::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::checkbox::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -952,6 +954,73 @@ fn avatar_section() -> Node {
     )
 }
 
+/// Checkbox 節: unchecked / checked / indeterminate / disabled の 4 態
+/// （イシュー #730）。
+///
+/// headless 層は checked/unchecked/indeterminate の 3 値 `data-state` 語彙を
+/// 持つ（`fandhe_frontend_pre_styled_ui::checkbox` のモジュール doc
+/// 参照）。フォーム意味論は visually-hidden な `<input type="checkbox">`
+/// （[`checkbox::hidden_input`]）が担い、見た目（チェックマーク）は
+/// `control`/`indicator` が装飾として担う。
+fn checkbox_section() -> Node {
+    let states = [
+        (
+            CheckedState::Unchecked,
+            false,
+            "showcase-checkbox-unchecked",
+            "Unchecked",
+        ),
+        (
+            CheckedState::Checked,
+            false,
+            "showcase-checkbox-checked",
+            "Checked",
+        ),
+        (
+            CheckedState::Indeterminate,
+            false,
+            "showcase-checkbox-indeterminate",
+            "Indeterminate",
+        ),
+        (
+            CheckedState::Checked,
+            true,
+            "showcase-checkbox-disabled",
+            "Disabled",
+        ),
+    ];
+    let demo_row = row(states
+        .iter()
+        .map(|(checked, disabled, name, label)| {
+            let props = CheckboxProps {
+                checked: *checked,
+                disabled: *disabled,
+                ..CheckboxProps::default()
+            };
+            checkbox::root(
+                Size::Md,
+                ColorPalette::Accent,
+                &props,
+                vec![],
+                vec![
+                    checkbox::hidden_input(&props, name, "on", vec![]),
+                    checkbox::control(
+                        &props,
+                        vec![],
+                        vec![checkbox::indicator(&props, vec![], vec![])],
+                    ),
+                    checkbox::label(&props, vec![], vec![text(*label)]),
+                ],
+            )
+        })
+        .collect());
+    section(
+        "Checkbox",
+        "data-state=\"checked\"/\"unchecked\"/\"indeterminate\" の 3 態を持つチェックボックス。visually-hidden な input[type=\"checkbox\"] がフォーム送信・キーボード操作の意味論を担い、チェックマークは CSS の border 合成で描画します（画像アセット不使用）。",
+        vec![demo_row],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -984,6 +1053,7 @@ fn showcase_body() -> Node {
             switch_section(),
             radio_group_section(),
             avatar_section(),
+            checkbox_section(),
         ],
     )
 }
@@ -1019,6 +1089,7 @@ mod tests {
             "switch",
             "radio-group",
             "avatar",
+            "checkbox",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
@@ -1026,10 +1097,11 @@ mod tests {
             );
         }
         // 静的掲示の状態固定: 選択中タブ・開いた Accordion 項目・checked
-        // Switch/RadioGroup item。
+        // Switch/RadioGroup item・indeterminate Checkbox。
         assert!(html.contains(r#"data-state="active""#));
         assert!(html.contains(r#"data-state="open""#));
         assert!(html.contains(r#"data-state="checked""#));
+        assert!(html.contains(r#"data-state="indeterminate""#));
     }
 
     #[test]
@@ -1078,6 +1150,7 @@ mod tests {
         assert!(css.contains(r#"[data-scope="radio-group"][data-part="item-control"]"#));
         assert!(css.contains(".fd-avatar--size-md"));
         assert!(css.contains(".fd-avatar--shape-circle"));
+        assert!(css.contains(r#"[data-scope="checkbox"][data-part="control"]"#));
         // ショーケース配置スタイル。
         assert!(css.contains(".showcase-row"));
         assert!(css.contains(".showcase-stack"));
