@@ -25,9 +25,10 @@ rustdoc および各モジュール冒頭の rustdoc とする。本節はモジ
 checkbox styled ラッパー追加（#730）・静的フォーム部品 3 種追加（#737）・
 NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー追加
 （#739）・Slider styled ラッパー追加（#741）・RatingGroup styled ラッパー
-追加（#742）・SegmentGroup styled ラッパー追加（#743）・CheckboxCard/
-RadioCard styled バリエーション追加（#747、いずれも公開時点未反映）を経て
-30 の公開モジュールを持つ。内訳は次の通り。
+追加（#742）・SegmentGroup styled ラッパー追加（#743）・TagsInput styled
+ラッパー追加（#744）・Toggle/ToggleGroup styled ラッパー追加（#746）・
+CheckboxCard/RadioCard styled バリエーション追加（#747、いずれも公開時点
+未反映）を経て 33 の公開モジュールを持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -48,6 +49,8 @@ RadioCard styled バリエーション追加（#747、いずれも公開時点�
 | headless ラッパー第 8 弾 | `slider` | #741（`size`/`color-palette` 両軸提供。動的値は `--fandhe-slider-percent` custom property の 1 点のみで伝搬） |
 | headless ラッパー第 9 弾 | `rating_group` | #742（`size`/`color-palette` 両軸、星形 indicator は `clip-path` インライン表現） |
 | headless ラッパー | `segment_group` | #743（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供。状態機械は `radio_group` へ全委譲） |
+| headless ラッパー第 10 弾 | `tags_input` | #744（`size` variant のみ。フォーム入力部品のため `color-palette` 軸は非提供、`pin_input`/`number_input` と同型の判断） |
+| headless ラッパー | `toggle` / `toggle_group` | #746（実フォーカスをネイティブ `<button>` 自身が受けるため `data-focus-visible` 配線ではなく `FocusVisible` state condition で対応。`size`/`color-palette` 両軸提供） |
 | カード型選択 UI（styled バリエーション） | `checkbox_card` / `radio_card` | #747（§4g 参照。headless-ui は変更なし、pre-styled 層で新規 anatomy `checkbox-card`/`radio-card` を定義。状態機械は headless `Checkbox`/`RadioGroup` を再利用） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
@@ -415,7 +418,10 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | number-input | ✓ | – | 実装済み（#738、フォーム入力部品のため color-palette は非提供） |
 | pin-input | ✓ | – | 実装済み（#739、palette は第 2 弾展開のフォローアップ） |
 | rating-group | ✓ | ✓ | 実装済み（#742、星形 indicator の寸法・点灯色に反映） |
+| toggle | ✓ | ✓ | 実装済み（#746） |
+| toggle-group | ✓ | ✓ | 実装済み（#746、root のみへクラス付与） |
 | segment-group | ✓ | – | 実装済み（#743、選択状態は indicator の移動 + 文字強調で表現するため color-palette は非提供） |
+| tags-input | ✓ | – | 実装済み（#744、フォーム入力部品のため color-palette は非提供） |
 | checkbox-card / radio-card | ✓ | ✓ | 実装済み（#747、§4g 参照。カード外観・選択強調・ドット色に反映） |
 | popover / tooltip | 提供しない | 提供しない | 方針確定 |
 

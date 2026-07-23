@@ -276,7 +276,10 @@ mod tests {
             ("number_input", crate::number_input::stylesheet()),
             ("slider", crate::slider::stylesheet()),
             ("pin_input", crate::pin_input::stylesheet()),
+            ("tags_input", crate::tags_input::stylesheet()),
             ("rating_group", crate::rating_group::stylesheet()),
+            ("toggle", crate::toggle::stylesheet()),
+            ("toggle_group", crate::toggle_group::stylesheet()),
             ("segment_group", crate::segment_group::stylesheet()),
         ]
     }

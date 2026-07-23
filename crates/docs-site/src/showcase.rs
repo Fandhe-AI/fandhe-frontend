@@ -60,6 +60,7 @@ use fandhe_frontend_pre_styled_ui::segment_group;
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
+use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::{
@@ -180,6 +181,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::tags_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::rating_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::slider::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::segment_group::stylesheet())?;
@@ -1288,6 +1290,104 @@ fn number_input_section() -> Node {
     )
 }
 
+/// TagsInput 節: 通常タグ数件・max 到達（`data-invalid`/`aria-invalid`）・
+/// disabled の 3 態。
+///
+/// `control` は `role="listbox"`、各タグの `item-preview` は `role="option"`
+/// （headless 層の listbox 相当 ARIA、`fandhe_frontend_pre_styled_ui::tags_input`
+/// のモジュール doc 参照）。SSR 静的掲示のため編集モード
+/// （`item-input`/`data-editing`）は掲載しない（wasm 層の対話が必要なため、
+/// モジュール rustdoc「スコープ外」節参照）。
+fn tags_input_section() -> Node {
+    fn tag_item(tag: &str, disabled: bool) -> Node {
+        tags_input::item(
+            disabled,
+            false,
+            vec![],
+            vec![tags_input::item_preview(
+                false,
+                vec![],
+                vec![
+                    tags_input::item_text(vec![], vec![text(tag)]),
+                    tags_input::item_delete_trigger(tag, disabled, vec![], vec![text("\u{00d7}")]),
+                ],
+            )],
+        )
+    }
+
+    let normal = tags_input::root(
+        Size::Md,
+        false,
+        vec![],
+        vec![
+            tags_input::label(vec![], vec![text("Skills")]),
+            tags_input::control(
+                false,
+                false,
+                "Skills",
+                vec![],
+                vec![
+                    tag_item("rust", false),
+                    tag_item("wasm", false),
+                    tags_input::input("", false, false, vec![]),
+                ],
+            ),
+            tags_input::hidden_input("skills", "rust,wasm", false, vec![]),
+        ],
+    );
+
+    let at_max = tags_input::root(
+        Size::Md,
+        false,
+        vec![],
+        vec![
+            tags_input::label(vec![], vec![text("At max (2)")]),
+            tags_input::control(
+                false,
+                // max 到達のため `control` へ data-invalid、`input` へ
+                // data-invalid/aria-invalid を出力する（境界到達時の唯一の
+                // 視覚的合図、モジュール rustdoc「セキュリティ不変条件」節参照）。
+                true,
+                "At max",
+                vec![],
+                vec![
+                    tag_item("a", false),
+                    tag_item("b", false),
+                    tags_input::input("", false, true, vec![]),
+                ],
+            ),
+            tags_input::hidden_input("at-max", "a,b", false, vec![]),
+        ],
+    );
+
+    let disabled = tags_input::root(
+        Size::Md,
+        true,
+        vec![],
+        vec![
+            tags_input::label(vec![], vec![text("Disabled")]),
+            tags_input::control(
+                true,
+                false,
+                "Disabled",
+                vec![],
+                vec![
+                    tag_item("readonly", true),
+                    tags_input::input("", true, false, vec![]),
+                ],
+            ),
+            tags_input::hidden_input("disabled-tags", "readonly", true, vec![]),
+        ],
+    );
+
+    let demo_row = row(vec![normal, at_max, disabled]);
+    section(
+        "TagsInput",
+        "自由入力によるタグ配列。control は role=\"listbox\"、各タグは role=\"option\" を持ち、max 到達時は input が data-invalid/aria-invalid を伴います。",
+        vec![demo_row],
+    )
+}
+
 /// RatingGroup 節: 選択中（value=3）・readonly（他ユーザーの平均評価想定）・
 /// disabled の 3 態。星形 indicator は外部リソース非参照の `clip-path`
 /// インライン表現（`fandhe_frontend_pre_styled_ui::rating_group` のモジュール
@@ -1705,6 +1805,7 @@ fn showcase_body() -> Node {
             checkbox_section(),
             form_controls_section(),
             number_input_section(),
+            tags_input_section(),
             rating_group_section(),
             slider_section(),
             segment_group_section(),
@@ -1748,6 +1849,7 @@ mod tests {
             "checkbox",
             "field",
             "number-input",
+            "tags-input",
             "rating-group",
             "slider",
             "segment-group",
@@ -1828,6 +1930,7 @@ mod tests {
         assert!(css.contains(r#"[data-scope="field"][data-part="textarea"]"#));
         assert!(css.contains(r#"[data-scope="field"][data-part="select"]"#));
         assert!(css.contains(r#"[data-scope="number-input"][data-part="control"]"#));
+        assert!(css.contains(r#"[data-scope="tags-input"][data-part="control"]"#));
         // ショーケース配置スタイル。
         assert!(css.contains(".showcase-row"));
         assert!(css.contains(".showcase-stack"));

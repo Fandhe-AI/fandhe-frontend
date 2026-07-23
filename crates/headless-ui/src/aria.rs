@@ -83,6 +83,15 @@ pub fn aria_expanded(expanded: bool) -> (&'static str, &'static str) {
     ("aria-expanded", bool_str(expanded))
 }
 
+/// `aria-pressed` 属性（Toggle/ToggleGroup 用、イシュー #746）。`"true"`/
+/// `"false"` の 2 値のみを取る（[`aria_expanded`] と同型）。WAI-ARIA の
+/// トグルボタンパターンに従い、`role="button"` の押下状態を表す
+/// （`aria-checked`/`aria-selected` とは意味論が異なる別属性）。
+#[must_use]
+pub fn aria_pressed(pressed: bool) -> (&'static str, &'static str) {
+    ("aria-pressed", bool_str(pressed))
+}
+
 /// `aria-hidden` 属性。
 #[must_use]
 pub fn aria_hidden(hidden: bool) -> (&'static str, &'static str) {
@@ -191,6 +200,8 @@ mod tests {
     fn bool_helpers_map_to_true_false_strings() {
         assert_eq!(aria_expanded(true), ("aria-expanded", "true"));
         assert_eq!(aria_expanded(false), ("aria-expanded", "false"));
+        assert_eq!(aria_pressed(true), ("aria-pressed", "true"));
+        assert_eq!(aria_pressed(false), ("aria-pressed", "false"));
         assert_eq!(aria_hidden(true), ("aria-hidden", "true"));
         assert_eq!(aria_disabled(true), ("aria-disabled", "true"));
         assert_eq!(aria_selected(false), ("aria-selected", "false"));
