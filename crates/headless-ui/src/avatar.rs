@@ -63,10 +63,19 @@
 //! # スコープ外
 //!
 //! - クライアント側での `load`/`error` イベント検知と dispatch 発火の
-//!   JS/wasm グルー（wasm 層の後続スコープ）
+//!   JS/wasm グルーは本モジュールのスコープ外だが、実装自体は
+//!   `fandhe-frontend-wasm-full::headless_avatar`（イシュー #591、Runtime
+//!   統合はイシュー #711）で提供済み。`ImageStatus::is_image_visible` と
+//!   同クレートの `image_visible_after_action` の可視性規則一致は同クレート
+//!   側の native ドリフト検知テストが固定する（本モジュールは
+//!   `fandhe-frontend-wasm-full` を製品依存に持たないため、規則自体の複製は
+//!   wasm 層に閉じる）
 //! - `onStatusChange` コールバック・`asChild`・`ids` オプション（ark-ui 固有
 //!   機能）
 //! - Progress は別イシュー #544
+//! - `src` 差し替え検知（`MutationObserver` 経由の自動 `"reset"` dispatch）は
+//!   `fandhe-frontend-wasm-full::headless_avatar` 側でも未実装のスコープ外
+//!   （同クレートのモジュール doc 参照）
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::data_attrs::data_state;

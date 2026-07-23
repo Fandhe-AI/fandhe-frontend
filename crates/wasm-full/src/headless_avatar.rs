@@ -8,6 +8,16 @@
 //! rustdoc「スコープ外」節が明記するとおり本クレート（wasm 層）の後続
 //! スコープとされていた。本モジュールがそのグルーを実装する。
 //!
+//! # Runtime への統合（イシュー #711）
+//!
+//! [`wire_avatar_events`] 単体は `crate::lib::Runtime::mount`/`Runtime::hydrate`
+//! から自動配線されない独立配線 API として先行実装された（#591）。イシュー
+//! #711 で `Runtime::mount`/`Runtime::hydrate` 双方（`crate::lib` 参照）が
+//! `keynav::wire_keynav` の直後に本モジュールの配線を標準経路へ組み込み、
+//! アプリ側の手動配線を要さずに Avatar の `ImageStatus`／`data-state` が
+//! 更新されるようにした。`events`/`keynav` と同じ「マウント時 1 回」契約は
+//! 維持される（`Runtime::wire_avatar` 参照）。
+//!
 //! # `events.rs`/`keynav.rs`/`overlay.rs` との責務分離
 //!
 //! [`crate::events`] のクリック/入力委譲、[`crate::keynav`] のキーボード
