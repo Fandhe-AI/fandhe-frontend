@@ -1,0 +1,124 @@
+//! styled Toast（イシュー #760）の決定的 CSS 出力ゴールデンテスト。
+//!
+//! `crates/pre-styled-ui/tests/switch_css.rs` の golden fixture テストの前例に
+//! 倣い、`stylesheet()` が返す CSS 全文（placement 6 variant・status 4
+//! variant を含む）をバイト単位で固定する。出力順（base → variants）が
+//! 崩れた場合や意図しない宣言の追加・欠落があった場合に、この golden
+//! テストが即座に検知する。
+
+use fandhe_frontend_pre_styled_ui::toast;
+
+const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
+  position: fixed;
+  z-index: var(--fandhe-z-index-toast, 9999);
+  display: flex;
+  flex-direction: column;
+  gap: var(--fandhe-space-2);
+  padding: var(--fandhe-space-4);
+  pointer-events: none;
+}
+
+[data-scope="toast"][data-part="root"] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fandhe-space-1);
+  min-width: 18rem;
+  padding: var(--fandhe-space-3);
+  border-radius: var(--fandhe-radius-md);
+  box-shadow: var(--fandhe-shadow-md);
+  pointer-events: auto;
+  background: var(--fandhe-color-bg);
+}
+
+[data-scope="toast"][data-part="title"] {
+  font-weight: var(--fandhe-font-font-weight-semibold);
+}
+
+[data-scope="toast"][data-part="description"] {
+  font-size: var(--fandhe-font-font-size-sm);
+}
+
+[data-scope="toast"][data-part="close-trigger"] {
+  cursor: pointer;
+  align-self: flex-end;
+}
+
+[data-scope="toast"][data-part="group"].fd-toast--placement-top-start {
+  top: 0;
+  left: 0;
+  align-items: flex-start;
+}
+
+[data-scope="toast"][data-part="group"].fd-toast--placement-top {
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  align-items: center;
+}
+
+[data-scope="toast"][data-part="group"].fd-toast--placement-top-end {
+  top: 0;
+  right: 0;
+  align-items: flex-end;
+}
+
+[data-scope="toast"][data-part="group"].fd-toast--placement-bottom-start {
+  bottom: 0;
+  left: 0;
+  align-items: flex-start;
+}
+
+[data-scope="toast"][data-part="group"].fd-toast--placement-bottom {
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  align-items: center;
+}
+
+[data-scope="toast"][data-part="group"].fd-toast--placement-bottom-end {
+  bottom: 0;
+  right: 0;
+  align-items: flex-end;
+}
+
+[data-scope="toast"][data-part="root"].fd-toast--status-info {
+  --fandhe-palette: var(--fandhe-color-info);
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-palette);
+}
+
+[data-scope="toast"][data-part="root"].fd-toast--status-success {
+  --fandhe-palette: var(--fandhe-color-success);
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-palette);
+}
+
+[data-scope="toast"][data-part="root"].fd-toast--status-warning {
+  --fandhe-palette: var(--fandhe-color-warning);
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-palette);
+}
+
+[data-scope="toast"][data-part="root"].fd-toast--status-error {
+  --fandhe-palette: var(--fandhe-color-danger);
+  background: var(--fandhe-color-bg);
+  color: var(--fandhe-palette);
+}
+"#;
+
+#[test]
+fn toast_stylesheet_matches_golden_fixture() {
+    assert_eq!(toast::stylesheet(), TOAST_GOLDEN_CSS);
+}
+
+#[test]
+fn stylesheet_is_byte_identical_across_calls() {
+    assert_eq!(toast::stylesheet(), toast::stylesheet());
+}
+
+#[test]
+fn stylesheet_never_contains_style_breakout_sequences() {
+    let css = toast::stylesheet();
+    assert!(!css.contains("</style"));
+    assert!(!css.contains('<'));
+}

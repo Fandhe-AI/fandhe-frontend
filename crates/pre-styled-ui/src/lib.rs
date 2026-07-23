@@ -148,6 +148,11 @@
 //!   [`fandhe_frontend_headless_ui::checkbox::Checkbox`]/
 //!   [`fandhe_frontend_headless_ui::radio_group::RadioGroup`] をそのまま
 //!   再利用し、新規状態機械は作らない。詳細は各モジュール rustdoc 参照。
+//! - headless ラッパー（イシュー #760）: [`mod@toast`]（Toast、`placement`
+//!   （`group` slot）/`status`（`root` slot、[`mod@alert`] と同じ配色マッピング）
+//!   の 2 軸 variant を持つが、通常の複合部品と異なり各軸が別 slot へ付与される
+//!   ため [`recipe::SlotRecipe::variant_class`]（単一軸専用 API）をスロットごとに
+//!   個別に呼ぶ。詳細は [`mod@toast`] rustdoc 参照）。
 //! - headless ラッパー 3 種（イシュー #756、#716 追加候補・最優先候補の消化）:
 //!   [`mod@link`]（Link、`variant` の下線表示切り替え + `aria-current="page"`
 //!   状態装飾）、[`mod@link_overlay`]（LinkOverlay、`::before` 疑似要素の
@@ -323,6 +328,7 @@ pub mod tabs;
 pub mod tags_input;
 pub mod textarea;
 pub mod theme;
+pub mod toast;
 pub mod toggle;
 pub mod toggle_group;
 pub mod tooltip;
