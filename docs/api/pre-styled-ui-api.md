@@ -13,54 +13,51 @@ pre-styled UI コンポーネント層、親トラッキング #520・骨格新�
 対応する REQ / TASK は `docs/spec/` に存在しない（要件提案は
 fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 参照）。
 
-## 2. 実装状況（本書作成時点、2026-07-22）
+## 2. 実装状況（v0.4.0 時点、2026-07-23 更新）
 
-本クレートは **crate 骨格のみ**（イシュー #546）であり、公開 API を持たない
-（`src/lib.rs` はクレート doc コメントのみ）。以下は並列進行中のイシューで
-あり、本書はそれらのマージ後に更新する。
+**記載方針**: 実装済み API の正は `crates/pre-styled-ui/src/lib.rs` 冒頭の
+rustdoc および各モジュール冒頭の rustdoc とする。本節はモジュール一覧の
+概要のみを保持し、イシューごとの進行状態（未着手・実装中・マージ待ち等）は
+記載しない。マージ済みイシューを本節から都度更新する運用は陳腐化しやすく、
+実際に骨格新設（#546）時点の記述が長期間放置されていた（イシュー #714）。
 
-| イシュー | 内容 | 状態（本書作成時点） |
+本クレートは第 5 弾ツリー（#680）完了・crates.io v0.4.0 公開（#686）を経て
+19 の公開モジュールを持つ。内訳は次の通り。
+
+| 分類 | モジュール | 由来イシュー |
 |---|---|---|
-| #547 | テーマトークン・ダークモード基盤 | 実装中（未マージ） |
-| #548 | slot recipe 相当の variant API・静的 CSS 生成 | 実装中（未マージ） |
-| #550 | Button 等の単純な styled 部品 | 未着手 |
-| #551 | headless-ui ラッパー（Accordion/Dialog 等の styled 版） | 未着手 |
-| #606 | colorPalette 軸の実配線・radii/shadow トークン追加 | 実装中（未マージ） |
+| 基盤 | `theme` | #547/#606 |
+| 基盤 | `css` | #548 |
+| 基盤 | `recipe` | #548/#606/#604（詳細は [`pre-styled-recipe-api.md`](./pre-styled-recipe-api.md)） |
+| 基盤 | `stylesheet` | #605（CSS 集約・配布ヘルパ、§4a 参照） |
+| 単純 styled 部品 | `button` / `badge` / `spinner` / `alert` / `card` | #550/#606 |
+| headless ラッパー第 1 弾 | `dialog` / `tabs` / `accordion` / `menu` / `select` | #551 |
+| headless ラッパー第 2 弾 | `popover` / `tooltip` | #664 |
+| headless ラッパー第 3 弾 | `switch` | #682 |
+| headless ラッパー第 4 弾 | `radio_group` | #683（§4c 参照） |
+| headless ラッパー | `avatar` | #684（§4b 参照） |
 
-**本節の既知の陳腐化**: 上表は #550/#551/#606 のマージ後も未更新のまま残って
-いる（本項目は #606 実装時点の out-of-scope 候補として記録。全面改訂は別
-イシューで扱う）。実装済み API の正本は `crates/pre-styled-ui/src/lib.rs`
-冒頭の rustdoc を参照。同じ理由で headless ラッパー第 2 弾（#664:
-Popover/Tooltip）・第 3 弾（#682: Switch）も上表へは追加していない。
-`switch` モジュール（headless ラッパー第 3 弾、イシュー #682。`size`/
-`color-palette` variant 拡張はイシュー #708）は
-`fandhe_frontend_headless_ui::switch` の Control/Thumb/Label/HiddenInput
-4 パーツを再エクスポートし、`switch::stylesheet()` で `data-state`
-（`"checked"`/`"unchecked"`）連動の既定 CSS を追加提供する。styled `root`
-は `size`（`Size::Sm`/`Md`/`Lg`、既定 `Md`）・`palette`（`ColorPalette`
-5 値、既定 `Accent`）の 2 軸 variant クラスを付与するため本モジュールで
-再定義し（`fd-switch--size-<value>` / `fd-switch--color-palette-<value>`）、
-`Switch` 状態機械は再エクスポートしない（`avatar` の `Avatar` 非
-再エクスポートと同型、詳細は `src/switch.rs` 冒頭の rustdoc を参照）。
+各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
+モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
+`stylesheet()`（モジュールにより `css()`）で既定 CSS を追加提供する共通
+設計方針を採る。詳細・スコープ外事項は各モジュール冒頭の rustdoc を参照
+（例: `switch` は `src/switch.rs`、`avatar`/`radio_group` は §4b/§4c）。
+`switch`/`radio_group` の `size`/`color-palette` variant 拡張（イシュー
+#708）の詳細は §4c・§4d を参照。
 
-`radio_group` モジュール（イシュー #683。`size`/`color-palette` variant
-拡張はイシュー #708）も同様に、styled `root` が `size`（既定 `Md`）・
-`palette`（既定 `Accent`）に応じたクラス（`fd-radio-group--size-<value>` /
-`fd-radio-group--color-palette-<value>`）を付与する。`RadioGroup` 状態機械
-は inherent `root()` を持たないため引き続き再エクスポートする（4c 節参照）。
+クレートルート再エクスポート（`fandhe_frontend_headless_ui` /
+`fandhe_frontend_core` / `OpenState` / `Orientation` ほか、イシュー #685）は
+§3a を参照。
 
-`switch`/`radio_group` いずれも、`size` variant は root スコープの CSS
-custom property（`--fandhe-switch-*`/`--fandhe-radio-group-*`）を root へ
-登録し、通常の CSS 継承で `control`/`item-control` 等の子孫パーツへ伝える
-（`SlotRecipe` へ子孫セレクタ機構は追加していない）。`palette` variant は
-既存の `recipe::palette_declarations`（`--fandhe-palette-*`、#606）を
-再利用する。
-
-`examples/headless-pre-styled-ui`（#552）は本クレートが未実装のため、
-headless-ui の `data-scope`/`data-part`/`data-state` セレクタへ手書きで
-当てる CSS（`examples/headless-pre-styled-ui/static/ui.css`）を暫定的な
-代替として同梱している。本クレートの公開 API が揃い次第、同サンプルへの
-統合をフォローアップする。
+`examples/headless-pre-styled-ui`（#552/#678/#698/#704）は本クレート
+v0.4.0（`fandhe-frontend-pre-styled-ui = "0.4.0"`、crates.io バージョン
+依存）へ統合済みである。旧来 headless-ui の `data-scope`/`data-part`/
+`data-state` セレクタへ手書きで当てていたコンポーネント CSS は撤去され
+（イシュー #689）、`src/main.rs` の `build_stylesheet()` が `Theme`/
+`SlotRecipe` から生成した CSS を `stylesheet::StyleSheet` で集約し
+`dist/assets/ui.css` へ書き出す方式へ切り替え済み。
+`static/ui.css` はショーケースページ固有の骨格レイアウトのみを保持する
+形で残存する。
 
 ## 3. 不変条件（実装済み・骨格に記載済み、`src/lib.rs` 参照）
 
@@ -68,8 +65,10 @@ headless-ui の `data-scope`/`data-part`/`data-state` セレクタへ手書き�
    `fandhe_frontend_core::Node` を返す通常の Rust 関数として実装する
    （REQ-5、マクロ DSL は採用しない）。
 2. 出力は `fandhe_frontend_core::render` の既定エスケープを必ず経由する。
-   本クレート内で `raw_html()` を使用しない（新たなエスケープ迂回経路を
-   作らない）。
+   `raw_html()` の使用は `stylesheet::StyleSheet::style_element` 内の
+   レビュー済み 1 箇所（`#[expect(clippy::disallowed_methods, ...)]` 付き）
+   に限定する（イシュー #605、§4a 参照）。新たなエスケープ迂回経路を
+   作らない。
 3. `#![forbid(unsafe_code)]`（REQ-2）によりクレート全体で `unsafe` を機械的
    に禁止する。
 4. 外部依存は `fandhe-frontend-headless-ui`（path）のみ。
@@ -77,7 +76,7 @@ headless-ui の `data-scope`/`data-part`/`data-state` セレクタへ手書き�
    間接的に利用する。`fandhe-frontend-core` はスモークテスト用の
    dev-dependency としてのみ許容する）。
 
-これらの不変条件は #547/#548/#550/#551 の実装レビューでもそのまま適用される
+これらの不変条件は実装済み各モジュール（§2 参照）でも維持されている
 （`.claude/rules/coding-rust.md`・`docs/api/headless-ui-api.md` §6 と同一の
 制約を上層でも維持する）。
 
@@ -241,16 +240,20 @@ interactive で「単独依存完結」の到達範囲が非対称になり契�
 契約（interactive 不変条件 3）も、再エクスポートで弱まらないことを固定
 テストで検証している。
 
-## 4. 設計方針（予定、#547/#548 の実装完了後に本節を更新）
+## 4. 設計方針
 
-- **テーマトークン**（#547）: 色・スペーシング等のデザイントークンと
+- **テーマトークン**（#547/#606）: 色・スペーシング等のデザイントークンと
   ダークモード切り替えの基盤。chakra-ui の `system`/`recipe` 相当の設計を
   参考にしつつ、静的 SSR 出力（ビルド時に確定する CSS）を前提とする。
-- **variant API・静的 CSS 生成**（#548）: chakra-ui の slot recipe 相当。
-  コンポーネントの見た目バリエーション（size/variant/colorPalette 等）を
-  型安全に選択し、対応する静的 CSS を生成する。
-- **styled 部品**（#550/#551）: #550 は Button 等の単純な部品、#551 は
-  headless-ui の Accordion/Dialog 等をラップした styled 版を提供する予定。
+  詳細は `theme` モジュール rustdoc を参照。
+- **variant API・静的 CSS 生成**（#548/#606/#604）: chakra-ui の slot
+  recipe 相当。コンポーネントの見た目バリエーション（size/variant/
+  colorPalette 等）を型安全に選択し、対応する静的 CSS を生成する。詳細は
+  [`pre-styled-recipe-api.md`](./pre-styled-recipe-api.md) を参照。
+- **styled 部品**（#550/#551/#664/#682/#683/#684）: #550 は Button 等の
+  単純な部品、#551 以降は headless-ui の Accordion/Dialog/Popover/
+  Tooltip/Switch/RadioGroup/Avatar 等をラップした styled 版を提供する
+  （一覧は §2 の表を参照）。
 
 ## 4a. `stylesheet::StyleSheet`（recipe / theme CSS の書き出し・埋め込みヘルパ、イシュー #605）
 
@@ -391,6 +394,6 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 - [`docs/api/component-api.md`](./component-api.md): `Node`/`el`/`text`/
   `raw_html`/`render` の凍結 API 表面
 - [`examples/headless-pre-styled-ui/README.md`](../../examples/headless-pre-styled-ui/README.md):
-  本クレート未実装時点での暫定サンプル（pre-styled-ui 統合について節参照）
+  本クレート v0.4.0 へ統合済みのショーケースサンプル（§2 参照）
 - `.claude/skills/chakra-ui/`: 設計時の参考にした chakra-ui リファレンス
   スキル

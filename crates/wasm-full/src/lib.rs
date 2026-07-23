@@ -321,11 +321,13 @@ where
     /// `component.view()` → [`dom::render_component_html`]（既定エスケープ済み
     /// 出力）を `root_id` 要素へ [`dom::mount_initial`] で反映し、続けて
     /// [`events::wire_events`]・[`keynav::wire_keynav`]（イシュー #582・#583、
-    /// Tabs/Accordion/Menu/Select/RadioGroup のキーボード操作）の順に
-    /// イベント委譲を 1 回だけ登録する。`keynav::wire_keynav` は DOM 属性のみを読み書きする
-    /// ステートレス配線であり、`Self::wire`（束縛点更新・keyed list 更新）
-    /// とは独立した経路のため、失敗しても状態管理側の配線
-    /// （`events::wire_events`）の成立を妨げない。
+    /// Tabs/Accordion/Menu/Select/RadioGroup のキーボード操作）・
+    /// [`headless_avatar::wire_avatar_events`]（イシュー #591・#711、Avatar の
+    /// `img` 要素 `load`/`error` 検知）の順にイベント委譲を 1 回だけ登録する。
+    /// `keynav::wire_keynav`・`headless_avatar::wire_avatar_events` はいずれも
+    /// DOM 属性のみを読み書きするステートレス配線であり、`Self::wire`
+    /// （束縛点更新・keyed list 更新）とは独立した経路のため、失敗しても
+    /// 状態管理側の配線（`events::wire_events`）の成立を妨げない。
     ///
     /// # Errors
     ///
@@ -339,6 +341,7 @@ where
         let on_action = Self::wire(component.clone(), root.clone());
         events::wire_events(root.clone(), on_action)?;
         keynav::wire_keynav(root.clone())?;
+        Self::wire_avatar(component.clone(), root.clone())?;
 
         Ok(Self { component, root })
     }
@@ -352,7 +355,7 @@ where
     /// [`Self::mount`] 相当の CSR 再描画へフォールバックする
     /// （同書第 4 節・判断 5。改ざんされうるクライアント入力を信頼しない、
     /// panic しない不変条件）。成功・失敗いずれの経路でもイベント配線は
-    /// [`Self::wire`] 経由で 1 回のみ行う。
+    /// [`Self::wire`]・[`Self::wire_avatar`] 経由で 1 回のみ行う。
     ///
     /// # Errors
     ///
@@ -381,8 +384,62 @@ where
         let on_action = Self::wire(component.clone(), root.clone());
         events::wire_events(root.clone(), on_action)?;
         keynav::wire_keynav(root.clone())?;
+        Self::wire_avatar(component.clone(), root.clone())?;
 
         Ok(Self { component, root })
+    }
+
+    /// Avatar（`fandhe-frontend-headless-ui` `avatar` モジュール）の `img` 要素
+    /// `load`/`error` イベントを [`headless_avatar::wire_avatar_events`] 経由で
+    /// `root` へ配線する（イシュー #591・#711）。`Self::mount`/`Self::hydrate`
+    /// の双方から `keynav::wire_keynav` の直後に 1 回だけ呼ばれる。
+    ///
+    /// # fail-closed（Avatar 非搭載アプリへの副作用なし）
+    ///
+    /// `action_ref.action` が `fandhe_frontend_interactive::dispatch` に
+    /// よって消費されない（`Component::decode_action` が `None` を返す）
+    /// 場合は `dispatched == false` となり早期 return する。`root` 配下に
+    /// Avatar パーツが存在しない場合も [`headless_avatar::apply_avatar_visibility`]
+    /// 内部の `query_selector_all` が空集合を返し no-op となるため、Avatar を
+    /// 使わないアプリへの影響はない。
+    ///
+    /// # 重複配線に対する冪等性
+    ///
+    /// アプリが `headless_avatar::wire_avatar_events` を手動で別途配線済みの
+    /// 場合でも、`Loaded`/`Error` への状態遷移および対応する `data-state`
+    /// 反映はいずれも冪等（同じ最終状態へ収束）であるため、二重 dispatch・
+    /// 二重属性書き込みは実害を生まない。
+    ///
+    /// # Errors
+    ///
+    /// [`headless_avatar::wire_avatar_events`]（`add_event_listener_with_callback_and_bool`）
+    /// の失敗を伝播する。
+    fn wire_avatar(
+        component: std::rc::Rc<std::cell::RefCell<C>>,
+        root: web_sys::Element,
+    ) -> Result<(), wasm_bindgen::JsValue> {
+        let avatar_root = root.clone();
+        headless_avatar::wire_avatar_events(root, move |action_ref: events::ActionRef| {
+            let Ok(mut state) = component.try_borrow_mut() else {
+                return;
+            };
+            let dispatched = fandhe_frontend_interactive::dispatch(
+                &mut *state,
+                &action_ref.action,
+                &action_ref.payload,
+            );
+            if !dispatched {
+                return;
+            }
+            if let Some(image_visible) =
+                headless_avatar::image_visible_after_action(&action_ref.action)
+            {
+                // DOM 反映は set_attribute/remove_attribute のみ（REQ-1、
+                // headless_avatar.rs 冒頭 doc 参照）。失敗は panic せず
+                // 無視する（Self::wire の on_action と同じ fail-closed 方針）。
+                let _ = headless_avatar::apply_avatar_visibility(&avatar_root, image_visible);
+            }
+        })
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて

@@ -40,6 +40,17 @@
 //!   で読み飛ばす。読み飛ばさない場合、コードスパン内の `*`/`]` が外側の
 //!   強調・リンクの閉じマーカーと誤って一致し、ネストしたコードスパンを
 //!   含む強調・リンクが壊れたリテラルになる（レビュー指摘イシュー #467）
+//! - 引用（[`parse_quote`]）の 1 行目が [`admonition_kind`] の判定する固定
+//!   マーカー（`[!NOTE]` / `[!TIP]` / `[!IMPORTANT]` / `[!WARNING]` /
+//!   `[!CAUTION]`、GFM alerts 準拠）と前後空白を除き完全一致する場合のみ、
+//!   通常の `blockquote` の代わりに `fandhe_frontend_pre_styled_ui::alert`
+//!   部品（イシュー #715）で描画する。同一行に他のテキストがある・未知の
+//!   マーカー・小文字はいずれも不成立とし、素の `blockquote` へ
+//!   フォールバックする（fail-safe。既存ページの出力は 1 バイトも変わらない）。
+//!   マーカー種別から [`AlertStatus`] への対応・本文の描画は
+//!   `crate::markdown` 側の固定テーブルのみで決まり、入力由来の文字列を
+//!   `status`・`class` 属性へ流し込むことはない（`AlertStatus` は enum
+//!   固定値、`crates/pre-styled-ui/src/alert.rs` 参照）
 //!
 //! パニックしない全域関数として実装する（ライブラリコードでの `unwrap()` /
 //! `panic!` 回避規約、`.claude/rules/coding-rust.md`）。未知の行・不正な構文は
@@ -49,6 +60,7 @@ use fandhe_frontend_core::{
     a, blockquote, code, em, h1, h2, h3, h4, h5, h6, li, ol, p, pre, strong, table, tbody, td,
     text, th, thead, tr, ul, Node,
 };
+use fandhe_frontend_pre_styled_ui::{alert, AlertStatus};
 
 /// 引用・ネストリストの再帰的解釈における最大深さ。
 ///
@@ -690,6 +702,10 @@ fn is_quote_line(line: &str) -> bool {
 /// 引用ブロック（連続する `>` 行）を解析し、`>` と直後の 1 空白を剥がした
 /// 本文を再帰的に [`render_markdown_at_depth`] へ渡して `blockquote` に格納する。
 ///
+/// 1 行目が [`admonition_kind`] と完全一致する場合は
+/// `blockquote` の代わりに [`admonition_node`]（`alert` 部品）を返す
+/// （モジュール doc の admonition 構文注記参照、イシュー #715）。
+///
 /// `depth` が [`MAX_DEPTH`] に達した場合は再帰せず、剥がした本文を単一の
 /// 段落として扱う（スタックオーバーフロー防止、設計どおり）。
 fn parse_quote(lines: &[&str], start: usize, depth: usize) -> (Node, usize) {
@@ -702,14 +718,80 @@ fn parse_quote(lines: &[&str], start: usize, depth: usize) -> (Node, usize) {
         inner_lines.push(without_space.to_string());
         i += 1;
     }
-    let inner_text = inner_lines.join("\n");
 
+    if let Some(kind) = inner_lines.first().and_then(|line| admonition_kind(line)) {
+        let body_text = inner_lines[1..].join("\n");
+        let children = if depth >= MAX_DEPTH {
+            vec![p(vec![], inline_nodes(&body_text))]
+        } else {
+            render_markdown_at_depth(&body_text, depth + 1)
+        };
+        return (admonition_node(kind, children), i);
+    }
+
+    let inner_text = inner_lines.join("\n");
     let children = if depth >= MAX_DEPTH {
         vec![p(vec![], inline_nodes(&inner_text))]
     } else {
         render_markdown_at_depth(&inner_text, depth + 1)
     };
     (blockquote(vec![], children), i)
+}
+
+/// admonition マーカー種別（GFM alerts 準拠の 5 種、モジュール doc 参照）。
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum AdmonitionKind {
+    Note,
+    Tip,
+    Important,
+    Warning,
+    Caution,
+}
+
+/// 引用の 1 行目（`>` マーカー剥がし済み）が admonition マーカーと前後空白を
+/// 除き完全一致するかどうかを判定する。同一行に他のテキストがある・大文字
+/// 小文字が異なる・未知のマーカーはすべて `None`（設計どおりのフォール
+/// セーフ、[`parse_quote`] が `blockquote` へフォールバックする）。
+fn admonition_kind(line: &str) -> Option<AdmonitionKind> {
+    match line.trim() {
+        "[!NOTE]" => Some(AdmonitionKind::Note),
+        "[!TIP]" => Some(AdmonitionKind::Tip),
+        "[!IMPORTANT]" => Some(AdmonitionKind::Important),
+        "[!WARNING]" => Some(AdmonitionKind::Warning),
+        "[!CAUTION]" => Some(AdmonitionKind::Caution),
+        _ => None,
+    }
+}
+
+/// [`AdmonitionKind`] を `(AlertStatus, 表示タイトル)` へ写像する固定テーブル
+/// （`docs/design/docs-site-styled-ui-adoption.md` §3.3 の判断を実装した対応、
+/// イシュー #715 計画 §3.2）。`AlertStatus` は enum 固定値であり、
+/// マーカー文字列自体を属性・class へ流し込むことはない。
+fn admonition_status_and_title(kind: AdmonitionKind) -> (AlertStatus, &'static str) {
+    match kind {
+        AdmonitionKind::Note => (AlertStatus::Info, "Note"),
+        AdmonitionKind::Tip => (AlertStatus::Success, "Tip"),
+        AdmonitionKind::Important => (AlertStatus::Warning, "Important"),
+        AdmonitionKind::Warning => (AlertStatus::Warning, "Warning"),
+        AdmonitionKind::Caution => (AlertStatus::Error, "Caution"),
+    }
+}
+
+/// admonition の `alert` ノード木を組み立てる。
+/// `alert::root(status)` > `alert::content` > [`alert::title`（固定ラベル）,
+/// `alert::description`（本文ブロック列、空なら省略）] という構成
+/// （イシュー #715 計画 §3.2。`indicator` はアイコン資産を持たないため使わない）。
+fn admonition_node(kind: AdmonitionKind, body: Vec<Node>) -> Node {
+    let (status, title_label) = admonition_status_and_title(kind);
+    let mut content_children = vec![alert::title(vec![], vec![text(title_label)])];
+    if !body.is_empty() {
+        content_children.push(alert::description(vec![], body));
+    }
+    alert::root(
+        status,
+        vec![],
+        vec![alert::content(vec![], content_children)],
+    )
 }
 
 /// リスト種別（箇条書き `-`/`*` か番号 `N.`）。
@@ -950,6 +1032,26 @@ fn parse_paragraph(lines: &[&str], start: usize) -> (Node, usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// [`admonition_kind`] が前後空白を除き完全一致する場合のみマーカーを
+    /// 認識し、未知タイプ・小文字・同一行の余分なテキストは `None`
+    /// （fail-safe フォールバック）を返すことを直接検証する（イシュー #715）。
+    #[test]
+    fn admonition_kind_matches_only_exact_uppercase_markers() {
+        assert_eq!(admonition_kind("[!NOTE]"), Some(AdmonitionKind::Note));
+        assert_eq!(admonition_kind("  [!TIP]  "), Some(AdmonitionKind::Tip));
+        assert_eq!(
+            admonition_kind("[!IMPORTANT]"),
+            Some(AdmonitionKind::Important)
+        );
+        assert_eq!(admonition_kind("[!WARNING]"), Some(AdmonitionKind::Warning));
+        assert_eq!(admonition_kind("[!CAUTION]"), Some(AdmonitionKind::Caution));
+
+        assert_eq!(admonition_kind("[!note]"), None);
+        assert_eq!(admonition_kind("[!FOO]"), None);
+        assert_eq!(admonition_kind("[!NOTE] extra"), None);
+        assert_eq!(admonition_kind(""), None);
+    }
 
     /// [`is_safe_link_url`] が http/https/相対のみを許可する allow-list で
     /// あり、core が許可するスキーム集合（`http`/`https`/`mailto`/`tel`）
