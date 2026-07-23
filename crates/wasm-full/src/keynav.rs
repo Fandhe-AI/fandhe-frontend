@@ -2212,20 +2212,107 @@ mod wiring {
         }
     }
 
-    /// highlight 中の項目へ `click()` を合成する（Enter・バッファ無効時の
-    /// Space による決定、モジュール doc §Menu/Select 参照）。disabled・
-    /// highlight 不在は no-op（fail-closed）。
-    fn activate_highlighted_item(content: &Element, item_selector: &str, content_selector: &str) {
+    /// アクティブ content の highlight 中項目に対して Enter/Space の決定操作を
+    /// 行う。項目が非 disabled・サブメニューが解決できる `trigger-item` の
+    /// 場合は [`open_submenu_and_focus_first_item`] へ委譲してサブメニューを
+    /// 展開したうえで新規 content の先頭項目へハイライトを移す（Bugbot 指摘
+    /// "Enter opens submenu without entering"、イシュー #662）。それ以外は
+    /// 従来通り highlight 中の項目へ `click()` のみを合成する。highlight
+    /// 不在・disabled は no-op（fail-closed）。
+    fn activate_or_open_submenu(
+        root: &Element,
+        active_content: &Element,
+        item_selector: &str,
+        content_selector: &str,
+    ) {
         let items = filter_own_scope_items(
-            collect_parts(content, item_selector),
-            content,
+            collect_parts(active_content, item_selector),
+            active_content,
             content_selector,
         );
-        if let Some(idx) = find_highlighted_index(&items) {
-            let disabled = disabled_flags(&items);
-            if !disabled[idx] {
-                if let Ok(html_item) = items[idx].clone().dyn_into::<HtmlElement>() {
-                    html_item.click();
+        let Some(idx) = find_highlighted_index(&items) else {
+            return;
+        };
+        let disabled = disabled_flags(&items);
+        if disabled[idx] {
+            return;
+        }
+        let item = &items[idx];
+        if item.matches(TRIGGER_ITEM_SELECTOR).unwrap_or(false)
+            && resolve_submenu_content(root, item).is_some()
+        {
+            open_submenu_and_focus_first_item(root, item, item_selector, content_selector);
+        } else if let Ok(html_item) = item.clone().dyn_into::<HtmlElement>() {
+            html_item.click();
+        }
+    }
+
+    /// `trigger_item` へ `click()` を合成してサブメニューを開き、click 駆動の
+    /// 再レンダー後に (1) `trigger_item` 自身の親チェーン highlight
+    /// （`data-highlighted`/`aria-activedescendant`）を再付与し、(2) 展開した
+    /// サブメニューの先頭非 disabled 項目へ highlight を設定する
+    /// （ArrowRight・Enter/Space の submenu 展開経路から共通で呼ばれる、
+    /// イシュー #662）。
+    ///
+    /// click() による再描画で `trigger_item` 自身を含む DOM ノードが差し替え
+    /// られる可能性があるため、click 前に控えた `id` を使い
+    /// `document.get_element_by_id` で"今の" trigger-item 要素を再解決してから
+    /// 処理する（`ArrowLeft` の親 highlight 復帰と同型のパターン、モジュール
+    /// doc 参照）。`resolve_active_content` は open chain 再構築にこの親
+    /// highlight を必要とするため、これを怠ると `trigger_item` が置換された
+    /// 場合に `ArrowLeft` で閉じられなくなり、以降のキー操作がトップレベル
+    /// content にルーティングされたままサブメニューが開いた状態になる
+    /// （Bugbot 指摘 "ArrowRight drops parent chain highlight"）。`id` 欠落・
+    /// 再解決失敗・依然 closed はいずれも no-op（fail-closed）。
+    fn open_submenu_and_focus_first_item(
+        root: &Element,
+        trigger_item: &Element,
+        item_selector: &str,
+        content_selector: &str,
+    ) {
+        let trigger_id = trigger_item.get_attribute("id");
+        if let Ok(html_trigger_item) = trigger_item.clone().dyn_into::<HtmlElement>() {
+            // 開閉は既存の click → `crate::headless`（`data-scope`/`data-part`
+            // の静的マッピング表、`menu`/`trigger-item` → `"toggle"`）→
+            // dispatch 経路（マウスクリックと同一経路）へ委譲する。
+            html_trigger_item.click();
+        }
+        let Some(trigger_id) = trigger_id else {
+            return;
+        };
+        let Some(document) = trigger_item.owner_document() else {
+            return;
+        };
+        let Some(fresh_trigger_item) = document.get_element_by_id(&trigger_id) else {
+            return;
+        };
+        // (1) 親チェーンの highlight を再付与する。
+        if let Some(parent_content) = closest(&fresh_trigger_item, content_selector) {
+            if root.contains(Some(&parent_content)) {
+                let parent_items = filter_own_scope_items(
+                    collect_parts(&parent_content, item_selector),
+                    &parent_content,
+                    content_selector,
+                );
+                if let Some(parent_index) = parent_items.iter().position(|item| {
+                    item.get_attribute("id").as_deref() == Some(trigger_id.as_str())
+                }) {
+                    set_highlight(&parent_items, parent_index, &parent_content);
+                }
+            }
+        }
+        // (2) 展開後のサブメニュー先頭項目へ highlight を設定する。
+        if let Some(sub_content_after) = resolve_submenu_content(root, &fresh_trigger_item) {
+            if root.contains(Some(&sub_content_after)) && !sub_content_after.has_attribute("hidden")
+            {
+                let sub_items = filter_own_scope_items(
+                    collect_parts(&sub_content_after, item_selector),
+                    &sub_content_after,
+                    content_selector,
+                );
+                let sub_disabled = disabled_flags(&sub_items);
+                if let Some(idx) = first_non_disabled(&sub_disabled) {
+                    set_highlight(&sub_items, idx, &sub_content_after);
                 }
             }
         }
@@ -2424,14 +2511,14 @@ mod wiring {
             }
             "Enter" => {
                 event.prevent_default();
-                activate_highlighted_item(&active_content, item_selector, content_selector);
+                activate_or_open_submenu(root, &active_content, item_selector, content_selector);
                 // 選択確定後は typeahead バッファを継続する意味が無いため
                 // リセットする（Bugbot 指摘、イシュー #641）。
                 typeahead.reset();
             }
             " " if !buffer_active => {
                 event.prevent_default();
-                activate_highlighted_item(&active_content, item_selector, content_selector);
+                activate_or_open_submenu(root, &active_content, item_selector, content_selector);
                 // Enter と同様、選択確定後はバッファをリセットする
                 // （Bugbot 指摘、イシュー #641）。
                 typeahead.reset();
@@ -2461,35 +2548,23 @@ mod wiring {
                     return;
                 }
                 event.prevent_default();
-                if let Ok(html_trigger_item) = trigger_item.clone().dyn_into::<HtmlElement>() {
-                    // 開閉は既存の click → `crate::headless`（`data-scope`/
-                    // `data-part` の静的マッピング表、`menu`/`trigger-item` →
-                    // `"toggle"`）→ dispatch 経路（マウスクリックと同一経路）
-                    // へ委譲する（headless-ui は `data-action` を出力しない
-                    // ため `events::wire_events` ではない）。keynav 自身は
-                    // `hidden`/`data-state`/`aria-expanded` を一切書かない
-                    // （モジュール doc §設計）。
-                    html_trigger_item.click();
-                }
-                // click() による再描画で sub content が新しい要素に差し替わって
-                // いる可能性があるため再解決する（closed→open 時の既存パターン
-                // と同型、モジュール doc 参照）。解決失敗・依然 closed は
-                // no-op（fail-closed）。
-                if let Some(sub_content_after) = resolve_submenu_content(root, trigger_item) {
-                    if root.contains(Some(&sub_content_after))
-                        && !sub_content_after.has_attribute("hidden")
-                    {
-                        let sub_items = filter_own_scope_items(
-                            collect_parts(&sub_content_after, item_selector),
-                            &sub_content_after,
-                            content_selector,
-                        );
-                        let sub_disabled = disabled_flags(&sub_items);
-                        if let Some(idx) = first_non_disabled(&sub_disabled) {
-                            set_highlight(&sub_items, idx, &sub_content_after);
-                        }
-                    }
-                }
+                // 開閉は既存の click → `crate::headless`（`data-scope`/
+                // `data-part` の静的マッピング表、`menu`/`trigger-item` →
+                // `"toggle"`）→ dispatch 経路（マウスクリックと同一経路）へ
+                // 委譲する（headless-ui は `data-action` を出力しないため
+                // `events::wire_events` ではない）。keynav 自身は
+                // `hidden`/`data-state`/`aria-expanded` を一切書かない
+                // （モジュール doc §設計）。click 後の親チェーン highlight
+                // 再付与・子メニュー先頭項目への highlight 設定は
+                // [`open_submenu_and_focus_first_item`] に委譲する（Bugbot
+                // 指摘 "ArrowRight drops parent chain highlight"、イシュー
+                // #662）。
+                open_submenu_and_focus_first_item(
+                    root,
+                    trigger_item,
+                    item_selector,
+                    content_selector,
+                );
                 typeahead.reset();
             }
             "ArrowLeft" if submenu_nav("ArrowLeft", modifiers) == Some(SubmenuNav::Close) => {

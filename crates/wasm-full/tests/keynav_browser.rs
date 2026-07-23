@@ -2585,6 +2585,173 @@ fn select_open_arrow_right_is_noop() {
     assert!(item_a.has_attribute("data-highlighted"));
 }
 
+/// ArrowRight: click 駆動の再レンダーで親 `trigger-item` 自身の
+/// `data-highlighted`/親 content の `aria-activedescendant` が失われても、
+/// id ベースの再解決で親チェーンの highlight が復帰する（Bugbot 指摘
+/// "ArrowRight drops parent chain highlight"、イシュー #662 PR #674）。
+/// `resolve_active_content` は open chain 再構築にこの親 highlight を必要と
+/// するため、これが失われたままだと以降 `ArrowLeft` で閉じられなくなる。
+#[wasm_bindgen_test]
+fn menu_open_arrow_right_restores_parent_highlight_after_click_driven_rerender_clears_it() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-rerender1",
+        &[("a", "A", false)],
+        "sub",
+        "Sub",
+        false,
+        &[("x", "X", false), ("y", "Y", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    // click 駆動の再レンダーをシミュレートする: `wire_toggle_listener` の
+    // hidden トグルに続けて、実運用の再レンダーが親 trigger-item の
+    // `data-highlighted`/親 content の `aria-activedescendant` を洗い流す
+    // ケースを模したリスナーを追加登録する。
+    let content = document
+        .get_element_by_id("kn-sub-rerender1-content")
+        .unwrap();
+    let rerender_closure = Closure::<dyn FnMut(Event)>::new({
+        let trigger_item = trigger_item.clone();
+        let content = content.clone();
+        move |_e: Event| {
+            let _ = trigger_item.remove_attribute("data-highlighted");
+            let _ = content.remove_attribute("aria-activedescendant");
+        }
+    });
+    trigger_item
+        .add_event_listener_with_callback("click", rerender_closure.as_ref().unchecked_ref())
+        .unwrap();
+    rerender_closure.forget();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    let trigger = document
+        .get_element_by_id("kn-sub-rerender1-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(trigger_item.has_attribute("data-highlighted"));
+
+    trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    assert!(
+        !sub_content.has_attribute("hidden"),
+        "サブメニューが展開されるべき"
+    );
+    assert!(
+        trigger_item.has_attribute("data-highlighted"),
+        "click 駆動の再レンダーで失われても親 trigger-item の highlight は復帰するべき"
+    );
+    assert_eq!(
+        content.get_attribute("aria-activedescendant").as_deref(),
+        trigger_item.get_attribute("id").as_deref()
+    );
+}
+
+/// Enter: highlight 中の `trigger-item` へ Enter を押すとサブメニューが
+/// 展開され、`ArrowRight` と同様にハイライトが子メニューの先頭非 disabled
+/// 項目へ移る（Bugbot 指摘 "Enter opens submenu without entering"、イシュー
+/// #662 PR #674）。従来は `click()` のみを合成しハイライトを親アイテムに
+/// 残したままだったため、次のキー操作が APG のサブメニュー活性化挙動と
+/// 一致しなかった。
+#[wasm_bindgen_test]
+fn menu_open_enter_on_trigger_item_expands_submenu_and_moves_highlight_into_it() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-enter1",
+        &[("a", "A", false)],
+        "sub",
+        "Sub",
+        false,
+        &[("x", "X", false), ("y", "Y", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-sub-enter1-trigger").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(trigger_item.has_attribute("data-highlighted"));
+
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+
+    assert!(
+        !sub_content.has_attribute("hidden"),
+        "Enter でサブメニューが展開されるべき"
+    );
+    let item_x = document
+        .get_element_by_id("kn-sub-enter1-sub-item-x")
+        .unwrap();
+    assert!(
+        item_x.has_attribute("data-highlighted"),
+        "Enter は展開後、サブメニュー先頭項目へ highlight を移すべき"
+    );
+    assert_eq!(
+        sub_content
+            .get_attribute("aria-activedescendant")
+            .as_deref(),
+        Some("kn-sub-enter1-sub-item-x")
+    );
+    assert!(
+        trigger_item.has_attribute("data-highlighted"),
+        "親 trigger-item の highlight も維持されるべき"
+    );
+}
+
+/// Space（バッファ無効時）: Enter と同様にサブメニューを展開しハイライトを
+/// 子メニューの先頭項目へ移す（イシュー #662 PR #674、Enter との対称性）。
+#[wasm_bindgen_test]
+fn menu_open_space_on_trigger_item_expands_submenu_and_moves_highlight_into_it() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-space1",
+        &[("a", "A", false)],
+        "sub",
+        "Sub",
+        false,
+        &[("x", "X", false), ("y", "Y", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-sub-space1-trigger").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(trigger_item.has_attribute("data-highlighted"));
+
+    trigger.dispatch_event(&keydown_event(" ")).unwrap();
+
+    assert!(
+        !sub_content.has_attribute("hidden"),
+        "Space でサブメニューが展開されるべき"
+    );
+    let item_x = document
+        .get_element_by_id("kn-sub-space1-sub-item-x")
+        .unwrap();
+    assert!(
+        item_x.has_attribute("data-highlighted"),
+        "Space は展開後、サブメニュー先頭項目へ highlight を移すべき"
+    );
+    assert!(
+        trigger_item.has_attribute("data-highlighted"),
+        "親 trigger-item の highlight も維持されるべき"
+    );
+}
+
 /// 展開後、ArrowDown/ArrowUp/Home/End はサブメニュー content 内で
 /// highlight を移動し、親 content の highlight（trigger-item 上）は不変。
 /// Enter はサブメニュー項目へ click 合成する。
