@@ -848,11 +848,21 @@ fn select_value_text_xss_label_click_does_not_produce_script_element() {
 /// と同型の「内側を先に解決したら `stop_propagation` で外側へ伝播しない」
 /// 契約により、bubble して親 `Menu` インスタンスへ誤ってクロス
 /// ディスパッチされないことを検証する。`child_wrapper`（trigger-item と
-/// その子 content をまとめる境界要素）を子 `Menu` インスタンス専用に
+/// その子孫 content をまとめる境界要素）を子 `Menu` インスタンス専用に
 /// `wire_headless_component` する構成は、ネストした headless インスタンス
 /// を個別配線する既存パターン（Dialog 内 Select の回帰テスト）をサブ
 /// メニューへ適用したものであり、アプリ側が実際にサブメニューを組む際に
 /// 従うべき配線契約を確認するものでもある。
+///
+/// `child_content`（さらにその子 `child_item`）は `trigger_item` の
+/// **子孫**として配置する（`keynav.rs::wiring::resolve_submenu_content` の
+/// フォールバック経路が「`aria-controls` 欠落時は子孫
+/// `[data-part="content"]` を辿る」ことを前提にしている実際の DOM 構成、
+/// イシュー #662 PR #674 Bugbot 指摘）。修正前はこの入れ子配置において
+/// `child_item` クリックが `action_from_parts` の祖先探索で `content` を
+/// 素通りし、外側の `trigger_item`（`menu`/`trigger-item` → `"toggle"`）に
+/// 誤って解決されていた（`wire_headless_events` が `stop_propagation` する
+/// ため、アイテム自身のクリック処理は握り潰される）。
 #[wasm_bindgen_test]
 fn submenu_trigger_item_click_toggles_child_menu_and_does_not_cross_dispatch_to_parent() {
     let window = web_sys::window().expect("window must exist");
@@ -891,14 +901,29 @@ fn submenu_trigger_item_click_toggles_child_menu_and_does_not_cross_dispatch_to_
         .unwrap();
     trigger_item.set_attribute("role", "menuitem").unwrap();
 
+    // `child_content` は `trigger_item` の子（＝子孫）として配置する
+    // （実際の DOM 契約に合わせるための構成、上記関数 doc 参照）。
     let child_content = document
         .create_element("div")
         .expect("create_element must not fail");
     child_content.set_attribute("data-scope", "menu").unwrap();
     child_content.set_attribute("data-part", "content").unwrap();
 
+    // `child_content` 配下の子アイテム（`menu`/`item` はマッピング表に
+    // 無く常に `None` — クリックしても何のアクションも解決しないことが
+    // 期待値。祖先の `trigger_item` の `toggle` を誤って奪ってはならない）。
+    let child_item = document
+        .create_element("div")
+        .expect("create_element must not fail");
+    child_item.set_attribute("data-scope", "menu").unwrap();
+    child_item.set_attribute("data-part", "item").unwrap();
+    child_item
+        .set_attribute("data-value", "child-item-1")
+        .unwrap();
+
+    child_content.append_child(&child_item).unwrap();
+    trigger_item.append_child(&child_content).unwrap();
     child_wrapper.append_child(&trigger_item).unwrap();
-    child_wrapper.append_child(&child_content).unwrap();
     parent_content.append_child(&child_wrapper).unwrap();
     parent_root.append_child(&parent_content).unwrap();
     container.append_child(&parent_root).unwrap();
@@ -925,5 +950,20 @@ fn submenu_trigger_item_click_toggles_child_menu_and_does_not_cross_dispatch_to_
         !parent_component.borrow().is_open(),
         "trigger-item クリックが bubble して親 Menu の toggle へ誤って \
          クロスディスパッチされてはならない"
+    );
+
+    dispatch_click(&child_item);
+
+    assert!(
+        child_component.borrow().is_open(),
+        "content 配下の子アイテムクリックが親（同一子インスタンスの）\
+         trigger-item の toggle として誤って解決され、開いたサブメニューが \
+         意図せず閉じてはならない（イシュー #662 PR #674 Bugbot 指摘の回帰、\
+         action_from_parts の content 境界修正を検証する）"
+    );
+    assert!(
+        !parent_component.borrow().is_open(),
+        "content 配下の子アイテムクリックが親 Menu インスタンスへクロス \
+         ディスパッチされてはならない"
     );
 }

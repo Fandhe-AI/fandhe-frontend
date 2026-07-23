@@ -221,12 +221,41 @@ pub fn action_for_part(part: &PartRef) -> Option<ActionRef> {
 /// 子 part（`item`/`trigger`）」がすり抜けてしまう（イシュー #580 PR #611
 /// Bugbot 指摘）。祖先の disabled 伝播はここで一括判定し、
 /// [`action_for_part`] 側の判定に依存しない。
+///
+/// `content` 境界を越えて祖先方向の `trigger`/`trigger-item` へ誤って解決
+/// しない（イシュー #662 PR #674 Bugbot 指摘の修正）: サブメニューの
+/// `trigger-item` は、`keynav.rs::wiring::resolve_submenu_content` の
+/// フォールバック経路（`aria-controls` 欠落時に子孫 `[data-part="content"]`
+/// を辿る）が示すとおり、自身の子孫として子 `Menu` インスタンスの
+/// `content`（さらにその子孫の `item` 等）を持ちうる。この配置では
+/// クリックされた `item`（`menu`/`item` はマッピング表に無く常に `None`）
+/// から根方向へ辿る途中で `content` を通過し、その外側の祖先である
+/// `trigger-item`（`menu`/`trigger-item` → `"toggle"`）に達してしまう。
+/// `content` はマッピング表に存在せず単体では絶対にマッチしないため、
+/// 「`content` 部分に達するまでに一致が見つからなければ、その `content`
+/// を含む子 `Menu` インスタンスの外側（親 `trigger-item`/`trigger` 等）を
+/// 誤ってこの click のアクションとして解決しない」よう、`content` を
+/// 探索の境界として扱い列挙を打ち切る。これにより、直接 `trigger-item`
+/// 自身をクリックした場合（`content` に達する前の最初の要素で即座に
+/// マッチする）の挙動は変えず、`content` 配下の子孫クリックが親
+/// `trigger-item` の `toggle` を奪う（かつ [`crate::headless::wiring`]
+/// 側で `stop_propagation` されアイテム自身のクリック処理が握り潰される）
+/// 事態のみを防ぐ（`stop_propagation` の呼び出し箇所は
+/// [`wire_headless_events`] 参照）。
 #[must_use]
 pub fn action_from_parts(parts: &[PartRef]) -> Option<ActionRef> {
     if parts.iter().any(|part| part.disabled) {
         return None;
     }
-    parts.iter().find_map(action_for_part)
+    for part in parts {
+        if let Some(action) = action_for_part(part) {
+            return Some(action);
+        }
+        if part.part == "content" {
+            return None;
+        }
+    }
+    None
 }
 
 // ---------------------------------------------------------------------
