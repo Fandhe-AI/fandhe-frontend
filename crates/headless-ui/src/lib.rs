@@ -313,17 +313,18 @@ pub use fandhe_frontend_interactive;
 
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
-    aria_activedescendant, aria_autocomplete, aria_checked, aria_controls, aria_describedby,
-    aria_disabled, aria_expanded, aria_haspopup, aria_hidden, aria_invalid, aria_label,
-    aria_labelledby, aria_modal, aria_orientation, aria_pressed, aria_selected, role,
+    aria_activedescendant, aria_autocomplete, aria_checked, aria_controls, aria_current,
+    aria_describedby, aria_disabled, aria_expanded, aria_haspopup, aria_hidden, aria_invalid,
+    aria_label, aria_labelledby, aria_modal, aria_orientation, aria_pressed, aria_selected, role,
     AriaAutocomplete, AriaChecked, AriaPopup,
 };
 pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use checkbox::{Checkbox, CheckboxFlags};
 pub use combobox::{Combobox, ComboboxAction};
 pub use data_attrs::{
-    data_checked, data_disabled, data_highlighted, data_invalid, data_orientation, data_pressed,
-    data_readonly, data_required, data_state, Orientation,
+    data_checked, data_complete, data_current, data_disabled, data_highlighted, data_incomplete,
+    data_invalid, data_orientation, data_pressed, data_readonly, data_required, data_state,
+    Orientation,
 };
 pub use dialog::Dialog;
 pub use field::{FieldIds, FieldProps};

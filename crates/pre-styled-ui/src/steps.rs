@@ -614,7 +614,10 @@ mod tests {
     #[test]
     fn content_and_completed_content_delegate_to_headless() {
         let s = Steps::new(3, 3, Orientation::Horizontal);
-        assert!(render(&content(&s, 3, vec![], vec![text("x")])).contains(r#"data-state="open""#));
+        // 有効な content インデックスは 0..count。completed 状態
+        // （step == count）では current な content は存在しないため、
+        // 有効インデックスの content は closed のままであることを検証する。
+        assert!(render(&content(&s, 0, vec![], vec![text("x")])).contains(r#"data-state="closed""#));
         assert!(render(&completed_content(&s, vec![], vec![])).contains(r#"data-state="open""#));
     }
 
