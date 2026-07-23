@@ -60,6 +60,16 @@
 //!     渡しても、位置決め配線（`set_dom_attribute` の `style`/`data-*` 書き
 //!     込み）が既定エスケープ保証を弱めないこと（REQ-1 の位置決め経路への
 //!     拡張回帰）
+//!
+//! 以下 (k) はイシュー #663（`--fandhe-x`/`--fandhe-y`/`--fandhe-arrow-*`
+//! 位置ジオメトリの消費）で追加した検証観点。
+//!
+//! (k) `reposition_now()` 呼び出し前は positioner に `data-positioned`
+//!     マーカーが存在せず、呼び出し後に付与される。閉じている positioner
+//!     （対象外・no-op）にはマーカーが付与されない
+//!     （`crates/pre-styled-ui/src/menu.rs`・`select.rs` の CSS 切り替え
+//!     契約の前提となる、`docs/design/anchor-positioning-design.md` §4.4b
+//!     参照）
 
 #![cfg(target_arch = "wasm32")]
 
@@ -178,10 +188,20 @@ fn reposition_now_sets_style_and_placement_attrs_on_open_positioner() {
 
     let positioner = mount_open_popover(&document, &container, "position-browser-open");
     assert!(positioner.get_attribute("style").is_none());
+    // イシュー #663: reposition 前は data-positioned マーカーが存在しない
+    // （SSR 静的フォールバックのまま、wasm 未稼働と区別が付かない状態）。
+    assert!(positioner.get_attribute("data-positioned").is_none());
 
     let controller =
         PositionController::new(&window).expect("PositionController::new must succeed");
     controller.reposition_now();
+
+    // イシュー #663: reposition_now() 後は data-positioned マーカーが
+    // 付与され、pre-styled-ui 側の CSS が fixed 座標系へ切り替わる。
+    assert_eq!(
+        positioner.get_attribute("data-positioned").as_deref(),
+        Some("")
+    );
 
     let style = positioner
         .get_attribute("style")
@@ -470,6 +490,12 @@ fn reposition_now_skips_closed_positioner() {
     assert!(
         positioner.get_attribute("style").is_none(),
         "closed positioner (data-state != \"open\") must not be repositioned"
+    );
+    // イシュー #663: 閉じた positioner は data-positioned マーカーも
+    // 付与されない（SSR 静的フォールバックのまま、fixed 座標系へ切り替わらない）。
+    assert!(
+        positioner.get_attribute("data-positioned").is_none(),
+        "closed positioner must not receive the data-positioned marker"
     );
 
     drop(controller);

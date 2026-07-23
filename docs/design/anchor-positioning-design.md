@@ -185,6 +185,101 @@ anchor positioning の CSS 変数は、既存の `positioner`/`arrow`/`arrow_tip
   flip 後の side が次回の希望として扱われてしまい、viewport のスペースが戻っても
   元の希望へ戻せない不具合があったため（PR #622 レビュー指摘）。
 
+### 4.4b 位置ジオメトリの消費と SSR 静的フォールバックの両立方針（イシュー #663）
+
+#651（イシュー #643）は `--fandhe-reference-width` の消費（Menu/Select
+`content` の `min-width`）まで実装したが、`--fandhe-x`/`--fandhe-y`/
+`--fandhe-arrow-x`/`--fandhe-arrow-y` の消費は「座標系が SSR 静的フォール
+バックと異なる」ため out-of-scope とした。本節はその座標系の不一致を
+解消する方針を定める。
+
+**課題（座標系の不一致）**:
+
+- **SSR 静的フォールバック**: `positioner` は `position: absolute; top:
+  100%; left: 0; margin-top: var(--fandhe-space-1)`（`root` の `position:
+  relative` を containing block とするローカル座標系。
+  `crates/pre-styled-ui/src/menu.rs`/`select.rs` の base 規則）。
+- **wasm 配線後**: `crates/wasm-full/src/position.rs::wiring::reposition_one`
+  が `getBoundingClientRect`/`window.innerWidth/innerHeight` の計測値から
+  **viewport 原点座標**（§4.1 の `ResolvedPosition` 契約）を `--fandhe-x`/
+  `--fandhe-y` として `positioner` の `style` 属性へ書き込む。
+
+この 2 つは原点も containing block も異なるため、単純に `top: var(--fandhe-y,
+100%)` のような変数フォールバックでは両立できない（`position` 種別自体を
+切り替える必要がある）。
+
+**採用方針: 「`data-positioned` マーカー切替 + `position: fixed` 消費」**
+
+1. **wasm 配線後の座標系は `position: fixed`（viewport 座標系）で消費する。**
+   `reposition_one` の計測は `getBoundingClientRect`（viewport 相対）+
+   `window.inner_width/height` であり、`position: fixed` の基準（viewport）と
+   厳密に一致する。スクロール補正・containing block 補正が一切不要で、wasm
+   層の座標計算とレイアウトが疎結合のまま保てる。スクロール時の追随は既存の
+   `PositionController`（scroll/resize 契機の離散再計算、§4.3）が担う。
+2. **切替スイッチとして wasm 層が positioner へ書き込む専用マーカー属性
+   `data-positioned`（値は空文字）を新設する。** CSS は「CSS 変数が定義され
+   ているか」でセレクタ分岐できないため、属性存在セレクタで分岐する。
+   SSR/SSG（headless 層の `placement_attrs` は `data-side`/`data-align` のみ
+   出力）は決してこの属性を出力しないため、「マーカーなし = 静的フォール
+   バック / マーカーあり = wasm 確定座標」が fail-closed に成立する（wasm が
+   動かない環境では従来の静的 CSS が無変更で効き続ける）。
+3. **pre-styled-ui は `StateCondition::Attr("data-positioned")` の状態規則
+   （既存 `SlotRecipe::state` API、新 API 追加なし）で positioner を fixed
+   ジオメトリへ切り替える**（Menu/Select 共通）:
+
+   ```css
+   [data-scope="menu"][data-part="positioner"][data-positioned] {
+     position: fixed;
+     top: 0;
+     left: 0;
+     margin-top: 0;
+     transform: translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0);
+   }
+   ```
+
+   （`transform` 消費は再レイアウトを避ける定石。base 規則より属性 1 個ぶん
+   詳細度が高く、`SlotRecipe::css` の出力順も base→states 固定のため確実に
+   上書きされる。）
+4. **arrow（Menu のみ、§4.2 で Select は arrow 非対象）はマーカー不要で変数
+   フォールバックのみで両立する。** `reposition_one` は positioner の
+   `style`（CSS カスタムプロパティは子孫へ継承される）に加えて arrow 要素
+   自身にも `style` を複製済みのため、arrow の base 規則で直接消費できる:
+   - `arrow`: `position: absolute; left: var(--fandhe-arrow-x, 50%); top:
+     var(--fandhe-arrow-y, 0); transform: translate(-50%, -50%);`（フォール
+     バック `50%`/`0` は SSR 既定 placement（bottom）で anchor 中央上端に
+     相当する）
+   - `arrow-tip`: 座標変数を持たない装飾要素（`width`/`height`/`background`/
+     `border-left`/`border-top`/`transform: rotate(45deg)` の固定値）。
+5. **fail-closed 原則**: 本節で追加する `var(--fandhe-*)` 参照はすべて明示
+   フォールバック値を持つ（裸の `var()` 禁止）。変数未定義（SSR・wasm 失敗時）
+   でも表示が壊れない（`crates/pre-styled-ui/src/menu.rs`/`select.rs` の
+   `stylesheet_var_references_never_lack_an_explicit_fallback` テストが恒久化）。
+6. **制約の明記**: `position: fixed` の containing block は transform /
+   filter / perspective / will-change 等を持つ祖先があると viewport でなく
+   なる（CSS 仕様）。フレームワーク既定 CSS では `root` は `position:
+   relative` のみで無害だが、利用者 CSS が祖先へ transform を付けた場合の
+   位置ずれは既知の制約とする。
+
+**棄却した代替案**:
+
+- **既存の `data-requested-side` をマーカーに流用**: wasm 変更ゼロで済むが、
+  これは「希望 placement の永続化領域」（§4.4a）であり意味論が異なる。
+  内部契約の流用は将来の変更で暗黙に壊れるため不採用。
+- **absolute のままページ座標（scrollX/Y 加算）へ変更**: wasm 側にスクロール
+  量・containing block オフセットの補正が必要になり、レイアウト構造と座標
+  計算が密結合する。不採用。
+- **CSS Anchor Positioning（Web 標準）**: §4.5/4.5a で対応率（約 82%）を
+  理由に既に非採用評価済み。再評価トリガー未充足。
+
+**実装対応表**:
+
+| 要素 | 実装 |
+|------|------|
+| `data-positioned` マーカー付与 | `crates/wasm-full/src/position.rs::wiring::reposition_one` |
+| Menu positioner/arrow の消費 | `crates/pre-styled-ui/src/menu.rs::recipe` |
+| Select positioner の消費（arrow 非対象） | `crates/pre-styled-ui/src/select.rs::recipe` |
+| マーカー契約の API 記述 | `docs/api/headless-ui-api.md` §4a |
+
 ### 4.5 CSS Anchor Positioning（Web 標準）採用可否の評価
 
 CSS Anchor Positioning（`anchor-name` / `position-anchor` / `position-try-fallbacks` 等）
