@@ -275,6 +275,174 @@ fn build_menu_dom(
     root
 }
 
+/// `parent_content` 直下へ `trigger-item`（サブメニューを開く menu item、
+/// `crates/headless-ui/src/menu.rs::trigger_item` の SSR 契約を再現）と、
+/// その子孫にネストした子 Menu（`root`/`content`、`sub_items`）を追加する
+/// （イシュー #662）。`menu_open_arrow_and_end_do_not_reach_into_nested_submenu_items`
+/// と同じ「trigger-item の子孫に子 Menu インスタンスの root/content を入れ子
+/// 配置する」構造契約を、ArrowRight/ArrowLeft サブメニューナビゲーション
+/// テスト向けに再利用可能な形へ切り出したもの。`id_prefix` から
+/// `{id_prefix}-item-{trigger_item_value}`（trigger-item 自身）・
+/// `{id_prefix}-sub-content`（子 content）・`{id_prefix}-sub-item-{value}`
+/// （子 item）の id を組み立てる。戻り値は `(trigger_item, sub_content)`。
+#[allow(clippy::too_many_arguments)]
+fn append_trigger_item_with_submenu(
+    document: &Document,
+    parent_content: &Element,
+    id_prefix: &str,
+    trigger_item_value: &str,
+    trigger_item_label: &str,
+    trigger_item_disabled: bool,
+    sub_items: &[(&str, &str, bool)],
+    sub_open: bool,
+) -> (Element, Element) {
+    let trigger_item = document.create_element("div").unwrap();
+    trigger_item.set_attribute("data-scope", "menu").unwrap();
+    trigger_item
+        .set_attribute("data-part", "trigger-item")
+        .unwrap();
+    trigger_item.set_attribute("role", "menuitem").unwrap();
+    trigger_item.set_attribute("aria-haspopup", "menu").unwrap();
+    let trigger_item_id = format!("{id_prefix}-item-{trigger_item_value}");
+    trigger_item.set_attribute("id", &trigger_item_id).unwrap();
+    let sub_content_id = format!("{id_prefix}-sub-content");
+    trigger_item
+        .set_attribute("aria-controls", &sub_content_id)
+        .unwrap();
+    trigger_item
+        .set_attribute("aria-expanded", if sub_open { "true" } else { "false" })
+        .unwrap();
+    trigger_item
+        .set_attribute("data-state", if sub_open { "open" } else { "closed" })
+        .unwrap();
+    if trigger_item_disabled {
+        trigger_item.set_attribute("aria-disabled", "true").unwrap();
+        trigger_item.set_attribute("data-disabled", "").unwrap();
+    }
+    trigger_item.set_text_content(Some(trigger_item_label));
+    parent_content.append_child(&trigger_item).unwrap();
+
+    let sub_root = document.create_element("div").unwrap();
+    sub_root.set_attribute("data-scope", "menu").unwrap();
+    sub_root.set_attribute("data-part", "root").unwrap();
+    let sub_content = document.create_element("div").unwrap();
+    sub_content.set_attribute("data-scope", "menu").unwrap();
+    sub_content.set_attribute("data-part", "content").unwrap();
+    sub_content.set_attribute("id", &sub_content_id).unwrap();
+    sub_content.set_attribute("role", "menu").unwrap();
+    if !sub_open {
+        sub_content.set_attribute("hidden", "").unwrap();
+    }
+    for (value, label, disabled) in sub_items {
+        let item = document.create_element("div").unwrap();
+        item.set_attribute("data-scope", "menu").unwrap();
+        item.set_attribute("data-part", "item").unwrap();
+        item.set_attribute("role", "menuitem").unwrap();
+        item.set_attribute("data-value", value).unwrap();
+        item.set_attribute("id", &format!("{id_prefix}-sub-item-{value}"))
+            .unwrap();
+        if *disabled {
+            item.set_attribute("aria-disabled", "true").unwrap();
+            item.set_attribute("data-disabled", "").unwrap();
+        }
+        item.set_text_content(Some(label));
+        sub_content.append_child(&item).unwrap();
+    }
+    sub_root.append_child(&sub_content).unwrap();
+    trigger_item.append_child(&sub_root).unwrap();
+
+    (trigger_item, sub_content)
+}
+
+/// `trigger_like`（`trigger`/`trigger-item`）への合成 `click` を受けて
+/// `content` の `hidden`/`data-state`（+ `trigger_like` 自身の
+/// `aria-expanded`/`data-state`）をトグルする模擬リスナーを配線する
+/// （イシュー #662）。実アプリでは click → `data-action` →
+/// `fandhe_frontend_interactive::dispatch("toggle")` → 再描画がこの開閉を
+/// 担うが（モジュール doc §設計）、本ファイルは `fandhe-frontend-interactive`
+/// を配線しない手組み DOM テストのため、既存の
+/// `menu_closed_arrow_down_opens_via_synthesized_click_and_sets_initial_highlight`
+/// 等が使う open 専用の模擬リスナーをトグル可能に拡張した共通版として使う。
+fn wire_toggle_listener(trigger_like: &Element, content: &Element) {
+    let closure = Closure::<dyn FnMut(Event)>::new({
+        let trigger_like = trigger_like.clone();
+        let content = content.clone();
+        move |event: Event| {
+            // `trigger_like` の子孫（サブメニュー項目・ネストした子
+            // trigger-item）への合成 click は素の DOM bubble に乗って
+            // `trigger_like` 自身にも届いてしまう。実アプリでは 1 個の
+            // 委譲リスナーが `closest("[data-action]")` で「click された
+            // 要素から見て最も近い一致」のみを処理する（子孫に別の
+            // data-action があればそちらが優先される）のに対し、本テストの
+            // 模擬リスナーは trigger-like ごとに個別配線するため、
+            // `event.target()` が自分自身と一致する場合のみ処理する
+            // ことで同じ「最近傍のみ反応する」性質を再現する。これを
+            // 怠ると「子孫項目の Enter/click 合成が祖先 trigger-item の
+            // サブメニューまで意図せず閉じてしまう」誤動作を起こす
+            // （イシュー #662 のサブメニュー内 Enter/ネスト 2 段テストで
+            // 顕在化）。
+            let is_self_click = event
+                .target()
+                .and_then(|target| target.dyn_into::<Element>().ok())
+                .is_some_and(|target| target.is_same_node(Some(&trigger_like)));
+            if !is_self_click {
+                return;
+            }
+            if content.has_attribute("hidden") {
+                let _ = content.remove_attribute("hidden");
+                let _ = content.set_attribute("data-state", "open");
+                let _ = trigger_like.set_attribute("aria-expanded", "true");
+                let _ = trigger_like.set_attribute("data-state", "open");
+            } else {
+                let _ = content.set_attribute("hidden", "");
+                let _ = content.set_attribute("data-state", "closed");
+                let _ = trigger_like.set_attribute("aria-expanded", "false");
+                let _ = trigger_like.set_attribute("data-state", "closed");
+            }
+        }
+    });
+    trigger_like
+        .add_event_listener_with_callback("click", closure.as_ref().unchecked_ref())
+        .unwrap();
+    closure.forget();
+}
+
+/// [`build_menu_dom`] の親 content 直下へ 1 段のサブメニュー
+/// （`trigger-item` + 子 Menu content）を追加した DOM を構築する
+/// （イシュー #662）。[`append_trigger_item_with_submenu`]・
+/// [`wire_toggle_listener`] を組み合わせ、トリガー・trigger-item いずれの
+/// クリックでも模擬トグルが効くようにする。戻り値は
+/// `(root, trigger_item, sub_content)`。
+#[allow(clippy::too_many_arguments)]
+fn build_submenu_dom(
+    document: &Document,
+    root_id: &str,
+    items: &[(&str, &str, bool)],
+    trigger_item_value: &str,
+    trigger_item_label: &str,
+    trigger_item_disabled: bool,
+    sub_items: &[(&str, &str, bool)],
+    open: bool,
+    sub_open: bool,
+) -> (Element, Element, Element) {
+    let root = build_menu_dom(document, root_id, items, open, false);
+    let content = document
+        .get_element_by_id(&format!("{root_id}-content"))
+        .unwrap();
+    let (trigger_item, sub_content) = append_trigger_item_with_submenu(
+        document,
+        &content,
+        root_id,
+        trigger_item_value,
+        trigger_item_label,
+        trigger_item_disabled,
+        sub_items,
+        sub_open,
+    );
+    wire_toggle_listener(&trigger_item, &sub_content);
+    (root, trigger_item, sub_content)
+}
+
 /// `crates/headless-ui/src/select.rs` の SSR 出力契約を手組みで再現した
 /// Select DOM を生成する。[`build_menu_dom`] とほぼ同型だが `role="listbox"`/
 /// `role="option"` を使う。
@@ -1156,7 +1324,12 @@ fn menu_open_arrow_and_end_do_not_reach_into_nested_submenu_items() {
     content.append_child(&trigger_item).unwrap();
 
     // "sub" の子孫にネストした子 Menu（root/content/item x, y）を配置する
-    // （open 状態、`hidden` 属性なし）。
+    // 実際の SSR 既定（`crates/headless-ui/src/menu.rs::content` は closed の
+    // とき `hidden` 存在属性を付与する契約）に合わせ closed 状態で配置する
+    // （イシュー #662: `hidden` なしにすると「サブメニューが開いている」と
+    // 誤認され、本テストの意図（highlight/収集のスコープ外判定）とは別に
+    // アクティブ content 解決が子孫へ降下してしまい、以降の Home/End/
+    // ArrowDown アサーションが変わってしまう）。
     let nested_root = document.create_element("div").unwrap();
     nested_root.set_attribute("data-scope", "menu").unwrap();
     nested_root.set_attribute("data-part", "root").unwrap();
@@ -1165,6 +1338,7 @@ fn menu_open_arrow_and_end_do_not_reach_into_nested_submenu_items() {
     nested_content
         .set_attribute("data-part", "content")
         .unwrap();
+    nested_content.set_attribute("hidden", "").unwrap();
     nested_content
         .set_attribute("id", "kn-menu-nested1-nested-content")
         .unwrap();
@@ -2195,4 +2369,1138 @@ fn menu_typeahead_with_attacker_controlled_label_does_not_inject_script() {
     html_element(&closed_trigger).focus().unwrap();
     closed_trigger.dispatch_event(&keydown_event("<")).unwrap();
     assert!(closed_root.query_selector("script").unwrap().is_none());
+}
+
+// ---------------------------------------------------------------------
+// サブメニュー（`trigger-item`）の ArrowRight/ArrowLeft 開閉ナビゲーション
+// （イシュー #662）。[`build_submenu_dom`]/[`append_trigger_item_with_submenu`]/
+// [`wire_toggle_listener`] を使う。
+// ---------------------------------------------------------------------
+
+/// ArrowRight: highlight 中の trigger-item のサブメニューが展開され、先頭の
+/// 非 disabled 項目が highlight される（受け入れ条件 1）。
+#[wasm_bindgen_test]
+fn menu_open_arrow_right_expands_submenu_and_highlights_first_enabled_item() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-open1",
+        &[("a", "A", false)],
+        "sub",
+        "Sub",
+        false,
+        &[("x", "X", false), ("y", "Y", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-sub-open1-trigger").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // 親スコープは [a, sub] の 2 件。End で末尾（trigger-item "sub"）へ。
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(trigger_item.has_attribute("data-highlighted"));
+
+    let not_default_prevented = trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(
+        !not_default_prevented,
+        "展開する ArrowRight は prevent_default されるべき"
+    );
+
+    assert!(
+        !sub_content.has_attribute("hidden"),
+        "サブメニューが展開されるべき"
+    );
+    let item_x = document
+        .get_element_by_id("kn-sub-open1-sub-item-x")
+        .unwrap();
+    assert!(
+        item_x.has_attribute("data-highlighted"),
+        "展開直後は先頭の非 disabled 項目が highlight されるべき"
+    );
+    assert_eq!(
+        sub_content
+            .get_attribute("aria-activedescendant")
+            .as_deref(),
+        Some("kn-sub-open1-sub-item-x")
+    );
+    // 親の highlight（trigger-item 上）は展開後も維持される（アクティブ
+    // content チェーンが DOM のみから再構成できる設計、モジュール doc 参照）。
+    assert!(trigger_item.has_attribute("data-highlighted"));
+}
+
+/// ArrowRight: `trigger-item` に `id` が無い場合でも、サブメニューが開いた
+/// うえで先頭の非 disabled 項目へ highlight が移るべき（Bugbot 指摘
+/// "Missing id skips submenu entry"、イシュー #662 PR #674）。`headless-ui`
+/// は `trigger_item` の `id` を anatomy 上 optional としており、`id` が
+/// 無いことを理由に `open_submenu_and_focus_first_item` が highlight 移動を
+/// 一切行わず return してしまうと、サブメニューは開くのにハイライトが入ら
+/// ないという以前の不具合（"Enter opens submenu without entering" 相当）が
+/// id-less な trigger-item についてのみ再発してしまう。
+#[wasm_bindgen_test]
+fn menu_open_arrow_right_expands_submenu_and_highlights_first_item_without_trigger_item_id() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-noid1",
+        &[("a", "A", false)],
+        "sub",
+        "Sub",
+        false,
+        &[("x", "X", false), ("y", "Y", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    // headless-ui の anatomy 上 `trigger_item` の `id` は optional。ここで
+    // 意図的に取り除き、`document.get_element_by_id` による再解決手段が
+    // 無い状態を再現する。
+    trigger_item.remove_attribute("id").unwrap();
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-sub-noid1-trigger").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // 親スコープは [a, sub] の 2 件。End で末尾（trigger-item "sub"）へ。
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(trigger_item.has_attribute("data-highlighted"));
+
+    trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    assert!(
+        !sub_content.has_attribute("hidden"),
+        "id が無くてもサブメニューは展開されるべき"
+    );
+    let item_x = document
+        .get_element_by_id("kn-sub-noid1-sub-item-x")
+        .unwrap();
+    assert!(
+        item_x.has_attribute("data-highlighted"),
+        "id-less な trigger-item でも展開直後は先頭の非 disabled 項目が \
+         highlight されるべき"
+    );
+    assert_eq!(
+        sub_content
+            .get_attribute("aria-activedescendant")
+            .as_deref(),
+        Some("kn-sub-noid1-sub-item-x")
+    );
+}
+
+/// ArrowRight: 先頭項目が disabled のときは次の非 disabled 項目へ
+/// フォールバックする。
+#[wasm_bindgen_test]
+fn menu_open_arrow_right_skips_disabled_first_submenu_item() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-open2",
+        &[("a", "A", false)],
+        "sub",
+        "Sub",
+        false,
+        &[("x", "X", true), ("y", "Y", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-sub-open2-trigger").unwrap();
+    html_element(&trigger).focus().unwrap();
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(trigger_item.has_attribute("data-highlighted"));
+    trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    assert!(!sub_content.has_attribute("hidden"));
+    let item_x = document
+        .get_element_by_id("kn-sub-open2-sub-item-x")
+        .unwrap();
+    let item_y = document
+        .get_element_by_id("kn-sub-open2-sub-item-y")
+        .unwrap();
+    assert!(!item_x.has_attribute("data-highlighted"));
+    assert!(item_y.has_attribute("data-highlighted"));
+}
+
+/// ArrowRight: highlight 中の項目が通常 item（`trigger-item` ではない）
+/// のときは no-op（`prevent_default` しない、受け入れ条件 2 系の一部）。
+#[wasm_bindgen_test]
+fn menu_open_arrow_right_on_regular_item_is_noop() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, _trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-noop1",
+        &[("a", "A", false)],
+        "sub",
+        "Sub",
+        false,
+        &[("x", "X", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-sub-noop1-trigger").unwrap();
+    html_element(&trigger).focus().unwrap();
+    // Home で通常 item "a" を highlight する（trigger-item ではない）。
+    trigger.dispatch_event(&keydown_event("Home")).unwrap();
+    let item_a = document.get_element_by_id("kn-sub-noop1-item-a").unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+
+    let not_default_prevented = trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(
+        not_default_prevented,
+        "trigger-item でない項目上の ArrowRight は prevent_default されるべきでない"
+    );
+    assert!(
+        sub_content.has_attribute("hidden"),
+        "サブメニューは閉じたまま"
+    );
+}
+
+/// ArrowRight: highlight 中の trigger-item が disabled のときは no-op。
+#[wasm_bindgen_test]
+fn menu_open_arrow_right_on_disabled_trigger_item_is_noop() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-noop2",
+        &[("a", "A", false)],
+        "sub",
+        "Sub",
+        true,
+        &[("x", "X", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-sub-noop2-trigger").unwrap();
+    html_element(&trigger).focus().unwrap();
+    // disabled trigger-item は End 等の通常ナビゲーションでは（disabled
+    // スキップ設計により）そもそも highlight されない。本テストは
+    // 「highlight 中の項目が disabled だった場合」の fail-closed no-op を
+    // 検証する防御的なケースのため、highlight を直接 DOM へ設定する。
+    let content = document.get_element_by_id("kn-sub-noop2-content").unwrap();
+    trigger_item.set_attribute("data-highlighted", "").unwrap();
+    content
+        .set_attribute(
+            "aria-activedescendant",
+            &trigger_item.get_attribute("id").unwrap(),
+        )
+        .unwrap();
+
+    let not_default_prevented = trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(
+        not_default_prevented,
+        "disabled trigger-item 上の ArrowRight は prevent_default されるべきでない"
+    );
+    assert!(sub_content.has_attribute("hidden"));
+}
+
+/// ArrowRight: Select（`data-scope="select"`）には `trigger-item` が存在
+/// せず、highlight 中の item がセレクタ不一致となるため自然に no-op となる。
+#[wasm_bindgen_test]
+fn select_open_arrow_right_is_noop() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_select_dom(
+        &document,
+        "kn-select-noop1",
+        &[("a", "A", false), ("b", "B", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-select-noop1-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+    trigger.dispatch_event(&keydown_event("Home")).unwrap();
+    let item_a = document
+        .get_element_by_id("kn-select-noop1-item-a")
+        .unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+
+    let not_default_prevented = trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(not_default_prevented);
+    assert!(item_a.has_attribute("data-highlighted"));
+}
+
+/// ArrowRight: click 駆動の再レンダーで親 `trigger-item` 自身の
+/// `data-highlighted`/親 content の `aria-activedescendant` が失われても、
+/// id ベースの再解決で親チェーンの highlight が復帰する（Bugbot 指摘
+/// "ArrowRight drops parent chain highlight"、イシュー #662 PR #674）。
+/// `resolve_active_content` は open chain 再構築にこの親 highlight を必要と
+/// するため、これが失われたままだと以降 `ArrowLeft` で閉じられなくなる。
+#[wasm_bindgen_test]
+fn menu_open_arrow_right_restores_parent_highlight_after_click_driven_rerender_clears_it() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-rerender1",
+        &[("a", "A", false)],
+        "sub",
+        "Sub",
+        false,
+        &[("x", "X", false), ("y", "Y", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    // click 駆動の再レンダーをシミュレートする: `wire_toggle_listener` の
+    // hidden トグルに続けて、実運用の再レンダーが親 trigger-item の
+    // `data-highlighted`/親 content の `aria-activedescendant` を洗い流す
+    // ケースを模したリスナーを追加登録する。
+    let content = document
+        .get_element_by_id("kn-sub-rerender1-content")
+        .unwrap();
+    let rerender_closure = Closure::<dyn FnMut(Event)>::new({
+        let trigger_item = trigger_item.clone();
+        let content = content.clone();
+        move |_e: Event| {
+            let _ = trigger_item.remove_attribute("data-highlighted");
+            let _ = content.remove_attribute("aria-activedescendant");
+        }
+    });
+    trigger_item
+        .add_event_listener_with_callback("click", rerender_closure.as_ref().unchecked_ref())
+        .unwrap();
+    rerender_closure.forget();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    let trigger = document
+        .get_element_by_id("kn-sub-rerender1-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(trigger_item.has_attribute("data-highlighted"));
+
+    trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    assert!(
+        !sub_content.has_attribute("hidden"),
+        "サブメニューが展開されるべき"
+    );
+    assert!(
+        trigger_item.has_attribute("data-highlighted"),
+        "click 駆動の再レンダーで失われても親 trigger-item の highlight は復帰するべき"
+    );
+    assert_eq!(
+        content.get_attribute("aria-activedescendant").as_deref(),
+        trigger_item.get_attribute("id").as_deref()
+    );
+}
+
+/// Enter: highlight 中の `trigger-item` へ Enter を押すとサブメニューが
+/// 展開され、`ArrowRight` と同様にハイライトが子メニューの先頭非 disabled
+/// 項目へ移る（Bugbot 指摘 "Enter opens submenu without entering"、イシュー
+/// #662 PR #674）。従来は `click()` のみを合成しハイライトを親アイテムに
+/// 残したままだったため、次のキー操作が APG のサブメニュー活性化挙動と
+/// 一致しなかった。
+#[wasm_bindgen_test]
+fn menu_open_enter_on_trigger_item_expands_submenu_and_moves_highlight_into_it() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-enter1",
+        &[("a", "A", false)],
+        "sub",
+        "Sub",
+        false,
+        &[("x", "X", false), ("y", "Y", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-sub-enter1-trigger").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(trigger_item.has_attribute("data-highlighted"));
+
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+
+    assert!(
+        !sub_content.has_attribute("hidden"),
+        "Enter でサブメニューが展開されるべき"
+    );
+    let item_x = document
+        .get_element_by_id("kn-sub-enter1-sub-item-x")
+        .unwrap();
+    assert!(
+        item_x.has_attribute("data-highlighted"),
+        "Enter は展開後、サブメニュー先頭項目へ highlight を移すべき"
+    );
+    assert_eq!(
+        sub_content
+            .get_attribute("aria-activedescendant")
+            .as_deref(),
+        Some("kn-sub-enter1-sub-item-x")
+    );
+    assert!(
+        trigger_item.has_attribute("data-highlighted"),
+        "親 trigger-item の highlight も維持されるべき"
+    );
+}
+
+/// Space（バッファ無効時）: Enter と同様にサブメニューを展開しハイライトを
+/// 子メニューの先頭項目へ移す（イシュー #662 PR #674、Enter との対称性）。
+#[wasm_bindgen_test]
+fn menu_open_space_on_trigger_item_expands_submenu_and_moves_highlight_into_it() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-space1",
+        &[("a", "A", false)],
+        "sub",
+        "Sub",
+        false,
+        &[("x", "X", false), ("y", "Y", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-sub-space1-trigger").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(trigger_item.has_attribute("data-highlighted"));
+
+    trigger.dispatch_event(&keydown_event(" ")).unwrap();
+
+    assert!(
+        !sub_content.has_attribute("hidden"),
+        "Space でサブメニューが展開されるべき"
+    );
+    let item_x = document
+        .get_element_by_id("kn-sub-space1-sub-item-x")
+        .unwrap();
+    assert!(
+        item_x.has_attribute("data-highlighted"),
+        "Space は展開後、サブメニュー先頭項目へ highlight を移すべき"
+    );
+    assert!(
+        trigger_item.has_attribute("data-highlighted"),
+        "親 trigger-item の highlight も維持されるべき"
+    );
+}
+
+/// 展開後、ArrowDown/ArrowUp/Home/End はサブメニュー content 内で
+/// highlight を移動し、親 content の highlight（trigger-item 上）は不変。
+/// Enter はサブメニュー項目へ click 合成する。
+#[wasm_bindgen_test]
+fn menu_open_submenu_navigation_operates_within_active_content_and_preserves_parent_highlight() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-nav1",
+        &[("a", "A", false)],
+        "sub",
+        "Sub",
+        false,
+        &[("x", "X", false), ("y", "Y", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let item_x = document
+        .get_element_by_id("kn-sub-nav1-sub-item-x")
+        .unwrap();
+    let item_y = document
+        .get_element_by_id("kn-sub-nav1-sub-item-y")
+        .unwrap();
+    let click_closure = Closure::<dyn FnMut(Event)>::new({
+        let item_y = item_y.clone();
+        move |_e: Event| {
+            let _ = item_y.set_attribute("data-clicked", "");
+        }
+    });
+    item_y
+        .add_event_listener_with_callback("click", click_closure.as_ref().unchecked_ref())
+        .unwrap();
+    click_closure.forget();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    let trigger = document.get_element_by_id("kn-sub-nav1-trigger").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(item_x.has_attribute("data-highlighted"));
+
+    // ArrowDown はサブメニュー内で次（y）へ移動し、親の trigger-item
+    // highlight は変わらない。
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(!item_x.has_attribute("data-highlighted"));
+    assert!(item_y.has_attribute("data-highlighted"));
+    assert!(trigger_item.has_attribute("data-highlighted"));
+
+    // Enter でサブメニュー項目（y）へ click が合成される。
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert!(item_y.has_attribute("data-clicked"));
+
+    // Home でサブメニュー先頭（x）へ戻る。
+    trigger.dispatch_event(&keydown_event("Home")).unwrap();
+    assert!(item_x.has_attribute("data-highlighted"));
+    assert!(!item_y.has_attribute("data-highlighted"));
+
+    assert!(!sub_content.has_attribute("hidden"));
+}
+
+/// ArrowLeft: サブメニューを閉じ、highlight を親 trigger-item へ復帰させる
+/// （受け入れ条件 2）。
+#[wasm_bindgen_test]
+fn menu_open_arrow_left_closes_submenu_and_restores_parent_highlight() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-close1",
+        &[("a", "A", false)],
+        "sub",
+        "Sub",
+        false,
+        &[("x", "X", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-sub-close1-trigger").unwrap();
+    html_element(&trigger).focus().unwrap();
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    let item_x = document
+        .get_element_by_id("kn-sub-close1-sub-item-x")
+        .unwrap();
+    assert!(!sub_content.has_attribute("hidden"));
+    assert!(item_x.has_attribute("data-highlighted"));
+
+    let not_default_prevented = trigger.dispatch_event(&keydown_event("ArrowLeft")).unwrap();
+    assert!(
+        !not_default_prevented,
+        "サブメニュー内での ArrowLeft は prevent_default されるべき"
+    );
+
+    assert!(
+        sub_content.has_attribute("hidden"),
+        "サブメニューが閉じるべき"
+    );
+    assert!(
+        !item_x.has_attribute("data-highlighted"),
+        "閉じた後サブメニュー項目の highlight は残らないべき"
+    );
+    assert!(
+        trigger_item.has_attribute("data-highlighted"),
+        "閉じた後 highlight は親 trigger-item へ復帰するべき"
+    );
+    let content = document.get_element_by_id("kn-sub-close1-content").unwrap();
+    assert_eq!(
+        content.get_attribute("aria-activedescendant").as_deref(),
+        Some("kn-sub-close1-item-sub")
+    );
+}
+
+/// ArrowLeft: `trigger_item` に `id` が無い場合でも、click 前に保持していた
+/// ノードを `is_same_node` で照合してサブメニューを閉じたうえで親
+/// trigger-item へ highlight を復帰させるべき（Bugbot 指摘 "ArrowLeft still
+/// requires trigger id"、イシュー #662 PR #674）。`open_submenu_and_focus_
+/// first_item`（ArrowRight/Enter/Space 側）は id なし trigger-item を
+/// `is_same_node` ベースの fallback で救済済みだが、ArrowLeft 側のみ `id`
+/// 欠落を理由に親 highlight 復帰をスキップしていた不整合の回帰テスト。
+#[wasm_bindgen_test]
+fn menu_open_arrow_left_closes_submenu_and_restores_parent_highlight_without_trigger_item_id() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-close-noid1",
+        &[("a", "A", false)],
+        "sub",
+        "Sub",
+        false,
+        &[("x", "X", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    // headless-ui の anatomy 上 `trigger_item` の `id` は optional。ここで
+    // 意図的に取り除き、`document.get_element_by_id` による再解決手段が
+    // 無い状態を再現する。
+    trigger_item.remove_attribute("id").unwrap();
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-sub-close-noid1-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    let item_x = document
+        .get_element_by_id("kn-sub-close-noid1-sub-item-x")
+        .unwrap();
+    assert!(!sub_content.has_attribute("hidden"));
+    assert!(item_x.has_attribute("data-highlighted"));
+
+    let not_default_prevented = trigger.dispatch_event(&keydown_event("ArrowLeft")).unwrap();
+    assert!(
+        !not_default_prevented,
+        "サブメニュー内での ArrowLeft は prevent_default されるべき"
+    );
+
+    assert!(
+        sub_content.has_attribute("hidden"),
+        "サブメニューが閉じるべき"
+    );
+    assert!(
+        !item_x.has_attribute("data-highlighted"),
+        "閉じた後サブメニュー項目の highlight は残らないべき"
+    );
+    assert!(
+        trigger_item.has_attribute("data-highlighted"),
+        "id-less な trigger-item でも閉じた後 highlight は親へ復帰するべき"
+    );
+}
+
+/// ArrowLeft: トップレベル（サブメニュー内でない）では no-op
+/// （`prevent_default` しない、受け入れ条件 2 後段）。
+#[wasm_bindgen_test]
+fn menu_open_arrow_left_at_top_level_is_noop() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom(
+        &document,
+        "kn-toplevel-noop1",
+        &[("a", "A", false), ("b", "B", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-toplevel-noop1-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+    trigger.dispatch_event(&keydown_event("Home")).unwrap();
+    let item_a = document
+        .get_element_by_id("kn-toplevel-noop1-item-a")
+        .unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+
+    let not_default_prevented = trigger.dispatch_event(&keydown_event("ArrowLeft")).unwrap();
+    assert!(
+        not_default_prevented,
+        "トップレベルの ArrowLeft は prevent_default されるべきでない"
+    );
+    assert!(item_a.has_attribute("data-highlighted"));
+}
+
+/// ネスト 2 段: ArrowRight を 2 回で孫 content まで降下し、ArrowLeft で
+/// 1 段ずつ復帰する（アクティブ content チェーン解決の検証）。
+#[wasm_bindgen_test]
+fn menu_open_arrow_right_and_left_navigate_two_level_nested_submenu() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item_1, sub_content_1) = build_submenu_dom(
+        &document,
+        "kn-sub-nest1",
+        &[("a", "A", false)],
+        "sub1",
+        "Sub1",
+        false,
+        &[("x", "X", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    // sub_content_1 の子孫にもう 1 段（trigger-item "sub2" + content [p]）を
+    // 追加する（`id_prefix` を変え、孫 id と衝突しないようにする）。
+    let (trigger_item_2, sub_content_2) = append_trigger_item_with_submenu(
+        &document,
+        &sub_content_1,
+        "kn-sub-nest1-sub1",
+        "sub2",
+        "Sub2",
+        false,
+        &[("p", "P", false)],
+        false,
+    );
+    wire_toggle_listener(&trigger_item_2, &sub_content_2);
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    let trigger = document.get_element_by_id("kn-sub-nest1-trigger").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // 親スコープ [a, sub1] の末尾（sub1）を highlight → 展開。
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(!sub_content_1.has_attribute("hidden"));
+
+    // sub_content_1 のスコープは [x, sub2] の 2 件。End で sub2 を
+    // highlight → 展開。
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(trigger_item_2.has_attribute("data-highlighted"));
+    trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(!sub_content_2.has_attribute("hidden"));
+    let item_p = document
+        .get_element_by_id("kn-sub-nest1-sub1-sub-item-p")
+        .unwrap();
+    assert!(item_p.has_attribute("data-highlighted"));
+
+    // ArrowLeft で 1 段戻る（sub_content_2 が閉じ、highlight は sub2 へ）。
+    trigger.dispatch_event(&keydown_event("ArrowLeft")).unwrap();
+    assert!(sub_content_2.has_attribute("hidden"));
+    assert!(trigger_item_2.has_attribute("data-highlighted"));
+    assert!(
+        !sub_content_1.has_attribute("hidden"),
+        "sub1 はまだ開いたまま"
+    );
+
+    // もう一段 ArrowLeft で sub1 も閉じ、highlight は親 trigger-item(sub1) へ。
+    trigger.dispatch_event(&keydown_event("ArrowLeft")).unwrap();
+    assert!(sub_content_1.has_attribute("hidden"));
+    assert!(trigger_item_1.has_attribute("data-highlighted"));
+
+    // トップレベルまで戻ったので、もう一度 ArrowLeft しても no-op。
+    let not_default_prevented = trigger.dispatch_event(&keydown_event("ArrowLeft")).unwrap();
+    assert!(not_default_prevented);
+}
+
+/// 展開後の typeahead はサブメニュー項目のラベルを対象にし、親スコープの
+/// 打鍵バッファを引きずらない（`TypeaheadState::is_active_for` は対象
+/// content が変わると無条件で無効になり、ArrowRight/ArrowLeft の明示的な
+/// `typeahead.reset()` 呼び出しと合わせた多重防御になる、モジュール doc
+/// §サブメニュー参照）。
+#[wasm_bindgen_test]
+fn submenu_arrow_navigation_resets_typeahead_buffer_and_targets_active_content_labels() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-typeahead1",
+        &[("a", "Apple", false)],
+        "sub",
+        "Sub",
+        false,
+        &[("p", "Pear", false), ("q", "Quince", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-sub-typeahead1-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // 親スコープで "a" を入力（Apple にマッチ）。
+    trigger.dispatch_event(&keydown_event("a")).unwrap();
+    let item_a = document
+        .get_element_by_id("kn-sub-typeahead1-item-a")
+        .unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+
+    // End → trigger-item highlight → ArrowRight で展開（typeahead バッファは
+    // リセットされる）。
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(trigger_item.has_attribute("data-highlighted"));
+    trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(!sub_content.has_attribute("hidden"));
+
+    // サブメニュー内で "q" を入力すると Quince にマッチする（親の "a"
+    // バッファが引き継がれていないことの確認、旧バッファのままなら
+    // "aq" 等になり Quince にマッチしなくなる）。
+    trigger.dispatch_event(&keydown_event("q")).unwrap();
+    let item_p = document
+        .get_element_by_id("kn-sub-typeahead1-sub-item-p")
+        .unwrap();
+    let item_q = document
+        .get_element_by_id("kn-sub-typeahead1-sub-item-q")
+        .unwrap();
+    assert!(item_q.has_attribute("data-highlighted"));
+    assert!(!item_p.has_attribute("data-highlighted"));
+
+    // ArrowLeft で閉鎖してもバッファがリセットされる。
+    trigger.dispatch_event(&keydown_event("ArrowLeft")).unwrap();
+    assert!(sub_content.has_attribute("hidden"));
+}
+
+/// XSS 回帰（REQ-1、イシュー #662）: 攻撃者制御文字列を含む trigger-item/
+/// サブメニュー項目のラベルに対し ArrowRight/ArrowLeft/typeahead を操作
+/// しても `script`/`img` 要素が DOM に生成されないこと。
+#[wasm_bindgen_test]
+fn submenu_arrow_navigation_with_attacker_controlled_labels_does_not_inject_script() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-xss1",
+        &[("a", "A", false)],
+        "sub",
+        "<img src=x onerror=alert(1)>",
+        false,
+        &[("x", "\"><script>alert(2)</script>", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-sub-xss1-trigger").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(trigger_item.has_attribute("data-highlighted"));
+    trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(!sub_content.has_attribute("hidden"));
+    assert!(root.query_selector("script, img").unwrap().is_none());
+
+    // 攻撃者制御ラベルの先頭文字（`"`）で typeahead しても注入されない。
+    trigger.dispatch_event(&keydown_event("\"")).unwrap();
+    assert!(root.query_selector("script, img").unwrap().is_none());
+
+    trigger.dispatch_event(&keydown_event("ArrowLeft")).unwrap();
+    assert!(sub_content.has_attribute("hidden"));
+    assert!(root.query_selector("script, img").unwrap().is_none());
+}
+
+/// 回帰テスト（Bugbot 指摘、イシュー #662 PR #674）: `trigger-item` 自身の
+/// 表示テキストが空（アイコンのみ等、実 UI でありうる形）で、かつサブ
+/// メニューが `hidden`（未展開）のとき、親レベルの typeahead が
+/// `trigger-item` 自身のラベルではなく子孫（隠れたサブメニュー項目）の
+/// テキストへ誤マッチしないことを検証する。修正前は `item_label` が単純に
+/// `text_content()` を使っており、`trigger-item` 自身が空文字でも隠れた
+/// サブメニュー項目 "Zeta" のテキストを拾って "z" 入力にマッチしてしまって
+/// いた。
+#[wasm_bindgen_test]
+fn menu_open_typeahead_does_not_match_hidden_nested_submenu_item_text() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-typeahead2",
+        &[("m", "Mango", false)],
+        "sub",
+        "",
+        false,
+        &[("z", "Zeta", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-sub-typeahead2-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    assert!(sub_content.has_attribute("hidden"));
+    assert!(!trigger_item.has_attribute("data-highlighted"));
+
+    // 隠れたサブメニュー項目 "Zeta" の先頭文字 "z" を入力しても、
+    // 表示テキストを持たない trigger-item 自身はマッチしないため
+    // highlight されない（修正前は誤って highlight されていた）。
+    trigger.dispatch_event(&keydown_event("z")).unwrap();
+    assert!(!trigger_item.has_attribute("data-highlighted"));
+}
+
+// ---------------------------------------------------------------------
+// サブメニュー兄弟配置回帰テスト（Cursor Bugbot Medium 指摘、イシュー #662
+// PR #674 追補）。`crates/headless-ui/src/menu.rs` モジュール doc の
+// 「親 Menu インスタンスの content 内に子 Menu インスタンス由来の
+// trigger_item/positioner/content を入れ子で配置する」契約では、子の
+// positioner/content は trigger-item の**兄弟**として親 content 直下に
+// 並ぶ配置が正当（かつ `aria-controls` は anatomy 上 optional）。
+// `resolve_submenu_content`（`crates/wasm-full/src/keynav.rs`）の兄弟方向
+// フォールバックがこの一般的な配置を解決できることを検証する。
+// ---------------------------------------------------------------------
+
+/// `parent_content` 直下へ、サブメニューを `trigger_item` の**兄弟**として
+/// 配置する構成（イシュー #662 Bugbot 指摘・PR #674 追補）で `trigger-item`
+/// + 子 Menu（`positioner`/`root`/`content`）を追加する。
+/// [`append_trigger_item_with_submenu`]（子孫配置・`aria-controls` 経路の
+/// 既存フィクスチャ）とは独立に保ち、既存の子孫配置テストへ影響を与えない。
+/// `trigger_item` には `aria-controls` を意図的に設定せず、
+/// `resolve_submenu_content` の兄弟方向フォールバックのみで解決できることを
+/// 検証できるようにする。`id_prefix`・`trigger_item_value` から
+/// `{id_prefix}-item-{trigger_item_value}`（trigger-item 自身）・
+/// `{id_prefix}-sub-content-{trigger_item_value}`（子 content）・
+/// `{id_prefix}-sub-item-{trigger_item_value}-{value}`（子 item）の id を
+/// 組み立てる（同一 `parent_content` 直下に複数のサブメニューを並べても id
+/// が衝突しないようにするため）。戻り値は `(trigger_item, sub_content)`。
+#[allow(clippy::too_many_arguments)]
+fn append_sibling_trigger_item_with_submenu(
+    document: &Document,
+    parent_content: &Element,
+    id_prefix: &str,
+    trigger_item_value: &str,
+    trigger_item_label: &str,
+    trigger_item_disabled: bool,
+    sub_items: &[(&str, &str, bool)],
+    sub_open: bool,
+) -> (Element, Element) {
+    let trigger_item = document.create_element("div").unwrap();
+    trigger_item.set_attribute("data-scope", "menu").unwrap();
+    trigger_item
+        .set_attribute("data-part", "trigger-item")
+        .unwrap();
+    trigger_item.set_attribute("role", "menuitem").unwrap();
+    trigger_item.set_attribute("aria-haspopup", "menu").unwrap();
+    let trigger_item_id = format!("{id_prefix}-item-{trigger_item_value}");
+    trigger_item.set_attribute("id", &trigger_item_id).unwrap();
+    trigger_item
+        .set_attribute("aria-expanded", if sub_open { "true" } else { "false" })
+        .unwrap();
+    trigger_item
+        .set_attribute("data-state", if sub_open { "open" } else { "closed" })
+        .unwrap();
+    if trigger_item_disabled {
+        trigger_item.set_attribute("aria-disabled", "true").unwrap();
+        trigger_item.set_attribute("data-disabled", "").unwrap();
+    }
+    trigger_item.set_text_content(Some(trigger_item_label));
+    parent_content.append_child(&trigger_item).unwrap();
+
+    // positioner: trigger-item の兄弟として、子 root/content をラップする
+    // 中間要素（`crates/headless-ui/src/menu.rs::positioner` 相当）。
+    let positioner = document.create_element("div").unwrap();
+    positioner.set_attribute("data-scope", "menu").unwrap();
+    positioner.set_attribute("data-part", "positioner").unwrap();
+
+    let sub_root = document.create_element("div").unwrap();
+    sub_root.set_attribute("data-scope", "menu").unwrap();
+    sub_root.set_attribute("data-part", "root").unwrap();
+    let sub_content = document.create_element("div").unwrap();
+    sub_content.set_attribute("data-scope", "menu").unwrap();
+    sub_content.set_attribute("data-part", "content").unwrap();
+    let sub_content_id = format!("{id_prefix}-sub-content-{trigger_item_value}");
+    sub_content.set_attribute("id", &sub_content_id).unwrap();
+    sub_content.set_attribute("role", "menu").unwrap();
+    if !sub_open {
+        sub_content.set_attribute("hidden", "").unwrap();
+    }
+    for (value, label, disabled) in sub_items {
+        let item = document.create_element("div").unwrap();
+        item.set_attribute("data-scope", "menu").unwrap();
+        item.set_attribute("data-part", "item").unwrap();
+        item.set_attribute("role", "menuitem").unwrap();
+        item.set_attribute("data-value", value).unwrap();
+        item.set_attribute(
+            "id",
+            &format!("{id_prefix}-sub-item-{trigger_item_value}-{value}"),
+        )
+        .unwrap();
+        if *disabled {
+            item.set_attribute("aria-disabled", "true").unwrap();
+            item.set_attribute("data-disabled", "").unwrap();
+        }
+        item.set_text_content(Some(label));
+        sub_content.append_child(&item).unwrap();
+    }
+    sub_root.append_child(&sub_content).unwrap();
+    positioner.append_child(&sub_root).unwrap();
+    // positioner（子 root/content 一式）を trigger_item の**兄弟**として
+    // parent_content 直下へ追加する（trigger_item の子孫にはしない）。
+    parent_content.append_child(&positioner).unwrap();
+
+    (trigger_item, sub_content)
+}
+
+/// ArrowRight: `aria-controls` を持たず、かつ子 content が `trigger-item`
+/// の兄弟として親 content 直下に配置される構成（`headless-ui` の一般的な
+/// anatomy 配置）でも、サブメニューが展開され先頭の非 disabled 項目へ
+/// highlight が移るべき（Cursor Bugbot Medium 指摘、イシュー #662 PR #674
+/// 追補。修正前は `resolve_submenu_content` が子孫方向フォールバックしか
+/// 持たず、この配置ではサイレント no-op になっていた）。
+#[wasm_bindgen_test]
+fn menu_open_arrow_right_expands_sibling_submenu_without_aria_controls() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom(
+        &document,
+        "kn-sub-sibling1",
+        &[("a", "A", false)],
+        true,
+        false,
+    );
+    let content = document
+        .get_element_by_id("kn-sub-sibling1-content")
+        .unwrap();
+    let (trigger_item, sub_content) = append_sibling_trigger_item_with_submenu(
+        &document,
+        &content,
+        "kn-sub-sibling1",
+        "sub",
+        "Sub",
+        false,
+        &[("x", "X", false), ("y", "Y", false)],
+        false,
+    );
+    wire_toggle_listener(&trigger_item, &sub_content);
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-sub-sibling1-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // 親スコープは [a, sub] の 2 件。End で末尾（trigger-item "sub"）へ。
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(trigger_item.has_attribute("data-highlighted"));
+
+    let not_default_prevented = trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(
+        !not_default_prevented,
+        "展開する ArrowRight は prevent_default されるべき"
+    );
+
+    assert!(
+        !sub_content.has_attribute("hidden"),
+        "aria-controls が無く兄弟配置でもサブメニューが展開されるべき"
+    );
+    let item_x = document
+        .get_element_by_id("kn-sub-sibling1-sub-item-sub-x")
+        .unwrap();
+    assert!(
+        item_x.has_attribute("data-highlighted"),
+        "展開直後は先頭の非 disabled 項目が highlight されるべき"
+    );
+    assert_eq!(
+        sub_content
+            .get_attribute("aria-activedescendant")
+            .as_deref(),
+        Some("kn-sub-sibling1-sub-item-sub-x")
+    );
+    // 親の highlight（trigger-item 上）は展開後も維持される。
+    assert!(trigger_item.has_attribute("data-highlighted"));
+}
+
+/// ArrowRight: 同一 content 直下に兄弟配置のサブメニューを持つ trigger-item
+/// が 2 つ並ぶ場合、各 trigger-item は自分のサブメニューだけを解決し、
+/// 隣の trigger-item のサブメニューを誤って展開しない（Cursor Bugbot
+/// Medium 指摘、イシュー #662 PR #674 追補。`resolve_submenu_content_via_sibling`
+/// の「次の trigger-item に到達したら打ち切る」ガードの検証）。
+#[wasm_bindgen_test]
+fn menu_open_arrow_right_resolves_only_own_sibling_submenu_when_two_adjacent() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom(&document, "kn-sub-sibling2", &[], true, false);
+    let content = document
+        .get_element_by_id("kn-sub-sibling2-content")
+        .unwrap();
+    let (trigger_item_1, sub_content_1) = append_sibling_trigger_item_with_submenu(
+        &document,
+        &content,
+        "kn-sub-sibling2",
+        "sub1",
+        "Sub1",
+        false,
+        &[("x", "X", false)],
+        false,
+    );
+    wire_toggle_listener(&trigger_item_1, &sub_content_1);
+    let (trigger_item_2, sub_content_2) = append_sibling_trigger_item_with_submenu(
+        &document,
+        &content,
+        "kn-sub-sibling2",
+        "sub2",
+        "Sub2",
+        false,
+        &[("y", "Y", false)],
+        false,
+    );
+    wire_toggle_listener(&trigger_item_2, &sub_content_2);
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document
+        .get_element_by_id("kn-sub-sibling2-trigger")
+        .unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // 親スコープは [sub1, sub2] の 2 件。Home で先頭（sub1）を highlight。
+    trigger.dispatch_event(&keydown_event("Home")).unwrap();
+    assert!(trigger_item_1.has_attribute("data-highlighted"));
+
+    trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    assert!(
+        !sub_content_1.has_attribute("hidden"),
+        "sub1 自身のサブメニューが展開されるべき"
+    );
+    assert!(
+        sub_content_2.has_attribute("hidden"),
+        "隣接する sub2 のサブメニューを誤って展開してはいけない"
+    );
+    let item_x = document
+        .get_element_by_id("kn-sub-sibling2-sub-item-sub1-x")
+        .unwrap();
+    assert!(item_x.has_attribute("data-highlighted"));
+
+    // 閉じて sub2 へ移り、対称に検証する。
+    trigger.dispatch_event(&keydown_event("ArrowLeft")).unwrap();
+    assert!(sub_content_1.has_attribute("hidden"));
+
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(trigger_item_2.has_attribute("data-highlighted"));
+
+    trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    assert!(
+        !sub_content_2.has_attribute("hidden"),
+        "sub2 自身のサブメニューが展開されるべき"
+    );
+    assert!(
+        sub_content_1.has_attribute("hidden"),
+        "sub1 のサブメニューは閉じたままであるべき"
+    );
+    let item_y = document
+        .get_element_by_id("kn-sub-sibling2-sub-item-sub2-y")
+        .unwrap();
+    assert!(item_y.has_attribute("data-highlighted"));
 }

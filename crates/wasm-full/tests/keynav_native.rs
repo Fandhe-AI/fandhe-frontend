@@ -16,8 +16,8 @@
 
 use fandhe_frontend_wasm_full::keynav::{
     accordion_next_index, highlight_next_index, is_typeahead_key, loop_focus_from_attr,
-    menu_loop_focus_from_attr, radio_next_index, tabs_next_index, typeahead_next_index,
-    typeahead_push, Modifiers, Orientation, TYPEAHEAD_TIMEOUT_MS,
+    menu_loop_focus_from_attr, radio_next_index, submenu_nav, tabs_next_index,
+    typeahead_next_index, typeahead_push, Modifiers, Orientation, SubmenuNav, TYPEAHEAD_TIMEOUT_MS,
 };
 
 /// 検証 1: Tabs horizontal の ArrowRight/ArrowLeft がフォーカスを移動する。
@@ -336,4 +336,35 @@ fn typeahead_public_api_matches_and_cycles_through_labels() {
         typeahead_next_index(None, "a", &empty_labels, &empty_disabled),
         None
     );
+}
+
+/// 検証 11（イシュー #662）: サブメニュー（`trigger-item`）開閉判定の公開 API
+/// （[`submenu_nav`]）が単体テストと同じ挙動で公開 API 経由でも壊れていない
+/// ことを確認する統合確認。実際に展開・閉鎖できるかどうかの DOM 判断
+/// （trigger-item か・disabled か・チェーン深さ 0 か等）は配線層の責務であり
+/// 実ブラウザテスト（`keynav_browser.rs`）が担う。
+#[test]
+fn submenu_nav_public_api_matches_arrow_right_left_and_rejects_others() {
+    assert_eq!(
+        submenu_nav("ArrowRight", Modifiers::default()),
+        Some(SubmenuNav::Open)
+    );
+    assert_eq!(
+        submenu_nav("ArrowLeft", Modifiers::default()),
+        Some(SubmenuNav::Close)
+    );
+    // 修飾キー付きは対象外。
+    assert_eq!(
+        submenu_nav(
+            "ArrowRight",
+            Modifiers {
+                alt: true,
+                ..Modifiers::default()
+            }
+        ),
+        None
+    );
+    // ArrowRight/ArrowLeft 以外は対象外。
+    assert_eq!(submenu_nav("ArrowDown", Modifiers::default()), None);
+    assert_eq!(submenu_nav("Enter", Modifiers::default()), None);
 }

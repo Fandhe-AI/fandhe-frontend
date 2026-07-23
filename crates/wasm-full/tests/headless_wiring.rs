@@ -146,6 +146,28 @@ fn menu_trigger_click_toggles_open_closed() {
     assert!(m.is_open());
 }
 
+/// サブメニューを開く `trigger-item`（`Menu::trigger_item`）クリックが
+/// 子 `Menu` インスタンスの `"toggle"` dispatch を経由して開閉することを
+/// 検証する。サブメニューは「子 `Menu` インスタンス由来の
+/// `trigger-item`/`positioner`/`content` を親 `content` 内に入れ子配置
+/// する」契約（`crates/headless-ui/src/menu.rs`）であり、`trigger-item` も
+/// `trigger` と同じ `data-scope="menu"` を持つため、マッピング表に
+/// `menu`/`trigger-item` 行が無いと（`keynav.rs` のサブメニュー
+/// ArrowRight/ArrowLeft が合成する `click()` も含めて）no-op になっていた
+/// （イシュー #662 PR #674 Bugbot 指摘の回帰テスト）。
+#[test]
+fn menu_trigger_item_click_toggles_submenu_open_closed() {
+    let sub_menu = Menu::default();
+    let html = render(&sub_menu.trigger_item(false, false, None, vec![], vec![]));
+    assert_scope_part_present(&html, "menu", "trigger-item");
+
+    let action_ref = action_for_part(&part("menu", "trigger-item", None, false)).unwrap();
+
+    let mut m = Menu::default();
+    assert!(dispatch(&mut m, &action_ref.action, &action_ref.payload));
+    assert!(m.is_open());
+}
+
 // --- 受け入れ条件 2: Tabs/RadioGroup/Select の select dispatch ---
 
 #[test]
@@ -158,6 +180,36 @@ fn radio_group_item_click_selects_value() {
     let mut g = RadioGroup::default();
     assert!(dispatch(&mut g, &action_ref.action, &action_ref.payload));
     assert!(g.is_checked("red"));
+}
+
+/// サブメニュー `trigger-item` は「`keynav.rs::wiring::resolve_submenu_content`
+/// の子孫 `[data-part="content"]` フォールバック」が示すとおり、自身の
+/// 子孫として子 `Menu` インスタンスの `content`/`item` を持ちうる（`content`
+/// が `trigger-item` の子孫として配置される DOM 構成）。この構成で子
+/// アイテムをクリックすると、`item`（`menu`/`item` はマッピング表に無く
+/// 常に `None`）から根方向へ辿る途中の `content` を素通りして外側の
+/// `trigger-item`（`menu`/`trigger-item` → `"toggle"`）に誤って解決して
+/// しまう不具合があった（`content` はマッピング表に無いため
+/// `find_map` が素通りしてしまう）。`action_from_parts` は `content` を
+/// 探索の境界として扱い、`content` に達するまでに一致がなければ列全体を
+/// `None` とする（イシュー #662 PR #674 Bugbot 指摘の修正、
+/// `crates/wasm-full/tests/headless_wiring_browser.rs` の実 DOM 回帰と対）。
+#[test]
+fn nested_submenu_item_click_does_not_leak_to_ancestor_trigger_item_toggle() {
+    use fandhe_frontend_wasm_full::headless::action_from_parts;
+
+    // 内側優先: item（表外） → content（表外、境界） → trigger-item（表内）。
+    let parts = vec![
+        part("menu", "item", Some("child-item-1"), false),
+        part("menu", "content", None, false),
+        part("menu", "trigger-item", None, false),
+    ];
+    assert_eq!(
+        action_from_parts(&parts),
+        None,
+        "content 配下の子アイテムクリックが親 trigger-item の toggle として\
+         誤って解決されてはならない"
+    );
 }
 
 #[test]
