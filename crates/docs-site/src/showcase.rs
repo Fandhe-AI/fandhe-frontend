@@ -52,6 +52,7 @@ use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState}
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
+use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
@@ -104,10 +105,10 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   開いた状態を固定掲示するとページ全体を覆ってしまうため掲示用にのみ隠す
 ///   （実際の modal 表示では backdrop は必須であり、ここでの非表示化は
 ///   ショーケースの掲示都合に限定する）。
-/// - dialog/menu/select/combobox/popover/tooltip の `[data-part="positioner"]` を
-///   `position: static` へ中和: recipe CSS は dialog を
-///   `position: fixed; inset: 0`、menu/select/combobox/popover を
-///   `position: absolute; top: 100%`、tooltip を
+/// - dialog/menu/select/combobox/popover/tooltip/hover-card の
+///   `[data-part="positioner"]` を `position: static` へ中和: recipe CSS は
+///   dialog を `position: fixed; inset: 0`、menu/select/combobox/popover/
+///   hover-card を `position: absolute; top: 100%`、tooltip を
 ///   `position: absolute; bottom: 100%` としており、いずれも開いた content を
 ///   ページ内の別位置・別セクションに重ねてしまう。static 化してフロー内へ
 ///   インライン表示させることで、後続セクションと重ならずに掲示できる
@@ -126,7 +127,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"accordion\"] h3 {\n  margin: 0;\n  font-size: 1rem;\n  font-weight: 400;\n  line-height: 1.5;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"backdrop\"] {\n  display: none;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: static;\n  padding: 0;\n  justify-content: flex-start;\n}\n\
-.pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"combobox\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
+.pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"combobox\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"hover-card\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n";
 
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
@@ -148,10 +149,10 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 ///
 /// 内訳: テーマトークン（`Theme::default`、ライト/ダーク両対応）→ 掲載
 /// コンポーネントの recipe CSS（button/badge/spinner/alert/card/tabs/
-/// accordion/dialog/menu/select/combobox/popover/tooltip/switch/radio_group/
-/// avatar/checkbox/checkbox_card/radio_card/input/textarea/native_select/
-/// number_input/tags_input/rating_group/slider/segment_group/breadcrumb）
-/// → ショーケース配置スタイル、の順で決定的に連結する。
+/// accordion/dialog/menu/select/combobox/popover/tooltip/hover_card/switch/
+/// radio_group/avatar/checkbox/checkbox_card/radio_card/input/textarea/
+/// native_select/number_input/tags_input/rating_group/slider/segment_group/
+/// breadcrumb）→ ショーケース配置スタイル、の順で決定的に連結する。
 ///
 /// # Errors
 ///
@@ -175,6 +176,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::combobox::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::popover::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tooltip::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::hover_card::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::switch::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::radio_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::avatar::stylesheet())?;
@@ -940,6 +942,45 @@ fn tooltip_section() -> Node {
     section(
         "Tooltip",
         "headless-ui の Tooltip（role=\"tooltip\"、WAI-ARIA tooltip パターン）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています。",
+        vec![node],
+    )
+}
+
+/// HoverCard 節: 開いた状態の静的マークアップ（イシュー #759）。
+///
+/// `trigger` はリンク先プレビュー用途の `a` 要素だが、掲示コンテンツは
+/// 実ページへ解決されないため `href` は渡さない（`None`）。`build.rs` の
+/// linkcheck が生成コンテンツ内の非空 `href` を持たない設計を前提とする
+/// （`showcase_markup_has_no_href_attributes_for_linkcheck_neutrality`
+/// 参照。[`breadcrumb_section`] が空文字列 `href=""` で同じ制約を満たす
+/// のとは異なり、本節は `href` 属性自体を出力しない選択で満たす）。
+fn hover_card_section() -> Node {
+    let node = hover_card::root(
+        OpenState::Open,
+        HoverCardDelays::default(),
+        vec![],
+        vec![
+            hover_card::trigger(
+                OpenState::Open,
+                None,
+                vec![],
+                vec![text("Hover to preview")],
+            ),
+            hover_card::positioner(
+                OpenState::Open,
+                vec![],
+                vec![hover_card::content(
+                    OpenState::Open,
+                    None,
+                    vec![],
+                    vec![text("リンク先のプレビュー内容です。")],
+                )],
+            ),
+        ],
+    );
+    section(
+        "HoverCard",
+        "headless-ui の HoverCard（リンク先プレビュー等 hover/focus で開閉するオーバーレイ）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています。",
         vec![node],
     )
 }
@@ -2025,6 +2066,7 @@ fn showcase_body() -> Node {
             combobox_section(),
             popover_section(),
             tooltip_section(),
+            hover_card_section(),
             switch_section(),
             radio_group_section(),
             avatar_section(),
@@ -2072,6 +2114,7 @@ mod tests {
             "select",
             "popover",
             "tooltip",
+            "hover-card",
             "switch",
             "radio-group",
             "avatar",
@@ -2163,6 +2206,7 @@ mod tests {
         assert!(css.contains(r#"[data-scope="select"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="popover"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="tooltip"][data-part="content"]"#));
+        assert!(css.contains(r#"[data-scope="hover-card"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="switch"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="radio-group"][data-part="item-control"]"#));
         assert!(css.contains(".fd-avatar--size-md"));

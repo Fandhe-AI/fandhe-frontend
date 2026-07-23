@@ -39,6 +39,7 @@ use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
+use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
@@ -1129,4 +1130,66 @@ fn radio_card_styled_root_and_parts_are_escaped_for_all_payloads() {
             "radio_card::item_hidden_input name/value コンテキスト",
         );
     }
+}
+
+/// styled HoverCard（イシュー #759）の XSS 回帰。[`hover_card`] は headless
+/// 層をそのまま再エクスポートする薄い委譲層（`pub use ...::*`）であるため、
+/// `crates/headless-ui/tests/xss_escape.rs::hover_card_href_and_content_id_are_escaped_for_all_payloads`
+/// と同じ観点を `fandhe-frontend-pre-styled-ui` の公開 API 経由でも固定する
+/// （styled 層のみに依存する利用者が同じ保証を得られることの確認）。
+#[test]
+fn hover_card_styled_trigger_href_and_content_id_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // URL 属性経路: trigger の href。
+        let html = render(&hover_card::trigger(
+            OpenState::Closed,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "hover_card::trigger href コンテキスト");
+
+        // 属性値経路: content の id。
+        let html = render(&hover_card::content(
+            OpenState::Open,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "hover_card::content id コンテキスト");
+
+        // 属性値経路: root の呼び出し側 attrs（data-testid）。
+        let html = render(&hover_card::root(
+            OpenState::Closed,
+            HoverCardDelays::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "hover_card::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // テキスト経路: content の children。
+        let html = render(&hover_card::content(
+            OpenState::Open,
+            None,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "hover_card::content children コンテキスト");
+    }
+
+    // URL 属性経路: javascript: スキームは href 属性ごと出力から除去される
+    // （`avatar_image_src_rejects_dangerous_url_schemes` と同型の許可リスト
+    // 契約が styled 層の再エクスポート経由でも貫通することを固定する）。
+    let html = render(&hover_card::trigger(
+        OpenState::Closed,
+        Some("javascript:alert(1)"),
+        vec![],
+        vec![],
+    ));
+    assert!(!html.contains("javascript:"));
+    assert!(!html.contains("href="));
 }

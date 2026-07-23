@@ -214,6 +214,16 @@
 //!   `O(boundary_count + sibling_count)` で `total_pages` を全列挙しない
 //!   （巨大 `count` でも有界、モジュール doc 参照）。wasm 層のクリック配線・
 //!   キーボードナビゲーションは本イシューのスコープ外。
+//! - [`mod@hover_card`]: Root/Trigger/Positioner/Content/Arrow/ArrowTip の
+//!   6 anatomy パーツ関数群と、[`state::Disclosure`] を埋め込んだ
+//!   [`hover_card::HoverCard`] 状態機械（#759、親トラッキング #726）。
+//!   [`mod@tooltip`] に最も近い構造だが、trigger がリンク先プレビュー用途の
+//!   `a` 要素である点が異なる。`openDelay`/`closeDelay`
+//!   （[`hover_card::HoverCardDelays`]、ark-ui 既定 600ms/300ms）は
+//!   決定的な SSR 設定値として `root` の `data-open-delay`/
+//!   `data-close-delay` へ出力するのみで、実タイマー駆動・DOM 読み取り
+//!   配線は `fandhe-frontend-wasm-full` の後続イシューのスコープ
+//!   （[`hover_card`] モジュール doc §スコープ外参照）。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
@@ -294,6 +304,7 @@ pub mod data_attrs;
 pub mod dialog;
 pub mod field;
 pub mod fieldset;
+pub mod hover_card;
 pub mod menu;
 pub mod number_input;
 pub mod pagination;
@@ -354,6 +365,7 @@ pub use data_attrs::{
 pub use dialog::Dialog;
 pub use field::{FieldIds, FieldProps};
 pub use fieldset::FieldsetProps;
+pub use hover_card::{HoverCard, HoverCardDelays};
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
 pub use number_input::{NumberInput, NumberInputAction, NumberInputFlags};
 pub use pagination::{ItemMode, PageEntry, Pagination, PaginationAction};

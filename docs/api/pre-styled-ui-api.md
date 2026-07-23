@@ -28,8 +28,9 @@ NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー�
 追加（#742）・SegmentGroup styled ラッパー追加（#743）・TagsInput styled
 ラッパー追加（#744）・Toggle/ToggleGroup styled ラッパー追加（#746）・
 CheckboxCard/RadioCard styled バリエーション追加（#747）・Combobox styled
-ラッパー追加（#749）・Breadcrumb styled ラッパー追加（#755、いずれも公開
-時点未反映）を経て 35 の公開モジュールを持つ。内訳は次の通り。
+ラッパー追加（#749）・Breadcrumb styled ラッパー追加（#755）・HoverCard
+styled ラッパー追加（#759、いずれも公開時点未反映）を経て 36 の公開
+モジュールを持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -57,6 +58,7 @@ CheckboxCard/RadioCard styled バリエーション追加（#747）・Combobox s
 | headless ラッパー | `tree_view` | #753（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。branch のインデントは CSS custom property（`--fandhe-tree-view-indent`）で表現し、DOM ネストにより深さ分が自然に累積する） |
 | headless ラッパー | `pagination` | #751（`size`/`color-palette` 両軸提供。headless-ui 側の保留解除は #716 → #751） |
 | headless ラッパー | `breadcrumb` | #755（`docs/api/headless-ui-api.md` §4b の追加候補消化。状態機械なし。`size`/`BreadcrumbVariant`（`link` の下線表示切り替え）の 2 軸 variant を root のみへ付与し、`link` への伝搬は root スコープ CSS custom property の継承で行う） |
+| headless ラッパー | `hover_card` | #759（`popover`/`tooltip` と同型の判断で variant は非提供。構造上最も近い先行例は `tooltip`。`content` の開閉連動・`--fandhe-reference-width` 非消費・focus-visible リングを継承する） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
