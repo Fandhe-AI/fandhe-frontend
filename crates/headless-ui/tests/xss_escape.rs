@@ -27,9 +27,9 @@
 
 use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::{
-    aria_controls, aria_label, avatar, carousel, data_state, dialog, number_input, pin_input,
-    popover, rating_group, segment_group, slider, tags_input, tree_view, ImageStatus, OpenState,
-    Orientation,
+    aria_controls, aria_label, avatar, carousel, data_state, dialog, hover_card, number_input,
+    pin_input, popover, rating_group, segment_group, slider, tags_input, tree_view, ImageStatus,
+    OpenState, Orientation,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -535,4 +535,43 @@ fn tree_view_dispatch_payload_is_escaped_in_hydration_output() {
     assert!(rendered.contains("&lt;script&gt;"));
     assert!(!rendered.contains("<script>alert(1)</script>"));
     assert!(!rendered.contains(r#""><script"#));
+}
+
+/// (2) 属性値経路 + (3) URL 属性経路（イシュー #759 HoverCard）:
+/// [`hover_card::trigger`] の唯一の URL 属性 `href` へ全ペイロードを注入し
+/// エスケープ貫通を、[`hover_card::content`] の `id` 属性へ全ペイロードを
+/// 注入しエスケープ貫通を、それぞれ固定する。`href` は URL 属性のため
+/// `render()` の許可リスト方式（`avatar_image_src_rejects_dangerous_url_schemes`
+/// と同型の契約）も併せて確認する。
+#[test]
+fn hover_card_href_and_content_id_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let trigger_node = hover_card::trigger(OpenState::Closed, Some(payload), vec![], vec![]);
+        let html = render(&trigger_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "hover_card::trigger の href 属性値コンテキスト",
+        );
+
+        let content_node = hover_card::content(OpenState::Open, Some(payload), vec![], vec![]);
+        let html = render(&content_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "hover_card::content の id 属性値コンテキスト",
+        );
+    }
+
+    // URL 属性経路: javascript: スキームは href 属性ごと出力から除去される
+    // （`crates/headless-ui/src/breadcrumb.rs` の同型契約を継承）。
+    let dangerous = hover_card::trigger(
+        OpenState::Closed,
+        Some("javascript:alert(1)"),
+        vec![],
+        vec![],
+    );
+    let html = render(&dangerous);
+    assert!(!html.contains("javascript:"));
+    assert!(!html.contains("href="));
 }

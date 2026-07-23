@@ -232,6 +232,25 @@
 //!   `O(boundary_count + sibling_count)` で `total_pages` を全列挙しない
 //!   （巨大 `count` でも有界、モジュール doc 参照）。wasm 層のクリック配線・
 //!   キーボードナビゲーションは本イシューのスコープ外。
+//! - [`mod@hover_card`]: Root/Trigger/Positioner/Content/Arrow/ArrowTip の
+//!   6 anatomy パーツ関数群と、[`state::Disclosure`] を埋め込んだ
+//!   [`hover_card::HoverCard`] 状態機械（#759、親トラッキング #726）。
+//!   [`mod@tooltip`] に最も近い構造だが、trigger がリンク先プレビュー用途の
+//!   `a` 要素である点が異なる。`openDelay`/`closeDelay`
+//!   （[`hover_card::HoverCardDelays`]、ark-ui 既定 600ms/300ms）は
+//!   決定的な SSR 設定値として `root` の `data-open-delay`/
+//!   `data-close-delay` へ出力するのみで、実タイマー駆動・DOM 読み取り
+//!   配線は `fandhe-frontend-wasm-full` の後続イシューのスコープ
+//!   （[`hover_card`] モジュール doc §スコープ外参照）。
+//! - [`mod@toggle_tip`]: Root / Trigger / Positioner / Content / Arrow /
+//!   ArrowTip の 6 anatomy パーツと、[`state::Disclosure`] を埋め込んだ
+//!   [`toggle_tip::ToggleTip`] 状態機械（#761、親トラッキング #520）。
+//!   chakra-ui の ToggleTip（「見た目は Tooltip・挙動は Popover」の変種）に
+//!   倣い、[`toggle_tip::trigger`] は `aria-expanded`/`aria-controls` を持つが
+//!   `aria-haspopup` は付与せず、[`toggle_tip::content`] は `role="tooltip"`
+//!   を持たない（[`mod@tooltip`]・[`mod@popover`] との 3 者境界は
+//!   [`mod@toggle_tip`] モジュール doc §3 者境界参照）。click-outside
+//!   dismiss・Escape 閉鎖の DOM 配線は本イシューのスコープ外。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
@@ -329,6 +348,7 @@ pub mod dialog;
 pub mod drawer;
 pub mod field;
 pub mod fieldset;
+pub mod hover_card;
 pub mod link;
 pub mod link_overlay;
 pub mod menu;
@@ -350,6 +370,7 @@ pub mod tabs;
 pub mod tags_input;
 pub mod toggle;
 pub mod toggle_group;
+pub mod toggle_tip;
 pub mod tooltip;
 pub mod tree_view;
 
@@ -394,6 +415,7 @@ pub use dialog::Dialog;
 pub use drawer::{Drawer, DrawerPlacement};
 pub use field::{FieldIds, FieldProps};
 pub use fieldset::FieldsetProps;
+pub use hover_card::{HoverCard, HoverCardDelays};
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
 pub use number_input::{NumberInput, NumberInputAction, NumberInputFlags};
 pub use pagination::{ItemMode, PageEntry, Pagination, PaginationAction};
@@ -417,5 +439,6 @@ pub use tabs::{tabs, ActivationMode, TabItem, TabsProps};
 pub use tags_input::{TagsInput, TagsInputAction};
 pub use toggle::{Toggle, ToggleAction};
 pub use toggle_group::{MultiToggleGroup, ToggleGroup};
+pub use toggle_tip::ToggleTip;
 pub use tooltip::Tooltip;
 pub use tree_view::{TreeNode, TreeView, TreeViewAction};
