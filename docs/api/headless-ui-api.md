@@ -95,6 +95,20 @@ Popover/Tooltip/Menu/Select の `positioner`/`arrow`/`arrow_tip` は「CSS フ�
   `autoUpdate` 相当の連続監視は意図的非対応（ADR §4.3、
   `docs/policy/intentional-non-adoption.md` への転記は別途ユーザー承認が
   必要な追跡事項）。
+- **`data-positioned` マーカー契約（イシュー #663、ADR §4.4b）**:
+  `fandhe-frontend-wasm-full` の `position::wiring::reposition_one` は座標
+  反映のたびに `positioner` へ `data-positioned=""`（値なしの存在マーカー）
+  を書き込む。`headless-ui` 層（本モジュール）は SSR/SSG のいずれの出力
+  経路でもこの属性を一切出力しない（`placement_attrs` は `data-side`/
+  `data-align` の 2 属性のみを返す）。`fandhe-frontend-pre-styled-ui`
+  （`crates/pre-styled-ui/src/menu.rs`/`select.rs` の `recipe()`）はこの
+  非対称性を利用し、マーカーの有無で「SSR 静的フォールバック（`position:
+  absolute` + ローカル座標系）」と「wasm 確定座標（`position: fixed` +
+  viewport 座標系、`--fandhe-x`/`--fandhe-y` を `transform: translate3d`
+  で消費）」を切り替える。マーカー不在（wasm 未稼働）では常に静的表示へ
+  fail-closed に留まる。arrow（Menu のみ、`has_arrow()` が Select を対象外
+  とする、ADR §4.2）は `--fandhe-arrow-x`/`--fandhe-arrow-y` を変数フォール
+  バックのみで消費し、マーカー切り替えを必要としない。
 
 ## 5. 呼び出し規約（SSR / CSR 共通の前提）
 

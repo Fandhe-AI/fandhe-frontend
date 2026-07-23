@@ -34,6 +34,14 @@
 //! `content` は元々固定 `min-width` を持たず（trigger 由来の `control`/
 //! `hidden-select` の幅で視覚的に揃う設計だった）、変数未設定時の SSR
 //! 静的表示での見た目変化を避けるため。
+//!
+//! # 位置ジオメトリ（`--fandhe-x`/`--fandhe-y`）の消費（イシュー #663）
+//!
+//! [`crate::menu`] と同じ理由・同じ仕組み（モジュール rustdoc 参照）で、
+//! `positioner` へ `data-positioned` マーカーが付与されたときのみ確定座標
+//! （viewport 座標系の `position: fixed`）へ切り替える。arrow は
+//! `PositionedKind::has_arrow()` が Select を対象外とする（ADR §4.2）ため、
+//! `--fandhe-arrow-*` の消費は Select には追加しない。
 
 //!
 //! # hidden-select の視覚的非表示化・positioner のオーバーレイ配置（PR #575 Bugbot 指摘対応）
@@ -197,6 +205,23 @@ fn recipe() -> SlotRecipe {
                 decl("outline-offset", "2px"),
             ],
         )
+        // イシュー #663: wasm 層が `data-positioned` マーカーを付与したら
+        // 確定座標（viewport 座標系の `position: fixed`）へ切り替える
+        // （[`crate::menu`] と同じ契約、モジュール rustdoc 参照）。
+        .state(
+            "positioner",
+            StateCondition::Attr("data-positioned"),
+            vec![
+                decl("position", "fixed"),
+                decl("top", "0"),
+                decl("left", "0"),
+                decl("margin-top", "0"),
+                decl(
+                    "transform",
+                    "translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0)",
+                ),
+            ],
+        )
 }
 
 /// この styled Select が生成する静的 CSS 全量を返す（決定的。[`crate::dialog::stylesheet`]
@@ -304,5 +329,63 @@ mod tests {
         // （SSR 静的表示では auto へフォールバックし従来の見た目を維持する）。
         let css = stylesheet();
         assert!(css.contains("min-width: var(--fandhe-reference-width, auto);"));
+    }
+
+    #[test]
+    fn positioner_switches_to_fixed_geometry_when_data_positioned_marker_is_present() {
+        // イシュー #663 受け入れ条件: wasm 層が付与する `data-positioned`
+        // マーカーが立っているときのみ、positioner が確定座標（viewport
+        // 座標系の `position: fixed`）へ切り替わることをゴールデンで固定する。
+        let css = stylesheet();
+        assert!(css.contains(
+            "[data-scope=\"select\"][data-part=\"positioner\"][data-positioned] {\n  \
+             position: fixed;\n  \
+             top: 0;\n  \
+             left: 0;\n  \
+             margin-top: 0;\n  \
+             transform: translate3d(var(--fandhe-x, 0px), var(--fandhe-y, 0px), 0);\n\
+             }\n"
+        ));
+    }
+
+    #[test]
+    fn positioner_base_rule_keeps_static_ssr_fallback_geometry() {
+        // イシュー #663: `data-positioned` マーカー不在（SSR 静的表示・wasm
+        // 未稼働）では従来どおり absolute + ローカル座標系のままであることの
+        // 回帰固定。
+        let css = stylesheet();
+        assert!(css.contains("position: absolute;"));
+        assert!(css.contains("top: 100%;"));
+    }
+
+    #[test]
+    fn select_stylesheet_never_consumes_fandhe_arrow_geometry() {
+        // イシュー #663: Select は `PositionedKind::has_arrow() == false`
+        // （ADR §4.2）のため arrow ジオメトリ変数を一切消費しないことを固定する。
+        let css = stylesheet();
+        assert!(!css.contains("--fandhe-arrow-"));
+    }
+
+    #[test]
+    fn position_geometry_var_references_never_lack_an_explicit_fallback() {
+        // fail-closed 回帰（イシュー #663 §5 手順 6）: 本イシューが導入する
+        // 位置ジオメトリ変数（`--fandhe-x`/`--fandhe-y`）への参照はすべて
+        // 明示フォールバック値を持つ（裸の `var(--x)` 禁止）。変数未定義
+        // （SSR・wasm 失敗時）でも表示が壊れないことを保証する（テーマ
+        // トークン系の `--fandhe-color-*` 等はフォールバック不要の常時
+        // 定義済み変数のため対象外とする）。
+        let css = stylesheet();
+        for marker in ["var(--fandhe-x", "var(--fandhe-y"] {
+            for (idx, _) in css.match_indices(marker) {
+                let close = css[idx..]
+                    .find(')')
+                    .expect("every var( occurrence must be closed within the stylesheet");
+                let inside = &css[idx + "var(".len()..idx + close];
+                assert!(
+                    inside.contains(','),
+                    "var() reference without an explicit fallback found: var({inside})"
+                );
+            }
+        }
     }
 }
