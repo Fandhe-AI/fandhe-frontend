@@ -31,6 +31,7 @@ const DRAWER_GOLDEN_CSS: &str = r#"[data-scope="drawer"][data-part="trigger"] {
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
   padding: var(--fandhe-drawer-content-padding, var(--fandhe-space-6));
+  box-sizing: border-box;
   overflow-y: auto;
 }
 

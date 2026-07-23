@@ -122,6 +122,12 @@ fn recipe() -> SlotRecipe {
                     "padding",
                     "var(--fandhe-drawer-content-padding, var(--fandhe-space-6))",
                 ),
+                // `data-placement` の state が height/width: 100% を content
+                // へ指定する（下記 state 参照）。content-box（既定）のままだと
+                // padding が 100% の外側に加算され、start/end は viewport 高さ
+                // を、top/bottom は viewport 幅を超えて溢れる。border-box で
+                // padding を寸法に含めることで overflow を防ぐ。
+                decl("box-sizing", "border-box"),
                 decl("overflow-y", "auto"),
             ],
         )
