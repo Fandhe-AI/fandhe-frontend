@@ -81,7 +81,8 @@ fn cli_generates_expected_dist_files() {
 }
 
 /// 全コンポーネントの `data-scope` セレクタが出力へ含まれることを固定する
-/// （受け入れ条件(a): anatomy の実演）。
+/// （受け入れ条件(a): anatomy の実演。pre-styled-ui 統合後は headless 系・
+/// pre-styled 系両層のコンポーネントを対象とする）。
 #[test]
 fn cli_output_includes_all_component_scopes() {
     let scratch = run_cli_in_scratch_dir("component-scopes");
@@ -89,15 +90,58 @@ fn cli_output_includes_all_component_scopes() {
         .expect("index.html should be readable");
 
     for scope in [
+        // pre-styled-ui の headless ラッパー経由（マークアップは headless 層）
         "data-scope=\"tabs\"",
         "data-scope=\"accordion\"",
         "data-scope=\"dialog\"",
+        // pre-styled-ui の単純 styled 部品
+        "data-scope=\"button\"",
+        "data-scope=\"badge\"",
+        "data-scope=\"card\"",
+        "data-scope=\"alert\"",
+        "data-scope=\"spinner\"",
+        // headless-ui + 手書き CSS（pre-styled-ui 未提供）
         "data-scope=\"switch\"",
         "data-scope=\"radio-group\"",
         "data-scope=\"avatar\"",
     ] {
         assert!(body.contains(scope), "missing {scope} in dist/index.html");
     }
+}
+
+/// pre-styled-ui の recipe 生成クラスが HTML 側（variant クラス）へ現れる
+/// ことを固定する（統合後の styled 部品実演の回帰）。
+#[test]
+fn cli_output_includes_pre_styled_variant_classes() {
+    let scratch = run_cli_in_scratch_dir("variant-classes");
+    let body = std::fs::read_to_string(scratch.0.join("dist/index.html"))
+        .expect("index.html should be readable");
+
+    assert!(body.contains("fd-button--variant-solid"));
+    assert!(body.contains("fd-button--variant-outline"));
+    assert!(body.contains("fd-badge--variant-solid"));
+    assert!(body.contains("fd-alert--status-warning"));
+}
+
+/// `dist/assets/ui.css` がテーマトークン（`Theme::default`）・pre-styled
+/// recipe CSS・手書き残存分（Switch 等）の 3 系統すべてを含み、`<` を含まない
+/// （StyleSheet の fail-closed 検証を通過した）ことを固定する。
+#[test]
+fn cli_output_css_aggregates_theme_recipes_and_manual_css() {
+    let scratch = run_cli_in_scratch_dir("css-aggregation");
+    let css = std::fs::read_to_string(scratch.0.join("dist/assets/ui.css"))
+        .expect("ui.css should be readable");
+
+    // 1. テーマトークン
+    assert!(css.contains("--fandhe-color-accent"));
+    // 2. pre-styled recipe（headless ラッパー分 + 単純 styled 部品分）
+    assert!(css.contains(r#"[data-scope="tabs"][data-part="trigger"]"#));
+    assert!(css.contains(".fd-button--variant-solid"));
+    // 3. 手書き残存分（pre-styled-ui 未提供の headless コンポーネント）
+    assert!(css.contains(r#"[data-scope="switch"][data-part="control"]"#));
+    assert!(css.contains(r#"[data-scope="avatar"][data-part="root"]"#));
+    // StyleSheet の不変条件（`<style>` 文脈でも安全）
+    assert!(!css.contains('<'));
 }
 
 /// 全ページに `@view-transition { navigation: auto; }` が含まれることを
