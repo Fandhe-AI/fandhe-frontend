@@ -247,6 +247,16 @@
 //!   `Prose` 相当）は本クレートへ導入せず、`fandhe-frontend-docs-site` の
 //!   `site/assets/site.css`（`.docs-content` 規則）が引き続き担う（役割分担
 //!   の詳細は [`mod@text`] rustdoc 参照）。
+//! - 状態機械を持たない静的表示部品 2 種（イシュー #767）:
+//!   [`mod@table`]（Table、`table`/`thead`/`tbody`/`tfoot`/`tr`/`th`/`td`/
+//!   `caption` の 8 パーツ。`variant`（`Line`/`Outline`）・`size`・`striped`
+//!   の 3 軸 variant。striped は新設の
+//!   [`recipe::StateCondition::NthChildEven`] で表現する）/
+//!   [`mod@data_list`]（DataList、`dl`/`item`/`dt`/`dd` の 4 パーツ。
+//!   `orientation`（`Vertical`/`Horizontal`）の 1 軸 variant のみ）。
+//!   いずれも [`mod@card`] と同型（headless-ui 側に対応する anatomy を持たず
+//!   本クレートで新規 anatomy を定義する静的部品、状態機械不要）。詳細は
+//!   各モジュール rustdoc 参照。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -387,6 +397,7 @@ mod class_attr;
 pub mod clipboard;
 pub mod combobox;
 pub mod css;
+pub mod data_list;
 pub mod dialog;
 pub mod drawer;
 pub mod editable;
@@ -426,6 +437,7 @@ pub mod spinner;
 pub mod status;
 pub mod stylesheet;
 pub mod switch;
+pub mod table;
 pub mod tabs;
 pub mod tags_input;
 pub mod text;
@@ -460,6 +472,7 @@ pub use skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 pub use spinner::{spinner, SpinnerProps};
 pub use status::StatusProps;
 pub use stylesheet::{StyleSheet, StylesheetError};
+pub use table::TableVariant;
 pub use text::{text, TextProps, TextSize};
 pub use textarea::{textarea, TextareaProps, TextareaVariant};
 

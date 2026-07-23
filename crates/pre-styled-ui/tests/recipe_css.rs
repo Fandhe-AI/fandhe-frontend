@@ -466,6 +466,25 @@ fn state_focus_within_generates_pseudo_class_selector() {
     assert_eq!(recipe.css(), expected);
 }
 
+/// イシュー #767 golden テスト: [`StateCondition::NthChildEven`] が
+/// `:nth-child(even)` セレクタを生成することを固定する（[`crate::table`] の
+/// striped 表現の唯一の消費者）。
+#[test]
+fn state_nth_child_even_generates_pseudo_class_selector() {
+    let recipe = SlotRecipe::new("widget", &["row"]).state(
+        "row",
+        StateCondition::NthChildEven,
+        vec![decl("background", "gray")],
+    );
+
+    let expected = concat!(
+        "[data-scope=\"widget\"][data-part=\"row\"]:nth-child(even) {\n",
+        "  background: gray;\n",
+        "}\n",
+    );
+    assert_eq!(recipe.css(), expected);
+}
+
 /// イシュー #643 fail-closed テスト: [`SlotRecipe::state`] は不正な `slot`・
 /// 属性名・属性値を panic せず出力から除外する（既存 `base`/`variant`/
 /// `compound_variant` と同じ方針）。

@@ -1,0 +1,140 @@
+//! styled Table / DataList（イシュー #767）の決定的 CSS 出力の固定テスト。
+//!
+//! `crates/pre-styled-ui/tests/form_controls_css.rs`（Input/Textarea/
+//! NativeSelect、#737）は `css()` の全文をバイト単位で固定する golden
+//! fixture 形式だが、本ファイルは breadcrumb（`src/breadcrumb.rs` の
+//! `stylesheet_is_deterministic_and_contains_variant_selectors_and_tokens`）
+//! と同型の「決定性 + 重要規則の存在確認」形式を採る。Table の recipe は
+//! `variant`/`size`/`striped` の 3 軸が絡み合い、全文バイト一致固定は軸を
+//! 1 つ調整するだけで無関係な差分が大量発生し、レビュー・保守コストに見合わ
+//! ないと判断したため（決定性・fail-closed の不変条件はどちらの形式でも
+//! 等しく検証できる）。
+//!
+//! 固定する観点:
+//! 1. `css()` の呼び出しは決定的（複数回呼んでもバイト一致）。
+//! 2. striped の `:nth-child(even)` 状態規則・`--fandhe-table-stripe-bg`
+//!    custom property が出力に含まれる。
+//! 3. size 3 値（sm/md/lg）の custom property 切り替えクラスが出力に含まれる。
+//! 4. `variant`（line/outline）のクラスセレクタが出力に含まれる。
+//! 5. `<` を一切含まない（`<style>` RAWTEXT 脱出防止、`StyleSheet::push_css`
+//!    が要求する不変条件と同型）。
+//! 6. recipe が生成するセレクタが、実際に本クレートがレンダリングする
+//!    `data-scope`/`data-part` 属性と一致する（`recipe_css.rs` の
+//!    `base_selectors_match_actual_headless_markup` と同型の接続照合）。
+
+use fandhe_frontend_core::render;
+use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataListProps};
+use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
+use fandhe_frontend_pre_styled_ui::Size;
+
+#[test]
+fn table_css_is_deterministic() {
+    assert_eq!(table::css(), table::css());
+}
+
+#[test]
+fn table_css_contains_striped_state_rule_and_custom_property() {
+    let css = table::css();
+    assert!(css.contains(r#"[data-scope="table"][data-part="row"]:nth-child(even) {"#));
+    assert!(css.contains("background: var(--fandhe-table-stripe-bg, transparent);"));
+    assert!(css.contains("--fandhe-table-stripe-bg: var(--fandhe-color-bg-subtle);"));
+    assert!(css.contains("--fandhe-table-stripe-bg: transparent;"));
+}
+
+#[test]
+fn table_css_contains_size_custom_property_variants() {
+    let css = table::css();
+    for (class, padding) in [
+        ("fd-table--size-sm", "0.5rem 0.75rem"),
+        ("fd-table--size-md", "0.75rem 1rem"),
+        ("fd-table--size-lg", "1rem 1.25rem"),
+    ] {
+        let selector = format!(r#"[data-scope="table"][data-part="root"].{class} {{"#);
+        assert!(
+            css.contains(&selector),
+            "missing selector: {selector}\n{css}"
+        );
+        assert!(
+            css.contains(&format!("--fandhe-table-cell-padding: {padding};")),
+            "missing padding decl for {class}\n{css}"
+        );
+    }
+}
+
+#[test]
+fn table_css_contains_variant_selectors() {
+    let css = table::css();
+    assert!(css.contains(r#"[data-scope="table"][data-part="root"].fd-table--variant-line {"#));
+    assert!(css.contains(r#"[data-scope="table"][data-part="root"].fd-table--variant-outline {"#));
+}
+
+#[test]
+fn table_css_never_contains_style_breakout_sequences() {
+    let css = table::css();
+    assert!(!css.contains("</style"));
+    assert!(!css.contains('<'));
+}
+
+#[test]
+fn table_recipe_selectors_match_actual_rendered_markup() {
+    let html = render(&table::root(
+        TableProps {
+            variant: TableVariant::Outline,
+            size: Size::Lg,
+            striped: true,
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(html.contains(r#"data-scope="table" data-part="root""#));
+    assert!(html.contains("fd-table--variant-outline"));
+    assert!(html.contains("fd-table--size-lg"));
+    assert!(html.contains("fd-table--striped-true"));
+
+    let cell_html = render(&table::cell(vec![], vec![]));
+    assert!(cell_html.starts_with(r#"<td data-scope="table" data-part="cell""#));
+
+    let row_html = render(&table::row(vec![], vec![]));
+    assert!(row_html.starts_with(r#"<tr data-scope="table" data-part="row""#));
+}
+
+#[test]
+fn data_list_css_is_deterministic() {
+    assert_eq!(data_list::css(), data_list::css());
+}
+
+#[test]
+fn data_list_css_contains_orientation_custom_properties() {
+    let css = data_list::css();
+    assert!(css.contains(
+        r#"[data-scope="data-list"][data-part="root"].fd-data-list--orientation-vertical {"#
+    ));
+    assert!(css.contains(
+        r#"[data-scope="data-list"][data-part="root"].fd-data-list--orientation-horizontal {"#
+    ));
+    assert!(css.contains("--fandhe-data-list-item-flex-direction: column;"));
+    assert!(css.contains("--fandhe-data-list-item-flex-direction: row;"));
+}
+
+#[test]
+fn data_list_css_never_contains_style_breakout_sequences() {
+    let css = data_list::css();
+    assert!(!css.contains("</style"));
+    assert!(!css.contains('<'));
+}
+
+#[test]
+fn data_list_recipe_selectors_match_actual_rendered_markup() {
+    let html = render(&data_list::root(
+        DataListProps {
+            orientation: DataListOrientation::Horizontal,
+        },
+        vec![],
+        vec![],
+    ));
+    assert!(html.contains(r#"data-scope="data-list" data-part="root""#));
+    assert!(html.contains("fd-data-list--orientation-horizontal"));
+
+    let item_html = render(&data_list::item(vec![], vec![]));
+    assert!(item_html.starts_with(r#"<div data-scope="data-list" data-part="item""#));
+}

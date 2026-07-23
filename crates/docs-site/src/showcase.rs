@@ -52,6 +52,7 @@ use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::carousel;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
+use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataListProps};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::editable::{
@@ -84,6 +85,7 @@ use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps, SkeletonV
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
+use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize};
@@ -192,8 +194,8 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 /// accordion/dialog/drawer/menu/select/combobox/popover/tooltip/hover_card/
 /// toggle_tip/switch/radio_group/avatar/checkbox/checkbox_card/radio_card/
 /// input/textarea/native_select/number_input/tags_input/rating_group/
-/// slider/segment_group/pagination/breadcrumb）→ ショーケース配置スタイル、
-/// の順で決定的に連結する。
+/// slider/segment_group/pagination/breadcrumb/table/data_list）→
+/// ショーケース配置スタイル、の順で決定的に連結する。
 ///
 /// # Errors
 ///
@@ -256,6 +258,8 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::mark::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::blockquote::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::list::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::table::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::data_list::css())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -2990,6 +2994,126 @@ fn icon_section() -> Node {
     )
 }
 
+/// Table 節: variant（line/outline）・size（sm/md/lg）・striped の各軸。
+fn table_section() -> Node {
+    fn sample_table(props: TableProps) -> Node {
+        table::root(
+            props,
+            vec![],
+            vec![
+                table::caption(vec![], vec![text("登録済みユーザー一覧")]),
+                table::header(
+                    vec![],
+                    vec![table::row(
+                        vec![],
+                        vec![
+                            table::column_header(vec![], vec![text("Name")]),
+                            table::column_header(vec![], vec![text("Email")]),
+                            table::column_header(vec![], vec![text("Role")]),
+                        ],
+                    )],
+                ),
+                table::body(
+                    vec![],
+                    vec![
+                        table::row(
+                            vec![],
+                            vec![
+                                table::cell(vec![], vec![text("Alice")]),
+                                table::cell(vec![], vec![text("alice@example.com")]),
+                                table::cell(vec![], vec![text("Admin")]),
+                            ],
+                        ),
+                        table::row(
+                            vec![],
+                            vec![
+                                table::cell(vec![], vec![text("Bob")]),
+                                table::cell(vec![], vec![text("bob@example.com")]),
+                                table::cell(vec![], vec![text("Member")]),
+                            ],
+                        ),
+                        table::row(
+                            vec![],
+                            vec![
+                                table::cell(vec![], vec![text("Carol")]),
+                                table::cell(vec![], vec![text("carol@example.com")]),
+                                table::cell(vec![], vec![text("Member")]),
+                            ],
+                        ),
+                    ],
+                ),
+            ],
+        )
+    }
+
+    let variant_demo = stack(vec![
+        sample_table(TableProps {
+            variant: TableVariant::Line,
+            ..TableProps::default()
+        }),
+        sample_table(TableProps {
+            variant: TableVariant::Outline,
+            ..TableProps::default()
+        }),
+    ]);
+    let size_demo = stack(vec![
+        sample_table(TableProps {
+            size: Size::Sm,
+            ..TableProps::default()
+        }),
+        sample_table(TableProps {
+            size: Size::Lg,
+            ..TableProps::default()
+        }),
+    ]);
+    let striped_demo = stack(vec![sample_table(TableProps {
+        striped: true,
+        ..TableProps::default()
+    })]);
+
+    section(
+        "Table",
+        "table/thead/tbody/tfoot/tr/th/td/caption の HTML 意味論を尊重した表組み。variant（line / outline）・size（sm / md / lg）・striped の 3 軸 variant を持ちます。",
+        vec![variant_demo, size_demo, striped_demo],
+    )
+}
+
+/// DataList 節: orientation（vertical/horizontal）の軸。
+fn data_list_section() -> Node {
+    fn sample_data_list(orientation: DataListOrientation) -> Node {
+        data_list::root(
+            DataListProps { orientation },
+            vec![],
+            vec![
+                data_list::item(
+                    vec![],
+                    vec![
+                        data_list::item_label(vec![], vec![text("Name")]),
+                        data_list::item_value(vec![], vec![text("Alice")]),
+                    ],
+                ),
+                data_list::item(
+                    vec![],
+                    vec![
+                        data_list::item_label(vec![], vec![text("Email")]),
+                        data_list::item_value(vec![], vec![text("alice@example.com")]),
+                    ],
+                ),
+            ],
+        )
+    }
+
+    let demos = stack(vec![
+        sample_data_list(DataListOrientation::Vertical),
+        sample_data_list(DataListOrientation::Horizontal),
+    ]);
+    section(
+        "DataList",
+        "dl/dt/dd の定義リスト意味論を尊重したラベル・値の一覧表示。orientation（vertical / horizontal）の 1 軸 variant を持ちます。",
+        vec![demos],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -3052,6 +3176,8 @@ fn showcase_body() -> Node {
             empty_state_section(),
             visually_hidden_section(),
             qr_code_section(),
+            table_section(),
+            data_list_section(),
         ],
     )
 }
@@ -3108,6 +3234,8 @@ mod tests {
             "status",
             "empty-state",
             "visually-hidden",
+            "table",
+            "data-list",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
@@ -3213,6 +3341,8 @@ mod tests {
         assert!(css.contains(r#"[data-scope="tags-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="status"][data-part="indicator"]"#));
         assert!(css.contains(r#"[data-scope="empty-state"][data-part="content"]"#));
+        assert!(css.contains(r#"[data-scope="table"][data-part="row"]:nth-child(even)"#));
+        assert!(css.contains(r#"[data-scope="data-list"][data-part="root"]"#));
         // ショーケース配置スタイル。
         assert!(css.contains(".showcase-row"));
         assert!(css.contains(".showcase-stack"));
