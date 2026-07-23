@@ -54,10 +54,22 @@
 //!   `item_text` のテキストノード・`aria-label` 属性値・`hidden_input` の
 //!   value のいずれも `render()` の既定エスケープを経由する経路以外を持たない
 //!   （[`crate::xss_escape`] 相当の回帰テストで固定する）。
-//! - **不変条件「重複タグなし・`len() <= max`」を破る入力は一切適用しない**
-//!   （fail-closed。[`TagsInputAction::Add`] の空文字列・重複（完全一致）・
-//!   max 到達は no-op、[`TagsInputAction::EditSubmit`] の空文字列・他タグとの
-//!   重複は編集を確定せず元値を維持する）。
+//! - **不変条件「重複タグなし・`len() <= max`・カンマを含まない」を破る
+//!   入力は一切適用しない**（fail-closed。[`TagsInputAction::Add`] の空文字列・
+//!   重複（完全一致）・カンマ含有・max 到達は no-op、
+//!   [`TagsInputAction::EditSubmit`] の空文字列・他タグとの重複・カンマ含有は
+//!   編集を確定せず元値を維持する）。**カンマ禁止の理由（Cursor Bugbot 指摘
+//!   #744 review comment 3639762375）**: [`TagsInput::value`]/
+//!   [`TagsInput::hidden_input`] はフォーム送信値としてタグ列を単純にカンマ
+//!   結合する（区切り文字自体をエスケープしない）。タグ文字列がカンマを
+//!   含むことを許すと `["foo,bar"]` と `["foo", "bar"]` が同一のフォーム送信値
+//!   （`"foo,bar"`）に縮退し、受信側で復元が一意に定まらない。この曖昧さを
+//!   構造的に防ぐため、カンマを含むタグそのものを [`TagsInput::new`]/
+//!   [`TagsInputAction::Add`]/[`TagsInputAction::EditSubmit`]/
+//!   [`Hydrate::from_hydration_attrs`] のすべての入口で拒否する（hydration の
+//!   内部搬送自体は [`fandhe_frontend_interactive::codec::encode_list`] が
+//!   カンマと無関係の区切り文字で安全に行うが、復元後の値がカンマ結合値へ
+//!   還元される契約のため入口で一貫して拒否する）。
 //! - hydration 属性（`data-hydrate-tags`/`data-hydrate-max`）はクライアント
 //!   側で改ざんされうる入力として扱う。[`TagsInput`] の
 //!   [`fandhe_frontend_interactive::Hydrate`] 実装は panic せず
@@ -67,7 +79,7 @@
 //!   の `focused` と同じ判断）。
 
 use crate::anatomy::{anatomy, Anatomy};
-use crate::aria::{aria_label, aria_orientation};
+use crate::aria::{aria_label, aria_orientation, aria_selected};
 use crate::data_attrs::{data_disabled, data_invalid, Orientation};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{codec, Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
@@ -138,14 +150,19 @@ pub fn item<'a>(
 }
 
 /// ItemPreview パーツ（`div`）。表示モードのタグチップ本体。
-/// `role="option"`（listbox 相当の ARIA、イシュー本文が指定）。
+/// `role="option"`（listbox 相当の ARIA、イシュー本文が指定）。[`control`] の
+/// `role="listbox"` 配下に描画される item-preview はいずれも「既に追加され
+/// 現に確定しているタグ」を表す（[`select::item`] 等の他 listbox 実装と同じ
+/// 規約で `role="option"` には必ず `aria-selected` を対で付与する。本パーツは
+/// 常に選択済みタグを表示するため `aria-selected="true"` 固定であり、
+/// `highlighted`（キーボード操作上の強調・別軸）とは独立した意味論である）。
 #[must_use]
 pub fn item_preview<'a>(
     highlighted: bool,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
-    let mut merged: Vec<(&'a str, &'a str)> = vec![("role", "option")];
+    let mut merged: Vec<(&'a str, &'a str)> = vec![("role", "option"), aria_selected(true)];
     merged.extend(crate::data_attrs::data_highlighted(highlighted));
     merged.extend(attrs);
     ANATOMY.part("item-preview", "div", merged, children)
@@ -170,8 +187,19 @@ pub fn item_input<'a>(value: &'a str, attrs: Vec<(&'a str, &'a str)>) -> Node {
 /// ItemDeleteTrigger パーツ（`button`）。当該タグを削除する操作。
 /// `aria-label` は `format!` で組み立てた「Delete {tag}」（動的値だが
 /// `render()` の既定エスケープを経由するため注入経路にはならない）。
+/// [`clear_trigger`] 等の他 trigger パーツと同様に `children` を受け取り、
+/// 呼び出し側が × アイコン・視覚ラベルを描画できる（Cursor Bugbot 指摘
+/// #744 review comment 3639762362: 従来固定 `Vec::new()` だったため呼び出し側
+/// が視覚的内容を一切描画できなかった）。`aria-label` は children の有無に
+/// 関わらず常に付与するため、視覚的に空（アイコンフォントが読み込めない等）
+/// でもスクリーンリーダーには「Delete {tag}」が伝わる。
 #[must_use]
-pub fn item_delete_trigger<'a>(tag: &str, disabled: bool, attrs: Vec<(&'a str, &'a str)>) -> Node {
+pub fn item_delete_trigger<'a>(
+    tag: &str,
+    disabled: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
     // aria_label は呼び出し時にのみ必要な一時 String であり、el() が
     // 即座に owned String へコピーするため関数スコープを超えて借用が
     // 残ることはない（crates/headless-ui/src/pin_input.rs の input() 参照）。
@@ -182,7 +210,7 @@ pub fn item_delete_trigger<'a>(tag: &str, disabled: bool, attrs: Vec<(&'a str, &
     }
     merged.extend(data_disabled(disabled));
     merged.extend(attrs);
-    ANATOMY.part("item-delete-trigger", "button", merged, Vec::new())
+    ANATOMY.part("item-delete-trigger", "button", merged, children)
 }
 
 /// ClearTrigger パーツ（`button`）。全タグを一括削除する操作。
@@ -288,13 +316,14 @@ impl TagsInput {
     pub const FIELD_MAX: &'static str = "max";
 
     /// 初期タグ列・上限（`None` = 無制限）を指定して [`TagsInput`] を生成する。
-    /// 呼び出し時点で重複タグが含まれる場合は先頭から見て初出のみを残し
+    /// 呼び出し時点でカンマを含むタグは除外し（モジュール doc「カンマ禁止の
+    /// 理由」節参照）、残った列の重複タグは先頭から見て初出のみを残し
     /// 後続の重複を落とす（不変条件を最初から保証する、panic しない）。
     #[must_use]
     pub fn new(tags: Vec<String>, max: Option<usize>) -> Self {
         let mut deduped: Vec<String> = Vec::with_capacity(tags.len());
         for t in tags {
-            if !deduped.contains(&t) {
+            if !t.contains(',') && !deduped.contains(&t) {
                 deduped.push(t);
             }
         }
@@ -433,8 +462,9 @@ impl TagsInput {
         tag: &str,
         disabled: bool,
         attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
     ) -> Node {
-        item_delete_trigger(tag, disabled, attrs)
+        item_delete_trigger(tag, disabled, attrs, children)
     }
 
     /// [`clear_trigger`] へ現在の状態を注入する利便メソッド。
@@ -478,9 +508,9 @@ impl Component for TagsInput {
     fn update(&mut self, action: TagsInputAction) {
         match action {
             TagsInputAction::Add(tag) => {
-                // 空文字列・重複（完全一致）・max 到達は no-op（fail-closed、
-                // モジュール doc 参照）。
-                if tag.is_empty() || self.contains(&tag) || self.is_at_max() {
+                // 空文字列・カンマ含有・重複（完全一致）・max 到達は no-op
+                // （fail-closed、モジュール doc「カンマ禁止の理由」節参照）。
+                if tag.is_empty() || tag.contains(',') || self.contains(&tag) || self.is_at_max() {
                     return;
                 }
                 self.tags.push(tag);
@@ -515,14 +545,15 @@ impl Component for TagsInput {
                     self.editing = None;
                     return;
                 }
-                // 空文字列・他タグとの重複は編集を破棄し元値を維持する
-                // （fail-closed、部分適用しない）。
+                // 空文字列・カンマ含有・他タグとの重複は編集を破棄し元値を
+                // 維持する（fail-closed、部分適用しない。モジュール doc
+                // 「カンマ禁止の理由」節参照）。
                 let duplicates_other = self
                     .tags
                     .iter()
                     .enumerate()
                     .any(|(i, t)| i != idx && t == &new_value);
-                if !new_value.is_empty() && !duplicates_other {
+                if !new_value.is_empty() && !new_value.contains(',') && !duplicates_other {
                     self.tags[idx] = new_value;
                 }
                 self.editing = None;
@@ -618,10 +649,17 @@ impl Hydrate for TagsInput {
         let tags_attr = format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_TAGS);
         let tags = codec::decode_list(find(Self::FIELD_TAGS)?);
 
-        // 復元タグ列が不変条件（重複なし・len <= max）を満たすことを検証する。
-        // 改ざんされた data-* によって不変条件を破った状態を復元しない
-        // （fail-closed、モジュール doc 参照）。
+        // 復元タグ列が不変条件（重複なし・len <= max・カンマを含まない）を
+        // 満たすことを検証する。改ざんされた data-* によって不変条件を破った
+        // 状態を復元しない（fail-closed、モジュール doc「カンマ禁止の理由」節
+        // 参照）。
         for (i, t) in tags.iter().enumerate() {
+            if t.contains(',') {
+                return Err(HydrateError::InvalidValue {
+                    attr: tags_attr,
+                    reason: "tags must not contain a comma".to_string(),
+                });
+            }
             if tags[..i].contains(t) {
                 return Err(HydrateError::InvalidValue {
                     attr: tags_attr,
@@ -720,6 +758,18 @@ mod tests {
     }
 
     #[test]
+    fn item_preview_always_outputs_aria_selected_true() {
+        // ItemPreview は listbox 配下の「既に追加されたタグ」を表すため
+        // `highlighted` の真偽に関わらず常に aria-selected="true" を伴う
+        // （`role="option"` と対で必須、Cursor Bugbot 指摘 #744 review comment
+        // 3639870269）。
+        let unhighlighted = render(&item_preview(false, vec![], vec![]));
+        assert!(unhighlighted.contains(r#"aria-selected="true""#));
+        let highlighted = render(&item_preview(true, vec![], vec![]));
+        assert!(highlighted.contains(r#"aria-selected="true""#));
+    }
+
+    #[test]
     fn item_preview_highlighted_outputs_data_highlighted() {
         let html = render(&item_preview(true, vec![], vec![]));
         assert!(html.contains(r#"data-highlighted="""#));
@@ -742,7 +792,7 @@ mod tests {
 
     #[test]
     fn item_delete_trigger_outputs_type_button_and_aria_label() {
-        let html = render(&item_delete_trigger("rust", false, vec![]));
+        let html = render(&item_delete_trigger("rust", false, vec![], vec![]));
         assert!(html.contains(r#"data-part="item-delete-trigger""#));
         assert!(html.contains(r#"type="button""#));
         assert!(html.contains(r#"aria-label="Delete rust""#));
@@ -751,7 +801,7 @@ mod tests {
 
     #[test]
     fn item_delete_trigger_disabled_outputs_native_disabled() {
-        let html = render(&item_delete_trigger("rust", true, vec![]));
+        let html = render(&item_delete_trigger("rust", true, vec![], vec![]));
         assert!(html.contains(r#"disabled="""#));
         assert!(html.contains(r#"data-disabled="""#));
     }
@@ -837,6 +887,15 @@ mod tests {
     }
 
     #[test]
+    fn new_drops_initial_tags_containing_comma() {
+        // カンマを含むタグは value()/hidden_input のカンマ結合値を曖昧にする
+        // ため、構築時点で除外する（モジュール doc「カンマ禁止の理由」節、
+        // Cursor Bugbot 指摘 #744 review comment 3639762375）。
+        let t = TagsInput::new(tags(&["a", "b,c", "d"]), None);
+        assert_eq!(t.tags(), &tags(&["a", "d"]));
+    }
+
+    #[test]
     fn add_action_appends_new_tag() {
         let mut t = TagsInput::default();
         assert!(dispatch(&mut t, "add", "rust"));
@@ -865,6 +924,16 @@ mod tests {
         assert!(t.is_at_max());
         assert!(dispatch(&mut t, "add", "c"));
         assert_eq!(t.tags(), &tags(&["a", "b"]));
+    }
+
+    #[test]
+    fn add_action_rejects_tag_containing_comma_as_no_op() {
+        // カンマを含むタグを許すと value()/hidden_input のカンマ結合値が
+        // 曖昧になる（モジュール doc「カンマ禁止の理由」節、Cursor Bugbot
+        // 指摘 #744 review comment 3639762375）。
+        let mut t = TagsInput::default();
+        assert!(dispatch(&mut t, "add", "foo,bar"));
+        assert!(t.is_empty());
     }
 
     #[test]
@@ -922,6 +991,15 @@ mod tests {
         assert!(dispatch(&mut t, "edit-start", "0"));
         assert!(dispatch(&mut t, "edit-submit", ""));
         assert_eq!(t.tags(), &tags(&["a", "b"]));
+    }
+
+    #[test]
+    fn edit_submit_with_comma_discards_edit_and_keeps_original() {
+        let mut t = TagsInput::new(tags(&["a", "b"]), None);
+        assert!(dispatch(&mut t, "edit-start", "0"));
+        assert!(dispatch(&mut t, "edit-submit", "x,y"));
+        assert_eq!(t.tags(), &tags(&["a", "b"]));
+        assert_eq!(t.editing_index(), None);
     }
 
     #[test]
@@ -1027,6 +1105,23 @@ mod tests {
     }
 
     #[test]
+    fn from_hydration_attrs_tag_containing_comma_does_not_panic() {
+        // 改ざんされた data-hydrate-tags がカンマを含むタグを運んできても、
+        // value()/hidden_input のカンマ結合値が曖昧になる復元を許さない
+        // （fail-closed、モジュール doc「カンマ禁止の理由」節、Cursor Bugbot
+        // 指摘 #744 review comment 3639762375）。
+        let attrs = vec![
+            ("data-hydrate-max".to_string(), "none".to_string()),
+            (
+                "data-hydrate-tags".to_string(),
+                codec::encode_list(&tags(&["a,b"])),
+            ),
+        ];
+        let err = TagsInput::from_hydration_attrs(&attrs).unwrap_err();
+        assert!(matches!(err, HydrateError::InvalidValue { .. }));
+    }
+
+    #[test]
     fn from_hydration_attrs_length_exceeds_max_does_not_panic() {
         let attrs = vec![
             ("data-hydrate-max".to_string(), "1".to_string()),
@@ -1061,7 +1156,12 @@ mod tests {
 
     #[test]
     fn item_delete_trigger_aria_label_tag_payload_is_escaped_on_render() {
-        let html = render(&item_delete_trigger(ATTR_BREAK_PAYLOAD, false, vec![]));
+        let html = render(&item_delete_trigger(
+            ATTR_BREAK_PAYLOAD,
+            false,
+            vec![],
+            vec![],
+        ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(html.contains("&quot;"));
     }

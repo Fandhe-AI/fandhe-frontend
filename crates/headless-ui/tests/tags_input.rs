@@ -167,7 +167,7 @@ fn tag_text_payload_is_escaped_end_to_end() {
 
 #[test]
 fn delete_trigger_aria_label_payload_is_escaped_end_to_end() {
-    let trigger = tags_input::item_delete_trigger(ATTR_BREAK_PAYLOAD, false, vec![]);
+    let trigger = tags_input::item_delete_trigger(ATTR_BREAK_PAYLOAD, false, vec![], vec![]);
     let html = render(&trigger);
     assert!(!html.contains("onmouseover=\"alert(1)"));
     assert!(html.contains("&quot;"));

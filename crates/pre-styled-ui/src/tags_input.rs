@@ -452,7 +452,7 @@ mod tests {
     #[test]
     fn reexported_item_delete_trigger_aria_label_payload_is_escaped_on_render() {
         const PAYLOAD: &str = "\" onmouseover=\"alert(1)";
-        let html = render(&item_delete_trigger(PAYLOAD, false, vec![]));
+        let html = render(&item_delete_trigger(PAYLOAD, false, vec![], vec![]));
         assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(html.contains("&quot;"));
     }

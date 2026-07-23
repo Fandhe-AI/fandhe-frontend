@@ -1304,7 +1304,7 @@ fn tags_input_section() -> Node {
                 vec![],
                 vec![
                     tags_input::item_text(vec![], vec![text(tag)]),
-                    tags_input::item_delete_trigger(tag, disabled, vec![]),
+                    tags_input::item_delete_trigger(tag, disabled, vec![], vec![text("\u{00d7}")]),
                 ],
             )],
         )

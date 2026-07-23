@@ -770,7 +770,12 @@ fn tags_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         assert_payload_is_escaped(payload, &html, "tags_input::item_input value コンテキスト");
 
         // 選択的再エクスポートした item_delete_trigger の aria-label コンテキスト。
-        let html = render(&tags_input::item_delete_trigger(payload, false, vec![]));
+        let html = render(&tags_input::item_delete_trigger(
+            payload,
+            false,
+            vec![],
+            vec![],
+        ));
         assert_payload_is_escaped(
             payload,
             &html,

@@ -389,7 +389,7 @@ fn tags_input_tag_text_and_attribute_paths_are_escaped_for_all_payloads() {
             "tags_input::item_input の value コンテキスト",
         );
 
-        let delete_trigger_node = tags_input::item_delete_trigger(payload, false, vec![]);
+        let delete_trigger_node = tags_input::item_delete_trigger(payload, false, vec![], vec![]);
         let html = render(&delete_trigger_node);
         assert_payload_is_escaped(
             payload,
