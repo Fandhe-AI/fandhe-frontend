@@ -241,6 +241,36 @@ headless ラッパーと同じ、`src/lib.rs` 冒頭の rustdoc 参照）。
 - 他の headless ラッパーと同様、variant（size 等）ごとのクラス切り替えは
   スコープ外（単一既定スタイルのみ）。
 
+## 4d. `data-focus-visible` によるキーボード専用フォーカスリング（イシュー #709）
+
+hidden-input パターン（実フォーカスが visually-hidden なネイティブ
+`<input>` にあり、リングを見せたい視覚パーツと分離している構成）は、
+擬似クラス（`:focus-visible`/`:focus-within`）だけでは表現しきれない。
+`switch`（`root` > `control` の兄弟配置。`:focus-within` すら不成立）と
+`radio_group`（`item` の `:focus-within` は成立するが、マウス操作でも
+発火する包括的なフォールバックでしかない）の 2 モジュールがこの補完を
+導入した。
+
+- `fandhe-frontend-headless-ui` の `data_attrs::data_focus_visible` が
+  `data-focus-visible` 存在属性の SSR 静的表現（常に属性なし）を契約する
+  （`data_highlighted` と同型、`crates/headless-ui/src/switch.rs`/
+  `radio_group.rs`/`checkbox.rs` のフォーカスリング契約 doc 参照）。
+- `fandhe-frontend-wasm-full` の focus 配線（`focus_visible` モジュール、
+  `keynav`/`events` と同じ 2 層構成）が hidden-input の focusin/focusout
+  と `:focus-visible` 判定に基づき、境界パーツ（switch: `root`、
+  radio_group: `item`）とその配下で同一 `data-scope` を共有するパーツ
+  （switch: `control`、radio_group: `item-control`）の双方へ付け外しする。
+- `fandhe-frontend-pre-styled-ui` は `control`/`item-control` slot へ
+  `StateCondition::Attr("data-focus-visible")` の状態規則を登録し、
+  `select` の `trigger`（`StateCondition::FocusVisible`）と同じ視覚言語
+  （`outline: 2px solid var(--fandhe-color-accent)`）でリングを表現する。
+  RadioGroup の `item` `:focus-within`（#683）は wasm なしでも成立する
+  no-JS フォールバックとして維持し、`data-focus-visible` はその補完
+  （wasm 配線時のキーボード専用リング）として独立に共存する。
+- `checkbox` は headless 層の契約（`data_focus_visible`）が確立済みだが、
+  `fandhe-frontend-pre-styled-ui` の styled ラッパー自体がイシュー #709
+  時点で未実装のため、CSS 側の recipe 追加は対象外。
+
 ## 5. 関連ドキュメント
 
 - [`docs/api/headless-ui-api.md`](./headless-ui-api.md): 本クレートの下層

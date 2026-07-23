@@ -229,6 +229,14 @@ pub enum StateCondition {
     /// の `item` は virtual focus パターンのためフォーカスが `trigger` に
     /// 留まり続け、`data-highlighted`（[`StateCondition::Attr`]）が highlight
     /// 表示を担う契約であり、`item` へ `:focus-visible` は付けない）。
+    /// hidden-input パターン（実フォーカスが visually-hidden なネイティブ
+    /// `<input>` にあり、リングを見せたい視覚パーツと分離している構成、
+    /// 例: Switch の `control`・RadioGroup の `item-control`）は擬似クラスの
+    /// 対象要素自体が実フォーカスを受けないため本 variant では表現できず、
+    /// 代わりに headless 層の `data-focus-visible` 存在属性
+    /// （[`StateCondition::Attr`]）+ クライアントランタイムの付け外しで
+    /// 表現する（イシュー #709、`crate::switch`/`crate::radio_group` rustdoc
+    /// 参照）。
     FocusVisible,
     /// `:focus-within` 擬似クラス（イシュー #683）。visually-hidden 化した
     /// ネイティブフォーム部品（`<input>` 等）を子孫に内包する要素へ

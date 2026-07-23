@@ -26,6 +26,27 @@
 //! 遷移する。`fandhe-frontend-pre-styled-ui`（#546〜）が本モジュールを呼んで
 //! スタイル済み Switch を組み立てる想定である。
 //!
+//! # フォーカスリング契約（`data-focus-visible`、イシュー #709）
+//!
+//! 実フォーカスは [`hidden_input`]（visually-hidden なネイティブ
+//! `<input>`）が受けるため、視覚上の [`control`] へフォーカスリングを CSS
+//! だけで伝播できない（[`root`] > [`control`] の兄弟配置であり
+//! `:focus-within` も成立しない）。この静的表現として
+//! [`crate::data_attrs::data_focus_visible`] を出力できる（契約は同関数の
+//! doc を参照）。`fandhe-frontend-pre-styled-ui` の recipe（[`SlotRecipe::state`]
+//! 相当）は同一要素上の属性有無でセレクタを組み立てるため
+//! （`[data-scope="switch"][data-part="control"][data-focus-visible]`、
+//! `crates/pre-styled-ui/src/switch.rs` 参照）、クライアントランタイム
+//! （`fandhe-frontend-wasm-full` の focus 配線、
+//! `crates/wasm-full/src/focus_visible.rs`）は [`hidden_input`] の
+//! focusin/focusout と `:focus-visible` 判定に基づき、境界パーツ
+//! （[`root`]）自身と、その配下で同じ `data-scope="switch"` を共有する
+//! パーツ（[`control`]）の双方へ `data-focus-visible` を付け外しする
+//! （単一要素にしか付与しないと `control` セレクタが一致しないため）。
+//! SSR 初期マークアップでは常に属性なしで描画する。パーツ関数のシグネチャ
+//! は変更しない（呼び出し側が `attrs` 引数へ `data_focus_visible(true)` を
+//! 合成すれば静的掲示にも使える）。
+//!
 //! # セキュリティ不変条件
 //!
 //! - 属性名（`data-*`/`aria-*`/`type`/`role`/`name`/`checked`/`disabled`/

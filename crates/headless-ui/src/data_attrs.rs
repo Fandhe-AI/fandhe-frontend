@@ -79,6 +79,27 @@ pub fn data_highlighted(highlighted: bool) -> Option<(&'static str, &'static str
     highlighted.then_some(("data-highlighted", ""))
 }
 
+/// `data-focus-visible` 存在属性。[`data_disabled`] と同じ規約に従う。
+///
+/// hidden-input パターン（`switch::control` / `radio_group::item-control` 等、
+/// 実フォーカスが visually-hidden なネイティブ `<input>` にあり視覚上の
+/// パーツと分離している構成）でフォーカスリングを CSS だけで伝播できない
+/// 問題（イシュー #709、`crates/pre-styled-ui/src/switch.rs` module doc の
+/// out-of-scope 記述で先行して明記済み）に対応するための存在属性。
+///
+/// `focus_visible`（`:focus-visible` 判定＝キーボード操作等によるフォーカス）
+/// は `data_highlighted` 同様にクライアントランタイム（`fandhe-frontend-wasm-full`
+/// の focus 配線、`crates/wasm-full/src/focus_visible.rs`）が hidden-input の
+/// focusin/focusout イベントと `Element::matches(":focus-visible")` 判定に
+/// 基づき管理する transient 状態であり、本関数はその SSR 上の静的表現のみを
+/// 提供する。SSR 直後の初期マークアップではフォーカスは文書ロード後の対話でのみ
+/// 発生するため、通常は常に属性なし（`false`）で描画される。状態機械
+/// （[`crate::state`]）には持たせない（`data_highlighted` と同型の契約）。
+#[must_use]
+pub fn data_focus_visible(focus_visible: bool) -> Option<(&'static str, &'static str)> {
+    focus_visible.then_some(("data-focus-visible", ""))
+}
+
 /// `data-orientation` 属性。値は [`Orientation`] で固定された 2 値のみを取り、
 /// 任意文字列は受け付けない。
 #[must_use]
@@ -107,6 +128,8 @@ mod tests {
         assert_eq!(data_readonly(false), None);
         assert_eq!(data_highlighted(true), Some(("data-highlighted", "")));
         assert_eq!(data_highlighted(false), None);
+        assert_eq!(data_focus_visible(true), Some(("data-focus-visible", "")));
+        assert_eq!(data_focus_visible(false), None);
     }
 
     #[test]

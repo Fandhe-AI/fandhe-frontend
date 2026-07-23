@@ -49,6 +49,26 @@
 //! グループ見出しには不適。関連付けは [`root`] の `aria-labelledby` で
 //! 成立させる）。
 //!
+//! # フォーカスリング契約（`data-focus-visible`、イシュー #709）
+//!
+//! 実フォーカスは [`item_hidden_input`]（visually-hidden なネイティブ
+//! `<input type="radio">`）が受ける。`fandhe-frontend-pre-styled-ui` の
+//! styled ラッパーは #683 で `item` への `:focus-within` フォールバック
+//! （wasm なしでも成立する no-JS リング、ただしマウス操作でも発火し得る
+//! 包括的なもの）を導入済みだが、キーボード操作専用のリングは表現できて
+//! いなかった。この補完として [`crate::data_attrs::data_focus_visible`] を
+//! [`item`]/[`item_control`] へ出力できる（契約は同関数の doc を参照）。
+//! クライアントランタイム（`fandhe-frontend-wasm-full` の focus 配線、
+//! `crates/wasm-full/src/focus_visible.rs`）は [`item_hidden_input`] の
+//! focusin/focusout と `:focus-visible` 判定に基づき、境界パーツ
+//! （[`item`]）自身と、その配下で同じ `data-scope="radio-group"` を共有
+//! するパーツ（[`item_control`]）の双方へ付け外しする
+//! （`fandhe-frontend-pre-styled-ui` の recipe は同一要素上の属性有無で
+//! セレクタを組み立てるため、`item_control` セレクタが一致するには
+//! `item_control` 自身にも属性が必要。`crates/pre-styled-ui/src/radio_group.rs`
+//! 参照）。SSR 初期マークアップでは常に属性なしで描画する。パーツ関数の
+//! シグネチャは変更しない。
+//!
 //! # セキュリティ不変条件
 //!
 //! 各関数は属性 Vec を組み立てて [`crate::anatomy::Anatomy::part`]（内部で

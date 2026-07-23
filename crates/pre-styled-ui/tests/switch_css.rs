@@ -64,6 +64,11 @@ const SWITCH_GOLDEN_CSS: &str = r#"[data-scope="switch"][data-part="root"] {
   background: var(--fandhe-color-accent);
 }
 
+[data-scope="switch"][data-part="control"][data-focus-visible] {
+  outline: 2px solid var(--fandhe-color-accent);
+  outline-offset: 2px;
+}
+
 [data-scope="switch"][data-part="thumb"][data-state="checked"] {
   transform: translateX(1.1rem);
 }

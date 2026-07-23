@@ -93,6 +93,15 @@
 //! （`#[cfg(target_arch = "wasm32")]` のみ公開）を Dialog の open/close
 //! タイミングで呼ぶのは #580 統合層の責務）。
 //!
+//! [`focus_visible`] モジュール（イシュー #709、親 #520）は Switch/RadioGroup/
+//! Checkbox の hidden-input パターン（実フォーカスが visually-hidden な
+//! ネイティブ `<input>` にあり、視覚上のパーツと分離している構成）で
+//! フォーカスリングを CSS だけで伝播できない問題を補う。`keynav`/`events`
+//! と同じ 2 層構成を踏襲し、hidden-input の focusin/focusout と
+//! `:focus-visible` 判定に基づき `fandhe-frontend-headless-ui` が契約する
+//! `data-focus-visible` 存在属性を境界パーツへ付け外しするのみで、
+//! `dispatch`・状態機械へは一切波及しない。
+//!
 //! 本クレートの自作コードは safe Rust のみとし、`unsafe` は `wasm-bindgen` /
 //! `web-sys` の FFI 境界（依存クレート内部・自動生成コード）に限定する
 //! （`docs/policy/unsafe-boundary.md` 第 2 節）。自作コードでの新規 `unsafe` 追加を
@@ -109,6 +118,7 @@
 pub mod csr;
 pub mod events;
 pub mod focus_trap;
+pub mod focus_visible;
 pub mod headless;
 pub mod headless_avatar;
 pub mod headless_select;
@@ -321,11 +331,12 @@ where
     /// `component.view()` → [`dom::render_component_html`]（既定エスケープ済み
     /// 出力）を `root_id` 要素へ [`dom::mount_initial`] で反映し、続けて
     /// [`events::wire_events`]・[`keynav::wire_keynav`]（イシュー #582・#583、
-    /// Tabs/Accordion/Menu/Select/RadioGroup のキーボード操作）の順に
-    /// イベント委譲を 1 回だけ登録する。`keynav::wire_keynav` は DOM 属性のみを読み書きする
-    /// ステートレス配線であり、`Self::wire`（束縛点更新・keyed list 更新）
-    /// とは独立した経路のため、失敗しても状態管理側の配線
-    /// （`events::wire_events`）の成立を妨げない。
+    /// Tabs/Accordion/Menu/Select/RadioGroup のキーボード操作）・
+    /// [`focus_visible::wire_focus_visible`]（イシュー #709、hidden-input
+    /// パターンのフォーカスリング）の順にイベント委譲を 1 回だけ登録する。
+    /// いずれも DOM 属性のみを読み書きするステートレス配線であり、
+    /// `Self::wire`（束縛点更新・keyed list 更新）とは独立した経路のため、
+    /// 失敗しても状態管理側の配線（`events::wire_events`）の成立を妨げない。
     ///
     /// # Errors
     ///
@@ -339,6 +350,7 @@ where
         let on_action = Self::wire(component.clone(), root.clone());
         events::wire_events(root.clone(), on_action)?;
         keynav::wire_keynav(root.clone())?;
+        focus_visible::wire_focus_visible(root.clone())?;
 
         Ok(Self { component, root })
     }
@@ -381,6 +393,7 @@ where
         let on_action = Self::wire(component.clone(), root.clone());
         events::wire_events(root.clone(), on_action)?;
         keynav::wire_keynav(root.clone())?;
+        focus_visible::wire_focus_visible(root.clone())?;
 
         Ok(Self { component, root })
     }

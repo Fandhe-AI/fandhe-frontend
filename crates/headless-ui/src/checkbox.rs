@@ -42,6 +42,16 @@
 //! （[`CheckedState::Indeterminate`]）としての表現は本モジュールのパーツ
 //! 関数群で引き続き可能。
 //!
+//! # フォーカスリング契約（`data-focus-visible`、イシュー #709）
+//!
+//! 実フォーカスは [`hidden_input`]（visually-hidden なネイティブ
+//! `<input type="checkbox">`）が受けるため、[`switch`](crate::switch) と
+//! 同型の hidden-input パターンに該当し、[`crate::data_attrs::data_focus_visible`]
+//! を [`root`]/[`control`] へ出力できる（契約は同関数の doc を参照）。
+//! `fandhe-frontend-pre-styled-ui` に Checkbox の styled ラッパーは
+//! イシュー #709 時点で未実装のため、CSS 側の recipe 追加は本イシューの
+//! 対象外（本 doc は headless 層の契約のみを先行して確立する）。
+//!
 //! # セキュリティ不変条件
 //!
 //! - 全パーツは [`crate::anatomy::Anatomy::part`]（内部で
