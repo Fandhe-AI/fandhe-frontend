@@ -33,9 +33,10 @@ styled ラッパー追加（#755）・Carousel styled ラッパー追加（#754�
 styled ラッパー追加（#758）・Link/LinkOverlay/NavList styled ラッパー追加
 （#756）・HoverCard styled ラッパー追加（#759）・ToggleTip styled ラッパー
 追加（#761）・Progress circular 対応追加（#763）・Skeleton 静的部品追加
-（#764）・Status/EmptyState 静的部品追加（#765）・タイポグラフィ静的部品
-6 種追加（#771）・Separator 静的部品追加（#772、いずれも公開時点未反映）を
-経て 55 の公開モジュールを持つ。内訳は次の通り。
+（#764）・Image/Icon 静的部品追加（#770）・Status/EmptyState 静的部品追加
+（#765）・タイポグラフィ静的部品 6 種追加（#771）・Separator 静的部品追加
+（#772、いずれも公開時点未反映）を経て 57 の公開モジュールを持つ。内訳は
+次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -45,6 +46,8 @@ styled ラッパー追加（#758）・Link/LinkOverlay/NavList styled ラッパ�
 | 基盤 | `stylesheet` | #605（CSS 集約・配布ヘルパ、§4a 参照） |
 | 単純 styled 部品 | `button` / `badge` / `spinner` / `alert` / `card` | #550/#606 |
 | 単純 styled 部品 | `skeleton` | #764（ローディングプレースホルダー。`text`/`circle`/`rect` の 3 variant、常時 `aria-hidden="true"`、`color-palette`/`size` 軸は非提供、`prefers-reduced-motion: reduce` でアニメーション停止） |
+| 単純 styled 部品 | `image` | #770（写真等の静的コンテンツを表示する `<img>`。`ImageFit`（`object-fit`）/`AspectRatio` の 2 軸 variant、`alt` 必須引数。headless-ui `avatar` の `ImageStatus` 状態機械とは独立。中立的な表示部品のため `color-palette` 軸は非提供） |
+| 単純 styled 部品 | `icon` | #770（インライン SVG の寸法を統一する `<svg>` ラッパー。`size` variant のみ、`color: currentColor` 継承のため `color-palette` 軸は非提供。SVG 本体（`path` 等）は呼び出し側がノード木 API で構築し、外部リソース（`href`/`xlink:href`）は本モジュール自身が参照しない） |
 | 単純 styled 部品 | `separator` | #772（区切り線、`<hr>`。`orientation`（horizontal/vertical）・`variant`（solid/dashed）の 2 軸、常時 `role="separator"`/`aria-orientation`/`data-orientation` を出力、`color-palette`/`size` 軸は非提供） |
 | headless ラッパー第 1 弾 | `dialog` / `tabs` / `accordion` / `menu` / `select` | #551 |
 | headless ラッパー第 2 弾 | `popover` / `tooltip` | #664 |
