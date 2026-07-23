@@ -1060,10 +1060,24 @@ fn form_controls_section() -> Node {
             &plain_field("showcase-input-default"),
             vec![("placeholder", "Outline (default)")],
         ),
-        input::input(
-            &InputProps::default(),
-            &invalid_field("showcase-input-invalid"),
-            vec![("placeholder", "Invalid")],
+        // invalid 時、headless `field::input` は `aria-describedby` に
+        // `{id}-error-text` を出力する（`field.rs` の describedby 合成則）。
+        // 参照先の id を持つ `field::error_text` を併設し、存在しない id への
+        // 参照を残さない（Bugbot 指摘、PR #783）。
+        div(
+            vec![],
+            vec![
+                input::input(
+                    &InputProps::default(),
+                    &invalid_field("showcase-input-invalid"),
+                    vec![("placeholder", "Invalid")],
+                ),
+                input::error_text(
+                    &invalid_field("showcase-input-invalid"),
+                    vec![],
+                    vec![text("This field is required.")],
+                ),
+            ],
         ),
         input::input(
             &InputProps::default(),

@@ -37,10 +37,14 @@ use crate::css::decl;
 use crate::recipe::{Size, SlotRecipe, StateCondition, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 
-// headless `field` の `FieldProps`/`FieldIds` を再エクスポートし、呼び出し側が
-// `fandhe-frontend-pre-styled-ui` 単独依存でアクセシビリティ props を組み立て
-// られるようにする（#685 のエスケープハッチと同型の判断）。
-pub use fandhe_frontend_headless_ui::field::{FieldIds, FieldProps};
+// headless `field` の `FieldProps`/`FieldIds`/`error_text` を再エクスポートし、
+// 呼び出し側が `fandhe-frontend-pre-styled-ui` 単独依存でアクセシビリティ
+// props と、`invalid` 時に `field::input` の `aria-describedby` が参照する
+// error id を持つ `error_text` パーツを組み立てられるようにする（#685 の
+// エスケープハッチと同型の判断）。`error_text` 自体は見た目を持たない
+// headless パーツであり、本モジュールは薄い再エクスポートのみを担う
+// （二重実装を作らない）。
+pub use fandhe_frontend_headless_ui::field::{error_text, FieldIds, FieldProps};
 
 /// この styled Input が扱う slot（[`crate::recipe::SlotRecipe::new`] の
 /// `slots` 引数、モジュール rustdoc「`field` scope を共有する理由」参照）。
@@ -363,6 +367,21 @@ mod tests {
         let html = render(&input(&InputProps::default(), &field, vec![]));
         assert!(!html.contains("onmouseover=\"alert(1)\""));
         assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn invalid_input_describedby_target_id_is_rendered_by_error_text() {
+        // showcase.rs（docs-site）の invalid デモが `field::input` の
+        // `aria-describedby` 参照先へ `field::error_text` を併設する構成
+        // （PR #783 Bugbot 指摘の再発防止）。再エクスポートした `error_text`
+        // が `input` と同じ `FieldProps` から一貫した id を導出することを
+        // 固定する。
+        let mut field = default_field("f");
+        field.invalid = true;
+        let input_html = render(&input(&InputProps::default(), &field, vec![]));
+        assert!(input_html.contains(r#"aria-describedby="f-error-text""#));
+        let error_html = render(&error_text(&field, vec![], vec![]));
+        assert!(error_html.contains(r#"id="f-error-text""#));
     }
 
     #[test]
