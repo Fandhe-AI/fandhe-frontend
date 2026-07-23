@@ -25,6 +25,12 @@
 //! `fandhe-frontend-headless-ui` / `fandhe-frontend-pre-styled-ui` のみに
 //! 依存し、外部クレートは追加しない（`Cargo.toml` の REQ-3 非影響コメント参照）。
 //!
+//! サイト骨格（`layout` / `nav` / `markdown` が生成する `site/assets/site.css`
+//! のクラス名契約）への pre-styled-ui styled 部品・テーマトークンの適用は
+//! 評価の上で見送り、[`showcase`] の分離 CSS 方式（`site.css` のカスケード
+//! へ影響させない適用境界）のみを採用している。評価内容・再評価トリガーは
+//! `docs/design/docs-site-styled-ui-adoption.md`（イシュー #694）を参照。
+//!
 //! `#![forbid(unsafe_code)]` は `crates/core` / `crates/interactive` と同様に
 //! 本クレートでも維持する（`.claude/rules/coding-rust.md` の一般規約）。
 
