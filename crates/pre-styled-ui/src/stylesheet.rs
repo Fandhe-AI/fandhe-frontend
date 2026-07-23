@@ -269,6 +269,7 @@ mod tests {
             ("avatar", crate::avatar::stylesheet()),
             ("checkbox", crate::checkbox::stylesheet()),
             ("number_input", crate::number_input::stylesheet()),
+            ("slider", crate::slider::stylesheet()),
         ]
     }
 
