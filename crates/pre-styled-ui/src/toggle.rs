@@ -122,7 +122,7 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-palette, var(--fandhe-color-accent))",
                 ),
                 decl("border-color", "var(--fandhe-palette, var(--fandhe-color-accent))"),
-                decl("color", "var(--fandhe-color-accent-fg)"),
+                decl("color", "var(--fandhe-palette-fg)"),
             ],
         )
         .state(

@@ -65,7 +65,7 @@
 //!   （`out-of-scope-tracking.md` に従い後続 Issue 化を検討）。
 
 use crate::anatomy::{anatomy, Anatomy};
-use crate::aria::{aria_labelledby, aria_orientation, aria_pressed, role};
+use crate::aria::{aria_labelledby, aria_pressed, role};
 use crate::data_attrs::{data_disabled, data_orientation, data_pressed, data_state, Orientation};
 use crate::state::{
     pressed_data_state, MultiSelect, MultiSelectAction, SingleSelect, SingleSelectAction,
@@ -80,8 +80,11 @@ const ANATOMY: Anatomy = anatomy("toggle-group");
 ///
 /// `labelled_by` が `Some` のときのみ `aria-labelledby` を付与する
 /// （[`crate::radio_group::root`] と同じ「名前なしの関連付けを作らない」
-/// 方針）。`orientation` が `Some` のときのみ `data-orientation`/
-/// `aria-orientation` を付与する。
+/// 方針）。`orientation` が `Some` のときのみ `data-orientation` を付与する。
+/// `role="group"` には WAI-ARIA 上 `aria-orientation` は許可されていない
+/// （`radiogroup`/`toolbar` 等とは異なる）ため、CSS 用途の
+/// `data-orientation` のみを出力し `aria-orientation` は付与しない
+/// （イシュー #746 PR #791 Bugbot 指摘対応）。
 #[must_use]
 pub fn root<'a>(
     disabled: bool,
@@ -92,7 +95,6 @@ pub fn root<'a>(
 ) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![role("group")];
     if let Some(orientation) = orientation {
-        merged.push(aria_orientation(orientation));
         merged.push(data_orientation(orientation));
     }
     if let Some(id) = labelled_by {
@@ -312,7 +314,7 @@ mod tests {
     }
 
     #[test]
-    fn root_orientation_some_outputs_data_and_aria_orientation() {
+    fn root_orientation_some_outputs_data_orientation_without_aria() {
         let html = render(&root(
             false,
             Some(Orientation::Horizontal),
@@ -321,7 +323,9 @@ mod tests {
             vec![],
         ));
         assert!(html.contains(r#"data-orientation="horizontal""#));
-        assert!(html.contains(r#"aria-orientation="horizontal""#));
+        // role="group" には aria-orientation は許可されていない
+        // （aria-allowed-attr 違反、イシュー #746 PR #791 Bugbot 指摘対応）。
+        assert!(!html.contains("aria-orientation"));
     }
 
     #[test]
