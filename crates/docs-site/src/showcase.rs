@@ -46,6 +46,7 @@
 
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
+use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::carousel;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
@@ -149,7 +150,7 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 /// コンポーネントの recipe CSS（button/badge/spinner/alert/card/tabs/
 /// accordion/dialog/menu/select/combobox/popover/tooltip/switch/radio_group/
 /// avatar/checkbox/checkbox_card/radio_card/input/textarea/native_select/
-/// number_input/tags_input/rating_group/slider/segment_group）
+/// number_input/tags_input/rating_group/slider/segment_group/breadcrumb）
 /// → ショーケース配置スタイル、の順で決定的に連結する。
 ///
 /// # Errors
@@ -188,6 +189,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::rating_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::slider::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::segment_group::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::breadcrumb::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::carousel::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
@@ -1899,6 +1901,64 @@ fn radio_card_section() -> Node {
     )
 }
 
+/// Breadcrumb 節: `size`/[`BreadcrumbVariant`] を既定値で掲示する（イシュー
+/// #755）。状態機械を持たない静的意味論ナビのため、開閉等の状態掲示は不要
+/// （3 階層のパンくずをそのまま組み立てる）。
+fn breadcrumb_section() -> Node {
+    // `href` は空文字列（`fandhe_frontend_core::render` の URL 検証上は
+    // 相対 URL として許可されるが、linkcheck 対象からは除外される。
+    // `crate::linkcheck::check_links` は空 href を無条件でスキップする
+    // 契約であり、生成コンテンツを linkcheck の突合対象へ含めない本モジュール
+    // の既存設計（`showcase_markup_has_no_href_attributes_for_linkcheck_neutrality`
+    // 参照）を壊さずに `link` パーツ（実際に `href` 属性を持つ要素）を掲示する
+    // ための選択。実サイトへの導線が必要な利用は呼び出し側アプリケーションの
+    // 責務（本ショーケースは recipe CSS の見た目確認が目的）。
+    let items = [
+        BreadcrumbItem {
+            label: "Docs",
+            href: "",
+        },
+        BreadcrumbItem {
+            label: "Components",
+            href: "",
+        },
+        BreadcrumbItem {
+            label: "Breadcrumb",
+            href: "",
+        },
+    ];
+    let node = breadcrumb::root(
+        Size::Md,
+        BreadcrumbVariant::Plain,
+        None,
+        vec![],
+        vec![breadcrumb::list(
+            vec![],
+            items
+                .iter()
+                .enumerate()
+                .flat_map(|(index, entry)| {
+                    let inner = if index == items.len() - 1 {
+                        breadcrumb::current_link(vec![], vec![text(entry.label)])
+                    } else {
+                        breadcrumb::link(entry.href, vec![], vec![text(entry.label)])
+                    };
+                    let mut parts = vec![breadcrumb::item(vec![], vec![inner])];
+                    if index != items.len() - 1 {
+                        parts.push(breadcrumb::separator(vec![], vec![text("/")]));
+                    }
+                    parts
+                })
+                .collect(),
+        )],
+    );
+    section(
+        "Breadcrumb",
+        "headless-ui の Breadcrumb（nav[aria-label=\"breadcrumb\"] + ol/li）に pre-styled-ui の recipe CSS を適用した静的掲示です。末尾項目のみ aria-current=\"page\"/data-current を持つ非対話の現在位置表示（span）として描画します。",
+        vec![node],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -1942,6 +2002,7 @@ fn showcase_body() -> Node {
             carousel_section(),
             checkbox_card_section(),
             radio_card_section(),
+            breadcrumb_section(),
         ],
     )
 }
@@ -1986,6 +2047,7 @@ mod tests {
             "segment-group",
             "checkbox-card",
             "radio-card",
+            "breadcrumb",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
@@ -2027,11 +2089,24 @@ mod tests {
     #[test]
     fn showcase_markup_has_no_href_attributes_for_linkcheck_neutrality() {
         // build.rs の linkcheck は全 href を突合検証する。生成コンテンツは
-        // リンクを持たない設計とし、リンク検証対象を Markdown 側へ限定する
-        // （リンクを足す場合はこのテストを更新して linkcheck との整合を
-        // 明示的に設計し直すこと）。
+        // 実ページへ解決される href を持たない設計とし、リンク検証対象を
+        // Markdown 側へ限定する。イシュー #755 で Breadcrumb（`link` パーツ、
+        // 実際に `href` 属性を持つ anatomy）を掲示したため、本テストは
+        // 「`href=""`（空文字列、`crate::linkcheck::check_links` が無条件
+        // スキップする値）以外の href が存在しないこと」へ更新した
+        // （`showcase::breadcrumb_section` rustdoc 参照。空 href 以外を
+        // 足す場合はこのテストを更新して linkcheck との整合を明示的に
+        // 設計し直すこと）。
         let html = render(&showcase_body());
-        assert!(!html.contains("href="));
+        let non_empty_hrefs: Vec<&str> = html
+            .match_indices("href=\"")
+            .filter(|(i, _)| !html[i + 6..].starts_with('"'))
+            .map(|(i, _)| &html[i..i + 20.min(html.len() - i)])
+            .collect();
+        assert!(
+            non_empty_hrefs.is_empty(),
+            "non-empty href found: {non_empty_hrefs:?}"
+        );
     }
 
     #[test]

@@ -256,6 +256,14 @@
 //!   [`state::MultiSelect`] を埋め込んだ multiple モード
 //!   [`toggle_group::MultiToggleGroup`]（イシュー #746）。roving focus は
 //!   wasm keynav 層のスコープとして未提供（モジュール doc §out-of-scope 参照）。
+//! - [`mod@breadcrumb`]: `root`（`nav`）/ `list`（`ol`）/ `item`（`li`）/
+//!   `link`（`a`）/ `current-link`（`span`）/ `separator`（`li`）/
+//!   `ellipsis`（`li`）の 7 anatomy パーツと利便ビルダー
+//!   [`breadcrumb::breadcrumb`]（イシュー #755、`docs/api/headless-ui-api.md`
+//!   §4b の追加候補消化）。[`mod@field`]/[`mod@tabs`] と同じく SSR 静的な
+//!   意味論ナビであり状態機械を持たない。現在位置は `aria-current="page"`
+//!   （[`aria::AriaCurrent`]）+ `data-current`（[`data_attrs::data_current`]）
+//!   の併用で表現する。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -264,6 +272,7 @@ pub mod accordion;
 pub mod anatomy;
 pub mod aria;
 pub mod avatar;
+pub mod breadcrumb;
 pub mod carousel;
 pub mod checkbox;
 pub mod collapsible;
@@ -314,12 +323,13 @@ pub use fandhe_frontend_interactive;
 
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
-    aria_activedescendant, aria_autocomplete, aria_checked, aria_controls, aria_describedby,
-    aria_disabled, aria_expanded, aria_haspopup, aria_hidden, aria_invalid, aria_label,
-    aria_labelledby, aria_modal, aria_orientation, aria_pressed, aria_roledescription,
-    aria_selected, role, AriaAutocomplete, AriaChecked, AriaPopup,
+    aria_activedescendant, aria_autocomplete, aria_checked, aria_controls, aria_current,
+    aria_describedby, aria_disabled, aria_expanded, aria_haspopup, aria_hidden, aria_invalid,
+    aria_label, aria_labelledby, aria_modal, aria_orientation, aria_pressed, aria_roledescription,
+    aria_selected, role, AriaAutocomplete, AriaChecked, AriaCurrent, AriaPopup,
 };
 pub use avatar::{Avatar, AvatarAction, ImageStatus};
+pub use breadcrumb::{breadcrumb, BreadcrumbItem};
 pub use carousel::{Carousel, CarouselAction};
 pub use checkbox::{Checkbox, CheckboxFlags};
 pub use combobox::{Combobox, ComboboxAction};

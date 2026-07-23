@@ -382,7 +382,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/disclosure/pagination.md` | Pagination | Pagination | — | — | 実装対象 | #751（#716 保留の解除） |
 | `.agents/skills/chakra-ui/references/components/disclosure/steps.md` | Steps | Steps | — | — | 実装対象 | #752（#716 保留の解除） |
 | `.agents/skills/chakra-ui/references/components/disclosure/carousel.md` | Carousel | Carousel | carousel | carousel | 実装済み | headless+styled 実装済み（#754）。autoplay（play/pause/aria-live 切替/delay）は初期実装スコープ外（`crates/headless-ui/src/carousel.rs` module doc 参照） |
-| `.agents/skills/chakra-ui/references/components/disclosure/breadcrumb.md` | — | Breadcrumb | — | — | 実装対象 | #755（#716 追加候補の消化） |
+| `.agents/skills/chakra-ui/references/components/disclosure/breadcrumb.md` | — | Breadcrumb | breadcrumb | breadcrumb | 実装済み | #755（#716 追加候補の消化）。headless+styled 実装済み |
 
 #### `.agents/skills/chakra-ui/references/components/feedback/`
 
