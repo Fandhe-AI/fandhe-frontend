@@ -128,6 +128,12 @@
 //!   `color-palette` variant を最初から持つ（`toggle_group` は root のみへ
 //!   クラスを付与する複合部品の統一方針に従う）。詳細は [`mod@toggle`]
 //!   rustdoc 参照。
+//! - headless ラッパー（#753）: [`mod@tree_view`]（TreeView、階層構造の展開・
+//!   折りたたみ・選択）。ナビゲーション/コレクション表示部品であり
+//!   [`mod@popover`]/[`mod@tooltip`] と同じ判断で `size`/`color-palette` の
+//!   いずれの variant も提供しない（[`mod@tree_view`] rustdoc 参照）。branch
+//!   のインデントは CSS custom property（`--fandhe-tree-view-indent`）で
+//!   表現し、DOM ネストにより深さ分が自然に累積する。
 //! - headless ラッパー（イシュー #755）: [`mod@breadcrumb`]（Breadcrumb、
 //!   `docs/api/headless-ui-api.md` §4b の追加候補消化。状態機械を持たない
 //!   静的意味論ナビ）。`size`/[`breadcrumb::BreadcrumbVariant`]（`link` の
@@ -150,6 +156,19 @@
 //!   等と同型の判断）。placement（`start`/`end`/`top`/`bottom`）は variant
 //!   ではなく headless 層が出力する `data-placement` に連動する CSS で表現
 //!   する。詳細は [`mod@drawer`] rustdoc 参照。
+//! - headless ラッパー 3 種（イシュー #756、#716 追加候補・最優先候補の消化）:
+//!   [`mod@link`]（Link、`variant` の下線表示切り替え + `aria-current="page"`
+//!   状態装飾）、[`mod@link_overlay`]（LinkOverlay、`::before` 疑似要素の
+//!   代わりに `overlay` 自身を `position: absolute; inset: 0;` で展開する
+//!   カード全面クリック化。詳細は headless 層 rustdoc 参照）、
+//!   [`mod@nav_list`]（NavList、`docs/design/docs-site-styled-ui-adoption.md`
+//!   §3.1 が指摘した `menu` ロール誤転用を解消する文書ナビ専用部品。`role`
+//!   を一切付与しない）。`fandhe-frontend-docs-site` は本クレートの styled
+//!   `root`/`stylesheet` ではなく headless 再エクスポート
+//!   （[`nav_list::heading`]/[`nav_list::list`]/[`nav_list::item`]/
+//!   [`nav_list::link`]）のみを使い、`site/assets/site.css` の自己完結
+//!   不変条件（§3.4）を維持したまま §3.1/§3.2 の意味論不整合を解消する
+//!   （[`mod@nav_list`] rustdoc 参照）。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -290,8 +309,11 @@ pub mod css;
 pub mod dialog;
 pub mod drawer;
 pub mod input;
+pub mod link;
+pub mod link_overlay;
 pub mod menu;
 pub mod native_select;
+pub mod nav_list;
 pub mod number_input;
 pub mod pagination;
 pub mod pin_input;
@@ -313,6 +335,7 @@ pub mod theme;
 pub mod toggle;
 pub mod toggle_group;
 pub mod tooltip;
+pub mod tree_view;
 
 pub use alert::AlertStatus;
 pub use badge::{badge, BadgeProps, BadgeVariant};

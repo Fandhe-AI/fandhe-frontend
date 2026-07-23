@@ -23,16 +23,19 @@
  *       aside.docs-sidebar          … サイドバーのラッパー（`layout::docs_page`
  *         が `nav::sidebar()`（`crates/docs-site/src/nav.rs`）の戻り値を
  *         そのまま内側に配置する契約）
- *         nav.sidebar               … `nav::sidebar()` の実出力。セクション
- *           見出しは素の `h2`、ページ列は `ul` > `li` > `a`
- *           （`.nav-section` 等の専用クラスは付与されない）
- *           a[aria-current="page"] / a.current … 現在ページのリンク
- *             （`nav::sidebar()` は両方を同時に付与する）
+ *         nav.sidebar               … `nav::sidebar()` の実出力（headless
+ *           `nav_list`、イシュー #756）。セクション見出しは素の `h2`、
+ *           ページ列は `ul` > `li` > `a`（`.nav-section` 等の専用クラスは
+ *           付与されない。`role` も付与しない、
+ *           `docs/design/docs-site-styled-ui-adoption.md` §3.1 参照）
+ *           a[aria-current="page"] … 現在ページのリンク
  *       main.docs-main              … 本文カラムのラッパー
  *         nav.docs-toc（任意・先頭）… ページ内目次。`li` に
  *           `docs-toc-level-2` / `docs-toc-level-3` でネスト深さを表現する
  *         article.docs-content      … Markdown レンダラの出力 + ページ内
- *           `nav.prev-next`（`a.prev` / `a.next`）を内包する
+ *           `nav.prev-next`（`div.prev` / `div.next`。headless
+ *           `link_overlay` のカード、イシュー #756、§3.2 参照。実際の
+ *           アンカーは内側の `[data-part="overlay"]`）を内包する
  *           - `pre > code.language-*` … フェンス付きコードブロック
  *             （言語トークンが無効な場合 class 自体が付かない）
  *
@@ -203,12 +206,12 @@ body {
 }
 
 /*
- * `nav::sidebar()` は現在ページのリンクに `aria-current="page"` と
- * `class="current"` の両方を同時に付与する（nav.rs 参照）。どちらか一方の
- * みに依存せず両セレクタを併記する。
+ * `nav::sidebar()`（headless `nav_list::link`、イシュー #756）は現在ページの
+ * リンクに `aria-current="page"`（+ `data-current`）を付与する（nav.rs
+ * 参照）。`docs/design/docs-site-styled-ui-adoption.md` §3.1 の意味論不整合
+ * 解消により `class="current"` の付与は廃止し、属性セレクタのみに一本化した。
  */
-.docs-sidebar nav.sidebar a[aria-current="page"],
-.docs-sidebar nav.sidebar a.current {
+.docs-sidebar nav.sidebar a[aria-current="page"] {
   background: var(--docs-color-accent-bg);
   color: var(--docs-color-accent);
   border-left-color: var(--docs-color-accent);
@@ -369,6 +372,17 @@ body {
 
 /* ---- 前後ページナビ（本文末尾、カード風） ---- */
 
+/*
+ * `nav::prev_next_nav()`（headless `link_overlay`、イシュー #756）は
+ * `div.prev`/`div.next`（`link_overlay::root`、位置決めコンテキスト）配下に
+ * `[data-part="overlay"]`（`link_overlay::overlay`、実アンカー）を 1 個だけ
+ * 持つ構造を出力する。本ページでは overlay がカードの唯一の子でありフロー内
+ * で全面を占めるため、`crates/pre-styled-ui/src/link_overlay.rs` が提供する
+ * 一般的な `position: absolute` 拡張パターンは使わず、overlay 自身に従来の
+ * カード CSS（枠線・padding・角丸）をそのまま当てる（`docs/design/docs-site-styled-ui-adoption.md`
+ * §3.2/§3.4 参照。`site.css` は pre-styled-ui の CSS を持ち込まず自己完結を
+ * 維持する）。
+ */
 nav.prev-next {
   display: flex;
   gap: 0.75rem;
@@ -376,7 +390,13 @@ nav.prev-next {
   max-width: var(--docs-max-content-width);
 }
 
-nav.prev-next a {
+nav.prev-next .prev,
+nav.prev-next .next {
+  flex: 1 1 0;
+  display: flex;
+}
+
+nav.prev-next [data-part="overlay"] {
   flex: 1 1 0;
   display: block;
   padding: 0.85rem 1rem;
@@ -389,16 +409,16 @@ nav.prev-next a {
   background: var(--docs-color-bg-raised);
 }
 
-nav.prev-next a:hover {
+nav.prev-next [data-part="overlay"]:hover {
   border-color: var(--docs-color-accent);
   color: var(--docs-color-accent);
 }
 
-nav.prev-next a.prev {
+nav.prev-next .prev [data-part="overlay"] {
   text-align: left;
 }
 
-nav.prev-next a.next {
+nav.prev-next .next [data-part="overlay"] {
   text-align: right;
 }
 
@@ -426,7 +446,7 @@ nav.prev-next a.next {
     flex-direction: column;
   }
 
-  nav.prev-next a.next {
+  nav.prev-next .next [data-part="overlay"] {
     text-align: left;
   }
 }
