@@ -35,9 +35,9 @@ Phase 3〜6（#736/#748/#757/#766 配下、#737〜#747・#749〜#756・#758〜#7
 ## 3. 実装済み部品と lib.rs の突合手順
 
 `crates/headless-ui/src/lib.rs` の基盤 mod（anatomy / aria / data_attrs /
-positioning / state）を除く 20 mod、`crates/pre-styled-ui/src/lib.rs` の
-基盤 mod（css / recipe / stylesheet / theme）を除く 24 mod（styled ラッパー
-16 + 静的部品 8）が、本書の「実装済み」区分と一致することを次のコマンドで
+positioning / state）を除く 21 mod、`crates/pre-styled-ui/src/lib.rs` の
+基盤 mod（css / recipe / stylesheet / theme）を除く 25 mod（styled ラッパー
+17 + 静的部品 8）が、本書の「実装済み」区分と一致することを次のコマンドで
 確認できる。
 
 ```bash
@@ -48,18 +48,19 @@ grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs \
 ```
 
 2026-07-23 時点の実測（#745 マージにより headless-ui / pre-styled-ui へ
-editable を追加反映。rating_group（#742）・number_input / pin_input /
-slider（#738/#739/#741）も本改訂で追随反映）:
+editable を追加反映。#743 マージ分の segment_group・rating_group
+（#742）・number_input / pin_input / slider（#738/#739/#741）も本改訂で
+追随反映）:
 
-- headless-ui 20: accordion / avatar / checkbox / collapsible / dialog /
+- headless-ui 21: accordion / avatar / checkbox / collapsible / dialog /
   editable / field / fieldset / menu / number_input / pin_input / popover /
-  progress / radio_group / rating_group / select / slider / switch / tabs /
-  tooltip
-- pre-styled-ui 24（styled ラッパー 16 + 静的部品 8）:
+  progress / radio_group / rating_group / segment_group / select / slider /
+  switch / tabs / tooltip
+- pre-styled-ui 25（styled ラッパー 17 + 静的部品 8）:
   accordion / avatar / checkbox / dialog / editable / menu / number_input /
-  pin_input / popover / radio_group / rating_group / select / slider /
-  switch / tabs / tooltip（styled）+ alert / badge / button / card /
-  spinner / input / textarea / native_select（静的）
+  pin_input / popover / radio_group / rating_group / segment_group /
+  select / slider / switch / tabs / tooltip（styled）+ alert / badge /
+  button / card / spinner / input / textarea / native_select（静的）
 
 ## 4. 抜けの機械確認手順
 
@@ -165,7 +166,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/form/password-input.md` | PasswordInput | PasswordInput | — | — | 実装対象 | #740 |
 | `.agents/skills/ark-ui/references/components/form/slider.md` | Slider | Slider | slider | slider | 実装済み | headless+styled 実装済み（#741） |
 | `.agents/skills/ark-ui/references/components/form/rating-group.md` | RatingGroup | Rating | rating_group | rating_group | 実装済み | headless+styled 実装済み（#742） |
-| `.agents/skills/ark-ui/references/components/form/segment-group.md` | SegmentGroup | SegmentedControl | — | — | 実装対象 | #743 |
+| `.agents/skills/ark-ui/references/components/form/segment-group.md` | SegmentGroup | SegmentedControl | segment_group | segment_group | 実装済み | headless+styled 実装済み（#743） |
 | `.agents/skills/ark-ui/references/components/form/tags-input.md` | TagsInput | TagsInput | — | — | 実装対象 | #744 |
 | `.agents/skills/ark-ui/references/components/form/editable.md` | Editable | Editable | editable | editable | 実装済み | headless+styled 実装済み（#745） |
 | `.agents/skills/ark-ui/references/components/form/angle-slider.md` | AngleSlider | — | — | — | 保留 | #735 で記録（高度入力系） |
@@ -416,7 +417,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/forms/password-input.md` | PasswordInput | PasswordInput | — | — | 実装対象 | #740 |
 | `.agents/skills/chakra-ui/references/components/forms/slider.md` | Slider | Slider | slider | slider | 実装済み | headless+styled 実装済み（#741） |
 | `.agents/skills/chakra-ui/references/components/forms/rating.md` | RatingGroup | Rating | rating_group | rating_group | 実装済み | headless+styled 実装済み（#742） |
-| `.agents/skills/chakra-ui/references/components/forms/segmented-control.md` | SegmentGroup | SegmentedControl | — | — | 実装対象 | #743 |
+| `.agents/skills/chakra-ui/references/components/forms/segmented-control.md` | SegmentGroup | SegmentedControl | segment_group | segment_group | 実装済み | headless+styled 実装済み（#743） |
 | `.agents/skills/chakra-ui/references/components/forms/tags-input.md` | TagsInput | TagsInput | — | — | 実装対象 | #744 |
 | `.agents/skills/chakra-ui/references/components/forms/editable.md` | Editable | Editable | editable | editable | 実装済み | headless+styled 実装済み（#745） |
 | `.agents/skills/chakra-ui/references/components/forms/checkbox-card.md` | — | CheckboxCard | — | — | 実装対象 | #747 |
