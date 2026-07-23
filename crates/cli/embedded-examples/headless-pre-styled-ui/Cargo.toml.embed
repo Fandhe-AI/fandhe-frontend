@@ -15,7 +15,7 @@ publish = false
 # 実装時に sparse index への再照会で非 yanked を確認済み）。
 [dependencies]
 fandhe-frontend-core = "0.1.0"
-fandhe-frontend-headless-ui = "0.2.0"
+fandhe-frontend-headless-ui = "0.3.0"
 
 [dev-dependencies]
 

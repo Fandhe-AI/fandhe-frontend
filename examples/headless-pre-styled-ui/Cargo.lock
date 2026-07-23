@@ -18,9 +18,9 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-headless-ui"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f03c44316557e6f5eaf826472f773c3509d759c7a69d1e3ccb6ff29b46e9763a"
+checksum = "ac76f6089a6f7243c90308506756128a60e207a285fbc5d07923dec79aec860e"
 dependencies = [
  "fandhe-frontend-core",
  "fandhe-frontend-interactive",
