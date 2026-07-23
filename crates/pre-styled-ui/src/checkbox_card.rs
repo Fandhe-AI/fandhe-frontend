@@ -1,0 +1,929 @@
+//! styled CheckboxCard（イシュー #747、親 #520/#545、Phase 3 親 #736）。
+//!
+//! chakra-ui `forms/checkbox-card` 相当のカード型選択 UI。ark-ui には
+//! checkbox-card 相当の anatomy は存在せず、chakra-ui が headless の
+//! Checkbox 状態機械の上に独自 slot recipe として実装している構図を、本
+//! クレートでもそのまま踏襲する。**headless-ui には手を入れない**（受け入れ
+//! 条件）。
+//!
+//! # anatomy は pre-styled 層で新規定義する（[`crate::card`] 先例準拠）
+//!
+//! `fandhe_frontend_headless_ui::checkbox`（イシュー #535/#595）の 5 anatomy
+//! パーツ（`root`/`control`/`indicator`/`label`/`hidden-input`）は
+//! `data-scope="checkbox"` に固定されており、カード型の 9 パーツ構成へ
+//! そのまま拡張できない。[`crate::card`] が pre-styled 層で独自 anatomy
+//! （`data-scope="card"`）を持つ先例（同モジュール rustdoc 参照）に倣い、
+//! 本モジュールは新規 anatomy `data-scope="checkbox-card"` を
+//! [`fandhe_frontend_headless_ui::anatomy`] で定義する。既存 `checkbox` scope
+//! とは完全に独立するため、[`crate::checkbox`] の CSS/属性契約と衝突しない。
+//!
+//! # 状態機械の再利用（受け入れ条件 1: 新規状態機械を作らない）
+//!
+//! SSR 静的 props は
+//! [`fandhe_frontend_headless_ui::checkbox::CheckboxProps`]/[`CheckedState`]
+//! をそのまま再利用する。動的状態遷移（dispatch/hydration）は
+//! [`fandhe_frontend_headless_ui::checkbox::Checkbox`] をそのまま利用し、本
+//! モジュールから再エクスポートしない（[`crate::checkbox`] の「`Checkbox`
+//! 型を再エクスポートしない理由」節と同じ判断: `Checkbox` の inherent
+//! `.root(...)` は `size`/`palette` クラスを付与しない未スタイル実体であり、
+//! 誤って呼ぶと見た目が静かに崩れるため）。呼び出し側は
+//! `fandhe_frontend_headless_ui::checkbox::Checkbox` を直接 import し、描画は
+//! 本モジュールのパーツ関数で組み立てる。
+//!
+//! # anatomy パーツ構成（chakra-ui slot 準拠、9 パーツ）
+//!
+//! - [`root`][]: `<label>`。カード全体の起点。`size`/`palette` クラスを付与する
+//!   唯一のパーツ。
+//! - [`control`][]: `<div>`。indicator と content を横に並べる領域。
+//! - [`content`][]: `<div>`。label/description/addon を縦に積むコンテナ。
+//! - [`label`][]: `<div>`。見出しテキスト。
+//! - [`description`][]: `<div>`。補足テキスト。
+//! - [`addon`][]: `<div>`。任意の付加コンテンツ（アイコン等）。
+//! - [`indicator`][]: `<div>`。チェックボックス外枠（[`crate::checkbox::control`]
+//!   と同型の border/background 描画）。
+//! - [`indicator_check`][]: `<div>`。チェックマーク本体（[`crate::checkbox`]
+//!   headless 側 `indicator` 相当。[`CheckedState::Unchecked`] のとき
+//!   `hidden`）。chakra-ui の単一 Indicator を 2 要素（外枠 + マーク）へ
+//!   分けるのは、[`crate::recipe::SlotRecipe`] が疑似要素を持たず、既存
+//!   checkbox の実証済み border/transform 描画をそのまま再利用するため。
+//! - [`hidden_input`][]: `<input type="checkbox">`。フォーム送信の実体。
+//!   `type`/`name`/`value`/`checked`/`aria-checked="mixed"`/`aria-invalid`/
+//!   `disabled`/`required` の属性契約は
+//!   `crates/headless-ui/src/checkbox.rs` の `hidden_input` と同一ロジックで
+//!   出力する（両ファイルを合わせて確認する契約。ずれると headless 版と
+//!   挙動が乖離する）。
+//!
+//! # `indicator_check` の `hidden` 属性意味論（[`crate::checkbox`] と同じ設計）
+//!
+//! [`indicator_check`] の `base` に `display` 宣言を置かない（unchecked 時に
+//! ブラウザ UA stylesheet の `[hidden] { display: none }` を上書きしてしまう
+//! 回帰を防ぐ。`indicator_check_base_has_no_display_declaration` テストで
+//! 固定。詳細な根拠は [`crate::checkbox`] rustdoc 参照）。
+//!
+//! # フォーカスリング（本イシューのスコープ、§ out-of-scope 参照）
+//!
+//! 実フォーカスは [`hidden_input`] が受けるため、[`crate::radio_group`] の
+//! `item` と同型の [`StateCondition::FocusWithin`]（wasm なしでも成立する
+//! no-JS フォールバック）のみを [`root`] へ登録する。`data-focus-visible`
+//! （wasm 配線によるキーボード操作専用リング）は
+//! `crates/wasm-full/src/focus_visible.rs` の `(scope, part)` マッピングに
+//! `"checkbox-card"` が未登録のため本イシューでは実装しない（フォローアップ、
+//! PR 本文参照）。
+//!
+//! # `size`/`palette` variant
+//!
+//! [`crate::checkbox`] rustdoc「複合部品の variant 統一方針」節（#708）と
+//! 同型。`size`（[`Size`]）は [`root`] へのみクラスを付与し、[`recipe`] が
+//! 登録する `--fandhe-checkbox-card-*` の root スコープ custom property 経由で
+//! `control`/`indicator`/`indicator-check`/`label` の寸法を切り替える。
+//! `palette`（[`ColorPalette`]）は [`crate::recipe::palette_declarations`] を
+//! `root` へ登録し、checked/indeterminate 時の枠線・背景色を
+//! `var(--fandhe-palette, ...)` 経由で切り替える。
+//!
+//! # セキュリティ不変条件
+//!
+//! `raw_html()` は使用しない。CSS 宣言値はすべて静的リテラルで、動的値
+//! （`name`/`value`/attrs/children）は
+//! [`fandhe_frontend_headless_ui::fandhe_frontend_core::render`] の既定
+//! エスケープを必ず経由する（REQ-1）。呼び出し側 `attrs` の `class` は
+//! [`drop_class_attr`] で除去してから合成し、`class` 属性は常に単一
+//! （[`crate::checkbox::root`] と同型）。`data-state`/`data-disabled`/
+//! `data-invalid`/`data-required`/`data-readonly` の状態キーと、
+//! `hidden_input` が固定する `type`/`checked`/`aria-checked`/`aria-invalid`/
+//! `name`/`value`/`disabled`/`required` は呼び出し側の偽装値を fail-closed で
+//! 除去する（`crates/headless-ui/src/checkbox.rs` の `STATE_RESERVED`/
+//! `HIDDEN_INPUT_RESERVED`/`drop_reserved` と同型の判断を本モジュールで
+//! 独立に実装する — [`fandhe_frontend_headless_ui::anatomy::Anatomy::part`]
+//! は `data-scope`/`data-part` のみを守るため、それ以外の予約キー保護は
+//! 各 styled 部品自身の責務であることは headless 側モジュール doc の
+//! 「セキュリティ不変条件」節と同じ）。
+//!
+//! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
+//!
+//! - `fandhe-frontend-wasm-full` の focus/クリック配線（`(scope, part)` を
+//!   `("checkbox-card", "hidden-input") -> "root"` へ写像し
+//!   `data-focus-visible` を CSS で伝える対応）。
+//! - `examples/headless-pre-styled-ui` への追随（pre-styled-ui 公開後に
+//!   別 PR で対応）。
+
+use crate::class_attr::drop_class_attr;
+use crate::css::decl;
+use crate::recipe::{
+    palette_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
+};
+use fandhe_frontend_headless_ui::aria::{aria_checked, AriaChecked};
+pub use fandhe_frontend_headless_ui::checkbox::{CheckboxProps, CheckedState};
+use fandhe_frontend_headless_ui::data_attrs::{
+    data_disabled, data_invalid, data_readonly, data_required, data_state,
+};
+use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
+use fandhe_frontend_headless_ui::{anatomy, Anatomy};
+
+/// `data-scope="checkbox-card"` を固定した本コンポーネントの anatomy
+/// （既存 `data-scope="checkbox"` とは独立、モジュール冒頭 rustdoc参照）。
+const ANATOMY: Anatomy = anatomy("checkbox-card");
+
+/// [`SlotRecipe::new`] に渡す slot 一覧（recipe とレンダリング関数の両方が
+/// この配列を共有し、slot 名の乖離を防ぐ）。
+const SLOTS: &[&str] = &[
+    "root",
+    "control",
+    "content",
+    "label",
+    "description",
+    "addon",
+    "indicator",
+    "indicator-check",
+    "hidden-input",
+];
+
+/// 全パーツ共通の `data-state`/`data-disabled`/`data-invalid`/`data-required`/
+/// `data-readonly` 属性列を組み立てる非公開ヘルパ（`crates/headless-ui/src/checkbox.rs`
+/// の `state_attrs` と同型）。
+fn state_attrs(props: &CheckboxProps) -> Vec<(&'static str, &'static str)> {
+    let mut attrs: Vec<(&'static str, &'static str)> =
+        vec![data_state(props.checked.as_data_state())];
+    attrs.extend(data_disabled(props.disabled));
+    attrs.extend(data_invalid(props.invalid));
+    attrs.extend(data_required(props.required));
+    attrs.extend(data_readonly(props.readonly));
+    attrs
+}
+
+/// [`state_attrs`] が全パーツへ一律付与する属性キー一覧（呼び出し側 `attrs`
+/// からの偽装を fail-closed で除去する対象、`crates/headless-ui/src/checkbox.rs`
+/// の `STATE_RESERVED` と同型）。
+const STATE_RESERVED: &[&str] = &[
+    "data-state",
+    "data-disabled",
+    "data-invalid",
+    "data-required",
+    "data-readonly",
+];
+
+/// 呼び出し側 `attrs` からフレームワーク固定キー（ASCII 大文字小文字無視）を
+/// 除外する（`crates/headless-ui/src/checkbox.rs` の `drop_reserved` と同型）。
+fn drop_reserved<'a>(
+    attrs: Vec<(&'a str, &'a str)>,
+    reserved: &'static [&'static str],
+) -> Vec<(&'a str, &'a str)> {
+    attrs
+        .into_iter()
+        .filter(|(k, _)| !reserved.iter().any(|r| k.eq_ignore_ascii_case(r)))
+        .collect()
+}
+
+/// この styled CheckboxCard の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`]
+/// のみが呼ぶ）。
+fn recipe() -> SlotRecipe {
+    let mut recipe = SlotRecipe::new("checkbox-card", SLOTS)
+        .base(
+            "root",
+            vec![
+                decl("display", "flex"),
+                decl("align-items", "flex-start"),
+                decl("gap", "var(--fandhe-space-2)"),
+                decl("cursor", "pointer"),
+                decl("border", "1px solid var(--fandhe-color-border)"),
+                decl("border-radius", "var(--fandhe-radius-lg)"),
+                decl("padding", "var(--fandhe-checkbox-card-padding, 0.75rem)"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("transition", "border-color 0.15s, box-shadow 0.15s"),
+            ],
+        )
+        .state(
+            "root",
+            StateCondition::AttrEq("data-state", "checked"),
+            vec![
+                decl(
+                    "border-color",
+                    "var(--fandhe-palette, var(--fandhe-color-accent))",
+                ),
+                decl(
+                    "box-shadow",
+                    "0 0 0 1px var(--fandhe-palette, var(--fandhe-color-accent))",
+                ),
+            ],
+        )
+        .state(
+            "root",
+            StateCondition::AttrEq("data-state", "indeterminate"),
+            vec![
+                decl(
+                    "border-color",
+                    "var(--fandhe-palette, var(--fandhe-color-accent))",
+                ),
+                decl(
+                    "box-shadow",
+                    "0 0 0 1px var(--fandhe-palette, var(--fandhe-color-accent))",
+                ),
+            ],
+        )
+        .state(
+            "root",
+            StateCondition::Attr("data-disabled"),
+            vec![decl("cursor", "not-allowed"), decl("opacity", "0.5")],
+        )
+        // イシュー #747: 実フォーカスは hidden-input が受けるため、祖先
+        // root（`<label>`）へ `:focus-within` で no-JS フォールバックのリング
+        // を反映する（`crate::radio_group` の `item` と同型、モジュール
+        // rustdoc 参照）。
+        .state(
+            "root",
+            StateCondition::FocusWithin,
+            vec![
+                decl(
+                    "outline",
+                    "2px solid var(--fandhe-palette, var(--fandhe-color-accent))",
+                ),
+                decl("outline-offset", "2px"),
+            ],
+        )
+        .base(
+            "control",
+            vec![
+                decl("display", "flex"),
+                decl("align-items", "flex-start"),
+                decl("gap", "var(--fandhe-space-2)"),
+                decl("flex", "1"),
+            ],
+        )
+        .base(
+            "content",
+            vec![
+                decl("display", "flex"),
+                decl("flex-direction", "column"),
+                decl("gap", "var(--fandhe-space-1)"),
+                decl("flex", "1"),
+            ],
+        )
+        .base(
+            "label",
+            vec![
+                decl(
+                    "font-size",
+                    "var(--fandhe-checkbox-card-label-font-size, var(--fandhe-font-font-size-sm))",
+                ),
+                decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+                decl("color", "var(--fandhe-color-fg)"),
+            ],
+        )
+        .base(
+            "description",
+            vec![
+                decl("font-size", "var(--fandhe-font-font-size-sm)"),
+                decl("color", "var(--fandhe-color-fg-muted)"),
+            ],
+        )
+        .base("addon", vec![decl("display", "flex")])
+        .base(
+            "indicator",
+            vec![
+                decl("display", "inline-flex"),
+                decl("align-items", "center"),
+                decl("justify-content", "center"),
+                decl("box-sizing", "border-box"),
+                decl("width", "var(--fandhe-checkbox-card-control-size, 1rem)"),
+                decl("height", "var(--fandhe-checkbox-card-control-size, 1rem)"),
+                decl("border", "1px solid var(--fandhe-color-border)"),
+                decl("border-radius", "var(--fandhe-radius-sm)"),
+                decl("background", "var(--fandhe-color-bg)"),
+                decl("flex-shrink", "0"),
+                decl("transition", "background 0.15s, border-color 0.15s"),
+            ],
+        )
+        .state(
+            "indicator",
+            StateCondition::AttrEq("data-state", "checked"),
+            vec![
+                decl(
+                    "border-color",
+                    "var(--fandhe-palette, var(--fandhe-color-accent))",
+                ),
+                decl(
+                    "background",
+                    "var(--fandhe-palette, var(--fandhe-color-accent))",
+                ),
+            ],
+        )
+        .state(
+            "indicator",
+            StateCondition::AttrEq("data-state", "indeterminate"),
+            vec![
+                decl(
+                    "border-color",
+                    "var(--fandhe-palette, var(--fandhe-color-accent))",
+                ),
+                decl(
+                    "background",
+                    "var(--fandhe-palette, var(--fandhe-color-accent))",
+                ),
+            ],
+        )
+        // `indicator-check` の base に `display` 宣言を置かない（モジュール
+        // rustdoc「`indicator_check` の `hidden` 属性意味論」節参照。
+        // `indicator_check_base_has_no_display_declaration` テストで固定）。
+        .base(
+            "indicator-check",
+            vec![
+                decl("width", "var(--fandhe-checkbox-card-check-width, 0.25rem)"),
+                decl("height", "var(--fandhe-checkbox-card-check-height, 0.5rem)"),
+                decl(
+                    "border-right",
+                    "2px solid var(--fandhe-palette-fg, var(--fandhe-color-accent-fg))",
+                ),
+                decl(
+                    "border-bottom",
+                    "2px solid var(--fandhe-palette-fg, var(--fandhe-color-accent-fg))",
+                ),
+                decl("transform", "rotate(45deg)"),
+                decl("margin-bottom", "0.1rem"),
+            ],
+        )
+        .state(
+            "indicator-check",
+            StateCondition::AttrEq("data-state", "indeterminate"),
+            vec![
+                decl("transform", "none"),
+                decl("border-right", "0"),
+                decl(
+                    "border-bottom",
+                    "2px solid var(--fandhe-palette-fg, var(--fandhe-color-accent-fg))",
+                ),
+                decl("width", "var(--fandhe-checkbox-card-dash-width, 0.5rem)"),
+                decl("height", "0"),
+                decl("margin-bottom", "0"),
+            ],
+        )
+        // hidden-input の視覚的非表示化（[`crate::checkbox`]/[`crate::switch`]
+        // と同じ visually-hidden パターン）。
+        .base(
+            "hidden-input",
+            vec![
+                decl("position", "absolute"),
+                decl("width", "1px"),
+                decl("height", "1px"),
+                decl("padding", "0"),
+                decl("margin", "-1px"),
+                decl("overflow", "hidden"),
+                decl("clip", "rect(0, 0, 0, 0)"),
+                decl("white-space", "nowrap"),
+                decl("border", "0"),
+            ],
+        )
+        .variant(
+            Size::Sm,
+            "root",
+            vec![
+                decl("--fandhe-checkbox-card-padding", "0.5rem"),
+                decl("--fandhe-checkbox-card-control-size", "0.85rem"),
+                decl("--fandhe-checkbox-card-check-width", "0.2rem"),
+                decl("--fandhe-checkbox-card-check-height", "0.4rem"),
+                decl("--fandhe-checkbox-card-dash-width", "0.4rem"),
+                decl(
+                    "--fandhe-checkbox-card-label-font-size",
+                    "var(--fandhe-font-font-size-sm)",
+                ),
+            ],
+        )
+        .variant(
+            Size::Md,
+            "root",
+            vec![
+                decl("--fandhe-checkbox-card-padding", "0.75rem"),
+                decl("--fandhe-checkbox-card-control-size", "1rem"),
+                decl("--fandhe-checkbox-card-check-width", "0.25rem"),
+                decl("--fandhe-checkbox-card-check-height", "0.5rem"),
+                decl("--fandhe-checkbox-card-dash-width", "0.5rem"),
+                decl(
+                    "--fandhe-checkbox-card-label-font-size",
+                    "var(--fandhe-font-font-size-sm)",
+                ),
+            ],
+        )
+        .variant(
+            Size::Lg,
+            "root",
+            vec![
+                decl("--fandhe-checkbox-card-padding", "1rem"),
+                decl("--fandhe-checkbox-card-control-size", "1.25rem"),
+                decl("--fandhe-checkbox-card-check-width", "0.3rem"),
+                decl("--fandhe-checkbox-card-check-height", "0.6rem"),
+                decl("--fandhe-checkbox-card-dash-width", "0.6rem"),
+                decl(
+                    "--fandhe-checkbox-card-label-font-size",
+                    "var(--fandhe-font-font-size-md)",
+                ),
+            ],
+        )
+        .default_variant(Size::Md)
+        .default_variant(ColorPalette::Accent);
+
+    for palette in [
+        ColorPalette::Accent,
+        ColorPalette::Info,
+        ColorPalette::Success,
+        ColorPalette::Warning,
+        ColorPalette::Danger,
+    ] {
+        recipe = recipe.variant(palette, "root", palette_declarations(palette));
+    }
+    recipe
+}
+
+/// この styled CheckboxCard が生成する静的 CSS 全量を返す（決定的。
+/// [`crate::checkbox::stylesheet`] と同じ契約）。
+#[must_use]
+pub fn stylesheet() -> String {
+    recipe().css()
+}
+
+/// styled root パーツを組み立てる。`size`/`palette` に応じたクラスを付与する
+/// 唯一のパーツ（[`drop_class_attr`] により呼び出し側の `class` は除去して
+/// から合成する）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::checkbox_card::{self, CheckboxProps};
+/// use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
+///
+/// let node = checkbox_card::root(Size::Md, ColorPalette::Accent, &CheckboxProps::default(), vec![], vec![]);
+/// assert!(render(&node).contains(r#"data-scope="checkbox-card" data-part="root""#));
+/// ```
+#[must_use]
+pub fn root<'a>(
+    size: Size,
+    palette: ColorPalette,
+    props: &CheckboxProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let recipe = recipe();
+    let class =
+        recipe.variant_classes(&[("size", size.value()), ("color-palette", palette.value())]);
+    let attrs = drop_reserved(drop_class_attr(attrs), STATE_RESERVED);
+    let mut merged = state_attrs(props);
+    merged.push(("class", class.as_str()));
+    merged.extend(attrs);
+    ANATOMY.part("root", "label", merged, children)
+}
+
+/// control パーツ（`<div>`）。indicator と content を横に並べる領域。
+#[must_use]
+pub fn control<'a>(
+    props: &CheckboxProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
+    let mut merged = state_attrs(props);
+    merged.extend(attrs);
+    ANATOMY.part("control", "div", merged, children)
+}
+
+/// content パーツ（`<div>`）。label/description/addon を縦に積む。
+#[must_use]
+pub fn content<'a>(
+    props: &CheckboxProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
+    let mut merged = state_attrs(props);
+    merged.extend(attrs);
+    ANATOMY.part("content", "div", merged, children)
+}
+
+/// label パーツ（`<div>`）。見出しテキスト。
+#[must_use]
+pub fn label<'a>(
+    props: &CheckboxProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
+    let mut merged = state_attrs(props);
+    merged.extend(attrs);
+    ANATOMY.part("label", "div", merged, children)
+}
+
+/// description パーツ（`<div>`）。補足テキスト。
+#[must_use]
+pub fn description<'a>(
+    props: &CheckboxProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
+    let mut merged = state_attrs(props);
+    merged.extend(attrs);
+    ANATOMY.part("description", "div", merged, children)
+}
+
+/// addon パーツ（`<div>`）。任意の付加コンテンツ（アイコン等）。
+#[must_use]
+pub fn addon<'a>(
+    props: &CheckboxProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
+    let mut merged = state_attrs(props);
+    merged.extend(attrs);
+    ANATOMY.part("addon", "div", merged, children)
+}
+
+/// indicator パーツ（`<div>`）。チェックボックス外枠
+/// （[`crate::checkbox::control`] 相当の見た目）。
+#[must_use]
+pub fn indicator<'a>(
+    props: &CheckboxProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(attrs, STATE_RESERVED);
+    let mut merged = state_attrs(props);
+    merged.extend(attrs);
+    ANATOMY.part("indicator", "div", merged, children)
+}
+
+/// indicator-check パーツ（`<div>`）。チェックマーク本体
+/// （[`crate::checkbox`] headless 側 `indicator` 相当）。
+/// [`CheckedState::Unchecked`] のときは `hidden` 存在属性を付与する
+/// （モジュール rustdoc「`indicator_check` の `hidden` 属性意味論」節参照）。
+#[must_use]
+pub fn indicator_check<'a>(
+    props: &CheckboxProps,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let attrs = drop_reserved(drop_reserved(attrs, STATE_RESERVED), &["hidden"]);
+    let mut merged = state_attrs(props);
+    if props.checked == CheckedState::Unchecked {
+        merged.push(("hidden", ""));
+    }
+    merged.extend(attrs);
+    ANATOMY.part("indicator-check", "div", merged, children)
+}
+
+/// フレームワークが `hidden_input` に固定する属性キー一覧
+/// （`crates/headless-ui/src/checkbox.rs` の `HIDDEN_INPUT_RESERVED` と同型）。
+const HIDDEN_INPUT_RESERVED: &[&str] = &[
+    "type",
+    "checked",
+    "aria-checked",
+    "aria-invalid",
+    "name",
+    "value",
+    "disabled",
+    "required",
+];
+
+/// hidden-input パーツ（`<input type="checkbox">`）。フォーム送信の実体。
+///
+/// 属性契約は `crates/headless-ui/src/checkbox.rs::hidden_input` と同一
+/// ロジック（両ファイルを合わせて確認する契約、モジュール rustdoc 参照）。
+#[must_use]
+pub fn hidden_input<'a>(
+    props: &CheckboxProps,
+    name: &'a str,
+    value: &'a str,
+    attrs: Vec<(&'a str, &'a str)>,
+) -> Node {
+    let attrs = drop_reserved(drop_reserved(attrs, STATE_RESERVED), HIDDEN_INPUT_RESERVED);
+    let mut merged = state_attrs(props);
+    merged.push(("type", "checkbox"));
+    merged.push(("name", name));
+    merged.push(("value", value));
+    if props.checked == CheckedState::Checked {
+        merged.push(("checked", ""));
+    }
+    if props.checked == CheckedState::Indeterminate {
+        merged.push(aria_checked(AriaChecked::Mixed));
+    }
+    if props.invalid {
+        merged.push(("aria-invalid", "true"));
+    }
+    if props.disabled {
+        merged.push(("disabled", ""));
+    }
+    if props.required {
+        merged.push(("required", ""));
+    }
+    merged.extend(attrs);
+    ANATOMY.part("hidden-input", "input", merged, vec![])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use fandhe_frontend_core::{render, text};
+    use fandhe_frontend_headless_ui::checkbox::Checkbox;
+    use fandhe_frontend_interactive::{dispatch, render_for_hydration, Hydrate};
+
+    fn unchecked() -> CheckboxProps {
+        CheckboxProps::default()
+    }
+
+    fn checked() -> CheckboxProps {
+        CheckboxProps {
+            checked: CheckedState::Checked,
+            ..CheckboxProps::default()
+        }
+    }
+
+    fn indeterminate() -> CheckboxProps {
+        CheckboxProps {
+            checked: CheckedState::Indeterminate,
+            ..CheckboxProps::default()
+        }
+    }
+
+    #[test]
+    fn stylesheet_is_deterministic_and_targets_data_scope_selectors() {
+        let a = stylesheet();
+        let b = stylesheet();
+        assert_eq!(a, b);
+        assert!(a.contains(r#"[data-scope="checkbox-card"][data-part="indicator"]"#));
+    }
+
+    #[test]
+    fn stylesheet_never_contains_style_breakout_sequences() {
+        let css = stylesheet();
+        assert!(!css.contains("</style"));
+        assert!(!css.contains('<'));
+    }
+
+    #[test]
+    fn stylesheet_links_root_to_checked_and_indeterminate_state() {
+        let css = stylesheet();
+        assert!(css
+            .contains(r#"[data-scope="checkbox-card"][data-part="root"][data-state="checked"] {"#));
+        assert!(css.contains(
+            r#"[data-scope="checkbox-card"][data-part="root"][data-state="indeterminate"] {"#
+        ));
+    }
+
+    #[test]
+    fn stylesheet_links_root_to_focus_within_outline() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="checkbox-card"][data-part="root"]:focus-within {"#));
+    }
+
+    #[test]
+    fn stylesheet_links_root_to_disabled_state() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="checkbox-card"][data-part="root"][data-disabled] {"#));
+        assert!(css.contains("cursor: not-allowed;"));
+    }
+
+    #[test]
+    fn hidden_input_is_visually_hidden_not_display_none() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="checkbox-card"][data-part="hidden-input"] {"#));
+        assert!(css.contains("clip: rect(0, 0, 0, 0);"));
+        assert!(!css.contains("display: none"));
+    }
+
+    #[test]
+    fn indicator_check_base_has_no_display_declaration() {
+        let css = stylesheet();
+        let start = css
+            .find(r#"[data-scope="checkbox-card"][data-part="indicator-check"] {"#)
+            .expect("indicator-check base block must exist");
+        let end = css[start..]
+            .find('}')
+            .map(|i| start + i)
+            .unwrap_or(css.len());
+        assert!(
+            !css[start..end].contains("display"),
+            "indicator-check base block must not declare display: {}",
+            &css[start..end]
+        );
+    }
+
+    // --- variant クラス ---
+
+    #[test]
+    fn root_outputs_scope_and_part() {
+        let html = render(&root(
+            Size::Md,
+            ColorPalette::Accent,
+            &unchecked(),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="checkbox-card""#));
+        assert!(html.contains(r#"data-part="root""#));
+    }
+
+    #[test]
+    fn default_variant_is_md_and_accent() {
+        let html = render(&root(
+            Size::Md,
+            ColorPalette::Accent,
+            &unchecked(),
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains("fd-checkbox-card--size-md"));
+        assert!(html.contains("fd-checkbox-card--color-palette-accent"));
+    }
+
+    #[test]
+    fn size_enumeration_maps_to_expected_classes() {
+        for (size, class) in [
+            (Size::Sm, "fd-checkbox-card--size-sm"),
+            (Size::Md, "fd-checkbox-card--size-md"),
+            (Size::Lg, "fd-checkbox-card--size-lg"),
+        ] {
+            let html = render(&root(
+                size,
+                ColorPalette::Accent,
+                &unchecked(),
+                vec![],
+                vec![],
+            ));
+            assert!(html.contains(class), "size={size:?} -> {html}");
+        }
+    }
+
+    #[test]
+    fn palette_enumeration_maps_to_expected_classes() {
+        for (palette, class) in [
+            (
+                ColorPalette::Accent,
+                "fd-checkbox-card--color-palette-accent",
+            ),
+            (ColorPalette::Info, "fd-checkbox-card--color-palette-info"),
+            (
+                ColorPalette::Success,
+                "fd-checkbox-card--color-palette-success",
+            ),
+            (
+                ColorPalette::Warning,
+                "fd-checkbox-card--color-palette-warning",
+            ),
+            (
+                ColorPalette::Danger,
+                "fd-checkbox-card--color-palette-danger",
+            ),
+        ] {
+            let html = render(&root(Size::Md, palette, &unchecked(), vec![], vec![]));
+            assert!(html.contains(class), "palette={palette:?} -> {html}");
+        }
+    }
+
+    #[test]
+    fn class_attr_is_single_and_caller_class_is_dropped() {
+        let html = render(&root(
+            Size::Md,
+            ColorPalette::Accent,
+            &unchecked(),
+            vec![("class", "attacker-controlled")],
+            vec![],
+        ));
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(!html.contains("attacker-controlled"));
+    }
+
+    #[test]
+    fn caller_data_scope_and_part_spoofing_is_dropped() {
+        let html = render(&root(
+            Size::Md,
+            ColorPalette::Accent,
+            &unchecked(),
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="checkbox-card""#));
+        assert!(html.contains(r#"data-part="root""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn root_reflects_checked_and_indeterminate_props() {
+        let checked_html = render(&root(
+            Size::Md,
+            ColorPalette::Accent,
+            &checked(),
+            vec![],
+            vec![],
+        ));
+        assert!(checked_html.contains(r#"data-state="checked""#));
+
+        let indeterminate_html = render(&root(
+            Size::Md,
+            ColorPalette::Accent,
+            &indeterminate(),
+            vec![],
+            vec![],
+        ));
+        assert!(indeterminate_html.contains(r#"data-state="indeterminate""#));
+    }
+
+    #[test]
+    fn indicator_check_hidden_when_unchecked_visible_otherwise() {
+        let unchecked_html = render(&indicator_check(&unchecked(), vec![], vec![]));
+        assert!(unchecked_html.contains(r#"hidden="""#));
+
+        let checked_html = render(&indicator_check(&checked(), vec![], vec![]));
+        assert!(!checked_html.contains("hidden="));
+    }
+
+    #[test]
+    fn hidden_input_reflects_checked_and_indeterminate() {
+        let checked_html = render(&hidden_input(&checked(), "terms", "on", vec![]));
+        assert!(checked_html.contains(r#"checked="""#));
+
+        let indeterminate_html = render(&hidden_input(&indeterminate(), "terms", "on", vec![]));
+        assert!(indeterminate_html.contains(r#"aria-checked="mixed""#));
+    }
+
+    #[test]
+    fn hidden_input_drops_caller_supplied_reserved_attrs() {
+        let node = hidden_input(
+            &checked(),
+            "terms",
+            "on",
+            vec![
+                ("type", "text"),
+                ("name", "attacker"),
+                ("value", "attacker"),
+            ],
+        );
+        let html = render(&node);
+        assert!(html.contains(r#"type="checkbox""#));
+        assert!(html.contains(r#"name="terms""#));
+        assert!(html.contains(r#"value="on""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    // --- エスケープ回帰 ---
+
+    #[test]
+    fn root_attrs_attribute_breakout_payload_is_escaped() {
+        let html = render(&root(
+            Size::Md,
+            ColorPalette::Accent,
+            &unchecked(),
+            vec![("data-x", "\" onmouseover=\"alert(1)")],
+            vec![],
+        ));
+        assert!(!html.contains("onmouseover=\"alert(1)\""));
+        assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn reexported_label_children_are_escaped_on_render() {
+        let html = render(&label(
+            &unchecked(),
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        assert!(!html.contains("<script>alert(1)</script>"));
+        assert!(html.contains("&lt;script&gt;"));
+    }
+
+    #[test]
+    fn hidden_input_name_value_payload_is_escaped_on_render() {
+        const PAYLOAD: &str = "\" onmouseover=\"alert(1)";
+        let html = render(&hidden_input(&unchecked(), PAYLOAD, PAYLOAD, vec![]));
+        assert!(!html.contains("onmouseover=\"alert(1)"));
+        assert!(html.contains("&quot;"));
+    }
+
+    // --- SSR/hydration 往復（受け入れ条件 1: headless Checkbox 状態機械を再利用） ---
+
+    #[test]
+    fn ssr_and_hydration_round_trip_via_headless_checkbox_state_machine() {
+        let mut cb = Checkbox::default();
+        assert!(!cb.is_checked());
+
+        let props = CheckboxProps {
+            checked: if cb.is_checked() {
+                CheckedState::Checked
+            } else {
+                CheckedState::Unchecked
+            },
+            ..CheckboxProps::default()
+        };
+        let ssr_html = render(&root(
+            Size::Md,
+            ColorPalette::Accent,
+            &props,
+            vec![],
+            vec![],
+        ));
+        assert!(ssr_html.contains(r#"data-state="unchecked""#));
+
+        assert!(dispatch(&mut cb, "toggle", ""));
+        let hydrate_html = render(&render_for_hydration(&cb));
+        assert!(hydrate_html.contains(r#"data-hydrate-checked="checked""#));
+
+        let restored = Checkbox::from_hydration_attrs(&cb.hydration_attrs()).unwrap();
+        assert_eq!(restored, cb);
+    }
+}
