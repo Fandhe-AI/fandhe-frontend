@@ -103,7 +103,11 @@ popover,tooltip}.rs` の各ファイル冒頭の `pub use` 直後のコメント
 - `pub use fandhe_frontend_headless_ui::{OpenState, Orientation};`:
   ラッパー呼び出しに頻出する状態値。`fandhe-frontend-docs-site` の実利用
   パス（`fandhe_frontend_headless_ui::{OpenState, Orientation}`）と同型の
-  import を pre-styled-ui 単独依存で可能にする。
+  import を pre-styled-ui 単独依存で可能にする。この契約はイシュー #693 で
+  実際に消化され、`fandhe-frontend-docs-site` は headless-ui への直接依存
+  （`Cargo.toml`・`structure.toml` 双方のエッジ）を撤去して pre-styled-ui
+  単独依存へ移行済みである（`crates/docs-site/src/showcase.rs` の import は
+  本再エクスポート経由に切り替え済み）。
 
 **セキュリティ上の注意（REQ-1、`.claude/rules/security.md` A03）**:
 `fandhe_frontend_pre_styled_ui::fandhe_frontend_core` 経由で `raw_html()` へ

@@ -22,9 +22,11 @@
 //!
 //! # セキュリティ不変条件（REQ-1）
 //!
-//! - マークアップはすべて `fandhe_frontend_core` /
-//!   `fandhe_frontend_pre_styled_ui` / `fandhe_frontend_headless_ui` のノード木
-//!   API で組み立てる。`raw_html()`・HTML 文字列の直接組み立ては使わない
+//! - マークアップはすべて `fandhe_frontend_core` / `fandhe_frontend_pre_styled_ui`
+//!   のノード木 API で組み立てる。`raw_html()`・HTML 文字列の直接組み立ては
+//!   使わない。headless 層の状態値（[`OpenState`] / [`Orientation`]）は
+//!   pre-styled-ui のルート再エクスポート（イシュー #685）経由で使用し、
+//!   headless-ui への直接依存は持たない（イシュー #693）
 //! - CSS は [`StyleSheet`]（検証済み CSS のみを保持し `<` を拒否する型、
 //!   `crates/pre-styled-ui/src/stylesheet.rs`）経由でのみ書き出す
 //!
@@ -36,14 +38,13 @@
 //! スコープ外（`examples/headless-pre-styled-ui` と同じ方針）。
 
 use fandhe_frontend_core::{div, el, text, Node};
-use fandhe_frontend_headless_ui::{OpenState, Orientation};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::{
     accordion, alert, badge, card, AlertStatus, BadgeProps, BadgeVariant, CardVariant,
-    ColorPalette, Size, StyleSheet, StylesheetError,
+    ColorPalette, OpenState, Orientation, Size, StyleSheet, StylesheetError,
 };
 
 /// ショーケースページの `page.path`（`site/nav.toml` の宣言と一致させる契約。
