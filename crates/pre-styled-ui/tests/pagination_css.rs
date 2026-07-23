@@ -53,6 +53,7 @@ const PAGINATION_GOLDEN_CSS: &str = r#"[data-scope="pagination"][data-part="root
   border-radius: var(--fandhe-radius-md);
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
+  font-size: var(--fandhe-pagination-item-font-size, var(--fandhe-font-font-size-sm));
   text-decoration: none;
   cursor: pointer;
 }
@@ -68,6 +69,7 @@ const PAGINATION_GOLDEN_CSS: &str = r#"[data-scope="pagination"][data-part="root
   border-radius: var(--fandhe-radius-md);
   background: var(--fandhe-color-bg);
   color: var(--fandhe-color-fg);
+  font-size: var(--fandhe-pagination-item-font-size, var(--fandhe-font-font-size-sm));
   text-decoration: none;
   cursor: pointer;
 }

@@ -146,6 +146,10 @@ fn recipe() -> SlotRecipe {
                 decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-pagination-item-font-size, var(--fandhe-font-font-size-sm))",
+                ),
                 decl("text-decoration", "none"),
                 decl("cursor", "pointer"),
             ],
@@ -163,6 +167,10 @@ fn recipe() -> SlotRecipe {
                 decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
+                decl(
+                    "font-size",
+                    "var(--fandhe-pagination-item-font-size, var(--fandhe-font-font-size-sm))",
+                ),
                 decl("text-decoration", "none"),
                 decl("cursor", "pointer"),
             ],
@@ -354,6 +362,21 @@ mod tests {
     fn stylesheet_links_item_to_focus_visible() {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="pagination"][data-part="item"]:focus-visible {"#));
+    }
+
+    // モジュール冒頭 rustdoc「複合部品の variant 統一方針」節が謳う「root の
+    // --fandhe-pagination-item-font-size は item/prev-trigger/next-trigger
+    // すべてに反映される」を base スタイルの実体で保証する回帰テスト
+    // （Size::Sm/Lg 指定時に Prev/Next ラベルのテキストサイズが変わらない
+    // 見た目不整合の再発防止、Cursor Bugbot 指摘対応）。
+    #[test]
+    fn prev_and_next_trigger_inherit_item_font_size_variable() {
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="pagination"][data-part="prev-trigger"] {"#));
+        assert!(css.contains(r#"[data-scope="pagination"][data-part="next-trigger"] {"#));
+        assert!(css.contains(
+            "font-size: var(--fandhe-pagination-item-font-size, var(--fandhe-font-font-size-sm))"
+        ));
     }
 
     // --- variant クラス（root のみ） ---
