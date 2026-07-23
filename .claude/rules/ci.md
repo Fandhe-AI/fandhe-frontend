@@ -10,6 +10,7 @@
 
 - 共有 `CARGO_TARGET_DIR=/cargo-target` が使われるため、テストフィクスチャはクレート名衝突・キャッシュ誤命中を避ける必要がある
 - 対策: フィクスチャ専用 `CARGO_TARGET_DIR` を明示指定する（例: `crates/cli/tests/negative_cases.rs` / `crates/cli/tests/raw_html_lint_e2e.rs`、PR #264）
+- **ワークフロー YAML 側で明示指定するフィクスチャ専用 `CARGO_TARGET_DIR`・生成物パスは `/tmp` 固定パスではなく `RUNNER_TEMP`（`${{ runner.temp }}`）配下に置く**（イシュー #659）。`RUNNER_TEMP` はジョブ開始・終了時に runner が自動清掃するため、`/tmp` 固定パスのようにジョブ間残置が恒久蓄積しない（`template-app-wasm-smoke` ジョブの是正が先例、`docs/ci/ci-runner-requirements.md` §8 参照）。テストコード側の `env!("CARGO_TARGET_TMPDIR")` 固定方針（イシュー #637）と対をなす
 
 ## ツール前提の明示
 
