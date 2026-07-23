@@ -12,7 +12,7 @@
 use fandhe_frontend_core::{render, text};
 use fandhe_frontend_headless_ui::carousel;
 use fandhe_frontend_headless_ui::{Carousel, Orientation};
-use fandhe_frontend_interactive::{dispatch, render_for_hydration, Component, Hydrate};
+use fandhe_frontend_interactive::{dispatch, render_for_hydration, Hydrate};
 
 /// SSR（状態なし初期描画）→ dispatch（`"next"`）→ hydration の一巡が公開
 /// API のみで完結することを固定する。
