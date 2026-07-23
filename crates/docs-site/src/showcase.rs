@@ -84,12 +84,14 @@ use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, Separa
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
+use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
+use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
 use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{
@@ -193,8 +195,8 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 /// accordion/dialog/drawer/menu/select/combobox/popover/tooltip/hover_card/
 /// toggle_tip/switch/radio_group/avatar/checkbox/checkbox_card/radio_card/
 /// input/textarea/native_select/number_input/tags_input/rating_group/
-/// slider/segment_group/pagination/breadcrumb）→ ショーケース配置スタイル、
-/// の順で決定的に連結する。
+/// slider/segment_group/pagination/breadcrumb/progress/stat/timeline）→
+/// ショーケース配置スタイル、の順で決定的に連結する。
 ///
 /// # Errors
 ///
@@ -258,6 +260,8 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::mark::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::blockquote::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::list::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::stat::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::timeline::css())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -3107,6 +3111,93 @@ fn icon_section() -> Node {
     )
 }
 
+/// Stat 節: 状態機械不要の静的部品（イシュー #769）。`size` variant のみ。
+fn stat_section() -> Node {
+    let demo = row(vec![
+        stat::root(
+            Size::Md,
+            vec![],
+            vec![
+                stat::label(vec![], vec![text("Revenue")]),
+                stat::value_text(
+                    vec![],
+                    vec![text("1,234"), stat::value_unit(vec![], vec![text("USD")])],
+                ),
+                stat::help_text(
+                    vec![],
+                    vec![stat::up_indicator(vec![]), text("12% vs 先月")],
+                ),
+            ],
+        ),
+        stat::root(
+            Size::Md,
+            vec![],
+            vec![
+                stat::label(vec![], vec![text("Churn")]),
+                stat::value_text(vec![], vec![text("4.2%")]),
+                stat::help_text(
+                    vec![],
+                    vec![stat::down_indicator(vec![]), text("0.8% vs 先月")],
+                ),
+            ],
+        ),
+    ]);
+    section(
+        "Stat",
+        "数値指標 1 件をラベル・値・補助テキスト・増減方向インジケーターの組で表示する静的部品です。size（sm/md/lg）で value-text のフォントサイズを切り替えます。",
+        vec![demo],
+    )
+}
+
+/// Timeline 節: 状態機械不要の静的部品（イシュー #769）。`variant`/`size`/
+/// `color-palette` の 3 軸。
+fn timeline_section() -> Node {
+    let demo = timeline::root(
+        TimelineVariant::Solid,
+        Size::Md,
+        ColorPalette::Accent,
+        vec![],
+        vec![
+            timeline::item(
+                vec![],
+                vec![
+                    timeline::connector(
+                        vec![],
+                        vec![
+                            timeline::indicator(vec![], vec![]),
+                            timeline::separator(vec![], vec![]),
+                        ],
+                    ),
+                    timeline::content(
+                        vec![],
+                        vec![
+                            timeline::title(vec![], vec![text("プロジェクト開始")]),
+                            timeline::description(vec![], vec![text("2026-01-01")]),
+                        ],
+                    ),
+                ],
+            ),
+            timeline::item(
+                vec![],
+                vec![
+                    // 最終 item は separator を組み込まないことで非表示にする
+                    // 契約（`crate::timeline` rustdoc 参照）。
+                    timeline::connector(vec![], vec![timeline::indicator(vec![], vec![])]),
+                    timeline::content(
+                        vec![],
+                        vec![timeline::title(vec![], vec![text("リリース")])],
+                    ),
+                ],
+            ),
+        ],
+    );
+    section(
+        "Timeline",
+        "時系列に並ぶ出来事の一覧を connector（縦線）+ indicator（点）+ content で表示する静的部品です。variant（solid/subtle/outline/plain）で indicator の塗り方を切り替えます。",
+        vec![demo],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -3170,6 +3261,8 @@ fn showcase_body() -> Node {
             empty_state_section(),
             visually_hidden_section(),
             qr_code_section(),
+            stat_section(),
+            timeline_section(),
         ],
     )
 }

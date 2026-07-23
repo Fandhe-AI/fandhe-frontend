@@ -38,8 +38,9 @@ ToggleTip styled ラッパー追加（#761）・Progress circular 対応追加
 （#770）・Status/EmptyState 静的部品追加（#765）・タイポグラフィ静的部品
 6 種追加（#771）・Separator 静的部品追加（#772）・Highlight 静的部品追加
 （#775）・Clipboard headless ラッパー追加（#773）・QrCode styled ラッパー
-追加（#774）・VisuallyHidden/SkipNav 静的部品追加（#776、いずれも公開
-時点未反映）を経て 64 の公開モジュールを持つ。
+追加（#774）・VisuallyHidden/SkipNav 静的部品追加（#776）・Stat/Timeline
+styled 静的部品追加（#769、いずれも公開時点未反映）を経て 67 の公開
+モジュールを持つ。
 内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
@@ -88,6 +89,7 @@ ToggleTip styled ラッパー追加（#761）・Progress circular 対応追加
 | headless ラッパー | `clipboard` | #773（`hover_card`/`toggle_tip` と同型の判断で variant は非提供。Indicator の可視性切り替えは `avatar` の image/fallback と同型の `data-state` 多層防御パターン。`navigator.clipboard.writeText` 実配線は `fandhe-frontend-wasm-full::headless_clipboard` が提供） |
 | タイポグラフィ静的部品 | `heading` / `text` / `em` / `mark` / `blockquote` / `list` | #771（§4i 参照。素の HTML 意味論（h1〜h6/p/em/mark/blockquote/ul・ol・li）をそのまま styled 化。headless 状態機械は要しない） |
 | headless ラッパー | `qr_code` | #774（headless の外部依存ゼロ QR Model 2 エンコーダ（`crates/headless-ui/src/qr_code.rs`）へ CSS のみ追加提供。`size` variant のみ・`color-palette` 軸は非提供（前景/背景色は固定トークンに閉じ、低コントラスト組み合わせを誘発しないための意図的判断、`qr_code` モジュール doc「`size` variant」節参照）。`Frame`/`Pattern`/`Overlay` は headless 自由関数をそのまま選択的に再エクスポートする） |
+| 静的部品（新規 anatomy） | `stat` / `timeline` | #769（ark-ui に対応する headless anatomy が存在しないため、`checkbox_card`/`radio_card`（#747）と同型の判断で headless-ui は変更せず pre-styled-ui 層で新規 anatomy `data-scope="stat"`/`"timeline"` を定義。`stat` は `<dl>`/`<dt>`/`<dd>` を使い `size` variant のみ・`color-palette` 軸は非提供（`card` と同型の中立部品判断）、増減 indicator は `rating_group` と同型の `clip-path` インライン三角形。`timeline` は `<ol>`/`<li>` を使い `variant`（`TimelineVariant`: solid/subtle/outline/plain）/`size`/`color-palette` の 3 軸を root のみへ付与し `indicator`/`separator` へは CSS custom property の継承で伝搬。`showLastSeparator` 相当は recipe 側で自動制御せず、呼び出し側が最終 item へ `separator` パーツを含めないことで表現する契約） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
