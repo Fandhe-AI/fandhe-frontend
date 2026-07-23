@@ -144,7 +144,7 @@ dependencies = [
 
 [[package]]
 name = "fandhe-frontend-wasm-full"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "fandhe-frontend-app",
  "fandhe-frontend-core",
