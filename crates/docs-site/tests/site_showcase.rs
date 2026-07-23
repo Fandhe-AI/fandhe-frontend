@@ -86,6 +86,9 @@ fn real_site_build_emits_showcase_page_and_dedicated_css() {
         "select",
         "popover",
         "tooltip",
+        "switch",
+        "radio-group",
+        "avatar",
     ] {
         assert!(
             html.contains(&format!(r#"data-scope="{scope}""#)),
@@ -106,6 +109,8 @@ fn real_site_build_emits_showcase_page_and_dedicated_css() {
     assert!(css.contains(".fd-button--variant-solid"));
     assert!(css.contains(r#"[data-scope="tabs"][data-part="trigger"]"#));
     assert!(css.contains(r#"[data-scope="dialog"][data-part="content"]"#));
+    assert!(css.contains(r#"[data-scope="switch"][data-part="control"]"#));
+    assert!(css.contains(".fd-avatar--size-md"));
     // site.css の `.docs-content h3` が Accordion anatomy の h3 へ漏れるのを
     // 遮断する見出しリセットが専用 CSS 側に含まれる（site.css は変更しない
     // 分離契約のまま showcase 側で上書きする。Bugbot 指摘の回帰防止）。
@@ -125,6 +130,9 @@ fn real_site_build_emits_showcase_page_and_dedicated_css() {
     assert!(toc.contains(">Card<"));
     assert!(toc.contains(">Dialog<"));
     assert!(toc.contains(">Popover<"));
+    assert!(toc.contains(">Switch<"));
+    assert!(toc.contains(">RadioGroup<"));
+    assert!(toc.contains(">Avatar<"));
     assert!(
         !toc.contains("pre-styled-ui とは何ですか"),
         "accordion trigger heading must not leak into TOC: {toc}"

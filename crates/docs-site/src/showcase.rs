@@ -44,14 +44,16 @@
 
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_headless_ui::{OpenState, Orientation};
+use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::{
-    accordion, alert, badge, card, menu, popover, select, tooltip, AlertStatus, BadgeProps,
-    BadgeVariant, CardVariant, ColorPalette, Size, StyleSheet, StylesheetError,
+    accordion, alert, badge, card, menu, popover, radio_group, select, switch, tooltip,
+    AlertStatus, BadgeProps, BadgeVariant, CardVariant, ColorPalette, Size, StyleSheet,
+    StylesheetError,
 };
 
 /// ショーケースページの `page.path`（`site/nav.toml` の宣言と一致させる契約。
@@ -129,8 +131,8 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 ///
 /// 内訳: テーマトークン（`Theme::default`、ライト/ダーク両対応）→ 掲載
 /// コンポーネントの recipe CSS（button/badge/spinner/alert/card/tabs/
-/// accordion/dialog/menu/select/popover/tooltip）→ ショーケース配置スタイル、
-/// の順で決定的に連結する。
+/// accordion/dialog/menu/select/popover/tooltip/switch/radio_group/avatar）
+/// → ショーケース配置スタイル、の順で決定的に連結する。
 ///
 /// # Errors
 ///
@@ -153,6 +155,9 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::select::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::popover::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tooltip::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::switch::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::radio_group::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::avatar::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -781,6 +786,167 @@ fn tooltip_section() -> Node {
     )
 }
 
+/// Switch 節: unchecked / checked / disabled の 3 態。
+///
+/// headless 層は `"checked"`/`"unchecked"` の `data-state` 語彙で状態を
+/// 表現する（open/closed ではない、`fandhe_frontend_pre_styled_ui::switch`
+/// のモジュール doc 参照）。フォーム意味論は visually-hidden な
+/// `<input type="checkbox" role="switch">`（[`switch::hidden_input`]）が
+/// 担い、見た目（トラック/つまみ）は `control`/`thumb` が装飾として担う。
+fn switch_section() -> Node {
+    let states = [
+        (false, false, "showcase-switch-unchecked", "Unchecked"),
+        (true, false, "showcase-switch-checked", "Checked"),
+        (false, true, "showcase-switch-disabled", "Disabled"),
+    ];
+    let demo_row = row(states
+        .iter()
+        .map(|(checked, disabled, name, label)| {
+            switch::root(
+                *checked,
+                *disabled,
+                vec![],
+                vec![
+                    switch::hidden_input(name, "on", *checked, *disabled, false, vec![]),
+                    switch::control(
+                        *checked,
+                        *disabled,
+                        vec![],
+                        vec![switch::thumb(*checked, vec![], vec![])],
+                    ),
+                    switch::label(*checked, vec![], vec![text(*label)]),
+                ],
+            )
+        })
+        .collect());
+    section(
+        "Switch",
+        "data-state=\"checked\"/\"unchecked\" で見た目が切り替わるオン/オフ スイッチ。visually-hidden な input[type=\"checkbox\"][role=\"switch\"] がフォーム送信・キーボード操作の意味論を担います。",
+        vec![demo_row],
+    )
+}
+
+/// RadioGroup 節: 3 択のうち 1 件が選択済み・1 件が disabled な静的掲示。
+///
+/// `label` パーツの `id` を `root` の `labelled_by` に渡し、グループ全体の
+/// 見出しとの関連付け（`aria-labelledby`）を成立させる（headless
+/// `radio_group` モジュールの契約）。
+fn radio_group_section() -> Node {
+    let label_id = "showcase-radio-label";
+    let items = [
+        ("plan-free", "Free", true, false),
+        ("plan-pro", "Pro", false, false),
+        ("plan-enterprise", "Enterprise", false, true),
+    ];
+    let mut children = vec![radio_group::label(
+        Some(label_id),
+        vec![],
+        vec![text("Plan")],
+    )];
+    children.extend(items.iter().map(|(value, label, checked, disabled)| {
+        radio_group::item(
+            *checked,
+            *disabled,
+            value,
+            vec![],
+            vec![
+                radio_group::item_hidden_input(
+                    *checked,
+                    *disabled,
+                    Some("showcase-radio"),
+                    value,
+                    vec![],
+                ),
+                radio_group::item_control(*checked, *disabled, vec![]),
+                radio_group::item_text(*checked, *disabled, vec![], vec![text(*label)]),
+            ],
+        )
+    }));
+    let demo = radio_group::root(
+        false,
+        Some(Orientation::Vertical),
+        Some(label_id),
+        vec![],
+        children,
+    );
+    section(
+        "RadioGroup",
+        "単一選択の選択肢グループ。ネイティブ input[type=\"radio\"] による排他選択・キーボード操作を data-scope=\"radio-group\" の anatomy へ重ねます。",
+        vec![demo],
+    )
+}
+
+/// 空 data URI（画像フェッチを一切発生させない `src`。イシュー #692 実装計画
+/// 「外部フェッチ・404 を発生させない値」参照）。Error 状態デモの `image` src
+/// として使う。
+const AVATAR_EMPTY_IMAGE_SRC: &str = "data:,";
+
+/// パーセントエンコード済みインライン SVG data URI（生の `<`・引用符を含まず、
+/// GitHub Pages 上で外部リクエスト・404 を発生させない。Loaded 状態デモの
+/// `image` src として使う）。単色円のプレースホルダーアイコン。
+const AVATAR_INLINE_SVG_SRC: &str =
+    "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2064%2064%27%3E%3Ccircle%20cx%3D%2732%27%20cy%3D%2732%27%20r%3D%2732%27%20fill%3D%27%234a90d9%27%2F%3E%3C%2Fsvg%3E";
+
+/// Avatar 節: size（Sm/Md/Lg、いずれも `ImageStatus::Error` でフォールバック
+/// 表示）と shape（Circle/Rounded/Square）の 2 軸。
+///
+/// `image` パーツの `src` は外部フェッチ・404 を発生させないダミー値
+/// （[`AVATAR_EMPTY_IMAGE_SRC`]/[`AVATAR_INLINE_SVG_SRC`]）を使う
+/// （`examples/headless-pre-styled-ui` の avatar 節と同じく実画像を同梱
+/// しない方針）。`image` パーツ自体は `ImageStatus` に応じて headless 層が
+/// `hidden` 存在属性を出力するため、Error 状態でも anatomy には含まれる。
+fn avatar_section() -> Node {
+    let size_row = row(vec![(Size::Sm, "FT"), (Size::Md, "FT"), (Size::Lg, "FT")]
+        .into_iter()
+        .map(|(size, initials)| {
+            avatar::root(
+                size,
+                AvatarShape::default(),
+                vec![],
+                vec![
+                    avatar::image(
+                        ImageStatus::Error,
+                        AVATAR_EMPTY_IMAGE_SRC,
+                        "Fandhe Team",
+                        vec![],
+                    ),
+                    avatar::fallback(ImageStatus::Error, vec![], vec![text(initials)]),
+                ],
+            )
+        })
+        .collect());
+
+    let shape_row = row(vec![
+        AvatarShape::Circle,
+        AvatarShape::Rounded,
+        AvatarShape::Square,
+    ]
+    .into_iter()
+    .map(|shape| {
+        avatar::root(
+            Size::Md,
+            shape,
+            vec![],
+            vec![
+                avatar::image(
+                    ImageStatus::Loaded,
+                    AVATAR_INLINE_SVG_SRC,
+                    "Fandhe Team",
+                    vec![],
+                ),
+                avatar::fallback(ImageStatus::Loaded, vec![], vec![text("FT")]),
+            ],
+        )
+    })
+    .collect());
+
+    section(
+        "Avatar",
+        "size（Sm/Md/Lg）・shape（Circle/Rounded/Square）の 2 軸を持つユーザー画像表示。画像読み込み状態（ImageStatus）を固定し、Error 時はイニシャルのフォールバック表示、Loaded 時は画像表示を掲示します。",
+        vec![size_row, shape_row],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -810,6 +976,9 @@ fn showcase_body() -> Node {
             select_section(),
             popover_section(),
             tooltip_section(),
+            switch_section(),
+            radio_group_section(),
+            avatar_section(),
         ],
     )
 }
@@ -842,15 +1011,20 @@ mod tests {
             "select",
             "popover",
             "tooltip",
+            "switch",
+            "radio-group",
+            "avatar",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
                 "missing data-scope={scope}"
             );
         }
-        // 静的掲示の状態固定: 選択中タブ・開いた Accordion 項目。
+        // 静的掲示の状態固定: 選択中タブ・開いた Accordion 項目・checked
+        // Switch/RadioGroup item。
         assert!(html.contains(r#"data-state="active""#));
         assert!(html.contains(r#"data-state="open""#));
+        assert!(html.contains(r#"data-state="checked""#));
     }
 
     #[test]
@@ -895,6 +1069,10 @@ mod tests {
         assert!(css.contains(r#"[data-scope="select"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="popover"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="tooltip"][data-part="content"]"#));
+        assert!(css.contains(r#"[data-scope="switch"][data-part="control"]"#));
+        assert!(css.contains(r#"[data-scope="radio-group"][data-part="item-control"]"#));
+        assert!(css.contains(".fd-avatar--size-md"));
+        assert!(css.contains(".fd-avatar--shape-circle"));
         // ショーケース配置スタイル。
         assert!(css.contains(".showcase-row"));
         assert!(css.contains(".showcase-stack"));
