@@ -27,8 +27,8 @@
 
 use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::{
-    aria_controls, aria_label, avatar, data_state, dialog, number_input, password_input, popover,
-    ImageStatus, OpenState, PasswordAutocomplete, PasswordInputProps,
+    aria_controls, aria_label, avatar, data_state, dialog, number_input, password_input, pin_input,
+    popover, ImageStatus, OpenState, PasswordAutocomplete, PasswordInputProps,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -266,5 +266,49 @@ fn password_input_id_and_label_text_are_escaped_for_all_payloads() {
             "password_input::label のテキストコンテキスト",
         );
         assert!(!html.contains("value="));
+    }
+}
+
+/// (2) 属性値経路（イシュー #739 PinInput）: `pin_input::hidden_input` の
+/// `name`/`value`・`pin_input::input` の `value`・呼び出し側 `attrs` へ全
+/// ペイロードを注入し、エスケープが貫通することを固定する。`aria-label`
+/// は `format!` で組み立てた動的文字列（`crates/headless-ui/src/pin_input.rs`
+/// 参照）だが本テストの対象ではなく専用の inline テスト
+/// （`pin_input::tests`）で固定済みのため、ここでは `name`/`value`/`attrs`
+/// の 3 経路のみを扱う。
+#[test]
+fn pin_input_hidden_input_and_input_value_are_escaped_for_all_payloads() {
+    use fandhe_frontend_headless_ui::pin_input::PinInputKind;
+
+    for payload in payloads::all() {
+        let hidden_node = pin_input::hidden_input(payload, payload, false, vec![]);
+        let html = render(&hidden_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "pin_input::hidden_input の name/value コンテキスト",
+        );
+
+        let input_node = pin_input::input(
+            0,
+            1,
+            payload,
+            PinInputKind::Alphanumeric,
+            false,
+            false,
+            false,
+            false,
+            vec![],
+        );
+        let html = render(&input_node);
+        assert_payload_is_escaped(payload, &html, "pin_input::input の value コンテキスト");
+
+        let attrs_node = pin_input::root(false, false, vec![("data-testid", payload)], vec![]);
+        let html = render(&attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "pin_input::root の呼び出し側 attrs コンテキスト",
+        );
     }
 }
