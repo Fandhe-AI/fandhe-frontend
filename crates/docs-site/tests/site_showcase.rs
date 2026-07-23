@@ -78,6 +78,7 @@ fn real_site_build_emits_showcase_page_and_dedicated_css() {
         "badge",
         "spinner",
         "skeleton",
+        "separator",
         "alert",
         "card",
         "tabs",
@@ -90,6 +91,12 @@ fn real_site_build_emits_showcase_page_and_dedicated_css() {
         "switch",
         "radio-group",
         "avatar",
+        "heading",
+        "text",
+        "em",
+        "mark",
+        "blockquote",
+        "list",
     ] {
         assert!(
             html.contains(&format!(r#"data-scope="{scope}""#)),

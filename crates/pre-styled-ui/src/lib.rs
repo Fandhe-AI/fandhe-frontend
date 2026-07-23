@@ -60,6 +60,11 @@
 //!     `variant`、常時 `aria-hidden="true"`、`prefers-reduced-motion: reduce`
 //!     でのアニメーション停止 CSS を持つ。装飾的占位要素のため card と同じ
 //!     判断で colorPalette 軸を付与しない）。
+//!   - [`mod@separator`]（#772）: [`separator::separator`]（単一 recipe、
+//!     `<hr>`。区切り線であり中立的な罫線のため colorPalette 軸を付与しない。
+//!     `orientation`（horizontal/vertical）・`variant`（solid/dashed）の
+//!     2 軸を持ち、`role="separator"`・`aria-orientation`・
+//!     `data-orientation` を常時出力する）。
 //!
 //!   いずれも variant/size/status は Rust enum（[`recipe::VariantValue`] 実装）
 //!   として型安全に表現し、クラス名文字列を動的合成しない
@@ -196,6 +201,13 @@
 //!   [`nav_list::link`]）のみを使い、`site/assets/site.css` の自己完結
 //!   不変条件（§3.4）を維持したまま §3.1/§3.2 の意味論不整合を解消する
 //!   （[`mod@nav_list`] rustdoc 参照）。
+//! - 状態機械を持たない静的表示部品 2 種（イシュー #770）: [`mod@image`]
+//!   （Image、`<img>` の `fit`（`object-fit`）/`aspect-ratio` の 2 軸
+//!   variant。[`fandhe_frontend_headless_ui::avatar`] の `ImageStatus`
+//!   状態機械とは独立）/ [`mod@icon`]（Icon、`<svg>` の `size` variant のみ。
+//!   `color: currentColor` 継承のため `color-palette` 軸は提供しない。SVG
+//!   本体は呼び出し側がノード木 API で構築する）。いずれも中立的な表示部品
+//!   のため `color-palette` 軸を持たない（[`mod@card`] と同型の判断）。
 //! - 状態機械を要しない静的部品 2 種（イシュー #765）:
 //!   [`mod@status`]（Status、root/indicator の 2 パーツ、`size`/
 //!   `color-palette` の 2 軸 variant を持つ。ラベルテキスト自体が状態を
@@ -203,6 +215,19 @@
 //!   （EmptyState、root/content/indicator/title/description/actions の
 //!   6 パーツ、[`crate::card`] と同型の中立コンテナで `color-palette` 軸は
 //!   提供しない）。
+//! - タイポグラフィ静的部品 6 種（イシュー #771）: [`mod@heading`]
+//!   （[`heading::heading`]、`h1`〜`h6` のタグ選択 + `size` variant）・
+//!   [`mod@text`]（[`text::text`]、`<p>`、`size` variant）・[`mod@em`]
+//!   （[`em::em`]、`<em>`、variant なし）・[`mod@mark`]（[`mark::mark`]、
+//!   `<mark>`、`variant`/`color-palette` の 2 軸）・[`mod@blockquote`]
+//!   （[`blockquote::root`] ほかパーツ関数群、root/content/caption の 3
+//!   パーツ、`variant`/`color-palette`）・[`mod@list`]（[`list::root`] ほか
+//!   パーツ関数群、root/item/indicator の 3 パーツ、`ListType` によるタグ
+//!   選択 + `variant`）。いずれも headless 状態機械を要しない静的部品
+//!   （badge/skeleton と同型）。記事全体へのカスケードスタイル（chakra-ui の
+//!   `Prose` 相当）は本クレートへ導入せず、`fandhe-frontend-docs-site` の
+//!   `site/assets/site.css`（`.docs-content` 規則）が引き続き担う（役割分担
+//!   の詳細は [`mod@text`] rustdoc 参照）。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -332,6 +357,7 @@ pub mod accordion;
 pub mod alert;
 pub mod avatar;
 pub mod badge;
+pub mod blockquote;
 pub mod breadcrumb;
 pub mod button;
 pub mod card;
@@ -343,11 +369,17 @@ pub mod combobox;
 pub mod css;
 pub mod dialog;
 pub mod drawer;
+pub mod em;
 pub mod empty_state;
+pub mod heading;
 pub mod hover_card;
+pub mod icon;
+pub mod image;
 pub mod input;
 pub mod link;
 pub mod link_overlay;
+pub mod list;
+pub mod mark;
 pub mod menu;
 pub mod native_select;
 pub mod nav_list;
@@ -363,6 +395,7 @@ pub mod rating_group;
 pub mod recipe;
 pub mod segment_group;
 pub mod select;
+pub mod separator;
 pub mod skeleton;
 pub mod slider;
 pub mod spinner;
@@ -371,6 +404,7 @@ pub mod stylesheet;
 pub mod switch;
 pub mod tabs;
 pub mod tags_input;
+pub mod text;
 pub mod textarea;
 pub mod theme;
 pub mod toggle;
@@ -381,17 +415,26 @@ pub mod tree_view;
 
 pub use alert::AlertStatus;
 pub use badge::{badge, BadgeProps, BadgeVariant};
+pub use blockquote::BlockquoteVariant;
 pub use button::{button, ButtonProps, ButtonVariant};
 pub use card::CardVariant;
 pub use css::{decl, Declaration};
+pub use em::em;
 pub use empty_state::EmptyStateProps;
+pub use heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
+pub use icon::{icon, IconProps};
+pub use image::{image, AspectRatio, ImageFit, ImageProps};
 pub use input::{input, InputProps, InputVariant};
+pub use list::{ListType, ListVariant};
+pub use mark::{mark, MarkProps, MarkVariant};
 pub use native_select::{native_select, NativeSelectProps, NativeSelectVariant};
 pub use recipe::{when, ColorPalette, Size, SlotRecipe, VariantCondition, VariantValue};
+pub use separator::{separator, SeparatorProps, SeparatorVariant};
 pub use skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 pub use spinner::{spinner, SpinnerProps};
 pub use status::StatusProps;
 pub use stylesheet::{StyleSheet, StylesheetError};
+pub use text::{text, TextProps, TextSize};
 pub use textarea::{textarea, TextareaProps, TextareaVariant};
 
 // `fandhe_frontend_headless_ui` クレートそのものの再エクスポート（イシュー #685）。
