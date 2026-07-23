@@ -38,8 +38,13 @@
 //! - 展開状態: `branch`/`branch-control`/`branch-indicator`/`branch-content`
 //!   の `data-state`（`"open"`/`"closed"`）へ [`recipe::StateCondition::AttrEq`]
 //!   で反応する。
-//! - 選択状態: `branch`/`item` の `data-selected` 存在属性へ
-//!   [`recipe::StateCondition::Attr`] で反応する。
+//! - 選択状態: `branch-control`/`item` の `data-selected` 存在属性へ
+//!   [`recipe::StateCondition::Attr`] で反応する（headless
+//!   [`fandhe_frontend_headless_ui::tree_view::branch_control`] が `branch`
+//!   と同じ選択値を要約行自身にも反映する。`branch` は治具パーツ
+//!   （`role="treeitem"` を担うのみで CSS 上のクリック対象ではない）ため
+//!   `branch` 自身への `data-selected` 反映では視覚上の選択強調が効かず、
+//!   Cursor Bugbot 指摘（PR #798）で `branch-control` 側の反映を追加した）。
 //! - disabled: `branch`/`item` の `data-disabled` 存在属性へ反応する
 //!   （[`crate::tags_input`] 等と同型）。
 //!
@@ -115,10 +120,18 @@ fn recipe() -> SlotRecipe {
         // イシュー #753 受け入れ条件: インデントは CSS custom property。
         .base(
             "branch-content",
-            vec![decl(
-                "padding-inline-start",
-                "var(--fandhe-tree-view-indent, 1rem)",
-            )],
+            vec![
+                // `branch-indent-guide`（縦ガイド線）と再帰的な `root`（子ノード
+                // 列）を横並びにする（Cursor Bugbot 指摘 #798）。既定の
+                // `align-items: stretch` により、コンテンツを持たない
+                // `branch-indent-guide` が `root` 側の実高さまで引き伸ばされ、
+                // `border-inline-start` が高さゼロに潰れず縦線として描画される。
+                decl("display", "flex"),
+                decl(
+                    "padding-inline-start",
+                    "var(--fandhe-tree-view-indent, 1rem)",
+                ),
+            ],
         )
         .base(
             "branch-indent-guide",
@@ -131,6 +144,7 @@ fn recipe() -> SlotRecipe {
                     "margin-inline-start",
                     "calc(var(--fandhe-tree-view-indent, 1rem) / 2)",
                 ),
+                decl("flex", "0 0 auto"),
             ],
         )
         .base(

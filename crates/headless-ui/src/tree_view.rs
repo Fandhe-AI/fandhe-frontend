@@ -189,15 +189,21 @@ pub fn branch<'a>(
 /// BranchControl パーツ（`div`）。クリック対象の要約行（ark-ui 準拠で
 /// `role`/`<button>` は持たない。実際の treeitem ロールは [`branch`] 側が
 /// 担う。クリック→dispatch の実 DOM 配線は wasm 層の後続責務、モジュール
-/// doc §out-of-scope 参照）。
+/// doc §out-of-scope 参照）。`selected` は [`branch`] と同じ選択値を渡す
+/// （`data-selected` を要約行自身にも反映し、styled 層が
+/// `[data-part="branch-control"][data-selected]` セレクタで選択強調を
+/// 適用できるようにする。`branch` のみに付与すると要約行が視覚的に
+/// 選択されないため、Cursor Bugbot 指摘 #798 で追加）。
 #[must_use]
 pub fn branch_control<'a>(
     state: OpenState,
+    selected: bool,
     disabled: bool,
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
+    merged.extend(data_selected(selected));
     merged.extend(data_disabled(disabled));
     merged.extend(attrs);
     ANATOMY.part("branch-control", "div", merged, children)
@@ -506,6 +512,7 @@ impl TreeView {
                         vec![
                             branch_control(
                                 state,
+                                is_selected,
                                 node.is_disabled(),
                                 Vec::new(),
                                 vec![
@@ -733,11 +740,34 @@ mod tests {
 
     #[test]
     fn branch_control_outputs_scope_part_and_state() {
-        let html = render(&branch_control(OpenState::Open, false, vec![], vec![]));
+        let html = render(&branch_control(
+            OpenState::Open,
+            false,
+            false,
+            vec![],
+            vec![],
+        ));
         assert!(html.contains(r#"data-part="branch-control""#));
         assert!(html.contains(r#"data-state="open""#));
+        assert!(!html.contains("data-selected"));
         assert!(!html.contains("role="));
         assert!(!html.contains("<button"));
+    }
+
+    #[test]
+    fn branch_control_reflects_selected_state() {
+        // #798 Cursor Bugbot 指摘: 選択強調 CSS
+        // （`[data-part="branch-control"][data-selected]`）が反応するには
+        // branch-control 自身にも data-selected を反映する必要がある。
+        let html = render(&branch_control(
+            OpenState::Open,
+            true,
+            false,
+            vec![],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-part="branch-control""#));
+        assert!(html.contains(r#"data-selected="""#));
     }
 
     #[test]
