@@ -1320,7 +1320,7 @@ fn password_input_section() -> Node {
                                 *visible,
                                 &props,
                                 vec![("aria-label", "Toggle password visibility")],
-                                vec![],
+                                vec![text(if *visible { "Hide" } else { "Show" })],
                             ),
                         ],
                     ),
@@ -1436,6 +1436,11 @@ mod tests {
         assert!(html.contains(r#"data-state="hidden""#));
         assert!(html.contains(r#"aria-pressed="true""#));
         assert!(html.contains(r#"aria-pressed="false""#));
+        // visibility-trigger は可視のラベルテキストを持つ（Bugbot 指摘の
+        // 回帰防止: 空 children では show/hide ボタンに可視コンテンツが
+        // 一切なくなる、イシュー #740 PR #786 レビュー）。
+        assert!(html.contains(r#">Show<"#));
+        assert!(html.contains(r#">Hide<"#));
     }
 
     #[test]
