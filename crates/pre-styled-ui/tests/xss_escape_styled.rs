@@ -43,6 +43,7 @@ use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind};
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
+use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, select};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Size};
@@ -641,6 +642,88 @@ fn pin_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
             payload,
             &html,
             "pin_input::hidden_input name/value コンテキスト",
+        );
+    }
+}
+
+/// (9) tags_input 経路（イシュー #744）: styled `root` の呼び出し側 `attrs`・
+/// `class`、および headless-ui から選択的再エクスポートした `label` の
+/// children・`item_text` の children（タグ文字列そのもの、REQ-1 の重点
+/// 対象）・`item_input` の `value`・`item_delete_trigger` の `tag`
+/// （`aria-label` に組み込まれる）・`hidden_input` の `name`/`value` の
+/// 6 箇所すべてで既定エスケープ（REQ-1）が貫通することを固定する
+/// （`pin_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn tags_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&tags_input::root(
+            Size::Md,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&tags_input::root(
+            Size::Md,
+            false,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "tags_input::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "tags_input::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-tags-input--"),
+            "tags_input::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした label の children 経路。
+        let html = render(&tags_input::label(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "tags_input::label children コンテキスト");
+
+        // 選択的再エクスポートした item_text の children 経路（タグ文字列
+        // そのもの、REQ-1 の重点対象）。
+        let html = render(&tags_input::item_text(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::item_text children コンテキスト",
+        );
+
+        // 選択的再エクスポートした item_input の value 経路。
+        let html = render(&tags_input::item_input(payload, vec![]));
+        assert_payload_is_escaped(payload, &html, "tags_input::item_input value コンテキスト");
+
+        // 選択的再エクスポートした item_delete_trigger の aria-label コンテキスト。
+        let html = render(&tags_input::item_delete_trigger(payload, false, vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::item_delete_trigger aria-label コンテキスト",
+        );
+
+        // 選択的再エクスポートした hidden_input の name/value 経路。
+        let html = render(&tags_input::hidden_input(payload, payload, false, vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::hidden_input name/value コンテキスト",
         );
     }
 }

@@ -88,6 +88,13 @@
 //! - headless ラッパー（#738）: [`mod@number_input`]（NumberInput、`size`
 //!   variant のみを持つ。フォーム入力部品のため `color-palette` 軸は提供
 //!   しない。詳細は [`mod@number_input`] rustdoc 参照）。
+//! - headless ラッパー（#739）: [`mod@pin_input`]（PinInput、`size` variant
+//!   のみを持つ。[`mod@number_input`] と同型の判断で `color-palette` 軸は
+//!   提供しない。詳細は [`mod@pin_input`] rustdoc 参照）。
+//! - headless ラッパー（#744）: [`mod@tags_input`]（TagsInput、`size`
+//!   variant のみを持つ。[`mod@pin_input`]/[`mod@number_input`] と同型の
+//!   判断で `color-palette` 軸は提供しない。詳細は [`mod@tags_input`] rustdoc
+//!   参照）。
 //! - headless 状態機械を持つ複合部品の styled ラッパー第 5 弾（#730）:
 //!   [`mod@checkbox`]。`size`/`color-palette` variant・`data-focus-visible`
 //!   フォーカスリングは [`mod@switch`] と同型で最初から実装する。`indicator`
@@ -251,6 +258,7 @@ pub mod spinner;
 pub mod stylesheet;
 pub mod switch;
 pub mod tabs;
+pub mod tags_input;
 pub mod textarea;
 pub mod theme;
 pub mod tooltip;

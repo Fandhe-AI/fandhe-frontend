@@ -28,7 +28,7 @@
 use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::{
     aria_controls, aria_label, avatar, data_state, dialog, number_input, pin_input, popover,
-    ImageStatus, OpenState,
+    tags_input, ImageStatus, OpenState,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -267,6 +267,58 @@ fn pin_input_hidden_input_and_input_value_are_escaped_for_all_payloads() {
             payload,
             &html,
             "pin_input::root の呼び出し側 attrs コンテキスト",
+        );
+    }
+}
+
+/// (1) テキスト経路 + (2) 属性値経路（イシュー #744 TagsInput）:
+/// タグ文字列そのものがユーザー入力である（REQ-1 の重点対象）ため、
+/// `tags_input::item_text` の children テキスト・`tags_input::hidden_input`
+/// の `name`/`value`・`tags_input::item_input` の `value`・
+/// `tags_input::item_delete_trigger` の `tag`（`format!` で組み立てる
+/// `aria-label` の一部）・呼び出し側 `attrs` へ全ペイロードを注入し、
+/// エスケープが貫通することを固定する。
+#[test]
+fn tags_input_tag_text_and_attribute_paths_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let item_text_node = tags_input::item_text(vec![], vec![text(payload)]);
+        let html = render(&item_text_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::item_text の children コンテキスト",
+        );
+
+        let hidden_node = tags_input::hidden_input(payload, payload, false, vec![]);
+        let html = render(&hidden_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::hidden_input の name/value コンテキスト",
+        );
+
+        let item_input_node = tags_input::item_input(payload, vec![]);
+        let html = render(&item_input_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::item_input の value コンテキスト",
+        );
+
+        let delete_trigger_node = tags_input::item_delete_trigger(payload, false, vec![]);
+        let html = render(&delete_trigger_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::item_delete_trigger の aria-label コンテキスト",
+        );
+
+        let attrs_node = tags_input::root(false, vec![("data-testid", payload)], vec![]);
+        let html = render(&attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::root の呼び出し側 attrs コンテキスト",
         );
     }
 }
