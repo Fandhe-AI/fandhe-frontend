@@ -109,6 +109,31 @@ sheet.write_css_file(std::path::Path::new("static/ui.css")).unwrap();
 let _style_node = sheet.style_element();
 ```
 
+## 4b. styled RadioGroup ラッパー（イシュー #683）
+
+`radio_group` モジュールは `fandhe_frontend_headless_ui::radio_group`
+（イシュー #558/#536）の Root/Label/Item/ItemControl/ItemText/
+ItemHiddenInput 6 anatomy パーツと `RadioGroup` 状態機械をそのまま
+再エクスポート（`pub use fandhe_frontend_headless_ui::radio_group::*`）し、
+`stylesheet()` で既定 CSS を追加提供する（設計方針は #551/#664 の他
+headless ラッパーと同じ、`src/lib.rs` 冒頭の rustdoc 参照）。
+
+- **`item-hidden-input` の視覚的非表示化**: headless 層はネイティブ
+  `<input type="radio">` に `aria`/`data-*` のみを設定し視覚的な非表示化を
+  行わない契約のため、styled 層が visually-hidden パターン（`position:
+  absolute` + 1px クリップ、`select` モジュールの `hidden-select` 規則と
+  同一の 9 宣言）で覆い隠し、`item-control` をカスタムラジオ円として描画
+  する。フォーム送信・キーボード操作・グループ内排他選択はネイティブ
+  semantics のまま維持される。
+- **`StateCondition::FocusWithin` の追加**: `item-hidden-input` を視覚的に
+  隠すと、ネイティブのフォーカスリングも見えなくなる。実フォーカスは
+  隠された `<input>` にあり、`item`（`<label>`、input の祖先）へ
+  `:focus-within` を当てるのが CSS 的に成立する唯一の経路のため、
+  `recipe::StateCondition` へ `FocusWithin`（`:focus-within` 擬似クラス）を
+  追加した（既存の `Attr`/`AttrEq`/`FocusVisible` に次ぐ 4 つ目の状態条件）。
+- 他の headless ラッパーと同様、variant（size 等）ごとのクラス切り替えは
+  スコープ外（単一既定スタイルのみ）。
+
 ## 5. 関連ドキュメント
 
 - [`docs/api/headless-ui-api.md`](./headless-ui-api.md): 本クレートの下層
