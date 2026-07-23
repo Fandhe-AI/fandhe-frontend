@@ -216,6 +216,44 @@ pub fn aria_autocomplete(kind: AriaAutocomplete) -> (&'static str, &'static str)
     ("aria-autocomplete", kind.as_str())
 }
 
+/// `aria-current` の値語彙（W3C ARIA 仕様、Breadcrumb 用イシュー #755）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AriaCurrent {
+    /// 現在のページ（[`crate::breadcrumb::current_link`] が使う値）。
+    Page,
+    /// 手順の現在ステップ。
+    Step,
+    /// 現在の所在地。
+    Location,
+    /// 現在の日付。
+    Date,
+    /// 現在の時刻。
+    Time,
+    /// 種別を限定しない汎用の「現在」。
+    True,
+}
+
+impl AriaCurrent {
+    /// `aria-current` の属性値文字列を返す。
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Page => "page",
+            Self::Step => "step",
+            Self::Location => "location",
+            Self::Date => "date",
+            Self::Time => "time",
+            Self::True => "true",
+        }
+    }
+}
+
+/// `aria-current` 属性（Breadcrumb 等の現在位置表現、イシュー #755）。
+#[must_use]
+pub fn aria_current(kind: AriaCurrent) -> (&'static str, &'static str) {
+    ("aria-current", kind.as_str())
+}
+
 fn bool_str(value: bool) -> &'static str {
     if value {
         "true"
@@ -281,6 +319,19 @@ mod tests {
             ("aria-haspopup", "dialog")
         );
         assert_eq!(aria_haspopup(AriaPopup::True), ("aria-haspopup", "true"));
+    }
+
+    #[test]
+    fn aria_current_maps_variants() {
+        assert_eq!(aria_current(AriaCurrent::Page), ("aria-current", "page"));
+        assert_eq!(aria_current(AriaCurrent::Step), ("aria-current", "step"));
+        assert_eq!(
+            aria_current(AriaCurrent::Location),
+            ("aria-current", "location")
+        );
+        assert_eq!(aria_current(AriaCurrent::Date), ("aria-current", "date"));
+        assert_eq!(aria_current(AriaCurrent::Time), ("aria-current", "time"));
+        assert_eq!(aria_current(AriaCurrent::True), ("aria-current", "true"));
     }
 
     #[test]

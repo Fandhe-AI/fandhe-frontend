@@ -71,6 +71,7 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | MultiToggleGroup（multiple モード） | `toggle_group` | Root/Item | `state::MultiSelect`（dispatch は `"toggle"` のみ受理） | #746 |
 | SegmentGroup | `segment_group` | Root/Indicator/Item/ItemText/ItemControl/ItemHiddenInput | `radio_group::RadioGroup`（`state::SingleSelect`）へ全委譲（独自の状態機械を新設せず、既存 RadioGroup の dispatch/hydration をそのまま再利用する） | #743 |
 | Combobox | `combobox` | Root/Label/Control/Input/Trigger/ClearTrigger/Positioner/Content/ItemGroup/ItemGroupLabel/Item/ItemText/ItemIndicator | `state::Disclosure` + `state::SingleSelect` + `state::TextInput`（開閉 + 選択値 + 入力値の合成）。ARIA 1.2 combobox パターンに準拠し `aria-activedescendant` は `content` ではなく `input` 側に配線する（Select との差異） | #749 |
+| Breadcrumb | `breadcrumb` | Root/List/Item/Link/CurrentLink/Separator/Ellipsis | なし（自由関数のみ、SSR 静的な意味論ナビ。現在位置は `aria-current="page"` + `data-current` の併用で表現） | #755 |
 
 **未実装（open イシュー、後続で追補）**: Checkbox（#535）・Progress（#544）。
 本表はこれらの実装完了時に更新する。
@@ -277,7 +278,7 @@ ark-ui / chakra-ui のレイアウト・ナビゲーション系コンポーネ�
 |---|---|---|---|---|---|
 | 文書ナビ向け Link リスト（`nav` + リンク一覧 + `aria-current="page"`） | (b) | ark-ui に専用コンポーネントはなく、chakra-ui も汎用 `Link`/`List` の組み合わせで表現する軽量パターン | `nav.rs::sidebar` の意味論不整合（§3.1）を直接解消しうる第一候補 | `field.rs`（740 行）程度。状態機械なし・anatomy と `aria-current`/`data-current` 出力のみ | **追加候補**（最優先） |
 | Link / LinkOverlay（アンカー要素全体のカード化） | (b) | chakra-ui に `Link`/`LinkOverlay`（`LinkBox` パターン、`position: absolute` でアンカーを親要素全面へ拡張する構成）あり。ark-ui に専用コンポーネントはなし | `nav.rs::prev_next_nav` の `card` 非対応（§3.2）を直接解消しうる | `avatar.rs` 相当（独自状態なしの小規模 anatomy）と同程度。工数小 | **追加候補** |
-| Breadcrumb | (b) | ark-ui に headless 実体はなく、chakra-ui も styled 合成のみ（状態機械を持たない） | 現時点で docs-site に階層パンくずの利用箇所はない（サイドバー1階層構成のため）。ユーザープロジェクトでの利用見込みはある | `tabs.rs`（790 行）程度。状態機械なし・`aria-current="page"` 出力のみ | **追加候補**（優先度中。工数小さく他 (b) 群と設計を共有できるが docs-site 側の直接解消対象ではない） |
+| Breadcrumb | (b) | ark-ui に headless 実体はなく、chakra-ui も styled 合成のみ（状態機械を持たない） | 現時点で docs-site に階層パンくずの利用箇所はない（サイドバー1階層構成のため）。ユーザープロジェクトでの利用見込みはある | `tabs.rs`（790 行）程度。状態機械なし・`aria-current="page"` 出力のみ | **追加候補**（優先度中）→ **イシュー #755 で実装済み**（headless `crates/headless-ui/src/breadcrumb.rs` + styled `crates/pre-styled-ui/src/breadcrumb.rs`。docs-site showcase へは掲示済みだが `nav.rs::sidebar` 自体の置き換えは行っていない、下記 §4b.5 参照） |
 | Pagination | (a) | ark-ui に headless 実体あり（ページ番号・件数・現在ページの状態機械を持つ） | docs-site に該当箇所なし（現状ページ分割一覧を持たない）。現時点で利用見込みが確認できない | `select.rs`（1481 行）/`menu.rs`（1818 行）相当。状態機械の新規設計を要し工数大 | **保留**（利用見込みが確認できてから再評価。状態機械設計コストが (b) 群より大きく優先度を下げる） |
 | Steps | (a) | ark-ui に headless 実体あり（進行状態を持つウィザード的ナビ） | docs-site・examples のいずれにも利用見込みなし | Pagination 同様に工数大 | **保留** |
 | Container / Stack / Flex / Grid / Center 等の純粋レイアウトプリミティブ | (c) | chakra-ui に styled プリミティブとして存在するが、ark-ui に headless 実体はない（ARIA 意味論を持たないため） | 適用対象なし。プレーンな `div` + CSS で代替可能 | — | **意図的非採用**（`docs/policy/intentional-non-adoption.md` の運用に準拠。headless-ui は anatomy・ARIA・状態機械の提供が責務であり、ARIA 意味論を持たない純粋レイアウトは本層の対象外。CSS プリミティブが必要な場合はユーザー側の素の CSS で足り、フレームワーク側の抽象化はコンテキスト消費を増やすだけで利得がない） |
@@ -302,7 +303,12 @@ ark-ui / chakra-ui のレイアウト・ナビゲーション系コンポーネ�
 - 追加候補（文書ナビ向け Link リスト・Link/LinkOverlay・Breadcrumb）が
   実際に実装された場合、`docs/design/docs-site-styled-ui-adoption.md`
   §5 再評価トリガー 1 の発火条件を満たすため、同書 §3.1/§3.2 の再評価を
-  行う
+  行う。**Breadcrumb はイシュー #755 で実装済みだが、`nav.rs::sidebar`
+  （§3.1）・`nav.rs::prev_next_nav`（§3.2）が解消する意味論不整合は
+  文書ナビ向け Link リスト・Link/LinkOverlay 側の課題であり Breadcrumb
+  自体では解消しない（Breadcrumb は階層パンくず専用の意味論を持つ別
+  コンポーネント）。そのため同書 §3.1/§3.2 の再評価は Link リスト・
+  Link/LinkOverlay の実装イシューのスコープとし、本イシューでは行わない**
 - 保留（Pagination・Steps）は、docs-site またはユーザープロジェクトで
   ページ分割一覧・ウィザード的ナビの利用見込みが具体化した時点で再評価
   する
