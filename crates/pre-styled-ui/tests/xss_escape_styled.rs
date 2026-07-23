@@ -1235,3 +1235,84 @@ fn carousel_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         assert_payload_is_escaped(payload, &html, "carousel::item children コンテキスト");
     }
 }
+
+/// (11) progress 経路（circle 対応、イシュー #763）: styled `root` の
+/// `aria_valuetext` 引数・呼び出し側 `attrs`・`class`、および headless
+/// `Progress` の inherent メソッド（`circle`/`circle_track`/`circle_range`。
+/// styled 層の独自ラッパーを持たず headless をそのまま呼ぶ契約、
+/// `crates/pre-styled-ui/src/progress.rs` rustdoc 参照）の呼び出し側
+/// `attrs` すべてで既定エスケープ（REQ-1）が貫通することを固定する。
+#[test]
+fn progress_styled_root_and_headless_circle_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::Orientation;
+    use fandhe_frontend_pre_styled_ui::progress;
+
+    let p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
+
+    for payload in payloads::all() {
+        // styled root の aria_valuetext 引数経路。
+        let html = render(&progress::root(&p, Size::Md, Some(payload), vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "progress::root aria_valuetext コンテキスト");
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&progress::root(
+            &p,
+            Size::Md,
+            None,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "progress::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&progress::root(
+            &p,
+            Size::Md,
+            None,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "progress::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "progress::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-progress--"),
+            "progress::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // headless circle 系（styled 層の独自ラッパーなし）の呼び出し側 attrs 経路。
+        let html = render(&p.circle(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "Progress::circle 呼び出し側 attrs コンテキスト",
+        );
+
+        let html = render(&p.circle_track(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "Progress::circle_track 呼び出し側 attrs コンテキスト",
+        );
+
+        let html = render(&p.circle_range(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "Progress::circle_range 呼び出し側 attrs コンテキスト",
+        );
+    }
+}
