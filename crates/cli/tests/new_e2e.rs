@@ -55,10 +55,19 @@ fn run_fw_new(extra_args: &[&str]) -> (i32, String, String) {
 
 /// 一意な一時ディレクトリを用意する（テスト名を含み、並列実行・
 /// self-hosted runner の共有 /tmp と衝突しない）。
+///
+/// cargo が `CARGO_TARGET_TMPDIR` を設定するのはテストバイナリの
+/// コンパイル時のみであり、実行時の `std::env::var` 参照は常に失敗する。
+/// 既定はコンパイル時に確定する `env!("CARGO_TARGET_TMPDIR")`（`<target>/tmp`
+/// 配下）を使い `/tmp` への恒常的なリークを避ける（イシュー #637、
+/// `cli/tests/support/mod.rs::scratch_root` と同一方針、テストターゲット
+/// 独立の制約による意図的な複製）。実行時 env による明示上書きは引き続き
+/// 許容する。
 fn unique_scratch_dir(label: &str) -> PathBuf {
     let root = std::env::var("CARGO_TARGET_TMPDIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| std::env::temp_dir());
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_TARGET_TMPDIR")));
+    let _ = std::fs::create_dir_all(&root);
     let dir = root.join(format!(
         "fw-new-e2e-{label}-{}-{}",
         std::process::id(),
