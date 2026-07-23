@@ -40,6 +40,7 @@ use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
+use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
@@ -50,6 +51,7 @@ use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingItemFlags};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
+use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, select};
@@ -1296,5 +1298,104 @@ fn carousel_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         // 選択的再エクスポートした item の children 経路。
         let html = render(&carousel::item(0, 1, false, vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "carousel::item children コンテキスト");
+    }
+}
+
+/// (11) status/empty_state 経路（イシュー #765）: 状態機械を要しない静的
+/// styled 部品 2 種の全攻撃面（root children・呼び出し側 attrs・`class`
+/// 属性・パーツ children）で既定エスケープ（REQ-1）が貫通することを固定
+/// する（`card`/`checkbox_card` と同型）。
+#[test]
+fn status_empty_state_styled_parts_and_class_attr_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // status::root の children（ラベルテキスト）経路。
+        let html = render(&status::root(
+            &StatusProps::default(),
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "status::root children コンテキスト");
+
+        // status::root の呼び出し側 attrs 経路。
+        let html = render(&status::root(
+            &StatusProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "status::root 呼び出し側 attrs コンテキスト");
+
+        // status::root の class 属性経路（drop_class_attr により生ペイロード
+        // は出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&status::root(
+            &StatusProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "status::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "status::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-status--"),
+            "status::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // status::indicator の呼び出し側 attrs 経路。
+        let html = render(&status::indicator(vec![("data-testid", payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "status::indicator 呼び出し側 attrs コンテキスト",
+        );
+
+        // empty_state::root の呼び出し側 attrs 経路。
+        let html = render(&empty_state::root(
+            &EmptyStateProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "empty_state::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // empty_state::root の class 属性経路。
+        let html = render(&empty_state::root(
+            &EmptyStateProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "empty_state::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "empty_state::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-empty-state--"),
+            "empty_state::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // empty_state::title / description の children 経路。
+        let html = render(&empty_state::title(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "empty_state::title children コンテキスト");
+
+        let html = render(&empty_state::description(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "empty_state::description children コンテキスト",
+        );
     }
 }

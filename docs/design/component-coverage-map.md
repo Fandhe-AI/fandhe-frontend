@@ -35,9 +35,9 @@ Phase 3〜6（#736/#748/#757/#766 配下、#737〜#747・#749〜#756・#758〜#7
 ## 3. 実装済み部品と lib.rs の突合手順
 
 `crates/headless-ui/src/lib.rs` の基盤 mod（anatomy / aria / data_attrs /
-positioning / state）を除く 17 mod、`crates/pre-styled-ui/src/lib.rs` の
-基盤 mod（css / recipe / stylesheet / theme）を除く 21 mod（styled ラッパー
-13 + 静的部品 8）が、本書の「実装済み」区分と一致することを次のコマンドで
+positioning / state）を除く 34 mod、`crates/pre-styled-ui/src/lib.rs` の
+基盤 mod（css / recipe / stylesheet / theme）を除く 42 mod（styled ラッパー
+32 + 静的部品 10）が、本書の「実装済み」区分と一致することを次のコマンドで
 確認できる。
 
 ```bash
@@ -47,17 +47,26 @@ grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs \
   | grep -vE 'css|recipe|stylesheet|theme'
 ```
 
-2026-07-23 時点の実測（#743 マージにより segment_group を追加反映。#738
-マージ分の number_input を含め再実測）:
+2026-07-23 時点の実測（#765 マージにより status / empty_state を追加
+反映。本節はこれ以前の複数 PR（#754〜#761 等）を経て蓄積した mod 数の
+乖離を本イシューで合わせて是正した）:
 
-- headless-ui 17: accordion / avatar / checkbox / collapsible / dialog /
-  field / fieldset / menu / number_input / popover / progress /
-  radio_group / segment_group / select / switch / tabs / tooltip
-- pre-styled-ui 21（styled ラッパー 13 + 静的部品 8）:
-  accordion / avatar / checkbox / dialog / menu / number_input / popover /
-  radio_group / segment_group / select / switch / tabs / tooltip（styled）+
-  alert / badge / button / card / spinner / input / textarea /
-  native_select（静的）
+- headless-ui 34: accordion / avatar / breadcrumb / carousel / checkbox /
+  collapsible / combobox / dialog / drawer / field / fieldset / hover_card /
+  link / link_overlay / menu / nav_list / number_input / pagination /
+  pin_input / popover / progress / radio_group / rating_group /
+  segment_group / select / slider / switch / tabs / tags_input / toggle /
+  toggle_group / toggle_tip / tooltip / tree_view
+- pre-styled-ui 42（styled ラッパー 32 + 静的部品 10）:
+  accordion / avatar / breadcrumb / carousel / checkbox / checkbox_card /
+  combobox / dialog / drawer / hover_card / link / link_overlay / menu /
+  nav_list / number_input / pagination / pin_input / popover / radio_card /
+  radio_group / rating_group / segment_group / select / slider / switch /
+  tabs / tags_input / toggle / toggle_group / toggle_tip / tooltip /
+  tree_view（styled ラッパー、`checkbox_card`/`radio_card` は headless 状態
+  機械（`checkbox`/`radio_group`）を再利用するカード型選択 UI として本区分へ
+  計上、32 件）+ alert / badge / button / card / spinner / input / textarea /
+  native_select / status / empty_state（静的部品、10 件）
 
 ## 4. 抜けの機械確認手順
 
@@ -394,8 +403,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/feedback/toast.md` | Toast | Toast | — | — | 実装対象 | #760 |
 | `.agents/skills/chakra-ui/references/components/feedback/progress-circle.md` | Progress (circular) | ProgressCircle | progress | — | 実装対象 | #763（既存 progress mod を circular 対応へ拡張） |
 | `.agents/skills/chakra-ui/references/components/feedback/skeleton.md` | — | Skeleton | — | — | 実装対象 | #764 |
-| `.agents/skills/chakra-ui/references/components/feedback/status.md` | — | Status | — | — | 実装対象 | #765 |
-| `.agents/skills/chakra-ui/references/components/feedback/empty-state.md` | — | EmptyState | — | — | 実装対象 | #765 |
+| `.agents/skills/chakra-ui/references/components/feedback/status.md` | — | Status | — | status | 実装済み | pre-styled 静的部品 実装済み（#765） |
+| `.agents/skills/chakra-ui/references/components/feedback/empty-state.md` | — | EmptyState | — | empty_state | 実装済み | pre-styled 静的部品 実装済み（#765） |
 
 #### `.agents/skills/chakra-ui/references/components/forms/`
 
