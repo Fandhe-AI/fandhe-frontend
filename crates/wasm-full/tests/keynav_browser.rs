@@ -34,12 +34,23 @@
 //!    disabled スキップ・orientation 制限・Home/End・`change` 同期
 //!
 //! XSS 回帰（REQ-1）: 攻撃者制御文字列を持つラベルに対しキー操作・活性化・
-//! highlight/選択を行っても `script` 要素が DOM に生成されないことを固定する。
+//! highlight/選択・typeahead を行っても `script` 要素が DOM に生成されない
+//! ことを固定する。
+//!
+//! 10. typeahead（イシュー #641）: Menu open 時の文字キーでマッチ項目へ
+//!     highlight 移動、タイムアウト内の連続入力で絞り込み・タイムアウト後は
+//!     新規バッファ、同一文字連打での巡回・disabled スキップ、Select でも
+//!     同動作（ラベルは `item-text` 子から解決され indicator 文字が混入
+//!     しない）、closed 時の文字キーで open + マッチ項目の初期 highlight、
+//!     バッファ有効時の Space はバッファへ追記され決定にならない、Escape
+//!     後の再入力は新規バッファから始まる、攻撃者制御ラベルでの XSS 回帰
 
 #![cfg(target_arch = "wasm32")]
 
-use fandhe_frontend_wasm_full::keynav::wire_keynav;
-use wasm_bindgen::JsCast;
+use fandhe_frontend_wasm_full::keynav::{wire_keynav, TYPEAHEAD_TIMEOUT_MS};
+use wasm_bindgen::closure::Closure;
+use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen_futures::JsFuture;
 use wasm_bindgen_test::*;
 use web_sys::{
     Document, Element, Event, EventInit, HtmlElement, HtmlInputElement, KeyboardEvent,
@@ -47,6 +58,24 @@ use web_sys::{
 };
 
 wasm_bindgen_test_configure!(run_in_browser);
+
+/// `ms` ミリ秒だけ実時間で待つ（`tooltip_delay_browser.rs::sleep_ms` と
+/// 同実装。typeahead バッファのタイムアウト境界（350ms）を実タイマーで
+/// 決定的に検証するために使う）。
+async fn sleep_ms(ms: i32) {
+    let promise = js_sys::Promise::new(&mut |resolve, _reject| {
+        let window = web_sys::window().expect("window must exist");
+        let callback = Closure::once_into_js(move || {
+            let _ = resolve.call0(&JsValue::NULL);
+        });
+        window
+            .set_timeout_with_callback_and_timeout_and_arguments_0(callback.unchecked_ref(), ms)
+            .expect("setTimeout must not fail in test environment");
+    });
+    JsFuture::from(promise)
+        .await
+        .expect("setTimeout promise must not reject");
+}
 
 /// テスト末尾でプレースホルダを document から確実に除去する RAII ガード
 /// （`runtime_browser.rs::RemoveOnDrop` と同じ意図。テスト間 DOM 汚染防止）。
@@ -306,6 +335,85 @@ fn build_select_dom(
             item.set_attribute("data-disabled", "").unwrap();
         }
         item.set_text_content(Some(label));
+        content.append_child(&item).unwrap();
+    }
+    root.append_child(&content).unwrap();
+
+    document
+        .body()
+        .unwrap()
+        .append_child(&root)
+        .expect("append_child must not fail for a detached div");
+    root
+}
+
+/// [`build_select_dom`] の亜種。各項目に `[data-part="item-text"]` 子
+/// （ラベル）と、その手前に `[data-part="item-indicator"]`（別テキストを
+/// 持つ兄弟パーツ）を追加した Select DOM を生成する。typeahead のラベル
+/// 解決（`item_label`、イシュー #641）が `item-text` 子を優先し
+/// item-indicator のテキストを混入させないことを検証するために使う
+/// （`crates/headless-ui/src/select.rs` の anatomy 契約に対応）。
+fn build_select_dom_with_item_text(
+    document: &Document,
+    root_id: &str,
+    items: &[(&str, &str, &str, bool)],
+    open: bool,
+) -> Element {
+    let root = document.create_element("div").unwrap();
+    root.set_id(root_id);
+    root.set_attribute("data-scope", "select").unwrap();
+    root.set_attribute("data-part", "root").unwrap();
+
+    let trigger = document.create_element("button").unwrap();
+    trigger.set_attribute("data-scope", "select").unwrap();
+    trigger.set_attribute("data-part", "trigger").unwrap();
+    trigger.set_attribute("type", "button").unwrap();
+    let trigger_id = format!("{root_id}-trigger");
+    let content_id = format!("{root_id}-content");
+    trigger.set_attribute("id", &trigger_id).unwrap();
+    trigger.set_attribute("aria-haspopup", "listbox").unwrap();
+    trigger
+        .set_attribute("aria-expanded", if open { "true" } else { "false" })
+        .unwrap();
+    trigger.set_attribute("aria-controls", &content_id).unwrap();
+    trigger.set_text_content(Some("Select"));
+    root.append_child(&trigger).unwrap();
+
+    let content = document.create_element("div").unwrap();
+    content.set_attribute("data-scope", "select").unwrap();
+    content.set_attribute("data-part", "content").unwrap();
+    content.set_attribute("id", &content_id).unwrap();
+    content.set_attribute("role", "listbox").unwrap();
+    if !open {
+        content.set_attribute("hidden", "").unwrap();
+    }
+    for (value, indicator_text, label, disabled) in items {
+        let item = document.create_element("div").unwrap();
+        item.set_attribute("data-scope", "select").unwrap();
+        item.set_attribute("data-part", "item").unwrap();
+        item.set_attribute("role", "option").unwrap();
+        item.set_attribute("data-value", value).unwrap();
+        item.set_attribute("id", &format!("{root_id}-item-{value}"))
+            .unwrap();
+        if *disabled {
+            item.set_attribute("aria-disabled", "true").unwrap();
+            item.set_attribute("data-disabled", "").unwrap();
+        }
+        // indicator を先に置く: `item_label` が item 自身の `text_content()`
+        // へ誤ってフォールバックした場合、indicator の文字列も連結されて
+        // しまいラベル一致判定を汚染する（本テストが検出したい回帰）。
+        let indicator = document.create_element("span").unwrap();
+        indicator
+            .set_attribute("data-part", "item-indicator")
+            .unwrap();
+        indicator.set_text_content(Some(indicator_text));
+        item.append_child(&indicator).unwrap();
+
+        let text = document.create_element("span").unwrap();
+        text.set_attribute("data-part", "item-text").unwrap();
+        text.set_text_content(Some(label));
+        item.append_child(&text).unwrap();
+
         content.append_child(&item).unwrap();
     }
     root.append_child(&content).unwrap();
@@ -1611,4 +1719,319 @@ fn menu_and_radio_group_keyboard_navigation_with_attacker_controlled_strings_doe
         .dispatch_event(&keydown_event("ArrowRight"))
         .unwrap();
     assert!(radio_root.query_selector("script").unwrap().is_none());
+}
+
+// ---------------------------------------------------------------------
+// typeahead（Menu/Select 共用、イシュー #641）
+// ---------------------------------------------------------------------
+
+/// 検証: open の Menu で文字キーがマッチ項目へ highlight を移動する
+/// （`data-highlighted`/`aria-activedescendant` 追随）。
+#[wasm_bindgen_test]
+fn menu_open_typeahead_moves_highlight_to_matching_item() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom(
+        &document,
+        "kn-ta-menu1",
+        &[("a", "Apple", false), ("b", "Banana", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-ta-menu1-trigger").unwrap();
+    let content = document.get_element_by_id("kn-ta-menu1-content").unwrap();
+    let item_b = document.get_element_by_id("kn-ta-menu1-item-b").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    let not_default_prevented = trigger.dispatch_event(&keydown_event("b")).unwrap();
+    assert!(
+        !not_default_prevented,
+        "typeahead でハンドリングした文字キーは prevent_default されるべき"
+    );
+    assert!(item_b.has_attribute("data-highlighted"));
+    assert_eq!(
+        content.get_attribute("aria-activedescendant").as_deref(),
+        Some("kn-ta-menu1-item-b")
+    );
+}
+
+/// 検証: タイムアウト内の連続入力でバッファが絞り込まれ、タイムアウト
+/// （[`TYPEAHEAD_TIMEOUT_MS`]）超過後は新規バッファとして再探索する。
+#[wasm_bindgen_test]
+async fn menu_open_typeahead_buffers_within_timeout_and_resets_after() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    // "Almond" は "a" にのみ一致し "ap" には一致しない（"Apple" のように
+    // 2 文字目が "p" のラベルを選ぶと "a"/"ap" の絞り込み挙動を区別できない
+    // ため、意図的に "Al" 始まりを選ぶ）。
+    let root = build_menu_dom(
+        &document,
+        "kn-ta-menu2",
+        &[
+            ("a", "Almond", false),
+            ("b", "Apricot", false),
+            ("c", "Banana", false),
+        ],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-ta-menu2-trigger").unwrap();
+    let item_a = document.get_element_by_id("kn-ta-menu2-item-a").unwrap();
+    let item_b = document.get_element_by_id("kn-ta-menu2-item-b").unwrap();
+    let item_c = document.get_element_by_id("kn-ta-menu2-item-c").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // "a" → Almond（先頭一致）。
+    trigger.dispatch_event(&keydown_event("a")).unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+
+    // タイムアウト内に "p" を追記 → バッファ "ap" → Apricot に絞り込む。
+    trigger.dispatch_event(&keydown_event("p")).unwrap();
+    assert!(item_b.has_attribute("data-highlighted"));
+    assert!(!item_a.has_attribute("data-highlighted"));
+
+    // タイムアウト超過後に "b" → 新規バッファとして Banana を検索する
+    // （"apb" ではなく "b" 単独として扱われることの確認）。
+    sleep_ms((TYPEAHEAD_TIMEOUT_MS as i32) + 200).await;
+    trigger.dispatch_event(&keydown_event("b")).unwrap();
+    assert!(item_c.has_attribute("data-highlighted"));
+    assert!(!item_b.has_attribute("data-highlighted"));
+}
+
+/// 検証: 同一文字の連打で同じ頭文字の項目を巡回し、disabled はスキップする。
+#[wasm_bindgen_test]
+fn menu_open_typeahead_repeated_char_cycles_and_skips_disabled() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom(
+        &document,
+        "kn-ta-menu3",
+        &[
+            ("a", "Apple", false),
+            ("b", "Avocado", true),
+            ("c", "Apricot", false),
+        ],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-ta-menu3-trigger").unwrap();
+    let item_a = document.get_element_by_id("kn-ta-menu3-item-a").unwrap();
+    let item_c = document.get_element_by_id("kn-ta-menu3-item-c").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("a")).unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+
+    // "a" を連打 → 同一バッファ "aa" として扱われ、次の "a" 始まり項目
+    // （disabled の b をスキップして c）へ巡回する。
+    trigger.dispatch_event(&keydown_event("a")).unwrap();
+    assert!(item_c.has_attribute("data-highlighted"));
+    assert!(!item_a.has_attribute("data-highlighted"));
+}
+
+/// 検証: Select でもラベルは `[data-part="item-text"]` 子から解決され、
+/// その手前に置かれた item-indicator のテキストが typeahead マッチを
+/// 汚染しないこと（イシュー #641 の受け入れ条件）。
+#[wasm_bindgen_test]
+fn select_open_typeahead_uses_item_text_label_not_indicator_text() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    // indicator に "Zephyr"（Z 始まり）を仕込む。`item_label` が誤って
+    // indicator のテキストまで拾ってしまうと "b" 入力でも item-a が
+    // マッチしてしまう（indicator "Zephyr" は "b" と無関係だが、item 自身の
+    // `text_content()` は子孫全体（indicator + item-text）を連結するため
+    // "ZephyrApple" のような文字列になり、本来ヒットしないはずの挙動を
+    // 誘発しうる）。
+    let root = build_select_dom_with_item_text(
+        &document,
+        "kn-ta-select1",
+        &[
+            ("a", "Zephyr", "Apple", false),
+            ("b", "Zephyr", "Banana", false),
+        ],
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-ta-select1-trigger").unwrap();
+    let item_b = document.get_element_by_id("kn-ta-select1-item-b").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("b")).unwrap();
+    assert!(
+        item_b.has_attribute("data-highlighted"),
+        "item-text 子のラベル（Banana）でマッチし、indicator（Zephyr）は無視されるべき"
+    );
+}
+
+/// 検証: closed の trigger 上で文字キーを押すと open + マッチ項目の初期
+/// highlight が設定される。
+#[wasm_bindgen_test]
+fn menu_closed_typeahead_opens_and_sets_matching_initial_highlight() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom(
+        &document,
+        "kn-ta-menu4",
+        &[("a", "Apple", false), ("b", "Banana", false)],
+        false,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let content = document.get_element_by_id("kn-ta-menu4-content").unwrap();
+    let open_closure = Closure::<dyn FnMut(Event)>::new({
+        let content = content.clone();
+        move |_event: Event| {
+            let _ = content.remove_attribute("hidden");
+        }
+    });
+    let trigger = document.get_element_by_id("kn-ta-menu4-trigger").unwrap();
+    trigger
+        .add_event_listener_with_callback("click", open_closure.as_ref().unchecked_ref())
+        .unwrap();
+    open_closure.forget();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("b")).unwrap();
+
+    assert!(!content.has_attribute("hidden"));
+    let item_b = document.get_element_by_id("kn-ta-menu4-item-b").unwrap();
+    assert!(item_b.has_attribute("data-highlighted"));
+    assert_eq!(
+        content.get_attribute("aria-activedescendant").as_deref(),
+        Some("kn-ta-menu4-item-b")
+    );
+}
+
+/// 検証: バッファ有効時の Space はバッファへ追記され決定（click 合成）に
+/// ならない。バッファが無効（空）の Space は従来通り決定として扱われる。
+#[wasm_bindgen_test]
+fn menu_open_space_buffers_when_typeahead_active_but_activates_when_empty() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom(
+        &document,
+        "kn-ta-menu5",
+        &[("a", "Apple", false), ("b", "A B", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-ta-menu5-trigger").unwrap();
+    let item_a = document.get_element_by_id("kn-ta-menu5-item-a").unwrap();
+    let item_b = document.get_element_by_id("kn-ta-menu5-item-b").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // バッファ空の Space は従来通り決定（highlight 不在のため no-op のまま、
+    // click は合成されない）。副作用が無いことのみ確認する。
+    let not_default_prevented = trigger.dispatch_event(&keydown_event(" ")).unwrap();
+    assert!(
+        !not_default_prevented,
+        "Space は開いている間常に prevent_default される"
+    );
+    assert!(!item_a.has_attribute("data-highlighted"));
+    assert!(!item_b.has_attribute("data-highlighted"));
+
+    // "a" で Apple を highlight。
+    trigger.dispatch_event(&keydown_event("a")).unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+
+    // タイムアウト内の Space はバッファへ追記され（"a "）、"A B" にマッチして
+    // highlight が移動する（決定にはならない）。
+    trigger.dispatch_event(&keydown_event(" ")).unwrap();
+    assert!(item_b.has_attribute("data-highlighted"));
+    assert!(!item_a.has_attribute("data-highlighted"));
+}
+
+/// 検証: Escape で highlight クリアに加えて typeahead バッファもリセット
+/// される（再入力は新規バッファから始まる）。
+#[wasm_bindgen_test]
+fn menu_open_escape_resets_typeahead_buffer() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom(
+        &document,
+        "kn-ta-menu6",
+        &[("a", "Apple", false), ("b", "Apricot", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-ta-menu6-trigger").unwrap();
+    let item_a = document.get_element_by_id("kn-ta-menu6-item-a").unwrap();
+    let item_b = document.get_element_by_id("kn-ta-menu6-item-b").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("a")).unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+
+    trigger.dispatch_event(&keydown_event("Escape")).unwrap();
+    assert!(!item_a.has_attribute("data-highlighted"));
+    assert!(!item_b.has_attribute("data-highlighted"));
+
+    // Escape 後に "p" を単独入力 → もし旧バッファ "a" が残っていれば "ap"
+    // として Apricot にマッチしてしまうが、リセットされていれば新規バッファ
+    // "p" は "p" 始まりの項目が無いためマッチ無し（no-op）のはず。
+    trigger.dispatch_event(&keydown_event("p")).unwrap();
+    assert!(!item_a.has_attribute("data-highlighted"));
+    assert!(!item_b.has_attribute("data-highlighted"));
+}
+
+/// XSS 回帰（REQ-1、イシュー #641）: 攻撃者制御文字列を含むラベルに対し
+/// typeahead（open/closed 双方）を行っても `script` 要素が DOM に生成
+/// されないこと。
+#[wasm_bindgen_test]
+fn menu_typeahead_with_attacker_controlled_label_does_not_inject_script() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom(
+        &document,
+        "kn-ta-xss1",
+        &[("a", "<script>alert(5)</script>", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-ta-xss1-trigger").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    trigger.dispatch_event(&keydown_event("<")).unwrap();
+    assert!(root.query_selector("script").unwrap().is_none());
+
+    // closed 経路の typeahead も同様に検証する。
+    let closed_root = build_menu_dom(
+        &document,
+        "kn-ta-xss2",
+        &[("a", "<script>alert(6)</script>", false)],
+        false,
+        false,
+    );
+    let _closed_cleanup = RemoveOnDrop(closed_root.clone());
+    let closed_content = document.get_element_by_id("kn-ta-xss2-content").unwrap();
+    let open_closure = Closure::<dyn FnMut(Event)>::new({
+        let content = closed_content.clone();
+        move |_event: Event| {
+            let _ = content.remove_attribute("hidden");
+        }
+    });
+    let closed_trigger = document.get_element_by_id("kn-ta-xss2-trigger").unwrap();
+    closed_trigger
+        .add_event_listener_with_callback("click", open_closure.as_ref().unchecked_ref())
+        .unwrap();
+    open_closure.forget();
+    wire_keynav(closed_root.clone()).expect("wire_keynav must succeed");
+    html_element(&closed_trigger).focus().unwrap();
+    closed_trigger.dispatch_event(&keydown_event("<")).unwrap();
+    assert!(closed_root.query_selector("script").unwrap().is_none());
 }

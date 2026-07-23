@@ -118,8 +118,43 @@
 //!   document 単位 pointerdown 委譲）による閉鎖時の highlight 後始末は、
 //!   本モジュールが root スコープの委譲リスナーしか持たず outside click を
 //!   観測できないため対象外**（#580 統合層側で対応する）。
-//! - サブメニュー（`trigger-item`）の ArrowRight/ArrowLeft 開閉ナビゲーション・
-//!   typeahead は本イシュー（#583）のスコープ外（PR 本文で Issue 化を提案）。
+//! - サブメニュー（`trigger-item`）の ArrowRight/ArrowLeft 開閉ナビゲーションは
+//!   本イシュー（#583）・#641 いずれのスコープ外（PR 本文で Issue 化を提案）。
+//!
+//! ## typeahead（文字キー入力による項目ジャンプ、イシュー #641）
+//!
+//! WAI-ARIA APG Menu Button / Listbox / Select-Only Combobox パターン準拠の
+//! typeahead を Menu/Select 共通で実装する（純粋層 [`is_typeahead_key`]/
+//! [`typeahead_push`]/[`typeahead_next_index`]、配線層
+//! [`wiring::TypeaheadState`]）。
+//!
+//! - **対象キー**: 修飾キー（Ctrl/Alt/Meta）なしの単一 printable 文字
+//!   （制御文字を除く）。Space はバッファが**タイムアウト内・非空のときのみ**
+//!   typeahead 対象とし、バッファ無効時は従来通り決定キー（closed なら
+//!   open、open なら highlight 項目への click 合成）として扱う。
+//! - **バッファ**: 直前入力から [`TYPEAHEAD_TIMEOUT_MS`]（350ms、zag/ark-ui
+//!   既定に整合）以内なら追記し、超過なら新規バッファとして開始する。
+//!   最大 [`TYPEAHEAD_MAX_BUFFER_LEN`] 文字でそれ以上追記しない（キー長押し
+//!   連打による無制限成長防止、A04 対策）。バッファは DOM から導出できない
+//!   一時入力状態のため [`wire_keynav`] の keydown [`Closure`] が
+//!   [`wiring::TypeaheadState`] として所有し、対象 content が変わったときの
+//!   混線・タイムアウト超過は同状態が自動でリセットする（`data-*` 属性へは
+//!   一切書き出さない。ユーザー打鍵文字列を DOM へ露出させる新規面を作らない
+//!   ため）。
+//! - **マッチング**: 各項目のラベル（[`wiring::item_label`]、Select は
+//!   `[data-part="item-text"]` 子を優先し item-indicator の混入を避ける）
+//!   先頭一致・大文字小文字非区別。disabled 項目はスキップし、探索は常に
+//!   wrap する。バッファが同一文字の繰り返しのときは現在 highlight の
+//!   **次**から、複数の異なる文字を含むバッファのときは現在 highlight
+//!   **自身を含む**位置から探索する（詳細は [`typeahead_next_index`] doc
+//!   参照）。マッチなし・全 disabled・空 items は no-op（fail-closed）。
+//! - **closed のとき**: printable 文字キーで trigger へ `click()` を合成して
+//!   開き、開いた直後にマッチ項目（無ければ先頭の非 disabled 項目）を初期
+//!   highlight にする。
+//! - **Escape**: 既存の highlight クリアに加えて typeahead バッファも
+//!   リセットする（再入力は新規バッファから始まる）。typeahead は選択・
+//!   開閉を行わず highlight 更新のみ（決定は従来通り Enter/Space の click
+//!   合成経路）。
 //!
 //! # RadioGroup のキーボード仕様（WAI-ARIA APG Radio Group パターン準拠）
 //!
@@ -438,6 +473,120 @@ pub fn radio_next_index(
         }
         _ => None,
     }
+}
+
+/// typeahead バッファのタイムアウト（ms）。直前の入力からこの時間以内なら
+/// 同一バッファへ追記し、超過したら新規バッファとして開始する
+/// （zag・ark-ui の既定値に整合。モジュール doc §Menu/Select 参照）。
+pub const TYPEAHEAD_TIMEOUT_MS: f64 = 350.0;
+
+/// typeahead バッファの最大文字数。キー長押し連打による無制限成長を防ぐ
+/// （A04 対策、モジュール doc §セキュリティ不変条件参照）。
+pub const TYPEAHEAD_MAX_BUFFER_LEN: usize = 32;
+
+/// keydown の `key` が typeahead（文字検索）対象かどうかを判定する純粋関数。
+///
+/// 修飾キー（Ctrl/Alt/Meta）付き・複数文字のキー名（`"Enter"`/`"ArrowDown"`/
+/// `"F5"` 等、`key.chars().count() != 1`）は対象外。Space（`" "`）は
+/// **`buffer_active`（typeahead バッファがタイムアウト内で非空）のときのみ**
+/// 対象とし、バッファが無効なときは呼び出し側の既存の決定キー処理
+/// （trigger の open・highlight 項目の click 合成）に譲る（zag と同挙動、
+/// モジュール doc §Menu/Select 参照）。制御文字（Space 以外）も対象外。
+#[must_use]
+pub fn is_typeahead_key(key: &str, buffer_active: bool, modifiers: Modifiers) -> bool {
+    if modifiers.any() {
+        return false;
+    }
+    let mut chars = key.chars();
+    let Some(c) = chars.next() else {
+        return false;
+    };
+    if chars.next().is_some() {
+        return false;
+    }
+    if c == ' ' {
+        return buffer_active;
+    }
+    !c.is_control()
+}
+
+/// typeahead バッファへ 1 文字追記する純粋関数。`elapsed_ms`
+/// （直前の入力からの経過時間、同一 content 上でのみ意味を持つ。呼び出し側
+/// が対象 content の一致判定を行い、不一致・初回入力時は `f64::INFINITY`
+/// 等の大きな値を渡すことで新規バッファ扱いにする）が
+/// [`TYPEAHEAD_TIMEOUT_MS`] 以内ならバッファを継続し、超過なら空文字から
+/// 開始する。バッファ長が [`TYPEAHEAD_MAX_BUFFER_LEN`] に達している場合は
+/// それ以上追記しない（無制限成長防止、fail-closed）。
+#[must_use]
+pub fn typeahead_push(buffer: &str, key: &str, elapsed_ms: f64) -> String {
+    let mut next = if elapsed_ms <= TYPEAHEAD_TIMEOUT_MS {
+        buffer.to_string()
+    } else {
+        String::new()
+    };
+    if next.chars().count() < TYPEAHEAD_MAX_BUFFER_LEN {
+        next.push_str(key);
+    }
+    next
+}
+
+/// typeahead バッファ（`buffer`）から次に highlight すべき項目インデックスを
+/// 求める純粋関数（web-sys 非依存、native `cargo test` 可）。`labels` は各
+/// 項目のラベル文字列（大文字小文字非区別で前方一致比較する）、`disabled` は
+/// 各項目の disabled フラグ列で `labels` と同じ長さを前提とする（長さ不一致・
+/// 空・`buffer` 空は `None`、fail-closed）。
+///
+/// - `buffer` が同一文字の繰り返し（例 `"aa"`、単一文字 `"a"` も含む）の
+///   ときは、その 1 文字で始まる項目を `current` の**次**から循環探索する
+///   （同一頭文字の項目を順に巡回）。
+/// - それ以外（複数の異なる文字を含むバッファ、例 `"ab"`）は `current`
+///   **自身を含む**位置から循環探索する（`"a"` → `"ab"` と絞り込む際に
+///   現在項目へ留まれるようにする）。
+/// - `current` が `None`、または範囲外（`labels.len()` 以上）の場合は
+///   先頭（インデックス 0）から探索する（[`highlight_next_index`] の
+///   「範囲外は highlight なしと同じ扱い」と同じ fail-closed 方針）。
+/// - disabled 項目はスキップする。マッチする項目が無い場合は `None`
+///   （no-op、fail-closed）。
+#[must_use]
+pub fn typeahead_next_index(
+    current: Option<usize>,
+    buffer: &str,
+    labels: &[&str],
+    disabled: &[bool],
+) -> Option<usize> {
+    let len = disabled.len();
+    if len == 0 || len != labels.len() || buffer.is_empty() {
+        return None;
+    }
+    let query = buffer.to_lowercase();
+    let is_repeat_of_single_char = {
+        let mut chars = query.chars();
+        let first = chars.next();
+        first.is_some() && chars.all(|c| Some(c) == first)
+    };
+    let current_in_range = current.filter(|&i| i < len);
+    let start = current_in_range.unwrap_or(0);
+    let skip_current = is_repeat_of_single_char && current_in_range.is_some();
+    let match_query: String = if is_repeat_of_single_char {
+        query.chars().next().map(String::from).unwrap_or_default()
+    } else {
+        query
+    };
+
+    for offset in 0..len {
+        let idx = if skip_current {
+            (start + 1 + offset) % len
+        } else {
+            (start + offset) % len
+        };
+        if disabled[idx] {
+            continue;
+        }
+        if labels[idx].to_lowercase().starts_with(&match_query) {
+            return Some(idx);
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -1143,6 +1292,175 @@ mod tests {
             None
         );
     }
+
+    // --- typeahead（Menu/Select 共用、イシュー #641） ---
+
+    #[test]
+    fn is_typeahead_key_accepts_single_printable_chars() {
+        assert!(is_typeahead_key("a", false, mods()));
+        assert!(is_typeahead_key("A", false, mods()));
+        assert!(is_typeahead_key("1", false, mods()));
+    }
+
+    #[test]
+    fn is_typeahead_key_rejects_multi_char_key_names() {
+        assert!(!is_typeahead_key("Enter", false, mods()));
+        assert!(!is_typeahead_key("ArrowDown", true, mods()));
+        assert!(!is_typeahead_key("F5", true, mods()));
+        assert!(!is_typeahead_key("Escape", true, mods()));
+    }
+
+    #[test]
+    fn is_typeahead_key_rejects_modifier_keys_even_for_printable_chars() {
+        assert!(!is_typeahead_key(
+            "a",
+            false,
+            Modifiers {
+                ctrl: true,
+                ..Modifiers::default()
+            }
+        ));
+        assert!(!is_typeahead_key(
+            "a",
+            true,
+            Modifiers {
+                alt: true,
+                ..Modifiers::default()
+            }
+        ));
+        assert!(!is_typeahead_key(
+            "a",
+            true,
+            Modifiers {
+                meta: true,
+                ..Modifiers::default()
+            }
+        ));
+    }
+
+    #[test]
+    fn is_typeahead_key_space_depends_on_buffer_active() {
+        assert!(!is_typeahead_key(" ", false, mods()));
+        assert!(is_typeahead_key(" ", true, mods()));
+    }
+
+    #[test]
+    fn typeahead_push_appends_within_timeout_and_resets_after() {
+        assert_eq!(typeahead_push("a", "b", 100.0), "ab");
+        assert_eq!(typeahead_push("a", "b", TYPEAHEAD_TIMEOUT_MS), "ab");
+        assert_eq!(typeahead_push("a", "b", TYPEAHEAD_TIMEOUT_MS + 1.0), "b");
+        assert_eq!(typeahead_push("", "a", f64::INFINITY), "a");
+    }
+
+    #[test]
+    fn typeahead_push_caps_at_max_buffer_len() {
+        let long = "a".repeat(TYPEAHEAD_MAX_BUFFER_LEN);
+        assert_eq!(typeahead_push(&long, "z", 0.0), long);
+    }
+
+    #[test]
+    fn typeahead_next_index_single_char_steps_from_current_next_and_wraps() {
+        let labels = ["Apple", "Banana", "Avocado"];
+        assert_eq!(
+            typeahead_next_index(Some(0), "a", &labels, &[false, false, false]),
+            Some(2)
+        );
+        assert_eq!(
+            typeahead_next_index(Some(2), "a", &labels, &[false, false, false]),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn typeahead_next_index_repeated_same_char_cycles_through_matches() {
+        let labels = ["Apple", "Banana", "Avocado"];
+        assert_eq!(
+            typeahead_next_index(Some(0), "aa", &labels, &[false, false, false]),
+            Some(2)
+        );
+        assert_eq!(
+            typeahead_next_index(Some(2), "aa", &labels, &[false, false, false]),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn typeahead_next_index_multi_char_buffer_includes_current_position() {
+        let labels = ["Apple", "Apricot", "Banana"];
+        assert_eq!(
+            typeahead_next_index(Some(0), "ap", &labels, &[false, false, false]),
+            Some(0)
+        );
+        assert_eq!(
+            typeahead_next_index(Some(0), "apr", &labels, &[false, false, false]),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn typeahead_next_index_skips_disabled_items() {
+        let labels = ["Apple", "Avocado", "Banana"];
+        assert_eq!(
+            typeahead_next_index(Some(0), "a", &labels, &[false, true, false]),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn typeahead_next_index_case_insensitive_matching() {
+        let labels = ["apple", "Banana"];
+        assert_eq!(
+            typeahead_next_index(None, "A", &labels, &[false, false]),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn typeahead_next_index_no_match_all_disabled_or_empty_yields_none() {
+        let labels = ["Apple", "Banana"];
+        assert_eq!(
+            typeahead_next_index(None, "z", &labels, &[false, false]),
+            None
+        );
+        assert_eq!(
+            typeahead_next_index(None, "a", &labels, &[true, true]),
+            None
+        );
+        let empty_labels: [&str; 0] = [];
+        let empty_disabled: [bool; 0] = [];
+        assert_eq!(
+            typeahead_next_index(None, "a", &empty_labels, &empty_disabled),
+            None
+        );
+        assert_eq!(
+            typeahead_next_index(None, "", &labels, &[false, false]),
+            None
+        );
+    }
+
+    #[test]
+    fn typeahead_next_index_no_current_starts_from_beginning() {
+        let labels = ["Banana", "Apple", "Avocado"];
+        assert_eq!(
+            typeahead_next_index(None, "a", &labels, &[false, false, false]),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn typeahead_next_index_out_of_range_current_falls_back_to_no_current_behavior() {
+        let labels = ["Apple", "Banana"];
+        assert_eq!(
+            typeahead_next_index(Some(99), "a", &labels, &[false, false]),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn typeahead_next_index_label_disabled_length_mismatch_is_noop_not_panic() {
+        let labels = ["Apple", "Banana"];
+        assert_eq!(typeahead_next_index(None, "a", &labels, &[false]), None);
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -1153,9 +1471,10 @@ mod tests {
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::{
-        accordion_next_index, first_non_disabled, highlight_next_index, last_non_disabled,
-        loop_focus_from_attr, menu_loop_focus_from_attr, radio_next_index, tabs_next_index,
-        Modifiers, Orientation,
+        accordion_next_index, first_non_disabled, highlight_next_index, is_typeahead_key,
+        last_non_disabled, loop_focus_from_attr, menu_loop_focus_from_attr, radio_next_index,
+        tabs_next_index, typeahead_next_index, typeahead_push, Modifiers, Orientation,
+        TYPEAHEAD_TIMEOUT_MS,
     };
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
@@ -1487,6 +1806,130 @@ mod wiring {
         let _ = content.remove_attribute("aria-activedescendant");
     }
 
+    /// item の表示ラベルを読み取り専用で解決する（typeahead のラベル比較
+    /// 専用、イシュー #641）。`[data-part="item-text"]` 子（Select の
+    /// item-indicator 混入を避けるため優先、`crates/headless-ui/src/select.rs`
+    /// の anatomy 契約）があればその `text_content()` を使い、無ければ
+    /// （Menu item のように子パーツを持たない場合）item 自身の
+    /// `text_content()` へフォールバックする。DOM への書き戻しは行わない。
+    fn item_label(item: &Element) -> String {
+        let text = item
+            .query_selector("[data-part=\"item-text\"]")
+            .ok()
+            .flatten()
+            .and_then(|el| el.text_content())
+            .or_else(|| item.text_content())
+            .unwrap_or_default();
+        text.trim().to_string()
+    }
+
+    /// Menu/Select の typeahead（文字キー入力による項目ジャンプ、イシュー
+    /// #641）バッファを保持する状態。DOM から導出できない一時入力状態のため
+    /// [`wire_keynav`] の keydown [`Closure`] が本構造体を所有する（モジュール
+    /// doc §Menu/Select 参照。`data-*` 属性への書き出しは行わない例外——
+    /// ユーザーの打鍵文字列そのものを DOM へ露出させる新規面を作らないため）。
+    /// `content`（typeahead 対象の Menu/Select content 要素）を併せて保持し、
+    /// 前回と異なる content 上での入力・タイムアウト超過時はバッファを
+    /// 新規開始することで、同一 root 配下に複数の Menu/Select があっても
+    /// 混線しない。
+    struct TypeaheadState {
+        buffer: String,
+        last_time_stamp: f64,
+        content: Option<Element>,
+    }
+
+    impl TypeaheadState {
+        fn new() -> Self {
+            Self {
+                buffer: String::new(),
+                last_time_stamp: 0.0,
+                content: None,
+            }
+        }
+
+        /// `content` 上で現時点（`now`、`KeyboardEvent::time_stamp()`）に
+        /// typeahead バッファが有効（非空・タイムアウト内）かどうか。
+        /// 対象 content が前回と異なる場合は無条件で無効（新規バッファ扱い）。
+        fn is_active_for(&self, content: &Element, now: f64) -> bool {
+            if self.buffer.is_empty() {
+                return false;
+            }
+            if !self
+                .content
+                .as_ref()
+                .is_some_and(|c| c.is_same_node(Some(content)))
+            {
+                return false;
+            }
+            (now - self.last_time_stamp) <= TYPEAHEAD_TIMEOUT_MS
+        }
+
+        /// バッファへ 1 文字追記し、更新後のバッファ文字列を返す。`content`
+        /// が前回と異なる場合はタイムアウト超過と同じ扱い（[`typeahead_push`]
+        /// へ `f64::INFINITY` を渡し新規バッファとして開始する）。
+        fn push(&mut self, key: &str, now: f64, content: &Element) -> String {
+            let same_content = self
+                .content
+                .as_ref()
+                .is_some_and(|c| c.is_same_node(Some(content)));
+            let elapsed = if same_content {
+                now - self.last_time_stamp
+            } else {
+                f64::INFINITY
+            };
+            self.buffer = typeahead_push(&self.buffer, key, elapsed);
+            self.last_time_stamp = now;
+            self.content = Some(content.clone());
+            self.buffer.clone()
+        }
+
+        /// バッファ・対象 content をリセットする（Escape・非 typeahead 経路の
+        /// open 等、モジュール doc §Menu/Select 参照）。
+        fn reset(&mut self) {
+            self.buffer.clear();
+            self.content = None;
+        }
+    }
+
+    /// highlight 中の項目へ `click()` を合成する（Enter・バッファ無効時の
+    /// Space による決定、モジュール doc §Menu/Select 参照）。disabled・
+    /// highlight 不在は no-op（fail-closed）。
+    fn activate_highlighted_item(content: &Element, item_selector: &str, content_selector: &str) {
+        let items = filter_own_scope_items(
+            collect_parts(content, item_selector),
+            content,
+            content_selector,
+        );
+        if let Some(idx) = find_highlighted_index(&items) {
+            let disabled = disabled_flags(&items);
+            if !disabled[idx] {
+                if let Ok(html_item) = items[idx].clone().dyn_into::<HtmlElement>() {
+                    html_item.click();
+                }
+            }
+        }
+    }
+
+    /// typeahead 1 手（1 文字追記 + マッチ項目への highlight 移動）を処理する
+    /// 共通ヘルパ。closed 直後の初期 highlight（`current: None` 固定）・open
+    /// 中の highlight 更新（`current` は現在の highlighted index）の双方から
+    /// 呼ばれる。ラベルは [`item_label`] で読み取り専用に解決し、DOM への
+    /// 書き戻しは行わない（XSS 対策、モジュール doc §セキュリティ不変条件
+    /// 参照）。マッチが無い場合は `items`/`content` を変更しない。
+    fn apply_typeahead_match(
+        items: &[Element],
+        content: &Element,
+        current: Option<usize>,
+        query: &str,
+    ) {
+        let labels: Vec<String> = items.iter().map(item_label).collect();
+        let label_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
+        let disabled = disabled_flags(items);
+        if let Some(next_index) = typeahead_next_index(current, query, &label_refs, &disabled) {
+            set_highlight(items, next_index, content);
+        }
+    }
+
     /// Menu/Select trigger 上の keydown を処理する（モジュール doc
     /// §Menu/Select 参照）。`content_selector`/`item_selector` で Menu/Select
     /// のいずれのスコープかを切り替える薄い共通実装。
@@ -1504,18 +1947,25 @@ mod wiring {
     ///   失敗しても no-op、fail-closed）。
     /// - content が open のとき: ArrowDown/ArrowUp/Home/End で
     ///   [`highlight_next_index`] へ委譲し `data-highlighted`/
-    ///   `aria-activedescendant` を更新する。Enter/Space は highlight 中の
-    ///   項目へ `click()` を合成する（disabled・highlight 不在は no-op）。
-    ///   ページスクロール抑止・trigger 自身の再クリック抑止のため、
-    ///   ハンドリング対象キーは常に `prevent_default` する。項目集合は
+    ///   `aria-activedescendant` を更新する。Enter/Space（バッファ無効時）は
+    ///   highlight 中の項目へ `click()` を合成する（disabled・highlight
+    ///   不在は no-op）。ページスクロール抑止・trigger 自身の再クリック抑止の
+    ///   ため、ハンドリング対象キーは常に `prevent_default` する。項目集合は
     ///   [`filter_own_scope_items`] でこの content 直下（ネストしたサブメニュー
     ///   content を除く）にスコープする。
+    /// - typeahead（イシュー #641、[`is_typeahead_key`]/[`typeahead_next_index`]
+    ///   参照）: closed 時は printable 文字キーで open + マッチ項目の初期
+    ///   highlight、open 時はマッチ項目への highlight 移動を行う。バッファは
+    ///   `typeahead`（[`TypeaheadState`]、[`wire_keynav`] が所有）に保持し、
+    ///   Space はバッファが有効なときのみ typeahead 対象（無効時は従来通り
+    ///   決定キー）。Escape でバッファをリセットする。
     fn handle_menu_or_select_trigger_keydown(
         root: &Element,
         trigger: &Element,
         event: &KeyboardEvent,
         content_selector: &str,
         item_selector: &str,
+        typeahead: &mut TypeaheadState,
     ) {
         let Some(content) = resolve_menu_select_content(trigger, content_selector) else {
             return;
@@ -1529,8 +1979,42 @@ mod wiring {
         }
         let key = event.key();
         let is_open = !content.has_attribute("hidden");
+        let now = event.time_stamp();
+        let buffer_active = typeahead.is_active_for(&content, now);
 
         if !is_open {
+            if is_typeahead_key(&key, buffer_active, modifiers) {
+                event.prevent_default();
+                if let Ok(html_trigger) = trigger.clone().dyn_into::<HtmlElement>() {
+                    html_trigger.click();
+                }
+                let query = typeahead.push(&key, now, &content);
+                // 開いた直後の初期 highlight。click() 経由の dispatch/再描画で
+                // content/items が新しい要素に差し替わっている可能性があるため
+                // 再解決する（解決失敗・依然 closed は no-op、fail-closed）。
+                if let Some(content_after) = resolve_menu_select_content(trigger, content_selector)
+                {
+                    if root.contains(Some(&content_after)) && !content_after.has_attribute("hidden")
+                    {
+                        let items = filter_own_scope_items(
+                            collect_parts(&content_after, item_selector),
+                            &content_after,
+                            content_selector,
+                        );
+                        apply_typeahead_match(&items, &content_after, None, &query);
+                        // マッチが無い場合は APG 既定（先頭の非 disabled 項目）へ
+                        // フォールバックする。
+                        if find_highlighted_index(&items).is_none() {
+                            let disabled = disabled_flags(&items);
+                            if let Some(idx) = first_non_disabled(&disabled) {
+                                set_highlight(&items, idx, &content_after);
+                            }
+                        }
+                    }
+                }
+                return;
+            }
+
             // ArrowUp のみ末尾の非 disabled 項目を初期 highlight にする。
             // ArrowDown・Enter・Space はいずれも先頭から開始する
             // （WAI-ARIA APG Menu Button/Listbox パターン準拠）。
@@ -1538,6 +2022,7 @@ mod wiring {
             let should_open =
                 key == "ArrowDown" || key == "ArrowUp" || key == "Enter" || key == " ";
             if should_open {
+                typeahead.reset();
                 event.prevent_default();
                 if let Ok(html_trigger) = trigger.clone().dyn_into::<HtmlElement>() {
                     html_trigger.click();
@@ -1591,21 +2076,13 @@ mod wiring {
                     set_highlight(&items, next_index, &content);
                 }
             }
-            "Enter" | " " => {
+            "Enter" => {
                 event.prevent_default();
-                let items = filter_own_scope_items(
-                    collect_parts(&content, item_selector),
-                    &content,
-                    content_selector,
-                );
-                if let Some(idx) = find_highlighted_index(&items) {
-                    let disabled = disabled_flags(&items);
-                    if !disabled[idx] {
-                        if let Ok(html_item) = items[idx].clone().dyn_into::<HtmlElement>() {
-                            html_item.click();
-                        }
-                    }
-                }
+                activate_highlighted_item(&content, item_selector, content_selector);
+            }
+            " " if !buffer_active => {
+                event.prevent_default();
+                activate_highlighted_item(&content, item_selector, content_selector);
             }
             "Escape" => {
                 // Menu/Select 自体の close は [`overlay`](crate::overlay) モジュール
@@ -1618,12 +2095,26 @@ mod wiring {
                 // `prevent_default`/`stop_propagation` は呼ばない
                 // （overlay.rs の document keydown リスナーが同じ Escape を
                 // 引き続き観測して実際の close 判定を行える必要がある）。
+                // typeahead バッファも合わせてリセットする（イシュー #641、
+                // Escape 後の再入力は新規バッファから始まるべきため）。
                 let items = filter_own_scope_items(
                     collect_parts(&content, item_selector),
                     &content,
                     content_selector,
                 );
                 clear_highlight(&items, &content);
+                typeahead.reset();
+            }
+            _ if is_typeahead_key(&key, buffer_active, modifiers) => {
+                event.prevent_default();
+                let query = typeahead.push(&key, now, &content);
+                let items = filter_own_scope_items(
+                    collect_parts(&content, item_selector),
+                    &content,
+                    content_selector,
+                );
+                let current = find_highlighted_index(&items);
+                apply_typeahead_match(&items, &content, current, &query);
             }
             _ => {}
         }
@@ -1813,6 +2304,11 @@ mod wiring {
     /// `add_event_listener_with_callback` が失敗した場合に `Err` を返す。
     pub fn wire_keynav(root: Element) -> Result<(), JsValue> {
         let keydown_root = root.clone();
+        // typeahead バッファ（イシュー #641）は DOM から導出できない一時入力
+        // 状態のため、本 keydown [`Closure`]（`FnMut`）が所有する。root 配下の
+        // 全 Menu/Select に対し 1 個を共有し、対象 content が変わったときの
+        // 混線防止は [`TypeaheadState`] 自身が担う（`TypeaheadState` doc 参照）。
+        let mut typeahead_state = TypeaheadState::new();
         let keydown_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             let Ok(keyboard_event) = event.clone().dyn_into::<KeyboardEvent>() else {
                 return;
@@ -1838,6 +2334,7 @@ mod wiring {
                     &keyboard_event,
                     MENU_CONTENT_SELECTOR,
                     MENU_ITEM_SELECTOR,
+                    &mut typeahead_state,
                 ),
                 "select" => handle_menu_or_select_trigger_keydown(
                     &keydown_root,
@@ -1845,6 +2342,7 @@ mod wiring {
                     &keyboard_event,
                     SELECT_CONTENT_SELECTOR,
                     SELECT_ITEM_SELECTOR,
+                    &mut typeahead_state,
                 ),
                 "radio" => handle_radio_keydown(&keydown_root, &matched, &keyboard_event),
                 _ => {}
