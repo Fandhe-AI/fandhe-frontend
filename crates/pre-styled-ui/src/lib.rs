@@ -128,6 +128,14 @@
 //!   `color-palette` variant を最初から持つ（`toggle_group` は root のみへ
 //!   クラスを付与する複合部品の統一方針に従う）。詳細は [`mod@toggle`]
 //!   rustdoc 参照。
+//! - カード型選択 UI 2 種（#747）: [`mod@checkbox_card`]/[`mod@radio_card`]。
+//!   chakra-ui の checkbox-card/radio-card 相当（ark-ui には対応する
+//!   headless anatomy が存在しないため、headless-ui は変更せず pre-styled
+//!   層で新規 anatomy `data-scope="checkbox-card"`/`"radio-card"` を定義する
+//!   [`crate::card`] 型の構成）。状態機械は headless の
+//!   [`fandhe_frontend_headless_ui::checkbox::Checkbox`]/
+//!   [`fandhe_frontend_headless_ui::radio_group::RadioGroup`] をそのまま
+//!   再利用し、新規状態機械は作らない。詳細は各モジュール rustdoc 参照。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -260,7 +268,9 @@ pub mod badge;
 pub mod button;
 pub mod card;
 pub mod checkbox;
+pub mod checkbox_card;
 mod class_attr;
+pub mod combobox;
 pub mod css;
 pub mod dialog;
 pub mod input;
@@ -270,6 +280,7 @@ pub mod number_input;
 pub mod pagination;
 pub mod pin_input;
 pub mod popover;
+pub mod radio_card;
 pub mod radio_group;
 pub mod rating_group;
 pub mod recipe;

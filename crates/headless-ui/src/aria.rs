@@ -196,6 +196,38 @@ pub fn aria_current(value: &'static str) -> (&'static str, &'static str) {
     ("aria-current", value)
 }
 
+/// `aria-autocomplete` が示す自動補完の種別（Combobox 用、イシュー #749）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AriaAutocomplete {
+    /// 入力に基づく候補一覧を提示する（[`crate::combobox`] が使う値）。
+    List,
+    /// 入力欄自体にインライン補完文字列を挿入する。
+    Inline,
+    /// `list`/`inline` の両方。
+    Both,
+    /// 自動補完なし。
+    None,
+}
+
+impl AriaAutocomplete {
+    /// `aria-autocomplete` の属性値文字列を返す。
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::List => "list",
+            Self::Inline => "inline",
+            Self::Both => "both",
+            Self::None => "none",
+        }
+    }
+}
+
+/// `aria-autocomplete` 属性（Combobox `input` 用、イシュー #749）。
+#[must_use]
+pub fn aria_autocomplete(kind: AriaAutocomplete) -> (&'static str, &'static str) {
+    ("aria-autocomplete", kind.as_str())
+}
+
 fn bool_str(value: bool) -> &'static str {
     if value {
         "true"
@@ -227,6 +259,26 @@ mod tests {
         assert_eq!(aria_checked(AriaChecked::True), ("aria-checked", "true"));
         assert_eq!(aria_checked(AriaChecked::False), ("aria-checked", "false"));
         assert_eq!(aria_checked(AriaChecked::Mixed), ("aria-checked", "mixed"));
+    }
+
+    #[test]
+    fn aria_autocomplete_maps_variants() {
+        assert_eq!(
+            aria_autocomplete(AriaAutocomplete::List),
+            ("aria-autocomplete", "list")
+        );
+        assert_eq!(
+            aria_autocomplete(AriaAutocomplete::Inline),
+            ("aria-autocomplete", "inline")
+        );
+        assert_eq!(
+            aria_autocomplete(AriaAutocomplete::Both),
+            ("aria-autocomplete", "both")
+        );
+        assert_eq!(
+            aria_autocomplete(AriaAutocomplete::None),
+            ("aria-autocomplete", "none")
+        );
     }
 
     #[test]

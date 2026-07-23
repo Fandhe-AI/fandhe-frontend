@@ -48,12 +48,14 @@ use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
+use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
+use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
 use fandhe_frontend_pre_styled_ui::segment_group;
 use fandhe_frontend_pre_styled_ui::slider;
@@ -63,7 +65,7 @@ use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::{
-    accordion, alert, badge, card, menu, popover, radio_group, select, switch, tooltip,
+    accordion, alert, badge, card, combobox, menu, popover, radio_group, select, switch, tooltip,
     AlertStatus, BadgeProps, BadgeVariant, CardVariant, ColorPalette, OpenState, Orientation, Size,
     StyleSheet, StylesheetError,
 };
@@ -100,9 +102,9 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   開いた状態を固定掲示するとページ全体を覆ってしまうため掲示用にのみ隠す
 ///   （実際の modal 表示では backdrop は必須であり、ここでの非表示化は
 ///   ショーケースの掲示都合に限定する）。
-/// - dialog/menu/select/popover/tooltip の `[data-part="positioner"]` を
+/// - dialog/menu/select/combobox/popover/tooltip の `[data-part="positioner"]` を
 ///   `position: static` へ中和: recipe CSS は dialog を
-///   `position: fixed; inset: 0`、menu/select/popover を
+///   `position: fixed; inset: 0`、menu/select/combobox/popover を
 ///   `position: absolute; top: 100%`、tooltip を
 ///   `position: absolute; bottom: 100%` としており、いずれも開いた content を
 ///   ページ内の別位置・別セクションに重ねてしまう。static 化してフロー内へ
@@ -122,7 +124,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"accordion\"] h3 {\n  margin: 0;\n  font-size: 1rem;\n  font-weight: 400;\n  line-height: 1.5;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"backdrop\"] {\n  display: none;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: static;\n  padding: 0;\n  justify-content: flex-start;\n}\n\
-.pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
+.pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"combobox\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n";
 
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
@@ -144,8 +146,9 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 ///
 /// 内訳: テーマトークン（`Theme::default`、ライト/ダーク両対応）→ 掲載
 /// コンポーネントの recipe CSS（button/badge/spinner/alert/card/tabs/
-/// accordion/dialog/menu/select/popover/tooltip/switch/radio_group/avatar/
-/// segment_group）
+/// accordion/dialog/menu/select/combobox/popover/tooltip/switch/radio_group/
+/// avatar/checkbox/checkbox_card/radio_card/input/textarea/native_select/
+/// number_input/tags_input/rating_group/slider/segment_group）
 /// → ショーケース配置スタイル、の順で決定的に連結する。
 ///
 /// # Errors
@@ -167,12 +170,15 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::dialog::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::menu::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::select::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::combobox::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::popover::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tooltip::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::switch::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::radio_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::avatar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::checkbox::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::checkbox_card::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::radio_card::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::input::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
@@ -729,6 +735,84 @@ fn select_section() -> Node {
     section(
         "Select",
         "headless-ui の Select（role=\"listbox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。1 項目が選択済み（data-state=\"open\"）の listbox が開いた状態を固定表示しています。positioner はフロー内配置へ中和しています。",
+        vec![node],
+    )
+}
+
+/// Combobox 節: 入力によるフィルタリング後の listbox が開いた静的マークアップ
+/// （イシュー #749）。[`combobox::filter_options`] を実演し、入力値
+/// `"re"` に対するフィルタ結果（`"React"` のみ）をそのまま候補として掲示する。
+fn combobox_section() -> Node {
+    let options = [("vue", "Vue"), ("react", "React"), ("svelte", "Svelte")];
+    let query = "re";
+    let filtered = combobox::filter_options(&options, query);
+
+    let items = filtered
+        .into_iter()
+        .map(|(value, label)| {
+            combobox::item(
+                OpenState::Closed,
+                false,
+                false,
+                value,
+                None,
+                vec![],
+                vec![combobox::item_text(None, vec![], vec![text(label)])],
+            )
+        })
+        .collect();
+
+    let node = combobox::root(
+        Size::Md,
+        OpenState::Open,
+        vec![],
+        vec![
+            combobox::label(
+                Some("showcase-combobox-label"),
+                Some("showcase-combobox-input"),
+                vec![],
+                vec![text("Framework")],
+            ),
+            combobox::control(
+                OpenState::Open,
+                vec![],
+                vec![
+                    combobox::input(
+                        OpenState::Open,
+                        query,
+                        false,
+                        Some("showcase-combobox-content"),
+                        None,
+                        None,
+                        vec![("id", "showcase-combobox-input")],
+                    ),
+                    combobox::trigger(
+                        OpenState::Open,
+                        false,
+                        Some("showcase-combobox-content"),
+                        vec![],
+                        vec![text("▾")],
+                    ),
+                ],
+            ),
+            combobox::positioner(
+                OpenState::Open,
+                vec![],
+                vec![combobox::content(
+                    OpenState::Open,
+                    Some("showcase-combobox-content"),
+                    Some("showcase-combobox-label"),
+                    vec![],
+                    items,
+                )],
+            ),
+        ],
+    );
+    section(
+        "Combobox",
+        &format!(
+            "headless-ui の Combobox（role=\"combobox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。入力値 \"{query}\" による filter_options の絞り込み結果を候補として表示しています。positioner はフロー内配置へ中和しています。"
+        ),
         vec![node],
     )
 }
@@ -1638,6 +1722,176 @@ fn pagination_section() -> Node {
     )
 }
 
+/// CheckboxCard 節: unchecked / checked / disabled の 3 態（イシュー #747）。
+///
+/// chakra-ui checkbox-card 相当のカード型選択 UI。状態機械は
+/// [`fandhe_frontend_pre_styled_ui::checkbox`] 節と同じ headless `Checkbox`/
+/// `CheckboxProps` を再利用し、`data-scope="checkbox-card"` の新規 anatomy
+/// （`crates/pre-styled-ui/src/checkbox_card.rs` 参照）でカード外観を重ねる。
+fn checkbox_card_section() -> Node {
+    let states = [
+        (
+            CheckedState::Unchecked,
+            false,
+            "showcase-checkbox-card-unchecked",
+            "Starter",
+            "個人利用向けの基本プラン。",
+        ),
+        (
+            CheckedState::Checked,
+            false,
+            "showcase-checkbox-card-checked",
+            "Pro",
+            "チームでの共同作業に対応。",
+        ),
+        (
+            CheckedState::Checked,
+            true,
+            "showcase-checkbox-card-disabled",
+            "Enterprise",
+            "現在準備中のプランです。",
+        ),
+    ];
+    let demo_row = row(states
+        .iter()
+        .map(|(checked, disabled, name, label, description)| {
+            let props = CheckboxProps {
+                checked: *checked,
+                disabled: *disabled,
+                ..CheckboxProps::default()
+            };
+            checkbox_card::root(
+                Size::Md,
+                ColorPalette::Accent,
+                &props,
+                vec![],
+                vec![
+                    checkbox_card::hidden_input(&props, name, "on", vec![]),
+                    checkbox_card::control(
+                        &props,
+                        vec![],
+                        vec![
+                            checkbox_card::indicator(
+                                &props,
+                                vec![],
+                                vec![checkbox_card::indicator_check(&props, vec![], vec![])],
+                            ),
+                            checkbox_card::content(
+                                &props,
+                                vec![],
+                                vec![
+                                    checkbox_card::label(&props, vec![], vec![text(*label)]),
+                                    checkbox_card::description(
+                                        &props,
+                                        vec![],
+                                        vec![text(*description)],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            )
+        })
+        .collect());
+    section(
+        "CheckboxCard",
+        "chakra-ui checkbox-card 相当のカード型選択 UI。状態機械は Checkbox（headless）をそのまま再利用し、data-scope=\"checkbox-card\" の新規 anatomy でカード外観を重ねます。",
+        vec![demo_row],
+    )
+}
+
+/// RadioCard 節: 単一選択のカード型選択 UI（イシュー #747）。
+///
+/// 状態機械は [`fandhe_frontend_pre_styled_ui::radio_group`] 節と同じ headless
+/// `RadioGroup`（`SingleSelect`）をそのまま再利用し、
+/// `data-scope="radio-card"` の新規 anatomy（`crates/pre-styled-ui/src/radio_card.rs`
+/// 参照）でカード外観を重ねる。
+fn radio_card_section() -> Node {
+    let label_id = "showcase-radio-card-label";
+    let items = [
+        (
+            "plan-free-card",
+            "Free",
+            "基本機能のみ利用可能。",
+            true,
+            false,
+        ),
+        (
+            "plan-pro-card",
+            "Pro",
+            "チーム機能・優先サポート付き。",
+            false,
+            false,
+        ),
+        (
+            "plan-enterprise-card",
+            "Enterprise",
+            "SSO・監査ログに対応。",
+            false,
+            true,
+        ),
+    ];
+    let mut children = vec![radio_card::label(
+        Some(label_id),
+        vec![],
+        vec![text("Plan")],
+    )];
+    children.extend(
+        items
+            .iter()
+            .map(|(value, label, description, checked, disabled)| {
+                radio_card::item(
+                    *checked,
+                    *disabled,
+                    value,
+                    vec![],
+                    vec![
+                        radio_card::item_hidden_input(
+                            *checked,
+                            *disabled,
+                            Some("showcase-radio-card"),
+                            value,
+                            vec![],
+                        ),
+                        radio_card::item_control(
+                            *checked,
+                            *disabled,
+                            vec![],
+                            vec![
+                                radio_card::item_indicator(*checked, *disabled, vec![]),
+                                radio_card::item_content(
+                                    vec![],
+                                    vec![
+                                        radio_card::item_text(vec![], vec![text(*label)]),
+                                        radio_card::item_description(
+                                            vec![],
+                                            vec![text(*description)],
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                    ],
+                )
+            }),
+    );
+    let demo = radio_card::root(
+        Size::Md,
+        ColorPalette::Accent,
+        false,
+        Some(Orientation::Vertical),
+        Some(label_id),
+        vec![],
+        children,
+    );
+    section(
+        "RadioCard",
+        "chakra-ui radio-card 相当のカード型選択 UI。状態機械は RadioGroup（headless）をそのまま再利用し、data-scope=\"radio-card\" の新規 anatomy でカード外観を重ねます。",
+        vec![demo],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -1665,6 +1919,7 @@ fn showcase_body() -> Node {
             dialog_section(),
             menu_section(),
             select_section(),
+            combobox_section(),
             popover_section(),
             tooltip_section(),
             switch_section(),
@@ -1678,6 +1933,8 @@ fn showcase_body() -> Node {
             slider_section(),
             segment_group_section(),
             pagination_section(),
+            checkbox_card_section(),
+            radio_card_section(),
         ],
     )
 }
@@ -1721,6 +1978,8 @@ mod tests {
             "slider",
             "segment-group",
             "pagination",
+            "checkbox-card",
+            "radio-card",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
@@ -1790,6 +2049,8 @@ mod tests {
         assert!(css.contains(".fd-avatar--size-md"));
         assert!(css.contains(".fd-avatar--shape-circle"));
         assert!(css.contains(r#"[data-scope="checkbox"][data-part="control"]"#));
+        assert!(css.contains(r#"[data-scope="checkbox-card"][data-part="indicator"]"#));
+        assert!(css.contains(r#"[data-scope="radio-card"][data-part="item-indicator"]"#));
         assert!(css.contains(r#"[data-scope="field"][data-part="input"]"#));
         assert!(css.contains(r#"[data-scope="field"][data-part="textarea"]"#));
         assert!(css.contains(r#"[data-scope="field"][data-part="select"]"#));
