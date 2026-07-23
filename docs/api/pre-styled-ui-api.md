@@ -26,8 +26,10 @@ checkbox styled ラッパー追加（#730）・静的フォーム部品 3 種追
 NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー追加
 （#739）・Slider styled ラッパー追加（#741）・RatingGroup styled ラッパー
 追加（#742）・SegmentGroup styled ラッパー追加（#743）・TagsInput styled
-ラッパー追加（#744）・Steps styled ラッパー追加（#752、いずれも公開時点
-未反映）を経て 30 の公開モジュールを持つ。内訳は次の通り。
+ラッパー追加（#744）・Toggle/ToggleGroup styled ラッパー追加（#746）・
+CheckboxCard/RadioCard styled バリエーション追加（#747）・Combobox styled
+ラッパー追加（#749）・Steps styled ラッパー追加（#752、いずれも公開時点
+未反映）を経て 35 の公開モジュールを持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -49,6 +51,8 @@ NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー�
 | headless ラッパー第 9 弾 | `rating_group` | #742（`size`/`color-palette` 両軸、星形 indicator は `clip-path` インライン表現） |
 | headless ラッパー | `segment_group` | #743（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供。状態機械は `radio_group` へ全委譲） |
 | headless ラッパー第 10 弾 | `tags_input` | #744（`size` variant のみ。フォーム入力部品のため `color-palette` 軸は非提供、`pin_input`/`number_input` と同型の判断） |
+| headless ラッパー | `toggle` / `toggle_group` | #746（実フォーカスをネイティブ `<button>` 自身が受けるため `data-focus-visible` 配線ではなく `FocusVisible` state condition で対応。`size`/`color-palette` 両軸提供） |
+| カード型選択 UI（styled バリエーション） | `checkbox_card` / `radio_card` | #747（§4g 参照。headless-ui は変更なし、pre-styled 層で新規 anatomy `checkbox-card`/`radio-card` を定義。状態機械は headless `Checkbox`/`RadioGroup` を再利用） |
 | headless ラッパー | `combobox` | #749（`select` と同型の `size` variant のみ・`color-palette` 軸は非提供。状態機械は `state::Disclosure` + `state::SingleSelect` + `state::TextInput` の合成。フォーカスは `input` が保持するため `:focus-visible` を `input` へ、`:focus-within` を `control` へ登録する） |
 | headless ラッパー | `steps` | #752（`size`/`color-palette` 両軸。`fandhe_frontend_headless_ui::steps` が自由関数を持たず全パーツが `Steps` の inherent メソッドのため、本モジュールの全パーツ関数が `state: &Steps` を受け取る点が他コンポーネントと異なる。`docs/api/headless-ui-api.md` §4b.3 の Steps 保留解除） |
 
@@ -422,6 +426,7 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | toggle-group | ✓ | ✓ | 実装済み（#746、root のみへクラス付与） |
 | segment-group | ✓ | – | 実装済み（#743、選択状態は indicator の移動 + 文字強調で表現するため color-palette は非提供） |
 | tags-input | ✓ | – | 実装済み（#744、フォーム入力部品のため color-palette は非提供） |
+| checkbox-card / radio-card | ✓ | ✓ | 実装済み（#747、§4g 参照。カード外観・選択強調・ドット色に反映） |
 | steps | ✓ | ✓ | 実装済み（#752、indicator の寸法・current/complete の強調色に反映） |
 | popover / tooltip | 提供しない | 提供しない | 方針確定 |
 
@@ -552,6 +557,55 @@ anatomy パーツを選択的に再エクスポートし、`stylesheet()` で既
   は本イシューのスコープ外（フォローアップ）。`<select readonly>` が HTML 仕様上無効なため
   ネイティブ `readonly` を出力しない判断は headless 層（イシュー #602）に
   委譲済みで、本モジュールは再実装しない。
+
+## 4g. `checkbox_card`/`radio_card`（カード型選択 UI、イシュー #747）
+
+chakra-ui の `forms/checkbox-card.md`/`forms/radio-card.md` 相当。ark-ui には
+対応する headless anatomy が存在しない（chakra-ui 独自の slot recipe）ため、
+**`fandhe-frontend-headless-ui` には手を入れず**、pre-styled-ui 層のみで
+新規 anatomy `data-scope="checkbox-card"`/`"radio-card"` を定義する
+（`crate::card` が pre-styled 層で独自 anatomy `data-scope="card"` を持つ
+先例と同型の構成、詳細は各モジュール冒頭の rustdoc 参照）。
+
+- **状態機械の再利用（新規状態機械は作らない）**: `checkbox_card` は
+  `fandhe_frontend_headless_ui::checkbox::{Checkbox, CheckboxProps,
+  CheckedState}` を、`radio_card` は
+  `fandhe_frontend_headless_ui::radio_group::RadioGroup` をそのまま利用する。
+  `Checkbox`/`RadioGroup` 自体は再エクスポートしない（`checkbox`/`radio_group`
+  モジュールと同じ「未スタイル root の静かな適用漏れ防止」判断。呼び出し側は
+  headless モジュールを直接 import する）。
+- **anatomy パーツ構成**: `checkbox_card` は `root`（`<label>`）/`control`/
+  `content`/`label`/`description`/`addon`/`indicator`（チェックボックス外枠）/
+  `indicator-check`（チェックマーク本体、`checkbox::indicator` 相当）/
+  `hidden-input` の 9 パーツ。`radio_card` は `root`（`role="radiogroup"`）/
+  `label`/`item`（`<label>`）/`item-control`/`item-content`/`item-text`/
+  `item-description`/`item-addon`/`item-indicator`（ラジオ円、
+  `radio_group::item_control` 相当）/`item-hidden-input` の 10 パーツ。
+  chakra-ui の単一 Indicator を「外枠 + マーク」の 2 要素に分けるのは、
+  `SlotRecipe` が疑似要素を持たず既存 checkbox/radio-group の実証済み
+  border/transform/box-shadow 描画をそのまま再利用するため。
+- **`hidden-input`/`item-hidden-input` の属性契約**: 対応する headless
+  モジュール（`crates/headless-ui/src/checkbox.rs`/`radio_group.rs`）の
+  `hidden_input`/`item_hidden_input` と同一ロジックで出力する（両ファイルを
+  合わせて確認する契約）。
+- **`size`/`color-palette` 軸**: §4d の統一方針に従い `root` へのみクラスを
+  付与し、`--fandhe-checkbox-card-*`/`--fandhe-radio-card-*` の root スコープ
+  custom property 経由で子孫パーツへ伝搬する。
+- **フォーカスリング**: 実フォーカスは hidden-input が受けるため、
+  `radio_group` の `item` と同型の `StateCondition::FocusWithin`（no-JS
+  フォールバック）のみを `root`（`checkbox_card`）/`item`（`radio_card`）へ
+  登録する。`data-focus-visible`（wasm 配線によるキーボード操作専用リング）
+  は `crates/wasm-full/src/focus_visible.rs` の `(scope, part)` マッピングに
+  `"checkbox-card"`/`"radio-card"` が未登録のため本イシューのスコープ外
+  （フォローアップ、下記参照）。
+- **本イシューのスコープ外**（`.claude/rules/out-of-scope-tracking.md` 対応）:
+  - `fandhe-frontend-wasm-full` の focus/クリック配線（`(scope, part)` を
+    `("checkbox-card", "hidden-input") -> "root"`/
+    `("radio-card", "item-hidden-input") -> "item"` へ写像し
+    `data-focus-visible` を CSS で伝える対応、headless 配線の select
+    アクション写像の card scope 対応）。
+  - `examples/headless-pre-styled-ui` への追随（pre-styled-ui 公開後に
+    別 PR で対応）。
 
 ## 5. 関連ドキュメント
 

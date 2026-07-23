@@ -38,10 +38,12 @@ use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
+use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind};
+use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingItemFlags};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
@@ -927,6 +929,158 @@ fn steps_styled_root_and_parts_are_escaped_for_all_payloads() {
             payload,
             &html,
             "steps::trigger 呼び出し側 attrs コンテキスト",
+        );
+    }
+}
+
+/// styled CheckboxCard（イシュー #747）の XSS 回帰
+/// （`checkbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn checkbox_card_styled_root_and_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&checkbox_card::root(
+            Size::Md,
+            ColorPalette::Accent,
+            &CheckboxProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "checkbox_card::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&checkbox_card::root(
+            Size::Md,
+            ColorPalette::Accent,
+            &CheckboxProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "checkbox_card::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "checkbox_card::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-checkbox-card--"),
+            "checkbox_card::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // label の children 経路。
+        let html = render(&checkbox_card::label(
+            &CheckboxProps::default(),
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "checkbox_card::label children コンテキスト");
+
+        // hidden_input の name/value 経路。
+        let html = render(&checkbox_card::hidden_input(
+            &CheckboxProps::default(),
+            payload,
+            payload,
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "checkbox_card::hidden_input name/value コンテキスト",
+        );
+    }
+}
+
+/// styled RadioCard（イシュー #747）の XSS 回帰
+/// （`checkbox_card_styled_root_and_parts_are_escaped_for_all_payloads` と同型）。
+#[test]
+fn radio_card_styled_root_and_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&radio_card::root(
+            Size::Md,
+            ColorPalette::Accent,
+            false,
+            None,
+            None,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "radio_card::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&radio_card::root(
+            Size::Md,
+            ColorPalette::Accent,
+            false,
+            None,
+            None,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "radio_card::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "radio_card::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-radio-card--"),
+            "radio_card::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // item の data-value/children 経路。
+        let html = render(&radio_card::item(
+            false,
+            false,
+            payload,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "radio_card::item data-value/children コンテキスト",
+        );
+
+        // item_text の children 経路。
+        let html = render(&radio_card::item_text(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "radio_card::item_text children コンテキスト",
+        );
+
+        // item_hidden_input の name/value 経路。
+        let html = render(&radio_card::item_hidden_input(
+            false,
+            false,
+            Some(payload),
+            payload,
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "radio_card::item_hidden_input name/value コンテキスト",
         );
     }
 }
