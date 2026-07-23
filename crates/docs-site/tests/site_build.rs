@@ -102,6 +102,9 @@ fn build_site_wires_admonition_css_only_to_pages_using_it() {
 
     let admonition_css = std::fs::read_to_string(out.0.join("assets/admonition.css")).unwrap();
     assert!(admonition_css.contains(".fd-alert--status-info"));
+    // イシュー #732: 実サイトビルドが書き出す admonition.css にダーク
+    // モード配色条件が含まれること。
+    assert!(admonition_css.contains("prefers-color-scheme: dark"));
 }
 
 #[test]
