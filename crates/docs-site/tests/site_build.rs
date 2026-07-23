@@ -73,10 +73,35 @@ fn build_site_generates_all_pages_and_assets_for_ok_fixture() {
         build_site(&fixture_root("site-ok"), &out.0).expect("site-ok fixture should build");
 
     assert_eq!(report.written.len(), 2);
-    assert_eq!(report.assets.len(), 1);
+    // site.css + admonition.css（site-ok の index.md が admonition マーカーを
+    // 1 件使うため、`crate::admonition` 専用 CSS も条件付きで書き出される）。
+    assert_eq!(report.assets.len(), 2);
     assert!(out.0.join("index.html").exists());
     assert!(out.0.join("guide/quickstart/index.html").exists());
     assert!(out.0.join("assets/site.css").exists());
+    assert!(out.0.join("assets/admonition.css").exists());
+}
+
+/// イシュー #715: admonition 専用 CSS（`assets/admonition.css`）への
+/// `<link>` は admonition を実際に使うページにのみ差し込まれ、使わない
+/// ページ（quickstart）には現れないことを固定する（showcase と同型の
+/// 「使われているページだけ」配線、`build.rs` モジュール doc 参照）。
+#[test]
+fn build_site_wires_admonition_css_only_to_pages_using_it() {
+    let out = TempDir::new("admonition-wiring");
+    build_site(&fixture_root("site-ok"), &out.0).expect("site-ok fixture should build");
+
+    let index_html = std::fs::read_to_string(out.0.join("index.html")).unwrap();
+    assert!(index_html.contains(r#"href="/fixture-base/assets/admonition.css""#));
+    assert!(index_html.contains(r#"data-scope="alert""#));
+
+    let quickstart_html =
+        std::fs::read_to_string(out.0.join("guide/quickstart/index.html")).unwrap();
+    assert!(!quickstart_html.contains("admonition.css"));
+    assert!(!quickstart_html.contains(r#"data-scope="alert""#));
+
+    let admonition_css = std::fs::read_to_string(out.0.join("assets/admonition.css")).unwrap();
+    assert!(admonition_css.contains(".fd-alert--status-info"));
 }
 
 #[test]

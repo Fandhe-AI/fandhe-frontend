@@ -33,8 +33,9 @@
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_headless_ui::avatar::{fallback, image, root, Avatar, ImageStatus};
-use fandhe_frontend_interactive::{dispatch, Hydrate, HYDRATE_ATTR_PREFIX};
+use fandhe_frontend_interactive::{dispatch, AppState, Hydrate, HYDRATE_ATTR_PREFIX};
 use fandhe_frontend_wasm_full::headless_avatar::{apply_avatar_visibility, wire_avatar_events};
+use fandhe_frontend_wasm_full::Runtime;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_test::*;
 use web_sys::{Document, Element, Event, EventInit};
@@ -405,6 +406,186 @@ fn xss_payload_in_alt_does_not_create_script_element_in_real_dom() {
     assert!(
         !inner.contains("<script>"),
         "inner_html に生の <script> タグが含まれてはならない: {inner}"
+    );
+}
+
+// --- (g)〜(i) Runtime::mount/hydrate への統合（イシュー #711） -------------
+//
+// `wire_avatar_events`/`apply_avatar_visibility` を直接呼ぶ (a)〜(f) は
+// #591 時点の配線層単体の契約を検証する。#711 は `Runtime::mount`/
+// `Runtime::hydrate`（`crate::lib::Runtime::wire_avatar`）が本配線を
+// アプリ側の手動呼び出しなしに自動で行うことが要求であるため、(g)〜(i) は
+// `Runtime<C>` 経由でのみ検証し、`wire_avatar_events` を直接呼ばない。
+//
+// `fandhe_frontend_headless_ui::Avatar` 自体は「束縛点更新 + keyed list」
+// （`fandhe_frontend_wasm_client::BindingSource`）・dirty tracking
+// （`fandhe_frontend_interactive::DirtyTracked`）を使わない設計（本モジュール
+// 冒頭 doc「`data-state` 語彙について」参照。属性反映は
+// `apply_avatar_visibility` の直接 `set_attribute` に閉じる）であるため、
+// `Runtime<C>`（`C: Component + DirtyTracked + BindingSource`）の型制約を
+// 満たさない。これは `crates/headless-ui` 側の契約を変更する話ではなく
+// （G2 は doc コメントのみに限定、実装計画 §2 参照）、`Runtime<C>` を使う
+// **アプリ側**の `Component` 実装が両トレイトを備えていれば足りるという
+// 設計上の分離である。本テストではその最小形として `TestAvatarHost`
+// （`Avatar` へ `update`/`view`/`decode_action` を委譲し、
+// `DirtyTracked`/`BindingSource` は「未使用」を表す空実装を返す）を用いる。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct TestAvatarHost(Avatar);
+
+impl fandhe_frontend_interactive::Component for TestAvatarHost {
+    type Action = fandhe_frontend_headless_ui::avatar::AvatarAction;
+
+    fn update(&mut self, action: Self::Action) {
+        fandhe_frontend_interactive::Component::update(&mut self.0, action);
+    }
+
+    fn view(&self) -> fandhe_frontend_core::Node {
+        fandhe_frontend_interactive::Component::view(&self.0)
+    }
+
+    fn decode_action(name: &str, payload: &str) -> Option<Self::Action> {
+        Avatar::decode_action(name, payload)
+    }
+}
+
+impl fandhe_frontend_interactive::DirtyTracked for TestAvatarHost {
+    fn dirty_fields(&self) -> &[&'static str] {
+        // `Runtime::wire` の束縛点更新（`data-bind-text`/`data-bind-attr`）を
+        // 使わないため常に空（`apply_avatar_visibility` 経由の直接属性反映の
+        // みで完結する、`Runtime::wire_avatar` 参照）。
+        &[]
+    }
+}
+
+impl fandhe_frontend_wasm_client::BindingSource for TestAvatarHost {
+    fn bound_value(&self, _field: &str) -> Option<fandhe_frontend_wasm_client::BoundValue> {
+        // 上記と同じ理由で束縛点を持たない。
+        None
+    }
+}
+
+/// `Runtime::mount` 経由で配線した Avatar の実 `load` イベントで
+/// `component().status()` が `Loaded` になり、`data-state` も追随すること
+/// （受け入れ条件、Runtime 標準経路）。
+#[wasm_bindgen_test]
+async fn runtime_mount_real_load_event_updates_image_status_to_loaded() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "avatar-runtime-mount-load-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    const ONE_PX_GIF: &str =
+        "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+
+    let runtime = Runtime::<TestAvatarHost>::mount(
+        "avatar-runtime-mount-load-root",
+        TestAvatarHost(Avatar::new(ImageStatus::Loading)),
+    )
+    .expect("Runtime::mount must not fail");
+
+    // `Avatar::view` は `src`/`alt` を空文字列で描画する（`crates/headless-ui/
+    // src/avatar.rs::Component for Avatar::view` 参照）。settle 検査が空
+    // `src` を決着済みと誤判定しないよう、配線（`Runtime::mount` 内で完了
+    // 済み）の後に `data:` URI を差し替えて実 `load` を発火させる。
+    set_image_src(&container, ONE_PX_GIF);
+
+    wait_for(|| runtime.component().0.status() == ImageStatus::Loaded).await;
+
+    assert_eq!(runtime.component().0.status(), ImageStatus::Loaded);
+    let img = image_element(&container);
+    let fallback_el = fallback_element(&container);
+    assert_eq!(img.get_attribute("data-state").as_deref(), Some("visible"));
+    assert!(!img.has_attribute("hidden"));
+    assert_eq!(
+        fallback_el.get_attribute("data-state").as_deref(),
+        Some("hidden")
+    );
+    assert!(fallback_el.has_attribute("hidden"));
+}
+
+/// `Runtime::mount` 経由で配線した Avatar の実 `error` イベントで
+/// `component().status()` が `Error` になり、fallback が visible へ切り替わる
+/// こと（受け入れ条件、Runtime 標準経路）。
+#[wasm_bindgen_test]
+async fn runtime_mount_real_error_event_updates_image_status_to_error() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "avatar-runtime-mount-error-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    const INVALID_DATA_URI: &str = "data:image/gif;base64,not-a-valid-gif";
+
+    let runtime = Runtime::<TestAvatarHost>::mount(
+        "avatar-runtime-mount-error-root",
+        TestAvatarHost(Avatar::new(ImageStatus::Loading)),
+    )
+    .expect("Runtime::mount must not fail");
+
+    set_image_src(&container, INVALID_DATA_URI);
+
+    wait_for(|| runtime.component().0.status() == ImageStatus::Error).await;
+
+    assert_eq!(runtime.component().0.status(), ImageStatus::Error);
+    let img = image_element(&container);
+    let fallback_el = fallback_element(&container);
+    assert_eq!(img.get_attribute("data-state").as_deref(), Some("hidden"));
+    assert!(img.has_attribute("hidden"));
+    assert_eq!(
+        fallback_el.get_attribute("data-state").as_deref(),
+        Some("visible")
+    );
+    assert!(!fallback_el.has_attribute("hidden"));
+}
+
+/// fail-closed 回帰: Avatar ではない `Component`（`AppState`）を
+/// `Runtime::mount` しても、`root` 配下にたまたま Avatar と同じ
+/// `data-scope`/`data-part` を持つ要素が紛れ込んだ場合でも、
+/// `AppState::decode_action` が `"loaded"`/`"error"` を認識しない
+/// （`fandhe_frontend_interactive::dispatch` が `false` を返す）ため状態が
+/// 変化しないこと。`Runtime::wire_avatar`（`crate::lib` 参照）の
+/// fail-closed 不変条件（Avatar 非搭載アプリへの副作用なし）を Runtime
+/// 標準経路で固定する。
+#[wasm_bindgen_test]
+async fn runtime_mount_non_avatar_component_ignores_avatar_shaped_image_events() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "avatar-runtime-mount-non-avatar-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let runtime =
+        Runtime::<AppState>::mount("avatar-runtime-mount-non-avatar-root", AppState::new())
+            .expect("Runtime::mount must not fail");
+    let before = runtime.component().clone();
+
+    // AppState の描画には Avatar パーツは存在しないため、fail-closed 経路
+    // （`collect_avatar_images` が空集合を返す settle 検査・
+    // `avatar_action_for_image_event` の data-scope/data-part 完全一致
+    // ガード）を実際に運動させるため、Avatar と同じ属性を持つ `img` 要素を
+    // `root` 配下へ手動で追加する（改ざん・偶発混入シナリオの模擬）。
+    let img = document
+        .create_element("img")
+        .expect("create_element must not fail for img");
+    img.set_attribute("data-scope", "avatar")
+        .expect("set_attribute must not fail");
+    img.set_attribute("data-part", "image")
+        .expect("set_attribute must not fail");
+    container
+        .append_child(&img)
+        .expect("append_child must not fail");
+    let img = img
+        .dyn_into::<web_sys::HtmlImageElement>()
+        .expect("img element must be an HtmlImageElement");
+
+    const ONE_PX_GIF: &str =
+        "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+    img.set_src(ONE_PX_GIF);
+    wait_for(|| img.complete()).await;
+
+    assert_eq!(
+        *runtime.component(),
+        before,
+        "AppState は \"loaded\" アクションを認識しないため、Avatar 形状の \
+         img への load イベントで状態が変化してはならない"
     );
 }
 

@@ -298,6 +298,118 @@ fn blockquote_nesting_beyond_max_depth_falls_back_to_paragraph() {
 }
 
 // ---------------------------------------------------------------------
+// admonition（イシュー #715）
+// ---------------------------------------------------------------------
+
+#[test]
+fn admonition_note_renders_as_alert_with_title_and_description() {
+    assert_eq!(
+        render_all("> [!NOTE]\n> Something needs attention."),
+        concat!(
+            r#"<div data-scope="alert" data-part="root" role="alert" class="fd-alert--status-info">"#,
+            r#"<div data-scope="alert" data-part="content">"#,
+            r#"<div data-scope="alert" data-part="title">Note</div>"#,
+            r#"<div data-scope="alert" data-part="description"><p>Something needs attention.</p></div>"#,
+            "</div>",
+            "</div>",
+        )
+    );
+}
+
+#[test]
+fn admonition_marker_variants_map_to_expected_status_and_title() {
+    for (marker, expected_class, expected_title) in [
+        ("[!NOTE]", "fd-alert--status-info", "Note"),
+        ("[!TIP]", "fd-alert--status-success", "Tip"),
+        ("[!IMPORTANT]", "fd-alert--status-warning", "Important"),
+        ("[!WARNING]", "fd-alert--status-warning", "Warning"),
+        ("[!CAUTION]", "fd-alert--status-error", "Caution"),
+    ] {
+        let output = render_all(&format!("> {marker}\n> body"));
+        assert!(
+            output.contains(&format!("class=\"{expected_class}\"")),
+            "marker={marker} -> {output}"
+        );
+        assert!(
+            output.contains(&format!(
+                r#"<div data-scope="alert" data-part="title">{expected_title}</div>"#
+            )),
+            "marker={marker} -> {output}"
+        );
+    }
+}
+
+#[test]
+fn admonition_without_body_omits_description() {
+    let output = render_all("> [!NOTE]");
+    assert_eq!(
+        output,
+        concat!(
+            r#"<div data-scope="alert" data-part="root" role="alert" class="fd-alert--status-info">"#,
+            r#"<div data-scope="alert" data-part="content">"#,
+            r#"<div data-scope="alert" data-part="title">Note</div>"#,
+            "</div>",
+            "</div>",
+        )
+    );
+    assert!(!output.contains("data-part=\"description\""));
+}
+
+#[test]
+fn admonition_unknown_marker_falls_back_to_plain_blockquote() {
+    assert_eq!(
+        render_all("> [!FOO]\n> body"),
+        "<blockquote><p>[!FOO] body</p></blockquote>"
+    );
+}
+
+#[test]
+fn admonition_lowercase_marker_falls_back_to_plain_blockquote() {
+    assert_eq!(
+        render_all("> [!note]\n> body"),
+        "<blockquote><p>[!note] body</p></blockquote>"
+    );
+}
+
+#[test]
+fn admonition_marker_with_trailing_text_on_same_line_falls_back_to_plain_blockquote() {
+    assert_eq!(
+        render_all("> [!NOTE] extra text\n> body"),
+        "<blockquote><p>[!NOTE] extra text body</p></blockquote>"
+    );
+}
+
+#[test]
+fn admonition_body_supports_inline_and_md_link_syntax() {
+    let output = render_all("> [!NOTE]\n> See [docs](./guide.md) for **details**.");
+    assert!(output.contains(r#"<a href="./guide.md">docs</a>"#));
+    assert!(output.contains("<strong>details</strong>"));
+}
+
+#[test]
+fn xss_payload_in_admonition_body_is_escaped() {
+    let output = render_all("> [!NOTE]\n> <script>alert(1)</script>");
+    assert!(!output.contains("<script>"));
+    assert!(output.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+}
+
+#[test]
+fn admonition_nesting_beyond_max_depth_falls_back_to_plain_blockquote() {
+    // 引用と共通の MAX_DEPTH（16）打ち切りに達すると admonition マーカー判定
+    // より先に「1 行段落へフォールバック」する経路（parse_quote 側の
+    // `depth >= MAX_DEPTH` 分岐）を通るため、ネストした admonition マーカーは
+    // 通常のテキストとして畳み込まれパニックしない。
+    let input = format!("{}[!NOTE]", ">".repeat(20));
+    let output = render_all(&input);
+    assert_eq!(
+        output.matches("<blockquote>").count(),
+        17,
+        "MAX_DEPTH 打ち切り時も blockquote ネストが継続すること: {output}"
+    );
+    assert!(!output.contains("data-scope=\"alert\""));
+}
+
+// ---------------------------------------------------------------------
 // テーブル
 // ---------------------------------------------------------------------
 

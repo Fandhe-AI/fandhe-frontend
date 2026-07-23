@@ -7,6 +7,7 @@
 実際に手を動かして体験するためのガイドです。TASK-7.1（#51）の子タスクとして、
 `templates/embed/embed.html`（TASK-7.1a・#52）と対になる成果物として作成します。
 
+> [!NOTE]
 > **本書のステータスと前提**: 本書は `fandhe-frontend-core`・`fandhe-frontend-app`（いずれもマージ済み）の
 > 公開 API と `docs/api/hydration-api.md`（TASK-6.2a、設計確定済み）の凍結契約を
 > 前提として執筆しています。`templates/embed/embed.html`（TASK-7.1a・#52）はマージ
@@ -94,11 +95,13 @@ PoC-3（`docs/spec/03-poc/rendering-web-standards/`、差別化空白 E への�
 </html>
 ```
 
+> [!NOTE]
 > **正典テンプレートの所在**: 上記は `templates/embed/embed.html` の抜粋です。
 > コメント（役割・責務境界・呼び出し契約の説明）を含む完全な内容は同ファイルを
 > 直接参照してください。本節のコード例と実物が乖離した場合は、実物
 > （`templates/embed/embed.html`）を正とします。
 
+> [!NOTE]
 > **`fw new --template embed` での生成（イシュー #410）**: 上記テンプレートを
 > 手動コピーする代わりに `fw new <project-name> --template embed` を実行すると、
 > `embed.html`（上記正典テンプレートとバイト一致）と `structure.toml`
