@@ -32,14 +32,17 @@
 //! `.claude/rules/coding-rust.md` の規約により、本ファイルの XSS 回帰
 //! テストは以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
-use fandhe_frontend_core::{escape_html, render, text};
+use fandhe_frontend_core::{el, escape_html, render, text};
 use fandhe_frontend_pre_styled_ui::alert::{self, AlertStatus};
 use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
+use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
+use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
+use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, select};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Size};
 
@@ -427,7 +430,77 @@ fn checkbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
     }
 }
 
-/// (7) NumberInput 経路（イシュー #738）: styled `root` の呼び出し側
+/// (7) input/textarea/native_select 経路（イシュー #737）: 状態機械を持たない
+/// 静的フォーム部品 3 種の `extra_attrs`（`value`/`placeholder` 等）・
+/// `children`（textarea のテキスト・native_select の option）・呼び出し側
+/// `class` の 3 経路で既定エスケープ（REQ-1）が貫通することを固定する。
+/// アクセシビリティ配線は headless `field::*` へ委譲するのみだが（本ファイル
+/// 冒頭の対象範囲外）、styled 公開 API 経由での既定エスケープはここで固定する。
+#[test]
+fn form_controls_extra_attrs_and_children_are_escaped_for_all_payloads() {
+    fn field(id: &str) -> FieldProps<'_> {
+        FieldProps {
+            id,
+            ids: FieldIds::default(),
+            disabled: false,
+            invalid: false,
+            required: false,
+            readonly: false,
+            has_helper_text: false,
+        }
+    }
+
+    for payload in payloads::all() {
+        // input の extra_attrs（value）経路。
+        let f = field("f");
+        let html = render(&input::input(
+            &InputProps::default(),
+            &f,
+            vec![("value", payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "input extra_attrs value コンテキスト");
+
+        // textarea の children（テキスト）経路。
+        let f = field("f");
+        let html = render(&textarea::textarea(
+            &TextareaProps::default(),
+            &f,
+            false,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "textarea children コンテキスト");
+
+        // native_select の option children（テキスト）経路。
+        let f = field("f");
+        let option = el("option", vec![("value", "x")], vec![text(payload)]);
+        let html = render(&native_select::native_select(
+            &NativeSelectProps::default(),
+            &f,
+            vec![],
+            vec![option],
+        ));
+        assert_payload_is_escaped(payload, &html, "native_select option children コンテキスト");
+
+        // 3 部品共通の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let f = field("f");
+        let html = render(&input::input(
+            &InputProps::default(),
+            &f,
+            vec![("class", payload)],
+        ));
+        assert!(
+            !html.contains(payload),
+            "input の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-field--"));
+    }
+}
+
+/// (8) NumberInput 経路（イシュー #738）: styled `root` の呼び出し側
 /// `attrs`・`class`、および headless-ui から選択的再エクスポートした
 /// `label` の children・`input` の `name` の 4 箇所すべてで既定エスケープ
 /// （REQ-1）が貫通することを固定する（checkbox 経路と同粒度）。

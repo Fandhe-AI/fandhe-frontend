@@ -93,6 +93,16 @@
 //!   フォーカスリングは [`mod@switch`] と同型で最初から実装する。`indicator`
 //!   の `hidden` 属性意味論を CSS が壊さない設計（`display` 宣言を置かない）
 //!   は [`mod@checkbox`] rustdoc 参照。
+//! - 状態機械を持たない静的フォーム部品 3 種（#737）:
+//!   [`mod@input`] / [`mod@textarea`] / [`mod@native_select`]。ブラウザ
+//!   ネイティブ挙動をそのまま尊重し、アクセシビリティ配線（`id`・ネイティブ
+//!   `disabled`/`required`/`readonly`・`aria-invalid`・`aria-describedby`・
+//!   `data-*`）は `fandhe_frontend_headless_ui::field`（#538/#602）へ全面委譲
+//!   する。`variant`（`Outline`/`Subtle`/`Flushed`、NativeSelect のみ
+//!   `Flushed` の代わりに `Plain`）と `size` の 2 軸を持つが、`color-palette`
+//!   軸は提供しない（「複合部品の variant 統一方針」§3 参照。フォーム入力は
+//!   選択・チェック状態を示す部品ではないため）。recipe scope は独自の scope
+//!   を新設せず `"field"` を共有する設計判断は [`mod@input`] rustdoc 参照。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -228,7 +238,9 @@ pub mod checkbox;
 mod class_attr;
 pub mod css;
 pub mod dialog;
+pub mod input;
 pub mod menu;
+pub mod native_select;
 pub mod number_input;
 pub mod popover;
 pub mod radio_group;
@@ -238,6 +250,7 @@ pub mod spinner;
 pub mod stylesheet;
 pub mod switch;
 pub mod tabs;
+pub mod textarea;
 pub mod theme;
 pub mod tooltip;
 
@@ -246,9 +259,12 @@ pub use badge::{badge, BadgeProps, BadgeVariant};
 pub use button::{button, ButtonProps, ButtonVariant};
 pub use card::CardVariant;
 pub use css::{decl, Declaration};
+pub use input::{input, InputProps, InputVariant};
+pub use native_select::{native_select, NativeSelectProps, NativeSelectVariant};
 pub use recipe::{when, ColorPalette, Size, SlotRecipe, VariantCondition, VariantValue};
 pub use spinner::{spinner, SpinnerProps};
 pub use stylesheet::{StyleSheet, StylesheetError};
+pub use textarea::{textarea, TextareaProps, TextareaVariant};
 
 // `fandhe_frontend_headless_ui` クレートそのものの再エクスポート（イシュー #685）。
 // headless-ui が core に対して行う #550 と同型のエスケープハッチであり、
