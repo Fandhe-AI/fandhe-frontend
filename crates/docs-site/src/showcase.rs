@@ -56,6 +56,8 @@ use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
+use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
+use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
@@ -206,6 +208,8 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::breadcrumb::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::carousel::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::progress::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::image::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::icon::css())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -2272,6 +2276,101 @@ fn progress_section() -> Node {
     )
 }
 
+/// Image 節（イシュー #770）の demo `src`。実画像を同梱せず、外部フェッチ・
+/// 404 を発生させないダミー値を使う方針は [`AVATAR_EMPTY_IMAGE_SRC`] と同型
+/// （相対パスは `linkcheck`（`href` のみ突合、`src` は対象外）の対象にも
+/// ならない）。
+const IMAGE_DEMO_SRC: &str = "/assets/pre-styled-ui-showcase-placeholder.svg";
+
+/// Image 節: `fit`（object-fit）× `aspect_ratio` の 2 軸。
+fn image_section() -> Node {
+    let fits = [
+        (ImageFit::Cover, "Cover"),
+        (ImageFit::Contain, "Contain"),
+        (ImageFit::Fill, "Fill"),
+        (ImageFit::ScaleDown, "ScaleDown"),
+        (ImageFit::NoFit, "NoFit (none)"),
+    ];
+    let fit_row = row(fits
+        .iter()
+        .map(|(fit, label)| {
+            image(
+                &ImageProps {
+                    fit: *fit,
+                    ..ImageProps::new(IMAGE_DEMO_SRC, label)
+                },
+                vec![(
+                    "style",
+                    "width: 6rem; height: 4rem; background: var(--fandhe-color-bg-subtle);",
+                )],
+            )
+        })
+        .collect());
+
+    let ratios = [
+        (AspectRatio::Auto, "Auto"),
+        (AspectRatio::Square, "Square"),
+        (AspectRatio::Video, "Video"),
+    ];
+    let ratio_row = row(ratios
+        .iter()
+        .map(|(ratio, label)| {
+            image(
+                &ImageProps {
+                    aspect_ratio: *ratio,
+                    ..ImageProps::new(IMAGE_DEMO_SRC, label)
+                },
+                vec![(
+                    "style",
+                    "width: 6rem; background: var(--fandhe-color-bg-subtle);",
+                )],
+            )
+        })
+        .collect());
+
+    section(
+        "Image",
+        "写真等の静的コンテンツを表示する img の styled ラッパー。fit（object-fit）と aspect-ratio を型安全な props で切り替えます。状態機械は持たず、avatar の ImageStatus とは独立です。",
+        vec![fit_row, ratio_row],
+    )
+}
+
+/// Icon 節: `size` variant のみ。SVG 本体は呼び出し側がノード木 API
+/// （`el(\"path\", ...)`）で構築する（本モジュールは外部リソースを参照しない）。
+fn icon_section() -> Node {
+    let star_path = || {
+        el(
+            "path",
+            vec![(
+                "d",
+                "M12 2l2.9 6.9 7.1.6-5.4 4.6 1.6 7-6.2-3.9-6.2 3.9 1.6-7-5.4-4.6 7.1-.6z",
+            )],
+            vec![],
+        )
+    };
+
+    let size_row = row(vec![Size::Sm, Size::Md, Size::Lg]
+        .into_iter()
+        .map(|size| {
+            icon(
+                &IconProps {
+                    size,
+                    label: Some("Star"),
+                    ..IconProps::default()
+                },
+                vec![],
+                vec![star_path()],
+            )
+        })
+        .collect());
+
+    section(
+        "Icon",
+        "インライン SVG の寸法（size）・配色（color: currentColor 継承）を統一する svg ラッパー。SVG 本体（path 等）は呼び出し側がノード木 API で構築します。",
+        vec![size_row],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -2323,6 +2422,8 @@ fn showcase_body() -> Node {
             radio_card_section(),
             breadcrumb_section(),
             progress_section(),
+            image_section(),
+            icon_section(),
         ],
     )
 }
@@ -2372,6 +2473,8 @@ mod tests {
             "checkbox-card",
             "radio-card",
             "breadcrumb",
+            "image",
+            "icon",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),

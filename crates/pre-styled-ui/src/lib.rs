@@ -196,6 +196,13 @@
 //!   [`nav_list::link`]）のみを使い、`site/assets/site.css` の自己完結
 //!   不変条件（§3.4）を維持したまま §3.1/§3.2 の意味論不整合を解消する
 //!   （[`mod@nav_list`] rustdoc 参照）。
+//! - 状態機械を持たない静的表示部品 2 種（イシュー #770）: [`mod@image`]
+//!   （Image、`<img>` の `fit`（`object-fit`）/`aspect-ratio` の 2 軸
+//!   variant。[`fandhe_frontend_headless_ui::avatar`] の `ImageStatus`
+//!   状態機械とは独立）/ [`mod@icon`]（Icon、`<svg>` の `size` variant のみ。
+//!   `color: currentColor` 継承のため `color-palette` 軸は提供しない。SVG
+//!   本体は呼び出し側がノード木 API で構築する）。いずれも中立的な表示部品
+//!   のため `color-palette` 軸を持たない（[`mod@card`] と同型の判断）。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -337,6 +344,8 @@ pub mod css;
 pub mod dialog;
 pub mod drawer;
 pub mod hover_card;
+pub mod icon;
+pub mod image;
 pub mod input;
 pub mod link;
 pub mod link_overlay;
@@ -374,6 +383,8 @@ pub use badge::{badge, BadgeProps, BadgeVariant};
 pub use button::{button, ButtonProps, ButtonVariant};
 pub use card::CardVariant;
 pub use css::{decl, Declaration};
+pub use icon::{icon, IconProps};
+pub use image::{image, AspectRatio, ImageFit, ImageProps};
 pub use input::{input, InputProps, InputVariant};
 pub use native_select::{native_select, NativeSelectProps, NativeSelectVariant};
 pub use recipe::{when, ColorPalette, Size, SlotRecipe, VariantCondition, VariantValue};

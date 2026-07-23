@@ -41,6 +41,8 @@ use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
+use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
+use fandhe_frontend_pre_styled_ui::image::{image, ImageProps};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
@@ -1416,4 +1418,139 @@ fn progress_styled_root_and_headless_circle_parts_are_escaped_for_all_payloads()
             "Progress::circle_range 呼び出し側 attrs コンテキスト",
         );
     }
+}
+
+/// イシュー #770: Image/Icon の属性値経路（`src`/`alt`/`viewBox`/
+/// `aria-label`/呼び出し側 `attrs`/`class`/SVG children 属性）が payload
+/// 網羅で既定エスケープを経由することを固定する。
+#[test]
+fn image_and_icon_payload_paths_are_escaped_or_dropped() {
+    for payload in payloads::all() {
+        // Image: src/alt は属性値経路。
+        let html = render(&image(&ImageProps::new(payload, payload), vec![]));
+        assert_payload_is_escaped(payload, &html, "Image src/alt 属性値コンテキスト");
+
+        // Image: 呼び出し側 attrs（data-testid）は素通りしつつエスケープされる。
+        let html = render(&image(
+            &ImageProps::new("/a.png", "alt"),
+            vec![("data-testid", payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "Image 呼び出し側 attrs コンテキスト");
+
+        // Image: 呼び出し側 class は drop_class_attr により出力に残らない。
+        let html = render(&image(
+            &ImageProps::new("/a.png", "alt"),
+            vec![("class", payload)],
+        ));
+        assert!(
+            !html.contains(payload),
+            "image() の class 属性に渡した生ペイロードが出力に残っている: \
+                 payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-image--"));
+
+        // Icon: viewBox/label は属性値経路。
+        let props = IconProps {
+            label: Some(payload),
+            view_box: payload,
+            ..IconProps::default()
+        };
+        let html = render(&icon(&props, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "Icon viewBox/aria-label 属性値コンテキスト");
+
+        // Icon: 呼び出し側 attrs（data-testid）。
+        let html = render(&icon(
+            &IconProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "Icon 呼び出し側 attrs コンテキスト");
+
+        // Icon: 呼び出し側 class は drop_class_attr により出力に残らない。
+        let html = render(&icon(
+            &IconProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "icon() の class 属性に渡した生ペイロードが出力に残っている: \
+                 payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-icon--"));
+
+        // Icon: 呼び出し側が組み立てる SVG children（`path d` 属性）にも
+        // 既定エスケープが適用される（本モジュールの外部リソース非参照
+        // 契約の裏付け、`crate::icon` rustdoc 参照）。
+        let node = icon(
+            &IconProps::default(),
+            vec![],
+            vec![el("path", vec![("d", payload)], vec![])],
+        );
+        let html = render(&node);
+        assert_payload_is_escaped(payload, &html, "Icon children path d 属性値コンテキスト");
+    }
+}
+
+/// イシュー #770: Image の `src` に対する危険 URL スキームが属性ごと
+/// 不出力になる（fail-closed）ことを固定する（`crates/core/src/url.rs`
+/// の `is_safe_url`/`URL_ATTRS` 検証への依拠、本ファイル冒頭「URL 属性
+/// 経路」と同型）。
+#[test]
+fn image_src_dangerous_url_schemes_are_rejected() {
+    let dangerous_urls = [
+        "javascript:alert(1)",
+        "JaVaScRiPt:alert(1)",
+        "data:text/html;base64,PHNjcmlwdD4=",
+        "vbscript:msgbox(1)",
+    ];
+
+    for url in dangerous_urls {
+        let html = render(&image(
+            &ImageProps::new(url, "safe-alt"),
+            vec![("data-testid", "sibling")],
+        ));
+        assert!(
+            !html.contains("src="),
+            "危険な URL スキームなのに src 属性が出力されている: url={url:?}, html={html}"
+        );
+        assert!(html.contains(r#"alt="safe-alt""#));
+        assert!(html.contains(r#"data-testid="sibling""#));
+        assert!(html.contains("fd-image--"));
+    }
+}
+
+/// イシュー #770: Image の `src` に対する安全な URL は既定エスケープを
+/// 経由してそのまま透過することを固定する。
+#[test]
+fn image_src_safe_urls_pass_through() {
+    for url in ["/items/1.png", "https://example.com/a.png"] {
+        let html = render(&image(&ImageProps::new(url, "alt"), vec![]));
+        let expected = format!(r#"src="{}""#, escape_html(url));
+        assert!(
+            html.contains(&expected),
+            "安全な URL が src 属性として透過していない: url={url:?}, html={html}"
+        );
+    }
+}
+
+/// イシュー #770: Icon 自身は外部リソース（`href`/`xlink:href`）を出力
+/// しないが、children 経由で渡された危険スキームの `xlink:href` にも
+/// core の `URL_ATTRS` 検証がそのまま適用される（属性ごと不出力）ことを
+/// 固定する。
+#[test]
+fn icon_children_xlink_href_dangerous_scheme_is_rejected() {
+    let node = icon(
+        &IconProps::default(),
+        vec![],
+        vec![el(
+            "use",
+            vec![("xlink:href", "javascript:alert(1)")],
+            vec![],
+        )],
+    );
+    let html = render(&node);
+    assert!(!html.contains("xlink:href"));
 }
