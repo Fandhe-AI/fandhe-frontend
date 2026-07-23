@@ -759,6 +759,23 @@ jobs:
         if: steps.check-wasm-full.outputs.exists == 'true'
         run: CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test focus_trap_browser
 
+      # イシュー #645（親 #588 残課題）: anchor positioning 配線
+      # （crates/wasm-full/src/position.rs）の実ブラウザ統合テスト
+      # （crates/wasm-full/tests/position_browser.rs、Popover に加え
+      # Menu/Select/Tooltip を対象）。PR #622 でテストファイルは追加済み
+      # だったが browser-test ジョブに未登録だったため、本イシューで
+      # ステップを新設する。実行時間の増分は date +%s の差分で計測し
+      # ::notice でログへ可視化する（#645 受け入れ条件）。他の wasm-full
+      # ステップと同じ check-wasm-full 存在ガードを再利用し、新規ガードは
+      # 追加しない。
+      - name: "Run wasm-full position browser tests (headless Chrome, issue #645)"
+        if: steps.check-wasm-full.outputs.exists == 'true'
+        run: |
+          start_epoch="$(date +%s)"
+          CHROMEDRIVER="${{ steps.install_chrome.outputs.chromedriver_path }}" wasm-pack test --headless --chrome crates/wasm-full --test position_browser
+          end_epoch="$(date +%s)"
+          echo "::notice::position_browser (Popover + Menu/Select/Tooltip, issue #645) took $((end_epoch - start_epoch))s"
+
   # TASK-8.2b（イシュー #62, REQ-8 受け入れ基準）: 同一文書内更新向け
   # ラッパー関数（`static/view-transitions.js` の `withViewTransition`、
   # TASK-8.2a／イシュー #61）の実効 LOC（コメント・空行を除く）が
