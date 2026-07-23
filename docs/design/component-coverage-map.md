@@ -484,16 +484,16 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/typography/link-overlay.md` | — | LinkOverlay | — | — | 実装対象 | #756（#716 最優先候補の消化） |
 | `.agents/skills/chakra-ui/references/components/typography/kbd.md` | — | Kbd | — | — | 実装対象 | #768 |
 | `.agents/skills/chakra-ui/references/components/typography/code.md` | — | Code | — | — | 実装対象 | #768 |
-| `.agents/skills/chakra-ui/references/components/typography/heading.md` | — | Heading | — | — | 実装対象 | #771 |
-| `.agents/skills/chakra-ui/references/components/typography/text.md` | — | Text | — | — | 実装対象 | #771 |
-| `.agents/skills/chakra-ui/references/components/typography/em.md` | — | Em | — | — | 実装対象 | #771 |
-| `.agents/skills/chakra-ui/references/components/typography/mark.md` | — | Mark | — | — | 実装対象 | #771 |
-| `.agents/skills/chakra-ui/references/components/typography/blockquote.md` | — | Blockquote | — | — | 実装対象 | #771 |
-| `.agents/skills/chakra-ui/references/components/typography/list.md` | — | List | — | — | 実装対象 | #771 |
+| `.agents/skills/chakra-ui/references/components/typography/heading.md` | — | Heading | — | heading | 実装済み | #771 |
+| `.agents/skills/chakra-ui/references/components/typography/text.md` | — | Text | — | text | 実装済み | #771 |
+| `.agents/skills/chakra-ui/references/components/typography/em.md` | — | Em | — | em | 実装済み | #771 |
+| `.agents/skills/chakra-ui/references/components/typography/mark.md` | — | Mark | — | mark | 実装済み | #771 |
+| `.agents/skills/chakra-ui/references/components/typography/blockquote.md` | — | Blockquote | — | blockquote | 実装済み | #771 |
+| `.agents/skills/chakra-ui/references/components/typography/list.md` | — | List | — | list | 実装済み | #771 |
 | `.agents/skills/chakra-ui/references/components/typography/highlight.md` | Highlight | Highlight | — | — | 実装対象 | #775 |
 | `.agents/skills/chakra-ui/references/components/typography/rich-text-editor.md` | — | RichTextEditor | — | — | 保留 | #735 で記録（高度入力系） |
 | `.agents/skills/chakra-ui/references/components/typography/code-block.md` | — | CodeBlock | — | — | 対象外 | 対象外（docs-site 既存機構と役割分担） |
-| `.agents/skills/chakra-ui/references/components/typography/prose.md` | — | Prose | — | — | 対象外 | 対象外（docs-site 既存機構と役割分担） |
+| `.agents/skills/chakra-ui/references/components/typography/prose.md` | — | Prose | — | — | 対象外 | 対象外（docs-site 既存機構と役割分担。役割分担の詳細は #771 の `crates/pre-styled-ui/src/text.rs` rustdoc・`docs/api/pre-styled-ui-api.md` 参照） |
 
 #### `.agents/skills/chakra-ui/references/components/utilities/`
 

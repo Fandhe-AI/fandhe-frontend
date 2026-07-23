@@ -34,8 +34,9 @@ styled ラッパー追加（#758）・Link/LinkOverlay/NavList styled ラッパ�
 （#756）・HoverCard styled ラッパー追加（#759）・ToggleTip styled ラッパー
 追加（#761）・Progress circular 対応追加（#763）・Skeleton 静的部品追加
 （#764）・Image/Icon 静的部品追加（#770）・Status/EmptyState 静的部品追加
-（#765）・Separator 静的部品追加（#772、いずれも公開時点未反映）を経て
-51 の公開モジュールを持つ。内訳は次の通り。
+（#765）・タイポグラフィ静的部品 6 種追加（#771）・Separator 静的部品追加
+（#772、いずれも公開時点未反映）を経て 57 の公開モジュールを持つ。内訳は
+次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -74,6 +75,7 @@ styled ラッパー追加（#758）・Link/LinkOverlay/NavList styled ラッパ�
 | headless ラッパー | `toggle_tip` | #761（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。「見た目は Tooltip・挙動は Popover」の変種であり、`content` の視覚系は `tooltip` と同一値。状態機械は `state::Disclosure`） |
 | headless ラッパー | `progress` | #763（headless の値状態機械 `Progress`（#544/#600）が持つ Circle/CircleTrack/CircleRange（SVG）へ CSS のみ追加提供。`Progress` 型はあえて再エクスポートせず、`size` variant クラス付与のため styled `root` のみを新設する（`dialog`/`switch` と同型の判断）。circle 自身は headless の inherent メソッドをそのまま呼ばせる（クラス不要）。indeterminate 時の回転アニメーションは `[data-part="circle"][data-state="indeterminate"]` セレクタ + `@keyframes`（`spinner` と同型）で提供。linear（Track/Range）用の styled ラッパーは対応表（`docs/design/component-coverage-map.md`）が本イシューと切り分けたスコープ外） |
 | 状態機械を要しない静的部品 | `status` / `empty_state` | #765（§4h 参照。`status` は `size`/`color-palette` の 2 軸、`empty_state` は `card` と同型の中立コンテナで `color-palette` 軸は非提供） |
+| タイポグラフィ静的部品 | `heading` / `text` / `em` / `mark` / `blockquote` / `list` | #771（§4i 参照。素の HTML 意味論（h1〜h6/p/em/mark/blockquote/ul・ol・li）をそのまま styled 化。headless 状態機械は要しない） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
@@ -667,6 +669,51 @@ chakra-ui の `feedback/status.md`/`feedback/empty-state.md` 相当。状態機�
 - **スコープ外**（`.claude/rules/out-of-scope-tracking.md` 対応）:
   `examples/headless-pre-styled-ui` への掲示は crates.io 公開後の追随
   イシューとして扱う（`checkbox_card`/`radio_card` と同型の運用）。
+
+## 4i. タイポグラフィ静的部品（イシュー #771: Heading / Text / Em / Mark / Blockquote / List）
+
+chakra-ui `typography/heading.md` / `text.md` / `em.md` / `mark.md` /
+`blockquote.md` / `list.md` 相当の 6 静的部品。headless 状態機械を要しない
+「単一 recipe / slot recipe 静的部品」（badge/skeleton と同型）で、
+h1-h6/p/em/mark/blockquote/ul・ol・li の素の HTML 意味論をそのまま styled
+化する。
+
+### variant 表
+
+| モジュール | パーツ | タグ選択 | variant 軸 | colorPalette | 備考 |
+|---|---|---|---|---|---|
+| `heading` | root（単一） | `HeadingLevel`（h1〜h6、意味論レベル） | `HeadingSize`（`sm`/`md`/`lg`/`xl`(既定)/`xl2`/`xl3`/`xl4`、`font-size`/`line-height`、視覚サイズ） | なし | タグ選択（意味論）とサイズ variant（視覚）は独立。chakra の `5xl`〜`7xl` はテーマトークン範囲外のため非採用 |
+| `text` | root（単一、`<p>` 固定） | — | `TextSize`（`xs`/`sm`/`md`(既定)/`lg`/`xl`） | なし | — |
+| `em` | root（単一、`<em>` 固定） | — | なし | なし | variant 軸を持たない最小部品（`link_overlay` と同型） |
+| `mark` | root（単一、`<mark>` 固定） | — | `MarkVariant`（`subtle`(既定)/`solid`/`text`/`plain`） | あり（5 値） | `badge` と同型の単一 recipe パターン |
+| `blockquote` | root（`<figure>`）/content（`<blockquote>`）/caption（`<figcaption>`） | — | `BlockquoteVariant`（`subtle`(既定)/`solid`/`plain`） | あり（5 値、root のみ） | `content` が素の `<blockquote>` のため引用の HTML 意味論を保つ |
+| `list` | root（`<ul>`/`<ol>`）/item（`<li>`）/indicator（`<span aria-hidden="true">`） | `ListType`（`Unordered`(既定)/`Ordered`） | `ListVariant`（`marker`(既定)/`plain`） | なし | `indicator` は常時 `aria-hidden="true"`（呼び出し側が外せない fail-closed、`skeleton` と同型） |
+
+`heading`/`list` の「タグ選択」は variant クラスではなく、レンダリングする
+HTML タグそのものを選ぶ引数である点に注意（`recipe::VariantValue` を実装
+しない）。
+
+### chakra-ui からの縮約（対象外事項）
+
+- Heading の視覚サイズは chakra-ui の `xs`〜`7xl`（9 段階）に対し、
+  `crates/pre-styled-ui/src/theme.rs` のテーマトークンが
+  `font-size-xs`〜`font-size-4xl`（8 段階）までしか持たないため `sm`〜`4xl`
+  （7 段階）へ縮約した。
+- `bgGradient` 等の chakra style props、`List.Indicator` のアイコン同梱、
+  `Blockquote.Icon` は、本クレートが style props を非採用としている既存
+  設計判断（テーマトークン + variant enum のみ）に合わせて非採用。
+
+### prose（記事全体カスケード）との役割分担
+
+chakra-ui の `Prose`（記事全体へ一括カスケード適用するコンポーネント）に
+相当する機構は、本クレートへは導入しない。本節の 6 部品はいずれも
+「要素単位のオプトイン適用」であり、Markdown 由来の記事本文へ無選別に
+カスケード適用する仕組みは持たない。記事全体へのカスケードスタイルは
+`fandhe-frontend-docs-site` の `site/assets/site.css`（`.docs-content`
+配下の `h1`-`h3`/`p`/`ul`/`ol`/`blockquote` 規則）が既に担っており、本
+イシューはこの既存機構を置き換えない（詳細な判断根拠は
+`crates/pre-styled-ui/src/text.rs` rustdoc、対応表は
+`docs/design/component-coverage-map.md` prose.md 行を参照）。
 
 ## 5. 関連ドキュメント
 

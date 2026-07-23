@@ -46,6 +46,7 @@
 
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
+use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::carousel;
@@ -53,13 +54,17 @@ use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState}
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
+use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
+use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
+use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
+use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
@@ -73,6 +78,7 @@ use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::tags_input;
+use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
@@ -129,6 +135,19 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   内に限定して `border-top`/`padding-top`/`letter-spacing` を打ち消す
 ///   （margin/font-size/font-weight は recipe が宣言済みで自然に勝つため
 ///   宣言しない。recipe との二重管理を避ける最小リセット）。
+/// - `[data-scope="blockquote"][data-part="content"]`（素の `<blockquote>`
+///   要素）のリセット（イシュー #771 タイポグラフィ節掲示、Bugbot 指摘）:
+///   `site.css` の `.docs-content blockquote` が `padding`/`border-left`/
+///   `color`（muted）を素の `blockquote` 要素へ直接宣言しており、Blockquote
+///   recipe（`crates/pre-styled-ui/src/blockquote.rs`）の `content` slot は
+///   この要素そのものである。recipe 側は `content` slot へ `margin: 0` しか
+///   宣言せず `padding`/`border-left`/`color` を宣言しないため、`.docs-content
+///   blockquote`（詳細度 (0,1,1)）がそのまま適用され、`root`（`<figure>`）
+///   自身の padding・左ボーダーと二重になり、かつ引用文字色が意図せず
+///   muted 化する。Accordion `h3`/Dialog `h2` と同じ理由（`site.css` 側は
+///   変更せず、showcase 領域内に限定した `data-scope`/`data-part` 属性
+///   セレクタで打ち消す）で、`.pre-styled-showcase` + 属性 2 個 = (0,3,0) が
+///   `.docs-content blockquote` = (0,1,1) より優先されるようにリセットする。
 const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
 .showcase-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 0.75rem;\n  align-items: center;\n  margin: 1rem 0;\n}\n\
@@ -139,7 +158,8 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: static;\n  padding: 0;\n  justify-content: flex-start;\n}\n\
 .pre-styled-showcase [data-scope=\"drawer\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"combobox\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"hover-card\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
-.pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n";
+.pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
+.pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n";
 
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
 /// 追記する `Node` 木を返す。
@@ -216,6 +236,12 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::icon::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::status::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::empty_state::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::heading::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::text::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::em::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::mark::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::blockquote::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::list::css())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -411,6 +437,141 @@ fn skeleton_section() -> Node {
         "Skeleton",
         "データ読み込み中のコンテンツ形状を模した占位要素。常に aria-hidden=\"true\" を持ち、読み込み中であることをスクリーンリーダーへ伝える責務はコンテナ側（aria-busy）にあります。prefers-reduced-motion: reduce ではパルスアニメーションを停止します。",
         vec![variant_row],
+    )
+}
+
+/// タイポグラフィ節（イシュー #771）: Heading / Text / Em / Mark /
+/// Blockquote / List の 6 静的部品をまとめて掲示する。
+///
+/// Heading は `h4`〜`h6`（`site/assets/site.css` の `.docs-content` 見出し
+/// 規則が対象とする `h1`〜`h3` の範囲外）のみを掲示し、サイト骨格の見出し
+/// スタイルとの衝突を避ける（[`skeleton_section`] の Accordion `h3` 漏れ
+/// 遮断と同種の配慮。本節自体の `h2` はショーケース節見出し
+/// （[`section`] ヘルパ）であり本部品の対象外）。
+fn typography_section() -> Node {
+    let heading_row = row(vec![
+        heading(
+            HeadingLevel::H4,
+            &HeadingProps {
+                size: HeadingSize::Lg,
+            },
+            vec![],
+            vec![text("見出し (h4, size=lg)")],
+        ),
+        heading(
+            HeadingLevel::H5,
+            &HeadingProps {
+                size: HeadingSize::Md,
+            },
+            vec![],
+            vec![text("見出し (h5, size=md)")],
+        ),
+        heading(
+            HeadingLevel::H6,
+            &HeadingProps {
+                size: HeadingSize::Sm,
+            },
+            vec![],
+            vec![text("見出し (h6, size=sm)")],
+        ),
+    ]);
+
+    let text_stack = stack(
+        [TextSize::Sm, TextSize::Md, TextSize::Lg]
+            .iter()
+            .map(|size| {
+                styled_text(
+                    &TextProps { size: *size },
+                    vec![],
+                    vec![text(format!("本文テキスト（size={size:?}）"))],
+                )
+            })
+            .collect(),
+    );
+
+    let em_row = row(vec![el(
+        "p",
+        vec![],
+        vec![
+            text("この文の"),
+            em(vec![], vec![text("強調部分")]),
+            text("は重要です。"),
+        ],
+    )]);
+
+    let mark_row = row(vec![
+        mark(&MarkProps::default(), vec![], vec![text("subtle")]),
+        mark(
+            &MarkProps {
+                variant: MarkVariant::Solid,
+                ..MarkProps::default()
+            },
+            vec![],
+            vec![text("solid")],
+        ),
+        mark(
+            &MarkProps {
+                variant: MarkVariant::Text,
+                ..MarkProps::default()
+            },
+            vec![],
+            vec![text("text")],
+        ),
+        mark(
+            &MarkProps {
+                variant: MarkVariant::Plain,
+                ..MarkProps::default()
+            },
+            vec![],
+            vec![text("plain")],
+        ),
+    ]);
+
+    let blockquote_demo = blockquote::root(
+        BlockquoteVariant::Subtle,
+        ColorPalette::Accent,
+        vec![],
+        vec![
+            blockquote::content(
+                vec![],
+                vec![text("プレーンな HTML / JavaScript / CSS を尊重する。")],
+            ),
+            blockquote::caption(vec![], vec![text("— fandhe-frontend CLAUDE.md")]),
+        ],
+    );
+
+    let marker_list = list::root(
+        ListType::Unordered,
+        ListVariant::Marker,
+        vec![],
+        vec![
+            list::item(vec![], vec![text("SSR")]),
+            list::item(vec![], vec![text("SPA")]),
+            list::item(vec![], vec![text("SSG")]),
+        ],
+    );
+    let ordered_list = list::root(
+        ListType::Ordered,
+        ListVariant::Marker,
+        vec![],
+        vec![
+            list::item(vec![], vec![text("計画")]),
+            list::item(vec![], vec![text("実装")]),
+            list::item(vec![], vec![text("検証")]),
+        ],
+    );
+
+    section(
+        "Typography",
+        "見出し・本文・強調・ハイライト・引用・リストの静的部品。素の HTML 意味論（h1〜h6・p・em・mark・blockquote・ul/ol/li）をそのまま styled 化します。記事全体へのカスケード適用（chakra-ui の Prose 相当）は本クレートへ導入せず、docs サイト骨格スタイル（.docs-content）が引き続き担います。",
+        vec![
+            heading_row,
+            text_stack,
+            em_row,
+            mark_row,
+            blockquote_demo,
+            stack(vec![marker_list, ordered_list]),
+        ],
     )
 }
 
@@ -2494,6 +2655,7 @@ fn showcase_body() -> Node {
             badge_section(),
             spinner_section(),
             skeleton_section(),
+            typography_section(),
             separator_section(),
             alert_section(),
             card_section(),
