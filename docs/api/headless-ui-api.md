@@ -37,6 +37,7 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | `state::OpenState` | `Open`/`Closed` の 2 値状態（`Default` は `Closed`。SSR の状態なし初期描画に対応）。`as_data_state()`/`is_open()`/`toggled()` |
 | `state::Disclosure` / `state::DisclosureAction` | 単一の開閉状態機械。`fandhe_frontend_interactive::Component`/`Hydrate` を実装し、dispatch アクション名 `"open"`/`"close"`/`"toggle"` を受理する |
 | `state::SingleSelect` / `state::SingleSelectAction` | 「高々 1 項目が選択される」状態機械（Accordion の single モード等が使用）。dispatch アクション名 `"select"`/`"deselect"`/`"toggle"` |
+| `state::TextInput` / `state::TextInputAction` | 自由入力文字列 1 個を持つ状態機械（Combobox が使用、#749）。dispatch アクション名 `"input"`/`"clear"` |
 
 これらは Dialog / Accordion / Tabs / Collapsible / Popover / Tooltip
 （Phase 2、#526〜#533）が共通で使う「open/closed・selected」の dispatch 契約・
@@ -64,6 +65,7 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | PinInput | `pin_input` | Root/Label/Control/Input/HiddenInput | 独自実装（固定桁数の文字配列 + フォーカス位置、`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装） | #739 |
 | RatingGroup | `rating_group` | Root/Label/Control/Item/HiddenInput | 独自実装（`1..=count` の数値評価値 + hover プレビューを持つ。`hover` は SSR 非活性・hydration 非直列化。`Component`/`Hydrate` を直接実装） | #742 |
 | SegmentGroup | `segment_group` | Root/Indicator/Item/ItemText/ItemControl/ItemHiddenInput | `radio_group::RadioGroup`（`state::SingleSelect`）へ全委譲（独自の状態機械を新設せず、既存 RadioGroup の dispatch/hydration をそのまま再利用する） | #743 |
+| Combobox | `combobox` | Root/Label/Control/Input/Trigger/ClearTrigger/Positioner/Content/ItemGroup/ItemGroupLabel/Item/ItemText/ItemIndicator | `state::Disclosure` + `state::SingleSelect` + `state::TextInput`（開閉 + 選択値 + 入力値の合成）。ARIA 1.2 combobox パターンに準拠し `aria-activedescendant` は `content` ではなく `input` 側に配線する（Select との差異） | #749 |
 
 **未実装（open イシュー、後続で追補）**: Checkbox（#535）・Progress（#544）。
 本表はこれらの実装完了時に更新する。
@@ -83,6 +85,13 @@ placement 計算が実装済みとなった。
 | Tooltip | Positioner/Arrow/ArrowTip | `"tooltip"` | あり |
 | Menu | Positioner/Arrow/ArrowTip | `"menu"` | あり |
 | Select | Positioner のみ | `"select"` | なし |
+| Combobox | Positioner のみ（`data-scope="combobox"` の anatomy は #749 で実装済み） | `"combobox"` | なし |
+
+Combobox の `positioner` は SSR 静的マークアップ（開閉状態の `data-state`/
+`hidden`）のみを #749 時点で実装済みであり、`crates/wasm-full/src/position.rs`
+の `PositionedKind` への `Combobox` バリアント追加（実 DOM 計測・
+`OPEN_POSITIONER_SELECTOR` への組み込み）は後続イシューのスコープである
+（`select`/`menu`/`popover`/`tooltip` と同型の position 連携完了は未了）。
 
 再計算対象の走査は開いている positioner のみに限定する
 セレクタ `[data-part="positioner"][data-state="open"]`
