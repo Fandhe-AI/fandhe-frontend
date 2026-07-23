@@ -41,6 +41,7 @@ use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
+use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps};
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, ImageProps};
@@ -1692,6 +1693,85 @@ fn status_empty_state_styled_parts_and_class_attr_are_escaped_for_all_payloads()
             payload,
             &html,
             "empty_state::description children コンテキスト",
+        );
+    }
+}
+
+/// (13) highlight 経路（イシュー #775）: 本文（テキスト）・クエリ・呼び出し側
+/// `attrs`・`class` の 4 箇所で既定エスケープ（REQ-1）が貫通することを固定
+/// する。`query` はユーザー入力由来の一致キーワードであり、一致・不一致の
+/// いずれの場合も `query` の生文字列がそのまま HTML へ出力される経路がない
+/// ことが要点（`crates/pre-styled-ui/src/highlight.rs` モジュール冒頭
+/// rustdoc「一致判定は決定的な文字列検索のみ」節参照）。
+#[test]
+fn highlight_text_query_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // 本文経路: text にペイロードを渡す（query は本文に現れない語句のため
+        // 不一致、mark 化されない状態でもエスケープが貫通することを固定）。
+        let html = render(&highlight(
+            &HighlightProps {
+                query: &["nonexistent-query-term"],
+                ..HighlightProps::default()
+            },
+            vec![],
+            payload,
+        ));
+        assert_payload_is_escaped(payload, &html, "highlight 本文（text）コンテキスト");
+
+        // クエリ経路: ペイロードを query に渡す。本文にペイロードと同じ
+        // 文字列が含まれる場合は一致し mark 化されるが、その場合も mark 内
+        // テキストは text() 経由でエスケープされる。
+        let html = render(&highlight(
+            &HighlightProps {
+                query: &[payload],
+                ..HighlightProps::default()
+            },
+            vec![],
+            payload,
+        ));
+        assert_payload_is_escaped(payload, &html, "highlight クエリ（query）一致コンテキスト");
+
+        // クエリ経路（不一致）: 本文に query が現れない場合、query の生文字列
+        // がどの経路からも HTML へ出力されないことを固定する。
+        let html = render(&highlight(
+            &HighlightProps {
+                query: &[payload],
+                ..HighlightProps::default()
+            },
+            vec![],
+            "The quick brown fox",
+        ));
+        assert!(
+            !html.contains(payload),
+            "highlight で不一致 query の生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+
+        // 属性値経路 b: 呼び出し側 attrs（data-testid 等）。
+        let html = render(&highlight(
+            &HighlightProps::default(),
+            vec![("data-testid", payload)],
+            "hello world",
+        ));
+        assert_payload_is_escaped(payload, &html, "highlight 呼び出し側 attrs コンテキスト");
+
+        // 属性値経路 c: 呼び出し側 attrs の class（drop_class_attr により
+        // 生ペイロードは出力されない。highlight は variant を持たないため
+        // recipe 生成クラスへの置換ではなく、class 属性自体が出力されない）。
+        let html = render(&highlight(
+            &HighlightProps::default(),
+            vec![("class", payload)],
+            "hello world",
+        ));
+        assert!(
+            !html.contains(payload),
+            "highlight の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(
+            !html.contains("class=\""),
+            "highlight は variant を持たないため class 属性を出力しないはずだが出力されている: \
+             html={html}"
         );
     }
 }

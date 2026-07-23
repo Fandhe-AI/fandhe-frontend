@@ -13,7 +13,7 @@ pre-styled UI コンポーネント層、親トラッキング #520・骨格新�
 対応する REQ / TASK は `docs/spec/` に存在しない（要件提案は
 fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 参照）。
 
-## 2. 実装状況（v0.17.0 時点、2026-07-23 更新）
+## 2. 実装状況（v0.18.0 時点、2026-07-23 更新）
 
 **記載方針**: 実装済み API の正は `crates/pre-styled-ui/src/lib.rs` 冒頭の
 rustdoc および各モジュール冒頭の rustdoc とする。本節はモジュール一覧の
@@ -34,8 +34,9 @@ styled ラッパー追加（#758）・Link/LinkOverlay/NavList styled ラッパ�
 （#756）・HoverCard styled ラッパー追加（#759）・ToggleTip styled ラッパー
 追加（#761）・Progress circular 対応追加（#763）・Skeleton 静的部品追加
 （#764）・Image/Icon 静的部品追加（#770）・Status/EmptyState 静的部品追加
-（#765）・Separator 静的部品追加（#772、いずれも公開時点未反映）を経て
-51 の公開モジュールを持つ。内訳は次の通り。
+（#765）・Separator 静的部品追加（#772）・Highlight 静的部品追加
+（#775、いずれも公開時点未反映）を経て 52 の公開モジュールを持つ。
+内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -48,6 +49,7 @@ styled ラッパー追加（#758）・Link/LinkOverlay/NavList styled ラッパ�
 | 単純 styled 部品 | `image` | #770（写真等の静的コンテンツを表示する `<img>`。`ImageFit`（`object-fit`）/`AspectRatio` の 2 軸 variant、`alt` 必須引数。headless-ui `avatar` の `ImageStatus` 状態機械とは独立。中立的な表示部品のため `color-palette` 軸は非提供） |
 | 単純 styled 部品 | `icon` | #770（インライン SVG の寸法を統一する `<svg>` ラッパー。`size` variant のみ、`color: currentColor` 継承のため `color-palette` 軸は非提供。SVG 本体（`path` 等）は呼び出し側がノード木 API で構築し、外部リソース（`href`/`xlink:href`）は本モジュール自身が参照しない） |
 | 単純 styled 部品 | `separator` | #772（区切り線、`<hr>`。`orientation`（horizontal/vertical）・`variant`（solid/dashed）の 2 軸、常時 `role="separator"`/`aria-orientation`/`data-orientation` を出力、`color-palette`/`size` 軸は非提供） |
+| 単純 styled 部品 | `highlight` | #775（テキスト中の一致語句を `<mark>` で強調する `<span>` + `<mark>`。`query`（複数可）・`ignore_case`（ASCII 限定）・`match_all` の 3 プロパティ。一致判定は正規表現不使用の決定的な部分文字列検索のみ（ReDoS 非該当）。`color-palette`/`size` 軸は非提供） |
 | headless ラッパー第 1 弾 | `dialog` / `tabs` / `accordion` / `menu` / `select` | #551 |
 | headless ラッパー第 2 弾 | `popover` / `tooltip` | #664 |
 | headless ラッパー第 3 弾 | `switch` | #682 |
