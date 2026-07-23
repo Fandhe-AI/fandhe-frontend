@@ -4,8 +4,17 @@
 //! radio-card 相当の anatomy は存在せず、chakra-ui が headless の
 //! RadioGroup 状態機械の上に独自 slot recipe として実装している構図を、本
 //! クレートでもそのまま踏襲する。**headless-ui には手を入れない**（受け入れ
-//! 条件）。設計判断・セキュリティ不変条件は [`crate::checkbox_card`]
-//! rustdoc と同型（本モジュールは RadioCard 版）。
+//! 条件）。設計判断は [`crate::checkbox_card`] rustdoc と同型（本モジュールは
+//! RadioCard 版）。ただしセキュリティ不変条件は完全に同型ではない: 本
+//! モジュールは [`crate::checkbox_card`] の `STATE_RESERVED`/
+//! `HIDDEN_INPUT_RESERVED`/`drop_reserved` に相当する「呼び出し側 `attrs` に
+//! よる `data-state`/`data-value`/`type`/`checked` 等の予約キーなりすまし」
+//! への fail-closed 除去を持たない（`class` の除去のみ、下記「セキュリティ
+//! 不変条件」節参照）。これは本モジュールが新規導入した退行ではなく、
+//! 既存の [`crate::radio_group`] と同じ踏襲であり、対象は「呼び出し側
+//! （アプリ開発者）が渡す attrs」でリモート未検証ユーザー入力を直接受ける
+//! 経路ではないため、実害は限定的と判断している（イシュー #747 レビュー
+//! 指摘・追跡）。
 //!
 //! # anatomy は pre-styled 層で新規定義する（[`crate::card`]/[`crate::checkbox_card`] 先例準拠）
 //!
@@ -84,7 +93,15 @@
 //! [`fandhe_frontend_headless_ui::fandhe_frontend_core::render`] の既定
 //! エスケープを必ず経由する（REQ-1）。呼び出し側 `attrs` の `class` は
 //! [`drop_class_attr`] で除去してから合成し、`class` 属性は常に単一
-//! （[`crate::radio_group::root`] と同型）。
+//! （[`crate::radio_group::root`] と同型）。[`crate::checkbox_card`] と異なり、
+//! `data-state`/`data-value`/`data-orientation`/`role`/`type`/`checked`/
+//! `name`/`value` 等、各パーツが固定付与する属性キーは呼び出し側 `attrs` から
+//! の除去（fail-closed な予約キー保護）を行わない。呼び出し側が誤ってこれら
+//! のキーを `attrs` へ混入させた場合、`type="radio" type="text"` のような
+//! 重複属性がフェイルオープンで出力されうる（[`crate::radio_group`] も同型、
+//! 本モジュールが新規導入した退行ではない）。ブラウザの属性解釈は一般に
+//! 先勝ちのため実害は限定的だが、契約としては [`crate::checkbox_card`] より
+//! 弱い。
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
