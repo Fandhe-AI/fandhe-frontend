@@ -14,7 +14,7 @@
 //! `size`（[`crate::recipe::Size`]、寸法スケール）のみを variant として持ち、
 //! `color-palette` 軸は提供しない（アイコンの配色は `color: currentColor`
 //! 継承により祖先要素の文字色にそのまま追従させる設計判断であり、
-//! `[`crate::spinner`]`・[`crate::badge`]` のようにアイコン自身が状態/意味を
+//! [`crate::spinner`]・[`crate::badge`] のようにアイコン自身が状態/意味を
 //! 持つ palette 軸を必要としない。将来個別のアクセント色が必要になれば
 //! 非破壊的に追加できる）。
 
