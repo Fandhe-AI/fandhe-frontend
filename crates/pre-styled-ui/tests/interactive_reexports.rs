@@ -15,10 +15,17 @@ use fandhe_frontend_pre_styled_ui::dialog::{
     Dialog, DisclosureAction, OpenState as DialogOpenState,
 };
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_core::render;
+// `Switch` 状態機械はイシュー #708 により `pre_styled_ui::switch` から
+// あえて再エクスポートされていない（`crate::switch` モジュール rustdoc の
+// 「選択的 re-export」節参照。未スタイル root の静かな適用漏れを防ぐ
+// fail-closed 設計）。到達には #685 のクレートルート再エクスポート経由
+// （`fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::switch::Switch`）
+// を使う。それでも本テストは pre-styled-ui 単独依存で完結する。
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::switch::Switch;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::{
     dispatch, render_for_hydration, Component, Hydrate, HydrateError,
 };
-use fandhe_frontend_pre_styled_ui::switch::{Switch, SwitchAction};
+use fandhe_frontend_pre_styled_ui::switch::SwitchAction;
 
 /// styled [`Dialog`] で SSR（`render_for_hydration`）→ hydration 属性復元
 /// （[`Hydrate::from_hydration_attrs`]）→ dispatch までの往復が、

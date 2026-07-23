@@ -42,6 +42,8 @@ rustdoc および各モジュール冒頭の rustdoc とする。本節はモジ
 `stylesheet()`（モジュールにより `css()`）で既定 CSS を追加提供する共通
 設計方針を採る。詳細・スコープ外事項は各モジュール冒頭の rustdoc を参照
 （例: `switch` は `src/switch.rs`、`avatar`/`radio_group` は §4b/§4c）。
+`switch`/`radio_group` の `size`/`color-palette` variant 拡張（イシュー
+#708）の詳細は §4c・§4d を参照。
 
 クレートルート再エクスポート（`fandhe_frontend_headless_ui` /
 `fandhe_frontend_core` / `OpenState` / `Orientation` ほか、イシュー #685）は
@@ -329,14 +331,13 @@ let _style_node = sheet.style_element();
   一致時の `display: none` は `SlotRecipe::state` 経由で多層防御として
   追加登録する（`src/avatar.rs` 冒頭の rustdoc 参照）。
 
-## 4c. styled RadioGroup ラッパー（イシュー #683）
+## 4c. styled RadioGroup ラッパー（イシュー #683、`size`/`palette` 拡張は #708）
 
 `radio_group` モジュールは `fandhe_frontend_headless_ui::radio_group`
-（イシュー #558/#536）の Root/Label/Item/ItemControl/ItemText/
-ItemHiddenInput 6 anatomy パーツと `RadioGroup` 状態機械をそのまま
-再エクスポート（`pub use fandhe_frontend_headless_ui::radio_group::*`）し、
+（イシュー #558/#536）の Label/Item/ItemControl/ItemText/ItemHiddenInput
+5 anatomy パーツと `RadioGroup` 状態機械を選択的に再エクスポートし、
 `stylesheet()` で既定 CSS を追加提供する（設計方針は #551/#664 の他
-headless ラッパーと同じ、`src/lib.rs` 冒頭の rustdoc 参照）。
+headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照）。
 
 - **`item-hidden-input` の視覚的非表示化**: headless 層はネイティブ
   `<input type="radio">` に `aria`/`data-*` のみを設定し視覚的な非表示化を
@@ -351,8 +352,41 @@ headless ラッパーと同じ、`src/lib.rs` 冒頭の rustdoc 参照）。
   `:focus-within` を当てるのが CSS 的に成立する唯一の経路のため、
   `recipe::StateCondition` へ `FocusWithin`（`:focus-within` 擬似クラス）を
   追加した（既存の `Attr`/`AttrEq`/`FocusVisible` に次ぐ 4 つ目の状態条件）。
-- 他の headless ラッパーと同様、variant（size 等）ごとのクラス切り替えは
-  スコープ外（単一既定スタイルのみ）。
+- **`root(size, palette, disabled, orientation, labelled_by, attrs,
+  children) -> Node`**（イシュー #708）: styled root パーツ。`size`
+  （`Size::Sm`/`Md`/`Lg`、既定 `Md`）・`palette`（`ColorPalette` 5 値、既定
+  `Accent`）の 2 軸 variant クラス（`fd-radio-group--size-<value>` /
+  `fd-radio-group--color-palette-<value>`）を付与する。headless 自由関数
+  `root` との名前衝突を避けるため本モジュールで再定義し、`pub use
+  ...::*` ではなく選択的 re-export とする。`RadioGroup` 状態機械は
+  inherent `root()` を持たないため（item 系メソッドのみ）、`avatar` の
+  `Avatar` と異なりそのまま再エクスポートを維持する。
+
+## 4d. 複合部品の variant 統一方針・variant 表（イシュー #708）
+
+単純部品（button/badge/spinner）・avatar に続き、headless 状態機械を持つ
+複合部品ラッパーへ `size`/`color-palette` variant を拡張する際の統一方針は
+`crates/pre-styled-ui/src/lib.rs` 冒頭の rustdoc「複合部品の variant 統一
+方針」節が正本。要旨:
+
+1. クラスは root slot のみに付与し、子孫パーツへの伝搬は root が登録する
+   CSS custom property の通常の継承で行う（`SlotRecipe` へ子孫セレクタ
+   機構は追加しない）。
+2. `var()` には Md/Accent 相当のフォールバック値を書き、headless 直接利用
+   でも現行外観を維持する。
+3. `size` はフォーム操作部品・トリガー系へ、`color-palette` は選択・
+   チェック状態を示す部品へ提供する。popover/tooltip は配置・寸法が
+   positioning 起因のため提供しない。
+
+| 部品 | size | color-palette | 状態 |
+|---|---|---|---|
+| button/badge/spinner | ✓ | ✓ | 実装済み（#550/#606） |
+| avatar | ✓ | – (shape) | 実装済み（#684） |
+| switch | ✓ | ✓ | 実装済み（#708） |
+| radio-group | ✓ | ✓ | 実装済み（#708） |
+| tabs | 候補 | 候補（selected trigger） | フォローアップ |
+| accordion / dialog / menu / select | 候補（size のみ） | – | フォローアップ |
+| popover / tooltip | 提供しない | 提供しない | 方針確定 |
 
 ## 5. 関連ドキュメント
 

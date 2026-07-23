@@ -69,11 +69,10 @@
 //! - headless 状態機械を持つ複合部品 2 種の styled ラッパー第 2 弾（#664）:
 //!   [`mod@popover`] / [`mod@tooltip`]。設計方針・スコープ外は第 1 弾と同じ。
 //! - headless 状態機械を持つ複合部品 1 種の styled ラッパー第 3 弾（#682）:
-//!   [`mod@switch`]。設計方針・スコープ外は第 1・2 弾と同じ。`data-state`
-//!   語彙が `"checked"/"unchecked"`（open/closed ではない）である点、
-//!   `hidden-input` の視覚的非表示化に [`crate::select`] の
-//!   `hidden-select` と同じ visually-hidden パターンを再利用する点は
-//!   [`mod@switch`] rustdoc 参照。
+//!   [`mod@switch`]。`data-state` 語彙が `"checked"/"unchecked"`
+//!   （open/closed ではない）である点、`hidden-input` の視覚的非表示化に
+//!   [`crate::select`] の `hidden-select` と同じ visually-hidden パターンを
+//!   再利用する点は [`mod@switch`] rustdoc 参照。
 //! - headless 状態機械を持つ複合部品の styled ラッパー第 4 弾（#683）:
 //!   [`mod@radio_group`]。`item-hidden-input` の visually-hidden 化は
 //!   [`mod@select`] の `hidden-select` と同じ責務分担、フォーカスリングは
@@ -81,24 +80,62 @@
 //!   rustdoc 参照）。
 //! - headless ラッパー（#684）: [`mod@avatar`]（Avatar、`size`/`shape` の
 //!   2 軸 variant を持つ最初のラッパー）。
+//! - [`mod@switch`]/[`mod@radio_group`] への `size`/`color-palette` variant
+//!   拡張（#708）: 下記「複合部品の variant 統一方針」節を参照。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683）
 //!
 //! [`mod@dialog`]・[`mod@accordion`]・[`mod@menu`]・[`mod@select`]・
-//! [`mod@tabs`]・[`mod@popover`]・[`mod@tooltip`]・[`mod@switch`]・
-//! [`mod@radio_group`] はいずれも
+//! [`mod@tabs`]・[`mod@popover`]・[`mod@tooltip`] はいずれも
 //! `fandhe_frontend_headless_ui` の対応モジュールが出力する
 //! `data-scope`/`data-part` 属性セレクタへ [`recipe::SlotRecipe`] で静的 CSS
 //! を対応付ける薄い委譲層である。パーツ関数・状態機械
-//! （`Dialog`/`Accordion`/`Menu`/`Select`/`Popover`/`Tooltip`/`Switch`/
-//! `RadioGroup`）は
+//! （`Dialog`/`Accordion`/`Menu`/`Select`/`Popover`/`Tooltip`）は
 //! headless 層からそのまま再エクスポートし（`pub use ...::*`）、新たな
 //! 出力経路・エスケープ迂回は一切持たない。各モジュールの `stylesheet()` が
 //! 生成する CSS は静的 `.css` ファイルとして配信する、または
 //! [`stylesheet::StyleSheet`]（#605）へ取り込んで `<style>` タグへインライン
 //! 埋め込む、両方の利用形態を前提とする（不変条件 2 を参照）。variant
-//! （size 等）ごとのクラス切り替えは本第 3・4 弾でも引き続きスコープ外とする
-//! （各モジュール rustdoc のスコープ外節を参照）。
+//! （size 等）ごとのクラス切り替えは、これら 7 種については引き続き
+//! スコープ外とする（フォローアップ方針は次節参照）。[`mod@switch`]・
+//! [`mod@radio_group`] は #708 で `size`/`color-palette` variant を追加した
+//! ため、[`crate::avatar`]・[`crate::card`] と同型の選択的 re-export（薄い
+//! 委譲層である点は変わらない）へ移行済み（各モジュール rustdoc 参照）。
+//!
+//! # 複合部品の variant 統一方針（イシュー #708）
+//!
+//! 単純部品（button/badge/spinner）・avatar に続き、headless 状態機械を持つ
+//! 複合部品ラッパーへ `size`/`color-palette` variant を拡張する際の統一方針:
+//!
+//! 1. **クラスは root slot のみに付与する**（[`crate::card::root`]・
+//!    [`crate::avatar::root`] と同型）。子孫 slot（control/thumb/
+//!    item-control 等）への寸法・色の伝搬は、root の variant 宣言が登録する
+//!    **root スコープの CSS custom property**（`--fandhe-<scope>-*`
+//!    名前空間）の通常の CSS 継承と、palette は既存の
+//!    [`recipe::palette_declarations`]（`--fandhe-palette-*`、#606）で行う。
+//!    [`recipe::SlotRecipe`] へ子孫セレクタ機構は追加しない（recipe 無改変で
+//!    決定的生成を維持する）。
+//! 2. **base 規則の `var()` には Md/Accent 相当のフォールバック値を書く**
+//!    （例: `width: var(--fandhe-switch-track-width, 2.5rem)`）。styled root
+//!    を経由しない headless 直接利用マークアップでも現行外観を維持する
+//!    （fail-safe）。
+//! 3. **軸の提供基準**: `size` は寸法スケールに意味がある部品（フォーム操作
+//!    部品・トリガー系）へ、`color-palette` はアクセント色で選択・チェック
+//!    状態を示す部品へ提供する。オーバーレイの配置・寸法がコンテンツ/
+//!    positioning 起因の popover/tooltip には提供しない（方針として確定）。
+//! 4. **styled root の API 形**: [`crate::avatar`] 前例に従い、variant 引数
+//!    （`size`, `palette`）を先頭に置いた styled `root` 関数を各モジュールで
+//!    再定義し、glob 再エクスポートから選択的再エクスポートへ切り替える。
+//!    inherent `root()` を持つ状態機械型（[`fandhe_frontend_headless_ui::switch::Switch`]）は
+//!    [`crate::avatar::AvatarShape`] 前例と同じ理由（未スタイル root の静かな
+//!    適用漏れを防ぐ fail-closed）で再エクスポートしない。必要な呼び出し側
+//!    は [`fandhe_frontend_headless_ui`]（クレートルート再エクスポート、
+//!    #685 のエスケープハッチ）経由で到達できる。
+//! 5. **本イシューの実装範囲**: [`mod@switch`]・[`mod@radio_group`] の
+//!    2 部品へ `size`（sm/md/lg）+ `color-palette`（5 値）を実装した。
+//!    tabs/accordion/dialog/menu/select への展開は同方針の適用として
+//!    フォローアップとする（`docs/api/pre-styled-ui-api.md` の variant 表
+//!    参照）。
 //!
 //! [`theme`] が生成する CSS・styled 部品各モジュールの `css()`/`stylesheet()` は
 //! いずれも静的 `.css` ファイルとして配信する利用形態、または
