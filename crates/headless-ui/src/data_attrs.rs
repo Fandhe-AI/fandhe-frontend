@@ -112,11 +112,48 @@ pub fn data_focus_visible(focus_visible: bool) -> Option<(&'static str, &'static
     focus_visible.then_some(("data-focus-visible", ""))
 }
 
+/// `data-pressed` 存在属性（Toggle/ToggleGroup 用、イシュー #746）。
+/// [`data_disabled`] と同じ「存在で真を表す」規約に従う。`data-state`
+/// （`"on"`/`"off"`、[`crate::state::pressed_data_state`]）と重複する情報だが、
+/// ark-ui の Toggle anatomy が `data-pressed` 存在属性も併記する慣習
+/// （CSS セレクタで `[data-pressed]` の有無だけを見たい呼び出し側の利便性）
+/// に合わせる。
+#[must_use]
+pub fn data_pressed(pressed: bool) -> Option<(&'static str, &'static str)> {
+    pressed.then_some(("data-pressed", ""))
+}
+
+/// `data-current` 存在属性（Breadcrumb 用イシュー #755・Carousel 用イシュー
+/// #754 の双方が使う共有ヘルパ）。[`data_disabled`] と同じ「存在で真を表す」
+/// 規約に従う。
+///
+/// - Breadcrumb: [`crate::breadcrumb::current_link`] が
+///   [`crate::aria::aria_current`] と併用し、現在位置（末尾項目）を表す。
+/// - Carousel: 現在スライド/インジケータの表現に使う。`data-checked`
+///   （確定選択）/`data-highlighted`（キーボードナビゲーション等の一時的
+///   フォーカス位置）とは意味論が異なり、「連続する複数項目中の現在位置」
+///   （carousel のスライド送り）を表す。他コンポーネント（radio/checkbox 系）の
+///   選択セマンティクスとは独立した第 3 の軸。
+#[must_use]
+pub fn data_current(current: bool) -> Option<(&'static str, &'static str)> {
+    current.then_some(("data-current", ""))
+}
+
 /// `data-orientation` 属性。値は [`Orientation`] で固定された 2 値のみを取り、
 /// 任意文字列は受け付けない。
 #[must_use]
 pub fn data_orientation(orientation: Orientation) -> (&'static str, &'static str) {
     ("data-orientation", orientation.as_str())
+}
+
+/// `data-copied` 存在属性（Clipboard 用、イシュー #773）。[`data_disabled`]
+/// と同じ「存在で真を表す」規約に従う。[`crate::clipboard`] の各パーツが
+/// コピー済み状態を表現するために使う唯一の属性であり、`data-state`
+/// （値語彙）ではなく存在属性を選ぶ理由は ark-ui/chakra-ui の Clipboard が
+/// 同じ規約を採用しているため（[`crate::clipboard`] モジュール doc 参照）。
+#[must_use]
+pub fn data_copied(copied: bool) -> Option<(&'static str, &'static str)> {
+    copied.then_some(("data-copied", ""))
 }
 
 #[cfg(test)]
@@ -144,6 +181,12 @@ mod tests {
         assert_eq!(data_highlighted(false), None);
         assert_eq!(data_focus_visible(true), Some(("data-focus-visible", "")));
         assert_eq!(data_focus_visible(false), None);
+        assert_eq!(data_pressed(true), Some(("data-pressed", "")));
+        assert_eq!(data_pressed(false), None);
+        assert_eq!(data_current(true), Some(("data-current", "")));
+        assert_eq!(data_current(false), None);
+        assert_eq!(data_copied(true), Some(("data-copied", "")));
+        assert_eq!(data_copied(false), None);
     }
 
     #[test]

@@ -52,7 +52,9 @@
 //!   [`state::MultiSelect`]（#594）は 0 個以上の同時選択
 //!   （[`accordion::MultiAccordion`] の multiple モード）向けに
 //!   [`state::SingleSelect`]（高々 1 個選択）を補完する。[`state::Checkable`]
-//!   はイシュー #595 で [`mod@switch`] から共通化昇格した。
+//!   はイシュー #595 で [`mod@switch`] から共通化昇格した。[`state::TextInput`]
+//!   （#749）は自由入力文字列 1 個を持つ状態機械であり、[`mod@combobox`] が
+//!   埋め込む。
 //! - [`mod@tabs`]: WAI-ARIA APG の Tabs パターンに準拠したマークアップを組み立てる
 //!   [`tabs::tabs`]（#528）。SSR 時点の静的な選択状態のみを扱い、クリック操作・
 //!   状態機械連携は後続イシューのスコープ。[`tabs::TabsProps`] の
@@ -79,6 +81,12 @@
 //! - [`mod@dialog`]: [`dialog::Dialog`] — Root / Trigger / Backdrop /
 //!   Positioner / Content / Title / Description / CloseTrigger の 8 anatomy
 //!   パーツと [`state::Disclosure`] を埋め込んだモーダルダイアログ（#531）。
+//! - [`mod@drawer`]: Dialog パターンの変種（画面端からスライドインするパネル）
+//!   である [`drawer::Drawer`]。dialog と同じ 8 anatomy パーツ（`data-scope="drawer"`）
+//!   を持つが、開閉状態機械は新設せず [`dialog::Dialog`] へ全委譲する
+//!   （[`segment_group::SegmentGroup`] が [`radio_group::RadioGroup`] へ
+//!   全委譲するのと同型のパターン）。固有に持つのは画面端の方向を表す
+//!   [`drawer::DrawerPlacement`]（`data-placement`）のみ（#758）。
 //! - [`mod@radio_group`]: Root / Label / Item / ItemControl / ItemText /
 //!   ItemHiddenInput の 6 anatomy パーツと [`state::SingleSelect`] を埋め込んだ
 //!   [`radio_group::RadioGroup`]（#536、親 #534）。クライアント由来の文字列
@@ -187,6 +195,18 @@
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。activationMode/
 //!   submitMode の実挙動・autoResize は本イシューのスコープ外
 //!   （[`editable`] モジュール doc 参照）。
+//! - [`mod@combobox`]: Root / Label / Control / Input / Trigger /
+//!   ClearTrigger / Positioner / Content / ItemGroup / ItemGroupLabel /
+//!   Item / ItemText / ItemIndicator の 13 anatomy パーツと、
+//!   [`state::Disclosure`]（listbox 開閉）と [`state::SingleSelect`]（選択値）
+//!   と [`state::TextInput`]（入力値、本イシューで新設）を合成した
+//!   [`combobox::Combobox`] 状態機械（#749、親トラッキング #520）。候補列は
+//!   [`mod@select`] と同じ `(value, label)` タプル列で表現し、
+//!   [`combobox::filter_options`] が大文字小文字非区別の部分一致フィルタを
+//!   提供する。ARIA 1.2 combobox パターンに準拠し `aria-activedescendant`
+//!   は `content`（[`mod@select`]）ではなく `input` 側に配線する
+//!   （[`combobox`] モジュール doc 参照）。フィルタの実 DOM 配線・
+//!   キーボードナビゲーションは wasm 層の後続イシューのスコープ。
 //! - [`mod@tags_input`]: Root / Label / Control / Input / Item / ItemPreview /
 //!   ItemText / ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput の
 //!   11 anatomy パーツと、可変長タグ文字列リスト + 編集中インデックスを持つ
@@ -196,6 +216,73 @@
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`control` は
 //!   `role="listbox"`、`item_preview` は `role="option"`（イシュー本文が
 //!   指定する listbox 相当の ARIA）。
+//! - [`mod@carousel`]: Root / Control / PrevTrigger / NextTrigger /
+//!   ItemGroup / Item / IndicatorGroup / Indicator の 8 anatomy パーツと、
+//!   `0..slide_count` を循環し得る index 値を持つ [`carousel::Carousel`]
+//!   状態機械（#754、親 #748/#520）。[`mod@slider`]/[`mod@number_input`] と
+//!   同じく [`state`] の既存語彙に収まらないため、
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`item` は
+//!   `role="group"` + `aria-roledescription="slide"` + 位置ラベル
+//!   （`"{n} of {m}"`）、`indicator` は `aria-current`（現在位置のみ）を
+//!   出力する ARIA carousel パターン準拠。autoplay（play/pause/`aria-live`
+//!   切替）・pointer ドラッグ/キーボード操作の DOM 配線は本イシューの
+//!   スコープ外（[`carousel`] モジュール doc 参照）。
+//! - [`mod@pagination`]: Root / Item / Ellipsis / PrevTrigger / NextTrigger の
+//!   5 anatomy パーツと、[`pagination::page_range`]（総件数・ページサイズ・
+//!   現在ページ・sibling/boundary 件数から省略記号を含むページ列を導出する
+//!   決定的な純粋関数）、および [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する
+//!   [`pagination::Pagination`] 値状態機械を提供する（#751、
+//!   `docs/api/headless-ui-api.md` §4b.3 の保留を解除、先行判断は #716）。
+//!   [`mod@number_input`]/[`mod@progress`] と同じく `data-state` を持たず、
+//!   現在ページは `aria-current="page"`/`data-selected` で、端到達は
+//!   `disabled`/`data-disabled` で表現する。ページ列生成は
+//!   `O(boundary_count + sibling_count)` で `total_pages` を全列挙しない
+//!   （巨大 `count` でも有界、モジュール doc 参照）。wasm 層のクリック配線・
+//!   キーボードナビゲーションは本イシューのスコープ外。
+//! - [`mod@hover_card`]: Root/Trigger/Positioner/Content/Arrow/ArrowTip の
+//!   6 anatomy パーツ関数群と、[`state::Disclosure`] を埋め込んだ
+//!   [`hover_card::HoverCard`] 状態機械（#759、親トラッキング #726）。
+//!   [`mod@tooltip`] に最も近い構造だが、trigger がリンク先プレビュー用途の
+//!   `a` 要素である点が異なる。`openDelay`/`closeDelay`
+//!   （[`hover_card::HoverCardDelays`]、ark-ui 既定 600ms/300ms）は
+//!   決定的な SSR 設定値として `root` の `data-open-delay`/
+//!   `data-close-delay` へ出力するのみで、実タイマー駆動・DOM 読み取り
+//!   配線は `fandhe-frontend-wasm-full` の後続イシューのスコープ
+//!   （[`hover_card`] モジュール doc §スコープ外参照）。
+//! - [`mod@toggle_tip`]: Root / Trigger / Positioner / Content / Arrow /
+//!   ArrowTip の 6 anatomy パーツと、[`state::Disclosure`] を埋め込んだ
+//!   [`toggle_tip::ToggleTip`] 状態機械（#761、親トラッキング #520）。
+//!   chakra-ui の ToggleTip（「見た目は Tooltip・挙動は Popover」の変種）に
+//!   倣い、[`toggle_tip::trigger`] は `aria-expanded`/`aria-controls` を持つが
+//!   `aria-haspopup` は付与せず、[`toggle_tip::content`] は `role="tooltip"`
+//!   を持たない（[`mod@tooltip`]・[`mod@popover`] との 3 者境界は
+//!   [`mod@toggle_tip`] モジュール doc §3 者境界参照）。click-outside
+//!   dismiss・Escape 閉鎖の DOM 配線は本イシューのスコープ外。
+//! - [`mod@visually_hidden`]: `root`（`span`）1 anatomy パーツ（イシュー #776、
+//!   親 #766）。視覚的には隠すが支援技術には読ませ続けるテキストコンテナで、
+//!   [`mod@field`]/[`mod@link`] と同型の状態機械なし純粋関数。`aria-hidden` を
+//!   一切出力しない不変条件がある（[`visually_hidden`] モジュール doc §`aria-hidden`
+//!   を付けない不変条件 参照）。
+//! - [`mod@skip_nav`]: `link`（`a`）/ `content`（`div`）の 2 anatomy パーツ
+//!   （イシュー #776、親 #766）。WCAG 2.1 SC 2.4.1 Bypass Blocks 対応の
+//!   「本文へスキップ」リンク。[`skip_nav::link`] は呼び出し側から任意の
+//!   URL を受け取らず常に `#<id>` のみを組み立てるため、スキーム注入経路を
+//!   構造的に持たない（[`mod@skip_nav`] モジュール doc §href の構成 参照）。
+//! - [`mod@clipboard`]: Root / Label / Control / Input / Trigger / Indicator /
+//!   ValueText の 7 anatomy パーツと、コピー済みかどうかの 2 値状態機械
+//!   [`clipboard::Clipboard`]（#773、親トラッキング #520）。[`mod@avatar`]/
+//!   [`mod@switch`] と同じく [`state`] の既存語彙に収まらないため、
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。コピー済み
+//!   表示は `data-state` 値語彙ではなく `data-copied`
+//!   （[`data_attrs::data_copied`]）存在属性で表現する ark-ui/chakra-ui の
+//!   慣習に従う。コピー対象値（`value`）は状態機械に持たせず、
+//!   [`clipboard::root`]の `data-value` 属性としてのみ出力する（[`clipboard`] モジュール doc
+//!   「`value` は状態機械に持たせない」節参照）。`navigator.clipboard`
+//!   実配線・タイムアウトによる自動リセットは
+//!   `fandhe-frontend-wasm-full`（#773 後続）のスコープ。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
@@ -229,6 +316,52 @@
 //!   の `positioner`/`arrow`/`arrow_tip` が「CSS フックのみ」だったスコープ
 //!   外事項を解消する。実 DOM 計測は `fandhe-frontend-wasm-full`（`position`
 //!   モジュール）の責務であり、本クレートは `web-sys` 非依存のまま維持する。
+//! - [`mod@toggle`]: ark-ui Toggle 相当の Root/Indicator anatomy と、
+//!   [`state::Checkable`] を埋め込んだ [`toggle::Toggle`] 状態機械
+//!   （イシュー #746）。Switch と同じ [`state::Checkable`] を再利用しつつ
+//!   `data-state` 語彙は `"on"`/`"off"`（[`state::pressed_data_state`]）で
+//!   分離する（意味論差はモジュール doc 参照）。
+//! - [`mod@toggle_group`]: Root/Item anatomy と、[`state::SingleSelect`] を
+//!   埋め込んだ single モード [`toggle_group::ToggleGroup`]、
+//!   [`state::MultiSelect`] を埋め込んだ multiple モード
+//!   [`toggle_group::MultiToggleGroup`]（イシュー #746）。roving focus は
+//!   wasm keynav 層のスコープとして未提供（モジュール doc §out-of-scope 参照）。
+//! - [`mod@tree_view`]: Root / Label / Tree / Branch / BranchControl /
+//!   BranchIndicator / BranchText / BranchContent / BranchIndentGuide / Item /
+//!   ItemText / ItemIndicator の 12 anatomy パーツと、[`state::MultiSelect`]
+//!   （展開中のブランチ値の集合）+ [`state::SingleSelect`]（選択中のノード値）
+//!   を合成した [`tree_view::TreeView`] 状態機械（#753、親トラッキング
+//!   #748/#520）。ツリーデータは [`tree_view::TreeNode`]（決定的な静的
+//!   コレクション）で表現し、[`tree_view::TreeView::render_nodes`] が深さ・
+//!   `aria-posinset`/`aria-setsize` を再帰的に計算しながら描画する。両埋め込み
+//!   状態機械がともに `"selected"` フィールド名を使うため、hydration 属性名の
+//!   衝突回避（展開集合側のみ `"expanded"` へ書き換え）を行う点が
+//!   [`mod@combobox`] 以前の合成例と異なる（[`tree_view`] モジュール doc
+//!   §hydration フィールド名 参照）。キーボードナビゲーション・checkbox
+//!   モード・複数選択・lazy loading は本イシューのスコープ外。
+//! - [`mod@breadcrumb`]: `root`（`nav`）/ `list`（`ol`）/ `item`（`li`）/
+//!   `link`（`a`）/ `current-link`（`span`）/ `separator`（`li`）/
+//!   `ellipsis`（`li`）の 7 anatomy パーツと利便ビルダー
+//!   [`breadcrumb::breadcrumb`]（イシュー #755、`docs/api/headless-ui-api.md`
+//!   §4b の追加候補消化）。[`mod@field`]/[`mod@tabs`] と同じく SSR 静的な
+//!   意味論ナビであり状態機械を持たない。現在位置は `aria-current="page"`
+//!   （[`aria::AriaCurrent`]）+ `data-current`（[`data_attrs::data_current`]）
+//!   の併用で表現する。
+//! - [`mod@link`]: `root`（`a`）1 anatomy パーツ（イシュー #756、
+//!   `docs/api/headless-ui-api.md` §4b の追加候補消化）。`external`
+//!   オプトインは `target="_blank"` + `rel="noopener noreferrer"` を不可分に
+//!   付与する（reverse tabnabbing 対策）。`current` は [`mod@breadcrumb`] と
+//!   同じ `aria-current`/`data-current` 語彙を共有する。
+//! - [`mod@link_overlay`]: `root`（`div`）/ `overlay`（`a`）の 2 anatomy
+//!   パーツ（イシュー #756）。chakra-ui の LinkBox/LinkOverlay パターンに
+//!   倣い、カード全面クリック化を提供する。`::before` 疑似要素の代わりに
+//!   `overlay` 自身を `position: absolute; inset: 0;` で展開する方式を採る
+//!   （styled 層の CSS 責務、モジュール doc「全面拡張の実装方針」参照）。
+//! - [`mod@nav_list`]: `root`（`nav`）/ `heading`（`h2`）/ `list`（`ul`）/
+//!   `item`（`li`）/ `link`（`a`）の 5 anatomy パーツ（イシュー #756、#716
+//!   最優先候補）。`docs/design/docs-site-styled-ui-adoption.md` §3.1 が
+//!   指摘した「`menu` ロールの文書ナビへの誤転用」を解消するため、**`role`
+//!   を一切付与しない**（モジュール doc 参照）。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -237,29 +370,47 @@ pub mod accordion;
 pub mod anatomy;
 pub mod aria;
 pub mod avatar;
+pub mod breadcrumb;
+pub mod carousel;
 pub mod checkbox;
+pub mod clipboard;
 pub mod collapsible;
+pub mod combobox;
 pub mod data_attrs;
 pub mod dialog;
+pub mod drawer;
 pub mod editable;
 pub mod field;
 pub mod fieldset;
+pub mod hover_card;
+pub mod link;
+pub mod link_overlay;
 pub mod menu;
+pub mod nav_list;
 pub mod number_input;
+pub mod pagination;
 pub mod pin_input;
 pub mod popover;
 pub mod positioning;
 pub mod progress;
+pub mod qr_code;
+mod qr_encode;
 pub mod radio_group;
 pub mod rating_group;
 pub mod segment_group;
 pub mod select;
+pub mod skip_nav;
 pub mod slider;
 pub mod state;
 pub mod switch;
 pub mod tabs;
 pub mod tags_input;
+pub mod toggle;
+pub mod toggle_group;
+pub mod toggle_tip;
 pub mod tooltip;
+pub mod tree_view;
+pub mod visually_hidden;
 
 // `pub use fandhe_frontend_core;` はクレートそのものの再エクスポート（型/値の
 // 再エクスポートではない）。`missing_docs` は extern crate 再エクスポートには
@@ -284,38 +435,51 @@ pub use fandhe_frontend_interactive;
 
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
-    aria_activedescendant, aria_checked, aria_controls, aria_describedby, aria_disabled,
-    aria_expanded, aria_haspopup, aria_hidden, aria_invalid, aria_label, aria_labelledby,
-    aria_modal, aria_orientation, aria_selected, role, AriaChecked, AriaPopup,
+    aria_activedescendant, aria_autocomplete, aria_checked, aria_controls, aria_current,
+    aria_describedby, aria_disabled, aria_expanded, aria_haspopup, aria_hidden, aria_invalid,
+    aria_label, aria_labelledby, aria_modal, aria_orientation, aria_pressed, aria_roledescription,
+    aria_selected, role, AriaAutocomplete, AriaChecked, AriaCurrent, AriaPopup,
 };
 pub use avatar::{Avatar, AvatarAction, ImageStatus};
+pub use breadcrumb::{breadcrumb, BreadcrumbItem};
+pub use carousel::{Carousel, CarouselAction};
 pub use checkbox::{Checkbox, CheckboxFlags};
+pub use clipboard::{Clipboard, ClipboardAction};
+pub use combobox::{Combobox, ComboboxAction};
 pub use data_attrs::{
-    data_checked, data_disabled, data_highlighted, data_invalid, data_orientation, data_readonly,
-    data_required, data_state, Orientation,
+    data_checked, data_copied, data_current, data_disabled, data_highlighted, data_invalid,
+    data_orientation, data_pressed, data_readonly, data_required, data_state, Orientation,
 };
 pub use dialog::Dialog;
+pub use drawer::{Drawer, DrawerPlacement};
 pub use editable::{Editable, EditableAction};
 pub use field::{FieldIds, FieldProps};
 pub use fieldset::FieldsetProps;
+pub use hover_card::{HoverCard, HoverCardDelays};
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
 pub use number_input::{NumberInput, NumberInputAction, NumberInputFlags};
+pub use pagination::{ItemMode, PageEntry, Pagination, PaginationAction};
 pub use pin_input::{PinInput, PinInputAction, PinInputKind};
 pub use positioning::{
     compute_position, css_vars_style, data_align, data_side, placement_attrs, Align, ArrowPosition,
     Placement, PositioningConfig, Rect, ResolvedPosition, Side, Size,
 };
 pub use progress::{Progress, ProgressAction};
+pub use qr_code::{ErrorCorrectionLevel, QrEncodeError, QrMatrix};
 pub use radio_group::RadioGroup;
 pub use rating_group::{RatingGroup, RatingGroupAction, RatingItemFlags};
 pub use segment_group::SegmentGroup;
 pub use slider::{Slider, SliderAction};
 pub use state::{
     Checkable, CheckableAction, Disclosure, DisclosureAction, MultiSelect, MultiSelectAction,
-    OpenState, SingleSelect, SingleSelectAction, DATA_STATE_CHECKED, DATA_STATE_CLOSED,
-    DATA_STATE_OPEN, DATA_STATE_UNCHECKED,
+    OpenState, SingleSelect, SingleSelectAction, TextInput, TextInputAction, DATA_STATE_CHECKED,
+    DATA_STATE_CLOSED, DATA_STATE_OFF, DATA_STATE_ON, DATA_STATE_OPEN, DATA_STATE_UNCHECKED,
 };
 pub use switch::{Switch, SwitchAction};
 pub use tabs::{tabs, ActivationMode, TabItem, TabsProps};
 pub use tags_input::{TagsInput, TagsInputAction};
+pub use toggle::{Toggle, ToggleAction};
+pub use toggle_group::{MultiToggleGroup, ToggleGroup};
+pub use toggle_tip::ToggleTip;
 pub use tooltip::Tooltip;
+pub use tree_view::{TreeNode, TreeView, TreeViewAction};

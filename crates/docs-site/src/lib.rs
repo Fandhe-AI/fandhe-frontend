@@ -48,5 +48,6 @@ pub mod linkcheck;
 pub mod markdown;
 pub mod nav;
 pub mod showcase;
+pub mod skip_nav;
 #[cfg(test)]
 mod test_scratch;

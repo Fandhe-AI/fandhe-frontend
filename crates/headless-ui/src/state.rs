@@ -583,6 +583,28 @@ pub fn checked_from_data_state(s: &str) -> Option<bool> {
     }
 }
 
+/// `data-state` 属性値 "on"（Toggle が使う「押下状態」の値語彙、イシュー
+/// #746）。[`DATA_STATE_CHECKED`]/[`DATA_STATE_UNCHECKED`] とは意味論が
+/// 異なる別語彙のため、[`checked_data_state`] を再利用せず独立の定数・
+/// 変換関数（[`pressed_data_state`]）を設ける。[`crate::toggle`] モジュール
+/// doc の「Switch との意味論差」節を参照。
+pub const DATA_STATE_ON: &str = "on";
+/// `data-state` 属性値 "off"。[`DATA_STATE_ON`] 参照。
+pub const DATA_STATE_OFF: &str = "off";
+
+/// `pressed`（ボタンの押下状態）から `data-state` の属性値文字列へ変換する
+/// （[`checked_data_state`] の on/off 版。[`crate::toggle::Toggle`] が
+/// [`Checkable`] を埋め込みつつも公開 HTML の `data-state` 語彙は
+/// `"on"`/`"off"` を使うために本関数を経由する）。
+#[must_use]
+pub const fn pressed_data_state(pressed: bool) -> &'static str {
+    if pressed {
+        DATA_STATE_ON
+    } else {
+        DATA_STATE_OFF
+    }
+}
+
 /// [`Checkable`] に対する型付きアクション。
 ///
 /// WASM 境界の文字列 dispatch（`name`/`payload`）とは
@@ -732,6 +754,147 @@ impl Hydrate for MultiSelect {
         }
 
         Ok(Self { selected: items })
+    }
+}
+
+/// [`TextInput`] に対する型付きアクション。
+///
+/// WASM 境界の文字列 dispatch（`name`/`payload`）とは
+/// [`TextInput::decode_action`] で接続する。`payload`（`Input` の値、
+/// 改ざんされうるクライアント入力）は入力文字列としてそのまま保持し、
+/// HTML として解釈しない（呼び出し元の [`fandhe_frontend_core::render`] が
+/// 既定エスケープする、[`SingleSelectAction`] と同じ契約）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TextInputAction {
+    /// 入力値を置換する。
+    Input(String),
+    /// 入力値をクリアする（空文字列にする）。
+    Clear,
+}
+
+/// 自由入力文字列（1 個の `String`）を持つ状態機械（イシュー #749）。
+///
+/// [`crate::combobox::Combobox`] が「入力欄の現在値」を表現するために
+/// 埋め込む Phase 1 部品。[`Disclosure`]/[`SingleSelect`] と同格の共通状態
+/// 機械として実装し、Combobox 以外（将来の Editable/TagsInput 等、いずれも
+/// 未実装）でも再利用できるよう本モジュールへ配置する。`Default` は空文字列
+/// （SSR の状態なし初期描画に対応する既定値）。
+///
+/// `dirty` は [`DirtyTracked::dirty_fields`] の実体（イシュー #592 と同じ
+/// 設計）。[`PartialEq`]/[`Eq`] の比較対象から除外する（[`Disclosure`] と
+/// 同じ理由、手動実装）。
+#[derive(Debug, Clone, Default)]
+pub struct TextInput {
+    value: String,
+    dirty: bool,
+}
+
+// `dirty` を除外した手動 `PartialEq`/`Eq`（上記の型ドキュメント参照）。
+impl PartialEq for TextInput {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
+impl Eq for TextInput {}
+
+impl TextInput {
+    /// `data-hydrate-input` 属性名のフィールド部分
+    /// （`docs/api/hydration-state-format.md` の `<field>` 命名規約に従う）。
+    pub const FIELD_INPUT: &'static str = "input";
+
+    /// 指定した初期値で入力状態機械を生成する。
+    #[must_use]
+    pub fn new(value: impl Into<String>) -> Self {
+        Self {
+            value: value.into(),
+            dirty: false,
+        }
+    }
+
+    /// 現在の入力値。
+    #[must_use]
+    pub fn value(&self) -> &str {
+        &self.value
+    }
+}
+
+impl Component for TextInput {
+    type Action = TextInputAction;
+
+    fn update(&mut self, action: TextInputAction) {
+        let next = match action {
+            TextInputAction::Input(value) => value,
+            TextInputAction::Clear => String::new(),
+        };
+        // [`DirtyTracked`] の契約: 「直前の update() 呼び出し」で実変更が
+        // あった場合のみ記録する（[`Disclosure`] と同じ設計）。
+        self.dirty = next != self.value;
+        self.value = next;
+    }
+
+    /// 共通契約（hydration ルート）のみを表す最小正準ビュー。[`Disclosure`]
+    /// と同様、Combobox の実際の anatomy（`input` パーツ等）はこの型を
+    /// フィールドとして埋め込む具象コンポーネント側の責務。
+    fn view(&self) -> Node {
+        el("div", vec![("data-value", self.value.as_str())], Vec::new())
+    }
+
+    fn decode_action(name: &str, payload: &str) -> Option<TextInputAction> {
+        match name {
+            "input" => Some(TextInputAction::Input(payload.to_string())),
+            "clear" => Some(TextInputAction::Clear),
+            _ => None,
+        }
+    }
+}
+
+impl Hydrate for TextInput {
+    /// [`codec::encode_list`] で入力値を運ぶ（[`SingleSelect`] と同じ codec
+    /// 流用。常に厳密 1 件のリストとしてエンコードすることで、区切り文字・
+    /// エスケープ文字・空文字列を含む任意の入力値でもラウンドトリップが
+    /// 成立する）。
+    fn hydration_attrs(&self) -> Vec<(String, String)> {
+        vec![(
+            format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_INPUT),
+            codec::encode_list(std::slice::from_ref(&self.value)),
+        )]
+    }
+
+    fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
+        let attr_name = format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_INPUT);
+        let raw = attrs
+            .iter()
+            .find(|(k, _)| *k == attr_name)
+            .map(|(_, v)| v.as_str())
+            .ok_or_else(|| HydrateError::MissingAttr(attr_name.clone()))?;
+        let mut items = codec::decode_list(raw);
+        // 本型の不変条件（入力値は常にちょうど 1 件）に反する改ざん入力
+        // （0 件・2 件以上）は panic せず InvalidValue を返す（[`SingleSelect`]
+        // が 2 件以上を拒否するのと同じ思想）。
+        if items.len() != 1 {
+            return Err(HydrateError::InvalidValue {
+                attr: attr_name.clone(),
+                reason: "expected exactly one input value".to_string(),
+            });
+        }
+        Ok(Self {
+            value: items.remove(0),
+            dirty: false,
+        })
+    }
+}
+
+impl DirtyTracked for TextInput {
+    /// 直前の [`Component::update`] で `value` が実変更された場合のみ
+    /// [`Self::FIELD_INPUT`] を含む 1 要素スライスを返す（[`Disclosure`] と
+    /// 同じ設計、イシュー #592）。
+    fn dirty_fields(&self) -> &[&'static str] {
+        if self.dirty {
+            &[Self::FIELD_INPUT]
+        } else {
+            &[]
+        }
     }
 }
 
@@ -1121,6 +1284,23 @@ mod tests {
         assert_eq!(checked_from_data_state("indeterminate"), None);
     }
 
+    // --- pressed_data_state: Toggle 専用の on/off 語彙（イシュー #746） ---
+
+    #[test]
+    fn pressed_data_state_maps_on_and_off() {
+        assert_eq!(pressed_data_state(true), "on");
+        assert_eq!(pressed_data_state(false), "off");
+    }
+
+    #[test]
+    fn pressed_data_state_is_distinct_from_checked_data_state() {
+        // Toggle（on/off）と Switch（checked/unchecked）は共通機械
+        // （Checkable）を埋め込みつつも公開語彙が異なることを固定する
+        // （crate::toggle モジュール doc §意味論差参照）。
+        assert_ne!(pressed_data_state(true), checked_data_state(true));
+        assert_ne!(pressed_data_state(false), checked_data_state(false));
+    }
+
     // --- Checkable: dispatch 経由の遷移 ---
 
     #[test]
@@ -1379,6 +1559,150 @@ mod tests {
     #[test]
     fn multi_select_view_root_is_element_for_render_for_hydration() {
         let node = MultiSelect::default().view();
+        assert!(matches!(node, Node::Element { .. }));
+    }
+
+    // --- TextInput: dispatch 経由の遷移 ---
+
+    #[test]
+    fn text_input_default_is_empty() {
+        assert_eq!(TextInput::default().value(), "");
+    }
+
+    #[test]
+    fn text_input_dispatch_input_and_clear() {
+        let mut t = TextInput::default();
+
+        assert!(dispatch(&mut t, "input", "vu"));
+        assert_eq!(t.value(), "vu");
+
+        assert!(dispatch(&mut t, "input", "vue"));
+        assert_eq!(t.value(), "vue");
+
+        assert!(dispatch(&mut t, "clear", ""));
+        assert_eq!(t.value(), "");
+    }
+
+    #[test]
+    fn text_input_dispatch_ignores_unknown_action() {
+        let mut t = TextInput::default();
+        dispatch(&mut t, "input", "vue");
+        assert!(!dispatch(&mut t, "no_such_action", "x"));
+        assert_eq!(t.value(), "vue");
+    }
+
+    // --- TextInput: SSR 状態なし初期描画 ---
+
+    #[test]
+    fn text_input_default_ssr_view_has_no_hydrate_attr() {
+        let rendered = render(&TextInput::default().view());
+        assert!(!rendered.contains("data-hydrate-"));
+    }
+
+    // --- TextInput: hydration 経路 ---
+
+    #[test]
+    fn text_input_hydration_round_trip_with_value() {
+        let mut t = TextInput::default();
+        dispatch(&mut t, "input", "vue");
+        let rendered = render(&render_for_hydration(&t));
+        assert!(rendered.contains("data-hydrate-input="));
+
+        let restored = TextInput::from_hydration_attrs(&t.hydration_attrs()).unwrap();
+        assert_eq!(restored, t);
+    }
+
+    #[test]
+    fn text_input_hydration_round_trip_empty() {
+        let t = TextInput::default();
+        let restored = TextInput::from_hydration_attrs(&t.hydration_attrs()).unwrap();
+        assert_eq!(restored, t);
+    }
+
+    #[test]
+    fn text_input_hydration_round_trip_survives_separator_and_backslash_values() {
+        for value in ["", "with\u{1f}separator", "with\\backslash"] {
+            let mut t = TextInput::default();
+            dispatch(&mut t, "input", value);
+            let restored = TextInput::from_hydration_attrs(&t.hydration_attrs()).unwrap();
+            assert_eq!(restored, t);
+            assert_eq!(restored.value(), value);
+        }
+    }
+
+    // --- TextInput: 改ざん耐性 ---
+
+    #[test]
+    fn text_input_from_hydration_attrs_missing_attr() {
+        let err = TextInput::from_hydration_attrs(&[]).unwrap_err();
+        assert_eq!(
+            err,
+            HydrateError::MissingAttr("data-hydrate-input".to_string())
+        );
+    }
+
+    #[test]
+    fn text_input_from_hydration_attrs_rejects_multiple_values_without_panicking() {
+        let bogus = codec::encode_list(&["a".to_string(), "b".to_string()]);
+        let attrs = vec![("data-hydrate-input".to_string(), bogus)];
+        let err = TextInput::from_hydration_attrs(&attrs).unwrap_err();
+        assert!(matches!(err, HydrateError::InvalidValue { .. }));
+    }
+
+    #[test]
+    fn text_input_from_hydration_attrs_rejects_zero_values_without_panicking() {
+        let attrs = vec![("data-hydrate-input".to_string(), String::new())];
+        let err = TextInput::from_hydration_attrs(&attrs).unwrap_err();
+        assert!(matches!(err, HydrateError::InvalidValue { .. }));
+    }
+
+    // --- TextInput: DirtyTracked（イシュー #592 と同型） ---
+
+    #[test]
+    fn text_input_dispatch_input_marks_input_dirty() {
+        let mut t = TextInput::default();
+        assert!(dispatch(&mut t, "input", "vue"));
+        assert_eq!(t.dirty_fields(), &[TextInput::FIELD_INPUT]);
+    }
+
+    #[test]
+    fn text_input_dispatch_same_value_input_leaves_dirty_empty() {
+        let mut t = TextInput::default();
+        dispatch(&mut t, "input", "vue");
+        let mut t2 = t.clone();
+        assert!(dispatch(&mut t2, "input", "vue"));
+        assert!(t2.dirty_fields().is_empty());
+    }
+
+    #[test]
+    fn text_input_hydration_round_trip_resets_dirty() {
+        let mut t = TextInput::default();
+        dispatch(&mut t, "input", "vue");
+        assert!(!t.dirty_fields().is_empty());
+
+        let restored = TextInput::from_hydration_attrs(&t.hydration_attrs()).unwrap();
+        assert!(restored.dirty_fields().is_empty());
+        assert_eq!(restored, t);
+    }
+
+    // --- XSS 回帰: 入力値に攻撃者制御文字列が入っても既定エスケープが効く ---
+
+    #[test]
+    fn text_input_xss_payload_in_value_is_escaped_on_render() {
+        let mut t = TextInput::default();
+        let payload = "\"><script>alert(1)</script>";
+        assert!(dispatch(&mut t, "input", payload));
+
+        let rendered = render(&render_for_hydration(&t));
+        assert!(rendered.contains("data-hydrate-input="));
+        assert!(rendered.contains("&lt;script&gt;"));
+        assert!(!rendered.contains("<script>alert(1)</script>"));
+        assert!(!rendered.contains(r#""><script"#));
+    }
+
+    #[test]
+    fn text_input_view_root_is_element_for_render_for_hydration() {
+        let node = TextInput::default().view();
         assert!(matches!(node, Node::Element { .. }));
     }
 }

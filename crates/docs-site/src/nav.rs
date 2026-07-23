@@ -44,6 +44,23 @@ use std::fmt;
 use std::path::Path;
 
 use fandhe_frontend_core::{el, text, Node};
+// サイドバー（イシュー #756）: pre-styled-ui が薄く再エクスポートする
+// headless nav_list の自由関数を直接使う。styled `nav_list::root`（本クレート
+// 未使用）は呼び出し側の `class` を drop_class_attr で除去するため、
+// `class="sidebar"` を温存したい本モジュールは headless の `root`
+// （`fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui` 経由の
+// 再エクスポート crate）を直接呼ぶ。これにより `crates/docs-site/Cargo.toml`
+// へ `fandhe-frontend-headless-ui` への新規直接依存を追加せずに済む
+// （イシュー #693 の既存整理を維持する）。`heading`/`list`/`item`/`link` は
+// class を持たない純粋な anatomy パーツのため styled 層の再エクスポート
+// （`fandhe_frontend_pre_styled_ui::nav_list::{heading, item, link, list}`）
+// をそのまま使う。
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::nav_list::root as nav_list_root;
+use fandhe_frontend_pre_styled_ui::nav_list::{heading, item, link as nav_link, list};
+// 前後ページャ（イシュー #756）: 同じ理由で LinkOverlay も headless
+// `root`（class 温存のため）+ styled 層再エクスポートの `overlay` を使う。
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::link_overlay::root as link_overlay_root;
+use fandhe_frontend_pre_styled_ui::link_overlay::overlay as link_overlay_overlay;
 
 /// `nav.toml` 入力の上限サイズ（`crates/cli/src/toml.rs` の DoS 抑止方針と
 /// 同値。再帰を使わない行単位パースのためネスト深度問題は生じないが、
@@ -531,15 +548,23 @@ fn href(nav: &Nav, path: &str) -> String {
 }
 
 /// サイドバー [`Node`] を生成する。セクション・ページとも宣言順で列挙し、
-/// `current_path` に一致するページの `<a>` にのみ `aria-current="page"` と
-/// `class="current"` を付与する。`current_path` が `nav` 中のどの
+/// `current_path` に一致するページの `<a>` にのみ `aria-current="page"`
+/// （+ `data-current`）を付与する。`current_path` が `nav` 中のどの
 /// `page.path` にも一致しない場合はハイライトなしで全ページを列挙する
 /// （サイトトップ等、nav セクション外のページが正当に存在しうるため
 /// エラーにはしない契約）。
 ///
-/// タイトル・href はすべて [`el`] / [`text`] 経由で組み立てられ、
-/// `render()` 時に既定エスケープ（REQ-1）を必ず経由する。HTML 文字列の
-/// 直接組み立て・`raw_html()` は使用しない。
+/// headless `nav_list`（`fandhe-frontend-headless-ui`、イシュー #756）の
+/// anatomy パーツ（`root`/`heading`/`list`/`item`/`link`）で組み立てる。
+/// `nav_list` は `role` を一切付与しない素の `nav`/`h2`/`ul`/`li`/`a` 構造の
+/// ため、`site/assets/site.css` の既存タグ・class セレクタ
+/// （`nav.sidebar h2`/`nav.sidebar ul` 等）は変更なしで適用され続ける
+/// （`docs/design/docs-site-styled-ui-adoption.md` §3.1 の意味論不整合
+/// 解消の記録参照）。
+///
+/// タイトル・href はすべて headless 層 → [`fandhe_frontend_core::render`]
+/// の既定エスケープ（REQ-1）を必ず経由する。HTML 文字列の直接組み立て・
+/// `raw_html()` は使用しない。
 pub fn sidebar(nav: &Nav, current_path: &str) -> Node {
     let mut section_nodes: Vec<Node> = Vec::new();
     for section in &nav.sections {
@@ -547,22 +572,18 @@ pub fn sidebar(nav: &Nav, current_path: &str) -> Node {
         for page in &section.pages {
             let link_href = href(nav, &page.path);
             let is_current = page.path == current_path;
-            let mut attrs: Vec<(&str, &str)> = vec![("href", &link_href)];
-            if is_current {
-                attrs.push(("aria-current", "page"));
-                attrs.push(("class", "current"));
-            }
-            let link = el("a", attrs, vec![text(page.title.clone())]);
-            items.push(el("li", vec![], vec![link]));
+            let a = nav_link(
+                &link_href,
+                is_current,
+                vec![],
+                vec![text(page.title.clone())],
+            );
+            items.push(item(vec![], vec![a]));
         }
-        section_nodes.push(el("h2", vec![], vec![text(section.title.clone())]));
-        section_nodes.push(el("ul", vec![], items));
+        section_nodes.push(heading(vec![], vec![text(section.title.clone())]));
+        section_nodes.push(list(vec![], items));
     }
-    el(
-        "nav",
-        vec![("class", "sidebar"), ("aria-label", "Documentation")],
-        section_nodes,
-    )
+    nav_list_root("Documentation", vec![("class", "sidebar")], section_nodes)
 }
 
 /// 全セクションを文書順（宣言順）に平坦化したページ列における、
@@ -580,24 +601,43 @@ pub fn prev_next<'a>(nav: &'a Nav, current_path: &str) -> (Option<&'a Page>, Opt
 }
 
 /// 前後ページリンクの [`Node`]（`<nav class="prev-next">` 配下に
-/// 存在する側のみの `<a class="prev">` / `<a class="next">`）を生成する。
+/// 存在する側のみの LinkOverlay カード。`<div class="prev">`/`<div
+/// class="next">`（headless `link_overlay::root`）が外枠、内側の
+/// `[data-part="overlay"]`（headless `link_overlay::overlay`）が実際の
+/// アンカーであり、カード全面がクリック可能な状態を保つ）を生成する。
+///
+/// `fandhe-frontend-headless-ui` の `link_overlay`（イシュー #756）へ移行
+/// した理由は `docs/design/docs-site-styled-ui-adoption.md` §3.2（「pre-styled-ui
+/// の `card` はアンカー全面クリック化に非対応」という見送り判断）を解消
+/// するため。本モジュールの用途では `overlay` がカードの唯一の子であり、
+/// 通常のフローで全面を占めるため、`link_overlay` の一般的な
+/// `position: absolute` 拡張パターン（`crates/pre-styled-ui/src/link_overlay.rs`
+/// 参照）は使わず、`site/assets/site.css` 側で `overlay` 自体に従来の
+/// カード CSS（枠線・padding・角丸）をそのまま当てる（`site.css` の
+/// 自己完結不変条件、§3.4 を維持したまま意味論のみ解消する）。
 pub fn prev_next_nav(nav: &Nav, current_path: &str) -> Node {
     let (prev, next) = prev_next(nav, current_path);
     let mut children: Vec<Node> = Vec::new();
     if let Some(page) = prev {
         let link_href = href(nav, &page.path);
-        children.push(el(
-            "a",
-            vec![("class", "prev"), ("href", &link_href)],
-            vec![text(page.title.clone())],
+        children.push(link_overlay_root(
+            vec![("class", "prev")],
+            vec![link_overlay_overlay(
+                &link_href,
+                vec![],
+                vec![text(page.title.clone())],
+            )],
         ));
     }
     if let Some(page) = next {
         let link_href = href(nav, &page.path);
-        children.push(el(
-            "a",
-            vec![("class", "next"), ("href", &link_href)],
-            vec![text(page.title.clone())],
+        children.push(link_overlay_root(
+            vec![("class", "next")],
+            vec![link_overlay_overlay(
+                &link_href,
+                vec![],
+                vec![text(page.title.clone())],
+            )],
         ));
     }
     el("nav", vec![("class", "prev-next")], children)
@@ -1031,9 +1071,12 @@ path = "/p1/"
         assert!(getting_started_idx < api_idx);
 
         assert!(html.contains(r#"href="/fandhe-frontend/guide/getting-started/""#));
-        // 現在ページのみ aria-current="page" を持つ。
+        // 現在ページのみ aria-current="page"（+ data-current）を持つ
+        // （イシュー #756 で headless nav_list へ移行、`class="current"` は
+        // 廃止し属性のみに一本化した）。
         assert_eq!(html.matches(r#"aria-current="page""#).count(), 1);
-        assert!(html.contains(r#"class="current""#));
+        assert!(html.contains("data-current"));
+        assert!(!html.contains(r#"class="current""#));
     }
 
     #[test]

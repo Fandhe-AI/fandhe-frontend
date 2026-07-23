@@ -121,6 +121,7 @@ pub mod focus_trap;
 pub mod focus_visible;
 pub mod headless;
 pub mod headless_avatar;
+pub mod headless_clipboard;
 pub mod headless_select;
 pub mod hydration;
 pub mod keynav;
@@ -358,6 +359,7 @@ where
         keynav::wire_keynav(root.clone())?;
         focus_visible::wire_focus_visible(root.clone())?;
         Self::wire_avatar(component.clone(), root.clone())?;
+        Self::wire_clipboard(component.clone(), root.clone())?;
 
         Ok(Self { component, root })
     }
@@ -402,6 +404,7 @@ where
         keynav::wire_keynav(root.clone())?;
         focus_visible::wire_focus_visible(root.clone())?;
         Self::wire_avatar(component.clone(), root.clone())?;
+        Self::wire_clipboard(component.clone(), root.clone())?;
 
         Ok(Self { component, root })
     }
@@ -458,6 +461,50 @@ where
                 // 無視する（Self::wire の on_action と同じ fail-closed 方針）。
                 let _ = headless_avatar::apply_avatar_visibility(&avatar_root, image_visible);
             }
+        })
+    }
+
+    /// Clipboard（`fandhe-frontend-headless-ui` `clipboard` モジュール）の
+    /// `navigator.clipboard.writeText` 実配線を
+    /// [`headless_clipboard::wire_clipboard_events`] 経由で `root` へ配線する
+    /// （イシュー #773）。`Self::mount`/`Self::hydrate` の双方から
+    /// `Self::wire_avatar` の直後に 1 回だけ呼ばれる。
+    ///
+    /// # fail-closed（Clipboard 非搭載アプリへの副作用なし）
+    ///
+    /// `navigator.clipboard` が取得できない環境（非対応ブラウザ・非 secure
+    /// context・テスト環境）では `"copy"` が dispatch されないため、
+    /// `Component::decode_action` へ到達すらしない。`root` 配下に Clipboard
+    /// パーツが存在しない場合も [`headless_clipboard::apply_clipboard_copied`]
+    /// 内部の `query_selector_all` が空集合を返し no-op となるため、
+    /// Clipboard を使わないアプリへの影響はない。
+    ///
+    /// # Errors
+    ///
+    /// [`headless_clipboard::wire_clipboard_events`]
+    /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    fn wire_clipboard(
+        component: std::rc::Rc<std::cell::RefCell<C>>,
+        root: web_sys::Element,
+    ) -> Result<(), wasm_bindgen::JsValue> {
+        let clipboard_root = root.clone();
+        headless_clipboard::wire_clipboard_events(root, move |action_ref: events::ActionRef| {
+            let Ok(mut state) = component.try_borrow_mut() else {
+                return;
+            };
+            let dispatched = fandhe_frontend_interactive::dispatch(
+                &mut *state,
+                &action_ref.action,
+                &action_ref.payload,
+            );
+            if !dispatched {
+                return;
+            }
+            let copied = action_ref.action == headless_clipboard::ACTION_COPY;
+            // DOM 反映は set_attribute/remove_attribute のみ（REQ-1、
+            // headless_clipboard.rs 冒頭 doc 参照）。失敗は panic せず無視
+            // する（Self::wire_avatar と同じ fail-closed 方針）。
+            let _ = headless_clipboard::apply_clipboard_copied(&clipboard_root, copied);
         })
     }
 
