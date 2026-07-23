@@ -11,16 +11,22 @@
 //! # data-state とスタイルの連動（イシュー #551 受け入れ条件）
 //!
 //! 項目の開閉 `data-state`（open/closed）に応じて `item-trigger`/
-//! `item-indicator` の見た目を切り替える CSS を [`stylesheet`] へ追加する
-//! （[`state_css`] 参照。[`crate::dialog`] と同じ手法で
-//! [`crate::css::serialize_rule`] を直接使う）。`item-indicator` は headless 層
+//! `item-indicator` の見た目を切り替える CSS を [`recipe`] へ登録する
+//! ([`crate::recipe::SlotRecipe::state`]、イシュー #643。`serialize_rule` を
+//! 直接呼ぶ手書きセレクタ機構は廃止した)。`item-indicator` は headless 層
 //! （`crates/headless-ui/src/accordion.rs`）でデフォルト `span`（非置換インライン
 //! 要素）としてレンダリングされ `transform` が効かないため、[`recipe`] の
 //! base 規則で `display: inline-block` を設定し `rotate(180deg)` が実際に
 //! 適用されるようにする（PR #575 Bugbot 指摘対応）。
+//!
+//! # キーボード操作系スタイル（イシュー #643）
+//!
+//! `item-trigger` は roving tabindex でフォーカス移動するボタン要素であり、
+//! キーボード操作時のみのフォーカスリング（`:focus-visible`）を [`recipe`]
+//! へ登録する。
 
-use crate::css::{decl, serialize_rule};
-use crate::recipe::SlotRecipe;
+use crate::css::decl;
+use crate::recipe::{SlotRecipe, StateCondition};
 
 pub use fandhe_frontend_headless_ui::accordion::*;
 
@@ -79,33 +85,33 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-fg)"),
             ],
         )
-}
-
-/// `data-state`（open/closed）に連動する CSS を組み立てる（内部ヘルパ、
-/// [`stylesheet`] のみが呼ぶ、イシュー #551 受け入れ条件）。
-fn state_css() -> String {
-    let mut out = String::new();
-    if let Some(css) = serialize_rule(
-        r#"[data-scope="accordion"][data-part="item-trigger"][data-state="open"]"#,
-        &[decl("color", "var(--fandhe-color-accent)")],
-    ) {
-        out.push_str(&css);
-    }
-    if let Some(css) = serialize_rule(
-        r#"[data-scope="accordion"][data-part="item-indicator"][data-state="open"]"#,
-        &[decl("transform", "rotate(180deg)")],
-    ) {
-        out.push_str(&css);
-    }
-    out
+        // イシュー #551 受け入れ条件: 開いている項目の trigger/indicator を強調する。
+        .state(
+            "item-trigger",
+            StateCondition::AttrEq("data-state", "open"),
+            vec![decl("color", "var(--fandhe-color-accent)")],
+        )
+        .state(
+            "item-indicator",
+            StateCondition::AttrEq("data-state", "open"),
+            vec![decl("transform", "rotate(180deg)")],
+        )
+        // イシュー #643: キーボード操作時のみのフォーカスリング。
+        .state(
+            "item-trigger",
+            StateCondition::FocusVisible,
+            vec![
+                decl("outline", "2px solid var(--fandhe-color-accent)"),
+                decl("outline-offset", "2px"),
+            ],
+        )
 }
 
 /// この styled Accordion が生成する静的 CSS 全量を返す（決定的。[`crate::dialog::stylesheet`]
 /// と同じ契約: 同一プロセス内の複数回呼び出しは常にバイト単位で同一の文字列を返す）。
-/// base 規則（[`recipe`]）の後に `data-state` 連動規則（[`state_css`]）を連結する。
 #[must_use]
 pub fn stylesheet() -> String {
-    recipe().css() + &state_css()
+    recipe().css()
 }
 
 #[cfg(test)]
@@ -179,5 +185,16 @@ mod tests {
 
         let restored = Accordion::from_hydration_attrs(&a.hydration_attrs()).unwrap();
         assert_eq!(restored.expanded(), Some("panel-1"));
+    }
+
+    #[test]
+    fn item_trigger_declares_focus_visible_ring() {
+        // イシュー #643 受け入れ条件: キーボード操作系属性（:focus-visible）
+        // が recipe 経由で反映されることを固定する。
+        let css = stylesheet();
+        assert!(
+            css.contains(r#"[data-scope="accordion"][data-part="item-trigger"]:focus-visible {"#)
+        );
+        assert!(css.contains("outline: 2px solid var(--fandhe-color-accent);"));
     }
 }

@@ -12,10 +12,26 @@
 //! 内部ストレージは `Vec` のみを使い、`HashMap`/`HashSet` は使わない
 //! （反復順序がプロセスごとに変わりうる型を持ち込まない）。[`SlotRecipe::css`]
 //! の出力順は「base（`slots` の宣言順）→ variants（登録順）→ compound variants
-//! （登録順、イシュー #604）」に固定し、同一 slot・同一 axis/value への複数回
-//! 登録は「後に登録された規則が CSS 中で後に出力される」（CSS のカスケードに
-//! おいて後勝ちになる）という素直な規約に従う。この規約より複雑な優先順位
-//! 判定は行わない。
+//! （登録順、イシュー #604）→ states（登録順、イシュー #643）」に固定し、
+//! 同一 slot・同一 axis/value への複数回登録は「後に登録された規則が CSS 中で
+//! 後に出力される」（CSS のカスケードにおいて後勝ちになる）という素直な規約に
+//! 従う。この規約より複雑な優先順位判定は行わない。states を最後尾に置くのは、
+//! 各 styled 部品が従来 `state_css()`（`serialize_rule` 直呼び）で手書きして
+//! いた `data-state` 連動規則を [`SlotRecipe::state`] へ移行した際に、
+//! 「`stylesheet() = recipe().css() + state_css()`（状態規則が常に最後）」
+//! という既存のカスケード上の性質をそのまま保存するため（イシュー #643）。
+//!
+//! # 状態条件付き規則（イシュー #643）
+//!
+//! [`SlotRecipe::state`] は `[data-highlighted]`（virtual focus の highlight
+//! 表示）・`:focus-visible`（キーボードフォーカスリング）・`data-state`
+//! （開閉等）のような、通常の variant 軸（ユーザーが選択する見た目のバリエー
+//! ション）ではなく実行時の状態に応じて切り替わる CSS を recipe 経由で表現
+//! するための API。[`StateCondition`] enum に条件の形を限定し、生のセレクタ
+//! 文字列を受け取る API は設けない（`slot`/属性名/属性値は他の builder と
+//! 同じ [`is_valid_identifier`] 検証を経由し、不正な入力は規則ごと出力から
+//! 除外する fail-closed 方針。既存 `state_css()` 群が個別に手書きしていた
+//! セレクタ組み立てをここへ一本化し、fail-closed 検証の迂回経路を増やさない）。
 //!
 //! compound variant（[`SlotRecipe::compound_variant`]）は複数軸の条件を
 //! `.fd-<scope>--<a1>-<v1>.fd-<scope>--<a2>-<v2>...` のように連結したセレクタ
@@ -196,6 +212,33 @@ struct DefaultVariant {
     value: &'static str,
 }
 
+/// [`SlotRecipe::state`] が受け付ける状態条件（属性・擬似クラス、イシュー #643）。
+///
+/// 各 styled 部品（dialog/tabs/accordion/menu/select）が `state_css()` で
+/// `serialize_rule` を直接呼び手書きしていたセレクタ（`[data-state="open"]`・
+/// `[hidden]` 等）を、ここで型として限定した条件へ移行する。生のセレクタ
+/// 文字列を受け取る経路は設けず、`name`/`value` は [`SlotRecipe::css`] が
+/// `is_valid_identifier` で検証する（不正な場合は規則ごと除外）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StateCondition {
+    /// 存在属性 `[<name>]`（例: `data-highlighted`・`hidden`）。
+    Attr(&'static str),
+    /// 値付き属性 `[<name>="<value>"]`（例: `data-state="open"`）。
+    AttrEq(&'static str, &'static str),
+    /// `:focus-visible` 擬似クラス（キーボードフォーカスリング用。Menu/Select
+    /// の `item` は virtual focus パターンのためフォーカスが `trigger` に
+    /// 留まり続け、`data-highlighted`（[`StateCondition::Attr`]）が highlight
+    /// 表示を担う契約であり、`item` へ `:focus-visible` は付けない）。
+    FocusVisible,
+}
+
+/// slot 1 個・状態条件 1 個への宣言登録（内部表現、イシュー #643）。
+struct StateRule {
+    slot: &'static str,
+    condition: StateCondition,
+    declarations: Vec<Declaration>,
+}
+
 /// compound variant の条件 1 件（axis, value の型消去された組）。
 ///
 /// [`when()`] を通じてのみ [`VariantValue`] 実装 enum から構築できる（生の
@@ -245,6 +288,7 @@ pub struct SlotRecipe {
     variants: Vec<VariantRule>,
     default_variants: Vec<DefaultVariant>,
     compound_variants: Vec<CompoundVariantRule>,
+    states: Vec<StateRule>,
 }
 
 impl SlotRecipe {
@@ -259,6 +303,7 @@ impl SlotRecipe {
             variants: Vec::new(),
             default_variants: Vec::new(),
             compound_variants: Vec::new(),
+            states: Vec::new(),
         }
     }
 
@@ -342,6 +387,33 @@ impl SlotRecipe {
         self
     }
 
+    /// 状態条件（[`StateCondition`]）が満たされたときの `slot` への宣言を
+    /// 登録する（builder、自己消費。イシュー #643。既存 dialog/tabs/accordion/
+    /// menu/select の `state_css()` が個別に手書きしていたセレクタ組み立てを
+    /// recipe 経由へ一本化する）。
+    ///
+    /// 以下のいずれかに該当する規則は [`SlotRecipe::css`] の出力から除外される
+    /// （fail-closed。既存 `base`/`variant`/`compound_variant` と同じ「不正
+    /// 入力は panic せず出力から除外する」方針）:
+    ///
+    /// - `slot` が `slots` に未宣言、または識別子として不正
+    /// - [`StateCondition::Attr`] の属性名が識別子として不正
+    /// - [`StateCondition::AttrEq`] の属性名・属性値のいずれかが識別子として不正
+    #[must_use]
+    pub fn state(
+        mut self,
+        slot: &'static str,
+        condition: StateCondition,
+        declarations: Vec<Declaration>,
+    ) -> Self {
+        self.states.push(StateRule {
+            slot,
+            condition,
+            declarations,
+        });
+        self
+    }
+
     /// この slot に属するかどうかを判定する（`slots` 未宣言の slot を
     /// fail-closed で除外するための内部ヘルパ）。
     fn is_declared_slot(&self, slot: &str) -> bool {
@@ -366,15 +438,22 @@ impl SlotRecipe {
     /// 対する複数回の呼び出しは常にバイト単位で同一の文字列を返す）。
     ///
     /// 出力順は「base（`slots` の宣言順）→ variants（登録順）→ compound
-    /// variants（登録順、イシュー #604）」。セレクタは base が
-    /// `[data-scope="<scope>"][data-part="<slot>"]`、variant が
+    /// variants（登録順、イシュー #604）→ states（登録順、イシュー #643）」。
+    /// セレクタは base が `[data-scope="<scope>"][data-part="<slot>"]`、
+    /// variant が
     /// `[data-scope="<scope>"][data-part="<slot>"].fd-<scope>--<axis>-<value>`
     /// （詳細度 (0,3,0) が base の (0,2,0) に必ず勝つため、CSS 記述順に
     /// 依存しない上書きを保証する）、compound variant は条件クラスを
     /// 登録順に連結した
     /// `[data-scope="<scope>"][data-part="<slot>"].fd-<scope>--<a1>-<v1>.fd-<scope>--<a2>-<v2>...`
     /// （条件 2 個以上なら詳細度が単一 variant を必ず上回り、1 個の場合でも
-    /// 出力順が variants より後のため CSS カスケードの後勝ちで上書きされる）。
+    /// 出力順が variants より後のため CSS カスケードの後勝ちで上書きされる）、
+    /// state は [`StateCondition`] に応じて
+    /// `[data-scope="<scope>"][data-part="<slot>"][<name>]`（`Attr`）・
+    /// `[data-scope="<scope>"][data-part="<slot>"][<name>="<value>"]`
+    /// （`AttrEq`）・`[data-scope="<scope>"][data-part="<slot>"]:focus-visible`
+    /// （`FocusVisible`）のいずれか（出力順が最後尾のため CSS カスケードの
+    /// 後勝ちで variant/compound variant を上書きする）。
     ///
     /// `scope`（[`SlotRecipe::new`] に渡した値）が識別子として不正な場合は
     /// 空文字列を返す（fail-closed。`slot`/`axis`/`value` と同様に `scope` も
@@ -460,6 +539,37 @@ impl SlotRecipe {
                     ".{CLASS_PREFIX}-{}--{}-{}",
                     self.scope, cond.axis, cond.value
                 ));
+            }
+            if let Some(css) = serialize_rule(&selector, &rule.declarations) {
+                out.push_str(&css);
+                out.push('\n');
+            }
+        }
+
+        for rule in &self.states {
+            if !self.is_declared_slot(rule.slot) || !is_valid_identifier(rule.slot) {
+                continue;
+            }
+            let condition_valid = match rule.condition {
+                StateCondition::Attr(name) => is_valid_identifier(name),
+                StateCondition::AttrEq(name, value) => {
+                    is_valid_identifier(name) && is_valid_identifier(value)
+                }
+                StateCondition::FocusVisible => true,
+            };
+            if !condition_valid {
+                continue;
+            }
+            let mut selector = format!(
+                "[data-scope=\"{}\"][data-part=\"{}\"]",
+                self.scope, rule.slot
+            );
+            match rule.condition {
+                StateCondition::Attr(name) => selector.push_str(&format!("[{name}]")),
+                StateCondition::AttrEq(name, value) => {
+                    selector.push_str(&format!("[{name}=\"{value}\"]"));
+                }
+                StateCondition::FocusVisible => selector.push_str(":focus-visible"),
             }
             if let Some(css) = serialize_rule(&selector, &rule.declarations) {
                 out.push_str(&css);

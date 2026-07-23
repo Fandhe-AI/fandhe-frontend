@@ -19,11 +19,17 @@
 //!
 //! [`fandhe_frontend_headless_ui::state::Disclosure`] が出力する
 //! `data-state="open"`/`"closed"`（headless 側の既存保証）に応じて
-//! backdrop/content の見た目を切り替える CSS を [`stylesheet`] へ追加する
-//! （[`state_css`] 参照）。[`crate::recipe::SlotRecipe`] は `data-scope`/
-//! `data-part` セレクタのみを組み立てる API のため、`data-state` を含む
-//! セレクタは [`crate::css::serialize_rule`] を直接使って組み立てる
-//! （`SlotRecipe` と同じ fail-closed な宣言検証を経由する）。
+//! backdrop/content の見た目を切り替える CSS を [`recipe`] へ登録する。
+//! [`crate::recipe::SlotRecipe::state`]（イシュー #643）を通じて登録し、
+//! `data-state` を含むセレクタも `SlotRecipe` の識別子検証・fail-closed
+//! 除外を経由させる（`serialize_rule` を直接呼ぶ手書きセレクタ機構は
+//! 廃止した）。
+//!
+//! # キーボード操作系スタイル（イシュー #643）
+//!
+//! `trigger`/`close-trigger` はフォーカス可能なボタン要素であり、
+//! キーボード操作時のみフォーカスリングを表示する `:focus-visible`
+//! （[`crate::recipe::StateCondition::FocusVisible`]）を [`recipe`] へ登録する。
 //!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
@@ -58,8 +64,8 @@
 //! に対する `display: none` の明示的な上書き規則を追加し、`display: flex`
 //! より詳細度・出現順の両方で優先させることでこれを固定する。
 
-use crate::css::{decl, serialize_rule};
-use crate::recipe::SlotRecipe;
+use crate::css::decl;
+use crate::recipe::{SlotRecipe, StateCondition};
 
 pub use fandhe_frontend_headless_ui::dialog::*;
 
@@ -142,62 +148,67 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-fg-muted)"),
             ],
         )
-}
-
-/// `data-state`（open/closed）に連動する CSS を組み立てる（内部ヘルパ、
-/// [`stylesheet`] のみが呼ぶ）。`backdrop`/`content` の開閉状態に応じた
-/// 見た目の切り替えを固定する（イシュー #551 受け入れ条件）。
-fn state_css() -> String {
-    let mut out = String::new();
-    if let Some(css) = serialize_rule(
-        r#"[data-scope="dialog"][data-part="backdrop"][data-state="open"]"#,
-        &[decl("opacity", "1")],
-    ) {
-        out.push_str(&css);
-    }
-    if let Some(css) = serialize_rule(
-        r#"[data-scope="dialog"][data-part="backdrop"][data-state="closed"]"#,
-        &[decl("opacity", "0")],
-    ) {
-        out.push_str(&css);
-    }
-    if let Some(css) = serialize_rule(
-        r#"[data-scope="dialog"][data-part="content"][data-state="open"]"#,
-        &[decl("transform", "scale(1)")],
-    ) {
-        out.push_str(&css);
-    }
-    if let Some(css) = serialize_rule(
-        r#"[data-scope="dialog"][data-part="content"][data-state="closed"]"#,
-        &[decl("transform", "scale(0.95)")],
-    ) {
-        out.push_str(&css);
-    }
-    // PR #575 Bugbot 指摘対応（High）: positioner の base 規則が
-    // `display: flex` を宣言しており、UA 既定の `[hidden] { display: none }`
-    // を詳細度で上書きしてしまう。closed 時に headless 層が付与する
-    // `hidden` 属性を確実に非表示化として機能させるため、より詳細度の高い
-    // `[hidden]` 属性セレクタで `display: none` を明示的に上書きする。
-    if let Some(css) = serialize_rule(
-        r#"[data-scope="dialog"][data-part="positioner"][hidden]"#,
-        &[decl("display", "none")],
-    ) {
-        out.push_str(&css);
-    }
-    out
+        // イシュー #551 受け入れ条件: `backdrop`/`content` の開閉状態に応じた
+        // 見た目の切り替え。
+        .state(
+            "backdrop",
+            StateCondition::AttrEq("data-state", "open"),
+            vec![decl("opacity", "1")],
+        )
+        .state(
+            "backdrop",
+            StateCondition::AttrEq("data-state", "closed"),
+            vec![decl("opacity", "0")],
+        )
+        .state(
+            "content",
+            StateCondition::AttrEq("data-state", "open"),
+            vec![decl("transform", "scale(1)")],
+        )
+        .state(
+            "content",
+            StateCondition::AttrEq("data-state", "closed"),
+            vec![decl("transform", "scale(0.95)")],
+        )
+        // PR #575 Bugbot 指摘対応（High）: positioner の base 規則が
+        // `display: flex` を宣言しており、UA 既定の `[hidden] { display: none }`
+        // を詳細度で上書きしてしまう。closed 時に headless 層が付与する
+        // `hidden` 属性を確実に非表示化として機能させるため、より詳細度の高い
+        // `[hidden]` 属性セレクタで `display: none` を明示的に上書きする。
+        .state(
+            "positioner",
+            StateCondition::Attr("hidden"),
+            vec![decl("display", "none")],
+        )
+        // イシュー #643: キーボード操作時のみのフォーカスリング。
+        .state(
+            "trigger",
+            StateCondition::FocusVisible,
+            vec![
+                decl("outline", "2px solid var(--fandhe-color-accent)"),
+                decl("outline-offset", "2px"),
+            ],
+        )
+        .state(
+            "close-trigger",
+            StateCondition::FocusVisible,
+            vec![
+                decl("outline", "2px solid var(--fandhe-color-accent)"),
+                decl("outline-offset", "2px"),
+            ],
+        )
 }
 
 /// この styled Dialog が生成する静的 CSS 全量を返す（決定的。同一プロセス内で
 /// 複数回呼んでも常にバイト単位で同一の文字列を返す、[`SlotRecipe::css`](crate::recipe::SlotRecipe::css)
-/// の契約をそのまま継承する）。base 規則（[`recipe`]）の後に `data-state`
-/// 連動規則（[`state_css`]）を連結する。
+/// の契約をそのまま継承する）。
 ///
 /// 呼び出し元は返り値を静的 `.css` ファイルとして配信する、または
 /// [`crate::stylesheet::StyleSheet::push_css`] へ渡して `<style>` 要素へ
 /// 埋め込む（#605、[`crate`] 冒頭の不変条件を参照）。
 #[must_use]
 pub fn stylesheet() -> String {
-    recipe().css() + &state_css()
+    recipe().css()
 }
 
 #[cfg(test)]
@@ -257,6 +268,16 @@ mod tests {
         let html = render(&root(OpenState::Closed, vec![], vec![]));
         assert!(html.contains(r#"data-scope="dialog""#));
         assert!(html.contains(r#"data-part="root""#));
+    }
+
+    #[test]
+    fn trigger_and_close_trigger_declare_focus_visible_ring() {
+        // イシュー #643 受け入れ条件: キーボード操作系属性（:focus-visible）
+        // が recipe 経由で反映されることを固定する。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="dialog"][data-part="trigger"]:focus-visible {"#));
+        assert!(css.contains(r#"[data-scope="dialog"][data-part="close-trigger"]:focus-visible {"#));
+        assert!(css.contains("outline: 2px solid var(--fandhe-color-accent);"));
     }
 
     #[test]

@@ -7,7 +7,7 @@
 //! 回帰検知でもある。
 
 use fandhe_frontend_pre_styled_ui::decl;
-use fandhe_frontend_pre_styled_ui::recipe::{when, Size, SlotRecipe, VariantValue};
+use fandhe_frontend_pre_styled_ui::recipe::{when, Size, SlotRecipe, StateCondition, VariantValue};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Tone {
@@ -47,6 +47,18 @@ fn build_recipe() -> SlotRecipe {
             vec![when(Size::Sm), when(Tone::Outline)],
             "root",
             vec![decl("border-width", "1px")],
+        )
+        // イシュー #643: state 規則も他の規則と同じ決定性保証（byte 一致・
+        // 繰り返し呼び出し安定性）の対象であることを回帰検知する。
+        .state(
+            "root",
+            StateCondition::Attr("data-highlighted"),
+            vec![decl("background", "yellow")],
+        )
+        .state(
+            "root",
+            StateCondition::FocusVisible,
+            vec![decl("outline", "2px solid black")],
         )
 }
 

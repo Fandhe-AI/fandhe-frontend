@@ -14,10 +14,18 @@
 //! Tabs は `data-state` に `"open"`/`"closed"` ではなく `"active"`/`"inactive"`
 //! 語彙を使う（`crates/headless-ui/src/tabs.rs` の `DATA_STATE_ACTIVE`/
 //! `DATA_STATE_INACTIVE`）。選択中の `trigger` を強調する CSS を
-//! [`state_css`] で追加する（[`crate::dialog`] と同じ手法）。
+//! [`crate::recipe::SlotRecipe::state`]（イシュー #643）経由で [`recipe`] へ
+//! 登録する（`serialize_rule` を直接呼ぶ手書きセレクタ機構は廃止した）。
+//!
+//! # キーボード操作系スタイル（イシュー #643）
+//!
+//! `trigger` は roving tabindex（`.claude/rules` 外部だが headless 層 tabs の
+//! キーボードナビゲーション実装）でフォーカス移動するボタン要素であり、
+//! キーボード操作時のみのフォーカスリング（`:focus-visible`）を [`recipe`]
+//! へ登録する。
 
-use crate::css::{decl, serialize_rule};
-use crate::recipe::SlotRecipe;
+use crate::css::decl;
+use crate::recipe::{SlotRecipe, StateCondition};
 
 pub use fandhe_frontend_headless_ui::tabs::*;
 
@@ -54,36 +62,36 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-fg)"),
             ],
         )
-}
-
-/// `data-state`（active/inactive）に連動する CSS を組み立てる（内部ヘルパ、
-/// [`stylesheet`] のみが呼ぶ、イシュー #551 受け入れ条件）。
-fn state_css() -> String {
-    let mut out = String::new();
-    if let Some(css) = serialize_rule(
-        r#"[data-scope="tabs"][data-part="trigger"][data-state="active"]"#,
-        &[
-            decl("color", "var(--fandhe-color-fg)"),
-            decl("border-bottom-color", "var(--fandhe-color-accent)"),
-        ],
-    ) {
-        out.push_str(&css);
-    }
-    if let Some(css) = serialize_rule(
-        r#"[data-scope="tabs"][data-part="content"][data-state="inactive"]"#,
-        &[decl("display", "none")],
-    ) {
-        out.push_str(&css);
-    }
-    out
+        // イシュー #551 受け入れ条件: 選択中の `trigger` を強調する。
+        .state(
+            "trigger",
+            StateCondition::AttrEq("data-state", "active"),
+            vec![
+                decl("color", "var(--fandhe-color-fg)"),
+                decl("border-bottom-color", "var(--fandhe-color-accent)"),
+            ],
+        )
+        .state(
+            "content",
+            StateCondition::AttrEq("data-state", "inactive"),
+            vec![decl("display", "none")],
+        )
+        // イシュー #643: キーボード操作時のみのフォーカスリング。
+        .state(
+            "trigger",
+            StateCondition::FocusVisible,
+            vec![
+                decl("outline", "2px solid var(--fandhe-color-accent)"),
+                decl("outline-offset", "2px"),
+            ],
+        )
 }
 
 /// この styled Tabs が生成する静的 CSS 全量を返す（決定的。[`crate::dialog::stylesheet`]
-/// と同じ契約）。base 規則（[`recipe`]）の後に `data-state` 連動規則
-/// （[`state_css`]）を連結する。
+/// と同じ契約）。
 #[must_use]
 pub fn stylesheet() -> String {
-    recipe().css() + &state_css()
+    recipe().css()
 }
 
 #[cfg(test)]
@@ -169,5 +177,14 @@ mod tests {
         let html = render(&tabs(&props, items));
         assert!(html.contains(r#"data-state="active""#));
         assert!(html.contains(r#"data-state="inactive""#));
+    }
+
+    #[test]
+    fn trigger_declares_focus_visible_ring() {
+        // イシュー #643 受け入れ条件: キーボード操作系属性（:focus-visible）
+        // が recipe 経由で反映されることを固定する。
+        let css = stylesheet();
+        assert!(css.contains(r#"[data-scope="tabs"][data-part="trigger"]:focus-visible {"#));
+        assert!(css.contains("outline: 2px solid var(--fandhe-color-accent);"));
     }
 }
