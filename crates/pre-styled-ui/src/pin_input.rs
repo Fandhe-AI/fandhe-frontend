@@ -134,10 +134,17 @@ fn recipe() -> SlotRecipe {
             StateCondition::Attr("data-complete"),
             vec![decl("border-color", "var(--fandhe-color-accent)")],
         )
+        // `opacity` は `root` のみに適用する（[`crate::switch`]/
+        // [`crate::checkbox`] と同じ方針）。headless 側は `data-disabled` を
+        // `root`/`input` の両方に付与するため、両パーツへ `opacity: 0.5` を
+        // 重ねるとネストした opacity の掛け算で `input` が実質約 25% まで
+        // 減光し `root`（50%）と不整合になる。`cursor: not-allowed` のみ
+        // `input` にも適用し、減光は `root` の 1 箇所に一元化する
+        // （PR #784 Cursor Bugbot 指摘、イシュー #739）。
         .state(
             "input",
             StateCondition::Attr("data-disabled"),
-            vec![decl("cursor", "not-allowed"), decl("opacity", "0.5")],
+            vec![decl("cursor", "not-allowed")],
         )
         // 実フォーカスを `input` 自身が受けるため `:focus-visible` を直接
         // 登録する（モジュール rustdoc「フォーカスリング」節参照）。

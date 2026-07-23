@@ -62,7 +62,6 @@ const PIN_INPUT_GOLDEN_CSS: &str = r#"[data-scope="pin-input"][data-part="root"]
 
 [data-scope="pin-input"][data-part="input"][data-disabled] {
   cursor: not-allowed;
-  opacity: 0.5;
 }
 
 [data-scope="pin-input"][data-part="input"]:focus-visible {
