@@ -117,7 +117,7 @@ fn recipe() -> SlotRecipe {
             vec![
                 decl("position", "relative"),
                 decl("display", "inline-flex"),
-                decl("background", "var(--fandhe-color-muted, #f1f1f1)"),
+                decl("background", "var(--fandhe-color-bg-muted)"),
                 decl("border-radius", "var(--fandhe-radius-md, 0.375rem)"),
                 decl("padding", "var(--fandhe-space-1, 0.25rem)"),
             ],
