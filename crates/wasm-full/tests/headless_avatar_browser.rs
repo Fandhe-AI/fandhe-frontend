@@ -589,6 +589,228 @@ async fn runtime_mount_non_avatar_component_ignores_avatar_shaped_image_events()
     );
 }
 
+// --- (j)〜(m) src 差し替えの MutationObserver 検知（イシュー #731） --------
+//
+// `MutationObserver` コールバックはマイクロタスクチェックポイントで実行され、
+// `img` の `load`/`error` イベントはタスク（マクロタスク）で dispatch される
+// （`docs/spec` の実装計画 §2 参照）。よって「src 差し替え → マイクロタスク
+// 1 回 await → reset（Loading）を assert」はブラウザ仕様上レースなく成立し、
+// 固定 `sleep` に頼らない（[`microtask_tick`] 参照）。
+
+/// 別バイトの 1x1 透過 GIF（`ONE_PX_GIF` と区別するための 2 個目の
+/// 有効な `data:` URI。同一 URI への再設定でも `MutationObserver` は
+/// 属性変異を記録する仕様だが、テストの意図を明確にするため値を変える）。
+const OTHER_PX_GIF: &str = "data:image/gif;base64,R0lGODlhAQABAIAAAAD/AP///ywAAAAAAQABAAACAUwAOw==";
+
+/// Promise マイクロタスクを 1 回消化するまで待つ。`set_image_src` の
+/// `setAttribute` 相当操作は同期的に `MutationRecord` をマイクロタスク
+/// キューへ積むため（DOM 仕様）、本関数が作る `Promise::resolve` の
+/// `then` コールバックはそれより後のマイクロタスクとして実行される。
+/// よって本関数から復帰した時点で observer コールバックの実行は完了して
+/// いることが保証される（固定 `sleep` に頼らない決定的な待機）。
+async fn microtask_tick() {
+    let promise = js_sys::Promise::resolve(&wasm_bindgen::JsValue::NULL);
+    wasm_bindgen_futures::JsFuture::from(promise)
+        .await
+        .expect("microtask promise must resolve");
+}
+
+/// (j) `wire_avatar_events` 直接経路: 配線済み Avatar image の `src` を
+/// 差し替えると、次の real `load` イベントより先に `"reset"` が記録される
+/// こと（受け入れ条件 1）。
+#[wasm_bindgen_test]
+async fn wire_avatar_events_src_mutation_dispatches_reset_before_next_load() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "avatar-wire-src-mutation-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    const ONE_PX_GIF: &str =
+        "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+
+    // (b) と同じ理由で、安全なプレースホルダで mount した後に `img.src` を
+    // 直接差し替えてから配線する（settle 検査がプレースホルダを拾わない
+    // ようにするため）。
+    mount_avatar(
+        &container,
+        ImageStatus::Loading,
+        "/placeholder.png",
+        "avatar",
+    );
+    set_image_src(&container, ONE_PX_GIF);
+
+    let received = std::rc::Rc::new(std::cell::RefCell::new(Vec::<String>::new()));
+    let received_clone = received.clone();
+    wire_avatar_events(container.clone(), move |action_ref| {
+        received_clone.borrow_mut().push(action_ref.action);
+    })
+    .expect("wire_avatar_events must not fail");
+
+    wait_for(|| !received.borrow().is_empty()).await;
+    assert_eq!(
+        received.borrow().last().map(String::as_str),
+        Some("loaded"),
+        "配線直後は最初の real load イベントで \"loaded\" が記録されるはず"
+    );
+
+    // src を差し替えて MutationObserver を発火させる。
+    set_image_src(&container, OTHER_PX_GIF);
+    microtask_tick().await;
+
+    assert_eq!(
+        received.borrow().get(1).map(String::as_str),
+        Some("reset"),
+        "src 差し替え直後、次の real load イベントより先に \"reset\" が記録されているはず"
+    );
+
+    // 差し替え後の画像も最終的に決着し、\"loaded\" が続くこと。
+    wait_for(|| received.borrow().len() >= 3).await;
+    assert_eq!(received.borrow().last().map(String::as_str), Some("loaded"));
+}
+
+/// (k) `Runtime::mount` 経路（受け入れ条件 1 の中核）: 一度 `Loaded` に
+/// 決着した Avatar の `src` を再度差し替えると `ImageStatus::Loading` へ
+/// reset され、`data-state` も追随すること。その後、差し替え後の画像も
+/// 最終的に決着（Loaded/Error）へ回復すること。
+#[wasm_bindgen_test]
+async fn runtime_mount_src_mutation_resets_to_loading_then_settles() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "avatar-runtime-src-mutation-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    const ONE_PX_GIF: &str =
+        "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+
+    let runtime = Runtime::<TestAvatarHost>::mount(
+        "avatar-runtime-src-mutation-root",
+        TestAvatarHost(Avatar::new(ImageStatus::Loading)),
+    )
+    .expect("Runtime::mount must not fail");
+
+    set_image_src(&container, ONE_PX_GIF);
+    wait_for(|| runtime.component().0.status() == ImageStatus::Loaded).await;
+    assert_eq!(runtime.component().0.status(), ImageStatus::Loaded);
+
+    // 決着済みの画像の src を差し替える。
+    set_image_src(&container, OTHER_PX_GIF);
+    microtask_tick().await;
+
+    assert_eq!(
+        runtime.component().0.status(),
+        ImageStatus::Loading,
+        "src 差し替えで ImageStatus::Loading へ reset されるはず（イシュー #731）"
+    );
+    let img = image_element(&container);
+    let fallback_el = fallback_element(&container);
+    assert_eq!(img.get_attribute("data-state").as_deref(), Some("hidden"));
+    assert!(img.has_attribute("hidden"));
+    assert_eq!(
+        fallback_el.get_attribute("data-state").as_deref(),
+        Some("visible")
+    );
+    assert!(!fallback_el.has_attribute("hidden"));
+
+    // 差し替え後の画像も最終的に決着すること（読み込み回復の確認）。
+    wait_for(|| runtime.component().0.status() != ImageStatus::Loading).await;
+    assert_eq!(runtime.component().0.status(), ImageStatus::Loaded);
+}
+
+/// (l) fail-closed 回帰（受け入れ条件 2）: Avatar ではない `Component`
+/// （`AppState`）の root 配下に Avatar 形状の `img`（`data-scope="avatar"`
+/// `data-part="image"`）が紛れ込んでいても、その `src` 差し替えで状態が
+/// 変化しないこと（`AppState::decode_action` が `"reset"` を認識せず
+/// `dispatch` が `false` を返すため no-op）。
+#[wasm_bindgen_test]
+async fn runtime_mount_non_avatar_component_ignores_src_mutation_on_avatar_shaped_image() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "avatar-runtime-non-avatar-src-mutation-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    let runtime = Runtime::<AppState>::mount(
+        "avatar-runtime-non-avatar-src-mutation-root",
+        AppState::new(),
+    )
+    .expect("Runtime::mount must not fail");
+
+    const ONE_PX_GIF: &str =
+        "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+
+    let img = document
+        .create_element("img")
+        .expect("create_element must not fail for img");
+    img.set_attribute("data-scope", "avatar")
+        .expect("set_attribute must not fail");
+    img.set_attribute("data-part", "image")
+        .expect("set_attribute must not fail");
+    container
+        .append_child(&img)
+        .expect("append_child must not fail");
+    let img = img
+        .dyn_into::<web_sys::HtmlImageElement>()
+        .expect("img element must be an HtmlImageElement");
+    img.set_src(ONE_PX_GIF);
+    wait_for(|| img.complete()).await;
+
+    let before = runtime.component().clone();
+
+    img.set_src(OTHER_PX_GIF);
+    microtask_tick().await;
+
+    assert_eq!(
+        *runtime.component(),
+        before,
+        "AppState は \"reset\" アクションを認識しないため、Avatar 形状の \
+         img への src 差し替えで状態が変化してはならない"
+    );
+}
+
+/// (m) 属性ガード回帰: `data-scope`/`data-part` を持たない素の `img`
+/// （Avatar のマークアップではない）の `src` 差し替えでは `"reset"` が
+/// dispatch されず、既に決着済みの Avatar 状態（`Loaded`）が変化しない
+/// こと（`avatar_action_for_src_mutation` の scope/part 完全一致ガード）。
+#[wasm_bindgen_test]
+async fn runtime_mount_plain_img_without_avatar_attrs_does_not_trigger_reset() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let container = create_container(&document, "avatar-plain-img-src-mutation-root");
+    let _cleanup = RemoveOnDrop(container.clone());
+
+    const ONE_PX_GIF: &str =
+        "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+
+    let runtime = Runtime::<TestAvatarHost>::mount(
+        "avatar-plain-img-src-mutation-root",
+        TestAvatarHost(Avatar::new(ImageStatus::Loading)),
+    )
+    .expect("Runtime::mount must not fail");
+
+    set_image_src(&container, ONE_PX_GIF);
+    wait_for(|| runtime.component().0.status() == ImageStatus::Loaded).await;
+    assert_eq!(runtime.component().0.status(), ImageStatus::Loaded);
+
+    // Avatar のマークアップとは無関係な素の img を root 配下へ追加する。
+    let plain_img = document
+        .create_element("img")
+        .expect("create_element must not fail for img");
+    container
+        .append_child(&plain_img)
+        .expect("append_child must not fail");
+    let plain_img = plain_img
+        .dyn_into::<web_sys::HtmlImageElement>()
+        .expect("img element must be an HtmlImageElement");
+    plain_img.set_src(OTHER_PX_GIF);
+    microtask_tick().await;
+
+    assert_eq!(
+        runtime.component().0.status(),
+        ImageStatus::Loaded,
+        "data-scope/data-part を持たない素の img の src 差し替えは \
+         Avatar の状態に影響してはならない"
+    );
+}
+
 /// `condition` が真になるまで `requestAnimationFrame` 相当のマイクロタスク
 /// 待機を繰り返す小さなポーリングヘルパ。`data:` URI の画像読み込み決着
 /// タイミングはブラウザ実装依存のため、固定 `sleep` ではなく条件ポーリング
