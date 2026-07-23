@@ -559,16 +559,31 @@ pub fn typeahead_next_index(
         return None;
     }
     let query = buffer.to_lowercase();
+    // repeat 判定は元の `buffer`（打鍵そのもの）の文字単位で行う。
+    // `to_lowercase()` は 'ß' 等、1 文字が複数文字へ展開されうる文字を
+    // 含むため、展開後の文字列（`query`）の文字数で判定すると単一打鍵を
+    // 誤って「複数文字の異なる入力」または逆に「同一文字の繰り返し」と
+    // 誤認する（Bugbot 指摘: Casefold breaks repeat matching）。
     let is_repeat_of_single_char = {
-        let mut chars = query.chars();
+        let mut chars = buffer.chars();
         let first = chars.next();
-        first.is_some() && chars.all(|c| Some(c) == first)
+        match first {
+            Some(f) => chars.all(|c| c.to_lowercase().eq(f.to_lowercase())),
+            None => false,
+        }
     };
     let current_in_range = current.filter(|&i| i < len);
     let start = current_in_range.unwrap_or(0);
     let skip_current = is_repeat_of_single_char && current_in_range.is_some();
     let match_query: String = if is_repeat_of_single_char {
-        query.chars().next().map(String::from).unwrap_or_default()
+        // 展開後の `query` から単純に先頭 1 文字を切り出すと、展開を
+        // 伴う文字（例: 'ß' → "ss"）の場合に本来の対応関係が壊れる
+        // ため、元の 1 文字目を改めて小文字化して使う。
+        buffer
+            .chars()
+            .next()
+            .map(|c| c.to_lowercase().collect())
+            .unwrap_or_default()
     } else {
         query
     };
@@ -1461,6 +1476,22 @@ mod tests {
         let labels = ["Apple", "Banana"];
         assert_eq!(typeahead_next_index(None, "a", &labels, &[false]), None);
     }
+
+    #[test]
+    fn typeahead_next_index_repeat_detection_uses_raw_buffer_not_expanded_casefold() {
+        // 'İ'（U+0130, LATIN CAPITAL LETTER I WITH DOT ABOVE）は
+        // `char::to_lowercase()` で "i" + COMBINING DOT ABOVE (U+0307) の
+        // 2 文字へ展開される。展開後の `query` の文字数で「単一文字の
+        // 繰り返しか」を判定すると、2 回の同一キー打鍵（buffer 上は
+        // 2 文字）が「異なる文字を含む複数文字バッファ」と誤認され、
+        // 本来は current をスキップして次の一致へ循環すべきところが
+        // マッチ不能になる（Bugbot 指摘: Casefold breaks repeat matching）。
+        let labels = ["İstanbul", "İzmir"];
+        assert_eq!(
+            typeahead_next_index(Some(0), "İİ", &labels, &[false, false]),
+            Some(1)
+        );
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -1889,6 +1920,17 @@ mod wiring {
             self.buffer.clear();
             self.content = None;
         }
+
+        /// closed-menu typeahead で `push` 後に click() 経由の再描画が
+        /// 起きた場合、`content` を再解決後の要素へ同期する。これを怠ると
+        /// 次の打鍵で [`is_active_for`](Self::is_active_for) が古い
+        /// （破棄された）content と比較してしまい、タイムアウト内でも
+        /// バッファが無効と誤判定されて新規クエリとして扱われてしまう
+        /// （Bugbot 指摘: Stale content breaks typeahead buffer）。
+        /// バッファ・タイムスタンプは変更しない。
+        fn rebind_content(&mut self, content: &Element) {
+            self.content = Some(content.clone());
+        }
     }
 
     /// highlight 中の項目へ `click()` を合成する（Enter・バッファ無効時の
@@ -1996,6 +2038,10 @@ mod wiring {
                 {
                     if root.contains(Some(&content_after)) && !content_after.has_attribute("hidden")
                     {
+                        // `push` は再描画前の `content` を保持したため、次の
+                        // 打鍵で [`TypeaheadState::is_active_for`] が新しい
+                        // content と正しく照合できるよう同期する。
+                        typeahead.rebind_content(&content_after);
                         let items = filter_own_scope_items(
                             collect_parts(&content_after, item_selector),
                             &content_after,
