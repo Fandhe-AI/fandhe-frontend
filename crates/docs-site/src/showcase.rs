@@ -71,9 +71,9 @@ use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_pre_styled_ui::{
-    accordion, alert, badge, card, combobox, menu, popover, radio_group, select, switch, tooltip,
-    AlertStatus, BadgeProps, BadgeVariant, CardVariant, ColorPalette, OpenState, Orientation, Size,
-    StyleSheet, StylesheetError,
+    accordion, alert, badge, card, combobox, menu, popover, radio_group, select, switch,
+    toggle_tip, tooltip, AlertStatus, BadgeProps, BadgeVariant, CardVariant, ColorPalette,
+    OpenState, Orientation, Size, StyleSheet, StylesheetError,
 };
 
 /// ショーケースページの `page.path`（`site/nav.toml` の宣言と一致させる契約。
@@ -108,10 +108,10 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   ビューポート全体暗幕であり、開いた状態を固定掲示するとページ全体を
 ///   覆ってしまうため掲示用にのみ隠す（実際の modal 表示では backdrop は
 ///   必須であり、ここでの非表示化はショーケースの掲示都合に限定する）。
-/// - dialog/drawer/menu/select/combobox/popover/tooltip/hover-card の
-///   `[data-part="positioner"]` を `position: static` へ中和: recipe CSS は
+/// - dialog/drawer/menu/select/combobox/popover/tooltip/hover-card/toggle-tip
+///   の `[data-part="positioner"]` を `position: static` へ中和: recipe CSS は
 ///   dialog/drawer を `position: fixed; inset: 0`、menu/select/combobox/
-///   popover/hover-card を `position: absolute; top: 100%`、tooltip を
+///   popover/hover-card を `position: absolute; top: 100%`、tooltip/toggle-tip を
 ///   `position: absolute; bottom: 100%` としており、いずれも開いた content を
 ///   ページ内の別位置・別セクションに重ねてしまう。static 化してフロー内へ
 ///   インライン表示させることで、後続セクションと重ならずに掲示できる
@@ -132,7 +132,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"backdrop\"],\n.pre-styled-showcase [data-scope=\"drawer\"][data-part=\"backdrop\"] {\n  display: none;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: static;\n  padding: 0;\n  justify-content: flex-start;\n}\n\
 .pre-styled-showcase [data-scope=\"drawer\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
-.pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"combobox\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"hover-card\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
+.pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"combobox\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"hover-card\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n";
 
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
@@ -155,10 +155,10 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 /// 内訳: テーマトークン（`Theme::default`、ライト/ダーク両対応）→ 掲載
 /// コンポーネントの recipe CSS（button/badge/spinner/alert/card/tabs/
 /// accordion/dialog/drawer/menu/select/combobox/popover/tooltip/hover_card/
-/// switch/radio_group/avatar/checkbox/checkbox_card/radio_card/input/
-/// textarea/native_select/number_input/tags_input/rating_group/slider/
-/// segment_group/pagination/breadcrumb）→ ショーケース配置スタイル、の順で
-/// 決定的に連結する。
+/// toggle_tip/switch/radio_group/avatar/checkbox/checkbox_card/radio_card/
+/// input/textarea/native_select/number_input/tags_input/rating_group/
+/// slider/segment_group/pagination/breadcrumb）→ ショーケース配置スタイル、
+/// の順で決定的に連結する。
 ///
 /// # Errors
 ///
@@ -184,6 +184,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::popover::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tooltip::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::hover_card::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::toggle_tip::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::switch::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::radio_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::avatar::stylesheet())?;
@@ -1054,6 +1055,42 @@ fn hover_card_section() -> Node {
     section(
         "HoverCard",
         "headless-ui の HoverCard（リンク先プレビュー等 hover/focus で開閉するオーバーレイ）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています。",
+        vec![node],
+    )
+}
+
+/// ToggleTip 節: 開いた状態の静的マークアップ（イシュー #761）。
+///
+/// [`tooltip_section`] と同じ視覚系だが、クリック開閉（`aria-expanded`/
+/// `aria-controls`、`role="tooltip"` なし）である点が異なる（headless 層の
+/// 3 者境界、`crates/headless-ui/src/toggle_tip.rs` モジュール doc 参照）。
+fn toggle_tip_section() -> Node {
+    let node = toggle_tip::root(
+        OpenState::Open,
+        vec![],
+        vec![
+            toggle_tip::trigger(
+                OpenState::Open,
+                false,
+                Some("showcase-toggle-tip-content"),
+                vec![],
+                vec![text("More info")],
+            ),
+            toggle_tip::positioner(
+                OpenState::Open,
+                vec![],
+                vec![toggle_tip::content(
+                    OpenState::Open,
+                    Some("showcase-toggle-tip-content"),
+                    vec![],
+                    vec![text("クリックで開閉する補足のヒントテキストです。")],
+                )],
+            ),
+        ],
+    );
+    section(
+        "ToggleTip",
+        "headless-ui の ToggleTip（クリック開閉、role=\"tooltip\" なし）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています。",
         vec![node],
     )
 }
@@ -2188,6 +2225,7 @@ fn showcase_body() -> Node {
             popover_section(),
             tooltip_section(),
             hover_card_section(),
+            toggle_tip_section(),
             switch_section(),
             radio_group_section(),
             avatar_section(),
@@ -2238,6 +2276,7 @@ mod tests {
             "popover",
             "tooltip",
             "hover-card",
+            "toggle-tip",
             "switch",
             "radio-group",
             "avatar",

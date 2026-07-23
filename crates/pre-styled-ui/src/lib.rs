@@ -348,6 +348,7 @@ pub mod textarea;
 pub mod theme;
 pub mod toggle;
 pub mod toggle_group;
+pub mod toggle_tip;
 pub mod tooltip;
 pub mod tree_view;
 

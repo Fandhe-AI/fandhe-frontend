@@ -17,7 +17,9 @@
 
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_core::{el, render, text};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::{dispatch, Component};
-use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, popover, select, tabs, tooltip};
+use fandhe_frontend_pre_styled_ui::{
+    accordion, dialog, menu, popover, select, tabs, toggle_tip, tooltip,
+};
 // ルート再エクスポート（docs-site 実利用パスと同型の import、イシュー #685）。
 use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Orientation, Size};
 
@@ -198,6 +200,29 @@ fn tooltip_state_and_action_reexports_are_usable_via_pre_styled_ui_path_alone() 
     assert_eq!(t.state(), TooltipOpenState::Open);
     t.update(DisclosureAction::Close);
     assert_eq!(t.state(), TooltipOpenState::Closed);
+}
+
+/// [`toggle_tip::root`] の `state` 引数と `ToggleTip` の `Component::Action`
+/// （`DisclosureAction`）が pre-styled-ui のパスのみで組み立てられ、dispatch
+/// まで接続することを固定する（[`mod@tooltip`] 分と同型、イシュー #761）。
+#[test]
+fn toggle_tip_state_and_action_reexports_are_usable_via_pre_styled_ui_path_alone() {
+    use fandhe_frontend_pre_styled_ui::toggle_tip::{
+        DisclosureAction as ToggleTipDisclosureAction, OpenState as ToggleTipOpenState, ToggleTip,
+    };
+
+    let html = render(&toggle_tip::root(
+        ToggleTipOpenState::Open,
+        vec![],
+        vec![el("span", vec![], vec![text("body")])],
+    ));
+    assert!(html.contains(r#"data-state="open""#));
+
+    let mut t = ToggleTip::new(ToggleTipOpenState::Closed);
+    dispatch(&mut t, "open", "");
+    assert_eq!(t.state(), ToggleTipOpenState::Open);
+    t.update(ToggleTipDisclosureAction::Close);
+    assert_eq!(t.state(), ToggleTipOpenState::Closed);
 }
 
 /// ルート再エクスポート（[`OpenState`]・[`Orientation`]）が docs-site 実利用
