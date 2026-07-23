@@ -19,9 +19,12 @@ publish = false
 # pre-styled-ui / headless-ui は UI コンポーネントショーケースページ
 # （src/showcase.rs、site/nav.toml の /components/pre-styled-ui/）が styled 部品の
 # 実レンダリングと StyleSheet による CSS 生成に使う。headless-ui を直接依存に
-# 持つのは、pre-styled-ui の headless ラッパー（tabs/accordion）が要求する
-# `Orientation` / `OpenState` 型を pre-styled-ui が再エクスポートしていないため
-# （型は path 依存で単一クレート実体に統一される）。
+# 持つのは、pre-styled-ui の headless ラッパー（tabs/accordion 等）が要求する
+# `Orientation` / `OpenState` 型を showcase.rs がそれらの定義元クレートから
+# 明示的に import するため（2 層アーキテクチャの層構造を import 経路でも
+# 明示する意図的な選択。pre-styled-ui は #685/#699 でこれらの型をルートから
+# 再エクスポート済みのため経由も可能だが、型実体自体は path 依存で単一クレート
+# 実体に統一されるため、どちらの経路でも同一の型として扱われる）。
 #
 # 本クレートは publish = false のため、workspace 内 path 依存に version 併記は
 # 不要（xtask check-dep-versions のルール 2 は publish 対象クレートのみが対象）。
