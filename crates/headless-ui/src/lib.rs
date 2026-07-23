@@ -251,6 +251,16 @@
 //!   を持たない（[`mod@tooltip`]・[`mod@popover`] との 3 者境界は
 //!   [`mod@toggle_tip`] モジュール doc §3 者境界参照）。click-outside
 //!   dismiss・Escape 閉鎖の DOM 配線は本イシューのスコープ外。
+//! - [`mod@visually_hidden`]: `root`（`span`）1 anatomy パーツ（イシュー #776、
+//!   親 #766）。視覚的には隠すが支援技術には読ませ続けるテキストコンテナで、
+//!   [`mod@field`]/[`mod@link`] と同型の状態機械なし純粋関数。`aria-hidden` を
+//!   一切出力しない不変条件がある（[`visually_hidden`] モジュール doc §`aria-hidden`
+//!   を付けない不変条件 参照）。
+//! - [`mod@skip_nav`]: `link`（`a`）/ `content`（`div`）の 2 anatomy パーツ
+//!   （イシュー #776、親 #766）。WCAG 2.1 SC 2.4.1 Bypass Blocks 対応の
+//!   「本文へスキップ」リンク。[`skip_nav::link`] は呼び出し側から任意の
+//!   URL を受け取らず常に `#<id>` のみを組み立てるため、スキーム注入経路を
+//!   構造的に持たない（[`mod@skip_nav`] モジュール doc §href の構成 参照）。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
@@ -363,6 +373,7 @@ pub mod radio_group;
 pub mod rating_group;
 pub mod segment_group;
 pub mod select;
+pub mod skip_nav;
 pub mod slider;
 pub mod state;
 pub mod switch;
@@ -373,6 +384,7 @@ pub mod toggle_group;
 pub mod toggle_tip;
 pub mod tooltip;
 pub mod tree_view;
+pub mod visually_hidden;
 
 // `pub use fandhe_frontend_core;` はクレートそのものの再エクスポート（型/値の
 // 再エクスポートではない）。`missing_docs` は extern crate 再エクスポートには

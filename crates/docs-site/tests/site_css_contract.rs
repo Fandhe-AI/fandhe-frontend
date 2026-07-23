@@ -290,3 +290,44 @@ fn admonition_dark_css_custom_properties_exist_in_site_css() {
         );
     }
 }
+
+/// イシュー #776 の乖離検知テスト: `layout::docs_page` が全ページ骨格へ
+/// 常時挿入する SkipNav の `link`/`content` パーツセレクタ
+/// （`data-scope="skip-nav"`）が、`crate::skip_nav::stylesheet()` が生成する
+/// CSS 側に実在することを検証する（admonition の
+/// `admonition_markdown_output_classes_are_covered_by_generated_admonition_css`
+/// と同型の「実出力 ⇔ 生成 CSS」乖離検知。`site/assets/site.css` はこの
+/// 契約に関与しない — #715 の分離 CSS 不変条件どおり、SkipNav も専用
+/// `assets/skip-nav.css` のみで完結する）。
+#[test]
+fn docs_page_skip_nav_parts_are_covered_by_generated_skip_nav_css() {
+    use fandhe_frontend_docs_site::skip_nav;
+
+    let skip_nav_css = skip_nav::stylesheet()
+        .expect("skip_nav stylesheet should assemble")
+        .as_css()
+        .to_string();
+
+    let html = render(&docs_page(
+        "Fixture",
+        "",
+        p(vec![], vec![]),
+        p(vec![], vec![]),
+    ));
+
+    assert!(html.contains(r#"data-scope="skip-nav""#));
+    assert!(html.contains(r#"data-part="link""#));
+    assert!(html.contains(r#"data-part="content""#));
+    assert!(html.contains(r#"href="/assets/skip-nav.css""#));
+
+    for selector in [
+        r#"[data-scope="skip-nav"][data-part="link"]"#,
+        r#"[data-scope="skip-nav"][data-part="content"]"#,
+        r#"[data-scope="skip-nav"][data-part="link"]:focus-visible"#,
+    ] {
+        assert!(
+            skip_nav_css.contains(selector),
+            "generated assets/skip-nav.css should contain selector {selector}"
+        );
+    }
+}

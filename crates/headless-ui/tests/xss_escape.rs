@@ -575,3 +575,48 @@ fn hover_card_href_and_content_id_are_escaped_for_all_payloads() {
     assert!(!html.contains("javascript:"));
     assert!(!html.contains("href="));
 }
+
+/// (1) テキスト経路（イシュー #776 VisuallyHidden）: [`visually_hidden::root`]
+/// の子ノードへ全ペイロードを注入し、エスケープ貫通を固定する。
+#[test]
+fn visually_hidden_children_text_is_escaped_for_all_payloads() {
+    use fandhe_frontend_headless_ui::fandhe_frontend_core::text;
+    use fandhe_frontend_headless_ui::visually_hidden;
+
+    for payload in payloads::all() {
+        let node = visually_hidden::root(vec![], vec![text(payload)]);
+        let html = render(&node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "visually_hidden::root の children テキストコンテキスト",
+        );
+    }
+}
+
+/// (1)/(2) テキスト経路 + 属性値経路（イシュー #776 SkipNav）:
+/// [`skip_nav::link`]/[`skip_nav::content`] の `id`（href/id 属性へ合成される）
+/// と children へ全ペイロードを注入し、エスケープ貫通を固定する。
+#[test]
+fn skip_nav_id_and_children_are_escaped_for_all_payloads() {
+    use fandhe_frontend_headless_ui::fandhe_frontend_core::text;
+    use fandhe_frontend_headless_ui::skip_nav;
+
+    for payload in payloads::all() {
+        let link_node = skip_nav::link(payload, vec![], vec![text(payload)]);
+        let html = render(&link_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "skip_nav::link の id(href 属性)/children コンテキスト",
+        );
+
+        let content_node = skip_nav::content(payload, vec![], vec![text(payload)]);
+        let html = render(&content_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "skip_nav::content の id(id 属性)/children コンテキスト",
+        );
+    }
+}

@@ -83,6 +83,8 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | Checkbox | `checkbox` | Root/Control/Indicator/Label/HiddenInput | 独自実装（`"checked"`/`"unchecked"`/`"indeterminate"` の 3 値、`Switch` と同じ理由で `Component`/`Hydrate` を直接実装。`hidden-input` がネイティブ `<input type="checkbox">` を担い、フォーム送信・ブラウザネイティブ操作との互換を保つ） | #535 |
 | Progress（linear + circular） | `progress` | Root/Label/ValueText/Track/Range（linear）+ Circle/CircleTrack/CircleRange（circular、SVG、イシュー #600・親 #542。`crates/headless-ui/src/progress.rs` rustdoc の「Circular」節参照） | 独自実装（`value`（`min`..=`max`、または indeterminate を表す `None`）を持つ連続量の値状態機械。`data-state`（`"indeterminate"`/`"loading"`/`"complete"`）は `Progress::data_state` が一元管理し、パーツ関数間で分裂させない。circular の SVG ジオメトリ（`--size`/`--thickness`/`--percent`/`stroke-dasharray`/`stroke-dashoffset`）は CSS 変数参照の固定リテラルで表現する headless 中立設計。indeterminate 時は `--percent` 等を出力せず進捗系の値を捏造しない fail-closed 方針） | #544（linear）/#600（circular） |
 | ToggleTip | `toggle_tip` | Root/Trigger/Positioner/Content/Arrow/ArrowTip | `state::Disclosure` | #761 |
+| VisuallyHidden | `visually_hidden` | Root | なし（自由関数のみ。視覚的には隠すが支援技術には読ませ続けるテキストコンテナ。`aria-hidden` を一切出力しない不変条件がある） | #776 |
+| SkipNav | `skip_nav` | Link/Content | なし（自由関数のみ。WCAG 2.1 SC 2.4.1 Bypass Blocks 対応の「本文へスキップ」リンク。`link` は呼び出し側から任意の URL を受け取らず常に `#<id>` のみを組み立てるためスキーム注入経路を構造的に持たない） | #776 |
 
 ## 4a. 位置決め（anchor positioning、イシュー #590、親 #588）
 

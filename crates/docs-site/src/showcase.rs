@@ -76,6 +76,7 @@ use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
+use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{
     accordion, alert, badge, card, combobox, menu, popover, radio_group, select, switch,
     toggle_tip, tooltip, AlertStatus, BadgeProps, BadgeVariant, CardVariant, ColorPalette,
@@ -216,6 +217,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::icon::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::status::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::empty_state::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::visually_hidden::css())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -2327,6 +2329,37 @@ fn empty_state_section() -> Node {
     )
 }
 
+/// VisuallyHidden 節（イシュー #776）: アイコンのみのボタンに、視覚的には
+/// 隠すがスクリーンリーダーには読ませる補足テキストを添えるパターンを掲示
+/// する（chakra-ui/ark-ui の典型的な用例と同じ構成）。
+///
+/// SkipNav（同イシュー）はページ骨格（`crate::layout::docs_page_with_assets`）
+/// へ全ページ共通で 1 個だけ実適用する構成のため、既に本ページの `<body>`
+/// 先頭にも SkipNav リンクが存在する。ショーケース節として別 id のデモを
+/// 追加すると `id="fandhe-skip-nav"` の重複や紛らわしさを招くため、
+/// SkipNav 自体のショーケースデモは設けない（実装計画 §3 が明示的に許容する
+/// 判断: 「デモ省略しレイアウト実適用を正とする」）。
+fn visually_hidden_section() -> Node {
+    // 「★」自体は装飾（アイコン）であり、ボタンのアクセシブルネームは
+    // 後続の `visually_hidden::root` テキストのみに担わせる（`aria-label` を
+    // 併用すると accessible-name 計算で `aria-label` が勝ち、VisuallyHidden
+    // テキストが読み上げられなくなってしまう。アイコンのみのボタンに
+    // 補足テキストを添える本来の用途を壊さないための必須の組み合わせ方）。
+    let icon_button = button(
+        &ButtonProps::default(),
+        vec![],
+        vec![
+            el("span", vec![("aria-hidden", "true")], vec![text("★")]),
+            visually_hidden::root(vec![], vec![text("お気に入りに追加")]),
+        ],
+    );
+    section(
+        "VisuallyHidden",
+        "視覚的には隠す（clip 手法）が支援技術には読ませ続けるテキストコンテナ。アイコンのみのボタンに補足テキストを添える用途などに使います。aria-hidden は一切出力しません。",
+        vec![row(vec![icon_button])],
+    )
+}
+
 /// Progress（circle 対応、イシュー #763）節: determinate（40%）の size
 /// バリエーション・complete・indeterminate の 3 状態を掲示する。
 ///
@@ -2529,6 +2562,7 @@ fn showcase_body() -> Node {
             icon_section(),
             status_section(),
             empty_state_section(),
+            visually_hidden_section(),
         ],
     )
 }
@@ -2582,6 +2616,7 @@ mod tests {
             "icon",
             "status",
             "empty-state",
+            "visually-hidden",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
