@@ -31,7 +31,7 @@ const NUMBER_INPUT_GOLDEN_CSS: &str = r#"[data-scope="number-input"][data-part="
   padding: 0 var(--fandhe-number-input-trigger-size, 1.5rem) 0 var(--fandhe-space-2);
   font-size: var(--fandhe-number-input-font-size, var(--fandhe-font-font-size-sm));
   border: 1px solid var(--fandhe-color-border);
-  border-radius: var(--fandhe-radii-md, 0.375rem);
+  border-radius: var(--fandhe-radius-md, 0.375rem);
   background: var(--fandhe-color-bg);
 }
 

@@ -64,9 +64,10 @@
 //! - hydration 属性（`data-hydrate-value`/`-min`/`-max`/`-step`）はクライアント
 //!   側で改ざんされうる入力として扱う。[`NumberInput`] の
 //!   [`fandhe_frontend_interactive::Hydrate`] 実装は panic せず
-//!   `HydrateError` を返す（パース不能・非有限・`min >= max`・`step <= 0`・
-//!   範囲外 value をすべて拒否する。[`crate::progress::Progress`] と同型の
-//!   fail-closed 契約）。
+//!   `HydrateError` を返す（パース不能・非有限・`min > max`・`step <= 0`・
+//!   範囲外 value をすべて拒否する。`min == max` はコンストラクタ
+//!   ([`NumberInput::new`]) が受理する退化構成であるため hydration 側も
+//!   受理する。[`crate::progress::Progress`] と同型の fail-closed 契約）。
 //!
 //! # スコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
@@ -259,6 +260,7 @@ pub fn input<'a>(
     merged.extend(data_disabled(flags.disabled));
     merged.extend(data_invalid(flags.invalid));
     merged.extend(crate::data_attrs::data_required(flags.required));
+    merged.extend(crate::data_attrs::data_readonly(flags.readonly));
     merged.extend(attrs);
     ANATOMY.part("input", "input", merged, Vec::new())
 }
@@ -621,9 +623,11 @@ impl Hydrate for NumberInput {
     }
 
     /// クライアント改ざん入力として扱う。欠落は
-    /// [`HydrateError::MissingAttr`]、パース不能・非有限・`min >= max`・
+    /// [`HydrateError::MissingAttr`]、パース不能・非有限・`min > max`・
     /// `step <= 0`・範囲外 value は [`HydrateError::InvalidValue`]（panic
-    /// しない、[`crate::progress::Progress`] と同型の fail-closed 契約）。
+    /// しない、[`crate::progress::Progress`] と同型の fail-closed 契約。
+    /// `min == max` は [`NumberInput::new`] が受理する退化構成のため拒否
+    /// しない）。
     fn from_hydration_attrs(attrs: &[(String, String)]) -> Result<Self, HydrateError> {
         let find = |field: &str| -> Result<&str, HydrateError> {
             let name = format!("{HYDRATE_ATTR_PREFIX}{field}");
@@ -659,10 +663,15 @@ impl Hydrate for NumberInput {
                 reason: "expected a finite number".to_string(),
             })?;
 
-        if min >= max {
+        // `min == max`（退化した単一値レンジ）は [`NumberInput::new`]/
+        // [`normalize`] が受理する構成であるため、hydration 側も同じ境界で
+        // 受理する（`min > max` のみを拒否）。ここを `min >= max` にすると
+        // コンストラクタでは成立する構成が hydration では常に失敗する
+        // 不変条件の食い違いが生じる。
+        if min > max {
             return Err(HydrateError::InvalidValue {
                 attr: attr_name_min,
-                reason: "expected min < max".to_string(),
+                reason: "expected min <= max".to_string(),
             });
         }
 
@@ -818,6 +827,7 @@ mod tests {
         assert!(html.contains(r#"required="""#));
         assert!(html.contains(r#"data-disabled="""#));
         assert!(html.contains(r#"data-required="""#));
+        assert!(html.contains(r#"data-readonly="""#));
     }
 
     #[test]
@@ -1093,6 +1103,19 @@ mod tests {
         assert_eq!(restored, n);
     }
 
+    /// `min == max`（退化した単一値レンジ）はコンストラクタが受理する構成
+    /// である。hydration 側だけがこの構成を拒否すると、コンストラクタと
+    /// hydration の間で不変条件が食い違う（`from_hydration_attrs` は
+    /// `min > max` のみを拒否し `min == max` は受理する契約）。
+    #[test]
+    fn hydration_round_trip_when_min_equals_max() {
+        let n = NumberInput::new(Some(5.0), 5.0, 5.0, 1.0);
+        assert_eq!((n.min(), n.max()), (5.0, 5.0));
+
+        let restored = NumberInput::from_hydration_attrs(&n.hydration_attrs()).unwrap();
+        assert_eq!(restored, n);
+    }
+
     #[test]
     fn from_hydration_attrs_missing_attr_does_not_panic() {
         let err = NumberInput::from_hydration_attrs(&[]).unwrap_err();
@@ -1112,7 +1135,7 @@ mod tests {
                 ("data-hydrate-max".to_string(), "100".to_string()),
                 ("data-hydrate-step".to_string(), "1".to_string()),
             ],
-            // min >= max。
+            // min > max。
             vec![
                 ("data-hydrate-value".to_string(), "40".to_string()),
                 ("data-hydrate-min".to_string(), "100".to_string()),

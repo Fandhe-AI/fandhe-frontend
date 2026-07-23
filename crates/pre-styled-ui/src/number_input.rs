@@ -147,7 +147,7 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-number-input-font-size, var(--fandhe-font-font-size-sm))",
                 ),
                 decl("border", "1px solid var(--fandhe-color-border)"),
-                decl("border-radius", "var(--fandhe-radii-md, 0.375rem)"),
+                decl("border-radius", "var(--fandhe-radius-md, 0.375rem)"),
                 decl("background", "var(--fandhe-color-bg)"),
             ],
         )
