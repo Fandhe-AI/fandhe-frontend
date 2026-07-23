@@ -54,22 +54,32 @@
 //!   `item_text` のテキストノード・`aria-label` 属性値・`hidden_input` の
 //!   value のいずれも `render()` の既定エスケープを経由する経路以外を持たない
 //!   （[`crate::xss_escape`] 相当の回帰テストで固定する）。
-//! - **不変条件「重複タグなし・`len() <= max`・カンマを含まない」を破る
-//!   入力は一切適用しない**（fail-closed。[`TagsInputAction::Add`] の空文字列・
-//!   重複（完全一致）・カンマ含有・max 到達は no-op、
-//!   [`TagsInputAction::EditSubmit`] の空文字列・他タグとの重複・カンマ含有は
-//!   編集を確定せず元値を維持する）。**カンマ禁止の理由（Cursor Bugbot 指摘
-//!   #744 review comment 3639762375）**: [`TagsInput::value`]/
-//!   [`TagsInput::hidden_input`] はフォーム送信値としてタグ列を単純にカンマ
-//!   結合する（区切り文字自体をエスケープしない）。タグ文字列がカンマを
-//!   含むことを許すと `["foo,bar"]` と `["foo", "bar"]` が同一のフォーム送信値
-//!   （`"foo,bar"`）に縮退し、受信側で復元が一意に定まらない。この曖昧さを
-//!   構造的に防ぐため、カンマを含むタグそのものを [`TagsInput::new`]/
-//!   [`TagsInputAction::Add`]/[`TagsInputAction::EditSubmit`]/
+//! - **不変条件「重複タグなし・`len() <= max`・カンマを含まない・空文字列を
+//!   含まない」を破る入力は一切適用しない**（fail-closed。
+//!   [`TagsInputAction::Add`] の空文字列・重複（完全一致）・カンマ含有・
+//!   max 到達は no-op、[`TagsInputAction::EditSubmit`] の空文字列・他タグ
+//!   との重複・カンマ含有は編集を確定せず元値を維持する）。**カンマ禁止の
+//!   理由（Cursor Bugbot 指摘 #744 review comment 3639762375）**:
+//!   [`TagsInput::value`]/[`TagsInput::hidden_input`] はフォーム送信値として
+//!   タグ列を単純にカンマ結合する（区切り文字自体をエスケープしない）。
+//!   タグ文字列がカンマを含むことを許すと `["foo,bar"]` と `["foo", "bar"]`
+//!   が同一のフォーム送信値（`"foo,bar"`）に縮退し、受信側で復元が一意に
+//!   定まらない。この曖昧さを構造的に防ぐため、カンマを含むタグそのものを
+//!   [`TagsInput::new`]/[`TagsInputAction::Add`]/[`TagsInputAction::EditSubmit`]/
 //!   [`Hydrate::from_hydration_attrs`] のすべての入口で拒否する（hydration の
 //!   内部搬送自体は [`fandhe_frontend_interactive::codec::encode_list`] が
 //!   カンマと無関係の区切り文字で安全に行うが、復元後の値がカンマ結合値へ
-//!   還元される契約のため入口で一貫して拒否する）。
+//!   還元される契約のため入口で一貫して拒否する）。**空タグ拒否の理由
+//!   （Cursor Bugbot 指摘 #744 review comment、BUGBOT_BUG_ID:
+//!   83d9064b-d1f4-4f7c-9b06-26f3dcc21235）**: [`TagsInputAction::Add`]/
+//!   [`TagsInputAction::EditSubmit`] は空文字列タグを拒否するが、
+//!   [`TagsInput::new`]/[`Hydrate::from_hydration_attrs`] だけがこれを許すと
+//!   空タグ列（`vec![]`）と単一の空文字列タグ（`vec![""]`）が
+//!   [`TagsInput::value`]/[`TagsInput::hidden_input`] を通じて同一の `""`
+//!   へ縮退し、フォーム送信値のラウンドトリップが曖昧になる（カンマ禁止と
+//!   同種の衝突クラス）。この曖昧さを構造的に防ぐため、空文字列タグも
+//!   [`TagsInput::new`]/[`TagsInputAction::Add`]/[`TagsInputAction::EditSubmit`]/
+//!   [`Hydrate::from_hydration_attrs`] のすべての入口で一貫して拒否する。
 //! - hydration 属性（`data-hydrate-tags`/`data-hydrate-max`）はクライアント
 //!   側で改ざんされうる入力として扱う。[`TagsInput`] の
 //!   [`fandhe_frontend_interactive::Hydrate`] 実装は panic せず
@@ -316,14 +326,18 @@ impl TagsInput {
     pub const FIELD_MAX: &'static str = "max";
 
     /// 初期タグ列・上限（`None` = 無制限）を指定して [`TagsInput`] を生成する。
-    /// 呼び出し時点でカンマを含むタグは除外し（モジュール doc「カンマ禁止の
-    /// 理由」節参照）、残った列の重複タグは先頭から見て初出のみを残し
-    /// 後続の重複を落とす（不変条件を最初から保証する、panic しない）。
+    /// 呼び出し時点で空文字列・カンマを含むタグは除外し（[`TagsInputAction::Add`]/
+    /// [`TagsInputAction::EditSubmit`] と同じ拒否基準。モジュール doc
+    /// 「カンマ禁止の理由」節参照。空タグを許すと空リストと単一の空文字列
+    /// タグが [`Self::value`]/[`Self::hidden_input`] を通じて同一の `""` へ
+    /// 縮退し、フォーム送信値が曖昧になるため一貫して拒否する）、残った列の
+    /// 重複タグは先頭から見て初出のみを残し後続の重複を落とす（不変条件を
+    /// 最初から保証する、panic しない）。
     #[must_use]
     pub fn new(tags: Vec<String>, max: Option<usize>) -> Self {
         let mut deduped: Vec<String> = Vec::with_capacity(tags.len());
         for t in tags {
-            if !t.contains(',') && !deduped.contains(&t) {
+            if !t.is_empty() && !t.contains(',') && !deduped.contains(&t) {
                 deduped.push(t);
             }
         }
@@ -649,11 +663,21 @@ impl Hydrate for TagsInput {
         let tags_attr = format!("{HYDRATE_ATTR_PREFIX}{}", Self::FIELD_TAGS);
         let tags = codec::decode_list(find(Self::FIELD_TAGS)?);
 
-        // 復元タグ列が不変条件（重複なし・len <= max・カンマを含まない）を
-        // 満たすことを検証する。改ざんされた data-* によって不変条件を破った
-        // 状態を復元しない（fail-closed、モジュール doc「カンマ禁止の理由」節
-        // 参照）。
+        // 復元タグ列が不変条件（重複なし・len <= max・カンマを含まない・
+        // 空文字列を含まない）を満たすことを検証する。改ざんされた data-*
+        // によって不変条件を破った状態を復元しない（fail-closed、モジュール
+        // doc「カンマ禁止の理由」節参照。空タグの拒否は [`Self::new`]/
+        // [`TagsInputAction::Add`]/[`TagsInputAction::EditSubmit`] と同じ
+        // 基準であり、空リストと単一の空文字列タグが `value()`/
+        // `hidden_input` を通じて同一の `""` へ縮退する曖昧さをこの経路でも
+        // 一貫して排除する）。
         for (i, t) in tags.iter().enumerate() {
+            if t.is_empty() {
+                return Err(HydrateError::InvalidValue {
+                    attr: tags_attr,
+                    reason: "tags must not contain an empty string".to_string(),
+                });
+            }
             if t.contains(',') {
                 return Err(HydrateError::InvalidValue {
                     attr: tags_attr,
@@ -896,6 +920,28 @@ mod tests {
     }
 
     #[test]
+    fn new_drops_empty_string_initial_tags() {
+        // 空文字列タグを許すと空タグ列と単一の空文字列タグが value()/
+        // hidden_input を通じて同一の "" へ縮退し、フォーム送信値の
+        // ラウンドトリップが曖昧になる（モジュール doc「空タグ拒否の理由」
+        // 節、Cursor Bugbot 指摘 #744、BUGBOT_BUG_ID:
+        // 83d9064b-d1f4-4f7c-9b06-26f3dcc21235）。Add/EditSubmit と同じ基準を
+        // コンストラクタでも一貫適用することを固定する。
+        let t = TagsInput::new(tags(&["a", "", "d"]), None);
+        assert_eq!(t.tags(), &tags(&["a", "d"]));
+    }
+
+    #[test]
+    fn new_with_only_empty_string_tag_does_not_serialize_as_ambiguous_empty_value() {
+        // 単一の空文字列タグだけを渡した場合、空タグ列と value() が区別
+        // できなくなる縮退を防ぐ（BUGBOT_BUG_ID:
+        // 83d9064b-d1f4-4f7c-9b06-26f3dcc21235）。
+        let t = TagsInput::new(tags(&[""]), None);
+        assert!(t.is_empty());
+        assert_eq!(t.value(), "");
+    }
+
+    #[test]
     fn add_action_appends_new_tag() {
         let mut t = TagsInput::default();
         assert!(dispatch(&mut t, "add", "rust"));
@@ -1115,6 +1161,24 @@ mod tests {
             (
                 "data-hydrate-tags".to_string(),
                 codec::encode_list(&tags(&["a,b"])),
+            ),
+        ];
+        let err = TagsInput::from_hydration_attrs(&attrs).unwrap_err();
+        assert!(matches!(err, HydrateError::InvalidValue { .. }));
+    }
+
+    #[test]
+    fn from_hydration_attrs_empty_string_tag_does_not_panic() {
+        // 改ざんされた data-hydrate-tags が空文字列タグを運んできても、
+        // value()/hidden_input を通じて空タグ列と縮退して区別できなくなる
+        // 復元を許さない（fail-closed、モジュール doc「空タグ拒否の理由」節、
+        // Cursor Bugbot 指摘 #744、BUGBOT_BUG_ID:
+        // 83d9064b-d1f4-4f7c-9b06-26f3dcc21235）。
+        let attrs = vec![
+            ("data-hydrate-max".to_string(), "none".to_string()),
+            (
+                "data-hydrate-tags".to_string(),
+                codec::encode_list(&tags(&["a", ""])),
             ),
         ];
         let err = TagsInput::from_hydration_attrs(&attrs).unwrap_err();
