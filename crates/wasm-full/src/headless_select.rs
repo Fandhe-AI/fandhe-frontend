@@ -207,8 +207,20 @@ mod wiring {
             return;
         };
 
+        let selected = select.selected();
         let items = collect_items(root);
-        let selected_label = resolve_selected_label(&items, select.selected());
+        let selected_label = resolve_selected_label(&items, selected);
+
+        // fail-closed: `selected` が `Some` にもかかわらず一致する item が
+        // 見つからない場合（改ざん・欠損入力によるステイル状態）は同期しない
+        // no-op とする。`selected` が `None`（正当な未選択・deselect 後）の
+        // 場合のみ、以降でプレースホルダー表示へ進む（Bugbot 指摘、PR #649
+        // review comment 3634998607: 従来はこの 2 ケースを区別できず
+        // ステイル選択時にもプレースホルダー再描画が発生していた）。
+        if selected.is_some() && selected_label.is_none() {
+            return;
+        }
+
         let view = value_text_view(selected_label, placeholder);
 
         // テキスト反映は束縛点経路（`set_text_content` のみ）。

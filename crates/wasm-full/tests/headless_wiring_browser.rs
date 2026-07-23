@@ -714,8 +714,18 @@ fn select_clear_trigger_restores_placeholder_value_text() {
 #[wasm_bindgen_test]
 fn select_stale_selected_value_without_matching_item_is_noop_for_value_text() {
     // 改ざん・欠損入力（選択値に対応する item が root 配下に存在しない）は
-    // 同期を行わない no-op とする（fail-closed）。value-text は SSR 初期
-    // 表現（placeholder）のまま変化しない。
+    // 同期を行わない no-op とする（fail-closed）。
+    //
+    // PR #649 review comment 3634998607（Bugbot 指摘）: 本テストは当初
+    // 「SSR 初期状態（placeholder 表示済み）に対してステイルな選択値を渡す」
+    // 構成だったため、`sync_select_value_text` がプレースホルダー表示を
+    // 誤って再構築してしまうバグ（deselect 時の描画と区別できていなかった）
+    // があっても、value-text の見た目は変化せず検知できなかった（no-op と
+    // 「プレースホルダーへ書き戻す誤動作」が偶然同じ結果になっていたため）。
+    // 先に正当な選択（"vue"）を確定させてラベル表示状態を作った上で
+    // ステイルな選択値へ遷移させ、「ラベル表示が保持され、
+    // `data-placeholder-shown` が付与されないこと」を検証することで、
+    // 誤ったプレースホルダー再描画が発生していないことを確実に検知する。
     let window = web_sys::window().expect("window must exist");
     let document = window.document().expect("document must exist");
     let container = create_container(&document, "headless-select-stale-value-text-root");
@@ -732,8 +742,23 @@ fn select_stale_selected_value_without_matching_item_is_noop_for_value_text() {
         .expect("query_selector must not fail")
         .expect("value-text element must exist");
 
-    // "svelte" は markup 上のどの item にも存在しない選択値（改ざん想定）。
     let mut select_state = Select::default();
+
+    // まず正当な選択を確定させ、value-text をラベル表示状態にしておく。
+    assert!(fandhe_frontend_interactive::dispatch(
+        &mut select_state,
+        "select",
+        "vue"
+    ));
+    fandhe_frontend_wasm_full::headless_select::sync_select_value_text(
+        &select_state,
+        &root,
+        SELECT_PLACEHOLDER,
+    );
+    assert_eq!(value_text_el.text_content(), Some("Vue".to_string()));
+    assert!(!value_text_el.has_attribute("data-placeholder-shown"));
+
+    // "svelte" は markup 上のどの item にも存在しない選択値（改ざん想定）。
     assert!(fandhe_frontend_interactive::dispatch(
         &mut select_state,
         "select",
@@ -747,10 +772,13 @@ fn select_stale_selected_value_without_matching_item_is_noop_for_value_text() {
 
     assert_eq!(
         value_text_el.text_content(),
-        Some(SELECT_PLACEHOLDER.to_string()),
-        "一致する item が無い選択値では value-text を書き換えないこと"
+        Some("Vue".to_string()),
+        "一致する item が無い選択値では value-text を書き換えず、直前のラベル表示を維持すること"
     );
-    assert!(value_text_el.has_attribute("data-placeholder-shown"));
+    assert!(
+        !value_text_el.has_attribute("data-placeholder-shown"),
+        "ステイルな選択値では data-placeholder-shown への誤ったフォールバックが発生しないこと"
+    );
 }
 
 #[wasm_bindgen_test]
