@@ -98,6 +98,19 @@ pub fn aria_hidden(hidden: bool) -> (&'static str, &'static str) {
     ("aria-hidden", bool_str(hidden))
 }
 
+/// `aria-current` 属性（[`crate::steps`] 用、イシュー #752）。
+///
+/// WAI-ARIA の `aria-current` はトークン語彙が複数（`"page"`/`"step"`/
+/// `"location"`/`"date"`/`"time"`/`"true"`/`"false"` 等）ある属性だが、
+/// 本関数は呼び出し側の任意文字列を受け付けず `&'static str` の固定
+/// リテラルのみを取る（`crates/core/src/tags.rs` のタグ名/属性名固定と
+/// 同型の判断）。現時点の呼び出し元は Steps の current トリガーが使う
+/// `"step"` のみで、他トークンは利用が確認できてから追加する。
+#[must_use]
+pub fn aria_current(value: &'static str) -> (&'static str, &'static str) {
+    ("aria-current", value)
+}
+
 /// `aria-disabled` 属性。
 #[must_use]
 pub fn aria_disabled(disabled: bool) -> (&'static str, &'static str) {
@@ -240,6 +253,7 @@ mod tests {
         assert_eq!(aria_modal(true), ("aria-modal", "true"));
         assert_eq!(aria_invalid(true), ("aria-invalid", "true"));
         assert_eq!(aria_invalid(false), ("aria-invalid", "false"));
+        assert_eq!(aria_current("step"), ("aria-current", "step"));
     }
 
     #[test]

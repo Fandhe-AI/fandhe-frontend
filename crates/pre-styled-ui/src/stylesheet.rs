@@ -280,6 +280,7 @@ mod tests {
             ("toggle", crate::toggle::stylesheet()),
             ("toggle_group", crate::toggle_group::stylesheet()),
             ("segment_group", crate::segment_group::stylesheet()),
+            ("steps", crate::steps::stylesheet()),
         ]
     }
 

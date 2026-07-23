@@ -128,6 +128,15 @@
 //!   `color-palette` variant を最初から持つ（`toggle_group` は root のみへ
 //!   クラスを付与する複合部品の統一方針に従う）。詳細は [`mod@toggle`]
 //!   rustdoc 参照。
+//! - headless 状態機械を持つ複合部品の styled ラッパー（イシュー #752、
+//!   `docs/api/headless-ui-api.md` §4b.3 の保留解除）: [`mod@steps`]。
+//!   [`fandhe_frontend_headless_ui::steps`] が自由関数を持たない（全パーツ
+//!   が `Steps` の inherent メソッド）ため、本モジュールの全パーツ関数が
+//!   `state: &Steps` を受け取る点が他コンポーネントと異なる（詳細は
+//!   [`mod@steps`] rustdoc 参照）。`size`/`color-palette` variant を最初から
+//!   持つ。`trigger`/`prev-trigger`/`next-trigger` はネイティブ `<button>`
+//!   が実フォーカスを受けるため [`recipe::StateCondition::FocusVisible`] で
+//!   足りる（`toggle`/`toggle_group` と同型）。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -277,6 +286,7 @@ pub mod segment_group;
 pub mod select;
 pub mod slider;
 pub mod spinner;
+pub mod steps;
 pub mod stylesheet;
 pub mod switch;
 pub mod tabs;

@@ -130,6 +130,32 @@ pub fn data_orientation(orientation: Orientation) -> (&'static str, &'static str
     ("data-orientation", orientation.as_str())
 }
 
+/// `data-complete` 存在属性（[`crate::steps`] 用、イシュー #752）。
+/// [`data_disabled`] と同じ「存在で真を表す」規約に従う。ark-ui の Steps
+/// anatomy が item/trigger/indicator/separator へ付与する `isCompleted`
+/// 相当の存在属性であり、`data-state="complete"`（値語彙、[`data_state`]
+/// 経由）と重複する情報だが、CSS セレクタで `[data-complete]` の有無
+/// だけを見たい呼び出し側の利便性のために独立して提供する（[`data_pressed`]
+/// と同型の判断）。
+#[must_use]
+pub fn data_complete(complete: bool) -> Option<(&'static str, &'static str)> {
+    complete.then_some(("data-complete", ""))
+}
+
+/// `data-current` 存在属性（[`crate::steps`] 用、イシュー #752）。
+/// [`data_complete`] と同じ規約に従う。
+#[must_use]
+pub fn data_current(current: bool) -> Option<(&'static str, &'static str)> {
+    current.then_some(("data-current", ""))
+}
+
+/// `data-incomplete` 存在属性（[`crate::steps`] 用、イシュー #752）。
+/// [`data_complete`] と同じ規約に従う。
+#[must_use]
+pub fn data_incomplete(incomplete: bool) -> Option<(&'static str, &'static str)> {
+    incomplete.then_some(("data-incomplete", ""))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,6 +183,12 @@ mod tests {
         assert_eq!(data_focus_visible(false), None);
         assert_eq!(data_pressed(true), Some(("data-pressed", "")));
         assert_eq!(data_pressed(false), None);
+        assert_eq!(data_complete(true), Some(("data-complete", "")));
+        assert_eq!(data_complete(false), None);
+        assert_eq!(data_current(true), Some(("data-current", "")));
+        assert_eq!(data_current(false), None);
+        assert_eq!(data_incomplete(true), Some(("data-incomplete", "")));
+        assert_eq!(data_incomplete(false), None);
     }
 
     #[test]

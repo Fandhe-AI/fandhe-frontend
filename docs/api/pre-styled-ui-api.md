@@ -13,7 +13,7 @@ pre-styled UI コンポーネント層、親トラッキング #520・骨格新�
 対応する REQ / TASK は `docs/spec/` に存在しない（要件提案は
 fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 参照）。
 
-## 2. 実装状況（v0.4.0 → v0.10.0 時点、2026-07-23 更新）
+## 2. 実装状況（v0.4.0 → v0.11.0 時点、2026-07-23 更新）
 
 **記載方針**: 実装済み API の正は `crates/pre-styled-ui/src/lib.rs` 冒頭の
 rustdoc および各モジュール冒頭の rustdoc とする。本節はモジュール一覧の
@@ -26,8 +26,8 @@ checkbox styled ラッパー追加（#730）・静的フォーム部品 3 種追
 NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー追加
 （#739）・Slider styled ラッパー追加（#741）・RatingGroup styled ラッパー
 追加（#742）・SegmentGroup styled ラッパー追加（#743）・TagsInput styled
-ラッパー追加（#744、いずれも公開時点未反映）を経て 29 の公開モジュールを
-持つ。内訳は次の通り。
+ラッパー追加（#744）・Steps styled ラッパー追加（#752、いずれも公開時点
+未反映）を経て 30 の公開モジュールを持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -50,6 +50,7 @@ NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー�
 | headless ラッパー | `segment_group` | #743（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供。状態機械は `radio_group` へ全委譲） |
 | headless ラッパー第 10 弾 | `tags_input` | #744（`size` variant のみ。フォーム入力部品のため `color-palette` 軸は非提供、`pin_input`/`number_input` と同型の判断） |
 | headless ラッパー | `combobox` | #749（`select` と同型の `size` variant のみ・`color-palette` 軸は非提供。状態機械は `state::Disclosure` + `state::SingleSelect` + `state::TextInput` の合成。フォーカスは `input` が保持するため `:focus-visible` を `input` へ、`:focus-within` を `control` へ登録する） |
+| headless ラッパー | `steps` | #752（`size`/`color-palette` 両軸。`fandhe_frontend_headless_ui::steps` が自由関数を持たず全パーツが `Steps` の inherent メソッドのため、本モジュールの全パーツ関数が `state: &Steps` を受け取る点が他コンポーネントと異なる。`docs/api/headless-ui-api.md` §4b.3 の Steps 保留解除） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
@@ -421,6 +422,7 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | toggle-group | ✓ | ✓ | 実装済み（#746、root のみへクラス付与） |
 | segment-group | ✓ | – | 実装済み（#743、選択状態は indicator の移動 + 文字強調で表現するため color-palette は非提供） |
 | tags-input | ✓ | – | 実装済み（#744、フォーム入力部品のため color-palette は非提供） |
+| steps | ✓ | ✓ | 実装済み（#752、indicator の寸法・current/complete の強調色に反映） |
 | popover / tooltip | 提供しない | 提供しない | 方針確定 |
 
 tabs/accordion/dialog/menu/select の実装詳細（イシュー #729）:
