@@ -59,10 +59,19 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 /// ショーケース内の配置（グリッド・縦積み）専用スタイル。コンポーネント
 /// 自体の見た目は pre-styled-ui の recipe が担い、ここではデモの並びのみを
 /// 整える（`site/assets/site.css` のサイト骨格クラスとは名前空間を分ける）。
+///
+/// 末尾の見出しリセットは、showcase ページが `.docs-content` 内へ埋め込まれる
+/// ことによる `site.css` 見出しルール（`.docs-content h3` の margin・
+/// フォント指定）の Accordion anatomy `h3`（item trigger のラッパ）への漏れを
+/// 遮断する（Bugbot 指摘）。`site.css` 側は変更せず（`site_css_contract` を
+/// 壊さない）、`data-scope` 属性ベースの決定的セレクタで showcase 領域内に
+/// 限定して上書きする（`.pre-styled-showcase` + 属性 + 型 = (0,2,1) が
+/// `.docs-content h3` = (0,1,1) より優先される）。
 const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
 .showcase-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 0.75rem;\n  align-items: center;\n  margin: 1rem 0;\n}\n\
-.showcase-stack {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n  margin: 1rem 0;\n  max-width: 36rem;\n}\n";
+.showcase-stack {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n  margin: 1rem 0;\n  max-width: 36rem;\n}\n\
+.pre-styled-showcase [data-scope=\"accordion\"] h3 {\n  margin: 0;\n  font-size: 1rem;\n  font-weight: 400;\n  line-height: 1.5;\n  letter-spacing: normal;\n}\n";
 
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
 /// 追記する `Node` 木を返す。
@@ -562,6 +571,9 @@ mod tests {
         // ショーケース配置スタイル。
         assert!(css.contains(".showcase-row"));
         assert!(css.contains(".showcase-stack"));
+        // Accordion anatomy の h3 への `.docs-content h3`（site.css）漏れを
+        // 遮断する見出しリセット（Bugbot 指摘の回帰防止）。
+        assert!(css.contains(r#".pre-styled-showcase [data-scope="accordion"] h3"#));
         // StyleSheet の不変条件（<style> 埋め込み・CSS ファイル双方で安全）。
         assert!(!css.contains('<'));
     }

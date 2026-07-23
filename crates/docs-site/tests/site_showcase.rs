@@ -100,7 +100,30 @@ fn real_site_build_emits_showcase_page_and_dedicated_css() {
     assert!(css.contains("--fandhe-color-"));
     assert!(css.contains(".fd-button--variant-solid"));
     assert!(css.contains(r#"[data-scope="tabs"][data-part="trigger"]"#));
+    // site.css の `.docs-content h3` が Accordion anatomy の h3 へ漏れるのを
+    // 遮断する見出しリセットが専用 CSS 側に含まれる（site.css は変更しない
+    // 分離契約のまま showcase 側で上書きする。Bugbot 指摘の回帰防止）。
+    assert!(css.contains(r#".pre-styled-showcase [data-scope="accordion"] h3"#));
     assert!(!css.contains('<'));
+
+    // ページ内目次（docs-toc）にはセクション見出しのみが載り、コンポーネント
+    // anatomy 内の見出し（Accordion trigger の h3・Card title の h3）は
+    // 混入しない（`layout::with_heading_anchors` の data-scope 部分木除外）。
+    let toc = html
+        .split(r#"<nav class="docs-toc">"#)
+        .nth(1)
+        .and_then(|rest| rest.split("</nav>").next())
+        .expect("showcase page should have a docs-toc nav");
+    assert!(toc.contains(">Accordion<"));
+    assert!(toc.contains(">Card<"));
+    assert!(
+        !toc.contains("pre-styled-ui とは何ですか"),
+        "accordion trigger heading must not leak into TOC: {toc}"
+    );
+    assert!(
+        !toc.contains(">Elevated<"),
+        "card title heading must not leak into TOC: {toc}"
+    );
 }
 
 #[test]

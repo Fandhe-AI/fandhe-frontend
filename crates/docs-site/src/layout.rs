@@ -45,6 +45,10 @@ pub struct TocEntry {
 /// （[`Node::RawHtml`] は連結対象に含めない。docs-site クレートは
 /// `raw_html()` を使わない方針のため通常は出現しないが、混入した場合でも
 /// TOC タイトルに生 HTML 断片を取り込まない防御的実装）。
+///
+/// `data-scope` 属性を持つ要素（headless-ui コンポーネントの anatomy）の
+/// 部分木は走査対象外とし、部品内部の見出し（Accordion trigger の `h3` 等）
+/// をアンカー注入・TOC 収集から決定的に除外する。
 pub fn with_heading_anchors(body: Node) -> (Node, Vec<TocEntry>) {
     let mut entries = Vec::new();
     let mut used_ids = HashSet::new();
@@ -65,6 +69,20 @@ fn inject_heading_anchors(
             attrs,
             children,
         } => {
+            // headless-ui コンポーネントの anatomy ルート（`data-scope` 属性を
+            // 持つ要素）配下の見出しは、文書アウトラインではなく部品構造の
+            // 一部（例: Accordion の item trigger を包む `h3`、Card の title
+            // `h3`）なので、部分木ごとアンカー注入・TOC 収集の対象外にする。
+            // showcase（`crate::showcase`）の生成コンテンツにも本関数が適用
+            // されるため、この除外が無いと部品内見出しがページ内目次へ混入
+            // する（`tests/site_showcase.rs` が実サイトビルドで固定）。
+            if attrs.iter().any(|(name, _)| name == "data-scope") {
+                return Node::Element {
+                    tag,
+                    attrs,
+                    children,
+                };
+            }
             let level = heading_level(tag);
             let new_children: Vec<Node> = children
                 .into_iter()
