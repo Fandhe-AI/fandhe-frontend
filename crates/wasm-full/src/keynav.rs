@@ -2255,15 +2255,20 @@ mod wiring {
     /// イシュー #662）。
     ///
     /// click() による再描画で `trigger_item` 自身を含む DOM ノードが差し替え
-    /// られる可能性があるため、click 前に控えた `id` を使い
+    /// られる可能性があるため、`id` を持つ場合は click 前に控えた `id` を使い
     /// `document.get_element_by_id` で"今の" trigger-item 要素を再解決してから
     /// 処理する（`ArrowLeft` の親 highlight 復帰と同型のパターン、モジュール
     /// doc 参照）。`resolve_active_content` は open chain 再構築にこの親
     /// highlight を必要とするため、これを怠ると `trigger_item` が置換された
     /// 場合に `ArrowLeft` で閉じられなくなり、以降のキー操作がトップレベル
     /// content にルーティングされたままサブメニューが開いた状態になる
-    /// （Bugbot 指摘 "ArrowRight drops parent chain highlight"）。`id` 欠落・
-    /// 再解決失敗・依然 closed はいずれも no-op（fail-closed）。
+    /// （Bugbot 指摘 "ArrowRight drops parent chain highlight"）。`headless-ui`
+    /// は `trigger_item` の `id` を必須にしておらず、`id` が無い場合は click
+    /// 前に保持していた `trigger_item` をそのまま使う（`id` 欠落を理由に
+    /// highlight 移動自体を no-op にすると、サブメニューは開くのにハイライト
+    /// が入らない不具合が再発する。Bugbot 指摘 "Missing id skips submenu
+    /// entry"）。`id` 再解決の失敗・依然 closed はいずれも no-op
+    /// （fail-closed）。
     fn open_submenu_and_focus_first_item(
         root: &Element,
         trigger_item: &Element,
@@ -2277,32 +2282,53 @@ mod wiring {
             // dispatch 経路（マウスクリックと同一経路）へ委譲する。
             html_trigger_item.click();
         }
-        let Some(trigger_id) = trigger_id else {
-            return;
-        };
-        let Some(document) = trigger_item.owner_document() else {
-            return;
-        };
-        let Some(fresh_trigger_item) = document.get_element_by_id(&trigger_id) else {
-            return;
+        // click() 由来の再描画で `trigger_item` 自身を含む DOM ノードが
+        // 差し替えられる可能性があるため、`id` を持つ場合は click 前に控えた
+        // `id` で "今の" 要素を document.get_element_by_id 経由で再解決する
+        // （ArrowLeft の親 highlight 復帰と同型のパターン、モジュール doc
+        // 参照）。`headless-ui` は `trigger_item` の `id` を必須にしておらず
+        // （anatomy 上 optional）、`id` が無い場合は再解決の手段が無いため、
+        // click() 前に保持していた `trigger_item` をそのまま以降の解決に使う
+        // （旧 ArrowRight 経路で `resolve_submenu_content` を元ノードへ直接
+        // 適用していたのと同じ fallback）。ここで即 return してしまうと
+        // サブメニューは開くのに highlight 移動が一切行われない不具合が
+        // 再発する（Bugbot 指摘 "Missing id skips submenu entry"、イシュー
+        // #662）。`id` 再解決に失敗した場合（要素が消失した等）のみ
+        // no-op（fail-closed）とする。
+        let resolved_trigger_item = match trigger_id.as_deref() {
+            Some(id) => {
+                let Some(document) = trigger_item.owner_document() else {
+                    return;
+                };
+                let Some(fresh_trigger_item) = document.get_element_by_id(id) else {
+                    return;
+                };
+                fresh_trigger_item
+            }
+            None => trigger_item.clone(),
         };
         // (1) 親チェーンの highlight を再付与する。
-        if let Some(parent_content) = closest(&fresh_trigger_item, content_selector) {
+        if let Some(parent_content) = closest(&resolved_trigger_item, content_selector) {
             if root.contains(Some(&parent_content)) {
                 let parent_items = filter_own_scope_items(
                     collect_parts(&parent_content, item_selector),
                     &parent_content,
                     content_selector,
                 );
-                if let Some(parent_index) = parent_items.iter().position(|item| {
-                    item.get_attribute("id").as_deref() == Some(trigger_id.as_str())
-                }) {
+                if let Some(parent_index) =
+                    parent_items
+                        .iter()
+                        .position(|item| match trigger_id.as_deref() {
+                            Some(id) => item.get_attribute("id").as_deref() == Some(id),
+                            None => item.is_same_node(Some(&resolved_trigger_item)),
+                        })
+                {
                     set_highlight(&parent_items, parent_index, &parent_content);
                 }
             }
         }
         // (2) 展開後のサブメニュー先頭項目へ highlight を設定する。
-        if let Some(sub_content_after) = resolve_submenu_content(root, &fresh_trigger_item) {
+        if let Some(sub_content_after) = resolve_submenu_content(root, &resolved_trigger_item) {
             if root.contains(Some(&sub_content_after)) && !sub_content_after.has_attribute("hidden")
             {
                 let sub_items = filter_own_scope_items(

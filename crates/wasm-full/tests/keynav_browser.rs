@@ -2433,6 +2433,66 @@ fn menu_open_arrow_right_expands_submenu_and_highlights_first_enabled_item() {
     assert!(trigger_item.has_attribute("data-highlighted"));
 }
 
+/// ArrowRight: `trigger-item` に `id` が無い場合でも、サブメニューが開いた
+/// うえで先頭の非 disabled 項目へ highlight が移るべき（Bugbot 指摘
+/// "Missing id skips submenu entry"、イシュー #662 PR #674）。`headless-ui`
+/// は `trigger_item` の `id` を anatomy 上 optional としており、`id` が
+/// 無いことを理由に `open_submenu_and_focus_first_item` が highlight 移動を
+/// 一切行わず return してしまうと、サブメニューは開くのにハイライトが入ら
+/// ないという以前の不具合（"Enter opens submenu without entering" 相当）が
+/// id-less な trigger-item についてのみ再発してしまう。
+#[wasm_bindgen_test]
+fn menu_open_arrow_right_expands_submenu_and_highlights_first_item_without_trigger_item_id() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, trigger_item, sub_content) = build_submenu_dom(
+        &document,
+        "kn-sub-noid1",
+        &[("a", "A", false)],
+        "sub",
+        "Sub",
+        false,
+        &[("x", "X", false), ("y", "Y", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    // headless-ui の anatomy 上 `trigger_item` の `id` は optional。ここで
+    // 意図的に取り除き、`document.get_element_by_id` による再解決手段が
+    // 無い状態を再現する。
+    trigger_item.remove_attribute("id").unwrap();
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-sub-noid1-trigger").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // 親スコープは [a, sub] の 2 件。End で末尾（trigger-item "sub"）へ。
+    trigger.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(trigger_item.has_attribute("data-highlighted"));
+
+    trigger
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    assert!(
+        !sub_content.has_attribute("hidden"),
+        "id が無くてもサブメニューは展開されるべき"
+    );
+    let item_x = document
+        .get_element_by_id("kn-sub-noid1-sub-item-x")
+        .unwrap();
+    assert!(
+        item_x.has_attribute("data-highlighted"),
+        "id-less な trigger-item でも展開直後は先頭の非 disabled 項目が \
+         highlight されるべき"
+    );
+    assert_eq!(
+        sub_content
+            .get_attribute("aria-activedescendant")
+            .as_deref(),
+        Some("kn-sub-noid1-sub-item-x")
+    );
+}
+
 /// ArrowRight: 先頭項目が disabled のときは次の非 disabled 項目へ
 /// フォールバックする。
 #[wasm_bindgen_test]
