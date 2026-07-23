@@ -79,6 +79,8 @@
 //!   [`mod@select`] の `hidden-select` と同じ責務分担、フォーカスリングは
 //!   新設の [`recipe::StateCondition::FocusWithin`] を使う（モジュール
 //!   rustdoc 参照）。
+//! - headless ラッパー（#684）: [`mod@avatar`]（Avatar、`size`/`shape` の
+//!   2 軸 variant を持つ最初のラッパー）。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683）
 //!
@@ -143,6 +145,7 @@
 
 pub mod accordion;
 pub mod alert;
+pub mod avatar;
 pub mod badge;
 pub mod button;
 pub mod card;
