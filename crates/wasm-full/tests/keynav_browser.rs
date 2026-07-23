@@ -1987,6 +1987,173 @@ fn menu_open_escape_resets_typeahead_buffer() {
     assert!(!item_b.has_attribute("data-highlighted"));
 }
 
+/// 検証（Bugbot 指摘、イシュー #641）: Arrow ナビゲーションでも highlight
+/// クリアに加えて typeahead バッファがリセットされる。リセットされないと
+/// `TYPEAHEAD_TIMEOUT_MS` 以内のナビゲーション後の単独文字入力が古い
+/// バッファへ追記され、誤ったクエリで検索してしまう。
+#[wasm_bindgen_test]
+fn menu_open_arrow_navigation_resets_typeahead_buffer() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    // "Avocado" は "a" 単独に一致するが "ap" には一致しない
+    // （"Apple" のように 2 文字目が "p" のラベルを先頭項目に選ぶと、旧
+    // バッファ "a" と新規入力 "p" が連結した "ap" が先頭項目自身にも
+    // 前方一致してしまい、リセット有無を区別できなくなるため、意図的に
+    // "Av" 始まりを選ぶ）。"Apricot" のみが "ap" に一致する。
+    let root = build_menu_dom(
+        &document,
+        "kn-ta-menu7",
+        &[
+            ("a", "Avocado", false),
+            ("b", "Banana", false),
+            ("c", "Apricot", false),
+        ],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger = document.get_element_by_id("kn-ta-menu7-trigger").unwrap();
+    let item_a = document.get_element_by_id("kn-ta-menu7-item-a").unwrap();
+    let item_b = document.get_element_by_id("kn-ta-menu7-item-b").unwrap();
+    let item_c = document.get_element_by_id("kn-ta-menu7-item-c").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // "a" で Avocado（先頭一致）を highlight。
+    trigger.dispatch_event(&keydown_event("a")).unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+
+    // ArrowDown で Banana へ highlight を移動。バッファがリセットされる
+    // べきタイミング。
+    trigger.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(item_b.has_attribute("data-highlighted"));
+    assert!(!item_a.has_attribute("data-highlighted"));
+
+    // ナビゲーション後に "p" を単独入力 → リセットされていれば新規バッファ
+    // "p" はどの項目にも前方一致せずマッチ無し（highlight は Banana の
+    // まま）。もし旧バッファ "a" が残っていれば "ap" として Apricot に
+    // マッチし、ナビゲーション後の highlight（Banana）から外れて Apricot
+    // へ移動してしまう（バグ再現時の誤動作）。
+    trigger.dispatch_event(&keydown_event("p")).unwrap();
+    assert!(
+        item_b.has_attribute("data-highlighted"),
+        "ナビゲーション後の単独入力は新規バッファとして扱われマッチ無しのはず"
+    );
+    assert!(!item_a.has_attribute("data-highlighted"));
+    assert!(!item_c.has_attribute("data-highlighted"));
+}
+
+/// 検証（Bugbot 指摘、イシュー #641）: Enter による選択確定後も typeahead
+/// バッファがリセットされる。
+#[wasm_bindgen_test]
+fn menu_open_enter_activation_resets_typeahead_buffer() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    // "Avocado" は "a" 単独に一致するが "ap" には一致しない（理由は
+    // `menu_open_arrow_navigation_resets_typeahead_buffer` のコメント参照）。
+    // "Apricot" のみが "ap" に一致する。
+    let root = build_menu_dom(
+        &document,
+        "kn-ta-menu8",
+        &[("a", "Avocado", false), ("b", "Apricot", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let item_a = document.get_element_by_id("kn-ta-menu8-item-a").unwrap();
+    let item_b = document.get_element_by_id("kn-ta-menu8-item-b").unwrap();
+    let item_a_for_closure = item_a.clone();
+    let click_closure = wasm_bindgen::closure::Closure::<dyn FnMut(Event)>::new(move |_e| {
+        let _ = item_a_for_closure.set_attribute("data-clicked", "");
+    });
+    item_a
+        .add_event_listener_with_callback("click", click_closure.as_ref().unchecked_ref())
+        .unwrap();
+    click_closure.forget();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    let trigger = document.get_element_by_id("kn-ta-menu8-trigger").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // "a" で Avocado（先頭一致）を highlight。
+    trigger.dispatch_event(&keydown_event("a")).unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+
+    // Enter で確定（highlight 自体は activate_highlighted_item では
+    // 変更されないが、typeahead バッファはリセットされるべき）。
+    trigger.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert!(item_a.has_attribute("data-clicked"));
+
+    // 確定後に "p" を単独入力 → もし旧バッファ "a" が残っていれば "ap" と
+    // なり Apricot（item_b）にマッチしてしまうが、リセットされていれば
+    // 新規バッファ "p" はどの項目にも前方一致せずマッチ無し（highlight は
+    // Avocado のまま変化しない）。
+    trigger.dispatch_event(&keydown_event("p")).unwrap();
+    assert!(
+        item_a.has_attribute("data-highlighted"),
+        "Enter 確定後の単独入力は新規バッファとして扱われ Avocado のままのはず"
+    );
+    assert!(!item_b.has_attribute("data-highlighted"));
+}
+
+/// 検証（Bugbot 指摘、イシュー #641）: Space による選択確定後も typeahead
+/// バッファがリセットされる（Enter と同様の契約）。
+///
+/// 注: Space の決定分岐（`" " if !buffer_active`）はバッファが既に
+/// タイムアウトで非アクティブな場合のみ到達するため（アクティブ中は
+/// `_ if is_typeahead_key(...)` 分岐で継続 typeahead として扱われる）、
+/// この分岐に到達した時点で自然経過時間により以降の入力は既に新規
+/// バッファ扱いになる。つまり本テストは `typeahead.reset()` の有無を
+/// 単独では区別できない（Enter と異なり、この経路のリセットは常に
+/// no-op 上の防御的な契約統一であり、Arrow/Enter 分と異なり回帰を単独
+/// 検出するテストにはならない）。ここでは Space 確定後も正しく動作し
+/// 続けること（後続の typeahead 検索が壊れないこと）のみを確認する。
+#[wasm_bindgen_test]
+async fn menu_open_space_activation_keeps_typeahead_usable_afterward() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_menu_dom(
+        &document,
+        "kn-ta-menu9",
+        &[("a", "Avocado", false), ("b", "Apricot", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let item_a = document.get_element_by_id("kn-ta-menu9-item-a").unwrap();
+    let item_b = document.get_element_by_id("kn-ta-menu9-item-b").unwrap();
+    let item_a_for_closure = item_a.clone();
+    let click_closure = wasm_bindgen::closure::Closure::<dyn FnMut(Event)>::new(move |_e| {
+        let _ = item_a_for_closure.set_attribute("data-clicked", "");
+    });
+    item_a
+        .add_event_listener_with_callback("click", click_closure.as_ref().unchecked_ref())
+        .unwrap();
+    click_closure.forget();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    let trigger = document.get_element_by_id("kn-ta-menu9-trigger").unwrap();
+    html_element(&trigger).focus().unwrap();
+
+    // "a" で Avocado（先頭一致）を highlight。
+    trigger.dispatch_event(&keydown_event("a")).unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+
+    // バッファのタイムアウトを待ってから Space → 決定分岐
+    // （`!buffer_active`）を通り Avocado が確定する。
+    sleep_ms((TYPEAHEAD_TIMEOUT_MS as i32) + 200).await;
+    trigger.dispatch_event(&keydown_event(" ")).unwrap();
+    assert!(item_a.has_attribute("data-clicked"));
+
+    // 確定後の新規入力 "p" はどの項目にも前方一致しない（"Avocado"/
+    // "Apricot" いずれも先頭は "a"）ため no-op のまま（highlight は
+    // Avocado のまま変化しない）。バッファが壊れた異常な状態のまま残って
+    // いないことの確認。
+    trigger.dispatch_event(&keydown_event("p")).unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+    assert!(!item_b.has_attribute("data-highlighted"));
+}
+
 /// XSS 回帰（REQ-1、イシュー #641）: 攻撃者制御文字列を含むラベルに対し
 /// typeahead（open/closed 双方）を行っても `script` 要素が DOM に生成
 /// されないこと。

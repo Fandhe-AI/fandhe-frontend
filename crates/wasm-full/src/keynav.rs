@@ -2075,14 +2075,27 @@ mod wiring {
                 {
                     set_highlight(&items, next_index, &content);
                 }
+                // Arrow/Home/End によるナビゲーションは typeahead バッファを
+                // 継続利用する状態から外れる操作のため、ここでバッファを
+                // リセットする（Bugbot 指摘、イシュー #641）。リセットを
+                // 怠ると `TYPEAHEAD_TIMEOUT_MS` 以内にナビゲーション後の
+                // 文字入力が古いバッファへ追記され、誤ったクエリで検索が
+                // 行われてしまう。
+                typeahead.reset();
             }
             "Enter" => {
                 event.prevent_default();
                 activate_highlighted_item(&content, item_selector, content_selector);
+                // 選択確定後は typeahead バッファを継続する意味が無いため
+                // リセットする（Bugbot 指摘、イシュー #641）。
+                typeahead.reset();
             }
             " " if !buffer_active => {
                 event.prevent_default();
                 activate_highlighted_item(&content, item_selector, content_selector);
+                // Enter と同様、選択確定後はバッファをリセットする
+                // （Bugbot 指摘、イシュー #641）。
+                typeahead.reset();
             }
             "Escape" => {
                 // Menu/Select 自体の close は [`overlay`](crate::overlay) モジュール
