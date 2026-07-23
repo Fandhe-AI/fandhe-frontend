@@ -11,11 +11,16 @@ publish = false
 # （examples 規約、イシュー #499）。`fandhe-frontend-headless-ui` は当初
 # crates.io 未公開のため path 依存の意図的な例外だった（イシュー #552）が、
 # 前提クレート公開（イシュー #608）を受けてイシュー #609 でバージョン依存へ
-# 切り替え済み。依存クレートはいずれも v0.1.0 で crates.io へ公開済み（#609
-# 実装時に sparse index への再照会で非 yanked を確認済み）。
+# 切り替え済み。`fandhe-frontend-pre-styled-ui`（chakra-ui 相当の上層、
+# #520/#546）は v0.3.1 で公開 API（styled 部品・headless ラッパー・
+# StyleSheet/Theme）が揃ったため、#552 当時の「手書き CSS による暫定代替」を
+# 置き換える形で依存に追加した（2 層構成のショーケースとして統合）。
+# headless-ui への直接依存は Switch / RadioGroup / Avatar（pre-styled-ui 未提供
+# コンポーネント）の実演のため継続する。
 [dependencies]
 fandhe-frontend-core = "0.1.0"
 fandhe-frontend-headless-ui = "0.3.0"
+fandhe-frontend-pre-styled-ui = "0.3.1"
 
 [dev-dependencies]
 
