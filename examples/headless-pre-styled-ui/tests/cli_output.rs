@@ -94,6 +94,10 @@ fn cli_output_includes_all_component_scopes() {
         "data-scope=\"tabs\"",
         "data-scope=\"accordion\"",
         "data-scope=\"dialog\"",
+        "data-scope=\"menu\"",
+        "data-scope=\"select\"",
+        "data-scope=\"popover\"",
+        "data-scope=\"tooltip\"",
         // pre-styled-ui の単純 styled 部品
         "data-scope=\"button\"",
         "data-scope=\"badge\"",
@@ -107,6 +111,21 @@ fn cli_output_includes_all_component_scopes() {
     ] {
         assert!(body.contains(scope), "missing {scope} in dist/index.html");
     }
+}
+
+/// Menu / Select / Popover / Tooltip（ラッパー第 1 弾 #551・第 2 弾 #664）の
+/// ARIA/`data-state` が `dist/index.html` へ現れることを固定する（受け入れ
+/// 条件(a) の拡張、closed のまま実演する既定方針の回帰確認）。
+#[test]
+fn cli_output_includes_menu_select_popover_tooltip_aria_attrs() {
+    let scratch = run_cli_in_scratch_dir("overlay-aria");
+    let body = std::fs::read_to_string(scratch.0.join("dist/index.html"))
+        .expect("index.html should be readable");
+
+    assert!(body.contains(r#"aria-haspopup="menu""#));
+    assert!(body.contains(r#"role="listbox""#));
+    assert!(body.contains(r#"role="tooltip""#));
+    assert!(body.contains(r#"aria-selected="true""#));
 }
 
 /// pre-styled-ui の recipe 生成クラスが HTML 側（variant クラス）へ現れる
@@ -134,8 +153,14 @@ fn cli_output_css_aggregates_theme_recipes_and_manual_css() {
 
     // 1. テーマトークン
     assert!(css.contains("--fandhe-color-accent"));
-    // 2. pre-styled recipe（headless ラッパー分 + 単純 styled 部品分）
+    // 2. pre-styled recipe（headless ラッパー分 + 単純 styled 部品分。
+    //    ラッパーは `fd-*` variant クラスを持たない slot recipe のため、
+    //    variant クラス検証の新部品分拡張として data-scope セレクタで確認する）
     assert!(css.contains(r#"[data-scope="tabs"][data-part="trigger"]"#));
+    assert!(css.contains(r#"[data-scope="select"][data-part="trigger"]"#));
+    assert!(css.contains(r#"[data-scope="menu"][data-part="item"]"#));
+    assert!(css.contains(r#"[data-scope="popover"][data-part="content"]"#));
+    assert!(css.contains(r#"[data-scope="tooltip"][data-part="content"]"#));
     assert!(css.contains(".fd-button--variant-solid"));
     // 3. 手書き残存分（pre-styled-ui 未提供の headless コンポーネント）
     assert!(css.contains(r#"[data-scope="switch"][data-part="control"]"#));
