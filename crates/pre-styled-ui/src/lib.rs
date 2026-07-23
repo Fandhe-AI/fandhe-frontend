@@ -128,6 +128,12 @@
 //!   `color-palette` variant を最初から持つ（`toggle_group` は root のみへ
 //!   クラスを付与する複合部品の統一方針に従う）。詳細は [`mod@toggle`]
 //!   rustdoc 参照。
+//! - headless ラッパー（#753）: [`mod@tree_view`]（TreeView、階層構造の展開・
+//!   折りたたみ・選択）。ナビゲーション/コレクション表示部品であり
+//!   [`mod@popover`]/[`mod@tooltip`] と同じ判断で `size`/`color-palette` の
+//!   いずれの variant も提供しない（[`mod@tree_view`] rustdoc 参照）。branch
+//!   のインデントは CSS custom property（`--fandhe-tree-view-indent`）で
+//!   表現し、DOM ネストにより深さ分が自然に累積する。
 //! - headless ラッパー（イシュー #755）: [`mod@breadcrumb`]（Breadcrumb、
 //!   `docs/api/headless-ui-api.md` §4b の追加候補消化。状態機械を持たない
 //!   静的意味論ナビ）。`size`/[`breadcrumb::BreadcrumbVariant`]（`link` の
@@ -300,6 +306,7 @@ pub mod menu;
 pub mod native_select;
 pub mod nav_list;
 pub mod number_input;
+pub mod pagination;
 pub mod pin_input;
 pub mod popover;
 pub mod radio_card;
@@ -319,6 +326,7 @@ pub mod theme;
 pub mod toggle;
 pub mod toggle_group;
 pub mod tooltip;
+pub mod tree_view;
 
 pub use alert::AlertStatus;
 pub use badge::{badge, BadgeProps, BadgeVariant};

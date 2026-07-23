@@ -201,6 +201,19 @@
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`control` は
 //!   `role="listbox"`、`item_preview` は `role="option"`（イシュー本文が
 //!   指定する listbox 相当の ARIA）。
+//! - [`mod@pagination`]: Root / Item / Ellipsis / PrevTrigger / NextTrigger の
+//!   5 anatomy パーツと、[`pagination::page_range`]（総件数・ページサイズ・
+//!   現在ページ・sibling/boundary 件数から省略記号を含むページ列を導出する
+//!   決定的な純粋関数）、および [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する
+//!   [`pagination::Pagination`] 値状態機械を提供する（#751、
+//!   `docs/api/headless-ui-api.md` §4b.3 の保留を解除、先行判断は #716）。
+//!   [`mod@number_input`]/[`mod@progress`] と同じく `data-state` を持たず、
+//!   現在ページは `aria-current="page"`/`data-selected` で、端到達は
+//!   `disabled`/`data-disabled` で表現する。ページ列生成は
+//!   `O(boundary_count + sibling_count)` で `total_pages` を全列挙しない
+//!   （巨大 `count` でも有界、モジュール doc 参照）。wasm 層のクリック配線・
+//!   キーボードナビゲーションは本イシューのスコープ外。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
@@ -244,6 +257,19 @@
 //!   [`state::MultiSelect`] を埋め込んだ multiple モード
 //!   [`toggle_group::MultiToggleGroup`]（イシュー #746）。roving focus は
 //!   wasm keynav 層のスコープとして未提供（モジュール doc §out-of-scope 参照）。
+//! - [`mod@tree_view`]: Root / Label / Tree / Branch / BranchControl /
+//!   BranchIndicator / BranchText / BranchContent / BranchIndentGuide / Item /
+//!   ItemText / ItemIndicator の 12 anatomy パーツと、[`state::MultiSelect`]
+//!   （展開中のブランチ値の集合）+ [`state::SingleSelect`]（選択中のノード値）
+//!   を合成した [`tree_view::TreeView`] 状態機械（#753、親トラッキング
+//!   #748/#520）。ツリーデータは [`tree_view::TreeNode`]（決定的な静的
+//!   コレクション）で表現し、[`tree_view::TreeView::render_nodes`] が深さ・
+//!   `aria-posinset`/`aria-setsize` を再帰的に計算しながら描画する。両埋め込み
+//!   状態機械がともに `"selected"` フィールド名を使うため、hydration 属性名の
+//!   衝突回避（展開集合側のみ `"expanded"` へ書き換え）を行う点が
+//!   [`mod@combobox`] 以前の合成例と異なる（[`tree_view`] モジュール doc
+//!   §hydration フィールド名 参照）。キーボードナビゲーション・checkbox
+//!   モード・複数選択・lazy loading は本イシューのスコープ外。
 //! - [`mod@breadcrumb`]: `root`（`nav`）/ `list`（`ol`）/ `item`（`li`）/
 //!   `link`（`a`）/ `current-link`（`span`）/ `separator`（`li`）/
 //!   `ellipsis`（`li`）の 7 anatomy パーツと利便ビルダー
@@ -288,6 +314,7 @@ pub mod link_overlay;
 pub mod menu;
 pub mod nav_list;
 pub mod number_input;
+pub mod pagination;
 pub mod pin_input;
 pub mod popover;
 pub mod positioning;
@@ -304,6 +331,7 @@ pub mod tags_input;
 pub mod toggle;
 pub mod toggle_group;
 pub mod tooltip;
+pub mod tree_view;
 
 // `pub use fandhe_frontend_core;` はクレートそのものの再エクスポート（型/値の
 // 再エクスポートではない）。`missing_docs` は extern crate 再エクスポートには
@@ -346,6 +374,7 @@ pub use field::{FieldIds, FieldProps};
 pub use fieldset::FieldsetProps;
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
 pub use number_input::{NumberInput, NumberInputAction, NumberInputFlags};
+pub use pagination::{ItemMode, PageEntry, Pagination, PaginationAction};
 pub use pin_input::{PinInput, PinInputAction, PinInputKind};
 pub use positioning::{
     compute_position, css_vars_style, data_align, data_side, placement_attrs, Align, ArrowPosition,
@@ -367,3 +396,4 @@ pub use tags_input::{TagsInput, TagsInputAction};
 pub use toggle::{Toggle, ToggleAction};
 pub use toggle_group::{MultiToggleGroup, ToggleGroup};
 pub use tooltip::Tooltip;
+pub use tree_view::{TreeNode, TreeView, TreeViewAction};

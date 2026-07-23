@@ -55,6 +55,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
+use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
 use fandhe_frontend_pre_styled_ui::segment_group;
@@ -64,6 +65,7 @@ use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsPro
 use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
+use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_pre_styled_ui::{
     accordion, alert, badge, card, combobox, menu, popover, radio_group, select, switch, tooltip,
     AlertStatus, BadgeProps, BadgeVariant, CardVariant, ColorPalette, OpenState, Orientation, Size,
@@ -187,6 +189,8 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::rating_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::slider::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::segment_group::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::tree_view::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::pagination::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::breadcrumb::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
@@ -813,6 +817,47 @@ fn combobox_section() -> Node {
         &format!(
             "headless-ui の Combobox（role=\"combobox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。入力値 \"{query}\" による filter_options の絞り込み結果を候補として表示しています。positioner はフロー内配置へ中和しています。"
         ),
+        vec![node],
+    )
+}
+
+/// TreeView 節: 2〜3 階層の静的コレクション（イシュー #753）。
+///
+/// "src" ブランチのみ展開済み（`data-state="open"`）、"src/lib.rs" を選択中
+/// （`data-selected`）で固定掲示する。positioner を持たないため
+/// [`SHOWCASE_LAYOUT_CSS`] の中和ルール追加は不要（[`mod@tree_view`]
+/// module doc「`size`/`color-palette` variant を提供しない」節参照）。
+fn tree_view_section() -> Node {
+    // SSR は本来 dispatch 履歴なしの初期状態から始まるが、ショーケースは
+    // 「展開・選択済みの見た目」を固定掲示する目的のため、他セクション
+    // （Accordion/Combobox 等）と同じく意図的に dispatch で非初期状態を作る。
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::dispatch;
+    let mut tree = TreeView::default();
+    dispatch(&mut tree, "expand", "src");
+    dispatch(&mut tree, "select", "src/lib.rs");
+
+    let nodes = vec![
+        TreeNode::new("src", "src").with_children(vec![
+            TreeNode::new("src/lib.rs", "lib.rs"),
+            TreeNode::new("src/nested", "nested")
+                .with_children(vec![TreeNode::new("src/nested/util.rs", "util.rs")]),
+        ]),
+        TreeNode::new("Cargo.toml", "Cargo.toml"),
+        TreeNode::new("README.md", "README.md").disabled(true),
+    ];
+
+    let root_children = tree.render_nodes(&nodes);
+    let node = tree_view::root(
+        vec![],
+        vec![
+            tree_view::label(vec![], vec![text("Project files")]),
+            tree_view::tree(Some("Project files"), None, vec![], root_children),
+        ],
+    );
+
+    section(
+        "TreeView",
+        "headless-ui の TreeView（role=\"tree\"/role=\"treeitem\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。\"src\" ブランチを展開済み、\"src/lib.rs\" を選択中、\"README.md\" を disabled として固定表示しています。インデントは CSS custom property（--fandhe-tree-view-indent）で表現しています。",
         vec![node],
     )
 }
@@ -1681,6 +1726,47 @@ fn segment_group_section() -> Node {
     )
 }
 
+/// Pagination 節（イシュー #751）: `page_entries()` から ellipsis を含む
+/// ページ列を組み立てた静的掲示 + 現在ページ・prev/next の disabled 連動。
+/// 状態機械は SSR 静的な現在ページの固定表示のみ（クリック挙動は wasm 層の
+/// スコープ外、モジュール冒頭「インタラクティブ部品の扱い」節参照）。
+fn pagination_section() -> Node {
+    // 総ページ数 20（count=200, page_size=10）、page=10 で両側 ellipsis を
+    // 固定掲示する（headless 層のテスト `both_ellipsis` と同じ入力）。
+    let p = Pagination::new(200, 10, 1, 1, 10);
+    let mut children = vec![p.prev_trigger(ItemMode::Button, vec![], vec![text("Prev")])];
+    for entry in p.page_entries() {
+        match entry {
+            pagination::PageEntry::Page(n) => {
+                children.push(p.item(
+                    ItemMode::Button,
+                    n,
+                    false,
+                    vec![],
+                    vec![text(n.to_string())],
+                ));
+            }
+            pagination::PageEntry::Ellipsis => {
+                children.push(pagination::ellipsis(vec![], vec![text("…")]));
+            }
+        }
+    }
+    children.push(p.next_trigger(ItemMode::Button, vec![], vec![text("Next")]));
+
+    let demo = pagination::root(
+        Size::Md,
+        ColorPalette::Accent,
+        "pagination",
+        vec![],
+        children,
+    );
+    section(
+        "Pagination",
+        "総件数・ページサイズ・現在ページから省略記号（ellipsis）を含むページ列を決定的に導出する headless Pagination の静的掲示。現在ページは aria-current=\"page\"/data-selected で、端到達は prev/next の disabled で表現します（クリック挙動は wasm 層のスコープ外）。",
+        vec![row(vec![demo])],
+    )
+}
+
 /// CheckboxCard 節: unchecked / checked / disabled の 3 態（イシュー #747）。
 ///
 /// chakra-ui checkbox-card 相当のカード型選択 UI。状態機械は
@@ -1949,6 +2035,8 @@ fn showcase_body() -> Node {
             rating_group_section(),
             slider_section(),
             segment_group_section(),
+            tree_view_section(),
+            pagination_section(),
             checkbox_card_section(),
             radio_card_section(),
             breadcrumb_section(),
@@ -1994,6 +2082,7 @@ mod tests {
             "rating-group",
             "slider",
             "segment-group",
+            "pagination",
             "checkbox-card",
             "radio-card",
             "breadcrumb",

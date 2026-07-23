@@ -28,7 +28,8 @@
 use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::{
     aria_controls, aria_label, avatar, data_state, dialog, number_input, pin_input, popover,
-    rating_group, segment_group, slider, tags_input, ImageStatus, OpenState, Orientation,
+    rating_group, segment_group, slider, tags_input, tree_view, ImageStatus, OpenState,
+    Orientation,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -405,4 +406,105 @@ fn tags_input_tag_text_and_attribute_paths_are_escaped_for_all_payloads() {
             "tags_input::root の呼び出し側 attrs コンテキスト",
         );
     }
+}
+
+/// (1) テキスト経路 + (2) 属性値経路（イシュー #753 TreeView）:
+/// ノードラベル（`branch_text`/`item_text` の children）・ノード値
+/// （`branch`/`item` の `data-value`）・呼び出し側 `attrs` へ全ペイロードを
+/// 注入し、エスケープが貫通することを固定する。TreeView は木構造全体を
+/// [`fandhe_frontend_headless_ui::TreeView::render_nodes`] で組み立てる
+/// ため、`TreeNode` のラベル・値へペイロードを埋め込んだ木を実際に描画して
+/// 検証する（`tags_input` 分と同型の網羅方針）。
+#[test]
+fn tree_view_node_label_and_value_paths_are_escaped_for_all_payloads() {
+    use fandhe_frontend_headless_ui::{TreeNode, TreeView};
+
+    for payload in payloads::all() {
+        // ラベル: branch_text/item_text の children テキスト経路。
+        let branch_text_node = tree_view::branch_text(vec![], vec![text(payload)]);
+        let html = render(&branch_text_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tree_view::branch_text の children コンテキスト",
+        );
+
+        let item_text_node = tree_view::item_text(vec![], vec![text(payload)]);
+        let html = render(&item_text_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tree_view::item_text の children コンテキスト",
+        );
+
+        // ノード値: branch/item の data-value 属性経路。
+        let branch_node = tree_view::branch(
+            OpenState::Closed,
+            payload,
+            false,
+            false,
+            "1",
+            "1",
+            "1",
+            "0",
+            vec![],
+            vec![],
+        );
+        let html = render(&branch_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tree_view::branch の data-value コンテキスト",
+        );
+
+        let item_node = tree_view::item(payload, false, false, "1", "1", "1", "0", vec![], vec![]);
+        let html = render(&item_node);
+        assert_payload_is_escaped(payload, &html, "tree_view::item の data-value コンテキスト");
+
+        // 呼び出し側 attrs 経路。
+        let attrs_node = tree_view::root(vec![("data-testid", payload)], vec![]);
+        let html = render(&attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tree_view::root の呼び出し側 attrs コンテキスト",
+        );
+
+        // TreeView::render_nodes 経由の全体組み立て（ラベル・値を両方汚染した
+        // 木を実際に描画し、再帰ヘルパを経由してもエスケープが貫通することを
+        // 固定する）。
+        let nodes =
+            vec![TreeNode::new(payload, payload)
+                .with_children(vec![TreeNode::new(payload, payload)])];
+        let rendered = TreeView::default().render_nodes(&nodes);
+        let html = rendered.iter().map(render).collect::<Vec<_>>().join("");
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "TreeView::render_nodes の全体組み立てコンテキスト",
+        );
+    }
+}
+
+/// (4) dispatch payload → hydration 経路（イシュー #753 TreeView）:
+/// クライアント由来の展開/選択 dispatch payload が改ざんされうる入力として
+/// 扱われ、hydration 属性へ埋め込まれてもエスケープが貫通することを固定する
+/// （`SingleSelect`/`MultiSelect` 単体の既存回帰を `TreeView` 合成経由でも
+/// 固定する）。
+#[test]
+fn tree_view_dispatch_payload_is_escaped_in_hydration_output() {
+    use fandhe_frontend_headless_ui::TreeView;
+    use fandhe_frontend_interactive::{dispatch, render_for_hydration};
+
+    let mut t = TreeView::default();
+    let payload = "\"><script>alert(1)</script>";
+    assert!(dispatch(&mut t, "expand", payload));
+    assert!(dispatch(&mut t, "select", payload));
+
+    let rendered = render(&render_for_hydration(&t));
+    assert!(rendered.contains("data-hydrate-expanded="));
+    assert!(rendered.contains("data-hydrate-selected="));
+    assert!(rendered.contains("&lt;script&gt;"));
+    assert!(!rendered.contains("<script>alert(1)</script>"));
+    assert!(!rendered.contains(r#""><script"#));
 }
