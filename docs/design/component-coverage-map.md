@@ -112,7 +112,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/collections/pagination.md` | Pagination | Pagination | — | — | 実装対象 | #751（#716 保留の解除） |
 | `.agents/skills/ark-ui/references/components/collections/steps.md` | Steps | Steps | — | — | 実装対象 | #752（#716 保留の解除） |
 | `.agents/skills/ark-ui/references/components/collections/tree-view.md` | TreeView | TreeView | tree_view | tree_view | 実装済み | headless+styled 実装済み |
-| `.agents/skills/ark-ui/references/components/collections/carousel.md` | Carousel | Carousel | — | — | 実装対象 | #754 |
+| `.agents/skills/ark-ui/references/components/collections/carousel.md` | Carousel | Carousel | carousel | carousel | 実装済み | headless+styled 実装済み（#754）。autoplay（play/pause/aria-live 切替/delay）は初期実装スコープ外（`crates/headless-ui/src/carousel.rs` module doc 参照） |
 | `.agents/skills/ark-ui/references/components/collections/README.md` | README | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 
 #### `.agents/skills/ark-ui/references/components/date-time/`
@@ -180,7 +180,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/overlays/dialog.md` | Dialog | Dialog | dialog | dialog | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/overlays/popover.md` | Popover | Popover | popover | popover | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/overlays/tooltip.md` | Tooltip | Tooltip | tooltip | tooltip | 実装済み | headless+styled 実装済み |
-| `.agents/skills/ark-ui/references/components/overlays/drawer.md` | Drawer | Drawer | — | — | 実装対象 | #758 |
+| `.agents/skills/ark-ui/references/components/overlays/drawer.md` | Drawer | Drawer | drawer | drawer | 実装済み | headless+styled 実装済み（#758、dialog の状態機械を再利用） |
 | `.agents/skills/ark-ui/references/components/overlays/hover-card.md` | HoverCard | HoverCard | — | — | 実装対象 | #759 |
 | `.agents/skills/ark-ui/references/components/overlays/toast.md` | Toast | Toast | — | — | 実装対象 | #760 |
 | `.agents/skills/ark-ui/references/components/overlays/floating-panel.md` | FloatingPanel | FloatingPanel | — | — | 保留 | #735 で記録（装飾系） |
@@ -381,7 +381,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/disclosure/tabs.md` | Tabs | Tabs | tabs | tabs | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/disclosure/pagination.md` | Pagination | Pagination | — | — | 実装対象 | #751（#716 保留の解除） |
 | `.agents/skills/chakra-ui/references/components/disclosure/steps.md` | Steps | Steps | — | — | 実装対象 | #752（#716 保留の解除） |
-| `.agents/skills/chakra-ui/references/components/disclosure/carousel.md` | Carousel | Carousel | — | — | 実装対象 | #754 |
+| `.agents/skills/chakra-ui/references/components/disclosure/carousel.md` | Carousel | Carousel | carousel | carousel | 実装済み | headless+styled 実装済み（#754）。autoplay（play/pause/aria-live 切替/delay）は初期実装スコープ外（`crates/headless-ui/src/carousel.rs` module doc 参照） |
 | `.agents/skills/chakra-ui/references/components/disclosure/breadcrumb.md` | — | Breadcrumb | breadcrumb | breadcrumb | 実装済み | #755（#716 追加候補の消化）。headless+styled 実装済み |
 
 #### `.agents/skills/chakra-ui/references/components/feedback/`
@@ -460,7 +460,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/overlays/menu.md` | Menu | Menu | menu | menu | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/overlays/popover.md` | Popover | Popover | popover | popover | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/overlays/tooltip.md` | Tooltip | Tooltip | tooltip | tooltip | 実装済み | headless+styled 実装済み |
-| `.agents/skills/chakra-ui/references/components/overlays/drawer.md` | Drawer | Drawer | — | — | 実装対象 | #758 |
+| `.agents/skills/chakra-ui/references/components/overlays/drawer.md` | Drawer | Drawer | drawer | drawer | 実装済み | headless+styled 実装済み（#758、dialog の状態機械を再利用） |
 | `.agents/skills/chakra-ui/references/components/overlays/hover-card.md` | HoverCard | HoverCard | — | — | 実装対象 | #759 |
 | `.agents/skills/chakra-ui/references/components/overlays/toggle-tip.md` | — | ToggleTip | — | — | 実装対象 | #761 |
 | `.agents/skills/chakra-ui/references/components/overlays/action-bar.md` | — | ActionBar | — | — | 実装対象 | #762 |
