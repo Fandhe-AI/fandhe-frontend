@@ -26,9 +26,11 @@
 //! テストは以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
 use fandhe_frontend_core::{escape_html, render, text};
+use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::{
-    aria_controls, aria_label, avatar, data_state, dialog, number_input, password_input, pin_input,
-    popover, rating_group, slider, ImageStatus, OpenState, Orientation, PasswordAutocomplete,
+    aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog, hover_card,
+    number_input, password_input, pin_input, popover, rating_group, segment_group, slider,
+    tags_input, tree_view, ImageStatus, OpenState, Orientation, PasswordAutocomplete,
     PasswordInputProps,
 };
 
@@ -229,6 +231,33 @@ fn rating_group_name_and_label_children_are_escaped_for_all_payloads() {
     }
 }
 
+/// (1)/(2) SegmentGroup（イシュー #743）: `item_hidden_input` の `name`/
+/// `value`（属性値経路）と `item_text` の children（テキスト経路）へ全
+/// ペイロードを注入し、エスケープが貫通することを固定する
+/// （`radio_group` の対応テストと同型、責務は委譲だが anatomy 出力経路は
+/// 本モジュール固有のため個別に固定する）。
+#[test]
+fn segment_group_name_value_and_item_text_children_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let input_node =
+            segment_group::item_hidden_input(false, false, Some(payload), payload, vec![]);
+        let html = render(&input_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "segment_group::item_hidden_input の name/value 属性値コンテキスト",
+        );
+
+        let item_text_node = segment_group::item_text(false, false, vec![], vec![text(payload)]);
+        let html = render(&item_text_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "segment_group::item_text のテキストコンテキスト",
+        );
+    }
+}
+
 /// (1)/(2) Slider（イシュー #741）: `hidden_input` の `name`（属性値経路）・
 /// `label` の children（テキスト経路）・`thumb` の `aria-valuetext`（属性値
 /// 経路）へ全ペイロードを注入し、エスケープが貫通することを固定する。
@@ -263,6 +292,34 @@ fn slider_name_label_and_valuetext_are_escaped_for_all_payloads() {
             &html,
             "slider::thumb の aria-valuetext 属性値コンテキスト",
         );
+    }
+}
+
+/// (1)/(2) Carousel（イシュー #754）: `root`/`prev_trigger` の `aria-label`
+/// （属性値経路）・`item` の children（テキスト経路）へ全ペイロードを注入し、
+/// エスケープが貫通することを固定する。
+#[test]
+fn carousel_aria_label_and_item_children_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let root_node = carousel::root(Orientation::Horizontal, payload, vec![], vec![]);
+        let html = render(&root_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "carousel::root の aria-label 属性値コンテキスト",
+        );
+
+        let prev_trigger_node = carousel::prev_trigger(false, payload, vec![], vec![]);
+        let html = render(&prev_trigger_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "carousel::prev_trigger の aria-label 属性値コンテキスト",
+        );
+
+        let item_node = carousel::item(0, 1, false, vec![], vec![text(payload)]);
+        let html = render(&item_node);
+        assert_payload_is_escaped(payload, &html, "carousel::item のテキストコンテキスト");
     }
 }
 
@@ -367,6 +424,345 @@ fn pin_input_hidden_input_and_input_value_are_escaped_for_all_payloads() {
             payload,
             &html,
             "pin_input::root の呼び出し側 attrs コンテキスト",
+        );
+    }
+}
+
+/// (1) テキスト経路 + (2) 属性値経路（イシュー #744 TagsInput）:
+/// タグ文字列そのものがユーザー入力である（REQ-1 の重点対象）ため、
+/// `tags_input::item_text` の children テキスト・`tags_input::hidden_input`
+/// の `name`/`value`・`tags_input::item_input` の `value`・
+/// `tags_input::item_delete_trigger` の `tag`（`format!` で組み立てる
+/// `aria-label` の一部）・呼び出し側 `attrs` へ全ペイロードを注入し、
+/// エスケープが貫通することを固定する。
+#[test]
+fn tags_input_tag_text_and_attribute_paths_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let item_text_node = tags_input::item_text(vec![], vec![text(payload)]);
+        let html = render(&item_text_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::item_text の children コンテキスト",
+        );
+
+        let hidden_node = tags_input::hidden_input(payload, payload, false, vec![]);
+        let html = render(&hidden_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::hidden_input の name/value コンテキスト",
+        );
+
+        let item_input_node = tags_input::item_input(payload, vec![]);
+        let html = render(&item_input_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::item_input の value コンテキスト",
+        );
+
+        let delete_trigger_node = tags_input::item_delete_trigger(payload, false, vec![], vec![]);
+        let html = render(&delete_trigger_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::item_delete_trigger の aria-label コンテキスト",
+        );
+
+        let attrs_node = tags_input::root(false, vec![("data-testid", payload)], vec![]);
+        let html = render(&attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::root の呼び出し側 attrs コンテキスト",
+        );
+    }
+}
+
+/// (1) テキスト経路 + (2) 属性値経路（イシュー #753 TreeView）:
+/// ノードラベル（`branch_text`/`item_text` の children）・ノード値
+/// （`branch`/`item` の `data-value`）・呼び出し側 `attrs` へ全ペイロードを
+/// 注入し、エスケープが貫通することを固定する。TreeView は木構造全体を
+/// [`fandhe_frontend_headless_ui::TreeView::render_nodes`] で組み立てる
+/// ため、`TreeNode` のラベル・値へペイロードを埋め込んだ木を実際に描画して
+/// 検証する（`tags_input` 分と同型の網羅方針）。
+#[test]
+fn tree_view_node_label_and_value_paths_are_escaped_for_all_payloads() {
+    use fandhe_frontend_headless_ui::{TreeNode, TreeView};
+
+    for payload in payloads::all() {
+        // ラベル: branch_text/item_text の children テキスト経路。
+        let branch_text_node = tree_view::branch_text(vec![], vec![text(payload)]);
+        let html = render(&branch_text_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tree_view::branch_text の children コンテキスト",
+        );
+
+        let item_text_node = tree_view::item_text(vec![], vec![text(payload)]);
+        let html = render(&item_text_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tree_view::item_text の children コンテキスト",
+        );
+
+        // ノード値: branch/item の data-value 属性経路。
+        let branch_node = tree_view::branch(
+            OpenState::Closed,
+            payload,
+            false,
+            false,
+            "1",
+            "1",
+            "1",
+            "0",
+            vec![],
+            vec![],
+        );
+        let html = render(&branch_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tree_view::branch の data-value コンテキスト",
+        );
+
+        let item_node = tree_view::item(payload, false, false, "1", "1", "1", "0", vec![], vec![]);
+        let html = render(&item_node);
+        assert_payload_is_escaped(payload, &html, "tree_view::item の data-value コンテキスト");
+
+        // 呼び出し側 attrs 経路。
+        let attrs_node = tree_view::root(vec![("data-testid", payload)], vec![]);
+        let html = render(&attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tree_view::root の呼び出し側 attrs コンテキスト",
+        );
+
+        // TreeView::render_nodes 経由の全体組み立て（ラベル・値を両方汚染した
+        // 木を実際に描画し、再帰ヘルパを経由してもエスケープが貫通することを
+        // 固定する）。
+        let nodes =
+            vec![TreeNode::new(payload, payload)
+                .with_children(vec![TreeNode::new(payload, payload)])];
+        let rendered = TreeView::default().render_nodes(&nodes);
+        let html = rendered.iter().map(render).collect::<Vec<_>>().join("");
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "TreeView::render_nodes の全体組み立てコンテキスト",
+        );
+    }
+}
+
+/// (4) dispatch payload → hydration 経路（イシュー #753 TreeView）:
+/// クライアント由来の展開/選択 dispatch payload が改ざんされうる入力として
+/// 扱われ、hydration 属性へ埋め込まれてもエスケープが貫通することを固定する
+/// （`SingleSelect`/`MultiSelect` 単体の既存回帰を `TreeView` 合成経由でも
+/// 固定する）。
+#[test]
+fn tree_view_dispatch_payload_is_escaped_in_hydration_output() {
+    use fandhe_frontend_headless_ui::TreeView;
+    use fandhe_frontend_interactive::{dispatch, render_for_hydration};
+
+    let mut t = TreeView::default();
+    let payload = "\"><script>alert(1)</script>";
+    assert!(dispatch(&mut t, "expand", payload));
+    assert!(dispatch(&mut t, "select", payload));
+
+    let rendered = render(&render_for_hydration(&t));
+    assert!(rendered.contains("data-hydrate-expanded="));
+    assert!(rendered.contains("data-hydrate-selected="));
+    assert!(rendered.contains("&lt;script&gt;"));
+    assert!(!rendered.contains("<script>alert(1)</script>"));
+    assert!(!rendered.contains(r#""><script"#));
+}
+
+/// (2) 属性値経路 + (3) URL 属性経路（イシュー #759 HoverCard）:
+/// [`hover_card::trigger`] の唯一の URL 属性 `href` へ全ペイロードを注入し
+/// エスケープ貫通を、[`hover_card::content`] の `id` 属性へ全ペイロードを
+/// 注入しエスケープ貫通を、それぞれ固定する。`href` は URL 属性のため
+/// `render()` の許可リスト方式（`avatar_image_src_rejects_dangerous_url_schemes`
+/// と同型の契約）も併せて確認する。
+#[test]
+fn hover_card_href_and_content_id_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let trigger_node = hover_card::trigger(OpenState::Closed, Some(payload), vec![], vec![]);
+        let html = render(&trigger_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "hover_card::trigger の href 属性値コンテキスト",
+        );
+
+        let content_node = hover_card::content(OpenState::Open, Some(payload), vec![], vec![]);
+        let html = render(&content_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "hover_card::content の id 属性値コンテキスト",
+        );
+    }
+
+    // URL 属性経路: javascript: スキームは href 属性ごと出力から除去される
+    // （`crates/headless-ui/src/breadcrumb.rs` の同型契約を継承）。
+    let dangerous = hover_card::trigger(
+        OpenState::Closed,
+        Some("javascript:alert(1)"),
+        vec![],
+        vec![],
+    );
+    let html = render(&dangerous);
+    assert!(!html.contains("javascript:"));
+    assert!(!html.contains("href="));
+}
+
+/// (1) テキスト経路（イシュー #776 VisuallyHidden）: [`visually_hidden::root`]
+/// の子ノードへ全ペイロードを注入し、エスケープ貫通を固定する。
+#[test]
+fn visually_hidden_children_text_is_escaped_for_all_payloads() {
+    use fandhe_frontend_headless_ui::fandhe_frontend_core::text;
+    use fandhe_frontend_headless_ui::visually_hidden;
+
+    for payload in payloads::all() {
+        let node = visually_hidden::root(vec![], vec![text(payload)]);
+        let html = render(&node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "visually_hidden::root の children テキストコンテキスト",
+        );
+    }
+}
+
+/// (2) 属性値経路（イシュー #773 Clipboard）: [`clipboard::root`] の
+/// `data-value` 属性・[`clipboard::input`] の `value` 属性へ全ペイロードを
+/// 注入し、エスケープ貫通を固定する。コピー対象値はパスワード等の機微情報を
+/// 含みうるため、属性破りペイロードでも実タグ・属性破りが起きないことを
+/// 特に固定する（`.claude/rules/security.md` A03 対応）。
+#[test]
+fn clipboard_root_data_value_and_input_value_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let root_node = clipboard::root(payload, false, vec![], vec![]);
+        let html = render(&root_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "clipboard::root の data-value 属性値コンテキスト",
+        );
+
+        let input_node = clipboard::input(payload, false, vec![]);
+        let html = render(&input_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "clipboard::input の value 属性値コンテキスト",
+        );
+    }
+}
+
+/// (1) テキスト経路（イシュー #773 Clipboard）: [`clipboard::value_text`] の
+/// children テキストへ全ペイロードを注入し、エスケープが貫通することを
+/// 固定する。
+#[test]
+fn clipboard_value_text_children_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let node = clipboard::value_text(vec![], vec![text(payload)]);
+        let html = render(&node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "clipboard::value_text のテキストコンテキスト",
+        );
+    }
+}
+
+/// QrCode（イシュー #774）: `value`（符号化対象文字列）はマークアップへ
+/// 一切出力されない契約（`crates/headless-ui/src/qr_code.rs`「セキュリティ
+/// 不変条件」参照）を、敵対的ペイロード全量で固定する。[`qr_code::pattern`]
+/// の `d` 属性値は暗モジュール座標から内部生成される固定文字集合
+/// （`M`/`h`/`v`/`z`/`-`/半角数字/`,`）のみであることも合わせて確認する。
+#[test]
+fn qr_code_value_never_leaks_into_output_for_all_payloads() {
+    for payload in payloads::all() {
+        let matrix = qr_code::encode(payload, qr_code::ErrorCorrectionLevel::L)
+            .expect("payload はいずれもバージョン 40 容量内に収まる");
+        let frame_node = qr_code::frame(&matrix, qr_code::DEFAULT_QUIET_ZONE, None, vec![], vec![]);
+        let pattern_node = qr_code::pattern(&matrix, qr_code::DEFAULT_QUIET_ZONE, vec![]);
+        let html = format!("{}{}", render(&frame_node), render(&pattern_node));
+
+        assert!(
+            !html.contains(payload),
+            "QrCode の value が出力へ漏出している: payload={payload:?}, html={html}"
+        );
+        assert!(
+            !html.contains("<script>") && !html.contains("<img"),
+            "QrCode 出力に実タグとしての <script>/<img> が出現している: html={html}"
+        );
+
+        let d_start = html.find(r#" d=""#).expect("d 属性が出力される") + 4;
+        let d_end = html[d_start..].find('"').expect("d 属性値の終端");
+        let d_value = &html[d_start..d_start + d_end];
+        assert!(
+            d_value
+                .chars()
+                .all(|c| matches!(c, 'M' | 'h' | 'v' | 'z' | '-' | ',' | '0'..='9')),
+            "d 属性値に想定外の文字が含まれている: d_value={d_value:?}"
+        );
+    }
+}
+
+/// (1)/(2) テキスト経路 + 属性値経路（イシュー #776 SkipNav）:
+/// [`skip_nav::link`]/[`skip_nav::content`] の `id`（href/id 属性へ合成される）
+/// と children へ全ペイロードを注入し、エスケープ貫通を固定する。
+#[test]
+fn skip_nav_id_and_children_are_escaped_for_all_payloads() {
+    use fandhe_frontend_headless_ui::fandhe_frontend_core::text;
+    use fandhe_frontend_headless_ui::skip_nav;
+
+    for payload in payloads::all() {
+        let link_node = skip_nav::link(payload, vec![], vec![text(payload)]);
+        let html = render(&link_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "skip_nav::link の id(href 属性)/children コンテキスト",
+        );
+
+        let content_node = skip_nav::content(payload, vec![], vec![text(payload)]);
+        let html = render(&content_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "skip_nav::content の id(id 属性)/children コンテキスト",
+        );
+    }
+}
+
+/// QrCode の [`qr_code::root`]/[`qr_code::frame`]/[`qr_code::overlay`] は
+/// 他 anatomy パーツと同型に呼び出し側 `attrs`/`children` を
+/// [`fandhe_frontend_core::render`] の既定エスケープ経由で出力する
+/// （属性値経路・テキスト経路）。
+#[test]
+fn qr_code_root_attrs_and_overlay_children_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let root_node = qr_code::root(vec![("aria-label", payload)], vec![]);
+        let html = render(&root_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "qr_code::root の aria-label 属性値コンテキスト",
+        );
+
+        let overlay_node = qr_code::overlay(vec![], vec![text(payload)]);
+        let html = render(&overlay_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "qr_code::overlay の children テキストコンテキスト",
         );
     }
 }

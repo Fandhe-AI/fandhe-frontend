@@ -35,19 +35,40 @@
 use fandhe_frontend_core::{el, escape_html, render, text};
 use fandhe_frontend_pre_styled_ui::alert::{self, AlertStatus};
 use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps};
+use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
+use fandhe_frontend_pre_styled_ui::checkbox_card;
+use fandhe_frontend_pre_styled_ui::clipboard;
+use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
+use fandhe_frontend_pre_styled_ui::em::em;
+use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
+use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps};
+use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps};
+use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
+use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
+use fandhe_frontend_pre_styled_ui::image::{image, ImageProps};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
+use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
+use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
+use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode};
 use fandhe_frontend_pre_styled_ui::password_input::{
     self, PasswordAutocomplete, PasswordInputProps,
 };
 use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind};
+use fandhe_frontend_pre_styled_ui::qr_code;
+use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingItemFlags};
+use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps};
+use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
+use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
+use fandhe_frontend_pre_styled_ui::tags_input;
+use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, select};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Size};
@@ -127,6 +148,13 @@ fn styled_text_children_are_escaped_for_all_payloads() {
             payload,
             &html,
             "pre-styled-ui 再エクスポート dialog::title children コンテキスト",
+        );
+
+        let html = render(&drawer::title(None, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "pre-styled-ui 再エクスポート drawer::title children コンテキスト",
         );
     }
 }
@@ -321,6 +349,20 @@ fn size_variant_root_caller_class_attr_is_dropped_not_merged_raw_for_all_payload
         );
         assert_eq!(html.matches("class=\"").count(), 1);
         assert!(html.contains("fd-select--"));
+
+        let html = render(&drawer::root(
+            Size::Md,
+            OpenState::Closed,
+            DrawerPlacement::End,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "drawer::root の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-drawer--"));
     }
 }
 
@@ -363,6 +405,15 @@ fn size_variant_root_caller_attrs_are_escaped_for_all_payloads() {
             vec![],
         ));
         assert_payload_is_escaped(payload, &html, "select::root 呼び出し側 attrs コンテキスト");
+
+        let html = render(&drawer::root(
+            Size::Md,
+            OpenState::Closed,
+            DrawerPlacement::End,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "drawer::root 呼び出し側 attrs コンテキスト");
     }
 }
 
@@ -794,6 +845,93 @@ fn pin_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
     }
 }
 
+/// (9) tags_input 経路（イシュー #744）: styled `root` の呼び出し側 `attrs`・
+/// `class`、および headless-ui から選択的再エクスポートした `label` の
+/// children・`item_text` の children（タグ文字列そのもの、REQ-1 の重点
+/// 対象）・`item_input` の `value`・`item_delete_trigger` の `tag`
+/// （`aria-label` に組み込まれる）・`hidden_input` の `name`/`value` の
+/// 6 箇所すべてで既定エスケープ（REQ-1）が貫通することを固定する
+/// （`pin_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn tags_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&tags_input::root(
+            Size::Md,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&tags_input::root(
+            Size::Md,
+            false,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "tags_input::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "tags_input::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-tags-input--"),
+            "tags_input::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした label の children 経路。
+        let html = render(&tags_input::label(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "tags_input::label children コンテキスト");
+
+        // 選択的再エクスポートした item_text の children 経路（タグ文字列
+        // そのもの、REQ-1 の重点対象）。
+        let html = render(&tags_input::item_text(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::item_text children コンテキスト",
+        );
+
+        // 選択的再エクスポートした item_input の value 経路。
+        let html = render(&tags_input::item_input(payload, vec![]));
+        assert_payload_is_escaped(payload, &html, "tags_input::item_input value コンテキスト");
+
+        // 選択的再エクスポートした item_delete_trigger の aria-label コンテキスト。
+        let html = render(&tags_input::item_delete_trigger(
+            payload,
+            false,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::item_delete_trigger aria-label コンテキスト",
+        );
+
+        // 選択的再エクスポートした hidden_input の name/value 経路。
+        let html = render(&tags_input::hidden_input(payload, payload, false, vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tags_input::hidden_input name/value コンテキスト",
+        );
+    }
+}
+
 #[test]
 fn rating_group_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
     for payload in payloads::all() {
@@ -863,5 +1001,1190 @@ fn rating_group_styled_root_and_reexported_parts_are_escaped_for_all_payloads() 
             &html,
             "rating_group::hidden_input name コンテキスト",
         );
+    }
+}
+
+/// QrCode（イシュー #774）: styled `root` の呼び出し側 `attrs`・`class`、
+/// 選択的再エクスポートした `overlay` の children・`frame` の `aria_label`
+/// の各所で既定エスケープ（REQ-1）が貫通することを固定する。`value`（符号化
+/// 対象文字列）そのものは出力へ一切漏出しないこと（`pattern` の `d` 属性値が
+/// 固定文字集合に閉じること）も headless 層と同型に確認する
+/// （`crates/headless-ui/tests/xss_escape.rs::qr_code_value_never_leaks_into_output_for_all_payloads`
+/// と対になる styled 層側の固定）。
+#[test]
+fn qr_code_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&qr_code::root(
+            Size::Md,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "qr_code::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&qr_code::root(Size::Md, vec![("class", payload)], vec![]));
+        assert!(
+            !html.contains(payload),
+            "qr_code::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "qr_code::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-qr-code--"),
+            "qr_code::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした overlay の children 経路。
+        let html = render(&qr_code::overlay(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "qr_code::overlay children コンテキスト");
+
+        // value 自体は出力へ一切漏出しない（headless 層と同型の不変条件）。
+        let matrix = qr_code::encode(payload, qr_code::ErrorCorrectionLevel::L)
+            .expect("payload はいずれもバージョン 40 容量内に収まる");
+        let frame_html = render(&qr_code::frame(
+            &matrix,
+            qr_code::DEFAULT_QUIET_ZONE,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &frame_html,
+            "qr_code::frame aria_label コンテキスト",
+        );
+
+        let pattern_html = render(&qr_code::pattern(
+            &matrix,
+            qr_code::DEFAULT_QUIET_ZONE,
+            vec![],
+        ));
+        assert!(
+            !pattern_html.contains(payload),
+            "qr_code::pattern の d 属性値へ value が漏出している: payload={payload:?}, html={pattern_html}"
+        );
+    }
+}
+
+/// (11) pagination 経路（イシュー #751）: styled `root` の呼び出し側
+/// `attrs`・`class`・`aria_label`、および headless-ui から選択的
+/// 再エクスポートした `item` の `href`（Link モード）・children、
+/// `ellipsis`/`prev_trigger`/`next_trigger` の呼び出し側 `attrs` の各所で
+/// 既定エスケープ（REQ-1）が貫通することを固定する
+/// （`tags_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn pagination_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の aria_label 経路。
+        let html = render(&pagination::root(
+            Size::Md,
+            ColorPalette::Accent,
+            payload,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "pagination::root aria_label コンテキスト");
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&pagination::root(
+            Size::Md,
+            ColorPalette::Accent,
+            "pagination",
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "pagination::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&pagination::root(
+            Size::Md,
+            ColorPalette::Accent,
+            "pagination",
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "pagination::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "pagination::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-pagination--"),
+            "pagination::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした item の Link モード href 経路。
+        let html = render(&pagination::item(
+            ItemMode::Link { href: payload },
+            false,
+            false,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "pagination::item href コンテキスト");
+
+        // 選択的再エクスポートした item の children 経路。
+        let html = render(&pagination::item(
+            ItemMode::Button,
+            false,
+            false,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "pagination::item children コンテキスト");
+
+        // 選択的再エクスポートした ellipsis の呼び出し側 attrs 経路。
+        let html = render(&pagination::ellipsis(
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "pagination::ellipsis attrs コンテキスト");
+
+        // 選択的再エクスポートした prev_trigger/next_trigger の呼び出し側
+        // attrs 経路。
+        let html = render(&pagination::prev_trigger(
+            ItemMode::Button,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "pagination::prev_trigger attrs コンテキスト",
+        );
+
+        let html = render(&pagination::next_trigger(
+            ItemMode::Button,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "pagination::next_trigger attrs コンテキスト",
+        );
+    }
+}
+/// styled CheckboxCard（イシュー #747）の XSS 回帰
+/// （`checkbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn checkbox_card_styled_root_and_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&checkbox_card::root(
+            Size::Md,
+            ColorPalette::Accent,
+            &CheckboxProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "checkbox_card::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&checkbox_card::root(
+            Size::Md,
+            ColorPalette::Accent,
+            &CheckboxProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "checkbox_card::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "checkbox_card::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-checkbox-card--"),
+            "checkbox_card::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // label の children 経路。
+        let html = render(&checkbox_card::label(
+            &CheckboxProps::default(),
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "checkbox_card::label children コンテキスト");
+
+        // hidden_input の name/value 経路。
+        let html = render(&checkbox_card::hidden_input(
+            &CheckboxProps::default(),
+            payload,
+            payload,
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "checkbox_card::hidden_input name/value コンテキスト",
+        );
+    }
+}
+
+/// styled RadioCard（イシュー #747）の XSS 回帰
+/// （`checkbox_card_styled_root_and_parts_are_escaped_for_all_payloads` と同型）。
+#[test]
+fn radio_card_styled_root_and_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&radio_card::root(
+            Size::Md,
+            ColorPalette::Accent,
+            false,
+            None,
+            None,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "radio_card::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&radio_card::root(
+            Size::Md,
+            ColorPalette::Accent,
+            false,
+            None,
+            None,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "radio_card::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "radio_card::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-radio-card--"),
+            "radio_card::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // item の data-value/children 経路。
+        let html = render(&radio_card::item(
+            false,
+            false,
+            payload,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "radio_card::item data-value/children コンテキスト",
+        );
+
+        // item_text の children 経路。
+        let html = render(&radio_card::item_text(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "radio_card::item_text children コンテキスト",
+        );
+
+        // item_hidden_input の name/value 経路。
+        let html = render(&radio_card::item_hidden_input(
+            false,
+            false,
+            Some(payload),
+            payload,
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "radio_card::item_hidden_input name/value コンテキスト",
+        );
+    }
+}
+
+/// styled HoverCard（イシュー #759）の XSS 回帰。[`hover_card`] は headless
+/// 層をそのまま再エクスポートする薄い委譲層（`pub use ...::*`）であるため、
+/// `crates/headless-ui/tests/xss_escape.rs::hover_card_href_and_content_id_are_escaped_for_all_payloads`
+/// と同じ観点を `fandhe-frontend-pre-styled-ui` の公開 API 経由でも固定する
+/// （styled 層のみに依存する利用者が同じ保証を得られることの確認）。
+#[test]
+fn hover_card_styled_trigger_href_and_content_id_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // URL 属性経路: trigger の href。
+        let html = render(&hover_card::trigger(
+            OpenState::Closed,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "hover_card::trigger href コンテキスト");
+
+        // 属性値経路: content の id。
+        let html = render(&hover_card::content(
+            OpenState::Open,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "hover_card::content id コンテキスト");
+
+        // 属性値経路: root の呼び出し側 attrs（data-testid）。
+        let html = render(&hover_card::root(
+            OpenState::Closed,
+            HoverCardDelays::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "hover_card::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // テキスト経路: content の children。
+        let html = render(&hover_card::content(
+            OpenState::Open,
+            None,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "hover_card::content children コンテキスト");
+    }
+
+    // URL 属性経路: javascript: スキームは href 属性ごと出力から除去される
+    // （`avatar_image_src_rejects_dangerous_url_schemes` と同型の許可リスト
+    // 契約が styled 層の再エクスポート経由でも貫通することを固定する）。
+    let html = render(&hover_card::trigger(
+        OpenState::Closed,
+        Some("javascript:alert(1)"),
+        vec![],
+        vec![],
+    ));
+    assert!(!html.contains("javascript:"));
+    assert!(!html.contains("href="));
+}
+
+/// (10) carousel 経路（イシュー #754）: styled `root` の呼び出し側 `attrs`・
+/// `class`（`aria-label` 引数含む）、および headless-ui から選択的
+/// 再エクスポートした `prev_trigger`/`indicator` の `aria-label`・`item` の
+/// children の各所すべてで既定エスケープ（REQ-1）が貫通することを固定する
+/// （`slider_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn carousel_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::carousel;
+    use fandhe_frontend_pre_styled_ui::carousel::Orientation;
+
+    for payload in payloads::all() {
+        // styled root の `aria-label` 引数経路。
+        let html = render(&carousel::root(
+            Size::Md,
+            Orientation::Horizontal,
+            payload,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "carousel::root aria-label コンテキスト");
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&carousel::root(
+            Size::Md,
+            Orientation::Horizontal,
+            "Products",
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "carousel::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&carousel::root(
+            Size::Md,
+            Orientation::Horizontal,
+            "Products",
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "carousel::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "carousel::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-carousel--"),
+            "carousel::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした prev_trigger の aria-label 経路。
+        let html = render(&carousel::prev_trigger(false, payload, vec![], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "carousel::prev_trigger aria-label コンテキスト",
+        );
+
+        // 選択的再エクスポートした item の children 経路。
+        let html = render(&carousel::item(0, 1, false, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "carousel::item children コンテキスト");
+    }
+}
+
+/// イシュー #764: `skeleton::skeleton` の呼び出し側 `attrs`（`data-testid` 等）
+/// と `class` の 2 箇所で既定エスケープ（REQ-1）が貫通することを固定する
+/// （badge/spinner と同型の単一 recipe 静的部品、children を持たないため
+/// テキスト経路は対象外）。
+#[test]
+fn skeleton_attrs_and_class_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // 属性値経路 b: 呼び出し側 attrs（data-testid 等）。
+        let html = render(&skeleton(
+            &SkeletonProps::default(),
+            vec![("data-testid", payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "skeleton 呼び出し側 attrs コンテキスト");
+
+        // 属性値経路 c: 呼び出し側 attrs の class（drop_class_attr により
+        // 生ペイロードは出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&skeleton(
+            &SkeletonProps::default(),
+            vec![("class", payload)],
+        ));
+        assert!(
+            !html.contains(payload),
+            "skeleton の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "skeleton の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-skeleton--"),
+            "skeleton で recipe 生成クラスが失われている: html={html}"
+        );
+    }
+}
+
+/// イシュー #772: `separator::separator` の呼び出し側 `attrs`（`data-testid`
+/// 等）と `class` の 2 箇所で既定エスケープ（REQ-1）が貫通することを固定する
+/// （skeleton と同型の単一 recipe 静的部品、children を持たないためテキスト
+/// 経路は対象外）。契約属性（`role`/`aria-orientation`/`data-orientation`）
+/// の偽装除去そのものの回帰は `crates/pre-styled-ui/src/separator.rs` の
+/// ユニットテストが担う（本ファイルは公開 API 経由の XSS 貫通のみを担当）。
+#[test]
+fn separator_attrs_and_class_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // 属性値経路 b: 呼び出し側 attrs（data-testid 等）。
+        let html = render(&separator(
+            &SeparatorProps::default(),
+            vec![("data-testid", payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "separator 呼び出し側 attrs コンテキスト");
+
+        // 属性値経路 c: 呼び出し側 attrs の class（drop_class_attr により
+        // 生ペイロードは出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&separator(
+            &SeparatorProps::default(),
+            vec![("class", payload)],
+        ));
+        assert!(
+            !html.contains(payload),
+            "separator の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "separator の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-separator--"),
+            "separator で recipe 生成クラスが失われている: html={html}"
+        );
+    }
+}
+
+/// (11) progress 経路（circle 対応、イシュー #763）: styled `root` の
+/// `aria_valuetext` 引数・呼び出し側 `attrs`・`class`、および headless
+/// `Progress` の inherent メソッド（`circle`/`circle_track`/`circle_range`。
+/// styled 層の独自ラッパーを持たず headless をそのまま呼ぶ契約、
+/// `crates/pre-styled-ui/src/progress.rs` rustdoc 参照）の呼び出し側
+/// `attrs` すべてで既定エスケープ（REQ-1）が貫通することを固定する。
+#[test]
+fn progress_styled_root_and_headless_circle_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::Orientation;
+    use fandhe_frontend_pre_styled_ui::progress;
+
+    let p = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
+
+    for payload in payloads::all() {
+        // styled root の aria_valuetext 引数経路。
+        let html = render(&progress::root(&p, Size::Md, Some(payload), vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "progress::root aria_valuetext コンテキスト");
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&progress::root(
+            &p,
+            Size::Md,
+            None,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "progress::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&progress::root(
+            &p,
+            Size::Md,
+            None,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "progress::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "progress::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-progress--"),
+            "progress::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // headless circle 系（styled 層の独自ラッパーなし）の呼び出し側 attrs 経路。
+        let html = render(&p.circle(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "Progress::circle 呼び出し側 attrs コンテキスト",
+        );
+
+        let html = render(&p.circle_track(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "Progress::circle_track 呼び出し側 attrs コンテキスト",
+        );
+
+        let html = render(&p.circle_range(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "Progress::circle_range 呼び出し側 attrs コンテキスト",
+        );
+    }
+}
+
+/// イシュー #770: Image/Icon の属性値経路（`src`/`alt`/`viewBox`/
+/// `aria-label`/呼び出し側 `attrs`/`class`/SVG children 属性）が payload
+/// 網羅で既定エスケープを経由することを固定する。
+#[test]
+fn image_and_icon_payload_paths_are_escaped_or_dropped() {
+    for payload in payloads::all() {
+        // Image: src/alt は属性値経路。
+        let html = render(&image(&ImageProps::new(payload, payload), vec![]));
+        assert_payload_is_escaped(payload, &html, "Image src/alt 属性値コンテキスト");
+
+        // Image: 呼び出し側 attrs（data-testid）は素通りしつつエスケープされる。
+        let html = render(&image(
+            &ImageProps::new("/a.png", "alt"),
+            vec![("data-testid", payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "Image 呼び出し側 attrs コンテキスト");
+
+        // Image: 呼び出し側 class は drop_class_attr により出力に残らない。
+        let html = render(&image(
+            &ImageProps::new("/a.png", "alt"),
+            vec![("class", payload)],
+        ));
+        assert!(
+            !html.contains(payload),
+            "image() の class 属性に渡した生ペイロードが出力に残っている: \
+                 payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-image--"));
+
+        // Icon: viewBox/label は属性値経路。
+        let props = IconProps {
+            label: Some(payload),
+            view_box: payload,
+            ..IconProps::default()
+        };
+        let html = render(&icon(&props, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "Icon viewBox/aria-label 属性値コンテキスト");
+
+        // Icon: 呼び出し側 attrs（data-testid）。
+        let html = render(&icon(
+            &IconProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "Icon 呼び出し側 attrs コンテキスト");
+
+        // Icon: 呼び出し側 class は drop_class_attr により出力に残らない。
+        let html = render(&icon(
+            &IconProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "icon() の class 属性に渡した生ペイロードが出力に残っている: \
+                 payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-icon--"));
+
+        // Icon: 呼び出し側が組み立てる SVG children（`path d` 属性）にも
+        // 既定エスケープが適用される（本モジュールの外部リソース非参照
+        // 契約の裏付け、`crate::icon` rustdoc 参照）。
+        let node = icon(
+            &IconProps::default(),
+            vec![],
+            vec![el("path", vec![("d", payload)], vec![])],
+        );
+        let html = render(&node);
+        assert_payload_is_escaped(payload, &html, "Icon children path d 属性値コンテキスト");
+    }
+}
+
+/// イシュー #770: Image の `src` に対する危険 URL スキームが属性ごと
+/// 不出力になる（fail-closed）ことを固定する（`crates/core/src/url.rs`
+/// の `is_safe_url`/`URL_ATTRS` 検証への依拠、本ファイル冒頭「URL 属性
+/// 経路」と同型）。
+#[test]
+fn image_src_dangerous_url_schemes_are_rejected() {
+    let dangerous_urls = [
+        "javascript:alert(1)",
+        "JaVaScRiPt:alert(1)",
+        "data:text/html;base64,PHNjcmlwdD4=",
+        "vbscript:msgbox(1)",
+    ];
+
+    for url in dangerous_urls {
+        let html = render(&image(
+            &ImageProps::new(url, "safe-alt"),
+            vec![("data-testid", "sibling")],
+        ));
+        assert!(
+            !html.contains("src="),
+            "危険な URL スキームなのに src 属性が出力されている: url={url:?}, html={html}"
+        );
+        assert!(html.contains(r#"alt="safe-alt""#));
+        assert!(html.contains(r#"data-testid="sibling""#));
+        assert!(html.contains("fd-image--"));
+    }
+}
+
+/// イシュー #770: Image の `src` に対する安全な URL は既定エスケープを
+/// 経由してそのまま透過することを固定する。
+#[test]
+fn image_src_safe_urls_pass_through() {
+    for url in ["/items/1.png", "https://example.com/a.png"] {
+        let html = render(&image(&ImageProps::new(url, "alt"), vec![]));
+        let expected = format!(r#"src="{}""#, escape_html(url));
+        assert!(
+            html.contains(&expected),
+            "安全な URL が src 属性として透過していない: url={url:?}, html={html}"
+        );
+    }
+}
+
+/// イシュー #770: Icon 自身は外部リソース（`href`/`xlink:href`）を出力
+/// しないが、children 経由で渡された危険スキームの `xlink:href` にも
+/// core の `URL_ATTRS` 検証がそのまま適用される（属性ごと不出力）ことを
+/// 固定する。
+#[test]
+fn icon_children_xlink_href_dangerous_scheme_is_rejected() {
+    let node = icon(
+        &IconProps::default(),
+        vec![],
+        vec![el(
+            "use",
+            vec![("xlink:href", "javascript:alert(1)")],
+            vec![],
+        )],
+    );
+    let html = render(&node);
+    assert!(!html.contains("xlink:href"));
+}
+
+/// (12) status/empty_state 経路（イシュー #765）: 状態機械を要しない静的
+/// styled 部品 2 種の全攻撃面（root children・呼び出し側 attrs・`class`
+/// 属性・パーツ children）で既定エスケープ（REQ-1）が貫通することを固定
+/// する（`card`/`checkbox_card` と同型）。
+#[test]
+fn status_empty_state_styled_parts_and_class_attr_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // status::root の children（ラベルテキスト）経路。
+        let html = render(&status::root(
+            &StatusProps::default(),
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "status::root children コンテキスト");
+
+        // status::root の呼び出し側 attrs 経路。
+        let html = render(&status::root(
+            &StatusProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "status::root 呼び出し側 attrs コンテキスト");
+
+        // status::root の class 属性経路（drop_class_attr により生ペイロード
+        // は出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&status::root(
+            &StatusProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "status::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "status::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-status--"),
+            "status::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // status::indicator の呼び出し側 attrs 経路。
+        let html = render(&status::indicator(vec![("data-testid", payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "status::indicator 呼び出し側 attrs コンテキスト",
+        );
+
+        // empty_state::root の呼び出し側 attrs 経路。
+        let html = render(&empty_state::root(
+            &EmptyStateProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "empty_state::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // empty_state::root の class 属性経路。
+        let html = render(&empty_state::root(
+            &EmptyStateProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "empty_state::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "empty_state::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-empty-state--"),
+            "empty_state::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // empty_state::title / description の children 経路。
+        let html = render(&empty_state::title(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "empty_state::title children コンテキスト");
+
+        let html = render(&empty_state::description(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "empty_state::description children コンテキスト",
+        );
+    }
+}
+
+/// styled Clipboard（イシュー #773）の XSS 回帰。コピー対象値
+/// （`data-value`/`input` の `value`）はパスワード等の機微情報を含みうる
+/// ため、属性破りペイロードでも実タグ・属性破りが起きないことを固定する
+/// （`crates/headless-ui/tests/xss_escape.rs::clipboard_root_data_value_and_input_value_are_escaped_for_all_payloads`
+/// の styled 経由版）。
+#[test]
+fn clipboard_styled_root_data_value_and_value_text_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let html = render(&clipboard::root(payload, false, vec![], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "clipboard::root の data-value 属性値コンテキスト",
+        );
+
+        let html = render(&clipboard::input(payload, false, vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "clipboard::input の value 属性値コンテキスト",
+        );
+
+        let html = render(&clipboard::value_text(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "clipboard::value_text children コンテキスト",
+        );
+    }
+}
+
+/// (13) highlight 経路（イシュー #775）: 本文（テキスト）・クエリ・呼び出し側
+/// `attrs`・`class` の 4 箇所で既定エスケープ（REQ-1）が貫通することを固定
+/// する。`query` はユーザー入力由来の一致キーワードであり、一致・不一致の
+/// いずれの場合も `query` の生文字列がそのまま HTML へ出力される経路がない
+/// ことが要点（`crates/pre-styled-ui/src/highlight.rs` モジュール冒頭
+/// rustdoc「一致判定は決定的な文字列検索のみ」節参照）。
+#[test]
+fn highlight_text_query_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // 本文経路: text にペイロードを渡す（query は本文に現れない語句のため
+        // 不一致、mark 化されない状態でもエスケープが貫通することを固定）。
+        let html = render(&highlight(
+            &HighlightProps {
+                query: &["nonexistent-query-term"],
+                ..HighlightProps::default()
+            },
+            vec![],
+            payload,
+        ));
+        assert_payload_is_escaped(payload, &html, "highlight 本文（text）コンテキスト");
+
+        // クエリ経路: ペイロードを query に渡す。本文にペイロードと同じ
+        // 文字列が含まれる場合は一致し mark 化されるが、その場合も mark 内
+        // テキストは text() 経由でエスケープされる。
+        let html = render(&highlight(
+            &HighlightProps {
+                query: &[payload],
+                ..HighlightProps::default()
+            },
+            vec![],
+            payload,
+        ));
+        assert_payload_is_escaped(payload, &html, "highlight クエリ（query）一致コンテキスト");
+
+        // クエリ経路（不一致）: 本文に query が現れない場合、query の生文字列
+        // がどの経路からも HTML へ出力されないことを固定する。
+        let html = render(&highlight(
+            &HighlightProps {
+                query: &[payload],
+                ..HighlightProps::default()
+            },
+            vec![],
+            "The quick brown fox",
+        ));
+        assert!(
+            !html.contains(payload),
+            "highlight で不一致 query の生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+
+        // 属性値経路 b: 呼び出し側 attrs（data-testid 等）。
+        let html = render(&highlight(
+            &HighlightProps::default(),
+            vec![("data-testid", payload)],
+            "hello world",
+        ));
+        assert_payload_is_escaped(payload, &html, "highlight 呼び出し側 attrs コンテキスト");
+
+        // 属性値経路 c: 呼び出し側 attrs の class（drop_class_attr により
+        // 生ペイロードは出力されない。highlight は variant を持たないため
+        // recipe 生成クラスへの置換ではなく、class 属性自体が出力されない）。
+        let html = render(&highlight(
+            &HighlightProps::default(),
+            vec![("class", payload)],
+            "hello world",
+        ));
+        assert!(
+            !html.contains(payload),
+            "highlight の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(
+            !html.contains("class=\""),
+            "highlight は variant を持たないため class 属性を出力しないはずだが出力されている: \
+             html={html}"
+        );
+    }
+}
+
+/// styled VisuallyHidden（イシュー #776）: children テキスト経路 + 呼び出し側
+/// `attrs`（`class` を含む）経路を横断してエスケープ貫通を固定する。
+#[test]
+fn visually_hidden_children_and_attrs_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::visually_hidden;
+
+    for payload in payloads::all() {
+        let html = render(&visually_hidden::root(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "visually_hidden::root children コンテキスト",
+        );
+
+        let html = render(&visually_hidden::root(
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "visually_hidden::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // 本部品は variant 軸を持たず class 属性自体を出力しないため
+        // （`crates/pre-styled-ui/src/visually_hidden.rs` rustdoc 参照）、
+        // 呼び出し側 `class` は出力から完全に消えることを確認する。
+        let html = render(&visually_hidden::root(vec![("class", payload)], vec![]));
+        assert!(
+            !html.contains(payload),
+            "visually_hidden::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            0,
+            "visually_hidden::root は class 属性自体を出力しない契約: html={html}"
+        );
+    }
+}
+
+/// styled SkipNav（イシュー #776）: [`skip_nav::link`] の `id`（`href` 属性へ
+/// 合成）・[`skip_nav::content`] の `id`（`id` 属性へ合成）・children・
+/// 呼び出し側 `attrs`（`class` を含む）経路を横断してエスケープ貫通を固定
+/// する。
+#[test]
+fn skip_nav_id_children_and_attrs_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::skip_nav;
+
+    for payload in payloads::all() {
+        let link_node = skip_nav::link(payload, vec![], vec![text(payload)]);
+        let html = render(&link_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "skip_nav::link の id(href 属性)/children コンテキスト",
+        );
+
+        let content_node = skip_nav::content(payload, vec![], vec![text(payload)]);
+        let html = render(&content_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "skip_nav::content の id(id 属性)/children コンテキスト",
+        );
+
+        let html = render(&skip_nav::link(
+            skip_nav::DEFAULT_ID,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "skip_nav::link の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+    }
+}
+
+/// (14) タイポグラフィ静的部品 6 種（イシュー #771: Heading / Text / Em /
+/// Mark / Blockquote / List）: children テキスト経路・呼び出し側 attrs 経路・
+/// `class` 除去経路のすべてで既定エスケープ（REQ-1）が貫通することを固定する。
+#[test]
+fn typography_static_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // heading::heading: children テキスト経路 + 呼び出し側 attrs 経路 + class 除去経路。
+        let html = render(&heading(
+            HeadingLevel::default(),
+            &HeadingProps::default(),
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "heading::heading children コンテキスト");
+
+        let html = render(&heading(
+            HeadingLevel::default(),
+            &HeadingProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "heading::heading 呼び出し側 attrs コンテキスト",
+        );
+
+        let html = render(&heading(
+            HeadingLevel::default(),
+            &HeadingProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "heading::heading の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-heading--"));
+
+        // text::text（core::text と同名だが別モジュールパス、モジュール rustdoc 参照）。
+        let html = render(&styled_text(
+            &TextProps::default(),
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "text::text children コンテキスト");
+
+        let html = render(&styled_text(
+            &TextProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "text::text 呼び出し側 attrs コンテキスト");
+
+        // em::em: variant を持たないため class 出力なし。children・attrs 経路のみ。
+        let html = render(&em(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "em::em children コンテキスト");
+
+        let html = render(&em(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "em::em 呼び出し側 attrs コンテキスト");
+
+        // mark::mark: children テキスト経路 + 呼び出し側 attrs 経路 + class 除去経路。
+        let html = render(&mark(&MarkProps::default(), vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "mark::mark children コンテキスト");
+
+        let html = render(&mark(
+            &MarkProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "mark::mark 呼び出し側 attrs コンテキスト");
+
+        let html = render(&mark(
+            &MarkProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(!html.contains(payload));
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-mark--"));
+
+        // blockquote: root/content/caption の 3 パーツ、cite 属性のような
+        // 呼び出し側 attrs 経路を含む。
+        let html = render(&blockquote::content(
+            vec![("cite", payload)],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "blockquote::content children/cite コンテキスト",
+        );
+
+        let html = render(&blockquote::caption(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "blockquote::caption children コンテキスト");
+
+        let html = render(&blockquote::root(
+            BlockquoteVariant::default(),
+            fandhe_frontend_pre_styled_ui::ColorPalette::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(!html.contains(payload));
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-blockquote--"));
+
+        // list: root/item/indicator の 3 パーツ。indicator は常時
+        // aria-hidden="true" のため呼び出し側偽装が無視されることも確認する。
+        let html = render(&list::item(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "list::item children コンテキスト");
+
+        let html = render(&list::root(
+            ListType::default(),
+            ListVariant::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(!html.contains(payload));
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(html.contains("fd-list--"));
+
+        let html = render(&list::indicator(vec![("aria-hidden", payload)], vec![]));
+        assert!(
+            !html.contains(payload) || payload == "true",
+            "list::indicator の aria-hidden 偽装が出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(html.matches("aria-hidden=").count(), 1);
+        assert!(html.contains(r#"aria-hidden="true""#));
     }
 }

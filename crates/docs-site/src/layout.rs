@@ -16,6 +16,7 @@
 use std::collections::HashSet;
 
 use fandhe_frontend_core::{a, article, aside, div, el, header, li, main_tag, nav, text, ul, Node};
+use fandhe_frontend_pre_styled_ui::skip_nav as ps_skip_nav;
 
 /// ページ内目次（TOC）の 1 エントリ。
 ///
@@ -352,6 +353,21 @@ pub fn docs_page_with_assets(
             vec![],
         ));
     }
+    // SkipNav（イシュー #776）専用 CSS は showcase/admonition と異なり
+    // 全ページへ無条件に適用する（`crate::skip_nav` モジュール doc 参照）。
+    // `crate::build::build_site` が `crate::skip_nav::STYLESHEET_REL_PATH`
+    // を全ビルドで無条件に書き出す契約と対をなす。
+    head_children.push(el(
+        "link",
+        vec![
+            ("rel", "stylesheet"),
+            (
+                "href",
+                &asset_href(base_path, crate::skip_nav::STYLESHEET_REL_PATH),
+            ),
+        ],
+        vec![],
+    ));
     let head = el("head", vec![], head_children);
 
     // 「on this page」目次は本文の前（`main` 内の先頭）に置く。読者が本文を
@@ -359,7 +375,15 @@ pub fn docs_page_with_assets(
     // `site/assets/site.css` はこの `.docs-content` 前という位置関係を
     // 前提にスタイルしていない（`.docs-toc` 単体で完結する見た目にしている
     // ため、並び順を変えてもレイアウトは崩れない）。
-    let mut main_children = Vec::new();
+    // SkipNav のスキップ先ターゲット（イシュー #776）。読者が実際に読み始める
+    // 本文（TOC・article）の直前に置き、`link` クリック時のプログラム的
+    // フォーカス移動先とする（`fandhe-frontend-headless-ui::skip_nav` の
+    // `tabindex="-1"` 契約参照）。
+    let mut main_children = vec![ps_skip_nav::content(
+        ps_skip_nav::DEFAULT_ID,
+        vec![],
+        vec![],
+    )];
     if let Some(toc_node) = toc {
         main_children.push(toc_node);
     }
@@ -374,10 +398,22 @@ pub fn docs_page_with_assets(
         vec![a(vec![("href", &root_href)], vec![text("fandhe-frontend")])],
     );
 
+    // SkipNav の「本文へスキップ」リンク（イシュー #776）。キーボード操作時
+    // のみ視覚的に現れ（`fandhe-frontend-pre-styled-ui::skip_nav` の
+    // `:focus-visible` 表示規則）、ページ内で最初にフォーカス可能な要素と
+    // なるよう `<body>` 先頭（`header` より前）に置く（WCAG 2.1 SC 2.4.1
+    // Bypass Blocks）。
+    let skip_nav_link = ps_skip_nav::link(
+        ps_skip_nav::DEFAULT_ID,
+        vec![],
+        vec![text("Skip to content")],
+    );
+
     let body_node = el(
         "body",
         vec![],
         vec![
+            skip_nav_link,
             header_node,
             div(
                 vec![("class", "docs-container")],
