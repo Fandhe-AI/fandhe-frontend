@@ -15,7 +15,8 @@
 //! [`crate::build::build_site`] は [`stylesheet`] が返す CSS 本体を
 //! [`STYLESHEET_REL_PATH`] へ**全ビルドで無条件に**書き出す。
 //!
-//! `site/assets/site.css`（サイト骨格スタイル）は一切変更しない
+//! サイト骨格スタイル（[`crate::site_theme`] によるビルド時生成、出力先
+//! `assets/site.css`）は一切変更しない
 //! （[`crate::admonition`] と同じ #715 の分離 CSS 不変条件）。
 //!
 //! # 純 CSS の focus 時表示（docs-site は hydration を持たない）

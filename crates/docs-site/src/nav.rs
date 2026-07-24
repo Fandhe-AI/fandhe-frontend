@@ -557,7 +557,8 @@ fn href(nav: &Nav, path: &str) -> String {
 /// headless `nav_list`（`fandhe-frontend-headless-ui`、イシュー #756）の
 /// anatomy パーツ（`root`/`heading`/`list`/`item`/`link`）で組み立てる。
 /// `nav_list` は `role` を一切付与しない素の `nav`/`h2`/`ul`/`li`/`a` 構造の
-/// ため、`site/assets/site.css` の既存タグ・class セレクタ
+/// ため、サイト骨格 CSS（[`crate::site_theme`] によるビルド時生成、
+/// 出力先 `assets/site.css`）の既存タグ・class セレクタ
 /// （`nav.sidebar h2`/`nav.sidebar ul` 等）は変更なしで適用され続ける
 /// （`docs/design/docs-site-styled-ui-adoption.md` §3.1 の意味論不整合
 /// 解消の記録参照）。
@@ -612,9 +613,10 @@ pub fn prev_next<'a>(nav: &'a Nav, current_path: &str) -> (Option<&'a Page>, Opt
 /// するため。本モジュールの用途では `overlay` がカードの唯一の子であり、
 /// 通常のフローで全面を占めるため、`link_overlay` の一般的な
 /// `position: absolute` 拡張パターン（`crates/pre-styled-ui/src/link_overlay.rs`
-/// 参照）は使わず、`site/assets/site.css` 側で `overlay` 自体に従来の
-/// カード CSS（枠線・padding・角丸）をそのまま当てる（`site.css` の
-/// 自己完結不変条件、§3.4 を維持したまま意味論のみ解消する）。
+/// 参照）は使わず、サイト骨格 CSS（[`crate::site_theme`] によるビルド時
+/// 生成、出力先 `assets/site.css`）側で `overlay` 自体に従来のカード CSS
+/// （枠線・padding・角丸）をそのまま当てる（`site.css` の自己完結不変
+/// 条件、§3.4 を維持したまま意味論のみ解消する）。
 pub fn prev_next_nav(nav: &Nav, current_path: &str) -> Node {
     let (prev, next) = prev_next(nav, current_path);
     let mut children: Vec<Node> = Vec::new();

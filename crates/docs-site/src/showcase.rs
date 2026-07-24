@@ -17,7 +17,8 @@
 //!    `crate::layout::docs_page_with_assets` の追加 `<link>` で参照する
 //!
 //! の 2 点だけを `build.rs` へ公開する。サイト骨格スタイル
-//! （`site/assets/site.css`）とは分離ファイルに保ち、既存ページのカスケードへ
+//! （[`crate::site_theme`] によるビルド時生成、出力先 `assets/site.css`）
+//! とは分離ファイルに保ち、既存ページのカスケードへ
 //! 影響させない（イシュー #520 系のショーケース統合方針）。
 //!
 //! # セキュリティ不変条件（REQ-1）
@@ -42,7 +43,8 @@
 //! recipe CSS のオーバーレイ配置（`position: fixed`/`absolute` + `z-index`）
 //! をそのまま反映するとページ全体を覆う・後続セクションに重なってしまう。
 //! [`SHOWCASE_LAYOUT_CSS`] がショーケース内に限定してこれを中和する
-//! （recipe CSS・`site/assets/site.css` はいずれも変更しない）。
+//! （recipe CSS・サイト骨格 CSS（[`crate::site_theme`] によるビルド時
+//! 生成、出力先 `assets/site.css`）はいずれも変更しない）。
 
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::action_bar;
@@ -166,7 +168,8 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 
 /// ショーケース内の配置（グリッド・縦積み）専用スタイル。コンポーネント
 /// 自体の見た目は pre-styled-ui の recipe が担い、ここではデモの並びのみを
-/// 整える（`site/assets/site.css` のサイト骨格クラスとは名前空間を分ける）。
+/// 整える（サイト骨格 CSS（[`crate::site_theme`] によるビルド時生成、
+/// 出力先 `assets/site.css`）のクラスとは名前空間を分ける）。
 ///
 /// 末尾の見出しリセットは、showcase ページが `.docs-content` 内へ埋め込まれる
 /// ことによる `site.css` 見出しルール（`.docs-content h3` の margin・
@@ -688,7 +691,8 @@ fn skeleton_section() -> Node {
 /// タイポグラフィ節（イシュー #771）: Heading / Text / Em / Mark /
 /// Blockquote / List の 6 静的部品をまとめて掲示する。
 ///
-/// Heading は `h4`〜`h6`（`site/assets/site.css` の `.docs-content` 見出し
+/// Heading は `h4`〜`h6`（サイト骨格 CSS（[`crate::site_theme`] による
+/// ビルド時生成、出力先 `assets/site.css`）の `.docs-content` 見出し
 /// 規則が対象とする `h1`〜`h3` の範囲外）のみを掲示し、サイト骨格の見出し
 /// スタイルとの衝突を避ける（[`skeleton_section`] の Accordion `h3` 漏れ
 /// 遮断と同種の配慮。本節自体の `h2` はショーケース節見出し
