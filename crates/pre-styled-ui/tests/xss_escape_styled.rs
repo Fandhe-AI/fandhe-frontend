@@ -74,6 +74,7 @@ use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
+use fandhe_frontend_pre_styled_ui::toast::{self, ToastPlacement, ToastStatus};
 use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, select};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Size};
 
@@ -1511,6 +1512,93 @@ fn radio_card_styled_root_and_parts_are_escaped_for_all_payloads() {
             &html,
             "radio_card::item_hidden_input name/value コンテキスト",
         );
+    }
+}
+
+/// styled Toast（イシュー #760）の XSS 回帰: styled `group`/`root` の呼び出し側
+/// attrs・class 属性経路、および再エクスポート済み `title`/`description` の
+/// children 経路を固定する。
+#[test]
+fn toast_styled_group_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled group の呼び出し側 attrs 経路 + aria-label 経路。
+        let html = render(&toast::group(
+            ToastPlacement::Bottom,
+            payload,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "toast::group aria-label/attrs コンテキスト");
+
+        // styled group の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&toast::group(
+            ToastPlacement::Bottom,
+            "Notifications",
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "toast::group の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "toast::group の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-toast--placement-"),
+            "toast::group で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // styled root の呼び出し側 attrs 経路 + title/description children 経路。
+        let html = render(&toast::root(
+            ToastStatus::Error,
+            vec![("data-testid", payload)],
+            vec![
+                toast::title(vec![], vec![text(payload)]),
+                toast::description(vec![], vec![text(payload)]),
+            ],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "toast::root attrs/title/description コンテキスト",
+        );
+
+        // styled root の class 属性経路。
+        let html = render(&toast::root(
+            ToastStatus::Error,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "toast::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "toast::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-toast--status-"),
+            "toast::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // action_trigger/close_trigger の children 経路（headless からの再エクスポート）。
+        let html = render(&toast::action_trigger(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "toast::action_trigger children コンテキスト",
+        );
+
+        let html = render(&toast::close_trigger(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "toast::close_trigger children コンテキスト");
     }
 }
 

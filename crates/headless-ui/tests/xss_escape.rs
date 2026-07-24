@@ -30,8 +30,8 @@ use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::{
     action_bar, aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog,
     editable, hover_card, listbox, number_input, password_input, pin_input, popover, rating_group,
-    segment_group, slider, tags_input, tree_view, ImageStatus, OpenState, Orientation,
-    PasswordAutocomplete, PasswordInputProps,
+    segment_group, slider, tags_input, toast, tree_view, ImageStatus, OpenState, Orientation,
+    PasswordAutocomplete, PasswordInputProps, ToastStatus,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -625,6 +625,47 @@ fn tree_view_dispatch_payload_is_escaped_in_hydration_output() {
     assert!(rendered.contains("&lt;script&gt;"));
     assert!(!rendered.contains("<script>alert(1)</script>"));
     assert!(!rendered.contains(r#""><script"#));
+}
+
+/// Toast（イシュー #760）: group の `label`・root の title/description
+/// children・`Toaster::push` した通知の title/description・呼び出し側 attrs
+/// の各経路へペイロードを注入し、エスケープが貫通することを固定する。
+#[test]
+fn toast_label_title_description_and_view_are_escaped_for_all_payloads() {
+    use fandhe_frontend_headless_ui::Toaster;
+    use fandhe_frontend_interactive::Component;
+
+    for payload in payloads::all() {
+        let group_node = toast::group(
+            fandhe_frontend_headless_ui::ToastPlacement::Bottom,
+            payload,
+            vec![],
+            vec![],
+        );
+        let html = render(&group_node);
+        assert_payload_is_escaped(payload, &html, "toast::group の aria-label コンテキスト");
+
+        let root_node = toast::root(
+            ToastStatus::Info,
+            vec![("data-testid", payload)],
+            vec![
+                toast::title(vec![], vec![text(payload)]),
+                toast::description(vec![], vec![text(payload)]),
+            ],
+        );
+        let html = render(&root_node);
+        assert_payload_is_escaped(payload, &html, "toast::root/title/description コンテキスト");
+
+        let mut toaster = Toaster::new(5, fandhe_frontend_headless_ui::ToastPlacement::Bottom);
+        toaster.push(fandhe_frontend_headless_ui::ToastEntry {
+            id: "toast-1".to_string(),
+            status: ToastStatus::Error,
+            title: payload.to_string(),
+            description: payload.to_string(),
+        });
+        let html = render(&toaster.view());
+        assert_payload_is_escaped(payload, &html, "Toaster::view の全体組み立てコンテキスト");
+    }
 }
 
 /// (1)/(2) ActionBar（イシュー #762）: `content` の `aria-label`（属性値経路）
