@@ -169,6 +169,21 @@ fn init_repo_root_fixture(repo_root: &Path, crates: &[(&str, &str, &str)]) {
     }
 }
 
+/// `init_repo_root_fixture` の拡張版: 各リポジトリ側クレートの
+/// `[dependencies]` セクションへ任意の内容（ワークスペース内 path 依存の
+/// 再現用）を追記できる。`crates`: `(name, version, dir, extra_deps_body)`。
+fn init_repo_root_fixture_with_deps(repo_root: &Path, crates: &[(&str, &str, &str, &str)]) {
+    for (name, version, dir, extra_deps_body) in crates {
+        write_manifest(
+            &repo_root.join("crates").join(dir).join("Cargo.toml"),
+            &format!(
+                "[package]\nname = \"{name}\"\nversion = \"{version}\"\nedition = \"2021\"\n\n\
+[dependencies]\n{extra_deps_body}"
+            ),
+        );
+    }
+}
+
 fn run_patch_template_smoke(
     project_dir: &Path,
     repo_root: &Path,
@@ -353,6 +368,105 @@ fn unresolvable_dep_gets_patch_crates_io_fallback_and_lock_removed() {
     assert!(
         !project_dir.join("Cargo.lock").exists(),
         "フォールバック発動時は Cargo.lock を削除する契約（再現性低下を許容）"
+    );
+}
+
+/// イシュー #885 の Cursor Bugbot 指摘（"Partial patch causes source
+/// conflicts"）に対する回帰テスト。`fandhe-frontend-core` は crates.io で
+/// 解決可能だが、同じマニフェスト内の `fandhe-frontend-app` は未公開
+/// バージョンのため path override が必要になる。`fandhe-frontend-app` は
+/// リポジトリ側で `fandhe-frontend-core` への path 依存を持つため
+/// （`crates/app/Cargo.toml` と同型）、`fandhe-frontend-core` も
+/// 部分パッチとして crates.io 版のまま残してはならず、
+/// `[patch.crates-io]` へ含める必要がある。
+#[test]
+fn partial_patch_within_manifest_extends_to_workspace_sibling_dependencies() {
+    if !curl_available() {
+        eprintln!("curl が利用できない環境のためネットワーク照会シナリオをスキップする");
+        return;
+    }
+    let dir = ScratchDir(unique_fixture_dir("partial-patch"));
+    let project_dir = dir.0.join("project");
+    let repo_root = dir.0.join("repo-root");
+    let root_manifest =
+        "[package]\nname = \"fixture-app\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n\
+[dependencies]\nfandhe-frontend-core = \"0.1.0\"\nfandhe-frontend-app = \"0.2.0\"\n";
+    init_project_fixture(&project_dir, root_manifest);
+    init_repo_root_fixture_with_deps(
+        &repo_root,
+        &[
+            ("fandhe-frontend-core", "0.1.0", "core", ""),
+            (
+                "fandhe-frontend-app",
+                "0.2.0",
+                "app",
+                "fandhe-frontend-core = { path = \"../core\", version = \"0.1.0\" }\n",
+            ),
+        ],
+    );
+
+    // core は要求バージョンが crates.io で解決可能、app は未公開
+    // （バンプ直後の想定シナリオ）。
+    let server = FakeIndexServer::start(vec![
+        (
+            "fandhe-frontend-core",
+            "200",
+            "{\"name\":\"fandhe-frontend-core\",\"vers\":\"0.1.0\"}\n",
+        ),
+        (
+            "fandhe-frontend-app",
+            "200",
+            "{\"name\":\"fandhe-frontend-app\",\"vers\":\"0.1.0\"}\n",
+        ),
+    ]);
+    let output = run_patch_template_smoke(&project_dir, &repo_root, Some(&server.base_url));
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "部分パッチ拡張後も PASS 契約。stdout: {} stderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("dep=fandhe-frontend-app")
+            && stdout.contains("version=0.2.0")
+            && stdout.contains("resolution=path-override"),
+        "未公開の fandhe-frontend-app は path-override 契約: {stdout}"
+    );
+    assert!(
+        stdout.contains("dep=fandhe-frontend-core")
+            && stdout.contains("version=0.1.0")
+            && stdout.contains("resolution=path-override"),
+        "fandhe-frontend-core 単体は crates.io で解決可能でも、path override された \
+fandhe-frontend-app の兄弟 path 依存であるため resolution=path-override へ拡張される契約 \
+（部分パッチによるソース競合の回帰防止、イシュー #885 Bugbot 指摘）: {stdout}"
+    );
+    assert!(
+        !stdout.contains("resolution=crates-io"),
+        "fandhe-frontend-core が crates-io のまま残る（部分パッチ）ことがあってはならない: {stdout}"
+    );
+
+    let manifest_after = fs::read_to_string(project_dir.join("Cargo.toml")).unwrap();
+    let expected_core_path = repo_root.join("crates").join("core");
+    let expected_app_path = repo_root.join("crates").join("app");
+    assert!(
+        manifest_after.contains(&format!(
+            "fandhe-frontend-core = {{ path = \"{}\" }}",
+            expected_core_path.display()
+        )),
+        "[patch.crates-io] に fandhe-frontend-core の path override が含まれる契約: {manifest_after}"
+    );
+    assert!(
+        manifest_after.contains(&format!(
+            "fandhe-frontend-app = {{ path = \"{}\" }}",
+            expected_app_path.display()
+        )),
+        "[patch.crates-io] に fandhe-frontend-app の path override が含まれる契約: {manifest_after}"
+    );
+    assert!(
+        !project_dir.join("Cargo.lock").exists(),
+        "フォールバック発動時は Cargo.lock を削除する契約"
     );
 }
 

@@ -263,6 +263,46 @@ fn discover_repo_crates(
     Ok(found)
 }
 
+/// リポジトリ側クレート（`crates/<dir>/Cargo.toml`）が持つ、他の
+/// `fandhe-frontend-*` クレートへの **path 依存**（テーブル形式、`path = `
+/// キーを含む）の宛先クレート名を行ベースで抽出する。
+///
+/// これは [`extract_version_dependencies`] とは逆の役割を持つ:
+/// 生成テンプレート側マニフェストではテーブル形式（path 依存）を
+/// vendor 再導入の兆候として拒否するが、こちらはリポジトリ本体の
+/// ワークスペースメンバー間の正当な path 依存（例:
+/// `crates/app/Cargo.toml` の `fandhe-frontend-core = { path = "../core",
+/// version = "0.1.0" }`）を読み取るためのものであり、拒否しない。
+///
+/// [`process_manifest`] はこの関数で見つけた「path オーバーライド対象の
+/// 依存先」を、その依存先自身が crates.io で解決可能であっても強制的に
+/// `[patch.crates-io]` へ含める（同一パッケージが crates.io ソースと
+/// path ソースの 2 箇所から解決される Cargo の依存解決失敗を防ぐため。
+/// 詳細は [`process_manifest`] のドキュメント参照）。
+fn extract_workspace_sibling_dependency_names(manifest: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    for line in manifest.lines() {
+        let line = line.trim();
+        let Some(rest) = line.strip_prefix("fandhe-frontend-") else {
+            continue;
+        };
+        let name_end = rest
+            .find(|c: char| !(c.is_ascii_alphanumeric() || c == '-'))
+            .unwrap_or(rest.len());
+        let (suffix, after_name) = rest.split_at(name_end);
+        let name = format!("fandhe-frontend-{suffix}");
+        let after_name = after_name.trim_start();
+        let Some(after_eq) = after_name.strip_prefix('=') else {
+            continue;
+        };
+        let after_eq = after_eq.trim_start();
+        if after_eq.starts_with('{') && after_eq.contains("path") && !names.contains(&name) {
+            names.push(name);
+        }
+    }
+    names
+}
+
 /// `[package]` セクションの `name` / `version` を行ベースで抽出する
 /// （`template_vendor_drift.rs::package_version` と同型）。
 fn parse_package_name_and_version(manifest: &str) -> Option<(String, String)> {
@@ -368,6 +408,31 @@ pub struct ManifestOutcome {
 /// - 1 件でも充足不能なら、`repo_root` 配下の `crates/*/Cargo.toml` から
 ///   該当クレートを解決して `[patch.crates-io]` を追記し、`lock_path` が
 ///   存在すれば削除する。
+///
+/// ## 部分パッチ（partial patch）の禁止
+///
+/// `fandhe-frontend-app` のようなワークスペースクレートは兄弟クレート
+/// （例: `fandhe-frontend-core`）に対して **path 依存**を維持している
+/// （`crates/app/Cargo.toml` 参照）。このため、あるクレートを
+/// `[patch.crates-io]` で path 参照へ切り替えると、そのクレート自身の
+/// マニフェストが要求する兄弟クレートも path ソースから解決されることに
+/// なる。もし当該マニフェスト内でその兄弟クレートを crates.io 版のまま
+/// 残す（＝ crates.io で解決可能だからと `[patch.crates-io]` に含めない）
+/// と、Cargo は同一パッケージを crates.io ソースと path ソースの 2 箇所
+/// から見つけてしまい依存解決が失敗する（1 マニフェスト内での部分パッチ
+/// はビルドを破壊する）。
+///
+/// これを避けるため、充足不能と判定されたクレートを起点に
+/// [`extract_workspace_sibling_dependency_names`] でリポジトリ側の
+/// path 依存グラフを再帰的にたどり、たどり着いた兄弟クレート全てを
+/// `[patch.crates-io]` へ含める（そのクレート単体は crates.io で解決可能
+/// であっても、である）。たどり着いた兄弟クレートが当該マニフェストにも
+/// 直接依存として書かれていた場合は、その `DepReport` を
+/// `Resolution::CratesIo` から `Resolution::PathOverride` へ差し替える。
+/// マニフェストに直接書かれていない（推移的にのみ必要とされる）兄弟
+/// クレートについては、repo-root 側の現行バージョンをそのまま報告する
+/// （比較対象となるマニフェスト側のバージョン要求が存在しないため、
+/// [`PatchTemplateSmokeError::RepoRootCrateMismatch`] の対象にはしない）。
 #[allow(clippy::too_many_arguments)]
 pub fn process_manifest(
     manifest_path: &Path,
@@ -400,26 +465,29 @@ unexpected pre-existing state",
         ));
     }
 
-    let mut reports = Vec::with_capacity(deps.len());
-    let mut needs_patch = Vec::new();
+    // `name -> (manifest 上のバージョン要求, crates.io で充足可能か)`。
+    // ここではまだ `DepReport` を確定させない（後続のワークスペース内
+    // path 依存の閉包計算により、一度 CratesIo と判定した依存が
+    // PathOverride へ差し替わり得るため）。
+    let mut dep_status: Vec<(String, String, bool)> = Vec::with_capacity(deps.len());
     for (name, version) in &deps {
         let lookup = check_version_bump::query_index(index_base_url, name)?;
         let resolvable = match &lookup {
             IndexLookup::NotPublished => false,
             IndexLookup::Published(versions) => requirement_is_resolvable(versions, version),
         };
-        if resolvable {
-            reports.push(DepReport {
-                name: name.clone(),
-                version: version.clone(),
-                resolution: Resolution::CratesIo,
-            });
-        } else {
-            needs_patch.push((name.clone(), version.clone()));
-        }
+        dep_status.push((name.clone(), version.clone(), resolvable));
     }
 
-    if needs_patch.is_empty() {
+    if dep_status.iter().all(|(_, _, resolvable)| *resolvable) {
+        let reports = dep_status
+            .into_iter()
+            .map(|(name, version, _)| DepReport {
+                name,
+                version,
+                resolution: Resolution::CratesIo,
+            })
+            .collect();
         return Ok(ManifestOutcome {
             reports,
             patched: false,
@@ -427,8 +495,57 @@ unexpected pre-existing state",
     }
 
     let repo_crates = discover_repo_crates(repo_root)?;
-    let mut patch_entries = Vec::with_capacity(needs_patch.len());
-    for (name, version) in &needs_patch {
+
+    // 部分パッチ防止（モジュール doc・本関数 doc 参照）: 充足不能な依存を
+    // 起点に、リポジトリ側の path 依存グラフを再帰的にたどり、
+    // `[patch.crates-io]` へ含めるべき兄弟クレート名の集合を確定する。
+    let mut override_names: std::collections::BTreeSet<String> = dep_status
+        .iter()
+        .filter(|(_, _, resolvable)| !resolvable)
+        .map(|(name, _, _)| name.clone())
+        .collect();
+    let mut queue: Vec<String> = override_names.iter().cloned().collect();
+    while let Some(name) = queue.pop() {
+        let Some((_, _, dir_rel)) = repo_crates.iter().find(|(n, _, _)| *n == name) else {
+            // repo-root 側にクレートが見つからない場合は、この後の
+            // 直接依存に対する mismatch チェックに検知を委ねる
+            // （閉包探索の時点では黙って読み飛ばす）。
+            continue;
+        };
+        let sibling_manifest_path = repo_root.join(dir_rel).join("Cargo.toml");
+        let Ok(sibling_manifest) = fs::read_to_string(&sibling_manifest_path) else {
+            continue;
+        };
+        for sibling_name in extract_workspace_sibling_dependency_names(&sibling_manifest) {
+            if override_names.insert(sibling_name.clone()) {
+                queue.push(sibling_name);
+            }
+        }
+    }
+
+    // 当該マニフェストに直接依存として書かれているクレート（`deps`
+    // 由来）は、閉包で override 対象に含まれるかどうかで
+    // `Resolution` を確定する。あわせて `repo_root` 側バージョンとの
+    // 一致（template_vendor_drift 不変条件）を検証する。
+    let mut reports = Vec::with_capacity(dep_status.len());
+    let mut patch_entries = Vec::new();
+    let mut handled_names: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for (name, version, resolvable) in &dep_status {
+        handled_names.insert(name.clone());
+        if !override_names.contains(name) {
+            // 充足不能ではなく、かつ override 閉包にも含まれない
+            // （＝ワークスペース path 依存として巻き込まれてもいない）。
+            debug_assert!(
+                *resolvable,
+                "override_names に含まれない依存は crates.io で充足可能なはず"
+            );
+            reports.push(DepReport {
+                name: name.clone(),
+                version: version.clone(),
+                resolution: Resolution::CratesIo,
+            });
+            continue;
+        }
         let found = repo_crates.iter().find(|(n, _, _)| n == name);
         let Some((_, repo_version, dir_rel)) = found else {
             return Err(PatchTemplateSmokeError::RepoRootCrateMismatch(format!(
@@ -453,6 +570,33 @@ constructed",
         reports.push(DepReport {
             name: name.clone(),
             version: version.clone(),
+            resolution: Resolution::PathOverride,
+        });
+    }
+
+    // 閉包で発見されたが当該マニフェストには直接書かれていない兄弟
+    // クレート（推移的な path 依存としてのみ必要とされるもの）。
+    // マニフェスト側にバージョン要求が存在しないため、repo-root の
+    // 現行バージョンをそのまま採用し mismatch チェックは行わない。
+    for name in &override_names {
+        if handled_names.contains(name) {
+            continue;
+        }
+        let found = repo_crates.iter().find(|(n, _, _)| n == name);
+        let Some((_, repo_version, dir_rel)) = found else {
+            return Err(PatchTemplateSmokeError::RepoRootCrateMismatch(format!(
+                "crate `{name}` (transitively required via a workspace path dependency from a \
+manifest processed for {manifest}) was not found under {repo_root}/crates/*; cannot build a \
+`[patch.crates-io]` fallback for it",
+                manifest = manifest_path.display(),
+                repo_root = repo_root.display()
+            )));
+        };
+        let abs_path = repo_root.join(dir_rel);
+        patch_entries.push((name.clone(), abs_path.display().to_string()));
+        reports.push(DepReport {
+            name: name.clone(),
+            version: repo_version.clone(),
             resolution: Resolution::PathOverride,
         });
     }
@@ -630,5 +774,30 @@ mod tests {
         assert!(block.contains("[patch.crates-io]"));
         assert!(block.contains("fandhe-frontend-core = { path = \"/repo/crates/core\" }"));
         assert!(block.contains("fandhe-frontend-app = { path = \"/repo/crates/app\" }"));
+    }
+
+    #[test]
+    fn extract_workspace_sibling_dependency_names_reads_table_form_path_deps() {
+        let manifest = "[dependencies]\nfandhe-frontend-core = { path = \"../core\", version = \"0.1.0\" }\nserde = \"1.0\"\n";
+        assert_eq!(
+            extract_workspace_sibling_dependency_names(manifest),
+            vec!["fandhe-frontend-core".to_string()]
+        );
+    }
+
+    #[test]
+    fn extract_workspace_sibling_dependency_names_ignores_plain_version_strings() {
+        let manifest = "[dependencies]\nfandhe-frontend-core = \"0.1.0\"\n";
+        assert!(extract_workspace_sibling_dependency_names(manifest).is_empty());
+    }
+
+    #[test]
+    fn extract_workspace_sibling_dependency_names_dedupes_repeated_names() {
+        let manifest = "[dependencies]\nfandhe-frontend-core = { path = \"../core\" }\n\n\
+[dev-dependencies]\nfandhe-frontend-core = { path = \"../core\" }\n";
+        assert_eq!(
+            extract_workspace_sibling_dependency_names(manifest),
+            vec!["fandhe-frontend-core".to_string()]
+        );
     }
 }
