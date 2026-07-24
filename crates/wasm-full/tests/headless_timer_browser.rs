@@ -16,6 +16,29 @@
 //! 値を使い、`wait_for`（ポーリング）で状態遷移を待つ
 //! （`headless_clipboard_browser.rs`/`headless_avatar_browser.rs` と同じ
 //! 「固定 sleep を避け条件ポーリングで待つ」方針）。
+//!
+//! # `wait_for(|| false)` を短い猶予待機へ置き換えた理由（イシュー #886）
+//!
+//! 「interval 解除後に elapsed が変化しない」ことの確認には、恒偽条件で
+//! `wait_for` を呼び出し 500 回（名目 5 秒）のポーリングを全消費させる実装が
+//! 3 箇所あった。`start_pause_resume_and_complete_lifecycle_reflects_in_dom`
+//! はこれを 2 回含み名目だけで約 10.5 秒となり、`wasm-bindgen-test` の既定
+//! タイムアウト（20 秒/テスト）に対する余裕が乏しかった。headless Chrome は
+//! 負荷下で `setTimeout` 解決が遅延しやすく、余裕の乏しさがタイムアウト
+//! 超過 → chromedriver 強制終了（SIGKILL）に直結していた（`nav_browser.rs`
+//! の PR #420 事例と同型の症状経路）。加えてファイル全体の実行時間が長い
+//! ほど Chrome インスタンスの生存時間が延び、共有 runner のメモリ圧による
+//! OOM 起因 SIGKILL への曝露も増えていた。
+//!
+//! 是正として `sleep_ms` ヘルパー（`setTimeout` 1 回のみの単純な待機）を
+//! 導入し、`interval_ms`（30ms）の数個分（150ms）の猶予待機へ置き換えた。
+//! 検証能力は変わらない: これらの assert は「`setInterval` が解除されて
+//! おり elapsed が増えないこと」の確認が目的である。仮に interval が解除
+//! されていなければ、次の tick は `interval_ms`（30ms）以内にタイマー
+//! キューへ積まれる。タイマーキューは登録順に処理されるため、`sleep_ms
+//! (150)` の解決は pending の 30ms interval コールバックより**必ず後**に
+//! 実行される。したがって 150ms の猶予は誤検出なく違反 tick を観測でき、
+//! 5 秒の恒偽ポーリングは検証能力を一切追加していなかった。
 
 #![cfg(target_arch = "wasm32")]
 
@@ -133,7 +156,13 @@ fn synthetic_click() -> MouseEvent {
 
 /// `condition` が真になるまでポーリングする
 /// （`headless_clipboard_browser.rs::wait_for` と同型）。
-async fn wait_for(mut condition: impl FnMut() -> bool) {
+///
+/// 500 回（名目 5 秒）のポーリング枠を使い切っても `condition` が真になら
+/// ない場合は、待機対象を示す `desc` を添えて `panic!` する（イシュー
+/// #886: 無言で return して後続 assert の不可解な失敗や次の待機への
+/// 突入を招く旧実装を、診断可能な即時失敗へ変換する。
+/// `nav_browser.rs` の fail-fast 化と同方針）。
+async fn wait_for(desc: &str, mut condition: impl FnMut() -> bool) {
     for _ in 0..500 {
         if condition() {
             return;
@@ -155,6 +184,31 @@ async fn wait_for(mut condition: impl FnMut() -> bool) {
             .await
             .expect("timeout promise must resolve");
     }
+    panic!("wait_for timed out after 500 polls (~5s): {desc}");
+}
+
+/// `setTimeout(ms)` を 1 回だけ発行し解決を待つ、条件ポーリングを伴わない
+/// 単純な猶予待機ヘルパー（イシュー #886）。「interval 解除後に状態が
+/// 変化しないこと」の確認用に、タイマーキューが `ms` 分の猶予を処理し
+/// 終えるまで待つ目的でのみ使う（`wait_for(|| false)` の置き換え先。
+/// ファイル冒頭 `//!` の根拠コメント参照）。
+async fn sleep_ms(ms: i32) {
+    let promise = Promise::new(&mut |resolve, _reject| {
+        let window = web_sys::window().expect("window must exist");
+        let closure = Closure::once(move || {
+            resolve.call0(&JsValue::NULL).ok();
+        });
+        window
+            .set_timeout_with_callback_and_timeout_and_arguments_0(
+                closure.as_ref().unchecked_ref(),
+                ms,
+            )
+            .expect("setTimeout must not fail");
+        closure.forget();
+    });
+    wasm_bindgen_futures::JsFuture::from(promise)
+        .await
+        .expect("timeout promise must resolve");
 }
 
 // --- 検証: start → running → pause → resume → complete ------------------
@@ -170,8 +224,18 @@ async fn start_pause_resume_and_complete_lifecycle_reflects_in_dom() {
     // 決定的に完走する小さい値。
     mount_timer(&container, true, 300, 0, 30, 0, TimerPhase::Idle);
 
+    // `wire_timer_events` の `root` 引数は headless_timer.rs の
+    // `read_timer`/`write_timer`/`sync_interval` が `data-state`/
+    // `data-elapsed` を直接読み書きする対象そのもの（timer::root() が
+    // 出力する `[data-scope='timer'][data-part='root']` 要素）である必要が
+    // ある。`container`（テスト用の外側ラッパー div）を渡すと、これらの
+    // 属性はラッパー自身に書き込まれ、`root_element(&container)` が読む
+    // 内側の実 root 要素には反映されず、状態遷移が永久に観測できなくなる
+    // （イシュー #886 で判明した pre-existing のテスト側配線ミス。旧
+    // `wait_for` の無言 return + SIGKILL によるタイムアウト超過がこれまで
+    // 顕在化を隠していた）。
     fandhe_frontend_wasm_full::headless_timer::wire_timer_events(
-        container.clone(),
+        root_element(&container),
         |_action_ref| {},
     )
     .expect("wire_timer_events must not fail");
@@ -180,7 +244,7 @@ async fn start_pause_resume_and_complete_lifecycle_reflects_in_dom() {
     action_trigger_element(&container, "start")
         .dispatch_event(&synthetic_click())
         .expect("dispatch_event must not fail");
-    wait_for(|| {
+    wait_for("data-state to become running after start click", || {
         root_element(&container)
             .get_attribute("data-state")
             .as_deref()
@@ -192,7 +256,7 @@ async fn start_pause_resume_and_complete_lifecycle_reflects_in_dom() {
     action_trigger_element(&container, "pause")
         .dispatch_event(&synthetic_click())
         .expect("dispatch_event must not fail");
-    wait_for(|| {
+    wait_for("data-state to become paused after pause click", || {
         root_element(&container)
             .get_attribute("data-state")
             .as_deref()
@@ -205,8 +269,9 @@ async fn start_pause_resume_and_complete_lifecycle_reflects_in_dom() {
         .unwrap_or(0);
 
     // paused 中に interval が解除されていること（elapsed が変化しないまま
-    // 数 tick 分の猶予を置く）を確認する。
-    wait_for(|| false).await;
+    // interval_ms（30ms）数個分の猶予を置く。ファイル冒頭 `//!` の根拠
+    // コメント参照）を確認する。
+    sleep_ms(150).await;
     let elapsed_still_paused: u64 = root_element(&container)
         .get_attribute("data-elapsed")
         .and_then(|v| v.parse().ok())
@@ -217,7 +282,7 @@ async fn start_pause_resume_and_complete_lifecycle_reflects_in_dom() {
     action_trigger_element(&container, "resume")
         .dispatch_event(&synthetic_click())
         .expect("dispatch_event must not fail");
-    wait_for(|| {
+    wait_for("data-state to become running after resume click", || {
         root_element(&container)
             .get_attribute("data-state")
             .as_deref()
@@ -226,7 +291,7 @@ async fn start_pause_resume_and_complete_lifecycle_reflects_in_dom() {
     .await;
 
     // 完了（completed）まで待つ。
-    wait_for(|| {
+    wait_for("data-state to become completed", || {
         root_element(&container)
             .get_attribute("data-state")
             .as_deref()
@@ -248,7 +313,7 @@ async fn start_pause_resume_and_complete_lifecycle_reflects_in_dom() {
     assert_eq!(seconds_value.text_content().as_deref(), Some("00"));
 
     // 完了後、interval が解除され elapsed がこれ以上増えないこと。
-    wait_for(|| false).await;
+    sleep_ms(150).await;
     assert_eq!(
         root_element(&container)
             .get_attribute("data-elapsed")
@@ -268,8 +333,18 @@ async fn reset_click_returns_to_idle_and_stops_ticking() {
 
     mount_timer(&container, false, 0, 0, 30, 0, TimerPhase::Idle);
 
+    // `wire_timer_events` の `root` 引数は headless_timer.rs の
+    // `read_timer`/`write_timer`/`sync_interval` が `data-state`/
+    // `data-elapsed` を直接読み書きする対象そのもの（timer::root() が
+    // 出力する `[data-scope='timer'][data-part='root']` 要素）である必要が
+    // ある。`container`（テスト用の外側ラッパー div）を渡すと、これらの
+    // 属性はラッパー自身に書き込まれ、`root_element(&container)` が読む
+    // 内側の実 root 要素には反映されず、状態遷移が永久に観測できなくなる
+    // （イシュー #886 で判明した pre-existing のテスト側配線ミス。旧
+    // `wait_for` の無言 return + SIGKILL によるタイムアウト超過がこれまで
+    // 顕在化を隠していた）。
     fandhe_frontend_wasm_full::headless_timer::wire_timer_events(
-        container.clone(),
+        root_element(&container),
         |_action_ref| {},
     )
     .expect("wire_timer_events must not fail");
@@ -277,7 +352,7 @@ async fn reset_click_returns_to_idle_and_stops_ticking() {
     action_trigger_element(&container, "start")
         .dispatch_event(&synthetic_click())
         .expect("dispatch_event must not fail");
-    wait_for(|| {
+    wait_for("data-state to become running after start click", || {
         root_element(&container)
             .get_attribute("data-state")
             .as_deref()
@@ -285,7 +360,7 @@ async fn reset_click_returns_to_idle_and_stops_ticking() {
     })
     .await;
     // 少なくとも 1 tick 経過するのを待つ。
-    wait_for(|| {
+    wait_for("data-elapsed to advance past zero", || {
         root_element(&container)
             .get_attribute("data-elapsed")
             .and_then(|v| v.parse::<u64>().ok())
@@ -297,7 +372,7 @@ async fn reset_click_returns_to_idle_and_stops_ticking() {
     action_trigger_element(&container, "reset")
         .dispatch_event(&synthetic_click())
         .expect("dispatch_event must not fail");
-    wait_for(|| {
+    wait_for("data-state to become idle after reset click", || {
         root_element(&container)
             .get_attribute("data-state")
             .as_deref()
@@ -312,7 +387,7 @@ async fn reset_click_returns_to_idle_and_stops_ticking() {
     );
 
     // reset 後、interval が解除され elapsed が増え続けないこと。
-    wait_for(|| false).await;
+    sleep_ms(150).await;
     assert_eq!(
         root_element(&container)
             .get_attribute("data-elapsed")
@@ -333,13 +408,23 @@ async fn already_running_root_at_wire_time_resumes_ticking_immediately() {
     // ハイドレーション直後に既に running な Timer が存在する状況を模す。
     mount_timer(&container, false, 0, 0, 30, 0, TimerPhase::Running);
 
+    // `wire_timer_events` の `root` 引数は headless_timer.rs の
+    // `read_timer`/`write_timer`/`sync_interval` が `data-state`/
+    // `data-elapsed` を直接読み書きする対象そのもの（timer::root() が
+    // 出力する `[data-scope='timer'][data-part='root']` 要素）である必要が
+    // ある。`container`（テスト用の外側ラッパー div）を渡すと、これらの
+    // 属性はラッパー自身に書き込まれ、`root_element(&container)` が読む
+    // 内側の実 root 要素には反映されず、状態遷移が永久に観測できなくなる
+    // （イシュー #886 で判明した pre-existing のテスト側配線ミス。旧
+    // `wait_for` の無言 return + SIGKILL によるタイムアウト超過がこれまで
+    // 顕在化を隠していた）。
     fandhe_frontend_wasm_full::headless_timer::wire_timer_events(
-        container.clone(),
+        root_element(&container),
         |_action_ref| {},
     )
     .expect("wire_timer_events must not fail");
 
-    wait_for(|| {
+    wait_for("data-elapsed to advance past zero", || {
         root_element(&container)
             .get_attribute("data-elapsed")
             .and_then(|v| v.parse::<u64>().ok())
