@@ -114,6 +114,17 @@ impl ChartData {
     /// [`ChartData::new`] の不変条件により `categories`/`series` は必ず
     /// 1 件以上かつ全値有限であるため、本関数は必ず有限な `(min, max)` を
     /// 返す（空データによる panic は構造的に発生しない）。
+    ///
+    /// 全系列・全カテゴリの値が完全に一致する（フラットな定数値チャート）場合、
+    /// `min == max` の縮退した値域は返さない。[`LinearScale::new`] は
+    /// `domain.0 == domain.1` を [`ChartError::DegenerateDomain`] として拒否する
+    /// ため、そのまま返すと `domain()` → `LinearScale::new` という本モジュールが
+    /// 文書化している標準経路がフラットデータで必ず失敗してしまう
+    /// （Cursor Bugbot 指摘、イシュー #846 追補）。この場合は `v` を中心に
+    /// 幅 2.0 の対称区間 `(v - 1.0, v + 1.0)` を返し、`v == 0.0` の場合も
+    /// `(0.0, 0.0)` を再生しないようにする（`(-1.0, 1.0)` になり非退化）。
+    ///
+    /// [`LinearScale::new`]: crate::charts::scale::LinearScale::new
     #[must_use]
     pub fn domain(&self) -> (f64, f64) {
         let mut min = f64::INFINITY;
@@ -124,7 +135,11 @@ impl ChartData {
                 max = max.max(v);
             }
         }
-        (min, max)
+        if min == max {
+            (min - 1.0, max + 1.0)
+        } else {
+            (min, max)
+        }
     }
 
     /// 指定した系列名の値を基準に、カテゴリと全系列の値を安定ソートした
@@ -288,6 +303,33 @@ mod tests {
     fn domain_spans_all_series() {
         let data = sample();
         assert_eq!(data.domain(), (1.0, 30.0));
+    }
+
+    #[test]
+    fn domain_expands_when_all_values_are_equal() {
+        // フラットな定数値チャート（全系列・全カテゴリが同値）。
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string()],
+            vec![Series::new("flat", vec![5.0, 5.0])],
+        )
+        .unwrap();
+        let (min, max) = data.domain();
+        assert!(min < max, "domain must not degenerate to (v, v)");
+        // LinearScale::new が DegenerateDomain を返さないことを確認する
+        // （domain() → LinearScale::new という標準経路の回帰、イシュー #846）。
+        assert!(super::super::scale::LinearScale::new((min, max), (0.0, 100.0)).is_ok());
+    }
+
+    #[test]
+    fn domain_expands_around_zero_without_reproducing_degenerate_zero() {
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string()],
+            vec![Series::new("flat_zero", vec![0.0, 0.0])],
+        )
+        .unwrap();
+        let (min, max) = data.domain();
+        assert!(min < 0.0 && max > 0.0);
+        assert!(super::super::scale::LinearScale::new((min, max), (0.0, 100.0)).is_ok());
     }
 
     #[test]

@@ -140,6 +140,18 @@ impl LinearScale {
             i += 1;
         }
 
+        // `nice_step` が domain 幅に対して過大なステップへ切り上げると
+        // `first`（ceil）が `last`（floor）を上回り、上のループが 1 件も
+        // 目盛りを生成しないまま `Ok(vec![])` を返してしまう（例:
+        // domain (2.1, 2.9)・target 1 → step 1.0 → first=3.0 > last=2.0）。
+        // 軸描画が空の目盛りセットになるのを避けるため、domain の両端
+        // （`LinearScale::new` により非退化＝常に相異なることが保証済み）
+        // を tick として返す（Cursor Bugbot 指摘、イシュー #846 追補）。
+        if values.is_empty() {
+            values.push(lo);
+            values.push(hi);
+        }
+
         if d0 > d1 {
             values.reverse();
         }
@@ -270,5 +282,23 @@ mod tests {
         let s = LinearScale::new((97.0, 3.0), (0.0, 100.0)).unwrap();
         let niced = s.nice();
         assert_eq!(niced.domain(), (100.0, 0.0));
+    }
+
+    #[test]
+    fn ticks_never_returns_empty_even_when_nice_step_overshoots_domain() {
+        // nice_step(0.8) は 1.0 に切り上がり、first(ceil 3.0) > last(floor 2.0)
+        // となって従来はループが 1 件も生成せず Ok(vec![]) を返していた
+        // （Cursor Bugbot 指摘、イシュー #846 追補）。
+        let s = LinearScale::new((2.1, 2.9), (0.0, 100.0)).unwrap();
+        let ticks = s.ticks(1).unwrap();
+        assert!(!ticks.is_empty());
+        assert_eq!(ticks, vec![2.1, 2.9]);
+    }
+
+    #[test]
+    fn ticks_fallback_respects_inverted_domain_direction() {
+        let s = LinearScale::new((2.9, 2.1), (0.0, 100.0)).unwrap();
+        let ticks = s.ticks(1).unwrap();
+        assert_eq!(ticks, vec![2.9, 2.1]);
     }
 }
