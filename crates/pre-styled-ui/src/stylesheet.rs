@@ -301,6 +301,7 @@ mod tests {
             ("breadcrumb", crate::breadcrumb::stylesheet()),
             ("carousel", crate::carousel::stylesheet()),
             ("image", crate::image::css()),
+            ("image_cropper", crate::image_cropper::stylesheet()),
             ("icon", crate::icon::css()),
             ("link", crate::link::stylesheet()),
             ("link_overlay", crate::link_overlay::stylesheet()),
