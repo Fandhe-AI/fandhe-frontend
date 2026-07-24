@@ -42,9 +42,10 @@ HoverCard styled ラッパー追加（#759）・ToggleTip styled ラッパー追
 ラッパー追加（#774）・VisuallyHidden/SkipNav 静的部品追加（#776）・
 ActionBar styled ラッパー追加（#762）・Toast styled ラッパー追加
 （#760）・Stat/Timeline styled 静的部品追加（#769）・Table/DataList
-静的部品追加（#767、いずれも公開時点未反映）・Splitter styled ラッパー
-追加（#826、`docs/policy/intentional-non-adoption.md` §7 の保留解除）を経て
-76 の公開モジュールを持つ。内訳は次の通り。
+静的部品追加（#767）・ScrollArea headless ラッパー追加（#825）・
+DownloadTrigger headless ラッパー追加（#828）・Splitter styled ラッパー
+追加（#826、`docs/policy/intentional-non-adoption.md` §7 の保留解除。
+いずれも公開時点未反映）を経て 78 の公開モジュールを持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -96,8 +97,10 @@ ActionBar styled ラッパー追加（#762）・Toast styled ラッパー追加
 | headless ラッパー | `clipboard` | #773（`hover_card`/`toggle_tip` と同型の判断で variant は非提供。Indicator の可視性切り替えは `avatar` の image/fallback と同型の `data-state` 多層防御パターン。`navigator.clipboard.writeText` 実配線は `fandhe-frontend-wasm-full::headless_clipboard` が提供） |
 | タイポグラフィ静的部品 | `heading` / `text` / `em` / `mark` / `blockquote` / `list` | #771（§4i 参照。素の HTML 意味論（h1〜h6/p/em/mark/blockquote/ul・ol・li）をそのまま styled 化。headless 状態機械は要しない） |
 | headless ラッパー | `qr_code` | #774（headless の外部依存ゼロ QR Model 2 エンコーダ（`crates/headless-ui/src/qr_code.rs`）へ CSS のみ追加提供。`size` variant のみ・`color-palette` 軸は非提供（前景/背景色は固定トークンに閉じ、低コントラスト組み合わせを誘発しないための意図的判断、`qr_code` モジュール doc「`size` variant」節参照）。`Frame`/`Pattern`/`Overlay` は headless 自由関数をそのまま選択的に再エクスポートする） |
+| headless ラッパー（Button recipe 流用） | `download_trigger` | #828（`a[download]` 属性による静的ダウンロードトリガー。独自 CSS 宣言を持たず `crate::button::recipe_with_scope("download-trigger")` へ委譲し、`variant`/`size`/`color-palette` の宣言・既定値を Button と共有する。`disabled`/`loading` は `a` 要素の意味論に存在しないため非提供） |
 | 状態機械を持たない静的表示部品 | `table` / `data_list` | #767（`card` と同型。headless-ui 側に対応する anatomy を持たず本クレートで新規 anatomy `table`/`data-list` を定義する。`table` は `variant`（`Line`/`Outline`）/`size`/`striped` の 3 軸 variant を持ち、striped は新設の `StateCondition::NthChildEven` で表現する。`data_list` は `orientation`（`Vertical`/`Horizontal`）の 1 軸のみ。`interactive`/`stickyHeader`/`showColumnBorder`/`ScrollArea`/`ColumnGroup`（table）・`variant`（subtle/bold）/`size`（data_list）はスコープ外） |
 | 静的部品（新規 anatomy） | `stat` / `timeline` | #769（ark-ui に対応する headless anatomy が存在しないため、`checkbox_card`/`radio_card`（#747）と同型の判断で headless-ui は変更せず pre-styled-ui 層で新規 anatomy `data-scope="stat"`/`"timeline"` を定義。`stat` は `<dl>`/`<dt>`/`<dd>` を使い `size` variant のみ・`color-palette` 軸は非提供（`card` と同型の中立部品判断）、増減 indicator は `rating_group` と同型の `clip-path` インライン三角形。`timeline` は `<ol>`/`<li>` を使い `variant`（`TimelineVariant`: solid/subtle/outline/plain）/`size`/`color-palette` の 3 軸を root のみへ付与し `indicator`/`separator` へは CSS custom property の継承で伝搬。`showLastSeparator` 相当は recipe 側で自動制御せず、呼び出し側が最終 item へ `separator` パーツを含めないことで表現する契約） |
+| headless ラッパー | `scroll_area` | #825（`docs/design/component-coverage-map.md` 保留解除。状態機械なし。variant は非提供。`viewport` へ `overflow: auto` + `scrollbar-width`/`scrollbar-color`（標準プロパティ）を付与し、`stylesheet()` が `recipe().css()` に続けて `::-webkit-scrollbar` 系規則を固定文字列として追記する（`spinner` の `@keyframes` 追記と同型）。`scrollbar`/`thumb`/`corner` は JS によるスクロール位置追従が本イシューのスコープ外のため初期実装では `display: none` にしてネイティブスクロールバーの装飾で代替する） |
 | headless ラッパー | `splitter` | #826（`docs/policy/intentional-non-adoption.md` §7・`docs/design/component-coverage-map.md` の保留解除。`size` variant のみを root へ持ち `resize-trigger` の厚みへ継承、`color-palette` はセパレータの強調色にのみ使う。動的値は `panel` の `--fandhe-splitter-size`（flex-basis 経由）の 1 点のみ。`resize-trigger` はネイティブ `<div tabindex>` が実フォーカスを受けるため `FocusVisible` state condition で足りる（`slider`/`toggle` と同型）） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`

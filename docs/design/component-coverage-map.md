@@ -49,29 +49,32 @@ grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs \
   | grep -vE 'css|recipe|stylesheet|theme'
 ```
 
-2026-07-23 時点の実測（#750 マージにより listbox、#745 マージにより
-editable を追加反映。#765 マージによる status / empty_state を含め再実測。
-本節はこれ以前の複数 PR（#754〜#765 等）を経て蓄積した mod 数の乖離を合わせ
-て是正した）:
+2026-07-24 時点の実測（#828 マージにより download_trigger を追加反映。
+これ以前は 2026-07-23 時点の実測（#750 マージにより listbox、#745 マージ
+により editable を追加反映。#765 マージによる status / empty_state を含め
+再実測。本節はこれ以前の複数 PR（#754〜#765 等）を経て蓄積した mod 数の
+乖離を合わせて是正した）だった）:
 
-- headless-ui 36: accordion / avatar / breadcrumb / carousel / checkbox /
-  collapsible / combobox / dialog / drawer / editable / field / fieldset /
-  hover_card / link / link_overlay / listbox / menu / nav_list /
-  number_input / pagination / pin_input / popover / progress /
+- headless-ui 37: accordion / avatar / breadcrumb / carousel / checkbox /
+  collapsible / combobox / dialog / download_trigger / drawer / editable /
+  field / fieldset / hover_card / link / link_overlay / listbox / menu /
+  nav_list / number_input / pagination / pin_input / popover / progress /
   radio_group / rating_group / segment_group / select / slider / switch /
   tabs / tags_input / toggle / toggle_group / toggle_tip / tooltip /
   tree_view
-- pre-styled-ui 44（styled ラッパー 34 + 静的部品 10）:
+- pre-styled-ui 45（styled ラッパー 35 + 静的部品 10）:
   accordion / avatar / breadcrumb / carousel / checkbox / checkbox_card /
-  combobox / dialog / drawer / editable / hover_card / link / link_overlay /
-  listbox / menu / nav_list / number_input / pagination / pin_input /
-  popover / radio_card / radio_group / rating_group / segment_group /
-  select / slider / switch / tabs / tags_input / toggle / toggle_group /
-  toggle_tip / tooltip / tree_view（styled ラッパー、`checkbox_card`/
-  `radio_card` は headless 状態機械（`checkbox`/`radio_group`）を再利用する
-  カード型選択 UI として本区分へ計上、34 件）+ alert / badge / button /
-  card / spinner / input / textarea / native_select / status /
-  empty_state（静的部品、10 件）
+  combobox / dialog / download_trigger / drawer / editable / hover_card /
+  link / link_overlay / listbox / menu / nav_list / number_input /
+  pagination / pin_input / popover / radio_card / radio_group /
+  rating_group / segment_group / select / slider / switch / tabs /
+  tags_input / toggle / toggle_group / toggle_tip / tooltip / tree_view
+  （styled ラッパー、`checkbox_card`/`radio_card` は headless 状態機械
+  （`checkbox`/`radio_group`）を再利用するカード型選択 UI として、
+  `download_trigger` は headless 自由関数（`download_trigger::root`）を
+  `crate::button::recipe_with_scope` で流用する styled 版として、本区分へ
+  計上、35 件）+ alert / badge / button / card / spinner / input /
+  textarea / native_select / status / empty_state（静的部品、10 件）
 
 ## 4. 抜けの機械確認手順
 
@@ -148,7 +151,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/disclosure/tabs.md` | Tabs | Tabs | tabs | tabs | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/disclosure/toggle.md` | Toggle | — | — | — | 実装対象 | #746 |
 | `.agents/skills/ark-ui/references/components/disclosure/toggle-group.md` | ToggleGroup | — | — | — | 実装対象 | #746 |
-| `.agents/skills/ark-ui/references/components/disclosure/scroll-area.md` | ScrollArea | ScrollArea | — | — | 保留 | （装飾系）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/ark-ui/references/components/disclosure/scroll-area.md` | ScrollArea | ScrollArea | scroll_area | scroll_area | 実装済み | headless+styled 実装済み（#825、保留解除。JS によるスクロール位置追従・thumb drag は本イシューのスコープ外） |
 | `.agents/skills/ark-ui/references/components/disclosure/splitter.md` | Splitter | Splitter | splitter | splitter | 実装済み | headless+styled 実装済み（#826、#735 保留の解除） |
 | `.agents/skills/ark-ui/references/components/disclosure/README.md` | README | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 
@@ -232,7 +235,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 |---|---|---|---|---|---|---|
 | `.agents/skills/ark-ui/references/utilities/highlight.md` | Highlight | Highlight | — | `highlight` | 実装済み | #775。pre-styled 静的部品 実装済み |
 | `.agents/skills/ark-ui/references/utilities/client-only.md` | ClientOnly | ClientOnly | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
-| `.agents/skills/ark-ui/references/utilities/download-trigger.md` | DownloadTrigger | DownloadTrigger | — | — | 保留 | （JS ランタイム固有 utilities のうち静的実装可能なもの）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/ark-ui/references/utilities/download-trigger.md` | DownloadTrigger | DownloadTrigger | `download_trigger` | `download_trigger` | 実装済み | #828。保留（#735 §7「JS ランタイム固有 utilities のうち静的実装可能なもの」）を利用要望 issue（#828）の起票により解除。`a[download]` 属性による静的部品として実装（`Blob`/`data`/`mimeType` は JS 前提のため対応しない） |
 | `.agents/skills/ark-ui/references/utilities/environment.md` | Environment | EnvironmentProvider | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
 | `.agents/skills/ark-ui/references/utilities/focus-trap.md` | FocusTrap | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
 | `.agents/skills/ark-ui/references/utilities/format-byte.md` | FormatByte | FormatByte | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
@@ -338,7 +341,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/buttons/button.md` | — | Button | — | button | 実装済み | pre-styled 静的部品 実装済み |
-| `.agents/skills/chakra-ui/references/components/buttons/download-trigger.md` | DownloadTrigger | DownloadTrigger | — | — | 保留 | （JS ランタイム固有 utilities のうち静的実装可能なもの）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/chakra-ui/references/components/buttons/download-trigger.md` | DownloadTrigger | DownloadTrigger | `download_trigger` | `download_trigger` | 実装済み | #828。保留（#735 §7「JS ランタイム固有 utilities のうち静的実装可能なもの」）を利用要望 issue（#828）の起票により解除。`a[download]` 属性による静的部品として実装（`Blob`/`data`/`mimeType` は JS 前提のため対応しない） |
 | `.agents/skills/chakra-ui/references/components/buttons/close-button.md` | — | CloseButton | — | — | 保留 | （Button バリエーション）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
 | `.agents/skills/chakra-ui/references/components/buttons/icon-button.md` | — | IconButton | — | — | 保留 | （Button バリエーション）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
 
@@ -451,7 +454,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/layout/separator.md` | — | Separator | — | separator | 実装済み | #772。pre-styled 静的部品 実装済み |
-| `.agents/skills/chakra-ui/references/components/layout/scroll-area.md` | ScrollArea | ScrollArea | — | — | 保留 | （装飾系）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/chakra-ui/references/components/layout/scroll-area.md` | ScrollArea | ScrollArea | scroll_area | scroll_area | 実装済み | headless+styled 実装済み（#825、保留解除。JS によるスクロール位置追従・thumb drag は本イシューのスコープ外） |
 | `.agents/skills/chakra-ui/references/components/layout/splitter.md` | Splitter | Splitter | splitter | splitter | 実装済み | headless+styled 実装済み（#826、#735 保留の解除） |
 | `.agents/skills/chakra-ui/references/components/layout/absolute-center.md` | — | AbsoluteCenter | — | — | 意図的非採用 | #716/#724 で非採用確定済み（layout プリミティブ） |
 | `.agents/skills/chakra-ui/references/components/layout/aspect-ratio.md` | — | AspectRatio | — | — | 意図的非採用 | #716/#724 で非採用確定済み（layout プリミティブ） |

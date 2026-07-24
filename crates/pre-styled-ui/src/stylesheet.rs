@@ -253,6 +253,7 @@ mod tests {
     fn all_styled_component_css() -> Vec<(&'static str, String)> {
         vec![
             ("button", crate::button::css()),
+            ("download_trigger", crate::download_trigger::css()),
             ("badge", crate::badge::css()),
             ("spinner", crate::spinner::css()),
             ("alert", crate::alert::css()),
@@ -324,6 +325,7 @@ mod tests {
             ("data_list", crate::data_list::css()),
             ("stat", crate::stat::css()),
             ("timeline", crate::timeline::css()),
+            ("scroll_area", crate::scroll_area::stylesheet()),
         ]
     }
 

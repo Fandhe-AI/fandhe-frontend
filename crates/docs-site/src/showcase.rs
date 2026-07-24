@@ -56,6 +56,7 @@ use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::code::code;
 use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataListProps};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
+use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::editable::{
     self, EditMode, EditableInputFlags, EditableInputProps,
@@ -85,6 +86,7 @@ use fandhe_frontend_pre_styled_ui::password_input::{
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
+use fandhe_frontend_pre_styled_ui::scroll_area;
 use fandhe_frontend_pre_styled_ui::segment_group;
 use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, SeparatorVariant};
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps, SkeletonVariant};
@@ -213,14 +215,15 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 /// ショーケースが参照する CSS 全量を組み立てる。
 ///
 /// 内訳: テーマトークン（`Theme::default`、ライト/ダーク両対応）→ 掲載
-/// コンポーネントの recipe CSS（button/badge/spinner/alert/card/tabs/
-/// accordion/dialog/drawer/menu/select/combobox/popover/tooltip/hover_card/
-/// toggle_tip/switch/radio_group/avatar/checkbox/checkbox_card/radio_card/
-/// input/textarea/native_select/number_input/tags_input/rating_group/
-/// slider/segment_group/pagination/breadcrumb/carousel/action_bar/toast/
-/// progress/tag/kbd/code/image/icon/status/empty_state/visually_hidden/
-/// qr_code/heading/text/em/mark/blockquote/list/table/data_list/stat/
-/// timeline）→ ショーケース配置スタイル、の順で決定的に連結する。
+/// コンポーネントの recipe CSS（button/download_trigger/badge/spinner/alert/
+/// card/tabs/accordion/dialog/drawer/menu/select/combobox/popover/tooltip/
+/// hover_card/toggle_tip/switch/radio_group/avatar/checkbox/checkbox_card/
+/// radio_card/input/textarea/native_select/number_input/tags_input/
+/// rating_group/slider/segment_group/pagination/breadcrumb/carousel/
+/// action_bar/toast/progress/tag/kbd/code/image/icon/status/empty_state/
+/// visually_hidden/qr_code/heading/text/em/mark/blockquote/list/table/
+/// data_list/stat/timeline/scroll_area/splitter）→ ショーケース配置
+/// スタイル、の順で決定的に連結する。
 ///
 /// # Errors
 ///
@@ -232,6 +235,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     let mut sheet = StyleSheet::new();
     sheet.push_theme(&Theme::default());
     sheet.push_css(&fandhe_frontend_pre_styled_ui::button::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::download_trigger::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::badge::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::spinner::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::alert::css())?;
@@ -294,6 +298,8 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::data_list::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::stat::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::timeline::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::scroll_area::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::splitter::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -398,6 +404,83 @@ fn button_section() -> Node {
         "Button",
         "variant（solid / outline / ghost / subtle）・size・colorPalette・状態（disabled / loading）の各軸を型安全な props で切り替えます。",
         vec![variant_row, size_row, palette_row, state_row],
+    )
+}
+
+/// DownloadTrigger 節（イシュー #828）: variant / size / palette の各軸。
+/// Button recipe の流用（`crates/pre-styled-ui/src/download_trigger.rs`
+/// rustdoc 参照）であるため、デモの構成は [`button_section`] と対称に
+/// 揃える。`href` は空文字列を使う（`breadcrumb_section` と同じ理由:
+/// `crate::linkcheck::check_links` は空 href を無条件でスキップする契約で
+/// あり、生成コンテンツを linkcheck の突合対象へ含めない本モジュールの
+/// 既存設計（`showcase_markup_has_no_href_attributes_for_linkcheck_neutrality`
+/// 参照）を壊さずに `a[download]` 要素を掲示するための選択。実配信への
+/// 導線は呼び出し側アプリケーションの責務であり、本ショーケースは recipe
+/// CSS の見た目確認が目的）。
+fn download_trigger_section() -> Node {
+    let variants = [
+        (ButtonVariant::Solid, "Solid"),
+        (ButtonVariant::Outline, "Outline"),
+        (ButtonVariant::Ghost, "Ghost"),
+        (ButtonVariant::Subtle, "Subtle"),
+    ];
+    let variant_row = row(variants
+        .iter()
+        .map(|(variant, label)| {
+            download_trigger::root(
+                &DownloadTriggerProps {
+                    variant: *variant,
+                    ..DownloadTriggerProps::default()
+                },
+                "",
+                Some("sample-report.pdf"),
+                vec![],
+                vec![text(*label)],
+            )
+        })
+        .collect());
+
+    let sizes = [
+        (Size::Sm, "Small"),
+        (Size::Md, "Medium"),
+        (Size::Lg, "Large"),
+    ];
+    let size_row = row(sizes
+        .iter()
+        .map(|(size, label)| {
+            download_trigger::root(
+                &DownloadTriggerProps {
+                    size: *size,
+                    ..DownloadTriggerProps::default()
+                },
+                "",
+                Some("sample-report.pdf"),
+                vec![],
+                vec![text(*label)],
+            )
+        })
+        .collect());
+
+    let palette_row = row(palettes()
+        .iter()
+        .map(|(palette, label)| {
+            download_trigger::root(
+                &DownloadTriggerProps {
+                    palette: *palette,
+                    ..DownloadTriggerProps::default()
+                },
+                "",
+                Some("sample-report.pdf"),
+                vec![],
+                vec![text(*label)],
+            )
+        })
+        .collect());
+
+    section(
+        "DownloadTrigger",
+        "a[download] 属性による宣言的ダウンロードトリガー（JS 不要の静的部品）。variant・size・colorPalette は Button recipe を流用します。",
+        vec![variant_row, size_row, palette_row],
     )
 }
 
@@ -2809,7 +2892,11 @@ fn splitter_section() -> Node {
         ColorPalette::Accent,
         &vertical_state,
         false,
-        vec![],
+        // column flex の root では各 panel が `flex-basis` にパーセンテージを
+        // 使うため、root 自身に解決済みの main size（高さ）がないとパーセン
+        // テージが適用されない（Bugbot 指摘、PR #862）。明示的な高さを与えて
+        // 33/33/34 分割が実際に反映されるようにする。
+        vec![("style", "height: 16rem;")],
         vertical_children,
     );
 
@@ -3584,6 +3671,31 @@ fn timeline_section() -> Node {
     )
 }
 
+/// ScrollArea 節（イシュー #825）: `overflow: auto` によるネイティブスクロール
+/// とカスタムスクロールバー表現（`scrollbar-width`/`::-webkit-scrollbar`）。
+/// JS によるスクロール位置追従は本イシューのスコープ外（`crate::scroll_area`
+/// rustdoc 参照）のため、固定高の viewport と長文 content のみを掲示する。
+fn scroll_area_section() -> Node {
+    let items: Vec<Node> = (1..=20)
+        .map(|i| el("p", vec![], vec![text(format!("スクロール可能な行 {i}"))]))
+        .collect();
+    let demo = scroll_area::root(
+        vec![(
+            "style",
+            "height: 8rem; width: 16rem; border: 1px solid var(--fandhe-color-border);",
+        )],
+        vec![scroll_area::viewport(
+            vec![],
+            vec![scroll_area::content(vec![], items)],
+        )],
+    );
+    section(
+        "ScrollArea",
+        "CSS overflow を主体としたスクロール領域です。カスタムスクロールバーの見た目は scrollbar-width/scrollbar-color と ::-webkit-scrollbar 系規則で表現します（JS によるスクロール位置追従は対象外）。",
+        vec![demo],
+    )
+}
+
 /// Tag 節（イシュー #768）: variant / size / colorPalette と、
 /// close-trigger（`data-action` 配線のみ、クリック処理は wasm 層の
 /// スコープ外）の掲示。
@@ -3694,6 +3806,7 @@ fn showcase_body() -> Node {
         vec![("class", "pre-styled-showcase")],
         vec![
             button_section(),
+            download_trigger_section(),
             badge_section(),
             spinner_section(),
             skeleton_section(),
@@ -3750,6 +3863,7 @@ fn showcase_body() -> Node {
             data_list_section(),
             stat_section(),
             timeline_section(),
+            scroll_area_section(),
         ],
     )
 }
@@ -3912,6 +4026,9 @@ mod tests {
         assert!(css.contains("--fandhe-color-"));
         // 各コンポーネントの recipe セレクタ。
         assert!(css.contains(".fd-button--variant-solid"));
+        // DownloadTrigger（イシュー #828）の recipe CSS が stylesheet() に
+        // 反映されていること（Bugbot 指摘: 追加当初漏れていた回帰防止）。
+        assert!(css.contains(".fd-download-trigger--variant-solid"));
         assert!(css.contains(".fd-badge--variant-subtle"));
         assert!(css.contains(r#"[data-scope="tabs"][data-part="trigger"]"#));
         assert!(css.contains(r#"[data-scope="accordion"]"#));
