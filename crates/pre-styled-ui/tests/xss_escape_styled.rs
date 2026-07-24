@@ -3417,3 +3417,127 @@ fn color_swatch_class_style_and_children_payloads_are_escaped_for_all_payloads()
         );
     }
 }
+
+/// styled ColorPicker（イシュー #839）の XSS 回帰。
+///
+/// 対象の入力面:
+/// 1. style 上書き経路: [`fandhe_frontend_pre_styled_ui::color_picker::trigger`]/
+///    `area_background`/`area_thumb`/`channel_slider_track`（Alpha）/
+///    `channel_slider_thumb` はフレームワーク生成の `style`（custom
+///    property）を持つため、呼び出し側 `attrs` の `style` を渡しても
+///    完全置換され、生ペイロードが一切残らないことを確認する。
+/// 2. 属性値経路: styled `root` の呼び出し側 `attrs`（`style` 以外）。
+/// 3. 選択的再エクスポートした `label`/`hidden_input`/`channel_input` の
+///    children・属性値経路。
+/// 4. 色値経路: 動的 style へ到達するのは
+///    [`fandhe_frontend_headless_ui::color::Color::to_hex_string`] の出力
+///    （常に `#[0-9a-f]` に閉じる）と検証済み整数のみのため、攻撃者が
+///    制御しうる生文字列を `style` へ注入する経路が構造的に存在しない。
+#[test]
+fn color_picker_style_dedup_attrs_and_reexported_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_headless_ui::color::{Color, Rgb};
+    use fandhe_frontend_headless_ui::color_picker::ColorPicker;
+    use fandhe_frontend_pre_styled_ui::color_picker;
+
+    for payload in payloads::all() {
+        let state = ColorPicker::from_color(Color::from_rgb(Rgb::new(0x3b, 0x82, 0xf6)));
+
+        // (1) style 上書き経路: 呼び出し側 `style` はフレームワーク生成
+        // custom property へ完全置換されるため（[`assert_payload_is_escaped`]
+        // が前提とする「エスケープ済みの形で出力に残る」経路ではない）、
+        // ここでは `style="..."` が唯一であること・生ペイロードが一切
+        // 出力に残らないことを固定する（`crates/pre-styled-ui/src/slider.rs`
+        // の `range_caller_style_attr_is_dropped_not_duplicated` と同型）。
+        let html = render(&color_picker::trigger(
+            &state,
+            false,
+            None,
+            vec![("style", payload)],
+            vec![],
+        ));
+        assert_eq!(html.matches("style=\"").count(), 1);
+        assert!(!html.contains(payload));
+        assert!(!html.contains("<script>"));
+
+        // (1) style 上書き経路: area_background。
+        let html = render(&color_picker::area_background(
+            &state,
+            vec![("style", payload)],
+            vec![],
+        ));
+        assert_eq!(html.matches("style=\"").count(), 1);
+        assert!(!html.contains(payload));
+        assert!(!html.contains("<script>"));
+
+        // (1) style 上書き経路: area_thumb。
+        let html = render(&color_picker::area_thumb(
+            &state,
+            false,
+            vec![("style", payload)],
+            vec![],
+        ));
+        assert_eq!(html.matches("style=\"").count(), 1);
+        assert!(!html.contains(payload));
+        assert!(!html.contains("<script>"));
+
+        // (1) style 上書き経路: channel_slider_track（Alpha）。
+        let html = render(&color_picker::channel_slider_track(
+            color_picker::Channel::Alpha,
+            &state,
+            vec![("style", payload)],
+            vec![],
+        ));
+        assert_eq!(html.matches("style=\"").count(), 1);
+        assert!(!html.contains(payload));
+        assert!(!html.contains("<script>"));
+
+        // (1) style 上書き経路: channel_slider_thumb。
+        let html = render(&color_picker::channel_slider_thumb(
+            color_picker::Channel::Hue,
+            &state,
+            false,
+            vec![("style", payload)],
+            vec![],
+        ));
+        assert_eq!(html.matches("style=\"").count(), 1);
+        assert!(!html.contains(payload));
+        assert!(!html.contains("<script>"));
+
+        // (2) 属性値経路: styled root。
+        let html = render(&color_picker::root(
+            &state,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "color_picker::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // (3) 再エクスポート label の children テキスト経路。
+        let html = render(&color_picker::label(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "color_picker::label children コンテキスト");
+
+        // (3) 再エクスポート hidden_input の name/value 属性値経路。
+        let html = render(&color_picker::hidden_input(
+            payload,
+            "#ffffff",
+            false,
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "color_picker::hidden_input の name 属性値コンテキスト",
+        );
+
+        // (3) 再エクスポート channel_input の value 属性値経路。
+        let html = render(&color_picker::channel_input(payload, false, vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "color_picker::channel_input の value 属性値コンテキスト",
+        );
+    }
+}

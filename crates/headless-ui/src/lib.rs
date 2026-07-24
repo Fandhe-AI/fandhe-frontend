@@ -474,6 +474,16 @@
 //!   （Calendar / DatePicker / DateInput / Timer、#834 以降）が描画前の
 //!   暦計算に共通で使う先行前提であり、本モジュール自体は非描画の純計算
 //!   モジュールで anatomy・状態機械を持たない。
+//! - [`mod@color_picker`]: HSV + アルファ + [`state::Disclosure`] を埋め込んだ
+//!   ColorPicker（イシュー #839、親 #837、`docs/design/component-coverage-map.md`
+//!   保留解除）。Root / Label / Control / Trigger / Positioner / Content /
+//!   Area / AreaBackground / AreaThumb / ChannelSlider(+Track/+Thumb) /
+//!   ChannelInput / ValueText / HiddenInput の各 anatomy パーツを提供する。
+//!   [`mod@color`] の型・変換関数（外部依存ゼロ・整数演算のみ）のみを土台に
+//!   し、色領域・色相/アルファスライダーの見た目は CSS グラデーション +
+//!   thumb 位置（本モジュールの導出 getter が算出する割合）で表現する
+//!   canvas 非依存の設計（`docs/policy/intentional-non-adoption.md` §7
+//!   再評価トリガー充足）。
 //! - [`mod@date_input`]: Root / Label / Control / SegmentGroup / Segment /
 //!   HiddenInput の 6 anatomy パーツと、年/月/日セグメント + フォーカス位置を
 //!   持つ [`date_input::DateInput`] 状態機械（イシュー #834、
@@ -511,6 +521,7 @@ pub mod checkbox;
 pub mod clipboard;
 pub mod collapsible;
 pub mod color;
+pub mod color_picker;
 pub mod combobox;
 pub mod data_attrs;
 pub mod date;
