@@ -133,22 +133,54 @@ fn normalize(value: u16, step: u16) -> (u16, u16) {
 /// `value` を `0` 起点の `step` グリッドへ最近傍スナップしてから
 /// `0..=359` へ正規化する（[`crate::slider::snap_to_step`] の角度版）。
 ///
-/// `(value / step).round()` で最も近い step 数（整数）を求め、
-/// `steps * step` を [`normalize_angle`] で `mod 360` する。四捨五入は
-/// `f64` の `round()`（0.5 は正の無限大方向、四則演算のみで完結し
-/// 決定的）を用いる。呼び出し元（[`AngleSlider::update`] の
-/// `AngleSliderAction::Set`）はこの関数を経由することで、
-/// `increment`/`decrement` が加算し続ける step グリッドへ常に整列した
-/// 状態を保つ（ark-ui の `snapAngleToStep` と同型の契約、
-/// [`crate::slider::Slider::update`] の `SetValue` と同様に "set" も
-/// 必ずスナップする）。
+/// `step` が `360` の約数でない場合、`0` 起点で単純に
+/// `(value / step).round() * step` を計算する線形グリッド方式では
+/// 最終区間（最後の step 倍数から `360`（≡ `0`）までの区間）が他の
+/// 区間より短くなる（例: `step = 25` なら `350..360` の区間は長さ
+/// `10` しかない）。この短い最終区間を無視して線形グリッドをそのまま
+/// 延長すると、本来 `0` に最も近い角度（例: `358`）が誤って手前の通常グリッド点
+/// （`350`）へスナップされ、コンポーネントの `360 ≡ 0` 契約（circular
+/// wrap-around 最近接スナップ）が破れる
+/// （Bugbot 指摘「Snap breaks 360-equals-0」対応）。
+///
+/// そのため以下の 2 候補のみを比較し、近い方へスナップする:
+/// - `candidate_low`: 正規化済み角度以下の最大の step 倍数
+///   （`floor(normalized / step) * step`）
+/// - `candidate_high`: その次の step 倍数。ただしそれが `360` 以上に
+///   達する場合は、線形グリッドをそのまま延長せず円周の閉点である
+///   `360`（≡ `0`）で打ち切る
+///
+/// 同着（両候補との差が等しい）の場合は `candidate_high` を採用する
+/// （旧実装の `f64::round()` が半数を正の無限大方向へ丸める挙動と
+/// 同じ「切り上げ」寄りの決定的な tie-break）。
+/// 呼び出し元（[`AngleSlider::update`] の `AngleSliderAction::Set`）は
+/// この関数を経由することで、`increment`/`decrement` が加算し続ける
+/// step グリッドへ常に整列した状態を保つ（ark-ui の
+/// `snapAngleToStep` と同型の契約、[`crate::slider::Slider::update`] の
+/// `SetValue` と同様に "set" も必ずスナップする）。
 fn snap_angle_to_step(value: u16, step: u16) -> u16 {
     let step_f = f64::from(step);
-    let steps = (f64::from(value) / step_f).round();
-    let snapped = (steps * step_f) as i64;
-    // `snapped` は非負の可能性があるが、丸め誤差で負にならないよう
-    // `rem_euclid` で確実に非負剰余を取ってから `normalize_angle` へ渡す。
-    normalize_angle(snapped.rem_euclid(i64::from(ANGLE_MODULUS)) as u32)
+    let modulus_f = f64::from(ANGLE_MODULUS);
+    // `value` は `decode_action` で `0..=360` に制限済みだが、`360` を
+    // `0` と同一視する契約（モジュール doc 参照）に従い、グリッド計算の
+    // 起点として先に正規化する（正規化前に線形丸めを行うと `360` が
+    // 契約を無視して手前の step 倍数へ丸められてしまう）。
+    let normalized = f64::from(normalize_angle(u32::from(value)));
+    let candidate_low = (normalized / step_f).floor() * step_f;
+    let candidate_high_raw = candidate_low + step_f;
+    let candidate_high = if candidate_high_raw >= modulus_f {
+        modulus_f
+    } else {
+        candidate_high_raw
+    };
+    let diff_low = normalized - candidate_low;
+    let diff_high = candidate_high - normalized;
+    let snapped = if diff_high <= diff_low {
+        candidate_high
+    } else {
+        candidate_low
+    };
+    normalize_angle(snapped as u32)
 }
 
 /// Root パーツ（`div`）。
@@ -657,6 +689,37 @@ mod tests {
         let mut s = AngleSlider::new(0, 10);
         assert!(dispatch(&mut s, "set", "355"));
         assert_eq!(s.angle_deg(), 0);
+    }
+
+    #[test]
+    fn dispatch_set_snap_360_equals_zero_with_non_divisor_step() {
+        // step=25 は 360 を割り切らない（最終区間 350..360 は長さ 10
+        // しかない）。線形グリッドをそのまま延長すると 360 が手前の
+        // 350 へ丸められてしまう回帰（Bugbot 指摘「Snap breaks
+        // 360-equals-0」対応）。"360" は必ず "0" にスナップされる契約
+        // を確認する。
+        let mut s = AngleSlider::new(0, 25);
+        assert!(dispatch(&mut s, "set", "360"));
+        assert_eq!(s.angle_deg(), 0);
+    }
+
+    #[test]
+    fn dispatch_set_snap_wraps_near_360_to_zero_with_non_divisor_step() {
+        // step=25 のとき、最終区間 350..360(=0) の中点は 355。358 は
+        // 手前の通常グリッド点 350 (差 8) より 0 (差 2) の方が円周上で
+        // 近いため、circular wrap-around 最近接スナップで 0 になる。
+        let mut s = AngleSlider::new(0, 25);
+        assert!(dispatch(&mut s, "set", "358"));
+        assert_eq!(s.angle_deg(), 0);
+    }
+
+    #[test]
+    fn dispatch_set_snap_stays_on_lower_grid_point_before_wrap_midpoint() {
+        // step=25 のとき、354 は最終区間の中点 355 未満のため、手前の
+        // 通常グリッド点 350 (差 4) の方が 0 (差 6) より近い。
+        let mut s = AngleSlider::new(0, 25);
+        assert!(dispatch(&mut s, "set", "354"));
+        assert_eq!(s.angle_deg(), 350);
     }
 
     #[test]
