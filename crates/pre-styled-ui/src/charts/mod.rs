@@ -18,6 +18,9 @@
 //! - [`scale`]: 線形スケール（domain → range 写像）・1-2-5 nice tick 算出。
 //! - [`svg`]: SVG ノード木生成ヘルパー（`viewBox`・座標文字列化・`path` の
 //!   `d` 属性組み立て）。後続チャート部品はここを経由してのみ SVG を組み立てる。
+//! - [`bar_chart`]: 縦/横 orientation の SVG 棒グラフ（イシュー #849）。
+//! - [`bar_list`]: ランキング型バーリスト（HTML、イシュー #849）。
+//! - [`bar_segment`]: 構成比バー（HTML、100% 積み上げ、イシュー #849）。
 //!
 //! # 本モジュールの不変条件（[`crate`] クレート全体の不変条件を継承、
 //! `.claude/rules/coding-rust.md`）
@@ -36,6 +39,9 @@
 //!    （既存のクレート依存）のみを使用し、新規クレート依存を追加しない
 //!    （REQ-3 不変）。
 
+pub mod bar_chart;
+pub mod bar_list;
+pub mod bar_segment;
 pub mod data;
 pub mod scale;
 pub mod svg;
@@ -62,6 +68,13 @@ pub enum ChartError {
     InvalidTickTarget,
     /// [`data::ChartData::sort_by_series`] に、存在しない系列名が渡された。
     UnknownSeriesName,
+    /// [`bar_list`]/[`bar_segment`] に、比率描画では意味を持たない負値が
+    /// 系列中に含まれていた（イシュー #849）。
+    NegativeValue,
+    /// [`bar_segment`] で対象系列の合計が 0（構成比が定義できない）
+    /// （イシュー #849）。全セグメント幅 0% の silent failure を避けるため
+    /// 構築時に拒否する（`bar_segment` モジュール doc 参照）。
+    ZeroTotal,
 }
 
 impl std::fmt::Display for ChartError {
@@ -73,6 +86,8 @@ impl std::fmt::Display for ChartError {
             ChartError::DegenerateDomain => "domain must have non-zero width (min != max)",
             ChartError::InvalidTickTarget => "tick target must be in range 1..=50",
             ChartError::UnknownSeriesName => "sort_by_series: no series with the given name",
+            ChartError::NegativeValue => "value must be non-negative for ratio-based rendering",
+            ChartError::ZeroTotal => "series total must be non-zero to compute a ratio",
         };
         write!(f, "{message}")
     }
@@ -127,6 +142,8 @@ mod tests {
             ChartError::DegenerateDomain,
             ChartError::InvalidTickTarget,
             ChartError::UnknownSeriesName,
+            ChartError::NegativeValue,
+            ChartError::ZeroTotal,
         ] {
             let message = err.to_string();
             assert!(!message.is_empty());
