@@ -204,7 +204,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/form/color-picker.md` | ColorPicker | ColorPicker | color_picker | color_picker | 実装済み | headless+styled 実装済み（#839、親 #837）。canvas 非依存（CSS グラデーション + 導出整数割合）で `docs/policy/intentional-non-adoption.md` §7 再評価トリガー充足、保留解除 |
 | `.agents/skills/ark-ui/references/components/form/file-upload.md` | FileUpload | FileUpload | file_upload | file_upload | 実装済み | headless+styled+wasm 実装済み（#840、`docs/policy/intentional-non-adoption.md` §7 保留解除。ItemPreview/ItemPreviewImage はスコープ外） |
 | `.agents/skills/ark-ui/references/components/form/image-cropper.md` | ImageCropper | — | image_cropper | image_cropper | 実装済み | headless+styled 実装済み（#844、再導入）。crop 矩形（整数）のみを扱う決定的状態機械として §4 手続きに従い再導入（`docs/policy/intentional-non-adoption.md` §3.22 参照）。canvas による実画像切り出し・pointer ドラッグ配線は対象外（後続 issue） |
-| `.agents/skills/ark-ui/references/components/form/signature-pad.md` | SignaturePad | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.22（#735）で非採用確定（高度入力系、canvas/ポインタ座標/contenteditable 依存） |
+| `.agents/skills/ark-ui/references/components/form/signature-pad.md` | SignaturePad | — | signature_pad | signature_pad | 実装済み | canvas を使わない決定的 SVG path 方式で再導入（#843）。headless+styled+wasm 配線済み。非採用の再導入手続きは `docs/policy/intentional-non-adoption.md` §3.22 追補（#735/#843）参照。canvas 方式・残り部品（AngleSlider/RichTextEditor）の非採用判断は不変 |
 | `.agents/skills/ark-ui/references/components/form/README.md` | README | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 
 #### `.agents/skills/ark-ui/references/components/overlays/`

@@ -162,6 +162,16 @@ const MAPPING_TABLE: &[MappingRow] = &[
         action: "deselect",
         requires_value: false,
     },
+    // SignaturePad（イシュー #843）: ClearTrigger は全ストローク削除。
+    // ポインタ座標収集による描画（"add-stroke"）は本汎用マッピングでは
+    // 扱わず `crate::headless_signature_pad::wire_stroke_collector` が
+    // 専用配線する（クリックではないため）。
+    MappingRow {
+        scope: "signature-pad",
+        part: "clear-trigger",
+        action: "clear",
+        requires_value: false,
+    },
 ];
 
 /// クリックされた要素（またはその祖先方向の 1 要素）の anatomy 属性を表す

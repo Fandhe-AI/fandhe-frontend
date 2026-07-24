@@ -13,9 +13,9 @@ enhancement（`@supports` 段階適用）のフォールバック設計案・非
 変更なし）。§3.22〜§3.24 は非採用確定（イシュー #735、出典
 `docs/design/component-coverage-map.md`（イシュー #734）の保留・意図的
 非採用プレースホルダ行の評価）。ただし §3.24 のうち Marquee は #831 で、
-§3.22 のうち AngleSlider は #842 で、ImageCropper は #844 で、いずれも
-§4 の再導入手続きに基づき再導入済み（chakra `Theme` コンポーネント、
-および §3.22 の SignaturePad/RichTextEditor は非採用のまま変更しない）。
+§3.22 のうち AngleSlider は #842 で、ImageCropper は #844 で、SignaturePad
+は #843 で、いずれも §4 の再導入手続きに基づき再導入済み（chakra `Theme`
+コンポーネント、および §3.22 の RichTextEditor は非採用のまま変更しない）。
 §7 は、イシュー #735 で非採用ではなく保留のまま維持すると判断した項目群の
 再評価トリガーの記録である。
 
@@ -903,7 +903,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   `docs/design/anchor-positioning-design.md` 第 4.5a 節に記録した。判断
   （非採用）自体は変更しない。
 
-### 3.22 高度入力系 UI 部品（image-cropper / signature-pad / angle-slider / rich-text-editor）（イシュー #735、angle-slider は #842 で・image-cropper は #844 でそれぞれ再導入済み）
+### 3.22 高度入力系 UI 部品（image-cropper / signature-pad / angle-slider / rich-text-editor）（イシュー #735、angle-slider は #842 で・signature-pad は #843 で・image-cropper は #844 でそれぞれ再導入済み）
 
 - **概要**: `docs/design/component-coverage-map.md`（イシュー #734）が
   「保留」区分の前方参照プレースホルダとして記録していた ark-ui /
@@ -946,6 +946,27 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   2. RichTextEditor について、既定エスケープ（REQ-1）を迂回しない形で
      `contenteditable` 由来の出力を安全に扱える Web 標準（例: EditContext
      API 等の構造化編集 API）が成熟し、かつ利用要望が確定した場合。
+- **追加検討記録（イシュー #843、§4 手続きによる部分再導入）**: SignaturePad
+  **のみ**、canvas を一切使わない決定的 SVG path 方式で再導入した
+  （`crates/headless-ui/src/signature_pad.rs`/`crates/pre-styled-ui/src/signature_pad.rs`/
+  `crates/wasm-full/src/headless_signature_pad.rs`）。
+  - **評価軸の再評価**: 明示性は「ストローク座標列 → SVG path 文字列」の
+    決定的純粋関数（`stroke_path_d`、丸め規則を固定表記で rustdoc に明文化）
+    に置き換わり、コードと状態から最終出力が判断できる。決定性は同一座標列
+    → 同一出力の純粋関数で保証し、デバイス依存のポインタ座標ストリームは
+    wasm 層（`headless_signature_pad::StrokeCollector`）が「明示的な座標列」
+    へ正規化してから headless 層の状態機械へ渡す構造にした。機械検証可能性
+    は座標アサーション（合成座標列 + 合成 `PointerEvent`）による golden
+    テストで `cargo test`/`wasm-pack test` の両方から決定的に検証できる。
+    コンテキスト消費は `PointerEvent` API のみの追加に留め、`Canvas` 系
+    API は一切導入しない。
+  - **トリガー充足の根拠**: 上記トリガー 1「ポインタ座標ストリームを決定的
+    に検証できる自動テスト基盤の確立 + 利用要望の issue 確定」を、座標
+    アサーションによる決定的検証（視覚回帰基盤は不要）とイシュー #843 の
+    利用要望確定をもって満たしたと判断した。
+  - **判断の範囲**: canvas 方式（ImageCropper・AngleSlider・RichTextEditor、
+    および SignaturePad の canvas 実装）の非採用判断自体は**変更しない**。
+    本追補は SignaturePad の SVG path 方式による再導入のみを記録する。
 - **再導入記録（イシュー #842、AngleSlider のみ。ImageCropper・
   SignaturePad・RichTextEditor は非採用のまま変更しない）**: 再評価
   トリガー 1（AngleSlider について、ポインタ座標ストリームを決定的に

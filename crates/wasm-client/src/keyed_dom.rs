@@ -151,7 +151,44 @@ fn nth_element_child(list_element: &Element, index: usize) -> Option<Element> {
 /// `pub use keyed_dom::build_dom_node` 経由）。挿入先で `RawHtml` を `None`
 /// として fail-closed に拒否する契約は呼び出し元を問わず不変（不変条件 4
 /// を遷移経路にも継承）。
+///
+/// 祖先の名前空間を持たない単独呼び出し（HTML 名前空間が既定）向けの薄い
+/// ラッパー。`svg`/`path` 等 SVG 要素を含む挿入は [`build_dom_node_with_namespace`]
+/// （本モジュール内部の [`apply_keyed_list`] が使う）が名前空間を明示的に
+/// 引き継ぐ。
 pub fn build_dom_node(document: &Document, node: &Node) -> Option<web_sys::Node> {
+    build_dom_node_with_namespace(document, node, None)
+}
+
+/// SVG 要素の名前空間 URI
+/// （[MDN: Element.namespaceURI](https://developer.mozilla.org/en-US/docs/Web/API/Element/namespaceURI)）。
+const SVG_NAMESPACE: &str = "http://www.w3.org/2000/svg";
+
+/// [`build_dom_node`] の名前空間対応版（内部実装、イシュー #843 Bugbot
+/// 指摘「Runtime skips stroke DOM updates」是正の一部）。
+///
+/// `Document::create_element` は常に HTML 名前空間の要素を生成する。HTML
+/// パーサは `<svg>` 配下を自動的に SVG 名前空間へ切り替えるが、
+/// `create_element` によるプログラム的構築にはその挙動がないため、素朴に
+/// `create_element("path")` すると HTML 名前空間の（ブラウザが SVG として
+/// 描画しない）要素になってしまう。`crates/headless-ui/src/signature_pad.rs`
+/// の SignaturePad が keyed list（`data-bind-list="strokes"`、親は
+/// `<svg>`）でストロークを追加する経路がこの不具合の初出であり、
+/// [`apply_keyed_list`] の `KeyedOp::Insert` は挿入先 `list_element` の
+/// 実際の名前空間（`Element::namespace_uri()`）を `namespace` 引数へ渡す。
+///
+/// `tag` 自体が `"svg"` の場合は、渡された `namespace`（祖先から引き継いだ
+/// 値）に関わらず SVG 名前空間へ切り替える。これにより `<svg>` 要素それ
+/// 自体を含むノード木をまるごと新規構築するケース（`fandhe-frontend-wasm-full`
+/// の遷移描画 `nav.rs` 等、`namespace` が `None` から始まる呼び出し）でも
+/// HTML パーサと同じ挙動を再現する。決定した名前空間は子孫へそのまま
+/// 引き継ぐ（`foreignObject` 等での名前空間の再切り替えは本経路のスコープ
+/// 外、SignaturePad の SVG 構造には現れない）。
+fn build_dom_node_with_namespace(
+    document: &Document,
+    node: &Node,
+    namespace: Option<&str>,
+) -> Option<web_sys::Node> {
     match node {
         Node::Text(text) => Some(document.create_text_node(text).into()),
         Node::Element {
@@ -159,7 +196,15 @@ pub fn build_dom_node(document: &Document, node: &Node) -> Option<web_sys::Node>
             attrs,
             children,
         } => {
-            let element = document.create_element(tag).ok()?;
+            let element_namespace = if *tag == "svg" {
+                Some(SVG_NAMESPACE)
+            } else {
+                namespace
+            };
+            let element = match element_namespace {
+                Some(ns) => document.create_element_ns(Some(ns), tag).ok()?,
+                None => document.create_element(tag).ok()?,
+            };
             for (name, value) in attrs {
                 if fandhe_frontend_core::is_event_handler_attr(name) {
                     // イベントハンドラ属性は一律出力しない（不変条件 9 と同一）。
@@ -183,7 +228,9 @@ pub fn build_dom_node(document: &Document, node: &Node) -> Option<web_sys::Node>
                 let _ = element.set_attribute(name, value);
             }
             for child in children {
-                if let Some(child_node) = build_dom_node(document, child) {
+                if let Some(child_node) =
+                    build_dom_node_with_namespace(document, child, element_namespace)
+                {
                     let _ = element.append_child(&child_node);
                 }
             }
@@ -231,7 +278,14 @@ pub fn apply_keyed_list(document: &Document, list_element: &Element, new_list_no
                 let Some((_, node)) = new_items.iter().find(|(k, _)| k == &key) else {
                     continue;
                 };
-                let Some(new_child) = build_dom_node(document, node) else {
+                // 挿入先 `list_element` の実際の名前空間を引き継ぐ
+                // （SVG keyed list への挿入で HTML 名前空間の要素が生成
+                // されてしまう不具合の是正、[`build_dom_node_with_namespace`]
+                // rustdoc 参照）。
+                let namespace = list_element.namespace_uri();
+                let Some(new_child) =
+                    build_dom_node_with_namespace(document, node, namespace.as_deref())
+                else {
                     continue;
                 };
                 let reference = nth_element_child(list_element, index);
@@ -417,5 +471,58 @@ mod tests {
             Some("/a.png 1x, /b.png 2x"),
             "全候補が安全な URL の srcset は反映されること"
         );
+    }
+
+    // --- SVG 名前空間（イシュー #843 Bugbot 指摘「Runtime skips stroke
+    // DOM updates」の根本原因の 1 つ、`SignaturePad` の keyed list ストローク
+    // 挿入回帰固定） ---
+
+    /// SVG 名前空間の `<svg data-bind-list="strokes">` 親要素へ keyed list
+    /// 挿入した `<path>` 子要素が、`document.create_element` 由来の HTML
+    /// 名前空間ではなく SVG 名前空間で生成されること。
+    #[wasm_bindgen_test]
+    fn apply_keyed_list_inserts_svg_children_in_svg_namespace() {
+        let document = doc();
+        let list_element = document
+            .create_element_ns(Some(SVG_NAMESPACE), "svg")
+            .unwrap();
+        list_element
+            .set_attribute(fandhe_frontend_core::keyed::BIND_LIST_ATTR, "strokes")
+            .unwrap();
+
+        let items: Vec<(String, Node)> = vec![(
+            "0".to_string(),
+            el("path", vec![("d", "M0.00,0.00 L1.00,1.00")], vec![]),
+        )];
+        let new_tree = keyed_list("svg", vec![], "strokes", items).unwrap();
+        apply_keyed_list(&document, &list_element, &new_tree);
+
+        let path = list_element.query_selector("path").unwrap().unwrap();
+        assert_eq!(
+            path.namespace_uri().as_deref(),
+            Some(SVG_NAMESPACE),
+            "SVG keyed list へ挿入された <path> は SVG 名前空間で生成される \
+             こと（HTML 名前空間だとブラウザが SVG として描画しない）"
+        );
+    }
+
+    /// [`build_dom_node`]（公開 API）が `<svg>` 自体をルートとするノード木を
+    /// 新規構築する場合も、`<svg>`・その子孫（`<path>`）の双方が SVG 名前
+    /// 空間で生成されること（`fandhe-frontend-wasm-full` の遷移描画
+    /// `nav.rs` のようにノード木をまるごと構築する呼び出し経路の回帰固定）。
+    #[wasm_bindgen_test]
+    fn build_dom_node_creates_svg_subtree_in_svg_namespace() {
+        let document = doc();
+        let svg_node = el(
+            "svg",
+            vec![("viewBox", "0 0 300 150")],
+            vec![el("path", vec![("d", "M0.00,0.00 L1.00,1.00")], vec![])],
+        );
+        let built = build_dom_node(&document, &svg_node).unwrap();
+        let svg_element: Element = built.unchecked_into();
+        assert_eq!(svg_element.namespace_uri().as_deref(), Some(SVG_NAMESPACE));
+
+        let path = svg_element.query_selector("path").unwrap().unwrap();
+        assert_eq!(path.namespace_uri().as_deref(), Some(SVG_NAMESPACE));
     }
 }

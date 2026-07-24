@@ -583,6 +583,7 @@ pub mod rating_group;
 pub mod scroll_area;
 pub mod segment_group;
 pub mod select;
+pub mod signature_pad;
 pub mod skip_nav;
 pub mod slider;
 pub mod splitter;
@@ -675,6 +676,7 @@ pub use qr_code::{ErrorCorrectionLevel, QrEncodeError, QrMatrix};
 pub use radio_group::RadioGroup;
 pub use rating_group::{RatingGroup, RatingGroupAction, RatingItemFlags};
 pub use segment_group::SegmentGroup;
+pub use signature_pad::{Point, SignaturePad, SignaturePadAction, Stroke, StrokeError};
 pub use slider::{Slider, SliderAction};
 pub use splitter::{PanelSpec, Splitter, SplitterAction};
 pub use state::{

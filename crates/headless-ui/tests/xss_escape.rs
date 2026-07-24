@@ -37,10 +37,10 @@ use fandhe_frontend_headless_ui::tour::{self, TourStep};
 use fandhe_frontend_headless_ui::{
     action_bar, aria_controls, aria_label, avatar, carousel, clipboard, color_picker, data_state,
     date_input, dialog, download_trigger, editable, floating_panel, hover_card, image_cropper,
-    listbox, number_input, password_input, pin_input, popover, rating_group, segment_group, slider,
-    splitter, tags_input, timer, toast, tree_view, Calendar, DatePicker, DateSegmentFlags,
-    ImageStatus, OpenState, Orientation, PasswordAutocomplete, PasswordInputProps, Steps,
-    ToastStatus, Tour,
+    listbox, number_input, password_input, pin_input, popover, rating_group, segment_group,
+    signature_pad, slider, splitter, tags_input, timer, toast, tree_view, Calendar, DatePicker,
+    DateSegmentFlags, ImageStatus, OpenState, Orientation, PasswordAutocomplete,
+    PasswordInputProps, Steps, ToastStatus, Tour,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -1667,6 +1667,56 @@ fn timer_children_and_attrs_are_escaped_for_all_payloads() {
             vec![],
         ));
         assert_payload_is_escaped(payload, &html, "timer::root の attrs コンテキスト");
+    }
+}
+
+/// SignaturePad（イシュー #843）: (1) テキスト経路（[`signature_pad::label`]
+/// の children）が全ペイロードでエスケープされることを固定する
+/// （`date_input_label_children_text_is_escaped_for_all_payloads` と同型）。
+#[test]
+fn signature_pad_label_children_text_is_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let node = signature_pad::label(vec![], vec![text(payload)]);
+        let html = render(&node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "signature_pad::label のテキストコンテキスト",
+        );
+    }
+}
+
+/// SignaturePad: (2) 属性値経路（[`signature_pad::segment`] の
+/// `aria_label_text`・[`signature_pad::hidden_input`] の `name`/`value`・
+/// 呼び出し側 `attrs`）が全ペイロードでエスケープされることを固定する
+/// （`date_input_hidden_input_name_value_and_attrs_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn signature_pad_hidden_input_name_value_and_segment_aria_label_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let hidden_node = signature_pad::hidden_input(payload, payload, false, vec![]);
+        let html = render(&hidden_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "signature_pad::hidden_input の name/value コンテキスト",
+        );
+
+        let segment_node = signature_pad::segment(300, 150, Some(payload), vec![], vec![]);
+        let html = render(&segment_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "signature_pad::segment の aria_label_text コンテキスト",
+        );
+
+        let attrs_node = signature_pad::root(false, true, vec![("data-testid", payload)], vec![]);
+        let html = render(&attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "signature_pad::root の呼び出し側 attrs コンテキスト",
+        );
     }
 }
 

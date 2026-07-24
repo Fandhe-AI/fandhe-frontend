@@ -126,13 +126,23 @@ categories = ["wasm", "web-programming"]
 # 参照）。新規外部クレート追加ゼロ、既存 web-sys の feature 追加のみ。
 # `cargo metadata` 実測（パッケージ数・依存グラフ深さ）に変化がないことを
 # PR 本文に記録する。
+# イシュー #843（SignaturePad、非採用の再導入・SVG path 決定的描画）:
+# `headless_signature_pad::wiring` が `control`/`segment` 要素上の
+# pointerdown/pointermove/pointerup/pointercancel を配線してストローク座標を
+# 収集するため `PointerEvent`（`client_x()`/`client_y()`/`pointer_id()` を
+# 読み取る）を追加する。canvas 系 API（`CanvasRenderingContext2d` 等）は
+# 一切追加しない（headless-ui 側の設計転換「canvas を使わない」方針、
+# `crates/headless-ui/src/signature_pad.rs` モジュール doc 参照）。新規外部
+# クレート追加ゼロ、既存 web-sys の feature 追加のみ。`cargo metadata` 実測
+# （パッケージ数・依存グラフ深さ）に変化がないことを PR 本文に記録する。
 # イシュー #842（AngleSlider の座標 → 角度変換・DOM 配線、非採用の再導入）:
 # `angle_slider::wiring` がポインタ座標を `getBoundingClientRect`（既存の
 # `DomRect`/`Element` feature を流用）で計測し、`setPointerCapture`/
 # `hasPointerCapture`（`PointerEvent::pointer_id()` を要求）で pointer 個別の
 # ドラッグを固定する。`KeyboardEvent` は既に本セクションへ追加済み（#582）
-# のため流用する。`PointerEvent` を追加する。新規外部クレート追加ゼロ、
-# 既存 web-sys の feature 追加のみ。`cargo metadata` 実測（パッケージ数・
+# のため流用する。`PointerEvent` を追加する（本クレートでは既に SignaturePad
+# 由来で追加済みのため重複追加はしない、上記参照）。新規外部クレート追加
+# ゼロ、既存 web-sys の feature 追加のみ。`cargo metadata` 実測（パッケージ数・
 # 依存グラフ深さ）に変化がないことを PR 本文に記録する。
 [dependencies]
 fandhe-frontend-app = { path = "../app", version = "0.1.0" }
@@ -145,7 +155,7 @@ fandhe-frontend-interactive = { path = "../interactive", version = "0.1.0" }
 # "describe" シンボルはクレート非依存の関数名ベース）を避けるため、
 # `wasm-client` 側の `wasm-bindgen-exports` feature を無効化する
 # （`wasm-client/Cargo.toml`・`wasm-client/src/lib.rs` の `wiring` doc 参照）。
-fandhe-frontend-wasm-client = { path = "../wasm-client", version = "0.1.0", default-features = false }
+fandhe-frontend-wasm-client = { path = "../wasm-client", version = "0.1.2", default-features = false }
 wasm-bindgen = "0.2"
 js-sys = "0.3"
 
@@ -274,6 +284,11 @@ wasm-bindgen-futures = "0.4"
 # positioner に `reposition_one` が上書きしない `class` 経由で固定
 # `width`/`height` を与えるフィクスチャ用ヘルパー）を呼ぶために
 # `HtmlHeadElement` を追加する（テスト専用の feature 拡張）。
+# イシュー #843: `wasm-full/tests/headless_signature_pad_browser.rs` が
+# 合成 `PointerEvent`（座標指定でストローク描画を再現する回帰テスト）を
+# 組み立てるために `PointerEventInit` を追加する（テスト専用の feature
+# 拡張。`PointerEvent` 自体は製品面の `[dependencies.web-sys]` に追加済みの
+# ため、ここでは init 型のみを追加すれば足りる）。
 # イシュー #840: `wasm-full/tests/headless_file_upload_browser.rs` が合成
 # `File`（`FilePropertyBag` で mime type を指定）・`DataTransfer`
 # （`DataTransferItemList::add_with_file` で `input.files` を合成する）を
@@ -294,6 +309,7 @@ features = [
   "PopStateEventInit",
   "KeyboardEventInit",
   "HtmlHeadElement",
+  "PointerEventInit",
   "FilePropertyBag",
   "DataTransferItem",
   "DataTransferItemList",

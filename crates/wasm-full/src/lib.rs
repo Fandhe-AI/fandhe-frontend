@@ -125,6 +125,7 @@ pub mod headless_avatar;
 pub mod headless_clipboard;
 pub mod headless_file_upload;
 pub mod headless_select;
+pub mod headless_signature_pad;
 pub mod headless_timer;
 pub mod hydration;
 pub mod keynav;
@@ -261,14 +262,21 @@ where
     /// （panic 回避、`.claude/rules/coding-rust.md`）であり、`wire_events`
     /// はマウント時にルート要素へ 1 回だけ配線されるため通常の
     /// click/input イベントで再入が起きることは想定していない。
+    ///
+    /// `binding_table` は `Self::mount`/`Self::hydrate` が生成し
+    /// `Self::wire_signature_pad` と共有するキャッシュ（イシュー #843
+    /// Bugbot 指摘「Binding table cache desync」の是正）。ストローク駆動の
+    /// keyed list 構造変化は signature pad 側の `on_update` からも発生し
+    /// うるため、対応表の再スキャンをこのクロージャ専用の内部状態に
+    /// 閉じ込めず外部から共有することで、どちらの経路で構造変化が
+    /// 起きても両方の呼び出し元が同じ最新の対応表を参照できるようにする。
     fn wire(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
+        binding_table: std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
     ) -> impl FnMut(events::ActionRef) + 'static {
-        let binding_table = std::rc::Rc::new(std::cell::RefCell::new(
-            fandhe_frontend_wasm_client::BindingTable::scan(&root).ok(),
-        ));
-
         move |action_ref: events::ActionRef| {
             let Ok(mut state) = component.try_borrow_mut() else {
                 return;
@@ -357,7 +365,10 @@ where
         dom::mount_initial(&root, &component);
 
         let component = std::rc::Rc::new(std::cell::RefCell::new(component));
-        let on_action = Self::wire(component.clone(), root.clone());
+        let binding_table = std::rc::Rc::new(std::cell::RefCell::new(
+            fandhe_frontend_wasm_client::BindingTable::scan(&root).ok(),
+        ));
+        let on_action = Self::wire(component.clone(), root.clone(), binding_table.clone());
         events::wire_events(root.clone(), on_action)?;
         keynav::wire_keynav(root.clone())?;
         focus_visible::wire_focus_visible(root.clone())?;
@@ -365,6 +376,7 @@ where
         Self::wire_clipboard(component.clone(), root.clone())?;
         Self::wire_timer(component.clone(), root.clone())?;
         Self::wire_angle_slider(component.clone(), root.clone())?;
+        Self::wire_signature_pad(component.clone(), root.clone(), binding_table.clone())?;
 
         Ok(Self { component, root })
     }
@@ -404,7 +416,10 @@ where
         };
 
         let component = std::rc::Rc::new(std::cell::RefCell::new(component));
-        let on_action = Self::wire(component.clone(), root.clone());
+        let binding_table = std::rc::Rc::new(std::cell::RefCell::new(
+            fandhe_frontend_wasm_client::BindingTable::scan(&root).ok(),
+        ));
+        let on_action = Self::wire(component.clone(), root.clone(), binding_table.clone());
         events::wire_events(root.clone(), on_action)?;
         keynav::wire_keynav(root.clone())?;
         focus_visible::wire_focus_visible(root.clone())?;
@@ -412,6 +427,7 @@ where
         Self::wire_clipboard(component.clone(), root.clone())?;
         Self::wire_timer(component.clone(), root.clone())?;
         Self::wire_angle_slider(component.clone(), root.clone())?;
+        Self::wire_signature_pad(component.clone(), root.clone(), binding_table.clone())?;
 
         Ok(Self { component, root })
     }
@@ -592,6 +608,99 @@ where
                 &action_ref.payload,
             );
         })
+    }
+
+    /// SignaturePad（`fandhe-frontend-headless-ui` `signature_pad` モジュール）
+    /// のポインタ座標収集（描画）・ClearTrigger クリック配線を
+    /// [`headless_signature_pad::wire_signature_pad_component`] 経由で
+    /// `root` へ配線する（イシュー #843、Bugbot 指摘「Runtime omits
+    /// signature pad wiring」の是正）。`Self::mount`/`Self::hydrate` の
+    /// 双方から `Self::wire_angle_slider` の直後に 1 回だけ呼ばれる。
+    ///
+    /// `wire_signature_pad_component` は dispatch 成功後の DOM 反映を
+    /// `on_update` コールバックとして呼び出し側に委ねる設計
+    /// （`headless_signature_pad.rs` doc 参照）。ここでは `Self::wire` の
+    /// 束縛点更新経路（`BindingTable::apply_dirty`・keyed list 差し替え）
+    /// と同じロジックを渡し、ストローク追加・undo・clear のいずれの
+    /// dirty field も既存の束縛点対応表の仕組みで反映する
+    /// （新しい DOM 反映経路を増やさない）。
+    ///
+    /// `binding_table` は `Self::mount`/`Self::hydrate` が `Self::wire` と
+    /// 共有して生成するキャッシュを受け取る（イシュー #843 Bugbot 指摘
+    /// 「Binding table cache desync」の是正）。以前はここで
+    /// `BindingTable::scan` を毎回ローカルに取り直すのみで、構造変化後に
+    /// `Self::wire` 側が保持するクロージャ内キャッシュを更新しなかった
+    /// ため、ストローク駆動の keyed list 挿入で増えた新規ノード内の
+    /// `data-action` 束縛点が、後続の通常 click/input（`Self::wire` 経由）
+    /// 更新でスキップされる不具合があった。共有キャッシュを介すことで、
+    /// signature pad 側の構造変化も `Self::wire` 側の次回更新に反映される。
+    ///
+    /// # fail-closed（SignaturePad 非搭載アプリへの副作用なし）
+    ///
+    /// `root` 配下に SignaturePad の Canvas/ClearTrigger パーツが存在しない
+    /// 場合、`wire_signature_pad_component` 内のポインタ/クリック判定が
+    /// scope/part 不一致で早期 return するため、SignaturePad を使わない
+    /// アプリへの影響はない。
+    ///
+    /// # Errors
+    ///
+    /// [`headless_signature_pad::wire_signature_pad_component`]
+    /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    fn wire_signature_pad(
+        component: std::rc::Rc<std::cell::RefCell<C>>,
+        root: web_sys::Element,
+        binding_table: std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+    ) -> Result<(), wasm_bindgen::JsValue> {
+        headless_signature_pad::wire_signature_pad_component(
+            root,
+            component,
+            move |state: &C, updated_root: &web_sys::Element| {
+                // `Self::wire` の束縛点更新経路と同じロジック（差分反映の
+                // 二重実装を避けるため、両者は同じ `dirty_fields()` →
+                // `BindingTable::apply_dirty`/keyed list 差し替えの手順を
+                // 踏み、対応表キャッシュも共有する）。
+                let dirty: Vec<&'static str> = state.dirty_fields().to_vec();
+                if dirty.is_empty() {
+                    return;
+                }
+
+                if let Some(table) = binding_table.borrow().as_ref() {
+                    table.apply_dirty(&dirty, state);
+                }
+
+                let mut structural_change = false;
+                if let Ok(document) = Self::document() {
+                    for field in &dirty {
+                        let Ok(Some(list_element)) =
+                            fandhe_frontend_wasm_client::find_list_element(updated_root, field)
+                        else {
+                            continue;
+                        };
+                        let view = state.view();
+                        if let Some(list_node) =
+                            fandhe_frontend_wasm_client::find_keyed_list_node(&view, field)
+                        {
+                            fandhe_frontend_wasm_client::apply_keyed_list(
+                                &document,
+                                &list_element,
+                                list_node,
+                            );
+                            structural_change = true;
+                        }
+                    }
+                }
+
+                // keyed list 挿入で新規ノードが増えた場合、`Self::wire` 経路の
+                // 対応表キャッシュを共有経由で再スキャンする（`Self::wire`
+                // 内の同種処理と同じフォールバック機構）。
+                if structural_change {
+                    *binding_table.borrow_mut() =
+                        fandhe_frontend_wasm_client::BindingTable::scan(updated_root).ok();
+                }
+            },
+        )
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて

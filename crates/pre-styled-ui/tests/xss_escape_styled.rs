@@ -81,6 +81,7 @@ use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingItemFlags};
 use fandhe_frontend_pre_styled_ui::scroll_area;
 use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps};
+use fandhe_frontend_pre_styled_ui::signature_pad;
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
@@ -3575,6 +3576,83 @@ fn color_swatch_class_style_and_children_payloads_are_escaped_for_all_payloads()
             payload,
             &html,
             "color_swatch::color_swatch children コンテキスト",
+        );
+    }
+}
+
+/// SignaturePad（イシュー #843）: styled root の呼び出し側 attrs・
+/// styled segment の `aria_label_text`・選択的再エクスポートした label の
+/// children・hidden_input の `name`/`value` の 4 経路すべてで既定エスケープ
+/// （REQ-1）が貫通することを固定する
+/// （`date_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
+/// と同粒度）。
+#[test]
+fn signature_pad_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&signature_pad::root(
+            false,
+            true,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "signature_pad::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（signature_pad は variant を持たない
+        // ため recipe 生成クラスへの置換ではなく、drop_class_attr により
+        // 呼び出し側の `class` が完全に除去されることを確認する。
+        // `root_drops_caller_class`（crates/pre-styled-ui/src/signature_pad.rs）
+        // と同型）。
+        let html = render(&signature_pad::root(
+            false,
+            true,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "signature_pad::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(
+            !html.contains("class="),
+            "signature_pad::root は variant を持たないため class 属性自体が \
+             出力されないはずだが出力されている: html={html}"
+        );
+
+        // styled segment の aria_label_text 経路。
+        let html = render(&signature_pad::segment(
+            300,
+            150,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "signature_pad::segment aria_label_text コンテキスト",
+        );
+
+        // 選択的再エクスポートした label の children 経路。
+        let html = render(&signature_pad::label(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "signature_pad::label children コンテキスト");
+
+        // 選択的再エクスポートした hidden_input の name/value 経路。
+        let html = render(&signature_pad::hidden_input(
+            payload,
+            payload,
+            false,
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "signature_pad::hidden_input name/value コンテキスト",
         );
     }
 }
