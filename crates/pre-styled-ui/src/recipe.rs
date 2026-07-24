@@ -266,6 +266,19 @@ pub enum StateCondition {
     /// 参照）、DOM 構造がそのまま表す `:last-child` を使い、最後の item
     /// にのみ伸長・最小高さの指定を打ち消す。
     LastChild,
+    /// 複数の値付き属性の AND 条件
+    /// `[<name1>="<value1>"][<name2>="<value2>"]...`（イシュー #841 PR #870
+    /// Bugbot レビュー Medium severity 指摘「Positioner skips align
+    /// fallback」対応）。
+    ///
+    /// [`crate::tour`] の positioner 静的フォールバックは `data-side` と
+    /// `data-align` の組み合わせで配置が決まる（例: `Left`+`Start` と
+    /// `Left`+`Center` は異なる表示）。単一属性条件（[`StateCondition::AttrEq`]）
+    /// だけでは片方の軸しか捕捉できず、もう片方の軸違いが無視されてしまう
+    /// ため、複数属性の AND を 1 セレクタで表現する本 variant を追加した。
+    /// 要素は `(name, value)` の組。空スライスは無条件規則（`base` と同義）
+    /// になる意味のない規則のため [`SlotRecipe::css`] が除外する。
+    AttrEqAll(&'static [(&'static str, &'static str)]),
 }
 
 /// slot 1 個・状態条件 1 個への宣言登録（内部表現、イシュー #643）。
@@ -601,6 +614,12 @@ impl SlotRecipe {
                 StateCondition::FocusWithin => true,
                 StateCondition::NthChildEven => true,
                 StateCondition::LastChild => true,
+                StateCondition::AttrEqAll(pairs) => {
+                    !pairs.is_empty()
+                        && pairs.iter().all(|(name, value)| {
+                            is_valid_identifier(name) && is_valid_identifier(value)
+                        })
+                }
             };
             if !condition_valid {
                 continue;
@@ -618,6 +637,11 @@ impl SlotRecipe {
                 StateCondition::FocusWithin => selector.push_str(":focus-within"),
                 StateCondition::NthChildEven => selector.push_str(":nth-child(even)"),
                 StateCondition::LastChild => selector.push_str(":last-child"),
+                StateCondition::AttrEqAll(pairs) => {
+                    for (name, value) in pairs {
+                        selector.push_str(&format!("[{name}=\"{value}\"]"));
+                    }
+                }
             }
             if let Some(css) = serialize_rule(&selector, &rule.declarations) {
                 out.push_str(&css);

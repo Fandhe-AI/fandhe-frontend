@@ -313,11 +313,21 @@ impl Tour {
     /// を付与する（エスケープ済み出力のみ、DOM 解決は行わない。本モジュール
     /// 冒頭「スコープ」節参照）。実座標（`--fandhe-tour-spotlight-*` 相当の
     /// CSS 変数）の注入は `fandhe-frontend-wasm-full` の後続イシューの責務。
+    ///
+    /// `target` が `None`（[`TourStep`] は target なしのステップをサポート
+    /// しており、showcase の最終ステップ等で実際に使われる）のステップでは
+    /// くり抜き対象が存在せず意味のないデフォルト矩形が描画されてしまうため、
+    /// `Active` であっても `hidden` を付与する（[`Tour::hidden_attr`] の
+    /// 「非 `Active` 時のみ `hidden`」という既定を spotlight に限り上書き）。
     #[must_use]
     pub fn spotlight<'a>(&'a self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
         let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(self.data_state_value())];
-        merged.extend(self.hidden_attr());
-        if let Some(target) = self.current_step().and_then(|s| s.target.as_deref()) {
+        let target = self.current_step().and_then(|s| s.target.as_deref());
+        let hidden = !self.status.is_open() || target.is_none();
+        if hidden {
+            merged.push(("hidden", ""));
+        }
+        if let Some(target) = target {
             merged.push(("data-target", target));
         }
         merged.extend(attrs);
@@ -878,6 +888,25 @@ mod tests {
         dispatch(&mut t, "next", "");
         let html = render(&t.spotlight(vec![], vec![]));
         assert!(!html.contains("data-target"));
+    }
+
+    /// イシュー #841 PR #870 Bugbot レビュー Medium severity 指摘
+    /// 「Spotlight shown without target」対応の回帰テスト。`target: None`
+    /// のステップ（showcase の最終ステップ等で実際に使われる）では
+    /// `Active` であっても spotlight に `hidden` が付与され、意味のない
+    /// デフォルト矩形のカットアウトが描画されないことを確認する。
+    #[test]
+    fn spotlight_is_hidden_when_active_step_has_no_target() {
+        let mut t = Tour::new(three_steps());
+        dispatch(&mut t, "start", "");
+
+        // 3 番目の step（target なし）まで進める。
+        dispatch(&mut t, "next", "");
+        dispatch(&mut t, "next", "");
+        assert!(t.status.is_open());
+
+        let html = render(&t.spotlight(vec![], vec![]));
+        assert!(html.contains("hidden"), "{html}");
     }
 
     #[test]

@@ -154,6 +154,50 @@ const TOUR_GOLDEN_CSS: &str = r#"[data-scope="tour"][data-part="backdrop"] {
   transform: translateY(-50%);
 }
 
+[data-scope="tour"][data-part="positioner"][data-side="top"][data-align="start"] {
+  left: var(--fandhe-space-4);
+  transform: none;
+}
+
+[data-scope="tour"][data-part="positioner"][data-side="top"][data-align="end"] {
+  left: auto;
+  right: var(--fandhe-space-4);
+  transform: none;
+}
+
+[data-scope="tour"][data-part="positioner"][data-side="bottom"][data-align="start"] {
+  left: var(--fandhe-space-4);
+  transform: none;
+}
+
+[data-scope="tour"][data-part="positioner"][data-side="bottom"][data-align="end"] {
+  left: auto;
+  right: var(--fandhe-space-4);
+  transform: none;
+}
+
+[data-scope="tour"][data-part="positioner"][data-side="left"][data-align="start"] {
+  top: var(--fandhe-space-4);
+  transform: none;
+}
+
+[data-scope="tour"][data-part="positioner"][data-side="left"][data-align="end"] {
+  top: auto;
+  bottom: var(--fandhe-space-4);
+  transform: none;
+}
+
+[data-scope="tour"][data-part="positioner"][data-side="right"][data-align="start"] {
+  top: var(--fandhe-space-4);
+  transform: none;
+}
+
+[data-scope="tour"][data-part="positioner"][data-side="right"][data-align="end"] {
+  top: auto;
+  bottom: var(--fandhe-space-4);
+  transform: none;
+}
+
 [data-scope="tour"][data-part="positioner"][hidden] {
   display: none;
 }

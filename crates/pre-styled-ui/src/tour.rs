@@ -203,6 +203,81 @@ fn recipe() -> SlotRecipe {
                 decl("transform", "translateY(-50%)"),
             ],
         )
+        // `data-side` 単独のフォールバック（上記）は交差軸を常に中央寄せ
+        // （`Align::Center` 相当）にする前提で組んでいるため、
+        // `Align::Start`/`Align::End` を反映するには `data-side`+`data-align`
+        // の AND 条件が必要（イシュー #841 PR #870 Bugbot レビュー Medium
+        // severity 指摘「Positioner skips align fallback」対応。`StateCondition::AttrEqAll`
+        // は 2 属性のぶん `StateCondition::AttrEq` 単独より詳細度が高いため、
+        // CSS ソース順に関係なく確実に上記の side 単独規則を上書きする）。
+        .state(
+            "positioner",
+            StateCondition::AttrEqAll(&[("data-side", "top"), ("data-align", "start")]),
+            vec![
+                decl("left", "var(--fandhe-space-4)"),
+                decl("transform", "none"),
+            ],
+        )
+        .state(
+            "positioner",
+            StateCondition::AttrEqAll(&[("data-side", "top"), ("data-align", "end")]),
+            vec![
+                decl("left", "auto"),
+                decl("right", "var(--fandhe-space-4)"),
+                decl("transform", "none"),
+            ],
+        )
+        .state(
+            "positioner",
+            StateCondition::AttrEqAll(&[("data-side", "bottom"), ("data-align", "start")]),
+            vec![
+                decl("left", "var(--fandhe-space-4)"),
+                decl("transform", "none"),
+            ],
+        )
+        .state(
+            "positioner",
+            StateCondition::AttrEqAll(&[("data-side", "bottom"), ("data-align", "end")]),
+            vec![
+                decl("left", "auto"),
+                decl("right", "var(--fandhe-space-4)"),
+                decl("transform", "none"),
+            ],
+        )
+        .state(
+            "positioner",
+            StateCondition::AttrEqAll(&[("data-side", "left"), ("data-align", "start")]),
+            vec![
+                decl("top", "var(--fandhe-space-4)"),
+                decl("transform", "none"),
+            ],
+        )
+        .state(
+            "positioner",
+            StateCondition::AttrEqAll(&[("data-side", "left"), ("data-align", "end")]),
+            vec![
+                decl("top", "auto"),
+                decl("bottom", "var(--fandhe-space-4)"),
+                decl("transform", "none"),
+            ],
+        )
+        .state(
+            "positioner",
+            StateCondition::AttrEqAll(&[("data-side", "right"), ("data-align", "start")]),
+            vec![
+                decl("top", "var(--fandhe-space-4)"),
+                decl("transform", "none"),
+            ],
+        )
+        .state(
+            "positioner",
+            StateCondition::AttrEqAll(&[("data-side", "right"), ("data-align", "end")]),
+            vec![
+                decl("top", "auto"),
+                decl("bottom", "var(--fandhe-space-4)"),
+                decl("transform", "none"),
+            ],
+        )
         .state(
             "positioner",
             StateCondition::Attr("hidden"),
@@ -489,6 +564,28 @@ mod tests {
                 "missing hidden rule for {part}"
             );
         }
+    }
+
+    /// イシュー #841 PR #870 Bugbot レビュー Medium severity 指摘
+    /// 「Positioner skips align fallback」対応の回帰テスト。`data-side` 単独
+    /// ではなく `data-side`+`data-align` の組み合わせで静的フォールバックが
+    /// 分岐することを、`Left`+`Start` と `Left`+`Center`（`data-align` 条件
+    /// なし規則のみ）とで異なる CSS 規則が出力されることで確認する。
+    #[test]
+    fn positioner_static_fallback_reflects_align_in_addition_to_side() {
+        let css = stylesheet();
+        assert!(
+            css.contains(
+                r#"[data-scope="tour"][data-part="positioner"][data-side="left"][data-align="start"] {"#
+            ),
+            "missing side+align combined fallback rule: {css}"
+        );
+        assert!(
+            css.contains(
+                r#"[data-scope="tour"][data-part="positioner"][data-side="left"][data-align="end"] {"#
+            ),
+            "missing side+align combined fallback rule: {css}"
+        );
     }
 
     #[test]
