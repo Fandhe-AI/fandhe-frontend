@@ -39,7 +39,7 @@ ToggleTip styled ラッパー追加（#761）・Progress circular 対応追加
 6 種追加（#771）・Separator 静的部品追加（#772）・Highlight 静的部品追加
 （#775）・Clipboard headless ラッパー追加（#773）・QrCode styled ラッパー
 追加（#774）・VisuallyHidden/SkipNav 静的部品追加（#776）・Stat/Timeline
-styled 静的部品追加（#769、いずれも公開時点未反映）を経て 67 の公開
+styled 静的部品追加（#769、いずれも公開時点未反映）を経て 66 の公開
 モジュールを持つ。
 内訳は次の通り。
 
