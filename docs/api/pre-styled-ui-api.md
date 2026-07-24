@@ -13,7 +13,7 @@ pre-styled UI コンポーネント層、親トラッキング #520・骨格新�
 対応する REQ / TASK は `docs/spec/` に存在しない（要件提案は
 fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 参照）。
 
-## 2. 実装状況（v0.25.0 時点、2026-07-24 更新）
+## 2. 実装状況（v0.26.0 時点、2026-07-24 更新）
 
 **記載方針**: 実装済み API の正は `crates/pre-styled-ui/src/lib.rs` 冒頭の
 rustdoc および各モジュール冒頭の rustdoc とする。本節はモジュール一覧の
@@ -44,8 +44,14 @@ ActionBar styled ラッパー追加（#762）・Toast styled ラッパー追加
 （#760）・Stat/Timeline styled 静的部品追加（#769）・Table/DataList
 静的部品追加（#767）・FloatingPanel styled ラッパー追加（#827）・
 ScrollArea headless ラッパー追加（#825）・DownloadTrigger headless
-ラッパー追加（#828、いずれも公開時点未反映）を経て 78 の公開モジュールを
-持つ。内訳は次の通り。
+ラッパー追加（#828）・Splitter styled ラッパー追加（#826、
+`docs/policy/intentional-non-adoption.md` §7 の保留解除）・JsonTreeView
+styled ラッパー追加（#829、`tree_view` #753 の派生）・button の icon-only
+修飾 variant（`icon_button`/`close_button`）追加（#830、既存 `button`
+モジュールの拡張のため新規モジュールは増えない）・Marquee 静的部品追加
+（#831、`docs/policy/intentional-non-adoption.md` §3.24 の意図的非採用を
+再導入）・ColorSwatch 静的部品追加（#838、いずれも公開時点未反映）を経て
+82 の公開モジュールを持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -53,7 +59,7 @@ ScrollArea headless ラッパー追加（#825）・DownloadTrigger headless
 | 基盤 | `css` | #548 |
 | 基盤 | `recipe` | #548/#606/#604（詳細は [`pre-styled-recipe-api.md`](./pre-styled-recipe-api.md)） |
 | 基盤 | `stylesheet` | #605（CSS 集約・配布ヘルパ、§4a 参照） |
-| 単純 styled 部品 | `button` / `badge` / `spinner` / `alert` / `card` | #550/#606 |
+| 単純 styled 部品 | `button` / `badge` / `spinner` / `alert` / `card` | #550/#606（`button` は #830 で `icon_button`/`close_button`（chakra `IconButton`/`CloseButton` 相当）を追加。独立部品ではなく `button` recipe の非公開 icon-only 修飾 variant として実装し、`data-scope="button"` を共有する） |
 | 単純 styled 部品 | `skeleton` | #764（ローディングプレースホルダー。`text`/`circle`/`rect` の 3 variant、常時 `aria-hidden="true"`、`color-palette`/`size` 軸は非提供、`prefers-reduced-motion: reduce` でアニメーション停止） |
 | 単純 styled 部品 | `image` | #770（写真等の静的コンテンツを表示する `<img>`。`ImageFit`（`object-fit`）/`AspectRatio` の 2 軸 variant、`alt` 必須引数。headless-ui `avatar` の `ImageStatus` 状態機械とは独立。中立的な表示部品のため `color-palette` 軸は非提供） |
 | 単純 styled 部品 | `icon` | #770（インライン SVG の寸法を統一する `<svg>` ラッパー。`size` variant のみ、`color: currentColor` 継承のため `color-palette` 軸は非提供。SVG 本体（`path` 等）は呼び出し側がノード木 API で構築し、外部リソース（`href`/`xlink:href`）は本モジュール自身が参照しない） |
@@ -103,6 +109,9 @@ ScrollArea headless ラッパー追加（#825）・DownloadTrigger headless
 | 静的部品（新規 anatomy） | `stat` / `timeline` | #769（ark-ui に対応する headless anatomy が存在しないため、`checkbox_card`/`radio_card`（#747）と同型の判断で headless-ui は変更せず pre-styled-ui 層で新規 anatomy `data-scope="stat"`/`"timeline"` を定義。`stat` は `<dl>`/`<dt>`/`<dd>` を使い `size` variant のみ・`color-palette` 軸は非提供（`card` と同型の中立部品判断）、増減 indicator は `rating_group` と同型の `clip-path` インライン三角形。`timeline` は `<ol>`/`<li>` を使い `variant`（`TimelineVariant`: solid/subtle/outline/plain）/`size`/`color-palette` の 3 軸を root のみへ付与し `indicator`/`separator` へは CSS custom property の継承で伝搬。`showLastSeparator` 相当は recipe 側で自動制御せず、呼び出し側が最終 item へ `separator` パーツを含めないことで表現する契約） |
 | headless ラッパー | `floating_panel` | #827（`fandhe_frontend_headless_ui::floating_panel` の Root/Trigger/Positioner/Content/Header/Title/Control/StageTrigger/CloseTrigger/Body 10 anatomy パーツと `FloatingPanel` 状態機械をそのまま再エクスポートし CSS のみ追加提供する薄いラッパー（`popover`/`dialog` と同型）。variant（`size`/`color-palette`）は非提供。`content` の開閉 `data-state` に加え `body` の `data-stage="minimized"`（折り畳み）・`positioner` の `data-stage="maximized"`（ビューポート全面表示）を CSS で切り替える。`positioner` は `position: fixed` を基点に headless 側の `--fandhe-x`/`--fandhe-y` を `transform: translate3d(...)` で反映し、z-index は dialog モーダル層（1000/1001）未満・menu/popover の dropdown 層（10）超の専用 tier（`900`）を割り当てる。ドラッグ移動・リサイズの実 DOM 配線は headless 層と同じくスコープ外） |
 | headless ラッパー | `scroll_area` | #825（`docs/design/component-coverage-map.md` 保留解除。状態機械なし。variant は非提供。`viewport` へ `overflow: auto` + `scrollbar-width`/`scrollbar-color`（標準プロパティ）を付与し、`stylesheet()` が `recipe().css()` に続けて `::-webkit-scrollbar` 系規則を固定文字列として追記する（`spinner` の `@keyframes` 追記と同型）。`scrollbar`/`thumb`/`corner` は JS によるスクロール位置追従が本イシューのスコープ外のため初期実装では `display: none` にしてネイティブスクロールバーの装飾で代替する） |
+| headless ラッパー | `splitter` | #826（`docs/policy/intentional-non-adoption.md` §7・`docs/design/component-coverage-map.md` の保留解除。`size` variant のみを root へ持ち `resize-trigger` の厚みへ継承、`color-palette` はセパレータの強調色にのみ使う。動的値は `panel` の `--fandhe-splitter-size`（flex-basis 経由）の 1 点のみ。`resize-trigger` はネイティブ `<div tabindex>` が実フォーカスを受けるため `FocusVisible` state condition で足りる（`slider`/`toggle` と同型）） |
+| 単純 styled 部品 | `marquee` | #831（`docs/policy/intentional-non-adoption.md` §3.24 が意図的非採用としていた自動流動テキストを、CSS のみ（JS ゼロ）・`prefers-reduced-motion: reduce` でのアニメーション停止・`hover`/`focus-within` での常時一時停止という決定的設計案で §4 の再導入手続きに従い再導入。ark-ui の `Root`/`Viewport`/`Content`/`Item`/`Edge` anatomy を `root`/`content`/`item` の 3 パーツへ縮約（`Viewport` は `root` が兼ね、`Edge` は呼び出し側 CSS で代替可能なため非提供）。`content` を内部で 2 回複製しシームレスループを実現し、2 個目は常時 `aria-hidden`。`direction`（`Start`/`End`）の 1 軸 variant のみを root へ付与し `content` への伝搬は `--fandhe-marquee-direction` custom property の継承で行う。`color-palette`/`size` 軸は非提供（`skeleton`/`card` と同型の中立・装飾部品判断）） |
+| 単純 styled 部品（静的） | `color_swatch` | #838（`docs/design/component-coverage-map.md` 保留解除。`tag`/`kbd` と同型の判断で headless-ui に対応する anatomy を新設しない（headless 列は「—」のまま）。色値は `fandhe_frontend_headless_ui::color::Color` 型のみを受け取り（本モジュールが再エクスポート）、任意文字列を受け取る API は持たない。`size`（`Sm`/`Md`/`Lg`）/`shape`（`Square`/`Circle`/`Rounded`、既定）の 2 軸 variant。`color-palette` 軸は非提供（表示する色そのものが `value` で決まるため）。透過色は `background-image` の 2 レイヤー（前面に色レイヤー `linear-gradient(color, color)`、背面に固定チェッカーボード模様 `repeating-conic-gradient`）で表現し、不透明色は前面レイヤーがチェッカーボードを完全に覆い隠し、半透明色は前面レイヤーを透かして背面のチェッカーボードが見える） |
 | headless ラッパー | `timer` | #836（`docs/design/component-coverage-map.md` 保留解除。`clipboard` と同型の判断で variant は非提供。`item-value` に `font-variant-numeric: tabular-nums` を付与し桁の増減時のレイアウトシフトを防ぐ。`completed` 状態の `item-value` を強調色へ切り替え、`action-trigger` に focus-visible リングを付与する。実 tick 駆動（`setInterval`）は `fandhe-frontend-wasm-full::headless_timer` が提供する） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
@@ -462,7 +471,7 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 
 | 部品 | size | color-palette | 状態 |
 |---|---|---|---|
-| button/badge/spinner | ✓ | ✓ | 実装済み（#550/#606） |
+| button/badge/spinner | ✓ | ✓ | 実装済み（#550/#606。button は #830 で icon-only 修飾 variant（`icon_button`/`close_button`）を追加。専用の `icon`/`close-button` 行は設けない: `data-scope="button"` を共有する variant 拡張であり別部品ではないため） |
 | avatar | ✓ | – (shape) | 実装済み（#684） |
 | switch | ✓ | ✓ | 実装済み（#708） |
 | radio-group | ✓ | ✓ | 実装済み（#708） |

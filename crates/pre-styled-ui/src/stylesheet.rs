@@ -286,6 +286,7 @@ mod tests {
             ("number_input", crate::number_input::stylesheet()),
             ("password_input", crate::password_input::stylesheet()),
             ("slider", crate::slider::stylesheet()),
+            ("splitter", crate::splitter::stylesheet()),
             ("pin_input", crate::pin_input::stylesheet()),
             ("tags_input", crate::tags_input::stylesheet()),
             ("rating_group", crate::rating_group::stylesheet()),
@@ -307,6 +308,7 @@ mod tests {
             ("tag", crate::tag::css()),
             ("kbd", crate::kbd::css()),
             ("code", crate::code::css()),
+            ("color_swatch", crate::color_swatch::css()),
             ("action_bar", crate::action_bar::stylesheet()),
             ("toast", crate::toast::stylesheet()),
             ("status", crate::status::css()),
@@ -326,6 +328,7 @@ mod tests {
             ("data_list", crate::data_list::css()),
             ("stat", crate::stat::css()),
             ("timeline", crate::timeline::css()),
+            ("marquee", crate::marquee::css()),
             ("scroll_area", crate::scroll_area::stylesheet()),
             ("timer", crate::timer::stylesheet()),
         ]

@@ -14,13 +14,94 @@
 //! 呼び出し側 `attrs` は `class_attr::drop_class_attr` を経由して `class` を
 //! 除去してから合成し、recipe が生成するクラスが常に唯一の `class` 属性値に
 //! なる。
+//!
+//! # CloseButton / IconButton（イシュー #830）
+//!
+//! chakra-ui の `CloseButton`/`IconButton` に相当する部品は、
+//! `docs/policy/intentional-non-adoption.md` §7・
+//! `docs/design/component-coverage-map.md` で「保留（Button variant で近似
+//! 可能、需要待ち）」と記録されていた。イシュー #830 で再評価トリガー
+//! （`Button` variant 拡張要望 issue の起票）が充足したため保留を解除するが、
+//! **専用 anatomy・新規状態機械を持つ独立部品としては新設しない**。
+//! [`icon_button`]/[`close_button`] はどちらも本モジュールの `recipe()`
+//! （非公開の `icon` 修飾 variant 軸を追加しただけ）と [`button`] 本体の
+//! 組み立てロジックを共有する Button variant 拡張であり、`data-scope` は
+//! 引き続き `"button"` のまま、専用の `data-scope="close-button"` 等は
+//! 持たない（chakra 対応表 §7 の保留解除に対する Rust 最適化形の実装判断）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
-use crate::recipe::{palette_declarations, ColorPalette, Size, SlotRecipe, VariantValue};
+use crate::icon::{icon, IconProps};
+use crate::recipe::{palette_declarations, when, ColorPalette, Size, SlotRecipe, VariantValue};
 use crate::spinner::spinner_decorative;
-use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
-use fandhe_frontend_headless_ui::{anatomy, aria_disabled, data_disabled, Anatomy};
+use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, Node};
+use fandhe_frontend_headless_ui::{anatomy, aria_disabled, aria_label, data_disabled, Anatomy};
+
+/// [`icon_button`] 呼び出し時、`label` が空白のみ（trim 後空文字）の場合の
+/// フォールバック `aria-label`。アクセシブルネームを欠いた icon-only ボタンを
+/// 決して生成しない fail-closed 動作（イシュー #830 受け入れ条件 1）。
+const ICON_BUTTON_FALLBACK_LABEL: &str = "unlabeled button";
+
+/// `attrs` に `aria-label`（大文字小文字を無視）が既に含まれ、かつその値が
+/// trim 後に空文字でないかどうかを判定する。[`icon_button`]/[`close_button`]
+/// が組み立てる既定/フォールバック `aria-label` を、呼び出し側が `attrs`
+/// 経由で明示指定した値と重複させないために使う（`fandhe_frontend_headless_ui::number_input`
+/// の `increment_trigger`/`decrement_trigger` と同型の dedup 判断、fail-closed。
+/// 重複属性による無効な HTML 出力・後勝ちの非決定的な描画を防ぐ）。
+///
+/// 値が空文字・空白のみの場合はキーが存在してもフォールバックさせる
+/// （呼び出し側が `aria-label=""` を渡した場合に、アイコンオンリーボタンが
+/// 空のアクセシブルネームのまま出力される fail-closed 保証の穴を防ぐ。
+/// イシュー #830 PR #863 Bugbot 指摘）。
+fn has_caller_aria_label(attrs: &[(&str, &str)]) -> bool {
+    attrs
+        .iter()
+        .any(|(k, v)| k.eq_ignore_ascii_case("aria-label") && !v.trim().is_empty())
+}
+
+/// [`close_button`] 呼び出し時、`label` が空白のみの場合の既定
+/// `aria-label`（chakra-ui `CloseButton` の既定値と同値）。
+const CLOSE_BUTTON_DEFAULT_LABEL: &str = "Close";
+
+/// [`close_button`] が組み立てる装飾用途 × アイコンの SVG path
+/// （Material Design の `close` グリフ相当、`viewBox="0 0 24 24"`）。
+/// 外部リソース（`href`/`xlink:href`）は一切参照しない決定的なインライン
+/// パスであり、ユーザー入力や実行時の変動要素を含まない。
+const CLOSE_ICON_PATH: &str = "M18.3 5.71 12 12.01 5.7 5.71 4.29 7.12 10.59 13.42 4.29 19.72 5.7 21.13 12 14.83 18.3 21.13 19.71 19.72 13.41 13.42 19.71 7.12Z";
+
+/// `label` が空白のみ（trim 後空文字）なら `fallback` へ置換する
+/// （[`icon_button`]/[`close_button`] 共通の fail-closed ヘルパ。空の
+/// `aria-label=""` を決して出力しない）。
+fn normalize_label<'a>(label: &'a str, fallback: &'static str) -> &'a str {
+    if label.trim().is_empty() {
+        fallback
+    } else {
+        label
+    }
+}
+
+/// icon-only 修飾 variant（axis `"icon"` / value `"only"`）。[`icon_button`]・
+/// [`close_button`] のみが `selection` へ渡す非公開 enum で、呼び出し側の
+/// 公開 API（[`ButtonProps`]）には露出しない（関数選択で表現するため）。
+/// `default_variant` を登録しないため、通常の [`button`] の class 出力・
+/// golden CSS は不変のまま保たれる（後方互換、イシュー #830 受け入れ条件 2）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ButtonIcon {
+    /// icon-only（正方形・均等 padding）。
+    Only,
+}
+
+impl VariantValue for ButtonIcon {
+    fn axis(self) -> &'static str {
+        "icon"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::Only => "only",
+        }
+    }
+}
 
 /// `data-scope="button"` を固定した本コンポーネントの anatomy。
 const ANATOMY: Anatomy = anatomy("button");
@@ -95,8 +176,36 @@ impl Default for ButtonProps {
 /// （イシュー #606）経由で参照し、`var(--fandhe-color-accent)` 等の
 /// セマンティック色を直接参照しない（`palette` variant の切り替えだけで
 /// 全 variant の色が追従する）。
+/// [`recipe_with_scope`] に Button 固有の icon-only 修飾 variant
+/// （非公開 [`ButtonIcon`] 軸）を追加した recipe を返す。
+///
+/// icon-only 追加分は `recipe_with_scope` 自体には加えない（同関数は
+/// [`crate::download_trigger`] と宣言を共有する契約のため、ここへ追加すると
+/// download_trigger の golden CSS まで変えてしまう）。[`button`] 自身の
+/// class 出力・golden CSS を不変に保つため `default_variant` は登録しない
+/// （[`ButtonIcon`] rustdoc 参照）。
 fn recipe() -> SlotRecipe {
     recipe_with_scope("button")
+        .variant(
+            ButtonIcon::Only,
+            "root",
+            vec![decl("aspect-ratio", "1 / 1")],
+        )
+        .compound_variant(
+            vec![when(ButtonIcon::Only), when(Size::Sm)],
+            "root",
+            vec![decl("padding", "0.25rem")],
+        )
+        .compound_variant(
+            vec![when(ButtonIcon::Only), when(Size::Md)],
+            "root",
+            vec![decl("padding", "0.5rem")],
+        )
+        .compound_variant(
+            vec![when(ButtonIcon::Only), when(Size::Lg)],
+            "root",
+            vec![decl("padding", "0.75rem")],
+        )
 }
 
 /// [`recipe`] の scope 引数化版（イシュー #828）。
@@ -238,12 +347,31 @@ pub fn button<'a>(
     attrs: Vec<(&'a str, &'a str)>,
     children: Vec<Node>,
 ) -> Node {
+    assemble(props, false, attrs, children)
+}
+
+/// `button()`/[`icon_button`]/[`close_button`] 共有の組み立てロジック
+/// （内部専用）。`type="button"` 固定・`disabled`/`loading` の三点セット・
+/// `loading` 時の spinner 埋め込み・`drop_class_attr` による `class` 一意化を
+/// 一箇所へ集約し、3 つの公開関数がこの契約を完全に共有することを保証する
+/// （イシュー #830。挙動の分岐は `icon_only` による class 選択への
+/// `("icon", "only")` 追加のみ）。
+fn assemble<'a>(
+    props: &ButtonProps,
+    icon_only: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
     let recipe = recipe();
-    let class = recipe.variant_classes(&[
+    let mut selection: Vec<(&str, &str)> = vec![
         ("variant", props.variant.value()),
         ("size", props.size.value()),
         ("color-palette", props.palette.value()),
-    ]);
+    ];
+    if icon_only {
+        selection.push(("icon", "only"));
+    }
+    let class = recipe.variant_classes(&selection);
 
     let mut merged: Vec<(&str, &str)> = vec![("type", "button"), ("class", class.as_str())];
     if props.disabled || props.loading {
@@ -264,6 +392,117 @@ pub fn button<'a>(
     node_children.extend(children);
 
     ANATOMY.part("root", "button", merged, node_children)
+}
+
+/// IconButton（イシュー #830）: アイコンのみを表示する正方形の Button
+/// variant 拡張。`children` へ呼び出し側が構築したアイコンノード
+/// （[`crate::icon::icon`] 等）を渡す。
+///
+/// `label` はアクセシブルネームとして必須の `aria-label` を組み立てる
+/// （視覚的にテキストラベルを持たないボタンのため）。`label.trim()` が
+/// 空文字の場合は固定フォールバック（`"unlabeled button"`）へ置換し、
+/// 空の `aria-label=""` を決して出力しない（fail-closed、安全側既定）。
+/// ただし `attrs` に呼び出し側が既に `aria-label`（大文字小文字を無視）を
+/// 指定している場合はそちらを優先し、既定/フォールバック値は追加しない
+/// （`aria-label` の重複出力による無効な HTML・後勝ちの非決定的な描画を
+/// 防ぐ、`fandhe_frontend_headless_ui::number_input` の
+/// `increment_trigger`/`decrement_trigger` と同型の dedup 契約）。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::{el, render};
+/// use fandhe_frontend_pre_styled_ui::button::{icon_button, ButtonProps};
+/// use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
+///
+/// let node = icon_button(
+///     &ButtonProps::default(),
+///     "Search",
+///     vec![],
+///     vec![icon(
+///         &IconProps { label: None, ..IconProps::default() },
+///         vec![],
+///         vec![el("path", vec![("d", "M12 2L2 22h20z")], vec![])],
+///     )],
+/// );
+/// let html = render(&node);
+/// assert!(html.contains(r#"aria-label="Search""#));
+/// assert!(html.contains("fd-button--icon-only"));
+/// ```
+#[must_use]
+pub fn icon_button<'a>(
+    props: &ButtonProps,
+    label: &'a str,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let label = normalize_label(label, ICON_BUTTON_FALLBACK_LABEL);
+    let mut merged_attrs = attrs;
+    if !has_caller_aria_label(&merged_attrs) {
+        // 呼び出し側が空文字/空白のみの `aria-label` を渡した場合、そのまま
+        // 残すとフォールバック値と合わせて `aria-label` が 2 個出力されて
+        // しまう（dedup 契約違反）。無効な既存エントリを除去してから
+        // フォールバックを追加し、常に高々 1 個の `aria-label` を保証する。
+        merged_attrs.retain(|(k, _)| !k.eq_ignore_ascii_case("aria-label"));
+        merged_attrs.push(aria_label(label));
+    }
+    assemble(props, true, merged_attrs, children)
+}
+
+/// CloseButton（イシュー #830）: 装飾用途の × アイコンを内包する IconButton
+/// 特化版（Button variant 拡張、[`icon_button`] 経由）。
+///
+/// アイコンは本関数が内部で組み立てる（[`crate::icon::icon`] +
+/// 決定的なインライン SVG path、外部リソース非参照）ため、`children` 引数を
+/// 取らない。`label` は [`icon_button`] と同じ fail-closed 規約に従うが、
+/// 空文字時の既定値は chakra-ui `CloseButton` と同値の `"Close"`。
+/// `attrs` 経由の呼び出し側 `aria-label` 優先・重複防止の契約も
+/// [`icon_button`] と同一。
+///
+/// variant の既定は [`ButtonProps::default`]（`Solid`）のまま変更しない
+/// （暗黙の既定差し替えをしない Rust 最適化形の判断）。chakra-ui の
+/// `ghost` 既定相当の見た目にしたい場合は、呼び出し側が
+/// `ButtonProps { variant: ButtonVariant::Ghost, .. }` を明示的に渡す。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::button::{close_button, ButtonProps, ButtonVariant};
+///
+/// let node = close_button(
+///     &ButtonProps { variant: ButtonVariant::Ghost, ..ButtonProps::default() },
+///     "",
+///     vec![],
+/// );
+/// let html = render(&node);
+/// assert!(html.contains(r#"aria-label="Close""#));
+/// assert!(html.contains(r#"aria-hidden="true""#));
+/// ```
+#[must_use]
+pub fn close_button<'a>(
+    props: &ButtonProps,
+    label: &'a str,
+    attrs: Vec<(&'a str, &'a str)>,
+) -> Node {
+    let label = normalize_label(label, CLOSE_BUTTON_DEFAULT_LABEL);
+    let icon_node = icon(
+        &IconProps {
+            size: props.size,
+            label: None,
+            ..IconProps::default()
+        },
+        vec![],
+        vec![el("path", vec![("d", CLOSE_ICON_PATH)], vec![])],
+    );
+    let mut merged_attrs = attrs;
+    if !has_caller_aria_label(&merged_attrs) {
+        // icon_button と同じ理由で、無効な既存 `aria-label` を除去してから
+        // フォールバックを追加する（dedup 契約、高々 1 個の `aria-label`）。
+        merged_attrs.retain(|(k, _)| !k.eq_ignore_ascii_case("aria-label"));
+        merged_attrs.push(aria_label(label));
+    }
+    assemble(props, true, merged_attrs, vec![icon_node])
 }
 
 #[cfg(test)]
@@ -457,5 +696,181 @@ mod tests {
         ));
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;"));
+    }
+
+    // --- イシュー #830: icon_button / close_button ---------------------
+
+    #[test]
+    fn icon_button_outputs_icon_only_class_aria_label_and_type_button() {
+        let html = render(&icon_button(
+            &ButtonProps::default(),
+            "Search",
+            vec![],
+            vec![text("icon")],
+        ));
+        assert!(html.contains("fd-button--icon-only"));
+        assert!(html.contains(r#"aria-label="Search""#));
+        assert!(html.contains(r#"type="button""#));
+    }
+
+    /// 受け入れ条件 1: `label` が空文字・空白のみの場合にフォールバック
+    /// ラベルへ置換し、空の `aria-label=""` を決して出力しない。
+    #[test]
+    fn icon_button_empty_label_falls_back_and_never_emits_empty_aria_label() {
+        for label in ["", "   "] {
+            let html = render(&icon_button(&ButtonProps::default(), label, vec![], vec![]));
+            assert!(html.contains(r#"aria-label="unlabeled button""#), "{html}");
+            assert!(!html.contains(r#"aria-label="""#), "{html}");
+        }
+    }
+
+    #[test]
+    fn icon_button_preserves_loading_and_disabled_three_attrs() {
+        let props = ButtonProps {
+            loading: true,
+            ..ButtonProps::default()
+        };
+        let html = render(&icon_button(&props, "Search", vec![], vec![]));
+        assert!(html.contains(r#"disabled="""#));
+        assert!(html.contains(r#"data-disabled="""#));
+        assert!(html.contains(r#"aria-disabled="true""#));
+        assert!(html.contains(r#"aria-busy="true""#));
+        assert!(html.contains(r#"data-scope="spinner" data-part="root""#));
+    }
+
+    #[test]
+    fn close_button_embeds_decorative_icon_and_default_aria_label_close() {
+        let html = render(&close_button(&ButtonProps::default(), "", vec![]));
+        assert!(html.contains(r#"aria-label="Close""#));
+        assert!(html.contains(r#"data-scope="icon" data-part="root""#));
+        assert!(html.contains(r#"aria-hidden="true""#));
+        assert!(!html.contains(r#"role="img""#));
+        assert!(html.contains("fd-button--icon-only"));
+    }
+
+    #[test]
+    fn close_button_overridden_label_is_used_and_escaped() {
+        let html = render(&close_button(
+            &ButtonProps::default(),
+            "<script>alert(1)</script>",
+            vec![],
+        ));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("aria-label=\"&lt;script&gt;alert(1)&lt;/script&gt;\""));
+    }
+
+    /// Review 指摘の是正回帰: 呼び出し側が `attrs` 経由で既に `aria-label`
+    /// を指定している場合、`icon_button` の既定 `aria-label` を二重に
+    /// 出力しない（`aria-label` は高々 1 個。`number_input::increment_trigger`
+    /// と同じ dedup 契約）。
+    #[test]
+    fn icon_button_does_not_duplicate_caller_supplied_aria_label() {
+        let html = render(&icon_button(
+            &ButtonProps::default(),
+            "Search",
+            vec![("aria-label", "custom label")],
+            vec![],
+        ));
+        assert_eq!(html.matches("aria-label=").count(), 1);
+        assert!(html.contains(r#"aria-label="custom label""#));
+        assert!(!html.contains(r#"aria-label="Search""#));
+    }
+
+    /// 大文字小文字違いの `Aria-Label` でも同一属性とみなして dedup する
+    /// （`has_caller_aria_label` は大文字小文字を無視する契約）。
+    #[test]
+    fn icon_button_dedup_is_case_insensitive() {
+        let html = render(&icon_button(
+            &ButtonProps::default(),
+            "Search",
+            vec![("Aria-Label", "custom label")],
+            vec![],
+        ));
+        // 属性名は呼び出し側指定の表記（大文字小文字）のまま出力されるため、
+        // 小文字化してから件数を数える（dedup 判定自体が大文字小文字を
+        // 無視することの確認が目的であり、出力側の表記は問わない）。
+        assert_eq!(html.to_lowercase().matches("aria-label=").count(), 1);
+        assert!(html.contains(r#"Aria-Label="custom label""#));
+    }
+
+    /// Review 指摘の是正回帰: `close_button` も同様に呼び出し側指定の
+    /// `aria-label` を優先し、既定値 `"Close"` と重複させない。
+    #[test]
+    fn close_button_does_not_duplicate_caller_supplied_aria_label() {
+        let html = render(&close_button(
+            &ButtonProps::default(),
+            "",
+            vec![("aria-label", "custom close label")],
+        ));
+        assert_eq!(html.matches("aria-label=").count(), 1);
+        assert!(html.contains(r#"aria-label="custom close label""#));
+        assert!(!html.contains(r#"aria-label="Close""#));
+    }
+
+    /// Bugbot 指摘の是正回帰（PR #863）: 呼び出し側が `aria-label=""`
+    /// （空文字）を渡した場合、`has_caller_aria_label` はキーの存在のみで
+    /// 判定してはならない。フォールバック `aria-label`（`"Search"` 相当の
+    /// 正規化ラベル）へ必ず差し替え、空のアクセシブルネームを出力しない
+    /// （icon-only ボタンの fail-closed 保証）。
+    #[test]
+    fn icon_button_falls_back_when_caller_aria_label_is_empty() {
+        let html = render(&icon_button(
+            &ButtonProps::default(),
+            "Search",
+            vec![("aria-label", "")],
+            vec![],
+        ));
+        assert_eq!(html.matches("aria-label=").count(), 1);
+        assert!(html.contains(r#"aria-label="Search""#));
+        assert!(!html.contains(r#"aria-label="""#));
+    }
+
+    /// 同様に空白のみの `aria-label` もフォールバック対象とする
+    /// （`trim()` 後に空文字と判定される契約）。
+    #[test]
+    fn icon_button_falls_back_when_caller_aria_label_is_whitespace_only() {
+        let html = render(&icon_button(
+            &ButtonProps::default(),
+            "Search",
+            vec![("aria-label", "   ")],
+            vec![],
+        ));
+        assert_eq!(html.matches("aria-label=").count(), 1);
+        assert!(html.contains(r#"aria-label="Search""#));
+    }
+
+    /// `close_button` も同様に空文字 `aria-label` をフォールバック
+    /// （既定ラベル `"Close"`）させる。
+    #[test]
+    fn close_button_falls_back_when_caller_aria_label_is_empty() {
+        let html = render(&close_button(
+            &ButtonProps::default(),
+            "",
+            vec![("aria-label", "")],
+        ));
+        assert_eq!(html.matches("aria-label=").count(), 1);
+        assert!(html.contains(r#"aria-label="Close""#));
+        assert!(!html.contains(r#"aria-label="""#));
+    }
+
+    /// 後方互換回帰: 通常の [`button`] は icon 軸に `default_variant` を
+    /// 持たないため、`fd-button--icon-` を含む class を一切出力しない
+    /// （イシュー #830 受け入れ条件 2、既存 golden HTML の不変性）。
+    #[test]
+    fn plain_button_never_emits_icon_only_class() {
+        let html = render(&button(&ButtonProps::default(), vec![], vec![text("Save")]));
+        assert!(!html.contains("fd-button--icon-"));
+    }
+
+    #[test]
+    fn css_output_contains_icon_only_compound_variant_rules() {
+        let out = css();
+        assert!(out.contains(".fd-button--icon-only.fd-button--size-sm"));
+        assert!(out.contains("padding: 0.25rem;"));
+        assert!(out.contains(".fd-button--icon-only.fd-button--size-md"));
+        assert!(out.contains("padding: 0.5rem;"));
+        assert!(out.contains(".fd-button--icon-only.fd-button--size-lg"));
+        assert!(out.contains("padding: 0.75rem;"));
+        assert!(out.contains("aspect-ratio: 1 / 1;"));
     }
 }

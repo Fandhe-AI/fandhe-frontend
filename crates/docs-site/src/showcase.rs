@@ -49,11 +49,16 @@ use fandhe_frontend_pre_styled_ui::action_bar;
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
-use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
+use fandhe_frontend_pre_styled_ui::button::{
+    button, close_button, icon_button, ButtonProps, ButtonVariant,
+};
 use fandhe_frontend_pre_styled_ui::carousel;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::code::code;
+use fandhe_frontend_pre_styled_ui::color_swatch::{
+    self, Color, ColorSwatchProps, Rgb, SwatchShape,
+};
 use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataListProps};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
@@ -65,6 +70,7 @@ use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::{PanelSpec, Splitter};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
 use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
@@ -78,6 +84,7 @@ use fandhe_frontend_pre_styled_ui::kbd::kbd;
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
+use fandhe_frontend_pre_styled_ui::marquee::{self, MarqueeDirection, MarqueeProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
@@ -93,6 +100,7 @@ use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, Separa
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
+use fandhe_frontend_pre_styled_ui::splitter;
 use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 use fandhe_frontend_pre_styled_ui::steps;
@@ -224,8 +232,8 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 /// rating_group/slider/segment_group/pagination/breadcrumb/carousel/
 /// action_bar/toast/progress/tag/kbd/code/image/icon/status/empty_state/
 /// visually_hidden/qr_code/heading/text/em/mark/blockquote/list/table/
-/// data_list/stat/timeline/scroll_area）→ ショーケース配置スタイル、の順で
-/// 決定的に連結する。
+/// data_list/stat/timeline/scroll_area/splitter）→ ショーケース配置
+/// スタイル、の順で決定的に連結する。
 ///
 /// # Errors
 ///
@@ -286,6 +294,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tag::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::kbd::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::code::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::color_swatch::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::image::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::icon::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::status::css())?;
@@ -302,7 +311,9 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::data_list::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::stat::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::timeline::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::marquee::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::scroll_area::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::splitter::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::timer::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
@@ -404,10 +415,51 @@ fn button_section() -> Node {
         ),
     ]);
 
+    // IconButton / CloseButton（イシュー #830）: 独立部品ではなく本 recipe の
+    // icon-only 修飾 variant として実装した（`crates/pre-styled-ui/src/button.rs`
+    // モジュール doc 参照）。IconButton は `aria-label` を必須引数として明示し、
+    // CloseButton は既定 `aria-label="Close"` + 内蔵の × アイコンを持つ。
+    let icon_close_row = row(vec![
+        icon_button(
+            &ButtonProps::default(),
+            "Search",
+            vec![],
+            vec![icon(
+                &IconProps {
+                    label: None,
+                    ..IconProps::default()
+                },
+                vec![],
+                vec![el(
+                    "path",
+                    vec![(
+                        "d",
+                        "M10 2a8 8 0 105.29 14.29l4.7 4.7 1.42-1.42-4.7-4.7A8 8 0 0010 2zm0 2a6 6 0 110 12 6 6 0 010-12z",
+                    )],
+                    vec![],
+                )],
+            )],
+        ),
+        close_button(
+            &ButtonProps {
+                variant: ButtonVariant::Ghost,
+                ..ButtonProps::default()
+            },
+            "",
+            vec![],
+        ),
+    ]);
+
     section(
         "Button",
-        "variant（solid / outline / ghost / subtle）・size・colorPalette・状態（disabled / loading）の各軸を型安全な props で切り替えます。",
-        vec![variant_row, size_row, palette_row, state_row],
+        "variant（solid / outline / ghost / subtle）・size・colorPalette・状態（disabled / loading）の各軸を型安全な props で切り替えます。IconButton / CloseButton（イシュー #830）は独立部品ではなく本 recipe の icon-only 修飾 variant です。",
+        vec![
+            variant_row,
+            size_row,
+            palette_row,
+            state_row,
+            icon_close_row,
+        ],
     )
 }
 
@@ -2938,6 +2990,104 @@ fn steps_section() -> Node {
     )
 }
 
+/// Splitter 節（イシュー #826）: 水平 2 パネルと垂直 3 パネルの静的掲示。
+///
+/// `panel` の伸縮は headless 中立な
+/// [`Splitter::size`](fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::Splitter::size)
+/// から導出する `--fandhe-splitter-size` CSS custom property（flex-basis
+/// 経由）の 1 点のみで伝搬する（`fandhe_frontend_pre_styled_ui::splitter`
+/// のモジュール doc「動的な値は 1 点のみ」参照）。resize-trigger のクリック・
+/// ドラッグ挙動は wasm 層のスコープ外（`crates/headless-ui/src/splitter.rs`
+/// モジュール doc §スコープ外参照）。
+fn splitter_section() -> Node {
+    let horizontal_state = Splitter::new(
+        &[
+            PanelSpec::new(60.0, 20.0, 80.0),
+            PanelSpec::new(40.0, 20.0, 80.0),
+        ],
+        Orientation::Horizontal,
+    );
+    let horizontal_demo = splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &horizontal_state,
+        false,
+        vec![],
+        vec![
+            splitter::panel(
+                &horizontal_state,
+                0,
+                "showcase-splitter-h-panel-a",
+                vec![],
+                vec![text("Panel A")],
+            ),
+            splitter::resize_trigger(
+                &horizontal_state,
+                0,
+                "showcase-splitter-h-panel-a",
+                false,
+                vec![],
+                vec![],
+            ),
+            splitter::panel(
+                &horizontal_state,
+                1,
+                "showcase-splitter-h-panel-b",
+                vec![],
+                vec![text("Panel B")],
+            ),
+        ],
+    );
+
+    let vertical_state = Splitter::new(
+        &[
+            PanelSpec::new(33.0, 0.0, 100.0),
+            PanelSpec::new(33.0, 0.0, 100.0),
+            PanelSpec::new(34.0, 0.0, 100.0),
+        ],
+        Orientation::Vertical,
+    );
+    let mut vertical_children = Vec::new();
+    for (index, label) in ["Top", "Middle", "Bottom"].iter().enumerate() {
+        let id = format!("showcase-splitter-v-panel-{index}");
+        vertical_children.push(splitter::panel(
+            &vertical_state,
+            index,
+            &id,
+            vec![],
+            vec![text(*label)],
+        ));
+        if index + 1 < 3 {
+            vertical_children.push(splitter::resize_trigger(
+                &vertical_state,
+                index,
+                &id,
+                false,
+                vec![],
+                vec![],
+            ));
+        }
+    }
+    let vertical_demo = splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &vertical_state,
+        false,
+        // column flex の root では各 panel が `flex-basis` にパーセンテージを
+        // 使うため、root 自身に解決済みの main size（高さ）がないとパーセン
+        // テージが適用されない（Bugbot 指摘、PR #862）。明示的な高さを与えて
+        // 33/33/34 分割が実際に反映されるようにする。
+        vec![("style", "height: 16rem;")],
+        vertical_children,
+    );
+
+    section(
+        "Splitter",
+        "パネルサイズ状態機械 Splitter の静的掲示（水平 2 パネル・垂直 3 パネル）。resize-trigger は role=\"separator\" + aria-valuemin/max/now（先行パネルのサイズ %）+ aria-controls を持ちます（ドラッグ・キーボード操作は wasm 層のスコープ外）。",
+        vec![row(vec![horizontal_demo]), row(vec![vertical_demo])],
+    )
+}
+
 /// CheckboxCard 節: unchecked / checked / disabled の 3 態（イシュー #747）。
 ///
 /// chakra-ui checkbox-card 相当のカード型選択 UI。状態機械は
@@ -3275,7 +3425,13 @@ fn visually_hidden_section() -> Node {
     // 併用すると accessible-name 計算で `aria-label` が勝ち、VisuallyHidden
     // テキストが読み上げられなくなってしまう。アイコンのみのボタンに
     // 補足テキストを添える本来の用途を壊さないための必須の組み合わせ方）。
-    let icon_button = button(
+    // イシュー #830 の `icon_button()`（`aria-label` を必須引数化）へは
+    // 意図的に移行しない: このデモの本旨は「`aria-label` を使わずアクセシブル
+    // ネームを子孫の VisuallyHidden テキストへ委ねる」パターンの掲示であり、
+    // `icon_button()` へ切り替えると強制的に `aria-label` が付与されて
+    // このデモが成立しなくなる（`button_section` 側の別デモで `icon_button`/
+    // `close_button` を掲示済み）。
+    let visually_hidden_icon_button = button(
         &ButtonProps::default(),
         vec![],
         vec![
@@ -3286,7 +3442,7 @@ fn visually_hidden_section() -> Node {
     section(
         "VisuallyHidden",
         "視覚的には隠す（clip 手法）が支援技術には読ませ続けるテキストコンテナ。アイコンのみのボタンに補足テキストを添える用途などに使います。aria-hidden は一切出力しません。",
-        vec![row(vec![icon_button])],
+        vec![row(vec![visually_hidden_icon_button])],
     )
 }
 
@@ -3702,6 +3858,50 @@ fn timeline_section() -> Node {
     )
 }
 
+/// Marquee 節（イシュー #831、`docs/policy/intentional-non-adoption.md` §3.24
+/// の再導入）: CSS のみ（JS ゼロ）の自動流動テキスト。`direction`（既定/`End`）
+/// の切り替え・装飾用途（`decorative: true`）・`--fandhe-marquee-duration`
+/// 上書きの掲示例を並べる。
+fn marquee_section() -> Node {
+    let default_demo = marquee::marquee(
+        &MarqueeProps::default(),
+        vec![],
+        vec![marquee::item(
+            vec![],
+            vec![text(
+                "Fandhe frontend — CSS のみで動く自動流動テキストです。",
+            )],
+        )],
+    );
+    let end_demo = marquee::marquee(
+        &MarqueeProps {
+            direction: MarqueeDirection::End,
+            ..MarqueeProps::default()
+        },
+        vec![],
+        vec![marquee::item(
+            vec![],
+            vec![text("逆方向スクロールの例です。")],
+        )],
+    );
+    let decorative_demo = marquee::marquee(
+        &MarqueeProps {
+            decorative: true,
+            ..MarqueeProps::default()
+        },
+        vec![("style", "--fandhe-marquee-duration: 8s;")],
+        vec![marquee::item(
+            vec![],
+            vec![text("装飾用途（aria-hidden）+ 速度上書きの例です。")],
+        )],
+    );
+    section(
+        "Marquee",
+        "CSS のみ（JS ゼロ）の自動流動テキストです。direction（既定/end）でスクロール方向を切り替え、hover/focus-within で常時一時停止、prefers-reduced-motion: reduce 環境では停止します。decorative: true で装飾用途（aria-hidden）に、--fandhe-marquee-duration の上書きで速度を調整できます。",
+        vec![default_demo, end_demo, decorative_demo],
+    )
+}
+
 /// ScrollArea 節（イシュー #825）: `overflow: auto` によるネイティブスクロール
 /// とカスタムスクロールバー表現（`scrollbar-width`/`::-webkit-scrollbar`）。
 /// JS によるスクロール位置追従は本イシューのスコープ外（`crate::scroll_area`
@@ -3886,6 +4086,57 @@ fn code_section() -> Node {
     )
 }
 
+/// ColorSwatch 節（イシュー #838）: size / shape の掲示と、透過色の
+/// チェッカーボード表示確認。
+fn color_swatch_section() -> Node {
+    let blue = Color::from_rgb(Rgb::new(0x3b, 0x82, 0xf6));
+    let size_row = row([Size::Sm, Size::Md, Size::Lg]
+        .iter()
+        .map(|size| {
+            color_swatch::color_swatch(
+                &ColorSwatchProps {
+                    value: blue,
+                    size: *size,
+                    ..ColorSwatchProps::default()
+                },
+                vec![],
+                vec![],
+            )
+        })
+        .collect());
+    let shape_row = row([
+        SwatchShape::Square,
+        SwatchShape::Circle,
+        SwatchShape::Rounded,
+    ]
+    .iter()
+    .map(|shape| {
+        color_swatch::color_swatch(
+            &ColorSwatchProps {
+                value: blue,
+                shape: *shape,
+                ..ColorSwatchProps::default()
+            },
+            vec![],
+            vec![],
+        )
+    })
+    .collect());
+    let transparent_row = row(vec![color_swatch::color_swatch(
+        &ColorSwatchProps {
+            value: Color::from_rgba(Rgb::new(0x3b, 0x82, 0xf6), 0x80),
+            ..ColorSwatchProps::default()
+        },
+        vec![],
+        vec![],
+    )]);
+    section(
+        "ColorSwatch",
+        "色見本の静的表示です。size / shape を組み合わせられます。アルファ付き色は下地のチェッカーボード模様で透過が視認できます。",
+        vec![size_row, shape_row, transparent_row],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -3943,6 +4194,7 @@ fn showcase_body() -> Node {
             json_tree_view_section(),
             pagination_section(),
             steps_section(),
+            splitter_section(),
             checkbox_card_section(),
             radio_card_section(),
             breadcrumb_section(),
@@ -3954,6 +4206,7 @@ fn showcase_body() -> Node {
             tag_section(),
             kbd_section(),
             code_section(),
+            color_swatch_section(),
             status_section(),
             empty_state_section(),
             visually_hidden_section(),
@@ -3962,6 +4215,7 @@ fn showcase_body() -> Node {
             data_list_section(),
             stat_section(),
             timeline_section(),
+            marquee_section(),
             scroll_area_section(),
             timer_section(),
         ],
@@ -4014,6 +4268,7 @@ mod tests {
             "segment-group",
             "pagination",
             "steps",
+            "splitter",
             "checkbox-card",
             "radio-card",
             "breadcrumb",
@@ -4023,6 +4278,7 @@ mod tests {
             "tag",
             "kbd",
             "code",
+            "color-swatch",
             "status",
             "empty-state",
             "visually-hidden",

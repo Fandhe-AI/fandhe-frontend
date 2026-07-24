@@ -36,7 +36,7 @@ use fandhe_frontend_core::{el, escape_html, render, text};
 use fandhe_frontend_pre_styled_ui::alert::{self, AlertStatus};
 use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
-use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
+use fandhe_frontend_pre_styled_ui::button::{button, close_button, icon_button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
@@ -58,6 +58,7 @@ use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProp
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps};
+use fandhe_frontend_pre_styled_ui::marquee::{self, MarqueeProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode};
@@ -73,6 +74,7 @@ use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps};
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
+use fandhe_frontend_pre_styled_ui::splitter;
 use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 use fandhe_frontend_pre_styled_ui::steps;
@@ -184,6 +186,16 @@ fn styled_text_children_are_escaped_for_all_payloads() {
             &html,
             "timeline::description children コンテキスト",
         );
+
+        let html = render(&marquee::marquee(
+            &MarqueeProps::default(),
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "marquee::marquee children コンテキスト");
+
+        let html = render(&marquee::item(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "marquee::item children コンテキスト");
     }
 }
 
@@ -201,6 +213,40 @@ fn spinner_label_attribute_is_escaped_for_all_payloads() {
         });
         let html = render(&node);
         assert_payload_is_escaped(payload, &html, "spinner label 属性値コンテキスト");
+    }
+}
+
+/// (2b) 属性値経路: `icon_button`/`close_button`（イシュー #830）の必須
+/// `label` 引数が `aria-label` へ透過する経路で、既定エスケープが貫通する
+/// ことを固定する（REQ-1 回帰、button.rs 冒頭 rustdoc の「aria-label 経由も
+/// `render` の既定エスケープを通る」契約の裏付け）。
+#[test]
+fn icon_button_and_close_button_label_attribute_is_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let html = render(&icon_button(
+            &ButtonProps::default(),
+            payload,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "icon_button label 属性値コンテキスト");
+
+        let html = render(&close_button(&ButtonProps::default(), payload, vec![]));
+        assert_payload_is_escaped(payload, &html, "close_button label 属性値コンテキスト");
+    }
+}
+
+/// (2) 属性値経路 a（続き、イシュー #831）: `marquee::MarqueeProps::label` は
+/// `decorative: false`（既定）時に `aria-label` へ透過する。
+#[test]
+fn marquee_label_attribute_is_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let props = MarqueeProps {
+            label: Some(payload),
+            ..MarqueeProps::default()
+        };
+        let html = render(&marquee::marquee(&props, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "marquee label 属性値コンテキスト");
     }
 }
 
@@ -249,6 +295,17 @@ fn caller_attrs_are_escaped_for_all_payloads() {
             payload,
             &html,
             "timeline::root 呼び出し側 attrs コンテキスト",
+        );
+
+        let html = render(&marquee::marquee(
+            &MarqueeProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "marquee::marquee 呼び出し側 attrs コンテキスト",
         );
     }
 }
@@ -313,6 +370,25 @@ fn caller_class_attr_is_dropped_not_merged_raw_for_all_payloads() {
         assert!(
             html.contains("fd-timeline--"),
             "timeline::root の recipe 生成クラスが失われている: html={html}"
+        );
+
+        let html = render(&marquee::marquee(
+            &MarqueeProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "marquee::marquee の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "marquee::marquee の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-marquee--"),
+            "marquee::marquee の recipe 生成クラスが失われている: html={html}"
         );
     }
 }
@@ -851,6 +927,83 @@ fn slider_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         // 選択的再エクスポートした hidden_input の name 経路。
         let html = render(&slider::hidden_input(payload, "40", false, vec![]));
         assert_payload_is_escaped(payload, &html, "slider::hidden_input name コンテキスト");
+    }
+}
+
+/// Splitter 経路（イシュー #826）: styled `root` の呼び出し側 `attrs`・
+/// `class`、styled `panel` の `id`、および headless-ui から選択的
+/// 再エクスポートした `resize_trigger_indicator` の children の 4 箇所すべて
+/// で既定エスケープ（REQ-1）が貫通することを固定する（slider 経路と同粒度）。
+#[test]
+fn splitter_styled_root_panel_and_reexported_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::{
+        PanelSpec, Splitter,
+    };
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::Orientation;
+
+    for payload in payloads::all() {
+        let s = Splitter::new(
+            &[
+                PanelSpec::new(50.0, 0.0, 100.0),
+                PanelSpec::new(50.0, 0.0, 100.0),
+            ],
+            Orientation::Horizontal,
+        );
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&splitter::root(
+            Size::Md,
+            ColorPalette::Accent,
+            &s,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "splitter::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&splitter::root(
+            Size::Md,
+            ColorPalette::Accent,
+            &s,
+            false,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "splitter::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "splitter::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-splitter--"),
+            "splitter::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // styled panel の id 属性経路。
+        let html = render(&splitter::panel(&s, 0, payload, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "splitter::panel id コンテキスト");
+
+        // 選択的再エクスポートした resize_trigger_indicator の children 経路。
+        let html = render(&splitter::resize_trigger_indicator(
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "splitter::resize_trigger_indicator children コンテキスト",
+        );
     }
 }
 
@@ -3102,5 +3255,85 @@ fn timer_styled_children_and_attrs_are_escaped_for_all_payloads() {
             vec![],
         ));
         assert_payload_is_escaped(payload, &html, "timer::root attrs コンテキスト");
+    }
+}
+
+/// styled ColorSwatch（イシュー #838）の XSS 回帰。
+///
+/// 対象の入力面:
+/// 1. class/style 破棄経路: 呼び出し側 `attrs` の `class`/`style` を渡しても
+///    recipe 生成クラス・`--fd-swatch-color` style へ完全置換され、生
+///    ペイロードが一切残らないことを確認する。
+/// 2. 属性値経路: 呼び出し側 `attrs`（`class`/`style` 以外）。
+/// 3. children テキスト経路。
+/// 4. 色値経路: `ColorSwatchProps::value` は
+///    [`fandhe_frontend_pre_styled_ui::color_swatch::Color`] 型のみを受け
+///    取るため、攻撃者が制御しうる生文字列を `style` へ注入する経路が
+///    構造的に存在しない（`Color::to_hex_string()` の出力が `#[0-9a-f]` に
+///    閉じることは `crates/pre-styled-ui/src/color_swatch.rs` の単体テストが
+///    別途固定する）。
+#[test]
+fn color_swatch_class_style_and_children_payloads_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::color_swatch::{self, Color, ColorSwatchProps, Rgb};
+
+    for payload in payloads::all() {
+        let props = ColorSwatchProps {
+            value: Color::from_rgb(Rgb::new(0x3b, 0x82, 0xf6)),
+            ..ColorSwatchProps::default()
+        };
+
+        // (1) class/style 破棄経路。
+        let html = render(&color_swatch::color_swatch(
+            &props,
+            vec![("class", payload), ("style", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "color_swatch::color_swatch の class/style 属性に渡した生ペイロードが \
+             出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "color_swatch::color_swatch の class 属性が複数出現している: html={html}"
+        );
+        assert_eq!(
+            html.matches("style=\"").count(),
+            1,
+            "color_swatch::color_swatch の style 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-color-swatch--"),
+            "color_swatch::color_swatch で recipe 生成クラスが失われている: html={html}"
+        );
+        assert!(
+            html.contains("--fd-swatch-color:"),
+            "color_swatch::color_swatch でフレームワーク生成 style が失われている: html={html}"
+        );
+
+        // (2) 属性値経路: 呼び出し側 attrs（class/style 以外）。
+        let html = render(&color_swatch::color_swatch(
+            &props,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "color_swatch::color_swatch 呼び出し側 attrs コンテキスト",
+        );
+
+        // (3) children テキスト経路。
+        let html = render(&color_swatch::color_swatch(
+            &props,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "color_swatch::color_swatch children コンテキスト",
+        );
     }
 }

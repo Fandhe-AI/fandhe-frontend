@@ -12,7 +12,9 @@ enhancement（`@supports` 段階適用）のフォールバック設計案・非
 整理をイシュー #644（出典: 同書 §4.5a）でも参照されている（判断・節本文は
 変更なし）。§3.22〜§3.24 は非採用確定（イシュー #735、出典
 `docs/design/component-coverage-map.md`（イシュー #734）の保留・意図的
-非採用プレースホルダ行の評価）。§7 は、イシュー #735 で非採用ではなく
+非採用プレースホルダ行の評価）。ただし §3.24 のうち Marquee は #831 で
+§4 の再導入手続きに基づき再導入済み（chakra `Theme` コンポーネントは
+非採用のまま変更しない）。§7 は、イシュー #735 で非採用ではなく
 保留のまま維持すると判断した項目群の再評価トリガーの記録である。
 
 **節番号の採番規則**（イシュー #398、§3.6〜§3.8 の重複発覚を受けて明記）:
@@ -1007,7 +1009,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   4. Checkmark / Radiomark: `checkbox` / `radio_group` から装飾表現を
      切り出す具体的な需要（他コンポーネントでの再利用等）が確定した場合。
 
-### 3.24 その他 UI 部品（marquee / chakra `Theme` コンポーネント）（イシュー #735）
+### 3.24 その他 UI 部品（marquee / chakra `Theme` コンポーネント）（イシュー #735、marquee は #831 で再導入済み）
 
 - **概要**: `docs/design/component-coverage-map.md`（イシュー #734）が
   「保留」区分の前方参照プレースホルダとして記録していた 2 件。
@@ -1045,6 +1047,15 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   2. `Theme`: 既存 `theme` mod では表現できないスコープ付きテーマ切替
      （ページの一部だけ異なるテーマトークン集合を適用する等）の需要が
      具体的なユースケースを伴って確定した場合。
+- **再導入記録（イシュー #831、Marquee のみ。`Theme` は非採用のまま
+  変更しない）**: 再評価トリガー 1（自動流動テキストの需要が確定し、かつ
+  `prefers-reduced-motion` 等のアクセシビリティ要件を満たす決定的な設計案
+  が提示された場合）を、CSS のみ（JS ゼロ）・`prefers-reduced-motion:
+  reduce` でのアニメーション停止・`hover`/`focus-within` での常時一時停止
+  という決定的設計案で充足したと判断し、`crates/pre-styled-ui/src/marquee.rs`
+  として §4 の手続きに従い再導入した（評価軸充足の詳細は同ファイル冒頭
+  rustdoc、golden CSS 固定は `crates/pre-styled-ui/tests/marquee_css.rs`
+  参照）。
 
 ## 4. 運用（再導入提案時の手続き）
 
@@ -1159,8 +1170,8 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 | 高度入力系（フォーム部品） | color-picker（ark・chakra 双方）/ color-swatch / file-upload（ark・chakra 双方） | `File` API・canvas 依存部分（カラーピッカーのスウォッチ描画、ファイルプレビュー）を `wasm-full` 側の限定配線に閉じ込め、`headless-ui` 側を純粋関数のまま保てる設計が未確立 | 利用要望の具体化、および依存部分を wasm 層に隔離し `headless-ui` の状態機械を純粋関数のまま保てる設計案の提示 |
 | JS ランタイム固有 utilities のうち静的実装可能なもの | download-trigger（ark・chakra 双方）/ json-tree-view | いずれも保留解除・実装済み（download-trigger: 利用要望 issue #828 の起票により保留解除、`headless-ui`/`pre-styled-ui` の `download_trigger` mod として実装済み。json-tree-view: イシュー #829 で実装済み `tree_view`（#753）の派生として実装完了、headless `crates/headless-ui/src/json_tree_view.rs` + styled `crates/pre-styled-ui/src/json_tree_view.rs` として実装済み。詳細は `docs/design/component-coverage-map.md` 該当行参照） | （両者とも実装済みのため該当なし） |
 | charts 全般 | area-chart / bar-chart / bar-list / bar-segment / cartesian-grid / donut-chart / installation / legend / line-chart / pie-chart / radar-chart / scatter-chart / sparkline / tooltip / use-chart / axes（計 16 件） | 描画特性（SVG 座標計算・データスケーリング）が既存 UI 部品と異なり、`headless-ui`/`pre-styled-ui` とは別クレートとすべきか判断が必要。依存グラフ上限（60 件/深さ 6、REQ-3）との整合評価も未了 | 利用要望の確定、および `core`/`headless-ui` と同じ外部依存ゼロ方針を維持したまま SVG ノード木生成のみで実装できる設計の確立（別クレート新設の要否はユーザー承認事項） |
-| 装飾系（CSS 主体で実装可能性がある、または既存基盤で実装見込みがあるもの） | splitter（ark・chakra 双方）/ tour | splitter は CSS（`resize`）主体で実装できる可能性がある。tour は状態機械（ステップ管理・ハイライト対象の同期）が大きく需要待ち。floating-panel（ark・chakra 双方）はイシュー #827 で headless+styled 実装済み、scroll-area（ark・chakra 双方）はイシュー #825 で保留解除・実装済みのため本群から除外（`docs/design/component-coverage-map.md` の該当行を「実装済み」へ更新済み。scroll-area は JS によるスクロール位置追従・thumb drag が同イシューのスコープ外のまま） | 利用要望 issue の起票 |
-| Button バリエーション | close-button / icon-button | 実装済み styled `Button`（`crates/pre-styled-ui`）の variant で近似可能であり、専用部品としての独立実装が必要かは需要待ち | `pre-styled-ui` の `Button` variant 拡張要望 issue の起票 |
+| 装飾系（CSS 主体で実装可能性がある、または既存基盤で実装見込みがあるもの） | tour | tour は状態機械（ステップ管理・ハイライト対象の同期）が大きく需要待ち。floating-panel（ark・chakra 双方）はイシュー #827 で headless+styled 実装済み、scroll-area（ark・chakra 双方）はイシュー #825 で保留解除・実装済み、splitter（ark・chakra 双方）はイシュー #826 で保留解除・実装済みのため本群から除外（`docs/design/component-coverage-map.md` の該当行を「実装済み」へ更新済み。scroll-area は JS によるスクロール位置追従・thumb drag が同イシューのスコープ外のまま） | 利用要望 issue の起票 |
+| Button バリエーション | close-button / icon-button（`pre-styled-ui` の `Button` variant 拡張要望 issue #830 の起票により保留解除、`crates/pre-styled-ui/src/button.rs` の `icon_button`/`close_button` として実装済み。独立部品ではなく `button` recipe の icon-only 修飾 variant。詳細は `docs/design/component-coverage-map.md` 該当行参照） | 実装済み styled `Button`（`crates/pre-styled-ui`）の variant で近似可能であり、専用部品としての独立実装が必要かは需要待ち | `pre-styled-ui` の `Button` variant 拡張要望 issue の起票 |
 
 再評価トリガー充足時の手続き: 上記表の該当行に基づき、通常の feature issue
 （`create-issue` 等）を起票し、本節・`docs/design/component-coverage-map.md`
