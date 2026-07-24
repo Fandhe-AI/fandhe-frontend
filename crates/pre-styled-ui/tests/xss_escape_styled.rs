@@ -74,6 +74,7 @@ use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps};
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
+use fandhe_frontend_pre_styled_ui::splitter;
 use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 use fandhe_frontend_pre_styled_ui::steps;
@@ -905,6 +906,83 @@ fn slider_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         // 選択的再エクスポートした hidden_input の name 経路。
         let html = render(&slider::hidden_input(payload, "40", false, vec![]));
         assert_payload_is_escaped(payload, &html, "slider::hidden_input name コンテキスト");
+    }
+}
+
+/// Splitter 経路（イシュー #826）: styled `root` の呼び出し側 `attrs`・
+/// `class`、styled `panel` の `id`、および headless-ui から選択的
+/// 再エクスポートした `resize_trigger_indicator` の children の 4 箇所すべて
+/// で既定エスケープ（REQ-1）が貫通することを固定する（slider 経路と同粒度）。
+#[test]
+fn splitter_styled_root_panel_and_reexported_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::{
+        PanelSpec, Splitter,
+    };
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::Orientation;
+
+    for payload in payloads::all() {
+        let s = Splitter::new(
+            &[
+                PanelSpec::new(50.0, 0.0, 100.0),
+                PanelSpec::new(50.0, 0.0, 100.0),
+            ],
+            Orientation::Horizontal,
+        );
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&splitter::root(
+            Size::Md,
+            ColorPalette::Accent,
+            &s,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "splitter::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&splitter::root(
+            Size::Md,
+            ColorPalette::Accent,
+            &s,
+            false,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "splitter::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "splitter::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-splitter--"),
+            "splitter::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // styled panel の id 属性経路。
+        let html = render(&splitter::panel(&s, 0, payload, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "splitter::panel id コンテキスト");
+
+        // 選択的再エクスポートした resize_trigger_indicator の children 経路。
+        let html = render(&splitter::resize_trigger_indicator(
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "splitter::resize_trigger_indicator children コンテキスト",
+        );
     }
 }
 
@@ -2917,6 +2995,38 @@ fn tag_kbd_code_styled_are_escaped_for_all_payloads() {
         assert!(
             !html.contains("class="),
             "code は variant を持たないため class 属性を出力しないはず: html={html}"
+        );
+    }
+}
+
+/// JsonTreeView（イシュー #829）: `fandhe_frontend_pre_styled_ui::json_tree_view`
+/// の再エクスポート経由（headless-ui を直接使わない）で `render_json` を呼び、
+/// オブジェクトキー・文字列値の children テキスト経路へペイロードを注入しても
+/// エスケープが貫通することを固定する。styled 層は薄い再エクスポートであり
+/// 独自のエスケープ処理を持たないため、本テストは `crates/headless-ui/tests/xss_escape.rs`
+/// の対応テストと同じ保証を styled 経路越しに固定する契約検証である。
+#[test]
+fn json_tree_view_styled_key_and_string_value_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::json_tree_view::{render_json, JsonValue, TreeView};
+
+    for payload in payloads::all() {
+        let by_key = JsonValue::Object(vec![(payload.to_string(), JsonValue::Null)]);
+        let html = render(&render_json(&TreeView::default(), &by_key));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "json_tree_view::render_json（styled 再エクスポート）のオブジェクトキー児テキストコンテキスト",
+        );
+
+        let by_string_value = JsonValue::Object(vec![(
+            "k".to_string(),
+            JsonValue::String(payload.to_string()),
+        )]);
+        let html = render(&render_json(&TreeView::default(), &by_string_value));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "json_tree_view::render_json（styled 再エクスポート）の文字列値児テキストコンテキスト",
         );
     }
 }
