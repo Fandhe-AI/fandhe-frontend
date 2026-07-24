@@ -13,7 +13,7 @@ pre-styled UI コンポーネント層、親トラッキング #520・骨格新�
 対応する REQ / TASK は `docs/spec/` に存在しない（要件提案は
 fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 参照）。
 
-## 2. 実装状況（v0.20.0 時点、2026-07-23 更新）
+## 2. 実装状況（v0.22.0 時点、2026-07-24 更新）
 
 **記載方針**: 実装済み API の正は `crates/pre-styled-ui/src/lib.rs` 冒頭の
 rustdoc および各モジュール冒頭の rustdoc とする。本節はモジュール一覧の
@@ -24,21 +24,23 @@ rustdoc および各モジュール冒頭の rustdoc とする。本節はモジ
 本クレートは第 5 弾ツリー（#680）完了・crates.io v0.4.0 公開（#686）・
 checkbox styled ラッパー追加（#730）・静的フォーム部品 3 種追加（#737）・
 NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー追加
-（#739）・Slider styled ラッパー追加（#741）・RatingGroup styled ラッパー
-追加（#742）・SegmentGroup styled ラッパー追加（#743）・TagsInput styled
-ラッパー追加（#744）・Toggle/ToggleGroup styled ラッパー追加（#746）・
-CheckboxCard/RadioCard styled バリエーション追加（#747）・Combobox styled
-ラッパー追加（#749）・Pagination styled ラッパー追加（#751）・Steps styled
-ラッパー追加（#752）・Breadcrumb styled ラッパー追加（#755）・Carousel
-styled ラッパー追加（#754）・Drawer styled ラッパー追加（#758）・
-Link/LinkOverlay/NavList styled ラッパー追加（#756）・HoverCard styled
-ラッパー追加（#759）・ToggleTip styled ラッパー追加（#761）・Progress
-circular 対応追加（#763）・Skeleton 静的部品追加（#764）・Image/Icon 静的
-部品追加（#770）・Status/EmptyState 静的部品追加（#765）・タイポグラフィ
-静的部品 6 種追加（#771）・Separator 静的部品追加（#772）・Highlight 静的
-部品追加（#775）・Clipboard headless ラッパー追加（#773）・QrCode styled
-ラッパー追加（#774）・VisuallyHidden/SkipNav 静的部品追加（#776、いずれも
-公開時点未反映）を経て 63 の公開モジュールを持つ。内訳は次の通り。
+（#739）・PasswordInput styled ラッパー追加（#740）・Slider styled ラッパー
+追加（#741）・RatingGroup styled ラッパー追加（#742）・SegmentGroup styled
+ラッパー追加（#743）・TagsInput styled ラッパー追加（#744）・Editable
+styled ラッパー追加（#745）・Toggle/ToggleGroup styled ラッパー追加
+（#746）・CheckboxCard/RadioCard styled バリエーション追加（#747）・
+Combobox styled ラッパー追加（#749）・Pagination styled ラッパー追加
+（#751）・Steps styled ラッパー追加（#752）・Breadcrumb styled ラッパー
+追加（#755）・Carousel styled ラッパー追加（#754）・Drawer styled ラッパー
+追加（#758）・Link/LinkOverlay/NavList styled ラッパー追加（#756）・
+HoverCard styled ラッパー追加（#759）・ToggleTip styled ラッパー追加
+（#761）・Progress circular 対応追加（#763）・Skeleton 静的部品追加
+（#764）・Image/Icon 静的部品追加（#770）・Status/EmptyState 静的部品追加
+（#765）・タイポグラフィ静的部品 6 種追加（#771）・Separator 静的部品追加
+（#772）・Highlight 静的部品追加（#775）・Clipboard headless ラッパー追加
+（#773）・QrCode styled ラッパー追加（#774）・VisuallyHidden/SkipNav 静的
+部品追加（#776、いずれも公開時点未反映）・ActionBar styled ラッパー追加
+（#762）を経て 66 の公開モジュールを持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -63,10 +65,13 @@ circular 対応追加（#763）・Skeleton 静的部品追加（#764）・Image/
 | 静的フォーム部品 | `input` / `textarea` / `native_select` | #737（§4f 参照） |
 | headless ラッパー第 6 弾 | `number_input` | #738（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） |
 | headless ラッパー第 7 弾 | `pin_input` | #739（`size` variant のみ。palette は第 2 弾展開の既存方針に従い本イシューのスコープ外） |
-| headless ラッパー第 8 弾 | `slider` | #741（`size`/`color-palette` 両軸提供。動的値は `--fandhe-slider-percent` custom property の 1 点のみで伝搬） |
-| headless ラッパー第 9 弾 | `rating_group` | #742（`size`/`color-palette` 両軸、星形 indicator は `clip-path` インライン表現） |
+| headless ラッパー第 8 弾 | `password_input` | #740（`src/password_input.rs` 冒頭 rustdoc 参照） |
+| headless ラッパー第 9 弾 | `slider` | #741（`size`/`color-palette` 両軸提供。動的値は `--fandhe-slider-percent` custom property の 1 点のみで伝搬） |
+| headless ラッパー第 10 弾 | `rating_group` | #742（`size`/`color-palette` 両軸、星形 indicator は `clip-path` インライン表現） |
 | headless ラッパー | `segment_group` | #743（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供。状態機械は `radio_group` へ全委譲） |
 | headless ラッパー第 10 弾 | `tags_input` | #744（`size` variant のみ。フォーム入力部品のため `color-palette` 軸は非提供、`pin_input`/`number_input` と同型の判断） |
+| headless ラッパー第 11 弾 | `editable` | #745（`size` variant のみ・`color-palette` 軸は非提供。フォーム操作部品として `number_input` と同じ判断） |
+| headless ラッパー | `listbox` | #750（`size` variant のみ・`color-palette` 軸は非提供。常時展開（trigger/positioner なし）で `select` とは責務境界が異なる。詳細は `src/listbox.rs` 参照） |
 | headless ラッパー | `toggle` / `toggle_group` | #746（実フォーカスをネイティブ `<button>` 自身が受けるため `data-focus-visible` 配線ではなく `FocusVisible` state condition で対応。`size`/`color-palette` 両軸提供） |
 | カード型選択 UI（styled バリエーション） | `checkbox_card` / `radio_card` | #747（§4g 参照。headless-ui は変更なし、pre-styled 層で新規 anatomy `checkbox-card`/`radio-card` を定義。状態機械は headless `Checkbox`/`RadioGroup` を再利用） |
 | headless ラッパー | `combobox` | #749（`select` と同型の `size` variant のみ・`color-palette` 軸は非提供。状態機械は `state::Disclosure` + `state::SingleSelect` + `state::TextInput` の合成。フォーカスは `input` が保持するため `:focus-visible` を `input` へ、`:focus-within` を `control` へ登録する） |
@@ -77,6 +82,7 @@ circular 対応追加（#763）・Skeleton 静的部品追加（#764）・Image/
 | headless ラッパー | `carousel` | #754（`size` variant のみ・`color-palette` 軸は非提供（選択・チェック状態を示す部品ではないため）。`item-group` の transform は `--fandhe-carousel-index` CSS カスタムプロパティ 1 点のみで伝搬し、`data-orientation="vertical"` で `translateX`/`translateY` を切り替える。autoplay は初期実装スコープ外） |
 | headless ラッパー | `drawer` | #758（dialog の変種。状態機械は headless の `dialog::Dialog` をそのまま再利用し新規状態機械は作らない。`size`（drawer の占有幅/高さ）variant のみを root へ付与し `color-palette` 軸は非提供。placement（`start`/`end`/`top`/`bottom`）は variant ではなく headless 層が出力する `data-placement` に連動する CSS で表現する） |
 | headless ラッパー | `link` / `link_overlay` / `nav_list` | #756（`docs/api/headless-ui-api.md` §4b 追加候補・最優先候補の消化。状態機械なし。`link_overlay` は `::before` 疑似要素の代わりに `overlay` 自身を `position: absolute; inset: 0;` で展開する。`nav_list` は `fandhe-frontend-docs-site::nav.rs::sidebar` が直接使う想定のため、`root` 以外（`heading`/`list`/`item`/`link`）は headless 自由関数をそのまま選択的に再エクスポートする） |
+| headless ラッパー | `action_bar` | #762（`size`/`color-palette` 軸は非提供。`positioner` の `position: fixed; bottom: ...; left: 50%; transform: translateX(-50%)` による画面下部固定配置と `data-state` 連動の見た目切り替えのみを提供する。`z-index: 900`（menu/select の dropdown positioner（10）より上、dialog backdrop（1000）より下）） |
 | headless ラッパー | `hover_card` | #759（`popover`/`tooltip` と同型の判断で variant は非提供。構造上最も近い先行例は `tooltip`。`content` の開閉連動・`--fandhe-reference-width` 非消費・focus-visible リングを継承する） |
 | headless ラッパー | `toggle_tip` | #761（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。「見た目は Tooltip・挙動は Popover」の変種であり、`content` の視覚系は `tooltip` と同一値。状態機械は `state::Disclosure`） |
 | headless ラッパー | `progress` | #763（headless の値状態機械 `Progress`（#544/#600）が持つ Circle/CircleTrack/CircleRange（SVG）へ CSS のみ追加提供。`Progress` 型はあえて再エクスポートせず、`size` variant クラス付与のため styled `root` のみを新設する（`dialog`/`switch` と同型の判断）。circle 自身は headless の inherent メソッドをそのまま呼ばせる（クラス不要）。indeterminate 時の回転アニメーションは `[data-part="circle"][data-state="indeterminate"]` セレクタ + `@keyframes`（`spinner` と同型）で提供。linear（Track/Range）用の styled ラッパーは対応表（`docs/design/component-coverage-map.md`）が本イシューと切り分けたスコープ外） |
@@ -447,6 +453,7 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | switch | ✓ | ✓ | 実装済み（#708） |
 | radio-group | ✓ | ✓ | 実装済み（#708） |
 | checkbox | ✓ | ✓ | 実装済み（#730） |
+| password-input | ✓ | ✓ | 実装済み（#740） |
 | input / textarea / native-select | ✓ | – | 実装済み（#737、§4f 参照。フォーム入力は選択・チェック状態を示す部品ではないため提供しない） |
 | tabs | ✓ | ✓（selected trigger の強調色） | 実装済み（#729） |
 | accordion / dialog / menu / select | ✓ | – | 実装済み（#729） |
@@ -457,6 +464,7 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | toggle-group | ✓ | ✓ | 実装済み（#746、root のみへクラス付与） |
 | segment-group | ✓ | – | 実装済み（#743、選択状態は indicator の移動 + 文字強調で表現するため color-palette は非提供） |
 | tags-input | ✓ | – | 実装済み（#744、フォーム入力部品のため color-palette は非提供） |
+| editable | ✓ | – | 実装済み（#745、フォーム操作部品のため color-palette は非提供） |
 | checkbox-card / radio-card | ✓ | ✓ | 実装済み（#747、§4g 参照。カード外観・選択強調・ドット色に反映） |
 | pagination | ✓ | ✓ | 実装済み（#751、現在ページの強調色に反映。root scope の CSS custom property は `--fandhe-pagination-item-size`/`-item-font-size`） |
 | steps | ✓ | ✓ | 実装済み（#752、indicator の寸法・current/complete の強調色に反映） |

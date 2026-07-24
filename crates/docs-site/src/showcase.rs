@@ -45,6 +45,7 @@
 //! （recipe CSS・`site/assets/site.css` はいずれも変更しない）。
 
 use fandhe_frontend_core::{div, el, text, Node};
+use fandhe_frontend_pre_styled_ui::action_bar;
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
@@ -54,6 +55,9 @@ use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState}
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
+use fandhe_frontend_pre_styled_ui::editable::{
+    self, EditMode, EditableInputFlags, EditableInputProps,
+};
 use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
@@ -66,10 +70,14 @@ use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
+use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
+use fandhe_frontend_pre_styled_ui::password_input::{
+    self, PasswordAutocomplete, PasswordInputProps,
+};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
@@ -125,16 +133,19 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   ビューポート全体暗幕であり、開いた状態を固定掲示するとページ全体を
 ///   覆ってしまうため掲示用にのみ隠す（実際の modal 表示では backdrop は
 ///   必須であり、ここでの非表示化はショーケースの掲示都合に限定する）。
-/// - dialog/drawer/menu/select/combobox/popover/tooltip/hover-card/toggle-tip
-///   の `[data-part="positioner"]` を `position: static` へ中和: recipe CSS は
-///   dialog/drawer を `position: fixed; inset: 0`、menu/select/combobox/
-///   popover/hover-card を `position: absolute; top: 100%`、tooltip/toggle-tip を
-///   `position: absolute; bottom: 100%` としており、いずれも開いた content を
-///   ページ内の別位置・別セクションに重ねてしまう。static 化してフロー内へ
-///   インライン表示させることで、後続セクションと重ならずに掲示できる
-///   （dialog はさらに `padding`/`justify-content` も中和し、中央寄せの
-///   ための余白・配置指定を解除する。drawer は recipe CSS が `padding`/
-///   `justify-content` を宣言しないため `position` のみで足りる）。
+/// - dialog/drawer/menu/select/combobox/popover/tooltip/hover-card/toggle-tip/
+///   action-bar の `[data-part="positioner"]` を `position: static` へ中和:
+///   recipe CSS は dialog/drawer を `position: fixed; inset: 0`、menu/select/
+///   combobox/popover/hover-card を `position: absolute; top: 100%`、
+///   tooltip/toggle-tip を `position: absolute; bottom: 100%`、action-bar を
+///   `position: fixed; bottom: ...; left: 50%; transform: translateX(-50%)`
+///   としており、いずれも開いた content をページ内の別位置・別セクションに
+///   重ねてしまう。static 化してフロー内へインライン表示させることで、後続
+///   セクションと重ならずに掲示できる（dialog はさらに `padding`/
+///   `justify-content` も中和し、中央寄せのための余白・配置指定を解除する。
+///   drawer は recipe CSS が `padding`/`justify-content` を宣言しないため
+///   `position` のみで足りる。action-bar はさらに `transform` も中和し、
+///   水平方向のずらしを解除する）。
 /// - dialog/drawer/popover の `title`（`h2`）見出しリセット: Accordion の `h3` と
 ///   同じ理由（`site.css` の `.docs-content h2` が漏れる）で、showcase 領域
 ///   内に限定して `border-top`/`padding-top`/`letter-spacing` を打ち消す
@@ -163,6 +174,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: static;\n  padding: 0;\n  justify-content: flex-start;\n}\n\
 .pre-styled-showcase [data-scope=\"drawer\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"combobox\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"hover-card\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
+.pre-styled-showcase [data-scope=\"action-bar\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n";
 
@@ -188,8 +200,9 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 /// accordion/dialog/drawer/menu/select/combobox/popover/tooltip/hover_card/
 /// toggle_tip/switch/radio_group/avatar/checkbox/checkbox_card/radio_card/
 /// input/textarea/native_select/number_input/tags_input/rating_group/
-/// slider/segment_group/pagination/breadcrumb）→ ショーケース配置スタイル、
-/// の順で決定的に連結する。
+/// slider/segment_group/pagination/breadcrumb/carousel/action_bar/progress/
+/// image/icon/status/empty_state/visually_hidden/qr_code/heading/text/em/
+/// mark/blockquote/list）→ ショーケース配置スタイル、の順で決定的に連結する。
 ///
 /// # Errors
 ///
@@ -211,6 +224,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::drawer::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::menu::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::select::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::listbox::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::skeleton::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::separator::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::highlight::css())?;
@@ -229,15 +243,18 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::password_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tags_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::rating_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::slider::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::editable::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::segment_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tree_view::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::pagination::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::steps::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::breadcrumb::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::carousel::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::action_bar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::progress::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::image::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::icon::css())?;
@@ -1101,6 +1118,121 @@ fn select_section() -> Node {
     )
 }
 
+/// Listbox 節: 常時展開のリスト選択（single/multiple 両モード）の静的
+/// マークアップ（イシュー #750）。[`select_section`] とは異なり trigger/
+/// positioner を持たず、`content` が常に表示される（責務境界の詳細は
+/// `fandhe_frontend_headless_ui::listbox` module doc 参照）。
+fn listbox_section() -> Node {
+    let single = listbox::root(
+        Size::Md,
+        OpenState::Open,
+        false,
+        vec![],
+        vec![
+            listbox::label(
+                Some("showcase-listbox-single-label"),
+                vec![],
+                vec![text("Fruit")],
+            ),
+            listbox::content(
+                false,
+                Some("showcase-listbox-single-content"),
+                Some("showcase-listbox-single-label"),
+                None,
+                vec![],
+                vec![
+                    listbox::item(
+                        OpenState::Open,
+                        false,
+                        false,
+                        "apple",
+                        None,
+                        vec![],
+                        vec![
+                            listbox::item_text(None, vec![], vec![text("Apple")]),
+                            listbox::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
+                        ],
+                    ),
+                    listbox::item(
+                        OpenState::Closed,
+                        true,
+                        false,
+                        "banana",
+                        None,
+                        vec![],
+                        vec![
+                            listbox::item_text(None, vec![], vec![text("Banana (disabled)")]),
+                            listbox::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    );
+
+    let multiple = listbox::root(
+        Size::Md,
+        OpenState::Open,
+        false,
+        vec![],
+        vec![
+            listbox::label(
+                Some("showcase-listbox-multi-label"),
+                vec![],
+                vec![text("Toppings")],
+            ),
+            listbox::content(
+                true,
+                Some("showcase-listbox-multi-content"),
+                Some("showcase-listbox-multi-label"),
+                None,
+                vec![],
+                vec![listbox::item_group(
+                    Some("showcase-listbox-multi-group-label"),
+                    vec![],
+                    vec![
+                        listbox::item_group_label(
+                            Some("showcase-listbox-multi-group-label"),
+                            vec![],
+                            vec![text("Cheese")],
+                        ),
+                        listbox::item(
+                            OpenState::Open,
+                            false,
+                            false,
+                            "cheddar",
+                            None,
+                            vec![],
+                            vec![
+                                listbox::item_text(None, vec![], vec![text("Cheddar")]),
+                                listbox::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
+                            ],
+                        ),
+                        listbox::item(
+                            OpenState::Open,
+                            false,
+                            false,
+                            "mozzarella",
+                            None,
+                            vec![],
+                            vec![
+                                listbox::item_text(None, vec![], vec![text("Mozzarella")]),
+                                listbox::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
+                            ],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    );
+
+    section(
+        "Listbox",
+        "headless-ui の Listbox（role=\"listbox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。Select（ポップアップ型）と異なり trigger/positioner を持たず、常時展開のリストとして表示されます。左は single モード（1 項目選択済み、1 項目 disabled）、右は multiple モード（aria-multiselectable、複数項目選択済み・item-group 付き）です。",
+        vec![row(vec![single, multiple])],
+    )
+}
+
 /// Combobox 節: 入力によるフィルタリング後の listbox が開いた静的マークアップ
 /// （イシュー #749）。[`combobox::filter_options`] を実演し、入力値
 /// `"re"` に対するフィルタ結果（`"React"` のみ）をそのまま候補として掲示する。
@@ -1849,6 +1981,62 @@ fn number_input_section() -> Node {
     )
 }
 
+/// PasswordInput 節: 表示切替トリガー付きパスワード入力の Hidden/Visible/
+/// Invalid/Disabled 4 状態を静的掲示する（イシュー #740）。
+///
+/// `visibility_trigger` へ `aria-label` を呼び出し側 attrs として付与する
+/// お手本を示す（headless 層は固定文言を持たない、
+/// `crates/headless-ui/src/password_input.rs` rustdoc 参照）。
+fn password_input_section() -> Node {
+    let states = [
+        (false, false, false, "showcase-password-hidden", "Hidden"),
+        (true, false, false, "showcase-password-visible", "Visible"),
+        (false, true, false, "showcase-password-invalid", "Invalid"),
+        (false, false, true, "showcase-password-disabled", "Disabled"),
+    ];
+    let demo_row = row(states
+        .iter()
+        .map(|(visible, invalid, disabled, id, label)| {
+            let props = PasswordInputProps {
+                id,
+                disabled: *disabled,
+                invalid: *invalid,
+                required: false,
+                autocomplete: PasswordAutocomplete::CurrentPassword,
+            };
+            password_input::root(
+                Size::Md,
+                ColorPalette::Accent,
+                *visible,
+                &props,
+                vec![],
+                vec![
+                    password_input::label(&props, vec![], vec![text(*label)]),
+                    password_input::control(
+                        *visible,
+                        &props,
+                        vec![],
+                        vec![
+                            password_input::input(*visible, &props, vec![]),
+                            password_input::visibility_trigger(
+                                *visible,
+                                &props,
+                                vec![("aria-label", "Toggle password visibility")],
+                                vec![text(if *visible { "Hide" } else { "Show" })],
+                            ),
+                        ],
+                    ),
+                ],
+            )
+        })
+        .collect());
+    section(
+        "PasswordInput",
+        "data-state=\"visible\"/\"hidden\" で type=\"password\"/\"text\" が切り替わるパスワード入力。visibility-trigger は aria-pressed/aria-controls で意味論を担い、パスワード値そのものは一切保持しません。",
+        vec![demo_row],
+    )
+}
+
 /// TagsInput 節: 通常タグ数件・max 到達（`data-invalid`/`aria-invalid`）・
 /// disabled の 3 態。
 ///
@@ -2103,6 +2291,165 @@ fn slider_section() -> Node {
     section(
         "Slider",
         "min/max/step でクランプされる連続値スライダー。塗りつぶし・つまみの位置は --fandhe-slider-percent の 1 点で伝搬します。",
+        vec![demo_row],
+    )
+}
+
+/// Editable 節: preview 表示・edit 中・disabled の 3 態。
+///
+/// preview 中は `input` が `hidden`・`preview` が可視、edit 中はその逆
+/// （`fandhe_frontend_pre_styled_ui::editable` のモジュール doc「`input`/
+/// `preview` の重ね合わせレイアウト」参照）。
+fn editable_section() -> Node {
+    let preview_mode = editable::root(
+        Size::Md,
+        EditMode::Preview,
+        false,
+        false,
+        Default::default(),
+        Default::default(),
+        vec![],
+        vec![
+            editable::label(
+                EditMode::Preview,
+                false,
+                Some("showcase-editable-preview"),
+                vec![],
+                vec![text("Name")],
+            ),
+            editable::area(
+                EditMode::Preview,
+                false,
+                vec![],
+                vec![
+                    editable::input(
+                        EditMode::Preview,
+                        "name",
+                        "Ada Lovelace",
+                        EditableInputProps {
+                            id: Some("showcase-editable-preview"),
+                            ..EditableInputProps::default()
+                        },
+                        EditableInputFlags::default(),
+                        vec![],
+                    ),
+                    editable::preview(EditMode::Preview, false, vec![], vec![text("Ada Lovelace")]),
+                ],
+            ),
+            editable::control(
+                EditMode::Preview,
+                vec![],
+                vec![editable::edit_trigger(
+                    EditMode::Preview,
+                    false,
+                    vec![],
+                    vec![text("Edit")],
+                )],
+            ),
+        ],
+    );
+
+    let editing = editable::root(
+        Size::Md,
+        EditMode::Edit,
+        false,
+        false,
+        Default::default(),
+        Default::default(),
+        vec![],
+        vec![
+            editable::label(
+                EditMode::Edit,
+                false,
+                Some("showcase-editable-editing"),
+                vec![],
+                vec![text("Name")],
+            ),
+            editable::area(
+                EditMode::Edit,
+                false,
+                vec![],
+                vec![
+                    editable::input(
+                        EditMode::Edit,
+                        "name-editing",
+                        "Grace Hopper",
+                        EditableInputProps {
+                            id: Some("showcase-editable-editing"),
+                            ..EditableInputProps::default()
+                        },
+                        EditableInputFlags::default(),
+                        vec![],
+                    ),
+                    editable::preview(EditMode::Edit, false, vec![], vec![text("Grace Hopper")]),
+                ],
+            ),
+            editable::control(
+                EditMode::Edit,
+                vec![],
+                vec![
+                    editable::submit_trigger(EditMode::Edit, false, vec![], vec![text("Save")]),
+                    editable::cancel_trigger(EditMode::Edit, false, vec![], vec![text("Cancel")]),
+                ],
+            ),
+        ],
+    );
+
+    let disabled = editable::root(
+        Size::Md,
+        EditMode::Preview,
+        true,
+        false,
+        Default::default(),
+        Default::default(),
+        vec![],
+        vec![
+            editable::label(
+                EditMode::Preview,
+                true,
+                Some("showcase-editable-disabled"),
+                vec![],
+                vec![text("Disabled")],
+            ),
+            editable::area(
+                EditMode::Preview,
+                false,
+                vec![],
+                vec![
+                    editable::input(
+                        EditMode::Preview,
+                        "name-disabled",
+                        "Locked value",
+                        EditableInputProps {
+                            id: Some("showcase-editable-disabled"),
+                            ..EditableInputProps::default()
+                        },
+                        EditableInputFlags {
+                            disabled: true,
+                            ..EditableInputFlags::default()
+                        },
+                        vec![],
+                    ),
+                    editable::preview(EditMode::Preview, false, vec![], vec![text("Locked value")]),
+                ],
+            ),
+            editable::control(
+                EditMode::Preview,
+                vec![],
+                vec![editable::edit_trigger(
+                    EditMode::Preview,
+                    true,
+                    vec![],
+                    vec![text("Edit")],
+                )],
+            ),
+        ],
+    );
+
+    let demo_row = row(vec![preview_mode, editing, disabled]);
+    section(
+        "Editable",
+        "preview/edit の 2 モードを切り替えるインプレース編集。input/preview は data-* と hidden 属性で排他表示されます。",
         vec![demo_row],
     )
 }
@@ -2528,6 +2875,40 @@ fn breadcrumb_section() -> Node {
     )
 }
 
+/// ActionBar 節: 開いた状態の静的マークアップ（イシュー #762）。
+///
+/// 複数選択時に画面下部へ表示される操作バーの掲示。「2 selected」の選択件数
+/// 表示 + 全解除ボタン + separator + close trigger を組み立てる。`positioner`
+/// の画面下部固定配置は [`SHOWCASE_LAYOUT_CSS`] でフロー内配置へ中和する
+/// （[`dialog_section`]/[`tooltip_section`] と同じ方針。実 overlay 配置は
+/// recipe CSS に委ねる）。
+fn action_bar_section() -> Node {
+    let node = action_bar::root(
+        OpenState::Open,
+        vec![],
+        vec![action_bar::positioner(
+            OpenState::Open,
+            vec![],
+            vec![action_bar::content(
+                OpenState::Open,
+                "2 selected",
+                vec![],
+                vec![
+                    action_bar::selection_trigger(vec![], vec![text("2 selected")]),
+                    action_bar::separator(vec![], vec![]),
+                    action_bar::selection_trigger(vec![], vec![text("Delete")]),
+                    action_bar::close_trigger(vec![], vec![text("Close")]),
+                ],
+            )],
+        )],
+    );
+    section(
+        "ActionBar",
+        "headless-ui の ActionBar（role=\"toolbar\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています（実際の画面下部固定配置は recipe CSS が担います）。",
+        vec![node],
+    )
+}
+
 /// Status 節（イシュー #765）: colorPalette 軸ごとのドット + ラベル表示。
 fn status_section() -> Node {
     let palette_row = row(palettes()
@@ -2855,6 +3236,7 @@ fn showcase_body() -> Node {
             drawer_section(),
             menu_section(),
             select_section(),
+            listbox_section(),
             combobox_section(),
             popover_section(),
             tooltip_section(),
@@ -2866,9 +3248,11 @@ fn showcase_body() -> Node {
             checkbox_section(),
             form_controls_section(),
             number_input_section(),
+            password_input_section(),
             tags_input_section(),
             rating_group_section(),
             slider_section(),
+            editable_section(),
             segment_group_section(),
             carousel_section(),
             tree_view_section(),
@@ -2877,6 +3261,7 @@ fn showcase_body() -> Node {
             checkbox_card_section(),
             radio_card_section(),
             breadcrumb_section(),
+            action_bar_section(),
             progress_section(),
             image_section(),
             icon_section(),
@@ -2915,6 +3300,7 @@ mod tests {
             "drawer",
             "menu",
             "select",
+            "listbox",
             "popover",
             "tooltip",
             "hover-card",
@@ -2925,9 +3311,11 @@ mod tests {
             "checkbox",
             "field",
             "number-input",
+            "password-input",
             "tags-input",
             "rating-group",
             "slider",
+            "editable",
             "segment-group",
             "pagination",
             "steps",
@@ -2959,6 +3347,17 @@ mod tests {
         assert!(html.contains(r#"data-state="open""#));
         assert!(html.contains(r#"data-state="checked""#));
         assert!(html.contains(r#"data-state="indeterminate""#));
+        // PasswordInput（イシュー #740）: 表示切替の Visible/Hidden 両状態と
+        // aria-pressed によるトグルボタン意味論を固定する。
+        assert!(html.contains(r#"data-state="visible""#));
+        assert!(html.contains(r#"data-state="hidden""#));
+        assert!(html.contains(r#"aria-pressed="true""#));
+        assert!(html.contains(r#"aria-pressed="false""#));
+        // visibility-trigger は可視のラベルテキストを持つ（Bugbot 指摘の
+        // 回帰防止: 空 children では show/hide ボタンに可視コンテンツが
+        // 一切なくなる、イシュー #740 PR #786 レビュー）。
+        assert!(html.contains(r#">Show<"#));
+        assert!(html.contains(r#">Hide<"#));
     }
 
     #[test]
@@ -2975,6 +3374,16 @@ mod tests {
         assert!(html.contains(r#"aria-haspopup="dialog""#)); // dialog/popover trigger
         assert!(html.contains(r#"aria-haspopup="menu""#));
         assert!(html.contains(r#"aria-haspopup="listbox""#));
+    }
+
+    #[test]
+    fn showcase_markup_shows_listbox_single_and_multiple_modes() {
+        // イシュー #750 受け入れ条件: Listbox は常時展開（trigger/positioner
+        // なし）で、single/multiple 双方の掲示が固定されていることを確認する。
+        let html = render(&showcase_body());
+        assert!(html.contains(r#"data-scope="listbox" data-part="content""#));
+        assert!(html.contains(r#"aria-multiselectable="true""#));
+        assert!(html.contains(r#"data-scope="listbox" data-part="item-group""#));
     }
 
     #[test]
@@ -3029,6 +3438,7 @@ mod tests {
         assert!(css.contains(r#"[data-scope="field"][data-part="textarea"]"#));
         assert!(css.contains(r#"[data-scope="field"][data-part="select"]"#));
         assert!(css.contains(r#"[data-scope="number-input"][data-part="control"]"#));
+        assert!(css.contains(r#"[data-scope="password-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="tags-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="status"][data-part="indicator"]"#));
         assert!(css.contains(r#"[data-scope="empty-state"][data-part="content"]"#));

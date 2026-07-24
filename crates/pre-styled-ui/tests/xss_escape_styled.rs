@@ -42,6 +42,9 @@ use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::clipboard;
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
+use fandhe_frontend_pre_styled_ui::editable::{
+    self, EditMode, EditableInputFlags, EditableInputProps,
+};
 use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps};
@@ -51,10 +54,14 @@ use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, ImageProps};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
+use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode};
+use fandhe_frontend_pre_styled_ui::password_input::{
+    self, PasswordAutocomplete, PasswordInputProps,
+};
 use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::radio_card;
@@ -624,6 +631,93 @@ fn number_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() 
     }
 }
 
+#[test]
+fn password_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let field_props = PasswordInputProps {
+            id: "pw",
+            disabled: false,
+            invalid: false,
+            required: false,
+            autocomplete: PasswordAutocomplete::CurrentPassword,
+        };
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&password_input::root(
+            Size::Md,
+            ColorPalette::Accent,
+            false,
+            &field_props,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "password_input::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&password_input::root(
+            Size::Md,
+            ColorPalette::Accent,
+            false,
+            &field_props,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "password_input::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "password_input::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-password-input--"),
+            "password_input::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした label の children 経路。
+        let html = render(&password_input::label(
+            &field_props,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "password_input::label children コンテキスト",
+        );
+
+        // 選択的再エクスポートした id 由来の派生属性値経路（id そのものへの
+        // ペイロード注入、`for`/`aria-controls` へ伝播する）。
+        let id_props = PasswordInputProps {
+            id: payload,
+            disabled: false,
+            invalid: false,
+            required: false,
+            autocomplete: PasswordAutocomplete::CurrentPassword,
+        };
+        let html = render(&password_input::visibility_trigger(
+            false,
+            &id_props,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "password_input::visibility_trigger の aria-controls 属性値コンテキスト",
+        );
+        assert!(!html.contains("value="));
+    }
+}
+
 /// (8) Slider 経路（イシュー #741）: styled `root` の呼び出し側 `attrs`・
 /// `class`、および headless-ui から選択的再エクスポートした `label` の
 /// children・`hidden_input` の `name` の 4 箇所すべてで既定エスケープ
@@ -844,6 +938,97 @@ fn tags_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
 }
 
 #[test]
+fn listbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&listbox::root(
+            Size::Md,
+            OpenState::Closed,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "listbox::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&listbox::root(
+            Size::Md,
+            OpenState::Closed,
+            false,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "listbox::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "listbox::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-listbox--"),
+            "listbox::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした label の id/children 経路。
+        let html = render(&listbox::label(Some(payload), vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "listbox::label id/children コンテキスト");
+
+        // 選択的再エクスポートした content の id/labelledby/activedescendant 経路。
+        let html = render(&listbox::content(
+            false,
+            Some(payload),
+            Some(payload),
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "listbox::content id/labelledby/activedescendant コンテキスト",
+        );
+
+        // 選択的再エクスポートした item の value/id 経路（タグ文字列そのもの、
+        // REQ-1 の重点対象）。
+        let html = render(&listbox::item(
+            OpenState::Open,
+            false,
+            false,
+            payload,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "listbox::item data-value/id コンテキスト");
+
+        // 選択的再エクスポートした item_text の id/children 経路。
+        let html = render(&listbox::item_text(
+            Some(payload),
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "listbox::item_text id/children コンテキスト",
+        );
+
+        // 選択的再エクスポートした value_text の children 経路。
+        let html = render(&listbox::value_text(false, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "listbox::value_text children コンテキスト");
+    }
+}
+
+#[test]
 fn rating_group_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
     for payload in payloads::all() {
         // styled root の呼び出し側 attrs 経路。
@@ -912,6 +1097,85 @@ fn rating_group_styled_root_and_reexported_parts_are_escaped_for_all_payloads() 
             &html,
             "rating_group::hidden_input name コンテキスト",
         );
+    }
+}
+/// (10) Editable 経路（イシュー #745）: styled `root` の呼び出し側 `attrs`・
+/// `class`、および headless-ui から選択的再エクスポートした `label` の
+/// children・`input` の `name`/`value`・`preview` の children の 5 箇所
+/// すべてで既定エスケープ（REQ-1）が貫通することを固定する
+/// （`number_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn editable_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&editable::root(
+            Size::Md,
+            EditMode::Preview,
+            false,
+            false,
+            Default::default(),
+            Default::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "editable::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&editable::root(
+            Size::Md,
+            EditMode::Preview,
+            false,
+            false,
+            Default::default(),
+            Default::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "editable::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "editable::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-editable--"),
+            "editable::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした label の children 経路。
+        let html = editable::label(EditMode::Preview, false, None, vec![], vec![text(payload)]);
+        let html = render(&html);
+        assert_payload_is_escaped(payload, &html, "editable::label children コンテキスト");
+
+        // 選択的再エクスポートした input の name/value 経路。
+        let html = render(&editable::input(
+            EditMode::Edit,
+            payload,
+            payload,
+            EditableInputProps::default(),
+            EditableInputFlags::default(),
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "editable::input name/value コンテキスト");
+
+        // 選択的再エクスポートした preview の children 経路。
+        let html = render(&editable::preview(
+            EditMode::Preview,
+            false,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "editable::preview children コンテキスト");
     }
 }
 
@@ -1451,6 +1715,44 @@ fn carousel_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         // 選択的再エクスポートした item の children 経路。
         let html = render(&carousel::item(0, 1, false, vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "carousel::item children コンテキスト");
+    }
+}
+
+/// (11) action_bar 経路（イシュー #762）: 再エクスポートした `content` の
+/// `aria-label`（属性値経路）・`selection_trigger`/`close_trigger` の
+/// children（テキスト経路）で既定エスケープ（REQ-1）が貫通することを固定
+/// する（`tooltip_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn action_bar_reexported_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::action_bar;
+
+    for payload in payloads::all() {
+        let html = render(&action_bar::content(
+            OpenState::Open,
+            payload,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "action_bar::content aria-label コンテキスト",
+        );
+
+        let html = render(&action_bar::selection_trigger(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "action_bar::selection_trigger children コンテキスト",
+        );
+
+        let html = render(&action_bar::close_trigger(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "action_bar::close_trigger children コンテキスト",
+        );
     }
 }
 

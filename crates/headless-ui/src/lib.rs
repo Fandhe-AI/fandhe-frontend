@@ -121,6 +121,14 @@
 //!   #602、親 #578）。[`fieldset::FieldsetProps::merge_field_props`] で
 //!   `disabled` を内包する [`field::FieldProps`] へ OR 伝播する（`invalid` は
 //!   伝播しない）。[`mod@field`] と同じく状態機械を適用しない。
+//! - [`mod@listbox`]: Root / Label / Content / ItemGroup / ItemGroupLabel /
+//!   Item / ItemText / ItemIndicator / ValueText の 9 anatomy パーツと、
+//!   single モード [`state::SingleSelect`] を埋め込んだ
+//!   [`listbox::Listbox`]、multiple モード [`state::MultiSelect`] を
+//!   埋め込んだ [`listbox::MultiListbox`]（#750、親 #748）。
+//!   [`mod@select`]（ポップアップ型、`Disclosure` + trigger/positioner/
+//!   hidden-select を持つ）とは異なり、Listbox は常時展開で開閉状態を
+//!   持たない（責務境界の詳細は [`mod@listbox`] module doc 参照）。
 //! - [`mod@menu`]: Root / Trigger / Indicator / Positioner / Content / Arrow /
 //!   ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator / TriggerItem /
 //!   ContextTrigger / CheckboxItem / RadioItemGroup / RadioItem の 16 anatomy
@@ -186,6 +194,15 @@
 //!   [`mod@progress`] と同じく [`state`] の既存語彙に収まらないため、
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
+//! - [`mod@editable`]: Root / Label / Area / Input / Preview / Control /
+//!   EditTrigger / SubmitTrigger / CancelTrigger の 9 anatomy パーツと、
+//!   `preview`/`edit` の 2 モードを持つ [`editable::Editable`] 状態機械
+//!   （#745、親 #736）。[`mod@switch`]/[`mod@progress`]/[`mod@pin_input`]
+//!   と同じく [`state`] の既存語彙に収まらないため、
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。activationMode/
+//!   submitMode の実挙動・autoResize は本イシューのスコープ外
+//!   （[`editable`] モジュール doc 参照）。
 //! - [`mod@combobox`]: Root / Label / Control / Input / Trigger /
 //!   ClearTrigger / Positioner / Content / ItemGroup / ItemGroupLabel /
 //!   Item / ItemText / ItemIndicator の 13 anatomy パーツと、
@@ -243,6 +260,17 @@
 //!   `O(boundary_count + sibling_count)` で `total_pages` を全列挙しない
 //!   （巨大 `count` でも有界、モジュール doc 参照）。wasm 層のクリック配線・
 //!   キーボードナビゲーションは本イシューのスコープ外。
+//! - [`mod@action_bar`]: Root / Positioner / Content / SelectionTrigger /
+//!   Separator / CloseTrigger の 6 anatomy パーツと [`state::Disclosure`] を
+//!   埋め込んだ [`action_bar::ActionBar`] 状態機械（複数選択時に画面下部へ
+//!   表示される操作バー、#762、親トラッキング #520）。構造上最も近い先行例は
+//!   [`dialog::Dialog`]（`Disclosure` 埋め込み + positioner/close-trigger
+//!   構成）であり、本モジュールはそのパターンに完全準拠する。`content` は
+//!   `role="toolbar"` + `aria-label`、`separator` は `role="separator"` +
+//!   `aria-orientation="vertical"` を出力する。選択件数から `open` を導出する
+//!   糖衣 API は持たず、開閉は呼び出し側が dispatch（`"open"`/`"close"`/
+//!   `"toggle"`）で制御する（[`action_bar`] モジュール doc §選択件数から
+//!   open を導出する糖衣 API は持たない 参照）。
 //! - [`mod@hover_card`]: Root/Trigger/Positioner/Content/Arrow/ArrowTip の
 //!   6 anatomy パーツ関数群と、[`state::Disclosure`] を埋め込んだ
 //!   [`hover_card::HoverCard`] 状態機械（#759、親トラッキング #726）。
@@ -318,6 +346,14 @@
 //!   の `positioner`/`arrow`/`arrow_tip` が「CSS フックのみ」だったスコープ
 //!   外事項を解消する。実 DOM 計測は `fandhe-frontend-wasm-full`（`position`
 //!   モジュール）の責務であり、本クレートは `web-sys` 非依存のまま維持する。
+//! - [`mod@password_input`]: Root / Label / Control / Input /
+//!   VisibilityTrigger / Indicator の 6 anatomy パーツと、表示切替
+//!   （`"visible"`/`"hidden"`）の [`password_input::PasswordInput`] 状態機械
+//!   （#740、親 #736）。[`mod@switch`]/[`mod@avatar`] と同じく、既存の
+//!   [`state::Checkable`]/[`state::Disclosure`] のいずれとも値語彙が一致
+//!   しないため [`state`] を埋め込まず個別実装する。**パスワード値そのもの
+//!   は一切扱わない**（`value` を出力する API を持たない。セキュリティ
+//!   不変条件はモジュール doc 参照）。
 //! - [`mod@toggle`]: ark-ui Toggle 相当の Root/Indicator anatomy と、
 //!   [`state::Checkable`] を埋め込んだ [`toggle::Toggle`] 状態機械
 //!   （イシュー #746）。Switch と同じ [`state::Checkable`] を再利用しつつ
@@ -369,6 +405,7 @@
 #![warn(missing_docs)]
 
 pub mod accordion;
+pub mod action_bar;
 pub mod anatomy;
 pub mod aria;
 pub mod avatar;
@@ -381,15 +418,18 @@ pub mod combobox;
 pub mod data_attrs;
 pub mod dialog;
 pub mod drawer;
+pub mod editable;
 pub mod field;
 pub mod fieldset;
 pub mod hover_card;
 pub mod link;
 pub mod link_overlay;
+pub mod listbox;
 pub mod menu;
 pub mod nav_list;
 pub mod number_input;
 pub mod pagination;
+pub mod password_input;
 pub mod pin_input;
 pub mod popover;
 pub mod positioning;
@@ -435,6 +475,7 @@ pub use fandhe_frontend_core;
 // 経路を作らない（REQ-1 を弱めない）。
 pub use fandhe_frontend_interactive;
 
+pub use action_bar::ActionBar;
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
     aria_activedescendant, aria_autocomplete, aria_checked, aria_controls, aria_current,
@@ -455,12 +496,16 @@ pub use data_attrs::{
 };
 pub use dialog::Dialog;
 pub use drawer::{Drawer, DrawerPlacement};
+pub use editable::{Editable, EditableAction};
 pub use field::{FieldIds, FieldProps};
 pub use fieldset::FieldsetProps;
 pub use hover_card::{HoverCard, HoverCardDelays};
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
 pub use number_input::{NumberInput, NumberInputAction, NumberInputFlags};
 pub use pagination::{ItemMode, PageEntry, Pagination, PaginationAction};
+pub use password_input::{
+    PasswordAutocomplete, PasswordInput, PasswordInputAction, PasswordInputProps,
+};
 pub use pin_input::{PinInput, PinInputAction, PinInputKind};
 pub use positioning::{
     compute_position, css_vars_style, data_align, data_side, placement_attrs, Align, ArrowPosition,
