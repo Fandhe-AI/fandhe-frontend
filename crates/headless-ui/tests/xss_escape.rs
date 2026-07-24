@@ -27,6 +27,7 @@
 
 use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::qr_code;
+use fandhe_frontend_headless_ui::scroll_area;
 use fandhe_frontend_headless_ui::{
     action_bar, aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog,
     editable, hover_card, listbox, number_input, password_input, pin_input, popover, rating_group,
@@ -985,6 +986,30 @@ fn listbox_dispatch_select_payload_is_escaped_on_hydration_render() {
             payload,
             &html,
             "Listbox dispatch select payload の data-hydrate-selected コンテキスト",
+        );
+    }
+}
+
+/// ScrollArea（イシュー #825）の属性 breakout・children `<script>` ペイロード
+/// がエスケープされることを固定する。
+#[test]
+fn scroll_area_attrs_and_children_payloads_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let html = render(&scroll_area::viewport(
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "scroll_area::viewport の attrs コンテキスト",
+        );
+
+        let html = render(&scroll_area::content(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "scroll_area::content の children コンテキスト",
         );
     }
 }

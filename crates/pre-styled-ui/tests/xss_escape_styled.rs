@@ -66,6 +66,7 @@ use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingItemFlags};
+use fandhe_frontend_pre_styled_ui::scroll_area;
 use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps};
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps};
 use fandhe_frontend_pre_styled_ui::slider;
@@ -2859,6 +2860,30 @@ fn tag_kbd_code_styled_are_escaped_for_all_payloads() {
         assert!(
             !html.contains("class="),
             "code は variant を持たないため class 属性を出力しないはず: html={html}"
+        );
+    }
+}
+
+/// styled ScrollArea（イシュー #825）の headless 再エクスポート経路（attrs
+/// breakout・children `<script>` ペイロード）がエスケープされることを固定する。
+#[test]
+fn scroll_area_attrs_and_children_payloads_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let html = render(&scroll_area::viewport(
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "scroll_area::viewport の attrs コンテキスト",
+        );
+
+        let html = render(&scroll_area::content(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "scroll_area::content の children コンテキスト",
         );
     }
 }
