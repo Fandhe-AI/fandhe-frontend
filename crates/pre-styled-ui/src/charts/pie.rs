@@ -114,6 +114,15 @@ pub fn segment_angles(values: &[f64]) -> Result<Vec<(f64, f64)>, PieChartError> 
         return Err(PieChartError::NegativeValue);
     }
     let total: f64 = values.iter().sum();
+    // 各要素が有限でも、合計（特に `f64::MAX` 近傍の値同士の和）はオーバー
+    // フローして `inf` になりうる。`total <= 0.0` の判定だけでは
+    // `inf`（`0.0` より大きい）をすり抜けてしまい、`cumulative / total` が
+    // 崩壊した／全周に退化したセグメント角度を生成しスタイル付き
+    // pie/donut パスがそのまま描画してしまうため、合計自体の有限性も
+    // 個々の値の検証と同じ扱いで拒否する（イシュー #850 レビュー指摘）。
+    if !total.is_finite() {
+        return Err(PieChartError::NonFiniteValue);
+    }
     if total <= 0.0 {
         return Err(PieChartError::ZeroTotal);
     }
@@ -247,6 +256,18 @@ mod tests {
         );
         assert_eq!(
             segment_angles(&[1.0, f64::INFINITY]).unwrap_err(),
+            PieChartError::NonFiniteValue
+        );
+    }
+
+    #[test]
+    fn segment_angles_rejects_non_finite_total_overflow() {
+        // 個々の値は有限（`f64::MAX` 近傍）でも合計がオーバーフローして
+        // `inf` になるケース。`total <= 0.0` だけでは `inf` をすり抜ける
+        // ため、合計自体の有限性チェックで拒否されることを確認する
+        // （イシュー #850 レビュー指摘の回帰テスト）。
+        assert_eq!(
+            segment_angles(&[f64::MAX, f64::MAX]).unwrap_err(),
             PieChartError::NonFiniteValue
         );
     }
