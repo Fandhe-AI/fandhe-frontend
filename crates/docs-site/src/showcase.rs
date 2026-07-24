@@ -38,7 +38,7 @@
 //! クリック挙動（dispatch 状態遷移）は wasm 層の責務であり docs サイトの
 //! スコープ外（`examples/headless-pre-styled-ui` と同じ方針）。
 //!
-//! Dialog/Menu/Select/Popover/Tooltip は開いた状態を固定して掲示するため、
+//! Dialog/Menu/Select/Popover/Tooltip/Tour は開いた（Active）状態を固定して掲示するため、
 //! recipe CSS のオーバーレイ配置（`position: fixed`/`absolute` + `z-index`）
 //! をそのまま反映するとページ全体を覆う・後続セクションに重なってしまう。
 //! [`SHOWCASE_LAYOUT_CSS`] がショーケース内に限定してこれを中和する
@@ -216,7 +216,9 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"floating-panel\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2,\n.pre-styled-showcase [data-scope=\"floating-panel\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"toast\"][data-part=\"group\"] {\n  position: static;\n}\n\
-.pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n";
+.pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n\
+.pre-styled-showcase [data-scope=\"tour\"][data-part=\"backdrop\"],\n.pre-styled-showcase [data-scope=\"tour\"][data-part=\"spotlight\"] {\n  display: none;\n}\n\
+.pre-styled-showcase [data-scope=\"tour\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n";
 
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
 /// 追記する `Node` 木を返す。
@@ -243,7 +245,7 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 /// rating_group/slider/segment_group/pagination/breadcrumb/carousel/
 /// action_bar/toast/progress/tag/kbd/code/image/icon/status/empty_state/
 /// visually_hidden/qr_code/heading/text/em/mark/blockquote/list/table/
-/// data_list/stat/timeline/scroll_area/splitter）→ ショーケース配置
+/// data_list/stat/timeline/scroll_area/splitter/tour）→ ショーケース配置
 /// スタイル、の順で決定的に連結する。
 ///
 /// # Errors
@@ -331,6 +333,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::date_picker::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::date_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::timer::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::tour::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -4946,6 +4949,16 @@ mod tests {
         assert!(css.contains(r#".pre-styled-showcase [data-scope="dialog"] h2"#));
         assert!(css.contains(r#".pre-styled-showcase [data-scope="popover"] h2"#));
         assert!(css.contains(r#".pre-styled-showcase [data-scope="toast"][data-part="group"]"#));
+        // Tour（イシュー #841、PR #870 Bugbot 指摘 High severity「Showcase
+        // omits Tour CSS wiring」の回帰防止）: recipe CSS 本体が組み込まれ、
+        // かつ Active 固定掲示のオーバーレイ（backdrop/spotlight/positioner）
+        // がショーケース内でページ全体を覆わないよう中和されていること。
+        assert!(css.contains(
+            r#"[data-scope="tour"][data-part="positioner"][data-side="left"][data-align="start"]"#
+        ));
+        assert!(css.contains(r#".pre-styled-showcase [data-scope="tour"][data-part="backdrop"]"#));
+        assert!(css.contains(r#".pre-styled-showcase [data-scope="tour"][data-part="spotlight"]"#));
+        assert!(css.contains(r#".pre-styled-showcase [data-scope="tour"][data-part="positioner"]"#));
         // StyleSheet の不変条件（<style> 埋め込み・CSS ファイル双方で安全）。
         assert!(!css.contains('<'));
     }
