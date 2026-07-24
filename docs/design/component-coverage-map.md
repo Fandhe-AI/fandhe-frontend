@@ -49,27 +49,29 @@ grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs \
   | grep -vE 'css|recipe|stylesheet|theme'
 ```
 
-2026-07-23 時点の実測（#745 マージにより headless-ui / pre-styled-ui へ
-editable を追加反映。#765 マージ分の status / empty_state 追加も含め、
-これ以前の複数 PR（#754〜#761 等）を経て蓄積した mod 数の乖離を合わせて
-是正した）:
+2026-07-23 時点の実測（#750 マージにより listbox、#745 マージにより
+editable を追加反映。#765 マージによる status / empty_state を含め再実測。
+本節はこれ以前の複数 PR（#754〜#765 等）を経て蓄積した mod 数の乖離を合わせ
+て是正した）:
 
-- headless-ui 35: accordion / avatar / breadcrumb / carousel / checkbox /
+- headless-ui 36: accordion / avatar / breadcrumb / carousel / checkbox /
   collapsible / combobox / dialog / drawer / editable / field / fieldset /
-  hover_card / link / link_overlay / menu / nav_list / number_input /
-  pagination / pin_input / popover / progress / radio_group / rating_group /
-  segment_group / select / slider / switch / tabs / tags_input / toggle /
-  toggle_group / toggle_tip / tooltip / tree_view
-- pre-styled-ui 43（styled ラッパー 33 + 静的部品 10）:
+  hover_card / link / link_overlay / listbox / menu / nav_list /
+  number_input / pagination / pin_input / popover / progress /
+  radio_group / rating_group / segment_group / select / slider / switch /
+  tabs / tags_input / toggle / toggle_group / toggle_tip / tooltip /
+  tree_view
+- pre-styled-ui 44（styled ラッパー 34 + 静的部品 10）:
   accordion / avatar / breadcrumb / carousel / checkbox / checkbox_card /
   combobox / dialog / drawer / editable / hover_card / link / link_overlay /
-  menu / nav_list / number_input / pagination / pin_input / popover /
-  radio_card / radio_group / rating_group / segment_group / select / slider /
-  switch / tabs / tags_input / toggle / toggle_group / toggle_tip / tooltip /
-  tree_view（styled ラッパー、`checkbox_card`/`radio_card` は headless 状態
-  機械（`checkbox`/`radio_group`）を再利用するカード型選択 UI として本区分へ
-  計上、33 件）+ alert / badge / button / card / spinner / input / textarea /
-  native_select / status / empty_state（静的部品、10 件）
+  listbox / menu / nav_list / number_input / pagination / pin_input /
+  popover / radio_card / radio_group / rating_group / segment_group /
+  select / slider / switch / tabs / tags_input / toggle / toggle_group /
+  toggle_tip / tooltip / tree_view（styled ラッパー、`checkbox_card`/
+  `radio_card` は headless 状態機械（`checkbox`/`radio_group`）を再利用する
+  カード型選択 UI として本区分へ計上、34 件）+ alert / badge / button /
+  card / spinner / input / textarea / native_select / status /
+  empty_state（静的部品、10 件）
 
 ## 4. 抜けの機械確認手順
 
@@ -121,7 +123,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/collections/menu.md` | Menu | Menu | menu | menu | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/collections/select.md` | Select | Select | select | select | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/collections/combobox.md` | Combobox | Combobox | — | — | 実装対象 | #749 |
-| `.agents/skills/ark-ui/references/components/collections/listbox.md` | Listbox | Listbox | — | — | 実装対象 | #750 |
+| `.agents/skills/ark-ui/references/components/collections/listbox.md` | Listbox | Listbox | listbox | listbox | 実装済み | headless+styled 実装済み（#750） |
 | `.agents/skills/ark-ui/references/components/collections/pagination.md` | Pagination | Pagination | — | — | 実装対象 | #751（#716 保留の解除） |
 | `.agents/skills/ark-ui/references/components/collections/steps.md` | Steps | Steps | — | — | 実装対象 | #752（#716 保留の解除） |
 | `.agents/skills/ark-ui/references/components/collections/tree-view.md` | TreeView | TreeView | tree_view | tree_view | 実装済み | headless+styled 実装済み |
@@ -346,7 +348,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 |---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/collections/select.md` | Select | Select | select | select | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/collections/combobox.md` | Combobox | Combobox | — | — | 実装対象 | #749 |
-| `.agents/skills/chakra-ui/references/components/collections/listbox.md` | Listbox | Listbox | — | — | 実装対象 | #750 |
+| `.agents/skills/chakra-ui/references/components/collections/listbox.md` | Listbox | Listbox | listbox | listbox | 実装済み | headless+styled 実装済み（#750） |
 | `.agents/skills/chakra-ui/references/components/collections/tree-view.md` | TreeView | TreeView | tree_view | tree_view | 実装済み | headless+styled 実装済み |
 
 #### `.agents/skills/chakra-ui/references/components/concepts/`

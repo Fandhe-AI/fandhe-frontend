@@ -121,6 +121,14 @@
 //!   #602、親 #578）。[`fieldset::FieldsetProps::merge_field_props`] で
 //!   `disabled` を内包する [`field::FieldProps`] へ OR 伝播する（`invalid` は
 //!   伝播しない）。[`mod@field`] と同じく状態機械を適用しない。
+//! - [`mod@listbox`]: Root / Label / Content / ItemGroup / ItemGroupLabel /
+//!   Item / ItemText / ItemIndicator / ValueText の 9 anatomy パーツと、
+//!   single モード [`state::SingleSelect`] を埋め込んだ
+//!   [`listbox::Listbox`]、multiple モード [`state::MultiSelect`] を
+//!   埋め込んだ [`listbox::MultiListbox`]（#750、親 #748）。
+//!   [`mod@select`]（ポップアップ型、`Disclosure` + trigger/positioner/
+//!   hidden-select を持つ）とは異なり、Listbox は常時展開で開閉状態を
+//!   持たない（責務境界の詳細は [`mod@listbox`] module doc 参照）。
 //! - [`mod@menu`]: Root / Trigger / Indicator / Positioner / Content / Arrow /
 //!   ArrowTip / Item / ItemGroup / ItemGroupLabel / Separator / TriggerItem /
 //!   ContextTrigger / CheckboxItem / RadioItemGroup / RadioItem の 16 anatomy
@@ -393,6 +401,7 @@ pub mod fieldset;
 pub mod hover_card;
 pub mod link;
 pub mod link_overlay;
+pub mod listbox;
 pub mod menu;
 pub mod nav_list;
 pub mod number_input;

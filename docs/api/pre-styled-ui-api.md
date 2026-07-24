@@ -71,6 +71,7 @@ ToggleTip styled ラッパー追加（#761）・Progress circular 対応追加
 | headless ラッパー | `segment_group` | #743（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供。状態機械は `radio_group` へ全委譲） |
 | headless ラッパー第 10 弾 | `tags_input` | #744（`size` variant のみ。フォーム入力部品のため `color-palette` 軸は非提供、`pin_input`/`number_input` と同型の判断） |
 | headless ラッパー第 11 弾 | `editable` | #745（`size` variant のみ・`color-palette` 軸は非提供。フォーム操作部品として `number_input` と同じ判断） |
+| headless ラッパー | `listbox` | #750（`size` variant のみ・`color-palette` 軸は非提供。常時展開（trigger/positioner なし）で `select` とは責務境界が異なる。詳細は `src/listbox.rs` 参照） |
 | headless ラッパー | `toggle` / `toggle_group` | #746（実フォーカスをネイティブ `<button>` 自身が受けるため `data-focus-visible` 配線ではなく `FocusVisible` state condition で対応。`size`/`color-palette` 両軸提供） |
 | カード型選択 UI（styled バリエーション） | `checkbox_card` / `radio_card` | #747（§4g 参照。headless-ui は変更なし、pre-styled 層で新規 anatomy `checkbox-card`/`radio-card` を定義。状態機械は headless `Checkbox`/`RadioGroup` を再利用） |
 | headless ラッパー | `combobox` | #749（`select` と同型の `size` variant のみ・`color-palette` 軸は非提供。状態機械は `state::Disclosure` + `state::SingleSelect` + `state::TextInput` の合成。フォーカスは `input` が保持するため `:focus-visible` を `input` へ、`:focus-within` を `control` へ登録する） |

@@ -54,6 +54,7 @@ use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, ImageProps};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
+use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
@@ -932,6 +933,97 @@ fn tags_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
             &html,
             "tags_input::hidden_input name/value コンテキスト",
         );
+    }
+}
+
+#[test]
+fn listbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&listbox::root(
+            Size::Md,
+            OpenState::Closed,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "listbox::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&listbox::root(
+            Size::Md,
+            OpenState::Closed,
+            false,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "listbox::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "listbox::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-listbox--"),
+            "listbox::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした label の id/children 経路。
+        let html = render(&listbox::label(Some(payload), vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "listbox::label id/children コンテキスト");
+
+        // 選択的再エクスポートした content の id/labelledby/activedescendant 経路。
+        let html = render(&listbox::content(
+            false,
+            Some(payload),
+            Some(payload),
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "listbox::content id/labelledby/activedescendant コンテキスト",
+        );
+
+        // 選択的再エクスポートした item の value/id 経路（タグ文字列そのもの、
+        // REQ-1 の重点対象）。
+        let html = render(&listbox::item(
+            OpenState::Open,
+            false,
+            false,
+            payload,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "listbox::item data-value/id コンテキスト");
+
+        // 選択的再エクスポートした item_text の id/children 経路。
+        let html = render(&listbox::item_text(
+            Some(payload),
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "listbox::item_text id/children コンテキスト",
+        );
+
+        // 選択的再エクスポートした value_text の children 経路。
+        let html = render(&listbox::value_text(false, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "listbox::value_text children コンテキスト");
     }
 }
 
