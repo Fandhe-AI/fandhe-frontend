@@ -255,8 +255,23 @@ body {\n\
  * （マウス操作・キーボード操作の双方をカバーする。JS を使わないため\n\
  * `aria-expanded` 等の動的属性で開閉状態を表現しない、`header_nav` rustdoc\n\
  * 参照）。\n\
+ *\n\
+ * `header_nav` は headless `nav_list` anatomy（`nav::sidebar` と同じ\n\
+ * `data-scope=\"nav-list\" data-part=\"list|link\"`）を再利用しているため、\n\
+ * `nav_list::stylesheet()` の `[data-scope=\"nav-list\"][data-part=\"...\"]`\n\
+ * ルール（詳細度 0,2,0・`[data-part][aria-current=\"page\"]` は 0,3,0）が\n\
+ * 素の class セレクタ（0,1,0/0,1,1）に競り勝ち、dropdown の padding・\n\
+ * リンク色・カレントページの font-weight が適用されない不具合があった\n\
+ * （Bugbot 指摘、イシュー #908 PR #919 レビュー）。サイドバーが\n\
+ * `.docs-sidebar nav.sidebar ...`（詳細度 0,2,1 以上）で対策済みなのと\n\
+ * 同型で、以下 padding/color/font-weight を上書きするセレクタは\n\
+ * `.docs-header nav.docs-header-nav .docs-header-dropdown ...`\n\
+ * （詳細度 0,3,1 以上、`nav_list` 側の最大 0,3,0 を常に上回る）で\n\
+ * 固定する。開閉トグル（`display`）・右端アンカー（`left`/`right`）は\n\
+ * `nav_list::stylesheet()` 側に競合するプロパティが存在しないため\n\
+ * プレフィックス不要のまま据え置く。\n\
  */\n\
-.docs-header-dropdown {\n\
+.docs-header nav.docs-header-nav .docs-header-dropdown {\n\
   position: absolute;\n\
   top: 100%;\n\
   left: 0;\n\
@@ -272,8 +287,8 @@ body {\n\
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);\n\
 }\n\
 \n\
-.docs-header-group:hover > .docs-header-dropdown,\n\
-.docs-header-group:focus-within > .docs-header-dropdown {\n\
+.docs-header nav.docs-header-nav .docs-header-group:hover > .docs-header-dropdown,\n\
+.docs-header nav.docs-header-nav .docs-header-group:focus-within > .docs-header-dropdown {\n\
   display: block;\n\
 }\n\
 \n\
@@ -285,12 +300,12 @@ body {\n\
  * PR #919 レビュー）。最後のグループのみ右端アンカー（`right: 0`）に\n\
  * 切り替えて右はみ出しを防ぐ。\n\
  */\n\
-.docs-header-group:last-child > .docs-header-dropdown {\n\
+.docs-header nav.docs-header-nav .docs-header-group:last-child > .docs-header-dropdown {\n\
   left: auto;\n\
   right: 0;\n\
 }\n\
 \n\
-.docs-header-dropdown a {\n\
+.docs-header nav.docs-header-nav .docs-header-dropdown a {\n\
   display: block;\n\
   padding: 0.32rem 0.5rem;\n\
   border-radius: 0.4rem;\n\
@@ -299,12 +314,12 @@ body {\n\
   font-size: 0.85rem;\n\
 }\n\
 \n\
-.docs-header-dropdown a:hover {\n\
+.docs-header nav.docs-header-nav .docs-header-dropdown a:hover {\n\
   color: var(--fandhe-color-fg);\n\
   background: var(--fandhe-color-bg-subtle);\n\
 }\n\
 \n\
-.docs-header-dropdown a[aria-current=\"page\"] {\n\
+.docs-header nav.docs-header-nav .docs-header-dropdown a[aria-current=\"page\"] {\n\
   background: var(--fandhe-color-docs-accent-bg);\n\
   color: var(--fandhe-color-accent);\n\
   font-weight: 600;\n\
@@ -1061,6 +1076,37 @@ mod tests {
         let sheet = stylesheet().expect("site theme stylesheet should assemble");
         let css = sheet.as_css();
         assert!(css.contains(".docs-header-trigger:focus-visible"));
+    }
+
+    #[test]
+    fn stylesheet_header_dropdown_selectors_outrank_nav_list_data_scope_rules() {
+        // Bugbot 指摘（イシュー #908 PR #919 レビュー）是正の回帰テスト:
+        // `header_nav` は headless `nav_list` anatomy を再利用しているため、
+        // `nav_list::stylesheet()` の `[data-scope="nav-list"][data-part="..."]`
+        // 系ルール（詳細度最大 0,3,0、`link`+`aria-current` の組み合わせ）に
+        // 素の class セレクタ（0,1,0/0,1,1）が競り負け、padding・リンク色・
+        // カレントページの font-weight が適用されない不具合があった。
+        // サイドバー（`.docs-sidebar nav.sidebar ...`）と同型に
+        // `.docs-header nav.docs-header-nav .docs-header-dropdown ...`
+        // （詳細度 0,3,1 以上）へ底上げしたことを固定する。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        for selector in [
+            ".docs-header nav.docs-header-nav .docs-header-dropdown {",
+            ".docs-header nav.docs-header-nav .docs-header-dropdown a {",
+            ".docs-header nav.docs-header-nav .docs-header-dropdown a:hover {",
+            ".docs-header nav.docs-header-nav .docs-header-dropdown a[aria-current=\"page\"] {",
+        ] {
+            assert!(
+                css.contains(selector),
+                "missing high-specificity selector: {selector}"
+            );
+        }
+        // 弱い（負ける）セレクタが CSS に残っていないことも固定する
+        // （うっかり両方残して二重管理にする回帰を防ぐ）。
+        assert!(!css.contains("\n.docs-header-dropdown {"));
+        assert!(!css.contains("\n.docs-header-dropdown a {"));
+        assert!(!css.contains("\n.docs-header-dropdown a[aria-current=\"page\"] {"));
     }
 
     #[test]
