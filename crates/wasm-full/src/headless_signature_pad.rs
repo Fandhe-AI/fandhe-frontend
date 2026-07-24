@@ -246,14 +246,26 @@ mod wiring {
     use wasm_bindgen::{JsCast, JsValue};
     use web_sys::{Element, PointerEvent};
 
-    /// `event.target()` から祖先方向（自身を含む）へ
-    /// `[data-scope="signature-pad"][data-part="segment"]` 要素を探し、
-    /// 見つかった場合はその `getBoundingClientRect()` 原点（`viewBox` の
-    /// `(0, 0)` に対応する画面座標）と、CSS ピクセルから `viewBox` ユーザー
-    /// 単位への軸ごとの倍率（`(origin_x, origin_y, scale_x, scale_y)`）を
-    /// 返す。`segment-path`（ストローク自体）上のイベントも `closest` が
-    /// 祖先の `segment` を辿って解決する。見つからない場合（描画領域外、
-    /// 例: ClearTrigger 上）は `None`（fail-closed）。
+    /// `event.target()` から `[data-scope="signature-pad"][data-part="segment"]`
+    /// 要素を探し、見つかった場合はその `getBoundingClientRect()` 原点
+    /// （`viewBox` の `(0, 0)` に対応する画面座標）と、CSS ピクセルから
+    /// `viewBox` ユーザー単位への軸ごとの倍率（`(origin_x, origin_y,
+    /// scale_x, scale_y)`）を返す。見つからない場合（描画領域外、例:
+    /// ClearTrigger 上）は `None`（fail-closed）。
+    ///
+    /// 探索は 2 段階（`closest` → `query_selector`）で行う。`segment`/
+    /// `segment-path`（ストローク自体）上のイベントは `closest` が祖先の
+    /// `segment` を辿って解決するが、`control`（`segment` を内包する外側
+    /// コンテナ、`fandhe_frontend_headless_ui::signature_pad::control`
+    /// 参照）の余白部分（SVG の外側だが `control` 内側）でのクリックは
+    /// `segment` がイベントターゲットの祖先ではなく子孫であるため
+    /// `closest` では解決できない（[`is_drawable_part`] は `control` を
+    /// 描画可能パーツとして許可しているにもかかわらず、`pointerdown` が
+    /// 早期リターンしてストローク開始を取りこぼす不具合、Bugbot 指摘・
+    /// イシュー #843 PR #872）。そのため `closest` が失敗した場合、
+    /// `target` 自身を起点に子孫方向へ `segment` を探す `query_selector`
+    /// へフォールバックする（`control` 上のクリックは高々 1 つの
+    /// `segment` 子を持つ想定のため、最初に見つかった要素を採用する）。
     ///
     /// pre-styled 側で `width: 100%` 等により表示上の bounding box が
     /// `viewBox="0 0 {width} {height}"` の寸法と異なる場合、CSS ピクセルの
@@ -268,10 +280,12 @@ mod wiring {
     /// 自身の `pointer_id` 一致判定に委ねるため、本関数は「描画領域内か」
     /// の判定そのものは行わず、原点・倍率の解決失敗のみを扱う。
     fn segment_rect_transform(target: &Element) -> Option<(f64, f64, f64, f64)> {
+        const SEGMENT_SELECTOR: &str = r#"[data-scope="signature-pad"][data-part="segment"]"#;
         let segment = target
-            .closest(r#"[data-scope="signature-pad"][data-part="segment"]"#)
+            .closest(SEGMENT_SELECTOR)
             .ok()
-            .flatten()?;
+            .flatten()
+            .or_else(|| target.query_selector(SEGMENT_SELECTOR).ok().flatten())?;
         let view_box = segment.get_attribute("viewBox")?;
         let view_box_dim = parse_view_box_dimensions(&view_box)?;
         let rect = segment.get_bounding_client_rect();

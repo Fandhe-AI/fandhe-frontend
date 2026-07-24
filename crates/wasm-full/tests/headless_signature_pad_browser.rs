@@ -200,6 +200,72 @@ fn runtime_hydrate_csr_fallback_wires_clear_trigger_click_for_signature_pad() {
     );
 }
 
+/// `control`（`segment` を内包する外側コンテナ）上、かつ `segment`（SVG）の
+/// 外側にあたる余白部分での `pointerdown` でもストロークが開始されること
+/// （Cursor Bugbot 指摘「Control clicks skip stroke start」の回帰固定、
+/// イシュー #843 PR #872）。
+///
+/// 修正前は `segment_rect_transform` が `closest` のみで `segment` 祖先を
+/// 探しており、`control`（`segment` の祖先ではなく親、つまり `segment` は
+/// `control` の子孫）上のイベントでは解決に失敗し `pointerdown` が早期
+/// リターンしていた（`is_drawable_part` が `control` を描画可能パーツとして
+/// 許可していたにもかかわらず）。本テストは `control` 要素自身へ
+/// `pointerdown`/`pointerup` を送り、`segment` 子要素を子孫探索
+/// （`query_selector`）で解決してストロークが確定することを検証する。
+#[wasm_bindgen_test]
+fn pointerdown_on_control_container_starts_stroke_via_descendant_segment_lookup() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "signature-pad-control-click-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let host = TestSignaturePadHost(SignaturePad::new(Vec::new(), false, false));
+
+    let runtime = Runtime::mount("signature-pad-control-click-root", host)
+        .expect("Runtime::mount must not fail");
+
+    assert!(
+        runtime.component().0.strokes().is_empty(),
+        "mount 直後はストロークなしであること"
+    );
+
+    let control = placeholder
+        .query_selector(r#"[data-scope="signature-pad"][data-part="control"]"#)
+        .expect("query_selector must not fail")
+        .expect("mount 後に control 要素が存在すること");
+
+    // `control` 要素自身（`segment` の外側の余白相当）へポインタイベントを
+    // 送る。`event.target()` は `control` 自身になる（`segment` の子孫では
+    // ない）ため、修正前の `closest` のみの実装ではストローク開始に失敗する。
+    let pointer_down = new_pointer_event("pointerdown", 1);
+    control
+        .dispatch_event(&pointer_down)
+        .expect("dispatch_event(pointerdown) must not fail");
+    let pointer_up = new_pointer_event("pointerup", 1);
+    control
+        .dispatch_event(&pointer_up)
+        .expect("dispatch_event(pointerup) must not fail");
+
+    assert_eq!(
+        runtime.component().0.strokes().len(),
+        1,
+        "control 要素上での pointerdown/pointerup でも 1 ストロークが確定して \
+         いること（イシュー #843 Bugbot 指摘「Control clicks skip stroke \
+         start」の回帰）"
+    );
+}
+
+/// 合成 `PointerEvent` を生成する（`bubbles: true`、指定した `pointerId` を
+/// 持つ）。`StrokeCollector` は `pointer_id` の一致で追跡対象を判定するため、
+/// pointerdown/pointerup で同じ id を使う必要がある。
+fn new_pointer_event(kind: &str, pointer_id: i32) -> web_sys::PointerEvent {
+    let init = web_sys::PointerEventInit::new();
+    init.set_bubbles(true);
+    init.set_pointer_id(pointer_id);
+    web_sys::PointerEvent::new_with_event_init_dict(kind, &init)
+        .expect("PointerEvent::new must not fail")
+}
+
 /// SignaturePad の ClearTrigger（`Self::wire_signature_pad` 経路）が keyed
 /// list の構造変化を起こした直後、通常の `data-action` クリック
 /// （`Self::wire`/`events::wire_events` 経路）が新規挿入ノード内の
