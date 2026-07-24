@@ -614,6 +614,16 @@ manifest processed for {manifest}) was not found under {repo_root}/crates/*; can
     // 再生成自体が成立しない。削除して cargo に再解決させる（設計文書 §5
     // 項 2: この場合の再現性低下は許容し、呼び出し元（`main.rs`）が
     // stdout へ明記する）。
+    //
+    // 削除後の再生成は `tools/wasm/build.sh`（wasm/Cargo.toml が対象の
+    // 場合）が `cargo generate-lockfile` で担う。その際 `wasm-bindgen =
+    // "0.2"` が crates.io の最新 0.2.x へ浮動し、smoke ジョブがピン留め
+    // した wasm-bindgen-cli バージョンと食い違う懸念（Cursor Bugbot 指摘、
+    // イシュー #885）は build.sh 側で「lock を新規生成した場合に限り
+    // `cargo update -p wasm-bindgen --precise <installed-cli-version>`
+    // で固定する」ことで解消済み（`crates/cli/templates/app/tools/wasm/
+    // build.sh` 参照。この関数はロック削除のみを担い、再生成後の
+    // バージョン整合は build.sh の責務）。
     if lock_path.exists() {
         fs::remove_file(lock_path).map_err(|e| {
             PatchTemplateSmokeError::Io(format!(
