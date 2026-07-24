@@ -539,8 +539,19 @@ impl Splitter {
         if !size.is_finite() {
             return;
         }
-        let next_index = trigger + 1;
-        if trigger >= self.sizes.len() || next_index >= self.sizes.len() {
+        // `trigger` の範囲チェックを `trigger + 1` の算術より先に行う。
+        // dispatch payload の trigger は `usize` を素通しでパースするため
+        // （`decode_action` 参照）、`trigger == usize::MAX` のような不正値が
+        // 到達しうる。加算を先に行うとオーバーフローし、debug ビルドで
+        // panic するため fail-closed 契約（`.claude/rules/coding-rust.md`）
+        // に反する。`checked_add` で範囲外を no-op として扱う。
+        if trigger >= self.sizes.len() {
+            return;
+        }
+        let Some(next_index) = trigger.checked_add(1) else {
+            return;
+        };
+        if next_index >= self.sizes.len() {
             return;
         }
 
@@ -969,6 +980,21 @@ mod tests {
         // `true`（decode 成功）を返すが、`update()` 側の境界チェックで
         // 状態は変化しない（fail-closed、多層防御）。
         assert!(dispatch(&mut s, "set", "5:70"));
+        assert_eq!(s.size(0), Some(50.0));
+        assert_eq!(s.size(1), Some(50.0));
+    }
+
+    /// PR #862 レビュー指摘: `apply_set_size` が `trigger + 1` を範囲チェック
+    /// より先に計算していたため、`trigger == usize::MAX` を伴う `"set"`
+    /// payload で加算オーバーフローし、debug ビルドで panic していた。
+    /// `decode_action` は trigger を `usize` として素通しでパースするため
+    /// （§dispatch 実装参照）、クライアント由来の改ざんされた payload が
+    /// この値を伴って到達しうる。fail-closed（no-panic）契約を固定する。
+    #[test]
+    fn dispatch_set_with_usize_max_trigger_does_not_panic() {
+        let mut s = Splitter::default();
+        let payload = format!("{}:70", usize::MAX);
+        assert!(dispatch(&mut s, "set", &payload));
         assert_eq!(s.size(0), Some(50.0));
         assert_eq!(s.size(1), Some(50.0));
     }
