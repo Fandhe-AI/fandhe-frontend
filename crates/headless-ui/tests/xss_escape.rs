@@ -26,14 +26,16 @@
 //! テストは以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
 use fandhe_frontend_core::{escape_html, render, text};
+use fandhe_frontend_headless_ui::positioning::{Align, Placement, Side};
 use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::scroll_area;
+use fandhe_frontend_headless_ui::tour::{self, TourStep};
 use fandhe_frontend_headless_ui::{
     action_bar, aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog,
     download_trigger, editable, floating_panel, hover_card, listbox, number_input, password_input,
     pin_input, popover, rating_group, segment_group, slider, splitter, tags_input, timer, toast,
     tree_view, ImageStatus, OpenState, Orientation, PasswordAutocomplete, PasswordInputProps,
-    Steps, ToastStatus,
+    Steps, ToastStatus, Tour,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -1306,5 +1308,50 @@ fn timer_children_and_attrs_are_escaped_for_all_payloads() {
             vec![],
         ));
         assert_payload_is_escaped(payload, &html, "timer::root の attrs コンテキスト");
+    }
+}
+
+/// (1)/(2) Tour（イシュー #841）: `title`/`description` の children
+/// （テキスト経路）・`target`（`spotlight` の `data-target` 属性値経路）・
+/// 呼び出し側 `attrs`（属性値経路）へ全ペイロードを注入し、エスケープが
+/// 貫通することを固定する。
+#[test]
+fn tour_title_description_target_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let title_node = tour::Tour::default().title(None, vec![], vec![text(payload)]);
+        let html = render(&title_node);
+        assert_payload_is_escaped(payload, &html, "tour::Tour::title のテキストコンテキスト");
+
+        let description_node = tour::Tour::default().description(None, vec![], vec![text(payload)]);
+        let html = render(&description_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tour::Tour::description のテキストコンテキスト",
+        );
+
+        let step = TourStep {
+            id: "s1".to_string(),
+            target: Some(payload.to_string()),
+            title: "t".to_string(),
+            description: "d".to_string(),
+            placement: Placement::new(Side::Bottom, Align::Center),
+        };
+        let mut t = Tour::new(vec![step]);
+        fandhe_frontend_interactive::dispatch(&mut t, "start", "");
+        let html = render(&t.spotlight(vec![], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tour::Tour::spotlight の data-target コンテキスト",
+        );
+
+        let root_attrs_node = Tour::default().root(vec![("data-testid", payload)], vec![]);
+        let html = render(&root_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tour::Tour::root の呼び出し側 attrs コンテキスト",
+        );
     }
 }

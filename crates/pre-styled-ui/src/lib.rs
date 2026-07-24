@@ -559,6 +559,7 @@ pub mod toggle;
 pub mod toggle_group;
 pub mod toggle_tip;
 pub mod tooltip;
+pub mod tour;
 pub mod tree_view;
 pub mod visually_hidden;
 

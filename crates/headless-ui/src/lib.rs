@@ -542,6 +542,7 @@ pub mod toggle;
 pub mod toggle_group;
 pub mod toggle_tip;
 pub mod tooltip;
+pub mod tour;
 pub mod tree_view;
 pub mod visually_hidden;
 
@@ -626,4 +627,5 @@ pub use toggle::{Toggle, ToggleAction};
 pub use toggle_group::{MultiToggleGroup, ToggleGroup};
 pub use toggle_tip::ToggleTip;
 pub use tooltip::Tooltip;
+pub use tour::{ContentIds as TourContentIds, Tour, TourAction, TourStatus, TourStep};
 pub use tree_view::{TreeNode, TreeView, TreeViewAction};

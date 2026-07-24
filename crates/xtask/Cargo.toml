@@ -22,6 +22,6 @@ publish = false
 [dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.1.0" }
 fandhe-frontend-interactive = { path = "../interactive", version = "0.1.0" }
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.17.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.18.0" }
 
 [dev-dependencies]

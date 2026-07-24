@@ -311,6 +311,7 @@ mod tests {
             ("color_swatch", crate::color_swatch::css()),
             ("action_bar", crate::action_bar::stylesheet()),
             ("toast", crate::toast::stylesheet()),
+            ("tour", crate::tour::stylesheet()),
             ("status", crate::status::css()),
             ("empty_state", crate::empty_state::css()),
             ("visually_hidden", crate::visually_hidden::css()),
