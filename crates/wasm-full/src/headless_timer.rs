@@ -57,7 +57,14 @@
 //! ストーム（CPU 枯渇、`.claude/rules/security.md` A04 対応）を防ぐため、
 //! [`Timer::from_hydration_attrs`] が返す `interval_ms` を
 //! `setInterval` へ渡す直前に [`MIN_INTERVAL_MS`]（16ms、`requestAnimationFrame`
-//! 相当の下限）でクランプする（[`clamp_interval_ms`]）。
+//! 相当の下限）でクランプする（[`clamp_interval_ms`]）。上限側も
+//! [`MAX_INTERVAL_MS`]（`i32::MAX`）でクランプする。`interval_ms: u64` は
+//! `data-interval`（DOM 属性、クライアント側で改ざん可能）由来のため、
+//! `web_sys::Window::set_interval_with_callback_and_timeout_and_arguments_0`
+//! が要求する `i32` へキャストする直前に上限を設けないと、`2^31` 以上
+//! `2^32` 未満の値が `u64 as i32` で負値へラップし、ブラウザ側で
+//! `setInterval(cb, <負数>)` が `0` へ再クランプされて下限クランプの意図
+//! （dispatch ストーム防止）が無効化される（イシュー #836 レビュー指摘）。
 //!
 //! # 実時間の計測は本モジュール（wasm 境界）に隔離する
 //!
@@ -101,6 +108,14 @@ const ITEM_VALUE_PART: &str = "item-value";
 /// 相当（モジュール冒頭「`data-interval` の下限クランプ」節参照）。
 pub const MIN_INTERVAL_MS: u64 = 16;
 
+/// `setInterval` へ渡す tick 間隔の上限（ミリ秒）。
+/// `Window::set_interval_with_callback_and_timeout_and_arguments_0` の
+/// タイムアウト引数は `i32` のため、`i32::MAX` を超える値は `u64 as i32`
+/// キャストで符号が反転し負値へラップする（モジュール冒頭「`data-interval`
+/// の下限クランプ」節参照）。`clamp_interval_ms` はこの上限もあわせて
+/// 適用し、キャスト前に必ず `i32` の範囲へ収める。
+pub const MAX_INTERVAL_MS: u64 = i32::MAX as u64;
+
 /// クリックターゲットが Timer ActionTrigger 要素かどうかを判定する純粋関数
 /// （DOM 非依存、native `cargo test` で検証可能）。
 #[must_use]
@@ -122,11 +137,14 @@ pub fn action_from_trigger(data_action: Option<&str>) -> Option<&'static str> {
     }
 }
 
-/// `interval_ms` を [`MIN_INTERVAL_MS`] 未満にならないようクランプする
-/// 純粋関数（モジュール冒頭「`data-interval` の下限クランプ」節参照）。
+/// `interval_ms` を [`MIN_INTERVAL_MS`] 未満・[`MAX_INTERVAL_MS`] 超過の
+/// いずれにもならないようクランプする純粋関数（モジュール冒頭
+/// 「`data-interval` の下限クランプ」節参照）。上限クランプにより、
+/// `i32 as i32` キャスト時の符号反転（負値ラップ）で下限クランプの意図が
+/// 無効化される経路を防ぐ。
 #[must_use]
 pub fn clamp_interval_ms(interval_ms: u64) -> u64 {
-    interval_ms.max(MIN_INTERVAL_MS)
+    interval_ms.clamp(MIN_INTERVAL_MS, MAX_INTERVAL_MS)
 }
 
 /// `root` の `data-*` 属性群から [`Timer`] を再構築する純粋関数。
@@ -555,6 +573,27 @@ mod tests {
         assert_eq!(clamp_interval_ms(15), MIN_INTERVAL_MS);
         assert_eq!(clamp_interval_ms(16), 16);
         assert_eq!(clamp_interval_ms(1000), 1000);
+    }
+
+    #[test]
+    fn clamp_interval_ms_enforces_maximum() {
+        // 上限クランプがないと `u64 as i32` キャストで負値へラップし、
+        // ブラウザ側で `setInterval(cb, 0)` へ再クランプされて下限クランプの
+        // 意図（dispatch ストーム防止）が無効化される（イシュー #836
+        // レビュー指摘）。
+        assert_eq!(clamp_interval_ms(MAX_INTERVAL_MS), MAX_INTERVAL_MS);
+        assert_eq!(clamp_interval_ms(MAX_INTERVAL_MS + 1), MAX_INTERVAL_MS);
+        // 2^31（i32::MAX 超過・u32 範囲内）: クランプなしでは
+        // `u64 as i32` で負値へラップする代表的な改ざん値。
+        assert_eq!(clamp_interval_ms(1u64 << 31), MAX_INTERVAL_MS);
+        // 2^32（レビュー指摘の具体例）: クランプなしでは下位 32bit のみ
+        // 保持され `0` へラップする。
+        assert_eq!(clamp_interval_ms(1u64 << 32), MAX_INTERVAL_MS);
+        assert_eq!(clamp_interval_ms(u64::MAX), MAX_INTERVAL_MS);
+
+        // クランプ後の値は必ず `i32` へ安全にキャストできる（負値へ
+        // ラップしないことの直接検証）。
+        assert!(i32::try_from(clamp_interval_ms(u64::MAX)).is_ok());
     }
 
     // --- timer_from_display_attrs / formatted_segments ---
