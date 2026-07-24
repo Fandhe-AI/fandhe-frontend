@@ -302,6 +302,7 @@ mod tests {
             ("link_overlay", crate::link_overlay::stylesheet()),
             ("nav_list", crate::nav_list::stylesheet()),
             ("action_bar", crate::action_bar::stylesheet()),
+            ("toast", crate::toast::stylesheet()),
             ("status", crate::status::css()),
             ("empty_state", crate::empty_state::css()),
             ("visually_hidden", crate::visually_hidden::css()),
