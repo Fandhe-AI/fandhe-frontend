@@ -266,6 +266,30 @@ pub enum StateCondition {
     /// 参照）、DOM 構造がそのまま表す `:last-child` を使い、最後の item
     /// にのみ伸長・最小高さの指定を打ち消す。
     LastChild,
+    /// 複数の値付き属性の AND 条件
+    /// `[<name1>="<value1>"][<name2>="<value2>"]...`（イシュー #841 PR #870
+    /// Bugbot レビュー Medium severity 指摘「Positioner skips align
+    /// fallback」対応）。
+    ///
+    /// [`crate::tour`] の positioner 静的フォールバックは `data-side` と
+    /// `data-align` の組み合わせで配置が決まる（例: `Left`+`Start` と
+    /// `Left`+`Center` は異なる表示）。単一属性条件（[`StateCondition::AttrEq`]）
+    /// だけでは片方の軸しか捕捉できず、もう片方の軸違いが無視されてしまう
+    /// ため、複数属性の AND を 1 セレクタで表現する本 variant を追加した。
+    /// 要素は `(name, value)` の組。空スライスは無条件規則（`base` と同義）
+    /// になる意味のない規則のため [`SlotRecipe::css`] が除外する。
+    AttrEqAll(&'static [(&'static str, &'static str)]),
+    /// `:hover` 擬似クラス（イシュー #847）。
+    ///
+    /// [`crate::charts::tooltip`] のデータ点（`datum` slot）専用の追加。
+    /// SVG のデータ点はマウス追従型のリッチツールチップ（JS 必須、
+    /// `crate::charts::tooltip` モジュール doc「スコープ外」節参照）を
+    /// 持たず、代わりに子 `<title>` 要素によるブラウザネイティブな hover
+    /// 表示 + 本条件による視覚的強調（`opacity`/`stroke-width` 変更）の
+    /// 組み合わせで「ホバーで詳細が分かる」体験を CSS のみで表現する。
+    /// `FocusVisible`/`NthChildEven` 等と同じく「消費者が現れた時点で
+    /// 追加する」前例に従う（本モジュール冒頭 doc 参照）。
+    Hover,
 }
 
 /// slot 1 個・状態条件 1 個への宣言登録（内部表現、イシュー #643）。
@@ -491,7 +515,9 @@ impl SlotRecipe {
     /// （`FocusVisible`）・`[data-scope="<scope>"][data-part="<slot>"]:focus-within`
     /// （`FocusWithin`、イシュー #683）・
     /// `[data-scope="<scope>"][data-part="<slot>"]:last-child`
-    /// （`LastChild`、イシュー #752）のいずれか（出力順が最後尾のため CSS
+    /// （`LastChild`、イシュー #752）・
+    /// `[data-scope="<scope>"][data-part="<slot>"]:hover`
+    /// （`Hover`、イシュー #847）のいずれか（出力順が最後尾のため CSS
     /// カスケードの後勝ちで variant/compound variant を上書きする。
     /// `LastChild` は同一 slot への他の state 規則より後に登録することで
     /// 詳細度が同じでも記述順の後勝ちで上書きする契約、`state()` の
@@ -601,6 +627,13 @@ impl SlotRecipe {
                 StateCondition::FocusWithin => true,
                 StateCondition::NthChildEven => true,
                 StateCondition::LastChild => true,
+                StateCondition::AttrEqAll(pairs) => {
+                    !pairs.is_empty()
+                        && pairs.iter().all(|(name, value)| {
+                            is_valid_identifier(name) && is_valid_identifier(value)
+                        })
+                }
+                StateCondition::Hover => true,
             };
             if !condition_valid {
                 continue;
@@ -618,6 +651,12 @@ impl SlotRecipe {
                 StateCondition::FocusWithin => selector.push_str(":focus-within"),
                 StateCondition::NthChildEven => selector.push_str(":nth-child(even)"),
                 StateCondition::LastChild => selector.push_str(":last-child"),
+                StateCondition::AttrEqAll(pairs) => {
+                    for (name, value) in pairs {
+                        selector.push_str(&format!("[{name}=\"{value}\"]"));
+                    }
+                }
+                StateCondition::Hover => selector.push_str(":hover"),
             }
             if let Some(css) = serialize_rule(&selector, &rule.declarations) {
                 out.push_str(&css);

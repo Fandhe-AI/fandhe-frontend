@@ -38,10 +38,16 @@ use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, close_button, icon_button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
+use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
+use fandhe_frontend_pre_styled_ui::charts::radar_chart::{self, RadarChartProps};
+use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
+    self, ScatterChartProps, ScatterData, ScatterSeries,
+};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::clipboard;
 use fandhe_frontend_pre_styled_ui::date_input::{self, DateSegment, DateSegmentFlags};
+use fandhe_frontend_pre_styled_ui::donut_chart::{donut_chart, DonutChartProps};
 use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::editable::{
@@ -49,6 +55,7 @@ use fandhe_frontend_pre_styled_ui::editable::{
 };
 use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
+use fandhe_frontend_pre_styled_ui::file_upload;
 use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps};
 use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps};
@@ -67,6 +74,7 @@ use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode};
 use fandhe_frontend_pre_styled_ui::password_input::{
     self, PasswordAutocomplete, PasswordInputProps,
 };
+use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
 use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::radio_card;
@@ -86,6 +94,7 @@ use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
 use fandhe_frontend_pre_styled_ui::timer::{self, TimerControl, TimerPhase, TimerUnit};
 use fandhe_frontend_pre_styled_ui::toast::{self, ToastPlacement, ToastStatus};
+use fandhe_frontend_pre_styled_ui::tour::{self, ContentIds as TourContentIds, TourStep};
 use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, select};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Size};
 
@@ -1237,6 +1246,87 @@ fn tags_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
             payload,
             &html,
             "tags_input::hidden_input name/value コンテキスト",
+        );
+    }
+}
+
+/// (10) file_upload 経路（イシュー #840）: styled `root` の呼び出し側
+/// `attrs`・`class`、および headless-ui から選択的再エクスポートした
+/// `label` の children・`item_name` の children（ファイル名そのもの、
+/// REQ-1 の重点対象）・`item_delete_trigger` の `name`（`aria-label` に
+/// 組み込まれる）・`hidden_input` の `accept` 属性の 5 箇所すべてで既定
+/// エスケープ（REQ-1）が貫通することを固定する（`tags_input` 分と同型）。
+#[test]
+fn file_upload_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&file_upload::root(
+            Size::Md,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&file_upload::root(
+            Size::Md,
+            false,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "file_upload::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "file_upload::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-file-upload--"),
+            "file_upload::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした label の children 経路。
+        let html = render(&file_upload::label(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "file_upload::label children コンテキスト");
+
+        // 選択的再エクスポートした item_name の children 経路（ファイル名
+        // そのもの、REQ-1 の重点対象）。
+        let html = render(&file_upload::item_name(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::item_name children コンテキスト",
+        );
+
+        // 選択的再エクスポートした item_delete_trigger の aria-label コンテキスト。
+        let html = render(&file_upload::item_delete_trigger(
+            payload,
+            false,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::item_delete_trigger aria-label コンテキスト",
+        );
+
+        // 選択的再エクスポートした hidden_input の accept 属性コンテキスト。
+        let html = render(&file_upload::hidden_input(payload, false, false, vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::hidden_input accept コンテキスト",
         );
     }
 }
@@ -3489,6 +3579,101 @@ fn color_swatch_class_style_and_children_payloads_are_escaped_for_all_payloads()
     }
 }
 
+/// Tour 経路（イシュー #841）: styled `root` の呼び出し側 `attrs`・`class`、
+/// および全パーツが `state: &Tour` を取る `title`/`description`/`spotlight`
+/// の children/attrs/`data-target` 経路すべてで既定エスケープ（REQ-1）が
+/// 貫通することを固定する（`steps_styled_root_and_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn tour_styled_root_and_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::positioning::{
+        Align, Placement, Side,
+    };
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::dispatch;
+
+    for payload in payloads::all() {
+        let step_with_payload_target = TourStep {
+            id: "s1".to_string(),
+            target: Some(payload.to_string()),
+            title: "t".to_string(),
+            description: "d".to_string(),
+            placement: Placement::new(Side::Bottom, Align::Center),
+        };
+        let mut with_target =
+            fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::tour::Tour::new(vec![
+                step_with_payload_target,
+            ]);
+        dispatch(&mut with_target, "start", "");
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&tour::root(
+            ColorPalette::Accent,
+            &with_target,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "tour::root 呼び出し側 attrs コンテキスト");
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロード
+        // は出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&tour::root(
+            ColorPalette::Accent,
+            &with_target,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "tour::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "tour::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-tour--"),
+            "tour::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // spotlight の data-target 属性経路（TourStep::target 由来）。
+        let html = render(&tour::spotlight(&with_target, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "tour::spotlight data-target コンテキスト");
+
+        // title/description の children 経路。
+        let html = render(&tour::title(
+            &with_target,
+            None,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "tour::title children コンテキスト");
+
+        let html = render(&tour::description(
+            &with_target,
+            None,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "tour::description children コンテキスト");
+
+        // content の ContentIds 経路（id/labelledby/describedby はいずれも
+        // 呼び出し側が渡す属性値であり、既定エスケープを経由する）。
+        let html = render(&tour::content(
+            &with_target,
+            TourContentIds {
+                id: Some(payload),
+                labelledby: Some(payload),
+                describedby: Some(payload),
+            },
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "tour::content ContentIds コンテキスト");
+    }
+}
+
 /// styled ColorPicker（イシュー #839）の XSS 回帰。
 ///
 /// 対象の入力面:
@@ -3609,6 +3794,251 @@ fn color_picker_style_dedup_attrs_and_reexported_parts_are_escaped_for_all_paylo
             payload,
             &html,
             "color_picker::channel_input の value 属性値コンテキスト",
+        );
+    }
+}
+
+/// styled PieChart / DonutChart（イシュー #850）の XSS 回帰。
+///
+/// 攻撃面: (1) カテゴリ名ラベル（`show_labels: true` の children テキスト
+/// 経路、`crate::pie_chart`/`crate::donut_chart` モジュール doc「anatomy」
+/// 節の `label` パーツ）。(2) `aria_label` プロパティ（`chart` の
+/// `aria-label` 属性値経路）。(3) 呼び出し側 `attrs`（`root` への透過）。
+/// (4) 呼び出し側 `attrs` の `class`（`drop_class_attr` による単一化）。
+///
+/// `d`/`fill` 属性は [`crate::charts::pie`]/[`crate::charts::svg::fmt_coord`]
+/// 経由の数値・固定リテラルのみで構成され任意文字列の混入経路を持たない
+/// ため（`pie_chart.rs`/`donut_chart.rs` モジュール doc「セキュリティ不変
+/// 条件」節）、本テストの対象外とする。
+#[test]
+fn pie_and_donut_chart_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let data = ChartData::new(
+            vec![payload.to_string(), "other".to_string()],
+            vec![Series::new("total", vec![60.0, 40.0])],
+        )
+        .unwrap();
+
+        // (1) カテゴリ名ラベル（children テキスト経路）。
+        let pie_props = PieChartProps {
+            show_labels: true,
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&pie_props, &data, vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "pie_chart label children コンテキスト");
+
+        let donut_props = DonutChartProps {
+            show_labels: true,
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&donut_props, &data, vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "donut_chart label children コンテキスト");
+
+        // (2) aria_label 属性値経路。
+        let pie_props = PieChartProps {
+            aria_label: Some(payload),
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&pie_props, &data, vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "pie_chart aria_label 属性値コンテキスト");
+
+        let donut_props = DonutChartProps {
+            aria_label: Some(payload),
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&donut_props, &data, vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "donut_chart aria_label 属性値コンテキスト");
+
+        // (3) 呼び出し側 attrs（root への透過）。
+        let html = render(
+            &pie_chart(
+                &PieChartProps::default(),
+                &data,
+                vec![("data-testid", payload)],
+            )
+            .unwrap(),
+        );
+        assert_payload_is_escaped(payload, &html, "pie_chart 呼び出し側 attrs コンテキスト");
+
+        let html = render(
+            &donut_chart(
+                &DonutChartProps::default(),
+                &data,
+                vec![("data-testid", payload)],
+            )
+            .unwrap(),
+        );
+        assert_payload_is_escaped(payload, &html, "donut_chart 呼び出し側 attrs コンテキスト");
+
+        // (4) 呼び出し側 attrs の class（drop_class_attr による単一化）。
+        let html =
+            render(&pie_chart(&PieChartProps::default(), &data, vec![("class", payload)]).unwrap());
+        assert!(
+            !html.contains(payload),
+            "pie_chart の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "pie_chart の class 属性が複数出現している: html={html}"
+        );
+
+        let html = render(
+            &donut_chart(&DonutChartProps::default(), &data, vec![("class", payload)]).unwrap(),
+        );
+        assert!(
+            !html.contains(payload),
+            "donut_chart の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "donut_chart の class 属性が複数出現している: html={html}"
+        );
+    }
+}
+
+/// (25) charts ScatterChart/RadarChart 経路（イシュー #851）: `data-series`
+/// 属性値（両部品共通）・カテゴリ名（`svg_text` children、RadarChart 軸
+/// ラベル）・`aria_label`（両部品共通の `role="img"` 代替テキスト属性値）の
+/// 3 入力面を `payloads::all()` で網羅する。
+#[test]
+fn charts_scatter_and_radar_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // ScatterChart: data-series 属性値経路。
+        let scatter_data =
+            ScatterData::new(vec![ScatterSeries::new(payload, vec![(0.0, 0.0)])]).unwrap();
+        let html = render(
+            &scatter_chart::root(&scatter_data, ScatterChartProps::default(), "label").unwrap(),
+        );
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "scatter_chart::root の data-series 属性値コンテキスト",
+        );
+
+        // ScatterChart: aria_label 属性値経路。
+        let plain_scatter_data =
+            ScatterData::new(vec![ScatterSeries::new("s1", vec![(0.0, 0.0)])]).unwrap();
+        let html = render(
+            &scatter_chart::root(&plain_scatter_data, ScatterChartProps::default(), payload)
+                .unwrap(),
+        );
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "scatter_chart::root の aria_label 属性値コンテキスト",
+        );
+
+        // RadarChart: カテゴリ名（軸ラベル、svg_text children）経路。
+        let radar_data_category = ChartData::new(
+            vec![payload.to_string(), "b".to_string(), "c".to_string()],
+            vec![Series::new("s1", vec![1.0, 2.0, 3.0])],
+        )
+        .unwrap();
+        let html = render(
+            &radar_chart::root(&radar_data_category, RadarChartProps::default(), "label").unwrap(),
+        );
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "radar_chart::root の軸ラベル children コンテキスト",
+        );
+
+        // RadarChart: data-series 属性値経路。
+        let radar_data_series = ChartData::new(
+            vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            vec![Series::new(payload, vec![1.0, 2.0, 3.0])],
+        )
+        .unwrap();
+        let html = render(
+            &radar_chart::root(&radar_data_series, RadarChartProps::default(), "label").unwrap(),
+        );
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "radar_chart::root の data-series 属性値コンテキスト",
+        );
+
+        // RadarChart: aria_label 属性値経路。
+        let plain_radar_data = ChartData::new(
+            vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            vec![Series::new("s1", vec![1.0, 2.0, 3.0])],
+        )
+        .unwrap();
+        let html = render(
+            &radar_chart::root(&plain_radar_data, RadarChartProps::default(), payload).unwrap(),
+        );
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "radar_chart::root の aria_label 属性値コンテキスト",
+        );
+    }
+}
+
+/// (26) charts BarChart/BarList/BarSegment 経路（イシュー #849、親 Phase #845）:
+/// カテゴリ名・系列名・BarChart の `aria_label` の各所すべてで既定エスケープ
+/// （REQ-1）が貫通することを固定する。SVG（BarChart）/HTML（BarList/
+/// BarSegment）双方の出力経路を対象とする。
+#[test]
+fn bar_charts_category_series_and_aria_label_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::charts::bar_chart::{self, BarChartProps};
+    use fandhe_frontend_pre_styled_ui::charts::bar_list;
+    use fandhe_frontend_pre_styled_ui::charts::bar_segment;
+    use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
+
+    for payload in payloads::all() {
+        // BarChart: カテゴリ名（svg_text children）経路。
+        let data = ChartData::new(
+            vec![payload.to_string(), "b".to_string()],
+            vec![Series::new("s", vec![1.0, 2.0])],
+        )
+        .unwrap();
+        let html = render(&bar_chart::root(&data, BarChartProps::default(), "label").unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bar_chart::root カテゴリ名 children コンテキスト",
+        );
+
+        // BarChart: `aria_label` 属性値経路。
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string()],
+            vec![Series::new("s", vec![1.0, 2.0])],
+        )
+        .unwrap();
+        let html = render(&bar_chart::root(&data, BarChartProps::default(), payload).unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bar_chart::root の aria-label 属性値コンテキスト",
+        );
+
+        // BarList: カテゴリ名（children）経路。
+        let data = ChartData::new(
+            vec![payload.to_string(), "b".to_string()],
+            vec![Series::new("visits", vec![1.0, 2.0])],
+        )
+        .unwrap();
+        let html = render(&bar_list::root(&data, "visits").unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bar_list::root カテゴリ名 children コンテキスト",
+        );
+
+        // BarSegment: カテゴリ名（legend の label children）経路。
+        let data = ChartData::new(
+            vec![payload.to_string(), "b".to_string()],
+            vec![Series::new("visits", vec![1.0, 2.0])],
+        )
+        .unwrap();
+        let html = render(&bar_segment::root(&data, "visits").unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bar_segment::root legend ラベル children コンテキスト",
         );
     }
 }

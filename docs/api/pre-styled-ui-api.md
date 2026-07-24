@@ -13,7 +13,7 @@ pre-styled UI コンポーネント層、親トラッキング #520・骨格新�
 対応する REQ / TASK は `docs/spec/` に存在しない（要件提案は
 fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 参照）。
 
-## 2. 実装状況（v0.26.0 時点、2026-07-24 更新）
+## 2. 実装状況（v0.29.0 時点、2026-07-24 更新）
 
 **記載方針**: 実装済み API の正は `crates/pre-styled-ui/src/lib.rs` 冒頭の
 rustdoc および各モジュール冒頭の rustdoc とする。本節はモジュール一覧の
@@ -52,8 +52,21 @@ styled ラッパー追加（#829、`tree_view` #753 の派生）・button の ic
 （#831、`docs/policy/intentional-non-adoption.md` §3.24 の意図的非採用を
 再導入）・ColorSwatch 静的部品追加（#838）・Calendar/DatePicker styled
 ラッパー追加（#835、親トラッキング #832、`docs/design/component-coverage-map.md`
-保留解除。いずれも公開時点未反映）を経て 84 の公開モジュールを持つ。内訳は
-次の通り。
+保留解除）・charts 基盤（座標スケーリング・SVG ノード木生成・`ChartData`
+モデル、#846）・charts 軸/グリッド/凡例/ツールチップ追加（#847、§4j 参照。
+いずれも公開時点未反映）・PieChart/DonutChart styled 静的部品追加
+（#850、charts 基盤（#846）を用いた初のチャート部品。
+`docs/policy/intentional-non-adoption.md` §7 の chakra-ui charts 保留を
+pie-chart/donut-chart の 2 件で解除）・ScatterChart/RadarChart styled 部品
+追加（#851、親 Phase #845、charts 基盤 #846 の上に実装。同 §7 の charts 系
+保留を scatter-chart/radar-chart 分のみ解除。いずれも公開時点未反映）を
+経て 86 の公開モジュール + `charts` サブモジュール群を持つ
+（`charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/
+`charts::grid`/`charts::legend`/`charts::tooltip` は既存の
+`pub mod charts;`（#846）配下のサブモジュールであり、`grep -E '^pub mod '`
+によるトップレベル公開モジュール集計には計上されない。PieChart/DonutChart
+はいずれもトップレベルの新規 `pub mod`（`pie_chart`/`donut_chart`）を
+追加するため、84 の base から 2 増えて 86 となる）。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -116,9 +129,18 @@ styled ラッパー追加（#829、`tree_view` #753 の派生）・button の ic
 | headless ラッパー | `date_input` | #834（`docs/policy/intentional-non-adoption.md` §7・`docs/design/component-coverage-map.md` の date-time 系「保留」を DateInput 分のみ解除。`fandhe_frontend_headless_ui::date_input` の Label/Control/SegmentGroup/Segment/HiddenInput を選択的再エクスポートし、状態機械 `DateInput` はあえて再エクスポートしない（`number_input`/`pin_input` と同型の判断）。`size` variant のみを root へ持ち `--fandhe-date-input-*` custom property 経由で `segment`/`segment-group` へ継承、`color-palette` は非提供（フォーム入力部品、`number_input` と同型の判断）。`segment` はネイティブ `<input>` ではなく `div role="spinbutton"` のため `FocusVisible` state condition で足りる（`splitter` の `resize-trigger` と同型）） |
 | 単純 styled 部品（静的） | `color_swatch` | #838（`docs/design/component-coverage-map.md` 保留解除。`tag`/`kbd` と同型の判断で headless-ui に対応する anatomy を新設しない（headless 列は「—」のまま）。色値は `fandhe_frontend_headless_ui::color::Color` 型のみを受け取り（本モジュールが再エクスポート）、任意文字列を受け取る API は持たない。`size`（`Sm`/`Md`/`Lg`）/`shape`（`Square`/`Circle`/`Rounded`、既定）の 2 軸 variant。`color-palette` 軸は非提供（表示する色そのものが `value` で決まるため）。透過色は `background-image` の 2 レイヤー（前面に色レイヤー `linear-gradient(color, color)`、背面に固定チェッカーボード模様 `repeating-conic-gradient`）で表現し、不透明色は前面レイヤーがチェッカーボードを完全に覆い隠し、半透明色は前面レイヤーを透かして背面のチェッカーボードが見える） |
 | headless ラッパー（canvas 非依存） | `color_picker` | #839（親 #837、`docs/design/component-coverage-map.md` 保留解除。`docs/policy/intentional-non-adoption.md` §7 再評価トリガー「canvas 依存部分を隔離し状態機械を純粋関数に保つ設計」充足）。`fandhe_frontend_headless_ui::color_picker::ColorPicker`（HSV + アルファ + `Disclosure`）はあえて再エクスポートしない（`slider` と同型の判断、headless-ui から直接 import する）。動的値は custom property の注入 5 箇所のみ: `area_background` の `--fandhe-color-picker-hue-color`（`Hsv::new(h,100,100)` → HEX）・`area_thumb` の `--fandhe-color-picker-x`/`-y`（`area_x_percent`/`area_y_percent`）・`channel_slider_track`（`Channel::Alpha` のみ）の `--fandhe-color-picker-alpha-color`・`channel_slider_thumb` の `--fandhe-color-picker-thumb-percent`・`trigger` の `--fandhe-color-picker-preview`。Area は `linear-gradient(to top, #000, transparent)` + `linear-gradient(to right, #fff, var(--fandhe-color-picker-hue-color))` の 2 レイヤー、色相スライダーは現在色に依存しない静的 7 ストップ `linear-gradient`、アルファスライダーは `color_swatch` と同型のチェッカーボード背面 + グラデーション前面。`size`/`color-palette` variant・`saturation-slider`/`value-slider` 専用スタイル（2 次元 `area` が代替）は非提供（最小サブセット、スコープ外は `crates/pre-styled-ui/src/color_picker.rs` rustdoc 参照） |
+| headless ラッパー | `file_upload` | #840（`docs/policy/intentional-non-adoption.md` §7 保留解除。`size` variant のみ・`color-palette` 軸は非提供（フォーム入力部品として `tags_input`/`number_input` と同型の判断）。実操作対象の `dropzone` へ `:focus-visible` を登録（`tags_input` の `input` と異なりネイティブ `<input type="file">` は視覚的に非表示にするため）。`hidden-input` slot は CSS 非登録（`tags_input` と同型）。`FileUpload` 状態機械はあえて再エクスポートしない） |
 | headless ラッパー | `calendar` | #835（親トラッキング #832、`docs/design/component-coverage-map.md` 保留解除。`size` variant のみ、`color-palette` 軸は非提供。`day-trigger` の `data-selected`/`data-today`/`data-outside-month`/`data-disabled` を CSS で切り替える。`Calendar` 状態機械はあえて再エクスポートしない（`select`と同じ理由）。`day_trigger` の `date` 引数向けに `PlainDate`/`Weekday`（`fandhe_frontend_headless_ui::date`）も再エクスポートする） |
 | headless ラッパー | `date_picker` | #835（親トラッキング #832。popover 基盤（`state::Disclosure`）を再利用する `crate::calendar` と同型の判断。`size` variant のみ。`content` 内部に `crate::calendar` の styled パーツを合成する想定。`DatePicker` 状態機械はあえて再エクスポートしない） |
 | headless ラッパー | `timer` | #836（`docs/design/component-coverage-map.md` 保留解除。`clipboard` と同型の判断で variant は非提供。`item-value` に `font-variant-numeric: tabular-nums` を付与し桁の増減時のレイアウトシフトを防ぐ。`completed` 状態の `item-value` を強調色へ切り替え、`action-trigger` に focus-visible リングを付与する。実 tick 駆動（`setInterval`）は `fandhe-frontend-wasm-full::headless_timer` が提供する） |
+| 静的部品（新規 anatomy、charts 基盤上層） | `charts::scatter_chart` / `charts::radar_chart` | #851（親 Phase #845。`charts`（`ChartData`/`LinearScale`/SVG ヘルパー、#846）の上に実装。headless-ui は変更なし、pre-styled 層で新規 anatomy `data-scope="scatter-chart"`/`"radar-chart"` を定義。`scatter_chart` は `ChartData` では表現できない `(x, y)` 数値ペアの集合を独自の `ScatterData`/`ScatterSeries` で表現し、x/y 双方の `LinearScale` で 2 軸写像する。`radar_chart` は `ChartData`（カテゴリ = 軸、系列 = ポリゴン）をそのまま使い、軸 index `i`・軸数 `n` から頂点角度 `θ_i = -π/2 + i・2π/n`（12 時方向開始・時計回り）を算出する private ヘルパへ角度→座標変換を一元化する。軸数 3 未満は `ChartError::TooFewAxes`、負値は `ChartError::NegativeValue`、プロット領域が小さすぎる場合は `ChartError::PlotAreaTooSmall` として構築時に拒否する（fail-closed）。`size`/`color-palette` variant は非提供（色は系列インデックスからの `series_color_var` インライン `fill` 属性で決まる静的部品、`bar_chart` と同型の判断）。軸線・グリッド・凡例・ツールチップの汎用部品は #847 のスコープ） |
+| headless ラッパー | `tour` | #841（`docs/design/component-coverage-map.md` 保留解除、#735）。`fandhe_frontend_headless_ui::tour` が自由関数を持たず全パーツが `Tour` の inherent メソッドのため、本モジュールの全パーツ関数が `state: &Tour` を受け取る点は `steps` と同型。`color-palette` 軸のみ提供、`size` 軸は初版スコープ外（overlay 系の寸法は呼び出し側の CSS カスタムプロパティ上書きに委ねる）。`backdrop`/`spotlight`/`positioner` は `position: fixed` の全面オーバーレイで、closed 時 `[hidden]` を明示規則で `display: none` に固定する（`dialog` の `positioner[hidden]` 前例と同型）。`positioner` は `data-side`/`data-align` に応じた静的フォールバック配置のみ（実座標追従は `fandhe-frontend-wasm-full` 後続イシュー）。`spotlight` は `--fandhe-tour-spotlight-x/-y/-width/-height` の 4 CSS 変数（既定値つき `var()`）で位置・寸法を表現し、実測値の注入も同後続イシューの責務） |
+| 基盤（外部依存ゼロ SVG 生成） | `charts`（`data`/`scale`/`svg`） | #846（`docs/design/component-coverage-map.md` 保留解除、`ChartData`/`Series`・`LinearScale`・`svg::{fmt_coord, ViewBox, svg_root, PathBuilder, circle, line, rect, group, svg_text}` を提供する消費者向け基盤のみ。自身は UI コンポーネントを持たない。詳細は `docs/design/charts-foundation-design.md` 参照） |
+| `charts` 基盤の消費者（新規 anatomy） | `line_chart` / `area_chart` / `sparkline` | #848（§4j 参照。`charts` 基盤（#846）の最初の消費者。軸/グリッド/凡例/ツールチップ/積み上げ/曲線補間は #847 以降のスコープ） |
+| charts（SVG） | `charts::bar_chart` | #849（親 Phase #845、charts 基盤 #846 の上に実装）。縦/横 orientation のグループ棒グラフ。値軸はベースライン 0 起点、カテゴリ軸はバンドレイアウト（両端 10% padding + 系列数で均等割り）。系列色は `series_color_var`（`chart-1`〜`chart-6` 循環）。軸線・グリッド・凡例・ツールチップは #847 のスコープ、本モジュールはカテゴリラベルの最小出力のみ行う |
+| charts（HTML） | `charts::bar_list` | #849（親 Phase #845）。単一系列のランキング型バーリスト。バー幅は系列内最大値に対する比率（`--fandhe-bar-list-percent` custom property）。最大値 0 は全バー幅 0% を決定的に描画（silent failure ではなく値と幅の対応が自明なため、`bar_segment` の合計 0 拒否とは意図的に挙動を変えている） |
+| charts（HTML） | `charts::bar_segment` | #849（親 Phase #845）。単一系列の構成比 100% 積み上げバー + 凡例。セグメント幅は系列合計に対する比率（`--fandhe-bar-segment-percent` custom property）、配色はカテゴリ index で `series_color_var` を循環。系列合計 0 は `ChartError::ZeroTotal` で構築時に拒否（構成比自体が定義できないため） |
+| 単純 styled 部品（新規 anatomy、charts 基盤の初のチャート部品） | `pie_chart` / `donut_chart` | #850（`docs/policy/intentional-non-adoption.md` §7 の chakra-ui charts 保留を pie-chart/donut-chart の 2 件で解除。charts 基盤（#846、`charts::pie` の円弧ジオメトリ・`charts::svg::PathBuilder::arc_to`）を用いた円グラフ・ドーナツグラフ。ark-ui に対応する headless anatomy がないため `marquee`/`stat` と同型の判断で新規 anatomy `data-scope="pie-chart"`/`"donut-chart"` を本クレートのみで定義する。系列 1 本専用（`data.series().len() != 1` は `PieChartError::MultiSeries` で fail-closed 拒否）。`size` variant のみ、`color-palette` 軸は非提供（セグメント配色は `charts::series_color_var` の chart-1〜6 循環で決まるため、`qr_code` と同型の判断）。`donut_chart` は追加で `inner_ratio`（既定 `0.6`、`0.0 < ratio < 1.0` を検証）を持つ） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
@@ -508,6 +530,8 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | table | ✓ | 提供しない | 実装済み（#767。選択・チェック状態を示す部品ではないため color-palette は非提供。`TableVariant`（`Line`/`Outline`）・`striped`（`bool`）の追加軸を持つ。striped は新設の `StateCondition::NthChildEven` で表現） |
 | data-list | 提供しない | 提供しない | 実装済み（#767。`orientation`（`Vertical`/`Horizontal`）の 1 軸のみ。chakra-ui の `variant`（subtle/bold）/`size` はスコープ外） |
 | toast | ✓（`placement`、`group` slot） | ✓（`status`、`root` slot、`alert` と同じ配色マッピング） | 実装済み（#760。各軸が別 slot のため `variant_class` をスロットごとに個別呼び出し） |
+| tour | 提供しない | ✓（`root` slot） | 実装済み（#841。`size` は初版スコープ外（overlay 系の寸法は呼び出し側の CSS カスタムプロパティ上書きに委ねる）。`palette` は `action-trigger` の背景色・スポットライト縁取りの強調色に反映） |
+| file-upload | ✓ | – | 実装済み（#840、フォーム入力部品のため color-palette は非提供。`docs/policy/intentional-non-adoption.md` §7 保留解除） |
 
 tabs/accordion/dialog/menu/select の実装詳細（イシュー #729）:
 
@@ -764,6 +788,110 @@ chakra-ui の `Prose`（記事全体へ一括カスケード適用するコン�
 イシューはこの既存機構を置き換えない（詳細な判断根拠は
 `crates/pre-styled-ui/src/text.rs` rustdoc、対応表は
 `docs/design/component-coverage-map.md` prose.md 行を参照）。
+
+## 4j. charts 軸・グリッド・凡例・ツールチップ（イシュー #847）
+
+chakra-ui `charts/axes.md` / `cartesian-grid.md` / `legend.md` / `tooltip.md`
+相当。charts 基盤（`crates/pre-styled-ui/src/charts/{data,scale,svg}.rs`、
+イシュー #846）の最初の消費者であり、`pre_styled_ui::charts::{axis, grid,
+legend, tooltip}` の 4 サブモジュールとして実装する（新規トップレベル
+モジュールは追加しない。詳細な設計判断は
+`docs/design/charts-foundation-design.md` 参照）。
+
+### API 一覧
+
+| モジュール | 主な公開関数 | 戻り値 |
+|---|---|---|
+| `charts::axis` | `y_axis(scale, ticks, x, props)` / `x_axis_linear(scale, ticks, y, props)` / `x_axis_categories(range, categories, y, props)` | `Result<Node, ChartError>` |
+| `charts::grid` | `cartesian_grid(x_range, y_range, x_positions, y_positions, props)` | `Result<Node, ChartError>` |
+| `charts::legend` | `legend(data: &ChartData, props: &LegendProps)` | `Node`（infallible） |
+| `charts::tooltip` | `datum_label(category, series, value)` / `datum(cx, cy, r, label, attrs)` | `String` / `Node`（いずれも infallible） |
+
+各モジュールは `css()` を公開し、`stylesheet.rs` の一元化リスト
+（`all_styled_component_css`）へ `"charts/axis"` 等のキーで登録済み。
+
+### anatomy / recipe
+
+- `axis`/`grid`/`tooltip` は scope `"chart"` を共有する（slot 名が互いに
+  素なため CSS セレクタは衝突しない、`SlotRecipe` は scope の一意性を
+  要求しない）。slot: `x-axis`/`y-axis`/`axis-line`/`tick-line`/
+  `tick-label`（axis）・`grid`/`grid-line`（grid）・`datum`（tooltip）。
+- `legend` は独立 scope `"chart-legend"` を持つ（SVG 外の通常 HTML
+  `<ul>`/`<li>`/`<span>` のため）。slot: `root`/`title`/`item`/`marker`/
+  `label`。
+- `grid` の線種は `GridLines`（`Solid`(既定)/`Dashed`）の 1 軸 variant。
+- `tooltip` の hover 強調は `crate::recipe::StateCondition::Hover`
+  （本イシューで新設、`:hover` 擬似クラス）を使う唯一の消費者。
+
+### SSR ツールチップ方式（JS 不使用）
+
+マウス追従型のリッチツールチップ（recharts `<Tooltip>` の cursor 追従）は
+JS ランタイムが必須のためスコープ外。代わりに `tooltip::datum` がデータ点
+（`<circle>`）へ子 `<title>` 要素（ブラウザネイティブな hover 表示）と
+`aria-label` 属性（同一文字列）を埋め込み、`StateCondition::Hover` による
+CSS のみの視覚強調と組み合わせて「ホバーで詳細が分かる」体験を実現する。
+
+### chakra-ui からの縮約（対象外事項）
+
+- `tickFormatter`（任意クロージャ）は `TickLabelFormat`（固定 `prefix`/
+  `suffix` の 2 フィールド）へ縮約した。ロケール依存の日付フォーマット等は
+  非対応。
+- インタラクティブ legend（hover で対象系列を強調・click で表示トグル）は
+  JS/wasm ランタイム連携が必要なためスコープ外。
+- マウス追従型のリッチツールチップは前述の通り JS 必須のためスコープ外。
+- `yAxisId` による二軸チャートは非対応。
+
+## 4k. LineChart / AreaChart / Sparkline（イシュー #848、`charts` 基盤 #846 の消費者）
+
+`docs/design/charts-foundation-design.md` が提供する `charts::data::ChartData`
+（カテゴリ + 系列の値モデル）・`charts::scale::LinearScale`（線形座標写像）・
+`charts::svg`（SVG ノード木ヘルパー、`fmt_coord`/`ViewBox`/`svg_root`/
+`PathBuilder`）を消費し、「プロット領域（折れ線・面・スパーク）のみを描く
+自己完結 SVG」として実装する。軸・グリッド・凡例・ツールチップ
+（chakra の `CartesianGrid`/`XAxis`/`YAxis`/`ChartLegend`/`ChartTooltip`
+相当）は並行イシュー **#847 のスコープ**であり本 3 部品には含まれない。
+
+### API 概要
+
+| モジュール | 入力 (`*Props`) | 出力関数 | 既定 `viewBox` |
+|---|---|---|---|
+| `line_chart` | `data: &ChartData` / `aria_label` / `width` / `height` / `size` | `line_chart(&props, attrs) -> Result<Node, ChartError>` | `300 × 150` |
+| `area_chart` | 同上 | `area_chart(&props, attrs) -> Result<Node, ChartError>` | `300 × 150` |
+| `sparkline` | `values: &[f64]` / `aria_label` / `width` / `height` / `size` | `sparkline(&props, attrs) -> Result<Node, ChartError>` | `112 × 48`（chakra `w={28} h={12}` トークン相当） |
+
+いずれも `*Props::new(data_or_values, aria_label)` が既定寸法・
+`Size::Md` で組み立てる便利コンストラクタを提供する。
+
+### variant 表
+
+| 軸 | 値 | 適用パーツ | 効果 |
+|---|---|---|---|
+| `size`（[`Size`](crate::recipe::Size)） | `Sm`/`Md`（既定）/`Lg` | `root` | `--fandhe-<scope>-height` custom property 経由で `plot`（`svg`）の CSS 表示高さを切替（`viewBox` の描画座標系とは独立、`qr_code` と同型） |
+
+`color-palette` 軸は非提供。系列色は `charts::series_color_var(index)`
+（`var(--fandhe-color-chart-1..6)` を系列数に応じて循環）を `stroke`/`fill`
+属性へ直接付与する（CSS variant ではなく描画時の固定色指定、複数系列を
+同時に描く都合上 `SlotRecipe` の軸機構に載せない判断）。
+
+### 座標写像・エッジケース
+
+- x 軸: カテゴリ index を等間隔配置（単一カテゴリは中央 1 点）。
+- y 軸: `ChartData::domain()`（フラットデータの非退化パディング込み）を
+  `LinearScale::new(domain, (height, 0.0))` で写像（`nice()` は適用しない）。
+- 単一カテゴリ（`n == 1`）: 折れ線・面のいずれも生成せず、中央に半径固定の
+  `circle` マーカーのみを描く。
+- 負値・フラットデータ: `charts` 基盤の `domain()`/`fmt_coord` の契約に従い
+  決定的に描画する（golden テスト `crates/pre-styled-ui/tests/charts_line_area_sparkline.rs`
+  参照）。
+
+### chakra-ui からの縮約（スコープ外事項）
+
+- 軸・グリッド・凡例・ツールチップ（`CartesianGrid`/`XAxis`/`YAxis`/
+  `ChartLegend`/`ChartTooltip`）は #847 以降。呼び出し側が `svg_root` の
+  children として本 3 部品の出力と #847 の軸要素を並べる統合を想定する。
+- 積み上げ（`stackId`）・曲線補間（`curveType`）は #847 以降。
+- `examples/headless-pre-styled-ui` への追随は crates.io 公開後に別途行う
+  （`qr_code` の先例と同じ判断）。
 
 ## 5. 関連ドキュメント
 

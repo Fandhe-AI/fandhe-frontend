@@ -229,6 +229,17 @@
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`control` は
 //!   `role="listbox"`、`item_preview` は `role="option"`（イシュー本文が
 //!   指定する listbox 相当の ARIA）。
+//! - [`mod@file_upload`]: Root / Label / Dropzone / Trigger / ItemGroup /
+//!   Item / ItemName / ItemSizeText / ItemDeleteTrigger / ClearTrigger /
+//!   HiddenInput の 11 anatomy パーツと、ファイルメタデータ（[`file_upload::FileUploadItem`]:
+//!   name / size_bytes / mime_type、`File` オブジェクト自体は非保持）の
+//!   受理済み一覧 + 直近拒否履歴を持つ [`file_upload::FileUpload`] 状態機械
+//!   （#840、`docs/policy/intentional-non-adoption.md` §7 の保留解除）。
+//!   [`mod@tags_input`] と同じく [`state`] の既存語彙に収まらないため、
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。実 `File` API
+//!   接触は `fandhe-frontend-wasm-full` 側に隔離する（[`mod@file_upload`]
+//!   モジュール doc 参照）。
 //! - [`mod@steps`]: Root / List / Item / Trigger / Indicator / Separator /
 //!   Content / CompletedContent / PrevTrigger / NextTrigger の 10 anatomy
 //!   パーツと、`count`（全 step 数）+ `step`（現在位置、`0..=count`）を持つ
@@ -505,6 +516,19 @@
 //!   等の時計 API に一切依存しない（[`mod@timer`] モジュール doc 参照）。
 //!   実 tick 駆動（`setInterval`）は `fandhe-frontend-wasm-full` の
 //!   `headless_timer` モジュールの責務。
+//! - [`mod@format`]: byte / number / time / relative-time の Format 系
+//!   ユーティリティ（イシュー #853、親 Phase 5 #852）。ark-ui `format-byte`/
+//!   `format-number`/`format-time`/`format-relative-time` 相当を、JS の
+//!   `Intl` API に依存せず外部依存ゼロの決定的純関数として実装する
+//!   （`docs/policy/intentional-non-adoption.md` §3.23 の非採用判断を
+//!   「headless-ui 内モジュール化」で解消）。ノードを返さない `String` 純
+//!   関数であり anatomy を持たない（coverage-map 上も「—」）。現在時刻 API
+//!   を一切呼ばず、[`format::format_relative_time`] の基準時刻は呼び出し側
+//!   が明示的に注入する（[`mod@timer`]/[`mod@date`] と同型の「時刻を渡さ
+//!   れる」設計）。ロケールは [`format::Locale`]（en/ja、イシュー #854）を
+//!   各 `Format*Options::locale` フィールド経由で呼び出し側が明示的に渡す
+//!   値型として実装し、`LocaleProvider` の Context/Provider 機構・グローバ
+//!   ル既定ロケールは持たない。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -512,6 +536,7 @@
 pub mod accordion;
 pub mod action_bar;
 pub mod anatomy;
+pub mod angle_slider;
 pub mod aria;
 pub mod avatar;
 pub mod breadcrumb;
@@ -533,7 +558,9 @@ pub mod drawer;
 pub mod editable;
 pub mod field;
 pub mod fieldset;
+pub mod file_upload;
 pub mod floating_panel;
+pub mod format;
 pub mod hover_card;
 pub mod image_cropper;
 pub mod json_tree_view;
@@ -570,6 +597,7 @@ pub mod toggle;
 pub mod toggle_group;
 pub mod toggle_tip;
 pub mod tooltip;
+pub mod tour;
 pub mod tree_view;
 pub mod visually_hidden;
 
@@ -596,6 +624,7 @@ pub use fandhe_frontend_interactive;
 
 pub use action_bar::ActionBar;
 pub use anatomy::{anatomy, Anatomy};
+pub use angle_slider::{AngleSlider, AngleSliderAction};
 pub use aria::{
     aria_activedescendant, aria_atomic, aria_autocomplete, aria_checked, aria_controls,
     aria_current, aria_describedby, aria_disabled, aria_expanded, aria_haspopup, aria_hidden,
@@ -624,6 +653,11 @@ pub use editable::{Editable, EditableAction};
 pub use field::{FieldIds, FieldProps};
 pub use fieldset::FieldsetProps;
 pub use floating_panel::{FloatingPanel, FloatingPanelAction, Stage};
+pub use format::{
+    format_byte, format_number, format_relative_time, format_time, ByteUnit, FormatByteOptions,
+    FormatNumberOptions, FormatRelativeTimeOptions, FormatTimeOptions, Locale, NumberStyle,
+    SignDisplay, UnitDisplay, UnitSystem,
+};
 pub use hover_card::{HoverCard, HoverCardDelays};
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
 pub use number_input::{NumberInput, NumberInputAction, NumberInputFlags};
@@ -657,4 +691,5 @@ pub use toggle::{Toggle, ToggleAction};
 pub use toggle_group::{MultiToggleGroup, ToggleGroup};
 pub use toggle_tip::ToggleTip;
 pub use tooltip::Tooltip;
+pub use tour::{ContentIds as TourContentIds, Tour, TourAction, TourStatus, TourStep};
 pub use tree_view::{TreeNode, TreeView, TreeViewAction};

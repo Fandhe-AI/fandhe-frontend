@@ -38,7 +38,7 @@
 //! クリック挙動（dispatch 状態遷移）は wasm 層の責務であり docs サイトの
 //! スコープ外（`examples/headless-pre-styled-ui` と同じ方針）。
 //!
-//! Dialog/Menu/Select/Popover/Tooltip は開いた状態を固定して掲示するため、
+//! Dialog/Menu/Select/Popover/Tooltip/Tour は開いた（Active）状態を固定して掲示するため、
 //! recipe CSS のオーバーレイ配置（`position: fixed`/`absolute` + `z-index`）
 //! をそのまま反映するとページ全体を覆う・後続セクションに重なってしまう。
 //! [`SHOWCASE_LAYOUT_CSS`] がショーケース内に限定してこれを中和する
@@ -46,6 +46,7 @@
 
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::action_bar;
+use fandhe_frontend_pre_styled_ui::area_chart::{self, AreaChartProps};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
@@ -54,6 +55,22 @@ use fandhe_frontend_pre_styled_ui::button::{
 };
 use fandhe_frontend_pre_styled_ui::calendar::{self, PlainDate};
 use fandhe_frontend_pre_styled_ui::carousel;
+use fandhe_frontend_pre_styled_ui::charts::axis::{self, AxisProps};
+use fandhe_frontend_pre_styled_ui::charts::bar_chart::{
+    self, BarChartProps, Orientation as BarChartOrientation,
+};
+use fandhe_frontend_pre_styled_ui::charts::bar_list;
+use fandhe_frontend_pre_styled_ui::charts::bar_segment;
+use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
+use fandhe_frontend_pre_styled_ui::charts::grid::{self, GridProps};
+use fandhe_frontend_pre_styled_ui::charts::legend::{self, LegendProps};
+use fandhe_frontend_pre_styled_ui::charts::radar_chart::{self, RadarChartProps};
+use fandhe_frontend_pre_styled_ui::charts::scale::LinearScale;
+use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
+    self, ScatterChartProps, ScatterData, ScatterSeries,
+};
+use fandhe_frontend_pre_styled_ui::charts::svg::{svg_root, ViewBox};
+use fandhe_frontend_pre_styled_ui::charts::tooltip as chart_tooltip;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::code::code;
@@ -65,6 +82,7 @@ use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataLi
 use fandhe_frontend_pre_styled_ui::date_input::{self, DateSegment};
 use fandhe_frontend_pre_styled_ui::date_picker;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
+use fandhe_frontend_pre_styled_ui::donut_chart::{donut_chart, DonutChartProps};
 use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::editable::{
@@ -74,9 +92,14 @@ use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::color_picker::ColorPicker;
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::positioning::{
+    Align, Placement, Side,
+};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::{PanelSpec, Splitter};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::tour::{Tour, TourStep};
+use fandhe_frontend_pre_styled_ui::file_upload;
 use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps};
@@ -86,6 +109,7 @@ use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImagePr
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::json_tree_view::{self, JsonValue};
 use fandhe_frontend_pre_styled_ui::kbd::kbd;
+use fandhe_frontend_pre_styled_ui::line_chart::{self, LineChartProps};
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
@@ -96,6 +120,7 @@ use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
 use fandhe_frontend_pre_styled_ui::password_input::{
     self, PasswordAutocomplete, PasswordInputProps,
 };
+use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
@@ -104,6 +129,7 @@ use fandhe_frontend_pre_styled_ui::segment_group;
 use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, SeparatorVariant};
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 use fandhe_frontend_pre_styled_ui::slider;
+use fandhe_frontend_pre_styled_ui::sparkline::{self, SparklineProps};
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::splitter;
 use fandhe_frontend_pre_styled_ui::stat;
@@ -119,6 +145,7 @@ use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
 use fandhe_frontend_pre_styled_ui::timer::{self, Timer, TimerControl, TimerUnit};
 use fandhe_frontend_pre_styled_ui::toast::{self, ToastPlacement, ToastStatus};
+use fandhe_frontend_pre_styled_ui::tour::{self, ContentIds as TourContentIds};
 use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{
@@ -210,7 +237,9 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"floating-panel\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2,\n.pre-styled-showcase [data-scope=\"floating-panel\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"toast\"][data-part=\"group\"] {\n  position: static;\n}\n\
-.pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n";
+.pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n\
+.pre-styled-showcase [data-scope=\"tour\"][data-part=\"backdrop\"],\n.pre-styled-showcase [data-scope=\"tour\"][data-part=\"spotlight\"] {\n  display: none;\n}\n\
+.pre-styled-showcase [data-scope=\"tour\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n";
 
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
 /// 追記する `Node` 木を返す。
@@ -237,7 +266,7 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 /// rating_group/slider/segment_group/pagination/breadcrumb/carousel/
 /// action_bar/toast/progress/tag/kbd/code/image/icon/status/empty_state/
 /// visually_hidden/qr_code/heading/text/em/mark/blockquote/list/table/
-/// data_list/stat/timeline/scroll_area/splitter）→ ショーケース配置
+/// data_list/stat/timeline/scroll_area/splitter/tour）→ ショーケース配置
 /// スタイル、の順で決定的に連結する。
 ///
 /// # Errors
@@ -283,6 +312,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::password_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tags_input::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::file_upload::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::rating_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::slider::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::editable::stylesheet())?;
@@ -324,6 +354,21 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::date_picker::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::date_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::timer::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::tour::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::bar_chart::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::bar_list::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::bar_segment::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::line_chart::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::area_chart::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::sparkline::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::scatter_chart::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::radar_chart::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::axis::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::grid::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::legend::css())?;
+    sheet.push_css(&chart_tooltip::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::pie_chart::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::donut_chart::css())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -2434,6 +2479,73 @@ fn tags_input_section() -> Node {
     )
 }
 
+/// FileUpload 節（イシュー #840）: 通常（受理済み 1 件）・disabled の 2 態。
+/// `File` オブジェクトは headless 層で一切保持せず、ここでは静的な
+/// `FileUploadItem` メタデータのみを直接組み立てて表示する（実 `File` API
+/// 接触は `fandhe-frontend-wasm-full::headless_file_upload` の配線層のみが
+/// 担う、`file_upload` モジュール rustdoc「保留解除」節参照）。
+fn file_upload_section() -> Node {
+    fn file_item(name: &str, size_bytes: u64, disabled: bool) -> Node {
+        let size_text = file_upload::item_size_text(size_bytes);
+        file_upload::item(
+            disabled,
+            vec![],
+            vec![
+                file_upload::item_name(vec![], vec![text(name)]),
+                file_upload::item_size_text_node(vec![], vec![text(&size_text)]),
+                file_upload::item_delete_trigger(name, disabled, vec![], vec![text("\u{00d7}")]),
+            ],
+        )
+    }
+
+    let normal = file_upload::root(
+        Size::Md,
+        false,
+        vec![],
+        vec![
+            file_upload::label(vec![], vec![text("Attachments")]),
+            file_upload::dropzone(
+                false,
+                false,
+                vec![],
+                vec![
+                    file_upload::trigger(false, vec![], vec![text("Browse files")]),
+                    file_upload::hidden_input("image/*,.pdf", true, false, vec![]),
+                ],
+            ),
+            file_upload::item_group(vec![], vec![file_item("report.pdf", 204_800, false)]),
+            file_upload::clear_trigger(false, vec![], vec![text("Clear all")]),
+        ],
+    );
+
+    let disabled = file_upload::root(
+        Size::Md,
+        true,
+        vec![],
+        vec![
+            file_upload::label(vec![], vec![text("Disabled")]),
+            file_upload::dropzone(
+                true,
+                false,
+                vec![],
+                vec![
+                    file_upload::trigger(true, vec![], vec![text("Browse files")]),
+                    file_upload::hidden_input("image/*,.pdf", true, true, vec![]),
+                ],
+            ),
+            file_upload::item_group(vec![], vec![file_item("locked.txt", 1024, true)]),
+            file_upload::clear_trigger(true, vec![], vec![text("Clear all")]),
+        ],
+    );
+
+    let demo_row = row(vec![normal, disabled]);
+    section(
+        "FileUpload",
+        "ファイルメタデータ（name/size/mime type）のみを扱い、File オブジェクト自体は headless 層で保持しません。実 File API 接触は wasm-full 側の配線層に隔離されています。",
+        vec![demo_row],
+    )
+}
+
 /// RatingGroup 節: 選択中（value=3）・readonly（他ユーザーの平均評価想定）・
 /// disabled の 3 態。星形 indicator は外部リソース非参照の `clip-path`
 /// インライン表現（`fandhe_frontend_pre_styled_ui::rating_group` のモジュール
@@ -2995,6 +3107,94 @@ fn steps_section() -> Node {
     section(
         "Steps",
         "count（全 step 数）+ step（現在位置）を持つ headless Steps の静的掲示。item は complete/current/incomplete の 3 状態を持ち、current な item の trigger のみ aria-current=\"step\" を持ちます（クリック挙動は wasm 層のスコープ外）。",
+        vec![row(vec![demo])],
+    )
+}
+
+/// Tour 節（イシュー #841、#735 保留の解除）: 3 step 中 2 番目（index=1、
+/// Active { step: 1 }）を現在ステップとして固定表示する静的掲示。
+/// spotlight は現在ステップの `target`（`data-target`）を、positioner は
+/// `placement`（`data-side`/`data-align`）を反映します。対象要素の実座標
+/// 追従・`target` セレクタの実解決は wasm 層の後続イシューのスコープ外
+/// （[`crate::showcase`]（本モジュール）ではなく
+/// `fandhe_frontend_headless_ui::tour` モジュール doc §スコープ参照）。
+fn tour_section() -> Node {
+    let steps = vec![
+        TourStep {
+            id: "welcome".to_string(),
+            target: Some("#showcase-tour-target-1".to_string()),
+            title: "ようこそ".to_string(),
+            description: "このダッシュボードの概要を紹介します。".to_string(),
+            placement: Placement::new(Side::Bottom, Align::Center),
+        },
+        TourStep {
+            id: "settings".to_string(),
+            target: Some("#showcase-tour-target-2".to_string()),
+            title: "設定".to_string(),
+            description: "アカウント設定はここから行えます。".to_string(),
+            placement: Placement::new(Side::Left, Align::Start),
+        },
+        TourStep {
+            id: "done".to_string(),
+            target: None,
+            title: "完了".to_string(),
+            description: "ツアーはこれで終わりです。".to_string(),
+            placement: Placement::new(Side::Top, Align::Center),
+        },
+    ];
+    let t = {
+        use fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::dispatch;
+        let mut t = Tour::new(steps);
+        dispatch(&mut t, "start", "");
+        dispatch(&mut t, "next", "");
+        t
+    };
+
+    let demo = tour::root(
+        ColorPalette::Accent,
+        &t,
+        vec![],
+        vec![
+            tour::backdrop(&t, vec![], vec![]),
+            tour::spotlight(&t, vec![], vec![]),
+            tour::positioner(
+                &t,
+                vec![],
+                vec![
+                    tour::arrow(&t, vec![], vec![tour::arrow_tip(&t, vec![], vec![])]),
+                    tour::content(
+                        &t,
+                        TourContentIds {
+                            id: Some("showcase-tour-content"),
+                            labelledby: Some("showcase-tour-title"),
+                            describedby: Some("showcase-tour-desc"),
+                        },
+                        vec![],
+                        vec![
+                            tour::title(
+                                &t,
+                                Some("showcase-tour-title"),
+                                vec![],
+                                vec![text("設定")],
+                            ),
+                            tour::description(
+                                &t,
+                                Some("showcase-tour-desc"),
+                                vec![],
+                                vec![text("アカウント設定はここから行えます。")],
+                            ),
+                            tour::progress_text(&t, vec![], vec![text("Step 2 of 3")]),
+                            tour::close_trigger(&t, vec![("aria-label", "Close")], vec![text("×")]),
+                            tour::action_trigger(&t, vec![], vec![text("Next")]),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    );
+    section(
+        "Tour",
+        "steps（全ステップ）+ status（idle/active/skipped/completed）を持つ headless Tour の静的掲示（現在 Active { step: 1 } を固定表示）。content は role=\"dialog\" + aria-labelledby/aria-describedby、progress-text は aria-live=\"polite\" を持ちます。対象要素の実座標追従・target セレクタの実解決・クリック/キーボードの実配線は wasm 層の後続イシューのスコープ外です。",
         vec![row(vec![demo])],
     )
 }
@@ -4276,6 +4476,371 @@ fn timer_section() -> Node {
     )
 }
 
+/// charts 用の固定サンプルデータ（BarChart/BarList/BarSegment 節が共有、
+/// イシュー #849）。
+fn bar_charts_sample_data() -> ChartData {
+    ChartData::new(
+        vec![
+            "Jan".to_string(),
+            "Feb".to_string(),
+            "Mar".to_string(),
+            "Apr".to_string(),
+        ],
+        vec![
+            Series::new("visits", vec![120.0, 200.0, 150.0, 80.0]),
+            Series::new("signups", vec![20.0, 35.0, 28.0, 12.0]),
+        ],
+    )
+    .expect("ショーケース固定サンプルはカテゴリ数・系列長が一致する")
+}
+
+/// Charts 節（イシュー #847）: 軸（Y 軸 + X 軸カテゴリ）・CartesianGrid・
+/// データ点（`charts::tooltip::datum`、hover でネイティブ `<title>` 表示 +
+/// `:hover` 強調）・凡例を合成した最小の折れ線チャート様デモ。
+///
+/// インタラクティブなチャート部品（Area/Bar/Line/Pie）は #848〜#851 の
+/// スコープであり、本節は軸・グリッド・凡例・ツールチップの単体掲示に
+/// 留める（データ点は `<circle>` のみで、系列間を結ぶ `<path>` は
+/// 描画しない）。
+fn charts_section() -> Node {
+    let data = ChartData::new(
+        vec![
+            "Jan".to_string(),
+            "Feb".to_string(),
+            "Mar".to_string(),
+            "Apr".to_string(),
+        ],
+        vec![
+            Series::new("Visits", vec![120.0, 180.0, 150.0, 220.0]),
+            Series::new("Signups", vec![20.0, 35.0, 28.0, 40.0]),
+        ],
+    )
+    .expect("showcase 固定データは不変条件を満たす");
+
+    // プロット領域: 全体 320x220 のうち左 40px（Y 軸ラベル）・下 30px
+    // （X 軸ラベル）・上下左右の余白 10px を除いた範囲。
+    let (plot_left, plot_right) = (40.0, 310.0);
+    let (plot_top, plot_bottom) = (10.0, 170.0);
+
+    let (min, max) = data.domain();
+    // SVG は y が下向き正のため range を反転し、データの大小を視覚的な上下へ対応させる。
+    let y_scale = LinearScale::new((min, max), (plot_bottom, plot_top))
+        .expect("domain() は非退化な値域を返す")
+        .nice();
+    let y_ticks = y_scale.ticks(4).expect("target=4 は許容範囲 1..=50 内");
+    // cartesian_grid の y_positions はスケール済みピクセル座標を期待する
+    // （y_axis が内部で y_scale を通すのと同じ変換）。y_ticks（ドメイン値）
+    // をそのまま渡すとグリッド線が Y 軸目盛り・データ点とずれるため、
+    // ここで y_scale を適用してから渡す。
+    let y_tick_positions: Vec<f64> = y_ticks.iter().map(|&tick| y_scale.scale(tick)).collect();
+
+    let category_count = data.categories().len() as f64;
+    let band_width = (plot_right - plot_left) / category_count;
+
+    let mut svg_children = vec![
+        grid::cartesian_grid(
+            (plot_left, plot_right),
+            (plot_top, plot_bottom),
+            &[],
+            &y_tick_positions,
+            &GridProps::default(),
+        )
+        .expect("有限な range/ticks のみを渡す"),
+        axis::y_axis(&y_scale, &y_ticks, plot_left, &AxisProps::default())
+            .expect("有限な ticks のみを渡す"),
+        axis::x_axis_categories(
+            (plot_left, plot_right),
+            data.categories(),
+            plot_bottom,
+            &AxisProps::default(),
+        )
+        .expect("categories は非空・range は有限"),
+    ];
+
+    for (series_index, series) in data.series().iter().enumerate() {
+        let color = fandhe_frontend_pre_styled_ui::charts::series_color_var(series_index);
+        for (category_index, &value) in series.values.iter().enumerate() {
+            let cx = plot_left + (category_index as f64 + 0.5) * band_width;
+            let cy = y_scale.scale(value);
+            let label =
+                chart_tooltip::datum_label(&data.categories()[category_index], &series.name, value);
+            svg_children.push(chart_tooltip::datum(
+                cx,
+                cy,
+                4.0,
+                &label,
+                vec![("fill", &color)],
+            ));
+        }
+    }
+
+    let view_box = ViewBox::new(0.0, 0.0, 320.0, 220.0).expect("固定寸法は正の有限値");
+    let chart = svg_root(
+        &view_box,
+        vec![("aria-label", "Visits and signups by month")],
+        svg_children,
+    );
+
+    let legend_node = legend::legend(
+        &data,
+        &LegendProps {
+            title: Some("Series".to_string()),
+        },
+    );
+
+    section(
+        "Charts",
+        "軸（Axes）・CartesianGrid・凡例（Legend）・ツールチップ（Tooltip）を合成した最小デモです。データ点はホバーするとブラウザネイティブの `<title>` によるツールチップと `:hover` 強調が表示されます（JS 不要）。系列を結ぶ折れ線・棒等の描画部品は別イシュー（#848〜#851）のスコープです。",
+        vec![stack(vec![chart, legend_node])],
+    )
+}
+
+/// BarChart 節（イシュー #849、親 Phase #845）: 外部依存ゼロの SVG グループ棒
+/// グラフ。縦（既定）/横 orientation を並べて掲示する。
+fn bar_chart_section() -> Node {
+    let data = bar_charts_sample_data();
+    let vertical = bar_chart::root(
+        &data,
+        BarChartProps::default(),
+        "monthly visits and signups",
+    )
+    .expect("ショーケース固定データは domain・viewBox とも常に有効");
+    let horizontal = bar_chart::root(
+        &data,
+        BarChartProps {
+            orientation: BarChartOrientation::Horizontal,
+            ..BarChartProps::default()
+        },
+        "monthly visits and signups (horizontal)",
+    )
+    .expect("ショーケース固定データは domain・viewBox とも常に有効");
+
+    section(
+        "BarChart",
+        "ChartData（複数系列）+ LinearScale + SVG ノード木生成ヘルパーのみで組み立てる、外部依存ゼロのグループ棒グラフです。orientation で縦/横を切り替えます。軸線・グリッド・凡例・ツールチップはイシュー #847 のスコープです。",
+        vec![row(vec![vertical]), row(vec![horizontal])],
+    )
+}
+
+/// BarList 節（イシュー #849）: ランキング型バーリスト。単一系列を対象に、
+/// 系列内最大値に対する比率でバー幅を決める。
+fn bar_list_section() -> Node {
+    let data = bar_charts_sample_data();
+    let node = bar_list::root(&data, "visits")
+        .expect("ショーケース固定データの visits 系列は常に存在する");
+
+    section(
+        "BarList",
+        "系列の最大値に対する比率でバー幅を決めるランキング型バーリストです。カテゴリ順（挿入順）にそのまま描画するため、降順表示にしたい場合は呼び出し側で ChartData::sort_by_series を事前に適用します。",
+        vec![node],
+    )
+}
+
+/// LineChart 節（イシュー #848、親 #845）: `charts` 基盤（#846）の消費者。
+/// 3 カテゴリ 1 系列の折れ線を掲示する。
+fn line_chart_section() -> Node {
+    let data = ChartData::new(
+        vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
+        vec![Series::new("visits", vec![10.0, 30.0, 20.0])],
+    )
+    .expect("showcase 固定データは常に有効");
+    let node = line_chart::line_chart(&LineChartProps::new(&data, "monthly visits"), vec![])
+        .expect("showcase 固定データは常に有効");
+    section(
+        "LineChart",
+        "charts 基盤（座標スケーリング・SVG ノード木生成）を使った折れ線チャートです。軸・グリッド・凡例・ツールチップは別イシュー（#847）のスコープです。",
+        vec![node],
+    )
+}
+
+/// BarSegment 節（イシュー #849）: 構成比バー（100% 積み上げ）。単一系列の
+/// 合計に対する各カテゴリの比率をセグメント幅として描画し、凡例を添える。
+fn bar_segment_section() -> Node {
+    let data = bar_charts_sample_data();
+    let node = bar_segment::root(&data, "visits")
+        .expect("ショーケース固定データの visits 系列合計は 0 ではない");
+
+    section(
+        "BarSegment",
+        "系列合計に対する各カテゴリの構成比を 100% 積み上げバーとして表示します。合計が 0 の系列は構成比が定義できないため構築時に拒否されます（ChartError::ZeroTotal）。",
+        vec![node],
+    )
+}
+
+/// AreaChart 節（イシュー #848、親 #845）: 折れ線 + domain 下端へ閉じた
+/// 塗りつぶし面を重ねて描く。
+fn area_chart_section() -> Node {
+    let data = ChartData::new(
+        vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
+        vec![Series::new("visits", vec![10.0, 30.0, 20.0])],
+    )
+    .expect("showcase 固定データは常に有効");
+    let node = area_chart::area_chart(&AreaChartProps::new(&data, "monthly visits"), vec![])
+        .expect("showcase 固定データは常に有効");
+    section(
+        "AreaChart",
+        "系列ごとに折れ線 + 塗りつぶし面を重ねて描く自己完結チャートです。積み上げ・曲線補間は別イシュー（#847 以降）のスコープです。",
+        vec![node],
+    )
+}
+
+/// Sparkline 節（イシュー #848、親 #845）: 軸・ラベルなしの縮小チャート。
+/// 単一の `&[f64]` から直接描画する。
+fn sparkline_section() -> Node {
+    let values = [10.0, 30.0, 20.0, 40.0];
+    let node = sparkline::sparkline(&SparklineProps::new(&values, "weekly trend"), vec![])
+        .expect("showcase 固定データは常に有効");
+    section(
+        "Sparkline",
+        "ラベル・軸なしの小さな面 + 線チャートです。単一系列専用（`&[f64]`）で、複数系列は LineChart/AreaChart を使います。",
+        vec![node],
+    )
+}
+
+/// PieChart 節（イシュー #850）: `size`（sm/md/lg）と `show_labels` の掲示。
+fn pie_chart_section() -> Node {
+    let data = ChartData::new(
+        vec![
+            "Q1".to_string(),
+            "Q2".to_string(),
+            "Q3".to_string(),
+            "Q4".to_string(),
+        ],
+        vec![Series::new("revenue", vec![400.0, 300.0, 300.0, 200.0])],
+    )
+    .expect("ショーケース固定データは常に有効な ChartData を構築できる");
+
+    let size_row = row([Size::Sm, Size::Md, Size::Lg]
+        .into_iter()
+        .map(|size| {
+            pie_chart(
+                &PieChartProps {
+                    size,
+                    ..PieChartProps::default()
+                },
+                &data,
+                vec![],
+            )
+            .expect("ショーケース固定データは常に描画に成功する")
+        })
+        .collect());
+
+    let with_labels = pie_chart(
+        &PieChartProps {
+            show_labels: true,
+            ..PieChartProps::default()
+        },
+        &data,
+        vec![],
+    )
+    .expect("ショーケース固定データは常に描画に成功する");
+    let labels_row = row(vec![with_labels]);
+
+    section(
+        "PieChart",
+        "外部依存ゼロの SVG ノード木生成による円グラフ（イシュー #850）。size（sm/md/lg）で --fandhe-pie-chart-size を切り替えます。show_labels を有効にするとカテゴリ名ラベルをセグメント上に描画します。",
+        vec![size_row, labels_row],
+    )
+}
+
+/// DonutChart 節（イシュー #850）: `size`・`inner_ratio`・`show_labels` の掲示。
+fn donut_chart_section() -> Node {
+    let data = ChartData::new(
+        vec![
+            "Q1".to_string(),
+            "Q2".to_string(),
+            "Q3".to_string(),
+            "Q4".to_string(),
+        ],
+        vec![Series::new("revenue", vec![400.0, 300.0, 300.0, 200.0])],
+    )
+    .expect("ショーケース固定データは常に有効な ChartData を構築できる");
+
+    let size_row = row([Size::Sm, Size::Md, Size::Lg]
+        .into_iter()
+        .map(|size| {
+            donut_chart(
+                &DonutChartProps {
+                    size,
+                    ..DonutChartProps::default()
+                },
+                &data,
+                vec![],
+            )
+            .expect("ショーケース固定データは常に描画に成功する")
+        })
+        .collect());
+
+    let thin_ring = donut_chart(
+        &DonutChartProps {
+            inner_ratio: 0.85,
+            show_labels: true,
+            ..DonutChartProps::default()
+        },
+        &data,
+        vec![],
+    )
+    .expect("inner_ratio=0.85 は許容範囲内であり常に描画に成功する");
+    let variant_row = row(vec![thin_ring]);
+
+    section(
+        "DonutChart",
+        "外部依存ゼロの SVG ノード木生成によるドーナツグラフ（イシュー #850）。inner_ratio（既定 0.6）で内径を調整できます。show_labels を有効にするとカテゴリ名ラベルをセグメント上に描画します。",
+        vec![size_row, variant_row],
+    )
+}
+
+/// ScatterChart 節（イシュー #851、親 Phase #845）: 2 軸線形スケール +
+/// 点マーカーのみで組み立てる、外部依存ゼロの SVG 散布図。
+fn scatter_chart_section() -> Node {
+    let data = ScatterData::new(vec![
+        ScatterSeries::new(
+            "cohort a",
+            vec![(1.0, 2.0), (2.0, 4.5), (3.0, 3.0), (4.0, 6.0), (5.0, 5.5)],
+        ),
+        ScatterSeries::new(
+            "cohort b",
+            vec![(1.5, 1.0), (2.5, 2.5), (3.5, 4.0), (4.5, 3.5)],
+        ),
+    ])
+    .expect("ショーケース固定データは常に有効");
+    let node = scatter_chart::root(&data, ScatterChartProps::default(), "cohort comparison")
+        .expect("ショーケース固定データは domain・viewBox とも常に有効");
+
+    section(
+        "ScatterChart",
+        "散布図専用の ScatterData（系列ごとの (x, y) 座標列）+ LinearScale（x/y 双方）+ SVG ノード木生成ヘルパーのみで組み立てる、外部依存ゼロの散布図です。軸線・グリッド・凡例・ツールチップはイシュー #847 のスコープです。",
+        vec![node],
+    )
+}
+
+/// RadarChart 節（イシュー #851、親 Phase #845）: 正多角形グリッド + 系列
+/// ポリゴンの SVG レーダーチャート。頂点角度は決定的な式で算出する。
+fn radar_chart_section() -> Node {
+    let data = ChartData::new(
+        vec![
+            "speed".to_string(),
+            "power".to_string(),
+            "range".to_string(),
+            "control".to_string(),
+            "armor".to_string(),
+        ],
+        vec![
+            Series::new("mercury", vec![80.0, 60.0, 40.0, 90.0, 55.0]),
+            Series::new("venus", vec![50.0, 85.0, 70.0, 45.0, 65.0]),
+        ],
+    )
+    .expect("ショーケース固定データはカテゴリ数・系列長が一致する");
+    let node = radar_chart::root(&data, RadarChartProps::default(), "stat comparison")
+        .expect("ショーケース固定データは軸数 3 以上・非負値・viewBox とも常に有効");
+
+    section(
+        "RadarChart",
+        "ChartData（カテゴリ = 軸、系列 = ポリゴン）+ LinearScale + SVG ノード木生成ヘルパーのみで組み立てる、外部依存ゼロのレーダーチャートです。頂点角度は θ_i = -π/2 + i・2π/n（12 時方向開始・時計回り）の決定的な式で算出します。凡例・ツールチップはイシュー #847 のスコープです。",
+        vec![node],
+    )
+}
+
 /// Tag 節（イシュー #768）: variant / size / colorPalette と、
 /// close-trigger（`data-action` 配線のみ、クリック処理は wasm 層の
 /// スコープ外）の掲示。
@@ -4531,6 +5096,7 @@ fn showcase_body() -> Node {
             number_input_section(),
             password_input_section(),
             tags_input_section(),
+            file_upload_section(),
             rating_group_section(),
             slider_section(),
             editable_section(),
@@ -4540,6 +5106,7 @@ fn showcase_body() -> Node {
             json_tree_view_section(),
             pagination_section(),
             steps_section(),
+            tour_section(),
             splitter_section(),
             checkbox_card_section(),
             radio_card_section(),
@@ -4568,6 +5135,17 @@ fn showcase_body() -> Node {
             date_picker_section(),
             date_input_section(),
             timer_section(),
+            charts_section(),
+            bar_chart_section(),
+            bar_list_section(),
+            bar_segment_section(),
+            line_chart_section(),
+            area_chart_section(),
+            sparkline_section(),
+            pie_chart_section(),
+            donut_chart_section(),
+            scatter_chart_section(),
+            radar_chart_section(),
         ],
     )
 }
@@ -4636,6 +5214,16 @@ mod tests {
             "data-list",
             "date-input",
             "timer",
+            "chart",
+            "chart-legend",
+            "bar-chart",
+            "bar-list",
+            "bar-segment",
+            "line-chart",
+            "area-chart",
+            "sparkline",
+            "scatter-chart",
+            "radar-chart",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
@@ -4767,6 +5355,11 @@ mod tests {
         assert!(css.contains(r#"[data-scope="empty-state"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="table"][data-part="row"]:nth-child(even)"#));
         assert!(css.contains(r#"[data-scope="data-list"][data-part="root"]"#));
+        // Charts（イシュー #847）: axis/grid/legend/tooltip の recipe CSS。
+        assert!(css.contains(r#"[data-scope="chart"][data-part="axis-line"]"#));
+        assert!(css.contains(r#"[data-scope="chart"][data-part="grid-line"]"#));
+        assert!(css.contains(r#"[data-scope="chart-legend"][data-part="root"]"#));
+        assert!(css.contains(r#"[data-scope="chart"][data-part="datum"]:hover"#));
         // ショーケース配置スタイル。
         assert!(css.contains(".showcase-row"));
         assert!(css.contains(".showcase-stack"));
@@ -4782,6 +5375,16 @@ mod tests {
         assert!(css.contains(r#".pre-styled-showcase [data-scope="dialog"] h2"#));
         assert!(css.contains(r#".pre-styled-showcase [data-scope="popover"] h2"#));
         assert!(css.contains(r#".pre-styled-showcase [data-scope="toast"][data-part="group"]"#));
+        // Tour（イシュー #841、PR #870 Bugbot 指摘 High severity「Showcase
+        // omits Tour CSS wiring」の回帰防止）: recipe CSS 本体が組み込まれ、
+        // かつ Active 固定掲示のオーバーレイ（backdrop/spotlight/positioner）
+        // がショーケース内でページ全体を覆わないよう中和されていること。
+        assert!(css.contains(
+            r#"[data-scope="tour"][data-part="positioner"][data-side="left"][data-align="start"]"#
+        ));
+        assert!(css.contains(r#".pre-styled-showcase [data-scope="tour"][data-part="backdrop"]"#));
+        assert!(css.contains(r#".pre-styled-showcase [data-scope="tour"][data-part="spotlight"]"#));
+        assert!(css.contains(r#".pre-styled-showcase [data-scope="tour"][data-part="positioner"]"#));
         // StyleSheet の不変条件（<style> 埋め込み・CSS ファイル双方で安全）。
         assert!(!css.contains('<'));
     }

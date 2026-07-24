@@ -485,6 +485,26 @@ fn state_nth_child_even_generates_pseudo_class_selector() {
     assert_eq!(recipe.css(), expected);
 }
 
+/// イシュー #847 golden テスト: [`StateCondition::Hover`] が `:hover`
+/// セレクタを生成することを固定する（[`crate::charts::tooltip`] のデータ点
+/// 強調表示の唯一の消費者、SVG `<title>` によるネイティブ hover 表示と
+/// 組み合わせて JS なしで「ホバーで詳細が分かる」体験を表現する）。
+#[test]
+fn state_hover_generates_pseudo_class_selector() {
+    let recipe = SlotRecipe::new("chart", &["datum"]).state(
+        "datum",
+        StateCondition::Hover,
+        vec![decl("opacity", "0.8")],
+    );
+
+    let expected = concat!(
+        "[data-scope=\"chart\"][data-part=\"datum\"]:hover {\n",
+        "  opacity: 0.8;\n",
+        "}\n",
+    );
+    assert_eq!(recipe.css(), expected);
+}
+
 /// イシュー #643 fail-closed テスト: [`SlotRecipe::state`] は不正な `slot`・
 /// 属性名・属性値を panic せず出力から除外する（既存 `base`/`variant`/
 /// `compound_variant` と同じ方針）。

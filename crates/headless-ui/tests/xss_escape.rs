@@ -29,15 +29,18 @@ use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::calendar;
 use fandhe_frontend_headless_ui::date::{PlainDate, Weekday};
 use fandhe_frontend_headless_ui::date_picker;
+use fandhe_frontend_headless_ui::file_upload;
+use fandhe_frontend_headless_ui::positioning::{Align, Placement, Side};
 use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::scroll_area;
+use fandhe_frontend_headless_ui::tour::{self, TourStep};
 use fandhe_frontend_headless_ui::{
     action_bar, aria_controls, aria_label, avatar, carousel, clipboard, color_picker, data_state,
     date_input, dialog, download_trigger, editable, floating_panel, hover_card, image_cropper,
     listbox, number_input, password_input, pin_input, popover, rating_group, segment_group, slider,
     splitter, tags_input, timer, toast, tree_view, Calendar, DatePicker, DateSegmentFlags,
     ImageStatus, OpenState, Orientation, PasswordAutocomplete, PasswordInputProps, Steps,
-    ToastStatus,
+    ToastStatus, Tour,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -583,6 +586,58 @@ fn tags_input_tag_text_and_attribute_paths_are_escaped_for_all_payloads() {
             payload,
             &html,
             "tags_input::root の呼び出し側 attrs コンテキスト",
+        );
+    }
+}
+
+/// (1) テキスト経路 + (2) 属性値経路（イシュー #840 FileUpload）:
+/// ファイル名・MIME 文字列は攻撃者が完全に制御可能な入力そのもの（REQ-1 の
+/// 重点対象）であるため、`file_upload::item_name` の children テキスト・
+/// `file_upload::item_delete_trigger` の `name`（`format!` で組み立てる
+/// `aria-label` の一部）・`file_upload::hidden_input` の `accept` 属性・
+/// 呼び出し側 `attrs` へ全ペイロードを注入し、エスケープが貫通することを
+/// 固定する（`tags_input` 分と同型の網羅方針）。
+#[test]
+fn file_upload_item_name_and_attribute_paths_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let item_name_node = file_upload::item_name(vec![], vec![text(payload)]);
+        let html = render(&item_name_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::item_name の children コンテキスト",
+        );
+
+        let item_size_text_node = file_upload::item_size_text_node(vec![], vec![text(payload)]);
+        let html = render(&item_size_text_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::item_size_text_node の children コンテキスト",
+        );
+
+        let delete_trigger_node = file_upload::item_delete_trigger(payload, false, vec![], vec![]);
+        let html = render(&delete_trigger_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::item_delete_trigger の aria-label コンテキスト",
+        );
+
+        let hidden_input_node = file_upload::hidden_input(payload, false, false, vec![]);
+        let html = render(&hidden_input_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::hidden_input の accept 属性コンテキスト",
+        );
+
+        let attrs_node = file_upload::root(false, vec![("data-testid", payload)], vec![]);
+        let html = render(&attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::root の呼び出し側 attrs コンテキスト",
         );
     }
 }
@@ -1612,5 +1667,50 @@ fn timer_children_and_attrs_are_escaped_for_all_payloads() {
             vec![],
         ));
         assert_payload_is_escaped(payload, &html, "timer::root の attrs コンテキスト");
+    }
+}
+
+/// (1)/(2) Tour（イシュー #841）: `title`/`description` の children
+/// （テキスト経路）・`target`（`spotlight` の `data-target` 属性値経路）・
+/// 呼び出し側 `attrs`（属性値経路）へ全ペイロードを注入し、エスケープが
+/// 貫通することを固定する。
+#[test]
+fn tour_title_description_target_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let title_node = tour::Tour::default().title(None, vec![], vec![text(payload)]);
+        let html = render(&title_node);
+        assert_payload_is_escaped(payload, &html, "tour::Tour::title のテキストコンテキスト");
+
+        let description_node = tour::Tour::default().description(None, vec![], vec![text(payload)]);
+        let html = render(&description_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tour::Tour::description のテキストコンテキスト",
+        );
+
+        let step = TourStep {
+            id: "s1".to_string(),
+            target: Some(payload.to_string()),
+            title: "t".to_string(),
+            description: "d".to_string(),
+            placement: Placement::new(Side::Bottom, Align::Center),
+        };
+        let mut t = Tour::new(vec![step]);
+        fandhe_frontend_interactive::dispatch(&mut t, "start", "");
+        let html = render(&t.spotlight(vec![], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tour::Tour::spotlight の data-target コンテキスト",
+        );
+
+        let root_attrs_node = Tour::default().root(vec![("data-testid", payload)], vec![]);
+        let html = render(&root_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tour::Tour::root の呼び出し側 attrs コンテキスト",
+        );
     }
 }

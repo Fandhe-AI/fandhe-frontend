@@ -99,8 +99,10 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | Splitter | `splitter` | Root/Panel/ResizeTrigger/ResizeTriggerIndicator | 独自実装（各パネルの `size`/`min`/`max`（%）を fail-closed に正規化するパネルサイズ状態機械。`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`resize-trigger` は `role="separator"` + `aria-valuemin/max/now`（先行パネルのサイズ%）+ `aria-orientation`（セパレータ自体の向き、パネルレイアウトの向きとは逆）+ `aria-controls`（先行パネル id）を出力する WAI-ARIA Window Splitter パターン準拠。pointer ドラッグ・キーボード操作の DOM 配線・collapse/expand は wasm-full 後続イシューのスコープ外） | #826（`docs/policy/intentional-non-adoption.md` §7・`docs/design/component-coverage-map.md` の保留を解除） |
 | JsonTreeView | `json_tree_view` | Key/Value（`tree_view` の Root/Label/Tree/Branch/BranchControl/BranchIndicator/BranchContent/BranchIndentGuide/Item/ItemIndicator を構造部として再利用） | `tree_view::TreeView`（#753）をそのまま再利用（新規状態機械なし）。決定的な JSON 風データ構造 `JsonValue`（外部依存ゼロの自前 enum、`Object` は挿入順保持の `Vec` ペア列）をツリー表示する。ノード識別子（`data-value`）は RFC 6901 JSON Pointer で決定的に導出し、`value` パーツの `data-kind`（`"null"`/`"bool"`/`"number"`/`"string"`/`"array"`/`"object"`）は `JsonValue::kind` の固定語彙のみを出力する。`expanded_to_depth` は ark-ui `defaultExpandedDepth` 相当の決定的初期展開ヘルパ | #829（`tree_view` #753 の派生、`docs/policy/intentional-non-adoption.md` §7 の保留解除） |
 | ColorPicker | `color_picker` | Root/Label/Control/Trigger/Positioner/Content/Area/AreaBackground/AreaThumb/ChannelSlider(+Track/+Thumb)/ChannelInput/ValueText/HiddenInput | `Hsv`（#838）+ `alpha: u8` + `state::Disclosure`（開閉）を埋め込んだ独自実装。色領域・色相/アルファスライダーの見た目は canvas 非依存（CSS グラデーション + `area_x_percent`/`area_y_percent`/`hue_percent`/`alpha_percent` の導出整数割合のみ）。dispatch は `"open"`/`"close"`/`"toggle"`/`"set_hex"`（`Color::parse_hex` 検証）/`"set_channel"`（payload `"<channel>:<value>"`、固定語彙 + 範囲検証）。EyeDropperTrigger・SwatchGroup 系・format 切替・pointer ドラッグの DOM 配線はスコープ外 | #839（親 #837、`docs/policy/intentional-non-adoption.md` §7 の保留解除） |
+| FileUpload | `file_upload` | Root/Label/Dropzone/Trigger/ItemGroup/Item/ItemName/ItemSizeText/ItemDeleteTrigger/ClearTrigger/HiddenInput | 独自実装（ファイルメタデータ`FileUploadItem`（name/size_bytes/mime_type、`File` オブジェクト自体は非保持）の受理済み一覧 + 直近拒否履歴、`SingleSelect`/`MultiSelect`/`TagsInput` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`AddFiles` は型付き API 限定で文字列 dispatch では受理しない。実 `File` API 接触は `fandhe-frontend-wasm-full` の `headless_file_upload.rs` に隔離し（`docs/policy/intentional-non-adoption.md` §7 の保留解除）、`ItemPreview`/`ItemPreviewImage`（object URL プレビュー）はスコープ外） | #840 |
 | DateInput | `date_input` | Root/Label/Control/SegmentGroup/Segment/HiddenInput | 独自実装（年/月/日セグメント + フォーカス位置を持つ値状態機械。`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。暦計算は `date`（#833）の `PlainDate::new`/`parse_iso`/`days_in_month` へ委譲し、本モジュール自体は現在時刻を取得しない。各 `segment` は `role="spinbutton"` + `aria-valuemin/max/now`（未入力時は valuenow 省略 + `data-placeholder`）+ `aria-label`（"Year"/"Month"/"Day"）を出力する WAI-ARIA Spinbutton パターン準拠。3 セグメント充足時のみ `PlainDate::new` で実在日付として検証し（`2/30` 等は `value()` が `None` を返す fail-closed 契約。セグメント値自体は破棄せず `data-invalid` で可視化する）、hydration も同じ契約（構造的範囲外・パース不能のみ拒否、実在しない日付はそのまま受理）。`date_input::segment_group` は `segment_group`（segmented control、#743）とは無関係の別 anatomy スコープ。granularity（hour/minute/second）・range 選択・locale 依存整形・キーボード操作の DOM 配線は wasm-full 後続イシューのスコープ外 | #834（`date` #833 を先行前提として利用、`docs/policy/intentional-non-adoption.md` §7・`docs/design/component-coverage-map.md` の date-time 系「保留」を DateInput 分のみ解除） |
 | Timer | `timer` | Root/Area/Item/ItemValue/ItemLabel/Separator/Control/ActionTrigger | 独自実装（idle/running/paused/completed の 4 値、`Clipboard` と同じ理由で `Component`/`Hydrate` を直接実装。`countdown`/`start_ms`/`target_ms`/`interval_ms` の設定値も状態機械へ持たせ hydration で往復させる。tick（経過ミリ秒）を `TimerAction::Tick` として外部から明示的に注入する決定的状態機械であり `std::time`/`Instant` 等の時計 API に一切依存しない。`docs/design/component-coverage-map.md` 保留解除（date-time 系）。実 tick 駆動（`setInterval`）は `fandhe-frontend-wasm-full::headless_timer` が提供する） | #836 |
+| Tour | `tour` | Root/Backdrop/Spotlight/Positioner/Arrow/ArrowTip/Content/Title/Description/ProgressText/CloseTrigger/ActionTrigger | 独自実装（`Idle`/`Active { step }`/`Skipped`/`Completed` の 4 値、`Steps`/`Toast` と同じ理由で `Component`/`Hydrate` を直接実装。`content` は `role="dialog"` + `aria-labelledby`/`aria-describedby`、`progress-text` は `aria-live="polite"`。`positioner` は現在ステップの `placement`（`positioning::Placement`）から `data-side`/`data-align` を静的出力するのみで座標計算は行わない（ADR §4.1）。`spotlight` は `target` を `data-target` としてエスケープ済み出力するのみで DOM 解決は行わない。対象要素の実座標追従・スクロール/リサイズ再計算・`target` セレクタの実解決・クリック/キーボードの実配線は `fandhe-frontend-wasm-full` の後続イシューのスコープ外。`docs/design/component-coverage-map.md` 保留解除（装飾系）） | #841（#735 保留の解除） |
 
 ## 4a0. 色変換コア（`color`、イシュー #838、親 #837）
 
@@ -454,6 +456,79 @@ DateInput / Timer、`docs/design/component-coverage-map.md` の保留区分・
 - 範囲選択（range mode）・複数月表示（multi-month）・年/月ビュー切替
 - DateInput（#834）との配線・wasm-full ハイドレーション配線
 
+## 4e. Format ユーティリティ（`format` モジュール、イシュー #853/#854、親 Phase 5 #852）
+
+ark-ui `format-byte`/`format-number`/`format-time`/`format-relative-time`・
+chakra-ui `i18n/format-byte`/`format-number` 相当の機能を、JS の `Intl` API・
+`LocaleProvider` 等の JS ランタイム機構に依存せず実装した
+（`docs/policy/intentional-non-adoption.md` §3.23 の非採用判断を
+「headless-ui 内モジュール `format`」として実装することで区分変更、
+`docs/design/component-coverage-map.md` 参照）。他コンポーネントと異なり
+ノードを返さず `anatomy`/状態機械を持たない `String` 純関数群である。
+
+| 関数 | オプション型 | 概要 |
+|---|---|---|
+| `format_byte` | `FormatByteOptions`（`unit: ByteUnit`/`unit_system: UnitSystem`/`unit_display: UnitDisplay`/`maximum_fraction_digits`） | バイト数を `"1.45 kB"` 等の単位付き文字列へ整形。10 進（1000 進）/2 進（1024 進）の基数系列を選択可能 |
+| `format_number` | `FormatNumberOptions`（`style: NumberStyle`/`minimum_fraction_digits`/`maximum_fraction_digits`/`use_grouping`/`sign_display: SignDisplay`） | 桁区切り・小数桁・符号・パーセント表示を伴う数値整形 |
+| `format_time` | `FormatTimeOptions`（`with_seconds_always`/`always_show_hours`） | 経過秒数を `HH:MM:SS`/`MM:SS` へ整形（ロケール非依存） |
+| `format_relative_time` | `FormatRelativeTimeOptions`（`locale`/`style: UnitDisplay`） | `target`/`base`（Unix 秒）2 値の差から相対時刻文字列を返す |
+
+### 4e.1a `Locale`（イシュー #854）
+
+`Locale` は `#[non_exhaustive]` enum で `En`（既定）・`Ja` の 2 種を持つ。
+`format_byte`/`format_number`/`format_relative_time` の各オプションに
+`locale: Locale` フィールドとして含み、呼び出し側が明示的に渡す**値型**の
+みで完結する。ark-ui `utilities/locale.md`・chakra-ui
+`i18n/locale-provider.md` の React `LocaleProvider`（Context/Provider）に
+相当する機構は**意図的に非採用**であり、グローバル既定ロケール・
+スレッドローカル・環境変数参照を一切持たない（ambient authority を作らない
+設計、`docs/policy/intentional-non-adoption.md` §3.23 参照）。
+
+- `Locale::tag(&self) -> &'static str`: BCP 47 言語タグ（`"en"`/`"ja"`）を返す
+- `Locale::from_tag(tag: &str) -> Option<Locale>`: タグ文字列から `Locale`
+  を決定的に逆引きする。ASCII 小文字化 + `-`/`_` 前の primary subtag 完全
+  一致のみに対応し（`"en-US"` → `Locale::En` 等）、未知タグは `None`
+  （Accept-Language ヘッダ解析等のロケールネゴシエーションは呼び出し側の
+  責務）
+
+ja の出力例（`unit_display: UnitDisplay::Long`）:
+
+```text
+format_byte(1000.0, ja, Long)            -> "1 キロバイト"
+format_byte(1024.0*1024.0, ja, Binary, Long) -> "1 メビバイト"
+format_relative_time(base - 3*86400, base, ja, Long)  -> "3 日前"
+format_relative_time(base + 3*86400, base, ja, Long)  -> "3 日後"
+format_relative_time(base, base, ja, _)               -> "たった今"
+```
+
+short/narrow の単位記号（`kB`/`k` 等）は SI 表記が国際共通のため en と
+同一値。相対時刻の narrow 形式は数字と単位語彙の間にスペースを挟まない
+（例: `"3時間前"`）が、long/short 形式は半角スペースを挟む（例:
+`"3 日前"`。CLDR ja の実挙動に整合、Rust 実装の定数表 + テスト網羅表を
+正とする）。
+
+### 4e.1 決定性・丸め規則の契約
+
+- **現在時刻 API に依存しない**: `format_relative_time` の基準時刻
+  `base` は必ず呼び出し側が明示的に渡す。`std::time::SystemTime::now()`
+  等を本モジュールが呼ぶことはない（`crate::timer`/`crate::date` と同型の
+  「時刻を渡される」設計）。
+- **丸め規則**: `format_byte`/`format_number` の固定小数点丸めは
+  `format!("{:.prec$}")`（Rust 標準の 2 進表現に基づく最近接丸め）を正とする
+  （rustdoc に明記）。
+- **非有限値・境界値**: NaN/±∞ は panic せず `"NaN"`/`"∞"`/`"-∞"` を返す。
+  `i64::MIN`/`i64::MAX` を含む全入力域で `unwrap()`/`panic!` を使わず
+  `unsigned_abs()`/`checked_sub()` で決定的な出力を返す（A04 対策）。
+
+### 4e.2 スコープ外
+
+- en/ja 以外のロケール対応（将来イシュー、`Locale` enum への variant 追加として行う）
+- `format_time` へのロケール依存表記（和暦・時制表記等）の導入
+- `LocaleProvider`・`AsyncListCollection` の Rust 等価概念対応表
+  （`docs/design/component-coverage-map.md` §8、イシュー #855 で追加済み）
+- `fandhe-frontend-pre-styled-ui`・examples ショーケースへの実演追加
+  （format はノードを返さない純関数であり既存ショーケース枠に該当しない）
+
 ## 5. 呼び出し規約（SSR / CSR 共通の前提）
 
 - 各コンポーネントの anatomy パーツ（`root`/`trigger`/`content` 等）は
@@ -503,6 +578,12 @@ DateInput / Timer、`docs/design/component-coverage-map.md` の保留区分・
    `Debug`/`Hydrate` の出力・エラーメッセージ・ログのいずれにも現れる余地
    がない設計であり、`crates/headless-ui/src/password_input.rs` の
    inline test `input_never_outputs_value_attribute` が回帰を固定する。
+9. `format` モジュール（イシュー #853）はテキスト値を返す純関数であり、
+   出力は呼び出し側が必ず `fandhe_frontend_core::text()` ノード → 上記 2
+   の既定エスケープを経由してから描画する（本モジュール自体は HTML を
+   組み立てない）。`std::time::SystemTime::now()` 等の現在時刻 API・環境
+   変数・グローバル状態を一切参照しない決定的純関数であり、`base`/`target`
+   等の時刻は必ず呼び出し側が明示的に渡す（§4e.1 参照）。
 
 ## 7. 関連ドキュメント
 
