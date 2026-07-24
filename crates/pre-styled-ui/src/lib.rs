@@ -334,6 +334,15 @@
 //!   `thumb`/`corner` は JS スクロール位置追従が本イシューのスコープ外の
 //!   ため初期実装では非表示（`display: none`）。variant は非提供。詳細は
 //!   `crate::scroll_area` rustdoc 参照。
+//! - 状態機械を要しない単純 styled 部品（イシュー #838、保留解除）:
+//!   [`mod@color_swatch`]（ColorSwatch、`size`/`shape` の 2 軸 variant を持つ
+//!   root 1 パーツ。色値は
+//!   [`fandhe_frontend_headless_ui::color::Color`]（本モジュールが
+//!   再エクスポート）経由のみで受け取り、任意文字列を受け取る API は
+//!   持たない）。[`crate::tag`]/[`crate::kbd`] と同型の「pre-styled 層で
+//!   anatomy を直接宣言する単純 styled 部品」だが、headless 層には対応する
+//!   anatomy を新設しない（`docs/design/component-coverage-map.md` 上も
+//!   headless 列は「—」）。詳細は [`mod@color_swatch`] rustdoc 参照。
 //! - 状態機械を要しない静的部品（イシュー #831、非採用の再導入）:
 //!   [`mod@marquee`]（Marquee、自動流動テキスト。`docs/policy/intentional-non-adoption.md`
 //!   §3.24 が意図的非採用としていたが、CSS のみ（JS ゼロ）・
@@ -483,6 +492,7 @@ pub mod checkbox_card;
 mod class_attr;
 pub mod clipboard;
 pub mod code;
+pub mod color_swatch;
 pub mod combobox;
 pub mod css;
 pub mod data_list;
@@ -557,6 +567,7 @@ pub use blockquote::BlockquoteVariant;
 pub use button::{button, close_button, icon_button, ButtonProps, ButtonVariant};
 pub use card::CardVariant;
 pub use code::code;
+pub use color_swatch::{color_swatch, ColorSwatchProps, SwatchShape};
 pub use css::{decl, Declaration};
 pub use em::em;
 pub use empty_state::EmptyStateProps;
