@@ -313,6 +313,7 @@ mod tests {
             ("color_picker", crate::color_picker::css()),
             ("action_bar", crate::action_bar::stylesheet()),
             ("toast", crate::toast::stylesheet()),
+            ("tour", crate::tour::stylesheet()),
             ("status", crate::status::css()),
             ("empty_state", crate::empty_state::css()),
             ("visually_hidden", crate::visually_hidden::css()),
