@@ -310,7 +310,7 @@ pub fn asset_href(base_path: &str, relative: &str) -> String {
 /// （`fandhe_frontend_server::ssg::generate_pages()`）の契約であり、本関数は
 /// 文書 `Node` を返すのみで DOCTYPE 文字列を出力しない。
 pub fn docs_page(title: &str, base_path: &str, sidebar: Node, body: Node) -> Node {
-    docs_page_with_assets(title, base_path, sidebar, body, &[])
+    docs_page_with_assets(title, base_path, sidebar, body, &[], None)
 }
 
 /// [`docs_page`] の拡張版。`extra_stylesheets`（`assets/` 起点の相対パス列）を
@@ -326,12 +326,18 @@ pub fn docs_page(title: &str, base_path: &str, sidebar: Node, body: Node) -> Nod
 /// 保ち、既存ページのカスケードへ影響させないための注入点であり、Markdown
 /// ページは従来どおり [`docs_page`]（追加なし）を使う。href は
 /// [`asset_href`] を経由して `base_path` を考慮した単一実装点を守る。
+///
+/// `header_nav`（イシュー #908）が `Some` の場合、`header.docs-header` の
+/// 第 2 子として `crate::nav::header_nav()` が生成するセクション別
+/// ドロップダウンメニューを埋め込む。`None` の場合はブランドリンクのみの
+/// 従来ヘッダーのまま（[`docs_page`] 経由の呼び出しはこちら）。
 pub fn docs_page_with_assets(
     title: &str,
     base_path: &str,
     sidebar: Node,
     body: Node,
     extra_stylesheets: &[&str],
+    header_nav: Option<Node>,
 ) -> Node {
     let (annotated_body, toc_entries) = with_heading_anchors(body);
     let toc = toc_nav(&toc_entries);
@@ -405,10 +411,18 @@ pub fn docs_page_with_assets(
     ];
 
     let root_href = asset_href(base_path, "");
-    let header_node = header(
-        vec![("class", "docs-header")],
-        vec![a(vec![("href", &root_href)], vec![text("fandhe-frontend")])],
-    );
+    // ブランドリンクは `class="docs-brand"` を持つ（イシュー #908。従来
+    // セレクタ `.docs-header a` はヘッダーナビ内のドロップダウンリンクにも
+    // 波及するため、ブランドリンク専用の class へ分離した。
+    // `crate::site_theme::STRUCTURAL_CSS` 参照）。
+    let mut header_children = vec![a(
+        vec![("href", &root_href), ("class", "docs-brand")],
+        vec![text("fandhe-frontend")],
+    )];
+    if let Some(nav_node) = header_nav {
+        header_children.push(nav_node);
+    }
+    let header_node = header(vec![("class", "docs-header")], header_children);
 
     // SkipNav の「本文へスキップ」リンク（イシュー #776）。キーボード操作時
     // のみ視覚的に現れ（`fandhe-frontend-pre-styled-ui::skip_nav` の
