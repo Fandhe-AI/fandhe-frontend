@@ -31,10 +31,22 @@
 //! 準備のみ `cli/tests/new_e2e.rs` と同方針の薄いローカルヘルパーを持つ
 //! （`new_e2e.rs` 冒頭コメントが明文化する「テストターゲット独立の制約による
 //! 意図的な複製」を踏襲）。
+//!
+//! イシュー #895: `fw_new_app_template_*` の 2 テスト（app テンプレート、
+//! crates.io バージョン依存で完結する）は、version-bump-guard・
+//! `template_vendor_drift`・本ファイルの三すくみ（`docs/ci/
+//! version-bump-publish-order-gap.md` 参照）により、バンプ先バージョンが
+//! crates.io へ未公開の間は必ず fail する構造的デッドロックを抱える
+//! （`template-app-wasm-smoke` ジョブ（イシュー #885）と同型の問題）。
+//! [`apply_patch_template_smoke`] が同ジョブと同じ `xtask
+//! patch-template-smoke` サブコマンドをサブプロセスとして再利用し、未公開
+//! 依存のみへ `[patch.crates-io]` フォールバックを適用する。全依存公開済み
+//! の通常時はファイル無変更のまま `resolution=crates-io` のみが報告され、
+//! crates.io 実 index での依存解決の検証能力は変わらない。
 
 mod support;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Once;
@@ -287,6 +299,129 @@ fn example_shared_target_dir() -> PathBuf {
     ))
 }
 
+/// このテストバイナリ（`crates/cli`）が属するワークスペースのルートを返す
+/// （イシュー #895）。`[patch.crates-io]` へ注入する path 参照は絶対パスで
+/// なければならないため `canonicalize()` する。`CARGO_MANIFEST_DIR` は
+/// クレートマニフェストのディレクトリ（`crates/cli`）であり、そこから
+/// 2 階層上がリポジトリルート（`crates/*` の親）。
+fn repo_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("failed to canonicalize repo root from CARGO_MANIFEST_DIR")
+}
+
+/// `fw new --template app` 生成直後のプロジェクトへ、`xtask
+/// patch-template-smoke`（`crates/xtask/src/patch_template_smoke.rs`、
+/// イシュー #885）をサブプロセスとして適用する（イシュー #895）。
+///
+/// # 背景・不変条件
+///
+/// `templates/app` は fandhe-frontend-core/-app/-wasm-client への crates.io
+/// バージョン依存で完結する。version-bump-guard（バンプ強制）と
+/// `template_vendor_drift`（テンプレート要求とバンプ後の正本 `version` の
+/// 一致強制）を満たすバンプ PR では、crates.io 公開（`release.yml`、
+/// `workflow_dispatch` + `mode: publish` の明示選択によりマージ後に運用）
+/// までの間、生成プロジェクトの依存解決が crates.io 実 index では必ず失敗
+/// する（三すくみ、`docs/ci/version-bump-publish-order-gap.md` 参照）。
+///
+/// `.github/workflows/ci.yml` の `template-app-wasm-smoke` ジョブが導入
+/// 済みの同名フォールバックをここでも再利用することで、`fw
+/// _new_app_template_*` e2e が同じデッドロックへ陥らないようにする。
+/// crates.io sparse index への fail-closed 照会で「未公開」を確認できた
+/// 依存のみ `[patch.crates-io]`（このテストが検証対象とする checkout 済み
+/// コードそのものへの path 参照）へ切り替え、対応する `Cargo.lock` を
+/// 削除する。全依存が公開済みの通常時はマニフェスト無変更のまま
+/// `resolution=crates-io` のみが報告され、`fw gate --locked` は crates.io
+/// 実解決の検証能力を保ったまま実行される（弱体化ではない）。
+///
+/// 緩和用の環境変数・CLI フラグは設けない（迂回禁止原則、`docs/ci/
+/// version-bump-publish-order-gap.md` §5 項 4）。crates.io 到達不可・
+/// 想定外応答は `environment error: ` プレフィックス付きで fail-closed に
+/// panic する（テストの弱体化で吸収しない）。
+///
+/// # Panics
+///
+/// - `cargo run -p xtask -- patch-template-smoke` の起動・終了コード非 0
+/// - フォールバック発動後の `cargo generate-lockfile` の起動・終了コード非 0
+fn apply_patch_template_smoke(project_dir: &Path) {
+    let repo_root = repo_root();
+
+    // シェル非経由（`Command` への引数個別渡し）。project_dir/repo_root は
+    // このテストバイナリが自ら生成した scratch パス・`canonicalize()` 済み
+    // リポジトリルートであり、外部入力ではない（A03 インジェクション対策）。
+    let output = Command::new("cargo")
+        .args([
+            "run",
+            "--locked",
+            "-p",
+            "xtask",
+            "--",
+            "patch-template-smoke",
+        ])
+        .arg("--project-dir")
+        .arg(project_dir)
+        .arg("--repo-root")
+        .arg(&repo_root)
+        .current_dir(&repo_root)
+        .output()
+        .expect("failed to spawn `cargo run -p xtask -- patch-template-smoke`");
+
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+
+    // CI 側の `grep '^template-app-wasm-smoke:'` 契約と同じ 1 行サマリを
+    // このテストのログにも転送する（発動有無をテスト実行ログ上で追跡可能に
+    // するため。行単位で転送しスレッド間の行分断を避ける）。
+    for line in stdout.lines() {
+        if line.starts_with("template-app-wasm-smoke: ") {
+            println!("{line}");
+        }
+    }
+
+    assert!(
+        output.status.success(),
+        "`cargo run -p xtask -- patch-template-smoke` failed \
+         (project_dir={project_dir}, repo_root={repo_root}): \
+         `environment error: ` プレフィックスがあれば crates.io sparse index \
+         への到達性起因（runner/ネットワーク要因）、なければテンプレートの \
+         依存宣言形式または repo-root 側クレート不整合などコード起因の \
+         可能性が高い。stdout={stdout} stderr={stderr}",
+        project_dir = project_dir.display(),
+        repo_root = repo_root.display(),
+    );
+
+    if stdout.contains("resolution=path-override") {
+        println!(
+            "new_gate_e2e: patch-template-smoke フォールバックが発動した \
+             (resolution=path-override)。[patch.crates-io] 注入に伴い削除された \
+             ルート Cargo.lock を `cargo generate-lockfile` で再生成する \
+             （再現性低下は既知・許容: `docs/ci/version-bump-publish-order-gap.md` \
+             §5 項 2 と同一判断）。"
+        );
+
+        // `fw gate` は cargo 起動へ常に `--locked` を付与するため、削除済みの
+        // Cargo.lock を残したままだと `fw gate` 自体が解決不能で fail する。
+        // wasm/Cargo.lock は `fw gate` の対象外（`fw gate` はルートのみを
+        // ビルド対象にする）のため再生成不要。
+        let generate_output = Command::new("cargo")
+            .arg("generate-lockfile")
+            .current_dir(project_dir)
+            .output()
+            .expect("failed to spawn `cargo generate-lockfile`");
+
+        assert!(
+            generate_output.status.success(),
+            "`cargo generate-lockfile` failed after patch-template-smoke fallback \
+             (project_dir={project_dir}): crates.io（https://index.crates.io・\
+             https://static.crates.io）への到達性が前提。stdout={stdout} stderr={stderr}",
+            project_dir = project_dir.display(),
+            stdout = String::from_utf8_lossy(&generate_output.stdout),
+            stderr = String::from_utf8_lossy(&generate_output.stderr),
+        );
+    }
+}
+
 /// `fw new` で生成した直後のプロジェクトに対し `fw gate` を実行し、
 /// チェックセット（5 件）が JSON にすべて現れること・環境に依存しない
 /// 4 チェック（type_check / default_escape_check / lint / test）が常に
@@ -537,6 +672,13 @@ fn fw_new_app_template_output_passes_fw_gate() {
     );
 
     let project_dir = scratch.join("gate-pass-app-template");
+
+    // イシュー #895: バンプ先バージョンが crates.io へ未公開の間の構造的
+    // デッドロック（`template-app-wasm-smoke` ジョブと同型）を回避する。
+    // 全依存公開済みの通常時はファイル無変更のまま素通りする
+    // （`apply_patch_template_smoke` doc 参照）。
+    apply_patch_template_smoke(&project_dir);
+
     let (gate_code, gate_stdout, gate_stderr) = run_fw_gate(&project_dir);
 
     for name in [
@@ -618,6 +760,13 @@ fn fw_new_app_template_default_escape_check_detects_injected_violation() {
     );
 
     let project_dir = scratch.join("gate-pass-app-violation");
+
+    // イシュー #895: 未公開バージョンウィンドウ中は依存解決不能により
+    // clippy の disallowed-methods チェック自体が走らないまま「失敗だから
+    // PASS」となり検出能力の検証が空洞化する。デッドロックはしない構成だが
+    // 安全側の判断として本テストにも適用する（実装計画 §4 ステップ 1-4）。
+    apply_patch_template_smoke(&project_dir);
+
     let main_rs = project_dir.join("src").join("main.rs");
     let mut content = std::fs::read_to_string(&main_rs).expect("failed to read src/main.rs");
     content.push_str(

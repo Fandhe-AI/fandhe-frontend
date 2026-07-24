@@ -183,14 +183,62 @@ jobs:
       # ため、上記ステップで導入済みの cargo-deny を用いて strict 分岐
       # （6 チェック全 PASS）を本ジョブで常時実証する
       # （`crates/cli/tests/new_gate_e2e.rs` 冒頭コメント参照）。
-      - name: "fw new 生成直後の fw gate PASS 構成保証 (issue #351、examples 除く)"
-        run: cargo test -p fandhe-frontend-cli --test new_gate_e2e --locked -- --skip example_
+      #
+      # イシュー #895 により本ステップは 3 分割になった（`--skip example_
+      # --skip fw_new_app_template` / `fw_new_app_template` / `example_` の
+      # 3 フィルタは相補的で `new_gate_e2e.rs` 全件を重複・漏れなく網羅する。
+      # `cargo test ... -- --list` で確認済み）。app テンプレート分（#895）と
+      # examples 分（#505/#609）を専用ステップへ切り出す理由は各ステップの
+      # コメント参照。
+      - name: "fw new 生成直後の fw gate PASS 構成保証 (issue #351、examples・app テンプレート除く)"
+        run: cargo test -p fandhe-frontend-cli --test new_gate_e2e --locked -- --skip example_ --skip fw_new_app_template
+
+      # イシュー #895: `fw_new_app_template_*` の 2 件（app テンプレート、
+      # crates.io バージョン依存で完結する `fw gate` 検証）は、
+      # version-bump-guard・`template_vendor_drift`・本ステップの三すくみ
+      # （`docs/ci/version-bump-publish-order-gap.md` 参照）により、バンプ先
+      # バージョンが crates.io へ未公開の間は必ず fail する構造的デッドロック
+      # を抱える（`template-app-wasm-smoke` ジョブ（イシュー #885）と同型）。
+      # テスト側（`new_gate_e2e.rs::apply_patch_template_smoke`）が同ジョブと
+      # 同じ `xtask patch-template-smoke` を再利用して未公開依存のみへ
+      # `[patch.crates-io]` フォールバックを適用するため、本ステップは
+      # その発動を「`resolution=path-override` を含む行があれば `::warning::`
+      # + Step Summary へ転記」して可視化する（サイレントな弱体化にしない）。
+      # 全依存公開済みの通常時はフォールバックが発動せず（ログに
+      # `resolution=path-override` が現れない）、crates.io 実解決の検証能力は
+      # 不変。
+      #
+      # `if PIPELINE; then ... fi` の形（`set -euo pipefail` のまま `-e` を
+      # 維持）は version-bump-guard ジョブと同型のパターン（`.claude/rules/
+      # ci.md` 参照）。テスト自体の失敗（fail-closed の environment error 含む）
+      # は `cargo test` の非ゼロ終了として素直に伝播させる。
+      - name: "app テンプレート gate e2e (issue #895、patch-template-smoke フォールバック明示)"
+        run: |
+          set -euo pipefail
+          if cargo test -p fandhe-frontend-cli --test new_gate_e2e --locked -- fw_new_app_template --nocapture 2>&1 | tee app-template-gate-e2e.log; then
+            if grep -qF 'resolution=path-override' app-template-gate-e2e.log; then
+              echo "::warning::app テンプレート gate e2e: 1 件以上の fandhe-frontend-* 依存が crates.io で未解決のため [patch.crates-io] フォールバックが発動した（'resolution=path-override' 行参照）。対応する crates.io 公開（release.yml, mode: publish）が完了するまでの想定内事象である。"
+              {
+                echo '## app テンプレート gate e2e: patch-template-smoke フォールバック (issue #895)'
+                echo '```'
+                grep '^template-app-wasm-smoke:' app-template-gate-e2e.log || true
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
+            exit 0
+          fi
+          if grep -q 'environment error: ' app-template-gate-e2e.log; then
+            echo "::error::app テンプレート gate e2e failed: environment error (runner/network 起因、コード起因ではない)。crates.io（https://index.crates.io）への到達性を確認すること。"
+          else
+            echo "::error::app テンプレート gate e2e failed: コード起因（テンプレート・fw gate 前提のドリフト、または patch-template-smoke 自体の想定外失敗）の可能性が高い。ログを参照すること。"
+          fi
+          exit 1
 
       # イシュー #505/#609: examples e2e 5 件（`fw_new_example_*_output_passes_fw_gate`、
       # crates.io 依存の cargo ビルドを伴う `fw gate` 検証）の所要時間を
-      # ステップ単位で常時計測可視化する。上のステップと合わせて
-      # `new_gate_e2e.rs` 全件を実行する（`--skip example_` と `example_` の
-      # フィルタは相補的で重複・漏れがないことを確認済み）。
+      # ステップ単位で常時計測可視化する。上の 2 ステップと合わせて
+      # `new_gate_e2e.rs` 全件を実行する（3 フィルタが相補的で重複・漏れが
+      # ないことは確認済み）。
       #
       # 前提: self-hosted runner が crates.io（https://index.crates.io・
       # https://static.crates.io）へ到達可能であること（`.claude/rules/ci.md`
@@ -202,10 +250,10 @@ jobs:
       # 遠く及ばないため `examples-gate-e2e` ジョブへの分離は行っていない
       # （#609 で 5 件目を追加後も同一判断基準を適用する）。本ステップの
       # 所要時間が恒常的に 10 分超となった場合、`test` ジョブ側は
-      # `--skip example_` のみ残し、本ステップの内容を専用の
-      # `examples-gate-e2e` ジョブ（同構成の checkout / rust-toolchain /
-      # ensure-gate-tools.sh を前置、runs-on: self-hosted）へ分離することを
-      # 再検討する。
+      # `--skip example_ --skip fw_new_app_template` のみ残し、本ステップの
+      # 内容を専用の `examples-gate-e2e` ジョブ（同構成の checkout /
+      # rust-toolchain / ensure-gate-tools.sh を前置、runs-on: self-hosted）
+      # へ分離することを再検討する。
       - name: "examples gate e2e 5 件の実行と時間計測 (issue #505/#609)"
         run: cargo test -p fandhe-frontend-cli --test new_gate_e2e --locked -- example_
 
