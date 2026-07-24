@@ -48,6 +48,7 @@ use fandhe_frontend_pre_styled_ui::editable::{
 };
 use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
+use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps};
 use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps};
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
@@ -2893,6 +2894,80 @@ fn json_tree_view_styled_key_and_string_value_are_escaped_for_all_payloads() {
             payload,
             &html,
             "json_tree_view::render_json（styled 再エクスポート）の文字列値児テキストコンテキスト",
+        );
+    }
+}
+
+/// styled FloatingPanel（イシュー #827）の XSS 回帰。[`floating_panel`] は
+/// headless 層をそのまま再エクスポートする薄い委譲層（`pub use ...::*`）で
+/// あるため、
+/// `crates/headless-ui/tests/xss_escape.rs::floating_panel_controls_id_labelledby_and_title_children_are_escaped_for_all_payloads`
+/// と同じ観点を `fandhe-frontend-pre-styled-ui` の公開 API 経由でも固定する
+/// （styled 層のみに依存する利用者が同じ保証を得られることの確認）。
+#[test]
+fn floating_panel_styled_controls_id_labelledby_and_title_children_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // 属性値経路: trigger の controls。
+        let html = render(&floating_panel::trigger(
+            OpenState::Closed,
+            false,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "floating_panel::trigger controls コンテキスト",
+        );
+
+        // 属性値経路: content の id/labelledby。
+        let html = render(&floating_panel::content(
+            OpenState::Open,
+            Stage::Default,
+            Some(payload),
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "floating_panel::content id/labelledby コンテキスト",
+        );
+
+        // 属性値経路: root の呼び出し側 attrs（data-testid）。
+        let html = render(&floating_panel::root(
+            OpenState::Closed,
+            Stage::Default,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "floating_panel::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // テキスト経路: title の children。
+        let html = render(&floating_panel::title(None, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "floating_panel::title children コンテキスト",
+        );
+
+        // 属性値経路: positioner の style（position_style() 出力の透過経路）。
+        let html = render(&floating_panel::positioner(
+            OpenState::Open,
+            Stage::Default,
+            vec![("style", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "floating_panel::positioner style コンテキスト",
         );
     }
 }

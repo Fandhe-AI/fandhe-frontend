@@ -271,6 +271,7 @@ mod tests {
             ("separator", crate::separator::css()),
             ("combobox", crate::combobox::stylesheet()),
             ("popover", crate::popover::stylesheet()),
+            ("floating_panel", crate::floating_panel::stylesheet()),
             ("tooltip", crate::tooltip::stylesheet()),
             ("toggle_tip", crate::toggle_tip::stylesheet()),
             ("switch", crate::switch::stylesheet()),
