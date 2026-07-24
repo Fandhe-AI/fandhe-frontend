@@ -133,6 +133,11 @@ const STEPS_GOLDEN_CSS: &str = r#"[data-scope="steps"][data-part="root"] {
   min-height: var(--fandhe-steps-connector-min-height, 2.5rem);
 }
 
+[data-scope="steps"][data-part="item"]:last-child {
+  flex: none;
+  min-height: auto;
+}
+
 [data-scope="steps"][data-part="trigger"]:focus-visible {
   outline: 2px solid var(--fandhe-color-accent);
   outline-offset: 2px;

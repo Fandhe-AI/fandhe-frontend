@@ -57,6 +57,12 @@
 //! ため、`list`/`root` の `data-orientation` だけでは `item` の垂直
 //! レイアウト切り替えができない）。
 //!
+//! 呼び出し側は最後の `separator` を省略するのが通常の使い方（showcase・
+//! 典型的な Steps 利用パターン含む）であるため、最後の item は伸ばす対象
+//! を持たない。そのため `item:last-child`（[`StateCondition::LastChild`]、
+//! イシュー #752 PR #797 レビュー対応）で `flex: 1`/`min-height` を打ち
+//! 消し、最終ステップの後ろに余分な空白が残らないようにする。
+//!
 //! # `focus-visible`（キーボードフォーカスリング）
 //!
 //! `trigger`/`prev-trigger`/`next-trigger` はネイティブな `<button>`
@@ -188,6 +194,20 @@ fn recipe() -> SlotRecipe {
                     "var(--fandhe-steps-connector-min-height, 2.5rem)",
                 ),
             ],
+        )
+        // 最後の item（`<li>:last-child`）は伸ばす対象（separator）を
+        // 持たないのが典型的な呼び出し方（`separator` は item 間にのみ
+        // 挟むため、呼び出し側が最後の separator を省略するのが通常の
+        // 使い方）であるため、`flex: 1`/`min-height` を打ち消し、最終
+        // ステップの後ろに余分な空白が残らないようにする（バグ報告:
+        // イシュー #752 PR #797 Bugbot レビュー Medium severity 指摘
+        // 「Last step item still stretches」対応）。同一 slot への状態
+        // 規則は登録順の後勝ちで上書きされる契約（[`SlotRecipe`] rustdoc
+        // 参照）のため、水平・垂直いずれの直前規則よりも後に登録する。
+        .state(
+            "item",
+            StateCondition::LastChild,
+            vec![decl("flex", "none"), decl("min-height", "auto")],
         )
         .base(
             "trigger",
