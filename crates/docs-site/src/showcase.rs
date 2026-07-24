@@ -57,6 +57,7 @@ use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState}
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::code::code;
 use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataListProps};
+use fandhe_frontend_pre_styled_ui::date_input::{self, DateSegment};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
@@ -309,6 +310,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::marquee::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::scroll_area::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::splitter::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::date_input::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -3082,6 +3084,109 @@ fn splitter_section() -> Node {
     )
 }
 
+/// DateInput 節: 入力済み / placeholder（未入力） / invalid（実在しない日付
+/// 2/30 相当） / disabled / size 各種の静的掲示（イシュー #834）。
+///
+/// 状態機械 [`fandhe_frontend_pre_styled_ui::date_input`] は headless の
+/// [`fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::date_input::DateInput`]
+/// をそのまま利用し、SSR 静的マークアップのみを掲示する（ドラッグ・
+/// キーボード操作は wasm 層のスコープ外、他コンポーネント節と同型）。
+fn date_input_section() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::date_input::DateInput;
+
+    let build = |id_prefix: &str, state: &DateInput, size: Size, disabled: bool| {
+        date_input::root(
+            size,
+            disabled,
+            state.is_invalid(),
+            vec![],
+            vec![
+                date_input::label(
+                    disabled,
+                    state.is_invalid(),
+                    Some(&format!("{id_prefix}-year")),
+                    vec![],
+                    vec![text("Date")],
+                ),
+                date_input::control(
+                    disabled,
+                    state.is_invalid(),
+                    vec![],
+                    vec![
+                        date_input::segment_group(
+                            disabled,
+                            state.is_invalid(),
+                            vec![],
+                            vec![
+                                state.segment(DateSegment::Year, disabled, false, vec![]),
+                                state.segment(DateSegment::Month, disabled, false, vec![]),
+                                state.segment(DateSegment::Day, disabled, false, vec![]),
+                            ],
+                        ),
+                        state.hidden_input(&format!("{id_prefix}-value"), disabled, vec![]),
+                    ],
+                ),
+            ],
+        )
+    };
+
+    // 入力済み・妥当な日付。
+    let filled_state = DateInput::new(Some(2026), Some(7), Some(22), None, None);
+    let filled = build("showcase-date-input-filled", &filled_state, Size::Md, false);
+
+    // 未入力（3 セグメントとも placeholder 表示）。
+    let empty_state_value = DateInput::default();
+    let empty = build(
+        "showcase-date-input-empty",
+        &empty_state_value,
+        Size::Md,
+        false,
+    );
+
+    // invalid: 2024-02-30 は実在しない日付（fail-closed 検証、モジュール
+    // doc「fail-closed な日付検証」参照）。
+    let invalid_state = DateInput::new(Some(2024), Some(2), Some(30), None, None);
+    let invalid = build(
+        "showcase-date-input-invalid",
+        &invalid_state,
+        Size::Md,
+        false,
+    );
+
+    // disabled。
+    let disabled_state = DateInput::new(Some(2026), Some(1), Some(1), None, None);
+    let disabled = build(
+        "showcase-date-input-disabled",
+        &disabled_state,
+        Size::Md,
+        true,
+    );
+
+    // size 各種（Sm/Md/Lg）。
+    let mut size_demos = Vec::new();
+    for (size, suffix) in [(Size::Sm, "sm"), (Size::Md, "md"), (Size::Lg, "lg")] {
+        let state = DateInput::new(Some(2026), Some(7), Some(22), None, None);
+        size_demos.push(build(
+            &format!("showcase-date-input-size-{suffix}"),
+            &state,
+            size,
+            false,
+        ));
+    }
+
+    section(
+        "DateInput",
+        "年/月/日セグメント入力 DateInput の静的掲示（入力済み・未入力・invalid・disabled・size 各種）。各セグメントは role=\"spinbutton\" + aria-valuemin/max/now（未入力時は valuenow 省略）を持ちます（キーボード操作は wasm 層のスコープ外）。",
+        vec![
+            row(vec![filled]),
+            row(vec![empty]),
+            row(vec![invalid]),
+            row(vec![disabled]),
+            row(size_demos),
+        ],
+    )
+}
+
 /// CheckboxCard 節: unchecked / checked / disabled の 3 態（イシュー #747）。
 ///
 /// chakra-ui checkbox-card 相当のカード型選択 UI。状態機械は
@@ -4092,6 +4197,7 @@ fn showcase_body() -> Node {
             timeline_section(),
             marquee_section(),
             scroll_area_section(),
+            date_input_section(),
         ],
     )
 }
@@ -4157,6 +4263,7 @@ mod tests {
             "visually-hidden",
             "table",
             "data-list",
+            "date-input",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),

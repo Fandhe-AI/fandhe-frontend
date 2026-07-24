@@ -41,6 +41,7 @@ use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::clipboard;
+use fandhe_frontend_pre_styled_ui::date_input::{self, DateSegment, DateSegmentFlags};
 use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::editable::{
@@ -3215,5 +3216,84 @@ fn scroll_area_attrs_and_children_payloads_are_escaped_for_all_payloads() {
             &html,
             "scroll_area::content の children コンテキスト",
         );
+    }
+}
+
+/// styled DateInput（イシュー #834）: styled `root` の呼び出し側 `attrs`・
+/// `class`、および headless-ui から選択的再エクスポートした `label` の
+/// children・`hidden_input` の `name`・`segment` の `attrs` の 5 箇所すべてで
+/// 既定エスケープ（REQ-1）が貫通することを固定する
+/// （`number_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
+/// と同粒度）。
+#[test]
+fn date_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&date_input::root(
+            Size::Md,
+            false,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "date_input::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&date_input::root(
+            Size::Md,
+            false,
+            false,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "date_input::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "date_input::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-date-input--"),
+            "date_input::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした label の children 経路。
+        let html = render(&date_input::label(
+            false,
+            false,
+            None,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "date_input::label children コンテキスト");
+
+        // 選択的再エクスポートした hidden_input の name 経路。
+        let html = render(&date_input::hidden_input(
+            payload,
+            "2026-07-22",
+            false,
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "date_input::hidden_input name コンテキスト");
+
+        // 選択的再エクスポートした segment の attrs 経路。
+        let html = render(&date_input::segment(
+            DateSegment::Year,
+            None,
+            "0",
+            "9999",
+            DateSegmentFlags::default(),
+            vec![("data-testid", payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "date_input::segment attrs コンテキスト");
     }
 }

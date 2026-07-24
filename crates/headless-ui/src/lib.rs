@@ -465,6 +465,19 @@
 //!   （Calendar / DatePicker / DateInput / Timer、#834 以降）が描画前の
 //!   暦計算に共通で使う先行前提であり、本モジュール自体は非描画の純計算
 //!   モジュールで anatomy・状態機械を持たない。
+//! - [`mod@date_input`]: Root / Label / Control / SegmentGroup / Segment /
+//!   HiddenInput の 6 anatomy パーツと、年/月/日セグメント + フォーカス位置を
+//!   持つ [`date_input::DateInput`] 状態機械（イシュー #834、
+//!   `docs/policy/intentional-non-adoption.md` §7・
+//!   `docs/design/component-coverage-map.md` の「保留」を DateInput 分のみ
+//!   解除）。[`mod@date`] の [`date::PlainDate::new`]/[`date::PlainDate::parse_iso`]/
+//!   [`date::days_in_month`] を利用し、3 セグメント充足時のみ実在日付として
+//!   検証する fail-closed 契約（[`date_input::DateInput::value`]）を持つ。
+//!   `date_input::segment_group` は [`mod@segment_group`]（segmented control）
+//!   とは無関係の別 anatomy スコープ（[`mod@date_input`] モジュール doc
+//!   参照）。granularity（時分秒）・range 選択・locale 依存整形・キーボード
+//!   操作の DOM 配線は本イシューのスコープ外（[`date_input`] モジュール doc
+//!   §スコープ外参照）。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -482,6 +495,7 @@ pub mod collapsible;
 pub mod combobox;
 pub mod data_attrs;
 pub mod date;
+pub mod date_input;
 pub mod dialog;
 pub mod download_trigger;
 pub mod drawer;
@@ -567,6 +581,7 @@ pub use data_attrs::{
     data_incomplete, data_invalid, data_orientation, data_pressed, data_readonly, data_required,
     data_state, Orientation,
 };
+pub use date_input::{DateInput, DateInputAction, DateSegment, DateSegmentFlags};
 pub use dialog::Dialog;
 pub use drawer::{Drawer, DrawerPlacement};
 pub use editable::{Editable, EditableAction};
