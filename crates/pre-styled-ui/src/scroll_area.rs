@@ -16,6 +16,13 @@
 //! containing block を提供する（[`crate::popover`]/[`crate::menu`] の
 //! `root: position: relative` と同じ判断）。
 //!
+//! `viewport` には併せて `height: 100%`/`width: 100%` を付与し、`root` の
+//! サイズへ強制的に連動させる。利用側が `root` へ固定高さ（例:
+//! `crates/docs-site/src/showcase.rs` の `height: 8rem` 指定）を与えた場合
+//! でも、`viewport` がこの連動を持たなければ content に合わせて自然に
+//! サイズが伸びてしまい、`overflow: auto` が発火せずネイティブスクロール
+//! バーが表示されない不具合があった（PR #856 Bugbot 指摘）。
+//!
 //! # scrollbar/thumb/corner は初期実装で非表示（イシュー #825 スコープ）
 //!
 //! headless 層のモジュール doc（`crates/headless-ui/src/scroll_area.rs`）が
@@ -82,6 +89,8 @@ fn recipe() -> SlotRecipe {
         .base(
             "viewport",
             vec![
+                decl("height", "100%"),
+                decl("width", "100%"),
                 decl("overflow", "auto"),
                 decl("scrollbar-width", "thin"),
                 decl("scrollbar-color", "var(--fandhe-color-border) transparent"),
@@ -154,6 +163,20 @@ mod tests {
         assert!(css.contains(r#"[data-scope="scroll-area"][data-part="viewport"] {"#));
         assert!(css.contains("overflow: auto;"));
         assert!(css.contains("scrollbar-width: thin;"));
+    }
+
+    #[test]
+    fn viewport_fills_root_so_overflow_auto_actually_triggers() {
+        // `root` に固定高さ（例: ショーケースの `height: 8rem`）が設定された
+        // 場合でも、`viewport` が `root` の高さへ連動していなければ
+        // `viewport` は content に合わせて自然にサイズが伸び、`overflow: auto`
+        // が発火せずネイティブスクロールバーが表示されない不具合があった
+        // （PR #856 Bugbot 指摘）。`height: 100%`/`width: 100%` により
+        // `viewport` が `root`（`position: relative` の containing block）の
+        // サイズへ強制的に連動することを固定する回帰テスト。
+        let css = stylesheet();
+        assert!(css.contains("height: 100%;"));
+        assert!(css.contains("width: 100%;"));
     }
 
     #[test]
