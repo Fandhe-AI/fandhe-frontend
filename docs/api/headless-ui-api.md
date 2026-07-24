@@ -337,6 +337,58 @@ ark-ui / chakra-ui のレイアウト・ナビゲーション系コンポーネ�
   `docs/policy/intentional-non-adoption.md` §4 の運用（評価軸の充足確認を
   Issue・PR に明記）に従う
 
+## 4c. 暦計算コア（`date` モジュール、イシュー #833、親トラッキング #832）
+
+親イシュー #832（date-time 系コンポーネント: Calendar / DatePicker /
+DateInput / Timer、`docs/design/component-coverage-map.md` の保留区分・
+`docs/policy/intentional-non-adoption.md` §7）の先行前提として、
+`fandhe_frontend_headless_ui::date` モジュールを実装した（#834 以降が
+利用する予定の共通基盤）。他コンポーネントと異なり anatomy パーツ・
+状態機械を持たない、非描画の純計算モジュールである。
+
+### 4c.1 公開 API 一覧
+
+| 型/関数 | 役割 |
+|---|---|
+| `PlainDate` | 年月日のみの日付（proleptic Gregorian、年 `0000`〜`9999`）。フィールド非公開・`PlainDate::new` 経由の検証済み構築のみ |
+| `PlainDate::new(year, month, day)` | 検証付き構築（唯一の構築経路）。範囲外は `DateError` |
+| `PlainDate::year`/`month`/`day` | 各フィールドの読み出し |
+| `PlainDate::day_of_week()` | [`Weekday`] を返す |
+| `PlainDate::add_days(delta)` | `delta` 日後（負なら前）を返す。`checked_add` + 範囲ガードで overflow/範囲外は `Err(DateError::OutOfRange)` |
+| `PlainDate::days_until(other)` | `other - self` の日数差（符号あり） |
+| `PlainDate::parse_iso(s)` / `FromStr` | 厳密 `YYYY-MM-DD`（ゼロ埋め・ハイフン区切り固定）のみ受理 |
+| `PlainDate::to_iso_string()` / `Display` | ゼロ埋め `YYYY-MM-DD` を返す（ASCII 数字とハイフンのみ） |
+| `Weekday` | 月曜始まりの曜日（`iso_number()`: 月曜 `1`〜日曜 `7`、`from_iso_number()`: 逆変換） |
+| `is_leap_year(year)` | 4/100/400 規則によるうるう年判定 |
+| `days_in_month(year, month)` | 指定年月の日数（28〜31） |
+| `MonthGrid` / `month_grid(year, month, week_start)` | 当月 1 日を含む週の先頭から月末を含む週の末尾まで、前後月の日で埋めた週配列（`Vec<[PlainDate; 7]>`）を返す Calendar 描画向けグリッド |
+| `DateError` | `InvalidDate`/`InvalidFormat`/`OutOfRange` の fail-closed エラー |
+
+### 4c.2 決定性・現在時刻非取得の契約
+
+- **現在時刻を一切取得しない**: `SystemTime`・`Instant`・`js_sys` 等の時刻
+  取得 API を呼ばない。「今日」は常に呼び出し側（Calendar 等の上位
+  コンポーネント）が `PlainDate` として明示的に渡す設計であり、同一入力
+  から常に同一出力を返す。この不変条件は
+  `crates/headless-ui/tests/date.rs::date_module_never_reads_the_current_time`
+  （`include_str!` によるソース走査、コメント行を除く実コード行のみ検査）
+  が恒久的に機械強制する。
+- **外部依存ゼロ**（REQ-3）: `core`/標準ライブラリのみで完結し、
+  `crates/headless-ui/Cargo.toml` に依存を追加しない。
+- **fail-closed**: 不正な年月日・不正な文字列・範囲逸脱・オーバーフローは
+  すべて `Err(DateError)` を返し、`panic!`/`unwrap()`/`expect()` を使わない
+  （ライブラリコードでの unwrap/panic 回避方針、`.claude/rules/coding-rust.md`）。
+- **HTML を一切組み立てない**: 本モジュールは非描画の純計算モジュールで
+  あり `raw_html()`・HTML 文字列組み立てを持たない。`to_iso_string()` の
+  出力（ASCII 数字とハイフンのみ）を後続コンポーネントが描画する際は、
+  `fandhe-frontend-core` の既定エスケープ（REQ-1）を必ず経由する契約と
+  する。
+- **内部アルゴリズム**: 年月日 ⇔ エポック日数（1970-01-01 を 0 とする）の
+  変換に Howard Hinnant の `days_from_civil`/`civil_from_days` として
+  知られる純整数アルゴリズムを使う。曜日・加減算・日付差・月グリッドの
+  全 API をこの単一の変換対に載せることで、往復変換の性質テストだけで
+  土台の正しさを固定できる。
+
 ## 5. 呼び出し規約（SSR / CSR 共通の前提）
 
 - 各コンポーネントの anatomy パーツ（`root`/`trigger`/`content` 等）は
