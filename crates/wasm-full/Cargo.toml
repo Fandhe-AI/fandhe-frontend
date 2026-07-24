@@ -105,6 +105,16 @@ categories = ["wasm", "web-programming"]
 # `[dependencies]` へ昇格する。`js-sys` は既に `web-sys` の推移依存として
 # Cargo.lock に存在するため、新規外部パッケージの追加はゼロ（`cargo metadata`
 # 実測結果は PR 本文に記録する）。
+# イシュー #840（FileUpload の File API 隔離配線、親 #520）:
+# `headless_file_upload::wiring` が `input[type=file]`/dropzone からの実
+# ファイル選択・ドラッグ&ドロップを検知して `File::name()`/`File::size()`/
+# `File::type_()`（内容は一切読まない、`FileReader` は使わない）のみを
+# メタデータへ変換するため `File`（個々のファイルハンドル）・`FileList`
+# （`HtmlInputElement::files()`/`DataTransfer::files()` の戻り値）・
+# `DragEvent`（`dragenter`/`dragover`/`dragleave`/`drop` の `data_transfer()`
+# アクセス）・`DataTransfer`（drop されたファイル一覧の取得）を追加する。
+# 新規外部クレート追加ゼロ、既存 web-sys の feature 追加のみ。`cargo metadata`
+# 実測（パッケージ数・依存グラフ深さ）に変化がないことを PR 本文に記録する。
 # イシュー #773（Clipboard の navigator.clipboard.writeText 実配線）:
 # `headless_clipboard::wiring` が `Window::navigator()`（`Navigator` 型）
 # 経由で `navigator.clipboard`/`writeText` を `js_sys::Reflect` で動的解決
@@ -135,11 +145,16 @@ js-sys = "0.3"
 version = "0.3"
 features = [
   "Attr",
+  "DataTransfer",
   "Document",
   "DomRect",
+  "DragEvent",
+  "DragEventInit",
   "Element",
   "Event",
   "EventTarget",
+  "File",
+  "FileList",
   "History",
   "HtmlElement",
   "HtmlImageElement",
@@ -250,6 +265,12 @@ wasm-bindgen-futures = "0.4"
 # positioner に `reposition_one` が上書きしない `class` 経由で固定
 # `width`/`height` を与えるフィクスチャ用ヘルパー）を呼ぶために
 # `HtmlHeadElement` を追加する（テスト専用の feature 拡張）。
+# イシュー #840: `wasm-full/tests/headless_file_upload_browser.rs` が合成
+# `File`（`FilePropertyBag` で mime type を指定）・`DataTransfer`
+# （`DataTransferItemList::add_with_file` で `input.files` を合成する）を
+# 組み立てるために `FilePropertyBag`/`DataTransferItemList` を追加する
+# （テスト専用の feature 拡張。`File`/`DataTransfer` 自体は製品面の
+# `[dependencies.web-sys]` に追加済み）。
 [dev-dependencies.web-sys]
 version = "0.3"
 features = [
@@ -264,4 +285,7 @@ features = [
   "PopStateEventInit",
   "KeyboardEventInit",
   "HtmlHeadElement",
+  "FilePropertyBag",
+  "DataTransferItem",
+  "DataTransferItemList",
 ]

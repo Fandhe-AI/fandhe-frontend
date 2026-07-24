@@ -77,6 +77,7 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::color_picker::Co
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::{PanelSpec, Splitter};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
+use fandhe_frontend_pre_styled_ui::file_upload;
 use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps};
@@ -283,6 +284,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::password_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tags_input::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::file_upload::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::rating_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::slider::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::editable::stylesheet())?;
@@ -2434,6 +2436,73 @@ fn tags_input_section() -> Node {
     )
 }
 
+/// FileUpload 節（イシュー #840）: 通常（受理済み 1 件）・disabled の 2 態。
+/// `File` オブジェクトは headless 層で一切保持せず、ここでは静的な
+/// `FileUploadItem` メタデータのみを直接組み立てて表示する（実 `File` API
+/// 接触は `fandhe-frontend-wasm-full::headless_file_upload` の配線層のみが
+/// 担う、`file_upload` モジュール rustdoc「保留解除」節参照）。
+fn file_upload_section() -> Node {
+    fn file_item(name: &str, size_bytes: u64, disabled: bool) -> Node {
+        let size_text = file_upload::item_size_text(size_bytes);
+        file_upload::item(
+            disabled,
+            vec![],
+            vec![
+                file_upload::item_name(vec![], vec![text(name)]),
+                file_upload::item_size_text_node(vec![], vec![text(&size_text)]),
+                file_upload::item_delete_trigger(name, disabled, vec![], vec![text("\u{00d7}")]),
+            ],
+        )
+    }
+
+    let normal = file_upload::root(
+        Size::Md,
+        false,
+        vec![],
+        vec![
+            file_upload::label(vec![], vec![text("Attachments")]),
+            file_upload::dropzone(
+                false,
+                false,
+                vec![],
+                vec![
+                    file_upload::trigger(false, vec![], vec![text("Browse files")]),
+                    file_upload::hidden_input("image/*,.pdf", true, false, vec![]),
+                ],
+            ),
+            file_upload::item_group(vec![], vec![file_item("report.pdf", 204_800, false)]),
+            file_upload::clear_trigger(false, vec![], vec![text("Clear all")]),
+        ],
+    );
+
+    let disabled = file_upload::root(
+        Size::Md,
+        true,
+        vec![],
+        vec![
+            file_upload::label(vec![], vec![text("Disabled")]),
+            file_upload::dropzone(
+                true,
+                false,
+                vec![],
+                vec![
+                    file_upload::trigger(true, vec![], vec![text("Browse files")]),
+                    file_upload::hidden_input("image/*,.pdf", true, true, vec![]),
+                ],
+            ),
+            file_upload::item_group(vec![], vec![file_item("locked.txt", 1024, true)]),
+            file_upload::clear_trigger(true, vec![], vec![text("Clear all")]),
+        ],
+    );
+
+    let demo_row = row(vec![normal, disabled]);
+    section(
+        "FileUpload",
+        "ファイルメタデータ（name/size/mime type）のみを扱い、File オブジェクト自体は headless 層で保持しません。実 File API 接触は wasm-full 側の配線層に隔離されています。",
+        vec![demo_row],
+    )
+}
+
 /// RatingGroup 節: 選択中（value=3）・readonly（他ユーザーの平均評価想定）・
 /// disabled の 3 態。星形 indicator は外部リソース非参照の `clip-path`
 /// インライン表現（`fandhe_frontend_pre_styled_ui::rating_group` のモジュール
@@ -4531,6 +4600,7 @@ fn showcase_body() -> Node {
             number_input_section(),
             password_input_section(),
             tags_input_section(),
+            file_upload_section(),
             rating_group_section(),
             slider_section(),
             editable_section(),

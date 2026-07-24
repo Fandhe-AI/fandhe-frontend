@@ -123,6 +123,20 @@ pub fn data_pressed(pressed: bool) -> Option<(&'static str, &'static str)> {
     pressed.then_some(("data-pressed", ""))
 }
 
+/// `data-dragging` 存在属性（[`crate::file_upload::dropzone`] 用、イシュー
+/// #840）。[`data_disabled`] と同じ「存在で真を表す」規約に従う。
+///
+/// `dragging`（ドラッグ&ドロップ操作でカーソルが dropzone 上に重なっている
+/// か）は `fandhe-frontend-wasm-full` の配線層が `dragenter`/`dragleave` に
+/// 応じて管理する DOM ローカル状態であり、本関数はその SSR 上の静的表現の
+/// みを提供する。`data_highlighted`/`data_focus_visible` と同型の契約で
+/// 状態機械（[`crate::state`]・[`crate::file_upload::FileUpload`]）には
+/// 持たせない。
+#[must_use]
+pub fn data_dragging(dragging: bool) -> Option<(&'static str, &'static str)> {
+    dragging.then_some(("data-dragging", ""))
+}
+
 /// `data-current` 存在属性（Breadcrumb 用イシュー #755・Carousel 用イシュー
 /// #754 の双方が使う共有ヘルパ）。[`data_disabled`] と同じ「存在で真を表す」
 /// 規約に従う。
