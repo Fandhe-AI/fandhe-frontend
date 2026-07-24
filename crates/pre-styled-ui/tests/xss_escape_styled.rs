@@ -83,6 +83,7 @@ use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
+use fandhe_frontend_pre_styled_ui::timer::{self, TimerControl, TimerPhase, TimerUnit};
 use fandhe_frontend_pre_styled_ui::toast::{self, ToastPlacement, ToastStatus};
 use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, select};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Size};
@@ -3297,6 +3298,45 @@ fn scroll_area_attrs_and_children_payloads_are_escaped_for_all_payloads() {
             &html,
             "scroll_area::content の children コンテキスト",
         );
+    }
+}
+
+/// Timer（イシュー #836）styled 公開 API 経由の children テキスト・呼び出し
+/// 側 attrs のエスケープ貫通を固定する
+/// （`crates/headless-ui/tests/xss_escape.rs::timer_children_and_attrs_are_escaped_for_all_payloads`
+/// の styled 層版）。
+#[test]
+fn timer_styled_children_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let html = render(&timer::item_value(
+            TimerUnit::Seconds,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "timer::item_value children コンテキスト");
+
+        let html = render(&timer::action_trigger(
+            TimerControl::Start,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "timer::action_trigger children コンテキスト",
+        );
+
+        let html = render(&timer::root(
+            false,
+            0,
+            0,
+            1000,
+            0,
+            TimerPhase::Idle,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "timer::root attrs コンテキスト");
     }
 }
 

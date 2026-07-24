@@ -124,6 +124,7 @@ pub mod headless_avatar;
 pub mod headless_clipboard;
 pub mod headless_file_upload;
 pub mod headless_select;
+pub mod headless_timer;
 pub mod hydration;
 pub mod keynav;
 pub mod nav;
@@ -361,6 +362,7 @@ where
         focus_visible::wire_focus_visible(root.clone())?;
         Self::wire_avatar(component.clone(), root.clone())?;
         Self::wire_clipboard(component.clone(), root.clone())?;
+        Self::wire_timer(component.clone(), root.clone())?;
 
         Ok(Self { component, root })
     }
@@ -406,6 +408,7 @@ where
         focus_visible::wire_focus_visible(root.clone())?;
         Self::wire_avatar(component.clone(), root.clone())?;
         Self::wire_clipboard(component.clone(), root.clone())?;
+        Self::wire_timer(component.clone(), root.clone())?;
 
         Ok(Self { component, root })
     }
@@ -506,6 +509,48 @@ where
             // headless_clipboard.rs 冒頭 doc 参照）。失敗は panic せず無視
             // する（Self::wire_avatar と同じ fail-closed 方針）。
             let _ = headless_clipboard::apply_clipboard_copied(&clipboard_root, copied);
+        })
+    }
+
+    /// Timer（`fandhe-frontend-headless-ui` `timer` モジュール）の実 tick
+    /// 駆動（`setInterval`）配線を [`headless_timer::wire_timer_events`]
+    /// 経由で `root` へ配線する（イシュー #836）。`Self::mount`/
+    /// `Self::hydrate` の双方から `Self::wire_clipboard` の直後に 1 回だけ
+    /// 呼ばれる。
+    ///
+    /// # `C` への dispatch はベストエフォート（Timer 非搭載アプリへの副作用なし）
+    ///
+    /// [`headless_timer`] は DOM 上の `data-*` 表示属性から都度
+    /// `fandhe_frontend_headless_ui::timer::Timer` を再構築して表示更新を
+    /// 完結させるため（`headless_timer.rs` 冒頭 doc 参照）、`C::decode_action`
+    /// が `"timer:*"` を認識しない（`dispatched == false`）場合でも表示更新
+    /// 自体は成立する。`C` への dispatch はアプリが `Timer` を自身の状態機械
+    /// として組み込んでいる場合の追随目的のベストエフォートであり、
+    /// 失敗しても early return して副作用を持たない。`root` 配下に Timer
+    /// パーツが存在しない場合も内部の `query_selector_all`/`data-scope`
+    /// 一致判定が空集合/不一致となり no-op となるため、Timer を使わない
+    /// アプリへの影響はない。
+    ///
+    /// # Errors
+    ///
+    /// [`headless_timer::wire_timer_events`]
+    /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    fn wire_timer(
+        component: std::rc::Rc<std::cell::RefCell<C>>,
+        root: web_sys::Element,
+    ) -> Result<(), wasm_bindgen::JsValue> {
+        headless_timer::wire_timer_events(root, move |action_ref: events::ActionRef| {
+            let Ok(mut state) = component.try_borrow_mut() else {
+                return;
+            };
+            // `headless_timer::wiring` が DOM 反映を独自に完結させるため、
+            // ここでの dispatch は `C` 自身が Timer アクションを認識する
+            // 場合の追随のみを目的とする（失敗しても no-op、上記 doc 参照）。
+            let _ = fandhe_frontend_interactive::dispatch(
+                &mut *state,
+                &action_ref.action,
+                &action_ref.payload,
+            );
         })
     }
 

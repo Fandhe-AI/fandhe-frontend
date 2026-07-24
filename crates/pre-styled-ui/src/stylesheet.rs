@@ -331,6 +331,7 @@ mod tests {
             ("timeline", crate::timeline::css()),
             ("marquee", crate::marquee::css()),
             ("scroll_area", crate::scroll_area::stylesheet()),
+            ("timer", crate::timer::stylesheet()),
         ]
     }
 
