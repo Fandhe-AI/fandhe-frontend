@@ -117,6 +117,14 @@ fn drop_class_and_style_attr<'a>(attrs: Vec<(&'a str, &'a str)>) -> Vec<(&'a str
 /// として表現し、チェッカーボードをその背後の第 2 レイヤーに置く。不透明色
 /// は前面レイヤーが完全に覆い隠し、半透明色は前面レイヤーを透かしてチェッカー
 /// が見える（宣言はすべて静的定数、決定的）。
+///
+/// チェッカーボード自体の 2 色目は `transparent` ではなく固定トークン
+/// `--fandhe-color-bg` を使う。`transparent` にすると親要素の実際の背景色が
+/// そのまま透けて見えるため、ダーク/カラー背景上ではチェッカーの
+/// コントラストが失われコンポーネント単体でのプレビューが破綻する
+/// （Bugbot 指摘, イシュー #838 PR #858）。`--fandhe-color-bg` は
+/// `--fandhe-color-border` と常にコントラストが取れる固定トークンであり、
+/// 周囲のレイアウトに依存せずチェッカーの視認性を保証する。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("color-swatch", &["root"])
         .base(
@@ -126,7 +134,7 @@ fn recipe() -> SlotRecipe {
                 decl("vertical-align", "middle"),
                 decl(
                     "background-image",
-                    "linear-gradient(var(--fd-swatch-color), var(--fd-swatch-color)), repeating-conic-gradient(var(--fandhe-color-border) 0% 25%, transparent 0% 50%)",
+                    "linear-gradient(var(--fd-swatch-color), var(--fd-swatch-color)), repeating-conic-gradient(var(--fandhe-color-border) 0% 25%, var(--fandhe-color-bg) 0% 50%)",
                 ),
                 decl("background-size", "100% 100%, 8px 8px"),
             ],

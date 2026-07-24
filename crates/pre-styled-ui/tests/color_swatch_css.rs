@@ -10,7 +10,7 @@ use fandhe_frontend_pre_styled_ui::color_swatch;
 const COLOR_SWATCH_GOLDEN_CSS: &str = r#"[data-scope="color-swatch"][data-part="root"] {
   display: inline-block;
   vertical-align: middle;
-  background-image: linear-gradient(var(--fd-swatch-color), var(--fd-swatch-color)), repeating-conic-gradient(var(--fandhe-color-border) 0% 25%, transparent 0% 50%);
+  background-image: linear-gradient(var(--fd-swatch-color), var(--fd-swatch-color)), repeating-conic-gradient(var(--fandhe-color-border) 0% 25%, var(--fandhe-color-bg) 0% 50%);
   background-size: 100% 100%, 8px 8px;
 }
 
