@@ -34,8 +34,8 @@
 use std::collections::HashSet;
 
 use fandhe_frontend_core::{li, p, render, text, ul, Node};
-use fandhe_frontend_docs_site::layout::docs_page;
-use fandhe_frontend_docs_site::nav::{parse_nav, prev_next_nav, sidebar, Nav};
+use fandhe_frontend_docs_site::layout::{docs_page, docs_page_with_assets};
+use fandhe_frontend_docs_site::nav::{header_nav, parse_nav, prev_next_nav, sidebar, Nav};
 use fandhe_frontend_docs_site::site_theme;
 
 /// サイト骨格 CSS 全量を取得する（イシュー #905: 静的ファイル読込から
@@ -221,6 +221,31 @@ fn prev_next_nav_html_class_tokens_are_covered_by_site_css() {
     let node = prev_next_nav(&nav, "/quickstart/");
     let html = render(&node);
     assert_all_classes_covered(&html, &css_tokens, "nav::prev_next_nav");
+}
+
+/// イシュー #908 の乖離検知テスト: `nav::header_nav()` が生成する
+/// `docs-header-*` class（トリガー・ドロップダウン含む）がすべて
+/// 生成 `assets/site.css` にセレクタとして存在することを固定する。
+/// `docs_page_with_assets` 経由でヘッダーへ埋め込んだ実配線状態
+/// （`crate::build::build_site` の呼び出し形と同型）で検証する。
+#[test]
+fn header_nav_html_class_tokens_are_covered_by_site_css() {
+    let css_tokens = extract_css_class_selectors(&site_css());
+    let nav = fixture_nav();
+    let node = docs_page_with_assets(
+        "タイトル",
+        "",
+        fixture_sidebar(),
+        fixture_body(),
+        &[],
+        Some(header_nav(&nav, "/quickstart/")),
+    );
+    let html = render(&node);
+    assert_all_classes_covered(
+        &html,
+        &css_tokens,
+        "nav::header_nav (via docs_page_with_assets)",
+    );
 }
 
 #[test]

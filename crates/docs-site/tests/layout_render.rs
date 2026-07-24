@@ -8,7 +8,10 @@
 //! 検証しない（DOCTYPE 前置は #470 でエントリ接続後に検証する）。
 
 use fandhe_frontend_core::{h2, h3, li, p, render, text, ul};
-use fandhe_frontend_docs_site::layout::{asset_href, docs_page, toc_nav, with_heading_anchors};
+use fandhe_frontend_docs_site::layout::{
+    asset_href, docs_page, docs_page_with_assets, toc_nav, with_heading_anchors,
+};
+use fandhe_frontend_docs_site::nav::{header_nav, parse_nav};
 
 fn sample_sidebar() -> fandhe_frontend_core::Node {
     ul(vec![], vec![li(vec![], vec![text("はじめに")])])
@@ -391,6 +394,115 @@ fn docs_page_output_is_deterministic_for_identical_input() {
         docs_page("タイトル", "/fandhe-frontend", sample_sidebar(), body)
     };
     assert_eq!(render(&make()), render(&make()));
+}
+
+// ---- ヘッダーナビ（イシュー #908） ----
+
+/// `docs_page`（`header_nav` を渡さない従来経路）でもブランドリンクに
+/// `docs-brand` class が付き、ヘッダーナビ（`docs-header-nav`）は出力
+/// されないことを固定する。
+#[test]
+fn docs_page_without_header_nav_has_brand_class_and_no_header_nav() {
+    let body = p(vec![], vec![text("本文です。")]);
+    let node = docs_page("タイトル", "", sample_sidebar(), body);
+    let html = render(&node);
+
+    assert!(html.contains(r#"class="docs-brand""#));
+    assert!(!html.contains("docs-header-nav"));
+}
+
+fn sample_nav_toml() -> &'static str {
+    r#"
+[site]
+title = "Fixture"
+base_path = ""
+
+[[section]]
+title = "Getting Started"
+
+[[section.page]]
+title = "Intro"
+source = "site/index.md"
+path = "/"
+
+[[section]]
+title = "Guides"
+
+[[section.page]]
+title = "Advanced"
+source = "site/index.md"
+path = "/advanced/"
+"#
+}
+
+/// `docs_page_with_assets(..., Some(header_nav))` で `a.docs-brand` →
+/// `nav.docs-header-nav` の順に header 内へ出力されることを固定する
+/// （設計文書 §3.5 の DOM 契約）。
+#[test]
+fn docs_page_with_assets_places_brand_before_header_nav_inside_header() {
+    let nav = parse_nav(sample_nav_toml()).expect("fixture nav.toml should parse");
+    let body = p(vec![], vec![text("本文です。")]);
+    let node = docs_page_with_assets(
+        "タイトル",
+        "",
+        sample_sidebar(),
+        body,
+        &[],
+        Some(header_nav(&nav, "/")),
+    );
+    let html = render(&node);
+
+    let header_start = html
+        .find(r#"class="docs-header""#)
+        .expect("docs-header should exist");
+    let brand_pos = html
+        .find(r#"class="docs-brand""#)
+        .expect("docs-brand should exist");
+    let header_nav_pos = html
+        .find(r#"class="docs-header-nav""#)
+        .expect("docs-header-nav should exist");
+
+    assert!(
+        header_start < brand_pos,
+        "brand link should be inside header"
+    );
+    assert!(
+        brand_pos < header_nav_pos,
+        "brand link should precede header nav within the header"
+    );
+
+    // セクションタイトル・ページタイトルが両方出力される。
+    assert!(html.contains("Getting Started"));
+    assert!(html.contains("Advanced"));
+}
+
+/// SkipNav リンクは `header_nav` を渡してもなお header より前に残る
+/// （既存 SkipNav 不変条件、イシュー #776 が固定した DOM 順の維持確認）。
+#[test]
+fn docs_page_with_assets_keeps_skip_nav_before_header_when_header_nav_present() {
+    let nav = parse_nav(sample_nav_toml()).expect("fixture nav.toml should parse");
+    let body = p(vec![], vec![text("本文です。")]);
+    let node = docs_page_with_assets(
+        "タイトル",
+        "",
+        sample_sidebar(),
+        body,
+        &[],
+        Some(header_nav(&nav, "/")),
+    );
+    let html = render(&node);
+
+    let skip_link_pos = html
+        .find(r#"data-part="link""#)
+        .expect("skip-nav link should exist");
+    let header_pos = html
+        .find(r#"class="docs-header""#)
+        .expect("header should exist");
+
+    assert!(
+        skip_link_pos < header_pos,
+        "skip-nav link should still precede docs-header"
+    );
 }
 
 #[test]

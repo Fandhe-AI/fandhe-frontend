@@ -195,12 +195,134 @@ body {\n\
   background: var(--fandhe-color-bg);\n\
 }\n\
 \n\
-.docs-header a {\n\
+.docs-brand {\n\
   font-weight: 600;\n\
   font-size: 0.95rem;\n\
   letter-spacing: -0.01em;\n\
   color: var(--fandhe-color-fg);\n\
   text-decoration: none;\n\
+}\n\
+\n\
+/*\n\
+ * ---- ヘッダーナビ（セクション別ドロップダウン、イシュー #908） ----\n\
+ *\n\
+ * 基底（768px 未満）では非表示（`min-width: 768px` の @media ブロックで表示に\n\
+ * 切り替える）。モバイルは既存のサイドバー折りたたみトグルがナビ手段を\n\
+ * 提供する（`.docs-sidebar-toggle-label` 参照）。ドロップダウンの開閉は JS を\n\
+ * 使わず `:hover`/`:focus-within` のみで行う（`crate::nav::header_nav` の\n\
+ * rustdoc「イシュータイトルとの差分」参照）。\n\
+ */\n\
+.docs-header-nav {\n\
+  display: none;\n\
+}\n\
+\n\
+.docs-header-menu {\n\
+  display: flex;\n\
+  list-style: none;\n\
+  margin: 0;\n\
+  padding: 0;\n\
+  gap: 0.25rem;\n\
+}\n\
+\n\
+.docs-header-group {\n\
+  position: relative;\n\
+}\n\
+\n\
+.docs-header-trigger {\n\
+  display: block;\n\
+  background: none;\n\
+  border: none;\n\
+  cursor: pointer;\n\
+  padding: 0.4rem 0.6rem;\n\
+  border-radius: 0.4rem;\n\
+  font: inherit;\n\
+  font-size: 0.85rem;\n\
+  font-weight: 500;\n\
+  color: var(--fandhe-color-fg);\n\
+}\n\
+\n\
+.docs-header-trigger:hover {\n\
+  background: var(--fandhe-color-bg-subtle);\n\
+}\n\
+\n\
+.docs-header-trigger:focus-visible {\n\
+  outline: 2px solid var(--fandhe-color-accent);\n\
+  outline-offset: 2px;\n\
+}\n\
+\n\
+/*\n\
+ * `.docs-header-dropdown` の開閉状態の唯一の情報源は `:hover`/`:focus-within`\n\
+ * （マウス操作・キーボード操作の双方をカバーする。JS を使わないため\n\
+ * `aria-expanded` 等の動的属性で開閉状態を表現しない、`header_nav` rustdoc\n\
+ * 参照）。\n\
+ *\n\
+ * `header_nav` は headless `nav_list` anatomy（`nav::sidebar` と同じ\n\
+ * `data-scope=\"nav-list\" data-part=\"list|link\"`）を再利用しているため、\n\
+ * `nav_list::stylesheet()` の `[data-scope=\"nav-list\"][data-part=\"...\"]`\n\
+ * ルール（詳細度 0,2,0・`[data-part][aria-current=\"page\"]` は 0,3,0）が\n\
+ * 素の class セレクタ（0,1,0/0,1,1）に競り勝ち、dropdown の padding・\n\
+ * リンク色・カレントページの font-weight が適用されない不具合があった\n\
+ * （Bugbot 指摘、イシュー #908 PR #919 レビュー）。サイドバーが\n\
+ * `.docs-sidebar nav.sidebar ...`（詳細度 0,2,1 以上）で対策済みなのと\n\
+ * 同型で、以下 padding/color/font-weight を上書きするセレクタは\n\
+ * `.docs-header nav.docs-header-nav .docs-header-dropdown ...`\n\
+ * （詳細度 0,3,1 以上、`nav_list` 側の最大 0,3,0 を常に上回る）で\n\
+ * 固定する。開閉トグル（`display`）・右端アンカー（`left`/`right`）は\n\
+ * `nav_list::stylesheet()` 側に競合するプロパティが存在しないため\n\
+ * プレフィックス不要のまま据え置く。\n\
+ */\n\
+.docs-header nav.docs-header-nav .docs-header-dropdown {\n\
+  position: absolute;\n\
+  top: 100%;\n\
+  left: 0;\n\
+  display: none;\n\
+  z-index: 20;\n\
+  min-width: 12rem;\n\
+  margin: 0;\n\
+  padding: 0.35rem;\n\
+  list-style: none;\n\
+  border: 1px solid var(--fandhe-color-border);\n\
+  border-radius: 0.5rem;\n\
+  background: var(--fandhe-color-bg);\n\
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);\n\
+}\n\
+\n\
+.docs-header nav.docs-header-nav .docs-header-group:hover > .docs-header-dropdown,\n\
+.docs-header nav.docs-header-nav .docs-header-group:focus-within > .docs-header-dropdown {\n\
+  display: block;\n\
+}\n\
+\n\
+/*\n\
+ * `.docs-header-nav` は `margin-left: auto` で右寄せされる（上記 768px\n\
+ * ブレークポイントの @media ブロック参照）ため、`.docs-header-menu` 内の\n\
+ * 最後（最右）のグループは `left: 0` アンカーのままだとドロップダウンが\n\
+ * ビューポート右端をはみ出してクリップされうる（Bugbot 指摘、イシュー #908\n\
+ * PR #919 レビュー）。最後のグループのみ右端アンカー（`right: 0`）に\n\
+ * 切り替えて右はみ出しを防ぐ。\n\
+ */\n\
+.docs-header nav.docs-header-nav .docs-header-group:last-child > .docs-header-dropdown {\n\
+  left: auto;\n\
+  right: 0;\n\
+}\n\
+\n\
+.docs-header nav.docs-header-nav .docs-header-dropdown a {\n\
+  display: block;\n\
+  padding: 0.32rem 0.5rem;\n\
+  border-radius: 0.4rem;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+  text-decoration: none;\n\
+  font-size: 0.85rem;\n\
+}\n\
+\n\
+.docs-header nav.docs-header-nav .docs-header-dropdown a:hover {\n\
+  color: var(--fandhe-color-fg);\n\
+  background: var(--fandhe-color-bg-subtle);\n\
+}\n\
+\n\
+.docs-header nav.docs-header-nav .docs-header-dropdown a[aria-current=\"page\"] {\n\
+  background: var(--fandhe-color-docs-accent-bg);\n\
+  color: var(--fandhe-color-accent);\n\
+  font-weight: 600;\n\
 }\n\
 \n\
 /*\n\
@@ -525,6 +647,14 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
 \n\
   .docs-main {\n\
     padding: 2.25rem 2rem 5rem;\n\
+  }\n\
+\n\
+  /* `.docs-header-nav`（セクション別ドロップダウン、イシュー #908）は\n\
+   * この帯域から表示に切り替える。モバイルはサイドバー折りたたみトグルが\n\
+   * ナビ手段を提供するため基底では非表示のまま。 */\n\
+  .docs-header-nav {\n\
+    display: flex;\n\
+    margin-left: auto;\n\
   }\n\
 \n\
   nav.prev-next {\n\
@@ -935,6 +1065,12 @@ mod tests {
         let css = sheet.as_css();
         for selector in [
             ".docs-header",
+            ".docs-brand",
+            ".docs-header-nav",
+            ".docs-header-menu",
+            ".docs-header-group",
+            ".docs-header-trigger",
+            ".docs-header-dropdown",
             ".docs-container",
             ".docs-sidebar",
             ".docs-sidebar-toggle",
@@ -947,6 +1083,55 @@ mod tests {
         ] {
             assert!(css.contains(selector), "missing selector: {selector}");
         }
+    }
+
+    #[test]
+    fn stylesheet_header_dropdown_opens_on_hover_and_focus_within() {
+        // ヘッダードロップダウン（イシュー #908）は JS を使わず `:hover`/
+        // `:focus-within` の両方で開く（マウス・キーボード両対応の固定、
+        // `crate::nav::header_nav` rustdoc 参照）。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        assert!(css.contains(".docs-header-group:hover > .docs-header-dropdown"));
+        assert!(css.contains(".docs-header-group:focus-within > .docs-header-dropdown"));
+    }
+
+    #[test]
+    fn stylesheet_header_trigger_has_focus_visible_ring() {
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        assert!(css.contains(".docs-header-trigger:focus-visible"));
+    }
+
+    #[test]
+    fn stylesheet_header_dropdown_selectors_outrank_nav_list_data_scope_rules() {
+        // Bugbot 指摘（イシュー #908 PR #919 レビュー）是正の回帰テスト:
+        // `header_nav` は headless `nav_list` anatomy を再利用しているため、
+        // `nav_list::stylesheet()` の `[data-scope="nav-list"][data-part="..."]`
+        // 系ルール（詳細度最大 0,3,0、`link`+`aria-current` の組み合わせ）に
+        // 素の class セレクタ（0,1,0/0,1,1）が競り負け、padding・リンク色・
+        // カレントページの font-weight が適用されない不具合があった。
+        // サイドバー（`.docs-sidebar nav.sidebar ...`）と同型に
+        // `.docs-header nav.docs-header-nav .docs-header-dropdown ...`
+        // （詳細度 0,3,1 以上）へ底上げしたことを固定する。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        for selector in [
+            ".docs-header nav.docs-header-nav .docs-header-dropdown {",
+            ".docs-header nav.docs-header-nav .docs-header-dropdown a {",
+            ".docs-header nav.docs-header-nav .docs-header-dropdown a:hover {",
+            ".docs-header nav.docs-header-nav .docs-header-dropdown a[aria-current=\"page\"] {",
+        ] {
+            assert!(
+                css.contains(selector),
+                "missing high-specificity selector: {selector}"
+            );
+        }
+        // 弱い（負ける）セレクタが CSS に残っていないことも固定する
+        // （うっかり両方残して二重管理にする回帰を防ぐ）。
+        assert!(!css.contains("\n.docs-header-dropdown {"));
+        assert!(!css.contains("\n.docs-header-dropdown a {"));
+        assert!(!css.contains("\n.docs-header-dropdown a[aria-current=\"page\"] {"));
     }
 
     #[test]
@@ -1008,10 +1193,32 @@ mod tests {
         // のみが折りたたみナビの開状態の情報源であり、`:focus-within` を OR で
         // 加えていないことを固定する。チェックを外してもフォーカスがナビ内に
         // 残っている限り閉じられなくなる回帰を防ぐ。
+        //
+        // イシュー #908 でヘッダードロップダウンが `:focus-within` を導入した
+        // ため（`.docs-header-group:focus-within`、上記
+        // `stylesheet_header_dropdown_opens_on_hover_and_focus_within` 参照）、
+        // 本テストの意図（サイドバー開閉の情報源は `:checked` のみ）を保ったまま
+        // 検証対象を「`:focus-within` を含む行はすべて `docs-header` 系セレクタ
+        // に限られる」へ精密化する（弱体化ではなく対象の精密化。
+        // `nav.sidebar`/`.docs-sidebar` と `:focus-within` の組み合わせが
+        // 存在しないことは変わらず固定する）。
         let sheet = stylesheet().expect("site theme stylesheet should assemble");
         let css = sheet.as_css();
         assert!(css.contains(".docs-sidebar-toggle:checked ~ nav.sidebar"));
-        assert!(!css.contains(":focus-within"));
+        assert!(!css.contains("sidebar:focus-within"));
+        assert!(!css.contains("nav.sidebar:focus-within"));
+        // セレクタ行（`{` で終わる行）のみを対象にする。コメント中の
+        // `:focus-within` への言及（本テストのこのコメント自体を含む）を
+        // 誤検知しないため。
+        for line in css
+            .lines()
+            .filter(|line| line.contains(":focus-within") && line.trim_end().ends_with('{'))
+        {
+            assert!(
+                line.contains("docs-header"),
+                ":focus-within が docs-header 系以外のセレクタに出現している: {line}"
+            );
+        }
     }
 
     #[test]

@@ -163,6 +163,18 @@ fn build_site_succeeds_for_the_real_repository_site() {
     assert!(!report.written.is_empty());
     assert!(!report.assets.is_empty());
     assert!(out.0.join("index.html").exists());
+
+    // イシュー #908: 実サイトの nav.toml が持つセクション別ドロップダウン
+    // ヘッダーナビが実際に配線されていることを確認する（`nav::header_nav`
+    // が全ページ共通で `layout::docs_page_with_assets` へ渡される契約）。
+    let index_html =
+        std::fs::read_to_string(out.0.join("index.html")).expect("read generated index.html");
+    assert!(index_html.contains(r#"class="docs-header-nav""#));
+    assert!(index_html.contains("Getting Started"));
+    assert!(out.0.join("assets/site.css").exists());
+    let site_css = std::fs::read_to_string(out.0.join("assets/site.css"))
+        .expect("read generated assets/site.css");
+    assert!(site_css.contains(".docs-header-dropdown"));
 }
 
 // ---- バイナリ経由（終了コード・stderr の契約） ----

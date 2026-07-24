@@ -592,6 +592,93 @@ pub fn sidebar(nav: &Nav, current_path: &str) -> Node {
     nav_list_root("Documentation", vec![("class", "sidebar")], section_nodes)
 }
 
+/// ヘッダーのセクション別ドロップダウンメニュー [`Node`] を生成する
+/// （イシュー #908）。`nav.toml` の `[[section]]` ごとにトリガー
+/// `<button type="button">` + ドロップダウン `<ul>`（配下 `<a>` 列）を
+/// グループ化した `<nav class="docs-header-nav">` を返す。
+///
+/// # イシュータイトルとの差分（`pre-styled-ui menu` を使わない理由）
+///
+/// イシュータイトルは「pre-styled-ui menu によるドロップダウン」だが、
+/// `docs/design/docs-site-three-column-redesign.md` §3.5 の 3 案比較の結果、
+/// 本関数は素の `nav`/`ul`/`li`/`button`/`a` + CSS のみの開閉（`:hover` /
+/// `:focus-within`）を採用する（案 (b)）。理由は 2 点:
+///
+/// 1. **意味論不整合**: WAI-ARIA `menu` ロールは操作コマンドリスト向けで
+///    あり、文書リンク集ナビ（本関数の用途）へ転用するとスクリーン
+///    リーダー利用者へ「操作可能なメニュー」と誤って伝わる
+///    （`crate::nav` の [`sidebar`] が headless `nav_list`
+///    （`fandhe-frontend-headless-ui`）を採用した理由と同型。
+///    `docs-site-styled-ui-adoption.md` §3.1 参照）。
+/// 2. **無 JS 制約**: pre-styled-ui `menu` の `data-state` 開閉は
+///    wasm-full 配線（hydration）前提であり、JS を持たない docs-site
+///    では動作しない。
+///
+/// # `aria-expanded`/`aria-haspopup` を付与しない理由
+///
+/// トリガー `<button>` はドロップダウンの開閉状態を JS で更新する経路を
+/// 持たない（CSS の `:hover`/`:focus-within` のみで開閉する）。ARIA の
+/// 動的状態属性を静的な固定値のまま出力すると支援技術に虚偽の状態を
+/// 伝えることになるため、`role`/`aria-expanded`/`aria-haspopup` のいずれも
+/// 付与しない（[`fandhe_frontend_headless_ui::nav_list`] が「素の要素の
+/// 暗黙 ARIA ロールのみを使う」とした判断をそのまま踏襲する）。
+///
+/// # DOM 構造
+///
+/// ```text
+/// nav.docs-header-nav[aria-label="Site sections"]  … headless nav_list root
+///   ul.docs-header-menu                            … nav_list list
+///     li.docs-header-group（セクションごと）        … nav_list item
+///       button.docs-header-trigger[type="button"]  … トリガー（el 直接）
+///       ul.docs-header-dropdown                    … nav_list list（再利用）
+///         li > a[href]（現在ページのみ aria-current="page" + data-current）
+/// ```
+///
+/// セクションが単一ページのみでも一律ドロップダウン構造にする
+/// （決定性・実装単純化を優先。§3.5 が実装時裁量とした点の確定）。
+///
+/// タイトル・href はすべて headless 層 → [`fandhe_frontend_core::render`]
+/// の既定エスケープ（REQ-1）を必ず経由する。HTML 文字列の直接組み立て・
+/// `raw_html()` は使用しない。
+pub fn header_nav(nav: &Nav, current_path: &str) -> Node {
+    let mut groups: Vec<Node> = Vec::new();
+    for section in &nav.sections {
+        let mut dropdown_items: Vec<Node> = Vec::new();
+        for page in &section.pages {
+            let link_href = href(nav, &page.path);
+            let is_current = page.path == current_path;
+            let a = nav_link(
+                &link_href,
+                is_current,
+                vec![],
+                vec![text(page.title.clone())],
+            );
+            dropdown_items.push(item(vec![], vec![a]));
+        }
+        // `type="button"` 固定はフォーム内配置時の意図しない submit を防ぐ
+        // （headless `menu::trigger` と同じ A05 対策）。
+        let trigger = el(
+            "button",
+            vec![("type", "button"), ("class", "docs-header-trigger")],
+            vec![text(section.title.clone())],
+        );
+        let dropdown = list(vec![("class", "docs-header-dropdown")], dropdown_items);
+        groups.push(item(
+            vec![("class", "docs-header-group")],
+            vec![trigger, dropdown],
+        ));
+    }
+    let menu = list(vec![("class", "docs-header-menu")], groups);
+    // サイドバー（`sidebar()`）の `aria-label="Documentation"` と区別できる
+    // ラベルにする（複数 nav ランドマークが存在する文書でスクリーン
+    // リーダー利用者が識別できるようにするため）。
+    nav_list_root(
+        "Site sections",
+        vec![("class", "docs-header-nav")],
+        vec![menu],
+    )
+}
+
 /// 全セクションを文書順（宣言順）に平坦化したページ列における、
 /// `current_path` の前後ページを返す。`current_path` が見つからない場合は
 /// `(None, None)`。先頭ページは `(None, Some(next))`、末尾ページは
@@ -1163,5 +1250,72 @@ path = "/p1/"
         let html_last = render(&prev_next_nav(&nav, "/reference/api/"));
         assert!(html_last.contains(r#"class="prev""#));
         assert!(!html_last.contains(r#"class="next""#));
+    }
+
+    // ---- ヘッダードロップダウンメニュー（イシュー #908） ----
+
+    #[test]
+    fn header_nav_groups_sections_in_declaration_order_with_correct_hrefs() {
+        let nav = parse_nav(SAMPLE).unwrap();
+        let html = render(&header_nav(&nav, "/guide/getting-started/"));
+        assert!(html.starts_with("<nav"));
+        assert!(html.contains(r#"class="docs-header-nav""#));
+        assert!(html.contains(r#"aria-label="Site sections""#));
+        assert!(html.contains(r#"class="docs-header-menu""#));
+        assert!(html.contains(r#"class="docs-header-group""#));
+        assert!(html.contains(r#"class="docs-header-trigger""#));
+        assert!(html.contains(r#"class="docs-header-dropdown""#));
+
+        // セクションタイトルがトリガーとして宣言順に出力される。
+        let guide_idx = html.find("Guide").unwrap();
+        let reference_idx = html.find("Reference").unwrap();
+        assert!(guide_idx < reference_idx);
+
+        assert!(html.contains(r#"href="/fandhe-frontend/guide/getting-started/""#));
+        assert!(html.contains(r#"href="/fandhe-frontend/reference/api/""#));
+    }
+
+    #[test]
+    fn header_nav_highlights_only_current_page() {
+        let nav = parse_nav(SAMPLE).unwrap();
+        let html = render(&header_nav(&nav, "/guide/getting-started/"));
+        assert_eq!(html.matches(r#"aria-current="page""#).count(), 1);
+        assert!(html.contains("data-current"));
+    }
+
+    /// トリガーは `<button type="button">` のみで、`role`/`aria-expanded`/
+    /// `aria-haspopup` のいずれも含まない（無 JS では状態更新できない
+    /// ARIA 属性を静的に約束しない、rustdoc 「`aria-expanded`/`aria-haspopup`
+    /// を付与しない理由」参照）ことを固定する。
+    #[test]
+    fn header_nav_trigger_has_no_menu_role_or_dynamic_aria_state() {
+        let nav = parse_nav(SAMPLE).unwrap();
+        let html = render(&header_nav(&nav, "/guide/getting-started/"));
+        assert!(html.contains(r#"<button type="button" class="docs-header-trigger""#));
+        assert!(!html.contains("role="));
+        assert!(!html.contains("aria-expanded"));
+        assert!(!html.contains("aria-haspopup"));
+    }
+
+    #[test]
+    fn header_nav_escapes_section_and_page_titles() {
+        let input = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "<script>alert(1)</script>"
+
+[[section.page]]
+title = "Quote\"Title"
+source = "p1.md"
+path = "/p1/"
+"#;
+        let nav = parse_nav(input).unwrap();
+        let html = render(&header_nav(&nav, "/p1/"));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+        assert!(html.contains("Quote&quot;Title"));
     }
 }

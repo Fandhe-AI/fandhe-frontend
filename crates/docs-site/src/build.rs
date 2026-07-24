@@ -289,6 +289,7 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
                 nav::sidebar(&nav, &page.path),
                 body,
                 &extra_stylesheets,
+                Some(nav::header_nav(&nav, &page.path)),
             );
 
             pages.push((page.path.clone(), document));
