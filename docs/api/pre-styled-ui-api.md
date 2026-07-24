@@ -121,7 +121,8 @@ styled ラッパー追加（#829、`tree_view` #753 の派生）・button の ic
 | headless ラッパー | `date_picker` | #835（親トラッキング #832。popover 基盤（`state::Disclosure`）を再利用する `crate::calendar` と同型の判断。`size` variant のみ。`content` 内部に `crate::calendar` の styled パーツを合成する想定。`DatePicker` 状態機械はあえて再エクスポートしない） |
 | headless ラッパー | `timer` | #836（`docs/design/component-coverage-map.md` 保留解除。`clipboard` と同型の判断で variant は非提供。`item-value` に `font-variant-numeric: tabular-nums` を付与し桁の増減時のレイアウトシフトを防ぐ。`completed` 状態の `item-value` を強調色へ切り替え、`action-trigger` に focus-visible リングを付与する。実 tick 駆動（`setInterval`）は `fandhe-frontend-wasm-full::headless_timer` が提供する） |
 | headless ラッパー | `tour` | #841（`docs/design/component-coverage-map.md` 保留解除、#735）。`fandhe_frontend_headless_ui::tour` が自由関数を持たず全パーツが `Tour` の inherent メソッドのため、本モジュールの全パーツ関数が `state: &Tour` を受け取る点は `steps` と同型。`color-palette` 軸のみ提供、`size` 軸は初版スコープ外（overlay 系の寸法は呼び出し側の CSS カスタムプロパティ上書きに委ねる）。`backdrop`/`spotlight`/`positioner` は `position: fixed` の全面オーバーレイで、closed 時 `[hidden]` を明示規則で `display: none` に固定する（`dialog` の `positioner[hidden]` 前例と同型）。`positioner` は `data-side`/`data-align` に応じた静的フォールバック配置のみ（実座標追従は `fandhe-frontend-wasm-full` 後続イシュー）。`spotlight` は `--fandhe-tour-spotlight-x/-y/-width/-height` の 4 CSS 変数（既定値つき `var()`）で位置・寸法を表現し、実測値の注入も同後続イシューの責務） |
-| charts 基盤（headless-ui 非経由、新規 anatomy） | `charts::data` / `charts::scale` / `charts::svg` | #846（親 Phase #845、`docs/policy/intentional-non-adoption.md` §7 保留区分「JS ランタイム依存の charts 群」の解除トリガー「外部依存ゼロを維持したまま SVG ノード木生成のみで実装できる設計の確立」を満たす基盤。`ChartData`（複数系列モデル・集計・安定ソート）+ `LinearScale`（domain→range 線形写像・1-2-5 nice tick）+ `svg`（`viewBox`/`fmt_coord`/`rect`/`line`/`circle`/`svg_text`/`PathBuilder` のノード木ヘルパー）の 3 層。本層自体は上位チャート部品を持たない） |
+| 基盤（外部依存ゼロ SVG 生成） | `charts`（`data`/`scale`/`svg`） | #846（`docs/design/component-coverage-map.md` 保留解除、`ChartData`/`Series`・`LinearScale`・`svg::{fmt_coord, ViewBox, svg_root, PathBuilder, circle, line, rect, group, svg_text}` を提供する消費者向け基盤のみ。自身は UI コンポーネントを持たない。詳細は `docs/design/charts-foundation-design.md` 参照） |
+| `charts` 基盤の消費者（新規 anatomy） | `line_chart` / `area_chart` / `sparkline` | #848（§4j 参照。`charts` 基盤（#846）の最初の消費者。軸/グリッド/凡例/ツールチップ/積み上げ/曲線補間は #847 以降のスコープ） |
 | charts（SVG） | `charts::bar_chart` | #849（親 Phase #845、charts 基盤 #846 の上に実装）。縦/横 orientation のグループ棒グラフ。値軸はベースライン 0 起点、カテゴリ軸はバンドレイアウト（両端 10% padding + 系列数で均等割り）。系列色は `series_color_var`（`chart-1`〜`chart-6` 循環）。軸線・グリッド・凡例・ツールチップは #847 のスコープ、本モジュールはカテゴリラベルの最小出力のみ行う |
 | charts（HTML） | `charts::bar_list` | #849（親 Phase #845）。単一系列のランキング型バーリスト。バー幅は系列内最大値に対する比率（`--fandhe-bar-list-percent` custom property）。最大値 0 は全バー幅 0% を決定的に描画（silent failure ではなく値と幅の対応が自明なため、`bar_segment` の合計 0 拒否とは意図的に挙動を変えている） |
 | charts（HTML） | `charts::bar_segment` | #849（親 Phase #845）。単一系列の構成比 100% 積み上げバー + 凡例。セグメント幅は系列合計に対する比率（`--fandhe-bar-segment-percent` custom property）、配色はカテゴリ index で `series_color_var` を循環。系列合計 0 は `ChartError::ZeroTotal` で構築時に拒否（構成比自体が定義できないため） |
@@ -772,6 +773,58 @@ chakra-ui の `Prose`（記事全体へ一括カスケード適用するコン�
 イシューはこの既存機構を置き換えない（詳細な判断根拠は
 `crates/pre-styled-ui/src/text.rs` rustdoc、対応表は
 `docs/design/component-coverage-map.md` prose.md 行を参照）。
+
+## 4j. LineChart / AreaChart / Sparkline（イシュー #848、`charts` 基盤 #846 の消費者）
+
+`docs/design/charts-foundation-design.md` が提供する `charts::data::ChartData`
+（カテゴリ + 系列の値モデル）・`charts::scale::LinearScale`（線形座標写像）・
+`charts::svg`（SVG ノード木ヘルパー、`fmt_coord`/`ViewBox`/`svg_root`/
+`PathBuilder`）を消費し、「プロット領域（折れ線・面・スパーク）のみを描く
+自己完結 SVG」として実装する。軸・グリッド・凡例・ツールチップ
+（chakra の `CartesianGrid`/`XAxis`/`YAxis`/`ChartLegend`/`ChartTooltip`
+相当）は並行イシュー **#847 のスコープ**であり本 3 部品には含まれない。
+
+### API 概要
+
+| モジュール | 入力 (`*Props`) | 出力関数 | 既定 `viewBox` |
+|---|---|---|---|
+| `line_chart` | `data: &ChartData` / `aria_label` / `width` / `height` / `size` | `line_chart(&props, attrs) -> Result<Node, ChartError>` | `300 × 150` |
+| `area_chart` | 同上 | `area_chart(&props, attrs) -> Result<Node, ChartError>` | `300 × 150` |
+| `sparkline` | `values: &[f64]` / `aria_label` / `width` / `height` / `size` | `sparkline(&props, attrs) -> Result<Node, ChartError>` | `112 × 48`（chakra `w={28} h={12}` トークン相当） |
+
+いずれも `*Props::new(data_or_values, aria_label)` が既定寸法・
+`Size::Md` で組み立てる便利コンストラクタを提供する。
+
+### variant 表
+
+| 軸 | 値 | 適用パーツ | 効果 |
+|---|---|---|---|
+| `size`（[`Size`](crate::recipe::Size)） | `Sm`/`Md`（既定）/`Lg` | `root` | `--fandhe-<scope>-height` custom property 経由で `plot`（`svg`）の CSS 表示高さを切替（`viewBox` の描画座標系とは独立、`qr_code` と同型） |
+
+`color-palette` 軸は非提供。系列色は `charts::series_color_var(index)`
+（`var(--fandhe-color-chart-1..6)` を系列数に応じて循環）を `stroke`/`fill`
+属性へ直接付与する（CSS variant ではなく描画時の固定色指定、複数系列を
+同時に描く都合上 `SlotRecipe` の軸機構に載せない判断）。
+
+### 座標写像・エッジケース
+
+- x 軸: カテゴリ index を等間隔配置（単一カテゴリは中央 1 点）。
+- y 軸: `ChartData::domain()`（フラットデータの非退化パディング込み）を
+  `LinearScale::new(domain, (height, 0.0))` で写像（`nice()` は適用しない）。
+- 単一カテゴリ（`n == 1`）: 折れ線・面のいずれも生成せず、中央に半径固定の
+  `circle` マーカーのみを描く。
+- 負値・フラットデータ: `charts` 基盤の `domain()`/`fmt_coord` の契約に従い
+  決定的に描画する（golden テスト `crates/pre-styled-ui/tests/charts_line_area_sparkline.rs`
+  参照）。
+
+### chakra-ui からの縮約（スコープ外事項）
+
+- 軸・グリッド・凡例・ツールチップ（`CartesianGrid`/`XAxis`/`YAxis`/
+  `ChartLegend`/`ChartTooltip`）は #847 以降。呼び出し側が `svg_root` の
+  children として本 3 部品の出力と #847 の軸要素を並べる統合を想定する。
+- 積み上げ（`stackId`）・曲線補間（`curveType`）は #847 以降。
+- `examples/headless-pre-styled-ui` への追随は crates.io 公開後に別途行う
+  （`qr_code` の先例と同じ判断）。
 
 ## 5. 関連ドキュメント
 

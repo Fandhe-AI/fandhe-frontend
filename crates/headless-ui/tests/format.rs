@@ -9,8 +9,8 @@
 
 use fandhe_frontend_headless_ui::{
     format_byte, format_number, format_relative_time, format_time, ByteUnit, FormatByteOptions,
-    FormatNumberOptions, FormatRelativeTimeOptions, FormatTimeOptions, NumberStyle, SignDisplay,
-    UnitDisplay, UnitSystem,
+    FormatNumberOptions, FormatRelativeTimeOptions, FormatTimeOptions, Locale, NumberStyle,
+    SignDisplay, UnitDisplay, UnitSystem,
 };
 
 #[test]
@@ -131,16 +131,128 @@ fn format_relative_time_known_input_output_table() {
 }
 
 #[test]
+fn locale_tag_and_from_tag_known_input_output_table() {
+    // BCP 47 言語タグ往復（イシュー #854）。`Locale` は Provider 機構を
+    // 持たず、公開 API 経由でも値型として直接生成・比較できることを固定する。
+    assert_eq!(Locale::En.tag(), "en");
+    assert_eq!(Locale::Ja.tag(), "ja");
+    assert_eq!(Locale::from_tag("en"), Some(Locale::En));
+    assert_eq!(Locale::from_tag("ja"), Some(Locale::Ja));
+    assert_eq!(Locale::from_tag("en-US"), Some(Locale::En));
+    assert_eq!(Locale::from_tag("zh"), None);
+}
+
+#[test]
+fn format_byte_ja_known_input_output_table() {
+    let default_opts = FormatByteOptions {
+        locale: Locale::Ja,
+        ..Default::default()
+    };
+    // short/narrow は SI 記号が国際共通のため en と同一値になる。
+    assert_eq!(format_byte(1450.0, &default_opts), "1.45 kB");
+
+    let long_opts = FormatByteOptions {
+        locale: Locale::Ja,
+        unit_display: UnitDisplay::Long,
+        ..Default::default()
+    };
+    assert_eq!(format_byte(1000.0, &long_opts), "1 キロバイト");
+    assert_eq!(format_byte(0.0, &long_opts), "0 バイト");
+
+    let binary_long_opts = FormatByteOptions {
+        locale: Locale::Ja,
+        unit_system: UnitSystem::Binary,
+        unit_display: UnitDisplay::Long,
+        ..Default::default()
+    };
+    assert_eq!(format_byte(1024.0, &binary_long_opts), "1 キビバイト");
+
+    let bit_long_opts = FormatByteOptions {
+        locale: Locale::Ja,
+        unit: ByteUnit::Bit,
+        unit_display: UnitDisplay::Long,
+        ..Default::default()
+    };
+    assert_eq!(format_byte(1000.0, &bit_long_opts), "1 キロビット");
+}
+
+#[test]
+fn format_number_ja_known_input_output_table() {
+    // ja の桁区切り・小数点記号は CLDR 上も en と同一（`,`/`.`）であることを
+    // 公開 API 経由でも固定する。
+    let default_opts = FormatNumberOptions {
+        locale: Locale::Ja,
+        ..Default::default()
+    };
+    assert_eq!(format_number(1234.5, &default_opts), "1,234.5");
+    assert_eq!(format_number(-1234.5, &default_opts), "-1,234.5");
+}
+
+#[test]
+fn format_relative_time_ja_known_input_output_table() {
+    let opts = FormatRelativeTimeOptions {
+        locale: Locale::Ja,
+        style: UnitDisplay::Long,
+    };
+    let base = 1_000_000i64;
+
+    assert_eq!(format_relative_time(base, base, &opts), "たった今");
+    assert_eq!(format_relative_time(base - 59, base, &opts), "59 秒前");
+    assert_eq!(format_relative_time(base - 60, base, &opts), "1 分前");
+    assert_eq!(
+        format_relative_time(base - 23 * 3600, base, &opts),
+        "23 時間前"
+    );
+    assert_eq!(
+        format_relative_time(base - 24 * 3600, base, &opts),
+        "1 日前"
+    );
+    assert_eq!(
+        format_relative_time(base + 3 * 86400, base, &opts),
+        "3 日後"
+    );
+
+    // narrow はスペースなし（CLDR ja の実挙動、en の narrow 相当規則との
+    // ロケール差を公開 API 経由でも固定する）。
+    let narrow = FormatRelativeTimeOptions {
+        locale: Locale::Ja,
+        style: UnitDisplay::Narrow,
+    };
+    assert_eq!(format_relative_time(base - 3600, base, &narrow), "1時間前");
+
+    // i64::MIN/i64::MAX の組み合わせでも panic しないことを ja 経路でも固定する。
+    let extreme = format_relative_time(i64::MAX, i64::MIN, &opts);
+    assert!(extreme.ends_with('後'));
+}
+
+#[test]
 fn all_format_functions_are_deterministic_across_repeated_calls() {
     let byte_opts = FormatByteOptions::default();
     let number_opts = FormatNumberOptions::default();
     let time_opts = FormatTimeOptions::default();
     let relative_opts = FormatRelativeTimeOptions::default();
+    // ja ロケール経路（イシュー #854）も同じ決定性契約を満たすことを固定する。
+    let byte_opts_ja = FormatByteOptions {
+        locale: Locale::Ja,
+        unit_display: UnitDisplay::Long,
+        ..Default::default()
+    };
+    let number_opts_ja = FormatNumberOptions {
+        locale: Locale::Ja,
+        ..Default::default()
+    };
+    let relative_opts_ja = FormatRelativeTimeOptions {
+        locale: Locale::Ja,
+        style: UnitDisplay::Long,
+    };
 
     let first_byte = format_byte(123456.789, &byte_opts);
     let first_number = format_number(-9876.54321, &number_opts);
     let first_time = format_time(-3661, &time_opts);
     let first_relative = format_relative_time(500, 1000, &relative_opts);
+    let first_byte_ja = format_byte(123456.789, &byte_opts_ja);
+    let first_number_ja = format_number(-9876.54321, &number_opts_ja);
+    let first_relative_ja = format_relative_time(500, 1000, &relative_opts_ja);
 
     for _ in 0..5 {
         assert_eq!(format_byte(123456.789, &byte_opts), first_byte);
@@ -149,6 +261,12 @@ fn all_format_functions_are_deterministic_across_repeated_calls() {
         assert_eq!(
             format_relative_time(500, 1000, &relative_opts),
             first_relative
+        );
+        assert_eq!(format_byte(123456.789, &byte_opts_ja), first_byte_ja);
+        assert_eq!(format_number(-9876.54321, &number_opts_ja), first_number_ja);
+        assert_eq!(
+            format_relative_time(500, 1000, &relative_opts_ja),
+            first_relative_ja
         );
     }
 }

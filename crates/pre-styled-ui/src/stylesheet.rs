@@ -276,6 +276,7 @@ mod tests {
             ("toggle_tip", crate::toggle_tip::stylesheet()),
             ("switch", crate::switch::stylesheet()),
             ("radio_group", crate::radio_group::stylesheet()),
+            ("area_chart", crate::area_chart::stylesheet()),
             ("avatar", crate::avatar::stylesheet()),
             ("checkbox", crate::checkbox::stylesheet()),
             ("checkbox_card", crate::checkbox_card::stylesheet()),
@@ -309,6 +310,7 @@ mod tests {
             ("nav_list", crate::nav_list::stylesheet()),
             ("tag", crate::tag::css()),
             ("kbd", crate::kbd::css()),
+            ("line_chart", crate::line_chart::stylesheet()),
             ("code", crate::code::css()),
             ("color_swatch", crate::color_swatch::css()),
             ("color_picker", crate::color_picker::css()),
@@ -341,6 +343,7 @@ mod tests {
             ("bar_chart", crate::charts::bar_chart::css()),
             ("bar_list", crate::charts::bar_list::css()),
             ("bar_segment", crate::charts::bar_segment::css()),
+            ("sparkline", crate::sparkline::stylesheet()),
         ]
     }
 
