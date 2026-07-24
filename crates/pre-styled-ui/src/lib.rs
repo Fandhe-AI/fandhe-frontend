@@ -394,6 +394,7 @@ pub mod combobox;
 pub mod css;
 pub mod dialog;
 pub mod drawer;
+pub mod editable;
 pub mod em;
 pub mod empty_state;
 pub mod heading;

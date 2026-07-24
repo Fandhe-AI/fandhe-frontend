@@ -28,10 +28,10 @@
 use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::{
-    aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog, hover_card,
-    listbox, number_input, password_input, pin_input, popover, rating_group, segment_group, slider,
-    tags_input, tree_view, ImageStatus, OpenState, Orientation, PasswordAutocomplete,
-    PasswordInputProps,
+    aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog, editable,
+    hover_card, listbox, number_input, password_input, pin_input, popover, rating_group,
+    segment_group, slider, tags_input, tree_view, ImageStatus, OpenState, Orientation,
+    PasswordAutocomplete, PasswordInputProps,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -424,6 +424,52 @@ fn pin_input_hidden_input_and_input_value_are_escaped_for_all_payloads() {
             payload,
             &html,
             "pin_input::root の呼び出し側 attrs コンテキスト",
+        );
+    }
+}
+
+/// (1)/(2) Editable（イシュー #745）: `input` の `name`/`value`（属性値
+/// 経路）・`label`/`preview` の children（テキスト経路）・呼び出し側
+/// `attrs` へ全ペイロードを注入し、エスケープが貫通することを固定する。
+#[test]
+fn editable_name_value_label_and_preview_are_escaped_for_all_payloads() {
+    use fandhe_frontend_headless_ui::editable::{EditMode, EditableInputFlags, EditableInputProps};
+
+    for payload in payloads::all() {
+        let input_node = editable::input(
+            EditMode::Edit,
+            payload,
+            payload,
+            EditableInputProps::default(),
+            EditableInputFlags::default(),
+            vec![],
+        );
+        let html = render(&input_node);
+        assert_payload_is_escaped(payload, &html, "editable::input の name/value コンテキスト");
+
+        let label_node =
+            editable::label(EditMode::Preview, false, None, vec![], vec![text(payload)]);
+        let html = render(&label_node);
+        assert_payload_is_escaped(payload, &html, "editable::label のテキストコンテキスト");
+
+        let preview_node = editable::preview(EditMode::Preview, false, vec![], vec![text(payload)]);
+        let html = render(&preview_node);
+        assert_payload_is_escaped(payload, &html, "editable::preview のテキストコンテキスト");
+
+        let attrs_node = editable::root(
+            EditMode::Preview,
+            false,
+            false,
+            Default::default(),
+            Default::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        );
+        let html = render(&attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "editable::root の呼び出し側 attrs コンテキスト",
         );
     }
 }

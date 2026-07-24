@@ -67,6 +67,7 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | PinInput | `pin_input` | Root/Label/Control/Input/HiddenInput | 独自実装（固定桁数の文字配列 + フォーカス位置、`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装） | #739 |
 | TagsInput | `tags_input` | Root/Label/Control/Input/Item/ItemPreview/ItemText/ItemInput/ItemDeleteTrigger/ClearTrigger/HiddenInput | 独自実装（可変長タグ文字列リスト + 編集中インデックス、`SingleSelect`/`MultiSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`control` は `role="listbox"`、`item-preview` は `role="option"`） | #744 |
 | RatingGroup | `rating_group` | Root/Label/Control/Item/HiddenInput | 独自実装（`1..=count` の数値評価値 + hover プレビューを持つ。`hover` は SSR 非活性・hydration 非直列化。`Component`/`Hydrate` を直接実装） | #742 |
+| Editable | `editable` | Root/Label/Area/Input/Preview/Control/EditTrigger/SubmitTrigger/CancelTrigger | 独自実装（`"preview"`/`"edit"` の 2 モードが `Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`mode == Preview` のとき常に `draft == value` を保つ不変条件を持つ） | #745 |
 | Toggle | `toggle` | Root/Indicator | `state::Checkable`（`data-state` 語彙は `"on"`/`"off"`。`checked_data_state` ではなく `state::pressed_data_state` で変換し、Switch の `"checked"`/`"unchecked"` と分離する） | #746 |
 | ToggleGroup（single モード） | `toggle_group` | Root/Item | `state::SingleSelect`（dispatch は `"toggle"` のみ受理、常時 deselectable） | #746 |
 | MultiToggleGroup（multiple モード） | `toggle_group` | Root/Item | `state::MultiSelect`（dispatch は `"toggle"` のみ受理） | #746 |

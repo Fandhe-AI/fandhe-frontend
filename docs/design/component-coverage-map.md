@@ -37,9 +37,9 @@ Phase 3〜6（#736/#748/#757/#766 配下、#737〜#747・#749〜#756・#758〜#7
 ## 3. 実装済み部品と lib.rs の突合手順
 
 `crates/headless-ui/src/lib.rs` の基盤 mod（anatomy / aria / data_attrs /
-positioning / state）を除く 34 mod、`crates/pre-styled-ui/src/lib.rs` の
-基盤 mod（css / recipe / stylesheet / theme）を除く 42 mod（styled ラッパー
-32 + 静的部品 10）が、本書の「実装済み」区分と一致することを次のコマンドで
+positioning / state）を除く 35 mod、`crates/pre-styled-ui/src/lib.rs` の
+基盤 mod（css / recipe / stylesheet / theme）を除く 43 mod（styled ラッパー
+33 + 静的部品 10）が、本書の「実装済み」区分と一致することを次のコマンドで
 確認できる。
 
 ```bash
@@ -49,26 +49,27 @@ grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs \
   | grep -vE 'css|recipe|stylesheet|theme'
 ```
 
-2026-07-23 時点の実測（#750 マージにより listbox を追加反映。#765 マージに
-よる status / empty_state を含め再実測。本節はこれ以前の複数 PR
-（#754〜#765 等）を経て蓄積した mod 数の乖離を本イシューで合わせて
-是正した）:
+2026-07-23 時点の実測（#750 マージにより listbox、#745 マージにより
+editable を追加反映。#765 マージによる status / empty_state を含め再実測。
+本節はこれ以前の複数 PR（#754〜#765 等）を経て蓄積した mod 数の乖離を合わせ
+て是正した）:
 
-- headless-ui 35: accordion / avatar / breadcrumb / carousel / checkbox /
-  collapsible / combobox / dialog / drawer / field / fieldset / hover_card /
-  link / link_overlay / listbox / menu / nav_list / number_input /
-  pagination / pin_input / popover / progress / radio_group /
-  rating_group / segment_group / select / slider / switch / tabs /
-  tags_input / toggle / toggle_group / toggle_tip / tooltip / tree_view
-- pre-styled-ui 43（styled ラッパー 33 + 静的部品 10）:
+- headless-ui 36: accordion / avatar / breadcrumb / carousel / checkbox /
+  collapsible / combobox / dialog / drawer / editable / field / fieldset /
+  hover_card / link / link_overlay / listbox / menu / nav_list /
+  number_input / pagination / pin_input / popover / progress /
+  radio_group / rating_group / segment_group / select / slider / switch /
+  tabs / tags_input / toggle / toggle_group / toggle_tip / tooltip /
+  tree_view
+- pre-styled-ui 44（styled ラッパー 34 + 静的部品 10）:
   accordion / avatar / breadcrumb / carousel / checkbox / checkbox_card /
-  combobox / dialog / drawer / hover_card / link / link_overlay / listbox /
-  menu / nav_list / number_input / pagination / pin_input / popover /
-  radio_card / radio_group / rating_group / segment_group / select /
-  slider / switch / tabs / tags_input / toggle / toggle_group /
+  combobox / dialog / drawer / editable / hover_card / link / link_overlay /
+  listbox / menu / nav_list / number_input / pagination / pin_input /
+  popover / radio_card / radio_group / rating_group / segment_group /
+  select / slider / switch / tabs / tags_input / toggle / toggle_group /
   toggle_tip / tooltip / tree_view（styled ラッパー、`checkbox_card`/
   `radio_card` は headless 状態機械（`checkbox`/`radio_group`）を再利用する
-  カード型選択 UI として本区分へ計上、33 件）+ alert / badge / button /
+  カード型選択 UI として本区分へ計上、34 件）+ alert / badge / button /
   card / spinner / input / textarea / native_select / status /
   empty_state（静的部品、10 件）
 
@@ -179,7 +180,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/form/rating-group.md` | RatingGroup | Rating | rating_group | rating_group | 実装済み | headless+styled 実装済み（#742） |
 | `.agents/skills/ark-ui/references/components/form/segment-group.md` | SegmentGroup | SegmentedControl | segment_group | segment_group | 実装済み | headless+styled 実装済み（#743） |
 | `.agents/skills/ark-ui/references/components/form/tags-input.md` | TagsInput | TagsInput | tags_input | tags_input | 実装済み | headless+styled 実装済み（#744） |
-| `.agents/skills/ark-ui/references/components/form/editable.md` | Editable | Editable | — | — | 実装対象 | #745 |
+| `.agents/skills/ark-ui/references/components/form/editable.md` | Editable | Editable | editable | editable | 実装済み | headless+styled 実装済み（#745） |
 | `.agents/skills/ark-ui/references/components/form/angle-slider.md` | AngleSlider | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.22（#735）で非採用確定（高度入力系、canvas/ポインタ座標/contenteditable 依存） |
 | `.agents/skills/ark-ui/references/components/form/color-picker.md` | ColorPicker | ColorPicker | — | — | 保留 | （高度入力系、フォーム部品）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
 | `.agents/skills/ark-ui/references/components/form/file-upload.md` | FileUpload | FileUpload | — | — | 保留 | （高度入力系、フォーム部品）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
@@ -430,7 +431,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/forms/rating.md` | RatingGroup | Rating | rating_group | rating_group | 実装済み | headless+styled 実装済み（#742） |
 | `.agents/skills/chakra-ui/references/components/forms/segmented-control.md` | SegmentGroup | SegmentedControl | segment_group | segment_group | 実装済み | headless+styled 実装済み（#743） |
 | `.agents/skills/chakra-ui/references/components/forms/tags-input.md` | TagsInput | TagsInput | tags_input | tags_input | 実装済み | headless+styled 実装済み（#744） |
-| `.agents/skills/chakra-ui/references/components/forms/editable.md` | Editable | Editable | — | — | 実装対象 | #745 |
+| `.agents/skills/chakra-ui/references/components/forms/editable.md` | Editable | Editable | editable | editable | 実装済み | headless+styled 実装済み（#745） |
 | `.agents/skills/chakra-ui/references/components/forms/checkbox-card.md` | — | CheckboxCard | — | checkbox_card | 実装済み | pre-styled styled バリエーション実装済み（#747。headless-ui は変更なし、状態機械は headless Checkbox を再利用） |
 | `.agents/skills/chakra-ui/references/components/forms/radio-card.md` | — | RadioCard | — | radio_card | 実装済み | pre-styled styled バリエーション実装済み（#747。headless-ui は変更なし、状態機械は headless RadioGroup を再利用） |
 | `.agents/skills/chakra-ui/references/components/forms/color-picker.md` | ColorPicker | ColorPicker | — | — | 保留 | （高度入力系、フォーム部品）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
