@@ -302,6 +302,15 @@
 //!   [`mod@checkbox_card`]/[`mod@radio_card`]（#747）と同型の判断で
 //!   headless-ui は変更せず pre-styled-ui 層のみで新規 anatomy を定義する。
 //!   詳細は各モジュール rustdoc 参照。
+//! - headless ラッパー（イシュー #825、保留解除）: [`mod@scroll_area`]
+//!   （ScrollArea、Root/Viewport/Content/Scrollbar/Thumb/Corner の 6 anatomy
+//!   パーツを再エクスポート）。`viewport` へ `overflow: auto` +
+//!   `scrollbar-width`/`scrollbar-color`（標準プロパティ）を付与し、
+//!   `stylesheet()` が `::-webkit-scrollbar` 系規則を固定文字列として追記
+//!   する（[`mod@spinner`] の `@keyframes` 追記と同型）。`scrollbar`/
+//!   `thumb`/`corner` は JS スクロール位置追従が本イシューのスコープ外の
+//!   ため初期実装では非表示（`display: none`）。variant は非提供。詳細は
+//!   `crate::scroll_area` rustdoc 参照。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -476,6 +485,7 @@ pub mod radio_card;
 pub mod radio_group;
 pub mod rating_group;
 pub mod recipe;
+pub mod scroll_area;
 pub mod segment_group;
 pub mod select;
 pub mod separator;

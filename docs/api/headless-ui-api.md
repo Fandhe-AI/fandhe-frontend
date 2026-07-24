@@ -93,6 +93,7 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | SkipNav | `skip_nav` | Link/Content | なし（自由関数のみ。WCAG 2.1 SC 2.4.1 Bypass Blocks 対応の「本文へスキップ」リンク。`link` は呼び出し側から任意の URL を受け取らず常に `#<id>` のみを組み立てるためスキーム注入経路を構造的に持たない） | #776 |
 | Clipboard | `clipboard` | Root/Label/Control/Input/Trigger/Indicator/ValueText | 独自実装（コピー済みかどうかの 2 値、`Avatar`/`Switch` と同じ理由で `Component`/`Hydrate` を直接実装。コピー済み表示は `data-state` 値語彙ではなく `data-copied` 存在属性で表現する ark-ui/chakra-ui の慣習に従う。コピー対象値（`value`）は状態機械に持たせず `root` の `data-value` 属性としてのみ出力する。`navigator.clipboard.writeText` 実配線・タイムアウトによる自動リセットは `fandhe-frontend-wasm-full::headless_clipboard`（writeText 成功ゲート・fail-closed・値ログ禁止）が提供する） | #773 |
 | QrCode | `qr_code` | Root/Frame（`svg`）/Pattern（`path`）/Overlay | なし（自由関数のみ。`value`/`ecc` から一意に導出される純粋な変換であり遷移可能な状態を持たない。外部依存ゼロの QR Model 2（ISO/IEC 18004）byte モードエンコーダ（`qr_encode`、非公開実装）を内蔵。`DownloadTrigger`・`value` の動的更新・numeric/alphanumeric/kanji モードはスコープ外） | #774 |
+| ScrollArea | `scroll_area` | Root/Viewport/Content/Scrollbar/Thumb/Corner | なし（自由関数のみ。`viewport` に `tabindex="0"` を固定付与、`scrollbar`/`thumb` は `data-orientation`、`scrollbar`/`corner` は `aria-hidden="true"` を固定付与。JS によるスクロール位置追従・thumb drag は初期実装対象外） | #825 |
 
 ## 4a. 位置決め（anchor positioning、イシュー #590、親 #588）
 

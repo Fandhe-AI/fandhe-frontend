@@ -323,6 +323,7 @@ mod tests {
             ("data_list", crate::data_list::css()),
             ("stat", crate::stat::css()),
             ("timeline", crate::timeline::css()),
+            ("scroll_area", crate::scroll_area::stylesheet()),
         ]
     }
 
