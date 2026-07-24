@@ -62,6 +62,7 @@ use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps};
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, ImageProps};
+use fandhe_frontend_pre_styled_ui::image_cropper;
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
@@ -938,6 +939,76 @@ fn slider_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         // 選択的再エクスポートした hidden_input の name 経路。
         let html = render(&slider::hidden_input(payload, "40", false, vec![]));
         assert_payload_is_escaped(payload, &html, "slider::hidden_input name コンテキスト");
+    }
+}
+
+/// (9) ImageCropper 経路（イシュー #844）: styled `root` の呼び出し側
+/// `attrs`・`class`、および headless-ui から選択的再エクスポートした
+/// `image` の `src`/`alt`・`grid`（`attrs` 経路）の各所で既定エスケープ
+/// （REQ-1）が貫通することを固定する（slider 経路と同粒度）。
+#[test]
+fn image_cropper_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::image_cropper::ImageCropper;
+
+    for payload in payloads::all() {
+        let c = ImageCropper::default();
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&image_cropper::root(
+            Size::Md,
+            &c,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "image_cropper::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&image_cropper::root(
+            Size::Md,
+            &c,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "image_cropper::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "image_cropper::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-image-cropper--"),
+            "image_cropper::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした image の src/alt 経路（<img> タグ自体を
+        // 出力するため実タグ有無チェックを含む assert_payload_is_escaped は
+        // 使わず、エスケープ済み表現の実在・生ペイロードの不在のみを見る、
+        // headless-ui 側テストと同じ整理）。
+        let html = render(&image_cropper::image(payload, payload, vec![]));
+        let expected_escaped = escape_html(payload);
+        assert!(
+            html.contains(&expected_escaped),
+            "image_cropper::image の src/alt コンテキストで期待されるエスケープ済み表現が\
+             出力に見当たらない: payload={payload:?}, html={html}"
+        );
+        assert!(
+            !html.contains(payload),
+            "image_cropper::image の src/alt コンテキストで生ペイロードが出力に\
+             そのまま残っている: payload={payload:?}, html={html}"
+        );
+
+        // 選択的再エクスポートした grid の attrs 経路。
+        let html = render(&image_cropper::grid(vec![("data-testid", payload)]));
+        assert_payload_is_escaped(payload, &html, "image_cropper::grid attrs コンテキスト");
     }
 }
 

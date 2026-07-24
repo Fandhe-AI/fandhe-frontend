@@ -13,10 +13,11 @@ enhancement（`@supports` 段階適用）のフォールバック設計案・非
 変更なし）。§3.22〜§3.24 は非採用確定（イシュー #735、出典
 `docs/design/component-coverage-map.md`（イシュー #734）の保留・意図的
 非採用プレースホルダ行の評価）。ただし §3.24 のうち Marquee は #831 で、
-§3.22 のうち AngleSlider は #842 でそれぞれ §4 の再導入手続きに基づき
-再導入済み（chakra `Theme` コンポーネント・ImageCropper・SignaturePad・
-RichTextEditor は非採用のまま変更しない）。§7 は、イシュー #735 で非採用
-ではなく保留のまま維持すると判断した項目群の再評価トリガーの記録である。
+§3.22 のうち AngleSlider は #842 で、ImageCropper は #844 で、SignaturePad
+は #843 で、いずれも §4 の再導入手続きに基づき再導入済み（chakra `Theme`
+コンポーネント、および §3.22 の RichTextEditor は非採用のまま変更しない）。
+§7 は、イシュー #735 で非採用ではなく保留のまま維持すると判断した項目群の
+再評価トリガーの記録である。
 
 **節番号の採番規則**（イシュー #398、§3.6〜§3.8 の重複発覚を受けて明記）:
 
@@ -902,7 +903,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   `docs/design/anchor-positioning-design.md` 第 4.5a 節に記録した。判断
   （非採用）自体は変更しない。
 
-### 3.22 高度入力系 UI 部品（image-cropper / signature-pad / angle-slider / rich-text-editor）（イシュー #735、angle-slider は #842 で再導入済み）
+### 3.22 高度入力系 UI 部品（image-cropper / signature-pad / angle-slider / rich-text-editor）（イシュー #735、angle-slider は #842 で・signature-pad は #843 で・image-cropper は #844 でそれぞれ再導入済み）
 
 - **概要**: `docs/design/component-coverage-map.md`（イシュー #734）が
   「保留」区分の前方参照プレースホルダとして記録していた ark-ui /
@@ -999,6 +1000,34 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     ゼロ・`headless-ui` 外部依存は `core`/`interactive`（いずれも path）
     のみ・依存上限 60 件/深さ 6）は変更していない（新規依存クレートの
     追加なし、`web-sys` の既存依存への feature 追加のみ）。
+- **利用者向けの等価概念対応表**: RichTextEditor（非採用維持）の等価概念は
+  `docs/design/component-coverage-map.md` §8（イシュー #855）を参照。
+- **再導入記録（イシュー #844、ImageCropper のみ。SignaturePad/RichTextEditor
+  は非採用のまま変更しない）**: 再評価トリガー 1 のうち
+  ImageCropper 分（canvas 描画・ポインタ座標ストリームを決定的に検証できる
+  自動テスト基盤が別途確立し、かつ利用要望が issue で確定した場合）を、
+  「canvas ピクセル状態・ポインタ座標を設計から排除し、crop 矩形
+  （`x`/`y`/`width`/`height` の `u32`）のみを扱う純粋状態機械にする」という
+  設計転換で充足したと判断し、`crates/headless-ui/src/image_cropper.rs`/
+  `crates/pre-styled-ui/src/image_cropper.rs` として §4 の手続きに従い
+  再導入した。
+  - **明示性**: クランプ・アスペクト比丸め（整数演算のみ、浮動小数点なし）・
+    resize 8 方位のアンカー規則をすべて `image_cropper.rs` 冒頭 rustdoc に
+    明文化し、canvas 描画命令・変換行列の内部状態を一切持たない。
+  - **決定性**: 同一 dispatch 列（`"move"`/`"resize"`/`"set"`/`"reset"`）から
+    常に同一の矩形が再現される。ポインタイベント・デバイス依存の座標は
+    扱わない。
+  - **機械検証可能性**: クランプ表・アスペクト比丸めの網羅表・8 方位
+    resize のアンカー固定を `cargo test`（`crates/headless-ui/src/image_cropper.rs`
+    の `#[cfg(test)]`）の決定的アサーションで固定した。視覚回帰・座標
+    アサーション等の別基盤は不要になった。
+  - **コンテキスト消費**: `web-sys` の Canvas/Pointer API は追加していない
+    （`fandhe-frontend-headless-ui`/`fandhe-frontend-pre-styled-ui` の外部
+    依存はそれぞれ既存の path 依存のみで変化なし）。
+  - **スコープ外（変更しない範囲）**: canvas による実画像切り出し
+    （ピクセルデータの生成）・pointer ドラッグ/キーボード nudge の DOM 配線
+    （`fandhe-frontend-wasm-full` 側の後続 issue）は本再導入の対象外
+    （`docs/design/component-coverage-map.md` に注記）。
 - **利用者向けの等価概念対応表**: RichTextEditor（非採用維持）の等価概念は
   `docs/design/component-coverage-map.md` §8（イシュー #855）を参照。
 

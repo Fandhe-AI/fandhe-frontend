@@ -562,6 +562,7 @@ pub mod file_upload;
 pub mod floating_panel;
 pub mod format;
 pub mod hover_card;
+pub mod image_cropper;
 pub mod json_tree_view;
 pub mod link;
 pub mod link_overlay;
