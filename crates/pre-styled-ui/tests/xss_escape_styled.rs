@@ -3701,6 +3701,3 @@ fn color_picker_style_dedup_attrs_and_reexported_parts_are_escaped_for_all_paylo
         );
     }
 }
-        );
-    }
-}
