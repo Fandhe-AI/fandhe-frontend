@@ -405,3 +405,37 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 
 - キーボード決定（Enter/Space）は `keynav.rs` が highlight 中の item 要素へ `HtmlElement::click()` を合成することで既存の click → dispatch 経路へ委譲する既存設計のため、本モジュールは click 経路のみを扱えばキーボード決定も自動的に同期される。追加配線は行わない。
 - typeahead（#641）・pre-styled-ui へのスタイル反映（#643）はスコープ外。
+
+## 15. `headless_clipboard` モジュール（Clipboard の `navigator.clipboard.writeText` 実配線、イシュー #773、親トラッキング #520）
+
+`fandhe-frontend-headless-ui` の Clipboard（`crates/headless-ui/src/clipboard.rs`）は Root/Label/Control/Input/Trigger/Indicator/ValueText の 7 anatomy パーツと `copied: bool` 状態機械（`"clipboard:copy"`/`"clipboard:reset"` dispatch）を提供するが、実際に `navigator.clipboard.writeText` を呼び出すクライアント側配線は同モジュール冒頭の rustdoc「スコープ外」節が明記するとおり本クレート（wasm 層）の後続スコープとされていた。`headless_clipboard` モジュール（`crates/wasm-full/src/headless_clipboard.rs`）がその配線を実装する。
+
+### 15.1 `MAPPING_TABLE`（`headless` モジュール、§12）に乗せない理由
+
+`headless::MAPPING_TABLE` は (scope, part) → action の**同期的**な静的マッピングであり、クリックと同時に dispatch する用途に限定される。Clipboard の trigger クリックは「`navigator.clipboard.writeText` が実際に成功した場合にのみ `"clipboard:copy"` を dispatch する」という非同期の成否判定を要するため、`MAPPING_TABLE` には乗せず、`headless_avatar`（§13）と同型の独立配線モジュールとして切り出す。
+
+### 15.2 `navigator.clipboard` の動的解決（`web-sys` の `Clipboard` feature に依存しない）
+
+`web-sys` の `Clipboard`/`Navigator::clipboard()` は Web API の実験的ステータスに応じて feature 名・型が変わりうる不安定領域であるため、本モジュールは `js_sys::Reflect` で `navigator.clipboard`/`clipboard.writeText` を動的に読み取る。取得できない場合（非対応ブラウザ・非 secure context）は **no-op**（fail-closed）。
+
+### 15.3 判定関数（純粋ロジック層）
+
+- `is_clipboard_trigger(scope, part) -> bool` / `is_clipboard_root(scope, part) -> bool`: クリックターゲット（祖先探索結果を含む）が Clipboard trigger/root かどうかを判定する（fail-closed、改ざんされた `data-*` を持つ無関係要素を誤検知しない）。
+- `indicator_visible_after_copied(variant, copied) -> Option<bool>`: `fandhe_frontend_headless_ui::clipboard::indicator` が付与する `data-variant`（`"copied"`/`"idle"`）と現在の `copied` 状態から、その indicator が可視であるべきかを判定する。本クレートは `fandhe-frontend-headless-ui` を製品依存に持つが、規則自体は文字列語彙で複製し、ドリフトは `wasm-full/tests/headless_clipboard.rs` の native テストで固定する。
+
+### 15.3a アクション名の `"clipboard:"` 名前空間（イシュー #773 PR #816 Bugbot 指摘）
+
+`Runtime::mount`/`Runtime::hydrate` はマウントされたページのルート状態機械 `C` の型に関わらず Avatar/Clipboard 双方のイベント配線を無条件に行う（§13・本節）。そのため `C` が `Clipboard` 自身ではなく独自の `AppState`（カウンタの `"reset"` アクション等）や Avatar であっても、同一ページに Clipboard の trigger が存在すればタイムアウト経過後の自動リセットが `C::decode_action` へ dispatch され、無関係な `C` の同名アクションと衝突しうる（コピー操作が後からカウンタをゼロにしたり Avatar を強制的に loading 状態へ戻す）。この衝突を構造的に防ぐため、Clipboard のアクション名は裸の `"copy"`/`"reset"` ではなく `"clipboard:copy"`/`"clipboard:reset"` を用いる（`crates/headless-ui/src/clipboard.rs::ClipboardAction::decode_action`・`crates/wasm-full/src/headless_clipboard.rs::{ACTION_COPY, ACTION_RESET}`）。
+
+### 15.4 配線層（wasm32 限定）
+
+- `wire_clipboard_events(root, on_action)`: `root` へ通常のバブリングフェーズで click 委譲を 1 回だけ登録する（click はバブリングするため `headless_avatar` の capture フェーズ登録とは異なる）。クリックターゲットから祖先方向へ trigger → root（`data-value` 読み取り元）の順に解決し、`navigator.clipboard.writeText(value)` を試みる。成功（resolve）時のみ `"clipboard:copy"` を `on_action` へ通知し、続けて [`DEFAULT_RESET_TIMEOUT_MS`]（ark-ui 既定 3000ms）経過後に自動で `"clipboard:reset"` を通知するタイマーを予約する。reject 時・API 非搭載時は no-op（コピー値・エラー詳細はログへ出力しない、`.claude/rules/security.md` A09 対応）。再コピー時は既存の保留中タイマーを `clear_timeout` してから新しいタイマーで置き換える。
+- `apply_clipboard_copied(root, copied)`: dispatch 後の DOM 反映ヘルパ。`root` 配下の**すべての** Clipboard パーツ（root/control/input/trigger）へ `data-copied` を反映し、indicator の `data-state`/`hidden` を反映する。`set_attribute`/`remove_attribute` のみで HTML 文字列組み立ては行わない（REQ-1）。属性名・属性値の書き込みは `headless_avatar.rs::wiring::set_dom_attribute` と同じガード付きラッパーを通す（イシュー #401 `fw gate` `url_validation_check` 契約）。
+
+### 15.5 Runtime への統合
+
+`crate::lib::Runtime::mount`/`Runtime::hydrate` の双方が `Self::wire_avatar` の直後に `Self::wire_clipboard` を呼び、標準経路へ組み込む（`events`/`keynav`/`headless_avatar` と同じ「マウント時 1 回」契約）。
+
+### 15.6 スコープ境界（「1 root : 1 状態機械」契約、`headless_avatar` §13.4 と同型の簡略化）
+
+- `apply_clipboard_copied` は `root`（Runtime のマウント先全体）配下の全 Clipboard パーツへ同一の `copied` 状態を反映する。複数の Clipboard が同一ページに存在する場合、全て同じ表示状態へ揃う（`headless_avatar` モジュール doc の同名節が明記する簡略化をそのまま踏襲）。複数 Clipboard インスタンスの個別状態追跡は本イシューのスコープ外。
