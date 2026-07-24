@@ -74,7 +74,12 @@
 //! - アスペクト比固定時の従属軸規則: 角・`E`/`W` は `width` が主軸で
 //!   `height` を導出する。`N`/`S` は `height` が主軸で `width` を
 //!   [`ImageCropper::width_from_height_for_aspect`] から導出する（本 rustdoc
-//!   「決定的な整数演算」と対称の丸め規則）。
+//!   「決定的な整数演算」と対称の丸め規則）。`Ne`/`Nw`（上辺の角）は
+//!   height が従属軸のため、dy から素朴に求めた高さと実際に導出される
+//!   height が一致するとは限らない。そのため導出後の height を用いて
+//!   「リサイズ前の底辺（対角の下側コーナー）を固定する」という不変条件
+//!   から `y` を再計算する（`x`（主軸 width 側）はそのまま採用する）。
+
 //!
 //! # dispatch アクション
 //!
@@ -351,7 +356,15 @@ fn normalize(
 ) -> (u32, u32, u32, Rect) {
     let image_width = image_width.max(1);
     let image_height = image_height.max(1);
-    let min_size = min_size.max(1);
+    // min_size が image_width/image_height を超える異常入力は、実際に
+    // 採用する width/height 側（`[min_size, image_dim]` へクランプ）と
+    // 整合するよう image_dim 側へ縮めてから返す。ここで縮めずに肥大化した
+    // min_size をそのまま返すと、hydration_attrs() が
+    // `min-size > width`（または `height`）を出力し、
+    // Hydrate::from_hydration_attrs の `width/height >= min-size` 検査に
+    // 自身が違反して InvalidValue で拒否される（hydration の往復が壊れる、
+    // イシュー #844 レビュー指摘）。
+    let min_size = min_size.max(1).min(image_width).min(image_height);
 
     let aspect = aspect.filter(|(aw, ah)| *aw > 0 && *ah > 0);
 
@@ -891,11 +904,27 @@ impl ImageCropper {
         // `width_from_height_for_aspect` で height から width を逆算して
         // から渡すことで、実質的に height を主軸として振る舞わせる。
         let is_ns_with_aspect = matches!(handle, HandlePosition::N | HandlePosition::S);
-        let rect = match (is_ns_with_aspect, self.aspect) {
-            (true, Some((aw, ah))) => {
+        let rect = match (is_ns_with_aspect, handle, self.aspect) {
+            (true, _, Some((aw, ah))) => {
                 let derived_w =
                     width_from_height_for_aspect(new_h, aw, ah).min(self.max_width_for_aspect());
                 self.renormalize(new_x, new_y, derived_w, new_h)
+            }
+            (false, HandlePosition::Ne | HandlePosition::Nw, Some(_)) => {
+                // Ne/Nw（上辺の角）はアスペクト比固定時、width が主軸で
+                // height は normalize が width から導出する（従属軸）。
+                // 導出後の height は dy から素朴に求めた `new_h` と一致する
+                // 保証がないため、`new_y = y + dy` をそのまま採用すると
+                // 対角の底辺コーナー（Ne は左下・Nw は右下）が動いてしまう
+                // （イシュー #844 レビュー指摘）。まず x=0/y=0 で
+                // renormalize し width/height のみを確定させてから、
+                // 「リサイズ前の底辺（y + h）を固定する」という不変条件で
+                // y を再計算する。width（主軸）は new_x を経由してそのまま
+                // 採用する（E/W と同じ規則で、x 自体の再計算は不要）。
+                let derived = self.renormalize(0, 0, new_w, new_h);
+                let bottom = y + h;
+                let final_y = clamp_u32(bottom - i64::from(derived.height));
+                self.renormalize(new_x, final_y, derived.width, derived.height)
             }
             _ => self.renormalize(new_x, new_y, new_w, new_h),
         };
@@ -1304,6 +1333,30 @@ mod tests {
     }
 
     #[test]
+    fn new_clamps_oversized_min_size_and_round_trips_hydration() {
+        // イシュー #844 レビュー指摘の再現ケース: min_size が
+        // image_width/image_height を超える異常入力を渡すと、以前は
+        // width/height 側だけが image_dim へクランプされ、min_size 自体は
+        // 肥大化した値のまま保持されていた。その結果 hydration_attrs() が
+        // `min-size > width`（`height`）を出力し、
+        // Hydrate::from_hydration_attrs の `width/height >= min-size` 検査に
+        // 自身が違反して InvalidValue で拒否される（hydration の往復が
+        // 壊れる）。
+        let c = ImageCropper::new(50, 30, 0, 0, 50, 30, None, 1000);
+        assert_eq!(c.width(), 50);
+        assert_eq!(c.height(), 30);
+        assert!(c.min_size() <= c.width());
+        assert!(c.min_size() <= c.height());
+
+        let attrs = c.hydration_attrs();
+        let restored = ImageCropper::from_hydration_attrs(&attrs)
+            .expect("正規化済みの hydration 属性は必ず受理されるべき");
+        assert_eq!(restored.width(), c.width());
+        assert_eq!(restored.height(), c.height());
+        assert_eq!(restored.min_size(), c.min_size());
+    }
+
+    #[test]
     fn new_ignores_incomplete_aspect_ratio() {
         // aw/ah のどちらかが 0 のアスペクト比は無効として扱われ、
         // 自由なアスペクト比として処理される（fail-closed）。
@@ -1442,6 +1495,44 @@ mod tests {
         assert!(dispatch(&mut c, "resize", "s,0,50"));
         assert_eq!(c.height(), 150);
         assert_eq!(c.width(), 150); // 1:1 のため width も追随
+    }
+
+    #[test]
+    fn dispatch_resize_ne_with_fixed_aspect_keeps_bottom_edge_anchored() {
+        // イシュー #844 レビュー指摘の再現ケース: Ne（上辺の角）はアスペクト
+        // 比固定時 width が主軸で height は従属（width から導出）。dy から
+        // 素朴に求めた高さ（h - dy = 55）と実際に導出される height（60）が
+        // 一致しないため、`y` を dy でそのまま動かすと対角の底辺（Ne の場合
+        // 左下 = y + height）が不動点からずれてしまう。
+        let mut c = ImageCropper::new(1000, 1000, 200, 100, 100, 50, Some((2, 1)), 1);
+        let bottom_edge = c.y() + c.height(); // 150
+        assert!(dispatch(&mut c, "resize", "ne,20,-5"));
+        assert_eq!(c.x(), 200); // 主軸（width）側のアンカー: 左辺は不動
+        assert_eq!(c.width(), 120);
+        assert_eq!(c.height(), 60); // width=120, aspect=2:1 から導出
+        assert_eq!(
+            c.y() + c.height(),
+            bottom_edge,
+            "底辺（対角の下側コーナー）が固定されるべき"
+        );
+    }
+
+    #[test]
+    fn dispatch_resize_nw_with_fixed_aspect_keeps_bottom_edge_anchored() {
+        // Nw（上辺の角）: 対角の下側コーナーは右下（x + width, y + height）。
+        // width は主軸（dx からそのまま採用）、height は従属軸のため、`y` は
+        // 導出後の height を用いて底辺を固定する必要がある。
+        let mut c = ImageCropper::new(1000, 1000, 200, 100, 100, 50, Some((2, 1)), 1);
+        let bottom_edge = c.y() + c.height(); // 150
+        assert!(dispatch(&mut c, "resize", "nw,-20,-5"));
+        assert_eq!(c.x() + c.width(), 300); // 右辺（主軸側アンカー）は不動
+        assert_eq!(c.width(), 120);
+        assert_eq!(c.height(), 60);
+        assert_eq!(
+            c.y() + c.height(),
+            bottom_edge,
+            "底辺（対角の下側コーナー）が固定されるべき"
+        );
     }
 
     #[test]
