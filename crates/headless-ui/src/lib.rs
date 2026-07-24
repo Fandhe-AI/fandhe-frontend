@@ -475,6 +475,7 @@ pub mod anatomy;
 pub mod aria;
 pub mod avatar;
 pub mod breadcrumb;
+pub mod calendar;
 pub mod carousel;
 pub mod checkbox;
 pub mod clipboard;
@@ -482,6 +483,7 @@ pub mod collapsible;
 pub mod combobox;
 pub mod data_attrs;
 pub mod date;
+pub mod date_picker;
 pub mod dialog;
 pub mod download_trigger;
 pub mod drawer;
@@ -558,6 +560,7 @@ pub use aria::{
 };
 pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use breadcrumb::{breadcrumb, BreadcrumbItem};
+pub use calendar::{Calendar, CalendarAction};
 pub use carousel::{Carousel, CarouselAction};
 pub use checkbox::{Checkbox, CheckboxFlags};
 pub use clipboard::{Clipboard, ClipboardAction};
@@ -567,6 +570,7 @@ pub use data_attrs::{
     data_incomplete, data_invalid, data_orientation, data_pressed, data_readonly, data_required,
     data_state, Orientation,
 };
+pub use date_picker::{DatePicker, DatePickerAction};
 pub use dialog::Dialog;
 pub use drawer::{Drawer, DrawerPlacement};
 pub use editable::{Editable, EditableAction};
