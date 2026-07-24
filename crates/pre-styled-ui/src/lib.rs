@@ -334,6 +334,15 @@
 //!   `thumb`/`corner` は JS スクロール位置追従が本イシューのスコープ外の
 //!   ため初期実装では非表示（`display: none`）。variant は非提供。詳細は
 //!   `crate::scroll_area` rustdoc 参照。
+//! - 状態機械を要しない静的部品（イシュー #831、非採用の再導入）:
+//!   [`mod@marquee`]（Marquee、自動流動テキスト。`docs/policy/intentional-non-adoption.md`
+//!   §3.24 が意図的非採用としていたが、CSS のみ（JS ゼロ）・
+//!   `prefers-reduced-motion: reduce` でのアニメーション停止・
+//!   `hover`/`focus-within` での常時一時停止という決定的設計案で §4 の
+//!   再導入手続きに従い再導入した。root/content/item の 3 パーツ、`content`
+//!   を内部で 2 回複製しシームレスループを実現する（2 個目は常時
+//!   `aria-hidden`）。`direction` の 1 軸 variant のみを持つ。詳細は
+//!   [`mod@marquee`] rustdoc 参照）。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -497,6 +506,7 @@ pub mod link_overlay;
 pub mod list;
 pub mod listbox;
 pub mod mark;
+pub mod marquee;
 pub mod menu;
 pub mod native_select;
 pub mod nav_list;
@@ -558,6 +568,7 @@ pub use input::{input, InputProps, InputVariant};
 pub use kbd::kbd;
 pub use list::{ListType, ListVariant};
 pub use mark::{mark, MarkProps, MarkVariant};
+pub use marquee::{marquee, MarqueeDirection, MarqueeProps};
 pub use native_select::{native_select, NativeSelectProps, NativeSelectVariant};
 pub use recipe::{when, ColorPalette, Size, SlotRecipe, VariantCondition, VariantValue};
 pub use separator::{separator, SeparatorProps, SeparatorVariant};

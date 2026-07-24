@@ -81,6 +81,7 @@ use fandhe_frontend_pre_styled_ui::kbd::kbd;
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
+use fandhe_frontend_pre_styled_ui::marquee::{self, MarqueeDirection, MarqueeProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
@@ -305,6 +306,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::data_list::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::stat::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::timeline::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::marquee::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::scroll_area::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::splitter::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
@@ -3850,6 +3852,50 @@ fn timeline_section() -> Node {
     )
 }
 
+/// Marquee 節（イシュー #831、`docs/policy/intentional-non-adoption.md` §3.24
+/// の再導入）: CSS のみ（JS ゼロ）の自動流動テキスト。`direction`（既定/`End`）
+/// の切り替え・装飾用途（`decorative: true`）・`--fandhe-marquee-duration`
+/// 上書きの掲示例を並べる。
+fn marquee_section() -> Node {
+    let default_demo = marquee::marquee(
+        &MarqueeProps::default(),
+        vec![],
+        vec![marquee::item(
+            vec![],
+            vec![text(
+                "Fandhe frontend — CSS のみで動く自動流動テキストです。",
+            )],
+        )],
+    );
+    let end_demo = marquee::marquee(
+        &MarqueeProps {
+            direction: MarqueeDirection::End,
+            ..MarqueeProps::default()
+        },
+        vec![],
+        vec![marquee::item(
+            vec![],
+            vec![text("逆方向スクロールの例です。")],
+        )],
+    );
+    let decorative_demo = marquee::marquee(
+        &MarqueeProps {
+            decorative: true,
+            ..MarqueeProps::default()
+        },
+        vec![("style", "--fandhe-marquee-duration: 8s;")],
+        vec![marquee::item(
+            vec![],
+            vec![text("装飾用途（aria-hidden）+ 速度上書きの例です。")],
+        )],
+    );
+    section(
+        "Marquee",
+        "CSS のみ（JS ゼロ）の自動流動テキストです。direction（既定/end）でスクロール方向を切り替え、hover/focus-within で常時一時停止、prefers-reduced-motion: reduce 環境では停止します。decorative: true で装飾用途（aria-hidden）に、--fandhe-marquee-duration の上書きで速度を調整できます。",
+        vec![default_demo, end_demo, decorative_demo],
+    )
+}
+
 /// ScrollArea 節（イシュー #825）: `overflow: auto` によるネイティブスクロール
 /// とカスタムスクロールバー表現（`scrollbar-width`/`::-webkit-scrollbar`）。
 /// JS によるスクロール位置追従は本イシューのスコープ外（`crate::scroll_area`
@@ -4044,6 +4090,7 @@ fn showcase_body() -> Node {
             data_list_section(),
             stat_section(),
             timeline_section(),
+            marquee_section(),
             scroll_area_section(),
         ],
     )
