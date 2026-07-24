@@ -74,6 +74,7 @@ use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
+use fandhe_frontend_pre_styled_ui::toast::{self, ToastPlacement, ToastStatus};
 use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, select};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Size};
 
@@ -1514,6 +1515,93 @@ fn radio_card_styled_root_and_parts_are_escaped_for_all_payloads() {
     }
 }
 
+/// styled Toast（イシュー #760）の XSS 回帰: styled `group`/`root` の呼び出し側
+/// attrs・class 属性経路、および再エクスポート済み `title`/`description` の
+/// children 経路を固定する。
+#[test]
+fn toast_styled_group_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled group の呼び出し側 attrs 経路 + aria-label 経路。
+        let html = render(&toast::group(
+            ToastPlacement::Bottom,
+            payload,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "toast::group aria-label/attrs コンテキスト");
+
+        // styled group の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&toast::group(
+            ToastPlacement::Bottom,
+            "Notifications",
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "toast::group の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "toast::group の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-toast--placement-"),
+            "toast::group で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // styled root の呼び出し側 attrs 経路 + title/description children 経路。
+        let html = render(&toast::root(
+            ToastStatus::Error,
+            vec![("data-testid", payload)],
+            vec![
+                toast::title(vec![], vec![text(payload)]),
+                toast::description(vec![], vec![text(payload)]),
+            ],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "toast::root attrs/title/description コンテキスト",
+        );
+
+        // styled root の class 属性経路。
+        let html = render(&toast::root(
+            ToastStatus::Error,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "toast::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "toast::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-toast--status-"),
+            "toast::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // action_trigger/close_trigger の children 経路（headless からの再エクスポート）。
+        let html = render(&toast::action_trigger(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "toast::action_trigger children コンテキスト",
+        );
+
+        let html = render(&toast::close_trigger(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "toast::close_trigger children コンテキスト");
+    }
+}
+
 /// styled HoverCard（イシュー #759）の XSS 回帰。[`hover_card`] は headless
 /// 層をそのまま再エクスポートする薄い委譲層（`pub use ...::*`）であるため、
 /// `crates/headless-ui/tests/xss_escape.rs::hover_card_href_and_content_id_are_escaped_for_all_payloads`
@@ -1647,6 +1735,44 @@ fn carousel_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         // 選択的再エクスポートした item の children 経路。
         let html = render(&carousel::item(0, 1, false, vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "carousel::item children コンテキスト");
+    }
+}
+
+/// (11) action_bar 経路（イシュー #762）: 再エクスポートした `content` の
+/// `aria-label`（属性値経路）・`selection_trigger`/`close_trigger` の
+/// children（テキスト経路）で既定エスケープ（REQ-1）が貫通することを固定
+/// する（`tooltip_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn action_bar_reexported_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::action_bar;
+
+    for payload in payloads::all() {
+        let html = render(&action_bar::content(
+            OpenState::Open,
+            payload,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "action_bar::content aria-label コンテキスト",
+        );
+
+        let html = render(&action_bar::selection_trigger(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "action_bar::selection_trigger children コンテキスト",
+        );
+
+        let html = render(&action_bar::close_trigger(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "action_bar::close_trigger children コンテキスト",
+        );
     }
 }
 

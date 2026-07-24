@@ -249,6 +249,17 @@
 //!   `O(boundary_count + sibling_count)` で `total_pages` を全列挙しない
 //!   （巨大 `count` でも有界、モジュール doc 参照）。wasm 層のクリック配線・
 //!   キーボードナビゲーションは本イシューのスコープ外。
+//! - [`mod@action_bar`]: Root / Positioner / Content / SelectionTrigger /
+//!   Separator / CloseTrigger の 6 anatomy パーツと [`state::Disclosure`] を
+//!   埋め込んだ [`action_bar::ActionBar`] 状態機械（複数選択時に画面下部へ
+//!   表示される操作バー、#762、親トラッキング #520）。構造上最も近い先行例は
+//!   [`dialog::Dialog`]（`Disclosure` 埋め込み + positioner/close-trigger
+//!   構成）であり、本モジュールはそのパターンに完全準拠する。`content` は
+//!   `role="toolbar"` + `aria-label`、`separator` は `role="separator"` +
+//!   `aria-orientation="vertical"` を出力する。選択件数から `open` を導出する
+//!   糖衣 API は持たず、開閉は呼び出し側が dispatch（`"open"`/`"close"`/
+//!   `"toggle"`）で制御する（[`action_bar`] モジュール doc §選択件数から
+//!   open を導出する糖衣 API は持たない 参照）。
 //! - [`mod@hover_card`]: Root/Trigger/Positioner/Content/Arrow/ArrowTip の
 //!   6 anatomy パーツ関数群と、[`state::Disclosure`] を埋め込んだ
 //!   [`hover_card::HoverCard`] 状態機械（#759、親トラッキング #726）。
@@ -259,6 +270,16 @@
 //!   `data-close-delay` へ出力するのみで、実タイマー駆動・DOM 読み取り
 //!   配線は `fandhe-frontend-wasm-full` の後続イシューのスコープ
 //!   （[`hover_card`] モジュール doc §スコープ外参照）。
+//! - [`mod@toast`]: group（live region）/ root / title / description /
+//!   action-trigger / close-trigger の 6 anatomy パーツと、有界なキュー
+//!   （`max` 超過時に最古を押し出す）を管理する [`toast::Toaster`] 状態機械
+//!   （#760、親トラッキング #520）。[`mod@avatar`]/[`mod@progress`] と同じく
+//!   [`state`] の既存語彙に収まらないため
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`aria-live` は
+//!   [`toast::ToastStatus`] から決定的に導出し（`Error` のみ `"assertive"`）、
+//!   タイマーによる自動 dismiss の実配線・`"push"` の文字列 dispatch は
+//!   `fandhe-frontend-wasm-full` の後続イシューのスコープ。
 //! - [`mod@toggle_tip`]: Root / Trigger / Positioner / Content / Arrow /
 //!   ArrowTip の 6 anatomy パーツと、[`state::Disclosure`] を埋め込んだ
 //!   [`toggle_tip::ToggleTip`] 状態機械（#761、親トラッキング #520）。
@@ -383,6 +404,7 @@
 #![warn(missing_docs)]
 
 pub mod accordion;
+pub mod action_bar;
 pub mod anatomy;
 pub mod aria;
 pub mod avatar;
@@ -423,6 +445,7 @@ pub mod state;
 pub mod switch;
 pub mod tabs;
 pub mod tags_input;
+pub mod toast;
 pub mod toggle;
 pub mod toggle_group;
 pub mod toggle_tip;
@@ -451,12 +474,14 @@ pub use fandhe_frontend_core;
 // 経路を作らない（REQ-1 を弱めない）。
 pub use fandhe_frontend_interactive;
 
+pub use action_bar::ActionBar;
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
-    aria_activedescendant, aria_autocomplete, aria_checked, aria_controls, aria_current,
-    aria_describedby, aria_disabled, aria_expanded, aria_haspopup, aria_hidden, aria_invalid,
-    aria_label, aria_labelledby, aria_modal, aria_orientation, aria_pressed, aria_roledescription,
-    aria_selected, role, AriaAutocomplete, AriaChecked, AriaCurrent, AriaPopup,
+    aria_activedescendant, aria_atomic, aria_autocomplete, aria_checked, aria_controls,
+    aria_current, aria_describedby, aria_disabled, aria_expanded, aria_haspopup, aria_hidden,
+    aria_invalid, aria_label, aria_labelledby, aria_live, aria_modal, aria_orientation,
+    aria_pressed, aria_roledescription, aria_selected, role, AriaAutocomplete, AriaChecked,
+    AriaCurrent, AriaLive, AriaPopup,
 };
 pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use breadcrumb::{breadcrumb, BreadcrumbItem};
@@ -499,6 +524,7 @@ pub use state::{
 pub use switch::{Switch, SwitchAction};
 pub use tabs::{tabs, ActivationMode, TabItem, TabsProps};
 pub use tags_input::{TagsInput, TagsInputAction};
+pub use toast::{ToastAction, ToastEntry, ToastPlacement, ToastStatus, Toaster};
 pub use toggle::{Toggle, ToggleAction};
 pub use toggle_group::{MultiToggleGroup, ToggleGroup};
 pub use toggle_tip::ToggleTip;

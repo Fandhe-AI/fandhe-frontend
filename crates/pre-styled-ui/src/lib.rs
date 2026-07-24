@@ -202,6 +202,11 @@
 //!   等と同型の判断）。placement（`start`/`end`/`top`/`bottom`）は variant
 //!   ではなく headless 層が出力する `data-placement` に連動する CSS で表現
 //!   する。詳細は [`mod@drawer`] rustdoc 参照。
+//! - headless ラッパー（イシュー #760）: [`mod@toast`]（Toast、`placement`
+//!   （`group` slot）/`status`（`root` slot、[`mod@alert`] と同じ配色マッピング）
+//!   の 2 軸 variant を持つが、通常の複合部品と異なり各軸が別 slot へ付与される
+//!   ため [`recipe::SlotRecipe::variant_class`]（単一軸専用 API）をスロットごとに
+//!   個別に呼ぶ。詳細は [`mod@toast`] rustdoc 参照）。
 //! - headless ラッパー（Progress circular 対応、イシュー #763）:
 //!   [`mod@progress`]。headless の値状態機械
 //!   [`fandhe_frontend_headless_ui::progress::Progress`] が既に持つ Circle/
@@ -232,6 +237,12 @@
 //!   [`mod@kbd`]（Kbd、variant 軸を持たない単一 slot） / [`mod@code`]（Code、
 //!   インライン `<code>`。variant 軸を持たない単一 slot。chakra-ui の
 //!   CodeBlock は対象外確定済み）。詳細は各モジュール rustdoc 参照。
+//! - headless ラッパー（イシュー #762）: [`mod@action_bar`]（ActionBar、
+//!   複数選択時に画面下部中央へ固定表示する操作バー）。`size`/`color-palette`
+//!   軸は持たず、`positioner` の `position: fixed; bottom: ...; left: 50%;
+//!   transform: translateX(-50%)` による画面下部固定配置と `data-state`
+//!   連動の見た目切り替えのみを提供する。詳細は [`mod@action_bar`] rustdoc
+//!   参照。
 //! - 状態機械を持たない静的表示部品 2 種（イシュー #770）: [`mod@image`]
 //!   （Image、`<img>` の `fit`（`object-fit`）/`aspect-ratio` の 2 軸
 //!   variant。[`fandhe_frontend_headless_ui::avatar`] の `ImageStatus`
@@ -385,6 +396,7 @@
 #![warn(missing_docs)]
 
 pub mod accordion;
+pub mod action_bar;
 pub mod alert;
 pub mod avatar;
 pub mod badge;
@@ -447,6 +459,7 @@ pub mod tags_input;
 pub mod text;
 pub mod textarea;
 pub mod theme;
+pub mod toast;
 pub mod toggle;
 pub mod toggle_group;
 pub mod toggle_tip;

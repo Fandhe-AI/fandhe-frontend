@@ -303,6 +303,8 @@ mod tests {
             ("tag", crate::tag::css()),
             ("kbd", crate::kbd::css()),
             ("code", crate::code::css()),
+            ("action_bar", crate::action_bar::stylesheet()),
+            ("toast", crate::toast::stylesheet()),
             ("status", crate::status::css()),
             ("empty_state", crate::empty_state::css()),
             ("visually_hidden", crate::visually_hidden::css()),
