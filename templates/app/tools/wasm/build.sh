@@ -57,6 +57,21 @@ fi
 # --- (b) wasm-bindgen クレートのバージョンと CLI のバージョンの完全一致検証 ---
 # `wasm/Cargo.lock` から動的に読むため、バージョン pin 箇所を新設しない
 # （`.claude/rules/ci.md` の pin ドリフト検知運用と同じ考え方）。
+#
+# `wasm/Cargo.lock` が存在しない場合（イシュー #885: `xtask
+# patch-template-smoke` が未公開バージョン依存を `[patch.crates-io]` へ
+# 切り替える際、再現性のない古い lock を残さないため意図的に削除する契約、
+# `crates/xtask/src/patch_template_smoke.rs::process_manifest` 参照）は、
+# 依存解決のみを行う `cargo generate-lockfile` で lock を再生成してから
+# バージョンを読む。ここでフル `cargo build`（手順 (c)）へ進めてしまうと、
+# バージョン不一致時に本来ここで出すべき明示エラー
+# （`could not determine the required wasm-bindgen-cli version`／
+# バージョン不一致エラー）より前にビルド時間を浪費するため、
+# 従来どおり手順 (c) より前に検証を完了させる。
+if [ ! -f "${wasm_lock}" ]; then
+  cargo generate-lockfile --manifest-path "${wasm_manifest}"
+fi
+
 expected_version="$(awk '
   /^\[\[package\]\]$/ { in_pkg = 1; name = ""; next }
   in_pkg && /^name = "wasm-bindgen"$/ { name = "wasm-bindgen"; next }

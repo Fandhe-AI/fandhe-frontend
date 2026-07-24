@@ -98,10 +98,21 @@ impl From<CheckVersionBumpError> for PatchTemplateSmokeError {
 ///   を検出した場合は [`PatchTemplateSmokeError::UnsupportedDependencyForm`]
 ///   として即座にエラーにする（本フォールバックが「未レビューの vendor 同梱」
 ///   を誤って許容しないための fail-closed 検証）。
+///
+/// `[dependencies]` / `[dev-dependencies]` / `[build-dependencies]` の
+/// セクション区別は行わない（この後の [`process_manifest`] は
+/// `[patch.crates-io]` へ「クレート名 1 件につき 1 エントリ」を書き出す
+/// 契約であり、セクションをまたいで同一クレートが重複記載されていても
+/// 出力を歪めてはならない）。そのため同名クレートが複数回現れた場合は
+/// ここで直接デデュープし、要求バージョンが食い違っていれば
+/// [`PatchTemplateSmokeError::UnsupportedDependencyForm`] で fail-closed に
+/// 検知する（同一キーを 2 回書いて `[patch.crates-io]` の TOML パースを
+/// 壊す・あるいは異なるバージョン要求のどちらか一方を無言で握り潰す、の
+/// 両方を避けるため）。
 pub fn extract_version_dependencies(
     manifest: &str,
 ) -> Result<Vec<(String, String)>, PatchTemplateSmokeError> {
-    let mut deps = Vec::new();
+    let mut deps: Vec<(String, String)> = Vec::new();
     for (line_no, raw_line) in manifest.lines().enumerate() {
         let line = raw_line.trim();
         let Some(rest) = line.strip_prefix("fandhe-frontend-") else {
@@ -127,7 +138,23 @@ pub fn extract_version_dependencies(
                     line_no_display = line_no + 1,
                 )));
             };
-            deps.push((name, after_quote[..end].to_string()));
+            let version = after_quote[..end].to_string();
+            if let Some((_, existing_version)) = deps.iter().find(|(n, _)| *n == name) {
+                if *existing_version != version {
+                    return Err(PatchTemplateSmokeError::UnsupportedDependencyForm(format!(
+                        "line {line_no_display}: `{name}` requires version {version}, but an \
+earlier line in the same manifest already requires version {existing_version}; conflicting \
+version requirements for the same crate across dependency sections cannot be resolved into a \
+single `[patch.crates-io]` entry: {line:?}",
+                        line_no_display = line_no + 1,
+                    )));
+                }
+                // 同一クレート・同一バージョンの重複記載は無視する（複数
+                // セクションにまたがる正当な再掲。`[patch.crates-io]` へ
+                // 重複キーを生成しないための唯一のガード）。
+            } else {
+                deps.push((name, version));
+            }
         } else if after_eq.starts_with('{') {
             return Err(PatchTemplateSmokeError::UnsupportedDependencyForm(format!(
                 "line {line_no_display}: `{name}` is declared as a table dependency (path/patch \
@@ -478,6 +505,28 @@ mod tests {
     #[test]
     fn extract_version_dependencies_rejects_table_form() {
         let manifest = "fandhe-frontend-core = { path = \"../core\" }\n";
+        let err = extract_version_dependencies(manifest).unwrap_err();
+        assert!(matches!(
+            err,
+            PatchTemplateSmokeError::UnsupportedDependencyForm(_)
+        ));
+    }
+
+    #[test]
+    fn extract_version_dependencies_dedupes_same_crate_same_version_across_sections() {
+        let manifest = "[dependencies]\nfandhe-frontend-core = \"0.1.0\"\n\n[dev-dependencies]\nfandhe-frontend-core = \"0.1.0\"\n";
+        let deps = extract_version_dependencies(manifest).unwrap();
+        assert_eq!(
+            deps,
+            vec![("fandhe-frontend-core".to_string(), "0.1.0".to_string())],
+            "同一クレート・同一バージョンの重複記載は 1 エントリへ畳み込み、\
+             `[patch.crates-io]` へ重複キーを生成しない"
+        );
+    }
+
+    #[test]
+    fn extract_version_dependencies_rejects_conflicting_version_across_sections() {
+        let manifest = "[dependencies]\nfandhe-frontend-core = \"0.1.0\"\n\n[dev-dependencies]\nfandhe-frontend-core = \"0.2.0\"\n";
         let err = extract_version_dependencies(manifest).unwrap_err();
         assert!(matches!(
             err,
