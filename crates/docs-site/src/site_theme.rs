@@ -1,5 +1,5 @@
-//! docs サイト骨格（ヘッダー・2 カラム grid・サイドバー・本文タイポグラフィ・
-//! toc・前後ナビ）が使う CSS の配線（イシュー #905）。
+//! docs サイト骨格（ヘッダー・3 カラム grid・サイドバー・本文タイポグラフィ・
+//! toc・前後ナビ）が使う CSS の配線（イシュー #905、3 カラム化はイシュー #907）。
 //!
 //! # 役割・呼び出し文脈
 //!
@@ -27,14 +27,23 @@
 //! ```text
 //! body
 //!   header.docs-header            … ヘッダバー（サイトタイトルへのリンク）
-//!   div.docs-container            … 2 カラムのグリッドコンテナ（header の下）
-//!     aside.docs-sidebar          … サイドバーのラッパー
-//!       nav.sidebar               … `nav::sidebar()` の実出力（headless nav_list）
-//!         a[aria-current="page"]  … 現在ページのリンク
-//!     main.docs-main              … 本文カラムのラッパー
-//!       nav.docs-toc（任意・先頭）… ページ内目次
-//!       article.docs-content      … Markdown レンダラの出力 + `nav.prev-next`
-//!         - `pre > code.language-*` … フェンス付きコードブロック
+//!   div.docs-container            … 3 カラムのグリッドコンテナ（header の下、
+//!     イシュー #907・`docs/design/docs-site-three-column-redesign.md` §3.1）。
+//!     見出しの無いページでは `docs-container--no-toc` 修飾 class が付く
+//!     （`crate::layout::docs_page_with_assets` 参照）
+//!       aside.docs-sidebar        … 左ナビカラムのラッパー
+//!         input.docs-sidebar-toggle（先頭・sr-only）… `< 768px` の折りたたみ
+//!           開閉状態を保持するチェックボックス（`:checked` が唯一の情報源）
+//!         label.docs-sidebar-toggle-label … 上記チェックボックスの可視トリガー
+//!           （`min-width: 768px` では非表示）
+//!         nav.sidebar              … `nav::sidebar()` の実出力（headless nav_list）
+//!           a[aria-current="page"] … 現在ページのリンク
+//!       main.docs-main            … 中央コンテンツカラムのラッパー
+//!         article.docs-content    … Markdown レンダラの出力 + `nav.prev-next`
+//!           - `pre > code.language-*` … フェンス付きコードブロック
+//!       aside.docs-toc-aside（任意・見出しが存在するページのみ）
+//!         … 右目次カラムのラッパー
+//!         nav.docs-toc            … ページ内目次
 //! ```
 //!
 //! # 不変条件
@@ -97,7 +106,7 @@ impl From<StylesheetError> for SiteThemeError {
 }
 
 /// [`Theme::default`] を基礎に、サイト骨格が使う docs 固有トークン
-/// （現在ページリンクのアクセント背景・構造寸法 3 種）を追加する。
+/// （現在ページリンクのアクセント背景・構造寸法 4 種）を追加する。
 ///
 /// 色は [`Theme::push_color`]、寸法は [`Theme::push_space`] の allowlist
 /// 検証付き API 経由で追加する（手書き `--fandhe-*` 宣言を [`StyleSheet::push_css`]
@@ -115,10 +124,15 @@ fn docs_theme() -> Result<Theme, ThemeError> {
     // docs 固有トークンとして追加する）。
     theme.push_color("docs-accent-bg", "#ebf4ff", "#1c2740")?;
 
-    // 構造寸法（2 カラム grid のサイドバー幅・本文最大幅・ヘッダー高さ）。
+    // 構造寸法（3 カラム grid の左ナビ幅・本文最大幅・ヘッダー高さ・
+    // 右目次カラム幅）。
     theme.push_space("docs-sidebar-width", "16rem")?;
     theme.push_space("docs-max-content-width", "46rem")?;
     theme.push_space("docs-header-height", "3.25rem")?;
+    // 右目次カラム（`aside.docs-toc-aside`）の列幅。3 カラム表示になる
+    // `min-width: 1200px` 以上でのみ参照される（イシュー #907）。sticky 追従・
+    // 視覚スタイルの仕上げは #909 スコープのため、ここでは列幅のみ定義する。
+    theme.push_space("docs-toc-width", "14rem")?;
 
     Ok(theme)
 }
@@ -177,27 +191,94 @@ body {\n\
   text-decoration: none;\n\
 }\n\
 \n\
-/* ---- 2 カラムレイアウト ---- */\n\
+/*\n\
+ * ---- 3 カラムレイアウト（イシュー #907、mobile-first） ----\n\
+ *\n\
+ * 基底（768px 未満）は 1 カラム縦積み。`min-width: 768px` で左ナビ + 中央\n\
+ * コンテンツの 2 カラム grid、`min-width: 1200px` で右目次カラムを加えた\n\
+ * 3 カラム grid になる（設計文書 §3.2）。右目次カラムの sticky 追従・\n\
+ * 視覚スタイルの仕上げは #909、左ナビの折りたたみトグル UI の確定・\n\
+ * pre-styled-ui スタイル適用は #910 のスコープであり、ここでは骨格の\n\
+ * 表示制御と最小限のレイアウト指定に留める。\n\
+ */\n\
 \n\
 .docs-container {\n\
-  display: grid;\n\
-  grid-template-columns: var(--fandhe-space-docs-sidebar-width) minmax(0, 1fr);\n\
-  align-items: start;\n\
+  display: block;\n\
   max-width: 72rem;\n\
   margin: 0 auto;\n\
 }\n\
 \n\
-/* ---- サイドバー ---- */\n\
+/* ---- サイドバー（左ナビ） ---- */\n\
 \n\
 .docs-sidebar {\n\
-  position: sticky;\n\
-  top: var(--fandhe-space-docs-header-height);\n\
-  align-self: start;\n\
-  max-height: calc(100vh - var(--fandhe-space-docs-header-height));\n\
-  overflow-y: auto;\n\
-  padding: 1.75rem 1rem 2rem;\n\
-  border-right: 1px solid var(--fandhe-color-border);\n\
+  width: 100%;\n\
+  padding: 1rem;\n\
+  border-right: none;\n\
+  border-bottom: 1px solid var(--fandhe-color-border);\n\
   font-size: 0.875rem;\n\
+}\n\
+\n\
+/*\n\
+ * 折りたたみ対象は `nav.sidebar`（`aside.docs-sidebar` ではなく）。基底\n\
+ * （768px 未満）は `max-height` で 1 行程度に折りたたむ（JS 不要、`layout.rs`\n\
+ * モジュール doc 参照）。開閉状態の唯一の情報源はチェックボックスの\n\
+ * `:checked` とする（focus-within 系疑似クラスを OR で加えない）。フォーカスが\n\
+ * ナビ内に残ったままチェックを外しても閉じられなくなる回帰があったため\n\
+ * （Bugbot 指摘 #916 是正）。チェックボックス自体は sr-only パターンで\n\
+ * 視覚的に隠すのみで DOM から除去しないため（`.docs-sidebar-toggle`\n\
+ * 参照）、クリップされたリンクへも Tab で到達でき、チェックボックス自体を\n\
+ * Space キーで開閉できる（a11y 上の後退なし）。\n\
+ */\n\
+.docs-sidebar nav.sidebar {\n\
+  max-height: 2.75rem;\n\
+  overflow: hidden;\n\
+}\n\
+\n\
+.docs-sidebar-toggle:checked ~ nav.sidebar {\n\
+  max-height: none;\n\
+  overflow: visible;\n\
+}\n\
+\n\
+/*\n\
+ * `.docs-sidebar-toggle`（input 要素（type=\"checkbox\"））は sr-only パターンで\n\
+ * 視覚的に隠すのみで DOM からは除去しない（Tab フォーカス・Enter/Space\n\
+ * 操作の対象から外さない。`display: none`/`visibility: hidden` にしない\n\
+ * 理由）。`min-width: 768px`（折りたたみ自体を行わない帯域）では\n\
+ * `display: none` に切り替える（下記 `@media` ブロック。この帯域では\n\
+ * サイドバーが常時全展開のためチェックボックスの状態自体が意味を持たなく\n\
+ * なり、キーボードユーザーが無意味なコントロールへ無駄にフォーカスを\n\
+ * 奪われる回帰を避ける、Bugbot 指摘 #916 是正）。\n\
+ */\n\
+.docs-sidebar-toggle {\n\
+  position: absolute;\n\
+  width: 1px;\n\
+  height: 1px;\n\
+  padding: 0;\n\
+  margin: -1px;\n\
+  overflow: hidden;\n\
+  clip: rect(0, 0, 0, 0);\n\
+  white-space: nowrap;\n\
+  border: 0;\n\
+}\n\
+\n\
+/*\n\
+ * `.docs-sidebar-toggle-label` はチェックボックスの可視トリガー。基底\n\
+ * （768px 未満、折りたたみが有効な帯域）でのみ表示し、`min-width: 768px`\n\
+ * （折りたたみ自体を行わない帯域、下記 `@media` ブロック）では非表示にする。\n\
+ */\n\
+.docs-sidebar-toggle-label {\n\
+  display: block;\n\
+  cursor: pointer;\n\
+  padding: 0.4rem 0.6rem;\n\
+  margin: -0.4rem -0.6rem 0.4rem;\n\
+  border-radius: 0.4rem;\n\
+  font-size: 0.8rem;\n\
+  font-weight: 600;\n\
+  color: var(--fandhe-color-accent);\n\
+}\n\
+\n\
+.docs-sidebar-toggle-label:hover {\n\
+  background: var(--fandhe-color-bg-subtle);\n\
 }\n\
 \n\
 .docs-sidebar nav.sidebar {\n\
@@ -258,7 +339,7 @@ body {\n\
 \n\
 .docs-main {\n\
   min-width: 0;\n\
-  padding: 2.25rem 2rem 5rem;\n\
+  padding: 1.5rem 1.1rem 3rem;\n\
 }\n\
 \n\
 .docs-content {\n\
@@ -407,10 +488,23 @@ body {\n\
   padding-left: 1rem;\n\
 }\n\
 \n\
+/* ---- 右目次カラム（`aside.docs-toc-aside`。イシュー #907） ---- */\n\
+\n\
+/*\n\
+ * 基底・768px 帯域（2 カラム）では非表示。狭幅では「右目次 → 左ナビ」の\n\
+ * 順に畳む要件どおり、目次カラムのみを先に隠す。1200px 以上で表示に切り替える\n\
+ * （`@media (min-width: 1200px)` 側、下記）。sticky 追従・視覚仕上げは #909。\n\
+ */\n\
+.docs-toc-aside {\n\
+  display: none;\n\
+}\n\
+\n\
 /* ---- 前後ページナビ（本文末尾、カード風） ---- */\n\
 \n\
 nav.prev-next {\n\
   display: flex;\n\
+  /* 基底（768px 未満）は縦積み。`min-width: 768px` で横並びに切り替える。 */\n\
+  flex-direction: column;\n\
   gap: 0.75rem;\n\
   margin: 2.5rem 0 0;\n\
   max-width: var(--fandhe-space-docs-max-content-width);\n\
@@ -444,36 +538,98 @@ nav.prev-next .prev [data-part=\"overlay\"] {\n\
   text-align: left;\n\
 }\n\
 \n\
+/*\n\
+ * 基底（768px 未満、縦積み）では `.prev` と同じ左揃え。`min-width: 768px` で\n\
+ * 横並びに切り替わった際に右揃えへ変える（下記 `@media` ブロック参照）。\n\
+ */\n\
 nav.prev-next .next [data-part=\"overlay\"] {\n\
-  text-align: right;\n\
+  text-align: left;\n\
 }\n\
 \n\
-/* ---- モバイル対応: 768px 以下で 1 カラムに畳む ---- */\n\
-\n\
-@media (max-width: 768px) {\n\
+/*\n\
+ * ---- `min-width: 768px`: 左ナビ + 中央コンテンツの 2 カラム grid ----\n\
+ *\n\
+ * 右目次カラム（`.docs-toc-aside`）はこの帯域ではまだ非表示のまま\n\
+ * （狭幅では「右目次 → 左ナビ」の順に畳む要件、設計文書 §3.2）。\n\
+ */\n\
+@media (min-width: 768px) {\n\
   .docs-container {\n\
-    display: block;\n\
+    display: grid;\n\
+    grid-template-columns: var(--fandhe-space-docs-sidebar-width) minmax(0, 1fr);\n\
+    align-items: start;\n\
   }\n\
 \n\
   .docs-sidebar {\n\
-    position: static;\n\
+    /*\n\
+     * `.docs-header` が sticky top: 0 で常時可視のため、`.docs-sidebar` は\n\
+     * ヘッダー分オフセットして常時可視のヘッダー直下に張り付く。\n\
+     */\n\
+    position: sticky;\n\
+    top: var(--fandhe-space-docs-header-height);\n\
+    align-self: start;\n\
+    max-height: calc(100vh - var(--fandhe-space-docs-header-height));\n\
+    overflow-y: auto;\n\
+    width: auto;\n\
+    padding: 1.75rem 1rem 2rem;\n\
+    border-right: 1px solid var(--fandhe-color-border);\n\
+    border-bottom: none;\n\
+  }\n\
+\n\
+  /* `min-width: 768px` では折りたたみ自体を行わないため、`nav.sidebar` の\n\
+   * 折りたたみ制約とタッチ用トグルの可視トリガーの双方を解除する。 */\n\
+  .docs-sidebar nav.sidebar {\n\
     max-height: none;\n\
-    width: 100%;\n\
-    border-right: none;\n\
-    border-bottom: 1px solid var(--fandhe-color-border);\n\
-    padding: 1rem;\n\
+    overflow: visible;\n\
+  }\n\
+\n\
+  /* この帯域ではサイドバーが常時全展開のためチェックボックス自体を DOM\n\
+   * 上から視覚的に取り除くだけでなく操作対象からも外す（Bugbot 指摘 #916\n\
+   * 是正、上記 `.docs-sidebar-toggle` doc コメント参照）。 */\n\
+  .docs-sidebar-toggle {\n\
+    display: none;\n\
+  }\n\
+\n\
+  .docs-sidebar-toggle-label {\n\
+    display: none;\n\
   }\n\
 \n\
   .docs-main {\n\
-    padding: 1.5rem 1.1rem 3rem;\n\
+    padding: 2.25rem 2rem 5rem;\n\
   }\n\
 \n\
   nav.prev-next {\n\
-    flex-direction: column;\n\
+    flex-direction: row;\n\
   }\n\
 \n\
   nav.prev-next .next [data-part=\"overlay\"] {\n\
-    text-align: left;\n\
+    text-align: right;\n\
+  }\n\
+}\n\
+\n\
+/*\n\
+ * ---- `min-width: 1200px`: 左ナビ + 中央コンテンツ + 右目次の 3 カラム grid ----\n\
+ *\n\
+ * `.docs-toc-aside` をこの帯域から表示に切り替える。見出しの無いページ\n\
+ * （`div.docs-container.docs-container--no-toc`、`crate::layout` が\n\
+ * `aside.docs-toc-aside` 自体を出力しない場合に付与する修飾 class）では\n\
+ * 右目次列のグリッドトラック自体を収縮させ、空の右カラムが残ったまま\n\
+ * 中央カラムが狭くなる回帰を避ける（Bugbot 指摘 #916 是正）。\n\
+ */\n\
+@media (min-width: 1200px) {\n\
+  .docs-container {\n\
+    grid-template-columns:\n\
+      var(--fandhe-space-docs-sidebar-width) minmax(0, 1fr)\n\
+      var(--fandhe-space-docs-toc-width);\n\
+  }\n\
+\n\
+  .docs-container.docs-container--no-toc {\n\
+    grid-template-columns: var(--fandhe-space-docs-sidebar-width) minmax(0, 1fr);\n\
+  }\n\
+\n\
+  .docs-toc-aside {\n\
+    display: block;\n\
+    min-width: 0;\n\
+    padding: 1.75rem 1rem 2rem;\n\
   }\n\
 }\n\
 ";
@@ -521,13 +677,63 @@ mod tests {
             ".docs-header",
             ".docs-container",
             ".docs-sidebar",
+            ".docs-sidebar-toggle",
+            ".docs-sidebar-toggle-label",
             ".docs-main",
             ".docs-content",
             ".docs-toc",
+            ".docs-toc-aside",
             "nav.prev-next",
         ] {
             assert!(css.contains(selector), "missing selector: {selector}");
         }
+    }
+
+    #[test]
+    fn stylesheet_sidebar_open_state_has_no_focus_within_fallback() {
+        // Bugbot 指摘（PR #916）是正の回帰テスト: `.docs-sidebar-toggle:checked`
+        // のみが折りたたみナビの開状態の情報源であり、`:focus-within` を OR で
+        // 加えていないことを固定する。チェックを外してもフォーカスがナビ内に
+        // 残っている限り閉じられなくなる回帰を防ぐ。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        assert!(css.contains(".docs-sidebar-toggle:checked ~ nav.sidebar"));
+        assert!(!css.contains(":focus-within"));
+    }
+
+    #[test]
+    fn stylesheet_hides_sidebar_toggle_checkbox_at_desktop_breakpoint() {
+        // Bugbot 指摘（PR #916）是正の回帰テスト: `min-width: 768px`（折りたたみ
+        // を行わない帯域）では可視ラベルだけでなくチェックボックス本体も
+        // `display: none` にし、キーボードユーザーが無意味なコントロールへ
+        // 到達しないことを固定する。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        let after_768 = css
+            .split("@media (min-width: 768px)")
+            .nth(1)
+            .expect("min-width: 768px block should exist");
+        // `min-width: 1200px` ブロックの手前までが `min-width: 768px` ブロックの
+        // 本体（ネストした `{ }` を厳密にパースせず、次の `@media` 開始位置を
+        // 終端とみなす。CSS の性質上メディアクエリはトップレベルにしか
+        // 出現しないため十分な近似）。
+        let block_768 = match after_768.find("@media (min-width: 1200px)") {
+            Some(idx) => &after_768[..idx],
+            None => after_768,
+        };
+        assert!(block_768.contains(".docs-sidebar-toggle {"));
+        assert!(block_768.contains(".docs-sidebar-toggle-label {"));
+    }
+
+    #[test]
+    fn stylesheet_collapses_toc_grid_track_when_no_toc_modifier_present() {
+        // Bugbot 指摘（PR #916）是正の回帰テスト: 見出しの無いページ
+        // （`layout.rs` が付与する `docs-container--no-toc` 修飾 class）では
+        // `min-width: 1200px` の 3 カラム grid が右目次列のトラックを
+        // 収縮させ、空カラムが残ったまま中央カラムが狭くならないことを固定する。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        assert!(css.contains(".docs-container.docs-container--no-toc"));
     }
 
     #[test]
