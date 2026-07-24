@@ -39,6 +39,7 @@ const TIMELINE_GOLDEN_CSS: &str = r#"[data-scope="timeline"][data-part="root"] {
   display: flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
   width: var(--fandhe-timeline-indicator-size, 1.5rem);
   height: var(--fandhe-timeline-indicator-size, 1.5rem);
   border-radius: var(--fandhe-radius-full, 9999px);

@@ -181,6 +181,11 @@ fn recipe() -> SlotRecipe {
                 decl("display", "flex"),
                 decl("align-items", "center"),
                 decl("justify-content", "center"),
+                // box-sizing: border-box を明示し、Outline variant が付与する
+                // border 分だけ width/height（グリッドトラック
+                // --fandhe-timeline-indicator-size 由来）からはみ出す
+                // サイズドリフトを防ぐ（PR #812 Cursor Bugbot 指摘対応）。
+                decl("box-sizing", "border-box"),
                 decl("width", "var(--fandhe-timeline-indicator-size, 1.5rem)"),
                 decl("height", "var(--fandhe-timeline-indicator-size, 1.5rem)"),
                 decl("border-radius", "var(--fandhe-radius-full, 9999px)"),
