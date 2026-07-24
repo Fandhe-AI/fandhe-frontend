@@ -90,6 +90,25 @@
 //!   1 行サマリは `check_dep_versions::format_report` 参照。CLI 契約の回帰
 //!   テストは `xtask/tests/cli_check_dep_versions.rs`。
 //!
+//! - `patch-template-smoke --project-dir <DIR> --repo-root <DIR>
+//!   [--index-base-url <URL>]`: イシュー #885（採用案の実装、イシュー #884の
+//!   後続）。`template-app-wasm-smoke` ジョブ（`.github/workflows/ci.yml`）の
+//!   「fw new」直後に実行し、生成プロジェクトのルート `Cargo.toml` ・
+//!   `wasm/Cargo.toml` が要求する fandhe-frontend-* 各バージョンを crates.io
+//!   sparse index へ照会する（`patch_template_smoke` モジュール、
+//!   `check_version_bump::query_index` を再利用）。バンプ先バージョンが
+//!   未公開で crates.io 実解決が成立しない依存についてのみ、当該マニフェストへ
+//!   `[patch.crates-io]`（`--repo-root` 配下 `crates/<dir>` への絶対 path）を
+//!   注入して対応する `Cargo.lock` を削除する（再現性低下は意図的に許容し
+//!   stdout へ明記する）。全依存が crates.io で解決可能なら無変更。緩和用の
+//!   環境変数・CLI フラグは設けない（既存の迂回禁止原則と同型）。1 行サマリは
+//!   `patch_template_smoke::format_dep_report` 参照
+//!   （`template-app-wasm-smoke: dep=<crate> version=<v>
+//!   resolution=<crates-io|path-override>`）。crates.io 公開の承認境界
+//!   （`release.yml`）は一切変更しない。詳細設計は
+//!   `docs/ci/version-bump-publish-order-gap.md` を参照。CLI 契約の回帰
+//!   テストは `xtask/tests/cli_patch_template_smoke.rs`。
+//!
 //! `core` / `interactive` と異なりプロセス起動（`std::process::Command`）を行うが、
 //! `unsafe` は使わない（REQ-2 は core/interactive 限定だが、xtask でも forbid する。
 //! core/tests/unsafe_boundary.rs の WASM/FFI 境界許可リストにも含まれない）。
@@ -104,6 +123,7 @@ mod check_loc;
 mod check_version_bump;
 mod json;
 mod list_build_scripts;
+mod patch_template_smoke;
 mod wasm_node_smoke;
 
 use std::process::ExitCode;
@@ -120,6 +140,7 @@ fn main() -> ExitCode {
         Some("bench-binding-update") => run_bench_binding_update(&args[2..]),
         Some("check-version-bump") => run_check_version_bump(&args[2..]),
         Some("check-dep-versions") => run_check_dep_versions(&args[2..]),
+        Some("patch-template-smoke") => run_patch_template_smoke(&args[2..]),
         Some(other) => {
             eprintln!("xtask: unknown subcommand `{other}`");
             print_usage();
@@ -184,6 +205,14 @@ fn print_usage() {
     eprintln!("      current version (issue #657). No network access (cargo metadata only).");
     eprintln!("      `--fix` auto-corrects version-mismatch failures in place; ambiguous or");
     eprintln!("      unsupported requirement forms are left untouched and reported as errors.");
+    eprintln!(
+        "  patch-template-smoke --project-dir <DIR> --repo-root <DIR> [--index-base-url <URL>]"
+    );
+    eprintln!("      Query crates.io for the fandhe-frontend-* version requirements declared by");
+    eprintln!("      a `fw new --template app` output (issue #885). Deps that are not yet");
+    eprintln!("      resolvable on crates.io get a `[patch.crates-io]` fallback pointing at");
+    eprintln!("      --repo-root's crates/<dir>, with the corresponding Cargo.lock removed.");
+    eprintln!("      Deps already resolvable on crates.io are left untouched.");
 }
 
 /// `check-deps` サブコマンド: `--package <NAME>` を 1 つ以上受け取り、
@@ -802,4 +831,134 @@ failures are not auto-fixable)."
     } else {
         ExitCode::SUCCESS
     }
+}
+
+/// `patch-template-smoke` サブコマンド（イシュー #885）: `--project-dir <DIR>`・
+/// `--repo-root <DIR>`（いずれも必須）・`--index-base-url <URL>`（任意、既定
+/// [`check_version_bump::DEFAULT_INDEX_BASE_URL`]、テスト専用の差し替え口）を
+/// 受け取る。
+///
+/// `<project-dir>/Cargo.toml`（必須。読み取れなければ即失敗）・
+/// `<project-dir>/wasm/Cargo.toml`（存在すれば処理、なければ読み飛ばす）の
+/// 2 マニフェストを [`patch_template_smoke::process_manifest`] で処理する。
+/// crates.io sparse index への到達性起因のエラー
+/// （[`patch_template_smoke::PatchTemplateSmokeError::Environment`]）は
+/// `environment error: ` プレフィックス付きで即座に打ち切る（`check-version-bump`
+/// と同じ fail-closed 区別規約）。引数不備は終了コード 2、それ以外の失敗
+/// （既存 `[patch.crates-io]`・path 依存検出・repo-root 側クレート不整合・
+/// 環境エラー）は終了コード 1。
+fn run_patch_template_smoke(args: &[String]) -> ExitCode {
+    let mut project_dir: Option<String> = None;
+    let mut repo_root: Option<String> = None;
+    let mut index_base_url = check_version_bump::DEFAULT_INDEX_BASE_URL.to_string();
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--project-dir" => {
+                let Some(value) = args.get(i + 1) else {
+                    eprintln!("xtask patch-template-smoke: `--project-dir` requires a value");
+                    return ExitCode::from(2);
+                };
+                project_dir = Some(value.clone());
+                i += 2;
+            }
+            "--repo-root" => {
+                let Some(value) = args.get(i + 1) else {
+                    eprintln!("xtask patch-template-smoke: `--repo-root` requires a value");
+                    return ExitCode::from(2);
+                };
+                repo_root = Some(value.clone());
+                i += 2;
+            }
+            "--index-base-url" => {
+                let Some(value) = args.get(i + 1) else {
+                    eprintln!("xtask patch-template-smoke: `--index-base-url` requires a value");
+                    return ExitCode::from(2);
+                };
+                index_base_url = value.clone();
+                i += 2;
+            }
+            other => {
+                eprintln!("xtask patch-template-smoke: unknown argument `{other}`");
+                return ExitCode::from(2);
+            }
+        }
+    }
+
+    let Some(project_dir) = project_dir else {
+        eprintln!("xtask patch-template-smoke: `--project-dir <DIR>` is required");
+        return ExitCode::from(2);
+    };
+    let Some(repo_root) = repo_root else {
+        eprintln!("xtask patch-template-smoke: `--repo-root <DIR>` is required");
+        return ExitCode::from(2);
+    };
+
+    let project_dir = std::path::Path::new(&project_dir);
+    let repo_root = std::path::Path::new(&repo_root);
+
+    let manifests = [
+        (
+            project_dir.join("Cargo.toml"),
+            project_dir.join("Cargo.lock"),
+        ),
+        (
+            project_dir.join("wasm").join("Cargo.toml"),
+            project_dir.join("wasm").join("Cargo.lock"),
+        ),
+    ];
+
+    let mut any_patched = false;
+    for (idx, (manifest_path, lock_path)) in manifests.iter().enumerate() {
+        if !manifest_path.exists() {
+            // ルート Cargo.toml（idx 0）は必須。wasm/Cargo.toml（idx 1）は
+            // `fw new --template app` 以外の生成物では存在しないことがあり
+            // 得るため読み飛ばす。
+            if idx == 0 {
+                eprintln!(
+                    "xtask patch-template-smoke: required manifest not found: {path}",
+                    path = manifest_path.display()
+                );
+                return ExitCode::FAILURE;
+            }
+            continue;
+        }
+
+        match patch_template_smoke::process_manifest(
+            manifest_path,
+            lock_path,
+            repo_root,
+            &index_base_url,
+        ) {
+            Ok(outcome) => {
+                for report in &outcome.reports {
+                    print!("{}", patch_template_smoke::format_dep_report(report));
+                }
+                if outcome.patched {
+                    any_patched = true;
+                    println!(
+                        "xtask patch-template-smoke: {path} was patched with a \
+`[patch.crates-io]` fallback and its Cargo.lock was removed; build reproducibility \
+(--locked-equivalent determinism) is reduced for this manifest until the pending crate \
+version is published on crates.io",
+                        path = manifest_path.display()
+                    );
+                }
+            }
+            Err(e) => {
+                eprintln!("xtask patch-template-smoke: {e}");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+
+    if any_patched {
+        println!(
+            "xtask patch-template-smoke: fallback engaged for one or more dependencies (see \
+`resolution=path-override` lines above); this is expected only until the corresponding \
+crates.io publish (release.yml, workflow_dispatch, mode: publish) completes"
+        );
+    }
+
+    ExitCode::SUCCESS
 }
