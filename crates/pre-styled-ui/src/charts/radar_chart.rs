@@ -68,10 +68,29 @@ const SLOTS: &[&str] = &["root", "grid", "spoke", "axis-label", "series"];
 
 /// 軸ラベル用に確保する半径方向の余白（px 相当。[`super::bar_chart`] の
 /// `CATEGORY_LABEL_SPACE` と同型の判断）。
-const AXIS_LABEL_MARGIN: f64 = 32.0;
+///
+/// `AXIS_LABEL_MARGIN - AXIS_LABEL_OFFSET` が「ラベル アンカー点から
+/// `viewBox` 外周までの実利用可能幅」（`root` 内の式変形を参照。
+/// `plot_radius = size / 2 - AXIS_LABEL_MARGIN` かつラベルは半径
+/// `plot_radius + AXIS_LABEL_OFFSET` に配置するため、`size` に依存せず
+/// 一定値になる）。side ラベル（`text-anchor` `start`/`end`）はこの幅の
+/// 方向へ全体が伸びるため、幅が狭いと通常の長さのカテゴリ名でも
+/// `viewBox` をはみ出してクリップまたはレイアウトへ食い込む
+/// （Cursor Bugbot 指摘、イシュー #851 追補）。本モジュールはテキスト幅を
+/// 測定する手段を持たない（外部依存ゼロ・決定的レンダリングの制約）ため、
+/// `font-size xs`（≒0.75rem/12px、1 文字あたり概ね 7〜8px と仮定）で
+/// 本モジュールが実際に描画する最長ラベル（doctest/テストの `"control"`
+/// 7 文字、既定 `size` 300.0 でも size に依存せず一定）が収まる下限として
+/// 54px（`AXIS_LABEL_MARGIN` 60.0 − `AXIS_LABEL_OFFSET` 6.0）を確保する
+/// （下記 `axis_label_side_budget_fits_longest_known_label` が固定する契約）。
+/// これより著しく長いカテゴリ名を使う場合は呼び出し側で `size` を大きくする
+/// か短縮する必要がある（本モジュールはテキスト幅を計測できないため
+/// 自動対応しない）。
+const AXIS_LABEL_MARGIN: f64 = 60.0;
 
-/// `plot_radius` の外側、軸ラベルを配置する追加オフセット（px 相当）。
-const AXIS_LABEL_OFFSET: f64 = 14.0;
+/// `plot_radius` の外側、軸ラベルを配置する追加オフセット（px 相当。
+/// [`AXIS_LABEL_MARGIN`] のドキュメント参照）。
+const AXIS_LABEL_OFFSET: f64 = 6.0;
 
 /// グリッド（同心正多角形）の目安本数（[`LinearScale::ticks`] の `target`）。
 const GRID_TICK_TARGET: usize = 4;
@@ -387,10 +406,29 @@ mod tests {
     #[test]
     fn root_rejects_plot_area_too_small() {
         let data = sample_data(4);
-        // AXIS_LABEL_MARGIN (32.0) * 2 = 64.0 以下では plot_radius <= 0。
+        // AXIS_LABEL_MARGIN (60.0) * 2 = 120.0 以下では plot_radius <= 0。
         assert_eq!(
             root(&data, RadarChartProps { size: 60.0 }, "label").unwrap_err(),
             ChartError::PlotAreaTooSmall
+        );
+    }
+
+    #[test]
+    fn axis_label_side_budget_fits_longest_known_label() {
+        // side ラベル（`text-anchor` start/end）のアンカー点から `viewBox`
+        // 外周までの実利用可能幅は `AXIS_LABEL_MARGIN - AXIS_LABEL_OFFSET`
+        // （`size` に依存せず一定、`AXIS_LABEL_MARGIN` doc 参照）。本モジュール
+        // が実際に描画する最長ラベル（doctest の "control", 7 文字）が、
+        // `font-size xs` での 1 文字あたり想定幅（7.5px、doc 記載の 7〜8px
+        // 仮定の中央値）で収まることを固定する回帰テスト（Cursor Bugbot 指摘、
+        // イシュー #851 追補。この余白を将来縮小する変更は本テストで検知する）。
+        const ASSUMED_CHAR_WIDTH_PX: f64 = 7.5;
+        let longest_label_chars = "control".len() as f64;
+        let side_budget = AXIS_LABEL_MARGIN - AXIS_LABEL_OFFSET;
+        assert!(
+            side_budget >= longest_label_chars * ASSUMED_CHAR_WIDTH_PX,
+            "side_budget={side_budget} は最長ラベル想定幅 {}px を下回ってはならない",
+            longest_label_chars * ASSUMED_CHAR_WIDTH_PX
         );
     }
 

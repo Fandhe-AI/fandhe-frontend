@@ -14,10 +14,15 @@
 //!    `(min, max)` を算出し、[`super::scale::LinearScale::new`] → `nice()`
 //!    を経由して `viewBox` の描画領域へ写像する（x: `(0, width)`、
 //!    y: `(height, 0)` で SVG の下向き正の y 軸を反転する）。
-//! 2. **退化 domain（`min == max`）**: [`super::data::ChartData::domain`] の
-//!    片側パディング方針と同型に、`v` を中心とした対称区間 `(v - 1.0, v +
-//!    1.0)` へ拡張してから `LinearScale::new` へ渡す（1 点のみ・全点同一
-//!    座標のデータでも `ChartError::DegenerateDomain` を誘発しない）。
+//! 2. **退化 domain（`min == max`）**: [`super::data::ChartData::domain`] と
+//!    同じ [`super::data::flat_domain_pad`]（下限 1.0 と値の大きさに比例した
+//!    パディングのうち大きい方を採用し、`v` が `f64` 精度限界付近でも
+//!    パディングが丸め誤差で no-op 化しない）を再利用した
+//!    [`flat_domain_bounds`] で `v` を中心とした対称区間へ拡張してから
+//!    `LinearScale::new` へ渡す（1 点のみ・全点同一座標のデータでも
+//!    `ChartError::DegenerateDomain`/`NonFiniteValue` を誘発しない。固定
+//!    `±1.0` のみだと `f64::MAX` 付近で退化・非有限化が再発する不具合が
+//!    あった、Cursor Bugbot 指摘、イシュー #851 追補）。
 //! 3. **座標の文字列化**: すべて [`super::svg::fmt_coord`] のみを経由する
 //!    （独自フォーマット禁止、[`crate::charts`] モジュール doc 不変条件 2）。
 //! 4. **軸線・グリッド・凡例・ツールチップ**: 本モジュールのスコープ外
@@ -45,6 +50,7 @@
 //! - `examples/headless-pre-styled-ui` への追随は crates.io 公開後に別途
 //!   行う（`qr_code`/`bar_chart` の先例と同じ判断）。
 
+use super::data::flat_domain_pad;
 use super::scale::LinearScale;
 use super::svg::{self, ViewBox};
 use super::{series_color_var, ChartError};
@@ -54,6 +60,32 @@ use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 
 /// `data-scope="scatter-chart"` の part 一覧（recipe と揃える）。
 const SLOTS: &[&str] = &["root", "point"];
+
+/// 退化 domain（`min == max`）を対称区間へ広げる（[`ScatterData::domain`] の
+/// 唯一の呼び出し元）。
+///
+/// パディング幅は [`super::data::flat_domain_pad`] を再利用し、
+/// [`super::data::ChartData::domain`] と同型の「値の大きさに比例した
+/// パディング + 下限 1.0」（`v` が `0`/微小値でも退化しない）を散布図側にも
+/// 適用する。固定 `±1.0` のみだと `v` が `f64` の精度限界付近
+/// （およそ `2^53` 以上）で `v ± 1.0` が丸め誤差により `v` 自身へ丸め戻り
+/// no-op になる退化を再現してしまうため（Cursor Bugbot 指摘、イシュー #851
+/// 追補、`data.rs` 側の同種修正がイシュー #846 追補）。
+///
+/// `v ± pad` が非有限（`v` が `±f64::MAX` 付近で `pad` 加算がオーバーフロー
+/// する場合）は `ChartData::domain` と同型に `v` 自身へフォールバックする
+/// （後続の [`LinearScale::new`] が非有限入力を [`ChartError::NonFiniteValue`]
+/// として拒否できるよう、ここでは非有限値を作らない）。
+#[must_use]
+fn flat_domain_bounds(v: f64) -> (f64, f64) {
+    let pad = flat_domain_pad(v);
+    let lo = v - pad;
+    let hi = v + pad;
+    (
+        if lo.is_finite() { lo } else { v },
+        if hi.is_finite() { hi } else { v },
+    )
+}
 
 /// 1 系列分の散布点集合。
 #[derive(Debug, Clone, PartialEq)]
@@ -139,12 +171,12 @@ impl ScatterData {
             }
         }
         let x_domain = if min_x == max_x {
-            (min_x - 1.0, max_x + 1.0)
+            flat_domain_bounds(min_x)
         } else {
             (min_x, max_x)
         };
         let y_domain = if min_y == max_y {
-            (min_y - 1.0, max_y + 1.0)
+            flat_domain_bounds(min_y)
         } else {
             (min_y, max_y)
         };
@@ -400,6 +432,21 @@ mod tests {
         let data = ScatterData::new(vec![ScatterSeries::new("a", vec![(3.0, 3.0)])]).unwrap();
         let html = render(&root(&data, ScatterChartProps::default(), "label").unwrap());
         assert!(html.contains(r#"data-part="point""#));
+    }
+
+    #[test]
+    fn root_handles_flat_domain_at_f64_extreme_magnitude() {
+        // 全点が同一座標（x/y とも退化 domain）かつその座標が `f64::MAX`/`MIN`
+        // 付近の場合、固定 `±1.0` パディングのみだと丸め誤差で `v` 自身へ
+        // 丸め戻る（退化再発）か、桁あふれで `±inf`（`NonFiniteValue`）になる
+        // 不具合があった（Cursor Bugbot 指摘、イシュー #851 追補）。
+        // `flat_domain_bounds`（`data::flat_domain_pad` 再利用）が両方を
+        // 回避し、`root` が成功することを固定する回帰テスト。
+        for v in [f64::MAX, f64::MIN] {
+            let data = ScatterData::new(vec![ScatterSeries::new("a", vec![(v, v)])]).unwrap();
+            let html = render(&root(&data, ScatterChartProps::default(), "label").unwrap());
+            assert!(html.contains(r#"data-part="point""#));
+        }
     }
 
     #[test]
