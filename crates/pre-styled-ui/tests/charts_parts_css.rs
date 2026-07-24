@@ -97,7 +97,7 @@ fn tooltip_css_matches_golden_fixture_byte_for_byte() {
         "}\n",
         "\n",
         "[data-scope=\"chart\"][data-part=\"datum\"]:hover {\n",
-        "  opacity: 0.8;\n",
+        "  stroke: var(--fandhe-color-accent-emphasized);\n",
         "  stroke-width: 2;\n",
         "}\n",
     );

@@ -14,7 +14,9 @@
 //!    JS 不要）
 //! 2. `aria-label` 属性（スクリーンリーダー向け、`<title>` と同一文字列）
 //! 3. [`crate::recipe::StateCondition::Hover`] による `:hover` 時の視覚的
-//!    強調（`opacity`/`stroke-width` 変更、CSS のみ）
+//!    強調（`stroke`/`stroke-width` 変更、CSS のみ。SVG の既定 `stroke` は
+//!    `none` のため `stroke-width` 単独では効果がなく、明示的な `stroke`
+//!    色の指定を必須とする）
 //!
 //! を組み合わせて埋め込み、JS なしで「ホバーで詳細が分かる」体験を実現する。
 
@@ -42,7 +44,10 @@ fn recipe() -> SlotRecipe {
         .state(
             "datum",
             StateCondition::Hover,
-            vec![decl("opacity", "0.8"), decl("stroke-width", "2")],
+            vec![
+                decl("stroke", "var(--fandhe-color-accent-emphasized)"),
+                decl("stroke-width", "2"),
+            ],
         )
 }
 

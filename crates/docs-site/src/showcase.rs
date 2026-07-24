@@ -4539,7 +4539,11 @@ fn charts_section() -> Node {
     }
 
     let view_box = ViewBox::new(0.0, 0.0, 320.0, 220.0).expect("固定寸法は正の有限値");
-    let chart = svg_root(&view_box, vec![], svg_children);
+    let chart = svg_root(
+        &view_box,
+        vec![("aria-label", "Visits and signups by month")],
+        svg_children,
+    );
 
     let legend_node = legend::legend(
         &data,
