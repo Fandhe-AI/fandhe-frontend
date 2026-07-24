@@ -202,6 +202,14 @@ fn recipe() -> SlotRecipe {
                 decl("top", "0"),
                 decl("inset-inline-start", "0"),
                 decl("align-items", "flex-start"),
+                // キュー（`entries`）は最古が先頭（追加順）。base の
+                // `column` のままだと top 系で最古が画面端（上端）に固定
+                // され、新着が下へ積み増される逆順になる（Bugbot 指摘・
+                // PR #805 レビュー）。`column-reverse` で表示順を反転し、
+                // 最新の toast が画面端（上端）に来るようにする（bottom 系
+                // は base の `column` のままで正しい。上から順に「新しい
+                // ほど下」で追加順と一致する）。
+                decl("flex-direction", "column-reverse"),
             ],
         )
         .variant(
@@ -215,6 +223,8 @@ fn recipe() -> SlotRecipe {
                 decl("left", "50%"),
                 decl("transform", "translateX(-50%)"),
                 decl("align-items", "center"),
+                // 上記 TopStart と同じ理由（最新 toast を上端に寄せる）。
+                decl("flex-direction", "column-reverse"),
             ],
         )
         .variant(
@@ -224,6 +234,8 @@ fn recipe() -> SlotRecipe {
                 decl("top", "0"),
                 decl("inset-inline-end", "0"),
                 decl("align-items", "flex-end"),
+                // 上記 TopStart と同じ理由（最新 toast を上端に寄せる）。
+                decl("flex-direction", "column-reverse"),
             ],
         )
         .variant(

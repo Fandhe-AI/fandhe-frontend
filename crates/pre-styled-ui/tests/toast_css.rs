@@ -47,6 +47,7 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
   top: 0;
   inset-inline-start: 0;
   align-items: flex-start;
+  flex-direction: column-reverse;
 }
 
 [data-scope="toast"][data-part="group"].fd-toast--placement-top {
@@ -54,12 +55,14 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
   left: 50%;
   transform: translateX(-50%);
   align-items: center;
+  flex-direction: column-reverse;
 }
 
 [data-scope="toast"][data-part="group"].fd-toast--placement-top-end {
   top: 0;
   inset-inline-end: 0;
   align-items: flex-end;
+  flex-direction: column-reverse;
 }
 
 [data-scope="toast"][data-part="group"].fd-toast--placement-bottom-start {
