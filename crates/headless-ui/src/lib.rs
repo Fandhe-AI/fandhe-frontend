@@ -487,6 +487,14 @@
 //!   参照）。granularity（時分秒）・range 選択・locale 依存整形・キーボード
 //!   操作の DOM 配線は本イシューのスコープ外（[`date_input`] モジュール doc
 //!   §スコープ外参照）。
+//! - [`mod@timer`]: Root / Area / Item / ItemValue / ItemLabel / Separator /
+//!   Control / ActionTrigger の 8 anatomy パーツと、idle/running/paused/
+//!   completed の 4 値状態機械 [`timer::Timer`]（イシュー #836、
+//!   `docs/design/component-coverage-map.md` 保留解除）。tick（経過ミリ秒）を
+//!   外部から明示的に注入する決定的状態機械であり、`std::time`/`Instant`
+//!   等の時計 API に一切依存しない（[`mod@timer`] モジュール doc 参照）。
+//!   実 tick 駆動（`setInterval`）は `fandhe-frontend-wasm-full` の
+//!   `headless_timer` モジュールの責務。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -542,6 +550,7 @@ pub mod steps;
 pub mod switch;
 pub mod tabs;
 pub mod tags_input;
+pub mod timer;
 pub mod toast;
 pub mod toggle;
 pub mod toggle_group;

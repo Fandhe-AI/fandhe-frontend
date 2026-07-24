@@ -32,8 +32,8 @@ use fandhe_frontend_headless_ui::{
     action_bar, aria_controls, aria_label, avatar, carousel, clipboard, data_state, date_input,
     dialog, download_trigger, editable, floating_panel, hover_card, listbox, number_input,
     password_input, pin_input, popover, rating_group, segment_group, slider, splitter, tags_input,
-    toast, tree_view, DateSegmentFlags, ImageStatus, OpenState, Orientation, PasswordAutocomplete,
-    PasswordInputProps, Steps, ToastStatus,
+    timer, toast, tree_view, DateSegmentFlags, ImageStatus, OpenState, Orientation,
+    PasswordAutocomplete, PasswordInputProps, Steps, ToastStatus,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -1336,5 +1336,53 @@ fn date_input_segment_attrs_payload_is_escaped_for_all_payloads() {
         );
         let html = render(&node);
         assert_payload_is_escaped(payload, &html, "date_input::segment の attrs コンテキスト");
+    }
+}
+
+/// Timer（イシュー #836）の children テキスト経路・呼び出し側 attrs 経路の
+/// エスケープ貫通を固定する。Timer の `data-*` 属性はすべて `u64`/固定
+/// 語彙（`TimerUnit`/`TimerControl`/`TimerPhase`）から整形されるため任意
+/// 文字列の混入経路がなく、動的テキストが混入しうるのは children
+/// （[`timer::item_value`]/[`timer::item_label`]/[`timer::action_trigger`]
+/// の呼び出し側 children）と呼び出し側が明示的に渡す `attrs` のみである。
+#[test]
+fn timer_children_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let html = render(&timer::item_value(
+            timer::TimerUnit::Seconds,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "timer::item_value のテキストコンテキスト");
+
+        let html = render(&timer::item_label(
+            timer::TimerUnit::Hours,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "timer::item_label のテキストコンテキスト");
+
+        let html = render(&timer::action_trigger(
+            timer::TimerControl::Start,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "timer::action_trigger のテキストコンテキスト",
+        );
+
+        let html = render(&timer::root(
+            false,
+            0,
+            0,
+            1000,
+            0,
+            timer::TimerPhase::Idle,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "timer::root の attrs コンテキスト");
     }
 }

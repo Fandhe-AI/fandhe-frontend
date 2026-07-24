@@ -177,6 +177,14 @@ pub fn data_copied(copied: bool) -> Option<(&'static str, &'static str)> {
     copied.then_some(("data-copied", ""))
 }
 
+/// `data-countdown` 存在属性（Timer 用、イシュー #836）。[`data_disabled`]
+/// と同じ「存在で真を表す」規約に従う。[`crate::timer::root`] がカウントダウン
+/// モードかどうかを表現するために使う（`false` = カウントアップ）。
+#[must_use]
+pub fn data_countdown(countdown: bool) -> Option<(&'static str, &'static str)> {
+    countdown.then_some(("data-countdown", ""))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -212,6 +220,8 @@ mod tests {
         assert_eq!(data_incomplete(false), None);
         assert_eq!(data_copied(true), Some(("data-copied", "")));
         assert_eq!(data_copied(false), None);
+        assert_eq!(data_countdown(true), Some(("data-countdown", "")));
+        assert_eq!(data_countdown(false), None);
     }
 
     #[test]
