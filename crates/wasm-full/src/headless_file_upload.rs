@@ -238,12 +238,34 @@ mod wiring {
         None
     }
 
+    /// `element.set_attribute(name, value)` の薄いガード付きラッパー
+    /// （イシュー #401 の `fw gate` `url_validation_check` 契約に準拠、
+    /// `.claude/rules/security.md`。`focus_visible.rs::set_dom_attribute` と
+    /// 同じ方針）。本モジュールが書き込む属性（`data-dragging`）は
+    /// `&'static str` リテラルで固定された非 URL・非イベントハンドラ属性で
+    /// あり値も常に空文字列だが、`fandhe_frontend_core` のガード関数群
+    /// （`is_event_handler_attr`/`is_url_attr`/`is_safe_url`/
+    /// `is_safe_srcset`）を経由することで、将来 `name`/`value` が動的な
+    /// 入力から組み立てられるよう変更された場合の防御としても機能する。
+    fn set_dom_attribute(element: &Element, name: &str, value: &str) -> Result<(), JsValue> {
+        if fandhe_frontend_core::is_event_handler_attr(name) {
+            return Ok(());
+        }
+        if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value) {
+            return Ok(());
+        }
+        if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
+            return Ok(());
+        }
+        element.set_attribute(name, value)
+    }
+
     /// `data-dragging` 存在属性を反映する（`fandhe_frontend_core::render` を
     /// 経由した再描画は行わず、既存 DOM の属性のみを書き換える。
     /// `headless_avatar::wiring::apply_avatar_visibility` と同じ方針）。
     fn set_dragging_attr(element: &Element, dragging: bool) -> Result<(), JsValue> {
         if dragging {
-            element.set_attribute("data-dragging", "")
+            set_dom_attribute(element, "data-dragging", "")
         } else {
             element.remove_attribute("data-dragging")
         }
