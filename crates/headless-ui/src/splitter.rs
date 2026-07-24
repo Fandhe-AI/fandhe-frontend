@@ -422,8 +422,9 @@ impl Splitter {
 
     /// [`resize_trigger`] へ `trigger` 番目の先行パネルの状態を注入する
     /// 利便メソッド。`trigger` が範囲外（`panel_count() - 1` 未満でない）の
-    /// 場合は `0` を渡したものとして扱う（fail-closed。境界を越えた呼び出し
-    /// でも panic しない）。
+    /// 場合は末尾パネルのインデックス（`sizes.len() - 1`）へ clamp して扱う
+    /// （fail-closed。境界を越えた呼び出しでも panic せず、常に `mins`/`maxs`/
+    /// `sizes` の有効な添字を参照する）。
     #[must_use]
     pub fn resize_trigger<'a>(
         &self,
