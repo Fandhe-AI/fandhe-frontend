@@ -94,6 +94,11 @@
 //!   （recharts 依存のため）を、外部依存ゼロの SVG ノード木生成へ置き換える
 //!   足場を提供する（個々のチャート部品は #847〜#851 のスコープ、配置先
 //!   判断は `docs/design/charts-foundation-design.md` 参照）。
+//! - [`mod@pie_chart`] / [`mod@donut_chart`]（#850、charts 基盤の初のチャート
+//!   部品）: [`charts::pie`] の円弧ジオメトリを用いた円グラフ・ドーナツ
+//!   グラフ。系列 1 本専用（多系列は fail-closed で拒否）、`size` variant
+//!   のみ（`color-palette` 軸は非提供、セグメント配色は
+//!   [`charts::series_color_var`] の循環で決まるため）。
 //!
 //! - headless 状態機械を持つ複合部品 5 種の styled ラッパー第 1 弾（#551）:
 //!   [`mod@dialog`] / [`mod@tabs`] / [`mod@accordion`] / [`mod@menu`] /
@@ -521,6 +526,7 @@ pub mod data_list;
 pub mod date_input;
 pub mod date_picker;
 pub mod dialog;
+pub mod donut_chart;
 pub mod download_trigger;
 pub mod drawer;
 pub mod editable;
@@ -549,6 +555,7 @@ pub mod nav_list;
 pub mod number_input;
 pub mod pagination;
 pub mod password_input;
+pub mod pie_chart;
 pub mod pin_input;
 pub mod popover;
 pub mod progress;

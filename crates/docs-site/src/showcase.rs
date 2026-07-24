@@ -82,6 +82,7 @@ use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataLi
 use fandhe_frontend_pre_styled_ui::date_input::{self, DateSegment};
 use fandhe_frontend_pre_styled_ui::date_picker;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
+use fandhe_frontend_pre_styled_ui::donut_chart::{donut_chart, DonutChartProps};
 use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::editable::{
@@ -119,6 +120,7 @@ use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
 use fandhe_frontend_pre_styled_ui::password_input::{
     self, PasswordAutocomplete, PasswordInputProps,
 };
+use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
@@ -365,6 +367,8 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::grid::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::legend::css())?;
     sheet.push_css(&chart_tooltip::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::pie_chart::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::donut_chart::css())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -4693,6 +4697,99 @@ fn sparkline_section() -> Node {
     )
 }
 
+/// PieChart 節（イシュー #850）: `size`（sm/md/lg）と `show_labels` の掲示。
+fn pie_chart_section() -> Node {
+    let data = ChartData::new(
+        vec![
+            "Q1".to_string(),
+            "Q2".to_string(),
+            "Q3".to_string(),
+            "Q4".to_string(),
+        ],
+        vec![Series::new("revenue", vec![400.0, 300.0, 300.0, 200.0])],
+    )
+    .expect("ショーケース固定データは常に有効な ChartData を構築できる");
+
+    let size_row = row([Size::Sm, Size::Md, Size::Lg]
+        .into_iter()
+        .map(|size| {
+            pie_chart(
+                &PieChartProps {
+                    size,
+                    ..PieChartProps::default()
+                },
+                &data,
+                vec![],
+            )
+            .expect("ショーケース固定データは常に描画に成功する")
+        })
+        .collect());
+
+    let with_labels = pie_chart(
+        &PieChartProps {
+            show_labels: true,
+            ..PieChartProps::default()
+        },
+        &data,
+        vec![],
+    )
+    .expect("ショーケース固定データは常に描画に成功する");
+    let labels_row = row(vec![with_labels]);
+
+    section(
+        "PieChart",
+        "外部依存ゼロの SVG ノード木生成による円グラフ（イシュー #850）。size（sm/md/lg）で --fandhe-pie-chart-size を切り替えます。show_labels を有効にするとカテゴリ名ラベルをセグメント上に描画します。",
+        vec![size_row, labels_row],
+    )
+}
+
+/// DonutChart 節（イシュー #850）: `size`・`inner_ratio`・`show_labels` の掲示。
+fn donut_chart_section() -> Node {
+    let data = ChartData::new(
+        vec![
+            "Q1".to_string(),
+            "Q2".to_string(),
+            "Q3".to_string(),
+            "Q4".to_string(),
+        ],
+        vec![Series::new("revenue", vec![400.0, 300.0, 300.0, 200.0])],
+    )
+    .expect("ショーケース固定データは常に有効な ChartData を構築できる");
+
+    let size_row = row([Size::Sm, Size::Md, Size::Lg]
+        .into_iter()
+        .map(|size| {
+            donut_chart(
+                &DonutChartProps {
+                    size,
+                    ..DonutChartProps::default()
+                },
+                &data,
+                vec![],
+            )
+            .expect("ショーケース固定データは常に描画に成功する")
+        })
+        .collect());
+
+    let thin_ring = donut_chart(
+        &DonutChartProps {
+            inner_ratio: 0.85,
+            show_labels: true,
+            ..DonutChartProps::default()
+        },
+        &data,
+        vec![],
+    )
+    .expect("inner_ratio=0.85 は許容範囲内であり常に描画に成功する");
+    let variant_row = row(vec![thin_ring]);
+
+    section(
+        "DonutChart",
+        "外部依存ゼロの SVG ノード木生成によるドーナツグラフ（イシュー #850）。inner_ratio（既定 0.6）で内径を調整できます。show_labels を有効にするとカテゴリ名ラベルをセグメント上に描画します。",
+        vec![size_row, variant_row],
+    )
+}
+
 /// ScatterChart 節（イシュー #851、親 Phase #845）: 2 軸線形スケール +
 /// 点マーカーのみで組み立てる、外部依存ゼロの SVG 散布図。
 fn scatter_chart_section() -> Node {
@@ -5045,6 +5142,8 @@ fn showcase_body() -> Node {
             line_chart_section(),
             area_chart_section(),
             sparkline_section(),
+            pie_chart_section(),
+            donut_chart_section(),
             scatter_chart_section(),
             radar_chart_section(),
         ],

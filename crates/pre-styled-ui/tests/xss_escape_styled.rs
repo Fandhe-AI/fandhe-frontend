@@ -47,6 +47,7 @@ use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::clipboard;
 use fandhe_frontend_pre_styled_ui::date_input::{self, DateSegment, DateSegmentFlags};
+use fandhe_frontend_pre_styled_ui::donut_chart::{donut_chart, DonutChartProps};
 use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::editable::{
@@ -72,6 +73,7 @@ use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode};
 use fandhe_frontend_pre_styled_ui::password_input::{
     self, PasswordAutocomplete, PasswordInputProps,
 };
+use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
 use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::radio_card;
@@ -3721,6 +3723,106 @@ fn color_picker_style_dedup_attrs_and_reexported_parts_are_escaped_for_all_paylo
             payload,
             &html,
             "color_picker::channel_input の value 属性値コンテキスト",
+        );
+    }
+}
+
+/// styled PieChart / DonutChart（イシュー #850）の XSS 回帰。
+///
+/// 攻撃面: (1) カテゴリ名ラベル（`show_labels: true` の children テキスト
+/// 経路、`crate::pie_chart`/`crate::donut_chart` モジュール doc「anatomy」
+/// 節の `label` パーツ）。(2) `aria_label` プロパティ（`chart` の
+/// `aria-label` 属性値経路）。(3) 呼び出し側 `attrs`（`root` への透過）。
+/// (4) 呼び出し側 `attrs` の `class`（`drop_class_attr` による単一化）。
+///
+/// `d`/`fill` 属性は [`crate::charts::pie`]/[`crate::charts::svg::fmt_coord`]
+/// 経由の数値・固定リテラルのみで構成され任意文字列の混入経路を持たない
+/// ため（`pie_chart.rs`/`donut_chart.rs` モジュール doc「セキュリティ不変
+/// 条件」節）、本テストの対象外とする。
+#[test]
+fn pie_and_donut_chart_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let data = ChartData::new(
+            vec![payload.to_string(), "other".to_string()],
+            vec![Series::new("total", vec![60.0, 40.0])],
+        )
+        .unwrap();
+
+        // (1) カテゴリ名ラベル（children テキスト経路）。
+        let pie_props = PieChartProps {
+            show_labels: true,
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&pie_props, &data, vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "pie_chart label children コンテキスト");
+
+        let donut_props = DonutChartProps {
+            show_labels: true,
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&donut_props, &data, vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "donut_chart label children コンテキスト");
+
+        // (2) aria_label 属性値経路。
+        let pie_props = PieChartProps {
+            aria_label: Some(payload),
+            ..PieChartProps::default()
+        };
+        let html = render(&pie_chart(&pie_props, &data, vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "pie_chart aria_label 属性値コンテキスト");
+
+        let donut_props = DonutChartProps {
+            aria_label: Some(payload),
+            ..DonutChartProps::default()
+        };
+        let html = render(&donut_chart(&donut_props, &data, vec![]).unwrap());
+        assert_payload_is_escaped(payload, &html, "donut_chart aria_label 属性値コンテキスト");
+
+        // (3) 呼び出し側 attrs（root への透過）。
+        let html = render(
+            &pie_chart(
+                &PieChartProps::default(),
+                &data,
+                vec![("data-testid", payload)],
+            )
+            .unwrap(),
+        );
+        assert_payload_is_escaped(payload, &html, "pie_chart 呼び出し側 attrs コンテキスト");
+
+        let html = render(
+            &donut_chart(
+                &DonutChartProps::default(),
+                &data,
+                vec![("data-testid", payload)],
+            )
+            .unwrap(),
+        );
+        assert_payload_is_escaped(payload, &html, "donut_chart 呼び出し側 attrs コンテキスト");
+
+        // (4) 呼び出し側 attrs の class（drop_class_attr による単一化）。
+        let html =
+            render(&pie_chart(&PieChartProps::default(), &data, vec![("class", payload)]).unwrap());
+        assert!(
+            !html.contains(payload),
+            "pie_chart の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "pie_chart の class 属性が複数出現している: html={html}"
+        );
+
+        let html = render(
+            &donut_chart(&DonutChartProps::default(), &data, vec![("class", payload)]).unwrap(),
+        );
+        assert!(
+            !html.contains(payload),
+            "donut_chart の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "donut_chart の class 属性が複数出現している: html={html}"
         );
     }
 }

@@ -348,6 +348,8 @@ mod tests {
             ("charts/bar_list", crate::charts::bar_list::css()),
             ("charts/bar_segment", crate::charts::bar_segment::css()),
             ("sparkline", crate::sparkline::stylesheet()),
+            ("pie_chart", crate::pie_chart::css()),
+            ("donut_chart", crate::donut_chart::css()),
             ("charts/scatter_chart", crate::charts::scatter_chart::css()),
             ("charts/radar_chart", crate::charts::radar_chart::css()),
         ]

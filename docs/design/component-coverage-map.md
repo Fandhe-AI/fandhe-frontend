@@ -335,11 +335,11 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/charts/bar-list.md` | — | BarList | — | `charts::bar_list` | 実装済み | headless-ui 非経由（styled 直下で新規 anatomy `bar-list` を定義）。#849（親 Phase #845）。`docs/policy/intentional-non-adoption.md` §7 の保留を解除 |
 | `.agents/skills/chakra-ui/references/charts/bar-segment.md` | — | BarSegment | — | `charts::bar_segment` | 実装済み | headless-ui 非経由（styled 直下で新規 anatomy `bar-segment` を定義）。#849（親 Phase #845）。`docs/policy/intentional-non-adoption.md` §7 の保留を解除 |
 | `.agents/skills/chakra-ui/references/charts/cartesian-grid.md` | — | CartesianGrid | — | `charts::grid`（`cartesian_grid`） | 実装済み | #847、詳細は `docs/design/charts-foundation-design.md` |
-| `.agents/skills/chakra-ui/references/charts/donut-chart.md` | — | DonutChart | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/chakra-ui/references/charts/donut-chart.md` | — | DonutChart | — | `donut_chart` | 実装済み | 保留解除。#850、charts 基盤（#846）を用いたドーナツグラフ、詳細は `crates/pre-styled-ui/src/donut_chart.rs` rustdoc |
 | `.agents/skills/chakra-ui/references/charts/installation.md` | — | Installation | — | `charts`（外部依存追加なし、`fandhe-frontend-pre-styled-ui` のみで完結） | 実装済み | 保留解除（基盤のみ）。#846、詳細は `docs/design/charts-foundation-design.md` |
 | `.agents/skills/chakra-ui/references/charts/legend.md` | — | Legend | — | `charts::legend`（`legend`） | 実装済み | #847、詳細は `docs/design/charts-foundation-design.md` |
 | `.agents/skills/chakra-ui/references/charts/line-chart.md` | — | LineChart | — | `line_chart` | 実装済み | 保留解除。#848（軸/グリッド/凡例/ツールチップ/積み上げは #847 以降のスコープ） |
-| `.agents/skills/chakra-ui/references/charts/pie-chart.md` | — | PieChart | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/chakra-ui/references/charts/pie-chart.md` | — | PieChart | — | `pie_chart` | 実装済み | 保留解除。#850、charts 基盤（#846）を用いた円グラフ、詳細は `crates/pre-styled-ui/src/pie_chart.rs` rustdoc |
 | `.agents/skills/chakra-ui/references/charts/radar-chart.md` | — | RadarChart | — | `charts::radar_chart` | 実装済み | headless-ui 非経由（styled 直下で新規 anatomy）。#851（親 Phase #845、charts 基盤 #846 の上に実装）。保留解除 |
 | `.agents/skills/chakra-ui/references/charts/scatter-chart.md` | — | ScatterChart | — | `charts::scatter_chart` | 実装済み | headless-ui 非経由（styled 直下で新規 anatomy）。#851（親 Phase #845、charts 基盤 #846 の上に実装）。保留解除 |
 | `.agents/skills/chakra-ui/references/charts/sparkline.md` | — | Sparkline | — | `sparkline` | 実装済み | 保留解除。#848（単一系列専用。複数系列は LineChart/AreaChart を使用） |

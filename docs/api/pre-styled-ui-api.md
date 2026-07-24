@@ -52,17 +52,21 @@ styled ラッパー追加（#829、`tree_view` #753 の派生）・button の ic
 （#831、`docs/policy/intentional-non-adoption.md` §3.24 の意図的非採用を
 再導入）・ColorSwatch 静的部品追加（#838）・Calendar/DatePicker styled
 ラッパー追加（#835、親トラッキング #832、`docs/design/component-coverage-map.md`
-保留解除。いずれも公開時点未反映）・ScatterChart/RadarChart styled 部品
-追加（#851、親 Phase #845、charts 基盤 #846 の上に実装。
-`docs/policy/intentional-non-adoption.md` §7 の charts 系保留を
-scatter-chart/radar-chart 分のみ解除）・charts 基盤（座標スケーリング・
-SVG ノード木生成・`ChartData` モデル、#846）・charts 軸/グリッド/凡例/
-ツールチップ追加（#847、§4j 参照。いずれも公開時点未反映）を経て 84 の
-公開モジュール + `charts` サブモジュール群を持つ（`charts::scatter_chart`/
-`charts::radar_chart`/`charts::axis`/`charts::grid`/`charts::legend`/
-`charts::tooltip` は既存の `pub mod charts;`（#846）配下のサブモジュールで
-あり、`grep -E '^pub mod '` によるトップレベル公開モジュール集計には計上
-されないため、84 という総数自体への影響はない）。内訳は次の通り。
+保留解除）・charts 基盤（座標スケーリング・SVG ノード木生成・`ChartData`
+モデル、#846）・charts 軸/グリッド/凡例/ツールチップ追加（#847、§4j 参照。
+いずれも公開時点未反映）・PieChart/DonutChart styled 静的部品追加
+（#850、charts 基盤（#846）を用いた初のチャート部品。
+`docs/policy/intentional-non-adoption.md` §7 の chakra-ui charts 保留を
+pie-chart/donut-chart の 2 件で解除）・ScatterChart/RadarChart styled 部品
+追加（#851、親 Phase #845、charts 基盤 #846 の上に実装。同 §7 の charts 系
+保留を scatter-chart/radar-chart 分のみ解除。いずれも公開時点未反映）を
+経て 86 の公開モジュール + `charts` サブモジュール群を持つ
+（`charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/
+`charts::grid`/`charts::legend`/`charts::tooltip` は既存の
+`pub mod charts;`（#846）配下のサブモジュールであり、`grep -E '^pub mod '`
+によるトップレベル公開モジュール集計には計上されない。PieChart/DonutChart
+はいずれもトップレベルの新規 `pub mod`（`pie_chart`/`donut_chart`）を
+追加するため、84 の base から 2 増えて 86 となる）。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -136,6 +140,7 @@ SVG ノード木生成・`ChartData` モデル、#846）・charts 軸/グリッ�
 | charts（SVG） | `charts::bar_chart` | #849（親 Phase #845、charts 基盤 #846 の上に実装）。縦/横 orientation のグループ棒グラフ。値軸はベースライン 0 起点、カテゴリ軸はバンドレイアウト（両端 10% padding + 系列数で均等割り）。系列色は `series_color_var`（`chart-1`〜`chart-6` 循環）。軸線・グリッド・凡例・ツールチップは #847 のスコープ、本モジュールはカテゴリラベルの最小出力のみ行う |
 | charts（HTML） | `charts::bar_list` | #849（親 Phase #845）。単一系列のランキング型バーリスト。バー幅は系列内最大値に対する比率（`--fandhe-bar-list-percent` custom property）。最大値 0 は全バー幅 0% を決定的に描画（silent failure ではなく値と幅の対応が自明なため、`bar_segment` の合計 0 拒否とは意図的に挙動を変えている） |
 | charts（HTML） | `charts::bar_segment` | #849（親 Phase #845）。単一系列の構成比 100% 積み上げバー + 凡例。セグメント幅は系列合計に対する比率（`--fandhe-bar-segment-percent` custom property）、配色はカテゴリ index で `series_color_var` を循環。系列合計 0 は `ChartError::ZeroTotal` で構築時に拒否（構成比自体が定義できないため） |
+| 単純 styled 部品（新規 anatomy、charts 基盤の初のチャート部品） | `pie_chart` / `donut_chart` | #850（`docs/policy/intentional-non-adoption.md` §7 の chakra-ui charts 保留を pie-chart/donut-chart の 2 件で解除。charts 基盤（#846、`charts::pie` の円弧ジオメトリ・`charts::svg::PathBuilder::arc_to`）を用いた円グラフ・ドーナツグラフ。ark-ui に対応する headless anatomy がないため `marquee`/`stat` と同型の判断で新規 anatomy `data-scope="pie-chart"`/`"donut-chart"` を本クレートのみで定義する。系列 1 本専用（`data.series().len() != 1` は `PieChartError::MultiSeries` で fail-closed 拒否）。`size` variant のみ、`color-palette` 軸は非提供（セグメント配色は `charts::series_color_var` の chart-1〜6 循環で決まるため、`qr_code` と同型の判断）。`donut_chart` は追加で `inner_ratio`（既定 `0.6`、`0.0 < ratio < 1.0` を検証）を持つ） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、

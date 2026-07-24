@@ -34,6 +34,9 @@
 //! - [`bar_chart`]: 縦/横 orientation の SVG 棒グラフ（イシュー #849）。
 //! - [`bar_list`]: ランキング型バーリスト（HTML、イシュー #849）。
 //! - [`bar_segment`]: 構成比バー（HTML、100% 積み上げ、イシュー #849）。
+//! - [`pie`]: 円弧ジオメトリ（角度計算・sector/annulus path 生成、イシュー
+//!   #850）。[`crate::pie_chart`]/[`crate::donut_chart`]（styled 層）が
+//!   本モジュールを経由して円グラフ・ドーナツグラフの `d` 属性を組み立てる。
 //!
 //! # 本モジュールの不変条件（[`crate`] クレート全体の不変条件を継承、
 //! `.claude/rules/coding-rust.md`）
@@ -59,6 +62,7 @@ pub mod bar_segment;
 pub mod data;
 pub mod grid;
 pub mod legend;
+pub mod pie;
 pub mod radar_chart;
 pub mod scale;
 pub mod scatter_chart;
