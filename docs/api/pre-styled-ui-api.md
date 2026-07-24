@@ -52,10 +52,17 @@ styled ラッパー追加（#829、`tree_view` #753 の派生）・button の ic
 （#831、`docs/policy/intentional-non-adoption.md` §3.24 の意図的非採用を
 再導入）・ColorSwatch 静的部品追加（#838）・Calendar/DatePicker styled
 ラッパー追加（#835、親トラッキング #832、`docs/design/component-coverage-map.md`
-保留解除）・charts 基盤（座標スケーリング・SVG ノード木生成・`ChartData`
-モデル、#846）・charts 軸/グリッド/凡例/ツールチップ追加（#847、§4j 参照。
-いずれも公開時点未反映）を経て 84 の公開モジュール + `charts` サブモジュール
-群を持つ。内訳は次の通り。
+保留解除。いずれも公開時点未反映）・ScatterChart/RadarChart styled 部品
+追加（#851、親 Phase #845、charts 基盤 #846 の上に実装。
+`docs/policy/intentional-non-adoption.md` §7 の charts 系保留を
+scatter-chart/radar-chart 分のみ解除）・charts 基盤（座標スケーリング・
+SVG ノード木生成・`ChartData` モデル、#846）・charts 軸/グリッド/凡例/
+ツールチップ追加（#847、§4j 参照。いずれも公開時点未反映）を経て 84 の
+公開モジュール + `charts` サブモジュール群を持つ（`charts::scatter_chart`/
+`charts::radar_chart`/`charts::axis`/`charts::grid`/`charts::legend`/
+`charts::tooltip` は既存の `pub mod charts;`（#846）配下のサブモジュールで
+あり、`grep -E '^pub mod '` によるトップレベル公開モジュール集計には計上
+されないため、84 という総数自体への影響はない）。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -122,6 +129,7 @@ styled ラッパー追加（#829、`tree_view` #753 の派生）・button の ic
 | headless ラッパー | `calendar` | #835（親トラッキング #832、`docs/design/component-coverage-map.md` 保留解除。`size` variant のみ、`color-palette` 軸は非提供。`day-trigger` の `data-selected`/`data-today`/`data-outside-month`/`data-disabled` を CSS で切り替える。`Calendar` 状態機械はあえて再エクスポートしない（`select`と同じ理由）。`day_trigger` の `date` 引数向けに `PlainDate`/`Weekday`（`fandhe_frontend_headless_ui::date`）も再エクスポートする） |
 | headless ラッパー | `date_picker` | #835（親トラッキング #832。popover 基盤（`state::Disclosure`）を再利用する `crate::calendar` と同型の判断。`size` variant のみ。`content` 内部に `crate::calendar` の styled パーツを合成する想定。`DatePicker` 状態機械はあえて再エクスポートしない） |
 | headless ラッパー | `timer` | #836（`docs/design/component-coverage-map.md` 保留解除。`clipboard` と同型の判断で variant は非提供。`item-value` に `font-variant-numeric: tabular-nums` を付与し桁の増減時のレイアウトシフトを防ぐ。`completed` 状態の `item-value` を強調色へ切り替え、`action-trigger` に focus-visible リングを付与する。実 tick 駆動（`setInterval`）は `fandhe-frontend-wasm-full::headless_timer` が提供する） |
+| 静的部品（新規 anatomy、charts 基盤上層） | `charts::scatter_chart` / `charts::radar_chart` | #851（親 Phase #845。`charts`（`ChartData`/`LinearScale`/SVG ヘルパー、#846）の上に実装。headless-ui は変更なし、pre-styled 層で新規 anatomy `data-scope="scatter-chart"`/`"radar-chart"` を定義。`scatter_chart` は `ChartData` では表現できない `(x, y)` 数値ペアの集合を独自の `ScatterData`/`ScatterSeries` で表現し、x/y 双方の `LinearScale` で 2 軸写像する。`radar_chart` は `ChartData`（カテゴリ = 軸、系列 = ポリゴン）をそのまま使い、軸 index `i`・軸数 `n` から頂点角度 `θ_i = -π/2 + i・2π/n`（12 時方向開始・時計回り）を算出する private ヘルパへ角度→座標変換を一元化する。軸数 3 未満は `ChartError::TooFewAxes`、負値は `ChartError::NegativeValue`、プロット領域が小さすぎる場合は `ChartError::PlotAreaTooSmall` として構築時に拒否する（fail-closed）。`size`/`color-palette` variant は非提供（色は系列インデックスからの `series_color_var` インライン `fill` 属性で決まる静的部品、`bar_chart` と同型の判断）。軸線・グリッド・凡例・ツールチップの汎用部品は #847 のスコープ） |
 | headless ラッパー | `tour` | #841（`docs/design/component-coverage-map.md` 保留解除、#735）。`fandhe_frontend_headless_ui::tour` が自由関数を持たず全パーツが `Tour` の inherent メソッドのため、本モジュールの全パーツ関数が `state: &Tour` を受け取る点は `steps` と同型。`color-palette` 軸のみ提供、`size` 軸は初版スコープ外（overlay 系の寸法は呼び出し側の CSS カスタムプロパティ上書きに委ねる）。`backdrop`/`spotlight`/`positioner` は `position: fixed` の全面オーバーレイで、closed 時 `[hidden]` を明示規則で `display: none` に固定する（`dialog` の `positioner[hidden]` 前例と同型）。`positioner` は `data-side`/`data-align` に応じた静的フォールバック配置のみ（実座標追従は `fandhe-frontend-wasm-full` 後続イシュー）。`spotlight` は `--fandhe-tour-spotlight-x/-y/-width/-height` の 4 CSS 変数（既定値つき `var()`）で位置・寸法を表現し、実測値の注入も同後続イシューの責務） |
 | 基盤（外部依存ゼロ SVG 生成） | `charts`（`data`/`scale`/`svg`） | #846（`docs/design/component-coverage-map.md` 保留解除、`ChartData`/`Series`・`LinearScale`・`svg::{fmt_coord, ViewBox, svg_root, PathBuilder, circle, line, rect, group, svg_text}` を提供する消費者向け基盤のみ。自身は UI コンポーネントを持たない。詳細は `docs/design/charts-foundation-design.md` 参照） |
 | `charts` 基盤の消費者（新規 anatomy） | `line_chart` / `area_chart` / `sparkline` | #848（§4j 参照。`charts` 基盤（#846）の最初の消費者。軸/グリッド/凡例/ツールチップ/積み上げ/曲線補間は #847 以降のスコープ） |

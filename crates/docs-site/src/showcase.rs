@@ -64,7 +64,11 @@ use fandhe_frontend_pre_styled_ui::charts::bar_segment;
 use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
 use fandhe_frontend_pre_styled_ui::charts::grid::{self, GridProps};
 use fandhe_frontend_pre_styled_ui::charts::legend::{self, LegendProps};
+use fandhe_frontend_pre_styled_ui::charts::radar_chart::{self, RadarChartProps};
 use fandhe_frontend_pre_styled_ui::charts::scale::LinearScale;
+use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
+    self, ScatterChartProps, ScatterData, ScatterSeries,
+};
 use fandhe_frontend_pre_styled_ui::charts::svg::{svg_root, ViewBox};
 use fandhe_frontend_pre_styled_ui::charts::tooltip as chart_tooltip;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
@@ -355,6 +359,8 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::line_chart::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::area_chart::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::sparkline::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::scatter_chart::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::radar_chart::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::axis::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::grid::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::legend::css())?;
@@ -4687,6 +4693,57 @@ fn sparkline_section() -> Node {
     )
 }
 
+/// ScatterChart 節（イシュー #851、親 Phase #845）: 2 軸線形スケール +
+/// 点マーカーのみで組み立てる、外部依存ゼロの SVG 散布図。
+fn scatter_chart_section() -> Node {
+    let data = ScatterData::new(vec![
+        ScatterSeries::new(
+            "cohort a",
+            vec![(1.0, 2.0), (2.0, 4.5), (3.0, 3.0), (4.0, 6.0), (5.0, 5.5)],
+        ),
+        ScatterSeries::new(
+            "cohort b",
+            vec![(1.5, 1.0), (2.5, 2.5), (3.5, 4.0), (4.5, 3.5)],
+        ),
+    ])
+    .expect("ショーケース固定データは常に有効");
+    let node = scatter_chart::root(&data, ScatterChartProps::default(), "cohort comparison")
+        .expect("ショーケース固定データは domain・viewBox とも常に有効");
+
+    section(
+        "ScatterChart",
+        "散布図専用の ScatterData（系列ごとの (x, y) 座標列）+ LinearScale（x/y 双方）+ SVG ノード木生成ヘルパーのみで組み立てる、外部依存ゼロの散布図です。軸線・グリッド・凡例・ツールチップはイシュー #847 のスコープです。",
+        vec![node],
+    )
+}
+
+/// RadarChart 節（イシュー #851、親 Phase #845）: 正多角形グリッド + 系列
+/// ポリゴンの SVG レーダーチャート。頂点角度は決定的な式で算出する。
+fn radar_chart_section() -> Node {
+    let data = ChartData::new(
+        vec![
+            "speed".to_string(),
+            "power".to_string(),
+            "range".to_string(),
+            "control".to_string(),
+            "armor".to_string(),
+        ],
+        vec![
+            Series::new("mercury", vec![80.0, 60.0, 40.0, 90.0, 55.0]),
+            Series::new("venus", vec![50.0, 85.0, 70.0, 45.0, 65.0]),
+        ],
+    )
+    .expect("ショーケース固定データはカテゴリ数・系列長が一致する");
+    let node = radar_chart::root(&data, RadarChartProps::default(), "stat comparison")
+        .expect("ショーケース固定データは軸数 3 以上・非負値・viewBox とも常に有効");
+
+    section(
+        "RadarChart",
+        "ChartData（カテゴリ = 軸、系列 = ポリゴン）+ LinearScale + SVG ノード木生成ヘルパーのみで組み立てる、外部依存ゼロのレーダーチャートです。頂点角度は θ_i = -π/2 + i・2π/n（12 時方向開始・時計回り）の決定的な式で算出します。凡例・ツールチップはイシュー #847 のスコープです。",
+        vec![node],
+    )
+}
+
 /// Tag 節（イシュー #768）: variant / size / colorPalette と、
 /// close-trigger（`data-action` 配線のみ、クリック処理は wasm 層の
 /// スコープ外）の掲示。
@@ -4988,6 +5045,8 @@ fn showcase_body() -> Node {
             line_chart_section(),
             area_chart_section(),
             sparkline_section(),
+            scatter_chart_section(),
+            radar_chart_section(),
         ],
     )
 }
@@ -5064,6 +5123,8 @@ mod tests {
             "line-chart",
             "area-chart",
             "sparkline",
+            "scatter-chart",
+            "radar-chart",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
