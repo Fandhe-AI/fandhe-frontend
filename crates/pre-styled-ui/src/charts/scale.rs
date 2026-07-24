@@ -86,6 +86,16 @@ impl LinearScale {
     /// 内部的に目標 tick 本数 10 を基準としたステップ幅を算出し、`domain.0`
     /// 側は切り下げ、`domain.1` 側は切り上げる（軸反転時、すなわち
     /// `domain.0 > domain.1` の場合は大小を入れ替えて計算し、向きを保つ）。
+    ///
+    /// `lo`/`hi` が `f64::MAX`/`f64::MIN` 付近（[`super::data::ChartData::domain`]
+    /// のフラットデータ片側パディングが生じさせ得る、同関数 doc 参照）の場合、
+    /// `floor`/`ceil` による外側方向への切り上げ・切り下げが `±inf` へ
+    /// オーバーフローし得る。`LinearScale::new` は非有限 domain を構築時に
+    /// 拒否しているにもかかわらず、`nice()` を経由すると非有限化してしまう
+    /// （Cursor Bugbot 指摘、イシュー #846 追補）。この場合はその側の
+    /// 「nice」化を諦め、元の（既に有限であることが保証済みの）境界値
+    /// `lo`/`hi` をそのまま採用する（`domain()` → `LinearScale::new` →
+    /// `nice()` の標準経路を通じて非有限値が生成されない不変条件を保つ）。
     #[must_use]
     pub fn nice(&self) -> LinearScale {
         let (d0, d1) = self.domain;
@@ -93,6 +103,8 @@ impl LinearScale {
         let step = nice_step((hi - lo) / 10.0);
         let nice_lo = (lo / step).floor() * step;
         let nice_hi = (hi / step).ceil() * step;
+        let nice_lo = if nice_lo.is_finite() { nice_lo } else { lo };
+        let nice_hi = if nice_hi.is_finite() { nice_hi } else { hi };
         let domain = if d0 <= d1 {
             (nice_lo, nice_hi)
         } else {
@@ -300,6 +312,31 @@ mod tests {
         let s = LinearScale::new((97.0, 3.0), (0.0, 100.0)).unwrap();
         let niced = s.nice();
         assert_eq!(niced.domain(), (100.0, 0.0));
+    }
+
+    #[test]
+    fn nice_stays_finite_when_domain_hugs_f64_extremes() {
+        // `super::data::ChartData::domain()` はフラット（全値同一）データが
+        // `f64::MAX`/`f64::MIN` 付近の場合、オーバーフローする側のパディングを
+        // 諦め元の値のまま domain 境界に採用する（同関数 doc 参照）。この
+        // 境界値を `LinearScale::new` 経由で構築した後 `.nice()` を呼ぶと、
+        // 内部の `floor`/`ceil` による外側方向への切り上げ・切り下げが
+        // `±inf` へオーバーフローし、`domain()` → `LinearScale::new` →
+        // `nice()` という標準経路で非有限 domain を生んでしまっていた
+        // （Cursor Bugbot 指摘、イシュー #846 追補）。
+        for domain in [
+            (f64::MAX * 0.999_999_999, f64::MAX),
+            (f64::MIN, f64::MIN * 0.999_999_999),
+        ] {
+            let s = LinearScale::new(domain, (0.0, 100.0)).unwrap();
+            let niced = s.nice();
+            let (lo, hi) = niced.domain();
+            assert!(
+                lo.is_finite() && hi.is_finite(),
+                "nice() must not produce a non-finite domain for {domain:?}, got ({lo}, {hi})"
+            );
+            assert!(lo < hi, "nice() must not degenerate the domain");
+        }
     }
 
     #[test]

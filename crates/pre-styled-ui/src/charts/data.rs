@@ -412,6 +412,31 @@ mod tests {
     }
 
     #[test]
+    fn domain_then_nice_stays_finite_for_flat_extreme_data() {
+        // `domain()` → `LinearScale::new` の標準経路がフラットデータで成功
+        // しても、後続の軸目盛り丸め `.nice()` を経由すると `floor`/`ceil`
+        // による外側方向への拡張が再び `±inf` へオーバーフローし得た
+        // （Cursor Bugbot 指摘、イシュー #846 追補。`scale.rs` 側の修正と
+        // 対をなす回帰テスト）。
+        for v in [f64::MAX, f64::MIN] {
+            let data = ChartData::new(
+                vec!["a".to_string(), "b".to_string()],
+                vec![Series::new("flat_extreme", vec![v, v])],
+            )
+            .unwrap();
+            let (min, max) = data.domain();
+            let scale = super::super::scale::LinearScale::new((min, max), (0.0, 100.0)).unwrap();
+            let niced = scale.nice();
+            let (nlo, nhi) = niced.domain();
+            assert!(
+                nlo.is_finite() && nhi.is_finite(),
+                "nice() must not produce a non-finite domain for flat {v}, got ({nlo}, {nhi})"
+            );
+            assert!(nlo < nhi, "nice() must not degenerate the domain");
+        }
+    }
+
+    #[test]
     fn sort_by_series_is_stable_and_reorders_all_series() {
         let data = ChartData::new(
             vec!["a".to_string(), "b".to_string(), "c".to_string()],
