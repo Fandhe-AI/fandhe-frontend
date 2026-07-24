@@ -48,6 +48,23 @@
 //! `--fandhe-palette` 束ねパターンを `root` slot へ適用し、Alert との配色整合を
 //! 保つ。
 //!
+//! # RTL 対応（`placement` の `start`/`end`、Bugbot 指摘・PR #805 レビュー）
+//!
+//! [`ToastPlacement`] の `*-start`/`*-end`（[`fandhe_frontend_headless_ui::toast::ToastPlacement`]
+//! rustdoc・`docs/api/headless-ui-api.md` が示すとおり論理方向名。ドキュメントは
+//! LTR を前提に left/right と説明するが、名前自体は書字方向に中立）に対応する
+//! [`recipe`] の CSS は、物理方向の `left`/`right` ではなく論理プロパティ
+//! `inset-inline-start`/`inset-inline-end` を使う（`.pre-styled-showcase` 領域
+//! での RTL 検証は本イシューのスコープ外だが、CSS 自体は `dir="rtl"` 文書で
+//! `start`/`end` が意味論どおり反転するよう記述する）。`align-items` の
+//! `flex-start`/`flex-end` は元々 flexbox 仕様上 cross 軸が書字方向依存で
+//! 解決されるため変更不要（[`crate::drawer`] の同型注記参照）。中央寄せの
+//! `Top`/`Bottom` は書字方向に依存しないため、`inset-inline-start: 50%` +
+//! `translateX(-50%)` の組み合わせにすると RTL で中心からずれる（
+//! `inset-inline-start` は RTL で `right` へ解決されるが `translateX` は
+//! 常に物理座標系で動くため、両者を混在させると中央寄せが破綻する）。そのため
+//! `Top`/`Bottom` のみ従来どおり物理プロパティ `left: 50%` を維持する。
+//!
 //! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
 //!
 //! - タイマーによる自動 dismiss の実配線・`ActionTrigger` の動作配線・
@@ -183,7 +200,7 @@ fn recipe() -> SlotRecipe {
             "group",
             vec![
                 decl("top", "0"),
-                decl("left", "0"),
+                decl("inset-inline-start", "0"),
                 decl("align-items", "flex-start"),
             ],
         )
@@ -192,6 +209,9 @@ fn recipe() -> SlotRecipe {
             "group",
             vec![
                 decl("top", "0"),
+                // 中央寄せは書字方向に依存しないため物理プロパティのままで
+                // 正しい（`inset-inline-start` + `translateX` の組み合わせは
+                // RTL で中央からずれる。下記「RTL 対応」節参照）。
                 decl("left", "50%"),
                 decl("transform", "translateX(-50%)"),
                 decl("align-items", "center"),
@@ -202,7 +222,7 @@ fn recipe() -> SlotRecipe {
             "group",
             vec![
                 decl("top", "0"),
-                decl("right", "0"),
+                decl("inset-inline-end", "0"),
                 decl("align-items", "flex-end"),
             ],
         )
@@ -211,7 +231,7 @@ fn recipe() -> SlotRecipe {
             "group",
             vec![
                 decl("bottom", "0"),
-                decl("left", "0"),
+                decl("inset-inline-start", "0"),
                 decl("align-items", "flex-start"),
             ],
         )
@@ -220,6 +240,7 @@ fn recipe() -> SlotRecipe {
             "group",
             vec![
                 decl("bottom", "0"),
+                // Top と同じ理由で物理プロパティのままにする。
                 decl("left", "50%"),
                 decl("transform", "translateX(-50%)"),
                 decl("align-items", "center"),
@@ -230,7 +251,7 @@ fn recipe() -> SlotRecipe {
             "group",
             vec![
                 decl("bottom", "0"),
-                decl("right", "0"),
+                decl("inset-inline-end", "0"),
                 decl("align-items", "flex-end"),
             ],
         )

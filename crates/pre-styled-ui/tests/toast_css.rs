@@ -45,7 +45,7 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
 
 [data-scope="toast"][data-part="group"].fd-toast--placement-top-start {
   top: 0;
-  left: 0;
+  inset-inline-start: 0;
   align-items: flex-start;
 }
 
@@ -58,13 +58,13 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
 
 [data-scope="toast"][data-part="group"].fd-toast--placement-top-end {
   top: 0;
-  right: 0;
+  inset-inline-end: 0;
   align-items: flex-end;
 }
 
 [data-scope="toast"][data-part="group"].fd-toast--placement-bottom-start {
   bottom: 0;
-  left: 0;
+  inset-inline-start: 0;
   align-items: flex-start;
 }
 
@@ -77,7 +77,7 @@ const TOAST_GOLDEN_CSS: &str = r#"[data-scope="toast"][data-part="group"] {
 
 [data-scope="toast"][data-part="group"].fd-toast--placement-bottom-end {
   bottom: 0;
-  right: 0;
+  inset-inline-end: 0;
   align-items: flex-end;
 }
 
