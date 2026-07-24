@@ -73,6 +73,7 @@ use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
+use fandhe_frontend_pre_styled_ui::json_tree_view::{self, JsonValue};
 use fandhe_frontend_pre_styled_ui::kbd::kbd;
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
@@ -273,6 +274,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::editable::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::segment_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tree_view::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::json_tree_view::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::pagination::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::steps::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::breadcrumb::stylesheet())?;
@@ -1457,6 +1459,62 @@ fn tree_view_section() -> Node {
     section(
         "TreeView",
         "headless-ui の TreeView（role=\"tree\"/role=\"treeitem\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。\"src\" ブランチを展開済み、\"src/lib.rs\" を選択中、\"README.md\" を disabled として固定表示しています。インデントは CSS custom property（--fandhe-tree-view-indent）で表現しています。",
+        vec![node],
+    )
+}
+
+/// JsonTreeView 節: JSON 風データ構造のツリー表示（イシュー #829、
+/// [`tree_view_section`]（#753）の派生）。
+///
+/// [`json_tree_view::expanded_to_depth`] で ark-ui の `defaultExpandedDepth`
+/// 相当の初期展開状態を決定的に作り、[`json_tree_view::render_json`] で
+/// 型別配色付きのマークアップを組み立てる。name/version/tags/address の
+/// ネストしたサンプルデータは ark-ui の json-tree-view 例に準拠する。
+fn json_tree_view_section() -> Node {
+    let data = JsonValue::Object(vec![
+        (
+            "name".to_string(),
+            JsonValue::String("fandhe-frontend".to_string()),
+        ),
+        (
+            "version".to_string(),
+            JsonValue::String("0.16.0".to_string()),
+        ),
+        ("stable".to_string(), JsonValue::Bool(true)),
+        ("deprecated".to_string(), JsonValue::Null),
+        (
+            "tags".to_string(),
+            JsonValue::Array(vec![
+                JsonValue::String("headless".to_string()),
+                JsonValue::String("ui".to_string()),
+            ]),
+        ),
+        (
+            "address".to_string(),
+            JsonValue::Object(vec![
+                ("city".to_string(), JsonValue::String("Tokyo".to_string())),
+                ("zip".to_string(), JsonValue::Number(100.0)),
+            ]),
+        ),
+    ]);
+    // defaultExpandedDepth 相当（深さ 2 まで展開）で「開いた見た目」を固定掲示する。
+    let tree = json_tree_view::expanded_to_depth(&data, 2);
+    let node = tree_view::root(
+        vec![],
+        vec![
+            tree_view::label(vec![], vec![text("Package metadata")]),
+            tree_view::tree(
+                Some("Package metadata"),
+                None,
+                vec![],
+                vec![json_tree_view::render_json(&tree, &data)],
+            ),
+        ],
+    );
+
+    section(
+        "JsonTreeView",
+        "headless-ui の JsonTreeView（tree_view #753 の派生、role=\"tree\"/role=\"treeitem\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。expanded_to_depth(2) でルートと直下ブランチを展開済みとして固定表示し、値の型（string/number/bool/null/array/object）ごとに配色を切り替えています。",
         vec![node],
     )
 }
@@ -3813,6 +3871,7 @@ fn showcase_body() -> Node {
             segment_group_section(),
             carousel_section(),
             tree_view_section(),
+            json_tree_view_section(),
             pagination_section(),
             steps_section(),
             checkbox_card_section(),

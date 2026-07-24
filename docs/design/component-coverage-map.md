@@ -243,7 +243,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/utilities/format-relative-time.md` | FormatRelativeTime | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
 | `.agents/skills/ark-ui/references/utilities/format-time.md` | FormatTime | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
 | `.agents/skills/ark-ui/references/utilities/frame.md` | Frame | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
-| `.agents/skills/ark-ui/references/utilities/json-tree-view.md` | JsonTreeView | — | — | — | 保留 | （JS ランタイム固有 utilities のうち静的実装可能なもの）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/ark-ui/references/utilities/json-tree-view.md` | JsonTreeView | — | json_tree_view | json_tree_view | 実装済み | **保留解除**（イシュー #829、`tree_view`（#753）の派生として実装。headless `crates/headless-ui/src/json_tree_view.rs` + styled `crates/pre-styled-ui/src/json_tree_view.rs`。`docs/policy/intentional-non-adoption.md` §7 の解除記録参照） |
 | `.agents/skills/ark-ui/references/utilities/locale.md` | Locale | LocaleProvider | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
 | `.agents/skills/ark-ui/references/utilities/presence.md` | Presence | Presence | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
 | `.agents/skills/ark-ui/references/utilities/swap.md` | Swap | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
