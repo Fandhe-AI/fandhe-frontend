@@ -186,6 +186,15 @@
 //!   [`mod@progress`] と同じく [`state`] の既存語彙に収まらないため、
 //!   [`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
+//! - [`mod@editable`]: Root / Label / Area / Input / Preview / Control /
+//!   EditTrigger / SubmitTrigger / CancelTrigger の 9 anatomy パーツと、
+//!   `preview`/`edit` の 2 モードを持つ [`editable::Editable`] 状態機械
+//!   （#745、親 #736）。[`mod@switch`]/[`mod@progress`]/[`mod@pin_input`]
+//!   と同じく [`state`] の既存語彙に収まらないため、
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。activationMode/
+//!   submitMode の実挙動・autoResize は本イシューのスコープ外
+//!   （[`editable`] モジュール doc 参照）。
 //! - [`mod@combobox`]: Root / Label / Control / Input / Trigger /
 //!   ClearTrigger / Positioner / Content / ItemGroup / ItemGroupLabel /
 //!   Item / ItemText / ItemIndicator の 13 anatomy パーツと、
@@ -232,6 +241,16 @@
 //!   `O(boundary_count + sibling_count)` で `total_pages` を全列挙しない
 //!   （巨大 `count` でも有界、モジュール doc 参照）。wasm 層のクリック配線・
 //!   キーボードナビゲーションは本イシューのスコープ外。
+//! - [`mod@hover_card`]: Root/Trigger/Positioner/Content/Arrow/ArrowTip の
+//!   6 anatomy パーツ関数群と、[`state::Disclosure`] を埋め込んだ
+//!   [`hover_card::HoverCard`] 状態機械（#759、親トラッキング #726）。
+//!   [`mod@tooltip`] に最も近い構造だが、trigger がリンク先プレビュー用途の
+//!   `a` 要素である点が異なる。`openDelay`/`closeDelay`
+//!   （[`hover_card::HoverCardDelays`]、ark-ui 既定 600ms/300ms）は
+//!   決定的な SSR 設定値として `root` の `data-open-delay`/
+//!   `data-close-delay` へ出力するのみで、実タイマー駆動・DOM 読み取り
+//!   配線は `fandhe-frontend-wasm-full` の後続イシューのスコープ
+//!   （[`hover_card`] モジュール doc §スコープ外参照）。
 //! - [`mod@toast`]: group（live region）/ root / title / description /
 //!   action-trigger / close-trigger の 6 anatomy パーツと、有界なキュー
 //!   （`max` 超過時に最古を押し出す）を管理する [`toast::Toaster`] 状態機械
@@ -251,6 +270,29 @@
 //!   を持たない（[`mod@tooltip`]・[`mod@popover`] との 3 者境界は
 //!   [`mod@toggle_tip`] モジュール doc §3 者境界参照）。click-outside
 //!   dismiss・Escape 閉鎖の DOM 配線は本イシューのスコープ外。
+//! - [`mod@visually_hidden`]: `root`（`span`）1 anatomy パーツ（イシュー #776、
+//!   親 #766）。視覚的には隠すが支援技術には読ませ続けるテキストコンテナで、
+//!   [`mod@field`]/[`mod@link`] と同型の状態機械なし純粋関数。`aria-hidden` を
+//!   一切出力しない不変条件がある（[`visually_hidden`] モジュール doc §`aria-hidden`
+//!   を付けない不変条件 参照）。
+//! - [`mod@skip_nav`]: `link`（`a`）/ `content`（`div`）の 2 anatomy パーツ
+//!   （イシュー #776、親 #766）。WCAG 2.1 SC 2.4.1 Bypass Blocks 対応の
+//!   「本文へスキップ」リンク。[`skip_nav::link`] は呼び出し側から任意の
+//!   URL を受け取らず常に `#<id>` のみを組み立てるため、スキーム注入経路を
+//!   構造的に持たない（[`mod@skip_nav`] モジュール doc §href の構成 参照）。
+//! - [`mod@clipboard`]: Root / Label / Control / Input / Trigger / Indicator /
+//!   ValueText の 7 anatomy パーツと、コピー済みかどうかの 2 値状態機械
+//!   [`clipboard::Clipboard`]（#773、親トラッキング #520）。[`mod@avatar`]/
+//!   [`mod@switch`] と同じく [`state`] の既存語彙に収まらないため、
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。コピー済み
+//!   表示は `data-state` 値語彙ではなく `data-copied`
+//!   （[`data_attrs::data_copied`]）存在属性で表現する ark-ui/chakra-ui の
+//!   慣習に従う。コピー対象値（`value`）は状態機械に持たせず、
+//!   [`clipboard::root`]の `data-value` 属性としてのみ出力する（[`clipboard`] モジュール doc
+//!   「`value` は状態機械に持たせない」節参照）。`navigator.clipboard`
+//!   実配線・タイムアウトによる自動リセットは
+//!   `fandhe-frontend-wasm-full`（#773 後続）のスコープ。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
@@ -284,6 +326,14 @@
 //!   の `positioner`/`arrow`/`arrow_tip` が「CSS フックのみ」だったスコープ
 //!   外事項を解消する。実 DOM 計測は `fandhe-frontend-wasm-full`（`position`
 //!   モジュール）の責務であり、本クレートは `web-sys` 非依存のまま維持する。
+//! - [`mod@password_input`]: Root / Label / Control / Input /
+//!   VisibilityTrigger / Indicator の 6 anatomy パーツと、表示切替
+//!   （`"visible"`/`"hidden"`）の [`password_input::PasswordInput`] 状態機械
+//!   （#740、親 #736）。[`mod@switch`]/[`mod@avatar`] と同じく、既存の
+//!   [`state::Checkable`]/[`state::Disclosure`] のいずれとも値語彙が一致
+//!   しないため [`state`] を埋め込まず個別実装する。**パスワード値そのもの
+//!   は一切扱わない**（`value` を出力する API を持たない。セキュリティ
+//!   不変条件はモジュール doc 参照）。
 //! - [`mod@toggle`]: ark-ui Toggle 相当の Root/Indicator anatomy と、
 //!   [`state::Checkable`] を埋め込んだ [`toggle::Toggle`] 状態機械
 //!   （イシュー #746）。Switch と同じ [`state::Checkable`] を再利用しつつ
@@ -341,27 +391,34 @@ pub mod avatar;
 pub mod breadcrumb;
 pub mod carousel;
 pub mod checkbox;
+pub mod clipboard;
 pub mod collapsible;
 pub mod combobox;
 pub mod data_attrs;
 pub mod dialog;
 pub mod drawer;
+pub mod editable;
 pub mod field;
 pub mod fieldset;
+pub mod hover_card;
 pub mod link;
 pub mod link_overlay;
 pub mod menu;
 pub mod nav_list;
 pub mod number_input;
 pub mod pagination;
+pub mod password_input;
 pub mod pin_input;
 pub mod popover;
 pub mod positioning;
 pub mod progress;
+pub mod qr_code;
+mod qr_encode;
 pub mod radio_group;
 pub mod rating_group;
 pub mod segment_group;
 pub mod select;
+pub mod skip_nav;
 pub mod slider;
 pub mod state;
 pub mod switch;
@@ -373,6 +430,7 @@ pub mod toggle_group;
 pub mod toggle_tip;
 pub mod tooltip;
 pub mod tree_view;
+pub mod visually_hidden;
 
 // `pub use fandhe_frontend_core;` はクレートそのものの再エクスポート（型/値の
 // 再エクスポートではない）。`missing_docs` は extern crate 再エクスポートには
@@ -407,24 +465,31 @@ pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use breadcrumb::{breadcrumb, BreadcrumbItem};
 pub use carousel::{Carousel, CarouselAction};
 pub use checkbox::{Checkbox, CheckboxFlags};
+pub use clipboard::{Clipboard, ClipboardAction};
 pub use combobox::{Combobox, ComboboxAction};
 pub use data_attrs::{
-    data_checked, data_current, data_disabled, data_highlighted, data_invalid, data_orientation,
-    data_pressed, data_readonly, data_required, data_state, Orientation,
+    data_checked, data_copied, data_current, data_disabled, data_highlighted, data_invalid,
+    data_orientation, data_pressed, data_readonly, data_required, data_state, Orientation,
 };
 pub use dialog::Dialog;
 pub use drawer::{Drawer, DrawerPlacement};
+pub use editable::{Editable, EditableAction};
 pub use field::{FieldIds, FieldProps};
 pub use fieldset::FieldsetProps;
+pub use hover_card::{HoverCard, HoverCardDelays};
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
 pub use number_input::{NumberInput, NumberInputAction, NumberInputFlags};
 pub use pagination::{ItemMode, PageEntry, Pagination, PaginationAction};
+pub use password_input::{
+    PasswordAutocomplete, PasswordInput, PasswordInputAction, PasswordInputProps,
+};
 pub use pin_input::{PinInput, PinInputAction, PinInputKind};
 pub use positioning::{
     compute_position, css_vars_style, data_align, data_side, placement_attrs, Align, ArrowPosition,
     Placement, PositioningConfig, Rect, ResolvedPosition, Side, Size,
 };
 pub use progress::{Progress, ProgressAction};
+pub use qr_code::{ErrorCorrectionLevel, QrEncodeError, QrMatrix};
 pub use radio_group::RadioGroup;
 pub use rating_group::{RatingGroup, RatingGroupAction, RatingItemFlags};
 pub use segment_group::SegmentGroup;

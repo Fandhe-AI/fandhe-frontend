@@ -146,6 +146,16 @@ pub fn data_orientation(orientation: Orientation) -> (&'static str, &'static str
     ("data-orientation", orientation.as_str())
 }
 
+/// `data-copied` 存在属性（Clipboard 用、イシュー #773）。[`data_disabled`]
+/// と同じ「存在で真を表す」規約に従う。[`crate::clipboard`] の各パーツが
+/// コピー済み状態を表現するために使う唯一の属性であり、`data-state`
+/// （値語彙）ではなく存在属性を選ぶ理由は ark-ui/chakra-ui の Clipboard が
+/// 同じ規約を採用しているため（[`crate::clipboard`] モジュール doc 参照）。
+#[must_use]
+pub fn data_copied(copied: bool) -> Option<(&'static str, &'static str)> {
+    copied.then_some(("data-copied", ""))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -175,6 +185,8 @@ mod tests {
         assert_eq!(data_pressed(false), None);
         assert_eq!(data_current(true), Some(("data-current", "")));
         assert_eq!(data_current(false), None);
+        assert_eq!(data_copied(true), Some(("data-copied", "")));
+        assert_eq!(data_copied(false), None);
     }
 
     #[test]
