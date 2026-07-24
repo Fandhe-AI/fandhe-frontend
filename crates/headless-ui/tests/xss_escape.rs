@@ -29,9 +29,9 @@ use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::{
     action_bar, aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog,
-    editable, hover_card, listbox, number_input, password_input, pin_input, popover, rating_group,
-    segment_group, slider, tags_input, toast, tree_view, ImageStatus, OpenState, Orientation,
-    PasswordAutocomplete, PasswordInputProps, Steps, ToastStatus,
+    editable, floating_panel, hover_card, listbox, number_input, password_input, pin_input,
+    popover, rating_group, segment_group, slider, tags_input, toast, tree_view, ImageStatus,
+    OpenState, Orientation, PasswordAutocomplete, PasswordInputProps, Steps, ToastStatus,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -985,6 +985,73 @@ fn listbox_dispatch_select_payload_is_escaped_on_hydration_render() {
             payload,
             &html,
             "Listbox dispatch select payload の data-hydrate-selected コンテキスト",
+        );
+    }
+}
+
+/// FloatingPanel（イシュー #827）: (2) 属性値経路（`trigger` の `controls`、
+/// `content` の `id`/`labelledby`）と (1) テキスト経路（`title` children）へ
+/// 全ペイロードを注入し、エスケープが貫通することを固定する。
+#[test]
+fn floating_panel_controls_id_labelledby_and_title_children_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let trigger_html = render(&floating_panel::trigger(
+            OpenState::Closed,
+            false,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &trigger_html,
+            "floating_panel::trigger の controls コンテキスト",
+        );
+
+        let content_html = render(&floating_panel::content(
+            OpenState::Open,
+            floating_panel::Stage::Default,
+            Some(payload),
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &content_html,
+            "floating_panel::content の id/labelledby コンテキスト",
+        );
+
+        let title_html = render(&floating_panel::title(None, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &title_html,
+            "floating_panel::title の children コンテキスト",
+        );
+    }
+}
+
+/// FloatingPanel の dispatch payload（クライアント由来の改ざんされうる
+/// `set_position` の x,y 文字列）が hydration 属性へエンコードされたのち
+/// `render()` を経由してもエスケープが貫通することを固定する
+/// （`FloatingPanel::position_style` 自体は内部生成の数値書式のみを扱うが、
+/// `positioner` の `attrs` 引数は型上 `&str` を受け取れるため、経路自体が
+/// 既定エスケープを迂回しないことを回帰として固定する。`popover` の
+/// `positioner_style_attr_payload_is_escaped_for_all_payloads` と同型）。
+#[test]
+fn floating_panel_positioner_style_attr_payload_is_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let node = floating_panel::positioner(
+            OpenState::Open,
+            floating_panel::Stage::Default,
+            vec![("style", payload)],
+            vec![],
+        );
+        let html = render(&node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "floating_panel::positioner の style 属性値コンテキスト",
         );
     }
 }

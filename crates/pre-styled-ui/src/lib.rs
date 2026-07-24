@@ -450,6 +450,7 @@ pub mod drawer;
 pub mod editable;
 pub mod em;
 pub mod empty_state;
+pub mod floating_panel;
 pub mod heading;
 pub mod highlight;
 pub mod hover_card;
