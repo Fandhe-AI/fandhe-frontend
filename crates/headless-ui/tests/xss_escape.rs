@@ -36,8 +36,8 @@ use fandhe_frontend_headless_ui::scroll_area;
 use fandhe_frontend_headless_ui::tour::{self, TourStep};
 use fandhe_frontend_headless_ui::{
     action_bar, aria_controls, aria_label, avatar, carousel, clipboard, color_picker, data_state,
-    date_input, dialog, download_trigger, editable, floating_panel, hover_card, listbox,
-    number_input, password_input, pin_input, popover, rating_group, segment_group, slider,
+    date_input, dialog, download_trigger, editable, floating_panel, hover_card, image_cropper,
+    listbox, number_input, password_input, pin_input, popover, rating_group, segment_group, slider,
     splitter, tags_input, timer, toast, tree_view, Calendar, DatePicker, DateSegmentFlags,
     ImageStatus, OpenState, Orientation, PasswordAutocomplete, PasswordInputProps, Steps,
     ToastStatus, Tour,
@@ -300,6 +300,61 @@ fn slider_name_label_and_valuetext_are_escaped_for_all_payloads() {
             payload,
             &html,
             "slider::thumb の aria-valuetext 属性値コンテキスト",
+        );
+    }
+}
+
+/// (1)/(2)/(3) ImageCropper（イシュー #844）: `image` の `src`/`alt`（属性値
+/// 経路）・`selection` の children（テキスト経路）・`root`/`handle` の
+/// 呼び出し側 `attrs`（属性値経路）へ全ペイロードを注入し、エスケープが
+/// 貫通することを固定する。
+#[test]
+fn image_cropper_src_alt_children_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // `image_cropper::image` は `<img>` タグ自体を出力するため、
+        // 実タグ出現の有無を見る `assert_payload_is_escaped` の共通チェック
+        // は使えない（`avatar::image` の src 検証と同じ事情、本ファイル
+        // `avatar_image_src_rejects_dangerous_url_schemes` 参照）。ここでは
+        // エスケープ済み表現の実在・生ペイロードの不在のみを個別に確認する。
+        let image_node = image_cropper::image(payload, payload, vec![]);
+        let html = render(&image_node);
+        let expected_escaped = escape_html(payload);
+        assert!(
+            html.contains(&expected_escaped),
+            "image_cropper::image の src/alt 属性値コンテキストで期待される\
+             エスケープ済み表現が出力に見当たらない: payload={payload:?}, html={html}"
+        );
+        assert!(
+            !html.contains(payload),
+            "image_cropper::image の src/alt 属性値コンテキストで生ペイロード\
+             が出力にそのまま残っている: payload={payload:?}, html={html}"
+        );
+
+        let selection_node = image_cropper::selection(vec![], vec![text(payload)]);
+        let html = render(&selection_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "image_cropper::selection のテキストコンテキスト",
+        );
+
+        let root_node = image_cropper::root(vec![("data-testid", payload)], vec![]);
+        let html = render(&root_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "image_cropper::root の attrs 属性値コンテキスト",
+        );
+
+        let handle_node = image_cropper::handle(
+            image_cropper::HandlePosition::Se,
+            vec![("data-testid", payload)],
+        );
+        let html = render(&handle_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "image_cropper::handle の attrs 属性値コンテキスト",
         );
     }
 }

@@ -539,6 +539,7 @@ pub mod highlight;
 pub mod hover_card;
 pub mod icon;
 pub mod image;
+pub mod image_cropper;
 pub mod input;
 pub mod json_tree_view;
 pub mod kbd;
