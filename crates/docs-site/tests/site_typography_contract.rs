@@ -1,0 +1,247 @@
+//! 本文タイポグラフィ（`.docs-content` 配下、`crate::site_theme::typography_css`
+//! が組み立てる）と、そのミラー元である `fandhe_frontend_pre_styled_ui` の
+//! 各部品 recipe（`css()`/`stylesheet()` が返す静的 CSS）との乖離を検知する
+//! 回帰テスト（イシュー #911）。
+//!
+//! # 検証方針
+//!
+//! `crates/docs-site/src/site_theme.rs` の `typography_css` はミラー元部品を
+//! **呼び出さず**、`fandhe_frontend_pre_styled_ui::css::{decl, serialize_rule}`
+//! で `.docs-content <tag>` セレクタの規則を独自に組み立てる（`docs/design/
+//! docs-site-three-column-redesign.md` §3.6: `markdown.rs` の出力・class
+//! 付与ロジックを変更しないための設計）。このため「ミラー宣言の値がコピー
+//! ミスで部品側の recipe と食い違う」「部品側の recipe が変わったのに docs
+//! 側の追随が漏れる」事故はコンパイラでは検知できない。本テストは各ミラー
+//! 宣言（`(property, value)` の組）が対応する部品の `css()`/`stylesheet()`
+//! 出力の**部分文字列として存在する**ことを機械的に検証し、ドリフトを
+//! fail-closed で検知する（手動同期に頼らない）。
+//!
+//! 宣言の出力書式は [`fandhe_frontend_pre_styled_ui::css::serialize_rule`]
+//! の凍結書式（`  <property>: <value>;\n`）に揃えているため、
+//! `"  {property}: {value};"` を部分文字列として照合すれば足りる。
+
+use fandhe_frontend_docs_site::site_theme;
+
+/// サイト骨格 CSS 全量（typography_css を含む）を取得する。
+fn site_css() -> String {
+    site_theme::stylesheet()
+        .expect("site theme stylesheet should assemble")
+        .as_css()
+        .to_string()
+}
+
+/// `"  {property}: {value};"` の形で `haystack` に含まれるかを検証する
+/// （[`fandhe_frontend_pre_styled_ui::css::serialize_rule`] の凍結書式）。
+fn assert_declaration_mirrored(haystack: &str, property: &str, value: &str, context: &str) {
+    let needle = format!("  {property}: {value};");
+    assert!(
+        haystack.contains(&needle),
+        "{context}: docs-content 側に mirror 宣言が見つからない: {needle}"
+    );
+}
+
+#[test]
+fn heading_size_variants_mirror_pre_styled_ui_heading_recipe() {
+    let docs_css = site_css();
+    let heading_css = fandhe_frontend_pre_styled_ui::heading::css();
+
+    // base 宣言（全サイズ variant 共通）。
+    for (property, value) in [
+        ("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+        ("letter-spacing", "-0.01em"),
+    ] {
+        assert_declaration_mirrored(&heading_css, property, value, "heading base (component)");
+        assert_declaration_mirrored(&docs_css, property, value, "heading base (docs mirror)");
+    }
+
+    // タグ → サイズ variant 対応（§3.2）。
+    for (docs_size_token, component_size_token, line_height) in [
+        ("3xl", "3xl", "1.2"),
+        ("2xl", "2xl", "1.25"),
+        ("xl", "xl", "1.3"),
+        ("lg", "lg", "1.3"),
+        ("md", "md", "1.3"),
+        ("sm", "sm", "1.25"),
+    ] {
+        let font_size_value = format!("var(--fandhe-font-font-size-{component_size_token})");
+        assert_declaration_mirrored(
+            &heading_css,
+            "font-size",
+            &font_size_value,
+            "heading size variant (component)",
+        );
+        assert_declaration_mirrored(
+            &docs_css,
+            "font-size",
+            &font_size_value,
+            &format!("heading size {docs_size_token} (docs mirror)"),
+        );
+        // line-height の値は複数サイズ間で重複する（h3/h4/h5 の 1.3、h2/h6 の
+        // 1.25 等）ため、部分文字列一致では「特定サイズの line-height だけが
+        // ドリフトした」事故までは検知できない（component/docs 双方に存在
+        // することの確認に留まる）。font-size トークン名は各サイズで一意の
+        // ため、サイズ変数と組の識別はそちらが担保する。
+        assert_declaration_mirrored(
+            &heading_css,
+            "line-height",
+            line_height,
+            "heading size variant (component)",
+        );
+        assert_declaration_mirrored(
+            &docs_css,
+            "line-height",
+            line_height,
+            &format!("heading size {docs_size_token} (docs mirror)"),
+        );
+    }
+}
+
+#[test]
+fn paragraph_size_mirrors_pre_styled_ui_text_recipe() {
+    let docs_css = site_css();
+    let text_css = fandhe_frontend_pre_styled_ui::text::css();
+
+    for (property, value) in [
+        ("font-size", "var(--fandhe-font-font-size-md)"),
+        ("line-height", "1.5"),
+    ] {
+        assert_declaration_mirrored(&text_css, property, value, "text TextSize::Md (component)");
+        assert_declaration_mirrored(&docs_css, property, value, "paragraph (docs mirror)");
+    }
+}
+
+#[test]
+fn list_declarations_mirror_pre_styled_ui_list_recipe() {
+    let docs_css = site_css();
+    let list_css = fandhe_frontend_pre_styled_ui::list::css();
+
+    // root（ul/ol）: ListVariant::Marker.
+    for (property, value) in [("list-style", "revert"), ("padding-inline-start", "1.5rem")] {
+        assert_declaration_mirrored(
+            &list_css,
+            property,
+            value,
+            "list Marker variant (component)",
+        );
+        assert_declaration_mirrored(&docs_css, property, value, "ul/ol (docs mirror)");
+    }
+
+    // item（li）base.
+    for (property, value) in [("margin-block", "0.25rem"), ("line-height", "1.5")] {
+        assert_declaration_mirrored(&list_css, property, value, "list item base (component)");
+        assert_declaration_mirrored(&docs_css, property, value, "li (docs mirror)");
+    }
+}
+
+#[test]
+fn link_declarations_mirror_pre_styled_ui_link_recipe() {
+    let docs_css = site_css();
+    let link_css = fandhe_frontend_pre_styled_ui::link::stylesheet();
+
+    for (property, value) in [
+        (
+            "color",
+            "var(--fandhe-color-accent, var(--fandhe-color-fg))",
+        ),
+        (
+            "text-decoration",
+            "var(--fandhe-link-text-decoration, none)",
+        ),
+        ("cursor", "pointer"),
+    ] {
+        assert_declaration_mirrored(&link_css, property, value, "link base (component)");
+        assert_declaration_mirrored(&docs_css, property, value, "a (docs mirror)");
+    }
+}
+
+#[test]
+fn code_declarations_mirror_pre_styled_ui_code_recipe() {
+    let docs_css = site_css();
+    let code_css = fandhe_frontend_pre_styled_ui::code::css();
+
+    for (property, value) in [
+        (
+            "font-family",
+            "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+        ),
+        ("background", "var(--fandhe-color-bg-subtle)"),
+        ("border-radius", "var(--fandhe-radius-sm)"),
+        ("padding", "0.0625rem 0.375rem"),
+        ("font-size", "var(--fandhe-font-font-size-sm)"),
+    ] {
+        assert_declaration_mirrored(&code_css, property, value, "code base (component)");
+        assert_declaration_mirrored(&docs_css, property, value, "inline code (docs mirror)");
+    }
+}
+
+#[test]
+fn em_declarations_mirror_pre_styled_ui_em_recipe() {
+    let docs_css = site_css();
+    let em_css = fandhe_frontend_pre_styled_ui::em::css();
+
+    for (property, value) in [
+        ("font-style", "italic"),
+        ("font-weight", "var(--fandhe-font-font-weight-medium)"),
+    ] {
+        assert_declaration_mirrored(&em_css, property, value, "em base (component)");
+        assert_declaration_mirrored(&docs_css, property, value, "em (docs mirror)");
+    }
+}
+
+#[test]
+fn blockquote_declarations_mirror_pre_styled_ui_blockquote_subtle_variant() {
+    let docs_css = site_css();
+    let blockquote_css = fandhe_frontend_pre_styled_ui::blockquote::css();
+
+    // root base（margin は docs 固有に上書きするため対象外）。
+    for (property, value) in [
+        ("padding-inline-start", "1rem"),
+        ("padding-block", "0.5rem"),
+    ] {
+        assert_declaration_mirrored(
+            &blockquote_css,
+            property,
+            value,
+            "blockquote root base (component)",
+        );
+        assert_declaration_mirrored(&docs_css, property, value, "blockquote (docs mirror)");
+    }
+
+    // Subtle variant（`--fandhe-palette` は docs 側で常に accent へ解決する
+    // ため、component 側の宣言そのものではなく解決後の値を照合する）。
+    assert_declaration_mirrored(
+        &blockquote_css,
+        "background",
+        "var(--fandhe-color-bg-subtle)",
+        "blockquote Subtle variant (component)",
+    );
+    assert_declaration_mirrored(
+        &docs_css,
+        "background",
+        "var(--fandhe-color-bg-subtle)",
+        "blockquote (docs mirror, palette resolved)",
+    );
+    assert_declaration_mirrored(
+        &blockquote_css,
+        "border-radius",
+        "var(--fandhe-radius-sm)",
+        "blockquote Subtle variant (component)",
+    );
+    assert_declaration_mirrored(
+        &docs_css,
+        "border-radius",
+        "var(--fandhe-radius-sm)",
+        "blockquote (docs mirror)",
+    );
+}
+
+#[test]
+fn typography_selectors_never_escape_default_encoding() {
+    // 受け入れ条件 2（既定エスケープ経路の迂回を追加していない）の CSS 側の
+    // 裏付け: 生成 CSS は StyleSheet::push_css の `<` 拒否検証を経由済み
+    // （`site_theme::stylesheet` が Result で失敗しうる設計自体がこの契約を
+    // 表す）。ここでは生成物に `<` が含まれないことを typography 由来の
+    // セレクタ・値についても直接固定する。
+    let docs_css = site_css();
+    assert!(!docs_css.contains('<'));
+}
