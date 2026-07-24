@@ -1,0 +1,521 @@
+//! Marquee（イシュー #831）: `docs/policy/intentional-non-adoption.md` §3.24
+//! で意図的非採用と確定していた自動流動テキストを、CSS のみ・
+//! `prefers-reduced-motion` 対応の決定的設計案で再導入する静的 styled 部品。
+//!
+//! # 再導入の経緯（`.claude/rules/coding-rust.md` 「意図的非採用機能の
+//! 再導入提案には評価軸の充足確認が必須」対応）
+//!
+//! §3.24 の非採用理由は「純装飾で CSS のみで代替可能」「自動アニメーションが
+//! 挙動分岐を持ち込み決定的なユニットテスト検証になじまない」の 2 点だった。
+//! 本モジュールは §3.24 の再評価トリガー 1（「自動流動テキストの需要が確定し、
+//! かつ `prefers-reduced-motion` 等のアクセシビリティ要件を満たす決定的な
+//! 設計案が提示された場合」）を、以下の設計で充足する:
+//!
+//! 1. **明示性**: マークアップは `data-scope="marquee"` / `data-part` の
+//!    決定的ノード木、スタイルは静的 CSS のみ。JS・状態機械・実行時分岐は
+//!    一切持たない。
+//! 2. **決定性**: [`css`] はソースコード中の静的リテラルのみから同一入力 →
+//!    同一出力を生成する（golden CSS テストでバイト単位固定、
+//!    `tests/marquee_css.rs`）。アニメーション実行はブラウザの CSS ランタイム
+//!    に委ね、Rust 側出力は完全に決定的である（検証対象を CSS 出力文字列に
+//!    固定することで #735 時点の懸念を解消する）。
+//! 3. **機械検証可能性**: golden CSS・`render()` ユニットテスト・XSS 回帰
+//!    （`tests/xss_escape_styled.rs`）・`stylesheet.rs` の全部品網羅ドリフト
+//!    検知テストで機械検証する。
+//! 4. **コンテキスト消費**: 新規モジュール 1 個（公開関数 2 個 + Props +
+//!    enum 1 個）。[`crate::skeleton`]/[`crate::spinner`] と同型パターンの
+//!    再利用で追加学習コストを最小化する。
+//! 5. **不変条件を弱めない**: 新規依存クレートゼロ・既定エスケープ（REQ-1）
+//!    迂回なし・`unsafe` なし・HTML/CSS への実行時入力の文字列結合なし。
+//!
+//! # anatomy（ark-ui 参考の縮約）
+//!
+//! ark-ui の Marquee anatomy（`Root`/`Viewport`/`Content`/`Item`/`Edge`）を
+//! CSS のみで成立する最小 3 パーツへ縮約する: `Viewport` は `root` が兼ね、
+//! `Edge`（両端フェードのグラデーション）は呼び出し側 CSS（`mask-image` 等）
+//! で代替可能な純装飾のため提供しない。
+//!
+//! # シームレスループの実現方法
+//!
+//! [`marquee`] は `content` パーツ（`data-part="content"`）を **2 回複製**
+//! して並べる（自動流動テキストの標準的なシームレスループ手法。`children`
+//! は [`fandhe_frontend_core::Node`] が `Clone` を実装しているため
+//! `children.clone()` で複製する）。**2 個目の `content` には常に
+//! `aria-hidden="true"`** を付与し、スクリーンリーダーの二重読み上げを
+//! 防ぐ（呼び出し側がこれを外すオプションは設けない、[`crate::skeleton`]
+//! と同型の fail-closed 判断）。
+//!
+//! # variant（`direction` のみ、root へのみクラス付与）
+//!
+//! [`MarqueeDirection`]（`Start`（既定）/`End`）は `root` パーツのみへ
+//! クラスを付与し、`content` への伝搬は CSS custom property
+//! （`--fandhe-marquee-direction`）の通常の CSS 継承で行う（複合部品の
+//! variant 統一方針、[`crate::timeline`] と同型のパターン。かつて
+//! `indicator`/`separator` に対してこの伝搬を直接セレクタで表現しようとして
+//! 死んだ CSS を生んだ教訓、PR #812 修正コミット 54126cb を踏まえ、本
+//! モジュールは最初から custom property 経由で設計する）。
+//!
+//! `color-palette`/`size` 軸は提供しない（[`crate::skeleton`]/[`crate::card`]
+//! と同型の「中立・装飾部品」判断）。速度・間隔は CSS custom property の
+//! フォールバック（`--fandhe-marquee-duration, 20s` / `--fandhe-marquee-gap,
+//! 1rem`）として与え、呼び出し側が `style` 属性で上書きする契約とする。
+//! ark-ui の `speed`/`spacing`/`autoFill`/`loopCount` 相当は props へ持ち込ま
+//! ない（本イシューのスコープ外、下記節参照）。
+//!
+//! # a11y 契約: `decorative`/`label`
+//!
+//! [`MarqueeProps::decorative`]（既定 `false`）が `true` の場合、`root` へ
+//! `aria-hidden="true"` を付与し純装飾として扱う（[`crate::skeleton`] と
+//! 同型）。`false`（既定）の場合、[`MarqueeProps::label`] が `Some` なら
+//! `root` へ `aria-label` を付与する（[`crate::icon`] の `label: Option<&str>`
+//! と同型の判断）。呼び出し側 `attrs` の `aria-hidden`/`aria-label` は
+//! 大文字小文字を無視して除去し props 由来の値へ一本化する
+//! （[`crate::skeleton::skeleton`] の fail-closed 判断と同型）。
+//!
+//! # 常時一時停止（WCAG 2.2.2 配慮の固定挙動）
+//!
+//! `root` への `:hover`/`:focus-within` でアニメーションを一時停止する CSS を
+//! 常時出力し、無効化するオプションは設けない。[`crate::recipe::StateCondition`]
+//! はコンポーネント自身の slot への状態条件のみを表現でき、`root:hover
+//! content` のような子孫コンビネータを持たないため（[`crate::recipe::SlotRecipe`]
+//! は子孫セレクタ機構を持たない設計、`.claude/rules` 準拠のドキュメントを
+//! 参照）、[`css`] が [`crate::skeleton::css`]/[`crate::spinner::css`] と
+//! 同型の静的リテラル追記としてこの規則を出力する。
+//!
+//! # `prefers-reduced-motion: reduce` 対応
+//!
+//! [`css`] は `@media (prefers-reduced-motion: reduce)` 環境で `content` の
+//! アニメーションを停止する規則を追記する（[`crate::skeleton::css`] と
+//! 同型）。
+//!
+//! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
+//!
+//! - 縦方向スクロール（ark `side: top/bottom` 相当）。
+//! - 両端フェードの `Edge` パーツ（呼び出し側 CSS での代替を前提とする、
+//!   上記「anatomy」節参照）。
+//! - `autoFill` の自動複製制御（`item` の複製数は呼び出し側の責務）。
+//! - `examples/headless-pre-styled-ui` への反映（crates.io 公開後の別イシュー、
+//!   [`crate::stat`]/[`crate::timeline`] と同じ判断）。
+//! - `docs/policy/intentional-non-adoption.md` §3.24 のもう 1 項目
+//!   chakra `Theme` コンポーネント（**非採用のまま変更しない**）。
+//!
+//! # セキュリティ不変条件
+//!
+//! 本モジュールは新規 anatomy 定義と静的 CSS 生成のみで構成され、
+//! `raw_html()` を使用しない。CSS 宣言値はすべてコンパイル時静的リテラル
+//! であり、動的値（children・呼び出し側 `attrs`・`label`）を CSS 値として
+//! 流し込む経路を持たない（動的値は `fandhe_frontend_core::render` の
+//! 既定エスケープを必ず経由する、REQ-1）。
+
+use crate::class_attr::drop_class_attr;
+use crate::css::decl;
+use crate::recipe::{SlotRecipe, VariantValue};
+use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
+use fandhe_frontend_headless_ui::{anatomy, aria_hidden, aria_label, Anatomy};
+
+/// `data-scope="marquee"` を固定した本コンポーネントの anatomy。
+const ANATOMY: Anatomy = anatomy("marquee");
+
+/// [`SlotRecipe::new`] に渡す slot 一覧。
+const SLOTS: &[&str] = &["root", "content", "item"];
+
+/// スクロールアニメーションの `@keyframes` 名リテラル。[`crate::skeleton`]
+/// の `pulse_keyframes_name_lit!` と同じ理由（`decl()` の値検証は
+/// `{`/`}`/`;` を拒否するため、キーフレーム本体は宣言として表現できず、
+/// `animation` 宣言の値とキーフレームブロック名の単一情報源をマクロとして
+/// 持つ必要がある）で同型のマクロを用意する。
+macro_rules! scroll_keyframes_name_lit {
+    () => {
+        "fd-marquee-scroll"
+    };
+}
+
+/// スクロールアニメーションの `@keyframes` 名。`recipe()` の `animation`
+/// 宣言（値としてのみ参照）と [`css`] が追記する `@keyframes` ブロックの
+/// 両方で共有する識別子（[`scroll_keyframes_name_lit`] を単一情報源として
+/// 生成）。
+const SCROLL_KEYFRAMES_NAME: &str = scroll_keyframes_name_lit!();
+
+/// Marquee のスクロール方向。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MarqueeDirection {
+    /// 通常方向（既定）。
+    #[default]
+    Start,
+    /// 逆方向スクロール。
+    End,
+}
+
+impl VariantValue for MarqueeDirection {
+    fn axis(self) -> &'static str {
+        "direction"
+    }
+
+    fn value(self) -> &'static str {
+        match self {
+            Self::Start => "start",
+            Self::End => "end",
+        }
+    }
+}
+
+/// [`marquee`] の設定。
+///
+/// `Default` は各フィールドの `Default`（`direction: Start`・
+/// `decorative: false`・`label: None`）から自動導出する。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MarqueeProps<'a> {
+    /// スクロール方向（既定 `Start`）。
+    pub direction: MarqueeDirection,
+    /// `true` なら装飾扱いとし `root` へ `aria-hidden="true"` を付与する
+    /// （既定 `false`）。
+    pub decorative: bool,
+    /// `decorative` が `false` のときのみ有効なアクセシブルネーム。
+    /// `Some` なら `root` へ `aria-label` を付与する（既定 `None`）。
+    pub label: Option<&'a str>,
+}
+
+/// Marquee の recipe（scope `"marquee"`、[`SLOTS`] の 3 パーツ）。
+///
+/// `direction` 軸は `root` へのみ登録し、`content` への伝搬は root スコープ
+/// custom property の継承で行う（モジュール doc「variant」節参照）。
+fn recipe() -> SlotRecipe {
+    SlotRecipe::new("marquee", SLOTS)
+        .base(
+            "root",
+            vec![
+                decl("display", "flex"),
+                decl("overflow", "hidden"),
+                decl("gap", "var(--fandhe-marquee-gap, 1rem)"),
+            ],
+        )
+        .base(
+            "content",
+            vec![
+                decl("display", "flex"),
+                decl("flex", "none"),
+                decl("align-items", "center"),
+                decl("min-width", "max-content"),
+                decl("gap", "var(--fandhe-marquee-gap, 1rem)"),
+                decl(
+                    "animation",
+                    concat!(
+                        scroll_keyframes_name_lit!(),
+                        " var(--fandhe-marquee-duration, 20s) linear infinite"
+                    ),
+                ),
+                decl(
+                    "animation-direction",
+                    "var(--fandhe-marquee-direction, normal)",
+                ),
+            ],
+        )
+        .base("item", vec![decl("flex", "none")])
+        .variant(
+            MarqueeDirection::Start,
+            "root",
+            vec![decl("--fandhe-marquee-direction", "normal")],
+        )
+        .variant(
+            MarqueeDirection::End,
+            "root",
+            vec![decl("--fandhe-marquee-direction", "reverse")],
+        )
+        .default_variant(MarqueeDirection::Start)
+}
+
+/// Marquee の静的 CSS 全文。
+///
+/// recipe が生成する規則群に続けて、以下を静的リテラルとして追記する
+/// （[`crate::skeleton::css`] と同型。値はソースコード中のリテラルのみで
+/// 構成され、外部入力は一切混入しない）:
+///
+/// 1. `animation` 宣言が参照する `@keyframes`（[`SCROLL_KEYFRAMES_NAME`]）。
+/// 2. `root` への `:hover`/`:focus-within` で `content` のアニメーションを
+///    一時停止する規則（子孫コンビネータのため recipe では表現できない、
+///    モジュール doc「常時一時停止」節参照）。
+/// 3. `prefers-reduced-motion: reduce` 環境でアニメーションを停止する
+///    `@media` ブロック（受け入れ条件）。
+#[must_use]
+pub fn css() -> String {
+    let mut out = recipe().css();
+    if !out.is_empty() {
+        out.push('\n');
+    }
+    out.push_str(&format!(
+        "@keyframes {SCROLL_KEYFRAMES_NAME} {{\n  from {{\n    transform: translateX(0);\n  }}\n  to {{\n    transform: translateX(calc(-100% - var(--fandhe-marquee-gap, 1rem)));\n  }}\n}}\n"
+    ));
+    out.push_str(
+        "\n[data-scope=\"marquee\"][data-part=\"root\"]:hover [data-part=\"content\"],\n[data-scope=\"marquee\"][data-part=\"root\"]:focus-within [data-part=\"content\"] {\n  animation-play-state: paused;\n}\n",
+    );
+    out.push_str(
+        "\n@media (prefers-reduced-motion: reduce) {\n  [data-scope=\"marquee\"][data-part=\"content\"] {\n    animation: none;\n  }\n}\n",
+    );
+    out
+}
+
+/// Marquee 1 個を組み立てる（`<div>`。`content` パーツを内部で 2 回複製し
+/// シームレスループを実現する、モジュール doc「シームレスループの実現方法」
+/// 節参照）。
+///
+/// `class` は [`crate::class_attr::drop_class_attr`] により常に単一化される
+/// （呼び出し側由来のクラスは recipe 生成クラスへ合成されず破棄する、
+/// [`crate::skeleton::skeleton`] と同じ方針）。`aria-hidden`/`aria-label` も
+/// 同様に呼び出し側の値（大文字小文字を無視）を除去し、`props` 由来の値へ
+/// 一本化する。
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::{render, text};
+/// use fandhe_frontend_pre_styled_ui::marquee::{item, marquee, MarqueeProps};
+///
+/// let node = marquee(
+///     &MarqueeProps {
+///         decorative: true,
+///         ..MarqueeProps::default()
+///     },
+///     vec![],
+///     vec![item(vec![], vec![text("Breaking news")])],
+/// );
+/// let html = render(&node);
+/// assert!(html.contains(r#"aria-hidden="true""#));
+/// ```
+#[must_use]
+pub fn marquee<'a>(
+    props: &MarqueeProps<'a>,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
+    let recipe = recipe();
+    let class = recipe.variant_classes(&[("direction", props.direction.value())]);
+    // `aria-hidden`/`aria-label` は呼び出し側の偽装を大文字小文字無視で除去し、
+    // props 由来の値へ一本化する（`crate::skeleton::skeleton` と同型の
+    // fail-closed 判断）。
+    let attrs: Vec<(&str, &str)> = drop_class_attr(attrs)
+        .into_iter()
+        .filter(|(k, _)| {
+            !k.eq_ignore_ascii_case("aria-hidden") && !k.eq_ignore_ascii_case("aria-label")
+        })
+        .collect();
+    let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
+    if props.decorative {
+        merged.push(aria_hidden(true));
+    } else if let Some(label) = props.label {
+        merged.push(aria_label(label));
+    }
+    merged.extend(attrs);
+
+    // シームレスループ: content を 2 回並べる。2 個目は常に aria-hidden で
+    // スクリーンリーダーの二重読み上げを防ぐ（呼び出し側が外すオプションは
+    // 設けない）。
+    let content_visible = ANATOMY.part("content", "div", vec![], children.clone());
+    let content_hidden = ANATOMY.part("content", "div", vec![aria_hidden(true)], children);
+
+    ANATOMY.part("root", "div", merged, vec![content_visible, content_hidden])
+}
+
+/// item パーツ（`<div>`）を組み立てる。呼び出し側が [`marquee`] の
+/// `children` として並べる個々の要素の入れ物（モジュール doc「anatomy」
+/// 節参照）。
+#[must_use]
+pub fn item<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    ANATOMY.part("item", "div", attrs, children)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use fandhe_frontend_core::{render, text};
+
+    #[test]
+    fn default_props_render_start_direction_and_duplicated_content() {
+        let node = marquee(&MarqueeProps::default(), vec![], vec![text("news")]);
+        let html = render(&node);
+        assert!(html.contains(r#"data-scope="marquee" data-part="root""#));
+        assert!(html.contains("fd-marquee--direction-start"));
+        assert_eq!(html.matches(r#"data-part="content""#).count(), 2);
+        // 2 個目の content のみ aria-hidden="true" を持つ。
+        assert_eq!(html.matches(r#"aria-hidden="true""#).count(), 1);
+        assert_eq!(html.matches(">news<").count(), 2);
+    }
+
+    #[test]
+    fn direction_enumeration_maps_to_expected_classes() {
+        for (direction, class) in [
+            (MarqueeDirection::Start, "fd-marquee--direction-start"),
+            (MarqueeDirection::End, "fd-marquee--direction-end"),
+        ] {
+            let props = MarqueeProps {
+                direction,
+                ..MarqueeProps::default()
+            };
+            let html = render(&marquee(&props, vec![], vec![]));
+            assert!(html.contains(class), "direction={direction:?} -> {html}");
+        }
+    }
+
+    #[test]
+    fn decorative_true_sets_root_aria_hidden() {
+        let props = MarqueeProps {
+            decorative: true,
+            ..MarqueeProps::default()
+        };
+        let html = render(&marquee(&props, vec![], vec![]));
+        // root と 2 個目の content の 2 箇所で aria-hidden="true" が出現する。
+        assert_eq!(html.matches(r#"aria-hidden="true""#).count(), 2);
+        assert!(!html.contains("aria-label"));
+    }
+
+    #[test]
+    fn label_some_sets_root_aria_label_when_not_decorative() {
+        let props = MarqueeProps {
+            label: Some("Breaking news"),
+            ..MarqueeProps::default()
+        };
+        let html = render(&marquee(&props, vec![], vec![]));
+        assert!(html.contains(r#"aria-label="Breaking news""#));
+        // root 自体は aria-hidden を持たない（2 個目 content 分の 1 回のみ）。
+        assert_eq!(html.matches(r#"aria-hidden="true""#).count(), 1);
+    }
+
+    #[test]
+    fn decorative_true_takes_precedence_over_label() {
+        let props = MarqueeProps {
+            decorative: true,
+            label: Some("ignored"),
+            ..MarqueeProps::default()
+        };
+        let html = render(&marquee(&props, vec![], vec![]));
+        assert!(!html.contains("aria-label"));
+        assert_eq!(html.matches(r#"aria-hidden="true""#).count(), 2);
+    }
+
+    #[test]
+    fn item_uses_div_and_expected_data_part() {
+        let html = render(&item(vec![], vec![text("a")]));
+        assert!(html.starts_with(r#"<div data-scope="marquee" data-part="item""#));
+        assert!(html.contains(">a<"));
+    }
+
+    #[test]
+    fn caller_class_attr_is_dropped_not_duplicated() {
+        let html = render(&marquee(
+            &MarqueeProps::default(),
+            vec![("class", "attacker-controlled")],
+            vec![],
+        ));
+        assert_eq!(html.matches("class=\"").count(), 1);
+        assert!(!html.contains("attacker-controlled"));
+    }
+
+    #[test]
+    fn caller_supplied_aria_hidden_and_aria_label_are_dropped_case_insensitively() {
+        for key in ["aria-hidden", "Aria-Hidden", "ARIA-HIDDEN"] {
+            let html = render(&marquee(
+                &MarqueeProps::default(),
+                vec![(key, "false")],
+                vec![],
+            ));
+            // root 自体は aria-hidden を持たない契約（decorative=false・
+            // label=None）。呼び出し側偽装が root へ漏れ出ないことを固定する。
+            assert!(!html.contains(r#"aria-hidden="false""#), "html={html}");
+        }
+        for key in ["aria-label", "Aria-Label", "ARIA-LABEL"] {
+            let html = render(&marquee(
+                &MarqueeProps::default(),
+                vec![(key, "attacker")],
+                vec![],
+            ));
+            assert!(!html.contains("attacker"), "html={html}");
+        }
+    }
+
+    #[test]
+    fn xss_payload_in_label_is_escaped() {
+        let props = MarqueeProps {
+            label: Some("\"><script>alert(1)</script>"),
+            ..MarqueeProps::default()
+        };
+        let html = render(&marquee(&props, vec![], vec![]));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+        assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn xss_payload_in_children_text_is_escaped() {
+        let html = render(&marquee(
+            &MarqueeProps::default(),
+            vec![],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+    }
+
+    #[test]
+    fn xss_payload_in_caller_attrs_is_escaped() {
+        let html = render(&marquee(
+            &MarqueeProps::default(),
+            vec![("data-testid", "\"><script>alert(1)</script>")],
+            vec![],
+        ));
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+        assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn css_output_is_deterministic_and_non_empty() {
+        let a = css();
+        let b = css();
+        assert_eq!(a, b);
+        assert!(a.contains(r#"[data-scope="marquee"][data-part="root"]"#));
+    }
+
+    #[test]
+    fn css_output_declares_scroll_animation_and_keyframes() {
+        let out = css();
+        assert!(out.contains(
+            "animation: fd-marquee-scroll var(--fandhe-marquee-duration, 20s) linear infinite;"
+        ));
+        assert!(out.contains("@keyframes fd-marquee-scroll {"));
+        assert!(out.contains("transform: translateX(0);"));
+        assert!(
+            out.contains("transform: translateX(calc(-100% - var(--fandhe-marquee-gap, 1rem)));")
+        );
+    }
+
+    /// 受け入れ条件: `:hover`/`:focus-within` で常時一時停止する CSS を含む
+    /// ことを固定する（無効化オプションを設けない契約、モジュール doc
+    /// 「常時一時停止」節参照）。
+    #[test]
+    fn css_output_declares_hover_and_focus_within_pause() {
+        let out = css();
+        assert!(
+            out.contains(r#"[data-scope="marquee"][data-part="root"]:hover [data-part="content"]"#)
+        );
+        assert!(out.contains(
+            r#"[data-scope="marquee"][data-part="root"]:focus-within [data-part="content"]"#
+        ));
+        assert!(out.contains("animation-play-state: paused;"));
+    }
+
+    /// 受け入れ条件: `prefers-reduced-motion: reduce` でアニメーションを
+    /// 停止する CSS を含むことを固定する。
+    #[test]
+    fn css_output_declares_reduced_motion_media_query() {
+        let out = css();
+        assert!(out.contains("@media (prefers-reduced-motion: reduce) {"));
+        assert!(out.contains(r#"[data-scope="marquee"][data-part="content"] {"#));
+        assert!(out.contains("animation: none;"));
+    }
+
+    #[test]
+    fn css_output_declares_direction_custom_properties() {
+        let out = css();
+        assert!(out.contains("--fandhe-marquee-direction: normal;"));
+        assert!(out.contains("--fandhe-marquee-direction: reverse;"));
+    }
+}
