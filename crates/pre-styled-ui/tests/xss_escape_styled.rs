@@ -3217,3 +3217,83 @@ fn scroll_area_attrs_and_children_payloads_are_escaped_for_all_payloads() {
         );
     }
 }
+
+/// styled ColorSwatch（イシュー #838）の XSS 回帰。
+///
+/// 対象の入力面:
+/// 1. class/style 破棄経路: 呼び出し側 `attrs` の `class`/`style` を渡しても
+///    recipe 生成クラス・`--fd-swatch-color` style へ完全置換され、生
+///    ペイロードが一切残らないことを確認する。
+/// 2. 属性値経路: 呼び出し側 `attrs`（`class`/`style` 以外）。
+/// 3. children テキスト経路。
+/// 4. 色値経路: `ColorSwatchProps::value` は
+///    [`fandhe_frontend_pre_styled_ui::color_swatch::Color`] 型のみを受け
+///    取るため、攻撃者が制御しうる生文字列を `style` へ注入する経路が
+///    構造的に存在しない（`Color::to_hex_string()` の出力が `#[0-9a-f]` に
+///    閉じることは `crates/pre-styled-ui/src/color_swatch.rs` の単体テストが
+///    別途固定する）。
+#[test]
+fn color_swatch_class_style_and_children_payloads_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::color_swatch::{self, Color, ColorSwatchProps, Rgb};
+
+    for payload in payloads::all() {
+        let props = ColorSwatchProps {
+            value: Color::from_rgb(Rgb::new(0x3b, 0x82, 0xf6)),
+            ..ColorSwatchProps::default()
+        };
+
+        // (1) class/style 破棄経路。
+        let html = render(&color_swatch::color_swatch(
+            &props,
+            vec![("class", payload), ("style", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "color_swatch::color_swatch の class/style 属性に渡した生ペイロードが \
+             出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "color_swatch::color_swatch の class 属性が複数出現している: html={html}"
+        );
+        assert_eq!(
+            html.matches("style=\"").count(),
+            1,
+            "color_swatch::color_swatch の style 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-color-swatch--"),
+            "color_swatch::color_swatch で recipe 生成クラスが失われている: html={html}"
+        );
+        assert!(
+            html.contains("--fd-swatch-color:"),
+            "color_swatch::color_swatch でフレームワーク生成 style が失われている: html={html}"
+        );
+
+        // (2) 属性値経路: 呼び出し側 attrs（class/style 以外）。
+        let html = render(&color_swatch::color_swatch(
+            &props,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "color_swatch::color_swatch 呼び出し側 attrs コンテキスト",
+        );
+
+        // (3) children テキスト経路。
+        let html = render(&color_swatch::color_swatch(
+            &props,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "color_swatch::color_swatch children コンテキスト",
+        );
+    }
+}
