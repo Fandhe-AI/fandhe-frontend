@@ -262,6 +262,62 @@ fn width_from_height_for_aspect(height: u32, aw: u32, ah: u32) -> u32 {
     derived.clamp(0, i64::from(u32::MAX)) as u32
 }
 
+/// `[low, high]` の範囲で `height_from_width_for_aspect(w, aw, ah) <= cap`
+/// を満たす最大の `w` を二分探索で求める（[`normalize`] の再クランプ経路
+/// 専用ヘルパ）。
+///
+/// `height_from_width_for_aspect` は `w` に対して単調非減少なので二分探索
+/// が成立する。[`width_from_height_for_aspect`] による一発導出は四捨五入の
+/// 丸め誤差により逆算結果を [`height_from_width_for_aspect`] へ通し直すと
+/// 再び `cap` を超えうる（イシュー #844 レビュー指摘の実バグの根本原因）。
+/// 二分探索で「実際に導出した height が cap 以下」という条件そのものを
+/// 満たす `w` を直接探すことで、呼び出し側は必ず
+/// `height_from_width_for_aspect(戻り値, aw, ah) <= cap`（`low` において
+/// も満たせない極端なアスペクト比の場合を除く）を得られ、
+/// [`Hydrate::from_hydration_attrs`] の等値検証と自己無矛盾になる。
+/// `low` ですら `cap` を満たせない場合は `low` を返す（呼び出し側は
+/// `low` から実際に導出される height をそのまま採用する）。
+fn max_width_with_height_at_most(low: u32, high: u32, cap: u32, aw: u32, ah: u32) -> u32 {
+    if height_from_width_for_aspect(low, aw, ah) > cap {
+        return low;
+    }
+    let mut lo = low;
+    let mut hi = high;
+    while lo < hi {
+        // オーバーフロー回避のため u32 のまま `lo + (hi - lo + 1) / 2` で
+        // 中点を計算する（`lo <= hi` 不変条件下では加算オーバーフローしない）。
+        let mid = lo + (hi - lo).div_ceil(2);
+        if height_from_width_for_aspect(mid, aw, ah) <= cap {
+            lo = mid;
+        } else {
+            hi = mid - 1;
+        }
+    }
+    lo
+}
+
+/// [`max_width_with_height_at_most`] と対称の下限側版。`[low, high]` の
+/// 範囲で `height_from_width_for_aspect(w, aw, ah) >= floor` を満たす
+/// 最小の `w` を二分探索で求める（[`normalize`] の再クランプ経路専用
+/// ヘルパ。導出結果の自己無矛盾性を保証する理由は
+/// [`max_width_with_height_at_most`] 参照）。
+fn min_width_with_height_at_least(low: u32, high: u32, floor: u32, aw: u32, ah: u32) -> u32 {
+    if height_from_width_for_aspect(high, aw, ah) < floor {
+        return high;
+    }
+    let mut lo = low;
+    let mut hi = high;
+    while lo < hi {
+        let mid = lo + (hi - lo) / 2;
+        if height_from_width_for_aspect(mid, aw, ah) >= floor {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    lo
+}
+
 /// crop 矩形の正規化済みフィールド。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Rect {
@@ -304,18 +360,41 @@ fn normalize(
     let mut width = width.clamp(min_width, max_width);
 
     let height = if let Some((aw, ah)) = aspect {
+        let min_height_bound = min_size.min(image_height);
         let mut derived = height_from_width_for_aspect(width, aw, ah);
-        if derived > image_height || derived < min_size.min(image_height) {
-            // 導出結果が境界へ収まらない場合、height 側の許容範囲から
-            // 逆算した width の上限まで width を縮小し再導出する
-            // （fail-closed。width が主軸という規則をここでも維持する）。
-            let max_width_for_aspect = width_from_height_for_aspect(image_height, aw, ah)
-                .clamp(min_width, max_width)
-                .max(min_width);
-            width = width.min(max_width_for_aspect).max(min_width);
+        if derived > image_height {
+            // 導出結果が image_height を超える場合、height <= image_height を
+            // 満たす最大の width を二分探索で直接求める（fail-closed。width
+            // が主軸という規則をここでも維持する）。
+            //
+            // 以前は width_from_height_for_aspect(image_height, ..) の一発
+            // 逆算のみで再クランプしていたが、四捨五入の丸め誤差により
+            // 逆算した width から height_from_width_for_aspect を再適用する
+            // と再び image_height を超えることがあり（例:
+            // image_width=2000, image_height=1000, width=800, aspect=2:3 で
+            // width=667 へ再クランプ後 height=1001 → 最終 clamp で 1000 に
+            // 潰され、height_from_width_for_aspect(667,2,3)=1001 != 1000 と
+            // いう自己矛盾状態が生成されていた）、その状態を
+            // `hydration_attrs()` で SSR 出力すると
+            // `Hydrate::from_hydration_attrs` の厳密等値検査
+            // （height == height_from_width_for_aspect(width, aw, ah)）に
+            // 自身が違反し `InvalidValue` で拒否される実バグがあった
+            // （イシュー #844 レビュー指摘）。二分探索で「実際に導出した
+            // height が image_height 以下」という条件そのものを満たす
+            // width を求めることで、最終的に採用する (width, height) は
+            // 常に height == height_from_width_for_aspect(width, aw, ah) を
+            // 満たし、from_hydration_attrs の等値検証と自己無矛盾になる。
+            width = max_width_with_height_at_most(min_width, max_width, image_height, aw, ah);
+            derived = height_from_width_for_aspect(width, aw, ah);
+        } else if derived < min_height_bound {
+            // 対称のケース: 導出結果が下限（min_size/image_height の小さい
+            // 方）を下回る場合、height >= min_height_bound を満たす最小の
+            // width を二分探索で求める（上記と同じ理由で自己無矛盾性を
+            // 保証するため、一発逆算 + 事後 clamp を避ける）。
+            width = min_width_with_height_at_least(min_width, max_width, min_height_bound, aw, ah);
             derived = height_from_width_for_aspect(width, aw, ah);
         }
-        derived.clamp(min_size.min(image_height), image_height)
+        derived
     } else {
         let max_height = image_height;
         let min_height = min_size.min(max_height);
@@ -1193,6 +1272,35 @@ mod tests {
         let c = ImageCropper::new(1000, 50, 0, 0, 100, 100, Some((1, 1)), 1);
         assert!(c.height() <= 50);
         assert_eq!(c.width(), c.height()); // 1:1 のため width == height
+    }
+
+    #[test]
+    fn new_shrinks_width_when_asymmetric_aspect_height_exceeds_image_height() {
+        // 非対称アスペクト比（2:3）+ width が image_height 側で再クランプ
+        // される境界条件（イシュー #844 レビュー指摘の実バグの再現ケース）。
+        // 丸め誤差により width_from_height_for_aspect の一発逆算だけでは
+        // height_from_width_for_aspect(width, aw, ah) と最終 height が
+        // 一致しない自己矛盾状態が生成されていた（width=667 へ再クランプ
+        // 後 height_from_width_for_aspect(667,2,3)=1001 が image_height=1000
+        // へ最終 clamp され height=1000 との不整合が生じる）。
+        let c = ImageCropper::new(2000, 1000, 0, 0, 800, 800, Some((2, 3)), 1);
+        assert!(c.height() <= 1000);
+        assert_eq!(
+            height_from_width_for_aspect(c.width(), 2, 3),
+            c.height(),
+            "width={} と height={} が自己無矛盾でない",
+            c.width(),
+            c.height()
+        );
+
+        // SSR → hydration ラウンドトリップが自己矛盾で fail-closed 拒否
+        // されないことを確認する（サーバーが自ら生成した正当な出力を
+        // 同じコンポーネントの hydration が拒否してはならない）。
+        let attrs = c.hydration_attrs();
+        let restored = ImageCropper::from_hydration_attrs(&attrs)
+            .expect("正規化済みの hydration 属性は必ず受理されるべき");
+        assert_eq!(restored.width(), c.width());
+        assert_eq!(restored.height(), c.height());
     }
 
     #[test]
