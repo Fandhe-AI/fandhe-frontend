@@ -126,9 +126,15 @@ impl Weekday {
 }
 
 /// サポート対象年の下限（proleptic Gregorian）。
-const MIN_YEAR: i32 = 0;
+///
+/// `pub(crate)`: [`crate::calendar::Calendar::new`] が `view_year` の範囲検証
+/// （`PlainDate::new` と同一の `0000..=9999` 範囲）に流用する。
+pub(crate) const MIN_YEAR: i32 = 0;
 /// サポート対象年の上限（proleptic Gregorian）。
-const MAX_YEAR: i32 = 9999;
+///
+/// `pub(crate)`: [`crate::calendar::Calendar::new`] が `view_year` の範囲検証
+/// に流用する（[`MIN_YEAR`] 参照）。
+pub(crate) const MAX_YEAR: i32 = 9999;
 
 /// 4/100/400 規則によるうるう年判定（proleptic Gregorian、年の範囲制約なし）。
 pub const fn is_leap_year(year: i32) -> bool {
