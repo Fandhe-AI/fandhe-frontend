@@ -8,34 +8,29 @@
 //! 必要とする CSS（テーマトークン + alert recipe + admonition 専用の配置
 //! スタイル）を [`crate::showcase`] と同型の「分離 CSS 方式」で組み立てる。
 //!
-//! `site/assets/site.css`（サイト骨格スタイル）は一切変更しない。生成 CSS は
-//! [`crate::build::build_site`] が [`STYLESHEET_REL_PATH`] へ書き出し、
-//! admonition を実際に含むページだけが `crate::layout::docs_page_with_assets`
-//! の追加 `<link>` でこれを参照する（[`contains_admonition`] が「含むか」を
-//! `build_site` に伝える判定関数）。admonition を含まないページ・フィクスチャ
-//! サイトのビルド結果は本モジュールの追加により一切変わらない。
+//! サイト骨格スタイル（`crate::site_theme` がビルド時生成する `assets/site.css`、
+//! イシュー #905）は一切変更しない。生成 CSS は [`crate::build::build_site`]
+//! が [`STYLESHEET_REL_PATH`] へ書き出し、admonition を実際に含むページ
+//! だけが `crate::layout::docs_page_with_assets` の追加 `<link>` でこれを
+//! 参照する（[`contains_admonition`] が「含むか」を `build_site` に伝える
+//! 判定関数）。admonition を含まないページ・フィクスチャサイトのビルド結果は
+//! 本モジュールの追加により一切変わらない。
 //!
-//! # ダークモード配色（イシュー #732）
+//! # ダークモード配色（イシュー #732 → #905 で撤去）
 //!
-//! `alert` recipe（[`alert::css`]）のダーク背景（`--fandhe-color-bg-subtle`
-//! のニュートラルグレー）は、docs サイト骨格（`site/assets/site.css`）の
-//! 青みがかったダークパレット（`--docs-color-bg-subtle` 等）と調和しない。
-//! [`DARK_CSS`] は `.docs-content` スコープに限定した上書きを、
-//! [`fandhe_frontend_pre_styled_ui::theme::Theme::to_css`] と同じ 2 ブロック
-//! 構造（`@media (prefers-color-scheme: dark) { :root:not([data-theme="light"])
-//! ... }` ＋ 末尾の `:root[data-theme="dark"] ...`、明示指定が常に勝つ）で
-//! 追加する。参照する `--docs-color-*` custom property は `var()` の第 2
-//! 引数フォールバックで theme トークンへ退避するため、`site.css` 側の名前が
-//! 変わっても真っ白/無指定にはならない（fail-safe。ドリフト検知は
-//! `crates/docs-site/tests/site_css_contract.rs` 参照）。`.docs-content`
-//! スコープ限定のため light モード出力・admonition を含まないページの
-//! ビルド結果は不変（#715 の分離 CSS 不変条件を維持）。
+//! `alert` recipe（[`alert::css`]）のダーク背景は元々
+//! `--fandhe-color-bg-subtle` のニュートラルグレーで、docs サイト骨格の
+//! 旧 `--docs-*` 青みがかったダークパレットと調和しなかったため、
+//! `.docs-content` スコープに限定した専用の上書き CSS（`DARK_CSS`）を追加
+//! していた。イシュー #905 でサイト骨格 CSS 自体を `--fandhe-*` テーマ
+//! トークンへ一本化した結果、alert recipe とサイト骨格が同一パレットを
+//! 共有するようになり、この上書きは構造的に不要になった（撤去済み）。
 //!
 //! # セキュリティ不変条件（REQ-1）
 //!
 //! CSS は [`StyleSheet`]（検証済み CSS のみを保持し `<`・不正な制御文字を
 //! 拒否する型、`crates/pre-styled-ui/src/stylesheet.rs`）経由でのみ組み立てる。
-//! 配置用の追加 CSS（[`LAYOUT_CSS`]・[`DARK_CSS`]）も同じ検証を通す。
+//! 配置用の追加 CSS（[`LAYOUT_CSS`]）も同じ検証を通す。
 
 use fandhe_frontend_core::Node;
 use fandhe_frontend_pre_styled_ui::theme::Theme;
@@ -55,36 +50,16 @@ const LAYOUT_CSS: &str = "\
 .docs-content [data-scope=\"alert\"][data-part=\"root\"] {\n  margin: 1rem 0;\n}\n\
 .docs-content [data-scope=\"alert\"][data-part=\"indicator\"] {\n  display: inline-flex;\n  margin-top: 0.125rem;\n}\n";
 
-/// admonition（`.docs-content` 内の alert）のダークモード配色調整
-/// （モジュール doc「ダークモード配色」節参照、イシュー #732）。
-///
-/// `Theme::to_css` と同じ 2 ブロック構造（OS 追従 + 明示 `data-theme` が
-/// 末尾で勝つ）を採り、docs サイトのダークパレット（`--docs-color-*`、
-/// `site/assets/site.css`）へ面色・枠線色を合わせる。`var()` の第 2 引数
-/// フォールバック（`--fandhe-color-*`）により、`site.css` 側の custom
-/// property 名が変わっても theme トークンへ fail-safe に退避する。
-const DARK_CSS: &str = "\
-@media (prefers-color-scheme: dark) {\n\
-  :root:not([data-theme=\"light\"]) .docs-content [data-scope=\"alert\"][data-part=\"root\"] {\n\
-    background: var(--docs-color-bg-subtle, var(--fandhe-color-bg-subtle));\n\
-    border: 1px solid var(--docs-color-border, var(--fandhe-color-border));\n\
-  }\n\
-}\n\
-:root[data-theme=\"dark\"] .docs-content [data-scope=\"alert\"][data-part=\"root\"] {\n\
-  background: var(--docs-color-bg-subtle, var(--fandhe-color-bg-subtle));\n\
-  border: 1px solid var(--docs-color-border, var(--fandhe-color-border));\n\
-}\n";
-
 /// admonition が参照する CSS 全量を組み立てる。
 ///
 /// 内訳: テーマトークン（`Theme::default`）→ alert recipe CSS（[`alert::css`]）
-/// → [`LAYOUT_CSS`] → [`DARK_CSS`]、の順で決定的に連結する。
+/// → [`LAYOUT_CSS`]、の順で決定的に連結する。
 ///
 /// # Errors
 ///
 /// いずれかの CSS 断片が [`StyleSheet::push_css`] の検証（`<`・制御文字の
 /// 拒否）に落ちた場合 [`StylesheetError`] を返す。pre-styled-ui 側の生成 CSS・
-/// [`LAYOUT_CSS`]・[`DARK_CSS`] は構造上 `<` を含み得ないため通常は到達しないが、
+/// [`LAYOUT_CSS`] は構造上 `<` を含み得ないため通常は到達しないが、
 /// 黙って欠けた CSS を公開しない fail-closed 方針で伝播させる（`crate::showcase`
 /// と同じ扱い）。
 pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
@@ -92,7 +67,6 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_theme(&Theme::default());
     sheet.push_css(&alert::css())?;
     sheet.push_css(LAYOUT_CSS)?;
-    sheet.push_css(DARK_CSS)?;
     Ok(sheet)
 }
 
@@ -149,18 +123,17 @@ mod tests {
     }
 
     #[test]
-    fn stylesheet_covers_indicator_layout_and_dark_mode_conditions() {
-        // イシュー #732: indicator 配置調整・ダーク配色（OS 追従 +
-        // 明示 data-theme の 2 ブロック）が stylesheet に含まれること。
+    fn stylesheet_covers_indicator_layout_css() {
+        // イシュー #732: indicator 配置調整が stylesheet に含まれること。
+        // 旧 DARK_CSS（`.docs-content` スコープの `--docs-color-*` 上書き）は
+        // イシュー #905 のトークン一本化により撤去済み（モジュール doc
+        // 「ダークモード配色」節参照）。ダーク配色自体は `Theme::default`
+        // 由来の `--fandhe-color-bg-subtle`/`--fandhe-color-border` の
+        // ダーク値へ alert recipe が追従する。
         let sheet = stylesheet().expect("admonition stylesheet should assemble");
         let css = sheet.as_css();
         assert!(css.contains(r#".docs-content [data-scope="alert"][data-part="indicator"]"#));
-        assert!(css.contains("@media (prefers-color-scheme: dark)"));
-        assert!(css.contains(
-            r#":root[data-theme="dark"] .docs-content [data-scope="alert"][data-part="root"]"#
-        ));
-        assert!(css.contains("--docs-color-bg-subtle"));
-        assert!(css.contains("--docs-color-border"));
+        assert!(!css.contains("--docs-"));
         assert!(!css.contains('<'));
     }
 
