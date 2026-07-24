@@ -56,6 +56,9 @@ use fandhe_frontend_pre_styled_ui::carousel;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::code::code;
+use fandhe_frontend_pre_styled_ui::color_swatch::{
+    self, Color, ColorSwatchProps, Rgb, SwatchShape,
+};
 use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataListProps};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
@@ -292,6 +295,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tag::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::kbd::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::code::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::color_swatch::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::image::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::icon::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::status::css())?;
@@ -4082,6 +4086,57 @@ fn code_section() -> Node {
     )
 }
 
+/// ColorSwatch 節（イシュー #838）: size / shape の掲示と、透過色の
+/// チェッカーボード表示確認。
+fn color_swatch_section() -> Node {
+    let blue = Color::from_rgb(Rgb::new(0x3b, 0x82, 0xf6));
+    let size_row = row([Size::Sm, Size::Md, Size::Lg]
+        .iter()
+        .map(|size| {
+            color_swatch::color_swatch(
+                &ColorSwatchProps {
+                    value: blue,
+                    size: *size,
+                    ..ColorSwatchProps::default()
+                },
+                vec![],
+                vec![],
+            )
+        })
+        .collect());
+    let shape_row = row([
+        SwatchShape::Square,
+        SwatchShape::Circle,
+        SwatchShape::Rounded,
+    ]
+    .iter()
+    .map(|shape| {
+        color_swatch::color_swatch(
+            &ColorSwatchProps {
+                value: blue,
+                shape: *shape,
+                ..ColorSwatchProps::default()
+            },
+            vec![],
+            vec![],
+        )
+    })
+    .collect());
+    let transparent_row = row(vec![color_swatch::color_swatch(
+        &ColorSwatchProps {
+            value: Color::from_rgba(Rgb::new(0x3b, 0x82, 0xf6), 0x80),
+            ..ColorSwatchProps::default()
+        },
+        vec![],
+        vec![],
+    )]);
+    section(
+        "ColorSwatch",
+        "色見本の静的表示です。size / shape を組み合わせられます。アルファ付き色は下地のチェッカーボード模様で透過が視認できます。",
+        vec![size_row, shape_row, transparent_row],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -4152,6 +4207,7 @@ fn showcase_body() -> Node {
             tag_section(),
             kbd_section(),
             code_section(),
+            color_swatch_section(),
             status_section(),
             empty_state_section(),
             visually_hidden_section(),
@@ -4222,6 +4278,7 @@ mod tests {
             "tag",
             "kbd",
             "code",
+            "color-swatch",
             "status",
             "empty-state",
             "visually-hidden",
