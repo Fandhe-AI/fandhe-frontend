@@ -279,6 +279,19 @@
 //!   `Prose` 相当）は本クレートへ導入せず、`fandhe-frontend-docs-site` の
 //!   `site/assets/site.css`（`.docs-content` 規則）が引き続き担う（役割分担
 //!   の詳細は [`mod@text`] rustdoc 参照）。
+//! - 状態機械不要の静的部品 2 種（イシュー #769）: [`mod@stat`]（Stat、
+//!   `<dl>`/`<dt>`/`<dd>` を使う数値指標表示。`size` variant のみを持ち、
+//!   [`mod@card`] と同型の判断で `color-palette` 軸は提供しない。
+//!   増減インジケーターは [`mod@rating_group`] の星形と同型に `clip-path`
+//!   による三角形のインライン表現）/[`mod@timeline`]（Timeline、`<ol>`/
+//!   `<li>` を使う時系列一覧。`variant`/`size`/`color-palette` の 3 軸を
+//!   root のみへ付与し `indicator`/`separator` へは CSS custom property の
+//!   継承で伝搬する。`showLastSeparator` 相当は recipe 側で自動制御せず
+//!   呼び出し側が最終 item へ `separator` パーツを含めないことで表現する
+//!   契約）。いずれも ark-ui に対応する headless anatomy が存在しないため、
+//!   [`mod@checkbox_card`]/[`mod@radio_card`]（#747）と同型の判断で
+//!   headless-ui は変更せず pre-styled-ui 層のみで新規 anatomy を定義する。
+//!   詳細は各モジュール rustdoc 参照。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -459,6 +472,7 @@ pub mod skeleton;
 pub mod skip_nav;
 pub mod slider;
 pub mod spinner;
+pub mod stat;
 pub mod status;
 pub mod steps;
 pub mod stylesheet;
@@ -469,6 +483,7 @@ pub mod tags_input;
 pub mod text;
 pub mod textarea;
 pub mod theme;
+pub mod timeline;
 pub mod toast;
 pub mod toggle;
 pub mod toggle_group;

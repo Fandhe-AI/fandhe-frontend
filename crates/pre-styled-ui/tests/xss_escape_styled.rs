@@ -70,11 +70,13 @@ use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps};
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
+use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 use fandhe_frontend_pre_styled_ui::steps;
 use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
+use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
 use fandhe_frontend_pre_styled_ui::toast::{self, ToastPlacement, ToastStatus};
 use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, select};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Size};
@@ -162,6 +164,22 @@ fn styled_text_children_are_escaped_for_all_payloads() {
             &html,
             "pre-styled-ui 再エクスポート drawer::title children コンテキスト",
         );
+
+        let html = render(&stat::label(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "stat::label children コンテキスト");
+
+        let html = render(&stat::value_text(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "stat::value_text children コンテキスト");
+
+        let html = render(&timeline::title(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "timeline::title children コンテキスト");
+
+        let html = render(&timeline::description(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "timeline::description children コンテキスト",
+        );
     }
 }
 
@@ -208,6 +226,26 @@ fn caller_attrs_are_escaped_for_all_payloads() {
             vec![],
         ));
         assert_payload_is_escaped(payload, &html, "alert::root 呼び出し側 attrs コンテキスト");
+
+        let html = render(&stat::root(
+            Size::Md,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "stat::root 呼び出し側 attrs コンテキスト");
+
+        let html = render(&timeline::root(
+            TimelineVariant::default(),
+            Size::Md,
+            ColorPalette::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "timeline::root 呼び出し側 attrs コンテキスト",
+        );
     }
 }
 
@@ -235,6 +273,42 @@ fn caller_class_attr_is_dropped_not_merged_raw_for_all_payloads() {
         assert!(
             html.contains("fd-button--"),
             "recipe 生成クラスが失われている: html={html}"
+        );
+
+        let html = render(&stat::root(Size::Md, vec![("class", payload)], vec![]));
+        assert!(
+            !html.contains(payload),
+            "stat::root の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "stat::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-stat--"),
+            "stat::root の recipe 生成クラスが失われている: html={html}"
+        );
+
+        let html = render(&timeline::root(
+            TimelineVariant::default(),
+            Size::Md,
+            ColorPalette::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "timeline::root の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "timeline::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-timeline--"),
+            "timeline::root の recipe 生成クラスが失われている: html={html}"
         );
     }
 }

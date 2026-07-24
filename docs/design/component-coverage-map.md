@@ -372,8 +372,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/data-display/table.md` | — | Table | — | — | 実装対象 | #767 |
 | `.agents/skills/chakra-ui/references/components/data-display/data-list.md` | — | DataList | — | — | 実装対象 | #767 |
 | `.agents/skills/chakra-ui/references/components/data-display/tag.md` | — | Tag | — | tag | 実装済み | pre-styled 静的部品 実装済み（#768） |
-| `.agents/skills/chakra-ui/references/components/data-display/stat.md` | — | Stat | — | — | 実装対象 | #769 |
-| `.agents/skills/chakra-ui/references/components/data-display/timeline.md` | — | Timeline | — | — | 実装対象 | #769 |
+| `.agents/skills/chakra-ui/references/components/data-display/stat.md` | — | Stat | — | `stat` | 実装済み | pre-styled 静的部品 実装済み（#769。headless-ui は変更なし） |
+| `.agents/skills/chakra-ui/references/components/data-display/timeline.md` | — | Timeline | — | `timeline` | 実装済み | pre-styled 静的部品 実装済み（#769。headless-ui は変更なし） |
 | `.agents/skills/chakra-ui/references/components/data-display/image.md` | — | Image | — | image | 実装済み | #770。状態機械なし静的部品、pre-styled 層のみに実装（headless-ui は変更なし）。fit（object-fit）/aspect-ratio の 2 軸 variant、alt 必須引数 |
 | `.agents/skills/chakra-ui/references/components/data-display/icon.md` | — | Icon | — | icon | 実装済み | #770。状態機械なし静的部品、pre-styled 層のみに実装（headless-ui は変更なし）。size variant のみ、SVG 本体は呼び出し側がノード木 API で構築 |
 | `.agents/skills/chakra-ui/references/components/data-display/clipboard.md` | Clipboard | Clipboard | — | — | 実装対象 | #773（wasm 配線込み） |
