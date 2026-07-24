@@ -430,10 +430,11 @@ pub struct FormatTimeOptions {
 /// が負の場合は絶対値で整形したのち `-` を前置する。`i64::MIN` は
 /// `unsigned_abs()` で桁あふれなく絶対値を取る（`i64::MIN.abs()` は
 /// panic するため使わない）。時間部が 0 かつ
-/// [`FormatTimeOptions::always_show_hours`] が `false` の場合は `MM:SS`
-/// （[`FormatTimeOptions::with_seconds_always`] が `false` でも常に秒は
-/// 表示する。時間非表示時に分のみでは情報が失われるため）、時間部が
-/// 1 以上または `always_show_hours` が `true` の場合は `HH:MM:SS` を返す。
+/// [`FormatTimeOptions::always_show_hours`] と
+/// [`FormatTimeOptions::with_seconds_always`] がいずれも `false` の場合は
+/// `MM:SS`（時間非表示時に分のみでは情報が失われるため秒は常に表示する）、
+/// 時間部が 1 以上、または `always_show_hours` `with_seconds_always` の
+/// いずれかが `true` の場合は `HH:MM:SS` を返す。
 pub fn format_time(total_seconds: i64, options: &FormatTimeOptions) -> String {
     let is_negative = total_seconds < 0;
     let abs_seconds: u64 = total_seconds.unsigned_abs();
@@ -444,7 +445,7 @@ pub fn format_time(total_seconds: i64, options: &FormatTimeOptions) -> String {
 
     let sign = if is_negative { "-" } else { "" };
 
-    if hours > 0 || options.always_show_hours {
+    if hours > 0 || options.always_show_hours || options.with_seconds_always {
         format!("{sign}{hours:02}:{minutes:02}:{seconds:02}")
     } else {
         format!("{sign}{minutes:02}:{seconds:02}")
@@ -856,6 +857,21 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(format_time(5, &options), "00:00:05");
+    }
+
+    #[test]
+    fn format_time_with_seconds_always_forces_hh_mm_ss_when_hours_zero() {
+        let options = FormatTimeOptions {
+            with_seconds_always: true,
+            ..Default::default()
+        };
+        assert_eq!(format_time(5, &options), "00:00:05");
+    }
+
+    #[test]
+    fn format_time_default_without_with_seconds_always_stays_mm_ss() {
+        let options = FormatTimeOptions::default();
+        assert_eq!(format_time(5, &options), "00:05");
     }
 
     // --------------------- format_relative_time ----------------------
