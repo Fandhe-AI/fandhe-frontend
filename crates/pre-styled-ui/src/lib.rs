@@ -202,6 +202,11 @@
 //!   等と同型の判断）。placement（`start`/`end`/`top`/`bottom`）は variant
 //!   ではなく headless 層が出力する `data-placement` に連動する CSS で表現
 //!   する。詳細は [`mod@drawer`] rustdoc 参照。
+//! - headless ラッパー（イシュー #760）: [`mod@toast`]（Toast、`placement`
+//!   （`group` slot）/`status`（`root` slot、[`mod@alert`] と同じ配色マッピング）
+//!   の 2 軸 variant を持つが、通常の複合部品と異なり各軸が別 slot へ付与される
+//!   ため [`recipe::SlotRecipe::variant_class`]（単一軸専用 API）をスロットごとに
+//!   個別に呼ぶ。詳細は [`mod@toast`] rustdoc 参照）。
 //! - headless ラッパー（Progress circular 対応、イシュー #763）:
 //!   [`mod@progress`]。headless の値状態機械
 //!   [`fandhe_frontend_headless_ui::progress::Progress`] が既に持つ Circle/
@@ -459,6 +464,7 @@ pub mod text;
 pub mod textarea;
 pub mod theme;
 pub mod timeline;
+pub mod toast;
 pub mod toggle;
 pub mod toggle_group;
 pub mod toggle_tip;
