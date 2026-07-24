@@ -13,7 +13,7 @@ pre-styled UI コンポーネント層、親トラッキング #520・骨格新�
 対応する REQ / TASK は `docs/spec/` に存在しない（要件提案は
 fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 参照）。
 
-## 2. 実装状況（v0.25.0 時点、2026-07-24 更新）
+## 2. 実装状況（v0.26.0 時点、2026-07-24 更新）
 
 **記載方針**: 実装済み API の正は `crates/pre-styled-ui/src/lib.rs` 冒頭の
 rustdoc および各モジュール冒頭の rustdoc とする。本節はモジュール一覧の
@@ -43,8 +43,10 @@ HoverCard styled ラッパー追加（#759）・ToggleTip styled ラッパー追
 ActionBar styled ラッパー追加（#762）・Toast styled ラッパー追加
 （#760）・Stat/Timeline styled 静的部品追加（#769）・Table/DataList
 静的部品追加（#767）・ScrollArea headless ラッパー追加（#825）・
-DownloadTrigger headless ラッパー追加（#828、いずれも
-公開時点未反映）を経て 77 の公開モジュールを持つ。内訳は次の通り。
+DownloadTrigger headless ラッパー追加（#828）・button の icon-only 修飾
+variant（`icon_button`/`close_button`）追加（#830、いずれも公開時点未反映）
+を経て 77 の公開モジュールを持つ（#830 は既存 `button` モジュールの拡張の
+ため新規モジュールは増えない）。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -52,7 +54,7 @@ DownloadTrigger headless ラッパー追加（#828、いずれも
 | 基盤 | `css` | #548 |
 | 基盤 | `recipe` | #548/#606/#604（詳細は [`pre-styled-recipe-api.md`](./pre-styled-recipe-api.md)） |
 | 基盤 | `stylesheet` | #605（CSS 集約・配布ヘルパ、§4a 参照） |
-| 単純 styled 部品 | `button` / `badge` / `spinner` / `alert` / `card` | #550/#606 |
+| 単純 styled 部品 | `button` / `badge` / `spinner` / `alert` / `card` | #550/#606（`button` は #830 で `icon_button`/`close_button`（chakra `IconButton`/`CloseButton` 相当）を追加。独立部品ではなく `button` recipe の非公開 icon-only 修飾 variant として実装し、`data-scope="button"` を共有する） |
 | 単純 styled 部品 | `skeleton` | #764（ローディングプレースホルダー。`text`/`circle`/`rect` の 3 variant、常時 `aria-hidden="true"`、`color-palette`/`size` 軸は非提供、`prefers-reduced-motion: reduce` でアニメーション停止） |
 | 単純 styled 部品 | `image` | #770（写真等の静的コンテンツを表示する `<img>`。`ImageFit`（`object-fit`）/`AspectRatio` の 2 軸 variant、`alt` 必須引数。headless-ui `avatar` の `ImageStatus` 状態機械とは独立。中立的な表示部品のため `color-palette` 軸は非提供） |
 | 単純 styled 部品 | `icon` | #770（インライン SVG の寸法を統一する `<svg>` ラッパー。`size` variant のみ、`color: currentColor` 継承のため `color-palette` 軸は非提供。SVG 本体（`path` 等）は呼び出し側がノード木 API で構築し、外部リソース（`href`/`xlink:href`）は本モジュール自身が参照しない） |
@@ -458,7 +460,7 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 
 | 部品 | size | color-palette | 状態 |
 |---|---|---|---|
-| button/badge/spinner | ✓ | ✓ | 実装済み（#550/#606） |
+| button/badge/spinner | ✓ | ✓ | 実装済み（#550/#606。button は #830 で icon-only 修飾 variant（`icon_button`/`close_button`）を追加。専用の `icon`/`close-button` 行は設けない: `data-scope="button"` を共有する variant 拡張であり別部品ではないため） |
 | avatar | ✓ | – (shape) | 実装済み（#684） |
 | switch | ✓ | ✓ | 実装済み（#708） |
 | radio-group | ✓ | ✓ | 実装済み（#708） |

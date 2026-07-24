@@ -49,7 +49,9 @@ use fandhe_frontend_pre_styled_ui::action_bar;
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
-use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
+use fandhe_frontend_pre_styled_ui::button::{
+    button, close_button, icon_button, ButtonProps, ButtonVariant,
+};
 use fandhe_frontend_pre_styled_ui::carousel;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
@@ -397,10 +399,51 @@ fn button_section() -> Node {
         ),
     ]);
 
+    // IconButton / CloseButton（イシュー #830）: 独立部品ではなく本 recipe の
+    // icon-only 修飾 variant として実装した（`crates/pre-styled-ui/src/button.rs`
+    // モジュール doc 参照）。IconButton は `aria-label` を必須引数として明示し、
+    // CloseButton は既定 `aria-label="Close"` + 内蔵の × アイコンを持つ。
+    let icon_close_row = row(vec![
+        icon_button(
+            &ButtonProps::default(),
+            "Search",
+            vec![],
+            vec![icon(
+                &IconProps {
+                    label: None,
+                    ..IconProps::default()
+                },
+                vec![],
+                vec![el(
+                    "path",
+                    vec![(
+                        "d",
+                        "M10 2a8 8 0 105.29 14.29l4.7 4.7 1.42-1.42-4.7-4.7A8 8 0 0010 2zm0 2a6 6 0 110 12 6 6 0 010-12z",
+                    )],
+                    vec![],
+                )],
+            )],
+        ),
+        close_button(
+            &ButtonProps {
+                variant: ButtonVariant::Ghost,
+                ..ButtonProps::default()
+            },
+            "",
+            vec![],
+        ),
+    ]);
+
     section(
         "Button",
-        "variant（solid / outline / ghost / subtle）・size・colorPalette・状態（disabled / loading）の各軸を型安全な props で切り替えます。",
-        vec![variant_row, size_row, palette_row, state_row],
+        "variant（solid / outline / ghost / subtle）・size・colorPalette・状態（disabled / loading）の各軸を型安全な props で切り替えます。IconButton / CloseButton（イシュー #830）は独立部品ではなく本 recipe の icon-only 修飾 variant です。",
+        vec![
+            variant_row,
+            size_row,
+            palette_row,
+            state_row,
+            icon_close_row,
+        ],
     )
 }
 
@@ -3143,7 +3186,13 @@ fn visually_hidden_section() -> Node {
     // 併用すると accessible-name 計算で `aria-label` が勝ち、VisuallyHidden
     // テキストが読み上げられなくなってしまう。アイコンのみのボタンに
     // 補足テキストを添える本来の用途を壊さないための必須の組み合わせ方）。
-    let icon_button = button(
+    // イシュー #830 の `icon_button()`（`aria-label` を必須引数化）へは
+    // 意図的に移行しない: このデモの本旨は「`aria-label` を使わずアクセシブル
+    // ネームを子孫の VisuallyHidden テキストへ委ねる」パターンの掲示であり、
+    // `icon_button()` へ切り替えると強制的に `aria-label` が付与されて
+    // このデモが成立しなくなる（`button_section` 側の別デモで `icon_button`/
+    // `close_button` を掲示済み）。
+    let visually_hidden_icon_button = button(
         &ButtonProps::default(),
         vec![],
         vec![
@@ -3154,7 +3203,7 @@ fn visually_hidden_section() -> Node {
     section(
         "VisuallyHidden",
         "視覚的には隠す（clip 手法）が支援技術には読ませ続けるテキストコンテナ。アイコンのみのボタンに補足テキストを添える用途などに使います。aria-hidden は一切出力しません。",
-        vec![row(vec![icon_button])],
+        vec![row(vec![visually_hidden_icon_button])],
     )
 }
 

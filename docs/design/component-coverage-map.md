@@ -342,8 +342,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 |---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/buttons/button.md` | — | Button | — | button | 実装済み | pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/buttons/download-trigger.md` | DownloadTrigger | DownloadTrigger | `download_trigger` | `download_trigger` | 実装済み | #828。保留（#735 §7「JS ランタイム固有 utilities のうち静的実装可能なもの」）を利用要望 issue（#828）の起票により解除。`a[download]` 属性による静的部品として実装（`Blob`/`data`/`mimeType` は JS 前提のため対応しない） |
-| `.agents/skills/chakra-ui/references/components/buttons/close-button.md` | — | CloseButton | — | — | 保留 | （Button バリエーション）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/components/buttons/icon-button.md` | — | IconButton | — | — | 保留 | （Button バリエーション）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/chakra-ui/references/components/buttons/close-button.md` | — | CloseButton | — | `button`（`close_button`） | 実装済み | #830。保留（Button バリエーション、#735 §7）を `Button` variant 拡張要望 issue（#830）の起票により解除。独立部品ではなく `button` recipe の icon-only 修飾 variant として実装（`data-scope="button"` を共有） |
+| `.agents/skills/chakra-ui/references/components/buttons/icon-button.md` | — | IconButton | — | `button`（`icon_button`） | 実装済み | #830。close-button と同一の解除・実装判断（同上） |
 
 #### `.agents/skills/chakra-ui/references/components/collections/`
 

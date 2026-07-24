@@ -36,7 +36,7 @@ use fandhe_frontend_core::{el, escape_html, render, text};
 use fandhe_frontend_pre_styled_ui::alert::{self, AlertStatus};
 use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
-use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
+use fandhe_frontend_pre_styled_ui::button::{button, close_button, icon_button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
@@ -199,6 +199,26 @@ fn spinner_label_attribute_is_escaped_for_all_payloads() {
         });
         let html = render(&node);
         assert_payload_is_escaped(payload, &html, "spinner label 属性値コンテキスト");
+    }
+}
+
+/// (2b) 属性値経路: `icon_button`/`close_button`（イシュー #830）の必須
+/// `label` 引数が `aria-label` へ透過する経路で、既定エスケープが貫通する
+/// ことを固定する（REQ-1 回帰、button.rs 冒頭 rustdoc の「aria-label 経由も
+/// `render` の既定エスケープを通る」契約の裏付け）。
+#[test]
+fn icon_button_and_close_button_label_attribute_is_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let html = render(&icon_button(
+            &ButtonProps::default(),
+            payload,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "icon_button label 属性値コンテキスト");
+
+        let html = render(&close_button(&ButtonProps::default(), payload, vec![]));
+        assert_payload_is_escaped(payload, &html, "close_button label 属性値コンテキスト");
     }
 }
 
