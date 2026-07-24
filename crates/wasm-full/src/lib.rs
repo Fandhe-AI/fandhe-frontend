@@ -366,6 +366,7 @@ where
         Self::wire_clipboard(component.clone(), root.clone())?;
         Self::wire_timer(component.clone(), root.clone())?;
         Self::wire_angle_slider(component.clone(), root.clone())?;
+        Self::wire_signature_pad(component.clone(), root.clone())?;
 
         Ok(Self { component, root })
     }
@@ -413,6 +414,7 @@ where
         Self::wire_clipboard(component.clone(), root.clone())?;
         Self::wire_timer(component.clone(), root.clone())?;
         Self::wire_angle_slider(component.clone(), root.clone())?;
+        Self::wire_signature_pad(component.clone(), root.clone())?;
 
         Ok(Self { component, root })
     }
@@ -593,6 +595,76 @@ where
                 &action_ref.payload,
             );
         })
+    }
+
+    /// SignaturePad（`fandhe-frontend-headless-ui` `signature_pad` モジュール）
+    /// のポインタ座標収集（描画）・ClearTrigger クリック配線を
+    /// [`headless_signature_pad::wire_signature_pad_component`] 経由で
+    /// `root` へ配線する（イシュー #843、Bugbot 指摘「Runtime omits
+    /// signature pad wiring」の是正）。`Self::mount`/`Self::hydrate` の
+    /// 双方から `Self::wire_angle_slider` の直後に 1 回だけ呼ばれる。
+    ///
+    /// `wire_signature_pad_component` は dispatch 成功後の DOM 反映を
+    /// `on_update` コールバックとして呼び出し側に委ねる設計
+    /// （`headless_signature_pad.rs` doc 参照）。ここでは `Self::wire` の
+    /// 束縛点更新経路（`BindingTable::apply_dirty`・keyed list 差し替え）
+    /// と同じロジックを渡し、ストローク追加・undo・clear のいずれの
+    /// dirty field も既存の束縛点対応表の仕組みで反映する
+    /// （新しい DOM 反映経路を増やさない）。
+    ///
+    /// # fail-closed（SignaturePad 非搭載アプリへの副作用なし）
+    ///
+    /// `root` 配下に SignaturePad の Canvas/ClearTrigger パーツが存在しない
+    /// 場合、`wire_signature_pad_component` 内のポインタ/クリック判定が
+    /// scope/part 不一致で早期 return するため、SignaturePad を使わない
+    /// アプリへの影響はない。
+    ///
+    /// # Errors
+    ///
+    /// [`headless_signature_pad::wire_signature_pad_component`]
+    /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    fn wire_signature_pad(
+        component: std::rc::Rc<std::cell::RefCell<C>>,
+        root: web_sys::Element,
+    ) -> Result<(), wasm_bindgen::JsValue> {
+        headless_signature_pad::wire_signature_pad_component(
+            root,
+            component,
+            |state: &C, updated_root: &web_sys::Element| {
+                // `Self::wire` の束縛点更新経路と同じロジック（差分反映の
+                // 二重実装を避けるため、両者は同じ `dirty_fields()` →
+                // `BindingTable::apply_dirty`/keyed list 差し替えの手順を
+                // 踏む）。
+                let dirty: Vec<&'static str> = state.dirty_fields().to_vec();
+                if dirty.is_empty() {
+                    return;
+                }
+
+                if let Ok(table) = fandhe_frontend_wasm_client::BindingTable::scan(updated_root) {
+                    table.apply_dirty(&dirty, state);
+                }
+
+                if let Ok(document) = Self::document() {
+                    for field in &dirty {
+                        let Ok(Some(list_element)) =
+                            fandhe_frontend_wasm_client::find_list_element(updated_root, field)
+                        else {
+                            continue;
+                        };
+                        let view = state.view();
+                        if let Some(list_node) =
+                            fandhe_frontend_wasm_client::find_keyed_list_node(&view, field)
+                        {
+                            fandhe_frontend_wasm_client::apply_keyed_list(
+                                &document,
+                                &list_element,
+                                list_node,
+                            );
+                        }
+                    }
+                }
+            },
+        )
     }
 
     /// 現在の状態（テスト・デバッグ用途）。`root` フィールドと合わせて
