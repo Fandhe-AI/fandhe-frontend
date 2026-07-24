@@ -32,11 +32,11 @@ use fandhe_frontend_headless_ui::date_picker;
 use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::scroll_area;
 use fandhe_frontend_headless_ui::{
-    action_bar, aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog,
-    download_trigger, editable, floating_panel, hover_card, listbox, number_input, password_input,
-    pin_input, popover, rating_group, segment_group, slider, splitter, tags_input, timer, toast,
-    tree_view, Calendar, DatePicker, ImageStatus, OpenState, Orientation, PasswordAutocomplete,
-    PasswordInputProps, Steps, ToastStatus,
+    action_bar, aria_controls, aria_label, avatar, carousel, clipboard, data_state, date_input,
+    dialog, download_trigger, editable, floating_panel, hover_card, listbox, number_input,
+    password_input, pin_input, popover, rating_group, segment_group, slider, splitter, tags_input,
+    timer, toast, tree_view, Calendar, DatePicker, DateSegmentFlags, ImageStatus, OpenState,
+    Orientation, PasswordAutocomplete, PasswordInputProps, Steps, ToastStatus,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -1261,6 +1261,84 @@ fn scroll_area_attrs_and_children_payloads_are_escaped_for_all_payloads() {
             &html,
             "scroll_area::content の children コンテキスト",
         );
+    }
+}
+
+/// DateInput（イシュー #834）: (2) 属性値経路（`hidden_input` の
+/// `name`/`value`・呼び出し側 `attrs`）が全ペイロードでエスケープされる
+/// ことを固定する（`pin_input_hidden_input_and_input_value_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn date_input_hidden_input_name_value_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let hidden_node = date_input::hidden_input(payload, payload, false, vec![]);
+        let html = render(&hidden_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "date_input::hidden_input の name/value コンテキスト",
+        );
+
+        let attrs_node = date_input::root(false, false, vec![("data-testid", payload)], vec![]);
+        let html = render(&attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "date_input::root の呼び出し側 attrs コンテキスト",
+        );
+    }
+}
+
+/// DateInput: (1) テキスト経路（[`date_input::label`] の children）が
+/// 全ペイロードでエスケープされることを固定する。
+#[test]
+fn date_input_label_children_text_is_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let node = date_input::label(false, false, None, vec![], vec![text(payload)]);
+        let html = render(&node);
+        assert_payload_is_escaped(payload, &html, "date_input::label のテキストコンテキスト");
+    }
+}
+
+/// DateInput: dispatch `"set-segment"`/`"set"` の payload はクライアント
+/// 由来の信頼できない入力として fail-closed にパース・拒否される
+/// （`splitter_dispatch_set_payload_is_rejected_or_escaped_on_hydration_render`
+/// と同型）。不正 payload は no-op のため hydration 出力に script タグとして
+/// 混入しないことを併せて確認する。
+#[test]
+fn date_input_dispatch_set_segment_and_set_payload_is_rejected_on_hydration_render() {
+    use fandhe_frontend_headless_ui::date_input::DateInput;
+    use fandhe_frontend_interactive::{dispatch, render_for_hydration};
+
+    for payload in payloads::all() {
+        let mut d = DateInput::default();
+        let set_segment_payload = format!("year:{payload}");
+        let _ = dispatch(&mut d, "set-segment", &set_segment_payload);
+        let _ = dispatch(&mut d, "set", payload);
+        let html = render(&render_for_hydration(&d));
+        assert!(
+            !html.contains("<script"),
+            "payload={payload:?} が hydration 出力に script タグとして混入した: {html}"
+        );
+    }
+}
+
+/// DateInput: [`date_input::segment`] の `attrs` 経由の属性値注入が
+/// エスケープされることを固定する（`DateSegmentFlags` 経由のパーツ関数も
+/// 他コンポーネントと同じ既定エスケープ委譲を維持することの確認）。
+#[test]
+fn date_input_segment_attrs_payload_is_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let node = date_input::segment(
+            fandhe_frontend_headless_ui::date_input::DateSegment::Year,
+            None,
+            "0",
+            "9999",
+            DateSegmentFlags::default(),
+            vec![("data-testid", payload)],
+        );
+        let html = render(&node);
+        assert_payload_is_escaped(payload, &html, "date_input::segment の attrs コンテキスト");
     }
 }
 
