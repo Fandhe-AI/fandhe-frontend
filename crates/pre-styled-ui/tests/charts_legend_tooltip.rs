@@ -43,7 +43,7 @@ fn legend_composed_from_chart_data_matches_golden_html() {
         html,
         concat!(
             r#"<ul data-scope="chart-legend" data-part="root" role="list">"#,
-            r#"<span data-scope="chart-legend" data-part="title">Series</span>"#,
+            r#"<li data-scope="chart-legend" data-part="title">Series</li>"#,
             r#"<li data-scope="chart-legend" data-part="item">"#,
             r#"<span data-scope="chart-legend" data-part="marker" style="background: var(--fandhe-color-chart-1)" aria-hidden="true"></span>"#,
             r#"<span data-scope="chart-legend" data-part="label">visits</span>"#,

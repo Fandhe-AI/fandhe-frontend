@@ -93,8 +93,12 @@ pub fn legend(data: &ChartData, props: &LegendProps) -> Node {
     let mut children: Vec<Node> = Vec::new();
 
     if let Some(title) = &props.title {
+        // root は <ul> のため、直接の子として有効なのは <li>（および
+        // <script>/<template>）のみ。<span> を直接の子にすると不正な
+        // マークアップとなりリストのアクセシビリティチェックに失敗するため、
+        // タイトルも <li> として描画する（`data-part="title"` は不変）。
         children.push(el(
-            "span",
+            "li",
             vec![("data-scope", SCOPE), ("data-part", "title")],
             vec![text(title)],
         ));
@@ -176,8 +180,7 @@ mod tests {
             title: Some("Series".to_string()),
         };
         let html = render(&legend(&sample(), &props));
-        assert!(html.contains(r#"data-part="title""#));
-        assert!(html.contains(">Series<"));
+        assert!(html.contains(r#"<li data-scope="chart-legend" data-part="title">Series</li>"#));
     }
 
     #[test]
