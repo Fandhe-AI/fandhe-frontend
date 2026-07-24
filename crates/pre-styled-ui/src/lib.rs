@@ -302,6 +302,16 @@
 //!   [`mod@checkbox_card`]/[`mod@radio_card`]（#747）と同型の判断で
 //!   headless-ui は変更せず pre-styled-ui 層のみで新規 anatomy を定義する。
 //!   詳細は各モジュール rustdoc 参照。
+//! - headless 状態機械を持つ複合部品の styled ラッパー（イシュー #826、
+//!   `docs/policy/intentional-non-adoption.md` §7・
+//!   `docs/design/component-coverage-map.md` の「保留」を解除）:
+//!   [`mod@splitter`]。動的値は `panel` の `--fandhe-splitter-size`
+//!   （flex-basis 経由）の 1 点のみ、`size` variant のみを root へ持ち
+//!   （`resize-trigger` の厚みへ継承）、`color-palette` はセパレータの
+//!   強調色にのみ使う。`resize-trigger` はネイティブ `<div tabindex>` が
+//!   実フォーカスを受けるため [`recipe::StateCondition::FocusVisible`] で
+//!   足りる（`slider`/`toggle` と同型）。詳細は [`mod@splitter`] rustdoc
+//!   参照。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -483,6 +493,7 @@ pub mod skeleton;
 pub mod skip_nav;
 pub mod slider;
 pub mod spinner;
+pub mod splitter;
 pub mod stat;
 pub mod status;
 pub mod steps;

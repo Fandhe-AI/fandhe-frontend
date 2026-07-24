@@ -30,8 +30,8 @@ use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::{
     action_bar, aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog,
     editable, hover_card, listbox, number_input, password_input, pin_input, popover, rating_group,
-    segment_group, slider, tags_input, toast, tree_view, ImageStatus, OpenState, Orientation,
-    PasswordAutocomplete, PasswordInputProps, Steps, ToastStatus,
+    segment_group, slider, splitter, tags_input, toast, tree_view, ImageStatus, OpenState,
+    Orientation, PasswordAutocomplete, PasswordInputProps, Steps, ToastStatus,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -985,6 +985,67 @@ fn listbox_dispatch_select_payload_is_escaped_on_hydration_render() {
             payload,
             &html,
             "Listbox dispatch select payload の data-hydrate-selected コンテキスト",
+        );
+    }
+}
+
+/// (1)/(2) Splitter（イシュー #826）: `panel` の `id`（属性値経路）・
+/// `resize_trigger` の `aria-controls`（属性値経路）・
+/// `resize_trigger_indicator` の children（テキスト経路）へ全ペイロードを
+/// 注入し、エスケープが貫通することを固定する。
+#[test]
+fn splitter_panel_id_and_resize_trigger_controls_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let panel_node = splitter::panel(payload, Orientation::Horizontal, vec![], vec![]);
+        let html = render(&panel_node);
+        assert_payload_is_escaped(payload, &html, "splitter::panel の id 属性値コンテキスト");
+
+        let resize_trigger_node = splitter::resize_trigger(
+            Orientation::Horizontal,
+            "0",
+            "100",
+            "50",
+            payload,
+            false,
+            vec![],
+            vec![],
+        );
+        let html = render(&resize_trigger_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "splitter::resize_trigger の aria-controls 属性値コンテキスト",
+        );
+
+        let indicator_node = splitter::resize_trigger_indicator(vec![], vec![text(payload)]);
+        let html = render(&indicator_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "splitter::resize_trigger_indicator のテキストコンテキスト",
+        );
+    }
+}
+
+/// Splitter の dispatch `"set"` payload（クライアント由来の改ざんされうる
+/// 入力）が hydration 属性へエンコードされたのち `render()` を経由しても
+/// エスケープが貫通することを固定する（`data-hydrate-sizes` 等へは正規化
+/// 済みの数値のみが乗るため直接ペイロードは現れないが、`orientation` は
+/// dispatch を経由しない属性のため hydration ラウンドトリップ全体として
+/// 不正値を混入させないことを併せて確認する）。
+#[test]
+fn splitter_dispatch_set_payload_is_rejected_or_escaped_on_hydration_render() {
+    use fandhe_frontend_headless_ui::splitter::Splitter;
+    use fandhe_frontend_interactive::{dispatch, render_for_hydration};
+
+    for payload in payloads::all() {
+        let mut s = Splitter::default();
+        // 不正な payload は fail-closed に no-op となり、状態を汚染しない。
+        let _ = dispatch(&mut s, "set", payload);
+        let html = render(&render_for_hydration(&s));
+        assert!(
+            !html.contains("<script"),
+            "payload={payload:?} が hydration 出力に script タグとして混入した: {html}"
         );
     }
 }
