@@ -28,8 +28,8 @@
 use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::{
-    aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog, editable,
-    hover_card, listbox, number_input, password_input, pin_input, popover, rating_group,
+    action_bar, aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog,
+    editable, hover_card, listbox, number_input, password_input, pin_input, popover, rating_group,
     segment_group, slider, tags_input, tree_view, ImageStatus, OpenState, Orientation,
     PasswordAutocomplete, PasswordInputProps,
 };
@@ -625,6 +625,38 @@ fn tree_view_dispatch_payload_is_escaped_in_hydration_output() {
     assert!(rendered.contains("&lt;script&gt;"));
     assert!(!rendered.contains("<script>alert(1)</script>"));
     assert!(!rendered.contains(r#""><script"#));
+}
+
+/// (1)/(2) ActionBar（イシュー #762）: `content` の `aria-label`（属性値経路）
+/// ・`selection_trigger`/`close_trigger` の children（テキスト経路）へ全
+/// ペイロードを注入し、エスケープが貫通することを固定する。
+#[test]
+fn action_bar_label_and_trigger_children_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let content_node = action_bar::content(OpenState::Open, payload, vec![], vec![]);
+        let html = render(&content_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "action_bar::content の aria-label 属性値コンテキスト",
+        );
+
+        let selection_trigger_node = action_bar::selection_trigger(vec![], vec![text(payload)]);
+        let html = render(&selection_trigger_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "action_bar::selection_trigger のテキストコンテキスト",
+        );
+
+        let close_trigger_node = action_bar::close_trigger(vec![], vec![text(payload)]);
+        let html = render(&close_trigger_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "action_bar::close_trigger のテキストコンテキスト",
+        );
+    }
 }
 
 /// (2) 属性値経路 + (3) URL 属性経路（イシュー #759 HoverCard）:
