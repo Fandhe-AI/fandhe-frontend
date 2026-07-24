@@ -295,6 +295,18 @@ const DEFAULT_COLORS: &[(&str, &str, &str)] = &[
     ("danger", "#c53030", "#fc8181"),
     ("danger-emphasized", "#9b2c2c", "#feb2b2"),
     ("danger-fg", "#ffffff", "#1a0b0b"),
+    // 系列配色トークン（イシュー #846）。chakra-ui の chart カラースケール
+    // （blue/orange/green/purple/pink/teal 系統）を参考にした 6 色。light/dark
+    // ともに `bg`/`bg-subtle` 背景（本ファイル冒頭の DEFAULT_COLORS 参照）に
+    // 対し可読なコントラストを確保する値を選定した。
+    // `crates/pre-styled-ui/src/charts/mod.rs::series_color_var` が
+    // `var(--fandhe-color-chart-N)` として参照する。
+    ("chart-1", "#3182ce", "#63b3ed"),
+    ("chart-2", "#dd6b20", "#f6ad55"),
+    ("chart-3", "#2f855a", "#68d391"),
+    ("chart-4", "#805ad5", "#b794f4"),
+    ("chart-5", "#d53f8c", "#f687b3"),
+    ("chart-6", "#00a3c4", "#76e4f7"),
 ];
 
 /// 既定の角丸トークン（name, value）。モード非依存。既存 styled 部品
