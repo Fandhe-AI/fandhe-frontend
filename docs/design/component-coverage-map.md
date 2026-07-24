@@ -198,7 +198,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/overlays/drawer.md` | Drawer | Drawer | drawer | drawer | 実装済み | headless+styled 実装済み（#758、dialog の状態機械を再利用） |
 | `.agents/skills/ark-ui/references/components/overlays/hover-card.md` | HoverCard | HoverCard | hover_card | hover_card | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/overlays/toast.md` | Toast | Toast | toast | toast | 実装済み | headless+styled 実装済み（#760、キュー状態機械は `Disclosure`/`SingleSelect` に収まらないため `Component`/`Hydrate` 直接実装） |
-| `.agents/skills/ark-ui/references/components/overlays/floating-panel.md` | FloatingPanel | FloatingPanel | — | — | 保留 | （装飾系）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/ark-ui/references/components/overlays/floating-panel.md` | FloatingPanel | FloatingPanel | floating_panel | floating_panel | 実装済み | headless+styled 実装済み（イシュー #827、`docs/policy/intentional-non-adoption.md` §7 の保留区分から解除） |
 | `.agents/skills/ark-ui/references/components/overlays/tour.md` | Tour | — | — | — | 保留 | （装飾系）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
 | `.agents/skills/ark-ui/references/components/overlays/README.md` | README | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 
@@ -480,7 +480,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/overlays/toggle-tip.md` | — | ToggleTip | — | — | 実装対象 | #761 |
 | `.agents/skills/chakra-ui/references/components/overlays/action-bar.md` | — | ActionBar | action_bar | action_bar | 実装済み | headless+styled 実装済み（#762） |
 | `.agents/skills/chakra-ui/references/components/overlays/overlay-manager.md` | — | OverlayManager | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
-| `.agents/skills/chakra-ui/references/components/overlays/floating-panel.md` | FloatingPanel | FloatingPanel | — | — | 保留 | （装飾系）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/chakra-ui/references/components/overlays/floating-panel.md` | FloatingPanel | FloatingPanel | floating_panel | floating_panel | 実装済み | headless+styled 実装済み（イシュー #827、`docs/policy/intentional-non-adoption.md` §7 の保留区分から解除） |
 
 #### `.agents/skills/chakra-ui/references/components/typography/`
 
