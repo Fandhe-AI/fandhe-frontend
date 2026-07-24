@@ -4486,6 +4486,11 @@ fn charts_section() -> Node {
         .expect("domain() は非退化な値域を返す")
         .nice();
     let y_ticks = y_scale.ticks(4).expect("target=4 は許容範囲 1..=50 内");
+    // cartesian_grid の y_positions はスケール済みピクセル座標を期待する
+    // （y_axis が内部で y_scale を通すのと同じ変換）。y_ticks（ドメイン値）
+    // をそのまま渡すとグリッド線が Y 軸目盛り・データ点とずれるため、
+    // ここで y_scale を適用してから渡す。
+    let y_tick_positions: Vec<f64> = y_ticks.iter().map(|&tick| y_scale.scale(tick)).collect();
 
     let category_count = data.categories().len() as f64;
     let band_width = (plot_right - plot_left) / category_count;
@@ -4495,7 +4500,7 @@ fn charts_section() -> Node {
             (plot_left, plot_right),
             (plot_top, plot_bottom),
             &[],
-            &y_ticks,
+            &y_tick_positions,
             &GridProps::default(),
         )
         .expect("有限な range/ticks のみを渡す"),
