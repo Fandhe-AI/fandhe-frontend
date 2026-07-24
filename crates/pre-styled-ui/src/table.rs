@@ -194,7 +194,14 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("width", "100%"),
-                decl("border-collapse", "collapse"),
+                // `border-collapse: collapse` だと `Outline` variant の
+                // `border-radius` がブラウザにより無視される（角丸が効かない）ため、
+                // `separate` + `border-spacing: 0` を既定にする（イシュー #767
+                // PR #811 Bugbot 指摘）。`separate` でもセル間に境界線の重複は
+                // 発生しない（`row`/`column-header` は `border-bottom` のみを
+                // 使い、隣接セル間の縦境界線を持たないため見た目に影響しない）。
+                decl("border-collapse", "separate"),
+                decl("border-spacing", "0"),
                 decl("text-align", "left"),
             ],
         )
