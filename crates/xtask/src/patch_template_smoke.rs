@@ -11,7 +11,16 @@
 //! 構造的デッドロックが生じる。
 //!
 //! 本モジュールは smoke ジョブの「fw new」ステップと「build.sh」ステップの間で
-//! 実行される（`xtask patch-template-smoke` サブコマンド、`main.rs` 参照）:
+//! 実行される（`xtask patch-template-smoke` サブコマンド、`main.rs` 参照）。
+//!
+//! イシュー #895: 第 2 の呼び出し元として `crates/cli/tests/new_gate_e2e.rs`
+//! の app テンプレート e2e（`fw_new_app_template_output_passes_fw_gate` /
+//! `fw_new_app_template_default_escape_check_detects_injected_violation`）が
+//! `apply_patch_template_smoke`（同ファイル）から本サブコマンドを
+//! サブプロセス起動する。version-bump-guard・`template_vendor_drift`・
+//! これら e2e の三すくみは smoke ジョブと同型のデッドロックを生じるため、
+//! 同一のフォールバック機構を再利用する（サブコマンドの CLI 契約・
+//! 判定ロジックは smoke ジョブ向けと共用で変更しない）。
 //!
 //! 1. 生成プロジェクトのルート `Cargo.toml`・`wasm/Cargo.toml` から直接依存
 //!    （`fandhe-frontend-* = "X.Y.Z"` 形式）を抽出する。

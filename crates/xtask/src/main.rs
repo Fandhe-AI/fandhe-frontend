@@ -847,6 +847,13 @@ failures are not auto-fixable)."
 /// と同じ fail-closed 区別規約）。引数不備は終了コード 2、それ以外の失敗
 /// （既存 `[patch.crates-io]`・path 依存検出・repo-root 側クレート不整合・
 /// 環境エラー）は終了コード 1。
+///
+/// 呼び出し元は 2 経路（イシュー #895）: (1) `.github/workflows/ci.yml` の
+/// `template-app-wasm-smoke` ジョブ（イシュー #885、当初の導入経路）、
+/// (2) `crates/cli/tests/new_gate_e2e.rs::apply_patch_template_smoke`
+/// （app テンプレート gate e2e、version-bump-guard・`template_vendor_drift`
+/// との三すくみが smoke ジョブと同型で再発するため）。CLI 契約・判定ロジック
+/// は両経路で共用する。
 fn run_patch_template_smoke(args: &[String]) -> ExitCode {
     let mut project_dir: Option<String> = None;
     let mut repo_root: Option<String> = None;
