@@ -10,7 +10,10 @@
 §4.5 / PR #613）。§3.21 は、CSS Anchor Positioning の progressive
 enhancement（`@supports` 段階適用）のフォールバック設計案・非採用の論点
 整理をイシュー #644（出典: 同書 §4.5a）でも参照されている（判断・節本文は
-変更なし）。
+変更なし）。§3.22〜§3.24 は非採用確定（イシュー #735、出典
+`docs/design/component-coverage-map.md`（イシュー #734）の保留・意図的
+非採用プレースホルダ行の評価）。§7 は、イシュー #735 で非採用ではなく
+保留のまま維持すると判断した項目群の再評価トリガーの記録である。
 
 **節番号の採番規則**（イシュー #398、§3.6〜§3.8 の重複発覚を受けて明記）:
 
@@ -54,7 +57,13 @@ enhancement（`@supports` 段階適用）のフォールバック設計案・非
   （イシュー #639、出典 `docs/design/anchor-positioning-design.md` §4.3・
   §4.5 / PR #613）を追加記録する。§3.21 は、CSS Anchor Positioning の
   progressive enhancement 設計検討（イシュー #644、出典: 同書 §4.5a）の
-  結果（判断は非採用のまま変更なし）もあわせて参照する。
+  結果（判断は非採用のまま変更なし）もあわせて参照する。§3.22〜§3.24 で
+  `docs/design/component-coverage-map.md`（イシュー #734）が前方参照の
+  ままにしていた保留・意図的非採用プレースホルダ行のうち、高度入力系
+  UI 部品（image-cropper 等）・JS ランタイム固有 utilities（portal 等）・
+  その他 UI 部品（marquee 等）を非採用確定する（イシュー #735）。同イシュー
+  では、残る保留項目（date-time 系・charts 全般等）の再評価トリガーを
+  §7 にまとめて記録する。
 - **対象外**: 本書は `docs/spec/` の内容を変更するものではない。仕様自体の
   変更が必要と判断された場合は、fandhe-frontend-spec リポジトリ側で
   提案する（`.claude/rules/out-of-scope-tracking.md` 準拠）。
@@ -890,6 +899,153 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   `docs/design/anchor-positioning-design.md` 第 4.5a 節に記録した。判断
   （非採用）自体は変更しない。
 
+### 3.22 高度入力系 UI 部品（image-cropper / signature-pad / angle-slider / rich-text-editor）（イシュー #735）
+
+- **概要**: `docs/design/component-coverage-map.md`（イシュー #734）が
+  「保留」区分の前方参照プレースホルダとして記録していた ark-ui /
+  chakra-ui の高度入力系 4 コンポーネント。ImageCropper（canvas 上での
+  画像トリミング）・SignaturePad（canvas へのポインタ座標ストローク
+  記録）・AngleSlider（ポインタ座標から角度を算出する回転スライダー）・
+  RichTextEditor（`contenteditable` ベースのリッチテキスト編集）。
+- **一般的な採用動機**: 画像加工・署名取得・角度指定・書式付きテキスト
+  編集は、フォーム部品としてありふれた需要である。
+- **評価軸での評価**（§2 の 4 軸）:
+  - **明示性**: canvas 描画（ImageCropper・SignaturePad）はピクセル単位の
+    描画命令列・変換行列の内部状態に依存し、コードを読むだけでは最終的な
+    出力（トリミング結果・署名画像）を判断できない。AngleSlider のポインタ
+    座標→角度変換も、実装（`atan2` 系の計算とラップアラウンド処理）を
+    読まないと挙動が分からない。
+  - **決定性**: ポインタイベント（`pointermove`/`touchmove`）のストリームは
+    デバイス・ブラウザ間で発火頻度・座標精度が異なり、同一操作から同一
+    出力を再現する保証がない。canvas 描画結果も端末の解像度・DPI に依存
+    しうる。
+  - **機械検証可能性**: canvas ピクセル出力・ポインタ座標ストリームは
+    `cargo test` 的な決定的アサーションで検証しづらく、視覚回帰テスト等
+    の別カテゴリの検証基盤（本フレームワーク未整備）を要する。
+  - **コンテキスト消費**: 上記 3 部品は WASM 層で `web-sys` の `Canvas`
+    API・ポインタイベント API を新規に扱う必要があり、AI が変更影響を
+    把握すべき API サーフェスを増やす。RichTextEditor は
+    `contenteditable` 由来の HTML を扱うため、既定エスケープ（REQ-1）の
+    経路外から HTML 相当のデータが持ち込まれる構造になり、「`raw_html()`
+    以外の経路では必ずエスケープされる」という不変条件
+    （`.claude/rules/code-comment-style.md` のセキュリティ不変条件の例）
+    と衝突しうる迂回経路の新設に相当する。
+- **本フレームワークでの代替**: 現時点で代替 API は提供しない。画像加工・
+  署名取得・角度指定入力・リッチテキスト編集が必要なユースケースでは、
+  利用者側が `raw_html()` を明示的に使い自前の検証責任を負う運用とする
+  （`.claude/rules/coding-rust.md`「既定エスケープを弱めない」）。
+- **再評価トリガー**: 以下のいずれかが確認された場合に限る。
+  1. ImageCropper・SignaturePad・AngleSlider について、canvas 描画・
+     ポインタ座標ストリームを決定的に検証できる自動テスト基盤（視覚
+     回帰・座標アサーション等）が別途確立し、かつ利用要望が具体的な
+     ユースケースを伴って issue で確定した場合。
+  2. RichTextEditor について、既定エスケープ（REQ-1）を迂回しない形で
+     `contenteditable` 由来の出力を安全に扱える Web 標準（例: EditContext
+     API 等の構造化編集 API）が成熟し、かつ利用要望が確定した場合。
+
+### 3.23 JS ランタイム固有 utilities（portal / show / for / presence / client-only / environment / frame / swap / focus-trap / format-\* / locale / async-list / checkmark / radiomark / overlay-manager）（イシュー #735）
+
+- **概要**: `docs/design/component-coverage-map.md`（イシュー #734）が
+  「保留」区分の前方参照プレースホルダとして記録していた ark-ui /
+  chakra-ui の utilities 群のうち、React/Solid 等の JS ランタイム機構に
+  強く依存し、本フレームワークのノード木 + WASM 構成に対応概念がない
+  24 件。Portal・Show・For（条件分岐・リストレンダリングのランタイム
+  ヘルパー）、Presence・ClientOnly・EnvironmentProvider・Frame・Swap
+  （マウント/アンマウント・実行環境分岐・iframe 内レンダリング・要素
+  差し替えのランタイム機構）、FocusTrap・OverlayManager（フォーカス
+  トラップ・オーバーレイのスタック管理）、FormatByte・FormatNumber・
+  FormatRelativeTime・FormatTime・LocaleProvider・AsyncListCollection
+  （国際化・非同期コレクションのランタイムユーティリティ）、Checkmark・
+  Radiomark（チェック/ラジオの装飾専用アイコン）。
+- **一般的な採用動機**: React/Solid フレームワーク上で条件付きレンダリング・
+  環境分岐・フォーカス管理・国際化表示等を宣言的に書ける共通ヘルパーを
+  提供する。
+- **評価軸での評価**（§2 の 4 軸）:
+  - **明示性**: Portal・Show・For・Presence 等はホストフレームワークの
+    コンポーネントツリー・ライフサイクルに割り込むランタイム機構であり、
+    本フレームワークの「`fandhe_frontend_core::Node` を経由するノード木」
+    という単一の描画モデル（§3.1 参照）に該当概念自体が存在しない。
+    無理に模して導入すると、ノード木 API 以外の第 2 の描画経路を作ることに
+    なり明示性を損なう。
+  - **決定性・機械検証可能性**: FocusTrap・OverlayManager が担う機能は
+    既に本フレームワークで実装済みである（`crates/wasm-full/src/focus_trap.rs`
+    のフォーカストラップ実装、`crates/wasm-full/src/overlay.rs` の
+    オーバーレイスタック管理）。Checkmark・Radiomark 相当の装飾は
+    `checkbox`・`radio_group` mod（`crates/headless-ui/src/checkbox.rs` /
+    `radio_group.rs`）の状態機械にチェック/ラジオ表示として吸収済みである。
+    これら実装済み代替と別に汎用ユーティリティを新設すると、同一機能への
+    2 系統の実装が並存し機械検証可能性を損なう（§3.8 と同型の懸念）。
+  - **コンテキスト消費**: FormatByte・FormatNumber・FormatRelativeTime・
+    FormatTime・LocaleProvider・AsyncListCollection は UI コンポーネントで
+    はなく国際化・非同期データ処理のランタイムライブラリであり、
+    `fandhe-frontend-headless-ui`（UI コンポーネント層、CLAUDE.md）の責務
+    境界外にある概念を持ち込み、AI が「なぜ UI コンポーネント層に国際化
+    ライブラリがあるか」を把握する追加コンテキストを要求する。
+- **本フレームワークでの代替**:
+  - FocusTrap → `crates/wasm-full/src/focus_trap.rs`（既存実装）
+  - OverlayManager → `crates/wasm-full/src/overlay.rs`（既存実装）
+  - Checkmark / Radiomark → `checkbox` / `radio_group` mod
+    （`crates/headless-ui/src/checkbox.rs` / `radio_group.rs`）
+  - Portal / Show / For / Presence / ClientOnly / EnvironmentProvider /
+    Frame / Swap / Format\* / LocaleProvider / AsyncListCollection は
+    代替を提供しない。条件分岐・繰り返しは Rust の通常の制御構文
+    （`if`/`for`）でノード木を組み立てる、国際化・数値整形は利用者側の
+    通常の Rust 関数で行う運用とする。
+- **再評価トリガー**: 以下のいずれかが確認された場合に限る（サブグループ
+  ごとに記載）。
+  1. Portal / Show / For / Presence / ClientOnly / EnvironmentProvider /
+     Frame / Swap: SSR/CSR 境界の扱いを変えるアーキテクチャ変更（例:
+     部分ハイドレーションの粒度細分化）がユーザー承認を得て採用され、
+     該当概念が本フレームワークのアーキテクチャ上に新設された場合。
+  2. FocusTrap / OverlayManager: 既存実装（`focus_trap.rs` / `overlay.rs`）
+     では対応できない要件（多階層ネストの優先順位制御等）が実測で確認
+     された場合（この場合も新規 utilities API の追加ではなく既存実装の
+     拡張として検討する）。
+  3. Format\* / LocaleProvider / AsyncListCollection: `fandhe-frontend-headless-ui`
+     とは別の専用クレート（国際化・非同期コレクション処理）の新設が
+     ユーザー承認を得た場合。
+  4. Checkmark / Radiomark: `checkbox` / `radio_group` から装飾表現を
+     切り出す具体的な需要（他コンポーネントでの再利用等）が確定した場合。
+
+### 3.24 その他 UI 部品（marquee / chakra `Theme` コンポーネント）（イシュー #735）
+
+- **概要**: `docs/design/component-coverage-map.md`（イシュー #734）が
+  「保留」区分の前方参照プレースホルダとして記録していた 2 件。
+  Marquee（自動流動テキスト、ark-ui/chakra-ui 双方に存在）と、chakra-ui
+  の `Theme` コンポーネント（スコープ付きテーマ切替 utility）。
+- **一般的な採用動機**: Marquee はニュースティッカー等の装飾表現、
+  `Theme` コンポーネントはページの一部だけ異なるテーマ（配色トークン）を
+  適用したい場合の宣言的な切り替え手段。
+- **評価軸での評価**（§2 の 4 軸）:
+  - **明示性・コンテキスト消費（Marquee）**: 自動流動テキストは純粋な
+    装飾効果であり、CSS アニメーション（`@keyframes` + `overflow: hidden`）
+    のみで実現可能で、専用コンポーネント API を新設する必然性がない。
+    専用 API を追加すると「なぜ CSS だけで書けるものにコンポーネントが
+    あるか」を AI が把握する追加コンテキストを要求する。
+  - **決定性・機械検証可能性（Marquee）**: 自動アニメーションは
+    `prefers-reduced-motion` 等のアクセシビリティ対応を要する挙動分岐を
+    持ち込み、`autoUpdate` 相当の連続再計算（§3.20 と同根）と同様に
+    決定的なユニットテストでの検証がなじまない。
+  - **明示性・機械検証可能性（`Theme`）**: `crates/pre-styled-ui` は既に
+    `theme` mod（テーマトークン定義）・`recipe` mod（スタイルバリアント
+    合成）・`stylesheet` mod（CSS 出力）でテーマ管理の役割を担っている。
+    chakra `Theme` コンポーネント相当の機能を並存導入すると、同一責務
+    （テーマ管理）への 2 系統目の入口が生まれ、どちらが実際に適用される
+    テーマを決定するかの機械検証可能性・明示性を損なう（§3.8 と同型の
+    懸念）。
+- **本フレームワークでの代替**:
+  - Marquee: 代替を提供しない。自動流動テキストが必要な場合は利用者側の
+    CSS（`@keyframes` 等）で実現する運用とする。
+  - `Theme`: `crates/pre-styled-ui` の `theme` / `recipe` / `stylesheet`
+    mod を既存の唯一の入口として維持する。
+- **再評価トリガー**: 以下のいずれかが確認された場合に限る。
+  1. Marquee: 自動流動テキストの需要が確定し、かつ
+     `prefers-reduced-motion` 等のアクセシビリティ要件を満たす決定的な
+     設計案が提示された場合。
+  2. `Theme`: 既存 `theme` mod では表現できないスコープ付きテーマ切替
+     （ページの一部だけ異なるテーマトークン集合を適用する等）の需要が
+     具体的なユースケースを伴って確定した場合。
+
 ## 4. 運用（再導入提案時の手続き）
 
 上記各項目のいずれかを再導入したいと判断した場合、以下を Issue・PR に
@@ -960,6 +1116,19 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   middleware。§3.20 の代替実装）
 - `crates/wasm-full/src/position.rs`（イシュー #590 / PR #622、anchor
   positioning の wasm 層計測注入層。§3.20 の代替実装）
+- `docs/design/component-coverage-map.md`（イシュー #734、ark-ui /
+  chakra-ui 全コンポーネント対応表。§3.22〜§3.24・§7 が非採用・保留と
+  確定した項目の一次対応表）
+- `docs/api/pre-styled-ui-api.md`（イシュー #716/#724、layout プリミティブ
+  非採用の一次記録。component-coverage-map の「意図的非採用」区分の先例）
+- `crates/wasm-full/src/focus_trap.rs`（フォーカストラップ実装。§3.23 の
+  FocusTrap 代替）
+- `crates/wasm-full/src/overlay.rs`（オーバーレイスタック管理実装。§3.23 の
+  OverlayManager 代替）
+- `crates/headless-ui/src/checkbox.rs` / `crates/headless-ui/src/radio_group.rs`
+  （§3.23 の Checkmark / Radiomark 代替、状態機械への吸収）
+- `crates/pre-styled-ui` の `theme` / `recipe` / `stylesheet` mod（§3.24 の
+  chakra `Theme` コンポーネント代替）
 
 ## 6. スコープ外（放置しない事項）
 
@@ -969,3 +1138,28 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 - 評価軸（§2）を `fw gate` 等の機械ゲートへ組み込む自動化は、イシュー
   #381 で検討し非採用と判断した（§3.12）。再評価トリガー（§3.12）充足
   時に別イシューとして再提案する。
+
+## 7. 保留項目の記録と再評価トリガー（イシュー #735）
+
+`docs/design/component-coverage-map.md`（イシュー #734）が「保留」区分の
+前方参照プレースホルダとして記録していた項目のうち、§3.22〜§3.24 で
+非採用確定した項目を除く残り（38 行）は、本節でも「保留のまま維持」と
+確定し、再評価トリガーのみを群単位で記録する。
+
+**保留と非採用の違い**: 保留は非採用ではない。トリガー充足時は §4 の
+「再導入手続き」を経ずに、通常の feature issue として起票する（§4 の
+評価軸再確認・再評価トリガー充足の提示・不変条件維持の確認という手続きは、
+一度「非採用」と確定した項目の再導入提案にのみ適用する）。
+
+| 項目群 | 対象コンポーネント（対応表の参照ファイル） | 保留理由 | 再評価トリガー |
+|---|---|---|---|
+| date-time 系 | calendar / date-picker（ark・chakra 双方）/ date-input / timer | 状態機械・ロケール・タイムゾーン処理の実装工数が大きく、`core` 外部依存ゼロ制約（`.claude/rules/coding-rust.md`）下で暦計算を自前実装するコストが高い | 具体的なユースケースを伴う利用要望 issue の起票、または `core`/`headless-ui` の外部依存ゼロを維持したまま決定的に実装できる設計が提示された場合 |
+| 高度入力系（フォーム部品） | color-picker（ark・chakra 双方）/ color-swatch / file-upload（ark・chakra 双方） | `File` API・canvas 依存部分（カラーピッカーのスウォッチ描画、ファイルプレビュー）を `wasm-full` 側の限定配線に閉じ込め、`headless-ui` 側を純粋関数のまま保てる設計が未確立 | 利用要望の具体化、および依存部分を wasm 層に隔離し `headless-ui` の状態機械を純粋関数のまま保てる設計案の提示 |
+| JS ランタイム固有 utilities のうち静的実装可能なもの | download-trigger（ark・chakra 双方）/ json-tree-view | download-trigger は `a[download]` 属性による静的な部品として代替可能であり、json-tree-view は実装済み `tree_view` mod の派生として実装できる見込みだが、いずれも需要待ち | 利用要望 issue の起票（実装時は `tree_view`（json-tree-view）・既存静的部品群（download-trigger）の実装パターンを踏襲する） |
+| charts 全般 | area-chart / bar-chart / bar-list / bar-segment / cartesian-grid / donut-chart / installation / legend / line-chart / pie-chart / radar-chart / scatter-chart / sparkline / tooltip / use-chart / axes（計 16 件） | 描画特性（SVG 座標計算・データスケーリング）が既存 UI 部品と異なり、`headless-ui`/`pre-styled-ui` とは別クレートとすべきか判断が必要。依存グラフ上限（60 件/深さ 6、REQ-3）との整合評価も未了 | 利用要望の確定、および `core`/`headless-ui` と同じ外部依存ゼロ方針を維持したまま SVG ノード木生成のみで実装できる設計の確立（別クレート新設の要否はユーザー承認事項） |
+| 装飾系（CSS 主体で実装可能性がある、または既存基盤で実装見込みがあるもの） | scroll-area（ark・chakra 双方）/ splitter（ark・chakra 双方）/ floating-panel（ark・chakra 双方）/ tour | scroll-area・splitter は CSS（`overflow`・`resize`）主体で実装できる可能性がある。floating-panel は positioning（§3.20）・overlay（`crates/wasm-full/src/overlay.rs`）基盤が実装済みで将来実装しやすい。tour は状態機械（ステップ管理・ハイライト対象の同期）が大きく需要待ち | 利用要望 issue の起票。floating-panel は既存 positioning/overlay 基盤で決定的に実装できる範囲を確認したうえで着手する |
+| Button バリエーション | close-button / icon-button | 実装済み styled `Button`（`crates/pre-styled-ui`）の variant で近似可能であり、専用部品としての独立実装が必要かは需要待ち | `pre-styled-ui` の `Button` variant 拡張要望 issue の起票 |
+
+再評価トリガー充足時の手続き: 上記表の該当行に基づき、通常の feature issue
+（`create-issue` 等）を起票し、本節・`docs/design/component-coverage-map.md`
+の該当行の区分・根拠列を実装確定後に更新する。
