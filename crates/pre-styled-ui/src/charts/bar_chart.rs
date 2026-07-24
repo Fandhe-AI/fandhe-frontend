@@ -60,7 +60,24 @@ use fandhe_frontend_headless_ui::fandhe_frontend_core::{text, Node};
 const BAND_EDGE_PADDING_FRAC: f64 = 0.1;
 
 /// カテゴリラベル（`svg_text`）用に確保する軸方向の余白（px 相当）。
+///
+/// [`Orientation::Vertical`] では棒の下側にラベルを 1 行分収める用途のため
+/// 24px で足りる（`text-anchor="middle"` でバンド内に収まり、高さ方向に
+/// 折り返しがないため）。
 const CATEGORY_LABEL_SPACE: f64 = 24.0;
+
+/// [`Orientation::Horizontal`] でカテゴリラベル用に確保する `viewBox` 右側の
+/// 余白（px 相当）。
+///
+/// Horizontal はラベルを `plot_width + 4` から `text-anchor="start"` で
+/// 右方向に伸ばす（[`category_label`]）ため、[`CATEGORY_LABEL_SPACE`]
+/// （24px、Vertical のバンド下余白流用）のままだとラベル文字列が
+/// `viewBox` 右端を越えてクリップされ、ほぼ判読不能になっていた
+/// （PR #877 Bugbot 指摘、イシュー #849）。カテゴリ名は任意長でありテキスト
+/// 幅を事前計測できない（フォントメトリクス非依存が本モジュールの方針）
+/// ため、厳密な無クリップ保証はできないが、一般的なラベル長を収める実用的
+/// な既定値としてより広い余白を確保する。
+const CATEGORY_LABEL_SPACE_HORIZONTAL: f64 = 96.0;
 
 /// `data-scope="bar-chart"` の part 一覧（recipe と揃える）。
 const SLOTS: &[&str] = &["root", "bar", "category-label"];
@@ -138,11 +155,12 @@ pub fn css() -> String {
 ///   [`ViewBox::new`]/[`LinearScale::new`] の失敗を [`ChartError`] へ変換して
 ///   返す（[`ChartError::NonFiniteValue`]/[`ChartError::DegenerateDomain`]）。
 /// - `props.width`/`props.height` が正でも、カテゴリラベル用余白
-///   （[`CATEGORY_LABEL_SPACE`]）を差し引いた結果プロット領域の幅・高さが
-///   0 以下になる場合 [`ChartError::PlotAreaTooSmall`]（`ViewBox::new` は
-///   寸法の正値のみを検証し、余白差し引き後までは検証しないため、放置すると
-///   バーが潰れる、または viewBox 外へ無警告で描画される、PR #877 レビュー
-///   指摘）。
+///   （[`Orientation::Vertical`] は [`CATEGORY_LABEL_SPACE`]、
+///   [`Orientation::Horizontal`] は [`CATEGORY_LABEL_SPACE_HORIZONTAL`]）を
+///   差し引いた結果プロット領域の幅・高さが 0 以下になる場合
+///   [`ChartError::PlotAreaTooSmall`]（`ViewBox::new` は寸法の正値のみを
+///   検証し、余白差し引き後までは検証しないため、放置するとバーが潰れる、
+///   または viewBox 外へ無警告で描画される、PR #877 レビュー指摘）。
 ///
 /// # Examples
 ///
@@ -175,7 +193,7 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
 
     let (plot_width, plot_height) = match props.orientation {
         Orientation::Vertical => (props.width, props.height - CATEGORY_LABEL_SPACE),
-        Orientation::Horizontal => (props.width - CATEGORY_LABEL_SPACE, props.height),
+        Orientation::Horizontal => (props.width - CATEGORY_LABEL_SPACE_HORIZONTAL, props.height),
     };
     // `ViewBox::new` は width/height が正であることのみ検証し、カテゴリ
     // ラベル余白差し引き後の実プロット領域までは検証しない。ここで拒否
@@ -284,9 +302,11 @@ mod tests {
 
     #[test]
     fn root_rejects_width_or_height_too_small_for_category_label_space() {
-        // PR #877 レビュー指摘: height/width が CATEGORY_LABEL_SPACE (24.0)
-        // 以下だとプロット領域が 0 以下になり、バーが潰れる/viewBox 外描画に
-        // なる silent failure だった。fail-closed で拒否する。
+        // PR #877 レビュー指摘: height/width がカテゴリラベル用余白
+        // （Vertical は CATEGORY_LABEL_SPACE 24.0、Horizontal は
+        // CATEGORY_LABEL_SPACE_HORIZONTAL 96.0）以下だとプロット領域が
+        // 0 以下になり、バーが潰れる/viewBox 外描画になる silent failure
+        // だった。fail-closed で拒否する。
         let vertical_too_small = BarChartProps {
             orientation: Orientation::Vertical,
             width: 480.0,
@@ -299,7 +319,7 @@ mod tests {
 
         let horizontal_too_small = BarChartProps {
             orientation: Orientation::Horizontal,
-            width: 20.0,
+            width: 96.0,
             height: 300.0,
         };
         assert_eq!(
@@ -357,6 +377,28 @@ mod tests {
         let node = root(&sample(), props, "label").unwrap();
         let html = render(&node);
         assert!(html.contains(r#"data-part="bar""#));
+    }
+
+    #[test]
+    fn horizontal_category_label_start_stays_within_view_box() {
+        // PR #877 Bugbot 指摘（Medium）: Horizontal ではラベルが
+        // `plot_width + 4` から `text-anchor="start"` で右方向に伸びるため、
+        // 余白が狭すぎるとラベル文字列が viewBox 右端を越えてクリップされる
+        // （イシュー #849）。CATEGORY_LABEL_SPACE_HORIZONTAL 導入後は
+        // ラベル開始位置 (`plot_width + 4`) と viewBox 右端
+        // (`props.width`) の間に十分な余白が残ることを固定する。
+        let props = BarChartProps {
+            orientation: Orientation::Horizontal,
+            ..BarChartProps::default()
+        };
+        let node = root(&sample(), props, "label").unwrap();
+        let html = render(&node);
+        // plot_width = 480 - 96 = 384, label x = 384 + 4 = 388。
+        assert!(html.contains(r#"x="388""#));
+        // ラベル開始位置から viewBox 右端までの残り余白（92px）が
+        // クリップ再発防止の下限としてゼロより十分大きいことを保証する。
+        let label_start = 388.0;
+        assert!(props.width - label_start >= 90.0);
     }
 
     #[test]
