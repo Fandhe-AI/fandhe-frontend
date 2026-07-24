@@ -1045,10 +1045,12 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   4. Checkmark / Radiomark: `checkbox` / `radio_group` から装飾表現を
      切り出す具体的な需要（他コンポーネントでの再利用等）が確定した場合。
 - **再導入記録（イシュー #853、FormatByte / FormatNumber / FormatTime /
-  FormatRelativeTime の 4 件のみ。Portal / Show / For / Presence /
-  ClientOnly / EnvironmentProvider / Frame / Swap / FocusTrap /
-  OverlayManager / LocaleProvider / AsyncListCollection / Checkmark /
-  Radiomark は非採用のまま変更しない）**: 再評価トリガー 3（「`Format*` は
+  FormatRelativeTime の 4 件、および #854 で Locale（値型 + 定数表としての
+  み。`LocaleProvider` の Context/Provider 機構は非採用のまま）を追加した
+  計 5 件。Portal / Show / For / Presence / ClientOnly /
+  EnvironmentProvider / Frame / Swap / FocusTrap / OverlayManager /
+  AsyncListCollection / Checkmark / Radiomark は非採用のまま変更しない）**:
+  再評価トリガー 3（「`Format*` は
   `fandhe-frontend-headless-ui` とは別の専用クレートの新設がユーザー承認を
   得た場合」）を、専用クレートの新設ではなく「`fandhe-frontend-headless-ui`
   内モジュール `format`」として実装することで解消したと判断した。上記
@@ -1061,10 +1063,17 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   した。`crates/headless-ui/src/format.rs`（[`mod@format`]、
   `format_byte`/`format_number`/`format_time`/`format_relative_time`）
   として実装済み（`docs/api/headless-ui-api.md` の「Format ユーティリティ」
-  節参照）。LocaleProvider / AsyncListCollection（en 以外のロケール拡張含む）
-  はイシュー #854・#855 のスコープであり本記録の対象外。
+  節参照）。Locale はイシュー #854 で**値型 + 定数表**（`Locale` enum、
+  `#[non_exhaustive]`、en/ja）として再導入した。`LocaleProvider` の
+  Context/Provider 機構・動的ロケールテーブル・グローバル既定ロケール・
+  スレッドローカルは非採用のまま維持する（ロケールは常に
+  `Format*Options::locale` フィールド経由で呼び出し側が明示的に渡す契約、
+  `docs/api/headless-ui-api.md` §4e.1a 参照）。AsyncListCollection は
+  引き続き本記録の対象（等価概念は `docs/design/component-coverage-map.md`
+  §8 参照）。
 - **利用者向けの等価概念対応表**: 上記 24 件のうち非採用のまま変更しない
-  20 件それぞれの等価概念・代替実装は `docs/design/component-coverage-map.md`
+  19 件（#853 で Format\* 4 件、#854 で Locale 1 件を再導入済み）
+  それぞれの等価概念・代替実装は `docs/design/component-coverage-map.md`
   §8（イシュー #855）に一覧化する。
 
 ### 3.24 その他 UI 部品（marquee / chakra `Theme` コンポーネント）（イシュー #735、marquee は #831 で再導入済み）
