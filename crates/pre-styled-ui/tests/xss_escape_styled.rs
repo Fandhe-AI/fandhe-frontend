@@ -2630,6 +2630,131 @@ fn typography_static_parts_are_escaped_for_all_payloads() {
         assert!(html.contains(r#"aria-hidden="true""#));
     }
 }
+
+/// (15) Table 経路（イシュー #767）: styled `root` の呼び出し側 `attrs`・
+/// `class`、および `cell`/`column_header`/`caption` のセル値・見出し
+/// children（受け入れ条件「セル値・見出しにスクリプト断片」の対象）の各所
+/// すべてで既定エスケープ（REQ-1）が貫通することを固定する。
+#[test]
+fn table_styled_root_and_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::table::{self, TableProps};
+
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&table::root(
+            TableProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "table::root 呼び出し側 attrs コンテキスト");
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&table::root(
+            TableProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "table::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "table::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-table--"),
+            "table::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // cell のセル値 children 経路。
+        let html = render(&table::cell(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "table::cell children コンテキスト");
+
+        // column_header の見出し children 経路。
+        let html = render(&table::column_header(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "table::column_header children コンテキスト");
+
+        // caption の children 経路。
+        let html = render(&table::caption(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "table::caption children コンテキスト");
+
+        // column_header の scope 属性偽装経路（値そのものはエスケープ対象では
+        // ないが、drop_reserved により呼び出し側の値が握りつぶされ固定値
+        // `"col"` に置き換わることを確認する）。
+        let html = render(&table::column_header(vec![("scope", payload)], vec![]));
+        assert!(
+            !html.contains(payload),
+            "table::column_header の scope 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(html.contains(r#"scope="col""#));
+    }
+}
+
+/// (16) DataList 経路（イシュー #767）: styled `root` の呼び出し側 `attrs`・
+/// `class`、および `item_label`/`item_value` のラベル・値 children の各所
+/// すべてで既定エスケープ（REQ-1）が貫通することを固定する。
+#[test]
+fn data_list_styled_root_and_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::data_list::{self, DataListProps};
+
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&data_list::root(
+            DataListProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "data_list::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&data_list::root(
+            DataListProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "data_list::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "data_list::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-data-list--"),
+            "data_list::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // item_label のラベル children 経路。
+        let html = render(&data_list::item_label(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "data_list::item_label children コンテキスト",
+        );
+
+        // item_value の値 children 経路。
+        let html = render(&data_list::item_value(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "data_list::item_value children コンテキスト",
+        );
+    }
+}
+
 /// イシュー #768: Tag / Kbd / Code の styled 公開 API 経由の XSS 回帰。
 ///
 /// 対象の入力面:

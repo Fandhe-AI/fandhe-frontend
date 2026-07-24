@@ -319,6 +319,8 @@ mod tests {
             ("blockquote", crate::blockquote::css()),
             ("list", crate::list::css()),
             ("highlight", crate::highlight::css()),
+            ("table", crate::table::css()),
+            ("data_list", crate::data_list::css()),
             ("stat", crate::stat::css()),
             ("timeline", crate::timeline::css()),
         ]

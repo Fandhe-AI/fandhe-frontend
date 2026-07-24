@@ -246,6 +246,16 @@ pub enum StateCondition {
     /// `item-hidden-input` の祖先）が最初の消費者（RadioGroup styled
     /// ラッパー、`crate::radio_group` 参照）。
     FocusWithin,
+    /// `:nth-child(even)` 擬似クラス（イシュー #767）。[`crate::table`] の
+    /// striped 表現（縞模様の背景色）専用の追加。[`SlotRecipe`] は子孫
+    /// セレクタ機構を持たない（本モジュール冒頭 doc 「colorPalette 軸」節の
+    /// 前段方針、#708 で「追加しない」と確定）ため、striped は root variant
+    /// が登録する `--fandhe-table-stripe-bg` custom property と、`row` slot
+    /// 自身への本条件付き規則の組み合わせで表現する。`nth-child` は親要素
+    /// （実際には `thead`/`tbody`/`tfoot` それぞれ）内の兄弟基準で数えるため、
+    /// 複数 `<tr>` を持つ `thead` では 2 行目以降も対象になる（`crate::table`
+    /// rustdoc 参照）。
+    NthChildEven,
     /// `:last-child` 擬似クラス（イシュー #752 PR #797 Bugbot レビュー
     /// Medium severity 指摘「Last step item still stretches」対応）。
     /// Steps の `item`（`<li>`）は呼び出し側が最後の `separator` を省略
@@ -589,6 +599,7 @@ impl SlotRecipe {
                 }
                 StateCondition::FocusVisible => true,
                 StateCondition::FocusWithin => true,
+                StateCondition::NthChildEven => true,
                 StateCondition::LastChild => true,
             };
             if !condition_valid {
@@ -605,6 +616,7 @@ impl SlotRecipe {
                 }
                 StateCondition::FocusVisible => selector.push_str(":focus-visible"),
                 StateCondition::FocusWithin => selector.push_str(":focus-within"),
+                StateCondition::NthChildEven => selector.push_str(":nth-child(even)"),
                 StateCondition::LastChild => selector.push_str(":last-child"),
             }
             if let Some(css) = serialize_rule(&selector, &rule.declarations) {

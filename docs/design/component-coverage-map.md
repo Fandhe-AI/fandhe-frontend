@@ -369,8 +369,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/data-display/avatar.md` | Avatar | Avatar | avatar | avatar | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/data-display/badge.md` | — | Badge | — | badge | 実装済み | pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/data-display/card.md` | — | Card | — | card | 実装済み | pre-styled 静的部品 実装済み |
-| `.agents/skills/chakra-ui/references/components/data-display/table.md` | — | Table | — | — | 実装対象 | #767 |
-| `.agents/skills/chakra-ui/references/components/data-display/data-list.md` | — | DataList | — | — | 実装対象 | #767 |
+| `.agents/skills/chakra-ui/references/components/data-display/table.md` | — | Table | — | table | 実装済み | pre-styled 静的部品 実装済み（#767。`interactive`/`stickyHeader`/`showColumnBorder`/`ScrollArea`/`ColumnGroup` はスコープ外） |
+| `.agents/skills/chakra-ui/references/components/data-display/data-list.md` | — | DataList | — | data-list | 実装済み | pre-styled 静的部品 実装済み（#767。`variant`（subtle/bold）/`size` variant はスコープ外） |
 | `.agents/skills/chakra-ui/references/components/data-display/tag.md` | — | Tag | — | tag | 実装済み | pre-styled 静的部品 実装済み（#768） |
 | `.agents/skills/chakra-ui/references/components/data-display/stat.md` | — | Stat | — | `stat` | 実装済み | pre-styled 静的部品 実装済み（#769。headless-ui は変更なし） |
 | `.agents/skills/chakra-ui/references/components/data-display/timeline.md` | — | Timeline | — | `timeline` | 実装済み | pre-styled 静的部品 実装済み（#769。headless-ui は変更なし） |
