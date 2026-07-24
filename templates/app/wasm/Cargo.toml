@@ -30,7 +30,7 @@ members = ["."]
 # root（templates/app 直下）の依存グラフには一切含まれないため、
 # REQ-3（60 件/深さ 6）の計測基準（標準サーバー構成）への影響もない。
 [dependencies]
-fandhe-frontend-wasm-client = "0.1.0"
+fandhe-frontend-wasm-client = "0.1.1"
 
 [lib]
 crate-type = ["cdylib"]
