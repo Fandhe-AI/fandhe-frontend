@@ -305,6 +305,7 @@ mod tests {
             ("tag", crate::tag::css()),
             ("kbd", crate::kbd::css()),
             ("code", crate::code::css()),
+            ("color_swatch", crate::color_swatch::css()),
             ("action_bar", crate::action_bar::stylesheet()),
             ("toast", crate::toast::stylesheet()),
             ("status", crate::status::css()),

@@ -96,6 +96,32 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | ScrollArea | `scroll_area` | Root/Viewport/Content/Scrollbar/Thumb/Corner | なし（自由関数のみ。`viewport` に `tabindex="0"` を固定付与、`scrollbar`/`thumb` は `data-orientation`、`scrollbar`/`corner` は `aria-hidden="true"` を固定付与。JS によるスクロール位置追従・thumb drag は初期実装対象外） | #825 |
 | DownloadTrigger | `download_trigger` | Root | なし（自由関数のみ。`a[download]` 属性による宣言的ダウンロードトリガー（ark-ui/chakra-ui の `Blob`/非同期 `data` 前提の DownloadTrigger を静的部品として代替）。`href` の URL スキーム検証は `render()` 側の既定経路（`data:`/`blob:` を含め deny-by-default）に委譲し、独自検証を追加しない） | #828 |
 
+## 4a0. 色変換コア（`color`、イシュー #838、親 #837）
+
+`color` モジュールは anatomy を持たない純粋関数モジュールであり、上表の
+UI コンポーネント群とは性質が異なる（ブラウザ API 依存なし・wasm 境界隔離の
+対象外）。RGB / HSL / HSV / HEX の相互変換を、外部依存ゼロ・整数演算のみで
+提供する。`fandhe-frontend-pre-styled-ui::color_swatch`（ColorSwatch、#838）
+と後続の ColorPicker（#837 配下の別イシュー）が本モジュールの型・変換関数を
+土台にする。
+
+- **型**: `Rgb { r, g, b }`（全フィールド公開、`u8` 全域が有効値）/
+  `Hsl`・`Hsv`（`h: u16`（`0..=359`）・`s`/`l`/`v: u8`（`0..=100`）、フィールド
+  非公開・`new()` の fallible コンストラクタのみ公開）/ `Color`（RGBA
+  canonical 表現、`from_rgb`/`from_rgba`/`parse_hex`/`to_hex_string`）/
+  `ColorError`（`OutOfRange`/`InvalidHex`、`Display` は静的文言のみ）。
+- **変換関数**: `Rgb::to_hsl`/`Rgb::to_hsv`（順方向）・`Hsl::to_rgb`/
+  `Hsv::to_rgb`（逆方向）。すべて `f32`/`f64` を使わず `i64` スケール整数
+  演算で完結する。
+- **丸め規則**: 正の有理数の丸めは round half up（`(2*num + den) / (2*den)`）
+  で固定する。無彩色（`max == min`）は `s = 0, h = 0` と定義する。詳細は
+  `crates/headless-ui/src/color.rs` モジュール doc 冒頭「丸め規則」参照。
+- **fail-closed 契約**: `Color::parse_hex` は `#rgb`/`#rgba`/`#rrggbb`/
+  `#rrggbbaa` の 4 形式以外をすべて `Err(ColorError::InvalidHex)` にする
+  （黙って補正しない）。`Hsl::new`/`Hsv::new` は範囲外を構築不能にする。
+  `Color::to_hex_string()` の出力字母は常に `#` + 小文字 16 進数字に閉じる
+  （ColorSwatch が CSS カスタムプロパティ値としてそのまま使う契約の根拠）。
+
 ## 4a. 位置決め（anchor positioning、イシュー #590、親 #588）
 
 Popover/Tooltip/Menu/Select の `positioner`/`arrow`/`arrow_tip` は「CSS フック
