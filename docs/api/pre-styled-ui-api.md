@@ -23,6 +23,7 @@ rustdoc および各モジュール冒頭の rustdoc とする。本節はモジ
 
 本クレートは第 5 弾ツリー（#680）完了・crates.io v0.4.0 公開（#686）・
 checkbox styled ラッパー追加（#730）・静的フォーム部品 3 種追加（#737）・
+NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー追加
 （#739）・PasswordInput styled ラッパー追加（#740）・Slider styled ラッパー
 追加（#741）・RatingGroup styled ラッパー追加（#742）・SegmentGroup styled
 ラッパー追加（#743）・TagsInput styled ラッパー追加（#744）・Editable
