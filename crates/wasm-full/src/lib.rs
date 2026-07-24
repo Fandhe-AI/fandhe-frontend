@@ -123,6 +123,7 @@ pub mod headless;
 pub mod headless_avatar;
 pub mod headless_clipboard;
 pub mod headless_select;
+pub mod headless_signature_pad;
 pub mod headless_timer;
 pub mod hydration;
 pub mod keynav;

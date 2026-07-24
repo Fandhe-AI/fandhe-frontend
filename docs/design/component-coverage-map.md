@@ -195,7 +195,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/form/color-picker.md` | ColorPicker | ColorPicker | — | — | 保留 | （高度入力系、フォーム部品）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
 | `.agents/skills/ark-ui/references/components/form/file-upload.md` | FileUpload | FileUpload | — | — | 保留 | （高度入力系、フォーム部品）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
 | `.agents/skills/ark-ui/references/components/form/image-cropper.md` | ImageCropper | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.22（#735）で非採用確定（高度入力系、canvas/ポインタ座標/contenteditable 依存） |
-| `.agents/skills/ark-ui/references/components/form/signature-pad.md` | SignaturePad | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.22（#735）で非採用確定（高度入力系、canvas/ポインタ座標/contenteditable 依存） |
+| `.agents/skills/ark-ui/references/components/form/signature-pad.md` | SignaturePad | — | signature_pad | signature_pad | 実装済み | canvas を使わない決定的 SVG path 方式で再導入（#843）。headless+styled+wasm 配線済み。非採用の再導入手続きは `docs/policy/intentional-non-adoption.md` §3.22 追補（#735/#843）参照。canvas 方式・残り 3 部品（ImageCropper/AngleSlider/RichTextEditor）の非採用判断は不変 |
 | `.agents/skills/ark-ui/references/components/form/README.md` | README | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 
 #### `.agents/skills/ark-ui/references/components/overlays/`

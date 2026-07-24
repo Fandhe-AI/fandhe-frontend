@@ -334,6 +334,7 @@ mod tests {
             ("date_picker", crate::date_picker::stylesheet()),
             ("date_input", crate::date_input::stylesheet()),
             ("timer", crate::timer::stylesheet()),
+            ("signature_pad", crate::signature_pad::stylesheet()),
         ]
     }
 

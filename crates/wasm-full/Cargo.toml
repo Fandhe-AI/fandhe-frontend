@@ -1,6 +1,6 @@
 [package]
 name = "fandhe-frontend-wasm-full"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"
 description = "fandhe-frontend-wasm-full: WASM 完全方式のクライアントランタイム（イベント処理・DOM 更新を safe Rust に閉じ込める）。"
 license = "MIT OR Apache-2.0"
@@ -116,10 +116,19 @@ categories = ["wasm", "web-programming"]
 # 参照）。新規外部クレート追加ゼロ、既存 web-sys の feature 追加のみ。
 # `cargo metadata` 実測（パッケージ数・依存グラフ深さ）に変化がないことを
 # PR 本文に記録する。
+# イシュー #843（SignaturePad、非採用の再導入・SVG path 決定的描画）:
+# `headless_signature_pad::wiring` が `control`/`segment` 要素上の
+# pointerdown/pointermove/pointerup/pointercancel を配線してストローク座標を
+# 収集するため `PointerEvent`（`client_x()`/`client_y()`/`pointer_id()` を
+# 読み取る）を追加する。canvas 系 API（`CanvasRenderingContext2d` 等）は
+# 一切追加しない（headless-ui 側の設計転換「canvas を使わない」方針、
+# `crates/headless-ui/src/signature_pad.rs` モジュール doc 参照）。新規外部
+# クレート追加ゼロ、既存 web-sys の feature 追加のみ。`cargo metadata` 実測
+# （パッケージ数・依存グラフ深さ）に変化がないことを PR 本文に記録する。
 [dependencies]
 fandhe-frontend-app = { path = "../app", version = "0.1.0" }
 fandhe-frontend-core = { path = "../core", version = "0.1.0" }
-fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.18.0" }
+fandhe-frontend-headless-ui = { path = "../headless-ui", version = "0.19.0" }
 fandhe-frontend-interactive = { path = "../interactive", version = "0.1.0" }
 # `default-features = false`: 本クレート独自の `wasm_bindgen` エクスポート
 # （`entry.rs` の `hydrate`/`mount`）と `fandhe-frontend-wasm-client` の REQ-6 デモ用
@@ -154,6 +163,7 @@ features = [
   "Navigator",
   "Node",
   "NodeList",
+  "PointerEvent",
   "PopStateEvent",
   "ScrollRestoration",
   "Window",
@@ -250,6 +260,11 @@ wasm-bindgen-futures = "0.4"
 # positioner に `reposition_one` が上書きしない `class` 経由で固定
 # `width`/`height` を与えるフィクスチャ用ヘルパー）を呼ぶために
 # `HtmlHeadElement` を追加する（テスト専用の feature 拡張）。
+# イシュー #843: `wasm-full/tests/headless_signature_pad_browser.rs` が
+# 合成 `PointerEvent`（座標指定でストローク描画を再現する回帰テスト）を
+# 組み立てるために `PointerEventInit` を追加する（テスト専用の feature
+# 拡張。`PointerEvent` 自体は製品面の `[dependencies.web-sys]` に追加済みの
+# ため、ここでは init 型のみを追加すれば足りる）。
 [dev-dependencies.web-sys]
 version = "0.3"
 features = [
@@ -264,4 +279,5 @@ features = [
   "PopStateEventInit",
   "KeyboardEventInit",
   "HtmlHeadElement",
+  "PointerEventInit",
 ]
