@@ -57,6 +57,7 @@ use fandhe_frontend_pre_styled_ui::carousel;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::code::code;
+use fandhe_frontend_pre_styled_ui::color_picker;
 use fandhe_frontend_pre_styled_ui::color_swatch::{
     self, Color, ColorSwatchProps, Rgb, SwatchShape,
 };
@@ -72,9 +73,11 @@ use fandhe_frontend_pre_styled_ui::editable::{
 use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::color_picker::ColorPicker;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::{PanelSpec, Splitter};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
+use fandhe_frontend_pre_styled_ui::file_upload;
 use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps};
@@ -281,6 +284,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::password_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tags_input::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::file_upload::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::rating_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::slider::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::editable::stylesheet())?;
@@ -298,6 +302,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::kbd::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::code::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::color_swatch::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::color_picker::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::image::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::icon::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::status::css())?;
@@ -2431,6 +2436,73 @@ fn tags_input_section() -> Node {
     )
 }
 
+/// FileUpload 節（イシュー #840）: 通常（受理済み 1 件）・disabled の 2 態。
+/// `File` オブジェクトは headless 層で一切保持せず、ここでは静的な
+/// `FileUploadItem` メタデータのみを直接組み立てて表示する（実 `File` API
+/// 接触は `fandhe-frontend-wasm-full::headless_file_upload` の配線層のみが
+/// 担う、`file_upload` モジュール rustdoc「保留解除」節参照）。
+fn file_upload_section() -> Node {
+    fn file_item(name: &str, size_bytes: u64, disabled: bool) -> Node {
+        let size_text = file_upload::item_size_text(size_bytes);
+        file_upload::item(
+            disabled,
+            vec![],
+            vec![
+                file_upload::item_name(vec![], vec![text(name)]),
+                file_upload::item_size_text_node(vec![], vec![text(&size_text)]),
+                file_upload::item_delete_trigger(name, disabled, vec![], vec![text("\u{00d7}")]),
+            ],
+        )
+    }
+
+    let normal = file_upload::root(
+        Size::Md,
+        false,
+        vec![],
+        vec![
+            file_upload::label(vec![], vec![text("Attachments")]),
+            file_upload::dropzone(
+                false,
+                false,
+                vec![],
+                vec![
+                    file_upload::trigger(false, vec![], vec![text("Browse files")]),
+                    file_upload::hidden_input("image/*,.pdf", true, false, vec![]),
+                ],
+            ),
+            file_upload::item_group(vec![], vec![file_item("report.pdf", 204_800, false)]),
+            file_upload::clear_trigger(false, vec![], vec![text("Clear all")]),
+        ],
+    );
+
+    let disabled = file_upload::root(
+        Size::Md,
+        true,
+        vec![],
+        vec![
+            file_upload::label(vec![], vec![text("Disabled")]),
+            file_upload::dropzone(
+                true,
+                false,
+                vec![],
+                vec![
+                    file_upload::trigger(true, vec![], vec![text("Browse files")]),
+                    file_upload::hidden_input("image/*,.pdf", true, true, vec![]),
+                ],
+            ),
+            file_upload::item_group(vec![], vec![file_item("locked.txt", 1024, true)]),
+            file_upload::clear_trigger(true, vec![], vec![text("Clear all")]),
+        ],
+    );
+
+    let demo_row = row(vec![normal, disabled]);
+    section(
+        "FileUpload",
+        "ファイルメタデータ（name/size/mime type）のみを扱い、File オブジェクト自体は headless 層で保持しません。実 File API 接触は wasm-full 側の配線層に隔離されています。",
+        vec![demo_row],
+    )
+}
+
 /// RatingGroup 節: 選択中（value=3）・readonly（他ユーザーの平均評価想定）・
 /// disabled の 3 態。星形 indicator は外部リソース非参照の `clip-path`
 /// インライン表現（`fandhe_frontend_pre_styled_ui::rating_group` のモジュール
@@ -4416,6 +4488,70 @@ fn color_swatch_section() -> Node {
     )
 }
 
+/// ColorPicker 節（イシュー #839）: 開いた状態を固定して掲示する（本モジュール
+/// 冒頭「インタラクティブ部品の扱い」参照）。Area（彩度・明度の 2 次元
+/// グラデーション）・色相/アルファスライダー・HEX 入力を静的 SSR マークアップ
+/// として表示する。canvas は使わず、すべて CSS グラデーション + 検証済み
+/// 整数割合（`state.area_x_percent()` 等）の custom property のみで組み立てる
+/// （`fandhe_frontend_pre_styled_ui::color_picker` モジュール doc「canvas
+/// 非依存」参照）。
+fn color_picker_section() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::color_picker::Channel;
+
+    let state = ColorPicker::from_color(Color::from_rgba(Rgb::new(0x3b, 0x82, 0xf6), 0xcc));
+    let demo = row(vec![color_picker::content(
+        state.state(),
+        None,
+        vec![],
+        vec![
+            color_picker::area(
+                &state,
+                vec![],
+                vec![
+                    color_picker::area_background(&state, vec![], vec![]),
+                    color_picker::area_thumb(&state, false, vec![], vec![]),
+                ],
+            ),
+            color_picker::channel_slider(
+                Channel::Hue,
+                &state,
+                vec![],
+                vec![
+                    color_picker::channel_slider_track(Channel::Hue, &state, vec![], vec![]),
+                    color_picker::channel_slider_thumb(Channel::Hue, &state, false, vec![], vec![]),
+                ],
+            ),
+            color_picker::channel_slider(
+                Channel::Alpha,
+                &state,
+                vec![],
+                vec![
+                    color_picker::channel_slider_track(Channel::Alpha, &state, vec![], vec![]),
+                    color_picker::channel_slider_thumb(
+                        Channel::Alpha,
+                        &state,
+                        false,
+                        vec![],
+                        vec![],
+                    ),
+                ],
+            ),
+            color_picker::control(
+                vec![],
+                vec![
+                    color_picker::channel_input(state.hex().as_str(), false, vec![]),
+                    color_picker::value_text(vec![], vec![text(state.hex())]),
+                ],
+            ),
+        ],
+    )]);
+    section(
+        "ColorPicker",
+        "HSV 色相環 + アルファ選択の静的表示です（canvas 非依存、CSS グラデーション + 検証済み割合のみで構成）。ポインタ操作の実配線は wasm 層の後続対応です。",
+        vec![demo],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -4464,6 +4600,7 @@ fn showcase_body() -> Node {
             number_input_section(),
             password_input_section(),
             tags_input_section(),
+            file_upload_section(),
             rating_group_section(),
             slider_section(),
             editable_section(),
@@ -4486,6 +4623,7 @@ fn showcase_body() -> Node {
             kbd_section(),
             code_section(),
             color_swatch_section(),
+            color_picker_section(),
             status_section(),
             empty_state_section(),
             visually_hidden_section(),

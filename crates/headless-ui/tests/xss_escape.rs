@@ -29,13 +29,14 @@ use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::calendar;
 use fandhe_frontend_headless_ui::date::{PlainDate, Weekday};
 use fandhe_frontend_headless_ui::date_picker;
+use fandhe_frontend_headless_ui::file_upload;
 use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::scroll_area;
 use fandhe_frontend_headless_ui::{
-    action_bar, aria_controls, aria_label, avatar, carousel, clipboard, data_state, date_input,
-    dialog, download_trigger, editable, floating_panel, hover_card, listbox, number_input,
-    password_input, pin_input, popover, rating_group, segment_group, signature_pad, slider,
-    splitter, tags_input, timer, toast, tree_view, Calendar, DatePicker, DateSegmentFlags,
+    action_bar, aria_controls, aria_label, avatar, carousel, clipboard, color_picker, data_state,
+    date_input, dialog, download_trigger, editable, floating_panel, hover_card, listbox,
+    number_input, password_input, pin_input, popover, rating_group, segment_group, signature_pad,
+    slider, splitter, tags_input, timer, toast, tree_view, Calendar, DatePicker, DateSegmentFlags,
     ImageStatus, OpenState, Orientation, PasswordAutocomplete, PasswordInputProps, Steps,
     ToastStatus,
 };
@@ -528,6 +529,58 @@ fn tags_input_tag_text_and_attribute_paths_are_escaped_for_all_payloads() {
             payload,
             &html,
             "tags_input::root の呼び出し側 attrs コンテキスト",
+        );
+    }
+}
+
+/// (1) テキスト経路 + (2) 属性値経路（イシュー #840 FileUpload）:
+/// ファイル名・MIME 文字列は攻撃者が完全に制御可能な入力そのもの（REQ-1 の
+/// 重点対象）であるため、`file_upload::item_name` の children テキスト・
+/// `file_upload::item_delete_trigger` の `name`（`format!` で組み立てる
+/// `aria-label` の一部）・`file_upload::hidden_input` の `accept` 属性・
+/// 呼び出し側 `attrs` へ全ペイロードを注入し、エスケープが貫通することを
+/// 固定する（`tags_input` 分と同型の網羅方針）。
+#[test]
+fn file_upload_item_name_and_attribute_paths_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let item_name_node = file_upload::item_name(vec![], vec![text(payload)]);
+        let html = render(&item_name_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::item_name の children コンテキスト",
+        );
+
+        let item_size_text_node = file_upload::item_size_text_node(vec![], vec![text(payload)]);
+        let html = render(&item_size_text_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::item_size_text_node の children コンテキスト",
+        );
+
+        let delete_trigger_node = file_upload::item_delete_trigger(payload, false, vec![], vec![]);
+        let html = render(&delete_trigger_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::item_delete_trigger の aria-label コンテキスト",
+        );
+
+        let hidden_input_node = file_upload::hidden_input(payload, false, false, vec![]);
+        let html = render(&hidden_input_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::hidden_input の accept 属性コンテキスト",
+        );
+
+        let attrs_node = file_upload::root(false, vec![("data-testid", payload)], vec![]);
+        let html = render(&attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::root の呼び出し側 attrs コンテキスト",
         );
     }
 }
@@ -1262,6 +1315,62 @@ fn scroll_area_attrs_and_children_payloads_are_escaped_for_all_payloads() {
             &html,
             "scroll_area::content の children コンテキスト",
         );
+    }
+}
+
+/// (1)/(2) ColorPicker（イシュー #839）: `channel_input`/`hidden_input` の
+/// 属性値経路・`area_thumb` の `aria-valuetext` 属性値経路・`label` の
+/// テキスト経路へ全ペイロードを注入し、エスケープが貫通することを固定する。
+#[test]
+fn color_picker_attrs_valuetext_and_children_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let html = render(&color_picker::channel_input(payload, false, vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "color_picker::channel_input の value 属性値コンテキスト",
+        );
+
+        let html = render(&color_picker::hidden_input(
+            payload,
+            "#ffffff",
+            false,
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "color_picker::hidden_input の name 属性値コンテキスト",
+        );
+
+        let html = render(&color_picker::area_thumb(payload, false, vec![], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "color_picker::area_thumb の aria-valuetext 属性値コンテキスト",
+        );
+
+        let html = render(&color_picker::label(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "color_picker::label のテキストコンテキスト");
+    }
+}
+
+/// (3) ColorPicker: hydration 復元経路（`data-hydrate-h`）へ XSS payload を
+/// 渡しても復元に失敗し（`HydrateError`）、値がそのまま出力に混入しない
+/// ことを固定する（`slider`/`json_tree_view` の hydration payload 回帰と
+/// 同型）。
+#[test]
+fn color_picker_hydration_xss_payload_is_rejected_not_rendered() {
+    use fandhe_frontend_interactive::Hydrate;
+    for payload in payloads::all() {
+        let attrs = vec![
+            ("data-hydrate-h".to_string(), payload.to_string()),
+            ("data-hydrate-s".to_string(), "0".to_string()),
+            ("data-hydrate-v".to_string(), "0".to_string()),
+            ("data-hydrate-a".to_string(), "255".to_string()),
+            ("data-hydrate-state".to_string(), "closed".to_string()),
+        ];
+        assert!(color_picker::ColorPicker::from_hydration_attrs(&attrs).is_err());
     }
 }
 
