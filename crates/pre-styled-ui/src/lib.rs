@@ -490,6 +490,7 @@
 pub mod accordion;
 pub mod action_bar;
 pub mod alert;
+pub mod angle_slider;
 pub mod avatar;
 pub mod badge;
 pub mod blockquote;
