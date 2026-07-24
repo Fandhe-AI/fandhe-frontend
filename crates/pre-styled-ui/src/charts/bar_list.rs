@@ -172,19 +172,28 @@ fn item(category: &str, value: f64, max: f64) -> Node {
     let style = format!("--fandhe-bar-list-percent: {}%", fmt_coord(percent));
     let value_text = fmt_coord(value);
 
+    // 子要素の DOM 出力順は 2 列グリッド（`minmax(0, 1fr) auto`）の
+    // sparse auto-placement に直結する。`track` は `grid-column: 1 / -1`
+    // で行全体を占有するため、`label`/`value` より先に出力すると
+    // auto-placement カーソルが次行へ進み、後続の `value` が `label` の
+    // 隣ではなくさらに次の行へ押し出される（イシュー #849 PR #877
+    // Bugbot 指摘 cd3ef6cf-9df1-4726-bc77-d71f8e233f02）。`label`/`value`
+    // を 1 行目の 2 列に先に配置し、行全体を占める `track` を最後に
+    // 出力することで、意図した「ラベル/値のヘッダー行 + 下にバー」の
+    // 見た目を sparse auto-placement のみで実現する。
     ANATOMY.part(
         "item",
         "div",
         vec![],
         vec![
             ANATOMY.part("label", "span", vec![], vec![text(category.to_string())]),
+            ANATOMY.part("value", "span", vec![], vec![text(value_text)]),
             ANATOMY.part(
                 "track",
                 "div",
                 vec![],
                 vec![ANATOMY.part("bar", "div", vec![("style", style.as_str())], vec![])],
             ),
-            ANATOMY.part("value", "span", vec![], vec![text(value_text)]),
         ],
     )
 }
@@ -274,6 +283,21 @@ mod tests {
         assert!(html.contains(r#"data-part="track""#));
         assert!(html.contains(r#"data-part="bar""#));
         assert!(html.contains(r#"data-part="value""#));
+    }
+
+    #[test]
+    fn item_dom_order_places_track_last_for_grid_auto_placement() {
+        // イシュー #849 PR #877 Bugbot 指摘 cd3ef6cf-9df1-4726-bc77-d71f8e233f02:
+        // 2 列グリッドの sparse auto-placement 下では `track`（`grid-column:
+        // 1 / -1`）を `label`/`value` より先に出力すると `value` が後続行へ
+        // 押し出される。`label` の後に `track` の `data-part` が出現するより
+        // 前に `value` の `data-part` が出現することを固定し、回帰を防ぐ。
+        let html = render(&root(&sample(), "visits").unwrap());
+        let label_pos = html.find(r#"data-part="label""#).unwrap();
+        let value_pos = html.find(r#"data-part="value""#).unwrap();
+        let track_pos = html.find(r#"data-part="track""#).unwrap();
+        assert!(label_pos < value_pos);
+        assert!(value_pos < track_pos);
     }
 
     #[test]
