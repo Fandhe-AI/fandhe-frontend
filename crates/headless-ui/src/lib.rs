@@ -224,6 +224,17 @@
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`control` は
 //!   `role="listbox"`、`item_preview` は `role="option"`（イシュー本文が
 //!   指定する listbox 相当の ARIA）。
+//! - [`mod@steps`]: Root / List / Item / Trigger / Indicator / Separator /
+//!   Content / CompletedContent / PrevTrigger / NextTrigger の 10 anatomy
+//!   パーツと、`count`（全 step 数）+ `step`（現在位置、`0..=count`）を持つ
+//!   [`steps::Steps`] 状態機械（#752、`docs/api/headless-ui-api.md` §4b.3
+//!   の保留解除）。[`mod@progress`]/[`mod@pin_input`] と同じく [`state`] の
+//!   既存語彙に収まらないため、[`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。item は
+//!   complete/current/incomplete の 3 状態を持ち、current な item の
+//!   trigger のみ `aria-current="step"` を付与する。`linear`（順序強制）・
+//!   `isStepValid`/`isStepSkippable`・キーボード操作/roving focus は本
+//!   イシューのスコープ外（[`steps`] モジュール doc §out-of-scope 参照）。
 //! - [`mod@carousel`]: Root / Control / PrevTrigger / NextTrigger /
 //!   ItemGroup / Item / IndicatorGroup / Indicator の 8 anatomy パーツと、
 //!   `0..slide_count` を循環し得る index 値を持つ [`carousel::Carousel`]
@@ -442,6 +453,7 @@ pub mod select;
 pub mod skip_nav;
 pub mod slider;
 pub mod state;
+pub mod steps;
 pub mod switch;
 pub mod tabs;
 pub mod tags_input;
@@ -490,8 +502,9 @@ pub use checkbox::{Checkbox, CheckboxFlags};
 pub use clipboard::{Clipboard, ClipboardAction};
 pub use combobox::{Combobox, ComboboxAction};
 pub use data_attrs::{
-    data_checked, data_copied, data_current, data_disabled, data_highlighted, data_invalid,
-    data_orientation, data_pressed, data_readonly, data_required, data_state, Orientation,
+    data_checked, data_complete, data_copied, data_current, data_disabled, data_highlighted,
+    data_incomplete, data_invalid, data_orientation, data_pressed, data_readonly, data_required,
+    data_state, Orientation,
 };
 pub use dialog::Dialog;
 pub use drawer::{Drawer, DrawerPlacement};
@@ -521,6 +534,7 @@ pub use state::{
     OpenState, SingleSelect, SingleSelectAction, TextInput, TextInputAction, DATA_STATE_CHECKED,
     DATA_STATE_CLOSED, DATA_STATE_OFF, DATA_STATE_ON, DATA_STATE_OPEN, DATA_STATE_UNCHECKED,
 };
+pub use steps::{Steps, StepsAction};
 pub use switch::{Switch, SwitchAction};
 pub use tabs::{tabs, ActivationMode, TabItem, TabsProps};
 pub use tags_input::{TagsInput, TagsInputAction};

@@ -246,6 +246,16 @@ pub enum StateCondition {
     /// `item-hidden-input` の祖先）が最初の消費者（RadioGroup styled
     /// ラッパー、`crate::radio_group` 参照）。
     FocusWithin,
+    /// `:last-child` 擬似クラス（イシュー #752 PR #797 Bugbot レビュー
+    /// Medium severity 指摘「Last step item still stretches」対応）。
+    /// Steps の `item`（`<li>`）は呼び出し側が最後の `separator` を省略
+    /// するのが典型的な利用パターンであり、最後の item だけは「後ろに
+    /// 伸ばす対象（separator）」を持たない。headless 層は `index`/`count`
+    /// を比較した「最後かどうか」の data 属性を持たないため（`item`
+    /// メソッドが `count` を保持しない設計、`crates/headless-ui/src/steps.rs`
+    /// 参照）、DOM 構造がそのまま表す `:last-child` を使い、最後の item
+    /// にのみ伸長・最小高さの指定を打ち消す。
+    LastChild,
 }
 
 /// slot 1 個・状態条件 1 個への宣言登録（内部表現、イシュー #643）。
@@ -469,8 +479,13 @@ impl SlotRecipe {
     /// `[data-scope="<scope>"][data-part="<slot>"][<name>="<value>"]`
     /// （`AttrEq`）・`[data-scope="<scope>"][data-part="<slot>"]:focus-visible`
     /// （`FocusVisible`）・`[data-scope="<scope>"][data-part="<slot>"]:focus-within`
-    /// （`FocusWithin`、イシュー #683）のいずれか（出力順が最後尾のため CSS
-    /// カスケードの後勝ちで variant/compound variant を上書きする）。
+    /// （`FocusWithin`、イシュー #683）・
+    /// `[data-scope="<scope>"][data-part="<slot>"]:last-child`
+    /// （`LastChild`、イシュー #752）のいずれか（出力順が最後尾のため CSS
+    /// カスケードの後勝ちで variant/compound variant を上書きする。
+    /// `LastChild` は同一 slot への他の state 規則より後に登録することで
+    /// 詳細度が同じでも記述順の後勝ちで上書きする契約、`state()` の
+    /// 「登録順」規約参照）。
     ///
     /// `scope`（[`SlotRecipe::new`] に渡した値）が識別子として不正な場合は
     /// 空文字列を返す（fail-closed。`slot`/`axis`/`value` と同様に `scope` も
@@ -574,6 +589,7 @@ impl SlotRecipe {
                 }
                 StateCondition::FocusVisible => true,
                 StateCondition::FocusWithin => true,
+                StateCondition::LastChild => true,
             };
             if !condition_valid {
                 continue;
@@ -589,6 +605,7 @@ impl SlotRecipe {
                 }
                 StateCondition::FocusVisible => selector.push_str(":focus-visible"),
                 StateCondition::FocusWithin => selector.push_str(":focus-within"),
+                StateCondition::LastChild => selector.push_str(":last-child"),
             }
             if let Some(css) = serialize_rule(&selector, &rule.declarations) {
                 out.push_str(&css);

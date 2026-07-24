@@ -53,6 +53,7 @@ use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::carousel;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
+use fandhe_frontend_pre_styled_ui::code::code;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::editable::{
@@ -62,12 +63,14 @@ use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps};
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
+use fandhe_frontend_pre_styled_ui::kbd::kbd;
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
@@ -87,7 +90,9 @@ use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
+use fandhe_frontend_pre_styled_ui::steps;
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
+use fandhe_frontend_pre_styled_ui::tag::{self, TagProps, TagVariant};
 use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
@@ -260,11 +265,15 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::segment_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tree_view::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::pagination::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::steps::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::breadcrumb::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::carousel::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::action_bar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::toast::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::progress::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::tag::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::kbd::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::code::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::image::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::icon::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::status::css())?;
@@ -2658,6 +2667,59 @@ fn pagination_section() -> Node {
     )
 }
 
+/// Steps 節（イシュー #752）: 3 step 中 2 番目（index=1）を current として
+/// 固定表示する静的掲示。indicator は complete/current/incomplete の 3
+/// 状態で塗り色を切り替え、separator は `data-complete` の有無で完了色に
+/// 変化する（[`crate::steps`] rustdoc §indicator/separator の状態連動色
+/// 参照）。current な item の trigger のみ `aria-current="step"` を持つ
+/// （クリック挙動は wasm 層のスコープ外、モジュール冒頭「インタラクティブ
+/// 部品の扱い」節参照）。
+fn steps_section() -> Node {
+    let s = Steps::new(3, 1, Orientation::Horizontal);
+    let labels = ["Account", "Shipping", "Confirm"];
+
+    let mut items = Vec::new();
+    for (index, label) in labels.iter().enumerate() {
+        let trigger = steps::trigger(
+            &s,
+            index,
+            vec![],
+            vec![
+                steps::indicator(&s, index, vec![], vec![text((index + 1).to_string())]),
+                text(*label),
+            ],
+        );
+        let mut item_children = vec![trigger];
+        if index + 1 < labels.len() {
+            item_children.push(steps::separator(&s, index, vec![], vec![]));
+        }
+        items.push(steps::item(&s, index, vec![], item_children));
+    }
+
+    let list = steps::list(&s, vec![], items);
+    let content = steps::content(&s, 1, vec![], vec![text("配送先住所を入力してください。")]);
+    let nav = div(
+        vec![],
+        vec![
+            steps::prev_trigger(&s, vec![], vec![text("Prev")]),
+            steps::next_trigger(&s, vec![], vec![text("Next")]),
+        ],
+    );
+
+    let demo = steps::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &s,
+        vec![],
+        vec![list, content, nav],
+    );
+    section(
+        "Steps",
+        "count（全 step 数）+ step（現在位置）を持つ headless Steps の静的掲示。item は complete/current/incomplete の 3 状態を持ち、current な item の trigger のみ aria-current=\"step\" を持ちます（クリック挙動は wasm 層のスコープ外）。",
+        vec![row(vec![demo])],
+    )
+}
+
 /// CheckboxCard 節: unchecked / checked / disabled の 3 態（イシュー #747）。
 ///
 /// chakra-ui checkbox-card 相当のカード型選択 UI。状態機械は
@@ -3302,6 +3364,98 @@ fn timeline_section() -> Node {
     )
 }
 
+/// Tag 節（イシュー #768）: variant / size / colorPalette と、
+/// close-trigger（`data-action` 配線のみ、クリック処理は wasm 層の
+/// スコープ外）の掲示。
+fn tag_section() -> Node {
+    let variants = [
+        (TagVariant::Solid, "Solid"),
+        (TagVariant::Subtle, "Subtle"),
+        (TagVariant::Outline, "Outline"),
+    ];
+    let variant_row = row(variants
+        .iter()
+        .map(|(variant, label)| {
+            tag::root(
+                &TagProps {
+                    variant: *variant,
+                    ..TagProps::default()
+                },
+                vec![],
+                vec![text(*label)],
+            )
+        })
+        .collect());
+    let size_row = row([Size::Sm, Size::Md, Size::Lg]
+        .iter()
+        .map(|size| {
+            tag::root(
+                &TagProps {
+                    size: *size,
+                    ..TagProps::default()
+                },
+                vec![],
+                vec![text("Tag")],
+            )
+        })
+        .collect());
+    let palette_row = row(palettes()
+        .iter()
+        .map(|(palette, label)| {
+            tag::root(
+                &TagProps {
+                    palette: *palette,
+                    ..TagProps::default()
+                },
+                vec![],
+                vec![text(*label)],
+            )
+        })
+        .collect());
+    let closable = tag::root(
+        &TagProps::default(),
+        vec![],
+        vec![
+            tag::label(vec![], vec![text("Removable")]),
+            tag::close_trigger(
+                Some("remove_tag"),
+                vec![("aria-label", "Remove")],
+                vec![text("×")],
+            ),
+        ],
+    );
+    section(
+        "Tag",
+        "ラベル・分類・除去可能なチップ表示。variant / size / colorPalette を組み合わせます。close-trigger は data-action 属性の出力のみを担い、実際のクリック処理は wasm 層のスコープです。",
+        vec![variant_row, size_row, palette_row, row(vec![closable])],
+    )
+}
+
+/// Kbd 節（イシュー #768）: variant 軸を持たない単一 slot 部品。
+fn kbd_section() -> Node {
+    let row_node = row(vec![
+        kbd(vec![], vec![text("Ctrl")]),
+        text(" + "),
+        kbd(vec![], vec![text("K")]),
+    ]);
+    section(
+        "Kbd",
+        "キーボード入力・ショートカット表示。variant 軸を持たない単一 slot の静的部品です。",
+        vec![row_node],
+    )
+}
+
+/// Code 節（イシュー #768）: インライン `<code>` のみを扱う（CodeBlock は
+/// 対象外確定済み）。
+fn code_section() -> Node {
+    let row_node = row(vec![code(vec![], vec![text("cargo build")])]);
+    section(
+        "Code",
+        "インラインコード片の表示。chakra-ui の CodeBlock 相当は対象外です。",
+        vec![row_node],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -3355,6 +3509,7 @@ fn showcase_body() -> Node {
             carousel_section(),
             tree_view_section(),
             pagination_section(),
+            steps_section(),
             checkbox_card_section(),
             radio_card_section(),
             breadcrumb_section(),
@@ -3363,6 +3518,9 @@ fn showcase_body() -> Node {
             progress_section(),
             image_section(),
             icon_section(),
+            tag_section(),
+            kbd_section(),
+            code_section(),
             status_section(),
             empty_state_section(),
             visually_hidden_section(),
@@ -3418,12 +3576,16 @@ mod tests {
             "editable",
             "segment-group",
             "pagination",
+            "steps",
             "checkbox-card",
             "radio-card",
             "breadcrumb",
             "toast",
             "image",
             "icon",
+            "tag",
+            "kbd",
+            "code",
             "status",
             "empty-state",
             "visually-hidden",
@@ -3547,6 +3709,9 @@ mod tests {
         assert!(css.contains(r#"[data-scope="number-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="password-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="tags-input"][data-part="control"]"#));
+        assert!(css.contains(".fd-tag--variant-subtle"));
+        assert!(css.contains(r#"[data-scope="kbd"][data-part="root"]"#));
+        assert!(css.contains(r#"[data-scope="code"][data-part="root"]"#));
         assert!(css.contains(r#"[data-scope="toast"][data-part="root"]"#));
         assert!(css.contains(r#"[data-scope="status"][data-part="indicator"]"#));
         assert!(css.contains(r#"[data-scope="empty-state"][data-part="content"]"#));

@@ -31,7 +31,7 @@ use fandhe_frontend_headless_ui::{
     action_bar, aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog,
     editable, hover_card, listbox, number_input, password_input, pin_input, popover, rating_group,
     segment_group, slider, tags_input, toast, tree_view, ImageStatus, OpenState, Orientation,
-    PasswordAutocomplete, PasswordInputProps, ToastStatus,
+    PasswordAutocomplete, PasswordInputProps, Steps, ToastStatus,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -522,6 +522,31 @@ fn tags_input_tag_text_and_attribute_paths_are_escaped_for_all_payloads() {
             payload,
             &html,
             "tags_input::root の呼び出し側 attrs コンテキスト",
+        );
+    }
+}
+
+/// (1)/(2) Steps（イシュー #752）: `item`/`content` の children（テキスト
+/// 経路）と呼び出し側 `attrs`（属性値経路）へ全ペイロードを注入し、
+/// エスケープが貫通することを固定する。
+#[test]
+fn steps_item_content_children_and_attrs_are_escaped_for_all_payloads() {
+    let s = Steps::new(3, 1, Orientation::Horizontal);
+    for payload in payloads::all() {
+        let item_node = s.item(0, vec![], vec![text(payload)]);
+        let html = render(&item_node);
+        assert_payload_is_escaped(payload, &html, "steps::item のテキストコンテキスト");
+
+        let content_node = s.content(1, vec![], vec![text(payload)]);
+        let html = render(&content_node);
+        assert_payload_is_escaped(payload, &html, "steps::content のテキストコンテキスト");
+
+        let trigger_attrs_node = s.trigger(0, vec![("data-testid", payload)], vec![]);
+        let html = render(&trigger_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "steps::trigger の呼び出し側 attrs コンテキスト",
         );
     }
 }

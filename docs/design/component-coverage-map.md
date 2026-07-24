@@ -125,7 +125,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/collections/combobox.md` | Combobox | Combobox | — | — | 実装対象 | #749 |
 | `.agents/skills/ark-ui/references/components/collections/listbox.md` | Listbox | Listbox | listbox | listbox | 実装済み | headless+styled 実装済み（#750） |
 | `.agents/skills/ark-ui/references/components/collections/pagination.md` | Pagination | Pagination | — | — | 実装対象 | #751（#716 保留の解除） |
-| `.agents/skills/ark-ui/references/components/collections/steps.md` | Steps | Steps | — | — | 実装対象 | #752（#716 保留の解除） |
+| `.agents/skills/ark-ui/references/components/collections/steps.md` | Steps | Steps | steps | steps | 実装済み | headless+styled 実装済み（#752、#716 保留の解除） |
 | `.agents/skills/ark-ui/references/components/collections/tree-view.md` | TreeView | TreeView | tree_view | tree_view | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/collections/carousel.md` | Carousel | Carousel | carousel | carousel | 実装済み | headless+styled 実装済み（#754）。autoplay（play/pause/aria-live 切替/delay）は初期実装スコープ外（`crates/headless-ui/src/carousel.rs` module doc 参照） |
 | `.agents/skills/ark-ui/references/components/collections/README.md` | README | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
@@ -371,7 +371,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/data-display/card.md` | — | Card | — | card | 実装済み | pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/data-display/table.md` | — | Table | — | — | 実装対象 | #767 |
 | `.agents/skills/chakra-ui/references/components/data-display/data-list.md` | — | DataList | — | — | 実装対象 | #767 |
-| `.agents/skills/chakra-ui/references/components/data-display/tag.md` | — | Tag | — | — | 実装対象 | #768 |
+| `.agents/skills/chakra-ui/references/components/data-display/tag.md` | — | Tag | — | tag | 実装済み | pre-styled 静的部品 実装済み（#768） |
 | `.agents/skills/chakra-ui/references/components/data-display/stat.md` | — | Stat | — | `stat` | 実装済み | pre-styled 静的部品 実装済み（#769。headless-ui は変更なし） |
 | `.agents/skills/chakra-ui/references/components/data-display/timeline.md` | — | Timeline | — | `timeline` | 実装済み | pre-styled 静的部品 実装済み（#769。headless-ui は変更なし） |
 | `.agents/skills/chakra-ui/references/components/data-display/image.md` | — | Image | — | image | 実装済み | #770。状態機械なし静的部品、pre-styled 層のみに実装（headless-ui は変更なし）。fit（object-fit）/aspect-ratio の 2 軸 variant、alt 必須引数 |
@@ -395,7 +395,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/disclosure/collapsible.md` | Collapsible | Collapsible | collapsible | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装 |
 | `.agents/skills/chakra-ui/references/components/disclosure/tabs.md` | Tabs | Tabs | tabs | tabs | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/disclosure/pagination.md` | Pagination | Pagination | — | — | 実装対象 | #751（#716 保留の解除） |
-| `.agents/skills/chakra-ui/references/components/disclosure/steps.md` | Steps | Steps | — | — | 実装対象 | #752（#716 保留の解除） |
+| `.agents/skills/chakra-ui/references/components/disclosure/steps.md` | Steps | Steps | steps | steps | 実装済み | headless+styled 実装済み（#752、#716 保留の解除） |
 | `.agents/skills/chakra-ui/references/components/disclosure/carousel.md` | Carousel | Carousel | carousel | carousel | 実装済み | headless+styled 実装済み（#754）。autoplay（play/pause/aria-live 切替/delay）は初期実装スコープ外（`crates/headless-ui/src/carousel.rs` module doc 参照） |
 | `.agents/skills/chakra-ui/references/components/disclosure/breadcrumb.md` | — | Breadcrumb | breadcrumb | breadcrumb | 実装済み | #755（#716 追加候補の消化）。headless+styled 実装済み |
 
@@ -488,8 +488,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 |---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/typography/link.md` | — | Link | — | — | 実装対象 | #756（#716 最優先候補の消化） |
 | `.agents/skills/chakra-ui/references/components/typography/link-overlay.md` | — | LinkOverlay | — | — | 実装対象 | #756（#716 最優先候補の消化） |
-| `.agents/skills/chakra-ui/references/components/typography/kbd.md` | — | Kbd | — | — | 実装対象 | #768 |
-| `.agents/skills/chakra-ui/references/components/typography/code.md` | — | Code | — | — | 実装対象 | #768 |
+| `.agents/skills/chakra-ui/references/components/typography/kbd.md` | — | Kbd | — | kbd | 実装済み | pre-styled 静的部品 実装済み（#768） |
+| `.agents/skills/chakra-ui/references/components/typography/code.md` | — | Code | — | code | 実装済み | pre-styled 静的部品 実装済み（#768） |
 | `.agents/skills/chakra-ui/references/components/typography/heading.md` | — | Heading | — | heading | 実装済み | #771 |
 | `.agents/skills/chakra-ui/references/components/typography/text.md` | — | Text | — | text | 実装済み | #771 |
 | `.agents/skills/chakra-ui/references/components/typography/em.md` | — | Em | — | em | 実装済み | #771 |
