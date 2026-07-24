@@ -328,6 +328,19 @@
 //!   「`value` は状態機械に持たせない」節参照）。`navigator.clipboard`
 //!   実配線・タイムアウトによる自動リセットは
 //!   `fandhe-frontend-wasm-full`（#773 後続）のスコープ。
+//! - [`mod@floating_panel`]: Root / Trigger / Positioner / Content / Header /
+//!   Title / Control / StageTrigger / CloseTrigger / Body の 10 anatomy
+//!   パーツと、[`state::Disclosure`]（開閉）+ 独自 [`floating_panel::Stage`]
+//!   （default/minimized/maximized）+ 座標（x, y）を持つ
+//!   [`floating_panel::FloatingPanel`] 状態機械（#827、`docs/policy/intentional-non-adoption.md`
+//!   §7 の保留解除）。[`mod@popover`] と同じく [`state::Disclosure`] を
+//!   埋め込みつつ、`stage` は既存語彙に収まらないため独自 enum とする
+//!   （[`mod@steps`] と同型の判断）。座標出力（[`floating_panel::FloatingPanel::position_style`]）は
+//!   [`mod@positioning`] の `--fandhe-x`/`--fandhe-y` 変数名を再利用するが、
+//!   anchor 相対の placement 計算自体は行わない（ドラッグ操作によるビュー
+//!   ポート絶対座標のため）。ドラッグ移動・リサイズの実 DOM 配線は
+//!   `fandhe-frontend-wasm-full` の将来イシューのスコープ（詳細は
+//!   [`floating_panel`] モジュール doc §スコープ外参照）。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
@@ -445,6 +458,7 @@ pub mod drawer;
 pub mod editable;
 pub mod field;
 pub mod fieldset;
+pub mod floating_panel;
 pub mod hover_card;
 pub mod link;
 pub mod link_overlay;
@@ -526,6 +540,7 @@ pub use drawer::{Drawer, DrawerPlacement};
 pub use editable::{Editable, EditableAction};
 pub use field::{FieldIds, FieldProps};
 pub use fieldset::FieldsetProps;
+pub use floating_panel::{FloatingPanel, FloatingPanelAction, Stage};
 pub use hover_card::{HoverCard, HoverCardDelays};
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
 pub use number_input::{NumberInput, NumberInputAction, NumberInputFlags};

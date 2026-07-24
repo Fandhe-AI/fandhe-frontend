@@ -66,6 +66,7 @@ use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
+use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps};
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
@@ -191,7 +192,8 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"drawer\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"combobox\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"hover-card\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"action-bar\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n}\n\
-.pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
+.pre-styled-showcase [data-scope=\"floating-panel\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
+.pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2,\n.pre-styled-showcase [data-scope=\"floating-panel\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"toast\"][data-part=\"group\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n";
 
@@ -250,6 +252,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::highlight::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::combobox::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::popover::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::floating_panel::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tooltip::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::hover_card::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::toggle_tip::stylesheet())?;
@@ -1504,6 +1507,75 @@ fn popover_section() -> Node {
     section(
         "Popover",
         "headless-ui の Popover（role=\"dialog\"、非モーダル）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています（実際の overlay 配置は recipe CSS が担います）。",
+        vec![node],
+    )
+}
+
+/// FloatingPanel 節: 開いた状態（stage=default）の静的マークアップ
+/// （イシュー #827）。positioner はドラッグ移動によるビューポート絶対座標
+/// （`--fandhe-x`/`--fandhe-y`、[`floating_panel::FloatingPanel::position_style`]）
+/// を持つが、ショーケース内ではフロー内配置へ中和している
+/// （[`SHOWCASE_LAYOUT_CSS`]。実際の overlay 配置・ドラッグ配線は
+/// recipe CSS/wasm 層が担う）。
+fn floating_panel_section() -> Node {
+    let panel = fandhe_frontend_pre_styled_ui::floating_panel::FloatingPanel::new(
+        OpenState::Open,
+        Stage::Default,
+        24.0,
+        24.0,
+    );
+    let style = panel.position_style();
+    let node = panel.root(
+        vec![],
+        vec![
+            panel.trigger(
+                false,
+                Some("showcase-floating-panel-content"),
+                vec![],
+                vec![text("Open panel")],
+            ),
+            panel.positioner(
+                vec![("style", style.as_str())],
+                vec![panel.content(
+                    Some("showcase-floating-panel-content"),
+                    Some("showcase-floating-panel-title"),
+                    vec![],
+                    vec![
+                        floating_panel::header(
+                            vec![],
+                            vec![
+                                floating_panel::title(
+                                    Some("showcase-floating-panel-title"),
+                                    vec![],
+                                    vec![text("Panel title")],
+                                ),
+                                floating_panel::control(
+                                    vec![],
+                                    vec![
+                                        panel.stage_trigger(
+                                            Stage::Minimized,
+                                            vec![],
+                                            vec![text("_")],
+                                        ),
+                                        panel.stage_trigger(
+                                            Stage::Maximized,
+                                            vec![],
+                                            vec![text("[]")],
+                                        ),
+                                        floating_panel::close_trigger(vec![], vec![text("x")]),
+                                    ],
+                                ),
+                            ],
+                        ),
+                        panel.body(vec![], vec![text("ドラッグで移動できるパネルの本文です。")]),
+                    ],
+                )],
+            ),
+        ],
+    );
+    section(
+        "FloatingPanel",
+        "headless-ui の FloatingPanel（role=\"dialog\"、非モーダル）に pre-styled-ui の recipe CSS を適用した静的掲示です。stage=\"default\" の状態を固定表示しています。positioner はフロー内配置へ中和しています（実際のドラッグ移動・overlay 配置は recipe CSS/wasm 層が担います）。",
         vec![node],
     )
 }
@@ -3723,6 +3795,7 @@ fn showcase_body() -> Node {
             listbox_section(),
             combobox_section(),
             popover_section(),
+            floating_panel_section(),
             tooltip_section(),
             hover_card_section(),
             toggle_tip_section(),
