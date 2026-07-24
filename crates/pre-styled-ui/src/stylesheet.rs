@@ -286,6 +286,7 @@ mod tests {
             ("number_input", crate::number_input::stylesheet()),
             ("password_input", crate::password_input::stylesheet()),
             ("slider", crate::slider::stylesheet()),
+            ("splitter", crate::splitter::stylesheet()),
             ("pin_input", crate::pin_input::stylesheet()),
             ("tags_input", crate::tags_input::stylesheet()),
             ("rating_group", crate::rating_group::stylesheet()),

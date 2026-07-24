@@ -65,6 +65,7 @@ use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::{PanelSpec, Splitter};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
 use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
@@ -93,6 +94,7 @@ use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, Separa
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
+use fandhe_frontend_pre_styled_ui::splitter;
 use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 use fandhe_frontend_pre_styled_ui::steps;
@@ -223,8 +225,8 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 /// rating_group/slider/segment_group/pagination/breadcrumb/carousel/
 /// action_bar/toast/progress/tag/kbd/code/image/icon/status/empty_state/
 /// visually_hidden/qr_code/heading/text/em/mark/blockquote/list/table/
-/// data_list/stat/timeline/scroll_area）→ ショーケース配置スタイル、の順で
-/// 決定的に連結する。
+/// data_list/stat/timeline/scroll_area/splitter）→ ショーケース配置
+/// スタイル、の順で決定的に連結する。
 ///
 /// # Errors
 ///
@@ -302,6 +304,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::stat::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::timeline::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::scroll_area::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::splitter::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -2936,6 +2939,104 @@ fn steps_section() -> Node {
     )
 }
 
+/// Splitter 節（イシュー #826）: 水平 2 パネルと垂直 3 パネルの静的掲示。
+///
+/// `panel` の伸縮は headless 中立な
+/// [`Splitter::size`](fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::Splitter::size)
+/// から導出する `--fandhe-splitter-size` CSS custom property（flex-basis
+/// 経由）の 1 点のみで伝搬する（`fandhe_frontend_pre_styled_ui::splitter`
+/// のモジュール doc「動的な値は 1 点のみ」参照）。resize-trigger のクリック・
+/// ドラッグ挙動は wasm 層のスコープ外（`crates/headless-ui/src/splitter.rs`
+/// モジュール doc §スコープ外参照）。
+fn splitter_section() -> Node {
+    let horizontal_state = Splitter::new(
+        &[
+            PanelSpec::new(60.0, 20.0, 80.0),
+            PanelSpec::new(40.0, 20.0, 80.0),
+        ],
+        Orientation::Horizontal,
+    );
+    let horizontal_demo = splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &horizontal_state,
+        false,
+        vec![],
+        vec![
+            splitter::panel(
+                &horizontal_state,
+                0,
+                "showcase-splitter-h-panel-a",
+                vec![],
+                vec![text("Panel A")],
+            ),
+            splitter::resize_trigger(
+                &horizontal_state,
+                0,
+                "showcase-splitter-h-panel-a",
+                false,
+                vec![],
+                vec![],
+            ),
+            splitter::panel(
+                &horizontal_state,
+                1,
+                "showcase-splitter-h-panel-b",
+                vec![],
+                vec![text("Panel B")],
+            ),
+        ],
+    );
+
+    let vertical_state = Splitter::new(
+        &[
+            PanelSpec::new(33.0, 0.0, 100.0),
+            PanelSpec::new(33.0, 0.0, 100.0),
+            PanelSpec::new(34.0, 0.0, 100.0),
+        ],
+        Orientation::Vertical,
+    );
+    let mut vertical_children = Vec::new();
+    for (index, label) in ["Top", "Middle", "Bottom"].iter().enumerate() {
+        let id = format!("showcase-splitter-v-panel-{index}");
+        vertical_children.push(splitter::panel(
+            &vertical_state,
+            index,
+            &id,
+            vec![],
+            vec![text(*label)],
+        ));
+        if index + 1 < 3 {
+            vertical_children.push(splitter::resize_trigger(
+                &vertical_state,
+                index,
+                &id,
+                false,
+                vec![],
+                vec![],
+            ));
+        }
+    }
+    let vertical_demo = splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &vertical_state,
+        false,
+        // column flex の root では各 panel が `flex-basis` にパーセンテージを
+        // 使うため、root 自身に解決済みの main size（高さ）がないとパーセン
+        // テージが適用されない（Bugbot 指摘、PR #862）。明示的な高さを与えて
+        // 33/33/34 分割が実際に反映されるようにする。
+        vec![("style", "height: 16rem;")],
+        vertical_children,
+    );
+
+    section(
+        "Splitter",
+        "パネルサイズ状態機械 Splitter の静的掲示（水平 2 パネル・垂直 3 パネル）。resize-trigger は role=\"separator\" + aria-valuemin/max/now（先行パネルのサイズ %）+ aria-controls を持ちます（ドラッグ・キーボード操作は wasm 層のスコープ外）。",
+        vec![row(vec![horizontal_demo]), row(vec![vertical_demo])],
+    )
+}
+
 /// CheckboxCard 節: unchecked / checked / disabled の 3 態（イシュー #747）。
 ///
 /// chakra-ui checkbox-card 相当のカード型選択 UI。状態機械は
@@ -3874,6 +3975,7 @@ fn showcase_body() -> Node {
             json_tree_view_section(),
             pagination_section(),
             steps_section(),
+            splitter_section(),
             checkbox_card_section(),
             radio_card_section(),
             breadcrumb_section(),
@@ -3944,6 +4046,7 @@ mod tests {
             "segment-group",
             "pagination",
             "steps",
+            "splitter",
             "checkbox-card",
             "radio-card",
             "breadcrumb",

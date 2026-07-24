@@ -328,6 +328,21 @@
 //!   「`value` は状態機械に持たせない」節参照）。`navigator.clipboard`
 //!   実配線・タイムアウトによる自動リセットは
 //!   `fandhe-frontend-wasm-full`（#773 後続）のスコープ。
+//! - [`mod@splitter`]: Root / Panel / ResizeTrigger / ResizeTriggerIndicator の
+//!   4 anatomy パーツと、パネルサイズ状態機械 [`splitter::Splitter`]
+//!   （#826、`docs/policy/intentional-non-adoption.md` §7・
+//!   `docs/design/component-coverage-map.md` の「保留」を解除）。
+//!   [`mod@slider`] と同じく [`state`] の既存語彙に収まらないため、
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
+//!   `resize-trigger` は `role="separator"` + `aria-valuemin`/`aria-valuemax`/
+//!   `aria-valuenow`（先行パネルのサイズ%）+ `aria-orientation`（セパレータ
+//!   自体の向き、パネルレイアウトの向きとは逆。[`splitter`] モジュール doc
+//!   参照）+ `aria-controls`（先行パネル id）を出力する WAI-ARIA Window
+//!   Splitter パターン準拠。パネル構成の正規化は fail-closed
+//!   （[`splitter::Splitter::new`] 参照）。pointer ドラッグ・キーボード操作の
+//!   DOM 配線・collapse/expand・`onResize`/`onCollapse` コールバックは本
+//!   イシューのスコープ外（[`splitter`] モジュール doc §スコープ外参照）。
 //! - [`mod@floating_panel`]: Root / Trigger / Positioner / Content / Header /
 //!   Title / Control / StageTrigger / CloseTrigger / Body の 10 anatomy
 //!   パーツと、[`state::Disclosure`]（開閉）+ 独自 [`floating_panel::Stage`]
@@ -497,6 +512,7 @@ pub mod segment_group;
 pub mod select;
 pub mod skip_nav;
 pub mod slider;
+pub mod splitter;
 pub mod state;
 pub mod steps;
 pub mod switch;
@@ -575,6 +591,7 @@ pub use radio_group::RadioGroup;
 pub use rating_group::{RatingGroup, RatingGroupAction, RatingItemFlags};
 pub use segment_group::SegmentGroup;
 pub use slider::{Slider, SliderAction};
+pub use splitter::{PanelSpec, Splitter, SplitterAction};
 pub use state::{
     Checkable, CheckableAction, Disclosure, DisclosureAction, MultiSelect, MultiSelectAction,
     OpenState, SingleSelect, SingleSelectAction, TextInput, TextInputAction, DATA_STATE_CHECKED,
