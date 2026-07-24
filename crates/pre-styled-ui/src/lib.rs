@@ -87,6 +87,13 @@
 //!   呼び出し側 `attrs` に含まれる `class` は `class_attr`（内部専用モジュール）
 //!   が除去してから recipe 生成クラスと合成し、`class` 属性が常に単一になる
 //!   ことを保証する。
+//! - [`mod@charts`]（#846、親 Phase #845）: charts 基盤（座標スケーリング・
+//!   SVG ノード木生成・`ChartData` モデル）。[`charts::data::ChartData`]/
+//!   [`charts::scale::LinearScale`]/[`charts::svg`] の 3 モジュールで構成し、
+//!   `docs/policy/intentional-non-adoption.md` §7 の chakra-ui charts 保留
+//!   （recharts 依存のため）を、外部依存ゼロの SVG ノード木生成へ置き換える
+//!   足場を提供する（個々のチャート部品は #847〜#851 のスコープ、配置先
+//!   判断は `docs/design/charts-foundation-design.md` 参照）。
 //!
 //! - headless 状態機械を持つ複合部品 5 種の styled ラッパー第 1 弾（#551）:
 //!   [`mod@dialog`] / [`mod@tabs`] / [`mod@accordion`] / [`mod@menu`] /
@@ -498,6 +505,7 @@ pub mod button;
 pub mod calendar;
 pub mod card;
 pub mod carousel;
+pub mod charts;
 pub mod checkbox;
 pub mod checkbox_card;
 mod class_attr;
