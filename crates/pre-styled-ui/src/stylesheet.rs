@@ -309,6 +309,7 @@ mod tests {
             ("kbd", crate::kbd::css()),
             ("code", crate::code::css()),
             ("color_swatch", crate::color_swatch::css()),
+            ("color_picker", crate::color_picker::css()),
             ("action_bar", crate::action_bar::stylesheet()),
             ("toast", crate::toast::stylesheet()),
             ("tour", crate::tour::stylesheet()),
@@ -331,6 +332,9 @@ mod tests {
             ("timeline", crate::timeline::css()),
             ("marquee", crate::marquee::css()),
             ("scroll_area", crate::scroll_area::stylesheet()),
+            ("calendar", crate::calendar::stylesheet()),
+            ("date_picker", crate::date_picker::stylesheet()),
+            ("date_input", crate::date_input::stylesheet()),
             ("timer", crate::timer::stylesheet()),
         ]
     }

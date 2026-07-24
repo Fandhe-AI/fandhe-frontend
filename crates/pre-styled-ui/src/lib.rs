@@ -352,6 +352,16 @@
 //!   を内部で 2 回複製しシームレスループを実現する（2 個目は常時
 //!   `aria-hidden`）。`direction` の 1 軸 variant のみを持つ。詳細は
 //!   [`mod@marquee`] rustdoc 参照）。
+//! - headless 状態機械を持つ複合部品の styled ラッパー（イシュー #834、
+//!   `docs/policy/intentional-non-adoption.md` §7・
+//!   `docs/design/component-coverage-map.md` の date-time 系「保留」を
+//!   DateInput 分のみ解除）: [`mod@date_input`]。`size` variant のみを
+//!   root へ持ち（`--fandhe-date-input-*` CSS custom property 経由で
+//!   `segment`/`segment-group` へ継承）、`color-palette` は提供しない
+//!   （[`mod@number_input`] と同型の判断、フォーム入力部品のため）。
+//!   `segment` はネイティブ `<input>` ではなく `div role="spinbutton"` の
+//!   ため [`recipe::StateCondition::FocusVisible`] で足りる（`splitter`
+//!   の `resize-trigger` と同型）。詳細は [`mod@date_input`] rustdoc 参照。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -485,6 +495,7 @@ pub mod badge;
 pub mod blockquote;
 pub mod breadcrumb;
 pub mod button;
+pub mod calendar;
 pub mod card;
 pub mod carousel;
 pub mod checkbox;
@@ -492,10 +503,13 @@ pub mod checkbox_card;
 mod class_attr;
 pub mod clipboard;
 pub mod code;
+pub mod color_picker;
 pub mod color_swatch;
 pub mod combobox;
 pub mod css;
 pub mod data_list;
+pub mod date_input;
+pub mod date_picker;
 pub mod dialog;
 pub mod download_trigger;
 pub mod drawer;

@@ -26,16 +26,20 @@
 //! テストは以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
 use fandhe_frontend_core::{escape_html, render, text};
+use fandhe_frontend_headless_ui::calendar;
+use fandhe_frontend_headless_ui::date::{PlainDate, Weekday};
+use fandhe_frontend_headless_ui::date_picker;
 use fandhe_frontend_headless_ui::positioning::{Align, Placement, Side};
 use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::scroll_area;
 use fandhe_frontend_headless_ui::tour::{self, TourStep};
 use fandhe_frontend_headless_ui::{
-    action_bar, aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog,
-    download_trigger, editable, floating_panel, hover_card, listbox, number_input, password_input,
-    pin_input, popover, rating_group, segment_group, slider, splitter, tags_input, timer, toast,
-    tree_view, ImageStatus, OpenState, Orientation, PasswordAutocomplete, PasswordInputProps,
-    Steps, ToastStatus, Tour,
+    action_bar, aria_controls, aria_label, avatar, carousel, clipboard, color_picker, data_state,
+    date_input, dialog, download_trigger, editable, floating_panel, hover_card, listbox,
+    number_input, password_input, pin_input, popover, rating_group, segment_group, slider,
+    splitter, tags_input, timer, toast, tree_view, Calendar, DatePicker, DateSegmentFlags,
+    ImageStatus, OpenState, Orientation, PasswordAutocomplete, PasswordInputProps, Steps,
+    ToastStatus, Tour,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -1259,6 +1263,253 @@ fn scroll_area_attrs_and_children_payloads_are_escaped_for_all_payloads() {
             payload,
             &html,
             "scroll_area::content の children コンテキスト",
+        );
+    }
+}
+
+/// (1)/(2) ColorPicker（イシュー #839）: `channel_input`/`hidden_input` の
+/// 属性値経路・`area_thumb` の `aria-valuetext` 属性値経路・`label` の
+/// テキスト経路へ全ペイロードを注入し、エスケープが貫通することを固定する。
+#[test]
+fn color_picker_attrs_valuetext_and_children_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let html = render(&color_picker::channel_input(payload, false, vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "color_picker::channel_input の value 属性値コンテキスト",
+        );
+
+        let html = render(&color_picker::hidden_input(
+            payload,
+            "#ffffff",
+            false,
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "color_picker::hidden_input の name 属性値コンテキスト",
+        );
+
+        let html = render(&color_picker::area_thumb(payload, false, vec![], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "color_picker::area_thumb の aria-valuetext 属性値コンテキスト",
+        );
+
+        let html = render(&color_picker::label(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "color_picker::label のテキストコンテキスト");
+    }
+}
+
+/// (3) ColorPicker: hydration 復元経路（`data-hydrate-h`）へ XSS payload を
+/// 渡しても復元に失敗し（`HydrateError`）、値がそのまま出力に混入しない
+/// ことを固定する（`slider`/`json_tree_view` の hydration payload 回帰と
+/// 同型）。
+#[test]
+fn color_picker_hydration_xss_payload_is_rejected_not_rendered() {
+    use fandhe_frontend_interactive::Hydrate;
+    for payload in payloads::all() {
+        let attrs = vec![
+            ("data-hydrate-h".to_string(), payload.to_string()),
+            ("data-hydrate-s".to_string(), "0".to_string()),
+            ("data-hydrate-v".to_string(), "0".to_string()),
+            ("data-hydrate-a".to_string(), "255".to_string()),
+            ("data-hydrate-state".to_string(), "closed".to_string()),
+        ];
+        assert!(color_picker::ColorPicker::from_hydration_attrs(&attrs).is_err());
+    }
+}
+
+/// DateInput（イシュー #834）: (2) 属性値経路（`hidden_input` の
+/// `name`/`value`・呼び出し側 `attrs`）が全ペイロードでエスケープされる
+/// ことを固定する（`pin_input_hidden_input_and_input_value_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn date_input_hidden_input_name_value_and_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let hidden_node = date_input::hidden_input(payload, payload, false, vec![]);
+        let html = render(&hidden_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "date_input::hidden_input の name/value コンテキスト",
+        );
+
+        let attrs_node = date_input::root(false, false, vec![("data-testid", payload)], vec![]);
+        let html = render(&attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "date_input::root の呼び出し側 attrs コンテキスト",
+        );
+    }
+}
+
+/// DateInput: (1) テキスト経路（[`date_input::label`] の children）が
+/// 全ペイロードでエスケープされることを固定する。
+#[test]
+fn date_input_label_children_text_is_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let node = date_input::label(false, false, None, vec![], vec![text(payload)]);
+        let html = render(&node);
+        assert_payload_is_escaped(payload, &html, "date_input::label のテキストコンテキスト");
+    }
+}
+
+/// DateInput: dispatch `"set-segment"`/`"set"` の payload はクライアント
+/// 由来の信頼できない入力として fail-closed にパース・拒否される
+/// （`splitter_dispatch_set_payload_is_rejected_or_escaped_on_hydration_render`
+/// と同型）。不正 payload は no-op のため hydration 出力に script タグとして
+/// 混入しないことを併せて確認する。
+#[test]
+fn date_input_dispatch_set_segment_and_set_payload_is_rejected_on_hydration_render() {
+    use fandhe_frontend_headless_ui::date_input::DateInput;
+    use fandhe_frontend_interactive::{dispatch, render_for_hydration};
+
+    for payload in payloads::all() {
+        let mut d = DateInput::default();
+        let set_segment_payload = format!("year:{payload}");
+        let _ = dispatch(&mut d, "set-segment", &set_segment_payload);
+        let _ = dispatch(&mut d, "set", payload);
+        let html = render(&render_for_hydration(&d));
+        assert!(
+            !html.contains("<script"),
+            "payload={payload:?} が hydration 出力に script タグとして混入した: {html}"
+        );
+    }
+}
+
+/// DateInput: [`date_input::segment`] の `attrs` 経由の属性値注入が
+/// エスケープされることを固定する（`DateSegmentFlags` 経由のパーツ関数も
+/// 他コンポーネントと同じ既定エスケープ委譲を維持することの確認）。
+#[test]
+fn date_input_segment_attrs_payload_is_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let node = date_input::segment(
+            fandhe_frontend_headless_ui::date_input::DateSegment::Year,
+            None,
+            "0",
+            "9999",
+            DateSegmentFlags::default(),
+            vec![("data-testid", payload)],
+        );
+        let html = render(&node);
+        assert_payload_is_escaped(payload, &html, "date_input::segment の attrs コンテキスト");
+    }
+}
+
+/// Calendar（イシュー #835）の `heading` children・`day_trigger` の `id`
+/// 属性・呼び出し側 `attrs` の 3 経路がエスケープされることを固定する。
+#[test]
+fn calendar_heading_children_and_day_trigger_attrs_are_escaped_for_all_payloads() {
+    let d = PlainDate::new(2026, 7, 22).unwrap();
+    for payload in payloads::all() {
+        let html = render(&calendar::heading(None, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "calendar::heading の children コンテキスト");
+
+        let html = render(&calendar::day_trigger(
+            d,
+            false,
+            false,
+            false,
+            false,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "calendar::day_trigger の id 属性コンテキスト",
+        );
+
+        let html = render(&calendar::root(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "calendar::root の attrs コンテキスト");
+    }
+}
+
+/// Calendar の dispatch `"select"` payload（クライアント由来の改ざんされうる
+/// 入力）は `PlainDate::parse_iso` の fail-closed 検証を通らない限り状態を
+/// 変更しないため、hydration 出力へ生ペイロードが混入しないことを固定する。
+#[test]
+fn calendar_dispatch_select_payload_is_rejected_or_escaped_on_hydration_render() {
+    use fandhe_frontend_interactive::{dispatch, render_for_hydration};
+
+    for payload in payloads::all() {
+        let mut cal = Calendar::new(
+            2026,
+            7,
+            PlainDate::new(2026, 7, 1).unwrap(),
+            None,
+            None,
+            None,
+            Weekday::Monday,
+        )
+        .unwrap();
+        let _ = dispatch(&mut cal, "select", payload);
+        let html = render(&render_for_hydration(&cal));
+        assert!(
+            !html.contains("<script"),
+            "payload={payload:?} が hydration 出力に script タグとして混入した: {html}"
+        );
+    }
+}
+
+/// DatePicker（イシュー #835）の `trigger`/`input` の属性経路がエスケープ
+/// されることを固定する。
+#[test]
+fn date_picker_trigger_and_input_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let html = render(&date_picker::trigger(
+            OpenState::Closed,
+            false,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "date_picker::trigger の controls 属性コンテキスト",
+        );
+
+        let html = render(&date_picker::input(Some(payload), false, None, vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "date_picker::input の value 属性コンテキスト",
+        );
+    }
+}
+
+/// DatePicker の dispatch `"select"` payload が hydration 出力へ生のまま
+/// 混入しないことを固定する（[`calendar_dispatch_select_payload_is_rejected_or_escaped_on_hydration_render`]
+/// と同型。DatePicker は Calendar を埋め込むため同じ fail-closed 経路を
+/// 継承する）。
+#[test]
+fn date_picker_dispatch_select_payload_is_rejected_or_escaped_on_hydration_render() {
+    use fandhe_frontend_interactive::{dispatch, render_for_hydration};
+
+    for payload in payloads::all() {
+        let calendar = Calendar::new(
+            2026,
+            7,
+            PlainDate::new(2026, 7, 1).unwrap(),
+            None,
+            None,
+            None,
+            Weekday::Monday,
+        )
+        .unwrap();
+        let mut dp = DatePicker::new(calendar);
+        let _ = dispatch(&mut dp, "select", payload);
+        let html = render(&render_for_hydration(&dp));
+        assert!(
+            !html.contains("<script"),
+            "payload={payload:?} が hydration 出力に script タグとして混入した: {html}"
         );
     }
 }

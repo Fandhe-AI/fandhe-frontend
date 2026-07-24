@@ -98,6 +98,8 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | DownloadTrigger | `download_trigger` | Root | なし（自由関数のみ。`a[download]` 属性による宣言的ダウンロードトリガー（ark-ui/chakra-ui の `Blob`/非同期 `data` 前提の DownloadTrigger を静的部品として代替）。`href` の URL スキーム検証は `render()` 側の既定経路（`data:`/`blob:` を含め deny-by-default）に委譲し、独自検証を追加しない） | #828 |
 | Splitter | `splitter` | Root/Panel/ResizeTrigger/ResizeTriggerIndicator | 独自実装（各パネルの `size`/`min`/`max`（%）を fail-closed に正規化するパネルサイズ状態機械。`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`resize-trigger` は `role="separator"` + `aria-valuemin/max/now`（先行パネルのサイズ%）+ `aria-orientation`（セパレータ自体の向き、パネルレイアウトの向きとは逆）+ `aria-controls`（先行パネル id）を出力する WAI-ARIA Window Splitter パターン準拠。pointer ドラッグ・キーボード操作の DOM 配線・collapse/expand は wasm-full 後続イシューのスコープ外） | #826（`docs/policy/intentional-non-adoption.md` §7・`docs/design/component-coverage-map.md` の保留を解除） |
 | JsonTreeView | `json_tree_view` | Key/Value（`tree_view` の Root/Label/Tree/Branch/BranchControl/BranchIndicator/BranchContent/BranchIndentGuide/Item/ItemIndicator を構造部として再利用） | `tree_view::TreeView`（#753）をそのまま再利用（新規状態機械なし）。決定的な JSON 風データ構造 `JsonValue`（外部依存ゼロの自前 enum、`Object` は挿入順保持の `Vec` ペア列）をツリー表示する。ノード識別子（`data-value`）は RFC 6901 JSON Pointer で決定的に導出し、`value` パーツの `data-kind`（`"null"`/`"bool"`/`"number"`/`"string"`/`"array"`/`"object"`）は `JsonValue::kind` の固定語彙のみを出力する。`expanded_to_depth` は ark-ui `defaultExpandedDepth` 相当の決定的初期展開ヘルパ | #829（`tree_view` #753 の派生、`docs/policy/intentional-non-adoption.md` §7 の保留解除） |
+| ColorPicker | `color_picker` | Root/Label/Control/Trigger/Positioner/Content/Area/AreaBackground/AreaThumb/ChannelSlider(+Track/+Thumb)/ChannelInput/ValueText/HiddenInput | `Hsv`（#838）+ `alpha: u8` + `state::Disclosure`（開閉）を埋め込んだ独自実装。色領域・色相/アルファスライダーの見た目は canvas 非依存（CSS グラデーション + `area_x_percent`/`area_y_percent`/`hue_percent`/`alpha_percent` の導出整数割合のみ）。dispatch は `"open"`/`"close"`/`"toggle"`/`"set_hex"`（`Color::parse_hex` 検証）/`"set_channel"`（payload `"<channel>:<value>"`、固定語彙 + 範囲検証）。EyeDropperTrigger・SwatchGroup 系・format 切替・pointer ドラッグの DOM 配線はスコープ外 | #839（親 #837、`docs/policy/intentional-non-adoption.md` §7 の保留解除） |
+| DateInput | `date_input` | Root/Label/Control/SegmentGroup/Segment/HiddenInput | 独自実装（年/月/日セグメント + フォーカス位置を持つ値状態機械。`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。暦計算は `date`（#833）の `PlainDate::new`/`parse_iso`/`days_in_month` へ委譲し、本モジュール自体は現在時刻を取得しない。各 `segment` は `role="spinbutton"` + `aria-valuemin/max/now`（未入力時は valuenow 省略 + `data-placeholder`）+ `aria-label`（"Year"/"Month"/"Day"）を出力する WAI-ARIA Spinbutton パターン準拠。3 セグメント充足時のみ `PlainDate::new` で実在日付として検証し（`2/30` 等は `value()` が `None` を返す fail-closed 契約。セグメント値自体は破棄せず `data-invalid` で可視化する）、hydration も同じ契約（構造的範囲外・パース不能のみ拒否、実在しない日付はそのまま受理）。`date_input::segment_group` は `segment_group`（segmented control、#743）とは無関係の別 anatomy スコープ。granularity（hour/minute/second）・range 選択・locale 依存整形・キーボード操作の DOM 配線は wasm-full 後続イシューのスコープ外 | #834（`date` #833 を先行前提として利用、`docs/policy/intentional-non-adoption.md` §7・`docs/design/component-coverage-map.md` の date-time 系「保留」を DateInput 分のみ解除） |
 | Timer | `timer` | Root/Area/Item/ItemValue/ItemLabel/Separator/Control/ActionTrigger | 独自実装（idle/running/paused/completed の 4 値、`Clipboard` と同じ理由で `Component`/`Hydrate` を直接実装。`countdown`/`start_ms`/`target_ms`/`interval_ms` の設定値も状態機械へ持たせ hydration で往復させる。tick（経過ミリ秒）を `TimerAction::Tick` として外部から明示的に注入する決定的状態機械であり `std::time`/`Instant` 等の時計 API に一切依存しない。`docs/design/component-coverage-map.md` 保留解除（date-time 系）。実 tick 駆動（`setInterval`）は `fandhe-frontend-wasm-full::headless_timer` が提供する） | #836 |
 | Tour | `tour` | Root/Backdrop/Spotlight/Positioner/Arrow/ArrowTip/Content/Title/Description/ProgressText/CloseTrigger/ActionTrigger | 独自実装（`Idle`/`Active { step }`/`Skipped`/`Completed` の 4 値、`Steps`/`Toast` と同じ理由で `Component`/`Hydrate` を直接実装。`content` は `role="dialog"` + `aria-labelledby`/`aria-describedby`、`progress-text` は `aria-live="polite"`。`positioner` は現在ステップの `placement`（`positioning::Placement`）から `data-side`/`data-align` を静的出力するのみで座標計算は行わない（ADR §4.1）。`spotlight` は `target` を `data-target` としてエスケープ済み出力するのみで DOM 解決は行わない。対象要素の実座標追従・スクロール/リサイズ再計算・`target` セレクタの実解決・クリック/キーボードの実配線は `fandhe-frontend-wasm-full` の後続イシューのスコープ外。`docs/design/component-coverage-map.md` 保留解除（装飾系）） | #841（#735 保留の解除） |
 
@@ -107,8 +109,8 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 UI コンポーネント群とは性質が異なる（ブラウザ API 依存なし・wasm 境界隔離の
 対象外）。RGB / HSL / HSV / HEX の相互変換を、外部依存ゼロ・整数演算のみで
 提供する。`fandhe-frontend-pre-styled-ui::color_swatch`（ColorSwatch、#838）
-と後続の ColorPicker（#837 配下の別イシュー）が本モジュールの型・変換関数を
-土台にする。
+と `color_picker`（ColorPicker、#839）が本モジュールの型・変換関数を土台に
+する。
 
 - **型**: `Rgb { r, g, b }`（全フィールド公開、`u8` 全域が有効値）/
   `Hsl`・`Hsv`（`h: u16`（`0..=359`）・`s`/`l`/`v: u8`（`0..=100`）、フィールド
@@ -418,6 +420,40 @@ DateInput / Timer、`docs/design/component-coverage-map.md` の保留区分・
   知られる純整数アルゴリズムを使う。曜日・加減算・日付差・月グリッドの
   全 API をこの単一の変換対に載せることで、往復変換の性質テストだけで
   土台の正しさを固定できる。
+
+## 4d. Calendar / DatePicker（イシュー #835、親トラッキング #832）
+
+親イシュー #832 の date-time 系コンポーネントのうち、暦計算コア
+（§4c、#833）を利用する Calendar / DatePicker を実装した（親 #832 の保留を
+解除、`docs/design/component-coverage-map.md` 参照）。
+
+### 4d.1 Calendar（`calendar` モジュール）
+
+| 項目 | 内容 |
+|---|---|
+| anatomy パーツ | Root/Heading/PrevTrigger/NextTrigger/Table/TableHeader/TableRow/TableHeadCell/TableBody/TableCell/DayTrigger の 11 パーツ |
+| 状態機械 | `Calendar`（`view_year`/`view_month`/`selected`/`today`/`min`/`max`/`week_start`）。`CalendarAction`: `PrevMonth`/`NextMonth`/`Select(PlainDate)`/`ClearSelection` |
+| dispatch 名 | `"prev-month"`/`"next-month"`/`"select"`（payload は ISO 8601 文字列）/`"clear-selection"` |
+| 決定性契約 | **「今日」は `Calendar::new` の `today` 引数として呼び出し側が明示的に渡す**。本モジュールは現在時刻 API を一切呼ばない（§4c と同じ契約、`crates/headless-ui/tests/calendar.rs::calendar_module_never_reads_the_current_time` が機械強制） |
+| fail-closed | `min > max` は `Calendar::new` が `Err(DateError::InvalidDate)` を返す。範囲外選択・年 `0000`/`9999` 境界での月移動は状態を変更しない（無移動）。`Calendar::weeks()` が `Err` を返す極端な境界では `table_body_from_grid` が空の `tbody` を返す（panic しない） |
+| ARIA | WAI-ARIA APG grid パターン（`role="grid"`/`"row"`/`"columnheader"`/`"gridcell"`）。今日は `aria-current="date"`、選択日は `aria-selected="true"` |
+
+### 4d.2 DatePicker（`date_picker` モジュール）
+
+| 項目 | 内容 |
+|---|---|
+| anatomy パーツ | Root/Label/Control/Input/Trigger/ClearTrigger/Positioner/Content の 8 パーツ |
+| positioner/content の基盤 | `crate::popover`（`state::Disclosure`）と同一の開閉・配置基盤を再利用する。独自のオーバーレイ機構は持たない |
+| 状態機械 | `DatePicker`（`state::Disclosure` + `calendar::Calendar` の合成）。`DatePickerAction`: `Open`/`Close`/`Toggle`/`PrevMonth`/`NextMonth`/`Select(PlainDate)`/`ClearSelection` |
+| dispatch 名 | `"open"`/`"close"`/`"toggle"`/`"prev-month"`/`"next-month"`/`"select"`（payload は ISO 8601 文字列）/`"clear-selection"`。`"select"` は ark-ui の `closeOnSelect` 既定 `true` に準拠し popover を閉じる |
+| `input` パーツ | ネイティブ `<input type="text">`。`value` は `PlainDate::to_iso_string()` 由来の ISO 8601 表記のみを受け取る契約（DateInput との連携は行わない） |
+| DateInput（#834）との責務境界 | 本コンポーネントはセグメント式 DateInput に依存せず、ISO 8601 値のネイティブ `<input>` だけで完結する。連携強化は #834 側の作業 |
+
+### 4d.3 スコープ外（#835 時点）
+
+- キーボードナビゲーション（矢印キーでの gridcell フォーカス移動・roving tabindex）の実 DOM 配線
+- 範囲選択（range mode）・複数月表示（multi-month）・年/月ビュー切替
+- DateInput（#834）との配線・wasm-full ハイドレーション配線
 
 ## 5. 呼び出し規約（SSR / CSR 共通の前提）
 
