@@ -74,9 +74,11 @@ fn bubbling_event(kind: &str) -> Event {
 
 /// `SignaturePad` を `Runtime<C>` へ載せるための最小ホスト
 /// （`headless_avatar_browser.rs::TestAvatarHost` と同じ「dispatch/view を
-/// そのまま委譲するだけの薄いラッパー」パターン）。本テストでは束縛点
-/// 更新は検証対象外（`runtime.component()` から直接状態を読むため）のため
-/// `DirtyTracked`/`BindingSource` は空実装で足りる。
+/// そのまま委譲するだけの薄いラッパー」パターン）。`DirtyTracked` は
+/// `SignaturePad::dirty_fields()` へそのまま委譲する（イシュー #843、Bugbot
+/// 指摘「Runtime skips stroke DOM updates」の回帰固定に `add-stroke` 経由の
+/// keyed list 差分適用を使うテストがあるため、空実装のままでは
+/// `Runtime::wire_signature_pad` の dirty 駆動 DOM 更新経路自体が検証できない）。
 struct TestSignaturePadHost(SignaturePad);
 
 impl fandhe_frontend_interactive::Component for TestSignaturePadHost {
@@ -97,7 +99,7 @@ impl fandhe_frontend_interactive::Component for TestSignaturePadHost {
 
 impl fandhe_frontend_interactive::DirtyTracked for TestSignaturePadHost {
     fn dirty_fields(&self) -> &[&'static str] {
-        &[]
+        fandhe_frontend_interactive::DirtyTracked::dirty_fields(&self.0)
     }
 }
 
@@ -197,6 +199,80 @@ fn runtime_hydrate_csr_fallback_wires_clear_trigger_click_for_signature_pad() {
         runtime.component().0.is_empty(),
         "Runtime::hydrate（CSR フォールバック経路）でも ClearTrigger クリックで \
          全ストロークが削除されていること"
+    );
+}
+
+/// `Runtime::mount` 経由で dispatch された `add-stroke` が、マウント済み DOM の
+/// `data-bind-list="strokes"` keyed list へ実際に新規 `<path>` を反映し、
+/// かつその `<path>` が SVG 名前空間で生成されること（イシュー #843、Bugbot
+/// 指摘「Runtime skips stroke DOM updates」の回帰固定）。
+///
+/// 修正前は 2 段階の不具合があった: (1) `SignaturePad` が `DirtyTracked` を
+/// 実装しておらず `Component::view` も静的な子ノード列を描画していたため
+/// `Runtime::wire_signature_pad` の dirty 駆動 DOM 反映が一切発火しなかった、
+/// (2) 仮に発火しても `fandhe-frontend-wasm-client` の keyed list 挿入
+/// （`build_dom_node`）は `document.create_element` で HTML 名前空間の
+/// 要素を作るため、`<svg>` 配下へ挿入された `<path>` は SVG として描画
+/// されなかった（`crates/wasm-client/src/keyed_dom.rs` 側の是正）。本テストは
+/// 両方の是正を通しで検証する。
+#[wasm_bindgen_test]
+fn runtime_mount_add_stroke_updates_keyed_list_dom_in_svg_namespace() {
+    let window = web_sys::window().expect("window must exist");
+    let document = window.document().expect("document must exist");
+    let placeholder = create_placeholder(&document, "signature-pad-runtime-mount-add-stroke-root");
+    let _cleanup = RemoveOnDrop(placeholder.clone());
+
+    let host = TestSignaturePadHost(SignaturePad::new(Vec::new(), false, false));
+    let runtime = Runtime::mount("signature-pad-runtime-mount-add-stroke-root", host)
+        .expect("Runtime::mount must not fail");
+
+    let segment = placeholder
+        .query_selector(r#"[data-scope="signature-pad"][data-part="segment"]"#)
+        .expect("query_selector must not fail")
+        .expect("mount 後に segment（svg）要素が存在すること");
+    assert!(
+        segment
+            .query_selector_all("[data-key]")
+            .expect("query_selector_all must not fail")
+            .length()
+            == 0,
+        "mount 直後（ストロークなし）は keyed list 子要素が 0 件であること"
+    );
+
+    let control = placeholder
+        .query_selector(r#"[data-scope="signature-pad"][data-part="control"]"#)
+        .expect("query_selector must not fail")
+        .expect("mount 後に control 要素が存在すること");
+    control
+        .dispatch_event(&new_pointer_event("pointerdown", 7))
+        .expect("dispatch_event(pointerdown) must not fail");
+    control
+        .dispatch_event(&new_pointer_event("pointerup", 7))
+        .expect("dispatch_event(pointerup) must not fail");
+
+    assert_eq!(
+        runtime.component().0.strokes().len(),
+        1,
+        "pointerdown/pointerup で 1 ストロークが確定していること（前提条件）"
+    );
+
+    let path = segment
+        .query_selector("path[data-key]")
+        .expect("query_selector must not fail")
+        .expect(
+            "add-stroke 後、Runtime::wire_signature_pad の dirty 駆動 keyed list \
+             差分適用でマウント済み DOM へ新規 <path data-key> が挿入されて \
+             いること（この要素が見つからない場合、Bugbot 指摘のとおり \
+             SignaturePad が dirty_fields を報告していないか、view() が \
+             keyed list を描画していない）",
+        );
+
+    assert_eq!(
+        path.namespace_uri().as_deref(),
+        Some("http://www.w3.org/2000/svg"),
+        "keyed list 経由で挿入された <path> は SVG 名前空間で生成されている \
+         こと（HTML 名前空間のままだとブラウザが SVG として描画しない、\
+         `crates/wasm-client/src/keyed_dom.rs` の是正対象）"
     );
 }
 

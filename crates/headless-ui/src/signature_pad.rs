@@ -81,8 +81,11 @@
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_label, role};
 use crate::data_attrs::{data_disabled, data_readonly};
+use fandhe_frontend_core::keyed::keyed_list;
 use fandhe_frontend_core::Node;
-use fandhe_frontend_interactive::{codec, Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
+use fandhe_frontend_interactive::{
+    codec, Component, DirtyTracked, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX,
+};
 use std::fmt::Write as _;
 
 /// SignaturePad の anatomy（`data-scope="signature-pad"`）。
@@ -403,11 +406,30 @@ pub enum SignaturePadAction {
 /// （閲覧のみ、`AddStroke`/`Clear`/`Undo` をすべて拒否する）は
 /// [`Self::update`] のガードとして働く（モジュール doc「セキュリティ
 /// 不変条件」参照）。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// `dirty` は [`DirtyTracked::dirty_fields`] の実体（イシュー #843、Bugbot
+/// 指摘「Runtime skips stroke DOM updates」の是正）。`crate::state::Disclosure`
+/// と同じ「描画同期メタデータであり [`PartialEq`] の比較対象から除外する」
+/// 設計を踏襲する（下記手動実装）。
+#[derive(Debug, Clone)]
 pub struct SignaturePad {
     strokes: Vec<Stroke>,
     disabled: bool,
     read_only: bool,
+    dirty: Vec<&'static str>,
+}
+
+// `dirty` を除外した手動 `PartialEq`（上記の型ドキュメント参照）。
+// `strokes`/`disabled`/`read_only` の同値性のみを比較することで、
+// `update()` 直後（dirty が非空になり得る）とハイドレーション復元直後
+// （dirty 常に空）の状態を「同じ状態」として同一視できる
+// （`crate::state::Disclosure` の `PartialEq` 手動実装と同じ判断）。
+impl PartialEq for SignaturePad {
+    fn eq(&self, other: &Self) -> bool {
+        self.strokes == other.strokes
+            && self.disabled == other.disabled
+            && self.read_only == other.read_only
+    }
 }
 
 impl Default for SignaturePad {
@@ -432,6 +454,7 @@ impl SignaturePad {
             strokes,
             disabled,
             read_only,
+            dirty: Vec::new(),
         }
     }
 
@@ -510,11 +533,37 @@ impl SignaturePad {
 
     /// 現在の全ストロークから [`segment_path`] ノード列を組み立てる
     /// （[`segment`] の children として渡す想定）。
+    ///
+    /// 本メソッドが返すのは keyed list マーカー（`data-bind-list`/`data-key`）
+    /// を持たない素の子ノード列であり、呼び出し側が独自に `view()` を組み立てる
+    /// 場合の利便メソッドとして残す。[`Component::view`]（正準ビュー）は
+    /// [`Self::segment_path_items`] 経由で keyed list として描画する
+    /// （イシュー #843、Bugbot 指摘「Runtime skips stroke DOM updates」の
+    /// 是正。`Runtime` の keyed list 差分適用（`fandhe-frontend-wasm-full` の
+    /// `Self::wire_signature_pad`）が `"strokes"` の追加・削除を検知するには
+    /// `data-bind-list="strokes"`/`data-key` マーカーが必要）。
     #[must_use]
     pub fn segment_paths(&self) -> Vec<Node> {
         self.strokes
             .iter()
             .map(|s| segment_path(s, Vec::new()))
+            .collect()
+    }
+
+    /// [`Component::view`] 専用: 現在の全ストロークから keyed list の
+    /// `(key, Node)` 項目列を組み立てる。
+    ///
+    /// キーはストロークの挿入順インデックス（`0`, `1`, ...）を文字列化した
+    /// ものを使う。`AddStroke` は末尾追加、`Undo` は末尾除去、`Clear` は
+    /// 全除去のみを行い、途中挿入・並べ替えは一切発生しない
+    /// （[`Component::update`] 参照）ため、インデックスキーは常に非空・
+    /// 一意であり、`fandhe_frontend_core::keyed::keyed_list` の
+    /// `EmptyKey`/`DuplicateKey` 検査に抵触しない。
+    fn segment_path_items(&self) -> Vec<(String, Node)> {
+        self.strokes
+            .iter()
+            .enumerate()
+            .map(|(index, s)| (index.to_string(), segment_path(s, Vec::new())))
             .collect()
     }
 
@@ -542,6 +591,10 @@ impl Component for SignaturePad {
     type Action = SignaturePadAction;
 
     fn update(&mut self, action: SignaturePadAction) {
+        // `dirty` は [`DirtyTracked`] の契約（`crates/interactive/src/lib.rs`
+        // 「直前の update() 呼び出し」で実変更が起きたフィールドのみを
+        // 記録する）に従い、呼び出し冒頭でクリアする。
+        self.dirty.clear();
         if self.is_locked() {
             return;
         }
@@ -551,12 +604,19 @@ impl Component for SignaturePad {
                     return;
                 }
                 self.strokes.push(stroke);
+                self.dirty.push(Self::FIELD_STROKES);
             }
             SignaturePadAction::Clear => {
+                if self.strokes.is_empty() {
+                    return;
+                }
                 self.strokes.clear();
+                self.dirty.push(Self::FIELD_STROKES);
             }
             SignaturePadAction::Undo => {
-                self.strokes.pop();
+                if self.strokes.pop().is_some() {
+                    self.dirty.push(Self::FIELD_STROKES);
+                }
             }
         }
     }
@@ -565,18 +625,50 @@ impl Component for SignaturePad {
     /// （root > control > segment(既定寸法) + clear-trigger）。公開 UI と
     /// しての利用は想定しない（[`crate::tags_input::TagsInput::view`] と
     /// 同じ位置付け）。
+    ///
+    /// segment（`svg`）の children は [`Self::segment_path_items`] を
+    /// [`keyed_list`] へ渡した keyed list として描画する（イシュー #843、
+    /// Bugbot 指摘「Runtime skips stroke DOM updates」の是正）。
+    /// `fandhe-frontend-wasm-full` の `Runtime::wire_signature_pad` は
+    /// dispatch 後に [`DirtyTracked::dirty_fields`] が `"strokes"` を含む
+    /// 場合のみ `data-bind-list="strokes"` 親要素を探して keyed list 差分
+    /// 適用を行う契約であり、本ビューが静的な子ノード列のままでは
+    /// マウント済み DOM が古いまま（stale）になる（`Self::update` が
+    /// `dirty` を記録するようになったこととの対（つい））。
     fn view(&self) -> Node {
         /// [`Component::view`] 専用の既定描画領域寸法（公開 API ではない）。
         const DEFAULT_WIDTH: u32 = 300;
         const DEFAULT_HEIGHT: u32 = 150;
 
-        let segment_node = self.segment(
-            DEFAULT_WIDTH,
-            DEFAULT_HEIGHT,
-            None,
-            Vec::new(),
-            self.segment_paths(),
-        );
+        let view_box = format!("0 0 {DEFAULT_WIDTH} {DEFAULT_HEIGHT}");
+        let segment_attrs: Vec<(&str, &str)> = vec![
+            ("data-scope", ANATOMY.scope()),
+            ("data-part", "segment"),
+            ("viewBox", view_box.as_str()),
+            role("img"),
+        ];
+
+        // `segment_attrs`（予約属性 `data-bind-list`/`data-key` を含まない）
+        // ・`segment_path_items()`（インデックスキー、常に非空・一意）から
+        // `keyed_list` は構造的に失敗し得ない。それでも panic を避け、万一
+        // 失敗した場合は非 keyed の `self.segment(..)` へ fail-closed で
+        // フォールバックする（`.claude/rules/coding-rust.md` の
+        // panic/unwrap 回避規約）。
+        let segment_node = keyed_list(
+            "svg",
+            segment_attrs,
+            Self::FIELD_STROKES,
+            self.segment_path_items(),
+        )
+        .unwrap_or_else(|_| {
+            self.segment(
+                DEFAULT_WIDTH,
+                DEFAULT_HEIGHT,
+                None,
+                Vec::new(),
+                self.segment_paths(),
+            )
+        });
         let control_node = self.control(Vec::new(), vec![segment_node]);
         let clear_node = self.clear_trigger(Vec::new(), Vec::new());
         self.root(Vec::new(), vec![control_node, clear_node])
@@ -636,11 +728,29 @@ impl Hydrate for SignaturePad {
 
         // `disabled`/`read_only` は本トレイトでは運ばない（rustdoc
         // 「hydration_attrs」参照）。復元直後は常に無効化なし・書き込み可。
+        // `dirty` も復元直後は常に空（`Disclosure`/`SingleSelect` と同じ
+        // 「ハイドレーション復元直後は dirty なし」規約、モジュール doc
+        // 「[`SignaturePad`]」の手動 `PartialEq` 節参照）。
         Ok(Self {
             strokes,
             disabled: false,
             read_only: false,
+            dirty: Vec::new(),
         })
+    }
+}
+
+impl DirtyTracked for SignaturePad {
+    /// 直前の [`Component::update`] 呼び出しで実変更が起きたフィールド名の
+    /// 集合（`"strokes"` のみ、現状の想定アクションが全て `strokes` を
+    /// 変更しうるため）。`fandhe-frontend-wasm-full` の
+    /// `Runtime::wire_signature_pad` が dispatch 後にこれを読み、`"strokes"`
+    /// が含まれる場合のみ [`Component::view`] が出力する
+    /// `data-bind-list="strokes"` keyed list へ差分適用する
+    /// （イシュー #843、Bugbot 指摘「Runtime skips stroke DOM updates」の
+    /// 是正）。
+    fn dirty_fields(&self) -> &[&'static str] {
+        &self.dirty
     }
 }
 
@@ -979,5 +1089,99 @@ mod tests {
         assert!(html.contains(r#"data-part="segment""#));
         assert!(html.contains(r#"data-part="segment-path""#));
         assert!(html.contains(r#"data-part="clear-trigger""#));
+    }
+
+    // --- keyed list 描画・DirtyTracked（イシュー #843 Bugbot 指摘
+    // 「Runtime skips stroke DOM updates」の回帰固定） ---
+
+    #[test]
+    fn view_renders_strokes_as_keyed_list() {
+        let pad = SignaturePad::new(
+            vec![stroke(&[(0.0, 0.0)]), stroke(&[(1.0, 1.0)])],
+            false,
+            false,
+        );
+        let html = render(&<SignaturePad as Component>::view(&pad));
+        assert!(html.contains(r#"data-bind-list="strokes""#));
+        assert!(html.contains(r#"data-key="0""#));
+        assert!(html.contains(r#"data-key="1""#));
+    }
+
+    #[test]
+    fn view_renders_empty_keyed_list_marker_when_no_strokes() {
+        let pad = SignaturePad::default();
+        let html = render(&<SignaturePad as Component>::view(&pad));
+        assert!(html.contains(r#"data-bind-list="strokes""#));
+        assert!(!html.contains("data-key"));
+    }
+
+    #[test]
+    fn dirty_fields_empty_before_any_update() {
+        let pad = SignaturePad::default();
+        assert!(pad.dirty_fields().is_empty());
+    }
+
+    #[test]
+    fn dirty_fields_reports_strokes_after_add_stroke() {
+        let mut pad = SignaturePad::default();
+        pad.update(SignaturePadAction::AddStroke(stroke(&[(0.0, 0.0)])));
+        assert_eq!(pad.dirty_fields(), &[SignaturePad::FIELD_STROKES]);
+    }
+
+    #[test]
+    fn dirty_fields_reports_strokes_after_clear() {
+        let mut pad = SignaturePad::new(vec![stroke(&[(0.0, 0.0)])], false, false);
+        pad.update(SignaturePadAction::Clear);
+        assert_eq!(pad.dirty_fields(), &[SignaturePad::FIELD_STROKES]);
+    }
+
+    #[test]
+    fn dirty_fields_reports_strokes_after_undo() {
+        let mut pad = SignaturePad::new(vec![stroke(&[(0.0, 0.0)])], false, false);
+        pad.update(SignaturePadAction::Undo);
+        assert_eq!(pad.dirty_fields(), &[SignaturePad::FIELD_STROKES]);
+    }
+
+    #[test]
+    fn dirty_fields_empty_after_clear_no_op_on_empty_pad() {
+        let mut pad = SignaturePad::default();
+        pad.update(SignaturePadAction::Clear);
+        assert!(pad.dirty_fields().is_empty());
+    }
+
+    #[test]
+    fn dirty_fields_empty_after_undo_no_op_on_empty_pad() {
+        let mut pad = SignaturePad::default();
+        pad.update(SignaturePadAction::Undo);
+        assert!(pad.dirty_fields().is_empty());
+    }
+
+    #[test]
+    fn dirty_fields_empty_after_locked_pad_ignores_add_stroke() {
+        let mut pad = SignaturePad::new(Vec::new(), true, false);
+        pad.update(SignaturePadAction::AddStroke(stroke(&[(0.0, 0.0)])));
+        assert!(pad.dirty_fields().is_empty());
+    }
+
+    #[test]
+    fn dirty_fields_cleared_at_start_of_next_update_when_second_call_is_no_op() {
+        let mut pad = SignaturePad::default();
+        pad.update(SignaturePadAction::AddStroke(stroke(&[(0.0, 0.0)])));
+        assert!(!pad.dirty_fields().is_empty());
+        // 直後の 2 回目の Clear は既に空のため no-op（dirty は積まれない）。
+        // 前回 update の dirty が引き継がれず、呼び出しごとにクリアされる
+        // ことを固定する（`DirtyTracked` の契約: 「直前の update() 呼び出し」
+        // で実変更が起きたフィールドのみを表す）。
+        pad.update(SignaturePadAction::Clear);
+        pad.update(SignaturePadAction::Clear);
+        assert!(pad.dirty_fields().is_empty());
+    }
+
+    #[test]
+    fn hydration_restored_pad_has_empty_dirty_fields() {
+        let pad = SignaturePad::new(vec![stroke(&[(0.0, 0.0)])], false, false);
+        let attrs = pad.hydration_attrs();
+        let restored = SignaturePad::from_hydration_attrs(&attrs).unwrap();
+        assert!(restored.dirty_fields().is_empty());
     }
 }
