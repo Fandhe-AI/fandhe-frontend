@@ -275,6 +275,46 @@ fn docs_page_emits_three_columns_in_left_nav_center_content_right_toc_order() {
     );
 }
 
+/// イシュー #907（レビュー指摘、commit e01a23d）: `< 768px` の左ナビ折りたたみを
+/// タッチ操作でも開閉できるようにするチェックボックスハック
+/// （`input#docs-sidebar-toggle` + `label[for=docs-sidebar-toggle]`）の
+/// markup・id/for 紐付け・DOM 順を固定する回帰テスト。`site.css` の CSS
+/// 一般兄弟結合子 `.docs-sidebar-toggle:checked ~ nav.sidebar` が機能する
+/// ためには `input` が `label`・`nav`（`sidebar` 引数のルート要素）より
+/// 先に出現する必要があり、markup の並び順が誤って変更された場合に
+/// この回帰テストが検知する。
+#[test]
+fn docs_sidebar_toggle_checkbox_and_label_are_wired_before_sidebar_nav() {
+    let body = p(vec![], vec![text("本文です。")]);
+    let node = docs_page("タイトル", "", sample_sidebar(), body);
+    let html = render(&node);
+
+    assert!(html.contains(r#"type="checkbox""#));
+    assert!(html.contains(r#"id="docs-sidebar-toggle""#));
+    assert!(html.contains(r#"class="docs-sidebar-toggle""#));
+    assert!(html.contains(r#"for="docs-sidebar-toggle""#));
+    assert!(html.contains(r#"class="docs-sidebar-toggle-label""#));
+
+    let toggle_pos = html
+        .find(r#"id="docs-sidebar-toggle""#)
+        .expect("sidebar toggle checkbox should exist");
+    let label_pos = html
+        .find(r#"for="docs-sidebar-toggle""#)
+        .expect("sidebar toggle label should exist");
+    let sidebar_nav_pos = html
+        .find("はじめに")
+        .expect("sidebar nav content should exist");
+
+    assert!(
+        toggle_pos < label_pos,
+        "checkbox input must precede its label for the CSS general sibling combinator to apply"
+    );
+    assert!(
+        label_pos < sidebar_nav_pos,
+        "label must precede nav.sidebar so `.docs-sidebar-toggle:checked ~ nav.sidebar` matches"
+    );
+}
+
 #[test]
 fn toc_nav_items_carry_level_class_distinguishing_h2_and_h3() {
     // Bugbot 指摘 b0e41098: toc_nav が TocEntry::level を無視してフラットな
