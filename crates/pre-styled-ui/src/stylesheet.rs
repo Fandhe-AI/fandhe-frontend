@@ -281,6 +281,7 @@ mod tests {
             ("textarea", crate::textarea::css()),
             ("native_select", crate::native_select::css()),
             ("number_input", crate::number_input::stylesheet()),
+            ("password_input", crate::password_input::stylesheet()),
             ("slider", crate::slider::stylesheet()),
             ("pin_input", crate::pin_input::stylesheet()),
             ("tags_input", crate::tags_input::stylesheet()),

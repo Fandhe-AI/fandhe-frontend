@@ -172,7 +172,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/form/switch.md` | Switch | Switch | switch | switch | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/form/number-input.md` | NumberInput | NumberInput | — | — | 実装対象 | #738 |
 | `.agents/skills/ark-ui/references/components/form/pin-input.md` | PinInput | PinInput | — | — | 実装対象 | #739 |
-| `.agents/skills/ark-ui/references/components/form/password-input.md` | PasswordInput | PasswordInput | — | — | 実装対象 | #740 |
+| `.agents/skills/ark-ui/references/components/form/password-input.md` | PasswordInput | PasswordInput | password_input | password_input | 実装済み | headless+styled 実装済み（#740） |
 | `.agents/skills/ark-ui/references/components/form/slider.md` | Slider | Slider | slider | slider | 実装済み | headless+styled 実装済み（#741） |
 | `.agents/skills/ark-ui/references/components/form/rating-group.md` | RatingGroup | Rating | rating_group | rating_group | 実装済み | headless+styled 実装済み（#742） |
 | `.agents/skills/ark-ui/references/components/form/segment-group.md` | SegmentGroup | SegmentedControl | segment_group | segment_group | 実装済み | headless+styled 実装済み（#743） |
@@ -423,7 +423,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/forms/native-select.md` | — | NativeSelect | — | native_select | 実装済み | pre-styled 静的部品として実装済み（#737） |
 | `.agents/skills/chakra-ui/references/components/forms/number-input.md` | NumberInput | NumberInput | — | — | 実装対象 | #738 |
 | `.agents/skills/chakra-ui/references/components/forms/pin-input.md` | PinInput | PinInput | — | — | 実装対象 | #739 |
-| `.agents/skills/chakra-ui/references/components/forms/password-input.md` | PasswordInput | PasswordInput | — | — | 実装対象 | #740 |
+| `.agents/skills/chakra-ui/references/components/forms/password-input.md` | PasswordInput | PasswordInput | password_input | password_input | 実装済み | headless+styled 実装済み（#740） |
 | `.agents/skills/chakra-ui/references/components/forms/slider.md` | Slider | Slider | slider | slider | 実装済み | headless+styled 実装済み（#741） |
 | `.agents/skills/chakra-ui/references/components/forms/rating.md` | RatingGroup | Rating | rating_group | rating_group | 実装済み | headless+styled 実装済み（#742） |
 | `.agents/skills/chakra-ui/references/components/forms/segmented-control.md` | SegmentGroup | SegmentedControl | segment_group | segment_group | 実装済み | headless+styled 実装済み（#743） |
