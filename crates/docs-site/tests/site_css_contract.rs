@@ -1,6 +1,8 @@
 //! `crates/docs-site/src/layout.rs` / `nav.rs` が生成する HTML の `class`
-//! 属性値と `site/assets/site.css` のクラス名契約が乖離していないことを
-//! 検証する回帰テスト（イシュー #488）。
+//! 属性値と、サイト骨格 CSS（`crate::site_theme::stylesheet()` がビルド時
+//! 生成する `assets/site.css`）のクラス名契約が乖離していないことを検証する
+//! 回帰テスト（イシュー #488、CSS 供給方式のビルド時生成への切替はイシュー
+//! #905）。
 //!
 //! # 背景
 //!
@@ -12,8 +14,10 @@
 //! `layout.rs` の実出力（`docs-*` プレフィックス）と食い違ったまま放置され、
 //! 本番 docs サイトで CSS がほぼ効かない不具合が発生した。本テストは
 //! `layout.rs` / `nav.rs` の実出力に含まれる全 `class` 属性値（空白区切りの
-//! 各トークン）が `site/assets/site.css` 内にセレクタとして出現することを
-//! 機械的に検証し、再発を fail-closed で検知する。
+//! 各トークン）が生成 `assets/site.css` 内にセレクタとして出現することを
+//! 機械的に検証し、再発を fail-closed で検知する（取得元をイシュー #905 で
+//! 静的ファイル読込から [`site_theme::stylesheet`] の呼び出しへ差し替えた
+//! のみで、class 抽出・検証ロジック自体は不変）。
 //!
 //! Markdown レンダラ（`markdown.rs`）が動的に生成する `language-<lang>`
 //! クラス（コードブロックの言語トークン依存で無数の値を取りうる）は本テスト
@@ -21,31 +25,27 @@
 //! 適用されるため、契約ドリフトの対象にならない）。
 //!
 //! 同様に `markdown.rs` が admonition（`> [!NOTE]` 等）から生成する
-//! `fd-alert--status-*` class は `site/assets/site.css` の契約対象外
-//! （`site.css` は一切変更しない不変条件、イシュー #715）。代わりに
-//! `crate::admonition::stylesheet()` が生成する `assets/admonition.css` 側が
-//! 契約を持つため、`admonition_markdown_output_classes_are_covered_by_generated_admonition_css`
+//! `fd-alert--status-*` class はサイト骨格 CSS の契約対象外（サイト骨格 CSS
+//! は変更しない不変条件、イシュー #715）。代わりに `crate::admonition::stylesheet()`
+//! が生成する `assets/admonition.css` 側が契約を持つため、
+//! `admonition_markdown_output_classes_are_covered_by_generated_admonition_css`
 //! が両者の乖離を検知する。
 
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
 
 use fandhe_frontend_core::{li, p, render, text, ul, Node};
 use fandhe_frontend_docs_site::layout::docs_page;
 use fandhe_frontend_docs_site::nav::{parse_nav, prev_next_nav, sidebar, Nav};
+use fandhe_frontend_docs_site::site_theme;
 
-/// `CARGO_MANIFEST_DIR`（`crates/docs-site`）から repo_root を解決する
-/// （`site_nav.rs` と同じ規約。`members = ["crates/*"]` 構成に対応）。
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .expect("repo_root should resolve from CARGO_MANIFEST_DIR")
-}
-
+/// サイト骨格 CSS 全量を取得する（イシュー #905: 静的ファイル読込から
+/// [`site_theme::stylesheet`] 呼び出しへ差し替え。class 抽出・検証ロジック
+/// 自体は不変）。
 fn site_css() -> String {
-    let path = repo_root().join("site/assets/site.css");
-    std::fs::read_to_string(&path).expect("site/assets/site.css should be readable")
+    site_theme::stylesheet()
+        .expect("site theme stylesheet should assemble")
+        .as_css()
+        .to_string()
 }
 
 /// TOC（`h2`/`h3` 見出し）・サイドバー 2 セクション・前後ページ双方が揃う
@@ -189,8 +189,8 @@ fn assert_all_classes_covered(html: &str, css_tokens: &HashSet<String>, context:
         .collect();
     assert!(
         missing.is_empty(),
-        "{context}: 以下の class が site/assets/site.css にセレクタとして存在しない: {missing:?}\n\
-         layout.rs / nav.rs の実出力と site.css のクラス名契約が乖離している。"
+        "{context}: 以下の class が生成 assets/site.css にセレクタとして存在しない: {missing:?}\n\
+         layout.rs / nav.rs の実出力と site_theme のクラス名契約が乖離している。"
     );
 }
 
@@ -259,36 +259,6 @@ fn admonition_markdown_output_classes_are_covered_by_generated_admonition_css() 
         .collect::<Vec<_>>()
         .join("");
     assert_all_classes_covered(&html, &css_tokens, "markdown::render_markdown (admonition)");
-}
-
-/// イシュー #732 の乖離検知テスト: `admonition::stylesheet()` の
-/// [`crate::admonition::DARK_CSS`]（非公開）相当が参照する
-/// `--docs-color-bg-subtle` / `--docs-color-border` custom property が
-/// 実際に `site/assets/site.css` の `:root` 宣言に存在することを検証する。
-/// admonition 側は `var()` の第 2 引数フォールバックを持つため参照が
-/// 欠けてもビルドは壊れないが、意図した配色（docs サイトのダーク
-/// パレットへの追従）が黙って theme トークンへフォールバックし続ける
-/// 乖離を fail-closed で検知する。
-#[test]
-fn admonition_dark_css_custom_properties_exist_in_site_css() {
-    use fandhe_frontend_docs_site::admonition;
-
-    let admonition_css = admonition::stylesheet()
-        .expect("admonition stylesheet should assemble")
-        .as_css()
-        .to_string();
-    let site_css = site_css();
-
-    for property in ["--docs-color-bg-subtle", "--docs-color-border"] {
-        assert!(
-            admonition_css.contains(property),
-            "admonition stylesheet should reference {property} (dark mode contract)"
-        );
-        assert!(
-            site_css.contains(&format!("{property}:")),
-            "site/assets/site.css should declare {property}; admonition dark CSS の var() フォールバック契約が乖離している"
-        );
-    }
 }
 
 /// イシュー #776 の乖離検知テスト: `layout::docs_page` が全ページ骨格へ

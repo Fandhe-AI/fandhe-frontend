@@ -73,8 +73,9 @@ fn build_site_generates_all_pages_and_assets_for_ok_fixture() {
         build_site(&fixture_root("site-ok"), &out.0).expect("site-ok fixture should build");
 
     assert_eq!(report.written.len(), 2);
-    // site.css + admonition.css（site-ok の index.md が admonition マーカーを
-    // 1 件使うため、`crate::admonition` 専用 CSS も条件付きで書き出される）
+    // site.css（`site_theme` のビルド時生成、イシュー #905） + admonition.css
+    // （site-ok の index.md が admonition マーカーを 1 件使うため、
+    // `crate::admonition` 専用 CSS も条件付きで書き出される）
     // + skip-nav.css（イシュー #776、全ビルドで無条件に書き出す）。
     assert_eq!(report.assets.len(), 3);
     assert!(out.0.join("index.html").exists());

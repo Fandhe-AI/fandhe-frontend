@@ -304,10 +304,11 @@ pub fn docs_page(title: &str, base_path: &str, sidebar: Node, body: Node) -> Nod
 /// を実レンダリングするショーケース、イシュー #520 系）だけが、
 /// `StyleSheet::write_css_file` で書き出す専用 CSS
 /// （`assets/pre-styled-ui.css`）を参照するために `crate::build::build_site`
-/// から呼ばれる。サイト骨格スタイル（`site/assets/site.css`）とコンポーネント
-/// CSS を分離ファイルに保ち、既存ページのカスケードへ影響させないための
-/// 注入点であり、Markdown ページは従来どおり [`docs_page`]（追加なし）を使う。
-/// href は [`asset_href`] を経由して `base_path` を考慮した単一実装点を守る。
+/// から呼ばれる。サイト骨格スタイル（`crate::site_theme` がビルド時生成する
+/// `assets/site.css`、イシュー #905）とコンポーネント CSS を分離ファイルに
+/// 保ち、既存ページのカスケードへ影響させないための注入点であり、Markdown
+/// ページは従来どおり [`docs_page`]（追加なし）を使う。href は
+/// [`asset_href`] を経由して `base_path` を考慮した単一実装点を守る。
 pub fn docs_page_with_assets(
     title: &str,
     base_path: &str,
@@ -338,7 +339,10 @@ pub fn docs_page_with_assets(
             "link",
             vec![
                 ("rel", "stylesheet"),
-                ("href", &asset_href(base_path, "assets/site.css")),
+                (
+                    "href",
+                    &asset_href(base_path, crate::site_theme::STYLESHEET_REL_PATH),
+                ),
             ],
             vec![],
         ),
@@ -372,9 +376,9 @@ pub fn docs_page_with_assets(
 
     // 「on this page」目次は本文の前（`main` 内の先頭）に置く。読者が本文を
     // 読み始める前に目次へ気付けるようにするための並び順であり、
-    // `site/assets/site.css` はこの `.docs-content` 前という位置関係を
-    // 前提にスタイルしていない（`.docs-toc` 単体で完結する見た目にしている
-    // ため、並び順を変えてもレイアウトは崩れない）。
+    // `crate::site_theme` が生成する `assets/site.css` はこの `.docs-content`
+    // 前という位置関係を前提にスタイルしていない（`.docs-toc` 単体で完結する
+    // 見た目にしているため、並び順を変えてもレイアウトは崩れない）。
     // SkipNav のスキップ先ターゲット（イシュー #776）。読者が実際に読み始める
     // 本文（TOC・article）の直前に置き、`link` クリック時のプログラム的
     // フォーカス移動先とする（`fandhe-frontend-headless-ui::skip_nav` の
