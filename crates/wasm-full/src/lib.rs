@@ -115,6 +115,7 @@
 
 #![deny(unsafe_code)]
 
+pub mod angle_slider;
 pub mod csr;
 pub mod events;
 pub mod focus_trap;
@@ -362,6 +363,7 @@ where
         Self::wire_avatar(component.clone(), root.clone())?;
         Self::wire_clipboard(component.clone(), root.clone())?;
         Self::wire_timer(component.clone(), root.clone())?;
+        Self::wire_angle_slider(component.clone(), root.clone())?;
 
         Ok(Self { component, root })
     }
@@ -408,6 +410,7 @@ where
         Self::wire_avatar(component.clone(), root.clone())?;
         Self::wire_clipboard(component.clone(), root.clone())?;
         Self::wire_timer(component.clone(), root.clone())?;
+        Self::wire_angle_slider(component.clone(), root.clone())?;
 
         Ok(Self { component, root })
     }
@@ -545,6 +548,43 @@ where
             // `headless_timer::wiring` が DOM 反映を独自に完結させるため、
             // ここでの dispatch は `C` 自身が Timer アクションを認識する
             // 場合の追随のみを目的とする（失敗しても no-op、上記 doc 参照）。
+            let _ = fandhe_frontend_interactive::dispatch(
+                &mut *state,
+                &action_ref.action,
+                &action_ref.payload,
+            );
+        })
+    }
+
+    /// AngleSlider（`fandhe-frontend-headless-ui` `angle_slider` モジュール）
+    /// のポインタ座標 → 角度変換・keydown 配線を
+    /// [`angle_slider::wire_angle_slider_events`] 経由で `root` へ配線する
+    /// （イシュー #842）。`Self::mount`/`Self::hydrate` の双方から
+    /// `Self::wire_timer` の直後に 1 回だけ呼ばれる。
+    ///
+    /// # fail-closed（AngleSlider 非搭載アプリへの副作用なし）
+    ///
+    /// `root` 配下に AngleSlider の Control/Thumb パーツが存在しない場合、
+    /// pointerdown/pointermove/keydown はいずれも
+    /// [`angle_slider::is_angle_slider_control_or_thumb`] 相当の scope/part
+    /// 一致判定で早期 return するため、AngleSlider を使わないアプリへの
+    /// 影響はない。
+    ///
+    /// # Errors
+    ///
+    /// [`angle_slider::wire_angle_slider_events`]
+    /// （`add_event_listener_with_callback`）の失敗を伝播する。
+    fn wire_angle_slider(
+        component: std::rc::Rc<std::cell::RefCell<C>>,
+        root: web_sys::Element,
+    ) -> Result<(), wasm_bindgen::JsValue> {
+        angle_slider::wire_angle_slider_events(root, move |action_ref: events::ActionRef| {
+            let Ok(mut state) = component.try_borrow_mut() else {
+                return;
+            };
+            // DOM 反映（Thumb の回転・aria-valuenow 更新）は `Self::wire` の
+            // 束縛点更新経路（再描画）へ委ねる。本配線は dispatch 依頼のみを
+            // 担う（`Self::wire_timer` と同じ責務分離）。
             let _ = fandhe_frontend_interactive::dispatch(
                 &mut *state,
                 &action_ref.action,

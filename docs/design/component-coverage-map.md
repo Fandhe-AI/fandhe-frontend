@@ -191,7 +191,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/form/segment-group.md` | SegmentGroup | SegmentedControl | segment_group | segment_group | 実装済み | headless+styled 実装済み（#743） |
 | `.agents/skills/ark-ui/references/components/form/tags-input.md` | TagsInput | TagsInput | tags_input | tags_input | 実装済み | headless+styled 実装済み（#744） |
 | `.agents/skills/ark-ui/references/components/form/editable.md` | Editable | Editable | editable | editable | 実装済み | headless+styled 実装済み（#745） |
-| `.agents/skills/ark-ui/references/components/form/angle-slider.md` | AngleSlider | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.22（#735）で非採用確定（高度入力系、canvas/ポインタ座標/contenteditable 依存） |
+| `.agents/skills/ark-ui/references/components/form/angle-slider.md` | AngleSlider | AngleSlider | angle_slider | angle_slider | 実装済み（再導入） | #842 で `docs/policy/intentional-non-adoption.md` §3.22 の再評価トリガー 1（決定的自動テスト基盤の確立・具体的ユースケースを伴う利用要望）を充足し再導入。座標→角度変換（`atan2`）を wasm-full 層の単一純粋関数へ隔離、headless 層は整数角度状態機械のみ |
 | `.agents/skills/ark-ui/references/components/form/color-picker.md` | ColorPicker | ColorPicker | — | — | 保留 | （高度入力系、フォーム部品）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
 | `.agents/skills/ark-ui/references/components/form/file-upload.md` | FileUpload | FileUpload | — | — | 保留 | （高度入力系、フォーム部品）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
 | `.agents/skills/ark-ui/references/components/form/image-cropper.md` | ImageCropper | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.22（#735）で非採用確定（高度入力系、canvas/ポインタ座標/contenteditable 依存） |

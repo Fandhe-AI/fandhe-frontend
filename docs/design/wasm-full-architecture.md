@@ -468,3 +468,35 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 ### 16.4 セキュリティ不変条件
 
 DOM 反映は `set_attribute`/`remove_attribute`/`set_text_content` のみで行い HTML 文字列を組み立てない（REQ-1）。`data-action` は allowlist 完全一致でのみ受理する。`Timer::from_hydration_attrs` の `Result` により改ざん・欠落は fail-closed に扱われ panic しない。新規 `unsafe` コードは追加しない（`web-sys`/`js-sys` の safe API のみ使用）。
+
+## 17. `angle_slider` モジュール（AngleSlider のポインタ座標→角度変換・DOM 配線、イシュー #842、非採用の再導入、親トラッキング #520）
+
+`fandhe-frontend-headless-ui` の AngleSlider（`crates/headless-ui/src/angle_slider.rs`）は Root/Label/Control/Thumb/ValueText/HiddenInput の 6 anatomy パーツと整数角度状態機械（`"set"`/`"increment"`/`"decrement"` dispatch）を提供するが、実際にポインタ座標を角度へ変換する処理・DOM イベント配線は同モジュール冒頭の rustdoc「スコープ外」節が明記するとおり本クレート（wasm 層）の後続スコープとされていた。`angle_slider` モジュール（`crates/wasm-full/src/angle_slider.rs`）がその変換・配線を実装する。
+
+AngleSlider は `docs/policy/intentional-non-adoption.md` §3.22（イシュー #735）で「ポインタ座標→角度変換の暗黙性・非決定性・機械検証困難」を理由に意図的非採用と確定していた。本モジュールはその懸念に対し、座標→角度変換を単一の純粋関数 `angle_from_offset`（`atan2` の使用箇所はこの 1 点のみ）へ完全に隔離し、既知座標→既知角度の網羅表による native `cargo test` で決定性を固定することで応える（再導入の評価軸充足の詳細は同書 §3.22 の再導入記録・`crates/headless-ui/src/angle_slider.rs` 冒頭 rustdoc を参照）。
+
+### 17.1 `headless::MAPPING_TABLE`（§12）に乗せない理由
+
+`headless::MAPPING_TABLE` は (scope, part) → action の同期的な静的マッピングであり、click と同時に dispatch する用途に限定される。AngleSlider は pointerdown/pointermove/pointerup という click/input 以外のイベント種別を扱い、かつ `setPointerCapture` による pointer 個別の状態管理を要するため、`headless_clipboard`（§15）と同型の独立配線モジュールとして切り出す。
+
+### 17.2 純粋ロジック層（native `cargo test` 対象）
+
+- `angle_from_offset(dx, dy) -> Option<u16>`: 「中心からのオフセット座標」`(dx, dy)`（画面座標系、`dy` は下方向が正）を `0..=359` の整数角度（度）へ変換する。`0` 度を真上、時計回りに増加する角度を返す（ark-ui AngleSlider 互換）。「最後に観測した座標 1 点から角度を再計算する」設計であり、ポインタイベントのストリーム頻度・座標精度差・履歴・速度に一切依存しない（決定性）。中心点そのもの（`dx == 0.0 && dy == 0.0`）・非有限入力（`NaN`/無限大）は `None`（fail-closed）。
+- `is_angle_slider_control_or_thumb(scope, part) -> bool`: クリック/ポインタ操作ターゲットが AngleSlider の Control/Thumb 要素かどうかを判定する。
+- `action_for_key(key) -> Option<&'static str>`: キー名から dispatch すべきアクション名を判定する。ArrowUp/ArrowRight は `"increment"`、ArrowDown/ArrowLeft は `"decrement"`、それ以外は `None`（no-op）。
+
+### 17.3 配線層（wasm32 限定）
+
+- `wire_angle_slider_events(root, on_action)`: `root` へ pointerdown/pointermove/keydown の委譲リスナーを 1 回だけ登録する。pointerdown 時に対象 Control へ `setPointerCapture` し、以後の pointermove は `hasPointerCapture` で該当 pointer 由来かを確認してから角度を再計算する（複数 AngleSlider が同一ページに存在しても互いに干渉しない）。Thumb 上の keydown は `action_for_key` が返すアクションを dispatch する。`data-disabled` を持つ祖先要素上の操作はいずれも no-op（`headless.rs` の祖先 disabled 対策と同型）。
+- `angle_at_client_point(control, client_x, client_y)`: `control.get_bounding_client_rect()` の中心座標からのオフセットで `angle_from_offset` を呼ぶ。
+- dispatch payload（`"set"` の角度整数文字列）は `AngleSlider::decode_action`（headless 層）が改めて `u16`・`0..=360` 範囲で厳密検証する（多層防御）。
+
+`crate::lib::Runtime::mount`/`Runtime::hydrate` の双方が `Self::wire_timer` の直後に `Self::wire_angle_slider` を呼び、標準経路へ組み込む（`events`/`keynav`/`headless_clipboard`/`headless_timer` と同じ「マウント時 1 回」契約）。
+
+### 17.4 表示: CSS `transform: rotate()` のみ（canvas 不使用）
+
+`fandhe-frontend-pre-styled-ui` の styled Thumb（`crates/pre-styled-ui/src/angle_slider.rs`）は `AngleSlider::angle_deg()` から `--fandhe-angle` CSS custom property を 1 点のみ組み立て、CSS 側は `transform: rotate(var(--fandhe-angle))` で回転させる。canvas の描画命令列・変換行列に相当する内部状態は持たない。本モジュール（wasm 層）は Thumb 要素の DOM 属性（`aria-valuenow` 等）の再描画を `Self::wire`（束縛点更新経路）へ委ね、独自の DOM 直接書き込みは行わない（`position.rs` 等が担う「再計算のたびに DOM へ直接書き込む」パターンとは異なる。AngleSlider は dispatch → 状態更新 → 通常の再描画サイクルで完結する）。
+
+### 17.5 セキュリティ不変条件
+
+DOM から読み取るのは `getBoundingClientRect`/`get_attribute`/`has_attribute`/`has_pointer_capture` のみで、DOM への書き込みは行わない（Thumb の回転・`aria-valuenow` 更新は `Self::wire` の再描画に委ねる）。ポインタ座標・計算済み角度値はいずれも `console`・例外メッセージへ出力しない。新規 `unsafe` コードは追加しない（`web-sys`/`js-sys` の safe API のみ使用）。
