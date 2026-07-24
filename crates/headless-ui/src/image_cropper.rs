@@ -78,7 +78,12 @@
 //!   height が従属軸のため、dy から素朴に求めた高さと実際に導出される
 //!   height が一致するとは限らない。そのため導出後の height を用いて
 //!   「リサイズ前の底辺（対角の下側コーナー）を固定する」という不変条件
-//!   から `y` を再計算する（`x`（主軸 width 側）はそのまま採用する）。
+//!   から `y` を再計算する。`Ne` は対角アンカーが左辺（`x`）のため `x` は
+//!   そのまま採用する（west 辺は動かない）。`Nw` は対角アンカーが右辺
+//!   （`x + width`）のため、width の reclamp で導出後の width が dx から
+//!   素朴に求めた値と一致するとは限らない。そのため導出後の width を
+//!   用いて「リサイズ前の右辺（`x + w`）を固定する」という不変条件から
+//!   `x` も再計算する（イシュー #844 Bugbot 指摘）。
 
 //!
 //! # dispatch アクション
@@ -910,21 +915,43 @@ impl ImageCropper {
                     width_from_height_for_aspect(new_h, aw, ah).min(self.max_width_for_aspect());
                 self.renormalize(new_x, new_y, derived_w, new_h)
             }
-            (false, HandlePosition::Ne | HandlePosition::Nw, Some(_)) => {
-                // Ne/Nw（上辺の角）はアスペクト比固定時、width が主軸で
-                // height は normalize が width から導出する（従属軸）。
-                // 導出後の height は dy から素朴に求めた `new_h` と一致する
-                // 保証がないため、`new_y = y + dy` をそのまま採用すると
-                // 対角の底辺コーナー（Ne は左下・Nw は右下）が動いてしまう
-                // （イシュー #844 レビュー指摘）。まず x=0/y=0 で
-                // renormalize し width/height のみを確定させてから、
-                // 「リサイズ前の底辺（y + h）を固定する」という不変条件で
-                // y を再計算する。width（主軸）は new_x を経由してそのまま
-                // 採用する（E/W と同じ規則で、x 自体の再計算は不要）。
+            (false, HandlePosition::Ne, Some(_)) => {
+                // Ne（上辺の角）はアスペクト比固定時、width が主軸で height
+                // は normalize が width から導出する（従属軸）。導出後の
+                // height は dy から素朴に求めた `new_h` と一致する保証が
+                // ないため、`new_y = y + dy` をそのまま採用すると対角の
+                // 底辺コーナー（Ne は左下 = x, y + height）が動いてしまう
+                // （イシュー #844 レビュー指摘）。まず x=0 で renormalize し
+                // width/height のみを確定させてから、「リサイズ前の底辺
+                // （y + h）を固定する」という不変条件で y を再計算する。
+                // Ne の対角アンカーは左辺（x）で、west 辺は動かないため
+                // `new_x` は既に x のまま（東西の主軸移動は width 側のみ）
+                // であり、x 自体の再計算は不要（Nw と異なり width の
+                // reclamp が x に波及しない）。
                 let derived = self.renormalize(0, 0, new_w, new_h);
                 let bottom = y + h;
                 let final_y = clamp_u32(bottom - i64::from(derived.height));
                 self.renormalize(new_x, final_y, derived.width, derived.height)
+            }
+            (false, HandlePosition::Nw, Some(_)) => {
+                // Nw（上辺の角）はアスペクト比固定時、width が主軸で height
+                // は従属軸（Ne と同様）。加えて Nw の対角アンカーは右下
+                // （x + width, y + height）であり、west 辺（x）自体が主軸側
+                // の移動対象になる。width が min_size/max_width_for_aspect
+                // で reclamp され `derived.width` が dx から素朴に求めた
+                // `new_w` と異なる場合、`new_x = x + dx` をそのまま採用すると
+                // 右辺（x + width）がドラッグ後にずれてしまう
+                // （イシュー #844 Bugbot 指摘 3f700ec5-2844-42d8-bfcf-aec6fa95add3）。
+                // そのため x=0 で renormalize して width/height を確定させた
+                // 上で、「リサイズ前の右辺（x + w）を固定する」不変条件から
+                // x を、「リサイズ前の底辺（y + h）を固定する」不変条件から
+                // y をそれぞれ再計算する。
+                let derived = self.renormalize(0, 0, new_w, new_h);
+                let bottom = y + h;
+                let right = x + w;
+                let final_y = clamp_u32(bottom - i64::from(derived.height));
+                let final_x = clamp_u32(right - i64::from(derived.width));
+                self.renormalize(final_x, final_y, derived.width, derived.height)
             }
             _ => self.renormalize(new_x, new_y, new_w, new_h),
         };
@@ -1532,6 +1559,23 @@ mod tests {
             c.y() + c.height(),
             bottom_edge,
             "底辺（対角の下側コーナー）が固定されるべき"
+        );
+    }
+
+    #[test]
+    fn dispatch_resize_nw_with_aspect_reclamp_keeps_right_edge_anchored() {
+        // イシュー #844 Bugbot 指摘（3f700ec5-2844-42d8-bfcf-aec6fa95add3）の
+        // 再現ケース: Nw の対角アンカーは右下（x + width, y + height）。
+        // dx が大きく width が min_size まで reclamp される場合、
+        // `new_x = x + dx` をそのまま採用すると reclamp 後の width との
+        // 組み合わせで右辺（x + width）がドラッグ後にずれてしまう。
+        let mut c = ImageCropper::new(1000, 1000, 200, 100, 100, 50, Some((2, 1)), 20);
+        let right_edge = c.x() + c.width(); // 300
+        assert!(dispatch(&mut c, "resize", "nw,90,-5"));
+        assert_eq!(
+            c.x() + c.width(),
+            right_edge,
+            "右辺（対角の主軸側アンカー）が固定されるべき"
         );
     }
 
