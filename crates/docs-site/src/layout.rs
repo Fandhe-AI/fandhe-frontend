@@ -1,10 +1,27 @@
-//! docs サイトの Linear Developers 風 2 カラムページ骨格。
+//! docs サイトの 3 カラムページ骨格（左ナビ / 中央コンテンツ / 右目次）。
 //!
 //! タイトル・サイドバー・本文の各 [`Node`] から、DOCTYPE を除いた完全な
 //! HTML 文書 `Node`（`<html>` 要素）を組み立てる。生成した `Node` は
 //! `fandhe_frontend_server::ssg::generate_pages()`（`crates/server/src/ssg.rs`）が
 //! `<!DOCTYPE html>` を前置して書き出す契約であり、本モジュールは
 //! DOCTYPE を出力しない（後続イシュー #470 がビルドエントリで接続する）。
+//!
+//! 骨格は `docs/design/docs-site-three-column-redesign.md` §3.1 の DOM/class
+//! 契約に従い、`div.docs-container` 配下に `aside.docs-sidebar`（左ナビ。
+//! `<input type="checkbox" class="docs-sidebar-toggle">` + `<label>` の
+//! チェックボックスハックを先頭に含み、`< 768px` での折りたたみをタッチ
+//! 操作でも開閉できるようにする。JS 不要、`nav_list` 本体の markup は
+//! 変更しない）・`main.docs-main`（中央コンテンツ、`article.docs-content`
+//! を内包）・見出しが存在するページのみ第 3 子として出現する
+//! `aside.docs-toc-aside`（右目次、内側に `nav.docs-toc` をそのまま配置）
+//! の最大 3 カラムを出力する（イシュー #907）。breakpoint による表示制御
+//! （狭幅で目次列→ナビ列の順に畳む）は構造 CSS（`crate::site_theme` が
+//! 生成する `assets/site.css`）側の責務であり、本モジュールは DOM 順・
+//! class 名の契約のみを担う。見出しが存在しないページでは
+//! `div.docs-container` に `docs-container--no-toc` 修飾 class を付与し、
+//! 3 カラム帯域（`min-width: 1200px`）で右目次列のグリッドトラックを
+//! 収縮させる（`crate::site_theme::STRUCTURAL_CSS` 参照、Bugbot 指摘 #916
+//! 是正）。
 //!
 //! `fandhe_frontend_app::page_shell` との差分: `page_shell` は
 //! `/static/style.css` と `hydrate.js` をハードコードした `String` を返す
@@ -374,27 +391,18 @@ pub fn docs_page_with_assets(
     ));
     let head = el("head", vec![], head_children);
 
-    // 「on this page」目次は本文の前（`main` 内の先頭）に置く。読者が本文を
-    // 読み始める前に目次へ気付けるようにするための並び順であり、
-    // `crate::site_theme` が生成する `assets/site.css` はこの `.docs-content`
-    // 前という位置関係を前提にスタイルしていない（`.docs-toc` 単体で完結する
-    // 見た目にしているため、並び順を変えてもレイアウトは崩れない）。
+    // 「on this page」目次は 3 カラム骨格化（イシュー #907、設計文書
+    // §3.1/§3.3）に伴い `main.docs-main` の外へ移設し、右目次カラム
+    // （`aside.docs-toc-aside`）として `div.docs-container` の第 3 子に置く。
+    // `main_children` は SkipNav ターゲットと本文のみを保持する。
     // SkipNav のスキップ先ターゲット（イシュー #776）。読者が実際に読み始める
-    // 本文（TOC・article）の直前に置き、`link` クリック時のプログラム的
-    // フォーカス移動先とする（`fandhe-frontend-headless-ui::skip_nav` の
+    // 本文（article）の直前に置き、`link` クリック時のプログラム的フォーカス
+    // 移動先とする（`fandhe-frontend-headless-ui::skip_nav` の
     // `tabindex="-1"` 契約参照）。
-    let mut main_children = vec![ps_skip_nav::content(
-        ps_skip_nav::DEFAULT_ID,
-        vec![],
-        vec![],
-    )];
-    if let Some(toc_node) = toc {
-        main_children.push(toc_node);
-    }
-    main_children.push(article(
-        vec![("class", "docs-content")],
-        vec![annotated_body],
-    ));
+    let main_children = vec![
+        ps_skip_nav::content(ps_skip_nav::DEFAULT_ID, vec![], vec![]),
+        article(vec![("class", "docs-content")], vec![annotated_body]),
+    ];
 
     let root_href = asset_href(base_path, "");
     let header_node = header(
@@ -413,19 +421,72 @@ pub fn docs_page_with_assets(
         vec![text("Skip to content")],
     );
 
+    // `< 768px` の左ナビ折りたたみをタッチ操作でも開閉できるようにする
+    // チェックボックスハック（設計文書 §3.2 の「マウス操作ユーザー向けの
+    // 明示的な開閉トリガー」を採用、JS 不要）。開閉状態の唯一の情報源は
+    // このチェックボックスの `:checked`（`crate::site_theme::STRUCTURAL_CSS`
+    // 参照）とし、`:focus-within` は開状態の判定に加えない（キーボード
+    // 操作でチェックを外してもフォーカスがナビ内に残っている限り閉じられ
+    // ない回帰を避けるため、Bugbot 指摘 #916 是正）。チェックボックス自体は
+    // Tab フォーカス・Space 操作の対象として DOM 上に残り続けるため、
+    // クリップされたリンクへも Tab で到達しトグルを Space で開閉できる
+    // （sr-only パターン、`display: none`/`visibility: hidden` にしない
+    // 理由）。`nav_list`（`sidebar` 引数）自体の markup は変更しない
+    // （設計文書 §3.4 の不変条件）。
+    let sidebar_toggle_id = "docs-sidebar-toggle";
+    let sidebar_toggle = el(
+        "input",
+        vec![
+            ("type", "checkbox"),
+            ("id", sidebar_toggle_id),
+            ("class", "docs-sidebar-toggle"),
+        ],
+        vec![],
+    );
+    let sidebar_toggle_label = el(
+        "label",
+        vec![
+            ("for", sidebar_toggle_id),
+            ("class", "docs-sidebar-toggle-label"),
+        ],
+        vec![text("Menu".to_string())],
+    );
+
+    // `div.docs-container` の子は「左ナビ / 中央コンテンツ / 右目次」の
+    // 3 カラム順（設計文書 §3.1）。右目次カラムは見出しが 1 つも無いページ
+    // では出力しない（`aside.docs-toc-aside` 自体を省略する。§3.3 の方針。
+    // `nav.docs-toc` 単体で空 `nav` を出さない [`toc_nav`] の既存契約と揃える）。
+    let has_toc = toc.is_some();
+    let mut container_children = vec![
+        aside(
+            vec![("class", "docs-sidebar")],
+            vec![sidebar_toggle, sidebar_toggle_label, sidebar],
+        ),
+        main_tag(vec![("class", "docs-main")], main_children),
+    ];
+    if let Some(toc_node) = toc {
+        container_children.push(aside(vec![("class", "docs-toc-aside")], vec![toc_node]));
+    }
+
+    // 見出しが無いページ（`aside.docs-toc-aside` 自体が出力されない）では
+    // `docs-container--no-toc` 修飾 class を付与する。`min-width: 1200px`
+    // の 3 カラム grid はこの class の有無で右目次列のグリッドトラックを
+    // 収縮させ、見出しの無いページで空の右カラムが残ったまま中央カラムが
+    // 狭くなる回帰を避ける（`crate::site_theme::STRUCTURAL_CSS` 参照、
+    // Bugbot 指摘 #916 是正）。
+    let container_class = if has_toc {
+        "docs-container"
+    } else {
+        "docs-container docs-container--no-toc"
+    };
+
     let body_node = el(
         "body",
         vec![],
         vec![
             skip_nav_link,
             header_node,
-            div(
-                vec![("class", "docs-container")],
-                vec![
-                    aside(vec![("class", "docs-sidebar")], vec![sidebar]),
-                    main_tag(vec![("class", "docs-main")], main_children),
-                ],
-            ),
+            div(vec![("class", container_class)], container_children),
         ],
     );
 

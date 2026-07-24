@@ -215,7 +215,34 @@ fn no_headings_means_no_toc_nav_and_no_toc_section_in_document() {
     let node = docs_page("タイトル", "", sample_sidebar(), body);
     let html = render(&node);
     assert!(!html.contains(r#"class="docs-toc""#));
+    // イシュー #907: 見出しの無いページでは右目次カラム（第 3 子 aside）自体を
+    // 出力しない（設計文書 §3.3 の方針）。
+    assert!(!html.contains(r#"class="docs-toc-aside""#));
+    // Bugbot 指摘（PR #916）是正の回帰テスト: `aside.docs-toc-aside` が無い
+    // ページの `div.docs-container` には `docs-container--no-toc` 修飾 class
+    // を付与し、`min-width: 1200px` の 3 カラム grid で右目次列のグリッド
+    // トラックを収縮させる（`crate::site_theme::STRUCTURAL_CSS` 参照）。
+    assert!(html.contains(r#"class="docs-container docs-container--no-toc""#));
     let _ = annotated;
+}
+
+/// [`no_headings_means_no_toc_nav_and_no_toc_section_in_document`] の対:
+/// 見出しが存在するページでは `docs-container--no-toc` 修飾 class を付与
+/// しない（Bugbot 指摘、PR #916 是正）。
+#[test]
+fn headings_present_means_container_has_no_toc_modifier_class() {
+    let body = fandhe_frontend_core::div(
+        vec![],
+        vec![
+            h2(vec![], vec![text("見出し")]),
+            p(vec![], vec![text("本文")]),
+        ],
+    );
+    let node = docs_page("タイトル", "", sample_sidebar(), body);
+    let html = render(&node);
+    assert!(html.contains(r#"class="docs-toc-aside""#));
+    assert!(html.contains(r#"class="docs-container""#));
+    assert!(!html.contains("docs-container--no-toc"));
 }
 
 #[test]
@@ -232,6 +259,84 @@ fn toc_nav_links_use_anchor_hrefs_matching_injected_ids() {
     let end = after.find('"').expect("closing quote of id attr");
     let id = &after[..end];
     assert!(html.contains(&format!("href=\"#{id}\"")));
+}
+
+/// イシュー #907: 3 カラム骨格の DOM 出現順（左ナビ / 中央コンテンツ /
+/// 右目次）を固定する回帰テスト。設計文書 §3.1/§3.3 の「`nav.docs-toc` を
+/// `aside.docs-toc-aside` として `main.docs-main` の外（第 3 子）へ移設する」
+/// 変更に伴い、`docs-sidebar` < `docs-content` < `docs-toc-aside` の順で
+/// 出現することを検証する。
+#[test]
+fn docs_page_emits_three_columns_in_left_nav_center_content_right_toc_order() {
+    let body = fandhe_frontend_core::div(vec![], vec![h2(vec![], vec![text("導入")])]);
+    let node = docs_page("タイトル", "", sample_sidebar(), body);
+    let html = render(&node);
+
+    let sidebar_pos = html
+        .find(r#"class="docs-sidebar""#)
+        .expect("docs-sidebar should exist");
+    let content_pos = html
+        .find(r#"class="docs-content""#)
+        .expect("docs-content should exist");
+    let toc_aside_pos = html
+        .find(r#"class="docs-toc-aside""#)
+        .expect("docs-toc-aside should exist when headings are present");
+    let toc_nav_pos = html
+        .find(r#"class="docs-toc""#)
+        .expect("docs-toc nav should exist inside the toc aside");
+
+    assert!(
+        sidebar_pos < content_pos,
+        "left nav column should precede center content column"
+    );
+    assert!(
+        content_pos < toc_aside_pos,
+        "center content column should precede right toc column"
+    );
+    assert!(
+        toc_aside_pos < toc_nav_pos,
+        "nav.docs-toc should be nested inside aside.docs-toc-aside"
+    );
+}
+
+/// イシュー #907（レビュー指摘、commit e01a23d）: `< 768px` の左ナビ折りたたみを
+/// タッチ操作でも開閉できるようにするチェックボックスハック
+/// （`input#docs-sidebar-toggle` + `label[for=docs-sidebar-toggle]`）の
+/// markup・id/for 紐付け・DOM 順を固定する回帰テスト。`site.css` の CSS
+/// 一般兄弟結合子 `.docs-sidebar-toggle:checked ~ nav.sidebar` が機能する
+/// ためには `input` が `label`・`nav`（`sidebar` 引数のルート要素）より
+/// 先に出現する必要があり、markup の並び順が誤って変更された場合に
+/// この回帰テストが検知する。
+#[test]
+fn docs_sidebar_toggle_checkbox_and_label_are_wired_before_sidebar_nav() {
+    let body = p(vec![], vec![text("本文です。")]);
+    let node = docs_page("タイトル", "", sample_sidebar(), body);
+    let html = render(&node);
+
+    assert!(html.contains(r#"type="checkbox""#));
+    assert!(html.contains(r#"id="docs-sidebar-toggle""#));
+    assert!(html.contains(r#"class="docs-sidebar-toggle""#));
+    assert!(html.contains(r#"for="docs-sidebar-toggle""#));
+    assert!(html.contains(r#"class="docs-sidebar-toggle-label""#));
+
+    let toggle_pos = html
+        .find(r#"id="docs-sidebar-toggle""#)
+        .expect("sidebar toggle checkbox should exist");
+    let label_pos = html
+        .find(r#"for="docs-sidebar-toggle""#)
+        .expect("sidebar toggle label should exist");
+    let sidebar_nav_pos = html
+        .find("はじめに")
+        .expect("sidebar nav content should exist");
+
+    assert!(
+        toggle_pos < label_pos,
+        "checkbox input must precede its label for the CSS general sibling combinator to apply"
+    );
+    assert!(
+        label_pos < sidebar_nav_pos,
+        "label must precede nav.sidebar so `.docs-sidebar-toggle:checked ~ nav.sidebar` matches"
+    );
 }
 
 #[test]
