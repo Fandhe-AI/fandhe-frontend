@@ -350,6 +350,8 @@ mod tests {
             ("sparkline", crate::sparkline::stylesheet()),
             ("pie_chart", crate::pie_chart::css()),
             ("donut_chart", crate::donut_chart::css()),
+            ("charts/scatter_chart", crate::charts::scatter_chart::css()),
+            ("charts/radar_chart", crate::charts::radar_chart::css()),
         ]
     }
 
@@ -376,14 +378,16 @@ mod tests {
         // せず、コンパイル時確定の `CARGO_MANIFEST_DIR` のみを使う決定的判定
         // （`.claude/rules/ci.md` の self-hosted 共有環境への配慮に合わせる）。
         //
-        // イシュー #847: `src/charts/` サブディレクトリ（axis/grid/legend/
-        // tooltip）は元々の非再帰スキャン（`src/` 直下のみ）では検出されない
-        // ため、`charts/<stem>` という部品名で個別に検出対象へ加える
-        // （`all_styled_component_css` の `"charts/axis"` 等のキー形式と合わせる）。
-        // イシュー #849: bar_chart/bar_list/bar_segment も同じ `src/charts/`
-        // 配下に追加されたため、同じ `charts/<stem>` 命名規則へ追随する
-        // （`src/charts/` は非再帰の 1 階層のみのスキャンを維持する前提。
-        // 増えた場合は本走査も追随して拡張する）。
+        // イシュー #847/#849/#851: `src/charts/` サブディレクトリ（axis/grid/
+        // legend/tooltip/bar_chart/bar_list/bar_segment/radar_chart/
+        // scatter_chart 等、charts 基盤 #846 の消費者全般）は元々の非再帰
+        // スキャン（`src/` 直下のみ）では検出されないため、`charts/<stem>`
+        // という部品名で個別に検出対象へ加える（`all_styled_component_css` の
+        // `"charts/axis"`/`"charts/radar_chart"` 等のキー形式と合わせる。
+        // `src/` 直下の走査と `src/charts/` の走査を二重に行うと同一ファイルが
+        // bare 名/`charts/` 接頭辞名の双方で二重登録され本テストが常に
+        // 失敗するため、`src/charts/` は下記の専用ループのみが担当し、直下
+        // 走査には含めない）。
         let src_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
 
         let mut modules_with_css_fn: Vec<String> = Vec::new();

@@ -262,7 +262,7 @@ pub fn value_percent(series: &Series, value: f64) -> f64 {
 /// 依存せず一定）であり、丸め誤差で吸収されない安全マージンを保証する。
 /// `v` が 0 または小さい場合は下限の絶対値 `1.0` が優先され、既存の
 /// 「フラットな小さい値は ±1.0 に広がる」挙動を変えない。
-fn flat_domain_pad(v: f64) -> f64 {
+pub(crate) fn flat_domain_pad(v: f64) -> f64 {
     (v.abs() * 2f64.powi(-40)).max(1.0)
 }
 

@@ -38,7 +38,11 @@ use fandhe_frontend_pre_styled_ui::badge::{badge, BadgeProps};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, close_button, icon_button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
-use fandhe_frontend_pre_styled_ui::charts::{ChartData, Series};
+use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
+use fandhe_frontend_pre_styled_ui::charts::radar_chart::{self, RadarChartProps};
+use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
+    self, ScatterChartProps, ScatterData, ScatterSeries,
+};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::clipboard;
@@ -3823,7 +3827,86 @@ fn pie_and_donut_chart_are_escaped_for_all_payloads() {
     }
 }
 
-/// (25) charts BarChart/BarList/BarSegment 経路（イシュー #849、親 Phase #845）:
+/// (25) charts ScatterChart/RadarChart 経路（イシュー #851）: `data-series`
+/// 属性値（両部品共通）・カテゴリ名（`svg_text` children、RadarChart 軸
+/// ラベル）・`aria_label`（両部品共通の `role="img"` 代替テキスト属性値）の
+/// 3 入力面を `payloads::all()` で網羅する。
+#[test]
+fn charts_scatter_and_radar_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // ScatterChart: data-series 属性値経路。
+        let scatter_data =
+            ScatterData::new(vec![ScatterSeries::new(payload, vec![(0.0, 0.0)])]).unwrap();
+        let html = render(
+            &scatter_chart::root(&scatter_data, ScatterChartProps::default(), "label").unwrap(),
+        );
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "scatter_chart::root の data-series 属性値コンテキスト",
+        );
+
+        // ScatterChart: aria_label 属性値経路。
+        let plain_scatter_data =
+            ScatterData::new(vec![ScatterSeries::new("s1", vec![(0.0, 0.0)])]).unwrap();
+        let html = render(
+            &scatter_chart::root(&plain_scatter_data, ScatterChartProps::default(), payload)
+                .unwrap(),
+        );
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "scatter_chart::root の aria_label 属性値コンテキスト",
+        );
+
+        // RadarChart: カテゴリ名（軸ラベル、svg_text children）経路。
+        let radar_data_category = ChartData::new(
+            vec![payload.to_string(), "b".to_string(), "c".to_string()],
+            vec![Series::new("s1", vec![1.0, 2.0, 3.0])],
+        )
+        .unwrap();
+        let html = render(
+            &radar_chart::root(&radar_data_category, RadarChartProps::default(), "label").unwrap(),
+        );
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "radar_chart::root の軸ラベル children コンテキスト",
+        );
+
+        // RadarChart: data-series 属性値経路。
+        let radar_data_series = ChartData::new(
+            vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            vec![Series::new(payload, vec![1.0, 2.0, 3.0])],
+        )
+        .unwrap();
+        let html = render(
+            &radar_chart::root(&radar_data_series, RadarChartProps::default(), "label").unwrap(),
+        );
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "radar_chart::root の data-series 属性値コンテキスト",
+        );
+
+        // RadarChart: aria_label 属性値経路。
+        let plain_radar_data = ChartData::new(
+            vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            vec![Series::new("s1", vec![1.0, 2.0, 3.0])],
+        )
+        .unwrap();
+        let html = render(
+            &radar_chart::root(&plain_radar_data, RadarChartProps::default(), payload).unwrap(),
+        );
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "radar_chart::root の aria_label 属性値コンテキスト",
+        );
+    }
+}
+
+/// (26) charts BarChart/BarList/BarSegment 経路（イシュー #849、親 Phase #845）:
 /// カテゴリ名・系列名・BarChart の `aria_label` の各所すべてで既定エスケープ
 /// （REQ-1）が貫通することを固定する。SVG（BarChart）/HTML（BarList/
 /// BarSegment）双方の出力経路を対象とする。
