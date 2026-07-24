@@ -35,12 +35,13 @@ Combobox styled ラッパー追加（#749）・Pagination styled ラッパー追
 追加（#758）・Link/LinkOverlay/NavList styled ラッパー追加（#756）・
 HoverCard styled ラッパー追加（#759）・ToggleTip styled ラッパー追加
 （#761）・Progress circular 対応追加（#763）・Skeleton 静的部品追加
-（#764）・Image/Icon 静的部品追加（#770）・Status/EmptyState 静的部品追加
-（#765）・タイポグラフィ静的部品 6 種追加（#771）・Separator 静的部品追加
-（#772）・Highlight 静的部品追加（#775）・Clipboard headless ラッパー追加
-（#773）・QrCode styled ラッパー追加（#774）・VisuallyHidden/SkipNav 静的
-部品追加（#776、いずれも公開時点未反映）・ActionBar styled ラッパー追加
-（#762）・Toast styled ラッパー追加（#760）を経て 67 の公開モジュールを
+（#764）・Tag/Kbd/Code styled 静的部品追加（#768）・Image/Icon 静的部品
+追加（#770）・Status/EmptyState 静的部品追加（#765）・タイポグラフィ静的
+部品 6 種追加（#771）・Separator 静的部品追加（#772）・Highlight 静的部品
+追加（#775）・Clipboard headless ラッパー追加（#773）・QrCode styled
+ラッパー追加（#774）・VisuallyHidden/SkipNav 静的部品追加（#776）・
+ActionBar styled ラッパー追加（#762）・Toast styled ラッパー追加
+（#760、いずれも公開時点未反映）を経て 71 の公開モジュールを
 持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
@@ -88,6 +89,7 @@ HoverCard styled ラッパー追加（#759）・ToggleTip styled ラッパー追
 | headless ラッパー | `hover_card` | #759（`popover`/`tooltip` と同型の判断で variant は非提供。構造上最も近い先行例は `tooltip`。`content` の開閉連動・`--fandhe-reference-width` 非消費・focus-visible リングを継承する） |
 | headless ラッパー | `toggle_tip` | #761（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。「見た目は Tooltip・挙動は Popover」の変種であり、`content` の視覚系は `tooltip` と同一値。状態機械は `state::Disclosure`） |
 | headless ラッパー | `progress` | #763（headless の値状態機械 `Progress`（#544/#600）が持つ Circle/CircleTrack/CircleRange（SVG）へ CSS のみ追加提供。`Progress` 型はあえて再エクスポートせず、`size` variant クラス付与のため styled `root` のみを新設する（`dialog`/`switch` と同型の判断）。circle 自身は headless の inherent メソッドをそのまま呼ばせる（クラス不要）。indeterminate 時の回転アニメーションは `[data-part="circle"][data-state="indeterminate"]` セレクタ + `@keyframes`（`spinner` と同型）で提供。linear（Track/Range）用の styled ラッパーは対応表（`docs/design/component-coverage-map.md`）が本イシューと切り分けたスコープ外） |
+| 単純 styled 部品（静的） | `tag` / `kbd` / `code` | #768（`tag` は `variant`/`size`/`color-palette` の 3 軸 variant を持つ root/label/close-trigger の 3 パーツ。`badge` と同型の判断。close-trigger は状態機械を持たず `data-action` 属性の出力のみを担う。`kbd`/`code` は variant 軸を持たない単一 slot。chakra-ui の CodeBlock は対象外確定済み） |
 | 状態機械を要しない静的部品 | `status` / `empty_state` | #765（§4h 参照。`status` は `size`/`color-palette` の 2 軸、`empty_state` は `card` と同型の中立コンテナで `color-palette` 軸は非提供） |
 | headless ラッパー | `clipboard` | #773（`hover_card`/`toggle_tip` と同型の判断で variant は非提供。Indicator の可視性切り替えは `avatar` の image/fallback と同型の `data-state` 多層防御パターン。`navigator.clipboard.writeText` 実配線は `fandhe-frontend-wasm-full::headless_clipboard` が提供） |
 | タイポグラフィ静的部品 | `heading` / `text` / `em` / `mark` / `blockquote` / `list` | #771（§4i 参照。素の HTML 意味論（h1〜h6/p/em/mark/blockquote/ul・ol・li）をそのまま styled 化。headless 状態機械は要しない） |

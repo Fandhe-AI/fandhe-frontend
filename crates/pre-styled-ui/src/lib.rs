@@ -239,6 +239,13 @@
 //!   [`nav_list::link`]）のみを使い、`site/assets/site.css` の自己完結
 //!   不変条件（§3.4）を維持したまま §3.1/§3.2 の意味論不整合を解消する
 //!   （[`mod@nav_list`] rustdoc 参照）。
+//! - 状態機械を要しない単純 styled 部品 3 種（イシュー #768）: [`mod@tag`]
+//!   （Tag、`variant`/`size`/`color-palette` の 3 軸 variant を持つ
+//!   root/label/close-trigger の 3 パーツ。close-trigger は状態機械を持たず
+//!   `data-action` 属性の出力のみを担う。[`crate::badge`] と同型の判断） /
+//!   [`mod@kbd`]（Kbd、variant 軸を持たない単一 slot） / [`mod@code`]（Code、
+//!   インライン `<code>`。variant 軸を持たない単一 slot。chakra-ui の
+//!   CodeBlock は対象外確定済み）。詳細は各モジュール rustdoc 参照。
 //! - headless ラッパー（イシュー #762）: [`mod@action_bar`]（ActionBar、
 //!   複数選択時に画面下部中央へ固定表示する操作バー）。`size`/`color-palette`
 //!   軸は持たず、`positioner` の `position: fixed; bottom: ...; left: 50%;
@@ -411,6 +418,7 @@ pub mod checkbox;
 pub mod checkbox_card;
 mod class_attr;
 pub mod clipboard;
+pub mod code;
 pub mod combobox;
 pub mod css;
 pub mod dialog;
@@ -424,6 +432,7 @@ pub mod hover_card;
 pub mod icon;
 pub mod image;
 pub mod input;
+pub mod kbd;
 pub mod link;
 pub mod link_overlay;
 pub mod list;
@@ -455,6 +464,7 @@ pub mod steps;
 pub mod stylesheet;
 pub mod switch;
 pub mod tabs;
+pub mod tag;
 pub mod tags_input;
 pub mod text;
 pub mod textarea;
@@ -472,6 +482,7 @@ pub use badge::{badge, BadgeProps, BadgeVariant};
 pub use blockquote::BlockquoteVariant;
 pub use button::{button, ButtonProps, ButtonVariant};
 pub use card::CardVariant;
+pub use code::code;
 pub use css::{decl, Declaration};
 pub use em::em;
 pub use empty_state::EmptyStateProps;
@@ -480,6 +491,7 @@ pub use highlight::{highlight, HighlightProps};
 pub use icon::{icon, IconProps};
 pub use image::{image, AspectRatio, ImageFit, ImageProps};
 pub use input::{input, InputProps, InputVariant};
+pub use kbd::kbd;
 pub use list::{ListType, ListVariant};
 pub use mark::{mark, MarkProps, MarkVariant};
 pub use native_select::{native_select, NativeSelectProps, NativeSelectVariant};
@@ -489,6 +501,7 @@ pub use skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 pub use spinner::{spinner, SpinnerProps};
 pub use status::StatusProps;
 pub use stylesheet::{StyleSheet, StylesheetError};
+pub use tag::TagVariant;
 pub use text::{text, TextProps, TextSize};
 pub use textarea::{textarea, TextareaProps, TextareaVariant};
 
