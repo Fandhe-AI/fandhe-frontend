@@ -23,26 +23,73 @@
 //!   `i64::MIN`/`i64::MAX` を含む全入力域で panic せず決定的な文字列を返す
 //!   （A04: 安全でない設計対策、DoS 耐性）。
 //!
-//! # ロケール拡張点（イシュー #854 への布石）
+//! # ロケール対応（イシュー #854）
 //!
-//! [`Locale`] は `#[non_exhaustive]` とし、初期実装は [`Locale::En`] のみを
-//! 持つ。追加ロケールはイシュー #854 で本 enum への variant 追加 + 各関数内
-//! `match locale { ... }` 定数表への分岐追加として行う想定であり、動的な
-//! ロケールテーブル・グローバル状態は持たない（決定性・機械検証可能性を
-//! 優先する意図的な設計、`docs/policy/intentional-non-adoption.md` 参照）。
+//! [`Locale`] は `#[non_exhaustive]` とし、`En`（英語）/ `Ja`（日本語）の
+//! 2 種を持つ。ロケールは常に各 `Format*Options::locale` フィールド経由で
+//! 呼び出し側から明示的に渡す値型であり、Context/Provider 機構・グローバル
+//! 既定ロケール・スレッドローカルは一切導入しない（ambient authority を
+//! 作らない設計、`docs/policy/intentional-non-adoption.md` §3.23 参照）。
+//! 追加ロケール（en/ja 以外）は本 enum への variant 追加 + 各関数内
+//! `match locale { ... }` 定数表への分岐追加として将来対応する。
 
 /// フォーマッタが参照するロケール。
 ///
-/// 初期実装（イシュー #853）は [`Locale::En`] のみを持つ。追加ロケールは
-/// イシュー #854 のスコープであり、本 enum への variant 追加として行う
-/// （利用側の `match` 網羅性チェックを効かせるため `#[non_exhaustive]` を
-/// 付与し、追加時に呼び出し側の未対応分岐を機械的に検出可能にする）。
+/// 英語（[`Locale::En`]）・日本語（[`Locale::Ja`]）の 2 種をサポートする
+/// （イシュー #854）。ロケールは呼び出し側が各 `Format*Options::locale`
+/// フィールドへ明示的に渡す値型であり、本モジュールはグローバル状態・
+/// スレッドローカル・環境変数を一切参照しない（呼び出し元が「現在の
+/// ロケール」を決定し注入する契約、[`format_relative_time`] が「現在時刻」
+/// を注入させる契約と同型）。追加ロケールは本 enum への variant 追加として
+/// 行う（利用側の `match` 網羅性チェックを効かせるため `#[non_exhaustive]`
+/// を付与し、追加時に呼び出し側の未対応分岐を機械的に検出可能にする）。
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Locale {
-    /// 英語（初期実装で唯一サポートするロケール）。
+    /// 英語（既定ロケール）。
     #[default]
     En,
+    /// 日本語。
+    Ja,
+}
+
+impl Locale {
+    /// ロケールに対応する BCP 47 言語タグ（`"en"` / `"ja"`）を返す。
+    ///
+    /// 呼び出し側が HTML の `lang` 属性等へ決定的に埋め込める定数を返す
+    /// 純関数。新規ロケール追加時は本メソッドへの分岐追加も必須になる
+    /// （`match` の非網羅がコンパイルエラーになる `#[non_exhaustive]` の
+    /// 効能をここでも活かす）。
+    pub fn tag(&self) -> &'static str {
+        match self {
+            Locale::En => "en",
+            Locale::Ja => "ja",
+        }
+    }
+
+    /// BCP 47 言語タグ文字列から対応する [`Locale`] を決定的に逆引きする。
+    ///
+    /// # 契約・非対応範囲
+    ///
+    /// ASCII 小文字化した上で `-`/`_` 区切りの先頭要素（primary subtag）が
+    /// `"en"`/`"ja"` と完全一致する場合のみ `Some` を返す（`"en-US"` や
+    /// `"ja_JP"` は `Some(Locale::Ja)` 等に解決するが、複雑な BCP 47 の
+    /// 構文解析・大文字小文字混在の地域タグ検証は行わない）。未知のタグは
+    /// `None` を返す fail-closed 設計であり、Accept-Language ヘッダ解析等の
+    /// ロケールネゴシエーションは呼び出し側（サーバー層）の責務とする
+    /// （本関数はその一部品にすぎない）。
+    pub fn from_tag(tag: &str) -> Option<Locale> {
+        let primary = tag
+            .split(['-', '_'])
+            .next()
+            .unwrap_or(tag)
+            .to_ascii_lowercase();
+        match primary.as_str() {
+            "en" => Some(Locale::En),
+            "ja" => Some(Locale::Ja),
+            _ => None,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -161,15 +208,73 @@ const BINARY_BIT_UNIT_NAMES_EN: [(&str, &str, &str); 9] = [
     ("Yib", "yobibits", "Y"),
 ];
 
+/// 単位段階名テーブル（ja ロケール）。short/narrow は SI 記号が国際共通の
+/// ため en と同一とし、long のみカタカナ表記（単複同形）にする。
+const BYTE_UNIT_NAMES_JA: [(&str, &str, &str); 9] = [
+    ("B", "バイト", "B"),
+    ("kB", "キロバイト", "k"),
+    ("MB", "メガバイト", "M"),
+    ("GB", "ギガバイト", "G"),
+    ("TB", "テラバイト", "T"),
+    ("PB", "ペタバイト", "P"),
+    ("EB", "エクサバイト", "E"),
+    ("ZB", "ゼタバイト", "Z"),
+    ("YB", "ヨタバイト", "Y"),
+];
+
+const BIT_UNIT_NAMES_JA: [(&str, &str, &str); 9] = [
+    ("b", "ビット", "b"),
+    ("kb", "キロビット", "k"),
+    ("Mb", "メガビット", "M"),
+    ("Gb", "ギガビット", "G"),
+    ("Tb", "テラビット", "T"),
+    ("Pb", "ペタビット", "P"),
+    ("Eb", "エクサビット", "E"),
+    ("Zb", "ゼタビット", "Z"),
+    ("Yb", "ヨタビット", "Y"),
+];
+
+const BINARY_BYTE_UNIT_NAMES_JA: [(&str, &str, &str); 9] = [
+    ("B", "バイト", "B"),
+    ("KiB", "キビバイト", "K"),
+    ("MiB", "メビバイト", "M"),
+    ("GiB", "ギビバイト", "G"),
+    ("TiB", "テビバイト", "T"),
+    ("PiB", "ペビバイト", "P"),
+    ("EiB", "エクスビバイト", "E"),
+    ("ZiB", "ゼビバイト", "Z"),
+    ("YiB", "ヨビバイト", "Y"),
+];
+
+const BINARY_BIT_UNIT_NAMES_JA: [(&str, &str, &str); 9] = [
+    ("b", "ビット", "b"),
+    ("Kib", "キビビット", "K"),
+    ("Mib", "メビビット", "M"),
+    ("Gib", "ギビビット", "G"),
+    ("Tib", "テビビット", "T"),
+    ("Pib", "ペビビット", "P"),
+    ("Eib", "エクスビビット", "E"),
+    ("Zib", "ゼビビット", "Z"),
+    ("Yib", "ヨビビット", "Y"),
+];
+
+/// ロケール・単位・進数系に応じた単位段階名テーブルを選ぶ。
+/// 追加ロケールは `locale` 分岐の追加として行う（イシュー #854 で
+/// `unit`/`unit_system` 2 軸の分岐に `locale` 軸を追加した形）。
 fn byte_unit_table(
+    locale: Locale,
     unit: ByteUnit,
     unit_system: UnitSystem,
 ) -> &'static [(&'static str, &'static str, &'static str); 9] {
-    match (unit, unit_system) {
-        (ByteUnit::Byte, UnitSystem::Decimal) => &BYTE_UNIT_NAMES_EN,
-        (ByteUnit::Bit, UnitSystem::Decimal) => &BIT_UNIT_NAMES_EN,
-        (ByteUnit::Byte, UnitSystem::Binary) => &BINARY_BYTE_UNIT_NAMES_EN,
-        (ByteUnit::Bit, UnitSystem::Binary) => &BINARY_BIT_UNIT_NAMES_EN,
+    match (locale, unit, unit_system) {
+        (Locale::En, ByteUnit::Byte, UnitSystem::Decimal) => &BYTE_UNIT_NAMES_EN,
+        (Locale::En, ByteUnit::Bit, UnitSystem::Decimal) => &BIT_UNIT_NAMES_EN,
+        (Locale::En, ByteUnit::Byte, UnitSystem::Binary) => &BINARY_BYTE_UNIT_NAMES_EN,
+        (Locale::En, ByteUnit::Bit, UnitSystem::Binary) => &BINARY_BIT_UNIT_NAMES_EN,
+        (Locale::Ja, ByteUnit::Byte, UnitSystem::Decimal) => &BYTE_UNIT_NAMES_JA,
+        (Locale::Ja, ByteUnit::Bit, UnitSystem::Decimal) => &BIT_UNIT_NAMES_JA,
+        (Locale::Ja, ByteUnit::Byte, UnitSystem::Binary) => &BINARY_BYTE_UNIT_NAMES_JA,
+        (Locale::Ja, ByteUnit::Bit, UnitSystem::Binary) => &BINARY_BIT_UNIT_NAMES_JA,
     }
 }
 
@@ -191,7 +296,7 @@ pub fn format_byte(value: f64, options: &FormatByteOptions) -> String {
         return if value > 0.0 { "∞" } else { "-∞" }.to_string();
     }
 
-    let table = byte_unit_table(options.unit, options.unit_system);
+    let table = byte_unit_table(options.locale, options.unit, options.unit_system);
     let base: f64 = match options.unit_system {
         UnitSystem::Decimal => 1000.0,
         UnitSystem::Binary => 1024.0,
@@ -296,10 +401,16 @@ impl Default for FormatNumberOptions {
     }
 }
 
-/// ロケールごとの桁区切り記号・小数点記号。追加ロケールはイシュー #854。
+/// ロケールごとの桁区切り記号・小数点記号。
+///
+/// ja は CLDR 上も en と同一（`,`/`.`）であり、桁区切り記号に差異はない
+/// （日本語圏の数値表記も西暦横書きでは半角カンマ・ピリオドを用いるため）。
+/// 独立エントリとして持つことで、将来の追加ロケールで区切り記号が異なる
+/// 場合にも `match` の各アームを機械的に埋める設計を保つ。
 fn number_separators(locale: Locale) -> (char, char) {
     match locale {
         Locale::En => (',', '.'),
+        Locale::Ja => (',', '.'),
     }
 }
 
@@ -474,9 +585,11 @@ impl Default for FormatRelativeTimeOptions {
     }
 }
 
-/// 単位境界（秒単位の閾値、単位あたりの秒数、en 語彙 (単数, 複数)）。
+/// 単位境界（秒単位の閾値、単位あたりの秒数、ロケール別語彙 (単数, 複数)）。
 /// 月 = 30 日・年 = 365 日の近似であることを利用側は前提としてよい
 /// （厳密な暦計算ではなく決定的な閾値テーブルであることを明示する）。
+/// 閾値・単位あたり秒数はロケール非依存（[`RELATIVE_UNITS_EN`]/
+/// [`RELATIVE_UNITS_JA`] で共通の暦近似を使う）。
 struct RelativeUnit {
     threshold_secs: i64,
     unit_secs: i64,
@@ -538,6 +651,78 @@ const RELATIVE_YEAR_UNIT_EN: RelativeUnit = RelativeUnit {
     narrow: ("y", "y"),
 };
 
+/// ja ロケールの単位語彙表。閾値・単位あたり秒数は [`RELATIVE_UNITS_EN`] と
+/// 同一（暦近似の定義はロケール非依存）で、語彙のみ日本語に差し替える。
+/// CLDR ja は名詞が単複同形のため `(単数, 複数)` の 2 要素は同一語を持つ
+/// （`format_relative_time` 側の単複判定ロジックを変えずに済ませる設計）。
+/// long/short と narrow はいずれも同一語彙（CLDR ja 準拠、英語のような
+/// 短縮形の別体系を持たない）。
+const RELATIVE_UNITS_JA: [RelativeUnit; 6] = [
+    RelativeUnit {
+        threshold_secs: 60,
+        unit_secs: 1,
+        long: ("秒", "秒"),
+        short: ("秒", "秒"),
+        narrow: ("秒", "秒"),
+    },
+    RelativeUnit {
+        threshold_secs: 3600,
+        unit_secs: 60,
+        long: ("分", "分"),
+        short: ("分", "分"),
+        narrow: ("分", "分"),
+    },
+    RelativeUnit {
+        threshold_secs: 86400,
+        unit_secs: 3600,
+        long: ("時間", "時間"),
+        short: ("時間", "時間"),
+        narrow: ("時間", "時間"),
+    },
+    RelativeUnit {
+        threshold_secs: 86400 * 7,
+        unit_secs: 86400,
+        long: ("日", "日"),
+        short: ("日", "日"),
+        narrow: ("日", "日"),
+    },
+    RelativeUnit {
+        threshold_secs: 86400 * 30,
+        unit_secs: 86400 * 7,
+        long: ("週間", "週間"),
+        short: ("週間", "週間"),
+        narrow: ("週間", "週間"),
+    },
+    RelativeUnit {
+        threshold_secs: 86400 * 365,
+        unit_secs: 86400 * 30,
+        long: ("か月", "か月"),
+        short: ("か月", "か月"),
+        narrow: ("か月", "か月"),
+    },
+];
+
+const RELATIVE_YEAR_UNIT_JA: RelativeUnit = RelativeUnit {
+    threshold_secs: i64::MAX,
+    unit_secs: 86400 * 365,
+    long: ("年", "年"),
+    short: ("年", "年"),
+    narrow: ("年", "年"),
+};
+
+/// ロケール・単位表示形式に応じた「数値と単位語彙の間の区切り文字」。
+///
+/// CLDR ja の相対時間表記は long/short 形式で半角スペースを挟むが
+/// （例: `3 日前`）、narrow 形式ではスペースを挟まない（例: `3日前`）。
+/// en は区切りが常に半角スペース 1 個（`in 3 days` / `3 days ago`）。
+fn relative_time_unit_separator(locale: Locale, style: UnitDisplay) -> &'static str {
+    match (locale, style) {
+        (Locale::Ja, UnitDisplay::Narrow) => "",
+        (Locale::Ja, UnitDisplay::Long | UnitDisplay::Short) => " ",
+        (Locale::En, _) => " ",
+    }
+}
+
 /// `target` と `base`（いずれも Unix 秒）の差から相対時刻文字列を返す
 /// （ark-ui `format-relative-time` 相当）。
 ///
@@ -549,12 +734,22 @@ const RELATIVE_YEAR_UNIT_EN: RelativeUnit = RelativeUnit {
 ///
 /// # 単位選択・オーバーフロー耐性
 ///
-/// 秒→分→時→日→週→月→年の順に閾値テーブル（[`RELATIVE_UNITS_EN`]・
-/// [`RELATIVE_YEAR_UNIT_EN`]）を線形走査し、最小の単位から順に閾値未満と
-/// なる単位を採用する。差分の絶対値は `i64` の `checked_sub`/`unsigned_abs`
+/// 秒→分→時→日→週→月→年の順に閾値テーブル（[`FormatRelativeTimeOptions::locale`]
+/// に応じて [`RELATIVE_UNITS_EN`]・[`RELATIVE_YEAR_UNIT_EN`] または
+/// [`RELATIVE_UNITS_JA`]・[`RELATIVE_YEAR_UNIT_JA`]）を線形走査し、最小の
+/// 単位から順に閾値未満となる単位を採用する。差分の絶対値は `i64` の
+/// `checked_sub`/`unsigned_abs`
 /// を用い、`i64::MIN`/`i64::MAX` の組み合わせでも panic しない
 /// （`checked_sub` が `None` を返す場合は `u64` 全体で飽和させた最大の
-/// 経過時間として扱う）。差が 0 の場合は "just now" を返す。
+/// 経過時間として扱う）。差が 0 の場合は en なら `"just now"`、ja なら
+/// `"たった今"` を返す。
+///
+/// # 文構成（ロケール別）
+///
+/// en は `"in {count} {label}"`（未来）/`"{count} {label} ago"`（過去）。
+/// ja は `"{count}{sep}{label}後"`（未来）/`"{count}{sep}{label}前"`
+/// （過去）で、`sep` は long/short 形式で半角スペース 1 個、narrow 形式は
+/// 空文字（CLDR ja の実挙動に整合、[`relative_time_unit_separator`] 参照）。
 pub fn format_relative_time(target: i64, base: i64, options: &FormatRelativeTimeOptions) -> String {
     let (abs_diff, is_future): (u64, bool) = match target.checked_sub(base) {
         Some(diff) => (diff.unsigned_abs(), diff > 0),
@@ -568,13 +763,21 @@ pub fn format_relative_time(target: i64, base: i64, options: &FormatRelativeTime
     };
 
     if abs_diff == 0 {
-        return "just now".to_string();
+        return match options.locale {
+            Locale::En => "just now".to_string(),
+            Locale::Ja => "たった今".to_string(),
+        };
     }
 
     let abs_diff_i64 = i64::try_from(abs_diff).unwrap_or(i64::MAX);
 
-    let mut chosen: &RelativeUnit = &RELATIVE_YEAR_UNIT_EN;
-    for unit in RELATIVE_UNITS_EN.iter() {
+    let (units, year_unit): (&[RelativeUnit; 6], &RelativeUnit) = match options.locale {
+        Locale::En => (&RELATIVE_UNITS_EN, &RELATIVE_YEAR_UNIT_EN),
+        Locale::Ja => (&RELATIVE_UNITS_JA, &RELATIVE_YEAR_UNIT_JA),
+    };
+
+    let mut chosen: &RelativeUnit = year_unit;
+    for unit in units.iter() {
         if abs_diff_i64 < unit.threshold_secs {
             chosen = unit;
             break;
@@ -589,11 +792,23 @@ pub fn format_relative_time(target: i64, base: i64, options: &FormatRelativeTime
         UnitDisplay::Narrow => chosen.narrow,
     };
     let label = if count == 1 { singular } else { plural };
+    let sep = relative_time_unit_separator(options.locale, options.style);
 
-    if is_future {
-        format!("in {count} {label}")
-    } else {
-        format!("{count} {label} ago")
+    match options.locale {
+        Locale::En => {
+            if is_future {
+                format!("in {count} {label}")
+            } else {
+                format!("{count} {label} ago")
+            }
+        }
+        Locale::Ja => {
+            if is_future {
+                format!("{count}{sep}{label}後")
+            } else {
+                format!("{count}{sep}{label}前")
+            }
+        }
     }
 }
 
@@ -966,6 +1181,204 @@ mod tests {
         assert!(result.starts_with("in "));
         let result2 = format_relative_time(i64::MIN, i64::MAX, &options);
         assert!(result2.ends_with(" ago"));
+    }
+
+    // --------------------------- Locale (ja) --------------------------
+
+    #[test]
+    fn locale_tag_returns_bcp47() {
+        assert_eq!(Locale::En.tag(), "en");
+        assert_eq!(Locale::Ja.tag(), "ja");
+    }
+
+    #[test]
+    fn locale_from_tag_resolves_primary_subtag() {
+        assert_eq!(Locale::from_tag("en"), Some(Locale::En));
+        assert_eq!(Locale::from_tag("ja"), Some(Locale::Ja));
+        assert_eq!(Locale::from_tag("en-US"), Some(Locale::En));
+        assert_eq!(Locale::from_tag("ja_JP"), Some(Locale::Ja));
+        assert_eq!(Locale::from_tag("EN"), Some(Locale::En));
+        assert_eq!(Locale::from_tag("fr"), None);
+        assert_eq!(Locale::from_tag(""), None);
+    }
+
+    #[test]
+    fn format_byte_ja_long_uses_katakana() {
+        let options = FormatByteOptions {
+            locale: Locale::Ja,
+            unit_display: UnitDisplay::Long,
+            ..Default::default()
+        };
+        assert_eq!(format_byte(1000.0, &options), "1 キロバイト");
+    }
+
+    #[test]
+    fn format_byte_ja_short_and_narrow_match_en_symbols() {
+        let short = FormatByteOptions {
+            locale: Locale::Ja,
+            ..Default::default()
+        };
+        assert_eq!(format_byte(1450.0, &short), "1.45 kB");
+
+        let narrow = FormatByteOptions {
+            locale: Locale::Ja,
+            unit_display: UnitDisplay::Narrow,
+            ..Default::default()
+        };
+        assert_eq!(format_byte(1000.0, &narrow), "1 k");
+    }
+
+    #[test]
+    fn format_byte_ja_binary_long() {
+        let options = FormatByteOptions {
+            locale: Locale::Ja,
+            unit_system: UnitSystem::Binary,
+            unit_display: UnitDisplay::Long,
+            ..Default::default()
+        };
+        assert_eq!(format_byte(1024.0 * 1024.0, &options), "1 メビバイト");
+    }
+
+    #[test]
+    fn format_byte_ja_bit_unit_long() {
+        let options = FormatByteOptions {
+            locale: Locale::Ja,
+            unit: ByteUnit::Bit,
+            unit_display: UnitDisplay::Long,
+            ..Default::default()
+        };
+        assert_eq!(format_byte(1000.0, &options), "1 キロビット");
+    }
+
+    #[test]
+    fn format_number_ja_grouping_and_percent() {
+        let options = FormatNumberOptions {
+            locale: Locale::Ja,
+            ..Default::default()
+        };
+        assert_eq!(format_number(1234.5, &options), "1,234.5");
+
+        let percent = FormatNumberOptions {
+            locale: Locale::Ja,
+            style: NumberStyle::Percent,
+            maximum_fraction_digits: 1,
+            ..Default::default()
+        };
+        assert_eq!(format_number(0.256, &percent), "25.6%");
+    }
+
+    #[test]
+    fn format_number_ja_sign_display() {
+        let always = FormatNumberOptions {
+            locale: Locale::Ja,
+            sign_display: SignDisplay::Always,
+            ..Default::default()
+        };
+        assert_eq!(format_number(5.0, &always), "+5");
+    }
+
+    #[test]
+    fn format_relative_time_ja_same_instant_is_just_now() {
+        let options = FormatRelativeTimeOptions {
+            locale: Locale::Ja,
+            ..Default::default()
+        };
+        assert_eq!(format_relative_time(1000, 1000, &options), "たった今");
+    }
+
+    #[test]
+    fn format_relative_time_ja_past_long_has_space() {
+        let options = FormatRelativeTimeOptions {
+            locale: Locale::Ja,
+            style: UnitDisplay::Long,
+        };
+        assert_eq!(
+            format_relative_time(1000 - 3 * 86400, 1000, &options),
+            "3 日前"
+        );
+    }
+
+    #[test]
+    fn format_relative_time_ja_future_long_has_space() {
+        let options = FormatRelativeTimeOptions {
+            locale: Locale::Ja,
+            style: UnitDisplay::Long,
+        };
+        assert_eq!(
+            format_relative_time(1000 + 3 * 86400, 1000, &options),
+            "3 日後"
+        );
+    }
+
+    #[test]
+    fn format_relative_time_ja_narrow_has_no_space() {
+        let options = FormatRelativeTimeOptions {
+            locale: Locale::Ja,
+            style: UnitDisplay::Narrow,
+        };
+        assert_eq!(
+            format_relative_time(1000 - 3 * 3600, 1000, &options),
+            "3時間前"
+        );
+    }
+
+    #[test]
+    fn format_relative_time_ja_short_has_space() {
+        let options = FormatRelativeTimeOptions {
+            locale: Locale::Ja,
+            style: UnitDisplay::Short,
+        };
+        assert_eq!(format_relative_time(1000 - 59, 1000, &options), "59 秒前");
+        assert_eq!(format_relative_time(1000 - 60, 1000, &options), "1 分前");
+    }
+
+    #[test]
+    fn format_relative_time_ja_all_unit_boundaries() {
+        let options = FormatRelativeTimeOptions {
+            locale: Locale::Ja,
+            style: UnitDisplay::Long,
+        };
+        let base = 100_000_000i64;
+        assert_eq!(
+            format_relative_time(base - 23 * 3600, base, &options),
+            "23 時間前"
+        );
+        assert_eq!(
+            format_relative_time(base - 24 * 3600, base, &options),
+            "1 日前"
+        );
+        assert_eq!(
+            format_relative_time(base - 6 * 86400, base, &options),
+            "6 日前"
+        );
+        assert_eq!(
+            format_relative_time(base - 7 * 86400, base, &options),
+            "1 週間前"
+        );
+        assert_eq!(
+            format_relative_time(base - 29 * 86400, base, &options),
+            "4 週間前"
+        );
+        assert_eq!(
+            format_relative_time(base - 30 * 86400, base, &options),
+            "1 か月前"
+        );
+        assert_eq!(
+            format_relative_time(base - 2 * 365 * 86400, base, &options),
+            "2 年前"
+        );
+    }
+
+    #[test]
+    fn format_relative_time_ja_extreme_bounds_do_not_panic() {
+        let options = FormatRelativeTimeOptions {
+            locale: Locale::Ja,
+            ..Default::default()
+        };
+        let result = format_relative_time(i64::MAX, i64::MIN, &options);
+        assert!(result.ends_with('後'), "got {result}");
+        let result2 = format_relative_time(i64::MIN, i64::MAX, &options);
+        assert!(result2.ends_with('前'), "got {result2}");
     }
 
     // --------------------------- 決定性 ---------------------------

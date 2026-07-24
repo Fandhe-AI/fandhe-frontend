@@ -519,13 +519,16 @@
 //! - [`mod@format`]: byte / number / time / relative-time の Format 系
 //!   ユーティリティ（イシュー #853、親 Phase 5 #852）。ark-ui `format-byte`/
 //!   `format-number`/`format-time`/`format-relative-time` 相当を、JS の
-//!   `Intl` API・`LocaleProvider` 等の JS ランタイム機構に依存せず外部依存
-//!   ゼロの決定的純関数として実装する（`docs/policy/intentional-non-adoption.md`
-//!   §3.23 の非採用判断を「headless-ui 内モジュール化」で解消）。ノードを
-//!   返さない `String` 純関数であり anatomy を持たない（coverage-map 上も
-//!   「—」）。現在時刻 API を一切呼ばず、[`format::format_relative_time`]
-//!   の基準時刻は呼び出し側が明示的に注入する（[`mod@timer`]/[`mod@date`]
-//!   と同型の「時刻を渡される」設計）。
+//!   `Intl` API に依存せず外部依存ゼロの決定的純関数として実装する
+//!   （`docs/policy/intentional-non-adoption.md` §3.23 の非採用判断を
+//!   「headless-ui 内モジュール化」で解消）。ノードを返さない `String` 純
+//!   関数であり anatomy を持たない（coverage-map 上も「—」）。現在時刻 API
+//!   を一切呼ばず、[`format::format_relative_time`] の基準時刻は呼び出し側
+//!   が明示的に注入する（[`mod@timer`]/[`mod@date`] と同型の「時刻を渡さ
+//!   れる」設計）。ロケールは [`format::Locale`]（en/ja、イシュー #854）を
+//!   各 `Format*Options::locale` フィールド経由で呼び出し側が明示的に渡す
+//!   値型として実装し、`LocaleProvider` の Context/Provider 機構・グローバ
+//!   ル既定ロケールは持たない。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]

@@ -46,6 +46,7 @@
 
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::action_bar;
+use fandhe_frontend_pre_styled_ui::area_chart::{self, AreaChartProps};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
@@ -54,6 +55,22 @@ use fandhe_frontend_pre_styled_ui::button::{
 };
 use fandhe_frontend_pre_styled_ui::calendar::{self, PlainDate};
 use fandhe_frontend_pre_styled_ui::carousel;
+use fandhe_frontend_pre_styled_ui::charts::axis::{self, AxisProps};
+use fandhe_frontend_pre_styled_ui::charts::bar_chart::{
+    self, BarChartProps, Orientation as BarChartOrientation,
+};
+use fandhe_frontend_pre_styled_ui::charts::bar_list;
+use fandhe_frontend_pre_styled_ui::charts::bar_segment;
+use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
+use fandhe_frontend_pre_styled_ui::charts::grid::{self, GridProps};
+use fandhe_frontend_pre_styled_ui::charts::legend::{self, LegendProps};
+use fandhe_frontend_pre_styled_ui::charts::radar_chart::{self, RadarChartProps};
+use fandhe_frontend_pre_styled_ui::charts::scale::LinearScale;
+use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
+    self, ScatterChartProps, ScatterData, ScatterSeries,
+};
+use fandhe_frontend_pre_styled_ui::charts::svg::{svg_root, ViewBox};
+use fandhe_frontend_pre_styled_ui::charts::tooltip as chart_tooltip;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::code::code;
@@ -65,6 +82,7 @@ use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataLi
 use fandhe_frontend_pre_styled_ui::date_input::{self, DateSegment};
 use fandhe_frontend_pre_styled_ui::date_picker;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
+use fandhe_frontend_pre_styled_ui::donut_chart::{donut_chart, DonutChartProps};
 use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::editable::{
@@ -91,6 +109,7 @@ use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImagePr
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::json_tree_view::{self, JsonValue};
 use fandhe_frontend_pre_styled_ui::kbd::kbd;
+use fandhe_frontend_pre_styled_ui::line_chart::{self, LineChartProps};
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
@@ -101,6 +120,7 @@ use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
 use fandhe_frontend_pre_styled_ui::password_input::{
     self, PasswordAutocomplete, PasswordInputProps,
 };
+use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
@@ -109,6 +129,7 @@ use fandhe_frontend_pre_styled_ui::segment_group;
 use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, SeparatorVariant};
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 use fandhe_frontend_pre_styled_ui::slider;
+use fandhe_frontend_pre_styled_ui::sparkline::{self, SparklineProps};
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::splitter;
 use fandhe_frontend_pre_styled_ui::stat;
@@ -334,6 +355,20 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::date_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::timer::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tour::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::bar_chart::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::bar_list::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::bar_segment::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::line_chart::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::area_chart::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::sparkline::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::scatter_chart::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::radar_chart::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::axis::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::grid::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::legend::css())?;
+    sheet.push_css(&chart_tooltip::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::pie_chart::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::donut_chart::css())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -4441,6 +4476,371 @@ fn timer_section() -> Node {
     )
 }
 
+/// charts 用の固定サンプルデータ（BarChart/BarList/BarSegment 節が共有、
+/// イシュー #849）。
+fn bar_charts_sample_data() -> ChartData {
+    ChartData::new(
+        vec![
+            "Jan".to_string(),
+            "Feb".to_string(),
+            "Mar".to_string(),
+            "Apr".to_string(),
+        ],
+        vec![
+            Series::new("visits", vec![120.0, 200.0, 150.0, 80.0]),
+            Series::new("signups", vec![20.0, 35.0, 28.0, 12.0]),
+        ],
+    )
+    .expect("ショーケース固定サンプルはカテゴリ数・系列長が一致する")
+}
+
+/// Charts 節（イシュー #847）: 軸（Y 軸 + X 軸カテゴリ）・CartesianGrid・
+/// データ点（`charts::tooltip::datum`、hover でネイティブ `<title>` 表示 +
+/// `:hover` 強調）・凡例を合成した最小の折れ線チャート様デモ。
+///
+/// インタラクティブなチャート部品（Area/Bar/Line/Pie）は #848〜#851 の
+/// スコープであり、本節は軸・グリッド・凡例・ツールチップの単体掲示に
+/// 留める（データ点は `<circle>` のみで、系列間を結ぶ `<path>` は
+/// 描画しない）。
+fn charts_section() -> Node {
+    let data = ChartData::new(
+        vec![
+            "Jan".to_string(),
+            "Feb".to_string(),
+            "Mar".to_string(),
+            "Apr".to_string(),
+        ],
+        vec![
+            Series::new("Visits", vec![120.0, 180.0, 150.0, 220.0]),
+            Series::new("Signups", vec![20.0, 35.0, 28.0, 40.0]),
+        ],
+    )
+    .expect("showcase 固定データは不変条件を満たす");
+
+    // プロット領域: 全体 320x220 のうち左 40px（Y 軸ラベル）・下 30px
+    // （X 軸ラベル）・上下左右の余白 10px を除いた範囲。
+    let (plot_left, plot_right) = (40.0, 310.0);
+    let (plot_top, plot_bottom) = (10.0, 170.0);
+
+    let (min, max) = data.domain();
+    // SVG は y が下向き正のため range を反転し、データの大小を視覚的な上下へ対応させる。
+    let y_scale = LinearScale::new((min, max), (plot_bottom, plot_top))
+        .expect("domain() は非退化な値域を返す")
+        .nice();
+    let y_ticks = y_scale.ticks(4).expect("target=4 は許容範囲 1..=50 内");
+    // cartesian_grid の y_positions はスケール済みピクセル座標を期待する
+    // （y_axis が内部で y_scale を通すのと同じ変換）。y_ticks（ドメイン値）
+    // をそのまま渡すとグリッド線が Y 軸目盛り・データ点とずれるため、
+    // ここで y_scale を適用してから渡す。
+    let y_tick_positions: Vec<f64> = y_ticks.iter().map(|&tick| y_scale.scale(tick)).collect();
+
+    let category_count = data.categories().len() as f64;
+    let band_width = (plot_right - plot_left) / category_count;
+
+    let mut svg_children = vec![
+        grid::cartesian_grid(
+            (plot_left, plot_right),
+            (plot_top, plot_bottom),
+            &[],
+            &y_tick_positions,
+            &GridProps::default(),
+        )
+        .expect("有限な range/ticks のみを渡す"),
+        axis::y_axis(&y_scale, &y_ticks, plot_left, &AxisProps::default())
+            .expect("有限な ticks のみを渡す"),
+        axis::x_axis_categories(
+            (plot_left, plot_right),
+            data.categories(),
+            plot_bottom,
+            &AxisProps::default(),
+        )
+        .expect("categories は非空・range は有限"),
+    ];
+
+    for (series_index, series) in data.series().iter().enumerate() {
+        let color = fandhe_frontend_pre_styled_ui::charts::series_color_var(series_index);
+        for (category_index, &value) in series.values.iter().enumerate() {
+            let cx = plot_left + (category_index as f64 + 0.5) * band_width;
+            let cy = y_scale.scale(value);
+            let label =
+                chart_tooltip::datum_label(&data.categories()[category_index], &series.name, value);
+            svg_children.push(chart_tooltip::datum(
+                cx,
+                cy,
+                4.0,
+                &label,
+                vec![("fill", &color)],
+            ));
+        }
+    }
+
+    let view_box = ViewBox::new(0.0, 0.0, 320.0, 220.0).expect("固定寸法は正の有限値");
+    let chart = svg_root(
+        &view_box,
+        vec![("aria-label", "Visits and signups by month")],
+        svg_children,
+    );
+
+    let legend_node = legend::legend(
+        &data,
+        &LegendProps {
+            title: Some("Series".to_string()),
+        },
+    );
+
+    section(
+        "Charts",
+        "軸（Axes）・CartesianGrid・凡例（Legend）・ツールチップ（Tooltip）を合成した最小デモです。データ点はホバーするとブラウザネイティブの `<title>` によるツールチップと `:hover` 強調が表示されます（JS 不要）。系列を結ぶ折れ線・棒等の描画部品は別イシュー（#848〜#851）のスコープです。",
+        vec![stack(vec![chart, legend_node])],
+    )
+}
+
+/// BarChart 節（イシュー #849、親 Phase #845）: 外部依存ゼロの SVG グループ棒
+/// グラフ。縦（既定）/横 orientation を並べて掲示する。
+fn bar_chart_section() -> Node {
+    let data = bar_charts_sample_data();
+    let vertical = bar_chart::root(
+        &data,
+        BarChartProps::default(),
+        "monthly visits and signups",
+    )
+    .expect("ショーケース固定データは domain・viewBox とも常に有効");
+    let horizontal = bar_chart::root(
+        &data,
+        BarChartProps {
+            orientation: BarChartOrientation::Horizontal,
+            ..BarChartProps::default()
+        },
+        "monthly visits and signups (horizontal)",
+    )
+    .expect("ショーケース固定データは domain・viewBox とも常に有効");
+
+    section(
+        "BarChart",
+        "ChartData（複数系列）+ LinearScale + SVG ノード木生成ヘルパーのみで組み立てる、外部依存ゼロのグループ棒グラフです。orientation で縦/横を切り替えます。軸線・グリッド・凡例・ツールチップはイシュー #847 のスコープです。",
+        vec![row(vec![vertical]), row(vec![horizontal])],
+    )
+}
+
+/// BarList 節（イシュー #849）: ランキング型バーリスト。単一系列を対象に、
+/// 系列内最大値に対する比率でバー幅を決める。
+fn bar_list_section() -> Node {
+    let data = bar_charts_sample_data();
+    let node = bar_list::root(&data, "visits")
+        .expect("ショーケース固定データの visits 系列は常に存在する");
+
+    section(
+        "BarList",
+        "系列の最大値に対する比率でバー幅を決めるランキング型バーリストです。カテゴリ順（挿入順）にそのまま描画するため、降順表示にしたい場合は呼び出し側で ChartData::sort_by_series を事前に適用します。",
+        vec![node],
+    )
+}
+
+/// LineChart 節（イシュー #848、親 #845）: `charts` 基盤（#846）の消費者。
+/// 3 カテゴリ 1 系列の折れ線を掲示する。
+fn line_chart_section() -> Node {
+    let data = ChartData::new(
+        vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
+        vec![Series::new("visits", vec![10.0, 30.0, 20.0])],
+    )
+    .expect("showcase 固定データは常に有効");
+    let node = line_chart::line_chart(&LineChartProps::new(&data, "monthly visits"), vec![])
+        .expect("showcase 固定データは常に有効");
+    section(
+        "LineChart",
+        "charts 基盤（座標スケーリング・SVG ノード木生成）を使った折れ線チャートです。軸・グリッド・凡例・ツールチップは別イシュー（#847）のスコープです。",
+        vec![node],
+    )
+}
+
+/// BarSegment 節（イシュー #849）: 構成比バー（100% 積み上げ）。単一系列の
+/// 合計に対する各カテゴリの比率をセグメント幅として描画し、凡例を添える。
+fn bar_segment_section() -> Node {
+    let data = bar_charts_sample_data();
+    let node = bar_segment::root(&data, "visits")
+        .expect("ショーケース固定データの visits 系列合計は 0 ではない");
+
+    section(
+        "BarSegment",
+        "系列合計に対する各カテゴリの構成比を 100% 積み上げバーとして表示します。合計が 0 の系列は構成比が定義できないため構築時に拒否されます（ChartError::ZeroTotal）。",
+        vec![node],
+    )
+}
+
+/// AreaChart 節（イシュー #848、親 #845）: 折れ線 + domain 下端へ閉じた
+/// 塗りつぶし面を重ねて描く。
+fn area_chart_section() -> Node {
+    let data = ChartData::new(
+        vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
+        vec![Series::new("visits", vec![10.0, 30.0, 20.0])],
+    )
+    .expect("showcase 固定データは常に有効");
+    let node = area_chart::area_chart(&AreaChartProps::new(&data, "monthly visits"), vec![])
+        .expect("showcase 固定データは常に有効");
+    section(
+        "AreaChart",
+        "系列ごとに折れ線 + 塗りつぶし面を重ねて描く自己完結チャートです。積み上げ・曲線補間は別イシュー（#847 以降）のスコープです。",
+        vec![node],
+    )
+}
+
+/// Sparkline 節（イシュー #848、親 #845）: 軸・ラベルなしの縮小チャート。
+/// 単一の `&[f64]` から直接描画する。
+fn sparkline_section() -> Node {
+    let values = [10.0, 30.0, 20.0, 40.0];
+    let node = sparkline::sparkline(&SparklineProps::new(&values, "weekly trend"), vec![])
+        .expect("showcase 固定データは常に有効");
+    section(
+        "Sparkline",
+        "ラベル・軸なしの小さな面 + 線チャートです。単一系列専用（`&[f64]`）で、複数系列は LineChart/AreaChart を使います。",
+        vec![node],
+    )
+}
+
+/// PieChart 節（イシュー #850）: `size`（sm/md/lg）と `show_labels` の掲示。
+fn pie_chart_section() -> Node {
+    let data = ChartData::new(
+        vec![
+            "Q1".to_string(),
+            "Q2".to_string(),
+            "Q3".to_string(),
+            "Q4".to_string(),
+        ],
+        vec![Series::new("revenue", vec![400.0, 300.0, 300.0, 200.0])],
+    )
+    .expect("ショーケース固定データは常に有効な ChartData を構築できる");
+
+    let size_row = row([Size::Sm, Size::Md, Size::Lg]
+        .into_iter()
+        .map(|size| {
+            pie_chart(
+                &PieChartProps {
+                    size,
+                    ..PieChartProps::default()
+                },
+                &data,
+                vec![],
+            )
+            .expect("ショーケース固定データは常に描画に成功する")
+        })
+        .collect());
+
+    let with_labels = pie_chart(
+        &PieChartProps {
+            show_labels: true,
+            ..PieChartProps::default()
+        },
+        &data,
+        vec![],
+    )
+    .expect("ショーケース固定データは常に描画に成功する");
+    let labels_row = row(vec![with_labels]);
+
+    section(
+        "PieChart",
+        "外部依存ゼロの SVG ノード木生成による円グラフ（イシュー #850）。size（sm/md/lg）で --fandhe-pie-chart-size を切り替えます。show_labels を有効にするとカテゴリ名ラベルをセグメント上に描画します。",
+        vec![size_row, labels_row],
+    )
+}
+
+/// DonutChart 節（イシュー #850）: `size`・`inner_ratio`・`show_labels` の掲示。
+fn donut_chart_section() -> Node {
+    let data = ChartData::new(
+        vec![
+            "Q1".to_string(),
+            "Q2".to_string(),
+            "Q3".to_string(),
+            "Q4".to_string(),
+        ],
+        vec![Series::new("revenue", vec![400.0, 300.0, 300.0, 200.0])],
+    )
+    .expect("ショーケース固定データは常に有効な ChartData を構築できる");
+
+    let size_row = row([Size::Sm, Size::Md, Size::Lg]
+        .into_iter()
+        .map(|size| {
+            donut_chart(
+                &DonutChartProps {
+                    size,
+                    ..DonutChartProps::default()
+                },
+                &data,
+                vec![],
+            )
+            .expect("ショーケース固定データは常に描画に成功する")
+        })
+        .collect());
+
+    let thin_ring = donut_chart(
+        &DonutChartProps {
+            inner_ratio: 0.85,
+            show_labels: true,
+            ..DonutChartProps::default()
+        },
+        &data,
+        vec![],
+    )
+    .expect("inner_ratio=0.85 は許容範囲内であり常に描画に成功する");
+    let variant_row = row(vec![thin_ring]);
+
+    section(
+        "DonutChart",
+        "外部依存ゼロの SVG ノード木生成によるドーナツグラフ（イシュー #850）。inner_ratio（既定 0.6）で内径を調整できます。show_labels を有効にするとカテゴリ名ラベルをセグメント上に描画します。",
+        vec![size_row, variant_row],
+    )
+}
+
+/// ScatterChart 節（イシュー #851、親 Phase #845）: 2 軸線形スケール +
+/// 点マーカーのみで組み立てる、外部依存ゼロの SVG 散布図。
+fn scatter_chart_section() -> Node {
+    let data = ScatterData::new(vec![
+        ScatterSeries::new(
+            "cohort a",
+            vec![(1.0, 2.0), (2.0, 4.5), (3.0, 3.0), (4.0, 6.0), (5.0, 5.5)],
+        ),
+        ScatterSeries::new(
+            "cohort b",
+            vec![(1.5, 1.0), (2.5, 2.5), (3.5, 4.0), (4.5, 3.5)],
+        ),
+    ])
+    .expect("ショーケース固定データは常に有効");
+    let node = scatter_chart::root(&data, ScatterChartProps::default(), "cohort comparison")
+        .expect("ショーケース固定データは domain・viewBox とも常に有効");
+
+    section(
+        "ScatterChart",
+        "散布図専用の ScatterData（系列ごとの (x, y) 座標列）+ LinearScale（x/y 双方）+ SVG ノード木生成ヘルパーのみで組み立てる、外部依存ゼロの散布図です。軸線・グリッド・凡例・ツールチップはイシュー #847 のスコープです。",
+        vec![node],
+    )
+}
+
+/// RadarChart 節（イシュー #851、親 Phase #845）: 正多角形グリッド + 系列
+/// ポリゴンの SVG レーダーチャート。頂点角度は決定的な式で算出する。
+fn radar_chart_section() -> Node {
+    let data = ChartData::new(
+        vec![
+            "speed".to_string(),
+            "power".to_string(),
+            "range".to_string(),
+            "control".to_string(),
+            "armor".to_string(),
+        ],
+        vec![
+            Series::new("mercury", vec![80.0, 60.0, 40.0, 90.0, 55.0]),
+            Series::new("venus", vec![50.0, 85.0, 70.0, 45.0, 65.0]),
+        ],
+    )
+    .expect("ショーケース固定データはカテゴリ数・系列長が一致する");
+    let node = radar_chart::root(&data, RadarChartProps::default(), "stat comparison")
+        .expect("ショーケース固定データは軸数 3 以上・非負値・viewBox とも常に有効");
+
+    section(
+        "RadarChart",
+        "ChartData（カテゴリ = 軸、系列 = ポリゴン）+ LinearScale + SVG ノード木生成ヘルパーのみで組み立てる、外部依存ゼロのレーダーチャートです。頂点角度は θ_i = -π/2 + i・2π/n（12 時方向開始・時計回り）の決定的な式で算出します。凡例・ツールチップはイシュー #847 のスコープです。",
+        vec![node],
+    )
+}
+
 /// Tag 節（イシュー #768）: variant / size / colorPalette と、
 /// close-trigger（`data-action` 配線のみ、クリック処理は wasm 層の
 /// スコープ外）の掲示。
@@ -4735,6 +5135,17 @@ fn showcase_body() -> Node {
             date_picker_section(),
             date_input_section(),
             timer_section(),
+            charts_section(),
+            bar_chart_section(),
+            bar_list_section(),
+            bar_segment_section(),
+            line_chart_section(),
+            area_chart_section(),
+            sparkline_section(),
+            pie_chart_section(),
+            donut_chart_section(),
+            scatter_chart_section(),
+            radar_chart_section(),
         ],
     )
 }
@@ -4803,6 +5214,16 @@ mod tests {
             "data-list",
             "date-input",
             "timer",
+            "chart",
+            "chart-legend",
+            "bar-chart",
+            "bar-list",
+            "bar-segment",
+            "line-chart",
+            "area-chart",
+            "sparkline",
+            "scatter-chart",
+            "radar-chart",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
@@ -4934,6 +5355,11 @@ mod tests {
         assert!(css.contains(r#"[data-scope="empty-state"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="table"][data-part="row"]:nth-child(even)"#));
         assert!(css.contains(r#"[data-scope="data-list"][data-part="root"]"#));
+        // Charts（イシュー #847）: axis/grid/legend/tooltip の recipe CSS。
+        assert!(css.contains(r#"[data-scope="chart"][data-part="axis-line"]"#));
+        assert!(css.contains(r#"[data-scope="chart"][data-part="grid-line"]"#));
+        assert!(css.contains(r#"[data-scope="chart-legend"][data-part="root"]"#));
+        assert!(css.contains(r#"[data-scope="chart"][data-part="datum"]:hover"#));
         // ショーケース配置スタイル。
         assert!(css.contains(".showcase-row"));
         assert!(css.contains(".showcase-stack"));

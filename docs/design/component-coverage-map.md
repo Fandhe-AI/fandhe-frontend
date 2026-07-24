@@ -260,7 +260,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/utilities/format-time.md` | FormatTime | — | `format` | — | 実装済み | #853。`docs/policy/intentional-non-adoption.md` §3.23 の非採用から区分変更。`fandhe-frontend-headless-ui::format::format_time`（決定的純関数） |
 | `.agents/skills/ark-ui/references/utilities/frame.md` | Frame | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
 | `.agents/skills/ark-ui/references/utilities/json-tree-view.md` | JsonTreeView | — | json_tree_view | json_tree_view | 実装済み | **保留解除**（イシュー #829、`tree_view`（#753）の派生として実装。headless `crates/headless-ui/src/json_tree_view.rs` + styled `crates/pre-styled-ui/src/json_tree_view.rs`。`docs/policy/intentional-non-adoption.md` §7 の解除記録参照） |
-| `.agents/skills/ark-ui/references/utilities/locale.md` | Locale | LocaleProvider | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
+| `.agents/skills/ark-ui/references/utilities/locale.md` | Locale | LocaleProvider | — | — | 実装済み（Rust 最適化形） | イシュー #854。`Locale` 値型（`crates/headless-ui/src/format.rs` の `format` mod、en/ja）として実装。`LocaleProvider` の Context/Provider 機構は非採用のまま（`docs/policy/intentional-non-adoption.md` §3.23 参照） |
 | `.agents/skills/ark-ui/references/utilities/presence.md` | Presence | Presence | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
 | `.agents/skills/ark-ui/references/utilities/swap.md` | Swap | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
 | `.agents/skills/ark-ui/references/utilities/README.md` | README | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
@@ -329,21 +329,21 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/charts/README.md` | — | README | — | — | 対象外 | 対象外（非コンポーネント文書） |
-| `.agents/skills/chakra-ui/references/charts/area-chart.md` | — | AreaChart | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/charts/axes.md` | — | Axes | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/charts/bar-chart.md` | — | BarChart | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/charts/bar-list.md` | — | BarList | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/charts/bar-segment.md` | — | BarSegment | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/charts/cartesian-grid.md` | — | CartesianGrid | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/charts/donut-chart.md` | — | DonutChart | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/chakra-ui/references/charts/area-chart.md` | — | AreaChart | — | `area_chart` | 実装済み | 保留解除。#848（軸/グリッド/凡例/ツールチップ/積み上げは #847 以降のスコープ） |
+| `.agents/skills/chakra-ui/references/charts/axes.md` | — | Axes | — | `charts::axis`（`y_axis`/`x_axis_linear`/`x_axis_categories`） | 実装済み | #847、詳細は `docs/design/charts-foundation-design.md` |
+| `.agents/skills/chakra-ui/references/charts/bar-chart.md` | — | BarChart | — | `charts::bar_chart` | 実装済み | headless-ui 非経由（styled 直下で新規 anatomy `bar-chart` を定義）。#849（親 Phase #845、charts 基盤 #846 の上に実装）。`docs/policy/intentional-non-adoption.md` §7 の保留を解除。軸線・グリッド・凡例・ツールチップは #847 のスコープ |
+| `.agents/skills/chakra-ui/references/charts/bar-list.md` | — | BarList | — | `charts::bar_list` | 実装済み | headless-ui 非経由（styled 直下で新規 anatomy `bar-list` を定義）。#849（親 Phase #845）。`docs/policy/intentional-non-adoption.md` §7 の保留を解除 |
+| `.agents/skills/chakra-ui/references/charts/bar-segment.md` | — | BarSegment | — | `charts::bar_segment` | 実装済み | headless-ui 非経由（styled 直下で新規 anatomy `bar-segment` を定義）。#849（親 Phase #845）。`docs/policy/intentional-non-adoption.md` §7 の保留を解除 |
+| `.agents/skills/chakra-ui/references/charts/cartesian-grid.md` | — | CartesianGrid | — | `charts::grid`（`cartesian_grid`） | 実装済み | #847、詳細は `docs/design/charts-foundation-design.md` |
+| `.agents/skills/chakra-ui/references/charts/donut-chart.md` | — | DonutChart | — | `donut_chart` | 実装済み | 保留解除。#850、charts 基盤（#846）を用いたドーナツグラフ、詳細は `crates/pre-styled-ui/src/donut_chart.rs` rustdoc |
 | `.agents/skills/chakra-ui/references/charts/installation.md` | — | Installation | — | `charts`（外部依存追加なし、`fandhe-frontend-pre-styled-ui` のみで完結） | 実装済み | 保留解除（基盤のみ）。#846、詳細は `docs/design/charts-foundation-design.md` |
-| `.agents/skills/chakra-ui/references/charts/legend.md` | — | Legend | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/charts/line-chart.md` | — | LineChart | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/charts/pie-chart.md` | — | PieChart | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/charts/radar-chart.md` | — | RadarChart | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/charts/scatter-chart.md` | — | ScatterChart | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/charts/sparkline.md` | — | Sparkline | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/charts/tooltip.md` | — | Tooltip | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/chakra-ui/references/charts/legend.md` | — | Legend | — | `charts::legend`（`legend`） | 実装済み | #847、詳細は `docs/design/charts-foundation-design.md` |
+| `.agents/skills/chakra-ui/references/charts/line-chart.md` | — | LineChart | — | `line_chart` | 実装済み | 保留解除。#848（軸/グリッド/凡例/ツールチップ/積み上げは #847 以降のスコープ） |
+| `.agents/skills/chakra-ui/references/charts/pie-chart.md` | — | PieChart | — | `pie_chart` | 実装済み | 保留解除。#850、charts 基盤（#846）を用いた円グラフ、詳細は `crates/pre-styled-ui/src/pie_chart.rs` rustdoc |
+| `.agents/skills/chakra-ui/references/charts/radar-chart.md` | — | RadarChart | — | `charts::radar_chart` | 実装済み | headless-ui 非経由（styled 直下で新規 anatomy）。#851（親 Phase #845、charts 基盤 #846 の上に実装）。保留解除 |
+| `.agents/skills/chakra-ui/references/charts/scatter-chart.md` | — | ScatterChart | — | `charts::scatter_chart` | 実装済み | headless-ui 非経由（styled 直下で新規 anatomy）。#851（親 Phase #845、charts 基盤 #846 の上に実装）。保留解除 |
+| `.agents/skills/chakra-ui/references/charts/sparkline.md` | — | Sparkline | — | `sparkline` | 実装済み | 保留解除。#848（単一系列専用。複数系列は LineChart/AreaChart を使用） |
+| `.agents/skills/chakra-ui/references/charts/tooltip.md` | — | Tooltip | — | `charts::tooltip`（`datum`/`datum_label`。汎用 headless Tooltip（`tooltip` モジュール）とは別物） | 実装済み | #847、詳細は `docs/design/charts-foundation-design.md` |
 | `.agents/skills/chakra-ui/references/charts/use-chart.md` | — | UseChart | — | `charts`（`ChartData`/`LinearScale`/SVG ヘルパー） | 実装済み | 保留解除（基盤のみ）。#846、詳細は `docs/design/charts-foundation-design.md` |
 
 #### `.agents/skills/chakra-ui/references/components/`
@@ -463,7 +463,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 |---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/i18n/format-byte.md` | FormatByte | FormatByte | `format` | — | 実装済み | #853。`docs/policy/intentional-non-adoption.md` §3.23 の非採用から区分変更。`fandhe-frontend-headless-ui::format::format_byte`（Intl 非依存の決定的純関数） |
 | `.agents/skills/chakra-ui/references/components/i18n/format-number.md` | FormatNumber | FormatNumber | `format` | — | 実装済み | #853。`docs/policy/intentional-non-adoption.md` §3.23 の非採用から区分変更。`fandhe-frontend-headless-ui::format::format_number`（Intl 非依存の決定的純関数） |
-| `.agents/skills/chakra-ui/references/components/i18n/locale-provider.md` | Locale | LocaleProvider | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし）。`Locale` enum（`format` mod、#853）はロケール拡張点の型のみでありフル `LocaleProvider` 相当ではない。en 以外のロケール対応はイシュー #854 のスコープ |
+| `.agents/skills/chakra-ui/references/components/i18n/locale-provider.md` | Locale | LocaleProvider | — | — | 実装済み（Rust 最適化形） | イシュー #854。`Locale` 値型（`format` mod、en/ja）として実装。`LocaleProvider` の Context/Provider 機構・グローバル既定ロケールは意図的に非採用のまま（`docs/policy/intentional-non-adoption.md` §3.23 参照） |
 
 #### `.agents/skills/chakra-ui/references/components/layout/`
 
@@ -711,7 +711,7 @@ fandhe では何か」を引くための対応表。非採用判断そのもの�
 | FocusTrap | ark `utilities/focus-trap.md` | 実装済み | `crates/wasm-full/src/focus_trap.rs` | フォーカストラップは既存実装で代替済み。汎用 utilities API としての新設は不要 |
 | OverlayManager | chakra `components/overlays/overlay-manager.md` | 実装済み | `crates/wasm-full/src/overlay.rs` | オーバーレイのスタック管理は既存実装で代替済み |
 | FormatByte / FormatNumber / FormatRelativeTime / FormatTime | ark `utilities/format-*.md`, chakra `components/i18n/format-byte.md` / `format-number.md` | 利用者側の通常の Rust 関数で整形 | `docs/policy/intentional-non-adoption.md` §3.23 | 数値・日時整形は UI コンポーネント層の責務外。国際化ライブラリは持ち込まない |
-| Locale(Provider) | ark `utilities/locale.md`, chakra `components/i18n/locale-provider.md` | 利用者側の通常の Rust 関数・状態管理で対応 | `docs/policy/intentional-non-adoption.md` §3.23 | 同上（国際化はライブラリ層の責務外） |
+| Locale(Provider) | ark `utilities/locale.md`, chakra `components/i18n/locale-provider.md` | `Locale` 値型（`headless-ui::format::Locale`）を引数渡し | `crates/headless-ui/src/format.rs` | イシュー #854。en/ja の 2 種を各 `Format*Options::locale` フィールド経由で明示的に渡す値型として実装。`LocaleProvider` の Context/Provider 機構・グローバル既定ロケールは非採用のまま（`docs/policy/intentional-non-adoption.md` §3.23） |
 | Checkmark | chakra `components/utilities/checkmark.md` | `checkbox` の状態機械に吸収済み | `crates/headless-ui/src/checkbox.rs` | チェック表示は `checkbox` mod の一部として実装済み。装飾専用の独立 API は設けない |
 | Radiomark | chakra `components/utilities/radiomark.md` | `radio_group` の状態機械に吸収済み | `crates/headless-ui/src/radio_group.rs` | ラジオ表示は `radio_group` mod の一部として実装済み |
 | Theme（chakra） | chakra `components/utilities/theme.md` | `crates/pre-styled-ui` の `theme` / `recipe` / `stylesheet` mod | `crates/pre-styled-ui/src/theme.rs` / `recipe.rs` / `stylesheet.rs` | テーマ管理は既存 3 mod を唯一の入口として維持する（§3.24） |

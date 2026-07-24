@@ -276,6 +276,7 @@ mod tests {
             ("toggle_tip", crate::toggle_tip::stylesheet()),
             ("switch", crate::switch::stylesheet()),
             ("radio_group", crate::radio_group::stylesheet()),
+            ("area_chart", crate::area_chart::stylesheet()),
             ("avatar", crate::avatar::stylesheet()),
             ("checkbox", crate::checkbox::stylesheet()),
             ("checkbox_card", crate::checkbox_card::stylesheet()),
@@ -309,6 +310,7 @@ mod tests {
             ("nav_list", crate::nav_list::stylesheet()),
             ("tag", crate::tag::css()),
             ("kbd", crate::kbd::css()),
+            ("line_chart", crate::line_chart::stylesheet()),
             ("code", crate::code::css()),
             ("color_swatch", crate::color_swatch::css()),
             ("color_picker", crate::color_picker::css()),
@@ -339,6 +341,18 @@ mod tests {
             ("date_input", crate::date_input::stylesheet()),
             ("timer", crate::timer::stylesheet()),
             ("signature_pad", crate::signature_pad::stylesheet()),
+            ("charts/axis", crate::charts::axis::css()),
+            ("charts/grid", crate::charts::grid::css()),
+            ("charts/legend", crate::charts::legend::css()),
+            ("charts/tooltip", crate::charts::tooltip::css()),
+            ("charts/bar_chart", crate::charts::bar_chart::css()),
+            ("charts/bar_list", crate::charts::bar_list::css()),
+            ("charts/bar_segment", crate::charts::bar_segment::css()),
+            ("sparkline", crate::sparkline::stylesheet()),
+            ("pie_chart", crate::pie_chart::css()),
+            ("donut_chart", crate::donut_chart::css()),
+            ("charts/scatter_chart", crate::charts::scatter_chart::css()),
+            ("charts/radar_chart", crate::charts::radar_chart::css()),
         ]
     }
 
@@ -364,10 +378,21 @@ mod tests {
         // popover/tooltip の登録漏れの再発防止）。ネットワーク・`/tmp` に依存
         // せず、コンパイル時確定の `CARGO_MANIFEST_DIR` のみを使う決定的判定
         // （`.claude/rules/ci.md` の self-hosted 共有環境への配慮に合わせる）。
+        //
+        // イシュー #847/#849/#851: `src/charts/` サブディレクトリ（axis/grid/
+        // legend/tooltip/bar_chart/bar_list/bar_segment/radar_chart/
+        // scatter_chart 等、charts 基盤 #846 の消費者全般）は元々の非再帰
+        // スキャン（`src/` 直下のみ）では検出されないため、`charts/<stem>`
+        // という部品名で個別に検出対象へ加える（`all_styled_component_css` の
+        // `"charts/axis"`/`"charts/radar_chart"` 等のキー形式と合わせる。
+        // `src/` 直下の走査と `src/charts/` の走査を二重に行うと同一ファイルが
+        // bare 名/`charts/` 接頭辞名の双方で二重登録され本テストが常に
+        // 失敗するため、`src/charts/` は下記の専用ループのみが担当し、直下
+        // 走査には含めない）。
         let src_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
 
         let mut modules_with_css_fn: Vec<String> = Vec::new();
-        for entry in std::fs::read_dir(&src_dir).expect("src ディレクトリを読み取れること")
+        for entry in std::fs::read_dir(&src_dir).expect("ディレクトリを読み取れること")
         {
             let entry = entry.expect("dir entry を読み取れること");
             let path = entry.path();
@@ -379,17 +404,44 @@ mod tests {
                 .and_then(|s| s.to_str())
                 .expect("有効なファイル名であること")
                 .to_string();
-            // `lib.rs`（クレート入口）と `stylesheet.rs`（本ファイル自身）は
-            // styled 部品モジュールではない。特に本ファイルは
+            // `lib.rs`（クレート入口）・`stylesheet.rs`（本ファイル自身）・
+            // `charts/mod.rs`（charts 基盤のモジュール宣言のみ）は styled
+            // 部品モジュールではない。`stylesheet.rs` は
             // `all_styled_component_css`/本テストの doc コメント中に
             // "pub fn css()"/"pub fn stylesheet()" という文字列そのものが
             // 出現するため、除外しないと自己参照で誤検知する。
-            if stem == "lib" || stem == "stylesheet" {
+            if stem == "lib" || stem == "stylesheet" || stem == "mod" {
                 continue;
             }
             let source = std::fs::read_to_string(&path).expect("モジュールソースを読み取れること");
             if source.contains("pub fn css()") || source.contains("pub fn stylesheet()") {
                 modules_with_css_fn.push(stem);
+            }
+        }
+
+        let charts_dir = src_dir.join("charts");
+        for entry in
+            std::fs::read_dir(&charts_dir).expect("src/charts ディレクトリを読み取れること")
+        {
+            let entry = entry.expect("dir entry を読み取れること");
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+                continue;
+            }
+            let stem = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .expect("有効なファイル名であること")
+                .to_string();
+            // `mod.rs`（charts クレート入口。データモデル/スケール/svg 基盤
+            // 自体は #846 の非消費型モジュールで `css()`/`stylesheet()` を
+            // 持たない）は対象外。
+            if stem == "mod" {
+                continue;
+            }
+            let source = std::fs::read_to_string(&path).expect("モジュールソースを読み取れること");
+            if source.contains("pub fn css()") || source.contains("pub fn stylesheet()") {
+                modules_with_css_fn.push(format!("charts/{stem}"));
             }
         }
         modules_with_css_fn.sort();

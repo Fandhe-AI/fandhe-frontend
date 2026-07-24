@@ -456,7 +456,7 @@ DateInput / Timer、`docs/design/component-coverage-map.md` の保留区分・
 - 範囲選択（range mode）・複数月表示（multi-month）・年/月ビュー切替
 - DateInput（#834）との配線・wasm-full ハイドレーション配線
 
-## 4e. Format ユーティリティ（`format` モジュール、イシュー #853、親 Phase 5 #852）
+## 4e. Format ユーティリティ（`format` モジュール、イシュー #853/#854、親 Phase 5 #852）
 
 ark-ui `format-byte`/`format-number`/`format-time`/`format-relative-time`・
 chakra-ui `i18n/format-byte`/`format-number` 相当の機能を、JS の `Intl` API・
@@ -470,12 +470,42 @@ chakra-ui `i18n/format-byte`/`format-number` 相当の機能を、JS の `Intl` 
 |---|---|---|
 | `format_byte` | `FormatByteOptions`（`unit: ByteUnit`/`unit_system: UnitSystem`/`unit_display: UnitDisplay`/`maximum_fraction_digits`） | バイト数を `"1.45 kB"` 等の単位付き文字列へ整形。10 進（1000 進）/2 進（1024 進）の基数系列を選択可能 |
 | `format_number` | `FormatNumberOptions`（`style: NumberStyle`/`minimum_fraction_digits`/`maximum_fraction_digits`/`use_grouping`/`sign_display: SignDisplay`） | 桁区切り・小数桁・符号・パーセント表示を伴う数値整形 |
-| `format_time` | `FormatTimeOptions`（`with_seconds_always`/`always_show_hours`） | 経過秒数を `HH:MM:SS`/`MM:SS` へ整形 |
-| `format_relative_time` | `FormatRelativeTimeOptions`（`locale`/`style: UnitDisplay`） | `target`/`base`（Unix 秒）2 値の差から `"3 days ago"`/`"in 3 days"`/`"just now"` を返す |
+| `format_time` | `FormatTimeOptions`（`with_seconds_always`/`always_show_hours`） | 経過秒数を `HH:MM:SS`/`MM:SS` へ整形（ロケール非依存） |
+| `format_relative_time` | `FormatRelativeTimeOptions`（`locale`/`style: UnitDisplay`） | `target`/`base`（Unix 秒）2 値の差から相対時刻文字列を返す |
 
-すべて `Locale`（`#[non_exhaustive]`、初期実装は `Locale::En` のみ）を
-オプションに含み、追加ロケール対応はイシュー #854 のスコープ（`Locale`
-enum への variant 追加として行う設計、専用クレート化はしない）。
+### 4e.1a `Locale`（イシュー #854）
+
+`Locale` は `#[non_exhaustive]` enum で `En`（既定）・`Ja` の 2 種を持つ。
+`format_byte`/`format_number`/`format_relative_time` の各オプションに
+`locale: Locale` フィールドとして含み、呼び出し側が明示的に渡す**値型**の
+みで完結する。ark-ui `utilities/locale.md`・chakra-ui
+`i18n/locale-provider.md` の React `LocaleProvider`（Context/Provider）に
+相当する機構は**意図的に非採用**であり、グローバル既定ロケール・
+スレッドローカル・環境変数参照を一切持たない（ambient authority を作らない
+設計、`docs/policy/intentional-non-adoption.md` §3.23 参照）。
+
+- `Locale::tag(&self) -> &'static str`: BCP 47 言語タグ（`"en"`/`"ja"`）を返す
+- `Locale::from_tag(tag: &str) -> Option<Locale>`: タグ文字列から `Locale`
+  を決定的に逆引きする。ASCII 小文字化 + `-`/`_` 前の primary subtag 完全
+  一致のみに対応し（`"en-US"` → `Locale::En` 等）、未知タグは `None`
+  （Accept-Language ヘッダ解析等のロケールネゴシエーションは呼び出し側の
+  責務）
+
+ja の出力例（`unit_display: UnitDisplay::Long`）:
+
+```text
+format_byte(1000.0, ja, Long)            -> "1 キロバイト"
+format_byte(1024.0*1024.0, ja, Binary, Long) -> "1 メビバイト"
+format_relative_time(base - 3*86400, base, ja, Long)  -> "3 日前"
+format_relative_time(base + 3*86400, base, ja, Long)  -> "3 日後"
+format_relative_time(base, base, ja, _)               -> "たった今"
+```
+
+short/narrow の単位記号（`kB`/`k` 等）は SI 表記が国際共通のため en と
+同一値。相対時刻の narrow 形式は数字と単位語彙の間にスペースを挟まない
+（例: `"3時間前"`）が、long/short 形式は半角スペースを挟む（例:
+`"3 日前"`。CLDR ja の実挙動に整合、Rust 実装の定数表 + テスト網羅表を
+正とする）。
 
 ### 4e.1 決定性・丸め規則の契約
 
@@ -490,10 +520,12 @@ enum への variant 追加として行う設計、専用クレート化はしな
   `i64::MIN`/`i64::MAX` を含む全入力域で `unwrap()`/`panic!` を使わず
   `unsigned_abs()`/`checked_sub()` で決定的な出力を返す（A04 対策）。
 
-### 4e.2 スコープ外（#853 時点）
+### 4e.2 スコープ外
 
-- en 以外のロケール対応（イシュー #854）
-- `LocaleProvider`・`AsyncListCollection` の Rust 等価概念対応表（イシュー #855）
+- en/ja 以外のロケール対応（将来イシュー、`Locale` enum への variant 追加として行う）
+- `format_time` へのロケール依存表記（和暦・時制表記等）の導入
+- `LocaleProvider`・`AsyncListCollection` の Rust 等価概念対応表
+  （`docs/design/component-coverage-map.md` §8、イシュー #855 で追加済み）
 - `fandhe-frontend-pre-styled-ui`・examples ショーケースへの実演追加
   （format はノードを返さない純関数であり既存ショーケース枠に該当しない）
 
