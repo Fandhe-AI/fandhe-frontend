@@ -46,6 +46,7 @@
 
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::action_bar;
+use fandhe_frontend_pre_styled_ui::area_chart::{self, AreaChartProps};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
@@ -96,6 +97,7 @@ use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImagePr
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::json_tree_view::{self, JsonValue};
 use fandhe_frontend_pre_styled_ui::kbd::kbd;
+use fandhe_frontend_pre_styled_ui::line_chart::{self, LineChartProps};
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
@@ -114,6 +116,7 @@ use fandhe_frontend_pre_styled_ui::segment_group;
 use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, SeparatorVariant};
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 use fandhe_frontend_pre_styled_ui::slider;
+use fandhe_frontend_pre_styled_ui::sparkline::{self, SparklineProps};
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::splitter;
 use fandhe_frontend_pre_styled_ui::stat;
@@ -339,6 +342,9 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::date_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::timer::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tour::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::line_chart::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::area_chart::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::sparkline::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::scatter_chart::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::radar_chart::css())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
@@ -4448,6 +4454,53 @@ fn timer_section() -> Node {
     )
 }
 
+/// LineChart 節（イシュー #848、親 #845）: `charts` 基盤（#846）の消費者。
+/// 3 カテゴリ 1 系列の折れ線を掲示する。
+fn line_chart_section() -> Node {
+    let data = ChartData::new(
+        vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
+        vec![Series::new("visits", vec![10.0, 30.0, 20.0])],
+    )
+    .expect("showcase 固定データは常に有効");
+    let node = line_chart::line_chart(&LineChartProps::new(&data, "monthly visits"), vec![])
+        .expect("showcase 固定データは常に有効");
+    section(
+        "LineChart",
+        "charts 基盤（座標スケーリング・SVG ノード木生成）を使った折れ線チャートです。軸・グリッド・凡例・ツールチップは別イシュー（#847）のスコープです。",
+        vec![node],
+    )
+}
+
+/// AreaChart 節（イシュー #848、親 #845）: 折れ線 + domain 下端へ閉じた
+/// 塗りつぶし面を重ねて描く。
+fn area_chart_section() -> Node {
+    let data = ChartData::new(
+        vec!["Jan".to_string(), "Feb".to_string(), "Mar".to_string()],
+        vec![Series::new("visits", vec![10.0, 30.0, 20.0])],
+    )
+    .expect("showcase 固定データは常に有効");
+    let node = area_chart::area_chart(&AreaChartProps::new(&data, "monthly visits"), vec![])
+        .expect("showcase 固定データは常に有効");
+    section(
+        "AreaChart",
+        "系列ごとに折れ線 + 塗りつぶし面を重ねて描く自己完結チャートです。積み上げ・曲線補間は別イシュー（#847 以降）のスコープです。",
+        vec![node],
+    )
+}
+
+/// Sparkline 節（イシュー #848、親 #845）: 軸・ラベルなしの縮小チャート。
+/// 単一の `&[f64]` から直接描画する。
+fn sparkline_section() -> Node {
+    let values = [10.0, 30.0, 20.0, 40.0];
+    let node = sparkline::sparkline(&SparklineProps::new(&values, "weekly trend"), vec![])
+        .expect("showcase 固定データは常に有効");
+    section(
+        "Sparkline",
+        "ラベル・軸なしの小さな面 + 線チャートです。単一系列専用（`&[f64]`）で、複数系列は LineChart/AreaChart を使います。",
+        vec![node],
+    )
+}
+
 /// ScatterChart 節（イシュー #851、親 Phase #845）: 2 軸線形スケール +
 /// 点マーカーのみで組み立てる、外部依存ゼロの SVG 散布図。
 fn scatter_chart_section() -> Node {
@@ -4793,6 +4846,9 @@ fn showcase_body() -> Node {
             date_picker_section(),
             date_input_section(),
             timer_section(),
+            line_chart_section(),
+            area_chart_section(),
+            sparkline_section(),
             scatter_chart_section(),
             radar_chart_section(),
         ],
@@ -4863,6 +4919,9 @@ mod tests {
             "data-list",
             "date-input",
             "timer",
+            "line-chart",
+            "area-chart",
+            "sparkline",
             "scatter-chart",
             "radar-chart",
         ] {
