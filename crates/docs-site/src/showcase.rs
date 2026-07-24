@@ -52,6 +52,7 @@ use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, Breadcrumb
 use fandhe_frontend_pre_styled_ui::button::{
     button, close_button, icon_button, ButtonProps, ButtonVariant,
 };
+use fandhe_frontend_pre_styled_ui::calendar::{self, PlainDate};
 use fandhe_frontend_pre_styled_ui::carousel;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
@@ -60,6 +61,8 @@ use fandhe_frontend_pre_styled_ui::color_swatch::{
     self, Color, ColorSwatchProps, Rgb, SwatchShape,
 };
 use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataListProps};
+use fandhe_frontend_pre_styled_ui::date_input::{self, DateSegment};
+use fandhe_frontend_pre_styled_ui::date_picker;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
@@ -316,6 +319,9 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::marquee::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::scroll_area::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::splitter::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::calendar::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::date_picker::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::date_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::timer::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
@@ -3157,6 +3163,109 @@ fn splitter_section() -> Node {
     )
 }
 
+/// DateInput 節: 入力済み / placeholder（未入力） / invalid（実在しない日付
+/// 2/30 相当） / disabled / size 各種の静的掲示（イシュー #834）。
+///
+/// 状態機械 [`fandhe_frontend_pre_styled_ui::date_input`] は headless の
+/// [`fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::date_input::DateInput`]
+/// をそのまま利用し、SSR 静的マークアップのみを掲示する（ドラッグ・
+/// キーボード操作は wasm 層のスコープ外、他コンポーネント節と同型）。
+fn date_input_section() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::date_input::DateInput;
+
+    let build = |id_prefix: &str, state: &DateInput, size: Size, disabled: bool| {
+        date_input::root(
+            size,
+            disabled,
+            state.is_invalid(),
+            vec![],
+            vec![
+                date_input::label(
+                    disabled,
+                    state.is_invalid(),
+                    Some(&format!("{id_prefix}-year")),
+                    vec![],
+                    vec![text("Date")],
+                ),
+                date_input::control(
+                    disabled,
+                    state.is_invalid(),
+                    vec![],
+                    vec![
+                        date_input::segment_group(
+                            disabled,
+                            state.is_invalid(),
+                            vec![],
+                            vec![
+                                state.segment(DateSegment::Year, disabled, false, vec![]),
+                                state.segment(DateSegment::Month, disabled, false, vec![]),
+                                state.segment(DateSegment::Day, disabled, false, vec![]),
+                            ],
+                        ),
+                        state.hidden_input(&format!("{id_prefix}-value"), disabled, vec![]),
+                    ],
+                ),
+            ],
+        )
+    };
+
+    // 入力済み・妥当な日付。
+    let filled_state = DateInput::new(Some(2026), Some(7), Some(22), None, None);
+    let filled = build("showcase-date-input-filled", &filled_state, Size::Md, false);
+
+    // 未入力（3 セグメントとも placeholder 表示）。
+    let empty_state_value = DateInput::default();
+    let empty = build(
+        "showcase-date-input-empty",
+        &empty_state_value,
+        Size::Md,
+        false,
+    );
+
+    // invalid: 2024-02-30 は実在しない日付（fail-closed 検証、モジュール
+    // doc「fail-closed な日付検証」参照）。
+    let invalid_state = DateInput::new(Some(2024), Some(2), Some(30), None, None);
+    let invalid = build(
+        "showcase-date-input-invalid",
+        &invalid_state,
+        Size::Md,
+        false,
+    );
+
+    // disabled。
+    let disabled_state = DateInput::new(Some(2026), Some(1), Some(1), None, None);
+    let disabled = build(
+        "showcase-date-input-disabled",
+        &disabled_state,
+        Size::Md,
+        true,
+    );
+
+    // size 各種（Sm/Md/Lg）。
+    let mut size_demos = Vec::new();
+    for (size, suffix) in [(Size::Sm, "sm"), (Size::Md, "md"), (Size::Lg, "lg")] {
+        let state = DateInput::new(Some(2026), Some(7), Some(22), None, None);
+        size_demos.push(build(
+            &format!("showcase-date-input-size-{suffix}"),
+            &state,
+            size,
+            false,
+        ));
+    }
+
+    section(
+        "DateInput",
+        "年/月/日セグメント入力 DateInput の静的掲示（入力済み・未入力・invalid・disabled・size 各種）。各セグメントは role=\"spinbutton\" + aria-valuemin/max/now（未入力時は valuenow 省略）を持ちます（キーボード操作は wasm 層のスコープ外）。",
+        vec![
+            row(vec![filled]),
+            row(vec![empty]),
+            row(vec![invalid]),
+            row(vec![disabled]),
+            row(size_demos),
+        ],
+    )
+}
+
 /// CheckboxCard 節: unchecked / checked / disabled の 3 態（イシュー #747）。
 ///
 /// chakra-ui checkbox-card 相当のカード型選択 UI。状態機械は
@@ -3996,6 +4105,176 @@ fn scroll_area_section() -> Node {
     )
 }
 
+/// （モジュール冒頭の rustdoc 方針と同じ）。
+fn calendar_section() -> Node {
+    let today = PlainDate::new(2026, 7, 22).unwrap();
+    let selected = PlainDate::new(2026, 7, 15).unwrap();
+    let weekday_labels = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+    let header_row = calendar::table_row(
+        vec![],
+        weekday_labels
+            .iter()
+            .map(|label| calendar::table_head_cell(vec![], vec![text(*label)]))
+            .collect(),
+    );
+
+    // 2026-07-01 は水曜日。月曜始まりの週配列を SSR 静的表示として手組みする
+    // （`fandhe_frontend_headless_ui::date::month_grid` 相当の決定的レイアウト。
+    // 本ショーケースは headless-ui へ直接依存しない方針のため、`Calendar`
+    // 状態機械は使わず日付のみを列挙する）。
+    let first_of_month = PlainDate::new(2026, 7, 1).unwrap();
+    let grid_start = first_of_month.add_days(-2).unwrap(); // 2026-06-29 (Mon)
+    let body_rows: Vec<Node> = (0..5)
+        .map(|week| {
+            let cells: Vec<Node> = (0..7)
+                .map(|day| {
+                    let date = grid_start.add_days(week * 7 + day).unwrap();
+                    let is_selected = date == selected;
+                    let is_today = date == today;
+                    let is_outside = date.month() != 7 || date.year() != 2026;
+                    calendar::table_cell(
+                        is_selected,
+                        vec![],
+                        vec![calendar::day_trigger(
+                            date,
+                            is_selected,
+                            is_today,
+                            is_outside,
+                            false,
+                            None,
+                            vec![],
+                            vec![text(date.day().to_string())],
+                        )],
+                    )
+                })
+                .collect();
+            calendar::table_row(vec![], cells)
+        })
+        .collect();
+
+    let node = calendar::root(
+        Size::Md,
+        vec![],
+        vec![
+            calendar::heading(
+                Some("showcase-calendar-heading"),
+                vec![],
+                vec![text("July 2026")],
+            ),
+            calendar::prev_trigger(false, vec![], vec![text("‹")]),
+            calendar::next_trigger(false, vec![], vec![text("›")]),
+            calendar::table(
+                Some("showcase-calendar-heading"),
+                vec![],
+                vec![
+                    calendar::table_header(vec![], vec![header_row]),
+                    calendar::table_body(vec![], body_rows),
+                ],
+            ),
+        ],
+    );
+    section(
+        "Calendar",
+        "headless-ui の Calendar（role=\"grid\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。2026-07 を週開始 Monday で表示し、今日（07-22）・選択日（07-15）・表示月外セルの見た目を固定表示しています。キーボードナビゲーション・クリック挙動は wasm 層のスコープ外です。",
+        vec![node],
+    )
+}
+
+/// DatePicker 節（イシュー #835）: popover が開いた状態で [`calendar_section`]
+/// と同じ月グリッドを内包した静的掲示。positioner はフロー内配置へ中和して
+/// います。
+fn date_picker_section() -> Node {
+    let today = PlainDate::new(2026, 7, 22).unwrap();
+    let selected = PlainDate::new(2026, 7, 15).unwrap();
+    let weekday_labels = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+    let header_row = calendar::table_row(
+        vec![],
+        weekday_labels
+            .iter()
+            .map(|label| calendar::table_head_cell(vec![], vec![text(*label)]))
+            .collect(),
+    );
+    let first_of_month = PlainDate::new(2026, 7, 1).unwrap();
+    let grid_start = first_of_month.add_days(-2).unwrap();
+    let body_rows: Vec<Node> = (0..5)
+        .map(|week| {
+            let cells: Vec<Node> = (0..7)
+                .map(|day| {
+                    let date = grid_start.add_days(week * 7 + day).unwrap();
+                    let is_selected = date == selected;
+                    let is_today = date == today;
+                    let is_outside = date.month() != 7 || date.year() != 2026;
+                    calendar::table_cell(
+                        is_selected,
+                        vec![],
+                        vec![calendar::day_trigger(
+                            date,
+                            is_selected,
+                            is_today,
+                            is_outside,
+                            false,
+                            None,
+                            vec![],
+                            vec![text(date.day().to_string())],
+                        )],
+                    )
+                })
+                .collect();
+            calendar::table_row(vec![], cells)
+        })
+        .collect();
+
+    let node = date_picker::root(
+        Size::Md,
+        OpenState::Open,
+        vec![],
+        vec![
+            date_picker::label(
+                Some("showcase-date-picker-label"),
+                vec![],
+                vec![text("Delivery date")],
+            ),
+            date_picker::control(
+                OpenState::Open,
+                vec![],
+                vec![
+                    date_picker::input(Some("2026-07-15"), false, None, vec![]),
+                    date_picker::trigger(
+                        OpenState::Open,
+                        false,
+                        Some("showcase-date-picker-content"),
+                        vec![],
+                        vec![text("📅")],
+                    ),
+                ],
+            ),
+            date_picker::positioner(
+                OpenState::Open,
+                vec![],
+                vec![date_picker::content(
+                    OpenState::Open,
+                    Some("showcase-date-picker-content"),
+                    Some("showcase-date-picker-label"),
+                    vec![],
+                    vec![calendar::table(
+                        None,
+                        vec![],
+                        vec![
+                            calendar::table_header(vec![], vec![header_row]),
+                            calendar::table_body(vec![], body_rows),
+                        ],
+                    )],
+                )],
+            ),
+        ],
+    );
+    section(
+        "DatePicker",
+        "headless-ui の DatePicker（popover 基盤 + Calendar 合成）に pre-styled-ui の recipe CSS を適用した静的掲示です。popover が開いた状態を固定表示し、内部に Calendar の月グリッドを合成しています。positioner はフロー内配置へ中和しています。",
+        vec![node],
+    )
+}
+
 /// Timer 節（イシュー #836）: countdown 型 Timer の running 状態を固定表示する
 /// SSR 静的掲示。
 ///
@@ -4287,6 +4566,9 @@ fn showcase_body() -> Node {
             timeline_section(),
             marquee_section(),
             scroll_area_section(),
+            calendar_section(),
+            date_picker_section(),
+            date_input_section(),
             timer_section(),
         ],
     )
@@ -4354,6 +4636,7 @@ mod tests {
             "visually-hidden",
             "table",
             "data-list",
+            "date-input",
             "timer",
         ] {
             assert!(

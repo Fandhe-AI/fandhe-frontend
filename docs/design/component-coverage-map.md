@@ -144,8 +144,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
-| `.agents/skills/ark-ui/references/components/date-time/date-input.md` | DateInput | — | — | — | 保留 | （date-time 系）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/ark-ui/references/components/date-time/date-picker.md` | DatePicker | DatePicker | — | — | 保留 | （date-time 系）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/ark-ui/references/components/date-time/date-input.md` | DateInput | — | date_input | date_input | 実装済み | headless+styled 実装済み（#834、#735 保留のうち DateInput 分のみ解除。DatePicker（#835）・Timer（#836）も別途保留解除済み（下記行参照）。calendar は独立部品として実装済み） |
+| `.agents/skills/ark-ui/references/components/date-time/date-picker.md` | DatePicker | DatePicker | date_picker | date_picker | 実装済み | headless+styled 実装済み（#835、親トラッキング #832。`docs/policy/intentional-non-adoption.md` §7（#735）の保留解除。DateInput（#834）との連携は行わず ISO 8601 値のネイティブ `<input>` のみで完結） |
 | `.agents/skills/ark-ui/references/components/date-time/timer.md` | Timer | Timer | timer | timer | 実装済み | headless+styled+wasm 配線実装済み（#836）。tick を外部から明示的に注入する決定的状態機械（時計 API 非依存）として実装し、`docs/policy/intentional-non-adoption.md` §7 の保留を解除した |
 | `.agents/skills/ark-ui/references/components/date-time/README.md` | README | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 
@@ -394,8 +394,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
-| `.agents/skills/chakra-ui/references/components/date-time/date-picker.md` | DatePicker | DatePicker | — | — | 保留 | （date-time 系）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/components/date-time/calendar.md` | — | Calendar | — | — | 保留 | （date-time 系）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/chakra-ui/references/components/date-time/date-picker.md` | DatePicker | DatePicker | date_picker | date_picker | 実装済み | headless+styled 実装済み（#835、親トラッキング #832。`docs/policy/intentional-non-adoption.md` §7（#735）の保留解除） |
+| `.agents/skills/chakra-ui/references/components/date-time/calendar.md` | — | Calendar | calendar | calendar | 実装済み | headless+styled 実装済み（#835、親トラッキング #832。`docs/policy/intentional-non-adoption.md` §7（#735）の保留解除） |
 
 #### `.agents/skills/chakra-ui/references/components/disclosure/`
 
