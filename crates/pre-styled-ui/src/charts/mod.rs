@@ -5,10 +5,12 @@
 //! ため `docs/policy/intentional-non-adoption.md` §7 で「保留」区分だった。
 //! 保留解除トリガーは「外部依存ゼロを維持したまま SVG ノード木生成のみで
 //! 実装できる設計の確立」であり、本モジュールがその基盤を提供する。
-//! 個々のチャート部品（Area/Bar/Line/Pie 等、#848〜#851）・軸/グリッド/
-//! 凡例/ツールチップ（#847）はいずれも本モジュールに依存するが、本モジュール
-//! 自体はそれらの上位部品を持たない（配置先判断は
-//! `docs/design/charts-foundation-design.md` 参照）。
+//! 個々のチャート部品（Area/Bar/Line/Pie 等、#848〜#851）はいずれも本モジュールに
+//! 依存するが、本モジュール自体はそれらの上位部品を持たない（配置先判断は
+//! `docs/design/charts-foundation-design.md` 参照）。軸/グリッド/凡例/
+//! ツールチップ（[`axis`]/[`grid`]/[`legend`]/[`tooltip`]、#847）は
+//! [`data`]/[`scale`]/[`svg`] の最初の消費者であり、後続チャート部品はこれらを
+//! 自身のデータ系列と同じ座標系の上に重ねて使う想定である。
 //!
 //! # 構成
 //!
@@ -18,6 +20,13 @@
 //! - [`scale`]: 線形スケール（domain → range 写像）・1-2-5 nice tick 算出。
 //! - [`svg`]: SVG ノード木生成ヘルパー（`viewBox`・座標文字列化・`path` の
 //!   `d` 属性組み立て）。後続チャート部品はここを経由してのみ SVG を組み立てる。
+//! - [`axis`]: X/Y 軸（chakra-ui `charts/axes.md` 相当、イシュー #847）。
+//! - [`grid`]: CartesianGrid（chakra-ui `charts/cartesian-grid.md` 相当、
+//!   イシュー #847）。
+//! - [`legend`]: 凡例（chakra-ui `charts/legend.md` 相当、イシュー #847）。
+//! - [`tooltip`]: データ点のツールチップ表示（chakra-ui `charts/tooltip.md`
+//!   相当、イシュー #847。[`crate::tooltip`] とは別物、[`tooltip`] モジュール
+//!   doc 参照）。
 //! - [`bar_chart`]: 縦/横 orientation の SVG 棒グラフ（イシュー #849）。
 //! - [`bar_list`]: ランキング型バーリスト（HTML、イシュー #849）。
 //! - [`bar_segment`]: 構成比バー（HTML、100% 積み上げ、イシュー #849）。
@@ -39,12 +48,16 @@
 //!    （既存のクレート依存）のみを使用し、新規クレート依存を追加しない
 //!    （REQ-3 不変）。
 
+pub mod axis;
 pub mod bar_chart;
 pub mod bar_list;
 pub mod bar_segment;
 pub mod data;
+pub mod grid;
+pub mod legend;
 pub mod scale;
 pub mod svg;
+pub mod tooltip;
 
 pub use data::{ChartData, Series};
 pub use scale::LinearScale;
