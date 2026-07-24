@@ -178,7 +178,7 @@ pub fn files_from_metadata(
 mod wiring {
     use super::{
         click_action_for_target, dropzone_dragging_state_for_event, files_from_metadata,
-        is_trigger_click, item_part, scope_and_hidden_input_part, FILE_UPLOAD_SCOPE,
+        is_trigger_click, item_part, scope_and_hidden_input_part, DROPZONE_PART, FILE_UPLOAD_SCOPE,
         HIDDEN_INPUT_PART, ITEM_DELETE_TRIGGER_PART,
     };
     use fandhe_frontend_headless_ui::file_upload::{FileUpload, FileUploadAction, FileUploadItem};
@@ -474,6 +474,37 @@ mod wiring {
                 if !drag_root.contains(Some(element)) {
                     return;
                 }
+
+                // Root・Dropzone いずれも `div`（`role="button"`）であり
+                // ネイティブ `disabled` 属性を持てないため、native
+                // `<button>`/`<input>` と異なり `disabled` を付与しても
+                // ブラウザは drag/drop を自動抑止しない。無効化状態
+                // （`fandhe_frontend_headless_ui::file_upload::root`/
+                // `dropzone` がいずれも `disabled` から反映する
+                // `data-disabled`、`crates/headless-ui/src/file_upload.rs`
+                // 参照）を明示チェックし、無効化時はドラッグ&ドロップ操作を
+                // すべて無視する（PR #868 Cursor Bugbot 指摘: 無効化した
+                // dropzone でもドロップでファイルが追加できてしまう不具合の
+                // 修正）。Root 自体に `data-disabled` が付与されている場合、
+                // または Dropzone パーツ（イベントターゲット自身を含む祖先
+                // 方向）に `data-disabled` が付与されている場合のいずれかで
+                // 無効化とみなす（`root`/`dropzone` のどちらから disabled が
+                // 伝播していても取りこぼさないための fail-closed 判定）。
+                if drag_root.has_attribute("data-disabled") {
+                    return;
+                }
+                let disabled_dropzone_selector = format!(
+                    "[data-scope=\"{FILE_UPLOAD_SCOPE}\"][data-part=\"{DROPZONE_PART}\"][data-disabled]"
+                );
+                if element
+                    .closest(&disabled_dropzone_selector)
+                    .ok()
+                    .flatten()
+                    .is_some()
+                {
+                    return;
+                }
+
                 let scope = element.get_attribute("data-scope");
                 let part = element.get_attribute("data-part");
                 let Some(dragging) = dropzone_dragging_state_for_event(

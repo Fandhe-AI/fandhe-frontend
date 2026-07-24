@@ -35,7 +35,8 @@ use js_sys::Array;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_test::*;
 use web_sys::{
-    DataTransfer, Document, Element, Event, EventInit, File, FilePropertyBag, HtmlInputElement,
+    DataTransfer, Document, DragEvent, DragEventInit, Element, Event, EventInit, File,
+    FilePropertyBag, HtmlInputElement,
 };
 
 wasm_bindgen_test_configure!(run_in_browser);
@@ -306,4 +307,86 @@ fn clear_trigger_click_clears_all_files() {
 
     assert!(state.borrow().is_empty());
     assert!(!container.inner_html().contains("a.txt"));
+}
+
+/// 無効化状態（`disabled: true`）で Root/Dropzone を組み立てたマークアップ
+/// （`render_file_upload` と異なり disabled 反映が必要なため専用のヘルパ）。
+fn render_disabled_file_upload(state: &FileUpload) -> String {
+    let node = root(
+        true,
+        vec![],
+        vec![
+            label(vec![], vec![text("Files")]),
+            dropzone(
+                true,
+                false,
+                vec![],
+                vec![
+                    trigger(true, vec![], vec![text("Browse")]),
+                    hidden_input(state.accept(), true, true, vec![]),
+                ],
+            ),
+            item_group(vec![], vec![]),
+            clear_trigger(true, vec![], vec![text("Clear")]),
+        ],
+    );
+    render(&node)
+}
+
+/// `DataTransfer` に合成 `File` 群を積んだ `DragEvent`（`drop`）を、
+/// バブリングありで dropzone 上に発火する。
+fn dispatch_drop_with_files(target: &Element, files: &[File]) {
+    let data_transfer = DataTransfer::new().expect("DataTransfer::new must not fail");
+    for file in files {
+        data_transfer
+            .items()
+            .add_with_file(file)
+            .expect("add_with_file must not fail");
+    }
+    let init = DragEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_data_transfer(Some(&data_transfer));
+    let event =
+        DragEvent::new_with_event_init_dict("drop", &init).expect("DragEvent::new must not fail");
+    target
+        .dispatch_event(&event)
+        .expect("dispatch_event must not fail");
+}
+
+/// 無効化状態（`data-disabled` が Root/Dropzone に付与されている）の
+/// dropzone へ `drop` イベントを発火してもファイルが追加されないこと
+/// （PR #868 Cursor Bugbot 指摘の回帰テスト: ネイティブ `disabled` を
+/// 持てない `div`/`role="button"` の dropzone がドラッグ&ドロップを
+/// 無条件に受理してしまっていた不具合の修正確認）。
+#[wasm_bindgen_test]
+fn disabled_dropzone_drop_event_does_not_add_files() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let container = create_container(&document, "file-upload-disabled-drop-test");
+    let _guard = RemoveOnDrop(container.clone());
+
+    let state = std::rc::Rc::new(std::cell::RefCell::new(FileUpload::new(
+        "", None, None, None,
+    )));
+    container.set_inner_html(&render_disabled_file_upload(&state.borrow()));
+
+    let update_container = container.clone();
+    wire_file_upload_component(container.clone(), state.clone(), move |s, _el| {
+        update_container.set_inner_html(&render_disabled_file_upload(s));
+    })
+    .expect("wire_file_upload_component must not fail");
+
+    let dropzone_el = container
+        .query_selector("[data-scope='file-upload'][data-part='dropzone']")
+        .expect("query_selector must not fail")
+        .expect("dropzone part must exist");
+    // 無効化状態を明示的に固定する（headless-ui 側の `dropzone(true, ...)` が
+    // `data-disabled` を反映することへの依存を、テスト側でも直接確認する）。
+    assert!(dropzone_el.has_attribute("data-disabled"));
+
+    let file = make_file("dropped.pdf", 100, "application/pdf");
+    dispatch_drop_with_files(&dropzone_el, &[file]);
+
+    assert!(state.borrow().is_empty());
+    assert!(!container.inner_html().contains("dropped.pdf"));
 }
