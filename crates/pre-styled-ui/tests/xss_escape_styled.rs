@@ -49,6 +49,7 @@ use fandhe_frontend_pre_styled_ui::editable::{
 };
 use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
+use fandhe_frontend_pre_styled_ui::file_upload;
 use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps};
 use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps};
@@ -1166,6 +1167,87 @@ fn tags_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
             payload,
             &html,
             "tags_input::hidden_input name/value コンテキスト",
+        );
+    }
+}
+
+/// (10) file_upload 経路（イシュー #840）: styled `root` の呼び出し側
+/// `attrs`・`class`、および headless-ui から選択的再エクスポートした
+/// `label` の children・`item_name` の children（ファイル名そのもの、
+/// REQ-1 の重点対象）・`item_delete_trigger` の `name`（`aria-label` に
+/// 組み込まれる）・`hidden_input` の `accept` 属性の 5 箇所すべてで既定
+/// エスケープ（REQ-1）が貫通することを固定する（`tags_input` 分と同型）。
+#[test]
+fn file_upload_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&file_upload::root(
+            Size::Md,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&file_upload::root(
+            Size::Md,
+            false,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "file_upload::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "file_upload::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-file-upload--"),
+            "file_upload::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした label の children 経路。
+        let html = render(&file_upload::label(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "file_upload::label children コンテキスト");
+
+        // 選択的再エクスポートした item_name の children 経路（ファイル名
+        // そのもの、REQ-1 の重点対象）。
+        let html = render(&file_upload::item_name(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::item_name children コンテキスト",
+        );
+
+        // 選択的再エクスポートした item_delete_trigger の aria-label コンテキスト。
+        let html = render(&file_upload::item_delete_trigger(
+            payload,
+            false,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::item_delete_trigger aria-label コンテキスト",
+        );
+
+        // 選択的再エクスポートした hidden_input の accept 属性コンテキスト。
+        let html = render(&file_upload::hidden_input(payload, false, false, vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::hidden_input accept コンテキスト",
         );
     }
 }

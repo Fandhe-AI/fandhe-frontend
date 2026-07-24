@@ -290,6 +290,7 @@ mod tests {
             ("splitter", crate::splitter::stylesheet()),
             ("pin_input", crate::pin_input::stylesheet()),
             ("tags_input", crate::tags_input::stylesheet()),
+            ("file_upload", crate::file_upload::stylesheet()),
             ("rating_group", crate::rating_group::stylesheet()),
             ("editable", crate::editable::stylesheet()),
             ("toggle", crate::toggle::stylesheet()),
