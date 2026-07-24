@@ -137,6 +137,12 @@ pub fn css() -> String {
 ///   `props.width`/`props.height` が 0 以下の場合、内部の
 ///   [`ViewBox::new`]/[`LinearScale::new`] の失敗を [`ChartError`] へ変換して
 ///   返す（[`ChartError::NonFiniteValue`]/[`ChartError::DegenerateDomain`]）。
+/// - `props.width`/`props.height` が正でも、カテゴリラベル用余白
+///   （[`CATEGORY_LABEL_SPACE`]）を差し引いた結果プロット領域の幅・高さが
+///   0 以下になる場合 [`ChartError::PlotAreaTooSmall`]（`ViewBox::new` は
+///   寸法の正値のみを検証し、余白差し引き後までは検証しないため、放置すると
+///   バーが潰れる、または viewBox 外へ無警告で描画される、PR #877 レビュー
+///   指摘）。
 ///
 /// # Examples
 ///
@@ -171,6 +177,14 @@ pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<
         Orientation::Vertical => (props.width, props.height - CATEGORY_LABEL_SPACE),
         Orientation::Horizontal => (props.width - CATEGORY_LABEL_SPACE, props.height),
     };
+    // `ViewBox::new` は width/height が正であることのみ検証し、カテゴリ
+    // ラベル余白差し引き後の実プロット領域までは検証しない。ここで拒否
+    // しないと、幅・高さが 0 以下のままバンド幅・棒寸法が 0/負値になり、
+    // バーが潰れる、または viewBox 外に無警告で描画される
+    // （PR #877 レビュー指摘、イシュー #849）。
+    if plot_width <= 0.0 || plot_height <= 0.0 {
+        return Err(ChartError::PlotAreaTooSmall);
+    }
 
     let value_range = match props.orientation {
         // SVG は y が下向き正のため、値の大小を上下反転させる。
@@ -266,6 +280,32 @@ mod tests {
             vec![Series::new("visits", vec![10.0, 30.0])],
         )
         .unwrap()
+    }
+
+    #[test]
+    fn root_rejects_width_or_height_too_small_for_category_label_space() {
+        // PR #877 レビュー指摘: height/width が CATEGORY_LABEL_SPACE (24.0)
+        // 以下だとプロット領域が 0 以下になり、バーが潰れる/viewBox 外描画に
+        // なる silent failure だった。fail-closed で拒否する。
+        let vertical_too_small = BarChartProps {
+            orientation: Orientation::Vertical,
+            width: 480.0,
+            height: 24.0,
+        };
+        assert_eq!(
+            root(&sample(), vertical_too_small, "label").unwrap_err(),
+            ChartError::PlotAreaTooSmall
+        );
+
+        let horizontal_too_small = BarChartProps {
+            orientation: Orientation::Horizontal,
+            width: 20.0,
+            height: 300.0,
+        };
+        assert_eq!(
+            root(&sample(), horizontal_too_small, "label").unwrap_err(),
+            ChartError::PlotAreaTooSmall
+        );
     }
 
     #[test]

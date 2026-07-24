@@ -204,16 +204,18 @@ pub fn root(data: &ChartData, series_name: &str) -> Result<Node, ChartError> {
 }
 
 /// 1 セグメント（`segment`）を組み立てる（内部ヘルパ）。
+///
+/// `background` はベアな HTML 属性としては存在しないため（ブラウザは無視し
+/// `<div>` は無色描画のままになる、PR #877 レビュー指摘）、legend マーカー
+/// （[`legend`] 内）と同様に `style` 属性値の一部として埋め込む。
 fn segment(idx: usize, value: f64, series: &data::Series) -> Node {
     let percent = data::value_percent(series, value);
     let color = series_color_var(idx);
-    let style = format!("--fandhe-bar-segment-percent: {}%", fmt_coord(percent));
-    ANATOMY.part(
-        "segment",
-        "div",
-        vec![("style", style.as_str()), ("background", color.as_str())],
-        vec![],
-    )
+    let style = format!(
+        "--fandhe-bar-segment-percent: {}%; background: {color}",
+        fmt_coord(percent)
+    );
+    ANATOMY.part("segment", "div", vec![("style", style.as_str())], vec![])
 }
 
 /// 凡例（[`legend`] モジュール doc 参照）を組み立てる（内部ヘルパ）。
@@ -330,6 +332,19 @@ mod tests {
         assert!(html.contains(">25%<"));
         assert!(html.contains(">b<"));
         assert!(html.contains(">75%<"));
+    }
+
+    #[test]
+    fn segment_color_is_set_via_style_not_bare_attribute() {
+        // PR #877 レビュー指摘: 'background' がベア HTML 属性のままだと
+        // ブラウザは CSS として扱わず無色描画になる。style 属性値の一部
+        // として埋め込まれていることを確認する（bare な `background="..."`
+        // 属性は存在しないことも合わせて検証する）。
+        let html = render(&root(&sample(), "visits").unwrap());
+        assert!(html.contains(
+            "style=\"--fandhe-bar-segment-percent: 25%; background: var(--fandhe-color-chart-1)\""
+        ));
+        assert!(!html.contains(" background=\"var(--fandhe-color-chart-1)\""));
     }
 
     #[test]

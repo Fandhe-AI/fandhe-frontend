@@ -75,6 +75,14 @@ pub enum ChartError {
     /// （イシュー #849）。全セグメント幅 0% の silent failure を避けるため
     /// 構築時に拒否する（`bar_segment` モジュール doc 参照）。
     ZeroTotal,
+    /// [`bar_chart::root`] で `viewBox` からカテゴリラベル用余白を
+    /// 差し引いたプロット領域の幅・高さが 0 以下になる
+    /// （`props.width`/`props.height` が小さすぎる）
+    /// （PR #877 レビュー指摘、イシュー #849）。`ViewBox::new` は寸法の
+    /// 有限性・正値のみを検証し、ラベル余白差し引き後の実描画領域までは
+    /// 検証しないため、放置するとバーが潰れる、または viewBox 外に無警告で
+    /// 描画される silent failure になる。
+    PlotAreaTooSmall,
 }
 
 impl std::fmt::Display for ChartError {
@@ -88,6 +96,9 @@ impl std::fmt::Display for ChartError {
             ChartError::UnknownSeriesName => "sort_by_series: no series with the given name",
             ChartError::NegativeValue => "value must be non-negative for ratio-based rendering",
             ChartError::ZeroTotal => "series total must be non-zero to compute a ratio",
+            ChartError::PlotAreaTooSmall => {
+                "width/height must leave a positive plot area after reserving category label space"
+            }
         };
         write!(f, "{message}")
     }
@@ -144,6 +155,7 @@ mod tests {
             ChartError::UnknownSeriesName,
             ChartError::NegativeValue,
             ChartError::ZeroTotal,
+            ChartError::PlotAreaTooSmall,
         ] {
             let message = err.to_string();
             assert!(!message.is_empty());
