@@ -31,6 +31,9 @@
 //! - [`tooltip`]: データ点のツールチップ表示（chakra-ui `charts/tooltip.md`
 //!   相当、イシュー #847。[`crate::tooltip`] とは別物、[`tooltip`] モジュール
 //!   doc 参照）。
+//! - [`bar_chart`]: 縦/横 orientation の SVG 棒グラフ（イシュー #849）。
+//! - [`bar_list`]: ランキング型バーリスト（HTML、イシュー #849）。
+//! - [`bar_segment`]: 構成比バー（HTML、100% 積み上げ、イシュー #849）。
 //!
 //! # 本モジュールの不変条件（[`crate`] クレート全体の不変条件を継承、
 //! `.claude/rules/coding-rust.md`）
@@ -50,6 +53,9 @@
 //!    （REQ-3 不変）。
 
 pub mod axis;
+pub mod bar_chart;
+pub mod bar_list;
+pub mod bar_segment;
 pub mod data;
 pub mod grid;
 pub mod legend;
@@ -79,20 +85,32 @@ pub enum ChartError {
     DegenerateDomain,
     /// [`scale::LinearScale::ticks`] の `target` が許容範囲（1..=50）外。
     InvalidTickTarget,
-    /// [`data::ChartData::sort_by_series`] に、存在しない系列名が渡された。
+    /// [`data::ChartData::sort_by_series`]/[`bar_list::root`]/
+    /// [`bar_segment::root`] に、存在しない系列名が渡された。`Display`
+    /// メッセージは特定 API 名を含めない汎用文言に統一する（PR #877 Bugbot
+    /// 指摘、イシュー #849。`bar_list`/`bar_segment` も同 variant を返す
+    /// ようになったため、`sort_by_series` 名指しは実際の発生元と乖離した
+    /// 誤ったメッセージになっていた）。
     UnknownSeriesName,
-    /// [`radar_chart::root`] に、比率描画では意味を持たない負値が系列中に
-    /// 含まれていた（イシュー #851）。
+    /// [`bar_list`]/[`bar_segment`]/[`radar_chart::root`] に、比率描画では
+    /// 意味を持たない負値が系列中に含まれていた（イシュー #849/#851）。
     NegativeValue,
+    /// [`bar_segment`] で対象系列の合計が 0（構成比が定義できない）
+    /// （イシュー #849）。全セグメント幅 0% の silent failure を避けるため
+    /// 構築時に拒否する（`bar_segment` モジュール doc 参照）。
+    ZeroTotal,
     /// [`radar_chart::root`] に、軸（`categories`）が 3 未満のデータが渡され
     /// 多角形が定義できない（イシュー #851）。
     TooFewAxes,
-    /// [`radar_chart::root`] で `viewBox` から軸ラベル用余白を差し引いた
-    /// プロット半径が 0 以下になる（`props.size` が小さすぎる、イシュー #851）。
-    /// `ViewBox::new` は寸法の有限性・正値のみを検証し、ラベル余白差し引き
-    /// 後までは検証しないため、放置するとポリゴンが潰れる、または viewBox
-    /// 外に無警告で描画される silent failure になる
-    /// （`bar_chart::PlotAreaTooSmall` と同型の判断）。
+    /// [`bar_chart::root`] で `viewBox` からカテゴリラベル用余白を
+    /// 差し引いたプロット領域の幅・高さが 0 以下になる
+    /// （`props.width`/`props.height` が小さすぎる）
+    /// （PR #877 レビュー指摘、イシュー #849）。[`radar_chart::root`] でも
+    /// `viewBox` から軸ラベル用余白を差し引いたプロット半径が 0 以下になる
+    /// 場合（`props.size` が小さすぎる、イシュー #851）に同じ variant を返す。
+    /// `ViewBox::new` は寸法の有限性・正値のみを検証し、ラベル余白差し引き後の
+    /// 実描画領域までは検証しないため、放置するとバー/ポリゴンが潰れる、
+    /// または viewBox 外に無警告で描画される silent failure になる。
     PlotAreaTooSmall,
 }
 
@@ -104,11 +122,12 @@ impl std::fmt::Display for ChartError {
             ChartError::NonFiniteValue => "value must be finite (NaN/inf is rejected)",
             ChartError::DegenerateDomain => "domain must have non-zero width (min != max)",
             ChartError::InvalidTickTarget => "tick target must be in range 1..=50",
-            ChartError::UnknownSeriesName => "sort_by_series: no series with the given name",
+            ChartError::UnknownSeriesName => "no series with the given name",
             ChartError::NegativeValue => "value must be non-negative for ratio-based rendering",
+            ChartError::ZeroTotal => "series total must be non-zero to compute a ratio",
             ChartError::TooFewAxes => "radar chart requires at least 3 axes",
             ChartError::PlotAreaTooSmall => {
-                "size must leave a positive plot radius after reserving axis label space"
+                "width/height must leave a positive plot area after reserving label space"
             }
         };
         write!(f, "{message}")
@@ -165,6 +184,7 @@ mod tests {
             ChartError::InvalidTickTarget,
             ChartError::UnknownSeriesName,
             ChartError::NegativeValue,
+            ChartError::ZeroTotal,
             ChartError::TooFewAxes,
             ChartError::PlotAreaTooSmall,
         ] {

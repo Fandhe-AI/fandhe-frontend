@@ -56,6 +56,11 @@ use fandhe_frontend_pre_styled_ui::button::{
 use fandhe_frontend_pre_styled_ui::calendar::{self, PlainDate};
 use fandhe_frontend_pre_styled_ui::carousel;
 use fandhe_frontend_pre_styled_ui::charts::axis::{self, AxisProps};
+use fandhe_frontend_pre_styled_ui::charts::bar_chart::{
+    self, BarChartProps, Orientation as BarChartOrientation,
+};
+use fandhe_frontend_pre_styled_ui::charts::bar_list;
+use fandhe_frontend_pre_styled_ui::charts::bar_segment;
 use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
 use fandhe_frontend_pre_styled_ui::charts::grid::{self, GridProps};
 use fandhe_frontend_pre_styled_ui::charts::legend::{self, LegendProps};
@@ -348,6 +353,9 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::date_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::timer::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tour::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::bar_chart::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::bar_list::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::bar_segment::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::line_chart::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::area_chart::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::sparkline::stylesheet())?;
@@ -4464,6 +4472,24 @@ fn timer_section() -> Node {
     )
 }
 
+/// charts 用の固定サンプルデータ（BarChart/BarList/BarSegment 節が共有、
+/// イシュー #849）。
+fn bar_charts_sample_data() -> ChartData {
+    ChartData::new(
+        vec![
+            "Jan".to_string(),
+            "Feb".to_string(),
+            "Mar".to_string(),
+            "Apr".to_string(),
+        ],
+        vec![
+            Series::new("visits", vec![120.0, 200.0, 150.0, 80.0]),
+            Series::new("signups", vec![20.0, 35.0, 28.0, 12.0]),
+        ],
+    )
+    .expect("ショーケース固定サンプルはカテゴリ数・系列長が一致する")
+}
+
 /// Charts 節（イシュー #847）: 軸（Y 軸 + X 軸カテゴリ）・CartesianGrid・
 /// データ点（`charts::tooltip::datum`、hover でネイティブ `<title>` 表示 +
 /// `:hover` 強調）・凡例を合成した最小の折れ線チャート様デモ。
@@ -4565,6 +4591,47 @@ fn charts_section() -> Node {
     )
 }
 
+/// BarChart 節（イシュー #849、親 Phase #845）: 外部依存ゼロの SVG グループ棒
+/// グラフ。縦（既定）/横 orientation を並べて掲示する。
+fn bar_chart_section() -> Node {
+    let data = bar_charts_sample_data();
+    let vertical = bar_chart::root(
+        &data,
+        BarChartProps::default(),
+        "monthly visits and signups",
+    )
+    .expect("ショーケース固定データは domain・viewBox とも常に有効");
+    let horizontal = bar_chart::root(
+        &data,
+        BarChartProps {
+            orientation: BarChartOrientation::Horizontal,
+            ..BarChartProps::default()
+        },
+        "monthly visits and signups (horizontal)",
+    )
+    .expect("ショーケース固定データは domain・viewBox とも常に有効");
+
+    section(
+        "BarChart",
+        "ChartData（複数系列）+ LinearScale + SVG ノード木生成ヘルパーのみで組み立てる、外部依存ゼロのグループ棒グラフです。orientation で縦/横を切り替えます。軸線・グリッド・凡例・ツールチップはイシュー #847 のスコープです。",
+        vec![row(vec![vertical]), row(vec![horizontal])],
+    )
+}
+
+/// BarList 節（イシュー #849）: ランキング型バーリスト。単一系列を対象に、
+/// 系列内最大値に対する比率でバー幅を決める。
+fn bar_list_section() -> Node {
+    let data = bar_charts_sample_data();
+    let node = bar_list::root(&data, "visits")
+        .expect("ショーケース固定データの visits 系列は常に存在する");
+
+    section(
+        "BarList",
+        "系列の最大値に対する比率でバー幅を決めるランキング型バーリストです。カテゴリ順（挿入順）にそのまま描画するため、降順表示にしたい場合は呼び出し側で ChartData::sort_by_series を事前に適用します。",
+        vec![node],
+    )
+}
+
 /// LineChart 節（イシュー #848、親 #845）: `charts` 基盤（#846）の消費者。
 /// 3 カテゴリ 1 系列の折れ線を掲示する。
 fn line_chart_section() -> Node {
@@ -4578,6 +4645,20 @@ fn line_chart_section() -> Node {
     section(
         "LineChart",
         "charts 基盤（座標スケーリング・SVG ノード木生成）を使った折れ線チャートです。軸・グリッド・凡例・ツールチップは別イシュー（#847）のスコープです。",
+        vec![node],
+    )
+}
+
+/// BarSegment 節（イシュー #849）: 構成比バー（100% 積み上げ）。単一系列の
+/// 合計に対する各カテゴリの比率をセグメント幅として描画し、凡例を添える。
+fn bar_segment_section() -> Node {
+    let data = bar_charts_sample_data();
+    let node = bar_segment::root(&data, "visits")
+        .expect("ショーケース固定データの visits 系列合計は 0 ではない");
+
+    section(
+        "BarSegment",
+        "系列合計に対する各カテゴリの構成比を 100% 積み上げバーとして表示します。合計が 0 の系列は構成比が定義できないため構築時に拒否されます（ChartError::ZeroTotal）。",
         vec![node],
     )
 }
@@ -4958,6 +5039,9 @@ fn showcase_body() -> Node {
             date_input_section(),
             timer_section(),
             charts_section(),
+            bar_chart_section(),
+            bar_list_section(),
+            bar_segment_section(),
             line_chart_section(),
             area_chart_section(),
             sparkline_section(),
@@ -5033,6 +5117,9 @@ mod tests {
             "timer",
             "chart",
             "chart-legend",
+            "bar-chart",
+            "bar-list",
+            "bar-segment",
             "line-chart",
             "area-chart",
             "sparkline",

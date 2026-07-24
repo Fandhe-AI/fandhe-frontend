@@ -331,9 +331,9 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/charts/README.md` | — | README | — | — | 対象外 | 対象外（非コンポーネント文書） |
 | `.agents/skills/chakra-ui/references/charts/area-chart.md` | — | AreaChart | — | `area_chart` | 実装済み | 保留解除。#848（軸/グリッド/凡例/ツールチップ/積み上げは #847 以降のスコープ） |
 | `.agents/skills/chakra-ui/references/charts/axes.md` | — | Axes | — | `charts::axis`（`y_axis`/`x_axis_linear`/`x_axis_categories`） | 実装済み | #847、詳細は `docs/design/charts-foundation-design.md` |
-| `.agents/skills/chakra-ui/references/charts/bar-chart.md` | — | BarChart | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/charts/bar-list.md` | — | BarList | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/charts/bar-segment.md` | — | BarSegment | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/chakra-ui/references/charts/bar-chart.md` | — | BarChart | — | `charts::bar_chart` | 実装済み | headless-ui 非経由（styled 直下で新規 anatomy `bar-chart` を定義）。#849（親 Phase #845、charts 基盤 #846 の上に実装）。`docs/policy/intentional-non-adoption.md` §7 の保留を解除。軸線・グリッド・凡例・ツールチップは #847 のスコープ |
+| `.agents/skills/chakra-ui/references/charts/bar-list.md` | — | BarList | — | `charts::bar_list` | 実装済み | headless-ui 非経由（styled 直下で新規 anatomy `bar-list` を定義）。#849（親 Phase #845）。`docs/policy/intentional-non-adoption.md` §7 の保留を解除 |
+| `.agents/skills/chakra-ui/references/charts/bar-segment.md` | — | BarSegment | — | `charts::bar_segment` | 実装済み | headless-ui 非経由（styled 直下で新規 anatomy `bar-segment` を定義）。#849（親 Phase #845）。`docs/policy/intentional-non-adoption.md` §7 の保留を解除 |
 | `.agents/skills/chakra-ui/references/charts/cartesian-grid.md` | — | CartesianGrid | — | `charts::grid`（`cartesian_grid`） | 実装済み | #847、詳細は `docs/design/charts-foundation-design.md` |
 | `.agents/skills/chakra-ui/references/charts/donut-chart.md` | — | DonutChart | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
 | `.agents/skills/chakra-ui/references/charts/installation.md` | — | Installation | — | `charts`（外部依存追加なし、`fandhe-frontend-pre-styled-ui` のみで完結） | 実装済み | 保留解除（基盤のみ）。#846、詳細は `docs/design/charts-foundation-design.md` |

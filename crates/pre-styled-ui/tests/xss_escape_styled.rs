@@ -3803,3 +3803,69 @@ fn charts_scatter_and_radar_are_escaped_for_all_payloads() {
         );
     }
 }
+
+/// (26) charts BarChart/BarList/BarSegment 経路（イシュー #849、親 Phase #845）:
+/// カテゴリ名・系列名・BarChart の `aria_label` の各所すべてで既定エスケープ
+/// （REQ-1）が貫通することを固定する。SVG（BarChart）/HTML（BarList/
+/// BarSegment）双方の出力経路を対象とする。
+#[test]
+fn bar_charts_category_series_and_aria_label_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::charts::bar_chart::{self, BarChartProps};
+    use fandhe_frontend_pre_styled_ui::charts::bar_list;
+    use fandhe_frontend_pre_styled_ui::charts::bar_segment;
+    use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
+
+    for payload in payloads::all() {
+        // BarChart: カテゴリ名（svg_text children）経路。
+        let data = ChartData::new(
+            vec![payload.to_string(), "b".to_string()],
+            vec![Series::new("s", vec![1.0, 2.0])],
+        )
+        .unwrap();
+        let html = render(&bar_chart::root(&data, BarChartProps::default(), "label").unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bar_chart::root カテゴリ名 children コンテキスト",
+        );
+
+        // BarChart: `aria_label` 属性値経路。
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string()],
+            vec![Series::new("s", vec![1.0, 2.0])],
+        )
+        .unwrap();
+        let html = render(&bar_chart::root(&data, BarChartProps::default(), payload).unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bar_chart::root の aria-label 属性値コンテキスト",
+        );
+
+        // BarList: カテゴリ名（children）経路。
+        let data = ChartData::new(
+            vec![payload.to_string(), "b".to_string()],
+            vec![Series::new("visits", vec![1.0, 2.0])],
+        )
+        .unwrap();
+        let html = render(&bar_list::root(&data, "visits").unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bar_list::root カテゴリ名 children コンテキスト",
+        );
+
+        // BarSegment: カテゴリ名（legend の label children）経路。
+        let data = ChartData::new(
+            vec![payload.to_string(), "b".to_string()],
+            vec![Series::new("visits", vec![1.0, 2.0])],
+        )
+        .unwrap();
+        let html = render(&bar_segment::root(&data, "visits").unwrap());
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "bar_segment::root legend ラベル children コンテキスト",
+        );
+    }
+}

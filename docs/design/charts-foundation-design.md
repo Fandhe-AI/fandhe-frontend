@@ -138,3 +138,13 @@ chakra-ui `charts/use-chart.md` の `useChart`（data/series/集計/フォーマ
   がないか個別に確認する必要がある）。走査範囲をディレクトリモジュールへ
   拡張するかどうかは、CSS 追加が実際に必要になった時点で判断する
   （現時点では過剰な先回り拡張を避ける）。
+- **上記の走査範囲拡張はイシュー #849（BarChart/BarList/BarSegment）で
+  実施済み**。`bar_chart`/`bar_list`/`bar_segment` が本イシュー（#846）以降で
+  最初に CSS（`css()`）を持つ charts 部品となったため、
+  `stylesheet.rs::tests::all_styled_component_css_covers_every_component_module`
+  の走査対象を `src/` 直下に加え `src/charts/`（非再帰の 1 階層）へ拡張し、
+  `all_styled_component_css` へ 3 部品を登録した。`charts/mod.rs`（モジュール
+  宣言のみ、CSS を持たない）は `lib.rs`/`stylesheet.rs` と同じく走査対象から
+  除外している。並列実行される #847/#848/#850 が同じ拡張を独立に行う可能性
+  があるため、マージ順序によっては後続 PR 側で重複実装を破棄し先行実装へ
+  合流する調整が必要になる（本ファイル冒頭の注意と同型）。
