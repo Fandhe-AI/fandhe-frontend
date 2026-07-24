@@ -12,9 +12,12 @@
 | version-bump-guard（#638） | `.github/workflows/ci.yml` の `version-bump-guard` ジョブ / `crates/xtask/src/check_version_bump.rs` | 公開済みクレートの `src/`・`Cargo.toml`・`build.rs` 変更に version バンプを強制 |
 | template_vendor_drift テスト | `crates/cli/tests/template_vendor_drift.rs` | `templates/app/Cargo.toml`・`templates/app/wasm/Cargo.toml` の依存要求が正本 `crates/*/Cargo.toml` の `version` と完全一致することを強制 |
 | template-app-wasm-smoke ジョブ（#411） | `.github/workflows/ci.yml` の `template-app-wasm-smoke` ジョブ | `fw new --template app` 生成物を crates.io 実 index で依存解決してビルド検証 |
+| `test` ジョブの app テンプレート gate e2e（#351、実質は三すくみの第 3 の当事者） | `.github/workflows/ci.yml` の `test` ジョブ・`crates/cli/tests/new_gate_e2e.rs::fw_new_app_template_output_passes_fw_gate`/`fw_new_app_template_default_escape_check_detects_injected_violation` | `fw new --template app` 生成物へ `fw gate`（内部で crates.io 実 index での依存解決を伴う）を実行して PASS/期待 FAIL を検証 |
 
 バンプ先バージョンは PR マージ・crates.io 公開前は index に存在しないため、
-guard とドリフトテストを満たすと smoke が必ず fail する（三すくみ構造）。
+guard とドリフトテストを満たすと smoke・app テンプレート gate e2e の双方が
+必ず fail する（三すくみ構造。実際には smoke ジョブと test ジョブの 2 経路が
+同型の症状を示す）。
 
 ### PR #872 での実例
 
@@ -150,7 +153,10 @@ main への push をトリガーに、バンプされたクレートを自動検
 
 ## 5. 実装スコープ（後続 issue へ引き渡す粒度）
 
-本イシューでは設計・文書化のみを行い、以下は後続 issue のスコープとする。
+本イシューでは設計・文書化のみを行い、以下は後続 issue のスコープとする
+（当初の対象は smoke ジョブのみだったが、#895 で `test` ジョブの app
+テンプレート gate e2e にも同型のデッドロックが残存していたことが判明し、
+スコープを両ジョブへ拡張した。詳細は「実装結果（イシュー #895）」参照）。
 
 1. **未公開判定ステップの追加**: `template-app-wasm-smoke` ジョブに、生成
    プロジェクトの `templates/app/Cargo.toml`・`templates/app/wasm/Cargo.toml`
@@ -212,6 +218,56 @@ cargo run --locked -p xtask -- patch-template-smoke \
 - CLI 契約の回帰テストは `crates/xtask/tests/cli_patch_template_smoke.rs`
   （終了コード・1 行サマリ書式・`[patch.crates-io]` 注入・`Cargo.lock` 削除・
   各エラー分類を固定）。
+
+### 実装結果（イシュー #895）
+
+#885 の対応範囲は `template-app-wasm-smoke` ジョブのみだったため、
+`.github/workflows/ci.yml` の `test` ジョブが実行する
+`crates/cli/tests/new_gate_e2e.rs::fw_new_app_template_output_passes_fw_gate`
+（および `fw_new_app_template_default_escape_check_detects_injected_violation`）
+には同型のデッドロックが残存していた。イシュー #895 で `xtask
+patch-template-smoke` をテスト側から再利用する形で是正した。
+
+- `new_gate_e2e.rs::apply_patch_template_smoke`（テストローカルヘルパー）
+  が `cargo run --locked -p xtask -- patch-template-smoke --project-dir
+  <scratch> --repo-root <このリポジトリの checkout 絶対パス>` をサブプロセス
+  として起動する。`Command` への引数個別渡し（シェル非経由）であり、
+  `project_dir`/`repo_root` はテストが自ら生成した scratch パス・
+  `canonicalize()` 済みリポジトリルートで外部入力ではない。
+- `xtask` のライブラリ化・`fandhe-frontend-cli` への dev-dependency 追加は
+  行わなかった（`fandhe-frontend-cli` は crates.io 公開済みかつ外部依存ゼロ
+  方針を維持しており、依存グラフへの影響を避けるため）。サブプロセス方式は
+  依存グラフを一切変えず、smoke ジョブと完全に同一の CLI 契約（1 行サマリ・
+  `environment error: ` プレフィックス・終了コード）を再利用できる。
+- `fw gate` は cargo 起動へ常に `--locked` を付与するため、フォールバック
+  発動時（`[patch.crates-io]` 注入に伴いルート `Cargo.lock` が削除される）は
+  テスト側で `cargo generate-lockfile` を実行して再生成してから `fw gate` を
+  呼ぶ。再現性低下は smoke ジョブ側と同じく既知・許容の判断（本文書 §5
+  項 2 の判断をテスト経路にも踏襲）。`wasm/Cargo.lock` は `fw gate` の対象
+  外（`fw gate` はプロジェクトルートのみをビルド対象にする）のため再生成
+  不要。
+- `.github/workflows/ci.yml` の `test` ジョブは、従来の 2 ステップ
+  （`--skip example_` / `example_` フィルタ）を 3 ステップへ再編した:
+  1. `--skip example_ --skip fw_new_app_template`（examples・app テンプレート
+     を除く残り 7 件）
+  2. `fw_new_app_template` フィルタ（app テンプレート gate e2e 2 件）。
+     `resolution=path-override` を含む出力があれば `::warning::` + Step
+     Summary へ転記し、失敗時は `environment error: ` プレフィックス有無で
+     「runner/ネットワーク起因」と「コード起因」を CI アノテーションとして
+     区別する（version-bump-guard・smoke ジョブと同型の判定パイプライン）。
+  3. `example_` フィルタ（examples e2e 5 件、従来どおり）
+  3 フィルタが相互排他かつ `new_gate_e2e.rs` 全 14 件を重複・漏れなく
+  網羅することは `cargo test ... -- --list` で確認済み（7 + 2 + 5 = 14）。
+- サマリ行プレフィックス `template-app-wasm-smoke: ` はテスト経路でも
+  そのまま共用する（呼び出し元別のプレフィックス化は契約変更を伴うため
+  見送り。`patch_template_smoke.rs`/`main.rs` のドキュメンテーションコメント
+  へ呼び出し元が 2 経路になった旨を追記済み）。
+- 緩和用の環境変数・CLI フラグは追加していない（項目 4 の迂回禁止原則を
+  テスト経路にも継続適用）。
+- 全依存が公開済みの通常時（本 PR 時点の `templates/app` 依存はすべて
+  公開済み）は `apply_patch_template_smoke` がファイルを一切変更せず
+  `resolution=crates-io` のみを報告してそのまま `fw gate` へ進むことを
+  ローカル実行で確認済み（crates.io 実解決の検証能力は不変）。
 
 ## 6. 暫定運用（案 2 実装済み（#885）につき原則不要）
 
