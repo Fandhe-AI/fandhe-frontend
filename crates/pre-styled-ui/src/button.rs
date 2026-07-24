@@ -88,7 +88,7 @@ impl Default for ButtonProps {
     }
 }
 
-/// Button の recipe（scope `"button"`、slot `"root"` のみ）。
+/// Button の recipe（既定 scope `"button"`、slot `"root"` のみ）。
 ///
 /// 色は [`crate::recipe::palette_declarations`] が生成する
 /// `--fandhe-palette`/`--fandhe-palette-emphasized`/`--fandhe-palette-fg`
@@ -96,7 +96,23 @@ impl Default for ButtonProps {
 /// セマンティック色を直接参照しない（`palette` variant の切り替えだけで
 /// 全 variant の色が追従する）。
 fn recipe() -> SlotRecipe {
-    let mut recipe = SlotRecipe::new("button", &["root"])
+    recipe_with_scope("button")
+}
+
+/// [`recipe`] の scope 引数化版（イシュー #828）。
+///
+/// [`crate::download_trigger`] が「Button recipe の流用」（`variant`/`size`/
+/// `palette` の宣言・既定値を一切変えず `data-scope` セレクタとクラス接頭辞
+/// のみを差し替える）であることを型で保証するために `pub(crate)` として
+/// 公開する。`SlotRecipe::css` はセレクタ・クラス名の生成に `scope`
+/// （[`SlotRecipe::new`] の第 1 引数）のみを使う設計であるため、宣言
+/// （`base`/`variant`/`default_variant`）を 1 箇所に保ったまま scope だけを
+/// 差し替えれば、機械的に「Button と同一の宣言・別 scope の CSS」が
+/// 得られる（[`crate::stylesheet`] のドリフト検知テストとは独立に、
+/// `crates/pre-styled-ui/tests/download_trigger_css.rs` の golden テストが
+/// この流用契約自体を固定する）。
+pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
+    let mut recipe = SlotRecipe::new(scope, &["root"])
         .base(
             "root",
             vec![

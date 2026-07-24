@@ -87,6 +87,11 @@
 //!   （[`segment_group::SegmentGroup`] が [`radio_group::RadioGroup`] へ
 //!   全委譲するのと同型のパターン）。固有に持つのは画面端の方向を表す
 //!   [`drawer::DrawerPlacement`]（`data-placement`）のみ（#758）。
+//! - [`mod@download_trigger`]: `root`（`a[download]`）1 anatomy パーツ
+//!   （イシュー #828）。ark-ui/chakra-ui の DownloadTrigger（JS の `Blob`
+//!   生成前提）を `a[download]` 属性による宣言的トリガーとして静的部品化
+//!   したもので、[`mod@link`]/[`mod@breadcrumb`] と同型の状態機械なし純粋
+//!   関数のみで構成する。
 //! - [`mod@radio_group`]: Root / Label / Item / ItemControl / ItemText /
 //!   ItemHiddenInput の 6 anatomy パーツと [`state::SingleSelect`] を埋め込んだ
 //!   [`radio_group::RadioGroup`]（#536、親 #534）。クライアント由来の文字列
@@ -427,6 +432,7 @@ pub mod collapsible;
 pub mod combobox;
 pub mod data_attrs;
 pub mod dialog;
+pub mod download_trigger;
 pub mod drawer;
 pub mod editable;
 pub mod field;

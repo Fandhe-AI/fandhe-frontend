@@ -75,6 +75,7 @@ fn real_site_build_emits_showcase_page_and_dedicated_css() {
     assert!(html.contains("pre-styled-ui コンポーネントショーケース"));
     for scope in [
         "button",
+        "download-trigger",
         "badge",
         "spinner",
         "skeleton",

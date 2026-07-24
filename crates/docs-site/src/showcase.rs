@@ -56,6 +56,7 @@ use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::code::code;
 use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataListProps};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
+use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::editable::{
     self, EditMode, EditableInputFlags, EditableInputProps,
@@ -396,6 +397,83 @@ fn button_section() -> Node {
         "Button",
         "variant（solid / outline / ghost / subtle）・size・colorPalette・状態（disabled / loading）の各軸を型安全な props で切り替えます。",
         vec![variant_row, size_row, palette_row, state_row],
+    )
+}
+
+/// DownloadTrigger 節（イシュー #828）: variant / size / palette の各軸。
+/// Button recipe の流用（`crates/pre-styled-ui/src/download_trigger.rs`
+/// rustdoc 参照）であるため、デモの構成は [`button_section`] と対称に
+/// 揃える。`href` は空文字列を使う（`breadcrumb_section` と同じ理由:
+/// `crate::linkcheck::check_links` は空 href を無条件でスキップする契約で
+/// あり、生成コンテンツを linkcheck の突合対象へ含めない本モジュールの
+/// 既存設計（`showcase_markup_has_no_href_attributes_for_linkcheck_neutrality`
+/// 参照）を壊さずに `a[download]` 要素を掲示するための選択。実配信への
+/// 導線は呼び出し側アプリケーションの責務であり、本ショーケースは recipe
+/// CSS の見た目確認が目的）。
+fn download_trigger_section() -> Node {
+    let variants = [
+        (ButtonVariant::Solid, "Solid"),
+        (ButtonVariant::Outline, "Outline"),
+        (ButtonVariant::Ghost, "Ghost"),
+        (ButtonVariant::Subtle, "Subtle"),
+    ];
+    let variant_row = row(variants
+        .iter()
+        .map(|(variant, label)| {
+            download_trigger::root(
+                &DownloadTriggerProps {
+                    variant: *variant,
+                    ..DownloadTriggerProps::default()
+                },
+                "",
+                Some("sample-report.pdf"),
+                vec![],
+                vec![text(*label)],
+            )
+        })
+        .collect());
+
+    let sizes = [
+        (Size::Sm, "Small"),
+        (Size::Md, "Medium"),
+        (Size::Lg, "Large"),
+    ];
+    let size_row = row(sizes
+        .iter()
+        .map(|(size, label)| {
+            download_trigger::root(
+                &DownloadTriggerProps {
+                    size: *size,
+                    ..DownloadTriggerProps::default()
+                },
+                "",
+                Some("sample-report.pdf"),
+                vec![],
+                vec![text(*label)],
+            )
+        })
+        .collect());
+
+    let palette_row = row(palettes()
+        .iter()
+        .map(|(palette, label)| {
+            download_trigger::root(
+                &DownloadTriggerProps {
+                    palette: *palette,
+                    ..DownloadTriggerProps::default()
+                },
+                "",
+                Some("sample-report.pdf"),
+                vec![],
+                vec![text(*label)],
+            )
+        })
+        .collect());
+
+    section(
+        "DownloadTrigger",
+        "a[download] 属性による宣言的ダウンロードトリガー（JS 不要の静的部品）。variant・size・colorPalette は Button recipe を流用します。",
+        vec![variant_row, size_row, palette_row],
     )
 }
 
@@ -3598,6 +3676,7 @@ fn showcase_body() -> Node {
         vec![("class", "pre-styled-showcase")],
         vec![
             button_section(),
+            download_trigger_section(),
             badge_section(),
             spinner_section(),
             skeleton_section(),
