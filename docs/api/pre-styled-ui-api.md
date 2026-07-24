@@ -13,7 +13,7 @@ pre-styled UI コンポーネント層、親トラッキング #520・骨格新�
 対応する REQ / TASK は `docs/spec/` に存在しない（要件提案は
 fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 参照）。
 
-## 2. 実装状況（v0.27.0 時点、2026-07-24 更新）
+## 2. 実装状況（v0.29.0 時点、2026-07-24 更新）
 
 **記載方針**: 実装済み API の正は `crates/pre-styled-ui/src/lib.rs` 冒頭の
 rustdoc および各モジュール冒頭の rustdoc とする。本節はモジュール一覧の
@@ -52,8 +52,10 @@ styled ラッパー追加（#829、`tree_view` #753 の派生）・button の ic
 （#831、`docs/policy/intentional-non-adoption.md` §3.24 の意図的非採用を
 再導入）・ColorSwatch 静的部品追加（#838）・Calendar/DatePicker styled
 ラッパー追加（#835、親トラッキング #832、`docs/design/component-coverage-map.md`
-保留解除。いずれも公開時点未反映）を経て 84 の公開モジュールを持つ。内訳は
-次の通り。
+保留解除）・charts 基盤（座標スケーリング・SVG ノード木生成・`ChartData`
+モデル、#846）・charts 軸/グリッド/凡例/ツールチップ追加（#847、§4j 参照。
+いずれも公開時点未反映）を経て 84 の公開モジュール + `charts` サブモジュール
+群を持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -768,6 +770,58 @@ chakra-ui の `Prose`（記事全体へ一括カスケード適用するコン�
 イシューはこの既存機構を置き換えない（詳細な判断根拠は
 `crates/pre-styled-ui/src/text.rs` rustdoc、対応表は
 `docs/design/component-coverage-map.md` prose.md 行を参照）。
+
+## 4j. charts 軸・グリッド・凡例・ツールチップ（イシュー #847）
+
+chakra-ui `charts/axes.md` / `cartesian-grid.md` / `legend.md` / `tooltip.md`
+相当。charts 基盤（`crates/pre-styled-ui/src/charts/{data,scale,svg}.rs`、
+イシュー #846）の最初の消費者であり、`pre_styled_ui::charts::{axis, grid,
+legend, tooltip}` の 4 サブモジュールとして実装する（新規トップレベル
+モジュールは追加しない。詳細な設計判断は
+`docs/design/charts-foundation-design.md` 参照）。
+
+### API 一覧
+
+| モジュール | 主な公開関数 | 戻り値 |
+|---|---|---|
+| `charts::axis` | `y_axis(scale, ticks, x, props)` / `x_axis_linear(scale, ticks, y, props)` / `x_axis_categories(range, categories, y, props)` | `Result<Node, ChartError>` |
+| `charts::grid` | `cartesian_grid(x_range, y_range, x_positions, y_positions, props)` | `Result<Node, ChartError>` |
+| `charts::legend` | `legend(data: &ChartData, props: &LegendProps)` | `Node`（infallible） |
+| `charts::tooltip` | `datum_label(category, series, value)` / `datum(cx, cy, r, label, attrs)` | `String` / `Node`（いずれも infallible） |
+
+各モジュールは `css()` を公開し、`stylesheet.rs` の一元化リスト
+（`all_styled_component_css`）へ `"charts/axis"` 等のキーで登録済み。
+
+### anatomy / recipe
+
+- `axis`/`grid`/`tooltip` は scope `"chart"` を共有する（slot 名が互いに
+  素なため CSS セレクタは衝突しない、`SlotRecipe` は scope の一意性を
+  要求しない）。slot: `x-axis`/`y-axis`/`axis-line`/`tick-line`/
+  `tick-label`（axis）・`grid`/`grid-line`（grid）・`datum`（tooltip）。
+- `legend` は独立 scope `"chart-legend"` を持つ（SVG 外の通常 HTML
+  `<ul>`/`<li>`/`<span>` のため）。slot: `root`/`title`/`item`/`marker`/
+  `label`。
+- `grid` の線種は `GridLines`（`Solid`(既定)/`Dashed`）の 1 軸 variant。
+- `tooltip` の hover 強調は `crate::recipe::StateCondition::Hover`
+  （本イシューで新設、`:hover` 擬似クラス）を使う唯一の消費者。
+
+### SSR ツールチップ方式（JS 不使用）
+
+マウス追従型のリッチツールチップ（recharts `<Tooltip>` の cursor 追従）は
+JS ランタイムが必須のためスコープ外。代わりに `tooltip::datum` がデータ点
+（`<circle>`）へ子 `<title>` 要素（ブラウザネイティブな hover 表示）と
+`aria-label` 属性（同一文字列）を埋め込み、`StateCondition::Hover` による
+CSS のみの視覚強調と組み合わせて「ホバーで詳細が分かる」体験を実現する。
+
+### chakra-ui からの縮約（対象外事項）
+
+- `tickFormatter`（任意クロージャ）は `TickLabelFormat`（固定 `prefix`/
+  `suffix` の 2 フィールド）へ縮約した。ロケール依存の日付フォーマット等は
+  非対応。
+- インタラクティブ legend（hover で対象系列を強調・click で表示トグル）は
+  JS/wasm ランタイム連携が必要なためスコープ外。
+- マウス追従型のリッチツールチップは前述の通り JS 必須のためスコープ外。
+- `yAxisId` による二軸チャートは非対応。
 
 ## 5. 関連ドキュメント
 
