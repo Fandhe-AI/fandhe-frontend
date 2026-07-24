@@ -23,11 +23,12 @@
 //! - [`admonition`]: `> [!NOTE]` 等の admonition 構文（[`markdown`] が検出し
 //!   pre-styled-ui の alert 部品で描画する）が参照する専用 CSS の組み立てと、
 //!   ページが admonition を含むかどうかの判定（イシュー #715）
-//! - [`site_theme`]: サイト骨格（ヘッダー・2 カラム grid・サイドバー・本文
+//! - [`site_theme`]: サイト骨格（ヘッダー・3 カラム grid・サイドバー・本文
 //!   タイポグラフィ・toc・前後ナビ）が使う CSS（`assets/site.css`）の
 //!   ビルド時生成。旧 `site/assets/site.css`（`--docs-*` トークンで自己完結
 //!   する単一静的ファイル）を置き換え、`--fandhe-*` テーマトークンへ一本化
-//!   する（イシュー #905）
+//!   する（イシュー #905）。右カラム目次の独立カラム化と sticky 追従は
+//!   イシュー #909 で追加
 //!
 //! `fandhe-frontend-core` / `fandhe-frontend-app` / `fandhe-frontend-server` /
 //! `fandhe-frontend-pre-styled-ui` のみに依存し、外部クレートは追加しない
