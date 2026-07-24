@@ -38,7 +38,7 @@
 //! クリック挙動（dispatch 状態遷移）は wasm 層の責務であり docs サイトの
 //! スコープ外（`examples/headless-pre-styled-ui` と同じ方針）。
 //!
-//! Dialog/Menu/Select/Popover/Tooltip は開いた状態を固定して掲示するため、
+//! Dialog/Menu/Select/Popover/Tooltip/Tour は開いた（Active）状態を固定して掲示するため、
 //! recipe CSS のオーバーレイ配置（`position: fixed`/`absolute` + `z-index`）
 //! をそのまま反映するとページ全体を覆う・後続セクションに重なってしまう。
 //! [`SHOWCASE_LAYOUT_CSS`] がショーケース内に限定してこれを中和する
@@ -74,9 +74,13 @@ use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::color_picker::ColorPicker;
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::positioning::{
+    Align, Placement, Side,
+};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::{PanelSpec, Splitter};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::tour::{Tour, TourStep};
 use fandhe_frontend_pre_styled_ui::file_upload;
 use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
@@ -120,6 +124,7 @@ use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
 use fandhe_frontend_pre_styled_ui::timer::{self, Timer, TimerControl, TimerUnit};
 use fandhe_frontend_pre_styled_ui::toast::{self, ToastPlacement, ToastStatus};
+use fandhe_frontend_pre_styled_ui::tour::{self, ContentIds as TourContentIds};
 use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{
@@ -211,7 +216,9 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"floating-panel\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2,\n.pre-styled-showcase [data-scope=\"floating-panel\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"toast\"][data-part=\"group\"] {\n  position: static;\n}\n\
-.pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n";
+.pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n\
+.pre-styled-showcase [data-scope=\"tour\"][data-part=\"backdrop\"],\n.pre-styled-showcase [data-scope=\"tour\"][data-part=\"spotlight\"] {\n  display: none;\n}\n\
+.pre-styled-showcase [data-scope=\"tour\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n";
 
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
 /// 追記する `Node` 木を返す。
@@ -238,7 +245,7 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 /// rating_group/slider/segment_group/pagination/breadcrumb/carousel/
 /// action_bar/toast/progress/tag/kbd/code/image/icon/status/empty_state/
 /// visually_hidden/qr_code/heading/text/em/mark/blockquote/list/table/
-/// data_list/stat/timeline/scroll_area/splitter）→ ショーケース配置
+/// data_list/stat/timeline/scroll_area/splitter/tour）→ ショーケース配置
 /// スタイル、の順で決定的に連結する。
 ///
 /// # Errors
@@ -326,6 +333,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::date_picker::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::date_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::timer::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::tour::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -3068,6 +3076,94 @@ fn steps_section() -> Node {
     )
 }
 
+/// Tour 節（イシュー #841、#735 保留の解除）: 3 step 中 2 番目（index=1、
+/// Active { step: 1 }）を現在ステップとして固定表示する静的掲示。
+/// spotlight は現在ステップの `target`（`data-target`）を、positioner は
+/// `placement`（`data-side`/`data-align`）を反映します。対象要素の実座標
+/// 追従・`target` セレクタの実解決は wasm 層の後続イシューのスコープ外
+/// （[`crate::showcase`]（本モジュール）ではなく
+/// `fandhe_frontend_headless_ui::tour` モジュール doc §スコープ参照）。
+fn tour_section() -> Node {
+    let steps = vec![
+        TourStep {
+            id: "welcome".to_string(),
+            target: Some("#showcase-tour-target-1".to_string()),
+            title: "ようこそ".to_string(),
+            description: "このダッシュボードの概要を紹介します。".to_string(),
+            placement: Placement::new(Side::Bottom, Align::Center),
+        },
+        TourStep {
+            id: "settings".to_string(),
+            target: Some("#showcase-tour-target-2".to_string()),
+            title: "設定".to_string(),
+            description: "アカウント設定はここから行えます。".to_string(),
+            placement: Placement::new(Side::Left, Align::Start),
+        },
+        TourStep {
+            id: "done".to_string(),
+            target: None,
+            title: "完了".to_string(),
+            description: "ツアーはこれで終わりです。".to_string(),
+            placement: Placement::new(Side::Top, Align::Center),
+        },
+    ];
+    let t = {
+        use fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::dispatch;
+        let mut t = Tour::new(steps);
+        dispatch(&mut t, "start", "");
+        dispatch(&mut t, "next", "");
+        t
+    };
+
+    let demo = tour::root(
+        ColorPalette::Accent,
+        &t,
+        vec![],
+        vec![
+            tour::backdrop(&t, vec![], vec![]),
+            tour::spotlight(&t, vec![], vec![]),
+            tour::positioner(
+                &t,
+                vec![],
+                vec![
+                    tour::arrow(&t, vec![], vec![tour::arrow_tip(&t, vec![], vec![])]),
+                    tour::content(
+                        &t,
+                        TourContentIds {
+                            id: Some("showcase-tour-content"),
+                            labelledby: Some("showcase-tour-title"),
+                            describedby: Some("showcase-tour-desc"),
+                        },
+                        vec![],
+                        vec![
+                            tour::title(
+                                &t,
+                                Some("showcase-tour-title"),
+                                vec![],
+                                vec![text("設定")],
+                            ),
+                            tour::description(
+                                &t,
+                                Some("showcase-tour-desc"),
+                                vec![],
+                                vec![text("アカウント設定はここから行えます。")],
+                            ),
+                            tour::progress_text(&t, vec![], vec![text("Step 2 of 3")]),
+                            tour::close_trigger(&t, vec![("aria-label", "Close")], vec![text("×")]),
+                            tour::action_trigger(&t, vec![], vec![text("Next")]),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    );
+    section(
+        "Tour",
+        "steps（全ステップ）+ status（idle/active/skipped/completed）を持つ headless Tour の静的掲示（現在 Active { step: 1 } を固定表示）。content は role=\"dialog\" + aria-labelledby/aria-describedby、progress-text は aria-live=\"polite\" を持ちます。対象要素の実座標追従・target セレクタの実解決・クリック/キーボードの実配線は wasm 層の後続イシューのスコープ外です。",
+        vec![row(vec![demo])],
+    )
+}
+
 /// Splitter 節（イシュー #826）: 水平 2 パネルと垂直 3 パネルの静的掲示。
 ///
 /// `panel` の伸縮は headless 中立な
@@ -4610,6 +4706,7 @@ fn showcase_body() -> Node {
             json_tree_view_section(),
             pagination_section(),
             steps_section(),
+            tour_section(),
             splitter_section(),
             checkbox_card_section(),
             radio_card_section(),
@@ -4852,6 +4949,16 @@ mod tests {
         assert!(css.contains(r#".pre-styled-showcase [data-scope="dialog"] h2"#));
         assert!(css.contains(r#".pre-styled-showcase [data-scope="popover"] h2"#));
         assert!(css.contains(r#".pre-styled-showcase [data-scope="toast"][data-part="group"]"#));
+        // Tour（イシュー #841、PR #870 Bugbot 指摘 High severity「Showcase
+        // omits Tour CSS wiring」の回帰防止）: recipe CSS 本体が組み込まれ、
+        // かつ Active 固定掲示のオーバーレイ（backdrop/spotlight/positioner）
+        // がショーケース内でページ全体を覆わないよう中和されていること。
+        assert!(css.contains(
+            r#"[data-scope="tour"][data-part="positioner"][data-side="left"][data-align="start"]"#
+        ));
+        assert!(css.contains(r#".pre-styled-showcase [data-scope="tour"][data-part="backdrop"]"#));
+        assert!(css.contains(r#".pre-styled-showcase [data-scope="tour"][data-part="spotlight"]"#));
+        assert!(css.contains(r#".pre-styled-showcase [data-scope="tour"][data-part="positioner"]"#));
         // StyleSheet の不変条件（<style> 埋め込み・CSS ファイル双方で安全）。
         assert!(!css.contains('<'));
     }

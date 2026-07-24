@@ -281,7 +281,7 @@ pub fn aria_current(kind: AriaCurrent) -> (&'static str, &'static str) {
     ("aria-current", kind.as_str())
 }
 
-/// `aria-live` が示す live region の緊急度（Toast 用、イシュー #760）。
+/// `aria-live` が示す live region の緊急度（Toast / Tour 用、イシュー #760/#841）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AriaLive {
     /// 支援技術が他の作業を妨げないタイミングで読み上げる（既定的な通知）。
@@ -301,7 +301,8 @@ impl AriaLive {
     }
 }
 
-/// `aria-live` 属性（Toast の `root` パーツ用、イシュー #760）。
+/// `aria-live` 属性（Toast の `root`・Tour の `progress-text` パーツ用、
+/// イシュー #760/#841）。
 #[must_use]
 pub fn aria_live(kind: AriaLive) -> (&'static str, &'static str) {
     ("aria-live", kind.as_str())

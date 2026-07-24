@@ -86,6 +86,7 @@ use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
 use fandhe_frontend_pre_styled_ui::timer::{self, TimerControl, TimerPhase, TimerUnit};
 use fandhe_frontend_pre_styled_ui::toast::{self, ToastPlacement, ToastStatus};
+use fandhe_frontend_pre_styled_ui::tour::{self, ContentIds as TourContentIds, TourStep};
 use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, select};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Size};
 
@@ -3497,6 +3498,101 @@ fn color_swatch_class_style_and_children_payloads_are_escaped_for_all_payloads()
             &html,
             "color_swatch::color_swatch children コンテキスト",
         );
+    }
+}
+
+/// Tour 経路（イシュー #841）: styled `root` の呼び出し側 `attrs`・`class`、
+/// および全パーツが `state: &Tour` を取る `title`/`description`/`spotlight`
+/// の children/attrs/`data-target` 経路すべてで既定エスケープ（REQ-1）が
+/// 貫通することを固定する（`steps_styled_root_and_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn tour_styled_root_and_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::positioning::{
+        Align, Placement, Side,
+    };
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::dispatch;
+
+    for payload in payloads::all() {
+        let step_with_payload_target = TourStep {
+            id: "s1".to_string(),
+            target: Some(payload.to_string()),
+            title: "t".to_string(),
+            description: "d".to_string(),
+            placement: Placement::new(Side::Bottom, Align::Center),
+        };
+        let mut with_target =
+            fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::tour::Tour::new(vec![
+                step_with_payload_target,
+            ]);
+        dispatch(&mut with_target, "start", "");
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&tour::root(
+            ColorPalette::Accent,
+            &with_target,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "tour::root 呼び出し側 attrs コンテキスト");
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロード
+        // は出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&tour::root(
+            ColorPalette::Accent,
+            &with_target,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "tour::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "tour::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-tour--"),
+            "tour::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // spotlight の data-target 属性経路（TourStep::target 由来）。
+        let html = render(&tour::spotlight(&with_target, vec![], vec![]));
+        assert_payload_is_escaped(payload, &html, "tour::spotlight data-target コンテキスト");
+
+        // title/description の children 経路。
+        let html = render(&tour::title(
+            &with_target,
+            None,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "tour::title children コンテキスト");
+
+        let html = render(&tour::description(
+            &with_target,
+            None,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "tour::description children コンテキスト");
+
+        // content の ContentIds 経路（id/labelledby/describedby はいずれも
+        // 呼び出し側が渡す属性値であり、既定エスケープを経由する）。
+        let html = render(&tour::content(
+            &with_target,
+            TourContentIds {
+                id: Some(payload),
+                labelledby: Some(payload),
+                describedby: Some(payload),
+            },
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "tour::content ContentIds コンテキスト");
     }
 }
 

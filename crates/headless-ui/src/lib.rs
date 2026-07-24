@@ -523,6 +523,7 @@
 pub mod accordion;
 pub mod action_bar;
 pub mod anatomy;
+pub mod angle_slider;
 pub mod aria;
 pub mod avatar;
 pub mod breadcrumb;
@@ -581,6 +582,7 @@ pub mod toggle;
 pub mod toggle_group;
 pub mod toggle_tip;
 pub mod tooltip;
+pub mod tour;
 pub mod tree_view;
 pub mod visually_hidden;
 
@@ -607,6 +609,7 @@ pub use fandhe_frontend_interactive;
 
 pub use action_bar::ActionBar;
 pub use anatomy::{anatomy, Anatomy};
+pub use angle_slider::{AngleSlider, AngleSliderAction};
 pub use aria::{
     aria_activedescendant, aria_atomic, aria_autocomplete, aria_checked, aria_controls,
     aria_current, aria_describedby, aria_disabled, aria_expanded, aria_haspopup, aria_hidden,
@@ -668,4 +671,5 @@ pub use toggle::{Toggle, ToggleAction};
 pub use toggle_group::{MultiToggleGroup, ToggleGroup};
 pub use toggle_tip::ToggleTip;
 pub use tooltip::Tooltip;
+pub use tour::{ContentIds as TourContentIds, Tour, TourAction, TourStatus, TourStep};
 pub use tree_view::{TreeNode, TreeView, TreeViewAction};
