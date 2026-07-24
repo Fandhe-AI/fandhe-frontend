@@ -55,25 +55,32 @@ grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs \
 再実測。本節はこれ以前の複数 PR（#754〜#765 等）を経て蓄積した mod 数の
 乖離を合わせて是正した）だった）:
 
-- headless-ui 37: accordion / avatar / breadcrumb / carousel / checkbox /
+- headless-ui 38（#836 で timer を追加反映。ただし本節は clipboard /
+  qr_code / scroll_area / password_input / action_bar / steps / toast /
+  skip_nav / visually_hidden 等、#836 以前に既にマージ済みの複数 mod を
+  未反映のまま蓄積した既知のドリフトを抱えており、本 PR ではそれらの再実測
+  までは行わない。全件再実測は別途の docs 整備イシューとして切り出しを提案
+  する、`.claude/rules/out-of-scope-tracking.md` 対応）:
+  accordion / avatar / breadcrumb / carousel / checkbox /
   collapsible / combobox / dialog / download_trigger / drawer / editable /
   field / fieldset / hover_card / link / link_overlay / listbox / menu /
   nav_list / number_input / pagination / pin_input / popover / progress /
   radio_group / rating_group / segment_group / select / slider / switch /
-  tabs / tags_input / toggle / toggle_group / toggle_tip / tooltip /
+  tabs / tags_input / timer / toggle / toggle_group / toggle_tip / tooltip /
   tree_view
-- pre-styled-ui 45（styled ラッパー 35 + 静的部品 10）:
+- pre-styled-ui 46（styled ラッパー 36 + 静的部品 10。#836 で timer を追加
+  反映。上記と同じ既知のドリフトを抱える）:
   accordion / avatar / breadcrumb / carousel / checkbox / checkbox_card /
   combobox / dialog / download_trigger / drawer / editable / hover_card /
   link / link_overlay / listbox / menu / nav_list / number_input /
   pagination / pin_input / popover / radio_card / radio_group /
   rating_group / segment_group / select / slider / switch / tabs /
-  tags_input / toggle / toggle_group / toggle_tip / tooltip / tree_view
+  tags_input / timer / toggle / toggle_group / toggle_tip / tooltip / tree_view
   （styled ラッパー、`checkbox_card`/`radio_card` は headless 状態機械
   （`checkbox`/`radio_group`）を再利用するカード型選択 UI として、
   `download_trigger` は headless 自由関数（`download_trigger::root`）を
   `crate::button::recipe_with_scope` で流用する styled 版として、本区分へ
-  計上、35 件）+ alert / badge / button / card / spinner / input /
+  計上、36 件）+ alert / badge / button / card / spinner / input /
   textarea / native_select / status / empty_state（静的部品、10 件）
 
 ## 4. 抜けの機械確認手順
@@ -138,8 +145,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
 | `.agents/skills/ark-ui/references/components/date-time/date-input.md` | DateInput | — | — | — | 保留 | （date-time 系）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/ark-ui/references/components/date-time/date-picker.md` | DatePicker | DatePicker | — | — | 保留 | （date-time 系）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/ark-ui/references/components/date-time/timer.md` | Timer | — | — | — | 保留 | （date-time 系）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/ark-ui/references/components/date-time/date-picker.md` | DatePicker | DatePicker | date_picker | date_picker | 実装済み | headless+styled 実装済み（#835、親トラッキング #832。`docs/policy/intentional-non-adoption.md` §7（#735）の保留解除。DateInput（#834）との連携は行わず ISO 8601 値のネイティブ `<input>` のみで完結） |
+| `.agents/skills/ark-ui/references/components/date-time/timer.md` | Timer | Timer | timer | timer | 実装済み | headless+styled+wasm 配線実装済み（#836）。tick を外部から明示的に注入する決定的状態機械（時計 API 非依存）として実装し、`docs/policy/intentional-non-adoption.md` §7 の保留を解除した |
 | `.agents/skills/ark-ui/references/components/date-time/README.md` | README | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 
 #### `.agents/skills/ark-ui/references/components/disclosure/`
@@ -387,8 +394,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
-| `.agents/skills/chakra-ui/references/components/date-time/date-picker.md` | DatePicker | DatePicker | — | — | 保留 | （date-time 系）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/components/date-time/calendar.md` | — | Calendar | — | — | 保留 | （date-time 系）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/chakra-ui/references/components/date-time/date-picker.md` | DatePicker | DatePicker | date_picker | date_picker | 実装済み | headless+styled 実装済み（#835、親トラッキング #832。`docs/policy/intentional-non-adoption.md` §7（#735）の保留解除） |
+| `.agents/skills/chakra-ui/references/components/date-time/calendar.md` | — | Calendar | calendar | calendar | 実装済み | headless+styled 実装済み（#835、親トラッキング #832。`docs/policy/intentional-non-adoption.md` §7（#735）の保留解除） |
 
 #### `.agents/skills/chakra-ui/references/components/disclosure/`
 

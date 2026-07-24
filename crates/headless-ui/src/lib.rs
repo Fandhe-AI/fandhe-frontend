@@ -484,6 +484,14 @@
 //!   thumb 位置（本モジュールの導出 getter が算出する割合）で表現する
 //!   canvas 非依存の設計（`docs/policy/intentional-non-adoption.md` §7
 //!   再評価トリガー充足）。
+//! - [`mod@timer`]: Root / Area / Item / ItemValue / ItemLabel / Separator /
+//!   Control / ActionTrigger の 8 anatomy パーツと、idle/running/paused/
+//!   completed の 4 値状態機械 [`timer::Timer`]（イシュー #836、
+//!   `docs/design/component-coverage-map.md` 保留解除）。tick（経過ミリ秒）を
+//!   外部から明示的に注入する決定的状態機械であり、`std::time`/`Instant`
+//!   等の時計 API に一切依存しない（[`mod@timer`] モジュール doc 参照）。
+//!   実 tick 駆動（`setInterval`）は `fandhe-frontend-wasm-full` の
+//!   `headless_timer` モジュールの責務。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -494,6 +502,7 @@ pub mod anatomy;
 pub mod aria;
 pub mod avatar;
 pub mod breadcrumb;
+pub mod calendar;
 pub mod carousel;
 pub mod checkbox;
 pub mod clipboard;
@@ -503,6 +512,7 @@ pub mod color_picker;
 pub mod combobox;
 pub mod data_attrs;
 pub mod date;
+pub mod date_picker;
 pub mod dialog;
 pub mod download_trigger;
 pub mod drawer;
@@ -539,6 +549,7 @@ pub mod steps;
 pub mod switch;
 pub mod tabs;
 pub mod tags_input;
+pub mod timer;
 pub mod toast;
 pub mod toggle;
 pub mod toggle_group;
@@ -579,6 +590,7 @@ pub use aria::{
 };
 pub use avatar::{Avatar, AvatarAction, ImageStatus};
 pub use breadcrumb::{breadcrumb, BreadcrumbItem};
+pub use calendar::{Calendar, CalendarAction};
 pub use carousel::{Carousel, CarouselAction};
 pub use checkbox::{Checkbox, CheckboxFlags};
 pub use clipboard::{Clipboard, ClipboardAction};
@@ -589,6 +601,7 @@ pub use data_attrs::{
     data_incomplete, data_invalid, data_orientation, data_pressed, data_readonly, data_required,
     data_state, Orientation,
 };
+pub use date_picker::{DatePicker, DatePickerAction};
 pub use dialog::Dialog;
 pub use drawer::{Drawer, DrawerPlacement};
 pub use editable::{Editable, EditableAction};
