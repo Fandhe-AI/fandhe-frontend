@@ -68,6 +68,30 @@ fn table_css_contains_variant_selectors() {
     assert!(css.contains(r#"[data-scope="table"][data-part="root"].fd-table--variant-outline {"#));
 }
 
+/// `root` は `border-collapse: separate`（イシュー #767 PR #811 の Outline
+/// variant 角丸修正で導入）であり、CSS 表モデル仕様上 `row`（`tr`）への
+/// border 指定はブラウザに無視される。Line variant の行区切り線
+/// （`--fandhe-table-row-border`）は `row` ではなく `cell`（`td`）側の
+/// `border-bottom` として出力されなければならない（PR #811 Bugbot 追加指摘:
+/// "Line row borders ignored" の回帰防止）。
+#[test]
+fn table_css_puts_row_border_on_cell_not_row() {
+    let css = table::css();
+    assert!(
+        css.contains(
+            r#"[data-scope="table"][data-part="cell"] {
+  padding: var(--fandhe-table-cell-padding, 0.75rem 1rem);
+  font-size: var(--fandhe-table-font-size, var(--fandhe-font-font-size-sm));
+  border-bottom: var(--fandhe-table-row-border, none);
+}"#
+        ),
+        "cell base rule must set border-bottom via --fandhe-table-row-border\n{css}"
+    );
+    // `row`（`tr`）の base 規則自体が出力されないこと（`separate` モデルでは
+    // 無効なため、ここに書いても意味がない不変条件を CSS 出力レベルで固定する）。
+    assert!(!css.contains(r#"[data-scope="table"][data-part="row"] {"#));
+}
+
 #[test]
 fn table_css_never_contains_style_breakout_sequences() {
     let css = table::css();

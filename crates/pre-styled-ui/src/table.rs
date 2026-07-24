@@ -198,8 +198,13 @@ fn recipe() -> SlotRecipe {
                 // `border-radius` がブラウザにより無視される（角丸が効かない）ため、
                 // `separate` + `border-spacing: 0` を既定にする（イシュー #767
                 // PR #811 Bugbot 指摘）。`separate` でもセル間に境界線の重複は
-                // 発生しない（`row`/`column-header` は `border-bottom` のみを
+                // 発生しない（`cell`/`column-header` は `border-bottom` のみを
                 // 使い、隣接セル間の縦境界線を持たないため見た目に影響しない）。
+                // 注意: `separate` モデルでは `row`（`tr`）への border 指定は
+                // ブラウザに無視される（CSS 表モデル仕様上、border の対象は
+                // table と cell のみ）。そのため Line variant の行区切り線は
+                // `row` ではなく `cell`/`column-header` 側に持たせている
+                // （下記 `cell` base 参照、PR #811 Bugbot 追加指摘で是正）。
                 decl("border-collapse", "separate"),
                 decl("border-spacing", "0"),
                 decl("text-align", "left"),
@@ -239,6 +244,15 @@ fn recipe() -> SlotRecipe {
                     "font-size",
                     "var(--fandhe-table-font-size, var(--fandhe-font-font-size-sm))",
                 ),
+                // `root` の `border-collapse: separate`（Outline variant の
+                // `border-radius` 対応、直前コミットで導入）下では、CSS の
+                // テーブルモデル仕様上 `tr`（`row` スロット）への border は
+                // 描画されない（separate モデルでは table と cell のみが
+                // border の対象）。そのため Line variant の行区切り線は
+                // `row` ではなくここ（`td`/`th` にあたる `cell`/
+                // `column-header` スロット）へ持たせる（イシュー #767
+                // PR #811 Bugbot 指摘）。
+                decl("border-bottom", "var(--fandhe-table-row-border, none)"),
             ],
         )
         .variant(
@@ -307,13 +321,6 @@ fn recipe() -> SlotRecipe {
             )],
         )
         .default_variant(StripedVariant::Off)
-        .base(
-            "row",
-            vec![decl(
-                "border-bottom",
-                "var(--fandhe-table-row-border, none)",
-            )],
-        )
         .state(
             "row",
             StateCondition::NthChildEven,
