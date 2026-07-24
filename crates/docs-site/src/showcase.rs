@@ -55,11 +55,17 @@ use fandhe_frontend_pre_styled_ui::button::{
 };
 use fandhe_frontend_pre_styled_ui::calendar::{self, PlainDate};
 use fandhe_frontend_pre_styled_ui::carousel;
+use fandhe_frontend_pre_styled_ui::charts::axis::{self, AxisProps};
 use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
+use fandhe_frontend_pre_styled_ui::charts::grid::{self, GridProps};
+use fandhe_frontend_pre_styled_ui::charts::legend::{self, LegendProps};
 use fandhe_frontend_pre_styled_ui::charts::radar_chart::{self, RadarChartProps};
+use fandhe_frontend_pre_styled_ui::charts::scale::LinearScale;
 use fandhe_frontend_pre_styled_ui::charts::scatter_chart::{
     self, ScatterChartProps, ScatterData, ScatterSeries,
 };
+use fandhe_frontend_pre_styled_ui::charts::svg::{svg_root, ViewBox};
+use fandhe_frontend_pre_styled_ui::charts::tooltip as chart_tooltip;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::code::code;
@@ -347,6 +353,10 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::sparkline::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::scatter_chart::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::radar_chart::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::axis::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::grid::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::charts::legend::css())?;
+    sheet.push_css(&chart_tooltip::css())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -4454,6 +4464,107 @@ fn timer_section() -> Node {
     )
 }
 
+/// Charts 節（イシュー #847）: 軸（Y 軸 + X 軸カテゴリ）・CartesianGrid・
+/// データ点（`charts::tooltip::datum`、hover でネイティブ `<title>` 表示 +
+/// `:hover` 強調）・凡例を合成した最小の折れ線チャート様デモ。
+///
+/// インタラクティブなチャート部品（Area/Bar/Line/Pie）は #848〜#851 の
+/// スコープであり、本節は軸・グリッド・凡例・ツールチップの単体掲示に
+/// 留める（データ点は `<circle>` のみで、系列間を結ぶ `<path>` は
+/// 描画しない）。
+fn charts_section() -> Node {
+    let data = ChartData::new(
+        vec![
+            "Jan".to_string(),
+            "Feb".to_string(),
+            "Mar".to_string(),
+            "Apr".to_string(),
+        ],
+        vec![
+            Series::new("Visits", vec![120.0, 180.0, 150.0, 220.0]),
+            Series::new("Signups", vec![20.0, 35.0, 28.0, 40.0]),
+        ],
+    )
+    .expect("showcase 固定データは不変条件を満たす");
+
+    // プロット領域: 全体 320x220 のうち左 40px（Y 軸ラベル）・下 30px
+    // （X 軸ラベル）・上下左右の余白 10px を除いた範囲。
+    let (plot_left, plot_right) = (40.0, 310.0);
+    let (plot_top, plot_bottom) = (10.0, 170.0);
+
+    let (min, max) = data.domain();
+    // SVG は y が下向き正のため range を反転し、データの大小を視覚的な上下へ対応させる。
+    let y_scale = LinearScale::new((min, max), (plot_bottom, plot_top))
+        .expect("domain() は非退化な値域を返す")
+        .nice();
+    let y_ticks = y_scale.ticks(4).expect("target=4 は許容範囲 1..=50 内");
+    // cartesian_grid の y_positions はスケール済みピクセル座標を期待する
+    // （y_axis が内部で y_scale を通すのと同じ変換）。y_ticks（ドメイン値）
+    // をそのまま渡すとグリッド線が Y 軸目盛り・データ点とずれるため、
+    // ここで y_scale を適用してから渡す。
+    let y_tick_positions: Vec<f64> = y_ticks.iter().map(|&tick| y_scale.scale(tick)).collect();
+
+    let category_count = data.categories().len() as f64;
+    let band_width = (plot_right - plot_left) / category_count;
+
+    let mut svg_children = vec![
+        grid::cartesian_grid(
+            (plot_left, plot_right),
+            (plot_top, plot_bottom),
+            &[],
+            &y_tick_positions,
+            &GridProps::default(),
+        )
+        .expect("有限な range/ticks のみを渡す"),
+        axis::y_axis(&y_scale, &y_ticks, plot_left, &AxisProps::default())
+            .expect("有限な ticks のみを渡す"),
+        axis::x_axis_categories(
+            (plot_left, plot_right),
+            data.categories(),
+            plot_bottom,
+            &AxisProps::default(),
+        )
+        .expect("categories は非空・range は有限"),
+    ];
+
+    for (series_index, series) in data.series().iter().enumerate() {
+        let color = fandhe_frontend_pre_styled_ui::charts::series_color_var(series_index);
+        for (category_index, &value) in series.values.iter().enumerate() {
+            let cx = plot_left + (category_index as f64 + 0.5) * band_width;
+            let cy = y_scale.scale(value);
+            let label =
+                chart_tooltip::datum_label(&data.categories()[category_index], &series.name, value);
+            svg_children.push(chart_tooltip::datum(
+                cx,
+                cy,
+                4.0,
+                &label,
+                vec![("fill", &color)],
+            ));
+        }
+    }
+
+    let view_box = ViewBox::new(0.0, 0.0, 320.0, 220.0).expect("固定寸法は正の有限値");
+    let chart = svg_root(
+        &view_box,
+        vec![("aria-label", "Visits and signups by month")],
+        svg_children,
+    );
+
+    let legend_node = legend::legend(
+        &data,
+        &LegendProps {
+            title: Some("Series".to_string()),
+        },
+    );
+
+    section(
+        "Charts",
+        "軸（Axes）・CartesianGrid・凡例（Legend）・ツールチップ（Tooltip）を合成した最小デモです。データ点はホバーするとブラウザネイティブの `<title>` によるツールチップと `:hover` 強調が表示されます（JS 不要）。系列を結ぶ折れ線・棒等の描画部品は別イシュー（#848〜#851）のスコープです。",
+        vec![stack(vec![chart, legend_node])],
+    )
+}
+
 /// LineChart 節（イシュー #848、親 #845）: `charts` 基盤（#846）の消費者。
 /// 3 カテゴリ 1 系列の折れ線を掲示する。
 fn line_chart_section() -> Node {
@@ -4846,6 +4957,7 @@ fn showcase_body() -> Node {
             date_picker_section(),
             date_input_section(),
             timer_section(),
+            charts_section(),
             line_chart_section(),
             area_chart_section(),
             sparkline_section(),
@@ -4919,6 +5031,8 @@ mod tests {
             "data-list",
             "date-input",
             "timer",
+            "chart",
+            "chart-legend",
             "line-chart",
             "area-chart",
             "sparkline",
@@ -5055,6 +5169,11 @@ mod tests {
         assert!(css.contains(r#"[data-scope="empty-state"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="table"][data-part="row"]:nth-child(even)"#));
         assert!(css.contains(r#"[data-scope="data-list"][data-part="root"]"#));
+        // Charts（イシュー #847）: axis/grid/legend/tooltip の recipe CSS。
+        assert!(css.contains(r#"[data-scope="chart"][data-part="axis-line"]"#));
+        assert!(css.contains(r#"[data-scope="chart"][data-part="grid-line"]"#));
+        assert!(css.contains(r#"[data-scope="chart-legend"][data-part="root"]"#));
+        assert!(css.contains(r#"[data-scope="chart"][data-part="datum"]:hover"#));
         // ショーケース配置スタイル。
         assert!(css.contains(".showcase-row"));
         assert!(css.contains(".showcase-stack"));

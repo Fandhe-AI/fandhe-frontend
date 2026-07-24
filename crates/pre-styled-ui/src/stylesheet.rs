@@ -340,9 +340,13 @@ mod tests {
             ("date_picker", crate::date_picker::stylesheet()),
             ("date_input", crate::date_input::stylesheet()),
             ("timer", crate::timer::stylesheet()),
+            ("charts/axis", crate::charts::axis::css()),
+            ("charts/grid", crate::charts::grid::css()),
+            ("charts/legend", crate::charts::legend::css()),
+            ("charts/tooltip", crate::charts::tooltip::css()),
             ("sparkline", crate::sparkline::stylesheet()),
-            ("scatter_chart", crate::charts::scatter_chart::css()),
-            ("radar_chart", crate::charts::radar_chart::css()),
+            ("charts/scatter_chart", crate::charts::scatter_chart::css()),
+            ("charts/radar_chart", crate::charts::radar_chart::css()),
         ]
     }
 
@@ -368,16 +372,20 @@ mod tests {
         // popover/tooltip の登録漏れの再発防止）。ネットワーク・`/tmp` に依存
         // せず、コンパイル時確定の `CARGO_MANIFEST_DIR` のみを使う決定的判定
         // （`.claude/rules/ci.md` の self-hosted 共有環境への配慮に合わせる）。
+        //
+        // イシュー #847/#851: `src/charts/` サブディレクトリ（axis/grid/legend/
+        // tooltip/radar_chart/scatter_chart 等、charts 基盤 #846 の消費者
+        // 全般）は元々の非再帰スキャン（`src/` 直下のみ）では検出されない
+        // ため、`charts/<stem>` という部品名で個別に検出対象へ加える
+        // （`all_styled_component_css` の `"charts/axis"`/`"charts/radar_chart"`
+        // 等のキー形式と合わせる。`src/` 直下の走査と `src/charts/` の走査を
+        // 二重に行うと同一ファイルが bare 名/`charts/` 接頭辞名の双方で
+        // 二重登録され本テストが常に失敗するため、`src/charts/` は下記の専用
+        // ループのみが担当し、直下走査には含めない）。
         let src_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
-        let charts_dir = src_dir.join("charts");
 
-        // 走査対象は `src/` 直下に加え `src/charts/`（イシュー #851 で拡張。
-        // charts 基盤導入時点（#846）では CSS を持つ部品がまだ存在せず盲点
-        // だった）。`src/charts/` 側は非再帰の 1 階層のみ（現状 charts 配下に
-        // さらにサブディレクトリを持たない前提、増えた場合は本走査も追随して
-        // 拡張する）。
         let mut modules_with_css_fn: Vec<String> = Vec::new();
-        for dir in [src_dir.clone(), charts_dir] {
+        for dir in [src_dir.clone()] {
             for entry in std::fs::read_dir(&dir).expect("ディレクトリを読み取れること")
             {
                 let entry = entry.expect("dir entry を読み取れること");
@@ -404,6 +412,32 @@ mod tests {
                 if source.contains("pub fn css()") || source.contains("pub fn stylesheet()") {
                     modules_with_css_fn.push(stem);
                 }
+            }
+        }
+
+        let charts_dir = src_dir.join("charts");
+        for entry in
+            std::fs::read_dir(&charts_dir).expect("src/charts ディレクトリを読み取れること")
+        {
+            let entry = entry.expect("dir entry を読み取れること");
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+                continue;
+            }
+            let stem = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .expect("有効なファイル名であること")
+                .to_string();
+            // `mod.rs`（charts クレート入口。データモデル/スケール/svg 基盤
+            // 自体は #846 の非消費型モジュールで `css()`/`stylesheet()` を
+            // 持たない）は対象外。
+            if stem == "mod" {
+                continue;
+            }
+            let source = std::fs::read_to_string(&path).expect("モジュールソースを読み取れること");
+            if source.contains("pub fn css()") || source.contains("pub fn stylesheet()") {
+                modules_with_css_fn.push(format!("charts/{stem}"));
             }
         }
         modules_with_css_fn.sort();

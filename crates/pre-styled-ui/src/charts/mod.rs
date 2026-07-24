@@ -5,10 +5,12 @@
 //! ため `docs/policy/intentional-non-adoption.md` §7 で「保留」区分だった。
 //! 保留解除トリガーは「外部依存ゼロを維持したまま SVG ノード木生成のみで
 //! 実装できる設計の確立」であり、本モジュールがその基盤を提供する。
-//! 個々のチャート部品（Area/Bar/Line/Pie 等、#848〜#851）・軸/グリッド/
-//! 凡例/ツールチップ（#847）はいずれも本モジュールに依存するが、本モジュール
-//! 自体はそれらの上位部品を持たない（配置先判断は
-//! `docs/design/charts-foundation-design.md` 参照）。
+//! 個々のチャート部品（Area/Bar/Line/Pie 等、#848〜#851）はいずれも本モジュールに
+//! 依存するが、本モジュール自体はそれらの上位部品を持たない（配置先判断は
+//! `docs/design/charts-foundation-design.md` 参照）。軸/グリッド/凡例/
+//! ツールチップ（[`axis`]/[`grid`]/[`legend`]/[`tooltip`]、#847）は
+//! [`data`]/[`scale`]/[`svg`] の最初の消費者であり、後続チャート部品はこれらを
+//! 自身のデータ系列と同じ座標系の上に重ねて使う想定である。
 //!
 //! # 構成
 //!
@@ -22,6 +24,13 @@
 //!   （イシュー #851）。
 //! - [`radar_chart`]: 正多角形グリッド + 系列ポリゴンの SVG レーダーチャート
 //!   （頂点角度の決定的算出、イシュー #851）。
+//! - [`axis`]: X/Y 軸（chakra-ui `charts/axes.md` 相当、イシュー #847）。
+//! - [`grid`]: CartesianGrid（chakra-ui `charts/cartesian-grid.md` 相当、
+//!   イシュー #847）。
+//! - [`legend`]: 凡例（chakra-ui `charts/legend.md` 相当、イシュー #847）。
+//! - [`tooltip`]: データ点のツールチップ表示（chakra-ui `charts/tooltip.md`
+//!   相当、イシュー #847。[`crate::tooltip`] とは別物、[`tooltip`] モジュール
+//!   doc 参照）。
 //!
 //! # 本モジュールの不変条件（[`crate`] クレート全体の不変条件を継承、
 //! `.claude/rules/coding-rust.md`）
@@ -40,11 +49,15 @@
 //!    （既存のクレート依存）のみを使用し、新規クレート依存を追加しない
 //!    （REQ-3 不変）。
 
+pub mod axis;
 pub mod data;
+pub mod grid;
+pub mod legend;
 pub mod radar_chart;
 pub mod scale;
 pub mod scatter_chart;
 pub mod svg;
+pub mod tooltip;
 
 pub use data::{ChartData, Series};
 pub use scale::LinearScale;
