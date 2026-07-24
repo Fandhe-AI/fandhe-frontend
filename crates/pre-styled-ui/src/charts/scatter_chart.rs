@@ -275,9 +275,22 @@ pub fn root(
     let view_box = ViewBox::new(0.0, 0.0, props.width, props.height)
         .map_err(|_| ChartError::NonFiniteValue)?;
 
+    // マーカーは正の半径を持つ円であり、range を viewBox 全体
+    // （`0..width`/`height..0`）へそのまま写像すると domain 両端の点が
+    // 円の中心座標として境界線上に乗り、半径分だけ viewBox 外へはみ出して
+    // クリップされる（Cursor Bugbot 指摘、イシュー #851 追補）。range 側を
+    // 内側へ `point_radius` だけ縮めることで、domain 両端の点でも円全体が
+    // viewBox 内に収まることを保証する。
+    //
+    // `width`/`height` が `2 * point_radius` 以下の極端な構成では inset 後の
+    // range が反転・縮退し得るが、[`LinearScale::new`] は range の等値・反転を
+    // エラーとしない（doc 参照）ため `scale()` は縮退した定数写像として動作し
+    // 失敗しない（見た目上のクリップは残るが、それは `point_radius` に対して
+    // viewBox が過小という利用側の構成問題であり、本モジュールの責務外）。
     let (x_domain, y_domain) = data.domain();
-    let x_scale = LinearScale::new(x_domain, (0.0, props.width))?.nice();
-    let y_scale = LinearScale::new(y_domain, (props.height, 0.0))?.nice();
+    let r = props.point_radius;
+    let x_scale = LinearScale::new(x_domain, (r, props.width - r))?.nice();
+    let y_scale = LinearScale::new(y_domain, (props.height - r, r))?.nice();
 
     let mut points: Vec<Node> = Vec::new();
     for (series_idx, series) in data.series().iter().enumerate() {
@@ -432,6 +445,47 @@ mod tests {
         let data = ScatterData::new(vec![ScatterSeries::new("a", vec![(3.0, 3.0)])]).unwrap();
         let html = render(&root(&data, ScatterChartProps::default(), "label").unwrap());
         assert!(html.contains(r#"data-part="point""#));
+    }
+
+    #[test]
+    fn root_reserves_point_radius_margin_so_edge_points_are_not_clipped() {
+        // domain (0, 10) は `nice()` を経ても不変（境界がすでに 1-2-5 ステップに
+        // 揃っている）ため、range を viewBox 全体（0..width/height..0）へ直接
+        // 写像すると domain 両端の点の中心座標がちょうど viewBox 境界線上
+        // （x=0/x=width、y=height/y=0）に乗り、`point_radius` 分だけ円が
+        // viewBox 外へはみ出してクリップされる（Cursor Bugbot 指摘
+        // 「Edge scatter points get clipped」の回帰、イシュー #851 追補）。
+        // range を `point_radius` だけ内側へ縮めた後は、両端の点でも中心座標が
+        // `point_radius` 以上・`width/height - point_radius` 以下に収まり、
+        // 円全体が viewBox 内に収まることを固定する。
+        let data = ScatterData::new(vec![ScatterSeries::new(
+            "a",
+            vec![(0.0, 0.0), (10.0, 10.0)],
+        )])
+        .unwrap();
+        let props = ScatterChartProps::default();
+        let html = render(&root(&data, props, "label").unwrap());
+
+        let cx_values: Vec<f64> = html
+            .split("cx=\"")
+            .skip(1)
+            .map(|rest| rest.split('"').next().unwrap().parse().unwrap())
+            .collect();
+        let cy_values: Vec<f64> = html
+            .split("cy=\"")
+            .skip(1)
+            .map(|rest| rest.split('"').next().unwrap().parse().unwrap())
+            .collect();
+        assert_eq!(cx_values.len(), 2);
+        assert_eq!(cy_values.len(), 2);
+        for &cx in &cx_values {
+            assert!(cx >= props.point_radius - 1e-9);
+            assert!(cx <= props.width - props.point_radius + 1e-9);
+        }
+        for &cy in &cy_values {
+            assert!(cy >= props.point_radius - 1e-9);
+            assert!(cy <= props.height - props.point_radius + 1e-9);
+        }
     }
 
     #[test]

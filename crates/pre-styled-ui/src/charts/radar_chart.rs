@@ -291,6 +291,21 @@ pub fn root(
         } else {
             "middle"
         };
+        // 垂直方向のアラインメントも `sin(θ)`（象限の上下）で決定的に分岐する。
+        // 既定のアルファベティックベースラインは常にテキストが `y` 座標から
+        // 上方向へ伸びるため、下側（bottom、`sin(θ) > 0`）の軸ラベルはプロット
+        // 内部（スポーク・グリッドリング・外周付近の系列）へ向かって重なって
+        // しまう（Cursor Bugbot 指摘、イシュー #851 追補）。下側ラベルは
+        // `hanging`（`y` 座標から下方向、プロットの外側へ伸びる）へ、上側
+        // （`sin(θ) < 0`）は既定の `auto`（上方向、プロットの外側へ伸びる）の
+        // ままとし、水平軸上（`sin(θ) ≈ 0`）は `middle` で中央揃えにする。
+        let baseline = if theta.sin() > ANCHOR_EPSILON {
+            "hanging"
+        } else if theta.sin() < -ANCHOR_EPSILON {
+            "auto"
+        } else {
+            "middle"
+        };
         children.push(svg_text(
             x,
             y,
@@ -298,6 +313,7 @@ pub fn root(
                 ("data-scope", "radar-chart"),
                 ("data-part", "axis-label"),
                 ("text-anchor", anchor),
+                ("dominant-baseline", baseline),
             ],
             vec![text(category.as_str())],
         ));
@@ -472,6 +488,27 @@ mod tests {
         assert_eq!(html.matches(r#"data-part="axis-label""#).count(), 5);
         assert_eq!(html.matches(r#"data-part="series""#).count(), 1);
         assert!(html.matches(r#"data-part="grid""#).count() >= 1);
+    }
+
+    #[test]
+    fn axis_label_dominant_baseline_avoids_plot_overlap() {
+        // n=4: i=0 は 12 時（上、`sin(θ) = -1`）、i=1 は 3 時（右、`sin(θ) = 0`）、
+        // i=2 は 6 時（下、`sin(θ) = 1`）、i=3 は 9 時（左、`sin(θ) = 0`）。
+        // 下側ラベルのみプロット外側（下方向）へ伸びる `hanging` を持つことを
+        // 固定する（Cursor Bugbot 指摘「Bottom radar labels overlap plot」の
+        // 回帰、イシュー #851 追補）。
+        let data = sample_data(4);
+        let html = render(&root(&data, RadarChartProps::default(), "label").unwrap());
+        let labels: Vec<&str> = html
+            .split(r#"data-part="axis-label""#)
+            .skip(1)
+            .map(|rest| rest.split('>').next().unwrap_or(""))
+            .collect();
+        assert_eq!(labels.len(), 4);
+        assert!(labels[0].contains(r#"dominant-baseline="auto""#));
+        assert!(labels[1].contains(r#"dominant-baseline="middle""#));
+        assert!(labels[2].contains(r#"dominant-baseline="hanging""#));
+        assert!(labels[3].contains(r#"dominant-baseline="middle""#));
     }
 
     #[test]
