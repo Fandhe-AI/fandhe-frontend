@@ -255,11 +255,20 @@ mod wiring {
     /// `element.set_attribute(name, value)` の薄いガード付きラッパー
     /// （`crate::headless_clipboard::wiring::set_dom_attribute` と同型、
     /// イシュー #401 の `fw gate` `url_validation_check` 契約に準拠）。
+    /// 本モジュールが書き込む属性（`data-state`/`data-elapsed`）はいずれも
+    /// `&'static str`/数値整形済み文字列で固定された非 URL・非イベント
+    /// ハンドラ・非 `srcset` 属性であり実害はないが、
+    /// `fandhe_frontend_core::url` のガード関数群を経由することで、将来
+    /// `name`/`value` が動的な入力から組み立てられるよう変更された場合の
+    /// 防御としても機能する（`headless_clipboard.rs` と同じ判断）。
     fn set_dom_attribute(element: &Element, name: &str, value: &str) -> Result<(), JsValue> {
         if fandhe_frontend_core::is_event_handler_attr(name) {
             return Ok(());
         }
         if fandhe_frontend_core::is_url_attr(name) && !fandhe_frontend_core::is_safe_url(value) {
+            return Ok(());
+        }
+        if name.eq_ignore_ascii_case("srcset") && !fandhe_frontend_core::is_safe_srcset(value) {
             return Ok(());
         }
         element.set_attribute(name, value)
