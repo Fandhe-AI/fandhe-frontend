@@ -120,7 +120,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 - **区分**: §2 の 5 区分
 - **根拠・対応 issue**: 実装対象は issue 番号、保留・意図的非採用は根拠概要
   （詳細はイシュー #735 で確定した `docs/policy/intentional-non-adoption.md`
-  §3.22〜§3.24・§7、または既存記録 #716/#724）
+  §3.22〜§3.24・§7、または既存記録 #716/#724）。意図的非採用の等価概念・
+  代替は本書 §8 の対応表（イシュー #855）を参照
 
 ### Part A: ark-ui（`.agents/skills/ark-ui/references/`、90 件）
 
@@ -128,7 +129,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
-| `.agents/skills/ark-ui/references/collections/async-list.md` | AsyncListCollection | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
+| `.agents/skills/ark-ui/references/collections/async-list.md` | AsyncListCollection | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
 | `.agents/skills/ark-ui/references/collections/README.md` | README | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 | `.agents/skills/ark-ui/references/collections/list-collection.md` | ListCollection | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 | `.agents/skills/ark-ui/references/collections/list-selection.md` | ListSelection | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
@@ -199,7 +200,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/form/segment-group.md` | SegmentGroup | SegmentedControl | segment_group | segment_group | 実装済み | headless+styled 実装済み（#743） |
 | `.agents/skills/ark-ui/references/components/form/tags-input.md` | TagsInput | TagsInput | tags_input | tags_input | 実装済み | headless+styled 実装済み（#744） |
 | `.agents/skills/ark-ui/references/components/form/editable.md` | Editable | Editable | editable | editable | 実装済み | headless+styled 実装済み（#745） |
-| `.agents/skills/ark-ui/references/components/form/angle-slider.md` | AngleSlider | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.22（#735）で非採用確定（高度入力系、canvas/ポインタ座標/contenteditable 依存） |
+| `.agents/skills/ark-ui/references/components/form/angle-slider.md` | AngleSlider | AngleSlider | angle_slider | angle_slider | 実装済み（再導入） | #842 で `docs/policy/intentional-non-adoption.md` §3.22 の再評価トリガー 1（決定的自動テスト基盤の確立・具体的ユースケースを伴う利用要望）を充足し再導入。座標→角度変換（`atan2`）を wasm-full 層の単一純粋関数へ隔離、headless 層は整数角度状態機械のみ |
 | `.agents/skills/ark-ui/references/components/form/color-picker.md` | ColorPicker | ColorPicker | color_picker | color_picker | 実装済み | headless+styled 実装済み（#839、親 #837）。canvas 非依存（CSS グラデーション + 導出整数割合）で `docs/policy/intentional-non-adoption.md` §7 再評価トリガー充足、保留解除 |
 | `.agents/skills/ark-ui/references/components/form/file-upload.md` | FileUpload | FileUpload | file_upload | file_upload | 実装済み | headless+styled+wasm 実装済み（#840、`docs/policy/intentional-non-adoption.md` §7 保留解除。ItemPreview/ItemPreviewImage はスコープ外） |
 | `.agents/skills/ark-ui/references/components/form/image-cropper.md` | ImageCropper | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.22（#735）で非採用確定（高度入力系、canvas/ポインタ座標/contenteditable 依存） |
@@ -249,19 +250,19 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
 | `.agents/skills/ark-ui/references/utilities/highlight.md` | Highlight | Highlight | — | `highlight` | 実装済み | #775。pre-styled 静的部品 実装済み |
-| `.agents/skills/ark-ui/references/utilities/client-only.md` | ClientOnly | ClientOnly | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
+| `.agents/skills/ark-ui/references/utilities/client-only.md` | ClientOnly | ClientOnly | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
 | `.agents/skills/ark-ui/references/utilities/download-trigger.md` | DownloadTrigger | DownloadTrigger | `download_trigger` | `download_trigger` | 実装済み | #828。保留（#735 §7「JS ランタイム固有 utilities のうち静的実装可能なもの」）を利用要望 issue（#828）の起票により解除。`a[download]` 属性による静的部品として実装（`Blob`/`data`/`mimeType` は JS 前提のため対応しない） |
-| `.agents/skills/ark-ui/references/utilities/environment.md` | Environment | EnvironmentProvider | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
-| `.agents/skills/ark-ui/references/utilities/focus-trap.md` | FocusTrap | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
+| `.agents/skills/ark-ui/references/utilities/environment.md` | Environment | EnvironmentProvider | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
+| `.agents/skills/ark-ui/references/utilities/focus-trap.md` | FocusTrap | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
 | `.agents/skills/ark-ui/references/utilities/format-byte.md` | FormatByte | FormatByte | `format` | — | 実装済み | #853。`docs/policy/intentional-non-adoption.md` §3.23 の非採用から区分変更。`fandhe-frontend-headless-ui::format::format_byte`（Intl 非依存の決定的純関数） |
 | `.agents/skills/ark-ui/references/utilities/format-number.md` | FormatNumber | FormatNumber | `format` | — | 実装済み | #853。`docs/policy/intentional-non-adoption.md` §3.23 の非採用から区分変更。`fandhe-frontend-headless-ui::format::format_number`（Intl 非依存の決定的純関数） |
 | `.agents/skills/ark-ui/references/utilities/format-relative-time.md` | FormatRelativeTime | — | `format` | — | 実装済み | #853。`docs/policy/intentional-non-adoption.md` §3.23 の非採用から区分変更。`fandhe-frontend-headless-ui::format::format_relative_time`（基準時刻は呼び出し側注入、現在時刻 API 非依存） |
 | `.agents/skills/ark-ui/references/utilities/format-time.md` | FormatTime | — | `format` | — | 実装済み | #853。`docs/policy/intentional-non-adoption.md` §3.23 の非採用から区分変更。`fandhe-frontend-headless-ui::format::format_time`（決定的純関数） |
-| `.agents/skills/ark-ui/references/utilities/frame.md` | Frame | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
+| `.agents/skills/ark-ui/references/utilities/frame.md` | Frame | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
 | `.agents/skills/ark-ui/references/utilities/json-tree-view.md` | JsonTreeView | — | json_tree_view | json_tree_view | 実装済み | **保留解除**（イシュー #829、`tree_view`（#753）の派生として実装。headless `crates/headless-ui/src/json_tree_view.rs` + styled `crates/pre-styled-ui/src/json_tree_view.rs`。`docs/policy/intentional-non-adoption.md` §7 の解除記録参照） |
-| `.agents/skills/ark-ui/references/utilities/locale.md` | Locale | LocaleProvider | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
-| `.agents/skills/ark-ui/references/utilities/presence.md` | Presence | Presence | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
-| `.agents/skills/ark-ui/references/utilities/swap.md` | Swap | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
+| `.agents/skills/ark-ui/references/utilities/locale.md` | Locale | LocaleProvider | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
+| `.agents/skills/ark-ui/references/utilities/presence.md` | Presence | Presence | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
+| `.agents/skills/ark-ui/references/utilities/swap.md` | Swap | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
 | `.agents/skills/ark-ui/references/utilities/README.md` | README | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 
 ### Part B: chakra-ui（`.agents/skills/chakra-ui/references/`、269 件）
@@ -497,7 +498,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/overlays/hover-card.md` | HoverCard | HoverCard | hover_card | hover_card | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/overlays/toggle-tip.md` | — | ToggleTip | — | — | 実装対象 | #761 |
 | `.agents/skills/chakra-ui/references/components/overlays/action-bar.md` | — | ActionBar | action_bar | action_bar | 実装済み | headless+styled 実装済み（#762） |
-| `.agents/skills/chakra-ui/references/components/overlays/overlay-manager.md` | — | OverlayManager | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
+| `.agents/skills/chakra-ui/references/components/overlays/overlay-manager.md` | — | OverlayManager | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
 | `.agents/skills/chakra-ui/references/components/overlays/floating-panel.md` | FloatingPanel | FloatingPanel | floating_panel | floating_panel | 実装済み | headless+styled 実装済み（イシュー #827、`docs/policy/intentional-non-adoption.md` §7 の保留区分から解除） |
 
 #### `.agents/skills/chakra-ui/references/components/typography/`
@@ -515,7 +516,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/typography/blockquote.md` | — | Blockquote | — | blockquote | 実装済み | #771 |
 | `.agents/skills/chakra-ui/references/components/typography/list.md` | — | List | — | list | 実装済み | #771 |
 | `.agents/skills/chakra-ui/references/components/typography/highlight.md` | Highlight | Highlight | — | highlight | 実装済み | #775。pre-styled 静的部品 実装済み |
-| `.agents/skills/chakra-ui/references/components/typography/rich-text-editor.md` | — | RichTextEditor | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.22（#735）で非採用確定（高度入力系、canvas/ポインタ座標/contenteditable 依存） |
+| `.agents/skills/chakra-ui/references/components/typography/rich-text-editor.md` | — | RichTextEditor | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.22（#735）で非採用確定（高度入力系、canvas/ポインタ座標/contenteditable 依存）。等価概念は本書 §8 参照 |
 | `.agents/skills/chakra-ui/references/components/typography/code-block.md` | — | CodeBlock | — | — | 対象外 | 対象外（docs-site 既存機構と役割分担） |
 | `.agents/skills/chakra-ui/references/components/typography/prose.md` | — | Prose | — | — | 対象外 | 対象外（docs-site 既存機構と役割分担。役割分担の詳細は #771 の `crates/pre-styled-ui/src/text.rs` rustdoc・`docs/api/pre-styled-ui-api.md` 参照） |
 
@@ -525,15 +526,15 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 |---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/utilities/visually-hidden.md` | — | VisuallyHidden | `visually_hidden` | `visually_hidden` | 実装済み | #776 |
 | `.agents/skills/chakra-ui/references/components/utilities/skip-nav.md` | — | SkipNav | `skip_nav` | `skip_nav` | 実装済み | #776 |
-| `.agents/skills/chakra-ui/references/components/utilities/client-only.md` | ClientOnly | ClientOnly | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
-| `.agents/skills/chakra-ui/references/components/utilities/environment-provider.md` | Environment | EnvironmentProvider | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
-| `.agents/skills/chakra-ui/references/components/utilities/presence.md` | Presence | Presence | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
-| `.agents/skills/chakra-ui/references/components/utilities/checkmark.md` | — | Checkmark | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
-| `.agents/skills/chakra-ui/references/components/utilities/radiomark.md` | — | Radiomark | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
-| `.agents/skills/chakra-ui/references/components/utilities/for.md` | — | For | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
-| `.agents/skills/chakra-ui/references/components/utilities/portal.md` | — | Portal | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
-| `.agents/skills/chakra-ui/references/components/utilities/show.md` | — | Show | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし） |
-| `.agents/skills/chakra-ui/references/components/utilities/theme.md` | — | Theme | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.24（#735）で非採用確定（既存 theme mod と役割重複） |
+| `.agents/skills/chakra-ui/references/components/utilities/client-only.md` | ClientOnly | ClientOnly | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
+| `.agents/skills/chakra-ui/references/components/utilities/environment-provider.md` | Environment | EnvironmentProvider | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
+| `.agents/skills/chakra-ui/references/components/utilities/presence.md` | Presence | Presence | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
+| `.agents/skills/chakra-ui/references/components/utilities/checkmark.md` | — | Checkmark | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
+| `.agents/skills/chakra-ui/references/components/utilities/radiomark.md` | — | Radiomark | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
+| `.agents/skills/chakra-ui/references/components/utilities/for.md` | — | For | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
+| `.agents/skills/chakra-ui/references/components/utilities/portal.md` | — | Portal | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
+| `.agents/skills/chakra-ui/references/components/utilities/show.md` | — | Show | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
+| `.agents/skills/chakra-ui/references/components/utilities/theme.md` | — | Theme | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.24（#735）で非採用確定（既存 theme mod と役割重複）。等価概念は本書 §8 参照 |
 
 #### `.agents/skills/chakra-ui/references/get-started/`
 
@@ -687,3 +688,36 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 - **保留・意図的非採用の評価軸・再評価トリガーの詳細記録**: イシュー #735 で
   `docs/policy/intentional-non-adoption.md` §3.22〜§3.24（新規非採用確定）・
   §7（保留項目の記録）に確定記録済み（完了）
+
+## 8. JS ランタイム固有 utilities の Rust 等価概念対応表（イシュー #855）
+
+§3.23 の 24 行（JS ランタイム固有 utilities）+ RichTextEditor（§3.22）+
+chakra `Theme`（§3.24）について、利用者が「chakra-ui / ark-ui の X は
+fandhe では何か」を引くための対応表。非採用判断そのものの一次記録は
+引き続き `docs/policy/intentional-non-adoption.md` §3.22〜§3.24 であり、
+本節はそこから導かれる等価概念・代替実装のみを利用者向けに集約する。
+
+| JS 側コンポーネント | 対応する参照ファイル（本書 §5） | fandhe / Rust での等価概念・代替 | 参照先 | 備考（設計上の理由） |
+|---|---|---|---|---|
+| Portal | chakra `components/utilities/portal.md` | ノード木上の明示的配置（overlay 基盤が担当） | `crates/wasm-full/src/overlay.rs` | オーバーレイのスタック管理・配置はノード木 API 上で明示的に組み立てる。第 2 の描画経路（ランタイム的な要素の移設）は導入しない |
+| Show | chakra `components/utilities/show.md` | `Option` + Rust の `if` によるノード木条件構築 | `docs/api/component-api.md` | 条件付きレンダリングは通常の Rust 制御構文でノード木を組み立てる。専用コンポーネント API は設けない |
+| For | chakra `components/utilities/for.md` | Rust イテレータ + keyed_list | `crates/core/src/keyed.rs` | リストレンダリングは `keyed_list` 束縛点（`fandhe-frontend-core`）で差分更新する。JS 側の宣言的ヘルパーに相当する専用 API は設けない |
+| Presence | ark `utilities/presence.md`, chakra `components/utilities/presence.md` | `data-state` 属性 + CSS transition（View Transitions 連携） | `docs/guides/view-transitions.md` | マウント/アンマウントのアニメーションは `data-state` 属性と CSS/View Transitions で表現し、ランタイム機構は持ち込まない |
+| ClientOnly | ark `utilities/client-only.md`, chakra `components/utilities/client-only.md` | 等価概念なし | `docs/policy/intentional-non-adoption.md` §3.23 | SSR/CSR 単一描画モデル（ノード木を唯一の描画経路とする設計）のため、実行環境で分岐するランタイム機構自体が存在しない |
+| Environment(Provider) | ark `utilities/environment.md`, chakra `components/utilities/environment-provider.md` | 等価概念なし | `docs/policy/intentional-non-adoption.md` §3.23 | 同上（実行環境分岐の機構がない） |
+| Frame | ark `utilities/frame.md` | 等価概念なし | `docs/policy/intentional-non-adoption.md` §3.23 | iframe 内レンダリングの専用機構は持たない |
+| Swap | ark `utilities/swap.md` | 等価概念なし | `docs/policy/intentional-non-adoption.md` §3.23 | 要素差し替えのランタイム機構は持たない |
+| AsyncListCollection | ark `collections/async-list.md` | 等価概念なし | `docs/policy/intentional-non-adoption.md` §3.23 | 非同期コレクション処理は UI コンポーネント層の責務外。専用ランタイムは持たない |
+| FocusTrap | ark `utilities/focus-trap.md` | 実装済み | `crates/wasm-full/src/focus_trap.rs` | フォーカストラップは既存実装で代替済み。汎用 utilities API としての新設は不要 |
+| OverlayManager | chakra `components/overlays/overlay-manager.md` | 実装済み | `crates/wasm-full/src/overlay.rs` | オーバーレイのスタック管理は既存実装で代替済み |
+| FormatByte / FormatNumber / FormatRelativeTime / FormatTime | ark `utilities/format-*.md`, chakra `components/i18n/format-byte.md` / `format-number.md` | 利用者側の通常の Rust 関数で整形 | `docs/policy/intentional-non-adoption.md` §3.23 | 数値・日時整形は UI コンポーネント層の責務外。国際化ライブラリは持ち込まない |
+| Locale(Provider) | ark `utilities/locale.md`, chakra `components/i18n/locale-provider.md` | 利用者側の通常の Rust 関数・状態管理で対応 | `docs/policy/intentional-non-adoption.md` §3.23 | 同上（国際化はライブラリ層の責務外） |
+| Checkmark | chakra `components/utilities/checkmark.md` | `checkbox` の状態機械に吸収済み | `crates/headless-ui/src/checkbox.rs` | チェック表示は `checkbox` mod の一部として実装済み。装飾専用の独立 API は設けない |
+| Radiomark | chakra `components/utilities/radiomark.md` | `radio_group` の状態機械に吸収済み | `crates/headless-ui/src/radio_group.rs` | ラジオ表示は `radio_group` mod の一部として実装済み |
+| Theme（chakra） | chakra `components/utilities/theme.md` | `crates/pre-styled-ui` の `theme` / `recipe` / `stylesheet` mod | `crates/pre-styled-ui/src/theme.rs` / `recipe.rs` / `stylesheet.rs` | テーマ管理は既存 3 mod を唯一の入口として維持する（§3.24） |
+| RichTextEditor | chakra `components/typography/rich-text-editor.md` | 非採用維持（等価概念なし） | `docs/policy/intentional-non-adoption.md` §3.22 | REQ-1（既定エスケープ）と本質衝突（`contenteditable` 由来 HTML がエスケープ経路外から持ち込まれる）。EditContext API 等の構造化編集 API 成熟時に再評価（§3.22 の再評価トリガー 2） |
+
+上記表は §3.23 の 24 行（L124, L245, L247〜L253, L255〜L257, L456〜L458,
+L493, L521〜L528）+ RichTextEditor（L511, §3.22）+ chakra `Theme`（L529,
+§3.24）をすべてカバーする。行番号は本書の現行版時点のものであり、将来の
+行挿入でずれうる（一次キーは参照ファイルパス）。

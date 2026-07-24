@@ -12,10 +12,11 @@ enhancement（`@supports` 段階適用）のフォールバック設計案・非
 整理をイシュー #644（出典: 同書 §4.5a）でも参照されている（判断・節本文は
 変更なし）。§3.22〜§3.24 は非採用確定（イシュー #735、出典
 `docs/design/component-coverage-map.md`（イシュー #734）の保留・意図的
-非採用プレースホルダ行の評価）。ただし §3.24 のうち Marquee は #831 で
-§4 の再導入手続きに基づき再導入済み（chakra `Theme` コンポーネントは
-非採用のまま変更しない）。§7 は、イシュー #735 で非採用ではなく
-保留のまま維持すると判断した項目群の再評価トリガーの記録である。
+非採用プレースホルダ行の評価）。ただし §3.24 のうち Marquee は #831 で、
+§3.22 のうち AngleSlider は #842 でそれぞれ §4 の再導入手続きに基づき
+再導入済み（chakra `Theme` コンポーネント・ImageCropper・SignaturePad・
+RichTextEditor は非採用のまま変更しない）。§7 は、イシュー #735 で非採用
+ではなく保留のまま維持すると判断した項目群の再評価トリガーの記録である。
 
 **節番号の採番規則**（イシュー #398、§3.6〜§3.8 の重複発覚を受けて明記）:
 
@@ -901,7 +902,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   `docs/design/anchor-positioning-design.md` 第 4.5a 節に記録した。判断
   （非採用）自体は変更しない。
 
-### 3.22 高度入力系 UI 部品（image-cropper / signature-pad / angle-slider / rich-text-editor）（イシュー #735）
+### 3.22 高度入力系 UI 部品（image-cropper / signature-pad / angle-slider / rich-text-editor）（イシュー #735、angle-slider は #842 で再導入済み）
 
 - **概要**: `docs/design/component-coverage-map.md`（イシュー #734）が
   「保留」区分の前方参照プレースホルダとして記録していた ark-ui /
@@ -944,6 +945,41 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   2. RichTextEditor について、既定エスケープ（REQ-1）を迂回しない形で
      `contenteditable` 由来の出力を安全に扱える Web 標準（例: EditContext
      API 等の構造化編集 API）が成熟し、かつ利用要望が確定した場合。
+- **再導入記録（イシュー #842、AngleSlider のみ。ImageCropper・
+  SignaturePad・RichTextEditor は非採用のまま変更しない）**: 再評価
+  トリガー 1（AngleSlider について、ポインタ座標ストリームを決定的に
+  検証できる自動テスト基盤が別途確立し、かつ利用要望が具体的なユース
+  ケースを伴って issue で確定した場合）を、以下の設計で充足したと判断し、
+  §4 の手続きに従い再導入した。
+  - **明示性**: 責務を 3 層に分離した。headless 層
+    （`crates/headless-ui/src/angle_slider.rs`）は角度値（`0..=359` の
+    整数）の状態機械のみでポインタ座標を一切扱わず、ラップアラウンド・
+    step スナップ規則を整数演算のみで rustdoc に明文化する。座標→角度
+    変換は wasm-full 層の単一の純粋関数
+    [`angle_from_offset`](../../crates/wasm-full/src/angle_slider.rs)
+    （`atan2` の使用箇所はこの 1 点のみ）へ完全に閉じ込め、canvas の
+    描画命令列・変換行列に相当する内部状態は持たない。
+  - **決定性**: 座標→角度変換は「最後に観測した座標 1 点から角度を
+    再計算する」設計（`f64` 2 値 → 整数角度の純粋関数）であり、ポインタ
+    イベントのストリーム頻度・座標精度差・履歴・速度に一切依存しない。
+    表示は CSS `transform: rotate(var(--fandhe-angle))` のみ（canvas
+    不使用）で端末の解像度・DPI にも依存しない。
+  - **機械検証可能性**: headless 層・wasm 層のいずれも native
+    `cargo test` の決定的アサーション（角度網羅表・ラップアラウンド
+    境界・丸め境界・ARIA 出力の golden テスト・golden CSS）で検証する。
+    視覚回帰基盤の新規整備は不要。
+  - **コンテキスト消費**: pointer イベント API（`PointerEvent`/
+    `setPointerCapture`）は新規サーフェスだが、`crates/wasm-full/src/angle_slider.rs`
+    1 ファイルへ閉じ込め、既存の `headless.rs`（click 配線）・
+    `headless_clipboard.rs`（独立配線モジュール）と同じ「純粋ロジック層
+    + `#[cfg(target_arch = "wasm32")]` 配線層」2 層構成を踏襲した。
+    canvas・`contenteditable` は導入していない。
+  - 既存不変条件（既定エスケープ・`forbid(unsafe_code)`・`core` 外部依存
+    ゼロ・`headless-ui` 外部依存は `core`/`interactive`（いずれも path）
+    のみ・依存上限 60 件/深さ 6）は変更していない（新規依存クレートの
+    追加なし、`web-sys` の既存依存への feature 追加のみ）。
+- **利用者向けの等価概念対応表**: RichTextEditor（非採用維持）の等価概念は
+  `docs/design/component-coverage-map.md` §8（イシュー #855）を参照。
 
 ### 3.23 JS ランタイム固有 utilities（portal / show / for / presence / client-only / environment / frame / swap / focus-trap / format-\* / locale / async-list / checkmark / radiomark / overlay-manager）（イシュー #735）
 
@@ -1027,6 +1063,9 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   として実装済み（`docs/api/headless-ui-api.md` の「Format ユーティリティ」
   節参照）。LocaleProvider / AsyncListCollection（en 以外のロケール拡張含む）
   はイシュー #854・#855 のスコープであり本記録の対象外。
+- **利用者向けの等価概念対応表**: 上記 24 件のうち非採用のまま変更しない
+  20 件それぞれの等価概念・代替実装は `docs/design/component-coverage-map.md`
+  §8（イシュー #855）に一覧化する。
 
 ### 3.24 その他 UI 部品（marquee / chakra `Theme` コンポーネント）（イシュー #735、marquee は #831 で再導入済み）
 
@@ -1075,6 +1114,8 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   として §4 の手続きに従い再導入した（評価軸充足の詳細は同ファイル冒頭
   rustdoc、golden CSS 固定は `crates/pre-styled-ui/tests/marquee_css.rs`
   参照）。
+- **利用者向けの等価概念対応表**: chakra `Theme`（非採用維持）の等価概念は
+  `docs/design/component-coverage-map.md` §8（イシュー #855）を参照。
 
 ## 4. 運用（再導入提案時の手続き）
 
@@ -1151,7 +1192,8 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   positioning の wasm 層計測注入層。§3.20 の代替実装）
 - `docs/design/component-coverage-map.md`（イシュー #734、ark-ui /
   chakra-ui 全コンポーネント対応表。§3.22〜§3.24・§7 が非採用・保留と
-  確定した項目の一次対応表）
+  確定した項目の一次対応表。§8 = イシュー #855 で追加した、§3.22〜§3.24 の
+  意図的非採用項目についての利用者向け等価概念対応表）
 - `docs/api/pre-styled-ui-api.md`（イシュー #716/#724、layout プリミティブ
   非採用の一次記録。component-coverage-map の「意図的非採用」区分の先例）
 - `crates/wasm-full/src/focus_trap.rs`（フォーカストラップ実装。§3.23 の

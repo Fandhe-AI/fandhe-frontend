@@ -126,6 +126,14 @@ categories = ["wasm", "web-programming"]
 # 参照）。新規外部クレート追加ゼロ、既存 web-sys の feature 追加のみ。
 # `cargo metadata` 実測（パッケージ数・依存グラフ深さ）に変化がないことを
 # PR 本文に記録する。
+# イシュー #842（AngleSlider の座標 → 角度変換・DOM 配線、非採用の再導入）:
+# `angle_slider::wiring` がポインタ座標を `getBoundingClientRect`（既存の
+# `DomRect`/`Element` feature を流用）で計測し、`setPointerCapture`/
+# `hasPointerCapture`（`PointerEvent::pointer_id()` を要求）で pointer 個別の
+# ドラッグを固定する。`KeyboardEvent` は既に本セクションへ追加済み（#582）
+# のため流用する。`PointerEvent` を追加する。新規外部クレート追加ゼロ、
+# 既存 web-sys の feature 追加のみ。`cargo metadata` 実測（パッケージ数・
+# 依存グラフ深さ）に変化がないことを PR 本文に記録する。
 [dependencies]
 fandhe-frontend-app = { path = "../app", version = "0.1.0" }
 fandhe-frontend-core = { path = "../core", version = "0.1.0" }
@@ -169,6 +177,7 @@ features = [
   "Navigator",
   "Node",
   "NodeList",
+  "PointerEvent",
   "PopStateEvent",
   "ScrollRestoration",
   "Window",
