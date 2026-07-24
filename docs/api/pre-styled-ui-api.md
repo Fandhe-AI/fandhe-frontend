@@ -800,7 +800,8 @@ chakra-ui の `Prose`（記事全体へ一括カスケード適用するコン�
 相当する機構は、本クレートへは導入しない。本節の 6 部品はいずれも
 「要素単位のオプトイン適用」であり、Markdown 由来の記事本文へ無選別に
 カスケード適用する仕組みは持たない。記事全体へのカスケードスタイルは
-`fandhe-frontend-docs-site` の `site/assets/site.css`（`.docs-content`
+`fandhe-frontend-docs-site` のサイト骨格 CSS（`crate::site_theme` による
+ビルド時生成、出力先 `assets/site.css`。`.docs-content`
 配下の `h1`-`h3`/`p`/`ul`/`ol`/`blockquote` 規則）が既に担っており、本
 イシューはこの既存機構を置き換えない（詳細な判断根拠は
 `crates/pre-styled-ui/src/text.rs` rustdoc、対応表は

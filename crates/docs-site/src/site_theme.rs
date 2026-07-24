@@ -370,21 +370,22 @@ body {\n\
   margin: 0 auto;\n\
 }\n\
 \n\
-/* ---- ページ内目次（任意、本文の前に配置） ---- */\n\
+/* ---- 右目次カラム内のページ内目次（イシュー #909） ---- */\n\
 \n\
+/*\n\
+ * #907 まではカード風（本文内配置）だったが、#909 で `aside.docs-toc-aside`\n\
+ * （右カラム）専用の視覚へ書き換えた。カード装飾（border/background/\n\
+ * max-width）を除去し、細身のインデックス表現にする。h2/h3 の階層表現\n\
+ * （`.docs-toc-level-2` / `-3` のインデント）は既存契約のまま不変。\n\
+ */\n\
 .docs-toc {\n\
-  font-size: 0.85rem;\n\
-  padding: 0.9rem 1.1rem;\n\
-  margin: 0 auto 1.75rem;\n\
-  max-width: var(--fandhe-space-docs-max-content-width);\n\
-  border: 1px solid var(--fandhe-color-border);\n\
-  border-radius: 0.65rem;\n\
-  background: var(--fandhe-color-bg-subtle);\n\
+  font-size: 0.8rem;\n\
+  line-height: 1.5;\n\
 }\n\
 \n\
 .docs-toc ul {\n\
   list-style: none;\n\
-  margin: 0.5rem 0 0;\n\
+  margin: 0;\n\
   padding: 0;\n\
   display: flex;\n\
   flex-direction: column;\n\
@@ -412,8 +413,8 @@ body {\n\
 \n\
 /*\n\
  * 基底・768px 帯域（2 カラム）では非表示。狭幅では「右目次 → 左ナビ」の\n\
- * 順に畳む要件どおり、目次カラムのみを先に隠す。1200px 以上で表示に切り替える\n\
- * （`@media (min-width: 1200px)` 側、下記）。sticky 追従・視覚仕上げは #909。\n\
+ * 順に畳む要件どおり、目次カラムのみを先に隠す。1200px 以上で表示に切り替え、\n\
+ * sticky 追従を有効化する（`min-width: 1200px` 側、下記。イシュー #909）。\n\
  */\n\
 .docs-toc-aside {\n\
   display: none;\n\
@@ -543,6 +544,12 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
  * `aside.docs-toc-aside` 自体を出力しない場合に付与する修飾 class）では\n\
  * 右目次列のグリッドトラック自体を収縮させ、空の右カラムが残ったまま\n\
  * 中央カラムが狭くなる回帰を避ける（Bugbot 指摘 #916 是正）。\n\
+ *\n\
+ * `.docs-toc-aside` は `.docs-sidebar`（`min-width: 768px` ブロック、上記）と\n\
+ * 同型の sticky 追従を持つ: `.docs-header` が `position: sticky; top: 0` で\n\
+ * 常時可視のため、ヘッダー高さ分オフセットしてヘッダー直下へ張り付け、\n\
+ * `max-height` + `overflow-y: auto` で目次が長いページでもカラム内スクロールに\n\
+ * 閉じ、ページ全体のレイアウトを崩さない（イシュー #909、受け入れ条件 1・2）。\n\
  */\n\
 @media (min-width: 1200px) {\n\
   .docs-container {\n\
@@ -559,7 +566,25 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
     display: block;\n\
     min-width: 0;\n\
     padding: 1.75rem 1rem 2rem;\n\
+    position: sticky;\n\
+    top: var(--fandhe-space-docs-header-height);\n\
+    align-self: start;\n\
+    max-height: calc(100vh - var(--fandhe-space-docs-header-height));\n\
+    overflow-y: auto;\n\
   }\n\
+}\n\
+\n\
+/*\n\
+ * `.docs-header` が `position: sticky; top: 0` で常時ヘッダー高さ分を占有する\n\
+ * ため、右目次カラムのリンク（`.docs-toc a`）や外部からのフラグメント直接リンクで\n\
+ * 見出しへジャンプすると素のブラウザ挙動ではヘッダーの下に隠れてしまう。\n\
+ * `with_heading_anchors`（id 注入対象は h2/h3）が生成する全アンカーの到達位置を\n\
+ * ヘッダー高さ分オフセットし、ページ内リンクが全ページで機能する状態にする\n\
+ * （イシュー #909、受け入れ条件 3）。\n\
+ */\n\
+.docs-content h2,\n\
+.docs-content h3 {\n\
+  scroll-margin-top: calc(var(--fandhe-space-docs-header-height) + 1rem);\n\
 }\n\
 ";
 
@@ -1022,6 +1047,48 @@ mod tests {
         let sheet = stylesheet().expect("site theme stylesheet should assemble");
         let css = sheet.as_css();
         assert!(css.contains(".docs-container.docs-container--no-toc"));
+    }
+
+    #[test]
+    fn stylesheet_toc_aside_is_sticky_at_three_column_breakpoint() {
+        // イシュー #909 受け入れ条件 1・2: `min-width: 1200px`（3 カラム帯域）で
+        // `.docs-toc-aside` が `.docs-sidebar` と同型の sticky 追従を持つこと、
+        // かつ狭幅帯域（`min-width: 1200px` 未満）では `display: none` のまま
+        // 非表示を維持しレイアウトを崩さないことを固定する。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+
+        let before_1200 = css
+            .split("@media (min-width: 1200px)")
+            .next()
+            .expect("content before min-width: 1200px block should exist");
+        // 行継続（`\`）が次行の先頭空白を除去するため、実際の出力 CSS には
+        // インデントが残らない（本ファイル既存の他アサーションと同様の前提）。
+        assert!(before_1200.contains(".docs-toc-aside {\ndisplay: none;\n}"));
+
+        let block_1200 = css
+            .split("@media (min-width: 1200px)")
+            .nth(1)
+            .expect("min-width: 1200px block should exist");
+        assert!(block_1200.contains(".docs-toc-aside {"));
+        assert!(block_1200.contains("position: sticky;"));
+        assert!(block_1200.contains("top: var(--fandhe-space-docs-header-height);"));
+        assert!(block_1200
+            .contains("max-height: calc(100vh - var(--fandhe-space-docs-header-height));"));
+        assert!(block_1200.contains("overflow-y: auto;"));
+    }
+
+    #[test]
+    fn stylesheet_headings_have_scroll_margin_for_sticky_header() {
+        // イシュー #909 受け入れ条件 3: `.docs-header` の sticky（top: 0）に
+        // 隠れず見出しアンカーへページ内リンクが機能するよう、id 注入対象
+        // （h2/h3、`with_heading_anchors`）に `scroll-margin-top` があることを固定する。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        assert!(css.contains(".docs-content h2,\n.docs-content h3 {"));
+        assert!(
+            css.contains("scroll-margin-top: calc(var(--fandhe-space-docs-header-height) + 1rem);")
+        );
     }
 
     #[test]
