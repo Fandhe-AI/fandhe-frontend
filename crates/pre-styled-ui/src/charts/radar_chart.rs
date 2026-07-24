@@ -1,0 +1,504 @@
+//! RadarChart（SVG レーダーチャート、イシュー #851・親 Phase #845）。
+//!
+//! chakra-ui `charts/radar-chart.md`（recharts `RadarChart` 相当）を、
+//! [`super::data::ChartData`]（カテゴリ = 軸、系列 = ポリゴン）+
+//! [`super::scale::LinearScale`]（半径写像）+ [`super::svg`]（マークアップ
+//! 生成）の 3 層のみで外部依存ゼロ・決定的に再構成する。
+//!
+//! # レイアウト規則（決定的。本モジュールが唯一の正）
+//!
+//! 1. **頂点角度**: 軸数 `n`・軸 index `i`（0 始まり）に対し
+//!    `θ_i = -π/2 + i · 2π / n`（12 時方向開始・時計回り、chakra-ui/recharts
+//!    既定と同じ見え方）。頂点座標は `(cx + r·cos θ_i, cy + r·sin θ_i)`。
+//!    角度→座標変換は private ヘルパ [`vertex`] に一元化し、純 f64 算術
+//!    （`f64::sin`/`f64::cos`）のみで入力から一意に決まる。文字列化は
+//!    [`super::svg::fmt_coord`] のみを経由する（[`crate::charts`] モジュール
+//!    doc 不変条件 2）。
+//! 2. **軸数の下限**: 軸（`categories`）が 3 未満では多角形が定義できない
+//!    ため [`ChartError::TooFewAxes`] として構築前に拒否する。
+//! 3. **負値の拒否**: 半径写像は `0` を起点とするため、系列値に負値が
+//!    含まれる場合 [`ChartError::NegativeValue`] として拒否する。
+//! 4. **半径スケール**: domain `(0.0, 全系列中の最大値)` → range
+//!    `(0.0, plot_radius)` の [`LinearScale`]（`.nice()` 適用）。全値 0 の
+//!    退化は domain を `(0.0, 1.0)` へ拡張して回避する。
+//! 5. **プロット領域**: `viewBox` は `size × size` の正方形。軸ラベル用に
+//!    [`AXIS_LABEL_MARGIN`] を差し引いた半径を `plot_radius` とする。
+//!    `plot_radius` が 0 以下になる場合 [`ChartError::PlotAreaTooSmall`]
+//!    （[`super::bar_chart`] の `PlotAreaTooSmall` と同型の fail-closed 判断、
+//!    `ViewBox::new` は寸法の正値のみを検証し、ラベル余白差し引き後までは
+//!    検証しないため）。
+//!
+//! # a11y
+//!
+//! [`super::svg::svg_root`] が既定付与する `role="img"` に加え、呼び出し側
+//! 必須の `aria_label` 引数を出力する（`bar_chart`/`scatter_chart` と同型の
+//! alt 必須判断）。
+//!
+//! # セキュリティ不変条件
+//!
+//! マークアップはすべて [`super::svg`]/[`fandhe_frontend_core::el`] 経由で
+//! 組み立て、`raw_html()` は使用しない（REQ-1）。カテゴリ名（軸ラベル）・
+//! 系列名・`aria_label` はテキストノード/属性値として
+//! [`fandhe_frontend_core::render`] の既定エスケープを必ず通る。座標・半径・
+//! `d` 属性はすべて [`ChartData::new`](super::data::ChartData::new)/
+//! [`LinearScale::new`] が有限性検証済みの `f64` のみを
+//! [`super::svg::fmt_coord`]/[`super::svg::PathBuilder`] へ渡すため、
+//! 文字列注入経路を持たない。
+//!
+//! # 本イシューのスコープ外（`.claude/rules/out-of-scope-tracking.md` 対応）
+//!
+//! - 凡例・ツールチップ（#847）。
+//! - ホバーインタラクション・アニメーション（意図的非採用、
+//!   `docs/policy/intentional-non-adoption.md`）。
+//! - `examples/headless-pre-styled-ui` への追随は crates.io 公開後に別途
+//!   行う（`qr_code`/`bar_chart` の先例と同じ判断）。
+
+use std::f64::consts::PI;
+
+use super::data::ChartData;
+use super::scale::LinearScale;
+use super::svg::{self, svg_text, PathBuilder, ViewBox};
+use super::{series_color_var, ChartError};
+use crate::css::decl;
+use crate::recipe::SlotRecipe;
+use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
+
+/// `data-scope="radar-chart"` の part 一覧（recipe と揃える）。
+const SLOTS: &[&str] = &["root", "grid", "spoke", "axis-label", "series"];
+
+/// 軸ラベル用に確保する半径方向の余白（px 相当。[`super::bar_chart`] の
+/// `CATEGORY_LABEL_SPACE` と同型の判断）。
+const AXIS_LABEL_MARGIN: f64 = 32.0;
+
+/// `plot_radius` の外側、軸ラベルを配置する追加オフセット（px 相当）。
+const AXIS_LABEL_OFFSET: f64 = 14.0;
+
+/// グリッド（同心正多角形）の目安本数（[`LinearScale::ticks`] の `target`）。
+const GRID_TICK_TARGET: usize = 4;
+
+/// `text-anchor` 分岐のしきい値（`cos(θ)` がこの絶対値未満なら中央揃え、
+/// 浮動小数点誤差を吸収する）。
+const ANCHOR_EPSILON: f64 = 1e-6;
+
+/// [`root`] の描画パラメータ。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RadarChartProps {
+    /// `viewBox` の一辺の長さ（正方形、px 相当。既定 300.0）。
+    pub size: f64,
+}
+
+impl Default for RadarChartProps {
+    fn default() -> Self {
+        RadarChartProps { size: 300.0 }
+    }
+}
+
+/// 軸 index `i`（`0..n`）の頂点角度（ラジアン、12 時方向開始・時計回り）を
+/// 返す（モジュール doc「レイアウト規則」節 1 の式そのもの）。
+#[must_use]
+fn vertex_angle(i: usize, n: usize) -> f64 {
+    -PI / 2.0 + (i as f64) * 2.0 * PI / (n as f64)
+}
+
+/// 中心 `(cx, cy)`・半径 `r`・軸 index `i`（`0..n`）から頂点座標を返す
+/// （角度→座標変換の唯一の実装箇所、モジュール doc「レイアウト規則」節参照）。
+#[must_use]
+fn vertex(cx: f64, cy: f64, r: f64, i: usize, n: usize) -> (f64, f64) {
+    let theta = vertex_angle(i, n);
+    (cx + r * theta.cos(), cy + r * theta.sin())
+}
+
+/// `n` 頂点の正多角形を閉じた `path` の `d` 属性値へ組み立てる。
+#[must_use]
+fn polygon_d(cx: f64, cy: f64, r: f64, n: usize) -> String {
+    let mut builder = PathBuilder::new();
+    for i in 0..n {
+        let (x, y) = vertex(cx, cy, r, i, n);
+        builder = if i == 0 {
+            builder.move_to(x, y)
+        } else {
+            builder.line_to(x, y)
+        };
+    }
+    builder.close().build()
+}
+
+/// この RadarChart の既定 CSS を組み立てる（内部ヘルパ、[`css`] のみが
+/// 呼ぶ）。
+///
+/// `series` パーツの塗りは半透明固定（`fill-opacity: 0.2`）とし、動的な
+/// 透過度を CSS 値へ流し込む経路は作らない（色自体はインライン `fill`
+/// 属性、[`crate::charts::bar_chart`] と同型の「variant を持たない静的
+/// 部品」判断）。
+fn recipe() -> SlotRecipe {
+    SlotRecipe::new("radar-chart", SLOTS)
+        .base(
+            "root",
+            vec![decl("display", "block"), decl("max-width", "100%")],
+        )
+        .base(
+            "grid",
+            vec![
+                decl("stroke", "var(--fandhe-color-border)"),
+                decl("fill", "none"),
+            ],
+        )
+        .base("spoke", vec![decl("stroke", "var(--fandhe-color-border)")])
+        .base(
+            "axis-label",
+            vec![
+                decl("font-size", "var(--fandhe-font-font-size-xs)"),
+                decl("fill", "var(--fandhe-color-fg-muted)"),
+            ],
+        )
+        .base("series", vec![decl("fill-opacity", "0.2")])
+}
+
+/// この RadarChart が生成する静的 CSS 全量を返す（決定的）。
+#[must_use]
+pub fn css() -> String {
+    recipe().css()
+}
+
+/// RadarChart 本体を組み立てる。
+///
+/// `data.categories()` を軸、`data.series()` を系列ポリゴンとして描画する。
+/// `aria_label` は `svg_root` の `role="img"` に対する代替テキストとして
+/// 必須（モジュール doc「a11y」節参照）。
+///
+/// # Errors
+///
+/// - 軸数（`data.categories().len()`）が 3 未満の場合 [`ChartError::TooFewAxes`]
+/// - いずれかの系列値が負の場合 [`ChartError::NegativeValue`]
+/// - `props.size` が非有限・0 以下の場合 [`ChartError::NonFiniteValue`]
+/// - `props.size` からラベル余白を差し引いた `plot_radius` が 0 以下の場合
+///   [`ChartError::PlotAreaTooSmall`]
+///
+/// # Examples
+///
+/// ```
+/// use fandhe_frontend_core::render;
+/// use fandhe_frontend_pre_styled_ui::charts::data::{ChartData, Series};
+/// use fandhe_frontend_pre_styled_ui::charts::radar_chart::{root, RadarChartProps};
+///
+/// let data = ChartData::new(
+///     vec!["speed".into(), "power".into(), "range".into(), "control".into()],
+///     vec![Series::new("mercury", vec![80.0, 60.0, 40.0, 90.0])],
+/// )
+/// .unwrap();
+/// let node = root(&data, RadarChartProps::default(), "stat comparison").unwrap();
+/// let html = render(&node);
+/// assert!(html.contains(r#"data-scope="radar-chart" data-part="series""#));
+/// ```
+pub fn root(
+    data: &ChartData,
+    props: RadarChartProps,
+    aria_label: &str,
+) -> Result<Node, ChartError> {
+    let axes = data.categories();
+    let n = axes.len();
+    if n < 3 {
+        return Err(ChartError::TooFewAxes);
+    }
+    if data
+        .series()
+        .iter()
+        .any(|s| s.values.iter().any(|&v| v < 0.0))
+    {
+        return Err(ChartError::NegativeValue);
+    }
+    if !props.size.is_finite() || props.size <= 0.0 {
+        return Err(ChartError::NonFiniteValue);
+    }
+    let view_box =
+        ViewBox::new(0.0, 0.0, props.size, props.size).map_err(|_| ChartError::NonFiniteValue)?;
+
+    let plot_radius = props.size / 2.0 - AXIS_LABEL_MARGIN;
+    if plot_radius <= 0.0 {
+        return Err(ChartError::PlotAreaTooSmall);
+    }
+    let center = props.size / 2.0;
+
+    let max_value = data
+        .series()
+        .iter()
+        .flat_map(|s| s.values.iter().copied())
+        .fold(f64::NEG_INFINITY, f64::max);
+    let domain_max = if max_value <= 0.0 { 1.0 } else { max_value };
+    let value_scale = LinearScale::new((0.0, domain_max), (0.0, plot_radius))?.nice();
+
+    let mut children: Vec<Node> = Vec::new();
+
+    // グリッド（同心正多角形）。tick 0 は中心の 1 点に潰れ描画上意味を
+    // 持たないため除外する。
+    for tick in value_scale
+        .ticks(GRID_TICK_TARGET)?
+        .into_iter()
+        .filter(|t| *t > 0.0)
+    {
+        let r = value_scale.scale(tick);
+        let d = polygon_d(center, center, r, n);
+        children.push(el(
+            "path",
+            vec![
+                ("data-scope", "radar-chart"),
+                ("data-part", "grid"),
+                ("d", d.as_str()),
+            ],
+            vec![],
+        ));
+    }
+
+    // スポーク（中心 → 各軸の外周頂点）。
+    for i in 0..n {
+        let (x, y) = vertex(center, center, plot_radius, i, n);
+        children.push(svg::line(
+            center,
+            center,
+            x,
+            y,
+            vec![("data-scope", "radar-chart"), ("data-part", "spoke")],
+        ));
+    }
+
+    // 軸ラベル。`text-anchor` は象限（cos(θ) の符号）で決定的に分岐する。
+    for (i, category) in axes.iter().enumerate() {
+        let theta = vertex_angle(i, n);
+        let (x, y) = vertex(center, center, plot_radius + AXIS_LABEL_OFFSET, i, n);
+        let anchor = if theta.cos() > ANCHOR_EPSILON {
+            "start"
+        } else if theta.cos() < -ANCHOR_EPSILON {
+            "end"
+        } else {
+            "middle"
+        };
+        children.push(svg_text(
+            x,
+            y,
+            vec![
+                ("data-scope", "radar-chart"),
+                ("data-part", "axis-label"),
+                ("text-anchor", anchor),
+            ],
+            vec![text(category.as_str())],
+        ));
+    }
+
+    // 系列ポリゴン。
+    for (series_idx, series) in data.series().iter().enumerate() {
+        let color = series_color_var(series_idx);
+        let mut builder = PathBuilder::new();
+        for (i, &value) in series.values.iter().enumerate() {
+            let r = value_scale.scale(value);
+            let (x, y) = vertex(center, center, r, i, n);
+            builder = if i == 0 {
+                builder.move_to(x, y)
+            } else {
+                builder.line_to(x, y)
+            };
+        }
+        let d = builder.close().build();
+        children.push(el(
+            "path",
+            vec![
+                ("data-scope", "radar-chart"),
+                ("data-part", "series"),
+                ("data-series", series.name.as_str()),
+                ("d", d.as_str()),
+                ("fill", color.as_str()),
+                ("stroke", color.as_str()),
+            ],
+            vec![],
+        ));
+    }
+
+    Ok(svg::svg_root(
+        &view_box,
+        vec![
+            ("data-scope", "radar-chart"),
+            ("data-part", "root"),
+            ("aria-label", aria_label),
+        ],
+        children,
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::charts::data::Series;
+    use fandhe_frontend_core::render;
+
+    fn sample_data(n: usize) -> ChartData {
+        let categories: Vec<String> = (0..n).map(|i| format!("axis{i}")).collect();
+        let values: Vec<f64> = (0..n).map(|i| 10.0 * (i as f64 + 1.0)).collect();
+        ChartData::new(categories, vec![Series::new("s1", values)]).unwrap()
+    }
+
+    #[test]
+    fn root_rejects_fewer_than_three_axes() {
+        for n in [0usize, 1, 2] {
+            if n == 0 {
+                // ChartData::new 自体が空カテゴリを EmptyData として拒否するため、
+                // TooFewAxes の対象は 1・2 軸のみ（`ChartData::new` 経由での
+                // 到達可能な最小値）。
+                continue;
+            }
+            let data = sample_data(n);
+            assert_eq!(
+                root(&data, RadarChartProps::default(), "label").unwrap_err(),
+                ChartError::TooFewAxes
+            );
+        }
+    }
+
+    #[test]
+    fn root_accepts_exactly_three_axes() {
+        let data = sample_data(3);
+        assert!(root(&data, RadarChartProps::default(), "label").is_ok());
+    }
+
+    #[test]
+    fn root_rejects_negative_values() {
+        let data = ChartData::new(
+            vec!["a".into(), "b".into(), "c".into()],
+            vec![Series::new("s1", vec![1.0, -2.0, 3.0])],
+        )
+        .unwrap();
+        assert_eq!(
+            root(&data, RadarChartProps::default(), "label").unwrap_err(),
+            ChartError::NegativeValue
+        );
+    }
+
+    #[test]
+    fn root_rejects_non_positive_or_non_finite_size() {
+        let data = sample_data(4);
+        assert_eq!(
+            root(&data, RadarChartProps { size: 0.0 }, "label").unwrap_err(),
+            ChartError::NonFiniteValue
+        );
+        assert_eq!(
+            root(&data, RadarChartProps { size: f64::NAN }, "label").unwrap_err(),
+            ChartError::NonFiniteValue
+        );
+    }
+
+    #[test]
+    fn root_rejects_plot_area_too_small() {
+        let data = sample_data(4);
+        // AXIS_LABEL_MARGIN (32.0) * 2 = 64.0 以下では plot_radius <= 0。
+        assert_eq!(
+            root(&data, RadarChartProps { size: 60.0 }, "label").unwrap_err(),
+            ChartError::PlotAreaTooSmall
+        );
+    }
+
+    #[test]
+    fn vertex_golden_coordinates_for_square_axes() {
+        // n=4: 12 時・3 時・6 時・9 時方向の単位円上の座標を手計算で固定する
+        // （モジュール doc「頂点角度」節の式の golden 検証）。
+        let (x0, y0) = vertex(0.0, 0.0, 1.0, 0, 4);
+        assert!((x0 - 0.0).abs() < 1e-9);
+        assert!((y0 - (-1.0)).abs() < 1e-9);
+
+        let (x1, y1) = vertex(0.0, 0.0, 1.0, 1, 4);
+        assert!((x1 - 1.0).abs() < 1e-9);
+        assert!((y1 - 0.0).abs() < 1e-9);
+
+        let (x2, y2) = vertex(0.0, 0.0, 1.0, 2, 4);
+        assert!((x2 - 0.0).abs() < 1e-9);
+        assert!((y2 - 1.0).abs() < 1e-9);
+
+        let (x3, y3) = vertex(0.0, 0.0, 1.0, 3, 4);
+        assert!((x3 - (-1.0)).abs() < 1e-9);
+        assert!((y3 - 0.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn vertex_is_deterministic_for_n_3_5_6() {
+        for n in [3usize, 5, 6] {
+            for i in 0..n {
+                let a = vertex(10.0, 20.0, 5.0, i, n);
+                let b = vertex(10.0, 20.0, 5.0, i, n);
+                assert_eq!(a, b);
+            }
+        }
+    }
+
+    #[test]
+    fn root_renders_expected_part_counts() {
+        let data = sample_data(5);
+        let html = render(&root(&data, RadarChartProps::default(), "label").unwrap());
+        assert_eq!(html.matches(r#"data-part="spoke""#).count(), 5);
+        assert_eq!(html.matches(r#"data-part="axis-label""#).count(), 5);
+        assert_eq!(html.matches(r#"data-part="series""#).count(), 1);
+        assert!(html.matches(r#"data-part="grid""#).count() >= 1);
+    }
+
+    #[test]
+    fn root_renders_role_img_and_aria_label() {
+        let data = sample_data(4);
+        let html = render(&root(&data, RadarChartProps::default(), "radar demo").unwrap());
+        assert!(html.contains(r#"role="img""#));
+        assert!(html.contains(r#"aria-label="radar demo""#));
+        assert!(html.contains(r#"data-scope="radar-chart" data-part="root""#));
+    }
+
+    #[test]
+    fn root_handles_all_zero_values_domain() {
+        let data = ChartData::new(
+            vec!["a".into(), "b".into(), "c".into()],
+            vec![Series::new("s1", vec![0.0, 0.0, 0.0])],
+        )
+        .unwrap();
+        let html = render(&root(&data, RadarChartProps::default(), "label").unwrap());
+        assert!(html.contains(r#"data-part="series""#));
+    }
+
+    #[test]
+    fn root_is_deterministic() {
+        let data = sample_data(6);
+        let a = render(&root(&data, RadarChartProps::default(), "label").unwrap());
+        let b = render(&root(&data, RadarChartProps::default(), "label").unwrap());
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn root_escapes_category_series_name_and_aria_label() {
+        let data = ChartData::new(
+            vec![
+                "<script>alert(1)</script>".to_string(),
+                "b".to_string(),
+                "c".to_string(),
+            ],
+            vec![Series::new(
+                "<img src=x onerror=alert(1)>",
+                vec![1.0, 2.0, 3.0],
+            )],
+        )
+        .unwrap();
+        let html =
+            render(&root(&data, RadarChartProps::default(), "<script>xss</script>").unwrap());
+        assert!(!html.contains("<script>"));
+        assert!(!html.contains("<img"));
+        assert!(html.contains("&lt;script&gt;"));
+        assert!(html.contains("&lt;img"));
+    }
+
+    #[test]
+    fn css_is_deterministic_and_targets_data_scope_selectors() {
+        let a = css();
+        let b = css();
+        assert_eq!(a, b);
+        assert!(a.contains(r#"[data-scope="radar-chart"][data-part="grid"]"#));
+        assert!(a.contains(r#"[data-scope="radar-chart"][data-part="series"]"#));
+    }
+
+    #[test]
+    fn css_never_contains_style_breakout_sequences() {
+        let css = css();
+        assert!(!css.contains("</style"));
+        assert!(!css.contains('<'));
+    }
+}

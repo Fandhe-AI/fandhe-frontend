@@ -338,6 +338,8 @@ mod tests {
             ("date_picker", crate::date_picker::stylesheet()),
             ("date_input", crate::date_input::stylesheet()),
             ("timer", crate::timer::stylesheet()),
+            ("scatter_chart", crate::charts::scatter_chart::css()),
+            ("radar_chart", crate::charts::radar_chart::css()),
         ]
     }
 
@@ -364,31 +366,41 @@ mod tests {
         // せず、コンパイル時確定の `CARGO_MANIFEST_DIR` のみを使う決定的判定
         // （`.claude/rules/ci.md` の self-hosted 共有環境への配慮に合わせる）。
         let src_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
+        let charts_dir = src_dir.join("charts");
 
+        // 走査対象は `src/` 直下に加え `src/charts/`（イシュー #851 で拡張。
+        // charts 基盤導入時点（#846）では CSS を持つ部品がまだ存在せず盲点
+        // だった）。`src/charts/` 側は非再帰の 1 階層のみ（現状 charts 配下に
+        // さらにサブディレクトリを持たない前提、増えた場合は本走査も追随して
+        // 拡張する）。
         let mut modules_with_css_fn: Vec<String> = Vec::new();
-        for entry in std::fs::read_dir(&src_dir).expect("src ディレクトリを読み取れること")
-        {
-            let entry = entry.expect("dir entry を読み取れること");
-            let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("rs") {
-                continue;
-            }
-            let stem = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .expect("有効なファイル名であること")
-                .to_string();
-            // `lib.rs`（クレート入口）と `stylesheet.rs`（本ファイル自身）は
-            // styled 部品モジュールではない。特に本ファイルは
-            // `all_styled_component_css`/本テストの doc コメント中に
-            // "pub fn css()"/"pub fn stylesheet()" という文字列そのものが
-            // 出現するため、除外しないと自己参照で誤検知する。
-            if stem == "lib" || stem == "stylesheet" {
-                continue;
-            }
-            let source = std::fs::read_to_string(&path).expect("モジュールソースを読み取れること");
-            if source.contains("pub fn css()") || source.contains("pub fn stylesheet()") {
-                modules_with_css_fn.push(stem);
+        for dir in [src_dir.clone(), charts_dir] {
+            for entry in std::fs::read_dir(&dir).expect("ディレクトリを読み取れること")
+            {
+                let entry = entry.expect("dir entry を読み取れること");
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+                    continue;
+                }
+                let stem = path
+                    .file_stem()
+                    .and_then(|s| s.to_str())
+                    .expect("有効なファイル名であること")
+                    .to_string();
+                // `lib.rs`（クレート入口）・`stylesheet.rs`（本ファイル自身）・
+                // `charts/mod.rs`（charts 基盤のモジュール宣言のみ）は styled
+                // 部品モジュールではない。`stylesheet.rs` は
+                // `all_styled_component_css`/本テストの doc コメント中に
+                // "pub fn css()"/"pub fn stylesheet()" という文字列そのものが
+                // 出現するため、除外しないと自己参照で誤検知する。
+                if stem == "lib" || stem == "stylesheet" || stem == "mod" {
+                    continue;
+                }
+                let source =
+                    std::fs::read_to_string(&path).expect("モジュールソースを読み取れること");
+                if source.contains("pub fn css()") || source.contains("pub fn stylesheet()") {
+                    modules_with_css_fn.push(stem);
+                }
             }
         }
         modules_with_css_fn.sort();

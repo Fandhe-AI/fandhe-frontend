@@ -18,6 +18,10 @@
 //! - [`scale`]: 線形スケール（domain → range 写像）・1-2-5 nice tick 算出。
 //! - [`svg`]: SVG ノード木生成ヘルパー（`viewBox`・座標文字列化・`path` の
 //!   `d` 属性組み立て）。後続チャート部品はここを経由してのみ SVG を組み立てる。
+//! - [`scatter_chart`]: 2 軸線形スケール + 点マーカーの SVG 散布図
+//!   （イシュー #851）。
+//! - [`radar_chart`]: 正多角形グリッド + 系列ポリゴンの SVG レーダーチャート
+//!   （頂点角度の決定的算出、イシュー #851）。
 //!
 //! # 本モジュールの不変条件（[`crate`] クレート全体の不変条件を継承、
 //! `.claude/rules/coding-rust.md`）
@@ -37,7 +41,9 @@
 //!    （REQ-3 不変）。
 
 pub mod data;
+pub mod radar_chart;
 pub mod scale;
+pub mod scatter_chart;
 pub mod svg;
 
 pub use data::{ChartData, Series};
@@ -62,6 +68,19 @@ pub enum ChartError {
     InvalidTickTarget,
     /// [`data::ChartData::sort_by_series`] に、存在しない系列名が渡された。
     UnknownSeriesName,
+    /// [`radar_chart::root`] に、比率描画では意味を持たない負値が系列中に
+    /// 含まれていた（イシュー #851）。
+    NegativeValue,
+    /// [`radar_chart::root`] に、軸（`categories`）が 3 未満のデータが渡され
+    /// 多角形が定義できない（イシュー #851）。
+    TooFewAxes,
+    /// [`radar_chart::root`] で `viewBox` から軸ラベル用余白を差し引いた
+    /// プロット半径が 0 以下になる（`props.size` が小さすぎる、イシュー #851）。
+    /// `ViewBox::new` は寸法の有限性・正値のみを検証し、ラベル余白差し引き
+    /// 後までは検証しないため、放置するとポリゴンが潰れる、または viewBox
+    /// 外に無警告で描画される silent failure になる
+    /// （`bar_chart::PlotAreaTooSmall` と同型の判断）。
+    PlotAreaTooSmall,
 }
 
 impl std::fmt::Display for ChartError {
@@ -73,6 +92,11 @@ impl std::fmt::Display for ChartError {
             ChartError::DegenerateDomain => "domain must have non-zero width (min != max)",
             ChartError::InvalidTickTarget => "tick target must be in range 1..=50",
             ChartError::UnknownSeriesName => "sort_by_series: no series with the given name",
+            ChartError::NegativeValue => "value must be non-negative for ratio-based rendering",
+            ChartError::TooFewAxes => "radar chart requires at least 3 axes",
+            ChartError::PlotAreaTooSmall => {
+                "size must leave a positive plot radius after reserving axis label space"
+            }
         };
         write!(f, "{message}")
     }
@@ -127,6 +151,9 @@ mod tests {
             ChartError::DegenerateDomain,
             ChartError::InvalidTickTarget,
             ChartError::UnknownSeriesName,
+            ChartError::NegativeValue,
+            ChartError::TooFewAxes,
+            ChartError::PlotAreaTooSmall,
         ] {
             let message = err.to_string();
             assert!(!message.is_empty());
