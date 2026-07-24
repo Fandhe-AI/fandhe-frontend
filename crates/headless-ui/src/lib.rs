@@ -443,6 +443,13 @@
 //!   重複する装飾要素のため `aria-hidden="true"` を固定付与する。JS による
 //!   スクロール位置追従・thumb drag は本イシューのスコープ外（モジュール doc
 //!   参照）。
+//! - [`mod@date`]: 決定的な暦計算コア（proleptic Gregorian・date-only、
+//!   イシュー #833、親トラッキング #832）。[`date::PlainDate`]（年月日）・
+//!   [`date::Weekday`]・[`date::month_grid`] を提供し、現在時刻を一切取得
+//!   しない（「今日」は常に呼び出し側が明示的に渡す）。date-time 系 4 部品
+//!   （Calendar / DatePicker / DateInput / Timer、#834 以降）が描画前の
+//!   暦計算に共通で使う先行前提であり、本モジュール自体は非描画の純計算
+//!   モジュールで anatomy・状態機械を持たない。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -459,6 +466,7 @@ pub mod clipboard;
 pub mod collapsible;
 pub mod combobox;
 pub mod data_attrs;
+pub mod date;
 pub mod dialog;
 pub mod download_trigger;
 pub mod drawer;
