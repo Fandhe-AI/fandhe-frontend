@@ -20,6 +20,17 @@
 //! `<head>` `<link>` は本モジュールの [`STYLESHEET_REL_PATH`] 定数を参照する
 //! ため、生成物のパスを変えれば `<link>` 側も追随する（単一実装点）。
 //!
+//! 左ナビ（`crate::nav::sidebar`）は headless `nav_list` markup をそのまま
+//! 出力し、[`stylesheet`] が `fandhe_frontend_pre_styled_ui::nav_list::stylesheet()`
+//! を基底 CSS として取り込む（イシュー #910）。markup（`data-scope`/
+//! `data-part`・`aria-current`）は変更せず、docs 固有の視覚差分のみ
+//! [`STRUCTURAL_CSS`] 側の `.docs-sidebar nav.sidebar ...` セレクタで上乗せ
+//! する。前後ページャ（`nav.prev-next`、headless `link_overlay`）は
+//! `link_overlay::stylesheet()` を採用しない（`overlay` が唯一の子要素の
+//! カードに `position: absolute` を適用すると高さが 0 に潰れるため。
+//! `crate::nav::prev_next_nav` rustdoc 参照）。トークンベースのカード風
+//! CSS を [`STRUCTURAL_CSS`] 側で手書きのまま維持する。
+//!
 //! # クラス名契約（`crates/docs-site/src/layout.rs` / `nav.rs` / `markdown.rs` の
 //! 実出力が正。ここに書かれたセレクタはすべて実際に生成される class 値であり、
 //! `crates/docs-site/tests/site_css_contract.rs` が両者の乖離を検知する）
@@ -62,6 +73,7 @@
 //! ではなく [`Theme::push_color`]/[`Theme::push_space`] の allowlist 検証付き
 //! API 経由でのみ追加する（新たなエスケープ迂回経路を作らない）。
 
+use fandhe_frontend_pre_styled_ui::css::{decl, serialize_rule, Declaration};
 use fandhe_frontend_pre_styled_ui::theme::{Theme, ThemeError};
 use fandhe_frontend_pre_styled_ui::{StyleSheet, StylesheetError};
 
@@ -197,9 +209,9 @@ body {\n\
  * 基底（768px 未満）は 1 カラム縦積み。`min-width: 768px` で左ナビ + 中央\n\
  * コンテンツの 2 カラム grid、`min-width: 1200px` で右目次カラムを加えた\n\
  * 3 カラム grid になる（設計文書 §3.2）。右目次カラムの sticky 追従・\n\
- * 視覚スタイルの仕上げは #909、左ナビの折りたたみトグル UI の確定・\n\
- * pre-styled-ui スタイル適用は #910 のスコープであり、ここでは骨格の\n\
- * 表示制御と最小限のレイアウト指定に留める。\n\
+ * 視覚スタイルの仕上げは #909。左ナビの折りたたみトグル UI・pre-styled-ui\n\
+ * スタイル適用は #910 で完了した（`nav_list::stylesheet()` の配線、下記\n\
+ * 「サイドバー（左ナビ）」節参照）。\n\
  */\n\
 \n\
 .docs-container {\n\
@@ -208,14 +220,27 @@ body {\n\
   margin: 0 auto;\n\
 }\n\
 \n\
-/* ---- サイドバー（左ナビ） ---- */\n\
+/*\n\
+ * ---- サイドバー（左ナビ、イシュー #910） ----\n\
+ *\n\
+ * headless `nav_list`（`nav::sidebar()` の実出力、`data-scope=\"nav-list\"\n\
+ * data-part=\"heading|list|item|link\"`）へ `nav_list::stylesheet()`（下記\n\
+ * `stylesheet()` 関数、`push_theme` の直後に `push_css`）が list-style 除去・\n\
+ * `ul`/`h2` の margin リセット・link の `display: block`/`text-decoration:\n\
+ * none`・`[aria-current=\"page\"]` の accent 色を基底として提供する。\n\
+ * ここでは docs 固有の差分（余白・角丸・hover 背景・現在ページの\n\
+ * アクセントバー）のみを `.docs-sidebar nav.sidebar` の詳細度\n\
+ * （0,2,1・`[data-scope][data-part]` の 0,2,0 より高い）で上書きする\n\
+ * （両者の連結順は [`stylesheet`] 参照。docs 側セレクタが常にカスケード\n\
+ * 後方かつ高詳細度のため衝突しない）。\n\
+ */\n\
 \n\
 .docs-sidebar {\n\
   width: 100%;\n\
   padding: 1rem;\n\
   border-right: none;\n\
   border-bottom: 1px solid var(--fandhe-color-border);\n\
-  font-size: 0.875rem;\n\
+  font-size: var(--fandhe-font-font-size-sm);\n\
 }\n\
 \n\
 /*\n\
@@ -273,7 +298,7 @@ body {\n\
   margin: -0.4rem -0.6rem 0.4rem;\n\
   border-radius: 0.4rem;\n\
   font-size: 0.8rem;\n\
-  font-weight: 600;\n\
+  font-weight: var(--fandhe-font-font-weight-semibold);\n\
   color: var(--fandhe-color-accent);\n\
 }\n\
 \n\
@@ -288,7 +313,7 @@ body {\n\
 }\n\
 \n\
 .docs-sidebar nav.sidebar h2 {\n\
-  font-weight: 600;\n\
+  font-weight: var(--fandhe-font-font-weight-semibold);\n\
   font-size: 0.72rem;\n\
   letter-spacing: 0.06em;\n\
   text-transform: uppercase;\n\
@@ -301,7 +326,6 @@ body {\n\
 }\n\
 \n\
 .docs-sidebar nav.sidebar ul {\n\
-  list-style: none;\n\
   margin: 0 0 0.4rem;\n\
   padding: 0;\n\
   display: flex;\n\
@@ -314,12 +338,10 @@ body {\n\
 }\n\
 \n\
 .docs-sidebar nav.sidebar a {\n\
-  display: block;\n\
   padding: 0.32rem 0.5rem;\n\
   border-radius: 0.4rem;\n\
   color: var(--fandhe-color-fg-muted);\n\
-  text-decoration: none;\n\
-  font-size: 0.875rem;\n\
+  font-size: var(--fandhe-font-font-size-sm);\n\
   border-left: 2px solid transparent;\n\
 }\n\
 \n\
@@ -332,7 +354,7 @@ body {\n\
   background: var(--fandhe-color-docs-accent-bg);\n\
   color: var(--fandhe-color-accent);\n\
   border-left-color: var(--fandhe-color-accent);\n\
-  font-weight: 600;\n\
+  font-weight: var(--fandhe-font-font-weight-semibold);\n\
 }\n\
 \n\
 /* ---- 本文カラム ---- */\n\
@@ -346,108 +368,6 @@ body {\n\
   display: block;\n\
   max-width: var(--fandhe-space-docs-max-content-width);\n\
   margin: 0 auto;\n\
-}\n\
-\n\
-.docs-content h1,\n\
-.docs-content h2,\n\
-.docs-content h3 {\n\
-  line-height: 1.35;\n\
-  font-weight: 650;\n\
-  letter-spacing: -0.01em;\n\
-}\n\
-\n\
-.docs-content h1 {\n\
-  font-size: 2rem;\n\
-  margin: 0 0 1.1rem;\n\
-}\n\
-\n\
-.docs-content h2 {\n\
-  font-size: 1.375rem;\n\
-  margin: 2.25rem 0 0.85rem;\n\
-  padding-top: 0.35rem;\n\
-  border-top: 1px solid var(--fandhe-color-border);\n\
-}\n\
-\n\
-.docs-content h3 {\n\
-  font-size: 1.1rem;\n\
-  margin: 1.6rem 0 0.5rem;\n\
-}\n\
-\n\
-.docs-content p {\n\
-  margin: 0 0 1.05rem;\n\
-}\n\
-\n\
-.docs-content ul,\n\
-.docs-content ol {\n\
-  margin: 0 0 1.05rem;\n\
-  padding-left: 1.4rem;\n\
-}\n\
-\n\
-.docs-content li {\n\
-  margin: 0.3rem 0;\n\
-}\n\
-\n\
-.docs-content a {\n\
-  color: var(--fandhe-color-accent);\n\
-  text-decoration: none;\n\
-}\n\
-\n\
-.docs-content a:hover {\n\
-  text-decoration: underline;\n\
-}\n\
-\n\
-.docs-content blockquote {\n\
-  margin: 0 0 1.05rem;\n\
-  padding: 0.5rem 1rem;\n\
-  border-left: 3px solid var(--fandhe-color-border);\n\
-  color: var(--fandhe-color-fg-muted);\n\
-}\n\
-\n\
-.docs-content code {\n\
-  font-family: ui-monospace, SFMono-Regular, \"SF Mono\", Consolas,\n\
-    \"Liberation Mono\", monospace;\n\
-  font-size: 0.875em;\n\
-  color: var(--fandhe-color-fg);\n\
-  background: var(--fandhe-color-bg-muted);\n\
-  padding: 0.15em 0.4em;\n\
-  border-radius: 0.35em;\n\
-}\n\
-\n\
-.docs-content pre {\n\
-  margin: 0 0 1.05rem;\n\
-  padding: 1rem 1.1rem;\n\
-  background: var(--fandhe-color-bg-muted);\n\
-  border: 1px solid var(--fandhe-color-border);\n\
-  border-radius: 0.6rem;\n\
-  overflow-x: auto;\n\
-}\n\
-\n\
-.docs-content pre code {\n\
-  background: none;\n\
-  border: none;\n\
-  padding: 0;\n\
-  font-size: 0.85em;\n\
-}\n\
-\n\
-.docs-content table {\n\
-  display: block;\n\
-  overflow-x: auto;\n\
-  border-collapse: collapse;\n\
-  margin: 0 0 1.05rem;\n\
-  max-width: 100%;\n\
-  font-size: 0.925em;\n\
-}\n\
-\n\
-.docs-content th,\n\
-.docs-content td {\n\
-  border: 1px solid var(--fandhe-color-border);\n\
-  padding: 0.45rem 0.75rem;\n\
-  text-align: left;\n\
-}\n\
-\n\
-.docs-content th {\n\
-  background: var(--fandhe-color-bg-subtle);\n\
-  font-weight: 600;\n\
 }\n\
 \n\
 /* ---- 右目次カラム内のページ内目次（イシュー #909） ---- */\n\
@@ -526,13 +446,22 @@ nav.prev-next [data-part=\"overlay\"] {\n\
   color: var(--fandhe-color-fg);\n\
   text-decoration: none;\n\
   font-size: 0.9rem;\n\
-  font-weight: 500;\n\
+  font-weight: var(--fandhe-font-font-weight-medium);\n\
   background: var(--fandhe-color-bg-subtle);\n\
 }\n\
 \n\
+/*\n\
+ * hover 時はサイドバー現在ページと同じアクセント配色（枠線・文字色・\n\
+ * `--fandhe-color-docs-accent-bg` 背景）で統一し、左ナビ・前後ページャの\n\
+ * アクセント表現をトークンベースで揃える（イシュー #910）。`link_overlay::\n\
+ * stylesheet()` は取り込まない（`overlay` が唯一の子要素のカードで\n\
+ * `position: absolute` を適用すると高さが 0 に潰れるため、`site_theme.rs`\n\
+ * 側の手書きカード CSS を維持する。`crate::nav::prev_next_nav` rustdoc 参照）。\n\
+ */\n\
 nav.prev-next [data-part=\"overlay\"]:hover {\n\
   border-color: var(--fandhe-color-accent);\n\
   color: var(--fandhe-color-accent);\n\
+  background: var(--fandhe-color-docs-accent-bg);\n\
 }\n\
 \n\
 nav.prev-next .prev [data-part=\"overlay\"] {\n\
@@ -659,23 +588,329 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
 }\n\
 ";
 
-/// サイト骨格が参照する CSS 全量を組み立てる。
+/// [`typography_css`] が組み立てる 1 セレクタ分の規則を `out` へ追記する
+/// 内部ヘルパ。[`serialize_rule`] は宣言がすべて invalid の場合のみ `None`
+/// を返す（`crates/pre-styled-ui/src/css.rs` 参照）が、本関数が渡す宣言は
+/// すべてソースコード中のリテラル定数のため通常は到達しない。到達した
+/// 場合も黙って欠けた CSS を出さず fail-closed で [`SiteThemeError`] へ
+/// 伝播させる（本モジュール冒頭のセキュリティ不変条件と同方針）。
+fn push_typography_rule(
+    out: &mut String,
+    selector: &str,
+    declarations: &[Declaration],
+) -> Result<(), SiteThemeError> {
+    match serialize_rule(selector, declarations) {
+        Some(rule) => {
+            out.push_str(&rule);
+            Ok(())
+        }
+        None => Err(SiteThemeError::Stylesheet(StylesheetError::CssRejected {
+            reason: "typography rule produced no valid declarations",
+        })),
+    }
+}
+
+/// 本文タイポグラフィ（`.docs-content` 配下）の CSS を組み立てる（イシュー
+/// #911）。[`crate::markdown`] が出力するタグ集合（h1〜h6/p/ul/ol/li/pre/code/
+/// blockquote/table 系/em/strong/a、実出力が正）に対し、`.docs-content <tag>`
+/// の**タグセレクタ**として反映する。[`crate::markdown`] 自体の出力（素の
+/// HTML タグ、既定エスケープ経由）・class 付与ロジックは一切変更しない
+/// （`docs/design/docs-site-three-column-redesign.md` §3.6 の不変条件）。
 ///
-/// 内訳: テーマトークン（[`docs_theme`]、`Theme::default` + docs 固有拡張）
-/// → [`STRUCTURAL_CSS`]（構造 CSS）の順で決定的に連結する（[`crate::skip_nav::stylesheet`]
-/// と同型の組み立て順）。
+/// 各規則は 2 群の宣言からなる:
+/// - **ミラー宣言**: `fandhe_frontend_pre_styled_ui` の対応部品 recipe
+///   （下表）が生成する宣言と値を一致させる（[`crate::pre-styled-ui`] 本体は
+///   変更しない。`crates/pre-styled-ui/src/css.rs` の [`decl`]/[`serialize_rule`]
+///   を本モジュールから直接呼び、規則文字列を独自に組み立てる）
+/// - **docs 固有宣言**: 部品側に対応が無い、Markdown 文書のブロックフロー
+///   装飾（見出し間の `margin`・`h2` の `border-top`・コードブロックの背景/
+///   罫線・テーブルの横スクロール等）。部品は `margin: 0` 基調のため、
+///   文書の縦方向の余白は docs 側の責務として維持する
+///
+/// # タグ → 部品/variant 対応表
+///
+/// | タグ | 部品 / variant | 備考 |
+/// |---|---|---|
+/// | `h1` | [`fandhe_frontend_pre_styled_ui::heading`] base + `HeadingSize::Xl3` | |
+/// | `h2` | 同 base + `Xl2` | `border-top`/`padding-top` は docs 固有 |
+/// | `h3` | 同 base + `Xl` | |
+/// | `h4` | 同 base + `Lg` | 現行 STRUCTURAL_CSS 未対応だった新規スタイル |
+/// | `h5` | 同 base + `Md` | 同上 |
+/// | `h6` | 同 base + `Sm` | 同上 |
+/// | `p` | [`fandhe_frontend_pre_styled_ui::text`] `TextSize::Md` | |
+/// | `ul`/`ol` | [`fandhe_frontend_pre_styled_ui::list`] `ListVariant::Marker`（root） | |
+/// | `li` | 同 item base | |
+/// | `a` | [`fandhe_frontend_pre_styled_ui::link`] base | hover 下線は docs 固有 |
+/// | `blockquote` | [`fandhe_frontend_pre_styled_ui::blockquote`] root base + `Subtle` variant | `--fandhe-palette` 系カスタムプロパティは本文脈で常に accent 固定のため `var(--fandhe-color-accent)` 系トークンへ直接解決する（docs 側の意図的な単純化。palette 切り替え UI を持たない） |
+/// | `code`（インライン） | [`fandhe_frontend_pre_styled_ui::code`] base | `pre code` のリセットと `pre` 自体のブロック装飾は docs 固有 |
+/// | `em` | [`fandhe_frontend_pre_styled_ui::em`] | |
+/// | `table`/`th`/`td`/`strong` | 対応部品なし | 現行トークンベーススタイル・ブラウザ既定を維持（対象外、PR 本文参照） |
+///
+/// `kbd` は [`crate::markdown`] が出力しないため対象外（死に CSS を追加
+/// しない。将来 `kbd` 出力構文を導入する際に本方式で追加する）。
 ///
 /// # Errors
 ///
-/// [`docs_theme`] のトークン追加、または [`StyleSheet::push_css`] の検証
-/// （`<`・制御文字の拒否）に落ちた場合 [`SiteThemeError`] を返す。本関数内の
-/// 値はすべて allowlist を満たす定数のため通常は到達しないが、黙って欠けた
-/// CSS を公開しない fail-closed 方針で伝播させる。
+/// [`push_typography_rule`] が fail-closed でエラーを返した場合に伝播する
+/// （本関数内の宣言はすべて allowlist を満たす定数のため通常は到達しない）。
+fn typography_css() -> Result<String, SiteThemeError> {
+    let mut out = String::new();
+
+    // ---- 見出し（heading base + サイズ variant のミラー、docs 固有の margin）----
+    push_typography_rule(
+        &mut out,
+        ".docs-content h1",
+        &[
+            decl("margin", "0 0 1.1rem"),
+            decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+            decl("letter-spacing", "-0.01em"),
+            decl("font-size", "var(--fandhe-font-font-size-3xl)"),
+            decl("line-height", "1.2"),
+        ],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content h2",
+        &[
+            decl("margin", "2.25rem 0 0.85rem"),
+            decl("padding-top", "0.35rem"),
+            decl("border-top", "1px solid var(--fandhe-color-border)"),
+            decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+            decl("letter-spacing", "-0.01em"),
+            decl("font-size", "var(--fandhe-font-font-size-2xl)"),
+            decl("line-height", "1.25"),
+        ],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content h3",
+        &[
+            decl("margin", "1.6rem 0 0.5rem"),
+            decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+            decl("letter-spacing", "-0.01em"),
+            decl("font-size", "var(--fandhe-font-font-size-xl)"),
+            decl("line-height", "1.3"),
+        ],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content h4",
+        &[
+            decl("margin", "1.4rem 0 0.5rem"),
+            decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+            decl("letter-spacing", "-0.01em"),
+            decl("font-size", "var(--fandhe-font-font-size-lg)"),
+            decl("line-height", "1.3"),
+        ],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content h5",
+        &[
+            decl("margin", "1.2rem 0 0.4rem"),
+            decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+            decl("letter-spacing", "-0.01em"),
+            decl("font-size", "var(--fandhe-font-font-size-md)"),
+            decl("line-height", "1.3"),
+        ],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content h6",
+        &[
+            decl("margin", "1.1rem 0 0.4rem"),
+            decl("font-weight", "var(--fandhe-font-font-weight-semibold)"),
+            decl("letter-spacing", "-0.01em"),
+            decl("font-size", "var(--fandhe-font-font-size-sm)"),
+            decl("line-height", "1.25"),
+        ],
+    )?;
+
+    // ---- 段落（text base + TextSize::Md のミラー、docs 固有の margin）----
+    push_typography_rule(
+        &mut out,
+        ".docs-content p",
+        &[
+            decl("margin", "0 0 1.05rem"),
+            decl("font-size", "var(--fandhe-font-font-size-md)"),
+            decl("line-height", "1.5"),
+        ],
+    )?;
+
+    // ---- リスト（list base/Marker variant/item base のミラー、docs 固有の margin）----
+    push_typography_rule(
+        &mut out,
+        ".docs-content ul,\n.docs-content ol",
+        &[
+            decl("margin", "0 0 1.05rem"),
+            decl("list-style", "revert"),
+            decl("padding-inline-start", "1.5rem"),
+        ],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content li",
+        &[decl("margin-block", "0.25rem"), decl("line-height", "1.5")],
+    )?;
+
+    // ---- リンク（link base のミラー、hover 下線は docs 固有）----
+    push_typography_rule(
+        &mut out,
+        ".docs-content a",
+        &[
+            decl(
+                "color",
+                "var(--fandhe-color-accent, var(--fandhe-color-fg))",
+            ),
+            decl(
+                "text-decoration",
+                "var(--fandhe-link-text-decoration, none)",
+            ),
+            decl("cursor", "pointer"),
+        ],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content a:hover",
+        &[decl("text-decoration", "underline")],
+    )?;
+
+    // ---- 引用（blockquote root base + Subtle variant のミラー。
+    // `--fandhe-palette` は本文脈で常に accent 固定のため
+    // `var(--fandhe-color-accent...)` へ直接解決する。docs 固有の margin・
+    // caption 文字色相当の本文色を併せ持つ）----
+    push_typography_rule(
+        &mut out,
+        ".docs-content blockquote",
+        &[
+            decl("margin", "0 0 1.05rem"),
+            decl("padding-inline-start", "1rem"),
+            decl("padding-block", "0.5rem"),
+            decl("background", "var(--fandhe-color-bg-subtle)"),
+            decl(
+                "border-inline-start",
+                "4px solid var(--fandhe-color-accent)",
+            ),
+            decl("border-radius", "var(--fandhe-radius-sm)"),
+            decl("color", "var(--fandhe-color-fg-muted)"),
+        ],
+    )?;
+
+    // ---- インラインコード（code base のミラー）----
+    push_typography_rule(
+        &mut out,
+        ".docs-content code",
+        &[
+            decl(
+                "font-family",
+                "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+            ),
+            decl("background", "var(--fandhe-color-bg-subtle)"),
+            decl("border-radius", "var(--fandhe-radius-sm)"),
+            decl("padding", "0.0625rem 0.375rem"),
+            decl("font-size", "var(--fandhe-font-font-size-sm)"),
+            decl("color", "var(--fandhe-color-fg)"),
+        ],
+    )?;
+
+    // ---- フェンス付きコードブロック（pre 自体・pre 内 code のリセットは
+    // 対応する pre-styled-ui 部品を持たない docs 固有装飾）----
+    push_typography_rule(
+        &mut out,
+        ".docs-content pre",
+        &[
+            decl("margin", "0 0 1.05rem"),
+            decl("padding", "1rem 1.1rem"),
+            decl("background", "var(--fandhe-color-bg-muted)"),
+            decl("border", "1px solid var(--fandhe-color-border)"),
+            decl("border-radius", "0.6rem"),
+            decl("overflow-x", "auto"),
+        ],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content pre code",
+        &[
+            decl("background", "none"),
+            decl("border", "none"),
+            decl("padding", "0"),
+            decl("font-size", "0.85em"),
+        ],
+    )?;
+
+    // ---- 強調（em のミラー）----
+    push_typography_rule(
+        &mut out,
+        ".docs-content em",
+        &[
+            decl("font-style", "italic"),
+            decl("font-weight", "var(--fandhe-font-font-weight-medium)"),
+        ],
+    )?;
+
+    // ---- テーブル（対応する pre-styled-ui 部品なし、対象外事項として
+    // 現行トークンベーススタイルを維持）----
+    push_typography_rule(
+        &mut out,
+        ".docs-content table",
+        &[
+            decl("display", "block"),
+            decl("overflow-x", "auto"),
+            decl("border-collapse", "collapse"),
+            decl("margin", "0 0 1.05rem"),
+            decl("max-width", "100%"),
+            decl("font-size", "0.925em"),
+        ],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content th,\n.docs-content td",
+        &[
+            decl("border", "1px solid var(--fandhe-color-border)"),
+            decl("padding", "0.45rem 0.75rem"),
+            decl("text-align", "left"),
+        ],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content th",
+        &[
+            decl("background", "var(--fandhe-color-bg-subtle)"),
+            decl("font-weight", "600"),
+        ],
+    )?;
+
+    Ok(out)
+}
+
+/// サイト骨格が参照する CSS 全量を組み立てる。
+///
+/// 内訳: テーマトークン（[`docs_theme`]、`Theme::default` + docs 固有拡張）
+/// → [`fandhe_frontend_pre_styled_ui::nav_list::stylesheet`]（styled NavList
+/// のコンポーネント CSS。`nav::sidebar()` の実出力である headless `nav_list`
+/// markup — `data-scope="nav-list" data-part="heading|list|item|link"` —
+/// へそのまま適用される。イシュー #910）→ [`STRUCTURAL_CSS`]（構造 CSS）
+/// → [`typography_css`]（本文タイポグラフィ、イシュー #911）の順で決定的に
+/// 連結する（[`crate::skip_nav::stylesheet`] と同型の組み立て順）。この順序
+/// により、`nav_list` コンポーネント基底（セレクタ詳細度 0,2,0）が先に出力
+/// され、docs 固有の `.docs-sidebar nav.sidebar ...` セレクタ（詳細度 0,2,1
+/// 以上）が後方かつ高詳細度で常に上書きする（CSS カスケード衝突なし。詳細
+/// は [`STRUCTURAL_CSS`] のサイドバー節コメント参照）。
+///
+/// # Errors
+///
+/// [`docs_theme`] のトークン追加、[`StyleSheet::push_css`] の検証
+/// （`<`・制御文字の拒否）、または [`typography_css`] の組み立てに落ちた場合
+/// [`SiteThemeError`] を返す。本関数内の値はすべて allowlist を満たす定数の
+/// ため通常は到達しないが、黙って欠けた CSS を公開しない fail-closed 方針で
+/// 伝播させる。
 pub fn stylesheet() -> Result<StyleSheet, SiteThemeError> {
     let theme = docs_theme()?;
     let mut sheet = StyleSheet::new();
     sheet.push_theme(&theme);
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::nav_list::stylesheet())?;
     sheet.push_css(STRUCTURAL_CSS)?;
+    sheet.push_css(&typography_css()?)?;
     Ok(sheet)
 }
 
@@ -711,6 +946,59 @@ mod tests {
             "nav.prev-next",
         ] {
             assert!(css.contains(selector), "missing selector: {selector}");
+        }
+    }
+
+    #[test]
+    fn stylesheet_contains_typography_selectors_for_all_markdown_tags() {
+        // 受け入れ条件 1（本文の見出し・段落・リスト・引用・コードが
+        // pre-styled-ui のタイポグラフィで表示される）のセレクタ存在検証。
+        // h4〜h6 は旧 STRUCTURAL_CSS では未対応だった（イシュー #911）。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        for selector in [
+            ".docs-content h1",
+            ".docs-content h2",
+            ".docs-content h3",
+            ".docs-content h4",
+            ".docs-content h5",
+            ".docs-content h6",
+            ".docs-content p",
+            ".docs-content ul",
+            ".docs-content ol",
+            ".docs-content li",
+            ".docs-content a",
+            ".docs-content blockquote",
+            ".docs-content code",
+            ".docs-content pre",
+            ".docs-content em",
+            ".docs-content table",
+            ".docs-content th",
+            ".docs-content td",
+        ] {
+            assert!(css.contains(selector), "missing selector: {selector}");
+        }
+    }
+
+    #[test]
+    fn stylesheet_typography_references_font_scale_tokens() {
+        // 見出しサイズが pre-styled-ui のタイポグラフィスケール
+        // （`--fandhe-font-font-size-*`）へ接続されていることを固定する
+        // （旧実装は `2rem` 等のハードコード値だった）。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        for token in [
+            "font-size-3xl", // h1
+            "font-size-2xl", // h2
+            "font-size-xl",  // h3
+            "font-size-lg",  // h4
+            "font-size-md",  // h5, p
+            "font-size-sm",  // h6, code
+        ] {
+            assert!(
+                css.contains(&format!("var(--fandhe-font-{token})")),
+                "missing font scale token: {token}"
+            );
         }
     }
 
@@ -832,5 +1120,54 @@ mod tests {
     fn stylesheet_never_contains_angle_brackets() {
         let sheet = stylesheet().expect("site theme stylesheet should assemble");
         assert!(!sheet.as_css().contains('<'));
+    }
+
+    #[test]
+    fn stylesheet_contains_nav_list_component_selectors() {
+        // イシュー #910 の乖離検知テスト: `crate::nav::sidebar()` の実出力
+        // （headless `nav_list` markup、`data-scope="nav-list"
+        // data-part="heading|list|item|link"`）に対応する
+        // `fandhe_frontend_pre_styled_ui::nav_list::stylesheet()` のセレクタが
+        // 生成 CSS に実在することを固定する（`admonition_markdown_output_classes_are_covered_by_generated_admonition_css`
+        // / `docs_page_skip_nav_parts_are_covered_by_generated_skip_nav_css`
+        // と同型の「実出力 ⇔ 生成 CSS」検証）。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        for selector in [
+            r#"[data-scope="nav-list"][data-part="heading"]"#,
+            r#"[data-scope="nav-list"][data-part="list"]"#,
+            r#"[data-scope="nav-list"][data-part="link"]"#,
+            r#"[data-scope="nav-list"][data-part="link"][aria-current="page"]"#,
+        ] {
+            assert!(css.contains(selector), "missing selector: {selector}");
+        }
+    }
+
+    #[test]
+    fn stylesheet_never_takes_up_link_overlay_stylesheet() {
+        // イシュー #910 の設計判断（§2.2）の回帰ガード: `link_overlay::
+        // stylesheet()` は `overlay` に `position: absolute; inset: 0;` を
+        // 登録する。前後ページャの `overlay` はカードの唯一の子要素のため
+        // absolute 化するとカードの高さが 0 に潰れる（`crate::nav::prev_next_nav`
+        // rustdoc 参照）。将来 `link_overlay::stylesheet()` を誤って取り込む
+        // 回帰を fail-closed で検知する。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        assert!(!css.contains(r#"[data-scope="link-overlay"]"#));
+    }
+
+    #[test]
+    fn stylesheet_defines_docs_accent_bg_token_in_light_dark_and_theme_attr_blocks() {
+        // 受け入れ条件 3（現在ページ・ホバーのアクセント配色が light/dark
+        // 双方で機能する）の機械検証: `--fandhe-color-docs-accent-bg` が
+        // 既定（light）・`@media (prefers-color-scheme: dark)`・
+        // `:root[data-theme="dark"]` の 3 箇所すべてに定義されることを固定する。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        assert_eq!(
+            css.matches("--fandhe-color-docs-accent-bg:").count(),
+            3,
+            "docs-accent-bg should be defined in default + dark media query + data-theme=dark blocks"
+        );
     }
 }

@@ -261,6 +261,42 @@ fn admonition_markdown_output_classes_are_covered_by_generated_admonition_css() 
     assert_all_classes_covered(&html, &css_tokens, "markdown::render_markdown (admonition)");
 }
 
+/// イシュー #910 の乖離検知テスト: `nav::sidebar()` の実出力（headless
+/// `nav_list` markup、`data-scope="nav-list" data-part="heading|list|item|
+/// link"`）に対応するセレクタが生成 `assets/site.css`（`site_theme::stylesheet()`
+/// が `fandhe_frontend_pre_styled_ui::nav_list::stylesheet()` を取り込んだ
+/// もの）に実在することを検証する（`admonition_markdown_output_classes_are_covered_by_generated_admonition_css`
+/// / `docs_page_skip_nav_parts_are_covered_by_generated_skip_nav_css` と
+/// 同型の「実出力 ⇔ 生成 CSS」乖離検知）。#906（`site_css_contract.rs` の
+/// 作り替え）が先にマージされた場合は本テストを新契約へ統合する
+/// （検証意図は不変）。
+#[test]
+fn sidebar_nav_list_parts_are_covered_by_generated_site_css() {
+    let css = site_css();
+    let nav = fixture_nav();
+    let html = render(&sidebar(&nav, "/quickstart/"));
+
+    for part in ["root", "heading", "list", "item", "link"] {
+        assert!(
+            html.contains(&format!(r#"data-part="{part}""#)),
+            "sidebar html should contain data-part=\"{part}\""
+        );
+    }
+    assert!(html.contains(r#"aria-current="page""#));
+
+    for selector in [
+        r#"[data-scope="nav-list"][data-part="heading"]"#,
+        r#"[data-scope="nav-list"][data-part="list"]"#,
+        r#"[data-scope="nav-list"][data-part="link"]"#,
+        r#"[data-scope="nav-list"][data-part="link"][aria-current="page"]"#,
+    ] {
+        assert!(
+            css.contains(selector),
+            "generated assets/site.css should contain selector {selector}"
+        );
+    }
+}
+
 /// イシュー #776 の乖離検知テスト: `layout::docs_page` が全ページ骨格へ
 /// 常時挿入する SkipNav の `link`/`content` パーツセレクタ
 /// （`data-scope="skip-nav"`）が、`crate::skip_nav::stylesheet()` が生成する

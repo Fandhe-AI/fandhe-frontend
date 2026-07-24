@@ -557,11 +557,16 @@ fn href(nav: &Nav, path: &str) -> String {
 /// headless `nav_list`（`fandhe-frontend-headless-ui`、イシュー #756）の
 /// anatomy パーツ（`root`/`heading`/`list`/`item`/`link`）で組み立てる。
 /// `nav_list` は `role` を一切付与しない素の `nav`/`h2`/`ul`/`li`/`a` 構造の
-/// ため、サイト骨格 CSS（[`crate::site_theme`] によるビルド時生成、
-/// 出力先 `assets/site.css`）の既存タグ・class セレクタ
-/// （`nav.sidebar h2`/`nav.sidebar ul` 等）は変更なしで適用され続ける
-/// （`docs/design/docs-site-styled-ui-adoption.md` §3.1 の意味論不整合
-/// 解消の記録参照）。
+/// ため、`crate::site_theme::stylesheet()` が生成する CSS のタグ・class
+/// セレクタ（`nav.sidebar h2`/`nav.sidebar ul` 等）は変更なしで適用され
+/// 続ける（`docs/design/docs-site-styled-ui-adoption.md` §3.1 の意味論
+/// 不整合解消の記録参照）。実出力は同時に `data-scope="nav-list"
+/// data-part="heading|list|item|link"` を持ち、
+/// `fandhe_frontend_pre_styled_ui::nav_list::stylesheet()` の
+/// コンポーネント基底 CSS（list-style 除去・`aria-current="page"` の
+/// accent 色等）にも適用される。`crate::site_theme` が両者を連結する
+/// 順序・カスケード上の関係はイシュー #910・`site_theme` モジュール doc
+/// 参照。
 ///
 /// タイトル・href はすべて headless 層 → [`fandhe_frontend_core::render`]
 /// の既定エスケープ（REQ-1）を必ず経由する。HTML 文字列の直接組み立て・
@@ -613,10 +618,13 @@ pub fn prev_next<'a>(nav: &'a Nav, current_path: &str) -> (Option<&'a Page>, Opt
 /// するため。本モジュールの用途では `overlay` がカードの唯一の子であり、
 /// 通常のフローで全面を占めるため、`link_overlay` の一般的な
 /// `position: absolute` 拡張パターン（`crates/pre-styled-ui/src/link_overlay.rs`
-/// 参照）は使わず、サイト骨格 CSS（[`crate::site_theme`] によるビルド時
-/// 生成、出力先 `assets/site.css`）側で `overlay` 自体に従来のカード CSS
-/// （枠線・padding・角丸）をそのまま当てる（`site.css` の自己完結不変
-/// 条件、§3.4 を維持したまま意味論のみ解消する）。
+/// 参照）は使わず、`crate::site_theme::stylesheet()` 側で `overlay` 自体に
+/// 従来のカード CSS（枠線・padding・角丸）をそのまま当てる。この判断は
+/// イシュー #910 でも再確認済み（`link_overlay::stylesheet()` は `overlay`
+/// に `position: absolute; inset: 0;` を登録するため、唯一の子要素である
+/// 本用途に適用するとカードの高さが 0 に潰れる。`fandhe_frontend_pre_styled_ui::nav_list::stylesheet()`
+/// は取り込むが `link_overlay::stylesheet()` は取り込まない非対称な採用に
+/// なる理由）。
 pub fn prev_next_nav(nav: &Nav, current_path: &str) -> Node {
     let (prev, next) = prev_next(nav, current_path);
     let mut children: Vec<Node> = Vec::new();
