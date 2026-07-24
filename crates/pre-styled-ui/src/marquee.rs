@@ -73,7 +73,12 @@
 //!
 //! [`MarqueeProps::decorative`]（既定 `false`）が `true` の場合、`root` へ
 //! `aria-hidden="true"` を付与し純装飾として扱う（[`crate::skeleton`] と
-//! 同型）。`false`（既定）の場合、[`MarqueeProps::label`] が `Some` なら
+//! 同型）。この際 `root` へ `inert` も併せて付与し、`aria-hidden` だけでは
+//! 遮断できないキーボードフォーカスも遮断する（複製 `content` 側の
+//! `inert` 付与（上記「シームレスループの実現方法」節参照）と同じ理由で、
+//! 支援技術からは存在しないものとして扱われる主コピーに対してキーボード
+//! ユーザーだけがアクセスできてしまう不整合を防ぐ、Cursor Bugbot 指摘・
+//! PR #864）。`false`（既定）の場合、[`MarqueeProps::label`] が `Some` なら
 //! `root` へ `aria-label` を付与する（[`crate::icon`] の `label: Option<&str>`
 //! と同型の判断）。呼び出し側 `attrs` の `aria-hidden`/`aria-label` は
 //! 大文字小文字を無視して除去し props 由来の値へ一本化する
@@ -312,7 +317,14 @@ pub fn marquee<'a>(
         .collect();
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     if props.decorative {
+        // `aria-hidden` は支援技術向けの意味論のみでキーボードフォーカスを
+        // 遮断しないため、単独では root 配下（可視の主コピー）に含まれる
+        // リンク等の子孫がタブ順序に残ってしまう（複製 content 側の
+        // `inert` 付与と同じ理由、Cursor Bugbot 指摘・PR #864）。decorative
+        // モードでは支援技術・キーボード操作の双方から root 全体を除外する
+        // ため `inert` も併せて付与する。
         merged.push(aria_hidden(true));
+        merged.push(("inert", ""));
     } else if let Some(label) = props.label {
         merged.push(aria_label(label));
     }
@@ -386,6 +398,18 @@ mod tests {
         // root と 2 個目の content の 2 箇所で aria-hidden="true" が出現する。
         assert_eq!(html.matches(r#"aria-hidden="true""#).count(), 2);
         assert!(!html.contains("aria-label"));
+        // root にも inert が付与され、aria-hidden だけでは遮断できない
+        // キーボードフォーカスも遮断する（Cursor Bugbot 指摘・PR #864）。
+        // root・2 個目 content の 2 箇所で inert="" が出現する。
+        assert_eq!(html.matches(r#"inert="""#).count(), 2);
+        let root_open = html
+            .split_once('>')
+            .map(|(head, _)| head)
+            .expect("root の開始タグが存在する");
+        assert!(
+            root_open.contains("inert"),
+            "root タグに inert が無い: {html}"
+        );
     }
 
     #[test]
@@ -398,6 +422,9 @@ mod tests {
         assert!(html.contains(r#"aria-label="Breaking news""#));
         // root 自体は aria-hidden を持たない（2 個目 content 分の 1 回のみ）。
         assert_eq!(html.matches(r#"aria-hidden="true""#).count(), 1);
+        // 非 decorative の root はキーボードフォーカスも遮断しない
+        // （inert は 2 個目 content 分の 1 回のみ）。
+        assert_eq!(html.matches(r#"inert="""#).count(), 1);
     }
 
     #[test]
@@ -410,6 +437,8 @@ mod tests {
         let html = render(&marquee(&props, vec![], vec![]));
         assert!(!html.contains("aria-label"));
         assert_eq!(html.matches(r#"aria-hidden="true""#).count(), 2);
+        // decorative=true が label より優先され、root にも inert が付与される。
+        assert_eq!(html.matches(r#"inert="""#).count(), 2);
     }
 
     #[test]
