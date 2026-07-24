@@ -42,16 +42,21 @@ use fandhe_frontend_headless_ui::{anatomy, aria_disabled, aria_label, data_disab
 /// 決して生成しない fail-closed 動作（イシュー #830 受け入れ条件 1）。
 const ICON_BUTTON_FALLBACK_LABEL: &str = "unlabeled button";
 
-/// `attrs` に `aria-label`（大文字小文字を無視）が既に含まれるかどうかを
-/// 判定する。[`icon_button`]/[`close_button`] が組み立てる既定/フォールバック
-/// `aria-label` を、呼び出し側が `attrs` 経由で明示指定した値と重複させない
-/// ために使う（`fandhe_frontend_headless_ui::number_input` の
-/// `increment_trigger`/`decrement_trigger` と同型の dedup 判断、fail-closed。
+/// `attrs` に `aria-label`（大文字小文字を無視）が既に含まれ、かつその値が
+/// trim 後に空文字でないかどうかを判定する。[`icon_button`]/[`close_button`]
+/// が組み立てる既定/フォールバック `aria-label` を、呼び出し側が `attrs`
+/// 経由で明示指定した値と重複させないために使う（`fandhe_frontend_headless_ui::number_input`
+/// の `increment_trigger`/`decrement_trigger` と同型の dedup 判断、fail-closed。
 /// 重複属性による無効な HTML 出力・後勝ちの非決定的な描画を防ぐ）。
+///
+/// 値が空文字・空白のみの場合はキーが存在してもフォールバックさせる
+/// （呼び出し側が `aria-label=""` を渡した場合に、アイコンオンリーボタンが
+/// 空のアクセシブルネームのまま出力される fail-closed 保証の穴を防ぐ。
+/// イシュー #830 PR #863 Bugbot 指摘）。
 fn has_caller_aria_label(attrs: &[(&str, &str)]) -> bool {
     attrs
         .iter()
-        .any(|(k, _)| k.eq_ignore_ascii_case("aria-label"))
+        .any(|(k, v)| k.eq_ignore_ascii_case("aria-label") && !v.trim().is_empty())
 }
 
 /// [`close_button`] 呼び出し時、`label` が空白のみの場合の既定
@@ -434,6 +439,11 @@ pub fn icon_button<'a>(
     let label = normalize_label(label, ICON_BUTTON_FALLBACK_LABEL);
     let mut merged_attrs = attrs;
     if !has_caller_aria_label(&merged_attrs) {
+        // 呼び出し側が空文字/空白のみの `aria-label` を渡した場合、そのまま
+        // 残すとフォールバック値と合わせて `aria-label` が 2 個出力されて
+        // しまう（dedup 契約違反）。無効な既存エントリを除去してから
+        // フォールバックを追加し、常に高々 1 個の `aria-label` を保証する。
+        merged_attrs.retain(|(k, _)| !k.eq_ignore_ascii_case("aria-label"));
         merged_attrs.push(aria_label(label));
     }
     assemble(props, true, merged_attrs, children)
@@ -487,6 +497,9 @@ pub fn close_button<'a>(
     );
     let mut merged_attrs = attrs;
     if !has_caller_aria_label(&merged_attrs) {
+        // icon_button と同じ理由で、無効な既存 `aria-label` を除去してから
+        // フォールバックを追加する（dedup 契約、高々 1 個の `aria-label`）。
+        merged_attrs.retain(|(k, _)| !k.eq_ignore_ascii_case("aria-label"));
         merged_attrs.push(aria_label(label));
     }
     assemble(props, true, merged_attrs, vec![icon_node])
@@ -792,6 +805,52 @@ mod tests {
         assert_eq!(html.matches("aria-label=").count(), 1);
         assert!(html.contains(r#"aria-label="custom close label""#));
         assert!(!html.contains(r#"aria-label="Close""#));
+    }
+
+    /// Bugbot 指摘の是正回帰（PR #863）: 呼び出し側が `aria-label=""`
+    /// （空文字）を渡した場合、`has_caller_aria_label` はキーの存在のみで
+    /// 判定してはならない。フォールバック `aria-label`（`"Search"` 相当の
+    /// 正規化ラベル）へ必ず差し替え、空のアクセシブルネームを出力しない
+    /// （icon-only ボタンの fail-closed 保証）。
+    #[test]
+    fn icon_button_falls_back_when_caller_aria_label_is_empty() {
+        let html = render(&icon_button(
+            &ButtonProps::default(),
+            "Search",
+            vec![("aria-label", "")],
+            vec![],
+        ));
+        assert_eq!(html.matches("aria-label=").count(), 1);
+        assert!(html.contains(r#"aria-label="Search""#));
+        assert!(!html.contains(r#"aria-label="""#));
+    }
+
+    /// 同様に空白のみの `aria-label` もフォールバック対象とする
+    /// （`trim()` 後に空文字と判定される契約）。
+    #[test]
+    fn icon_button_falls_back_when_caller_aria_label_is_whitespace_only() {
+        let html = render(&icon_button(
+            &ButtonProps::default(),
+            "Search",
+            vec![("aria-label", "   ")],
+            vec![],
+        ));
+        assert_eq!(html.matches("aria-label=").count(), 1);
+        assert!(html.contains(r#"aria-label="Search""#));
+    }
+
+    /// `close_button` も同様に空文字 `aria-label` をフォールバック
+    /// （既定ラベル `"Close"`）させる。
+    #[test]
+    fn close_button_falls_back_when_caller_aria_label_is_empty() {
+        let html = render(&close_button(
+            &ButtonProps::default(),
+            "",
+            vec![("aria-label", "")],
+        ));
+        assert_eq!(html.matches("aria-label=").count(), 1);
+        assert!(html.contains(r#"aria-label="Close""#));
+        assert!(!html.contains(r#"aria-label="""#));
     }
 
     /// 後方互換回帰: 通常の [`button`] は icon 軸に `default_variant` を
