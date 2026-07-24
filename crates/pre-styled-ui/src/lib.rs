@@ -555,6 +555,7 @@ pub mod text;
 pub mod textarea;
 pub mod theme;
 pub mod timeline;
+pub mod timer;
 pub mod toast;
 pub mod toggle;
 pub mod toggle_group;

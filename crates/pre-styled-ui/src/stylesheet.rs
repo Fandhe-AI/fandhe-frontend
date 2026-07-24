@@ -332,6 +332,7 @@ mod tests {
             ("scroll_area", crate::scroll_area::stylesheet()),
             ("calendar", crate::calendar::stylesheet()),
             ("date_picker", crate::date_picker::stylesheet()),
+            ("timer", crate::timer::stylesheet()),
         ]
     }
 

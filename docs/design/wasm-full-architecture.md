@@ -439,3 +439,32 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 ### 15.6 スコープ境界（「1 root : 1 状態機械」契約、`headless_avatar` §13.4 と同型の簡略化）
 
 - `apply_clipboard_copied` は `root`（Runtime のマウント先全体）配下の全 Clipboard パーツへ同一の `copied` 状態を反映する。複数の Clipboard が同一ページに存在する場合、全て同じ表示状態へ揃う（`headless_avatar` モジュール doc の同名節が明記する簡略化をそのまま踏襲）。複数 Clipboard インスタンスの個別状態追跡は本イシューのスコープ外。
+
+## 16. `headless_timer` モジュール（Timer の `setInterval` 実 tick 駆動、イシュー #836、親トラッキング #520）
+
+`fandhe-frontend-headless-ui` の Timer（`crates/headless-ui/src/timer.rs`）は Root/Area/Item/ItemValue/ItemLabel/Separator/Control/ActionTrigger の 8 anatomy パーツと、tick（経過ミリ秒）を外部から明示的に注入する決定的状態機械 `Timer`（`std::time`/`Instant` 等の時計 API に一切依存しない）を提供するが、実時間計測（`setInterval`/`Date.now()`）によるクライアント側の実 tick 駆動は同モジュール冒頭の rustdoc「スコープ外」節が明記するとおり本クレート（wasm 層）の後続スコープとされていた。`headless_timer` モジュール（`crates/wasm-full/src/headless_timer.rs`）がその配線を実装する。
+
+### 16.1 `fandhe_frontend_headless_ui::timer::Timer` を直接利用する設計（文字列複製しない）
+
+`crates/wasm-full/Cargo.toml` は `fandhe-frontend-headless-ui` を通常の `[dependencies]`（製品依存）として持つ（イシュー #590 で `position` モジュールが追加）。そのため `headless_clipboard`（§15.4）が「クレートの製品依存にないため文字列で複製する」と判断した制約は本モジュールには当てはまらず、`Timer::from_hydration_attrs`/`Timer::update`（`fandhe_frontend_interactive::dispatch` 経由）を直接呼んで完了判定・セグメント分解のロジックを一切複製しない。`root` の `data-state`/`data-elapsed`/`data-countdown`/`data-start-ms`/`data-target-ms`/`data-interval` 属性を `Timer::from_hydration_attrs` が読む `data-hydrate-*` 形式へその場で変換して `Timer` を都度再構築し（`timer_from_display_attrs`）、tick/click 処理後は `Timer::phase`/`Timer::elapsed_ms` を同じ属性へ書き戻す（`write_timer`）。アプリのルート状態機械 `C` が `Timer` 自身かどうかに関わらず本モジュールが DOM 上の表示更新を完結できる設計であり、`C` への dispatch 転送は「`C` が Timer アクションを認識する場合の追随」というベストエフォートに留める。
+
+`headless::MAPPING_TABLE` には乗せない。ActionTrigger はパーツ 1 種に対しアクションが可変であり (scope, part) → 単一アクションの静的表に適合しないうえ、tick 予約という非同期副作用も伴うため、`headless_avatar`/`headless_clipboard` と同型の独立配線モジュールとして切り出す。
+
+### 16.2 純粋ロジック層（native `cargo test` 対象）
+
+- `action_from_trigger(data_action) -> Option<&'static str>`: ActionTrigger の `data-action`（`"start"`/`"pause"`/`"resume"`/`"reset"` の 4 値完全一致）を `"timer:*"` アクション名へ変換する allowlist 変換。未知の値・欠落は `None`（fail-closed）。
+- `clamp_interval_ms(interval_ms) -> u64`: `MIN_INTERVAL_MS`（16ms、`requestAnimationFrame` 相当）未満にならないようクランプする。改ざんされた `data-interval="0"` 等による dispatch ストーム（CPU 枯渇、`.claude/rules/security.md` A04 対応）を防ぐ。
+- `timer_from_display_attrs(...) -> Option<Timer>`: `root` の表示属性から `Timer` を再構築する。改ざん・欠落による復元失敗は `None`（fail-closed）。
+- `formatted_segments(timer) -> [(TimerUnit, String); 4]`: `Timer::display_segments` から 4 セグメント分のゼロ埋め済み文字列を返す。
+
+### 16.3 配線層（wasm32 限定）
+
+- `wire_timer_events(root, on_action)`: `root` へ通常のバブリングフェーズで click 委譲を 1 回だけ登録する。登録時点で既に `data-state="running"`（ハイドレーション直後等）であれば直ちに tick 予約を行う。クリックターゲットから祖先方向へ ActionTrigger を解決し、`data-action` を allowlist 変換したアクションを `Timer`（DOM から都度再構築）へ適用、DOM を反映（`data-state`/`data-elapsed`/item-value テキスト）してから `sync_interval` で `setInterval` の予約/解除を再判定する。
+- `sync_interval`: `root` の `data-state` が `"running"` なら（既存の保留中インターバルがなければ）`clamp_interval_ms` 済みの間隔で `setInterval` を予約し、それ以外なら保留中インターバルを `clear_interval` する。
+- tick 発火時（`handle_tick`）: `js_sys::Date::now()` による実測 delta を `"timer:tick"` として `Timer` へ適用し、DOM を反映後、再度 `sync_interval` で継続/停止を判定する（`setInterval` 自身のドリフトを実測 delta で吸収し、状態機械へドリフトを持ち込まない。実時間の計測は本モジュール（wasm 境界）に隔離された唯一の箇所）。
+
+`crate::lib::Runtime::mount`/`Runtime::hydrate` の双方が `Self::wire_clipboard` の直後に `Self::wire_timer` を呼び、標準経路へ組み込む（`events`/`keynav`/`headless_avatar`/`headless_clipboard` と同じ「マウント時 1 回」契約）。
+
+### 16.4 セキュリティ不変条件
+
+DOM 反映は `set_attribute`/`remove_attribute`/`set_text_content` のみで行い HTML 文字列を組み立てない（REQ-1）。`data-action` は allowlist 完全一致でのみ受理する。`Timer::from_hydration_attrs` の `Result` により改ざん・欠落は fail-closed に扱われ panic しない。新規 `unsafe` コードは追加しない（`web-sys`/`js-sys` の safe API のみ使用）。

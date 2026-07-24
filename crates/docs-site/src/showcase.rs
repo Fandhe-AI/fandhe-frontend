@@ -114,6 +114,7 @@ use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSi
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
+use fandhe_frontend_pre_styled_ui::timer::{self, Timer, TimerControl, TimerUnit};
 use fandhe_frontend_pre_styled_ui::toast::{self, ToastPlacement, ToastStatus};
 use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
@@ -317,6 +318,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::splitter::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::calendar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::date_picker::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::timer::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -3929,9 +3931,6 @@ fn scroll_area_section() -> Node {
     )
 }
 
-/// Calendar 節（イシュー #835）: 2026-07 の月グリッドを週開始 Monday で固定
-/// 表示し、今日（07-22）・選択日（07-15）・表示月外セルの見た目を掲示する。
-/// キーボードナビゲーション・実際のクリック挙動は wasm 層のスコープ外
 /// （モジュール冒頭の rustdoc 方針と同じ）。
 fn calendar_section() -> Node {
     let today = PlainDate::new(2026, 7, 22).unwrap();
@@ -4098,6 +4097,73 @@ fn date_picker_section() -> Node {
     section(
         "DatePicker",
         "headless-ui の DatePicker（popover 基盤 + Calendar 合成）に pre-styled-ui の recipe CSS を適用した静的掲示です。popover が開いた状態を固定表示し、内部に Calendar の月グリッドを合成しています。positioner はフロー内配置へ中和しています。",
+        vec![node],
+    )
+}
+
+/// Timer 節（イシュー #836）: countdown 型 Timer の running 状態を固定表示する
+/// SSR 静的掲示。
+///
+/// [`tree_view_section`]/JsonTreeView 節と同じ方針で、SSR 本来の初期状態
+/// （Idle・経過ゼロ）ではなく意図的に dispatch で「開始してしばらく経過した
+/// running 状態」を作って固定掲示する（見た目を実演する目的、実際のクリック
+/// 挙動・tick 駆動は wasm 層のスコープ外、モジュール冒頭「インタラクティブ
+/// 部品の扱い」節参照）。
+fn timer_section() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::dispatch;
+
+    // 90 秒カウントダウン、1 秒 tick。35 秒経過（残り 55 秒）まで進めた状態を
+    // 固定掲示する。
+    let mut t = Timer::countdown(90_000, 1_000);
+    dispatch(&mut t, "timer:start", "");
+    dispatch(&mut t, "timer:tick", "35000");
+
+    let (_, _, minutes, seconds) = t.display_segments();
+    let node = t.root(
+        vec![],
+        vec![
+            timer::area(
+                vec![],
+                vec![
+                    timer::item(
+                        TimerUnit::Minutes,
+                        vec![],
+                        vec![
+                            timer::item_value(
+                                TimerUnit::Minutes,
+                                vec![],
+                                vec![text(timer::format_segment(minutes))],
+                            ),
+                            timer::item_label(TimerUnit::Minutes, vec![], vec![text("Min")]),
+                        ],
+                    ),
+                    timer::separator(vec![], vec![text(":")]),
+                    timer::item(
+                        TimerUnit::Seconds,
+                        vec![],
+                        vec![
+                            timer::item_value(
+                                TimerUnit::Seconds,
+                                vec![],
+                                vec![text(timer::format_segment(seconds))],
+                            ),
+                            timer::item_label(TimerUnit::Seconds, vec![], vec![text("Sec")]),
+                        ],
+                    ),
+                ],
+            ),
+            timer::control(
+                vec![],
+                vec![
+                    timer::action_trigger(TimerControl::Pause, vec![], vec![text("Pause")]),
+                    timer::action_trigger(TimerControl::Reset, vec![], vec![text("Reset")]),
+                ],
+            ),
+        ],
+    );
+    section(
+        "Timer",
+        "headless-ui の Timer（tick 注入型・idle/running/paused/completed の決定的状態機械）に pre-styled-ui のセグメント表示（分:秒）CSS を適用した静的掲示です。90 秒のカウントダウンを開始して 35 秒経過した running 状態を固定表示しています。実 tick 駆動（setInterval）は fandhe-frontend-wasm-full::headless_timer のスコープです。",
         vec![node],
     )
 }
@@ -4327,6 +4393,7 @@ fn showcase_body() -> Node {
             scroll_area_section(),
             calendar_section(),
             date_picker_section(),
+            timer_section(),
         ],
     )
 }
@@ -4393,6 +4460,7 @@ mod tests {
             "visually-hidden",
             "table",
             "data-list",
+            "timer",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
