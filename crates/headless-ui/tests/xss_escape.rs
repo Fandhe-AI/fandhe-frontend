@@ -663,10 +663,10 @@ fn json_tree_view_key_string_value_and_pointer_paths_are_escaped_for_all_payload
     for payload in payloads::all() {
         // キー: オブジェクトキーが key パーツの children テキスト経路へ乗る。
         let by_key = JsonValue::Object(vec![(payload.to_string(), JsonValue::Null)]);
-        let html = render(&render_json(&TreeView::default(), &by_key));
+        let html_by_key = render(&render_json(&TreeView::default(), &by_key));
         assert_payload_is_escaped(
             payload,
-            &html,
+            &html_by_key,
             "json_tree_view::render_json のオブジェクトキー children コンテキスト",
         );
 
@@ -675,18 +675,20 @@ fn json_tree_view_key_string_value_and_pointer_paths_are_escaped_for_all_payload
             "k".to_string(),
             JsonValue::String(payload.to_string()),
         )]);
-        let html = render(&render_json(&TreeView::default(), &by_string_value));
+        let html_by_string_value = render(&render_json(&TreeView::default(), &by_string_value));
         assert_payload_is_escaped(
             payload,
-            &html,
+            &html_by_string_value,
             "json_tree_view::render_json の文字列値 children コンテキスト",
         );
 
         // JSON Pointer: オブジェクトキーが data-value（RFC 6901 ポインタ）の
-        // セグメントとしても使われるため、属性値コンテキストでも検証する。
+        // セグメントとしても使われるため、by_key（payload をオブジェクトキーに
+        // 使うケース）の html を再検証し、属性値コンテキストでのエスケープを
+        // 直接固定する（by_string_value の html を誤って再利用しない）。
         assert_payload_is_escaped(
             payload,
-            &html,
+            &html_by_key,
             "json_tree_view::render_json の data-value（JSON Pointer）コンテキスト",
         );
     }
