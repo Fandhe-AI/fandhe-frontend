@@ -356,10 +356,25 @@ mod wiring {
     ) {
         let running = root.get_attribute("data-state").as_deref() == Some("running");
         if !running {
+            // 不変条件: `last_tick_ms` への書き込みは `pending.borrow_mut().take()`
+            // より必ず先に行う。`handle_tick`（tick クロージャ本体）経由でこの
+            // 関数が呼ばれる場合、引数 `last_tick_ms` は `&tick_last`
+            // （`sync_interval` 内でクロージャの move キャプチャ用に複製した
+            // `Rc` のクローンで、クロージャの boxed 環境に格納されている）を
+            // 指す。`take()` は「今まさに実行中の tick クロージャ自身」を
+            // 包む `PendingInterval` を取り出し、if-let スコープ終端で drop
+            // する。この drop は wasm-bindgen の `Closure` の単一所有・
+            // 参照カウント解放（`wasm-bindgen::closure::Closure` の Drop 実装）
+            // により、JS 側参照とクロージャの boxed 環境（`tick_last` を含む）
+            // の Rust ヒープ確保を即座に解放する。take/drop を先に行うと、
+            // 直後の `last_tick_ms`（解放済みの box 内 `tick_last` への借用）
+            // への書き込みが解放済みメモリへのアクセス（use-after-free）に
+            // なる。この順序（書き込み → take/drop）を保つ限り安全（レビュー
+            // 指摘、イシュー #836）。
+            *last_tick_ms.borrow_mut() = None;
             if let Some(timer) = pending.borrow_mut().take() {
                 window.clear_interval_with_handle(timer.handle);
             }
-            *last_tick_ms.borrow_mut() = None;
             return;
         }
         if pending.borrow().is_some() {
