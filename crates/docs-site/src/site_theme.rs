@@ -266,6 +266,19 @@ body {\n\
   display: block;\n\
 }\n\
 \n\
+/*\n\
+ * `.docs-header-nav` は `margin-left: auto` で右寄せされる（上記 768px\n\
+ * ブレークポイントの @media ブロック参照）ため、`.docs-header-menu` 内の\n\
+ * 最後（最右）のグループは `left: 0` アンカーのままだとドロップダウンが\n\
+ * ビューポート右端をはみ出してクリップされうる（Bugbot 指摘、イシュー #908\n\
+ * PR #919 レビュー）。最後のグループのみ右端アンカー（`right: 0`）に\n\
+ * 切り替えて右はみ出しを防ぐ。\n\
+ */\n\
+.docs-header-group:last-child > .docs-header-dropdown {\n\
+  left: auto;\n\
+  right: 0;\n\
+}\n\
+\n\
 .docs-header-dropdown a {\n\
   display: block;\n\
   padding: 0.32rem 0.5rem;\n\
