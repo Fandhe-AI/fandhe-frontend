@@ -32,9 +32,11 @@
 //! - 非ゼロ値が 1 個のみ（全周セグメント）の場合、[`sector_path`]/
 //!   [`annulus_sector_path`] は始点・終点が一致する退化 arc の `d` 属性を
 //!   返す（多くの SVG 実装で不可視または不定形になりうる）。styled 層は
-//!   この場合を検出し、pie は `circle` 要素、donut は半周 arc 2 本 +
-//!   内周半周 arc 2 本へ分割して描画する契約とする（`pie_chart`/
-//!   `donut_chart` モジュール doc 参照）。
+//!   この場合を検出し、pie は `circle` 要素、donut は
+//!   [`annulus_full_ring_path`]（外周・内周それぞれを独立した閉円として
+//!   `fill-rule="evenodd"` で組み合わせる、放射方向の結合線を持たない単一
+//!   path）へ切り替えて描画する契約とする（`pie_chart`/`donut_chart`
+//!   モジュール doc 参照）。
 //! - `large_arc` フラグは弧の中心角が半周（`π`）を超える場合
 //!   （`end - start > π`）に真とする。
 
@@ -194,6 +196,40 @@ pub fn annulus_sector_path(
         .build()
 }
 
+/// 全周ドーナツ（非ゼロセグメントが 1 個のみ）の `d` 属性値を組み立てる。
+///
+/// 外周・内周それぞれを独立した閉円（`M → A → A → Z`、始点=終点を通る
+/// 180° arc を 2 本つないで 1 周を描く）として出力し、呼び出し元は
+/// `fill-rule="evenodd"` を付けて描画する契約とする。2 円の交わりにより
+/// evenodd 塗りつぶしがリング状の穴を作るため、[`annulus_sector_path`] を
+/// 2 回呼んで組み立てる旧方式（外周半周 + 内周半周を放射方向の `L` で
+/// つなぐ 2 本の path）と異なり、環全体を貫く放射方向の線分を一切持たない
+/// （放射線分に対する `stroke` がリングの直径上に継ぎ目として見えてしまう
+/// 不具合の修正、`donut_chart` モジュール doc「全周セグメントの描画」節）。
+#[must_use]
+pub fn annulus_full_ring_path(cx: f64, cy: f64, r_outer: f64, r_inner: f64) -> String {
+    let outer = full_circle_path(cx, cy, r_outer);
+    let inner = full_circle_path(cx, cy, r_inner);
+    format!("{outer} {inner}")
+}
+
+/// 中心 `(cx, cy)`・半径 `r` の閉円 1 個分の `d` 属性値を組み立てる
+/// （180° arc を 2 本つないで 1 周を描く。始点=終点の退化 arc を避けるため
+/// [`sector_path`]/[`annulus_sector_path`] のような単一 arc では表現しない）。
+fn full_circle_path(cx: f64, cy: f64, r: f64) -> String {
+    let (x_right, y_mid) = point_on_circle(cx, cy, r, 0.0);
+    let (x_left, _) = point_on_circle(cx, cy, r, PI);
+    // 180° ちょうどは `is_large_arc`（`> π` の狭義比較）の判定と揃え
+    // `large_arc=false` とする（2 通りの弧が同一長になる境界のため結果は
+    // 変わらないが、`is_large_arc` の閾値と表記を一致させる）。
+    PathBuilder::new()
+        .move_to(x_right, y_mid)
+        .arc_to(r, r, 0.0, false, true, x_left, y_mid)
+        .arc_to(r, r, 0.0, false, true, x_right, y_mid)
+        .close()
+        .build()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -303,5 +339,24 @@ mod tests {
     #[test]
     fn is_large_arc_boundary_exactly_half_circle_is_false() {
         assert!(!is_large_arc(0.0, PI));
+    }
+
+    #[test]
+    fn annulus_full_ring_path_has_no_radial_line_segment() {
+        // 外周・内周それぞれ独立した閉円（`M`+`A`×2+`Z`）のみで構成され、
+        // 環をまたぐ放射方向の `L`（line-to）が存在しないことを固定する
+        // （継ぎ目バグの回帰防止、donut_chart モジュール doc 参照）。
+        let d = annulus_full_ring_path(50.0, 50.0, 45.0, 27.0);
+        assert!(!d.contains('L'));
+        assert_eq!(d.matches('M').count(), 2);
+        assert_eq!(d.matches('A').count(), 4);
+        assert_eq!(d.matches('Z').count(), 2);
+    }
+
+    #[test]
+    fn annulus_full_ring_path_is_deterministic() {
+        let a = annulus_full_ring_path(50.0, 50.0, 45.0, 27.0);
+        let b = annulus_full_ring_path(50.0, 50.0, 45.0, 27.0);
+        assert_eq!(a, b);
     }
 }

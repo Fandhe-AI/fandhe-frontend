@@ -23,9 +23,15 @@
 //! # 全周セグメントの描画（[`crate::charts::pie`] モジュール doc「境界規則」）
 //!
 //! 非ゼロ値のセグメントが 1 個のみの場合、環状の扇形 path は始点=終点で
-//! 退化するため、半周ずつ 2 本の annulus path（外周半周 arc + 内周半周
-//! arc、[`crate::charts::pie::annulus_sector_path`] を 2 回呼ぶ）に分割して
-//! 描画し、リング全体を隙間なく表現する。
+//! 退化するため、[`crate::charts::pie::annulus_full_ring_path`]（外周・内周
+//! それぞれ独立した閉円を `fill-rule="evenodd"` で組み合わせる、放射方向の
+//! 結合線を持たない単一 path）へ切り替えて描画する。半周ずつ 2 本の
+//! annulus path（外周半周 arc + 内周半周 arc）へ分割する旧方式は、既定の
+//! `segment` recipe が付与する `stroke`（`var(--fandhe-color-bg)`）が
+//! 2 本の path を結ぶ放射方向の線分（直径線）上にも描画され、本来
+//! シームレスであるべき 100% リングに継ぎ目が見えてしまう不具合があった
+//! （pie 側の `circle` 要素がシームレスに扱えているのと不整合、イシュー
+//! #850 レビュー指摘）。
 //!
 //! # セキュリティ不変条件
 //!
@@ -42,7 +48,9 @@
 //! `root` の子ノードを [`chart`] 単体に固定しない設計とする（下記
 //! [`donut_chart`] 実装参照）。
 
-use crate::charts::pie::{annulus_sector_path, segment_angles, PieChartError};
+use crate::charts::pie::{
+    annulus_full_ring_path, annulus_sector_path, segment_angles, PieChartError,
+};
 use crate::charts::svg::{svg_root, svg_text, ViewBox};
 use crate::charts::{series_color_var, ChartData};
 use crate::class_attr::drop_class_attr;
@@ -50,7 +58,6 @@ use crate::css::decl;
 use crate::recipe::{Size, SlotRecipe, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
-use std::f64::consts::PI;
 
 /// `data-scope="donut-chart"` を固定した本コンポーネントの anatomy。
 const ANATOMY: Anatomy = anatomy("donut-chart");
@@ -195,9 +202,10 @@ pub fn donut_chart<'a>(
     let r_inner = OUTER_RADIUS * props.inner_ratio;
 
     // 非ゼロ値のセグメントがちょうど 1 個の場合（全周セグメント）は
-    // annulus path が始点=終点の退化 arc を返すため、半周ずつ 2 本へ
-    // 分割してリング全体を描画する（モジュール doc「全周セグメントの
-    // 描画」節）。
+    // annulus path が始点=終点の退化 arc を返すため、
+    // `annulus_full_ring_path`（放射方向の結合線を持たない単一 path、
+    // `fill-rule="evenodd"`）へ切り替えてリング全体をシームレスに描画する
+    // （モジュール doc「全周セグメントの描画」節）。
     let non_zero_count = values.iter().filter(|&&v| v > 0.0).count();
     let is_full_circle = non_zero_count == 1;
 
@@ -209,27 +217,18 @@ pub fn donut_chart<'a>(
         }
         let fill = series_color_var(i);
         if is_full_circle {
-            let mid = start + PI;
-            for (half_start, half_end) in [(start, mid), (mid, end)] {
-                let d = annulus_sector_path(
-                    CENTER_X,
-                    CENTER_Y,
-                    OUTER_RADIUS,
-                    r_inner,
-                    half_start,
-                    half_end,
-                );
-                segment_and_label_nodes.push(el(
-                    "path",
-                    vec![
-                        ("data-scope", "donut-chart"),
-                        ("data-part", "segment"),
-                        ("d", d.as_str()),
-                        ("fill", fill.as_str()),
-                    ],
-                    vec![],
-                ));
-            }
+            let d = annulus_full_ring_path(CENTER_X, CENTER_Y, OUTER_RADIUS, r_inner);
+            segment_and_label_nodes.push(el(
+                "path",
+                vec![
+                    ("data-scope", "donut-chart"),
+                    ("data-part", "segment"),
+                    ("d", d.as_str()),
+                    ("fill", fill.as_str()),
+                    ("fill-rule", "evenodd"),
+                ],
+                vec![],
+            ));
         } else {
             let d = annulus_sector_path(CENTER_X, CENTER_Y, OUTER_RADIUS, r_inner, start, end);
             segment_and_label_nodes.push(el(
@@ -346,14 +345,21 @@ mod tests {
     }
 
     #[test]
-    fn single_non_zero_segment_splits_into_two_half_arcs() {
+    fn single_non_zero_segment_renders_as_seamless_full_ring() {
+        // 全周（100%）は継ぎ目を避けるため単一 path（`annulus_full_ring_path`
+        // + `fill-rule="evenodd"`）で描画する（放射方向の結合線を持たない、
+        // モジュール doc「全周セグメントの描画」節、イシュー #850 レビュー
+        // 指摘の回帰防止）。
         let data = ChartData::new(
             vec!["A".to_string(), "B".to_string()],
             vec![Series::new("total", vec![100.0, 0.0])],
         )
         .unwrap();
         let html = render(&donut_chart(&DonutChartProps::default(), &data, vec![]).unwrap());
-        assert_eq!(html.matches(r#"data-part="segment""#).count(), 2);
+        assert_eq!(html.matches(r#"data-part="segment""#).count(), 1);
+        assert!(html.contains(r#"fill-rule="evenodd""#));
+        // 継ぎ目の原因だった放射方向の `L`（line-to）が存在しないことを固定する。
+        assert!(!html.contains(" L"));
     }
 
     #[test]
