@@ -72,6 +72,9 @@ use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
+use fandhe_frontend_pre_styled_ui::password_input::{
+    self, PasswordAutocomplete, PasswordInputProps,
+};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
@@ -230,6 +233,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::number_input::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::password_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tags_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::rating_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::slider::stylesheet())?;
@@ -1850,6 +1854,62 @@ fn number_input_section() -> Node {
     )
 }
 
+/// PasswordInput 節: 表示切替トリガー付きパスワード入力の Hidden/Visible/
+/// Invalid/Disabled 4 状態を静的掲示する（イシュー #740）。
+///
+/// `visibility_trigger` へ `aria-label` を呼び出し側 attrs として付与する
+/// お手本を示す（headless 層は固定文言を持たない、
+/// `crates/headless-ui/src/password_input.rs` rustdoc 参照）。
+fn password_input_section() -> Node {
+    let states = [
+        (false, false, false, "showcase-password-hidden", "Hidden"),
+        (true, false, false, "showcase-password-visible", "Visible"),
+        (false, true, false, "showcase-password-invalid", "Invalid"),
+        (false, false, true, "showcase-password-disabled", "Disabled"),
+    ];
+    let demo_row = row(states
+        .iter()
+        .map(|(visible, invalid, disabled, id, label)| {
+            let props = PasswordInputProps {
+                id,
+                disabled: *disabled,
+                invalid: *invalid,
+                required: false,
+                autocomplete: PasswordAutocomplete::CurrentPassword,
+            };
+            password_input::root(
+                Size::Md,
+                ColorPalette::Accent,
+                *visible,
+                &props,
+                vec![],
+                vec![
+                    password_input::label(&props, vec![], vec![text(*label)]),
+                    password_input::control(
+                        *visible,
+                        &props,
+                        vec![],
+                        vec![
+                            password_input::input(*visible, &props, vec![]),
+                            password_input::visibility_trigger(
+                                *visible,
+                                &props,
+                                vec![("aria-label", "Toggle password visibility")],
+                                vec![text(if *visible { "Hide" } else { "Show" })],
+                            ),
+                        ],
+                    ),
+                ],
+            )
+        })
+        .collect());
+    section(
+        "PasswordInput",
+        "data-state=\"visible\"/\"hidden\" で type=\"password\"/\"text\" が切り替わるパスワード入力。visibility-trigger は aria-pressed/aria-controls で意味論を担い、パスワード値そのものは一切保持しません。",
+        vec![demo_row],
+    )
+}
+
 /// TagsInput 節: 通常タグ数件・max 到達（`data-invalid`/`aria-invalid`）・
 /// disabled の 3 態。
 ///
@@ -2973,6 +3033,7 @@ fn showcase_body() -> Node {
             checkbox_section(),
             form_controls_section(),
             number_input_section(),
+            password_input_section(),
             tags_input_section(),
             rating_group_section(),
             slider_section(),
@@ -3032,6 +3093,7 @@ mod tests {
             "checkbox",
             "field",
             "number-input",
+            "password-input",
             "tags-input",
             "rating-group",
             "slider",
@@ -3066,6 +3128,17 @@ mod tests {
         assert!(html.contains(r#"data-state="open""#));
         assert!(html.contains(r#"data-state="checked""#));
         assert!(html.contains(r#"data-state="indeterminate""#));
+        // PasswordInput（イシュー #740）: 表示切替の Visible/Hidden 両状態と
+        // aria-pressed によるトグルボタン意味論を固定する。
+        assert!(html.contains(r#"data-state="visible""#));
+        assert!(html.contains(r#"data-state="hidden""#));
+        assert!(html.contains(r#"aria-pressed="true""#));
+        assert!(html.contains(r#"aria-pressed="false""#));
+        // visibility-trigger は可視のラベルテキストを持つ（Bugbot 指摘の
+        // 回帰防止: 空 children では show/hide ボタンに可視コンテンツが
+        // 一切なくなる、イシュー #740 PR #786 レビュー）。
+        assert!(html.contains(r#">Show<"#));
+        assert!(html.contains(r#">Hide<"#));
     }
 
     #[test]
@@ -3136,6 +3209,7 @@ mod tests {
         assert!(css.contains(r#"[data-scope="field"][data-part="textarea"]"#));
         assert!(css.contains(r#"[data-scope="field"][data-part="select"]"#));
         assert!(css.contains(r#"[data-scope="number-input"][data-part="control"]"#));
+        assert!(css.contains(r#"[data-scope="password-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="tags-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="status"][data-part="indicator"]"#));
         assert!(css.contains(r#"[data-scope="empty-state"][data-part="content"]"#));
