@@ -56,7 +56,9 @@
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_current, aria_disabled, aria_labelledby, aria_selected, role, AriaCurrent};
 use crate::data_attrs::data_disabled;
-use crate::date::{days_in_month, month_grid, DateError, MonthGrid, PlainDate, Weekday};
+use crate::date::{
+    days_in_month, month_grid, DateError, MonthGrid, PlainDate, Weekday, MAX_YEAR, MIN_YEAR,
+};
 use fandhe_frontend_core::{text, Node};
 use fandhe_frontend_interactive::{Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
 
@@ -268,6 +270,10 @@ impl Calendar {
     ///
     /// # Errors
     ///
+    /// - `view_year` が `0000..=9999`（[`PlainDate::new`] と同一のサポート
+    ///   範囲）の範囲外なら [`DateError::OutOfRange`]。`view_year()`/モジュール
+    ///   doc は本コンストラクタを経由した値のみがこの範囲であることを前提と
+    ///   する（ハイドレーション経路で復元される `view_year` を含む）。
     /// - `view_month` が `1..=12` の範囲外なら [`DateError::InvalidDate`]。
     /// - `min`/`max` がともに `Some` で `min > max` なら
     ///   [`DateError::InvalidDate`]（範囲制約として矛盾するため fail-closed
@@ -281,8 +287,14 @@ impl Calendar {
         max: Option<PlainDate>,
         week_start: Weekday,
     ) -> Result<Self, DateError> {
-        // view_year/view_month の妥当性検証（days_in_month が month 範囲を
-        // 検証する。view_year 自体は PlainDate::new と同じ範囲で受け入れる）。
+        // view_year の範囲検証（PlainDate::new と同一の 0000..=9999 範囲、
+        // Bugbot 指摘: この検証がなければ範囲外の view_year がハイドレーション
+        // 経由で復元されうる）。
+        if !(MIN_YEAR..=MAX_YEAR).contains(&view_year) {
+            return Err(DateError::OutOfRange);
+        }
+        // view_month の妥当性検証（days_in_month が month の 1..=12 範囲を
+        // 検証する）。
         let _ = days_in_month(view_year, view_month)?;
         if let (Some(min), Some(max)) = (min, max) {
             if min > max {
@@ -725,6 +737,28 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(err, DateError::InvalidDate);
+    }
+
+    #[test]
+    fn new_rejects_view_year_out_of_range() {
+        // Bugbot 指摘（PR #865）: view_year は PlainDate::new と同一の
+        // 0000..=9999 範囲で検証されるべきで、範囲外はハイドレーション経由で
+        // 不正な view year が復元される事態を防ぐため拒否する。
+        let err_negative =
+            Calendar::new(-1, 7, today_2026_07(), None, None, None, Weekday::Monday).unwrap_err();
+        assert_eq!(err_negative, DateError::OutOfRange);
+
+        let err_too_large = Calendar::new(
+            10_000,
+            7,
+            today_2026_07(),
+            None,
+            None,
+            None,
+            Weekday::Monday,
+        )
+        .unwrap_err();
+        assert_eq!(err_too_large, DateError::OutOfRange);
     }
 
     #[test]
