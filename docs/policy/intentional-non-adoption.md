@@ -978,6 +978,8 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     ゼロ・`headless-ui` 外部依存は `core`/`interactive`（いずれも path）
     のみ・依存上限 60 件/深さ 6）は変更していない（新規依存クレートの
     追加なし、`web-sys` の既存依存への feature 追加のみ）。
+- **利用者向けの等価概念対応表**: RichTextEditor（非採用維持）の等価概念は
+  `docs/design/component-coverage-map.md` §8（イシュー #855）を参照。
 
 ### 3.23 JS ランタイム固有 utilities（portal / show / for / presence / client-only / environment / frame / swap / focus-trap / format-\* / locale / async-list / checkmark / radiomark / overlay-manager）（イシュー #735）
 
@@ -1042,6 +1044,8 @@ AI エージェントが変更の影響範囲を判断するために読み込�
      ユーザー承認を得た場合。
   4. Checkmark / Radiomark: `checkbox` / `radio_group` から装飾表現を
      切り出す具体的な需要（他コンポーネントでの再利用等）が確定した場合。
+- **利用者向けの等価概念対応表**: 上記 24 件それぞれの等価概念・代替実装は
+  `docs/design/component-coverage-map.md` §8（イシュー #855）に一覧化する。
 
 ### 3.24 その他 UI 部品（marquee / chakra `Theme` コンポーネント）（イシュー #735、marquee は #831 で再導入済み）
 
@@ -1090,6 +1094,8 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   として §4 の手続きに従い再導入した（評価軸充足の詳細は同ファイル冒頭
   rustdoc、golden CSS 固定は `crates/pre-styled-ui/tests/marquee_css.rs`
   参照）。
+- **利用者向けの等価概念対応表**: chakra `Theme`（非採用維持）の等価概念は
+  `docs/design/component-coverage-map.md` §8（イシュー #855）を参照。
 
 ## 4. 運用（再導入提案時の手続き）
 
@@ -1163,7 +1169,8 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   positioning の wasm 層計測注入層。§3.20 の代替実装）
 - `docs/design/component-coverage-map.md`（イシュー #734、ark-ui /
   chakra-ui 全コンポーネント対応表。§3.22〜§3.24・§7 が非採用・保留と
-  確定した項目の一次対応表）
+  確定した項目の一次対応表。§8 = イシュー #855 で追加した、§3.22〜§3.24 の
+  意図的非採用項目についての利用者向け等価概念対応表）
 - `docs/api/pre-styled-ui-api.md`（イシュー #716/#724、layout プリミティブ
   非採用の一次記録。component-coverage-map の「意図的非採用」区分の先例）
 - `crates/wasm-full/src/focus_trap.rs`（フォーカストラップ実装。§3.23 の
