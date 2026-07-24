@@ -221,7 +221,12 @@ impl Steps {
         ANATOMY.part("list", "ol", merged, children)
     }
 
-    /// Item パーツ（`li`、`index` は `0..count`）。
+    /// Item パーツ（`li`、`index` は `0..count`）。`data-orientation` も
+    /// 併せて付与する（イシュー #752 pre-styled-ui レビュー指摘対応。
+    /// `list`/`root` の `data-orientation` だけでは pre-styled-ui 側の
+    /// `SlotRecipe`（`[data-part="item"]` 自身の属性のみを条件化できる）
+    /// から垂直方向レイアウトを判定できないため、`separator` と同様に
+    /// item 自身へも複製する）。
     #[must_use]
     pub fn item<'a>(
         &self,
@@ -230,7 +235,10 @@ impl Steps {
         children: Vec<Node>,
     ) -> Node {
         let state = self.item_state(index);
-        let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(state.as_data_state())];
+        let mut merged: Vec<(&'a str, &'a str)> = vec![
+            data_state(state.as_data_state()),
+            data_orientation(self.orientation),
+        ];
         merged.extend(data_complete(state == ItemState::Complete));
         merged.extend(data_current(state == ItemState::Current));
         merged.extend(data_incomplete(state == ItemState::Incomplete));

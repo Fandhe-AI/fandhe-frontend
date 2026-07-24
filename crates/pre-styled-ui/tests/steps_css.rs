@@ -27,6 +27,7 @@ const STEPS_GOLDEN_CSS: &str = r#"[data-scope="steps"][data-part="root"] {
   display: flex;
   align-items: center;
   gap: var(--fandhe-space-2);
+  flex: 1;
 }
 
 [data-scope="steps"][data-part="trigger"] {
@@ -124,6 +125,11 @@ const STEPS_GOLDEN_CSS: &str = r#"[data-scope="steps"][data-part="root"] {
 [data-scope="steps"][data-part="list"][data-orientation="vertical"] {
   flex-direction: column;
   align-items: stretch;
+}
+
+[data-scope="steps"][data-part="item"][data-orientation="vertical"] {
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 [data-scope="steps"][data-part="trigger"]:focus-visible {

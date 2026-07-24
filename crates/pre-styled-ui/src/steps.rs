@@ -43,6 +43,20 @@
 //! （存在属性、`crates/headless-ui/src/data_attrs.rs::data_complete`）の
 //! 有無で完了色に変化する。
 //!
+//! # `item`/`separator` のレイアウト契約（イシュー #752 PR #797 レビュー対応）
+//!
+//! `separator`（`flex: 1` でステップ間の接続線を描画）が実際に伸長するには
+//! 親 `item`（`li`）自身も `list` の主軸方向へ伸長する必要があるため、
+//! `item` にも `flex: 1` を付与する。垂直（[`fandhe_frontend_headless_ui::steps::Orientation::Vertical`]）
+//! では `item` を `flex-direction: column` に切り替え、trigger の下に
+//! separator（縦の接続線）が来る配置にする。この判定は `item` 自身の
+//! `data-orientation` 属性（`crates/headless-ui/src/steps.rs::Steps::item`
+//! が `separator`/`list`/`root` と同様に付与、本イシューで追加）を
+//! [`StateCondition::AttrEq`] で条件化して行う（[`SlotRecipe`] は
+//! 対象スロット自身の属性のみを条件化でき、祖先要素の属性は参照できない
+//! ため、`list`/`root` の `data-orientation` だけでは `item` の垂直
+//! レイアウト切り替えができない）。
+//!
 //! # `focus-visible`（キーボードフォーカスリング）
 //!
 //! `trigger`/`prev-trigger`/`next-trigger` はネイティブな `<button>`
@@ -136,6 +150,31 @@ fn recipe() -> SlotRecipe {
                 decl("display", "flex"),
                 decl("align-items", "center"),
                 decl("gap", "var(--fandhe-space-2)"),
+                // `separator`（`flex: 1`）が item 内で実際に伸長できるよう、
+                // item 自身も `list` の主軸方向へ伸長させる（バグ報告:
+                // イシュー #752 PR #797 cursor[bot] レビュー High severity
+                // 指摘「Separators collapse to zero width」対応）。item は
+                // `list`（`display: flex`）の直接の子であり、既定の
+                // `flex: 0 1 auto` のままでは list の残り幅を専有しないため
+                // `separator` の `flex: 1` が効かず接続線が幅ゼロになって
+                // いた。
+                decl("flex", "1"),
+            ],
+        )
+        // vertical: item を列方向へ切り替え、trigger の下に separator
+        // （縦の接続線）が来るようにする（イシュー #752 PR #797
+        // cursor[bot] レビュー Medium severity 指摘「Vertical item layout
+        // stays horizontal」対応）。`align-items: flex-start` は
+        // `separator` 側の `margin-left: calc(indicator-size / 2 - 1px)`
+        // （indicator 中心に接続線を揃える計算）が item 左端起点を前提と
+        // しているため維持する（`align-items: center` にすると trigger
+        // 幅により indicator 中心とずれる）。
+        .state(
+            "item",
+            StateCondition::AttrEq("data-orientation", "vertical"),
+            vec![
+                decl("flex-direction", "column"),
+                decl("align-items", "flex-start"),
             ],
         )
         .base(
