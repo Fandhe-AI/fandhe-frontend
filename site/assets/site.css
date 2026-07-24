@@ -161,13 +161,6 @@ body {
 /* ---- サイドバー（左ナビ） ---- */
 
 .docs-sidebar {
-  /*
-   * 基底（< 768px）は本文の前に縦積みし、`max-height` で 1 行程度に
-   * 折りたたむ（JS 不要。`:focus-within` でキーボード操作時に展開する
-   * CSS のみの基本折りたたみ。トグル UI の確定は #910 に委ねる）。
-   */
-  max-height: 2.75rem;
-  overflow: hidden;
   width: 100%;
   padding: 1rem;
   border-right: none;
@@ -175,9 +168,66 @@ body {
   font-size: 0.875rem;
 }
 
-.docs-sidebar:focus-within {
+/*
+ * 折りたたみ対象は `nav.sidebar`（`aside.docs-sidebar` ではなく）。基底
+ * （< 768px）は `max-height` で 1 行程度に折りたたむ（JS 不要、`layout.rs`
+ * モジュール doc 参照）。開閉手段は 2 系統を併用する:
+ *   - キーボード操作: `:focus-within`（ナビ内リンクへフォーカスが入ると
+ *     展開。折りたたみ時も要素自体は DOM 上に存在し Tab で到達できる）
+ *   - タッチ / マウス操作: `.docs-sidebar-toggle`（チェックボックスハック、
+ *     `docs-sidebar-toggle-label` を tap/click すると展開）。
+ * `:focus-within` 単独ではクリップされた非表示リンクへタップでは
+ * フォーカスが移らずモバイル利用者がナビへ到達できない回帰があったため
+ * （レビュー指摘）、チェックボックスハックを追加した（設計文書 §3.2 の
+ * 「マウス操作ユーザー向けの明示的な開閉トリガー」の採用）。
+ */
+.docs-sidebar nav.sidebar {
+  max-height: 2.75rem;
+  overflow: hidden;
+}
+
+.docs-sidebar-toggle:checked ~ nav.sidebar,
+.docs-sidebar:focus-within nav.sidebar {
   max-height: none;
   overflow: visible;
+}
+
+/*
+ * `.docs-sidebar-toggle`（`<input type="checkbox">`）は sr-only パターンで
+ * 視覚的に隠すのみで DOM からは除去しない（Tab フォーカス・Enter/Space
+ * 操作の対象から外さない。`display: none`/`visibility: hidden` にしない
+ * 理由）。
+ */
+.docs-sidebar-toggle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/*
+ * `.docs-sidebar-toggle-label` はチェックボックスの可視トリガー。基底
+ * （< 768px、折りたたみが有効な帯域）でのみ表示し、`min-width: 768px`
+ * （折りたたみ自体を行わない帯域、下記 `@media` ブロック）では非表示にする。
+ */
+.docs-sidebar-toggle-label {
+  display: block;
+  cursor: pointer;
+  padding: 0.4rem 0.6rem;
+  margin: -0.4rem -0.6rem 0.4rem;
+  border-radius: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--docs-color-accent);
+}
+
+.docs-sidebar-toggle-label:hover {
+  background: var(--docs-color-bg-subtle);
 }
 
 .docs-sidebar nav.sidebar {
@@ -488,6 +538,17 @@ nav.prev-next .next [data-part="overlay"] {
     padding: 1.75rem 1rem 2rem;
     border-right: 1px solid var(--docs-color-border);
     border-bottom: none;
+  }
+
+  /* `min-width: 768px` では折りたたみ自体を行わないため、`nav.sidebar` の
+   * 折りたたみ制約とタッチ用トグルの可視トリガーの双方を解除する。 */
+  .docs-sidebar nav.sidebar {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .docs-sidebar-toggle-label {
+    display: none;
   }
 
   .docs-main {

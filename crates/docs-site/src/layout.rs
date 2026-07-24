@@ -7,13 +7,16 @@
 //! DOCTYPE を出力しない（後続イシュー #470 がビルドエントリで接続する）。
 //!
 //! 骨格は `docs/design/docs-site-three-column-redesign.md` §3.1 の DOM/class
-//! 契約に従い、`div.docs-container` 配下に `aside.docs-sidebar`（左ナビ）・
-//! `main.docs-main`（中央コンテンツ、`article.docs-content` を内包）・
-//! 見出しが存在するページのみ第 3 子として出現する `aside.docs-toc-aside`
-//! （右目次、内側に `nav.docs-toc` をそのまま配置）の最大 3 カラムを出力する
-//! （イシュー #907）。breakpoint による表示制御（狭幅で目次列→ナビ列の順に
-//! 畳む）は構造 CSS（`site/assets/site.css`）側の責務であり、本モジュールは
-//! DOM 順・class 名の契約のみを担う。
+//! 契約に従い、`div.docs-container` 配下に `aside.docs-sidebar`（左ナビ。
+//! `<input type="checkbox" class="docs-sidebar-toggle">` + `<label>` の
+//! チェックボックスハックを先頭に含み、`< 768px` での折りたたみをタッチ
+//! 操作でも開閉できるようにする。JS 不要、`nav_list` 本体の markup は
+//! 変更しない）・`main.docs-main`（中央コンテンツ、`article.docs-content`
+//! を内包）・見出しが存在するページのみ第 3 子として出現する
+//! `aside.docs-toc-aside`（右目次、内側に `nav.docs-toc` をそのまま配置）
+//! の最大 3 カラムを出力する（イシュー #907）。breakpoint による表示制御
+//! （狭幅で目次列→ナビ列の順に畳む）は構造 CSS（`site/assets/site.css`）
+//! 側の責務であり、本モジュールは DOM 順・class 名の契約のみを担う。
 //!
 //! `fandhe_frontend_app::page_shell` との差分: `page_shell` は
 //! `/static/style.css` と `hydrate.js` をハードコードした `String` を返す
@@ -409,12 +412,44 @@ pub fn docs_page_with_assets(
         vec![text("Skip to content")],
     );
 
+    // `< 768px` の左ナビ折りたたみをタッチ操作でも開閉できるようにする
+    // チェックボックスハック（設計文書 §3.2 の「マウス操作ユーザー向けの
+    // 明示的な開閉トリガー」を採用、JS 不要）。`:focus-within`（キーボード
+    // 操作）のみでは、折りたたみでクリップされたリンクへタップ操作で
+    // フォーカスが移らずモバイル利用者がナビへ到達できない回帰があったため
+    // （レビュー指摘）。`<input type="checkbox">` は `site.css` 側で
+    // 視覚的に隠す（sr-only）のみで DOM 上は存在し、Tab フォーカス・
+    // Enter/Space 操作の対象から除外しないため意味論を毀損しない。
+    // `nav_list`（`sidebar` 引数）自体の markup は変更しない（設計文書 §3.4
+    // の不変条件）。
+    let sidebar_toggle_id = "docs-sidebar-toggle";
+    let sidebar_toggle = el(
+        "input",
+        vec![
+            ("type", "checkbox"),
+            ("id", sidebar_toggle_id),
+            ("class", "docs-sidebar-toggle"),
+        ],
+        vec![],
+    );
+    let sidebar_toggle_label = el(
+        "label",
+        vec![
+            ("for", sidebar_toggle_id),
+            ("class", "docs-sidebar-toggle-label"),
+        ],
+        vec![text("Menu".to_string())],
+    );
+
     // `div.docs-container` の子は「左ナビ / 中央コンテンツ / 右目次」の
     // 3 カラム順（設計文書 §3.1）。右目次カラムは見出しが 1 つも無いページ
     // では出力しない（`aside.docs-toc-aside` 自体を省略する。§3.3 の方針。
     // `nav.docs-toc` 単体で空 `nav` を出さない [`toc_nav`] の既存契約と揃える）。
     let mut container_children = vec![
-        aside(vec![("class", "docs-sidebar")], vec![sidebar]),
+        aside(
+            vec![("class", "docs-sidebar")],
+            vec![sidebar_toggle, sidebar_toggle_label, sidebar],
+        ),
         main_tag(vec![("class", "docs-main")], main_children),
     ];
     if let Some(toc_node) = toc {
