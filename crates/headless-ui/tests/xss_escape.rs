@@ -27,11 +27,13 @@
 
 use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::qr_code;
+use fandhe_frontend_headless_ui::scroll_area;
 use fandhe_frontend_headless_ui::{
     action_bar, aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog,
-    editable, floating_panel, hover_card, listbox, number_input, password_input, pin_input,
-    popover, rating_group, segment_group, slider, tags_input, toast, tree_view, ImageStatus,
-    OpenState, Orientation, PasswordAutocomplete, PasswordInputProps, Steps, ToastStatus,
+    download_trigger, editable, floating_panel, hover_card, listbox, number_input, password_input,
+    pin_input, popover, rating_group, segment_group, slider, tags_input, toast, tree_view,
+    ImageStatus, OpenState, Orientation, PasswordAutocomplete, PasswordInputProps, Steps,
+    ToastStatus,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -1052,6 +1054,83 @@ fn floating_panel_positioner_style_attr_payload_is_escaped_for_all_payloads() {
             payload,
             &html,
             "floating_panel::positioner の style 属性値コンテキスト",
+        );
+    }
+}
+
+/// DownloadTrigger（イシュー #828）の XSS 回帰: [`download_trigger::root`] の
+/// `href`（URL 属性経路。危険スキームは fail-closed で `href` 自体が出力
+/// されない）・`file_name`（`download` 属性値経路）・children テキストの
+/// 3 経路でエスケープが貫通することを固定する。
+#[test]
+fn download_trigger_root_href_file_name_and_children_are_escaped() {
+    for payload in payloads::all() {
+        let html = render(&download_trigger::root(
+            payload,
+            None,
+            vec![],
+            vec![text(payload)],
+        ));
+        if !html.contains("href=") {
+            // 危険スキーム（javascript:/data: 等）は core の render() が
+            // fail-closed で href 属性ごと出力しない。URL 属性経路として
+            // 「エスケープされず貫通した」ことにはならないため
+            // assert_payload_is_escaped の対象から除外する（`link.rs`
+            // `dangerous_url_schemes_are_rejected` と同じ整理）。
+        } else {
+            assert_payload_is_escaped(
+                payload,
+                &html,
+                "download_trigger::root の href コンテキスト",
+            );
+        }
+
+        let html = render(&download_trigger::root(
+            "/assets/report.pdf",
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "download_trigger::root の download（file_name）コンテキスト",
+        );
+
+        let html = render(&download_trigger::root(
+            "/assets/report.pdf",
+            None,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "download_trigger::root の children コンテキスト",
+        );
+    }
+}
+
+/// ScrollArea（イシュー #825）の属性 breakout・children `<script>` ペイロード
+/// がエスケープされることを固定する。
+#[test]
+fn scroll_area_attrs_and_children_payloads_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let html = render(&scroll_area::viewport(
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "scroll_area::viewport の attrs コンテキスト",
+        );
+
+        let html = render(&scroll_area::content(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "scroll_area::content の children コンテキスト",
         );
     }
 }
