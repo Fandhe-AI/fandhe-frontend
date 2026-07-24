@@ -241,13 +241,14 @@ pub fn aria_roledescription(value: &'static str) -> (&'static str, &'static str)
 }
 
 /// `aria-current` の値語彙（W3C ARIA 仕様、Breadcrumb 用イシュー #755・
-/// Pagination の選択ページ表現用イシュー #751 の双方が共有する）。
+/// Pagination の選択ページ表現用イシュー #751・Steps の現在ステップ表現用
+/// イシュー #752 が共有する）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AriaCurrent {
     /// 現在のページ（[`crate::breadcrumb::current_link`] / [`crate::pagination`]
     /// が使う値）。
     Page,
-    /// 手順の現在ステップ。
+    /// 手順の現在ステップ（[`crate::steps`] の current トリガーが使う値）。
     Step,
     /// 現在の所在地。
     Location,

@@ -71,6 +71,7 @@ use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
+use fandhe_frontend_pre_styled_ui::steps;
 use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
@@ -1179,6 +1180,72 @@ fn editable_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
     }
 }
 
+/// (10) steps 経路（イシュー #752）: styled `root` の呼び出し側 `attrs`・
+/// `class`、および全パーツが `state: &Steps` を取る `item`/`trigger` の
+/// children/attrs 経路すべてで既定エスケープ（REQ-1）が貫通することを固定
+/// する（`slider_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn steps_styled_root_and_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::Orientation;
+
+    for payload in payloads::all() {
+        let s = Steps::new(3, 1, Orientation::Horizontal);
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&steps::root(
+            Size::Md,
+            ColorPalette::Accent,
+            &s,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "steps::root 呼び出し側 attrs コンテキスト");
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&steps::root(
+            Size::Md,
+            ColorPalette::Accent,
+            &s,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "steps::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "steps::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-steps--"),
+            "steps::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // item の children 経路。
+        let html = render(&steps::item(&s, 0, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "steps::item children コンテキスト");
+
+        // trigger の呼び出し側 attrs 経路。
+        let html = render(&steps::trigger(
+            &s,
+            1,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "steps::trigger 呼び出し側 attrs コンテキスト",
+        );
+    }
+}
+
 /// QrCode（イシュー #774）: styled `root` の呼び出し側 `attrs`・`class`、
 /// 選択的再エクスポートした `overlay` の children・`frame` の `aria_label`
 /// の各所で既定エスケープ（REQ-1）が貫通することを固定する。`value`（符号化
@@ -1363,6 +1430,7 @@ fn pagination_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         );
     }
 }
+
 /// styled CheckboxCard（イシュー #747）の XSS 回帰
 /// （`checkbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
 /// と同型）。

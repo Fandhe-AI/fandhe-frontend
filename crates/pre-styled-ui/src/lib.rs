@@ -187,6 +187,15 @@
 //!   [`fandhe_frontend_headless_ui::checkbox::Checkbox`]/
 //!   [`fandhe_frontend_headless_ui::radio_group::RadioGroup`] をそのまま
 //!   再利用し、新規状態機械は作らない。詳細は各モジュール rustdoc 参照。
+//! - headless 状態機械を持つ複合部品の styled ラッパー（イシュー #752、
+//!   `docs/api/headless-ui-api.md` §4b.3 の保留解除）: [`mod@steps`]。
+//!   [`fandhe_frontend_headless_ui::steps`] が自由関数を持たない（全パーツ
+//!   が `Steps` の inherent メソッド）ため、本モジュールの全パーツ関数が
+//!   `state: &Steps` を受け取る点が他コンポーネントと異なる（詳細は
+//!   [`mod@steps`] rustdoc 参照）。`size`/`color-palette` variant を最初から
+//!   持つ。`trigger`/`prev-trigger`/`next-trigger` はネイティブ `<button>`
+//!   が実フォーカスを受けるため [`recipe::StateCondition::FocusVisible`] で
+//!   足りる（`toggle`/`toggle_group` と同型）。
 //! - headless 状態機械を持つ複合部品の styled ラッパー（イシュー #754）:
 //!   [`mod@carousel`]。`size` variant のみを持ち（`item-group` の縦横
 //!   transform 切替は `data-orientation` 属性条件、[`mod@segment_group`] と
@@ -451,6 +460,7 @@ pub mod skip_nav;
 pub mod slider;
 pub mod spinner;
 pub mod status;
+pub mod steps;
 pub mod stylesheet;
 pub mod switch;
 pub mod tabs;

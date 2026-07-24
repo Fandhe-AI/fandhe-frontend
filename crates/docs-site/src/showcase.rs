@@ -63,6 +63,7 @@ use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps};
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
@@ -88,6 +89,7 @@ use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps, SkeletonV
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
+use fandhe_frontend_pre_styled_ui::steps;
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::tag::{self, TagProps, TagVariant};
 use fandhe_frontend_pre_styled_ui::tags_input;
@@ -261,6 +263,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::segment_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tree_view::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::pagination::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::steps::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::breadcrumb::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::carousel::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::action_bar::stylesheet())?;
@@ -2660,6 +2663,59 @@ fn pagination_section() -> Node {
     )
 }
 
+/// Steps 節（イシュー #752）: 3 step 中 2 番目（index=1）を current として
+/// 固定表示する静的掲示。indicator は complete/current/incomplete の 3
+/// 状態で塗り色を切り替え、separator は `data-complete` の有無で完了色に
+/// 変化する（[`crate::steps`] rustdoc §indicator/separator の状態連動色
+/// 参照）。current な item の trigger のみ `aria-current="step"` を持つ
+/// （クリック挙動は wasm 層のスコープ外、モジュール冒頭「インタラクティブ
+/// 部品の扱い」節参照）。
+fn steps_section() -> Node {
+    let s = Steps::new(3, 1, Orientation::Horizontal);
+    let labels = ["Account", "Shipping", "Confirm"];
+
+    let mut items = Vec::new();
+    for (index, label) in labels.iter().enumerate() {
+        let trigger = steps::trigger(
+            &s,
+            index,
+            vec![],
+            vec![
+                steps::indicator(&s, index, vec![], vec![text((index + 1).to_string())]),
+                text(*label),
+            ],
+        );
+        let mut item_children = vec![trigger];
+        if index + 1 < labels.len() {
+            item_children.push(steps::separator(&s, index, vec![], vec![]));
+        }
+        items.push(steps::item(&s, index, vec![], item_children));
+    }
+
+    let list = steps::list(&s, vec![], items);
+    let content = steps::content(&s, 1, vec![], vec![text("配送先住所を入力してください。")]);
+    let nav = div(
+        vec![],
+        vec![
+            steps::prev_trigger(&s, vec![], vec![text("Prev")]),
+            steps::next_trigger(&s, vec![], vec![text("Next")]),
+        ],
+    );
+
+    let demo = steps::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &s,
+        vec![],
+        vec![list, content, nav],
+    );
+    section(
+        "Steps",
+        "count（全 step 数）+ step（現在位置）を持つ headless Steps の静的掲示。item は complete/current/incomplete の 3 状態を持ち、current な item の trigger のみ aria-current=\"step\" を持ちます（クリック挙動は wasm 層のスコープ外）。",
+        vec![row(vec![demo])],
+    )
+}
+
 /// CheckboxCard 節: unchecked / checked / disabled の 3 態（イシュー #747）。
 ///
 /// chakra-ui checkbox-card 相当のカード型選択 UI。状態機械は
@@ -3362,6 +3418,7 @@ fn showcase_body() -> Node {
             carousel_section(),
             tree_view_section(),
             pagination_section(),
+            steps_section(),
             checkbox_card_section(),
             radio_card_section(),
             breadcrumb_section(),
@@ -3426,6 +3483,7 @@ mod tests {
             "editable",
             "segment-group",
             "pagination",
+            "steps",
             "checkbox-card",
             "radio-card",
             "breadcrumb",
