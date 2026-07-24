@@ -56,6 +56,10 @@ const MARQUEE_GOLDEN_CSS: &str = r#"[data-scope="marquee"][data-part="root"] {
   [data-scope="marquee"][data-part="content"] {
     animation: none;
   }
+
+  [data-scope="marquee"][data-part="content"][aria-hidden="true"] {
+    display: none;
+  }
 }
 "#;
 

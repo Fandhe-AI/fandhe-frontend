@@ -41,9 +41,16 @@
 //! して並べる（自動流動テキストの標準的なシームレスループ手法。`children`
 //! は [`fandhe_frontend_core::Node`] が `Clone` を実装しているため
 //! `children.clone()` で複製する）。**2 個目の `content` には常に
-//! `aria-hidden="true"`** を付与し、スクリーンリーダーの二重読み上げを
-//! 防ぐ（呼び出し側がこれを外すオプションは設けない、[`crate::skeleton`]
-//! と同型の fail-closed 判断）。
+//! `aria-hidden="true"`** に加え **`inert`** を付与し、スクリーンリーダーの
+//! 二重読み上げとキーボードフォーカスの二重発生を防ぐ（呼び出し側が
+//! これを外すオプションは設けない、[`crate::skeleton`] と同型の
+//! fail-closed 判断）。`aria-hidden` のみでは支援技術向けの意味論しか
+//! 遮断せず複製内のリンク等フォーカス可能な子孫がタブ順序に残ってしまう
+//! ため、キーボードフォーカスも遮断する `inert`（HTML 標準のグローバル
+//! 属性）を併用する（Cursor Bugbot 指摘、PR #864）。さらに
+//! `prefers-reduced-motion: reduce` 環境では 2 個目の `content` を
+//! `display: none` で完全に除去し、視覚的な二重表示も防ぐ（[`css`]
+//! 参照、同指摘）。
 //!
 //! # variant（`direction` のみ、root へのみクラス付与）
 //!
@@ -235,7 +242,12 @@ fn recipe() -> SlotRecipe {
 ///    一時停止する規則（子孫コンビネータのため recipe では表現できない、
 ///    モジュール doc「常時一時停止」節参照）。
 /// 3. `prefers-reduced-motion: reduce` 環境でアニメーションを停止する
-///    `@media` ブロック（受け入れ条件）。
+///    `@media` ブロック（受け入れ条件）。同ブロック内でシームレスループ用に
+///    複製した 2 個目の `content`（`aria-hidden="true"`）へ `display: none`
+///    も追加する。アニメーション停止のみでは複製 2 本がそのまま flex
+///    レイアウトへ残り、メッセージがビューポートより狭い場合に視認可能な
+///    ユーザーへ内容が二重表示されてしまう不具合（Cursor Bugbot 指摘、
+///    PR #864）への是正。
 #[must_use]
 pub fn css() -> String {
     let mut out = recipe().css();
@@ -249,7 +261,7 @@ pub fn css() -> String {
         "\n[data-scope=\"marquee\"][data-part=\"root\"]:hover [data-part=\"content\"],\n[data-scope=\"marquee\"][data-part=\"root\"]:focus-within [data-part=\"content\"] {\n  animation-play-state: paused;\n}\n",
     );
     out.push_str(
-        "\n@media (prefers-reduced-motion: reduce) {\n  [data-scope=\"marquee\"][data-part=\"content\"] {\n    animation: none;\n  }\n}\n",
+        "\n@media (prefers-reduced-motion: reduce) {\n  [data-scope=\"marquee\"][data-part=\"content\"] {\n    animation: none;\n  }\n\n  [data-scope=\"marquee\"][data-part=\"content\"][aria-hidden=\"true\"] {\n    display: none;\n  }\n}\n",
     );
     out
 }
@@ -308,9 +320,18 @@ pub fn marquee<'a>(
 
     // シームレスループ: content を 2 回並べる。2 個目は常に aria-hidden で
     // スクリーンリーダーの二重読み上げを防ぐ（呼び出し側が外すオプションは
-    // 設けない）。
+    // 設けない）。加えて `inert` を付与し、複製内部にリンク等フォーカス
+    // 可能な子孫を含む場合でもタブ移動対象から除外する（`aria-hidden` は
+    // 支援技術向けの意味論のみでキーボードフォーカスを遮断しないため、
+    // 単独では複製内の子孫がタブ順序に残ってしまう不具合があった、
+    // Cursor Bugbot 指摘・PR #864）。
     let content_visible = ANATOMY.part("content", "div", vec![], children.clone());
-    let content_hidden = ANATOMY.part("content", "div", vec![aria_hidden(true)], children);
+    let content_hidden = ANATOMY.part(
+        "content",
+        "div",
+        vec![aria_hidden(true), ("inert", "")],
+        children,
+    );
 
     ANATOMY.part("root", "div", merged, vec![content_visible, content_hidden])
 }
