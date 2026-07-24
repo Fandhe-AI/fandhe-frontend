@@ -186,7 +186,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/form/editable.md` | Editable | Editable | editable | editable | 実装済み | headless+styled 実装済み（#745） |
 | `.agents/skills/ark-ui/references/components/form/angle-slider.md` | AngleSlider | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.22（#735）で非採用確定（高度入力系、canvas/ポインタ座標/contenteditable 依存） |
 | `.agents/skills/ark-ui/references/components/form/color-picker.md` | ColorPicker | ColorPicker | — | — | 保留 | （高度入力系、フォーム部品）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/ark-ui/references/components/form/file-upload.md` | FileUpload | FileUpload | — | — | 保留 | （高度入力系、フォーム部品）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/ark-ui/references/components/form/file-upload.md` | FileUpload | FileUpload | file_upload | file_upload | 実装済み | headless+styled+wasm 実装済み（#840、`docs/policy/intentional-non-adoption.md` §7 保留解除。ItemPreview/ItemPreviewImage はスコープ外） |
 | `.agents/skills/ark-ui/references/components/form/image-cropper.md` | ImageCropper | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.22（#735）で非採用確定（高度入力系、canvas/ポインタ座標/contenteditable 依存） |
 | `.agents/skills/ark-ui/references/components/form/signature-pad.md` | SignaturePad | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.22（#735）で非採用確定（高度入力系、canvas/ポインタ座標/contenteditable 依存） |
 | `.agents/skills/ark-ui/references/components/form/README.md` | README | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
@@ -439,7 +439,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/forms/radio-card.md` | — | RadioCard | — | radio_card | 実装済み | pre-styled styled バリエーション実装済み（#747。headless-ui は変更なし、状態機械は headless RadioGroup を再利用） |
 | `.agents/skills/chakra-ui/references/components/forms/color-picker.md` | ColorPicker | ColorPicker | — | — | 保留 | （高度入力系、フォーム部品）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
 | `.agents/skills/chakra-ui/references/components/forms/color-swatch.md` | — | ColorSwatch | — | — | 保留 | （高度入力系、フォーム部品）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/components/forms/file-upload.md` | FileUpload | FileUpload | — | — | 保留 | （高度入力系、フォーム部品）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/chakra-ui/references/components/forms/file-upload.md` | FileUpload | FileUpload | file_upload | file_upload | 実装済み | headless+styled+wasm 実装済み（#840、`docs/policy/intentional-non-adoption.md` §7 保留解除。ItemPreview/ItemPreviewImage はスコープ外） |
 
 #### `.agents/skills/chakra-ui/references/components/i18n/`
 

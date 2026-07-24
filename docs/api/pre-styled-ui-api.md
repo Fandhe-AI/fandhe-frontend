@@ -111,6 +111,7 @@ styled ラッパー追加（#829、`tree_view` #753 の派生）・button の ic
 | headless ラッパー | `scroll_area` | #825（`docs/design/component-coverage-map.md` 保留解除。状態機械なし。variant は非提供。`viewport` へ `overflow: auto` + `scrollbar-width`/`scrollbar-color`（標準プロパティ）を付与し、`stylesheet()` が `recipe().css()` に続けて `::-webkit-scrollbar` 系規則を固定文字列として追記する（`spinner` の `@keyframes` 追記と同型）。`scrollbar`/`thumb`/`corner` は JS によるスクロール位置追従が本イシューのスコープ外のため初期実装では `display: none` にしてネイティブスクロールバーの装飾で代替する） |
 | headless ラッパー | `splitter` | #826（`docs/policy/intentional-non-adoption.md` §7・`docs/design/component-coverage-map.md` の保留解除。`size` variant のみを root へ持ち `resize-trigger` の厚みへ継承、`color-palette` はセパレータの強調色にのみ使う。動的値は `panel` の `--fandhe-splitter-size`（flex-basis 経由）の 1 点のみ。`resize-trigger` はネイティブ `<div tabindex>` が実フォーカスを受けるため `FocusVisible` state condition で足りる（`slider`/`toggle` と同型）） |
 | 単純 styled 部品 | `marquee` | #831（`docs/policy/intentional-non-adoption.md` §3.24 が意図的非採用としていた自動流動テキストを、CSS のみ（JS ゼロ）・`prefers-reduced-motion: reduce` でのアニメーション停止・`hover`/`focus-within` での常時一時停止という決定的設計案で §4 の再導入手続きに従い再導入。ark-ui の `Root`/`Viewport`/`Content`/`Item`/`Edge` anatomy を `root`/`content`/`item` の 3 パーツへ縮約（`Viewport` は `root` が兼ね、`Edge` は呼び出し側 CSS で代替可能なため非提供）。`content` を内部で 2 回複製しシームレスループを実現し、2 個目は常時 `aria-hidden`。`direction`（`Start`/`End`）の 1 軸 variant のみを root へ付与し `content` への伝搬は `--fandhe-marquee-direction` custom property の継承で行う。`color-palette`/`size` 軸は非提供（`skeleton`/`card` と同型の中立・装飾部品判断）） |
+| headless ラッパー | `file_upload` | #840（`docs/policy/intentional-non-adoption.md` §7 保留解除。`size` variant のみ・`color-palette` 軸は非提供（フォーム入力部品として `tags_input`/`number_input` と同型の判断）。実操作対象の `dropzone` へ `:focus-visible` を登録（`tags_input` の `input` と異なりネイティブ `<input type="file">` は視覚的に非表示にするため）。`hidden-input` slot は CSS 非登録（`tags_input` と同型）。`FileUpload` 状態機械はあえて再エクスポートしない） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
@@ -500,6 +501,7 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | table | ✓ | 提供しない | 実装済み（#767。選択・チェック状態を示す部品ではないため color-palette は非提供。`TableVariant`（`Line`/`Outline`）・`striped`（`bool`）の追加軸を持つ。striped は新設の `StateCondition::NthChildEven` で表現） |
 | data-list | 提供しない | 提供しない | 実装済み（#767。`orientation`（`Vertical`/`Horizontal`）の 1 軸のみ。chakra-ui の `variant`（subtle/bold）/`size` はスコープ外） |
 | toast | ✓（`placement`、`group` slot） | ✓（`status`、`root` slot、`alert` と同じ配色マッピング） | 実装済み（#760。各軸が別 slot のため `variant_class` をスロットごとに個別呼び出し） |
+| file-upload | ✓ | – | 実装済み（#840、フォーム入力部品のため color-palette は非提供。`docs/policy/intentional-non-adoption.md` §7 保留解除） |
 
 tabs/accordion/dialog/menu/select の実装詳細（イシュー #729）:
 

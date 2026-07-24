@@ -26,6 +26,7 @@
 //! テストは以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
 use fandhe_frontend_core::{escape_html, render, text};
+use fandhe_frontend_headless_ui::file_upload;
 use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::scroll_area;
 use fandhe_frontend_headless_ui::{
@@ -524,6 +525,58 @@ fn tags_input_tag_text_and_attribute_paths_are_escaped_for_all_payloads() {
             payload,
             &html,
             "tags_input::root の呼び出し側 attrs コンテキスト",
+        );
+    }
+}
+
+/// (1) テキスト経路 + (2) 属性値経路（イシュー #840 FileUpload）:
+/// ファイル名・MIME 文字列は攻撃者が完全に制御可能な入力そのもの（REQ-1 の
+/// 重点対象）であるため、`file_upload::item_name` の children テキスト・
+/// `file_upload::item_delete_trigger` の `name`（`format!` で組み立てる
+/// `aria-label` の一部）・`file_upload::hidden_input` の `accept` 属性・
+/// 呼び出し側 `attrs` へ全ペイロードを注入し、エスケープが貫通することを
+/// 固定する（`tags_input` 分と同型の網羅方針）。
+#[test]
+fn file_upload_item_name_and_attribute_paths_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let item_name_node = file_upload::item_name(vec![], vec![text(payload)]);
+        let html = render(&item_name_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::item_name の children コンテキスト",
+        );
+
+        let item_size_text_node = file_upload::item_size_text_node(vec![], vec![text(payload)]);
+        let html = render(&item_size_text_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::item_size_text_node の children コンテキスト",
+        );
+
+        let delete_trigger_node = file_upload::item_delete_trigger(payload, false, vec![], vec![]);
+        let html = render(&delete_trigger_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::item_delete_trigger の aria-label コンテキスト",
+        );
+
+        let hidden_input_node = file_upload::hidden_input(payload, false, false, vec![]);
+        let html = render(&hidden_input_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::hidden_input の accept 属性コンテキスト",
+        );
+
+        let attrs_node = file_upload::root(false, vec![("data-testid", payload)], vec![]);
+        let html = render(&attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "file_upload::root の呼び出し側 attrs コンテキスト",
         );
     }
 }

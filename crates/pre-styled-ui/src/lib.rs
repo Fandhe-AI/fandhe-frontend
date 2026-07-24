@@ -492,6 +492,7 @@ pub mod drawer;
 pub mod editable;
 pub mod em;
 pub mod empty_state;
+pub mod file_upload;
 pub mod floating_panel;
 pub mod heading;
 pub mod highlight;

@@ -122,6 +122,7 @@ pub mod focus_visible;
 pub mod headless;
 pub mod headless_avatar;
 pub mod headless_clipboard;
+pub mod headless_file_upload;
 pub mod headless_select;
 pub mod hydration;
 pub mod keynav;
