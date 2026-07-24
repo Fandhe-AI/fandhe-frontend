@@ -215,6 +215,9 @@ fn no_headings_means_no_toc_nav_and_no_toc_section_in_document() {
     let node = docs_page("タイトル", "", sample_sidebar(), body);
     let html = render(&node);
     assert!(!html.contains(r#"class="docs-toc""#));
+    // イシュー #907: 見出しの無いページでは右目次カラム（第 3 子 aside）自体を
+    // 出力しない（設計文書 §3.3 の方針）。
+    assert!(!html.contains(r#"class="docs-toc-aside""#));
     let _ = annotated;
 }
 
@@ -232,6 +235,44 @@ fn toc_nav_links_use_anchor_hrefs_matching_injected_ids() {
     let end = after.find('"').expect("closing quote of id attr");
     let id = &after[..end];
     assert!(html.contains(&format!("href=\"#{id}\"")));
+}
+
+/// イシュー #907: 3 カラム骨格の DOM 出現順（左ナビ / 中央コンテンツ /
+/// 右目次）を固定する回帰テスト。設計文書 §3.1/§3.3 の「`nav.docs-toc` を
+/// `aside.docs-toc-aside` として `main.docs-main` の外（第 3 子）へ移設する」
+/// 変更に伴い、`docs-sidebar` < `docs-content` < `docs-toc-aside` の順で
+/// 出現することを検証する。
+#[test]
+fn docs_page_emits_three_columns_in_left_nav_center_content_right_toc_order() {
+    let body = fandhe_frontend_core::div(vec![], vec![h2(vec![], vec![text("導入")])]);
+    let node = docs_page("タイトル", "", sample_sidebar(), body);
+    let html = render(&node);
+
+    let sidebar_pos = html
+        .find(r#"class="docs-sidebar""#)
+        .expect("docs-sidebar should exist");
+    let content_pos = html
+        .find(r#"class="docs-content""#)
+        .expect("docs-content should exist");
+    let toc_aside_pos = html
+        .find(r#"class="docs-toc-aside""#)
+        .expect("docs-toc-aside should exist when headings are present");
+    let toc_nav_pos = html
+        .find(r#"class="docs-toc""#)
+        .expect("docs-toc nav should exist inside the toc aside");
+
+    assert!(
+        sidebar_pos < content_pos,
+        "left nav column should precede center content column"
+    );
+    assert!(
+        content_pos < toc_aside_pos,
+        "center content column should precede right toc column"
+    );
+    assert!(
+        toc_aside_pos < toc_nav_pos,
+        "nav.docs-toc should be nested inside aside.docs-toc-aside"
+    );
 }
 
 #[test]

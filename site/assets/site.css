@@ -19,8 +19,9 @@
  *
  *   body
  *     header.docs-header            … ヘッダバー（サイトタイトルへのリンク）
- *     div.docs-container            … 2 カラムのグリッドコンテナ（header の下）
- *       aside.docs-sidebar          … サイドバーのラッパー（`layout::docs_page`
+ *     div.docs-container            … 3 カラムのグリッドコンテナ（header の下、
+ *       イシュー #907・`docs/design/docs-site-three-column-redesign.md` §3.1）
+ *       aside.docs-sidebar          … 左ナビカラムのラッパー（`layout::docs_page`
  *         が `nav::sidebar()`（`crates/docs-site/src/nav.rs`）の戻り値を
  *         そのまま内側に配置する契約）
  *         nav.sidebar               … `nav::sidebar()` の実出力（headless
@@ -29,15 +30,18 @@
  *           付与されない。`role` も付与しない、
  *           `docs/design/docs-site-styled-ui-adoption.md` §3.1 参照）
  *           a[aria-current="page"] … 現在ページのリンク
- *       main.docs-main              … 本文カラムのラッパー
- *         nav.docs-toc（任意・先頭）… ページ内目次。`li` に
- *           `docs-toc-level-2` / `docs-toc-level-3` でネスト深さを表現する
+ *       main.docs-main              … 中央コンテンツカラムのラッパー
  *         article.docs-content      … Markdown レンダラの出力 + ページ内
  *           `nav.prev-next`（`div.prev` / `div.next`。headless
  *           `link_overlay` のカード、イシュー #756、§3.2 参照。実際の
  *           アンカーは内側の `[data-part="overlay"]`）を内包する
  *           - `pre > code.language-*` … フェンス付きコードブロック
  *             （言語トークンが無効な場合 class 自体が付かない）
+ *       aside.docs-toc-aside（任意・見出しが存在するページのみ）
+ *         … 右目次カラムのラッパー（イシュー #907 で `main.docs-main` の
+ *           外へ移設。見出しの無いページでは要素自体が出力されない）
+ *         nav.docs-toc               … ページ内目次。`li` に
+ *           `docs-toc-level-2` / `docs-toc-level-3` でネスト深さを表現する
  *
  * 不変条件:
  *   - @import / @font-face / リモート url() を追加しない（外部参照ゼロを維持する）
@@ -72,6 +76,12 @@
   --docs-sidebar-width: 16rem;
   --docs-max-content-width: 46rem;
   --docs-header-height: 3.25rem;
+  /*
+   * 右目次カラム（`aside.docs-toc-aside`）の列幅。3 カラム表示になる
+   * `min-width: 1200px` 以上でのみ参照される（イシュー #907）。sticky 追従・
+   * 視覚スタイルの仕上げは #909 スコープのため、ここでは列幅のみ定義する。
+   */
+  --docs-toc-width: 14rem;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -131,31 +141,43 @@ body {
   text-decoration: none;
 }
 
-/* ---- 2 カラムレイアウト ---- */
+/*
+ * ---- 3 カラムレイアウト（イシュー #907、mobile-first） ----
+ *
+ * 基底（< 768px）は 1 カラム縦積み。`min-width: 768px` で左ナビ + 中央
+ * コンテンツの 2 カラム grid、`min-width: 1200px` で右目次カラムを加えた
+ * 3 カラム grid になる（設計文書 §3.2）。右目次カラムの sticky 追従・
+ * 視覚スタイルの仕上げは #909、左ナビの折りたたみトグル UI の確定・
+ * pre-styled-ui スタイル適用は #910 のスコープであり、ここでは骨格の
+ * 表示制御と最小限のレイアウト指定に留める。
+ */
 
 .docs-container {
-  display: grid;
-  grid-template-columns: var(--docs-sidebar-width) minmax(0, 1fr);
-  align-items: start;
+  display: block;
   max-width: 72rem;
   margin: 0 auto;
 }
 
-/* ---- サイドバー ---- */
+/* ---- サイドバー（左ナビ） ---- */
 
 .docs-sidebar {
   /*
-   * `.docs-header` が sticky top: 0 で常時可視のため、`.docs-sidebar` は
-   * ヘッダー分オフセットして常時可視のヘッダー直下に張り付く。
+   * 基底（< 768px）は本文の前に縦積みし、`max-height` で 1 行程度に
+   * 折りたたむ（JS 不要。`:focus-within` でキーボード操作時に展開する
+   * CSS のみの基本折りたたみ。トグル UI の確定は #910 に委ねる）。
    */
-  position: sticky;
-  top: var(--docs-header-height);
-  align-self: start;
-  max-height: calc(100vh - var(--docs-header-height));
-  overflow-y: auto;
-  padding: 1.75rem 1rem 2rem;
-  border-right: 1px solid var(--docs-color-border);
+  max-height: 2.75rem;
+  overflow: hidden;
+  width: 100%;
+  padding: 1rem;
+  border-right: none;
+  border-bottom: 1px solid var(--docs-color-border);
   font-size: 0.875rem;
+}
+
+.docs-sidebar:focus-within {
+  max-height: none;
+  overflow: visible;
 }
 
 .docs-sidebar nav.sidebar {
@@ -222,7 +244,7 @@ body {
 
 .docs-main {
   min-width: 0;
-  padding: 2.25rem 2rem 5rem;
+  padding: 1.5rem 1.1rem 3rem;
 }
 
 .docs-content {
@@ -370,6 +392,17 @@ body {
   padding-left: 1rem;
 }
 
+/* ---- 右目次カラム（`aside.docs-toc-aside`。イシュー #907） ---- */
+
+/*
+ * 基底・768px 帯域（2 カラム）では非表示。狭幅では「右目次 → 左ナビ」の
+ * 順に畳む要件どおり、目次カラムのみを先に隠す。1200px 以上で表示に切り替える
+ * （`@media (min-width: 1200px)` 側、下記）。sticky 追従・視覚仕上げは #909。
+ */
+.docs-toc-aside {
+  display: none;
+}
+
 /* ---- 前後ページナビ（本文末尾、カード風） ---- */
 
 /*
@@ -385,6 +418,8 @@ body {
  */
 nav.prev-next {
   display: flex;
+  /* 基底（< 768px）は縦積み。`min-width: 768px` で横並びに切り替える。 */
+  flex-direction: column;
   gap: 0.75rem;
   margin: 2.5rem 0 0;
   max-width: var(--docs-max-content-width);
@@ -418,35 +453,71 @@ nav.prev-next .prev [data-part="overlay"] {
   text-align: left;
 }
 
+/*
+ * 基底（< 768px、縦積み）では `.prev` と同じ左揃え。`min-width: 768px` で
+ * 横並びに切り替わった際に右揃えへ変える（下記 `@media` ブロック参照）。
+ */
 nav.prev-next .next [data-part="overlay"] {
-  text-align: right;
+  text-align: left;
 }
 
-/* ---- モバイル対応: 768px 以下で 1 カラムに畳む ---- */
-
-@media (max-width: 768px) {
+/*
+ * ---- `min-width: 768px`: 左ナビ + 中央コンテンツの 2 カラム grid ----
+ *
+ * 右目次カラム（`.docs-toc-aside`）はこの帯域ではまだ非表示のまま
+ * （狭幅では「右目次 → 左ナビ」の順に畳む要件、設計文書 §3.2）。
+ */
+@media (min-width: 768px) {
   .docs-container {
-    display: block;
+    display: grid;
+    grid-template-columns: var(--docs-sidebar-width) minmax(0, 1fr);
+    align-items: start;
   }
 
   .docs-sidebar {
-    position: static;
-    max-height: none;
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid var(--docs-color-border);
-    padding: 1rem;
+    /*
+     * `.docs-header` が sticky top: 0 で常時可視のため、`.docs-sidebar` は
+     * ヘッダー分オフセットして常時可視のヘッダー直下に張り付く。
+     */
+    position: sticky;
+    top: var(--docs-header-height);
+    align-self: start;
+    max-height: calc(100vh - var(--docs-header-height));
+    overflow-y: auto;
+    width: auto;
+    padding: 1.75rem 1rem 2rem;
+    border-right: 1px solid var(--docs-color-border);
+    border-bottom: none;
   }
 
   .docs-main {
-    padding: 1.5rem 1.1rem 3rem;
+    padding: 2.25rem 2rem 5rem;
   }
 
   nav.prev-next {
-    flex-direction: column;
+    flex-direction: row;
   }
 
   nav.prev-next .next [data-part="overlay"] {
-    text-align: left;
+    text-align: right;
+  }
+}
+
+/*
+ * ---- `min-width: 1200px`: 左ナビ + 中央コンテンツ + 右目次の 3 カラム grid ----
+ *
+ * `.docs-toc-aside` をこの帯域から表示に切り替える。列としての表示制御と
+ * 最小限の幅指定に留め、sticky 追従・視覚スタイルの仕上げは #909 に委ねる。
+ */
+@media (min-width: 1200px) {
+  .docs-container {
+    grid-template-columns:
+      var(--docs-sidebar-width) minmax(0, 1fr) var(--docs-toc-width);
+  }
+
+  .docs-toc-aside {
+    display: block;
+    min-width: 0;
+    padding: 1.75rem 1rem 2rem;
   }
 }

@@ -1,10 +1,19 @@
-//! docs サイトの Linear Developers 風 2 カラムページ骨格。
+//! docs サイトの 3 カラムページ骨格（左ナビ / 中央コンテンツ / 右目次）。
 //!
 //! タイトル・サイドバー・本文の各 [`Node`] から、DOCTYPE を除いた完全な
 //! HTML 文書 `Node`（`<html>` 要素）を組み立てる。生成した `Node` は
 //! `fandhe_frontend_server::ssg::generate_pages()`（`crates/server/src/ssg.rs`）が
 //! `<!DOCTYPE html>` を前置して書き出す契約であり、本モジュールは
 //! DOCTYPE を出力しない（後続イシュー #470 がビルドエントリで接続する）。
+//!
+//! 骨格は `docs/design/docs-site-three-column-redesign.md` §3.1 の DOM/class
+//! 契約に従い、`div.docs-container` 配下に `aside.docs-sidebar`（左ナビ）・
+//! `main.docs-main`（中央コンテンツ、`article.docs-content` を内包）・
+//! 見出しが存在するページのみ第 3 子として出現する `aside.docs-toc-aside`
+//! （右目次、内側に `nav.docs-toc` をそのまま配置）の最大 3 カラムを出力する
+//! （イシュー #907）。breakpoint による表示制御（狭幅で目次列→ナビ列の順に
+//! 畳む）は構造 CSS（`site/assets/site.css`）側の責務であり、本モジュールは
+//! DOM 順・class 名の契約のみを担う。
 //!
 //! `fandhe_frontend_app::page_shell` との差分: `page_shell` は
 //! `/static/style.css` と `hydrate.js` をハードコードした `String` を返す
@@ -370,27 +379,18 @@ pub fn docs_page_with_assets(
     ));
     let head = el("head", vec![], head_children);
 
-    // 「on this page」目次は本文の前（`main` 内の先頭）に置く。読者が本文を
-    // 読み始める前に目次へ気付けるようにするための並び順であり、
-    // `site/assets/site.css` はこの `.docs-content` 前という位置関係を
-    // 前提にスタイルしていない（`.docs-toc` 単体で完結する見た目にしている
-    // ため、並び順を変えてもレイアウトは崩れない）。
+    // 「on this page」目次は 3 カラム骨格化（イシュー #907、設計文書
+    // §3.1/§3.3）に伴い `main.docs-main` の外へ移設し、右目次カラム
+    // （`aside.docs-toc-aside`）として `div.docs-container` の第 3 子に置く。
+    // `main_children` は SkipNav ターゲットと本文のみを保持する。
     // SkipNav のスキップ先ターゲット（イシュー #776）。読者が実際に読み始める
-    // 本文（TOC・article）の直前に置き、`link` クリック時のプログラム的
-    // フォーカス移動先とする（`fandhe-frontend-headless-ui::skip_nav` の
+    // 本文（article）の直前に置き、`link` クリック時のプログラム的フォーカス
+    // 移動先とする（`fandhe-frontend-headless-ui::skip_nav` の
     // `tabindex="-1"` 契約参照）。
-    let mut main_children = vec![ps_skip_nav::content(
-        ps_skip_nav::DEFAULT_ID,
-        vec![],
-        vec![],
-    )];
-    if let Some(toc_node) = toc {
-        main_children.push(toc_node);
-    }
-    main_children.push(article(
-        vec![("class", "docs-content")],
-        vec![annotated_body],
-    ));
+    let main_children = vec![
+        ps_skip_nav::content(ps_skip_nav::DEFAULT_ID, vec![], vec![]),
+        article(vec![("class", "docs-content")], vec![annotated_body]),
+    ];
 
     let root_href = asset_href(base_path, "");
     let header_node = header(
@@ -409,19 +409,25 @@ pub fn docs_page_with_assets(
         vec![text("Skip to content")],
     );
 
+    // `div.docs-container` の子は「左ナビ / 中央コンテンツ / 右目次」の
+    // 3 カラム順（設計文書 §3.1）。右目次カラムは見出しが 1 つも無いページ
+    // では出力しない（`aside.docs-toc-aside` 自体を省略する。§3.3 の方針。
+    // `nav.docs-toc` 単体で空 `nav` を出さない [`toc_nav`] の既存契約と揃える）。
+    let mut container_children = vec![
+        aside(vec![("class", "docs-sidebar")], vec![sidebar]),
+        main_tag(vec![("class", "docs-main")], main_children),
+    ];
+    if let Some(toc_node) = toc {
+        container_children.push(aside(vec![("class", "docs-toc-aside")], vec![toc_node]));
+    }
+
     let body_node = el(
         "body",
         vec![],
         vec![
             skip_nav_link,
             header_node,
-            div(
-                vec![("class", "docs-container")],
-                vec![
-                    aside(vec![("class", "docs-sidebar")], vec![sidebar]),
-                    main_tag(vec![("class", "docs-main")], main_children),
-                ],
-            ),
+            div(vec![("class", "docs-container")], container_children),
         ],
     );
 
