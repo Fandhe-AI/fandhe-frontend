@@ -100,6 +100,32 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | JsonTreeView | `json_tree_view` | Key/Value（`tree_view` の Root/Label/Tree/Branch/BranchControl/BranchIndicator/BranchContent/BranchIndentGuide/Item/ItemIndicator を構造部として再利用） | `tree_view::TreeView`（#753）をそのまま再利用（新規状態機械なし）。決定的な JSON 風データ構造 `JsonValue`（外部依存ゼロの自前 enum、`Object` は挿入順保持の `Vec` ペア列）をツリー表示する。ノード識別子（`data-value`）は RFC 6901 JSON Pointer で決定的に導出し、`value` パーツの `data-kind`（`"null"`/`"bool"`/`"number"`/`"string"`/`"array"`/`"object"`）は `JsonValue::kind` の固定語彙のみを出力する。`expanded_to_depth` は ark-ui `defaultExpandedDepth` 相当の決定的初期展開ヘルパ | #829（`tree_view` #753 の派生、`docs/policy/intentional-non-adoption.md` §7 の保留解除） |
 | DateInput | `date_input` | Root/Label/Control/SegmentGroup/Segment/HiddenInput | 独自実装（年/月/日セグメント + フォーカス位置を持つ値状態機械。`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。暦計算は `date`（#833）の `PlainDate::new`/`parse_iso`/`days_in_month` へ委譲し、本モジュール自体は現在時刻を取得しない。各 `segment` は `role="spinbutton"` + `aria-valuemin/max/now`（未入力時は valuenow 省略 + `data-placeholder`）+ `aria-label`（"Year"/"Month"/"Day"）を出力する WAI-ARIA Spinbutton パターン準拠。3 セグメント充足時のみ `PlainDate::new` で実在日付として検証し（`2/30` 等は `value()` が `None` を返す fail-closed 契約。セグメント値自体は破棄せず `data-invalid` で可視化する）、hydration も同じ契約（構造的範囲外・パース不能のみ拒否、実在しない日付はそのまま受理）。`date_input::segment_group` は `segment_group`（segmented control、#743）とは無関係の別 anatomy スコープ。granularity（hour/minute/second）・range 選択・locale 依存整形・キーボード操作の DOM 配線は wasm-full 後続イシューのスコープ外 | #834（`date` #833 を先行前提として利用、`docs/policy/intentional-non-adoption.md` §7・`docs/design/component-coverage-map.md` の date-time 系「保留」を DateInput 分のみ解除） |
 
+## 4a0. 色変換コア（`color`、イシュー #838、親 #837）
+
+`color` モジュールは anatomy を持たない純粋関数モジュールであり、上表の
+UI コンポーネント群とは性質が異なる（ブラウザ API 依存なし・wasm 境界隔離の
+対象外）。RGB / HSL / HSV / HEX の相互変換を、外部依存ゼロ・整数演算のみで
+提供する。`fandhe-frontend-pre-styled-ui::color_swatch`（ColorSwatch、#838）
+と後続の ColorPicker（#837 配下の別イシュー）が本モジュールの型・変換関数を
+土台にする。
+
+- **型**: `Rgb { r, g, b }`（全フィールド公開、`u8` 全域が有効値）/
+  `Hsl`・`Hsv`（`h: u16`（`0..=359`）・`s`/`l`/`v: u8`（`0..=100`）、フィールド
+  非公開・`new()` の fallible コンストラクタのみ公開）/ `Color`（RGBA
+  canonical 表現、`from_rgb`/`from_rgba`/`parse_hex`/`to_hex_string`）/
+  `ColorError`（`OutOfRange`/`InvalidHex`、`Display` は静的文言のみ）。
+- **変換関数**: `Rgb::to_hsl`/`Rgb::to_hsv`（順方向）・`Hsl::to_rgb`/
+  `Hsv::to_rgb`（逆方向）。すべて `f32`/`f64` を使わず `i64` スケール整数
+  演算で完結する。
+- **丸め規則**: 正の有理数の丸めは round half up（`(2*num + den) / (2*den)`）
+  で固定する。無彩色（`max == min`）は `s = 0, h = 0` と定義する。詳細は
+  `crates/headless-ui/src/color.rs` モジュール doc 冒頭「丸め規則」参照。
+- **fail-closed 契約**: `Color::parse_hex` は `#rgb`/`#rgba`/`#rrggbb`/
+  `#rrggbbaa` の 4 形式以外をすべて `Err(ColorError::InvalidHex)` にする
+  （黙って補正しない）。`Hsl::new`/`Hsv::new` は範囲外を構築不能にする。
+  `Color::to_hex_string()` の出力字母は常に `#` + 小文字 16 進数字に閉じる
+  （ColorSwatch が CSS カスタムプロパティ値としてそのまま使う契約の根拠）。
+
 ## 4a. 位置決め（anchor positioning、イシュー #590、親 #588）
 
 Popover/Tooltip/Menu/Select の `positioner`/`arrow`/`arrow_tip` は「CSS フック

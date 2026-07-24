@@ -458,6 +458,15 @@
 //!   重複する装飾要素のため `aria-hidden="true"` を固定付与する。JS による
 //!   スクロール位置追従・thumb drag は本イシューのスコープ外（モジュール doc
 //!   参照）。
+//! - [`mod@color`]: RGB / HSL / HSV / HEX の相互変換を提供する外部依存ゼロ・
+//!   整数演算のみの純粋関数モジュール（イシュー #838、`docs/design/
+//!   component-coverage-map.md` の ColorSwatch 保留解除）。[`qr_encode`]
+//!   （#774）と同型の「標準ライブラリのみで完結する決定的アルゴリズム
+//!   モジュール」であり、ブラウザ API 依存がなく wasm 境界隔離の対象外
+//!   （純粋計算のみ）。`fandhe-frontend-pre-styled-ui::color_swatch`
+//!   （ColorSwatch、#838）と後続の ColorPicker（#837 配下）が本モジュールの
+//!   型・変換関数を土台にする。anatomy を持たない（headless 列は
+//!   coverage-map 上も「—」）。
 //! - [`mod@date`]: 決定的な暦計算コア（proleptic Gregorian・date-only、
 //!   イシュー #833、親トラッキング #832）。[`date::PlainDate`]（年月日）・
 //!   [`date::Weekday`]・[`date::month_grid`] を提供し、現在時刻を一切取得
@@ -492,6 +501,7 @@ pub mod carousel;
 pub mod checkbox;
 pub mod clipboard;
 pub mod collapsible;
+pub mod color;
 pub mod combobox;
 pub mod data_attrs;
 pub mod date;
@@ -575,6 +585,7 @@ pub use breadcrumb::{breadcrumb, BreadcrumbItem};
 pub use carousel::{Carousel, CarouselAction};
 pub use checkbox::{Checkbox, CheckboxFlags};
 pub use clipboard::{Clipboard, ClipboardAction};
+pub use color::{Color, ColorError, Hsl, Hsv, Rgb};
 pub use combobox::{Combobox, ComboboxAction};
 pub use data_attrs::{
     data_checked, data_complete, data_copied, data_current, data_disabled, data_highlighted,
