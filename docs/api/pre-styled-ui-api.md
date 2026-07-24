@@ -45,8 +45,9 @@ ActionBar styled ラッパー追加（#762）・Toast styled ラッパー追加
 静的部品追加（#767）・FloatingPanel styled ラッパー追加（#827）・
 ScrollArea headless ラッパー追加（#825）・DownloadTrigger headless
 ラッパー追加（#828）・Splitter styled ラッパー追加（#826、
-`docs/policy/intentional-non-adoption.md` §7 の保留解除。いずれも公開時点
-未反映）を経て 79 の公開モジュールを持つ。内訳は次の通り。
+`docs/policy/intentional-non-adoption.md` §7 の保留解除）・JsonTreeView
+styled ラッパー追加（#829、`tree_view` #753 の派生。いずれも公開時点
+未反映）を経て 80 の公開モジュールを持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -82,6 +83,7 @@ ScrollArea headless ラッパー追加（#825）・DownloadTrigger headless
 | カード型選択 UI（styled バリエーション） | `checkbox_card` / `radio_card` | #747（§4g 参照。headless-ui は変更なし、pre-styled 層で新規 anatomy `checkbox-card`/`radio-card` を定義。状態機械は headless `Checkbox`/`RadioGroup` を再利用） |
 | headless ラッパー | `combobox` | #749（`select` と同型の `size` variant のみ・`color-palette` 軸は非提供。状態機械は `state::Disclosure` + `state::SingleSelect` + `state::TextInput` の合成。フォーカスは `input` が保持するため `:focus-visible` を `input` へ、`:focus-within` を `control` へ登録する） |
 | headless ラッパー | `tree_view` | #753（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。branch のインデントは CSS custom property（`--fandhe-tree-view-indent`）で表現し、DOM ネストにより深さ分が自然に累積する） |
+| headless ラッパー（`tree_view` の派生） | `json_tree_view` | #829（`tree_view` #753 の派生。構造部は `tree_view` の既存 recipe をそのまま再利用し、JSON 固有の `key`/`value`（`data-scope="json-tree-view"`）2 パーツのみを追加する。`value` の `data-kind` へ型別配色（`string`/`number`/`bool`/`null` の 4 種、`object`/`array` は既定色のまま）を適用。`tree_view` と同型の判断で `size`/`color-palette` のいずれも非提供） |
 | headless ラッパー | `pagination` | #751（`size`/`color-palette` 両軸提供。headless-ui 側の保留解除は #716 → #751） |
 | headless ラッパー | `steps` | #752（`size`/`color-palette` 両軸。`fandhe_frontend_headless_ui::steps` が自由関数を持たず全パーツが `Steps` の inherent メソッドのため、本モジュールの全パーツ関数が `state: &Steps` を受け取る点が他コンポーネントと異なる。`docs/api/headless-ui-api.md` §4b.3 の Steps 保留解除） |
 | headless ラッパー | `breadcrumb` | #755（`docs/api/headless-ui-api.md` §4b の追加候補消化。状態機械なし。`size`/`BreadcrumbVariant`（`link` の下線表示切り替え）の 2 軸 variant を root のみへ付与し、`link` への伝搬は root スコープ CSS custom property の継承で行う） |
@@ -484,6 +486,7 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | steps | ✓ | ✓ | 実装済み（#752、indicator の寸法・current/complete の強調色に反映） |
 | popover / tooltip | 提供しない | 提供しない | 方針確定 |
 | tree-view | 提供しない | 提供しない | 実装済み（#753、popover/tooltip と同型の判断） |
+| json-tree-view | 提供しない | 提供しない | 実装済み（#829、tree-view の派生。tree-view と同型の判断） |
 | toggle-tip | 提供しない | 提供しない | 実装済み（#761、popover/tooltip と同型の判断） |
 | breadcrumb | ✓ | – (`BreadcrumbVariant`: `link` の下線表示切り替え) | 実装済み（#755。アクセント色による選択・チェック状態を示す部品ではないため color-palette は非提供） |
 | drawer | ✓ | – | 実装済み（#758。dialog と同じく選択・チェック状態を示す部品ではないため color-palette は非提供。root scope の CSS custom property は `--fandhe-drawer-size`。placement（`start`/`end`/`top`/`bottom`）は variant 軸ではなく headless 層が出力する `data-placement` に連動する CSS で表現する） |

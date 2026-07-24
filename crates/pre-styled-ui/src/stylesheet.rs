@@ -296,6 +296,7 @@ mod tests {
             ("segment_group", crate::segment_group::stylesheet()),
             ("steps", crate::steps::stylesheet()),
             ("tree_view", crate::tree_view::stylesheet()),
+            ("json_tree_view", crate::json_tree_view::stylesheet()),
             ("pagination", crate::pagination::stylesheet()),
             ("breadcrumb", crate::breadcrumb::stylesheet()),
             ("carousel", crate::carousel::stylesheet()),

@@ -443,6 +443,13 @@
 //!   最優先候補）。`docs/design/docs-site-styled-ui-adoption.md` §3.1 が
 //!   指摘した「`menu` ロールの文書ナビへの誤転用」を解消するため、**`role`
 //!   を一切付与しない**（モジュール doc 参照）。
+//! - [`mod@json_tree_view`]: JSON 風データ構造 [`json_tree_view::JsonValue`]
+//!   （外部依存ゼロの自前 enum）をツリー表示する（イシュー #829、[`mod@tree_view`]
+//!   （#753）の派生）。構造部は [`mod@tree_view`] の既存パーツ関数・
+//!   [`tree_view::TreeView`] 状態機械をそのまま再利用し、JSON 固有の `key`/
+//!   `value`（`data-scope="json-tree-view"`）の 2 パーツのみを追加する。
+//!   ノード識別子は RFC 6901 JSON Pointer で決定的に導出する
+//!   （[`json_tree_view::render_json`] モジュール doc 参照）。
 //! - [`mod@scroll_area`]: Root / Viewport / Content / Scrollbar / Thumb /
 //!   Corner の 6 anatomy パーツ（イシュー #825、`docs/design/component-coverage-map.md`
 //!   保留解除）。[`mod@breadcrumb`]/[`mod@nav_list`] と同じく状態機械を持たない
@@ -475,6 +482,7 @@ pub mod field;
 pub mod fieldset;
 pub mod floating_panel;
 pub mod hover_card;
+pub mod json_tree_view;
 pub mod link;
 pub mod link_overlay;
 pub mod listbox;

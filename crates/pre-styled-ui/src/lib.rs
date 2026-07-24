@@ -312,6 +312,15 @@
 //!   実フォーカスを受けるため [`recipe::StateCondition::FocusVisible`] で
 //!   足りる（`slider`/`toggle` と同型）。詳細は [`mod@splitter`] rustdoc
 //!   参照。
+//! - headless ラッパー（イシュー #829）: [`mod@json_tree_view`]（JsonTreeView、
+//!   JSON 風データ構造 [`json_tree_view::JsonValue`] のツリー表示。[`mod@tree_view`]
+//!   （#753）の派生であり、構造部は tree_view の既存パーツ関数・styled recipe
+//!   をそのまま再利用する）。JSON 固有の `key`/`value`（`data-scope="json-tree-view"`）
+//!   の 2 パーツのみを新設し、`value` の `data-kind` へ型別配色（`string`/
+//!   `number`/`bool`/`null` の 4 種、`object`/`array` は既定色のまま）を
+//!   [`recipe::StateCondition::AttrEq`] で反応させる。[`mod@tree_view`] と同型の
+//!   判断で `size`/`color-palette` のいずれの variant も提供しない。詳細は
+//!   [`mod@json_tree_view`] rustdoc 参照。
 //! - headless ラッパー（イシュー #825、保留解除）: [`mod@scroll_area`]
 //!   （ScrollArea、Root/Viewport/Content/Scrollbar/Thumb/Corner の 6 anatomy
 //!   パーツを再エクスポート）。`viewport` へ `overflow: auto` +
@@ -477,6 +486,7 @@ pub mod hover_card;
 pub mod icon;
 pub mod image;
 pub mod input;
+pub mod json_tree_view;
 pub mod kbd;
 pub mod link;
 pub mod link_overlay;
