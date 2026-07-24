@@ -56,6 +56,7 @@ use fandhe_frontend_pre_styled_ui::carousel;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::code::code;
+use fandhe_frontend_pre_styled_ui::color_picker;
 use fandhe_frontend_pre_styled_ui::color_swatch::{
     self, Color, ColorSwatchProps, Rgb, SwatchShape,
 };
@@ -69,6 +70,7 @@ use fandhe_frontend_pre_styled_ui::editable::{
 use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::color_picker::ColorPicker;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::{PanelSpec, Splitter};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
@@ -294,6 +296,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::kbd::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::code::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::color_swatch::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::color_picker::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::image::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::icon::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::status::css())?;
@@ -4068,6 +4071,70 @@ fn color_swatch_section() -> Node {
     )
 }
 
+/// ColorPicker 節（イシュー #839）: 開いた状態を固定して掲示する（本モジュール
+/// 冒頭「インタラクティブ部品の扱い」参照）。Area（彩度・明度の 2 次元
+/// グラデーション）・色相/アルファスライダー・HEX 入力を静的 SSR マークアップ
+/// として表示する。canvas は使わず、すべて CSS グラデーション + 検証済み
+/// 整数割合（`state.area_x_percent()` 等）の custom property のみで組み立てる
+/// （`fandhe_frontend_pre_styled_ui::color_picker` モジュール doc「canvas
+/// 非依存」参照）。
+fn color_picker_section() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::color_picker::Channel;
+
+    let state = ColorPicker::from_color(Color::from_rgba(Rgb::new(0x3b, 0x82, 0xf6), 0xcc));
+    let demo = row(vec![color_picker::content(
+        state.state(),
+        None,
+        vec![],
+        vec![
+            color_picker::area(
+                &state,
+                vec![],
+                vec![
+                    color_picker::area_background(&state, vec![], vec![]),
+                    color_picker::area_thumb(&state, false, vec![], vec![]),
+                ],
+            ),
+            color_picker::channel_slider(
+                Channel::Hue,
+                &state,
+                vec![],
+                vec![
+                    color_picker::channel_slider_track(Channel::Hue, &state, vec![], vec![]),
+                    color_picker::channel_slider_thumb(Channel::Hue, &state, false, vec![], vec![]),
+                ],
+            ),
+            color_picker::channel_slider(
+                Channel::Alpha,
+                &state,
+                vec![],
+                vec![
+                    color_picker::channel_slider_track(Channel::Alpha, &state, vec![], vec![]),
+                    color_picker::channel_slider_thumb(
+                        Channel::Alpha,
+                        &state,
+                        false,
+                        vec![],
+                        vec![],
+                    ),
+                ],
+            ),
+            color_picker::control(
+                vec![],
+                vec![
+                    color_picker::channel_input(state.hex().as_str(), false, vec![]),
+                    color_picker::value_text(vec![], vec![text(state.hex())]),
+                ],
+            ),
+        ],
+    )]);
+    section(
+        "ColorPicker",
+        "HSV 色相環 + アルファ選択の静的表示です（canvas 非依存、CSS グラデーション + 検証済み割合のみで構成）。ポインタ操作の実配線は wasm 層の後続対応です。",
+        vec![demo],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -4138,6 +4205,7 @@ fn showcase_body() -> Node {
             kbd_section(),
             code_section(),
             color_swatch_section(),
+            color_picker_section(),
             status_section(),
             empty_state_section(),
             visually_hidden_section(),

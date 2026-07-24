@@ -492,6 +492,7 @@ pub mod checkbox_card;
 mod class_attr;
 pub mod clipboard;
 pub mod code;
+pub mod color_picker;
 pub mod color_swatch;
 pub mod combobox;
 pub mod css;

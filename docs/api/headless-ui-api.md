@@ -98,6 +98,7 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | DownloadTrigger | `download_trigger` | Root | なし（自由関数のみ。`a[download]` 属性による宣言的ダウンロードトリガー（ark-ui/chakra-ui の `Blob`/非同期 `data` 前提の DownloadTrigger を静的部品として代替）。`href` の URL スキーム検証は `render()` 側の既定経路（`data:`/`blob:` を含め deny-by-default）に委譲し、独自検証を追加しない） | #828 |
 | Splitter | `splitter` | Root/Panel/ResizeTrigger/ResizeTriggerIndicator | 独自実装（各パネルの `size`/`min`/`max`（%）を fail-closed に正規化するパネルサイズ状態機械。`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`resize-trigger` は `role="separator"` + `aria-valuemin/max/now`（先行パネルのサイズ%）+ `aria-orientation`（セパレータ自体の向き、パネルレイアウトの向きとは逆）+ `aria-controls`（先行パネル id）を出力する WAI-ARIA Window Splitter パターン準拠。pointer ドラッグ・キーボード操作の DOM 配線・collapse/expand は wasm-full 後続イシューのスコープ外） | #826（`docs/policy/intentional-non-adoption.md` §7・`docs/design/component-coverage-map.md` の保留を解除） |
 | JsonTreeView | `json_tree_view` | Key/Value（`tree_view` の Root/Label/Tree/Branch/BranchControl/BranchIndicator/BranchContent/BranchIndentGuide/Item/ItemIndicator を構造部として再利用） | `tree_view::TreeView`（#753）をそのまま再利用（新規状態機械なし）。決定的な JSON 風データ構造 `JsonValue`（外部依存ゼロの自前 enum、`Object` は挿入順保持の `Vec` ペア列）をツリー表示する。ノード識別子（`data-value`）は RFC 6901 JSON Pointer で決定的に導出し、`value` パーツの `data-kind`（`"null"`/`"bool"`/`"number"`/`"string"`/`"array"`/`"object"`）は `JsonValue::kind` の固定語彙のみを出力する。`expanded_to_depth` は ark-ui `defaultExpandedDepth` 相当の決定的初期展開ヘルパ | #829（`tree_view` #753 の派生、`docs/policy/intentional-non-adoption.md` §7 の保留解除） |
+| ColorPicker | `color_picker` | Root/Label/Control/Trigger/Positioner/Content/Area/AreaBackground/AreaThumb/ChannelSlider(+Track/+Thumb)/ChannelInput/ValueText/HiddenInput | `Hsv`（#838）+ `alpha: u8` + `state::Disclosure`（開閉）を埋め込んだ独自実装。色領域・色相/アルファスライダーの見た目は canvas 非依存（CSS グラデーション + `area_x_percent`/`area_y_percent`/`hue_percent`/`alpha_percent` の導出整数割合のみ）。dispatch は `"open"`/`"close"`/`"toggle"`/`"set_hex"`（`Color::parse_hex` 検証）/`"set_channel"`（payload `"<channel>:<value>"`、固定語彙 + 範囲検証）。EyeDropperTrigger・SwatchGroup 系・format 切替・pointer ドラッグの DOM 配線はスコープ外 | #839（親 #837、`docs/policy/intentional-non-adoption.md` §7 の保留解除） |
 
 ## 4a0. 色変換コア（`color`、イシュー #838、親 #837）
 
@@ -105,8 +106,8 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 UI コンポーネント群とは性質が異なる（ブラウザ API 依存なし・wasm 境界隔離の
 対象外）。RGB / HSL / HSV / HEX の相互変換を、外部依存ゼロ・整数演算のみで
 提供する。`fandhe-frontend-pre-styled-ui::color_swatch`（ColorSwatch、#838）
-と後続の ColorPicker（#837 配下の別イシュー）が本モジュールの型・変換関数を
-土台にする。
+と `color_picker`（ColorPicker、#839）が本モジュールの型・変換関数を土台に
+する。
 
 - **型**: `Rgb { r, g, b }`（全フィールド公開、`u8` 全域が有効値）/
   `Hsl`・`Hsv`（`h: u16`（`0..=359`）・`s`/`l`/`v: u8`（`0..=100`）、フィールド

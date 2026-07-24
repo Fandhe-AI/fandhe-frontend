@@ -29,11 +29,11 @@ use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::scroll_area;
 use fandhe_frontend_headless_ui::{
-    action_bar, aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog,
-    download_trigger, editable, floating_panel, hover_card, listbox, number_input, password_input,
-    pin_input, popover, rating_group, segment_group, slider, splitter, tags_input, toast,
-    tree_view, ImageStatus, OpenState, Orientation, PasswordAutocomplete, PasswordInputProps,
-    Steps, ToastStatus,
+    action_bar, aria_controls, aria_label, avatar, carousel, clipboard, color_picker, data_state,
+    dialog, download_trigger, editable, floating_panel, hover_card, listbox, number_input,
+    password_input, pin_input, popover, rating_group, segment_group, slider, splitter, tags_input,
+    toast, tree_view, ImageStatus, OpenState, Orientation, PasswordAutocomplete,
+    PasswordInputProps, Steps, ToastStatus,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -1258,5 +1258,61 @@ fn scroll_area_attrs_and_children_payloads_are_escaped_for_all_payloads() {
             &html,
             "scroll_area::content の children コンテキスト",
         );
+    }
+}
+
+/// (1)/(2) ColorPicker（イシュー #839）: `channel_input`/`hidden_input` の
+/// 属性値経路・`area_thumb` の `aria-valuetext` 属性値経路・`label` の
+/// テキスト経路へ全ペイロードを注入し、エスケープが貫通することを固定する。
+#[test]
+fn color_picker_attrs_valuetext_and_children_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let html = render(&color_picker::channel_input(payload, false, vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "color_picker::channel_input の value 属性値コンテキスト",
+        );
+
+        let html = render(&color_picker::hidden_input(
+            payload,
+            "#ffffff",
+            false,
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "color_picker::hidden_input の name 属性値コンテキスト",
+        );
+
+        let html = render(&color_picker::area_thumb(payload, false, vec![], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "color_picker::area_thumb の aria-valuetext 属性値コンテキスト",
+        );
+
+        let html = render(&color_picker::label(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "color_picker::label のテキストコンテキスト");
+    }
+}
+
+/// (3) ColorPicker: hydration 復元経路（`data-hydrate-h`）へ XSS payload を
+/// 渡しても復元に失敗し（`HydrateError`）、値がそのまま出力に混入しない
+/// ことを固定する（`slider`/`json_tree_view` の hydration payload 回帰と
+/// 同型）。
+#[test]
+fn color_picker_hydration_xss_payload_is_rejected_not_rendered() {
+    use fandhe_frontend_interactive::Hydrate;
+    for payload in payloads::all() {
+        let attrs = vec![
+            ("data-hydrate-h".to_string(), payload.to_string()),
+            ("data-hydrate-s".to_string(), "0".to_string()),
+            ("data-hydrate-v".to_string(), "0".to_string()),
+            ("data-hydrate-a".to_string(), "255".to_string()),
+            ("data-hydrate-state".to_string(), "closed".to_string()),
+        ];
+        assert!(color_picker::ColorPicker::from_hydration_attrs(&attrs).is_err());
     }
 }
