@@ -56,6 +56,9 @@ use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode};
+use fandhe_frontend_pre_styled_ui::password_input::{
+    self, PasswordAutocomplete, PasswordInputProps,
+};
 use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind};
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::radio_card;
@@ -621,6 +624,93 @@ fn number_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() 
             vec![],
         ));
         assert_payload_is_escaped(payload, &html, "number_input::input name コンテキスト");
+    }
+}
+
+#[test]
+fn password_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let field_props = PasswordInputProps {
+            id: "pw",
+            disabled: false,
+            invalid: false,
+            required: false,
+            autocomplete: PasswordAutocomplete::CurrentPassword,
+        };
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&password_input::root(
+            Size::Md,
+            ColorPalette::Accent,
+            false,
+            &field_props,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "password_input::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&password_input::root(
+            Size::Md,
+            ColorPalette::Accent,
+            false,
+            &field_props,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "password_input::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "password_input::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-password-input--"),
+            "password_input::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした label の children 経路。
+        let html = render(&password_input::label(
+            &field_props,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "password_input::label children コンテキスト",
+        );
+
+        // 選択的再エクスポートした id 由来の派生属性値経路（id そのものへの
+        // ペイロード注入、`for`/`aria-controls` へ伝播する）。
+        let id_props = PasswordInputProps {
+            id: payload,
+            disabled: false,
+            invalid: false,
+            required: false,
+            autocomplete: PasswordAutocomplete::CurrentPassword,
+        };
+        let html = render(&password_input::visibility_trigger(
+            false,
+            &id_props,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "password_input::visibility_trigger の aria-controls 属性値コンテキスト",
+        );
+        assert!(!html.contains("value="));
     }
 }
 

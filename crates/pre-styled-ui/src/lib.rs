@@ -131,6 +131,14 @@
 //!   フォーカスリングは [`mod@switch`] と同型で最初から実装する。`indicator`
 //!   の `hidden` 属性意味論を CSS が壊さない設計（`display` 宣言を置かない）
 //!   は [`mod@checkbox`] rustdoc 参照。
+//! - headless 状態機械を持つ複合部品の styled ラッパー第 6 弾（#740）:
+//!   [`mod@password_input`]。`data-state` 語彙が `"visible"/"hidden"`
+//!   （表示切替）である点、実フォーカスを受ける `input` が `control` の子孫
+//!   であるため hidden-input パターンではなく `:focus-within`
+//!   （[`recipe::StateCondition::FocusWithin`]）でフォーカスリングを伝播する
+//!   点は [`mod@password_input`] rustdoc 参照。パスワード値は一切扱わない
+//!   （`value` を出力する API を持たない、headless 層のセキュリティ不変条件
+//!   をそのまま継承）。
 //! - 状態機械を持たない静的フォーム部品 3 種（#737）:
 //!   [`mod@input`] / [`mod@textarea`] / [`mod@native_select`]。ブラウザ
 //!   ネイティブ挙動をそのまま尊重し、アクセシビリティ配線（`id`・ネイティブ
@@ -404,6 +412,7 @@ pub mod native_select;
 pub mod nav_list;
 pub mod number_input;
 pub mod pagination;
+pub mod password_input;
 pub mod pin_input;
 pub mod popover;
 pub mod progress;

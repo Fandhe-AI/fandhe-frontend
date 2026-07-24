@@ -315,6 +315,14 @@
 //!   の `positioner`/`arrow`/`arrow_tip` が「CSS フックのみ」だったスコープ
 //!   外事項を解消する。実 DOM 計測は `fandhe-frontend-wasm-full`（`position`
 //!   モジュール）の責務であり、本クレートは `web-sys` 非依存のまま維持する。
+//! - [`mod@password_input`]: Root / Label / Control / Input /
+//!   VisibilityTrigger / Indicator の 6 anatomy パーツと、表示切替
+//!   （`"visible"`/`"hidden"`）の [`password_input::PasswordInput`] 状態機械
+//!   （#740、親 #736）。[`mod@switch`]/[`mod@avatar`] と同じく、既存の
+//!   [`state::Checkable`]/[`state::Disclosure`] のいずれとも値語彙が一致
+//!   しないため [`state`] を埋め込まず個別実装する。**パスワード値そのもの
+//!   は一切扱わない**（`value` を出力する API を持たない。セキュリティ
+//!   不変条件はモジュール doc 参照）。
 //! - [`mod@toggle`]: ark-ui Toggle 相当の Root/Indicator anatomy と、
 //!   [`state::Checkable`] を埋め込んだ [`toggle::Toggle`] 状態機械
 //!   （イシュー #746）。Switch と同じ [`state::Checkable`] を再利用しつつ
@@ -388,6 +396,7 @@ pub mod menu;
 pub mod nav_list;
 pub mod number_input;
 pub mod pagination;
+pub mod password_input;
 pub mod pin_input;
 pub mod popover;
 pub mod positioning;
@@ -457,6 +466,9 @@ pub use hover_card::{HoverCard, HoverCardDelays};
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
 pub use number_input::{NumberInput, NumberInputAction, NumberInputFlags};
 pub use pagination::{ItemMode, PageEntry, Pagination, PaginationAction};
+pub use password_input::{
+    PasswordAutocomplete, PasswordInput, PasswordInputAction, PasswordInputProps,
+};
 pub use pin_input::{PinInput, PinInputAction, PinInputKind};
 pub use positioning::{
     compute_position, css_vars_style, data_align, data_side, placement_attrs, Align, ArrowPosition,

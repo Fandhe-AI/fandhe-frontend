@@ -24,20 +24,21 @@ rustdoc および各モジュール冒頭の rustdoc とする。本節はモジ
 本クレートは第 5 弾ツリー（#680）完了・crates.io v0.4.0 公開（#686）・
 checkbox styled ラッパー追加（#730）・静的フォーム部品 3 種追加（#737）・
 NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー追加
-（#739）・Slider styled ラッパー追加（#741）・RatingGroup styled ラッパー
-追加（#742）・SegmentGroup styled ラッパー追加（#743）・TagsInput styled
-ラッパー追加（#744）・Toggle/ToggleGroup styled ラッパー追加（#746）・
-CheckboxCard/RadioCard styled バリエーション追加（#747）・Combobox styled
-ラッパー追加（#749）・Pagination styled ラッパー追加（#751）・Breadcrumb
-styled ラッパー追加（#755）・Carousel styled ラッパー追加（#754）・Drawer
-styled ラッパー追加（#758）・Link/LinkOverlay/NavList styled ラッパー追加
-（#756）・HoverCard styled ラッパー追加（#759）・ToggleTip styled ラッパー
-追加（#761）・Progress circular 対応追加（#763）・Skeleton 静的部品追加
-（#764）・Image/Icon 静的部品追加（#770）・Status/EmptyState 静的部品追加
-（#765）・タイポグラフィ静的部品 6 種追加（#771）・Separator 静的部品追加
-（#772）・Highlight 静的部品追加（#775）・Clipboard headless ラッパー追加
-（#773）・QrCode styled ラッパー追加（#774）・VisuallyHidden/SkipNav 静的
-部品追加（#776、いずれも公開時点未反映）を経て 62 の公開モジュールを持つ。
+（#739）・PasswordInput styled ラッパー追加（#740）・Slider styled ラッパー
+追加（#741）・RatingGroup styled ラッパー追加（#742）・SegmentGroup styled
+ラッパー追加（#743）・TagsInput styled ラッパー追加（#744）・
+Toggle/ToggleGroup styled ラッパー追加（#746）・CheckboxCard/RadioCard
+styled バリエーション追加（#747）・Combobox styled ラッパー追加（#749）・
+Pagination styled ラッパー追加（#751）・Breadcrumb styled ラッパー追加
+（#755）・Carousel styled ラッパー追加（#754）・Drawer styled ラッパー追加
+（#758）・Link/LinkOverlay/NavList styled ラッパー追加（#756）・HoverCard
+styled ラッパー追加（#759）・ToggleTip styled ラッパー追加（#761）・
+Progress circular 対応追加（#763）・Skeleton 静的部品追加（#764）・
+Image/Icon 静的部品追加（#770）・Status/EmptyState 静的部品追加（#765）・
+タイポグラフィ静的部品 6 種追加（#771）・Separator 静的部品追加（#772）・
+Highlight 静的部品追加（#775）・Clipboard headless ラッパー追加（#773）・
+QrCode styled ラッパー追加（#774）・VisuallyHidden/SkipNav 静的部品追加
+（#776、いずれも公開時点未反映）を経て 63 の公開モジュールを持つ。
 内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
@@ -63,8 +64,9 @@ styled ラッパー追加（#758）・Link/LinkOverlay/NavList styled ラッパ�
 | 静的フォーム部品 | `input` / `textarea` / `native_select` | #737（§4f 参照） |
 | headless ラッパー第 6 弾 | `number_input` | #738（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供） |
 | headless ラッパー第 7 弾 | `pin_input` | #739（`size` variant のみ。palette は第 2 弾展開の既存方針に従い本イシューのスコープ外） |
-| headless ラッパー第 8 弾 | `slider` | #741（`size`/`color-palette` 両軸提供。動的値は `--fandhe-slider-percent` custom property の 1 点のみで伝搬） |
-| headless ラッパー第 9 弾 | `rating_group` | #742（`size`/`color-palette` 両軸、星形 indicator は `clip-path` インライン表現） |
+| headless ラッパー第 8 弾 | `password_input` | #740（`src/password_input.rs` 冒頭 rustdoc 参照） |
+| headless ラッパー第 9 弾 | `slider` | #741（`size`/`color-palette` 両軸提供。動的値は `--fandhe-slider-percent` custom property の 1 点のみで伝搬） |
+| headless ラッパー第 10 弾 | `rating_group` | #742（`size`/`color-palette` 両軸、星形 indicator は `clip-path` インライン表現） |
 | headless ラッパー | `segment_group` | #743（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供。状態機械は `radio_group` へ全委譲） |
 | headless ラッパー第 10 弾 | `tags_input` | #744（`size` variant のみ。フォーム入力部品のため `color-palette` 軸は非提供、`pin_input`/`number_input` と同型の判断） |
 | headless ラッパー | `listbox` | #750（`size` variant のみ・`color-palette` 軸は非提供。常時展開（trigger/positioner なし）で `select` とは責務境界が異なる。詳細は `src/listbox.rs` 参照） |
@@ -447,6 +449,7 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | switch | ✓ | ✓ | 実装済み（#708） |
 | radio-group | ✓ | ✓ | 実装済み（#708） |
 | checkbox | ✓ | ✓ | 実装済み（#730） |
+| password-input | ✓ | ✓ | 実装済み（#740） |
 | input / textarea / native-select | ✓ | – | 実装済み（#737、§4f 参照。フォーム入力は選択・チェック状態を示す部品ではないため提供しない） |
 | tabs | ✓ | ✓（selected trigger の強調色） | 実装済み（#729） |
 | accordion / dialog / menu / select | ✓ | – | 実装済み（#729） |
