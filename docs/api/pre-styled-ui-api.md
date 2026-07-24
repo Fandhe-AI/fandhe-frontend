@@ -26,19 +26,20 @@ checkbox styled ラッパー追加（#730）・静的フォーム部品 3 種追
 NumberInput styled ラッパー追加（#738）・PinInput styled ラッパー追加
 （#739）・PasswordInput styled ラッパー追加（#740）・Slider styled ラッパー
 追加（#741）・RatingGroup styled ラッパー追加（#742）・SegmentGroup styled
-ラッパー追加（#743）・TagsInput styled ラッパー追加（#744）・
-Toggle/ToggleGroup styled ラッパー追加（#746）・CheckboxCard/RadioCard
-styled バリエーション追加（#747）・Combobox styled ラッパー追加（#749）・
-Pagination styled ラッパー追加（#751）・Breadcrumb styled ラッパー追加
-（#755）・Carousel styled ラッパー追加（#754）・Drawer styled ラッパー追加
-（#758）・Link/LinkOverlay/NavList styled ラッパー追加（#756）・HoverCard
-styled ラッパー追加（#759）・ToggleTip styled ラッパー追加（#761）・
-Progress circular 対応追加（#763）・Skeleton 静的部品追加（#764）・
-Image/Icon 静的部品追加（#770）・Status/EmptyState 静的部品追加（#765）・
-タイポグラフィ静的部品 6 種追加（#771）・Separator 静的部品追加（#772）・
-Highlight 静的部品追加（#775）・Clipboard headless ラッパー追加（#773）・
-QrCode styled ラッパー追加（#774）・VisuallyHidden/SkipNav 静的部品追加
-（#776、いずれも公開時点未反映）を経て 63 の公開モジュールを持つ。
+ラッパー追加（#743）・TagsInput styled ラッパー追加（#744）・Editable
+styled ラッパー追加（#745）・Toggle/ToggleGroup styled ラッパー追加
+（#746）・CheckboxCard/RadioCard styled バリエーション追加（#747）・
+Combobox styled ラッパー追加（#749）・Pagination styled ラッパー追加
+（#751）・Breadcrumb styled ラッパー追加（#755）・Carousel styled ラッパー
+追加（#754）・Drawer styled ラッパー追加（#758）・Link/LinkOverlay/NavList
+styled ラッパー追加（#756）・HoverCard styled ラッパー追加（#759）・
+ToggleTip styled ラッパー追加（#761）・Progress circular 対応追加
+（#763）・Skeleton 静的部品追加（#764）・Image/Icon 静的部品追加
+（#770）・Status/EmptyState 静的部品追加（#765）・タイポグラフィ静的部品
+6 種追加（#771）・Separator 静的部品追加（#772）・Highlight 静的部品追加
+（#775）・Clipboard headless ラッパー追加（#773）・QrCode styled ラッパー
+追加（#774）・VisuallyHidden/SkipNav 静的部品追加（#776、いずれも公開
+時点未反映）を経て 64 の公開モジュールを持つ。
 内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
@@ -69,6 +70,7 @@ QrCode styled ラッパー追加（#774）・VisuallyHidden/SkipNav 静的部品
 | headless ラッパー第 10 弾 | `rating_group` | #742（`size`/`color-palette` 両軸、星形 indicator は `clip-path` インライン表現） |
 | headless ラッパー | `segment_group` | #743（§4d 参照、`size` variant のみ・`color-palette` 軸は非提供。状態機械は `radio_group` へ全委譲） |
 | headless ラッパー第 10 弾 | `tags_input` | #744（`size` variant のみ。フォーム入力部品のため `color-palette` 軸は非提供、`pin_input`/`number_input` と同型の判断） |
+| headless ラッパー第 11 弾 | `editable` | #745（`size` variant のみ・`color-palette` 軸は非提供。フォーム操作部品として `number_input` と同じ判断） |
 | headless ラッパー | `toggle` / `toggle_group` | #746（実フォーカスをネイティブ `<button>` 自身が受けるため `data-focus-visible` 配線ではなく `FocusVisible` state condition で対応。`size`/`color-palette` 両軸提供） |
 | カード型選択 UI（styled バリエーション） | `checkbox_card` / `radio_card` | #747（§4g 参照。headless-ui は変更なし、pre-styled 層で新規 anatomy `checkbox-card`/`radio-card` を定義。状態機械は headless `Checkbox`/`RadioGroup` を再利用） |
 | headless ラッパー | `combobox` | #749（`select` と同型の `size` variant のみ・`color-palette` 軸は非提供。状態機械は `state::Disclosure` + `state::SingleSelect` + `state::TextInput` の合成。フォーカスは `input` が保持するため `:focus-visible` を `input` へ、`:focus-within` を `control` へ登録する） |
@@ -459,6 +461,7 @@ headless ラッパーと同じ、`src/radio_group.rs` 冒頭の rustdoc 参照�
 | toggle-group | ✓ | ✓ | 実装済み（#746、root のみへクラス付与） |
 | segment-group | ✓ | – | 実装済み（#743、選択状態は indicator の移動 + 文字強調で表現するため color-palette は非提供） |
 | tags-input | ✓ | – | 実装済み（#744、フォーム入力部品のため color-palette は非提供） |
+| editable | ✓ | – | 実装済み（#745、フォーム操作部品のため color-palette は非提供） |
 | checkbox-card / radio-card | ✓ | ✓ | 実装済み（#747、§4g 参照。カード外観・選択強調・ドット色に反映） |
 | pagination | ✓ | ✓ | 実装済み（#751、現在ページの強調色に反映。root scope の CSS custom property は `--fandhe-pagination-item-size`/`-item-font-size`） |
 | popover / tooltip | 提供しない | 提供しない | 方針確定 |

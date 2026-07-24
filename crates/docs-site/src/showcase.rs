@@ -54,6 +54,9 @@ use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState}
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
+use fandhe_frontend_pre_styled_ui::editable::{
+    self, EditMode, EditableInputFlags, EditableInputProps,
+};
 use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
@@ -234,6 +237,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tags_input::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::rating_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::slider::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::editable::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::segment_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tree_view::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::pagination::stylesheet())?;
@@ -2164,6 +2168,165 @@ fn slider_section() -> Node {
     )
 }
 
+/// Editable 節: preview 表示・edit 中・disabled の 3 態。
+///
+/// preview 中は `input` が `hidden`・`preview` が可視、edit 中はその逆
+/// （`fandhe_frontend_pre_styled_ui::editable` のモジュール doc「`input`/
+/// `preview` の重ね合わせレイアウト」参照）。
+fn editable_section() -> Node {
+    let preview_mode = editable::root(
+        Size::Md,
+        EditMode::Preview,
+        false,
+        false,
+        Default::default(),
+        Default::default(),
+        vec![],
+        vec![
+            editable::label(
+                EditMode::Preview,
+                false,
+                Some("showcase-editable-preview"),
+                vec![],
+                vec![text("Name")],
+            ),
+            editable::area(
+                EditMode::Preview,
+                false,
+                vec![],
+                vec![
+                    editable::input(
+                        EditMode::Preview,
+                        "name",
+                        "Ada Lovelace",
+                        EditableInputProps {
+                            id: Some("showcase-editable-preview"),
+                            ..EditableInputProps::default()
+                        },
+                        EditableInputFlags::default(),
+                        vec![],
+                    ),
+                    editable::preview(EditMode::Preview, false, vec![], vec![text("Ada Lovelace")]),
+                ],
+            ),
+            editable::control(
+                EditMode::Preview,
+                vec![],
+                vec![editable::edit_trigger(
+                    EditMode::Preview,
+                    false,
+                    vec![],
+                    vec![text("Edit")],
+                )],
+            ),
+        ],
+    );
+
+    let editing = editable::root(
+        Size::Md,
+        EditMode::Edit,
+        false,
+        false,
+        Default::default(),
+        Default::default(),
+        vec![],
+        vec![
+            editable::label(
+                EditMode::Edit,
+                false,
+                Some("showcase-editable-editing"),
+                vec![],
+                vec![text("Name")],
+            ),
+            editable::area(
+                EditMode::Edit,
+                false,
+                vec![],
+                vec![
+                    editable::input(
+                        EditMode::Edit,
+                        "name-editing",
+                        "Grace Hopper",
+                        EditableInputProps {
+                            id: Some("showcase-editable-editing"),
+                            ..EditableInputProps::default()
+                        },
+                        EditableInputFlags::default(),
+                        vec![],
+                    ),
+                    editable::preview(EditMode::Edit, false, vec![], vec![text("Grace Hopper")]),
+                ],
+            ),
+            editable::control(
+                EditMode::Edit,
+                vec![],
+                vec![
+                    editable::submit_trigger(EditMode::Edit, false, vec![], vec![text("Save")]),
+                    editable::cancel_trigger(EditMode::Edit, false, vec![], vec![text("Cancel")]),
+                ],
+            ),
+        ],
+    );
+
+    let disabled = editable::root(
+        Size::Md,
+        EditMode::Preview,
+        true,
+        false,
+        Default::default(),
+        Default::default(),
+        vec![],
+        vec![
+            editable::label(
+                EditMode::Preview,
+                true,
+                Some("showcase-editable-disabled"),
+                vec![],
+                vec![text("Disabled")],
+            ),
+            editable::area(
+                EditMode::Preview,
+                false,
+                vec![],
+                vec![
+                    editable::input(
+                        EditMode::Preview,
+                        "name-disabled",
+                        "Locked value",
+                        EditableInputProps {
+                            id: Some("showcase-editable-disabled"),
+                            ..EditableInputProps::default()
+                        },
+                        EditableInputFlags {
+                            disabled: true,
+                            ..EditableInputFlags::default()
+                        },
+                        vec![],
+                    ),
+                    editable::preview(EditMode::Preview, false, vec![], vec![text("Locked value")]),
+                ],
+            ),
+            editable::control(
+                EditMode::Preview,
+                vec![],
+                vec![editable::edit_trigger(
+                    EditMode::Preview,
+                    true,
+                    vec![],
+                    vec![text("Edit")],
+                )],
+            ),
+        ],
+    );
+
+    let demo_row = row(vec![preview_mode, editing, disabled]);
+    section(
+        "Editable",
+        "preview/edit の 2 モードを切り替えるインプレース編集。input/preview は data-* と hidden 属性で排他表示されます。",
+        vec![demo_row],
+    )
+}
+
 /// SegmentGroup 節（イシュー #743）: 既定（選択済み）・disabled・Size 3 種の
 /// 静的掲示。状態機械（[`fandhe_frontend_pre_styled_ui::segment_group::SegmentGroup`]、
 /// `radio_group::RadioGroup` への全委譲）は使わず、他の docs-site 節と同じく
@@ -2874,6 +3037,7 @@ fn showcase_body() -> Node {
             tags_input_section(),
             rating_group_section(),
             slider_section(),
+            editable_section(),
             segment_group_section(),
             carousel_section(),
             tree_view_section(),
@@ -2933,6 +3097,7 @@ mod tests {
             "tags-input",
             "rating-group",
             "slider",
+            "editable",
             "segment-group",
             "pagination",
             "checkbox-card",

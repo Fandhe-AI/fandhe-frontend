@@ -42,6 +42,9 @@ use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::clipboard;
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
+use fandhe_frontend_pre_styled_ui::editable::{
+    self, EditMode, EditableInputFlags, EditableInputProps,
+};
 use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps};
@@ -1001,6 +1004,85 @@ fn rating_group_styled_root_and_reexported_parts_are_escaped_for_all_payloads() 
             &html,
             "rating_group::hidden_input name コンテキスト",
         );
+    }
+}
+/// (10) Editable 経路（イシュー #745）: styled `root` の呼び出し側 `attrs`・
+/// `class`、および headless-ui から選択的再エクスポートした `label` の
+/// children・`input` の `name`/`value`・`preview` の children の 5 箇所
+/// すべてで既定エスケープ（REQ-1）が貫通することを固定する
+/// （`number_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn editable_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&editable::root(
+            Size::Md,
+            EditMode::Preview,
+            false,
+            false,
+            Default::default(),
+            Default::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "editable::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&editable::root(
+            Size::Md,
+            EditMode::Preview,
+            false,
+            false,
+            Default::default(),
+            Default::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "editable::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "editable::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-editable--"),
+            "editable::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした label の children 経路。
+        let html = editable::label(EditMode::Preview, false, None, vec![], vec![text(payload)]);
+        let html = render(&html);
+        assert_payload_is_escaped(payload, &html, "editable::label children コンテキスト");
+
+        // 選択的再エクスポートした input の name/value 経路。
+        let html = render(&editable::input(
+            EditMode::Edit,
+            payload,
+            payload,
+            EditableInputProps::default(),
+            EditableInputFlags::default(),
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "editable::input name/value コンテキスト");
+
+        // 選択的再エクスポートした preview の children 経路。
+        let html = render(&editable::preview(
+            EditMode::Preview,
+            false,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "editable::preview children コンテキスト");
     }
 }
 
