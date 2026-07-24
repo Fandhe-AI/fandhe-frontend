@@ -30,6 +30,47 @@ fn docs_page_renders_a_single_complete_document() {
     assert!(html.contains(r#"href="/assets/site.css""#));
 }
 
+/// イシュー #776: SkipNav の `link` は `<body>` 先頭（`docs-header` より前）、
+/// `content`（スキップ先ターゲット）は `main` 内の本文（`docs-content`）
+/// より前に出力される。専用 CSS（`assets/skip-nav.css`）への `<link>` も
+/// 全ページへ無条件に付与される（`crate::skip_nav` モジュール doc 参照）。
+#[test]
+fn docs_page_inserts_skip_nav_link_before_header_and_content_before_main_body() {
+    let body = p(vec![], vec![text("本文です。")]);
+    let node = docs_page("タイトル", "", sample_sidebar(), body);
+    let html = render(&node);
+
+    assert!(html.contains(r#"data-scope="skip-nav""#));
+    assert!(html.contains(r#"href="/assets/skip-nav.css""#));
+
+    let body_start = html.find("<body>").expect("body tag should exist");
+    let skip_link_pos = html
+        .find(r#"data-part="link""#)
+        .expect("skip-nav link should exist");
+    let header_pos = html
+        .find(r#"class="docs-header""#)
+        .expect("header should exist");
+    let skip_content_pos = html
+        .find(r#"data-part="content""#)
+        .expect("skip-nav content target should exist");
+    let article_pos = html
+        .find(r#"class="docs-content""#)
+        .expect("article should exist");
+
+    assert!(
+        body_start < skip_link_pos,
+        "skip-nav link should be inside body"
+    );
+    assert!(
+        skip_link_pos < header_pos,
+        "skip-nav link should precede docs-header"
+    );
+    assert!(
+        skip_content_pos < article_pos,
+        "skip-nav content target should precede the docs-content article"
+    );
+}
+
 #[test]
 fn heading_anchors_are_extracted_in_document_order_with_correct_levels() {
     let body = fandhe_frontend_core::div(

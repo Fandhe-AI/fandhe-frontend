@@ -46,26 +46,50 @@
 
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
+use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
+use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
+use fandhe_frontend_pre_styled_ui::carousel;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
+use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
+use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
+use fandhe_frontend_pre_styled_ui::em::em;
+use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
+use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
+use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps};
+use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
+use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
+use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
+use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
+use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
+use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
+use fandhe_frontend_pre_styled_ui::qr_code;
+use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
 use fandhe_frontend_pre_styled_ui::segment_group;
+use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, SeparatorVariant};
+use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
+use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::tags_input;
+use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
+use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
+use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{
-    accordion, alert, badge, card, menu, popover, radio_group, select, switch, tooltip,
-    AlertStatus, BadgeProps, BadgeVariant, CardVariant, ColorPalette, OpenState, Orientation, Size,
-    StyleSheet, StylesheetError,
+    accordion, alert, badge, card, combobox, menu, popover, radio_group, select, switch,
+    toggle_tip, tooltip, AlertStatus, BadgeProps, BadgeVariant, CardVariant, ColorPalette,
+    OpenState, Orientation, Size, StyleSheet, StylesheetError,
 };
 
 /// ショーケースページの `page.path`（`site/nav.toml` の宣言と一致させる契約。
@@ -95,35 +119,51 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 /// `crates/pre-styled-ui/src/{dialog,menu,select,popover,tooltip}.rs`）・
 /// `site.css` は変更せず、showcase 領域内に限定した上書きのみで完結させる）:
 ///
-/// - `[data-scope="dialog"][data-part="backdrop"]` の非表示化: dialog の
-///   backdrop は `position: fixed; inset: 0` のビューポート全体暗幕であり、
-///   開いた状態を固定掲示するとページ全体を覆ってしまうため掲示用にのみ隠す
-///   （実際の modal 表示では backdrop は必須であり、ここでの非表示化は
-///   ショーケースの掲示都合に限定する）。
-/// - dialog/menu/select/popover/tooltip の `[data-part="positioner"]` を
-///   `position: static` へ中和: recipe CSS は dialog を
-///   `position: fixed; inset: 0`、menu/select/popover を
-///   `position: absolute; top: 100%`、tooltip を
+/// - `[data-scope="dialog"][data-part="backdrop"]`/`[data-scope="drawer"][data-part="backdrop"]`
+///   の非表示化: dialog/drawer の backdrop は `position: fixed; inset: 0` の
+///   ビューポート全体暗幕であり、開いた状態を固定掲示するとページ全体を
+///   覆ってしまうため掲示用にのみ隠す（実際の modal 表示では backdrop は
+///   必須であり、ここでの非表示化はショーケースの掲示都合に限定する）。
+/// - dialog/drawer/menu/select/combobox/popover/tooltip/hover-card/toggle-tip
+///   の `[data-part="positioner"]` を `position: static` へ中和: recipe CSS は
+///   dialog/drawer を `position: fixed; inset: 0`、menu/select/combobox/
+///   popover/hover-card を `position: absolute; top: 100%`、tooltip/toggle-tip を
 ///   `position: absolute; bottom: 100%` としており、いずれも開いた content を
 ///   ページ内の別位置・別セクションに重ねてしまう。static 化してフロー内へ
 ///   インライン表示させることで、後続セクションと重ならずに掲示できる
 ///   （dialog はさらに `padding`/`justify-content` も中和し、中央寄せの
-///   ための余白・配置指定を解除する）。
-/// - dialog/popover の `title`（`h2`）見出しリセット: Accordion の `h3` と
+///   ための余白・配置指定を解除する。drawer は recipe CSS が `padding`/
+///   `justify-content` を宣言しないため `position` のみで足りる）。
+/// - dialog/drawer/popover の `title`（`h2`）見出しリセット: Accordion の `h3` と
 ///   同じ理由（`site.css` の `.docs-content h2` が漏れる）で、showcase 領域
 ///   内に限定して `border-top`/`padding-top`/`letter-spacing` を打ち消す
 ///   （margin/font-size/font-weight は recipe が宣言済みで自然に勝つため
 ///   宣言しない。recipe との二重管理を避ける最小リセット）。
+/// - `[data-scope="blockquote"][data-part="content"]`（素の `<blockquote>`
+///   要素）のリセット（イシュー #771 タイポグラフィ節掲示、Bugbot 指摘）:
+///   `site.css` の `.docs-content blockquote` が `padding`/`border-left`/
+///   `color`（muted）を素の `blockquote` 要素へ直接宣言しており、Blockquote
+///   recipe（`crates/pre-styled-ui/src/blockquote.rs`）の `content` slot は
+///   この要素そのものである。recipe 側は `content` slot へ `margin: 0` しか
+///   宣言せず `padding`/`border-left`/`color` を宣言しないため、`.docs-content
+///   blockquote`（詳細度 (0,1,1)）がそのまま適用され、`root`（`<figure>`）
+///   自身の padding・左ボーダーと二重になり、かつ引用文字色が意図せず
+///   muted 化する。Accordion `h3`/Dialog `h2` と同じ理由（`site.css` 側は
+///   変更せず、showcase 領域内に限定した `data-scope`/`data-part` 属性
+///   セレクタで打ち消す）で、`.pre-styled-showcase` + 属性 2 個 = (0,3,0) が
+///   `.docs-content blockquote` = (0,1,1) より優先されるようにリセットする。
 const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase {\n  display: flex;\n  flex-direction: column;\n  gap: 1.5rem;\n}\n\
 .showcase-row {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 0.75rem;\n  align-items: center;\n  margin: 1rem 0;\n}\n\
 .showcase-stack {\n  display: flex;\n  flex-direction: column;\n  gap: 0.75rem;\n  margin: 1rem 0;\n  max-width: 36rem;\n}\n\
 .showcase-form-field-group {\n  display: flex;\n  flex-direction: column;\n  gap: 0.25rem;\n  width: 100%;\n}\n\
 .pre-styled-showcase [data-scope=\"accordion\"] h3 {\n  margin: 0;\n  font-size: 1rem;\n  font-weight: 400;\n  line-height: 1.5;\n  letter-spacing: normal;\n}\n\
-.pre-styled-showcase [data-scope=\"dialog\"][data-part=\"backdrop\"] {\n  display: none;\n}\n\
+.pre-styled-showcase [data-scope=\"dialog\"][data-part=\"backdrop\"],\n.pre-styled-showcase [data-scope=\"drawer\"][data-part=\"backdrop\"] {\n  display: none;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: static;\n  padding: 0;\n  justify-content: flex-start;\n}\n\
-.pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
-.pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n";
+.pre-styled-showcase [data-scope=\"drawer\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
+.pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"combobox\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"hover-card\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
+.pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
+.pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n";
 
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
 /// 追記する `Node` 木を返す。
@@ -144,9 +184,11 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 ///
 /// 内訳: テーマトークン（`Theme::default`、ライト/ダーク両対応）→ 掲載
 /// コンポーネントの recipe CSS（button/badge/spinner/alert/card/tabs/
-/// accordion/dialog/menu/select/popover/tooltip/switch/radio_group/avatar/
-/// segment_group）
-/// → ショーケース配置スタイル、の順で決定的に連結する。
+/// accordion/dialog/drawer/menu/select/combobox/popover/tooltip/hover_card/
+/// toggle_tip/switch/radio_group/avatar/checkbox/checkbox_card/radio_card/
+/// input/textarea/native_select/number_input/tags_input/rating_group/
+/// slider/segment_group/pagination/breadcrumb）→ ショーケース配置スタイル、
+/// の順で決定的に連結する。
 ///
 /// # Errors
 ///
@@ -165,15 +207,24 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tabs::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::accordion::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::dialog::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::drawer::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::menu::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::select::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::listbox::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::skeleton::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::separator::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::highlight::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::combobox::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::popover::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tooltip::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::hover_card::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::toggle_tip::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::switch::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::radio_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::avatar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::checkbox::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::checkbox_card::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::radio_card::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::input::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::native_select::css())?;
@@ -182,6 +233,23 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::rating_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::slider::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::segment_group::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::tree_view::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::pagination::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::breadcrumb::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::carousel::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::progress::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::image::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::icon::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::status::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::empty_state::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::visually_hidden::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::qr_code::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::heading::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::text::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::em::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::mark::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::blockquote::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::list::css())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -350,6 +418,240 @@ fn spinner_section() -> Node {
         "Spinner",
         "読み込み中表示。role=\"status\" と aria-label でスクリーンリーダーへ状態を伝えます。",
         vec![size_row],
+    )
+}
+
+/// Skeleton 節（イシュー #764）: variant（text/circle/rect）バリエーション。
+fn skeleton_section() -> Node {
+    let variants = [
+        (SkeletonVariant::Text, "width: 12rem;"),
+        (SkeletonVariant::Circle, ""),
+        (SkeletonVariant::Rect, "width: 12rem;"),
+    ];
+    let variant_row = row(variants
+        .iter()
+        .map(|(variant, style)| {
+            skeleton(
+                &SkeletonProps { variant: *variant },
+                if style.is_empty() {
+                    vec![]
+                } else {
+                    vec![("style", *style)]
+                },
+            )
+        })
+        .collect());
+    section(
+        "Skeleton",
+        "データ読み込み中のコンテンツ形状を模した占位要素。常に aria-hidden=\"true\" を持ち、読み込み中であることをスクリーンリーダーへ伝える責務はコンテナ側（aria-busy）にあります。prefers-reduced-motion: reduce ではパルスアニメーションを停止します。",
+        vec![variant_row],
+    )
+}
+
+/// タイポグラフィ節（イシュー #771）: Heading / Text / Em / Mark /
+/// Blockquote / List の 6 静的部品をまとめて掲示する。
+///
+/// Heading は `h4`〜`h6`（`site/assets/site.css` の `.docs-content` 見出し
+/// 規則が対象とする `h1`〜`h3` の範囲外）のみを掲示し、サイト骨格の見出し
+/// スタイルとの衝突を避ける（[`skeleton_section`] の Accordion `h3` 漏れ
+/// 遮断と同種の配慮。本節自体の `h2` はショーケース節見出し
+/// （[`section`] ヘルパ）であり本部品の対象外）。
+fn typography_section() -> Node {
+    let heading_row = row(vec![
+        heading(
+            HeadingLevel::H4,
+            &HeadingProps {
+                size: HeadingSize::Lg,
+            },
+            vec![],
+            vec![text("見出し (h4, size=lg)")],
+        ),
+        heading(
+            HeadingLevel::H5,
+            &HeadingProps {
+                size: HeadingSize::Md,
+            },
+            vec![],
+            vec![text("見出し (h5, size=md)")],
+        ),
+        heading(
+            HeadingLevel::H6,
+            &HeadingProps {
+                size: HeadingSize::Sm,
+            },
+            vec![],
+            vec![text("見出し (h6, size=sm)")],
+        ),
+    ]);
+
+    let text_stack = stack(
+        [TextSize::Sm, TextSize::Md, TextSize::Lg]
+            .iter()
+            .map(|size| {
+                styled_text(
+                    &TextProps { size: *size },
+                    vec![],
+                    vec![text(format!("本文テキスト（size={size:?}）"))],
+                )
+            })
+            .collect(),
+    );
+
+    let em_row = row(vec![el(
+        "p",
+        vec![],
+        vec![
+            text("この文の"),
+            em(vec![], vec![text("強調部分")]),
+            text("は重要です。"),
+        ],
+    )]);
+
+    let mark_row = row(vec![
+        mark(&MarkProps::default(), vec![], vec![text("subtle")]),
+        mark(
+            &MarkProps {
+                variant: MarkVariant::Solid,
+                ..MarkProps::default()
+            },
+            vec![],
+            vec![text("solid")],
+        ),
+        mark(
+            &MarkProps {
+                variant: MarkVariant::Text,
+                ..MarkProps::default()
+            },
+            vec![],
+            vec![text("text")],
+        ),
+        mark(
+            &MarkProps {
+                variant: MarkVariant::Plain,
+                ..MarkProps::default()
+            },
+            vec![],
+            vec![text("plain")],
+        ),
+    ]);
+
+    let blockquote_demo = blockquote::root(
+        BlockquoteVariant::Subtle,
+        ColorPalette::Accent,
+        vec![],
+        vec![
+            blockquote::content(
+                vec![],
+                vec![text("プレーンな HTML / JavaScript / CSS を尊重する。")],
+            ),
+            blockquote::caption(vec![], vec![text("— fandhe-frontend CLAUDE.md")]),
+        ],
+    );
+
+    let marker_list = list::root(
+        ListType::Unordered,
+        ListVariant::Marker,
+        vec![],
+        vec![
+            list::item(vec![], vec![text("SSR")]),
+            list::item(vec![], vec![text("SPA")]),
+            list::item(vec![], vec![text("SSG")]),
+        ],
+    );
+    let ordered_list = list::root(
+        ListType::Ordered,
+        ListVariant::Marker,
+        vec![],
+        vec![
+            list::item(vec![], vec![text("計画")]),
+            list::item(vec![], vec![text("実装")]),
+            list::item(vec![], vec![text("検証")]),
+        ],
+    );
+
+    section(
+        "Typography",
+        "見出し・本文・強調・ハイライト・引用・リストの静的部品。素の HTML 意味論（h1〜h6・p・em・mark・blockquote・ul/ol/li）をそのまま styled 化します。記事全体へのカスケード適用（chakra-ui の Prose 相当）は本クレートへ導入せず、docs サイト骨格スタイル（.docs-content）が引き続き担います。",
+        vec![
+            heading_row,
+            text_stack,
+            em_row,
+            mark_row,
+            blockquote_demo,
+            stack(vec![marker_list, ordered_list]),
+        ],
+    )
+}
+
+/// Separator 節（イシュー #772）: `orientation`（horizontal/vertical）・
+/// `variant`（solid/dashed）の 2 軸。vertical は自身では高さを決定できない
+/// （`--fandhe-separator-height` フォールバック）ため、`style` で高さを
+/// 明示して並べる（`crates/pre-styled-ui/src/separator.rs` rustdoc 参照）。
+fn separator_section() -> Node {
+    let horizontal_row = row(vec![
+        separator(
+            &SeparatorProps {
+                orientation: Orientation::Horizontal,
+                variant: SeparatorVariant::Solid,
+            },
+            vec![("style", "width: 12rem;")],
+        ),
+        separator(
+            &SeparatorProps {
+                orientation: Orientation::Horizontal,
+                variant: SeparatorVariant::Dashed,
+            },
+            vec![("style", "width: 12rem;")],
+        ),
+    ]);
+    let vertical_row = row(vec![separator(
+        &SeparatorProps {
+            orientation: Orientation::Vertical,
+            variant: SeparatorVariant::Solid,
+        },
+        vec![("style", "height: 3rem;")],
+    )]);
+    section(
+        "Separator",
+        "区切り線。role=\"separator\" と aria-orientation/data-orientation を常時出力します。orientation（horizontal/vertical）と variant（solid/dashed）の 2 軸を持ちます。",
+        vec![horizontal_row, vertical_row],
+    )
+}
+
+/// Highlight 節（イシュー #775）: 単一一致・複数一致（`match_all`）・
+/// `ignore_case` の実演。一致判定は正規表現を使わない決定的な部分文字列
+/// 検索（`crates/pre-styled-ui/src/highlight.rs` rustdoc 参照）。
+fn highlight_section() -> Node {
+    let single_match_row = row(vec![highlight(
+        &HighlightProps {
+            query: &["brown fox"],
+            ..HighlightProps::default()
+        },
+        vec![],
+        "The quick brown fox jumps over the lazy dog",
+    )]);
+    let match_all_row = row(vec![highlight(
+        &HighlightProps {
+            query: &["o"],
+            match_all: true,
+            ..HighlightProps::default()
+        },
+        vec![],
+        "The quick brown fox jumps over the lazy dog",
+    )]);
+    let ignore_case_row = row(vec![highlight(
+        &HighlightProps {
+            query: &["LAZY"],
+            ignore_case: true,
+            ..HighlightProps::default()
+        },
+        vec![],
+        "The quick brown fox jumps over the lazy dog",
+    )]);
+    section(
+        "Highlight",
+        "テキスト中の一致語句を <mark> で強調します。正規表現ではなく決定的な部分文字列検索のみで一致判定します。query（複数可）・match_all（全一致 or 最初の 1 件）・ignore_case（ASCII 限定）の 3 プロパティを持ちます。",
+        vec![single_match_row, match_all_row, ignore_case_row],
     )
 }
 
@@ -619,6 +921,71 @@ fn dialog_section() -> Node {
     )
 }
 
+/// Drawer 節: 開いた状態（`placement="end"`）の静的マークアップ（イシュー #758）。
+///
+/// Drawer は WAI-ARIA 上 Dialog パターンの変種であり、開閉状態機械は
+/// headless 層の [`dialog::Dialog`] をそのまま再利用する（`crates/headless-ui/src/drawer.rs`
+/// rustdoc 参照）。backdrop は [`dialog_section`] と同じく掲示用に非表示化し、
+/// positioner はフロー内配置へ中和している（[`SHOWCASE_LAYOUT_CSS`]）。
+/// 実際の画面端固定パネル配置・placement 別レイアウトは recipe CSS
+/// （`crates/pre-styled-ui/src/drawer.rs`）がそのまま担う。
+fn drawer_section() -> Node {
+    let node = div(
+        vec![],
+        vec![
+            drawer::trigger(
+                OpenState::Open,
+                Some("showcase-drawer-content"),
+                vec![],
+                vec![text("Open drawer")],
+            ),
+            drawer::root(
+                Size::Md,
+                OpenState::Open,
+                DrawerPlacement::End,
+                vec![],
+                vec![
+                    drawer::backdrop(OpenState::Open, vec![], vec![]),
+                    drawer::positioner(
+                        OpenState::Open,
+                        DrawerPlacement::End,
+                        vec![],
+                        vec![drawer::content(
+                            OpenState::Open,
+                            DrawerPlacement::End,
+                            true,
+                            ContentIds {
+                                id: Some("showcase-drawer-content"),
+                                labelledby: Some("showcase-drawer-title"),
+                                describedby: Some("showcase-drawer-desc"),
+                            },
+                            vec![],
+                            vec![
+                                drawer::title(
+                                    Some("showcase-drawer-title"),
+                                    vec![],
+                                    vec![text("Navigation")],
+                                ),
+                                drawer::description(
+                                    Some("showcase-drawer-desc"),
+                                    vec![],
+                                    vec![text("画面端からスライドインする補助パネルです。")],
+                                ),
+                                drawer::close_trigger(vec![], vec![text("Close")]),
+                            ],
+                        )],
+                    ),
+                ],
+            ),
+        ],
+    );
+    section(
+        "Drawer",
+        "headless-ui の Drawer（WAI-ARIA dialog パターンの変種、dialog の状態機械を再利用）に pre-styled-ui の data-scope / data-part セレクタ CSS を適用した静的掲示です。placement=\"end\" を掲示しています。backdrop は掲示用に非表示化し、positioner はフロー内配置へ中和しています。",
+        vec![node],
+    )
+}
+
 /// Menu 節: highlighted / 通常 / separator / disabled の各状態を持つ項目リスト
 /// が開いた静的マークアップ（イシュー #691）。
 fn menu_section() -> Node {
@@ -848,6 +1215,125 @@ fn listbox_section() -> Node {
     )
 }
 
+/// Combobox 節: 入力によるフィルタリング後の listbox が開いた静的マークアップ
+/// （イシュー #749）。[`combobox::filter_options`] を実演し、入力値
+/// `"re"` に対するフィルタ結果（`"React"` のみ）をそのまま候補として掲示する。
+fn combobox_section() -> Node {
+    let options = [("vue", "Vue"), ("react", "React"), ("svelte", "Svelte")];
+    let query = "re";
+    let filtered = combobox::filter_options(&options, query);
+
+    let items = filtered
+        .into_iter()
+        .map(|(value, label)| {
+            combobox::item(
+                OpenState::Closed,
+                false,
+                false,
+                value,
+                None,
+                vec![],
+                vec![combobox::item_text(None, vec![], vec![text(label)])],
+            )
+        })
+        .collect();
+
+    let node = combobox::root(
+        Size::Md,
+        OpenState::Open,
+        vec![],
+        vec![
+            combobox::label(
+                Some("showcase-combobox-label"),
+                Some("showcase-combobox-input"),
+                vec![],
+                vec![text("Framework")],
+            ),
+            combobox::control(
+                OpenState::Open,
+                vec![],
+                vec![
+                    combobox::input(
+                        OpenState::Open,
+                        query,
+                        false,
+                        Some("showcase-combobox-content"),
+                        None,
+                        None,
+                        vec![("id", "showcase-combobox-input")],
+                    ),
+                    combobox::trigger(
+                        OpenState::Open,
+                        false,
+                        Some("showcase-combobox-content"),
+                        vec![],
+                        vec![text("▾")],
+                    ),
+                ],
+            ),
+            combobox::positioner(
+                OpenState::Open,
+                vec![],
+                vec![combobox::content(
+                    OpenState::Open,
+                    Some("showcase-combobox-content"),
+                    Some("showcase-combobox-label"),
+                    vec![],
+                    items,
+                )],
+            ),
+        ],
+    );
+    section(
+        "Combobox",
+        &format!(
+            "headless-ui の Combobox（role=\"combobox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。入力値 \"{query}\" による filter_options の絞り込み結果を候補として表示しています。positioner はフロー内配置へ中和しています。"
+        ),
+        vec![node],
+    )
+}
+
+/// TreeView 節: 2〜3 階層の静的コレクション（イシュー #753）。
+///
+/// "src" ブランチのみ展開済み（`data-state="open"`）、"src/lib.rs" を選択中
+/// （`data-selected`）で固定掲示する。positioner を持たないため
+/// [`SHOWCASE_LAYOUT_CSS`] の中和ルール追加は不要（[`mod@tree_view`]
+/// module doc「`size`/`color-palette` variant を提供しない」節参照）。
+fn tree_view_section() -> Node {
+    // SSR は本来 dispatch 履歴なしの初期状態から始まるが、ショーケースは
+    // 「展開・選択済みの見た目」を固定掲示する目的のため、他セクション
+    // （Accordion/Combobox 等）と同じく意図的に dispatch で非初期状態を作る。
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_interactive::dispatch;
+    let mut tree = TreeView::default();
+    dispatch(&mut tree, "expand", "src");
+    dispatch(&mut tree, "select", "src/lib.rs");
+
+    let nodes = vec![
+        TreeNode::new("src", "src").with_children(vec![
+            TreeNode::new("src/lib.rs", "lib.rs"),
+            TreeNode::new("src/nested", "nested")
+                .with_children(vec![TreeNode::new("src/nested/util.rs", "util.rs")]),
+        ]),
+        TreeNode::new("Cargo.toml", "Cargo.toml"),
+        TreeNode::new("README.md", "README.md").disabled(true),
+    ];
+
+    let root_children = tree.render_nodes(&nodes);
+    let node = tree_view::root(
+        vec![],
+        vec![
+            tree_view::label(vec![], vec![text("Project files")]),
+            tree_view::tree(Some("Project files"), None, vec![], root_children),
+        ],
+    );
+
+    section(
+        "TreeView",
+        "headless-ui の TreeView（role=\"tree\"/role=\"treeitem\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。\"src\" ブランチを展開済み、\"src/lib.rs\" を選択中、\"README.md\" を disabled として固定表示しています。インデントは CSS custom property（--fandhe-tree-view-indent）で表現しています。",
+        vec![node],
+    )
+}
+
 /// Popover 節: 開いた状態の静的マークアップ（イシュー #691）。
 ///
 /// [`dialog_section`] と同じく、実際の overlay 配置は recipe CSS
@@ -926,6 +1412,81 @@ fn tooltip_section() -> Node {
     section(
         "Tooltip",
         "headless-ui の Tooltip（role=\"tooltip\"、WAI-ARIA tooltip パターン）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています。",
+        vec![node],
+    )
+}
+
+/// HoverCard 節: 開いた状態の静的マークアップ（イシュー #759）。
+///
+/// `trigger` はリンク先プレビュー用途の `a` 要素だが、掲示コンテンツは
+/// 実ページへ解決されないため `href` は渡さない（`None`）。`build.rs` の
+/// linkcheck が生成コンテンツ内の非空 `href` を持たない設計を前提とする
+/// （`showcase_markup_has_no_href_attributes_for_linkcheck_neutrality`
+/// 参照。[`breadcrumb_section`] が空文字列 `href=""` で同じ制約を満たす
+/// のとは異なり、本節は `href` 属性自体を出力しない選択で満たす）。
+fn hover_card_section() -> Node {
+    let node = hover_card::root(
+        OpenState::Open,
+        HoverCardDelays::default(),
+        vec![],
+        vec![
+            hover_card::trigger(
+                OpenState::Open,
+                None,
+                vec![],
+                vec![text("Hover to preview")],
+            ),
+            hover_card::positioner(
+                OpenState::Open,
+                vec![],
+                vec![hover_card::content(
+                    OpenState::Open,
+                    None,
+                    vec![],
+                    vec![text("リンク先のプレビュー内容です。")],
+                )],
+            ),
+        ],
+    );
+    section(
+        "HoverCard",
+        "headless-ui の HoverCard（リンク先プレビュー等 hover/focus で開閉するオーバーレイ）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています。",
+        vec![node],
+    )
+}
+
+/// ToggleTip 節: 開いた状態の静的マークアップ（イシュー #761）。
+///
+/// [`tooltip_section`] と同じ視覚系だが、クリック開閉（`aria-expanded`/
+/// `aria-controls`、`role="tooltip"` なし）である点が異なる（headless 層の
+/// 3 者境界、`crates/headless-ui/src/toggle_tip.rs` モジュール doc 参照）。
+fn toggle_tip_section() -> Node {
+    let node = toggle_tip::root(
+        OpenState::Open,
+        vec![],
+        vec![
+            toggle_tip::trigger(
+                OpenState::Open,
+                false,
+                Some("showcase-toggle-tip-content"),
+                vec![],
+                vec![text("More info")],
+            ),
+            toggle_tip::positioner(
+                OpenState::Open,
+                vec![],
+                vec![toggle_tip::content(
+                    OpenState::Open,
+                    Some("showcase-toggle-tip-content"),
+                    vec![],
+                    vec![text("クリックで開閉する補足のヒントテキストです。")],
+                )],
+            ),
+        ],
+    );
+    section(
+        "ToggleTip",
+        "headless-ui の ToggleTip（クリック開閉、role=\"tooltip\" なし）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています。",
         vec![node],
     )
 }
@@ -1712,6 +2273,617 @@ fn segment_group_section() -> Node {
     )
 }
 
+/// Carousel 節: 3 スライド中の 2 番目を現在位置として固定表示（イシュー #754）。
+///
+/// headless の [`Carousel`] 状態機械（`index=1, slide_count=3, loop=false`）を
+/// 使って `item-group`/`item`/`indicator` へ現在位置を注入し、
+/// pre-styled-ui の recipe CSS（`--fandhe-carousel-index` CSS カスタム
+/// プロパティによる transform ベースのスライド位置表現）を適用した静的掲示
+/// です。実際のクリック操作（dispatch 状態遷移）は wasm 層の責務であり
+/// 本ショーケースのスコープ外（モジュール冒頭 rustdoc「インタラクティブ
+/// 部品の扱い」節参照）。
+fn carousel_section() -> Node {
+    let c = Carousel::new(1, 3, false, Orientation::Horizontal);
+    let slides = ["Slide A", "Slide B", "Slide C"];
+
+    let node = carousel::root(
+        Size::Md,
+        Orientation::Horizontal,
+        "Featured products",
+        vec![],
+        vec![
+            c.control(
+                vec![],
+                vec![
+                    c.prev_trigger("Previous slide", vec![], vec![]),
+                    c.item_group(
+                        vec![],
+                        slides
+                            .iter()
+                            .enumerate()
+                            .map(|(i, label)| c.item(i, vec![], vec![text(*label)]))
+                            .collect(),
+                    ),
+                    c.next_trigger("Next slide", vec![], vec![]),
+                ],
+            ),
+            c.indicator_group(
+                vec![],
+                (0..slides.len()).map(|i| c.indicator(i, vec![])).collect(),
+            ),
+        ],
+    );
+    section(
+        "Carousel",
+        "headless-ui の Carousel（role=\"region\" aria-roledescription=\"carousel\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。3 スライド中 2 番目（index=1）を現在位置として固定表示しています。--fandhe-carousel-index CSS カスタムプロパティによる transform ベースのスライド位置表現で、JS 計測に依存しません。autoplay・ドラッグ操作は本イシューのスコープ外です。",
+        vec![node],
+    )
+}
+
+/// Pagination 節（イシュー #751）: `page_entries()` から ellipsis を含む
+/// ページ列を組み立てた静的掲示 + 現在ページ・prev/next の disabled 連動。
+/// 状態機械は SSR 静的な現在ページの固定表示のみ（クリック挙動は wasm 層の
+/// スコープ外、モジュール冒頭「インタラクティブ部品の扱い」節参照）。
+fn pagination_section() -> Node {
+    // 総ページ数 20（count=200, page_size=10）、page=10 で両側 ellipsis を
+    // 固定掲示する（headless 層のテスト `both_ellipsis` と同じ入力）。
+    let p = Pagination::new(200, 10, 1, 1, 10);
+    let mut children = vec![p.prev_trigger(ItemMode::Button, vec![], vec![text("Prev")])];
+    for entry in p.page_entries() {
+        match entry {
+            pagination::PageEntry::Page(n) => {
+                children.push(p.item(
+                    ItemMode::Button,
+                    n,
+                    false,
+                    vec![],
+                    vec![text(n.to_string())],
+                ));
+            }
+            pagination::PageEntry::Ellipsis => {
+                children.push(pagination::ellipsis(vec![], vec![text("…")]));
+            }
+        }
+    }
+    children.push(p.next_trigger(ItemMode::Button, vec![], vec![text("Next")]));
+
+    let demo = pagination::root(
+        Size::Md,
+        ColorPalette::Accent,
+        "pagination",
+        vec![],
+        children,
+    );
+    section(
+        "Pagination",
+        "総件数・ページサイズ・現在ページから省略記号（ellipsis）を含むページ列を決定的に導出する headless Pagination の静的掲示。現在ページは aria-current=\"page\"/data-selected で、端到達は prev/next の disabled で表現します（クリック挙動は wasm 層のスコープ外）。",
+        vec![row(vec![demo])],
+    )
+}
+
+/// CheckboxCard 節: unchecked / checked / disabled の 3 態（イシュー #747）。
+///
+/// chakra-ui checkbox-card 相当のカード型選択 UI。状態機械は
+/// [`fandhe_frontend_pre_styled_ui::checkbox`] 節と同じ headless `Checkbox`/
+/// `CheckboxProps` を再利用し、`data-scope="checkbox-card"` の新規 anatomy
+/// （`crates/pre-styled-ui/src/checkbox_card.rs` 参照）でカード外観を重ねる。
+fn checkbox_card_section() -> Node {
+    let states = [
+        (
+            CheckedState::Unchecked,
+            false,
+            "showcase-checkbox-card-unchecked",
+            "Starter",
+            "個人利用向けの基本プラン。",
+        ),
+        (
+            CheckedState::Checked,
+            false,
+            "showcase-checkbox-card-checked",
+            "Pro",
+            "チームでの共同作業に対応。",
+        ),
+        (
+            CheckedState::Checked,
+            true,
+            "showcase-checkbox-card-disabled",
+            "Enterprise",
+            "現在準備中のプランです。",
+        ),
+    ];
+    let demo_row = row(states
+        .iter()
+        .map(|(checked, disabled, name, label, description)| {
+            let props = CheckboxProps {
+                checked: *checked,
+                disabled: *disabled,
+                ..CheckboxProps::default()
+            };
+            checkbox_card::root(
+                Size::Md,
+                ColorPalette::Accent,
+                &props,
+                vec![],
+                vec![
+                    checkbox_card::hidden_input(&props, name, "on", vec![]),
+                    checkbox_card::control(
+                        &props,
+                        vec![],
+                        vec![
+                            checkbox_card::indicator(
+                                &props,
+                                vec![],
+                                vec![checkbox_card::indicator_check(&props, vec![], vec![])],
+                            ),
+                            checkbox_card::content(
+                                &props,
+                                vec![],
+                                vec![
+                                    checkbox_card::label(&props, vec![], vec![text(*label)]),
+                                    checkbox_card::description(
+                                        &props,
+                                        vec![],
+                                        vec![text(*description)],
+                                    ),
+                                ],
+                            ),
+                        ],
+                    ),
+                ],
+            )
+        })
+        .collect());
+    section(
+        "CheckboxCard",
+        "chakra-ui checkbox-card 相当のカード型選択 UI。状態機械は Checkbox（headless）をそのまま再利用し、data-scope=\"checkbox-card\" の新規 anatomy でカード外観を重ねます。",
+        vec![demo_row],
+    )
+}
+
+/// RadioCard 節: 単一選択のカード型選択 UI（イシュー #747）。
+///
+/// 状態機械は [`fandhe_frontend_pre_styled_ui::radio_group`] 節と同じ headless
+/// `RadioGroup`（`SingleSelect`）をそのまま再利用し、
+/// `data-scope="radio-card"` の新規 anatomy（`crates/pre-styled-ui/src/radio_card.rs`
+/// 参照）でカード外観を重ねる。
+fn radio_card_section() -> Node {
+    let label_id = "showcase-radio-card-label";
+    let items = [
+        (
+            "plan-free-card",
+            "Free",
+            "基本機能のみ利用可能。",
+            true,
+            false,
+        ),
+        (
+            "plan-pro-card",
+            "Pro",
+            "チーム機能・優先サポート付き。",
+            false,
+            false,
+        ),
+        (
+            "plan-enterprise-card",
+            "Enterprise",
+            "SSO・監査ログに対応。",
+            false,
+            true,
+        ),
+    ];
+    let mut children = vec![radio_card::label(
+        Some(label_id),
+        vec![],
+        vec![text("Plan")],
+    )];
+    children.extend(
+        items
+            .iter()
+            .map(|(value, label, description, checked, disabled)| {
+                radio_card::item(
+                    *checked,
+                    *disabled,
+                    value,
+                    vec![],
+                    vec![
+                        radio_card::item_hidden_input(
+                            *checked,
+                            *disabled,
+                            Some("showcase-radio-card"),
+                            value,
+                            vec![],
+                        ),
+                        radio_card::item_control(
+                            *checked,
+                            *disabled,
+                            vec![],
+                            vec![
+                                radio_card::item_indicator(*checked, *disabled, vec![]),
+                                radio_card::item_content(
+                                    vec![],
+                                    vec![
+                                        radio_card::item_text(vec![], vec![text(*label)]),
+                                        radio_card::item_description(
+                                            vec![],
+                                            vec![text(*description)],
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                    ],
+                )
+            }),
+    );
+    let demo = radio_card::root(
+        Size::Md,
+        ColorPalette::Accent,
+        false,
+        Some(Orientation::Vertical),
+        Some(label_id),
+        vec![],
+        children,
+    );
+    section(
+        "RadioCard",
+        "chakra-ui radio-card 相当のカード型選択 UI。状態機械は RadioGroup（headless）をそのまま再利用し、data-scope=\"radio-card\" の新規 anatomy でカード外観を重ねます。",
+        vec![demo],
+    )
+}
+
+/// Breadcrumb 節: `size`/[`BreadcrumbVariant`] を既定値で掲示する（イシュー
+/// #755）。状態機械を持たない静的意味論ナビのため、開閉等の状態掲示は不要
+/// （3 階層のパンくずをそのまま組み立てる）。
+fn breadcrumb_section() -> Node {
+    // `href` は空文字列（`fandhe_frontend_core::render` の URL 検証上は
+    // 相対 URL として許可されるが、linkcheck 対象からは除外される。
+    // `crate::linkcheck::check_links` は空 href を無条件でスキップする
+    // 契約であり、生成コンテンツを linkcheck の突合対象へ含めない本モジュール
+    // の既存設計（`showcase_markup_has_no_href_attributes_for_linkcheck_neutrality`
+    // 参照）を壊さずに `link` パーツ（実際に `href` 属性を持つ要素）を掲示する
+    // ための選択。実サイトへの導線が必要な利用は呼び出し側アプリケーションの
+    // 責務（本ショーケースは recipe CSS の見た目確認が目的）。
+    let items = [
+        BreadcrumbItem {
+            label: "Docs",
+            href: "",
+        },
+        BreadcrumbItem {
+            label: "Components",
+            href: "",
+        },
+        BreadcrumbItem {
+            label: "Breadcrumb",
+            href: "",
+        },
+    ];
+    let node = breadcrumb::root(
+        Size::Md,
+        BreadcrumbVariant::Plain,
+        None,
+        vec![],
+        vec![breadcrumb::list(
+            vec![],
+            items
+                .iter()
+                .enumerate()
+                .flat_map(|(index, entry)| {
+                    let inner = if index == items.len() - 1 {
+                        breadcrumb::current_link(vec![], vec![text(entry.label)])
+                    } else {
+                        breadcrumb::link(entry.href, vec![], vec![text(entry.label)])
+                    };
+                    let mut parts = vec![breadcrumb::item(vec![], vec![inner])];
+                    if index != items.len() - 1 {
+                        parts.push(breadcrumb::separator(vec![], vec![text("/")]));
+                    }
+                    parts
+                })
+                .collect(),
+        )],
+    );
+    section(
+        "Breadcrumb",
+        "headless-ui の Breadcrumb（nav[aria-label=\"breadcrumb\"] + ol/li）に pre-styled-ui の recipe CSS を適用した静的掲示です。末尾項目のみ aria-current=\"page\"/data-current を持つ非対話の現在位置表示（span）として描画します。",
+        vec![node],
+    )
+}
+
+/// Status 節（イシュー #765）: colorPalette 軸ごとのドット + ラベル表示。
+fn status_section() -> Node {
+    let palette_row = row(palettes()
+        .iter()
+        .map(|(palette, label)| {
+            status::root(
+                &StatusProps {
+                    palette: *palette,
+                    ..StatusProps::default()
+                },
+                vec![],
+                vec![status::indicator(vec![]), text(*label)],
+            )
+        })
+        .collect());
+    section(
+        "Status",
+        "ドット（indicator）+ ラベルで状態を示す静的表示。colorPalette で色を切り替えます。",
+        vec![palette_row],
+    )
+}
+
+/// EmptyState 節（イシュー #765）: indicator/title/description/actions の
+/// 構成例。`actions` 内は `button` を使い `href` を持たせない
+/// （`showcase_markup_has_no_href_attributes_for_linkcheck_neutrality` の
+/// linkcheck 中立性を維持する）。
+fn empty_state_section() -> Node {
+    let node = empty_state::root(
+        &EmptyStateProps::default(),
+        vec![],
+        vec![empty_state::content(
+            vec![],
+            vec![
+                empty_state::indicator(vec![], vec![text("∅")]),
+                empty_state::title(vec![], vec![text("No results found")]),
+                empty_state::description(
+                    vec![],
+                    vec![text(
+                        "Try adjusting your search or filter to find what you are looking for.",
+                    )],
+                ),
+                empty_state::actions(
+                    vec![],
+                    vec![button(
+                        &ButtonProps::default(),
+                        vec![],
+                        vec![text("Clear filters")],
+                    )],
+                ),
+            ],
+        )],
+    );
+    section(
+        "EmptyState",
+        "indicator / title / description / actions で構成する空状態レイアウト。colorPalette 軸は持たない中立コンテナです。",
+        vec![node],
+    )
+}
+
+/// VisuallyHidden 節（イシュー #776）: アイコンのみのボタンに、視覚的には
+/// 隠すがスクリーンリーダーには読ませる補足テキストを添えるパターンを掲示
+/// する（chakra-ui/ark-ui の典型的な用例と同じ構成）。
+///
+/// SkipNav（同イシュー）はページ骨格（`crate::layout::docs_page_with_assets`）
+/// へ全ページ共通で 1 個だけ実適用する構成のため、既に本ページの `<body>`
+/// 先頭にも SkipNav リンクが存在する。ショーケース節として別 id のデモを
+/// 追加すると `id="fandhe-skip-nav"` の重複や紛らわしさを招くため、
+/// SkipNav 自体のショーケースデモは設けない（実装計画 §3 が明示的に許容する
+/// 判断: 「デモ省略しレイアウト実適用を正とする」）。
+fn visually_hidden_section() -> Node {
+    // 「★」自体は装飾（アイコン）であり、ボタンのアクセシブルネームは
+    // 後続の `visually_hidden::root` テキストのみに担わせる（`aria-label` を
+    // 併用すると accessible-name 計算で `aria-label` が勝ち、VisuallyHidden
+    // テキストが読み上げられなくなってしまう。アイコンのみのボタンに
+    // 補足テキストを添える本来の用途を壊さないための必須の組み合わせ方）。
+    let icon_button = button(
+        &ButtonProps::default(),
+        vec![],
+        vec![
+            el("span", vec![("aria-hidden", "true")], vec![text("★")]),
+            visually_hidden::root(vec![], vec![text("お気に入りに追加")]),
+        ],
+    );
+    section(
+        "VisuallyHidden",
+        "視覚的には隠す（clip 手法）が支援技術には読ませ続けるテキストコンテナ。アイコンのみのボタンに補足テキストを添える用途などに使います。aria-hidden は一切出力しません。",
+        vec![row(vec![icon_button])],
+    )
+}
+
+/// Progress（circle 対応、イシュー #763）節: determinate（40%）の size
+/// バリエーション・complete・indeterminate の 3 状態を掲示する。
+///
+/// `Progress` は headless の値状態機械（`fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress`）
+/// を直接 import して構築する（`progress::root` は `size` variant クラス
+/// 付与のみを担う薄いラッパーであり、状態は呼び出し側が headless 型で持つ
+/// 契約、`crates/pre-styled-ui/src/progress.rs` rustdoc 参照）。circle 系
+/// パーツ（Circle/CircleTrack/CircleRange）は styled 層の独自ラッパーを持たず
+/// headless の inherent メソッドをそのまま呼ぶ。
+fn progress_section() -> Node {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::progress::Progress;
+    use fandhe_frontend_pre_styled_ui::progress;
+
+    fn circle_demo(p: &Progress, size: Size, aria_valuetext: Option<&str>) -> Node {
+        progress::root(
+            p,
+            size,
+            aria_valuetext,
+            vec![],
+            vec![p.circle(
+                vec![],
+                vec![
+                    p.circle_track(vec![], vec![]),
+                    p.circle_range(vec![], vec![]),
+                ],
+            )],
+        )
+    }
+
+    let determinate = Progress::new(0.0, 100.0, Some(40.0), Orientation::Horizontal);
+    let size_row = row(vec![
+        circle_demo(&determinate, Size::Sm, Some("40%")),
+        circle_demo(&determinate, Size::Md, Some("40%")),
+        circle_demo(&determinate, Size::Lg, Some("40%")),
+    ]);
+
+    let complete = Progress::new(0.0, 100.0, Some(100.0), Orientation::Horizontal);
+    let complete_row = row(vec![circle_demo(&complete, Size::Md, Some("100%"))]);
+
+    let indeterminate = Progress::new(0.0, 100.0, None, Orientation::Horizontal);
+    let indeterminate_row = row(vec![circle_demo(&indeterminate, Size::Md, None)]);
+
+    section(
+        "Progress",
+        "Circular（SVG）表示の進捗インジケータ。size（sm/md/lg）で --fandhe-progress-size/--fandhe-progress-thickness を切り替えます。indeterminate（不定進捗）は data-state=\"indeterminate\" に連動した回転アニメーションで表示します。",
+        vec![size_row, complete_row, indeterminate_row],
+    )
+}
+
+/// QrCode（イシュー #774）節: size（sm/md/lg）3 態・overlay（ロゴ想定の中央
+/// コンテンツ）付きの 1 態を掲示する。エンコード対象は固定の URL 文字列
+/// （`fandhe_frontend_pre_styled_ui::qr_code::encode` は外部依存ゼロの
+/// QR Model 2 byte モードエンコーダ、`crates/headless-ui/src/qr_code.rs`
+/// 参照）。
+fn qr_code_section() -> Node {
+    let matrix = qr_code::encode(
+        "https://fandhe-frontend.example/",
+        qr_code::ErrorCorrectionLevel::M,
+    )
+    .expect("ショーケース固定 URL はバージョン 40 容量内に収まる");
+
+    let demo = |size: Size| {
+        qr_code::root(
+            size,
+            vec![],
+            vec![qr_code::frame(
+                &matrix,
+                qr_code::DEFAULT_QUIET_ZONE,
+                Some("QR code linking to https://fandhe-frontend.example/"),
+                vec![],
+                vec![qr_code::pattern(
+                    &matrix,
+                    qr_code::DEFAULT_QUIET_ZONE,
+                    vec![],
+                )],
+            )],
+        )
+    };
+
+    let size_row = row(vec![demo(Size::Sm), demo(Size::Md), demo(Size::Lg)]);
+
+    let with_overlay = qr_code::root(
+        Size::Lg,
+        vec![],
+        vec![
+            qr_code::frame(
+                &matrix,
+                qr_code::DEFAULT_QUIET_ZONE,
+                Some("QR code linking to https://fandhe-frontend.example/"),
+                vec![],
+                vec![qr_code::pattern(
+                    &matrix,
+                    qr_code::DEFAULT_QUIET_ZONE,
+                    vec![],
+                )],
+            ),
+            qr_code::overlay(vec![], vec![text("FW")]),
+        ],
+    );
+    let overlay_row = row(vec![with_overlay]);
+
+    section(
+        "QrCode",
+        "外部依存ゼロの QR Model 2（ISO/IEC 18004）byte モードエンコーダによる QR コード表示。size（sm/md/lg）で --fandhe-qr-code-size を切り替えます。Overlay パーツはロゴ等の呼び出し側コンテンツを中央に重ねる用途です。",
+        vec![size_row, overlay_row],
+    )
+}
+
+/// Image 節（イシュー #770）の demo `src`。実画像を同梱せず、外部フェッチ・
+/// 404 を発生させないインライン SVG data URI を使う（相対パスではなく
+/// [`AVATAR_INLINE_SVG_SRC`] と同じくパーセントエンコード済み data URI と
+/// することで、実在しないファイルパスによる 404 を防ぐ。矩形プレースホル
+/// ダー柄のアイコン）。
+const IMAGE_DEMO_SRC: &str =
+    "data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2064%2064%27%3E%3Crect%20width%3D%2764%27%20height%3D%2764%27%20fill%3D%27%234a90d9%27%2F%3E%3C%2Fsvg%3E";
+
+/// Image 節: `fit`（object-fit）× `aspect_ratio` の 2 軸。
+fn image_section() -> Node {
+    let fits = [
+        (ImageFit::Cover, "Cover"),
+        (ImageFit::Contain, "Contain"),
+        (ImageFit::Fill, "Fill"),
+        (ImageFit::ScaleDown, "ScaleDown"),
+        (ImageFit::NoFit, "NoFit (none)"),
+    ];
+    let fit_row = row(fits
+        .iter()
+        .map(|(fit, label)| {
+            image(
+                &ImageProps {
+                    fit: *fit,
+                    ..ImageProps::new(IMAGE_DEMO_SRC, label)
+                },
+                vec![(
+                    "style",
+                    "width: 6rem; height: 4rem; background: var(--fandhe-color-bg-subtle);",
+                )],
+            )
+        })
+        .collect());
+
+    let ratios = [
+        (AspectRatio::Auto, "Auto"),
+        (AspectRatio::Square, "Square"),
+        (AspectRatio::Video, "Video"),
+    ];
+    let ratio_row = row(ratios
+        .iter()
+        .map(|(ratio, label)| {
+            image(
+                &ImageProps {
+                    aspect_ratio: *ratio,
+                    ..ImageProps::new(IMAGE_DEMO_SRC, label)
+                },
+                vec![(
+                    "style",
+                    "width: 6rem; background: var(--fandhe-color-bg-subtle);",
+                )],
+            )
+        })
+        .collect());
+
+    section(
+        "Image",
+        "写真等の静的コンテンツを表示する img の styled ラッパー。fit（object-fit）と aspect-ratio を型安全な props で切り替えます。状態機械は持たず、avatar の ImageStatus とは独立です。",
+        vec![fit_row, ratio_row],
+    )
+}
+
+/// Icon 節: `size` variant のみ。SVG 本体は呼び出し側がノード木 API
+/// （`el(\"path\", ...)`）で構築する（本モジュールは外部リソースを参照しない）。
+fn icon_section() -> Node {
+    let star_path = || {
+        el(
+            "path",
+            vec![(
+                "d",
+                "M12 2l2.9 6.9 7.1.6-5.4 4.6 1.6 7-6.2-3.9-6.2 3.9 1.6-7-5.4-4.6 7.1-.6z",
+            )],
+            vec![],
+        )
+    };
+
+    let size_row = row(vec![Size::Sm, Size::Md, Size::Lg]
+        .into_iter()
+        .map(|size| {
+            icon(
+                &IconProps {
+                    size,
+                    label: Some("Star"),
+                    ..IconProps::default()
+                },
+                vec![],
+                vec![star_path()],
+            )
+        })
+        .collect());
+
+    section(
+        "Icon",
+        "インライン SVG の寸法（size）・配色（color: currentColor 継承）を統一する svg ラッパー。SVG 本体（path 等）は呼び出し側がノード木 API で構築します。",
+        vec![size_row],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -1732,16 +2904,24 @@ fn showcase_body() -> Node {
             button_section(),
             badge_section(),
             spinner_section(),
+            skeleton_section(),
+            typography_section(),
+            separator_section(),
+            highlight_section(),
             alert_section(),
             card_section(),
             tabs_section(),
             accordion_section(),
             dialog_section(),
+            drawer_section(),
             menu_section(),
             select_section(),
             listbox_section(),
+            combobox_section(),
             popover_section(),
             tooltip_section(),
+            hover_card_section(),
+            toggle_tip_section(),
             switch_section(),
             radio_group_section(),
             avatar_section(),
@@ -1752,6 +2932,19 @@ fn showcase_body() -> Node {
             rating_group_section(),
             slider_section(),
             segment_group_section(),
+            carousel_section(),
+            tree_view_section(),
+            pagination_section(),
+            checkbox_card_section(),
+            radio_card_section(),
+            breadcrumb_section(),
+            progress_section(),
+            image_section(),
+            icon_section(),
+            status_section(),
+            empty_state_section(),
+            visually_hidden_section(),
+            qr_code_section(),
         ],
     )
 }
@@ -1780,11 +2973,14 @@ mod tests {
             "tabs",
             "accordion",
             "dialog",
+            "drawer",
             "menu",
             "select",
             "listbox",
             "popover",
             "tooltip",
+            "hover-card",
+            "toggle-tip",
             "switch",
             "radio-group",
             "avatar",
@@ -1795,6 +2991,15 @@ mod tests {
             "rating-group",
             "slider",
             "segment-group",
+            "pagination",
+            "checkbox-card",
+            "radio-card",
+            "breadcrumb",
+            "image",
+            "icon",
+            "status",
+            "empty-state",
+            "visually-hidden",
         ] {
             assert!(
                 html.contains(&format!(r#"data-scope="{scope}""#)),
@@ -1846,11 +3051,24 @@ mod tests {
     #[test]
     fn showcase_markup_has_no_href_attributes_for_linkcheck_neutrality() {
         // build.rs の linkcheck は全 href を突合検証する。生成コンテンツは
-        // リンクを持たない設計とし、リンク検証対象を Markdown 側へ限定する
-        // （リンクを足す場合はこのテストを更新して linkcheck との整合を
-        // 明示的に設計し直すこと）。
+        // 実ページへ解決される href を持たない設計とし、リンク検証対象を
+        // Markdown 側へ限定する。イシュー #755 で Breadcrumb（`link` パーツ、
+        // 実際に `href` 属性を持つ anatomy）を掲示したため、本テストは
+        // 「`href=""`（空文字列、`crate::linkcheck::check_links` が無条件
+        // スキップする値）以外の href が存在しないこと」へ更新した
+        // （`showcase::breadcrumb_section` rustdoc 参照。空 href 以外を
+        // 足す場合はこのテストを更新して linkcheck との整合を明示的に
+        // 設計し直すこと）。
         let html = render(&showcase_body());
-        assert!(!html.contains("href="));
+        let non_empty_hrefs: Vec<&str> = html
+            .match_indices("href=\"")
+            .filter(|(i, _)| !html[i + 6..].starts_with('"'))
+            .map(|(i, _)| &html[i..i + 20.min(html.len() - i)])
+            .collect();
+        assert!(
+            non_empty_hrefs.is_empty(),
+            "non-empty href found: {non_empty_hrefs:?}"
+        );
     }
 
     #[test]
@@ -1865,20 +3083,26 @@ mod tests {
         assert!(css.contains(r#"[data-scope="tabs"][data-part="trigger"]"#));
         assert!(css.contains(r#"[data-scope="accordion"]"#));
         assert!(css.contains(r#"[data-scope="dialog"][data-part="content"]"#));
+        assert!(css.contains(r#"[data-scope="drawer"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="menu"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="select"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="popover"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="tooltip"][data-part="content"]"#));
+        assert!(css.contains(r#"[data-scope="hover-card"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="switch"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="radio-group"][data-part="item-control"]"#));
         assert!(css.contains(".fd-avatar--size-md"));
         assert!(css.contains(".fd-avatar--shape-circle"));
         assert!(css.contains(r#"[data-scope="checkbox"][data-part="control"]"#));
+        assert!(css.contains(r#"[data-scope="checkbox-card"][data-part="indicator"]"#));
+        assert!(css.contains(r#"[data-scope="radio-card"][data-part="item-indicator"]"#));
         assert!(css.contains(r#"[data-scope="field"][data-part="input"]"#));
         assert!(css.contains(r#"[data-scope="field"][data-part="textarea"]"#));
         assert!(css.contains(r#"[data-scope="field"][data-part="select"]"#));
         assert!(css.contains(r#"[data-scope="number-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="tags-input"][data-part="control"]"#));
+        assert!(css.contains(r#"[data-scope="status"][data-part="indicator"]"#));
+        assert!(css.contains(r#"[data-scope="empty-state"][data-part="content"]"#));
         // ショーケース配置スタイル。
         assert!(css.contains(".showcase-row"));
         assert!(css.contains(".showcase-stack"));

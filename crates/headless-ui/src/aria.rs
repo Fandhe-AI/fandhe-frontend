@@ -83,6 +83,15 @@ pub fn aria_expanded(expanded: bool) -> (&'static str, &'static str) {
     ("aria-expanded", bool_str(expanded))
 }
 
+/// `aria-pressed` 属性（Toggle/ToggleGroup 用、イシュー #746）。`"true"`/
+/// `"false"` の 2 値のみを取る（[`aria_expanded`] と同型）。WAI-ARIA の
+/// トグルボタンパターンに従い、`role="button"` の押下状態を表す
+/// （`aria-checked`/`aria-selected` とは意味論が異なる別属性）。
+#[must_use]
+pub fn aria_pressed(pressed: bool) -> (&'static str, &'static str) {
+    ("aria-pressed", bool_str(pressed))
+}
+
 /// `aria-hidden` 属性。
 #[must_use]
 pub fn aria_hidden(hidden: bool) -> (&'static str, &'static str) {
@@ -185,6 +194,90 @@ pub fn aria_multiselectable(multiple: bool) -> (&'static str, &'static str) {
     ("aria-multiselectable", bool_str(multiple))
 }
 
+/// `aria-autocomplete` が示す自動補完の種別（Combobox 用、イシュー #749）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AriaAutocomplete {
+    /// 入力に基づく候補一覧を提示する（[`crate::combobox`] が使う値）。
+    List,
+    /// 入力欄自体にインライン補完文字列を挿入する。
+    Inline,
+    /// `list`/`inline` の両方。
+    Both,
+    /// 自動補完なし。
+    None,
+}
+
+impl AriaAutocomplete {
+    /// `aria-autocomplete` の属性値文字列を返す。
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::List => "list",
+            Self::Inline => "inline",
+            Self::Both => "both",
+            Self::None => "none",
+        }
+    }
+}
+
+/// `aria-autocomplete` 属性（Combobox `input` 用、イシュー #749）。
+#[must_use]
+pub fn aria_autocomplete(kind: AriaAutocomplete) -> (&'static str, &'static str) {
+    ("aria-autocomplete", kind.as_str())
+}
+
+/// `aria-roledescription` 属性（Carousel 用、イシュー #754）。WAI-ARIA
+/// carousel パターンに従い、`role="region"`（[`crate::carousel::root`]）や
+/// `role="group"`（[`crate::carousel::item`]）へ人間可読な役割名
+/// （`"carousel"`/`"slide"`）を追加提供する。値は本モジュールが定義する
+/// 固定語彙（[`crate::carousel`] が渡す `&'static str` リテラル）のみを
+/// 想定し、任意文字列を受け付ける汎用属性ではない（[`aria_label`] のような
+/// 動的文字列専用ヘルパとは異なる）。
+#[must_use]
+pub fn aria_roledescription(value: &'static str) -> (&'static str, &'static str) {
+    ("aria-roledescription", value)
+}
+
+/// `aria-current` の値語彙（W3C ARIA 仕様、Breadcrumb 用イシュー #755・
+/// Pagination の選択ページ表現用イシュー #751 の双方が共有する）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AriaCurrent {
+    /// 現在のページ（[`crate::breadcrumb::current_link`] / [`crate::pagination`]
+    /// が使う値）。
+    Page,
+    /// 手順の現在ステップ。
+    Step,
+    /// 現在の所在地。
+    Location,
+    /// 現在の日付。
+    Date,
+    /// 現在の時刻。
+    Time,
+    /// 種別を限定しない汎用の「現在」。
+    True,
+}
+
+impl AriaCurrent {
+    /// `aria-current` の属性値文字列を返す。
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Page => "page",
+            Self::Step => "step",
+            Self::Location => "location",
+            Self::Date => "date",
+            Self::Time => "time",
+            Self::True => "true",
+        }
+    }
+}
+
+/// `aria-current` 属性（Breadcrumb 等の現在位置表現、イシュー #755）。
+#[must_use]
+pub fn aria_current(kind: AriaCurrent) -> (&'static str, &'static str) {
+    ("aria-current", kind.as_str())
+}
+
 fn bool_str(value: bool) -> &'static str {
     if value {
         "true"
@@ -201,6 +294,8 @@ mod tests {
     fn bool_helpers_map_to_true_false_strings() {
         assert_eq!(aria_expanded(true), ("aria-expanded", "true"));
         assert_eq!(aria_expanded(false), ("aria-expanded", "false"));
+        assert_eq!(aria_pressed(true), ("aria-pressed", "true"));
+        assert_eq!(aria_pressed(false), ("aria-pressed", "false"));
         assert_eq!(aria_hidden(true), ("aria-hidden", "true"));
         assert_eq!(aria_disabled(true), ("aria-disabled", "true"));
         assert_eq!(aria_selected(false), ("aria-selected", "false"));
@@ -214,6 +309,26 @@ mod tests {
         assert_eq!(aria_checked(AriaChecked::True), ("aria-checked", "true"));
         assert_eq!(aria_checked(AriaChecked::False), ("aria-checked", "false"));
         assert_eq!(aria_checked(AriaChecked::Mixed), ("aria-checked", "mixed"));
+    }
+
+    #[test]
+    fn aria_autocomplete_maps_variants() {
+        assert_eq!(
+            aria_autocomplete(AriaAutocomplete::List),
+            ("aria-autocomplete", "list")
+        );
+        assert_eq!(
+            aria_autocomplete(AriaAutocomplete::Inline),
+            ("aria-autocomplete", "inline")
+        );
+        assert_eq!(
+            aria_autocomplete(AriaAutocomplete::Both),
+            ("aria-autocomplete", "both")
+        );
+        assert_eq!(
+            aria_autocomplete(AriaAutocomplete::None),
+            ("aria-autocomplete", "none")
+        );
     }
 
     #[test]
@@ -237,6 +352,31 @@ mod tests {
             aria_multiselectable(false),
             ("aria-multiselectable", "false")
         );
+    }
+
+    #[test]
+    fn aria_roledescription_passes_through_static_value() {
+        assert_eq!(
+            aria_roledescription("carousel"),
+            ("aria-roledescription", "carousel")
+        );
+        assert_eq!(
+            aria_roledescription("slide"),
+            ("aria-roledescription", "slide")
+        );
+    }
+
+    #[test]
+    fn aria_current_maps_variants() {
+        assert_eq!(aria_current(AriaCurrent::Page), ("aria-current", "page"));
+        assert_eq!(aria_current(AriaCurrent::Step), ("aria-current", "step"));
+        assert_eq!(
+            aria_current(AriaCurrent::Location),
+            ("aria-current", "location")
+        );
+        assert_eq!(aria_current(AriaCurrent::Date), ("aria-current", "date"));
+        assert_eq!(aria_current(AriaCurrent::Time), ("aria-current", "time"));
+        assert_eq!(aria_current(AriaCurrent::True), ("aria-current", "true"));
     }
 
     #[test]

@@ -55,6 +55,27 @@
 //!   - [`mod@card`]: [`card::root`] ほかパーツ関数群（slot recipe、
 //!     root/header/body/footer/title/description の 6 パーツ、装飾的コンテナ、
 //!     role 付与なし。中立コンテナのため colorPalette 軸は付与しない）。
+//!   - [`mod@skeleton`]（#764）: [`skeleton::skeleton`]（単一 recipe、
+//!     `<div>`。ローディングプレースホルダー。`text`/`circle`/`rect` の
+//!     `variant`、常時 `aria-hidden="true"`、`prefers-reduced-motion: reduce`
+//!     でのアニメーション停止 CSS を持つ。装飾的占位要素のため card と同じ
+//!     判断で colorPalette 軸を付与しない）。
+//!   - [`mod@separator`]（#772）: [`separator::separator`]（単一 recipe、
+//!     `<hr>`。区切り線であり中立的な罫線のため colorPalette 軸を付与しない。
+//!     `orientation`（horizontal/vertical）・`variant`（solid/dashed）の
+//!     2 軸を持ち、`role="separator"`・`aria-orientation`・
+//!     `data-orientation` を常時出力する）。
+//!   - [`mod@visually_hidden`]（#776）: [`visually_hidden::root`]（単一
+//!     recipe、`<span>`。variant 軸を持たず clip 手法の CSS のみを持つ。
+//!     `aria-hidden` を一切出力しない）。
+//!   - [`mod@skip_nav`]（#776）: [`skip_nav::link`]/[`skip_nav::content`]
+//!     （2 slot recipe、`<a>`/`<div>`。`link` は [`mod@visually_hidden`] の
+//!     clip 手法を base に持ち、[`recipe::StateCondition::FocusVisible`] で
+//!     キーボードフォーカス時のみ視覚的に復元する）。
+//!   - [`mod@highlight`]（#775）: [`highlight::highlight`]（単一 recipe、
+//!     `<span>` + `<mark>`。テキスト中の一致語句を決定的な部分文字列検索
+//!     （正規表現不使用、ReDoS 非該当）で `<mark>` へ分割する。装飾的な
+//!     強調表示のため colorPalette/size 軸は付与しない）。
 //!
 //!   いずれも variant/size/status は Rust enum（[`recipe::VariantValue`] 実装）
 //!   として型安全に表現し、クラス名文字列を動的合成しない
@@ -125,6 +146,104 @@
 //!   参照しない `clip-path` によるインライン表現（外部リソース非参照）。
 //!   `size`（Sm/Md/Lg、星の寸法）/`color-palette`（点灯時の塗り色）の 2 軸
 //!   variant を最初から持つ。詳細は [`mod@rating_group`] rustdoc 参照。
+//! - headless 状態機械を持つ複合部品 2 種の styled ラッパー（イシュー #746）:
+//!   [`mod@toggle`] / [`mod@toggle_group`]。実フォーカスをネイティブ
+//!   `<button>` 自身が受けるため（Switch/RadioGroup の hidden-input パターン
+//!   非該当）、フォーカスリングは `data-focus-visible` 配線ではなく
+//!   [`recipe::StateCondition::FocusVisible`] で足りる。`size`/
+//!   `color-palette` variant を最初から持つ（`toggle_group` は root のみへ
+//!   クラスを付与する複合部品の統一方針に従う）。詳細は [`mod@toggle`]
+//!   rustdoc 参照。
+//! - headless ラッパー（#753）: [`mod@tree_view`]（TreeView、階層構造の展開・
+//!   折りたたみ・選択）。ナビゲーション/コレクション表示部品であり
+//!   [`mod@popover`]/[`mod@tooltip`] と同じ判断で `size`/`color-palette` の
+//!   いずれの variant も提供しない（[`mod@tree_view`] rustdoc 参照）。branch
+//!   のインデントは CSS custom property（`--fandhe-tree-view-indent`）で
+//!   表現し、DOM ネストにより深さ分が自然に累積する。
+//! - headless ラッパー（イシュー #755）: [`mod@breadcrumb`]（Breadcrumb、
+//!   `docs/api/headless-ui-api.md` §4b の追加候補消化。状態機械を持たない
+//!   静的意味論ナビ）。`size`/[`breadcrumb::BreadcrumbVariant`]（`link` の
+//!   下線表示切り替え）の 2 軸 variant を root のみへ付与し、`link` への
+//!   伝搬は root スコープ CSS custom property の継承で行う（[`mod@switch`]
+//!   と同型のパターン、[`mod@breadcrumb`] rustdoc 参照）。
+//! - headless ラッパー（イシュー #759）: [`mod@hover_card`]（HoverCard、
+//!   リンク先プレビュー等 hover/focus で開閉するオーバーレイ）。構造上
+//!   最も近い先行例は [`mod@tooltip`] であり、`content` の開閉連動・
+//!   `--fandhe-reference-width` 非消費・focus-visible リングの各方針を
+//!   継承する（[`mod@hover_card`] rustdoc 参照）。
+//! - カード型選択 UI 2 種（#747）: [`mod@checkbox_card`]/[`mod@radio_card`]。
+//!   chakra-ui の checkbox-card/radio-card 相当（ark-ui には対応する
+//!   headless anatomy が存在しないため、headless-ui は変更せず pre-styled
+//!   層で新規 anatomy `data-scope="checkbox-card"`/`"radio-card"` を定義する
+//!   [`crate::card`] 型の構成）。状態機械は headless の
+//!   [`fandhe_frontend_headless_ui::checkbox::Checkbox`]/
+//!   [`fandhe_frontend_headless_ui::radio_group::RadioGroup`] をそのまま
+//!   再利用し、新規状態機械は作らない。詳細は各モジュール rustdoc 参照。
+//! - headless 状態機械を持つ複合部品の styled ラッパー（イシュー #754）:
+//!   [`mod@carousel`]。`size` variant のみを持ち（`item-group` の縦横
+//!   transform 切替は `data-orientation` 属性条件、[`mod@segment_group`] と
+//!   同型）、`color-palette` 軸は提供しない（選択・チェック状態を示す部品
+//!   ではないため）。`--fandhe-carousel-index` CSS カスタムプロパティによる
+//!   決定的なスライド位置表現・autoplay スコープ外は [`mod@carousel`]
+//!   rustdoc 参照。
+//! - headless ラッパー（イシュー #758）: [`mod@drawer`]（Drawer、dialog の
+//!   変種。WAI-ARIA 上は同じ Dialog パターンのため、開閉状態機械は
+//!   [`mod@dialog`] を再利用する headless 層の設計をそのまま引き継ぎ、本
+//!   モジュールも新規状態機械を持たない）。`size`（drawer の占有幅/高さ）
+//!   variant のみを持ち `color-palette` 軸は提供しない（[`mod@number_input`]
+//!   等と同型の判断）。placement（`start`/`end`/`top`/`bottom`）は variant
+//!   ではなく headless 層が出力する `data-placement` に連動する CSS で表現
+//!   する。詳細は [`mod@drawer`] rustdoc 参照。
+//! - headless ラッパー（Progress circular 対応、イシュー #763）:
+//!   [`mod@progress`]。headless の値状態機械
+//!   [`fandhe_frontend_headless_ui::progress::Progress`] が既に持つ Circle/
+//!   CircleTrack/CircleRange（SVG）の inherent メソッドへ CSS のみを追加提供
+//!   する薄い委譲層で、新規状態機械は持たない。`size` variant のみを持ち
+//!   `color-palette` 軸は提供しない（`Progress` 型はあえて再エクスポートせず、
+//!   `size` variant クラス付与のため styled root のみを新設する。
+//!   [`mod@dialog`]/[`mod@switch`] と同型の判断）。linear（Track/Range）用の
+//!   styled ラッパーは対応表（`docs/design/component-coverage-map.md`）が
+//!   本イシューと切り分けたスコープ外。詳細は [`mod@progress`] rustdoc 参照。
+//! - headless ラッパー 3 種（イシュー #756、#716 追加候補・最優先候補の消化）:
+//!   [`mod@link`]（Link、`variant` の下線表示切り替え + `aria-current="page"`
+//!   状態装飾）、[`mod@link_overlay`]（LinkOverlay、`::before` 疑似要素の
+//!   代わりに `overlay` 自身を `position: absolute; inset: 0;` で展開する
+//!   カード全面クリック化。詳細は headless 層 rustdoc 参照）、
+//!   [`mod@nav_list`]（NavList、`docs/design/docs-site-styled-ui-adoption.md`
+//!   §3.1 が指摘した `menu` ロール誤転用を解消する文書ナビ専用部品。`role`
+//!   を一切付与しない）。`fandhe-frontend-docs-site` は本クレートの styled
+//!   `root`/`stylesheet` ではなく headless 再エクスポート
+//!   （[`nav_list::heading`]/[`nav_list::list`]/[`nav_list::item`]/
+//!   [`nav_list::link`]）のみを使い、`site/assets/site.css` の自己完結
+//!   不変条件（§3.4）を維持したまま §3.1/§3.2 の意味論不整合を解消する
+//!   （[`mod@nav_list`] rustdoc 参照）。
+//! - 状態機械を持たない静的表示部品 2 種（イシュー #770）: [`mod@image`]
+//!   （Image、`<img>` の `fit`（`object-fit`）/`aspect-ratio` の 2 軸
+//!   variant。[`fandhe_frontend_headless_ui::avatar`] の `ImageStatus`
+//!   状態機械とは独立）/ [`mod@icon`]（Icon、`<svg>` の `size` variant のみ。
+//!   `color: currentColor` 継承のため `color-palette` 軸は提供しない。SVG
+//!   本体は呼び出し側がノード木 API で構築する）。いずれも中立的な表示部品
+//!   のため `color-palette` 軸を持たない（[`mod@card`] と同型の判断）。
+//! - 状態機械を要しない静的部品 2 種（イシュー #765）:
+//!   [`mod@status`]（Status、root/indicator の 2 パーツ、`size`/
+//!   `color-palette` の 2 軸 variant を持つ。ラベルテキスト自体が状態を
+//!   伝えるため `role`/live region は付与しない）・[`mod@empty_state`]
+//!   （EmptyState、root/content/indicator/title/description/actions の
+//!   6 パーツ、[`crate::card`] と同型の中立コンテナで `color-palette` 軸は
+//!   提供しない）。
+//! - タイポグラフィ静的部品 6 種（イシュー #771）: [`mod@heading`]
+//!   （[`heading::heading`]、`h1`〜`h6` のタグ選択 + `size` variant）・
+//!   [`mod@text`]（[`text::text`]、`<p>`、`size` variant）・[`mod@em`]
+//!   （[`em::em`]、`<em>`、variant なし）・[`mod@mark`]（[`mark::mark`]、
+//!   `<mark>`、`variant`/`color-palette` の 2 軸）・[`mod@blockquote`]
+//!   （[`blockquote::root`] ほかパーツ関数群、root/content/caption の 3
+//!   パーツ、`variant`/`color-palette`）・[`mod@list`]（[`list::root`] ほか
+//!   パーツ関数群、root/item/indicator の 3 パーツ、`ListType` によるタグ
+//!   選択 + `variant`）。いずれも headless 状態機械を要しない静的部品
+//!   （badge/skeleton と同型）。記事全体へのカスケードスタイル（chakra-ui の
+//!   `Prose` 相当）は本クレートへ導入せず、`fandhe-frontend-docs-site` の
+//!   `site/assets/site.css`（`.docs-content` 規則）が引き続き担う（役割分担
+//!   の詳細は [`mod@text`] rustdoc 参照）。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -254,44 +373,90 @@ pub mod accordion;
 pub mod alert;
 pub mod avatar;
 pub mod badge;
+pub mod blockquote;
+pub mod breadcrumb;
 pub mod button;
 pub mod card;
+pub mod carousel;
 pub mod checkbox;
+pub mod checkbox_card;
 mod class_attr;
+pub mod clipboard;
+pub mod combobox;
 pub mod css;
 pub mod dialog;
+pub mod drawer;
+pub mod em;
+pub mod empty_state;
+pub mod heading;
+pub mod highlight;
+pub mod hover_card;
+pub mod icon;
+pub mod image;
 pub mod input;
+pub mod link;
+pub mod link_overlay;
+pub mod list;
 pub mod listbox;
+pub mod mark;
 pub mod menu;
 pub mod native_select;
+pub mod nav_list;
 pub mod number_input;
+pub mod pagination;
 pub mod pin_input;
 pub mod popover;
+pub mod progress;
+pub mod qr_code;
+pub mod radio_card;
 pub mod radio_group;
 pub mod rating_group;
 pub mod recipe;
 pub mod segment_group;
 pub mod select;
+pub mod separator;
+pub mod skeleton;
+pub mod skip_nav;
 pub mod slider;
 pub mod spinner;
+pub mod status;
 pub mod stylesheet;
 pub mod switch;
 pub mod tabs;
 pub mod tags_input;
+pub mod text;
 pub mod textarea;
 pub mod theme;
+pub mod toggle;
+pub mod toggle_group;
+pub mod toggle_tip;
 pub mod tooltip;
+pub mod tree_view;
+pub mod visually_hidden;
 
 pub use alert::AlertStatus;
 pub use badge::{badge, BadgeProps, BadgeVariant};
+pub use blockquote::BlockquoteVariant;
 pub use button::{button, ButtonProps, ButtonVariant};
 pub use card::CardVariant;
 pub use css::{decl, Declaration};
+pub use em::em;
+pub use empty_state::EmptyStateProps;
+pub use heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
+pub use highlight::{highlight, HighlightProps};
+pub use icon::{icon, IconProps};
+pub use image::{image, AspectRatio, ImageFit, ImageProps};
 pub use input::{input, InputProps, InputVariant};
+pub use list::{ListType, ListVariant};
+pub use mark::{mark, MarkProps, MarkVariant};
 pub use native_select::{native_select, NativeSelectProps, NativeSelectVariant};
 pub use recipe::{when, ColorPalette, Size, SlotRecipe, VariantCondition, VariantValue};
+pub use separator::{separator, SeparatorProps, SeparatorVariant};
+pub use skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 pub use spinner::{spinner, SpinnerProps};
+pub use status::StatusProps;
 pub use stylesheet::{StyleSheet, StylesheetError};
+pub use text::{text, TextProps, TextSize};
 pub use textarea::{textarea, TextareaProps, TextareaVariant};
 
 // `fandhe_frontend_headless_ui` クレートそのものの再エクスポート（イシュー #685）。

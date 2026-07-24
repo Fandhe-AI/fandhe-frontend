@@ -61,6 +61,7 @@ use crate::linkcheck::{self, BrokenLink};
 use crate::markdown::render_markdown;
 use crate::nav::{self, NavError};
 use crate::showcase;
+use crate::skip_nav;
 
 /// [`build_site`] が成功時に返すビルド結果のサマリ。
 #[derive(Debug, Clone)]
@@ -270,6 +271,14 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     } else {
         None
     };
+    // SkipNav（イシュー #776）は showcase/admonition と異なり全ページへ
+    // 無条件に適用するため、条件判定なしで常に href 登録・CSS 組み立てを
+    // 行う（`crate::skip_nav` モジュール doc 参照）。
+    asset_hrefs.push(layout::asset_href(
+        &nav.site.base_path,
+        skip_nav::STYLESHEET_REL_PATH,
+    ));
+    let skip_nav_sheet = skip_nav::stylesheet()?;
 
     let mut link_check_broken = linkcheck::check_links(&pages, &nav.site.base_path, &asset_hrefs);
     broken.append(&mut link_check_broken);
@@ -299,6 +308,16 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
             .write_css_file(&css_path)
             .map_err(|source| BuildError::Io {
                 path: PathBuf::from(admonition::STYLESHEET_REL_PATH),
+                source,
+            })?;
+        assets.push(css_path);
+    }
+    {
+        let css_path = out_dir.join(skip_nav::STYLESHEET_REL_PATH);
+        skip_nav_sheet
+            .write_css_file(&css_path)
+            .map_err(|source| BuildError::Io {
+                path: PathBuf::from(skip_nav::STYLESHEET_REL_PATH),
                 source,
             })?;
         assets.push(css_path);
@@ -453,10 +472,15 @@ path = "/next/"
 
         let report = build_site(&temp.0, &out_dir).expect("valid fixture should build");
         assert_eq!(report.written.len(), 2);
-        assert_eq!(report.assets.len(), 1);
+        // `site/assets/site.css`（コピー）+ SkipNav 専用 CSS（イシュー #776、
+        // 全ビルドで無条件に書き出す。`crate::skip_nav` モジュール doc 参照）
+        // の 2 件。showcase/admonition 専用 CSS は本フィクスチャが使わない
+        // ため含まれない。
+        assert_eq!(report.assets.len(), 2);
         assert!(out_dir.join("index.html").exists());
         assert!(out_dir.join("next/index.html").exists());
         assert!(out_dir.join("assets/site.css").exists());
+        assert!(out_dir.join(skip_nav::STYLESHEET_REL_PATH).exists());
 
         let index_html = fs::read_to_string(out_dir.join("index.html")).unwrap();
         assert!(index_html.contains(r#"href="/next/""#));

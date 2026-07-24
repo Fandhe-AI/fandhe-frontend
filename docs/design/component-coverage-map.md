@@ -35,9 +35,9 @@ Phase 3〜6（#736/#748/#757/#766 配下、#737〜#747・#749〜#756・#758〜#7
 ## 3. 実装済み部品と lib.rs の突合手順
 
 `crates/headless-ui/src/lib.rs` の基盤 mod（anatomy / aria / data_attrs /
-positioning / state）を除く 17 mod、`crates/pre-styled-ui/src/lib.rs` の
-基盤 mod（css / recipe / stylesheet / theme）を除く 21 mod（styled ラッパー
-13 + 静的部品 8）が、本書の「実装済み」区分と一致することを次のコマンドで
+positioning / state）を除く 34 mod、`crates/pre-styled-ui/src/lib.rs` の
+基盤 mod（css / recipe / stylesheet / theme）を除く 42 mod（styled ラッパー
+32 + 静的部品 10）が、本書の「実装済み」区分と一致することを次のコマンドで
 確認できる。
 
 ```bash
@@ -47,19 +47,28 @@ grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs \
   | grep -vE 'css|recipe|stylesheet|theme'
 ```
 
-2026-07-23 時点の実測（#750 マージにより listbox を追加反映。#743 マージに
-よる segment_group・#738 マージ分の number_input を含め再実測。この時点の
-実測は既に pin_input/rating_group/slider/tags_input 等の後続マージを
-反映しきれていない既知のドリフトがあり、次回更新時にあわせて解消する）:
+2026-07-23 時点の実測（#750 マージにより listbox を追加反映。#765 マージに
+よる status / empty_state を含め再実測。本節はこれ以前の複数 PR
+（#754〜#765 等）を経て蓄積した mod 数の乖離を本イシューで合わせて
+是正した）:
 
-- headless-ui 18: accordion / avatar / checkbox / collapsible / dialog /
-  field / fieldset / listbox / menu / number_input / popover / progress /
-  radio_group / segment_group / select / switch / tabs / tooltip
-- pre-styled-ui 22（styled ラッパー 14 + 静的部品 8）:
-  accordion / avatar / checkbox / dialog / listbox / menu / number_input /
-  popover / radio_group / segment_group / select / switch / tabs /
-  tooltip（styled）+ alert / badge / button / card / spinner / input /
-  textarea / native_select（静的）
+- headless-ui 35: accordion / avatar / breadcrumb / carousel / checkbox /
+  collapsible / combobox / dialog / drawer / field / fieldset / hover_card /
+  link / link_overlay / listbox / menu / nav_list / number_input /
+  pagination / pin_input / popover / progress / radio_group /
+  rating_group / segment_group / select / slider / switch / tabs /
+  tags_input / toggle / toggle_group / toggle_tip / tooltip / tree_view
+- pre-styled-ui 43（styled ラッパー 33 + 静的部品 10）:
+  accordion / avatar / breadcrumb / carousel / checkbox / checkbox_card /
+  combobox / dialog / drawer / hover_card / link / link_overlay / listbox /
+  menu / nav_list / number_input / pagination / pin_input / popover /
+  radio_card / radio_group / rating_group / segment_group / select /
+  slider / switch / tabs / tags_input / toggle / toggle_group /
+  toggle_tip / tooltip / tree_view（styled ラッパー、`checkbox_card`/
+  `radio_card` は headless 状態機械（`checkbox`/`radio_group`）を再利用する
+  カード型選択 UI として本区分へ計上、33 件）+ alert / badge / button /
+  card / spinner / input / textarea / native_select / status /
+  empty_state（静的部品、10 件）
 
 ## 4. 抜けの機械確認手順
 
@@ -113,8 +122,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/collections/listbox.md` | Listbox | Listbox | listbox | listbox | 実装済み | headless+styled 実装済み（#750） |
 | `.agents/skills/ark-ui/references/components/collections/pagination.md` | Pagination | Pagination | — | — | 実装対象 | #751（#716 保留の解除） |
 | `.agents/skills/ark-ui/references/components/collections/steps.md` | Steps | Steps | — | — | 実装対象 | #752（#716 保留の解除） |
-| `.agents/skills/ark-ui/references/components/collections/tree-view.md` | TreeView | TreeView | — | — | 実装対象 | #753 |
-| `.agents/skills/ark-ui/references/components/collections/carousel.md` | Carousel | Carousel | — | — | 実装対象 | #754 |
+| `.agents/skills/ark-ui/references/components/collections/tree-view.md` | TreeView | TreeView | tree_view | tree_view | 実装済み | headless+styled 実装済み |
+| `.agents/skills/ark-ui/references/components/collections/carousel.md` | Carousel | Carousel | carousel | carousel | 実装済み | headless+styled 実装済み（#754）。autoplay（play/pause/aria-live 切替/delay）は初期実装スコープ外（`crates/headless-ui/src/carousel.rs` module doc 参照） |
 | `.agents/skills/ark-ui/references/components/collections/README.md` | README | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 
 #### `.agents/skills/ark-ui/references/components/date-time/`
@@ -144,10 +153,10 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
 | `.agents/skills/ark-ui/references/components/display/avatar.md` | Avatar | Avatar | avatar | avatar | 実装済み | headless+styled 実装済み（#731 MutationObserver 対応込み） |
-| `.agents/skills/ark-ui/references/components/display/progress-linear.md` | Progress (linear) | Progress | progress | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装。circular 対応は #763 |
-| `.agents/skills/ark-ui/references/components/display/progress-circular.md` | Progress (circular) | ProgressCircle | progress | — | 実装対象 | #763（既存 progress mod を circular 対応へ拡張） |
+| `.agents/skills/ark-ui/references/components/display/progress-linear.md` | Progress (linear) | Progress | progress | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装（circular 対応の #763 とはスコープを分離、follow-up イシュー起票を検討） |
+| `.agents/skills/ark-ui/references/components/display/progress-circular.md` | Progress (circular) | ProgressCircle | progress | progress | 実装済み | #763（既存 progress mod を circular 対応へ拡張。headless は #600 で実装済み、pre-styled ラッパーを #763 で追加） |
 | `.agents/skills/ark-ui/references/components/display/clipboard.md` | Clipboard | Clipboard | — | — | 実装対象 | #773（wasm 配線込み） |
-| `.agents/skills/ark-ui/references/components/display/qr-code.md` | QrCode | QrCode | — | — | 実装対象 | #774 |
+| `.agents/skills/ark-ui/references/components/display/qr-code.md` | QrCode | QrCode | qr_code | qr_code | 実装済み | headless+styled 実装済み（#774） |
 | `.agents/skills/ark-ui/references/components/display/marquee.md` | Marquee | Marquee | — | — | 保留 | #735 で記録（装飾系） |
 | `.agents/skills/ark-ui/references/components/display/README.md` | README | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 
@@ -182,8 +191,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/overlays/dialog.md` | Dialog | Dialog | dialog | dialog | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/overlays/popover.md` | Popover | Popover | popover | popover | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/overlays/tooltip.md` | Tooltip | Tooltip | tooltip | tooltip | 実装済み | headless+styled 実装済み |
-| `.agents/skills/ark-ui/references/components/overlays/drawer.md` | Drawer | Drawer | — | — | 実装対象 | #758 |
-| `.agents/skills/ark-ui/references/components/overlays/hover-card.md` | HoverCard | HoverCard | — | — | 実装対象 | #759 |
+| `.agents/skills/ark-ui/references/components/overlays/drawer.md` | Drawer | Drawer | drawer | drawer | 実装済み | headless+styled 実装済み（#758、dialog の状態機械を再利用） |
+| `.agents/skills/ark-ui/references/components/overlays/hover-card.md` | HoverCard | HoverCard | hover_card | hover_card | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/overlays/toast.md` | Toast | Toast | — | — | 実装対象 | #760 |
 | `.agents/skills/ark-ui/references/components/overlays/floating-panel.md` | FloatingPanel | FloatingPanel | — | — | 保留 | #735 で記録（装飾系） |
 | `.agents/skills/ark-ui/references/components/overlays/tour.md` | Tour | — | — | — | 保留 | #735 で記録（装飾系） |
@@ -217,7 +226,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
-| `.agents/skills/ark-ui/references/utilities/highlight.md` | Highlight | Highlight | — | — | 実装対象 | #775 |
+| `.agents/skills/ark-ui/references/utilities/highlight.md` | Highlight | Highlight | — | `highlight` | 実装済み | #775。pre-styled 静的部品 実装済み |
 | `.agents/skills/ark-ui/references/utilities/client-only.md` | ClientOnly | ClientOnly | — | — | 保留 | #735 で記録（JS ランタイム固有 utilities） |
 | `.agents/skills/ark-ui/references/utilities/download-trigger.md` | DownloadTrigger | DownloadTrigger | — | — | 保留 | #735 で記録（JS ランタイム固有 utilities） |
 | `.agents/skills/ark-ui/references/utilities/environment.md` | Environment | EnvironmentProvider | — | — | 保留 | #735 で記録（JS ランタイム固有 utilities） |
@@ -336,7 +345,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/collections/select.md` | Select | Select | select | select | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/collections/combobox.md` | Combobox | Combobox | — | — | 実装対象 | #749 |
 | `.agents/skills/chakra-ui/references/components/collections/listbox.md` | Listbox | Listbox | listbox | listbox | 実装済み | headless+styled 実装済み（#750） |
-| `.agents/skills/chakra-ui/references/components/collections/tree-view.md` | TreeView | TreeView | — | — | 実装対象 | #753 |
+| `.agents/skills/chakra-ui/references/components/collections/tree-view.md` | TreeView | TreeView | tree_view | tree_view | 実装済み | headless+styled 実装済み |
 
 #### `.agents/skills/chakra-ui/references/components/concepts/`
 
@@ -361,10 +370,10 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/data-display/tag.md` | — | Tag | — | — | 実装対象 | #768 |
 | `.agents/skills/chakra-ui/references/components/data-display/stat.md` | — | Stat | — | — | 実装対象 | #769 |
 | `.agents/skills/chakra-ui/references/components/data-display/timeline.md` | — | Timeline | — | — | 実装対象 | #769 |
-| `.agents/skills/chakra-ui/references/components/data-display/image.md` | — | Image | — | — | 実装対象 | #770 |
-| `.agents/skills/chakra-ui/references/components/data-display/icon.md` | — | Icon | — | — | 実装対象 | #770 |
+| `.agents/skills/chakra-ui/references/components/data-display/image.md` | — | Image | — | image | 実装済み | #770。状態機械なし静的部品、pre-styled 層のみに実装（headless-ui は変更なし）。fit（object-fit）/aspect-ratio の 2 軸 variant、alt 必須引数 |
+| `.agents/skills/chakra-ui/references/components/data-display/icon.md` | — | Icon | — | icon | 実装済み | #770。状態機械なし静的部品、pre-styled 層のみに実装（headless-ui は変更なし）。size variant のみ、SVG 本体は呼び出し側がノード木 API で構築 |
 | `.agents/skills/chakra-ui/references/components/data-display/clipboard.md` | Clipboard | Clipboard | — | — | 実装対象 | #773（wasm 配線込み） |
-| `.agents/skills/chakra-ui/references/components/data-display/qr-code.md` | QrCode | QrCode | — | — | 実装対象 | #774 |
+| `.agents/skills/chakra-ui/references/components/data-display/qr-code.md` | QrCode | QrCode | qr_code | qr_code | 実装済み | headless+styled 実装済み（#774） |
 | `.agents/skills/chakra-ui/references/components/data-display/marquee.md` | Marquee | Marquee | — | — | 保留 | #735 で記録（装飾系） |
 
 #### `.agents/skills/chakra-ui/references/components/date-time/`
@@ -383,21 +392,21 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/disclosure/tabs.md` | Tabs | Tabs | tabs | tabs | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/disclosure/pagination.md` | Pagination | Pagination | — | — | 実装対象 | #751（#716 保留の解除） |
 | `.agents/skills/chakra-ui/references/components/disclosure/steps.md` | Steps | Steps | — | — | 実装対象 | #752（#716 保留の解除） |
-| `.agents/skills/chakra-ui/references/components/disclosure/carousel.md` | Carousel | Carousel | — | — | 実装対象 | #754 |
-| `.agents/skills/chakra-ui/references/components/disclosure/breadcrumb.md` | — | Breadcrumb | — | — | 実装対象 | #755（#716 追加候補の消化） |
+| `.agents/skills/chakra-ui/references/components/disclosure/carousel.md` | Carousel | Carousel | carousel | carousel | 実装済み | headless+styled 実装済み（#754）。autoplay（play/pause/aria-live 切替/delay）は初期実装スコープ外（`crates/headless-ui/src/carousel.rs` module doc 参照） |
+| `.agents/skills/chakra-ui/references/components/disclosure/breadcrumb.md` | — | Breadcrumb | breadcrumb | breadcrumb | 実装済み | #755（#716 追加候補の消化）。headless+styled 実装済み |
 
 #### `.agents/skills/chakra-ui/references/components/feedback/`
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
-| `.agents/skills/chakra-ui/references/components/feedback/progress.md` | Progress (linear) | Progress | progress | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装。circular 対応は #763 |
+| `.agents/skills/chakra-ui/references/components/feedback/progress.md` | Progress (linear) | Progress | progress | progress | 実装済み | headless+styled（root）実装済み。linear（Track/Range）用 styled ラッパーは #763 とスコープを分離した対応表側の未実装事項（follow-up イシュー起票を検討） |
 | `.agents/skills/chakra-ui/references/components/feedback/alert.md` | — | Alert | — | alert | 実装済み | pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/feedback/spinner.md` | — | Spinner | — | spinner | 実装済み | pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/feedback/toast.md` | Toast | Toast | — | — | 実装対象 | #760 |
-| `.agents/skills/chakra-ui/references/components/feedback/progress-circle.md` | Progress (circular) | ProgressCircle | progress | — | 実装対象 | #763（既存 progress mod を circular 対応へ拡張） |
-| `.agents/skills/chakra-ui/references/components/feedback/skeleton.md` | — | Skeleton | — | — | 実装対象 | #764 |
-| `.agents/skills/chakra-ui/references/components/feedback/status.md` | — | Status | — | — | 実装対象 | #765 |
-| `.agents/skills/chakra-ui/references/components/feedback/empty-state.md` | — | EmptyState | — | — | 実装対象 | #765 |
+| `.agents/skills/chakra-ui/references/components/feedback/progress-circle.md` | Progress (circular) | ProgressCircle | progress | progress | 実装済み | #763（既存 progress mod を circular 対応へ拡張。headless は #600 で実装済み、pre-styled ラッパーを #763 で追加） |
+| `.agents/skills/chakra-ui/references/components/feedback/skeleton.md` | — | Skeleton | — | skeleton | 実装済み | #764。pre-styled 静的部品 実装済み |
+| `.agents/skills/chakra-ui/references/components/feedback/status.md` | — | Status | — | status | 実装済み | pre-styled 静的部品 実装済み（#765） |
+| `.agents/skills/chakra-ui/references/components/feedback/empty-state.md` | — | EmptyState | — | empty_state | 実装済み | pre-styled 静的部品 実装済み（#765） |
 
 #### `.agents/skills/chakra-ui/references/components/forms/`
 
@@ -419,8 +428,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/forms/segmented-control.md` | SegmentGroup | SegmentedControl | segment_group | segment_group | 実装済み | headless+styled 実装済み（#743） |
 | `.agents/skills/chakra-ui/references/components/forms/tags-input.md` | TagsInput | TagsInput | tags_input | tags_input | 実装済み | headless+styled 実装済み（#744） |
 | `.agents/skills/chakra-ui/references/components/forms/editable.md` | Editable | Editable | — | — | 実装対象 | #745 |
-| `.agents/skills/chakra-ui/references/components/forms/checkbox-card.md` | — | CheckboxCard | — | — | 実装対象 | #747 |
-| `.agents/skills/chakra-ui/references/components/forms/radio-card.md` | — | RadioCard | — | — | 実装対象 | #747 |
+| `.agents/skills/chakra-ui/references/components/forms/checkbox-card.md` | — | CheckboxCard | — | checkbox_card | 実装済み | pre-styled styled バリエーション実装済み（#747。headless-ui は変更なし、状態機械は headless Checkbox を再利用） |
+| `.agents/skills/chakra-ui/references/components/forms/radio-card.md` | — | RadioCard | — | radio_card | 実装済み | pre-styled styled バリエーション実装済み（#747。headless-ui は変更なし、状態機械は headless RadioGroup を再利用） |
 | `.agents/skills/chakra-ui/references/components/forms/color-picker.md` | ColorPicker | ColorPicker | — | — | 保留 | #735 で記録（高度入力系） |
 | `.agents/skills/chakra-ui/references/components/forms/color-swatch.md` | — | ColorSwatch | — | — | 保留 | #735 で記録（高度入力系、ColorPicker 併設部品） |
 | `.agents/skills/chakra-ui/references/components/forms/file-upload.md` | FileUpload | FileUpload | — | — | 保留 | #735 で記録（高度入力系） |
@@ -437,7 +446,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
-| `.agents/skills/chakra-ui/references/components/layout/separator.md` | — | Separator | — | — | 実装対象 | #772 |
+| `.agents/skills/chakra-ui/references/components/layout/separator.md` | — | Separator | — | separator | 実装済み | #772。pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/layout/scroll-area.md` | ScrollArea | ScrollArea | — | — | 保留 | #735 で記録（装飾系） |
 | `.agents/skills/chakra-ui/references/components/layout/splitter.md` | Splitter | Splitter | — | — | 保留 | #735 で記録（装飾系） |
 | `.agents/skills/chakra-ui/references/components/layout/absolute-center.md` | — | AbsoluteCenter | — | — | 意図的非採用 | #716/#724 で非採用確定済み（layout プリミティブ） |
@@ -462,8 +471,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/overlays/menu.md` | Menu | Menu | menu | menu | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/overlays/popover.md` | Popover | Popover | popover | popover | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/overlays/tooltip.md` | Tooltip | Tooltip | tooltip | tooltip | 実装済み | headless+styled 実装済み |
-| `.agents/skills/chakra-ui/references/components/overlays/drawer.md` | Drawer | Drawer | — | — | 実装対象 | #758 |
-| `.agents/skills/chakra-ui/references/components/overlays/hover-card.md` | HoverCard | HoverCard | — | — | 実装対象 | #759 |
+| `.agents/skills/chakra-ui/references/components/overlays/drawer.md` | Drawer | Drawer | drawer | drawer | 実装済み | headless+styled 実装済み（#758、dialog の状態機械を再利用） |
+| `.agents/skills/chakra-ui/references/components/overlays/hover-card.md` | HoverCard | HoverCard | hover_card | hover_card | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/overlays/toggle-tip.md` | — | ToggleTip | — | — | 実装対象 | #761 |
 | `.agents/skills/chakra-ui/references/components/overlays/action-bar.md` | — | ActionBar | — | — | 実装対象 | #762 |
 | `.agents/skills/chakra-ui/references/components/overlays/overlay-manager.md` | — | OverlayManager | — | — | 保留 | #735 で記録（JS ランタイム固有 utilities） |
@@ -477,23 +486,23 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/typography/link-overlay.md` | — | LinkOverlay | — | — | 実装対象 | #756（#716 最優先候補の消化） |
 | `.agents/skills/chakra-ui/references/components/typography/kbd.md` | — | Kbd | — | — | 実装対象 | #768 |
 | `.agents/skills/chakra-ui/references/components/typography/code.md` | — | Code | — | — | 実装対象 | #768 |
-| `.agents/skills/chakra-ui/references/components/typography/heading.md` | — | Heading | — | — | 実装対象 | #771 |
-| `.agents/skills/chakra-ui/references/components/typography/text.md` | — | Text | — | — | 実装対象 | #771 |
-| `.agents/skills/chakra-ui/references/components/typography/em.md` | — | Em | — | — | 実装対象 | #771 |
-| `.agents/skills/chakra-ui/references/components/typography/mark.md` | — | Mark | — | — | 実装対象 | #771 |
-| `.agents/skills/chakra-ui/references/components/typography/blockquote.md` | — | Blockquote | — | — | 実装対象 | #771 |
-| `.agents/skills/chakra-ui/references/components/typography/list.md` | — | List | — | — | 実装対象 | #771 |
-| `.agents/skills/chakra-ui/references/components/typography/highlight.md` | Highlight | Highlight | — | — | 実装対象 | #775 |
+| `.agents/skills/chakra-ui/references/components/typography/heading.md` | — | Heading | — | heading | 実装済み | #771 |
+| `.agents/skills/chakra-ui/references/components/typography/text.md` | — | Text | — | text | 実装済み | #771 |
+| `.agents/skills/chakra-ui/references/components/typography/em.md` | — | Em | — | em | 実装済み | #771 |
+| `.agents/skills/chakra-ui/references/components/typography/mark.md` | — | Mark | — | mark | 実装済み | #771 |
+| `.agents/skills/chakra-ui/references/components/typography/blockquote.md` | — | Blockquote | — | blockquote | 実装済み | #771 |
+| `.agents/skills/chakra-ui/references/components/typography/list.md` | — | List | — | list | 実装済み | #771 |
+| `.agents/skills/chakra-ui/references/components/typography/highlight.md` | Highlight | Highlight | — | highlight | 実装済み | #775。pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/typography/rich-text-editor.md` | — | RichTextEditor | — | — | 保留 | #735 で記録（高度入力系） |
 | `.agents/skills/chakra-ui/references/components/typography/code-block.md` | — | CodeBlock | — | — | 対象外 | 対象外（docs-site 既存機構と役割分担） |
-| `.agents/skills/chakra-ui/references/components/typography/prose.md` | — | Prose | — | — | 対象外 | 対象外（docs-site 既存機構と役割分担） |
+| `.agents/skills/chakra-ui/references/components/typography/prose.md` | — | Prose | — | — | 対象外 | 対象外（docs-site 既存機構と役割分担。役割分担の詳細は #771 の `crates/pre-styled-ui/src/text.rs` rustdoc・`docs/api/pre-styled-ui-api.md` 参照） |
 
 #### `.agents/skills/chakra-ui/references/components/utilities/`
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
-| `.agents/skills/chakra-ui/references/components/utilities/visually-hidden.md` | — | VisuallyHidden | — | — | 実装対象 | #776 |
-| `.agents/skills/chakra-ui/references/components/utilities/skip-nav.md` | — | SkipNav | — | — | 実装対象 | #776 |
+| `.agents/skills/chakra-ui/references/components/utilities/visually-hidden.md` | — | VisuallyHidden | `visually_hidden` | `visually_hidden` | 実装済み | #776 |
+| `.agents/skills/chakra-ui/references/components/utilities/skip-nav.md` | — | SkipNav | `skip_nav` | `skip_nav` | 実装済み | #776 |
 | `.agents/skills/chakra-ui/references/components/utilities/client-only.md` | ClientOnly | ClientOnly | — | — | 保留 | #735 で記録（JS ランタイム固有 utilities） |
 | `.agents/skills/chakra-ui/references/components/utilities/environment-provider.md` | Environment | EnvironmentProvider | — | — | 保留 | #735 で記録（JS ランタイム固有 utilities） |
 | `.agents/skills/chakra-ui/references/components/utilities/presence.md` | Presence | Presence | — | — | 保留 | #735 で記録（JS ランタイム固有 utilities） |
