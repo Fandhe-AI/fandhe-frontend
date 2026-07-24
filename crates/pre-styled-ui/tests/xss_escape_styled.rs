@@ -2862,3 +2862,35 @@ fn tag_kbd_code_styled_are_escaped_for_all_payloads() {
         );
     }
 }
+
+/// JsonTreeView（イシュー #829）: `fandhe_frontend_pre_styled_ui::json_tree_view`
+/// の再エクスポート経由（headless-ui を直接使わない）で `render_json` を呼び、
+/// オブジェクトキー・文字列値の children テキスト経路へペイロードを注入しても
+/// エスケープが貫通することを固定する。styled 層は薄い再エクスポートであり
+/// 独自のエスケープ処理を持たないため、本テストは `crates/headless-ui/tests/xss_escape.rs`
+/// の対応テストと同じ保証を styled 経路越しに固定する契約検証である。
+#[test]
+fn json_tree_view_styled_key_and_string_value_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::json_tree_view::{render_json, JsonValue, TreeView};
+
+    for payload in payloads::all() {
+        let by_key = JsonValue::Object(vec![(payload.to_string(), JsonValue::Null)]);
+        let html = render(&render_json(&TreeView::default(), &by_key));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "json_tree_view::render_json（styled 再エクスポート）のオブジェクトキー児テキストコンテキスト",
+        );
+
+        let by_string_value = JsonValue::Object(vec![(
+            "k".to_string(),
+            JsonValue::String(payload.to_string()),
+        )]);
+        let html = render(&render_json(&TreeView::default(), &by_string_value));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "json_tree_view::render_json（styled 再エクスポート）の文字列値児テキストコンテキスト",
+        );
+    }
+}
