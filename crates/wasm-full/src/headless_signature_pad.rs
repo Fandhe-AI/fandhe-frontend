@@ -162,6 +162,73 @@ pub fn is_drawable_part(scope: Option<&str>, part: Option<&str>) -> bool {
         )
 }
 
+/// `segment` 要素の `viewBox="0 0 {width} {height}"` 属性値から
+/// `(width, height)`（SVG ユーザー単位）を取り出す純粋関数（DOM 非依存、
+/// native `cargo test` で検証可能）。
+///
+/// `fandhe_frontend_headless_ui::signature_pad::segment` が生成する形式
+/// （`min-x`/`min-y` は常に `0`、4 トークン空白区切り）のみを想定する。
+/// 想定外の形式（トークン数不一致・非数値・非有限値・0 以下）は `None`
+/// （fail-closed。呼び出し側はスケーリングを諦め等倍にフォールバックする）。
+// 呼び出し元は wasm32 の `wiring` モジュール（[`wiring::segment_rect_transform`]）
+// と native テストのみのため、native の非テストビルドでは未使用と誤検出される
+// （`headless_avatar.rs::AVATAR_FALLBACK_PART` と同じ理由の dead_code 抑制）。
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+#[must_use]
+fn parse_view_box_dimensions(view_box: &str) -> Option<(f64, f64)> {
+    let tokens: Vec<&str> = view_box.split_whitespace().collect();
+    let [_, _, width, height] = tokens[..] else {
+        return None;
+    };
+    let width: f64 = width.parse().ok()?;
+    let height: f64 = height.parse().ok()?;
+    if !width.is_finite() || !height.is_finite() || width <= 0.0 || height <= 0.0 {
+        return None;
+    }
+    Some((width, height))
+}
+
+/// 表示上の bounding box（CSS ピクセル、`getBoundingClientRect()` 由来）から
+/// SVG `viewBox` のユーザー単位への軸ごとの倍率を計算する純粋関数（DOM 非依存、
+/// native `cargo test` で検証可能）。
+///
+/// pre-styled 側で `width: 100%` 等により表示サイズが `viewBox` の
+/// `width`/`height` と異なる場合、CSS ピクセルのポインタ座標をそのまま
+/// ユーザー単位として扱うとストロークが実際のカーソル位置からずれる
+/// （Bugbot 指摘、イシュー #843 PR #872）。`rect_dim` の要素が非有限・0 以下
+/// （レイアウト未確定・display:none 等）の場合は等倍（`1.0`）にフォール
+/// バックする（fail-closed。座標を欠落させるより歪みなく描画を継続する
+/// ほうを優先する設計）。
+///
+/// # 前提（`preserveAspectRatio` 非指定）
+///
+/// `fandhe_frontend_headless_ui::signature_pad::segment` は `svg` 要素に
+/// `preserveAspectRatio` を指定しない（SVG 既定 `xMidYMid meet`）。かつ
+/// `pre-styled-ui::signature_pad::stylesheet` が付与する CSS は `width: 100%`
+/// のみで `height` を独立指定しない（イシュー #843）ため、実際の運用では
+/// 表示上の縦横比が常に `viewBox` の縦横比と一致する（ブラウザの置換要素の
+/// 既定挙動により、明示 `height` 未指定時は `viewBox` の縦横比を保って高さが
+/// 決まる）。本関数は軸ごとに独立した倍率を返すため、呼び出し元が
+/// `viewBox` と異なる縦横比で明示的に `width`/`height` を独立指定する構成
+/// （本関数の前提が崩れる構成）を許す場合、letterbox/pillarbox オフセット
+/// を考慮しない歪みが生じ得る（現状の pre-styled-ui スタイルシートは
+/// この構成を作らないため、Bugbot 指摘のシナリオでは影響しない）。
+#[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+#[must_use]
+fn scale_factors(view_box_dim: (f64, f64), rect_dim: (f64, f64)) -> (f64, f64) {
+    let scale = |view_box: f64, rect: f64| -> f64 {
+        if rect.is_finite() && rect > 0.0 {
+            view_box / rect
+        } else {
+            1.0
+        }
+    };
+    (
+        scale(view_box_dim.0, rect_dim.0),
+        scale(view_box_dim.1, rect_dim.1),
+    )
+}
+
 // ---------------------------------------------------------------------
 // 配線層: web-sys 依存。wasm32 ターゲットでのみコンパイル対象とし、
 // native の `cargo test --workspace` に本層の DOM 依存コードを混入させない
@@ -169,7 +236,10 @@ pub fn is_drawable_part(scope: Option<&str>, part: Option<&str>) -> bool {
 // ---------------------------------------------------------------------
 #[cfg(target_arch = "wasm32")]
 mod wiring {
-    use super::{is_drawable_part, StrokeCollector, ACTION_ADD_STROKE};
+    use super::{
+        is_drawable_part, parse_view_box_dimensions, scale_factors, StrokeCollector,
+        ACTION_ADD_STROKE,
+    };
     use crate::events::ActionRef;
     use fandhe_frontend_interactive::Component;
     use wasm_bindgen::closure::Closure;
@@ -179,22 +249,34 @@ mod wiring {
     /// `event.target()` から祖先方向（自身を含む）へ
     /// `[data-scope="signature-pad"][data-part="segment"]` 要素を探し、
     /// 見つかった場合はその `getBoundingClientRect()` 原点（`viewBox` の
-    /// `(0, 0)` に対応する画面座標）を返す。`segment-path`（ストローク
-    /// 自体）上のイベントも `closest` が祖先の `segment` を辿って解決する。
-    /// 見つからない場合（描画領域外、例: ClearTrigger 上）は `None`
-    /// （fail-closed）。
+    /// `(0, 0)` に対応する画面座標）と、CSS ピクセルから `viewBox` ユーザー
+    /// 単位への軸ごとの倍率（`(origin_x, origin_y, scale_x, scale_y)`）を
+    /// 返す。`segment-path`（ストローク自体）上のイベントも `closest` が
+    /// 祖先の `segment` を辿って解決する。見つからない場合（描画領域外、
+    /// 例: ClearTrigger 上）は `None`（fail-closed）。
+    ///
+    /// pre-styled 側で `width: 100%` 等により表示上の bounding box が
+    /// `viewBox="0 0 {width} {height}"` の寸法と異なる場合、CSS ピクセルの
+    /// ポインタ座標をそのままユーザー単位として扱うとストロークが実際の
+    /// カーソル位置からずれる（Bugbot 指摘、イシュー #843 PR #872）。
+    /// `viewBox` 属性が想定外の形式・bounding box が非有限/0 以下の場合は
+    /// [`parse_view_box_dimensions`]/[`scale_factors`] がそれぞれ `None`/
+    /// 等倍にフォールバックする（fail-closed）。
     ///
     /// 呼び出し側（[`is_drawable_part`] を経由しない `pointermove`/
     /// `pointerup` を含む）は、追跡開始済みかどうかを [`StrokeCollector`]
     /// 自身の `pointer_id` 一致判定に委ねるため、本関数は「描画領域内か」
-    /// の判定そのものは行わず、原点の解決失敗のみを扱う。
-    fn segment_rect_origin(target: &Element) -> Option<(f64, f64)> {
+    /// の判定そのものは行わず、原点・倍率の解決失敗のみを扱う。
+    fn segment_rect_transform(target: &Element) -> Option<(f64, f64, f64, f64)> {
         let segment = target
             .closest(r#"[data-scope="signature-pad"][data-part="segment"]"#)
             .ok()
             .flatten()?;
+        let view_box = segment.get_attribute("viewBox")?;
+        let view_box_dim = parse_view_box_dimensions(&view_box)?;
         let rect = segment.get_bounding_client_rect();
-        Some((rect.left(), rect.top()))
+        let (scale_x, scale_y) = scale_factors(view_box_dim, (rect.width(), rect.height()));
+        Some((rect.left(), rect.top(), scale_x, scale_y))
     }
 
     /// `PointerEvent` からクライアント座標を取り出す（内部ヘルパ）。
@@ -208,10 +290,13 @@ mod wiring {
     /// 橋渡しする。
     ///
     /// ポインタ座標は [`is_drawable_part`] が描画領域と判定した要素上の
-    /// イベントのみを扱い、[`segment_rect_origin`] が返す `segment`
-    /// 要素の左上を原点とするローカル座標へ変換する
+    /// イベントのみを扱い、[`segment_rect_transform`] が返す `segment`
+    /// 要素の左上を原点とし、CSS ピクセルから `viewBox` ユーザー単位へ
+    /// スケーリングしたローカル座標へ変換する
     /// （`fandhe_frontend_headless_ui::signature_pad::segment` の `viewBox`
-    /// 原点 `(0, 0)` と一致させる）。
+    /// 原点 `(0, 0)` と一致させ、表示上の bounding box が `viewBox` の
+    /// 寸法と異なる場合でもカーソル位置とストロークの追随を一致させる。
+    /// Bugbot 指摘、イシュー #843 PR #872）。
     ///
     /// `Closure::forget` は `pointerdown`/`pointermove`/`pointerup`/
     /// `pointercancel` の **4 回のみ**に限定する（`events.rs`/
@@ -248,17 +333,22 @@ mod wiring {
                 if !is_drawable_part(scope.as_deref(), part.as_deref()) {
                     return;
                 }
-                let Some((origin_x, origin_y)) = segment_rect_origin(&target) else {
+                let Some((origin_x, origin_y, scale_x, scale_y)) = segment_rect_transform(&target)
+                else {
                     return;
                 };
                 let (client_x, client_y) = client_xy(&event);
                 if let Ok(mut c) = down_collector.try_borrow_mut() {
-                    c.on_pointer_down(event.pointer_id(), client_x - origin_x, client_y - origin_y);
+                    c.on_pointer_down(
+                        event.pointer_id(),
+                        (client_x - origin_x) * scale_x,
+                        (client_y - origin_y) * scale_y,
+                    );
                 }
                 // ポインタキャプチャを取得し、以後 pointermove/pointerup の
                 // `event.target()` が描画領域外へドラッグしても本要素に
                 // 固定されるようにする（キャプチャなしでは画面境界を跨いだ
-                // 際に `segment_rect_origin` が解決できず、ストロークが
+                // 際に `segment_rect_transform` が解決できず、ストロークが
                 // 途切れて見える不具合を防ぐ）。失敗しても致命的ではないため
                 // 結果は無視する（`Result` を握りつぶす、panic 回避）。
                 let _ = target.set_pointer_capture(event.pointer_id());
@@ -283,11 +373,16 @@ mod wiring {
                 if !move_root.contains(Some(&target)) {
                     return;
                 }
-                let Some((origin_x, origin_y)) = segment_rect_origin(&target) else {
+                let Some((origin_x, origin_y, scale_x, scale_y)) = segment_rect_transform(&target)
+                else {
                     return;
                 };
                 let (client_x, client_y) = client_xy(&event);
-                c.on_pointer_move(event.pointer_id(), client_x - origin_x, client_y - origin_y);
+                c.on_pointer_move(
+                    event.pointer_id(),
+                    (client_x - origin_x) * scale_x,
+                    (client_y - origin_y) * scale_y,
+                );
             });
             root.add_event_listener_with_callback("pointermove", closure.as_ref().unchecked_ref())?;
             closure.forget();
@@ -511,6 +606,69 @@ mod tests {
         ));
         assert!(!is_drawable_part(Some("attacker"), Some("control")));
         assert!(!is_drawable_part(None, None));
+    }
+
+    // --- parse_view_box_dimensions / scale_factors（Bugbot 指摘、イシュー
+    // #843 PR #872: viewBox スケーリング未考慮によるポインタ座標ずれ） ---
+
+    #[test]
+    fn parse_view_box_dimensions_reads_width_and_height() {
+        assert_eq!(
+            parse_view_box_dimensions("0 0 300 150"),
+            Some((300.0, 150.0))
+        );
+    }
+
+    #[test]
+    fn parse_view_box_dimensions_rejects_malformed_input() {
+        assert_eq!(parse_view_box_dimensions(""), None);
+        assert_eq!(parse_view_box_dimensions("0 0 300"), None);
+        assert_eq!(parse_view_box_dimensions("0 0 300 abc"), None);
+        assert_eq!(parse_view_box_dimensions("0 0 0 150"), None);
+        assert_eq!(parse_view_box_dimensions("0 0 -300 150"), None);
+        assert_eq!(parse_view_box_dimensions("0 0 NaN 150"), None);
+    }
+
+    #[test]
+    fn scale_factors_computes_ratio_when_displayed_size_differs_from_view_box() {
+        // pre-styled で `width: 100%` により表示が 600x300（viewBox の 2 倍）
+        // に拡大された場合、CSS ピクセル座標は 0.5 倍してユーザー単位へ
+        // 変換する必要がある（Bugbot 指摘のシナリオそのもの）。
+        let (scale_x, scale_y) = scale_factors((300.0, 150.0), (600.0, 300.0));
+        assert!((scale_x - 0.5).abs() < f64::EPSILON);
+        assert!((scale_y - 0.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn scale_factors_uses_independent_per_axis_ratio_for_mismatched_aspect_ratio() {
+        // `scale_factors` は軸ごとに独立した比率を返す仕様であることを固定
+        // する回帰テスト（`scale_factors` の rustdoc「前提」節参照）。この
+        // 独立比率は表示上の縦横比が `viewBox` の縦横比と一致する構成
+        // （pre-styled-ui の現行 CSS はこの構成のみを作る）でのみ letterbox/
+        // pillarbox オフセットなしに正しく動作する。縦横比が一致しない構成
+        // （本テストの 300x150 → 600x600 等）を許す呼び出し元を新設する場合は
+        // 本関数の前提が崩れるため、その時点で uniform-scale + centering
+        // offset への切り替えを検討する必要がある。
+        let (scale_x, scale_y) = scale_factors((300.0, 150.0), (600.0, 600.0));
+        assert!((scale_x - 0.5).abs() < f64::EPSILON);
+        assert!((scale_y - 0.25).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn scale_factors_is_identity_when_sizes_match() {
+        let (scale_x, scale_y) = scale_factors((300.0, 150.0), (300.0, 150.0));
+        assert_eq!((scale_x, scale_y), (1.0, 1.0));
+    }
+
+    #[test]
+    fn scale_factors_falls_back_to_identity_for_non_positive_rect() {
+        // レイアウト未確定・display:none 等で rect が 0/非有限になっても
+        // 座標を破棄せず等倍にフォールバックする（fail-closed）。
+        assert_eq!(scale_factors((300.0, 150.0), (0.0, 0.0)), (1.0, 1.0));
+        assert_eq!(
+            scale_factors((300.0, 150.0), (f64::NAN, f64::NAN)),
+            (1.0, 1.0)
+        );
     }
 
     // --- dispatch roundtrip（ドリフト検知） ---
