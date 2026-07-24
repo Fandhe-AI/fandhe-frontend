@@ -13,7 +13,7 @@ pre-styled UI コンポーネント層、親トラッキング #520・骨格新�
 対応する REQ / TASK は `docs/spec/` に存在しない（要件提案は
 fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 参照）。
 
-## 2. 実装状況（v0.24.0 時点、2026-07-24 更新）
+## 2. 実装状況（v0.25.0 時点、2026-07-24 更新）
 
 **記載方針**: 実装済み API の正は `crates/pre-styled-ui/src/lib.rs` 冒頭の
 rustdoc および各モジュール冒頭の rustdoc とする。本節はモジュール一覧の
@@ -42,8 +42,8 @@ HoverCard styled ラッパー追加（#759）・ToggleTip styled ラッパー追
 ラッパー追加（#774）・VisuallyHidden/SkipNav 静的部品追加（#776）・
 ActionBar styled ラッパー追加（#762）・Toast styled ラッパー追加
 （#760）・Stat/Timeline styled 静的部品追加（#769）・Table/DataList
-静的部品追加（#767、いずれも公開時点未反映）を経て 75 の公開モジュールを
-持つ。内訳は次の通り。
+静的部品追加（#767）・FloatingPanel styled ラッパー追加（#827、いずれも
+公開時点未反映）を経て 76 の公開モジュールを持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -97,6 +97,7 @@ ActionBar styled ラッパー追加（#762）・Toast styled ラッパー追加
 | headless ラッパー | `qr_code` | #774（headless の外部依存ゼロ QR Model 2 エンコーダ（`crates/headless-ui/src/qr_code.rs`）へ CSS のみ追加提供。`size` variant のみ・`color-palette` 軸は非提供（前景/背景色は固定トークンに閉じ、低コントラスト組み合わせを誘発しないための意図的判断、`qr_code` モジュール doc「`size` variant」節参照）。`Frame`/`Pattern`/`Overlay` は headless 自由関数をそのまま選択的に再エクスポートする） |
 | 状態機械を持たない静的表示部品 | `table` / `data_list` | #767（`card` と同型。headless-ui 側に対応する anatomy を持たず本クレートで新規 anatomy `table`/`data-list` を定義する。`table` は `variant`（`Line`/`Outline`）/`size`/`striped` の 3 軸 variant を持ち、striped は新設の `StateCondition::NthChildEven` で表現する。`data_list` は `orientation`（`Vertical`/`Horizontal`）の 1 軸のみ。`interactive`/`stickyHeader`/`showColumnBorder`/`ScrollArea`/`ColumnGroup`（table）・`variant`（subtle/bold）/`size`（data_list）はスコープ外） |
 | 静的部品（新規 anatomy） | `stat` / `timeline` | #769（ark-ui に対応する headless anatomy が存在しないため、`checkbox_card`/`radio_card`（#747）と同型の判断で headless-ui は変更せず pre-styled-ui 層で新規 anatomy `data-scope="stat"`/`"timeline"` を定義。`stat` は `<dl>`/`<dt>`/`<dd>` を使い `size` variant のみ・`color-palette` 軸は非提供（`card` と同型の中立部品判断）、増減 indicator は `rating_group` と同型の `clip-path` インライン三角形。`timeline` は `<ol>`/`<li>` を使い `variant`（`TimelineVariant`: solid/subtle/outline/plain）/`size`/`color-palette` の 3 軸を root のみへ付与し `indicator`/`separator` へは CSS custom property の継承で伝搬。`showLastSeparator` 相当は recipe 側で自動制御せず、呼び出し側が最終 item へ `separator` パーツを含めないことで表現する契約） |
+| headless ラッパー | `floating_panel` | #827（`fandhe_frontend_headless_ui::floating_panel` の Root/Trigger/Positioner/Content/Header/Title/Control/StageTrigger/CloseTrigger/Body 10 anatomy パーツと `FloatingPanel` 状態機械をそのまま再エクスポートし CSS のみ追加提供する薄いラッパー（`popover`/`dialog` と同型）。variant（`size`/`color-palette`）は非提供。`content` の開閉 `data-state` に加え `body` の `data-stage="minimized"`（折り畳み）・`positioner` の `data-stage="maximized"`（ビューポート全面表示）を CSS で切り替える。`positioner` は `position: fixed` を基点に headless 側の `--fandhe-x`/`--fandhe-y` を `transform: translate3d(...)` で反映し、z-index は dialog モーダル層（1000/1001）未満・menu/popover の dropdown 層（10）超の専用 tier（`900`）を割り当てる。ドラッグ移動・リサイズの実 DOM 配線は headless 層と同じくスコープ外） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
