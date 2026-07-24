@@ -31,9 +31,9 @@ use fandhe_frontend_headless_ui::scroll_area;
 use fandhe_frontend_headless_ui::{
     action_bar, aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog,
     download_trigger, editable, floating_panel, hover_card, listbox, number_input, password_input,
-    pin_input, popover, rating_group, segment_group, slider, tags_input, toast, tree_view,
-    ImageStatus, OpenState, Orientation, PasswordAutocomplete, PasswordInputProps, Steps,
-    ToastStatus,
+    pin_input, popover, rating_group, segment_group, slider, splitter, tags_input, toast,
+    tree_view, ImageStatus, OpenState, Orientation, PasswordAutocomplete, PasswordInputProps,
+    Steps, ToastStatus,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -654,6 +654,71 @@ fn tree_view_dispatch_payload_is_escaped_in_hydration_output() {
     assert!(!rendered.contains(r#""><script"#));
 }
 
+/// (1)(2) テキスト経路 + 属性値経路（イシュー #829 JsonTreeView）:
+/// オブジェクトキー・文字列値・JSON Pointer（`data-value`）の各コンテキストへ
+/// 全ペイロードを注入し、[`json_tree_view::render_json`] 経由でもエスケープが
+/// 貫通することを固定する（`tree_view` 分と同型の網羅方針）。
+#[test]
+fn json_tree_view_key_string_value_and_pointer_paths_are_escaped_for_all_payloads() {
+    use fandhe_frontend_headless_ui::json_tree_view::{render_json, JsonValue, TreeView};
+
+    for payload in payloads::all() {
+        // キー: オブジェクトキーが key パーツの children テキスト経路へ乗る。
+        let by_key = JsonValue::Object(vec![(payload.to_string(), JsonValue::Null)]);
+        let html_by_key = render(&render_json(&TreeView::default(), &by_key));
+        assert_payload_is_escaped(
+            payload,
+            &html_by_key,
+            "json_tree_view::render_json のオブジェクトキー children コンテキスト",
+        );
+
+        // 文字列値: value パーツの children テキスト経路。
+        let by_string_value = JsonValue::Object(vec![(
+            "k".to_string(),
+            JsonValue::String(payload.to_string()),
+        )]);
+        let html_by_string_value = render(&render_json(&TreeView::default(), &by_string_value));
+        assert_payload_is_escaped(
+            payload,
+            &html_by_string_value,
+            "json_tree_view::render_json の文字列値 children コンテキスト",
+        );
+
+        // JSON Pointer: オブジェクトキーが data-value（RFC 6901 ポインタ）の
+        // セグメントとしても使われるため、by_key（payload をオブジェクトキーに
+        // 使うケース）の html を再検証し、属性値コンテキストでのエスケープを
+        // 直接固定する（by_string_value の html を誤って再利用しない）。
+        assert_payload_is_escaped(
+            payload,
+            &html_by_key,
+            "json_tree_view::render_json の data-value（JSON Pointer）コンテキスト",
+        );
+    }
+}
+
+/// (4) dispatch payload → hydration 経路（イシュー #829 JsonTreeView）:
+/// [`json_tree_view::expanded_to_depth`]/`TreeView` 経由の展開・選択
+/// dispatch payload（本モジュールでは RFC 6901 JSON Pointer 文字列）が
+/// 改ざんされうる入力として扱われ、hydration 属性へ埋め込まれてもエスケープが
+/// 貫通することを固定する（`tree_view` 分の回帰を JsonTreeView 経由でも固定）。
+#[test]
+fn json_tree_view_dispatch_payload_is_escaped_in_hydration_output() {
+    use fandhe_frontend_headless_ui::json_tree_view::TreeView;
+    use fandhe_frontend_interactive::{dispatch, render_for_hydration};
+
+    let mut t = TreeView::default();
+    let payload = "\"><script>alert(1)</script>";
+    assert!(dispatch(&mut t, "expand", payload));
+    assert!(dispatch(&mut t, "select", payload));
+
+    let rendered = render(&render_for_hydration(&t));
+    assert!(rendered.contains("data-hydrate-expanded="));
+    assert!(rendered.contains("data-hydrate-selected="));
+    assert!(rendered.contains("&lt;script&gt;"));
+    assert!(!rendered.contains("<script>alert(1)</script>"));
+    assert!(!rendered.contains(r#""><script"#));
+}
+
 /// Toast（イシュー #760）: group の `label`・root の title/description
 /// children・`Toaster::push` した通知の title/description・呼び出し側 attrs
 /// の各経路へペイロードを注入し、エスケープが貫通することを固定する。
@@ -991,6 +1056,44 @@ fn listbox_dispatch_select_payload_is_escaped_on_hydration_render() {
     }
 }
 
+/// (1)/(2) Splitter（イシュー #826）: `panel` の `id`（属性値経路）・
+/// `resize_trigger` の `aria-controls`（属性値経路）・
+/// `resize_trigger_indicator` の children（テキスト経路）へ全ペイロードを
+/// 注入し、エスケープが貫通することを固定する。
+#[test]
+fn splitter_panel_id_and_resize_trigger_controls_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let panel_node = splitter::panel(payload, Orientation::Horizontal, vec![], vec![]);
+        let html = render(&panel_node);
+        assert_payload_is_escaped(payload, &html, "splitter::panel の id 属性値コンテキスト");
+
+        let resize_trigger_node = splitter::resize_trigger(
+            Orientation::Horizontal,
+            "0",
+            "100",
+            "50",
+            payload,
+            false,
+            vec![],
+            vec![],
+        );
+        let html = render(&resize_trigger_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "splitter::resize_trigger の aria-controls 属性値コンテキスト",
+        );
+
+        let indicator_node = splitter::resize_trigger_indicator(vec![], vec![text(payload)]);
+        let html = render(&indicator_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "splitter::resize_trigger_indicator のテキストコンテキスト",
+        );
+    }
+}
+
 /// FloatingPanel（イシュー #827）: (2) 属性値経路（`trigger` の `controls`、
 /// `content` の `id`/`labelledby`）と (1) テキスト経路（`title` children）へ
 /// 全ペイロードを注入し、エスケープが貫通することを固定する。
@@ -1107,6 +1210,29 @@ fn download_trigger_root_href_file_name_and_children_are_escaped() {
             payload,
             &html,
             "download_trigger::root の children コンテキスト",
+        );
+    }
+}
+
+/// Splitter の dispatch `"set"` payload（クライアント由来の改ざんされうる
+/// 入力）が hydration 属性へエンコードされたのち `render()` を経由しても
+/// エスケープが貫通することを固定する（`data-hydrate-sizes` 等へは正規化
+/// 済みの数値のみが乗るため直接ペイロードは現れないが、`orientation` は
+/// dispatch を経由しない属性のため hydration ラウンドトリップ全体として
+/// 不正値を混入させないことを併せて確認する）。
+#[test]
+fn splitter_dispatch_set_payload_is_rejected_or_escaped_on_hydration_render() {
+    use fandhe_frontend_headless_ui::splitter::Splitter;
+    use fandhe_frontend_interactive::{dispatch, render_for_hydration};
+
+    for payload in payloads::all() {
+        let mut s = Splitter::default();
+        // 不正な payload は fail-closed に no-op となり、状態を汚染しない。
+        let _ = dispatch(&mut s, "set", payload);
+        let html = render(&render_for_hydration(&s));
+        assert!(
+            !html.contains("<script"),
+            "payload={payload:?} が hydration 出力に script タグとして混入した: {html}"
         );
     }
 }
