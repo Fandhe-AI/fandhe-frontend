@@ -13,7 +13,7 @@ pre-styled UI コンポーネント層、親トラッキング #520・骨格新�
 対応する REQ / TASK は `docs/spec/` に存在しない（要件提案は
 fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 参照）。
 
-## 2. 実装状況（v0.29.0 時点、2026-07-24 更新）
+## 2. 実装状況（v0.31.0 時点、2026-07-24 更新）
 
 **記載方針**: 実装済み API の正は `crates/pre-styled-ui/src/lib.rs` 冒頭の
 rustdoc および各モジュール冒頭の rustdoc とする。本節はモジュール一覧の
@@ -59,14 +59,27 @@ styled ラッパー追加（#829、`tree_view` #753 の派生）・button の ic
 `docs/policy/intentional-non-adoption.md` §7 の chakra-ui charts 保留を
 pie-chart/donut-chart の 2 件で解除）・ScatterChart/RadarChart styled 部品
 追加（#851、親 Phase #845、charts 基盤 #846 の上に実装。同 §7 の charts 系
-保留を scatter-chart/radar-chart 分のみ解除。いずれも公開時点未反映）を
-経て 86 の公開モジュール + `charts` サブモジュール群を持つ
-（`charts::scatter_chart`/`charts::radar_chart`/`charts::axis`/
-`charts::grid`/`charts::legend`/`charts::tooltip` は既存の
+保留を scatter-chart/radar-chart 分のみ解除。いずれも公開時点未反映）・
+AngleSlider headless ラッパー追加（#842、`docs/policy/intentional-non-adoption.md`
+§3.22 の意図的非採用の再導入。variant 軸のため styled `root` を再定義する
+選択的 re-export、状態機械 `AngleSlider` は非再エクスポート）・SignaturePad
+headless ラッパー追加（#843、canvas 不使用の決定的 SVG path 方式による
+同 §3.22 系の再導入。`qr_code` と同型の選択的 re-export）・ImageCropper
+headless ラッパー追加（#844、同 §3.22 の意図的非採用の再導入、先例は
+AngleSlider #842。crop 矩形（整数）のみの決定的状態機械。canvas 実切り出し・
+pointer ドラッグ配線はスコープ外）を経て 98 の公開モジュール + `charts`
+サブモジュール群を持つ（`charts::bar_chart`/`charts::bar_list`/
+`charts::bar_segment`/`charts::scatter_chart`/`charts::radar_chart`/
+`charts::axis`/`charts::grid`/`charts::legend`/`charts::tooltip`/
+`charts::pie`/`charts::data`/`charts::scale`/`charts::svg` は既存の
 `pub mod charts;`（#846）配下のサブモジュールであり、`grep -E '^pub mod '`
-によるトップレベル公開モジュール集計には計上されない。PieChart/DonutChart
-はいずれもトップレベルの新規 `pub mod`（`pie_chart`/`donut_chart`）を
-追加するため、84 の base から 2 増えて 86 となる）。内訳は次の通り。
+によるトップレベル公開モジュール集計には計上されない）。98 は
+`grep -c '^pub mod ' crates/pre-styled-ui/src/lib.rs` の実測値であり、
+本節の記述が長期間更新されず陳腐化していた経緯（イシュー #714）から旧
+記載値（86）との単純な差分計算（増分本数の突き合わせ）は行わない。
+本節 prose のイシュー列挙は経緯の記録に留め、モジュール一覧・本数の正は
+§2 表と `grep -c '^pub mod '` の実測値・各モジュール冒頭 rustdoc とする
+（上記「記載方針」参照）。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -141,6 +154,10 @@ pie-chart/donut-chart の 2 件で解除）・ScatterChart/RadarChart styled 部
 | charts（HTML） | `charts::bar_list` | #849（親 Phase #845）。単一系列のランキング型バーリスト。バー幅は系列内最大値に対する比率（`--fandhe-bar-list-percent` custom property）。最大値 0 は全バー幅 0% を決定的に描画（silent failure ではなく値と幅の対応が自明なため、`bar_segment` の合計 0 拒否とは意図的に挙動を変えている） |
 | charts（HTML） | `charts::bar_segment` | #849（親 Phase #845）。単一系列の構成比 100% 積み上げバー + 凡例。セグメント幅は系列合計に対する比率（`--fandhe-bar-segment-percent` custom property）、配色はカテゴリ index で `series_color_var` を循環。系列合計 0 は `ChartError::ZeroTotal` で構築時に拒否（構成比自体が定義できないため） |
 | 単純 styled 部品（新規 anatomy、charts 基盤の初のチャート部品） | `pie_chart` / `donut_chart` | #850（`docs/policy/intentional-non-adoption.md` §7 の chakra-ui charts 保留を pie-chart/donut-chart の 2 件で解除。charts 基盤（#846、`charts::pie` の円弧ジオメトリ・`charts::svg::PathBuilder::arc_to`）を用いた円グラフ・ドーナツグラフ。ark-ui に対応する headless anatomy がないため `marquee`/`stat` と同型の判断で新規 anatomy `data-scope="pie-chart"`/`"donut-chart"` を本クレートのみで定義する。系列 1 本専用（`data.series().len() != 1` は `PieChartError::MultiSeries` で fail-closed 拒否）。`size` variant のみ、`color-palette` 軸は非提供（セグメント配色は `charts::series_color_var` の chart-1〜6 循環で決まるため、`qr_code` と同型の判断）。`donut_chart` は追加で `inner_ratio`（既定 `0.6`、`0.0 < ratio < 1.0` を検証）を持つ） |
+| headless ラッパー（非採用の再導入、先例は AngleSlider） | `angle_slider` | #842（`docs/policy/intentional-non-adoption.md` §3.22 の意図的非採用を再導入。`size`/`palette` variant のため styled `root`（`slider` と同型）を再定義し、`pub use ...::*` ではなく必要な識別子のみを選択的に再エクスポートする。動的な回転角は `--fandhe-angle` custom property の 1 点のみで伝搬し `thumb_styled` が一元的に組み立てる（headless 自由関数 `thumb` は事故防止のため意図的に非公開のまま内部委譲）。状態機械 `AngleSlider` は `slider` の `Slider` 非再エクスポートと同型の判断であえて再エクスポートしない） |
+| headless ラッパー（非採用の再導入） | `signature_pad` | #843（canvas を使わない決定的 SVG path 方式で再導入。`root`/`control`/`segment`/`clear_trigger` を本モジュールで再定義する `qr_code` と同型の選択的 re-export（`label`/`segment_path`/`guide`/`hidden_input` はそのまま再エクスポート）。`raw_html()` を使用せず、CSS 宣言値はすべてコンパイル時静的リテラル。wasm 配線済み） |
+| headless ラッパー（非採用の再導入、先例は AngleSlider #842） | `image_cropper` | #844（`docs/policy/intentional-non-adoption.md` §3.22 の意図的非採用を再導入。Root/Viewport/Image/Grid/Handle をそのまま再エクスポートし、crop 矩形（整数）のみの決定的状態機械。動的な位置・寸法は `--fandhe-cropper-x`/`-y`/`-w`/`-h` の 4 custom property のみで伝搬し `selection` が一元的に組み立てる（headless 自由関数 `selection` は意図的に非公開）。状態機械 `ImageCropper` は `slider` と同型の判断であえて再エクスポートしない。canvas 実切り出し・pointer ドラッグ配線はスコープ外（後続 issue）） |
+| headless 由来ユーティリティ（本クレートに固有モジュールなし） | `format` / `Locale`（#853/#854） | 本クレート自身は `format` モジュールを持たず、クレートルート再エクスポート `pub use fandhe_frontend_headless_ui;`（§3a、イシュー #685）経由で `fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::format::{format_byte, format_number, format_time, format_relative_time}` および `Locale`（`En`/`Ja`）へ到達できる。API 詳細は本クレートで二重管理せず [`docs/api/headless-ui-api.md`](./headless-ui-api.md) §4e を正とする |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、
@@ -897,7 +914,10 @@ CSS のみの視覚強調と組み合わせて「ホバーで詳細が分かる�
 
 - [`docs/api/headless-ui-api.md`](./headless-ui-api.md): 本クレートの下層。
   §4b はレイアウト・ナビゲーション系部品（Breadcrumb / Pagination / 文書
-  ナビ向け Link リスト等）の追加要否の検討結果（イシュー #716）を記録する
+  ナビ向け Link リスト等）の追加要否の検討結果（イシュー #716）を記録する。
+  Format 系 / Locale（§4e、イシュー #853/#854）は本クレートに対応モジュール
+  を持たないため、掲載は同ドキュメント §4e を正とする（本クレートからの
+  到達経路は §2 表「headless 由来ユーティリティ」行・§3a 参照）
 - [`docs/api/component-api.md`](./component-api.md): `Node`/`el`/`text`/
   `raw_html`/`render` の凍結 API 表面
 - [`examples/headless-pre-styled-ui/README.md`](../../examples/headless-pre-styled-ui/README.md):
