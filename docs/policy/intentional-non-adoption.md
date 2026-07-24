@@ -999,6 +999,8 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     ゼロ・`headless-ui` 外部依存は `core`/`interactive`（いずれも path）
     のみ・依存上限 60 件/深さ 6）は変更していない（新規依存クレートの
     追加なし、`web-sys` の既存依存への feature 追加のみ）。
+- **利用者向けの等価概念対応表**: RichTextEditor（非採用維持）の等価概念は
+  `docs/design/component-coverage-map.md` §8（イシュー #855）を参照。
 
 ### 3.23 JS ランタイム固有 utilities（portal / show / for / presence / client-only / environment / frame / swap / focus-trap / format-\* / locale / async-list / checkmark / radiomark / overlay-manager）（イシュー #735）
 
@@ -1063,6 +1065,28 @@ AI エージェントが変更の影響範囲を判断するために読み込�
      ユーザー承認を得た場合。
   4. Checkmark / Radiomark: `checkbox` / `radio_group` から装飾表現を
      切り出す具体的な需要（他コンポーネントでの再利用等）が確定した場合。
+- **再導入記録（イシュー #853、FormatByte / FormatNumber / FormatTime /
+  FormatRelativeTime の 4 件のみ。Portal / Show / For / Presence /
+  ClientOnly / EnvironmentProvider / Frame / Swap / FocusTrap /
+  OverlayManager / LocaleProvider / AsyncListCollection / Checkmark /
+  Radiomark は非採用のまま変更しない）**: 再評価トリガー 3（「`Format*` は
+  `fandhe-frontend-headless-ui` とは別の専用クレートの新設がユーザー承認を
+  得た場合」）を、専用クレートの新設ではなく「`fandhe-frontend-headless-ui`
+  内モジュール `format`」として実装することで解消したと判断した。上記
+  コンテキスト消費の評価軸で挙げた懸念（国際化ライブラリの概念持ち込み）
+  は、Intl API・`LocaleProvider` 等の JS ランタイム機構を一切使わない
+  外部依存ゼロの決定的純関数（現在時刻 API 非依存、`Locale` enum による
+  ロケール拡張点を型で明示）として実装することで解消し、専用クレート
+  新設という再評価トリガーの文言そのものよりも軽量な手段で評価軸 4 項目
+  （明示性・決定性・機械検証可能性・コンテキスト消費）を充足したと判断
+  した。`crates/headless-ui/src/format.rs`（[`mod@format`]、
+  `format_byte`/`format_number`/`format_time`/`format_relative_time`）
+  として実装済み（`docs/api/headless-ui-api.md` の「Format ユーティリティ」
+  節参照）。LocaleProvider / AsyncListCollection（en 以外のロケール拡張含む）
+  はイシュー #854・#855 のスコープであり本記録の対象外。
+- **利用者向けの等価概念対応表**: 上記 24 件のうち非採用のまま変更しない
+  20 件それぞれの等価概念・代替実装は `docs/design/component-coverage-map.md`
+  §8（イシュー #855）に一覧化する。
 
 ### 3.24 その他 UI 部品（marquee / chakra `Theme` コンポーネント）（イシュー #735、marquee は #831 で再導入済み）
 
@@ -1111,6 +1135,8 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   として §4 の手続きに従い再導入した（評価軸充足の詳細は同ファイル冒頭
   rustdoc、golden CSS 固定は `crates/pre-styled-ui/tests/marquee_css.rs`
   参照）。
+- **利用者向けの等価概念対応表**: chakra `Theme`（非採用維持）の等価概念は
+  `docs/design/component-coverage-map.md` §8（イシュー #855）を参照。
 
 ## 4. 運用（再導入提案時の手続き）
 
@@ -1160,6 +1186,9 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   第 1 項は本書 §3.15 の非採用判断に対応）
 - `docs/design/opt-in-thin-js-glue.md`（イシュー #376、`fandhe-frontend-wasm-thin` の
   位置づけ・公開 API 凍結表・JS グルー規範。§3.10 の非採用根拠）
+- `crates/headless-ui/src/format.rs`（イシュー #853、§3.23 の Format\* 再導入
+  記録。JS の `Intl` API・`LocaleProvider` に依存しない外部依存ゼロの決定的
+  純関数として byte / number / time / relative-time の 4 種を実装）
 - `crates/wasm-thin/tests/thin_runtime.rs`（イシュー #376、`wasm-thin` の XSS 回帰
   テスト群）
 - `docs/design/xss-escape-wasm-test-design.md`（イシュー #376、JS グルー
@@ -1184,7 +1213,8 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   positioning の wasm 層計測注入層。§3.20 の代替実装）
 - `docs/design/component-coverage-map.md`（イシュー #734、ark-ui /
   chakra-ui 全コンポーネント対応表。§3.22〜§3.24・§7 が非採用・保留と
-  確定した項目の一次対応表）
+  確定した項目の一次対応表。§8 = イシュー #855 で追加した、§3.22〜§3.24 の
+  意図的非採用項目についての利用者向け等価概念対応表）
 - `docs/api/pre-styled-ui-api.md`（イシュー #716/#724、layout プリミティブ
   非採用の一次記録。component-coverage-map の「意図的非採用」区分の先例）
 - `crates/wasm-full/src/focus_trap.rs`（フォーカストラップ実装。§3.23 の
@@ -1224,7 +1254,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 | date-time 系のうち実装済み | calendar / date-picker / date-input / timer | 保留解除・実装済み（暦計算コア `headless-ui::date`（イシュー #833）を先行前提として、外部依存ゼロ・現在時刻非取得の decisive な実装が確立したため、Calendar/DatePicker（イシュー #835）・DateInput（イシュー #834）の保留を解除。Timer（イシュー #836）も tick を外部から明示的に注入する決定的状態機械として暦・ロケール・タイムゾーンを一切必要としない設計を示し、同トリガーを充足したため保留を解除。date-time 系のうち保留のまま残るコンポーネントは現時点でない。headless `crates/headless-ui/src/calendar.rs`・`crates/headless-ui/src/date_picker.rs`・`crates/headless-ui/src/date_input.rs`・`crates/headless-ui/src/timer.rs` + styled `crates/pre-styled-ui/src/calendar.rs`・`crates/pre-styled-ui/src/date_picker.rs`・`crates/pre-styled-ui/src/date_input.rs`・`crates/pre-styled-ui/src/timer.rs` として実装済み。詳細は `docs/design/component-coverage-map.md` 該当行参照） | （実装済みのため該当なし） |
 | 高度入力系（フォーム部品）のうち実装済み | color-picker / color-swatch / file-upload（いずれも ark・chakra 双方） | 保留解除・実装済み（color-swatch: イシュー #838 で色見本の静的表示を CSS `background-image` のみ（canvas 非依存）で実装。color-picker: イシュー #839（親 #837）で色領域・色相/アルファスライダーを CSS グラデーション + 導出整数割合（canvas 非依存）で実装し、再評価トリガー「canvas 依存部分を隔離し状態機械を純粋関数に保つ設計」を充足。file-upload: イシュー #840 の起票により保留解除、`headless-ui`/`pre-styled-ui`/`wasm-full` の `file_upload` mod として実装済み。`File` オブジェクト自体を headless-ui 層で一切保持せず、実 `File` API 接触は `wasm-full::headless_file_upload` の配線層のみに隔離する設計で再評価トリガーを充足した。ItemPreview/ItemPreviewImage（object URL プレビュー）は `File` オブジェクト非保持設計と両立しないためスコープ外のまま。ポインタドラッグ・キーボード操作の DOM 配線は引き続き `wasm-full` 側の後続対応。詳細は `docs/design/component-coverage-map.md` 該当行参照。高度入力系のうち保留のまま残るコンポーネントは現時点でない） | （実装済みのため該当なし） |
 | JS ランタイム固有 utilities のうち静的実装可能なもの | download-trigger（ark・chakra 双方）/ json-tree-view | いずれも保留解除・実装済み（download-trigger: 利用要望 issue #828 の起票により保留解除、`headless-ui`/`pre-styled-ui` の `download_trigger` mod として実装済み。json-tree-view: イシュー #829 で実装済み `tree_view`（#753）の派生として実装完了、headless `crates/headless-ui/src/json_tree_view.rs` + styled `crates/pre-styled-ui/src/json_tree_view.rs` として実装済み。詳細は `docs/design/component-coverage-map.md` 該当行参照） | （両者とも実装済みのため該当なし） |
-| charts 全般 | area-chart / bar-chart / bar-list / bar-segment / cartesian-grid / donut-chart / installation / legend / line-chart / pie-chart / radar-chart / scatter-chart / sparkline / tooltip / use-chart / axes（計 16 件） | 描画特性（SVG 座標計算・データスケーリング）が既存 UI 部品と異なり、`headless-ui`/`pre-styled-ui` とは別クレートとすべきか判断が必要。依存グラフ上限（60 件/深さ 6、REQ-3）との整合評価も未了 | 利用要望の確定、および `core`/`headless-ui` と同じ外部依存ゼロ方針を維持したまま SVG ノード木生成のみで実装できる設計の確立（別クレート新設の要否はユーザー承認事項） |
+| charts 全般 | area-chart / bar-chart / bar-list / bar-segment / cartesian-grid / donut-chart / installation / legend / line-chart / pie-chart / radar-chart / scatter-chart / sparkline / tooltip / use-chart / axes（計 16 件） | 描画特性（SVG 座標計算・データスケーリング）が既存 UI 部品と異なり、`headless-ui`/`pre-styled-ui` とは別クレートとすべきか判断が必要。依存グラフ上限（60 件/深さ 6、REQ-3）との整合評価も未了。**Phase #845 で保留解除進行中**: 再評価トリガー（外部依存ゼロを維持したまま SVG ノード木生成のみで実装できる設計の確立）を充足する基盤（座標スケーリング・SVG ノード木生成・`ChartData` モデル）をイシュー #846 で実装済み（新クレートは作らず `pre-styled-ui::charts` モジュール群、判断根拠は `docs/design/charts-foundation-design.md`）。installation/use-chart の 2 件は保留解除・実装済みへ更新済み（`docs/design/component-coverage-map.md` 該当行参照）。残る 14 件（各チャート部品・軸/グリッド/凡例/ツールチップ）は #847〜#851 で個別に保留解除する | 利用要望の確定、および `core`/`headless-ui` と同じ外部依存ゼロ方針を維持したまま SVG ノード木生成のみで実装できる設計の確立（別クレート新設の要否はユーザー承認事項）。基盤（#846）は充足済み、残 14 件は #847〜#851 の実装完了が個別トリガー |
 | 装飾系（CSS 主体で実装可能性がある、または既存基盤で実装見込みがあるもの） | tour | tour は状態機械（ステップ管理・ハイライト対象の同期）が大きく需要待ち。floating-panel（ark・chakra 双方）はイシュー #827 で headless+styled 実装済み、scroll-area（ark・chakra 双方）はイシュー #825 で保留解除・実装済み、splitter（ark・chakra 双方）はイシュー #826 で保留解除・実装済みのため本群から除外（`docs/design/component-coverage-map.md` の該当行を「実装済み」へ更新済み。scroll-area は JS によるスクロール位置追従・thumb drag が同イシューのスコープ外のまま） | 利用要望 issue の起票 |
 | Button バリエーション | close-button / icon-button（`pre-styled-ui` の `Button` variant 拡張要望 issue #830 の起票により保留解除、`crates/pre-styled-ui/src/button.rs` の `icon_button`/`close_button` として実装済み。独立部品ではなく `button` recipe の icon-only 修飾 variant。詳細は `docs/design/component-coverage-map.md` 該当行参照） | 実装済み styled `Button`（`crates/pre-styled-ui`）の variant で近似可能であり、専用部品としての独立実装が必要かは需要待ち | `pre-styled-ui` の `Button` variant 拡張要望 issue の起票 |
 

@@ -516,6 +516,16 @@
 //!   等の時計 API に一切依存しない（[`mod@timer`] モジュール doc 参照）。
 //!   実 tick 駆動（`setInterval`）は `fandhe-frontend-wasm-full` の
 //!   `headless_timer` モジュールの責務。
+//! - [`mod@format`]: byte / number / time / relative-time の Format 系
+//!   ユーティリティ（イシュー #853、親 Phase 5 #852）。ark-ui `format-byte`/
+//!   `format-number`/`format-time`/`format-relative-time` 相当を、JS の
+//!   `Intl` API・`LocaleProvider` 等の JS ランタイム機構に依存せず外部依存
+//!   ゼロの決定的純関数として実装する（`docs/policy/intentional-non-adoption.md`
+//!   §3.23 の非採用判断を「headless-ui 内モジュール化」で解消）。ノードを
+//!   返さない `String` 純関数であり anatomy を持たない（coverage-map 上も
+//!   「—」）。現在時刻 API を一切呼ばず、[`format::format_relative_time`]
+//!   の基準時刻は呼び出し側が明示的に注入する（[`mod@timer`]/[`mod@date`]
+//!   と同型の「時刻を渡される」設計）。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -547,6 +557,7 @@ pub mod field;
 pub mod fieldset;
 pub mod file_upload;
 pub mod floating_panel;
+pub mod format;
 pub mod hover_card;
 pub mod json_tree_view;
 pub mod link;
@@ -639,6 +650,11 @@ pub use editable::{Editable, EditableAction};
 pub use field::{FieldIds, FieldProps};
 pub use fieldset::FieldsetProps;
 pub use floating_panel::{FloatingPanel, FloatingPanelAction, Stage};
+pub use format::{
+    format_byte, format_number, format_relative_time, format_time, ByteUnit, FormatByteOptions,
+    FormatNumberOptions, FormatRelativeTimeOptions, FormatTimeOptions, Locale, NumberStyle,
+    SignDisplay, UnitDisplay, UnitSystem,
+};
 pub use hover_card::{HoverCard, HoverCardDelays};
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
 pub use number_input::{NumberInput, NumberInputAction, NumberInputFlags};
