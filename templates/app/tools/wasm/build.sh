@@ -57,6 +57,46 @@ fi
 # --- (b) wasm-bindgen クレートのバージョンと CLI のバージョンの完全一致検証 ---
 # `wasm/Cargo.lock` から動的に読むため、バージョン pin 箇所を新設しない
 # （`.claude/rules/ci.md` の pin ドリフト検知運用と同じ考え方）。
+#
+# `wasm/Cargo.lock` が存在しない場合（イシュー #885: `xtask
+# patch-template-smoke` が未公開バージョン依存を `[patch.crates-io]` へ
+# 切り替える際、再現性のない古い lock を残さないため意図的に削除する契約、
+# `crates/xtask/src/patch_template_smoke.rs::process_manifest` 参照）は、
+# 依存解決のみを行う `cargo generate-lockfile` で lock を再生成してから
+# バージョンを読む。ここでフル `cargo build`（手順 (c)）へ進めてしまうと、
+# バージョン不一致時に本来ここで出すべき明示エラー
+# （`could not determine the required wasm-bindgen-cli version`／
+# バージョン不一致エラー）より前にビルド時間を浪費するため、
+# 従来どおり手順 (c) より前に検証を完了させる。
+#
+# 再生成した lock は `wasm-bindgen = "0.2"`（`wasm/Cargo.toml` の推移的
+# 依存）を crates.io の最新 0.2.x へ解決してしまい得るが、このジョブが
+# 既にインストール済みの wasm-bindgen-cli バージョンとは無関係に決まる
+# ため、新しい 0.2.x が公開され次第、本来無関係のはずの smoke ジョブが
+# バージョン不一致で fail する（Cursor Bugbot 指摘、イシュー #885）。
+# これを避けるため、lock を新規生成した場合に限り `cargo update` で
+# wasm-bindgen を「既にインストール済みの CLI と同一バージョン」へ
+# 明示的に固定し、以降のバージョン一致検証を常に成立させる（committed
+# lock を使う通常経路では従来どおり lock の内容をそのまま尊重する）。
+regenerated_lock=0
+if [ ! -f "${wasm_lock}" ]; then
+  cargo generate-lockfile --manifest-path "${wasm_manifest}"
+  regenerated_lock=1
+fi
+
+if [ "${regenerated_lock}" -eq 1 ]; then
+  installed_cli_version="$(wasm-bindgen --version | awk '{print $2}')"
+  if [ -z "${installed_cli_version}" ]; then
+    echo "error: could not determine the installed wasm-bindgen-cli version from \`wasm-bindgen --version\`." >&2
+    exit 1
+  fi
+  if ! cargo update --manifest-path "${wasm_manifest}" -p wasm-bindgen --precise "${installed_cli_version}"; then
+    echo "error: failed to pin the freshly generated ${wasm_lock} to wasm-bindgen ${installed_cli_version} (the installed wasm-bindgen-cli version)." >&2
+    echo "fix: verify wasm-bindgen ${installed_cli_version} is published on crates.io and satisfies the \"wasm-bindgen = \\\"0.2\\\"\" requirement in ${wasm_manifest}." >&2
+    exit 1
+  fi
+fi
+
 expected_version="$(awk '
   /^\[\[package\]\]$/ { in_pkg = 1; name = ""; next }
   in_pkg && /^name = "wasm-bindgen"$/ { name = "wasm-bindgen"; next }

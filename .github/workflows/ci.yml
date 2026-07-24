@@ -1508,6 +1508,53 @@ jobs:
           cargo run --locked -p fandhe-frontend-cli --bin fw -- new template-app-wasm-smoke \
             --template app --dir "${RUNNER_TEMP}/fandhe-frontend-template-app-wasm-smoke"
 
+      - name: "未公開バージョン判定と [patch.crates-io] フォールバック（イシュー #885、docs/ci/version-bump-publish-order-gap.md）"
+        # version-bump-guard・template_vendor_drift・本ジョブの三すくみ（設計文書
+        # 参照）により、templates/app が crates.io バージョン依存する公開済み
+        # クレート（core/app/wasm-client）をバンプした PR では、バンプ先
+        # バージョンが crates.io へ未公開の間このジョブが必ず fail する構造的
+        # デッドロックが生じる。本ステップは生成プロジェクトの直接依存
+        # バージョンを sparse index へ照会し（`xtask patch-template-smoke`、
+        # `check_version_bump::query_index` の fail-closed 契約を再利用）、
+        # 未公開バージョンのみに限って `[patch.crates-io]`（このジョブがテスト
+        # 対象とする checkout 済みコードそのものへの path 参照）を注入する。
+        # release.yml の承認境界（workflow_dispatch + mode: publish 明示選択）
+        # は一切変更しない（あくまで CI 内部の依存解決経路の調整）。
+        # 緩和用の環境変数・workflow_dispatch input は設けない（迂回禁止原則）。
+        #
+        # フィクスチャ専用 CARGO_TARGET_DIR を fw new ステップと共有し
+        # （`.claude/rules/ci.md` Self-hosted 環境の前提）、xtask 自体（repo
+        # workspace のメンバー）の再ビルドを避ける。
+        env:
+          CARGO_TARGET_DIR: ${{ runner.temp }}/fandhe-frontend-template-app-wasm-smoke-target
+        run: |
+          set -euo pipefail
+          # `if PIPELINE; then` の条件式内であれば、GitHub Actions 既定の
+          # `bash -e` が有効なままでもパイプライン失敗で即座に中断されない
+          # （version-bump-guard ジョブと同型のパターン、ci.md 参照）。
+          if cargo run --locked -p xtask -- patch-template-smoke \
+              --project-dir "${RUNNER_TEMP}/fandhe-frontend-template-app-wasm-smoke/template-app-wasm-smoke" \
+              --repo-root "${GITHUB_WORKSPACE}" 2>&1 | tee patch-template-smoke.log; then
+            if grep -qF 'resolution=path-override' patch-template-smoke.log; then
+              echo "::warning::template-app-wasm-smoke: one or more fandhe-frontend-* dependencies are not yet resolvable on crates.io; a [patch.crates-io] path-override fallback was engaged (see 'resolution=path-override' lines below). This is expected only until the corresponding crates.io publish (release.yml, mode: publish) completes."
+              {
+                echo '## template-app-wasm-smoke: patch-template-smoke fallback (issue #885)'
+                echo '```'
+                grep '^template-app-wasm-smoke:' patch-template-smoke.log || true
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+            fi
+            exit 0
+          fi
+          # "environment error: " プレフィックス有無で「runner/ネットワーク
+          # 起因」と「コード起因」を区別する（version-bump-guard と同型）。
+          if grep -q 'environment error: ' patch-template-smoke.log; then
+            echo "::error::patch-template-smoke failed: environment error (runner/network issue, not code). See 'environment error:' lines above; verify this runner can reach https://index.crates.io."
+          else
+            echo "::error::patch-template-smoke failed for a reason other than reaching the crates.io sparse index (e.g. an unsupported dependency form, a pre-existing [patch.crates-io] section, or a repo-root crate mismatch). See the log above for details."
+          fi
+          exit 1
+
       - name: tools/wasm/build.sh の実行
         # 直前ステップと同じくフィクスチャ専用 CARGO_TARGET_DIR を明示指定する
         # （`.claude/rules/ci.md` 「Self-hosted 環境の前提」）。未指定だと

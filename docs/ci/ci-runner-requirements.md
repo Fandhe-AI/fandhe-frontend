@@ -37,6 +37,7 @@ PR #291 で全 CI ジョブを `runs-on: self-hosted` へ移行した際、以�
 | `cargo` / `rustup`（`dtolnay/rust-toolchain`） | Rust ビルド・テスト全般 |
 | `cargo-deny`（バージョン固定 + SHA256 検証済みプリビルトバイナリ） | `fw gate` の `policy` チェック（TASK-13.3c） |
 | `wasm-bindgen-cli` / `wasm-pack`（同上） | WASM ビルド・ブラウザテスト |
+| `curl` | `version-bump-guard` / `dep-version-check` の間接呼び出し・`release.yml` の既公開バージョン検証、および `template-app-wasm-smoke` の `xtask patch-template-smoke` ステップ（イシュー #885。crates.io sparse index 照会、`check_version_bump::query_index` 経由）。未検出時はすべて `environment error: ` プレフィックス付きで fail-closed に明示停止するため（`ci.md` 参照）、自動インストールは行わない安全網のみ |
 
 ## 2. プール前提
 
