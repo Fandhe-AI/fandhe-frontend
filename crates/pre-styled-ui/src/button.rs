@@ -123,6 +123,14 @@ pub(crate) fn recipe_with_scope(scope: &'static str) -> SlotRecipe {
                 decl("border-radius", "var(--fandhe-radius-md)"),
                 decl("font-family", "var(--fandhe-font-font-body)"),
                 decl("cursor", "pointer"),
+                // `<button>` は UA 既定で text-decoration を持たないため従来は
+                // 無指定でも問題なかったが、本 recipe を `<a>` へ流用する
+                // `download_trigger`（イシュー #828、scope 切替のみで宣言は
+                // 完全共有、モジュール冒頭 rustdoc 参照）では UA のリンク下線が
+                // 残ってしまう（`link`/`nav_list`/`breadcrumb` の a ベース部品が
+                // 同じ理由でリセット済み）。Button recipe を 1 箇所で共有する
+                // 設計上、ここでリセットして両方の実体（button/a）へ一律適用する。
+                decl("text-decoration", "none"),
             ],
         )
         .variant(

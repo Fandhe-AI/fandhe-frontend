@@ -85,6 +85,7 @@ use fandhe_frontend_pre_styled_ui::password_input::{
 use fandhe_frontend_pre_styled_ui::qr_code;
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
+use fandhe_frontend_pre_styled_ui::scroll_area;
 use fandhe_frontend_pre_styled_ui::segment_group;
 use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, SeparatorVariant};
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps, SkeletonVariant};
@@ -212,14 +213,15 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 /// ショーケースが参照する CSS 全量を組み立てる。
 ///
 /// 内訳: テーマトークン（`Theme::default`、ライト/ダーク両対応）→ 掲載
-/// コンポーネントの recipe CSS（button/badge/spinner/alert/card/tabs/
-/// accordion/dialog/drawer/menu/select/combobox/popover/tooltip/hover_card/
-/// toggle_tip/switch/radio_group/avatar/checkbox/checkbox_card/radio_card/
-/// input/textarea/native_select/number_input/tags_input/rating_group/
-/// slider/segment_group/pagination/breadcrumb/carousel/action_bar/toast/
-/// progress/tag/kbd/code/image/icon/status/empty_state/visually_hidden/
-/// qr_code/heading/text/em/mark/blockquote/list/table/data_list/stat/
-/// timeline）→ ショーケース配置スタイル、の順で決定的に連結する。
+/// コンポーネントの recipe CSS（button/download_trigger/badge/spinner/alert/
+/// card/tabs/accordion/dialog/drawer/menu/select/combobox/popover/tooltip/
+/// hover_card/toggle_tip/switch/radio_group/avatar/checkbox/checkbox_card/
+/// radio_card/input/textarea/native_select/number_input/tags_input/
+/// rating_group/slider/segment_group/pagination/breadcrumb/carousel/
+/// action_bar/toast/progress/tag/kbd/code/image/icon/status/empty_state/
+/// visually_hidden/qr_code/heading/text/em/mark/blockquote/list/table/
+/// data_list/stat/timeline/scroll_area）→ ショーケース配置スタイル、の順で
+/// 決定的に連結する。
 ///
 /// # Errors
 ///
@@ -231,6 +233,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     let mut sheet = StyleSheet::new();
     sheet.push_theme(&Theme::default());
     sheet.push_css(&fandhe_frontend_pre_styled_ui::button::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::download_trigger::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::badge::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::spinner::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::alert::css())?;
@@ -293,6 +296,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::data_list::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::stat::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::timeline::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::scroll_area::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -3566,6 +3570,31 @@ fn timeline_section() -> Node {
     )
 }
 
+/// ScrollArea 節（イシュー #825）: `overflow: auto` によるネイティブスクロール
+/// とカスタムスクロールバー表現（`scrollbar-width`/`::-webkit-scrollbar`）。
+/// JS によるスクロール位置追従は本イシューのスコープ外（`crate::scroll_area`
+/// rustdoc 参照）のため、固定高の viewport と長文 content のみを掲示する。
+fn scroll_area_section() -> Node {
+    let items: Vec<Node> = (1..=20)
+        .map(|i| el("p", vec![], vec![text(format!("スクロール可能な行 {i}"))]))
+        .collect();
+    let demo = scroll_area::root(
+        vec![(
+            "style",
+            "height: 8rem; width: 16rem; border: 1px solid var(--fandhe-color-border);",
+        )],
+        vec![scroll_area::viewport(
+            vec![],
+            vec![scroll_area::content(vec![], items)],
+        )],
+    );
+    section(
+        "ScrollArea",
+        "CSS overflow を主体としたスクロール領域です。カスタムスクロールバーの見た目は scrollbar-width/scrollbar-color と ::-webkit-scrollbar 系規則で表現します（JS によるスクロール位置追従は対象外）。",
+        vec![demo],
+    )
+}
+
 /// Tag 節（イシュー #768）: variant / size / colorPalette と、
 /// close-trigger（`data-action` 配線のみ、クリック処理は wasm 層の
 /// スコープ外）の掲示。
@@ -3732,6 +3761,7 @@ fn showcase_body() -> Node {
             data_list_section(),
             stat_section(),
             timeline_section(),
+            scroll_area_section(),
         ],
     )
 }
@@ -3893,6 +3923,9 @@ mod tests {
         assert!(css.contains("--fandhe-color-"));
         // 各コンポーネントの recipe セレクタ。
         assert!(css.contains(".fd-button--variant-solid"));
+        // DownloadTrigger（イシュー #828）の recipe CSS が stylesheet() に
+        // 反映されていること（Bugbot 指摘: 追加当初漏れていた回帰防止）。
+        assert!(css.contains(".fd-download-trigger--variant-solid"));
         assert!(css.contains(".fd-badge--variant-subtle"));
         assert!(css.contains(r#"[data-scope="tabs"][data-part="trigger"]"#));
         assert!(css.contains(r#"[data-scope="accordion"]"#));

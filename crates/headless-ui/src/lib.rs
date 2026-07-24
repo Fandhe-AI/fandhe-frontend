@@ -415,6 +415,14 @@
 //!   最優先候補）。`docs/design/docs-site-styled-ui-adoption.md` §3.1 が
 //!   指摘した「`menu` ロールの文書ナビへの誤転用」を解消するため、**`role`
 //!   を一切付与しない**（モジュール doc 参照）。
+//! - [`mod@scroll_area`]: Root / Viewport / Content / Scrollbar / Thumb /
+//!   Corner の 6 anatomy パーツ（イシュー #825、`docs/design/component-coverage-map.md`
+//!   保留解除）。[`mod@breadcrumb`]/[`mod@nav_list`] と同じく状態機械を持たない
+//!   自由関数のみで構成する。`viewport` は WAI 慣行に従い `tabindex="0"` を
+//!   固定付与し、`scrollbar`/`corner` はネイティブスクロールバーと意味が
+//!   重複する装飾要素のため `aria-hidden="true"` を固定付与する。JS による
+//!   スクロール位置追従・thumb drag は本イシューのスコープ外（モジュール doc
+//!   参照）。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -454,6 +462,7 @@ pub mod qr_code;
 mod qr_encode;
 pub mod radio_group;
 pub mod rating_group;
+pub mod scroll_area;
 pub mod segment_group;
 pub mod select;
 pub mod skip_nav;
