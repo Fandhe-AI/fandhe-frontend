@@ -178,10 +178,49 @@ main への push をトリガーに、バンプされたクレートを自動検
    ワークフロー YAML 内のシェルスクリプトとして完結させるかは後続 issue で
    検討する。
 
-## 6. 暫定運用（後続 issue 実装完了まで）
+### 実装結果（イシュー #885）
 
-案 2 の実装が完了するまでの間、案 1 相当の緊急手順を最小化して記録する
-（正式運用ではなく、あくまで smoke 失敗を回避せざるを得ない場合の暫定対応）。
+上記 5 項目はすべて xtask サブコマンド `patch-template-smoke`
+（`crates/xtask/src/patch_template_smoke.rs`、`main.rs::run_patch_template_smoke`）
+として実装済み。
+
+```
+cargo run --locked -p xtask -- patch-template-smoke \
+  --project-dir <fw new が生成したプロジェクト> \
+  --repo-root <リポジトリ checkout の絶対パス> \
+  [--index-base-url <URL>]   # テスト専用の差し替え口（既定 https://index.crates.io）
+```
+
+- `check_version_bump::query_index`（sparse index 照会の fail-closed 契約）を
+  そのまま再利用し、pin・契約の二重管理を避けた。
+- 対象は生成プロジェクトのルート `Cargo.toml`・`wasm/Cargo.toml` の直接依存
+  （`fandhe-frontend-* = "X.Y.Z"` 形式）。テーブル形式・path 依存の検出、
+  既存 `[patch.crates-io]` セクションの検出はいずれも fail-closed エラーとする
+  （想定外状態を無条件に上書きしない）。
+- 依存 1 件ごとに 1 行サマリ
+  `template-app-wasm-smoke: dep=<crate> version=<v> resolution=<crates-io|path-override>`
+  を出力する契約（`patch_template_smoke::format_dep_report`）。
+- `.github/workflows/ci.yml` の `template-app-wasm-smoke` ジョブは「fw new」
+  ステップの直後に本サブコマンドを実行する。`resolution=path-override` の
+  発動時は `::warning::` アノテーション + Step Summary への転記でサイレントな
+  弱体化にしない。index 到達不可・異常応答は `environment error: `
+  プレフィックス付きで fail-closed に停止し、version-bump-guard と同型の
+  `if PIPELINE; then ... fi` 判定パイプラインで「runner/ネットワーク起因」と
+  「コード起因」を CI アノテーションとして区別する。
+- 発動有無を切り替える workflow_dispatch input・環境変数は設けていない
+  （項目 4 の方針どおり）。
+- CLI 契約の回帰テストは `crates/xtask/tests/cli_patch_template_smoke.rs`
+  （終了コード・1 行サマリ書式・`[patch.crates-io]` 注入・`Cargo.lock` 削除・
+  各エラー分類を固定）。
+
+## 6. 暫定運用（案 2 実装済み（#885）につき原則不要）
+
+案 2（`patch-template-smoke` フォールバック）は実装済みであり、
+templates/app が依存する crates.io バージョン依存クレートのバンプ PR は
+本フォールバックにより smoke ジョブが green のまま進行できる。以下は
+案 2 実装前に運用していた緊急手順の記録であり、正式運用として推奨するもの
+ではない（フォールバックが何らかの理由で機能しない場合の最終手段としてのみ
+参照する）。
 
 1. PR を最終形まで完成させ、レビュー完了後に release.yml を PR ブランチ ref
    から `mode: publish` で実行する。
