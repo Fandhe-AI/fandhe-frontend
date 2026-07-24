@@ -169,12 +169,24 @@ fn recipe() -> SlotRecipe {
         // （indicator 中心に接続線を揃える計算）が item 左端起点を前提と
         // しているため維持する（`align-items: center` にすると trigger
         // 幅により indicator 中心とずれる）。
+        // `min-height` は separator（`flex: 1` で伸長する縦の接続線）の
+        // ための確定した空きスペースを確保する（バグ報告: イシュー #752
+        // PR #797 Bugbot レビュー Medium severity 指摘「Vertical
+        // separators collapse to zero」対応）。item は auto-height な
+        // column（内容量に応じて高さが決まる）であり `flex: 1` growth
+        // だけでは分配できる余剰スペースが存在しないため、separator の
+        // 高さがほぼ 0 に潰れていた。`--fandhe-steps-connector-min-height`
+        // custom property で呼び出し側からの上書きも可能にする。
         .state(
             "item",
             StateCondition::AttrEq("data-orientation", "vertical"),
             vec![
                 decl("flex-direction", "column"),
                 decl("align-items", "flex-start"),
+                decl(
+                    "min-height",
+                    "var(--fandhe-steps-connector-min-height, 2.5rem)",
+                ),
             ],
         )
         .base(

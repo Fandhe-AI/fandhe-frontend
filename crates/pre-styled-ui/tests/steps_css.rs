@@ -130,6 +130,7 @@ const STEPS_GOLDEN_CSS: &str = r#"[data-scope="steps"][data-part="root"] {
 [data-scope="steps"][data-part="item"][data-orientation="vertical"] {
   flex-direction: column;
   align-items: flex-start;
+  min-height: var(--fandhe-steps-connector-min-height, 2.5rem);
 }
 
 [data-scope="steps"][data-part="trigger"]:focus-visible {
