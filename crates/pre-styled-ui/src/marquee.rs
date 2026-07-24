@@ -73,12 +73,17 @@
 //!
 //! [`MarqueeProps::decorative`]（既定 `false`）が `true` の場合、`root` へ
 //! `aria-hidden="true"` を付与し純装飾として扱う（[`crate::skeleton`] と
-//! 同型）。この際 `root` へ `inert` も併せて付与し、`aria-hidden` だけでは
-//! 遮断できないキーボードフォーカスも遮断する（複製 `content` 側の
-//! `inert` 付与（上記「シームレスループの実現方法」節参照）と同じ理由で、
-//! 支援技術からは存在しないものとして扱われる主コピーに対してキーボード
-//! ユーザーだけがアクセスできてしまう不整合を防ぐ、Cursor Bugbot 指摘・
-//! PR #864）。`false`（既定）の場合、[`MarqueeProps::label`] が `Some` なら
+//! 同型）。この際 `root` 自身ではなく可視の主コピー（1 個目の `content`）へ
+//! `inert` を付与し、`aria-hidden` だけでは遮断できないキーボードフォーカス
+//! も遮断する（複製 2 個目の `content` 側の `inert` 付与（上記「シームレス
+//! ループの実現方法」節参照）と同じ理由で、支援技術からは存在しないものと
+//! して扱われる主コピーに対してキーボードユーザーだけがアクセスできて
+//! しまう不整合を防ぐ、Cursor Bugbot 指摘・PR #864）。`inert` を `root`
+//! 自身へ付与しないのは、`inert` が HTML 標準上ヒットテストからも要素を
+//! 除外し、`root` に付与すると本モジュールが常時提供する
+//! `root:hover`/`root:focus-within` の一時停止 CSS（下記「常時一時停止」
+//! 節）が decorative モードで機能しなくなるため（Cursor Bugbot 指摘・
+//! PR #864、追補）。`false`（既定）の場合、[`MarqueeProps::label`] が `Some` なら
 //! `root` へ `aria-label` を付与する（[`crate::icon`] の `label: Option<&str>`
 //! と同型の判断）。呼び出し側 `attrs` の `aria-hidden`/`aria-label` は
 //! 大文字小文字を無視して除去し props 由来の値へ一本化する
@@ -317,14 +322,19 @@ pub fn marquee<'a>(
         .collect();
     let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
     if props.decorative {
-        // `aria-hidden` は支援技術向けの意味論のみでキーボードフォーカスを
-        // 遮断しないため、単独では root 配下（可視の主コピー）に含まれる
-        // リンク等の子孫がタブ順序に残ってしまう（複製 content 側の
-        // `inert` 付与と同じ理由、Cursor Bugbot 指摘・PR #864）。decorative
-        // モードでは支援技術・キーボード操作の双方から root 全体を除外する
-        // ため `inert` も併せて付与する。
+        // `aria-hidden` を root へ付与すると ARIA の仕様上サブツリー全体
+        // （可視の主コピーを含む）が支援技術からは存在しないものとして
+        // 扱われる。ただし `aria-hidden` 単独ではキーボードフォーカスを
+        // 遮断しないため、`root` 自身ではなく可視の主コピー
+        // （`content_visible`、直下）へ `inert` を付与し支援技術・
+        // キーボード操作の双方から除外する。`root` 自身には `inert` を
+        // 付与しない: `inert` は HTML 標準上ヒットテスト（マウスの当たり
+        // 判定）からも要素を除外するため、`root` へ付与すると本モジュールが
+        // 常時提供する `root:hover`/`root:focus-within` の一時停止 CSS
+        // （下記「常時一時停止」節）が decorative モードで機能しなくなって
+        // しまう（Cursor Bugbot 指摘・PR #864、`decorative: true` でも
+        // WCAG 2.2.2 のホバー一時停止契約を維持する）。
         merged.push(aria_hidden(true));
-        merged.push(("inert", ""));
     } else if let Some(label) = props.label {
         merged.push(aria_label(label));
     }
@@ -337,7 +347,17 @@ pub fn marquee<'a>(
     // 支援技術向けの意味論のみでキーボードフォーカスを遮断しないため、
     // 単独では複製内の子孫がタブ順序に残ってしまう不具合があった、
     // Cursor Bugbot 指摘・PR #864）。
-    let content_visible = ANATOMY.part("content", "div", vec![], children.clone());
+    //
+    // `decorative: true` の場合はさらに可視の主コピー（`content_visible`）
+    // にも `inert` を付与する（上記コメント参照。`root` ではなく `content`
+    // 側へ付与することで `root` の hit-testing・`:hover`/`:focus-within`
+    // を温存する）。
+    let visible_attrs: Vec<(&str, &str)> = if props.decorative {
+        vec![("inert", "")]
+    } else {
+        vec![]
+    };
+    let content_visible = ANATOMY.part("content", "div", visible_attrs, children.clone());
     let content_hidden = ANATOMY.part(
         "content",
         "div",
@@ -398,17 +418,18 @@ mod tests {
         // root と 2 個目の content の 2 箇所で aria-hidden="true" が出現する。
         assert_eq!(html.matches(r#"aria-hidden="true""#).count(), 2);
         assert!(!html.contains("aria-label"));
-        // root にも inert が付与され、aria-hidden だけでは遮断できない
-        // キーボードフォーカスも遮断する（Cursor Bugbot 指摘・PR #864）。
-        // root・2 個目 content の 2 箇所で inert="" が出現する。
+        // 可視の主コピー（1 個目 content）・2 個目 content の 2 箇所で
+        // inert="" が出現する（root 自身には付与しない。root:hover による
+        // 一時停止 CSS を decorative モードでも機能させるため、Cursor
+        // Bugbot 指摘・PR #864 追補）。
         assert_eq!(html.matches(r#"inert="""#).count(), 2);
         let root_open = html
             .split_once('>')
             .map(|(head, _)| head)
             .expect("root の開始タグが存在する");
         assert!(
-            root_open.contains("inert"),
-            "root タグに inert が無い: {html}"
+            !root_open.contains("inert"),
+            "root タグに inert が付与されている（root:hover の一時停止が機能しなくなる）: {html}"
         );
     }
 
