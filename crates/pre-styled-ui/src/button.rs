@@ -42,6 +42,18 @@ use fandhe_frontend_headless_ui::{anatomy, aria_disabled, aria_label, data_disab
 /// 決して生成しない fail-closed 動作（イシュー #830 受け入れ条件 1）。
 const ICON_BUTTON_FALLBACK_LABEL: &str = "unlabeled button";
 
+/// `attrs` に `aria-label`（大文字小文字を無視）が既に含まれるかどうかを
+/// 判定する。[`icon_button`]/[`close_button`] が組み立てる既定/フォールバック
+/// `aria-label` を、呼び出し側が `attrs` 経由で明示指定した値と重複させない
+/// ために使う（`fandhe_frontend_headless_ui::number_input` の
+/// `increment_trigger`/`decrement_trigger` と同型の dedup 判断、fail-closed。
+/// 重複属性による無効な HTML 出力・後勝ちの非決定的な描画を防ぐ）。
+fn has_caller_aria_label(attrs: &[(&str, &str)]) -> bool {
+    attrs
+        .iter()
+        .any(|(k, _)| k.eq_ignore_ascii_case("aria-label"))
+}
+
 /// [`close_button`] 呼び出し時、`label` が空白のみの場合の既定
 /// `aria-label`（chakra-ui `CloseButton` の既定値と同値）。
 const CLOSE_BUTTON_DEFAULT_LABEL: &str = "Close";
@@ -385,6 +397,11 @@ fn assemble<'a>(
 /// （視覚的にテキストラベルを持たないボタンのため）。`label.trim()` が
 /// 空文字の場合は固定フォールバック（`"unlabeled button"`）へ置換し、
 /// 空の `aria-label=""` を決して出力しない（fail-closed、安全側既定）。
+/// ただし `attrs` に呼び出し側が既に `aria-label`（大文字小文字を無視）を
+/// 指定している場合はそちらを優先し、既定/フォールバック値は追加しない
+/// （`aria-label` の重複出力による無効な HTML・後勝ちの非決定的な描画を
+/// 防ぐ、`fandhe_frontend_headless_ui::number_input` の
+/// `increment_trigger`/`decrement_trigger` と同型の dedup 契約）。
 ///
 /// # Examples
 ///
@@ -416,7 +433,9 @@ pub fn icon_button<'a>(
 ) -> Node {
     let label = normalize_label(label, ICON_BUTTON_FALLBACK_LABEL);
     let mut merged_attrs = attrs;
-    merged_attrs.push(aria_label(label));
+    if !has_caller_aria_label(&merged_attrs) {
+        merged_attrs.push(aria_label(label));
+    }
     assemble(props, true, merged_attrs, children)
 }
 
@@ -427,6 +446,8 @@ pub fn icon_button<'a>(
 /// 決定的なインライン SVG path、外部リソース非参照）ため、`children` 引数を
 /// 取らない。`label` は [`icon_button`] と同じ fail-closed 規約に従うが、
 /// 空文字時の既定値は chakra-ui `CloseButton` と同値の `"Close"`。
+/// `attrs` 経由の呼び出し側 `aria-label` 優先・重複防止の契約も
+/// [`icon_button`] と同一。
 ///
 /// variant の既定は [`ButtonProps::default`]（`Solid`）のまま変更しない
 /// （暗黙の既定差し替えをしない Rust 最適化形の判断）。chakra-ui の
@@ -465,7 +486,9 @@ pub fn close_button<'a>(
         vec![el("path", vec![("d", CLOSE_ICON_PATH)], vec![])],
     );
     let mut merged_attrs = attrs;
-    merged_attrs.push(aria_label(label));
+    if !has_caller_aria_label(&merged_attrs) {
+        merged_attrs.push(aria_label(label));
+    }
     assemble(props, true, merged_attrs, vec![icon_node])
 }
 
@@ -721,6 +744,54 @@ mod tests {
         ));
         assert!(!html.contains("<script>"));
         assert!(html.contains("aria-label=\"&lt;script&gt;alert(1)&lt;/script&gt;\""));
+    }
+
+    /// Review 指摘の是正回帰: 呼び出し側が `attrs` 経由で既に `aria-label`
+    /// を指定している場合、`icon_button` の既定 `aria-label` を二重に
+    /// 出力しない（`aria-label` は高々 1 個。`number_input::increment_trigger`
+    /// と同じ dedup 契約）。
+    #[test]
+    fn icon_button_does_not_duplicate_caller_supplied_aria_label() {
+        let html = render(&icon_button(
+            &ButtonProps::default(),
+            "Search",
+            vec![("aria-label", "custom label")],
+            vec![],
+        ));
+        assert_eq!(html.matches("aria-label=").count(), 1);
+        assert!(html.contains(r#"aria-label="custom label""#));
+        assert!(!html.contains(r#"aria-label="Search""#));
+    }
+
+    /// 大文字小文字違いの `Aria-Label` でも同一属性とみなして dedup する
+    /// （`has_caller_aria_label` は大文字小文字を無視する契約）。
+    #[test]
+    fn icon_button_dedup_is_case_insensitive() {
+        let html = render(&icon_button(
+            &ButtonProps::default(),
+            "Search",
+            vec![("Aria-Label", "custom label")],
+            vec![],
+        ));
+        // 属性名は呼び出し側指定の表記（大文字小文字）のまま出力されるため、
+        // 小文字化してから件数を数える（dedup 判定自体が大文字小文字を
+        // 無視することの確認が目的であり、出力側の表記は問わない）。
+        assert_eq!(html.to_lowercase().matches("aria-label=").count(), 1);
+        assert!(html.contains(r#"Aria-Label="custom label""#));
+    }
+
+    /// Review 指摘の是正回帰: `close_button` も同様に呼び出し側指定の
+    /// `aria-label` を優先し、既定値 `"Close"` と重複させない。
+    #[test]
+    fn close_button_does_not_duplicate_caller_supplied_aria_label() {
+        let html = render(&close_button(
+            &ButtonProps::default(),
+            "",
+            vec![("aria-label", "custom close label")],
+        ));
+        assert_eq!(html.matches("aria-label=").count(), 1);
+        assert!(html.contains(r#"aria-label="custom close label""#));
+        assert!(!html.contains(r#"aria-label="Close""#));
     }
 
     /// 後方互換回帰: 通常の [`button`] は icon 軸に `default_variant` を
