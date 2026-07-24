@@ -13,7 +13,7 @@ pre-styled UI コンポーネント層、親トラッキング #520・骨格新�
 対応する REQ / TASK は `docs/spec/` に存在しない（要件提案は
 fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 参照）。
 
-## 2. 実装状況（v0.27.0 時点、2026-07-24 更新）
+## 2. 実装状況（v0.29.0 時点、2026-07-24 更新）
 
 **記載方針**: 実装済み API の正は `crates/pre-styled-ui/src/lib.rs` 冒頭の
 rustdoc および各モジュール冒頭の rustdoc とする。本節はモジュール一覧の
@@ -52,8 +52,10 @@ styled ラッパー追加（#829、`tree_view` #753 の派生）・button の ic
 （#831、`docs/policy/intentional-non-adoption.md` §3.24 の意図的非採用を
 再導入）・ColorSwatch 静的部品追加（#838）・Calendar/DatePicker styled
 ラッパー追加（#835、親トラッキング #832、`docs/design/component-coverage-map.md`
-保留解除。いずれも公開時点未反映）を経て 84 の公開モジュールを持つ。内訳は
-次の通り。
+保留解除）・PieChart/DonutChart styled 静的部品追加（#850、charts 基盤
+（#846）を用いた初のチャート部品。`docs/policy/intentional-non-adoption.md`
+§7 の chakra-ui charts 保留を pie-chart/donut-chart の 2 件で解除。いずれも
+公開時点未反映）を経て 86 の公開モジュールを持つ。内訳は次の通り。
 
 | 分類 | モジュール | 由来イシュー |
 |---|---|---|
@@ -121,6 +123,7 @@ styled ラッパー追加（#829、`tree_view` #753 の派生）・button の ic
 | headless ラッパー | `date_picker` | #835（親トラッキング #832。popover 基盤（`state::Disclosure`）を再利用する `crate::calendar` と同型の判断。`size` variant のみ。`content` 内部に `crate::calendar` の styled パーツを合成する想定。`DatePicker` 状態機械はあえて再エクスポートしない） |
 | headless ラッパー | `timer` | #836（`docs/design/component-coverage-map.md` 保留解除。`clipboard` と同型の判断で variant は非提供。`item-value` に `font-variant-numeric: tabular-nums` を付与し桁の増減時のレイアウトシフトを防ぐ。`completed` 状態の `item-value` を強調色へ切り替え、`action-trigger` に focus-visible リングを付与する。実 tick 駆動（`setInterval`）は `fandhe-frontend-wasm-full::headless_timer` が提供する） |
 | headless ラッパー | `tour` | #841（`docs/design/component-coverage-map.md` 保留解除、#735）。`fandhe_frontend_headless_ui::tour` が自由関数を持たず全パーツが `Tour` の inherent メソッドのため、本モジュールの全パーツ関数が `state: &Tour` を受け取る点は `steps` と同型。`color-palette` 軸のみ提供、`size` 軸は初版スコープ外（overlay 系の寸法は呼び出し側の CSS カスタムプロパティ上書きに委ねる）。`backdrop`/`spotlight`/`positioner` は `position: fixed` の全面オーバーレイで、closed 時 `[hidden]` を明示規則で `display: none` に固定する（`dialog` の `positioner[hidden]` 前例と同型）。`positioner` は `data-side`/`data-align` に応じた静的フォールバック配置のみ（実座標追従は `fandhe-frontend-wasm-full` 後続イシュー）。`spotlight` は `--fandhe-tour-spotlight-x/-y/-width/-height` の 4 CSS 変数（既定値つき `var()`）で位置・寸法を表現し、実測値の注入も同後続イシューの責務） |
+| 単純 styled 部品（新規 anatomy、charts 基盤の初のチャート部品） | `pie_chart` / `donut_chart` | #850（`docs/policy/intentional-non-adoption.md` §7 の chakra-ui charts 保留を pie-chart/donut-chart の 2 件で解除。charts 基盤（#846、`charts::pie` の円弧ジオメトリ・`charts::svg::PathBuilder::arc_to`）を用いた円グラフ・ドーナツグラフ。ark-ui に対応する headless anatomy がないため `marquee`/`stat` と同型の判断で新規 anatomy `data-scope="pie-chart"`/`"donut-chart"` を本クレートのみで定義する。系列 1 本専用（`data.series().len() != 1` は `PieChartError::MultiSeries` で fail-closed 拒否）。`size` variant のみ、`color-palette` 軸は非提供（セグメント配色は `charts::series_color_var` の chart-1〜6 循環で決まるため、`qr_code` と同型の判断）。`donut_chart` は追加で `inner_ratio`（既定 `0.6`、`0.0 < ratio < 1.0` を検証）を持つ） |
 
 各 headless ラッパーモジュールは対応する `fandhe_frontend_headless_ui`
 モジュールの anatomy パーツ・状態機械を薄く再エクスポートし、

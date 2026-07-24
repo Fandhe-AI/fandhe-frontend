@@ -338,6 +338,8 @@ mod tests {
             ("date_picker", crate::date_picker::stylesheet()),
             ("date_input", crate::date_input::stylesheet()),
             ("timer", crate::timer::stylesheet()),
+            ("pie_chart", crate::pie_chart::css()),
+            ("donut_chart", crate::donut_chart::css()),
         ]
     }
 

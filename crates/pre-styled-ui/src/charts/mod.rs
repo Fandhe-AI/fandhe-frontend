@@ -18,6 +18,9 @@
 //! - [`scale`]: 線形スケール（domain → range 写像）・1-2-5 nice tick 算出。
 //! - [`svg`]: SVG ノード木生成ヘルパー（`viewBox`・座標文字列化・`path` の
 //!   `d` 属性組み立て）。後続チャート部品はここを経由してのみ SVG を組み立てる。
+//! - [`pie`]: 円弧ジオメトリ（角度計算・sector/annulus path 生成、イシュー
+//!   #850）。[`crate::pie_chart`]/[`crate::donut_chart`]（styled 層）が
+//!   本モジュールを経由して円グラフ・ドーナツグラフの `d` 属性を組み立てる。
 //!
 //! # 本モジュールの不変条件（[`crate`] クレート全体の不変条件を継承、
 //! `.claude/rules/coding-rust.md`）
@@ -37,6 +40,7 @@
 //!    （REQ-3 不変）。
 
 pub mod data;
+pub mod pie;
 pub mod scale;
 pub mod svg;
 

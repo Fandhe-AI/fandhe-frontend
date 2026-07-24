@@ -84,9 +84,12 @@ chakra-ui `charts/use-chart.md` の `useChart`（data/series/集計/フォーマ
 3. 結果が `"-0"` の場合は `"0"` に正規化する
 
 出力文字集合は `[0-9.-]` に閉じる（`PathBuilder` の `d` 属性値はこれに
-座標区切りの `,` と `M`/`L`/`Z` コマンド文字を加えた `[0-9.\-, MLZ]` に
-閉じる）。`v` が非有限（`NaN`/`±inf`）の場合の挙動は未規定とし、
-`fmt_coord` へ到達する前に必ず有限性を検証する契約とする（§4.2）。
+座標区切りの `,` と `M`/`L`/`Z`/`A`（elliptical arc、イシュー #850・
+`PathBuilder::arc_to`。円弧・扇形・環状セクタの pie/donut chart で使用）
+コマンド文字を加えた `[0-9.\-, MLZA]` に閉じる。`A` の `large-arc-flag`/
+`sweep-flag` は `fmt_coord` を経由しない `"0"`/`"1"` の固定リテラルである）。
+`v` が非有限（`NaN`/`±inf`）の場合の挙動は未規定とし、`fmt_coord` へ
+到達する前に必ず有限性を検証する契約とする（§4.2）。
 
 ### 4.2 fail-closed な数値検証
 

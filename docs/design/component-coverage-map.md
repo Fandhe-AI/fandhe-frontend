@@ -335,11 +335,11 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/charts/bar-list.md` | — | BarList | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
 | `.agents/skills/chakra-ui/references/charts/bar-segment.md` | — | BarSegment | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
 | `.agents/skills/chakra-ui/references/charts/cartesian-grid.md` | — | CartesianGrid | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/charts/donut-chart.md` | — | DonutChart | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/chakra-ui/references/charts/donut-chart.md` | — | DonutChart | — | `donut_chart` | 実装済み | 保留解除。#850、charts 基盤（#846）を用いたドーナツグラフ、詳細は `crates/pre-styled-ui/src/donut_chart.rs` rustdoc |
 | `.agents/skills/chakra-ui/references/charts/installation.md` | — | Installation | — | `charts`（外部依存追加なし、`fandhe-frontend-pre-styled-ui` のみで完結） | 実装済み | 保留解除（基盤のみ）。#846、詳細は `docs/design/charts-foundation-design.md` |
 | `.agents/skills/chakra-ui/references/charts/legend.md` | — | Legend | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
 | `.agents/skills/chakra-ui/references/charts/line-chart.md` | — | LineChart | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/charts/pie-chart.md` | — | PieChart | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/chakra-ui/references/charts/pie-chart.md` | — | PieChart | — | `pie_chart` | 実装済み | 保留解除。#850、charts 基盤（#846）を用いた円グラフ、詳細は `crates/pre-styled-ui/src/pie_chart.rs` rustdoc |
 | `.agents/skills/chakra-ui/references/charts/radar-chart.md` | — | RadarChart | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
 | `.agents/skills/chakra-ui/references/charts/scatter-chart.md` | — | ScatterChart | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
 | `.agents/skills/chakra-ui/references/charts/sparkline.md` | — | Sparkline | — | — | 保留 | （charts 全般）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |

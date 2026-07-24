@@ -202,12 +202,14 @@ pub fn svg_text<'a>(x: f64, y: f64, attrs: Vec<(&'a str, &'a str)>, children: Ve
     el("text", merged, children)
 }
 
-/// `path` の `d` 属性値を組み立てるビルダー（折れ線・領域グラフ、
+/// `path` の `d` 属性値を組み立てるビルダー（折れ線・領域グラフ・円弧、
 /// #849〜#851 が主に使用する想定）。
 ///
 /// 出力文字列の文字集合は `M`（moveto）・`L`（lineto）・`Z`（closepath）・
-/// 半角スペース・半角数字・`.`・`-`・座標区切りの `,` に閉じる（座標は
-/// [`fmt_coord`] のみを経由するため、任意文字列の混入経路を持たない）。
+/// `A`（elliptical arc、[`Self::arc_to`]、イシュー #850）・半角スペース・
+/// 半角数字・`.`・`-`・座標区切りの `,` に閉じる（座標は [`fmt_coord`] の
+/// みを経由し、フラグは `"0"`/`"1"` の固定リテラルであるため、任意文字列の
+/// 混入経路を持たない）。
 #[derive(Debug, Clone, Default)]
 pub struct PathBuilder {
     segments: Vec<String>,
@@ -243,6 +245,42 @@ impl PathBuilder {
         self
     }
 
+    /// `A rx,ry,x-axis-rotation,large-arc-flag,sweep-flag,x,y`（elliptical
+    /// arc）セグメントを追加する（イシュー #850、pie/donut chart の円弧
+    /// 描画が主な呼び出し元、[`super::pie`] 参照）。
+    ///
+    /// `rx`/`ry`/`x_axis_rotation`/`x`/`y` は他セグメントと同じく
+    /// [`fmt_coord`] のみを経由して文字列化する。`large_arc`/`sweep` は
+    /// `"1"`/`"0"` の固定リテラルとして出力し、真偽値以外の文字列が
+    /// 混入する経路を持たない（モジュール doc の文字集合契約を維持する）。
+    #[must_use]
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "SVG elliptical arc コマンドは仕様上 7 引数（rx/ry/rotation/large-arc/sweep/x/y）を持ち、これを分割すると呼び出し側で引数の対応関係がかえって追いにくくなる"
+    )]
+    pub fn arc_to(
+        mut self,
+        rx: f64,
+        ry: f64,
+        x_axis_rotation: f64,
+        large_arc: bool,
+        sweep: bool,
+        x: f64,
+        y: f64,
+    ) -> Self {
+        self.segments.push(format!(
+            "A{},{},{},{},{},{},{}",
+            fmt_coord(rx),
+            fmt_coord(ry),
+            fmt_coord(x_axis_rotation),
+            u8::from(large_arc),
+            u8::from(sweep),
+            fmt_coord(x),
+            fmt_coord(y)
+        ));
+        self
+    }
+
     /// 積み上げたセグメントを 1 個のスペース区切り `d` 属性値として返す。
     #[must_use]
     pub fn build(self) -> String {
@@ -262,7 +300,7 @@ mod tests {
                 || c == '-'
                 || c == ' '
                 || c == ','
-                || matches!(c, 'M' | 'L' | 'Z')
+                || matches!(c, 'M' | 'L' | 'Z' | 'A')
         })
     }
 
@@ -389,5 +427,34 @@ mod tests {
     #[test]
     fn path_builder_empty_produces_empty_string() {
         assert_eq!(PathBuilder::new().build(), "");
+    }
+
+    #[test]
+    fn path_builder_arc_to_produces_closed_charset_d_attribute() {
+        let d = PathBuilder::new()
+            .move_to(50.0, 5.0)
+            .arc_to(45.0, 45.0, 0.0, true, true, 5.0, 50.0)
+            .close()
+            .build();
+        assert_eq!(d, "M50,5 A45,45,0,1,1,5,50 Z");
+        assert!(is_closed_charset(&d));
+    }
+
+    #[test]
+    fn path_builder_arc_to_flags_are_fixed_literals_not_fmt_coord() {
+        // large_arc/sweep は fmt_coord を経由しない固定リテラル ("0"/"1")
+        // であることを、真偽の全 4 通りで固定する。
+        let d = PathBuilder::new()
+            .arc_to(1.0, 1.0, 0.0, false, false, 0.0, 0.0)
+            .build();
+        assert_eq!(d, "A1,1,0,0,0,0,0");
+        let d = PathBuilder::new()
+            .arc_to(1.0, 1.0, 0.0, false, true, 0.0, 0.0)
+            .build();
+        assert_eq!(d, "A1,1,0,0,1,0,0");
+        let d = PathBuilder::new()
+            .arc_to(1.0, 1.0, 0.0, true, false, 0.0, 0.0)
+            .build();
+        assert_eq!(d, "A1,1,0,1,0,0,0");
     }
 }
