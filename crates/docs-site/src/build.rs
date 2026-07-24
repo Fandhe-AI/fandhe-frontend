@@ -20,7 +20,19 @@
 //! 5. `<repo_root>/site/assets/` 配下を `<out_dir>/assets/` へコピーする
 //!    （通常ファイルのみ許可。シンボリックリンク・ディレクトリ以外の特殊
 //!    エントリはエラーにする fail-closed。リポジトリ外ファイルの持ち出し
-//!    防止のため走査対象を固定ディレクトリに限定する）
+//!    防止のため走査対象を固定ディレクトリに限定する）。`site/assets/` が
+//!    存在しない場合はアセット 0 件として許容する（イシュー #905 でサイト
+//!    骨格 CSS がビルド時生成へ切り替わり、`site/assets/` に静的ファイルを
+//!    置く必然性が無くなったため。他の I/O エラーは従来どおり `BuildError::Io`）
+//!
+//! # サイト骨格 CSS（[`crate::site_theme`]、イシュー #905）
+//!
+//! `assets/site.css`（サイト骨格スタイル）は `site/assets/` の静的コピーでは
+//! なく、[`crate::site_theme::stylesheet`] がビルド時生成する（[`crate::skip_nav`]
+//! と同じ「全ビルド無条件」区分）。生成することが確定しているため、
+//! `site/assets/` 配下に同名ファイルが実在する場合は静的ファイルの黙った
+//! 上書き・生成物のすり替わりを防ぐため [`BuildError::ReservedAssetName`] で
+//! 書き出し前にエラーにする（[`RESERVED_ASSET_NAMES`] 参照）。
 //!
 //! # Rust 生成コンテンツページ（[`crate::showcase`]）
 //!
@@ -61,7 +73,21 @@ use crate::linkcheck::{self, BrokenLink};
 use crate::markdown::render_markdown;
 use crate::nav::{self, NavError};
 use crate::showcase;
+use crate::site_theme::{self, SiteThemeError};
 use crate::skip_nav;
+
+/// `site/assets/` 配下に存在すると [`BuildError::ReservedAssetName`] で
+/// 拒否するファイル名（ビルド時生成 CSS と同名のファイル名）。
+/// [`site_theme::STYLESHEET_REL_PATH`]/[`skip_nav::STYLESHEET_REL_PATH`]/
+/// [`showcase::STYLESHEET_REL_PATH`]/[`admonition::STYLESHEET_REL_PATH`] は
+/// いずれも `assets/<basename>` の形をしており、`site/assets/` 直下との
+/// 名前衝突は basename の一致だけで判定できる。
+const RESERVED_ASSET_NAMES: &[&str] = &[
+    "site.css",
+    "skip-nav.css",
+    "pre-styled-ui.css",
+    "admonition.css",
+];
 
 /// [`build_site`] が成功時に返すビルド結果のサマリ。
 #[derive(Debug, Clone)]
@@ -103,6 +129,14 @@ pub enum BuildError {
     /// 落ちた（通常は到達しない。黙って CSS の欠けたページを公開しない
     /// fail-closed）。
     Stylesheet(StylesheetError),
+    /// サイト骨格 CSS（[`site_theme::stylesheet`]）の組み立てが失敗した
+    /// （docs 固有トークンの allowlist 検証、または [`StyleSheet::push_css`]
+    /// の検証に落ちた。イシュー #905。通常は到達しない fail-closed）。
+    SiteTheme(SiteThemeError),
+    /// `site/assets/` 配下にビルド時生成 CSS と同名のファイル（[`RESERVED_ASSET_NAMES`]）
+    /// が存在する（静的ファイルの黙った上書き・生成物のすり替わりを防ぐ
+    /// fail-closed 検証、イシュー #905）。
+    ReservedAssetName(PathBuf),
 }
 
 impl fmt::Display for BuildError {
@@ -132,6 +166,15 @@ impl fmt::Display for BuildError {
             BuildError::Stylesheet(e) => {
                 write!(f, "failed to assemble a generated stylesheet: {e}")
             }
+            BuildError::SiteTheme(e) => {
+                write!(f, "failed to assemble the site theme stylesheet: {e}")
+            }
+            BuildError::ReservedAssetName(path) => {
+                write!(
+                    f,
+                    "site/assets/ contains a file name reserved for build-time generated CSS: {path:?}"
+                )
+            }
         }
     }
 }
@@ -153,6 +196,12 @@ impl From<SsgError> for BuildError {
 impl From<StylesheetError> for BuildError {
     fn from(e: StylesheetError) -> Self {
         BuildError::Stylesheet(e)
+    }
+}
+
+impl From<SiteThemeError> for BuildError {
+    fn from(e: SiteThemeError) -> Self {
+        BuildError::SiteTheme(e)
     }
 }
 
@@ -271,14 +320,20 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     } else {
         None
     };
-    // SkipNav（イシュー #776）は showcase/admonition と異なり全ページへ
-    // 無条件に適用するため、条件判定なしで常に href 登録・CSS 組み立てを
-    // 行う（`crate::skip_nav` モジュール doc 参照）。
+    // SkipNav（イシュー #776）・サイト骨格 CSS（`site_theme`、イシュー #905）は
+    // showcase/admonition と異なり全ページへ無条件に適用するため、条件判定
+    // なしで常に href 登録・CSS 組み立てを行う（`crate::skip_nav`/
+    // `crate::site_theme` モジュール doc 参照）。
     asset_hrefs.push(layout::asset_href(
         &nav.site.base_path,
         skip_nav::STYLESHEET_REL_PATH,
     ));
     let skip_nav_sheet = skip_nav::stylesheet()?;
+    asset_hrefs.push(layout::asset_href(
+        &nav.site.base_path,
+        site_theme::STYLESHEET_REL_PATH,
+    ));
+    let site_theme_sheet = site_theme::stylesheet()?;
 
     let mut link_check_broken = linkcheck::check_links(&pages, &nav.site.base_path, &asset_hrefs);
     broken.append(&mut link_check_broken);
@@ -322,6 +377,16 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
             })?;
         assets.push(css_path);
     }
+    {
+        let css_path = out_dir.join(site_theme::STYLESHEET_REL_PATH);
+        site_theme_sheet
+            .write_css_file(&css_path)
+            .map_err(|source| BuildError::Io {
+                path: PathBuf::from(site_theme::STYLESHEET_REL_PATH),
+                source,
+            })?;
+        assets.push(css_path);
+    }
 
     Ok(BuildReport { written, assets })
 }
@@ -352,11 +417,32 @@ fn collect_asset_hrefs(repo_root: &Path, base_path: &str) -> Result<Vec<String>,
 /// `site/assets/` はリポジトリ管理下の固定ディレクトリであり、想定外の
 /// エントリ種別を許容しないことでリポジトリ外ファイルの持ち出し・
 /// 予期しないシンボリックリンク追従を防ぐ）。
+///
+/// `dir` 自体が存在しない場合は空列を返す（イシュー #905: サイト骨格 CSS が
+/// [`crate::site_theme`] のビルド時生成へ切り替わり、`site/assets/` に静的
+/// ファイルを置く必然性が無くなったため、ディレクトリ不存在はエラーではなく
+/// 「アセットなし」として許容する。それ以外の I/O エラーは従来どおり
+/// [`BuildError::Io`] を返す）。
+///
+/// 列挙した各ファイルの basename が [`RESERVED_ASSET_NAMES`]（ビルド時生成
+/// CSS と同名）に一致する場合は [`BuildError::ReservedAssetName`] を返す
+/// （静的ファイルの黙った上書き・生成物のすり替わりを防ぐ fail-closed
+/// 検証。呼び出し元は [`collect_asset_hrefs`]/[`copy_assets`] の双方で
+/// 本関数を経由するため、書き出しより前（`collect_asset_hrefs` の呼び出し
+/// 時点）に検知が完了する）。
 fn list_regular_files(dir: &Path) -> Result<Vec<PathBuf>, BuildError> {
-    let read_dir = fs::read_dir(dir).map_err(|source| BuildError::Io {
-        path: PathBuf::from("site/assets"),
-        source,
-    })?;
+    let read_dir = match fs::read_dir(dir) {
+        Ok(read_dir) => read_dir,
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(Vec::new());
+        }
+        Err(source) => {
+            return Err(BuildError::Io {
+                path: PathBuf::from("site/assets"),
+                source,
+            })
+        }
+    };
     let mut files = Vec::new();
     for entry in read_dir {
         let entry = entry.map_err(|source| BuildError::Io {
@@ -375,7 +461,13 @@ fn list_regular_files(dir: &Path) -> Result<Vec<PathBuf>, BuildError> {
             })?
             .file_type();
         if file_type.is_file() {
-            files.push(entry.path());
+            let path = entry.path();
+            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                if RESERVED_ASSET_NAMES.contains(&name) {
+                    return Err(BuildError::ReservedAssetName(path));
+                }
+            }
+            files.push(path);
         } else {
             return Err(BuildError::UnsupportedAssetEntry(entry.path()));
         }
@@ -461,7 +553,11 @@ path = "/next/"
         .unwrap();
         fs::write(root.join("site/intro.md"), "# Intro\n\n[Next](./next.md)\n").unwrap();
         fs::write(root.join("site/next.md"), "# Next\n\nBack to intro.\n").unwrap();
-        fs::write(root.join("site/assets/site.css"), "body{}\n").unwrap();
+        // `site/assets/` は空のまま残す（`build_site_rejects_directory_entry_under_assets`
+        // がこの下にサブディレクトリを追加する用途で使う）。サイト骨格 CSS
+        // （`assets/site.css`）はイシュー #905 以降ビルド時生成のため、
+        // ここで静的ファイルを書かない（書けば `RESERVED_ASSET_NAMES` に
+        // 抵触し `BuildError::ReservedAssetName` になる）。
     }
 
     #[test]
@@ -472,10 +568,10 @@ path = "/next/"
 
         let report = build_site(&temp.0, &out_dir).expect("valid fixture should build");
         assert_eq!(report.written.len(), 2);
-        // `site/assets/site.css`（コピー）+ SkipNav 専用 CSS（イシュー #776、
-        // 全ビルドで無条件に書き出す。`crate::skip_nav` モジュール doc 参照）
-        // の 2 件。showcase/admonition 専用 CSS は本フィクスチャが使わない
-        // ため含まれない。
+        // サイト骨格 CSS（`site_theme`、ビルド時生成）+ SkipNav 専用 CSS
+        // （イシュー #776、全ビルドで無条件に書き出す。`crate::skip_nav`
+        // モジュール doc 参照）の 2 件。showcase/admonition 専用 CSS は本
+        // フィクスチャが使わないため含まれない。
         assert_eq!(report.assets.len(), 2);
         assert!(out_dir.join("index.html").exists());
         assert!(out_dir.join("next/index.html").exists());
@@ -542,5 +638,39 @@ path = "/next/"
         let err = build_site(&temp.0, &out_dir).expect_err("directory under assets should fail");
         assert!(matches!(err, BuildError::UnsupportedAssetEntry(_)));
         assert!(!out_dir.exists());
+    }
+
+    /// イシュー #905: `site/assets/` にビルド時生成 CSS と同名のファイルを
+    /// 置くと、静的ファイルの黙った上書き・生成物のすり替わりを防ぐため
+    /// `BuildError::ReservedAssetName` で拒否される（書き出しより前に検知
+    /// する fail-closed 検証、モジュール doc 参照）。
+    #[test]
+    fn build_site_rejects_reserved_asset_name_under_assets() {
+        let temp = TempDir::new("reserved-asset-name");
+        write_fixture_site(&temp.0);
+        fs::write(temp.0.join("site/assets/site.css"), "body{}\n").unwrap();
+        let out_dir = temp.0.join("dist");
+        let err =
+            build_site(&temp.0, &out_dir).expect_err("reserved asset name should fail the build");
+        assert!(matches!(err, BuildError::ReservedAssetName(_)));
+        assert!(!out_dir.exists());
+    }
+
+    /// イシュー #905: `site/assets/` ディレクトリ自体が存在しなくても
+    /// ビルドは「アセットなし」として成功する（サイト骨格 CSS がビルド時
+    /// 生成へ切り替わり、静的ファイルを置く必然性が無くなったため）。
+    #[test]
+    fn build_site_succeeds_when_site_assets_directory_is_absent() {
+        let temp = TempDir::new("no-assets-dir");
+        write_fixture_site(&temp.0);
+        fs::remove_dir_all(temp.0.join("site/assets")).unwrap();
+        let out_dir = temp.0.join("dist");
+
+        let report =
+            build_site(&temp.0, &out_dir).expect("missing site/assets/ directory should build");
+        // サイト骨格 CSS + SkipNav 専用 CSS のみ（`site/assets/` 由来のコピー
+        // アセットは 0 件）。
+        assert_eq!(report.assets.len(), 2);
+        assert!(out_dir.join("assets/site.css").exists());
     }
 }

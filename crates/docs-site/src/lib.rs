@@ -23,6 +23,11 @@
 //! - [`admonition`]: `> [!NOTE]` 等の admonition 構文（[`markdown`] が検出し
 //!   pre-styled-ui の alert 部品で描画する）が参照する専用 CSS の組み立てと、
 //!   ページが admonition を含むかどうかの判定（イシュー #715）
+//! - [`site_theme`]: サイト骨格（ヘッダー・2 カラム grid・サイドバー・本文
+//!   タイポグラフィ・toc・前後ナビ）が使う CSS（`assets/site.css`）の
+//!   ビルド時生成。旧 `site/assets/site.css`（`--docs-*` トークンで自己完結
+//!   する単一静的ファイル）を置き換え、`--fandhe-*` テーマトークンへ一本化
+//!   する（イシュー #905）
 //!
 //! `fandhe-frontend-core` / `fandhe-frontend-app` / `fandhe-frontend-server` /
 //! `fandhe-frontend-pre-styled-ui` のみに依存し、外部クレートは追加しない
@@ -30,11 +35,13 @@
 //! pre-styled-ui のルート再エクスポート（イシュー #685）経由で得るため
 //! headless-ui への直接依存は持たない（イシュー #693）。
 //!
-//! サイト骨格（`layout` / `nav` / `markdown` が生成する `site/assets/site.css`
-//! のクラス名契約）への pre-styled-ui styled 部品・テーマトークンの適用は
-//! 評価の上で見送り、[`showcase`] の分離 CSS 方式（`site.css` のカスケード
-//! へ影響させない適用境界）のみを採用している。評価内容・再評価トリガーは
-//! `docs/design/docs-site-styled-ui-adoption.md`（イシュー #694）を参照。
+//! サイト骨格（`layout` / `nav` / `markdown` が生成する `assets/site.css` の
+//! クラス名契約）は [`site_theme`] が pre-styled-ui のテーマトークンで
+//! ビルド時生成する（イシュー #905。旧評価は
+//! `docs/design/docs-site-styled-ui-adoption.md`（イシュー #694）§3.4 参照、
+//! 再評価により見送りから導入へ転換した）。[`showcase`] の分離 CSS 方式
+//! （サイト骨格のカスケードへ影響させない適用境界）は showcase/admonition
+//! 専用 CSS について引き続き維持する。
 //!
 //! `#![forbid(unsafe_code)]` は `crates/core` / `crates/interactive` と同様に
 //! 本クレートでも維持する（`.claude/rules/coding-rust.md` の一般規約）。
@@ -48,6 +55,7 @@ pub mod linkcheck;
 pub mod markdown;
 pub mod nav;
 pub mod showcase;
+pub mod site_theme;
 pub mod skip_nav;
 #[cfg(test)]
 mod test_scratch;

@@ -218,7 +218,31 @@ fn no_headings_means_no_toc_nav_and_no_toc_section_in_document() {
     // イシュー #907: 見出しの無いページでは右目次カラム（第 3 子 aside）自体を
     // 出力しない（設計文書 §3.3 の方針）。
     assert!(!html.contains(r#"class="docs-toc-aside""#));
+    // Bugbot 指摘（PR #916）是正の回帰テスト: `aside.docs-toc-aside` が無い
+    // ページの `div.docs-container` には `docs-container--no-toc` 修飾 class
+    // を付与し、`min-width: 1200px` の 3 カラム grid で右目次列のグリッド
+    // トラックを収縮させる（`crate::site_theme::STRUCTURAL_CSS` 参照）。
+    assert!(html.contains(r#"class="docs-container docs-container--no-toc""#));
     let _ = annotated;
+}
+
+/// [`no_headings_means_no_toc_nav_and_no_toc_section_in_document`] の対:
+/// 見出しが存在するページでは `docs-container--no-toc` 修飾 class を付与
+/// しない（Bugbot 指摘、PR #916 是正）。
+#[test]
+fn headings_present_means_container_has_no_toc_modifier_class() {
+    let body = fandhe_frontend_core::div(
+        vec![],
+        vec![
+            h2(vec![], vec![text("見出し")]),
+            p(vec![], vec![text("本文")]),
+        ],
+    );
+    let node = docs_page("タイトル", "", sample_sidebar(), body);
+    let html = render(&node);
+    assert!(html.contains(r#"class="docs-toc-aside""#));
+    assert!(html.contains(r#"class="docs-container""#));
+    assert!(!html.contains("docs-container--no-toc"));
 }
 
 #[test]

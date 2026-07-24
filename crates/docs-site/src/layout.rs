@@ -15,8 +15,13 @@
 //! を内包）・見出しが存在するページのみ第 3 子として出現する
 //! `aside.docs-toc-aside`（右目次、内側に `nav.docs-toc` をそのまま配置）
 //! の最大 3 カラムを出力する（イシュー #907）。breakpoint による表示制御
-//! （狭幅で目次列→ナビ列の順に畳む）は構造 CSS（`site/assets/site.css`）
-//! 側の責務であり、本モジュールは DOM 順・class 名の契約のみを担う。
+//! （狭幅で目次列→ナビ列の順に畳む）は構造 CSS（`crate::site_theme` が
+//! 生成する `assets/site.css`）側の責務であり、本モジュールは DOM 順・
+//! class 名の契約のみを担う。見出しが存在しないページでは
+//! `div.docs-container` に `docs-container--no-toc` 修飾 class を付与し、
+//! 3 カラム帯域（`min-width: 1200px`）で右目次列のグリッドトラックを
+//! 収縮させる（`crate::site_theme::STRUCTURAL_CSS` 参照、Bugbot 指摘 #916
+//! 是正）。
 //!
 //! `fandhe_frontend_app::page_shell` との差分: `page_shell` は
 //! `/static/style.css` と `hydrate.js` をハードコードした `String` を返す
@@ -316,10 +321,11 @@ pub fn docs_page(title: &str, base_path: &str, sidebar: Node, body: Node) -> Nod
 /// を実レンダリングするショーケース、イシュー #520 系）だけが、
 /// `StyleSheet::write_css_file` で書き出す専用 CSS
 /// （`assets/pre-styled-ui.css`）を参照するために `crate::build::build_site`
-/// から呼ばれる。サイト骨格スタイル（`site/assets/site.css`）とコンポーネント
-/// CSS を分離ファイルに保ち、既存ページのカスケードへ影響させないための
-/// 注入点であり、Markdown ページは従来どおり [`docs_page`]（追加なし）を使う。
-/// href は [`asset_href`] を経由して `base_path` を考慮した単一実装点を守る。
+/// から呼ばれる。サイト骨格スタイル（`crate::site_theme` がビルド時生成する
+/// `assets/site.css`、イシュー #905）とコンポーネント CSS を分離ファイルに
+/// 保ち、既存ページのカスケードへ影響させないための注入点であり、Markdown
+/// ページは従来どおり [`docs_page`]（追加なし）を使う。href は
+/// [`asset_href`] を経由して `base_path` を考慮した単一実装点を守る。
 pub fn docs_page_with_assets(
     title: &str,
     base_path: &str,
@@ -350,7 +356,10 @@ pub fn docs_page_with_assets(
             "link",
             vec![
                 ("rel", "stylesheet"),
-                ("href", &asset_href(base_path, "assets/site.css")),
+                (
+                    "href",
+                    &asset_href(base_path, crate::site_theme::STYLESHEET_REL_PATH),
+                ),
             ],
             vec![],
         ),
@@ -414,14 +423,16 @@ pub fn docs_page_with_assets(
 
     // `< 768px` の左ナビ折りたたみをタッチ操作でも開閉できるようにする
     // チェックボックスハック（設計文書 §3.2 の「マウス操作ユーザー向けの
-    // 明示的な開閉トリガー」を採用、JS 不要）。`:focus-within`（キーボード
-    // 操作）のみでは、折りたたみでクリップされたリンクへタップ操作で
-    // フォーカスが移らずモバイル利用者がナビへ到達できない回帰があったため
-    // （レビュー指摘）。`<input type="checkbox">` は `site.css` 側で
-    // 視覚的に隠す（sr-only）のみで DOM 上は存在し、Tab フォーカス・
-    // Enter/Space 操作の対象から除外しないため意味論を毀損しない。
-    // `nav_list`（`sidebar` 引数）自体の markup は変更しない（設計文書 §3.4
-    // の不変条件）。
+    // 明示的な開閉トリガー」を採用、JS 不要）。開閉状態の唯一の情報源は
+    // このチェックボックスの `:checked`（`crate::site_theme::STRUCTURAL_CSS`
+    // 参照）とし、`:focus-within` は開状態の判定に加えない（キーボード
+    // 操作でチェックを外してもフォーカスがナビ内に残っている限り閉じられ
+    // ない回帰を避けるため、Bugbot 指摘 #916 是正）。チェックボックス自体は
+    // Tab フォーカス・Space 操作の対象として DOM 上に残り続けるため、
+    // クリップされたリンクへも Tab で到達しトグルを Space で開閉できる
+    // （sr-only パターン、`display: none`/`visibility: hidden` にしない
+    // 理由）。`nav_list`（`sidebar` 引数）自体の markup は変更しない
+    // （設計文書 §3.4 の不変条件）。
     let sidebar_toggle_id = "docs-sidebar-toggle";
     let sidebar_toggle = el(
         "input",
@@ -445,6 +456,7 @@ pub fn docs_page_with_assets(
     // 3 カラム順（設計文書 §3.1）。右目次カラムは見出しが 1 つも無いページ
     // では出力しない（`aside.docs-toc-aside` 自体を省略する。§3.3 の方針。
     // `nav.docs-toc` 単体で空 `nav` を出さない [`toc_nav`] の既存契約と揃える）。
+    let has_toc = toc.is_some();
     let mut container_children = vec![
         aside(
             vec![("class", "docs-sidebar")],
@@ -456,13 +468,25 @@ pub fn docs_page_with_assets(
         container_children.push(aside(vec![("class", "docs-toc-aside")], vec![toc_node]));
     }
 
+    // 見出しが無いページ（`aside.docs-toc-aside` 自体が出力されない）では
+    // `docs-container--no-toc` 修飾 class を付与する。`min-width: 1200px`
+    // の 3 カラム grid はこの class の有無で右目次列のグリッドトラックを
+    // 収縮させ、見出しの無いページで空の右カラムが残ったまま中央カラムが
+    // 狭くなる回帰を避ける（`crate::site_theme::STRUCTURAL_CSS` 参照、
+    // Bugbot 指摘 #916 是正）。
+    let container_class = if has_toc {
+        "docs-container"
+    } else {
+        "docs-container docs-container--no-toc"
+    };
+
     let body_node = el(
         "body",
         vec![],
         vec![
             skip_nav_link,
             header_node,
-            div(vec![("class", "docs-container")], container_children),
+            div(vec![("class", container_class)], container_children),
         ],
     );
 
