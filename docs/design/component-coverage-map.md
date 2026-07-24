@@ -144,7 +144,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
-| `.agents/skills/ark-ui/references/components/date-time/date-input.md` | DateInput | — | — | — | 保留 | （date-time 系）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/ark-ui/references/components/date-time/date-input.md` | DateInput | — | date_input | date_input | 実装済み | headless+styled 実装済み（#834、#735 保留のうち DateInput 分のみ解除。DatePicker（#835）・Timer（#836）も別途保留解除済み（下記行参照）。calendar は独立部品として実装済み） |
 | `.agents/skills/ark-ui/references/components/date-time/date-picker.md` | DatePicker | DatePicker | date_picker | date_picker | 実装済み | headless+styled 実装済み（#835、親トラッキング #832。`docs/policy/intentional-non-adoption.md` §7（#735）の保留解除。DateInput（#834）との連携は行わず ISO 8601 値のネイティブ `<input>` のみで完結） |
 | `.agents/skills/ark-ui/references/components/date-time/timer.md` | Timer | Timer | timer | timer | 実装済み | headless+styled+wasm 配線実装済み（#836）。tick を外部から明示的に注入する決定的状態機械（時計 API 非依存）として実装し、`docs/policy/intentional-non-adoption.md` §7 の保留を解除した |
 | `.agents/skills/ark-ui/references/components/date-time/README.md` | README | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
@@ -192,7 +192,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/form/tags-input.md` | TagsInput | TagsInput | tags_input | tags_input | 実装済み | headless+styled 実装済み（#744） |
 | `.agents/skills/ark-ui/references/components/form/editable.md` | Editable | Editable | editable | editable | 実装済み | headless+styled 実装済み（#745） |
 | `.agents/skills/ark-ui/references/components/form/angle-slider.md` | AngleSlider | AngleSlider | angle_slider | angle_slider | 実装済み（再導入） | #842 で `docs/policy/intentional-non-adoption.md` §3.22 の再評価トリガー 1（決定的自動テスト基盤の確立・具体的ユースケースを伴う利用要望）を充足し再導入。座標→角度変換（`atan2`）を wasm-full 層の単一純粋関数へ隔離、headless 層は整数角度状態機械のみ |
-| `.agents/skills/ark-ui/references/components/form/color-picker.md` | ColorPicker | ColorPicker | — | — | 保留 | （高度入力系、フォーム部品）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/ark-ui/references/components/form/color-picker.md` | ColorPicker | ColorPicker | color_picker | color_picker | 実装済み | headless+styled 実装済み（#839、親 #837）。canvas 非依存（CSS グラデーション + 導出整数割合）で `docs/policy/intentional-non-adoption.md` §7 再評価トリガー充足、保留解除 |
 | `.agents/skills/ark-ui/references/components/form/file-upload.md` | FileUpload | FileUpload | — | — | 保留 | （高度入力系、フォーム部品）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
 | `.agents/skills/ark-ui/references/components/form/image-cropper.md` | ImageCropper | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.22（#735）で非採用確定（高度入力系、canvas/ポインタ座標/contenteditable 依存） |
 | `.agents/skills/ark-ui/references/components/form/signature-pad.md` | SignaturePad | — | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.22（#735）で非採用確定（高度入力系、canvas/ポインタ座標/contenteditable 依存） |
@@ -444,7 +444,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/forms/editable.md` | Editable | Editable | editable | editable | 実装済み | headless+styled 実装済み（#745） |
 | `.agents/skills/chakra-ui/references/components/forms/checkbox-card.md` | — | CheckboxCard | — | checkbox_card | 実装済み | pre-styled styled バリエーション実装済み（#747。headless-ui は変更なし、状態機械は headless Checkbox を再利用） |
 | `.agents/skills/chakra-ui/references/components/forms/radio-card.md` | — | RadioCard | — | radio_card | 実装済み | pre-styled styled バリエーション実装済み（#747。headless-ui は変更なし、状態機械は headless RadioGroup を再利用） |
-| `.agents/skills/chakra-ui/references/components/forms/color-picker.md` | ColorPicker | ColorPicker | — | — | 保留 | （高度入力系、フォーム部品）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/chakra-ui/references/components/forms/color-picker.md` | ColorPicker | ColorPicker | color_picker | color_picker | 実装済み | headless+styled 実装済み（#839、親 #837）。canvas 非依存（CSS グラデーション + 導出整数割合）で `docs/policy/intentional-non-adoption.md` §7 再評価トリガー充足、保留解除 |
 | `.agents/skills/chakra-ui/references/components/forms/color-swatch.md` | — | ColorSwatch | — | color_swatch | 実装済み | pre-styled 静的部品として実装済み（#838。headless-ui には対応する anatomy を新設しない。色変換コアは `fandhe-frontend-headless-ui::color`、親 #837） |
 | `.agents/skills/chakra-ui/references/components/forms/file-upload.md` | FileUpload | FileUpload | — | — | 保留 | （高度入力系、フォーム部品）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
 
