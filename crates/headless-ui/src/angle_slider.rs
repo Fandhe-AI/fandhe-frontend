@@ -45,6 +45,12 @@
 //! - `step` は `1..=359` へ clamp する（`0` は無限ループを招くため許容
 //!   しない、[`crate::slider::Slider`] の `step <= 0` フォールバックと
 //!   同型の判断）。
+//! - `"set"`（[`AngleSliderAction::Set`]）は受理値をそのまま採用せず、
+//!   `0` 起点の `step` グリッドへ最近傍スナップしてから正規化する
+//!   （[`snap_angle_to_step`]、[`crate::slider::Slider::update`] の
+//!   `SetValue` が常にスナップするのと同型の契約、ark-ui の
+//!   `snapAngleToStep` 相当）。これにより後続の `increment`/`decrement`
+//!   が意図した step の倍数へ確実に戻る。
 //! - `increment`/`decrement` は `(value + step) mod 360`/
 //!   `(value + 360 - step) mod 360` で計算し、`359` 度からの increment・
 //!   `0` 度からの decrement のいずれも符号付き剰余を経由せず単純な非負整数
@@ -122,6 +128,27 @@ fn normalize_step(step: u16) -> u16 {
 /// `value`/`step` を fail-closed に正規化する（[`AngleSlider::new`] が呼ぶ）。
 fn normalize(value: u16, step: u16) -> (u16, u16) {
     (normalize_angle(u32::from(value)), normalize_step(step))
+}
+
+/// `value` を `0` 起点の `step` グリッドへ最近傍スナップしてから
+/// `0..=359` へ正規化する（[`crate::slider::snap_to_step`] の角度版）。
+///
+/// `(value / step).round()` で最も近い step 数（整数）を求め、
+/// `steps * step` を [`normalize_angle`] で `mod 360` する。四捨五入は
+/// `f64` の `round()`（0.5 は正の無限大方向、四則演算のみで完結し
+/// 決定的）を用いる。呼び出し元（[`AngleSlider::update`] の
+/// `AngleSliderAction::Set`）はこの関数を経由することで、
+/// `increment`/`decrement` が加算し続ける step グリッドへ常に整列した
+/// 状態を保つ（ark-ui の `snapAngleToStep` と同型の契約、
+/// [`crate::slider::Slider::update`] の `SetValue` と同様に "set" も
+/// 必ずスナップする）。
+fn snap_angle_to_step(value: u16, step: u16) -> u16 {
+    let step_f = f64::from(step);
+    let steps = (f64::from(value) / step_f).round();
+    let snapped = (steps * step_f) as i64;
+    // `snapped` は非負の可能性があるが、丸め誤差で負にならないよう
+    // `rem_euclid` で確実に非負剰余を取ってから `normalize_angle` へ渡す。
+    normalize_angle(snapped.rem_euclid(i64::from(ANGLE_MODULUS)) as u32)
 }
 
 /// Root パーツ（`div`）。
@@ -331,7 +358,7 @@ impl Component for AngleSlider {
     fn update(&mut self, action: AngleSliderAction) {
         match action {
             AngleSliderAction::Set(v) => {
-                self.value = normalize_angle(u32::from(v));
+                self.value = snap_angle_to_step(v, self.step);
             }
             AngleSliderAction::Increment => {
                 self.value = normalize_angle(u32::from(self.value) + u32::from(self.step));
@@ -602,6 +629,34 @@ mod tests {
         let mut s = AngleSlider::new(0, 1);
         assert!(dispatch(&mut s, "set", "271"));
         assert_eq!(s.angle_deg(), 271);
+    }
+
+    #[test]
+    fn dispatch_set_snaps_to_step_grid() {
+        // step=10 のグリッド外（37 は 40 に最近傍）へ "set" しても、
+        // 後続の increment/decrement が意図した step の倍数へ戻ること
+        // （Bugbot 指摘「Set skips step grid snap」対応）。
+        let mut s = AngleSlider::new(0, 10);
+        assert!(dispatch(&mut s, "set", "37"));
+        assert_eq!(s.angle_deg(), 40);
+        assert!(dispatch(&mut s, "increment", ""));
+        assert_eq!(s.angle_deg(), 50);
+    }
+
+    #[test]
+    fn dispatch_set_snaps_down_when_closer_to_lower_grid_point() {
+        let mut s = AngleSlider::new(0, 15);
+        // 32 は 30 (差 2) の方が 45 (差 13) より近い。
+        assert!(dispatch(&mut s, "set", "32"));
+        assert_eq!(s.angle_deg(), 30);
+    }
+
+    #[test]
+    fn dispatch_set_snap_wraps_near_360_to_zero() {
+        // step=10 のとき 355 は 360 (=0) の方が 350 より近い。
+        let mut s = AngleSlider::new(0, 10);
+        assert!(dispatch(&mut s, "set", "355"));
+        assert_eq!(s.angle_deg(), 0);
     }
 
     #[test]
