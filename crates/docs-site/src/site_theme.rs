@@ -20,6 +20,17 @@
 //! `<head>` `<link>` は本モジュールの [`STYLESHEET_REL_PATH`] 定数を参照する
 //! ため、生成物のパスを変えれば `<link>` 側も追随する（単一実装点）。
 //!
+//! 左ナビ（`crate::nav::sidebar`）は headless `nav_list` markup をそのまま
+//! 出力し、[`stylesheet`] が `fandhe_frontend_pre_styled_ui::nav_list::stylesheet()`
+//! を基底 CSS として取り込む（イシュー #910）。markup（`data-scope`/
+//! `data-part`・`aria-current`）は変更せず、docs 固有の視覚差分のみ
+//! [`STRUCTURAL_CSS`] 側の `.docs-sidebar nav.sidebar ...` セレクタで上乗せ
+//! する。前後ページャ（`nav.prev-next`、headless `link_overlay`）は
+//! `link_overlay::stylesheet()` を採用しない（`overlay` が唯一の子要素の
+//! カードに `position: absolute` を適用すると高さが 0 に潰れるため。
+//! `crate::nav::prev_next_nav` rustdoc 参照）。トークンベースのカード風
+//! CSS を [`STRUCTURAL_CSS`] 側で手書きのまま維持する。
+//!
 //! # クラス名契約（`crates/docs-site/src/layout.rs` / `nav.rs` / `markdown.rs` の
 //! 実出力が正。ここに書かれたセレクタはすべて実際に生成される class 値であり、
 //! `crates/docs-site/tests/site_css_contract.rs` が両者の乖離を検知する）
@@ -198,9 +209,9 @@ body {\n\
  * 基底（768px 未満）は 1 カラム縦積み。`min-width: 768px` で左ナビ + 中央\n\
  * コンテンツの 2 カラム grid、`min-width: 1200px` で右目次カラムを加えた\n\
  * 3 カラム grid になる（設計文書 §3.2）。右目次カラムの sticky 追従・\n\
- * 視覚スタイルの仕上げは #909、左ナビの折りたたみトグル UI の確定・\n\
- * pre-styled-ui スタイル適用は #910 のスコープであり、ここでは骨格の\n\
- * 表示制御と最小限のレイアウト指定に留める。\n\
+ * 視覚スタイルの仕上げは #909。左ナビの折りたたみトグル UI・pre-styled-ui\n\
+ * スタイル適用は #910 で完了した（`nav_list::stylesheet()` の配線、下記\n\
+ * 「サイドバー（左ナビ）」節参照）。\n\
  */\n\
 \n\
 .docs-container {\n\
@@ -209,14 +220,27 @@ body {\n\
   margin: 0 auto;\n\
 }\n\
 \n\
-/* ---- サイドバー（左ナビ） ---- */\n\
+/*\n\
+ * ---- サイドバー（左ナビ、イシュー #910） ----\n\
+ *\n\
+ * headless `nav_list`（`nav::sidebar()` の実出力、`data-scope=\"nav-list\"\n\
+ * data-part=\"heading|list|item|link\"`）へ `nav_list::stylesheet()`（下記\n\
+ * `stylesheet()` 関数、`push_theme` の直後に `push_css`）が list-style 除去・\n\
+ * `ul`/`h2` の margin リセット・link の `display: block`/`text-decoration:\n\
+ * none`・`[aria-current=\"page\"]` の accent 色を基底として提供する。\n\
+ * ここでは docs 固有の差分（余白・角丸・hover 背景・現在ページの\n\
+ * アクセントバー）のみを `.docs-sidebar nav.sidebar` の詳細度\n\
+ * （0,2,1・`[data-scope][data-part]` の 0,2,0 より高い）で上書きする\n\
+ * （両者の連結順は [`stylesheet`] 参照。docs 側セレクタが常にカスケード\n\
+ * 後方かつ高詳細度のため衝突しない）。\n\
+ */\n\
 \n\
 .docs-sidebar {\n\
   width: 100%;\n\
   padding: 1rem;\n\
   border-right: none;\n\
   border-bottom: 1px solid var(--fandhe-color-border);\n\
-  font-size: 0.875rem;\n\
+  font-size: var(--fandhe-font-font-size-sm);\n\
 }\n\
 \n\
 /*\n\
@@ -274,7 +298,7 @@ body {\n\
   margin: -0.4rem -0.6rem 0.4rem;\n\
   border-radius: 0.4rem;\n\
   font-size: 0.8rem;\n\
-  font-weight: 600;\n\
+  font-weight: var(--fandhe-font-font-weight-semibold);\n\
   color: var(--fandhe-color-accent);\n\
 }\n\
 \n\
@@ -289,7 +313,7 @@ body {\n\
 }\n\
 \n\
 .docs-sidebar nav.sidebar h2 {\n\
-  font-weight: 600;\n\
+  font-weight: var(--fandhe-font-font-weight-semibold);\n\
   font-size: 0.72rem;\n\
   letter-spacing: 0.06em;\n\
   text-transform: uppercase;\n\
@@ -302,7 +326,6 @@ body {\n\
 }\n\
 \n\
 .docs-sidebar nav.sidebar ul {\n\
-  list-style: none;\n\
   margin: 0 0 0.4rem;\n\
   padding: 0;\n\
   display: flex;\n\
@@ -315,12 +338,10 @@ body {\n\
 }\n\
 \n\
 .docs-sidebar nav.sidebar a {\n\
-  display: block;\n\
   padding: 0.32rem 0.5rem;\n\
   border-radius: 0.4rem;\n\
   color: var(--fandhe-color-fg-muted);\n\
-  text-decoration: none;\n\
-  font-size: 0.875rem;\n\
+  font-size: var(--fandhe-font-font-size-sm);\n\
   border-left: 2px solid transparent;\n\
 }\n\
 \n\
@@ -333,7 +354,7 @@ body {\n\
   background: var(--fandhe-color-docs-accent-bg);\n\
   color: var(--fandhe-color-accent);\n\
   border-left-color: var(--fandhe-color-accent);\n\
-  font-weight: 600;\n\
+  font-weight: var(--fandhe-font-font-weight-semibold);\n\
 }\n\
 \n\
 /* ---- 本文カラム ---- */\n\
@@ -424,13 +445,22 @@ nav.prev-next [data-part=\"overlay\"] {\n\
   color: var(--fandhe-color-fg);\n\
   text-decoration: none;\n\
   font-size: 0.9rem;\n\
-  font-weight: 500;\n\
+  font-weight: var(--fandhe-font-font-weight-medium);\n\
   background: var(--fandhe-color-bg-subtle);\n\
 }\n\
 \n\
+/*\n\
+ * hover 時はサイドバー現在ページと同じアクセント配色（枠線・文字色・\n\
+ * `--fandhe-color-docs-accent-bg` 背景）で統一し、左ナビ・前後ページャの\n\
+ * アクセント表現をトークンベースで揃える（イシュー #910）。`link_overlay::\n\
+ * stylesheet()` は取り込まない（`overlay` が唯一の子要素のカードで\n\
+ * `position: absolute` を適用すると高さが 0 に潰れるため、`site_theme.rs`\n\
+ * 側の手書きカード CSS を維持する。`crate::nav::prev_next_nav` rustdoc 参照）。\n\
+ */\n\
 nav.prev-next [data-part=\"overlay\"]:hover {\n\
   border-color: var(--fandhe-color-accent);\n\
   color: var(--fandhe-color-accent);\n\
+  background: var(--fandhe-color-docs-accent-bg);\n\
 }\n\
 \n\
 nav.prev-next .prev [data-part=\"overlay\"] {\n\
@@ -831,9 +861,16 @@ fn typography_css() -> Result<String, SiteThemeError> {
 /// サイト骨格が参照する CSS 全量を組み立てる。
 ///
 /// 内訳: テーマトークン（[`docs_theme`]、`Theme::default` + docs 固有拡張）
-/// → [`STRUCTURAL_CSS`]（構造 CSS）→ [`typography_css`]（本文タイポグラフィ、
-/// イシュー #911）の順で決定的に連結する（[`crate::skip_nav::stylesheet`]
-/// と同型の組み立て順）。
+/// → [`fandhe_frontend_pre_styled_ui::nav_list::stylesheet`]（styled NavList
+/// のコンポーネント CSS。`nav::sidebar()` の実出力である headless `nav_list`
+/// markup — `data-scope="nav-list" data-part="heading|list|item|link"` —
+/// へそのまま適用される。イシュー #910）→ [`STRUCTURAL_CSS`]（構造 CSS）
+/// → [`typography_css`]（本文タイポグラフィ、イシュー #911）の順で決定的に
+/// 連結する（[`crate::skip_nav::stylesheet`] と同型の組み立て順）。この順序
+/// により、`nav_list` コンポーネント基底（セレクタ詳細度 0,2,0）が先に出力
+/// され、docs 固有の `.docs-sidebar nav.sidebar ...` セレクタ（詳細度 0,2,1
+/// 以上）が後方かつ高詳細度で常に上書きする（CSS カスケード衝突なし。詳細
+/// は [`STRUCTURAL_CSS`] のサイドバー節コメント参照）。
 ///
 /// # Errors
 ///
@@ -846,6 +883,7 @@ pub fn stylesheet() -> Result<StyleSheet, SiteThemeError> {
     let theme = docs_theme()?;
     let mut sheet = StyleSheet::new();
     sheet.push_theme(&theme);
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::nav_list::stylesheet())?;
     sheet.push_css(STRUCTURAL_CSS)?;
     sheet.push_css(&typography_css()?)?;
     Ok(sheet)
@@ -1015,5 +1053,54 @@ mod tests {
     fn stylesheet_never_contains_angle_brackets() {
         let sheet = stylesheet().expect("site theme stylesheet should assemble");
         assert!(!sheet.as_css().contains('<'));
+    }
+
+    #[test]
+    fn stylesheet_contains_nav_list_component_selectors() {
+        // イシュー #910 の乖離検知テスト: `crate::nav::sidebar()` の実出力
+        // （headless `nav_list` markup、`data-scope="nav-list"
+        // data-part="heading|list|item|link"`）に対応する
+        // `fandhe_frontend_pre_styled_ui::nav_list::stylesheet()` のセレクタが
+        // 生成 CSS に実在することを固定する（`admonition_markdown_output_classes_are_covered_by_generated_admonition_css`
+        // / `docs_page_skip_nav_parts_are_covered_by_generated_skip_nav_css`
+        // と同型の「実出力 ⇔ 生成 CSS」検証）。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        for selector in [
+            r#"[data-scope="nav-list"][data-part="heading"]"#,
+            r#"[data-scope="nav-list"][data-part="list"]"#,
+            r#"[data-scope="nav-list"][data-part="link"]"#,
+            r#"[data-scope="nav-list"][data-part="link"][aria-current="page"]"#,
+        ] {
+            assert!(css.contains(selector), "missing selector: {selector}");
+        }
+    }
+
+    #[test]
+    fn stylesheet_never_takes_up_link_overlay_stylesheet() {
+        // イシュー #910 の設計判断（§2.2）の回帰ガード: `link_overlay::
+        // stylesheet()` は `overlay` に `position: absolute; inset: 0;` を
+        // 登録する。前後ページャの `overlay` はカードの唯一の子要素のため
+        // absolute 化するとカードの高さが 0 に潰れる（`crate::nav::prev_next_nav`
+        // rustdoc 参照）。将来 `link_overlay::stylesheet()` を誤って取り込む
+        // 回帰を fail-closed で検知する。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        assert!(!css.contains(r#"[data-scope="link-overlay"]"#));
+    }
+
+    #[test]
+    fn stylesheet_defines_docs_accent_bg_token_in_light_dark_and_theme_attr_blocks() {
+        // 受け入れ条件 3（現在ページ・ホバーのアクセント配色が light/dark
+        // 双方で機能する）の機械検証: `--fandhe-color-docs-accent-bg` が
+        // 既定（light）・`@media (prefers-color-scheme: dark)`・
+        // `:root[data-theme="dark"]` の 3 箇所すべてに定義されることを固定する。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        assert_eq!(
+            css.matches("--fandhe-color-docs-accent-bg:").count(),
+            3,
+            "docs-accent-bg should be defined in default + dark media query + data-theme=dark blocks"
+        );
     }
 }

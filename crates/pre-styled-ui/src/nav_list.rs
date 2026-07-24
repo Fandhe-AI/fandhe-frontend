@@ -23,12 +23,17 @@
 //!
 //! - `examples/headless-pre-styled-ui` の追随・crates.io への公開は公開
 //!   イシュー側のスコープ。
-//! - `fandhe-frontend-docs-site` はサイト骨格の自己完結不変条件
-//!   （`site/assets/site.css`、`docs/design/docs-site-styled-ui-adoption.md`
-//!   §3.4）を維持するため、本モジュールの styled `root`/`stylesheet` では
-//!   なく headless 再エクスポート（[`heading`]/[`list`]/[`item`]/[`link`]）
-//!   のみを直接使う。styled `root`（class 付与）は本クレートに直接依存する
-//!   利用者（`examples/headless-pre-styled-ui` 等）向けの提供に留める。
+//! - `fandhe-frontend-docs-site` は `crate::nav::sidebar` の markup を
+//!   headless 再エクスポート（[`heading`]/[`list`]/[`item`]/[`link`]）
+//!   のみで組み立てる方針は不変だが、[`stylesheet`] は `crate::site_theme`
+//!   が取り込む（`docs/design/docs-site-three-column-redesign.md` §3.4 の
+//!   再評価、イシュー #904/#910）。docs-site は自己完結不変条件（サイト
+//!   骨格 CSS を単一の生成物へ集約する構成）を保ったまま、その生成物の
+//!   材料として本モジュールの [`stylesheet`] を組み込む。styled `root`
+//!   （class 付与）は本クレートに直接依存する利用者
+//!   （`examples/headless-pre-styled-ui` 等）向けの提供に留まる（docs-site
+//!   は `class="sidebar"` を温存したいため headless `root` を直接使う、
+//!   `crate::nav` の該当コメント参照）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
