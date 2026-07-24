@@ -4726,7 +4726,7 @@ fn radar_chart_section() -> Node {
             "power".to_string(),
             "range".to_string(),
             "control".to_string(),
-            "durability".to_string(),
+            "armor".to_string(),
         ],
         vec![
             Series::new("mercury", vec![80.0, 60.0, 40.0, 90.0, 55.0]),
