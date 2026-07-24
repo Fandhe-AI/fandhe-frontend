@@ -50,7 +50,7 @@
 
 use super::data::ChartData;
 use super::scale::LinearScale;
-use super::svg::{self, svg_text, ViewBox};
+use super::svg::{self, svg_text, ViewBox, ViewBoxError};
 use super::{series_color_var, ChartError};
 use crate::css::decl;
 use crate::recipe::SlotRecipe;
@@ -178,8 +178,17 @@ pub fn css() -> String {
 /// assert!(render(&node).contains(r#"role="img""#));
 /// ```
 pub fn root(data: &ChartData, props: BarChartProps, aria_label: &str) -> Result<Node, ChartError> {
-    let view_box = ViewBox::new(0.0, 0.0, props.width, props.height)
-        .map_err(|_| ChartError::NonFiniteValue)?;
+    let view_box = ViewBox::new(0.0, 0.0, props.width, props.height).map_err(|e| match e {
+        // 非有限（NaN/±inf）はデータ・寸法の値そのものが壊れているため
+        // NonFiniteValue、width/height が 0 以下（正だが degenerate）は
+        // 「描画不能な退化寸法」として DegenerateDomain へ、姉妹チャート
+        // （line_chart 相当の判断）と同じくマッピングする（PR #877 Bugbot
+        // 指摘、イシュー #849。旧実装は非正の width/height も一律
+        // NonFiniteValue に丸めており # Errors ドキュメントの契約と乖離
+        // していた）。
+        ViewBoxError::NonFinite => ChartError::NonFiniteValue,
+        ViewBoxError::NonPositiveSize => ChartError::DegenerateDomain,
+    })?;
 
     let (dmin, dmax) = data.domain();
     let (dmin, dmax) = (dmin.min(0.0), dmax.max(0.0));
@@ -325,6 +334,33 @@ mod tests {
         assert_eq!(
             root(&sample(), horizontal_too_small, "label").unwrap_err(),
             ChartError::PlotAreaTooSmall
+        );
+    }
+
+    #[test]
+    fn root_maps_non_finite_and_non_positive_view_box_to_distinct_errors() {
+        // PR #877 Bugbot 指摘: `ViewBox::new` の失敗が非有限（NaN/±inf）か
+        // 非正 width/height（0 以下）かによらず一律 NonFiniteValue に丸め
+        // られていた。`# Errors` ドキュメントが約束する
+        // NonFiniteValue/DegenerateDomain の使い分けを固定する。
+        let non_finite = BarChartProps {
+            orientation: Orientation::Vertical,
+            width: f64::NAN,
+            height: 300.0,
+        };
+        assert_eq!(
+            root(&sample(), non_finite, "label").unwrap_err(),
+            ChartError::NonFiniteValue
+        );
+
+        let non_positive = BarChartProps {
+            orientation: Orientation::Vertical,
+            width: 0.0,
+            height: 300.0,
+        };
+        assert_eq!(
+            root(&sample(), non_positive, "label").unwrap_err(),
+            ChartError::DegenerateDomain
         );
     }
 

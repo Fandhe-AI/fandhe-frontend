@@ -79,7 +79,12 @@ pub enum ChartError {
     DegenerateDomain,
     /// [`scale::LinearScale::ticks`] の `target` が許容範囲（1..=50）外。
     InvalidTickTarget,
-    /// [`data::ChartData::sort_by_series`] に、存在しない系列名が渡された。
+    /// [`data::ChartData::sort_by_series`]/[`bar_list::root`]/
+    /// [`bar_segment::root`] に、存在しない系列名が渡された。`Display`
+    /// メッセージは特定 API 名を含めない汎用文言に統一する（PR #877 Bugbot
+    /// 指摘、イシュー #849。`bar_list`/`bar_segment` も同 variant を返す
+    /// ようになったため、`sort_by_series` 名指しは実際の発生元と乖離した
+    /// 誤ったメッセージになっていた）。
     UnknownSeriesName,
     /// [`bar_list`]/[`bar_segment`] に、比率描画では意味を持たない負値が
     /// 系列中に含まれていた（イシュー #849）。
@@ -106,7 +111,7 @@ impl std::fmt::Display for ChartError {
             ChartError::NonFiniteValue => "value must be finite (NaN/inf is rejected)",
             ChartError::DegenerateDomain => "domain must have non-zero width (min != max)",
             ChartError::InvalidTickTarget => "tick target must be in range 1..=50",
-            ChartError::UnknownSeriesName => "sort_by_series: no series with the given name",
+            ChartError::UnknownSeriesName => "no series with the given name",
             ChartError::NegativeValue => "value must be non-negative for ratio-based rendering",
             ChartError::ZeroTotal => "series total must be non-zero to compute a ratio",
             ChartError::PlotAreaTooSmall => {
