@@ -169,6 +169,19 @@ impl LinearScale {
 /// `{1, 2, 5, 10}` を選ぶ（単純な `{1,2,5,10}` の算術中間点ではなく幾何平均
 /// 相当の閾値を使うことで、期待 tick 本数から実際の本数が体系的に増減しない
 /// よう補正する、d3 が採用する既知の設計）。
+///
+/// `raw_step` が極小（`f64` の非正規化数の下限に近い、目安 `1e-300` 未満）の
+/// 場合、`10f64.powf(raw_step.log10().floor())` がアンダーフローして `0.0`
+/// を返すことがあり、その場合 `multiplier * magnitude` も `0.0` になる。
+/// [`LinearScale::nice`]/[`LinearScale::ticks`] は本関数の戻り値で除算する
+/// ため、`0.0` をそのまま返すと `NaN` の domain・tick 列を生んでしまう
+/// （Cursor Bugbot 指摘、イシュー #846 追補）。この場合は「nice」な丸めを
+/// 諦め、呼び出し元の契約（`raw_step` は正の有限値、呼び出し側の
+/// `debug_assert` 参照）に従い `raw_step` をそのまま返す
+/// （非退化な正の有限値であることは保つ）。
+///
+/// [`LinearScale::nice`]: super::LinearScale::nice
+/// [`LinearScale::ticks`]: super::LinearScale::ticks
 fn nice_step(raw_step: f64) -> f64 {
     debug_assert!(raw_step.is_finite() && raw_step > 0.0);
     let magnitude = 10f64.powf(raw_step.log10().floor());
@@ -182,7 +195,12 @@ fn nice_step(raw_step: f64) -> f64 {
     } else {
         1.0
     };
-    multiplier * magnitude
+    let step = multiplier * magnitude;
+    if step.is_finite() && step > 0.0 {
+        step
+    } else {
+        raw_step
+    }
 }
 
 #[cfg(test)]
@@ -300,5 +318,47 @@ mod tests {
         let s = LinearScale::new((2.9, 2.1), (0.0, 100.0)).unwrap();
         let ticks = s.ticks(1).unwrap();
         assert_eq!(ticks, vec![2.9, 2.1]);
+    }
+
+    #[test]
+    fn nice_step_never_returns_zero_or_non_finite() {
+        // raw_step が f64 の最小非正規化数（≈4.94e-324）に近いと、d3 の
+        // nice_step アルゴリズムが使う `10f64.powf(...)` がアンダーフローして
+        // `0.0` を返すことがあった。`nice`/`ticks` はこの戻り値で除算するため、
+        // `0.0` のままだと `NaN` の domain・tick 列を生んでしまう（Cursor
+        // Bugbot 指摘、イシュー #846 追補）。
+        let tiny = f64::from_bits(1); // 最小の正の非正規化数
+        let step = nice_step(tiny);
+        assert!(step > 0.0 && step.is_finite());
+    }
+
+    #[test]
+    fn ticks_stays_finite_for_tiny_domain() {
+        // 上記アンダーフローが `ticks` の公開経路を通じても NaN を生まない
+        // ことを確認する回帰テスト。target=1 を指定し `raw_step = (hi - lo) /
+        // target` を非正規化数の下限そのもの（追加の除算を挟まない）にして、
+        // `nice_step` 内部の `10f64.powf(...)` アンダーフローのみを対象にする
+        // （target を割ることで `raw_step` 自体が `0.0` に丸まる別種の
+        // アンダーフローは、ticks/nice の入力契約「raw_step は正の有限値」を
+        // 崩す別問題であり本テストの対象外）。
+        let tiny = f64::from_bits(1); // 最小の正の非正規化数
+        let s = LinearScale::new((0.0, tiny), (0.0, 100.0)).unwrap();
+
+        let ticks = s.ticks(1).unwrap();
+        assert!(!ticks.is_empty());
+        assert!(ticks.iter().all(|t| t.is_finite()));
+    }
+
+    #[test]
+    fn nice_stays_finite_for_tiny_domain() {
+        // `nice` は内部で `(hi - lo) / 10.0` を計算するため、上記 `ticks` 分
+        // より 10 倍広い domain 幅を与えて `nice_step` 内部の
+        // `10f64.powf(...)` アンダーフローを同様に再現する。
+        let tiny = f64::from_bits(1) * 10.0; // 最小の正の非正規化数の 10 倍
+        let s = LinearScale::new((0.0, tiny), (0.0, 100.0)).unwrap();
+
+        let niced = s.nice();
+        let (nd0, nd1) = niced.domain();
+        assert!(nd0.is_finite() && nd1.is_finite());
     }
 }

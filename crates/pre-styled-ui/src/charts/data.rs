@@ -121,8 +121,20 @@ impl ChartData {
     /// ため、そのまま返すと `domain()` → `LinearScale::new` という本モジュールが
     /// 文書化している標準経路がフラットデータで必ず失敗してしまう
     /// （Cursor Bugbot 指摘、イシュー #846 追補）。この場合は `v` を中心に
-    /// 幅 2.0 の対称区間 `(v - 1.0, v + 1.0)` を返し、`v == 0.0` の場合も
-    /// `(0.0, 0.0)` を再生しないようにする（`(-1.0, 1.0)` になり非退化）。
+    /// 対称区間 `(v - pad, v + pad)` を返す。`pad` は絶対値 1.0 を下限としつつ、
+    /// `v` の大きさに比例したスケール（[`flat_domain_pad`] 参照）も候補にして
+    /// その大きい方を採用する。固定 `±1.0` のままだと `v` の大きさが
+    /// `2^53` 以上（`f64` の整数精度限界）に達した時点で `v ± 1.0` が丸め誤差で
+    /// `v` 自身に丸め戻り、パディングが no-op のまま縮退が再発する
+    /// （Cursor Bugbot 再指摘、イシュー #846 追補）。
+    ///
+    /// `v` が `f64::MAX` 付近の場合、`v + pad`（または `v` が負に大きい場合
+    /// `v - pad`）がオーバーフローして `±inf` になり得る。この場合
+    /// `LinearScale::new` は非有限値として `ChartError::NonFiniteValue` を
+    /// 返してしまい、根本原因（`domain()` → `LinearScale::new` 標準経路が
+    /// フラットデータで失敗する）が形を変えて再発する。オーバーフローした
+    /// 側は片側パディングを諦め `v` のまま返す（もう片側は有限にパディング
+    /// 済みのため domain 全体は非退化・両端有限のまま保たれる）。
     ///
     /// [`LinearScale::new`]: crate::charts::scale::LinearScale::new
     #[must_use]
@@ -136,7 +148,13 @@ impl ChartData {
             }
         }
         if min == max {
-            (min - 1.0, max + 1.0)
+            let pad = flat_domain_pad(min);
+            let lo = min - pad;
+            let hi = max + pad;
+            (
+                if lo.is_finite() { lo } else { min },
+                if hi.is_finite() { hi } else { max },
+            )
         } else {
             (min, max)
         }
@@ -228,6 +246,24 @@ pub fn value_percent(series: &Series, value: f64) -> f64 {
     } else {
         value / t * 100.0
     }
+}
+
+/// [`ChartData::domain`] がフラット（`min == max == v`）な値域を非退化に
+/// パディングする際の半幅を返す（内部ヘルパ）。
+///
+/// 固定の絶対パディング `1.0` は、`v` の大きさが `f64` の整数精度限界
+/// （`2^53`）以上になると `v ± 1.0` が丸め誤差で `v` 自身へ丸め戻ってしまい
+/// no-op になる（Cursor Bugbot 指摘、イシュー #846 追補）。そのため
+/// `v.abs()` に比例したスケール（`2^-40`）とのうち大きい方を採用する。
+///
+/// `2^-40` は `v` の指数がいくつであっても、生成される `pad` がその指数
+/// 帯における `f64` の最小刻み幅（ULP）の 2^12 倍以上になるよう選んだ値
+/// （`pad ≈ v * 2^-40` に対し `ULP(v) ≈ v * 2^-52` 程度のため比率は指数に
+/// 依存せず一定）であり、丸め誤差で吸収されない安全マージンを保証する。
+/// `v` が 0 または小さい場合は下限の絶対値 `1.0` が優先され、既存の
+/// 「フラットな小さい値は ±1.0 に広がる」挙動を変えない。
+fn flat_domain_pad(v: f64) -> f64 {
+    (v.abs() * 2f64.powi(-40)).max(1.0)
 }
 
 #[cfg(test)]
@@ -330,6 +366,49 @@ mod tests {
         let (min, max) = data.domain();
         assert!(min < 0.0 && max > 0.0);
         assert!(super::super::scale::LinearScale::new((min, max), (0.0, 100.0)).is_ok());
+    }
+
+    #[test]
+    fn domain_expands_when_flat_value_magnitude_exceeds_f64_integer_precision() {
+        // v が 2^53（f64 の整数精度限界）以上の場合、固定の絶対パディング
+        // ±1.0 は丸め誤差で no-op になり得る（Cursor Bugbot 指摘、イシュー
+        // #846 追補）。スケール比例パディングにより非退化のままであることを
+        // 確認する。
+        let v = 2f64.powi(60);
+        let data = ChartData::new(
+            vec!["a".to_string(), "b".to_string()],
+            vec![Series::new("flat_huge", vec![v, v])],
+        )
+        .unwrap();
+        let (min, max) = data.domain();
+        assert!(
+            min < max,
+            "domain must not degenerate to (v, v) at huge magnitude"
+        );
+        assert!(super::super::scale::LinearScale::new((min, max), (0.0, 100.0)).is_ok());
+    }
+
+    #[test]
+    fn domain_expands_at_f64_max_without_overflowing_to_infinite() {
+        // v が f64::MAX 付近だと、対称パディング (v - pad, v + pad) の
+        // 片側が桁あふれして ±inf になり得る。`LinearScale::new` は非有限値を
+        // `ChartError::NonFiniteValue` として拒否するため、根本原因
+        // （domain() → LinearScale::new 標準経路がフラットデータで失敗する）
+        // が形を変えて再発してしまう（advisor 指摘、イシュー #846 追補）。
+        for v in [f64::MAX, f64::MIN] {
+            let data = ChartData::new(
+                vec!["a".to_string(), "b".to_string()],
+                vec![Series::new("flat_extreme", vec![v, v])],
+            )
+            .unwrap();
+            let (min, max) = data.domain();
+            assert!(min.is_finite() && max.is_finite());
+            assert!(
+                min < max,
+                "domain must not degenerate to (v, v) at f64::MAX"
+            );
+            assert!(super::super::scale::LinearScale::new((min, max), (0.0, 100.0)).is_ok());
+        }
     }
 
     #[test]
