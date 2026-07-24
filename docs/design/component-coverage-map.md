@@ -164,7 +164,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/display/progress-circular.md` | Progress (circular) | ProgressCircle | progress | progress | 実装済み | #763（既存 progress mod を circular 対応へ拡張。headless は #600 で実装済み、pre-styled ラッパーを #763 で追加） |
 | `.agents/skills/ark-ui/references/components/display/clipboard.md` | Clipboard | Clipboard | — | — | 実装対象 | #773（wasm 配線込み） |
 | `.agents/skills/ark-ui/references/components/display/qr-code.md` | QrCode | QrCode | qr_code | qr_code | 実装済み | headless+styled 実装済み（#774） |
-| `.agents/skills/ark-ui/references/components/display/marquee.md` | Marquee | Marquee | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.24（#735）で非採用確定（純装飾、CSS で代替可能） |
+| `.agents/skills/ark-ui/references/components/display/marquee.md` | Marquee | Marquee | — | marquee | 実装済み（再導入） | #831 で `docs/policy/intentional-non-adoption.md` §3.24 の再評価トリガー 1（CSS のみ・`prefers-reduced-motion` 対応の決定的設計案）を充足し再導入（CSS のみ・JS ゼロ）。headless-ui は変更なし、pre-styled-ui 層のみで新規 anatomy を定義 |
 | `.agents/skills/ark-ui/references/components/display/README.md` | README | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
 
 #### `.agents/skills/ark-ui/references/components/form/`
@@ -342,8 +342,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 |---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/buttons/button.md` | — | Button | — | button | 実装済み | pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/buttons/download-trigger.md` | DownloadTrigger | DownloadTrigger | `download_trigger` | `download_trigger` | 実装済み | #828。保留（#735 §7「JS ランタイム固有 utilities のうち静的実装可能なもの」）を利用要望 issue（#828）の起票により解除。`a[download]` 属性による静的部品として実装（`Blob`/`data`/`mimeType` は JS 前提のため対応しない） |
-| `.agents/skills/chakra-ui/references/components/buttons/close-button.md` | — | CloseButton | — | — | 保留 | （Button バリエーション）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
-| `.agents/skills/chakra-ui/references/components/buttons/icon-button.md` | — | IconButton | — | — | 保留 | （Button バリエーション）。根拠・再評価トリガーは `docs/policy/intentional-non-adoption.md` §7（#735） |
+| `.agents/skills/chakra-ui/references/components/buttons/close-button.md` | — | CloseButton | — | `button`（`close_button`） | 実装済み | #830。保留（Button バリエーション、#735 §7）を `Button` variant 拡張要望 issue（#830）の起票により解除。独立部品ではなく `button` recipe の icon-only 修飾 variant として実装（`data-scope="button"` を共有） |
+| `.agents/skills/chakra-ui/references/components/buttons/icon-button.md` | — | IconButton | — | `button`（`icon_button`） | 実装済み | #830。close-button と同一の解除・実装判断（同上） |
 
 #### `.agents/skills/chakra-ui/references/components/collections/`
 
@@ -381,7 +381,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/data-display/icon.md` | — | Icon | — | icon | 実装済み | #770。状態機械なし静的部品、pre-styled 層のみに実装（headless-ui は変更なし）。size variant のみ、SVG 本体は呼び出し側がノード木 API で構築 |
 | `.agents/skills/chakra-ui/references/components/data-display/clipboard.md` | Clipboard | Clipboard | — | — | 実装対象 | #773（wasm 配線込み） |
 | `.agents/skills/chakra-ui/references/components/data-display/qr-code.md` | QrCode | QrCode | qr_code | qr_code | 実装済み | headless+styled 実装済み（#774） |
-| `.agents/skills/chakra-ui/references/components/data-display/marquee.md` | Marquee | Marquee | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.24（#735）で非採用確定（純装飾、CSS で代替可能） |
+| `.agents/skills/chakra-ui/references/components/data-display/marquee.md` | Marquee | Marquee | — | marquee | 実装済み（再導入） | #831 で `docs/policy/intentional-non-adoption.md` §3.24 の再評価トリガー 1（CSS のみ・`prefers-reduced-motion` 対応の決定的設計案）を充足し再導入（CSS のみ・JS ゼロ）。headless-ui は変更なし、pre-styled-ui 層のみで新規 anatomy を定義 |
 
 #### `.agents/skills/chakra-ui/references/components/date-time/`
 

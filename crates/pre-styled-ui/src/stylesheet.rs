@@ -327,6 +327,7 @@ mod tests {
             ("data_list", crate::data_list::css()),
             ("stat", crate::stat::css()),
             ("timeline", crate::timeline::css()),
+            ("marquee", crate::marquee::css()),
             ("scroll_area", crate::scroll_area::stylesheet()),
             ("calendar", crate::calendar::stylesheet()),
             ("date_picker", crate::date_picker::stylesheet()),
