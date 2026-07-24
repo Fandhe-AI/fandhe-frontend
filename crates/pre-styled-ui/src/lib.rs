@@ -455,6 +455,7 @@ pub mod combobox;
 pub mod css;
 pub mod data_list;
 pub mod dialog;
+pub mod download_trigger;
 pub mod drawer;
 pub mod editable;
 pub mod em;

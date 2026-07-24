@@ -41,6 +41,7 @@ use fandhe_frontend_pre_styled_ui::card::{self, CardVariant};
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
 use fandhe_frontend_pre_styled_ui::clipboard;
+use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
 use fandhe_frontend_pre_styled_ui::editable::{
     self, EditMode, EditableInputFlags, EditableInputProps,
@@ -2860,6 +2861,75 @@ fn tag_kbd_code_styled_are_escaped_for_all_payloads() {
         assert!(
             !html.contains("class="),
             "code は variant を持たないため class 属性を出力しないはず: html={html}"
+        );
+    }
+}
+
+/// styled DownloadTrigger（イシュー #828）の XSS 回帰: `download_trigger::root`
+/// の `href`（URL 属性経路、危険スキームは fail-closed で href 自体が出力
+/// されない）・`file_name`（`download` 属性値経路）・children テキスト・
+/// 呼び出し側 `attrs` の `class`（`drop_class_attr` により生ペイロードが
+/// 動的クラス名合成へ混入しない）の各経路でエスケープが貫通することを
+/// 固定する。
+#[test]
+fn download_trigger_styled_root_href_file_name_children_and_class_are_escaped() {
+    for payload in payloads::all() {
+        let props = DownloadTriggerProps::default();
+
+        let html = render(&download_trigger::root(
+            &props,
+            payload,
+            None,
+            vec![],
+            vec![text(payload)],
+        ));
+        if html.contains("href=") {
+            assert!(
+                !html.contains(payload),
+                "download_trigger::root の href コンテキストで生ペイロードが残っている: \
+                 payload={payload:?}, html={html}"
+            );
+        }
+        // children テキストは常時エスケープされる。
+        assert!(
+            !html.contains(&format!(">{payload}<")),
+            "download_trigger::root の children コンテキストで生ペイロードが残っている: \
+             payload={payload:?}, html={html}"
+        );
+
+        let html = render(&download_trigger::root(
+            &props,
+            "/assets/report.pdf",
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert!(
+            !html.contains(&format!("download=\"{payload}\"")),
+            "download_trigger::root の download（file_name）コンテキストで \
+             生ペイロードが残っている: payload={payload:?}, html={html}"
+        );
+
+        let html = render(&download_trigger::root(
+            &props,
+            "/assets/report.pdf",
+            None,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "download_trigger::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "download_trigger::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-download-trigger--"),
+            "download_trigger::root で recipe 生成クラスが失われている: html={html}"
         );
     }
 }

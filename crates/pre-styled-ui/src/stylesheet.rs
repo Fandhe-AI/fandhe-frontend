@@ -253,6 +253,7 @@ mod tests {
     fn all_styled_component_css() -> Vec<(&'static str, String)> {
         vec![
             ("button", crate::button::css()),
+            ("download_trigger", crate::download_trigger::css()),
             ("badge", crate::badge::css()),
             ("spinner", crate::spinner::css()),
             ("alert", crate::alert::css()),

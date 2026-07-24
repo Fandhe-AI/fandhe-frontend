@@ -30,9 +30,9 @@ use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::scroll_area;
 use fandhe_frontend_headless_ui::{
     action_bar, aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog,
-    editable, hover_card, listbox, number_input, password_input, pin_input, popover, rating_group,
-    segment_group, slider, tags_input, toast, tree_view, ImageStatus, OpenState, Orientation,
-    PasswordAutocomplete, PasswordInputProps, Steps, ToastStatus,
+    download_trigger, editable, hover_card, listbox, number_input, password_input, pin_input,
+    popover, rating_group, segment_group, slider, tags_input, toast, tree_view, ImageStatus,
+    OpenState, Orientation, PasswordAutocomplete, PasswordInputProps, Steps, ToastStatus,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -986,6 +986,59 @@ fn listbox_dispatch_select_payload_is_escaped_on_hydration_render() {
             payload,
             &html,
             "Listbox dispatch select payload の data-hydrate-selected コンテキスト",
+        );
+    }
+}
+
+/// DownloadTrigger（イシュー #828）の XSS 回帰: [`download_trigger::root`] の
+/// `href`（URL 属性経路。危険スキームは fail-closed で `href` 自体が出力
+/// されない）・`file_name`（`download` 属性値経路）・children テキストの
+/// 3 経路でエスケープが貫通することを固定する。
+#[test]
+fn download_trigger_root_href_file_name_and_children_are_escaped() {
+    for payload in payloads::all() {
+        let html = render(&download_trigger::root(
+            payload,
+            None,
+            vec![],
+            vec![text(payload)],
+        ));
+        if !html.contains("href=") {
+            // 危険スキーム（javascript:/data: 等）は core の render() が
+            // fail-closed で href 属性ごと出力しない。URL 属性経路として
+            // 「エスケープされず貫通した」ことにはならないため
+            // assert_payload_is_escaped の対象から除外する（`link.rs`
+            // `dangerous_url_schemes_are_rejected` と同じ整理）。
+        } else {
+            assert_payload_is_escaped(
+                payload,
+                &html,
+                "download_trigger::root の href コンテキスト",
+            );
+        }
+
+        let html = render(&download_trigger::root(
+            "/assets/report.pdf",
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "download_trigger::root の download（file_name）コンテキスト",
+        );
+
+        let html = render(&download_trigger::root(
+            "/assets/report.pdf",
+            None,
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "download_trigger::root の children コンテキスト",
         );
     }
 }
