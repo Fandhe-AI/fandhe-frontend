@@ -344,6 +344,9 @@ mod tests {
             ("charts/grid", crate::charts::grid::css()),
             ("charts/legend", crate::charts::legend::css()),
             ("charts/tooltip", crate::charts::tooltip::css()),
+            ("charts/bar_chart", crate::charts::bar_chart::css()),
+            ("charts/bar_list", crate::charts::bar_list::css()),
+            ("charts/bar_segment", crate::charts::bar_segment::css()),
             ("sparkline", crate::sparkline::stylesheet()),
             ("pie_chart", crate::pie_chart::css()),
             ("donut_chart", crate::donut_chart::css()),
@@ -377,10 +380,14 @@ mod tests {
         // tooltip）は元々の非再帰スキャン（`src/` 直下のみ）では検出されない
         // ため、`charts/<stem>` という部品名で個別に検出対象へ加える
         // （`all_styled_component_css` の `"charts/axis"` 等のキー形式と合わせる）。
+        // イシュー #849: bar_chart/bar_list/bar_segment も同じ `src/charts/`
+        // 配下に追加されたため、同じ `charts/<stem>` 命名規則へ追随する
+        // （`src/charts/` は非再帰の 1 階層のみのスキャンを維持する前提。
+        // 増えた場合は本走査も追随して拡張する）。
         let src_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
 
         let mut modules_with_css_fn: Vec<String> = Vec::new();
-        for entry in std::fs::read_dir(&src_dir).expect("src ディレクトリを読み取れること")
+        for entry in std::fs::read_dir(&src_dir).expect("ディレクトリを読み取れること")
         {
             let entry = entry.expect("dir entry を読み取れること");
             let path = entry.path();
@@ -392,12 +399,13 @@ mod tests {
                 .and_then(|s| s.to_str())
                 .expect("有効なファイル名であること")
                 .to_string();
-            // `lib.rs`（クレート入口）と `stylesheet.rs`（本ファイル自身）は
-            // styled 部品モジュールではない。特に本ファイルは
+            // `lib.rs`（クレート入口）・`stylesheet.rs`（本ファイル自身）・
+            // `charts/mod.rs`（charts 基盤のモジュール宣言のみ）は styled
+            // 部品モジュールではない。`stylesheet.rs` は
             // `all_styled_component_css`/本テストの doc コメント中に
             // "pub fn css()"/"pub fn stylesheet()" という文字列そのものが
             // 出現するため、除外しないと自己参照で誤検知する。
-            if stem == "lib" || stem == "stylesheet" {
+            if stem == "lib" || stem == "stylesheet" || stem == "mod" {
                 continue;
             }
             let source = std::fs::read_to_string(&path).expect("モジュールソースを読み取れること");
