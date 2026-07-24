@@ -419,6 +419,40 @@ DateInput / Timer、`docs/design/component-coverage-map.md` の保留区分・
   全 API をこの単一の変換対に載せることで、往復変換の性質テストだけで
   土台の正しさを固定できる。
 
+## 4d. Calendar / DatePicker（イシュー #835、親トラッキング #832）
+
+親イシュー #832 の date-time 系コンポーネントのうち、暦計算コア
+（§4c、#833）を利用する Calendar / DatePicker を実装した（親 #832 の保留を
+解除、`docs/design/component-coverage-map.md` 参照）。
+
+### 4d.1 Calendar（`calendar` モジュール）
+
+| 項目 | 内容 |
+|---|---|
+| anatomy パーツ | Root/Heading/PrevTrigger/NextTrigger/Table/TableHeader/TableRow/TableHeadCell/TableBody/TableCell/DayTrigger の 11 パーツ |
+| 状態機械 | `Calendar`（`view_year`/`view_month`/`selected`/`today`/`min`/`max`/`week_start`）。`CalendarAction`: `PrevMonth`/`NextMonth`/`Select(PlainDate)`/`ClearSelection` |
+| dispatch 名 | `"prev-month"`/`"next-month"`/`"select"`（payload は ISO 8601 文字列）/`"clear-selection"` |
+| 決定性契約 | **「今日」は `Calendar::new` の `today` 引数として呼び出し側が明示的に渡す**。本モジュールは現在時刻 API を一切呼ばない（§4c と同じ契約、`crates/headless-ui/tests/calendar.rs::calendar_module_never_reads_the_current_time` が機械強制） |
+| fail-closed | `min > max` は `Calendar::new` が `Err(DateError::InvalidDate)` を返す。範囲外選択・年 `0000`/`9999` 境界での月移動は状態を変更しない（無移動）。`Calendar::weeks()` が `Err` を返す極端な境界では `table_body_from_grid` が空の `tbody` を返す（panic しない） |
+| ARIA | WAI-ARIA APG grid パターン（`role="grid"`/`"row"`/`"columnheader"`/`"gridcell"`）。今日は `aria-current="date"`、選択日は `aria-selected="true"` |
+
+### 4d.2 DatePicker（`date_picker` モジュール）
+
+| 項目 | 内容 |
+|---|---|
+| anatomy パーツ | Root/Label/Control/Input/Trigger/ClearTrigger/Positioner/Content の 8 パーツ |
+| positioner/content の基盤 | `crate::popover`（`state::Disclosure`）と同一の開閉・配置基盤を再利用する。独自のオーバーレイ機構は持たない |
+| 状態機械 | `DatePicker`（`state::Disclosure` + `calendar::Calendar` の合成）。`DatePickerAction`: `Open`/`Close`/`Toggle`/`PrevMonth`/`NextMonth`/`Select(PlainDate)`/`ClearSelection` |
+| dispatch 名 | `"open"`/`"close"`/`"toggle"`/`"prev-month"`/`"next-month"`/`"select"`（payload は ISO 8601 文字列）/`"clear-selection"`。`"select"` は ark-ui の `closeOnSelect` 既定 `true` に準拠し popover を閉じる |
+| `input` パーツ | ネイティブ `<input type="text">`。`value` は `PlainDate::to_iso_string()` 由来の ISO 8601 表記のみを受け取る契約（DateInput との連携は行わない） |
+| DateInput（#834）との責務境界 | 本コンポーネントはセグメント式 DateInput に依存せず、ISO 8601 値のネイティブ `<input>` だけで完結する。連携強化は #834 側の作業 |
+
+### 4d.3 スコープ外（#835 時点）
+
+- キーボードナビゲーション（矢印キーでの gridcell フォーカス移動・roving tabindex）の実 DOM 配線
+- 範囲選択（range mode）・複数月表示（multi-month）・年/月ビュー切替
+- DateInput（#834）との配線・wasm-full ハイドレーション配線
+
 ## 5. 呼び出し規約（SSR / CSR 共通の前提）
 
 - 各コンポーネントの anatomy パーツ（`root`/`trigger`/`content` 等）は

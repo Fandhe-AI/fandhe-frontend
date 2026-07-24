@@ -26,14 +26,17 @@
 //! テストは以後の削除・弱体化・`#[ignore]` 化を禁止する。
 
 use fandhe_frontend_core::{escape_html, render, text};
+use fandhe_frontend_headless_ui::calendar;
+use fandhe_frontend_headless_ui::date::{PlainDate, Weekday};
+use fandhe_frontend_headless_ui::date_picker;
 use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::scroll_area;
 use fandhe_frontend_headless_ui::{
     action_bar, aria_controls, aria_label, avatar, carousel, clipboard, data_state, date_input,
     dialog, download_trigger, editable, floating_panel, hover_card, listbox, number_input,
     password_input, pin_input, popover, rating_group, segment_group, slider, splitter, tags_input,
-    timer, toast, tree_view, DateSegmentFlags, ImageStatus, OpenState, Orientation,
-    PasswordAutocomplete, PasswordInputProps, Steps, ToastStatus,
+    timer, toast, tree_view, Calendar, DatePicker, DateSegmentFlags, ImageStatus, OpenState,
+    Orientation, PasswordAutocomplete, PasswordInputProps, Steps, ToastStatus,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -1336,6 +1339,119 @@ fn date_input_segment_attrs_payload_is_escaped_for_all_payloads() {
         );
         let html = render(&node);
         assert_payload_is_escaped(payload, &html, "date_input::segment の attrs コンテキスト");
+    }
+}
+
+/// Calendar（イシュー #835）の `heading` children・`day_trigger` の `id`
+/// 属性・呼び出し側 `attrs` の 3 経路がエスケープされることを固定する。
+#[test]
+fn calendar_heading_children_and_day_trigger_attrs_are_escaped_for_all_payloads() {
+    let d = PlainDate::new(2026, 7, 22).unwrap();
+    for payload in payloads::all() {
+        let html = render(&calendar::heading(None, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "calendar::heading の children コンテキスト");
+
+        let html = render(&calendar::day_trigger(
+            d,
+            false,
+            false,
+            false,
+            false,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "calendar::day_trigger の id 属性コンテキスト",
+        );
+
+        let html = render(&calendar::root(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "calendar::root の attrs コンテキスト");
+    }
+}
+
+/// Calendar の dispatch `"select"` payload（クライアント由来の改ざんされうる
+/// 入力）は `PlainDate::parse_iso` の fail-closed 検証を通らない限り状態を
+/// 変更しないため、hydration 出力へ生ペイロードが混入しないことを固定する。
+#[test]
+fn calendar_dispatch_select_payload_is_rejected_or_escaped_on_hydration_render() {
+    use fandhe_frontend_interactive::{dispatch, render_for_hydration};
+
+    for payload in payloads::all() {
+        let mut cal = Calendar::new(
+            2026,
+            7,
+            PlainDate::new(2026, 7, 1).unwrap(),
+            None,
+            None,
+            None,
+            Weekday::Monday,
+        )
+        .unwrap();
+        let _ = dispatch(&mut cal, "select", payload);
+        let html = render(&render_for_hydration(&cal));
+        assert!(
+            !html.contains("<script"),
+            "payload={payload:?} が hydration 出力に script タグとして混入した: {html}"
+        );
+    }
+}
+
+/// DatePicker（イシュー #835）の `trigger`/`input` の属性経路がエスケープ
+/// されることを固定する。
+#[test]
+fn date_picker_trigger_and_input_attrs_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let html = render(&date_picker::trigger(
+            OpenState::Closed,
+            false,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "date_picker::trigger の controls 属性コンテキスト",
+        );
+
+        let html = render(&date_picker::input(Some(payload), false, None, vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "date_picker::input の value 属性コンテキスト",
+        );
+    }
+}
+
+/// DatePicker の dispatch `"select"` payload が hydration 出力へ生のまま
+/// 混入しないことを固定する（[`calendar_dispatch_select_payload_is_rejected_or_escaped_on_hydration_render`]
+/// と同型。DatePicker は Calendar を埋め込むため同じ fail-closed 経路を
+/// 継承する）。
+#[test]
+fn date_picker_dispatch_select_payload_is_rejected_or_escaped_on_hydration_render() {
+    use fandhe_frontend_interactive::{dispatch, render_for_hydration};
+
+    for payload in payloads::all() {
+        let calendar = Calendar::new(
+            2026,
+            7,
+            PlainDate::new(2026, 7, 1).unwrap(),
+            None,
+            None,
+            None,
+            Weekday::Monday,
+        )
+        .unwrap();
+        let mut dp = DatePicker::new(calendar);
+        let _ = dispatch(&mut dp, "select", payload);
+        let html = render(&render_for_hydration(&dp));
+        assert!(
+            !html.contains("<script"),
+            "payload={payload:?} が hydration 出力に script タグとして混入した: {html}"
+        );
     }
 }
 
