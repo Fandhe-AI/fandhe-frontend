@@ -199,3 +199,194 @@ fn runtime_hydrate_csr_fallback_wires_clear_trigger_click_for_signature_pad() {
          全ストロークが削除されていること"
     );
 }
+
+/// SignaturePad の ClearTrigger（`Self::wire_signature_pad` 経路）が keyed
+/// list の構造変化を起こした直後、通常の `data-action` クリック
+/// （`Self::wire`/`events::wire_events` 経路）が新規挿入ノード内の
+/// `data-bind-text` 束縛点を正しく更新できること（PR #872 に対する Cursor
+/// Bugbot 指摘「Binding table cache desync」の回帰固定）。
+///
+/// 修正前は `Self::wire_signature_pad` の `on_update` がローカルに
+/// `BindingTable::scan` を取り直すのみで、`Self::wire` 側がクロージャ内に
+/// 閉じ込めていた対応表キャッシュを更新しなかった。そのため
+/// ClearTrigger クリックで keyed list へ新規ノードが挿入された後、続けて
+/// `increment` ボタン（`Self::wire` 経由）をクリックしても、新規ノード内の
+/// `data-bind-text="total"` 要素は「ClearTrigger クリック時点より前」の
+/// 対応表にしか含まれておらず更新が反映されなかった
+/// （リストが空の初期状態から始めるため、修正前は対応表に 1 件も
+/// 登録されず更新が完全にスキップされる）。
+mod binding_table_cache_desync {
+    use super::*;
+
+    /// テスト専用の最小コンポーネント。
+    ///
+    /// - ClearTrigger（`data-scope="signature-pad" data-part="clear-trigger"`）:
+    ///   `MAPPING_TABLE`（`crate::headless`）の `("signature-pad",
+    ///   "clear-trigger") -> "clear"` 行を再利用し、`Self::wire_signature_pad`
+    ///   経路（keyed list `log` へ現在の `total` を記録したエントリを追加）を
+    ///   起動する。実際の `SignaturePad` 型は使わず、マッピング表が
+    ///   scope/part 文字列のみで動作することを利用して構成を単純化する。
+    /// - `increment` ボタン（`data-action="increment"`）: `Self::wire` 経路で
+    ///   `total` を加算し、`data-bind-text="total"` の束縛点（`log` の各
+    ///   エントリ内）を更新する。
+    struct DesyncHost {
+        log: Vec<String>,
+        total: u32,
+        dirty: Vec<&'static str>,
+    }
+
+    enum DesyncAction {
+        Clear,
+        Increment,
+    }
+
+    const FIELD_TOTAL: &str = "total";
+    const FIELD_LOG: &str = "log";
+
+    impl fandhe_frontend_interactive::Component for DesyncHost {
+        type Action = DesyncAction;
+
+        fn update(&mut self, action: Self::Action) {
+            self.dirty.clear();
+            match action {
+                DesyncAction::Clear => {
+                    self.log.push(self.total.to_string());
+                    self.dirty.push(FIELD_LOG);
+                }
+                DesyncAction::Increment => {
+                    self.total += 1;
+                    self.dirty.push(FIELD_TOTAL);
+                }
+            }
+        }
+
+        fn view(&self) -> fandhe_frontend_core::Node {
+            use fandhe_frontend_core::{bind_text, el, keyed::keyed_list, text};
+
+            let items = self
+                .log
+                .iter()
+                .enumerate()
+                .map(|(index, value)| {
+                    (
+                        index.to_string(),
+                        el(
+                            "li",
+                            vec![],
+                            vec![bind_text("span", vec![], FIELD_TOTAL, value.clone())],
+                        ),
+                    )
+                })
+                .collect();
+            let list_node =
+                keyed_list("ul", vec![], FIELD_LOG, items).expect("valid keyed list construction");
+
+            let clear_trigger = el(
+                "button",
+                vec![
+                    ("data-scope", "signature-pad"),
+                    ("data-part", "clear-trigger"),
+                ],
+                vec![text("clear")],
+            );
+            let increment = el(
+                "button",
+                vec![("data-action", "increment")],
+                vec![text("+")],
+            );
+
+            el("div", vec![], vec![clear_trigger, increment, list_node])
+        }
+
+        fn decode_action(name: &str, _payload: &str) -> Option<Self::Action> {
+            match name {
+                "clear" => Some(DesyncAction::Clear),
+                "increment" => Some(DesyncAction::Increment),
+                _ => None,
+            }
+        }
+    }
+
+    impl fandhe_frontend_interactive::DirtyTracked for DesyncHost {
+        fn dirty_fields(&self) -> &[&'static str] {
+            &self.dirty
+        }
+    }
+
+    impl fandhe_frontend_wasm_client::BindingSource for DesyncHost {
+        fn bound_value(&self, field: &str) -> Option<fandhe_frontend_wasm_client::BoundValue> {
+            match field {
+                f if f == FIELD_TOTAL => Some(fandhe_frontend_wasm_client::BoundValue::Text(
+                    self.total.to_string(),
+                )),
+                _ => None,
+            }
+        }
+    }
+
+    #[wasm_bindgen_test]
+    fn clear_trigger_structural_change_keeps_binding_table_in_sync_for_later_actions() {
+        let window = web_sys::window().expect("window must exist");
+        let document = window.document().expect("document must exist");
+        let placeholder = create_placeholder(&document, "signature-pad-binding-cache-desync-root");
+        let _cleanup = RemoveOnDrop(placeholder.clone());
+
+        let host = DesyncHost {
+            log: Vec::new(),
+            total: 0,
+            dirty: Vec::new(),
+        };
+
+        let runtime = Runtime::mount("signature-pad-binding-cache-desync-root", host)
+            .expect("Runtime::mount must not fail");
+
+        // (1) ClearTrigger クリック（`Self::wire_signature_pad` 経路）で
+        // keyed list `log` へ 1 件追加する。挿入された `<li>` 内の
+        // `data-bind-text="total"` はこの時点の `total`（0）を静的に保持する。
+        let clear_trigger = placeholder
+            .query_selector(r#"[data-scope="signature-pad"][data-part="clear-trigger"]"#)
+            .expect("query_selector must not fail")
+            .expect("clear-trigger element must exist after mount");
+        clear_trigger
+            .dispatch_event(&bubbling_event("click"))
+            .expect("dispatch_event must not fail");
+
+        assert_eq!(
+            runtime.component().log.len(),
+            1,
+            "ClearTrigger クリックで log に 1 件追加されていること"
+        );
+
+        let inserted_span = placeholder
+            .query_selector(r#"li [data-bind-text="total"]"#)
+            .expect("query_selector must not fail")
+            .expect("ClearTrigger クリック後に keyed list の新規ノードが存在すること");
+        assert_eq!(inserted_span.text_content().as_deref(), Some("0"));
+
+        // (2) `increment` ボタンクリック（`Self::wire`/`events::wire_events`
+        // 経路）で `total` を更新する。修正前は `Self::wire` 側の対応表
+        // キャッシュが (1) の構造変化を反映しておらず、新規ノード内の
+        // `data-bind-text="total"` が更新されずに "0" のまま取り残される。
+        let increment = placeholder
+            .query_selector(r#"[data-action="increment"]"#)
+            .expect("query_selector must not fail")
+            .expect("increment element must exist after mount");
+        increment
+            .dispatch_event(&bubbling_event("click"))
+            .expect("dispatch_event must not fail");
+
+        assert_eq!(runtime.component().total, 1);
+
+        let inserted_span = placeholder
+            .query_selector(r#"li [data-bind-text="total"]"#)
+            .expect("query_selector must not fail")
+            .expect("increment クリック後も keyed list のノードが存在すること");
+        assert_eq!(
+            inserted_span.text_content().as_deref(),
+            Some("1"),
+            "ClearTrigger クリックで挿入された keyed list ノード内の \
+             data-bind-text=\"total\" が increment クリック後に更新されている \
+             こと（イシュー #843 Bugbot 指摘「Binding table cache desync」の回帰）"
+        );
+    }
+}
