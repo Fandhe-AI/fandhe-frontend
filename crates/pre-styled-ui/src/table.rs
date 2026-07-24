@@ -270,6 +270,13 @@ fn recipe() -> SlotRecipe {
                 decl("--fandhe-table-row-border", "none"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
                 decl("border-radius", "var(--fandhe-radius-lg)"),
+                // `column-header` の不透明背景・striped 偶数行の背景は
+                // `root` の `border-radius` に追従してクリップされない
+                // （`border-collapse: separate` 下では子孫が親の角丸の
+                // 外側にはみ出して矩形の角のまま描画される）。`overflow:
+                // hidden` を `root` に付与し、子孫の描画を角丸内へ収める
+                // （イシュー #767 PR #811 Bugbot 指摘）。
+                decl("overflow", "hidden"),
             ],
         )
         .default_variant(TableVariant::Line)

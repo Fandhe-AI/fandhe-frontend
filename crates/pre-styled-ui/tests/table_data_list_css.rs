@@ -92,6 +92,33 @@ fn table_css_puts_row_border_on_cell_not_row() {
     assert!(!css.contains(r#"[data-scope="table"][data-part="row"] {"#));
 }
 
+/// Outline variant は `border-radius` に加え `overflow: hidden` を
+/// `root` に持たなければならない。`border-collapse: separate` では
+/// `column-header` の不透明背景・striped 偶数行の背景が `root` の角丸に
+/// 追従してクリップされず、矩形の角のまま描画される（イシュー #767
+/// PR #811 Bugbot 指摘: "Outline corners not clipped" の回帰防止）。
+#[test]
+fn table_css_outline_variant_clips_descendants_to_border_radius() {
+    let css = table::css();
+    let outline_rule_start = css
+        .find(r#"[data-scope="table"][data-part="root"].fd-table--variant-outline {"#)
+        .expect("Outline variant の root 規則が css() 出力に存在すること");
+    let outline_rule_end = css[outline_rule_start..]
+        .find('}')
+        .map(|offset| outline_rule_start + offset)
+        .expect("Outline variant の root 規則が `}` で閉じられていること");
+    let outline_rule = &css[outline_rule_start..outline_rule_end];
+    assert!(
+        outline_rule.contains("border-radius:"),
+        "Outline variant の root 規則に border-radius が存在すること\n{outline_rule}"
+    );
+    assert!(
+        outline_rule.contains("overflow: hidden;"),
+        "Outline variant の root 規則に overflow: hidden がなく、\
+         column-header/striped 偶数行の背景が角丸からはみ出す\n{outline_rule}"
+    );
+}
+
 #[test]
 fn table_css_never_contains_style_breakout_sequences() {
     let css = table::css();
