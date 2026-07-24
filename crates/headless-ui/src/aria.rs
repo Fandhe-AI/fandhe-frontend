@@ -186,6 +186,16 @@ pub fn aria_activedescendant(id: &str) -> (&'static str, &str) {
     ("aria-activedescendant", id)
 }
 
+/// `aria-multiselectable` 属性（Listbox 用、イシュー #750）。
+///
+/// [`crate::listbox::content`] が multiple モードの [`crate::listbox::MultiListbox`]
+/// を埋め込むときのみ `"true"` を出力するために使う（single モードでは
+/// 属性自体を出力しない。呼び出し側で `Option` として分岐する）。
+#[must_use]
+pub fn aria_multiselectable(multiple: bool) -> (&'static str, &'static str) {
+    ("aria-multiselectable", bool_str(multiple))
+}
+
 /// `aria-autocomplete` が示す自動補完の種別（Combobox 用、イシュー #749）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AriaAutocomplete {
@@ -369,6 +379,15 @@ mod tests {
             ("aria-haspopup", "dialog")
         );
         assert_eq!(aria_haspopup(AriaPopup::True), ("aria-haspopup", "true"));
+    }
+
+    #[test]
+    fn aria_multiselectable_maps_bool_to_true_false_strings() {
+        assert_eq!(aria_multiselectable(true), ("aria-multiselectable", "true"));
+        assert_eq!(
+            aria_multiselectable(false),
+            ("aria-multiselectable", "false")
+        );
     }
 
     #[test]

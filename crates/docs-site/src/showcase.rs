@@ -68,6 +68,7 @@ use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
+use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
@@ -223,6 +224,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::drawer::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::menu::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::select::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::listbox::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::skeleton::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::separator::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::highlight::css())?;
@@ -1112,6 +1114,121 @@ fn select_section() -> Node {
         "Select",
         "headless-ui の Select（role=\"listbox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。1 項目が選択済み（data-state=\"open\"）の listbox が開いた状態を固定表示しています。positioner はフロー内配置へ中和しています。",
         vec![node],
+    )
+}
+
+/// Listbox 節: 常時展開のリスト選択（single/multiple 両モード）の静的
+/// マークアップ（イシュー #750）。[`select_section`] とは異なり trigger/
+/// positioner を持たず、`content` が常に表示される（責務境界の詳細は
+/// `fandhe_frontend_headless_ui::listbox` module doc 参照）。
+fn listbox_section() -> Node {
+    let single = listbox::root(
+        Size::Md,
+        OpenState::Open,
+        false,
+        vec![],
+        vec![
+            listbox::label(
+                Some("showcase-listbox-single-label"),
+                vec![],
+                vec![text("Fruit")],
+            ),
+            listbox::content(
+                false,
+                Some("showcase-listbox-single-content"),
+                Some("showcase-listbox-single-label"),
+                None,
+                vec![],
+                vec![
+                    listbox::item(
+                        OpenState::Open,
+                        false,
+                        false,
+                        "apple",
+                        None,
+                        vec![],
+                        vec![
+                            listbox::item_text(None, vec![], vec![text("Apple")]),
+                            listbox::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
+                        ],
+                    ),
+                    listbox::item(
+                        OpenState::Closed,
+                        true,
+                        false,
+                        "banana",
+                        None,
+                        vec![],
+                        vec![
+                            listbox::item_text(None, vec![], vec![text("Banana (disabled)")]),
+                            listbox::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    );
+
+    let multiple = listbox::root(
+        Size::Md,
+        OpenState::Open,
+        false,
+        vec![],
+        vec![
+            listbox::label(
+                Some("showcase-listbox-multi-label"),
+                vec![],
+                vec![text("Toppings")],
+            ),
+            listbox::content(
+                true,
+                Some("showcase-listbox-multi-content"),
+                Some("showcase-listbox-multi-label"),
+                None,
+                vec![],
+                vec![listbox::item_group(
+                    Some("showcase-listbox-multi-group-label"),
+                    vec![],
+                    vec![
+                        listbox::item_group_label(
+                            Some("showcase-listbox-multi-group-label"),
+                            vec![],
+                            vec![text("Cheese")],
+                        ),
+                        listbox::item(
+                            OpenState::Open,
+                            false,
+                            false,
+                            "cheddar",
+                            None,
+                            vec![],
+                            vec![
+                                listbox::item_text(None, vec![], vec![text("Cheddar")]),
+                                listbox::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
+                            ],
+                        ),
+                        listbox::item(
+                            OpenState::Open,
+                            false,
+                            false,
+                            "mozzarella",
+                            None,
+                            vec![],
+                            vec![
+                                listbox::item_text(None, vec![], vec![text("Mozzarella")]),
+                                listbox::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
+                            ],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    );
+
+    section(
+        "Listbox",
+        "headless-ui の Listbox（role=\"listbox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。Select（ポップアップ型）と異なり trigger/positioner を持たず、常時展開のリストとして表示されます。左は single モード（1 項目選択済み、1 項目 disabled）、右は multiple モード（aria-multiselectable、複数項目選択済み・item-group 付き）です。",
+        vec![row(vec![single, multiple])],
     )
 }
 
@@ -3084,6 +3201,7 @@ fn showcase_body() -> Node {
             drawer_section(),
             menu_section(),
             select_section(),
+            listbox_section(),
             combobox_section(),
             popover_section(),
             tooltip_section(),
@@ -3146,6 +3264,7 @@ mod tests {
             "drawer",
             "menu",
             "select",
+            "listbox",
             "popover",
             "tooltip",
             "hover-card",
@@ -3226,6 +3345,16 @@ mod tests {
         assert!(html.contains(r#"aria-atomic="true""#));
         assert!(html.contains(r#"aria-live="assertive""#));
         assert!(html.contains(r#"aria-live="polite""#));
+    }
+
+    #[test]
+    fn showcase_markup_shows_listbox_single_and_multiple_modes() {
+        // イシュー #750 受け入れ条件: Listbox は常時展開（trigger/positioner
+        // なし）で、single/multiple 双方の掲示が固定されていることを確認する。
+        let html = render(&showcase_body());
+        assert!(html.contains(r#"data-scope="listbox" data-part="content""#));
+        assert!(html.contains(r#"aria-multiselectable="true""#));
+        assert!(html.contains(r#"data-scope="listbox" data-part="item-group""#));
     }
 
     #[test]

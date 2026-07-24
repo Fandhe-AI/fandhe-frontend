@@ -29,8 +29,8 @@ use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::{
     aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog, editable,
-    hover_card, number_input, password_input, pin_input, popover, rating_group, segment_group,
-    slider, tags_input, toast, tree_view, ImageStatus, OpenState, Orientation,
+    hover_card, listbox, number_input, password_input, pin_input, popover, rating_group,
+    segment_group, slider, tags_input, toast, tree_view, ImageStatus, OpenState, Orientation,
     PasswordAutocomplete, PasswordInputProps, ToastStatus,
 };
 
@@ -850,6 +850,84 @@ fn qr_code_root_attrs_and_overlay_children_are_escaped_for_all_payloads() {
             payload,
             &html,
             "qr_code::overlay の children テキストコンテキスト",
+        );
+    }
+}
+
+/// Listbox（イシュー #750）の XSS 回帰: [`listbox::item`] の `value`（`data-value`
+/// 属性）・children テキスト・`id`・[`listbox::content`] の `labelledby`/
+/// `activedescendant`・[`listbox::value_text`] の children テキスト・
+/// hydration dispatch payload（`data-hydrate-selected` へ全ペイロードを注入し、
+/// エスケープが貫通することを固定する。
+#[test]
+fn listbox_item_text_value_id_and_hydration_paths_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let item_node = listbox::item(
+            OpenState::Open,
+            false,
+            false,
+            payload,
+            Some(payload),
+            vec![],
+            vec![],
+        );
+        let html = render(&item_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "listbox::item の data-value/id コンテキスト",
+        );
+
+        let item_text_node = listbox::item_text(Some(payload), vec![], vec![text(payload)]);
+        let html = render(&item_text_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "listbox::item_text の id/children コンテキスト",
+        );
+
+        let content_node = listbox::content(
+            false,
+            Some(payload),
+            Some(payload),
+            Some(payload),
+            vec![],
+            vec![],
+        );
+        let html = render(&content_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "listbox::content の id/labelledby/activedescendant コンテキスト",
+        );
+
+        let value_text_node = listbox::value_text(false, vec![], vec![text(payload)]);
+        let html = render(&value_text_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "listbox::value_text の children コンテキスト",
+        );
+    }
+}
+
+/// Listbox の dispatch payload（クライアント由来の改ざんされうる選択値）が
+/// hydration 属性へエンコードされたのち `render()` を経由してもエスケープが
+/// 貫通することを固定する（`crates/interactive` の `HYDRATE_ATTR_PREFIX` +
+/// `codec::encode_list` 経由で `data-hydrate-selected` へ乗る値）。
+#[test]
+fn listbox_dispatch_select_payload_is_escaped_on_hydration_render() {
+    use fandhe_frontend_headless_ui::listbox::Listbox;
+    use fandhe_frontend_interactive::{dispatch, render_for_hydration};
+
+    for payload in payloads::all() {
+        let mut l = Listbox::default();
+        assert!(dispatch(&mut l, "select", payload));
+        let html = render(&render_for_hydration(&l));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "Listbox dispatch select payload の data-hydrate-selected コンテキスト",
         );
     }
 }
