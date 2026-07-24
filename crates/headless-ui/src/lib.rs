@@ -249,6 +249,17 @@
 //!   `O(boundary_count + sibling_count)` で `total_pages` を全列挙しない
 //!   （巨大 `count` でも有界、モジュール doc 参照）。wasm 層のクリック配線・
 //!   キーボードナビゲーションは本イシューのスコープ外。
+//! - [`mod@action_bar`]: Root / Positioner / Content / SelectionTrigger /
+//!   Separator / CloseTrigger の 6 anatomy パーツと [`state::Disclosure`] を
+//!   埋め込んだ [`action_bar::ActionBar`] 状態機械（複数選択時に画面下部へ
+//!   表示される操作バー、#762、親トラッキング #520）。構造上最も近い先行例は
+//!   [`dialog::Dialog`]（`Disclosure` 埋め込み + positioner/close-trigger
+//!   構成）であり、本モジュールはそのパターンに完全準拠する。`content` は
+//!   `role="toolbar"` + `aria-label`、`separator` は `role="separator"` +
+//!   `aria-orientation="vertical"` を出力する。選択件数から `open` を導出する
+//!   糖衣 API は持たず、開閉は呼び出し側が dispatch（`"open"`/`"close"`/
+//!   `"toggle"`）で制御する（[`action_bar`] モジュール doc §選択件数から
+//!   open を導出する糖衣 API は持たない 参照）。
 //! - [`mod@hover_card`]: Root/Trigger/Positioner/Content/Arrow/ArrowTip の
 //!   6 anatomy パーツ関数群と、[`state::Disclosure`] を埋め込んだ
 //!   [`hover_card::HoverCard`] 状態機械（#759、親トラッキング #726）。
@@ -393,6 +404,7 @@
 #![warn(missing_docs)]
 
 pub mod accordion;
+pub mod action_bar;
 pub mod anatomy;
 pub mod aria;
 pub mod avatar;
@@ -462,6 +474,7 @@ pub use fandhe_frontend_core;
 // 経路を作らない（REQ-1 を弱めない）。
 pub use fandhe_frontend_interactive;
 
+pub use action_bar::ActionBar;
 pub use anatomy::{anatomy, Anatomy};
 pub use aria::{
     aria_activedescendant, aria_atomic, aria_autocomplete, aria_checked, aria_controls,

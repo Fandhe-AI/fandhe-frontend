@@ -45,6 +45,7 @@
 //! （recipe CSS・`site/assets/site.css` はいずれも変更しない）。
 
 use fandhe_frontend_core::{div, el, text, Node};
+use fandhe_frontend_pre_styled_ui::action_bar;
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
@@ -131,16 +132,19 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   ビューポート全体暗幕であり、開いた状態を固定掲示するとページ全体を
 ///   覆ってしまうため掲示用にのみ隠す（実際の modal 表示では backdrop は
 ///   必須であり、ここでの非表示化はショーケースの掲示都合に限定する）。
-/// - dialog/drawer/menu/select/combobox/popover/tooltip/hover-card/toggle-tip
-///   の `[data-part="positioner"]` を `position: static` へ中和: recipe CSS は
-///   dialog/drawer を `position: fixed; inset: 0`、menu/select/combobox/
-///   popover/hover-card を `position: absolute; top: 100%`、tooltip/toggle-tip を
-///   `position: absolute; bottom: 100%` としており、いずれも開いた content を
-///   ページ内の別位置・別セクションに重ねてしまう。static 化してフロー内へ
-///   インライン表示させることで、後続セクションと重ならずに掲示できる
-///   （dialog はさらに `padding`/`justify-content` も中和し、中央寄せの
-///   ための余白・配置指定を解除する。drawer は recipe CSS が `padding`/
-///   `justify-content` を宣言しないため `position` のみで足りる）。
+/// - dialog/drawer/menu/select/combobox/popover/tooltip/hover-card/toggle-tip/
+///   action-bar の `[data-part="positioner"]` を `position: static` へ中和:
+///   recipe CSS は dialog/drawer を `position: fixed; inset: 0`、menu/select/
+///   combobox/popover/hover-card を `position: absolute; top: 100%`、
+///   tooltip/toggle-tip を `position: absolute; bottom: 100%`、action-bar を
+///   `position: fixed; bottom: ...; left: 50%; transform: translateX(-50%)`
+///   としており、いずれも開いた content をページ内の別位置・別セクションに
+///   重ねてしまう。static 化してフロー内へインライン表示させることで、後続
+///   セクションと重ならずに掲示できる（dialog はさらに `padding`/
+///   `justify-content` も中和し、中央寄せのための余白・配置指定を解除する。
+///   drawer は recipe CSS が `padding`/`justify-content` を宣言しないため
+///   `position` のみで足りる。action-bar はさらに `transform` も中和し、
+///   水平方向のずらしを解除する）。
 /// - dialog/drawer/popover の `title`（`h2`）見出しリセット: Accordion の `h3` と
 ///   同じ理由（`site.css` の `.docs-content h2` が漏れる）で、showcase 領域
 ///   内に限定して `border-top`/`padding-top`/`letter-spacing` を打ち消す
@@ -175,6 +179,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: static;\n  padding: 0;\n  justify-content: flex-start;\n}\n\
 .pre-styled-showcase [data-scope=\"drawer\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"combobox\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"hover-card\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
+.pre-styled-showcase [data-scope=\"action-bar\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"toast\"][data-part=\"group\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n";
@@ -201,8 +206,10 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 /// accordion/dialog/drawer/menu/select/combobox/popover/tooltip/hover_card/
 /// toggle_tip/switch/radio_group/avatar/checkbox/checkbox_card/radio_card/
 /// input/textarea/native_select/number_input/tags_input/rating_group/
-/// slider/segment_group/pagination/breadcrumb/carousel/toast）→ ショーケース
-/// 配置スタイル、の順で決定的に連結する。
+/// slider/segment_group/pagination/breadcrumb/carousel/action_bar/toast/
+/// progress/image/icon/status/empty_state/visually_hidden/qr_code/heading/
+/// text/em/mark/blockquote/list）→ ショーケース配置スタイル、の順で決定的に
+/// 連結する。
 ///
 /// # Errors
 ///
@@ -253,6 +260,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::pagination::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::breadcrumb::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::carousel::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::action_bar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::toast::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::progress::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::image::css())?;
@@ -2874,6 +2882,40 @@ fn breadcrumb_section() -> Node {
     )
 }
 
+/// ActionBar 節: 開いた状態の静的マークアップ（イシュー #762）。
+///
+/// 複数選択時に画面下部へ表示される操作バーの掲示。「2 selected」の選択件数
+/// 表示 + 全解除ボタン + separator + close trigger を組み立てる。`positioner`
+/// の画面下部固定配置は [`SHOWCASE_LAYOUT_CSS`] でフロー内配置へ中和する
+/// （[`dialog_section`]/[`tooltip_section`] と同じ方針。実 overlay 配置は
+/// recipe CSS に委ねる）。
+fn action_bar_section() -> Node {
+    let node = action_bar::root(
+        OpenState::Open,
+        vec![],
+        vec![action_bar::positioner(
+            OpenState::Open,
+            vec![],
+            vec![action_bar::content(
+                OpenState::Open,
+                "2 selected",
+                vec![],
+                vec![
+                    action_bar::selection_trigger(vec![], vec![text("2 selected")]),
+                    action_bar::separator(vec![], vec![]),
+                    action_bar::selection_trigger(vec![], vec![text("Delete")]),
+                    action_bar::close_trigger(vec![], vec![text("Close")]),
+                ],
+            )],
+        )],
+    );
+    section(
+        "ActionBar",
+        "headless-ui の ActionBar（role=\"toolbar\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています（実際の画面下部固定配置は recipe CSS が担います）。",
+        vec![node],
+    )
+}
+
 /// Status 節（イシュー #765）: colorPalette 軸ごとのドット + ラベル表示。
 fn status_section() -> Node {
     let palette_row = row(palettes()
@@ -3225,6 +3267,7 @@ fn showcase_body() -> Node {
             checkbox_card_section(),
             radio_card_section(),
             breadcrumb_section(),
+            action_bar_section(),
             toast_section(),
             progress_section(),
             image_section(),
