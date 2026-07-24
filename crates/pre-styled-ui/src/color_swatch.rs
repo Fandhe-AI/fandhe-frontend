@@ -5,8 +5,8 @@
 //! 直接宣言する単純 styled 部品」として実装する。headless 層には対応する
 //! anatomy を新設しない（`docs/design/component-coverage-map.md` の
 //! ColorSwatch 行は headless 列が「—」のまま実装済みへ更新する）。canvas は
-//! 使わず、CSS `background-color`（+ 透過色の視認用チェッカーボード模様）
-//! のみで見た目を組み立てる。
+//! 使わず、CSS `background-image`（色レイヤー + 透過色の視認用チェッカー
+//! ボード模様の 2 レイヤー、詳細は [`recipe`] 参照）のみで見た目を組み立てる。
 //!
 //! # 色値は検証済み型経由のみ（セキュリティ不変条件）
 //!
@@ -108,11 +108,15 @@ fn drop_class_and_style_attr<'a>(attrs: Vec<(&'a str, &'a str)>) -> Vec<(&'a str
 /// この ColorSwatch の既定 CSS を組み立てる（内部ヘルパ、[`css`] のみが呼ぶ）。
 ///
 /// 透過色の視認用に固定のチェッカーボード模様（`repeating-conic-gradient`）
-/// を `background-image` として敷き、その上に呼び出し側の色を
-/// `background-color`（CSS カスタムプロパティ `--fd-swatch-color` 経由）で
-/// 重ねる。`background-color` にアルファが含まれる場合、下のチェッカーが
-/// 透けて見える（CSS のレイヤ順で `background-image` が `background-color`
-/// より前面に描画される仕様を利用する。宣言はすべて静的定数、決定的）。
+/// を敷き、その上に呼び出し側の色（CSS カスタムプロパティ
+/// `--fd-swatch-color` 経由）を重ねる。CSS の `background-color` は常に
+/// `background-image` の下に描画される（レイヤ順は逆転できない）ため、色を
+/// `background-color` にすると不透明色でもチェッカーが常に透けて見えてしまう
+/// （Bugbot 指摘、イシュー #838 PR #858）。そのため色自体も
+/// `background-image` の最前面レイヤー（`linear-gradient(color, color)`）
+/// として表現し、チェッカーボードをその背後の第 2 レイヤーに置く。不透明色
+/// は前面レイヤーが完全に覆い隠し、半透明色は前面レイヤーを透かしてチェッカー
+/// が見える（宣言はすべて静的定数、決定的）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("color-swatch", &["root"])
         .base(
@@ -122,10 +126,9 @@ fn recipe() -> SlotRecipe {
                 decl("vertical-align", "middle"),
                 decl(
                     "background-image",
-                    "repeating-conic-gradient(var(--fandhe-color-border) 0% 25%, transparent 0% 50%)",
+                    "linear-gradient(var(--fd-swatch-color), var(--fd-swatch-color)), repeating-conic-gradient(var(--fandhe-color-border) 0% 25%, transparent 0% 50%)",
                 ),
-                decl("background-size", "8px 8px"),
-                decl("background-color", "var(--fd-swatch-color)"),
+                decl("background-size", "100% 100%, 8px 8px"),
             ],
         )
         .variant(
