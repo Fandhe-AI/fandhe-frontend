@@ -28,10 +28,10 @@
 use fandhe_frontend_core::{escape_html, render, text};
 use fandhe_frontend_headless_ui::qr_code;
 use fandhe_frontend_headless_ui::{
-    aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog, editable,
-    hover_card, number_input, password_input, pin_input, popover, rating_group, segment_group,
-    slider, tags_input, tree_view, ImageStatus, OpenState, Orientation, PasswordAutocomplete,
-    PasswordInputProps,
+    action_bar, aria_controls, aria_label, avatar, carousel, clipboard, data_state, dialog,
+    editable, hover_card, listbox, number_input, password_input, pin_input, popover, rating_group,
+    segment_group, slider, tags_input, toast, tree_view, ImageStatus, OpenState, Orientation,
+    PasswordAutocomplete, PasswordInputProps, Steps, ToastStatus,
 };
 
 /// OWASP XSS Prevention Cheat Sheet Rule #1 系の共有ペイロード集合。
@@ -526,6 +526,31 @@ fn tags_input_tag_text_and_attribute_paths_are_escaped_for_all_payloads() {
     }
 }
 
+/// (1)/(2) Steps（イシュー #752）: `item`/`content` の children（テキスト
+/// 経路）と呼び出し側 `attrs`（属性値経路）へ全ペイロードを注入し、
+/// エスケープが貫通することを固定する。
+#[test]
+fn steps_item_content_children_and_attrs_are_escaped_for_all_payloads() {
+    let s = Steps::new(3, 1, Orientation::Horizontal);
+    for payload in payloads::all() {
+        let item_node = s.item(0, vec![], vec![text(payload)]);
+        let html = render(&item_node);
+        assert_payload_is_escaped(payload, &html, "steps::item のテキストコンテキスト");
+
+        let content_node = s.content(1, vec![], vec![text(payload)]);
+        let html = render(&content_node);
+        assert_payload_is_escaped(payload, &html, "steps::content のテキストコンテキスト");
+
+        let trigger_attrs_node = s.trigger(0, vec![("data-testid", payload)], vec![]);
+        let html = render(&trigger_attrs_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "steps::trigger の呼び出し側 attrs コンテキスト",
+        );
+    }
+}
+
 /// (1) テキスト経路 + (2) 属性値経路（イシュー #753 TreeView）:
 /// ノードラベル（`branch_text`/`item_text` の children）・ノード値
 /// （`branch`/`item` の `data-value`）・呼び出し側 `attrs` へ全ペイロードを
@@ -625,6 +650,79 @@ fn tree_view_dispatch_payload_is_escaped_in_hydration_output() {
     assert!(rendered.contains("&lt;script&gt;"));
     assert!(!rendered.contains("<script>alert(1)</script>"));
     assert!(!rendered.contains(r#""><script"#));
+}
+
+/// Toast（イシュー #760）: group の `label`・root の title/description
+/// children・`Toaster::push` した通知の title/description・呼び出し側 attrs
+/// の各経路へペイロードを注入し、エスケープが貫通することを固定する。
+#[test]
+fn toast_label_title_description_and_view_are_escaped_for_all_payloads() {
+    use fandhe_frontend_headless_ui::Toaster;
+    use fandhe_frontend_interactive::Component;
+
+    for payload in payloads::all() {
+        let group_node = toast::group(
+            fandhe_frontend_headless_ui::ToastPlacement::Bottom,
+            payload,
+            vec![],
+            vec![],
+        );
+        let html = render(&group_node);
+        assert_payload_is_escaped(payload, &html, "toast::group の aria-label コンテキスト");
+
+        let root_node = toast::root(
+            ToastStatus::Info,
+            vec![("data-testid", payload)],
+            vec![
+                toast::title(vec![], vec![text(payload)]),
+                toast::description(vec![], vec![text(payload)]),
+            ],
+        );
+        let html = render(&root_node);
+        assert_payload_is_escaped(payload, &html, "toast::root/title/description コンテキスト");
+
+        let mut toaster = Toaster::new(5, fandhe_frontend_headless_ui::ToastPlacement::Bottom);
+        toaster.push(fandhe_frontend_headless_ui::ToastEntry {
+            id: "toast-1".to_string(),
+            status: ToastStatus::Error,
+            title: payload.to_string(),
+            description: payload.to_string(),
+        });
+        let html = render(&toaster.view());
+        assert_payload_is_escaped(payload, &html, "Toaster::view の全体組み立てコンテキスト");
+    }
+}
+
+/// (1)/(2) ActionBar（イシュー #762）: `content` の `aria-label`（属性値経路）
+/// ・`selection_trigger`/`close_trigger` の children（テキスト経路）へ全
+/// ペイロードを注入し、エスケープが貫通することを固定する。
+#[test]
+fn action_bar_label_and_trigger_children_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let content_node = action_bar::content(OpenState::Open, payload, vec![], vec![]);
+        let html = render(&content_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "action_bar::content の aria-label 属性値コンテキスト",
+        );
+
+        let selection_trigger_node = action_bar::selection_trigger(vec![], vec![text(payload)]);
+        let html = render(&selection_trigger_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "action_bar::selection_trigger のテキストコンテキスト",
+        );
+
+        let close_trigger_node = action_bar::close_trigger(vec![], vec![text(payload)]);
+        let html = render(&close_trigger_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "action_bar::close_trigger のテキストコンテキスト",
+        );
+    }
 }
 
 /// (2) 属性値経路 + (3) URL 属性経路（イシュー #759 HoverCard）:
@@ -809,6 +907,84 @@ fn qr_code_root_attrs_and_overlay_children_are_escaped_for_all_payloads() {
             payload,
             &html,
             "qr_code::overlay の children テキストコンテキスト",
+        );
+    }
+}
+
+/// Listbox（イシュー #750）の XSS 回帰: [`listbox::item`] の `value`（`data-value`
+/// 属性）・children テキスト・`id`・[`listbox::content`] の `labelledby`/
+/// `activedescendant`・[`listbox::value_text`] の children テキスト・
+/// hydration dispatch payload（`data-hydrate-selected` へ全ペイロードを注入し、
+/// エスケープが貫通することを固定する。
+#[test]
+fn listbox_item_text_value_id_and_hydration_paths_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        let item_node = listbox::item(
+            OpenState::Open,
+            false,
+            false,
+            payload,
+            Some(payload),
+            vec![],
+            vec![],
+        );
+        let html = render(&item_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "listbox::item の data-value/id コンテキスト",
+        );
+
+        let item_text_node = listbox::item_text(Some(payload), vec![], vec![text(payload)]);
+        let html = render(&item_text_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "listbox::item_text の id/children コンテキスト",
+        );
+
+        let content_node = listbox::content(
+            false,
+            Some(payload),
+            Some(payload),
+            Some(payload),
+            vec![],
+            vec![],
+        );
+        let html = render(&content_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "listbox::content の id/labelledby/activedescendant コンテキスト",
+        );
+
+        let value_text_node = listbox::value_text(false, vec![], vec![text(payload)]);
+        let html = render(&value_text_node);
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "listbox::value_text の children コンテキスト",
+        );
+    }
+}
+
+/// Listbox の dispatch payload（クライアント由来の改ざんされうる選択値）が
+/// hydration 属性へエンコードされたのち `render()` を経由してもエスケープが
+/// 貫通することを固定する（`crates/interactive` の `HYDRATE_ATTR_PREFIX` +
+/// `codec::encode_list` 経由で `data-hydrate-selected` へ乗る値）。
+#[test]
+fn listbox_dispatch_select_payload_is_escaped_on_hydration_render() {
+    use fandhe_frontend_headless_ui::listbox::Listbox;
+    use fandhe_frontend_interactive::{dispatch, render_for_hydration};
+
+    for payload in payloads::all() {
+        let mut l = Listbox::default();
+        assert!(dispatch(&mut l, "select", payload));
+        let html = render(&render_for_hydration(&l));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "Listbox dispatch select payload の data-hydrate-selected コンテキスト",
         );
     }
 }

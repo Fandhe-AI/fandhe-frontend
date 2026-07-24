@@ -186,6 +186,16 @@ pub fn aria_activedescendant(id: &str) -> (&'static str, &str) {
     ("aria-activedescendant", id)
 }
 
+/// `aria-multiselectable` 属性（Listbox 用、イシュー #750）。
+///
+/// [`crate::listbox::content`] が multiple モードの [`crate::listbox::MultiListbox`]
+/// を埋め込むときのみ `"true"` を出力するために使う（single モードでは
+/// 属性自体を出力しない。呼び出し側で `Option` として分岐する）。
+#[must_use]
+pub fn aria_multiselectable(multiple: bool) -> (&'static str, &'static str) {
+    ("aria-multiselectable", bool_str(multiple))
+}
+
 /// `aria-autocomplete` が示す自動補完の種別（Combobox 用、イシュー #749）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AriaAutocomplete {
@@ -231,13 +241,14 @@ pub fn aria_roledescription(value: &'static str) -> (&'static str, &'static str)
 }
 
 /// `aria-current` の値語彙（W3C ARIA 仕様、Breadcrumb 用イシュー #755・
-/// Pagination の選択ページ表現用イシュー #751 の双方が共有する）。
+/// Pagination の選択ページ表現用イシュー #751・Steps の現在ステップ表現用
+/// イシュー #752 が共有する）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AriaCurrent {
     /// 現在のページ（[`crate::breadcrumb::current_link`] / [`crate::pagination`]
     /// が使う値）。
     Page,
-    /// 手順の現在ステップ。
+    /// 手順の現在ステップ（[`crate::steps`] の current トリガーが使う値）。
     Step,
     /// 現在の所在地。
     Location,
@@ -268,6 +279,38 @@ impl AriaCurrent {
 #[must_use]
 pub fn aria_current(kind: AriaCurrent) -> (&'static str, &'static str) {
     ("aria-current", kind.as_str())
+}
+
+/// `aria-live` が示す live region の緊急度（Toast 用、イシュー #760）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AriaLive {
+    /// 支援技術が他の作業を妨げないタイミングで読み上げる（既定的な通知）。
+    Polite,
+    /// 即座に読み上げを割り込ませる（エラー等、緊急度の高い通知向け）。
+    Assertive,
+}
+
+impl AriaLive {
+    /// `aria-live` の属性値文字列を返す。
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Polite => "polite",
+            Self::Assertive => "assertive",
+        }
+    }
+}
+
+/// `aria-live` 属性（Toast の `root` パーツ用、イシュー #760）。
+#[must_use]
+pub fn aria_live(kind: AriaLive) -> (&'static str, &'static str) {
+    ("aria-live", kind.as_str())
+}
+
+/// `aria-atomic` 属性（live region 全体を単位として読み上げさせる、Toast 用）。
+#[must_use]
+pub fn aria_atomic(atomic: bool) -> (&'static str, &'static str) {
+    ("aria-atomic", bool_str(atomic))
 }
 
 fn bool_str(value: bool) -> &'static str {
@@ -340,6 +383,15 @@ mod tests {
     }
 
     #[test]
+    fn aria_multiselectable_maps_bool_to_true_false_strings() {
+        assert_eq!(aria_multiselectable(true), ("aria-multiselectable", "true"));
+        assert_eq!(
+            aria_multiselectable(false),
+            ("aria-multiselectable", "false")
+        );
+    }
+
+    #[test]
     fn aria_roledescription_passes_through_static_value() {
         assert_eq!(
             aria_roledescription("carousel"),
@@ -362,6 +414,18 @@ mod tests {
         assert_eq!(aria_current(AriaCurrent::Date), ("aria-current", "date"));
         assert_eq!(aria_current(AriaCurrent::Time), ("aria-current", "time"));
         assert_eq!(aria_current(AriaCurrent::True), ("aria-current", "true"));
+    }
+
+    #[test]
+    fn aria_live_maps_variants() {
+        assert_eq!(aria_live(AriaLive::Polite), ("aria-live", "polite"));
+        assert_eq!(aria_live(AriaLive::Assertive), ("aria-live", "assertive"));
+    }
+
+    #[test]
+    fn aria_atomic_maps_bool() {
+        assert_eq!(aria_atomic(true), ("aria-atomic", "true"));
+        assert_eq!(aria_atomic(false), ("aria-atomic", "false"));
     }
 
     #[test]

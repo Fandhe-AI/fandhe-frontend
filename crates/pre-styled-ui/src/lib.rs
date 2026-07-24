@@ -121,6 +121,11 @@
 //!   variant のみを持つ。[`mod@pin_input`]/[`mod@number_input`] と同型の
 //!   判断で `color-palette` 軸は提供しない。詳細は [`mod@tags_input`] rustdoc
 //!   参照）。
+//! - headless ラッパー（#750）: [`mod@listbox`]（Listbox/MultiListbox、
+//!   常時展開のリスト選択。`size` variant のみを持ち `color-palette` 軸は
+//!   提供しない。[`mod@select`]（ポップアップ型、trigger/positioner を持つ）
+//!   との責務境界・`content` 自身が DOM フォーカスを受ける設計は
+//!   [`mod@listbox`] rustdoc 参照）。
 //! - headless 状態機械を持つ複合部品の styled ラッパー第 5 弾（#730）:
 //!   [`mod@checkbox`]。`size`/`color-palette` variant・`data-focus-visible`
 //!   フォーカスリングは [`mod@switch`] と同型で最初から実装する。`indicator`
@@ -182,6 +187,15 @@
 //!   [`fandhe_frontend_headless_ui::checkbox::Checkbox`]/
 //!   [`fandhe_frontend_headless_ui::radio_group::RadioGroup`] をそのまま
 //!   再利用し、新規状態機械は作らない。詳細は各モジュール rustdoc 参照。
+//! - headless 状態機械を持つ複合部品の styled ラッパー（イシュー #752、
+//!   `docs/api/headless-ui-api.md` §4b.3 の保留解除）: [`mod@steps`]。
+//!   [`fandhe_frontend_headless_ui::steps`] が自由関数を持たない（全パーツ
+//!   が `Steps` の inherent メソッド）ため、本モジュールの全パーツ関数が
+//!   `state: &Steps` を受け取る点が他コンポーネントと異なる（詳細は
+//!   [`mod@steps`] rustdoc 参照）。`size`/`color-palette` variant を最初から
+//!   持つ。`trigger`/`prev-trigger`/`next-trigger` はネイティブ `<button>`
+//!   が実フォーカスを受けるため [`recipe::StateCondition::FocusVisible`] で
+//!   足りる（`toggle`/`toggle_group` と同型）。
 //! - headless 状態機械を持つ複合部品の styled ラッパー（イシュー #754）:
 //!   [`mod@carousel`]。`size` variant のみを持ち（`item-group` の縦横
 //!   transform 切替は `data-orientation` 属性条件、[`mod@segment_group`] と
@@ -197,6 +211,11 @@
 //!   等と同型の判断）。placement（`start`/`end`/`top`/`bottom`）は variant
 //!   ではなく headless 層が出力する `data-placement` に連動する CSS で表現
 //!   する。詳細は [`mod@drawer`] rustdoc 参照。
+//! - headless ラッパー（イシュー #760）: [`mod@toast`]（Toast、`placement`
+//!   （`group` slot）/`status`（`root` slot、[`mod@alert`] と同じ配色マッピング）
+//!   の 2 軸 variant を持つが、通常の複合部品と異なり各軸が別 slot へ付与される
+//!   ため [`recipe::SlotRecipe::variant_class`]（単一軸専用 API）をスロットごとに
+//!   個別に呼ぶ。詳細は [`mod@toast`] rustdoc 参照）。
 //! - headless ラッパー（Progress circular 対応、イシュー #763）:
 //!   [`mod@progress`]。headless の値状態機械
 //!   [`fandhe_frontend_headless_ui::progress::Progress`] が既に持つ Circle/
@@ -220,6 +239,19 @@
 //!   [`nav_list::link`]）のみを使い、`site/assets/site.css` の自己完結
 //!   不変条件（§3.4）を維持したまま §3.1/§3.2 の意味論不整合を解消する
 //!   （[`mod@nav_list`] rustdoc 参照）。
+//! - 状態機械を要しない単純 styled 部品 3 種（イシュー #768）: [`mod@tag`]
+//!   （Tag、`variant`/`size`/`color-palette` の 3 軸 variant を持つ
+//!   root/label/close-trigger の 3 パーツ。close-trigger は状態機械を持たず
+//!   `data-action` 属性の出力のみを担う。[`crate::badge`] と同型の判断） /
+//!   [`mod@kbd`]（Kbd、variant 軸を持たない単一 slot） / [`mod@code`]（Code、
+//!   インライン `<code>`。variant 軸を持たない単一 slot。chakra-ui の
+//!   CodeBlock は対象外確定済み）。詳細は各モジュール rustdoc 参照。
+//! - headless ラッパー（イシュー #762）: [`mod@action_bar`]（ActionBar、
+//!   複数選択時に画面下部中央へ固定表示する操作バー）。`size`/`color-palette`
+//!   軸は持たず、`positioner` の `position: fixed; bottom: ...; left: 50%;
+//!   transform: translateX(-50%)` による画面下部固定配置と `data-state`
+//!   連動の見た目切り替えのみを提供する。詳細は [`mod@action_bar`] rustdoc
+//!   参照。
 //! - 状態機械を持たない静的表示部品 2 種（イシュー #770）: [`mod@image`]
 //!   （Image、`<img>` の `fit`（`object-fit`）/`aspect-ratio` の 2 軸
 //!   variant。[`fandhe_frontend_headless_ui::avatar`] の `ImageStatus`
@@ -257,6 +289,19 @@
 //!   いずれも [`mod@card`] と同型（headless-ui 側に対応する anatomy を持たず
 //!   本クレートで新規 anatomy を定義する静的部品、状態機械不要）。詳細は
 //!   各モジュール rustdoc 参照。
+//! - 状態機械不要の静的部品 2 種（イシュー #769）: [`mod@stat`]（Stat、
+//!   `<dl>`/`<dt>`/`<dd>` を使う数値指標表示。`size` variant のみを持ち、
+//!   [`mod@card`] と同型の判断で `color-palette` 軸は提供しない。
+//!   増減インジケーターは [`mod@rating_group`] の星形と同型に `clip-path`
+//!   による三角形のインライン表現）/[`mod@timeline`]（Timeline、`<ol>`/
+//!   `<li>` を使う時系列一覧。`variant`/`size`/`color-palette` の 3 軸を
+//!   root のみへ付与し `indicator`/`separator` へは CSS custom property の
+//!   継承で伝搬する。`showLastSeparator` 相当は recipe 側で自動制御せず
+//!   呼び出し側が最終 item へ `separator` パーツを含めないことで表現する
+//!   契約）。いずれも ark-ui に対応する headless anatomy が存在しないため、
+//!   [`mod@checkbox_card`]/[`mod@radio_card`]（#747）と同型の判断で
+//!   headless-ui は変更せず pre-styled-ui 層のみで新規 anatomy を定義する。
+//!   詳細は各モジュール rustdoc 参照。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -383,6 +428,7 @@
 #![warn(missing_docs)]
 
 pub mod accordion;
+pub mod action_bar;
 pub mod alert;
 pub mod avatar;
 pub mod badge;
@@ -395,6 +441,7 @@ pub mod checkbox;
 pub mod checkbox_card;
 mod class_attr;
 pub mod clipboard;
+pub mod code;
 pub mod combobox;
 pub mod css;
 pub mod data_list;
@@ -409,9 +456,11 @@ pub mod hover_card;
 pub mod icon;
 pub mod image;
 pub mod input;
+pub mod kbd;
 pub mod link;
 pub mod link_overlay;
 pub mod list;
+pub mod listbox;
 pub mod mark;
 pub mod menu;
 pub mod native_select;
@@ -434,15 +483,20 @@ pub mod skeleton;
 pub mod skip_nav;
 pub mod slider;
 pub mod spinner;
+pub mod stat;
 pub mod status;
+pub mod steps;
 pub mod stylesheet;
 pub mod switch;
 pub mod table;
 pub mod tabs;
+pub mod tag;
 pub mod tags_input;
 pub mod text;
 pub mod textarea;
 pub mod theme;
+pub mod timeline;
+pub mod toast;
 pub mod toggle;
 pub mod toggle_group;
 pub mod toggle_tip;
@@ -455,6 +509,7 @@ pub use badge::{badge, BadgeProps, BadgeVariant};
 pub use blockquote::BlockquoteVariant;
 pub use button::{button, ButtonProps, ButtonVariant};
 pub use card::CardVariant;
+pub use code::code;
 pub use css::{decl, Declaration};
 pub use em::em;
 pub use empty_state::EmptyStateProps;
@@ -463,6 +518,7 @@ pub use highlight::{highlight, HighlightProps};
 pub use icon::{icon, IconProps};
 pub use image::{image, AspectRatio, ImageFit, ImageProps};
 pub use input::{input, InputProps, InputVariant};
+pub use kbd::kbd;
 pub use list::{ListType, ListVariant};
 pub use mark::{mark, MarkProps, MarkVariant};
 pub use native_select::{native_select, NativeSelectProps, NativeSelectVariant};
@@ -473,6 +529,7 @@ pub use spinner::{spinner, SpinnerProps};
 pub use status::StatusProps;
 pub use stylesheet::{StyleSheet, StylesheetError};
 pub use table::TableVariant;
+pub use tag::TagVariant;
 pub use text::{text, TextProps, TextSize};
 pub use textarea::{textarea, TextareaProps, TextareaVariant};
 

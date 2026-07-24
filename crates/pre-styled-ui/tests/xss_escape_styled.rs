@@ -54,6 +54,7 @@ use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, ImageProps};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
+use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
@@ -69,10 +70,14 @@ use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps};
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
+use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
+use fandhe_frontend_pre_styled_ui::steps;
 use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
+use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
+use fandhe_frontend_pre_styled_ui::toast::{self, ToastPlacement, ToastStatus};
 use fandhe_frontend_pre_styled_ui::{accordion, dialog, menu, select};
 use fandhe_frontend_pre_styled_ui::{ColorPalette, OpenState, Size};
 
@@ -159,6 +164,22 @@ fn styled_text_children_are_escaped_for_all_payloads() {
             &html,
             "pre-styled-ui 再エクスポート drawer::title children コンテキスト",
         );
+
+        let html = render(&stat::label(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "stat::label children コンテキスト");
+
+        let html = render(&stat::value_text(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "stat::value_text children コンテキスト");
+
+        let html = render(&timeline::title(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "timeline::title children コンテキスト");
+
+        let html = render(&timeline::description(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "timeline::description children コンテキスト",
+        );
     }
 }
 
@@ -205,6 +226,26 @@ fn caller_attrs_are_escaped_for_all_payloads() {
             vec![],
         ));
         assert_payload_is_escaped(payload, &html, "alert::root 呼び出し側 attrs コンテキスト");
+
+        let html = render(&stat::root(
+            Size::Md,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "stat::root 呼び出し側 attrs コンテキスト");
+
+        let html = render(&timeline::root(
+            TimelineVariant::default(),
+            Size::Md,
+            ColorPalette::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "timeline::root 呼び出し側 attrs コンテキスト",
+        );
     }
 }
 
@@ -232,6 +273,42 @@ fn caller_class_attr_is_dropped_not_merged_raw_for_all_payloads() {
         assert!(
             html.contains("fd-button--"),
             "recipe 生成クラスが失われている: html={html}"
+        );
+
+        let html = render(&stat::root(Size::Md, vec![("class", payload)], vec![]));
+        assert!(
+            !html.contains(payload),
+            "stat::root の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "stat::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-stat--"),
+            "stat::root の recipe 生成クラスが失われている: html={html}"
+        );
+
+        let html = render(&timeline::root(
+            TimelineVariant::default(),
+            Size::Md,
+            ColorPalette::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "timeline::root の class 属性に渡した生ペイロードが出力に残っている: payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "timeline::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-timeline--"),
+            "timeline::root の recipe 生成クラスが失われている: html={html}"
         );
     }
 }
@@ -936,6 +1013,97 @@ fn tags_input_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
 }
 
 #[test]
+fn listbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&listbox::root(
+            Size::Md,
+            OpenState::Closed,
+            false,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "listbox::root 呼び出し側 attrs コンテキスト",
+        );
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&listbox::root(
+            Size::Md,
+            OpenState::Closed,
+            false,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "listbox::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "listbox::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-listbox--"),
+            "listbox::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // 選択的再エクスポートした label の id/children 経路。
+        let html = render(&listbox::label(Some(payload), vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "listbox::label id/children コンテキスト");
+
+        // 選択的再エクスポートした content の id/labelledby/activedescendant 経路。
+        let html = render(&listbox::content(
+            false,
+            Some(payload),
+            Some(payload),
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "listbox::content id/labelledby/activedescendant コンテキスト",
+        );
+
+        // 選択的再エクスポートした item の value/id 経路（タグ文字列そのもの、
+        // REQ-1 の重点対象）。
+        let html = render(&listbox::item(
+            OpenState::Open,
+            false,
+            false,
+            payload,
+            Some(payload),
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "listbox::item data-value/id コンテキスト");
+
+        // 選択的再エクスポートした item_text の id/children 経路。
+        let html = render(&listbox::item_text(
+            Some(payload),
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "listbox::item_text id/children コンテキスト",
+        );
+
+        // 選択的再エクスポートした value_text の children 経路。
+        let html = render(&listbox::value_text(false, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "listbox::value_text children コンテキスト");
+    }
+}
+
+#[test]
 fn rating_group_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
     for payload in payloads::all() {
         // styled root の呼び出し側 attrs 経路。
@@ -1083,6 +1251,72 @@ fn editable_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
             vec![text(payload)],
         ));
         assert_payload_is_escaped(payload, &html, "editable::preview children コンテキスト");
+    }
+}
+
+/// (10) steps 経路（イシュー #752）: styled `root` の呼び出し側 `attrs`・
+/// `class`、および全パーツが `state: &Steps` を取る `item`/`trigger` の
+/// children/attrs 経路すべてで既定エスケープ（REQ-1）が貫通することを固定
+/// する（`slider_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn steps_styled_root_and_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
+    use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::Orientation;
+
+    for payload in payloads::all() {
+        let s = Steps::new(3, 1, Orientation::Horizontal);
+
+        // styled root の呼び出し側 attrs 経路。
+        let html = render(&steps::root(
+            Size::Md,
+            ColorPalette::Accent,
+            &s,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "steps::root 呼び出し側 attrs コンテキスト");
+
+        // styled root の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&steps::root(
+            Size::Md,
+            ColorPalette::Accent,
+            &s,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "steps::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "steps::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-steps--"),
+            "steps::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // item の children 経路。
+        let html = render(&steps::item(&s, 0, vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "steps::item children コンテキスト");
+
+        // trigger の呼び出し側 attrs 経路。
+        let html = render(&steps::trigger(
+            &s,
+            1,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "steps::trigger 呼び出し側 attrs コンテキスト",
+        );
     }
 }
 
@@ -1270,6 +1504,7 @@ fn pagination_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         );
     }
 }
+
 /// styled CheckboxCard（イシュー #747）の XSS 回帰
 /// （`checkbox_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
 /// と同型）。
@@ -1422,6 +1657,93 @@ fn radio_card_styled_root_and_parts_are_escaped_for_all_payloads() {
     }
 }
 
+/// styled Toast（イシュー #760）の XSS 回帰: styled `group`/`root` の呼び出し側
+/// attrs・class 属性経路、および再エクスポート済み `title`/`description` の
+/// children 経路を固定する。
+#[test]
+fn toast_styled_group_root_and_reexported_parts_are_escaped_for_all_payloads() {
+    for payload in payloads::all() {
+        // styled group の呼び出し側 attrs 経路 + aria-label 経路。
+        let html = render(&toast::group(
+            ToastPlacement::Bottom,
+            payload,
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "toast::group aria-label/attrs コンテキスト");
+
+        // styled group の class 属性経路（drop_class_attr により生ペイロードは
+        // 出力されず、recipe 生成クラスへ完全に置き換わる）。
+        let html = render(&toast::group(
+            ToastPlacement::Bottom,
+            "Notifications",
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "toast::group の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "toast::group の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-toast--placement-"),
+            "toast::group で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // styled root の呼び出し側 attrs 経路 + title/description children 経路。
+        let html = render(&toast::root(
+            ToastStatus::Error,
+            vec![("data-testid", payload)],
+            vec![
+                toast::title(vec![], vec![text(payload)]),
+                toast::description(vec![], vec![text(payload)]),
+            ],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "toast::root attrs/title/description コンテキスト",
+        );
+
+        // styled root の class 属性経路。
+        let html = render(&toast::root(
+            ToastStatus::Error,
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "toast::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "toast::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-toast--status-"),
+            "toast::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // action_trigger/close_trigger の children 経路（headless からの再エクスポート）。
+        let html = render(&toast::action_trigger(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "toast::action_trigger children コンテキスト",
+        );
+
+        let html = render(&toast::close_trigger(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "toast::close_trigger children コンテキスト");
+    }
+}
+
 /// styled HoverCard（イシュー #759）の XSS 回帰。[`hover_card`] は headless
 /// 層をそのまま再エクスポートする薄い委譲層（`pub use ...::*`）であるため、
 /// `crates/headless-ui/tests/xss_escape.rs::hover_card_href_and_content_id_are_escaped_for_all_payloads`
@@ -1555,6 +1877,44 @@ fn carousel_styled_root_and_reexported_parts_are_escaped_for_all_payloads() {
         // 選択的再エクスポートした item の children 経路。
         let html = render(&carousel::item(0, 1, false, vec![], vec![text(payload)]));
         assert_payload_is_escaped(payload, &html, "carousel::item children コンテキスト");
+    }
+}
+
+/// (11) action_bar 経路（イシュー #762）: 再エクスポートした `content` の
+/// `aria-label`（属性値経路）・`selection_trigger`/`close_trigger` の
+/// children（テキスト経路）で既定エスケープ（REQ-1）が貫通することを固定
+/// する（`tooltip_styled_root_and_reexported_parts_are_escaped_for_all_payloads`
+/// と同型）。
+#[test]
+fn action_bar_reexported_parts_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::action_bar;
+
+    for payload in payloads::all() {
+        let html = render(&action_bar::content(
+            OpenState::Open,
+            payload,
+            vec![],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "action_bar::content aria-label コンテキスト",
+        );
+
+        let html = render(&action_bar::selection_trigger(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "action_bar::selection_trigger children コンテキスト",
+        );
+
+        let html = render(&action_bar::close_trigger(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "action_bar::close_trigger children コンテキスト",
+        );
     }
 }
 
@@ -2391,6 +2751,114 @@ fn data_list_styled_root_and_parts_are_escaped_for_all_payloads() {
             payload,
             &html,
             "data_list::item_value children コンテキスト",
+        );
+    }
+}
+
+/// イシュー #768: Tag / Kbd / Code の styled 公開 API 経由の XSS 回帰。
+///
+/// 対象の入力面:
+/// 1. テキスト経路: `tag::root`/`tag::label`/`kbd::kbd`/`code::code` の
+///    children。
+/// 2. 属性値経路: `tag::close_trigger` の `action` 引数（`data-action`
+///    属性値として出力される）・呼び出し側 `attrs`。
+/// 3. class 破棄経路: `tag::root`/`kbd::kbd`/`code::code` へ `class` を渡し、
+///    recipe 生成クラスへの完全置換（`kbd`/`code` は variant を持たないため
+///    `class` 属性自体が出力されないことも併せて固定する）ことを確認する。
+#[test]
+fn tag_kbd_code_styled_are_escaped_for_all_payloads() {
+    use fandhe_frontend_pre_styled_ui::code::code;
+    use fandhe_frontend_pre_styled_ui::kbd::kbd;
+    use fandhe_frontend_pre_styled_ui::tag::{self, TagProps};
+
+    for payload in payloads::all() {
+        // (1) テキスト経路。
+        let html = render(&tag::root(
+            &TagProps::default(),
+            vec![],
+            vec![text(payload)],
+        ));
+        assert_payload_is_escaped(payload, &html, "tag::root children コンテキスト");
+
+        let html = render(&tag::label(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "tag::label children コンテキスト");
+
+        let html = render(&kbd(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "kbd children コンテキスト");
+
+        let html = render(&code(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "code children コンテキスト");
+
+        // (2) 属性値経路: close_trigger の action（data-action 属性値）。
+        let html = render(&tag::close_trigger(Some(payload), vec![], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tag::close_trigger data-action 属性値コンテキスト",
+        );
+
+        // (2) 属性値経路: 呼び出し側 attrs。
+        let html = render(&tag::root(
+            &TagProps::default(),
+            vec![("data-testid", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(payload, &html, "tag::root 呼び出し側 attrs コンテキスト");
+
+        let html = render(&tag::close_trigger(
+            None,
+            vec![("aria-label", payload)],
+            vec![],
+        ));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "tag::close_trigger 呼び出し側 attrs コンテキスト",
+        );
+
+        // (3) class 破棄経路: tag::root は recipe 生成クラスへ完全置換。
+        let html = render(&tag::root(
+            &TagProps::default(),
+            vec![("class", payload)],
+            vec![],
+        ));
+        assert!(
+            !html.contains(payload),
+            "tag::root の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert_eq!(
+            html.matches("class=\"").count(),
+            1,
+            "tag::root の class 属性が複数出現している: html={html}"
+        );
+        assert!(
+            html.contains("fd-tag--"),
+            "tag::root で recipe 生成クラスが失われている: html={html}"
+        );
+
+        // (3) class 破棄経路: kbd/code は variant を持たず class 属性自体を
+        // 出力しない（drop_class_attr により生ペイロードも一切残らない）。
+        let html = render(&kbd(vec![("class", payload)], vec![]));
+        assert!(
+            !html.contains(payload),
+            "kbd の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(
+            !html.contains("class="),
+            "kbd は variant を持たないため class 属性を出力しないはず: html={html}"
+        );
+
+        let html = render(&code(vec![("class", payload)], vec![]));
+        assert!(
+            !html.contains(payload),
+            "code の class 属性に渡した生ペイロードが出力に残っている: \
+             payload={payload:?}, html={html}"
+        );
+        assert!(
+            !html.contains("class="),
+            "code は variant を持たないため class 属性を出力しないはず: html={html}"
         );
     }
 }

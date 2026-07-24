@@ -45,6 +45,7 @@
 //! （recipe CSS・`site/assets/site.css` はいずれも変更しない）。
 
 use fandhe_frontend_core::{div, el, text, Node};
+use fandhe_frontend_pre_styled_ui::action_bar;
 use fandhe_frontend_pre_styled_ui::avatar::{self, AvatarShape, ImageStatus};
 use fandhe_frontend_pre_styled_ui::blockquote::{self, BlockquoteVariant};
 use fandhe_frontend_pre_styled_ui::breadcrumb::{self, BreadcrumbItem, BreadcrumbVariant};
@@ -52,6 +53,7 @@ use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps, ButtonVariant};
 use fandhe_frontend_pre_styled_ui::carousel;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
+use fandhe_frontend_pre_styled_ui::code::code;
 use fandhe_frontend_pre_styled_ui::data_list::{self, DataListOrientation, DataListProps};
 use fandhe_frontend_pre_styled_ui::dialog::{self, ContentIds, DialogRole};
 use fandhe_frontend_pre_styled_ui::drawer::{self, DrawerPlacement};
@@ -62,13 +64,16 @@ use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps};
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
+use fandhe_frontend_pre_styled_ui::kbd::kbd;
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
+use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
@@ -84,13 +89,18 @@ use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, Separa
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
+use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
+use fandhe_frontend_pre_styled_ui::steps;
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
+use fandhe_frontend_pre_styled_ui::tag::{self, TagProps, TagVariant};
 use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps, TextSize};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
 use fandhe_frontend_pre_styled_ui::theme::Theme;
+use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
+use fandhe_frontend_pre_styled_ui::toast::{self, ToastPlacement, ToastStatus};
 use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{
@@ -131,21 +141,30 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   ビューポート全体暗幕であり、開いた状態を固定掲示するとページ全体を
 ///   覆ってしまうため掲示用にのみ隠す（実際の modal 表示では backdrop は
 ///   必須であり、ここでの非表示化はショーケースの掲示都合に限定する）。
-/// - dialog/drawer/menu/select/combobox/popover/tooltip/hover-card/toggle-tip
-///   の `[data-part="positioner"]` を `position: static` へ中和: recipe CSS は
-///   dialog/drawer を `position: fixed; inset: 0`、menu/select/combobox/
-///   popover/hover-card を `position: absolute; top: 100%`、tooltip/toggle-tip を
-///   `position: absolute; bottom: 100%` としており、いずれも開いた content を
-///   ページ内の別位置・別セクションに重ねてしまう。static 化してフロー内へ
-///   インライン表示させることで、後続セクションと重ならずに掲示できる
-///   （dialog はさらに `padding`/`justify-content` も中和し、中央寄せの
-///   ための余白・配置指定を解除する。drawer は recipe CSS が `padding`/
-///   `justify-content` を宣言しないため `position` のみで足りる）。
+/// - dialog/drawer/menu/select/combobox/popover/tooltip/hover-card/toggle-tip/
+///   action-bar の `[data-part="positioner"]` を `position: static` へ中和:
+///   recipe CSS は dialog/drawer を `position: fixed; inset: 0`、menu/select/
+///   combobox/popover/hover-card を `position: absolute; top: 100%`、
+///   tooltip/toggle-tip を `position: absolute; bottom: 100%`、action-bar を
+///   `position: fixed; bottom: ...; left: 50%; transform: translateX(-50%)`
+///   としており、いずれも開いた content をページ内の別位置・別セクションに
+///   重ねてしまう。static 化してフロー内へインライン表示させることで、後続
+///   セクションと重ならずに掲示できる（dialog はさらに `padding`/
+///   `justify-content` も中和し、中央寄せのための余白・配置指定を解除する。
+///   drawer は recipe CSS が `padding`/`justify-content` を宣言しないため
+///   `position` のみで足りる。action-bar はさらに `transform` も中和し、
+///   水平方向のずらしを解除する）。
 /// - dialog/drawer/popover の `title`（`h2`）見出しリセット: Accordion の `h3` と
 ///   同じ理由（`site.css` の `.docs-content h2` が漏れる）で、showcase 領域
 ///   内に限定して `border-top`/`padding-top`/`letter-spacing` を打ち消す
 ///   （margin/font-size/font-weight は recipe が宣言済みで自然に勝つため
 ///   宣言しない。recipe との二重管理を避ける最小リセット）。
+/// - Toast（イシュー #760）の `[data-part="group"]` を `position: static` へ
+///   中和: recipe CSS は `position: fixed`（ビューポート角への固定配置）を
+///   宣言しており、dialog/drawer の positioner と同じ理由でページ全体を覆う
+///   固定表示になってしまうため同型の中和を適用する（backdrop のような
+///   非表示化ではなく static 化のみで足りる。通知 1 件ずつを表す `root`
+///   slot は掲示位置に影響しないため対象外）。
 /// - `[data-scope="blockquote"][data-part="content"]`（素の `<blockquote>`
 ///   要素）のリセット（イシュー #771 タイポグラフィ節掲示、Bugbot 指摘）:
 ///   `site.css` の `.docs-content blockquote` が `padding`/`border-left`/
@@ -169,7 +188,9 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: static;\n  padding: 0;\n  justify-content: flex-start;\n}\n\
 .pre-styled-showcase [data-scope=\"drawer\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"combobox\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"hover-card\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
+.pre-styled-showcase [data-scope=\"action-bar\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
+.pre-styled-showcase [data-scope=\"toast\"][data-part=\"group\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n";
 
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
@@ -194,8 +215,10 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 /// accordion/dialog/drawer/menu/select/combobox/popover/tooltip/hover_card/
 /// toggle_tip/switch/radio_group/avatar/checkbox/checkbox_card/radio_card/
 /// input/textarea/native_select/number_input/tags_input/rating_group/
-/// slider/segment_group/pagination/breadcrumb/table/data_list）→
-/// ショーケース配置スタイル、の順で決定的に連結する。
+/// slider/segment_group/pagination/breadcrumb/carousel/action_bar/toast/
+/// progress/tag/kbd/code/image/icon/status/empty_state/visually_hidden/
+/// qr_code/heading/text/em/mark/blockquote/list/table/data_list/stat/
+/// timeline）→ ショーケース配置スタイル、の順で決定的に連結する。
 ///
 /// # Errors
 ///
@@ -217,6 +240,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::drawer::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::menu::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::select::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::listbox::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::skeleton::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::separator::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::highlight::css())?;
@@ -243,9 +267,15 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::segment_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tree_view::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::pagination::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::steps::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::breadcrumb::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::carousel::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::action_bar::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::toast::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::progress::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::tag::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::kbd::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::code::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::image::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::icon::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::status::css())?;
@@ -260,6 +290,8 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::list::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::table::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::data_list::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::stat::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::timeline::css())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -1107,6 +1139,121 @@ fn select_section() -> Node {
         "Select",
         "headless-ui の Select（role=\"listbox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。1 項目が選択済み（data-state=\"open\"）の listbox が開いた状態を固定表示しています。positioner はフロー内配置へ中和しています。",
         vec![node],
+    )
+}
+
+/// Listbox 節: 常時展開のリスト選択（single/multiple 両モード）の静的
+/// マークアップ（イシュー #750）。[`select_section`] とは異なり trigger/
+/// positioner を持たず、`content` が常に表示される（責務境界の詳細は
+/// `fandhe_frontend_headless_ui::listbox` module doc 参照）。
+fn listbox_section() -> Node {
+    let single = listbox::root(
+        Size::Md,
+        OpenState::Open,
+        false,
+        vec![],
+        vec![
+            listbox::label(
+                Some("showcase-listbox-single-label"),
+                vec![],
+                vec![text("Fruit")],
+            ),
+            listbox::content(
+                false,
+                Some("showcase-listbox-single-content"),
+                Some("showcase-listbox-single-label"),
+                None,
+                vec![],
+                vec![
+                    listbox::item(
+                        OpenState::Open,
+                        false,
+                        false,
+                        "apple",
+                        None,
+                        vec![],
+                        vec![
+                            listbox::item_text(None, vec![], vec![text("Apple")]),
+                            listbox::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
+                        ],
+                    ),
+                    listbox::item(
+                        OpenState::Closed,
+                        true,
+                        false,
+                        "banana",
+                        None,
+                        vec![],
+                        vec![
+                            listbox::item_text(None, vec![], vec![text("Banana (disabled)")]),
+                            listbox::item_indicator(OpenState::Closed, vec![], vec![text("✓")]),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    );
+
+    let multiple = listbox::root(
+        Size::Md,
+        OpenState::Open,
+        false,
+        vec![],
+        vec![
+            listbox::label(
+                Some("showcase-listbox-multi-label"),
+                vec![],
+                vec![text("Toppings")],
+            ),
+            listbox::content(
+                true,
+                Some("showcase-listbox-multi-content"),
+                Some("showcase-listbox-multi-label"),
+                None,
+                vec![],
+                vec![listbox::item_group(
+                    Some("showcase-listbox-multi-group-label"),
+                    vec![],
+                    vec![
+                        listbox::item_group_label(
+                            Some("showcase-listbox-multi-group-label"),
+                            vec![],
+                            vec![text("Cheese")],
+                        ),
+                        listbox::item(
+                            OpenState::Open,
+                            false,
+                            false,
+                            "cheddar",
+                            None,
+                            vec![],
+                            vec![
+                                listbox::item_text(None, vec![], vec![text("Cheddar")]),
+                                listbox::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
+                            ],
+                        ),
+                        listbox::item(
+                            OpenState::Open,
+                            false,
+                            false,
+                            "mozzarella",
+                            None,
+                            vec![],
+                            vec![
+                                listbox::item_text(None, vec![], vec![text("Mozzarella")]),
+                                listbox::item_indicator(OpenState::Open, vec![], vec![text("✓")]),
+                            ],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    );
+
+    section(
+        "Listbox",
+        "headless-ui の Listbox（role=\"listbox\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。Select（ポップアップ型）と異なり trigger/positioner を持たず、常時展開のリストとして表示されます。左は single モード（1 項目選択済み、1 項目 disabled）、右は multiple モード（aria-multiselectable、複数項目選択済み・item-group 付き）です。",
+        vec![row(vec![single, multiple])],
     )
 }
 
@@ -2430,6 +2577,59 @@ fn carousel_section() -> Node {
     )
 }
 
+/// Toast 節（イシュー #760）: status（info/success/warning/error）4 態を
+/// 1 つの group（`placement="bottom-end"` 既定）内に固定掲示する。
+///
+/// headless 層のキュー状態機械（[`fandhe_frontend_pre_styled_ui::toast::Toaster`]
+/// 相当。ここでは非再エクスポートの `Toaster` は使わず、モジュール冒頭
+/// 「インタラクティブ部品の扱い」節の方針どおり SSR 静的マークアップのみを
+/// 組み立てる）は掲示しない。dismiss/push の実際の dispatch は wasm 層の
+/// スコープ外（`crates/headless-ui/src/toast.rs` モジュール doc 参照）。
+fn toast_section() -> Node {
+    let entries = [
+        (
+            ToastStatus::Info,
+            "Info",
+            "新しいバージョンが利用可能です。",
+        ),
+        (ToastStatus::Success, "Success", "ビルドが完了しました。"),
+        (
+            ToastStatus::Warning,
+            "Warning",
+            "依存クレート数が上限に近づいています。",
+        ),
+        (
+            ToastStatus::Error,
+            "Error",
+            "リンク切れを検出したため書き出しを中止しました。",
+        ),
+    ];
+    let group = toast::group(
+        ToastPlacement::BottomEnd,
+        "Notifications",
+        vec![],
+        entries
+            .iter()
+            .map(|(status, title, description)| {
+                toast::root(
+                    *status,
+                    vec![],
+                    vec![
+                        toast::title(vec![], vec![text(*title)]),
+                        toast::description(vec![], vec![text(*description)]),
+                        toast::close_trigger(vec![("aria-label", "Dismiss")], vec![text("×")]),
+                    ],
+                )
+            })
+            .collect(),
+    );
+    section(
+        "Toast",
+        "headless-ui の Toast（`role=\"status\"` + `aria-live`（`error` のみ `assertive`）+ `aria-atomic=\"true\"`）に pre-styled-ui の placement（`group` slot）/status（`root` slot）variant CSS を適用した静的掲示です。複数通知の有界キュー管理・自動 dismiss のタイマー配線は wasm 層の後続イシューのスコープ外です。",
+        vec![group],
+    )
+}
+
 /// Pagination 節（イシュー #751）: `page_entries()` から ellipsis を含む
 /// ページ列を組み立てた静的掲示 + 現在ページ・prev/next の disabled 連動。
 /// 状態機械は SSR 静的な現在ページの固定表示のみ（クリック挙動は wasm 層の
@@ -2467,6 +2667,59 @@ fn pagination_section() -> Node {
     section(
         "Pagination",
         "総件数・ページサイズ・現在ページから省略記号（ellipsis）を含むページ列を決定的に導出する headless Pagination の静的掲示。現在ページは aria-current=\"page\"/data-selected で、端到達は prev/next の disabled で表現します（クリック挙動は wasm 層のスコープ外）。",
+        vec![row(vec![demo])],
+    )
+}
+
+/// Steps 節（イシュー #752）: 3 step 中 2 番目（index=1）を current として
+/// 固定表示する静的掲示。indicator は complete/current/incomplete の 3
+/// 状態で塗り色を切り替え、separator は `data-complete` の有無で完了色に
+/// 変化する（[`crate::steps`] rustdoc §indicator/separator の状態連動色
+/// 参照）。current な item の trigger のみ `aria-current="step"` を持つ
+/// （クリック挙動は wasm 層のスコープ外、モジュール冒頭「インタラクティブ
+/// 部品の扱い」節参照）。
+fn steps_section() -> Node {
+    let s = Steps::new(3, 1, Orientation::Horizontal);
+    let labels = ["Account", "Shipping", "Confirm"];
+
+    let mut items = Vec::new();
+    for (index, label) in labels.iter().enumerate() {
+        let trigger = steps::trigger(
+            &s,
+            index,
+            vec![],
+            vec![
+                steps::indicator(&s, index, vec![], vec![text((index + 1).to_string())]),
+                text(*label),
+            ],
+        );
+        let mut item_children = vec![trigger];
+        if index + 1 < labels.len() {
+            item_children.push(steps::separator(&s, index, vec![], vec![]));
+        }
+        items.push(steps::item(&s, index, vec![], item_children));
+    }
+
+    let list = steps::list(&s, vec![], items);
+    let content = steps::content(&s, 1, vec![], vec![text("配送先住所を入力してください。")]);
+    let nav = div(
+        vec![],
+        vec![
+            steps::prev_trigger(&s, vec![], vec![text("Prev")]),
+            steps::next_trigger(&s, vec![], vec![text("Next")]),
+        ],
+    );
+
+    let demo = steps::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &s,
+        vec![],
+        vec![list, content, nav],
+    );
+    section(
+        "Steps",
+        "count（全 step 数）+ step（現在位置）を持つ headless Steps の静的掲示。item は complete/current/incomplete の 3 状態を持ち、current な item の trigger のみ aria-current=\"step\" を持ちます（クリック挙動は wasm 層のスコープ外）。",
         vec![row(vec![demo])],
     )
 }
@@ -2695,6 +2948,40 @@ fn breadcrumb_section() -> Node {
     section(
         "Breadcrumb",
         "headless-ui の Breadcrumb（nav[aria-label=\"breadcrumb\"] + ol/li）に pre-styled-ui の recipe CSS を適用した静的掲示です。末尾項目のみ aria-current=\"page\"/data-current を持つ非対話の現在位置表示（span）として描画します。",
+        vec![node],
+    )
+}
+
+/// ActionBar 節: 開いた状態の静的マークアップ（イシュー #762）。
+///
+/// 複数選択時に画面下部へ表示される操作バーの掲示。「2 selected」の選択件数
+/// 表示 + 全解除ボタン + separator + close trigger を組み立てる。`positioner`
+/// の画面下部固定配置は [`SHOWCASE_LAYOUT_CSS`] でフロー内配置へ中和する
+/// （[`dialog_section`]/[`tooltip_section`] と同じ方針。実 overlay 配置は
+/// recipe CSS に委ねる）。
+fn action_bar_section() -> Node {
+    let node = action_bar::root(
+        OpenState::Open,
+        vec![],
+        vec![action_bar::positioner(
+            OpenState::Open,
+            vec![],
+            vec![action_bar::content(
+                OpenState::Open,
+                "2 selected",
+                vec![],
+                vec![
+                    action_bar::selection_trigger(vec![], vec![text("2 selected")]),
+                    action_bar::separator(vec![], vec![]),
+                    action_bar::selection_trigger(vec![], vec![text("Delete")]),
+                    action_bar::close_trigger(vec![], vec![text("Close")]),
+                ],
+            )],
+        )],
+    );
+    section(
+        "ActionBar",
+        "headless-ui の ActionBar（role=\"toolbar\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています（実際の画面下部固定配置は recipe CSS が担います）。",
         vec![node],
     )
 }
@@ -3114,6 +3401,185 @@ fn data_list_section() -> Node {
     )
 }
 
+/// Stat 節: 状態機械不要の静的部品（イシュー #769）。`size` variant のみ。
+fn stat_section() -> Node {
+    let demo = row(vec![
+        stat::root(
+            Size::Md,
+            vec![],
+            vec![
+                stat::label(vec![], vec![text("Revenue")]),
+                stat::value_text(
+                    vec![],
+                    vec![text("1,234"), stat::value_unit(vec![], vec![text("USD")])],
+                ),
+                stat::help_text(
+                    vec![],
+                    vec![stat::up_indicator(vec![]), text("12% vs 先月")],
+                ),
+            ],
+        ),
+        stat::root(
+            Size::Md,
+            vec![],
+            vec![
+                stat::label(vec![], vec![text("Churn")]),
+                stat::value_text(vec![], vec![text("4.2%")]),
+                stat::help_text(
+                    vec![],
+                    vec![stat::down_indicator(vec![]), text("0.8% vs 先月")],
+                ),
+            ],
+        ),
+    ]);
+    section(
+        "Stat",
+        "数値指標 1 件をラベル・値・補助テキスト・増減方向インジケーターの組で表示する静的部品です。size（sm/md/lg）で value-text のフォントサイズを切り替えます。",
+        vec![demo],
+    )
+}
+
+/// Timeline 節: 状態機械不要の静的部品（イシュー #769）。`variant`/`size`/
+/// `color-palette` の 3 軸。
+fn timeline_section() -> Node {
+    let demo = timeline::root(
+        TimelineVariant::Solid,
+        Size::Md,
+        ColorPalette::Accent,
+        vec![],
+        vec![
+            timeline::item(
+                vec![],
+                vec![
+                    timeline::connector(
+                        vec![],
+                        vec![
+                            timeline::indicator(vec![], vec![]),
+                            timeline::separator(vec![], vec![]),
+                        ],
+                    ),
+                    timeline::content(
+                        vec![],
+                        vec![
+                            timeline::title(vec![], vec![text("プロジェクト開始")]),
+                            timeline::description(vec![], vec![text("2026-01-01")]),
+                        ],
+                    ),
+                ],
+            ),
+            timeline::item(
+                vec![],
+                vec![
+                    // 最終 item は separator を組み込まないことで非表示にする
+                    // 契約（`crate::timeline` rustdoc 参照）。
+                    timeline::connector(vec![], vec![timeline::indicator(vec![], vec![])]),
+                    timeline::content(
+                        vec![],
+                        vec![timeline::title(vec![], vec![text("リリース")])],
+                    ),
+                ],
+            ),
+        ],
+    );
+    section(
+        "Timeline",
+        "時系列に並ぶ出来事の一覧を connector（縦線）+ indicator（点）+ content で表示する静的部品です。variant（solid/subtle/outline/plain）で indicator の塗り方を切り替えます。",
+        vec![demo],
+    )
+}
+
+/// Tag 節（イシュー #768）: variant / size / colorPalette と、
+/// close-trigger（`data-action` 配線のみ、クリック処理は wasm 層の
+/// スコープ外）の掲示。
+fn tag_section() -> Node {
+    let variants = [
+        (TagVariant::Solid, "Solid"),
+        (TagVariant::Subtle, "Subtle"),
+        (TagVariant::Outline, "Outline"),
+    ];
+    let variant_row = row(variants
+        .iter()
+        .map(|(variant, label)| {
+            tag::root(
+                &TagProps {
+                    variant: *variant,
+                    ..TagProps::default()
+                },
+                vec![],
+                vec![text(*label)],
+            )
+        })
+        .collect());
+    let size_row = row([Size::Sm, Size::Md, Size::Lg]
+        .iter()
+        .map(|size| {
+            tag::root(
+                &TagProps {
+                    size: *size,
+                    ..TagProps::default()
+                },
+                vec![],
+                vec![text("Tag")],
+            )
+        })
+        .collect());
+    let palette_row = row(palettes()
+        .iter()
+        .map(|(palette, label)| {
+            tag::root(
+                &TagProps {
+                    palette: *palette,
+                    ..TagProps::default()
+                },
+                vec![],
+                vec![text(*label)],
+            )
+        })
+        .collect());
+    let closable = tag::root(
+        &TagProps::default(),
+        vec![],
+        vec![
+            tag::label(vec![], vec![text("Removable")]),
+            tag::close_trigger(
+                Some("remove_tag"),
+                vec![("aria-label", "Remove")],
+                vec![text("×")],
+            ),
+        ],
+    );
+    section(
+        "Tag",
+        "ラベル・分類・除去可能なチップ表示。variant / size / colorPalette を組み合わせます。close-trigger は data-action 属性の出力のみを担い、実際のクリック処理は wasm 層のスコープです。",
+        vec![variant_row, size_row, palette_row, row(vec![closable])],
+    )
+}
+
+/// Kbd 節（イシュー #768）: variant 軸を持たない単一 slot 部品。
+fn kbd_section() -> Node {
+    let row_node = row(vec![
+        kbd(vec![], vec![text("Ctrl")]),
+        text(" + "),
+        kbd(vec![], vec![text("K")]),
+    ]);
+    section(
+        "Kbd",
+        "キーボード入力・ショートカット表示。variant 軸を持たない単一 slot の静的部品です。",
+        vec![row_node],
+    )
+}
+
+/// Code 節（イシュー #768）: インライン `<code>` のみを扱う（CodeBlock は
+/// 対象外確定済み）。
+fn code_section() -> Node {
+    let row_node = row(vec![code(vec![], vec![text("cargo build")])]);
+    section(
+        "Code",
+        "インラインコード片の表示。chakra-ui の CodeBlock 相当は対象外です。",
+        vec![row_node],
+    )
+}
+
 /// colorPalette 軸の全値（表示ラベル付き）。Button / Badge の palette 行で
 /// 共有する。
 fn palettes() -> [(ColorPalette, &'static str); 5] {
@@ -3146,6 +3612,7 @@ fn showcase_body() -> Node {
             drawer_section(),
             menu_section(),
             select_section(),
+            listbox_section(),
             combobox_section(),
             popover_section(),
             tooltip_section(),
@@ -3166,18 +3633,26 @@ fn showcase_body() -> Node {
             carousel_section(),
             tree_view_section(),
             pagination_section(),
+            steps_section(),
             checkbox_card_section(),
             radio_card_section(),
             breadcrumb_section(),
+            action_bar_section(),
+            toast_section(),
             progress_section(),
             image_section(),
             icon_section(),
+            tag_section(),
+            kbd_section(),
+            code_section(),
             status_section(),
             empty_state_section(),
             visually_hidden_section(),
             qr_code_section(),
             table_section(),
             data_list_section(),
+            stat_section(),
+            timeline_section(),
         ],
     )
 }
@@ -3209,6 +3684,7 @@ mod tests {
             "drawer",
             "menu",
             "select",
+            "listbox",
             "popover",
             "tooltip",
             "hover-card",
@@ -3226,11 +3702,16 @@ mod tests {
             "editable",
             "segment-group",
             "pagination",
+            "steps",
             "checkbox-card",
             "radio-card",
             "breadcrumb",
+            "toast",
             "image",
             "icon",
+            "tag",
+            "kbd",
+            "code",
             "status",
             "empty-state",
             "visually-hidden",
@@ -3283,6 +3764,23 @@ mod tests {
         assert!(html.contains(r#"aria-haspopup="dialog""#)); // dialog/popover trigger
         assert!(html.contains(r#"aria-haspopup="menu""#));
         assert!(html.contains(r#"aria-haspopup="listbox""#));
+        // Toast（イシュー #760）: root は role="status" + aria-atomic="true"。
+        // aria-live は status 別に導出され、Error のみ assertive（本モジュール
+        // 冒頭 rustdoc の `aria-live` 節・`toast_section` 参照）。
+        assert!(html.contains(r#"role="status""#));
+        assert!(html.contains(r#"aria-atomic="true""#));
+        assert!(html.contains(r#"aria-live="assertive""#));
+        assert!(html.contains(r#"aria-live="polite""#));
+    }
+
+    #[test]
+    fn showcase_markup_shows_listbox_single_and_multiple_modes() {
+        // イシュー #750 受け入れ条件: Listbox は常時展開（trigger/positioner
+        // なし）で、single/multiple 双方の掲示が固定されていることを確認する。
+        let html = render(&showcase_body());
+        assert!(html.contains(r#"data-scope="listbox" data-part="content""#));
+        assert!(html.contains(r#"aria-multiselectable="true""#));
+        assert!(html.contains(r#"data-scope="listbox" data-part="item-group""#));
     }
 
     #[test]
@@ -3339,6 +3837,10 @@ mod tests {
         assert!(css.contains(r#"[data-scope="number-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="password-input"][data-part="control"]"#));
         assert!(css.contains(r#"[data-scope="tags-input"][data-part="control"]"#));
+        assert!(css.contains(".fd-tag--variant-subtle"));
+        assert!(css.contains(r#"[data-scope="kbd"][data-part="root"]"#));
+        assert!(css.contains(r#"[data-scope="code"][data-part="root"]"#));
+        assert!(css.contains(r#"[data-scope="toast"][data-part="root"]"#));
         assert!(css.contains(r#"[data-scope="status"][data-part="indicator"]"#));
         assert!(css.contains(r#"[data-scope="empty-state"][data-part="content"]"#));
         assert!(css.contains(r#"[data-scope="table"][data-part="row"]:nth-child(even)"#));
@@ -3357,6 +3859,7 @@ mod tests {
         assert!(css.contains(r#".pre-styled-showcase [data-scope="menu"][data-part="positioner"]"#));
         assert!(css.contains(r#".pre-styled-showcase [data-scope="dialog"] h2"#));
         assert!(css.contains(r#".pre-styled-showcase [data-scope="popover"] h2"#));
+        assert!(css.contains(r#".pre-styled-showcase [data-scope="toast"][data-part="group"]"#));
         // StyleSheet の不変条件（<style> 埋め込み・CSS ファイル双方で安全）。
         assert!(!css.contains('<'));
     }

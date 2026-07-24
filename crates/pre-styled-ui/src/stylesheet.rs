@@ -265,6 +265,7 @@ mod tests {
             ("accordion", crate::accordion::stylesheet()),
             ("menu", crate::menu::stylesheet()),
             ("select", crate::select::stylesheet()),
+            ("listbox", crate::listbox::stylesheet()),
             ("skeleton", crate::skeleton::css()),
             ("separator", crate::separator::css()),
             ("combobox", crate::combobox::stylesheet()),
@@ -290,6 +291,7 @@ mod tests {
             ("toggle", crate::toggle::stylesheet()),
             ("toggle_group", crate::toggle_group::stylesheet()),
             ("segment_group", crate::segment_group::stylesheet()),
+            ("steps", crate::steps::stylesheet()),
             ("tree_view", crate::tree_view::stylesheet()),
             ("pagination", crate::pagination::stylesheet()),
             ("breadcrumb", crate::breadcrumb::stylesheet()),
@@ -299,6 +301,11 @@ mod tests {
             ("link", crate::link::stylesheet()),
             ("link_overlay", crate::link_overlay::stylesheet()),
             ("nav_list", crate::nav_list::stylesheet()),
+            ("tag", crate::tag::css()),
+            ("kbd", crate::kbd::css()),
+            ("code", crate::code::css()),
+            ("action_bar", crate::action_bar::stylesheet()),
+            ("toast", crate::toast::stylesheet()),
             ("status", crate::status::css()),
             ("empty_state", crate::empty_state::css()),
             ("visually_hidden", crate::visually_hidden::css()),
@@ -314,6 +321,8 @@ mod tests {
             ("highlight", crate::highlight::css()),
             ("table", crate::table::css()),
             ("data_list", crate::data_list::css()),
+            ("stat", crate::stat::css()),
+            ("timeline", crate::timeline::css()),
         ]
     }
 
