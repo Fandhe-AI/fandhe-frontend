@@ -43,7 +43,11 @@
 //!   radii/shadow トークン参照へ配線）:
 //!   - [`mod@button`]: [`button::button`]（単一 recipe、`<button type="button">`。
 //!     `loading` 時は [`mod@spinner`] を子ノード先頭へ埋め込む。`palette`
-//!     variant で色を切り替える）。
+//!     variant で色を切り替える）。CloseButton/IconButton
+//!     （chakra 対応表の保留項目、イシュー #830）は独立部品として新設せず、
+//!     本 recipe の非公開 icon-only 修飾 variant として
+//!     [`button::icon_button`]/[`button::close_button`] を追加した
+//!     （`button.rs` モジュール doc 参照）。
 //!   - [`mod@badge`]: [`badge::badge`]（単一 recipe、`<span>`。`palette` variant
 //!     を持つ）。
 //!   - [`mod@spinner`]: [`spinner::spinner`]（単一 recipe、
@@ -560,7 +564,7 @@ pub mod visually_hidden;
 pub use alert::AlertStatus;
 pub use badge::{badge, BadgeProps, BadgeVariant};
 pub use blockquote::BlockquoteVariant;
-pub use button::{button, ButtonProps, ButtonVariant};
+pub use button::{button, close_button, icon_button, ButtonProps, ButtonVariant};
 pub use card::CardVariant;
 pub use code::code;
 pub use color_swatch::{color_swatch, ColorSwatchProps, SwatchShape};

@@ -9,18 +9,41 @@
 //! `fd-button--` → `fd-download-trigger--`）と完全一致することを検証し、
 //! Button 側の宣言変更が DownloadTrigger 側の期待値更新なしに静かに
 //! ドリフトすることを防ぐ。
+//!
+//! **イシュー #830 の追記**: `button::recipe()`（公開 API）は
+//! `recipe_with_scope` が返す共有宣言に加え、Button 専用の icon-only 修飾
+//! variant（`.fd-button--icon-only` から始まるブロック群、[`icon_button`]/
+//! [`close_button`] 専用）を追記するようになった。`download_trigger` は
+//! `a[download]` を表す部品であり `recipe_with_scope` 自体（共有部分）への
+//! 委譲を変えていない（icon-only 追記の対象外）ため、本テストは
+//! `button::css()` のうち icon-only 追記より前の「共有部分」のみを
+//! scope 置換して比較する。
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_pre_styled_ui::button::{button, ButtonProps};
 use fandhe_frontend_pre_styled_ui::download_trigger::{self, DownloadTriggerProps};
 
-/// `download_trigger::css()` が `button::css()` の scope 置換と完全一致する
-/// ことを固定する（Button recipe 流用の機械検証、本ファイル冒頭 rustdoc
-/// 参照）。
-#[test]
-fn download_trigger_css_matches_button_css_with_scope_replaced() {
+/// `button::css()` のうち、`recipe_with_scope` 由来の共有部分（icon-only
+/// 修飾 variant の追記より前）だけを取り出す（本ファイル冒頭 rustdoc
+/// 「イシュー #830 の追記」節参照）。
+fn button_css_shared_prefix() -> String {
     let button_css = fandhe_frontend_pre_styled_ui::button::css();
-    let expected = button_css
+    const ICON_ONLY_MARKER: &str =
+        "[data-scope=\"button\"][data-part=\"root\"].fd-button--icon-only";
+    let prefix = button_css
+        .split(ICON_ONLY_MARKER)
+        .next()
+        .expect("button::css() should contain a splittable prefix")
+        .trim_end_matches('\n');
+    format!("{prefix}\n")
+}
+
+/// `download_trigger::css()` が `button::css()` の共有部分（icon-only 追記を
+/// 除く）の scope 置換と完全一致することを固定する（Button recipe 流用の
+/// 機械検証、本ファイル冒頭 rustdoc 参照）。
+#[test]
+fn download_trigger_css_matches_button_css_shared_prefix_with_scope_replaced() {
+    let expected = button_css_shared_prefix()
         .replace("data-scope=\"button\"", "data-scope=\"download-trigger\"")
         .replace("fd-button--", "fd-download-trigger--");
 
@@ -28,8 +51,9 @@ fn download_trigger_css_matches_button_css_with_scope_replaced() {
 
     assert_eq!(
         actual, expected,
-        "download_trigger::css() は button::css() の scope 置換と完全一致するはず\
-         （宣言の複製・独自追加は禁止、本ファイル冒頭 rustdoc 参照）"
+        "download_trigger::css() は button::css() の共有部分（icon-only 追記を \
+         除く）の scope 置換と完全一致するはず（宣言の複製・独自追加は禁止、\
+         本ファイル冒頭 rustdoc 参照）"
     );
 }
 
