@@ -93,8 +93,11 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | SkipNav | `skip_nav` | Link/Content | なし（自由関数のみ。WCAG 2.1 SC 2.4.1 Bypass Blocks 対応の「本文へスキップ」リンク。`link` は呼び出し側から任意の URL を受け取らず常に `#<id>` のみを組み立てるためスキーム注入経路を構造的に持たない） | #776 |
 | Clipboard | `clipboard` | Root/Label/Control/Input/Trigger/Indicator/ValueText | 独自実装（コピー済みかどうかの 2 値、`Avatar`/`Switch` と同じ理由で `Component`/`Hydrate` を直接実装。コピー済み表示は `data-state` 値語彙ではなく `data-copied` 存在属性で表現する ark-ui/chakra-ui の慣習に従う。コピー対象値（`value`）は状態機械に持たせず `root` の `data-value` 属性としてのみ出力する。`navigator.clipboard.writeText` 実配線・タイムアウトによる自動リセットは `fandhe-frontend-wasm-full::headless_clipboard`（writeText 成功ゲート・fail-closed・値ログ禁止）が提供する） | #773 |
 | QrCode | `qr_code` | Root/Frame（`svg`）/Pattern（`path`）/Overlay | なし（自由関数のみ。`value`/`ecc` から一意に導出される純粋な変換であり遷移可能な状態を持たない。外部依存ゼロの QR Model 2（ISO/IEC 18004）byte モードエンコーダ（`qr_encode`、非公開実装）を内蔵。QR 画像自体のダウンロード導線が必要な場合は `download_trigger`（#828）を組み合わせる。`value` の動的更新・numeric/alphanumeric/kanji モードはスコープ外） | #774 |
+| FloatingPanel | `floating_panel` | Root/Trigger/Positioner/Content/Header/Title/Control/StageTrigger/CloseTrigger/Body | `state::Disclosure`（開閉）+ 独自実装の `Stage`（`"default"`/`"minimized"`/`"maximized"` の 3 値、`Disclosure`/`SingleSelect` の語彙に収まらないため `steps::Steps`/`progress::Progress` と同じ判断で本モジュール内の独自 enum とする）。座標は `positioner` の `--fandhe-x`/`--fandhe-y`（`positioning::css_vars` の CSS 変数名の語彙のみ再利用、placement 計算自体は行わずドラッグ操作によるビューポート絶対座標をそのまま反映）。`content` は `role="dialog"` を固定付与するが `aria-modal` は出力しない非モーダル overlay。dispatch は `"open"`/`"close"`/`"toggle"`/`"minimize"`/`"maximize"`/`"restore"`/`"set_position"`（payload `"x,y"` は有限 `f64` としてパースできる場合のみ受理、`NaN`/`inf`・パース不能時は no-op）。ドラッグ移動・リサイズの実 DOM 配線・フォーカストラップ・Escape キー閉鎖・topmost 管理は `fandhe-frontend-wasm-full` の将来イシューのスコープ外 | #827 |
 | ScrollArea | `scroll_area` | Root/Viewport/Content/Scrollbar/Thumb/Corner | なし（自由関数のみ。`viewport` に `tabindex="0"` を固定付与、`scrollbar`/`thumb` は `data-orientation`、`scrollbar`/`corner` は `aria-hidden="true"` を固定付与。JS によるスクロール位置追従・thumb drag は初期実装対象外） | #825 |
 | DownloadTrigger | `download_trigger` | Root | なし（自由関数のみ。`a[download]` 属性による宣言的ダウンロードトリガー（ark-ui/chakra-ui の `Blob`/非同期 `data` 前提の DownloadTrigger を静的部品として代替）。`href` の URL スキーム検証は `render()` 側の既定経路（`data:`/`blob:` を含め deny-by-default）に委譲し、独自検証を追加しない） | #828 |
+| Splitter | `splitter` | Root/Panel/ResizeTrigger/ResizeTriggerIndicator | 独自実装（各パネルの `size`/`min`/`max`（%）を fail-closed に正規化するパネルサイズ状態機械。`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`resize-trigger` は `role="separator"` + `aria-valuemin/max/now`（先行パネルのサイズ%）+ `aria-orientation`（セパレータ自体の向き、パネルレイアウトの向きとは逆）+ `aria-controls`（先行パネル id）を出力する WAI-ARIA Window Splitter パターン準拠。pointer ドラッグ・キーボード操作の DOM 配線・collapse/expand は wasm-full 後続イシューのスコープ外） | #826（`docs/policy/intentional-non-adoption.md` §7・`docs/design/component-coverage-map.md` の保留を解除） |
+| JsonTreeView | `json_tree_view` | Key/Value（`tree_view` の Root/Label/Tree/Branch/BranchControl/BranchIndicator/BranchContent/BranchIndentGuide/Item/ItemIndicator を構造部として再利用） | `tree_view::TreeView`（#753）をそのまま再利用（新規状態機械なし）。決定的な JSON 風データ構造 `JsonValue`（外部依存ゼロの自前 enum、`Object` は挿入順保持の `Vec` ペア列）をツリー表示する。ノード識別子（`data-value`）は RFC 6901 JSON Pointer で決定的に導出し、`value` パーツの `data-kind`（`"null"`/`"bool"`/`"number"`/`"string"`/`"array"`/`"object"`）は `JsonValue::kind` の固定語彙のみを出力する。`expanded_to_depth` は ark-ui `defaultExpandedDepth` 相当の決定的初期展開ヘルパ | #829（`tree_view` #753 の派生、`docs/policy/intentional-non-adoption.md` §7 の保留解除） |
 
 ## 4a0. 色変換コア（`color`、イシュー #838、親 #837）
 
@@ -361,6 +364,58 @@ ark-ui / chakra-ui のレイアウト・ナビゲーション系コンポーネ�
 - 意図的非採用（純粋レイアウトプリミティブ）の再評価は
   `docs/policy/intentional-non-adoption.md` §4 の運用（評価軸の充足確認を
   Issue・PR に明記）に従う
+
+## 4c. 暦計算コア（`date` モジュール、イシュー #833、親トラッキング #832）
+
+親イシュー #832（date-time 系コンポーネント: Calendar / DatePicker /
+DateInput / Timer、`docs/design/component-coverage-map.md` の保留区分・
+`docs/policy/intentional-non-adoption.md` §7）の先行前提として、
+`fandhe_frontend_headless_ui::date` モジュールを実装した（#834 以降が
+利用する予定の共通基盤）。他コンポーネントと異なり anatomy パーツ・
+状態機械を持たない、非描画の純計算モジュールである。
+
+### 4c.1 公開 API 一覧
+
+| 型/関数 | 役割 |
+|---|---|
+| `PlainDate` | 年月日のみの日付（proleptic Gregorian、年 `0000`〜`9999`）。フィールド非公開・`PlainDate::new` 経由の検証済み構築のみ |
+| `PlainDate::new(year, month, day)` | 検証付き構築（唯一の構築経路）。範囲外は `DateError` |
+| `PlainDate::year`/`month`/`day` | 各フィールドの読み出し |
+| `PlainDate::day_of_week()` | [`Weekday`] を返す |
+| `PlainDate::add_days(delta)` | `delta` 日後（負なら前）を返す。`checked_add` + 範囲ガードで overflow/範囲外は `Err(DateError::OutOfRange)` |
+| `PlainDate::days_until(other)` | `other - self` の日数差（符号あり） |
+| `PlainDate::parse_iso(s)` / `FromStr` | 厳密 `YYYY-MM-DD`（ゼロ埋め・ハイフン区切り固定）のみ受理 |
+| `PlainDate::to_iso_string()` / `Display` | ゼロ埋め `YYYY-MM-DD` を返す（ASCII 数字とハイフンのみ） |
+| `Weekday` | 月曜始まりの曜日（`iso_number()`: 月曜 `1`〜日曜 `7`、`from_iso_number()`: 逆変換） |
+| `is_leap_year(year)` | 4/100/400 規則によるうるう年判定 |
+| `days_in_month(year, month)` | 指定年月の日数（28〜31） |
+| `MonthGrid` / `month_grid(year, month, week_start)` | 当月 1 日を含む週の先頭から月末を含む週の末尾まで、前後月の日で埋めた週配列（`Vec<[PlainDate; 7]>`）を返す Calendar 描画向けグリッド |
+| `DateError` | `InvalidDate`/`InvalidFormat`/`OutOfRange` の fail-closed エラー |
+
+### 4c.2 決定性・現在時刻非取得の契約
+
+- **現在時刻を一切取得しない**: `SystemTime`・`Instant`・`js_sys` 等の時刻
+  取得 API を呼ばない。「今日」は常に呼び出し側（Calendar 等の上位
+  コンポーネント）が `PlainDate` として明示的に渡す設計であり、同一入力
+  から常に同一出力を返す。この不変条件は
+  `crates/headless-ui/tests/date.rs::date_module_never_reads_the_current_time`
+  （`include_str!` によるソース走査、コメント行を除く実コード行のみ検査）
+  が恒久的に機械強制する。
+- **外部依存ゼロ**（REQ-3）: `core`/標準ライブラリのみで完結し、
+  `crates/headless-ui/Cargo.toml` に依存を追加しない。
+- **fail-closed**: 不正な年月日・不正な文字列・範囲逸脱・オーバーフローは
+  すべて `Err(DateError)` を返し、`panic!`/`unwrap()`/`expect()` を使わない
+  （ライブラリコードでの unwrap/panic 回避方針、`.claude/rules/coding-rust.md`）。
+- **HTML を一切組み立てない**: 本モジュールは非描画の純計算モジュールで
+  あり `raw_html()`・HTML 文字列組み立てを持たない。`to_iso_string()` の
+  出力（ASCII 数字とハイフンのみ）を後続コンポーネントが描画する際は、
+  `fandhe-frontend-core` の既定エスケープ（REQ-1）を必ず経由する契約と
+  する。
+- **内部アルゴリズム**: 年月日 ⇔ エポック日数（1970-01-01 を 0 とする）の
+  変換に Howard Hinnant の `days_from_civil`/`civil_from_days` として
+  知られる純整数アルゴリズムを使う。曜日・加減算・日付差・月グリッドの
+  全 API をこの単一の変換対に載せることで、往復変換の性質テストだけで
+  土台の正しさを固定できる。
 
 ## 5. 呼び出し規約（SSR / CSR 共通の前提）
 

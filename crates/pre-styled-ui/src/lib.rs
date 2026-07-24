@@ -302,6 +302,25 @@
 //!   [`mod@checkbox_card`]/[`mod@radio_card`]（#747）と同型の判断で
 //!   headless-ui は変更せず pre-styled-ui 層のみで新規 anatomy を定義する。
 //!   詳細は各モジュール rustdoc 参照。
+//! - headless 状態機械を持つ複合部品の styled ラッパー（イシュー #826、
+//!   `docs/policy/intentional-non-adoption.md` §7・
+//!   `docs/design/component-coverage-map.md` の「保留」を解除）:
+//!   [`mod@splitter`]。動的値は `panel` の `--fandhe-splitter-size`
+//!   （flex-basis 経由）の 1 点のみ、`size` variant のみを root へ持ち
+//!   （`resize-trigger` の厚みへ継承）、`color-palette` はセパレータの
+//!   強調色にのみ使う。`resize-trigger` はネイティブ `<div tabindex>` が
+//!   実フォーカスを受けるため [`recipe::StateCondition::FocusVisible`] で
+//!   足りる（`slider`/`toggle` と同型）。詳細は [`mod@splitter`] rustdoc
+//!   参照。
+//! - headless ラッパー（イシュー #829）: [`mod@json_tree_view`]（JsonTreeView、
+//!   JSON 風データ構造 [`json_tree_view::JsonValue`] のツリー表示。[`mod@tree_view`]
+//!   （#753）の派生であり、構造部は tree_view の既存パーツ関数・styled recipe
+//!   をそのまま再利用する）。JSON 固有の `key`/`value`（`data-scope="json-tree-view"`）
+//!   の 2 パーツのみを新設し、`value` の `data-kind` へ型別配色（`string`/
+//!   `number`/`bool`/`null` の 4 種、`object`/`array` は既定色のまま）を
+//!   [`recipe::StateCondition::AttrEq`] で反応させる。[`mod@tree_view`] と同型の
+//!   判断で `size`/`color-palette` のいずれの variant も提供しない。詳細は
+//!   [`mod@json_tree_view`] rustdoc 参照。
 //! - headless ラッパー（イシュー #825、保留解除）: [`mod@scroll_area`]
 //!   （ScrollArea、Root/Viewport/Content/Scrollbar/Thumb/Corner の 6 anatomy
 //!   パーツを再エクスポート）。`viewport` へ `overflow: auto` +
@@ -320,6 +339,15 @@
 //!   anatomy を直接宣言する単純 styled 部品」だが、headless 層には対応する
 //!   anatomy を新設しない（`docs/design/component-coverage-map.md` 上も
 //!   headless 列は「—」）。詳細は [`mod@color_swatch`] rustdoc 参照。
+//! - 状態機械を要しない静的部品（イシュー #831、非採用の再導入）:
+//!   [`mod@marquee`]（Marquee、自動流動テキスト。`docs/policy/intentional-non-adoption.md`
+//!   §3.24 が意図的非採用としていたが、CSS のみ（JS ゼロ）・
+//!   `prefers-reduced-motion: reduce` でのアニメーション停止・
+//!   `hover`/`focus-within` での常時一時停止という決定的設計案で §4 の
+//!   再導入手続きに従い再導入した。root/content/item の 3 パーツ、`content`
+//!   を内部で 2 回複製しシームレスループを実現する（2 個目は常時
+//!   `aria-hidden`）。`direction` の 1 軸 variant のみを持つ。詳細は
+//!   [`mod@marquee`] rustdoc 参照）。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -470,18 +498,21 @@ pub mod drawer;
 pub mod editable;
 pub mod em;
 pub mod empty_state;
+pub mod floating_panel;
 pub mod heading;
 pub mod highlight;
 pub mod hover_card;
 pub mod icon;
 pub mod image;
 pub mod input;
+pub mod json_tree_view;
 pub mod kbd;
 pub mod link;
 pub mod link_overlay;
 pub mod list;
 pub mod listbox;
 pub mod mark;
+pub mod marquee;
 pub mod menu;
 pub mod native_select;
 pub mod nav_list;
@@ -504,6 +535,7 @@ pub mod skeleton;
 pub mod skip_nav;
 pub mod slider;
 pub mod spinner;
+pub mod splitter;
 pub mod stat;
 pub mod status;
 pub mod steps;
@@ -543,6 +575,7 @@ pub use input::{input, InputProps, InputVariant};
 pub use kbd::kbd;
 pub use list::{ListType, ListVariant};
 pub use mark::{mark, MarkProps, MarkVariant};
+pub use marquee::{marquee, MarqueeDirection, MarqueeProps};
 pub use native_select::{native_select, NativeSelectProps, NativeSelectVariant};
 pub use recipe::{when, ColorPalette, Size, SlotRecipe, VariantCondition, VariantValue};
 pub use separator::{separator, SeparatorProps, SeparatorVariant};

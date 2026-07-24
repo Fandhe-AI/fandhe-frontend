@@ -271,6 +271,7 @@ mod tests {
             ("separator", crate::separator::css()),
             ("combobox", crate::combobox::stylesheet()),
             ("popover", crate::popover::stylesheet()),
+            ("floating_panel", crate::floating_panel::stylesheet()),
             ("tooltip", crate::tooltip::stylesheet()),
             ("toggle_tip", crate::toggle_tip::stylesheet()),
             ("switch", crate::switch::stylesheet()),
@@ -285,6 +286,7 @@ mod tests {
             ("number_input", crate::number_input::stylesheet()),
             ("password_input", crate::password_input::stylesheet()),
             ("slider", crate::slider::stylesheet()),
+            ("splitter", crate::splitter::stylesheet()),
             ("pin_input", crate::pin_input::stylesheet()),
             ("tags_input", crate::tags_input::stylesheet()),
             ("rating_group", crate::rating_group::stylesheet()),
@@ -294,6 +296,7 @@ mod tests {
             ("segment_group", crate::segment_group::stylesheet()),
             ("steps", crate::steps::stylesheet()),
             ("tree_view", crate::tree_view::stylesheet()),
+            ("json_tree_view", crate::json_tree_view::stylesheet()),
             ("pagination", crate::pagination::stylesheet()),
             ("breadcrumb", crate::breadcrumb::stylesheet()),
             ("carousel", crate::carousel::stylesheet()),
@@ -325,6 +328,7 @@ mod tests {
             ("data_list", crate::data_list::css()),
             ("stat", crate::stat::css()),
             ("timeline", crate::timeline::css()),
+            ("marquee", crate::marquee::css()),
             ("scroll_area", crate::scroll_area::stylesheet()),
         ]
     }

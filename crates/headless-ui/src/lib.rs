@@ -328,6 +328,34 @@
 //!   「`value` は状態機械に持たせない」節参照）。`navigator.clipboard`
 //!   実配線・タイムアウトによる自動リセットは
 //!   `fandhe-frontend-wasm-full`（#773 後続）のスコープ。
+//! - [`mod@splitter`]: Root / Panel / ResizeTrigger / ResizeTriggerIndicator の
+//!   4 anatomy パーツと、パネルサイズ状態機械 [`splitter::Splitter`]
+//!   （#826、`docs/policy/intentional-non-adoption.md` §7・
+//!   `docs/design/component-coverage-map.md` の「保留」を解除）。
+//!   [`mod@slider`] と同じく [`state`] の既存語彙に収まらないため、
+//!   [`fandhe_frontend_interactive::Component`]/
+//!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。
+//!   `resize-trigger` は `role="separator"` + `aria-valuemin`/`aria-valuemax`/
+//!   `aria-valuenow`（先行パネルのサイズ%）+ `aria-orientation`（セパレータ
+//!   自体の向き、パネルレイアウトの向きとは逆。[`splitter`] モジュール doc
+//!   参照）+ `aria-controls`（先行パネル id）を出力する WAI-ARIA Window
+//!   Splitter パターン準拠。パネル構成の正規化は fail-closed
+//!   （[`splitter::Splitter::new`] 参照）。pointer ドラッグ・キーボード操作の
+//!   DOM 配線・collapse/expand・`onResize`/`onCollapse` コールバックは本
+//!   イシューのスコープ外（[`splitter`] モジュール doc §スコープ外参照）。
+//! - [`mod@floating_panel`]: Root / Trigger / Positioner / Content / Header /
+//!   Title / Control / StageTrigger / CloseTrigger / Body の 10 anatomy
+//!   パーツと、[`state::Disclosure`]（開閉）+ 独自 [`floating_panel::Stage`]
+//!   （default/minimized/maximized）+ 座標（x, y）を持つ
+//!   [`floating_panel::FloatingPanel`] 状態機械（#827、`docs/policy/intentional-non-adoption.md`
+//!   §7 の保留解除）。[`mod@popover`] と同じく [`state::Disclosure`] を
+//!   埋め込みつつ、`stage` は既存語彙に収まらないため独自 enum とする
+//!   （[`mod@steps`] と同型の判断）。座標出力（[`floating_panel::FloatingPanel::position_style`]）は
+//!   [`mod@positioning`] の `--fandhe-x`/`--fandhe-y` 変数名を再利用するが、
+//!   anchor 相対の placement 計算自体は行わない（ドラッグ操作によるビュー
+//!   ポート絶対座標のため）。ドラッグ移動・リサイズの実 DOM 配線は
+//!   `fandhe-frontend-wasm-full` の将来イシューのスコープ（詳細は
+//!   [`floating_panel`] モジュール doc §スコープ外参照）。
 //!
 //! # `fandhe-frontend-core` の再エクスポート（イシュー #550）
 //!
@@ -415,6 +443,13 @@
 //!   最優先候補）。`docs/design/docs-site-styled-ui-adoption.md` §3.1 が
 //!   指摘した「`menu` ロールの文書ナビへの誤転用」を解消するため、**`role`
 //!   を一切付与しない**（モジュール doc 参照）。
+//! - [`mod@json_tree_view`]: JSON 風データ構造 [`json_tree_view::JsonValue`]
+//!   （外部依存ゼロの自前 enum）をツリー表示する（イシュー #829、[`mod@tree_view`]
+//!   （#753）の派生）。構造部は [`mod@tree_view`] の既存パーツ関数・
+//!   [`tree_view::TreeView`] 状態機械をそのまま再利用し、JSON 固有の `key`/
+//!   `value`（`data-scope="json-tree-view"`）の 2 パーツのみを追加する。
+//!   ノード識別子は RFC 6901 JSON Pointer で決定的に導出する
+//!   （[`json_tree_view::render_json`] モジュール doc 参照）。
 //! - [`mod@scroll_area`]: Root / Viewport / Content / Scrollbar / Thumb /
 //!   Corner の 6 anatomy パーツ（イシュー #825、`docs/design/component-coverage-map.md`
 //!   保留解除）。[`mod@breadcrumb`]/[`mod@nav_list`] と同じく状態機械を持たない
@@ -432,6 +467,13 @@
 //!   （ColorSwatch、#838）と後続の ColorPicker（#837 配下）が本モジュールの
 //!   型・変換関数を土台にする。anatomy を持たない（headless 列は
 //!   coverage-map 上も「—」）。
+//! - [`mod@date`]: 決定的な暦計算コア（proleptic Gregorian・date-only、
+//!   イシュー #833、親トラッキング #832）。[`date::PlainDate`]（年月日）・
+//!   [`date::Weekday`]・[`date::month_grid`] を提供し、現在時刻を一切取得
+//!   しない（「今日」は常に呼び出し側が明示的に渡す）。date-time 系 4 部品
+//!   （Calendar / DatePicker / DateInput / Timer、#834 以降）が描画前の
+//!   暦計算に共通で使う先行前提であり、本モジュール自体は非描画の純計算
+//!   モジュールで anatomy・状態機械を持たない。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -449,13 +491,16 @@ pub mod collapsible;
 pub mod color;
 pub mod combobox;
 pub mod data_attrs;
+pub mod date;
 pub mod dialog;
 pub mod download_trigger;
 pub mod drawer;
 pub mod editable;
 pub mod field;
 pub mod fieldset;
+pub mod floating_panel;
 pub mod hover_card;
+pub mod json_tree_view;
 pub mod link;
 pub mod link_overlay;
 pub mod listbox;
@@ -477,6 +522,7 @@ pub mod segment_group;
 pub mod select;
 pub mod skip_nav;
 pub mod slider;
+pub mod splitter;
 pub mod state;
 pub mod steps;
 pub mod switch;
@@ -537,6 +583,7 @@ pub use drawer::{Drawer, DrawerPlacement};
 pub use editable::{Editable, EditableAction};
 pub use field::{FieldIds, FieldProps};
 pub use fieldset::FieldsetProps;
+pub use floating_panel::{FloatingPanel, FloatingPanelAction, Stage};
 pub use hover_card::{HoverCard, HoverCardDelays};
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
 pub use number_input::{NumberInput, NumberInputAction, NumberInputFlags};
@@ -555,6 +602,7 @@ pub use radio_group::RadioGroup;
 pub use rating_group::{RatingGroup, RatingGroupAction, RatingItemFlags};
 pub use segment_group::SegmentGroup;
 pub use slider::{Slider, SliderAction};
+pub use splitter::{PanelSpec, Splitter, SplitterAction};
 pub use state::{
     Checkable, CheckableAction, Disclosure, DisclosureAction, MultiSelect, MultiSelectAction,
     OpenState, SingleSelect, SingleSelectAction, TextInput, TextInputAction, DATA_STATE_CHECKED,

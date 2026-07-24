@@ -68,17 +68,21 @@ use fandhe_frontend_pre_styled_ui::em::em;
 use fandhe_frontend_pre_styled_ui::empty_state::{self, EmptyStateProps};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::carousel::Carousel;
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::slider::Slider;
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::{PanelSpec, Splitter};
 use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::steps::Steps;
+use fandhe_frontend_pre_styled_ui::floating_panel::{self, Stage};
 use fandhe_frontend_pre_styled_ui::heading::{heading, HeadingLevel, HeadingProps, HeadingSize};
 use fandhe_frontend_pre_styled_ui::highlight::{highlight, HighlightProps};
 use fandhe_frontend_pre_styled_ui::hover_card::{self, HoverCardDelays};
 use fandhe_frontend_pre_styled_ui::icon::{icon, IconProps};
 use fandhe_frontend_pre_styled_ui::image::{image, AspectRatio, ImageFit, ImageProps};
 use fandhe_frontend_pre_styled_ui::input::{self, FieldIds, FieldProps, InputProps};
+use fandhe_frontend_pre_styled_ui::json_tree_view::{self, JsonValue};
 use fandhe_frontend_pre_styled_ui::kbd::kbd;
 use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
+use fandhe_frontend_pre_styled_ui::marquee::{self, MarqueeDirection, MarqueeProps};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
@@ -94,6 +98,7 @@ use fandhe_frontend_pre_styled_ui::separator::{separator, SeparatorProps, Separa
 use fandhe_frontend_pre_styled_ui::skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 use fandhe_frontend_pre_styled_ui::slider;
 use fandhe_frontend_pre_styled_ui::spinner::{spinner, SpinnerProps};
+use fandhe_frontend_pre_styled_ui::splitter;
 use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 use fandhe_frontend_pre_styled_ui::steps;
@@ -194,7 +199,8 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"drawer\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"combobox\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"hover-card\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"action-bar\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n}\n\
-.pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
+.pre-styled-showcase [data-scope=\"floating-panel\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
+.pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2,\n.pre-styled-showcase [data-scope=\"floating-panel\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"toast\"][data-part=\"group\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n";
 
@@ -223,8 +229,8 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 /// rating_group/slider/segment_group/pagination/breadcrumb/carousel/
 /// action_bar/toast/progress/tag/kbd/code/image/icon/status/empty_state/
 /// visually_hidden/qr_code/heading/text/em/mark/blockquote/list/table/
-/// data_list/stat/timeline/scroll_area）→ ショーケース配置スタイル、の順で
-/// 決定的に連結する。
+/// data_list/stat/timeline/scroll_area/splitter）→ ショーケース配置
+/// スタイル、の順で決定的に連結する。
 ///
 /// # Errors
 ///
@@ -253,6 +259,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::highlight::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::combobox::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::popover::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::floating_panel::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tooltip::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::hover_card::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::toggle_tip::stylesheet())?;
@@ -273,6 +280,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::editable::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::segment_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tree_view::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::json_tree_view::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::pagination::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::steps::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::breadcrumb::stylesheet())?;
@@ -300,7 +308,9 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::data_list::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::stat::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::timeline::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::marquee::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::scroll_area::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::splitter::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -1462,6 +1472,62 @@ fn tree_view_section() -> Node {
     )
 }
 
+/// JsonTreeView 節: JSON 風データ構造のツリー表示（イシュー #829、
+/// [`tree_view_section`]（#753）の派生）。
+///
+/// [`json_tree_view::expanded_to_depth`] で ark-ui の `defaultExpandedDepth`
+/// 相当の初期展開状態を決定的に作り、[`json_tree_view::render_json`] で
+/// 型別配色付きのマークアップを組み立てる。name/version/tags/address の
+/// ネストしたサンプルデータは ark-ui の json-tree-view 例に準拠する。
+fn json_tree_view_section() -> Node {
+    let data = JsonValue::Object(vec![
+        (
+            "name".to_string(),
+            JsonValue::String("fandhe-frontend".to_string()),
+        ),
+        (
+            "version".to_string(),
+            JsonValue::String("0.16.0".to_string()),
+        ),
+        ("stable".to_string(), JsonValue::Bool(true)),
+        ("deprecated".to_string(), JsonValue::Null),
+        (
+            "tags".to_string(),
+            JsonValue::Array(vec![
+                JsonValue::String("headless".to_string()),
+                JsonValue::String("ui".to_string()),
+            ]),
+        ),
+        (
+            "address".to_string(),
+            JsonValue::Object(vec![
+                ("city".to_string(), JsonValue::String("Tokyo".to_string())),
+                ("zip".to_string(), JsonValue::Number(100.0)),
+            ]),
+        ),
+    ]);
+    // defaultExpandedDepth 相当（深さ 2 まで展開）で「開いた見た目」を固定掲示する。
+    let tree = json_tree_view::expanded_to_depth(&data, 2);
+    let node = tree_view::root(
+        vec![],
+        vec![
+            tree_view::label(vec![], vec![text("Package metadata")]),
+            tree_view::tree(
+                Some("Package metadata"),
+                None,
+                vec![],
+                vec![json_tree_view::render_json(&tree, &data)],
+            ),
+        ],
+    );
+
+    section(
+        "JsonTreeView",
+        "headless-ui の JsonTreeView（tree_view #753 の派生、role=\"tree\"/role=\"treeitem\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。expanded_to_depth(2) でルートと直下ブランチを展開済みとして固定表示し、値の型（string/number/bool/null/array/object）ごとに配色を切り替えています。",
+        vec![node],
+    )
+}
+
 /// Popover 節: 開いた状態の静的マークアップ（イシュー #691）。
 ///
 /// [`dialog_section`] と同じく、実際の overlay 配置は recipe CSS
@@ -1508,6 +1574,75 @@ fn popover_section() -> Node {
     section(
         "Popover",
         "headless-ui の Popover（role=\"dialog\"、非モーダル）に pre-styled-ui の recipe CSS を適用した静的掲示です。positioner はフロー内配置へ中和しています（実際の overlay 配置は recipe CSS が担います）。",
+        vec![node],
+    )
+}
+
+/// FloatingPanel 節: 開いた状態（stage=default）の静的マークアップ
+/// （イシュー #827）。positioner はドラッグ移動によるビューポート絶対座標
+/// （`--fandhe-x`/`--fandhe-y`、[`floating_panel::FloatingPanel::position_style`]）
+/// を持つが、ショーケース内ではフロー内配置へ中和している
+/// （[`SHOWCASE_LAYOUT_CSS`]。実際の overlay 配置・ドラッグ配線は
+/// recipe CSS/wasm 層が担う）。
+fn floating_panel_section() -> Node {
+    let panel = fandhe_frontend_pre_styled_ui::floating_panel::FloatingPanel::new(
+        OpenState::Open,
+        Stage::Default,
+        24.0,
+        24.0,
+    );
+    let style = panel.position_style();
+    let node = panel.root(
+        vec![],
+        vec![
+            panel.trigger(
+                false,
+                Some("showcase-floating-panel-content"),
+                vec![],
+                vec![text("Open panel")],
+            ),
+            panel.positioner(
+                vec![("style", style.as_str())],
+                vec![panel.content(
+                    Some("showcase-floating-panel-content"),
+                    Some("showcase-floating-panel-title"),
+                    vec![],
+                    vec![
+                        floating_panel::header(
+                            vec![],
+                            vec![
+                                floating_panel::title(
+                                    Some("showcase-floating-panel-title"),
+                                    vec![],
+                                    vec![text("Panel title")],
+                                ),
+                                floating_panel::control(
+                                    vec![],
+                                    vec![
+                                        panel.stage_trigger(
+                                            Stage::Minimized,
+                                            vec![],
+                                            vec![text("_")],
+                                        ),
+                                        panel.stage_trigger(
+                                            Stage::Maximized,
+                                            vec![],
+                                            vec![text("[]")],
+                                        ),
+                                        floating_panel::close_trigger(vec![], vec![text("x")]),
+                                    ],
+                                ),
+                            ],
+                        ),
+                        panel.body(vec![], vec![text("ドラッグで移動できるパネルの本文です。")]),
+                    ],
+                )],
+            ),
+        ],
+    );
+    section(
+        "FloatingPanel",
+        "headless-ui の FloatingPanel（role=\"dialog\"、非モーダル）に pre-styled-ui の recipe CSS を適用した静的掲示です。stage=\"default\" の状態を固定表示しています。positioner はフロー内配置へ中和しています（実際のドラッグ移動・overlay 配置は recipe CSS/wasm 層が担います）。",
         vec![node],
     )
 }
@@ -2810,6 +2945,104 @@ fn steps_section() -> Node {
     )
 }
 
+/// Splitter 節（イシュー #826）: 水平 2 パネルと垂直 3 パネルの静的掲示。
+///
+/// `panel` の伸縮は headless 中立な
+/// [`Splitter::size`](fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::splitter::Splitter::size)
+/// から導出する `--fandhe-splitter-size` CSS custom property（flex-basis
+/// 経由）の 1 点のみで伝搬する（`fandhe_frontend_pre_styled_ui::splitter`
+/// のモジュール doc「動的な値は 1 点のみ」参照）。resize-trigger のクリック・
+/// ドラッグ挙動は wasm 層のスコープ外（`crates/headless-ui/src/splitter.rs`
+/// モジュール doc §スコープ外参照）。
+fn splitter_section() -> Node {
+    let horizontal_state = Splitter::new(
+        &[
+            PanelSpec::new(60.0, 20.0, 80.0),
+            PanelSpec::new(40.0, 20.0, 80.0),
+        ],
+        Orientation::Horizontal,
+    );
+    let horizontal_demo = splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &horizontal_state,
+        false,
+        vec![],
+        vec![
+            splitter::panel(
+                &horizontal_state,
+                0,
+                "showcase-splitter-h-panel-a",
+                vec![],
+                vec![text("Panel A")],
+            ),
+            splitter::resize_trigger(
+                &horizontal_state,
+                0,
+                "showcase-splitter-h-panel-a",
+                false,
+                vec![],
+                vec![],
+            ),
+            splitter::panel(
+                &horizontal_state,
+                1,
+                "showcase-splitter-h-panel-b",
+                vec![],
+                vec![text("Panel B")],
+            ),
+        ],
+    );
+
+    let vertical_state = Splitter::new(
+        &[
+            PanelSpec::new(33.0, 0.0, 100.0),
+            PanelSpec::new(33.0, 0.0, 100.0),
+            PanelSpec::new(34.0, 0.0, 100.0),
+        ],
+        Orientation::Vertical,
+    );
+    let mut vertical_children = Vec::new();
+    for (index, label) in ["Top", "Middle", "Bottom"].iter().enumerate() {
+        let id = format!("showcase-splitter-v-panel-{index}");
+        vertical_children.push(splitter::panel(
+            &vertical_state,
+            index,
+            &id,
+            vec![],
+            vec![text(*label)],
+        ));
+        if index + 1 < 3 {
+            vertical_children.push(splitter::resize_trigger(
+                &vertical_state,
+                index,
+                &id,
+                false,
+                vec![],
+                vec![],
+            ));
+        }
+    }
+    let vertical_demo = splitter::root(
+        Size::Md,
+        ColorPalette::Accent,
+        &vertical_state,
+        false,
+        // column flex の root では各 panel が `flex-basis` にパーセンテージを
+        // 使うため、root 自身に解決済みの main size（高さ）がないとパーセン
+        // テージが適用されない（Bugbot 指摘、PR #862）。明示的な高さを与えて
+        // 33/33/34 分割が実際に反映されるようにする。
+        vec![("style", "height: 16rem;")],
+        vertical_children,
+    );
+
+    section(
+        "Splitter",
+        "パネルサイズ状態機械 Splitter の静的掲示（水平 2 パネル・垂直 3 パネル）。resize-trigger は role=\"separator\" + aria-valuemin/max/now（先行パネルのサイズ %）+ aria-controls を持ちます（ドラッグ・キーボード操作は wasm 層のスコープ外）。",
+        vec![row(vec![horizontal_demo]), row(vec![vertical_demo])],
+    )
+}
+
 /// CheckboxCard 節: unchecked / checked / disabled の 3 態（イシュー #747）。
 ///
 /// chakra-ui checkbox-card 相当のカード型選択 UI。状態機械は
@@ -3574,6 +3807,50 @@ fn timeline_section() -> Node {
     )
 }
 
+/// Marquee 節（イシュー #831、`docs/policy/intentional-non-adoption.md` §3.24
+/// の再導入）: CSS のみ（JS ゼロ）の自動流動テキスト。`direction`（既定/`End`）
+/// の切り替え・装飾用途（`decorative: true`）・`--fandhe-marquee-duration`
+/// 上書きの掲示例を並べる。
+fn marquee_section() -> Node {
+    let default_demo = marquee::marquee(
+        &MarqueeProps::default(),
+        vec![],
+        vec![marquee::item(
+            vec![],
+            vec![text(
+                "Fandhe frontend — CSS のみで動く自動流動テキストです。",
+            )],
+        )],
+    );
+    let end_demo = marquee::marquee(
+        &MarqueeProps {
+            direction: MarqueeDirection::End,
+            ..MarqueeProps::default()
+        },
+        vec![],
+        vec![marquee::item(
+            vec![],
+            vec![text("逆方向スクロールの例です。")],
+        )],
+    );
+    let decorative_demo = marquee::marquee(
+        &MarqueeProps {
+            decorative: true,
+            ..MarqueeProps::default()
+        },
+        vec![("style", "--fandhe-marquee-duration: 8s;")],
+        vec![marquee::item(
+            vec![],
+            vec![text("装飾用途（aria-hidden）+ 速度上書きの例です。")],
+        )],
+    );
+    section(
+        "Marquee",
+        "CSS のみ（JS ゼロ）の自動流動テキストです。direction（既定/end）でスクロール方向を切り替え、hover/focus-within で常時一時停止、prefers-reduced-motion: reduce 環境では停止します。decorative: true で装飾用途（aria-hidden）に、--fandhe-marquee-duration の上書きで速度を調整できます。",
+        vec![default_demo, end_demo, decorative_demo],
+    )
+}
+
 /// ScrollArea 節（イシュー #825）: `overflow: auto` によるネイティブスクロール
 /// とカスタムスクロールバー表現（`scrollbar-width`/`::-webkit-scrollbar`）。
 /// JS によるスクロール位置追従は本イシューのスコープ外（`crate::scroll_area`
@@ -3778,6 +4055,7 @@ fn showcase_body() -> Node {
             listbox_section(),
             combobox_section(),
             popover_section(),
+            floating_panel_section(),
             tooltip_section(),
             hover_card_section(),
             toggle_tip_section(),
@@ -3795,8 +4073,10 @@ fn showcase_body() -> Node {
             segment_group_section(),
             carousel_section(),
             tree_view_section(),
+            json_tree_view_section(),
             pagination_section(),
             steps_section(),
+            splitter_section(),
             checkbox_card_section(),
             radio_card_section(),
             breadcrumb_section(),
@@ -3817,6 +4097,7 @@ fn showcase_body() -> Node {
             data_list_section(),
             stat_section(),
             timeline_section(),
+            marquee_section(),
             scroll_area_section(),
         ],
     )
@@ -3868,6 +4149,7 @@ mod tests {
             "segment-group",
             "pagination",
             "steps",
+            "splitter",
             "checkbox-card",
             "radio-card",
             "breadcrumb",
