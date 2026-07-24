@@ -456,6 +456,47 @@ DateInput / Timer、`docs/design/component-coverage-map.md` の保留区分・
 - 範囲選択（range mode）・複数月表示（multi-month）・年/月ビュー切替
 - DateInput（#834）との配線・wasm-full ハイドレーション配線
 
+## 4e. Format ユーティリティ（`format` モジュール、イシュー #853、親 Phase 5 #852）
+
+ark-ui `format-byte`/`format-number`/`format-time`/`format-relative-time`・
+chakra-ui `i18n/format-byte`/`format-number` 相当の機能を、JS の `Intl` API・
+`LocaleProvider` 等の JS ランタイム機構に依存せず実装した
+（`docs/policy/intentional-non-adoption.md` §3.23 の非採用判断を
+「headless-ui 内モジュール `format`」として実装することで区分変更、
+`docs/design/component-coverage-map.md` 参照）。他コンポーネントと異なり
+ノードを返さず `anatomy`/状態機械を持たない `String` 純関数群である。
+
+| 関数 | オプション型 | 概要 |
+|---|---|---|
+| `format_byte` | `FormatByteOptions`（`unit: ByteUnit`/`unit_system: UnitSystem`/`unit_display: UnitDisplay`/`maximum_fraction_digits`） | バイト数を `"1.45 kB"` 等の単位付き文字列へ整形。10 進（1000 進）/2 進（1024 進）の基数系列を選択可能 |
+| `format_number` | `FormatNumberOptions`（`style: NumberStyle`/`minimum_fraction_digits`/`maximum_fraction_digits`/`use_grouping`/`sign_display: SignDisplay`） | 桁区切り・小数桁・符号・パーセント表示を伴う数値整形 |
+| `format_time` | `FormatTimeOptions`（`with_seconds_always`/`always_show_hours`） | 経過秒数を `HH:MM:SS`/`MM:SS` へ整形 |
+| `format_relative_time` | `FormatRelativeTimeOptions`（`locale`/`style: UnitDisplay`） | `target`/`base`（Unix 秒）2 値の差から `"3 days ago"`/`"in 3 days"`/`"just now"` を返す |
+
+すべて `Locale`（`#[non_exhaustive]`、初期実装は `Locale::En` のみ）を
+オプションに含み、追加ロケール対応はイシュー #854 のスコープ（`Locale`
+enum への variant 追加として行う設計、専用クレート化はしない）。
+
+### 4e.1 決定性・丸め規則の契約
+
+- **現在時刻 API に依存しない**: `format_relative_time` の基準時刻
+  `base` は必ず呼び出し側が明示的に渡す。`std::time::SystemTime::now()`
+  等を本モジュールが呼ぶことはない（`crate::timer`/`crate::date` と同型の
+  「時刻を渡される」設計）。
+- **丸め規則**: `format_byte`/`format_number` の固定小数点丸めは
+  `format!("{:.prec$}")`（Rust 標準の 2 進表現に基づく最近接丸め）を正とする
+  （rustdoc に明記）。
+- **非有限値・境界値**: NaN/±∞ は panic せず `"NaN"`/`"∞"`/`"-∞"` を返す。
+  `i64::MIN`/`i64::MAX` を含む全入力域で `unwrap()`/`panic!` を使わず
+  `unsigned_abs()`/`checked_sub()` で決定的な出力を返す（A04 対策）。
+
+### 4e.2 スコープ外（#853 時点）
+
+- en 以外のロケール対応（イシュー #854）
+- `LocaleProvider`・`AsyncListCollection` の Rust 等価概念対応表（イシュー #855）
+- `fandhe-frontend-pre-styled-ui`・examples ショーケースへの実演追加
+  （format はノードを返さない純関数であり既存ショーケース枠に該当しない）
+
 ## 5. 呼び出し規約（SSR / CSR 共通の前提）
 
 - 各コンポーネントの anatomy パーツ（`root`/`trigger`/`content` 等）は
@@ -505,6 +546,12 @@ DateInput / Timer、`docs/design/component-coverage-map.md` の保留区分・
    `Debug`/`Hydrate` の出力・エラーメッセージ・ログのいずれにも現れる余地
    がない設計であり、`crates/headless-ui/src/password_input.rs` の
    inline test `input_never_outputs_value_attribute` が回帰を固定する。
+9. `format` モジュール（イシュー #853）はテキスト値を返す純関数であり、
+   出力は呼び出し側が必ず `fandhe_frontend_core::text()` ノード → 上記 2
+   の既定エスケープを経由してから描画する（本モジュール自体は HTML を
+   組み立てない）。`std::time::SystemTime::now()` 等の現在時刻 API・環境
+   変数・グローバル状態を一切参照しない決定的純関数であり、`base`/`target`
+   等の時刻は必ず呼び出し側が明示的に渡す（§4e.1 参照）。
 
 ## 7. 関連ドキュメント
 

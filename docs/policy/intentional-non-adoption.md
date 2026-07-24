@@ -1008,6 +1008,25 @@ AI エージェントが変更の影響範囲を判断するために読み込�
      ユーザー承認を得た場合。
   4. Checkmark / Radiomark: `checkbox` / `radio_group` から装飾表現を
      切り出す具体的な需要（他コンポーネントでの再利用等）が確定した場合。
+- **再導入記録（イシュー #853、FormatByte / FormatNumber / FormatTime /
+  FormatRelativeTime の 4 件のみ。Portal / Show / For / Presence /
+  ClientOnly / EnvironmentProvider / Frame / Swap / FocusTrap /
+  OverlayManager / LocaleProvider / AsyncListCollection / Checkmark /
+  Radiomark は非採用のまま変更しない）**: 再評価トリガー 3（「`Format*` は
+  `fandhe-frontend-headless-ui` とは別の専用クレートの新設がユーザー承認を
+  得た場合」）を、専用クレートの新設ではなく「`fandhe-frontend-headless-ui`
+  内モジュール `format`」として実装することで解消したと判断した。上記
+  コンテキスト消費の評価軸で挙げた懸念（国際化ライブラリの概念持ち込み）
+  は、Intl API・`LocaleProvider` 等の JS ランタイム機構を一切使わない
+  外部依存ゼロの決定的純関数（現在時刻 API 非依存、`Locale` enum による
+  ロケール拡張点を型で明示）として実装することで解消し、専用クレート
+  新設という再評価トリガーの文言そのものよりも軽量な手段で評価軸 4 項目
+  （明示性・決定性・機械検証可能性・コンテキスト消費）を充足したと判断
+  した。`crates/headless-ui/src/format.rs`（[`mod@format`]、
+  `format_byte`/`format_number`/`format_time`/`format_relative_time`）
+  として実装済み（`docs/api/headless-ui-api.md` の「Format ユーティリティ」
+  節参照）。LocaleProvider / AsyncListCollection（en 以外のロケール拡張含む）
+  はイシュー #854・#855 のスコープであり本記録の対象外。
 
 ### 3.24 その他 UI 部品（marquee / chakra `Theme` コンポーネント）（イシュー #735、marquee は #831 で再導入済み）
 
@@ -1105,6 +1124,9 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   第 1 項は本書 §3.15 の非採用判断に対応）
 - `docs/design/opt-in-thin-js-glue.md`（イシュー #376、`fandhe-frontend-wasm-thin` の
   位置づけ・公開 API 凍結表・JS グルー規範。§3.10 の非採用根拠）
+- `crates/headless-ui/src/format.rs`（イシュー #853、§3.23 の Format\* 再導入
+  記録。JS の `Intl` API・`LocaleProvider` に依存しない外部依存ゼロの決定的
+  純関数として byte / number / time / relative-time の 4 種を実装）
 - `crates/wasm-thin/tests/thin_runtime.rs`（イシュー #376、`wasm-thin` の XSS 回帰
   テスト群）
 - `docs/design/xss-escape-wasm-test-design.md`（イシュー #376、JS グルー
