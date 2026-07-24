@@ -87,6 +87,11 @@
 //!   （[`segment_group::SegmentGroup`] が [`radio_group::RadioGroup`] へ
 //!   全委譲するのと同型のパターン）。固有に持つのは画面端の方向を表す
 //!   [`drawer::DrawerPlacement`]（`data-placement`）のみ（#758）。
+//! - [`mod@download_trigger`]: `root`（`a[download]`）1 anatomy パーツ
+//!   （イシュー #828）。ark-ui/chakra-ui の DownloadTrigger（JS の `Blob`
+//!   生成前提）を `a[download]` 属性による宣言的トリガーとして静的部品化
+//!   したもので、[`mod@link`]/[`mod@breadcrumb`] と同型の状態機械なし純粋
+//!   関数のみで構成する。
 //! - [`mod@radio_group`]: Root / Label / Item / ItemControl / ItemText /
 //!   ItemHiddenInput の 6 anatomy パーツと [`state::SingleSelect`] を埋め込んだ
 //!   [`radio_group::RadioGroup`]（#536、親 #534）。クライアント由来の文字列
@@ -417,6 +422,14 @@
 //!   `value`（`data-scope="json-tree-view"`）の 2 パーツのみを追加する。
 //!   ノード識別子は RFC 6901 JSON Pointer で決定的に導出する
 //!   （[`json_tree_view::render_json`] モジュール doc 参照）。
+//! - [`mod@scroll_area`]: Root / Viewport / Content / Scrollbar / Thumb /
+//!   Corner の 6 anatomy パーツ（イシュー #825、`docs/design/component-coverage-map.md`
+//!   保留解除）。[`mod@breadcrumb`]/[`mod@nav_list`] と同じく状態機械を持たない
+//!   自由関数のみで構成する。`viewport` は WAI 慣行に従い `tabindex="0"` を
+//!   固定付与し、`scrollbar`/`corner` はネイティブスクロールバーと意味が
+//!   重複する装飾要素のため `aria-hidden="true"` を固定付与する。JS による
+//!   スクロール位置追従・thumb drag は本イシューのスコープ外（モジュール doc
+//!   参照）。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -434,6 +447,7 @@ pub mod collapsible;
 pub mod combobox;
 pub mod data_attrs;
 pub mod dialog;
+pub mod download_trigger;
 pub mod drawer;
 pub mod editable;
 pub mod field;
@@ -456,6 +470,7 @@ pub mod qr_code;
 mod qr_encode;
 pub mod radio_group;
 pub mod rating_group;
+pub mod scroll_area;
 pub mod segment_group;
 pub mod select;
 pub mod skip_nav;
