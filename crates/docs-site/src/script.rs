@@ -205,6 +205,13 @@ pub const SITE_JS: &str = "\
     return;
   }
 
+  // ヘッダー下端の判定閾値。IntersectionObserver の rootMargin 上端
+  // オフセットと lastPassedTarget のフォールバック判定は、概念上
+  // 同じ「ヘッダー下端を過ぎたか」を表すため単一の定数に統一する
+  // （2 箇所に分散させるとヘッダー高さ変更時に片方だけ更新され
+  // ハイライト境界がずれるリスクがあるため）。
+  var HEADER_OFFSET_PX = 64;
+
   var visible = [];
 
   function clearCurrent() {
@@ -244,7 +251,7 @@ pub const SITE_JS: &str = "\
     var found = null;
     targets.forEach(function (target) {
       var rect = target.getBoundingClientRect();
-      if (Math.sign(rect.top - 64) !== 1) {
+      if (Math.sign(rect.top - HEADER_OFFSET_PX) !== 1) {
         found = target;
       }
     });
@@ -277,7 +284,7 @@ pub const SITE_JS: &str = "\
       }
     });
     update();
-  }, { rootMargin: `-56px 0px -60% 0px` });
+  }, { rootMargin: `-` + HEADER_OFFSET_PX + `px 0px -60% 0px` });
 
   targets.forEach(function (target) {
     observer.observe(target);
