@@ -388,6 +388,14 @@
 //!   開閉状態機械 [`menubar::Menubar`]）。`size`/`color-palette` 軸は持た
 //!   ず、`root` の `data-orientation` に応じた `flex-direction` 切り替えの
 //!   みを提供する。詳細は [`mod@menubar`] rustdoc 参照。
+//! - headless ラッパー（イシュー #993、`docs/design/component-coverage-map.md`
+//!   実装対象、Radix Primitives Navigation Menu 相当）:
+//!   [`mod@navigation_menu`]（Navigation Menu、Root/List/Item/Trigger/
+//!   Content/Link の 6 パーツと [`crate::navigation_menu::NavigationMenu`]
+//!   「高々 1 個の Trigger だけが開く」状態機械）。`data-motion`・viewport
+//!   寸法測定は `docs/policy/intentional-non-adoption.md` §3.25 規則 2 に
+//!   より headless 層へ持ち込まないため本層でも実装しない。詳細は
+//!   [`mod@navigation_menu`] rustdoc 参照。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -568,6 +576,7 @@ pub mod menu;
 pub mod menubar;
 pub mod native_select;
 pub mod nav_list;
+pub mod navigation_menu;
 pub mod number_input;
 pub mod pagination;
 pub mod password_input;

@@ -1233,6 +1233,10 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     headless-ui 側は Root / List / Item / Trigger / Content / Link の
     anatomy とアクティブリンクの `aria-current` までを担い、viewport 測定・
     アニメーション方向の表現が必要な場合は pre-styled-ui 側で扱う。
+    headless 側の実装はイシュー #993（`crates/headless-ui/src/navigation_menu.rs`）
+    で完了した。`viewport` 測定・`data-motion` は同モジュールに一切現れない
+    ことをテストで機械的に固定し（`no_part_outputs_data_motion`）、本規則の
+    適用を実装レベルでも保証している。
 
 - **再評価トリガー**
   - 規則 1: 「バリデーション結果を UI 部品の外側で組み立てる」書き方が
