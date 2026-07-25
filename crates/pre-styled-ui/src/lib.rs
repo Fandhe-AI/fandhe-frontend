@@ -374,6 +374,13 @@
 //!   `segment` はネイティブ `<input>` ではなく `div role="spinbutton"` の
 //!   ため [`recipe::StateCondition::FocusVisible`] で足りる（`splitter`
 //!   の `resize-trigger` と同型）。詳細は [`mod@date_input`] rustdoc 参照。
+//! - headless ラッパー（イシュー #991、`docs/design/component-coverage-map.md`
+//!   保留解除、Radix Primitives Toolbar 相当）: [`mod@toolbar`]（Toolbar、
+//!   Root/Button/Link/Separator/ToggleGroup/ToggleItem の 6 パーツと
+//!   roving tabindex 状態機械 [`toolbar::Toolbar`]）。`size`/`color-palette`
+//!   軸は持たず、`root` の `data-orientation` に応じた `flex-direction`
+//!   切り替えと `separator` の向き別太さの出し分けのみを提供する。詳細は
+//!   [`mod@toolbar`] rustdoc 参照。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -594,6 +601,7 @@ pub mod toast;
 pub mod toggle;
 pub mod toggle_group;
 pub mod toggle_tip;
+pub mod toolbar;
 pub mod tooltip;
 pub mod tour;
 pub mod tree_view;

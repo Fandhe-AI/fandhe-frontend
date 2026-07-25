@@ -529,6 +529,15 @@
 //!   各 `Format*Options::locale` フィールド経由で呼び出し側が明示的に渡す
 //!   値型として実装し、`LocaleProvider` の Context/Provider 機構・グローバ
 //!   ル既定ロケールは持たない。
+//! - [`mod@toolbar`]: Root / Button / Link / Separator / ToggleGroup /
+//!   ToggleItem の 6 anatomy パーツと、roving tabindex（`focused`/
+//!   `item_count`/`loop_focus`/`orientation`）の状態機械 [`toolbar::Toolbar`]
+//!   （イシュー #991、`docs/design/component-coverage-map.md` 保留解除、
+//!   Radix Primitives Toolbar 相当）。押下状態の管理は独自実装せず
+//!   [`toggle_group::ToggleGroup`]/[`toggle_group::MultiToggleGroup`] を
+//!   [`mod@toolbar`] から再エクスポートして再利用する（[`mod@toolbar`]
+//!   モジュール doc 参照）。矢印キーの実 DOM 配線は
+//!   `fandhe-frontend-wasm-full` の後続責務。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -597,6 +606,7 @@ pub mod toast;
 pub mod toggle;
 pub mod toggle_group;
 pub mod toggle_tip;
+pub mod toolbar;
 pub mod tooltip;
 pub mod tour;
 pub mod tree_view;
@@ -692,6 +702,7 @@ pub use toast::{ToastAction, ToastEntry, ToastPlacement, ToastStatus, Toaster};
 pub use toggle::{Toggle, ToggleAction};
 pub use toggle_group::{MultiToggleGroup, ToggleGroup};
 pub use toggle_tip::ToggleTip;
+pub use toolbar::{Toolbar, ToolbarAction};
 pub use tooltip::Tooltip;
 pub use tour::{ContentIds as TourContentIds, Tour, TourAction, TourStatus, TourStep};
 pub use tree_view::{TreeNode, TreeView, TreeViewAction};
