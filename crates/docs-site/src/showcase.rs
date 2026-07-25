@@ -46,18 +46,19 @@
 //! （recipe CSS・サイト骨格 CSS（[`crate::site_theme`] によるビルド時
 //! 生成、出力先 `assets/site.css`）はいずれも変更しない）。
 //!
-//! # ページ単位分解（イシュー #941）
+//! # ページ単位分解（イシュー #941・#943）
 //!
 //! [`generated_content`] は「1 ページ = pre-styled-ui の公開部品 1 件」
 //! （`docs/design/docs-site-component-pages.md` §3）を実現するため、
 //! `path -> 部品セクション` のレジストリ（`ComponentPage` / `COMPONENT_PAGES`）
-//! を持つ。`/components/pre-styled-ui/`（[`PAGE_PATH`]）の集約出力は
-//! Phase 3-3（#943）で当該パスを索引（凡例 + カテゴリ別リンク集）へ
-//! 改組するまでの経過措置であり、索引化と同時に [`showcase_body`] の
-//! 集約は撤去する（URL 自体は既存被リンク〔`docs/api/pre-styled-ui-api.md`
-//! 等〕維持のため変更しない）。`site/nav.toml` への部品ページ登録・原稿
+//! を持つ。`/components/pre-styled-ui/`（[`PAGE_PATH`]）は #943 で索引
+//! （凡例 + カテゴリ別リンク集）へ改組済みであり、Rust 生成コンテンツを
+//! 持たない（URL 自体は既存被リンク〔`docs/api/pre-styled-ui-api.md` 等〕
+//! 維持のため変更していない）。集約レンダリング（旧 `showcase_body`）は
+//! 全部品を横断する回帰テスト専用のテストヘルパーとしてのみ
+//! `#[cfg(test)]` 配下に残す。`site/nav.toml` への部品ページ登録・原稿
 //! スタブ作成は #943、Demo/Features/Anatomy/API Reference の雛形合成は
-//! #942 の責務であり、本モジュールは器（レジストリと 2 段照会）のみを
+//! #942 の責務であり、本モジュールは器（レジストリと照会 API）のみを
 //! 提供する。
 
 use fandhe_frontend_core::{div, el, text, Node};
@@ -170,9 +171,12 @@ use fandhe_frontend_pre_styled_ui::{
     OpenState, Orientation, Size, StyleSheet, StylesheetError,
 };
 
-/// ショーケースページの `page.path`（`site/nav.toml` の宣言と一致させる契約。
-/// 乖離すると生成コンテンツが載らない素の Markdown ページになるため、
-/// `tests/site_showcase.rs` が実サイトビルドで実出力を検証する）。
+/// 索引ページ（凡例 + カテゴリ別リンク集）の `page.path`。`site/nav.toml`
+/// の `[[section.page]]` 宣言と一致させる契約（乖離を防ぐ用途で
+/// `tests/site_nav.rs` / `tests/site_showcase.rs` が参照する）。イシュー
+/// #943 で索引ページへ改組済みのため、本モジュールはこのページ向けに
+/// Rust 生成コンテンツを持たない（[`generated_content`] は常に `None` を
+/// 返す。索引の本文はすべて `site/components-pre-styled-ui.md` 側で持つ）。
 pub const PAGE_PATH: &str = "/components/pre-styled-ui/";
 
 /// ショーケース専用 CSS の出力先（`out_dir` 起点の相対パス）。
@@ -263,10 +267,10 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 /// [`COMPONENT_PAGES`] の各要素が「pre-styled-ui の公開部品 1 件 = ページ
 /// 1 件」（`docs/design/docs-site-component-pages.md` §3）を表す。
 /// [`generated_content`] は `path` を鍵に `render` を呼び出して当該部品の
-/// デモ節のみを返し、[`showcase_body`]（集約ページ用）は本テーブルを
-/// 走査して全節を連結する。両者が同一テーブルから導出されるため、
-/// 「集約ページにだけ節がある／レジストリにだけ登録がある」という
-/// ドリフトが構造的に起こらない。
+/// デモ節のみを返す。テスト専用の集約ヘルパー（`tests` モジュール内
+/// `showcase_body`）も本テーブルを走査して全節を連結するため、両者が
+/// 同一テーブルから導出され「集約側にだけ節がある／レジストリにだけ
+/// 登録がある」というドリフトが構造的に起こらない。
 struct ComponentPage {
     /// `/components/<kebab-name>/`。`site/nav.toml` の `page.path`（#943 で
     /// 登録）と一致させる契約で、`nav::validate_page_path` のセグメント
@@ -276,9 +280,9 @@ struct ComponentPage {
     render: fn() -> Node,
 }
 
-/// 部品ページのレジストリ本体（88 件、`showcase_body()` の従来の並び順を
-/// 保つ）。原則として `docs/design/docs-site-component-pages.md` の台帳に
-/// 掲載済みの部品のみを登録し、掲載順は集約ページの表示順にのみ効く
+/// 部品ページのレジストリ本体（88 件、旧集約ページの並び順を保つ）。
+/// 原則として `docs/design/docs-site-component-pages.md` の台帳に掲載済み
+/// の部品のみを登録し、掲載順はテスト専用集約ヘルパーの表示順にのみ効く
 /// （#943 の nav 上の並びはカテゴリ別で、本テーブルの順序に依存しない）。
 const COMPONENT_PAGES: &[ComponentPage] = &[
     ComponentPage {
@@ -649,7 +653,7 @@ pub fn component_page_paths() -> impl Iterator<Item = &'static str> {
 /// 包む。[`SHOWCASE_LAYOUT_CSS`] のオーバーレイ中和・見出しリセット等は
 /// すべて `.pre-styled-showcase` 起点のセレクタであり、このラッパを
 /// 外すと Dialog/Menu/Toast/Tour 等の掲示がページ全体を覆う回帰になる
-/// （集約ページ [`showcase_body`] も同じラッパを共有する）。
+/// （テスト専用集約ヘルパー `showcase_body` も同じラッパを共有する）。
 fn showcase_wrapper(sections: Vec<Node>) -> Node {
     div(vec![("class", "pre-styled-showcase")], sections)
 }
@@ -657,21 +661,14 @@ fn showcase_wrapper(sections: Vec<Node>) -> Node {
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
 /// 追記する `Node` 木を返す。
 ///
-/// 照会順は 2 段:
-///
-/// 1. [`PAGE_PATH`]（`/components/pre-styled-ui/` 集約ページ）: 経過措置。
-///    Phase 3-3（#943）で `/components/pre-styled-ui/` を索引（凡例 +
-///    カテゴリ別リンク集）へ改組するまで [`showcase_body`] の集約出力を
-///    維持する。索引化と同時にこの分岐は撤去する（URL 自体は既存被リンク
-///    〔`docs/api/pre-styled-ui-api.md` 等〕維持のため変更しない）。
-/// 2. [`COMPONENT_PAGES`] レジストリ: 部品単位のページ（`/components/<kebab>/`）。
-///    #942 の `component_page.rs`（Demo/Features/Anatomy/API Reference の
-///    雛形合成）が本関数の戻り値を Demo 節として利用する見込み。
+/// [`COMPONENT_PAGES`] レジストリ（部品単位のページ、`/components/<kebab>/`）
+/// のみを照会する。[`PAGE_PATH`]（索引ページ）はレジストリに含まれないため
+/// 常に `None` を返す（イシュー #943 で索引ページへ改組済み。索引の本文は
+/// `site/components-pre-styled-ui.md` 側の Markdown のみで完結する）。
+/// `crate::component_page::generated_content`（#942）が本関数の戻り値を
+/// Demo 節として利用する。
 #[must_use]
 pub fn generated_content(page_path: &str) -> Option<Node> {
-    if page_path == PAGE_PATH {
-        return Some(showcase_body());
-    }
     COMPONENT_PAGES
         .iter()
         .find(|entry| entry.path == page_path)
@@ -5576,31 +5573,31 @@ fn palettes() -> [(ColorPalette, &'static str); 5] {
     ]
 }
 
-/// ショーケース本文全体（Markdown 本文の直後へ追記される `Node` 木）。
-///
-/// [`COMPONENT_PAGES`] レジストリを登録順に走査して全節を連結する
-/// （#941 でハードコード列挙からテーブル走査へ置き換え、レジストリと
-/// 集約ページの構造的乖離を排除した）。経過措置としての位置づけは
-/// [`generated_content`] rustdoc 参照。
-fn showcase_body() -> Node {
-    showcase_wrapper(
-        COMPONENT_PAGES
-            .iter()
-            .map(|entry| (entry.render)())
-            .collect(),
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use fandhe_frontend_core::render;
 
+    /// 全部品を横断する回帰テスト専用のテストヘルパー（旧・集約ページ
+    /// `showcase_body`、イシュー #943 でページ生成用途からは撤去済み）。
+    /// [`COMPONENT_PAGES`] レジストリを登録順に走査して全節を連結し、
+    /// data-scope 網羅性・WAI-ARIA 属性・recipe CSS 網羅性の各回帰テストが
+    /// 全部品を一括レンダリングして検査できるようにする。本番のページ
+    /// 生成（[`generated_content`]）はこの関数を経由しない。
+    fn showcase_body() -> Node {
+        showcase_wrapper(
+            COMPONENT_PAGES
+                .iter()
+                .map(|entry| (entry.render)())
+                .collect(),
+        )
+    }
+
     #[test]
-    fn generated_content_matches_aggregate_showcase_path() {
-        // 経過措置（Phase 3-3・#943 まで維持）: 集約ページは従来どおり
-        // 全部品を返す。
-        assert!(generated_content(PAGE_PATH).is_some());
+    fn generated_content_returns_none_for_index_page() {
+        // イシュー #943: 索引ページ（PAGE_PATH）は Rust 生成コンテンツを
+        // 持たない（本文はすべて site/components-pre-styled-ui.md 側）。
+        assert!(generated_content(PAGE_PATH).is_none());
     }
 
     #[test]

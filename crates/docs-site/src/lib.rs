@@ -25,8 +25,9 @@
 //!   として受け取り、Features/Anatomy/API Reference/Examples/Accessibility
 //!   と合わせた 6 節（H2 固定）へ組み立て直す。Anatomy・`data-*` 属性表・
 //!   CSS 変数表は headless-ui/pre-styled-ui の出力から機械導出し、[`build`]
-//!   は `page.path` 照会をこのモジュール経由に切り替える（集約ページ
-//!   `showcase::PAGE_PATH` のみ [`showcase::generated_content`] へ逐語委譲）
+//!   は `page.path` 照会をこのモジュール経由に切り替える（索引ページ
+//!   `showcase::PAGE_PATH` はイシュー #943 で改組済みのため Rust 生成
+//!   コンテンツを持たず `None` を返す）
 //! - [`admonition`]: `> [!NOTE]` 等の admonition 構文（[`markdown`] が検出し
 //!   pre-styled-ui の alert 部品で描画する）が参照する専用 CSS の組み立てと、
 //!   ページが admonition を含むかどうかの判定（イシュー #715）

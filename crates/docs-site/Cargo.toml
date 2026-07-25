@@ -16,9 +16,10 @@ publish = false
 # 一切追加しないため、既存の計測値（dist-server 実測: 21 件/深さ 5）にも影響しない
 # （イシュー #465 実装計画）。
 #
-# pre-styled-ui は UI コンポーネントショーケースページ（src/showcase.rs、
-# site/nav.toml の /components/pre-styled-ui/）が styled 部品の実レンダリングと
-# StyleSheet による CSS 生成に使う。ラッパー呼び出しに必要な headless 型
+# pre-styled-ui は部品ページ群（src/showcase.rs・src/component_page.rs、
+# site/nav.toml の /components/<kebab>/ 各ページ、イシュー #943）が styled
+# 部品の実レンダリングと StyleSheet による CSS 生成に使う。ラッパー呼び出しに
+# 必要な headless 型
 # （`OpenState` / `Orientation`）は pre-styled-ui のルート再エクスポート
 # （イシュー #685）経由で得るため、headless-ui への直接依存は持たない
 # （イシュー #693。型は path 依存で単一クレート実体に統一される）。

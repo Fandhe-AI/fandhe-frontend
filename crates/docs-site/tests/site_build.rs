@@ -201,7 +201,11 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
     let pages: &[(&str, bool)] = &[
         ("index.html", false),
         ("guides/view-transitions/index.html", false),
-        ("components/pre-styled-ui/index.html", true),
+        // イシュー #943: /components/pre-styled-ui/ は索引ページへ改組済みで
+        // Rust 生成コンテンツ（pre-styled-ui.css 配線）を持たない。ショーケース
+        // CSS 配線の代表は部品ページ（dialog）側で確認する。
+        ("components/pre-styled-ui/index.html", false),
+        ("components/dialog/index.html", true),
         ("api/component-api/index.html", false),
     ];
 
