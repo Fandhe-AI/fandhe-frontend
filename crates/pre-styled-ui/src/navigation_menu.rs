@@ -141,9 +141,11 @@ fn recipe() -> SlotRecipe {
                 decl("color", "var(--fandhe-color-accent-fg)"),
             ],
         )
-        // disabled でもフォーカス順序には残るため（headless 層の設計判断を
-        // 踏襲、[`crate::menubar`]/[`crate::toolbar`] と同判断）、視覚的にのみ
-        // 操作不能を示す。
+        // headless 層の navigation_menu trigger はネイティブ `disabled` 属性を
+        // 付与する設計（[`crate::accordion`] の item_trigger と同型）であり、
+        // disabled 項目もフォーカス順序に残す [`crate::menubar`]/[`crate::toolbar`]
+        // （aria-disabled のみでネイティブ disabled を付与しない設計）とは逆に
+        // フォーカス順序から除外される。ここでは視覚的にのみ操作不能を示す。
         .state(
             "trigger",
             StateCondition::Attr("data-disabled"),
