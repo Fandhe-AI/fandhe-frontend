@@ -54,6 +54,9 @@
 //!           （`min-width: 768px` では非表示）
 //!         nav.sidebar              … `nav::sidebar()` の実出力（headless nav_list）
 //!           a[aria-current="page"] … 現在ページのリンク
+//!           details.docs-nav-group（`[[section.group]]` ごと、イシュー #940）
+//!             summary.docs-nav-group-summary … カテゴリ見出し（プレーンテキスト）
+//!             ul.docs-nav-group-list         … グループ配下ページ（nav_list list 再利用）
 //!       main.docs-main            … 中央コンテンツカラムのラッパー
 //!         article.docs-content    … Markdown レンダラの出力 + `nav.prev-next`
 //!           - `pre > code.language-*` … フェンス付きコードブロック
@@ -558,6 +561,61 @@ body {\n\
   color: var(--fandhe-color-accent);\n\
   border-left-color: var(--fandhe-color-accent);\n\
   font-weight: var(--fandhe-font-font-weight-semibold);\n\
+}\n\
+\n\
+/*\n\
+ * ---- サイドバー内カテゴリ階層（details/summary、イシュー #940） ----\n\
+ *\n\
+ * `crate::nav::sidebar()` のグループ描画（`[[section.group]]`）が出力する\n\
+ * `details.docs-nav-group` / `.docs-nav-group-summary` / `.docs-nav-group-list`\n\
+ * の骨格 CSS。`.docs-nav-group-list` は nav_list `list()` を再利用しており\n\
+ * `[data-scope=\"nav-list\"][data-part=\"list\"]`（詳細度 0,2,0）と競合するため、\n\
+ * 直下ページ `ul`（上記）と同型に `.docs-sidebar nav.sidebar ...`\n\
+ * （詳細度 0,2,1 以上）で確実に上書きする（#908/PR #919 で実際に踏んだ\n\
+ * 詳細度の罠の再発防止）。\n\
+ */\n\
+.docs-sidebar nav.sidebar details.docs-nav-group {\n\
+  margin: 0.2rem 0;\n\
+  border-top: 1px solid var(--fandhe-color-border);\n\
+  padding-top: 0.2rem;\n\
+}\n\
+\n\
+.docs-sidebar nav.sidebar .docs-nav-group-summary {\n\
+  cursor: pointer;\n\
+  list-style: none;\n\
+  padding: 0.32rem 0.5rem;\n\
+  border-radius: 0.4rem;\n\
+  font-weight: var(--fandhe-font-font-weight-semibold);\n\
+  font-size: 0.72rem;\n\
+  letter-spacing: 0.06em;\n\
+  text-transform: uppercase;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+}\n\
+\n\
+/* Chrome/Safari のデフォルト三角マーカーを消し、上記 uppercase 見出し体裁と\n\
+ * 揃える（`::marker`（Firefox 系）と `::-webkit-details-marker`\n\
+ * （Chromium/Safari 系）の両方を明示的に消す必要がある）。 */\n\
+.docs-sidebar nav.sidebar .docs-nav-group-summary::marker,\n\
+.docs-sidebar nav.sidebar .docs-nav-group-summary::-webkit-details-marker {\n\
+  display: none;\n\
+}\n\
+\n\
+.docs-sidebar nav.sidebar .docs-nav-group-summary:hover {\n\
+  background: var(--fandhe-color-bg-subtle);\n\
+}\n\
+\n\
+.docs-sidebar nav.sidebar .docs-nav-group-summary:focus-visible {\n\
+  outline: 2px solid var(--fandhe-color-accent);\n\
+  outline-offset: 2px;\n\
+}\n\
+\n\
+.docs-sidebar nav.sidebar .docs-nav-group-list {\n\
+  margin: 0.1rem 0 0.2rem;\n\
+  padding: 0;\n\
+  padding-left: 0.6rem;\n\
+  display: flex;\n\
+  flex-direction: column;\n\
+  gap: 0.05rem;\n\
 }\n\
 \n\
 /* ---- 本文カラム ---- */\n\
@@ -1177,6 +1235,9 @@ mod tests {
             ".docs-toc",
             ".docs-toc-aside",
             "nav.prev-next",
+            ".docs-nav-group",
+            ".docs-nav-group-summary",
+            ".docs-nav-group-list",
         ] {
             assert!(css.contains(selector), "missing selector: {selector}");
         }
@@ -1229,6 +1290,26 @@ mod tests {
         assert!(!css.contains("\n.docs-header-dropdown {"));
         assert!(!css.contains("\n.docs-header-dropdown a {"));
         assert!(!css.contains("\n.docs-header-dropdown a[aria-current=\"page\"] {"));
+    }
+
+    #[test]
+    fn stylesheet_nav_group_list_selectors_outrank_nav_list_data_scope_rules() {
+        // ヘッダードロップダウン（#908 PR #919）と同型の詳細度の罠回帰テスト
+        // （イシュー #940）: `.docs-nav-group-list` は nav_list `list()`
+        // （`[data-scope="nav-list"][data-part="list"]`、詳細度 0,2,0）を
+        // 再利用しているため、素の class セレクタ単体（0,1,0）では競り負ける。
+        // サイドバー直下ページ `ul`（`.docs-sidebar nav.sidebar ul`）と同型に
+        // `.docs-sidebar nav.sidebar .docs-nav-group-list`
+        // （詳細度 0,3,0 以上）へ底上げしたことを固定する。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        assert!(
+            css.contains(".docs-sidebar nav.sidebar .docs-nav-group-list {"),
+            "missing high-specificity selector: .docs-sidebar nav.sidebar .docs-nav-group-list {{"
+        );
+        // 弱い（負ける）セレクタが単独で残っていないことも固定する
+        // （うっかり両方残して二重管理にする回帰を防ぐ）。
+        assert!(!css.contains("\n.docs-nav-group-list {"));
     }
 
     #[test]

@@ -755,32 +755,119 @@ fn href(nav: &Nav, path: &str) -> String {
 /// 順序・カスケード上の関係はイシュー #910・`site_theme` モジュール doc
 /// 参照。
 ///
+/// # カテゴリ階層描画（イシュー #940）
+///
+/// `section.groups`（`[[section.group]]`、イシュー #939）はセクション見出し
+/// 直下ページ一覧の**後ろ**に、プレーン HTML の `<details>`/`<summary>` で
+/// 折りたたみ可能なカテゴリとして描画する（JS を一切使わない。受け入れ
+/// 条件「JS 無効環境でもナビゲーションが成立する」を `<details>` の
+/// ネイティブ挙動のみで満たす）。DOM 構造:
+///
+/// ```text
+/// nav.sidebar[aria-label="Documentation"]     … nav_list root（既存）
+///   h2                                        … セクション見出し（既存）
+///   ul                                        … 直下ページ（section.pages が非空のときのみ）
+///     li > a[href]（現在ページのみ aria-current="page" + data-current）
+///   details.docs-nav-group[open?]             … グループ 1 件 = details 1 件（宣言順）
+///     summary.docs-nav-group-summary          … グループ見出し（プレーンテキスト）
+///     ul.docs-nav-group-list                  … nav_list list を再利用
+///       li > a[href]
+/// ```
+///
+/// 確定した設計判断（再検討しない。詳細は #940 実装計画 §3.1 参照）:
+///
+/// - `<details>` は `<ul>` の子にできない（HTML 仕様）ため、`nav.sidebar`
+///   の直接の子として直下ページ `ul` の後ろに置く。これは
+///   [`Section::all_pages`] が定める「直下ページ → グループ（宣言順）→
+///   グループ内ページ（宣言順）」の描画順契約そのもの。
+/// - 直下ページが 0 件のセクションでは `ul` を出力しない（空 `ul` を
+///   出さない。#939 で `EmptySection` の判定が `pages.is_empty() &&
+///   groups.is_empty()` へ是正され「グループのみのセクション」が正当な
+///   構成になったため必須）。
+/// - グループ配下の `ul`/`li`/`a` は [`list`]/[`item`]/[`nav_link`]
+///   （nav_list anatomy）を再利用する。基底 CSS（list-style 除去・
+///   `aria-current` の accent 色）をそのまま継承させ、`aria-current`
+///   付与ロジックを二重実装しないため。
+/// - `<summary>` の中身はプレーンテキストのみ（`h3` を入れない）。
+///   `<summary>` は既にディスクロージャウィジェットとしてラベルを読み
+///   上げるため、見出し要素を追加するとスクリーンリーダー実装間で挙動が
+///   割れる。これは [`header_nav`] が `docs-header-trigger` へ
+///   `role`/`aria-expanded`/`aria-haspopup` を付けないとした判断と同じ
+///   立場（同関数 rustdoc 参照）。
+/// - `open` 属性は `group.pages` に `current_path` を含むグループにのみ
+///   `("open", "")`（boolean 属性として正当）で付与する。どのグループにも
+///   一致しない場合は全グループを閉じたまま（直下ページが現在ページの
+///   ケース等）。`<details name=...>`（排他アコーディオン）は使わない
+///   （ブラウザ対応が新しく、複数グループを同時に開く自由を奪うため）。
+/// - `header_nav` は本イシューのスコープ外でフラット列挙のまま（同関数の
+///   rustdoc・#939 に既存記載のとおり）。
+///
 /// タイトル・href はすべて headless 層 → [`fandhe_frontend_core::render`]
-/// の既定エスケープ（REQ-1）を必ず経由する。HTML 文字列の直接組み立て・
-/// `raw_html()` は使用しない。
+/// の既定エスケープ（REQ-1）を必ず経由する。`<details>`/`<summary>` も
+/// [`fandhe_frontend_core::el`] のプレーン HTML 組み立てで、HTML 文字列の
+/// 直接組み立て・`raw_html()` は使用しない。
 pub fn sidebar(nav: &Nav, current_path: &str) -> Node {
     let mut section_nodes: Vec<Node> = Vec::new();
     for section in &nav.sections {
-        let mut items: Vec<Node> = Vec::new();
-        // `section.all_pages()`（直下ページ → グループ配下ページの順）で
-        // フラットに列挙する。階層見出し付きの描画はイシュー #940 が担う。
-        // `site/nav.toml` は本 PR でグループを未登録のため、この置換で
-        // 出力・class は変化しない（イシュー #939）。
-        for page in section.all_pages() {
-            let link_href = href(nav, &page.path);
-            let is_current = page.path == current_path;
-            let a = nav_link(
-                &link_href,
-                is_current,
-                vec![],
-                vec![text(page.title.clone())],
-            );
-            items.push(item(vec![], vec![a]));
-        }
         section_nodes.push(heading(vec![], vec![text(section.title.clone())]));
-        section_nodes.push(list(vec![], items));
+
+        // 直下ページ（`section.pages`）が非空のときのみ `ul` を出力する。
+        // フラット列挙用の `section.all_pages()` はここでは使わない（グループ
+        // 見出しを挟んだ階層描画には直下ページとグループを個別に扱う必要が
+        // あるため。順序契約自体は `all_pages()` と同一に保つ）。
+        if !section.pages.is_empty() {
+            let mut items: Vec<Node> = Vec::new();
+            for page in &section.pages {
+                let link_href = href(nav, &page.path);
+                let is_current = page.path == current_path;
+                let a = nav_link(
+                    &link_href,
+                    is_current,
+                    vec![],
+                    vec![text(page.title.clone())],
+                );
+                items.push(item(vec![], vec![a]));
+            }
+            section_nodes.push(list(vec![], items));
+        }
+
+        for group in &section.groups {
+            section_nodes.push(group_node(nav, group, current_path));
+        }
     }
     nav_list_root("Documentation", vec![("class", "sidebar")], section_nodes)
+}
+
+/// [`sidebar`] からグループ 1 件（`[[section.group]]`）を `<details>` へ
+/// 変換する private ヘルパ。`open` は `group.pages` が `current_path` を
+/// 含む場合にのみ付与する（[`sidebar`] rustdoc「カテゴリ階層描画」参照）。
+fn group_node(nav: &Nav, group: &Group, current_path: &str) -> Node {
+    let is_open = group.pages.iter().any(|p| p.path == current_path);
+    let mut items: Vec<Node> = Vec::new();
+    for page in &group.pages {
+        let link_href = href(nav, &page.path);
+        let is_current = page.path == current_path;
+        let a = nav_link(
+            &link_href,
+            is_current,
+            vec![],
+            vec![text(page.title.clone())],
+        );
+        items.push(item(vec![], vec![a]));
+    }
+    let summary = el(
+        "summary",
+        vec![("class", "docs-nav-group-summary")],
+        vec![text(group.title.clone())],
+    );
+    let group_list = list(vec![("class", "docs-nav-group-list")], items);
+    let mut attrs = vec![("class", "docs-nav-group")];
+    if is_open {
+        // boolean 属性 `open`。`el` は空文字列値として `open=""` を出力する
+        // （HTML5 boolean attribute として正当）。
+        attrs.push(("open", ""));
+    }
+    el("details", attrs, vec![summary, group_list])
 }
 
 /// ヘッダーのセクション別ドロップダウンメニュー [`Node`] を生成する
@@ -835,8 +922,10 @@ pub fn header_nav(nav: &Nav, current_path: &str) -> Node {
     let mut groups: Vec<Node> = Vec::new();
     for section in &nav.sections {
         let mut dropdown_items: Vec<Node> = Vec::new();
-        // sidebar() と同様、section.all_pages() でフラットに列挙する
-        // （イシュー #939、階層描画は #940）。
+        // section.all_pages() でフラットに列挙する（イシュー #939）。
+        // sidebar() はイシュー #940 でカテゴリ階層描画へ切り替えたが、
+        // header_nav は本イシューのスコープ外として意図的にフラットのまま
+        // 据え置く（[`sidebar`] rustdoc「カテゴリ階層描画」節参照）。
         for page in section.all_pages() {
             let link_href = href(nav, &page.path);
             let is_current = page.path == current_path;
