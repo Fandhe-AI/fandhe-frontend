@@ -37,6 +37,8 @@
 - [Link](./components/link.md)
 - [List](./components/list.md)
 - [Mark](./components/mark.md)
+- [Quote](./components/quote.md)
+- [Strong](./components/strong.md)
 - [Text](./components/text.md)
 
 ## Forms

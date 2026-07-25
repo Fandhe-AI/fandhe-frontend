@@ -178,11 +178,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // （`site/components/menubar.md`）が加わり、122 → 123 になった。
     // イシュー #993 で Navigation Menu
     // （`site/components/navigation-menu.md`）が加わり、123 → 124 になった。
+    // イシュー #995 で Quote / Strong の 2 ページが加わり、124 → 126 になった。
     // イシュー #996 で Tab Nav（`site/components/tab-nav.md`）が加わり、
-    // 124 → 125 になった。
+    // 126 → 127 になった。
     assert_eq!(
         report.written.len(),
-        125,
+        127,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -200,11 +201,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
         "nav 登録ページ数と生成ページ数が一致しない"
     );
 
-    // /components/ 配下は部品ページ 103 件（イシュー #991 で Toolbar が
+    // /components/ 配下は部品ページ 105 件（イシュー #991 で Toolbar が
     // 加わり 99 → 100、イシュー #992 で Menubar が加わり 100 → 101、
-    // イシュー #993 で Navigation Menu が加わり 101 → 102、イシュー #996 で
-    // Tab Nav が加わり 102 → 103） + 索引ページ /components/pre-styled-ui/
-    // 1 件の計 104 件（イシュー #943）。
+    // イシュー #993 で Navigation Menu が加わり 101 → 102、イシュー #995 で
+    // Quote / Strong が加わり 102 → 104、イシュー #996 で Tab Nav が
+    // 加わり 104 → 105） + 索引ページ /components/pre-styled-ui/
+    // 1 件の計 106 件（イシュー #943）。
     // Phase 4 以降で部品が増減したら本値の更新が必要になる
     // （fail-closed。黙って減っても気付けるようにする意図）。
     let components_dir = out.0.join("components");
@@ -214,8 +216,8 @@ fn build_site_succeeds_for_the_real_repository_site() {
         .filter(|p| p.starts_with(&components_dir))
         .count();
     assert_eq!(
-        component_pages, 104,
-        "/components/ 配下の生成ページ数（部品 103 + 索引 1）"
+        component_pages, 106,
+        "/components/ 配下の生成ページ数（部品 105 + 索引 1）"
     );
 
     // アセットは site.css / admonition.css / skip-nav.css / site.js /

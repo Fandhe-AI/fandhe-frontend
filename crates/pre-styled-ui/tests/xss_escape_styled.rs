@@ -77,6 +77,7 @@ use fandhe_frontend_pre_styled_ui::password_input::{
 use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
 use fandhe_frontend_pre_styled_ui::pin_input::{self, PinInputKind};
 use fandhe_frontend_pre_styled_ui::qr_code;
+use fandhe_frontend_pre_styled_ui::quote::quote;
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingItemFlags};
 use fandhe_frontend_pre_styled_ui::scroll_area;
@@ -89,6 +90,7 @@ use fandhe_frontend_pre_styled_ui::splitter;
 use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 use fandhe_frontend_pre_styled_ui::steps;
+use fandhe_frontend_pre_styled_ui::strong::strong;
 use fandhe_frontend_pre_styled_ui::tags_input;
 use fandhe_frontend_pre_styled_ui::text::{text as styled_text, TextProps};
 use fandhe_frontend_pre_styled_ui::textarea::{self, TextareaProps};
@@ -2818,9 +2820,10 @@ fn skip_nav_id_children_and_attrs_are_escaped_for_all_payloads() {
     }
 }
 
-/// (14) タイポグラフィ静的部品 6 種（イシュー #771: Heading / Text / Em /
-/// Mark / Blockquote / List）: children テキスト経路・呼び出し側 attrs 経路・
-/// `class` 除去経路のすべてで既定エスケープ（REQ-1）が貫通することを固定する。
+/// (14) タイポグラフィ静的部品 8 種（イシュー #771: Heading / Text / Em /
+/// Mark / Blockquote / List。イシュー #995 で Quote / Strong を追加）:
+/// children テキスト経路・呼び出し側 attrs 経路・`class` 除去経路のすべてで
+/// 既定エスケープ（REQ-1）が貫通することを固定する。
 #[test]
 fn typography_static_parts_are_escaped_for_all_payloads() {
     for payload in payloads::all() {
@@ -2948,6 +2951,24 @@ fn typography_static_parts_are_escaped_for_all_payloads() {
         );
         assert_eq!(html.matches("aria-hidden=").count(), 1);
         assert!(html.contains(r#"aria-hidden="true""#));
+
+        // quote::quote: variant を持たないため class 出力なし。children・attrs 経路のみ。
+        let html = render(&quote(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "quote::quote children コンテキスト");
+
+        let html = render(&quote(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(payload, &html, "quote::quote 呼び出し側 attrs コンテキスト");
+
+        // strong::strong: variant を持たないため class 出力なし。children・attrs 経路のみ。
+        let html = render(&strong(vec![], vec![text(payload)]));
+        assert_payload_is_escaped(payload, &html, "strong::strong children コンテキスト");
+
+        let html = render(&strong(vec![("data-testid", payload)], vec![]));
+        assert_payload_is_escaped(
+            payload,
+            &html,
+            "strong::strong 呼び出し側 attrs コンテキスト",
+        );
     }
 }
 

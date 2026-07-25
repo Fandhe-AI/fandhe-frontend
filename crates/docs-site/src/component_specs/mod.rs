@@ -23,8 +23,11 @@
 //! - [`forms`]: Forms カテゴリ 26 件（イシュー #945。当初登録した 31 件の
 //!   うち 5 件は #948 と path が重複するスタブだったため PR #982 レビュー
 //!   指摘を受けて削除済み、`forms.rs` モジュール doc 参照）
+//! - [`typography`]: Typography カテゴリ追補 2 件（イシュー #995、Quote /
+//!   Strong。既存 6 件は [`crate::component_page_specs_948`] が供給済み）
 //!
-//! 後続 issue（#946〜#948）が `interactive` / `data_display` /
-//! `typography` 等を追加する想定。
+//! 後続 issue（#946〜#947）が `interactive` / `data_display` 等を追加する
+//! 想定。
 
 pub mod forms;
+pub mod typography;
