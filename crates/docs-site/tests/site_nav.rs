@@ -167,19 +167,21 @@ fn site_nav_has_no_duplicate_paths_or_sources() {
     let nav = load_nav();
     let mut seen_paths = std::collections::BTreeSet::new();
     let mut seen_sources = std::collections::BTreeSet::new();
-    for section in &nav.sections {
-        for page in &section.pages {
-            assert!(
-                seen_paths.insert(page.path.clone()),
-                "duplicate page.path: {}",
-                page.path
-            );
-            assert!(
-                seen_sources.insert(page.source.clone()),
-                "duplicate page.source: {}",
-                page.source
-            );
-        }
+    // `nav.all_pages()`（イシュー #939 の唯一の正規走査経路）で走査する。
+    // `section.pages` を直接走査すると `[[section.group]]` 配下のページが
+    // 対象から漏れ、#943 でグループが登録された際に重複検知が沈黙する
+    // （Bugbot 指摘、PR #968）。
+    for page in nav.all_pages() {
+        assert!(
+            seen_paths.insert(page.path.clone()),
+            "duplicate page.path: {}",
+            page.path
+        );
+        assert!(
+            seen_sources.insert(page.source.clone()),
+            "duplicate page.source: {}",
+            page.source
+        );
     }
 }
 
@@ -189,18 +191,20 @@ fn site_nav_has_no_duplicate_paths_or_sources() {
 fn site_nav_sources_other_than_site_index_exist() {
     let root = repo_root();
     let nav = load_nav();
-    for section in &nav.sections {
-        for page in &section.pages {
-            if page.source == "site/index.md" {
-                continue;
-            }
-            let full_path = root.join(&page.source);
-            assert!(
-                full_path.is_file(),
-                "expected source file to exist: {}",
-                page.source
-            );
+    // `nav.all_pages()`（イシュー #939 の唯一の正規走査経路）で走査する。
+    // `section.pages` を直接走査すると `[[section.group]]` 配下のページが
+    // 対象から漏れ、#943 でグループが登録された際に実在確認が沈黙する
+    // （Bugbot 指摘、PR #968）。
+    for page in nav.all_pages() {
+        if page.source == "site/index.md" {
+            continue;
         }
+        let full_path = root.join(&page.source);
+        assert!(
+            full_path.is_file(),
+            "expected source file to exist: {}",
+            page.source
+        );
     }
 }
 
