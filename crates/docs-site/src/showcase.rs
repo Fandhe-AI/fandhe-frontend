@@ -131,6 +131,7 @@ use fandhe_frontend_pre_styled_ui::list::{self, ListType, ListVariant};
 use fandhe_frontend_pre_styled_ui::listbox;
 use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
 use fandhe_frontend_pre_styled_ui::marquee::{self, MarqueeDirection, MarqueeProps};
+use fandhe_frontend_pre_styled_ui::menubar::{self, Menubar};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
@@ -652,6 +653,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         path: "/components/toolbar/",
         render: toolbar_section,
     },
+    ComponentPage {
+        path: "/components/menubar/",
+        render: menubar_section,
+    },
 ];
 
 /// [`COMPONENT_PAGES`] に登録済みの部品ページパスを登録順に返す。
@@ -828,6 +833,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::toggle::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::toggle_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::toolbar::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::menubar::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -4373,6 +4379,106 @@ fn toolbar_section() -> Node {
     )
 }
 
+/// Menubar 節（イシュー #992）: root/menu/trigger/positioner/content/item/
+/// item-group/item-group-label/separator/sub-trigger/sub-content の 11
+/// anatomy パーツすべてを 1 つのノード木で描画する（Anatomy 節はこの
+/// デモから機械導出されるため、11 パーツすべてを網羅する必要がある。
+/// `crates/headless-ui/src/menubar.rs` モジュール doc 参照）。File Menu を
+/// 開いた状態で表示し、その中に「開いている Menu を跨いだ左右移動」の
+/// 対象であるサブメニュー（Export）を組み込む。サブメニューの開閉状態は
+/// `Menubar` 自身ではなく [`OpenState`] を直接注入する（headless-ui への
+/// 直接依存を持たない docs-site の制約上、[`fandhe_frontend_headless_ui::menu::Menu`]
+/// は使わず、モジュール doc「`menu` mod 再利用の内訳」が示す「サブメニュー
+/// 状態は呼び出し側が別インスタンスとして持つ」設計をここでは
+/// `OpenState` 値で直接表現する）。
+fn menubar_section() -> Node {
+    let bar = Menubar::new(0, 2, Some(0), false, Orientation::Horizontal);
+    let export_submenu_state = OpenState::Closed;
+
+    let node = bar.root(
+        "App menu",
+        vec![],
+        vec![
+            bar.menu(
+                0,
+                vec![],
+                vec![
+                    bar.trigger(
+                        0,
+                        false,
+                        false,
+                        Some("menubar-file-content"),
+                        vec![],
+                        vec![text("File")],
+                    ),
+                    bar.positioner(
+                        0,
+                        vec![],
+                        vec![bar.content(
+                            0,
+                            Some("menubar-file-content"),
+                            None,
+                            vec![],
+                            vec![
+                                menubar::item_group(
+                                    Some("menubar-recent-label"),
+                                    vec![],
+                                    vec![
+                                        menubar::item_group_label(
+                                            Some("menubar-recent-label"),
+                                            vec![],
+                                            vec![text("Recent")],
+                                        ),
+                                        menubar::item(
+                                            "report.md",
+                                            false,
+                                            true,
+                                            vec![],
+                                            vec![text("report.md")],
+                                        ),
+                                    ],
+                                ),
+                                menubar::separator(vec![], vec![]),
+                                menubar::sub_trigger(
+                                    export_submenu_state,
+                                    false,
+                                    false,
+                                    Some("menubar-export-sub-content"),
+                                    vec![],
+                                    vec![text("Export")],
+                                ),
+                                menubar::sub_content(
+                                    export_submenu_state,
+                                    Some("menubar-export-sub-content"),
+                                    None,
+                                    vec![],
+                                    vec![menubar::item(
+                                        "pdf",
+                                        false,
+                                        false,
+                                        vec![],
+                                        vec![text("PDF")],
+                                    )],
+                                ),
+                            ],
+                        )],
+                    ),
+                ],
+            ),
+            bar.menu(
+                1,
+                vec![],
+                vec![bar.trigger(1, false, false, None, vec![], vec![text("Edit")])],
+            ),
+        ],
+    );
+    section(
+        "Menubar",
+        "headless-ui の Menubar（role=\"menubar\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。File / Edit の 2 Menu を水平配置し、File Menu を開いた状態（open=Some(0)）で表示しています。Item Group（Recent）・Separator・SubTrigger/SubContent（Export → PDF）の入れ子構造も含みます。roving tabindex（focused=0）により先頭の File トリガーのみ tabindex=\"0\" です。",
+        vec![node],
+    )
+}
+
 /// Status 節（イシュー #765）: colorPalette 軸ごとのドット + ラベル表示。
 fn status_section() -> Node {
     let palette_row = row(palettes()
@@ -5824,7 +5930,7 @@ mod tests {
         // 機械的な分解作業中の取りこぼし・重複追加を fail-closed で検知する
         // 件数センチネル。台帳（`docs/design/docs-site-component-pages.md`）
         // 99 件との突合は #944 の責務。
-        assert_eq!(paths.len(), 91, "COMPONENT_PAGES should have 91 entries");
+        assert_eq!(paths.len(), 92, "COMPONENT_PAGES should have 92 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();

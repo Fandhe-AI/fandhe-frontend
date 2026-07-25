@@ -538,6 +538,18 @@
 //!   [`mod@toolbar`] から再エクスポートして再利用する（[`mod@toolbar`]
 //!   モジュール doc 参照）。矢印キーの実 DOM 配線は
 //!   `fandhe-frontend-wasm-full` の後続責務。
+//! - [`mod@menubar`]: Root / Menu / Trigger / Positioner / Content / Item /
+//!   ItemGroup / ItemGroupLabel / Separator / SubTrigger / SubContent の 11
+//!   anatomy パーツと、roving tabindex + 単一開閉（`focused`/
+//!   `trigger_count`/`open`/`loop_focus`/`orientation`）の状態機械
+//!   [`menubar::Menubar`]（イシュー #992、`docs/design/component-coverage-map.md`
+//!   保留解除、Radix Primitives Menubar 相当）。複数 [`mod@menu`] を水平
+//!   （または垂直）に並べ、開いている Menu を跨いだ左右移動を提供する
+//!   （[`mod@menubar`] モジュール doc「開いている Menu を跨いだ左右移動」
+//!   参照）。[`mod@menu`] の anatomy はそのまま再利用せず、状態機械・値
+//!   語彙のみを再利用する（[`mod@menubar`] モジュール doc「`menu` mod
+//!   再利用の内訳」参照）。矢印キーの実 DOM 配線は
+//!   `fandhe-frontend-wasm-full` の後続責務。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -577,6 +589,7 @@ pub mod link;
 pub mod link_overlay;
 pub mod listbox;
 pub mod menu;
+pub mod menubar;
 pub mod nav_list;
 pub mod number_input;
 pub mod pagination;
@@ -671,6 +684,7 @@ pub use format::{
 };
 pub use hover_card::{HoverCard, HoverCardDelays};
 pub use menu::{Menu, MenuCheckboxItem, MenuRadioItemGroup};
+pub use menubar::{Menubar, MenubarAction};
 pub use number_input::{NumberInput, NumberInputAction, NumberInputFlags};
 pub use pagination::{ItemMode, PageEntry, Pagination, PaginationAction};
 pub use password_input::{

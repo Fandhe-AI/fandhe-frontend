@@ -381,6 +381,13 @@
 //!   軸は持たず、`root` の `data-orientation` に応じた `flex-direction`
 //!   切り替えと `separator` の向き別太さの出し分けのみを提供する。詳細は
 //!   [`mod@toolbar`] rustdoc 参照。
+//! - headless ラッパー（イシュー #992、`docs/design/component-coverage-map.md`
+//!   保留解除、Radix Primitives Menubar 相当）: [`mod@menubar`]（Menubar、
+//!   Root/Menu/Trigger/Positioner/Content/Item/ItemGroup/ItemGroupLabel/
+//!   Separator/SubTrigger/SubContent の 11 パーツと roving tabindex + 単一
+//!   開閉状態機械 [`menubar::Menubar`]）。`size`/`color-palette` 軸は持た
+//!   ず、`root` の `data-orientation` に応じた `flex-direction` 切り替えの
+//!   みを提供する。詳細は [`mod@menubar`] rustdoc 参照。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -558,6 +565,7 @@ pub mod listbox;
 pub mod mark;
 pub mod marquee;
 pub mod menu;
+pub mod menubar;
 pub mod native_select;
 pub mod nav_list;
 pub mod number_input;
