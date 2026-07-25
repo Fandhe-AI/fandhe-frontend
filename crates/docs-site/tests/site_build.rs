@@ -177,6 +177,63 @@ fn build_site_succeeds_for_the_real_repository_site() {
     assert!(site_css.contains(".docs-header-dropdown"));
 }
 
+/// イシュー #912（受け入れ条件 1 の機械検証可能な半分）: 実サイトの
+/// 4 ページ種別（index / ガイド / ショーケース / API リファレンス）すべてで
+/// 3 カラム骨格・SkipNav・View Transitions opt-in・両 CSS リンクが揃うことを
+/// 固定する。`build_site_succeeds_for_the_real_repository_site` は index の
+/// みを確認するため、他ページ種別への横展開として追加する（既存テストは
+/// 変更しない）。
+#[test]
+fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("resolve repository root");
+    let out = TempDir::new("all-page-kinds");
+
+    build_site(&repo_root, &out.0).expect("real site/nav.toml should build cleanly");
+
+    // (相対パス, ショーケースページか否か)。ショーケースのみ
+    // `assets/pre-styled-ui.css` への追加 `<link>` を持つ
+    // （`crate::build::build_site` の「使われているページだけ」配線）。
+    let pages: &[(&str, bool)] = &[
+        ("index.html", false),
+        ("guides/view-transitions/index.html", false),
+        ("components/pre-styled-ui/index.html", true),
+        ("api/component-api/index.html", false),
+    ];
+
+    for (relative, is_showcase) in pages {
+        let html = std::fs::read_to_string(out.0.join(relative))
+            .unwrap_or_else(|e| panic!("read generated {relative}: {e}"));
+
+        for needle in [
+            r#"class="docs-container"#,
+            r#"class="docs-sidebar""#,
+            r#"class="docs-main""#,
+            r#"class="docs-content""#,
+            r#"class="docs-toc-aside""#,
+            r#"data-scope="skip-nav""#,
+            r#"data-part="link""#,
+            r#"data-part="content""#,
+            "@view-transition { navigation: auto; }",
+            r#"href="/fandhe-frontend/assets/site.css""#,
+            r#"href="/fandhe-frontend/assets/skip-nav.css""#,
+        ] {
+            assert!(
+                html.contains(needle),
+                "{relative} should contain {needle:?} (3 カラム骨格・SkipNav・View Transitions・CSS 配線の共通契約)"
+            );
+        }
+
+        let has_showcase_css = html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#);
+        assert_eq!(
+            has_showcase_css, *is_showcase,
+            "{relative}: pre-styled-ui.css link presence should match is_showcase={is_showcase}"
+        );
+    }
+}
+
 // ---- バイナリ経由（終了コード・stderr の契約） ----
 
 fn docs_site_bin() -> PathBuf {

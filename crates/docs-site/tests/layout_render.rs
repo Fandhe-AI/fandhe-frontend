@@ -505,6 +505,129 @@ fn docs_page_with_assets_keeps_skip_nav_before_header_when_header_nav_present() 
     );
 }
 
+// ---- View Transitions（イシュー #912 回帰検証） ----
+
+/// `docs_page` が `<head>` へ View Transitions の opt-in 宣言
+/// （`@view-transition { navigation: auto; }`）を無条件で出力することを
+/// 固定する（`crate::layout::docs_page_with_assets` 参照）。この静的テストは
+/// opt-in 宣言の**存在**のみを固定し、遷移が実際に走るかは実ブラウザ確認の
+/// 責務（`docs/reports/docs-site-redesign-regression-report.md` 参照）。
+#[test]
+fn docs_page_emits_view_transition_opt_in_style_in_head() {
+    let body = p(vec![], vec![text("本文です。")]);
+    let node = docs_page("タイトル", "", sample_sidebar(), body);
+    let html = render(&node);
+
+    assert!(html.contains("<style>@view-transition { navigation: auto; }</style>"));
+    let head_end = html.find("</head>").expect("head should exist");
+    let style_pos = html
+        .find("@view-transition { navigation: auto; }")
+        .expect("view-transition opt-in style should exist");
+    assert!(
+        style_pos < head_end,
+        "view-transition opt-in style should be inside <head>"
+    );
+}
+
+/// [`docs_page_emits_view_transition_opt_in_style_in_head`] の対:
+/// `docs_page_with_assets`（ショーケースページ等、`extra_stylesheets`・
+/// `header_nav` を渡す経路）でも同じ opt-in 宣言が出ることを固定する
+/// （配線分岐で opt-in が抜け落ちる回帰の防止）。
+#[test]
+fn docs_page_with_assets_emits_view_transition_opt_in_style_in_head() {
+    let nav = parse_nav(sample_nav_toml()).expect("fixture nav.toml should parse");
+    let body = p(vec![], vec![text("本文です。")]);
+    let node = docs_page_with_assets(
+        "タイトル",
+        "",
+        sample_sidebar(),
+        body,
+        &["assets/pre-styled-ui.css"],
+        Some(header_nav(&nav, "/")),
+    );
+    let html = render(&node);
+
+    assert!(html.contains("<style>@view-transition { navigation: auto; }</style>"));
+}
+
+// ---- SkipNav の href/id 対応・フォーカス順（イシュー #912 回帰検証） ----
+
+/// SkipNav の `link` の `href` が `content` の `id` と一致し、`content` に
+/// `tabindex="-1"` が付くことを固定する（`ps_skip_nav::DEFAULT_ID` の配線
+/// ずれ・href の取り違えを検知する）。
+#[test]
+fn docs_page_skip_nav_link_href_matches_content_target_id() {
+    let body = p(vec![], vec![text("本文です。")]);
+    let node = docs_page("タイトル", "", sample_sidebar(), body);
+    let html = render(&node);
+
+    // `link` の href（`#<id>`）を実出力から抽出し、`content` の `id` 属性値
+    // へ実際に対応していることを検証する（`ps_skip_nav::DEFAULT_ID` を
+    // 定数として二重にハードコードせず、実出力どうしの整合を見る）。
+    let href_marker = "href=\"#";
+    let href_start = html
+        .find(href_marker)
+        .expect("skip-nav link href should exist")
+        + href_marker.len();
+    let href_rest = &html[href_start..];
+    let href_end = href_rest.find('"').expect("closing quote of href attr");
+    let target_id = &href_rest[..href_end];
+
+    assert!(
+        html.contains(&format!(r#"id="{target_id}""#)),
+        "content target should carry an id matching the skip-nav link href (#{target_id})"
+    );
+    assert!(html.contains(r#"tabindex="-1""#));
+}
+
+/// SkipNav の `link` が `<body>` 内で最初のフォーカス可能要素であることを
+/// 固定する（WCAG 2.1 SC 2.4.1「ブロックのスキップ」。`header_nav` の
+/// 有無双方で検証する）。
+#[test]
+fn docs_page_skip_nav_link_is_first_focusable_element_in_body() {
+    fn assert_skip_link_is_first_focusable(html: &str) {
+        let body_start = html.find("<body>").expect("body tag should exist") + "<body>".len();
+        // `data-part="link"` の位置ではなく開始タグそのもの（`<a `）の位置を
+        // 使う: 属性出力順は `data-scope`→`data-part`→`href`
+        // （`fandhe_frontend_headless_ui::anatomy::Anatomy::part` 参照）のため
+        // `data-part="link"` は skip-nav リンク自身のタグの**内部**に現れる。
+        // これを境界に使うと skip-nav リンク自身の `<a ` が「先行するフォーカス
+        // 可能要素」として誤検知（偽陽性）される。
+        let skip_link_pos = html
+            .find(r#"<a data-scope="skip-nav" data-part="link""#)
+            .expect("skip-nav link tag should exist");
+        let between = &html[body_start..skip_link_pos];
+        for needle in [
+            "<a ",
+            "<button",
+            "<input",
+            "<select",
+            "<textarea",
+            "tabindex=",
+        ] {
+            assert!(
+                !between.contains(needle),
+                "no focusable element ({needle:?}) should precede the skip-nav link in body"
+            );
+        }
+    }
+
+    let body = p(vec![], vec![text("本文です。")]);
+    let node_without_header_nav = docs_page("タイトル", "", sample_sidebar(), body.clone());
+    assert_skip_link_is_first_focusable(&render(&node_without_header_nav));
+
+    let nav = parse_nav(sample_nav_toml()).expect("fixture nav.toml should parse");
+    let node_with_header_nav = docs_page_with_assets(
+        "タイトル",
+        "",
+        sample_sidebar(),
+        body,
+        &[],
+        Some(header_nav(&nav, "/")),
+    );
+    assert_skip_link_is_first_focusable(&render(&node_with_header_nav));
+}
+
 #[test]
 fn xss_payloads_in_title_headings_and_sidebar_are_escaped() {
     let payload = "<script>alert(1)</script>";
