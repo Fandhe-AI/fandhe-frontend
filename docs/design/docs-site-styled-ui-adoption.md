@@ -1,16 +1,21 @@
 # docs サイト骨格への pre-styled-ui 適用可否の評価と判断記録
 
-**本文書のステータス**: 確定（イシュー #694）。§3.4・§5 はイシュー #904
-で再評価済み（詳細は各節参照）。
+**本文書のステータス**: **判断記録（履歴）**。確定（イシュー #694）。
+§3.4・§5 はイシュー #904 で再評価済み（詳細は各節参照）。§3.4 の導入
+転換は Phase 2〜4（#905〜#913）で**実装完了**した。以降の適用範囲統治は
+`docs/design/docs-site-three-column-redesign.md`（現行の統治文書、live）
+が担う（同文書 §1・本文書 §4・§6 参照）。
 
 ## 1. 背景
 
 PR #679（pre-styled-ui ショーケースの GitHub Pages 統合、イシュー #609 系）
 は、pre-styled-ui コンポーネントを実レンダリングして掲載するショーケース
 ページ（`/components/pre-styled-ui/`、`crates/docs-site/src/showcase.rs`）を
-docs サイトへ追加した。その実装過程で、docs サイト骨格そのもの（Linear 風
-2 カラムレイアウト、`crates/docs-site/src/layout.rs` / `nav.rs` /
-`markdown.rs` が生成する class 契約、`site/assets/site.css`）へも
+docs サイトへ追加した。その実装過程で、docs サイト骨格そのもの（イシュー
+#694 時点の骨格。Linear 風 2 カラムレイアウト、
+`crates/docs-site/src/layout.rs` / `nav.rs` / `markdown.rs` が生成する
+class 契約、`site/assets/site.css`。現在は 3 カラム + ビルド生成 CSS へ
+移行済み、§3.4「実装状態の注記」参照）へも
 pre-styled-ui の styled 部品・テーマトークンを適用するかが検討されたが、
 「`site_css_contract` と見た目を壊すリスクに対して利得がない」という判断
 がエージェント報告にのみ残り、リポジトリ内の恒久文書には記録されていな
@@ -22,9 +27,10 @@ pre-styled-ui の styled 部品・テーマトークンを適用するかが検�
 
 ## 2. 評価対象と評価軸
 
-サイト骨格（`site/assets/site.css` が固定するクラス名契約、
-`crates/docs-site/tests/site_css_contract.rs` が検証する実出力）への
-pre-styled-ui 適用候補を、以下 4 軸で評価する。
+サイト骨格（イシュー #694 時点の評価対象。`site/assets/site.css` が固定
+するクラス名契約、`crates/docs-site/tests/site_css_contract.rs` が検証
+する実出力。現在は §3.4「実装状態の注記」のとおりビルド生成 CSS へ移行
+済み）への pre-styled-ui 適用候補を、以下 4 軸で評価する。
 
 - **利得**: 適用によって得られる視覚的・保守上の改善
 - **`site_css_contract` への影響**: `layout.rs` / `nav.rs` / `markdown.rs`
@@ -115,9 +121,10 @@ styled ラッパー（`crates/pre-styled-ui/src/link_overlay.rs`）を新設し�
 
 ### 3.4 テーマトークン（`--fandhe-*` の `site.css` への波及）
 
-`site/assets/site.css` は `--docs-*` トークンで自己完結する単一の静的
-ファイルであり、「外部参照ゼロ・単一ファイルのみでレイアウト・タイポグ
-ラフィが完結する」ことを不変条件とする（ファイル冒頭コメント参照）。
+（イシュー #694 時点の評価対象）`site/assets/site.css` は `--docs-*`
+トークンで自己完結する単一の静的ファイルであり、「外部参照ゼロ・単一
+ファイルのみでレイアウト・タイポグラフィが完結する」ことを不変条件と
+する（ファイル冒頭コメント参照）。
 `fandhe_frontend_pre_styled_ui::theme::Theme::to_css` の出力を注入するには
 `site.css` をビルド生成物化する必要があり、「静的ファイルを読み取り検証
 する」という `site_css_contract.rs` の前提、および「`site.css` が正」と
@@ -166,10 +173,21 @@ pre-styled-ui のトークン体系（`--fandhe-*`）が二重管理になり、
 `build.rs` から `write_css_file` する方式）・`site_css_contract.rs` の
 契約作り替え方針（同文書 §5）・トークン一本化の詳細は同文書に譲る。
 
-**実装状態の注記**: 本イシュー（#904）時点ではコードは変更していない。
-`site/assets/site.css` は静的単一ファイルのまま、`crates/docs-site/src/layout.rs`
-は 2 カラム骨格のまま据え置かれている。導入の実装完了は Phase 2〜4
-（#905〜#913）の完了をもって確定する。
+**実装状態の注記（イシュー #904 時点）**: 本イシュー（#904）時点では
+コードは変更していない。`site/assets/site.css` は静的単一ファイルの
+まま、`crates/docs-site/src/layout.rs` は 2 カラム骨格のまま据え置かれ
+ている。導入の実装完了は Phase 2〜4（#905〜#913）の完了をもって確定
+する。
+
+**実装完了（#905〜#912、イシュー #913 追記）**: `site/assets/site.css`
+は削除され、`crates/docs-site/src/site_theme.rs` が
+`fandhe_frontend_pre_styled_ui::theme::Theme::to_css` + 骨格 CSS を
+`StyleSheet` で組み立てる生成 CSS（ビルド時に `assets/site.css` として
+書き出し）へ置換済み。`layout.rs` は 3 カラム骨格
+（`docs/design/docs-site-three-column-redesign.md` §3.1 参照）へ移行し、
+トークンは `--docs-*` を全廃して `--fandhe-*` へ一本化した（残存 0 件は
+`crates/docs-site/tests/site_typography_contract.rs` 等の fail-closed
+契約テストで検証済み）。
 
 ### 3.5 ショーケースページ・admonition（適用済み範囲）
 
@@ -190,27 +208,37 @@ PR #679 で `/components/pre-styled-ui/` ページに適用済み。ショーケ
 markup 適用のみで、視覚スタイルは §3.4 の不変条件どおり `site.css` が
 自己完結したまま担う。pre-styled-ui の styled `stylesheet()`/生成 CSS は
 どちらも導入しない）。3.4（テーマトークン波及）は本イシューでも見送りの
-まま維持する。
+まま維持する（イシュー #756 時点の記述）。
+
+**追記（イシュー #904 の再評価・#905〜#912 で実装完了）**: 3.4 は #904
+の再評価で見送りから導入へ転換し、#905〜#912 で実装完了した（§3.4「実装
+完了（#905〜#912、イシュー #913 追記）」参照）。上記の「見送りのまま
+維持する」は #756 時点の記述であり、現在は覆っている。
 
 ## 4. 結論
 
-サイト骨格（Linear 風 2 カラムレイアウト・`site.css`・ナビゲーション
-生成ロジック）への pre-styled-ui 適用は、3.1・3.2 はイシュー #756 で
-「headless 部品による markup 導入（視覚スタイルは `site.css` 継続）」の
-形で解消済み。3.3（注記ブロック）はイシュー #715 で導入済み。3.4
-（テーマトークン波及）はイシュー #904 の再評価で見送りから導入へ転換
-した（実装は Phase 2〜4、#905〜#913）。pre-styled-ui の styled 部品・
-生成 CSS（`stylesheet()`）の適用範囲は、従来の 3.5（ショーケースページ・
-admonition、分離 CSS 方式）に加え、3.4 の転換により**サイト骨格全体
-（`site.css` 自体のビルド生成物化）へも拡張される**。適用範囲の統治は
-本文書から `docs/design/docs-site-three-column-redesign.md` へ引き継ぐ
-（同文書 §1 参照）。
+サイト骨格（イシュー #694 時点の Linear 風 2 カラムレイアウト・
+`site.css`・ナビゲーション生成ロジック）への pre-styled-ui 適用は、
+3.1・3.2 はイシュー #756 で「headless 部品による markup 導入（視覚
+スタイルは `site.css` 継続）」の形で解消済み。3.3（注記ブロック）は
+イシュー #715 で導入済み。3.4（テーマトークン波及）はイシュー #904 の
+再評価で見送りから導入へ転換し、**#905〜#912 で実装完了した**。
+pre-styled-ui の styled 部品・生成 CSS（`stylesheet()`）の適用範囲は、
+従来の 3.5（ショーケースページ・admonition、分離 CSS 方式）に加え、3.4
+の転換により**サイト骨格全体（`site.css` 自体のビルド生成物化）へも
+拡張された**（実体: `crates/docs-site/src/site_theme.rs` の生成 CSS が
+全ページ共通で `<link rel="stylesheet">` される。§3.4「実装完了」参照）。
+適用範囲の統治は本文書から `docs/design/docs-site-three-column-redesign.md`
+へ引き継ぐ（同文書 §1 参照。以降の live な再評価トリガーも §5 では
+なく同文書側で扱う）。
 
-## 5. 再評価トリガー
+## 5. 再評価トリガー（消化済み・履歴）
 
-以下のいずれかが発生した場合、本書の判断を再評価する。再評価提案は
-`docs/policy/intentional-non-adoption.md` の運用（再導入提案時は評価軸の
-充足確認を Issue・PR に明記する）に準拠すること。
+以下 4 件はすべて消化済みである。**本文書は履歴文書となり、刷新後の
+live な再評価トリガーは `docs/design/docs-site-three-column-redesign.md`
+§10 が引き継いで担う**（新しい再評価トリガーは本節へ追加しない）。
+再評価提案は `docs/policy/intentional-non-adoption.md` の運用（再導入
+提案時は評価軸の充足確認を Issue・PR に明記する）に準拠すること。
 
 1. ~~pre-styled-ui にレイアウト・ナビゲーション系部品（Breadcrumb /
    Pagination / 文書ナビ向け Link リスト / Container 等）が追加されたとき
@@ -253,3 +281,9 @@ admonition、分離 CSS 方式）に加え、3.4 の転換により**サイト�
   生成ロジックの class 契約を検証する回帰テスト（admonition の
   `fd-alert--status-*` は `admonition::stylesheet()` 側の契約であることの
   ドリフト検知も含む）
+- `crates/docs-site/src/site_theme.rs`: 3.4 転換の実装本体（`Theme::to_css`
+  + 骨格 CSS の `StyleSheet` 組み立て、生成 CSS 化）
+- `crates/docs-site/tests/site_typography_contract.rs`: `--fandhe-*` 一本化・
+  `--docs-*` 全廃を検証する fail-closed 契約テスト
+- `docs/reports/docs-site-redesign-regression-report.md`: イシュー #912 の
+  3 カラム刷新回帰検証レポート

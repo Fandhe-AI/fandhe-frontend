@@ -17,12 +17,12 @@ fandhe-frontend/
 ├── README.md
 ├── skills-lock.json          # npx skills add の導入記録
 ├── docs/
-│   ├── design/               # 設計文書（gate-design / wasm-full-architecture / structure-manifest 等）
+│   ├── design/               # 設計文書（gate-design / wasm-full-architecture / structure-manifest / docs-site-three-column-redesign 等）
 │   ├── api/                  # API 仕様（component-api / hydration-api / hydration-state-format 等）
 │   ├── guides/               # 利用者向けガイド（embedding-guide / npm-asset-build / browser-testing 等）
 │   ├── policy/               # 規約・セキュリティポリシー（unsafe-boundary / dependency-graph-policy / cargo-deny-advisories / intentional-non-adoption 等）
 │   ├── ci/                   # CI・runner 運用（ci-runner-requirements / perf-browser-harness / cargo-semver-checks-evaluation / version-bump-publish-order-gap）
-│   ├── reports/              # 実測・受け入れレポート（perf-browser-report / *-acceptance-report 等）
+│   ├── reports/              # 実測・受け入れレポート（perf-browser-report / *-acceptance-report / docs-site-redesign-regression-report 等）
 │   └── spec/                 # 仕様サブモジュール (fandhe-frontend-spec)
 │       ├── 01-brainstorm.md
 │       ├── 02-poc-plan.md
@@ -30,6 +30,10 @@ fandhe-frontend/
 │       ├── 04-requirements.md  # MoSCoW 要件・受け入れ基準
 │       ├── 05-tasks.md         # タスク分解（依存・工数）
 │       └── 06-roadmap.md       # MS-1〜MS-5・着手判定
+├── site/                     # docs サイト原稿（crates/docs-site が SSG でビルド。site/assets/ は #905 で廃止済み、骨格 CSS はビルド生成）
+│   ├── index.md
+│   ├── components-pre-styled-ui.md  # UI コンポーネントショーケースページ原稿
+│   └── nav.toml               # ナビゲーション構成マニフェスト
 ├── examples/
 │   ├── ssr-routing/          # SSR + ルーティング正本サンプル・examples 規約の初例（crates.io バージョン依存、イシュー #499）
 │   ├── ssg-blog/             # SSG（generate_pages）による静的ブログ正本サンプル（crates.io バージョン依存、イシュー #501）
@@ -75,7 +79,7 @@ crates/
 ├── dist-server/   # fandhe-frontend-dist-server: 単一実行ファイル配布サーバー
 ├── headless-ui/   # fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-*・WAI-ARIA、イシュー #520/#522）
 ├── pre-styled-ui/ # fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）
-├── docs-site/     # fandhe-frontend-docs-site: docs サイトジェネレータ（外部依存ゼロ・配布物に含めない開発者/CI 用ツール）
+├── docs-site/     # fandhe-frontend-docs-site: docs サイトジェネレータ（外部クレート依存ゼロ・内部 path 依存のみ〔core/app/server/pre-styled-ui〕・配布物に含めない開発者/CI 用ツール）。サイト骨格 CSS を `fandhe-frontend-pre-styled-ui` の `Theme::to_css` から生成する（イシュー #899 で 3 カラム刷新、詳細は `docs/design/docs-site-three-column-redesign.md`）
 ├── cli/           # fandhe-frontend-cli: `fw` コマンド（structure.toml のスキーマ・パース・生成、REQ-13）
 │   ├── templates/          # `fw new --template` 埋め込み用の同梱コピー（正本はルート `templates/`。`new_template.rs` が `include_str!` で吸収、乖離は `tests/template_publish_copy_drift.rs` が検知）
 │   └── embedded-examples/  # `fw new --example` 埋め込み用の同梱コピー（正本はルート `examples/`。パッケージ名は置換せず正本と全ファイルバイト一致、乖離は `tests/example_publish_copy_drift.rs` が検知、イシュー #500）

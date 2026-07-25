@@ -17,6 +17,13 @@
 - runner に常設が保証されないツール（wasm-bindgen-cli / wasm-pack / cargo-deny / clippy component / Chrome 等）に依存するステップは以下のいずれかを実行する
   - 存在チェック付きインストール（`command -v` / `where` 等で確認してから `cargo install` 等を実行）
   - ワークフロー YAML に明示的な前提コメント（例: `# 要: wasm-pack がインストール済み`）
+- **`docs-site.yml` の paths フィルタ契約（イシュー #899/#913）**: docs サイトの
+  骨格 CSS（`assets/site.css`）は #905 以降ビルド生成物であり、生成元は
+  `crates/docs-site/src/site_theme.rs` と `crates/pre-styled-ui`（`Theme::to_css`）。
+  このため `crates/pre-styled-ui/**` / `crates/headless-ui/**` /
+  `crates/interactive/**` は showcase 限定の例外ではなく**全ページに影響する
+  paths 必須項目**である。レンダラ側（core / app / server）は従来どおり
+  paths 対象外（反映が必要なときは `workflow_dispatch`）。
 - **`fw gate`（`crates/cli/src/gate.rs`）系のツール（clippy component / cargo-deny）**: `tools/ci/ensure-gate-tools.sh` を標準ブートストラップとする（イシュー #292）。CI（`.github/workflows/ci.yml` の test ジョブ・`gate-self-apply` ジョブ）・ローカル開発・AI 自己保守フックのいずれも `fw gate` 実行前にこのスクリプトを前置する運用を推奨する。バージョン固定・SHA256 チェックサム検証はスクリプト側に一元化し、CI ワークフロー側との二重管理でドリフトさせない。前置されなかった場合でも `fw gate` 側のプリフライト検出（`docs/design/gate-design.md` §2.3a）が「環境エラーであること」を決定的なメッセージ（是正コマンド付き）で示し、コード起因の FAIL との区別を保つ
 - **`fw gate --project .` の自己適用常時実行（イシュー #400）**: `.github/workflows/ci.yml` の `gate-self-apply` ジョブが PR ごと・main push ごとに `fw gate --project .` 自己適用（#372/PR #382 で PASS 化）を実行し、`gate_result: "PASS"` の継続を保証する。BLOCKED 時は JSON レポートの `environment error: ` プレフィックス有無で環境エラーとコード起因 FAIL を CI アノテーションとして区別する（詳細は `docs/design/gate-design.md` §6）
 - **cargo-deny 導入パターンの統一（イシュー #314）**: cargo-deny を導入する全ワークフロー（`tools/ci/ensure-gate-tools.sh`・`templates/default/.github/workflows/deny.yml`・`docs/policy/cargo-deny-advisories.md` のサンプルワークフロー）は「バージョン固定 + SHA256 チェックサム検証済みプリビルトバイナリ」パターンに統一する（`cargo install` によるソースからの任意最新版コンパイルは行わない）。バージョン・SHA256 の pin の正は `tools/ci/ensure-gate-tools.sh` の `CARGO_DENY_VERSION` / `CARGO_DENY_SHA256` のみとし、テンプレート・docs はスタンドアロン配布物のため同パターンをインラインで複製する。3 箇所の pin 値が乖離しないことは `crates/xtask/tests/template_deny_workflow.rs` のドリフト検知テストが `cargo test -p xtask` / CI で強制する（手動同期に頼らない）
