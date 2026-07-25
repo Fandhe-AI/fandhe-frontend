@@ -219,6 +219,51 @@ const COMPONENT_SPECS: &[(&str, ComponentPageSpec)] = &[
         crate::component_specs_nav_data::SEPARATOR,
     ),
     // ---- イシュー #947 ここまで ----
+    // --- Overlay / Disclosure 系（イシュー #946、親 #928 Phase 4）。実体は
+    // crate::component_specs_overlay の 13 定数を参照。他 Phase 4 イシュー
+    // （#945/#947/#948）と同一配列末尾で追記が競合した場合は「両方の
+    // ブロックを残す」方針でマージする（順序に意味はない。spec_for は
+    // 線形探索の完全一致）。
+    (
+        "/components/accordion/",
+        crate::component_specs_overlay::ACCORDION,
+    ),
+    (
+        "/components/action-bar/",
+        crate::component_specs_overlay::ACTION_BAR,
+    ),
+    (
+        "/components/dialog/",
+        crate::component_specs_overlay::DIALOG,
+    ),
+    (
+        "/components/drawer/",
+        crate::component_specs_overlay::DRAWER,
+    ),
+    (
+        "/components/floating-panel/",
+        crate::component_specs_overlay::FLOATING_PANEL,
+    ),
+    (
+        "/components/hover-card/",
+        crate::component_specs_overlay::HOVER_CARD,
+    ),
+    ("/components/menu/", crate::component_specs_overlay::MENU),
+    (
+        "/components/popover/",
+        crate::component_specs_overlay::POPOVER,
+    ),
+    ("/components/tabs/", crate::component_specs_overlay::TABS),
+    ("/components/toast/", crate::component_specs_overlay::TOAST),
+    (
+        "/components/toggle-tip/",
+        crate::component_specs_overlay::TOGGLE_TIP,
+    ),
+    (
+        "/components/tooltip/",
+        crate::component_specs_overlay::TOOLTIP,
+    ),
+    ("/components/tour/", crate::component_specs_overlay::TOUR),
 ];
 
 /// `page_path` に対応する [`ComponentPageSpec`] を返す。未登録パスは
