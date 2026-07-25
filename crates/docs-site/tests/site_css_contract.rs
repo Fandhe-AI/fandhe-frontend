@@ -457,6 +457,17 @@ const NO_TOC_ONLY_CLASSES: &[&str] = &["docs-container--no-toc"];
 /// （out-of-scope-tracking の対象。計画本文 §9 参照）。
 const NON_DOCS_PREFIXED_CLASSES: &[&str] = &["sidebar", "prev-next", "prev", "next"];
 
+/// [`sidebar`] のカテゴリ階層描画（イシュー #940）が `[[section.group]]`
+/// を持つセクションでのみ出力する class。[`fixture_nav`]（グループ無し）は
+/// これらを一切出力しないため（後方互換の機械固定、§4 手順 4 参照）
+/// [`STRUCTURE_CLASS_CONTRACT`] 本体には含めず、[`TOC_ONLY_CLASSES`] と
+/// 同様に別枠で扱う。
+const NAV_GROUP_ONLY_CLASSES: &[&str] = &[
+    "docs-nav-group",
+    "docs-nav-group-summary",
+    "docs-nav-group-list",
+];
+
 /// `crate::build::build_site` の実組み立て（`docs_page_with_assets` +
 /// `header_nav` + `prev_next_nav` の同時配線、`build.rs` の
 /// `docs_page_with_assets` 呼び出しと同型）と同じ形の 1 枚のフィクスチャを
@@ -489,6 +500,76 @@ fn full_page_html(with_headings: bool) -> String {
     body_children.push(prev_next_node);
     let body = div(vec![], body_children);
 
+    let node = docs_page_with_assets(
+        "タイトル",
+        "",
+        sidebar_node,
+        body,
+        &[],
+        Some(header_nav_node),
+    );
+    render(&node)
+}
+
+/// [`fixture_nav`] に直下ページ 1 件 + グループ 2 件を加えたフィクスチャ
+/// （イシュー #940 の [`NAV_GROUP_ONLY_CLASSES`] 検証専用）。現在ページを
+/// グループ配下の 1 件（`/components/button/`）に置き、`open` 属性の
+/// 発生条件も併せて満たす。
+fn fixture_nav_with_groups() -> Nav {
+    let toml = r#"
+[site]
+title = "Fixture"
+base_path = ""
+
+[[section]]
+title = "Getting Started"
+
+[[section.page]]
+title = "Intro"
+source = "site/index.md"
+path = "/"
+
+[[section]]
+title = "Components"
+
+[[section.page]]
+title = "Overview"
+source = "site/index.md"
+path = "/components/"
+
+[[section.group]]
+title = "Forms"
+
+[[section.group.page]]
+title = "Button"
+source = "site/index.md"
+path = "/components/button/"
+
+[[section.group]]
+title = "Layout"
+
+[[section.group.page]]
+title = "Grid"
+source = "site/index.md"
+path = "/components/grid/"
+"#;
+    parse_nav(toml).expect("group fixture nav.toml should parse")
+}
+
+/// [`full_page_html`] と同型のフルページフィクスチャだが、`sidebar()` に
+/// [`fixture_nav_with_groups`] を渡し `[[section.group]]` を発生させる版。
+/// [`NAV_GROUP_ONLY_CLASSES`] の (a)(b)(c) 3 方向検証にのみ使う（層 1 本体の
+/// フィクスチャ（`fixture_nav`/`full_page_html`）はグループ無しのまま維持し、
+/// `site/nav.toml` 未変更 = 実サイト出力不変という PR 前提を壊さない）。
+fn full_page_html_with_groups() -> String {
+    let nav = fixture_nav_with_groups();
+    let sidebar_node = sidebar(&nav, "/components/button/");
+    let header_nav_node = header_nav(&nav, "/components/button/");
+    let prev_next_node = prev_next_nav(&nav, "/components/button/");
+    let body = div(
+        vec![],
+        vec![p(vec![], vec![text("本文です。")]), prev_next_node],
+    );
     let node = docs_page_with_assets(
         "タイトル",
         "",
@@ -560,6 +641,30 @@ fn structure_class_contract_appears_in_rendered_html() {
             "{class} は見出しなしページで出現するはずだが出現しない"
         );
     }
+
+    // イシュー #940: NAV_GROUP_ONLY_CLASSES はグループ無しフィクスチャ
+    // （fixture_nav 由来の html_with_toc/html_no_toc 双方）には一切出現しない
+    // （2 階層パスの後方互換の機械固定。site/nav.toml は本 PR で未変更のため
+    // 実サイト出力がこの否定方向で保護される）。グループ入りフィクスチャでの
+    // 出現確認は下の for ループで別途行う。
+    for class in NAV_GROUP_ONLY_CLASSES {
+        assert!(
+            !tokens_with_toc.contains(*class),
+            "{class} はグループ無しフィクスチャ（見出しあり）で出現しないはずだが出現した"
+        );
+        assert!(
+            !tokens_no_toc.contains(*class),
+            "{class} はグループ無しフィクスチャ（見出しなし）で出現しないはずだが出現した"
+        );
+    }
+    let html_with_groups = full_page_html_with_groups();
+    let tokens_with_groups = extract_class_tokens(&html_with_groups);
+    for class in NAV_GROUP_ONLY_CLASSES {
+        assert!(
+            tokens_with_groups.contains(*class),
+            "{class} はグループ入りフィクスチャで出現するはずだが出現しない"
+        );
+    }
 }
 
 #[test]
@@ -579,6 +684,12 @@ fn structure_class_contract_has_selector_in_generated_site_css() {
         );
     }
     for class in NON_DOCS_PREFIXED_CLASSES {
+        assert!(
+            css_tokens.contains(*class),
+            "{class} が生成 assets/site.css にセレクタとして存在しない"
+        );
+    }
+    for class in NAV_GROUP_ONLY_CLASSES {
         assert!(
             css_tokens.contains(*class),
             "{class} が生成 assets/site.css にセレクタとして存在しない"
@@ -690,6 +801,10 @@ fn rendered_html_has_no_class_outside_the_contract() {
         .chain(NO_TOC_ONLY_CLASSES)
         .map(|s| s.to_string())
         .collect();
+    let group_classes: HashSet<String> = NAV_GROUP_ONLY_CLASSES
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
     let expected_non_docs: HashSet<String> = NON_DOCS_PREFIXED_CLASSES
         .iter()
         .map(|s| s.to_string())
@@ -700,10 +815,13 @@ fn rendered_html_has_no_class_outside_the_contract() {
 
         // TOC 条件付き class は classes_outside_contract の判定対象外
         // （STRUCTURE_CLASS_CONTRACT 本体には含めない設計のため、ここで
-        // 誤検知しないことを別途確認する）。
+        // 誤検知しないことを別途確認する）。NAV_GROUP_ONLY_CLASSES も同様
+        // だが、fixture_nav（グループ無し）由来の本ループでは実際には
+        // 出現しない想定（structure_class_contract_appears_in_rendered_html
+        // の否定方向 assert が別途機械固定する）。
         let violations: Vec<String> = classes_outside_contract(&html)
             .into_iter()
-            .filter(|c| !toc_classes.contains(c))
+            .filter(|c| !toc_classes.contains(c) && !group_classes.contains(c))
             .collect();
         assert!(
             violations.is_empty(),
@@ -719,6 +837,27 @@ fn rendered_html_has_no_class_outside_the_contract() {
             "with_headings={with_headings}: docs- 接頭辞を持たない class トークン集合が NON_DOCS_PREFIXED_CLASSES と一致しない"
         );
     }
+
+    // グループ入りフィクスチャでも、NAV_GROUP_ONLY_CLASSES を除けば契約表に
+    // 無い docs-* class は現れない（同フィクスチャ自体は §4 手順 1 の
+    // 「グループ入りフィクスチャの追加」に対応する）。
+    let html_with_groups = full_page_html_with_groups();
+    let violations_with_groups: Vec<String> = classes_outside_contract(&html_with_groups)
+        .into_iter()
+        .filter(|c| !toc_classes.contains(c) && !group_classes.contains(c))
+        .collect();
+    assert!(
+        violations_with_groups.is_empty(),
+        "グループ入りフィクスチャ: 契約表に無い docs-* class が HTML に出現した: {violations_with_groups:?}"
+    );
+    let non_docs_tokens_with_groups: HashSet<String> = extract_class_tokens(&html_with_groups)
+        .into_iter()
+        .filter(|t| !t.starts_with("docs-"))
+        .collect();
+    assert_eq!(
+        non_docs_tokens_with_groups, expected_non_docs,
+        "グループ入りフィクスチャ: docs- 接頭辞を持たない class トークン集合が NON_DOCS_PREFIXED_CLASSES と一致しない"
+    );
 }
 
 #[test]
