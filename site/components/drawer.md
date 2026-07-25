@@ -1,13 +1,12 @@
 # Drawer
 
 `fandhe-frontend-pre-styled-ui` の `drawer` mod が提供するスタイル済み Drawer 部品です。
+画面端からスライドインするパネルで、WAI-ARIA 上は Dialog パターンの変種のため
+新規状態機械を作らず `dialog` の `Disclosure` 状態機械をそのまま再利用します。
+`DrawerPlacement`（始端/終端/上端/下端、既定は終端）でどの端から出現するかを
+切り替えられます。
 
-> [!NOTE]
-> 本ページの Features / Examples / Accessibility と API Reference の引数表は
-> Phase 4（#945〜#948）で充填予定です。現時点では Demo（SSR 静的掲示）と、
-> headless-ui のパーツ構成から機械導出した Anatomy / `data-*` 属性表 /
-> CSS 変数表のみを掲載しています。
->
+> [!IMPORTANT]
 > Demo はトリガー起点のオーバーレイ部品を「開いた状態」で固定掲示しています。
 > 本来の配置（画面全体を覆う・トリガー直下に重なる）ではページ内の他セクションと
 > 重なるため、掲示専用 CSS（`assets/pre-styled-ui.css` の `.pre-styled-showcase`
