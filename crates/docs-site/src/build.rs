@@ -69,6 +69,17 @@
 //! 内容をそのまま [`script::SCRIPT_REL_PATH`] へ書き出す。`linkcheck::check_links`
 //! は `href` 属性のみを走査し `<script src>` を見ないため（[`crate::linkcheck`]
 //! 参照）、CSS 群と異なり `asset_hrefs` への登録は不要（登録しても no-op）。
+//!
+//! # 検索インデックス（[`crate::search_index`]、イシュー #957）
+//!
+//! `assets/search-index.json` は `#958`（検索 UI）が `fetch()` で遅延読み込みする
+//! 独立ファイルであり、`assets/site.js` と同じ理由（`linkcheck::check_links` は
+//! `href` 属性のみを走査し `data-*` 属性の値を見ない）で `asset_hrefs` への登録が
+//! 不要である。ただし CSS 群と同じ fail-closed 規律で、
+//! [`search_index::render_json`] + [`search_index::check_size`] は**ステップ 4
+//! （`ssg::generate_pages`）より前**に完了させる（1 MiB 超過時に `out_dir` を
+//! 一切汚さないため）。書き出し自体はステップ 4 の後、`assets/site.js` と同じ
+//! 「全ビルド無条件」区分で行う。
 
 use std::fmt;
 use std::fs;
@@ -86,6 +97,7 @@ use crate::linkcheck::{self, BrokenLink};
 use crate::markdown::render_markdown;
 use crate::nav::{self, NavError};
 use crate::script;
+use crate::search_index::{self, SearchIndexError};
 use crate::showcase;
 use crate::site_theme::{self, SiteThemeError};
 use crate::skip_nav;
@@ -94,14 +106,16 @@ use crate::skip_nav;
 /// 拒否するファイル名（ビルド時生成アセットと同名のファイル名）。
 /// [`site_theme::STYLESHEET_REL_PATH`]/[`skip_nav::STYLESHEET_REL_PATH`]/
 /// [`showcase::STYLESHEET_REL_PATH`]/[`admonition::STYLESHEET_REL_PATH`]/
-/// [`script::SCRIPT_REL_PATH`] はいずれも `assets/<basename>` の形をしており、
-/// `site/assets/` 直下との名前衝突は basename の一致だけで判定できる。
+/// [`script::SCRIPT_REL_PATH`]/[`search_index::REL_PATH`] はいずれも
+/// `assets/<basename>` の形をしており、`site/assets/` 直下との名前衝突は
+/// basename の一致だけで判定できる。
 const RESERVED_ASSET_NAMES: &[&str] = &[
     "site.css",
     "skip-nav.css",
     "pre-styled-ui.css",
     "admonition.css",
     "site.js",
+    "search-index.json",
 ];
 
 /// [`build_site`] が成功時に返すビルド結果のサマリ。
@@ -152,6 +166,10 @@ pub enum BuildError {
     /// が存在する（静的ファイルの黙った上書き・生成物のすり替わりを防ぐ
     /// fail-closed 検証、イシュー #905）。
     ReservedAssetName(PathBuf),
+    /// 検索インデックス（[`search_index::render_json`]）が
+    /// [`search_index::MAX_INDEX_BYTES`] を超過した（イシュー #957。
+    /// `ssg::generate_pages` より前に検知し `out_dir` を汚さない fail-closed）。
+    SearchIndex(SearchIndexError),
 }
 
 impl fmt::Display for BuildError {
@@ -190,6 +208,9 @@ impl fmt::Display for BuildError {
                     "site/assets/ contains a file name reserved for build-time generated CSS: {path:?}"
                 )
             }
+            BuildError::SearchIndex(e) => {
+                write!(f, "failed to assemble the search index: {e}")
+            }
         }
     }
 }
@@ -217,6 +238,12 @@ impl From<StylesheetError> for BuildError {
 impl From<SiteThemeError> for BuildError {
     fn from(e: SiteThemeError) -> Self {
         BuildError::SiteTheme(e)
+    }
+}
+
+impl From<SearchIndexError> for BuildError {
+    fn from(e: SearchIndexError) -> Self {
+        BuildError::SearchIndex(e)
     }
 }
 
@@ -250,6 +277,10 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     // linkcheck 用 href 登録を「実際に使われているときだけ」行う（モジュール
     // doc の admonition 節参照）。
     let mut has_admonition = false;
+    // 検索インデックス（イシュー #957）用に収集するページエントリ。
+    // `nav.all_pages()` の宣言順（= サイドバー順）で積まれ、この順序が
+    // #958 の検索結果スコア同点時のタイブレークの正となる（設計文書 §3-1）。
+    let mut search_index_entries: Vec<search_index::PageEntry> = Vec::new();
 
     // `nav.all_pages()`（唯一の正規走査経路）でページ生成する。グループ
     // 配下ページ（イシュー #939）も直下ページと同一のビルド経路を通り、
@@ -300,6 +331,19 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
         if let Some(generated_body) = generated {
             body_children.push(generated_body);
         }
+
+        // 検索インデックス（イシュー #957）用の本文。`prev_next_nav`
+        // （サイドバー・ヘッダーと同じくクロームであり本文ではない）を
+        // 追記する前の `body_children` から組み立てる（設計文書 §3-2）。
+        // `href` は下の `docs_page_with_assets` が使う `layout::asset_href`
+        // と同一の単一実装点で生成し、URL 組み立てロジックを二重実装しない。
+        let index_body = div(vec![], body_children.clone());
+        search_index_entries.push(search_index::page_entry(
+            &layout::asset_href(&nav.site.base_path, &page.path),
+            &page.title,
+            &index_body,
+        ));
+
         body_children.push(nav::prev_next_nav(&nav, &page.path));
         let body = div(vec![], body_children);
 
@@ -364,6 +408,13 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
         return Err(BuildError::LinkCheck(broken));
     }
 
+    // 検索インデックス（イシュー #957）: CSS 群と同じ「書き出し前に fallible
+    // 処理を終える」規律に従い、`render_json` + `check_size` を
+    // `ssg::generate_pages` より前に完了させる。1 MiB 超過時は `out_dir` を
+    // 一切汚さない（`BuildError::SearchIndex` への変換は上の `From` 実装参照）。
+    let search_index_json = search_index::render_json(&nav.site.base_path, &search_index_entries);
+    search_index::check_size(&search_index_json)?;
+
     let written = ssg::generate_pages(&pages, out_dir)?;
     let mut assets = copy_assets(repo_root, out_dir)?;
 
@@ -424,6 +475,26 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
             source,
         })?;
         assets.push(js_path);
+    }
+    {
+        // `assets/search-index.json`（イシュー #957）。`assets/site.js` と同型
+        // に `fs::write` の親ディレクトリ未作成に備えて明示的に作成する
+        // （将来の書き出し順の並べ替えで壊れないよう、site.js ブロックの
+        // `create_dir_all` 済みに依存しない）。JSON 本体は上で
+        // `render_json` + `check_size` を完了済みのため、ここでは書き出す
+        // だけでよい。
+        let index_path = out_dir.join(search_index::REL_PATH);
+        if let Some(parent) = index_path.parent() {
+            fs::create_dir_all(parent).map_err(|source| BuildError::Io {
+                path: parent.to_path_buf(),
+                source,
+            })?;
+        }
+        fs::write(&index_path, &search_index_json).map_err(|source| BuildError::Io {
+            path: PathBuf::from(search_index::REL_PATH),
+            source,
+        })?;
+        assets.push(index_path);
     }
 
     Ok(BuildReport { written, assets })
@@ -609,14 +680,16 @@ path = "/next/"
         // サイト骨格 CSS（`site_theme`、ビルド時生成）+ SkipNav 専用 CSS
         // （イシュー #776、全ビルドで無条件に書き出す。`crate::skip_nav`
         // モジュール doc 参照）+ `assets/site.js`（イシュー #951、同じく
-        // 全ビルド無条件）の 3 件。showcase/admonition 専用 CSS は本
+        // 全ビルド無条件）+ `assets/search-index.json`（イシュー #957、同じく
+        // 全ビルド無条件）の 4 件。showcase/admonition 専用 CSS は本
         // フィクスチャが使わないため含まれない。
-        assert_eq!(report.assets.len(), 3);
+        assert_eq!(report.assets.len(), 4);
         assert!(out_dir.join("index.html").exists());
         assert!(out_dir.join("next/index.html").exists());
         assert!(out_dir.join("assets/site.css").exists());
         assert!(out_dir.join(skip_nav::STYLESHEET_REL_PATH).exists());
         assert!(out_dir.join(script::SCRIPT_REL_PATH).exists());
+        assert!(out_dir.join(search_index::REL_PATH).exists());
         assert_eq!(
             fs::read_to_string(out_dir.join(script::SCRIPT_REL_PATH)).unwrap(),
             script::site_js()
@@ -712,11 +785,13 @@ path = "/next/"
 
         let report =
             build_site(&temp.0, &out_dir).expect("missing site/assets/ directory should build");
-        // サイト骨格 CSS + SkipNav 専用 CSS + `assets/site.js` のみ
-        // （`site/assets/` 由来のコピーアセットは 0 件）。
-        assert_eq!(report.assets.len(), 3);
+        // サイト骨格 CSS + SkipNav 専用 CSS + `assets/site.js` +
+        // `assets/search-index.json` のみ（`site/assets/` 由来のコピー
+        // アセットは 0 件）。
+        assert_eq!(report.assets.len(), 4);
         assert!(out_dir.join("assets/site.css").exists());
         assert!(out_dir.join(script::SCRIPT_REL_PATH).exists());
+        assert!(out_dir.join(search_index::REL_PATH).exists());
     }
 
     /// イシュー #951: `site/assets/` にビルド時生成 JS と同名のファイル
@@ -731,6 +806,22 @@ path = "/next/"
         let out_dir = temp.0.join("dist");
         let err = build_site(&temp.0, &out_dir)
             .expect_err("reserved asset name site.js should fail the build");
+        assert!(matches!(err, BuildError::ReservedAssetName(_)));
+        assert!(!out_dir.exists());
+    }
+
+    /// イシュー #957: `site/assets/` にビルド時生成の検索インデックスと同名の
+    /// ファイル（`search-index.json`）を置くと、静的ファイルの黙った上書き・
+    /// 生成物のすり替わりを防ぐため `BuildError::ReservedAssetName` で拒否
+    /// される（CSS/JS 群と同じ fail-closed 検証、[`RESERVED_ASSET_NAMES`] 参照）。
+    #[test]
+    fn build_site_rejects_reserved_asset_name_search_index_under_assets() {
+        let temp = TempDir::new("reserved-asset-name-search-index");
+        write_fixture_site(&temp.0);
+        fs::write(temp.0.join("site/assets/search-index.json"), "{}\n").unwrap();
+        let out_dir = temp.0.join("dist");
+        let err = build_site(&temp.0, &out_dir)
+            .expect_err("reserved asset name search-index.json should fail the build");
         assert!(matches!(err, BuildError::ReservedAssetName(_)));
         assert!(!out_dir.exists());
     }

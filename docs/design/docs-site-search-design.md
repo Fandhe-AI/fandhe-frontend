@@ -45,6 +45,23 @@ JSON スキーマ／生成範囲／サイズ上限と超過時の扱い／読み
 `assets/search-index.json` の実バイト数を測定し、本節へ追記することを
 義務とする**。本文書の本節は #957 で更新される生きた節である。
 
+**#957 実装後の実測値（`origin/main` `b3eafab` を基点に実装したブランチ、
+`cargo run --locked -p fandhe-frontend-docs-site -- --out <dir>` の実出力
+で測定）**:
+
+| 観点 | 実測 |
+|---|---|
+| `assets/search-index.json` の実バイト数 | 293,864 バイト（≒ 287 KiB） |
+| 索引ページ数（`pages` 配列長） | 121 件（`nav.all_pages()` と一致） |
+| `MAX_PAGE_TEXT_BYTES`（4096 バイト）近傍まで切り詰められたページ数 | 18 件（`text` が 4090 バイト以上のページ数。部品ページの `component_page::generated_content` 由来の本文が支配的） |
+
+**§8 再評価トリガー 1（512 KiB 超過）の判定結果**: **未発火**。実測
+293,864 バイトは 512 KiB（524,288 バイト）の約 56% に留まり、
+`MAX_PAGE_TEXT_BYTES` の引き下げ・セクション粒度への分割の再検討は
+不要と判断した。「既知の過小評価」（部品ページの Rust 生成コンテンツが
+Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1 MiB
+（§3-4 の `MAX_INDEX_BYTES`）の上限には十分な余裕がある。
+
 ## 2. 既存文書・既存契約との関係
 
 - `docs-site-three-column-redesign.md`（#899/#913）: 骨格統治文書。DOM・
