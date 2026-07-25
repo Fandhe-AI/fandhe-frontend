@@ -198,8 +198,8 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | Timeline | `timeline` | Data Display | `/components/timeline/` | `site/components/timeline.md` | `timeline_section()` |
 | Timer | `timer` | Data Display | `/components/timer/` | `site/components/timer.md` | `timer_section()` |
 | Toast | `toast` | Interactive | `/components/toast/` | `site/components/toast.md` | `toast_section()` |
-| Toggle | `toggle` | Forms | `/components/toggle/` | `site/components/toggle.md` | （なし・Phase 4 で新規） |
-| Toggle Group | `toggle_group` | Forms | `/components/toggle-group/` | `site/components/toggle-group.md` | （なし・Phase 4 で新規） |
+| Toggle | `toggle` | Forms | `/components/toggle/` | `site/components/toggle.md` | `toggle_section()`（イシュー #980） |
+| Toggle Group | `toggle_group` | Forms | `/components/toggle-group/` | `site/components/toggle-group.md` | `toggle_group_section()`（イシュー #980） |
 | Toggle Tip | `toggle_tip` | Interactive | `/components/toggle-tip/` | `site/components/toggle-tip.md` | `toggle_tip_section()` |
 | Tooltip | `tooltip` | Interactive | `/components/tooltip/` | `site/components/tooltip.md` | `tooltip_section()` |
 | Tour | `tour` | Interactive | `/components/tour/` | `site/components/tour.md` | `tour_section()` |
@@ -392,12 +392,15 @@ fail-closed 原則（未知キー・未知テーブルを黙って無視しな�
    `crate::component_specs` 配下の `&'static str` テーブル）から供給する。
    原稿 `.md` は H1 + 導入文（+ 必要な補足段落）のみに保ち、H2 を増やさない。
 2. **Demo フォールバック**: [`showcase::COMPONENT_PAGES`] に節を持たない
-   部品（Angle Slider / Image Cropper / Pin Input / Signature Pad /
-   Toggle / Toggle Group）は、`showcase.rs` を編集する代わりに
-   `ComponentPageSpec::demo: Option<fn() -> Node>` が Demo 節を供給する
-   （`crate::component_page::generated_content` が `showcase` → `spec.demo`
-   の順にフォールバックする）。「Demo 節は Phase 4 で新規作成」という本節
-   冒頭の記述は、この機構経由で実現する。
+   部品（Angle Slider / Image Cropper / Pin Input / Signature Pad の 4 件）
+   は、`showcase.rs` を編集する代わりに `ComponentPageSpec::demo:
+   Option<fn() -> Node>` が Demo 節を供給する（`crate::component_page::generated_content`
+   が `showcase` → `spec.demo` の順にフォールバックする）。「Demo 節は
+   Phase 4 で新規作成」という本節冒頭の記述は、この機構経由で実現する。
+   Toggle / Toggle Group はイシュー #980 で `showcase.rs` の
+   `COMPONENT_PAGES` 正経路（`toggle_section()`/`toggle_group_section()`）
+   へ移設済みのため、本フォールバックの対象からは外れている
+   （`ComponentPageSpec::demo` は両部品とも `None`）。
 3. **Keyboard 表の制約**: 本 docs サイトは `crate::script`（テーマトグル +
    目次スクロールスパイ）以外の JS を一切出力しない。JS 状態機械前提の
    キー操作（矢印キーでの候補移動等）は「できる」と書かず、ネイティブ
