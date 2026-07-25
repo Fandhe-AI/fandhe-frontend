@@ -191,9 +191,19 @@ trap cleanup EXIT
 # 「自分が bind できたこと」を「誰かが listen していること」から区別する
 # （既存の占有者がいる状況を子プロセスの bind 成功と誤認しないため。
 # イシュー #960 PR #1006 Bugbot 指摘の再発防止）。
+#
+# `ss` は出力幅を端末幅（TIOCGWINSZ、非 TTY の場合は `COLUMNS` 環境変数を
+# 参照するフォールバックを含む）に合わせて折り返すため、パイプ経由の実行
+# （非 TTY）では `users:(("...",pid=...))` フィールドが `127.0.0.1:<port>`
+# と同一行に収まらず次行へ折り返されることがある。その場合 2 段の
+# `grep -F` が同一行一致を前提とするため一致せず、正常に bind できた
+# サーバが「起動していない」と誤判定されて kill・次候補ポートへ浪費され
+# 続ける（イシュー #960 PR #1006 Bugbot 指摘）。`COLUMNS` を十分大きい値に
+# 固定して `ss` へ渡し、1 ソケット 1 行に収まることを保証することで、
+# 既存の「同一行一致」前提のまま折り返しを起こさせない。
 port_owned_by_pid() {
   local port="$1" pid="$2"
-  ss -ltnp 2>/dev/null | grep -F "127.0.0.1:${port} " | grep -qF "pid=${pid},"
+  COLUMNS=1000 ss -ltnp 2>/dev/null | grep -F "127.0.0.1:${port} " | grep -qF "pid=${pid},"
 }
 
 start_server_on_free_port() {
