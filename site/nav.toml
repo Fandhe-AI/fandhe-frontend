@@ -603,6 +603,14 @@ title = "Sparkline"
 source = "site/components/sparkline.md"
 path = "/components/sparkline/"
 
+# API Reference セクション（イシュー #955 / 設計 docs/design/docs-site-api-reference-split.md）。
+# - docs/internal/*-implementation-notes.md は本マニフェストへ登録しない。
+#   サイト非出力は「nav 未登録」だけで構造的に担保する（同文書 §3-3 / §4 A05）。
+#   除外リスト・後付けフィルタは設けない。回帰は
+#   crates/docs-site/tests/site_nav.rs の fail-closed テストが検知する。
+# - 部品ごとの詳細（Demo / Anatomy / data-* / Examples）は本セクションではなく
+#   Components セクションの部品ページ（/components/<kebab>/）が正。
+#   API ページ <-> 部品ページの相互リンクは相対 .md リンクで維持する（同文書 §3-2）。
 [[section]]
 title = "API Reference"
 

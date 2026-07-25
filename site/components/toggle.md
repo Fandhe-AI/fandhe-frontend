@@ -53,3 +53,5 @@ indicator
 | Attribute | Description |
 | --- | --- |
 | `aria-pressed` | `root` に付与。押下状態（true/false）を表す。 |
+
+関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md) / [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

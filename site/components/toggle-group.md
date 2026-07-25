@@ -58,3 +58,5 @@ item
 | --- | --- |
 | `role="group"` | `root` に固定付与。`labelled_by` が `Some` のときのみ `aria-labelledby` が付与される。 |
 | `aria-pressed` | 各 item に付与。押下状態（true/false）を表す。 |
+
+関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md) / [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)
