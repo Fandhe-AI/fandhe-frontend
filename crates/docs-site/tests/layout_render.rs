@@ -746,6 +746,10 @@ fn docs_page_header_dom_order_places_actions_after_brand_and_nav() {
     assert!(html_without.contains(r#"class="docs-theme-toggle""#));
 
     let nav = parse_nav(sample_nav_toml()).expect("fixture nav.toml should parse");
+    let nav_node = header_nav(&nav, "/");
+    // `.docs-header-nav` 単体を独立レンダリングし、その完全なシリアライズ
+    // 結果（開始〜自身の閉じタグまで）を後段の隣接判定に使う。
+    let nav_html = render(&nav_node);
     let node_with_header_nav = docs_page_with_assets(
         "タイトル",
         "",
@@ -766,4 +770,21 @@ fn docs_page_header_dom_order_places_actions_after_brand_and_nav() {
         .expect("docs-header-actions should appear");
     assert!(brand_pos < nav_pos);
     assert!(nav_pos < actions_pos);
+
+    // CSS の隣接セレクタ `.docs-header-nav + .docs-header-actions`（イシュー
+    // #951、`crate::site_theme::STRUCTURAL_CSS` 参照）が実際にマッチする
+    // ためには、`.docs-header-nav` の閉じタグ直後に間を置かず
+    // `.docs-header-actions` が続く必要がある（同順序であるだけでは
+    // 不十分。両者の間に別要素・テキストノードが挟まると隣接セレクタは
+    // 不成立になる）。単体レンダリングした `nav_html`（開始〜自身の閉じ
+    // タグまでの完全なシリアライズ）に続けて `.docs-header-actions` の
+    // 開始タグが直接連結されていることを確認することで、その厳密な隣接を
+    // 固定する。
+    let expected_adjacent = format!("{nav_html}<div class=\"docs-header-actions\"");
+    assert!(
+        html_with.contains(&expected_adjacent),
+        ".docs-header-nav の直後に間を置かず .docs-header-actions が続く必要がある \
+         （CSS 隣接セレクタ .docs-header-nav + .docs-header-actions が成立する前提、\
+         イシュー #951）"
+    );
 }

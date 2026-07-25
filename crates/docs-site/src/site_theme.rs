@@ -260,9 +260,15 @@ body {\n\
  *\n\
  * `docs-header-nav` の有無に関わらず常に出力される（`crate::layout` 参照）。\n\
  * 基底帯域では `margin-left: auto` で右寄せする。`min-width: 768px` では\n\
- * `docs-header-nav` 側が `margin-left: auto` を持つため、下記 @media\n\
- * ブロックで `docs-header-actions` の margin を打ち消す（`auto` が 2 つ\n\
- * 並んで自由空間を分割するのを避ける）。\n\
+ * `docs-header-nav` が存在する構成に限り同要素側も `margin-left: auto` を\n\
+ * 持つため、下記 @media ブロックで `.docs-header-nav + .docs-header-actions`\n\
+ * （隣接セレクタ）に絞って `docs-header-actions` の margin を打ち消す\n\
+ * （`auto` が 2 つ並んで自由空間を分割するのを避ける）。`docs-header-nav`\n\
+ * が存在しない構成（`header_nav: None`、例: `docs_page` 単体呼び出し）では\n\
+ * この隣接セレクタが不成立のまま基底帯域の `margin-left: auto` が有効で\n\
+ * あり続け、`min-width: 768px` 以上でもトレイリングエッジへ配置される\n\
+ * （Bugbot 指摘 #951 是正、`crate::layout` の DOM 順序＝ brand →\n\
+ * [nav if Some] → actions を前提とする）。\n\
  */\n\
 .docs-header-actions {\n\
   display: flex;\n\
@@ -735,8 +741,13 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
   /* `.docs-header-nav` が `margin-left: auto` で右寄せを担うこの帯域では\n\
    * `.docs-header-actions` 側の `auto` を打ち消す（イシュー #951。\n\
    * `auto` が 2 つ並んで自由空間を分割し、アクション群がヘッダー中央寄りに\n\
-   * ずれるのを防ぐ）。 */\n\
-  .docs-header-actions {\n\
+   * ずれるのを防ぐ）。`header_nav` が `None`（`docs_page` 単体呼び出し等）の\n\
+   * ときは `.docs-header-nav` 自体が DOM 上に存在せず（`crate::layout`\n\
+   * 参照）この隣接セレクタが不成立となるため、`.docs-header-actions` は\n\
+   * 基底帯域の `margin-left: auto` のまま右端（トレイリングエッジ）へ\n\
+   * 配置される（Bugbot 指摘 #951 是正。無条件セレクタだと `header_nav`\n\
+   * なしの構成でブランド直後に居座ってしまっていた）。 */\n\
+  .docs-header-nav + .docs-header-actions {\n\
     margin-left: 0.75rem;\n\
   }\n\
 \n\
