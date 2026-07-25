@@ -7,11 +7,15 @@
 //! [`SPECS`] を線形探索し、Features / API Reference の引数表 / Examples /
 //! Accessibility の各節を合成する（[`crate::component_page::ComponentPageSpec`]
 //! 参照）。Demo 節は原則 [`crate::showcase::COMPONENT_PAGES`]（正）から供給
-//! されるが、`showcase.rs` に節を持たない 6 部品（Angle Slider / Image
-//! Cropper / Pin Input / Signature Pad / Toggle / Toggle Group）に限り、
-//! 本ファイル末尾の `demo_*` 関数が [`ComponentPageSpec::demo`] 経由で Demo
-//! 節を供給する（`showcase.rs` 自体は変更しない、イシュー #945 の受け入れ
-//! 条件）。
+//! されるが、`showcase.rs` に節を持たない 4 部品（Angle Slider / Image
+//! Cropper / Pin Input / Signature Pad）に限り、本ファイル末尾の `demo_*`
+//! 関数が [`ComponentPageSpec::demo`] 経由で Demo 節を供給する
+//! （`showcase.rs` 自体は変更しない、イシュー #945 の受け入れ条件）。
+//! Toggle / Toggle Group はイシュー #980 で `showcase.rs` の
+//! `COMPONENT_PAGES` 正経路（`toggle_section`/`toggle_group_section`）へ
+//! 移設済みのため、本ファイルの `demo` フィールドは両方とも `None`
+//! （[`crate::component_page::generated_content`] が
+//! `showcase::generated_content` 側を優先照会するため二重供給しない）。
 //!
 //! # 一次情報・非捏造の方針
 //!
@@ -39,8 +43,6 @@ use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui::image_cropper::I
 use fandhe_frontend_pre_styled_ui::image_cropper;
 use fandhe_frontend_pre_styled_ui::pin_input;
 use fandhe_frontend_pre_styled_ui::signature_pad;
-use fandhe_frontend_pre_styled_ui::toggle;
-use fandhe_frontend_pre_styled_ui::toggle_group;
 use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec};
@@ -1380,6 +1382,9 @@ const TOGGLE: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "`size`/`colorPalette` variant クラスを `root` へ付与し、headless-ui の `toggle::root` へ委譲する。",
         "`pressed`/`disabled` の 2 状態フラグを直接引数で受け取る。",
+        "状態機械は Switch と同じ `Checkable` を内部再利用するが、公開語彙は `\"on\"`/`\"off\"`（`aria-pressed` と `data-pressed` を併記）で Switch とは異なる。",
+        "`root` 自身がネイティブ `<button type=\"button\">` であり、Switch/RadioGroup のような hidden input を持たない。",
+        "`indicator` は off 時に styled 層 CSS が `display: none` で隠す（headless 層は `data-state` のみ出力する）。",
     ],
     arguments: &[
         ArgRow {
@@ -1420,15 +1425,23 @@ const TOGGLE: ComponentPageSpec = ComponentPageSpec {
         },
     ],
     examples: &[],
-    keyboard: &[],
-    aria: &[],
-    demo: Some(demo_toggle),
+    keyboard: &[crate::component_page::KeyRow {
+        key: "Space / Enter",
+        description: "ネイティブ `<button>` のブラウザ既定動作により押下状態を切り替える（ブラウザ実装依存、本フレームワークの JS 出力によらない）。",
+    }],
+    aria: &[AriaRow {
+        attribute: "aria-pressed",
+        description: "`root` に付与。押下状態（true/false）を表す。",
+    }],
+    demo: None,
 };
 
 const TOGGLE_GROUP: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "`size`/`colorPalette` variant クラスを `root` へ付与し、headless-ui の `toggle_group::root` へ委譲する。",
         "`radio_group`/`radio_card`/`segment_group` と同型の `orientation`/`labelled_by` 軸を持つ。",
+        "各 item は単体 Toggle と同じ押下状態付きネイティブ button で `aria-pressed`/`data-state` 語彙を揃える。",
+        "`root` のみが `role=\"group\"` を持つ（`role=\"radiogroup\"` の RadioGroup とは異なる）。",
     ],
     arguments: &[
         ArgRow {
@@ -1453,7 +1466,7 @@ const TOGGLE_GROUP: ComponentPageSpec = ComponentPageSpec {
             name: "orientation",
             kind: "Option<Orientation>",
             default: "None",
-            description: "キーボード操作方向のヒント（`aria-orientation`）。",
+            description: "`Some` のとき `root` へ `data-orientation` を出力する（`role=\"group\"` に `aria-orientation` は WAI-ARIA 上許可されないため付与しない）。",
         },
         ArgRow {
             name: "labelled_by",
@@ -1475,13 +1488,30 @@ const TOGGLE_GROUP: ComponentPageSpec = ComponentPageSpec {
         },
     ],
     examples: &[],
-    keyboard: &[],
-    aria: &[],
-    demo: Some(demo_toggle_group),
+    keyboard: &[crate::component_page::KeyRow {
+        key: "Space / Enter",
+        description: "ネイティブ `<button>` のブラウザ既定動作により各 item の押下状態を切り替える（ブラウザ実装依存、本フレームワークの JS 出力によらない）。",
+    }],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"group\"",
+            description: "`root` に固定付与する。",
+        },
+        AriaRow {
+            attribute: "aria-labelledby",
+            description: "`labelled_by` が `Some` のときのみ `root` へ付与する。",
+        },
+        AriaRow {
+            attribute: "aria-pressed",
+            description: "各 item に付与する。押下状態（true/false）を表す。",
+        },
+    ],
+    demo: None,
 };
 
 // ---------------------------------------------------------------------
-// Demo フォールバック（showcase.rs 未登録の 6 部品）
+// Demo フォールバック（showcase.rs 未登録の 4 部品。Toggle / Toggle Group は
+// イシュー #980 で showcase.rs の COMPONENT_PAGES 正経路へ移設済み）
 // ---------------------------------------------------------------------
 //
 // showcase.rs の各 `*_section()` と同じ `div > section > [h2, p, …]` 構造
@@ -1554,41 +1584,6 @@ fn demo_signature_pad() -> Node {
             vec![
                 signature_pad::control(false, vec![], vec![]),
                 signature_pad::clear_trigger(false, vec![], vec![text("Clear")]),
-            ],
-        ),
-    )
-}
-
-fn demo_toggle() -> Node {
-    demo_section(
-        "Toggle",
-        "押下状態を持つトグルボタン。`pressed`/`disabled` の 2 状態を持つ。",
-        toggle::root(
-            Size::Md,
-            ColorPalette::Accent,
-            false,
-            false,
-            vec![],
-            vec![text("Bold")],
-        ),
-    )
-}
-
-fn demo_toggle_group() -> Node {
-    demo_section(
-        "Toggle Group",
-        "複数の Toggle をまとめて排他/複数選択させるグループ部品。",
-        toggle_group::root(
-            Size::Md,
-            ColorPalette::Accent,
-            false,
-            None,
-            None,
-            vec![],
-            vec![
-                toggle_group::item(false, false, "left", vec![], vec![text("Left")]),
-                toggle_group::item(false, false, "center", vec![], vec![text("Center")]),
-                toggle_group::item(false, false, "right", vec![], vec![text("Right")]),
             ],
         ),
     )

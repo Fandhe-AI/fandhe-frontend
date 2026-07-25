@@ -168,7 +168,7 @@ use fandhe_frontend_pre_styled_ui::tour::{self, ContentIds as TourContentIds};
 use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{
-    accordion, alert, badge, card, combobox, menu, popover, radio_group, select, switch,
+    accordion, alert, badge, card, combobox, menu, popover, radio_group, select, switch, toggle,
     toggle_tip, tooltip, AlertStatus, BadgeProps, BadgeVariant, CardVariant, ColorPalette,
     OpenState, Orientation, Size, StyleSheet, StylesheetError,
 };
@@ -461,6 +461,14 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: segment_group_section,
     },
     ComponentPage {
+        path: "/components/toggle/",
+        render: toggle_section,
+    },
+    ComponentPage {
+        path: "/components/toggle-group/",
+        render: toggle_group_section,
+    },
+    ComponentPage {
         path: "/components/carousel/",
         render: carousel_section,
     },
@@ -689,11 +697,11 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 /// card/tabs/accordion/dialog/drawer/menu/select/combobox/popover/tooltip/
 /// hover_card/toggle_tip/switch/radio_group/avatar/checkbox/checkbox_card/
 /// radio_card/input/textarea/native_select/number_input/tags_input/
-/// rating_group/slider/segment_group/pagination/breadcrumb/carousel/
-/// action_bar/toast/progress/tag/kbd/code/image/icon/status/empty_state/
-/// visually_hidden/qr_code/heading/text/em/mark/blockquote/list/table/
-/// data_list/stat/timeline/scroll_area/splitter/tour）→ ショーケース配置
-/// スタイル、の順で決定的に連結する。
+/// rating_group/slider/segment_group/toggle/toggle_group/pagination/
+/// breadcrumb/carousel/action_bar/toast/progress/tag/kbd/code/image/icon/
+/// status/empty_state/visually_hidden/qr_code/heading/text/em/mark/
+/// blockquote/list/table/data_list/stat/timeline/scroll_area/splitter/tour）
+/// → ショーケース配置スタイル、の順で決定的に連結する。
 ///
 /// # 部品ごとの CSS 分離を行わない理由（イシュー #941）
 ///
@@ -3444,6 +3452,128 @@ fn segment_group_section() -> Node {
     )
 }
 
+/// Toggle 節（イシュー #980）: `pressed`/`disabled` 2 状態フラグを直接
+/// 引数で受け取るネイティブ `<button>` ベースのトグル。`indicator` を
+/// children に含めることで anatomy 導出（`component_page::collect_anatomy_parts`）
+/// が `{root, indicator}` を得られるようにする（`component_specs::forms::TOGGLE`
+/// の Demo フォールバックから本節へ移設。イシュー #979 で CSS 配線
+/// （[`stylesheet`]）は完了済み、本節は Demo 節の正経路供給を担う）。
+fn toggle_section() -> Node {
+    let checkmark = || vec![text("✔")];
+    let states = [
+        (false, false, "Off"),
+        (true, false, "On"),
+        (true, true, "Disabled"),
+    ];
+    let state_row = row(states
+        .iter()
+        .map(|(pressed, disabled, label)| {
+            toggle::root(
+                Size::Md,
+                ColorPalette::Accent,
+                *pressed,
+                *disabled,
+                vec![],
+                vec![
+                    toggle::indicator(*pressed, vec![], checkmark()),
+                    text(*label),
+                ],
+            )
+        })
+        .collect());
+
+    let sizes = [
+        (Size::Sm, "Small"),
+        (Size::Md, "Medium"),
+        (Size::Lg, "Large"),
+    ];
+    let size_row = row(sizes
+        .iter()
+        .map(|(size, label)| {
+            toggle::root(
+                *size,
+                ColorPalette::Accent,
+                true,
+                false,
+                vec![],
+                vec![toggle::indicator(true, vec![], checkmark()), text(*label)],
+            )
+        })
+        .collect());
+
+    let palette_row = row(palettes()
+        .iter()
+        .map(|(palette, label)| {
+            toggle::root(
+                Size::Md,
+                *palette,
+                true,
+                false,
+                vec![],
+                vec![toggle::indicator(true, vec![], checkmark()), text(*label)],
+            )
+        })
+        .collect());
+
+    section(
+        "Toggle",
+        "押下状態を持つ 2 状態ボタン。data-state 語彙は Switch の checked/unchecked ではなく on/off です（root 自身がネイティブ button であり、hidden input を持ちません）。",
+        vec![state_row, size_row, palette_row],
+    )
+}
+
+/// ToggleGroup 節（イシュー #980）: 高々 1 項目押下の single / 複数押下の
+/// multiple の 2 状態機械を選べるボタングループ。`orientation` は
+/// `data-orientation` のみで `aria-orientation` は付与しません
+/// （`crates/headless-ui/src/toggle_group.rs` 参照）。anatomy 導出は
+/// `{root, item}`（`component_specs::forms::TOGGLE_GROUP` の Demo
+/// フォールバックから本節へ移設）。
+fn toggle_group_section() -> Node {
+    let horizontal = toggle_group::root(
+        Size::Md,
+        ColorPalette::Accent,
+        false,
+        None,
+        None,
+        vec![],
+        vec![
+            toggle_group::item(false, false, "left", vec![], vec![text("Left")]),
+            toggle_group::item(true, false, "center", vec![], vec![text("Center")]),
+            toggle_group::item(false, false, "right", vec![], vec![text("Right")]),
+        ],
+    );
+    let vertical = toggle_group::root(
+        Size::Md,
+        ColorPalette::Accent,
+        false,
+        Some(Orientation::Vertical),
+        None,
+        vec![],
+        vec![
+            toggle_group::item(true, false, "top", vec![], vec![text("Top")]),
+            toggle_group::item(false, false, "middle", vec![], vec![text("Middle")]),
+            toggle_group::item(false, false, "bottom", vec![], vec![text("Bottom")]),
+        ],
+    );
+    let disabled = toggle_group::root(
+        Size::Md,
+        ColorPalette::Accent,
+        true,
+        None,
+        None,
+        vec![],
+        vec![
+            toggle_group::item(false, true, "left", vec![], vec![text("Left")]),
+            toggle_group::item(false, true, "right", vec![], vec![text("Right")]),
+        ],
+    );
+    section(
+        "Toggle Group",
+        "複数の Toggle をまとめて排他/複数選択させるグループ部品。root にのみ role=\"group\" を固定付与します（RadioGroup の role=\"radiogroup\" とは異なります）。",
+        vec![stack(vec![horizontal, vertical, disabled])],
+    )
+}
+
 /// Carousel 節: 3 スライド中の 2 番目を現在位置として固定表示（イシュー #754）。
 ///
 /// headless の [`Carousel`] 状態機械（`index=1, slide_count=3, loop=false`）を
@@ -5694,7 +5824,7 @@ mod tests {
         // 機械的な分解作業中の取りこぼし・重複追加を fail-closed で検知する
         // 件数センチネル。台帳（`docs/design/docs-site-component-pages.md`）
         // 99 件との突合は #944 の責務。
-        assert_eq!(paths.len(), 89, "COMPONENT_PAGES should have 89 entries");
+        assert_eq!(paths.len(), 91, "COMPONENT_PAGES should have 91 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();
@@ -5792,6 +5922,8 @@ mod tests {
             "slider",
             "editable",
             "segment-group",
+            "toggle",
+            "toggle-group",
             "pagination",
             "steps",
             "splitter",

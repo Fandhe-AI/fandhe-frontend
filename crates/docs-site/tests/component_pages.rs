@@ -374,6 +374,8 @@ fn anatomy_parts_exactly_match_declared_parts_for_fully_demonstrated_components(
                 "close-trigger",
             ],
         ),
+        ("/components/toggle/", &["root", "indicator"]),
+        ("/components/toggle-group/", &["root", "item"]),
     ];
     for (path, expected_parts) in cases {
         let content = fandhe_frontend_docs_site::component_page::generated_content(path).unwrap();
@@ -387,8 +389,9 @@ fn anatomy_parts_exactly_match_declared_parts_for_fully_demonstrated_components(
     }
 }
 
-/// §3.4 のスコープ解決バケット件数（実測、イシュー #991 で `COMPONENT_PAGES`
-/// 登録 88 件 → 89 件（Toolbar 追加）に対して固定）。将来の部品追加で
+/// §3.4 のスコープ解決バケット件数（実測、`COMPONENT_PAGES` 登録 91 件
+/// 〔イシュー #980 で toggle/toggle-group を追加登録・イシュー #991 で
+/// Toolbar を追加登録した後の件数〕に対して固定）。将来の部品追加で
 /// バケット 3（Anatomy 省略）へ無言に落ちることを検知するための固定値
 /// テスト。バケット 2（フォールバック解決）は `input`/`textarea`/
 /// `native-select`（いずれも headless `field::input` の共有スコープ
@@ -417,7 +420,7 @@ fn scope_resolution_buckets_match_expected_counts() {
             bucket2_fallback += 1;
         }
     }
-    assert_eq!(bucket1_path_match, 85);
+    assert_eq!(bucket1_path_match, 87);
     assert_eq!(bucket2_fallback, 4);
     assert_eq!(bucket3_none, 0);
 }
@@ -734,4 +737,41 @@ fn data_attrs_and_css_var_tables_are_deterministic_across_repeated_renders() {
             "generated_content({path}) must be deterministic"
         );
     }
+}
+
+/// 部品ページ原稿 `.md` の設計契約（`docs/design/docs-site-component-pages.md`
+/// §7a.1）を fail-closed で強制する: 原稿は H1（`# `）+ 導入文のみに保ち、
+/// Features/Anatomy/API Reference/Accessibility 等の H2（`## `）節は増やさ
+/// ない（それらは `ComponentPageSpec`（Rust）から機械生成される、
+/// `crate::build::build_site` が「Markdown 本文 → Rust 生成コンテンツ」の
+/// 順で連結する設計）。イシュー #980 は `site/components/toggle.md`/
+/// `toggle-group.md` が #979 の CSS 配線後もこの契約に違反したまま出荷され
+/// ていた（Demo/Features/Anatomy/API Reference/Accessibility の重複・
+/// 虚偽の「Demo を持たない」注記が残存）ことの是正であり、同種の乖離を
+/// 二度と見逃さないための機械ガード。
+#[test]
+fn component_markdown_sources_have_no_h2_headings() {
+    let dir = repo_root().join("site/components");
+    let entries =
+        fs::read_dir(&dir).unwrap_or_else(|e| panic!("{} should be readable: {e}", dir.display()));
+    let mut violations: Vec<String> = Vec::new();
+    for entry in entries {
+        let entry = entry.expect("dir entry should be readable");
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("md") {
+            continue;
+        }
+        let src = fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("{} should be readable: {e}", path.display()));
+        if src.lines().any(|line| line.starts_with("## ")) {
+            violations.push(path.display().to_string());
+        }
+    }
+    assert!(
+        violations.is_empty(),
+        "the following component markdown sources contain H2 (`## `) headings, \
+         violating docs/design/docs-site-component-pages.md §7a.1 (原稿 `.md` は \
+         H1 + 導入文のみに保ち、Features 等は `ComponentPageSpec`（Rust）から供給 \
+         する): {violations:?}"
+    );
 }
