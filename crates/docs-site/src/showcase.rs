@@ -45,6 +45,20 @@
 //! [`SHOWCASE_LAYOUT_CSS`] がショーケース内に限定してこれを中和する
 //! （recipe CSS・サイト骨格 CSS（[`crate::site_theme`] によるビルド時
 //! 生成、出力先 `assets/site.css`）はいずれも変更しない）。
+//!
+//! # ページ単位分解（イシュー #941）
+//!
+//! [`generated_content`] は「1 ページ = pre-styled-ui の公開部品 1 件」
+//! （`docs/design/docs-site-component-pages.md` §3）を実現するため、
+//! `path -> 部品セクション` のレジストリ（`ComponentPage` / `COMPONENT_PAGES`）
+//! を持つ。`/components/pre-styled-ui/`（[`PAGE_PATH`]）の集約出力は
+//! Phase 3-3（#943）で当該パスを索引（凡例 + カテゴリ別リンク集）へ
+//! 改組するまでの経過措置であり、索引化と同時に [`showcase_body`] の
+//! 集約は撤去する（URL 自体は既存被リンク〔`docs/api/pre-styled-ui-api.md`
+//! 等〕維持のため変更しない）。`site/nav.toml` への部品ページ登録・原稿
+//! スタブ作成は #943、Demo/Features/Anatomy/API Reference の雛形合成は
+//! #942 の責務であり、本モジュールは器（レジストリと 2 段照会）のみを
+//! 提供する。
 
 use fandhe_frontend_core::{div, el, text, Node};
 use fandhe_frontend_pre_styled_ui::action_bar;
@@ -244,19 +258,424 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"backdrop\"],\n.pre-styled-showcase [data-scope=\"tour\"][data-part=\"spotlight\"] {\n  display: none;\n}\n\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n";
 
+/// 部品ページ 1 件分のレジストリエントリ（イシュー #941）。
+///
+/// [`COMPONENT_PAGES`] の各要素が「pre-styled-ui の公開部品 1 件 = ページ
+/// 1 件」（`docs/design/docs-site-component-pages.md` §3）を表す。
+/// [`generated_content`] は `path` を鍵に `render` を呼び出して当該部品の
+/// デモ節のみを返し、[`showcase_body`]（集約ページ用）は本テーブルを
+/// 走査して全節を連結する。両者が同一テーブルから導出されるため、
+/// 「集約ページにだけ節がある／レジストリにだけ登録がある」という
+/// ドリフトが構造的に起こらない。
+struct ComponentPage {
+    /// `/components/<kebab-name>/`。`site/nav.toml` の `page.path`（#943 で
+    /// 登録）と一致させる契約で、`nav::validate_page_path` のセグメント
+    /// allowlist（英数・`-`・`_`、`/` 始まり `/` 終わり）を満たす。
+    path: &'static str,
+    /// 当該部品のデモ節（[`section`] が返す `<section>` 1 件）を生成する。
+    render: fn() -> Node,
+}
+
+/// 部品ページのレジストリ本体（88 件、`showcase_body()` の従来の並び順を
+/// 保つ）。原則として `docs/design/docs-site-component-pages.md` の台帳に
+/// 掲載済みの部品のみを登録し、掲載順は集約ページの表示順にのみ効く
+/// （#943 の nav 上の並びはカテゴリ別で、本テーブルの順序に依存しない）。
+const COMPONENT_PAGES: &[ComponentPage] = &[
+    ComponentPage {
+        path: "/components/button/",
+        render: button_section,
+    },
+    ComponentPage {
+        path: "/components/download-trigger/",
+        render: download_trigger_section,
+    },
+    ComponentPage {
+        path: "/components/badge/",
+        render: badge_section,
+    },
+    ComponentPage {
+        path: "/components/spinner/",
+        render: spinner_section,
+    },
+    ComponentPage {
+        path: "/components/skeleton/",
+        render: skeleton_section,
+    },
+    ComponentPage {
+        path: "/components/heading/",
+        render: heading_section,
+    },
+    ComponentPage {
+        path: "/components/text/",
+        render: text_section,
+    },
+    ComponentPage {
+        path: "/components/em/",
+        render: em_section,
+    },
+    ComponentPage {
+        path: "/components/mark/",
+        render: mark_section,
+    },
+    ComponentPage {
+        path: "/components/blockquote/",
+        render: blockquote_section,
+    },
+    ComponentPage {
+        path: "/components/list/",
+        render: list_section,
+    },
+    ComponentPage {
+        path: "/components/separator/",
+        render: separator_section,
+    },
+    ComponentPage {
+        path: "/components/highlight/",
+        render: highlight_section,
+    },
+    ComponentPage {
+        path: "/components/alert/",
+        render: alert_section,
+    },
+    ComponentPage {
+        path: "/components/card/",
+        render: card_section,
+    },
+    ComponentPage {
+        path: "/components/tabs/",
+        render: tabs_section,
+    },
+    ComponentPage {
+        path: "/components/accordion/",
+        render: accordion_section,
+    },
+    ComponentPage {
+        path: "/components/dialog/",
+        render: dialog_section,
+    },
+    ComponentPage {
+        path: "/components/drawer/",
+        render: drawer_section,
+    },
+    ComponentPage {
+        path: "/components/menu/",
+        render: menu_section,
+    },
+    ComponentPage {
+        path: "/components/select/",
+        render: select_section,
+    },
+    ComponentPage {
+        path: "/components/listbox/",
+        render: listbox_section,
+    },
+    ComponentPage {
+        path: "/components/combobox/",
+        render: combobox_section,
+    },
+    ComponentPage {
+        path: "/components/popover/",
+        render: popover_section,
+    },
+    ComponentPage {
+        path: "/components/floating-panel/",
+        render: floating_panel_section,
+    },
+    ComponentPage {
+        path: "/components/tooltip/",
+        render: tooltip_section,
+    },
+    ComponentPage {
+        path: "/components/hover-card/",
+        render: hover_card_section,
+    },
+    ComponentPage {
+        path: "/components/toggle-tip/",
+        render: toggle_tip_section,
+    },
+    ComponentPage {
+        path: "/components/switch/",
+        render: switch_section,
+    },
+    ComponentPage {
+        path: "/components/radio-group/",
+        render: radio_group_section,
+    },
+    ComponentPage {
+        path: "/components/avatar/",
+        render: avatar_section,
+    },
+    ComponentPage {
+        path: "/components/checkbox/",
+        render: checkbox_section,
+    },
+    ComponentPage {
+        path: "/components/input/",
+        render: input_section,
+    },
+    ComponentPage {
+        path: "/components/textarea/",
+        render: textarea_section,
+    },
+    ComponentPage {
+        path: "/components/native-select/",
+        render: native_select_section,
+    },
+    ComponentPage {
+        path: "/components/number-input/",
+        render: number_input_section,
+    },
+    ComponentPage {
+        path: "/components/password-input/",
+        render: password_input_section,
+    },
+    ComponentPage {
+        path: "/components/tags-input/",
+        render: tags_input_section,
+    },
+    ComponentPage {
+        path: "/components/file-upload/",
+        render: file_upload_section,
+    },
+    ComponentPage {
+        path: "/components/rating-group/",
+        render: rating_group_section,
+    },
+    ComponentPage {
+        path: "/components/slider/",
+        render: slider_section,
+    },
+    ComponentPage {
+        path: "/components/editable/",
+        render: editable_section,
+    },
+    ComponentPage {
+        path: "/components/segment-group/",
+        render: segment_group_section,
+    },
+    ComponentPage {
+        path: "/components/carousel/",
+        render: carousel_section,
+    },
+    ComponentPage {
+        path: "/components/tree-view/",
+        render: tree_view_section,
+    },
+    ComponentPage {
+        path: "/components/json-tree-view/",
+        render: json_tree_view_section,
+    },
+    ComponentPage {
+        path: "/components/pagination/",
+        render: pagination_section,
+    },
+    ComponentPage {
+        path: "/components/steps/",
+        render: steps_section,
+    },
+    ComponentPage {
+        path: "/components/tour/",
+        render: tour_section,
+    },
+    ComponentPage {
+        path: "/components/splitter/",
+        render: splitter_section,
+    },
+    ComponentPage {
+        path: "/components/checkbox-card/",
+        render: checkbox_card_section,
+    },
+    ComponentPage {
+        path: "/components/radio-card/",
+        render: radio_card_section,
+    },
+    ComponentPage {
+        path: "/components/breadcrumb/",
+        render: breadcrumb_section,
+    },
+    ComponentPage {
+        path: "/components/action-bar/",
+        render: action_bar_section,
+    },
+    ComponentPage {
+        path: "/components/toast/",
+        render: toast_section,
+    },
+    ComponentPage {
+        path: "/components/progress/",
+        render: progress_section,
+    },
+    ComponentPage {
+        path: "/components/image/",
+        render: image_section,
+    },
+    ComponentPage {
+        path: "/components/icon/",
+        render: icon_section,
+    },
+    ComponentPage {
+        path: "/components/tag/",
+        render: tag_section,
+    },
+    ComponentPage {
+        path: "/components/kbd/",
+        render: kbd_section,
+    },
+    ComponentPage {
+        path: "/components/code/",
+        render: code_section,
+    },
+    ComponentPage {
+        path: "/components/color-swatch/",
+        render: color_swatch_section,
+    },
+    ComponentPage {
+        path: "/components/color-picker/",
+        render: color_picker_section,
+    },
+    ComponentPage {
+        path: "/components/status/",
+        render: status_section,
+    },
+    ComponentPage {
+        path: "/components/empty-state/",
+        render: empty_state_section,
+    },
+    ComponentPage {
+        path: "/components/visually-hidden/",
+        render: visually_hidden_section,
+    },
+    ComponentPage {
+        path: "/components/qr-code/",
+        render: qr_code_section,
+    },
+    ComponentPage {
+        path: "/components/table/",
+        render: table_section,
+    },
+    ComponentPage {
+        path: "/components/data-list/",
+        render: data_list_section,
+    },
+    ComponentPage {
+        path: "/components/stat/",
+        render: stat_section,
+    },
+    ComponentPage {
+        path: "/components/timeline/",
+        render: timeline_section,
+    },
+    ComponentPage {
+        path: "/components/marquee/",
+        render: marquee_section,
+    },
+    ComponentPage {
+        path: "/components/scroll-area/",
+        render: scroll_area_section,
+    },
+    ComponentPage {
+        path: "/components/calendar/",
+        render: calendar_section,
+    },
+    ComponentPage {
+        path: "/components/date-picker/",
+        render: date_picker_section,
+    },
+    ComponentPage {
+        path: "/components/date-input/",
+        render: date_input_section,
+    },
+    ComponentPage {
+        path: "/components/timer/",
+        render: timer_section,
+    },
+    ComponentPage {
+        path: "/components/charts/",
+        render: charts_section,
+    },
+    ComponentPage {
+        path: "/components/bar-chart/",
+        render: bar_chart_section,
+    },
+    ComponentPage {
+        path: "/components/bar-list/",
+        render: bar_list_section,
+    },
+    ComponentPage {
+        path: "/components/bar-segment/",
+        render: bar_segment_section,
+    },
+    ComponentPage {
+        path: "/components/line-chart/",
+        render: line_chart_section,
+    },
+    ComponentPage {
+        path: "/components/area-chart/",
+        render: area_chart_section,
+    },
+    ComponentPage {
+        path: "/components/sparkline/",
+        render: sparkline_section,
+    },
+    ComponentPage {
+        path: "/components/pie-chart/",
+        render: pie_chart_section,
+    },
+    ComponentPage {
+        path: "/components/donut-chart/",
+        render: donut_chart_section,
+    },
+    ComponentPage {
+        path: "/components/scatter-chart/",
+        render: scatter_chart_section,
+    },
+    ComponentPage {
+        path: "/components/radar-chart/",
+        render: radar_chart_section,
+    },
+];
+
+/// [`COMPONENT_PAGES`] に登録済みの部品ページパスを登録順に返す。
+///
+/// #943（nav.toml への一括登録）・#944（CI 契約テストでの充足率計測）が
+/// 「レジストリの path がすべて nav へ登録されているか」を機械検証する
+/// ための最小公開 API。これ以上の内部構造（`ComponentPage` 自体・
+/// `render` 関数ポインタ）は公開しない。
+pub fn component_page_paths() -> impl Iterator<Item = &'static str> {
+    COMPONENT_PAGES.iter().map(|entry| entry.path)
+}
+
+/// 部品 1 件分のデモ節をショーケーススコープ（`.pre-styled-showcase`）で
+/// 包む。[`SHOWCASE_LAYOUT_CSS`] のオーバーレイ中和・見出しリセット等は
+/// すべて `.pre-styled-showcase` 起点のセレクタであり、このラッパを
+/// 外すと Dialog/Menu/Toast/Tour 等の掲示がページ全体を覆う回帰になる
+/// （集約ページ [`showcase_body`] も同じラッパを共有する）。
+fn showcase_wrapper(sections: Vec<Node>) -> Node {
+    div(vec![("class", "pre-styled-showcase")], sections)
+}
+
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
 /// 追記する `Node` 木を返す。
 ///
-/// 現在の登録は pre-styled-ui ショーケース（[`PAGE_PATH`]）の 1 件のみ。
-/// 追加のページが必要になった場合もこの関数へ登録を足すだけで
-/// `crate::build::build_site` 側の分岐は増えない（最小機構の維持）。
+/// 照会順は 2 段:
+///
+/// 1. [`PAGE_PATH`]（`/components/pre-styled-ui/` 集約ページ）: 経過措置。
+///    Phase 3-3（#943）で `/components/pre-styled-ui/` を索引（凡例 +
+///    カテゴリ別リンク集）へ改組するまで [`showcase_body`] の集約出力を
+///    維持する。索引化と同時にこの分岐は撤去する（URL 自体は既存被リンク
+///    〔`docs/api/pre-styled-ui-api.md` 等〕維持のため変更しない）。
+/// 2. [`COMPONENT_PAGES`] レジストリ: 部品単位のページ（`/components/<kebab>/`）。
+///    #942 の `component_page.rs`（Demo/Features/Anatomy/API Reference の
+///    雛形合成）が本関数の戻り値を Demo 節として利用する見込み。
 #[must_use]
 pub fn generated_content(page_path: &str) -> Option<Node> {
     if page_path == PAGE_PATH {
-        Some(showcase_body())
-    } else {
-        None
+        return Some(showcase_body());
     }
+    COMPONENT_PAGES
+        .iter()
+        .find(|entry| entry.path == page_path)
+        .map(|entry| showcase_wrapper(vec![(entry.render)()]))
 }
 
 /// ショーケースが参照する CSS 全量を組み立てる。
@@ -271,6 +690,24 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 /// visually_hidden/qr_code/heading/text/em/mark/blockquote/list/table/
 /// data_list/stat/timeline/scroll_area/splitter/tour）→ ショーケース配置
 /// スタイル、の順で決定的に連結する。
+///
+/// # 部品ごとの CSS 分離を行わない理由（イシュー #941）
+///
+/// ページ単位分解（[`COMPONENT_PAGES`]）後も本関数は単一の CSS 束を返し、
+/// 部品ごとのファイル分割は行わない。理由:
+///
+/// 1. [`SHOWCASE_LAYOUT_CSS`] の中和ルールはすべて `.pre-styled-showcase`
+///    スコープで閉じており、ページ数が増えても他ページのカスケードへ
+///    漏れない
+/// 2. `build::build_site` は生成コンテンツを持つページへ一律に
+///    [`STYLESHEET_REL_PATH`] の `<link>` を配線する。1 ファイルであれば
+///    ブラウザキャッシュが部品ページ間で再利用され、ページ遷移ごとの
+///    再取得が起きない
+/// 3. 部品別に分割するとテーマトークン（`Theme::to_css`）が各ファイルへ
+///    重複出力され、総バイト数と生成ロジックの複雑度がともに増える
+///
+/// 分割は将来の最適化余地として残すが、現時点では計測上の必要がないため
+/// 実施しない。
 ///
 /// # Errors
 ///
@@ -688,16 +1125,20 @@ fn skeleton_section() -> Node {
     )
 }
 
-/// タイポグラフィ節（イシュー #771）: Heading / Text / Em / Mark /
-/// Blockquote / List の 6 静的部品をまとめて掲示する。
-///
-/// Heading は `h4`〜`h6`（サイト骨格 CSS（[`crate::site_theme`] による
-/// ビルド時生成、出力先 `assets/site.css`）の `.docs-content` 見出し
-/// 規則が対象とする `h1`〜`h3` の範囲外）のみを掲示し、サイト骨格の見出し
-/// スタイルとの衝突を避ける（[`skeleton_section`] の Accordion `h3` 漏れ
-/// 遮断と同種の配慮。本節自体の `h2` はショーケース節見出し
-/// （[`section`] ヘルパ）であり本部品の対象外）。
-fn typography_section() -> Node {
+// タイポグラフィ節群（イシュー #771 で導入、#941 で複合節 typography_section
+// から Heading/Text/Em/Mark/Blockquote/List の 6 部品ページ相当の関数へ分解）。
+// 素の HTML 意味論（h1〜h6・p・em・mark・blockquote・ul/ol/li）をそのまま
+// styled 化する方針は変わらないが、記事全体へのカスケード適用（chakra-ui の
+// Prose 相当）は本クレートへ導入せず、docs サイト骨格スタイル
+// （`.docs-content`、`crate::site_theme` によるビルド時生成）が引き続き担う
+// （`docs/design/docs-site-component-pages.md` §3・§4 の「1 ページ = 部品
+// 1 件」方針）。Heading は `h4`〜`h6`（`.docs-content` 見出し規則が対象と
+// する `h1`〜`h3` の範囲外）のみを掲示し、サイト骨格の見出しスタイルとの
+// 衝突を避ける（本節自体の `h2` はショーケース節見出し〔[`section`] ヘルパ〕
+// であり対象外）。各関数はこの前提のもとで 1〜2 文の部品固有説明のみを持つ。
+
+/// Heading 節: `h4`（size=lg）/ `h5`（size=md）/ `h6`（size=sm）の 3 段。
+fn heading_section() -> Node {
     let heading_row = row(vec![
         heading(
             HeadingLevel::H4,
@@ -725,6 +1166,15 @@ fn typography_section() -> Node {
         ),
     ]);
 
+    section(
+        "Heading",
+        "素の h1〜h6 意味論を size（sm/md/lg）でスタイル化した見出し部品。",
+        vec![heading_row],
+    )
+}
+
+/// Text 節: size（sm/md/lg）3 段の本文テキスト。
+fn text_section() -> Node {
     let text_stack = stack(
         [TextSize::Sm, TextSize::Md, TextSize::Lg]
             .iter()
@@ -738,6 +1188,15 @@ fn typography_section() -> Node {
             .collect(),
     );
 
+    section(
+        "Text",
+        "素の p 要素を size（sm/md/lg）でスタイル化した本文テキスト部品。",
+        vec![text_stack],
+    )
+}
+
+/// Em 節: 素の `<em>` の強調表現。
+fn em_section() -> Node {
     let em_row = row(vec![el(
         "p",
         vec![],
@@ -748,6 +1207,15 @@ fn typography_section() -> Node {
         ],
     )]);
 
+    section(
+        "Em",
+        "素の em 要素をそのまま styled 化した強調テキスト部品。",
+        vec![em_row],
+    )
+}
+
+/// Mark 節: variant（subtle/solid/text/plain）4 種のハイライト表現。
+fn mark_section() -> Node {
     let mark_row = row(vec![
         mark(&MarkProps::default(), vec![], vec![text("subtle")]),
         mark(
@@ -776,6 +1244,15 @@ fn typography_section() -> Node {
         ),
     ]);
 
+    section(
+        "Mark",
+        "テキストの一部を強調する Mark 部品。variant（subtle/solid/text/plain）4 種。",
+        vec![mark_row],
+    )
+}
+
+/// Blockquote 節: `subtle` variant の引用ブロック（content + caption）。
+fn blockquote_section() -> Node {
     let blockquote_demo = blockquote::root(
         BlockquoteVariant::Subtle,
         ColorPalette::Accent,
@@ -789,6 +1266,15 @@ fn typography_section() -> Node {
         ],
     );
 
+    section(
+        "Blockquote",
+        "素の blockquote 要素を content/caption の 2 パーツで styled 化した引用部品。",
+        vec![blockquote_demo],
+    )
+}
+
+/// List 節: 順序なし（marker variant）・順序ありの 2 種。
+fn list_section() -> Node {
     let marker_list = list::root(
         ListType::Unordered,
         ListVariant::Marker,
@@ -811,16 +1297,9 @@ fn typography_section() -> Node {
     );
 
     section(
-        "Typography",
-        "見出し・本文・強調・ハイライト・引用・リストの静的部品。素の HTML 意味論（h1〜h6・p・em・mark・blockquote・ul/ol/li）をそのまま styled 化します。記事全体へのカスケード適用（chakra-ui の Prose 相当）は本クレートへ導入せず、docs サイト骨格スタイル（.docs-content）が引き続き担います。",
-        vec![
-            heading_row,
-            text_stack,
-            em_row,
-            mark_row,
-            blockquote_demo,
-            stack(vec![marker_list, ordered_list]),
-        ],
+        "List",
+        "素の ul/ol/li 意味論をそのまま styled 化したリスト部品。順序なし（marker variant）・順序ありの 2 種。",
+        vec![stack(vec![marker_list, ordered_list])],
     )
 }
 
@@ -2089,16 +2568,20 @@ fn checkbox_section() -> Node {
     )
 }
 
-/// Input / Textarea / NativeSelect 節（イシュー #737）。
-///
-/// 状態機械を持たない静的フォーム部品 3 種。アクセシビリティ配線
-/// （`id`・ネイティブ `disabled`/`required`/`readonly`・`aria-invalid`・
-/// `aria-describedby`・`data-*`）は headless `field::*`（#538/#602）へ全面
-/// 委譲するため、本節では invalid/disabled の 2 態と variant/size の切り替え
-/// のみを掲示する（`fandhe_frontend_pre_styled_ui::input` モジュール doc
-/// 参照）。`color-palette` 軸は提供しない設計のため掲示しない。
-fn form_controls_section() -> Node {
-    let plain_field = |id: &'static str| FieldProps {
+// Input / Textarea / NativeSelect 節群（イシュー #737 で導入、#941 で複合節
+// form_controls_section から 3 部品ページ相当の関数へ分解）。いずれも
+// 状態機械を持たない静的フォーム部品で、ブラウザネイティブ挙動をそのまま
+// 尊重する。アクセシビリティ配線（`id`・ネイティブ `disabled`/`required`/
+// `readonly`・`aria-invalid`・`aria-describedby`・`data-*`）は headless
+// `field::*`（#538/#602）へ全面委譲するため、本節では invalid/disabled の
+// 2 態と variant/size の切り替えのみを掲示する
+// （`fandhe_frontend_pre_styled_ui::input` モジュール doc 参照）。
+// `color-palette` 軸は提供しない設計のため掲示しない。3 関数が共有する
+// `FieldProps` ビルダーをモジュールレベル関数として引き上げる。
+
+/// invalid/disabled/required いずれも立てない既定の [`FieldProps`]。
+fn plain_field(id: &'static str) -> FieldProps<'static> {
+    FieldProps {
         id,
         ids: FieldIds::default(),
         disabled: false,
@@ -2106,16 +2589,27 @@ fn form_controls_section() -> Node {
         required: false,
         readonly: false,
         has_helper_text: false,
-    };
-    let invalid_field = |id: &'static str| FieldProps {
+    }
+}
+
+/// `invalid: true` のみを立てた [`FieldProps`]（[`plain_field`] 派生）。
+fn invalid_field(id: &'static str) -> FieldProps<'static> {
+    FieldProps {
         invalid: true,
         ..plain_field(id)
-    };
-    let disabled_field = |id: &'static str| FieldProps {
+    }
+}
+
+/// `disabled: true` のみを立てた [`FieldProps`]（[`plain_field`] 派生）。
+fn disabled_field(id: &'static str) -> FieldProps<'static> {
+    FieldProps {
         disabled: true,
         ..plain_field(id)
-    };
+    }
+}
 
+/// Input 節: Outline（既定）/ Invalid / Disabled の 3 態。
+fn input_section() -> Node {
     let input_row = row(vec![
         input::input(
             &InputProps::default(),
@@ -2155,6 +2649,15 @@ fn form_controls_section() -> Node {
         ),
     ]);
 
+    section(
+        "Input",
+        "ブラウザネイティブ挙動をそのまま尊重する静的テキスト入力部品。invalid/disabled 状態は headless field:: へ委譲した data-* 属性・aria-invalid で表現します。",
+        vec![input_row],
+    )
+}
+
+/// Textarea 節: Outline（既定）の複数行テキスト入力。
+fn textarea_section() -> Node {
     let textarea_row = row(vec![textarea::textarea(
         &TextareaProps::default(),
         &plain_field("showcase-textarea-default"),
@@ -2163,6 +2666,15 @@ fn form_controls_section() -> Node {
         vec![],
     )]);
 
+    section(
+        "Textarea",
+        "ブラウザネイティブ挙動をそのまま尊重する静的複数行テキスト入力部品。",
+        vec![textarea_row],
+    )
+}
+
+/// Native Select 節: 素の `<select>`/`<option>` をスタイル化。
+fn native_select_section() -> Node {
     let native_select_row = row(vec![native_select::native_select(
         &NativeSelectProps::default(),
         &plain_field("showcase-native-select-default"),
@@ -2174,9 +2686,9 @@ fn form_controls_section() -> Node {
     )]);
 
     section(
-        "Input / Textarea / NativeSelect",
-        "ブラウザネイティブ挙動をそのまま尊重する静的フォーム部品 3 種。invalid/disabled 状態は headless field:: へ委譲した data-* 属性・aria-invalid で表現します。",
-        vec![input_row, textarea_row, native_select_row],
+        "Native Select",
+        "素の select/option 要素をそのまま styled 化した選択部品。",
+        vec![native_select_row],
     )
 }
 
@@ -5065,92 +5577,17 @@ fn palettes() -> [(ColorPalette, &'static str); 5] {
 }
 
 /// ショーケース本文全体（Markdown 本文の直後へ追記される `Node` 木）。
+///
+/// [`COMPONENT_PAGES`] レジストリを登録順に走査して全節を連結する
+/// （#941 でハードコード列挙からテーブル走査へ置き換え、レジストリと
+/// 集約ページの構造的乖離を排除した）。経過措置としての位置づけは
+/// [`generated_content`] rustdoc 参照。
 fn showcase_body() -> Node {
-    div(
-        vec![("class", "pre-styled-showcase")],
-        vec![
-            button_section(),
-            download_trigger_section(),
-            badge_section(),
-            spinner_section(),
-            skeleton_section(),
-            typography_section(),
-            separator_section(),
-            highlight_section(),
-            alert_section(),
-            card_section(),
-            tabs_section(),
-            accordion_section(),
-            dialog_section(),
-            drawer_section(),
-            menu_section(),
-            select_section(),
-            listbox_section(),
-            combobox_section(),
-            popover_section(),
-            floating_panel_section(),
-            tooltip_section(),
-            hover_card_section(),
-            toggle_tip_section(),
-            switch_section(),
-            radio_group_section(),
-            avatar_section(),
-            checkbox_section(),
-            form_controls_section(),
-            number_input_section(),
-            password_input_section(),
-            tags_input_section(),
-            file_upload_section(),
-            rating_group_section(),
-            slider_section(),
-            editable_section(),
-            segment_group_section(),
-            carousel_section(),
-            tree_view_section(),
-            json_tree_view_section(),
-            pagination_section(),
-            steps_section(),
-            tour_section(),
-            splitter_section(),
-            checkbox_card_section(),
-            radio_card_section(),
-            breadcrumb_section(),
-            action_bar_section(),
-            toast_section(),
-            progress_section(),
-            image_section(),
-            icon_section(),
-            tag_section(),
-            kbd_section(),
-            code_section(),
-            color_swatch_section(),
-            color_picker_section(),
-            status_section(),
-            empty_state_section(),
-            visually_hidden_section(),
-            qr_code_section(),
-            table_section(),
-            data_list_section(),
-            stat_section(),
-            timeline_section(),
-            marquee_section(),
-            scroll_area_section(),
-            calendar_section(),
-            date_picker_section(),
-            date_input_section(),
-            timer_section(),
-            charts_section(),
-            bar_chart_section(),
-            bar_list_section(),
-            bar_segment_section(),
-            line_chart_section(),
-            area_chart_section(),
-            sparkline_section(),
-            pie_chart_section(),
-            donut_chart_section(),
-            scatter_chart_section(),
-            radar_chart_section(),
-        ],
+    showcase_wrapper(
+        COMPONENT_PAGES
+            .iter()
+            .map(|entry| (entry.render)())
+            .collect(),
     )
 }
 
@@ -5160,10 +5597,102 @@ mod tests {
     use fandhe_frontend_core::render;
 
     #[test]
-    fn generated_content_matches_only_showcase_path() {
+    fn generated_content_matches_aggregate_showcase_path() {
+        // 経過措置（Phase 3-3・#943 まで維持）: 集約ページは従来どおり
+        // 全部品を返す。
         assert!(generated_content(PAGE_PATH).is_some());
+    }
+
+    #[test]
+    fn generated_content_returns_section_for_every_registered_component_page() {
+        // COMPONENT_PAGES に登録済みの全パスが Some を返す
+        // （レジストリと 2 段照会のドリフトを検知する）。
+        for path in component_page_paths() {
+            assert!(
+                generated_content(path).is_some(),
+                "generated_content({path}) should return Some"
+            );
+        }
+    }
+
+    #[test]
+    fn generated_content_returns_none_for_unregistered_paths() {
         assert!(generated_content("/").is_none());
         assert!(generated_content("/guides/embedding-guide/").is_none());
+        assert!(generated_content("/components/nonexistent/").is_none());
+    }
+
+    #[test]
+    fn component_page_paths_are_unique_and_well_formed() {
+        let paths: Vec<&str> = component_page_paths().collect();
+
+        // 機械的な分解作業中の取りこぼし・重複追加を fail-closed で検知する
+        // 件数センチネル。台帳（`docs/design/docs-site-component-pages.md`）
+        // 99 件との突合は #944 の責務。
+        assert_eq!(paths.len(), 88, "COMPONENT_PAGES should have 88 entries");
+
+        let mut sorted = paths.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(
+            sorted.len(),
+            paths.len(),
+            "component page paths must be unique"
+        );
+
+        for path in &paths {
+            // `nav::validate_page_path`（`is_safe_path_segment`）の
+            // allowlist（英数・`-`・`_`、`/` 始まり `/` 終わり）をミラーする。
+            assert!(
+                path.starts_with("/components/") && path.ends_with('/'),
+                "unexpected path shape: {path}"
+            );
+            let inner = &path[1..path.len() - 1];
+            assert!(
+                inner.split('/').all(|seg| !seg.is_empty()
+                    && seg
+                        .chars()
+                        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')),
+                "path segment fails nav::validate_page_path allowlist: {path}"
+            );
+        }
+    }
+
+    #[test]
+    fn component_page_markup_has_no_non_empty_href() {
+        // 集約ページ単位の href 中立性テスト
+        // （showcase_markup_has_no_href_attributes_for_linkcheck_neutrality）
+        // をエントリ単位へ強化する。build.rs の linkcheck は全 href を
+        // 突合検証するため、生成コンテンツは実ページへ解決される href を
+        // 持たない設計を各部品ページ単位でも維持する。
+        for path in component_page_paths() {
+            let node = generated_content(path).expect("registered path should resolve");
+            let html = render(&node);
+            let non_empty_hrefs: Vec<&str> = html
+                .match_indices("href=\"")
+                .filter(|(i, _)| !html[i + 6..].starts_with('"'))
+                .map(|(i, _)| &html[i..i + 20.min(html.len() - i)])
+                .collect();
+            assert!(
+                non_empty_hrefs.is_empty(),
+                "non-empty href found on {path}: {non_empty_hrefs:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn component_page_content_is_wrapped_in_showcase_scope() {
+        // 単体レンダリング結果が .pre-styled-showcase でラップされている
+        // ことを確認する（オーバーレイ中和 CSS のスコープ前提、
+        // showcase_wrapper 参照）。
+        for path in component_page_paths() {
+            let node = generated_content(path).expect("registered path should resolve");
+            let html = render(&node);
+            assert!(
+                html.contains(r#"class="pre-styled-showcase""#),
+                "missing pre-styled-showcase wrapper on {path}"
+            );
+        }
     }
 
     #[test]
