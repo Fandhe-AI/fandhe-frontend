@@ -98,7 +98,9 @@ fn site_nav_registers_five_sections_with_expected_titles() {
 /// イシュー #993 で Navigation Menu（`site/components/navigation-menu.md`）
 /// が加わり、部品ページは 101 → 102、登録ページ総数は 123 → 124 になった。
 /// イシュー #994 で Callout（`site/components/callout.md`）が加わり、
-/// 部品ページは 102 → 103、登録ページ総数は 124 → 125 になった。
+/// 部品ページは 102 → 103、登録ページ総数は 124 → 125 になった。イシュー
+/// #995 で Quote / Strong の 2 ページが加わり、部品ページは 103 → 105、
+/// 登録ページ総数は 125 → 127 になった。
 #[test]
 fn site_nav_registers_all_pages_with_expected_paths() {
     let nav = load_nav();
@@ -108,7 +110,7 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .map(|p| (p.source.as_str(), p.path.as_str()))
         .collect();
 
-    assert_eq!(pages.len(), 125, "expected 125 pages, got {pages:?}");
+    assert_eq!(pages.len(), 127, "expected 127 pages, got {pages:?}");
 
     let component_pages: Vec<&(&str, &str)> = pages
         .iter()
@@ -116,8 +118,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .collect();
     assert_eq!(
         component_pages.len(),
-        104,
-        "expected 104 /components/ pages (1 index + 103 部品), got {component_pages:?}"
+        106,
+        "expected 106 /components/ pages (1 index + 105 部品), got {component_pages:?}"
     );
 
     let source_based_component_pages = pages
@@ -125,8 +127,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .filter(|(source, _)| source.starts_with("site/components/"))
         .count();
     assert_eq!(
-        source_based_component_pages, 103,
-        "expected 103 pages sourced from site/components/"
+        source_based_component_pages, 105,
+        "expected 105 pages sourced from site/components/"
     );
 
     // 代表 3 件で (source, path) の一致を spot-check する（台帳・レジストリ

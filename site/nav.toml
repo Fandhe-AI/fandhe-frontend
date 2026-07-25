@@ -86,7 +86,7 @@ title = "コンポーネント索引"
 source = "site/components-pre-styled-ui.md"
 path = "/components/pre-styled-ui/"
 
-# 以下 6 カテゴリ × 99 部品ページ（イシュー #943）。台帳は
+# 以下 6 カテゴリ × 99 部品ページ（イシュー #943。#995 で Quote / Strong の 2 件を追加）。台帳は
 # docs/design/docs-site-component-pages.md §3/§5 を正とする。
 # カテゴリ内はいずれも表示名の昇順。
 
@@ -137,6 +137,16 @@ path = "/components/list/"
 title = "Mark"
 source = "site/components/mark.md"
 path = "/components/mark/"
+
+[[section.group.page]]
+title = "Quote"
+source = "site/components/quote.md"
+path = "/components/quote/"
+
+[[section.group.page]]
+title = "Strong"
+source = "site/components/strong.md"
+path = "/components/strong/"
 
 [[section.group.page]]
 title = "Text"

@@ -421,7 +421,11 @@ fn scope_resolution_buckets_match_expected_counts() {
             bucket2_fallback += 1;
         }
     }
-    assert_eq!(bucket1_path_match, 90);
+    // イシュー #994 で Callout（path 由来の kebab callout が data-scope と
+    // 一致）が加わり 89 -> 90、イシュー #995 で Quote / Strong の 2 部品
+    // ページが加わり（いずれも path 由来の kebab quote/strong が
+    // data-scope とそのまま一致する）90 -> 92 へ増える。
+    assert_eq!(bucket1_path_match, 92);
     assert_eq!(bucket2_fallback, 4);
     assert_eq!(bucket3_none, 0);
 }

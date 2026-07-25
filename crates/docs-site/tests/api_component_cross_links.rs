@@ -5,10 +5,11 @@
 //! - API ページ → 部品ページ: `docs/api/headless-ui-api.md` /
 //!   `docs/api/pre-styled-ui-api.md` が `../../site/components/<kebab>.md`
 //!   形式のリンクで指す先はすべて nav 登録済みの部品ページであること。
-//! - 部品ページ → API ページ: 全 103 部品ページが
+//! - 部品ページ → API ページ: 全 105 部品ページが
 //!   `../../docs/api/pre-styled-ui-api.md` へのリンクを持ち、その集合は
-//!   `pre-styled-ui-api.md` 側が指す 103 件と完全一致すること（イシュー
-//!   #994 で Callout が加わり 102 → 103）。
+//!   `pre-styled-ui-api.md` 側が指す 105 件と完全一致すること（イシュー
+//!   #994 で Callout が加わり 102 → 103、イシュー #995 で Quote / Strong が
+//!   加わり 103 → 105）。
 //! - headless-ui 裏付けを持つ部品ページ（nav 登録の部品ページ kebab と
 //!   `crates/headless-ui/src/<snake>.rs` mod 名の共通集合）は
 //!   `docs/api/headless-ui-api.md` と双方向にリンクしていること。
@@ -39,7 +40,7 @@ fn load_nav() -> Nav {
 }
 
 /// nav 登録済みの部品ページ kebab 名の集合（`site/components/<kebab>.md`
-/// 由来の 99 件）を返す。
+/// 由来の 104 件）を返す。
 fn nav_component_kebabs() -> BTreeSet<String> {
     let nav = load_nav();
     nav.all_pages()
@@ -78,7 +79,7 @@ fn headless_ui_mod_kebabs() -> BTreeSet<String> {
     mods
 }
 
-/// headless-ui 裏付けを持つ部品ページ kebab（nav 登録 99 件と headless-ui
+/// headless-ui 裏付けを持つ部品ページ kebab（nav 登録 104 件と headless-ui
 /// mod 名の共通集合）。基盤 mod（state/anatomy 等）が将来たまたま部品ページ
 /// と同名になった場合に誤って対象化しないよう、例外は理由付きの明示リスト
 /// でのみ許容する（現時点では例外なし）。
@@ -137,8 +138,8 @@ fn api_links_to_component_pages_are_all_nav_registered() {
     let nav_kebabs = nav_component_kebabs();
     assert_eq!(
         nav_kebabs.len(),
-        103,
-        "expected 103 nav-registered component pages, got {}",
+        105,
+        "expected 105 nav-registered component pages, got {}",
         nav_kebabs.len()
     );
 
@@ -162,7 +163,7 @@ fn api_links_to_component_pages_are_all_nav_registered() {
     }
 }
 
-/// 受け入れ条件 3 のもう片側: 全 103 部品ページが
+/// 受け入れ条件 3 のもう片側: 全 105 部品ページが
 /// `pre-styled-ui-api.md` へ委譲リンクし、`pre-styled-ui-api.md` 側が指す
 /// 部品ページ集合と完全一致すること（過不足ゼロ）。
 #[test]
@@ -170,7 +171,7 @@ fn every_component_page_links_back_to_pre_styled_ui_api() {
     const LINK_FRAGMENT: &str = "../../docs/api/pre-styled-ui-api.md";
 
     let nav_kebabs = nav_component_kebabs();
-    assert_eq!(nav_kebabs.len(), 103);
+    assert_eq!(nav_kebabs.len(), 105);
 
     let mut pages_missing_link = Vec::new();
     for kebab in &nav_kebabs {
@@ -189,7 +190,7 @@ fn every_component_page_links_back_to_pre_styled_ui_api() {
     let linked_from_api = extract_component_link_kebabs(&api_markdown);
     assert_eq!(
         linked_from_api, nav_kebabs,
-        "docs/api/pre-styled-ui-api.md component links must exactly match the 103 nav-registered \
+        "docs/api/pre-styled-ui-api.md component links must exactly match the 105 nav-registered \
          component pages (no missing, no stale entries)"
     );
 }

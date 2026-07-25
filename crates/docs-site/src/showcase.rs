@@ -141,6 +141,7 @@ use fandhe_frontend_pre_styled_ui::password_input::{
 };
 use fandhe_frontend_pre_styled_ui::pie_chart::{pie_chart, PieChartProps};
 use fandhe_frontend_pre_styled_ui::qr_code;
+use fandhe_frontend_pre_styled_ui::quote::quote;
 use fandhe_frontend_pre_styled_ui::radio_card;
 use fandhe_frontend_pre_styled_ui::rating_group::{self, RatingGroup, RatingItemFlags};
 use fandhe_frontend_pre_styled_ui::scroll_area;
@@ -154,6 +155,7 @@ use fandhe_frontend_pre_styled_ui::splitter;
 use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 use fandhe_frontend_pre_styled_ui::steps;
+use fandhe_frontend_pre_styled_ui::strong::strong;
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::tag::{self, TagProps, TagVariant};
@@ -366,6 +368,14 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
     ComponentPage {
         path: "/components/mark/",
         render: mark_section,
+    },
+    ComponentPage {
+        path: "/components/quote/",
+        render: quote_section,
+    },
+    ComponentPage {
+        path: "/components/strong/",
+        render: strong_section,
     },
     ComponentPage {
         path: "/components/blockquote/",
@@ -851,6 +861,8 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::mark::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::blockquote::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::list::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::quote::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::strong::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::table::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::data_list::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::stat::css())?;
@@ -1203,7 +1215,8 @@ fn skeleton_section() -> Node {
 }
 
 // タイポグラフィ節群（イシュー #771 で導入、#941 で複合節 typography_section
-// から Heading/Text/Em/Mark/Blockquote/List の 6 部品ページ相当の関数へ分解）。
+// から Heading/Text/Em/Mark/Blockquote/List の 6 部品ページ相当の関数へ分解。
+// #995 で Quote/Strong の 2 部品ページ相当の関数を追加）。
 // 素の HTML 意味論（h1〜h6・p・em・mark・blockquote・ul/ol/li）をそのまま
 // styled 化する方針は変わらないが、記事全体へのカスケード適用（chakra-ui の
 // Prose 相当）は本クレートへ導入せず、docs サイト骨格スタイル
@@ -1325,6 +1338,46 @@ fn mark_section() -> Node {
         "Mark",
         "テキストの一部を強調する Mark 部品。variant（subtle/solid/text/plain）4 種。",
         vec![mark_row],
+    )
+}
+
+/// Quote 節: 素の `<q>` による短いインライン引用（イシュー #995）。
+/// ブロックレベルの引用は [`blockquote_section`] が担う。
+fn quote_section() -> Node {
+    let quote_row = row(vec![el(
+        "p",
+        vec![],
+        vec![
+            text("彼はこう言った、"),
+            quote(vec![], vec![text("為せば成る")]),
+            text("と。"),
+        ],
+    )]);
+
+    section(
+        "Quote",
+        "素の q 要素をそのまま styled 化した短いインライン引用部品。",
+        vec![quote_row],
+    )
+}
+
+/// Strong 節: 素の `<strong>` による重要性の強調（イシュー #995）。
+/// 文法的な強勢の強調は [`em_section`] が担う。
+fn strong_section() -> Node {
+    let strong_row = row(vec![el(
+        "p",
+        vec![],
+        vec![
+            text("この操作は"),
+            strong(vec![], vec![text("元に戻せません")]),
+            text("。"),
+        ],
+    )]);
+
+    section(
+        "Strong",
+        "素の strong 要素をそのまま styled 化した重要性の強調テキスト部品。",
+        vec![strong_row],
     )
 }
 
@@ -6107,7 +6160,8 @@ mod tests {
         // 99 件との突合は #944 の責務。
         // イシュー #993 で Navigation Menu を追加し 92 → 93 件になった。
         // イシュー #994 で Callout を追加し 93 → 94 件になった。
-        assert_eq!(paths.len(), 94, "COMPONENT_PAGES should have 94 entries");
+        // イシュー #995 で Quote / Strong を追加し 94 → 96 件になった。
+        assert_eq!(paths.len(), 96, "COMPONENT_PAGES should have 96 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();

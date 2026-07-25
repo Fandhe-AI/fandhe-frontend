@@ -299,6 +299,13 @@
 //!   `Prose` 相当）は本クレートへ導入せず、`fandhe-frontend-docs-site` の
 //!   `site/assets/site.css`（`.docs-content` 規則）が引き続き担う（役割分担
 //!   の詳細は [`mod@text`] rustdoc 参照）。
+//! - タイポグラフィ静的部品 8 種目・9 種目（イシュー #995）: [`mod@quote`]
+//!   （[`quote::quote`]、`<q>`、variant なし。短いインライン引用で
+//!   [`mod@blockquote`] のブロック引用とは役割が異なる。ブラウザ既定の
+//!   引用符生成コンテンツは上書きしない）・[`mod@strong`]（[`strong::strong`]、
+//!   `<strong>`、variant なし。重要性の強調で [`mod@em`]（文法的な強勢）
+//!   とは役割が異なり `font-weight: bold` で区別する）。いずれも上記 6 種と
+//!   同じ「variant 軸を持たない slot recipe」パターン（[`mod@em`] と同型）。
 //! - 状態機械を持たない静的表示部品 2 種（イシュー #767）:
 //!   [`mod@table`]（Table、`table`/`thead`/`tbody`/`tfoot`/`tr`/`th`/`td`/
 //!   `caption` の 8 パーツ。`variant`（`Line`/`Outline`）・`size`・`striped`
@@ -590,6 +597,7 @@ pub mod pin_input;
 pub mod popover;
 pub mod progress;
 pub mod qr_code;
+pub mod quote;
 pub mod radio_card;
 pub mod radio_group;
 pub mod rating_group;
@@ -608,6 +616,7 @@ pub mod splitter;
 pub mod stat;
 pub mod status;
 pub mod steps;
+pub mod strong;
 pub mod stylesheet;
 pub mod switch;
 pub mod table;
@@ -650,11 +659,13 @@ pub use list::{ListType, ListVariant};
 pub use mark::{mark, MarkProps, MarkVariant};
 pub use marquee::{marquee, MarqueeDirection, MarqueeProps};
 pub use native_select::{native_select, NativeSelectProps, NativeSelectVariant};
+pub use quote::quote;
 pub use recipe::{when, ColorPalette, Size, SlotRecipe, VariantCondition, VariantValue};
 pub use separator::{separator, SeparatorProps, SeparatorVariant};
 pub use skeleton::{skeleton, SkeletonProps, SkeletonVariant};
 pub use spinner::{spinner, SpinnerProps};
 pub use status::StatusProps;
+pub use strong::strong;
 pub use stylesheet::{StyleSheet, StylesheetError};
 pub use table::TableVariant;
 pub use tag::TagVariant;
