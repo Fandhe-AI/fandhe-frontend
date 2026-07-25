@@ -300,6 +300,7 @@ const OVERLAY_SPECS: &[(&str, ComponentPageSpec)] = &[
 /// テーブルと同列に 1 要素として追記する。
 const SPEC_TABLES: &[&[(&str, ComponentPageSpec)]] = &[
     component_specs::forms::SPECS,
+    component_specs::typography::SPECS,
     NAV_DATA_SPECS,
     OVERLAY_SPECS,
     crate::component_page_specs_948::SPECS,

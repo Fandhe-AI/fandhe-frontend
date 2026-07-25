@@ -1,12 +1,13 @@
-//! タイポグラフィ静的部品 6 種（イシュー #771、Heading / Text / Em / Mark /
-//! Blockquote / List）の決定的 CSS 出力ゴールデンテスト。
+//! タイポグラフィ静的部品 8 種（イシュー #771、Heading / Text / Em / Mark /
+//! Blockquote / List。イシュー #995 で Quote / Strong を追加）の決定的
+//! CSS 出力ゴールデンテスト。
 //!
 //! `crates/pre-styled-ui/tests/skeleton_css.rs` の golden fixture テストの
 //! 前例に倣い、各部品の `css()` が返す CSS 全文をバイト単位で固定する。
 //! variant/size ごとの規則の出力順が崩れた場合や意図しない宣言の追加・欠落
 //! があった場合に、この golden テストが即座に検知する。
 
-use fandhe_frontend_pre_styled_ui::{blockquote, em, heading, list, mark, text};
+use fandhe_frontend_pre_styled_ui::{blockquote, em, heading, list, mark, quote, strong, text};
 
 const HEADING_GOLDEN_CSS: &str = r#"[data-scope="heading"][data-part="root"] {
   margin: 0;
@@ -236,6 +237,16 @@ const LIST_GOLDEN_CSS: &str = r#"[data-scope="list"][data-part="root"] {
 }
 "#;
 
+const QUOTE_GOLDEN_CSS: &str = r#"[data-scope="quote"][data-part="root"] {
+  font-style: italic;
+}
+"#;
+
+const STRONG_GOLDEN_CSS: &str = r#"[data-scope="strong"][data-part="root"] {
+  font-weight: var(--fandhe-font-font-weight-bold);
+}
+"#;
+
 #[test]
 fn heading_css_matches_golden_fixture_byte_for_byte() {
     assert_eq!(heading::css(), HEADING_GOLDEN_CSS);
@@ -264,4 +275,14 @@ fn blockquote_css_matches_golden_fixture_byte_for_byte() {
 #[test]
 fn list_css_matches_golden_fixture_byte_for_byte() {
     assert_eq!(list::css(), LIST_GOLDEN_CSS);
+}
+
+#[test]
+fn quote_css_matches_golden_fixture_byte_for_byte() {
+    assert_eq!(quote::css(), QUOTE_GOLDEN_CSS);
+}
+
+#[test]
+fn strong_css_matches_golden_fixture_byte_for_byte() {
+    assert_eq!(strong::css(), STRONG_GOLDEN_CSS);
 }

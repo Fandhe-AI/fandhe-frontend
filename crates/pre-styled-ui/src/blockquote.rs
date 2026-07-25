@@ -6,6 +6,10 @@
 //! 引用テキストの HTML 意味論（スクリーンリーダー・検索エンジンが引用として
 //! 認識する）をそのまま保つ（本イシュー冒頭「素の HTML 意味論をそのまま
 //! styled 化する」方針）。
+//!
+//! 文中に埋め込む短いインライン引用（`<q>`）は [`crate::quote`] が担う
+//! （イシュー #995）。`blockquote` はブロックレベルの構造・出典表示
+//! （`caption` パーツ）を持つ点で `quote` と役割が異なる。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
