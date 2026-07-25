@@ -334,6 +334,7 @@ Calendar / DatePicker を実装した。
 
 | 項目 | 内容 |
 |---|---|
+| 部品ページ | [Calendar](../../site/components/calendar.md) |
 | anatomy パーツ | Root/Heading/PrevTrigger/NextTrigger/Table/TableHeader/TableRow/TableHeadCell/TableBody/TableCell/DayTrigger の 11 パーツ |
 | 状態機械 | `Calendar`（`view_year`/`view_month`/`selected`/`today`/`min`/`max`/`week_start`）。`CalendarAction`: `PrevMonth`/`NextMonth`/`Select(PlainDate)`/`ClearSelection` |
 | dispatch 名 | `"prev-month"`/`"next-month"`/`"select"`（payload は ISO 8601 文字列）/`"clear-selection"` |
@@ -345,6 +346,7 @@ Calendar / DatePicker を実装した。
 
 | 項目 | 内容 |
 |---|---|
+| 部品ページ | [DatePicker](../../site/components/date-picker.md) |
 | anatomy パーツ | Root/Label/Control/Input/Trigger/ClearTrigger/Positioner/Content の 8 パーツ |
 | positioner/content の基盤 | `crate::popover`（`state::Disclosure`）と同一の開閉・配置基盤を再利用する。独自のオーバーレイ機構は持たない |
 | 状態機械 | `DatePicker`（`state::Disclosure` + `calendar::Calendar` の合成）。`DatePickerAction`: `Open`/`Close`/`Toggle`/`PrevMonth`/`NextMonth`/`Select(PlainDate)`/`ClearSelection` |

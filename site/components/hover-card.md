@@ -13,3 +13,5 @@
 > 重なるため、掲示専用 CSS（`assets/pre-styled-ui.css` の `.pre-styled-showcase`
 > スコープ）でページの流れの中へ収めています。実アプリケーションでの overlay 配置は
 > pre-styled-ui の recipe CSS がそのまま担います。
+
+関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md) / [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

@@ -6,3 +6,5 @@
 
 `Avatar` の Demo は `ImageStatus` を固定し、画像読み込み成功時の表示と
 フォールバック（イニシャル等）表示の両方を掲示しています。
+
+関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md) / [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

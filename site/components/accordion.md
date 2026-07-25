@@ -6,3 +6,5 @@
 2 つの状態機械（`Accordion` / `MultiAccordion`）を選べます。ページ内に収まる
 disclosure（開閉パネル）であり、他のセクションを覆うオーバーレイではないため、
 掲示位置を中和する専用 CSS は不要です。
+
+関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md) / [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)
