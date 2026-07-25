@@ -7,6 +7,9 @@ Phase 3〜6（#736/#748/#757/#766 配下、#737〜#747・#749〜#756・#758〜#7
 #767〜#776 の 37 issue 相当）実装の正とする。保留・意図的非採用の評価軸・
 再評価トリガーはイシュー #735 で `docs/policy/intentional-non-adoption.md`
 §3.22〜§3.24（新規非採用確定）・§7（保留項目の記録）に確定記録済み。
+§3 の実装済み mod 件数・§5 の区分は、2026-07-25 時点でイシュー #934 が
+全件再実測し、それ以前の PR ごとの差分追記による蓄積ドリフト（headless-ui
+38/pre-styled-ui 46 という過小計上）を是正済み。
 
 ## 1. 背景
 
@@ -36,60 +39,74 @@ Phase 3〜6（#736/#748/#757/#766 配下、#737〜#747・#749〜#756・#758〜#7
 
 ## 3. 実装済み部品と lib.rs の突合手順
 
-`crates/headless-ui/src/lib.rs` の基盤 mod（anatomy / aria / data_attrs /
-positioning / state）を除く 35 mod、`crates/pre-styled-ui/src/lib.rs` の
-基盤 mod（css / recipe / stylesheet / theme）を除く 43 mod（styled ラッパー
-33 + 静的部品 10）が、本書の「実装済み」区分と一致することを次のコマンドで
-確認できる。
+本節の数値は下記コマンドの出力そのものであり、PR ごとの差分追記による
+更新を禁止する（イシュー #934。差分追記の蓄積が headless-ui 38 /
+pre-styled-ui 46 という大幅ドリフトを生んだ）。数値を更新する場合は
+必ず下記コマンドを再実行し、その出力をそのまま転記すること。
+
+**基準日**: 2026-07-25 時点の実測（イシュー #934 で全件再実測）。
+
+**除外集合の定義と根拠**: 除外基準は「ノード（`fandhe_frontend_core::Node`）
+を返さない・anatomy を持たない非描画の基盤 mod」。
+
+- headless-ui: `anatomy` / `aria` / `data_attrs` / `positioning` / `state` /
+  `format` / `color` / `date`（`date` は `crates/headless-ui/src/date.rs`
+  の module doc が「HTML を一切組み立てない」と明記する非描画の純計算
+  モジュールであり、`format` / `color` と同一カテゴリのため同基準で除外）
+- pre-styled-ui: `css` / `recipe` / `stylesheet` / `theme`
+- 注記: `qr_encode`（headless-ui）・`class_attr`（pre-styled-ui）は
+  `mod`（非 `pub`）宣言のため `^pub mod` 突合の対象外であり、除外パターンへ
+  書く必要がない
+- 注記: `charts` は名前空間 mod だが §5 に `charts/installation.md` /
+  `charts/use-chart.md` の 2 行が割り当て済みのため計上に含める（この方針の
+  恒久化は §7 参照）
+
+**突合コマンド**（`^pub mod (...);$` の完全一致でアンカーする。部分一致の
+`grep -vE 'css|recipe|stylesheet|theme'` は `color` / `date` を alternation
+へ足した瞬間に `color_picker` / `date_input` / `date_picker` を巻き込んで
+消してしまうため使わない）:
 
 ```bash
 grep -E '^pub mod ' crates/headless-ui/src/lib.rs \
-  | grep -vE 'anatomy|aria|data_attrs|positioning|state'
+  | grep -vE '^pub mod (anatomy|aria|data_attrs|positioning|state|format|color|date);$' | wc -l
+# => 59
 grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs \
-  | grep -vE 'css|recipe|stylesheet|theme'
+  | grep -vE '^pub mod (css|recipe|stylesheet|theme);$' | wc -l
+# => 94
+grep -cE '^pub mod ' crates/pre-styled-ui/src/charts/mod.rs
+# => 13
 ```
 
-2026-07-24 時点の実測（#828 マージにより download_trigger を追加反映。
-これ以前は 2026-07-23 時点の実測（#750 マージにより listbox、#745 マージ
-により editable を追加反映。#765 マージによる status / empty_state を含め
-再実測。本節はこれ以前の複数 PR（#754〜#765 等）を経て蓄積した mod 数の
-乖離を合わせて是正した）だった）:
-
-- headless-ui 38（#836 で timer を追加反映。ただし本節は clipboard /
-  qr_code / scroll_area / password_input / action_bar / steps / toast /
-  skip_nav / visually_hidden 等、#836 以前に既にマージ済みの複数 mod を
-  未反映のまま蓄積した既知のドリフトを抱えており、本 PR ではそれらの再実測
-  までは行わない。全件再実測は別途の docs 整備イシューとして切り出しを提案
-  する、`.claude/rules/out-of-scope-tracking.md` 対応）:
-  accordion / avatar / breadcrumb / carousel / checkbox /
-  collapsible / combobox / dialog / download_trigger / drawer / editable /
-  field / fieldset / hover_card / link / link_overlay / listbox / menu /
-  nav_list / number_input / pagination / pin_input / popover / progress /
-  radio_group / rating_group / segment_group / select / slider / switch /
-  tabs / tags_input / timer / toggle / toggle_group / toggle_tip / tooltip /
-  tree_view
-  （#853 で `format` mod を追加。ただし `format` は「実装済み」区分の
-  UI コンポーネント mod ではなく、ノードを返さない `String` 純関数
-  ユーティリティ（§3.23 意図的非採用からの区分変更、anatomy を持たない）
-  であるため、上記の mod 数集計・突合コマンドの `grep -vE` 除外対象へ
-  `anatomy|aria|data_attrs|positioning|state|format` として追加すべきだが、
-  本 PR では既存の既知ドリフト是正（全件再実測）と合わせて別途の docs
-  整備イシューへ切り出しを提案する。現時点の実数は本節記載の 38 + `format`
-  の 39 mod）
-- pre-styled-ui 46（styled ラッパー 36 + 静的部品 10。#836 で timer を追加
-  反映。上記と同じ既知のドリフトを抱える）:
-  accordion / avatar / breadcrumb / carousel / checkbox / checkbox_card /
-  combobox / dialog / download_trigger / drawer / editable / hover_card /
-  link / link_overlay / listbox / menu / nav_list / number_input /
-  pagination / pin_input / popover / radio_card / radio_group /
-  rating_group / segment_group / select / slider / switch / tabs /
-  tags_input / timer / toggle / toggle_group / toggle_tip / tooltip / tree_view
-  （styled ラッパー、`checkbox_card`/`radio_card` は headless 状態機械
-  （`checkbox`/`radio_group`）を再利用するカード型選択 UI として、
-  `download_trigger` は headless 自由関数（`download_trigger::root`）を
-  `crate::button::recipe_with_scope` で流用する styled 版として、本区分へ
-  計上、36 件）+ alert / badge / button / card / spinner / input /
-  textarea / native_select / status / empty_state（静的部品、10 件）
+- headless-ui **59**:
+  accordion / action_bar / angle_slider / avatar / breadcrumb / calendar /
+  carousel / checkbox / clipboard / collapsible / color_picker / combobox /
+  date_input / date_picker / dialog / download_trigger / drawer / editable /
+  field / fieldset / file_upload / floating_panel / hover_card /
+  image_cropper / json_tree_view / link / link_overlay / listbox / menu /
+  nav_list / number_input / pagination / password_input / pin_input /
+  popover / progress / qr_code / radio_group / rating_group / scroll_area /
+  segment_group / select / signature_pad / skip_nav / slider / splitter /
+  steps / switch / tabs / tags_input / timer / toast / toggle /
+  toggle_group / toggle_tip / tooltip / tour / tree_view / visually_hidden
+- pre-styled-ui **94**:
+  accordion / action_bar / alert / angle_slider / area_chart / avatar /
+  badge / blockquote / breadcrumb / button / calendar / card / carousel /
+  charts / checkbox / checkbox_card / clipboard / code / color_picker /
+  color_swatch / combobox / data_list / date_input / date_picker / dialog /
+  donut_chart / download_trigger / drawer / editable / em / empty_state /
+  file_upload / floating_panel / heading / highlight / hover_card / icon /
+  image / image_cropper / input / json_tree_view / kbd / line_chart / link /
+  link_overlay / list / listbox / mark / marquee / menu / native_select /
+  nav_list / number_input / pagination / password_input / pie_chart /
+  pin_input / popover / progress / qr_code / radio_card / radio_group /
+  rating_group / scroll_area / segment_group / select / separator /
+  signature_pad / skeleton / skip_nav / slider / sparkline / spinner /
+  splitter / stat / status / steps / switch / table / tabs / tag /
+  tags_input / text / textarea / timeline / timer / toast / toggle /
+  toggle_group / toggle_tip / tooltip / tour / tree_view / visually_hidden
+- `charts/` 配下 **13**:
+  axis / bar_chart / bar_list / bar_segment / data / grid / legend / pie /
+  radar_chart / scale / scatter_chart / svg / tooltip
 
 ## 4. 抜けの機械確認手順
 
@@ -107,6 +124,37 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 `.agents/skills/chakra-ui` の再取得によるコンポーネント追加・削除）は、
 本表の改訂 issue を起票して追随する。本書は将来更新を CI で自動検知しない
 （§7 参照）。
+
+### 4.2 mod 側の計上漏れ確認手順（イシュー #934）
+
+§3 で実測した全 mod が §5 の表（Part A / Part B / Part C）の fandhe 列に
+行として存在することは、以下の出力が空であることで確認する（§4 が
+references → 本書の方向の完全性を検査するのに対し、本手順は
+lib.rs → 本書の逆方向を検査する）。
+
+```bash
+tmp=$(mktemp -d)
+awk '/^## 5\./,/^## 6\./' docs/design/component-coverage-map.md \
+  | awk -F'|' 'NF>=8 { print $5; print $6 }' \
+  | tr -c 'a-z0-9_' '\n' | sort -u > "$tmp/cols"
+{ grep -E '^pub mod ' crates/headless-ui/src/lib.rs \
+    | grep -vE '^pub mod (anatomy|aria|data_attrs|positioning|state|format|color|date);$'
+  grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs \
+    | grep -vE '^pub mod (css|recipe|stylesheet|theme);$'
+  grep -E '^pub mod ' crates/pre-styled-ui/src/charts/mod.rs
+} | sed 's/^pub mod //; s/;$//' | sort -u | comm -23 - "$tmp/cols"
+rm -rf "$tmp"
+```
+
+- `NF>=8` は先頭・末尾の空フィールドを含む 7 列テーブル行を選ぶ条件。
+  Part C（§5 末尾）も同じ 7 列構成にすることで、この 1 本のコマンドで
+  Part A/B/C を一括検査できる
+- `tr -c 'a-z0-9_'` により `` `charts::axis` `` のような表記は `charts` と
+  `axis` に分解され、両方が計上済みとして拾われる
+- 未検証・未信頼の値を一切補間しない: `$tmp` は `mktemp -d` の結果のみを
+  参照しダブルクォートで囲む。`eval`・バッククォート実行・ネットワーク
+  アクセスは含まない。`rm -rf "$tmp"` は `mktemp -d` が返す一時ディレクトリ
+  に限定され、リポジトリ内パスを削除しうる形にはしない
 
 ## 5. 表本体
 
@@ -141,9 +189,9 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 |---|---|---|---|---|---|---|
 | `.agents/skills/ark-ui/references/components/collections/menu.md` | Menu | Menu | menu | menu | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/collections/select.md` | Select | Select | select | select | 実装済み | headless+styled 実装済み |
-| `.agents/skills/ark-ui/references/components/collections/combobox.md` | Combobox | Combobox | — | — | 実装対象 | #749 |
+| `.agents/skills/ark-ui/references/components/collections/combobox.md` | Combobox | Combobox | combobox | combobox | 実装済み | headless+styled 実装済み（#749、PR #793） |
 | `.agents/skills/ark-ui/references/components/collections/listbox.md` | Listbox | Listbox | listbox | listbox | 実装済み | headless+styled 実装済み（#750） |
-| `.agents/skills/ark-ui/references/components/collections/pagination.md` | Pagination | Pagination | — | — | 実装対象 | #751（#716 保留の解除） |
+| `.agents/skills/ark-ui/references/components/collections/pagination.md` | Pagination | Pagination | pagination | pagination | 実装済み | headless+styled 実装済み（#751、PR #796、#716 保留の解除） |
 | `.agents/skills/ark-ui/references/components/collections/steps.md` | Steps | Steps | steps | steps | 実装済み | headless+styled 実装済み（#752、#716 保留の解除） |
 | `.agents/skills/ark-ui/references/components/collections/tree-view.md` | TreeView | TreeView | tree_view | tree_view | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/collections/carousel.md` | Carousel | Carousel | carousel | carousel | 実装済み | headless+styled 実装済み（#754）。autoplay（play/pause/aria-live 切替/delay）は初期実装スコープ外（`crates/headless-ui/src/carousel.rs` module doc 参照） |
@@ -165,8 +213,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/disclosure/accordion.md` | Accordion | Accordion | accordion | accordion | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/disclosure/collapsible.md` | Collapsible | Collapsible | collapsible | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装 |
 | `.agents/skills/ark-ui/references/components/disclosure/tabs.md` | Tabs | Tabs | tabs | tabs | 実装済み | headless+styled 実装済み |
-| `.agents/skills/ark-ui/references/components/disclosure/toggle.md` | Toggle | — | — | — | 実装対象 | #746 |
-| `.agents/skills/ark-ui/references/components/disclosure/toggle-group.md` | ToggleGroup | — | — | — | 実装対象 | #746 |
+| `.agents/skills/ark-ui/references/components/disclosure/toggle.md` | Toggle | — | toggle | toggle | 実装済み | headless+styled 実装済み（#746、PR #791） |
+| `.agents/skills/ark-ui/references/components/disclosure/toggle-group.md` | ToggleGroup | — | toggle_group | toggle_group | 実装済み | headless+styled 実装済み（#746、PR #791） |
 | `.agents/skills/ark-ui/references/components/disclosure/scroll-area.md` | ScrollArea | ScrollArea | scroll_area | scroll_area | 実装済み | headless+styled 実装済み（#825、保留解除。JS によるスクロール位置追従・thumb drag は本イシューのスコープ外） |
 | `.agents/skills/ark-ui/references/components/disclosure/splitter.md` | Splitter | Splitter | splitter | splitter | 実装済み | headless+styled 実装済み（#826、#735 保留の解除） |
 | `.agents/skills/ark-ui/references/components/disclosure/README.md` | README | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
@@ -178,7 +226,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/display/avatar.md` | Avatar | Avatar | avatar | avatar | 実装済み | headless+styled 実装済み（#731 MutationObserver 対応込み） |
 | `.agents/skills/ark-ui/references/components/display/progress-linear.md` | Progress (linear) | Progress | progress | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装（circular 対応の #763 とはスコープを分離、follow-up イシュー起票を検討） |
 | `.agents/skills/ark-ui/references/components/display/progress-circular.md` | Progress (circular) | ProgressCircle | progress | progress | 実装済み | #763（既存 progress mod を circular 対応へ拡張。headless は #600 で実装済み、pre-styled ラッパーを #763 で追加） |
-| `.agents/skills/ark-ui/references/components/display/clipboard.md` | Clipboard | Clipboard | — | — | 実装対象 | #773（wasm 配線込み） |
+| `.agents/skills/ark-ui/references/components/display/clipboard.md` | Clipboard | Clipboard | clipboard | clipboard | 実装済み | headless+styled+wasm 配線 実装済み（#773、PR #816） |
 | `.agents/skills/ark-ui/references/components/display/qr-code.md` | QrCode | QrCode | qr_code | qr_code | 実装済み | headless+styled 実装済み（#774） |
 | `.agents/skills/ark-ui/references/components/display/marquee.md` | Marquee | Marquee | — | marquee | 実装済み（再導入） | #831 で `docs/policy/intentional-non-adoption.md` §3.24 の再評価トリガー 1（CSS のみ・`prefers-reduced-motion` 対応の決定的設計案）を充足し再導入（CSS のみ・JS ゼロ）。headless-ui は変更なし、pre-styled-ui 層のみで新規 anatomy を定義 |
 | `.agents/skills/ark-ui/references/components/display/README.md` | README | — | — | — | 対象外 | 対象外（非コンポーネント文書） |
@@ -192,8 +240,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/ark-ui/references/components/form/fieldset.md` | Fieldset | Fieldset | fieldset | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装 |
 | `.agents/skills/ark-ui/references/components/form/radio-group.md` | RadioGroup | Radio | radio_group | radio_group | 実装済み | headless+styled 実装済み |
 | `.agents/skills/ark-ui/references/components/form/switch.md` | Switch | Switch | switch | switch | 実装済み | headless+styled 実装済み |
-| `.agents/skills/ark-ui/references/components/form/number-input.md` | NumberInput | NumberInput | — | — | 実装対象 | #738 |
-| `.agents/skills/ark-ui/references/components/form/pin-input.md` | PinInput | PinInput | — | — | 実装対象 | #739 |
+| `.agents/skills/ark-ui/references/components/form/number-input.md` | NumberInput | NumberInput | number_input | number_input | 実装済み | headless+styled 実装済み（#738、PR #785） |
+| `.agents/skills/ark-ui/references/components/form/pin-input.md` | PinInput | PinInput | pin_input | pin_input | 実装済み | headless+styled 実装済み（#739、PR #784） |
 | `.agents/skills/ark-ui/references/components/form/password-input.md` | PasswordInput | PasswordInput | password_input | password_input | 実装済み | headless+styled 実装済み（#740） |
 | `.agents/skills/ark-ui/references/components/form/slider.md` | Slider | Slider | slider | slider | 実装済み | headless+styled 実装済み（#741） |
 | `.agents/skills/ark-ui/references/components/form/rating-group.md` | RatingGroup | Rating | rating_group | rating_group | 実装済み | headless+styled 実装済み（#742） |
@@ -366,7 +414,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
 | `.agents/skills/chakra-ui/references/components/collections/select.md` | Select | Select | select | select | 実装済み | headless+styled 実装済み |
-| `.agents/skills/chakra-ui/references/components/collections/combobox.md` | Combobox | Combobox | — | — | 実装対象 | #749 |
+| `.agents/skills/chakra-ui/references/components/collections/combobox.md` | Combobox | Combobox | combobox | combobox | 実装済み | headless+styled 実装済み（#749、PR #793） |
 | `.agents/skills/chakra-ui/references/components/collections/listbox.md` | Listbox | Listbox | listbox | listbox | 実装済み | headless+styled 実装済み（#750） |
 | `.agents/skills/chakra-ui/references/components/collections/tree-view.md` | TreeView | TreeView | tree_view | tree_view | 実装済み | headless+styled 実装済み |
 
@@ -389,13 +437,13 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/data-display/badge.md` | — | Badge | — | badge | 実装済み | pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/data-display/card.md` | — | Card | — | card | 実装済み | pre-styled 静的部品 実装済み |
 | `.agents/skills/chakra-ui/references/components/data-display/table.md` | — | Table | — | table | 実装済み | pre-styled 静的部品 実装済み（#767。`interactive`/`stickyHeader`/`showColumnBorder`/`ScrollArea`/`ColumnGroup` はスコープ外） |
-| `.agents/skills/chakra-ui/references/components/data-display/data-list.md` | — | DataList | — | data-list | 実装済み | pre-styled 静的部品 実装済み（#767。`variant`（subtle/bold）/`size` variant はスコープ外） |
+| `.agents/skills/chakra-ui/references/components/data-display/data-list.md` | — | DataList | — | `data_list` | 実装済み | pre-styled 静的部品 実装済み（#767。`variant`（subtle/bold）/`size` variant はスコープ外） |
 | `.agents/skills/chakra-ui/references/components/data-display/tag.md` | — | Tag | — | tag | 実装済み | pre-styled 静的部品 実装済み（#768） |
 | `.agents/skills/chakra-ui/references/components/data-display/stat.md` | — | Stat | — | `stat` | 実装済み | pre-styled 静的部品 実装済み（#769。headless-ui は変更なし） |
 | `.agents/skills/chakra-ui/references/components/data-display/timeline.md` | — | Timeline | — | `timeline` | 実装済み | pre-styled 静的部品 実装済み（#769。headless-ui は変更なし） |
 | `.agents/skills/chakra-ui/references/components/data-display/image.md` | — | Image | — | image | 実装済み | #770。状態機械なし静的部品、pre-styled 層のみに実装（headless-ui は変更なし）。fit（object-fit）/aspect-ratio の 2 軸 variant、alt 必須引数 |
 | `.agents/skills/chakra-ui/references/components/data-display/icon.md` | — | Icon | — | icon | 実装済み | #770。状態機械なし静的部品、pre-styled 層のみに実装（headless-ui は変更なし）。size variant のみ、SVG 本体は呼び出し側がノード木 API で構築 |
-| `.agents/skills/chakra-ui/references/components/data-display/clipboard.md` | Clipboard | Clipboard | — | — | 実装対象 | #773（wasm 配線込み） |
+| `.agents/skills/chakra-ui/references/components/data-display/clipboard.md` | Clipboard | Clipboard | clipboard | clipboard | 実装済み | headless+styled+wasm 配線 実装済み（#773、PR #816） |
 | `.agents/skills/chakra-ui/references/components/data-display/qr-code.md` | QrCode | QrCode | qr_code | qr_code | 実装済み | headless+styled 実装済み（#774） |
 | `.agents/skills/chakra-ui/references/components/data-display/marquee.md` | Marquee | Marquee | — | marquee | 実装済み（再導入） | #831 で `docs/policy/intentional-non-adoption.md` §3.24 の再評価トリガー 1（CSS のみ・`prefers-reduced-motion` 対応の決定的設計案）を充足し再導入（CSS のみ・JS ゼロ）。headless-ui は変更なし、pre-styled-ui 層のみで新規 anatomy を定義 |
 
@@ -413,7 +461,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/disclosure/accordion.md` | Accordion | Accordion | accordion | accordion | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/disclosure/collapsible.md` | Collapsible | Collapsible | collapsible | — | 実装済み | headless 実装済み。pre-styled ラッパー未実装 |
 | `.agents/skills/chakra-ui/references/components/disclosure/tabs.md` | Tabs | Tabs | tabs | tabs | 実装済み | headless+styled 実装済み |
-| `.agents/skills/chakra-ui/references/components/disclosure/pagination.md` | Pagination | Pagination | — | — | 実装対象 | #751（#716 保留の解除） |
+| `.agents/skills/chakra-ui/references/components/disclosure/pagination.md` | Pagination | Pagination | pagination | pagination | 実装済み | headless+styled 実装済み（#751、PR #796、#716 保留の解除） |
 | `.agents/skills/chakra-ui/references/components/disclosure/steps.md` | Steps | Steps | steps | steps | 実装済み | headless+styled 実装済み（#752、#716 保留の解除） |
 | `.agents/skills/chakra-ui/references/components/disclosure/carousel.md` | Carousel | Carousel | carousel | carousel | 実装済み | headless+styled 実装済み（#754）。autoplay（play/pause/aria-live 切替/delay）は初期実装スコープ外（`crates/headless-ui/src/carousel.rs` module doc 参照） |
 | `.agents/skills/chakra-ui/references/components/disclosure/breadcrumb.md` | — | Breadcrumb | breadcrumb | breadcrumb | 実装済み | #755（#716 追加候補の消化）。headless+styled 実装済み |
@@ -443,8 +491,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/forms/input.md` | — | Input | — | input | 実装済み | pre-styled 静的部品として実装済み（#737） |
 | `.agents/skills/chakra-ui/references/components/forms/textarea.md` | — | Textarea | — | textarea | 実装済み | pre-styled 静的部品として実装済み（#737） |
 | `.agents/skills/chakra-ui/references/components/forms/native-select.md` | — | NativeSelect | — | native_select | 実装済み | pre-styled 静的部品として実装済み（#737） |
-| `.agents/skills/chakra-ui/references/components/forms/number-input.md` | NumberInput | NumberInput | — | — | 実装対象 | #738 |
-| `.agents/skills/chakra-ui/references/components/forms/pin-input.md` | PinInput | PinInput | — | — | 実装対象 | #739 |
+| `.agents/skills/chakra-ui/references/components/forms/number-input.md` | NumberInput | NumberInput | number_input | number_input | 実装済み | headless+styled 実装済み（#738、PR #785） |
+| `.agents/skills/chakra-ui/references/components/forms/pin-input.md` | PinInput | PinInput | pin_input | pin_input | 実装済み | headless+styled 実装済み（#739、PR #784） |
 | `.agents/skills/chakra-ui/references/components/forms/password-input.md` | PasswordInput | PasswordInput | password_input | password_input | 実装済み | headless+styled 実装済み（#740） |
 | `.agents/skills/chakra-ui/references/components/forms/slider.md` | Slider | Slider | slider | slider | 実装済み | headless+styled 実装済み（#741） |
 | `.agents/skills/chakra-ui/references/components/forms/rating.md` | RatingGroup | Rating | rating_group | rating_group | 実装済み | headless+styled 実装済み（#742） |
@@ -496,7 +544,7 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/components/overlays/tooltip.md` | Tooltip | Tooltip | tooltip | tooltip | 実装済み | headless+styled 実装済み |
 | `.agents/skills/chakra-ui/references/components/overlays/drawer.md` | Drawer | Drawer | drawer | drawer | 実装済み | headless+styled 実装済み（#758、dialog の状態機械を再利用） |
 | `.agents/skills/chakra-ui/references/components/overlays/hover-card.md` | HoverCard | HoverCard | hover_card | hover_card | 実装済み | headless+styled 実装済み |
-| `.agents/skills/chakra-ui/references/components/overlays/toggle-tip.md` | — | ToggleTip | — | — | 実装対象 | #761 |
+| `.agents/skills/chakra-ui/references/components/overlays/toggle-tip.md` | — | ToggleTip | toggle_tip | toggle_tip | 実装済み | headless+styled 実装済み（#761、PR #804） |
 | `.agents/skills/chakra-ui/references/components/overlays/action-bar.md` | — | ActionBar | action_bar | action_bar | 実装済み | headless+styled 実装済み（#762） |
 | `.agents/skills/chakra-ui/references/components/overlays/overlay-manager.md` | — | OverlayManager | — | — | 意図的非採用 | `docs/policy/intentional-non-adoption.md` §3.23（#735）で非採用確定（JS ランタイム固有 utilities、該当概念なし。等価概念は本書 §8 参照） |
 | `.agents/skills/chakra-ui/references/components/overlays/floating-panel.md` | FloatingPanel | FloatingPanel | floating_panel | floating_panel | 実装済み | headless+styled 実装済み（イシュー #827、`docs/policy/intentional-non-adoption.md` §7 の保留区分から解除） |
@@ -505,8 +553,8 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|
-| `.agents/skills/chakra-ui/references/components/typography/link.md` | — | Link | — | — | 実装対象 | #756（#716 最優先候補の消化） |
-| `.agents/skills/chakra-ui/references/components/typography/link-overlay.md` | — | LinkOverlay | — | — | 実装対象 | #756（#716 最優先候補の消化） |
+| `.agents/skills/chakra-ui/references/components/typography/link.md` | — | Link | link | link | 実装済み | headless+styled 実装済み（#756、PR #801、#716 最優先候補の消化） |
+| `.agents/skills/chakra-ui/references/components/typography/link-overlay.md` | — | LinkOverlay | link_overlay | link_overlay | 実装済み | headless+styled 実装済み（#756、PR #801、#716 最優先候補の消化） |
 | `.agents/skills/chakra-ui/references/components/typography/kbd.md` | — | Kbd | — | kbd | 実装済み | pre-styled 静的部品 実装済み（#768） |
 | `.agents/skills/chakra-ui/references/components/typography/code.md` | — | Code | — | code | 実装済み | pre-styled 静的部品 実装済み（#768） |
 | `.agents/skills/chakra-ui/references/components/typography/heading.md` | — | Heading | — | heading | 実装済み | #771 |
@@ -666,6 +714,26 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 | `.agents/skills/chakra-ui/references/theming/design-tokens/typography.md` | — | Typography | — | — | 対象外 | （#735、概念文書。fandhe は theme/recipe/StyleSheet（`crates/pre-styled-ui`）で対応） |
 | `.agents/skills/chakra-ui/references/theming/design-tokens/z-index.md` | — | ZIndex | — | — | 対象外 | （#735、概念文書。fandhe は theme/recipe/StyleSheet（`crates/pre-styled-ui`）で対応） |
 
+### Part C: fandhe 独自 mod・charts 基盤（ark-ui / chakra-ui に対応 md なし）
+
+§4 の完全性 diff（references 側 359 件の突合）の対象外である。本 Part の
+セルには `.agents/skills/…` のパスを一切書かない（書くと §4 の抽出正規表現
+（`\.agents/skills/(ark-ui|chakra-ui)/references/[A-Za-z0-9/._-]+\.md`）が
+実在しないパス文字列を拾ってしまい、diff が非空になって §4 が壊れる）。
+
+| 参照ファイル | ark-ui 名 | chakra-ui 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
+|---|---|---|---|---|---|---|
+| —（対応 md なし） | — | — | `nav_list` | `nav_list` | 実装済み | fandhe 独自。#756 → PR #801 で Link / LinkOverlay と同時に実装した文書ナビ用リスト（Root / Heading / List / Item / Link の 5 anatomy） |
+| —（対応 md なし） | — | — | — | `charts::data` | 実装済み | charts 基盤。#846。`ChartData` / `Series` モデルと集計 API（ノードを生成しない純計算） |
+| —（対応 md なし） | — | — | — | `charts::scale` | 実装済み | charts 基盤。#846。線形スケール・1-2-5 nice tick 算出（ノードを生成しない純計算） |
+| —（対応 md なし） | — | — | — | `charts::svg` | 実装済み | charts 基盤。#846。SVG ノード木生成ヘルパー |
+| —（対応 md なし） | — | — | — | `charts::pie` | 実装済み | charts 基盤。#850 → PR #881。`pie_chart` / `donut_chart` が使う円弧ジオメトリ（`d` 属性文字列を返す純関数） |
+
+※ `charts::data` / `scale` / `svg` は既に `charts/use-chart.md` 行（Part B
+「charts」節）の本文中で散文的に触れられているが、mod 名としては計上されて
+いなかったため本 Part で行として明示する（重複計上ではなく、mod 側キーでの
+計上）。
+
 ## 6. `site/nav.toml` 掲載要否の判断
 
 **掲載しない**（安全側の判断）。
@@ -680,11 +748,19 @@ references 側が将来更新された場合（`.agents/skills/ark-ui` /
 
 ## 7. スコープ外事項（放置しない）
 
-- **機械確認の CI 常時実行化**: 本書 §4 の diff コマンドを CI ジョブ /
-  テストとして自動実行する仕組みは本イシューのスコープ外。references
-  更新時のドリフト検知を自動化したい場合は別 issue の起票を提案する
-  （`.claude/rules/out-of-scope-tracking.md` に従い、ユーザー承認の上で
-  #726 配下へ）
+- **機械確認の CI 常時実行化**: 本書 §4 の diff コマンド・§4.2 の mod 側
+  計上漏れ確認コマンド（イシュー #934 で追加）をいずれも CI ジョブ /
+  テストとして自動実行する仕組みは本イシューのスコープ外。`crates/xtask`
+  への `check-coverage-map` サブコマンド追加等でこれらを機械検知したい
+  場合は別 issue の起票を提案する（`.claude/rules/out-of-scope-tracking.md`
+  に従い、ユーザー承認の上で #726 配下へ）
+- **§5 全 359 行のバッククォート表記の統一**: 本イシュー（#934）では
+  `data-list` 表記の 1 件のみを是正し、他の表記ゆれには手を入れていない。
+  全面統一は #937（Radix 列追加）と同時実施のほうが差分が小さいため
+  スコープ外とした
+- **`mod qr_encode` / `mod class_attr` の可視性見直し**: 両 mod は
+  `mod`（非 `pub`）宣言のため §3 の突合コマンドの対象外だが、`crates/**`
+  の変更を伴うため本書のみを対象とする本イシュー（doc-only）のスコープ外
 - **保留・意図的非採用の評価軸・再評価トリガーの詳細記録**: イシュー #735 で
   `docs/policy/intentional-non-adoption.md` §3.22〜§3.24（新規非採用確定）・
   §7（保留項目の記録）に確定記録済み（完了）
