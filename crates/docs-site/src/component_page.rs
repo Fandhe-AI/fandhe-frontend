@@ -995,6 +995,38 @@ mod tests {
         assert_eq!(before, after);
     }
 
+    /// `SPEC_TABLES` を構成する各カテゴリ別テーブル間で `path` が重複して
+    /// いないこと。`spec_for` は `.find(...)` の first-wins で解決するため、
+    /// 重複登録があってもコンパイル・実行時エラーにはならず、後発テーブル側
+    /// の（しばしばより充実した）spec が黙って無効化されデッドコード化する
+    /// （イシュー #948 PR #982 レビュー指摘: `component_page_specs_948::SPECS`
+    /// が `component_specs::forms::SPECS` と 5 パスを二重登録していた事故の
+    /// 再発を防ぐ）。テーブル内部の重複は各テーブル自身の契約テスト
+    /// （例: `component_page_specs_948.rs` の `specs_has_no_duplicate_paths`）
+    /// が別途検知するため、本テストはテーブル**間**の重複のみを対象にする。
+    #[test]
+    fn spec_tables_have_no_cross_table_duplicate_paths() {
+        let mut seen: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+        let mut cross_table_duplicates: Vec<&str> = Vec::new();
+        for (table_index, table) in SPEC_TABLES.iter().enumerate() {
+            for (path, _) in table.iter() {
+                if let Some(first_table_index) = seen.get(path) {
+                    if *first_table_index != table_index {
+                        cross_table_duplicates.push(path);
+                    }
+                } else {
+                    seen.insert(path, table_index);
+                }
+            }
+        }
+        assert!(
+            cross_table_duplicates.is_empty(),
+            "SPEC_TABLES registers the following path(s) in more than one table \
+             (first-wins resolution silently discards the later table's spec): \
+             {cross_table_duplicates:?}"
+        );
+    }
+
     #[test]
     fn collect_anatomy_parts_orders_by_first_occurrence_and_depth() {
         let demo = el(

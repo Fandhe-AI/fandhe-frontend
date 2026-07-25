@@ -1135,6 +1135,8 @@ const DOWNLOAD_TRIGGER_SPEC: ComponentPageSpec = ComponentPageSpec {
         ArgRow { name: "palette", kind: "ColorPalette", default: "Accent", description: "colorPalette 軸。" },
         ArgRow { name: "href", kind: "&str", default: "（必須）", description: "ダウンロード対象のリソース URL。" },
         ArgRow { name: "file_name", kind: "Option<&str>", default: "None", description: "download 属性へ指定するファイル名。" },
+        ArgRow { name: "attrs", kind: "Vec<(&str, &str)>", default: "", description: "root（<a>）パーツへ合成する追加属性。" },
+        ArgRow { name: "children", kind: "Vec<Node>", default: "", description: "リンクラベルとなる子ノード。" },
     ],
     examples: &[ExampleEntry {
         title: "variant の切り替え",
@@ -1310,6 +1312,8 @@ const COLOR_PICKER_SPEC: ComponentPageSpec = ComponentPageSpec {
     arguments: &[
         ArgRow { name: "ColorPicker::from_color", kind: "fn(Color) -> ColorPicker", default: "", description: "初期色から状態機械を構築する。" },
         ArgRow { name: "channel", kind: "Channel", default: "", description: "channel_slider が制御するチャンネル（Hue/Alpha）。" },
+        ArgRow { name: "attrs", kind: "Vec<(&str, &str)>", default: "", description: "root パーツへ合成する追加属性。" },
+        ArgRow { name: "children", kind: "Vec<Node>", default: "", description: "root 配下の子ノード（通常 trigger/area を含む）。" },
     ],
     examples: &[ExampleEntry {
         title: "Area + 色相スライダー",
@@ -1393,12 +1397,26 @@ const CALENDAR_SPEC: ComponentPageSpec = ComponentPageSpec {
         "今日・選択日・表示月外セルの見た目を data-* 属性連動で区別する",
         "キーボードナビゲーション・クリック挙動は wasm 層のスコープ（本ページは SSR 静的表示）",
     ],
-    arguments: &[ArgRow {
-        name: "size",
-        kind: "Size",
-        default: "Md",
-        description: "寸法 variant。",
-    }],
+    arguments: &[
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "寸法 variant。",
+        },
+        ArgRow {
+            name: "attrs",
+            kind: "Vec<(&str, &str)>",
+            default: "",
+            description: "root パーツへ合成する追加属性。",
+        },
+        ArgRow {
+            name: "children",
+            kind: "Vec<Node>",
+            default: "",
+            description: "root 配下の子ノード（通常 Heading/Table を含む）。",
+        },
+    ],
     examples: &[ExampleEntry {
         title: "2026-07 の月グリッド",
         description: "週開始 Monday で、今日（07-22）・選択日（07-15）を固定表示します。",
@@ -1526,6 +1544,18 @@ const DATE_PICKER_SPEC: ComponentPageSpec = ComponentPageSpec {
             default: "Closed",
             description: "popover の開閉状態。",
         },
+        ArgRow {
+            name: "attrs",
+            kind: "Vec<(&str, &str)>",
+            default: "",
+            description: "root パーツへ合成する追加属性。",
+        },
+        ArgRow {
+            name: "children",
+            kind: "Vec<Node>",
+            default: "",
+            description: "root 配下の子ノード。",
+        },
     ],
     examples: &[ExampleEntry {
         title: "開いた状態の掲示",
@@ -1601,6 +1631,8 @@ const DATE_INPUT_SPEC: ComponentPageSpec = ComponentPageSpec {
         ArgRow { name: "size", kind: "Size", default: "Md", description: "寸法 variant。" },
         ArgRow { name: "disabled", kind: "bool", default: "false", description: "全セグメントを無効化する。" },
         ArgRow { name: "invalid", kind: "bool", default: "false", description: "3 セグメントいずれかが不正な組み合わせの場合に true。" },
+        ArgRow { name: "attrs", kind: "Vec<(&str, &str)>", default: "", description: "root パーツへ合成する追加属性。" },
+        ArgRow { name: "children", kind: "Vec<Node>", default: "", description: "root 配下の子ノード（通常 DateSegment 列を含む）。" },
     ],
     examples: &[ExampleEntry {
         title: "入力済み・未入力の 2 態",

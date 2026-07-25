@@ -1,5 +1,15 @@
-//! Forms カテゴリ（`site/nav.toml` の `title = "Forms"`）31 部品ページの
-//! 原稿データ（イシュー #945、親 #928）。
+//! Forms カテゴリ（`site/nav.toml` の `title = "Forms"`）部品ページの原稿
+//! データ（イシュー #945、親 #928）。
+//!
+//! `download-trigger` / `color-picker` / `calendar` / `date-picker` /
+//! `date-input` の 5 ページは当初本ファイルへ Examples 空欄のスタブとして
+//! 登録していたが、後続のイシュー #948 が同じ 5 path へ Examples 込みの
+//! より充実した spec を `crate::component_page_specs_948::SPECS` へ登録した
+//! ことで [`crate::component_page::SPEC_TABLES`]（`spec_for` の
+//! first-wins 解決）上で二重登録となり、本ファイル側のスタブが常に優先され
+//! #948 側の Examples が到達不能なデッドコード化していた（PR #982
+//! レビュー指摘で発覚）。#948 側の登録が正のため、本ファイルからは当該 5
+//! エントリを削除した。
 //!
 //! # 責務境界・呼び出し文脈
 //!
@@ -45,19 +55,15 @@ use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec};
 
-/// Forms 31 ページの `path -> ComponentPageSpec` テーブル。
+/// Forms 26 ページ（当初 31 ページから、#948 と二重登録だった 5 ページを
+/// 削除済み）の `path -> ComponentPageSpec` テーブル。
 /// [`crate::component_page::SPEC_TABLES`] が集約する。
 pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/components/angle-slider/", ANGLE_SLIDER),
     ("/components/button/", BUTTON),
-    ("/components/calendar/", CALENDAR),
     ("/components/checkbox/", CHECKBOX),
     ("/components/checkbox-card/", CHECKBOX_CARD),
-    ("/components/color-picker/", COLOR_PICKER),
     ("/components/combobox/", COMBOBOX),
-    ("/components/date-input/", DATE_INPUT),
-    ("/components/date-picker/", DATE_PICKER),
-    ("/components/download-trigger/", DOWNLOAD_TRIGGER),
     ("/components/editable/", EDITABLE),
     ("/components/file-upload/", FILE_UPLOAD),
     ("/components/image-cropper/", IMAGE_CROPPER),
@@ -156,38 +162,6 @@ const BUTTON: ComponentPageSpec = ComponentPageSpec {
             kind: "Vec<Node>",
             default: "",
             description: "ボタンラベルとなる子ノード。",
-        },
-    ],
-    examples: &[],
-    keyboard: &[],
-    aria: &[],
-    demo: None,
-};
-
-const CALENDAR: ComponentPageSpec = ComponentPageSpec {
-    features: &[
-        "headless-ui の Root / Heading / PrevTrigger / NextTrigger / Table / TableHeader / TableRow / TableHeadCell / TableBody / TableCell / DayTrigger 11 パーツをそのまま再エクスポートする薄いラッパー。",
-        "`root` パーツのみ `size` variant クラスを付与する（他パーツは無変更で再エクスポート）。",
-        "`Calendar` 状態機械自体は再エクスポートしない（呼び出し側が `fandhe_frontend_headless_ui::calendar` を直接使う設計）。",
-    ],
-    arguments: &[
-        ArgRow {
-            name: "size",
-            kind: "Size",
-            default: "Size::Md",
-            description: "サイズ variant。",
-        },
-        ArgRow {
-            name: "attrs",
-            kind: "Vec<(&str, &str)>",
-            default: "",
-            description: "root パーツへ合成する追加属性。",
-        },
-        ArgRow {
-            name: "children",
-            kind: "Vec<Node>",
-            default: "",
-            description: "root 配下の子ノード（通常 Heading/Table を含む）。",
         },
     ],
     examples: &[],
@@ -298,37 +272,6 @@ const CHECKBOX_CARD: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-const COLOR_PICKER: ComponentPageSpec = ComponentPageSpec {
-    features: &[
-        "`size` variant を持たず、headless-ui の `ColorPicker` 状態機械への単純委譲として `root`/`trigger`/`area`/`area_background`/`area_thumb`/`channel_slider`/`channel_slider_track`/`channel_slider_thumb` の各パーツを提供する。",
-        "`trigger` パーツが `--fandhe-color-picker-preview`（現在色の HEX、アルファ込み）を含む `style` を付与する唯一のパーツ。",
-    ],
-    arguments: &[
-        ArgRow {
-            name: "state",
-            kind: "&ColorPicker",
-            default: "",
-            description: "headless-ui の色状態機械。",
-        },
-        ArgRow {
-            name: "attrs",
-            kind: "Vec<(&str, &str)>",
-            default: "",
-            description: "root パーツへ合成する追加属性。",
-        },
-        ArgRow {
-            name: "children",
-            kind: "Vec<Node>",
-            default: "",
-            description: "root 配下の子ノード（通常 trigger/area を含む）。",
-        },
-    ],
-    examples: &[],
-    keyboard: &[],
-    aria: &[],
-    demo: None,
-};
-
 const COMBOBOX: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "headless-ui の `combobox::root` へ委譲し、`size` variant クラスのみを付与する。",
@@ -358,129 +301,6 @@ const COMBOBOX: ComponentPageSpec = ComponentPageSpec {
             kind: "Vec<Node>",
             default: "",
             description: "root 配下の子ノード。",
-        },
-    ],
-    examples: &[],
-    keyboard: &[],
-    aria: &[],
-    demo: None,
-};
-
-const DATE_INPUT: ComponentPageSpec = ComponentPageSpec {
-    features: &[
-        "headless-ui の `date_input::root` へ委譲し、`size` variant クラスを付与する。",
-        "`disabled`/`invalid` の 2 状態フラグを直接引数で受け取る（`Props` 構造体を持たない）。",
-    ],
-    arguments: &[
-        ArgRow {
-            name: "size",
-            kind: "Size",
-            default: "Size::Md",
-            description: "サイズ variant。",
-        },
-        ArgRow {
-            name: "disabled",
-            kind: "bool",
-            default: "false",
-            description: "無効化状態。",
-        },
-        ArgRow {
-            name: "invalid",
-            kind: "bool",
-            default: "false",
-            description: "入力検証エラー状態。",
-        },
-        ArgRow {
-            name: "attrs",
-            kind: "Vec<(&str, &str)>",
-            default: "",
-            description: "root パーツへ合成する追加属性。",
-        },
-        ArgRow {
-            name: "children",
-            kind: "Vec<Node>",
-            default: "",
-            description: "root 配下の子ノード（通常 `DateSegment` 列を含む）。",
-        },
-    ],
-    examples: &[],
-    keyboard: &[],
-    aria: &[],
-    demo: None,
-};
-
-const DATE_PICKER: ComponentPageSpec = ComponentPageSpec {
-    features: &[
-        "headless-ui の `date_picker::root` へ委譲し、`size` variant クラスを付与する。",
-        "開閉状態は `OpenState`（`Open`/`Closed`）で受け取る。",
-    ],
-    arguments: &[
-        ArgRow {
-            name: "size",
-            kind: "Size",
-            default: "Size::Md",
-            description: "サイズ variant。",
-        },
-        ArgRow {
-            name: "state",
-            kind: "OpenState",
-            default: "OpenState::Closed",
-            description: "開閉状態。",
-        },
-        ArgRow {
-            name: "attrs",
-            kind: "Vec<(&str, &str)>",
-            default: "",
-            description: "root パーツへ合成する追加属性。",
-        },
-        ArgRow {
-            name: "children",
-            kind: "Vec<Node>",
-            default: "",
-            description: "root 配下の子ノード。",
-        },
-    ],
-    examples: &[],
-    keyboard: &[],
-    aria: &[],
-    demo: None,
-};
-
-const DOWNLOAD_TRIGGER: ComponentPageSpec = ComponentPageSpec {
-    features: &[
-        "`button` と同じ `variant`/`size`/`palette` 3 軸を持つが、`<button>` ではなく `download`/`href` 属性付き `<a>` を組み立てる。",
-        "`file_name` を渡すと `download` 属性へダウンロード時のファイル名を付与する。",
-    ],
-    arguments: &[
-        ArgRow {
-            name: "props",
-            kind: "&DownloadTriggerProps",
-            default: "",
-            description: "`variant`・`size`・`palette` を束ねる構造体（`ButtonProps` と同型）。",
-        },
-        ArgRow {
-            name: "href",
-            kind: "&str",
-            default: "",
-            description: "ダウンロード対象のリンク先。",
-        },
-        ArgRow {
-            name: "file_name",
-            kind: "Option<&str>",
-            default: "None",
-            description: "`download` 属性へ渡すファイル名（`None` のときブラウザ既定名）。",
-        },
-        ArgRow {
-            name: "attrs",
-            kind: "Vec<(&str, &str)>",
-            default: "",
-            description: "`<a>` へ合成する追加属性。",
-        },
-        ArgRow {
-            name: "children",
-            kind: "Vec<Node>",
-            default: "",
-            description: "リンクラベルとなる子ノード。",
         },
     ],
     examples: &[],
