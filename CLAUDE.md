@@ -32,7 +32,8 @@ fandhe-frontend/
 │       └── 06-roadmap.md       # MS-1〜MS-5・着手判定
 ├── site/                     # docs サイト原稿（crates/docs-site が SSG でビルド。site/assets/ は #905 で廃止済み、骨格 CSS はビルド生成）
 │   ├── index.md
-│   ├── components-pre-styled-ui.md  # UI コンポーネントショーケースページ原稿
+│   ├── components-pre-styled-ui.md  # pre-styled-ui コンポーネント索引ページ原稿（凡例 + カテゴリ別リンク集、イシュー #943）
+│   ├── components/            # 部品ページ原稿 99 件（`/components/<kebab>/` 1 ページ = 部品 1 件、イシュー #943。台帳は `docs/design/docs-site-component-pages.md` §3）
 │   └── nav.toml               # ナビゲーション構成マニフェスト
 ├── examples/
 │   ├── ssr-routing/          # SSR + ルーティング正本サンプル・examples 規約の初例（crates.io バージョン依存、イシュー #499）
