@@ -4358,8 +4358,17 @@ fn checkbox_group_section() -> Node {
             vec![],
             vec![
                 checkbox::hidden_input(&props, "showcase-checkbox-group", value, vec![]),
-                checkbox_group::item_control(*checked, *disabled, vec![]),
-                checkbox_group::item_indicator(*checked, *disabled, vec![], vec![]),
+                checkbox_group::item_control(
+                    *checked,
+                    *disabled,
+                    vec![],
+                    vec![checkbox_group::item_indicator(
+                        *checked,
+                        *disabled,
+                        vec![],
+                        vec![],
+                    )],
+                ),
                 checkbox_group::item_text(*checked, *disabled, vec![], vec![text(*label)]),
             ],
         )

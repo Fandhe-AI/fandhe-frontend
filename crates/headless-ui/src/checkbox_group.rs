@@ -44,7 +44,12 @@
 //!   `data-disabled`。
 //! - [`item_control`][]: `span`。視覚的なチェックボックス外枠。
 //!   `role="checkbox"`/`aria-checked` は付与しない（二重読み上げ防止）。
-//! - [`item_indicator`][]: `span`。チェックマーク表現。未チェック時は
+//!   [`crate::checkbox::control`] と同型で `children` を受け取り、
+//!   [`item_indicator`] を入れ子にする構成を前提とする（イシュー #997
+//!   Bugbot 指摘の回帰固定。`item` 直下の兄弟要素として配置すると、styled
+//!   recipe の中央揃えが効かずチェックマークが横にずれる）。
+//! - [`item_indicator`][]: `span`。チェックマーク表現。[`item_control`] の
+//!   子として入れ子にする（呼び出し例は下記参照）。未チェック時は
 //!   `hidden` 存在属性を付与する（[`crate::checkbox::indicator`] の規約に
 //!   揃える）。
 //! - [`item_text`][]: `span`。選択肢のラベルテキスト。
@@ -197,12 +202,25 @@ pub fn item<'a>(
 /// [`crate::checkbox::hidden_input`] のネイティブ `<input type="checkbox">`
 /// が担うため、本要素へ `role="checkbox"`/`aria-checked` は付与しない
 /// （二重読み上げ防止、モジュール doc 参照）。
+///
+/// [`crate::checkbox::control`] と同型で `children` を受け取る（イシュー
+/// #997 Bugbot 指摘: [`item_indicator`] を本パーツの子として入れ子にする
+/// ことで、styled `item-control` recipe の `justify-content: center` が
+/// チェックマークの中央揃えに効くようにする契約。呼び出し側が `item_indicator`
+/// を `item` 直下の兄弟要素として配置すると、ボックス中央ではなく横に表示
+/// される回帰を招くため、呼び出し側は必ず本パーツの子として渡す
+/// （`crates/docs-site/src/showcase.rs` の実例を参照）。
 #[must_use]
-pub fn item_control<'a>(checked: bool, disabled: bool, attrs: Vec<(&'a str, &'a str)>) -> Node {
+pub fn item_control<'a>(
+    checked: bool,
+    disabled: bool,
+    attrs: Vec<(&'a str, &'a str)>,
+    children: Vec<Node>,
+) -> Node {
     let mut merged: Vec<(&'a str, &'a str)> = vec![data_state(checked_data_state(checked))];
     merged.extend(data_disabled(disabled));
     merged.extend(attrs);
-    ANATOMY.part("item-control", "span", merged, vec![])
+    ANATOMY.part("item-control", "span", merged, children)
 }
 
 /// ItemIndicator パーツ（`span`、チェックマーク等の視覚的インジケータ）。
@@ -293,8 +311,9 @@ impl CheckboxGroup {
         value: &str,
         disabled: bool,
         attrs: Vec<(&'a str, &'a str)>,
+        children: Vec<Node>,
     ) -> Node {
-        item_control(self.is_checked(value), disabled, attrs)
+        item_control(self.is_checked(value), disabled, attrs, children)
     }
 
     /// [`item_indicator`] へ項目 `value` の現在状態を注入する利便メソッド。
@@ -442,11 +461,29 @@ mod tests {
 
     #[test]
     fn item_control_carries_state_without_checkbox_role() {
-        let html = render(&item_control(true, false, vec![]));
+        let html = render(&item_control(true, false, vec![], vec![]));
         assert!(html.contains(r#"data-part="item-control""#));
         assert!(html.contains(r#"data-state="checked""#));
         assert!(!html.contains("role=\"checkbox\""));
         assert!(!html.contains("aria-checked"));
+    }
+
+    #[test]
+    fn item_control_accepts_item_indicator_as_nested_child() {
+        // イシュー #997 Bugbot 指摘（High）回帰固定: item_indicator は
+        // item_control の子として入れ子にできる（item 直下の兄弟要素として
+        // しか配置できないと、styled recipe の `justify-content: center` が
+        // 効かずチェックマークが中央からずれる）。
+        let html = render(&item_control(
+            true,
+            false,
+            vec![],
+            vec![item_indicator(true, false, vec![], vec![])],
+        ));
+        assert!(html.contains(r#"data-part="item-control""#));
+        let control_pos = html.find(r#"data-part="item-control""#).unwrap();
+        let indicator_pos = html.find(r#"data-part="item-indicator""#).unwrap();
+        assert!(control_pos < indicator_pos);
     }
 
     #[test]
@@ -522,8 +559,12 @@ mod tests {
                             "red",
                             vec![],
                         ),
-                        item_control(true, false, vec![]),
-                        item_indicator(true, false, vec![], vec![]),
+                        item_control(
+                            true,
+                            false,
+                            vec![],
+                            vec![item_indicator(true, false, vec![], vec![])],
+                        ),
                         item_text(true, false, vec![], vec![text("Red")]),
                     ],
                 ),

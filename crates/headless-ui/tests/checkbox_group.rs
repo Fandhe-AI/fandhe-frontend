@@ -48,8 +48,12 @@ fn full_anatomy_renders_expected_html_reusing_checkbox_hidden_input() {
                 vec![],
                 vec![
                     hidden_input(&checkbox_props(true), "colors", "red", vec![]),
-                    checkbox_group::item_control(true, false, vec![]),
-                    checkbox_group::item_indicator(true, false, vec![], vec![]),
+                    checkbox_group::item_control(
+                        true,
+                        false,
+                        vec![],
+                        vec![checkbox_group::item_indicator(true, false, vec![], vec![])],
+                    ),
                     checkbox_group::item_text(true, false, vec![], vec![text("Red")]),
                 ],
             ),
@@ -60,8 +64,12 @@ fn full_anatomy_renders_expected_html_reusing_checkbox_hidden_input() {
                 vec![],
                 vec![
                     hidden_input(&checkbox_props(false), "colors", "blue", vec![]),
-                    checkbox_group::item_control(false, false, vec![]),
-                    checkbox_group::item_indicator(false, false, vec![], vec![]),
+                    checkbox_group::item_control(
+                        false,
+                        false,
+                        vec![],
+                        vec![checkbox_group::item_indicator(false, false, vec![], vec![])],
+                    ),
                     checkbox_group::item_text(false, false, vec![], vec![text("Blue")]),
                 ],
             ),

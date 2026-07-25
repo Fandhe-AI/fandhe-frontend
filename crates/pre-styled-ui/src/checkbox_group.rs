@@ -173,8 +173,17 @@ fn recipe() -> SlotRecipe {
         .base(
             "item-indicator",
             vec![
-                decl("width", "0.25rem"),
-                decl("height", "0.5rem"),
+                // イシュー #997 Bugbot 指摘（Medium）回帰固定: 固定寸法ではなく
+                // `--fandhe-checkbox-group-check-width`/`-check-height`
+                // custom property（`root` の size variant が切り替える）を
+                // 参照する。`crates/pre-styled-ui/src/checkbox.rs` の
+                // `indicator`（`--fandhe-checkbox-check-width`/`-check-height`）
+                // と同型。
+                decl("width", "var(--fandhe-checkbox-group-check-width, 0.25rem)"),
+                decl(
+                    "height",
+                    "var(--fandhe-checkbox-group-check-height, 0.5rem)",
+                ),
                 decl(
                     "border-right",
                     "2px solid var(--fandhe-palette-fg, var(--fandhe-color-accent-fg))",
@@ -238,6 +247,8 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("--fandhe-checkbox-group-control-size", "0.85rem"),
+                decl("--fandhe-checkbox-group-check-width", "0.2rem"),
+                decl("--fandhe-checkbox-group-check-height", "0.4rem"),
                 decl(
                     "--fandhe-checkbox-group-font-size",
                     "var(--fandhe-font-font-size-sm)",
@@ -249,6 +260,8 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("--fandhe-checkbox-group-control-size", "1rem"),
+                decl("--fandhe-checkbox-group-check-width", "0.25rem"),
+                decl("--fandhe-checkbox-group-check-height", "0.5rem"),
                 decl(
                     "--fandhe-checkbox-group-font-size",
                     "var(--fandhe-font-font-size-sm)",
@@ -260,6 +273,8 @@ fn recipe() -> SlotRecipe {
             "root",
             vec![
                 decl("--fandhe-checkbox-group-control-size", "1.25rem"),
+                decl("--fandhe-checkbox-group-check-width", "0.3rem"),
+                decl("--fandhe-checkbox-group-check-height", "0.6rem"),
                 decl(
                     "--fandhe-checkbox-group-font-size",
                     "var(--fandhe-font-font-size-md)",
@@ -579,7 +594,7 @@ mod tests {
         assert!(dispatch(&mut g, "select", "red"));
         assert!(g.is_checked("red"));
 
-        let ssr_html = render(&g.item_control("red", false, vec![]));
+        let ssr_html = render(&g.item_control("red", false, vec![], vec![]));
         assert!(ssr_html.contains(r#"data-state="checked""#));
 
         let hydrate_html = render(&render_for_hydration(&g));
