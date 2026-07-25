@@ -247,64 +247,65 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     // doc の admonition 節参照）。
     let mut has_admonition = false;
 
-    for section in &nav.sections {
-        for page in &section.pages {
-            let source_path = repo_root.join(&page.source);
-            let markdown_input =
-                fs::read_to_string(&source_path).map_err(|source_err| BuildError::Io {
-                    path: PathBuf::from(&page.source),
-                    source: source_err,
-                })?;
+    // `nav.all_pages()`（唯一の正規走査経路）でページ生成する。グループ
+    // 配下ページ（イシュー #939）も直下ページと同一のビルド経路を通り、
+    // サイレントに取りこぼされないことを構造的に保証する。
+    for page in nav.all_pages() {
+        let source_path = repo_root.join(&page.source);
+        let markdown_input =
+            fs::read_to_string(&source_path).map_err(|source_err| BuildError::Io {
+                path: PathBuf::from(&page.source),
+                source: source_err,
+            })?;
 
-            let blocks = render_markdown(&markdown_input);
-            let raw_body = div(vec![], blocks);
-            let rewritten_body = linkcheck::rewrite_md_links(
-                raw_body,
-                &page.source,
-                &nav,
-                &page.path,
-                &source_to_path,
-                &mut broken,
-            );
+        let blocks = render_markdown(&markdown_input);
+        let raw_body = div(vec![], blocks);
+        let rewritten_body = linkcheck::rewrite_md_links(
+            raw_body,
+            &page.source,
+            &nav,
+            &page.path,
+            &source_to_path,
+            &mut broken,
+        );
 
-            // このページの admonition 使用有無（Markdown 由来の rewritten_body
-            // のみを走査する。showcase の生成コンテンツは Markdown 外であり、
-            // admonition マーカーを含み得ないため対象外）。
-            let page_has_admonition = admonition::contains_admonition(&rewritten_body);
-            if page_has_admonition {
-                has_admonition = true;
-            }
-
-            // Rust 生成コンテンツ（showcase）は Markdown 本文の直後・前後
-            // ナビの手前へ追記する（モジュール doc の処理順注記参照）。
-            let generated = showcase::generated_content(&page.path);
-            let mut extra_stylesheets: Vec<&str> = Vec::new();
-            if generated.is_some() {
-                has_generated_page = true;
-                extra_stylesheets.push(showcase::STYLESHEET_REL_PATH);
-            }
-            if page_has_admonition {
-                extra_stylesheets.push(admonition::STYLESHEET_REL_PATH);
-            }
-
-            let mut body_children = vec![rewritten_body];
-            if let Some(generated_body) = generated {
-                body_children.push(generated_body);
-            }
-            body_children.push(nav::prev_next_nav(&nav, &page.path));
-            let body = div(vec![], body_children);
-
-            let document = layout::docs_page_with_assets(
-                &page.title,
-                &nav.site.base_path,
-                nav::sidebar(&nav, &page.path),
-                body,
-                &extra_stylesheets,
-                Some(nav::header_nav(&nav, &page.path)),
-            );
-
-            pages.push((page.path.clone(), document));
+        // このページの admonition 使用有無（Markdown 由来の rewritten_body
+        // のみを走査する。showcase の生成コンテンツは Markdown 外であり、
+        // admonition マーカーを含み得ないため対象外）。
+        let page_has_admonition = admonition::contains_admonition(&rewritten_body);
+        if page_has_admonition {
+            has_admonition = true;
         }
+
+        // Rust 生成コンテンツ（showcase）は Markdown 本文の直後・前後
+        // ナビの手前へ追記する（モジュール doc の処理順注記参照）。
+        let generated = showcase::generated_content(&page.path);
+        let mut extra_stylesheets: Vec<&str> = Vec::new();
+        if generated.is_some() {
+            has_generated_page = true;
+            extra_stylesheets.push(showcase::STYLESHEET_REL_PATH);
+        }
+        if page_has_admonition {
+            extra_stylesheets.push(admonition::STYLESHEET_REL_PATH);
+        }
+
+        let mut body_children = vec![rewritten_body];
+        if let Some(generated_body) = generated {
+            body_children.push(generated_body);
+        }
+        body_children.push(nav::prev_next_nav(&nav, &page.path));
+        let body = div(vec![], body_children);
+
+        let document = layout::docs_page_with_assets(
+            &page.title,
+            &nav.site.base_path,
+            nav::sidebar(&nav, &page.path),
+            body,
+            &extra_stylesheets,
+            Some(nav::header_nav(&nav, &page.path)),
+        );
+
+        pages.push((page.path.clone(), document));
     }
 
     let mut asset_hrefs = collect_asset_hrefs(repo_root, &nav.site.base_path)?;

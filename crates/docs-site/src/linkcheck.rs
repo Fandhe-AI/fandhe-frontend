@@ -75,10 +75,10 @@ impl fmt::Display for BrokenLink {
 /// リンク先として不整合を生まない）。
 pub fn source_to_path_map(nav: &Nav) -> BTreeMap<String, String> {
     let mut map = BTreeMap::new();
-    for section in &nav.sections {
-        for page in &section.pages {
-            map.insert(page.source.clone(), page.path.clone());
-        }
+    // `nav.all_pages()`（唯一の正規走査経路）を使い、グループ配下ページ
+    // （イシュー #939）の source もリンク解決対象に含める。
+    for page in nav.all_pages() {
+        map.insert(page.source.clone(), page.path.clone());
     }
     map
 }
