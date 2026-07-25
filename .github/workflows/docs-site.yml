@@ -30,7 +30,7 @@ on:
     branches: [main]
     paths:
       - "docs/**"
-      - "site/**" # #905 で site/assets/ は廃止済み。現在は Markdown 原稿・nav.toml のみ（骨格 CSS は静的コピーではなくビルド生成、下記 verify ステップ参照）
+      - "site/**" # #905 で site/assets/ は廃止済み。現在は Markdown 原稿・nav.toml のみ（骨格 CSS は静的コピーではなくビルド生成、下記 verify ステップ参照）。#943 で追加した site/components/*.md（99 件）も本 glob が包含するため個別エントリは不要（イシュー #944 で検証）
       - "crates/docs-site/**"
       - "crates/pre-styled-ui/**" # 骨格 CSS（assets/site.css）の生成元（Theme::to_css、イシュー #905） + showcase ページの styled 部品掲載
       - "crates/headless-ui/**" # showcase の Tabs/Accordion マークアップ（pre-styled-ui が再エクスポート）
@@ -84,10 +84,19 @@ jobs:
         # crates/docs-site/tests/site_typography_contract.rs 等の契約テストが担う。
         # assets/site.js（イシュー #951、crates/docs-site/src/script.rs による
         # ビルド生成物）も同型の最終確認を行う。
+        #
+        # イシュー #944: #943 でサイトの大半（121 ページ中 99）が
+        # /components/<kebab>/ の部品ページになったため、索引ページだけの
+        # 検証では「部品ページが 1 枚も出ていない」退行を素通ししてしまう。
+        # 代表 1 ページと部品ページ専用 CSS（showcase::STYLESHEET_REL_PATH）の
+        # 存在も fail-closed で確認する。ページ総数の期待値は
+        # crates/docs-site/tests/site_build.rs が保持し、ここでは二重管理しない。
         run: |
           test -f "${RUNNER_TEMP}/docs-site-dist/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.css"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.js"
+          test -f "${RUNNER_TEMP}/docs-site-dist/components/button/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/assets/pre-styled-ui.css"
 
       - name: Upload Pages artifact
         # 要: runner に tar がインストール済み（upload-pages-artifact が内部で使用。
