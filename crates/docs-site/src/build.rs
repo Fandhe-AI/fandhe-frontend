@@ -40,9 +40,9 @@
 //! を掲載するページ（UI ショーケース・部品ページ）のため、ステップ 2 で
 //! [`component_page::generated_content`] を `page.path` で照会し、`Some` の
 //! 場合のみ Markdown 本文の直後（前後ナビの手前）へ生成 `Node` を追記する
-//! （イシュー #942。集約ページ [`showcase::PAGE_PATH`] は
-//! [`component_page::generated_content`] 内部で [`showcase::generated_content`]
-//! へ逐語委譲され、出力は変わらない）。該当ページには専用 CSS
+//! （イシュー #942。索引ページ [`showcase::PAGE_PATH`] はイシュー #943 で
+//! 索引へ改組済みのため Rust 生成コンテンツを持たず `None` を返す）。
+//! 該当ページには専用 CSS
 //! （[`showcase::STYLESHEET_REL_PATH`]）への追加 `<link>` を
 //! [`layout::docs_page_with_assets`] で差し込み、CSS 本体はステップ 5 の後に
 //! [`showcase::stylesheet`] から書き出す。生成 CSS の組み立て（fallible）は
@@ -283,10 +283,9 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
 
         // Rust 生成コンテンツ（component_page、イシュー #942）は Markdown
         // 本文の直後・前後ナビの手前へ追記する（モジュール doc の処理順
-        // 注記参照）。`component_page::generated_content` は集約ページ
-        // （`showcase::PAGE_PATH`）を `showcase::generated_content` へ逐語
-        // 委譲するため、部品ページ登録前（#943 の nav 登録待ち）の現時点で
-        // サイト出力は変わらない。
+        // 注記参照）。索引ページ（`showcase::PAGE_PATH`）は #943 で
+        // Rust 生成コンテンツを持たなくなったため `None` を返し、
+        // `site/components-pre-styled-ui.md` の Markdown 本文のみで完結する。
         let generated = component_page::generated_content(&page.path);
         let mut extra_stylesheets: Vec<&str> = Vec::new();
         if generated.is_some() {

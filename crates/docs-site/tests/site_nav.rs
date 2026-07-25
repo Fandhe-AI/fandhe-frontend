@@ -83,21 +83,59 @@ fn site_nav_registers_five_sections_with_expected_titles() {
 /// イシュー #552 で追加された `examples/headless-pre-styled-ui/README.md`・
 /// `docs/api/headless-ui-api.md`・`docs/api/pre-styled-ui-api.md`（3 ページ）、
 /// pre-styled-ui ショーケース統合で追加された
-/// `site/components-pre-styled-ui.md`（1 ページ、Rust 生成コンテンツページ）が
+/// `site/components-pre-styled-ui.md`（1 ページ、索引ページ）が
 /// サイト生成対象として登録されている（イシュー本文の「全 11 ページ」表記と
 /// 列挙内容の数値差異はモジュール冒頭のコメント参照）。
+///
+/// イシュー #943 で `site/components/*.md` 99 部品ページが 6 カテゴリの
+/// `[[section.group]]` 配下へ登録され、登録ページ総数は 22 + 99 = 121 と
+/// なった（台帳との三方突合・充足率計測は #944 の責務、本テストは既存
+/// 22 件の宣言内容の不変を厳格検証しつつ、部品ページ側は件数・代表エントリの
+/// spot-check に留める）。
 #[test]
-fn site_nav_registers_all_twenty_two_pages_with_expected_paths() {
+fn site_nav_registers_all_pages_with_expected_paths() {
     let nav = load_nav();
     // `nav.all_pages()`（イシュー #939 の唯一の正規走査経路）で数える。
-    // `site/nav.toml` は本 PR でグループを未登録のため、期待値・列挙内容は
-    // 従来どおり不変（グループ導入後は #943 がこの期待値を更新する）。
     let pages: Vec<(&str, &str)> = nav
         .all_pages()
         .map(|p| (p.source.as_str(), p.path.as_str()))
         .collect();
 
-    assert_eq!(pages.len(), 22, "expected 22 pages, got {pages:?}");
+    assert_eq!(pages.len(), 121, "expected 121 pages, got {pages:?}");
+
+    let component_pages: Vec<&(&str, &str)> = pages
+        .iter()
+        .filter(|(_, path)| path.starts_with("/components/"))
+        .collect();
+    assert_eq!(
+        component_pages.len(),
+        100,
+        "expected 100 /components/ pages (1 index + 99 部品), got {component_pages:?}"
+    );
+
+    let source_based_component_pages = pages
+        .iter()
+        .filter(|(source, _)| source.starts_with("site/components/"))
+        .count();
+    assert_eq!(
+        source_based_component_pages, 99,
+        "expected 99 pages sourced from site/components/"
+    );
+
+    // 代表 3 件で (source, path) の一致を spot-check する（台帳・レジストリ
+    // との三方突合は #944 の責務）。
+    for expected_pair in [
+        ("site/components/button.md", "/components/button/"),
+        // Demo なしスタブ（showcase レジストリ未登録の 11 件の 1 つ）。
+        ("site/components/toggle.md", "/components/toggle/"),
+        // charts mod に内包される Charts カテゴリの代表。
+        ("site/components/bar-chart.md", "/components/bar-chart/"),
+    ] {
+        assert!(
+            pages.contains(&expected_pair),
+            "nav.toml is missing expected component page {expected_pair:?}"
+        );
+    }
 
     let expected = vec![
         ("site/index.md", "/"),
@@ -152,8 +190,11 @@ fn site_nav_registers_all_twenty_two_pages_with_expected_paths() {
     ];
     // "site/index.md" は #472（未マージのことがある）依存のため、期待値の
     // 先頭は上のリストに含めつつ後段の実在チェックでは条件付きにする。
-    // ここでは path/source の宣言内容そのもの（16 + 1 件）を厳格検証する。
-    assert_eq!(pages.len(), expected.len());
+    // ここでは path/source の宣言内容そのもの（22 件）を厳格検証する
+    // （イシュー #943 で部品ページ 99 件が加わり `pages.len()` は 121 に
+    // なったため、`expected` は既存 22 件のみを列挙する部分集合として
+    // 個別に `contains` で照合する。総数チェックは冒頭の 121/100/99 の
+    // 各アサーションが担う）。
     for expected_pair in &expected {
         assert!(
             pages.contains(expected_pair),
@@ -236,33 +277,36 @@ fn site_nav_validate_sources_covers_all_pages_once_site_index_exists() {
 fn every_existing_source_renders_without_fence_leakage_and_starts_with_a_heading() {
     let root = repo_root();
     let nav = load_nav();
-    for section in &nav.sections {
-        for page in &section.pages {
-            let full_path = root.join(&page.source);
-            if !full_path.is_file() {
-                // site/index.md が未マージの場合はスキップ（#472 依存）。
-                continue;
-            }
-            let input = std::fs::read_to_string(&full_path)
-                .unwrap_or_else(|e| panic!("failed to read {}: {e}", page.source));
-            let blocks = render_markdown(&input);
+    // `nav.all_pages()`（イシュー #939 の唯一の正規走査経路）で走査する。
+    // `section.pages` を直接走査すると `[[section.group]]` 配下のページ
+    // （イシュー #943 で追加された 99 部品ページ）が対象から漏れ、
+    // レンダリング健全性検証が沈黙する（他 3 テストと同型の Bugbot 指摘、
+    // PR #968 参照）。
+    for page in nav.all_pages() {
+        let full_path = root.join(&page.source);
+        if !full_path.is_file() {
+            // site/index.md が未マージの場合はスキップ（#472 依存）。
+            continue;
+        }
+        let input = std::fs::read_to_string(&full_path)
+            .unwrap_or_else(|e| panic!("failed to read {}: {e}", page.source));
+        let blocks = render_markdown(&input);
+        assert!(
+            !blocks.is_empty(),
+            "{} rendered to an empty block list",
+            page.source
+        );
+        assert!(
+            is_heading(&blocks[0]),
+            "{} does not start with a heading (H1 expected as the page title)",
+            page.source
+        );
+        for block in &blocks {
             assert!(
-                !blocks.is_empty(),
-                "{} rendered to an empty block list",
+                !contains_unclosed_fence_marker(block),
+                "{} contains a stray ``` marker in rendered text, likely an unclosed fence",
                 page.source
             );
-            assert!(
-                is_heading(&blocks[0]),
-                "{} does not start with a heading (H1 expected as the page title)",
-                page.source
-            );
-            for block in &blocks {
-                assert!(
-                    !contains_unclosed_fence_marker(block),
-                    "{} contains a stray ``` marker in rendered text, likely an unclosed fence",
-                    page.source
-                );
-            }
         }
     }
 }

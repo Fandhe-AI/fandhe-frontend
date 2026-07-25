@@ -77,13 +77,531 @@ path = "/examples/headless-pre-styled-ui/"
 [[section]]
 title = "Components"
 
-# Rust 生成コンテンツページ: source の Markdown（導入文）に加えて、
-# crates/docs-site/src/showcase.rs が pre-styled-ui コンポーネントの
-# 実レンダリング結果を path 照会（showcase::PAGE_PATH と一致）で追記する。
+# 索引ページ（凡例 + カテゴリ別リンク集）。URL は既存被リンク
+# （docs/api/pre-styled-ui-api.md 等）・外部ブックマーク維持のため
+# /components/pre-styled-ui/ のまま変更しない
+# （docs/design/docs-site-component-pages.md §8）。
 [[section.page]]
-title = "pre-styled-ui ショーケース"
+title = "コンポーネント索引"
 source = "site/components-pre-styled-ui.md"
 path = "/components/pre-styled-ui/"
+
+# 以下 6 カテゴリ × 99 部品ページ（イシュー #943）。台帳は
+# docs/design/docs-site-component-pages.md §3/§5 を正とする。
+# カテゴリ内はいずれも表示名の昇順。
+
+[[section.group]]
+title = "Typography"
+
+[[section.group.page]]
+title = "Blockquote"
+source = "site/components/blockquote.md"
+path = "/components/blockquote/"
+
+[[section.group.page]]
+title = "Code"
+source = "site/components/code.md"
+path = "/components/code/"
+
+[[section.group.page]]
+title = "Em"
+source = "site/components/em.md"
+path = "/components/em/"
+
+[[section.group.page]]
+title = "Heading"
+source = "site/components/heading.md"
+path = "/components/heading/"
+
+[[section.group.page]]
+title = "Highlight"
+source = "site/components/highlight.md"
+path = "/components/highlight/"
+
+[[section.group.page]]
+title = "Kbd"
+source = "site/components/kbd.md"
+path = "/components/kbd/"
+
+[[section.group.page]]
+title = "Link"
+source = "site/components/link.md"
+path = "/components/link/"
+
+[[section.group.page]]
+title = "List"
+source = "site/components/list.md"
+path = "/components/list/"
+
+[[section.group.page]]
+title = "Mark"
+source = "site/components/mark.md"
+path = "/components/mark/"
+
+[[section.group.page]]
+title = "Text"
+source = "site/components/text.md"
+path = "/components/text/"
+
+[[section.group]]
+title = "Forms"
+
+[[section.group.page]]
+title = "Angle Slider"
+source = "site/components/angle-slider.md"
+path = "/components/angle-slider/"
+
+[[section.group.page]]
+title = "Button"
+source = "site/components/button.md"
+path = "/components/button/"
+
+[[section.group.page]]
+title = "Calendar"
+source = "site/components/calendar.md"
+path = "/components/calendar/"
+
+[[section.group.page]]
+title = "Checkbox"
+source = "site/components/checkbox.md"
+path = "/components/checkbox/"
+
+[[section.group.page]]
+title = "Checkbox Card"
+source = "site/components/checkbox-card.md"
+path = "/components/checkbox-card/"
+
+[[section.group.page]]
+title = "Color Picker"
+source = "site/components/color-picker.md"
+path = "/components/color-picker/"
+
+[[section.group.page]]
+title = "Combobox"
+source = "site/components/combobox.md"
+path = "/components/combobox/"
+
+[[section.group.page]]
+title = "Date Input"
+source = "site/components/date-input.md"
+path = "/components/date-input/"
+
+[[section.group.page]]
+title = "Date Picker"
+source = "site/components/date-picker.md"
+path = "/components/date-picker/"
+
+[[section.group.page]]
+title = "Download Trigger"
+source = "site/components/download-trigger.md"
+path = "/components/download-trigger/"
+
+[[section.group.page]]
+title = "Editable"
+source = "site/components/editable.md"
+path = "/components/editable/"
+
+[[section.group.page]]
+title = "File Upload"
+source = "site/components/file-upload.md"
+path = "/components/file-upload/"
+
+[[section.group.page]]
+title = "Image Cropper"
+source = "site/components/image-cropper.md"
+path = "/components/image-cropper/"
+
+[[section.group.page]]
+title = "Input"
+source = "site/components/input.md"
+path = "/components/input/"
+
+[[section.group.page]]
+title = "Listbox"
+source = "site/components/listbox.md"
+path = "/components/listbox/"
+
+[[section.group.page]]
+title = "Native Select"
+source = "site/components/native-select.md"
+path = "/components/native-select/"
+
+[[section.group.page]]
+title = "Number Input"
+source = "site/components/number-input.md"
+path = "/components/number-input/"
+
+[[section.group.page]]
+title = "Password Input"
+source = "site/components/password-input.md"
+path = "/components/password-input/"
+
+[[section.group.page]]
+title = "Pin Input"
+source = "site/components/pin-input.md"
+path = "/components/pin-input/"
+
+[[section.group.page]]
+title = "Radio Card"
+source = "site/components/radio-card.md"
+path = "/components/radio-card/"
+
+[[section.group.page]]
+title = "Radio Group"
+source = "site/components/radio-group.md"
+path = "/components/radio-group/"
+
+[[section.group.page]]
+title = "Rating Group"
+source = "site/components/rating-group.md"
+path = "/components/rating-group/"
+
+[[section.group.page]]
+title = "Segment Group"
+source = "site/components/segment-group.md"
+path = "/components/segment-group/"
+
+[[section.group.page]]
+title = "Select"
+source = "site/components/select.md"
+path = "/components/select/"
+
+[[section.group.page]]
+title = "Signature Pad"
+source = "site/components/signature-pad.md"
+path = "/components/signature-pad/"
+
+[[section.group.page]]
+title = "Slider"
+source = "site/components/slider.md"
+path = "/components/slider/"
+
+[[section.group.page]]
+title = "Switch"
+source = "site/components/switch.md"
+path = "/components/switch/"
+
+[[section.group.page]]
+title = "Tags Input"
+source = "site/components/tags-input.md"
+path = "/components/tags-input/"
+
+[[section.group.page]]
+title = "Textarea"
+source = "site/components/textarea.md"
+path = "/components/textarea/"
+
+[[section.group.page]]
+title = "Toggle"
+source = "site/components/toggle.md"
+path = "/components/toggle/"
+
+[[section.group.page]]
+title = "Toggle Group"
+source = "site/components/toggle-group.md"
+path = "/components/toggle-group/"
+
+[[section.group]]
+title = "Interactive"
+
+[[section.group.page]]
+title = "Accordion"
+source = "site/components/accordion.md"
+path = "/components/accordion/"
+
+[[section.group.page]]
+title = "Action Bar"
+source = "site/components/action-bar.md"
+path = "/components/action-bar/"
+
+[[section.group.page]]
+title = "Breadcrumb"
+source = "site/components/breadcrumb.md"
+path = "/components/breadcrumb/"
+
+[[section.group.page]]
+title = "Carousel"
+source = "site/components/carousel.md"
+path = "/components/carousel/"
+
+[[section.group.page]]
+title = "Clipboard"
+source = "site/components/clipboard.md"
+path = "/components/clipboard/"
+
+[[section.group.page]]
+title = "Dialog"
+source = "site/components/dialog.md"
+path = "/components/dialog/"
+
+[[section.group.page]]
+title = "Drawer"
+source = "site/components/drawer.md"
+path = "/components/drawer/"
+
+[[section.group.page]]
+title = "Floating Panel"
+source = "site/components/floating-panel.md"
+path = "/components/floating-panel/"
+
+[[section.group.page]]
+title = "Hover Card"
+source = "site/components/hover-card.md"
+path = "/components/hover-card/"
+
+[[section.group.page]]
+title = "Menu"
+source = "site/components/menu.md"
+path = "/components/menu/"
+
+[[section.group.page]]
+title = "Nav List"
+source = "site/components/nav-list.md"
+path = "/components/nav-list/"
+
+[[section.group.page]]
+title = "Pagination"
+source = "site/components/pagination.md"
+path = "/components/pagination/"
+
+[[section.group.page]]
+title = "Popover"
+source = "site/components/popover.md"
+path = "/components/popover/"
+
+[[section.group.page]]
+title = "Splitter"
+source = "site/components/splitter.md"
+path = "/components/splitter/"
+
+[[section.group.page]]
+title = "Steps"
+source = "site/components/steps.md"
+path = "/components/steps/"
+
+[[section.group.page]]
+title = "Tabs"
+source = "site/components/tabs.md"
+path = "/components/tabs/"
+
+[[section.group.page]]
+title = "Toast"
+source = "site/components/toast.md"
+path = "/components/toast/"
+
+[[section.group.page]]
+title = "Toggle Tip"
+source = "site/components/toggle-tip.md"
+path = "/components/toggle-tip/"
+
+[[section.group.page]]
+title = "Tooltip"
+source = "site/components/tooltip.md"
+path = "/components/tooltip/"
+
+[[section.group.page]]
+title = "Tour"
+source = "site/components/tour.md"
+path = "/components/tour/"
+
+[[section.group]]
+title = "Data Display"
+
+[[section.group.page]]
+title = "Alert"
+source = "site/components/alert.md"
+path = "/components/alert/"
+
+[[section.group.page]]
+title = "Avatar"
+source = "site/components/avatar.md"
+path = "/components/avatar/"
+
+[[section.group.page]]
+title = "Badge"
+source = "site/components/badge.md"
+path = "/components/badge/"
+
+[[section.group.page]]
+title = "Card"
+source = "site/components/card.md"
+path = "/components/card/"
+
+[[section.group.page]]
+title = "Color Swatch"
+source = "site/components/color-swatch.md"
+path = "/components/color-swatch/"
+
+[[section.group.page]]
+title = "Data List"
+source = "site/components/data-list.md"
+path = "/components/data-list/"
+
+[[section.group.page]]
+title = "Empty State"
+source = "site/components/empty-state.md"
+path = "/components/empty-state/"
+
+[[section.group.page]]
+title = "Icon"
+source = "site/components/icon.md"
+path = "/components/icon/"
+
+[[section.group.page]]
+title = "Image"
+source = "site/components/image.md"
+path = "/components/image/"
+
+[[section.group.page]]
+title = "JSON Tree View"
+source = "site/components/json-tree-view.md"
+path = "/components/json-tree-view/"
+
+[[section.group.page]]
+title = "Progress"
+source = "site/components/progress.md"
+path = "/components/progress/"
+
+[[section.group.page]]
+title = "QR Code"
+source = "site/components/qr-code.md"
+path = "/components/qr-code/"
+
+[[section.group.page]]
+title = "Skeleton"
+source = "site/components/skeleton.md"
+path = "/components/skeleton/"
+
+[[section.group.page]]
+title = "Spinner"
+source = "site/components/spinner.md"
+path = "/components/spinner/"
+
+[[section.group.page]]
+title = "Stat"
+source = "site/components/stat.md"
+path = "/components/stat/"
+
+[[section.group.page]]
+title = "Status"
+source = "site/components/status.md"
+path = "/components/status/"
+
+[[section.group.page]]
+title = "Table"
+source = "site/components/table.md"
+path = "/components/table/"
+
+[[section.group.page]]
+title = "Tag"
+source = "site/components/tag.md"
+path = "/components/tag/"
+
+[[section.group.page]]
+title = "Timeline"
+source = "site/components/timeline.md"
+path = "/components/timeline/"
+
+[[section.group.page]]
+title = "Timer"
+source = "site/components/timer.md"
+path = "/components/timer/"
+
+[[section.group.page]]
+title = "Tree View"
+source = "site/components/tree-view.md"
+path = "/components/tree-view/"
+
+[[section.group]]
+title = "Utilities"
+
+[[section.group.page]]
+title = "Link Overlay"
+source = "site/components/link-overlay.md"
+path = "/components/link-overlay/"
+
+[[section.group.page]]
+title = "Marquee"
+source = "site/components/marquee.md"
+path = "/components/marquee/"
+
+[[section.group.page]]
+title = "Scroll Area"
+source = "site/components/scroll-area.md"
+path = "/components/scroll-area/"
+
+[[section.group.page]]
+title = "Separator"
+source = "site/components/separator.md"
+path = "/components/separator/"
+
+[[section.group.page]]
+title = "Skip Nav"
+source = "site/components/skip-nav.md"
+path = "/components/skip-nav/"
+
+[[section.group.page]]
+title = "Visually Hidden"
+source = "site/components/visually-hidden.md"
+path = "/components/visually-hidden/"
+
+[[section.group]]
+title = "Charts"
+
+[[section.group.page]]
+title = "Area Chart"
+source = "site/components/area-chart.md"
+path = "/components/area-chart/"
+
+[[section.group.page]]
+title = "Bar Chart"
+source = "site/components/bar-chart.md"
+path = "/components/bar-chart/"
+
+[[section.group.page]]
+title = "Bar List"
+source = "site/components/bar-list.md"
+path = "/components/bar-list/"
+
+[[section.group.page]]
+title = "Bar Segment"
+source = "site/components/bar-segment.md"
+path = "/components/bar-segment/"
+
+[[section.group.page]]
+title = "Charts（共通 API）"
+source = "site/components/charts.md"
+path = "/components/charts/"
+
+[[section.group.page]]
+title = "Donut Chart"
+source = "site/components/donut-chart.md"
+path = "/components/donut-chart/"
+
+[[section.group.page]]
+title = "Line Chart"
+source = "site/components/line-chart.md"
+path = "/components/line-chart/"
+
+[[section.group.page]]
+title = "Pie Chart"
+source = "site/components/pie-chart.md"
+path = "/components/pie-chart/"
+
+[[section.group.page]]
+title = "Radar Chart"
+source = "site/components/radar-chart.md"
+path = "/components/radar-chart/"
+
+[[section.group.page]]
+title = "Scatter Chart"
+source = "site/components/scatter-chart.md"
+path = "/components/scatter-chart/"
+
+[[section.group.page]]
+title = "Sparkline"
+source = "site/components/sparkline.md"
+path = "/components/sparkline/"
 
 [[section]]
 title = "API Reference"

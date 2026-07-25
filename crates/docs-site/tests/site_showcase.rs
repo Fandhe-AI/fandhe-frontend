@@ -1,11 +1,13 @@
-//! UI コンポーネントショーケースページ（`crate::showcase`、pre-styled-ui
+//! 部品ページ（`crate::showcase` / `crate::component_page`、pre-styled-ui
 //! 統合）の実サイトビルド検証。
 //!
-//! `site/nav.toml` の実宣言（`/components/pre-styled-ui/`）と
-//! `showcase::PAGE_PATH` の一致、生成 HTML への styled 部品マークアップの
-//! 埋め込み、専用 CSS（`assets/pre-styled-ui.css`）の書き出し・`<link>` 参照
-//! を end-to-end で固定する。`tests/site_build.rs` の実サイトビルド検証と
-//! 同じくリポジトリルートを `--root` 相当として `build_site` を直接呼ぶ。
+//! イシュー #941〜#943 で「1 ページ = pre-styled-ui の公開部品 1 件」へ
+//! 分解されたため、本テストは `/components/pre-styled-ui/`（索引ページ、
+//! `showcase::PAGE_PATH`）ではなく個別部品ページ（`/components/<kebab>/`）
+//! を対象に、生成 HTML への styled 部品マークアップの埋め込み・専用 CSS
+//! （`assets/pre-styled-ui.css`）の書き出し・`<link>` 参照を end-to-end で
+//! 固定する。`tests/site_build.rs` の実サイトビルド検証と同じくリポジトリ
+//! ルートを `--root` 相当として `build_site` を直接呼ぶ。
 
 use std::path::{Path, PathBuf};
 
@@ -56,62 +58,31 @@ fn repo_root() -> PathBuf {
         .expect("repo_root should resolve from CARGO_MANIFEST_DIR")
 }
 
+/// 部品ページの HTML を読み出す（`page_rel` は `showcase::COMPONENT_PAGES`
+/// / `nav.toml` の `page.path` から先頭 `/` を除いたもの）。
+fn read_component_page(out: &Path, page_rel: &str) -> String {
+    let page_path = out.join(page_rel).join("index.html");
+    std::fs::read_to_string(&page_path)
+        .unwrap_or_else(|e| panic!("component page should be written at {page_path:?}: {e}"))
+}
+
 #[test]
-fn real_site_build_emits_showcase_page_and_dedicated_css() {
+fn real_site_build_emits_component_pages_and_dedicated_css() {
     let out = TempDir::new("real-site");
     let report = build_site(&repo_root(), &out.0).expect("real site should build");
 
-    // showcase ページの HTML（page.path = showcase::PAGE_PATH の出力先）。
-    let page_rel = showcase::PAGE_PATH.trim_start_matches('/');
-    let page_path = out.0.join(page_rel).join("index.html");
-    assert!(
-        page_path.exists(),
-        "showcase page should be written at {page_path:?} (site/nav.toml と showcase::PAGE_PATH の乖離を疑う)"
-    );
-
-    let html = std::fs::read_to_string(&page_path).unwrap();
-    // Markdown 導入文（site/components-pre-styled-ui.md）と Rust 生成
-    // コンテンツ（styled 部品）が同一ページに合成されている。
-    assert!(html.contains("pre-styled-ui コンポーネントショーケース"));
-    for scope in [
-        "button",
-        "download-trigger",
-        "badge",
-        "spinner",
-        "skeleton",
-        "separator",
-        "highlight",
-        "alert",
-        "card",
-        "tabs",
-        "accordion",
-        "dialog",
-        "menu",
-        "select",
-        "popover",
-        "tooltip",
-        "switch",
-        "radio-group",
-        "avatar",
-        "visually-hidden",
-        "heading",
-        "text",
-        "em",
-        "mark",
-        "blockquote",
-        "list",
-    ] {
-        assert!(
-            html.contains(&format!(r#"data-scope="{scope}""#)),
-            "missing data-scope={scope} in showcase page"
-        );
-    }
-    // サイト骨格 CSS と showcase 専用 CSS の両方を <link> 参照する
+    // 基本部品（Button）: Demo 節の styled 部品マークアップ・CSS 配線を
+    // 固定する。
+    let button_html = read_component_page(&out.0, "components/button");
+    assert!(button_html.contains(r#"data-scope="button""#));
+    assert!(button_html.contains(">Demo<"));
+    // サイト骨格 CSS と部品ページ専用 CSS の両方を <link> 参照する
     // （base_path = /fandhe-frontend を考慮した href）。
-    assert!(html.contains(r#"href="/fandhe-frontend/assets/site.css""#));
-    assert!(html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#));
+    assert!(button_html.contains(r#"href="/fandhe-frontend/assets/site.css""#));
+    assert!(button_html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#));
 
-    // 専用 CSS が書き出され、テーマトークン + recipe セレクタを含む。
+    // 専用 CSS が書き出され、テーマトークン + recipe セレクタを含む
+    // （全部品ページが共有する単一の CSS 束、showcase::stylesheet 参照）。
     let css_path = out.0.join(showcase::STYLESHEET_REL_PATH);
     assert!(css_path.exists());
     assert!(report.assets.iter().any(|a| a == &css_path));
@@ -124,43 +95,52 @@ fn real_site_build_emits_showcase_page_and_dedicated_css() {
     assert!(css.contains(".fd-avatar--size-md"));
     // site.css の `.docs-content h3` が Accordion anatomy の h3 へ漏れるのを
     // 遮断する見出しリセットが専用 CSS 側に含まれる（site.css は変更しない
-    // 分離契約のまま showcase 側で上書きする。Bugbot 指摘の回帰防止）。
+    // 分離契約のまま部品ページ側で上書きする。Bugbot 指摘の回帰防止）。
     assert!(css.contains(r#".pre-styled-showcase [data-scope="accordion"] h3"#));
     assert!(!css.contains('<'));
 
-    // ページ内目次（docs-toc）にはセクション見出しのみが載り、コンポーネント
-    // anatomy 内の見出し（Accordion trigger の h3・Card title の h3・
-    // Dialog/Popover の title h2）は混入しない
-    // （`layout::with_heading_anchors` の data-scope 部分木除外、イシュー #691）。
-    // イシュー #950 で `nav.docs-toc` へ `aria-labelledby` が付いたため
-    // `<nav class="docs-toc" aria-labelledby="...">` の完全一致で切り出す。
-    let toc = html
-        .split(r#"<nav class="docs-toc" aria-labelledby="docs-toc-heading">"#)
-        .nth(1)
-        .and_then(|rest| rest.split("</nav>").next())
-        .expect("showcase page should have a docs-toc nav");
-    assert!(toc.contains(">Accordion<"));
-    assert!(toc.contains(">Card<"));
-    assert!(toc.contains(">Dialog<"));
-    assert!(toc.contains(">Popover<"));
-    assert!(toc.contains(">Switch<"));
-    assert!(toc.contains(">RadioGroup<"));
-    assert!(toc.contains(">Avatar<"));
+    // イシュー #691 の目次漏れ回帰: `layout::with_heading_anchors` の
+    // data-scope 部分木除外により、コンポーネント anatomy 内の見出し
+    // （Accordion trigger の h3・Card title の h3・Dialog/Popover の
+    // title h2）はページ内目次（docs-toc）へ混入しない。各部品ページで
+    // 個別に固定する（イシュー #943 でページ単位分解済み、旧集約ページ
+    // での一括検証から移設）。イシュー #950 で `nav.docs-toc` へ
+    // `aria-labelledby` が付いたため完全一致で切り出す。
+    let toc_of = |html: &str| -> String {
+        html.split(r#"<nav class="docs-toc" aria-labelledby="docs-toc-heading">"#)
+            .nth(1)
+            .and_then(|rest| rest.split("</nav>").next())
+            .expect("component page should have a docs-toc nav")
+            .to_string()
+    };
+
+    let accordion_html = read_component_page(&out.0, "components/accordion");
+    let accordion_toc = toc_of(&accordion_html);
+    assert!(accordion_toc.contains(">Demo<"));
     assert!(
-        !toc.contains("pre-styled-ui とは何ですか"),
-        "accordion trigger heading must not leak into TOC: {toc}"
+        !accordion_toc.contains("pre-styled-ui とは何ですか"),
+        "accordion trigger heading must not leak into TOC: {accordion_toc}"
     );
+
+    let card_html = read_component_page(&out.0, "components/card");
+    let card_toc = toc_of(&card_html);
     assert!(
-        !toc.contains(">Elevated<"),
-        "card title heading must not leak into TOC: {toc}"
+        !card_toc.contains(">Elevated<"),
+        "card title heading must not leak into TOC: {card_toc}"
     );
+
+    let dialog_html = read_component_page(&out.0, "components/dialog");
+    let dialog_toc = toc_of(&dialog_html);
     assert!(
-        !toc.contains("Confirm action"),
-        "dialog title heading must not leak into TOC: {toc}"
+        !dialog_toc.contains("Confirm action"),
+        "dialog title heading must not leak into TOC: {dialog_toc}"
     );
+
+    let popover_html = read_component_page(&out.0, "components/popover");
+    let popover_toc = toc_of(&popover_html);
     assert!(
-        !toc.contains("About this feature"),
-        "popover title heading must not leak into TOC: {toc}"
+        !popover_toc.contains("About this feature"),
+        "popover title heading must not leak into TOC: {popover_toc}"
     );
 }
 
@@ -173,4 +153,19 @@ fn non_showcase_pages_do_not_reference_showcase_css() {
     // カスケードへ影響させない分離契約）。
     let index_html = std::fs::read_to_string(out.0.join("index.html")).unwrap();
     assert!(!index_html.contains("pre-styled-ui.css"));
+
+    // イシュー #943: `/components/pre-styled-ui/`（索引ページ）は Rust
+    // 生成コンテンツを持たない（showcase::generated_content が None を
+    // 返す）ため、集約レンダリングが撤去されたことをここで固定する。
+    // 索引ページに専用 CSS の <link> も部品の data-scope マークアップも
+    // 出現しないことが「集約を撤去した」ことの直接証拠になる。
+    // 索引ページの本文（`site/components-pre-styled-ui.md`）は説明文の中で
+    // `assets/pre-styled-ui.css` という語句自体には言及するため、
+    // `<link ... href="...">` の実配線有無で判定する
+    // （素の部分文字列一致だと本文中の言及と誤検知が区別できない）。
+    let index_page_rel = showcase::PAGE_PATH.trim_start_matches('/');
+    let component_index_html = read_component_page(&out.0, index_page_rel);
+    assert!(!component_index_html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#));
+    assert!(!component_index_html.contains(r#"data-scope="button""#));
+    assert!(!component_index_html.contains(r#"class="pre-styled-showcase""#));
 }

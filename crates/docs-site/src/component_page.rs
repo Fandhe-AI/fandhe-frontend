@@ -11,9 +11,10 @@
 //! 読み物構造（Demo → Features → Anatomy → API Reference → Examples →
 //! Accessibility の 6 節、H2 固定）へ組み立て直す。
 //!
-//! - [`showcase::PAGE_PATH`]（`/components/pre-styled-ui/` 集約ページ）は
-//!   [`showcase::generated_content`] へ逐語委譲し、出力を一切変えない
-//!   （Phase 3-3・#943 で索引ページへ改組されるまでの経過措置）。
+//! - [`showcase::PAGE_PATH`]（`/components/pre-styled-ui/` 索引ページ）は
+//!   イシュー #943 で索引（凡例 + カテゴリ別リンク集）へ改組済みであり、
+//!   Rust 生成コンテンツを持たない（[`showcase::generated_content`] が
+//!   `None` を返すため、本モジュールも同ページに対しては `None` を返す）。
 //! - [`showcase::COMPONENT_PAGES`] レジストリの部品ページ（`/components/<kebab>/`）
 //!   のみ、本モジュールの 6 節合成を適用する。
 //!
@@ -155,17 +156,14 @@ const MAX_WALK_DEPTH: usize = 64;
 /// `page_path` が Rust 生成コンテンツを持つページなら、Markdown 本文の後ろへ
 /// 追記する `Node` 木を返す。
 ///
-/// - [`showcase::PAGE_PATH`] は [`showcase::generated_content`] へ逐語委譲する
-///   （集約ページの出力を変えない、モジュール doc 参照）。
 /// - [`showcase::COMPONENT_PAGES`] レジストリの部品ページは 6 節（Demo /
 ///   Features / Anatomy / API Reference / Examples / Accessibility）を
 ///   合成して返す。
-/// - どちらにも該当しないパスは `None`（Markdown のみの通常ページ）。
+/// - [`showcase::PAGE_PATH`]（索引ページ）を含め、レジストリに未登録の
+///   パスは `None`（Markdown のみの通常ページ。索引ページの本文は
+///   `site/components-pre-styled-ui.md` 側で完結する、イシュー #943）。
 #[must_use]
 pub fn generated_content(page_path: &str) -> Option<Node> {
-    if page_path == showcase::PAGE_PATH {
-        return showcase::generated_content(page_path);
-    }
     let demo = showcase::generated_content(page_path)?;
     Some(render_component_page(page_path, demo, &spec_for(page_path)))
 }
