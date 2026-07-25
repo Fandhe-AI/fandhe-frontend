@@ -146,13 +146,15 @@ fn real_site_build_emits_component_pages_and_dedicated_css() {
 
 /// イシュー #945 の Bugbot 指摘（PR #979）の回帰テスト。
 ///
-/// `component_specs::forms` の Demo フォールバック 6 部品（Angle Slider /
-/// Image Cropper / Pin Input / Signature Pad / Toggle / Toggle Group、
-/// `showcase.rs` に節を持たない）は、実 styled 部品マークアップ（
-/// `data-scope="..."`）をページへ埋め込む一方、`showcase::stylesheet()` に
-/// 対応する `push_css` 呼び出しが欠けていたため無 CSS のまま出荷されて
-/// いた。本テストは各ページの HTML に出現する `data-scope="..."` 値が、
-/// 全部品ページ共有の専用 CSS（`assets/pre-styled-ui.css`）に対応する
+/// `component_specs::forms` の Demo フォールバック 4 部品（Angle Slider /
+/// Image Cropper / Pin Input / Signature Pad、`showcase.rs` に節を持たない）
+/// は、実 styled 部品マークアップ（`data-scope="..."`）をページへ埋め込む
+/// 一方、`showcase::stylesheet()` に対応する `push_css` 呼び出しが欠けて
+/// いたため無 CSS のまま出荷されていた。Toggle / Toggle Group はイシュー
+/// #980 で `showcase.rs` の `COMPONENT_PAGES` 正経路へ移設済みだが、CSS 網羅
+/// の回帰ガードとしての価値は変わらないため引き続き本テストの対象に含める。
+/// 本テストは各ページの HTML に出現する `data-scope="..."` 値が、全部品
+/// ページ共有の専用 CSS（`assets/pre-styled-ui.css`）に対応する
 /// `[data-scope="..."]` セレクタとして存在することを固定する
 /// （HTML → CSS の片方向網羅、`tests/site_css_contract.rs` の層 2 と同型）。
 #[test]
@@ -175,7 +177,8 @@ fn forms_demo_fallback_pages_ship_scoped_css() {
         let marker = format!(r#"data-scope="{expected_scope}""#);
         assert!(
             html.contains(&marker),
-            "{page_rel} should render `{marker}` (Demo fallback markup, forms.rs::demo_*)"
+            "{page_rel} should render `{marker}` (Demo markup, from forms.rs::demo_* or \
+             showcase.rs's own COMPONENT_PAGES section fn)"
         );
 
         let selector = format!(r#"[data-scope="{expected_scope}"]"#);
@@ -212,4 +215,43 @@ fn non_showcase_pages_do_not_reference_showcase_css() {
     assert!(!component_index_html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#));
     assert!(!component_index_html.contains(r#"data-scope="button""#));
     assert!(!component_index_html.contains(r#"class="pre-styled-showcase""#));
+}
+
+/// イシュー #980 の回帰テスト: `site/components/toggle.md`/`toggle-group.md`
+/// が手書き H2 節（Features/Anatomy/API Reference/Accessibility）を残した
+/// まま `showcase.rs` 側で同じ節が機械生成されるようになり、両ページの右
+/// カラム目次（`nav.docs-toc`）に同名項目が 2 回ずつ並ぶ状態で出荷されて
+/// いた。原稿撤去後は各見出しがちょうど 1 回だけ出現することを固定する。
+#[test]
+fn toggle_pages_toc_has_no_duplicate_headings() {
+    let out = TempDir::new("toggle-toc-dedup");
+    build_site(&repo_root(), &out.0).expect("real site should build");
+
+    let toc_of = |html: &str| -> String {
+        html.split(r#"<nav class="docs-toc" aria-labelledby="docs-toc-heading">"#)
+            .nth(1)
+            .and_then(|rest| rest.split("</nav>").next())
+            .expect("component page should have a docs-toc nav")
+            .to_string()
+    };
+
+    for page_rel in ["components/toggle", "components/toggle-group"] {
+        let html = read_component_page(&out.0, page_rel);
+        let toc = toc_of(&html);
+        for heading in [
+            "Demo",
+            "Features",
+            "Anatomy",
+            "API Reference",
+            "Accessibility",
+        ] {
+            let marker = format!(">{heading}<");
+            let occurrences = toc.matches(&marker).count();
+            assert_eq!(
+                occurrences, 1,
+                "{page_rel}: expected exactly one `{marker}` entry in docs-toc, found \
+                 {occurrences}: {toc}"
+            );
+        }
+    }
 }

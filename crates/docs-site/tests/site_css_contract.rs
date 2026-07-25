@@ -1034,8 +1034,9 @@ fn component_page_render_introduces_no_class_outside_the_contract() {
         .to_string();
     let showcase_selectors = extract_css_class_selectors(&showcase_css);
 
-    // `component_page_paths()` が返すのは Rust 側デモを持つ 88 件
-    // （`showcase::COMPONENT_PAGES` の登録分）。残り 11 件の部品ページは
+    // `component_page_paths()` が返すのは Rust 側デモを持つ 90 件
+    // （`showcase::COMPONENT_PAGES` の登録分。イシュー #980 で toggle/
+    // toggle-group を追加登録した後の件数）。残り 9 件の部品ページは
     // Markdown 単独でレジストリに載らず、生成 HTML の class は
     // layout.rs/nav.rs 由来のみ（既存の層 1 テストが担当する）。
     let mut seen_wrapper = false;
