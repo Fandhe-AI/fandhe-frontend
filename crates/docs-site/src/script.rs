@@ -14,7 +14,13 @@
 //! - [`SITE_JS`]: `crate::build::build_site` が [`SCRIPT_REL_PATH`]
 //!   （`out_dir` 起点）へ書き出す本体。`.docs-theme-toggle` ボタンの
 //!   ラベル・`aria-pressed` 更新、クリック時の切替・保存、および
-//!   `hidden` 属性の解除（配線完了後にのみ可視化する）を担う。
+//!   `hidden` 属性の解除（配線完了後にのみ可視化する）を担う。加えて
+//!   イシュー #950 で右目次（`crate::layout::toc_nav` が出力する
+//!   `nav.docs-toc`）のスクロールスパイ（現在地ハイライト）を担う。
+//!   テーマトグルの IIFE は `.docs-theme-toggle` が無いページで早期
+//!   return するため、目次ハイライトは**別の独立した IIFE** として実装し
+//!   その早期 return に巻き込まれないようにする（テーマトグルの無い
+//!   構成でも目次ハイライトが機能する必要があるため）。
 //!
 //! # セキュリティ不変条件（REQ-1、`.claude/rules/coding-rust.md`）
 //!
@@ -89,6 +95,21 @@ pub const INLINE_THEME_BOOTSTRAP: &str = "try{var t=localStorage.getItem(`fandhe
 /// 6. `document.readyState === "loading"` なら `DOMContentLoaded` を待ち、
 ///    そうでなければ即時実行する。
 ///
+/// 7. （イシュー #950、独立した 2 つ目の IIFE）`.docs-toc` が無い・
+///    `IntersectionObserver` 非対応のいずれかなら即 return する
+///    （progressive enhancement。目次はハイライトが無くてもリンクとして
+///    機能する）。`.docs-toc a` を列挙し、`href` の属性値
+///    （`getAttribute`。`link.hash` は日本語 id をパーセントエンコードして
+///    返すため使わない）を `decodeURIComponent` してから
+///    `document.getElementById` で対応見出しを引く（`querySelector('#'+id)`
+///    は使わない。著者由来の id をセレクタとして組み立てるとセレクタ
+///    インジェクション経路になり得るため、OWASP A03 対策として避ける）。
+/// 8. `IntersectionObserver` で可視見出し集合を維持し、可視集合が空で
+///    なければ文書順で最初の可視見出し、空ならヘッダー下端を過ぎ去った
+///    見出しのうち文書順で最後のものを現在地とし、対応リンクにのみ
+///    `aria-current="location"` を付与する（サイドバーの
+///    `aria-current="page"` とは値を分け、意味の衝突を避ける）。
+///
 /// 文字列リテラルはすべてバッククォート（テンプレートリテラル。補間は
 /// 使わない）を使い、`&&` の代わりに `||` を使うことでエスケープ対象文字
 /// （`< > & " '`）を含まない（[`is_escape_safe`] 参照）。`innerHTML` /
@@ -146,6 +167,121 @@ pub const SITE_JS: &str = "\
   } else {
     init();
   }
+})();
+
+(function () {
+  var toc = document.querySelector(`.docs-toc`);
+  if (!toc) {
+    return;
+  }
+  if (!window.IntersectionObserver) {
+    return;
+  }
+
+  // href は日本語 id を含み得る。DOM プロパティ経由（ハッシュ由来の値）
+  // だとブラウザがパーセントエンコードした値を返し getElementById が
+  // 一致しない。属性値そのもの（getAttribute）を decodeURIComponent
+  // してから引く。
+  var links = [];
+  var targets = [];
+  var anchors = toc.querySelectorAll(`a`);
+  anchors.forEach(function (anchor) {
+    var href = anchor.getAttribute(`href`);
+    if (!href) {
+      return;
+    }
+    if (href.charAt(0) !== `#`) {
+      return;
+    }
+    var target = document.getElementById(decodeURIComponent(href.slice(1)));
+    if (!target) {
+      return;
+    }
+    links.push(anchor);
+    targets.push(target);
+  });
+
+  if (targets.length === 0) {
+    return;
+  }
+
+  var visible = [];
+
+  function clearCurrent() {
+    links.forEach(function (link) {
+      link.removeAttribute(`aria-current`);
+    });
+  }
+
+  function markCurrent(target) {
+    clearCurrent();
+    var index = targets.indexOf(target);
+    if (index === -1) {
+      return;
+    }
+    links[index].setAttribute(`aria-current`, `location`);
+  }
+
+  // 可視集合が空でなければ文書順で最初の可視見出しを採用する。
+  function firstVisibleInDocumentOrder() {
+    var found = null;
+    targets.forEach(function (target) {
+      if (found) {
+        return;
+      }
+      if (visible.indexOf(target) !== -1) {
+        found = target;
+      }
+    });
+    return found;
+  }
+
+  // 可視集合が空のとき（本文が長く見出し同士が離れている場合）の
+  // フォールバック: ヘッダー下端を過ぎ去った見出しのうち文書順で
+  // 最後のものを現在地とする。`getBoundingClientRect` はこの分岐でのみ
+  // 評価し、scroll イベントリスナは張らない（レイアウトスラッシング回避）。
+  function lastPassedTarget() {
+    var found = null;
+    targets.forEach(function (target) {
+      var rect = target.getBoundingClientRect();
+      if (Math.sign(rect.top - 64) !== 1) {
+        found = target;
+      }
+    });
+    return found;
+  }
+
+  function update() {
+    var current = firstVisibleInDocumentOrder();
+    if (!current) {
+      current = lastPassedTarget();
+    }
+    if (current) {
+      markCurrent(current);
+    } else {
+      clearCurrent();
+    }
+  }
+
+  var observer = new IntersectionObserver(function (entries) {
+    entries.forEach(function (entry) {
+      var idx = visible.indexOf(entry.target);
+      if (entry.isIntersecting) {
+        if (idx === -1) {
+          visible.push(entry.target);
+        }
+      } else {
+        if (idx !== -1) {
+          visible.splice(idx, 1);
+        }
+      }
+    });
+    update();
+  }, { rootMargin: `-56px 0px -60% 0px` });
+
+  targets.forEach(function (target) {
+    observer.observe(target);
+  });
 })();
 ";
 
@@ -278,5 +414,44 @@ mod tests {
         for needle in ["innerHTML", "document.write", "eval(", "new Function"] {
             assert!(!SITE_JS.contains(needle), "SITE_JS should not use {needle}");
         }
+    }
+
+    /// 右目次のスクロールスパイ（イシュー #950）が `IntersectionObserver`・
+    /// `.docs-toc`・`aria-current`・`location` を配線していることを固定する。
+    #[test]
+    fn site_js_wires_toc_scrollspy_with_intersection_observer() {
+        for needle in [
+            "IntersectionObserver",
+            ".docs-toc",
+            "aria-current",
+            "location",
+        ] {
+            assert!(SITE_JS.contains(needle), "SITE_JS should wire {needle}");
+        }
+    }
+
+    /// 目次の対応見出しは `getElementById` + `decodeURIComponent` で解決する
+    /// （モジュール doc 手順 7 参照）。`querySelector('#'` によるセレクタ
+    /// 組み立て（セレクタインジェクション経路）と `link.hash`（日本語 id を
+    /// パーセントエンコードして返しマッチしない罠）のいずれも使わないことを
+    /// 固定する。
+    #[test]
+    fn site_js_resolves_toc_targets_by_get_element_by_id() {
+        assert!(SITE_JS.contains("getElementById"));
+        assert!(SITE_JS.contains("decodeURIComponent"));
+        assert!(!SITE_JS.contains("querySelector(`#"));
+        assert!(!SITE_JS.contains(".hash"));
+    }
+
+    /// スクロールスパイの IIFE がテーマトグルの早期 return に巻き込まれない
+    /// よう独立していることを固定する（モジュール doc 参照。同じ IIFE 内に
+    /// 追記すると `.docs-theme-toggle` が無い構成で目次ハイライトごと死ぬ）。
+    #[test]
+    fn site_js_scrollspy_is_isolated_from_the_theme_toggle_guard() {
+        let iife_terminators = SITE_JS.matches("})();").count();
+        assert!(
+            iife_terminators >= 2,
+            "SITE_JS should contain at least two independent IIFEs (found {iife_terminators})"
+        );
     }
 }

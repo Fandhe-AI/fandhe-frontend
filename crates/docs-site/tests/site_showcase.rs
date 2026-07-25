@@ -132,8 +132,10 @@ fn real_site_build_emits_showcase_page_and_dedicated_css() {
     // anatomy 内の見出し（Accordion trigger の h3・Card title の h3・
     // Dialog/Popover の title h2）は混入しない
     // （`layout::with_heading_anchors` の data-scope 部分木除外、イシュー #691）。
+    // イシュー #950 で `nav.docs-toc` へ `aria-labelledby` が付いたため
+    // `<nav class="docs-toc" aria-labelledby="...">` の完全一致で切り出す。
     let toc = html
-        .split(r#"<nav class="docs-toc">"#)
+        .split(r#"<nav class="docs-toc" aria-labelledby="docs-toc-heading">"#)
         .nth(1)
         .and_then(|rest| rest.split("</nav>").next())
         .expect("showcase page should have a docs-toc nav");

@@ -448,6 +448,7 @@ const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
 const TOC_ONLY_CLASSES: &[&str] = &[
     "docs-toc-aside",
     "docs-toc",
+    "docs-toc-title",
     "docs-toc-level-2",
     "docs-toc-level-3",
 ];
@@ -723,6 +724,35 @@ fn generated_site_css_hides_theme_toggle_while_hidden_attribute_is_present() {
     assert!(
         block.contains("display: none"),
         ".docs-theme-toggle[hidden] は display: none を宣言している必要がある: {block}"
+    );
+}
+
+/// イシュー #950: 現在地ハイライト（`crate::script::SITE_JS` が実行時に
+/// 付与する `aria-current="location"`）に対応する CSS 規則が生成
+/// `assets/site.css` に存在し、`color:` 宣言を含むことを確認する。
+///
+/// `extract_css_class_selectors`（本ファイル）は `.` 始まりの class
+/// トークンしか拾わないため、属性セレクタ（`[aria-current="location"]`）は
+/// 層 1 の (b) 方向（生成 CSS → 契約表）ではカバーされない。この明示テストが
+/// 無いとハイライト CSS が消えても既存テストが全てグリーンのまま通って
+/// しまうため、`.docs-theme-toggle[hidden]` と同型の直接抽出で固定する。
+#[test]
+fn toc_current_location_highlight_selector_exists_in_generated_site_css() {
+    let css = site_css();
+    let selector = "[aria-current=\"location\"]";
+    let start = css
+        .find(selector)
+        .expect("aria-current=\"location\" セレクタが生成 assets/site.css に存在しない");
+    let block_start = css[start..]
+        .find('{')
+        .expect("aria-current=\"location\" のルールブロック開始 { が見つからない");
+    let block_end = css[start + block_start..]
+        .find('}')
+        .expect("aria-current=\"location\" のルールブロック終了 } が見つからない");
+    let block = &css[start + block_start..start + block_start + block_end];
+    assert!(
+        block.contains("color:"),
+        "aria-current=\"location\" は color: を宣言している必要がある: {block}"
     );
 }
 
