@@ -16,11 +16,17 @@
 //!   ラベル・`aria-pressed` 更新、クリック時の切替・保存、および
 //!   `hidden` 属性の解除（配線完了後にのみ可視化する）を担う。加えて
 //!   イシュー #950 で右目次（`crate::layout::toc_nav` が出力する
-//!   `nav.docs-toc`）のスクロールスパイ（現在地ハイライト）を担う。
+//!   `nav.docs-toc`）のスクロールスパイ（現在地ハイライト）を担う。加えて
+//!   イシュー #958 で検索 UI（`crate::layout::docs_page_with_assets` が
+//!   出力する `div.docs-search`）を担う: 初回フォーカス時に
+//!   `crate::search_index` が生成する `assets/search-index.json` を遅延
+//!   `fetch()` し、部分一致検索・結果一覧描画・キーボード操作
+//!   （`/`・矢印キー・`Enter`・`Escape`）を配線する。
 //!   テーマトグルの IIFE は `.docs-theme-toggle` が無いページで早期
-//!   return するため、目次ハイライトは**別の独立した IIFE** として実装し
-//!   その早期 return に巻き込まれないようにする（テーマトグルの無い
-//!   構成でも目次ハイライトが機能する必要があるため）。
+//!   return するため、目次ハイライト・検索はそれぞれ**別の独立した IIFE**
+//!   として実装し、テーマトグルの早期 return に巻き込まれないようにする
+//!   （テーマトグル・検索のいずれかが無い構成でも残りの機能が動作する
+//!   必要があるため）。
 //!
 //! # セキュリティ不変条件（REQ-1、`.claude/rules/coding-rust.md`）
 //!
@@ -109,6 +115,37 @@ pub const INLINE_THEME_BOOTSTRAP: &str = "try{var t=localStorage.getItem(`fandhe
 ///    見出しのうち文書順で最後のものを現在地とし、対応リンクにのみ
 ///    `aria-current="location"` を付与する（サイドバーの
 ///    `aria-current="page"` とは値を分け、意味の衝突を避ける）。
+///
+/// 9. （イシュー #958、独立した 3 つ目の IIFE）`.docs-search-input`・
+///    `.docs-search`・`#docs-search-results` のいずれか欠ければ即 return
+///    する（他 2 つの IIFE 同様、要素が消えても例外を投げない）。
+///    `window.fetch` 非対応・`data-search-index` 属性が空の場合も同様に
+///    即 return する。
+/// 10. インデックス JSON（`crate::search_index::REL_PATH`）は初回 `focus`
+///     イベントでのみ `fetch()` する（single-flight。状態は
+///     `idle`/`loading`/`ready`/`failed` の 4 値で管理し、再フェッチしない。
+///     `failed` の場合のみ再フォーカス時に再試行を許す）。
+///     `response.ok`・`data.version !== 1`（[`crate::search_index::SCHEMA_VERSION`]
+///     と数値リテラルで一致させる契約。ドリフト検知は本モジュールの
+///     `tests::site_js_pins_the_same_schema_version_as_search_index_rs`
+///     参照）・`Array.isArray(data.pages)` のいずれかを満たさない応答は
+///     `failed` として扱う（fail-closed。壊れた検索結果を表示しない）。
+/// 11. `input` イベントで部分一致検索を実行する。正規化は
+///     `toLowerCase()`/`trim()` のみ。マッチは `indexOf(query) !== -1` の
+///     部分一致で、ページタイトル一致を最優先（スコア 3）・見出しタイトル
+///     一致（スコア 2）・本文一致（スコア 1）の順で評価し、0 件（無関係）は
+///     除外する。スコア降順・同点はインデックス順で並べ、上位 10 件のみ
+///     `document.createElement`/`textContent`/`setAttribute` のみで描画する
+///     （`innerHTML` は使わない）。結果 `href`（`page.href` または
+///     `page.href + "#" + encodeURIComponent(section.id)`）は `/` で始まり
+///     `//` で始まらない場合のみ採用し、満たさない項目は描画自体をしない
+///     （OWASP A01/A03、`javascript:` 等のスキーム URL を構造的に排除する）。
+/// 12. キーボード操作: `document` 上の `/`（フォーム要素・`contentEditable`
+///     以外にフォーカスがある場合のみ）で検索欄へフォーカス、`input` 上の
+///     `ArrowDown`/`ArrowUp` で選択移動（端で停止、循環しない）、`Enter` で
+///     選択項目のアンカーを `click()`（`location.href` への代入はしない）、
+///     `Escape` で結果を閉じて入力をクリアする。選択位置は
+///     `aria-activedescendant`（未選択時は除去）で表す。
 ///
 /// 文字列リテラルはすべてバッククォート（テンプレートリテラル。補間は
 /// 使わない）を使い、`&&` の代わりに `||` を使うことでエスケープ対象文字
@@ -290,6 +327,325 @@ pub const SITE_JS: &str = "\
     observer.observe(target);
   });
 })();
+
+(function () {
+  var input = document.querySelector(`.docs-search-input`);
+  if (!input) {
+    return;
+  }
+  var box = document.querySelector(`.docs-search`);
+  if (!box) {
+    return;
+  }
+  var list = document.getElementById(`docs-search-results`);
+  if (!list) {
+    return;
+  }
+  if (!window.fetch) {
+    return;
+  }
+  var indexUrl = input.getAttribute(`data-search-index`);
+  if (!indexUrl) {
+    return;
+  }
+
+  var state = `idle`;
+  var indexData = null;
+  var selectedIndex = -1;
+  var currentResults = [];
+
+  function setExpanded(expanded) {
+    input.setAttribute(`aria-expanded`, expanded ? `true` : `false`);
+  }
+
+  function closeResults() {
+    list.setAttribute(`hidden`, ``);
+    setExpanded(false);
+    selectedIndex = -1;
+    input.removeAttribute(`aria-activedescendant`);
+  }
+
+  function openResults() {
+    list.removeAttribute(`hidden`);
+    setExpanded(true);
+  }
+
+  function clearResults() {
+    while (list.firstChild) {
+      list.removeChild(list.firstChild);
+    }
+  }
+
+  // 著者由来ではなくビルド生成インデックス由来の href でも、多層防御として
+  // 相対パス（先頭が 1 個の /）以外は構造的に描画しない（OWASP A01/A03）。
+  function isSafePath(href) {
+    if (href.charAt(0) !== `/`) {
+      return false;
+    }
+    if (href.charAt(1) === `/`) {
+      return false;
+    }
+    return true;
+  }
+
+  function renderEmpty(message) {
+    clearResults();
+    var item = document.createElement(`li`);
+    item.className = `docs-search-empty`;
+    item.textContent = message;
+    list.appendChild(item);
+    currentResults = [];
+    selectedIndex = -1;
+    openResults();
+  }
+
+  function renderResults(matches) {
+    clearResults();
+    var safeMatches = [];
+    matches.forEach(function (match) {
+      var href = match.page.href;
+      if (match.section) {
+        href = match.page.href + `#` + encodeURIComponent(match.section.id);
+      }
+      if (!isSafePath(href)) {
+        return;
+      }
+      safeMatches.push({ page: match.page, section: match.section, href: href });
+    });
+    currentResults = safeMatches;
+    selectedIndex = -1;
+    if (safeMatches.length === 0) {
+      renderEmpty(`No results`);
+      return;
+    }
+    safeMatches.forEach(function (match, i) {
+      var item = document.createElement(`li`);
+      item.className = `docs-search-result`;
+      item.setAttribute(`role`, `option`);
+      item.id = `docs-search-result-` + i;
+      item.setAttribute(`aria-selected`, `false`);
+
+      var anchor = document.createElement(`a`);
+      anchor.setAttribute(`href`, match.href);
+
+      var title = document.createElement(`span`);
+      title.className = `docs-search-result-title`;
+      title.textContent = match.page.title;
+      anchor.appendChild(title);
+
+      if (match.section) {
+        var section = document.createElement(`span`);
+        section.className = `docs-search-result-section`;
+        section.textContent = match.section.title;
+        anchor.appendChild(section);
+      }
+
+      item.appendChild(anchor);
+      list.appendChild(item);
+    });
+    openResults();
+  }
+
+  function updateSelection() {
+    for (var i = 0; i !== currentResults.length; i++) {
+      var item = document.getElementById(`docs-search-result-` + i);
+      if (!item) {
+        continue;
+      }
+      if (i === selectedIndex) {
+        item.setAttribute(`aria-selected`, `true`);
+      } else {
+        item.setAttribute(`aria-selected`, `false`);
+      }
+    }
+    if (selectedIndex === -1) {
+      input.removeAttribute(`aria-activedescendant`);
+    } else {
+      input.setAttribute(`aria-activedescendant`, `docs-search-result-` + selectedIndex);
+    }
+  }
+
+  function moveSelection(delta) {
+    if (currentResults.length === 0) {
+      return;
+    }
+    var lastIndex = currentResults.length - 1;
+    var next = Math.min(lastIndex, Math.max(0, selectedIndex + delta));
+    selectedIndex = next;
+    updateSelection();
+  }
+
+  function scorePage(page, query) {
+    var titleLower = page.title.toLowerCase();
+    if (titleLower.indexOf(query) !== -1) {
+      return { score: 3, section: null };
+    }
+    var matchedSection = null;
+    page.sections.forEach(function (section) {
+      if (matchedSection) {
+        return;
+      }
+      var sectionLower = section.title.toLowerCase();
+      if (sectionLower.indexOf(query) !== -1) {
+        matchedSection = section;
+      }
+    });
+    if (matchedSection) {
+      return { score: 2, section: matchedSection };
+    }
+    var textLower = page.text.toLowerCase();
+    if (textLower.indexOf(query) !== -1) {
+      return { score: 1, section: null };
+    }
+    return { score: 0, section: null };
+  }
+
+  function runSearch() {
+    var query = input.value.toLowerCase();
+    query = query.trim();
+    if (query === ``) {
+      closeResults();
+      clearResults();
+      return;
+    }
+    if (state === `loading`) {
+      return;
+    }
+    if (state === `failed`) {
+      renderEmpty(`Search is unavailable`);
+      return;
+    }
+    if (state !== `ready`) {
+      return;
+    }
+    var matches = [];
+    indexData.pages.forEach(function (page, i) {
+      var result = scorePage(page, query);
+      if (result.score === 0) {
+        return;
+      }
+      matches.push({ page: page, section: result.section, score: result.score, order: i });
+    });
+    matches.sort(function (a, b) {
+      if (a.score !== b.score) {
+        return b.score - a.score;
+      }
+      return a.order - b.order;
+    });
+    renderResults(matches.slice(0, 10));
+  }
+
+  function ensureIndexLoaded() {
+    if (state === `loading`) {
+      return;
+    }
+    if (state === `ready`) {
+      return;
+    }
+    state = `loading`;
+    fetch(indexUrl).then(function (response) {
+      if (!response.ok) {
+        throw new Error(`bad response`);
+      }
+      return response.json();
+    }).then(function (data) {
+      if (data.version !== 1) {
+        throw new Error(`bad version`);
+      }
+      if (!Array.isArray(data.pages)) {
+        throw new Error(`bad pages`);
+      }
+      indexData = data;
+      state = `ready`;
+      runSearch();
+    }).catch(function () {
+      state = `failed`;
+      runSearch();
+    });
+  }
+
+  function init() {
+    input.addEventListener(`focus`, function () {
+      if (state === `idle`) {
+        ensureIndexLoaded();
+        return;
+      }
+      if (state === `failed`) {
+        ensureIndexLoaded();
+      }
+    });
+
+    input.addEventListener(`input`, runSearch);
+
+    input.addEventListener(`keydown`, function (event) {
+      if (event.key === `ArrowDown`) {
+        event.preventDefault();
+        moveSelection(1);
+        return;
+      }
+      if (event.key === `ArrowUp`) {
+        event.preventDefault();
+        moveSelection(-1);
+        return;
+      }
+      if (event.key === `Enter`) {
+        if (selectedIndex === -1) {
+          return;
+        }
+        event.preventDefault();
+        var item = document.getElementById(`docs-search-result-` + selectedIndex);
+        if (!item) {
+          return;
+        }
+        var anchor = item.querySelector(`a`);
+        if (!anchor) {
+          return;
+        }
+        anchor.click();
+        return;
+      }
+      if (event.key === `Escape`) {
+        closeResults();
+        clearResults();
+        input.value = ``;
+      }
+    });
+
+    document.addEventListener(`keydown`, function (event) {
+      if (event.key !== `/`) {
+        return;
+      }
+      var target = event.target;
+      if (target) {
+        var tag = target.tagName;
+        if (tag === `INPUT`) {
+          return;
+        }
+        if (tag === `TEXTAREA`) {
+          return;
+        }
+        if (tag === `SELECT`) {
+          return;
+        }
+        if (target.isContentEditable) {
+          return;
+        }
+      }
+      event.preventDefault();
+      input.focus();
+    });
+
+    // 配線がすべて完了した後にのみ可視化する（テーマトグルと同じ契約、
+    // モジュール doc 手順 5・9 参照）。
+    box.removeAttribute(`hidden`);
+  }
+
+  if (document.readyState === `loading`) {
+    document.addEventListener(`DOMContentLoaded`, init);
+  } else {
+    init();
+  }
+})();
 ";
 
 /// `source` が HTML エスケープ対象文字（`< > & " '`）を 1 文字も含まず、
@@ -414,11 +770,19 @@ mod tests {
         );
     }
 
-    /// [`SITE_JS`] は危険な DOM 操作 API（`innerHTML`/`document.write`/
-    /// `eval`/`new Function`）を使わない（OWASP A03、モジュール doc 参照）。
+    /// [`SITE_JS`] は危険な DOM 操作 API（`innerHTML`/`insertAdjacentHTML`/
+    /// `document.write`/`eval`/`new Function`）を使わない（OWASP A03、
+    /// モジュール doc 参照。検索 UI 追加（イシュー #958）に伴う多層防御として
+    /// `insertAdjacentHTML` を追加）。
     #[test]
     fn site_js_does_not_use_dangerous_dom_apis() {
-        for needle in ["innerHTML", "document.write", "eval(", "new Function"] {
+        for needle in [
+            "innerHTML",
+            "insertAdjacentHTML",
+            "document.write",
+            "eval(",
+            "new Function",
+        ] {
             assert!(!SITE_JS.contains(needle), "SITE_JS should not use {needle}");
         }
     }
@@ -457,8 +821,69 @@ mod tests {
     fn site_js_scrollspy_is_isolated_from_the_theme_toggle_guard() {
         let iife_terminators = SITE_JS.matches("})();").count();
         assert!(
-            iife_terminators >= 2,
-            "SITE_JS should contain at least two independent IIFEs (found {iife_terminators})"
+            iife_terminators >= 3,
+            "SITE_JS should contain at least three independent IIFEs (found {iife_terminators})"
         );
+    }
+
+    /// 検索 IIFE（イシュー #958）のイベント配線がすべて完了した後にのみ
+    /// `hidden` を除去する契約を、`.docs-search-input` 以降の切り出しスライス
+    /// で固定する（テーマトグルの `site_js_reveals_toggle_only_after_click_handler_is_wired`
+    /// と同型。全文検索だと第 1 IIFE の `removeAttribute(\`hidden\`)` を
+    /// 誤って拾ってしまうため、検索 IIFE の開始位置以降に限定する）。
+    #[test]
+    fn site_js_reveals_search_box_only_after_listeners_are_wired() {
+        let search_start = SITE_JS
+            .find(".docs-search-input")
+            .expect("SITE_JS should reference .docs-search-input");
+        let search_slice = &SITE_JS[search_start..];
+        let listener_pos = search_slice
+            .find("addEventListener")
+            .expect("search IIFE should wire event listeners");
+        let reveal_pos = search_slice
+            .find("box.removeAttribute(`hidden`)")
+            .expect("search IIFE should reveal the search box by removing the hidden attribute");
+        assert!(
+            listener_pos < reveal_pos,
+            "検索ボックスの hidden 解除はイベント配線より後である必要がある"
+        );
+    }
+
+    /// 検索 UI（イシュー #958）の必須配線が消えていないことを固定する。
+    #[test]
+    fn site_js_wires_search_ui() {
+        for needle in [
+            "data-search-index",
+            ".docs-search-input",
+            "docs-search-results",
+            "fetch",
+            "createElement",
+            "textContent",
+            "encodeURIComponent",
+            "aria-activedescendant",
+        ] {
+            assert!(SITE_JS.contains(needle), "SITE_JS should wire {needle}");
+        }
+    }
+
+    /// スキーマバージョンの二重管理ドリフト検知: [`crate::search_index::SCHEMA_VERSION`]
+    /// と [`SITE_JS`] 側の `version !== <N>` fail-closed チェックが同じ数値を
+    /// 参照することを固定する（設計文書 §3-1/§4-5、片側だけ更新されて
+    /// スキーマ検証が無効化される事故を防ぐ）。
+    #[test]
+    fn site_js_pins_the_same_schema_version_as_search_index_rs() {
+        let needle = format!("version !== {}", crate::search_index::SCHEMA_VERSION);
+        assert!(
+            SITE_JS.contains(&needle),
+            "SITE_JS should contain {needle:?}"
+        );
+    }
+
+    /// [`SITE_JS`] は `location.href` への文字列代入によるナビゲーションを
+    /// 行わない（`Enter` キー選択は `anchor.click()` を使う、モジュール doc
+    /// 手順 12 参照）。
+    #[test]
+    fn site_js_does_not_assign_location_href() {
+        assert!(!SITE_JS.contains("location.href ="));
     }
 }
