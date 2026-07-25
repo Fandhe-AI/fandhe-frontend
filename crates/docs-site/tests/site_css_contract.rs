@@ -426,6 +426,18 @@ const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
     ("docs-header-group", "セクションごとの li"),
     ("docs-header-trigger", "button[type=button]"),
     ("docs-header-dropdown", "ドロップダウン ul"),
+    (
+        "docs-header-actions",
+        "ヘッダー右側のアクション群 div（イシュー #951）",
+    ),
+    (
+        "docs-github-link",
+        "GitHub リポジトリへの外部リンク a（イシュー #951）",
+    ),
+    (
+        "docs-theme-toggle",
+        "テーマトグル button[type=button]（既定 hidden、イシュー #951）",
+    ),
 ];
 
 /// 見出し（h2/h3）が 1 つ以上あるページのみ出現する class。
@@ -572,6 +584,94 @@ fn structure_class_contract_has_selector_in_generated_site_css() {
             "{class} が生成 assets/site.css にセレクタとして存在しない"
         );
     }
+}
+
+/// イシュー #951 受入条件（JS 無効時にトグル非表示 + `prefers-color-scheme`
+/// 追従）の機械固定: 生成 `assets/site.css` に `.docs-theme-toggle[hidden]`
+/// セレクタが存在し、`display: none` を宣言することを確認する。
+/// `crate::layout` が既定で `hidden` 属性を付与し、`crate::script::SITE_JS`
+/// のイベント配線完了後にのみこれを除去する契約（`crate::script` モジュール
+/// doc 手順 5）の CSS 側の裏付け。
+#[test]
+fn generated_site_css_hides_theme_toggle_while_hidden_attribute_is_present() {
+    let css = site_css();
+    let start = css
+        .find(".docs-theme-toggle[hidden]")
+        .expect(".docs-theme-toggle[hidden] セレクタが生成 assets/site.css に存在しない");
+    let block_start = css[start..]
+        .find('{')
+        .expect(".docs-theme-toggle[hidden] のルールブロック開始 { が見つからない");
+    let block_end = css[start + block_start..]
+        .find('}')
+        .expect(".docs-theme-toggle[hidden] のルールブロック終了 } が見つからない");
+    let block = &css[start + block_start..start + block_start + block_end];
+    assert!(
+        block.contains("display: none"),
+        ".docs-theme-toggle[hidden] は display: none を宣言している必要がある: {block}"
+    );
+}
+
+/// Bugbot 指摘（PR #967, イシュー #951）の回帰ガード。`min-width: 768px`
+/// 帯域で `.docs-header-actions` の `margin-left: auto` を打ち消す override
+/// が、`.docs-header-nav` 直後に限定した隣接セレクタ
+/// （`.docs-header-nav + .docs-header-actions`）であることを固定する。
+///
+/// `crate::layout::docs_page` は `header_nav` が `None`（`docs_page` 単体
+/// 呼び出し等）でも `.docs-header-actions` を無条件出力するが
+/// `.docs-header-nav` 自体は出力しない。override が無条件セレクタ
+/// （`.docs-header-actions { margin-left: 0.75rem; }`）のままだと、
+/// `header_nav: None` の構成で `min-width: 768px` 以上において基底帯域の
+/// `margin-left: auto` が打ち消され、GitHub リンク・テーマトグルがヘッダー
+/// 右端（トレイリングエッジ）ではなくブランド直後に居座ってしまう
+/// （`docs/design/docs-site-three-column-redesign.md` の想定レイアウトから
+/// の逸脱）。隣接セレクタなら `.docs-header-nav` が存在しない構成では
+/// override 自体が不成立のままとなり、基底帯域の `margin-left: auto` が
+/// 有効であり続けるため右端配置が保たれる。
+#[test]
+fn header_actions_margin_override_is_scoped_to_header_nav_sibling() {
+    let css = site_css();
+    assert!(
+        css.contains(".docs-header-nav + .docs-header-actions"),
+        "min-width: 768px 帯域の .docs-header-actions margin override は \
+         .docs-header-nav + .docs-header-actions（隣接セレクタ）に限定する必要がある: \
+         header_nav が None の構成でトレイリングエッジ配置が崩れる（イシュー #951 Bugbot 指摘）"
+    );
+    // 上の contains チェックだけでは「隣接セレクタが *どこかに* 存在する」
+    // ことしか確認できず、無条件セレクタ `.docs-header-actions { ... }` が
+    // 別途 margin-left: 0.75rem を宣言していても検知できない（インデント差
+    // による厳密な部分文字列一致は整形変更で偽陰性になるため使わない）。
+    // 生成 CSS 中の全 `.docs-header-actions {` 開始位置を洗い出し、その
+    // ルールブロックが `margin-left: 0.75rem` を宣言する場合は必ず直前に
+    // `.docs-header-nav + ` が付いている（無条件セレクタ単体では
+    // override が成立しない）ことを構造的に確認する。
+    let mut search_from = 0usize;
+    let mut found_override_block = false;
+    while let Some(rel_selector_end) = css[search_from..].find(".docs-header-actions {") {
+        let selector_end = search_from + rel_selector_end + ".docs-header-actions {".len();
+        let block_close_rel = css[selector_end..]
+            .find('}')
+            .expect(".docs-header-actions ルールブロックの閉じ } が見つからない");
+        let block = &css[selector_end..selector_end + block_close_rel];
+        if block.contains("margin-left: 0.75rem") {
+            found_override_block = true;
+            let selector_start = search_from + rel_selector_end;
+            let preceding = &css[..selector_start];
+            assert!(
+                preceding.ends_with(".docs-header-nav + "),
+                "margin-left: 0.75rem を宣言する .docs-header-actions ルールは \
+                 直前が `.docs-header-nav + `（隣接セレクタ）でなければならない \
+                 （無条件セレクタでの override 復活はイシュー #951 の配置崩れを再発させる）: \
+                 selector 開始位置直前の文字列 = {:?}",
+                &preceding[preceding.len().saturating_sub(40)..]
+            );
+        }
+        search_from = selector_end;
+    }
+    assert!(
+        found_override_block,
+        "margin-left: 0.75rem を宣言する .docs-header-actions ルールが \
+         生成 CSS に見つからない（override 自体が削除されていないか確認）"
+    );
 }
 
 /// 層 1 (c) 方向の主眼テスト: フルページフィクスチャの HTML に、

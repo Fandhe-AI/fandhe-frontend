@@ -29,6 +29,10 @@
 //!   する単一静的ファイル）を置き換え、`--fandhe-*` テーマトークンへ一本化
 //!   する（イシュー #905）。右カラム目次の独立カラム化と sticky 追従は
 //!   イシュー #909 で追加
+//! - [`script`]: docs サイトが出力する唯一の JS（`assets/site.js`）と、
+//!   `<head>` の FOUC 抑止インラインスニペットの組み立て。テーマトグル
+//!   （ダーク/ライト切替）・GitHub リンクの追加に伴い初めて docs サイトへ
+//!   クライアント側 JS を持ち込む（イシュー #951）
 //!
 //! `fandhe-frontend-core` / `fandhe-frontend-app` / `fandhe-frontend-server` /
 //! `fandhe-frontend-pre-styled-ui` のみに依存し、外部クレートは追加しない
@@ -55,6 +59,7 @@ pub mod layout;
 pub mod linkcheck;
 pub mod markdown;
 pub mod nav;
+pub mod script;
 pub mod showcase;
 pub mod site_theme;
 pub mod skip_nav;

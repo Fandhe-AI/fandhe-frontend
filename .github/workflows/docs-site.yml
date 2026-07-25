@@ -82,9 +82,12 @@ jobs:
         # 本 test -f はあくまで「生成物が out_dir へ実際に書き出されたか」の
         # 最終確認であり、CSS の内容自体（トークン網羅性等）は
         # crates/docs-site/tests/site_typography_contract.rs 等の契約テストが担う。
+        # assets/site.js（イシュー #951、crates/docs-site/src/script.rs による
+        # ビルド生成物）も同型の最終確認を行う。
         run: |
           test -f "${RUNNER_TEMP}/docs-site-dist/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.css"
+          test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.js"
 
       - name: Upload Pages artifact
         # 要: runner に tar がインストール済み（upload-pages-artifact が内部で使用。

@@ -38,6 +38,11 @@
 //! ```text
 //! body
 //!   header.docs-header            … ヘッダバー（サイトタイトルへのリンク）
+//!     div.docs-header-actions     … 右側のアクション群（イシュー #951、
+//!       header_nav の有無に関わらず常に出力）
+//!       a.docs-github-link        … GitHub リポジトリへの外部リンク
+//!       button.docs-theme-toggle  … テーマトグル（既定 `hidden`。可視化・
+//!         イベント配線は `assets/site.js`（`crate::script`）のみが行う）
 //!   div.docs-container            … 3 カラムのグリッドコンテナ（header の下、
 //!     イシュー #907・`docs/design/docs-site-three-column-redesign.md` §3.1）。
 //!     見出しの無いページでは `docs-container--no-toc` 修飾 class が付く
@@ -248,6 +253,79 @@ body {\n\
 .docs-header-trigger:focus-visible {\n\
   outline: 2px solid var(--fandhe-color-accent);\n\
   outline-offset: 2px;\n\
+}\n\
+\n\
+/*\n\
+ * ---- ヘッダーアクション（GitHub リンク・テーマトグル、イシュー #951） ----\n\
+ *\n\
+ * `docs-header-nav` の有無に関わらず常に出力される（`crate::layout` 参照）。\n\
+ * 基底帯域では `margin-left: auto` で右寄せする。`min-width: 768px` では\n\
+ * `docs-header-nav` が存在する構成に限り同要素側も `margin-left: auto` を\n\
+ * 持つため、下記 @media ブロックで `.docs-header-nav + .docs-header-actions`\n\
+ * （隣接セレクタ）に絞って `docs-header-actions` の margin を打ち消す\n\
+ * （`auto` が 2 つ並んで自由空間を分割するのを避ける）。`docs-header-nav`\n\
+ * が存在しない構成（`header_nav: None`、例: `docs_page` 単体呼び出し）では\n\
+ * この隣接セレクタが不成立のまま基底帯域の `margin-left: auto` が有効で\n\
+ * あり続け、`min-width: 768px` 以上でもトレイリングエッジへ配置される\n\
+ * （Bugbot 指摘 #951 是正、`crate::layout` の DOM 順序＝ brand →\n\
+ * [nav if Some] → actions を前提とする）。\n\
+ */\n\
+.docs-header-actions {\n\
+  display: flex;\n\
+  align-items: center;\n\
+  gap: 0.5rem;\n\
+  margin-left: auto;\n\
+}\n\
+\n\
+.docs-github-link {\n\
+  font-size: 0.85rem;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+  text-decoration: none;\n\
+  padding: 0.4rem 0.6rem;\n\
+  border-radius: 0.4rem;\n\
+}\n\
+\n\
+.docs-github-link:hover {\n\
+  color: var(--fandhe-color-fg);\n\
+  background: var(--fandhe-color-bg-subtle);\n\
+}\n\
+\n\
+.docs-github-link:focus-visible {\n\
+  outline: 2px solid var(--fandhe-color-accent);\n\
+  outline-offset: 2px;\n\
+}\n\
+\n\
+.docs-theme-toggle {\n\
+  display: block;\n\
+  background: none;\n\
+  border: none;\n\
+  cursor: pointer;\n\
+  padding: 0.4rem 0.6rem;\n\
+  border-radius: 0.4rem;\n\
+  font: inherit;\n\
+  font-size: 0.85rem;\n\
+  font-weight: 500;\n\
+  color: var(--fandhe-color-fg);\n\
+}\n\
+\n\
+.docs-theme-toggle:hover {\n\
+  background: var(--fandhe-color-bg-subtle);\n\
+}\n\
+\n\
+.docs-theme-toggle:focus-visible {\n\
+  outline: 2px solid var(--fandhe-color-accent);\n\
+  outline-offset: 2px;\n\
+}\n\
+\n\
+/*\n\
+ * JS 無効時・`assets/site.js` の読み込み失敗時の退避経路（イシュー #951\n\
+ * 受入条件）。`crate::layout` は既定で `hidden` 属性を付与し、`site.js` は\n\
+ * イベント配線が完了した後にのみこの属性を除去する（`crate::script`\n\
+ * モジュール doc 手順 5 参照）。詳細度 0,2,0 で `.docs-theme-toggle`\n\
+ * （0,1,0）に順序非依存で勝つ。\n\
+ */\n\
+.docs-theme-toggle[hidden] {\n\
+  display: none;\n\
 }\n\
 \n\
 /*\n\
@@ -658,6 +736,19 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
   .docs-header-nav {\n\
     display: flex;\n\
     margin-left: auto;\n\
+  }\n\
+\n\
+  /* `.docs-header-nav` が `margin-left: auto` で右寄せを担うこの帯域では\n\
+   * `.docs-header-actions` 側の `auto` を打ち消す（イシュー #951。\n\
+   * `auto` が 2 つ並んで自由空間を分割し、アクション群がヘッダー中央寄りに\n\
+   * ずれるのを防ぐ）。`header_nav` が `None`（`docs_page` 単体呼び出し等）の\n\
+   * ときは `.docs-header-nav` 自体が DOM 上に存在せず（`crate::layout`\n\
+   * 参照）この隣接セレクタが不成立となるため、`.docs-header-actions` は\n\
+   * 基底帯域の `margin-left: auto` のまま右端（トレイリングエッジ）へ\n\
+   * 配置される（Bugbot 指摘 #951 是正。無条件セレクタだと `header_nav`\n\
+   * なしの構成でブランド直後に居座ってしまっていた）。 */\n\
+  .docs-header-nav + .docs-header-actions {\n\
+    margin-left: 0.75rem;\n\
   }\n\
 \n\
   nav.prev-next {\n\
@@ -1074,6 +1165,9 @@ mod tests {
             ".docs-header-group",
             ".docs-header-trigger",
             ".docs-header-dropdown",
+            ".docs-header-actions",
+            ".docs-github-link",
+            ".docs-theme-toggle",
             ".docs-container",
             ".docs-sidebar",
             ".docs-sidebar-toggle",
