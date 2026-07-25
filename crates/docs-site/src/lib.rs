@@ -64,6 +64,7 @@
 pub mod admonition;
 pub mod build;
 pub mod component_page;
+pub mod component_specs;
 pub mod layout;
 pub mod linkcheck;
 pub mod markdown;

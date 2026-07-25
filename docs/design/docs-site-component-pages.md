@@ -378,6 +378,33 @@ fail-closed 原則（未知キー・未知テーブルを黙って無視しな�
   API 経由のリテラルテキストとして出力し、`raw_html()` を使わない
   （§10 A03）。
 
+### 7a. 実装時補記（イシュー #945）
+
+上表の「供給元」列は #942（`component_page.rs`）実装時に確定した契約と
+一部乖離しているため、以下 3 点を実装の正として補記する。
+
+1. **Features / Accessibility は Markdown 原稿ではなく Rust（`ComponentPageSpec`）供給**:
+   `build.rs` は本文を「`rewritten_body`（Markdown）→ `generated_body`
+   （Rust 生成）」の順で連結するため、原稿 `.md` に `## Features` 等の
+   H2 を書くと Demo より前に出力され、節順が崩れる。したがって
+   Features・Arguments・Examples・Keyboard・WAI-ARIA はすべて
+   `crate::component_page::ComponentPageSpec`（Rust、
+   `crate::component_specs` 配下の `&'static str` テーブル）から供給する。
+   原稿 `.md` は H1 + 導入文（+ 必要な補足段落）のみに保ち、H2 を増やさない。
+2. **Demo フォールバック**: [`showcase::COMPONENT_PAGES`] に節を持たない
+   部品（Angle Slider / Image Cropper / Pin Input / Signature Pad /
+   Toggle / Toggle Group）は、`showcase.rs` を編集する代わりに
+   `ComponentPageSpec::demo: Option<fn() -> Node>` が Demo 節を供給する
+   （`crate::component_page::generated_content` が `showcase` → `spec.demo`
+   の順にフォールバックする）。「Demo 節は Phase 4 で新規作成」という本節
+   冒頭の記述は、この機構経由で実現する。
+3. **Keyboard 表の制約**: 本 docs サイトは `crate::script`（テーマトグル +
+   目次スクロールスパイ）以外の JS を一切出力しない。JS 状態機械前提の
+   キー操作（矢印キーでの候補移動等）は「できる」と書かず、ネイティブ
+   要素（`<input>`/`<select>`/`<button>`）のブラウザ標準操作に限って記載
+   する。該当しない部品は Keyboard/Accessibility 節を省略する（本節
+   「静的部品では『該当なし』を明記して省略可」の具体化）。
+
 ## 8. 既存 `/components/pre-styled-ui/` の帰趨
 
 **確定**: `/components/pre-styled-ui/` は **`/components/` カテゴリ

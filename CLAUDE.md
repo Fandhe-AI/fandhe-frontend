@@ -80,7 +80,7 @@ crates/
 ├── dist-server/   # fandhe-frontend-dist-server: 単一実行ファイル配布サーバー
 ├── headless-ui/   # fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-*・WAI-ARIA、イシュー #520/#522）
 ├── pre-styled-ui/ # fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）
-├── docs-site/     # fandhe-frontend-docs-site: docs サイトジェネレータ（外部クレート依存ゼロ・内部 path 依存のみ〔core/app/server/pre-styled-ui〕・配布物に含めない開発者/CI 用ツール）。サイト骨格 CSS を `fandhe-frontend-pre-styled-ui` の `Theme::to_css` から生成する（イシュー #899 で 3 カラム刷新、詳細は `docs/design/docs-site-three-column-redesign.md`）。加えて、サイト骨格 CSS に加え、素の JS 単一ファイル（`assets/site.js`、`src/script.rs`）をビルド時生成し、`<head>` の FOUC 抑止インラインスニペットとあわせてヘッダーのテーマトグル・GitHub リンクを実装する（イシュー #951）
+├── docs-site/     # fandhe-frontend-docs-site: docs サイトジェネレータ（外部クレート依存ゼロ・内部 path 依存のみ〔core/app/server/pre-styled-ui〕・配布物に含めない開発者/CI 用ツール）。サイト骨格 CSS を `fandhe-frontend-pre-styled-ui` の `Theme::to_css` から生成する（イシュー #899 で 3 カラム刷新、詳細は `docs/design/docs-site-three-column-redesign.md`）。加えて、サイト骨格 CSS に加え、素の JS 単一ファイル（`assets/site.js`、`src/script.rs`）をビルド時生成し、`<head>` の FOUC 抑止インラインスニペットとあわせてヘッダーのテーマトグル・GitHub リンクを実装する（イシュー #951）。部品ページ（`/components/<kebab>/`）の Features / API Reference 引数表 / Examples / Accessibility は `src/component_specs/`（カテゴリ別モジュール。Forms は #945）が `ComponentPageSpec` として供給する
 ├── cli/           # fandhe-frontend-cli: `fw` コマンド（structure.toml のスキーマ・パース・生成、REQ-13）
 │   ├── templates/          # `fw new --template` 埋め込み用の同梱コピー（正本はルート `templates/`。`new_template.rs` が `include_str!` で吸収、乖離は `tests/template_publish_copy_drift.rs` が検知）
 │   └── embedded-examples/  # `fw new --example` 埋め込み用の同梱コピー（正本はルート `examples/`。パッケージ名は置換せず正本と全ファイルバイト一致、乖離は `tests/example_publish_copy_drift.rs` が検知、イシュー #500）
