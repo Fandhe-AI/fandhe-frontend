@@ -1,26 +1,19 @@
-# pre-styled-ui slot recipe API（イシュー #548）
+# pre-styled-ui slot recipe API
 
 ## 1. 目的とトレーサビリティ
 
-本ドキュメントは `fandhe-frontend-pre-styled-ui`（イシュー #520/#546）に実装した
-slot recipe 相当の variant API（`SlotRecipe`/`VariantValue`）と静的 CSS 生成の
-仕様を記録する。chakra-ui の recipe / slot recipe を参考に、複数 anatomy パーツ
+本ドキュメントは `fandhe-frontend-pre-styled-ui` に実装した slot recipe
+相当の variant API（`SlotRecipe`/`VariantValue`）と静的 CSS 生成の仕様を
+記録する。chakra-ui の recipe / slot recipe を参考に、複数 anatomy パーツ
 （slot）を横断する variant（size / variant / colorPalette 相当）を型安全な Rust
 API（enum ベース）で定義し、クラス名と静的 CSS を決定的に生成する基盤である。
 
-- 親: Phase 3 親イシュー #545、トラッキング #520
 - 実装: `crates/pre-styled-ui/src/css.rs`（低レベル宣言・検証・シリアライズ）・
   `crates/pre-styled-ui/src/recipe.rs`（`SlotRecipe`/`VariantValue`/`Size`、
-  compoundVariants 相当は `VariantCondition`/`when`/`SlotRecipe::compound_variant`、
-  イシュー #604）
+  compoundVariants 相当は `VariantCondition`/`when`/`SlotRecipe::compound_variant`）
 - テスト: `crates/pre-styled-ui/tests/recipe_css.rs`（golden・headless 接続・
   fail-closed・compound variant）・`crates/pre-styled-ui/tests/recipe_determinism.rs`
   （決定性、compound variant を含む）
-
-**本タスクのスコープ**: variant 定義 API（base / variants / defaultVariants 相当）・
-静的 CSS 生成・headless 層セレクタとの接続・決定性の担保のみ。テーマトークン・
-ダークモード基盤はイシュー #547、styled 部品実装（Button 等 #550・Dialog 等
-ラッパー #551）は別イシューのスコープ。
 
 ## 2. 公開 API
 
@@ -37,7 +30,7 @@ pub trait VariantValue: Copy {
 
 pub enum Size { Sm, Md, Lg } // axis = "size"
 
-// イシュー #606: 標準 colorPalette 軸。crate::theme のセマンティック色
+// 標準 colorPalette 軸。crate::theme のセマンティック色
 // （accent/info/success/warning/danger）と 1:1 対応する。
 pub enum ColorPalette { Accent, Info, Success, Warning, Danger } // axis = "color-palette"
 pub fn palette_declarations(p: ColorPalette) -> Vec<Declaration>;
@@ -54,7 +47,7 @@ impl SlotRecipe {
     pub fn variant_classes(&self, selection: &[(&str, &str)]) -> String;
 }
 
-// compoundVariants 相当（イシュー #604）
+// compoundVariants 相当
 pub struct VariantCondition { /* axis, value: &'static str（型消去済み） */ }
 pub fn when<V: VariantValue>(v: V) -> VariantCondition;
 ```
@@ -66,7 +59,7 @@ pub fn when<V: VariantValue>(v: V) -> VariantCondition;
 `colorPalette` 相当は独立の仕組みではなく通常の variant 軸として表現できる
 （`docs/api` 掲載の例・`tests/recipe_css.rs` の `ColorPalette` enum 参照）。
 
-`compoundVariants` 相当（複数軸の組み合わせ条件スタイル、イシュー #604）は
+`compoundVariants` 相当（複数軸の組み合わせ条件スタイル）は
 [`SlotRecipe::compound_variant`] で表現する。条件部は [`when()`] で
 [`VariantValue`] 実装 enum から作った [`VariantCondition`] の `Vec`（AND
 条件）として渡す:
@@ -108,7 +101,7 @@ fail-closed で返す（`slot`/`axis`/`value` 側の検証だけでは `scope` �
 - base セレクタ: `[data-scope="<scope>"][data-part="<slot>"]`（詳細度 (0,2,0)）
 - variant セレクタ: `[data-scope="<scope>"][data-part="<slot>"].fd-<scope>--<axis>-<value>`
   （詳細度 (0,3,0)。base に必ず勝つため、CSS 記述順に依存しない上書きを保証する）
-- compound variant セレクタ（イシュー #604）:
+- compound variant セレクタ:
   `[data-scope="<scope>"][data-part="<slot>"].fd-<scope>--<a1>-<v1>.fd-<scope>--<a2>-<v2>...`
   （`conditions` の登録順に条件クラスを連結する。新しいクラス名は生成せず、
   `variant_classes()` が emit する既存の軸別クラスの共起にセレクタとして
@@ -120,9 +113,9 @@ fail-closed で返す（`slot`/`axis`/`value` 側の検証だけでは `scope` �
     スペース、1 宣言 1 行）
   - 規則間は空行 1 つ
   - `SlotRecipe::css()` 全体の出力順: base（`slots` 宣言順）→ variants
-    （登録順）→ compound variants（登録順、イシュー #604）
+    （登録順）→ compound variants（登録順）
 
-### 4.1 compound variant の上書き保証（2 段、イシュー #604）
+### 4.1 compound variant の上書き保証（2 段）
 
 - 条件 2 個以上: セレクタの詳細度が (0,4,0) 以上となり、単一 variant
   セレクタ (0,3,0) に記述順へ依存せず必ず勝つ
@@ -145,7 +138,7 @@ chakra-ui の「compoundVariants は variants を上書きする」という意�
 - 決定性は `crates/pre-styled-ui/tests/recipe_determinism.rs` が固定する: 同一入力
   から独立に構築した 2 インスタンスの `css()`/`variant_classes()` が byte 一致する
   こと、同一インスタンスへの繰り返し呼び出しが安定していること（compound variant
-  を含む場合も同様、イシュー #604）
+  を含む場合も同様）
 
 ## 6. fail-closed 検証ポリシー
 
@@ -155,15 +148,14 @@ chakra-ui の「compoundVariants は variants を上書きする」という意�
 - 識別子（scope / slot / axis / value）: `[a-z][a-z0-9-]*` に一致しない場合、その
   規則・クラスを出力からスキップする
 - プロパティ名: 通常のプロパティ名に加えカスタムプロパティ（`--fd-*` プレフィックス）
-  を許容する（イシュー #547 のテーマトークン参照 `var(--fd-color-primary)` を
-  見越した設計）
+  を許容する（テーマトークン参照 `var(--fd-color-primary)` を見越した設計）
 - 宣言値: `{` `}` `;` `<` および制御文字を含む場合、その宣言をスキップする。
   `<` の拒否は、下流（styled 部品・examples 等）が生成 CSS を `<style>` へ
   インライン埋め込みした場合の `</style>` 突破（HTML コンテキスト脱出）を防ぐ
   セキュリティ上の不変条件である
 - `slots` に宣言していない slot への `base`/`variant`/`compound_variant` 登録は
   出力から除外する
-- compound variant 固有の検証（イシュー #604、`crates/pre-styled-ui/tests/recipe_css.rs::compound_variant_fail_closed_cases_are_skipped_not_panicking`
+- compound variant 固有の検証（`crates/pre-styled-ui/tests/recipe_css.rs::compound_variant_fail_closed_cases_are_skipped_not_panicking`
   が固定する）:
   - `conditions` が空の規則は base と同義になる無意味な規則として除外する
   - `conditions` 内に同一 axis が重複する規則は、`variant_classes()` が 1 軸
@@ -175,41 +167,30 @@ chakra-ui の「compoundVariants は variants を上書きする」という意�
 - いずれも panic なし・スキップ動作。`crates/pre-styled-ui/tests/recipe_css.rs::invalid_identifiers_and_structural_chars_are_skipped_not_panicking`
   が固定する
 
-## 7. `#547`（テーマトークン）との関係
+## 7. テーマトークンとの関係
 
 宣言値は不透明な `&'static str` として扱うため、トークン参照は
 `decl("color", "var(--fd-color-primary)")` のような値として自然に載る。
-本イシュー（#548）の実装自体は `#547` の API へコード依存を持たない。
 
-`#606` で colorPalette 軸を実配線した際、`palette_declarations` は
-`crate::theme` が生成する `--fandhe-color-*`（テーマ層の名前空間）とは別の
-`--fandhe-palette-*` 名前空間へ、選択された palette に対応する
-`accent`/`info`/`success`/`warning`/`danger` の 3 役割（base/emphasized/fg）を
-`var()` 参照として束ねる（chakra-ui の virtual token 方式の静的 CSS 版）。
-styled 部品（Button/Badge/Spinner、`crates/pre-styled-ui/src/button.rs` 等）は
+colorPalette 軸実配線時、`palette_declarations` は `crate::theme` が生成する
+`--fandhe-color-*`（テーマ層の名前空間）とは別の `--fandhe-palette-*` 名前空間へ、
+選択された palette に対応する `accent`/`info`/`success`/`warning`/`danger` の
+3 役割（base/emphasized/fg）を `var()` 参照として束ねる。styled 部品
+（Button/Badge/Spinner、`crates/pre-styled-ui/src/button.rs` 等）は
 `var(--fandhe-palette)` 等を参照するだけで、`palette` variant の選択に応じて
 色が切り替わる。名前空間を分離しているため、ユーザーがカスタムテーマへ
 `Theme::push_color("palette", ...)` のような独自トークンを追加しても
 `--fandhe-palette-*` の生成とは衝突しない。
 
-`#606` では加えて `crate::theme` に radii（`--fandhe-radius-<name>`）・shadow
-（`--fandhe-shadow-<name>`、light/dark 2 値）トークングループを追加した。
+`crate::theme` は加えて radii（`--fandhe-radius-<name>`）・shadow
+（`--fandhe-shadow-<name>`、light/dark 2 値）トークングループを持つ。
 styled 部品は `border-radius`/`box-shadow` の値としてこれらを参照する
 （例: `decl("border-radius", "var(--fandhe-radius-md)")`）。
 
-## 8. スコープ外（Issue 化候補）
+## 関連ドキュメント
 
-- recipe 出力の CSS ファイル書き出し・`<style>` 埋め込みヘルパ:
-  **イシュー #605 で実装済み**。`crate::stylesheet::StyleSheet`
-  （[`docs/api/pre-styled-ui-api.md`](./pre-styled-ui-api.md) 参照）が
-  `SlotRecipe::css()`/`Theme::to_css()` の出力を集約し、
-  `write_css_file`（静的 `.css` 書き出し）・`style_element`（SSR 用
-  `<style>` 要素、`raw_html()` を内部に閉じ込めた検証済み CSS 型経由）の
-  2 経路を提供する。
-- `#547` テーマトークンとの palette 実配線（colorPalette 軸の意味付け）:
-  **イシュー #606 で実装済み**（`palette_declarations`・`ColorPalette`）。
-- 既存 styled 部品（button/alert 等）への compound variant の実適用（必要に
-  なった時点で該当部品のイシューで対応）
-
-`compoundVariants` 相当（複数軸の組み合わせ条件スタイル）は本ドキュメントの
-`§2`〜`§6` に記載のとおりイシュー #604 で実装済み。
+- [`docs/api/pre-styled-ui-api.md`](./pre-styled-ui-api.md): 本 API の上層
+  （styled 部品・`stylesheet::StyleSheet`）
+- `docs/internal/pre-styled-recipe-implementation-notes.md`: 実装経緯・
+  スコープ外事項・トレーサビリティの記録（docs サイト非掲載のためリンク化
+  しない）
