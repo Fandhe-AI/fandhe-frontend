@@ -390,6 +390,11 @@ source = "site/components/steps.md"
 path = "/components/steps/"
 
 [[section.group.page]]
+title = "Tab Nav"
+source = "site/components/tab-nav.md"
+path = "/components/tab-nav/"
+
+[[section.group.page]]
 title = "Tabs"
 source = "site/components/tabs.md"
 path = "/components/tabs/"

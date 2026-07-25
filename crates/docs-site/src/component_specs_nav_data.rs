@@ -40,11 +40,11 @@ use fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_pre_styled_ui::{
     alert, avatar, badge, breadcrumb, card, carousel, color_swatch, data_list, empty_state, icon,
     image, json_tree_view, marquee, pagination, progress, scroll_area, separator, skeleton,
-    spinner, splitter, stat, status, steps, table, tag, timeline, tree_view, ColorPalette,
+    spinner, splitter, stat, status, steps, tab_nav, table, tag, timeline, tree_view, ColorPalette,
     Orientation, Size,
 };
 
-use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry};
+use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
 
 // ---------------------------------------------------------------------
 // Data Display（本文明示 15 件）
@@ -955,6 +955,75 @@ pub(crate) const BREADCRUMB: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-current=\"page\"（current_link） / role=\"presentation\"（separator）",
             description: "現在ページと区切り記号に付与される（breadcrumb.rs:184-188）。",
+        },
+    ],
+    demo: None,
+};
+
+/// `crates/pre-styled-ui/src/tab_nav.rs:171`（`root` が `aria-label` を必須
+/// 引数として要求）・`:198-209`（`link` が `current` に応じて
+/// `aria-current="page"` + `data-current` を付与）。href は
+/// `crate::linkcheck::check_links` の突合対象のため、実在ページへ解決
+/// する相対パス（`/components/` 配下の兄弟ページ）を使う。
+fn ex_tab_nav() -> Node {
+    tab_nav::root(
+        "Section navigation",
+        vec![],
+        vec![
+            tab_nav::link("../tabs/", true, vec![], vec![text("Tabs")]),
+            tab_nav::link("../nav-list/", false, vec![], vec![text("Nav List")]),
+            tab_nav::link("../menubar/", false, vec![], vec![text("Menubar")]),
+        ],
+    )
+}
+
+pub(crate) const TAB_NAV: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "role=\"tablist\"/role=\"tab\" を出力しない。素の nav/a の暗黙 ARIA ロール（navigation/link）のみを使うナビゲーションリンク集合（crates/pre-styled-ui/src/tab_nav.rs:1-20）",
+        "現在ページは aria-current=\"page\" + data-current で示す（tab_nav.rs:198-209）",
+        "見た目は crate::tabs と共有の宣言列（shared_tab_list_declarations 等）から生成し、size/color-palette variant は非提供（tab_nav.rs:31-36, 63-66）",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "label",
+            kind: "&str",
+            default: "",
+            description: "root に付与する aria-label（必須引数、tab_nav.rs:171）。",
+        },
+        ArgRow {
+            name: "href",
+            kind: "&str",
+            default: "",
+            description: "link の href（tab_nav.rs:198）。",
+        },
+        ArgRow {
+            name: "current",
+            kind: "bool",
+            default: "false",
+            description: "true のとき aria-current=\"page\" + data-current を付与する（tab_nav.rs:198-209）。",
+        },
+    ],
+    examples: &[ExampleEntry {
+        title: "Three links",
+        description: "Tabs / Nav List / Menubar の 3 リンクのうち Tabs を現在ページとした例です。",
+        render: ex_tab_nav,
+    }],
+    keyboard: &[KeyRow {
+        key: "Tab / Shift+Tab",
+        description: "通常のリンクとしてフォーカス移動する。矢印キーによる roving tabindex は持たない（crate::tabs との決定的な差）。",
+    }],
+    aria: &[
+        AriaRow {
+            attribute: "aria-label（root、必須引数）",
+            description: "landmark のアクセシブルネームを常に持つ（tab_nav.rs:171）。",
+        },
+        AriaRow {
+            attribute: "aria-current=\"page\"（link、current=true のとき）",
+            description: "現在ページを示す（tab_nav.rs:198-209）。",
+        },
+        AriaRow {
+            attribute: "role",
+            description: "一切出力しない（tab_nav.rs:18）。",
         },
     ],
     demo: None,
