@@ -64,6 +64,7 @@
 pub mod admonition;
 pub mod build;
 pub mod component_page;
+pub(crate) mod component_specs_nav_data;
 pub mod layout;
 pub mod linkcheck;
 pub mod markdown;

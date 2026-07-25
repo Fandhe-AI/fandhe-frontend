@@ -2,8 +2,4 @@
 
 `fandhe-frontend-pre-styled-ui` の `json_tree_view` mod が提供するスタイル済み JSON Tree View 部品です。
 
-> [!NOTE]
-> 本ページの Features / Examples / Accessibility と API Reference の引数表は
-> Phase 4（#945〜#948）で充填予定です。現時点では Demo（SSR 静的掲示）と、
-> headless-ui のパーツ構成から機械導出した Anatomy / `data-*` 属性表 /
-> CSS 変数表のみを掲載しています。
+JSON 風データ構造をツリー表示する部品です。headless-ui の TreeView anatomy（role="tree"/role="treeitem"）を再利用し、expanded_to_depth で初期展開状態を決定的に作れます。値の型（string/number/bool/null/array/object）ごとに配色を切り替えます。ファイル階層等の一般的なツリー表示には [Tree View](tree-view.md) を検討してください。

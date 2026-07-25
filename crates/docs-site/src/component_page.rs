@@ -135,7 +135,91 @@ impl ComponentPageSpec {
 /// 原稿データをここへ追記していく想定であり、Phase 3 時点では空のまま
 /// （[`spec_for`] が未登録パスを [`ComponentPageSpec::EMPTY`] にフォールバック
 /// させるため、レジストリが空でも 6 節合成は破綻しない）。
-const COMPONENT_SPECS: &[(&str, ComponentPageSpec)] = &[];
+const COMPONENT_SPECS: &[(&str, ComponentPageSpec)] = &[
+    // ---- イシュー #947（Navigation / Data Display 系、27 件）ここから ----
+    ("/components/alert/", crate::component_specs_nav_data::ALERT),
+    (
+        "/components/avatar/",
+        crate::component_specs_nav_data::AVATAR,
+    ),
+    ("/components/badge/", crate::component_specs_nav_data::BADGE),
+    ("/components/card/", crate::component_specs_nav_data::CARD),
+    (
+        "/components/data-list/",
+        crate::component_specs_nav_data::DATA_LIST,
+    ),
+    (
+        "/components/empty-state/",
+        crate::component_specs_nav_data::EMPTY_STATE,
+    ),
+    (
+        "/components/json-tree-view/",
+        crate::component_specs_nav_data::JSON_TREE_VIEW,
+    ),
+    (
+        "/components/progress/",
+        crate::component_specs_nav_data::PROGRESS,
+    ),
+    (
+        "/components/skeleton/",
+        crate::component_specs_nav_data::SKELETON,
+    ),
+    (
+        "/components/spinner/",
+        crate::component_specs_nav_data::SPINNER,
+    ),
+    ("/components/stat/", crate::component_specs_nav_data::STAT),
+    (
+        "/components/status/",
+        crate::component_specs_nav_data::STATUS,
+    ),
+    ("/components/table/", crate::component_specs_nav_data::TABLE),
+    ("/components/tag/", crate::component_specs_nav_data::TAG),
+    (
+        "/components/tree-view/",
+        crate::component_specs_nav_data::TREE_VIEW,
+    ),
+    (
+        "/components/color-swatch/",
+        crate::component_specs_nav_data::COLOR_SWATCH,
+    ),
+    ("/components/icon/", crate::component_specs_nav_data::ICON),
+    ("/components/image/", crate::component_specs_nav_data::IMAGE),
+    (
+        "/components/timeline/",
+        crate::component_specs_nav_data::TIMELINE,
+    ),
+    (
+        "/components/breadcrumb/",
+        crate::component_specs_nav_data::BREADCRUMB,
+    ),
+    (
+        "/components/carousel/",
+        crate::component_specs_nav_data::CAROUSEL,
+    ),
+    (
+        "/components/pagination/",
+        crate::component_specs_nav_data::PAGINATION,
+    ),
+    (
+        "/components/splitter/",
+        crate::component_specs_nav_data::SPLITTER,
+    ),
+    ("/components/steps/", crate::component_specs_nav_data::STEPS),
+    (
+        "/components/marquee/",
+        crate::component_specs_nav_data::MARQUEE,
+    ),
+    (
+        "/components/scroll-area/",
+        crate::component_specs_nav_data::SCROLL_AREA,
+    ),
+    (
+        "/components/separator/",
+        crate::component_specs_nav_data::SEPARATOR,
+    ),
+    // ---- イシュー #947 ここまで ----
+];
 
 /// `page_path` に対応する [`ComponentPageSpec`] を返す。未登録パスは
 /// [`ComponentPageSpec::EMPTY`]（fail-closed で「節を省略」側へ倒す）。
