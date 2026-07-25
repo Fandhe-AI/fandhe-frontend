@@ -89,10 +89,11 @@ fn site_nav_registers_five_sections_with_expected_titles() {
 #[test]
 fn site_nav_registers_all_twenty_two_pages_with_expected_paths() {
     let nav = load_nav();
+    // `nav.all_pages()`（イシュー #939 の唯一の正規走査経路）で数える。
+    // `site/nav.toml` は本 PR でグループを未登録のため、期待値・列挙内容は
+    // 従来どおり不変（グループ導入後は #943 がこの期待値を更新する）。
     let pages: Vec<(&str, &str)> = nav
-        .sections
-        .iter()
-        .flat_map(|s| s.pages.iter())
+        .all_pages()
         .map(|p| (p.source.as_str(), p.path.as_str()))
         .collect();
 

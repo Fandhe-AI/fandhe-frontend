@@ -20,8 +20,22 @@
 //! - `[[section]]` array-of-tables（`title` キー）
 //! - `[[section.page]]` array-of-tables（直前の `[[section]]` に属する。
 //!   `title` / `source` / `path` の 3 キー）
+//! - `[[section.group]]` array-of-tables（直前の `[[section]]` に属する
+//!   カテゴリ。`title` の 1 キーのみ。イシュー #939）
+//! - `[[section.group.page]]` array-of-tables（直前の `[[section.group]]`
+//!   に属する。`title` / `source` / `path` の 3 キー。イシュー #939）
 //! - `key = "value"`（ダブルクォート文字列のみ。エスケープは `\"` `\\`
 //!   `\n` `\t` の 4 種類のみ対応）
+//!
+//! グループの入れ子は 1 段のみ（`[[section.group.group]]` は未知テーブル
+//! として明示的にエラーになる）。1 つの `[[section]]` は直下ページ
+//! （`[[section.page]]`）とグループ（`[[section.group]]`）を同時に持って
+//! よく、その場合の描画順・走査順は「直下ページ → グループ（宣言順）→
+//! グループ内ページ（宣言順）」に固定する（[`Section::all_pages`] /
+//! [`Nav::all_pages`] 参照）。`[[section.page]]` が `[[section.group]]`
+//! より後方に現れても直下ページとして扱い、エラーにはしない（#943 が
+//! 機械生成する `nav.toml` へ宣言順の追加制約を課さないための意図的な
+//! 仕様）。
 //!
 //! 整数・真偽値・inline table・複数行文字列・配列などは非対応であり、
 //! 出現した場合はエラーにする。
@@ -79,6 +93,20 @@ pub struct Nav {
     pub sections: Vec<Section>,
 }
 
+impl Nav {
+    /// 全セクションを宣言順に、各セクション内は [`Section::all_pages`]
+    /// の順序で連結した「文書順」の全ページ列を返す**唯一の正規走査経路**。
+    ///
+    /// [`validate_sources`] / [`prev_next`] / [`crate::linkcheck::source_to_path_map`] /
+    /// `crate::build::build_site` のページ生成ループはすべて本イテレータを
+    /// 経由する。グループ配下ページが検証・ビルド・リンク検査から漏れる
+    /// サイレントな取りこぼしを防ぐため、`nav.sections` を直接二重ループで
+    /// 手繰る新しい走査経路を作らないこと（イシュー #939）。
+    pub fn all_pages(&self) -> impl Iterator<Item = &Page> {
+        self.sections.iter().flat_map(|s| s.all_pages())
+    }
+}
+
 /// `[site]` テーブル。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Site {
@@ -90,12 +118,48 @@ pub struct Site {
 }
 
 /// `[[section]]` 1 件分。
+///
+/// `pages`（直下ページ）と `groups`（カテゴリ）は同時に存在してよい
+/// （イシュー #939）。両方が空の場合のみ [`NavError::EmptySection`] になる。
+/// 走査は必ず [`Section::all_pages`] を経由し、直下ページ・グループ配下
+/// ページを個別に手繰る二重ループを新設しないこと（唯一の正規走査経路。
+/// 順序契約が意味を持たなくなる）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Section {
     /// サイドバーの見出しとして表示するセクションタイトル。
     pub title: String,
-    /// 宣言順を保持したページ列（1 件以上、空セクションはパース時点でエラー）。
+    /// 宣言順を保持した直下ページ列（グループに属さないページ）。
     pub pages: Vec<Page>,
+    /// 宣言順を保持したグループ列（各グループのページは 1 件以上、
+    /// 空グループはパース時点で [`NavError::EmptyGroup`]）。
+    pub groups: Vec<Group>,
+}
+
+/// `[[section.group]]` 1 件分（`Components > カテゴリ` のような 1 段の
+/// カテゴリ分類）。入れ子は許可しない（`[[section.group.group]]` は
+/// パース時点で未知テーブルとしてエラーになる）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Group {
+    /// カテゴリ見出しとして表示するグループタイトル。
+    pub title: String,
+    /// 宣言順を保持したページ列（1 件以上、空グループはパース時点でエラー）。
+    pub pages: Vec<Page>,
+}
+
+impl Section {
+    /// このセクション配下の全ページを「直下ページ → グループ（宣言順）→
+    /// グループ内ページ（宣言順）」の順で列挙する、本モジュールが定める
+    /// **唯一の正規走査経路**。
+    ///
+    /// この順序は §6-2 の描画順契約そのものであり、サイドバー階層描画
+    /// （イシュー #940）を含む後続実装はここから逸脱しないこと
+    /// （ドリフト防止のため、直下ページ・グループ配下ページを個別に
+    /// 手繰る新たな二重ループを作らず、必ず本イテレータを使う）。
+    pub fn all_pages(&self) -> impl Iterator<Item = &Page> {
+        self.pages
+            .iter()
+            .chain(self.groups.iter().flat_map(|g| g.pages.iter()))
+    }
 }
 
 /// `[[section.page]]` 1 件分。
@@ -138,13 +202,18 @@ pub enum NavError {
     UnsafePagePath(String),
     /// 必須キーが欠落している。
     MissingKey {
-        /// 欠落箇所（`"site"` / `"section"` / `"section.page"`）。
+        /// 欠落箇所（`"site"` / `"section"` / `"section.page"` /
+        /// `"section.group"` / `"section.group.page"`）。
         context: String,
         /// 欠落したキー名。
         key: String,
     },
-    /// セクションにページが 1 件も宣言されていない。
+    /// セクションに直下ページ・グループのいずれも 1 件も宣言されていない
+    /// （イシュー #939: グループのみで直下ページが 0 件のセクションは
+    /// 正当な構成であり、ここには含まれない）。
     EmptySection(String),
+    /// グループにページが 1 件も宣言されていない（イシュー #939）。
+    EmptyGroup(String),
 }
 
 impl fmt::Display for NavError {
@@ -169,6 +238,7 @@ impl fmt::Display for NavError {
                 write!(f, "missing required key `{key}` in [{context}]")
             }
             NavError::EmptySection(title) => write!(f, "section `{title}` has no pages"),
+            NavError::EmptyGroup(title) => write!(f, "group `{title}` has no pages"),
         }
     }
 }
@@ -178,6 +248,13 @@ impl std::error::Error for NavError {}
 /// パース中に組み立て途上のセクション。必須キーの充足は全行走査後に
 /// まとめて検証する（欠落順序に依存しない一貫したエラーにするため）。
 struct SectionBuilder {
+    title: Option<String>,
+    pages: Vec<PageBuilder>,
+    groups: Vec<GroupBuilder>,
+}
+
+/// パース中に組み立て途上のグループ（イシュー #939）。
+struct GroupBuilder {
     title: Option<String>,
     pages: Vec<PageBuilder>,
 }
@@ -190,11 +267,23 @@ struct PageBuilder {
 
 /// 現在どのテーブルの直下を走査しているかを表す。`[[section.page]]` は
 /// 直前に開始された `[[section]]`（`sections` の末尾）に属する。
+/// `[[section.group]]` も同様に `sections` 末尾へ属し、
+/// `[[section.group.page]]` は `[[section.group]]` 開始時点の
+/// `(sections.len() - 1, groups.len() - 1)` へ属する。
 enum Ctx {
     None,
     Site,
     Section(usize),
     Page(usize, usize),
+    /// `(section index, group index)`。
+    Group(usize, usize),
+    /// `(section index, group index, page index)`。group index は
+    /// `[[section.group.page]]` 出現時点で `sections[sidx].groups.len()
+    /// .checked_sub(1)` から都度導出する（`Ctx::Group` にキャッシュした
+    /// index を使い回さない。新しい `[[section]]` が開いた直後に
+    /// `[[section.group.page]]` が現れた場合、前セクション末尾の group へ
+    /// 誤って吸着することを構造的に防ぐため）。
+    GroupPage(usize, usize, usize),
 }
 
 fn parse_err(line: usize, message: impl Into<String>) -> NavError {
@@ -377,6 +466,7 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
                     sections.push(SectionBuilder {
                         title: None,
                         pages: Vec::new(),
+                        groups: Vec::new(),
                     });
                     ctx = Ctx::Section(sections.len() - 1);
                 }
@@ -391,6 +481,40 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
                     });
                     let pidx = sections[sidx].pages.len() - 1;
                     ctx = Ctx::Page(sidx, pidx);
+                }
+                "section.group" => {
+                    let sidx = sections.len().checked_sub(1).ok_or_else(|| {
+                        parse_err(line, "[[section.group]] appeared before any [[section]]")
+                    })?;
+                    sections[sidx].groups.push(GroupBuilder {
+                        title: None,
+                        pages: Vec::new(),
+                    });
+                    let gidx = sections[sidx].groups.len() - 1;
+                    ctx = Ctx::Group(sidx, gidx);
+                }
+                "section.group.page" => {
+                    let sidx = sections.len().checked_sub(1).ok_or_else(|| {
+                        parse_err(
+                            line,
+                            "[[section.group.page]] appeared before any [[section]]",
+                        )
+                    })?;
+                    // gidx をその場で導出する（`Ctx::Group` の index を
+                    // 使い回さない理由は `Ctx::GroupPage` の doc 参照）。
+                    let gidx = sections[sidx].groups.len().checked_sub(1).ok_or_else(|| {
+                        parse_err(
+                            line,
+                            "[[section.group.page]] appeared before any [[section.group]]",
+                        )
+                    })?;
+                    sections[sidx].groups[gidx].pages.push(PageBuilder {
+                        title: None,
+                        source: None,
+                        path: None,
+                    });
+                    let pidx = sections[sidx].groups[gidx].pages.len() - 1;
+                    ctx = Ctx::GroupPage(sidx, gidx, pidx);
                 }
                 other => return Err(parse_err(line, format!("unknown table `[[{other}]]`"))),
             }
@@ -451,6 +575,32 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
                     }
                 }
             }
+            Ctx::Group(sidx, gidx) => {
+                let group = &mut sections[sidx].groups[gidx];
+                match key {
+                    "title" => set_once(&mut group.title, value, line, "group.title")?,
+                    other => {
+                        return Err(parse_err(
+                            line,
+                            format!("unknown key `{other}` in [[section.group]]"),
+                        ))
+                    }
+                }
+            }
+            Ctx::GroupPage(sidx, gidx, pidx) => {
+                let page = &mut sections[sidx].groups[gidx].pages[pidx];
+                match key {
+                    "title" => set_once(&mut page.title, value, line, "group.page.title")?,
+                    "source" => set_once(&mut page.source, value, line, "group.page.source")?,
+                    "path" => set_once(&mut page.path, value, line, "group.page.path")?,
+                    other => {
+                        return Err(parse_err(
+                            line,
+                            format!("unknown key `{other}` in [[section.group.page]]"),
+                        ))
+                    }
+                }
+            }
         }
     }
 
@@ -480,43 +630,80 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
             context: "section".to_string(),
             key: "title".to_string(),
         })?;
-        if section.pages.is_empty() {
+        // イシュー #939: 直下ページ 0 件でもグループが 1 件以上あれば正当な
+        // 構成（`Components > カテゴリ` のように直下ページを持たない
+        // セクションを許可する）。両方が空の場合のみ EmptySection。
+        if section.pages.is_empty() && section.groups.is_empty() {
             return Err(NavError::EmptySection(title));
         }
         let mut out_pages = Vec::with_capacity(section.pages.len());
         for page in section.pages {
-            let title = page.title.ok_or_else(|| NavError::MissingKey {
-                context: "section.page".to_string(),
+            let page = finalize_page(page, "section.page", &mut seen_paths)?;
+            out_pages.push(page);
+        }
+        let mut out_groups = Vec::with_capacity(section.groups.len());
+        for group in section.groups {
+            let group_title = group.title.ok_or_else(|| NavError::MissingKey {
+                context: "section.group".to_string(),
                 key: "title".to_string(),
             })?;
-            let source = page.source.ok_or_else(|| NavError::MissingKey {
-                context: "section.page".to_string(),
-                key: "source".to_string(),
-            })?;
-            let path = page.path.ok_or_else(|| NavError::MissingKey {
-                context: "section.page".to_string(),
-                key: "path".to_string(),
-            })?;
-            validate_page_path(&path)?;
-            validate_source_shape(&source)?;
-            if !seen_paths.insert(path.clone()) {
-                return Err(NavError::DuplicatePath(path));
+            if group.pages.is_empty() {
+                return Err(NavError::EmptyGroup(group_title));
             }
-            out_pages.push(Page {
-                title,
-                source,
-                path,
+            let mut out_group_pages = Vec::with_capacity(group.pages.len());
+            for page in group.pages {
+                let page = finalize_page(page, "section.group.page", &mut seen_paths)?;
+                out_group_pages.push(page);
+            }
+            out_groups.push(Group {
+                title: group_title,
+                pages: out_group_pages,
             });
         }
         out_sections.push(Section {
             title,
             pages: out_pages,
+            groups: out_groups,
         });
     }
 
     Ok(Nav {
         site,
         sections: out_sections,
+    })
+}
+
+/// [`PageBuilder`] を検証済み [`Page`] へ確定する。必須キー欠落・
+/// `page.path` / `page.source` の形式検証・`seen_paths` を横断した
+/// `path` 重複検査を一箇所へ集約し、section 直下・グループ配下の双方が
+/// 同一の検証（パストラバーサル対策含む）を必ず通ることを構造的に保証する
+/// （イシュー #939: グループ配下だけ検証を迂回する分岐を作らない）。
+fn finalize_page(
+    page: PageBuilder,
+    context: &str,
+    seen_paths: &mut BTreeSet<String>,
+) -> Result<Page, NavError> {
+    let title = page.title.ok_or_else(|| NavError::MissingKey {
+        context: context.to_string(),
+        key: "title".to_string(),
+    })?;
+    let source = page.source.ok_or_else(|| NavError::MissingKey {
+        context: context.to_string(),
+        key: "source".to_string(),
+    })?;
+    let path = page.path.ok_or_else(|| NavError::MissingKey {
+        context: context.to_string(),
+        key: "path".to_string(),
+    })?;
+    validate_page_path(&path)?;
+    validate_source_shape(&source)?;
+    if !seen_paths.insert(path.clone()) {
+        return Err(NavError::DuplicatePath(path));
+    }
+    Ok(Page {
+        title,
+        source,
+        path,
     })
 }
 
@@ -529,12 +716,12 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
 /// いずれかの `page.source` が `repo_root` 配下のファイルとして存在しない
 /// 場合、最初に見つかった不在ファイルについて `NavError::MissingSource` を返す。
 pub fn validate_sources(nav: &Nav, repo_root: &Path) -> Result<(), NavError> {
-    for section in &nav.sections {
-        for page in &section.pages {
-            let full_path = repo_root.join(&page.source);
-            if !full_path.is_file() {
-                return Err(NavError::MissingSource(page.source.clone()));
-            }
+    // `nav.all_pages()`（唯一の正規走査経路）を使い、グループ配下ページの
+    // `source` 実在確認も直下ページと同様に行う（イシュー #939）。
+    for page in nav.all_pages() {
+        let full_path = repo_root.join(&page.source);
+        if !full_path.is_file() {
+            return Err(NavError::MissingSource(page.source.clone()));
         }
     }
     Ok(())
@@ -575,7 +762,11 @@ pub fn sidebar(nav: &Nav, current_path: &str) -> Node {
     let mut section_nodes: Vec<Node> = Vec::new();
     for section in &nav.sections {
         let mut items: Vec<Node> = Vec::new();
-        for page in &section.pages {
+        // `section.all_pages()`（直下ページ → グループ配下ページの順）で
+        // フラットに列挙する。階層見出し付きの描画はイシュー #940 が担う。
+        // `site/nav.toml` は本 PR でグループを未登録のため、この置換で
+        // 出力・class は変化しない（イシュー #939）。
+        for page in section.all_pages() {
             let link_href = href(nav, &page.path);
             let is_current = page.path == current_path;
             let a = nav_link(
@@ -644,7 +835,9 @@ pub fn header_nav(nav: &Nav, current_path: &str) -> Node {
     let mut groups: Vec<Node> = Vec::new();
     for section in &nav.sections {
         let mut dropdown_items: Vec<Node> = Vec::new();
-        for page in &section.pages {
+        // sidebar() と同様、section.all_pages() でフラットに列挙する
+        // （イシュー #939、階層描画は #940）。
+        for page in section.all_pages() {
             let link_href = href(nav, &page.path);
             let is_current = page.path == current_path;
             let a = nav_link(
@@ -684,7 +877,9 @@ pub fn header_nav(nav: &Nav, current_path: &str) -> Node {
 /// `(None, None)`。先頭ページは `(None, Some(next))`、末尾ページは
 /// `(Some(prev), None)` になる。
 pub fn prev_next<'a>(nav: &'a Nav, current_path: &str) -> (Option<&'a Page>, Option<&'a Page>) {
-    let flat: Vec<&Page> = nav.sections.iter().flat_map(|s| s.pages.iter()).collect();
+    // `nav.all_pages()`（唯一の正規走査経路）で全ページを貫通する
+    // （イシュー #939: グループ配下ページも前後ナビの対象になる）。
+    let flat: Vec<&Page> = nav.all_pages().collect();
     let Some(idx) = flat.iter().position(|p| p.path == current_path) else {
         return (None, None);
     };
@@ -1070,6 +1265,44 @@ path = "/p1/"
             }
             other => panic!("expected MissingKey, got {other:?}"),
         }
+    }
+
+    // ---- グループ 3 階層スキーマ（イシュー #939、後方互換・回帰） ----
+
+    /// グループを一切含まない既存 `nav.toml`（`SAMPLE`）が従来どおり通り、
+    /// `groups` が空であることを固定する（後方互換の回帰テスト）。
+    #[test]
+    fn sections_without_groups_have_empty_groups_vec() {
+        let nav = parse_nav(SAMPLE).expect("valid nav.toml should parse");
+        for section in &nav.sections {
+            assert!(section.groups.is_empty());
+        }
+    }
+
+    /// イシュー #939 での `EmptySection` 条件是正: 直下ページ 0 件・
+    /// グループのみのセクションはエラーにならない。
+    #[test]
+    fn section_with_only_groups_and_no_direct_pages_is_not_empty() {
+        let input = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "Components"
+
+[[section.group]]
+title = "Forms"
+
+[[section.group.page]]
+title = "Button"
+source = "button.md"
+path = "/components/button/"
+"#;
+        let nav = parse_nav(input).expect("group-only section should not be EmptySection");
+        assert!(nav.sections[0].pages.is_empty());
+        assert_eq!(nav.sections[0].groups.len(), 1);
+        assert_eq!(nav.sections[0].groups[0].pages[0].title, "Button");
     }
 
     #[test]
