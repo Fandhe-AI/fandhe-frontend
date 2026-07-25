@@ -57,7 +57,7 @@ use fandhe_frontend_core::{
 use crate::showcase;
 
 /// 引数表（`API Reference` 節）1 行。Phase 4（#945〜#948）が原稿データを
-/// 供給するまでは [`COMPONENT_SPECS`] に該当エントリが無いため空。
+/// 供給するまでは [`SPEC_SOURCES`] に該当エントリが無いため空。
 #[derive(Debug, Clone, Copy)]
 pub struct ArgRow {
     /// 引数名（例: `variant`）。
@@ -103,7 +103,7 @@ pub struct ExampleEntry {
 ///
 /// Demo（[`showcase`] 由来）・Anatomy（機械導出）・`data-*` 属性表・CSS
 /// 変数表（いずれも機械導出）を**除く**、原稿側供給が必要な項目のみを持つ。
-/// 未登録パス（[`COMPONENT_SPECS`] に該当エントリなし）は [`ComponentPageSpec::EMPTY`]
+/// 未登録パス（[`SPEC_SOURCES`] に該当エントリなし）は [`ComponentPageSpec::EMPTY`]
 /// として扱われ、Features/API 引数表/Examples/Accessibility の 4 節が
 /// すべて省略される（Phase 3 の段階でビルドを赤くしないための既定動作）。
 #[derive(Debug, Clone, Copy)]
@@ -131,17 +131,21 @@ impl ComponentPageSpec {
     };
 }
 
-/// `path -> ComponentPageSpec` のレジストリ。Phase 4（#945〜#948）が各部品の
-/// 原稿データをここへ追記していく想定であり、Phase 3 時点では空のまま
-/// （[`spec_for`] が未登録パスを [`ComponentPageSpec::EMPTY`] にフォールバック
-/// させるため、レジストリが空でも 6 節合成は破綻しない）。
-const COMPONENT_SPECS: &[(&str, ComponentPageSpec)] = &[];
+/// `path -> ComponentPageSpec` レジストリの供給元一覧。Phase 4（#945〜#948）
+/// は並列 4 PR のコンフリクトを避けるため、単一の `const` 配列へ直接追記
+/// するのではなく、イシュー番号ごとのフラットな別モジュール
+/// （[`crate::component_page_specs_948`] 等）に `pub const SPECS` を持たせ、
+/// ここで集約する。コンフリクトが起きうるのは本配列への要素追加のみに
+/// 限定される（衝突時は両者の行を残す運用、`docs/design/docs-site-component-pages.md`
+/// §9 参照）。
+const SPEC_SOURCES: &[&[(&str, ComponentPageSpec)]] = &[crate::component_page_specs_948::SPECS];
 
 /// `page_path` に対応する [`ComponentPageSpec`] を返す。未登録パスは
 /// [`ComponentPageSpec::EMPTY`]（fail-closed で「節を省略」側へ倒す）。
 fn spec_for(page_path: &str) -> ComponentPageSpec {
-    COMPONENT_SPECS
+    SPEC_SOURCES
         .iter()
+        .flat_map(|specs| specs.iter())
         .find(|(path, _)| *path == page_path)
         .map(|(_, spec)| *spec)
         .unwrap_or(ComponentPageSpec::EMPTY)

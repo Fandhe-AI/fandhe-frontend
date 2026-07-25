@@ -28,6 +28,11 @@
 //!   は `page.path` 照会をこのモジュール経由に切り替える（索引ページ
 //!   `showcase::PAGE_PATH` はイシュー #943 で改組済みのため Rust 生成
 //!   コンテンツを持たず `None` を返す）
+//! - [`component_page_specs_948`]: イシュー #948（親 #928 Phase 4）が供給する
+//!   Typography / Utilities / Charts 系ほか 28 ページ分の [`ComponentPageSpec`]
+//!   原稿データ。[`component_page`] の `SPEC_SOURCES` から集約される（並列
+//!   実装 4 PR のコンフリクト最小化のため、イシュー番号ごとのフラットな
+//!   別モジュールに分離する方式。§9 参照）
 //! - [`admonition`]: `> [!NOTE]` 等の admonition 構文（[`markdown`] が検出し
 //!   pre-styled-ui の alert 部品で描画する）が参照する専用 CSS の組み立てと、
 //!   ページが admonition を含むかどうかの判定（イシュー #715）
@@ -64,6 +69,7 @@
 pub mod admonition;
 pub mod build;
 pub mod component_page;
+pub mod component_page_specs_948;
 pub mod layout;
 pub mod linkcheck;
 pub mod markdown;
