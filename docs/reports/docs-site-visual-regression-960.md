@@ -44,15 +44,14 @@ bash tools/docs-site/visual-regression.sh
 検証しながら撮影する（chromium は撮影失敗時も 0 終了し得るため無音失敗を成功と誤記録
 しない）。3 サーバはいずれも `127.0.0.1` バインドのみ。
 
-F（テーブル横スクロールのアフォーダンス）評価用の 2 枚
-（`f-table-dialog-375-tall.png` / `f-table-api-1440-tall.png`）は、通常撮影が
-viewport 高固定でテーブルより手前で切れてしまうため、該当ページを広い
+F（テーブル横スクロールのアフォーダンス）評価用の `f-table-dialog-375-tall.png` は、
+通常撮影が viewport 高固定でテーブルより手前で切れてしまうため、該当ページを広い
 `--window-size` 高で撮影しテーブル部分を可視化する追加コマンドで取得した
 （スクリプト本体には未統合。§8 の残課題に記載）。
 
 ## 4. 撮影マトリクスと画像
 
-すべて `docs/reports/assets/docs-site-960/` に相対パスで配置。合計 28 枚・約 4.5MB
+すべて `docs/reports/assets/docs-site-960/` に相対パスで配置。合計 28 枚・約 4.27MB
 （予算: 40 枚・4.5MB 以内）。
 
 ### P1: トップ（D・G・E の一次証跡）
@@ -62,6 +61,7 @@ viewport 高固定でテーブルより手前で切れてしまうため、該�
 | 1440 | light | ![p1-1440-light](assets/docs-site-960/p1-top-1440-light.png) |
 | 1440 | dark | ![p1-1440-dark](assets/docs-site-960/p1-top-1440-dark.png) |
 | 768 | light | ![p1-768-light](assets/docs-site-960/p1-top-768-light.png) |
+| 768 | dark | ![p1-768-dark](assets/docs-site-960/p1-top-768-dark.png) |
 | 375 | light | ![p1-375-light](assets/docs-site-960/p1-top-375-light.png) |
 | 375 | dark | ![p1-375-dark](assets/docs-site-960/p1-top-375-dark.png) |
 
@@ -97,7 +97,11 @@ viewport 高固定でテーブルより手前で切れてしまうため、該�
 | ページ | 画像 |
 |---|---|
 | dialog（375 幅、テーブル部分） | ![f-table-dialog](assets/docs-site-960/f-table-dialog-375-tall.png) |
-| headless-ui-api（1440 幅、テーブル部分） | ![f-table-api](assets/docs-site-960/f-table-api-1440-tall.png) |
+
+容量予算内に収めるため、同種の証跡である headless-ui-api（1440 幅）側の追加撮影は
+コミットしていない。dialog 375 幅の 1 枚で Arguments / Data Attributes の 2 表が
+列クリップした状態を確認でき、モバイル幅の方がクリップが顕著という点でも
+dialog 375 幅を主証跡として採用した。
 
 ### P5: Guides（quickstart、レスポンシブ確認）
 
@@ -132,9 +136,11 @@ viewport 高固定でテーブルより手前で切れてしまうため、該�
 
 計画の削減順序（(1) P5/P6 を 1440 のみ → (2) P3 を 1440/375 の 2 幅 → (3) 768 幅を
 P1/P2 のみ）はスクリプトの既定マトリクスとして最初から反映済みだったが、F 専用の
-追加撮影（テーブル可視化 2 枚、計約 0.7MB）を加えたことで合計が予算（4.5MB）を
-超過したため、追加で次を間引いた: P1/P2 の 768 幅ダーク・N1 の 768 幅を削除し、
-3 ブレークポイントの網羅を保つため P1 の 768 幅ライトのみ残した。
+追加撮影（テーブル可視化）を加えたことで合計が予算（4.5MB）に接近したため、
+「3 ブレークポイント × 2 テーマ」の受け入れ条件を満たす P1 の 768 幅（light/dark）を
+唯一の 768 幅証跡として残し、P2 の 768 幅（light/dark）・N1 の 768 幅は削除した。
+F 専用撮影は dialog 375 幅の 1 枚のみ採用し、同種の headless-ui-api 1440 幅側は
+容量削減のため未採用とした（§4「F 専用証跡」参照）。
 
 ## 5. 課題 A〜G の判定
 
@@ -145,7 +151,7 @@ P1/P2 のみ）はスクリプトの既定マトリクスとして最初から�
 | C | API Reference が利用者向けで issue 番号・Phase 表記が出ない | **解消（適用範囲付き）** | `p4-api-headless-ui-1440-light.png` は issue 番号・ロードマップ節を含まない利用者向け構成。ただし Phase 6 の適用対象は headless-ui-api / pre-styled-ui-api / pre-styled-recipe-api の 3 ページのみ（`docs/design/docs-site-api-reference-split.md` §3-7）。残り 6 ページ（`component-api` 等）は将来トリガー付きで意図的に据え置きであり、本レポートは範囲外ページを撮影対象にしていない |
 | D | ヘッダーと 3 カラム grid の左端が揃う | **解消** | `p1-top-1440-light.png` でブランドリンク（`fandhe-frontend`）左端とサイドバー左端の x 座標が一致 |
 | E | 右目次に見出しと現在地ハイライト | **解消** | `p1-top-1440-light.png` / `-dark.png` の `ON THIS PAGE` 見出しとアクティブ項目のアクセントバーを確認 |
-| F | テーブルに横スクロールのアフォーダンス | **解消** | `f-table-dialog-375-tall.png` / `f-table-api-1440-tall.png` で Arguments / Data Attributes 表の列が viewport 幅で切れており、水平スクロールを要する構造であることを確認（`--hide-scrollbars` は使用していない） |
+| F | テーブルに横スクロールのアフォーダンス | **解消** | `f-table-dialog-375-tall.png` で Arguments / Data Attributes 表の列が viewport 幅で切れていることを確認（`--hide-scrollbars` は使用していない）。ただし列のクリップだけでは `overflow-x: auto`（実際にスクロール可能）と `overflow: hidden`（スクロール不能）を画像上で区別できないため、生成 CSS 側も突き合わせた: `crates/docs-site/src/site_theme.rs` はテーブルラッパーへ `overflow-x: auto` を宣言し（`site_theme.rs:1317,1358` 付近）、`.docs-content table::-webkit-scrollbar*`（同ファイル `:1377-1390`）でスクロールバーの見た目を明示スタイルしている（`site_typography_contract.rs` の既存テストがこの 3 セレクタの存在を回帰確認済み）。スクリーンショットが「表がオーバーフローする」ことを、生成 CSS が「そのオーバーフローがスクロール可能である」ことを、それぞれ担保する 2 系統の証跡から解消と判定した |
 | G | ダークトグル・GitHub リンク・検索があり、ダークが機能 | **解消** | `p1-top-1440-light.png`（Dark ラベル）と `p1-top-1440-dark.png`（Light ラベル・全面ダーク配色）で往復を確認。GitHub リンク・検索ボックスも両テーマで表示 |
 
 判定は「解消」「解消（適用範囲付き）」「未解消」の 3 値。本 PR で新たな未解消事項は
