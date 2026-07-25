@@ -37,9 +37,27 @@ commit `bb42408` pin・取得日 2026-07-25）と `docs/design/radix-themes-surv
 | 実装済み | `fandhe-frontend-headless-ui` / `fandhe-frontend-pre-styled-ui` に mod として実装済み |
 | 実装対象 | Phase 3〜6（#736/#748/#757/#766 配下）または Phase 8（#932/#959 配下、イシュー #937 で新規判定した Radix 差分）のいずれかの issue で実装予定。根拠・対応 issue 列に issue 番号を記載 |
 | 保留 | 実装するか否かを本書時点では確定しない。既存（ark-ui/chakra-ui 由来）の保留は `docs/policy/intentional-non-adoption.md` §7（イシュー #735）に評価軸・再評価トリガーが記録済み。イシュー #937 で新規に判定した Radix 由来の保留は本書 §9 に再評価トリガーを記す（`intentional-non-adoption.md` §7 への転記は #959 の判断に委ねる） |
-| 意図的非採用 | 既に非採用と確定済み（layout プリミティブ = #716/#724、高度入力系・JS ランタイム固有 utilities・装飾系の一部・chakra `Theme` = #735（同書 §3.22〜§3.24）で確定済み等）。再導入提案には `docs/policy/intentional-non-adoption.md` の評価軸充足確認が必須 |
+| 意図的非採用 | 既に非採用と確定済み（layout プリミティブ = #716/#724、高度入力系・JS ランタイム固有 utilities・装飾系の一部・chakra `Theme` = #735（同書 §3.22〜§3.24）で確定済み、**アプリケーションロジックを内包する UI 部品（Radix `Form`）= 2026-07-25 のユーザー判断（同書 §3.25 規則 1）で確定済み**等）。再導入提案には `docs/policy/intentional-non-adoption.md` の評価軸充足確認が必須 |
 | 参照対象外 | イシュー #937 で新設。Radix 側に存在するが本リポジトリの参照軸に含めない部品。対象は Radix Themes の layout プリミティブ（Box/Flex/Grid/Container/Section）と Theme provider コンポーネントの計 6 件のみ。根拠: #716/#724/#735、`docs/policy/intentional-non-adoption.md` §3.24、`docs/design/radix-themes-survey.md` §6。既存の意図的非採用決定（同 issue）を Radix 軸の文脈で再掲するものであり、新規の非採用判定ではない |
 | 対象外 | README・guides・overview・get-started・concepts 等、UI コンポーネントを指さない非コンポーネント文書。加えてイシュー #735 で商用テンプレート集（chakra-ui Pro blocks）・styling / theming 概念文書を本区分へ追加確定した |
+
+### 2.1 UI 部品の責務境界（ユーザー判断 2026-07-25、`intentional-non-adoption.md` §3.25）
+
+区分判定にあたっては、上表の各区分に加えて次の 2 規則を適用する。詳細・
+評価軸・再評価トリガーは `docs/policy/intentional-non-adoption.md` §3.25、
+実装時の厳守事項は `.claude/rules/coding-rust.md` を参照する。
+
+- **規則 1（非採用）**: UI コンポーネント層が担うのは anatomy（構造）・
+  アクセシビリティ（WAI-ARIA・キーボード操作）・表示状態（`data-*`）まで。
+  バリデーション・送信処理・データ整形・永続化といったアプリケーション
+  ロジックを内包する部品は、参照軸に存在しても実装しない。確定対象は
+  Radix Primitives `Form` の 1 件（§5 Part D・§9 の該当行を参照）。
+- **規則 2（層の割り当て）**: 参照元が primitives 層へ持ち込んでいる装飾・
+  アニメーション・レイアウト計測の関心（Radix の `data-motion`、viewport
+  測定等）は `fandhe-frontend-headless-ui` へ持ち込まず、必要なら上層の
+  `fandhe-frontend-pre-styled-ui` の責務として設計する。部品を実装対象から
+  外す規則ではなく層の割り当てを定める規則であり、適用対象は Radix
+  Primitives `Navigation Menu`（§5 Part D・§9 の該当行を参照）。
 
 「保留」区分のうち ark-ui/chakra-ui 由来の評価軸・再評価トリガーの詳細記録は
 イシュー #735 で `docs/policy/intentional-non-adoption.md` §7 に確定済みで
@@ -839,9 +857,9 @@ diff が非空になって §4 が壊れる）。「実装対象」区分の根�
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
-| —（対応 md なし） | — | — | Form (`form`) | — | `field`/`fieldset`（部分対応） | — | 保留 | Radix Form の Field/Label/Control/Message/ValidityState/Submit anatomy を `field`/`fieldset` がどこまでカバーするかは未検証。再評価トリガー: バリデーション状態表現（`data-invalid`/`data-valid`）の対応可否確認後。#959 で判定継続。`intentional-non-adoption.md` §7 へ転記済み（#959） |
+| —（対応 md なし） | — | — | Form (`form`) | — | `field`/`fieldset`（構造部分は充足） | — | 意図的非採用 | **2026-07-25 のユーザー判断により保留を解除し意図的非採用へ確定**。根拠: `docs/policy/intentional-non-adoption.md` §3.25 規則 1（アプリケーションロジックを内包する UI 部品は採用しない）。Radix Form の本体はブラウザ Constraint Validation API を用いたバリデーション実行・カスタム検証・エラーメッセージ対応付け・送信ハンドリングであり、UI 層の責務（anatomy・アクセシビリティ・表示状態）を超える。UI 構造に相当する部分（フィールドとラベル・説明・エラー表示の結び付け、`data-invalid` による無効状態の表現）は `crates/headless-ui/src/field.rs` / `fieldset.rs` が既に担っており、利用者はバリデーションを通常の Rust コードで書いてその結果を `field` の状態として渡す。再評価トリガーは §3.25 規則 1 を参照。`intentional-non-adoption.md` §7 へ転記済み（#959） |
 | —（対応 md なし） | — | — | Menubar (`menubar`) | — | — | — | 実装対象 | 対応 mod なし。複数 Menu の水平配置・roving tabindex は `menu` の anatomy を再利用して新設可能。#959 で確定、仮 ID 8-2（Step B で採番、§9.1 参照） |
-| —（対応 md なし） | — | — | Navigation Menu (`navigation-menu`) | — | — | — | 実装対象 | 対応 mod なし。`nav_list`（イシュー #756）は role を持たない文書ナビ専用部品であり、Navigation Menu の viewport・アクティブリンク追跡・`data-motion` とは意味論・機能ともに別物（`crates/headless-ui/src/nav_list.rs` module doc 参照）。#959 で確定、仮 ID 8-3（Step B で採番、§9.1 参照） |
+| —（対応 md なし） | — | — | Navigation Menu (`navigation-menu`) | — | — | — | 実装対象 | **2026-07-25 のユーザー判断により `docs/policy/intentional-non-adoption.md` §3.25 規則 2 を適用**: viewport 測定・`data-motion` は装飾・アニメーション関心のため headless-ui へ持ち込まず、必要なら pre-styled-ui 側の責務として設計する。headless-ui は Root/List/Item/Trigger/Content/Link の anatomy とアクティブリンクの `aria-current` までを担う。対応 mod なし。`nav_list`（イシュー #756）は role を持たない文書ナビ専用部品であり、Navigation Menu の viewport・アクティブリンク追跡・`data-motion` とは意味論・機能ともに別物（`crates/headless-ui/src/nav_list.rs` module doc 参照）。#959 で確定、仮 ID 8-3（Step B で採番、§9.1 参照） |
 | —（対応 md なし） | — | — | Toolbar (`toolbar`) | — | — | — | 実装対象 | 対応 mod なし。ボタン・セパレータ・ToggleGroup を横方向グループ化する専用 anatomy が必要。#959 で確定、仮 ID 8-1（Step B で採番、§9.1 参照） |
 | —（対応 md なし） | — | — | Direction Provider (`direction-provider`) | — | — | — | 保留 | RTL/LTR を動的注入する provider 機構は `docs/policy/intentional-non-adoption.md` §3.23 の JS ランタイム固有 utilities に類するが、同節に個別記録がない。再評価トリガー: provider 機構全般の非採用可否が §3.23/§3.24 へ確定記録された場合、または `dir` 属性の明示的引数渡しで代替可能と判断された場合。#959 で判定継続。`intentional-non-adoption.md` §7 へ転記済み（#959） |
 | —（対応 md なし） | — | — | Accessible Icon (`accessible-icon`) | Accessible Icon (`accessible-icon`) | `visually_hidden`（代替候補、要検証） | `icon`/`visually_hidden`（代替候補、要検証） | 保留 | `icon`（pre-styled のみ）と `visually_hidden`（headless+pre-styled）の組み合わせでラベル付与が代替可能かは未検証（`crates/pre-styled-ui/src/icon.rs` module doc に付与するラベルとの結びつけ機構が明記されていない）。再評価トリガー: 代替可否の検証完了時。#959 で判定継続。`intentional-non-adoption.md` §7 へ転記済み（#959） |
@@ -948,14 +966,14 @@ L493, L521〜L528）+ RichTextEditor（L511, §3.22）+ chakra `Theme`（L529,
 | Radix 名 (slug) | 層 | §5 の該当行 | 区分 | 判定根拠 / 保留の再評価トリガー | Phase 8 issue |
 |---|---|---|---|---|---|
 | Menubar (`menubar`) | Primitives → headless-ui | Part D | 実装対象 | 対応 mod なし。`menu` の anatomy を再利用可能 | —（#959 で採番） |
-| Navigation Menu (`navigation-menu`) | Primitives → headless-ui | Part D | 実装対象 | 対応 mod なし。`nav_list` は role なし・viewport/アクティブリンク追跡を持たず非対応 | —（#959 で採番） |
+| Navigation Menu (`navigation-menu`) | Primitives → headless-ui | Part D | 実装対象 | 対応 mod なし。`nav_list` は role なし・アクティブリンク追跡を持たず非対応。**2026-07-25 のユーザー判断により `intentional-non-adoption.md` §3.25 規則 2 を適用**: viewport 測定・`data-motion` は装飾関心のため headless-ui へ置かず、必要なら pre-styled-ui 側の責務とする。headless-ui は Root/List/Item/Trigger/Content/Link の anatomy とアクティブリンクの `aria-current` までを担う | —（#959 で採番） |
 | Toolbar (`toolbar`) | Primitives → headless-ui | Part D | 実装対象 | 対応 mod なし。ボタン・セパレータ・ToggleGroup の横方向グループ化 anatomy が必要 | —（#959 で採番） |
 | Callout (`callout`) | Themes → pre-styled-ui | Part D | 実装対象 | 対応 mod なし。`alert` の anatomy を参考に新設候補 | —（#959 で採番） |
 | Checkbox Group (`checkbox-group`) | Themes → pre-styled-ui | Part D | 実装対象 | 対応 mod なし。`checkbox`/`checkbox_card` は単体、グループ anatomy 未実装 | —（#959 で採番） |
 | Quote (`quote`) | Themes → pre-styled-ui | Part D | 実装対象 | 対応 mod なし。既存 `blockquote` と役割が近い静的部品 | —（#959 で採番） |
 | Strong (`strong`) | Themes → pre-styled-ui | Part D | 実装対象 | 対応 mod なし。既存 `em`（強調）と役割対称の静的部品 | —（#959 で採番） |
 | Tab Nav (`tab-nav`) | Themes → pre-styled-ui | Part D | 実装対象 | 対応 mod なし。`tabs` の見た目を持つナビゲーションリンク集合 | —（#959 で採番） |
-| Form (`form`) | Primitives → headless-ui | Part D | 保留 | `field`/`fieldset` で部分対応。再評価トリガー: バリデーション状態表現（`data-invalid`/`data-valid`）の対応可否確認後 | —（#959 で判定継続） |
+| Form (`form`) | Primitives → headless-ui | Part D | 意図的非採用 | 2026-07-25 のユーザー判断で保留解除・非採用確定。バリデーション・送信はアプリケーションロジックであり UI 層の責務外（`intentional-non-adoption.md` §3.25 規則 1）。構造部分は `field`/`fieldset` が充足 | —（実装しない） |
 | Direction Provider (`direction-provider`) | Primitives（utility） | Part D | 保留 | JS ランタイム固有 utilities に類するが個別記録なし。再評価トリガー: provider 機構全般の非採用可否が §3.23/§3.24 へ確定記録された場合、または `dir` 属性引数渡しで代替可能と判断された場合 | —（#959 で判定継続） |
 | Accessible Icon (`accessible-icon`) | Primitives（utility）+ Themes（utility） | Part D | 保留 | `icon`/`visually_hidden` の組み合わせでラベル付与が代替可能か未検証。再評価トリガー: 代替可否の検証完了時 | —（#959 で判定継続） |
 | Slot (`slot`) | Primitives（utility）+ Themes（utility） | Part D | 保留 | asChild/Slot 相当の要素差し替え・props マージ機構が現時点で存在しない（再導入提案はしない）。再評価トリガー: 要素差し替え機構の要否が別途の設計検討で明示的に再評価された場合 | —（#959 で判定継続） |
