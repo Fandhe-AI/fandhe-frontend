@@ -1264,7 +1264,15 @@ fn color_picker_example() -> Node {
                     color_picker::area_thumb(&state, false, vec![], vec![]),
                 ],
             ),
-            color_picker::channel_slider(Channel::Hue, &state, vec![], vec![]),
+            color_picker::channel_slider(
+                Channel::Hue,
+                &state,
+                vec![],
+                vec![
+                    color_picker::channel_slider_track(Channel::Hue, &state, vec![], vec![]),
+                    color_picker::channel_slider_thumb(Channel::Hue, &state, false, vec![], vec![]),
+                ],
+            ),
         ],
     )])
 }
