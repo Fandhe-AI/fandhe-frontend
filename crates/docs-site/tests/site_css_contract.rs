@@ -2,7 +2,7 @@
 //! 属性値と、サイト骨格 CSS（`crate::site_theme::stylesheet()` がビルド時
 //! 生成する `assets/site.css`）のクラス名契約が乖離していないことを検証する
 //! 回帰テスト（イシュー #488、CSS 供給方式のビルド時生成への切替はイシュー
-//! #905）。
+//! #905、双方向 fail-closed 契約への作り替えはイシュー #906）。
 //!
 //! # 背景
 //!
@@ -12,12 +12,32 @@
 //! コンパイラでは検証されない（CSS 文字列は Rust の型システム外）。過去に
 //! `site.css` 側だけが `site-*` プレフィックスの想定クラス名で書かれ、
 //! `layout.rs` の実出力（`docs-*` プレフィックス）と食い違ったまま放置され、
-//! 本番 docs サイトで CSS がほぼ効かない不具合が発生した。本テストは
-//! `layout.rs` / `nav.rs` の実出力に含まれる全 `class` 属性値（空白区切りの
-//! 各トークン）が生成 `assets/site.css` 内にセレクタとして出現することを
-//! 機械的に検証し、再発を fail-closed で検知する（取得元をイシュー #905 で
-//! 静的ファイル読込から [`site_theme::stylesheet`] の呼び出しへ差し替えた
-//! のみで、class 抽出・検証ロジック自体は不変）。
+//! 本番 docs サイトで CSS がほぼ効かない不具合が発生した。
+//!
+//! # 3 層構成（イシュー #906 の作り替え）
+//!
+//! 本ファイルは 3 層に分かれる。層ごとの検証軸を混同しないこと。
+//!
+//! - **層 1（[`STRUCTURE_CLASS_CONTRACT`] 以下）**: `layout.rs`/`nav.rs` が
+//!   出す新骨格 class（3 カラム・ヘッダー・目次カラム、イシュー #907〜#920）
+//!   の明示的な期待表を single source of truth とし、(a) HTML に出ること・
+//!   (b) 生成 `site.css` にセレクタとして出ること・(c) 表に無い `docs-*`
+//!   class が HTML に現れたら失敗すること、の 3 方向を検証する。旧実装
+//!   （`assert_all_classes_covered`）は (a)(b) 方向のみで、`layout.rs` が
+//!   class の出力自体をやめても検知できない片方向契約だった。(c) を追加
+//!   することで「class が消えても PASS する」という抜け穴を塞ぐ。
+//! - **層 2（既存の部分集合網羅テスト群）**: 旧実装の `assert_all_classes_covered`
+//!   系テストをそのまま維持する。層 1 とは独立に、個々の関数単位（`sidebar`
+//!   単体・`prev_next_nav` 単体等）で「HTML の class ⊆ CSS のセレクタ」を
+//!   確認する網羅ガードとして併存させる（弱体化させない。
+//!   `.claude/rules/coding-rust.md` 「XSS 回帰テストを削除・弱体化しない」に
+//!   準ずる方針をテスト全般に適用）。
+//! - **層 3（[`extract_block`] 以下）**: 生成 `site.css` のダークモード
+//!   custom property 契約（設計文書 `docs/design/docs-site-three-column-redesign.md`
+//!   §5 第 3 項、`crates/pre-styled-ui/tests/theme_css.rs` の #732 型契約の
+//!   docs-site 側ミラー）。`@media (prefers-color-scheme: dark)` ブロックと
+//!   `:root[data-theme="dark"]` ブロックが同一のトークン名集合を宣言する
+//!   ことを検証する。
 //!
 //! Markdown レンダラ（`markdown.rs`）が動的に生成する `language-<lang>`
 //! クラス（コードブロックの言語トークン依存で無数の値を取りうる）は本テスト
@@ -29,11 +49,13 @@
 //! は変更しない不変条件、イシュー #715）。代わりに `crate::admonition::stylesheet()`
 //! が生成する `assets/admonition.css` 側が契約を持つため、
 //! `admonition_markdown_output_classes_are_covered_by_generated_admonition_css`
-//! が両者の乖離を検知する。
+//! が両者の乖離を検知する。層 1 (c) 方向の判定（[`classes_outside_contract`]）
+//! は `docs-` 接頭辞トークンのみを対象にすることで、`language-*`/`fd-alert--*`
+//! のような別契約管轄のクラスを誤って層 1 の違反として扱わない。
 
 use std::collections::HashSet;
 
-use fandhe_frontend_core::{li, p, render, text, ul, Node};
+use fandhe_frontend_core::{div, h2, h3, li, p, render, text, ul, Node};
 use fandhe_frontend_docs_site::layout::{docs_page, docs_page_with_assets};
 use fandhe_frontend_docs_site::nav::{header_nav, parse_nav, prev_next_nav, sidebar, Nav};
 use fandhe_frontend_docs_site::site_theme;
@@ -51,7 +73,9 @@ fn site_css() -> String {
 /// TOC（`h2`/`h3` 見出し）・サイドバー 2 セクション・前後ページ双方が揃う
 /// ように仕立てたフィクスチャ `Nav`。`docs-toc-level-2` /
 /// `docs-toc-level-3` と `prev-next` の `prev`/`next` 両方を同時に
-/// 発生させるための最小構成。
+/// 発生させるための最小構成。`/quickstart/`（2 番目のページ）を現在ページに
+/// 指定すれば前後双方が存在する（層 1 のフィクスチャは全テストで
+/// `/quickstart/` を現在ページとして使う）。
 fn fixture_nav() -> Nav {
     let toml = r#"
 [site]
@@ -292,9 +316,14 @@ fn admonition_markdown_output_classes_are_covered_by_generated_admonition_css() 
 /// が `fandhe_frontend_pre_styled_ui::nav_list::stylesheet()` を取り込んだ
 /// もの）に実在することを検証する（`admonition_markdown_output_classes_are_covered_by_generated_admonition_css`
 /// / `docs_page_skip_nav_parts_are_covered_by_generated_skip_nav_css` と
-/// 同型の「実出力 ⇔ 生成 CSS」乖離検知）。#906（`site_css_contract.rs` の
-/// 作り替え）が先にマージされた場合は本テストを新契約へ統合する
-/// （検証意図は不変）。
+/// 同型の「実出力 ⇔ 生成 CSS」乖離検知）。
+///
+/// 本テストは検証軸が層 1（`STRUCTURE_CLASS_CONTRACT`、class トークン契約）
+/// とは異なるため #906 の作り替えでも統合しない: 本テストが固定するのは
+/// `data-scope`/`data-part` **属性**セレクタ（headless `nav_list` の
+/// anatomy 契約）であり、class トークンの集合ではない。属性セレクタは
+/// [`extract_css_class_selectors`]（`.` 始まりの class セレクタのみを拾う）
+/// の対象外であるため、層 1 の表に混ぜると検証漏れになる。
 #[test]
 fn sidebar_nav_list_parts_are_covered_by_generated_site_css() {
     let css = site_css();
@@ -361,4 +390,388 @@ fn docs_page_skip_nav_parts_are_covered_by_generated_skip_nav_css() {
             "generated assets/skip-nav.css should contain selector {selector}"
         );
     }
+}
+
+// ============================================================================
+// 層 1: 明示的 class 契約表（イシュー #906 の主眼）
+// ============================================================================
+
+/// 新骨格 class 契約の single source of truth。`(class 名, 出現箇所の説明)`
+/// のペアで、`layout.rs`/`nav.rs` の実出力から採取した確定値（設計文書の
+/// 記載ではなく実装コードの実出力が正）。
+///
+/// 全ページで無条件に出現する class のみを列挙する。TOC の有無で出現が
+/// 変わる class は [`TOC_ONLY_CLASSES`] / [`NO_TOC_ONLY_CLASSES`] へ分離する
+/// （本表に混ぜると (a) 方向の「常に出現するはず」という検証が
+/// 成立しなくなるため）。`docs-` 接頭辞を持たない既存 class
+/// （`sidebar`/`prev-next`/`prev`/`next`）は [`NON_DOCS_PREFIXED_CLASSES`]
+/// で別枠管理する。
+const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
+    (
+        "docs-header",
+        "header.docs-header（<body> 直下、SkipNav リンクの次）",
+    ),
+    ("docs-brand", "header 第 1 子のブランドリンク a"),
+    ("docs-container", "3 カラム grid コンテナ div"),
+    ("docs-sidebar", "左カラム aside"),
+    (
+        "docs-sidebar-toggle",
+        "input[type=checkbox]（aside.docs-sidebar 先頭）",
+    ),
+    ("docs-sidebar-toggle-label", "上記の可視ラベル label"),
+    ("docs-main", "中央カラム main"),
+    ("docs-content", "本文 article"),
+    ("docs-header-nav", "ヘッダードロップダウン群のコンテナ nav"),
+    ("docs-header-menu", "同 ul"),
+    ("docs-header-group", "セクションごとの li"),
+    ("docs-header-trigger", "button[type=button]"),
+    ("docs-header-dropdown", "ドロップダウン ul"),
+];
+
+/// 見出し（h2/h3）が 1 つ以上あるページのみ出現する class。
+const TOC_ONLY_CLASSES: &[&str] = &[
+    "docs-toc-aside",
+    "docs-toc",
+    "docs-toc-level-2",
+    "docs-toc-level-3",
+];
+
+/// 見出しが 1 つも無いページのみ出現する修飾 class
+/// （`docs-container` と併記される）。
+const NO_TOC_ONLY_CLASSES: &[&str] = &["docs-container--no-toc"];
+
+/// `docs-` 接頭辞を持たない既存 class（`nav.rs` 由来）。イシュー #906 の
+/// スコープでは `docs-` への統一は行わず、現状を明示的に固定するに留める
+/// （out-of-scope-tracking の対象。計画本文 §9 参照）。
+const NON_DOCS_PREFIXED_CLASSES: &[&str] = &["sidebar", "prev-next", "prev", "next"];
+
+/// `crate::build::build_site` の実組み立て（`docs_page_with_assets` +
+/// `header_nav` + `prev_next_nav` の同時配線、`build.rs` の
+/// `docs_page_with_assets` 呼び出しと同型）と同じ形の 1 枚のフィクスチャを
+/// 生成する。本文へ `prev_next_nav` を含め、ヘッダーへ `header_nav` を渡す
+/// ことで layout.rs / nav.rs の全 class を 1 回のレンダリングで発生させる。
+///
+/// `with_headings = true`: 本文に h2/h3 を含む（[`TOC_ONLY_CLASSES`] が
+/// 出現し、[`NO_TOC_ONLY_CLASSES`] は出現しない）。
+/// `with_headings = false`: 見出し無し（逆の関係）。
+///
+/// フィクスチャ現在ページは `/quickstart/`（[`fixture_nav`] の中間ページ）
+/// 固定とし、`prev`/`next` 双方・`docs-header-group` 複数（2 セクション）を
+/// 同時に発生させる。
+fn full_page_html(with_headings: bool) -> String {
+    let nav = fixture_nav();
+    let sidebar_node = sidebar(&nav, "/quickstart/");
+    let header_nav_node = header_nav(&nav, "/quickstart/");
+    let prev_next_node = prev_next_nav(&nav, "/quickstart/");
+
+    let mut body_children: Vec<Node> = if with_headings {
+        vec![
+            h2(vec![], vec![text("導入")]),
+            p(vec![], vec![text("本文です。")]),
+            h3(vec![], vec![text("詳細")]),
+            p(vec![], vec![text("詳細本文です。")]),
+        ]
+    } else {
+        vec![p(vec![], vec![text("見出しの無い本文です。")])]
+    };
+    body_children.push(prev_next_node);
+    let body = div(vec![], body_children);
+
+    let node = docs_page_with_assets(
+        "タイトル",
+        "",
+        sidebar_node,
+        body,
+        &[],
+        Some(header_nav_node),
+    );
+    render(&node)
+}
+
+/// `html` から抽出した class トークンのうち、`docs-` で始まり、かつ
+/// [`STRUCTURE_CLASS_CONTRACT`] のキー集合に含まれないものを返す（空なら
+/// 層 1 (c) 方向の契約違反なし）。純関数として実装し、
+/// [`contract_violation_is_detected_for_unknown_docs_class`]（層 1 の
+/// ヘルパ自己テスト）でプロダクションコードを改変せずに判定能力を
+/// 独立検証できるようにする（`.claude/rules/coding-rust.md` のテスト
+/// 規約に沿い、`#[ignore]`・条件緩和に頼らない fail-closed 判定を関数として
+/// 切り出す）。
+fn classes_outside_contract(html: &str) -> Vec<String> {
+    let contract: HashSet<&str> = STRUCTURE_CLASS_CONTRACT
+        .iter()
+        .map(|(name, _)| *name)
+        .collect();
+    let mut violations: Vec<String> = extract_class_tokens(html)
+        .into_iter()
+        .filter(|token| token.starts_with("docs-") && !contract.contains(token.as_str()))
+        .collect();
+    violations.sort();
+    violations
+}
+
+#[test]
+fn structure_class_contract_appears_in_rendered_html() {
+    let html_with_toc = full_page_html(true);
+    let html_no_toc = full_page_html(false);
+    let tokens_with_toc = extract_class_tokens(&html_with_toc);
+    let tokens_no_toc = extract_class_tokens(&html_no_toc);
+
+    for (class, description) in STRUCTURE_CLASS_CONTRACT {
+        assert!(
+            tokens_with_toc.contains(*class),
+            "{class}（{description}）がフルページフィクスチャ（見出しあり）の HTML に出現しない"
+        );
+        assert!(
+            tokens_no_toc.contains(*class),
+            "{class}（{description}）がフルページフィクスチャ（見出しなし）の HTML に出現しない"
+        );
+    }
+
+    for class in TOC_ONLY_CLASSES {
+        assert!(
+            tokens_with_toc.contains(*class),
+            "{class} は見出しありページで出現するはずだが出現しない"
+        );
+        assert!(
+            !tokens_no_toc.contains(*class),
+            "{class} は見出しなしページで出現しないはずだが出現した"
+        );
+    }
+
+    for class in NO_TOC_ONLY_CLASSES {
+        assert!(
+            !tokens_with_toc.contains(*class),
+            "{class} は見出しありページで出現しないはずだが出現した"
+        );
+        assert!(
+            tokens_no_toc.contains(*class),
+            "{class} は見出しなしページで出現するはずだが出現しない"
+        );
+    }
+}
+
+#[test]
+fn structure_class_contract_has_selector_in_generated_site_css() {
+    let css_tokens = extract_css_class_selectors(&site_css());
+
+    for (class, description) in STRUCTURE_CLASS_CONTRACT {
+        assert!(
+            css_tokens.contains(*class),
+            "{class}（{description}）が生成 assets/site.css にセレクタとして存在しない"
+        );
+    }
+    for class in TOC_ONLY_CLASSES.iter().chain(NO_TOC_ONLY_CLASSES) {
+        assert!(
+            css_tokens.contains(*class),
+            "{class} が生成 assets/site.css にセレクタとして存在しない"
+        );
+    }
+    for class in NON_DOCS_PREFIXED_CLASSES {
+        assert!(
+            css_tokens.contains(*class),
+            "{class} が生成 assets/site.css にセレクタとして存在しない"
+        );
+    }
+}
+
+/// 層 1 (c) 方向の主眼テスト: フルページフィクスチャの HTML に、
+/// [`STRUCTURE_CLASS_CONTRACT`]（+ TOC 条件付き class）に無い `docs-*`
+/// class が 1 件でも現れたら失敗する。`layout.rs`/`nav.rs` が無断で新しい
+/// class を追加し、対応する表の更新を忘れた場合にこのテストが検知する
+/// （旧実装が持たなかった検証方向）。
+///
+/// 併せて `docs-` 以外の残余トークンが [`NON_DOCS_PREFIXED_CLASSES`] と
+/// 完全一致することも確認する（未知の非 `docs-` プレフィックス class の
+/// 混入も検知する）。
+#[test]
+fn rendered_html_has_no_class_outside_the_contract() {
+    let toc_classes: HashSet<String> = TOC_ONLY_CLASSES
+        .iter()
+        .chain(NO_TOC_ONLY_CLASSES)
+        .map(|s| s.to_string())
+        .collect();
+    let expected_non_docs: HashSet<String> = NON_DOCS_PREFIXED_CLASSES
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+
+    for with_headings in [true, false] {
+        let html = full_page_html(with_headings);
+
+        // TOC 条件付き class は classes_outside_contract の判定対象外
+        // （STRUCTURE_CLASS_CONTRACT 本体には含めない設計のため、ここで
+        // 誤検知しないことを別途確認する）。
+        let violations: Vec<String> = classes_outside_contract(&html)
+            .into_iter()
+            .filter(|c| !toc_classes.contains(c))
+            .collect();
+        assert!(
+            violations.is_empty(),
+            "with_headings={with_headings}: 契約表に無い docs-* class が HTML に出現した: {violations:?}"
+        );
+
+        let non_docs_tokens: HashSet<String> = extract_class_tokens(&html)
+            .into_iter()
+            .filter(|t| !t.starts_with("docs-"))
+            .collect();
+        assert_eq!(
+            non_docs_tokens, expected_non_docs,
+            "with_headings={with_headings}: docs- 接頭辞を持たない class トークン集合が NON_DOCS_PREFIXED_CLASSES と一致しない"
+        );
+    }
+}
+
+#[test]
+fn contract_violation_is_detected_for_unknown_docs_class() {
+    // ヘルパの自己テスト: プロダクションコードを一切改変せずに、
+    // classes_outside_contract が「表に無い docs-* class」を検知できることを
+    // 合成 HTML で証明する（CI では本テストのみが常時走り、実装改変を伴う
+    // ドリフト注入確認は実装者の手元検証のみで行う。計画 §6 手順 5 参照）。
+    let html = r#"<div class="docs-header docs-unknown-thing"></div>"#;
+    let violations = classes_outside_contract(html);
+    assert_eq!(violations, vec!["docs-unknown-thing".to_string()]);
+}
+
+// ============================================================================
+// 層 3: 生成 CSS のテーマトークン整合（受入条件 2、#732 型契約の docs-site 側ミラー）
+// ============================================================================
+
+/// `marker` で始まるブロックを、最初の行頭 `}`（`"\n}\n"`）までで切り出す。
+/// `Theme::to_css` の出力書式（`crates/pre-styled-ui/src/theme.rs`、
+/// `crates/pre-styled-ui/tests/theme_css.rs::custom_theme_output_matches_full_snapshot`
+/// が凍結）では `@media (prefers-color-scheme: dark)` ブロックの内側
+/// `:root:not(...)` の閉じ括弧はインデント付き（`  }`）であるため、行頭 `}`
+/// は必ず外側の閉じ括弧になる（内側の `  }\n` は直前に空白があるため
+/// `"\n}\n"` にマッチしない）。
+fn extract_block<'a>(css: &'a str, marker: &str) -> &'a str {
+    let start = css
+        .find(marker)
+        .unwrap_or_else(|| panic!("marker not found in css: {marker}"));
+    let after = &css[start..];
+    let close_at = after.find("\n}\n").unwrap_or_else(|| {
+        panic!("closing brace (line-start `}}`) not found for marker: {marker}")
+    });
+    &after[..close_at + "\n}\n".len()]
+}
+
+/// ブロック内の custom property **宣言**名を集める。名前の直後に `: ` が
+/// 続くものだけを宣言とみなす（`var(--fandhe-space-4)` のような参照を
+/// 宣言と誤認しないための必須条件。参照の直後は `)` 等になり `: ` が続かない）。
+fn collect_declared_token_names(block: &str) -> HashSet<String> {
+    let mut names = HashSet::new();
+    let chars: Vec<char> = block.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '-' && chars.get(i + 1) == Some(&'-') {
+            let mut j = i + 2;
+            let mut token = String::from("--");
+            while j < chars.len()
+                && (chars[j].is_ascii_alphanumeric() || chars[j] == '-' || chars[j] == '_')
+            {
+                token.push(chars[j]);
+                j += 1;
+            }
+            if chars.get(j) == Some(&':') && chars.get(j + 1) == Some(&' ') {
+                names.insert(token);
+            }
+            i = j;
+            continue;
+        }
+        i += 1;
+    }
+    names
+}
+
+#[test]
+fn generated_site_css_dark_blocks_declare_the_same_token_names() {
+    let css = site_css();
+    let media_block = extract_block(&css, "@media (prefers-color-scheme: dark) {");
+    let data_theme_block = extract_block(&css, ":root[data-theme=\"dark\"] {");
+
+    let media_names = collect_declared_token_names(media_block);
+    let data_theme_names = collect_declared_token_names(data_theme_block);
+
+    assert!(
+        !media_names.is_empty(),
+        "@media (prefers-color-scheme: dark) ブロックから custom property 宣言が 1 件も抽出できなかった"
+    );
+    assert_eq!(
+        media_names, data_theme_names,
+        "@media (prefers-color-scheme: dark) と :root[data-theme=\"dark\"] の宣言トークン名集合が一致しない"
+    );
+}
+
+#[test]
+fn generated_site_css_declares_docs_specific_tokens_in_both_dark_blocks() {
+    let css = site_css();
+    let media_block = extract_block(&css, "@media (prefers-color-scheme: dark) {");
+    let data_theme_block = extract_block(&css, ":root[data-theme=\"dark\"] {");
+
+    assert!(
+        collect_declared_token_names(media_block).contains("--fandhe-color-docs-accent-bg"),
+        "docs 固有トークン --fandhe-color-docs-accent-bg が @media dark ブロックに無い"
+    );
+    assert!(
+        collect_declared_token_names(data_theme_block).contains("--fandhe-color-docs-accent-bg"),
+        "docs 固有トークン --fandhe-color-docs-accent-bg が :root[data-theme=\"dark\"] ブロックに無い"
+    );
+}
+
+#[test]
+fn generated_site_css_orders_data_theme_block_after_media_query_block() {
+    // `@media` と `:root[data-theme="dark"]` は同特異度のため、後勝ちである
+    // CSS のカスケード規則上、`data-theme` ブロックが出力順で後に来ることが
+    // 「明示指定が OS 設定より常に勝つ」という仕様の必須条件になる
+    // （`crates/pre-styled-ui/tests/theme_css.rs::data_theme_dark_block_is_ordered_after_media_query_block`
+    // の docs-site 生成物版）。
+    let css = site_css();
+
+    let media_pos = css
+        .find("@media (prefers-color-scheme: dark)")
+        .expect("media query block must exist");
+    let data_theme_pos = css
+        .find(":root[data-theme=\"dark\"]")
+        .expect("data-theme dark block must exist");
+
+    assert!(
+        media_pos < data_theme_pos,
+        "data-theme dark block must be ordered after the media query block"
+    );
+}
+
+#[test]
+fn extract_block_stops_at_top_level_close_brace() {
+    // ヘルパの自己テスト: ネストしたインデント付き `}` を跨いで外側 `}`
+    // まで切り出すことを、Theme::to_css と同型のインデント構造を持つ合成
+    // CSS で検証する。
+    let css = "@media (x) {\n  :root:not(y) {\n    color: red;\n  }\n}\nafter { color: blue; }\n";
+    let block = extract_block(css, "@media (x) {");
+    assert!(block.contains("color: red"));
+    assert!(!block.contains("color: blue"));
+    assert!(block.ends_with("}\n"));
+}
+
+#[test]
+fn collect_declared_token_names_ignores_var_references() {
+    // ヘルパの自己テスト: `var(--fandhe-space-4)` のような参照を宣言として
+    // 拾わず、`--fandhe-color-bg: #fff;` のような宣言のみを拾うことを検証する。
+    let block = "  --fandhe-color-bg: #fff;\n  margin: var(--fandhe-space-4);\n";
+    let names = collect_declared_token_names(block);
+    assert!(names.contains("--fandhe-color-bg"));
+    assert!(!names.contains("--fandhe-space-4"));
+}
+
+#[test]
+fn dark_block_token_sets_mismatch_is_detected() {
+    // ヘルパの自己テスト: 片方のブロックにトークンが 1 件多い合成 CSS に
+    // 対して、集合が不一致になることを固定する（本物の site.css で両者が
+    // 一致した場合に「たまたま一致している」のではなく「不一致なら検知
+    // できる」ことを独立に証明する）。
+    let media_block = "@media (x) {\n  --fandhe-color-bg: #000;\n  --fandhe-color-fg: #fff;\n}\n";
+    let data_theme_block = "[data-theme] {\n  --fandhe-color-bg: #000;\n}\n";
+
+    let media_names = collect_declared_token_names(media_block);
+    let data_theme_names = collect_declared_token_names(data_theme_block);
+
+    assert_ne!(media_names, data_theme_names);
 }

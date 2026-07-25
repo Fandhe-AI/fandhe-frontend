@@ -308,6 +308,62 @@ fail-closed 検証である（`site_css()` 関数が `std::fs::read_to_string`
   生成物にも `Theme::to_css` の出力が欠落なく含まれることを回帰的に
   確認する目的で `crates/docs-site` 側にも 1 テストを設ける）。
 
+### 実装結果（イシュー #906）
+
+計画時点の実測で、上記 3 項目のうち 2 項目は先行 Phase で既に実装済みと
+判明した:
+
+- **取得元の差し替え**: `site_css()` は #905 の時点で
+  `crate::site_theme::stylesheet()` 呼び出しへ既に差し替え済みだった。
+- **新設 class の網羅**: `docs-brand`・`docs-header-nav` 系・
+  `docs-toc-aside` は #908〜#910 の実装に伴い、既存の
+  `docs_page_html_class_tokens_are_covered_by_site_css` /
+  `header_nav_html_class_tokens_are_covered_by_site_css` 経由で既に
+  HTML 側・CSS 側双方の存在が検証されていた。
+
+本イシューの実体は残り 2 点に絞られた:
+
+1. **契約の双方向 fail-closed 化**: 旧実装は「HTML の class トークン ⊆
+   CSS のセレクタ集合」という片方向の網羅検証のみで、`layout.rs` が
+   class の出力自体をやめても検知できない抜け穴があった。
+   `crates/docs-site/tests/site_css_contract.rs` へ `STRUCTURE_CLASS_CONTRACT`
+   （明示的な期待 class 表、`layout.rs`/`nav.rs` の実出力から採取した
+   確定値）を single source of truth として新設し、(a) HTML に出ること・
+   (b) 生成 CSS にセレクタとして出ること・(c) 表に無い `docs-*` class が
+   HTML に現れたら失敗すること、の 3 方向を検証する層を追加した。(c) が
+   旧実装に無かった検証方向であり、`classes_outside_contract` という
+   純関数として切り出すことでプロダクションコードを改変せずに判定能力を
+   独立検証できるようにした（ヘルパ自己テスト
+   `contract_violation_is_detected_for_unknown_docs_class`）。既存の
+   部分集合網羅テスト群（`docs_page_html_class_tokens_are_covered_by_site_css`
+   等）は層 2 として全件維持し、削除・弱体化していない。
+2. **ダークモード custom property 契約テスト**: `crates/pre-styled-ui/tests/theme_css.rs`
+   の #732 型契約（`@media (prefers-color-scheme: dark)` ブロックと
+   `:root[data-theme="dark"]` ブロックが同一トークン名集合を宣言する）の
+   docs-site 側ミラーを新設した。`extract_block`（marker から最初の
+   行頭 `}` までを切り出す）・`collect_declared_token_names`（識別子直後に
+   `: ` が続くもののみを宣言とみなし `var(--...)` 参照を除外する）を
+   ヘルパとして実装し、`generated_site_css_dark_blocks_declare_the_same_token_names`
+   / `generated_site_css_declares_docs_specific_tokens_in_both_dark_blocks`
+   / `generated_site_css_orders_data_theme_block_after_media_query_block`
+   の 3 テストを追加した。ヘルパ自身の自己テスト（`extract_block_stops_at_top_level_close_brace`
+   / `collect_declared_token_names_ignores_var_references` /
+   `dark_block_token_sets_mismatch_is_detected`）も付随させた。
+
+検証手法として、実装者の worktree 内限定でドリフト注入確認を実施した:
+`layout.rs` の `docs-toc-aside` を一時的に別名へ改名すると層 1 の (a)/(c)
+方向テストが FAIL し、`site_theme.rs` の `docs_theme()` から
+`docs-accent-bg` トークンを一時的に削除すると層 3 のテストが FAIL する
+ことを確認した上で、いずれもプロダクションコードを元に復元した
+（`crates/docs-site/src/` はコミットに含まれない）。
+
+`sidebar_nav_list_parts_are_covered_by_generated_site_css`（`data-scope`/
+`data-part` 属性セレクタの契約、#910）は層 1 の class トークン契約とは
+検証軸が異なるため統合しなかった。旧コメントの「#906 が先にマージされた
+場合は統合する」という記述は、実際には統合しない方が正しいと判明した
+ため是正した（属性セレクタは `extract_css_class_selectors` の対象外
+であり、層 1 の表に混ぜると検証漏れになるため）。
+
 ## 6. 回帰検証の観点（→ #912）
 
 - **ダークモード**: `prefers-color-scheme: dark` と `[data-theme="dark"]`
