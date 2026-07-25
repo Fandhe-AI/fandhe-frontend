@@ -155,6 +155,7 @@ const HEADING_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn text_example() -> Node {
@@ -190,6 +191,7 @@ const TEXT_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn em_example() -> Node {
@@ -217,6 +219,7 @@ const EM_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn mark_example() -> Node {
@@ -275,6 +278,7 @@ const MARK_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn blockquote_example() -> Node {
@@ -319,6 +323,7 @@ const BLOCKQUOTE_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn list_example() -> Node {
@@ -374,6 +379,7 @@ const LIST_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn highlight_example() -> Node {
@@ -440,6 +446,7 @@ const HIGHLIGHT_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn kbd_example() -> Node {
@@ -463,6 +470,7 @@ const KBD_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn code_example() -> Node {
@@ -482,6 +490,7 @@ const CODE_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 // ---------------------------------------------------------------------
@@ -514,6 +523,7 @@ const VISUALLY_HIDDEN_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 // ---------------------------------------------------------------------
@@ -617,6 +627,7 @@ const CHARTS_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn bar_charts_sample_data() -> ChartData {
@@ -678,6 +689,7 @@ const BAR_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn bar_list_example() -> Node {
@@ -705,6 +717,7 @@ const BAR_LIST_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn bar_segment_example() -> Node {
@@ -732,6 +745,7 @@ const BAR_SEGMENT_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn line_chart_example() -> Node {
@@ -788,6 +802,7 @@ const LINE_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn area_chart_example() -> Node {
@@ -816,6 +831,7 @@ const AREA_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn sparkline_example() -> Node {
@@ -844,6 +860,7 @@ const SPARKLINE_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn pie_chart_example() -> Node {
@@ -916,6 +933,7 @@ const PIE_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn donut_chart_example() -> Node {
@@ -989,6 +1007,7 @@ const DONUT_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn scatter_chart_example() -> Node {
@@ -1028,6 +1047,7 @@ const SCATTER_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn radar_chart_example() -> Node {
@@ -1074,6 +1094,7 @@ const RADAR_CHART_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 // ---------------------------------------------------------------------
@@ -1122,6 +1143,7 @@ const DOWNLOAD_TRIGGER_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn qr_code_example() -> Node {
@@ -1177,6 +1199,7 @@ const QR_CODE_SPEC: ComponentPageSpec = ComponentPageSpec {
     }],
     keyboard: &[],
     aria: &[],
+    demo: None,
 };
 
 fn timer_example() -> Node {
@@ -1247,6 +1270,7 @@ const TIMER_SPEC: ComponentPageSpec = ComponentPageSpec {
     aria: &[
         AriaRow { attribute: "aria-live", description: "経過表示の更新を支援技術へ通知する（headless-ui 側の root パーツが付与）。" },
     ],
+    demo: None,
 };
 
 fn color_picker_example() -> Node {
@@ -1297,6 +1321,7 @@ const COLOR_PICKER_SPEC: ComponentPageSpec = ComponentPageSpec {
         AriaRow { attribute: "aria-valuenow", description: "スライダー（thumb）の現在値を支援技術へ伝える。" },
         AriaRow { attribute: "aria-valuetext", description: "スライダーの現在値の読み上げ用テキスト表現。" },
     ],
+    demo: None,
 };
 
 fn calendar_example() -> Node {
@@ -1393,6 +1418,7 @@ const CALENDAR_SPEC: ComponentPageSpec = ComponentPageSpec {
         attribute: "aria-selected",
         description: "選択中の日付セルに付与する。",
     }],
+    demo: None,
 };
 
 fn date_picker_example() -> Node {
@@ -1514,6 +1540,7 @@ const DATE_PICKER_SPEC: ComponentPageSpec = ComponentPageSpec {
         attribute: "aria-expanded",
         description: "トリガーが popover の開閉状態を伝える。",
     }],
+    demo: None,
 };
 
 fn date_input_example() -> Node {
@@ -1585,6 +1612,7 @@ const DATE_INPUT_SPEC: ComponentPageSpec = ComponentPageSpec {
         KeyRow { key: "ArrowLeft / ArrowRight", description: "セグメント間をフォーカス移動する（wasm 層実装）。" },
     ],
     aria: &[AriaRow { attribute: "aria-invalid", description: "3 セグメントの組み合わせが実在しない日付の場合に付与する。" }],
+    demo: None,
 };
 
 // ---------------------------------------------------------------------

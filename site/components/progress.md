@@ -2,8 +2,6 @@
 
 `fandhe-frontend-pre-styled-ui` の `progress` mod が提供するスタイル済み Progress 部品です。
 
-> [!NOTE]
-> 本ページの Features / Examples / Accessibility と API Reference の引数表は
-> Phase 4（#945〜#948）で充填予定です。現時点では Demo（SSR 静的掲示）と、
-> headless-ui のパーツ構成から機械導出した Anatomy / `data-*` 属性表 /
-> CSS 変数表のみを掲載しています。
+処理の進捗を示す部品です。circle/circle-track/circle-range は headless の inherent メソッドをそのまま呼び出す契約で、value が None（indeterminate）のとき回転アニメーションが付与されます。読み込み中であることのみを示す用途には [Spinner](spinner.md) を検討してください。
+
+関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md) / [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

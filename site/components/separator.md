@@ -2,8 +2,6 @@
 
 `fandhe-frontend-pre-styled-ui` の `separator` mod が提供するスタイル済み Separator 部品です。
 
-> [!NOTE]
-> 本ページの Features / Examples / Accessibility と API Reference の引数表は
-> Phase 4（#945〜#948）で充填予定です。現時点では Demo（SSR 静的掲示）と、
-> headless-ui のパーツ構成から機械導出した Anatomy / `data-*` 属性表 /
-> CSS 変数表のみを掲載しています。
+コンテンツ間を区切る罫線部品です。orientation が role="separator"（固定）+ aria-orientation + data-orientation + variant クラスの 3 箇所へ連動します。呼び出し側が role/aria-orientation を偽装しても常にフレームワーク値へ一本化されます。
+
+関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md)

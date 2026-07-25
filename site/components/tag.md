@@ -2,8 +2,6 @@
 
 `fandhe-frontend-pre-styled-ui` の `tag` mod が提供するスタイル済み Tag 部品です。
 
-> [!NOTE]
-> 本ページの Features / Examples / Accessibility と API Reference の引数表は
-> Phase 4（#945〜#948）で充填予定です。現時点では Demo（SSR 静的掲示）と、
-> headless-ui のパーツ構成から機械導出した Anatomy / `data-*` 属性表 /
-> CSS 変数表のみを掲載しています。
+削除可能なラベル表示部品です。close_trigger（type="button"）を組み合わせることで削除操作を持つ Tag を構成できますが、aria-label・視覚内容（×等）は呼び出し側が渡す責務です。削除操作を持たない単純なラベル表示には [Badge](badge.md) を検討してください。
+
+関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md)

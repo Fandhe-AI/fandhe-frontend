@@ -2,8 +2,6 @@
 
 `fandhe-frontend-pre-styled-ui` の `breadcrumb` mod が提供するスタイル済み Breadcrumb 部品です。
 
-> [!NOTE]
-> 本ページの Features / Examples / Accessibility と API Reference の引数表は
-> Phase 4（#945〜#948）で充填予定です。現時点では Demo（SSR 静的掲示）と、
-> headless-ui のパーツ構成から機械導出した Anatomy / `data-*` 属性表 /
-> CSS 変数表のみを掲載しています。
+現在位置までの階層を示すナビゲーション部品です。root は既定で aria-label="breadcrumb" を持ち、現在ページには aria-current="page" が付与されます。ページ内の段階的な進行を示す用途には [Steps](steps.md) を検討してください。
+
+関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md) / [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

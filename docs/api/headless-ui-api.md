@@ -3,16 +3,9 @@
 ## 1. 目的とトレーサビリティ
 
 本ドキュメントは `fandhe-frontend-headless-ui`（ark-ui / chakra-ui 参考の
-2 層 UI コンポーネント構成、親トラッキング #520）が提供する headless
-（unstyled）UI コンポーネント層の公開 API 表面をまとめる。上層の
-`fandhe-frontend-pre-styled-ui`（chakra-ui 相当、#520/#546）は本層の
-anatomy・`data-*`・WAI-ARIA 出力を前提にスタイルを重ねる。
-
-**spec 未反映の注記**: 本クレートに対応する REQ / TASK は
-`docs/spec/04-requirements.md` / `05-tasks.md` に存在しない（要件提案は
-fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 参照）。
-本書は実装の現状を記録する位置づけであり、`docs/api/component-api.md`
-のような「凍結表」ではない。
+2 層 UI コンポーネント構成）が提供する headless（unstyled）UI コンポーネント層
+の公開 API 表面をまとめる。上層の `fandhe-frontend-pre-styled-ui`（chakra-ui
+相当）は本層の anatomy・`data-*`・WAI-ARIA 出力を前提にスタイルを重ねる。
 
 `docs/api/component-api.md` との整合: 本クレートのコンポーネントはすべて
 「`fandhe_frontend_core::Node` を返す通常の Rust 関数」（REQ-5 の凍結 API
@@ -21,13 +14,12 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 
 ## 2. 位置づけ
 
-- **親トラッキング**: #520（ark-ui / chakra-ui 参考の 2 層 UI コンポーネント構成）
-- **本クレートの担当領域**: Phase 1（#521、共通基盤）・Phase 2（#526〜#544、
-  個別コンポーネント）
-- **crates.io 公開状況**: v0.1.0 で公開済み（イシュー #608）。`fandhe-frontend-core` /
-  `fandhe-frontend-interactive`（いずれも crates.io バージョン依存）のみへ依存する
+- headless-ui は anatomy・`data-*`・WAI-ARIA を出力する下層、pre-styled-ui は
+  本層の出力を前提にスタイルを重ねる上層という 2 層構成である。
+- 外部依存は `fandhe-frontend-core` / `fandhe-frontend-interactive`（いずれも
+  crates.io バージョン依存）のみ
 
-## 3. 共通基盤 API（Phase 1、#523/#524）
+## 3. 共通基盤 API
 
 | モジュール/型 | 役割 |
 |---|---|
@@ -37,85 +29,84 @@ fandhe-frontend-spec リポジトリの Issue #20 として起票済み、#520 �
 | `state::OpenState` | `Open`/`Closed` の 2 値状態（`Default` は `Closed`。SSR の状態なし初期描画に対応）。`as_data_state()`/`is_open()`/`toggled()` |
 | `state::Disclosure` / `state::DisclosureAction` | 単一の開閉状態機械。`fandhe_frontend_interactive::Component`/`Hydrate` を実装し、dispatch アクション名 `"open"`/`"close"`/`"toggle"` を受理する |
 | `state::SingleSelect` / `state::SingleSelectAction` | 「高々 1 項目が選択される」状態機械（Accordion の single モード等が使用）。dispatch アクション名 `"select"`/`"deselect"`/`"toggle"` |
-| `state::TextInput` / `state::TextInputAction` | 自由入力文字列 1 個を持つ状態機械（Combobox が使用、#749）。dispatch アクション名 `"input"`/`"clear"` |
-| `state::pressed_data_state` / `state::DATA_STATE_ON` / `state::DATA_STATE_OFF` | Toggle/ToggleGroup が使う「押下状態」の `data-state` 値語彙（`"on"`/`"off"`）。`state::Checkable`（checked/unchecked）を埋め込みつつも公開語彙を分離するための変換関数（イシュー #746） |
+| `state::TextInput` / `state::TextInputAction` | 自由入力文字列 1 個を持つ状態機械（Combobox が使用）。dispatch アクション名 `"input"`/`"clear"` |
+| `state::pressed_data_state` / `state::DATA_STATE_ON` / `state::DATA_STATE_OFF` | Toggle/ToggleGroup が使う「押下状態」の `data-state` 値語彙（`"on"`/`"off"`）。`state::Checkable`（checked/unchecked）を埋め込みつつも公開語彙を分離するための変換関数 |
 
-これらは Dialog / Accordion / Tabs / Collapsible / Popover / Tooltip
-（Phase 2、#526〜#533）が共通で使う「open/closed・selected」の dispatch 契約・
+これらは Dialog / Accordion / Tabs / Collapsible / Popover / Tooltip が
+共通で使う「open/closed・selected」の dispatch 契約・
 `data-state` 整合・SSR/hydration 契約を一度だけ実装したものであり、各
 コンポーネントはフィールドとして埋め込んで再利用する。
 
-## 4. コンポーネント一覧（実装済み、Phase 2）
+## 4. コンポーネント一覧
 
-| コンポーネント | モジュール | anatomy パーツ | 埋め込む状態機械 | 対応イシュー |
-|---|---|---|---|---|
-| Collapsible | `collapsible` | Root/Trigger/Indicator/Content | `state::Disclosure` | #529 |
-| Accordion（single モード） | `accordion` | Root/Item/ItemTrigger/ItemIndicator/ItemContent | `state::SingleSelect` | #527 |
-| Tabs | `tabs` | Root/List/Trigger/Content（自由関数 `tabs()`、SSR 静的選択状態のみ） | なし（クリック/dispatch は wasm 層のスコープ） | #528 |
-| Tooltip | `tooltip` | Root/Trigger/Positioner/Content/Arrow/ArrowTip | `state::Disclosure` | #533 |
-| Dialog | `dialog` | Root/Trigger/Backdrop/Positioner/Content/Title/Description/CloseTrigger | `state::Disclosure` | #531 |
-| Popover | `popover` | Root/Trigger/Anchor/Positioner/Arrow/ArrowTip/Content/Title/Description/CloseTrigger/Indicator | `state::Disclosure` | #532 |
-| RadioGroup | `radio_group` | Root/Label/Item/ItemControl/ItemText/ItemHiddenInput | `state::SingleSelect` | #536 |
-| Switch | `switch` | Root/Control/Thumb/Label/HiddenInput | 独自実装（`"checked"`/`"unchecked"` 語彙が `Disclosure` と異なるため `Component`/`Hydrate` を直接実装） | #537 |
-| Field | `field` | Root/Label/Input/Textarea/Select/HelperText/ErrorText/RequiredIndicator | なし（`invalid`/`disabled`/`required`/`readonly` は SSR 静的な props） | #538 |
-| Menu | `menu` | Root/Trigger/Indicator/Positioner/Content/Arrow/ArrowTip/Item/ItemGroup/ItemGroupLabel/Separator | `state::Disclosure` | #540 |
-| Select | `select` | Root/Label/Control/Trigger/ValueText/ClearTrigger/Indicator/Positioner/Content/ItemGroup/ItemGroupLabel/Item/ItemText/ItemIndicator/HiddenSelect | `state::Disclosure` + `state::SingleSelect`（開閉 + 選択値の合成） | #541 |
-| Avatar | `avatar` | Root/Image/Fallback | 独自実装（`"loading"`/`"loaded"`/`"error"` の 3 値ステータス、`ImageStatus`） | #543 |
-| NumberInput | `number_input` | Root/Label/Control/Input/IncrementTrigger/DecrementTrigger | 独自実装（連続量の値のため `data-state` を持たず `Component`/`Hydrate` を直接実装。数値整形・パースはロケール非依存で決定的、`step` 演算は小数桁への丸めで浮動小数点ドリフトを防ぐ） | #738 |
-| PasswordInput | `password_input` | Root/Label/Control/Input/VisibilityTrigger/Indicator | 独自実装（`"visible"`/`"hidden"` 語彙が `Checkable` と異なるため `Component`/`Hydrate` を直接実装、`PasswordInput`）。パスワード値そのものは一切扱わない（§6 参照） | #740 |
-| Slider | `slider` | Root/Label/Control/Track/Range/Thumb/HiddenInput/ValueText | 独自実装（連続量の値のため `data-state` を持たず `Component`/`Hydrate` を直接実装。`value` は常に `min` 起点で `step` 単位へスナップしてから `[min, max]` へ clamp する。`thumb` が `role="slider"` + `aria-valuemin/max/now`/`aria-orientation` を担う） | #741 |
-| PinInput | `pin_input` | Root/Label/Control/Input/HiddenInput | 独自実装（固定桁数の文字配列 + フォーカス位置、`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装） | #739 |
-| TagsInput | `tags_input` | Root/Label/Control/Input/Item/ItemPreview/ItemText/ItemInput/ItemDeleteTrigger/ClearTrigger/HiddenInput | 独自実装（可変長タグ文字列リスト + 編集中インデックス、`SingleSelect`/`MultiSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`control` は `role="listbox"`、`item-preview` は `role="option"`） | #744 |
-| RatingGroup | `rating_group` | Root/Label/Control/Item/HiddenInput | 独自実装（`1..=count` の数値評価値 + hover プレビューを持つ。`hover` は SSR 非活性・hydration 非直列化。`Component`/`Hydrate` を直接実装） | #742 |
-| Editable | `editable` | Root/Label/Area/Input/Preview/Control/EditTrigger/SubmitTrigger/CancelTrigger | 独自実装（`"preview"`/`"edit"` の 2 モードが `Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`mode == Preview` のとき常に `draft == value` を保つ不変条件を持つ） | #745 |
-| Toggle | `toggle` | Root/Indicator | `state::Checkable`（`data-state` 語彙は `"on"`/`"off"`。`checked_data_state` ではなく `state::pressed_data_state` で変換し、Switch の `"checked"`/`"unchecked"` と分離する） | #746 |
-| ToggleGroup（single モード） | `toggle_group` | Root/Item | `state::SingleSelect`（dispatch は `"toggle"` のみ受理、常時 deselectable） | #746 |
-| MultiToggleGroup（multiple モード） | `toggle_group` | Root/Item | `state::MultiSelect`（dispatch は `"toggle"` のみ受理） | #746 |
-| SegmentGroup | `segment_group` | Root/Indicator/Item/ItemText/ItemControl/ItemHiddenInput | `radio_group::RadioGroup`（`state::SingleSelect`）へ全委譲（独自の状態機械を新設せず、既存 RadioGroup の dispatch/hydration をそのまま再利用する） | #743 |
-| Listbox / MultiListbox | `listbox` | Root/Label/Content/ItemGroup/ItemGroupLabel/Item/ItemText/ItemIndicator/ValueText | `state::SingleSelect`（`Listbox`）/ `state::MultiSelect`（`MultiListbox`）へ全委譲。常時展開（trigger/positioner なし）で `Select` とは責務境界が異なる（詳細は `listbox` モジュール doc 参照） | #750 |
-| Combobox | `combobox` | Root/Label/Control/Input/Trigger/ClearTrigger/Positioner/Content/ItemGroup/ItemGroupLabel/Item/ItemText/ItemIndicator | `state::Disclosure` + `state::SingleSelect` + `state::TextInput`（開閉 + 選択値 + 入力値の合成）。ARIA 1.2 combobox パターンに準拠し `aria-activedescendant` は `content` ではなく `input` 側に配線する（Select との差異） | #749 |
-| Steps | `steps` | Root/List/Item/Trigger/Indicator/Separator/Content/CompletedContent/PrevTrigger/NextTrigger | 独自実装（`count`（全 step 数）+ `step`（現在位置、`0..=count`）を持つ。item は complete/current/incomplete の 3 状態、current な item の trigger のみ `aria-current="step"`。`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装） | #752（§4b.3 の保留解除） |
-| TreeView | `tree_view` | Root/Label/Tree/Branch/BranchControl/BranchIndicator/BranchText/BranchContent/BranchIndentGuide/Item/ItemText/ItemIndicator | `state::MultiSelect`（展開中のブランチ値の集合）+ `state::SingleSelect`（選択中のノード値）の合成。両者とも `hydration_attrs` のフィールド名が `"selected"` で衝突するため、展開集合側のみ `"expanded"` へ書き換えて運ぶ（`tree_view` モジュール doc §hydration フィールド名参照）。`TreeView::render_nodes` が `TreeNode` 列から深さ・`aria-posinset`/`aria-setsize` を再帰的に計算する | #753 |
-| Pagination | `pagination` | Root/Item/Ellipsis/PrevTrigger/NextTrigger | 独自実装（総件数・ページサイズ・現在ページ・sibling/boundary 件数から省略記号を含むページ列を導出する `page_range`（決定的・`O(boundary_count + sibling_count)`）+ `Component`/`Hydrate` を直接実装する値状態機械。現在ページは `aria-current="page"`/`data-selected` で、端到達は `disabled`/`data-disabled` で表現する。§4b.3 の保留（#716）を解除） | #751 |
-| Breadcrumb | `breadcrumb` | Root/List/Item/Link/CurrentLink/Separator/Ellipsis | なし（自由関数のみ、SSR 静的な意味論ナビ。現在位置は `aria-current="page"` + `data-current` の併用で表現） | #755 |
-| HoverCard | `hover_card` | Root/Trigger/Positioner/Content/Arrow/ArrowTip | `state::Disclosure` | #759 |
-| Carousel | `carousel` | Root/Control/PrevTrigger/NextTrigger/ItemGroup/Item/IndicatorGroup/Indicator | 独自実装（`0..slide_count` を循環し得る index 値、`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。dispatch は `"next"`/`"prev"`/`"goto"`、`Goto` の範囲外 index は no-op で fail-closed。`item` は `role="group"` + `aria-roledescription="slide"` + 位置ラベル、`indicator` は `aria-current`。autoplay（play/pause/`aria-live` 切替/delay）は初期実装スコープ外） | #754 |
-| Drawer | `drawer` | Root/Trigger/Backdrop/Positioner/Content/Title/Description/CloseTrigger（Dialog と同一 8 パーツ、`data-scope="drawer"`） | `dialog::Dialog`（Dialog の状態機械へ全委譲。新規状態機械は作らない。固有に持つのは画面端の方向を表す `DrawerPlacement`（`start`/`end`/`top`/`bottom`）を `root`/`positioner`/`content` へ `data-placement` として出力する処理のみ） | #758 |
-| Link | `link` | Root | なし（自由関数のみ。`external` オプトインで `target="_blank"` + `rel="noopener noreferrer"` を不可分に付与。現在位置は `aria-current="page"` + `data-current`） | #756 |
-| LinkOverlay | `link_overlay` | Root/Overlay | なし（自由関数のみ。`::before` 疑似要素の代わりに `overlay` 自身を styled 層で `position: absolute; inset: 0;` 展開するカード全面クリック化） | #756 |
-| NavList | `nav_list` | Root/Heading/List/Item/Link | なし（自由関数のみ。`role` を一切付与しない文書ナビ専用部品。`docs-site::nav.rs::sidebar` を本部品へ移行済み） | #756 |
-| ActionBar | `action_bar` | Root/Positioner/Content/SelectionTrigger/Separator/CloseTrigger | `state::Disclosure`（構造上最も近い先行例は Dialog。`content` は `role="toolbar"` + `aria-label`、`separator` は `role="separator"` + `aria-orientation="vertical"`。選択件数から `open` を導出する糖衣 API は持たず、開閉は呼び出し側が dispatch で制御する） | #762 |
-| Toast | `toast` | Group/Root/Title/Description/ActionTrigger/CloseTrigger | 独自実装（複数通知の有界キュー、`max` 超過時に最古を押し出す。`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`aria-live` は `ToastStatus` から決定的に導出（`Error` のみ `"assertive"`）。タイマー自動 dismiss・`"push"` の文字列 dispatch は wasm-full 後続イシューのスコープ外） | #760 |
-| Checkbox | `checkbox` | Root/Control/Indicator/Label/HiddenInput | 独自実装（`"checked"`/`"unchecked"`/`"indeterminate"` の 3 値、`Switch` と同じ理由で `Component`/`Hydrate` を直接実装。`hidden-input` がネイティブ `<input type="checkbox">` を担い、フォーム送信・ブラウザネイティブ操作との互換を保つ） | #535 |
-| Progress（linear + circular） | `progress` | Root/Label/ValueText/Track/Range（linear）+ Circle/CircleTrack/CircleRange（circular、SVG、イシュー #600・親 #542。`crates/headless-ui/src/progress.rs` rustdoc の「Circular」節参照） | 独自実装（`value`（`min`..=`max`、または indeterminate を表す `None`）を持つ連続量の値状態機械。`data-state`（`"indeterminate"`/`"loading"`/`"complete"`）は `Progress::data_state` が一元管理し、パーツ関数間で分裂させない。circular の SVG ジオメトリ（`--size`/`--thickness`/`--percent`/`stroke-dasharray`/`stroke-dashoffset`）は CSS 変数参照の固定リテラルで表現する headless 中立設計。indeterminate 時は `--percent` 等を出力せず進捗系の値を捏造しない fail-closed 方針） | #544（linear）/#600（circular） |
-| ToggleTip | `toggle_tip` | Root/Trigger/Positioner/Content/Arrow/ArrowTip | `state::Disclosure` | #761 |
-| VisuallyHidden | `visually_hidden` | Root | なし（自由関数のみ。視覚的には隠すが支援技術には読ませ続けるテキストコンテナ。`aria-hidden` を一切出力しない不変条件がある） | #776 |
-| SkipNav | `skip_nav` | Link/Content | なし（自由関数のみ。WCAG 2.1 SC 2.4.1 Bypass Blocks 対応の「本文へスキップ」リンク。`link` は呼び出し側から任意の URL を受け取らず常に `#<id>` のみを組み立てるためスキーム注入経路を構造的に持たない） | #776 |
-| Clipboard | `clipboard` | Root/Label/Control/Input/Trigger/Indicator/ValueText | 独自実装（コピー済みかどうかの 2 値、`Avatar`/`Switch` と同じ理由で `Component`/`Hydrate` を直接実装。コピー済み表示は `data-state` 値語彙ではなく `data-copied` 存在属性で表現する ark-ui/chakra-ui の慣習に従う。コピー対象値（`value`）は状態機械に持たせず `root` の `data-value` 属性としてのみ出力する。`navigator.clipboard.writeText` 実配線・タイムアウトによる自動リセットは `fandhe-frontend-wasm-full::headless_clipboard`（writeText 成功ゲート・fail-closed・値ログ禁止）が提供する） | #773 |
-| QrCode | `qr_code` | Root/Frame（`svg`）/Pattern（`path`）/Overlay | なし（自由関数のみ。`value`/`ecc` から一意に導出される純粋な変換であり遷移可能な状態を持たない。外部依存ゼロの QR Model 2（ISO/IEC 18004）byte モードエンコーダ（`qr_encode`、非公開実装）を内蔵。QR 画像自体のダウンロード導線が必要な場合は `download_trigger`（#828）を組み合わせる。`value` の動的更新・numeric/alphanumeric/kanji モードはスコープ外） | #774 |
-| FloatingPanel | `floating_panel` | Root/Trigger/Positioner/Content/Header/Title/Control/StageTrigger/CloseTrigger/Body | `state::Disclosure`（開閉）+ 独自実装の `Stage`（`"default"`/`"minimized"`/`"maximized"` の 3 値、`Disclosure`/`SingleSelect` の語彙に収まらないため `steps::Steps`/`progress::Progress` と同じ判断で本モジュール内の独自 enum とする）。座標は `positioner` の `--fandhe-x`/`--fandhe-y`（`positioning::css_vars` の CSS 変数名の語彙のみ再利用、placement 計算自体は行わずドラッグ操作によるビューポート絶対座標をそのまま反映）。`content` は `role="dialog"` を固定付与するが `aria-modal` は出力しない非モーダル overlay。dispatch は `"open"`/`"close"`/`"toggle"`/`"minimize"`/`"maximize"`/`"restore"`/`"set_position"`（payload `"x,y"` は有限 `f64` としてパースできる場合のみ受理、`NaN`/`inf`・パース不能時は no-op）。ドラッグ移動・リサイズの実 DOM 配線・フォーカストラップ・Escape キー閉鎖・topmost 管理は `fandhe-frontend-wasm-full` の将来イシューのスコープ外 | #827 |
-| ScrollArea | `scroll_area` | Root/Viewport/Content/Scrollbar/Thumb/Corner | なし（自由関数のみ。`viewport` に `tabindex="0"` を固定付与、`scrollbar`/`thumb` は `data-orientation`、`scrollbar`/`corner` は `aria-hidden="true"` を固定付与。JS によるスクロール位置追従・thumb drag は初期実装対象外） | #825 |
-| DownloadTrigger | `download_trigger` | Root | なし（自由関数のみ。`a[download]` 属性による宣言的ダウンロードトリガー（ark-ui/chakra-ui の `Blob`/非同期 `data` 前提の DownloadTrigger を静的部品として代替）。`href` の URL スキーム検証は `render()` 側の既定経路（`data:`/`blob:` を含め deny-by-default）に委譲し、独自検証を追加しない） | #828 |
-| Splitter | `splitter` | Root/Panel/ResizeTrigger/ResizeTriggerIndicator | 独自実装（各パネルの `size`/`min`/`max`（%）を fail-closed に正規化するパネルサイズ状態機械。`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`resize-trigger` は `role="separator"` + `aria-valuemin/max/now`（先行パネルのサイズ%）+ `aria-orientation`（セパレータ自体の向き、パネルレイアウトの向きとは逆）+ `aria-controls`（先行パネル id）を出力する WAI-ARIA Window Splitter パターン準拠。pointer ドラッグ・キーボード操作の DOM 配線・collapse/expand は wasm-full 後続イシューのスコープ外） | #826（`docs/policy/intentional-non-adoption.md` §7・`docs/design/component-coverage-map.md` の保留を解除） |
-| JsonTreeView | `json_tree_view` | Key/Value（`tree_view` の Root/Label/Tree/Branch/BranchControl/BranchIndicator/BranchContent/BranchIndentGuide/Item/ItemIndicator を構造部として再利用） | `tree_view::TreeView`（#753）をそのまま再利用（新規状態機械なし）。決定的な JSON 風データ構造 `JsonValue`（外部依存ゼロの自前 enum、`Object` は挿入順保持の `Vec` ペア列）をツリー表示する。ノード識別子（`data-value`）は RFC 6901 JSON Pointer で決定的に導出し、`value` パーツの `data-kind`（`"null"`/`"bool"`/`"number"`/`"string"`/`"array"`/`"object"`）は `JsonValue::kind` の固定語彙のみを出力する。`expanded_to_depth` は ark-ui `defaultExpandedDepth` 相当の決定的初期展開ヘルパ | #829（`tree_view` #753 の派生、`docs/policy/intentional-non-adoption.md` §7 の保留解除） |
-| ColorPicker | `color_picker` | Root/Label/Control/Trigger/Positioner/Content/Area/AreaBackground/AreaThumb/ChannelSlider(+Track/+Thumb)/ChannelInput/ValueText/HiddenInput | `Hsv`（#838）+ `alpha: u8` + `state::Disclosure`（開閉）を埋め込んだ独自実装。色領域・色相/アルファスライダーの見た目は canvas 非依存（CSS グラデーション + `area_x_percent`/`area_y_percent`/`hue_percent`/`alpha_percent` の導出整数割合のみ）。dispatch は `"open"`/`"close"`/`"toggle"`/`"set_hex"`（`Color::parse_hex` 検証）/`"set_channel"`（payload `"<channel>:<value>"`、固定語彙 + 範囲検証）。EyeDropperTrigger・SwatchGroup 系・format 切替・pointer ドラッグの DOM 配線はスコープ外 | #839（親 #837、`docs/policy/intentional-non-adoption.md` §7 の保留解除） |
-| FileUpload | `file_upload` | Root/Label/Dropzone/Trigger/ItemGroup/Item/ItemName/ItemSizeText/ItemDeleteTrigger/ClearTrigger/HiddenInput | 独自実装（ファイルメタデータ`FileUploadItem`（name/size_bytes/mime_type、`File` オブジェクト自体は非保持）の受理済み一覧 + 直近拒否履歴、`SingleSelect`/`MultiSelect`/`TagsInput` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`AddFiles` は型付き API 限定で文字列 dispatch では受理しない。実 `File` API 接触は `fandhe-frontend-wasm-full` の `headless_file_upload.rs` に隔離し（`docs/policy/intentional-non-adoption.md` §7 の保留解除）、`ItemPreview`/`ItemPreviewImage`（object URL プレビュー）はスコープ外） | #840 |
-| DateInput | `date_input` | Root/Label/Control/SegmentGroup/Segment/HiddenInput | 独自実装（年/月/日セグメント + フォーカス位置を持つ値状態機械。`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。暦計算は `date`（#833）の `PlainDate::new`/`parse_iso`/`days_in_month` へ委譲し、本モジュール自体は現在時刻を取得しない。各 `segment` は `role="spinbutton"` + `aria-valuemin/max/now`（未入力時は valuenow 省略 + `data-placeholder`）+ `aria-label`（"Year"/"Month"/"Day"）を出力する WAI-ARIA Spinbutton パターン準拠。3 セグメント充足時のみ `PlainDate::new` で実在日付として検証し（`2/30` 等は `value()` が `None` を返す fail-closed 契約。セグメント値自体は破棄せず `data-invalid` で可視化する）、hydration も同じ契約（構造的範囲外・パース不能のみ拒否、実在しない日付はそのまま受理）。`date_input::segment_group` は `segment_group`（segmented control、#743）とは無関係の別 anatomy スコープ。granularity（hour/minute/second）・range 選択・locale 依存整形・キーボード操作の DOM 配線は wasm-full 後続イシューのスコープ外 | #834（`date` #833 を先行前提として利用、`docs/policy/intentional-non-adoption.md` §7・`docs/design/component-coverage-map.md` の date-time 系「保留」を DateInput 分のみ解除） |
-| Timer | `timer` | Root/Area/Item/ItemValue/ItemLabel/Separator/Control/ActionTrigger | 独自実装（idle/running/paused/completed の 4 値、`Clipboard` と同じ理由で `Component`/`Hydrate` を直接実装。`countdown`/`start_ms`/`target_ms`/`interval_ms` の設定値も状態機械へ持たせ hydration で往復させる。tick（経過ミリ秒）を `TimerAction::Tick` として外部から明示的に注入する決定的状態機械であり `std::time`/`Instant` 等の時計 API に一切依存しない。`docs/design/component-coverage-map.md` 保留解除（date-time 系）。実 tick 駆動（`setInterval`）は `fandhe-frontend-wasm-full::headless_timer` が提供する） | #836 |
-| Tour | `tour` | Root/Backdrop/Spotlight/Positioner/Arrow/ArrowTip/Content/Title/Description/ProgressText/CloseTrigger/ActionTrigger | 独自実装（`Idle`/`Active { step }`/`Skipped`/`Completed` の 4 値、`Steps`/`Toast` と同じ理由で `Component`/`Hydrate` を直接実装。`content` は `role="dialog"` + `aria-labelledby`/`aria-describedby`、`progress-text` は `aria-live="polite"`。`positioner` は現在ステップの `placement`（`positioning::Placement`）から `data-side`/`data-align` を静的出力するのみで座標計算は行わない（ADR §4.1）。`spotlight` は `target` を `data-target` としてエスケープ済み出力するのみで DOM 解決は行わない。対象要素の実座標追従・スクロール/リサイズ再計算・`target` セレクタの実解決・クリック/キーボードの実配線は `fandhe-frontend-wasm-full` の後続イシューのスコープ外。`docs/design/component-coverage-map.md` 保留解除（装飾系）） | #841（#735 保留の解除） |
-| AngleSlider | `angle_slider` | Root/Label/Control/Thumb/ValueText/HiddenInput | 独自実装（`0..=359` の整数角度値状態機械。受理時に `value % 360` で正規化し、`step` は `1..=359` へ clamp する。`"set"` は `0` 起点の `step` グリッドへ最近傍スナップしてから正規化し、`"increment"`/`"decrement"` は非負整数の剰余演算のみでラップアラウンドする（浮動小数点不使用）。`Component`/`Hydrate` を直接実装し、hydration は範囲外 value/step を `HydrateError` で拒否する fail-closed 契約。ポインタ座標→角度変換（`atan2`）は `fandhe-frontend-wasm-full` 側の純粋関数へ隔離し、本モジュールはポインタ座標を一切扱わない） | #842（`docs/policy/intentional-non-adoption.md` §3.22 の再導入） |
-| SignaturePad | `signature_pad` | Root/Label/Control/Segment（`svg`）/SegmentPath（ストロークごと、`path`）/Guide/ClearTrigger/HiddenInput | 独自実装（`strokes: Vec<Stroke>` + `disabled`/`read_only` を持つ値状態機械、`Component`/`Hydrate` を直接実装。canvas は一切使用せず、`stroke_path_d` が同一座標列から常に同一の SVG `d` 属性値を生成する決定的純粋関数（出力文字集合は `M`/`L`/数字/`.`/`,`/`-`/空白に閉じる）。dispatch は `"add-stroke"`/`"clear"`/`"undo"`、点数上限（`MAX_POINTS_PER_STROKE`）・ストローク数上限（`MAX_STROKES`）超過は fail-closed で拒否する。ポインタイベントからの座標収集は `fandhe-frontend-wasm-full::headless_signature_pad` の責務） | #843（`docs/policy/intentional-non-adoption.md` §3.22 の再導入） |
-| ImageCropper | `image_cropper` | Root/Viewport/Image/Selection/Handle/Grid | 独自実装（crop 矩形 `x`/`y`/`width`/`height`（`u32`）の整数純粋状態機械。canvas・ポインタ座標・浮動小数点を一切扱わず、アスペクト比固定時は `width` 主導・`height` 従属の整数丸めで導出し、範囲外なら `width` を再クランプしてから再導出する fail-closed 契約。dispatch は `"move"`/`"resize"`（[`HandlePosition`] の 8 方位）/`"set"`/`"reset"`、payload はクライアント由来の信頼できない入力として厳密パース + fail-closed で扱う。実画像切り出し（ピクセルデータ生成）はスコープ外） | #844（`docs/policy/intentional-non-adoption.md` §3.22 の再導入、先例は AngleSlider #842） |
-| Fieldset | `fieldset` | Root/Legend/HelperText/ErrorText | なし（`field` と同じ判断で `disabled`/`invalid` は呼び出し側が決める SSR 静的な props。ネイティブ `<fieldset>`/`<legend>` の `disabled` 伝播・アクセシブルネーム自動関連付けを前提とし、`error_text` は非該当時 `hidden` 存在属性を付与する fail-closed 描画（`field::error_text` と同型）） | #602 |
+| コンポーネント | モジュール | anatomy パーツ | 埋め込む状態機械 |
+|---|---|---|---|
+| Collapsible | `collapsible` | Root/Trigger/Indicator/Content | `state::Disclosure` |
+| [Accordion（single モード）](../../site/components/accordion.md) | `accordion` | Root/Item/ItemTrigger/ItemIndicator/ItemContent | `state::SingleSelect` |
+| [Tabs](../../site/components/tabs.md) | `tabs` | Root/List/Trigger/Content（自由関数 `tabs()`、SSR 静的選択状態のみ） | なし（クリック/dispatch は wasm 層のスコープ） |
+| [Tooltip](../../site/components/tooltip.md) | `tooltip` | Root/Trigger/Positioner/Content/Arrow/ArrowTip | `state::Disclosure` |
+| [Dialog](../../site/components/dialog.md) | `dialog` | Root/Trigger/Backdrop/Positioner/Content/Title/Description/CloseTrigger | `state::Disclosure` |
+| [Popover](../../site/components/popover.md) | `popover` | Root/Trigger/Anchor/Positioner/Arrow/ArrowTip/Content/Title/Description/CloseTrigger/Indicator | `state::Disclosure` |
+| [RadioGroup](../../site/components/radio-group.md) | `radio_group` | Root/Label/Item/ItemControl/ItemText/ItemHiddenInput | `state::SingleSelect` |
+| [Switch](../../site/components/switch.md) | `switch` | Root/Control/Thumb/Label/HiddenInput | 独自実装（`"checked"`/`"unchecked"` 語彙が `Disclosure` と異なるため `Component`/`Hydrate` を直接実装） |
+| Field | `field` | Root/Label/Input/Textarea/Select/HelperText/ErrorText/RequiredIndicator | なし（`invalid`/`disabled`/`required`/`readonly` は SSR 静的な props） |
+| [Menu](../../site/components/menu.md) | `menu` | Root/Trigger/Indicator/Positioner/Content/Arrow/ArrowTip/Item/ItemGroup/ItemGroupLabel/Separator | `state::Disclosure` |
+| [Select](../../site/components/select.md) | `select` | Root/Label/Control/Trigger/ValueText/ClearTrigger/Indicator/Positioner/Content/ItemGroup/ItemGroupLabel/Item/ItemText/ItemIndicator/HiddenSelect | `state::Disclosure` + `state::SingleSelect`（開閉 + 選択値の合成） |
+| [Avatar](../../site/components/avatar.md) | `avatar` | Root/Image/Fallback | 独自実装（`"loading"`/`"loaded"`/`"error"` の 3 値ステータス、`ImageStatus`） |
+| [NumberInput](../../site/components/number-input.md) | `number_input` | Root/Label/Control/Input/IncrementTrigger/DecrementTrigger | 独自実装（連続量の値のため `data-state` を持たず `Component`/`Hydrate` を直接実装。数値整形・パースはロケール非依存で決定的、`step` 演算は小数桁への丸めで浮動小数点ドリフトを防ぐ） |
+| [PasswordInput](../../site/components/password-input.md) | `password_input` | Root/Label/Control/Input/VisibilityTrigger/Indicator | 独自実装（`"visible"`/`"hidden"` 語彙が `Checkable` と異なるため `Component`/`Hydrate` を直接実装、`PasswordInput`）。パスワード値そのものは一切扱わない（§6 参照） |
+| [Slider](../../site/components/slider.md) | `slider` | Root/Label/Control/Track/Range/Thumb/HiddenInput/ValueText | 独自実装（連続量の値のため `data-state` を持たず `Component`/`Hydrate` を直接実装。`value` は常に `min` 起点で `step` 単位へスナップしてから `[min, max]` へ clamp する。`thumb` が `role="slider"` + `aria-valuemin/max/now`/`aria-orientation` を担う） |
+| [PinInput](../../site/components/pin-input.md) | `pin_input` | Root/Label/Control/Input/HiddenInput | 独自実装（固定桁数の文字配列 + フォーカス位置、`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装） |
+| [TagsInput](../../site/components/tags-input.md) | `tags_input` | Root/Label/Control/Input/Item/ItemPreview/ItemText/ItemInput/ItemDeleteTrigger/ClearTrigger/HiddenInput | 独自実装（可変長タグ文字列リスト + 編集中インデックス、`SingleSelect`/`MultiSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`control` は `role="listbox"`、`item-preview` は `role="option"`） |
+| [RatingGroup](../../site/components/rating-group.md) | `rating_group` | Root/Label/Control/Item/HiddenInput | 独自実装（`1..=count` の数値評価値 + hover プレビューを持つ。`hover` は SSR 非活性・hydration 非直列化。`Component`/`Hydrate` を直接実装） |
+| [Editable](../../site/components/editable.md) | `editable` | Root/Label/Area/Input/Preview/Control/EditTrigger/SubmitTrigger/CancelTrigger | 独自実装（`"preview"`/`"edit"` の 2 モードが `Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`mode == Preview` のとき常に `draft == value` を保つ不変条件を持つ） |
+| [Toggle](../../site/components/toggle.md) | `toggle` | Root/Indicator | `state::Checkable`（`data-state` 語彙は `"on"`/`"off"`。`checked_data_state` ではなく `state::pressed_data_state` で変換し、Switch の `"checked"`/`"unchecked"` と分離する） |
+| [ToggleGroup（single モード）](../../site/components/toggle-group.md) | `toggle_group` | Root/Item | `state::SingleSelect`（dispatch は `"toggle"` のみ受理、常時 deselectable） |
+| [MultiToggleGroup（multiple モード）](../../site/components/toggle-group.md) | `toggle_group` | Root/Item | `state::MultiSelect`（dispatch は `"toggle"` のみ受理） |
+| [SegmentGroup](../../site/components/segment-group.md) | `segment_group` | Root/Indicator/Item/ItemText/ItemControl/ItemHiddenInput | `radio_group::RadioGroup`（`state::SingleSelect`）へ全委譲（独自の状態機械を新設せず、既存 RadioGroup の dispatch/hydration をそのまま再利用する） |
+| [Listbox / MultiListbox](../../site/components/listbox.md) | `listbox` | Root/Label/Content/ItemGroup/ItemGroupLabel/Item/ItemText/ItemIndicator/ValueText | `state::SingleSelect`（`Listbox`）/ `state::MultiSelect`（`MultiListbox`）へ全委譲。常時展開（trigger/positioner なし）で `Select` とは責務境界が異なる（詳細は `listbox` モジュール doc 参照） |
+| [Combobox](../../site/components/combobox.md) | `combobox` | Root/Label/Control/Input/Trigger/ClearTrigger/Positioner/Content/ItemGroup/ItemGroupLabel/Item/ItemText/ItemIndicator | `state::Disclosure` + `state::SingleSelect` + `state::TextInput`（開閉 + 選択値 + 入力値の合成）。ARIA 1.2 combobox パターンに準拠し `aria-activedescendant` は `content` ではなく `input` 側に配線する（Select との差異） |
+| [Steps](../../site/components/steps.md) | `steps` | Root/List/Item/Trigger/Indicator/Separator/Content/CompletedContent/PrevTrigger/NextTrigger | 独自実装（`count`（全 step 数）+ `step`（現在位置、`0..=count`）を持つ。item は complete/current/incomplete の 3 状態、current な item の trigger のみ `aria-current="step"`。`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装） |
+| [TreeView](../../site/components/tree-view.md) | `tree_view` | Root/Label/Tree/Branch/BranchControl/BranchIndicator/BranchText/BranchContent/BranchIndentGuide/Item/ItemText/ItemIndicator | `state::MultiSelect`（展開中のブランチ値の集合）+ `state::SingleSelect`（選択中のノード値）の合成。両者とも `hydration_attrs` のフィールド名が `"selected"` で衝突するため、展開集合側のみ `"expanded"` へ書き換えて運ぶ（`tree_view` モジュール doc §hydration フィールド名参照）。`TreeView::render_nodes` が `TreeNode` 列から深さ・`aria-posinset`/`aria-setsize` を再帰的に計算する |
+| [Pagination](../../site/components/pagination.md) | `pagination` | Root/Item/Ellipsis/PrevTrigger/NextTrigger | 独自実装（総件数・ページサイズ・現在ページ・sibling/boundary 件数から省略記号を含むページ列を導出する `page_range`（決定的・`O(boundary_count + sibling_count)`）+ `Component`/`Hydrate` を直接実装する値状態機械。現在ページは `aria-current="page"`/`data-selected` で、端到達は `disabled`/`data-disabled` で表現する） |
+| [Breadcrumb](../../site/components/breadcrumb.md) | `breadcrumb` | Root/List/Item/Link/CurrentLink/Separator/Ellipsis | なし（自由関数のみ、SSR 静的な意味論ナビ。現在位置は `aria-current="page"` + `data-current` の併用で表現） |
+| [HoverCard](../../site/components/hover-card.md) | `hover_card` | Root/Trigger/Positioner/Content/Arrow/ArrowTip | `state::Disclosure` |
+| [Carousel](../../site/components/carousel.md) | `carousel` | Root/Control/PrevTrigger/NextTrigger/ItemGroup/Item/IndicatorGroup/Indicator | 独自実装（`0..slide_count` を循環し得る index 値、`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。dispatch は `"next"`/`"prev"`/`"goto"`、`Goto` の範囲外 index は no-op で fail-closed。`item` は `role="group"` + `aria-roledescription="slide"` + 位置ラベル、`indicator` は `aria-current`。autoplay（play/pause/`aria-live` 切替/delay）は初期実装スコープ外） |
+| [Drawer](../../site/components/drawer.md) | `drawer` | Root/Trigger/Backdrop/Positioner/Content/Title/Description/CloseTrigger（Dialog と同一 8 パーツ、`data-scope="drawer"`） | `dialog::Dialog`（Dialog の状態機械へ全委譲。新規状態機械は作らない。固有に持つのは画面端の方向を表す `DrawerPlacement`（`start`/`end`/`top`/`bottom`）を `root`/`positioner`/`content` へ `data-placement` として出力する処理のみ） |
+| [Link](../../site/components/link.md) | `link` | Root | なし（自由関数のみ。`external` オプトインで `target="_blank"` + `rel="noopener noreferrer"` を不可分に付与。現在位置は `aria-current="page"` + `data-current`） |
+| [LinkOverlay](../../site/components/link-overlay.md) | `link_overlay` | Root/Overlay | なし（自由関数のみ。`::before` 疑似要素の代わりに `overlay` 自身を styled 層で `position: absolute; inset: 0;` 展開するカード全面クリック化） |
+| [NavList](../../site/components/nav-list.md) | `nav_list` | Root/Heading/List/Item/Link | なし（自由関数のみ。`role` を一切付与しない文書ナビ専用部品。`docs-site::nav.rs::sidebar` を本部品へ移行済み） |
+| [ActionBar](../../site/components/action-bar.md) | `action_bar` | Root/Positioner/Content/SelectionTrigger/Separator/CloseTrigger | `state::Disclosure`（構造上最も近い先行例は Dialog。`content` は `role="toolbar"` + `aria-label`、`separator` は `role="separator"` + `aria-orientation="vertical"`。選択件数から `open` を導出する糖衣 API は持たず、開閉は呼び出し側が dispatch で制御する） |
+| [Toast](../../site/components/toast.md) | `toast` | Group/Root/Title/Description/ActionTrigger/CloseTrigger | 独自実装（複数通知の有界キュー、`max` 超過時に最古を押し出す。`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`aria-live` は `ToastStatus` から決定的に導出（`Error` のみ `"assertive"`）。タイマー自動 dismiss・`"push"` の文字列 dispatch は wasm-full 後続イシューのスコープ外） |
+| [Checkbox](../../site/components/checkbox.md) | `checkbox` | Root/Control/Indicator/Label/HiddenInput | 独自実装（`"checked"`/`"unchecked"`/`"indeterminate"` の 3 値、`Switch` と同じ理由で `Component`/`Hydrate` を直接実装。`hidden-input` がネイティブ `<input type="checkbox">` を担い、フォーム送信・ブラウザネイティブ操作との互換を保つ） |
+| [Progress（linear + circular）](../../site/components/progress.md) | `progress` | Root/Label/ValueText/Track/Range（linear）+ Circle/CircleTrack/CircleRange（circular、SVG。`crates/headless-ui/src/progress.rs` rustdoc の「Circular」節参照） | 独自実装（`value`（`min`..=`max`、または indeterminate を表す `None`）を持つ連続量の値状態機械。`data-state`（`"indeterminate"`/`"loading"`/`"complete"`）は `Progress::data_state` が一元管理し、パーツ関数間で分裂させない。circular の SVG ジオメトリ（`--size`/`--thickness`/`--percent`/`stroke-dasharray`/`stroke-dashoffset`）は CSS 変数参照の固定リテラルで表現する headless 中立設計。indeterminate 時は `--percent` 等を出力せず進捗系の値を捏造しない fail-closed 方針） |
+| [ToggleTip](../../site/components/toggle-tip.md) | `toggle_tip` | Root/Trigger/Positioner/Content/Arrow/ArrowTip | `state::Disclosure` |
+| [VisuallyHidden](../../site/components/visually-hidden.md) | `visually_hidden` | Root | なし（自由関数のみ。視覚的には隠すが支援技術には読ませ続けるテキストコンテナ。`aria-hidden` を一切出力しない不変条件がある） |
+| [SkipNav](../../site/components/skip-nav.md) | `skip_nav` | Link/Content | なし（自由関数のみ。WCAG 2.1 SC 2.4.1 Bypass Blocks 対応の「本文へスキップ」リンク。`link` は呼び出し側から任意の URL を受け取らず常に `#<id>` のみを組み立てるためスキーム注入経路を構造的に持たない） |
+| [Clipboard](../../site/components/clipboard.md) | `clipboard` | Root/Label/Control/Input/Trigger/Indicator/ValueText | 独自実装（コピー済みかどうかの 2 値、`Avatar`/`Switch` と同じ理由で `Component`/`Hydrate` を直接実装。コピー済み表示は `data-state` 値語彙ではなく `data-copied` 存在属性で表現する ark-ui/chakra-ui の慣習に従う。コピー対象値（`value`）は状態機械に持たせず `root` の `data-value` 属性としてのみ出力する。`navigator.clipboard.writeText` 実配線・タイムアウトによる自動リセットは `fandhe-frontend-wasm-full::headless_clipboard`（writeText 成功ゲート・fail-closed・値ログ禁止）が提供する） |
+| [QrCode](../../site/components/qr-code.md) | `qr_code` | Root/Frame（`svg`）/Pattern（`path`）/Overlay | なし（自由関数のみ。`value`/`ecc` から一意に導出される純粋な変換であり遷移可能な状態を持たない。外部依存ゼロの QR Model 2（ISO/IEC 18004）byte モードエンコーダ（`qr_encode`、非公開実装）を内蔵。QR 画像自体のダウンロード導線が必要な場合は `download_trigger` を組み合わせる。`value` の動的更新・numeric/alphanumeric/kanji モードはスコープ外） |
+| [FloatingPanel](../../site/components/floating-panel.md) | `floating_panel` | Root/Trigger/Positioner/Content/Header/Title/Control/StageTrigger/CloseTrigger/Body | `state::Disclosure`（開閉）+ 独自実装の `Stage`（`"default"`/`"minimized"`/`"maximized"` の 3 値、`Disclosure`/`SingleSelect` の語彙に収まらないため `steps::Steps`/`progress::Progress` と同じ判断で本モジュール内の独自 enum とする）。座標は `positioner` の `--fandhe-x`/`--fandhe-y`（`positioning::css_vars` の CSS 変数名の語彙のみ再利用、placement 計算自体は行わずドラッグ操作によるビューポート絶対座標をそのまま反映）。`content` は `role="dialog"` を固定付与するが `aria-modal` は出力しない非モーダル overlay。dispatch は `"open"`/`"close"`/`"toggle"`/`"minimize"`/`"maximize"`/`"restore"`/`"set_position"`（payload `"x,y"` は有限 `f64` としてパースできる場合のみ受理、`NaN`/`inf`・パース不能時は no-op）。ドラッグ移動・リサイズの実 DOM 配線・フォーカストラップ・Escape キー閉鎖・topmost 管理は `fandhe-frontend-wasm-full` の将来イシューのスコープ外 |
+| [ScrollArea](../../site/components/scroll-area.md) | `scroll_area` | Root/Viewport/Content/Scrollbar/Thumb/Corner | なし（自由関数のみ。`viewport` に `tabindex="0"` を固定付与、`scrollbar`/`thumb` は `data-orientation`、`scrollbar`/`corner` は `aria-hidden="true"` を固定付与。JS によるスクロール位置追従・thumb drag は初期実装対象外） |
+| [DownloadTrigger](../../site/components/download-trigger.md) | `download_trigger` | Root | なし（自由関数のみ。`a[download]` 属性による宣言的ダウンロードトリガー（ark-ui/chakra-ui の `Blob`/非同期 `data` 前提の DownloadTrigger を静的部品として代替）。`href` の URL スキーム検証は `render()` 側の既定経路（`data:`/`blob:` を含め deny-by-default）に委譲し、独自検証を追加しない） |
+| [Splitter](../../site/components/splitter.md) | `splitter` | Root/Panel/ResizeTrigger/ResizeTriggerIndicator | 独自実装（各パネルの `size`/`min`/`max`（%）を fail-closed に正規化するパネルサイズ状態機械。`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`resize-trigger` は `role="separator"` + `aria-valuemin/max/now`（先行パネルのサイズ%）+ `aria-orientation`（セパレータ自体の向き、パネルレイアウトの向きとは逆）+ `aria-controls`（先行パネル id）を出力する WAI-ARIA Window Splitter パターン準拠。pointer ドラッグ・キーボード操作の DOM 配線・collapse/expand は wasm-full 後続イシューのスコープ外） |
+| [JsonTreeView](../../site/components/json-tree-view.md) | `json_tree_view` | Key/Value（`tree_view` の Root/Label/Tree/Branch/BranchControl/BranchIndicator/BranchContent/BranchIndentGuide/Item/ItemIndicator を構造部として再利用） | `tree_view::TreeView` をそのまま再利用（新規状態機械なし）。決定的な JSON 風データ構造 `JsonValue`（外部依存ゼロの自前 enum、`Object` は挿入順保持の `Vec` ペア列）をツリー表示する。ノード識別子（`data-value`）は RFC 6901 JSON Pointer で決定的に導出し、`value` パーツの `data-kind`（`"null"`/`"bool"`/`"number"`/`"string"`/`"array"`/`"object"`）は `JsonValue::kind` の固定語彙のみを出力する。`expanded_to_depth` は ark-ui `defaultExpandedDepth` 相当の決定的初期展開ヘルパ |
+| [ColorPicker](../../site/components/color-picker.md) | `color_picker` | Root/Label/Control/Trigger/Positioner/Content/Area/AreaBackground/AreaThumb/ChannelSlider(+Track/+Thumb)/ChannelInput/ValueText/HiddenInput | `Hsv` + `alpha: u8` + `state::Disclosure`（開閉）を埋め込んだ独自実装。色領域・色相/アルファスライダーの見た目は canvas 非依存（CSS グラデーション + `area_x_percent`/`area_y_percent`/`hue_percent`/`alpha_percent` の導出整数割合のみ）。dispatch は `"open"`/`"close"`/`"toggle"`/`"set_hex"`（`Color::parse_hex` 検証）/`"set_channel"`（payload `"<channel>:<value>"`、固定語彙 + 範囲検証）。EyeDropperTrigger・SwatchGroup 系・format 切替・pointer ドラッグの DOM 配線はスコープ外 |
+| [FileUpload](../../site/components/file-upload.md) | `file_upload` | Root/Label/Dropzone/Trigger/ItemGroup/Item/ItemName/ItemSizeText/ItemDeleteTrigger/ClearTrigger/HiddenInput | 独自実装（ファイルメタデータ`FileUploadItem`（name/size_bytes/mime_type、`File` オブジェクト自体は非保持）の受理済み一覧 + 直近拒否履歴、`SingleSelect`/`MultiSelect`/`TagsInput` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`AddFiles` は型付き API 限定で文字列 dispatch では受理しない。実 `File` API 接触は `fandhe-frontend-wasm-full` の `headless_file_upload.rs` に隔離し（`docs/policy/intentional-non-adoption.md` §7 の保留解除）、`ItemPreview`/`ItemPreviewImage`（object URL プレビュー）はスコープ外） |
+| [DateInput](../../site/components/date-input.md) | `date_input` | Root/Label/Control/SegmentGroup/Segment/HiddenInput | 独自実装（年/月/日セグメント + フォーカス位置を持つ値状態機械。`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。暦計算は `date` の `PlainDate::new`/`parse_iso`/`days_in_month` へ委譲し、本モジュール自体は現在時刻を取得しない。各 `segment` は `role="spinbutton"` + `aria-valuemin/max/now`（未入力時は valuenow 省略 + `data-placeholder`）+ `aria-label`（"Year"/"Month"/"Day"）を出力する WAI-ARIA Spinbutton パターン準拠。3 セグメント充足時のみ `PlainDate::new` で実在日付として検証し（`2/30` 等は `value()` が `None` を返す fail-closed 契約。セグメント値自体は破棄せず `data-invalid` で可視化する）、hydration も同じ契約（構造的範囲外・パース不能のみ拒否、実在しない日付はそのまま受理）。`date_input::segment_group` は `segment_group`（segmented control）とは無関係の別 anatomy スコープ。granularity（hour/minute/second）・range 選択・locale 依存整形・キーボード操作の DOM 配線は wasm-full 後続イシューのスコープ外 |
+| [Timer](../../site/components/timer.md) | `timer` | Root/Area/Item/ItemValue/ItemLabel/Separator/Control/ActionTrigger | 独自実装（idle/running/paused/completed の 4 値、`Clipboard` と同じ理由で `Component`/`Hydrate` を直接実装。`countdown`/`start_ms`/`target_ms`/`interval_ms` の設定値も状態機械へ持たせ hydration で往復させる。tick（経過ミリ秒）を `TimerAction::Tick` として外部から明示的に注入する決定的状態機械であり `std::time`/`Instant` 等の時計 API に一切依存しない。`docs/design/component-coverage-map.md` 保留解除（date-time 系）。実 tick 駆動（`setInterval`）は `fandhe-frontend-wasm-full::headless_timer` が提供する） |
+| [Tour](../../site/components/tour.md) | `tour` | Root/Backdrop/Spotlight/Positioner/Arrow/ArrowTip/Content/Title/Description/ProgressText/CloseTrigger/ActionTrigger | 独自実装（`Idle`/`Active { step }`/`Skipped`/`Completed` の 4 値、`Steps`/`Toast` と同じ理由で `Component`/`Hydrate` を直接実装。`content` は `role="dialog"` + `aria-labelledby`/`aria-describedby`、`progress-text` は `aria-live="polite"`。`positioner` は現在ステップの `placement`（`positioning::Placement`）から `data-side`/`data-align` を静的出力するのみで座標計算は行わない（ADR §4.1）。`spotlight` は `target` を `data-target` としてエスケープ済み出力するのみで DOM 解決は行わない。対象要素の実座標追従・スクロール/リサイズ再計算・`target` セレクタの実解決・クリック/キーボードの実配線は `fandhe-frontend-wasm-full` の後続イシューのスコープ外。`docs/design/component-coverage-map.md` 保留解除（装飾系）） |
+| [AngleSlider](../../site/components/angle-slider.md) | `angle_slider` | Root/Label/Control/Thumb/ValueText/HiddenInput | 独自実装（`0..=359` の整数角度値状態機械。受理時に `value % 360` で正規化し、`step` は `1..=359` へ clamp する。`"set"` は `0` 起点の `step` グリッドへ最近傍スナップしてから正規化し、`"increment"`/`"decrement"` は非負整数の剰余演算のみでラップアラウンドする（浮動小数点不使用）。`Component`/`Hydrate` を直接実装し、hydration は範囲外 value/step を `HydrateError` で拒否する fail-closed 契約。ポインタ座標→角度変換（`atan2`）は `fandhe-frontend-wasm-full` 側の純粋関数へ隔離し、本モジュールはポインタ座標を一切扱わない） |
+| [SignaturePad](../../site/components/signature-pad.md) | `signature_pad` | Root/Label/Control/Segment（`svg`）/SegmentPath（ストロークごと、`path`）/Guide/ClearTrigger/HiddenInput | 独自実装（`strokes: Vec<Stroke>` + `disabled`/`read_only` を持つ値状態機械、`Component`/`Hydrate` を直接実装。canvas は一切使用せず、`stroke_path_d` が同一座標列から常に同一の SVG `d` 属性値を生成する決定的純粋関数（出力文字集合は `M`/`L`/数字/`.`/`,`/`-`/空白に閉じる）。dispatch は `"add-stroke"`/`"clear"`/`"undo"`、点数上限（`MAX_POINTS_PER_STROKE`）・ストローク数上限（`MAX_STROKES`）超過は fail-closed で拒否する。ポインタイベントからの座標収集は `fandhe-frontend-wasm-full::headless_signature_pad` の責務） |
+| [ImageCropper](../../site/components/image-cropper.md) | `image_cropper` | Root/Viewport/Image/Selection/Handle/Grid | 独自実装（crop 矩形 `x`/`y`/`width`/`height`（`u32`）の整数純粋状態機械。canvas・ポインタ座標・浮動小数点を一切扱わず、アスペクト比固定時は `width` 主導・`height` 従属の整数丸めで導出し、範囲外なら `width` を再クランプしてから再導出する fail-closed 契約。dispatch は `"move"`/`"resize"`（[`HandlePosition`] の 8 方位）/`"set"`/`"reset"`、payload はクライアント由来の信頼できない入力として厳密パース + fail-closed で扱う。実画像切り出し（ピクセルデータ生成）はスコープ外） |
+| Fieldset | `fieldset` | Root/Legend/HelperText/ErrorText | なし（`field` と同じ判断で `disabled`/`invalid` は呼び出し側が決める SSR 静的な props。ネイティブ `<fieldset>`/`<legend>` の `disabled` 伝播・アクセシブルネーム自動関連付けを前提とし、`error_text` は非該当時 `hidden` 存在属性を付与する fail-closed 描画（`field::error_text` と同型）） |
 
-## 4a0. 色変換コア（`color`、イシュー #838、親 #837）
+## 4a0. 色変換コア（`color`）
 
 `color` モジュールは anatomy を持たない純粋関数モジュールであり、上表の
 UI コンポーネント群とは性質が異なる（ブラウザ API 依存なし・wasm 境界隔離の
 対象外）。RGB / HSL / HSV / HEX の相互変換を、外部依存ゼロ・整数演算のみで
-提供する。`fandhe-frontend-pre-styled-ui::color_swatch`（ColorSwatch、#838）
-と `color_picker`（ColorPicker、#839）が本モジュールの型・変換関数を土台に
-する。
+提供する。`fandhe-frontend-pre-styled-ui::color_swatch`（ColorSwatch）と
+`color_picker`（ColorPicker）が本モジュールの型・変換関数を土台にする。
 
 - **型**: `Rgb { r, g, b }`（全フィールド公開、`u8` 全域が有効値）/
   `Hsl`・`Hsv`（`h: u16`（`0..=359`）・`s`/`l`/`v: u8`（`0..=100`）、フィールド
@@ -134,12 +125,11 @@ UI コンポーネント群とは性質が異なる（ブラウザ API 依存な
   `Color::to_hex_string()` の出力字母は常に `#` + 小文字 16 進数字に閉じる
   （ColorSwatch が CSS カスタムプロパティ値としてそのまま使う契約の根拠）。
 
-## 4a. 位置決め（anchor positioning、イシュー #590、親 #588）
+## 4a. 位置決め（anchor positioning）
 
-Popover/Tooltip/Menu/Select の `positioner`/`arrow`/`arrow_tip` は「CSS フック
-（`data-*` セレクタ）のみ」だったが、イシュー #590（正の規範文書は
-`docs/design/anchor-positioning-design.md`。以下 ADR）で Floating UI 相当の
-placement 計算が実装済みとなった。
+Popover/Tooltip/Menu/Select の `positioner`/`arrow`/`arrow_tip` は Floating UI
+相当の placement 計算を実装済みである（正の規範文書は
+`docs/design/anchor-positioning-design.md`。以下 ADR）。
 
 ### 4a.1 対象コンポーネントと anatomy
 
@@ -149,18 +139,18 @@ placement 計算が実装済みとなった。
 | Tooltip | Positioner/Arrow/ArrowTip | `"tooltip"` | あり |
 | Menu | Positioner/Arrow/ArrowTip | `"menu"` | あり |
 | Select | Positioner のみ | `"select"` | なし |
-| Combobox | Positioner のみ（`data-scope="combobox"` の anatomy は #749 で実装済み） | `"combobox"` | なし |
+| Combobox | Positioner のみ（`data-scope="combobox"` の anatomy は実装済み） | `"combobox"` | なし |
 | HoverCard | Positioner/Arrow/ArrowTip | `"hover-card"` | あり |
 | ToggleTip | Positioner/Arrow/ArrowTip | `"toggle-tip"` | あり |
 
 Combobox の `positioner` は SSR 静的マークアップ（開閉状態の `data-state`/
-`hidden`）のみを #749 時点で実装済みであり、`crates/wasm-full/src/position.rs`
-の `PositionedKind` への `Combobox` バリアント追加（実 DOM 計測・
+`hidden`）のみ実装済みであり、`crates/wasm-full/src/position.rs` の
+`PositionedKind` への `Combobox` バリアント追加（実 DOM 計測・
 `OPEN_POSITIONER_SELECTOR` への組み込み）は後続イシューのスコープである
 （`select`/`menu`/`popover`/`tooltip` と同型の position 連携完了は未了）。
 HoverCard も同様に、`positioner`/`arrow`/`arrow_tip` anatomy とパーツ関数の
-attrs 透過（#759 時点で実装済み）に対し、`PositionedKind::from_scope` への
-`"hover-card"` 追加（実 DOM 計測対象化）は後続イシューのスコープである。
+attrs 透過は実装済みだが、`PositionedKind::from_scope` への `"hover-card"`
+追加（実 DOM 計測対象化）は後続イシューのスコープである。
 
 再計算対象の走査は開いている positioner のみに限定する
 セレクタ `[data-part="positioner"][data-state="open"]`
@@ -236,9 +226,7 @@ fail-closed: `panic!`/`unwrap()` を使わず、`config.placement` のまま座�
 
 - `same_width == false` のときは `--fandhe-reference-width` 自体を
   出力しない（`PositioningConfig::same_width` をそのまま渡す契約。
-  イシュー #622 レビュー指摘: 従来は `same_width` の値によらず常に
-  出力しており、コンポーネント種別ごとの sameWidth 既定値が実行時挙動に
-  影響しない不具合があった）。
+  コンポーネント種別ごとの sameWidth 既定値が実行時挙動に反映される）。
 - `position.arrow` が `Some` のときのみ arrow 2 変数を出力する。
 - 出力は内部生成の数値書式（px）のみからなり、非有限値は最終防御線として
   `0.0` へ丸める。
@@ -271,17 +259,7 @@ Popover/Tooltip は `false`。
 - DOM 属性値（`data-side`/`data-requested-side` 等）は改ざんされうる
   クライアント入力として扱い、fail-closed でパースする。
 
-### 4a.6 意図的非対応
-
-Floating UI 高度 middleware（`autoPlacement`/`inline`/`hide`/`size`
-（sameWidth 以外）/`VirtualElement`/`autoUpdate` 相当の連続監視）の非採用
-判断は `docs/policy/intentional-non-adoption.md` §3.20（正、イシュー #639
-で転記済み）を参照する。CSS Anchor Positioning（Web 標準）の非採用は
-同書 §3.21 を参照し、一次記録・progressive enhancement の検討経緯は ADR
-第 4.5 節・第 4.5a 節を参照する（評価軸・再評価トリガーの表は本書へ
-複製しない）。
-
-### 4a.7 `data-positioned` マーカー契約（イシュー #663、ADR §4.4b）
+### 4a.7 `data-positioned` マーカー契約（ADR §4.4b）
 
 `fandhe-frontend-wasm-full` の `position::wiring::reposition_one` は座標
 反映のたびに `positioner` へ `data-positioned=""`（値なしの存在マーカー）
@@ -297,91 +275,12 @@ fail-closed に留まる。arrow（Menu のみ、`has_arrow()` が Select を対
 とする、§4a.2）は `--fandhe-arrow-x`/`--fandhe-arrow-y` を変数フォール
 バックのみで消費し、マーカー切り替えを必要としない。
 
-## 4b. ロードマップ（レイアウト・ナビゲーション系部品、イシュー #716）
+## 4c. 暦計算コア（`date` モジュール）
 
-### 4b.1 検討の背景
-
-`docs/design/docs-site-styled-ui-adoption.md`（イシュー #694）は、docs
-サイト骨格（`crates/docs-site/src/nav.rs`）への pre-styled-ui 適用を
-以下 2 点の意味論不整合を理由に見送った。
-
-- §3.1: `nav.rs::sidebar`（文書ナビ・リンク一覧）に対応する部品が
-  headless-ui に存在せず、最も近い `menu` は WAI-ARIA `menu` ロール
-  （操作可能なコマンドリスト向け）であり転用するとアクセシビリティを
-  毀損する
-- §3.2: `nav.rs::prev_next_nav`（前後ページャ、アンカー要素全体をカード化
-  するリンク）に対応する部品がなく、`card` はアンカー全体のカード化に
-  非対応
-
-同書 §5 再評価トリガー 1 は「pre-styled-ui にレイアウト・ナビゲーション系
-部品（Breadcrumb / Pagination / 文書ナビ向け Link リスト / Container 等）
-が追加されたとき」を明示しており、本イシュー #716 はこのトリガーに先立ち
-候補群の追加要否を検討し、恒久文書として記録するものである。
-
-**本節の位置づけ**: 本節は検討結果の記録であり、実装（コード追加）を含ま
-ない。追加候補と判断した部品も、実装着手には別途イシュー起票とユーザー
-承認を要する（`.claude/rules/out-of-scope-tracking.md`）。
-
-### 4b.2 候補の分類軸
-
-ark-ui / chakra-ui のレイアウト・ナビゲーション系コンポーネントを、
-本クレートの設計方針（anatomy + `data-*` + WAI-ARIA、状態機械は
-`fandhe_frontend_interactive::Component`/`Hydrate` 経由）に照らして
-3 分類する。
-
-| 分類 | 特徴 | 本クレートでの実装形態の見立て |
-|---|---|---|
-| (a) 状態機械を持つナビ | ページ番号・現在位置等のクライアント状態を持つ | `select`/`menu` と同型（`state::Disclosure`/`SingleSelect` 相当の新規状態機械 + anatomy）。工数大 |
-| (b) SSR 静的な意味論ナビ | 「現在位置のハイライト」のみで状態機械不要 | `tabs`/`field` と同型（自由関数のみ、SSR 静的 props で `aria-current`/`data-current` を出力）。工数小〜中 |
-| (c) 純粋レイアウトプリミティブ | CSS ボックスモデルのみで ARIA 意味論を持たない | 「プレーンな HTML / CSS を尊重する」という本フレームワークの中核価値（CLAUDE.md Overview）と `docs/policy/intentional-non-adoption.md` の評価軸（明示性・コンテキスト消費）に照らし、headless 層としての意味がない |
-
-### 4b.3 候補ごとの評価と判断
-
-| 候補 | 分類 | ark-ui / chakra-ui の実装状況 | docs-site 利用見込み | 工数参考 | 判断 |
-|---|---|---|---|---|---|
-| 文書ナビ向け Link リスト（`nav` + リンク一覧 + `aria-current="page"`） | (b) | ark-ui に専用コンポーネントはなく、chakra-ui も汎用 `Link`/`List` の組み合わせで表現する軽量パターン | `nav.rs::sidebar` の意味論不整合（§3.1）を直接解消しうる第一候補 | `field.rs`（740 行）程度。状態機械なし・anatomy と `aria-current`/`data-current` 出力のみ | **追加候補**（最優先）→ **イシュー #756 で実装済み**（headless `crates/headless-ui/src/nav_list.rs` + styled `crates/pre-styled-ui/src/nav_list.rs`。`nav.rs::sidebar` 自体を本部品へ移行済み、§3.1 解消） |
-| Link / LinkOverlay（アンカー要素全体のカード化） | (b) | chakra-ui に `Link`/`LinkOverlay`（`LinkBox` パターン、`position: absolute` でアンカーを親要素全面へ拡張する構成）あり。ark-ui に専用コンポーネントはなし | `nav.rs::prev_next_nav` の `card` 非対応（§3.2）を直接解消しうる | `avatar.rs` 相当（独自状態なしの小規模 anatomy）と同程度。工数小 | **追加候補**→ **イシュー #756 で実装済み**（headless `crates/headless-ui/src/link.rs`（Link）・`crates/headless-ui/src/link_overlay.rs`（LinkOverlay）+ styled 対）。`nav.rs::prev_next_nav` を LinkOverlay へ移行済み、§3.2 解消 |
-| Breadcrumb | (b) | ark-ui に headless 実体はなく、chakra-ui も styled 合成のみ（状態機械を持たない） | 現時点で docs-site に階層パンくずの利用箇所はない（サイドバー1階層構成のため）。ユーザープロジェクトでの利用見込みはある | `tabs.rs`（790 行）程度。状態機械なし・`aria-current="page"` 出力のみ | **追加候補**（優先度中）→ **イシュー #755 で実装済み**（headless `crates/headless-ui/src/breadcrumb.rs` + styled `crates/pre-styled-ui/src/breadcrumb.rs`。docs-site showcase へは掲示済みだが `nav.rs::sidebar` 自体の置き換えは行っていない、下記 §4b.5 参照） |
-| Pagination | (a) | ark-ui に headless 実体あり（ページ番号・件数・現在ページの状態機械を持つ） | 当初は docs-site に該当箇所なし・利用見込み未確認だったが、イシュー #751（親トラッキング #520 の全コンポーネント網羅方針）により保留を解除して実装した（§4 参照、`crates/docs-site/src/showcase.rs::pagination_section` に静的掲示あり） | `select.rs`（1481 行）/`menu.rs`（1818 行）相当だったが、実装は `page_range`（決定的・境界/sibling レンジのマージ）+ 値状態機械の直接実装で完結し想定より小規模だった | **実装済み**（#751。headless: `pagination` モジュール／pre-styled: `pagination` モジュール、golden CSS・`push_recipe` 登録・Size variant あり） |
-| Steps | (a) | ark-ui に headless 実体あり（進行状態を持つウィザード的ナビ） | docs-site・examples のいずれにも利用見込みなし | Pagination 同様に工数大 | **実装済み**（イシュー #752 で保留解除。§4 コンポーネント一覧表参照。工数はかかったが状態機械が `count`/`step` の 2 値のみで `progress`/`pin_input` と同型の独自 `Component`/`Hydrate` 直接実装で収まったため、着手障壁は当初見積もりより小さかった） |
-| Container / Stack / Flex / Grid / Center 等の純粋レイアウトプリミティブ | (c) | chakra-ui に styled プリミティブとして存在するが、ark-ui に headless 実体はない（ARIA 意味論を持たないため） | 適用対象なし。プレーンな `div` + CSS で代替可能 | — | **意図的非採用**（`docs/policy/intentional-non-adoption.md` の運用に準拠。headless-ui は anatomy・ARIA・状態機械の提供が責務であり、ARIA 意味論を持たない純粋レイアウトは本層の対象外。CSS プリミティブが必要な場合はユーザー側の素の CSS で足り、フレームワーク側の抽象化はコンテキスト消費を増やすだけで利得がない） |
-
-### 4b.4 追加候補の実装方針（将来実装時の不変条件、参考）
-
-追加候補（文書ナビ向け Link リスト・Link/LinkOverlay・Breadcrumb）を
-将来実装する場合、以下を満たすこと。
-
-- 既存 (b) 群（`tabs`/`field`）と同様、自由関数のみで SSR 静的マークアップ
-  を組み立てられること（状態機械を必須にしない）
-- `href` 等のリンク属性値はすべて `fandhe_frontend_core::render` の既定
-  エスケープ（REQ-1）を経由し、`raw_html()` を使用しないこと
-- 外部依存はゼロのまま（`fandhe-frontend-core`/`-interactive` のみ）を
-  維持すること
-- 現在位置の表現は `aria-current`（値は `"page"` 等の APG 準拠語彙）と
-  `data-current` の併用とし、既存の `data-state` 値語彙一元化方針
-  （§6 不変条件 3）を踏襲すること
-
-### 4b.5 再評価条件
-
-- 追加候補（文書ナビ向け Link リスト・Link/LinkOverlay・Breadcrumb）は
-  すべて実装済み（Breadcrumb はイシュー #755、文書ナビ向け Link リスト・
-  Link/LinkOverlay はイシュー #756）。`docs/design/docs-site-styled-ui-adoption.md`
-  §5 再評価トリガー 1 の発火条件を満たしたため、同書 §3.1/§3.2 は
-  イシュー #756 で再評価し「解消済み」へ更新した（詳細は同書参照）。
-- 保留（Pagination・Steps）はいずれも実装済み（Pagination はイシュー #751、
-  Steps はイシュー #752 で保留解除・実装済み、§4b.3 参照）
-- 意図的非採用（純粋レイアウトプリミティブ）の再評価は
-  `docs/policy/intentional-non-adoption.md` §4 の運用（評価軸の充足確認を
-  Issue・PR に明記）に従う
-
-## 4c. 暦計算コア（`date` モジュール、イシュー #833、親トラッキング #832）
-
-親イシュー #832（date-time 系コンポーネント: Calendar / DatePicker /
-DateInput / Timer、`docs/design/component-coverage-map.md` の保留区分・
-`docs/policy/intentional-non-adoption.md` §7）の先行前提として、
-`fandhe_frontend_headless_ui::date` モジュールを実装した（#834 以降が
-利用する予定の共通基盤）。他コンポーネントと異なり anatomy パーツ・
-状態機械を持たない、非描画の純計算モジュールである。
+date-time 系コンポーネント（Calendar / DatePicker / DateInput / Timer）の
+先行前提として、`fandhe_frontend_headless_ui::date` モジュールを実装した。
+他コンポーネントと異なり anatomy パーツ・状態機械を持たない、非描画の
+純計算モジュールである。
 
 ### 4c.1 公開 API 一覧
 
@@ -426,16 +325,16 @@ DateInput / Timer、`docs/design/component-coverage-map.md` の保留区分・
   全 API をこの単一の変換対に載せることで、往復変換の性質テストだけで
   土台の正しさを固定できる。
 
-## 4d. Calendar / DatePicker（イシュー #835、親トラッキング #832）
+## 4d. Calendar / DatePicker
 
-親イシュー #832 の date-time 系コンポーネントのうち、暦計算コア
-（§4c、#833）を利用する Calendar / DatePicker を実装した（親 #832 の保留を
-解除、`docs/design/component-coverage-map.md` 参照）。
+date-time 系コンポーネントのうち、暦計算コア（§4c）を利用する
+Calendar / DatePicker を実装した。
 
 ### 4d.1 Calendar（`calendar` モジュール）
 
 | 項目 | 内容 |
 |---|---|
+| 部品ページ | [Calendar](../../site/components/calendar.md) |
 | anatomy パーツ | Root/Heading/PrevTrigger/NextTrigger/Table/TableHeader/TableRow/TableHeadCell/TableBody/TableCell/DayTrigger の 11 パーツ |
 | 状態機械 | `Calendar`（`view_year`/`view_month`/`selected`/`today`/`min`/`max`/`week_start`）。`CalendarAction`: `PrevMonth`/`NextMonth`/`Select(PlainDate)`/`ClearSelection` |
 | dispatch 名 | `"prev-month"`/`"next-month"`/`"select"`（payload は ISO 8601 文字列）/`"clear-selection"` |
@@ -447,28 +346,20 @@ DateInput / Timer、`docs/design/component-coverage-map.md` の保留区分・
 
 | 項目 | 内容 |
 |---|---|
+| 部品ページ | [DatePicker](../../site/components/date-picker.md) |
 | anatomy パーツ | Root/Label/Control/Input/Trigger/ClearTrigger/Positioner/Content の 8 パーツ |
 | positioner/content の基盤 | `crate::popover`（`state::Disclosure`）と同一の開閉・配置基盤を再利用する。独自のオーバーレイ機構は持たない |
 | 状態機械 | `DatePicker`（`state::Disclosure` + `calendar::Calendar` の合成）。`DatePickerAction`: `Open`/`Close`/`Toggle`/`PrevMonth`/`NextMonth`/`Select(PlainDate)`/`ClearSelection` |
 | dispatch 名 | `"open"`/`"close"`/`"toggle"`/`"prev-month"`/`"next-month"`/`"select"`（payload は ISO 8601 文字列）/`"clear-selection"`。`"select"` は ark-ui の `closeOnSelect` 既定 `true` に準拠し popover を閉じる |
 | `input` パーツ | ネイティブ `<input type="text">`。`value` は `PlainDate::to_iso_string()` 由来の ISO 8601 表記のみを受け取る契約（DateInput との連携は行わない） |
-| DateInput（#834）との責務境界 | 本コンポーネントはセグメント式 DateInput に依存せず、ISO 8601 値のネイティブ `<input>` だけで完結する。連携強化は #834 側の作業 |
+| DateInput との責務境界 | 本コンポーネントはセグメント式 DateInput に依存せず、ISO 8601 値のネイティブ `<input>` だけで完結する |
 
-### 4d.3 スコープ外（#835 時点）
-
-- キーボードナビゲーション（矢印キーでの gridcell フォーカス移動・roving tabindex）の実 DOM 配線
-- 範囲選択（range mode）・複数月表示（multi-month）・年/月ビュー切替
-- DateInput（#834）との配線・wasm-full ハイドレーション配線
-
-## 4e. Format ユーティリティ（`format` モジュール、イシュー #853/#854、親 Phase 5 #852）
+## 4e. Format ユーティリティ（`format` モジュール）
 
 ark-ui `format-byte`/`format-number`/`format-time`/`format-relative-time`・
 chakra-ui `i18n/format-byte`/`format-number` 相当の機能を、JS の `Intl` API・
-`LocaleProvider` 等の JS ランタイム機構に依存せず実装した
-（`docs/policy/intentional-non-adoption.md` §3.23 の非採用判断を
-「headless-ui 内モジュール `format`」として実装することで区分変更、
-`docs/design/component-coverage-map.md` 参照）。他コンポーネントと異なり
-ノードを返さず `anatomy`/状態機械を持たない `String` 純関数群である。
+`LocaleProvider` 等の JS ランタイム機構に依存せず実装した。他コンポーネントと
+異なりノードを返さず `anatomy`/状態機械を持たない `String` 純関数群である。
 
 | 関数 | オプション型 | 概要 |
 |---|---|---|
@@ -477,7 +368,7 @@ chakra-ui `i18n/format-byte`/`format-number` 相当の機能を、JS の `Intl` 
 | `format_time` | `FormatTimeOptions`（`with_seconds_always`/`always_show_hours`） | 経過秒数を `HH:MM:SS`/`MM:SS` へ整形（ロケール非依存） |
 | `format_relative_time` | `FormatRelativeTimeOptions`（`locale`/`style: UnitDisplay`） | `target`/`base`（Unix 秒）2 値の差から相対時刻文字列を返す |
 
-### 4e.1a `Locale`（イシュー #854）
+### 4e.1a `Locale`
 
 `Locale` は `#[non_exhaustive]` enum で `En`（既定）・`Ja` の 2 種を持つ。
 `format_byte`/`format_number`/`format_relative_time` の各オプションに
@@ -524,15 +415,6 @@ short/narrow の単位記号（`kB`/`k` 等）は SI 表記が国際共通のた
   `i64::MIN`/`i64::MAX` を含む全入力域で `unwrap()`/`panic!` を使わず
   `unsigned_abs()`/`checked_sub()` で決定的な出力を返す（A04 対策）。
 
-### 4e.2 スコープ外
-
-- en/ja 以外のロケール対応（将来イシュー、`Locale` enum への variant 追加として行う）
-- `format_time` へのロケール依存表記（和暦・時制表記等）の導入
-- `LocaleProvider`・`AsyncListCollection` の Rust 等価概念対応表
-  （`docs/design/component-coverage-map.md` §8、イシュー #855 で追加済み）
-- `fandhe-frontend-pre-styled-ui`・examples ショーケースへの実演追加
-  （format はノードを返さない純関数であり既存ショーケース枠に該当しない）
-
 ## 5. 呼び出し規約（SSR / CSR 共通の前提）
 
 - 各コンポーネントの anatomy パーツ（`root`/`trigger`/`content` 等）は
@@ -544,7 +426,7 @@ short/narrow の単位記号（`kB`/`k` 等）は SI 表記が国際共通のた
   状態遷移する。クリック/キーボード操作の実挙動は wasm 層
   （`fandhe-frontend-wasm-client`/`-wasm-full`）の責務であり、本クレートの
   スコープ外。
-- `examples/headless-pre-styled-ui`（#552）は自由関数のみを使う SSR
+- `examples/headless-pre-styled-ui` は自由関数のみを使う SSR
   静的ショーケースの実例。
 
 ## 6. セキュリティ不変条件
@@ -565,29 +447,29 @@ short/narrow の単位記号（`kB`/`k` 等）は SI 表記が国際共通のた
 5. `#![forbid(unsafe_code)]`（REQ-2）。`unsafe` はクレート全体で使用しない。
 6. 外部依存は `fandhe-frontend-core` / `fandhe-frontend-interactive`
    （いずれも path）のみ（`.claude/rules/coding-rust.md`）。加えて本クレートは
-   `fandhe_frontend_core`（#550）・`fandhe_frontend_interactive`（イシュー
-   #712）の両方をクレートそのものとして再エクスポートし、本クレート単独
-   依存の利用者が `Component`/`Hydrate`/`dispatch`/`HydrateError`/
-   `render_for_hydration` を含む hydration API まで到達できるようにしている
-   （`docs/api/pre-styled-ui-api.md` §3b・`crates/headless-ui/tests/
+   `fandhe_frontend_core`・`fandhe_frontend_interactive` の両方をクレート
+   そのものとして再エクスポートし、本クレート単独依存の利用者が
+   `Component`/`Hydrate`/`dispatch`/`HydrateError`/`render_for_hydration`
+   を含む hydration API まで到達できるようにしている（`docs/api/
+   pre-styled-ui-api.md` §3b・`crates/headless-ui/tests/
    interactive_reexport.rs` 参照）。
 7. `positioning::css_vars_style(position, reference_width, same_width)` が
    返す `style` 属性値は内部生成の数値書式（px）のみからなり、呼び出し側は
    必ず既存の `attrs` 引数 → 上記 2 の既定エスケープを経由して出力する
    （`same_width == false` のとき `--fandhe-reference-width` は出力しない、
-   イシュー #590、`docs/design/anchor-positioning-design.md` §7）。
-8. `password_input` はパスワード値そのものを一切扱わない（イシュー #740）。
+   `docs/design/anchor-positioning-design.md` §7）。
+8. `password_input` はパスワード値そのものを一切扱わない。
    `input`/`PasswordInput` は `value` を出力・保持する API を持たず、状態
    機械は表示切替の bool（`visible`）のみをフィールドに持つ。パスワード値が
    `Debug`/`Hydrate` の出力・エラーメッセージ・ログのいずれにも現れる余地
    がない設計であり、`crates/headless-ui/src/password_input.rs` の
    inline test `input_never_outputs_value_attribute` が回帰を固定する。
-9. `format` モジュール（イシュー #853）はテキスト値を返す純関数であり、
-   出力は呼び出し側が必ず `fandhe_frontend_core::text()` ノード → 上記 2
-   の既定エスケープを経由してから描画する（本モジュール自体は HTML を
-   組み立てない）。`std::time::SystemTime::now()` 等の現在時刻 API・環境
-   変数・グローバル状態を一切参照しない決定的純関数であり、`base`/`target`
-   等の時刻は必ず呼び出し側が明示的に渡す（§4e.1 参照）。
+9. `format` モジュールはテキスト値を返す純関数であり、出力は呼び出し側が
+   必ず `fandhe_frontend_core::text()` ノード → 上記 2 の既定エスケープを
+   経由してから描画する（本モジュール自体は HTML を組み立てない）。
+   `std::time::SystemTime::now()` 等の現在時刻 API・環境変数・グローバル
+   状態を一切参照しない決定的純関数であり、`base`/`target` 等の時刻は
+   必ず呼び出し側が明示的に渡す（§4e.1 参照）。
 
 ## 7. 関連ドキュメント
 
@@ -598,13 +480,11 @@ short/narrow の単位記号（`kB`/`k` 等）は SI 表記が国際共通のた
 - [`examples/headless-pre-styled-ui/README.md`](../../examples/headless-pre-styled-ui/README.md):
   本クレートのショーケース正本サンプル
 - `docs/design/anchor-positioning-design.md`: anchor positioning の設計確定書
-  （イシュー #589、正の規範文書。docs サイト nav.toml 未登録の内部設計文書
-  のためリンク化しない）
+  （正の規範文書。docs サイト nav.toml 未登録の内部設計文書のためリンク化
+  しない）
 - `docs/policy/intentional-non-adoption.md` §3.20/§3.21: anchor positioning
   関連（Floating UI 高度 middleware・CSS Anchor Positioning）の非採用判断の
   正（同様に nav.toml 未登録のためリンク化しない）
-- `docs/design/docs-site-styled-ui-adoption.md`: docs サイト骨格への
-  pre-styled-ui 適用可否の評価記録。§5 再評価トリガー 1 は本書 §4b の
-  レイアウト・ナビゲーション系部品ロードマップと相互参照の関係にある
-  （同様に nav.toml 未登録のためリンク化しない）
 - `.claude/skills/ark-ui/`: 設計時の参考にした ark-ui リファレンススキル
+- `docs/internal/headless-ui-implementation-notes.md`: 実装経緯・ロードマップ・
+  トレーサビリティの記録（docs サイト非掲載のためリンク化しない）

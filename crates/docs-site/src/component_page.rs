@@ -54,6 +54,7 @@ use fandhe_frontend_core::{
     code, div, el, h2, h3, li, p, pre, table, tbody, td, text, th, thead, tr, ul, Node,
 };
 
+use crate::component_specs;
 use crate::showcase;
 
 /// 引数表（`API Reference` 節）1 行。Phase 4（#945〜#948）が原稿データを
@@ -118,6 +119,14 @@ pub struct ComponentPageSpec {
     pub keyboard: &'static [KeyRow],
     /// `Accessibility` 節の WAI-ARIA 対応表。
     pub aria: &'static [AriaRow],
+    /// Demo フォールバック供給口（イシュー #945）。[`showcase::COMPONENT_PAGES`]
+    /// に該当エントリを持たない部品（`showcase.rs` を Phase 4 で編集しない
+    /// ための機構）のために、`Demo` 節を組み立てる `fn` ポインタを保持する。
+    /// [`showcase::generated_content`] が `None` を返した場合のみ本フィールド
+    /// を照会する（[`generated_content`] 参照）。両方 `None`（`showcase` 未登録
+    /// かつ本フィールドも `None`）ならページ全体が `None`（従来どおり Markdown
+    /// のみのページとして扱う）。
+    pub demo: Option<fn() -> Node>,
 }
 
 impl ComponentPageSpec {
@@ -128,24 +137,168 @@ impl ComponentPageSpec {
         examples: &[],
         keyboard: &[],
         aria: &[],
+        demo: None,
     };
 }
 
-/// `path -> ComponentPageSpec` レジストリの供給元一覧。Phase 4（#945〜#948）
-/// は並列 4 PR のコンフリクトを避けるため、単一の `const` 配列へ直接追記
-/// するのではなく、イシュー番号ごとのフラットな別モジュール
-/// （[`crate::component_page_specs_948`] 等）に `pub const SPECS` を持たせ、
-/// ここで集約する。コンフリクトが起きうるのは本配列への要素追加のみに
-/// 限定される（衝突時は両者の行を残す運用、`docs/design/docs-site-component-pages.md`
-/// §9 参照）。
-const SPEC_SOURCES: &[&[(&str, ComponentPageSpec)]] = &[crate::component_page_specs_948::SPECS];
+/// イシュー #947（Navigation / Data Display 系、27 件）の
+/// `path -> ComponentPageSpec` テーブル。実体は
+/// [`crate::component_specs_nav_data`] の個別定数を参照する（forms.rs のような
+/// 集約 `SPECS` スライスをモジュール側で持たないため、本ファイル側で
+/// テーブル化する）。
+const NAV_DATA_SPECS: &[(&str, ComponentPageSpec)] = &[
+    // ---- イシュー #947（Navigation / Data Display 系、27 件）ここから ----
+    ("/components/alert/", crate::component_specs_nav_data::ALERT),
+    (
+        "/components/avatar/",
+        crate::component_specs_nav_data::AVATAR,
+    ),
+    ("/components/badge/", crate::component_specs_nav_data::BADGE),
+    ("/components/card/", crate::component_specs_nav_data::CARD),
+    (
+        "/components/data-list/",
+        crate::component_specs_nav_data::DATA_LIST,
+    ),
+    (
+        "/components/empty-state/",
+        crate::component_specs_nav_data::EMPTY_STATE,
+    ),
+    (
+        "/components/json-tree-view/",
+        crate::component_specs_nav_data::JSON_TREE_VIEW,
+    ),
+    (
+        "/components/progress/",
+        crate::component_specs_nav_data::PROGRESS,
+    ),
+    (
+        "/components/skeleton/",
+        crate::component_specs_nav_data::SKELETON,
+    ),
+    (
+        "/components/spinner/",
+        crate::component_specs_nav_data::SPINNER,
+    ),
+    ("/components/stat/", crate::component_specs_nav_data::STAT),
+    (
+        "/components/status/",
+        crate::component_specs_nav_data::STATUS,
+    ),
+    ("/components/table/", crate::component_specs_nav_data::TABLE),
+    ("/components/tag/", crate::component_specs_nav_data::TAG),
+    (
+        "/components/tree-view/",
+        crate::component_specs_nav_data::TREE_VIEW,
+    ),
+    (
+        "/components/color-swatch/",
+        crate::component_specs_nav_data::COLOR_SWATCH,
+    ),
+    ("/components/icon/", crate::component_specs_nav_data::ICON),
+    ("/components/image/", crate::component_specs_nav_data::IMAGE),
+    (
+        "/components/timeline/",
+        crate::component_specs_nav_data::TIMELINE,
+    ),
+    (
+        "/components/breadcrumb/",
+        crate::component_specs_nav_data::BREADCRUMB,
+    ),
+    (
+        "/components/carousel/",
+        crate::component_specs_nav_data::CAROUSEL,
+    ),
+    (
+        "/components/pagination/",
+        crate::component_specs_nav_data::PAGINATION,
+    ),
+    (
+        "/components/splitter/",
+        crate::component_specs_nav_data::SPLITTER,
+    ),
+    ("/components/steps/", crate::component_specs_nav_data::STEPS),
+    (
+        "/components/marquee/",
+        crate::component_specs_nav_data::MARQUEE,
+    ),
+    (
+        "/components/scroll-area/",
+        crate::component_specs_nav_data::SCROLL_AREA,
+    ),
+    (
+        "/components/separator/",
+        crate::component_specs_nav_data::SEPARATOR,
+    ),
+    // ---- イシュー #947 ここまで ----
+];
+
+/// イシュー #946（Overlay / Disclosure 系、13 件）の
+/// `path -> ComponentPageSpec` テーブル。実体は
+/// [`crate::component_specs_overlay`] の個別定数を参照する。
+const OVERLAY_SPECS: &[(&str, ComponentPageSpec)] = &[
+    (
+        "/components/accordion/",
+        crate::component_specs_overlay::ACCORDION,
+    ),
+    (
+        "/components/action-bar/",
+        crate::component_specs_overlay::ACTION_BAR,
+    ),
+    (
+        "/components/dialog/",
+        crate::component_specs_overlay::DIALOG,
+    ),
+    (
+        "/components/drawer/",
+        crate::component_specs_overlay::DRAWER,
+    ),
+    (
+        "/components/floating-panel/",
+        crate::component_specs_overlay::FLOATING_PANEL,
+    ),
+    (
+        "/components/hover-card/",
+        crate::component_specs_overlay::HOVER_CARD,
+    ),
+    ("/components/menu/", crate::component_specs_overlay::MENU),
+    (
+        "/components/popover/",
+        crate::component_specs_overlay::POPOVER,
+    ),
+    ("/components/tabs/", crate::component_specs_overlay::TABS),
+    ("/components/toast/", crate::component_specs_overlay::TOAST),
+    (
+        "/components/toggle-tip/",
+        crate::component_specs_overlay::TOGGLE_TIP,
+    ),
+    (
+        "/components/tooltip/",
+        crate::component_specs_overlay::TOOLTIP,
+    ),
+    ("/components/tour/", crate::component_specs_overlay::TOUR),
+];
+
+/// `path -> ComponentPageSpec` レジストリを供給するカテゴリ別テーブルの集約。
+/// Phase 4（#945〜#948）の各 issue はカテゴリ 1 個につき 1 テーブルを追加し、
+/// 本配列へ 1 行追記する想定（[`spec_for`] が全テーブルを線形探索するため、
+/// モジュール間の重複パスは想定しない）。イシュー #948（Typography /
+/// Utilities / Charts 系ほか 28 件）は他カテゴリと異なりイシュー番号ごとの
+/// フラットな別モジュール（[`crate::component_page_specs_948`]）に
+/// `pub const SPECS` を持たせる方式を採ったため、ここでは他カテゴリの
+/// テーブルと同列に 1 要素として追記する。
+const SPEC_TABLES: &[&[(&str, ComponentPageSpec)]] = &[
+    component_specs::forms::SPECS,
+    NAV_DATA_SPECS,
+    OVERLAY_SPECS,
+    crate::component_page_specs_948::SPECS,
+];
 
 /// `page_path` に対応する [`ComponentPageSpec`] を返す。未登録パスは
 /// [`ComponentPageSpec::EMPTY`]（fail-closed で「節を省略」側へ倒す）。
 fn spec_for(page_path: &str) -> ComponentPageSpec {
-    SPEC_SOURCES
+    SPEC_TABLES
         .iter()
-        .flat_map(|specs| specs.iter())
+        .flat_map(|table| table.iter())
         .find(|(path, _)| *path == page_path)
         .map(|(_, spec)| *spec)
         .unwrap_or(ComponentPageSpec::EMPTY)
@@ -166,10 +319,17 @@ const MAX_WALK_DEPTH: usize = 64;
 /// - [`showcase::PAGE_PATH`]（索引ページ）を含め、レジストリに未登録の
 ///   パスは `None`（Markdown のみの通常ページ。索引ページの本文は
 ///   `site/components-pre-styled-ui.md` 側で完結する、イシュー #943）。
+/// - [`showcase::COMPONENT_PAGES`] に無いパスでも、[`ComponentPageSpec::demo`]
+///   が `Some` を返せば Demo 節を供給できる（イシュー #945、`showcase.rs` を
+///   Phase 4 で編集しないための機構。デモを持たない部品向け）。
 #[must_use]
 pub fn generated_content(page_path: &str) -> Option<Node> {
-    let demo = showcase::generated_content(page_path)?;
-    Some(render_component_page(page_path, demo, &spec_for(page_path)))
+    let spec = spec_for(page_path);
+    let demo = match showcase::generated_content(page_path) {
+        Some(node) => node,
+        None => (spec.demo?)(),
+    };
+    Some(render_component_page(page_path, demo, &spec))
 }
 
 /// [`generated_content`] の本体。`demo` は [`showcase::generated_content`]

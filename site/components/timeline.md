@@ -2,8 +2,6 @@
 
 `fandhe-frontend-pre-styled-ui` の `timeline` mod が提供するスタイル済み Timeline 部品です。
 
-> [!NOTE]
-> 本ページの Features / Examples / Accessibility と API Reference の引数表は
-> Phase 4（#945〜#948）で充填予定です。現時点では Demo（SSR 静的掲示）と、
-> headless-ui のパーツ構成から機械導出した Anatomy / `data-*` 属性表 /
-> CSS 変数表のみを掲載しています。
+時系列イベントを表示する年表部品です。item/connector/separator/indicator/content/title/description の 7 パーツで構成し、最終 item は separator を組み込まないことで非表示にする契約です。TimelineVariant（Solid/Subtle/Outline/Plain）で indicator の塗り方を切り替えます。
+
+関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md)

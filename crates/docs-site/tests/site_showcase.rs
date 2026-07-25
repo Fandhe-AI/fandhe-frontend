@@ -144,6 +144,50 @@ fn real_site_build_emits_component_pages_and_dedicated_css() {
     );
 }
 
+/// イシュー #945 の Bugbot 指摘（PR #979）の回帰テスト。
+///
+/// `component_specs::forms` の Demo フォールバック 6 部品（Angle Slider /
+/// Image Cropper / Pin Input / Signature Pad / Toggle / Toggle Group、
+/// `showcase.rs` に節を持たない）は、実 styled 部品マークアップ（
+/// `data-scope="..."`）をページへ埋め込む一方、`showcase::stylesheet()` に
+/// 対応する `push_css` 呼び出しが欠けていたため無 CSS のまま出荷されて
+/// いた。本テストは各ページの HTML に出現する `data-scope="..."` 値が、
+/// 全部品ページ共有の専用 CSS（`assets/pre-styled-ui.css`）に対応する
+/// `[data-scope="..."]` セレクタとして存在することを固定する
+/// （HTML → CSS の片方向網羅、`tests/site_css_contract.rs` の層 2 と同型）。
+#[test]
+fn forms_demo_fallback_pages_ship_scoped_css() {
+    let out = TempDir::new("forms-demo-fallback-css");
+    build_site(&repo_root(), &out.0).expect("real site should build");
+
+    let css_path = out.0.join(showcase::STYLESHEET_REL_PATH);
+    let css = std::fs::read_to_string(&css_path).unwrap();
+
+    for (page_rel, expected_scope) in [
+        ("components/angle-slider", "angle-slider"),
+        ("components/image-cropper", "image-cropper"),
+        ("components/pin-input", "pin-input"),
+        ("components/signature-pad", "signature-pad"),
+        ("components/toggle", "toggle"),
+        ("components/toggle-group", "toggle-group"),
+    ] {
+        let html = read_component_page(&out.0, page_rel);
+        let marker = format!(r#"data-scope="{expected_scope}""#);
+        assert!(
+            html.contains(&marker),
+            "{page_rel} should render `{marker}` (Demo fallback markup, forms.rs::demo_*)"
+        );
+
+        let selector = format!(r#"[data-scope="{expected_scope}"]"#);
+        assert!(
+            css.contains(&selector),
+            "{page_rel} renders `{marker}` but showcase::stylesheet() does not declare \
+             `{selector}` in assets/pre-styled-ui.css \
+             (showcase.rs must push_css the matching pre-styled-ui module)"
+        );
+    }
+}
+
 #[test]
 fn non_showcase_pages_do_not_reference_showcase_css() {
     let out = TempDir::new("no-extra-link");

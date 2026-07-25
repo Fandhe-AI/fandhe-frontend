@@ -62,3 +62,5 @@ let node = clipboard::root("https://example.com/shared-link", false, vec![], vec
 |---|---|
 | `readonly` | `input` パーツに常時付与し、キーボード操作でのコピー対象値の書き換えを防ぐ。 |
 | `type="button"` | `trigger` パーツに常時付与し、フォーム送信への誤混入を防ぐ。 |
+
+関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md) / [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

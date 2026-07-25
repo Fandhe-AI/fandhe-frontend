@@ -48,3 +48,5 @@ content
 | Attribute | Description |
 |---|---|
 | `tabindex="-1"` | `content` に付与し、プログラム的フォーカスのみを許可する（Tab 順序には加えない）。 |
+
+関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md) / [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

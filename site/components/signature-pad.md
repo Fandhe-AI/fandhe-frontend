@@ -66,3 +66,5 @@ let node = signature_pad::root(false, true, vec![], vec![
 | Attribute | Description |
 |---|---|
 | `type="button"` | `clear-trigger` パーツに常時付与し、フォーム送信への誤混入を防ぐ。 |
+
+関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md) / [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

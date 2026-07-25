@@ -328,3 +328,69 @@ fn contains_unclosed_fence_marker(node: &Node) -> bool {
         Node::Element { children, .. } => children.iter().any(contains_unclosed_fence_marker),
     }
 }
+
+/// イシュー #955（設計 `docs/design/docs-site-api-reference-split.md` §3-3）:
+/// `docs/internal/` は内部設計メモ置き場であり、サイト非出力を「nav 未登録」
+/// だけで構造的に担保する契約（除外リスト・後付けフィルタは設けない、
+/// 同文書 §4 A05）。本テストは `docs/internal/*.md` を実ディレクトリ走査で
+/// 列挙し、どのファイルも `nav.all_pages()` の `source` と一致しないこと、
+/// および逆方向（どの登録済み `source` も `docs/internal/` 配下を指さない
+/// こと）を双方向に固定する。将来 `docs/internal/` へファイルが追加されても
+/// 本テストは走査ベースのため自動的に対象へ含まれ、誤って nav へ登録された
+/// 瞬間にリポジトリが public である以上サイト経由で公開されてしまう回帰を
+/// fail-closed に検知する。
+#[test]
+fn docs_internal_notes_are_never_registered_in_nav() {
+    let root = repo_root();
+    let internal_dir = root.join("docs/internal");
+    assert!(
+        internal_dir.is_dir(),
+        "docs/internal/ should exist as the internal design-notes directory (design doc §3-3)"
+    );
+
+    let mut internal_sources = std::collections::BTreeSet::new();
+    for entry in std::fs::read_dir(&internal_dir)
+        .unwrap_or_else(|e| panic!("failed to read docs/internal/: {e}"))
+    {
+        let entry = entry.unwrap_or_else(|e| panic!("failed to read docs/internal/ entry: {e}"));
+        let path = entry.path();
+        if path.extension().and_then(|ext| ext.to_str()) != Some("md") {
+            continue;
+        }
+        let relative = path
+            .strip_prefix(&root)
+            .expect("docs/internal/ entries should be under repo_root")
+            .to_str()
+            .expect("docs/internal/ entry path should be valid UTF-8")
+            .replace('\\', "/");
+        internal_sources.insert(relative);
+    }
+    assert!(
+        !internal_sources.is_empty(),
+        "docs/internal/ should contain at least the known implementation-notes files \
+         (headless-ui-implementation-notes.md / pre-styled-ui-implementation-notes.md / \
+         pre-styled-recipe-implementation-notes.md); an empty directory likely signals a \
+         layout change this test was not updated for"
+    );
+
+    let nav = load_nav();
+    let registered_sources: std::collections::BTreeSet<&str> =
+        nav.all_pages().map(|p| p.source.as_str()).collect();
+
+    for internal_source in &internal_sources {
+        assert!(
+            !registered_sources.contains(internal_source.as_str()),
+            "docs/internal/ note {internal_source} must never be registered in site/nav.toml \
+             (design doc §3-3: sites non-publication is guaranteed solely by nav non-registration; \
+             the repository is public, so registering this would publish it via the docs site)"
+        );
+    }
+
+    for source in &registered_sources {
+        assert!(
+            !source.starts_with("docs/internal/"),
+            "site/nav.toml registers {source} under docs/internal/, which must stay unregistered \
+             (design doc §3-3 / §4 A05)"
+        );
+    }
+}

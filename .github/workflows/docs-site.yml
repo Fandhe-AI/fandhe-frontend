@@ -83,7 +83,10 @@ jobs:
         # 最終確認であり、CSS の内容自体（トークン網羅性等）は
         # crates/docs-site/tests/site_typography_contract.rs 等の契約テストが担う。
         # assets/site.js（イシュー #951、crates/docs-site/src/script.rs による
-        # ビルド生成物）も同型の最終確認を行う。
+        # ビルド生成物）も同型の最終確認を行う。assets/search-index.json
+        # （イシュー #957、crates/docs-site/src/search_index.rs による
+        # ビルド生成物）も同型。決定性・エスケープ・サイズ上限等の内容検証は
+        # crates/docs-site/tests/search_index.rs が担い、ここでは二重管理しない。
         #
         # イシュー #944: #943 でサイトの大半（121 ページ中 99）が
         # /components/<kebab>/ の部品ページになったため、索引ページだけの
@@ -95,6 +98,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.css"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.js"
+          test -f "${RUNNER_TEMP}/docs-site-dist/assets/search-index.json"
           test -f "${RUNNER_TEMP}/docs-site-dist/components/button/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/pre-styled-ui.css"
 

@@ -2,8 +2,6 @@
 
 `fandhe-frontend-pre-styled-ui` の `spinner` mod が提供するスタイル済み Spinner 部品です。
 
-> [!NOTE]
-> 本ページの Features / Examples / Accessibility と API Reference の引数表は
-> Phase 4（#945〜#948）で充填予定です。現時点では Demo（SSR 静的掲示）と、
-> headless-ui のパーツ構成から機械導出した Anatomy / `data-*` 属性表 /
-> CSS 変数表のみを掲載しています。
+読み込み中を示す回転インジケータです。role="status" + aria-label（既定 "Loading"）でスクリーンリーダーへ状態を伝えます。ボタン内部等、既に aria-busy で状態が伝わる文脈では装飾用途の spinner_decorative（role/aria-label なし）を使う設計です。
+
+関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md)

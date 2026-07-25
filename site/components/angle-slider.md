@@ -65,3 +65,5 @@ let node = angle_slider::root(Size::Md, ColorPalette::Accent, &state, false, vec
 | `role="slider"` | thumb に常時付与する。 |
 | `aria-valuemin` / `aria-valuemax` | 常に `"0"` / `"360"`。 |
 | `aria-valuenow` / `aria-valuetext` | 現在の角度値とその読み上げ用テキスト表現。 |
+
+関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md) / [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

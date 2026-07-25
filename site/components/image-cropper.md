@@ -62,3 +62,5 @@ let node = image_cropper::root(Size::Md, &state, vec![], vec![]);
 ### WAI-ARIA
 
 支援技術向けの動的なライブ領域・role は本部品の対象外です（視覚操作専用の crop UI であり、切り抜き結果は状態機械の値としてフォーム等の他部品へ受け渡す想定）。
+
+関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md) / [fandhe-frontend-headless-ui API](../../docs/api/headless-ui-api.md)

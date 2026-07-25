@@ -2,8 +2,6 @@
 
 `fandhe-frontend-pre-styled-ui` の `alert` mod が提供するスタイル済み Alert 部品です。
 
-> [!NOTE]
-> 本ページの Features / Examples / Accessibility と API Reference の引数表は
-> Phase 4（#945〜#948）で充填予定です。現時点では Demo（SSR 静的掲示）と、
-> headless-ui のパーツ構成から機械導出した Anatomy / `data-*` 属性表 /
-> CSS 変数表のみを掲載しています。
+ユーザーへ注意喚起・状態変化を伝える部品です。role="alert" を状態に関わらず固定で付与するため、四つの状態（Info/Success/Warning/Error）いずれでもスクリーンリーダーへ通知が届きます。値の変化を伴わない静的な警告表示には [Status](status.md) を、一時的な進捗通知には [Progress](progress.md) を検討してください。
+
+関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md)

@@ -14,6 +14,7 @@ use fandhe_frontend_docs_site::layout::{
 };
 use fandhe_frontend_docs_site::nav::{header_nav, parse_nav};
 use fandhe_frontend_docs_site::script;
+use fandhe_frontend_docs_site::search_index;
 
 fn sample_sidebar() -> fandhe_frontend_core::Node {
     ul(vec![], vec![li(vec![], vec![text("はじめに")])])
@@ -966,4 +967,107 @@ fn docs_page_wraps_header_children_in_inner_container() {
     assert!(inner_pos < brand_pos);
     assert!(brand_pos < nav_pos);
     assert!(nav_pos < actions_pos);
+}
+
+/// イシュー #958 の必須検証（設計 §4-2）: `data-search-index` 属性値が
+/// `layout::asset_href(base_path, search_index::REL_PATH)` と一致すること。
+/// `base_path` を `""` と `"/fandhe-frontend"` の 2 通りで確認する
+/// （linkcheck は `data-*` 属性を検証しないため、URL 誤りを検知する唯一の
+/// 機械的手段）。
+#[test]
+fn docs_page_search_input_data_attribute_matches_asset_href() {
+    let body = p(vec![], vec![text("本文です。")]);
+
+    let html_root = render(&docs_page("タイトル", "", sample_sidebar(), body.clone()));
+    let expected_root = asset_href("", search_index::REL_PATH);
+    assert!(html_root.contains(&format!(r#"data-search-index="{expected_root}""#)));
+
+    let html_base = render(&docs_page(
+        "タイトル",
+        "/fandhe-frontend",
+        sample_sidebar(),
+        body,
+    ));
+    let expected_base = asset_href("/fandhe-frontend", search_index::REL_PATH);
+    assert!(html_base.contains(&format!(r#"data-search-index="{expected_base}""#)));
+    assert_eq!(expected_base, "/fandhe-frontend/assets/search-index.json");
+}
+
+/// 検索ブロック（`div.docs-search`）が `div.docs-header-actions` の第 1 子
+/// （GitHub リンク・テーマトグルより前）であることを固定する（イシュー #958）。
+#[test]
+fn docs_page_search_block_is_the_first_header_action() {
+    let body = p(vec![], vec![text("本文です。")]);
+    let html = render(&docs_page("タイトル", "", sample_sidebar(), body));
+
+    let search_pos = html
+        .find(r#"class="docs-search""#)
+        .expect("docs-search should appear");
+    let github_pos = html
+        .find(r#"class="docs-github-link""#)
+        .expect("docs-github-link should appear");
+    let toggle_pos = html
+        .find(r#"class="docs-theme-toggle""#)
+        .expect("docs-theme-toggle should appear");
+    assert!(search_pos < github_pos);
+    assert!(search_pos < toggle_pos);
+}
+
+/// SSG 出力時点で検索ブロック・結果一覧の双方が既定 `hidden` であることを
+/// 固定する（JS 無効時の受入条件、`crate::script::SITE_JS` が配線完了後に
+/// のみ除去する契約の HTML 側の裏付け）。
+#[test]
+fn docs_page_search_elements_are_hidden_by_default() {
+    let body = p(vec![], vec![text("本文です。")]);
+    let html = render(&docs_page("タイトル", "", sample_sidebar(), body));
+
+    let search_start = html
+        .find(r#"<div class="docs-search""#)
+        .expect("div.docs-search should appear");
+    let search_tag_end = html[search_start..]
+        .find('>')
+        .expect("div.docs-search opening tag should close");
+    let search_tag = &html[search_start..search_start + search_tag_end];
+    assert!(search_tag.contains("hidden"));
+
+    let results_start = html
+        .find(r#"id="docs-search-results""#)
+        .expect("ul#docs-search-results should appear");
+    let results_tag_start = html[..results_start].rfind('<').unwrap();
+    let results_tag_end = html[results_tag_start..]
+        .find('>')
+        .expect("ul#docs-search-results opening tag should close");
+    let results_tag = &html[results_tag_start..results_tag_start + results_tag_end];
+    assert!(results_tag.contains("hidden"));
+}
+
+/// `docs_page`（`header_nav: None`）経路でも検索ブロックが出力されることを
+/// 固定する（`docs-header-actions` 本体と同じ「無条件出力」契約、イシュー #958）。
+#[test]
+fn docs_page_without_header_nav_still_includes_search_block() {
+    let body = p(vec![], vec![text("本文です。")]);
+    let html = render(&docs_page("タイトル", "", sample_sidebar(), body));
+    assert!(html.contains(r#"class="docs-search""#));
+    assert!(html.contains(r#"class="docs-search-input""#));
+    assert!(html.contains(r#"id="docs-search-results""#));
+}
+
+/// 検索入力の WAI-ARIA combobox 配線（`role="combobox"`・`aria-controls`）が
+/// `ul#docs-search-results` の `id` と一致することを固定する（イシュー #958）。
+#[test]
+fn docs_page_search_input_combobox_attributes_reference_results_list_id() {
+    let body = p(vec![], vec![text("本文です。")]);
+    let html = render(&docs_page("タイトル", "", sample_sidebar(), body));
+    assert!(html.contains(r#"role="combobox""#));
+    assert!(html.contains(r#"aria-controls="docs-search-results""#));
+    assert!(html.contains(r#"id="docs-search-results""#));
+}
+
+/// 検索ブロックは `<form>` で包まない（JS 無効時に Enter キーでのフォーム
+/// 送信を誘発しないため、モジュール doc・設計文書 §4-1 参照）。
+#[test]
+fn docs_page_output_contains_no_form_element() {
+    let body = p(vec![], vec![text("本文です。")]);
+    let html = render(&docs_page("タイトル", "", sample_sidebar(), body));
+    assert!(!html.contains("<form"));
 }

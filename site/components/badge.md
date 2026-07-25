@@ -2,8 +2,6 @@
 
 `fandhe-frontend-pre-styled-ui` の `badge` mod が提供するスタイル済み Badge 部品です。
 
-> [!NOTE]
-> 本ページの Features / Examples / Accessibility と API Reference の引数表は
-> Phase 4（#945〜#948）で充填予定です。現時点では Demo（SSR 静的掲示）と、
-> headless-ui のパーツ構成から機械導出した Anatomy / `data-*` 属性表 /
-> CSS 変数表のみを掲載しています。
+ラベル・カウント等の小さな情報を強調表示する部品です。role/aria-* を持たない最小サブセットのため、意味を伝える必要がある場合は周辺のテキストで補足してください。似た用途の [Tag](tag.md) は close_trigger による削除操作を持つ点が異なります。
+
+関連 API: [fandhe-frontend-pre-styled-ui API](../../docs/api/pre-styled-ui-api.md)
