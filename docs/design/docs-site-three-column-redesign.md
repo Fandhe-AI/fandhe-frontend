@@ -98,8 +98,14 @@ CSS 供給方式・契約テスト作り替え方針・ドロップダウンの�
 <body>
   a[data-scope="skip-nav"][data-part="link"]
   header.docs-header                 … ドロップダウン付きヘッダー（§3.5）
-    a.docs-brand（サイトタイトルリンク。旧 header 直下の a を rename）
-    nav.docs-header-nav              … ドロップダウン群（section ごと）
+    div.docs-header-inner            … ヘッダー内側の計測枠（新設、イシュー
+                                        #949。`.docs-container` と同じ
+                                        `max-width`/`margin: 0 auto` を
+                                        共有し、ヘッダー左端をサイドバー・
+                                        本文の左端に揃える）
+      a.docs-brand（サイトタイトルリンク。旧 header 直下の a を rename）
+      nav.docs-header-nav            … ドロップダウン群（section ごと）
+      div.docs-header-actions        … GitHub リンク・テーマトグル（#951）
   div.docs-container                 … 3 カラム grid コンテナ
     aside.docs-sidebar               … 左カラム（不変、§3.4）
       nav.sidebar

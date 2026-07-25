@@ -144,15 +144,31 @@ fn docs_theme() -> Result<Theme, ThemeError> {
     // docs 固有トークンとして追加する）。
     theme.push_color("docs-accent-bg", "#ebf4ff", "#1c2740")?;
 
+    // ヘッダー内側の計測枠・3 カラム grid が共有する外枠幅（イシュー #949）。
+    // `.docs-header-inner` と `.docs-container` の双方が同じ値を `max-width` に
+    // 用いることで、ヘッダーのブランド文字左端とサイドバー・本文の左端が
+    // 同一 x 座標に揃う（`STRUCTURAL_CSS` の `.docs-header-inner` 規則参照）。
+    theme.push_space("docs-container-width", "84rem")?;
+    // カラム内側の左右余白（イシュー #949）。`.docs-header-inner` の
+    // padding-inline と `.docs-sidebar` / `.docs-toc-aside` の左右 padding が
+    // 共有する単一のドリフト源（従来は各所へ `1rem` を個別記述していた）。
+    theme.push_space("docs-gutter", "1rem")?;
+
     // 構造寸法（3 カラム grid の左ナビ幅・本文最大幅・ヘッダー高さ・
     // 右目次カラム幅）。
-    theme.push_space("docs-sidebar-width", "16rem")?;
-    theme.push_space("docs-max-content-width", "46rem")?;
+    //
+    // 幅予算（`min-width: 1200px` 以上の 3 カラム帯域）:
+    //   84rem (container) − 17rem (sidebar) − 15rem (toc) = 52rem … 中央 grid トラック
+    //   52rem − 2rem×2 (.docs-main の左右 padding、不変)          = 48rem … 本文実効幅
+    // `docs-max-content-width` は中央カラムの内寸そのものと一致させる
+    // （イシュー #949。旧 46rem は 3 カラム帯域では一度も効いていなかった）。
+    theme.push_space("docs-sidebar-width", "17rem")?;
+    theme.push_space("docs-max-content-width", "48rem")?;
     theme.push_space("docs-header-height", "3.25rem")?;
     // 右目次カラム（`aside.docs-toc-aside`）の列幅。3 カラム表示になる
     // `min-width: 1200px` 以上でのみ参照される（イシュー #907）。sticky 追従・
     // 視覚スタイルの仕上げは #909 スコープのため、ここでは列幅のみ定義する。
-    theme.push_space("docs-toc-width", "14rem")?;
+    theme.push_space("docs-toc-width", "15rem")?;
 
     Ok(theme)
 }
@@ -198,12 +214,41 @@ body {\n\
   display: flex;\n\
   align-items: center;\n\
   height: var(--fandhe-space-docs-header-height);\n\
-  padding: 0 1.5rem;\n\
+  padding: 0;\n\
   border-bottom: 1px solid var(--fandhe-color-border);\n\
   background: var(--fandhe-color-bg);\n\
 }\n\
 \n\
+/*\n\
+ * ヘッダー内側の計測枠（イシュー #949）。`.docs-header` 自体は罫線\n\
+ * （border-bottom）を全幅に伸ばすため padding を持たず、ブランド・ヘッダー\n\
+ * ナビ・アクション群（`crate::layout::docs_page_with_assets` が組み立てる\n\
+ * `div.docs-header-inner` の子）はすべてこの内側コンテナへ収める。\n\
+ * `.docs-container`（下記）と同じ `--fandhe-space-docs-container-width` を\n\
+ * `max-width` に、`margin: 0 auto` を共有することで、ヘッダー左端と\n\
+ * 3 カラム grid の左端が同一の計測枠に載る。\n\
+ */\n\
+.docs-header-inner {\n\
+  display: flex;\n\
+  align-items: center;\n\
+  width: 100%;\n\
+  height: 100%;\n\
+  min-width: 0;\n\
+  max-width: var(--fandhe-space-docs-container-width);\n\
+  margin: 0 auto;\n\
+  padding: 0 var(--fandhe-space-docs-gutter);\n\
+}\n\
+\n\
+/*\n\
+ * ブランド文字の左端をサイドバーのリンク文字左端に揃える（イシュー #949）。\n\
+ * サイドバーのリンク文字左端は `.docs-sidebar` の padding（gutter）+\n\
+ * `.docs-sidebar nav.sidebar a` の透明 `border-left`（2px）+ リンク自身の\n\
+ * padding（0.5rem）の総和で決まる。`.docs-header-inner` の padding は\n\
+ * gutter で揃っているため、ここでは残りの内訳（2px + 0.5rem）だけを\n\
+ * `.docs-brand` の padding-left へ足し込む。\n\
+ */\n\
 .docs-brand {\n\
+  padding: 0.32rem 0.5rem 0.32rem calc(0.5rem + 2px);\n\
   font-weight: 600;\n\
   font-size: 0.95rem;\n\
   letter-spacing: -0.01em;\n\
@@ -422,7 +467,7 @@ body {\n\
 \n\
 .docs-container {\n\
   display: block;\n\
-  max-width: 72rem;\n\
+  max-width: var(--fandhe-space-docs-container-width);\n\
   margin: 0 auto;\n\
 }\n\
 \n\
@@ -443,7 +488,7 @@ body {\n\
 \n\
 .docs-sidebar {\n\
   width: 100%;\n\
-  padding: 1rem;\n\
+  padding: var(--fandhe-space-docs-gutter);\n\
   border-right: none;\n\
   border-bottom: 1px solid var(--fandhe-color-border);\n\
   font-size: var(--fandhe-font-font-size-sm);\n\
@@ -761,7 +806,7 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
     max-height: calc(100vh - var(--fandhe-space-docs-header-height));\n\
     overflow-y: auto;\n\
     width: auto;\n\
-    padding: 1.75rem 1rem 2rem;\n\
+    padding: 1.75rem var(--fandhe-space-docs-gutter) 2rem;\n\
     border-right: 1px solid var(--fandhe-color-border);\n\
     border-bottom: none;\n\
   }\n\
@@ -847,7 +892,7 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
   .docs-toc-aside {\n\
     display: block;\n\
     min-width: 0;\n\
-    padding: 1.75rem 1rem 2rem;\n\
+    padding: 1.75rem var(--fandhe-space-docs-gutter) 2rem;\n\
     position: sticky;\n\
     top: var(--fandhe-space-docs-header-height);\n\
     align-self: start;\n\
@@ -1132,6 +1177,16 @@ fn typography_css() -> Result<String, SiteThemeError> {
 
     // ---- テーブル（対応する pre-styled-ui 部品なし、対象外事項として
     // 現行トークンベーススタイルを維持）----
+    //
+    // 横スクロール可能な `overflow-x: auto` 要素そのものに横スクロール
+    // アフォーダンスを与える（イシュー #949）。`crate::markdown` の出力に
+    // ラッパー要素を挿入できない制約（本関数冒頭の rustdoc §3.6 不変条件）
+    // のため、`table` 自身へ「常時可視スクロールバー」+「枠線フレーム」の
+    // 2 種を組み合わせる。端のフェード（`background-image` の
+    // `linear-gradient` グラデーション）技法は通常ラッパー要素へ当てる
+    // ものであり、`th` の不透明な背景色（下記）に覆われてヘッダー行では
+    // 読めなくなる既知の弱点があるため採らず、常に安定して見える
+    // 枠線フレーム + 角丸へ差し替えている（設計判断、PR #949 本文参照）。
     push_typography_rule(
         &mut out,
         ".docs-content table",
@@ -1142,6 +1197,38 @@ fn typography_css() -> Result<String, SiteThemeError> {
             decl("margin", "0 0 1.05rem"),
             decl("max-width", "100%"),
             decl("font-size", "0.925em"),
+            decl("border", "1px solid var(--fandhe-color-border)"),
+            decl("border-radius", "0.5rem"),
+            // Firefox 向け: 細身の常時可視スクロールバー。
+            decl("scrollbar-width", "thin"),
+            decl(
+                "scrollbar-color",
+                "var(--fandhe-color-border) var(--fandhe-color-bg-subtle)",
+            ),
+        ],
+    )?;
+    // Chromium/Safari（`scrollbar-width`/`scrollbar-color` 非対応）向け:
+    // `::-webkit-scrollbar*` 擬似要素でオーバーレイスクロールバーを常時
+    // 表示のトラック付きバーへ切り替える。
+    push_typography_rule(
+        &mut out,
+        ".docs-content table::-webkit-scrollbar",
+        &[decl("height", "0.5rem")],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content table::-webkit-scrollbar-track",
+        &[
+            decl("background", "var(--fandhe-color-bg-subtle)"),
+            decl("border-radius", "0.5rem"),
+        ],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content table::-webkit-scrollbar-thumb",
+        &[
+            decl("background", "var(--fandhe-color-border)"),
+            decl("border-radius", "0.5rem"),
         ],
     )?;
     push_typography_rule(
@@ -1658,6 +1745,8 @@ mod tests {
         }
 
         for name in [
+            "--fandhe-space-docs-container-width",
+            "--fandhe-space-docs-gutter",
             "--fandhe-space-docs-sidebar-width",
             "--fandhe-space-docs-max-content-width",
             "--fandhe-space-docs-header-height",
@@ -1771,5 +1860,70 @@ mod tests {
             pos_768 < pos_1200,
             "768px media query must appear before 1200px to preserve mobile-first cascade"
         );
+    }
+
+    #[test]
+    fn stylesheet_header_inner_and_container_share_the_same_layout_frame() {
+        // ヘッダー左端揃え（イシュー #949）の宣言固定テスト。トークン共有
+        // だけでなく、左端一致の総和に寄与する全宣言（container 枠 + gutter
+        // + ブランドの `calc(0.5rem + 2px)` + サイドバーの gutter padding）を
+        // 同時に固定する（トークンだけ見て寄与を見落とすと壊れる）。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+
+        assert!(css.contains(".docs-header-inner {"));
+        assert!(css.contains("max-width: var(--fandhe-space-docs-container-width);"));
+        assert!(css.contains("margin: 0 auto;"));
+        assert!(css.contains("padding: 0 var(--fandhe-space-docs-gutter);"));
+
+        assert!(css.contains(".docs-container {\ndisplay: block;\nmax-width: var(--fandhe-space-docs-container-width);\nmargin: 0 auto;\n}"));
+
+        assert!(css.contains(".docs-brand {"));
+        assert!(css.contains("padding: 0.32rem 0.5rem 0.32rem calc(0.5rem + 2px);"));
+
+        assert!(css
+            .contains(".docs-sidebar {\nwidth: 100%;\npadding: var(--fandhe-space-docs-gutter);"));
+    }
+
+    #[test]
+    fn stylesheet_layout_width_budget_is_consistent() {
+        // 幅予算（イシュー #949）: 84 − 17 − 15 − 2×2 = 48。
+        // container/sidebar/toc/max-content の 4 値と `.docs-main` の
+        // 768px ブロック padding（幅予算の構成要素）を同時に固定する。
+        // 片方だけ動かすと必ず落ちる（畳み込みによる予算破壊の検知）。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+
+        assert!(css.contains("--fandhe-space-docs-container-width: 84rem;"));
+        assert!(css.contains("--fandhe-space-docs-sidebar-width: 17rem;"));
+        assert!(css.contains("--fandhe-space-docs-toc-width: 15rem;"));
+        assert!(css.contains("--fandhe-space-docs-max-content-width: 48rem;"));
+
+        let block_768 = STRUCTURAL_CSS
+            .split("@media (min-width: 768px)")
+            .nth(1)
+            .expect("min-width: 768px block should exist");
+        assert!(block_768.contains(".docs-main {\npadding: 2.25rem 2rem 5rem;\n}"));
+    }
+
+    #[test]
+    fn stylesheet_table_has_horizontal_scroll_affordance() {
+        // テーブルの横スクロールアフォーダンス（イシュー #949、受け入れ条件
+        // 2）。`push_typography_rule`/`serialize_rule` は不正な宣言を黙って
+        // スキップするため、出力文字列を直接検査しないと「入ったつもり」を
+        // 検知できない（`push_typography_rule` doc コメント参照）。
+        let typography = typography_css().expect("typography css should assemble");
+
+        assert!(typography.contains("scrollbar-width: thin;"));
+        assert!(typography.contains(
+            "scrollbar-color: var(--fandhe-color-border) var(--fandhe-color-bg-subtle);"
+        ));
+        assert!(typography.contains(".docs-content table::-webkit-scrollbar {"));
+        assert!(typography.contains(".docs-content table::-webkit-scrollbar-track {"));
+        assert!(typography.contains(".docs-content table::-webkit-scrollbar-thumb {"));
+        assert!(typography.contains(".docs-content table {\n  display: block;"));
+        assert!(typography.contains(
+            "  border: 1px solid var(--fandhe-color-border);\n  border-radius: 0.5rem;\n  scrollbar-width: thin;"
+        ));
     }
 }

@@ -341,10 +341,12 @@ pub fn docs_page(title: &str, base_path: &str, sidebar: Node, body: Node) -> Nod
 /// ページは従来どおり [`docs_page`]（追加なし）を使う。href は
 /// [`asset_href`] を経由して `base_path` を考慮した単一実装点を守る。
 ///
-/// `header_nav`（イシュー #908）が `Some` の場合、`header.docs-header` の
-/// 第 2 子として `crate::nav::header_nav()` が生成するセクション別
-/// ドロップダウンメニューを埋め込む。`None` の場合はブランドリンクのみの
-/// 従来ヘッダーのまま（[`docs_page`] 経由の呼び出しはこちら）。
+/// `header_nav`（イシュー #908）が `Some` の場合、`header.docs-header` 直下の
+/// `div.docs-header-inner`（イシュー #949 で新設。`.docs-container` と同じ
+/// `max-width`/`margin: 0 auto` を共有し、ヘッダー左端をサイドバー・本文の
+/// 左端に揃える計測枠）の第 2 子として `crate::nav::header_nav()` が生成する
+/// セクション別ドロップダウンメニューを埋め込む。`None` の場合はブランド
+/// リンクのみの従来ヘッダーのまま（[`docs_page`] 経由の呼び出しはこちら）。
 pub fn docs_page_with_assets(
     title: &str,
     base_path: &str,
@@ -494,7 +496,16 @@ pub fn docs_page_with_assets(
             ),
         ],
     ));
-    let header_node = header(vec![("class", "docs-header")], header_children);
+    // ヘッダー内側の計測枠（イシュー #949）。`.docs-header` 自体は罫線
+    // （`border-bottom`）を全幅に伸ばすため padding を持たず、子要素は
+    // すべてこの `div.docs-header-inner` の内側に置く。`.docs-container`
+    // （左ナビ・本文・右目次の 3 カラムを束ねる要素）と同じ
+    // `--fandhe-space-docs-container-width` を `max-width` に、
+    // `margin: 0 auto` を共有することで、ブランドリンクの左端をサイドバー
+    // 配下のリンク文字左端と同一 x 座標に揃える（`crate::site_theme`
+    // 側の算式は `STRUCTURAL_CSS` の `.docs-header-inner` 規則コメント参照）。
+    let header_inner = div(vec![("class", "docs-header-inner")], header_children);
+    let header_node = header(vec![("class", "docs-header")], vec![header_inner]);
 
     // SkipNav の「本文へスキップ」リンク（イシュー #776）。キーボード操作時
     // のみ視覚的に現れ（`fandhe-frontend-pre-styled-ui::skip_nav` の
