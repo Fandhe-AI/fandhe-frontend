@@ -169,18 +169,20 @@ fn build_site_succeeds_for_the_real_repository_site() {
     assert!(out.0.join("index.html").exists());
 
     // イシュー #944: #943 で部品ページ 99 件が加わり、実サイトの生成ページ数は
-    // 121（既存 22 + 部品 99）になった。site_nav.rs は nav 登録側の 121 を、
-    // 本テストは build_site が実際に書き出したページ側の 121 を固定する
+    // 121（既存 22 + 部品 99）になった。site_nav.rs は nav 登録側の件数を、
+    // 本テストは build_site が実際に書き出したページ側の件数を固定する
     // （nav 登録 = 生成ページの恒等契約。片側だけ壊れる退行を検知する）。
     // 部品ページの台帳は docs/design/docs-site-component-pages.md §3。
+    // イシュー #991 で Toolbar（`site/components/toolbar.md`）が加わり、
+    // 121 → 122 になった。
     assert_eq!(
         report.written.len(),
-        121,
+        122,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
 
-    // 上の 121 は「その時点の実測値」であり、Phase 6/7/8 でページが増減したら
+    // 上の 122 は「その時点の実測値」であり、Phase 6/7/8 でページが増減したら
     // 更新が要る。恒等契約（nav 登録数 = 生成ページ数）そのものは値に依存しない
     // 形でも固定し、片方だけ更新して片方が形骸化する事故を防ぐ。
     let nav_toml = std::fs::read_to_string(repo_root.join("site/nav.toml"))
@@ -193,10 +195,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
         "nav 登録ページ数と生成ページ数が一致しない"
     );
 
-    // /components/ 配下は部品ページ 99 件 + 索引ページ
-    // /components/pre-styled-ui/ 1 件の計 100 件（イシュー #943）。
-    // Phase 4 以降で部品が増減したら本値の更新が必要になる
-    // （fail-closed。黙って減っても気付けるようにする意図）。
+    // /components/ 配下は部品ページ 100 件（イシュー #991 で Toolbar が
+    // 加わり 99 → 100） + 索引ページ /components/pre-styled-ui/ 1 件の
+    // 計 101 件（イシュー #943）。Phase 4 以降で部品が増減したら本値の
+    // 更新が必要になる（fail-closed。黙って減っても気付けるようにする
+    // 意図）。
     let components_dir = out.0.join("components");
     let component_pages = report
         .written
@@ -204,8 +207,8 @@ fn build_site_succeeds_for_the_real_repository_site() {
         .filter(|p| p.starts_with(&components_dir))
         .count();
     assert_eq!(
-        component_pages, 100,
-        "/components/ 配下の生成ページ数（部品 99 + 索引 1）"
+        component_pages, 101,
+        "/components/ 配下の生成ページ数（部品 100 + 索引 1）"
     );
 
     // アセットは site.css / admonition.css / skip-nav.css / site.js /

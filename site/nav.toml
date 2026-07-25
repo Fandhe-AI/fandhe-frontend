@@ -395,6 +395,11 @@ source = "site/components/toggle-tip.md"
 path = "/components/toggle-tip/"
 
 [[section.group.page]]
+title = "Toolbar"
+source = "site/components/toolbar.md"
+path = "/components/toolbar/"
+
+[[section.group.page]]
 title = "Tooltip"
 source = "site/components/tooltip.md"
 path = "/components/tooltip/"

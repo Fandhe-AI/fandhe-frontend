@@ -64,6 +64,7 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 | headless ラッパー | `drawer`（dialog の変種。状態機械は headless の `dialog::Dialog` をそのまま再利用し新規状態機械は作らない。`size`（drawer の占有幅/高さ）variant のみを root へ付与し `color-palette` 軸は非提供。placement（`start`/`end`/`top`/`bottom`）は variant ではなく headless 層が出力する `data-placement` に連動する CSS で表現する） | [drawer](../../site/components/drawer.md) |
 | headless ラッパー | `link` / `link_overlay` / `nav_list`（状態機械なし。`link_overlay` は `::before` 疑似要素の代わりに `overlay` 自身を `position: absolute; inset: 0;` で展開する。`nav_list` は `fandhe-frontend-docs-site::nav.rs::sidebar` が直接使う想定のため、`root` 以外（`heading`/`list`/`item`/`link`）は headless 自由関数をそのまま選択的に再エクスポートする） | [link](../../site/components/link.md) / [link-overlay](../../site/components/link-overlay.md) / [nav-list](../../site/components/nav-list.md) |
 | headless ラッパー | `action_bar`（`size`/`color-palette` 軸は非提供。`positioner` の `position: fixed; bottom: ...; left: 50%; transform: translateX(-50%)` による画面下部固定配置と `data-state` 連動の見た目切り替えのみを提供する。`z-index: 900`（menu/select の dropdown positioner（10）より上、dialog backdrop（1000）より下）） | [action-bar](../../site/components/action-bar.md) |
+| headless ラッパー | `toolbar`（イシュー #991。`size`/`color-palette` 軸は非提供。`root` の `data-orientation="vertical"` で `flex-direction: column` へ切り替え、`separator` は `aria-orientation` の値（toolbar 自身と直交）で向き別の太さを出し分ける。押下状態の管理は独自 CSS を持たず既存の `toggle_group` recipe と同型の `data-state="on"` 強調のみ提供する） | [toolbar](../../site/components/toolbar.md) |
 | headless ラッパー | `toast`（`placement`（`group` slot）/`status`（`root` slot、`alert` と同じ配色マッピング）の 2 軸 variant を持つが、各軸が別 slot へ付与されるため `variant_class`（単一軸専用 API）をスロットごとに個別に呼ぶ。`Toaster` 状態機械は再エクスポートしない。タイマー自動 dismiss・`ActionTrigger` の動作配線は wasm-full 後続のスコープ外） | [toast](../../site/components/toast.md) |
 | headless ラッパー | `hover_card`（`popover`/`tooltip` と同型の判断で variant は非提供。構造上最も近い先行例は `tooltip`。`content` の開閉連動・`--fandhe-reference-width` 非消費・focus-visible リングを継承する） | [hover-card](../../site/components/hover-card.md) |
 | headless ラッパー | `toggle_tip`（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。「見た目は Tooltip・挙動は Popover」の変種であり、`content` の視覚系は `tooltip` と同一値。状態機械は `state::Disclosure`） | [toggle-tip](../../site/components/toggle-tip.md) |
@@ -420,6 +421,7 @@ CSS を追加提供する（設計方針は他 headless ラッパーと同じ、
 | toast | ✓（`placement`、`group` slot） | ✓（`status`、`root` slot、`alert` と同じ配色マッピング） | 各軸が別 slot のため `variant_class` をスロットごとに個別呼び出し |
 | tour | 提供しない | ✓（`root` slot） | `size` は overlay 系の寸法を呼び出し側の CSS カスタムプロパティ上書きに委ねるため初版非提供。`palette` は `action-trigger` の背景色・スポットライト縁取りの強調色に反映 |
 | file-upload | ✓ | – | フォーム入力部品のため color-palette は非提供 |
+| toolbar | 提供しない | 提供しない | ボタン・セパレータ・ToggleGroup のグループ化コンテナであり寸法・強調色の variant 対象外（イシュー #991） |
 
 tabs/accordion/dialog/menu/select の実装詳細:
 

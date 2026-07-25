@@ -354,6 +354,7 @@ mod tests {
             ("donut_chart", crate::donut_chart::css()),
             ("charts/scatter_chart", crate::charts::scatter_chart::css()),
             ("charts/radar_chart", crate::charts::radar_chart::css()),
+            ("toolbar", crate::toolbar::stylesheet()),
         ]
     }
 

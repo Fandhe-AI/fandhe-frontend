@@ -91,7 +91,8 @@ fn site_nav_registers_five_sections_with_expected_titles() {
 /// `[[section.group]]` 配下へ登録され、登録ページ総数は 22 + 99 = 121 と
 /// なった（台帳との三方突合・充足率計測は #944 の責務、本テストは既存
 /// 22 件の宣言内容の不変を厳格検証しつつ、部品ページ側は件数・代表エントリの
-/// spot-check に留める）。
+/// spot-check に留める）。イシュー #991 で Toolbar（`site/components/toolbar.md`）
+/// が加わり、部品ページは 99 → 100、登録ページ総数は 121 → 122 になった。
 #[test]
 fn site_nav_registers_all_pages_with_expected_paths() {
     let nav = load_nav();
@@ -101,7 +102,7 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .map(|p| (p.source.as_str(), p.path.as_str()))
         .collect();
 
-    assert_eq!(pages.len(), 121, "expected 121 pages, got {pages:?}");
+    assert_eq!(pages.len(), 122, "expected 122 pages, got {pages:?}");
 
     let component_pages: Vec<&(&str, &str)> = pages
         .iter()
@@ -109,8 +110,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .collect();
     assert_eq!(
         component_pages.len(),
-        100,
-        "expected 100 /components/ pages (1 index + 99 部品), got {component_pages:?}"
+        101,
+        "expected 101 /components/ pages (1 index + 100 部品), got {component_pages:?}"
     );
 
     let source_based_component_pages = pages
@@ -118,8 +119,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .filter(|(source, _)| source.starts_with("site/components/"))
         .count();
     assert_eq!(
-        source_based_component_pages, 99,
-        "expected 99 pages sourced from site/components/"
+        source_based_component_pages, 100,
+        "expected 100 pages sourced from site/components/"
     );
 
     // 代表 3 件で (source, path) の一致を spot-check する（台帳・レジストリ

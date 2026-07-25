@@ -162,13 +162,15 @@ use fandhe_frontend_pre_styled_ui::theme::Theme;
 use fandhe_frontend_pre_styled_ui::timeline::{self, TimelineVariant};
 use fandhe_frontend_pre_styled_ui::timer::{self, Timer, TimerControl, TimerUnit};
 use fandhe_frontend_pre_styled_ui::toast::{self, ToastPlacement, ToastStatus};
+use fandhe_frontend_pre_styled_ui::toggle_group;
+use fandhe_frontend_pre_styled_ui::toolbar::{self, Toolbar};
 use fandhe_frontend_pre_styled_ui::tour::{self, ContentIds as TourContentIds};
 use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{
     accordion, alert, badge, card, combobox, menu, popover, radio_group, select, switch, toggle,
-    toggle_group, toggle_tip, tooltip, AlertStatus, BadgeProps, BadgeVariant, CardVariant,
-    ColorPalette, OpenState, Orientation, Size, StyleSheet, StylesheetError,
+    toggle_tip, tooltip, AlertStatus, BadgeProps, BadgeVariant, CardVariant, ColorPalette,
+    OpenState, Orientation, Size, StyleSheet, StylesheetError,
 };
 
 /// 索引ページ（凡例 + カテゴリ別リンク集）の `page.path`。`site/nav.toml`
@@ -280,7 +282,8 @@ struct ComponentPage {
     render: fn() -> Node,
 }
 
-/// 部品ページのレジストリ本体（88 件、旧集約ページの並び順を保つ）。
+/// 部品ページのレジストリ本体（89 件、旧集約ページの並び順を保つ。
+/// イシュー #991 で Toolbar を追加）。
 /// 原則として `docs/design/docs-site-component-pages.md` の台帳に掲載済み
 /// の部品のみを登録し、掲載順はテスト専用集約ヘルパーの表示順にのみ効く
 /// （#943 の nav 上の並びはカテゴリ別で、本テーブルの順序に依存しない）。
@@ -645,6 +648,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         path: "/components/radar-chart/",
         render: radar_chart_section,
     },
+    ComponentPage {
+        path: "/components/toolbar/",
+        render: toolbar_section,
+    },
 ];
 
 /// [`COMPONENT_PAGES`] に登録済みの部品ページパスを登録順に返す。
@@ -820,6 +827,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::signature_pad::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::toggle::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::toggle_group::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::toolbar::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -4311,6 +4319,60 @@ fn action_bar_section() -> Node {
     )
 }
 
+/// Toolbar 節（イシュー #991）: root/button/separator/toggle-group/
+/// toggle-item/link の 6 anatomy パーツすべてを 1 つのノード木で描画する
+/// （Anatomy 節はこのデモから機械導出されるため、6 パーツすべてを網羅する
+/// 必要がある。`crates/headless-ui/src/toolbar.rs` モジュール doc 参照）。
+/// 押下状態の管理は headless-ui `toggle_group` の状態機械（`ToggleGroup`）を
+/// そのまま使い、独自の押下管理を持ち込まない（toolbar モジュール doc
+/// 「ToggleGroup / ToggleItem を再エクスポートしない理由」参照）。
+fn toolbar_section() -> Node {
+    let bar = Toolbar::new(0, 4, false, Orientation::Horizontal);
+    let group = toggle_group::ToggleGroup::default();
+
+    let node = bar.root(
+        "Text formatting",
+        vec![],
+        vec![
+            bar.button(0, false, vec![], vec![text("Undo")]),
+            bar.separator(vec![], vec![]),
+            toolbar::toggle_group(
+                vec![],
+                vec![
+                    bar.toggle_item(
+                        1,
+                        group.is_pressed("bold"),
+                        false,
+                        "bold",
+                        vec![],
+                        vec![text("B")],
+                    ),
+                    bar.toggle_item(
+                        2,
+                        group.is_pressed("italic"),
+                        false,
+                        "italic",
+                        vec![],
+                        vec![text("I")],
+                    ),
+                ],
+            ),
+            bar.separator(vec![], vec![]),
+            // href は空文字列に固定する（`crate::linkcheck::check_links` が
+            // 無条件スキップする値。showcase 掲示コンテンツは実ページへ
+            // 解決される href を持たない設計、`breadcrumb_section` と同じ
+            // 制約。`showcase_markup_has_no_href_attributes_for_linkcheck_neutrality`
+            // 参照）。
+            bar.link(3, "", true, vec![], vec![text("Docs")]),
+        ],
+    );
+    section(
+        "Toolbar",
+        "headless-ui の Toolbar（role=\"toolbar\"）に pre-styled-ui の recipe CSS を適用した静的掲示です。Button / Separator / ToggleGroup（既存の ToggleGroup 状態機械を再利用）/ Link の 6 パーツすべてを 1 つの Toolbar 内に組み合わせています。roving tabindex（focused=0）により先頭の Undo ボタンのみ tabindex=\"0\" です。",
+        vec![node],
+    )
+}
+
 /// Status 節（イシュー #765）: colorPalette 軸ごとのドット + ラベル表示。
 fn status_section() -> Node {
     let palette_row = row(palettes()
@@ -5762,7 +5824,7 @@ mod tests {
         // 機械的な分解作業中の取りこぼし・重複追加を fail-closed で検知する
         // 件数センチネル。台帳（`docs/design/docs-site-component-pages.md`）
         // 99 件との突合は #944 の責務。
-        assert_eq!(paths.len(), 90, "COMPONENT_PAGES should have 90 entries");
+        assert_eq!(paths.len(), 91, "COMPONENT_PAGES should have 91 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();

@@ -272,6 +272,10 @@ const OVERLAY_SPECS: &[(&str, ComponentPageSpec)] = &[
         crate::component_specs_overlay::TOGGLE_TIP,
     ),
     (
+        "/components/toolbar/",
+        crate::component_specs_overlay::TOOLBAR,
+    ),
+    (
         "/components/tooltip/",
         crate::component_specs_overlay::TOOLTIP,
     ),

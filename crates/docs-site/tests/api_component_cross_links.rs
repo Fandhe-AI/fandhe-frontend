@@ -136,8 +136,8 @@ fn api_links_to_component_pages_are_all_nav_registered() {
     let nav_kebabs = nav_component_kebabs();
     assert_eq!(
         nav_kebabs.len(),
-        99,
-        "expected 99 nav-registered component pages, got {}",
+        100,
+        "expected 100 nav-registered component pages, got {}",
         nav_kebabs.len()
     );
 
@@ -169,7 +169,7 @@ fn every_component_page_links_back_to_pre_styled_ui_api() {
     const LINK_FRAGMENT: &str = "../../docs/api/pre-styled-ui-api.md";
 
     let nav_kebabs = nav_component_kebabs();
-    assert_eq!(nav_kebabs.len(), 99);
+    assert_eq!(nav_kebabs.len(), 100);
 
     let mut pages_missing_link = Vec::new();
     for kebab in &nav_kebabs {
@@ -188,7 +188,7 @@ fn every_component_page_links_back_to_pre_styled_ui_api() {
     let linked_from_api = extract_component_link_kebabs(&api_markdown);
     assert_eq!(
         linked_from_api, nav_kebabs,
-        "docs/api/pre-styled-ui-api.md component links must exactly match the 99 nav-registered \
+        "docs/api/pre-styled-ui-api.md component links must exactly match the 100 nav-registered \
          component pages (no missing, no stale entries)"
     );
 }
@@ -203,8 +203,8 @@ fn headless_backed_component_pages_link_bidirectionally_with_headless_ui_api() {
     let headless_backed = headless_backed_component_kebabs();
     assert_eq!(
         headless_backed.len(),
-        56,
-        "expected 56 headless-ui-backed component pages (nav ∩ headless-ui src mods), got {}: \
+        57,
+        "expected 57 headless-ui-backed component pages (nav ∩ headless-ui src mods), got {}: \
          {headless_backed:?}",
         headless_backed.len()
     );

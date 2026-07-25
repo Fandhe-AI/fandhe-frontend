@@ -11,12 +11,14 @@
 //! 組み立てる）。
 //!
 //! 対象は accordion・action-bar・dialog・drawer・floating-panel・
-//! hover-card・menu・popover・tabs・toast・toggle-tip・tooltip・tour の
-//! 13 部品（トリガー起点のオーバーレイ、または項目開閉のディスクロージャ
-//! 系）。`toggle`/`toggle-group` はショーケース CSS 未登録により Demo を
-//! 持たないため（`crates/docs-site/src/showcase.rs` を変更しないという
-//! 受け入れ条件 4 の制約）、本モジュールには含めず `site/components/` の
-//! Markdown 側で完結させる（計画 §4.5 参照）。
+//! hover-card・menu・popover・tabs・toast・toggle-tip・toolbar・tooltip・
+//! tour の 14 部品（トリガー起点のオーバーレイ、または項目開閉の
+//! ディスクロージャ系。toolbar はイシュー #991 で追加、`showcase.rs` の
+//! Demo 登録込み）。`toggle`/`toggle-group` はショーケース CSS 未登録により
+//! Demo を持たないため（`crates/docs-site/src/showcase.rs` を変更しないと
+//! いう #946 時点の受け入れ条件 4 の制約。#991 の Phase 8 には同制約は
+//! 適用されない）、本モジュールには含めず `site/components/` の Markdown
+//! 側で完結させる（計画 §4.5 参照）。
 //!
 //! # 一次情報の所在（受け入れ条件 2 の裏付け、創作の禁止）
 //!
@@ -122,6 +124,68 @@ pub const ACTION_BAR: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "role=\"separator\"",
             description: "separator に付与。aria-orientation=\"vertical\" を伴う。",
+        },
+    ],
+    demo: None,
+};
+
+/// `/components/toolbar/`（Interactive カテゴリ）。
+///
+/// 一次情報: `crates/headless-ui/src/toolbar.rs`（モジュール doc・
+/// `root`/`button`/`separator`/`toggle_group`/`toggle_item` シグネチャ・
+/// `role="toolbar"`/`role="separator"`/`role="group"`/`aria-pressed` の
+/// 実出力テスト）。
+pub const TOOLBAR: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "ボタン・リンク・セパレータ・ToggleGroup を横方向（または縦方向）にグループ化する操作バー。Root / Button / Link / Separator / ToggleGroup / ToggleItem の 6 anatomy パーツを持つ。",
+        "roving tabindex（focused/item_count/loop_focus/orientation の複合状態機械 Toolbar）。フォーカス対象の項目のみ tabindex=\"0\"、それ以外は tabindex=\"-1\" になる。",
+        "disabled 項目もフォーカス順序から除外しない（WAI-ARIA APG の toolbar パターン推奨に従う意図的な設計。aria-disabled/data-disabled で操作不能のみを表す）。",
+        "押下状態の管理は独自実装せず、既存の ToggleGroup/MultiToggleGroup 状態機械を再利用する。",
+        "separator は toolbar 自身の向きと直交する aria-orientation を出力する（横向き toolbar のセパレータは縦線になる）。",
+        "link は既存の Link コンポーネントへ完全委譲し、external 時の target=\"_blank\"/rel=\"noopener noreferrer\" を不可分に付与する。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "orientation",
+            kind: "Orientation",
+            default: "Orientation::Horizontal",
+            description: "root の role=\"toolbar\" に付与する向き（Horizontal/Vertical）。aria-orientation/data-orientation の両方へ反映される。",
+        },
+        ArgRow {
+            name: "label",
+            kind: "&str",
+            default: "",
+            description: "root に付与する aria-label（空文字列のときは省略）。",
+        },
+        ArgRow {
+            name: "focused",
+            kind: "bool",
+            default: "",
+            description: "button/link/toggle-item に付与。true のとき tabindex=\"0\"、false のとき tabindex=\"-1\"（roving tabindex）。",
+        },
+    ],
+    examples: &[],
+    keyboard: &[],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"toolbar\" / aria-orientation",
+            description: "root に付与。orientation 引数の値（horizontal/vertical）を反映する。",
+        },
+        AriaRow {
+            attribute: "role=\"separator\" / aria-orientation",
+            description: "separator に付与。toolbar 自身の向きと直交する値になる。",
+        },
+        AriaRow {
+            attribute: "role=\"group\"",
+            description: "toggle-group に付与（aria-orientation は role=\"group\" に許可されないため付与しない）。",
+        },
+        AriaRow {
+            attribute: "aria-pressed",
+            description: "toggle-item に付与。押下状態（true/false）を表す。",
+        },
+        AriaRow {
+            attribute: "aria-disabled",
+            description: "disabled な button/toggle-item に付与。ネイティブ disabled は付与せずフォーカス順序に残す。",
         },
     ],
     demo: None,

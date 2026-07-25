@@ -389,14 +389,16 @@ fn anatomy_parts_exactly_match_declared_parts_for_fully_demonstrated_components(
     }
 }
 
-/// §3.4 のスコープ解決バケット件数（実測、`COMPONENT_PAGES` 登録 90 件
-/// 〔イシュー #980 で toggle/toggle-group を追加登録した後の件数〕に対して
-/// 固定）。将来の部品追加でバケット 3（Anatomy 省略）へ無言に落ちることを
-/// 検知するための固定値テスト。バケット 2（フォールバック解決）は
-/// `input`/`textarea`/`native-select`（いずれも headless `field::input` の
-/// 共有スコープ `"field"` を使い、パスの kebab（`input`/`textarea`/
-/// `native-select`）と一致しない）と `charts`（複数チャート scope の集約
-/// ページで単一 scope に一致しない）の 4 件。
+/// §3.4 のスコープ解決バケット件数（実測、`COMPONENT_PAGES` 登録 91 件
+/// 〔イシュー #980 で toggle/toggle-group を追加登録・イシュー #991 で
+/// Toolbar を追加登録した後の件数〕に対して固定）。将来の部品追加で
+/// バケット 3（Anatomy 省略）へ無言に落ちることを検知するための固定値
+/// テスト。バケット 2（フォールバック解決）は `input`/`textarea`/
+/// `native-select`（いずれも headless `field::input` の共有スコープ
+/// `"field"` を使い、パスの kebab（`input`/`textarea`/`native-select`）と
+/// 一致しない）と `charts`（複数チャート scope の集約ページで単一 scope に
+/// 一致しない）の 4 件（不変）。Toolbar は `data-scope="toolbar"` がパスの
+/// kebab と一致するためバケット 1 に加わる。
 #[test]
 fn scope_resolution_buckets_match_expected_counts() {
     let mut bucket1_path_match = 0usize;
@@ -418,7 +420,7 @@ fn scope_resolution_buckets_match_expected_counts() {
             bucket2_fallback += 1;
         }
     }
-    assert_eq!(bucket1_path_match, 86);
+    assert_eq!(bucket1_path_match, 87);
     assert_eq!(bucket2_fallback, 4);
     assert_eq!(bucket3_none, 0);
 }
@@ -511,6 +513,7 @@ fn assert_file_has_no_raw_html_in_code(path: &Path) {
 /// イシュー #946: Overlay / Disclosure 系 13 部品ページ（`COMPONENT_SPECS`
 /// へ登録済み）が Demo / Features / Anatomy / API Reference / Accessibility
 /// の 5 節（Examples は任意のため必須にしない）をすべて含むことを固定する。
+/// イシュー #991 で Toolbar が加わり 14 部品ページになった。
 #[test]
 fn overlay_disclosure_pages_include_all_required_sections() {
     const REQUIRED_SECTIONS: &[&str] = &[
@@ -532,6 +535,7 @@ fn overlay_disclosure_pages_include_all_required_sections() {
         "/components/tabs/",
         "/components/toast/",
         "/components/toggle-tip/",
+        "/components/toolbar/",
         "/components/tooltip/",
         "/components/tour/",
     ];
