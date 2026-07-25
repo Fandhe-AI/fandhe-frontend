@@ -172,9 +172,10 @@ use fandhe_frontend_pre_styled_ui::tour::{self, ContentIds as TourContentIds};
 use fandhe_frontend_pre_styled_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_pre_styled_ui::visually_hidden;
 use fandhe_frontend_pre_styled_ui::{
-    accordion, alert, badge, card, combobox, menu, popover, radio_group, select, switch, toggle,
-    toggle_tip, tooltip, AlertStatus, BadgeProps, BadgeVariant, CardVariant, ColorPalette,
-    OpenState, Orientation, Size, StyleSheet, StylesheetError,
+    accordion, alert, badge, callout, card, combobox, menu, popover, radio_group, select, switch,
+    toggle, toggle_tip, tooltip, AlertStatus, BadgeProps, BadgeVariant, CalloutProps,
+    CalloutVariant, CardVariant, ColorPalette, OpenState, Orientation, Size, StyleSheet,
+    StylesheetError,
 };
 
 /// 索引ページ（凡例 + カテゴリ別リンク集）の `page.path`。`site/nav.toml`
@@ -395,6 +396,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
     ComponentPage {
         path: "/components/alert/",
         render: alert_section,
+    },
+    ComponentPage {
+        path: "/components/callout/",
+        render: callout_section,
     },
     ComponentPage {
         path: "/components/card/",
@@ -754,7 +759,7 @@ pub fn generated_content(page_path: &str) -> Option<Node> {
 ///
 /// 内訳: テーマトークン（`Theme::default`、ライト/ダーク両対応）→ 掲載
 /// コンポーネントの recipe CSS（button/download_trigger/badge/spinner/alert/
-/// card/tabs/accordion/dialog/drawer/menu/select/combobox/popover/tooltip/
+/// callout/card/tabs/accordion/dialog/drawer/menu/select/combobox/popover/tooltip/
 /// hover_card/toggle_tip/switch/radio_group/avatar/checkbox/checkbox_card/
 /// radio_card/input/textarea/native_select/number_input/tags_input/
 /// rating_group/slider/segment_group/toggle/toggle_group/pagination/
@@ -795,6 +800,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::badge::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::spinner::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::alert::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::callout::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::card::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::tabs::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::accordion::stylesheet())?;
@@ -1544,6 +1550,65 @@ fn alert_section() -> Node {
         "Alert",
         "status（info / success / warning / error）で色が切り替わる通知領域。root / indicator / content / title / description の slot 構成です。",
         vec![demos],
+    )
+}
+
+/// Callout 節: variant（soft / surface / outline）と colorPalette の
+/// デモ。`alert` と異なり `role="alert"` を付与しない（module doc 参照）。
+fn callout_section() -> Node {
+    let variants = [
+        (CalloutVariant::Soft, "Soft"),
+        (CalloutVariant::Surface, "Surface"),
+        (CalloutVariant::Outline, "Outline"),
+    ];
+    let variant_row = stack(
+        variants
+            .iter()
+            .map(|(variant, label)| {
+                let props = CalloutProps {
+                    variant: *variant,
+                    ..CalloutProps::default()
+                };
+                callout::root(
+                    &props,
+                    vec![],
+                    vec![
+                        callout::icon(vec![], vec![text("i")]),
+                        callout::text(
+                            props.size,
+                            vec![],
+                            vec![text(format!(
+                                "{label} variant の補足情報です（本文中の強調表示）。"
+                            ))],
+                        ),
+                    ],
+                )
+            })
+            .collect(),
+    );
+    let palette_row = stack(
+        palettes()
+            .iter()
+            .map(|(palette, label)| {
+                let props = CalloutProps {
+                    palette: *palette,
+                    ..CalloutProps::default()
+                };
+                callout::root(
+                    &props,
+                    vec![],
+                    vec![
+                        callout::icon(vec![], vec![text("i")]),
+                        callout::text(props.size, vec![], vec![text(*label)]),
+                    ],
+                )
+            })
+            .collect(),
+    );
+    section(
+        "Callout",
+        "本文フロー中に置く補足情報。alert と異なり live region ではなく role を付与しません。variant（soft / surface / outline）と colorPalette を組み合わせます。",
+        vec![variant_row, palette_row],
     )
 }
 
@@ -6094,8 +6159,9 @@ mod tests {
         // 件数センチネル。台帳（`docs/design/docs-site-component-pages.md`）
         // 99 件との突合は #944 の責務。
         // イシュー #993 で Navigation Menu を追加し 92 → 93 件になった。
-        // イシュー #995 で Quote / Strong を追加し 93 → 95 件になった。
-        assert_eq!(paths.len(), 95, "COMPONENT_PAGES should have 95 entries");
+        // イシュー #994 で Callout を追加し 93 → 94 件になった。
+        // イシュー #995 で Quote / Strong を追加し 94 → 96 件になった。
+        assert_eq!(paths.len(), 96, "COMPONENT_PAGES should have 96 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();
@@ -6169,6 +6235,7 @@ mod tests {
             "badge",
             "spinner",
             "alert",
+            "callout",
             "card",
             "tabs",
             "accordion",

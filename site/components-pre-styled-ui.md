@@ -103,6 +103,7 @@
 - [Alert](./components/alert.md)
 - [Avatar](./components/avatar.md)
 - [Badge](./components/badge.md)
+- [Callout](./components/callout.md)
 - [Card](./components/card.md)
 - [Color Swatch](./components/color-swatch.md)
 - [Data List](./components/data-list.md)

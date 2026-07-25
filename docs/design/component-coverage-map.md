@@ -872,7 +872,7 @@ diff が非空になって §4 が壊れる）。「実装対象」区分の根�
 | —（対応 md なし） | — | — | Composition (`composition`) | — | — | — | 対象外 | 対象外（非コンポーネント文書、guides。合成パターン（asChild/Slot）の事実記録は本書 §5 Part D の Slot 行・`docs/design/radix-primitives-inventory.md` §7 参照） |
 | —（対応 md なし） | — | — | Server-Side Rendering (`server-side-rendering`) | — | — | — | 対象外 | 対象外（非コンポーネント文書、guides） |
 | —（対応 md なし） | — | — | Styling (`styling`) | — | — | — | 対象外 | 対象外（非コンポーネント文書、guides） |
-| —（対応 md なし） | — | — | — | Callout (`callout`) | — | — | 実装対象 | 対応 mod なし。既存 `alert` の anatomy（Root/Indicator/Content 等）を参考に新設候補。#959 で確定、仮 ID 8-4（Step B で採番、§9.1 参照） |
+| —（対応 md なし） | — | — | — | Callout (`callout`) | fandhe pre-styled-ui = `callout` | — | 実装済み | 既存 `alert` の anatomy を参考に root/icon/text の 3 パーツで新設（イシュー #994）。`alert` と異なり `role="alert"` を付与しない静的部品。仮 ID 8-4 |
 | —（対応 md なし） | — | — | — | Checkbox Group (`checkbox-group`) | — | — | 実装対象 | 対応 mod なし（`checkbox`/`checkbox_card` は単体、複数選択グループの anatomy は未実装）。#959 で確定、仮 ID 8-7（Step B で採番、§9.1 参照） |
 | —（対応 md なし） | — | — | — | Inset (`inset`) | — | — | 保留 | layout 系ユーティリティに近いが、#716/#724 の layout プリミティブ 5 件（Box/Flex/Grid/Container/Section）には含まれない（`docs/design/radix-themes-survey.md` §3.1 注記・§6 が明記）。参照対象外リストに含めない一次記録に従い「保留」とする。再評価トリガー: layout 系ユーティリティ全般の参照方針が別途確定した場合。#959 で判定継続。`intentional-non-adoption.md` §7 へ転記済み（#959） |
 | [quote](../../site/components/quote.md) | — | — | — | Quote (`quote`) | — | — | 実装済み | イシュー #995 で実装済み。既存 `blockquote` と役割が近い静的テキスト部品として新設（#959 で確定、仮 ID 8-5） |
@@ -968,7 +968,7 @@ L493, L521〜L528）+ RichTextEditor（L511, §3.22）+ chakra `Theme`（L529,
 | Menubar (`menubar`) | Primitives → headless-ui | Part D | 実装済み | 複数 Menu の水平配置・roving tabindex・開いている Menu を跨いだ左右移動の専用 anatomy を実装。`menu` の状態機械・値語彙のみ再利用 | #992 |
 | Navigation Menu (`navigation-menu`) | Primitives → headless-ui | Part D | 実装済み | `nav_list` は role なし・ディスクロージャ非対応（対称項目参照）。**2026-07-25 のユーザー判断により `intentional-non-adoption.md` §3.25 規則 2 を適用**: viewport 測定・`data-motion` は装飾関心のため headless-ui へ置かず、実装しない（pre-styled-ui 側も本イシュー #993 では未実装）。headless-ui は Root/List/Item/Trigger/Content/Link の anatomy とアクティブリンクの `aria-current` までを実装した | #993 |
 | Toolbar (`toolbar`) | Primitives → headless-ui | Part D | 実装済み | ボタン・セパレータ・ToggleGroup の横方向グループ化 anatomy を実装 | #991 |
-| Callout (`callout`) | Themes → pre-styled-ui | Part D | 実装対象 | 対応 mod なし。`alert` の anatomy を参考に新設候補 | —（#959 で採番） |
+| Callout (`callout`) | Themes → pre-styled-ui | Part D | 実装済み | root/icon/text の 3 パーツで新設。`alert` と異なり `role="alert"` を付与しない静的部品 | #994 |
 | Checkbox Group (`checkbox-group`) | Themes → pre-styled-ui | Part D | 実装対象 | 対応 mod なし。`checkbox`/`checkbox_card` は単体、グループ anatomy 未実装 | —（#959 で採番） |
 | Quote (`quote`) | Themes → pre-styled-ui | Part D | 実装済み | 既存 `blockquote` と役割が近い静的部品として実装（インライン `<q>`、`blockquote` はブロック引用） | #995 |
 | Strong (`strong`) | Themes → pre-styled-ui | Part D | 実装済み | 既存 `em`（強調）と役割対称の静的部品として実装（`font-weight: bold` で `em` と区別） | #995 |
@@ -998,7 +998,7 @@ pre-styled-ui のみで完結させる（両層セット実装にはしない）
 | 1 | 8-1 | `feat(headless-ui): Toolbar — ボタン/セパレータ/ToggleGroup の横方向グループ化 anatomy を新設する` | headless-ui | Primitives → headless-ui | — | headless-ui + pre-styled-ui + wasm-full（`check-dep-versions --fix` で req 追随） | roving tabindex 等 `crates/wasm-full/` 側の DOM 配線 |
 | 2 | 8-2 | `feat(headless-ui): Menubar — menu anatomy 再利用による水平メニューバーを新設する` | headless-ui | Primitives → headless-ui | 8-1 | headless-ui + pre-styled-ui + wasm-full | 同上 |
 | 3 | 8-3 | `feat(headless-ui): Navigation Menu — viewport/アクティブリンク追跡付きナビゲーションメニューを新設する`（実装イシュー #993 のタイトルは「構造とアクティブリンク（装飾関心は pre-styled 層へ）」。「viewport」は本注記のとおり§3.25 規則 2 により非目標へ確定したため実装イシューのタイトルからは落とした） | headless-ui | Primitives → headless-ui | 8-2 | headless-ui + pre-styled-ui + wasm-full（実績: headless-ui のみ。pre-styled-ui は寸法/強調色 variant なしの薄いラッパー、wasm-full はバージョン追随のみで実 DOM 配線は未着手） | viewport 実配置・アクティブリンク動的同期・`data-motion` 遷移駆動（`intentional-non-adoption.md` §3.25 規則 2 により headless-ui 層から恒久的に除外。pre-styled-ui 側で必要になった場合も本表の非目標指定はそのまま有効） |
-| 4 | 8-4 | `feat(pre-styled-ui): Callout — alert anatomy を参考にした注意喚起部品を新設する` | pre-styled-ui | Themes → pre-styled-ui | #943, 8-3 | pre-styled-ui のみ | — |
+| 4 | 8-4 | `feat(pre-styled-ui): Callout — alert anatomy を参考にした注意喚起部品を新設する`（実装イシュー #994 のタイトルは「Callout — 補足情報の強調表示部品」） | pre-styled-ui | Themes → pre-styled-ui | #943, 8-3 | pre-styled-ui のみ | — |
 | 5 | 8-5 | `feat(pre-styled-ui): Quote / Strong — em 対称の静的テキスト部品 2 件を新設する`（実装イシュー #995 で実装済み） | pre-styled-ui | Themes → pre-styled-ui | #943, 8-4 | pre-styled-ui のみ | — |
 | 6 | 8-6 | `feat(pre-styled-ui): Tab Nav — tabs の見た目を持つナビゲーションリンク集合を新設する` | pre-styled-ui | Themes → pre-styled-ui | #943, 8-5 | pre-styled-ui のみ | — |
 | 7 | 8-7 | `feat(pre-styled-ui): Checkbox Group — 複数選択グループの anatomy を新設する` | pre-styled-ui（+ 必要なら headless-ui、実装者判断） | Themes → pre-styled-ui | #943, 8-6 | pre-styled-ui のみ（headless-ui へ拡張時は headless-ui + pre-styled-ui + wasm-full） | — |
