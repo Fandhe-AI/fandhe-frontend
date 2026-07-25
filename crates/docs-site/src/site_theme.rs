@@ -1252,9 +1252,15 @@ fn typography_css() -> Result<String, SiteThemeError> {
         ".docs-content tr > :last-child",
         &[decl("border-right", "0")],
     )?;
+    // `tbody` へスコープを限定する（Bugbot 指摘、イシュー #949 追補）。
+    // docs のテーブルは常に `thead` + `tbody` を出力するため、
+    // 無スコープの `tr:last-child` は `thead` 内の唯一の `tr`（＝ヘッダー
+    // 行）にも一致してしまい、`thead`/`tbody` 境界線（ヘッダー行下部の
+    // ボーダー）まで消してしまう。「最終 body 行のみ下辺を打ち消す」
+    // という意図を保つため `tbody` 配下に限定する。
     push_typography_rule(
         &mut out,
-        ".docs-content tr:last-child > *",
+        ".docs-content tbody tr:last-child > *",
         &[decl("border-bottom", "0")],
     )?;
     push_typography_rule(
