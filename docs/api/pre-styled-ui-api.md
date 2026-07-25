@@ -28,7 +28,7 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 | 基盤 | `css` | — |
 | 基盤 | `recipe`（詳細は [`pre-styled-recipe-api.md`](./pre-styled-recipe-api.md)） | — |
 | 基盤 | `stylesheet`（CSS 集約・配布ヘルパ、§4a 参照） | — |
-| 単純 styled 部品 | `button` / `badge` / `spinner` / `alert` / `card`（`button` は `icon_button`/`close_button` を icon-only 修飾 variant として提供。独立部品ではなく `button` recipe の非公開 variant であり `data-scope="button"` を共有する） | [button](../../site/components/button.md) / [badge](../../site/components/badge.md) / [spinner](../../site/components/spinner.md) / [alert](../../site/components/alert.md) / [card](../../site/components/card.md) |
+| 単純 styled 部品 | `button` / `badge` / `spinner` / `alert` / `callout` / `card`（`button` は `icon_button`/`close_button` を icon-only 修飾 variant として提供。独立部品ではなく `button` recipe の非公開 variant であり `data-scope="button"` を共有する。`callout` は本文中の補足情報向け静的部品で、`alert` と異なり live region ではないため `role` を付与しない、イシュー #994） | [button](../../site/components/button.md) / [badge](../../site/components/badge.md) / [spinner](../../site/components/spinner.md) / [alert](../../site/components/alert.md) / [callout](../../site/components/callout.md) / [card](../../site/components/card.md) |
 | 単純 styled 部品 | `skeleton`（ローディングプレースホルダー。`text`/`circle`/`rect` の 3 variant、常時 `aria-hidden="true"`、`color-palette`/`size` 軸は非提供、`prefers-reduced-motion: reduce` でアニメーション停止） | [skeleton](../../site/components/skeleton.md) |
 | 単純 styled 部品 | `image`（写真等の静的コンテンツを表示する `<img>`。`ImageFit`（`object-fit`）/`AspectRatio` の 2 軸 variant、`alt` 必須引数。headless-ui `avatar` の `ImageStatus` 状態機械とは独立。中立的な表示部品のため `color-palette` 軸は非提供） | [image](../../site/components/image.md) |
 | 単純 styled 部品 | `icon`（インライン SVG の寸法を統一する `<svg>` ラッパー。`size` variant のみ、`color: currentColor` 継承のため `color-palette` 軸は非提供。SVG 本体（`path` 等）は呼び出し側がノード木 API で構築し、外部リソース（`href`/`xlink:href`）は本モジュール自身が参照しない） | [icon](../../site/components/icon.md) |
@@ -391,6 +391,7 @@ CSS を追加提供する（設計方針は他 headless ラッパーと同じ、
 | 部品 | size | color-palette | 備考 |
 |---|---|---|---|
 | button/badge/spinner | ✓ | ✓ | button は icon-only 修飾 variant（`icon_button`/`close_button`）を追加。専用の `icon`/`close-button` 行は設けない: `data-scope="button"` を共有する variant 拡張であり別部品ではないため |
+| callout | ✓ | ✓ | 本文中の補足情報。alert と異なり live region ではない（イシュー #994） |
 | avatar | ✓ | – (shape) | — |
 | switch | ✓ | ✓ | — |
 | radio-group | ✓ | ✓ | — |

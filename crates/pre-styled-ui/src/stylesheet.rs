@@ -257,6 +257,7 @@ mod tests {
             ("badge", crate::badge::css()),
             ("spinner", crate::spinner::css()),
             ("alert", crate::alert::css()),
+            ("callout", crate::callout::css()),
             ("card", crate::card::css()),
             ("dialog", crate::dialog::stylesheet()),
             ("drawer", crate::drawer::stylesheet()),

@@ -56,6 +56,10 @@
 //!     root/indicator/content/title/description の 5 パーツ、`role="alert"`。
 //!     公開 API は [`alert::AlertStatus`] のまま、内部で `status` を
 //!     `--fandhe-palette-*` へ束ねる）。
+//!   - [`mod@callout`]（#994）: [`callout::root`] ほかパーツ関数群（slot
+//!     recipe、root/icon/text の 3 パーツ）。本文フロー中に置く補足情報の
+//!     ための静的部品であり、`alert` と異なり live region ではないため
+//!     `role` を一切付与しない（`callout.rs` モジュール doc 参照）。
 //!   - [`mod@card`]: [`card::root`] ほかパーツ関数群（slot recipe、
 //!     root/header/body/footer/title/description の 6 パーツ、装飾的コンテナ、
 //!     role 付与なし。中立コンテナのため colorPalette 軸は付与しない）。
@@ -532,6 +536,7 @@ pub mod blockquote;
 pub mod breadcrumb;
 pub mod button;
 pub mod calendar;
+pub mod callout;
 pub mod card;
 pub mod carousel;
 pub mod charts;
@@ -628,6 +633,7 @@ pub use alert::AlertStatus;
 pub use badge::{badge, BadgeProps, BadgeVariant};
 pub use blockquote::BlockquoteVariant;
 pub use button::{button, close_button, icon_button, ButtonProps, ButtonVariant};
+pub use callout::{CalloutProps, CalloutVariant};
 pub use card::CardVariant;
 pub use code::code;
 pub use color_swatch::{color_swatch, ColorSwatchProps, SwatchShape};
