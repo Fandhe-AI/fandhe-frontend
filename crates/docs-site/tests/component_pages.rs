@@ -421,7 +421,10 @@ fn scope_resolution_buckets_match_expected_counts() {
             bucket2_fallback += 1;
         }
     }
-    assert_eq!(bucket1_path_match, 89);
+    // イシュー #995 で Quote / Strong の 2 部品ページが加わり、いずれも
+    // path 由来の kebab（quote/strong）が data-scope とそのまま一致する
+    // ため bucket1_path_match が 89 -> 91 へ増える。
+    assert_eq!(bucket1_path_match, 91);
     assert_eq!(bucket2_fallback, 4);
     assert_eq!(bucket3_none, 0);
 }

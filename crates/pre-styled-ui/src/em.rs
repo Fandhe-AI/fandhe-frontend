@@ -1,6 +1,10 @@
 //! Em（イシュー #771）: variant を持たない最小静的部品。強調テキスト
 //! （`<em>`）を既定スタイルで組み立てる。[`crate::link_overlay`] と同型の
 //! 「variant 軸を持たない slot recipe」パターンに従う。
+//!
+//! 重要性の強調（`<strong>`）は [`crate::strong`] が担う（イシュー #995）。
+//! `em` は文法的な強勢（`font-weight: medium`）、`strong` は重要性
+//! （`font-weight: bold`）と役割・見た目を区別する。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;

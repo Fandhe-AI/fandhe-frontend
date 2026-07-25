@@ -106,7 +106,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .map(|p| (p.source.as_str(), p.path.as_str()))
         .collect();
 
-    assert_eq!(pages.len(), 124, "expected 124 pages, got {pages:?}");
+    // イシュー #995 で Quote / Strong の 2 ページが加わり 124 → 126 になった。
+    assert_eq!(pages.len(), 126, "expected 126 pages, got {pages:?}");
 
     let component_pages: Vec<&(&str, &str)> = pages
         .iter()
@@ -114,8 +115,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .collect();
     assert_eq!(
         component_pages.len(),
-        103,
-        "expected 103 /components/ pages (1 index + 102 部品), got {component_pages:?}"
+        105,
+        "expected 105 /components/ pages (1 index + 104 部品), got {component_pages:?}"
     );
 
     let source_based_component_pages = pages
@@ -123,8 +124,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .filter(|(source, _)| source.starts_with("site/components/"))
         .count();
     assert_eq!(
-        source_based_component_pages, 102,
-        "expected 102 pages sourced from site/components/"
+        source_based_component_pages, 104,
+        "expected 104 pages sourced from site/components/"
     );
 
     // 代表 3 件で (source, path) の一致を spot-check する（台帳・レジストリ

@@ -157,6 +157,8 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 | List | `list` | Typography | `/components/list/` | `site/components/list.md` | （typography_section 内包） |
 | Listbox | `listbox` | Forms | `/components/listbox/` | `site/components/listbox.md` | `listbox_section()` |
 | Mark | `mark` | Typography | `/components/mark/` | `site/components/mark.md` | （typography_section 内包） |
+| Quote | `quote` | Typography | `/components/quote/` | `site/components/quote.md` | `quote_section()`（イシュー #995） |
+| Strong | `strong` | Typography | `/components/strong/` | `site/components/strong.md` | `strong_section()`（イシュー #995） |
 | Marquee | `marquee` | Utilities | `/components/marquee/` | `site/components/marquee.md` | `marquee_section()` |
 | Menu | `menu` | Interactive | `/components/menu/` | `site/components/menu.md` | `menu_section()` |
 | Native Select | `native_select` | Forms | `/components/native-select/` | `site/components/native-select.md` | （form_controls_section 内包） |
@@ -230,19 +232,22 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 
 | カテゴリ | 定義 | 該当ページ数 |
 |---|---|---|
-| Typography | 文字組み・文章表現に徹する静的部品 | 10 |
+| Typography | 文字組み・文章表現に徹する静的部品 | 12（イシュー #995 で Quote/Strong の 2 件を追加） |
 | Forms | 値の入力・選択・送信に関わる部品（Button・各種トリガーを含む） | 31 |
 | Interactive | トリガーで開閉・遷移する部品（overlay / disclosure / navigation / 手順進行） | 20 |
 | Data Display | 状態・データの提示に徹する部品 | 21 |
 | Utilities | 支援・アクセシビリティ・視覚補助の非主役部品 | 6 |
 | Charts | チャート部品と共通 API | 11 |
 
-合計 10 + 31 + 20 + 21 + 6 + 11 = **99**（§3 の台帳行数と一致）。
+合計 10 + 31 + 20 + 21 + 6 + 11 = **99**（§3 の台帳行数と一致。イシュー
+#991/#992/#993/#995 でその後 Toolbar/Menubar/Navigation Menu/Quote/Strong
+が加わり実数はさらに増えているが、既存ドリフトの是正は本イシューのスコープ外）。
 
 割当（§3 の台帳と 1:1 で突合済み）:
 
-- **Typography (10)**: `blockquote` `code` `em` `heading` `highlight`
-  `kbd` `link` `list` `mark` `text`
+- **Typography (12、イシュー #995 で `quote`/`strong` を追加)**:
+  `blockquote` `code` `em` `heading` `highlight` `kbd` `link` `list` `mark`
+  `quote` `strong` `text`
 - **Forms (31)**: `angle_slider` `button` `calendar` `checkbox`
   `checkbox_card` `color_picker` `combobox` `date_input` `date_picker`
   `download_trigger` `editable` `file_upload` `image_cropper` `input`
