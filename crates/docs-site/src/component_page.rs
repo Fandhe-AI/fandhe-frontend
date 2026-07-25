@@ -141,12 +141,149 @@ impl ComponentPageSpec {
     };
 }
 
+/// イシュー #947（Navigation / Data Display 系、27 件）の
+/// `path -> ComponentPageSpec` テーブル。実体は
+/// [`crate::component_specs_nav_data`] の個別定数を参照する（forms.rs のような
+/// 集約 `SPECS` スライスをモジュール側で持たないため、本ファイル側で
+/// テーブル化する）。
+const NAV_DATA_SPECS: &[(&str, ComponentPageSpec)] = &[
+    // ---- イシュー #947（Navigation / Data Display 系、27 件）ここから ----
+    ("/components/alert/", crate::component_specs_nav_data::ALERT),
+    (
+        "/components/avatar/",
+        crate::component_specs_nav_data::AVATAR,
+    ),
+    ("/components/badge/", crate::component_specs_nav_data::BADGE),
+    ("/components/card/", crate::component_specs_nav_data::CARD),
+    (
+        "/components/data-list/",
+        crate::component_specs_nav_data::DATA_LIST,
+    ),
+    (
+        "/components/empty-state/",
+        crate::component_specs_nav_data::EMPTY_STATE,
+    ),
+    (
+        "/components/json-tree-view/",
+        crate::component_specs_nav_data::JSON_TREE_VIEW,
+    ),
+    (
+        "/components/progress/",
+        crate::component_specs_nav_data::PROGRESS,
+    ),
+    (
+        "/components/skeleton/",
+        crate::component_specs_nav_data::SKELETON,
+    ),
+    (
+        "/components/spinner/",
+        crate::component_specs_nav_data::SPINNER,
+    ),
+    ("/components/stat/", crate::component_specs_nav_data::STAT),
+    (
+        "/components/status/",
+        crate::component_specs_nav_data::STATUS,
+    ),
+    ("/components/table/", crate::component_specs_nav_data::TABLE),
+    ("/components/tag/", crate::component_specs_nav_data::TAG),
+    (
+        "/components/tree-view/",
+        crate::component_specs_nav_data::TREE_VIEW,
+    ),
+    (
+        "/components/color-swatch/",
+        crate::component_specs_nav_data::COLOR_SWATCH,
+    ),
+    ("/components/icon/", crate::component_specs_nav_data::ICON),
+    ("/components/image/", crate::component_specs_nav_data::IMAGE),
+    (
+        "/components/timeline/",
+        crate::component_specs_nav_data::TIMELINE,
+    ),
+    (
+        "/components/breadcrumb/",
+        crate::component_specs_nav_data::BREADCRUMB,
+    ),
+    (
+        "/components/carousel/",
+        crate::component_specs_nav_data::CAROUSEL,
+    ),
+    (
+        "/components/pagination/",
+        crate::component_specs_nav_data::PAGINATION,
+    ),
+    (
+        "/components/splitter/",
+        crate::component_specs_nav_data::SPLITTER,
+    ),
+    ("/components/steps/", crate::component_specs_nav_data::STEPS),
+    (
+        "/components/marquee/",
+        crate::component_specs_nav_data::MARQUEE,
+    ),
+    (
+        "/components/scroll-area/",
+        crate::component_specs_nav_data::SCROLL_AREA,
+    ),
+    (
+        "/components/separator/",
+        crate::component_specs_nav_data::SEPARATOR,
+    ),
+    // ---- イシュー #947 ここまで ----
+];
+
+/// イシュー #946（Overlay / Disclosure 系、13 件）の
+/// `path -> ComponentPageSpec` テーブル。実体は
+/// [`crate::component_specs_overlay`] の個別定数を参照する。
+const OVERLAY_SPECS: &[(&str, ComponentPageSpec)] = &[
+    (
+        "/components/accordion/",
+        crate::component_specs_overlay::ACCORDION,
+    ),
+    (
+        "/components/action-bar/",
+        crate::component_specs_overlay::ACTION_BAR,
+    ),
+    (
+        "/components/dialog/",
+        crate::component_specs_overlay::DIALOG,
+    ),
+    (
+        "/components/drawer/",
+        crate::component_specs_overlay::DRAWER,
+    ),
+    (
+        "/components/floating-panel/",
+        crate::component_specs_overlay::FLOATING_PANEL,
+    ),
+    (
+        "/components/hover-card/",
+        crate::component_specs_overlay::HOVER_CARD,
+    ),
+    ("/components/menu/", crate::component_specs_overlay::MENU),
+    (
+        "/components/popover/",
+        crate::component_specs_overlay::POPOVER,
+    ),
+    ("/components/tabs/", crate::component_specs_overlay::TABS),
+    ("/components/toast/", crate::component_specs_overlay::TOAST),
+    (
+        "/components/toggle-tip/",
+        crate::component_specs_overlay::TOGGLE_TIP,
+    ),
+    (
+        "/components/tooltip/",
+        crate::component_specs_overlay::TOOLTIP,
+    ),
+    ("/components/tour/", crate::component_specs_overlay::TOUR),
+];
+
 /// `path -> ComponentPageSpec` レジストリを供給するカテゴリ別テーブルの集約。
-/// Phase 4（#945〜#948）の各 issue はカテゴリ 1 個につき 1 モジュール
-/// （[`component_specs`] 配下）を追加し、本配列へ 1 行追記する想定
-/// （[`spec_for`] が全テーブルを線形探索するため、モジュール間の重複パスは
-/// 想定しない）。
-const SPEC_TABLES: &[&[(&str, ComponentPageSpec)]] = &[component_specs::forms::SPECS];
+/// Phase 4（#945〜#948）の各 issue はカテゴリ 1 個につき 1 テーブルを追加し、
+/// 本配列へ 1 行追記する想定（[`spec_for`] が全テーブルを線形探索するため、
+/// モジュール間の重複パスは想定しない）。
+const SPEC_TABLES: &[&[(&str, ComponentPageSpec)]] =
+    &[component_specs::forms::SPECS, NAV_DATA_SPECS, OVERLAY_SPECS];
 
 /// `page_path` に対応する [`ComponentPageSpec`] を返す。未登録パスは
 /// [`ComponentPageSpec::EMPTY`]（fail-closed で「節を省略」側へ倒す）。

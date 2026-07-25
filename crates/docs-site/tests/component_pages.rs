@@ -452,9 +452,17 @@ fn features_and_table_cells_escape_xss_payloads() {
 
 #[test]
 fn component_page_source_does_not_use_raw_html() {
-    assert_file_has_no_raw_html_in_code(
-        &repo_root().join("crates/docs-site/src/component_page.rs"),
-    );
+    // イシュー #946: `crate::component_specs_overlay`（Overlay/Disclosure
+    // 系 13 部品の原稿データ）・`crate::component_specs_nav_data`
+    // （Navigation/Data Display 系 27 部品の原稿データ、イシュー #947）も
+    // 同じ REQ-1 不変条件の走査対象に含める。
+    for rel_path in [
+        "crates/docs-site/src/component_page.rs",
+        "crates/docs-site/src/component_specs_overlay.rs",
+        "crates/docs-site/src/component_specs_nav_data.rs",
+    ] {
+        assert_file_has_no_raw_html_in_code(&repo_root().join(rel_path));
+    }
 }
 
 /// [`component_page_source_does_not_use_raw_html`] の REQ-1 ガードを
@@ -496,6 +504,122 @@ fn assert_file_has_no_raw_html_in_code(path: &Path) {
         "{} must not use raw_html() (REQ-1 escape bypass) in code (non-comment) lines",
         path.display()
     );
+}
+
+/// イシュー #946: Overlay / Disclosure 系 13 部品ページ（`COMPONENT_SPECS`
+/// へ登録済み）が Demo / Features / Anatomy / API Reference / Accessibility
+/// の 5 節（Examples は任意のため必須にしない）をすべて含むことを固定する。
+#[test]
+fn overlay_disclosure_pages_include_all_required_sections() {
+    const REQUIRED_SECTIONS: &[&str] = &[
+        "Demo",
+        "Features",
+        "Anatomy",
+        "API Reference",
+        "Accessibility",
+    ];
+    const PATHS: &[&str] = &[
+        "/components/accordion/",
+        "/components/action-bar/",
+        "/components/dialog/",
+        "/components/drawer/",
+        "/components/floating-panel/",
+        "/components/hover-card/",
+        "/components/menu/",
+        "/components/popover/",
+        "/components/tabs/",
+        "/components/toast/",
+        "/components/toggle-tip/",
+        "/components/tooltip/",
+        "/components/tour/",
+    ];
+    for path in PATHS {
+        let content = fandhe_frontend_docs_site::component_page::generated_content(path)
+            .unwrap_or_else(|| panic!("registered path {path} must have generated content"));
+        let html = render(&content);
+        let headings = h2_texts(&html);
+        for section in REQUIRED_SECTIONS {
+            assert!(
+                headings.iter().any(|h| h == section),
+                "page {path} is missing required section {section:?}, got {headings:?}"
+            );
+        }
+    }
+}
+
+/// イシュー #946: 掲示制約 note（オーバーレイ配置の掲示専用 CSS 説明）を
+/// 持つべき 11 ページの `.md` に文言が残り、種別が `[!IMPORTANT]`（未充填
+/// マーカー `[!NOTE]` の残置ゼロ）であることを固定する。11 件のリストは
+/// 増減を fail-closed に検知するための定数であり、対象ページを増減する
+/// 変更は本テストの更新も伴う必要がある。
+#[test]
+fn overlay_pages_retain_overlay_placement_admonition_as_important() {
+    const PAGES_WITH_OVERLAY_NOTE: &[&str] = &[
+        "action-bar",
+        "dialog",
+        "drawer",
+        "floating-panel",
+        "hover-card",
+        "menu",
+        "popover",
+        "toast",
+        "toggle-tip",
+        "tooltip",
+        "tour",
+    ];
+    for name in PAGES_WITH_OVERLAY_NOTE {
+        let path = repo_root().join(format!("site/components/{name}.md"));
+        let src = fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("{} should be readable: {e}", path.display()));
+        assert!(
+            src.contains("オーバーレイ部品"),
+            "site/components/{name}.md must retain the overlay-placement admonition text"
+        );
+        assert!(
+            src.contains("recipe CSS"),
+            "site/components/{name}.md must retain the overlay-placement admonition text"
+        );
+        assert!(
+            src.contains("[!IMPORTANT]"),
+            "site/components/{name}.md must use [!IMPORTANT] for the overlay-placement admonition"
+        );
+        assert!(
+            !src.contains("[!NOTE]"),
+            "site/components/{name}.md must not retain the Phase 4 stub [!NOTE] marker"
+        );
+    }
+}
+
+/// イシュー #946: 本 PR が充填する 15 ページすべてから「Phase 4（#945〜#948）
+/// で充填予定」のスタブ文言が除去されていることを固定する。
+#[test]
+fn filled_pages_no_longer_reference_phase_4_stub_note() {
+    const FILLED_PAGES: &[&str] = &[
+        "accordion",
+        "action-bar",
+        "dialog",
+        "drawer",
+        "floating-panel",
+        "hover-card",
+        "menu",
+        "popover",
+        "tabs",
+        "toast",
+        "toggle-tip",
+        "tooltip",
+        "tour",
+        "toggle",
+        "toggle-group",
+    ];
+    for name in FILLED_PAGES {
+        let path = repo_root().join(format!("site/components/{name}.md"));
+        let src = fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("{} should be readable: {e}", path.display()));
+        assert!(
+            !src.contains("Phase 4"),
+            "site/components/{name}.md must no longer reference the Phase 4 stub note"
+        );
+    }
 }
 
 /// Forms 31 ページ（イシュー #945）の充填を機械的に固定する。各ページが

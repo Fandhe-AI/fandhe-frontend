@@ -1,13 +1,12 @@
 # Dialog
 
 `fandhe-frontend-pre-styled-ui` の `dialog` mod が提供するスタイル済み Dialog 部品です。
+画面全体を覆うモーダルダイアログで、通常の確認ダイアログ（`role="dialog"`）と
+警告用ダイアログ（`role="alertdialog"`）を `DialogRole` で切り替えられます。
+フォーカストラップ・Escape キーでの閉鎖・外側クリックでの閉鎖といったクライアント
+挙動は JS ランタイム側の責務とし、本レイヤーは決定的な SSR 属性出力のみを担います。
 
-> [!NOTE]
-> 本ページの Features / Examples / Accessibility と API Reference の引数表は
-> Phase 4（#945〜#948）で充填予定です。現時点では Demo（SSR 静的掲示）と、
-> headless-ui のパーツ構成から機械導出した Anatomy / `data-*` 属性表 /
-> CSS 変数表のみを掲載しています。
->
+> [!IMPORTANT]
 > Demo はトリガー起点のオーバーレイ部品を「開いた状態」で固定掲示しています。
 > 本来の配置（画面全体を覆う・トリガー直下に重なる）ではページ内の他セクションと
 > 重なるため、掲示専用 CSS（`assets/pre-styled-ui.css` の `.pre-styled-showcase`

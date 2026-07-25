@@ -2,8 +2,4 @@
 
 `fandhe-frontend-pre-styled-ui` の `splitter` mod が提供するスタイル済み Splitter 部品です。
 
-> [!NOTE]
-> 本ページの Features / Examples / Accessibility と API Reference の引数表は
-> Phase 4（#945〜#948）で充填予定です。現時点では Demo（SSR 静的掲示）と、
-> headless-ui のパーツ構成から機械導出した Anatomy / `data-*` 属性表 /
-> CSS 変数表のみを掲載しています。
+複数パネルの境界をドラッグでリサイズできる部品です。panel は --fandhe-splitter-size custom property を通じてのみ動的な flex-basis を伝え、resize_trigger は role="separator" + aria-controls を固定付与します。状態機械（Splitter）は headless-ui 側にあり、pre-styled-ui からは再エクスポートしません。

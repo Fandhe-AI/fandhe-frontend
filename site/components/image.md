@@ -2,8 +2,4 @@
 
 `fandhe-frontend-pre-styled-ui` の `image` mod が提供するスタイル済み Image 部品です。
 
-> [!NOTE]
-> 本ページの Features / Examples / Accessibility と API Reference の引数表は
-> Phase 4（#945〜#948）で充填予定です。現時点では Demo（SSR 静的掲示）と、
-> headless-ui のパーツ構成から機械導出した Anatomy / `data-*` 属性表 /
-> CSS 変数表のみを掲載しています。
+img 要素をラップした画像表示部品です。ImageFit（Cover/Contain/Fill/ScaleDown/NoFit）と AspectRatio（Auto/Square/Video）で表示形式を切り替えます。src は is_safe_url 検証を経由し、javascript: 等の危険なスキームは出力自体が落とされます。

@@ -2,8 +2,4 @@
 
 `fandhe-frontend-pre-styled-ui` の `status` mod が提供するスタイル済み Status 部品です。
 
-> [!NOTE]
-> 本ページの Features / Examples / Accessibility と API Reference の引数表は
-> Phase 4（#945〜#948）で充填予定です。現時点では Demo（SSR 静的掲示）と、
-> headless-ui のパーツ構成から機械導出した Anatomy / `data-*` 属性表 /
-> CSS 変数表のみを掲載しています。
+オンライン/オフライン等の状態を示す最小部品です。colorPalette 軸でセマンティック色を選択でき、root/indicator の 2 パーツのみで構成します。role="status" は付与しない設計で、非同期の状態遷移を伴う場合は呼び出し側が明示的に role/aria-live を足す契約です。

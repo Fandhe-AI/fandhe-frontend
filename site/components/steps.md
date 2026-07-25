@@ -2,8 +2,4 @@
 
 `fandhe-frontend-pre-styled-ui` の `steps` mod が提供するスタイル済み Steps 部品です。
 
-> [!NOTE]
-> 本ページの Features / Examples / Accessibility と API Reference の引数表は
-> Phase 4（#945〜#948）で充填予定です。現時点では Demo（SSR 静的掲示）と、
-> headless-ui のパーツ構成から機械導出した Anatomy / `data-*` 属性表 /
-> CSS 変数表のみを掲載しています。
+複数ステップの進行状況を示すナビゲーション部品です。trigger は現在ステップに aria-current="step" を、separator は role="separator" を固定付与します。パンくずリストによる階層表示には [Breadcrumb](breadcrumb.md) を検討してください。

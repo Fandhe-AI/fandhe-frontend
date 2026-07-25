@@ -1,9 +1,8 @@
 # Accordion
 
 `fandhe-frontend-pre-styled-ui` の `accordion` mod が提供するスタイル済み Accordion 部品です。
-
-> [!NOTE]
-> 本ページの Features / Examples / Accessibility と API Reference の引数表は
-> Phase 4（#945〜#948）で充填予定です。現時点では Demo（SSR 静的掲示）と、
-> headless-ui のパーツ構成から機械導出した Anatomy / `data-*` 属性表 /
-> CSS 変数表のみを掲載しています。
+項目（Item）ごとに開閉するトリガー（ItemTrigger）とパネル（ItemContent）を持ち、
+高々 1 項目だけが開く single モードと複数項目が同時に開ける multiple モードの
+2 つの状態機械（`Accordion` / `MultiAccordion`）を選べます。ページ内に収まる
+disclosure（開閉パネル）であり、他のセクションを覆うオーバーレイではないため、
+掲示位置を中和する専用 CSS は不要です。
