@@ -96,6 +96,19 @@
 //!
 //! `"checked"`/`"unchecked"` 語彙の共通化（Checkbox #535 / Switch #537 と
 //! 揃える）は #595 で解消済み（本モジュール冒頭「data-state 語彙」節参照）。
+//!
+//! # 複数選択版は [`crate::checkbox_group`]（イシュー #997）
+//!
+//! 本モジュールが「高々 1 項目が選択される」制約を [`SingleSelect`] で
+//! 表現するのに対し、[`crate::checkbox_group`] は「0 個以上の項目が同時
+//! 選択される」制約を [`crate::state::MultiSelect`] で表現する対称の
+//! モジュールである。相違点: [`root`] の role（`"radiogroup"` / `"group"`）、
+//! 状態機械（[`SingleSelect`] / [`crate::state::MultiSelect`]）、dispatch
+//! 語彙（`"select"` のみ / `"select"`+`"deselect"`+`"toggle"`）、ネイティブ
+//! input の供給元（自前 [`item_hidden_input`] / [`crate::checkbox::hidden_input`]
+//! の再利用）。dispatch 語彙の相違は WAI-ARIA の意味論差に基づく意図的な
+//! 設計判断であり、詳細は [`crate::checkbox_group`] モジュール doc「対称性」
+//! 節を参照。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_labelledby, aria_orientation, role};

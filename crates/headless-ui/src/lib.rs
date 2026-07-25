@@ -392,6 +392,15 @@
 //!   （dispatch 統合、#595）。indeterminate（3 値目）は
 //!   [`state::Checkable`] のスコープ外のため SSR 静的 props
 //!   （[`checkbox::CheckedState`]）としてのみ表現する。
+//! - [`mod@checkbox_group`]: Root / Label / Item / ItemControl /
+//!   ItemIndicator / ItemText の 6 anatomy パーツと [`state::MultiSelect`]
+//!   を埋め込んだ [`checkbox_group::CheckboxGroup`]（複数選択グループ、
+//!   #997、親 #534）。[`mod@radio_group`] と対称の構造だが、ネイティブ
+//!   `<input type="checkbox">` は自前パーツを持たず [`checkbox::hidden_input`]
+//!   の再利用で賄う。クライアント由来の文字列 dispatch は `"select"`/
+//!   `"deselect"`/`"toggle"` の 3 語彙を受理する（WAI-ARIA checkbox パターン
+//!   には選択解除ジェスチャが実在するため、[`radio_group::RadioGroup`] が
+//!   `"select"` のみに絞るのとは意図的に異なる）。
 //! - [`mod@positioning`]: anchor positioning の位置計算純粋関数モジュール
 //!   （[`positioning::compute_position`]、イシュー #590、親 #588、正の規範
 //!   文書は `docs/design/anchor-positioning-design.md`）。12 placement 語彙
@@ -576,6 +585,7 @@ pub mod breadcrumb;
 pub mod calendar;
 pub mod carousel;
 pub mod checkbox;
+pub mod checkbox_group;
 pub mod clipboard;
 pub mod collapsible;
 pub mod color;
@@ -674,6 +684,7 @@ pub use breadcrumb::{breadcrumb, BreadcrumbItem};
 pub use calendar::{Calendar, CalendarAction};
 pub use carousel::{Carousel, CarouselAction};
 pub use checkbox::{Checkbox, CheckboxFlags};
+pub use checkbox_group::CheckboxGroup;
 pub use clipboard::{Clipboard, ClipboardAction};
 pub use color::{Color, ColorError, Hsl, Hsv, Rgb};
 pub use combobox::{Combobox, ComboboxAction};
