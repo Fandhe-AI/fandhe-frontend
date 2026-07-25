@@ -832,18 +832,20 @@ diff へ混入しないようにする（§9 は `## 5.` 〜 `## 6.` の範囲�
 イシュー #937 で新設。§4 の完全性 diff（references 側 359 件の突合）の対象外
 である。本 Part のセルには `.agents/skills/…` のパスを一切書かない（Part C
 と同じ理由。書くと §4 の抽出正規表現が実在しないパス文字列を拾ってしまい、
-diff が非空になって §4 が壊れる）。「実装対象」「保留」区分の根拠・対応
-issue 列は原則 `#959 で子 issue 採番`（Phase 8、本書 §9 参照）を指す。
+diff が非空になって §4 が壊れる）。「実装対象」区分の根拠・対応 issue 列は
+`#959 で確定、仮 ID 8-x（Step B で採番、§9.1 参照）`（Phase 8、本書 §9/§9.1
+参照）を、「保留」区分は `#959 で判定継続。intentional-non-adoption.md §7 へ
+転記済み（#959）`（`docs/policy/intentional-non-adoption.md` §7 参照）を指す。
 
 | 参照ファイル | ark-ui 名 | chakra-ui 名 | Radix Primitives 名 | Radix Themes 名 | fandhe headless-ui | fandhe pre-styled-ui | 区分 | 根拠・対応 issue |
 |---|---|---|---|---|---|---|---|---|
-| —（対応 md なし） | — | — | Form (`form`) | — | `field`/`fieldset`（部分対応） | — | 保留 | Radix Form の Field/Label/Control/Message/ValidityState/Submit anatomy を `field`/`fieldset` がどこまでカバーするかは未検証。再評価トリガー: バリデーション状態表現（`data-invalid`/`data-valid`）の対応可否確認後。#959 で判定継続 |
-| —（対応 md なし） | — | — | Menubar (`menubar`) | — | — | — | 実装対象 | 対応 mod なし。複数 Menu の水平配置・roving tabindex は `menu` の anatomy を再利用して新設可能。#959 で子 issue 採番 |
-| —（対応 md なし） | — | — | Navigation Menu (`navigation-menu`) | — | — | — | 実装対象 | 対応 mod なし。`nav_list`（イシュー #756）は role を持たない文書ナビ専用部品であり、Navigation Menu の viewport・アクティブリンク追跡・`data-motion` とは意味論・機能ともに別物（`crates/headless-ui/src/nav_list.rs` module doc 参照）。#959 で子 issue 採番 |
-| —（対応 md なし） | — | — | Toolbar (`toolbar`) | — | — | — | 実装対象 | 対応 mod なし。ボタン・セパレータ・ToggleGroup を横方向グループ化する専用 anatomy が必要。#959 で子 issue 採番 |
-| —（対応 md なし） | — | — | Direction Provider (`direction-provider`) | — | — | — | 保留 | RTL/LTR を動的注入する provider 機構は `docs/policy/intentional-non-adoption.md` §3.23 の JS ランタイム固有 utilities に類するが、同節に個別記録がない。再評価トリガー: provider 機構全般の非採用可否が §3.23/§3.24 へ確定記録された場合、または `dir` 属性の明示的引数渡しで代替可能と判断された場合。#959 で判定継続 |
-| —（対応 md なし） | — | — | Accessible Icon (`accessible-icon`) | Accessible Icon (`accessible-icon`) | `visually_hidden`（代替候補、要検証） | `icon`/`visually_hidden`（代替候補、要検証） | 保留 | `icon`（pre-styled のみ）と `visually_hidden`（headless+pre-styled）の組み合わせでラベル付与が代替可能かは未検証（`crates/pre-styled-ui/src/icon.rs` module doc に付与するラベルとの結びつけ機構が明記されていない）。再評価トリガー: 代替可否の検証完了時。#959 で判定継続 |
-| —（対応 md なし） | — | — | Slot (`slot`) | Slot (`slot`) | — | — | 保留 | asChild/Slot 相当の要素種別差し替え・子要素への props マージという仕組み自体が現時点の `fandhe-frontend-headless-ui` には存在しない（`docs/design/radix-primitives-inventory.md` §7.2）。再導入の提案はここでは書かない（`.claude/rules/coding-rust.md`）。再評価トリガー: 要素差し替え機構の要否が別途の設計検討で明示的に再評価された場合。#959 で判定継続 |
+| —（対応 md なし） | — | — | Form (`form`) | — | `field`/`fieldset`（部分対応） | — | 保留 | Radix Form の Field/Label/Control/Message/ValidityState/Submit anatomy を `field`/`fieldset` がどこまでカバーするかは未検証。再評価トリガー: バリデーション状態表現（`data-invalid`/`data-valid`）の対応可否確認後。#959 で判定継続。`intentional-non-adoption.md` §7 へ転記済み（#959） |
+| —（対応 md なし） | — | — | Menubar (`menubar`) | — | — | — | 実装対象 | 対応 mod なし。複数 Menu の水平配置・roving tabindex は `menu` の anatomy を再利用して新設可能。#959 で確定、仮 ID 8-2（Step B で採番、§9.1 参照） |
+| —（対応 md なし） | — | — | Navigation Menu (`navigation-menu`) | — | — | — | 実装対象 | 対応 mod なし。`nav_list`（イシュー #756）は role を持たない文書ナビ専用部品であり、Navigation Menu の viewport・アクティブリンク追跡・`data-motion` とは意味論・機能ともに別物（`crates/headless-ui/src/nav_list.rs` module doc 参照）。#959 で確定、仮 ID 8-3（Step B で採番、§9.1 参照） |
+| —（対応 md なし） | — | — | Toolbar (`toolbar`) | — | — | — | 実装対象 | 対応 mod なし。ボタン・セパレータ・ToggleGroup を横方向グループ化する専用 anatomy が必要。#959 で確定、仮 ID 8-1（Step B で採番、§9.1 参照） |
+| —（対応 md なし） | — | — | Direction Provider (`direction-provider`) | — | — | — | 保留 | RTL/LTR を動的注入する provider 機構は `docs/policy/intentional-non-adoption.md` §3.23 の JS ランタイム固有 utilities に類するが、同節に個別記録がない。再評価トリガー: provider 機構全般の非採用可否が §3.23/§3.24 へ確定記録された場合、または `dir` 属性の明示的引数渡しで代替可能と判断された場合。#959 で判定継続。`intentional-non-adoption.md` §7 へ転記済み（#959） |
+| —（対応 md なし） | — | — | Accessible Icon (`accessible-icon`) | Accessible Icon (`accessible-icon`) | `visually_hidden`（代替候補、要検証） | `icon`/`visually_hidden`（代替候補、要検証） | 保留 | `icon`（pre-styled のみ）と `visually_hidden`（headless+pre-styled）の組み合わせでラベル付与が代替可能かは未検証（`crates/pre-styled-ui/src/icon.rs` module doc に付与するラベルとの結びつけ機構が明記されていない）。再評価トリガー: 代替可否の検証完了時。#959 で判定継続。`intentional-non-adoption.md` §7 へ転記済み（#959） |
+| —（対応 md なし） | — | — | Slot (`slot`) | Slot (`slot`) | — | — | 保留 | asChild/Slot 相当の要素種別差し替え・子要素への props マージという仕組み自体が現時点の `fandhe-frontend-headless-ui` には存在しない（`docs/design/radix-primitives-inventory.md` §7.2）。再導入の提案はここでは書かない（`.claude/rules/coding-rust.md`）。再評価トリガー: 要素差し替え機構の要否が別途の設計検討で明示的に再評価された場合。#959 で判定継続。`intentional-non-adoption.md` §7 へ転記済み（#959） |
 | —（対応 md なし） | — | — | Accessibility (`accessibility`) | — | — | — | 対象外 | 対象外（非コンポーネント文書、overview） |
 | —（対応 md なし） | — | — | Getting Started (`getting-started`) | — | — | — | 対象外 | 対象外（非コンポーネント文書、overview） |
 | —（対応 md なし） | — | — | Introduction (`introduction`) | — | — | — | 対象外 | 対象外（非コンポーネント文書、overview） |
@@ -852,14 +854,14 @@ issue 列は原則 `#959 で子 issue 採番`（Phase 8、本書 §9 参照）�
 | —（対応 md なし） | — | — | Composition (`composition`) | — | — | — | 対象外 | 対象外（非コンポーネント文書、guides。合成パターン（asChild/Slot）の事実記録は本書 §5 Part D の Slot 行・`docs/design/radix-primitives-inventory.md` §7 参照） |
 | —（対応 md なし） | — | — | Server-Side Rendering (`server-side-rendering`) | — | — | — | 対象外 | 対象外（非コンポーネント文書、guides） |
 | —（対応 md なし） | — | — | Styling (`styling`) | — | — | — | 対象外 | 対象外（非コンポーネント文書、guides） |
-| —（対応 md なし） | — | — | — | Callout (`callout`) | — | — | 実装対象 | 対応 mod なし。既存 `alert` の anatomy（Root/Indicator/Content 等）を参考に新設候補。#959 で子 issue 採番 |
-| —（対応 md なし） | — | — | — | Checkbox Group (`checkbox-group`) | — | — | 実装対象 | 対応 mod なし（`checkbox`/`checkbox_card` は単体、複数選択グループの anatomy は未実装）。#959 で子 issue 採番 |
-| —（対応 md なし） | — | — | — | Inset (`inset`) | — | — | 保留 | layout 系ユーティリティに近いが、#716/#724 の layout プリミティブ 5 件（Box/Flex/Grid/Container/Section）には含まれない（`docs/design/radix-themes-survey.md` §3.1 注記・§6 が明記）。参照対象外リストに含めない一次記録に従い「保留」とする。再評価トリガー: layout 系ユーティリティ全般の参照方針が別途確定した場合。#959 で判定継続 |
-| —（対応 md なし） | — | — | — | Quote (`quote`) | — | — | 実装対象 | 対応 mod なし。既存 `blockquote` と役割が近い静的テキスト部品として新設候補。#959 で子 issue 採番 |
-| —（対応 md なし） | — | — | — | Radio (`radio`) | — | — | 保留 | 既存 `radio_group` はグループ前提の anatomy。グループ化しない単独 Radio ボタンの anatomy 差分は未検証。再評価トリガー: 単独 Radio の要否・anatomy 差分の検証完了時。#959 で判定継続 |
-| —（対応 md なし） | — | — | — | Reset (`reset`) | — | — | 保留 | ブラウザ既定スタイルのリセット専用コンポーネント。`crates/pre-styled-ui` の `stylesheet`/`theme` mod が担うリセット責務との重複可能性を要検証。再評価トリガー: 既存 `stylesheet`/`theme` mod のリセット範囲の検証完了時。#959 で判定継続 |
-| —（対応 md なし） | — | — | — | Strong (`strong`) | — | — | 実装対象 | 対応 mod なし。既存 `em`（強調）と役割が対称な静的テキスト部品として新設候補。#959 で子 issue 採番 |
-| —（対応 md なし） | — | — | — | Tab Nav (`tab-nav`) | — | — | 実装対象 | 対応 mod なし。`tabs` の見た目を持つナビゲーションリンク集合（`nav_list` とは別物）。#959 で子 issue 採番 |
+| —（対応 md なし） | — | — | — | Callout (`callout`) | — | — | 実装対象 | 対応 mod なし。既存 `alert` の anatomy（Root/Indicator/Content 等）を参考に新設候補。#959 で確定、仮 ID 8-4（Step B で採番、§9.1 参照） |
+| —（対応 md なし） | — | — | — | Checkbox Group (`checkbox-group`) | — | — | 実装対象 | 対応 mod なし（`checkbox`/`checkbox_card` は単体、複数選択グループの anatomy は未実装）。#959 で確定、仮 ID 8-7（Step B で採番、§9.1 参照） |
+| —（対応 md なし） | — | — | — | Inset (`inset`) | — | — | 保留 | layout 系ユーティリティに近いが、#716/#724 の layout プリミティブ 5 件（Box/Flex/Grid/Container/Section）には含まれない（`docs/design/radix-themes-survey.md` §3.1 注記・§6 が明記）。参照対象外リストに含めない一次記録に従い「保留」とする。再評価トリガー: layout 系ユーティリティ全般の参照方針が別途確定した場合。#959 で判定継続。`intentional-non-adoption.md` §7 へ転記済み（#959） |
+| —（対応 md なし） | — | — | — | Quote (`quote`) | — | — | 実装対象 | 対応 mod なし。既存 `blockquote` と役割が近い静的テキスト部品として新設候補。#959 で確定、仮 ID 8-5（Step B で採番、§9.1 参照） |
+| —（対応 md なし） | — | — | — | Radio (`radio`) | — | — | 保留 | 既存 `radio_group` はグループ前提の anatomy。グループ化しない単独 Radio ボタンの anatomy 差分は未検証。再評価トリガー: 単独 Radio の要否・anatomy 差分の検証完了時。#959 で判定継続。`intentional-non-adoption.md` §7 へ転記済み（#959） |
+| —（対応 md なし） | — | — | — | Reset (`reset`) | — | — | 保留 | ブラウザ既定スタイルのリセット専用コンポーネント。`crates/pre-styled-ui` の `stylesheet`/`theme` mod が担うリセット責務との重複可能性を要検証。再評価トリガー: 既存 `stylesheet`/`theme` mod のリセット範囲の検証完了時。#959 で判定継続。`intentional-non-adoption.md` §7 へ転記済み（#959） |
+| —（対応 md なし） | — | — | — | Strong (`strong`) | — | — | 実装対象 | 対応 mod なし。既存 `em`（強調）と役割が対称な静的テキスト部品として新設候補。#959 で確定、仮 ID 8-5（Step B で採番、§9.1 参照） |
+| —（対応 md なし） | — | — | — | Tab Nav (`tab-nav`) | — | — | 実装対象 | 対応 mod なし。`tabs` の見た目を持つナビゲーションリンク集合（`nav_list` とは別物）。#959 で確定、仮 ID 8-6（Step B で採番、§9.1 参照） |
 | —（対応 md なし） | — | — | — | Section (`section`) | — | — | 参照対象外 | layout プリミティブ（根拠: #716/#724/#735、`docs/policy/intentional-non-adoption.md` §3.24、`docs/design/radix-themes-survey.md` §6）。Box/Flex/Grid/Container と同方針。既存の非採用決定を Radix 軸の文脈で再掲するものであり新規判定ではない |
 
 ## 6. `site/nav.toml` 掲載要否の判断
@@ -889,12 +891,17 @@ issue 列は原則 `#959 で子 issue 採番`（Phase 8、本書 §9 参照）�
 - **保留・意図的非採用の評価軸・再評価トリガーの詳細記録**: イシュー #735 で
   `docs/policy/intentional-non-adoption.md` §3.22〜§3.24（新規非採用確定）・
   §7（保留項目の記録）に確定記録済み（完了）。イシュー #937 で新規判定した
-  Radix 由来の保留項目の同節への転記は #959 の判断に委ねる（本イシューは
-  policy 文書を変更しない）
+  Radix 由来の保留 7 件（Form / Direction Provider / Accessible Icon / Slot /
+  Inset / Radio / Reset）は #959 の Step A で同節へ転記済み（完了）
 - **Radix 側の更新追随**: `radix-primitives-inventory.md` / 本書の pin
   （`radix-ui/website` commit `bb42408`）以降の Radix 側の新規コンポーネント
   追加・anatomy 変更の追随は、本書の改訂 issue を起票して行う。CI による
   自動検知は行わない（既存 §4 と同方針）
+- **Phase 8（#932/#959）の子 issue 起票・番号採番**: 本書 §9/§9.1 は
+  実行可能な完全な roster（タイトル・依存順・対象クレート・非目標）を
+  提供するのみであり、実際の `gh issue create`・sub_issues 紐付け・本書
+  §5 Part D/§9.1 への実採番値の反映は #959 の Step B（Step A の PR マージ後）
+  のスコープ
 - **Phase 8（#932/#959）の子 issue 分割**: 本書 §9 は引き渡し表を提供する
   のみであり、実際の子 issue 起票・実装は #959 のスコープ
 
@@ -958,3 +965,79 @@ L493, L521〜L528）+ RichTextEditor（L511, §3.22）+ chakra `Theme`（L529,
 
 「Phase 8 issue」列の初期値はすべて `—（#959 で採番）`／`—（#959 で判定継続）`
 であり、#959 が子 issue を採番した時点で本節を更新して埋める。
+
+### 9.1 Phase 8 子 issue roster（#959 確定）
+
+実装対象 8 行のうち Quote/Strong は対称の静的テキスト部品として 1 issue に
+統合し、**7 issue** へ分割する（roster 確定は Step A、実採番・sub_issues
+紐付けは Step B）。層は §9 の「層」列（`Primitives → headless-ui` /
+`Themes → pre-styled-ui`）を額面どおり採用し、headless-ui のみ・
+pre-styled-ui のみで完結させる（両層セット実装にはしない）。実行順は
+`parallel: 1` の直列実行を前提に dependsOn で固定する。
+
+| 実行順 | 仮 ID | タイトル案 | 対象クレート | 層 | dependsOn | version バンプ対象（イシュー #638/#657） | 明示的非目標 |
+|---|---|---|---|---|---|---|---|
+| 1 | 8-1 | `feat(headless-ui): Toolbar — ボタン/セパレータ/ToggleGroup の横方向グループ化 anatomy を新設する` | headless-ui | Primitives → headless-ui | — | headless-ui + pre-styled-ui + wasm-full（`check-dep-versions --fix` で req 追随） | roving tabindex 等 `crates/wasm-full/` 側の DOM 配線 |
+| 2 | 8-2 | `feat(headless-ui): Menubar — menu anatomy 再利用による水平メニューバーを新設する` | headless-ui | Primitives → headless-ui | 8-1 | headless-ui + pre-styled-ui + wasm-full | 同上 |
+| 3 | 8-3 | `feat(headless-ui): Navigation Menu — viewport/アクティブリンク追跡付きナビゲーションメニューを新設する` | headless-ui | Primitives → headless-ui | 8-2 | headless-ui + pre-styled-ui + wasm-full | viewport 実配置・アクティブリンク動的同期・`data-motion` 遷移駆動 |
+| 4 | 8-4 | `feat(pre-styled-ui): Callout — alert anatomy を参考にした注意喚起部品を新設する` | pre-styled-ui | Themes → pre-styled-ui | #943, 8-3 | pre-styled-ui のみ | — |
+| 5 | 8-5 | `feat(pre-styled-ui): Quote / Strong — em 対称の静的テキスト部品 2 件を新設する` | pre-styled-ui | Themes → pre-styled-ui | #943, 8-4 | pre-styled-ui のみ | — |
+| 6 | 8-6 | `feat(pre-styled-ui): Tab Nav — tabs の見た目を持つナビゲーションリンク集合を新設する` | pre-styled-ui | Themes → pre-styled-ui | #943, 8-5 | pre-styled-ui のみ | — |
+| 7 | 8-7 | `feat(pre-styled-ui): Checkbox Group — 複数選択グループの anatomy を新設する` | pre-styled-ui（+ 必要なら headless-ui、実装者判断） | Themes → pre-styled-ui | #943, 8-6 | pre-styled-ui のみ（headless-ui へ拡張時は headless-ui + pre-styled-ui + wasm-full） | — |
+
+**Phase 3（#943/#944）との依存関係（重要な発見）**: #932/#924 は「Phase 8
+は Phase 2〜7 と完全に独立」と記すが、pre-styled-ui へ新規 mod を追加する
+8-4〜8-7（計 5 mod: Callout/Checkbox Group/Quote/Strong/Tab Nav）は
+`docs/design/docs-site-component-pages.md` §3 の部品ページ台帳（99 行）
+の対象であり独立ではない。各 issue は成果物へ「台帳 1 行追加 + §3 総ページ数の
+更新（99 → 104）+ `site/components/<kebab>.md` + `site/nav.toml` 登録 +
+`site/components-pre-styled-ui.md` 索引への 1 行追加」を含める。`nav::validate_sources`
+が `page.source` の実在を検査するため、`nav.toml` 登録と原稿投入は同一 PR で
+行う。#944 がページ数の機械アサーションを導入済みの場合は同アサーションも
+更新する。`crates/docs-site/tests/site_css_contract.rs` は対象外（同ファイルの
+module doc によりサイト骨格 `docs-*` class のみが契約対象、pre-styled-ui
+部品の class は管轄外）。
+
+**Phase 6（#953/#954）との関係**: 新規 mod は `docs/api/pre-styled-ui-api.md`
+§2「実装状況」表（headless-ui は `docs/api/headless-ui-api.md`）へ追記する。
+#953/#954 との衝突は**加法マージ（両方のエントリを残す）**で解決する。
+
+**headless-ui 3 件（8-1〜8-3）の DOM 配線はスコープ外**: SSR anatomy +
+決定的状態機械のみへ閉じる（先例: `scroll_area` #825、`carousel` #754、
+`image_cropper` #844）。roving tabindex のキーボードハンドリング・viewport
+実配置・アクティブリンク動的同期・`data-motion` 遷移駆動は `crates/wasm-full/`
+側の後続対応とし、`.claude/rules/out-of-scope-tracking.md` に従い follow-up
+issue の起票をユーザーへ提案する旨を各 issue 本文へ記載する。
+
+**触らないもの**: `examples/headless-pre-styled-ui` と
+`crates/cli/embedded-examples/` の crates.io version pin
+（`example_publish_copy_drift` がバイト一致を強制するため、`.claude/rules/ci.md`
+#609 節参照）。
+
+各実装 issue（8-1〜8-7）に必ず含める完了条件テンプレート（#959 Step B の
+issue 本文へそのまま転記する）:
+
+```
+- [ ] `crates/<layer>/src/<mod>.rs` を新設し `crates/<layer>/src/lib.rs` へ `pub mod` 追加
+- [ ] `#![forbid(unsafe_code)]` 維持・外部依存ゼロ維持（headless-ui は core/interactive、
+      pre-styled-ui は headless-ui のみ）・HTML 文字列の直接組み立て禁止・`raw_html()` 不使用
+- [ ] anatomy / a11y テスト（headless-ui: `crates/headless-ui/tests/<mod>.rs`）
+      または CSS 契約テスト（pre-styled-ui: `crates/pre-styled-ui/tests/<mod>_css.rs`）を追加
+- [ ] XSS 回帰: テキスト補間経路のアサーションを既存
+      `crates/pre-styled-ui/tests/xss_escape.rs` / `xss_escape_styled.rs`
+      （headless-ui は `crates/headless-ui/tests/xss_escape.rs`）へ追加する。
+      既存アサーションの削除・弱体化・`#[ignore]` 化は禁止
+- [ ] version バンプ: 上表「version バンプ対象」列のクレート名を列挙 ＋
+      `cargo run -p xtask -- check-dep-versions --fix`
+- [ ] docs: `docs/design/component-coverage-map.md` 該当行を「実装済み」へ更新
+- [ ] docs（pre-styled-ui のみ）: `docs/design/docs-site-component-pages.md` §3 台帳へ 1 行 +
+      総ページ数更新 / `site/components/<kebab>.md` / `site/nav.toml` /
+      `site/components-pre-styled-ui.md` 索引 / `docs/api/pre-styled-ui-api.md` §2
+- [ ] docs（headless-ui のみ）: `docs/api/headless-ui-api.md` へ項目追加
+      （docs ページ台帳は pre-styled-ui mod をキーとするため `/components/<kebab>/` は作らない）
+- [ ] 非目標（wasm-full の DOM 配線 / examples の crates.io pin 変更）に手を出していない
+- [ ] `#943`/`#944`/`#953`/`#954` と衝突した場合は加法マージ（両方のエントリを残す）
+```
+
+Step B（issue 起票、#959 の実装計画の Step A/Step B 分割参照）の PR 本文には
+本節（§9.1）を全文転記し、「マージ = 起票承認」の旨を明記する。

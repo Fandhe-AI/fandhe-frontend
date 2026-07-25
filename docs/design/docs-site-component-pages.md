@@ -94,6 +94,14 @@ grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs \
 
 **総ページ数 = 93 + 6 = 99**。
 
+**将来予定（イシュー #959）**: `docs/design/component-coverage-map.md` §9.1
+の Phase 8 roster により、pre-styled-ui へ新規 mod 5 件（Callout /
+Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり、
+実装完了時に総ページ数は **99 → 104** へ増える予定（各実装 issue が
+台帳行・`site/components/<kebab>.md`・`site/nav.toml` 登録・
+`site/components-pre-styled-ui.md` 索引を追加する）。本節時点では
+上記 5 件は未実装のため台帳 99 行には含まれない。
+
 **台帳（インベントリ）表**: 全 99 行の表を置く。列は次の 6 列で固定する。
 
 | 部品名（表示名） | mod | カテゴリ | URL パス | 原稿ソース | 既存 showcase 節 |
@@ -459,6 +467,7 @@ fail-closed 原則（未知キー・未知テーブルを黙って無視しな�
 | §5 カテゴリ / §6 直下ページとグループの描画順 | #940 |
 | §5 作業分割ラベルとの関係 | #945〜#948 |
 | §2 既存文書との関係 | #962 |
+| §3 総ページ数の将来増分（99 → 104） | #959（Phase 8 roster、pre-styled-ui 新規 mod 5 件） |
 
 「Phase 2-2（#939）・Phase 3（#941〜#944）の実装者が本文書だけで仕様を
 決定できる」ことの検証: #939 の受け入れ条件「異常系 5 件以上がそれぞれ
