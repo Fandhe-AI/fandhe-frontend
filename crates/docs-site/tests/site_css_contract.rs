@@ -39,6 +39,16 @@
 //!   `:root[data-theme="dark"]` ブロックが同一のトークン名集合を宣言する
 //!   ことを検証する。
 //!
+//! イシュー #944（Phase 3-4）: #941〜#943 の部品ページ化は新しい `docs-*`
+//! 骨格 class を 1 つも追加していない（`component_page.rs` は class 属性を
+//! 持たない `section`/`table`/`ul`/`code` のみを生成し、唯一の class は
+//! showcase 由来の `pre-styled-showcase`。これは #715 の分離 CSS 契約に従い
+//! `assets/pre-styled-ui.css` 側の管轄で、サイト骨格 CSS の契約対象外）。
+//! そのため層 1 の表への追加登録は 0 件だが、「今後 component_page.rs が
+//! 独自 class を持ち込んだら落ちる」ことを
+//! [`component_page_render_introduces_no_class_outside_the_contract`] が
+//! 機械的に保証する。
+//!
 //! Markdown レンダラ（`markdown.rs`）が動的に生成する `language-<lang>`
 //! クラス（コードブロックの言語トークン依存で無数の値を取りうる）は本テスト
 //! のスコープ外とする（`.docs-content pre code` の要素セレクタでスタイルが
@@ -903,6 +913,61 @@ fn contract_violation_is_detected_for_unknown_docs_class() {
     let html = r#"<div class="docs-header docs-unknown-thing"></div>"#;
     let violations = classes_outside_contract(html);
     assert_eq!(violations, vec!["docs-unknown-thing".to_string()]);
+}
+
+/// イシュー #944: 層 1 (c) 方向（契約表に無い `docs-` class が現れたら失敗）を
+/// 部品ページ描画経路（`component_page::generated_content`、#942/#943）へも
+/// 適用する。既存の (c) 方向テストは `layout.rs`/`nav.rs` の合成フィクスチャ
+/// のみを対象としており、`showcase.rs`/`component_page.rs` が独自の
+/// `docs-*` class を持ち込んでも検知できなかった。
+///
+/// あわせて docs-site 自身が付与する非 `docs-` ラッパ class
+/// （`pre-styled-showcase` / `showcase-*`）が部品ページ専用 CSS
+/// （`showcase::stylesheet()`）にセレクタとして実在することを確認する
+/// （#715 の分離 CSS 契約: サイト骨格 CSS 側には持ち込まない）。
+/// pre-styled-ui の recipe が出す `fd-*` class は本テストの対象外
+/// （所管は `crates/pre-styled-ui/tests/`。既定 variant が宣言を持たない
+/// ケース（例: `fd-chart--lines-solid`）が正当に存在するため）。
+#[test]
+fn component_page_render_introduces_no_class_outside_the_contract() {
+    use fandhe_frontend_docs_site::{component_page, showcase};
+
+    let showcase_css = showcase::stylesheet()
+        .expect("showcase stylesheet should assemble")
+        .as_css()
+        .to_string();
+    let showcase_selectors = extract_css_class_selectors(&showcase_css);
+
+    // `component_page_paths()` が返すのは Rust 側デモを持つ 88 件
+    // （`showcase::COMPONENT_PAGES` の登録分）。残り 11 件の部品ページは
+    // Markdown 単独でレジストリに載らず、生成 HTML の class は
+    // layout.rs/nav.rs 由来のみ（既存の層 1 テストが担当する）。
+    let mut seen_wrapper = false;
+    for path in showcase::component_page_paths() {
+        let content = component_page::generated_content(path)
+            .unwrap_or_else(|| panic!("registered component page {path} must render"));
+        let html = render(&content);
+
+        let violations = classes_outside_contract(&html);
+        assert!(
+            violations.is_empty(),
+            "{path}: 契約表に無い docs- class が部品ページに出現した: {violations:?}"
+        );
+
+        for token in extract_class_tokens(&html) {
+            if token == "pre-styled-showcase" || token.starts_with("showcase-") {
+                seen_wrapper = true;
+                assert!(
+                    showcase_selectors.contains(&token),
+                    "{path}: docs-site 由来の class {token} が生成 assets/pre-styled-ui.css に無い"
+                );
+            }
+        }
+    }
+    assert!(
+        seen_wrapper,
+        "部品ページから showcase ラッパ class が 1 件も抽出できなかった（テスト自体の不備）"
+    );
 }
 
 // ============================================================================

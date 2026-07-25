@@ -166,6 +166,60 @@ fn build_site_succeeds_for_the_real_repository_site() {
     assert!(!report.assets.is_empty());
     assert!(out.0.join("index.html").exists());
 
+    // イシュー #944: #943 で部品ページ 99 件が加わり、実サイトの生成ページ数は
+    // 121（既存 22 + 部品 99）になった。site_nav.rs は nav 登録側の 121 を、
+    // 本テストは build_site が実際に書き出したページ側の 121 を固定する
+    // （nav 登録 = 生成ページの恒等契約。片側だけ壊れる退行を検知する）。
+    // 部品ページの台帳は docs/design/docs-site-component-pages.md §3。
+    assert_eq!(
+        report.written.len(),
+        121,
+        "実サイトの生成ページ数が期待値と異なる: {:?}",
+        report.written
+    );
+
+    // 上の 121 は「その時点の実測値」であり、Phase 6/7/8 でページが増減したら
+    // 更新が要る。恒等契約（nav 登録数 = 生成ページ数）そのものは値に依存しない
+    // 形でも固定し、片方だけ更新して片方が形骸化する事故を防ぐ。
+    let nav_toml = std::fs::read_to_string(repo_root.join("site/nav.toml"))
+        .expect("site/nav.toml should be readable");
+    let nav =
+        fandhe_frontend_docs_site::nav::parse_nav(&nav_toml).expect("site/nav.toml should parse");
+    assert_eq!(
+        report.written.len(),
+        nav.all_pages().count(),
+        "nav 登録ページ数と生成ページ数が一致しない"
+    );
+
+    // /components/ 配下は部品ページ 99 件 + 索引ページ
+    // /components/pre-styled-ui/ 1 件の計 100 件（イシュー #943）。
+    // Phase 4 以降で部品が増減したら本値の更新が必要になる
+    // （fail-closed。黙って減っても気付けるようにする意図）。
+    let components_dir = out.0.join("components");
+    let component_pages = report
+        .written
+        .iter()
+        .filter(|p| p.starts_with(&components_dir))
+        .count();
+    assert_eq!(
+        component_pages, 100,
+        "/components/ 配下の生成ページ数（部品 99 + 索引 1）"
+    );
+
+    // アセットは site.css / admonition.css / skip-nav.css / site.js /
+    // pre-styled-ui.css の 5 件（部品ページが showcase CSS を要求するため
+    // 実サイトでは fixture（4 件）より 1 件多い）。
+    assert_eq!(report.assets.len(), 5, "{:?}", report.assets);
+    for rel in [
+        "assets/site.css",
+        "assets/admonition.css",
+        "assets/skip-nav.css",
+        "assets/site.js",
+        "assets/pre-styled-ui.css",
+    ] {
+        assert!(out.0.join(rel).exists(), "{rel} should be written");
+    }
+
     // イシュー #908: 実サイトの nav.toml が持つセクション別ドロップダウン
     // ヘッダーナビが実際に配線されていることを確認する（`nav::header_nav`
     // が全ページ共通で `layout::docs_page_with_assets` へ渡される契約）。
