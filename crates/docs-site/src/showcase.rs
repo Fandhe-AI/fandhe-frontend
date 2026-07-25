@@ -806,6 +806,12 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&chart_tooltip::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::pie_chart::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::donut_chart::css())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::angle_slider::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::image_cropper::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::pin_input::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::signature_pad::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::toggle::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::toggle_group::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
