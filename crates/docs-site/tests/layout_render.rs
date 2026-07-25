@@ -12,6 +12,7 @@ use fandhe_frontend_docs_site::layout::{
     asset_href, docs_page, docs_page_with_assets, toc_nav, with_heading_anchors,
 };
 use fandhe_frontend_docs_site::nav::{header_nav, parse_nav};
+use fandhe_frontend_docs_site::script;
 
 fn sample_sidebar() -> fandhe_frontend_core::Node {
     ul(vec![], vec![li(vec![], vec![text("はじめに")])])
@@ -652,4 +653,117 @@ fn xss_payloads_in_title_headings_and_sidebar_are_escaped() {
     ));
     let id = &entries[0].id;
     assert!(id.chars().all(|c| c.is_alphanumeric() || c == '-'));
+}
+
+// ---- テーマトグル・GitHub リンク（イシュー #951） ----
+
+/// 最重要のエスケープ往復検証: `render()` 結果が
+/// `script::INLINE_THEME_BOOTSTRAP` を**逐語で**含む。これが破れる場合
+/// （実体参照化される等）は `<script>` の中身が壊れて構文エラーになる
+/// ことを意味する（`crate::script` モジュール doc の不変条件参照）。
+#[test]
+fn docs_page_head_contains_inline_theme_bootstrap_verbatim_and_unescaped() {
+    let body = p(vec![], vec![text("本文です。")]);
+    let node = docs_page("タイトル", "", sample_sidebar(), body);
+    let html = render(&node);
+
+    assert!(html.contains(script::INLINE_THEME_BOOTSTRAP));
+    // エスケープ痕跡（実体参照化された `<script>` の中身）が残っていない
+    // ことも併せて確認する。
+    assert!(!html.contains("&#x27;"));
+    assert!(!html.contains("&amp;"));
+    assert!(!html.contains("&quot;"));
+
+    let script_start = html
+        .find(script::INLINE_THEME_BOOTSTRAP)
+        .expect("INLINE_THEME_BOOTSTRAP should appear in <head>");
+    let head_end = html.find("</head>").expect("</head> should exist");
+    assert!(
+        script_start < head_end,
+        "インライン script は </head> より前に出力される必要がある"
+    );
+}
+
+/// `<script src="…/assets/site.js" defer>` が `<head>` に出力される
+/// （`base_path` なし・あり双方）。`base_path` 付きでは
+/// `layout::asset_href` が単一実装点として `/fandhe-frontend/assets/site.js`
+/// を組み立てることを固定する。
+#[test]
+fn docs_page_head_contains_deferred_site_js_script_tag() {
+    let body = p(vec![], vec![text("本文です。")]);
+
+    let html = render(&docs_page("タイトル", "", sample_sidebar(), body.clone()));
+    assert!(html.contains(r#"<script src="/assets/site.js" defer="">"#));
+
+    let html_with_base = render(&docs_page(
+        "タイトル",
+        "/fandhe-frontend",
+        sample_sidebar(),
+        body,
+    ));
+    assert!(html_with_base.contains(r#"<script src="/fandhe-frontend/assets/site.js" defer="">"#));
+}
+
+/// テーマトグル `button` の必須属性（`type="button"` / 既定 `hidden` /
+/// `aria-label` / `aria-pressed="false"`）と、GitHub リンクの `href`・
+/// `rel="noopener noreferrer"`（tabnabbing 対策、OWASP A05）を固定する。
+#[test]
+fn docs_page_header_actions_have_required_attributes() {
+    let body = p(vec![], vec![text("本文です。")]);
+    let node = docs_page("タイトル", "", sample_sidebar(), body);
+    let html = render(&node);
+
+    assert!(html.contains(r#"class="docs-theme-toggle""#));
+    assert!(html.contains(r#"type="button""#));
+    assert!(html.contains(r#"hidden="""#));
+    assert!(html.contains(r#"aria-label="Toggle color theme""#));
+    assert!(html.contains(r#"aria-pressed="false""#));
+
+    assert!(html.contains(r#"class="docs-github-link""#));
+    assert!(html.contains(r#"href="https://github.com/Fandhe-AI/fandhe-frontend""#));
+    assert!(html.contains(r#"target="_blank""#));
+    assert!(html.contains(r#"rel="noopener noreferrer""#));
+}
+
+/// ヘッダー内 DOM 順: `docs-brand` < `docs-header-nav`（`header_nav` あり）
+/// < `docs-header-actions`。`header_nav` が `None` の場合でも
+/// `docs-brand` < `docs-header-actions` の順は不変（`docs_page`
+/// （従来経路）でも 3 要素すべてが出現する）。
+#[test]
+fn docs_page_header_dom_order_places_actions_after_brand_and_nav() {
+    let body = p(vec![], vec![text("本文です。")]);
+
+    let node_without_header_nav = docs_page("タイトル", "", sample_sidebar(), body.clone());
+    let html_without = render(&node_without_header_nav);
+    let brand_pos = html_without
+        .find(r#"class="docs-brand""#)
+        .expect("docs-brand should appear");
+    let actions_pos = html_without
+        .find(r#"class="docs-header-actions""#)
+        .expect("docs-header-actions should appear even without header_nav");
+    assert!(brand_pos < actions_pos);
+    assert!(html_without.contains(r#"class="docs-github-link""#));
+    assert!(html_without.contains(r#"class="docs-theme-toggle""#));
+
+    let nav = parse_nav(sample_nav_toml()).expect("fixture nav.toml should parse");
+    let node_with_header_nav = docs_page_with_assets(
+        "タイトル",
+        "",
+        sample_sidebar(),
+        body,
+        &[],
+        Some(header_nav(&nav, "/")),
+    );
+    let html_with = render(&node_with_header_nav);
+    let brand_pos = html_with
+        .find(r#"class="docs-brand""#)
+        .expect("docs-brand should appear");
+    let nav_pos = html_with
+        .find(r#"class="docs-header-nav""#)
+        .expect("docs-header-nav should appear");
+    let actions_pos = html_with
+        .find(r#"class="docs-header-actions""#)
+        .expect("docs-header-actions should appear");
+    assert!(brand_pos < nav_pos);
+    assert!(nav_pos < actions_pos);
 }

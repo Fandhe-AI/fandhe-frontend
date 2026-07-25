@@ -76,13 +76,15 @@ fn build_site_generates_all_pages_and_assets_for_ok_fixture() {
     // site.css（`site_theme` のビルド時生成、イシュー #905） + admonition.css
     // （site-ok の index.md が admonition マーカーを 1 件使うため、
     // `crate::admonition` 専用 CSS も条件付きで書き出される）
-    // + skip-nav.css（イシュー #776、全ビルドで無条件に書き出す）。
-    assert_eq!(report.assets.len(), 3);
+    // + skip-nav.css（イシュー #776、全ビルドで無条件に書き出す）
+    // + site.js（イシュー #951、同じく全ビルドで無条件に書き出す）。
+    assert_eq!(report.assets.len(), 4);
     assert!(out.0.join("index.html").exists());
     assert!(out.0.join("guide/quickstart/index.html").exists());
     assert!(out.0.join("assets/site.css").exists());
     assert!(out.0.join("assets/admonition.css").exists());
     assert!(out.0.join("assets/skip-nav.css").exists());
+    assert!(out.0.join("assets/site.js").exists());
 }
 
 /// イシュー #715: admonition 専用 CSS（`assets/admonition.css`）への
@@ -219,10 +221,14 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
             "@view-transition { navigation: auto; }",
             r#"href="/fandhe-frontend/assets/site.css""#,
             r#"href="/fandhe-frontend/assets/skip-nav.css""#,
+            r#"src="/fandhe-frontend/assets/site.js" defer="""#,
+            r#"class="docs-header-actions""#,
+            r#"class="docs-github-link""#,
+            r#"class="docs-theme-toggle""#,
         ] {
             assert!(
                 html.contains(needle),
-                "{relative} should contain {needle:?} (3 カラム骨格・SkipNav・View Transitions・CSS 配線の共通契約)"
+                "{relative} should contain {needle:?} (3 カラム骨格・SkipNav・View Transitions・CSS/JS 配線の共通契約)"
             );
         }
 
@@ -232,6 +238,14 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
             "{relative}: pre-styled-ui.css link presence should match is_showcase={is_showcase}"
         );
     }
+
+    // イシュー #951: 実サイトビルドで `dist/assets/site.js` が生成され、
+    // 内容が `script::site_js()` とバイト一致することを固定する
+    // （`build.rs` の `fs::write` 書き出しが常に同一内容を書くことの回帰
+    // テスト。生成物が実装から乖離した場合に検知する）。
+    let dist_site_js = std::fs::read_to_string(out.0.join("assets/site.js"))
+        .expect("dist/assets/site.js should be generated");
+    assert_eq!(dist_site_js, fandhe_frontend_docs_site::script::site_js());
 }
 
 // ---- バイナリ経由（終了コード・stderr の契約） ----

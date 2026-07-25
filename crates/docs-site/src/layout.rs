@@ -27,13 +27,27 @@
 //! `/static/style.css` と `hydrate.js` をハードコードした `String` を返す
 //! CSR/SSR 向けの実装であり docs には流用できないため、本モジュールは
 //! `base_path` を考慮したアセット参照（[`asset_href`]）を持つ `Node` 返却の
-//! 別実装として新規に用意する。docs サイトは静的な文書のみで JS ハイド
-//! レーションを行わないため `hydrate.js` の `<script>` は含めない。
+//! 別実装として新規に用意する。docs サイトはハイドレーションを行わない
+//! （`data-hydrate`/`data-bind-*` 束縛点を持たない）が、テーマトグル
+//! （ダーク/ライト切替）・GitHub リンクのため `<head>` に FOUC 抑止の
+//! インラインスニペット（[`crate::script::inline_theme_bootstrap`]）と
+//! `<script src>`（[`crate::script::SCRIPT_REL_PATH`]、`defer`）を含める
+//! （イシュー #951。旧「JS を含めない」宣言はこの変更で終了した）。
 
 use std::collections::HashSet;
 
-use fandhe_frontend_core::{a, article, aside, div, el, header, li, main_tag, nav, text, ul, Node};
+use fandhe_frontend_core::{
+    a, article, aside, button, div, el, header, li, main_tag, nav, text, ul, Node,
+};
 use fandhe_frontend_pre_styled_ui::skip_nav as ps_skip_nav;
+
+use crate::script;
+
+/// GitHub リポジトリへの絶対 URL（ヘッダーの GitHub リンクが参照する
+/// 単一実装点）。`site/nav.toml` の `[site]` スキーマは拡張しない
+/// （nav スキーマの変更は #939 の管轄。ブランド文字列 `"fandhe-frontend"`
+/// が既に本モジュールへハードコードされている先例に倣う）。
+const REPOSITORY_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
 
 /// ページ内目次（TOC）の 1 エントリ。
 ///
@@ -353,23 +367,31 @@ pub fn docs_page_with_assets(
             vec![],
         ),
         el("title", vec![], vec![text(title.to_string())]),
-        el(
-            "style",
-            vec![],
-            vec![text("@view-transition { navigation: auto; }")],
-        ),
-        el(
-            "link",
-            vec![
-                ("rel", "stylesheet"),
-                (
-                    "href",
-                    &asset_href(base_path, crate::site_theme::STYLESHEET_REL_PATH),
-                ),
-            ],
-            vec![],
-        ),
     ];
+    // FOUC 抑止のインラインスニペット（イシュー #951）。全 `<link
+    // rel="stylesheet">` より前に同期実行させ、保存済みテーマがあれば
+    // CSS 適用前に `data-theme` を確定させる。`script::inline_theme_bootstrap`
+    // が `None`（エスケープ安全性検証に落ちた）場合は `<script>` 自体を
+    // 出力しない fail-closed（`crate::script` モジュール doc 参照）。
+    if let Some(bootstrap) = script::inline_theme_bootstrap() {
+        head_children.push(el("script", vec![], vec![text(bootstrap)]));
+    }
+    head_children.push(el(
+        "style",
+        vec![],
+        vec![text("@view-transition { navigation: auto; }")],
+    ));
+    head_children.push(el(
+        "link",
+        vec![
+            ("rel", "stylesheet"),
+            (
+                "href",
+                &asset_href(base_path, crate::site_theme::STYLESHEET_REL_PATH),
+            ),
+        ],
+        vec![],
+    ));
     for relative in extra_stylesheets {
         head_children.push(el(
             "link",
@@ -392,6 +414,18 @@ pub fn docs_page_with_assets(
                 "href",
                 &asset_href(base_path, crate::skip_nav::STYLESHEET_REL_PATH),
             ),
+        ],
+        vec![],
+    ));
+    // 全 `<link rel="stylesheet">` の後に `assets/site.js`（イシュー #951）
+    // を `defer` で読み込む。`src` はスクリプト本文を含まないため
+    // `is_url_attr`/`is_safe_url`（`fandhe_frontend_core`）の既存検証を通る
+    // 通常のアセット参照（[`asset_href`] 経由の単一実装点）。
+    head_children.push(el(
+        "script",
+        vec![
+            ("src", &asset_href(base_path, script::SCRIPT_REL_PATH)),
+            ("defer", ""),
         ],
         vec![],
     ));
@@ -422,6 +456,44 @@ pub fn docs_page_with_assets(
     if let Some(nav_node) = header_nav {
         header_children.push(nav_node);
     }
+    // ヘッダー右側のアクション群（GitHub リンク・テーマトグル、イシュー
+    // #951）。`header_nav` の有無に関わらず無条件で第 3 子（or 第 2 子）と
+    // して出力する（層 1 契約「見出しあり/なし両方のフィクスチャで出現する
+    // こと」と同様、`docs_page`/`docs_page_with_assets` いずれの経路でも
+    // 出現させるため条件分岐を作らない。`crate::site_theme::STRUCTURAL_CSS`
+    // 参照）。
+    header_children.push(div(
+        vec![("class", "docs-header-actions")],
+        vec![
+            // `target="_blank"` + `rel="noopener noreferrer"`（OWASP A05:
+            // tabnabbing 対策。開いた先から `window.opener` を操作される
+            // 経路と Referer 漏えいを防ぐ）。
+            a(
+                vec![
+                    ("href", REPOSITORY_URL),
+                    ("class", "docs-github-link"),
+                    ("target", "_blank"),
+                    ("rel", "noopener noreferrer"),
+                ],
+                vec![text("GitHub")],
+            ),
+            // 既定 `hidden`（JS 無効時・`site.js` の読み込み失敗時は
+            // `crate::site_theme::STRUCTURAL_CSS` の `.docs-theme-toggle[hidden]`
+            // が非表示を担保し、`prefers-color-scheme` 追従へ退避する）。
+            // 可視化・イベント配線は `crate::script::SITE_JS` のみが行う
+            // （`crate::script` モジュール doc 手順 5 参照）。
+            button(
+                vec![
+                    ("type", "button"),
+                    ("class", "docs-theme-toggle"),
+                    ("hidden", ""),
+                    ("aria-label", "Toggle color theme"),
+                    ("aria-pressed", "false"),
+                ],
+                vec![text("Theme")],
+            ),
+        ],
+    ));
     let header_node = header(vec![("class", "docs-header")], header_children);
 
     // SkipNav の「本文へスキップ」リンク（イシュー #776）。キーボード操作時

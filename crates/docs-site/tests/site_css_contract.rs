@@ -426,6 +426,18 @@ const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
     ("docs-header-group", "セクションごとの li"),
     ("docs-header-trigger", "button[type=button]"),
     ("docs-header-dropdown", "ドロップダウン ul"),
+    (
+        "docs-header-actions",
+        "ヘッダー右側のアクション群 div（イシュー #951）",
+    ),
+    (
+        "docs-github-link",
+        "GitHub リポジトリへの外部リンク a（イシュー #951）",
+    ),
+    (
+        "docs-theme-toggle",
+        "テーマトグル button[type=button]（既定 hidden、イシュー #951）",
+    ),
 ];
 
 /// 見出し（h2/h3）が 1 つ以上あるページのみ出現する class。
@@ -572,6 +584,31 @@ fn structure_class_contract_has_selector_in_generated_site_css() {
             "{class} が生成 assets/site.css にセレクタとして存在しない"
         );
     }
+}
+
+/// イシュー #951 受入条件（JS 無効時にトグル非表示 + `prefers-color-scheme`
+/// 追従）の機械固定: 生成 `assets/site.css` に `.docs-theme-toggle[hidden]`
+/// セレクタが存在し、`display: none` を宣言することを確認する。
+/// `crate::layout` が既定で `hidden` 属性を付与し、`crate::script::SITE_JS`
+/// のイベント配線完了後にのみこれを除去する契約（`crate::script` モジュール
+/// doc 手順 5）の CSS 側の裏付け。
+#[test]
+fn generated_site_css_hides_theme_toggle_while_hidden_attribute_is_present() {
+    let css = site_css();
+    let start = css
+        .find(".docs-theme-toggle[hidden]")
+        .expect(".docs-theme-toggle[hidden] セレクタが生成 assets/site.css に存在しない");
+    let block_start = css[start..]
+        .find('{')
+        .expect(".docs-theme-toggle[hidden] のルールブロック開始 { が見つからない");
+    let block_end = css[start + block_start..]
+        .find('}')
+        .expect(".docs-theme-toggle[hidden] のルールブロック終了 } が見つからない");
+    let block = &css[start + block_start..start + block_start + block_end];
+    assert!(
+        block.contains("display: none"),
+        ".docs-theme-toggle[hidden] は display: none を宣言している必要がある: {block}"
+    );
 }
 
 /// 層 1 (c) 方向の主眼テスト: フルページフィクスチャの HTML に、
