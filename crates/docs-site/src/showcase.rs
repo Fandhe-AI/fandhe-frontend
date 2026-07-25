@@ -226,6 +226,23 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   `open=Some(0)` 掲示（イシュー #992）で File Menu の `content` を開いた
 ///   状態にレンダリングするため、他のオーバーレイ `positioner` と同様の
 ///   中和が必要になる）。
+/// - `[data-scope="menubar"][data-part="root"]` の `align-items: flex-start`
+///   への上書き（イシュー #992、PR #1000 Bugbot 指摘 1 対応）: 上記の
+///   `positioner` 中和により、開いた File Menu の `content` は
+///   per-menu ラッパー（`menu` パーツ、`root` の flex item）の中で
+///   `trigger` の下へ通常フローで積み上がる。recipe CSS の `root` は
+///   `align-items: center`（トリガーのみの Menu を想定した既定値）を
+///   宣言しており、この既定のままだと「トリガー + 開いた content」で
+///   縦に長くなった File の flex item が高さの中央で揃えられてしまい、
+///   `content` を持たない Edit の flex item だけが上へ押し上げられて
+///   トリガー行から外れる（Edit が File パネルの横へずれ、水平な
+///   menubar に見えなくなる回帰）。`align-items: flex-start` へ限定
+///   上書きし、各 `menu` flex item の上端（= 各 `trigger` の位置）を
+///   揃えることでトリガー行を保つ（`content` の高さ差は下方向にのみ
+///   影響し、トリガー行のレイアウトには影響しない）。recipe CSS
+///   （`crates/pre-styled-ui/src/menubar.rs`）自体は変更しない
+///   （showcase 領域内に限定した上書きのみで完結させる、本節冒頭の方針
+///   と同型）。
 /// - dialog/drawer/popover の `title`（`h2`）見出しリセット: Accordion の `h3` と
 ///   同じ理由（`site.css` の `.docs-content h2` が漏れる）で、showcase 領域
 ///   内に限定して `border-top`/`padding-top`/`letter-spacing` を打ち消す
@@ -260,6 +277,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: static;\n  padding: 0;\n  justify-content: flex-start;\n}\n\
 .pre-styled-showcase [data-scope=\"drawer\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"menubar\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"combobox\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"hover-card\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
+.pre-styled-showcase [data-scope=\"menubar\"][data-part=\"root\"] {\n  align-items: flex-start;\n}\n\
 .pre-styled-showcase [data-scope=\"action-bar\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n}\n\
 .pre-styled-showcase [data-scope=\"floating-panel\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2,\n.pre-styled-showcase [data-scope=\"floating-panel\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
@@ -6217,6 +6235,20 @@ mod tests {
         assert!(
             css.contains(r#".pre-styled-showcase [data-scope="menubar"][data-part="positioner"]"#)
         );
+        // PR #1000 Bugbot 指摘（HEAD ef93488 に対する新規指摘、review
+        // comment id 3650231029）の回帰防止: 上記 positioner 中和だけでは
+        // 開いた File Menu の `content` が per-menu ラッパー（`root` の flex
+        // item）の高さを押し上げ、`align-items: center`（recipe CSS 既定）
+        // のままだと Edit トリガーが File トリガーの行から外れて縦にずれる
+        // （「水平な menubar に見えない」回帰）。`root` の `align-items` を
+        // `flex-start` へ上書きし、各 `menu` flex item の上端（= 各
+        // `trigger` の位置）を揃えてトリガー行を保つルールが出力されて
+        // いることを固定する。
+        assert!(css.contains(
+            r#".pre-styled-showcase [data-scope="menubar"][data-part="root"] {
+  align-items: flex-start;
+}"#
+        ));
         assert!(css.contains(r#".pre-styled-showcase [data-scope="dialog"] h2"#));
         assert!(css.contains(r#".pre-styled-showcase [data-scope="popover"] h2"#));
         assert!(css.contains(r#".pre-styled-showcase [data-scope="toast"][data-part="group"]"#));
