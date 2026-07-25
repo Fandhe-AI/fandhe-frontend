@@ -209,6 +209,10 @@ const NAV_DATA_SPECS: &[(&str, ComponentPageSpec)] = &[
         crate::component_specs_nav_data::BREADCRUMB,
     ),
     (
+        "/components/tab-nav/",
+        crate::component_specs_nav_data::TAB_NAV,
+    ),
+    (
         "/components/carousel/",
         crate::component_specs_nav_data::CAROUSEL,
     ),

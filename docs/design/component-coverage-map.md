@@ -879,7 +879,7 @@ diff が非空になって §4 が壊れる）。「実装対象」区分の根�
 | —（対応 md なし） | — | — | — | Radio (`radio`) | — | — | 保留 | 既存 `radio_group` はグループ前提の anatomy。グループ化しない単独 Radio ボタンの anatomy 差分は未検証。再評価トリガー: 単独 Radio の要否・anatomy 差分の検証完了時。#959 で判定継続。`intentional-non-adoption.md` §7 へ転記済み（#959） |
 | —（対応 md なし） | — | — | — | Reset (`reset`) | — | — | 保留 | ブラウザ既定スタイルのリセット専用コンポーネント。`crates/pre-styled-ui` の `stylesheet`/`theme` mod が担うリセット責務との重複可能性を要検証。再評価トリガー: 既存 `stylesheet`/`theme` mod のリセット範囲の検証完了時。#959 で判定継続。`intentional-non-adoption.md` §7 へ転記済み（#959） |
 | [strong](../../site/components/strong.md) | — | — | — | Strong (`strong`) | — | — | 実装済み | イシュー #995 で実装済み。既存 `em`（強調）と役割が対称な静的テキスト部品として新設（#959 で確定、仮 ID 8-5） |
-| —（対応 md なし） | — | — | — | Tab Nav (`tab-nav`) | — | — | 実装対象 | 対応 mod なし。`tabs` の見た目を持つナビゲーションリンク集合（`nav_list` とは別物）。#959 で確定、仮 ID 8-6（Step B で採番、§9.1 参照） |
+| —（対応 md なし） | — | — | — | Tab Nav (`tab-nav`) | — | `tab_nav` | 実装済み | `tabs` の見た目を持つナビゲーションリンク集合として新規 anatomy（Root/Link）を pre-styled-ui 単独で定義（headless-ui は変更なし、`checkbox_card`/`radio_card` と同型の判断）。`role="tablist"`/`role="tab"` を一切出力せず `aria-current="page"` で現在地を示す。#959 で確定、仮 ID 8-6、実装は #996 |
 | —（対応 md なし） | — | — | — | Section (`section`) | — | — | 参照対象外 | layout プリミティブ（根拠: #716/#724/#735、`docs/policy/intentional-non-adoption.md` §3.24、`docs/design/radix-themes-survey.md` §6）。Box/Flex/Grid/Container と同方針。既存の非採用決定を Radix 軸の文脈で再掲するものであり新規判定ではない |
 
 ## 6. `site/nav.toml` 掲載要否の判断
@@ -972,7 +972,7 @@ L493, L521〜L528）+ RichTextEditor（L511, §3.22）+ chakra `Theme`（L529,
 | Checkbox Group (`checkbox-group`) | Themes → pre-styled-ui | Part D | 実装対象 | 対応 mod なし。`checkbox`/`checkbox_card` は単体、グループ anatomy 未実装 | —（#959 で採番） |
 | Quote (`quote`) | Themes → pre-styled-ui | Part D | 実装済み | 既存 `blockquote` と役割が近い静的部品として実装（インライン `<q>`、`blockquote` はブロック引用） | #995 |
 | Strong (`strong`) | Themes → pre-styled-ui | Part D | 実装済み | 既存 `em`（強調）と役割対称の静的部品として実装（`font-weight: bold` で `em` と区別） | #995 |
-| Tab Nav (`tab-nav`) | Themes → pre-styled-ui | Part D | 実装対象 | 対応 mod なし。`tabs` の見た目を持つナビゲーションリンク集合 | —（#959 で採番） |
+| Tab Nav (`tab-nav`) | Themes → pre-styled-ui | Part D | 実装済み | `tabs` の見た目を持つナビゲーションリンク集合として pre-styled-ui 単独で新規 anatomy（Root/Link）を実装。`role` は一切出力しない | #996 |
 | Form (`form`) | Primitives → headless-ui | Part D | 意図的非採用 | 2026-07-25 のユーザー判断で保留解除・非採用確定。バリデーション・送信はアプリケーションロジックであり UI 層の責務外（`intentional-non-adoption.md` §3.25 規則 1）。構造部分は `field`/`fieldset` が充足 | —（実装しない） |
 | Direction Provider (`direction-provider`) | Primitives（utility） | Part D | 保留 | JS ランタイム固有 utilities に類するが個別記録なし。再評価トリガー: provider 機構全般の非採用可否が §3.23/§3.24 へ確定記録された場合、または `dir` 属性引数渡しで代替可能と判断された場合 | —（#959 で判定継続） |
 | Accessible Icon (`accessible-icon`) | Primitives（utility）+ Themes（utility） | Part D | 保留 | `icon`/`visually_hidden` の組み合わせでラベル付与が代替可能か未検証。再評価トリガー: 代替可否の検証完了時 | —（#959 で判定継続） |

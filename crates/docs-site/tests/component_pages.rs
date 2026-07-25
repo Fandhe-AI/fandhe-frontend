@@ -391,15 +391,16 @@ fn anatomy_parts_exactly_match_declared_parts_for_fully_demonstrated_components(
 
 /// §3.4 のスコープ解決バケット件数（実測、`COMPONENT_PAGES` 登録件数
 /// 〔イシュー #980 で toggle/toggle-group・#991 で Toolbar・#992 で
-/// Menubar・#993 で Navigation Menu・#994 で Callout を追加登録した後の
-/// 件数〕に対して固定）。将来の部品追加でバケット 3（Anatomy 省略）へ
-/// 無言に落ちることを検知するための固定値テスト。バケット 2
-/// （フォールバック解決）は `input`/`textarea`/`native-select`（いずれも
-/// headless `field::input` の共有スコープ `"field"` を使い、パスの kebab
-/// （`input`/`textarea`/`native-select`）と一致しない）と `charts`（複数
-/// チャート scope の集約ページで単一 scope に一致しない）の 4 件（不変）。
-/// Toolbar/Menubar/Navigation Menu/Callout は `data-scope="<kebab>"` が
-/// パスの kebab と一致するためバケット 1 に加わる。
+/// Menubar・#993 で Navigation Menu・#994 で Callout・#995 で Quote /
+/// Strong・#996 で Tab Nav を追加登録した後の件数〕に対して固定）。将来の
+/// 部品追加でバケット 3（Anatomy 省略）へ無言に落ちることを検知するための
+/// 固定値テスト。バケット 2（フォールバック解決）は
+/// `input`/`textarea`/`native-select`（いずれも headless `field::input` の
+/// 共有スコープ `"field"` を使い、パスの kebab
+/// （`input`/`textarea`/`native-select`）と一致しない）と `charts`
+/// （複数チャート scope の集約ページで単一 scope に一致しない）の 4 件
+/// （不変）。Toolbar/Menubar/Navigation Menu/Callout/Tab Nav は
+/// `data-scope="<kebab>"` がパスの kebab と一致するためバケット 1 に加わる。
 #[test]
 fn scope_resolution_buckets_match_expected_counts() {
     let mut bucket1_path_match = 0usize;
@@ -424,8 +425,9 @@ fn scope_resolution_buckets_match_expected_counts() {
     // イシュー #994 で Callout（path 由来の kebab callout が data-scope と
     // 一致）が加わり 89 -> 90、イシュー #995 で Quote / Strong の 2 部品
     // ページが加わり（いずれも path 由来の kebab quote/strong が
-    // data-scope とそのまま一致する）90 -> 92 へ増える。
-    assert_eq!(bucket1_path_match, 92);
+    // data-scope とそのまま一致する）90 -> 92、イシュー #996 で Tab Nav が
+    // 加わり 92 -> 93 へ増える。
+    assert_eq!(bucket1_path_match, 93);
     assert_eq!(bucket2_fallback, 4);
     assert_eq!(bucket3_none, 0);
 }
@@ -779,5 +781,33 @@ fn component_markdown_sources_have_no_h2_headings() {
          violating docs/design/docs-site-component-pages.md §7a.1 (原稿 `.md` は \
          H1 + 導入文のみに保ち、Features 等は `ComponentPageSpec`（Rust）から供給 \
          する): {violations:?}"
+    );
+}
+
+/// イシュー #996 受け入れ条件: `/components/tab-nav/` が Demo → Features →
+/// Anatomy → API Reference → Examples → Accessibility の 6 節すべてを
+/// この順で描画すること。[`overlay_disclosure_pages_include_all_required_sections`]
+/// はオーバーレイ部品の明示リストのみを対象とするため、`tab-nav` の
+/// `keyboard`/`aria`（Accessibility 節を構成する 2 フィールド）が空だと
+/// サイレントに Accessibility 節が省略されてもテストは緑のままという穴が
+/// あった。本テストはその穴を塞ぎ、6 節の完全性と順序を直接固定する。
+#[test]
+fn tab_nav_page_renders_all_six_canonical_sections() {
+    const PATH: &str = "/components/tab-nav/";
+    let content = fandhe_frontend_docs_site::component_page::generated_content(PATH)
+        .unwrap_or_else(|| panic!("registered path {PATH} must have generated content"));
+    let html = render(&content);
+    let headings = h2_texts(&html);
+    assert_eq!(
+        headings,
+        vec![
+            "Demo".to_string(),
+            "Features".to_string(),
+            "Anatomy".to_string(),
+            "API Reference".to_string(),
+            "Examples".to_string(),
+            "Accessibility".to_string(),
+        ],
+        "page {PATH} must render all six canonical sections in order, got {headings:?}"
     );
 }

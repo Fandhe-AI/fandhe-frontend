@@ -67,6 +67,7 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 | headless ラッパー | `toolbar`（イシュー #991。`size`/`color-palette` 軸は非提供。`root` の `data-orientation="vertical"` で `flex-direction: column` へ切り替え、`separator` は `aria-orientation` の値（toolbar 自身と直交）で向き別の太さを出し分ける。押下状態の管理は独自 CSS を持たず既存の `toggle_group` recipe と同型の `data-state="on"` 強調のみ提供する） | [toolbar](../../site/components/toolbar.md) |
 | headless ラッパー | `menubar`（イシュー #992。`size`/`color-palette` 軸は非提供。複数 `menu` を水平（または垂直）に並べるコンテナ。`root` の `data-orientation="vertical"` で `flex-direction: column` へ切り替え、per-menu ラッパーである `menu` パーツが `position: relative`（`positioner` の containing block）を担う。開いている trigger/sub-trigger の視覚強調・virtual focus の highlight 表示は `menu` recipe と同型） | [menubar](../../site/components/menubar.md) |
 | headless ラッパー | `navigation_menu`（イシュー #993。`size`/`color-palette` 軸は非提供。トリガー起点で開閉するナビゲーションパネル。`item` に `position: relative`、`content` に `position: absolute; top: 100%; left: 0;` を宣言する一般的なナビゲーションドロップダウン構成。`list` の `align-items` は `center` ではなく `flex-start` を既定にし、`content` 展開時に他項目が縦ずれする回帰を構造的に防ぐ。開いている trigger の視覚強調は `data-state="open"`、アクティブリンクの強調は `data-current` で行う） | [navigation-menu](../../site/components/navigation-menu.md) |
+| pre-styled-ui 単独定義（headless-ui 変更なし、`checkbox_card`/`radio_card` §4g と同型の判断） | `tab_nav`（イシュー #996。新規 anatomy `data-scope="tab-nav"` を定義し `role="tablist"`/`role="tab"` を一切出力しない。見た目は `tabs` の `list`/`trigger` と宣言列を共有（`tabs.rs` の `pub(crate)` ヘルパ経由）するが、CSS セレクタは scope が異なるため別ルールになる。現在ページは `aria-current="page"` で示す。`size`/`color-palette` 軸は非提供） | [tab-nav](../../site/components/tab-nav.md) |
 | headless ラッパー | `toast`（`placement`（`group` slot）/`status`（`root` slot、`alert` と同じ配色マッピング）の 2 軸 variant を持つが、各軸が別 slot へ付与されるため `variant_class`（単一軸専用 API）をスロットごとに個別に呼ぶ。`Toaster` 状態機械は再エクスポートしない。タイマー自動 dismiss・`ActionTrigger` の動作配線は wasm-full 後続のスコープ外） | [toast](../../site/components/toast.md) |
 | headless ラッパー | `hover_card`（`popover`/`tooltip` と同型の判断で variant は非提供。構造上最も近い先行例は `tooltip`。`content` の開閉連動・`--fandhe-reference-width` 非消費・focus-visible リングを継承する） | [hover-card](../../site/components/hover-card.md) |
 | headless ラッパー | `toggle_tip`（`popover`/`tooltip` と同型の判断で `size`/`color-palette` のいずれも非提供。「見た目は Tooltip・挙動は Popover」の変種であり、`content` の視覚系は `tooltip` と同一値。状態機械は `state::Disclosure`） | [toggle-tip](../../site/components/toggle-tip.md) |
@@ -427,6 +428,7 @@ CSS を追加提供する（設計方針は他 headless ラッパーと同じ、
 | toolbar | 提供しない | 提供しない | ボタン・セパレータ・ToggleGroup のグループ化コンテナであり寸法・強調色の variant 対象外（イシュー #991） |
 | menubar | 提供しない | 提供しない | 複数 Menu のグループ化コンテナであり寸法・強調色の variant 対象外（イシュー #992） |
 | navigation-menu | 提供しない | 提供しない | トリガー起点のナビゲーションパネルであり寸法・強調色の variant 対象外（イシュー #993） |
+| tab-nav | 提供しない | 提供しない | ナビゲーションリンク集合であり寸法・強調色の variant 対象外（イシュー #996） |
 
 tabs/accordion/dialog/menu/select の実装詳細:
 

@@ -264,6 +264,7 @@ mod tests {
             ("progress", crate::progress::stylesheet()),
             ("hover_card", crate::hover_card::stylesheet()),
             ("tabs", crate::tabs::stylesheet()),
+            ("tab_nav", crate::tab_nav::stylesheet()),
             ("accordion", crate::accordion::stylesheet()),
             ("menu", crate::menu::stylesheet()),
             ("menubar", crate::menubar::stylesheet()),

@@ -156,6 +156,7 @@ use fandhe_frontend_pre_styled_ui::stat;
 use fandhe_frontend_pre_styled_ui::status::{self, StatusProps};
 use fandhe_frontend_pre_styled_ui::steps;
 use fandhe_frontend_pre_styled_ui::strong::strong;
+use fandhe_frontend_pre_styled_ui::tab_nav;
 use fandhe_frontend_pre_styled_ui::table::{self, TableProps, TableVariant};
 use fandhe_frontend_pre_styled_ui::tabs::{tabs, ActivationMode, TabItem, TabsProps};
 use fandhe_frontend_pre_styled_ui::tag::{self, TagProps, TagVariant};
@@ -717,6 +718,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         path: "/components/navigation-menu/",
         render: navigation_menu_section,
     },
+    ComponentPage {
+        path: "/components/tab-nav/",
+        render: tab_nav_section,
+    },
 ];
 
 /// [`COMPONENT_PAGES`] に登録済みの部品ページパスを登録順に返す。
@@ -898,6 +903,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::toolbar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::menubar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::navigation_menu::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::tab_nav::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -4643,6 +4649,32 @@ fn menubar_section() -> Node {
     )
 }
 
+/// Tab Nav 節（イシュー #996）: root/link の 2 anatomy パーツを 1 デモに
+/// 全網羅する（Anatomy 節はデモ HTML から機械導出されるため、`tab_nav.rs`
+/// が持つ全パーツを描画する）。3 リンクのうち 1 件目を現在ページ
+/// （`aria-current="page"`）として掲示する。`href` は
+/// `showcase_markup_has_no_href_attributes_for_linkcheck_neutrality` の
+/// linkcheck 中立性契約に従い空文字列固定とする（`navigation_menu_section`
+/// と同じ制約）。`role="tablist"`/`role="tab"` を一切出力しないことが
+/// 本部品の受け入れ条件であり、[`crate::component_page`] の Anatomy 節に
+/// `role` が現れないことでも間接的に確認できる。
+fn tab_nav_section() -> Node {
+    let node = tab_nav::root(
+        "Section navigation",
+        vec![],
+        vec![
+            tab_nav::link("", true, vec![], vec![text("Overview")]),
+            tab_nav::link("", false, vec![], vec![text("Guides")]),
+            tab_nav::link("", false, vec![], vec![text("API")]),
+        ],
+    );
+    section(
+        "Tab Nav",
+        "pre-styled-ui 単独定義の anatomy（data-scope=\"tab-nav\"）による静的掲示です。role=\"tablist\"/role=\"tab\" を出力せず、素の nav/a の暗黙 ARIA ロールのみを使います。Overview を現在ページ（aria-current=\"page\"）として掲示しています。",
+        vec![node],
+    )
+}
+
 /// Navigation Menu 節（イシュー #993）: root/list/item/trigger/content/link
 /// の 6 anatomy パーツを 1 デモに全網羅する（Anatomy 節はデモ HTML から
 /// 機械導出されるため、1 パーツでも欠けると節が不完全になる、
@@ -6161,7 +6193,8 @@ mod tests {
         // イシュー #993 で Navigation Menu を追加し 92 → 93 件になった。
         // イシュー #994 で Callout を追加し 93 → 94 件になった。
         // イシュー #995 で Quote / Strong を追加し 94 → 96 件になった。
-        assert_eq!(paths.len(), 96, "COMPONENT_PAGES should have 96 entries");
+        // イシュー #996 で Tab Nav を追加し 96 → 97 件になった。
+        assert_eq!(paths.len(), 97, "COMPONENT_PAGES should have 97 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();

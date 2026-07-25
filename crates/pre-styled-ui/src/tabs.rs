@@ -52,7 +52,7 @@
 //! headless 直接利用マークアップでも現行外観を維持する（fail-safe、
 //! `crate::lib` rustdoc「複合部品の variant 統一方針」節参照）。
 
-use crate::css::decl;
+use crate::css::{decl, Declaration};
 use crate::recipe::{
     palette_declarations, ColorPalette, Size, SlotRecipe, StateCondition, VariantValue,
 };
@@ -73,30 +73,62 @@ pub use fandhe_frontend_headless_ui::data_attrs::Orientation;
 /// の `ANATOMY.part(...)` 呼び出しと同期させる契約）。
 const SLOTS: &[&str] = &["root", "list", "trigger", "content", "indicator"];
 
+/// `tabs`（`list` パーツ）/`tab_nav`（`root` パーツ）が共有する
+/// 「タブ列コンテナ」の基底宣言（イシュー #996）。
+///
+/// 両モジュールとも `data-scope` が異なる（`tabs`/`tab-nav`）ため
+/// [`crate::recipe::SlotRecipe`] のセレクタ文字列そのものは共有できないが、
+/// 見た目を担う宣言列は本関数として一元化し、片方の変更がもう片方へ
+/// サイレントに乖離しないようにする。`crates/pre-styled-ui/tests/tabs_css.rs`
+/// の `TABS_GOLDEN_CSS` はこのリファクタ後もバイト単位で不変であることが
+/// 絶対条件（`crates/pre-styled-ui/tests/tab_nav_css.rs` も同型の golden を
+/// 別 scope で持つ）。
+pub(crate) fn shared_tab_list_declarations() -> Vec<Declaration> {
+    vec![
+        decl("display", "flex"),
+        decl("gap", "var(--fandhe-space-2)"),
+        decl("border-bottom", "1px solid var(--fandhe-color-border)"),
+    ]
+}
+
+/// `tabs`（`trigger` パーツ）/`tab_nav`（`link` パーツ）が共有する基底宣言
+/// （イシュー #996）。`padding` は各部品固有の CSS custom property 名を含む
+/// 値を呼び出し側がリテラルで渡す（`tabs` は `--fandhe-tabs-trigger-padding`、
+/// `tab_nav` は `--fandhe-tab-nav-link-padding` を参照する別の値）。
+pub(crate) fn shared_tab_item_declarations(padding: &'static str) -> Vec<Declaration> {
+    vec![
+        decl("padding", padding),
+        decl("background", "transparent"),
+        decl("color", "var(--fandhe-color-fg-muted)"),
+        decl("border", "0"),
+        decl("border-bottom", "2px solid transparent"),
+        decl("cursor", "pointer"),
+    ]
+}
+
+/// 選択中（`tabs`: `data-state="active"` / `tab_nav`: `aria-current="page"`）
+/// の強調宣言（イシュー #996）。強調色は `color-palette` variant（`tabs` の
+/// みが対応、`tab_nav` は Accent 固定フォールバックを直接参照）が登録する
+/// `--fandhe-palette` 経由で切り替わる。
+pub(crate) fn shared_tab_item_active_declarations() -> Vec<Declaration> {
+    vec![
+        decl("color", "var(--fandhe-color-fg)"),
+        decl(
+            "border-bottom-color",
+            "var(--fandhe-palette, var(--fandhe-color-accent))",
+        ),
+    ]
+}
+
 /// この styled Tabs の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
 fn recipe() -> SlotRecipe {
     let mut recipe = SlotRecipe::new("tabs", SLOTS)
-        .base(
-            "list",
-            vec![
-                decl("display", "flex"),
-                decl("gap", "var(--fandhe-space-2)"),
-                decl("border-bottom", "1px solid var(--fandhe-color-border)"),
-            ],
-        )
+        .base("list", shared_tab_list_declarations())
         .base(
             "trigger",
-            vec![
-                decl(
-                    "padding",
-                    "var(--fandhe-tabs-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-4))",
-                ),
-                decl("background", "transparent"),
-                decl("color", "var(--fandhe-color-fg-muted)"),
-                decl("border", "0"),
-                decl("border-bottom", "2px solid transparent"),
-                decl("cursor", "pointer"),
-            ],
+            shared_tab_item_declarations(
+                "var(--fandhe-tabs-trigger-padding, var(--fandhe-space-2) var(--fandhe-space-4))",
+            ),
         )
         .base(
             "content",
@@ -114,13 +146,7 @@ fn recipe() -> SlotRecipe {
         .state(
             "trigger",
             StateCondition::AttrEq("data-state", "active"),
-            vec![
-                decl("color", "var(--fandhe-color-fg)"),
-                decl(
-                    "border-bottom-color",
-                    "var(--fandhe-palette, var(--fandhe-color-accent))",
-                ),
-            ],
+            shared_tab_item_active_declarations(),
         )
         .state(
             "content",
