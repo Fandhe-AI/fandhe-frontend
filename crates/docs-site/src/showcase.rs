@@ -4197,7 +4197,7 @@ fn action_bar_section() -> Node {
 /// そのまま使い、独自の押下管理を持ち込まない（toolbar モジュール doc
 /// 「ToggleGroup / ToggleItem を再エクスポートしない理由」参照）。
 fn toolbar_section() -> Node {
-    let bar = Toolbar::new(0, 3, false, Orientation::Horizontal);
+    let bar = Toolbar::new(0, 4, false, Orientation::Horizontal);
     let group = toggle_group::ToggleGroup::default();
 
     let node = bar.root(
