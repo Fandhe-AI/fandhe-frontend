@@ -203,9 +203,19 @@ pub fn icon<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
 }
 
 /// text パーツ（`<div>`。補足情報の本文）を組み立てる。
+///
+/// `size` は [`root`] に渡したものと同じ値を渡す（[`recipe`] が
+/// `text` slot 用に登録するフォントサイズ variant は
+/// `[data-scope="callout"][data-part="text"].fd-callout--size-*` という
+/// text 要素自身へのクラス付与を前提とした複合セレクタのため、`root` に
+/// クラスを付けるだけでは text 要素のフォントサイズは変化しない。
+/// 呼び出し側が両者へ同じ `size` を渡すことで整合を保つ）。
 #[must_use]
-pub fn text<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
-    ANATOMY.part("text", "div", attrs, children)
+pub fn text<'a>(size: Size, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let class = recipe().variant_class(size);
+    let mut merged: Vec<(&str, &str)> = vec![("class", class.as_str())];
+    merged.extend(drop_class_attr(attrs));
+    ANATOMY.part("text", "div", merged, children)
 }
 
 #[cfg(test)]
@@ -292,8 +302,23 @@ mod tests {
     fn parts_use_expected_tags_and_data_part() {
         assert!(render(&icon(vec![], vec![]))
             .starts_with(r#"<span data-scope="callout" data-part="icon""#));
-        assert!(render(&text(vec![], vec![]))
+        assert!(render(&text(Size::Md, vec![], vec![]))
             .starts_with(r#"<div data-scope="callout" data-part="text""#));
+    }
+
+    #[test]
+    fn text_size_variant_maps_to_expected_class() {
+        for (size, class) in [
+            (Size::Sm, "fd-callout--size-sm"),
+            (Size::Md, "fd-callout--size-md"),
+            (Size::Lg, "fd-callout--size-lg"),
+        ] {
+            let html = render(&text(size, vec![], vec![]));
+            assert!(
+                html.contains(&format!(r#"class="{class}""#)),
+                "size={size:?} -> {html}"
+            );
+        }
     }
 
     #[test]
@@ -304,6 +329,7 @@ mod tests {
             vec![
                 icon(vec![], vec![]),
                 text(
+                    Size::Md,
                     vec![],
                     vec![text_node("Heads up: this is supplementary info")],
                 ),
@@ -315,7 +341,7 @@ mod tests {
             concat!(
                 r#"<div data-scope="callout" data-part="root" class="fd-callout--size-md fd-callout--variant-soft fd-callout--color-palette-accent">"#,
                 r#"<span data-scope="callout" data-part="icon"></span>"#,
-                r#"<div data-scope="callout" data-part="text">Heads up: this is supplementary info</div>"#,
+                r#"<div data-scope="callout" data-part="text" class="fd-callout--size-md">Heads up: this is supplementary info</div>"#,
                 r#"</div>"#,
             )
         );
@@ -334,7 +360,11 @@ mod tests {
 
     #[test]
     fn xss_payload_in_text_children_is_escaped() {
-        let html = render(&text(vec![], vec![text_node("<script>alert(1)</script>")]));
+        let html = render(&text(
+            Size::Md,
+            vec![],
+            vec![text_node("<script>alert(1)</script>")],
+        ));
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
     }
@@ -352,7 +382,7 @@ mod tests {
         let html = render(&icon(vec![("data-testid", payload)], vec![]));
         assert!(!html.contains("onmouseover=\"alert(1)"));
 
-        let html = render(&text(vec![("data-testid", payload)], vec![]));
+        let html = render(&text(Size::Md, vec![("data-testid", payload)], vec![]));
         assert!(!html.contains("onmouseover=\"alert(1)"));
     }
 }

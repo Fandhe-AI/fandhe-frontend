@@ -185,15 +185,20 @@ pub(crate) const BADGE: ComponentPageSpec = ComponentPageSpec {
 /// `crates/pre-styled-ui/src/callout.rs:34`（`CalloutVariant` 3 バリアント）・
 /// 同 `:186`（`root` が `role`/`aria-*` を一切付与しない）。
 fn ex_callout() -> Node {
+    let props = callout::CalloutProps {
+        variant: callout::CalloutVariant::Surface,
+        ..callout::CalloutProps::default()
+    };
     callout::root(
-        &callout::CalloutProps {
-            variant: callout::CalloutVariant::Surface,
-            ..callout::CalloutProps::default()
-        },
+        &props,
         vec![],
         vec![
             callout::icon(vec![], vec![]),
-            callout::text(vec![], vec![text("Heads up: this is supplementary info")]),
+            callout::text(
+                props.size,
+                vec![],
+                vec![text("Heads up: this is supplementary info")],
+            ),
         ],
     )
 }

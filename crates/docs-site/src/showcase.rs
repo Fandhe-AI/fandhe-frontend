@@ -1512,15 +1512,17 @@ fn callout_section() -> Node {
         variants
             .iter()
             .map(|(variant, label)| {
+                let props = CalloutProps {
+                    variant: *variant,
+                    ..CalloutProps::default()
+                };
                 callout::root(
-                    &CalloutProps {
-                        variant: *variant,
-                        ..CalloutProps::default()
-                    },
+                    &props,
                     vec![],
                     vec![
                         callout::icon(vec![], vec![text("i")]),
                         callout::text(
+                            props.size,
                             vec![],
                             vec![text(format!(
                                 "{label} variant の補足情報です（本文中の強調表示）。"
@@ -1535,15 +1537,16 @@ fn callout_section() -> Node {
         palettes()
             .iter()
             .map(|(palette, label)| {
+                let props = CalloutProps {
+                    palette: *palette,
+                    ..CalloutProps::default()
+                };
                 callout::root(
-                    &CalloutProps {
-                        palette: *palette,
-                        ..CalloutProps::default()
-                    },
+                    &props,
                     vec![],
                     vec![
                         callout::icon(vec![], vec![text("i")]),
-                        callout::text(vec![], vec![text(*label)]),
+                        callout::text(props.size, vec![], vec![text(*label)]),
                     ],
                 )
             })
