@@ -60,6 +60,11 @@ if ! command -v cargo >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v ss >/dev/null 2>&1; then
+  echo "environment error: ss (iproute2) not found in PATH. Required to verify that a spawned server process (not some other process) actually holds the listening socket on its assigned port before proceeding (see start_server_on_free_port below)." >&2
+  exit 1
+fi
+
 # ---- 出力先の決定と fail-closed 検証 ----
 # イシュー本文の `_/shots/` はこのスクリプトが動く典型的な worktree
 # （`.claude/worktrees/<name>/`）配下で解決すると `.claude` を含み、snap の
@@ -100,26 +105,6 @@ mkdir -p "$SERVE_LIGHT" "$SERVE_DARK" "$SHOTS_DIR" "$LOG_DIR"
 
 MANIFEST="$OUT_DIR/manifest.tsv"
 printf 'file\turl\twidth\theight\ttheme\tjs\tbytes\tsha256\n' > "$MANIFEST"
-
-# ---- ポート選択（並列実行対策。既定から空きを探す）----
-find_free_port() {
-  local start="$1"
-  local port="$start"
-  for _ in $(seq 1 50); do
-    if ! (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
-      echo "$port"
-      return 0
-    fi
-    exec 3>&- 2>/dev/null || true
-    port=$((port + 1))
-  done
-  echo "environment error: could not find a free localhost port starting at $start" >&2
-  return 1
-}
-
-PORT_LIGHT="$(find_free_port 8931)"
-PORT_DARK="$(find_free_port 8941)"
-PORT_NOJS="$(find_free_port 8951)"
 
 # ---- ビルド（ライト版）----
 echo "building docs site (light) -> $SERVE_LIGHT/fandhe-frontend"
@@ -184,32 +169,89 @@ cleanup() {
 }
 trap cleanup EXIT
 
-python3 -m http.server "$PORT_LIGHT" --bind 127.0.0.1 --directory "$SERVE_LIGHT" \
-  > "$LOG_DIR/server-light.log" 2>&1 &
-PIDS+=("$!")
-python3 -m http.server "$PORT_DARK" --bind 127.0.0.1 --directory "$SERVE_DARK" \
-  > "$LOG_DIR/server-dark.log" 2>&1 &
-PIDS+=("$!")
-python3 "$CSP_SERVER_PY" "$PORT_NOJS" "$SERVE_LIGHT" \
-  > "$LOG_DIR/server-nojs.log" 2>&1 &
-PIDS+=("$!")
+# ---- ポート選択とサーバ起動（並列実行対策）----
+# 「空きポートを probe → 後で bind」という 2 段階だと、probe と実際の bind
+# の間に別プロセス（同スクリプトの並列実行や無関係なプロセス）が同じポートを
+# 取得できてしまい（TOCTOU）、light/dark/no-JS の 3 サーバが互いに同一ポート
+# へ衝突しうる（イシュー #960 PR #1006 Bugbot 指摘）。probe と bind を分離
+# せず、候補ポートへ実サーバ自身を起動させて bind 成否をそのまま判定する
+# ことで、外部から見た「空き」判定と実際の予約を単一の atomic な操作にする。
+# bind に失敗した python プロセスは即座に終了するため、次候補へ機械的に
+# フォールバックできる。
+# out_var へ結果ポートを直接代入し（`printf -v`）、PIDS へ直接 append する。
+# `PORT_X="$(start_server_on_free_port ...)"` のようにコマンド置換で包むと
+# 関数全体がサブシェルで実行され、内部での `PIDS+=(...)` が親シェルへ反映
+# されず cleanup trap から見えなくなる（サブシェルはコピーオンライトの変数
+# スコープを持ち、更新は呼び出し元に伝播しない）ため、この形は避ける。
+#
+# 「ポートで何かが listen している」の確認だけでは不十分（`/dev/tcp/...`
+# 接続確認は他プロセス — 既にそのポートを占有している別サーバ — への
+# 接続にも成功してしまう）。今まさに起動した子プロセス自身がそのポートの
+# listen ソケットを保持しているかを `ss -ltnp` の pid フィールドで照合し、
+# 「自分が bind できたこと」を「誰かが listen していること」から区別する
+# （既存の占有者がいる状況を子プロセスの bind 成功と誤認しないため。
+# イシュー #960 PR #1006 Bugbot 指摘の再発防止）。
+port_owned_by_pid() {
+  local port="$1" pid="$2"
+  ss -ltnp 2>/dev/null | grep -F "127.0.0.1:${port} " | grep -qF "pid=${pid},"
+}
 
-# サーバ起動待ち（固定 sleep は避け、ポート待受を確認する）。
-wait_for_port() {
-  local port="$1"
+start_server_on_free_port() {
+  local out_var="$1" start_port="$2" log_file="$3"
+  shift 3
+  local port="$start_port"
   for _ in $(seq 1 50); do
-    if (exec 3<>"/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
-      exec 3>&- 2>/dev/null || true
+    "$@" "$port" > "$log_file" 2>&1 &
+    local pid=$!
+    # bind 成否の判定: プロセスが生存したまま、当該ポートの listen ソケットを
+    # 自分自身の pid で保持するまで待つ。プロセスが早期終了していれば
+    # ポート衝突（か他の起動エラー）とみなし次のポートへ進む。python の
+    # bind エラーは通常 100ms 未満で反映されるため、待機上限（2 秒）を
+    # 大きく超えて粘らない。
+    local ready=""
+    for _ in $(seq 1 20); do
+      if ! kill -0 "$pid" 2>/dev/null; then
+        break
+      fi
+      if port_owned_by_pid "$port" "$pid"; then
+        ready=1
+        break
+      fi
+      sleep 0.1
+    done
+    if [ -n "$ready" ]; then
+      PIDS+=("$pid")
+      printf -v "$out_var" '%s' "$port"
       return 0
     fi
-    sleep 0.1
+    # bind できなかった（またはまだ listen していない）候補は破棄する。
+    kill "$pid" >/dev/null 2>&1 || true
+    wait "$pid" 2>/dev/null || true
+    port=$((port + 1))
   done
-  echo "environment error: server on port $port did not become ready" >&2
+  echo "environment error: could not start a server starting at port $start_port (log: $log_file)" >&2
   return 1
 }
-wait_for_port "$PORT_LIGHT"
-wait_for_port "$PORT_DARK"
-wait_for_port "$PORT_NOJS"
+
+# csp_server.py は引数順が `port docroot` 固定（既存の CSP_SERVER_PY 参照）。
+# start_server_on_free_port は候補ポートを常に末尾へ渡すため、docroot を
+# 事前束縛したラッパー関数で引数順を吸収する。
+# `exec` で python3 に置き換える（単なる呼び出しにすると、このラッパー関数を
+# バックグラウンド実行するサブシェルの PID が `$!` として返り、実際に
+# listen ソケットを保持する python3 の PID と食い違う。start_server_on_free_port
+# の `port_owned_by_pid` は `$!` の PID で `ss` を照合するため、`exec` せずに
+# 子プロセスとして起動すると常時ミスマッチしフォールバックし続けてしまう）。
+run_csp_server() {
+  local docroot="$1" port="$2"
+  exec python3 "$CSP_SERVER_PY" "$port" "$docroot"
+}
+
+start_server_on_free_port PORT_LIGHT 8931 "$LOG_DIR/server-light.log" \
+  python3 -m http.server --bind 127.0.0.1 --directory "$SERVE_LIGHT"
+start_server_on_free_port PORT_DARK 8941 "$LOG_DIR/server-dark.log" \
+  python3 -m http.server --bind 127.0.0.1 --directory "$SERVE_DARK"
+start_server_on_free_port PORT_NOJS 8951 "$LOG_DIR/server-nojs.log" \
+  run_csp_server "$SERVE_LIGHT"
 
 # ---- 撮影 ----
 # 1 枚ごとにファイル存在・サイズ > 0 を検証する（chromium はスクリーンショット
