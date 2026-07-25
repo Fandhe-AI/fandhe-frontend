@@ -34,13 +34,16 @@
 //! 上書き・生成物のすり替わりを防ぐため [`BuildError::ReservedAssetName`] で
 //! 書き出し前にエラーにする（[`RESERVED_ASSET_NAMES`] 参照）。
 //!
-//! # Rust 生成コンテンツページ（[`crate::showcase`]）
+//! # Rust 生成コンテンツページ（[`crate::showcase`] / [`crate::component_page`]）
 //!
 //! Markdown では表現できない「pre-styled-ui コンポーネントの実レンダリング」
-//! を掲載するページ（UI ショーケース）のため、ステップ 2 で
-//! [`showcase::generated_content`] を `page.path` で照会し、`Some` の場合のみ
-//! Markdown 本文の直後（前後ナビの手前）へ生成 `Node` を追記する。該当
-//! ページには専用 CSS（[`showcase::STYLESHEET_REL_PATH`]）への追加 `<link>` を
+//! を掲載するページ（UI ショーケース・部品ページ）のため、ステップ 2 で
+//! [`component_page::generated_content`] を `page.path` で照会し、`Some` の
+//! 場合のみ Markdown 本文の直後（前後ナビの手前）へ生成 `Node` を追記する
+//! （イシュー #942。集約ページ [`showcase::PAGE_PATH`] は
+//! [`component_page::generated_content`] 内部で [`showcase::generated_content`]
+//! へ逐語委譲され、出力は変わらない）。該当ページには専用 CSS
+//! （[`showcase::STYLESHEET_REL_PATH`]）への追加 `<link>` を
 //! [`layout::docs_page_with_assets`] で差し込み、CSS 本体はステップ 5 の後に
 //! [`showcase::stylesheet`] から書き出す。生成 CSS の組み立て（fallible）は
 //! linkcheck と同じく **書き出しより前** に行い、失敗時は `out_dir` を汚さない
@@ -77,6 +80,7 @@ use fandhe_frontend_server::ssg::{self, SsgError};
 use fandhe_frontend_pre_styled_ui::StylesheetError;
 
 use crate::admonition;
+use crate::component_page;
 use crate::layout;
 use crate::linkcheck::{self, BrokenLink};
 use crate::markdown::render_markdown;
@@ -277,9 +281,13 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
             has_admonition = true;
         }
 
-        // Rust 生成コンテンツ（showcase）は Markdown 本文の直後・前後
-        // ナビの手前へ追記する（モジュール doc の処理順注記参照）。
-        let generated = showcase::generated_content(&page.path);
+        // Rust 生成コンテンツ（component_page、イシュー #942）は Markdown
+        // 本文の直後・前後ナビの手前へ追記する（モジュール doc の処理順
+        // 注記参照）。`component_page::generated_content` は集約ページ
+        // （`showcase::PAGE_PATH`）を `showcase::generated_content` へ逐語
+        // 委譲するため、部品ページ登録前（#943 の nav 登録待ち）の現時点で
+        // サイト出力は変わらない。
+        let generated = component_page::generated_content(&page.path);
         let mut extra_stylesheets: Vec<&str> = Vec::new();
         if generated.is_some() {
             has_generated_page = true;
