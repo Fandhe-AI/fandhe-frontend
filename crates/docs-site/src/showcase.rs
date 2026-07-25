@@ -210,19 +210,22 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   ビューポート全体暗幕であり、開いた状態を固定掲示するとページ全体を
 ///   覆ってしまうため掲示用にのみ隠す（実際の modal 表示では backdrop は
 ///   必須であり、ここでの非表示化はショーケースの掲示都合に限定する）。
-/// - dialog/drawer/menu/select/combobox/popover/tooltip/hover-card/toggle-tip/
-///   action-bar の `[data-part="positioner"]` を `position: static` へ中和:
-///   recipe CSS は dialog/drawer を `position: fixed; inset: 0`、menu/select/
-///   combobox/popover/hover-card を `position: absolute; top: 100%`、
-///   tooltip/toggle-tip を `position: absolute; bottom: 100%`、action-bar を
-///   `position: fixed; bottom: ...; left: 50%; transform: translateX(-50%)`
-///   としており、いずれも開いた content をページ内の別位置・別セクションに
-///   重ねてしまう。static 化してフロー内へインライン表示させることで、後続
-///   セクションと重ならずに掲示できる（dialog はさらに `padding`/
-///   `justify-content` も中和し、中央寄せのための余白・配置指定を解除する。
-///   drawer は recipe CSS が `padding`/`justify-content` を宣言しないため
-///   `position` のみで足りる。action-bar はさらに `transform` も中和し、
-///   水平方向のずらしを解除する）。
+/// - dialog/drawer/menu/menubar/select/combobox/popover/tooltip/hover-card/
+///   toggle-tip/action-bar の `[data-part="positioner"]` を `position: static`
+///   へ中和: recipe CSS は dialog/drawer を `position: fixed; inset: 0`、
+///   menu/menubar/select/combobox/popover/hover-card を `position: absolute;
+///   top: 100%`、tooltip/toggle-tip を `position: absolute; bottom: 100%`、
+///   action-bar を `position: fixed; bottom: ...; left: 50%; transform:
+///   translateX(-50%)` としており、いずれも開いた content をページ内の別
+///   位置・別セクションに重ねてしまう。static 化してフロー内へインライン
+///   表示させることで、後続セクションと重ならずに掲示できる（dialog は
+///   さらに `padding`/`justify-content` も中和し、中央寄せのための余白・
+///   配置指定を解除する。drawer は recipe CSS が `padding`/`justify-content`
+///   を宣言しないため `position` のみで足りる。action-bar はさらに
+///   `transform` も中和し、水平方向のずらしを解除する。menubar は Menu の
+///   `open=Some(0)` 掲示（イシュー #992）で File Menu の `content` を開いた
+///   状態にレンダリングするため、他のオーバーレイ `positioner` と同様の
+///   中和が必要になる）。
 /// - dialog/drawer/popover の `title`（`h2`）見出しリセット: Accordion の `h3` と
 ///   同じ理由（`site.css` の `.docs-content h2` が漏れる）で、showcase 領域
 ///   内に限定して `border-top`/`padding-top`/`letter-spacing` を打ち消す
@@ -256,7 +259,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"backdrop\"],\n.pre-styled-showcase [data-scope=\"drawer\"][data-part=\"backdrop\"] {\n  display: none;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"][data-part=\"positioner\"] {\n  position: static;\n  padding: 0;\n  justify-content: flex-start;\n}\n\
 .pre-styled-showcase [data-scope=\"drawer\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
-.pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"combobox\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"hover-card\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
+.pre-styled-showcase [data-scope=\"menu\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"menubar\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"select\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"combobox\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"popover\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"tooltip\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"hover-card\"][data-part=\"positioner\"],\n.pre-styled-showcase [data-scope=\"toggle-tip\"][data-part=\"positioner\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"action-bar\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n}\n\
 .pre-styled-showcase [data-scope=\"floating-panel\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n\
 .pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2,\n.pre-styled-showcase [data-scope=\"floating-panel\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
@@ -6208,6 +6211,12 @@ mod tests {
             css.contains(r#".pre-styled-showcase [data-scope="dialog"][data-part="positioner"]"#)
         );
         assert!(css.contains(r#".pre-styled-showcase [data-scope="menu"][data-part="positioner"]"#));
+        // Menubar（イシュー #992、PR #1000 Bugbot 指摘 1 対応）: File Menu を
+        // `open=Some(0)` で固定掲示するため、他のオーバーレイ positioner と
+        // 同様にフロー内配置へ中和されていることを固定する（回帰防止）。
+        assert!(
+            css.contains(r#".pre-styled-showcase [data-scope="menubar"][data-part="positioner"]"#)
+        );
         assert!(css.contains(r#".pre-styled-showcase [data-scope="dialog"] h2"#));
         assert!(css.contains(r#".pre-styled-showcase [data-scope="popover"] h2"#));
         assert!(css.contains(r#".pre-styled-showcase [data-scope="toast"][data-part="group"]"#));

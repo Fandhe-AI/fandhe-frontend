@@ -31,6 +31,30 @@
 //! （headless 層の `menu` anatomy パーツ、`crates/headless-ui/src/menubar.rs`
 //! 「`role="none"` の根拠と制約」参照）。
 //!
+//! # `content` パーツの `position: relative`（サブメニューの containing block）
+//!
+//! `sub-trigger`/`sub-content` は `content` の子として並ぶ兄弟パーツであり
+//! （headless 層は Portal による実 DOM 移送を行わない、本 rustdoc「本イシュー
+//! のスコープ外」節参照）、`sub-content` は `position: absolute; top: 0;
+//! left: 100%` で自身の containing block の右上角を基準に配置される。
+//! `content` 自身に `position` を明示していないと、containing block 検索は
+//! さらに外側の祖先（既定では `positioner`）まで遡る。この既定状態は
+//! `positioner` の padding box が実質的に `content` の外接矩形とほぼ一致する
+//! ため見た目上の破綻は起きにくいが、`crates/docs-site/src/showcase.rs` の
+//! `SHOWCASE_LAYOUT_CSS`（PR #1000 Bugbot 指摘 1 対応）が掲示用に `menubar`
+//! の `positioner` を `position: static` へ中和すると、containing block
+//! 検索は `positioner` を素通りしてさらに外側の `menu`（`position: relative`,
+//! 本モジュール「`menu` パーツの `position: relative`」節参照）まで遡って
+//! しまい、`sub-content` が `content` の右上角ではなく Menubar 上の
+//! per-menu ラッパー（File トリガー行を含む）の右上角を基準に配置される
+//! 回帰を招く（PR #1000 Bugbot 指摘 2）。[`crate::menu`] の `root` が
+//! `trigger`/`positioner` 共通祖先として `position: relative` を担うのと
+//! 同型の判断として、`sub-trigger`/`sub-content` の共通祖先である `content`
+//! 自身に `position: relative` を宣言し、外側の祖先（`positioner`/`menu`）の
+//! 中和有無に依存しない安定した containing block を確定させる。トリガー行
+//! そのものを基準にした厳密な配置計算（`placement` 相当）は本 rustdoc
+//! 「本イシューのスコープ外」節が示すとおり対象外のまま。
+//!
 //! # focus-visible リング
 //!
 //! `trigger` はネイティブなフォーカス可能要素（`<button>`）であり、
@@ -121,6 +145,7 @@ fn recipe() -> SlotRecipe {
         .base(
             "content",
             vec![
+                decl("position", "relative"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("color", "var(--fandhe-color-fg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
@@ -293,6 +318,24 @@ mod tests {
     fn trigger_open_state_is_visually_distinct() {
         let css = stylesheet();
         assert!(css.contains(r#"[data-scope="menubar"][data-part="trigger"][data-state="open"]"#));
+    }
+
+    #[test]
+    fn content_provides_containing_block_for_sub_content() {
+        // PR #1000 Bugbot 指摘 2 対応: `sub-trigger`/`sub-content` は `content`
+        // の子として並ぶ兄弟パーツであり、`sub-content` の `position: absolute`
+        // な配置はいずれかの祖先が containing block を提供しないと不定になる
+        // （既定では `positioner` が担うが、showcase の `SHOWCASE_LAYOUT_CSS`
+        // が `positioner` を `position: static` へ中和すると検索が `menu` まで
+        // 遡ってしまい per-menu ラッパーの角を基準に配置される回帰が起きる、
+        // 本モジュール冒頭 rustdoc「`content` パーツの `position: relative`」
+        // 節参照）。`content` 自身が `position: relative;` を宣言し、外側の
+        // 祖先の中和有無に依存しない containing block になっていることを
+        // 固定する。
+        let css = stylesheet();
+        assert!(css.contains(
+            "[data-scope=\"menubar\"][data-part=\"content\"] {\n  position: relative;\n  "
+        ));
     }
 
     #[test]
