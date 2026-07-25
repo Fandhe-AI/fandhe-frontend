@@ -1193,7 +1193,6 @@ fn typography_css() -> Result<String, SiteThemeError> {
         &[
             decl("display", "block"),
             decl("overflow-x", "auto"),
-            decl("border-collapse", "collapse"),
             decl("margin", "0 0 1.05rem"),
             decl("max-width", "100%"),
             decl("font-size", "0.925em"),
@@ -1231,14 +1230,32 @@ fn typography_css() -> Result<String, SiteThemeError> {
             decl("border-radius", "0.5rem"),
         ],
     )?;
+    // `table` 自身の `border`（外枠フレーム）と二重線にならないよう、
+    // セル側は内部グリッド線（右辺・下辺のみ）だけを持たせる。`table` は
+    // `display: block` のままで `border-collapse: collapse` が効かない
+    // ため、外周に接する辺（上辺・左辺は常に、右端列の右辺・最終行の
+    // 下辺）はセル側で明示的に打ち消し、外枠は `table` の `border` のみが
+    // 担う（Bugbot 指摘、イシュー #949 追補）。
     push_typography_rule(
         &mut out,
         ".docs-content th,\n.docs-content td",
         &[
-            decl("border", "1px solid var(--fandhe-color-border)"),
+            decl("border-width", "0 1px 1px 0"),
+            decl("border-style", "solid"),
+            decl("border-color", "var(--fandhe-color-border)"),
             decl("padding", "0.45rem 0.75rem"),
             decl("text-align", "left"),
         ],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content tr > :last-child",
+        &[decl("border-right", "0")],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content tr:last-child > *",
+        &[decl("border-bottom", "0")],
     )?;
     push_typography_rule(
         &mut out,
