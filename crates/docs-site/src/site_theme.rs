@@ -284,7 +284,10 @@ body {\n\
   border: 1px solid var(--fandhe-color-border);\n\
   border-radius: 0.5rem;\n\
   background: var(--fandhe-color-bg);\n\
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);\n\
+  /* 影はライト/ダークで光量が異なるため `--fandhe-shadow-*`（イシュー #606\n\
+   * の DualModeToken、`Theme::default` の `DEFAULT_SHADOWS`）を参照する。\n\
+   * 生 rgba を書くとダーク背景で輪郭が視認できない（イシュー #912 是正）。 */\n\
+  box-shadow: var(--fandhe-shadow-md);\n\
 }\n\
 \n\
 .docs-header nav.docs-header-nav .docs-header-group:hover > .docs-header-dropdown,\n\
@@ -1375,6 +1378,223 @@ mod tests {
             css.matches("--fandhe-color-docs-accent-bg:").count(),
             3,
             "docs-accent-bg should be defined in default + dark media query + data-theme=dark blocks"
+        );
+    }
+
+    /// [`every_referenced_fandhe_token_is_defined`] が使う判別ルール:
+    /// `var(--fandhe-x)`（フォールバック無し）は必ず定義されていなければ
+    /// ならない。`var(--fandhe-x, fallback)`（フォールバック付き）は部品側
+    /// （例: `fandhe_frontend_pre_styled_ui::link` の
+    /// `--fandhe-link-text-decoration`）が任意に上書きするためのフックで
+    /// あり、docs 側 CSS が定義しなくても正当に許容される。ここへ列挙する
+    /// のはその許容リストであり、フォールバック無し参照が万一ここに現れても
+    /// スキップされないよう名前の完全一致でのみ照合する（allowlist の
+    /// なし崩し的拡大を防ぐ）。
+    const FALLBACK_ONLY_TOKENS: &[&str] = &["--fandhe-link-text-decoration"];
+
+    /// 生成 CSS 全量から `var(--fandhe-<...>)` 参照を手書き走査で収集する
+    /// （`site_css_contract.rs::extract_css_class_selectors` と同じ「実出力の
+    /// 生文字列から直接抽出する」流儀。外部 CSS パーサ crate は追加しない）。
+    /// 戻り値は `(トークン名, フォールバック有無)` の組。
+    fn extract_fandhe_token_refs(css: &str) -> Vec<(String, bool)> {
+        let mut refs = Vec::new();
+        let mut cursor = 0usize;
+        while let Some(rel) = css[cursor..].find("var(--fandhe-") {
+            let start = cursor + rel + "var(".len();
+            let rest = &css[start..];
+            let Some(end) = rest.find(')') else {
+                break;
+            };
+            let inner = &rest[..end];
+            let has_fallback = inner.contains(',');
+            let name = inner.split(',').next().unwrap_or(inner).trim().to_string();
+            refs.push((name, has_fallback));
+            cursor = start + end;
+        }
+        refs
+    }
+
+    #[test]
+    fn every_referenced_fandhe_token_is_defined() {
+        // ダークモード回帰（設計文書 §6・イシュー #912）の中核テスト:
+        // 生成 CSS が `var(--fandhe-...)` で参照するトークンが 1 件でも
+        // 未定義だと、その箇所は「変数未定義 → ブラウザは無効値として
+        // 無視」となり配色・寸法が silently 抜け落ちる（ダークモードでの
+        // 色抜けは特に気付きにくい）。フォールバック無し参照は fail-closed で
+        // 定義存在を要求し、フォールバック付き参照（部品側の任意上書き
+        // フック）のみ [`FALLBACK_ONLY_TOKENS`] allowlist と完全一致する
+        // 場合に限り許容する。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+
+        let mut defined = std::collections::BTreeSet::new();
+        for line in css.lines() {
+            let line = line.trim().trim_end_matches(';');
+            if let Some(rest) = line.strip_prefix("--fandhe-") {
+                if let Some(idx) = rest.find(':') {
+                    defined.insert(format!("--fandhe-{}", &rest[..idx]));
+                }
+            }
+        }
+
+        for (name, has_fallback) in extract_fandhe_token_refs(css) {
+            if defined.contains(&name) {
+                continue;
+            }
+            if has_fallback && FALLBACK_ONLY_TOKENS.contains(&name.as_str()) {
+                continue;
+            }
+            panic!(
+                "undefined --fandhe token referenced without a safe fallback: {name} \
+                 (has_fallback={has_fallback}). 新規に導入する場合は Theme 側で定義するか、\
+                 意図的なフォールバック専用フックなら FALLBACK_ONLY_TOKENS へ追記すること。"
+            );
+        }
+    }
+
+    #[test]
+    fn color_and_shadow_tokens_are_defined_in_all_three_mode_blocks() {
+        // 色・影トークンは `Theme::to_css` が既定（light）/
+        // `@media (prefers-color-scheme: dark)` / `:root[data-theme="dark"]`
+        // の 3 ブロックへ書き出す（モード依存トークンのため）。一方
+        // 寸法・タイポグラフィトークン（space/radius/font）はモード非依存
+        // で既定ブロックのみに 1 回だけ書き出される。両グループを一律
+        // 「3 回」で判定すると寸法系が誤って失敗するため、グループ別に
+        // 期待回数を分ける（イシュー #912、設計文書 §5 の承継項目）。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+
+        for name in [
+            "--fandhe-color-bg",
+            "--fandhe-color-fg",
+            "--fandhe-color-fg-muted",
+            "--fandhe-color-border",
+            "--fandhe-color-bg-subtle",
+            "--fandhe-color-bg-muted",
+            "--fandhe-color-accent",
+            "--fandhe-color-docs-accent-bg",
+            "--fandhe-shadow-md",
+        ] {
+            let count = css.matches(&format!("{name}:")).count();
+            assert_eq!(
+                count, 3,
+                "color/shadow token {name} should be defined in exactly 3 blocks (light/dark media/data-theme), found {count}"
+            );
+        }
+
+        for name in [
+            "--fandhe-space-docs-sidebar-width",
+            "--fandhe-space-docs-max-content-width",
+            "--fandhe-space-docs-header-height",
+            "--fandhe-space-docs-toc-width",
+            "--fandhe-font-font-size-sm",
+            "--fandhe-radius-sm",
+        ] {
+            let count = css.matches(&format!("{name}:")).count();
+            assert_eq!(
+                count, 1,
+                "mode-independent token {name} should be defined exactly once, found {count}"
+            );
+        }
+    }
+
+    #[test]
+    fn stylesheet_declares_color_scheme_light_dark() {
+        // `html { color-scheme: light dark; }`（STRUCTURAL_CSS 側）が
+        // フォームコントロール・スクロールバー等 OS ネイティブ UI の
+        // ダーク追従の前提であることを固定する（`Theme::to_css` 側が
+        // `:root` に書く `color-scheme` とは別に、docs サイトの `html`
+        // 要素へも明示する）。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        assert!(css.contains("html {\ncolor-scheme: light dark;\n}"));
+    }
+
+    #[test]
+    fn structural_and_typography_css_contain_no_hardcoded_colors() {
+        // ハードコード色の再導入を防ぐガード（イシュー #912、§2.4 是正の
+        // 回帰防止）。検証対象は STRUCTURAL_CSS と typography_css() のみで
+        // あり、組み立て済みシート全体（`stylesheet()`）を対象にしては
+        // ならない: `Theme::to_css` はトークン値そのものとして正当に
+        // `rgba(...)` を出力するため（shadow トークンの light/dark 値）、
+        // シート全体を検査すると常に失敗する。
+        //
+        // CSS コメント（`/* ... */`）を除去してから走査する: STRUCTURAL_CSS
+        // には `#907`/`#908`/`#916` 等のイシュー番号参照コメントが多数あり、
+        // 3 桁 16 進数 hex カラーと文字面が一致してしまうため
+        // （偽陽性防止）。
+        fn strip_css_comments(css: &str) -> String {
+            let mut out = String::with_capacity(css.len());
+            let mut rest = css;
+            while let Some(start) = rest.find("/*") {
+                out.push_str(&rest[..start]);
+                rest = &rest[start + 2..];
+                if let Some(end) = rest.find("*/") {
+                    rest = &rest[end + 2..];
+                } else {
+                    rest = "";
+                }
+            }
+            out.push_str(rest);
+            out
+        }
+
+        fn assert_no_hardcoded_colors(css: &str, label: &str) {
+            let stripped = strip_css_comments(css);
+            for needle in ["rgb(", "rgba(", "hsl(", "hsla(", "#"] {
+                assert!(
+                    !stripped.contains(needle),
+                    "{label} should reference colors via --fandhe-* tokens only, found forbidden pattern {needle:?}"
+                );
+            }
+        }
+
+        assert_no_hardcoded_colors(STRUCTURAL_CSS, "STRUCTURAL_CSS");
+        let typography = typography_css().expect("typography css should assemble");
+        assert_no_hardcoded_colors(&typography, "typography_css()");
+    }
+
+    #[test]
+    fn stylesheet_base_breakpoint_matches_responsive_contract() {
+        // レスポンシブ 3 帯域（設計文書 §3.2）の基底帯域（`< 768px`）契約を
+        // 行単位で固定する（イシュー #912）。STRUCTURAL_CSS は mobile-first
+        // で組み立てられているため、最初の `@media (min-width: 768px)`
+        // より前の区間が基底帯域の宣言となる。
+        let before_768 = STRUCTURAL_CSS
+            .split("@media (min-width: 768px)")
+            .next()
+            .expect("STRUCTURAL_CSS should contain the 768px breakpoint");
+
+        // 注意: STRUCTURAL_CSS はソース上インデントされているが、Rust の
+        // 行末 `\` 継続は改行と後続行の**全ての先頭空白**を読み飛ばすため
+        // （`tmp_debug_print` による実測確認済み）、生成される CSS 文字列
+        // 自体には字下げが一切残らない。以下のアサーションはインデント
+        // 無しの実出力に合わせる。
+        assert!(before_768.contains(".docs-container {\ndisplay: block;\n"));
+        assert!(before_768.contains(".docs-toc-aside {\ndisplay: none;\n}"));
+        assert!(before_768.contains(".docs-sidebar-toggle-label {\ndisplay: block;\n"));
+        assert!(before_768
+            .contains(".docs-sidebar nav.sidebar {\nmax-height: 2.75rem;\noverflow: hidden;\n}"));
+        assert!(before_768.contains(".docs-header-nav {\ndisplay: none;\n}"));
+        assert!(before_768.contains("nav.prev-next {\ndisplay: flex;\n/* 基底（768px 未満）は縦積み。`min-width: 768px` で横並びに切り替える。 */\nflex-direction: column;"));
+    }
+
+    #[test]
+    fn stylesheet_media_queries_are_ordered_mobile_first() {
+        // mobile-first のカスケード順序契約: `@media (min-width: 768px)` の
+        // 出現位置が `@media (min-width: 1200px)` より前であることを固定
+        // する。逆転すると 1200px ブロックの 3 カラム指定を 768px ブロックの
+        // 2 カラム指定が後方から上書きしてしまう（イシュー #912、カスケード
+        // 事故の fail-closed 検知）。
+        let pos_768 = STRUCTURAL_CSS
+            .find("@media (min-width: 768px)")
+            .expect("768px breakpoint should exist");
+        let pos_1200 = STRUCTURAL_CSS
+            .find("@media (min-width: 1200px)")
+            .expect("1200px breakpoint should exist");
+        assert!(
+            pos_768 < pos_1200,
+            "768px media query must appear before 1200px to preserve mobile-first cascade"
         );
     }
 }
