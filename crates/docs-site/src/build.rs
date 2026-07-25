@@ -57,6 +57,15 @@
 //! （showcase と同じく linkcheck より前・書き出しより前に完了させる
 //! fail-closed 処理順）、ステップ 5 の後に書き出す。admonition を含まない
 //! ページ・フィクスチャサイトのビルド結果は 1 バイトも変わらない。
+//!
+//! # 素の JS 単一ファイル（[`crate::script`]、イシュー #951）
+//!
+//! テーマトグル（ダーク/ライト切替）が使う `assets/site.js` は
+//! [`skip_nav`]/[`site_theme`] と同じ「全ビルド無条件」区分で、ステップ 4
+//! （`generate_pages` によるページ書き出し）の後に [`script::site_js`] の
+//! 内容をそのまま [`script::SCRIPT_REL_PATH`] へ書き出す。`linkcheck::check_links`
+//! は `href` 属性のみを走査し `<script src>` を見ないため（[`crate::linkcheck`]
+//! 参照）、CSS 群と異なり `asset_hrefs` への登録は不要（登録しても no-op）。
 
 use std::fmt;
 use std::fs;
@@ -72,21 +81,23 @@ use crate::layout;
 use crate::linkcheck::{self, BrokenLink};
 use crate::markdown::render_markdown;
 use crate::nav::{self, NavError};
+use crate::script;
 use crate::showcase;
 use crate::site_theme::{self, SiteThemeError};
 use crate::skip_nav;
 
 /// `site/assets/` 配下に存在すると [`BuildError::ReservedAssetName`] で
-/// 拒否するファイル名（ビルド時生成 CSS と同名のファイル名）。
+/// 拒否するファイル名（ビルド時生成アセットと同名のファイル名）。
 /// [`site_theme::STYLESHEET_REL_PATH`]/[`skip_nav::STYLESHEET_REL_PATH`]/
-/// [`showcase::STYLESHEET_REL_PATH`]/[`admonition::STYLESHEET_REL_PATH`] は
-/// いずれも `assets/<basename>` の形をしており、`site/assets/` 直下との
-/// 名前衝突は basename の一致だけで判定できる。
+/// [`showcase::STYLESHEET_REL_PATH`]/[`admonition::STYLESHEET_REL_PATH`]/
+/// [`script::SCRIPT_REL_PATH`] はいずれも `assets/<basename>` の形をしており、
+/// `site/assets/` 直下との名前衝突は basename の一致だけで判定できる。
 const RESERVED_ASSET_NAMES: &[&str] = &[
     "site.css",
     "skip-nav.css",
     "pre-styled-ui.css",
     "admonition.css",
+    "site.js",
 ];
 
 /// [`build_site`] が成功時に返すビルド結果のサマリ。
@@ -389,6 +400,24 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
             })?;
         assets.push(css_path);
     }
+    {
+        // `assets/site.js`（イシュー #951）。CSS の `write_css_file` と異なり
+        // `fs::write` は親ディレクトリを作らないため、`site/assets/` が
+        // 存在しないサイト（[`list_regular_files`] のドキュメント参照）でも
+        // `out_dir/assets/` が未作成のケースに備えて明示的に作成する。
+        let js_path = out_dir.join(script::SCRIPT_REL_PATH);
+        if let Some(parent) = js_path.parent() {
+            fs::create_dir_all(parent).map_err(|source| BuildError::Io {
+                path: parent.to_path_buf(),
+                source,
+            })?;
+        }
+        fs::write(&js_path, script::site_js()).map_err(|source| BuildError::Io {
+            path: PathBuf::from(script::SCRIPT_REL_PATH),
+            source,
+        })?;
+        assets.push(js_path);
+    }
 
     Ok(BuildReport { written, assets })
 }
@@ -572,13 +601,19 @@ path = "/next/"
         assert_eq!(report.written.len(), 2);
         // サイト骨格 CSS（`site_theme`、ビルド時生成）+ SkipNav 専用 CSS
         // （イシュー #776、全ビルドで無条件に書き出す。`crate::skip_nav`
-        // モジュール doc 参照）の 2 件。showcase/admonition 専用 CSS は本
+        // モジュール doc 参照）+ `assets/site.js`（イシュー #951、同じく
+        // 全ビルド無条件）の 3 件。showcase/admonition 専用 CSS は本
         // フィクスチャが使わないため含まれない。
-        assert_eq!(report.assets.len(), 2);
+        assert_eq!(report.assets.len(), 3);
         assert!(out_dir.join("index.html").exists());
         assert!(out_dir.join("next/index.html").exists());
         assert!(out_dir.join("assets/site.css").exists());
         assert!(out_dir.join(skip_nav::STYLESHEET_REL_PATH).exists());
+        assert!(out_dir.join(script::SCRIPT_REL_PATH).exists());
+        assert_eq!(
+            fs::read_to_string(out_dir.join(script::SCRIPT_REL_PATH)).unwrap(),
+            script::site_js()
+        );
 
         let index_html = fs::read_to_string(out_dir.join("index.html")).unwrap();
         assert!(index_html.contains(r#"href="/next/""#));
@@ -670,9 +705,26 @@ path = "/next/"
 
         let report =
             build_site(&temp.0, &out_dir).expect("missing site/assets/ directory should build");
-        // サイト骨格 CSS + SkipNav 専用 CSS のみ（`site/assets/` 由来のコピー
-        // アセットは 0 件）。
-        assert_eq!(report.assets.len(), 2);
+        // サイト骨格 CSS + SkipNav 専用 CSS + `assets/site.js` のみ
+        // （`site/assets/` 由来のコピーアセットは 0 件）。
+        assert_eq!(report.assets.len(), 3);
         assert!(out_dir.join("assets/site.css").exists());
+        assert!(out_dir.join(script::SCRIPT_REL_PATH).exists());
+    }
+
+    /// イシュー #951: `site/assets/` にビルド時生成 JS と同名のファイル
+    /// （`site.js`）を置くと、静的ファイルの黙った上書き・生成物のすり替わりを
+    /// 防ぐため `BuildError::ReservedAssetName` で拒否される（CSS 群と同じ
+    /// fail-closed 検証、[`RESERVED_ASSET_NAMES`] 参照）。
+    #[test]
+    fn build_site_rejects_reserved_asset_name_site_js_under_assets() {
+        let temp = TempDir::new("reserved-asset-name-site-js");
+        write_fixture_site(&temp.0);
+        fs::write(temp.0.join("site/assets/site.js"), "console.log(1);\n").unwrap();
+        let out_dir = temp.0.join("dist");
+        let err = build_site(&temp.0, &out_dir)
+            .expect_err("reserved asset name site.js should fail the build");
+        assert!(matches!(err, BuildError::ReservedAssetName(_)));
+        assert!(!out_dir.exists());
     }
 }

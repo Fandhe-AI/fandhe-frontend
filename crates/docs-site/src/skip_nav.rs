@@ -21,11 +21,12 @@
 //!
 //! # 純 CSS の focus 時表示（docs-site は hydration を持たない）
 //!
-//! docs-site は JS/hydration を持たない静的サイトのため、
-//! `fandhe_frontend_pre_styled_ui::skip_nav` が
+//! docs-site はテーマトグル用の素の JS（`crate::script`、イシュー #951）を
+//! 導入したが、`data-hydrate`/`data-bind-*` 束縛点による hydration は
+//! 引き続き持たない。そのため `fandhe_frontend_pre_styled_ui::skip_nav` が
 //! [`fandhe_frontend_pre_styled_ui::recipe::StateCondition::FocusVisible`]
-//! （`:focus-visible` 疑似クラス）のみで表現する focus 時表示規則が、本
-//! モジュール経由でそのまま docs-site へ適用される（`data-focus-visible`
+//! （`:focus-visible` 疑似クラス）のみで表現する focus 時表示規則は、本
+//! モジュール経由で純 CSS のまま docs-site へ適用される（`data-focus-visible`
 //! 配線は不要、`fandhe-frontend-pre-styled-ui::skip_nav` モジュール doc 参照）。
 //!
 //! # セキュリティ不変条件（REQ-1）
