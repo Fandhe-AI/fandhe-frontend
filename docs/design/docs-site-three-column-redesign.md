@@ -1,7 +1,9 @@
 # docs サイト 3 カラム新レイアウト設計文書
 
-**本文書のステータス**: 確定（イシュー #904）。Phase 2〜4（#905〜#913）は
-本文書の該当節を実装の統治文書として参照する。
+**本文書のステータス**: 確定（イシュー #904）。**Phase 2〜4 実装完了
+（#905〜#913）。本文書が現行 docs サイト骨格の統治文書（live）である**
+（`docs/design/docs-site-styled-ui-adoption.md` からの適用範囲統治の
+引き継ぎを含む。§9・§10 参照）。
 
 ## 1. 背景・目的
 
@@ -20,12 +22,21 @@ Phase 2〜4 の実装（#905〜#913）に先行して adoption 文書 §3.4
 CSS 供給方式・契約テスト作り替え方針・ドロップダウンの意味論と無 JS
 制約）を確定し、後続 Phase が着手可能な粒度で記録する。
 
-**実装状態の注記**: 本イシュー（#904）の時点ではコードは変更していない。
-`crates/docs-site/src/layout.rs`・`site/assets/site.css` は本文書公開後も
-2 カラム + 静的単一ファイルのまま据え置かれ、実装は Phase 2 以降
-（#905〜#913、各節末尾の「→ #90x」参照）で本文書に従って行う。
+**実装状態の注記（イシュー #904 時点）**: 本イシュー（#904）の時点では
+コードは変更していない。`crates/docs-site/src/layout.rs`・
+`site/assets/site.css` は本文書公開後も 2 カラム + 静的単一ファイルの
+まま据え置かれ、実装は Phase 2 以降（#905〜#913、各節末尾の
+「→ #90x」参照）で本文書に従って行う。
+
+**→ 実装完了（#905〜#912、PR #915〜#922）**: Phase 2〜4 がすべて完了し、
+上記の据え置き状態は解消済みである。実装結果の詳細は §9「実装完了
+サマリと Pages デプロイ検証（イシュー #913）」を参照。
 
 ## 2. 現行骨格の整理
+
+（イシュー #904 時点の**旧**骨格の整理。刷新後の実体は §3（新レイアウト
+設計）と §9（実装完了サマリ）を参照。以下の記述は #904 時点の設計前提
+としてそのまま残す）
 
 ### 2.1 DOM ツリー（`layout.rs::docs_page_with_assets`）
 
@@ -277,6 +288,28 @@ HTML の [`<details>`/`<summary>`](https://developer.mozilla.org/docs/Web/HTML/E
     （`style_element`、`raw_html` 経由）は使わない（`site.css` は
     `<link rel="stylesheet">` で読み込む現行方式を継続するため）。
 
+### 実装結果（イシュー #905・#907〜#911）
+
+- `crates/docs-site/src/site_theme.rs`: `docs_theme()`（`Theme` トークン
+  定義）・`pub fn stylesheet()`（`Theme::to_css` + 骨格 CSS を
+  `StyleSheet` へ組み立てる本体）を実装。ダークモード基盤
+  （`prefers-color-scheme` メディアクエリ + `data-theme` 属性上書きの
+  両ブロックが同一トークン名集合を宣言すること）・外部参照ゼロ・決定的
+  出力・`<`/角括弧不使用の各不変条件は同ファイル内のテスト（
+  `stylesheet_never_references_external_resources`・
+  `stylesheet_is_deterministic`・`stylesheet_never_contains_angle_brackets`
+  等）で担保する。
+- `crates/docs-site/src/build.rs`: `RESERVED_ASSET_NAMES` 定数を新設し、
+  `site/assets/` 配下に生成 CSS と同名の静的ファイルが置かれた場合に
+  ビルドを fail-closed で停止する（静的ファイルによる生成物の黙った
+  上書き防止）。
+- `--docs-*` トークン全廃・`--fandhe-*` 一本化は
+  `crates/docs-site/src/site_theme.rs::stylesheet_contains_no_docs_prefixed_tokens`
+  と `crates/docs-site/tests/site_typography_contract.rs` の双方で
+  fail-closed 検証済み。
+- `site/assets/` は静的アセットディレクトリとして廃止済み（現在の
+  `site/` 配下は Markdown 原稿と `nav.toml` のみ）。
+
 ## 5. `site_css_contract.rs` の契約作り替え方針（→ #906）
 
 現行の `site_css_contract.rs` は「`layout.rs`/`nav.rs` の実出力 class」
@@ -421,7 +454,97 @@ fail-closed 検証である（`site_css()` 関数が `std::fs::read_to_string`
 | §3.1・§3.2（骨格・breakpoint 全体） | #905〜#911 共通の前提（各 Phase が参照） |
 | （3 カラムレイアウト全体の統合確認） | #913 |
 
-## 9. 関連文書
+## 9. 実装完了サマリと Pages デプロイ検証（イシュー #913）
+
+### 9.1 Phase / PR / 実装ファイル対応表
+
+| Phase イシュー | PR | 実装ファイル（主なもの） |
+|---|---|---|
+| #905（§4 CSS 供給方式） | #915 | `crates/docs-site/src/site_theme.rs`（新設）・`crates/docs-site/src/build.rs`（`RESERVED_ASSET_NAMES`） |
+| #906（§5 契約作り替え） | #921 | `crates/docs-site/tests/site_css_contract.rs`（`STRUCTURE_CLASS_CONTRACT` 新設・双方向 fail-closed 化） |
+| #907（本文タイポグラフィ基盤） | #916 | `crates/docs-site/src/site_theme.rs`（タイポグラフィセレクタ） |
+| #908（§3.5 ヘッダードロップダウン） | #919 | `crates/docs-site/src/layout.rs`（`a.docs-brand`・`nav.docs-header-nav`） |
+| #909（§3.3 右カラム目次） | #920 | `crates/docs-site/src/layout.rs`（`aside.docs-toc-aside`、sticky 追従） |
+| #910（§3.4 左ナビ） | #918 | `crates/docs-site/src/nav.rs`（`nav_list` スタイル配線） |
+| #911（§3.6 本文タイポグラフィ） | #917 | `crates/docs-site/src/site_theme.rs`（heading/text/list/code 等セレクタ） |
+| #912（§6 回帰検証） | #922 | `docs/reports/docs-site-redesign-regression-report.md`（新設）・`crates/docs-site/tests/`（ダークモード・View Transitions・SkipNav・レスポンシブ回帰） |
+| #913（本節・統治文書更新） | 本 PR | 本文書・`docs/design/docs-site-styled-ui-adoption.md`・CLAUDE.md・`.github/workflows/docs-site.yml`（コメントのみ） |
+
+### 9.2 `docs-site.yml` paths フィルタ網羅性の検証結果
+
+`git diff --name-only afbbf62~1..origin/main`（`afbbf62` = イシュー #904
+の設計文書作成コミットの直前、Phase 2〜4 全体の差分）で刷新に伴い変更
+された全ファイルを `.github/workflows/docs-site.yml` の `paths:` glob へ
+突き合わせた結果（イシュー #913 実測、2026-07-25 時点）:
+
+| 変更ファイル群（件数） | 対応 paths glob |
+|---|---|
+| `crates/docs-site/src/*.rs`（8 ファイル） | `crates/docs-site/**` |
+| `crates/docs-site/tests/*.rs` + fixtures（6 ファイル） | `crates/docs-site/**` |
+| `crates/pre-styled-ui/src/nav_list.rs`（1 ファイル） | `crates/pre-styled-ui/**` |
+| `docs/api/*.md`・`docs/design/*.md`・`docs/reports/*.md`（4 ファイル） | `docs/**` |
+| `site/assets/site.css`（削除、1 ファイル） | `site/**` |
+| **合計 20 ファイル／unmatched 0** | — |
+
+**結論**: paths フィルタの追加・変更は不要（既存 glob で刷新の全変更が
+網羅されている）。`crates/pre-styled-ui/**` を paths に含める根拠が
+「showcase ページの例外」から「サイト骨格 CSS（`assets/site.css`）自体の
+生成元」へ変わったことは `.github/workflows/docs-site.yml` の冒頭コメント
+是正で反映した（本イシューでの編集はコメントのみ、`on:`/`paths:` の値は
+1 行も変更していない）。`crates/core`/`crates/app`/`crates/server` の
+除外は既存方針（反映が必要な場合は `workflow_dispatch` で手動再デプロイ）
+のまま継続する。
+
+### 9.3 GitHub Pages 実デプロイ検証の証跡（イシュー #913 実測、2026-07-25）
+
+- **Pages 設定**: `gh api repos/Fandhe-AI/fandhe-frontend/pages` →
+  `build_type: "workflow"`、`html_url: "https://fandhe-ai.github.io/fandhe-frontend/"`。
+  `docs/reports/docs-site-acceptance-report.md`（イシュー #476）が記録した
+  「Pages 未有効化・404」状態は解消済み（同レポートへ日付付き追記済み）。
+- **workflow run**: `gh run list --workflow=docs-site.yml` の最新成功 run
+  は `30141958202`（`b0bd8b8`、#922 のマージ push、`success`、37 秒）。
+- **HTTP 応答**: `curl -sI https://fandhe-ai.github.io/fandhe-frontend/` →
+  `HTTP/2 200`、`last-modified: Sat, 25 Jul 2026 03:16:57 GMT`（上記 run の
+  完了時刻と一致）。
+- **新骨格 class の実在確認**（トップページ HTML）: `docs-brand` ×1 /
+  `docs-header-nav` ×1 / `docs-toc-aside` ×1 / `docs-container` ×1 /
+  `docs-sidebar` ×5 / `skip-nav` ×5（`grep -o` によるカウント）。
+- **生成 CSS の内容確認**（`assets/site.css`、27,606 bytes）: `--fandhe-`
+  参照 230 件、`@media (prefers-color-scheme: dark)` と
+  `[data-theme="dark"]` の両ブロックが存在、`min-width: 768px` ×10 /
+  `min-width: 1200px` ×4（§3.2 の breakpoint 契約と整合）。
+- **補助 CSS の到達性**: `assets/skip-nav.css` / `assets/pre-styled-ui.css` /
+  `assets/admonition.css` はいずれも HTTP 200。
+- **判定**: 受入条件 3（デプロイ動作確認）= **Pass**。ここで担保する
+  範囲は「新デザインの成果物が Pages 上に公開されていること」の機械的
+  検証であり、実ブラウザでの視覚確認は #912 レポートと同じ環境制約
+  （Chromium 起動不可）により本イシューでも対象外とする（§6・#912
+  レポート参照）。
+
+## 10. 刷新後の再評価トリガー
+
+`docs/design/docs-site-styled-ui-adoption.md` §5 から適用範囲統治を
+引き継ぎ、以下を刷新後の live な再評価トリガーとして新設する。いずれも
+機械的・観測可能な事象としてのみ定義し、「保守コストが増えたとき」の
+ような観測不能なトリガーは設けない。再評価提案は
+`docs/policy/intentional-non-adoption.md` の運用（評価軸の充足確認を
+Issue・PR に明記する）に準拠すること。
+
+1. `crates/pre-styled-ui/src/theme.rs` の `Theme` トークン名に破壊的
+   変更（削除・改名）が入ったとき（docs-site 側 `site_theme.rs` の
+   `var(--fandhe-*)` 参照が壊れる。`crates/docs-site/tests/` の契約
+   テストが fail することで機械検知される）。
+2. docs-site が JS ハイドレーションを行う方針へ変更されたとき（§3.5 の
+   「(a) `menu` 不採用・(b) CSS のみ開閉を採用」判定の前提である
+   「無 JS」制約が崩れるため、`menu` 部品適用可否を再評価する）。
+3. サイト骨格（3 カラムレイアウト・生成 CSS 供給方式）の再リデザインを
+   行うとき（§4 の CSS 供給方式・§5 の契約テスト方針の前提が変わる）。
+4. `crates/docs-site/tests/site_css_contract.rs` /
+   `crates/docs-site/tests/site_typography_contract.rs` の contract 表
+   （`STRUCTURE_CLASS_CONTRACT` 等）を弱体化・削除する提案が出たとき
+   （fail-closed 契約の維持が §7 セキュリティ不変条件の一部であるため）。
+
+## 11. 関連文書
 
 - `docs/design/docs-site-styled-ui-adoption.md`: §3.4 の再評価
   （イシュー #904）・§5 再評価トリガー 3・4 の消化記録。本文書の
@@ -429,10 +552,11 @@ fail-closed 検証である（`site_css()` 関数が `std::fs::read_to_string`
 - `docs/policy/intentional-non-adoption.md`: AI 開発・保守前提の評価軸
   （明示性・決定性・機械検証可能性・コンテキスト消費）と非採用記録の
   運用ルール本体。
-- `crates/docs-site/src/layout.rs`: 現行 2 カラム骨格・`docs_page_with_assets`
-  の実装（§2.1・§3.1 の変更対象）。
-- `crates/docs-site/tests/site_css_contract.rs`: 現行の class 契約検証
-  テスト（§5 の作り替え対象）。
+- `crates/docs-site/src/layout.rs`: `docs_page_with_assets` の実装（§2.1
+  で整理した #904 時点の 2 カラム骨格から §3.1 の 3 カラム骨格へ移行済み）。
+- `crates/docs-site/tests/site_css_contract.rs`: class 契約検証テスト
+  （§5 の作り替え方針どおり `STRUCTURE_CLASS_CONTRACT` を新設し双方向
+  fail-closed 化済み、§4「実装結果」・#906 参照）。
 - `crates/pre-styled-ui/src/theme.rs`: `Theme::to_css`・トークン
   allowlist 検証（§4 で流用するテーマ基盤）。
 - `crates/pre-styled-ui/src/stylesheet.rs`: `StyleSheet`・
@@ -441,3 +565,11 @@ fail-closed 検証である（`site_css()` 関数が `std::fs::read_to_string`
   `data-state` 開閉の wasm-full 配線前提（§3.5 で不採用と判定した根拠）。
 - `site/nav.toml`: ナビゲーション構成マニフェスト（§3.5 の対応関係の
   入力）。
+- `docs/reports/docs-site-redesign-regression-report.md`: イシュー #912
+  の回帰検証レポート（§6・§9.3 が参照する実施結果）。
+- `crates/docs-site/src/site_theme.rs`: §4 の実装本体（`docs_theme()`・
+  `stylesheet()`）。
+- `crates/docs-site/tests/site_typography_contract.rs`: `--fandhe-*` 一本化・
+  `--docs-*` 全廃を検証する fail-closed 契約テスト。
+- `.github/workflows/docs-site.yml`: Pages 自動デプロイワークフロー
+  （§9.2 の paths 網羅性検証対象、§9.3 の実デプロイ検証対象）。

@@ -263,6 +263,11 @@ HTTP/2 404
   （push または `workflow_dispatch`）で自動的に解消する見込み。本レポートの
   対象外（本イシューのスコープはビルド・監査・実機再現の検証であり、リポジトリ
   管理者権限を要する Pages 有効化操作自体は含まない）。
+
+  **追記（2026-07-25、イシュー #913）**: Pages は有効化済み
+  （`build_type: workflow`）。`https://fandhe-ai.github.io/fandhe-frontend/` は
+  HTTP 200 を返し、docs-site.yml の自動デプロイが機能している（検証記録は
+  `docs/design/docs-site-three-column-redesign.md` §9）。
 - 上記以外の指摘・保留事項はなし（security-auditor 観点の監査ですべて Pass、
   是正実装は発生していない）。
 

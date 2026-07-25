@@ -13,19 +13,26 @@ name: docs-site
 # 既知の制約: レンダラ側クレート（crates/server / crates/app / crates/core）の
 # 変更は below の paths に含めないため自動再デプロイの対象外（イシュー本文の
 # トリガー仕様どおり）。反映が必要な場合は workflow_dispatch で手動再デプロイする。
-# ただし UI コンポーネントショーケースページ（crates/docs-site/src/showcase.rs）は
-# pre-styled-ui / headless-ui / interactive の実レンダリング結果・生成 CSS を
-# 直接掲載するため、これら 3 クレートは例外として paths に含め自動再デプロイの
-# 対象とする（見た目・マークアップの変更が docs サイトへ即反映される契約）。
+#
+# pre-styled-ui / headless-ui / interactive を paths に含める理由（イシュー
+# #905/#899 の 3 カラム刷新で根拠が変わった。イシュー #913 で是正）:
+# サイト骨格 CSS（assets/site.css）自体が crates/docs-site/src/site_theme.rs +
+# fandhe_frontend_pre_styled_ui::theme::Theme::to_css のビルド生成物になった
+# ため（#905 以降、site/assets/site.css の静的単一ファイルは廃止済み）、
+# これら 3 クレートは showcase ページ限定の例外ではなく全ページに影響する
+# load-bearing な依存である。UI コンポーネントショーケースページ
+# （crates/docs-site/src/showcase.rs）が pre-styled-ui / headless-ui /
+# interactive の実レンダリング結果・分離 CSS を直接掲載する点（#679/#609 系）
+# も引き続き対象に含む。
 
 on:
   push:
     branches: [main]
     paths:
       - "docs/**"
-      - "site/**"
+      - "site/**" # #905 で site/assets/ は廃止済み。現在は Markdown 原稿・nav.toml のみ（骨格 CSS は静的コピーではなくビルド生成、下記 verify ステップ参照）
       - "crates/docs-site/**"
-      - "crates/pre-styled-ui/**" # showcase ページが styled 部品・StyleSheet 生成 CSS を直接掲載
+      - "crates/pre-styled-ui/**" # 骨格 CSS（assets/site.css）の生成元（Theme::to_css、イシュー #905） + showcase ページの styled 部品掲載
       - "crates/headless-ui/**" # showcase の Tabs/Accordion マークアップ（pre-styled-ui が再エクスポート）
       - "crates/interactive/**" # headless-ui の状態機械が依存（推移的にマークアップへ影響）
       - "examples/*/README.md" # site/nav.toml が Examples セクションの source として参照（イシュー #504）
@@ -68,7 +75,13 @@ jobs:
       # ジョブ間で永続するため、リポジトリ直下への出力による stale 生成物の
       # 混入を避ける。
       - name: "verify: dist sanity check"
-        # 空サイト・アセット欠落を黙って公開しないための決定的チェック（fail-closed）
+        # 空サイト・アセット欠落を黙って公開しないための決定的チェック（fail-closed）。
+        # assets/site.css は #905 以降 site/assets/ からの静的コピーではなく
+        # crates/docs-site/src/site_theme.rs によるビルド生成物（Theme::to_css +
+        # 骨格 CSS）である。生成に失敗すれば build_site() 自体が非 0 終了するため、
+        # 本 test -f はあくまで「生成物が out_dir へ実際に書き出されたか」の
+        # 最終確認であり、CSS の内容自体（トークン網羅性等）は
+        # crates/docs-site/tests/site_typography_contract.rs 等の契約テストが担う。
         run: |
           test -f "${RUNNER_TEMP}/docs-site-dist/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.css"
