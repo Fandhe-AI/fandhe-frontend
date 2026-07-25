@@ -38,10 +38,10 @@
 
 use fandhe_frontend_core::{el, text, Node};
 use fandhe_frontend_pre_styled_ui::{
-    alert, avatar, badge, breadcrumb, card, carousel, color_swatch, data_list, empty_state, icon,
-    image, json_tree_view, marquee, pagination, progress, scroll_area, separator, skeleton,
-    spinner, splitter, stat, status, steps, tab_nav, table, tag, timeline, tree_view, ColorPalette,
-    Orientation, Size,
+    alert, avatar, badge, breadcrumb, callout, card, carousel, color_swatch, data_list,
+    empty_state, icon, image, json_tree_view, marquee, pagination, progress, scroll_area,
+    separator, skeleton, spinner, splitter, stat, status, steps, tab_nav, table, tag, timeline,
+    tree_view, ColorPalette, Orientation, Size,
 };
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
@@ -178,6 +178,67 @@ pub(crate) const BADGE: ComponentPageSpec = ComponentPageSpec {
     aria: &[AriaRow {
         attribute: "(該当なし)",
         description: "chakra-ui v3 準拠の最小サブセットとして role/aria-* を付与しない（badge.rs:3）。",
+    }],
+    demo: None,
+};
+
+/// `crates/pre-styled-ui/src/callout.rs:34`（`CalloutVariant` 3 バリアント）・
+/// 同 `:186`（`root` が `role`/`aria-*` を一切付与しない）。
+fn ex_callout() -> Node {
+    let props = callout::CalloutProps {
+        variant: callout::CalloutVariant::Surface,
+        ..callout::CalloutProps::default()
+    };
+    callout::root(
+        &props,
+        vec![],
+        vec![
+            callout::icon(vec![], vec![]),
+            callout::text(
+                props.size,
+                vec![],
+                vec![text("Heads up: this is supplementary info")],
+            ),
+        ],
+    )
+}
+
+pub(crate) const CALLOUT: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "CalloutVariant（Soft/Surface/Outline、crates/pre-styled-ui/src/callout.rs:34-42）で見た目を切り替える",
+        "colorPalette 軸（callout.rs:60-67）でセマンティック色を選択する",
+        "root/icon/text の 3 パーツで補足情報を構造化できる（callout.rs 全文参照）",
+        "alert と異なり role を一切付与しない静的な補足表示部品（callout.rs:1-18 module doc）",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "variant",
+            kind: "CalloutVariant",
+            default: "Soft",
+            description: "見た目（callout.rs:34-42、#[default] は Soft）。",
+        },
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Md",
+            description: "サイズ（callout.rs:60-67）。",
+        },
+        ArgRow {
+            name: "palette",
+            kind: "ColorPalette",
+            default: "Accent",
+            description: "colorPalette 軸（callout.rs:60-67）。",
+        },
+    ],
+    examples: &[ExampleEntry {
+        title: "Surface",
+        description: "Surface variant の Callout を icon + text で組み立てた例です。",
+        render: ex_callout,
+    }],
+    keyboard: &[],
+    aria: &[AriaRow {
+        attribute: "(該当なし)",
+        description: "固有の role/aria-* を出力しない。alert と異なり live region ではないため支援技術へ割り込み通知をしない（callout.rs module doc 参照）。",
     }],
     demo: None,
 };

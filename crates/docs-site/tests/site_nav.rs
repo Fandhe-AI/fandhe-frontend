@@ -97,11 +97,12 @@ fn site_nav_registers_five_sections_with_expected_titles() {
 /// 部品ページは 100 → 101、登録ページ総数は 122 → 123 になった。
 /// イシュー #993 で Navigation Menu（`site/components/navigation-menu.md`）
 /// が加わり、部品ページは 101 → 102、登録ページ総数は 123 → 124 になった。
-/// イシュー #995 で Quote / Strong（`site/components/quote.md` /
-/// `site/components/strong.md`）が加わり、部品ページは 102 → 104、
-/// 登録ページ総数は 124 → 126 になった。イシュー #996 で Tab Nav
-/// （`site/components/tab-nav.md`）が加わり、部品ページは 104 → 105、
-/// 登録ページ総数は 126 → 127 になった。
+/// イシュー #994 で Callout（`site/components/callout.md`）が加わり、
+/// 部品ページは 102 → 103、登録ページ総数は 124 → 125 になった。イシュー
+/// #995 で Quote / Strong の 2 ページが加わり、部品ページは 103 → 105、
+/// 登録ページ総数は 125 → 127 になった。イシュー #996 で Tab Nav
+/// （`site/components/tab-nav.md`）が加わり、部品ページは 105 → 106、
+/// 登録ページ総数は 127 → 128 になった。
 #[test]
 fn site_nav_registers_all_pages_with_expected_paths() {
     let nav = load_nav();
@@ -112,7 +113,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .collect();
 
     // イシュー #995 で Quote / Strong の 2 ページが加わり 124 → 126 になった。
-    assert_eq!(pages.len(), 127, "expected 127 pages, got {pages:?}");
+    // イシュー #996 で Tab Nav が加わり 127 → 128 になった。
+    assert_eq!(pages.len(), 128, "expected 128 pages, got {pages:?}");
 
     let component_pages: Vec<&(&str, &str)> = pages
         .iter()
@@ -120,8 +122,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .collect();
     assert_eq!(
         component_pages.len(),
-        106,
-        "expected 106 /components/ pages (1 index + 105 部品), got {component_pages:?}"
+        107,
+        "expected 107 /components/ pages (1 index + 106 部品), got {component_pages:?}"
     );
 
     let source_based_component_pages = pages
@@ -129,8 +131,8 @@ fn site_nav_registers_all_pages_with_expected_paths() {
         .filter(|(source, _)| source.starts_with("site/components/"))
         .count();
     assert_eq!(
-        source_based_component_pages, 105,
-        "expected 105 pages sourced from site/components/"
+        source_based_component_pages, 106,
+        "expected 106 pages sourced from site/components/"
     );
 
     // 代表 3 件で (source, path) の一致を spot-check する（台帳・レジストリ

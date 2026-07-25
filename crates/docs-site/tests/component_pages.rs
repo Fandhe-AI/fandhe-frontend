@@ -391,14 +391,15 @@ fn anatomy_parts_exactly_match_declared_parts_for_fully_demonstrated_components(
 
 /// §3.4 のスコープ解決バケット件数（実測、`COMPONENT_PAGES` 登録件数
 /// 〔イシュー #980 で toggle/toggle-group・#991 で Toolbar・#992 で
-/// Menubar・#993 で Navigation Menu・#996 で Tab Nav を追加登録した後の
-/// 件数〕に対して固定）。将来の部品追加でバケット 3（Anatomy 省略）へ
-/// 無言に落ちることを検知するための固定値テスト。バケット 2（フォール
-/// バック解決）は `input`/`textarea`/`native-select`（いずれも headless
-/// `field::input` の共有スコープ `"field"` を使い、パスの kebab
+/// Menubar・#993 で Navigation Menu・#994 で Callout・#995 で Quote /
+/// Strong・#996 で Tab Nav を追加登録した後の件数〕に対して固定）。将来の
+/// 部品追加でバケット 3（Anatomy 省略）へ無言に落ちることを検知するための
+/// 固定値テスト。バケット 2（フォールバック解決）は
+/// `input`/`textarea`/`native-select`（いずれも headless `field::input` の
+/// 共有スコープ `"field"` を使い、パスの kebab
 /// （`input`/`textarea`/`native-select`）と一致しない）と `charts`
 /// （複数チャート scope の集約ページで単一 scope に一致しない）の 4 件
-/// （不変）。Toolbar/Menubar/Navigation Menu/Tab Nav は
+/// （不変）。Toolbar/Menubar/Navigation Menu/Callout/Tab Nav は
 /// `data-scope="<kebab>"` がパスの kebab と一致するためバケット 1 に加わる。
 #[test]
 fn scope_resolution_buckets_match_expected_counts() {
@@ -421,11 +422,12 @@ fn scope_resolution_buckets_match_expected_counts() {
             bucket2_fallback += 1;
         }
     }
-    // イシュー #995 で Quote / Strong の 2 部品ページが加わり、いずれも
-    // path 由来の kebab（quote/strong）が data-scope とそのまま一致する
-    // ため bucket1_path_match が 89 -> 91 へ増える。イシュー #996 で
-    // Tab Nav が加わり 91 -> 92 へ増える。
-    assert_eq!(bucket1_path_match, 92);
+    // イシュー #994 で Callout（path 由来の kebab callout が data-scope と
+    // 一致）が加わり 89 -> 90、イシュー #995 で Quote / Strong の 2 部品
+    // ページが加わり（いずれも path 由来の kebab quote/strong が
+    // data-scope とそのまま一致する）90 -> 92、イシュー #996 で Tab Nav が
+    // 加わり 92 -> 93 へ増える。
+    assert_eq!(bucket1_path_match, 93);
     assert_eq!(bucket2_fallback, 4);
     assert_eq!(bucket3_none, 0);
 }

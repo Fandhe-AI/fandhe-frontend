@@ -453,6 +453,11 @@ source = "site/components/badge.md"
 path = "/components/badge/"
 
 [[section.group.page]]
+title = "Callout"
+source = "site/components/callout.md"
+path = "/components/callout/"
+
+[[section.group.page]]
 title = "Card"
 source = "site/components/card.md"
 path = "/components/card/"

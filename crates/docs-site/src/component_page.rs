@@ -154,6 +154,10 @@ const NAV_DATA_SPECS: &[(&str, ComponentPageSpec)] = &[
         crate::component_specs_nav_data::AVATAR,
     ),
     ("/components/badge/", crate::component_specs_nav_data::BADGE),
+    (
+        "/components/callout/",
+        crate::component_specs_nav_data::CALLOUT,
+    ),
     ("/components/card/", crate::component_specs_nav_data::CARD),
     (
         "/components/data-list/",
