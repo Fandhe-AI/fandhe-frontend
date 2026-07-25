@@ -293,6 +293,34 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
   `site_theme::STRUCTURAL_CSS` に対応セレクタを追加する（層 1 の
   (a)(b)(c) 3 方向すべてを満たす）。未登録のまま出力すると層 1 (c)
   で必ず FAIL する。
+
+  **#958 実装結果**: 上記方針をそのまま実装すると
+  `structure_class_contract_appears_in_rendered_html`（層 1 (a) 方向、
+  「フルページフィクスチャ HTML に必ず出現する」を要求）が必ず FAIL
+  する。7 件のうち `docs-search`/`docs-search-input`/`docs-search-results`
+  の 3 件は SSG が無条件出力するため `STRUCTURE_CLASS_CONTRACT` 本体へ
+  そのまま登録できるが、残り 4 件（`docs-search-result` /
+  `docs-search-result-title` / `docs-search-result-section` /
+  `docs-search-empty`）は `crate::script::SITE_JS` が実行時に
+  `document.createElement` で生成するため SSG 出力（ビルド時 HTML）には
+  一切現れない。既存の `TOC_ONLY_CLASSES`/`NAV_GROUP_ONLY_CLASSES` と
+  同じ「別枠バケット」イディオムに倣い、この 4 件を
+  `SEARCH_JS_ONLY_CLASSES`（`crates/docs-site/tests/site_css_contract.rs`）
+  へ分離し、(a) の代わりに次の 3 方向で fail-closed を維持した:
+  (b) 生成 `assets/site.css` にセレクタとして存在する、
+  (a′) `SITE_JS` の JS ソース中にクラス名リテラルとして出現する
+  （JS が実質の出力元であることの代替検証）、
+  (c′) フルページフィクスチャ HTML（見出しあり/なし双方）のいずれにも
+  出現しない（SSG が誤ってサーバー側で描画し始めたら検知する）。
+  `docs-search-empty` も JS-only とした（サーバー側で常設すると
+  `role="listbox"` の子として空の `li` が恒久的に残るため）。
+
+  **CSS 実装制約**: `extract_css_class_selectors`（層 1 のセレクタ抽出
+  ヘルパ）はハイフン込みの識別子を丸ごと 1 トークンとして拾うため、
+  `.docs-search-result-title { … }` の規則は `docs-search-result`
+  というトークンを生成しない。したがって登録した 7 class 名それぞれに
+  独立した CSS 規則（`.docs-search-result` 単独の規則を含む）が
+  最低 1 つ必要である。
 - `.docs-search[hidden] { display: none; }` を
   `.docs-theme-toggle[hidden]` と同型で用意する。
 - 検索結果の DOM は毎回全消去してから再構築する
@@ -413,9 +441,19 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
 3. `hidden` 解除がイベント配線より後にあること（文字列出現順で固定、
    #951 と同型）。
 4. `data-search-index` の単一実装点固定（§4-2）。
-5. class 契約 3 方向（`site_css_contract.rs` 層 1）。
+5. class 契約 3 方向（`site_css_contract.rs` 層 1。実装結果は上記
+   §4-1「#958 実装結果」参照。JS 実行時生成の 4 件は
+   `SEARCH_JS_ONLY_CLASSES` の別枠 3 方向検証で担保する）。
 6. `#924` 検証 recipe によるスクリーンショット取得（JS 有効時に検索欄
    が見え、無効相当＝ `hidden` のままの HTML に検索 UI が出ないこと）。
+7. **スキーマバージョンの二重管理ドリフト検知**（`crates/docs-site/src/script.rs`
+   `tests::site_js_pins_the_same_schema_version_as_search_index_rs`）:
+   `SITE_JS` 側の `version !== 1` fail-closed チェック（§4-5）が
+   `crate::search_index::SCHEMA_VERSION` と同じ数値であることを固定する。
+   片側だけ更新されるとスキーマ検証が無効化・誤検知されるため、
+   `script_js_and_inline_bootstrap_share_the_same_storage_key`
+   （テーマトグルの `localStorage` キー名ドリフト検知）と同型の
+   回帰テストとして追加した。
 
 ## 5. CI・既存テストへの追随一覧
 
@@ -424,10 +462,10 @@ Markdown 原稿ベースの事前実測に現れない）を織り込んでも 1
 | `crates/docs-site/src/build.rs` | `RESERVED_ASSET_NAMES` に `search-index.json` 追加、`BuildError::SearchIndexTooLarge` 追加、書き出し配線 | #957 |
 | `crates/docs-site/tests/site_build.rs` | `report.assets.len()` の期待値更新（ok フィクスチャ・実サイト双方）、`assets/search-index.json` の存在確認と決定性（2 回ビルドでバイト一致） | #957 |
 | `.github/workflows/docs-site.yml` | `verify: dist sanity check` に `test -f "${RUNNER_TEMP}/docs-site-dist/assets/search-index.json"` を追加 | #957 |
-| `crates/docs-site/tests/site_css_contract.rs` | `STRUCTURE_CLASS_CONTRACT` へ `docs-search*` 7 件を登録 | #958 |
-| `crates/docs-site/src/site_theme.rs` | 対応セレクタを `STRUCTURAL_CSS` へ追加（層 1 (b) 方向） | #958 |
-| `crates/docs-site/src/script.rs` | 第 3 IIFE 追加、`site_js_scrollspy_is_isolated_from_the_theme_toggle_guard` の期待値を更新 | #958 |
-| `crates/docs-site/tests/layout_render.rs` | `data-search-index` の値が `asset_href(base_path, REL_PATH)` と一致することの固定 | #958 |
+| `crates/docs-site/tests/site_css_contract.rs` | `STRUCTURE_CLASS_CONTRACT` へ `docs-search*` 3 件、`SEARCH_JS_ONLY_CLASSES`（新設）へ JS 実行時生成 4 件を登録し、3 方向（(b)/(a′)/(c′)）の新規テスト 3 本を追加（実装結果は §4-1 参照） | #958 |
+| `crates/docs-site/src/site_theme.rs` | 対応セレクタ 7 件を `STRUCTURAL_CSS` へ追加（層 1 (b) 方向）、`stylesheet_contains_structural_selectors` へ追加 | #958 |
+| `crates/docs-site/src/script.rs` | 第 3 IIFE 追加、`site_js_scrollspy_is_isolated_from_the_theme_toggle_guard` の期待値を `>= 2` → `>= 3` に更新、`site_js_does_not_use_dangerous_dom_apis` へ `insertAdjacentHTML` を追加、`SCHEMA_VERSION` 二重管理ドリフト検知テストを新設 | #958 |
+| `crates/docs-site/tests/layout_render.rs` | `data-search-index` の値が `asset_href(base_path, REL_PATH)` と一致することの固定、検索ブロックの DOM 順・`hidden` 既定・combobox 配線・`<form>` 不在の固定テストを追加 | #958 |
 | paths フィルタ | `docs-site.yml` の既存 `crates/docs-site/**` が新規ファイルを包含するため**変更不要**（`.claude/rules/ci.md` の paths 契約に照らして確認済み） | — |
 
 **並列 PR 衝突の注記**: `site_css_contract.rs` の `STRUCTURE_CLASS_CONTRACT`

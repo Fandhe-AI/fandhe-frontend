@@ -49,6 +49,17 @@
 //! [`component_page_render_introduces_no_class_outside_the_contract`] が
 //! 機械的に保証する。
 //!
+//! イシュー #958（検索 UI）: `docs-search`/`docs-search-input`/
+//! `docs-search-results` の 3 件は SSG が無条件出力するため層 1 本体
+//! （[`STRUCTURE_CLASS_CONTRACT`]）へ追加するが、`docs-search-result*`/
+//! `docs-search-empty` の 4 件は `crate::script::SITE_JS` が実行時に
+//! `document.createElement` で生成するため層 1 本体の (a) 方向（HTML に
+//! 常に出現する）とは両立しない。[`SEARCH_JS_ONLY_CLASSES`] へ分離し、
+//! (b) セレクタ存在・(a′) `SITE_JS` へのリテラル出現・(c′) HTML 非出現の
+//! 3 方向で fail-closed を維持する（詳細は `SEARCH_JS_ONLY_CLASSES` の
+//! doc コメント、設計文書 `docs/design/docs-site-search-design.md` §4-1
+//! 「#958 実装結果」参照）。
+//!
 //! Markdown レンダラ（`markdown.rs`）が動的に生成する `language-<lang>`
 //! クラス（コードブロックの言語トークン依存で無数の値を取りうる）は本テスト
 //! のスコープ外とする（`.docs-content pre code` の要素セレクタでスタイルが
@@ -445,6 +456,18 @@ const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
         "ヘッダー右側のアクション群 div（イシュー #951）",
     ),
     (
+        "docs-search",
+        "検索ブロック div（既定 hidden、docs-header-actions 第 1 子、イシュー #958）",
+    ),
+    (
+        "docs-search-input",
+        "検索入力 input[type=search]（data-search-index を持つ、イシュー #958）",
+    ),
+    (
+        "docs-search-results",
+        "検索結果一覧 ul#docs-search-results（既定 hidden、role=listbox、イシュー #958）",
+    ),
+    (
         "docs-github-link",
         "GitHub リポジトリへの外部リンク a（イシュー #951）",
     ),
@@ -481,6 +504,30 @@ const NAV_GROUP_ONLY_CLASSES: &[&str] = &[
     "docs-nav-group",
     "docs-nav-group-summary",
     "docs-nav-group-list",
+];
+
+/// 検索結果（イシュー #958）のうち `crate::script::SITE_JS` が実行時に
+/// `document.createElement` で生成する class。SSG が組み立てる
+/// [`full_page_html`] にはビルド時点で 1 件も出現しないため、
+/// [`STRUCTURE_CLASS_CONTRACT`] の (a) 方向（「フルページフィクスチャ HTML に
+/// 出現するはず」）とは両立しない（`structure_class_contract_appears_in_rendered_html`
+/// にそのまま追加すると常に失敗する）。本バケットは (a) の代わりに以下 3 方向
+/// で fail-closed を維持する（`docs/design/docs-site-search-design.md` §4-1
+/// 「#958 実装結果」参照）:
+///
+/// - (b) 生成 `assets/site.css` にセレクタとして存在する
+///   （[`search_js_only_classes_have_selector_in_generated_site_css`]）。
+/// - (a′) `crate::script::SITE_JS` の JS ソース中にクラス名リテラルとして
+///   出現する（JS が実質の出力元であることの代替検証、
+///   [`search_js_only_classes_appear_in_site_js`]）。
+/// - (c′) [`full_page_html`]（見出しあり/なし双方）のいずれにも出現しない
+///   （SSG が誤ってサーバー側で描画し始めたら検知する、
+///   [`search_js_only_classes_never_appear_in_rendered_html`]）。
+const SEARCH_JS_ONLY_CLASSES: &[&str] = &[
+    "docs-search-result",
+    "docs-search-result-title",
+    "docs-search-result-section",
+    "docs-search-empty",
 ];
 
 /// `crate::build::build_site` の実組み立て（`docs_page_with_assets` +
@@ -708,6 +755,55 @@ fn structure_class_contract_has_selector_in_generated_site_css() {
         assert!(
             css_tokens.contains(*class),
             "{class} が生成 assets/site.css にセレクタとして存在しない"
+        );
+    }
+}
+
+/// [`SEARCH_JS_ONLY_CLASSES`] (b) 方向: 生成 `assets/site.css` に
+/// セレクタとして存在することを固定する。
+#[test]
+fn search_js_only_classes_have_selector_in_generated_site_css() {
+    let css_tokens = extract_css_class_selectors(&site_css());
+    for class in SEARCH_JS_ONLY_CLASSES {
+        assert!(
+            css_tokens.contains(*class),
+            "{class} が生成 assets/site.css にセレクタとして存在しない"
+        );
+    }
+}
+
+/// [`SEARCH_JS_ONLY_CLASSES`] (a′) 方向: `crate::script::SITE_JS` の JS
+/// ソース中にクラス名リテラルとして出現することを固定する（SSG が出さない
+/// class のため層 1 本体の (a) 方向の代替検証）。
+#[test]
+fn search_js_only_classes_appear_in_site_js() {
+    use fandhe_frontend_docs_site::script::SITE_JS;
+    for class in SEARCH_JS_ONLY_CLASSES {
+        assert!(
+            SITE_JS.contains(class),
+            "{class} が crate::script::SITE_JS のソースに出現しない"
+        );
+    }
+}
+
+/// [`SEARCH_JS_ONLY_CLASSES`] (c′) 方向: SSG が組み立てる
+/// [`full_page_html`]（見出しあり/なし双方）のいずれにも出現しないことを
+/// 固定する。SSG が誤ってサーバー側で検索結果 markup を描画し始めたら
+/// 本テストが検知する。
+#[test]
+fn search_js_only_classes_never_appear_in_rendered_html() {
+    let html_with_toc = full_page_html(true);
+    let html_no_toc = full_page_html(false);
+    let tokens_with_toc = extract_class_tokens(&html_with_toc);
+    let tokens_no_toc = extract_class_tokens(&html_no_toc);
+    for class in SEARCH_JS_ONLY_CLASSES {
+        assert!(
+            !tokens_with_toc.contains(*class),
+            "{class} は JS 実行時生成のはずだが見出しありフィクスチャ HTML に出現した"
+        );
+        assert!(
+            !tokens_no_toc.contains(*class),
+            "{class} は JS 実行時生成のはずだが見出しなしフィクスチャ HTML に出現した"
         );
     }
 }

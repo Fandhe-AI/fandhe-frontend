@@ -40,6 +40,17 @@
 //!   header.docs-header            … ヘッダバー（サイトタイトルへのリンク）
 //!     div.docs-header-actions     … 右側のアクション群（イシュー #951、
 //!       header_nav の有無に関わらず常に出力）
+//!       div.docs-search            … 検索ブロック（既定 `hidden`、イシュー #958）
+//!         input.docs-search-input  … `data-search-index` でインデックス JSON を参照
+//!         ul.docs-search-results（`#docs-search-results`、既定 `hidden`）
+//!           li.docs-search-result（JS 実行時生成。`role="option"`）
+//!             a（クリック可能なヒットターゲット本体。行のクロム
+//!               〔`padding`・`color`・`text-decoration`〕は
+//!               `.docs-search-result > a` に付与し、`li` 自身は
+//!               `[aria-selected="true"]` 時の背景色のみを持つ）
+//!               span.docs-search-result-title
+//!               span.docs-search-result-section（見出し一致時のみ）
+//!           li.docs-search-empty（JS 実行時生成。0 件 or fetch 失敗時）
 //!       a.docs-github-link        … GitHub リポジトリへの外部リンク
 //!       button.docs-theme-toggle  … テーマトグル（既定 `hidden`。可視化・
 //!         イベント配線は `assets/site.js`（`crate::script`）のみが行う）
@@ -378,6 +389,110 @@ body {\n\
  */\n\
 .docs-theme-toggle[hidden] {\n\
   display: none;\n\
+}\n\
+\n\
+/*\n\
+ * ---- 検索 UI（素の JS、イシュー #958） ----\n\
+ *\n\
+ * `.docs-header-actions` の第 1 子（`crate::layout` 参照）。既定 `hidden` の\n\
+ * 退避経路は `.docs-theme-toggle[hidden]` と同型（配線完了後にのみ\n\
+ * `crate::script::SITE_JS` が `hidden` を除去する）。`display: none` にせず\n\
+ * `min-width: 0` + `max-width` で縮小に任せるため、狭幅帯域でも要素自体は\n\
+ * 消さない（`hidden` 属性のみが非表示の唯一の情報源）。\n\
+ */\n\
+.docs-search {\n\
+  position: relative;\n\
+  display: flex;\n\
+  align-items: center;\n\
+  min-width: 0;\n\
+}\n\
+\n\
+.docs-search[hidden] {\n\
+  display: none;\n\
+}\n\
+\n\
+.docs-search-input {\n\
+  width: 100%;\n\
+  max-width: 9rem;\n\
+  min-width: 0;\n\
+  font: inherit;\n\
+  font-size: var(--fandhe-font-font-size-sm);\n\
+  padding: 0.35rem 0.6rem;\n\
+  border: 1px solid var(--fandhe-color-border);\n\
+  border-radius: var(--fandhe-radius-sm);\n\
+  background: var(--fandhe-color-bg);\n\
+  color: var(--fandhe-color-fg);\n\
+}\n\
+\n\
+.docs-search-input:focus-visible {\n\
+  outline: 2px solid var(--fandhe-color-accent);\n\
+  outline-offset: 2px;\n\
+}\n\
+\n\
+/*\n\
+ * 検索結果パネル。`.docs-header`（z-index 10）・`.docs-header-dropdown`\n\
+ * （z-index 20）より上に出すため z-index 30 を使う（`.docs-header`/\n\
+ * `.docs-header-inner` はいずれも `overflow` を宣言していないため絶対配置\n\
+ * パネルはクリップされない）。\n\
+ */\n\
+.docs-search-results {\n\
+  position: absolute;\n\
+  top: 100%;\n\
+  right: 0;\n\
+  z-index: 30;\n\
+  margin: 0.25rem 0 0;\n\
+  padding: 0.25rem;\n\
+  list-style: none;\n\
+  min-width: 18rem;\n\
+  max-height: 60vh;\n\
+  overflow-y: auto;\n\
+  background: var(--fandhe-color-bg);\n\
+  border: 1px solid var(--fandhe-color-border);\n\
+  border-radius: var(--fandhe-radius-sm);\n\
+}\n\
+\n\
+.docs-search-results[hidden] {\n\
+  display: none;\n\
+}\n\
+\n\
+/* 以下 4 class（`.docs-search-result*`・`.docs-search-empty`）は\n\
+ * `crate::script::SITE_JS` が実行時に `document.createElement` で生成する\n\
+ * ため SSG 出力（`crates/docs-site/tests/site_css_contract.rs` の層 1\n\
+ * `STRUCTURE_CLASS_CONTRACT`）には出現しない。`SEARCH_JS_ONLY_CLASSES`\n\
+ * （同ファイル）が (b) セレクタ存在・(a′) SITE_JS へのリテラル出現・\n\
+ * (c′) HTML 非出現の 3 方向で別枠検証する。 */\n\
+.docs-search-result {\n\
+  display: block;\n\
+  border-radius: var(--fandhe-radius-sm);\n\
+}\n\
+\n\
+.docs-search-result > a {\n\
+  display: block;\n\
+  padding: 0.4rem 0.6rem;\n\
+  text-decoration: none;\n\
+  color: var(--fandhe-color-fg);\n\
+}\n\
+\n\
+.docs-search-result[aria-selected=\"true\"] {\n\
+  background: var(--fandhe-color-bg-subtle);\n\
+}\n\
+\n\
+.docs-search-result-title {\n\
+  display: block;\n\
+  font-size: var(--fandhe-font-font-size-sm);\n\
+  font-weight: 500;\n\
+}\n\
+\n\
+.docs-search-result-section {\n\
+  display: block;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+  font-size: var(--fandhe-font-font-size-sm);\n\
+}\n\
+\n\
+.docs-search-empty {\n\
+  display: block;\n\
+  padding: 0.5rem 0.6rem;\n\
+  color: var(--fandhe-color-fg-muted);\n\
 }\n\
 \n\
 /*\n\
@@ -897,6 +1012,11 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
     margin-left: 0.75rem;\n\
   }\n\
 \n\
+  /* 帯域が広がった分だけ検索欄の縮小上限を緩める（イシュー #958）。 */\n\
+  .docs-search-input {\n\
+    max-width: 14rem;\n\
+  }\n\
+\n\
   nav.prev-next {\n\
     flex-direction: row;\n\
   }\n\
@@ -1377,6 +1497,13 @@ mod tests {
             ".docs-header-trigger",
             ".docs-header-dropdown",
             ".docs-header-actions",
+            ".docs-search",
+            ".docs-search-input",
+            ".docs-search-results",
+            ".docs-search-result",
+            ".docs-search-result-title",
+            ".docs-search-result-section",
+            ".docs-search-empty",
             ".docs-github-link",
             ".docs-theme-toggle",
             ".docs-container",
@@ -1395,6 +1522,48 @@ mod tests {
         ] {
             assert!(css.contains(selector), "missing selector: {selector}");
         }
+    }
+
+    /// `.docs-search-result` の行クロム（`padding`/`text-decoration`/
+    /// `color`）はクリック可能なヒットターゲット本体である子要素
+    /// `a`（`crate::script::SITE_JS` が生成）に付与し、`li` 自身には
+    /// 付与しないことを固定する（Bugbot 指摘: `li` に付けると UA の
+    /// リンク既定スタイルがタイトルに残り、`li` の非パディング領域が
+    /// ヒットターゲットから漏れる）。
+    #[test]
+    fn stylesheet_search_result_row_chrome_targets_the_anchor_child() {
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+
+        let anchor_selector = ".docs-search-result > a {";
+        let anchor_start = css
+            .find(anchor_selector)
+            .expect("missing selector: .docs-search-result > a");
+        let anchor_end = css[anchor_start..]
+            .find('}')
+            .map(|offset| anchor_start + offset)
+            .expect(".docs-search-result > a block should be closed");
+        let anchor_block = &css[anchor_start..anchor_end];
+        for declaration in ["padding", "text-decoration: none", "color:"] {
+            assert!(
+                anchor_block.contains(declaration),
+                ".docs-search-result > a should declare {declaration}"
+            );
+        }
+
+        let li_selector = ".docs-search-result {";
+        let li_start = css
+            .find(li_selector)
+            .expect("missing selector: .docs-search-result");
+        let li_end = css[li_start..]
+            .find('}')
+            .map(|offset| li_start + offset)
+            .expect(".docs-search-result block should be closed");
+        let li_block = &css[li_start..li_end];
+        assert!(
+            !li_block.contains("padding") && !li_block.contains("text-decoration"),
+            ".docs-search-result (li) should not carry row chrome that belongs on the anchor child"
+        );
     }
 
     #[test]

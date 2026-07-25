@@ -39,6 +39,18 @@
 //! インラインスニペット（[`crate::script::inline_theme_bootstrap`]）と
 //! `<script src>`（[`crate::script::SCRIPT_REL_PATH`]、`defer`）を含める
 //! （イシュー #951。旧「JS を含めない」宣言はこの変更で終了した）。
+//!
+//! `div.docs-header-actions` の第 1 子として検索ブロック
+//! （`div.docs-search`）を無条件出力する（イシュー #958）。`input.docs-search-input`
+//! の `data-search-index` 属性が [`search_index::REL_PATH`] を [`asset_href`]
+//! 経由で参照し、`crate::script::SITE_JS` の第 3 IIFE が初回フォーカス時に
+//! `fetch()` する唯一の実装点となる（インデックス JSON 自体は本モジュールが
+//! HTML へインライン化しない、`crate::search_index` モジュール doc の
+//! セキュリティ不変条件参照）。検索ブロック・結果一覧は既定 `hidden` とし、
+//! `SITE_JS` が配線完了後にのみ可視化する（`.docs-theme-toggle` と同型の
+//! progressive enhancement 契約、`crate::script` モジュール doc 手順 5 参照）。
+//! `<form>` で包まない（JS 無効時に Enter キーでのフォーム送信を誘発しない
+//! ため）。
 
 use std::collections::HashSet;
 
@@ -48,6 +60,7 @@ use fandhe_frontend_core::{
 use fandhe_frontend_pre_styled_ui::skip_nav as ps_skip_nav;
 
 use crate::script;
+use crate::search_index;
 
 /// GitHub リポジトリへの絶対 URL（ヘッダーの GitHub リンクが参照する
 /// 単一実装点）。`site/nav.toml` の `[site]` スキーマは拡張しない
@@ -499,6 +512,12 @@ pub fn docs_page_with_assets(
     // セレクタ `.docs-header a` はヘッダーナビ内のドロップダウンリンクにも
     // 波及するため、ブランドリンク専用の class へ分離した。
     // `crate::site_theme::STRUCTURAL_CSS` 参照）。
+    // 検索インデックス JSON への参照（イシュー #958）。`asset_href` を経由する
+    // ことで `crate::script::SITE_JS` の `fetch()` 先が `base_path` を考慮した
+    // 単一実装点から生成される（`data-search-index` 属性値のみに URL を持たせ、
+    // 本文を HTML へ埋め込まない、`crate::search_index` モジュール doc 参照）。
+    let search_index_href = asset_href(base_path, search_index::REL_PATH);
+
     let mut header_children = vec![a(
         vec![("href", &root_href), ("class", "docs-brand")],
         vec![text("fandhe-frontend")],
@@ -515,6 +534,43 @@ pub fn docs_page_with_assets(
     header_children.push(div(
         vec![("class", "docs-header-actions")],
         vec![
+            // 検索ブロック（イシュー #958）。既定 `hidden`、`<form>` で包まない
+            // （JS 無効時に Enter で送信させないため、モジュール doc 参照）。
+            // `input` は `role="combobox"`/`aria-controls`/`aria-expanded`/
+            // `aria-autocomplete` で `ul#docs-search-results` と結合する
+            // （WAI-ARIA combobox パターン。開閉・選択状態の更新は
+            // `crate::script::SITE_JS` のみが行う）。
+            div(
+                vec![("class", "docs-search"), ("hidden", "")],
+                vec![
+                    el(
+                        "input",
+                        vec![
+                            ("type", "search"),
+                            ("class", "docs-search-input"),
+                            ("placeholder", "Search"),
+                            ("aria-label", "Search docs"),
+                            ("role", "combobox"),
+                            ("aria-expanded", "false"),
+                            ("aria-controls", "docs-search-results"),
+                            ("aria-autocomplete", "list"),
+                            ("autocomplete", "off"),
+                            ("data-search-index", &search_index_href),
+                        ],
+                        vec![],
+                    ),
+                    ul(
+                        vec![
+                            ("id", "docs-search-results"),
+                            ("class", "docs-search-results"),
+                            ("role", "listbox"),
+                            ("aria-label", "Search results"),
+                            ("hidden", ""),
+                        ],
+                        vec![],
+                    ),
+                ],
+            ),
             // `target="_blank"` + `rel="noopener noreferrer"`（OWASP A05:
             // tabnabbing 対策。開いた先から `window.opener` を操作される
             // 経路と Referer 漏えいを防ぐ）。
