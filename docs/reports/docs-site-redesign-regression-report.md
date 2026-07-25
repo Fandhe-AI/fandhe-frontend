@@ -1,5 +1,12 @@
 # 3 カラム刷新の回帰検証レポート（イシュー #912）
 
+> **本レポートは #912（ルート #899「3 カラム刷新」）時点の記録に、#961 で追補
+> §8〜§11 を加えた統合記録である。** §1〜§7 は #912 実施時点の記録として保存し
+> 書き換えていない。#924 ツリー（Radix 参照・docs サイト情報設計刷新、
+> Phase 1〜8）完了後の状態は §8（4 観点 + 見出しアンカーの再確認、§6 保留事項の
+> 解消状況）・§9（実測課題 A〜G の before / after）・§10（未解消・意図的な
+> 見送りと追跡先）を参照。
+
 ## 1. 目的とトレーサビリティ
 
 - イシュー #912「test(docs-site): ダークモード・View Transitions・SkipNav・
@@ -181,6 +188,9 @@ Error: ERROR: Playwright does not support chromium on ubuntu26.04-x64
   リンクが 404 になり「ダークモードが壊れている」ように誤読しやすいため、
   再現手順として明記する。
 
+**本節（実ブラウザ確認が本実行環境で不可能だった件）の #924 刷新後の解消状況は
+§8.2 を参照。**
+
 ## 7. 参照
 
 - 設計文書: `docs/design/docs-site-three-column-redesign.md` §3.2/§3.3/§5/§6
@@ -190,3 +200,105 @@ Error: ERROR: Playwright does not support chromium on ubuntu26.04-x64
   - `crates/docs-site/src/site_theme.rs`（tests mod、6 件追加 + box-shadow 是正 1 行）
   - `crates/docs-site/tests/layout_render.rs`（4 件追加）
   - `crates/docs-site/tests/site_build.rs`（1 件追加）
+
+## 8. 追補: #924 刷新後の回帰確認（イシュー #961 / Phase 9-1 = #960）
+
+### 8.0 追補の位置づけと受け入れ条件マッピング表
+
+本追補は #924 ツリー（Radix 参照・docs サイト IA 刷新、Phase 1〜8）完了後の
+状態に対する回帰記録であり、§1〜§7 は #912（#899 ツリー・3 カラム刷新）
+時点の記録として保存する。一次証跡は
+`docs/reports/docs-site-visual-regression-960.md`（イシュー #960 / PR #1006、
+`2612c9d` で main へマージ済み）であり、本節はその判定結論と根拠の所在を
+引くのみで、画像・実測記録を転記しない（同レポートの §4〜§8 参照）。
+
+| #961 受け入れ条件 | 対応節 |
+|---|---|
+| 回帰確認結果が記録されている | §8.1 / §8.2 |
+| 実測課題 A〜G の解消状況が記録されている | §9 |
+| 未解消項目があれば根拠と追跡先が記載されている | §10 |
+
+### 8.1 4 観点 + 見出しアンカーの判定
+
+| 観点 | 機械証跡（`cargo test -p fandhe-frontend-docs-site`） | 視覚・実機証跡（#960） | 判定 |
+|---|---|---|---|
+| ダークモード | `site_theme::tests::every_referenced_fandhe_token_is_defined` / `color_and_shadow_tokens_are_defined_in_all_three_mode_blocks` / `stylesheet_declares_color_scheme_light_dark` / `structural_and_typography_css_contain_no_hardcoded_colors` — 全 ok（#960 §7） | `assets/docs-site-960/p1-top-1440-{light,dark}.png` ほか light/dark 対 9 組（18 枚。P1: 1440/768/375 幅、P2〜P4: 1440/375 幅、#960 §4） | 解消（`data-theme` 属性経路）。`prefers-color-scheme` 経路は機械テストのみで実機確認は未実施（§8.2 参照） |
+| View Transitions | `layout_render::docs_page_emits_view_transition_opt_in_style_in_head` / `docs_page_with_assets_emits_view_transition_opt_in_style_in_head` — ok | なし | opt-in 宣言（`@view-transition { navigation: auto; }`）の存在のみ担保。実際の遷移・コンソールエラー確認は未検証（§8.2） |
+| SkipNav | `layout_render::docs_page_skip_nav_link_href_matches_content_target_id` / `docs_page_skip_nav_link_is_first_focusable_element_in_body` — ok | なし（DOM 構造での担保） | 退行なし（構造レベルの機械検証） |
+| レスポンシブ | `site_theme::tests::stylesheet_base_breakpoint_matches_responsive_contract` / `stylesheet_media_queries_are_ordered_mobile_first` — ok | 1440 / 375 幅は P1〜P7、768 幅は P1 のみ（#960 §4 のトリム記載）・375 幅でのサイドバー折りたたみ表示崩れなしの目視確認（#960 §8） | 解消 |
+| 見出しアンカー | `site_build::real_site_build_covers_all_page_kinds_with_shared_layout_contract` — ok | なし | 構造契約は機械テストで担保。sticky ヘッダーによる見出しアンカー回避の実機確認は未検証（§8.2） |
+
+#924 の刷新で新たに増えた JS（テーマトグル・GitHub リンク・検索）が退行を
+持ち込んでいないことは、#960 が新設した `crates/docs-site/tests/no_js_contract.rs`
+（6 件・全 ok）と JS 無効環境の撮影（`n1-top-nojs-*.png` / `n2-button-nojs-375.png`）
+で担保されている（#960 §6）。加えて `cargo test --workspace` exit code 0、
+`cargo fmt --all --check` 差分なし、`cargo clippy -p fandhe-frontend-docs-site
+--all-targets -- -D warnings` 警告ゼロ（いずれも #960 §7 の実測）を確認済み。
+
+### 8.2 §6（#912 時点の保留事項）の解消状況
+
+判定は「解消 / 部分解消 / 未検証」の 3 値とし、#960 の証跡が実際に担保する
+範囲を超えて格上げしない。
+
+| §6 の保留項目 | 現在 | 根拠 |
+|---|---|---|
+| 実ブラウザ起動不能（Playwright が `ubuntu26.04-x64` 非対応） | **解消** | #960 は Playwright を使わず chromium CLI（`Chromium 150.0.7871.114 snap` の headless `--screenshot`）で撮影した（#960 §2/§3）。実行環境の制約自体を回避する手段が確立された |
+| 4 ページ種別 × ブレークポイント × light/dark の視覚確認 | **解消** | #960 §4 の P1〜P7 マトリクス（28 枚） |
+| 左ナビ折りたたみのキーボード操作の実機確認 | **部分解消** | CSS 経路の存在は `structural_css_declares_js_independent_toggle_and_dropdown_paths`（#960 §6）が機械固定し、375 幅での表示崩れなしは目視確認済み（#960 §8）。キーボード操作そのもの（Tab 移動・Enter/Space での開閉）の実機確認は未実施 |
+| ヘッダードロップダウンの `:focus-within`/`:hover` 実機確認・右端はみ出し確認 | **未検証** | 上記と同じテストは CSS 経路の存在のみを担保する。ホバー/フォーカスの実操作ショット・右端はみ出しの確認は #960 に無い |
+| 見出しアンカーの sticky ヘッダー回避の実機確認 | **未検証** | 該当するショット・アサーションが #960 に存在しない |
+| View Transitions のページ遷移・コンソールエラー確認 | **未検証** | opt-in 宣言（`@view-transition { navigation: auto; }`）の存在のみが機械テストで担保されている（#960 §7 のテスト 7・8） |
+| `prefers-color-scheme` 経路（システム連動ダークモード） | **未検証（機械テストのみ）** | #960 は `<html data-theme="dark">` の直接注入で撮影しており、システム連動経路は撮影対象外（#960 §5 末尾で明記）。機械テスト（`stylesheet_declares_color_scheme_light_dark` 等）のみが担保する |
+
+## 9. 追補: 実測課題 A〜G の before / after
+
+イシュー #924 が記録した刷新前の実測課題（ローカルビルド + ヘッドレス
+Chromium、1440x1200）と、#960 が確認した刷新後の判定を対比する。「是正した
+Phase / PR」列は `git log origin/main --oneline` で実在確認できたコミット
+（issue 番号 + PR 番号が件名に入っている形式）のみを記載する。
+
+| 課題 | before（#924 実測、刷新前） | after（#960 §5 判定） | 是正した Phase / Issue（PR） | 根拠（証跡） |
+|---|---|---|---|---|
+| A | 約 60 部品が単一 showcase ページに詰め込まれ、右カラム目次が 60 項目のフラットリストで溢れる | **解消** | Phase 3: #941 showcase.rs のページ単位分解（`d0ca7c5`, PR #973）/ #942 component_page.rs 新設（`738515c`, PR #974）/ #943 site/components/ 原稿整備（`37b0ce6`, PR #976）/ #944 CI 契約追随（`89ff79c`, PR #977） | `assets/docs-site-960/p7-components-index-1440-light.png`（カテゴリ別リンク集）・`p2-button-1440-light.png`（個別ページ実体化） |
+| B | サイドバーの Components セクションが 60 部品に対し 1 エントリのみ | **解消** | Phase 2: #939 nav.rs の 3 階層スキーマ実装（`e256b67`, PR #968）/ #940 サイドバーのカテゴリ階層描画（`bb8d15c`, PR #970） | `assets/docs-site-960/p1-top-1440-light.png`（サイドバーの `<details>` カテゴリ階層） |
+| C | API Reference が内部設計メモのまま公開（issue 番号・「Phase N」・ロードマップ節が露出） | **解消（適用範囲付き）** — 対象は headless-ui-api / pre-styled-ui-api / pre-styled-recipe-api の 3 ページのみ。残り 6 ページ（`component-api` 等）は意図的据え置き（§10.1 参照） | Phase 6: #952 分離方針確定（`3f96d63`, PR #978）/ #953 headless-ui API 再編（`e123310`, PR #984）/ #954 pre-styled-ui API・recipe API 再編（`b3eafab`, PR #986）/ #955 nav.toml 整合・相互リンク（`e4443ca`, PR #987） | `assets/docs-site-960/p4-api-headless-ui-1440-light.png`（issue 番号・ロードマップ節を含まない構成） |
+| D | ヘッダー（全幅）と 3 カラム grid で左端が不揃い | **解消** | Phase 5: #949 レイアウト是正（`abf6075`, PR #972） | `assets/docs-site-960/p1-top-1440-light.png`（ブランドリンクとサイドバーの左端 x 座標一致） |
+| E | 右カラム目次に見出しも現在地ハイライトもない | **解消** | Phase 5: #950 右カラム目次の改善（`4611427`, PR #975） | `assets/docs-site-960/p1-top-1440-{light,dark}.png`（`ON THIS PAGE` 見出しとアクティブ項目のアクセントバー） |
+| F | テーブルが横スクロール可能だがアフォーダンスがない | **解消** | Phase 5: #949 レイアウト是正（`abf6075`, PR #972、テーブルアフォーダンスもこの PR で対応） | `assets/docs-site-960/f-table-dialog-375-tall.png`（列クリップ）+ `crates/docs-site/src/site_theme.rs` の `overflow-x: auto` / `::-webkit-scrollbar*` 宣言（#960 §5 F 行が 2 系統証跡を明記） |
+| G | ダークモードトグル・GitHub リンク・検索がいずれも無い（JS を一切出力していない） | **解消** | Phase 5: #951 script.rs 新設・ヘッダー要素追加（`ae59956`, PR #967）/ Phase 7: #957 search_index.rs（`eb779d6`, PR #988）・#958 検索 UI 実装（`fb0e197`, PR #989） | `assets/docs-site-960/p1-top-1440-{light,dark}.png`（Dark/Light ラベルの往復・GitHub リンク・検索ボックスを両テーマで確認） |
+
+判定値は #960 §5 の 3 値（解消 / 解消（適用範囲付き） / 未解消）をそのまま
+引き継いでいる。
+
+## 10. 追補: 未解消・意図的な見送りと追跡先
+
+### 10.1 既存文書・既存判定が追跡している事項（新規起票不要）
+
+| 事項 | 位置づけ | 追跡先 |
+|---|---|---|
+| C の適用範囲外 6 ページ（`component-api` 等）に内部設計記録が残る | 「未解消」ではなく**トリガー付きの意図的据え置き** | `docs/design/docs-site-api-reference-split.md` §3-7「Phase 6 の適用範囲と将来トリガー」 |
+| `<1200px` で右目次カラムが `display: none` になる | 本レポート §3.2 で**許容と判定済み**。#960 の 768 / 375 幅ショットでも本文中の見出しは保持され情報欠落が無いことを確認した | 本レポート §3.2（判定は変更しない） |
+
+### 10.2 未起票の追跡候補（起票は `out-of-scope-tracking.md` に従いユーザー承認後）
+
+以下はいずれも **本 PR では起票していない**。ユーザー承認後の Issue 起票を
+別途提案する。
+
+| 事項 | 根拠 | 現時点の追跡 |
+|---|---|---|
+| `site/components-pre-styled-ui.md:26-29` の「Demo 以外の節の充填は Phase 4（#945〜#948）で進めます」という記述が Phase 4 完了後も残存 | 本追補作成時点で `origin/main` の該当行に現存を確認済み。#960 §8 も同事象を是正提案として記録している | 本レポート §10.2 に記録。原稿の書き換えは本 PR に含めない |
+| `tools/docs-site/visual-regression.sh` に tall-window 撮影（F 証跡取得手順）が未統合 | #960 §3 / §8。`f-table-*-tall.png` は大きい `--window-size` 高を手動指定するアドホックな chromium 呼び出しで取得しており、通常の再撮影手順（同スクリプト実行）には含まれていない | 同上 |
+| §8.2 の「未検証」判定項目（ヘッダードロップダウンの実操作、見出しアンカーの sticky ヘッダー回避、View Transitions の実遷移、`prefers-color-scheme` 経路の実機確認） | 実機の対話操作・メディアクエリのエミュレーションは、本環境で利用可能な撮影手段（chromium CLI の `--screenshot`）では取得できない | 同上 |
+
+## 11. 追補: 参照（#961）
+
+- 一次証跡: `docs/reports/docs-site-visual-regression-960.md`（イシュー #960 /
+  PR #1006）・`docs/reports/assets/docs-site-960/`（PNG 28 枚）
+- 関連テスト: `crates/docs-site/tests/no_js_contract.rs`（6 件、JS 無効環境の
+  構造契約）
+- 再現手順: `tools/docs-site/visual-regression.sh`（F 証跡の tall-window 撮影は
+  §10.2 の通り未統合）
+- 設計文書: `docs/design/docs-site-api-reference-split.md`（§3-7「Phase 6 の
+  適用範囲と将来トリガー」）
+- 関連イシュー: #924（トラッキング、Radix 参照・docs サイト IA 刷新）/
+  #933（親 Phase 9）/ #960（Phase 9-1、実測）/ #961（本追補）
