@@ -77,14 +77,16 @@ fn build_site_generates_all_pages_and_assets_for_ok_fixture() {
     // （site-ok の index.md が admonition マーカーを 1 件使うため、
     // `crate::admonition` 専用 CSS も条件付きで書き出される）
     // + skip-nav.css（イシュー #776、全ビルドで無条件に書き出す）
-    // + site.js（イシュー #951、同じく全ビルドで無条件に書き出す）。
-    assert_eq!(report.assets.len(), 4);
+    // + site.js（イシュー #951、同じく全ビルドで無条件に書き出す）
+    // + search-index.json（イシュー #957、同じく全ビルドで無条件に書き出す）。
+    assert_eq!(report.assets.len(), 5);
     assert!(out.0.join("index.html").exists());
     assert!(out.0.join("guide/quickstart/index.html").exists());
     assert!(out.0.join("assets/site.css").exists());
     assert!(out.0.join("assets/admonition.css").exists());
     assert!(out.0.join("assets/skip-nav.css").exists());
     assert!(out.0.join("assets/site.js").exists());
+    assert!(out.0.join("assets/search-index.json").exists());
 }
 
 /// イシュー #715: admonition 専用 CSS（`assets/admonition.css`）への
@@ -207,15 +209,16 @@ fn build_site_succeeds_for_the_real_repository_site() {
     );
 
     // アセットは site.css / admonition.css / skip-nav.css / site.js /
-    // pre-styled-ui.css の 5 件（部品ページが showcase CSS を要求するため
-    // 実サイトでは fixture（4 件）より 1 件多い）。
-    assert_eq!(report.assets.len(), 5, "{:?}", report.assets);
+    // pre-styled-ui.css / search-index.json の 6 件（部品ページが showcase
+    // CSS を要求するため実サイトでは fixture（5 件）より 1 件多い）。
+    assert_eq!(report.assets.len(), 6, "{:?}", report.assets);
     for rel in [
         "assets/site.css",
         "assets/admonition.css",
         "assets/skip-nav.css",
         "assets/site.js",
         "assets/pre-styled-ui.css",
+        "assets/search-index.json",
     ] {
         assert!(out.0.join(rel).exists(), "{rel} should be written");
     }
