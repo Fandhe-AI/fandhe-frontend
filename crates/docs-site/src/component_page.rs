@@ -58,7 +58,7 @@ use crate::component_specs;
 use crate::showcase;
 
 /// 引数表（`API Reference` 節）1 行。Phase 4（#945〜#948）が原稿データを
-/// 供給するまでは [`COMPONENT_SPECS`] に該当エントリが無いため空。
+/// 供給するまでは [`SPEC_SOURCES`] に該当エントリが無いため空。
 #[derive(Debug, Clone, Copy)]
 pub struct ArgRow {
     /// 引数名（例: `variant`）。
@@ -104,7 +104,7 @@ pub struct ExampleEntry {
 ///
 /// Demo（[`showcase`] 由来）・Anatomy（機械導出）・`data-*` 属性表・CSS
 /// 変数表（いずれも機械導出）を**除く**、原稿側供給が必要な項目のみを持つ。
-/// 未登録パス（[`COMPONENT_SPECS`] に該当エントリなし）は [`ComponentPageSpec::EMPTY`]
+/// 未登録パス（[`SPEC_SOURCES`] に該当エントリなし）は [`ComponentPageSpec::EMPTY`]
 /// として扱われ、Features/API 引数表/Examples/Accessibility の 4 節が
 /// すべて省略される（Phase 3 の段階でビルドを赤くしないための既定動作）。
 #[derive(Debug, Clone, Copy)]
@@ -281,9 +281,17 @@ const OVERLAY_SPECS: &[(&str, ComponentPageSpec)] = &[
 /// `path -> ComponentPageSpec` レジストリを供給するカテゴリ別テーブルの集約。
 /// Phase 4（#945〜#948）の各 issue はカテゴリ 1 個につき 1 テーブルを追加し、
 /// 本配列へ 1 行追記する想定（[`spec_for`] が全テーブルを線形探索するため、
-/// モジュール間の重複パスは想定しない）。
-const SPEC_TABLES: &[&[(&str, ComponentPageSpec)]] =
-    &[component_specs::forms::SPECS, NAV_DATA_SPECS, OVERLAY_SPECS];
+/// モジュール間の重複パスは想定しない）。イシュー #948（Typography /
+/// Utilities / Charts 系ほか 28 件）は他カテゴリと異なりイシュー番号ごとの
+/// フラットな別モジュール（[`crate::component_page_specs_948`]）に
+/// `pub const SPECS` を持たせる方式を採ったため、ここでは他カテゴリの
+/// テーブルと同列に 1 要素として追記する。
+const SPEC_TABLES: &[&[(&str, ComponentPageSpec)]] = &[
+    component_specs::forms::SPECS,
+    NAV_DATA_SPECS,
+    OVERLAY_SPECS,
+    crate::component_page_specs_948::SPECS,
+];
 
 /// `page_path` に対応する [`ComponentPageSpec`] を返す。未登録パスは
 /// [`ComponentPageSpec::EMPTY`]（fail-closed で「節を省略」側へ倒す）。
@@ -985,6 +993,38 @@ mod tests {
         let before = render(&demo.clone());
         let after = render(&strip_demo_heading(demo));
         assert_eq!(before, after);
+    }
+
+    /// `SPEC_TABLES` を構成する各カテゴリ別テーブル間で `path` が重複して
+    /// いないこと。`spec_for` は `.find(...)` の first-wins で解決するため、
+    /// 重複登録があってもコンパイル・実行時エラーにはならず、後発テーブル側
+    /// の（しばしばより充実した）spec が黙って無効化されデッドコード化する
+    /// （イシュー #948 PR #982 レビュー指摘: `component_page_specs_948::SPECS`
+    /// が `component_specs::forms::SPECS` と 5 パスを二重登録していた事故の
+    /// 再発を防ぐ）。テーブル内部の重複は各テーブル自身の契約テスト
+    /// （例: `component_page_specs_948.rs` の `specs_has_no_duplicate_paths`）
+    /// が別途検知するため、本テストはテーブル**間**の重複のみを対象にする。
+    #[test]
+    fn spec_tables_have_no_cross_table_duplicate_paths() {
+        let mut seen: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+        let mut cross_table_duplicates: Vec<&str> = Vec::new();
+        for (table_index, table) in SPEC_TABLES.iter().enumerate() {
+            for (path, _) in table.iter() {
+                if let Some(first_table_index) = seen.get(path) {
+                    if *first_table_index != table_index {
+                        cross_table_duplicates.push(path);
+                    }
+                } else {
+                    seen.insert(path, table_index);
+                }
+            }
+        }
+        assert!(
+            cross_table_duplicates.is_empty(),
+            "SPEC_TABLES registers the following path(s) in more than one table \
+             (first-wins resolution silently discards the later table's spec): \
+             {cross_table_duplicates:?}"
+        );
     }
 
     #[test]
