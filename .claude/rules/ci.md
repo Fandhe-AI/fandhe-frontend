@@ -24,6 +24,22 @@
   `crates/interactive/**` は showcase 限定の例外ではなく**全ページに影響する
   paths 必須項目**である。レンダラ側（core / app / server）は従来どおり
   paths 対象外（反映が必要なときは `workflow_dispatch`）。
+- **`docs-site.yml` の verify ステップ契約（イシュー #944/#951/#957）**: `site/**` の
+  glob は `site/components/*.md` を包含するため、部品ページ追加時に paths への
+  個別エントリ追加は不要（イシュー #944 で検証済み）。`docs/**` は `docs/internal/`
+  も包含する。`docs/internal/` は `site/nav.toml` 未登録のためサイトへは出力され
+  ないが、変更時に再ビルドは走る（無害な過剰トリガーであり、paths からの除外は
+  しない）。dist sanity check（`verify: dist sanity check` ステップ）の `test -f`
+  対象は #944/#951/#957 で拡張され、現在は `index.html` / `assets/site.css` /
+  `assets/site.js`（#951、`src/script.rs` 生成）/ `assets/search-index.json`
+  （#957、`src/search_index.rs` 生成）/ 代表部品ページ（`components/button/index.html`）
+  / `assets/pre-styled-ui.css`（`showcase::STYLESHEET_REL_PATH`）である。いずれも
+  fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
+  この `test -f` 群は削除・弱体化しない。生成物の**内容**検証（CSS トークン網羅性・
+  検索インデックスの決定性/エスケープ/サイズ上限・ページ総数）は
+  `crates/docs-site/tests/`（`site_css_contract.rs` / `site_typography_contract.rs` /
+  `search_index.rs` / `site_nav.rs` / `site_build.rs`）が担い、yml・ci.md では
+  二重管理しない（ページ件数・部品数を ci.md へ書かないのはこの二重管理回避のため）。
 - **`fw gate`（`crates/cli/src/gate.rs`）系のツール（clippy component / cargo-deny）**: `tools/ci/ensure-gate-tools.sh` を標準ブートストラップとする（イシュー #292）。CI（`.github/workflows/ci.yml` の test ジョブ・`gate-self-apply` ジョブ）・ローカル開発・AI 自己保守フックのいずれも `fw gate` 実行前にこのスクリプトを前置する運用を推奨する。バージョン固定・SHA256 チェックサム検証はスクリプト側に一元化し、CI ワークフロー側との二重管理でドリフトさせない。前置されなかった場合でも `fw gate` 側のプリフライト検出（`docs/design/gate-design.md` §2.3a）が「環境エラーであること」を決定的なメッセージ（是正コマンド付き）で示し、コード起因の FAIL との区別を保つ
 - **`fw gate --project .` の自己適用常時実行（イシュー #400）**: `.github/workflows/ci.yml` の `gate-self-apply` ジョブが PR ごと・main push ごとに `fw gate --project .` 自己適用（#372/PR #382 で PASS 化）を実行し、`gate_result: "PASS"` の継続を保証する。BLOCKED 時は JSON レポートの `environment error: ` プレフィックス有無で環境エラーとコード起因 FAIL を CI アノテーションとして区別する（詳細は `docs/design/gate-design.md` §6）
 - **cargo-deny 導入パターンの統一（イシュー #314）**: cargo-deny を導入する全ワークフロー（`tools/ci/ensure-gate-tools.sh`・`templates/default/.github/workflows/deny.yml`・`docs/policy/cargo-deny-advisories.md` のサンプルワークフロー）は「バージョン固定 + SHA256 チェックサム検証済みプリビルトバイナリ」パターンに統一する（`cargo install` によるソースからの任意最新版コンパイルは行わない）。バージョン・SHA256 の pin の正は `tools/ci/ensure-gate-tools.sh` の `CARGO_DENY_VERSION` / `CARGO_DENY_SHA256` のみとし、テンプレート・docs はスタンドアロン配布物のため同パターンをインラインで複製する。3 箇所の pin 値が乖離しないことは `crates/xtask/tests/template_deny_workflow.rs` のドリフト検知テストが `cargo test -p xtask` / CI で強制する（手動同期に頼らない）

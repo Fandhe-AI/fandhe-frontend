@@ -17,12 +17,13 @@ fandhe-frontend/
 ├── README.md
 ├── skills-lock.json          # npx skills add の導入記録
 ├── docs/
-│   ├── design/               # 設計文書（gate-design / wasm-full-architecture / structure-manifest / docs-site-three-column-redesign 等）
+│   ├── design/               # 設計文書（gate-design / wasm-full-architecture / structure-manifest / docs-site-three-column-redesign / docs-site-component-pages〔部品ページ IA、#938〕 / docs-site-api-reference-split〔利用者向け API と内部設計記録の分離基準、#952〕 / docs-site-search-design〔全文検索、#956〕 等）。component-coverage-map.md は ark-ui / chakra-ui に Radix UI を加えた 3 参照軸のコンポーネント対応表の正（イシュー #937。Radix 側の一次記録は radix-primitives-inventory.md / radix-themes-survey.md）
 │   ├── api/                  # API 仕様（component-api / hydration-api / hydration-state-format 等）
 │   ├── guides/               # 利用者向けガイド（embedding-guide / npm-asset-build / browser-testing 等）
 │   ├── policy/               # 規約・セキュリティポリシー（unsafe-boundary / dependency-graph-policy / cargo-deny-advisories / intentional-non-adoption 等）
 │   ├── ci/                   # CI・runner 運用（ci-runner-requirements / perf-browser-harness / cargo-semver-checks-evaluation / version-bump-publish-order-gap）
 │   ├── reports/              # 実測・受け入れレポート（perf-browser-report / *-acceptance-report / docs-site-redesign-regression-report 等）
+│   ├── internal/             # docs サイト（site/nav.toml）非掲載の内部設計記録（*-implementation-notes.md。docs/api/ から実装経緯・進行管理記述を分離、イシュー #953/#954。分離基準の正は docs/design/docs-site-api-reference-split.md。本リポジトリは public であり「サイト非掲載」は「非公開」を意味しない）
 │   └── spec/                 # 仕様サブモジュール (fandhe-frontend-spec)
 │       ├── 01-brainstorm.md
 │       ├── 02-poc-plan.md
@@ -33,7 +34,7 @@ fandhe-frontend/
 ├── site/                     # docs サイト原稿（crates/docs-site が SSG でビルド。site/assets/ は #905 で廃止済み、骨格 CSS はビルド生成）
 │   ├── index.md
 │   ├── components-pre-styled-ui.md  # pre-styled-ui コンポーネント索引ページ原稿（凡例 + カテゴリ別リンク集、イシュー #943）
-│   ├── components/            # 部品ページ原稿 99 件（`/components/<kebab>/` 1 ページ = 部品 1 件、イシュー #943。台帳は `docs/design/docs-site-component-pages.md` §3）
+│   ├── components/            # 部品ページ原稿（`/components/<kebab>/` 1 ページ = 部品 1 件、イシュー #943。台帳は `docs/design/docs-site-component-pages.md` §3、登録の正は `site/nav.toml`、ページ数の期待値は `crates/docs-site/tests/site_nav.rs`）
 │   └── nav.toml               # ナビゲーション構成マニフェスト
 ├── examples/
 │   ├── ssr-routing/          # SSR + ルーティング正本サンプル・examples 規約の初例（crates.io バージョン依存、イシュー #499）
@@ -80,7 +81,7 @@ crates/
 ├── dist-server/   # fandhe-frontend-dist-server: 単一実行ファイル配布サーバー
 ├── headless-ui/   # fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-*・WAI-ARIA、イシュー #520/#522）
 ├── pre-styled-ui/ # fandhe-frontend-pre-styled-ui: pre-styled UI コンポーネント層（headless-ui 上層のスタイル済み部品、イシュー #520/#546）
-├── docs-site/     # fandhe-frontend-docs-site: docs サイトジェネレータ（外部クレート依存ゼロ・内部 path 依存のみ〔core/app/server/pre-styled-ui〕・配布物に含めない開発者/CI 用ツール）。サイト骨格 CSS を `fandhe-frontend-pre-styled-ui` の `Theme::to_css` から生成する（イシュー #899 で 3 カラム刷新、詳細は `docs/design/docs-site-three-column-redesign.md`）。加えて、サイト骨格 CSS に加え、素の JS 単一ファイル（`assets/site.js`、`src/script.rs`）をビルド時生成し、`<head>` の FOUC 抑止インラインスニペットとあわせてヘッダーのテーマトグル・GitHub リンクを実装する（イシュー #951）。部品ページ（`/components/<kebab>/`）の Features / API Reference 引数表 / Examples / Accessibility は `src/component_specs/`（カテゴリ別モジュール。Forms は #945）が `ComponentPageSpec` として供給する
+├── docs-site/     # fandhe-frontend-docs-site: docs サイトジェネレータ（外部クレート依存ゼロ・内部 path 依存のみ〔core/app/server/pre-styled-ui〕・配布物に含めない開発者/CI 用ツール）。サイト骨格 CSS を `fandhe-frontend-pre-styled-ui` の `Theme::to_css` から生成する（イシュー #899 で 3 カラム刷新、詳細は `docs/design/docs-site-three-column-redesign.md`）。加えて、サイト骨格 CSS に加え、素の JS 単一ファイル（`assets/site.js`、`src/script.rs`）をビルド時生成し、`<head>` の FOUC 抑止インラインスニペットとあわせてヘッダーのテーマトグル・GitHub リンクを実装する（イシュー #951）。全文検索インデックス（`assets/search-index.json`）は `src/search_index.rs` がビルド時に生成する（イシュー #957）。部品ページ（`/components/<kebab>/`）は `src/component_page.rs`（雛形レンダラ・`SPEC_TABLES` レジストリ、イシュー #942）が Demo〔`src/showcase.rs`〕・Anatomy・`data-*` 属性表・CSS 変数表（機械導出）と原稿データを合成して生成する。原稿データ（Features / API Reference 引数表 / Examples / Accessibility）の供給元は `src/component_specs/`（カテゴリ別サブモジュール。Forms は #945）と、イシュー単位のフラットな原稿モジュール `src/component_specs_overlay.rs`（#946）/ `src/component_specs_nav_data.rs`（#947）/ `src/component_page_specs_948.rs`（#948）に分かれる
 ├── cli/           # fandhe-frontend-cli: `fw` コマンド（structure.toml のスキーマ・パース・生成、REQ-13）
 │   ├── templates/          # `fw new --template` 埋め込み用の同梱コピー（正本はルート `templates/`。`new_template.rs` が `include_str!` で吸収、乖離は `tests/template_publish_copy_drift.rs` が検知）
 │   └── embedded-examples/  # `fw new --example` 埋め込み用の同梱コピー（正本はルート `examples/`。パッケージ名は置換せず正本と全ファイルバイト一致、乖離は `tests/example_publish_copy_drift.rs` が検知、イシュー #500）
