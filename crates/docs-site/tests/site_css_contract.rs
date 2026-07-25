@@ -411,6 +411,10 @@ const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
         "docs-header",
         "header.docs-header（<body> 直下、SkipNav リンクの次）",
     ),
+    (
+        "docs-header-inner",
+        "header 内側の計測枠 div（grid と同一 max-width、イシュー #949）",
+    ),
     ("docs-brand", "header 第 1 子のブランドリンク a"),
     ("docs-container", "3 カラム grid コンテナ div"),
     ("docs-sidebar", "左カラム aside"),

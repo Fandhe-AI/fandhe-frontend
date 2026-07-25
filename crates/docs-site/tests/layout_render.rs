@@ -788,3 +788,65 @@ fn docs_page_header_dom_order_places_actions_after_brand_and_nav() {
          イシュー #951）"
     );
 }
+
+/// ヘッダー左端揃え（イシュー #949）: `header.docs-header` 直下の
+/// `div.docs-header-inner` が brand/[header_nav]/actions を包むこと、
+/// および DOM 出現順（`docs-header` < `docs-header-inner` < `docs-brand`
+/// < `docs-header-nav` < `docs-header-actions`）を固定する。`header_nav`
+/// が `None`（`docs_page` 経路）でも `docs-header-inner` が出現することを
+/// 併せて確認する。
+#[test]
+fn docs_page_wraps_header_children_in_inner_container() {
+    let body = p(vec![], vec![text("本文です。")]);
+
+    // `docs_page`（header_nav なし）経路。
+    let node_without_header_nav = docs_page("タイトル", "", sample_sidebar(), body.clone());
+    let html_without = render(&node_without_header_nav);
+    assert!(html_without.contains(r#"class="docs-header-inner""#));
+    let header_pos = html_without
+        .find(r#"class="docs-header""#)
+        .expect("docs-header should appear");
+    let inner_pos = html_without
+        .find(r#"class="docs-header-inner""#)
+        .expect("docs-header-inner should appear");
+    let brand_pos = html_without
+        .find(r#"class="docs-brand""#)
+        .expect("docs-brand should appear");
+    let actions_pos = html_without
+        .find(r#"class="docs-header-actions""#)
+        .expect("docs-header-actions should appear");
+    assert!(header_pos < inner_pos);
+    assert!(inner_pos < brand_pos);
+    assert!(brand_pos < actions_pos);
+
+    // `docs_page_with_assets`（header_nav あり）経路。
+    let nav = parse_nav(sample_nav_toml()).expect("fixture nav.toml should parse");
+    let node_with_header_nav = docs_page_with_assets(
+        "タイトル",
+        "",
+        sample_sidebar(),
+        body,
+        &[],
+        Some(header_nav(&nav, "/")),
+    );
+    let html_with = render(&node_with_header_nav);
+    let header_pos = html_with
+        .find(r#"class="docs-header""#)
+        .expect("docs-header should appear");
+    let inner_pos = html_with
+        .find(r#"class="docs-header-inner""#)
+        .expect("docs-header-inner should appear");
+    let brand_pos = html_with
+        .find(r#"class="docs-brand""#)
+        .expect("docs-brand should appear");
+    let nav_pos = html_with
+        .find(r#"class="docs-header-nav""#)
+        .expect("docs-header-nav should appear");
+    let actions_pos = html_with
+        .find(r#"class="docs-header-actions""#)
+        .expect("docs-header-actions should appear");
+    assert!(header_pos < inner_pos);
+    assert!(inner_pos < brand_pos);
+    assert!(brand_pos < nav_pos);
+    assert!(nav_pos < actions_pos);
+}
