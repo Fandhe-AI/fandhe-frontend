@@ -133,6 +133,7 @@ use fandhe_frontend_pre_styled_ui::mark::{mark, MarkProps, MarkVariant};
 use fandhe_frontend_pre_styled_ui::marquee::{self, MarqueeDirection, MarqueeProps};
 use fandhe_frontend_pre_styled_ui::menubar::{self, Menubar};
 use fandhe_frontend_pre_styled_ui::native_select::{self, NativeSelectProps};
+use fandhe_frontend_pre_styled_ui::navigation_menu;
 use fandhe_frontend_pre_styled_ui::number_input::{self, NumberInputFlags};
 use fandhe_frontend_pre_styled_ui::pagination::{self, ItemMode, Pagination};
 use fandhe_frontend_pre_styled_ui::password_input::{
@@ -254,6 +255,22 @@ pub const STYLESHEET_REL_PATH: &str = "assets/pre-styled-ui.css";
 ///   固定表示になってしまうため同型の中和を適用する（backdrop のような
 ///   非表示化ではなく static 化のみで足りる。通知 1 件ずつを表す `root`
 ///   slot は掲示位置に影響しないため対象外）。
+/// - `[data-scope="navigation-menu"][data-part="content"]` を
+///   `position: static` へ中和（イシュー #993、PR #1000 Menubar showcase
+///   の重なり回帰と同型の予防）: recipe CSS
+///   （`crates/pre-styled-ui/src/navigation_menu.rs`）は `content` を
+///   `position: absolute; top: 100%` としており、Products トリガーを開いた
+///   状態で固定掲示すると後続の About 項目・後続セクションへ重なって
+///   しまう。static 化してフロー内へインライン表示させることで、他の
+///   オーバーレイ系パーツと同様に後続セクションと重ならずに掲示できる。
+///   recipe CSS 側の `list` の `align-items: flex-start`（`center` ではなく）
+///   は、この中和後にも Products 項目だけが Content の高さぶん縦に伸びて
+///   About 項目が縦ずれする回帰を recipe 側の既定値そのもので防ぐ設計判断
+///   であり、本 showcase 側の中和ルールは追加しない
+///   （`crates/pre-styled-ui/src/navigation_menu.rs` rustdoc「レイアウト」
+///   節参照。menubar の `align-items: flex-start` 上書きが showcase 側の
+///   中和として必要だったのとは異なり、navigation-menu は recipe 自体が
+///   `flex-start` を既定にしているため showcase 側の追加中和は不要）。
 /// - `[data-scope="blockquote"][data-part="content"]`（素の `<blockquote>`
 ///   要素）のリセット（イシュー #771 タイポグラフィ節掲示、Bugbot 指摘）:
 ///   `site.css` の `.docs-content blockquote` が `padding`/`border-left`/
@@ -283,6 +300,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 .pre-styled-showcase [data-scope=\"dialog\"] h2,\n.pre-styled-showcase [data-scope=\"drawer\"] h2,\n.pre-styled-showcase [data-scope=\"popover\"] h2,\n.pre-styled-showcase [data-scope=\"floating-panel\"] h2 {\n  border-top: none;\n  padding-top: 0;\n  letter-spacing: normal;\n}\n\
 .pre-styled-showcase [data-scope=\"toast\"][data-part=\"group\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"blockquote\"][data-part=\"content\"] {\n  padding: 0;\n  border-left: none;\n  color: inherit;\n}\n\
+.pre-styled-showcase [data-scope=\"navigation-menu\"][data-part=\"content\"] {\n  position: static;\n}\n\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"backdrop\"],\n.pre-styled-showcase [data-scope=\"tour\"][data-part=\"spotlight\"] {\n  display: none;\n}\n\
 .pre-styled-showcase [data-scope=\"tour\"][data-part=\"positioner\"] {\n  position: static;\n  transform: none;\n  z-index: auto;\n}\n";
 
@@ -304,8 +322,10 @@ struct ComponentPage {
     render: fn() -> Node,
 }
 
-/// 部品ページのレジストリ本体（89 件、旧集約ページの並び順を保つ。
-/// イシュー #991 で Toolbar を追加）。
+/// 部品ページのレジストリ本体（旧集約ページの並び順を保つ。
+/// イシュー #991 で Toolbar・#992 で Menubar・#993 で Navigation Menu を
+/// 追加。件数は `tests::component_page_paths_are_unique_and_well_formed`
+/// 参照）。
 /// 原則として `docs/design/docs-site-component-pages.md` の台帳に掲載済み
 /// の部品のみを登録し、掲載順はテスト専用集約ヘルパーの表示順にのみ効く
 /// （#943 の nav 上の並びはカテゴリ別で、本テーブルの順序に依存しない）。
@@ -678,6 +698,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         path: "/components/menubar/",
         render: menubar_section,
     },
+    ComponentPage {
+        path: "/components/navigation-menu/",
+        render: navigation_menu_section,
+    },
 ];
 
 /// [`COMPONENT_PAGES`] に登録済みの部品ページパスを登録順に返す。
@@ -855,6 +879,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::toggle_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::toolbar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::menubar::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::navigation_menu::stylesheet())?;
     sheet.push_css(SHOWCASE_LAYOUT_CSS)?;
     Ok(sheet)
 }
@@ -4500,6 +4525,70 @@ fn menubar_section() -> Node {
     )
 }
 
+/// Navigation Menu 節（イシュー #993）: root/list/item/trigger/content/link
+/// の 6 anatomy パーツを 1 デモに全網羅する（Anatomy 節はデモ HTML から
+/// 機械導出されるため、1 パーツでも欠けると節が不完全になる、
+/// `crates/docs-site/src/component_specs_overlay.rs` 参照）。
+///
+/// 1 項目目（Products）は Trigger を開いた状態（`data-state="open"`）で
+/// 掲示し Content 内の Link を掲示する。2 項目目（About）はディスクロージャ
+/// を持たない単独リンクとし `current: true`（`aria-current="page"`）で
+/// アクティブリンク表現を掲示する。`href` は
+/// `showcase_markup_has_no_href_attributes_for_linkcheck_neutrality` の
+/// linkcheck 中立性契約に従い空文字列固定とする。
+fn navigation_menu_section() -> Node {
+    // 静的掲示のため状態機械（`NavigationMenu`）は経由せず、headless 層の
+    // 自由関数へ `OpenState` を直接渡して組み立てる（`state` 引数を明示
+    // 引数で受け取る設計であり、single/multiple いずれの状態機械経由でも
+    // 状態機械を経由しない構成でも共用できる、`navigation_menu` モジュール
+    // doc 参照）。
+    let node = navigation_menu::root(
+        "Main",
+        vec![],
+        vec![navigation_menu::list(
+            vec![],
+            vec![
+                navigation_menu::item(
+                    OpenState::Open,
+                    false,
+                    vec![],
+                    vec![
+                        navigation_menu::trigger(
+                            OpenState::Open,
+                            false,
+                            Some("nav-menu-products-trigger"),
+                            Some("nav-menu-products-content"),
+                            vec![],
+                            vec![text("Products")],
+                        ),
+                        navigation_menu::content(
+                            OpenState::Open,
+                            Some("nav-menu-products-content"),
+                            Some("nav-menu-products-trigger"),
+                            vec![],
+                            vec![
+                                navigation_menu::link("", false, vec![], vec![text("Analytics")]),
+                                navigation_menu::link("", false, vec![], vec![text("Automation")]),
+                            ],
+                        ),
+                    ],
+                ),
+                navigation_menu::item(
+                    OpenState::Closed,
+                    false,
+                    vec![],
+                    vec![navigation_menu::link("", true, vec![], vec![text("About")])],
+                ),
+            ],
+        )],
+    );
+    section(
+        "Navigation Menu",
+        "headless-ui の Navigation Menu（役割は素の nav/ul/li/button/div/a の暗黙 ARIA role に依拠し、role は一切付与しません）に pre-styled-ui の recipe CSS を適用した静的掲示です。Products トリガーを開いた状態（data-state=\"open\"）で Content 内の 2 リンクを掲示し、About は Trigger/Content を持たない単独リンクとして aria-current=\"page\" によるアクティブリンク表現を掲示します。viewport 測定・data-motion は headless 層に存在しないため掲示していません（詳細は headless-ui の navigation_menu モジュール doc を参照）。",
+        vec![node],
+    )
+}
+
 /// Status 節（イシュー #765）: colorPalette 軸ごとのドット + ラベル表示。
 fn status_section() -> Node {
     let palette_row = row(palettes()
@@ -5951,7 +6040,8 @@ mod tests {
         // 機械的な分解作業中の取りこぼし・重複追加を fail-closed で検知する
         // 件数センチネル。台帳（`docs/design/docs-site-component-pages.md`）
         // 99 件との突合は #944 の責務。
-        assert_eq!(paths.len(), 92, "COMPONENT_PAGES should have 92 entries");
+        // イシュー #993 で Navigation Menu を追加し 92 → 93 件になった。
+        assert_eq!(paths.len(), 93, "COMPONENT_PAGES should have 93 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();

@@ -11,10 +11,11 @@
 //! 組み立てる）。
 //!
 //! 対象は accordion・action-bar・dialog・drawer・floating-panel・
-//! hover-card・menu・menubar・popover・tabs・toast・toggle-tip・toolbar・
-//! tooltip・tour の 15 部品（トリガー起点のオーバーレイ、または項目開閉の
-//! ディスクロージャ系。toolbar はイシュー #991、menubar はイシュー #992
-//! で追加、いずれも `showcase.rs` の Demo 登録込み）。`toggle`/`toggle-group`
+//! hover-card・menu・menubar・navigation-menu・popover・tabs・toast・
+//! toggle-tip・toolbar・tooltip・tour の 16 部品（トリガー起点の
+//! オーバーレイ、または項目開閉のディスクロージャ系。toolbar はイシュー
+//! #991、menubar はイシュー #992、navigation-menu はイシュー #993 で追加、
+//! いずれも `showcase.rs` の Demo 登録込み）。`toggle`/`toggle-group`
 //! はショーケース CSS 未登録により Demo を持たないため（`crates/docs-site/src/showcase.rs`
 //! を変更しないという #946 時点の受け入れ条件 4 の制約。#991/#992 の
 //! Phase 8 には同制約は適用されない）、本モジュールには含めず
@@ -288,6 +289,71 @@ pub const MENUBAR: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "role=\"group\"",
             description: "item-group に固定付与。labelledby が Some のときのみ aria-labelledby が付与される。",
+        },
+    ],
+    demo: None,
+};
+
+/// `/components/navigation-menu/`（Interactive カテゴリ）。
+///
+/// 一次情報: `crates/headless-ui/src/navigation_menu.rs`（モジュール doc・
+/// `root`/`list`/`item`/`trigger`/`content`/`link` シグネチャ・
+/// `aria-expanded`/`aria-controls`/`aria-labelledby`/`aria-current` の
+/// 実出力テスト・role 非出力の固定テスト）、
+/// `crates/pre-styled-ui/src/navigation_menu.rs`（モジュール doc）。
+///
+/// `keyboard: &[]` とする理由: `decode_action` に方向系 variant を持たず
+/// （[`crate::state::SingleSelect`] の `"select"`/`"toggle"`/`"deselect"`
+/// のみ）、確定したキー割り当てを本クレートのソースから裏付けられない
+/// ため（本モジュール冒頭の rustdoc「menubar のみ [`KeyRow`] を空にして
+/// いない」の記述はそのまま不変。navigation-menu も他 14 部品と同じく
+/// 空のまま）。
+pub const NAVIGATION_MENU: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "トリガー起点で開閉するナビゲーションパネル。Root / List / Item / Trigger / Content / Link の 6 anatomy パーツを持つ。",
+        "高々 1 個の Trigger だけが開く状態機械（SingleSelect を埋め込んだ NavigationMenu）。dispatch は \"select\"/\"toggle\"/\"deselect\"。",
+        "role は一切付与しない。root は素の nav の暗黙 ARIA role（navigation）に依拠し、role=\"menu\"/role=\"menuitem\" は付与しない（文書ナビを操作メニューと誤伝達しないための設計、nav_list と同じ判断）。",
+        "アクティブリンクは aria-current=\"page\" + data-current で表す（role は付与しない）。",
+        "data-motion（アニメーション方向の露出）・viewport 寸法測定は実装しない（intentional-non-adoption.md §3.25 規則 2 により headless 層へ持ち込まない設計判断）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "label",
+            kind: "&str",
+            default: "",
+            description: "root に付与する aria-label（必須引数）。",
+        },
+        ArgRow {
+            name: "state",
+            kind: "OpenState",
+            default: "",
+            description: "item/trigger/content の開閉状態（Open/Closed）。",
+        },
+        ArgRow {
+            name: "current",
+            kind: "bool",
+            default: "false",
+            description: "link に付与。true のとき aria-current=\"page\" + data-current を出力する。",
+        },
+    ],
+    examples: &[],
+    keyboard: &[],
+    aria: &[
+        AriaRow {
+            attribute: "aria-label",
+            description: "root に付与。root の role は素の nav の暗黙 role（navigation）に依拠し明示付与しない。",
+        },
+        AriaRow {
+            attribute: "aria-expanded / aria-controls",
+            description: "trigger に付与。開閉状態（true/false）と content との関連付け（controls が Some のときのみ）を表す。role は付与しない。",
+        },
+        AriaRow {
+            attribute: "aria-labelledby",
+            description: "content に付与（labelled_by が Some のときのみ）。role は付与しない。",
+        },
+        AriaRow {
+            attribute: "aria-current=\"page\"",
+            description: "link に付与（current が true のときのみ）。role は付与しない。",
         },
     ],
     demo: None,

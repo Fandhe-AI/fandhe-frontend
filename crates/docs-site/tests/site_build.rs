@@ -176,14 +176,16 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // イシュー #991 で Toolbar（`site/components/toolbar.md`）が加わり、
     // 121 → 122 になった。イシュー #992 で Menubar
     // （`site/components/menubar.md`）が加わり、122 → 123 になった。
+    // イシュー #993 で Navigation Menu
+    // （`site/components/navigation-menu.md`）が加わり、123 → 124 になった。
     assert_eq!(
         report.written.len(),
-        123,
+        124,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
 
-    // 上の 123 は「その時点の実測値」であり、Phase 6/7/8 でページが増減したら
+    // 上の 124 は「その時点の実測値」であり、Phase 6/7/8 でページが増減したら
     // 更新が要る。恒等契約（nav 登録数 = 生成ページ数）そのものは値に依存しない
     // 形でも固定し、片方だけ更新して片方が形骸化する事故を防ぐ。
     let nav_toml = std::fs::read_to_string(repo_root.join("site/nav.toml"))
@@ -196,10 +198,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
         "nav 登録ページ数と生成ページ数が一致しない"
     );
 
-    // /components/ 配下は部品ページ 101 件（イシュー #991 で Toolbar が
-    // 加わり 99 → 100、イシュー #992 で Menubar が加わり 100 → 101） +
-    // 索引ページ /components/pre-styled-ui/ 1 件の計 102 件（イシュー
-    // #943）。Phase 4 以降で部品が増減したら本値の更新が必要になる
+    // /components/ 配下は部品ページ 102 件（イシュー #991 で Toolbar が
+    // 加わり 99 → 100、イシュー #992 で Menubar が加わり 100 → 101、
+    // イシュー #993 で Navigation Menu が加わり 101 → 102） + 索引ページ
+    // /components/pre-styled-ui/ 1 件の計 103 件（イシュー #943）。
+    // Phase 4 以降で部品が増減したら本値の更新が必要になる
     // （fail-closed。黙って減っても気付けるようにする意図）。
     let components_dir = out.0.join("components");
     let component_pages = report
@@ -208,8 +211,8 @@ fn build_site_succeeds_for_the_real_repository_site() {
         .filter(|p| p.starts_with(&components_dir))
         .count();
     assert_eq!(
-        component_pages, 102,
-        "/components/ 配下の生成ページ数（部品 101 + 索引 1）"
+        component_pages, 103,
+        "/components/ 配下の生成ページ数（部品 102 + 索引 1）"
     );
 
     // アセットは site.css / admonition.css / skip-nav.css / site.js /

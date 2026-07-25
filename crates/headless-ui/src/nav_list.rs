@@ -54,6 +54,17 @@
 //!   イシュー側のスコープ。
 //! - キーボードナビゲーション（矢印キーでの項目間移動）は WAI-ARIA の
 //!   文書ナビパターンに存在しない（通常の Tab 移動のみ）ため提供しない。
+//!
+//! # [`mod@crate::navigation_menu`] との使い分け（イシュー #993）
+//!
+//! 本モジュールは状態機械を一切持たない静的なリンク集（見出し + リンク
+//! リストのみ、ディスクロージャなし）である。[`mod@crate::navigation_menu`]
+//! は Trigger/Content によるディスクロージャ（クリックでパネルが開閉する）
+//! と「高々 1 個の Trigger だけが開く」状態機械を持つ点で異なる。両者とも
+//! `role` を明示付与しない判断は共通であり、使い分けの軸は role の有無では
+//! なく**ディスクロージャの有無**である。単なるリンク集は本モジュールを、
+//! 開閉するナビゲーションパネルが必要な場合は
+//! [`mod@crate::navigation_menu`] を使う。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{aria_current, aria_label, AriaCurrent};

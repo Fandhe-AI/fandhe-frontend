@@ -365,6 +365,11 @@ source = "site/components/nav-list.md"
 path = "/components/nav-list/"
 
 [[section.group.page]]
+title = "Navigation Menu"
+source = "site/components/navigation-menu.md"
+path = "/components/navigation-menu/"
+
+[[section.group.page]]
 title = "Pagination"
 source = "site/components/pagination.md"
 path = "/components/pagination/"

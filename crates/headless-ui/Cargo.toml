@@ -1,6 +1,6 @@
 [package]
 name = "fandhe-frontend-headless-ui"
-version = "0.23.0"
+version = "0.24.0"
 edition = "2021"
 description = "fandhe-frontend-headless-ui: headless UI コンポーネント層（anatomy・data-* 属性・WAI-ARIA。イシュー #520/#522/#524）。外部依存は fandhe-frontend-core / fandhe-frontend-interactive（いずれも path）のみ。"
 license = "MIT OR Apache-2.0"

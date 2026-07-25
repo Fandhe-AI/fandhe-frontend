@@ -266,6 +266,10 @@ const OVERLAY_SPECS: &[(&str, ComponentPageSpec)] = &[
         crate::component_specs_overlay::MENUBAR,
     ),
     (
+        "/components/navigation-menu/",
+        crate::component_specs_overlay::NAVIGATION_MENU,
+    ),
+    (
         "/components/popover/",
         crate::component_specs_overlay::POPOVER,
     ),
