@@ -54,6 +54,7 @@ use fandhe_frontend_core::{
     code, div, el, h2, h3, li, p, pre, table, tbody, td, text, th, thead, tr, ul, Node,
 };
 
+use crate::component_specs;
 use crate::showcase;
 
 /// 引数表（`API Reference` 節）1 行。Phase 4（#945〜#948）が原稿データを
@@ -118,6 +119,14 @@ pub struct ComponentPageSpec {
     pub keyboard: &'static [KeyRow],
     /// `Accessibility` 節の WAI-ARIA 対応表。
     pub aria: &'static [AriaRow],
+    /// Demo フォールバック供給口（イシュー #945）。[`showcase::COMPONENT_PAGES`]
+    /// に該当エントリを持たない部品（`showcase.rs` を Phase 4 で編集しない
+    /// ための機構）のために、`Demo` 節を組み立てる `fn` ポインタを保持する。
+    /// [`showcase::generated_content`] が `None` を返した場合のみ本フィールド
+    /// を照会する（[`generated_content`] 参照）。両方 `None`（`showcase` 未登録
+    /// かつ本フィールドも `None`）ならページ全体が `None`（従来どおり Markdown
+    /// のみのページとして扱う）。
+    pub demo: Option<fn() -> Node>,
 }
 
 impl ComponentPageSpec {
@@ -128,14 +137,16 @@ impl ComponentPageSpec {
         examples: &[],
         keyboard: &[],
         aria: &[],
+        demo: None,
     };
 }
 
-/// `path -> ComponentPageSpec` のレジストリ。Phase 4（#945〜#948）が各部品の
-/// 原稿データをここへ追記していく想定であり、Phase 3 時点では空のまま
-/// （[`spec_for`] が未登録パスを [`ComponentPageSpec::EMPTY`] にフォールバック
-/// させるため、レジストリが空でも 6 節合成は破綻しない）。
-const COMPONENT_SPECS: &[(&str, ComponentPageSpec)] = &[
+/// イシュー #947（Navigation / Data Display 系、27 件）の
+/// `path -> ComponentPageSpec` テーブル。実体は
+/// [`crate::component_specs_nav_data`] の個別定数を参照する（forms.rs のような
+/// 集約 `SPECS` スライスをモジュール側で持たないため、本ファイル側で
+/// テーブル化する）。
+const NAV_DATA_SPECS: &[(&str, ComponentPageSpec)] = &[
     // ---- イシュー #947（Navigation / Data Display 系、27 件）ここから ----
     ("/components/alert/", crate::component_specs_nav_data::ALERT),
     (
@@ -219,11 +230,12 @@ const COMPONENT_SPECS: &[(&str, ComponentPageSpec)] = &[
         crate::component_specs_nav_data::SEPARATOR,
     ),
     // ---- イシュー #947 ここまで ----
-    // --- Overlay / Disclosure 系（イシュー #946、親 #928 Phase 4）。実体は
-    // crate::component_specs_overlay の 13 定数を参照。他 Phase 4 イシュー
-    // （#945/#947/#948）と同一配列末尾で追記が競合した場合は「両方の
-    // ブロックを残す」方針でマージする（順序に意味はない。spec_for は
-    // 線形探索の完全一致）。
+];
+
+/// イシュー #946（Overlay / Disclosure 系、13 件）の
+/// `path -> ComponentPageSpec` テーブル。実体は
+/// [`crate::component_specs_overlay`] の個別定数を参照する。
+const OVERLAY_SPECS: &[(&str, ComponentPageSpec)] = &[
     (
         "/components/accordion/",
         crate::component_specs_overlay::ACCORDION,
@@ -266,11 +278,19 @@ const COMPONENT_SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/components/tour/", crate::component_specs_overlay::TOUR),
 ];
 
+/// `path -> ComponentPageSpec` レジストリを供給するカテゴリ別テーブルの集約。
+/// Phase 4（#945〜#948）の各 issue はカテゴリ 1 個につき 1 テーブルを追加し、
+/// 本配列へ 1 行追記する想定（[`spec_for`] が全テーブルを線形探索するため、
+/// モジュール間の重複パスは想定しない）。
+const SPEC_TABLES: &[&[(&str, ComponentPageSpec)]] =
+    &[component_specs::forms::SPECS, NAV_DATA_SPECS, OVERLAY_SPECS];
+
 /// `page_path` に対応する [`ComponentPageSpec`] を返す。未登録パスは
 /// [`ComponentPageSpec::EMPTY`]（fail-closed で「節を省略」側へ倒す）。
 fn spec_for(page_path: &str) -> ComponentPageSpec {
-    COMPONENT_SPECS
+    SPEC_TABLES
         .iter()
+        .flat_map(|table| table.iter())
         .find(|(path, _)| *path == page_path)
         .map(|(_, spec)| *spec)
         .unwrap_or(ComponentPageSpec::EMPTY)
@@ -291,10 +311,17 @@ const MAX_WALK_DEPTH: usize = 64;
 /// - [`showcase::PAGE_PATH`]（索引ページ）を含め、レジストリに未登録の
 ///   パスは `None`（Markdown のみの通常ページ。索引ページの本文は
 ///   `site/components-pre-styled-ui.md` 側で完結する、イシュー #943）。
+/// - [`showcase::COMPONENT_PAGES`] に無いパスでも、[`ComponentPageSpec::demo`]
+///   が `Some` を返せば Demo 節を供給できる（イシュー #945、`showcase.rs` を
+///   Phase 4 で編集しないための機構。デモを持たない部品向け）。
 #[must_use]
 pub fn generated_content(page_path: &str) -> Option<Node> {
-    let demo = showcase::generated_content(page_path)?;
-    Some(render_component_page(page_path, demo, &spec_for(page_path)))
+    let spec = spec_for(page_path);
+    let demo = match showcase::generated_content(page_path) {
+        Some(node) => node,
+        None => (spec.demo?)(),
+    };
+    Some(render_component_page(page_path, demo, &spec))
 }
 
 /// [`generated_content`] の本体。`demo` は [`showcase::generated_content`]

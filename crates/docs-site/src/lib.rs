@@ -64,6 +64,7 @@
 pub mod admonition;
 pub mod build;
 pub mod component_page;
+pub mod component_specs;
 pub(crate) mod component_specs_nav_data;
 pub mod component_specs_overlay;
 pub mod layout;

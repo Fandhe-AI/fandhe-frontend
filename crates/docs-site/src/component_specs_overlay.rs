@@ -93,6 +93,7 @@ pub const ACCORDION: ComponentPageSpec = ComponentPageSpec {
             description: "item-content に付与。labelled_by が Some のとき aria-labelledby とセットで付与される。",
         },
     ],
+    demo: None,
 };
 
 /// `/components/action-bar/`（Interactive カテゴリ）。
@@ -123,6 +124,7 @@ pub const ACTION_BAR: ComponentPageSpec = ComponentPageSpec {
             description: "separator に付与。aria-orientation=\"vertical\" を伴う。",
         },
     ],
+    demo: None,
 };
 
 /// `/components/dialog/`（Interactive カテゴリ）。
@@ -179,6 +181,7 @@ pub const DIALOG: ComponentPageSpec = ComponentPageSpec {
             description: "content に付与。対応する title/description が設定されているときのみ出力される。",
         },
     ],
+    demo: None,
 };
 
 /// `/components/drawer/`（Interactive カテゴリ）。
@@ -237,6 +240,7 @@ pub const DRAWER: ComponentPageSpec = ComponentPageSpec {
             description: "content に付与。対応する title/description が設定されているときのみ出力される。",
         },
     ],
+    demo: None,
 };
 
 /// `/components/floating-panel/`（Interactive カテゴリ）。
@@ -285,6 +289,7 @@ pub const FLOATING_PANEL: ComponentPageSpec = ComponentPageSpec {
             description: "content に付与。対応する title が設定されているときのみ出力される。",
         },
     ],
+    demo: None,
 };
 
 /// `/components/hover-card/`（Interactive カテゴリ）。
@@ -319,6 +324,7 @@ pub const HOVER_CARD: ComponentPageSpec = ComponentPageSpec {
         attribute: "aria-hidden=\"true\"",
         description: "positioner に付与。閉じている間、支援技術から内容を隠す。",
     }],
+    demo: None,
 };
 
 /// `/components/menu/`（Interactive カテゴリ）。
@@ -371,6 +377,7 @@ pub const MENU: ComponentPageSpec = ComponentPageSpec {
             description: "item_group に固定付与。labelledby が Some のときのみ aria-labelledby が付与される。",
         },
     ],
+    demo: None,
 };
 
 /// `/components/popover/`（Interactive カテゴリ）。
@@ -410,6 +417,7 @@ pub const POPOVER: ComponentPageSpec = ComponentPageSpec {
             description: "content に付与。対応する title/description が設定されているときのみ出力される。",
         },
     ],
+    demo: None,
 };
 
 /// `/components/tabs/`（Interactive カテゴリ）。
@@ -461,6 +469,7 @@ pub const TABS: ComponentPageSpec = ComponentPageSpec {
             description: "content に付与。対応する trigger の id を指す。",
         },
     ],
+    demo: None,
 };
 
 /// `/components/toast/`（Interactive カテゴリ）。
@@ -508,6 +517,7 @@ pub const TOAST: ComponentPageSpec = ComponentPageSpec {
             description: "root に付与。aria-live は status から決定的に導出される（Error のみ assertive、他は polite）。",
         },
     ],
+    demo: None,
 };
 
 /// `/components/toggle-tip/`（Interactive カテゴリ）。
@@ -540,6 +550,7 @@ pub const TOGGLE_TIP: ComponentPageSpec = ComponentPageSpec {
             description: "trigger に付与。controls が Some のとき content の id を指す。",
         },
     ],
+    demo: None,
 };
 
 /// `/components/tooltip/`（Interactive カテゴリ）。
@@ -572,6 +583,7 @@ pub const TOOLTIP: ComponentPageSpec = ComponentPageSpec {
             description: "content に固定付与。",
         },
     ],
+    demo: None,
 };
 
 /// `/components/tour/`（Interactive カテゴリ）。
@@ -605,4 +617,5 @@ pub const TOUR: ComponentPageSpec = ComponentPageSpec {
             description: "progress_text に固定付与。ステップ進捗テキストの更新を読み上げさせる。",
         },
     ],
+    demo: None,
 };

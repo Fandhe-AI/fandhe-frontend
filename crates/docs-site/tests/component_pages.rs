@@ -90,6 +90,7 @@ fn full_spec() -> ComponentPageSpec {
             attribute: "aria-expanded",
             description: "開閉状態を表す。",
         }],
+        demo: None,
     }
 }
 
@@ -440,6 +441,7 @@ fn features_and_table_cells_escape_xss_payloads() {
             attribute: "<script>alert(1)</script>",
             description: "<script>alert(1)</script>",
         }],
+        demo: None,
     };
     let demo = synthetic_demo();
     let page = render_component_page("/components/widget/", demo, &spec);
@@ -451,30 +453,57 @@ fn features_and_table_cells_escape_xss_payloads() {
 #[test]
 fn component_page_source_does_not_use_raw_html() {
     // イシュー #946: `crate::component_specs_overlay`（Overlay/Disclosure
-    // 系 13 部品の原稿データ）も同じ REQ-1 不変条件の走査対象に含める。
+    // 系 13 部品の原稿データ）・`crate::component_specs_nav_data`
+    // （Navigation/Data Display 系 27 部品の原稿データ、イシュー #947）も
+    // 同じ REQ-1 不変条件の走査対象に含める。
     for rel_path in [
         "crates/docs-site/src/component_page.rs",
         "crates/docs-site/src/component_specs_overlay.rs",
+        "crates/docs-site/src/component_specs_nav_data.rs",
     ] {
-        let src = fs::read_to_string(repo_root().join(rel_path)).unwrap_or_else(|e| {
-            panic!("{rel_path} should be readable: {e}");
-        });
-        // ドキュメンテーションコメント（`//!`/`///`）は `raw_html()` を
-        // 「使わない」と説明するために当該語を含むため、コード行（コメント
-        // 以外）のみを対象に実呼び出し・import が無いことを検証する。
-        let code_only: String = src
-            .lines()
-            .filter(|line| {
-                let trimmed = line.trim_start();
-                !trimmed.starts_with("//")
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        assert!(
-            !code_only.contains("raw_html"),
-            "{rel_path} must not use raw_html() (REQ-1 escape bypass) in code (non-comment) lines"
-        );
+        assert_file_has_no_raw_html_in_code(&repo_root().join(rel_path));
     }
+}
+
+/// [`component_page_source_does_not_use_raw_html`] の REQ-1 ガードを
+/// `crates/docs-site/src/component_specs/` 配下へ拡張する（イシュー #945）。
+/// Phase 4（#945〜#948）の各 issue がノード木を大量に組み立てる原稿データを
+/// 本ディレクトリへ追加するため、`component_page.rs` 1 ファイルのみを検査
+/// する従来のガードでは空洞化する。
+#[test]
+fn component_specs_source_does_not_use_raw_html() {
+    let dir = repo_root().join("crates/docs-site/src/component_specs");
+    let mut files = Vec::new();
+    collect_rs_files(&dir, &mut files);
+    assert!(
+        !files.is_empty(),
+        "component_specs/ should contain at least one .rs file to guard"
+    );
+    for path in &files {
+        assert_file_has_no_raw_html_in_code(path);
+    }
+}
+
+/// `path` のコード行（`//`/`//!`/`///` コメント行を除く）に `raw_html` が
+/// 出現しないことを検証する（REQ-1 の機械的ガード。ドキュメンテーション
+/// コメントが「`raw_html()` を使わない」と説明するために当該語を含む
+/// ことがあるため、コメント行は対象外とする）。
+fn assert_file_has_no_raw_html_in_code(path: &Path) {
+    let src = fs::read_to_string(path)
+        .unwrap_or_else(|e| panic!("{} should be readable: {e}", path.display()));
+    let code_only: String = src
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim_start();
+            !trimmed.starts_with("//")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !code_only.contains("raw_html"),
+        "{} must not use raw_html() (REQ-1 escape bypass) in code (non-comment) lines",
+        path.display()
+    );
 }
 
 /// イシュー #946: Overlay / Disclosure 系 13 部品ページ（`COMPONENT_SPECS`
@@ -592,6 +621,99 @@ fn filled_pages_no_longer_reference_phase_4_stub_note() {
         );
     }
 }
+
+/// Forms 31 ページ（イシュー #945）の充填を機械的に固定する。各ページが
+/// `Demo`/`Features`/`Anatomy`/`API Reference` の 4 節を（この順の部分列と
+/// して）持つこと、および `Examples`/`Accessibility` を含む場合は
+/// [`CANONICAL_SECTIONS`] 順であることを検証する（設計 §7 は Examples/
+/// Accessibility を任意としているため必須節には含めない）。
+#[test]
+fn forms_pages_have_the_canonical_sections_filled() {
+    const REQUIRED_PREFIX: &[&str] = &["Demo", "Features", "Anatomy", "API Reference"];
+    for path in FORMS_PATHS {
+        let content = fandhe_frontend_docs_site::component_page::generated_content(path)
+            .unwrap_or_else(|| panic!("{path} should have generated content"));
+        let html = render(&content);
+        let headings = h2_texts(&html);
+        assert!(
+            is_subsequence(REQUIRED_PREFIX, &headings),
+            "{path}: expected {REQUIRED_PREFIX:?} as a subsequence of {headings:?}"
+        );
+        let headings_str: Vec<&str> = headings.iter().map(String::as_str).collect();
+        assert!(
+            is_str_subsequence(&headings_str, CANONICAL_SECTIONS),
+            "{path}: headings {headings:?} must be a subsequence of canonical order {CANONICAL_SECTIONS:?}"
+        );
+    }
+}
+
+/// `site/components/<kebab>.md` の Forms 31 件が Phase 4 未充填を示す
+/// `[!NOTE]` admonition（「Phase 4」文言を含む）を残していないことを検証
+/// する（充填したページから admonition を削除する前提、イシュー #945）。
+#[test]
+fn forms_markdown_sources_do_not_retain_the_phase4_unfilled_marker() {
+    for path in FORMS_PATHS {
+        let kebab = path.trim_matches('/').rsplit('/').next().unwrap();
+        let md_path = repo_root().join(format!("site/components/{kebab}.md"));
+        let src = fs::read_to_string(&md_path)
+            .unwrap_or_else(|e| panic!("{} should be readable: {e}", md_path.display()));
+        assert!(
+            !(src.contains("[!NOTE]") && src.contains("Phase 4")),
+            "{}: still contains the Phase 4 unfilled-section admonition",
+            md_path.display()
+        );
+    }
+}
+
+/// `needle` が `haystack` の（連続とは限らない）部分列であるかを判定する。
+fn is_subsequence(needle: &[&str], haystack: &[String]) -> bool {
+    let mut it = haystack.iter();
+    needle
+        .iter()
+        .all(|item| it.any(|candidate| candidate == item))
+}
+
+/// [`is_subsequence`] の `&str` 版（両辺 `&[&str]` の比較用）。
+fn is_str_subsequence(needle: &[&str], haystack: &[&str]) -> bool {
+    let mut it = haystack.iter();
+    needle
+        .iter()
+        .all(|item| it.any(|candidate| candidate == item))
+}
+
+const FORMS_PATHS: &[&str] = &[
+    "/components/angle-slider/",
+    "/components/button/",
+    "/components/calendar/",
+    "/components/checkbox/",
+    "/components/checkbox-card/",
+    "/components/color-picker/",
+    "/components/combobox/",
+    "/components/date-input/",
+    "/components/date-picker/",
+    "/components/download-trigger/",
+    "/components/editable/",
+    "/components/file-upload/",
+    "/components/image-cropper/",
+    "/components/input/",
+    "/components/listbox/",
+    "/components/native-select/",
+    "/components/number-input/",
+    "/components/password-input/",
+    "/components/pin-input/",
+    "/components/radio-card/",
+    "/components/radio-group/",
+    "/components/rating-group/",
+    "/components/segment-group/",
+    "/components/select/",
+    "/components/signature-pad/",
+    "/components/slider/",
+    "/components/switch/",
+    "/components/tags-input/",
+    "/components/textarea/",
+    "/components/toggle/",
+    "/components/toggle-group/",
+];
 
 #[test]
 fn data_attrs_and_css_var_tables_are_deterministic_across_repeated_renders() {

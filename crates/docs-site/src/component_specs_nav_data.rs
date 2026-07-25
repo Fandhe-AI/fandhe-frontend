@@ -91,6 +91,7 @@ pub(crate) const ALERT: ComponentPageSpec = ComponentPageSpec {
         attribute: "role=\"alert\"",
         description: "WAI-ARIA live region。status の値に関わらず固定で付与される（alert.rs:4, 153）。",
     }],
+    demo: None,
 };
 
 fn ex_avatar() -> Node {
@@ -128,6 +129,7 @@ pub(crate) const AVATAR: ComponentPageSpec = ComponentPageSpec {
         attribute: "(該当なし)",
         description: "root/image/fallback は固有の role/aria-* を出力しない。image パーツの alt テキストのみが代替情報を提供する（avatar.rs 全文で role/aria-* を grep しても 0 件）。",
     }],
+    demo: None,
 };
 
 fn ex_badge() -> Node {
@@ -177,6 +179,7 @@ pub(crate) const BADGE: ComponentPageSpec = ComponentPageSpec {
         attribute: "(該当なし)",
         description: "chakra-ui v3 準拠の最小サブセットとして role/aria-* を付与しない（badge.rs:3）。",
     }],
+    demo: None,
 };
 
 fn ex_card() -> Node {
@@ -213,6 +216,7 @@ pub(crate) const CARD: ComponentPageSpec = ComponentPageSpec {
         attribute: "(該当なし)",
         description: "純粋なレイアウトコンテナであり role/aria-* を付与しない（card.rs:4）。",
     }],
+    demo: None,
 };
 
 fn ex_data_list() -> Node {
@@ -253,6 +257,7 @@ pub(crate) const DATA_LIST: ComponentPageSpec = ComponentPageSpec {
         attribute: "(該当なし)",
         description: "dl/dt/dd のネイティブ意味論のみで固有の role/aria-* は出力しない（data_list.rs 全文で role/aria-* を grep しても 0 件）。",
     }],
+    demo: None,
 };
 
 fn ex_empty_state() -> Node {
@@ -291,6 +296,7 @@ pub(crate) const EMPTY_STATE: ComponentPageSpec = ComponentPageSpec {
         attribute: "(該当なし)",
         description: "aria-* は付与しない（empty_state.rs:5、root_has_no_role_attribute 回帰テストあり）。",
     }],
+    demo: None,
 };
 
 /// JsonTreeView の Demo と同じ構成方針（`crates/docs-site/src/showcase.rs`
@@ -339,6 +345,7 @@ pub(crate) const JSON_TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
         attribute: "role=\"tree\" / role=\"treeitem\"",
         description: "headless-ui の TreeView anatomy を再利用するため role=\"tree\"/role=\"treeitem\" を持つ（crates/pre-styled-ui/src/tree_view.rs:45 の rustdoc 記述、json_tree_view.rs:7-8 が同 anatomy を再エクスポート）。",
     }],
+    demo: None,
 };
 
 fn ex_progress() -> Node {
@@ -389,6 +396,7 @@ pub(crate) const PROGRESS: ComponentPageSpec = ComponentPageSpec {
         attribute: "aria-valuetext",
         description: "呼び出し側が渡した aria_valuetext を root（headless progress.root への委譲）へ出力する（progress.rs:243-247, 245）。",
     }],
+    demo: None,
 };
 
 fn ex_skeleton() -> Node {
@@ -422,6 +430,7 @@ pub(crate) const SKELETON: ComponentPageSpec = ComponentPageSpec {
         attribute: "aria-hidden=\"true\"",
         description: "常に固定付与される（呼び出し側の偽装値は除去、skeleton.rs:9, 202, 262-266）。",
     }],
+    demo: None,
 };
 
 fn ex_spinner() -> Node {
@@ -453,6 +462,7 @@ pub(crate) const SPINNER: ComponentPageSpec = ComponentPageSpec {
         attribute: "role=\"status\" + aria-label",
         description: "読み込み中であることをスクリーンリーダーへ伝える（spinner.rs:2, 151-152）。",
     }],
+    demo: None,
 };
 
 fn ex_stat() -> Node {
@@ -492,6 +502,7 @@ pub(crate) const STAT: ComponentPageSpec = ComponentPageSpec {
         attribute: "aria-hidden=\"true\"（up-indicator/down-indicator のみ）",
         description: "装飾用途の増減インジケータに固定付与される（stat.rs:17, 247-260）。root/label/value-text 自体は固有の ARIA を出力しない。",
     }],
+    demo: None,
 };
 
 fn ex_status() -> Node {
@@ -527,6 +538,7 @@ pub(crate) const STATUS: ComponentPageSpec = ComponentPageSpec {
         attribute: "(該当なし)",
         description: "role=\"status\" は付与しない設計。非同期の状態遷移を伴う場合は呼び出し側が明示的に role/aria-live を足す契約（status.rs:9-12、テストで role= の非出現を固定）。",
     }],
+    demo: None,
 };
 
 fn ex_table() -> Node {
@@ -591,6 +603,7 @@ pub(crate) const TABLE: ComponentPageSpec = ComponentPageSpec {
         attribute: "scope=\"col\"（column-header）",
         description: "column_header が固定付与するテーブル見出しの意味論属性（呼び出し側の偽装は除去、table.rs セキュリティ不変条件節）。role/aria-* 自体はネイティブ table 要素の意味論に委ねており固有の出力はない。",
     }],
+    demo: None,
 };
 
 fn ex_tag() -> Node {
@@ -629,6 +642,7 @@ pub(crate) const TAG: ComponentPageSpec = ComponentPageSpec {
         attribute: "(呼び出し側責務)",
         description: "close_trigger の aria-label・視覚内容（×等）は呼び出し側が渡す責務であり、本部品自体は固有の ARIA を固定出力しない（tag.rs:231）。",
     }],
+    demo: None,
 };
 
 fn ex_tree_view() -> Node {
@@ -664,6 +678,7 @@ pub(crate) const TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
         attribute: "role=\"tree\" / role=\"treeitem\"",
         description: "WAI-ARIA Tree View パターンに従い headless-ui が付与する（tree_view.rs:45）。",
     }],
+    demo: None,
 };
 
 // ---------------------------------------------------------------------
@@ -712,6 +727,7 @@ pub(crate) const COLOR_SWATCH: ComponentPageSpec = ComponentPageSpec {
         attribute: "(該当なし)",
         description: "純粋な色見本表示であり固有の role/aria-* を出力しない（color_swatch.rs 全文で role/aria-* を grep しても 0 件）。",
     }],
+    demo: None,
 };
 
 fn ex_icon() -> Node {
@@ -755,6 +771,7 @@ pub(crate) const ICON: ComponentPageSpec = ComponentPageSpec {
         attribute: "role=\"img\" + aria-label（label が Some の場合）/ aria-hidden=\"true\"（None の場合）",
         description: "label の有無で意味のあるアイコンか装飾用途かを切り替える（icon.rs:592-596, 651-657）。",
     }],
+    demo: None,
 };
 
 fn ex_image() -> Node {
@@ -804,6 +821,7 @@ pub(crate) const IMAGE: ComponentPageSpec = ComponentPageSpec {
         attribute: "alt（必須引数）",
         description: "代替テキストを img 要素の alt として必ず出力する（image.rs:789-791）。role/aria-* 自体は固有の出力を持たない。",
     }],
+    demo: None,
 };
 
 fn ex_timeline() -> Node {
@@ -873,6 +891,7 @@ pub(crate) const TIMELINE: ComponentPageSpec = ComponentPageSpec {
         attribute: "(該当なし)",
         description: "ol/li のネイティブ意味論のみで固有の role/aria-* は出力しない（timeline.rs 全文で role/aria-* を grep しても 0 件）。",
     }],
+    demo: None,
 };
 
 // ---------------------------------------------------------------------
@@ -938,6 +957,7 @@ pub(crate) const BREADCRUMB: ComponentPageSpec = ComponentPageSpec {
             description: "現在ページと区切り記号に付与される（breadcrumb.rs:184-188）。",
         },
     ],
+    demo: None,
 };
 
 fn ex_carousel() -> Node {
@@ -980,6 +1000,7 @@ pub(crate) const CAROUSEL: ComponentPageSpec = ComponentPageSpec {
         attribute: "aria-label（root、呼び出し側必須引数）",
         description: "root へそのまま出力される（carousel.rs:277-318, 321-322）。",
     }],
+    demo: None,
 };
 
 fn ex_pagination() -> Node {
@@ -1028,6 +1049,7 @@ pub(crate) const PAGINATION: ComponentPageSpec = ComponentPageSpec {
         attribute: "aria-current=\"page\"（選択中 item） / data-selected",
         description: "現在ページを示すマーカー（pagination.rs:35-38）。root（nav）は呼び出し側指定の aria-label を持つ。",
     }],
+    demo: None,
 };
 
 fn ex_splitter() -> Node {
@@ -1077,6 +1099,7 @@ pub(crate) const SPLITTER: ComponentPageSpec = ComponentPageSpec {
         attribute: "role=\"separator\" + aria-controls（resize_trigger）",
         description: "リサイズハンドルが操作対象パネルを aria-controls で指し示す（splitter.rs:930-935）。",
     }],
+    demo: None,
 };
 
 fn ex_steps() -> Node {
@@ -1138,6 +1161,7 @@ pub(crate) const STEPS: ComponentPageSpec = ComponentPageSpec {
         attribute: "aria-current=\"step\"（trigger） / role=\"separator\"（separator）",
         description: "現在ステップと区切りの意味論（steps.rs テスト list_item_trigger_indicator_separator_delegate_to_headless、行 1256, 1258）。",
     }],
+    demo: None,
 };
 
 // ---------------------------------------------------------------------
@@ -1185,6 +1209,7 @@ pub(crate) const MARQUEE: ComponentPageSpec = ComponentPageSpec {
         attribute: "aria-hidden=\"true\"（decorative=true の root と複製 content） / aria-label（非 decorative時の root）",
         description: "decorative/label の組み合わせで root の意味論を切り替える（marquee.rs:1341-1357）。複製した 2 個目の content は常に aria-hidden=\"true\" + inert を持つ（marquee.rs:1360-1385）。",
     }],
+    demo: None,
 };
 
 fn ex_scroll_area() -> Node {
@@ -1220,6 +1245,7 @@ pub(crate) const SCROLL_AREA: ComponentPageSpec = ComponentPageSpec {
         attribute: "tabindex=\"0\"（viewport）",
         description: "キーボードフォーカス可能にするのみで、固有の role/aria-* は出力しない（scroll_area.rs:11, 69）。",
     }],
+    demo: None,
 };
 
 fn ex_separator() -> Node {
@@ -1262,4 +1288,5 @@ pub(crate) const SEPARATOR: ComponentPageSpec = ComponentPageSpec {
         attribute: "role=\"separator\" + aria-orientation",
         description: "orientation と連動し常に固定出力される（separator.rs:10, 17, 58-59）。",
     }],
+    demo: None,
 };
