@@ -44,8 +44,12 @@
 //!         input.docs-search-input  … `data-search-index` でインデックス JSON を参照
 //!         ul.docs-search-results（`#docs-search-results`、既定 `hidden`）
 //!           li.docs-search-result（JS 実行時生成。`role="option"`）
-//!             span.docs-search-result-title
-//!             span.docs-search-result-section（見出し一致時のみ）
+//!             a（クリック可能なヒットターゲット本体。行のクロム
+//!               〔`padding`・`color`・`text-decoration`〕は
+//!               `.docs-search-result > a` に付与し、`li` 自身は
+//!               `[aria-selected="true"]` 時の背景色のみを持つ）
+//!               span.docs-search-result-title
+//!               span.docs-search-result-section（見出し一致時のみ）
 //!           li.docs-search-empty（JS 実行時生成。0 件 or fetch 失敗時）
 //!       a.docs-github-link        … GitHub リポジトリへの外部リンク
 //!       button.docs-theme-toggle  … テーマトグル（既定 `hidden`。可視化・
@@ -459,8 +463,12 @@ body {\n\
  * (c′) HTML 非出現の 3 方向で別枠検証する。 */\n\
 .docs-search-result {\n\
   display: block;\n\
-  padding: 0.4rem 0.6rem;\n\
   border-radius: var(--fandhe-radius-sm);\n\
+}\n\
+\n\
+.docs-search-result > a {\n\
+  display: block;\n\
+  padding: 0.4rem 0.6rem;\n\
   text-decoration: none;\n\
   color: var(--fandhe-color-fg);\n\
 }\n\
@@ -1514,6 +1522,48 @@ mod tests {
         ] {
             assert!(css.contains(selector), "missing selector: {selector}");
         }
+    }
+
+    /// `.docs-search-result` の行クロム（`padding`/`text-decoration`/
+    /// `color`）はクリック可能なヒットターゲット本体である子要素
+    /// `a`（`crate::script::SITE_JS` が生成）に付与し、`li` 自身には
+    /// 付与しないことを固定する（Bugbot 指摘: `li` に付けると UA の
+    /// リンク既定スタイルがタイトルに残り、`li` の非パディング領域が
+    /// ヒットターゲットから漏れる）。
+    #[test]
+    fn stylesheet_search_result_row_chrome_targets_the_anchor_child() {
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+
+        let anchor_selector = ".docs-search-result > a {";
+        let anchor_start = css
+            .find(anchor_selector)
+            .expect("missing selector: .docs-search-result > a");
+        let anchor_end = css[anchor_start..]
+            .find('}')
+            .map(|offset| anchor_start + offset)
+            .expect(".docs-search-result > a block should be closed");
+        let anchor_block = &css[anchor_start..anchor_end];
+        for declaration in ["padding", "text-decoration: none", "color:"] {
+            assert!(
+                anchor_block.contains(declaration),
+                ".docs-search-result > a should declare {declaration}"
+            );
+        }
+
+        let li_selector = ".docs-search-result {";
+        let li_start = css
+            .find(li_selector)
+            .expect("missing selector: .docs-search-result");
+        let li_end = css[li_start..]
+            .find('}')
+            .map(|offset| li_start + offset)
+            .expect(".docs-search-result block should be closed");
+        let li_block = &css[li_start..li_end];
+        assert!(
+            !li_block.contains("padding") && !li_block.contains("text-decoration"),
+            ".docs-search-result (li) should not carry row chrome that belongs on the anchor child"
+        );
     }
 
     #[test]

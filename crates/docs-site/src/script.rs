@@ -370,10 +370,19 @@ pub const SITE_JS: &str = "\
     setExpanded(true);
   }
 
+  // DOM の除去に加えて `currentResults`/`selectedIndex` も必ずリセットする。
+  // DOM のみ消して `currentResults` を残すと、Escape・クエリクリア後も
+  // 矢印キーで `moveSelection` が古い `currentResults.length` を境界に
+  // `selectedIndex` を進めてしまい、`updateSelection` が存在しない
+  // `docs-search-result-N` を `aria-activedescendant` にセットする
+  // （行が消えているのに読み上げ対象扱いになる）。
   function clearResults() {
     while (list.firstChild) {
       list.removeChild(list.firstChild);
     }
+    currentResults = [];
+    selectedIndex = -1;
+    input.removeAttribute(`aria-activedescendant`);
   }
 
   // 著者由来ではなくビルド生成インデックス由来の href でも、多層防御として
@@ -475,10 +484,17 @@ pub const SITE_JS: &str = "\
     updateSelection();
   }
 
+  // 加算スコアリング（title +3 / section +2 / text +1、各独立判定）。
+  // タイトル一致で早期 return すると見出し一致の加点・ディープリンクが
+  // 落ちるため（設計 docs/design/docs-site-search-design.md セクション
+  // 4-4）、3 条件すべてを毎回評価してから合算する。section は最初に
+  // 一致した見出し（renderResults がリンク先のフラグメント生成に使う）
+  // で、title 一致の有無に関わらず独立して求める。
   function scorePage(page, query) {
+    var score = 0;
     var titleLower = page.title.toLowerCase();
     if (titleLower.indexOf(query) !== -1) {
-      return { score: 3, section: null };
+      score += 3;
     }
     var matchedSection = null;
     page.sections.forEach(function (section) {
@@ -491,13 +507,13 @@ pub const SITE_JS: &str = "\
       }
     });
     if (matchedSection) {
-      return { score: 2, section: matchedSection };
+      score += 2;
     }
     var textLower = page.text.toLowerCase();
     if (textLower.indexOf(query) !== -1) {
-      return { score: 1, section: null };
+      score += 1;
     }
-    return { score: 0, section: null };
+    return { score: score, section: matchedSection };
   }
 
   function runSearch() {
@@ -885,5 +901,79 @@ mod tests {
     #[test]
     fn site_js_does_not_assign_location_href() {
         assert!(!SITE_JS.contains("location.href ="));
+    }
+
+    /// `scorePage` が title/section/text の 3 条件を独立に加算することを
+    /// 固定する（設計 `docs/design/docs-site-search-design.md` §4-4、
+    /// 「加算」の明記）。タイトル一致時点で `{ score: 3, section: null }`
+    /// を早期 return する退行（Bugbot 指摘）が再導入されると、この
+    /// アサーションが検知する。
+    #[test]
+    fn site_js_score_page_accumulates_title_section_text_scores() {
+        for needle in ["score += 3", "score += 2", "score += 1"] {
+            assert!(
+                SITE_JS.contains(needle),
+                "SITE_JS の scorePage は {needle} で加算する必要がある"
+            );
+        }
+        assert!(
+            !SITE_JS.contains("return { score: 3"),
+            "scorePage がタイトル一致で早期 return すると section 加点・\
+             ディープリンクが失われる"
+        );
+        assert!(
+            !SITE_JS.contains("return { score: 2"),
+            "scorePage が section 一致で早期 return すると text 加点が失われる"
+        );
+    }
+
+    /// `scorePage` はタイトル一致時も見出し一致を独立して評価し、
+    /// `section` を返す（見出しへのディープリンクのため）。タイトル一致の
+    /// `if` ブロックが `section: null` を伴う `return` のままだと、
+    /// このアサーションが検知する。
+    #[test]
+    fn site_js_score_page_keeps_matched_section_independent_of_title_match() {
+        let score_page_start = SITE_JS
+            .find("function scorePage(page, query)")
+            .expect("SITE_JS should define scorePage");
+        let score_page_slice = &SITE_JS[score_page_start..];
+        let body_end = score_page_slice
+            .find("\n  }\n")
+            .expect("scorePage should have a closing brace");
+        let body = &score_page_slice[..body_end];
+        assert!(
+            !body.contains("section: null"),
+            "scorePage の title 一致分岐が section を null 固定で早期 return している"
+        );
+        assert!(
+            body.contains("return { score: score, section: matchedSection }"),
+            "scorePage は最終的に加算済み score と独立評価した section を返す必要がある"
+        );
+    }
+
+    /// `clearResults` が DOM の除去に加えて `currentResults`/`selectedIndex`/
+    /// `aria-activedescendant` をリセットすることを固定する（Bugbot 指摘:
+    /// DOM のみ消して state を残すと、Escape・クエリクリア後の矢印キーで
+    /// 存在しない結果行を指す `aria-activedescendant` が発生する）。
+    #[test]
+    fn site_js_clear_results_resets_selection_state() {
+        let clear_results_start = SITE_JS
+            .find("function clearResults()")
+            .expect("SITE_JS should define clearResults");
+        let clear_results_slice = &SITE_JS[clear_results_start..];
+        let body_end = clear_results_slice
+            .find("\n  }\n")
+            .expect("clearResults should have a closing brace");
+        let body = &clear_results_slice[..body_end];
+        for needle in [
+            "currentResults = []",
+            "selectedIndex = -1",
+            "input.removeAttribute(`aria-activedescendant`)",
+        ] {
+            assert!(
+                body.contains(needle),
+                "clearResults は {needle} を実行して選択状態をリセットする必要がある"
+            );
+        }
     }
 }
