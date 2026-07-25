@@ -62,7 +62,11 @@
 //!           - `pre > code.language-*` … フェンス付きコードブロック
 //!       aside.docs-toc-aside（任意・見出しが存在するページのみ）
 //!         … 右目次カラムのラッパー
-//!         nav.docs-toc            … ページ内目次
+//!         nav.docs-toc            … ページ内目次（`aria-labelledby` で下記見出しに紐付く）
+//!           h2.docs-toc-title     … "On this page" 見出し（イシュー #950）
+//!           ul
+//!             li.docs-toc-level-2 > a[aria-current="location"]?  … 現在地は JS のみが付与
+//!             li.docs-toc-level-3 > a
 //! ```
 //!
 //! # 不変条件
@@ -689,6 +693,21 @@ body {\n\
   line-height: 1.5;\n\
 }\n\
 \n\
+/*\n\
+ * 右目次の見出し（イシュー #950）。サイドバーのカテゴリ見出し\n\
+ * （`.docs-sidebar nav.sidebar h2`、上記）と同じ uppercase の小見出し\n\
+ * 体裁に揃える。`nav.docs-toc` の `aria-labelledby` が本要素の `id`\n\
+ * （`crate::layout::TOC_HEADING_ID`）を参照する。\n\
+ */\n\
+.docs-toc-title {\n\
+  margin: 0 0 0.5rem;\n\
+  font-size: 0.72rem;\n\
+  font-weight: var(--fandhe-font-font-weight-semibold);\n\
+  letter-spacing: 0.06em;\n\
+  text-transform: uppercase;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+}\n\
+\n\
 .docs-toc ul {\n\
   list-style: none;\n\
   margin: 0;\n\
@@ -699,12 +718,34 @@ body {\n\
 }\n\
 \n\
 .docs-toc a {\n\
+  display: block;\n\
   color: var(--fandhe-color-fg-muted);\n\
   text-decoration: none;\n\
+  /* 長い `h3` タイトル（例: API ページの `placement API` 節見出し）が\n\
+   * 15rem の右カラム内で単語境界を越えて折り返せるようにする。テキスト\n\
+   * の切り詰め（ellipsis/line-clamp）は行わない（情報欠落を招くため）。\n\
+   */\n\
+  overflow-wrap: anywhere;\n\
+  padding: 0.12rem 0 0.12rem 0.5rem;\n\
+  border-left: 2px solid transparent;\n\
 }\n\
 \n\
 .docs-toc a:hover {\n\
   color: var(--fandhe-color-accent);\n\
+}\n\
+\n\
+/*\n\
+ * 現在地ハイライト（イシュー #950）。`aria-current=\"location\"` は\n\
+ * `crate::script::SITE_JS` の IntersectionObserver がスクロール位置に\n\
+ * 応じて実行時にのみ付与する（SSG が出力する静的 markup には含まれない）。\n\
+ * サイドバーの `aria-current=\"page\"`（現在ページ）と値を分けることで\n\
+ * 意味の衝突を避ける。JS 無効・`site.js` 読み込み失敗時はこの規則が一切\n\
+ * 一致せず、通常のリンク表示のまま機能する（progressive enhancement）。\n\
+ */\n\
+.docs-toc a[aria-current=\"location\"] {\n\
+  color: var(--fandhe-color-accent);\n\
+  font-weight: var(--fandhe-font-font-weight-medium);\n\
+  border-left-color: var(--fandhe-color-accent);\n\
 }\n\
 \n\
 .docs-toc-level-2 {\n\
@@ -712,7 +753,9 @@ body {\n\
 }\n\
 \n\
 .docs-toc-level-3 {\n\
-  padding-left: 1rem;\n\
+  /* 1rem から縮小（イシュー #950）。長い `h3` タイトルの折り返し時に\n\
+   * 実効幅を確保し、過大インデントで読みにくくなるのを防ぐ。 */\n\
+  padding-left: 0.5rem;\n\
 }\n\
 \n\
 /* ---- 右目次カラム（`aside.docs-toc-aside`。イシュー #907） ---- */\n\
@@ -1343,6 +1386,7 @@ mod tests {
             ".docs-main",
             ".docs-content",
             ".docs-toc",
+            ".docs-toc-title",
             ".docs-toc-aside",
             "nav.prev-next",
             ".docs-nav-group",

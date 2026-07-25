@@ -13,7 +13,13 @@
 //! 操作でも開閉できるようにする。JS 不要、`nav_list` 本体の markup は
 //! 変更しない）・`main.docs-main`（中央コンテンツ、`article.docs-content`
 //! を内包）・見出しが存在するページのみ第 3 子として出現する
-//! `aside.docs-toc-aside`（右目次、内側に `nav.docs-toc` をそのまま配置）
+//! `aside.docs-toc-aside`（右目次、内側に `nav.docs-toc` をそのまま配置。
+//! `nav.docs-toc` は `h2.docs-toc-title`（"On this page"）を先頭に持ち、
+//! `aria-labelledby` で自身に紐付ける。見出しレベルは `TOC_MAX_LEVEL`
+//! を超えるものを除外し、最大 2 段（`h2`/`h3`）で固定する。現在地
+//! ハイライト（`aria-current="location"`）は
+//! `crate::script::SITE_JS` のみが実行時に付与し、SSG が出力する静的
+//! markup には含めない。イシュー #950）
 //! の最大 3 カラムを出力する（イシュー #907）。breakpoint による表示制御
 //! （狭幅で目次列→ナビ列の順に畳む）は構造 CSS（`crate::site_theme` が
 //! 生成する `assets/site.css`）側の責務であり、本モジュールは DOM 順・
@@ -37,7 +43,7 @@
 use std::collections::HashSet;
 
 use fandhe_frontend_core::{
-    a, article, aside, button, div, el, header, li, main_tag, nav, text, ul, Node,
+    a, article, aside, button, div, el, h2, header, li, main_tag, nav, text, ul, Node,
 };
 use fandhe_frontend_pre_styled_ui::skip_nav as ps_skip_nav;
 
@@ -48,6 +54,24 @@ use crate::script;
 /// （nav スキーマの変更は #939 の管轄。ブランド文字列 `"fandhe-frontend"`
 /// が既に本モジュールへハードコードされている先例に倣う）。
 const REPOSITORY_URL: &str = "https://github.com/Fandhe-AI/fandhe-frontend";
+
+/// 目次に載せる見出しレベルの上限（イシュー #950）。`h2` を第 1 段
+/// （`TOC_MAX_LEVEL - 1`）、`h3` を第 2 段（`TOC_MAX_LEVEL`）とし、
+/// [`toc_nav`] はこれを超える `level` の [`TocEntry`] を出力しない。
+///
+/// 実測（`docs/api/headless-ui-api.md`）では [`heading_level`] が `h2`/`h3`
+/// しか返さないため階層は最初から 2 段であり、本定数は将来
+/// [`heading_level`] の収集対象が `h4` 以降へ拡張された場合でも右目次を
+/// 2 段に固定し続けるための fail-closed なガードである（意図的な深さ制限
+/// であって、収集ロジック自体の拡張ではない）。
+pub const TOC_MAX_LEVEL: u8 = 3;
+
+/// 右目次見出し（`h2.docs-toc-title`）に付与する `id`。`nav.docs-toc` の
+/// `aria-labelledby` が参照する単一実装点。
+pub const TOC_HEADING_ID: &str = "docs-toc-heading";
+
+/// [`TOC_HEADING_ID`] の表示テキスト。
+const TOC_HEADING_TEXT: &str = "On this page";
 
 /// ページ内目次（TOC）の 1 エントリ。
 ///
@@ -84,6 +108,12 @@ pub struct TocEntry {
 pub fn with_heading_anchors(body: Node) -> (Node, Vec<TocEntry>) {
     let mut entries = Vec::new();
     let mut used_ids = HashSet::new();
+    // 右目次見出し（`h2#docs-toc-heading`、[`toc_nav`] が出力）の id を
+    // 走査前に予約する（イシュー #950）。本文側の著者指定 id・自動生成
+    // slug が偶然 `docs-toc-heading` と衝突しても、既存の「衝突時は
+    // `unique_slug` で採番し直す」分岐がそのまま働き `docs-toc-heading-2`
+    // へ回避されるため、id 重複が構造的に起こり得なくなる。
+    used_ids.insert(TOC_HEADING_ID.to_string());
     let annotated = inject_heading_anchors(body, &mut entries, &mut used_ids);
     (annotated, entries)
 }
@@ -245,21 +275,29 @@ fn unique_slug(base: &str, used_ids: &mut HashSet<String>) -> String {
     }
 }
 
-/// [`TocEntry`] 列からページ内目次の `nav` `Node` を生成する。空なら
-/// `None`（目次を出さない。見出しの無いページで空の `nav` を出力しない
-/// ため）。
+/// [`TocEntry`] 列からページ内目次の `nav` `Node` を生成する。
+/// [`TOC_MAX_LEVEL`] を超える見出しは目次から除外し、除外後に 1 件も
+/// 残らない場合は `None` を返す（目次を出さない。見出しの無いページで
+/// 空の `nav` を出力しないため。深さフィルタ適用後の空判定にすることで
+/// `crate::layout::docs_page_with_assets` 側の `has_toc` 判定・
+/// `docs-container--no-toc` 修飾も自動的に整合する）。
 ///
 /// 各項目には `entry.level` に応じたレベルクラス
 /// （`docs-toc-level-2` / `docs-toc-level-3`）を付与し、`h2`/`h3` の階層を
 /// CSS 側のインデント表現で区別できるようにする（Bugbot 指摘 b0e41098:
 /// 従来はフラットな `<li>` 列で `level` を一切参照しておらず、見出し階層が
 /// マークアップ上で表現できなかった）。
+///
+/// 先頭に `h2.docs-toc-title`（[`TOC_HEADING_ID`]、イシュー #950）を出力し、
+/// `nav` へ `aria-labelledby` で紐付ける（ランドマークに名前を与える。
+/// WCAG 2.4.1 相当）。現在地ハイライト（`aria-current="location"`）は
+/// [`crate::script::SITE_JS`] のみが実行時に付与する契約であり、本関数の
+/// 出力には一切含めない（JS 無効・読み込み失敗時は通常のリンク表示の
+/// ままにする progressive enhancement、`crate::script` モジュール doc 参照）。
 pub fn toc_nav(entries: &[TocEntry]) -> Option<Node> {
-    if entries.is_empty() {
-        return None;
-    }
-    let items = entries
+    let items: Vec<Node> = entries
         .iter()
+        .filter(|entry| entry.level <= TOC_MAX_LEVEL)
         .map(|entry| {
             let href = format!("#{}", entry.id);
             let level_class = format!("docs-toc-level-{}", entry.level);
@@ -269,7 +307,17 @@ pub fn toc_nav(entries: &[TocEntry]) -> Option<Node> {
             )
         })
         .collect();
-    Some(nav(vec![("class", "docs-toc")], vec![ul(vec![], items)]))
+    if items.is_empty() {
+        return None;
+    }
+    let heading = h2(
+        vec![("class", "docs-toc-title"), ("id", TOC_HEADING_ID)],
+        vec![text(TOC_HEADING_TEXT.to_string())],
+    );
+    Some(nav(
+        vec![("class", "docs-toc"), ("aria-labelledby", TOC_HEADING_ID)],
+        vec![heading, ul(vec![], items)],
+    ))
 }
 
 /// `base_path` を考慮したアセット参照パスを生成する（受け入れ条件 3 の

@@ -9,7 +9,8 @@
 
 use fandhe_frontend_core::{h2, h3, li, p, render, text, ul};
 use fandhe_frontend_docs_site::layout::{
-    asset_href, docs_page, docs_page_with_assets, toc_nav, with_heading_anchors,
+    asset_href, docs_page, docs_page_with_assets, toc_nav, with_heading_anchors, TocEntry,
+    TOC_HEADING_ID,
 };
 use fandhe_frontend_docs_site::nav::{header_nav, parse_nav};
 use fandhe_frontend_docs_site::script;
@@ -365,6 +366,122 @@ fn toc_nav_items_carry_level_class_distinguishing_h2_and_h3() {
     let html = render(&toc);
     assert!(html.contains(r#"class="docs-toc-level-2""#));
     assert!(html.contains(r#"class="docs-toc-level-3""#));
+}
+
+/// イシュー #950 受入条件 1: 右目次の先頭に "On this page" 見出し
+/// （`h2.docs-toc-title`）が `<ul` より前に出力される。
+#[test]
+fn toc_nav_emits_on_this_page_heading_before_the_list() {
+    let entries = vec![TocEntry {
+        level: 2,
+        id: "intro".to_string(),
+        title: "導入".to_string(),
+    }];
+    let toc = toc_nav(&entries).expect("toc_nav must return Some for non-empty entries");
+    let html = render(&toc);
+
+    assert!(html.contains(r#"class="docs-toc-title""#));
+    assert!(html.contains("On this page"));
+    let title_pos = html
+        .find(r#"class="docs-toc-title""#)
+        .expect("docs-toc-title should exist");
+    let ul_pos = html.find("<ul>").expect("ul should exist");
+    assert!(
+        title_pos < ul_pos,
+        "docs-toc-title heading should precede the list"
+    );
+}
+
+/// `nav.docs-toc` は自身の見出しへ `aria-labelledby` で紐付き、対応する
+/// `id` を持つ（ランドマークへ名前を与える。WCAG 2.4.1 相当）。
+#[test]
+fn toc_nav_is_labelled_by_its_heading() {
+    let entries = vec![TocEntry {
+        level: 2,
+        id: "intro".to_string(),
+        title: "導入".to_string(),
+    }];
+    let toc = toc_nav(&entries).expect("toc_nav must return Some for non-empty entries");
+    let html = render(&toc);
+
+    let expected_labelledby = format!(r#"aria-labelledby="{TOC_HEADING_ID}""#);
+    let expected_id = format!(r#"id="{TOC_HEADING_ID}""#);
+    assert!(html.contains(&expected_labelledby));
+    assert!(html.contains(&expected_id));
+}
+
+/// イシュー #950 受入条件 2: `TOC_MAX_LEVEL` を超える見出し（`h4` 相当）は
+/// 目次から除外される（将来 `heading_level` が `h4` 以降を拾うようになっても
+/// 右目次は 2 段で頭打ちになる fail-closed なガード）。
+#[test]
+fn toc_nav_drops_entries_deeper_than_the_max_level() {
+    let entries = vec![
+        TocEntry {
+            level: 2,
+            id: "intro".to_string(),
+            title: "導入".to_string(),
+        },
+        TocEntry {
+            level: 3,
+            id: "detail".to_string(),
+            title: "詳細".to_string(),
+        },
+        TocEntry {
+            level: 4,
+            id: "too-deep".to_string(),
+            title: "深すぎる見出し".to_string(),
+        },
+    ];
+    let toc = toc_nav(&entries).expect("toc_nav must return Some when shallow entries remain");
+    let html = render(&toc);
+
+    assert!(html.contains(r##"href="#intro""##));
+    assert!(html.contains(r##"href="#detail""##));
+    assert!(!html.contains(r##"href="#too-deep""##));
+    assert!(!html.contains("深すぎる見出し"));
+}
+
+/// 全エントリが `TOC_MAX_LEVEL` を超える場合、深さフィルタ適用後は空になり
+/// `toc_nav` は `None` を返す（`docs_page_with_assets` の `has_toc` 判定・
+/// `docs-container--no-toc` 修飾が自動的に整合する前提）。
+#[test]
+fn toc_nav_returns_none_when_every_entry_exceeds_the_max_level() {
+    let entries = vec![TocEntry {
+        level: 4,
+        id: "too-deep".to_string(),
+        title: "深すぎる見出し".to_string(),
+    }];
+    assert!(toc_nav(&entries).is_none());
+}
+
+/// イシュー #950: 右目次見出しの id（[`TOC_HEADING_ID`]）は本文走査より前に
+/// 予約される。本文側の見出しが偶然同じ slug へ解決される入力を与えても、
+/// 既存の「衝突時は `unique_slug` で採番し直す」分岐により
+/// `docs-toc-heading-2` へ回避され、id 重複が起こらないことを固定する。
+#[test]
+fn with_heading_anchors_reserves_the_toc_heading_id() {
+    let body = fandhe_frontend_core::div(vec![], vec![h2(vec![], vec![text("Docs toc heading")])]);
+    let (_, entries) = with_heading_anchors(body);
+    assert_eq!(entries.len(), 1);
+    assert_ne!(entries[0].id, TOC_HEADING_ID);
+    assert_eq!(entries[0].id, format!("{TOC_HEADING_ID}-2"));
+}
+
+/// イシュー #950 受入条件 4: 現在地ハイライト（`aria-current="location"`）は
+/// `crate::script::SITE_JS` が実行時にのみ付与する契約であり、SSG が出力する
+/// 静的 markup（`toc_nav` の戻り値）には一切含まれない
+/// （JS 無効・読み込み失敗時は通常のリンク表示のまま機能する
+/// progressive enhancement の Rust 側固定）。
+#[test]
+fn toc_nav_emits_no_aria_current_without_javascript() {
+    let entries = vec![TocEntry {
+        level: 2,
+        id: "intro".to_string(),
+        title: "導入".to_string(),
+    }];
+    let toc = toc_nav(&entries).expect("toc_nav must return Some for non-empty entries");
+    let html = render(&toc);
+    assert!(!html.contains("aria-current"));
 }
 
 #[test]
