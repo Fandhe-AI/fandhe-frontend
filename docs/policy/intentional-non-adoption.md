@@ -1282,6 +1282,14 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 本節時点の現存保留行は 36 行）は、本節でも「保留のまま維持」と
 確定し、再評価トリガーのみを群単位で記録する。
 
+イシュー #937 で新設した `docs/design/component-coverage-map.md` §5 Part D
+（Radix にのみ存在する部品）のうち「保留」区分と判定された 7 件（Form /
+Direction Provider / Accessible Icon / Slot / Inset / Radio / Reset）を
+イシュー #959 で本節へ転記する。本節が記録対象とする行は #735 時点の 36 行
++ Radix 由来 7 行 = 43 行（上表のとおり 36 行の多くは #735 以降の各実装
+イシューで既に保留解除・実装済みへ移行済みであり、43 は「現存する保留行数」
+ではなく「本節が扱ってきた延べ記録対象数」である点に注意）。
+
 **保留と非採用の違い**: 保留は非採用ではない。トリガー充足時は §4 の
 「再導入手続き」を経ずに、通常の feature issue として起票する（§4 の
 評価軸再確認・再評価トリガー充足の提示・不変条件維持の確認という手続きは、
@@ -1295,6 +1303,7 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 | charts 全般 | area-chart / bar-chart / bar-list / bar-segment / cartesian-grid / donut-chart / installation / legend / line-chart / pie-chart / radar-chart / scatter-chart / sparkline / tooltip / use-chart / axes（計 16 件） | 描画特性（SVG 座標計算・データスケーリング）が既存 UI 部品と異なり、`headless-ui`/`pre-styled-ui` とは別クレートとすべきか判断が必要。依存グラフ上限（60 件/深さ 6、REQ-3）との整合評価も未了。**Phase #845 で保留解除進行中**: 再評価トリガー（外部依存ゼロを維持したまま SVG ノード木生成のみで実装できる設計の確立）を充足する基盤（座標スケーリング・SVG ノード木生成・`ChartData` モデル）をイシュー #846 で実装済み（新クレートは作らず `pre-styled-ui::charts` モジュール群、判断根拠は `docs/design/charts-foundation-design.md`）。installation/use-chart の 2 件は保留解除・実装済みへ更新済み（`docs/design/component-coverage-map.md` 該当行参照）。軸/グリッド/凡例/ツールチップ（axes/cartesian-grid/legend/tooltip の 4 件）はイシュー #847 で `pre-styled-ui::charts::{axis,grid,legend,tooltip}` として実装し保留解除済み（インタラクティブ legend・JS 追従型 tooltip はスコープ外のまま、詳細は `docs/design/component-coverage-map.md` 該当行参照）。area-chart/line-chart/sparkline の 3 件はイシュー #848 で保留解除・実装済み（`pre-styled-ui::{area_chart, line_chart, sparkline}`、積み上げ・曲線補間は引き続きスコープ外）。pie-chart/donut-chart の 2 件もイシュー #850 で保留解除・実装済み（`pre-styled-ui::pie_chart`/`donut_chart`、円弧ジオメトリは `charts::pie` に新設。多系列は fail-closed で拒否、`size` variant のみで `color-palette` 軸は非提供。詳細は `docs/design/component-coverage-map.md` 該当行参照）。残る 5 件（bar-chart/bar-list/bar-segment/radar-chart/scatter-chart の各チャート部品）は #849/#851 で個別に保留解除する | 利用要望の確定、および `core`/`headless-ui` と同じ外部依存ゼロ方針を維持したまま SVG ノード木生成のみで実装できる設計の確立（別クレート新設の要否はユーザー承認事項）。基盤（#846）・軸/グリッド/凡例/ツールチップ（#847）・area-chart/line-chart/sparkline（#848）・pie-chart/donut-chart（#850）は充足済み、残 5 件は #849/#851 の実装完了が個別トリガー |
 | 装飾系（CSS 主体で実装可能性がある、または既存基盤で実装見込みがあるもの） | tour | tour は状態機械（ステップ管理・ハイライト対象の同期）が大きく需要待ち。floating-panel（ark・chakra 双方）はイシュー #827 で headless+styled 実装済み、scroll-area（ark・chakra 双方）はイシュー #825 で保留解除・実装済み、splitter（ark・chakra 双方）はイシュー #826 で保留解除・実装済みのため本群から除外（`docs/design/component-coverage-map.md` の該当行を「実装済み」へ更新済み。scroll-area は JS によるスクロール位置追従・thumb drag が同イシューのスコープ外のまま） | 利用要望 issue の起票 |
 | Button バリエーション | close-button / icon-button（`pre-styled-ui` の `Button` variant 拡張要望 issue #830 の起票により保留解除、`crates/pre-styled-ui/src/button.rs` の `icon_button`/`close_button` として実装済み。独立部品ではなく `button` recipe の icon-only 修飾 variant。詳細は `docs/design/component-coverage-map.md` 該当行参照） | 実装済み styled `Button`（`crates/pre-styled-ui`）の variant で近似可能であり、専用部品としての独立実装が必要かは需要待ち | `pre-styled-ui` の `Button` variant 拡張要望 issue の起票 |
+| Radix 由来（イシュー #937 で新規判定、#959 で本節へ転記） | Form (`form`) / Direction Provider (`direction-provider`) / Accessible Icon (`accessible-icon`) / Slot (`slot`) / Inset (`inset`) / Radio (`radio`) / Reset (`reset`)（いずれも `docs/design/component-coverage-map.md` §5 Part D 参照） | Form: `field`/`fieldset` がバリデーション状態表現（`data-invalid`/`data-valid`）までカバーするか未検証。Direction Provider: RTL/LTR 動的注入 provider 機構が §3.23 の JS ランタイム固有 utilities に類するが個別記録がない。Accessible Icon: `icon`（pre-styled のみ）+ `visually_hidden`（headless+pre-styled）の組み合わせでラベル付与が代替可能か未検証。Slot: asChild/Slot 相当の要素種別差し替え・props マージ機構が現時点の `fandhe-frontend-headless-ui` に存在しない（再導入の提案はここでは書かない、`.claude/rules/coding-rust.md`）。Inset: layout 系ユーティリティに近いが #716/#724 の layout プリミティブ 5 件には含まれない。Radio: 既存 `radio_group` はグループ前提、単独 Radio ボタンの anatomy 差分が未検証。Reset: `stylesheet`/`theme` mod が担うリセット責務との重複可能性が未検証 | Form: バリデーション状態表現の対応可否確認後。Direction Provider: provider 機構全般の非採用可否が §3.23/§3.24 へ確定記録された場合、または `dir` 属性の明示的引数渡しで代替可能と判断された場合。Accessible Icon: 代替可否の検証完了時。Slot: 要素差し替え機構の要否が別途の設計検討で明示的に再評価された場合。Inset: layout 系ユーティリティ全般の参照方針が別途確定した場合。Radio: 単独 Radio の要否・anatomy 差分の検証完了時。Reset: 既存 `stylesheet`/`theme` mod のリセット範囲の検証完了時 |
 
 再評価トリガー充足時の手続き: 上記表の該当行に基づき、通常の feature issue
 （`create-issue` 等）を起票し、本節・`docs/design/component-coverage-map.md`
