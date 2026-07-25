@@ -355,6 +355,11 @@ source = "site/components/menu.md"
 path = "/components/menu/"
 
 [[section.group.page]]
+title = "Menubar"
+source = "site/components/menubar.md"
+path = "/components/menubar/"
+
+[[section.group.page]]
 title = "Nav List"
 source = "site/components/nav-list.md"
 path = "/components/nav-list/"

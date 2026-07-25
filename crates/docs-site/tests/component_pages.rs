@@ -420,7 +420,7 @@ fn scope_resolution_buckets_match_expected_counts() {
             bucket2_fallback += 1;
         }
     }
-    assert_eq!(bucket1_path_match, 87);
+    assert_eq!(bucket1_path_match, 88);
     assert_eq!(bucket2_fallback, 4);
     assert_eq!(bucket3_none, 0);
 }
@@ -531,6 +531,7 @@ fn overlay_disclosure_pages_include_all_required_sections() {
         "/components/floating-panel/",
         "/components/hover-card/",
         "/components/menu/",
+        "/components/menubar/",
         "/components/popover/",
         "/components/tabs/",
         "/components/toast/",

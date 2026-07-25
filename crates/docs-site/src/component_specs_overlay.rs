@@ -11,14 +11,26 @@
 //! 組み立てる）。
 //!
 //! 対象は accordion・action-bar・dialog・drawer・floating-panel・
-//! hover-card・menu・popover・tabs・toast・toggle-tip・toolbar・tooltip・
-//! tour の 14 部品（トリガー起点のオーバーレイ、または項目開閉の
-//! ディスクロージャ系。toolbar はイシュー #991 で追加、`showcase.rs` の
-//! Demo 登録込み）。`toggle`/`toggle-group` はショーケース CSS 未登録により
-//! Demo を持たないため（`crates/docs-site/src/showcase.rs` を変更しないと
-//! いう #946 時点の受け入れ条件 4 の制約。#991 の Phase 8 には同制約は
-//! 適用されない）、本モジュールには含めず `site/components/` の Markdown
-//! 側で完結させる（計画 §4.5 参照）。
+//! hover-card・menu・menubar・popover・tabs・toast・toggle-tip・toolbar・
+//! tooltip・tour の 15 部品（トリガー起点のオーバーレイ、または項目開閉の
+//! ディスクロージャ系。toolbar はイシュー #991、menubar はイシュー #992
+//! で追加、いずれも `showcase.rs` の Demo 登録込み）。`toggle`/`toggle-group`
+//! はショーケース CSS 未登録により Demo を持たないため（`crates/docs-site/src/showcase.rs`
+//! を変更しないという #946 時点の受け入れ条件 4 の制約。#991/#992 の
+//! Phase 8 には同制約は適用されない）、本モジュールには含めず
+//! `site/components/` の Markdown 側で完結させる（計画 §4.5 参照）。
+//!
+//! menubar のみ [`KeyRow`] を空にしていない（イシュー #992 実装計画で
+//! 確定済みの判断）。他 14 部品はいずれも「フォーカストラップ・Escape
+//! 閉鎖・キーボードナビゲーションは JS ランタイム側の責務としてスコープ
+//! 外」（実 DOM のキー配線が未実装）という理由で空のままだが、menubar は
+//! 「開いている Menu を跨いだ左右移動」が主題のため、実装済みの
+//! `MenubarAction` variant（`crates/headless-ui/src/menubar.rs` の
+//! `decode_action`）と 1:1 対応する行のみを記載し、各行の説明に「wasm 層
+//! 実装」の注記を付けて実 DOM キー配線が本クレートのスコープ外である旨を
+//! 明示する（`docs/design/docs-site-component-pages.md` の一次情報規約に
+//! 従い、`decode_action` が受理するアクション名に対応しない架空のキー
+//! 割り当ては書かない）。
 //!
 //! # 一次情報の所在（受け入れ条件 2 の裏付け、創作の禁止）
 //!
@@ -59,7 +71,7 @@
 //! 木経由で `render()` が行う（`features_and_table_cells_escape_xss_payloads`
 //! が既存フィクスチャで固定済み）。
 
-use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec};
+use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, KeyRow};
 
 /// `/components/accordion/`（Interactive カテゴリ）。
 ///
@@ -186,6 +198,96 @@ pub const TOOLBAR: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "aria-disabled",
             description: "disabled な button/toggle-item に付与。ネイティブ disabled は付与せずフォーカス順序に残す。",
+        },
+    ],
+    demo: None,
+};
+
+/// `/components/menubar/`（Interactive カテゴリ）。
+///
+/// 一次情報: `crates/headless-ui/src/menubar.rs`（モジュール doc・
+/// `root`/`menu`/`trigger`/`positioner`/`content`/`item`/`item_group`/
+/// `item_group_label`/`separator`/`sub_trigger`/`sub_content` シグネチャ・
+/// `role="menubar"`/`role="none"`/`role="menuitem"`/`role="menu"` の実出力
+/// テスト・`Menubar::decode_action` のアクション名網羅）。
+pub const MENUBAR: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "複数 Menu を水平（または垂直）に並べるコンテナ。Root / Menu / Trigger / Positioner / Content / Item / ItemGroup / ItemGroupLabel / Separator / SubTrigger / SubContent の 11 anatomy パーツを持つ。",
+        "roving tabindex（focused/trigger_count/open/loop_focus/orientation の複合状態機械 Menubar）。フォーカス対象のトリガーのみ tabindex=\"0\"、それ以外は tabindex=\"-1\" になる。",
+        "開いている Menu を跨いだ左右移動: ある Menu が開いた状態で Next/Prev/First/Last/Focus アクションを送ると、フォーカス移動と同時に開く Menu も隣へ移る（menubar 特有の挙動、Toolbar の roving tabindex には無い）。",
+        "menu パーツは role=\"none\" を固定付与し、role=\"menubar\" の子として menuitem/group 以外の要素を挟まないようにする（WAI-ARIA APG の menubar パターン）。",
+        "サブメニューの開閉状態は Menubar 自身ではなく、呼び出し側が別途持つ Menu インスタンス（Disclosure 埋め込み）から SubTrigger/SubContent へ注入する。",
+        "既存の menu モジュールの anatomy はそのまま再利用しない（data-scope=\"menubar\" を独自に持つ）。状態機械・値語彙（OpenState/aria/data-* ヘルパ）のみを再利用する。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "orientation",
+            kind: "Orientation",
+            default: "Orientation::Horizontal",
+            description: "root の role=\"menubar\" に付与する向き（Horizontal/Vertical）。aria-orientation/data-orientation の両方へ反映される。",
+        },
+        ArgRow {
+            name: "label",
+            kind: "&str",
+            default: "",
+            description: "root に付与する aria-label（空文字列のときは省略）。",
+        },
+        ArgRow {
+            name: "focused",
+            kind: "bool",
+            default: "",
+            description: "trigger に付与。true のとき tabindex=\"0\"、false のとき tabindex=\"-1\"（roving tabindex）。",
+        },
+        ArgRow {
+            name: "state",
+            kind: "OpenState",
+            default: "",
+            description: "trigger/positioner/content/sub_trigger/sub_content の開閉状態（Open/Closed）。",
+        },
+    ],
+    examples: &[],
+    keyboard: &[
+        KeyRow {
+            key: "ArrowRight / ArrowLeft",
+            description: "次/前のトリガーへフォーカスを移動する。ある Menu が開いていれば、開く Menu も追随する（MenubarAction::Next/Prev、wasm 層実装）。",
+        },
+        KeyRow {
+            key: "Home / End",
+            description: "先頭/末尾のトリガーへフォーカスを移動する（MenubarAction::First/Last、wasm 層実装）。",
+        },
+        KeyRow {
+            key: "Enter / Space / ArrowDown",
+            description: "フォーカス中のトリガーの Menu を開く（MenubarAction::Open、wasm 層実装）。",
+        },
+        KeyRow {
+            key: "Escape",
+            description: "開いている Menu を閉じる（MenubarAction::Close、wasm 層実装）。",
+        },
+    ],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"menubar\" / aria-orientation",
+            description: "root に付与。orientation 引数の値（horizontal/vertical）を反映する。",
+        },
+        AriaRow {
+            attribute: "role=\"none\"",
+            description: "menu に付与。role=\"menubar\" の子として menuitem/group 以外を挟まないための WAI-ARIA APG 慣行。",
+        },
+        AriaRow {
+            attribute: "role=\"menuitem\" / aria-haspopup=\"menu\" / aria-expanded",
+            description: "trigger/sub-trigger に付与。開閉状態（this Menu の state、もしくはサブメニュー側の sub_state）を反映する。",
+        },
+        AriaRow {
+            attribute: "role=\"menu\"",
+            description: "content/sub-content に固定付与。aria-labelledby は labelledby 引数が Some のときのみ出力される。",
+        },
+        AriaRow {
+            attribute: "role=\"menuitem\"",
+            description: "item に固定付与。disabled 時のみ aria-disabled=\"true\" が付与される。",
+        },
+        AriaRow {
+            attribute: "role=\"group\"",
+            description: "item-group に固定付与。labelledby が Some のときのみ aria-labelledby が付与される。",
         },
     ],
     demo: None,
