@@ -392,7 +392,8 @@ fn anatomy_parts_exactly_match_declared_parts_for_fully_demonstrated_components(
 /// §3.4 のスコープ解決バケット件数（実測、`COMPONENT_PAGES` 登録件数
 /// 〔イシュー #980 で toggle/toggle-group・#991 で Toolbar・#992 で
 /// Menubar・#993 で Navigation Menu・#994 で Callout・#995 で Quote /
-/// Strong・#996 で Tab Nav を追加登録した後の件数〕に対して固定）。将来の
+/// Strong・#996 で Tab Nav・#997 で Checkbox Group を追加登録した後の
+/// 件数〕に対して固定）。将来の
 /// 部品追加でバケット 3（Anatomy 省略）へ無言に落ちることを検知するための
 /// 固定値テスト。バケット 2（フォールバック解決）は
 /// `input`/`textarea`/`native-select`（いずれも headless `field::input` の
@@ -426,8 +427,10 @@ fn scope_resolution_buckets_match_expected_counts() {
     // 一致）が加わり 89 -> 90、イシュー #995 で Quote / Strong の 2 部品
     // ページが加わり（いずれも path 由来の kebab quote/strong が
     // data-scope とそのまま一致する）90 -> 92、イシュー #996 で Tab Nav が
-    // 加わり 92 -> 93 へ増える。
-    assert_eq!(bucket1_path_match, 93);
+    // 加わり 92 -> 93、イシュー #997 で Checkbox Group（path 由来の kebab
+    // checkbox-group が data-scope="checkbox-group" と一致）が加わり
+    // 93 -> 94 へ増える。
+    assert_eq!(bucket1_path_match, 94);
     assert_eq!(bucket2_fallback, 4);
     assert_eq!(bucket3_none, 0);
 }
@@ -701,6 +704,7 @@ const FORMS_PATHS: &[&str] = &[
     "/components/calendar/",
     "/components/checkbox/",
     "/components/checkbox-card/",
+    "/components/checkbox-group/",
     "/components/color-picker/",
     "/components/combobox/",
     "/components/date-input/",

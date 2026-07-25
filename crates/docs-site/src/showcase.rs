@@ -90,6 +90,7 @@ use fandhe_frontend_pre_styled_ui::charts::svg::{svg_root, ViewBox};
 use fandhe_frontend_pre_styled_ui::charts::tooltip as chart_tooltip;
 use fandhe_frontend_pre_styled_ui::checkbox::{self, CheckboxProps, CheckedState};
 use fandhe_frontend_pre_styled_ui::checkbox_card;
+use fandhe_frontend_pre_styled_ui::checkbox_group;
 use fandhe_frontend_pre_styled_ui::code::code;
 use fandhe_frontend_pre_styled_ui::color_picker;
 use fandhe_frontend_pre_styled_ui::color_swatch::{
@@ -559,6 +560,10 @@ const COMPONENT_PAGES: &[ComponentPage] = &[
         render: checkbox_card_section,
     },
     ComponentPage {
+        path: "/components/checkbox-group/",
+        render: checkbox_group_section,
+    },
+    ComponentPage {
         path: "/components/radio-card/",
         render: radio_card_section,
     },
@@ -828,6 +833,7 @@ pub fn stylesheet() -> Result<StyleSheet, StylesheetError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::avatar::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::checkbox::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::checkbox_card::stylesheet())?;
+    sheet.push_css(&fandhe_frontend_pre_styled_ui::checkbox_group::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::radio_card::stylesheet())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::input::css())?;
     sheet.push_css(&fandhe_frontend_pre_styled_ui::textarea::css())?;
@@ -4312,6 +4318,77 @@ fn checkbox_card_section() -> Node {
     )
 }
 
+/// CheckboxGroup 節: 複数選択の選択肢グループ（イシュー #997）。
+///
+/// Radix Themes Checkbox Group 相当。状態機械は
+/// [`fandhe_frontend_pre_styled_ui::radio_group`] 節と対称の
+/// [`fandhe_frontend_headless_ui::state::MultiSelect`] を埋め込んだ
+/// `CheckboxGroup`（複数同時選択）。ネイティブ `<input type="checkbox">` は
+/// 自前パーツを持たず [`fandhe_frontend_pre_styled_ui::checkbox::hidden_input`]
+/// を [`checkbox_group::item`] 配下へ入れ子で再利用する（`crates/pre-styled-ui/src/checkbox_group.rs`
+/// rustdoc「`item-hidden-input` を本モジュールが持たない理由」節参照。
+/// [`stylesheet`] が `checkbox::stylesheet()` と `checkbox_group::stylesheet()`
+/// の両方を push する契約もこの入れ子構成に対応する）。
+fn checkbox_group_section() -> Node {
+    let label_id = "showcase-checkbox-group-label";
+    let items = [
+        ("red", "Red", true, false),
+        ("green", "Green", false, false),
+        ("blue", "Blue", false, true),
+    ];
+    let mut children = vec![checkbox_group::label(
+        Some(label_id),
+        vec![],
+        vec![text("Colors")],
+    )];
+    children.extend(items.iter().map(|(value, label, checked, disabled)| {
+        let props = CheckboxProps {
+            checked: if *checked {
+                CheckedState::Checked
+            } else {
+                CheckedState::Unchecked
+            },
+            disabled: *disabled,
+            ..CheckboxProps::default()
+        };
+        checkbox_group::item(
+            *checked,
+            *disabled,
+            value,
+            vec![],
+            vec![
+                checkbox::hidden_input(&props, "showcase-checkbox-group", value, vec![]),
+                checkbox_group::item_control(
+                    *checked,
+                    *disabled,
+                    vec![],
+                    vec![checkbox_group::item_indicator(
+                        *checked,
+                        *disabled,
+                        vec![],
+                        vec![],
+                    )],
+                ),
+                checkbox_group::item_text(*checked, *disabled, vec![], vec![text(*label)]),
+            ],
+        )
+    }));
+    let demo = checkbox_group::root(
+        Size::Md,
+        ColorPalette::Accent,
+        false,
+        Some(Orientation::Vertical),
+        Some(label_id),
+        vec![],
+        children,
+    );
+    section(
+        "CheckboxGroup",
+        "複数選択の選択肢グループ。ネイティブ input[type=\"checkbox\"]（fandhe_frontend_pre_styled_ui::checkbox::hidden_input の再利用）による同時選択・キーボード操作を data-scope=\"checkbox-group\" の anatomy へ重ねます。",
+        vec![demo],
+    )
+}
+
 /// RadioCard 節: 単一選択のカード型選択 UI（イシュー #747）。
 ///
 /// 状態機械は [`fandhe_frontend_pre_styled_ui::radio_group`] 節と同じ headless
@@ -6194,7 +6271,8 @@ mod tests {
         // イシュー #994 で Callout を追加し 93 → 94 件になった。
         // イシュー #995 で Quote / Strong を追加し 94 → 96 件になった。
         // イシュー #996 で Tab Nav を追加し 96 → 97 件になった。
-        assert_eq!(paths.len(), 97, "COMPONENT_PAGES should have 97 entries");
+        // イシュー #997 で Checkbox Group を追加し 97 → 98 件になった。
+        assert_eq!(paths.len(), 98, "COMPONENT_PAGES should have 98 entries");
 
         let mut sorted = paths.clone();
         sorted.sort_unstable();

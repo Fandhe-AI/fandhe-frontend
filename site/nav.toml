@@ -182,6 +182,11 @@ source = "site/components/checkbox-card.md"
 path = "/components/checkbox-card/"
 
 [[section.group.page]]
+title = "Checkbox Group"
+source = "site/components/checkbox-group.md"
+path = "/components/checkbox-group/"
+
+[[section.group.page]]
 title = "Color Picker"
 source = "site/components/color-picker.md"
 path = "/components/color-picker/"

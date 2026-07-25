@@ -283,6 +283,7 @@ mod tests {
             ("avatar", crate::avatar::stylesheet()),
             ("checkbox", crate::checkbox::stylesheet()),
             ("checkbox_card", crate::checkbox_card::stylesheet()),
+            ("checkbox_group", crate::checkbox_group::stylesheet()),
             ("radio_card", crate::radio_card::stylesheet()),
             ("input", crate::input::css()),
             ("textarea", crate::textarea::css()),

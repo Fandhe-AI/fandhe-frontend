@@ -57,14 +57,16 @@ use fandhe_frontend_pre_styled_ui::{ColorPalette, Size};
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec};
 
-/// Forms 26 ページ（当初 31 ページから、#948 と二重登録だった 5 ページを
-/// 削除済み）の `path -> ComponentPageSpec` テーブル。
+/// Forms 27 ページ（当初 31 ページから、#948 と二重登録だった 5 ページを
+/// 削除・#997 で Checkbox Group を追加済み）の `path -> ComponentPageSpec`
+/// テーブル。
 /// [`crate::component_page::SPEC_TABLES`] が集約する。
 pub const SPECS: &[(&str, ComponentPageSpec)] = &[
     ("/components/angle-slider/", ANGLE_SLIDER),
     ("/components/button/", BUTTON),
     ("/components/checkbox/", CHECKBOX),
     ("/components/checkbox-card/", CHECKBOX_CARD),
+    ("/components/checkbox-group/", CHECKBOX_GROUP),
     ("/components/combobox/", COMBOBOX),
     ("/components/editable/", EDITABLE),
     ("/components/file-upload/", FILE_UPLOAD),
@@ -271,6 +273,75 @@ const CHECKBOX_CARD: ComponentPageSpec = ComponentPageSpec {
     examples: &[],
     keyboard: &[],
     aria: &[],
+    demo: None,
+};
+
+const CHECKBOX_GROUP: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "`size`/`colorPalette` variant クラスを `root` へ付与し、headless-ui の `checkbox_group::root` へ委譲する。",
+        "`radio_group` と対称の構造だが、複数選択状態機械（`MultiSelect`）を埋め込み、dispatch は `select`/`deselect`/`toggle` の 3 語彙を受理する。",
+        "ネイティブ `<input type=\"checkbox\">` は自前パーツを持たず、`checkbox::hidden_input` を `item` 配下へ入れ子で再利用する（`hidden-input` の視覚的非表示化は `checkbox` の recipe が担う）。",
+        "`aria-checked`/`role=\"checkbox\"` は `item-control` へ重複付与しない（二重読み上げ防止）。グループ全体の関連付けは `root` の `aria-labelledby` で行う。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "size",
+            kind: "Size",
+            default: "Size::Md",
+            description: "サイズ variant。",
+        },
+        ArgRow {
+            name: "palette",
+            kind: "ColorPalette",
+            default: "ColorPalette::Accent",
+            description: "colorPalette 軸。",
+        },
+        ArgRow {
+            name: "disabled",
+            kind: "bool",
+            default: "false",
+            description: "グループ全体の無効化状態。",
+        },
+        ArgRow {
+            name: "orientation",
+            kind: "Option<Orientation>",
+            default: "None",
+            description: "キーボード操作方向のヒント（`aria-orientation`）。",
+        },
+        ArgRow {
+            name: "labelled_by",
+            kind: "Option<&str>",
+            default: "None",
+            description: "`Some` のとき `aria-labelledby` を付与する。",
+        },
+        ArgRow {
+            name: "attrs",
+            kind: "Vec<(&str, &str)>",
+            default: "",
+            description: "root パーツへ合成する追加属性。",
+        },
+        ArgRow {
+            name: "children",
+            kind: "Vec<Node>",
+            default: "",
+            description: "root 配下の子ノード。",
+        },
+    ],
+    examples: &[],
+    keyboard: &[crate::component_page::KeyRow {
+        key: "Space",
+        description: "ネイティブ `<input type=\"checkbox\">`（`checkbox::hidden_input` の再利用）のブラウザ既定動作としてチェック状態をトグルする（ブラウザ実装依存、本フレームワークの JS 出力によらない）。",
+    }],
+    aria: &[
+        AriaRow {
+            attribute: "aria-labelledby",
+            description: "`labelled_by` が `Some` のときのみ `root` へ付与する。",
+        },
+        AriaRow {
+            attribute: "aria-orientation",
+            description: "`orientation` が `Some` のとき `root` へ `data-orientation` と対で付与する。",
+        },
+    ],
     demo: None,
 };
 

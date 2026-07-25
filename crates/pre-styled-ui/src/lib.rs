@@ -415,6 +415,16 @@
 //!   [`crate::checkbox_card`] と同型に headless-ui へ mod を追加せず本層で
 //!   anatomy を新規定義する。`size`/`color-palette` 軸は持たない。詳細は
 //!   [`mod@tab_nav`] rustdoc 参照。
+//! - headless ラッパー（イシュー #997、`docs/design/component-coverage-map.md`
+//!   実装対象、Radix Themes Checkbox Group 相当）: [`mod@checkbox_group`]
+//!   （CheckboxGroup、Root/Label/Item/ItemControl/ItemIndicator/ItemText の
+//!   6 パーツと [`fandhe_frontend_headless_ui::checkbox_group::CheckboxGroup`]
+//!   複数選択状態機械）。単一選択版 [`mod@radio_group`] と対称の構造。
+//!   ネイティブ `<input type="checkbox">` は自前パーツを持たず
+//!   [`mod@checkbox`] の `hidden_input` の再利用で賄うため、利用時は本
+//!   モジュールの `stylesheet()` に加えて [`crate::checkbox::stylesheet`]
+//!   も併せて読み込む必要がある。詳細は [`mod@checkbox_group`] rustdoc
+//!   参照。
 //!
 //! # headless ラッパーの設計（#551/#664/#682/#683/#729）
 //!
@@ -557,6 +567,7 @@ pub mod carousel;
 pub mod charts;
 pub mod checkbox;
 pub mod checkbox_card;
+pub mod checkbox_group;
 mod class_attr;
 pub mod clipboard;
 pub mod code;
