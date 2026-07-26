@@ -3597,6 +3597,14 @@ mod wiring {
                 }
             }
             ComboboxKeyAction::Confirm => {
+                // listbox が開いている間の Enter は、Menu/Select と同様に
+                // 常に既定動作（フォーム submit 等）をキャンセルする
+                // （Bugbot 指摘 "Open Enter skips preventDefault"、イシュー
+                // #1071）。ハイライト無し／disabled で確定処理自体を
+                // no-op にする場合でも、フォーカスはテキスト `input` に
+                // 残ったままなので `prevent_default` を先に呼び、早期
+                // return より前に確実に実行する。
+                event.prevent_default();
                 let items = filter_own_scope_items(
                     collect_parts(&content, COMBOBOX_ITEM_SELECTOR),
                     &content,
@@ -3609,7 +3617,6 @@ mod wiring {
                 if disabled[highlighted_index] {
                     return;
                 }
-                event.prevent_default();
                 // Escape（Close）と同様、確定（選択+クローズ）でも
                 // highlight を先にクリアする。クリアしないと collapsed
                 // 後の Combobox が `aria-activedescendant` で hidden な
