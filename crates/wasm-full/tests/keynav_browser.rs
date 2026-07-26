@@ -49,6 +49,14 @@
 //!     しない）、closed 時の文字キーで open + マッチ項目の初期 highlight、
 //!     バッファ有効時の Space はバッファへ追記され決定にならない、Escape
 //!     後の再入力は新規バッファから始まる、攻撃者制御ラベルでの XSS 回帰
+//! 11. Listbox（イシュー #1070）: content 自身が keydown ターゲットであり
+//!     Arrow（既定 Vertical、`data-orientation="horizontal"` で軸切替）/
+//!     Home/End で highlight・`aria-activedescendant` を更新、既定非循環・
+//!     `data-loop-focus="true"` で循環、disabled スキップ、typeahead は
+//!     Menu/Select と同じ実装を再利用、Enter/Space（バッファ非活性時）は
+//!     highlight 中の非 disabled 項目へ click 合成、Escape は Menu/Select と
+//!     非対称に highlight を維持したまま typeahead バッファのみリセット
+//!     （`prevent_default` しない）、攻撃者制御ラベルでの XSS 回帰
 
 #![cfg(target_arch = "wasm32")]
 
@@ -4195,5 +4203,534 @@ fn combobox_closed_arrow_down_opens_after_full_subtree_replacement_still_sets_hi
         live_input.get_attribute("aria-activedescendant").as_deref(),
         Some(format!("{root_id}-item-a").as_str()),
         "生きた input の aria-activedescendant が設定されるべき（Bugbot 指摘）"
+    );
+}
+
+// ---------------------------------------------------------------------
+// Listbox（常時展開のリスト選択、`crates/headless-ui/src/listbox.rs`）の
+// Arrow/Home/End/typeahead/Enter・Space/Escape キーボード配線
+// （イシュー #1070）。
+// ---------------------------------------------------------------------
+
+/// `crates/headless-ui/src/listbox.rs` の SSR 出力契約を手組みで再現した
+/// Listbox DOM を生成する。`items`: `(value, label, disabled)` のリスト。
+/// `orientation`/`loop_focus` は `Some` のときのみ `data-orientation`/
+/// `data-loop-focus` を content へ付与する（headless-ui はいずれも出力
+/// しない呼び出し側オプトイン属性であるため、`None` は「欠落」を表す）。
+/// `listbox::content()`（`role="listbox"`/`tabindex="0"`）とは異なり本クレート
+/// は `fandhe-frontend-headless-ui` に依存しないため、実際の `listbox::content()`/
+/// `listbox::item()` 関数は呼べず属性契約を手組みで再現する。
+fn build_listbox_dom(
+    document: &Document,
+    root_id: &str,
+    items: &[(&str, &str, bool)],
+    orientation: Option<&str>,
+    loop_focus: Option<&str>,
+) -> Element {
+    let root = document.create_element("div").unwrap();
+    root.set_id(root_id);
+    root.set_attribute("data-scope", "listbox").unwrap();
+    root.set_attribute("data-part", "root").unwrap();
+
+    let content = document.create_element("div").unwrap();
+    content.set_attribute("data-scope", "listbox").unwrap();
+    content.set_attribute("data-part", "content").unwrap();
+    let content_id = format!("{root_id}-content");
+    content.set_attribute("id", &content_id).unwrap();
+    content.set_attribute("role", "listbox").unwrap();
+    content.set_attribute("tabindex", "0").unwrap();
+    if let Some(orientation) = orientation {
+        content
+            .set_attribute("data-orientation", orientation)
+            .unwrap();
+    }
+    if let Some(loop_focus) = loop_focus {
+        content
+            .set_attribute("data-loop-focus", loop_focus)
+            .unwrap();
+    }
+
+    for (value, label, disabled) in items {
+        let item = document.create_element("div").unwrap();
+        item.set_attribute("data-scope", "listbox").unwrap();
+        item.set_attribute("data-part", "item").unwrap();
+        item.set_attribute("role", "option").unwrap();
+        item.set_attribute("data-value", value).unwrap();
+        item.set_attribute("id", &format!("{root_id}-item-{value}"))
+            .unwrap();
+        item.set_attribute("aria-selected", "false").unwrap();
+        if *disabled {
+            item.set_attribute("aria-disabled", "true").unwrap();
+            item.set_attribute("data-disabled", "").unwrap();
+        }
+        let text = document.create_element("span").unwrap();
+        text.set_attribute("data-part", "item-text").unwrap();
+        text.set_text_content(Some(label));
+        item.append_child(&text).unwrap();
+        content.append_child(&item).unwrap();
+    }
+    root.append_child(&content).unwrap();
+
+    document
+        .body()
+        .unwrap()
+        .append_child(&root)
+        .expect("append_child must not fail for a detached div");
+    root
+}
+
+/// 検証 1（受け入れ条件 2）: 既定 Vertical で ArrowDown/ArrowUp が highlight
+/// を移動し、`content` の `aria-activedescendant` が highlight 対象の `id`
+/// へ追随する。`data-highlighted` は常に 1 個のみ付与される。
+#[wasm_bindgen_test]
+fn listbox_arrow_down_up_move_highlight_and_update_aria_activedescendant() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_listbox_dom(
+        &document,
+        "kn-lb-arrow1",
+        &[("a", "A", false), ("b", "B", false), ("c", "C", false)],
+        None,
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let content = document.get_element_by_id("kn-lb-arrow1-content").unwrap();
+    let item_a = document.get_element_by_id("kn-lb-arrow1-item-a").unwrap();
+    let item_b = document.get_element_by_id("kn-lb-arrow1-item-b").unwrap();
+
+    content.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+    assert_eq!(
+        content.get_attribute("aria-activedescendant").as_deref(),
+        Some("kn-lb-arrow1-item-a")
+    );
+
+    content.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(item_b.has_attribute("data-highlighted"));
+    assert!(!item_a.has_attribute("data-highlighted"));
+    assert_eq!(
+        content.get_attribute("aria-activedescendant").as_deref(),
+        Some("kn-lb-arrow1-item-b")
+    );
+
+    content.dispatch_event(&keydown_event("ArrowUp")).unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+    assert!(!item_b.has_attribute("data-highlighted"));
+
+    // Horizontal 方向のキーは既定 Vertical では no-op（受け入れ条件）。
+    let not_default_prevented = content
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(
+        not_default_prevented,
+        "既定 Vertical では ArrowRight は prevent_default されるべきではない"
+    );
+    assert!(item_a.has_attribute("data-highlighted"));
+}
+
+/// 検証 2: disabled 項目を Arrow ナビゲーションがスキップする。
+#[wasm_bindgen_test]
+fn listbox_arrow_navigation_skips_disabled_items() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_listbox_dom(
+        &document,
+        "kn-lb-disabled1",
+        &[("a", "A", false), ("b", "B", true), ("c", "C", false)],
+        None,
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let content = document
+        .get_element_by_id("kn-lb-disabled1-content")
+        .unwrap();
+    let item_a = document
+        .get_element_by_id("kn-lb-disabled1-item-a")
+        .unwrap();
+    let item_c = document
+        .get_element_by_id("kn-lb-disabled1-item-c")
+        .unwrap();
+
+    content.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+    content.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(
+        item_c.has_attribute("data-highlighted"),
+        "disabled な B をスキップして C へ移動すべき"
+    );
+}
+
+/// 検証 3: Home/End で先頭/末尾の非 disabled 項目へ移動する。
+#[wasm_bindgen_test]
+fn listbox_home_end_move_to_first_last_enabled() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_listbox_dom(
+        &document,
+        "kn-lb-homeend1",
+        &[
+            ("a", "A", true),
+            ("b", "B", false),
+            ("c", "C", false),
+            ("d", "D", true),
+        ],
+        None,
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let content = document
+        .get_element_by_id("kn-lb-homeend1-content")
+        .unwrap();
+    let item_b = document.get_element_by_id("kn-lb-homeend1-item-b").unwrap();
+    let item_c = document.get_element_by_id("kn-lb-homeend1-item-c").unwrap();
+
+    content.dispatch_event(&keydown_event("Home")).unwrap();
+    assert!(item_b.has_attribute("data-highlighted"));
+    content.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(item_c.has_attribute("data-highlighted"));
+    assert!(!item_b.has_attribute("data-highlighted"));
+}
+
+/// 検証 4: `data-loop-focus` 欠落（既定）では末尾で ArrowDown が no-op
+/// （`aria-activedescendant` 不変、`prevent_default` もされない）。
+#[wasm_bindgen_test]
+fn listbox_default_does_not_loop_at_ends() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_listbox_dom(
+        &document,
+        "kn-lb-noloop1",
+        &[("a", "A", false), ("b", "B", false)],
+        None,
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let content = document.get_element_by_id("kn-lb-noloop1-content").unwrap();
+    let item_b = document.get_element_by_id("kn-lb-noloop1-item-b").unwrap();
+
+    content.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(item_b.has_attribute("data-highlighted"));
+
+    let not_default_prevented = content.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(
+        not_default_prevented,
+        "端での既定非循環 ArrowDown は prevent_default されるべきではない"
+    );
+    assert!(item_b.has_attribute("data-highlighted"));
+    assert_eq!(
+        content.get_attribute("aria-activedescendant").as_deref(),
+        Some("kn-lb-noloop1-item-b")
+    );
+}
+
+/// 検証 5: content に `data-loop-focus="true"` を明示すると端で循環する。
+#[wasm_bindgen_test]
+fn listbox_explicit_loop_focus_true_wraps_at_ends() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_listbox_dom(
+        &document,
+        "kn-lb-loop1",
+        &[("a", "A", false), ("b", "B", false)],
+        None,
+        Some("true"),
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let content = document.get_element_by_id("kn-lb-loop1-content").unwrap();
+    let item_a = document.get_element_by_id("kn-lb-loop1-item-a").unwrap();
+    let item_b = document.get_element_by_id("kn-lb-loop1-item-b").unwrap();
+
+    content.dispatch_event(&keydown_event("End")).unwrap();
+    assert!(item_b.has_attribute("data-highlighted"));
+    content.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(
+        item_a.has_attribute("data-highlighted"),
+        "data-loop-focus=\"true\" では末尾から先頭へ循環すべき"
+    );
+}
+
+/// 検証 6: `data-orientation="horizontal"` のときのみ ArrowLeft/ArrowRight を
+/// 受理し、ArrowUp/ArrowDown は no-op になる。
+#[wasm_bindgen_test]
+fn listbox_horizontal_orientation_responds_to_left_right_and_ignores_up_down() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_listbox_dom(
+        &document,
+        "kn-lb-horiz1",
+        &[("a", "A", false), ("b", "B", false)],
+        Some("horizontal"),
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let content = document.get_element_by_id("kn-lb-horiz1-content").unwrap();
+    let item_a = document.get_element_by_id("kn-lb-horiz1-item-a").unwrap();
+    let item_b = document.get_element_by_id("kn-lb-horiz1-item-b").unwrap();
+
+    content
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+    content
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(item_b.has_attribute("data-highlighted"));
+
+    let not_default_prevented = content.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(
+        not_default_prevented,
+        "horizontal では ArrowDown は prevent_default されるべきではない"
+    );
+    assert!(item_b.has_attribute("data-highlighted"));
+
+    content.dispatch_event(&keydown_event("ArrowLeft")).unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+}
+
+/// 検証 7: typeahead で `item-text` 子から解決したラベルへ highlight が
+/// 移動する（既存の Menu/Select typeahead 実装の再利用確認）。
+#[wasm_bindgen_test]
+fn listbox_typeahead_moves_highlight_to_matching_item() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_listbox_dom(
+        &document,
+        "kn-lb-typeahead1",
+        &[
+            ("a", "Apple", false),
+            ("b", "Banana", false),
+            ("c", "Cherry", false),
+        ],
+        None,
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let content = document
+        .get_element_by_id("kn-lb-typeahead1-content")
+        .unwrap();
+    let item_b = document
+        .get_element_by_id("kn-lb-typeahead1-item-b")
+        .unwrap();
+
+    content.dispatch_event(&keydown_event("b")).unwrap();
+    assert!(item_b.has_attribute("data-highlighted"));
+    assert_eq!(
+        content.get_attribute("aria-activedescendant").as_deref(),
+        Some("kn-lb-typeahead1-item-b")
+    );
+}
+
+/// 検証 8: タイムアウト内の連続入力でバッファが絞り込まれ、タイムアウト
+/// （[`TYPEAHEAD_TIMEOUT_MS`]）超過後は新規バッファとして再探索する
+/// （`menu_open_typeahead_buffers_within_timeout_and_resets_after` と同型）。
+#[wasm_bindgen_test]
+async fn listbox_typeahead_buffers_within_timeout_and_resets_after() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_listbox_dom(
+        &document,
+        "kn-lb-typeahead2",
+        &[
+            ("a", "Almond", false),
+            ("b", "Apricot", false),
+            ("c", "Banana", false),
+        ],
+        None,
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let content = document
+        .get_element_by_id("kn-lb-typeahead2-content")
+        .unwrap();
+    let item_a = document
+        .get_element_by_id("kn-lb-typeahead2-item-a")
+        .unwrap();
+    let item_b = document
+        .get_element_by_id("kn-lb-typeahead2-item-b")
+        .unwrap();
+    let item_c = document
+        .get_element_by_id("kn-lb-typeahead2-item-c")
+        .unwrap();
+
+    content.dispatch_event(&keydown_event("a")).unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+
+    content.dispatch_event(&keydown_event("p")).unwrap();
+    assert!(item_b.has_attribute("data-highlighted"));
+    assert!(!item_a.has_attribute("data-highlighted"));
+
+    sleep_ms((TYPEAHEAD_TIMEOUT_MS as i32) + 200).await;
+    content.dispatch_event(&keydown_event("b")).unwrap();
+    assert!(item_c.has_attribute("data-highlighted"));
+    assert!(!item_b.has_attribute("data-highlighted"));
+}
+
+/// 検証 9（計画書 §3.4）: Enter/Space は highlight 中の非 disabled 項目へ
+/// `click()` を合成する。合成 click の発火をテストローカルのリスナーで検証
+/// し（`crate::headless::MAPPING_TABLE` が `listbox` 行を持たないため
+/// `aria-selected` の変化は assert しない）、disabled 項目が highlight 中の
+/// ときは click が発火しないことも確認する。
+#[wasm_bindgen_test]
+fn listbox_enter_and_space_synthesize_click_on_highlighted_item() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_listbox_dom(
+        &document,
+        "kn-lb-activate1",
+        &[("a", "A", false), ("b", "B", true)],
+        None,
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let content = document
+        .get_element_by_id("kn-lb-activate1-content")
+        .unwrap();
+    let item_a = document
+        .get_element_by_id("kn-lb-activate1-item-a")
+        .unwrap();
+    let item_b = document
+        .get_element_by_id("kn-lb-activate1-item-b")
+        .unwrap();
+
+    let click_count = std::rc::Rc::new(std::cell::Cell::new(0));
+    let click_closure = Closure::<dyn FnMut(Event)>::new({
+        let click_count = click_count.clone();
+        move |_event: Event| {
+            click_count.set(click_count.get() + 1);
+        }
+    });
+    item_a
+        .add_event_listener_with_callback("click", click_closure.as_ref().unchecked_ref())
+        .unwrap();
+    item_b
+        .add_event_listener_with_callback("click", click_closure.as_ref().unchecked_ref())
+        .unwrap();
+    click_closure.forget();
+
+    content.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+    content.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert_eq!(
+        click_count.get(),
+        1,
+        "Enter は highlight 中の項目へ click を合成すべき"
+    );
+
+    content.dispatch_event(&keydown_event(" ")).unwrap();
+    assert_eq!(
+        click_count.get(),
+        2,
+        "Space（バッファ非活性時）も highlight 中の項目へ click を合成すべき"
+    );
+
+    // B（disabled）が highlight 中の状態を検証する。ArrowDown は disabled
+    // 項目をスキップする既存仕様（`listbox_arrow_navigation_skips_disabled_items`
+    // 参照）のため、通常のキーボード操作では B へ到達できない。本テストは
+    // 「highlight 中の項目が disabled だった場合」の fail-closed no-op を
+    // 検証する防御的なケースのため、`menu_open_arrow_right_on_disabled_trigger_item_is_noop`
+    // と同じパターンで highlight を直接 DOM へ設定する。
+    item_a.remove_attribute("data-highlighted").unwrap();
+    item_b.set_attribute("data-highlighted", "").unwrap();
+    content
+        .set_attribute(
+            "aria-activedescendant",
+            &item_b.get_attribute("id").unwrap(),
+        )
+        .unwrap();
+    assert!(item_b.has_attribute("data-highlighted"));
+    content.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert_eq!(
+        click_count.get(),
+        2,
+        "disabled 項目が highlight 中のときは click が発火しないべき（fail-closed）"
+    );
+}
+
+/// 検証 10（計画書 §3.3）: Escape は Menu/Select と非対称に、typeahead
+/// バッファのみをリセットし highlight（`data-highlighted`/
+/// `aria-activedescendant`）は維持する。直後の文字入力は新規バッファとして
+/// 扱われる（Escape 前の入力と連結されない）。
+#[wasm_bindgen_test]
+fn listbox_escape_resets_typeahead_buffer_without_clearing_highlight() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_listbox_dom(
+        &document,
+        "kn-lb-escape1",
+        &[("a", "Apple", false), ("b", "Banana", false)],
+        None,
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let content = document.get_element_by_id("kn-lb-escape1-content").unwrap();
+    let item_a = document.get_element_by_id("kn-lb-escape1-item-a").unwrap();
+    let item_b = document.get_element_by_id("kn-lb-escape1-item-b").unwrap();
+
+    content.dispatch_event(&keydown_event("a")).unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+
+    let not_default_prevented = content.dispatch_event(&keydown_event("Escape")).unwrap();
+    assert!(
+        not_default_prevented,
+        "Escape は prevent_default されるべきではない（親ダイアログ閉鎖を奪わない）"
+    );
+    assert!(
+        item_a.has_attribute("data-highlighted"),
+        "Escape で highlight はクリアされないべき（reopen 契約が無い Listbox）"
+    );
+    assert_eq!(
+        content.get_attribute("aria-activedescendant").as_deref(),
+        Some("kn-lb-escape1-item-a")
+    );
+
+    // Escape 直後の "b" は新規バッファとして Banana にマッチすべき
+    // （Escape 前の "a" と連結され "ab" として扱われてはいけない）。
+    content.dispatch_event(&keydown_event("b")).unwrap();
+    assert!(item_b.has_attribute("data-highlighted"));
+    assert!(!item_a.has_attribute("data-highlighted"));
+}
+
+/// 検証 11（XSS 回帰、REQ-1）: 攻撃者制御文字列を持つラベルに対し矢印移動・
+/// typeahead・Enter を行っても `script` 要素が DOM に生成されない
+/// （`menu_typeahead_with_attacker_controlled_label_does_not_inject_script`
+/// と同型）。
+#[wasm_bindgen_test]
+fn listbox_keyboard_navigation_with_attacker_controlled_label_does_not_inject_script() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_listbox_dom(
+        &document,
+        "kn-lb-xss1",
+        &[
+            ("a", "<script>document.title='pwned'</script>", false),
+            ("b", "B", false),
+        ],
+        None,
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    let original_title = document.title();
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let content = document.get_element_by_id("kn-lb-xss1-content").unwrap();
+
+    content.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    content.dispatch_event(&keydown_event("<")).unwrap();
+    content.dispatch_event(&keydown_event("Enter")).unwrap();
+
+    assert!(root.query_selector("script").unwrap().is_none());
+    assert_eq!(
+        document.title(),
+        original_title,
+        "攻撃者制御ラベルの操作で document.title が変化してはいけない"
     );
 }

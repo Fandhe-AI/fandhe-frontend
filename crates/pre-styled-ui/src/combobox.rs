@@ -7,7 +7,9 @@
 //! 委譲の根拠・スコープ外事項は [`crate::select`] の rustdoc と同じ方針に
 //! 従う（Combobox は Select の直接の姉妹コンポーネントであり、`size`
 //! variant・data-state 連動・キーボード操作系属性・positioning 連携の設計は
-//! すべて select 実装を踏襲する）。
+//! すべて select 実装を踏襲する）。headless 側の 14 番目のパーツ
+//! `live_region`（イシュー #1069）は本層では意図的に再エクスポートしない
+//! （視覚的非表示 CSS を伴う styled ラッパーは後続スコープ）。
 //!
 //! # 選択的 re-export（`pub use ...::*` を使わない理由、`Combobox` 型・
 //! headless `root` を再エクスポートしない理由）

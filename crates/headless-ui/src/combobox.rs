@@ -5,10 +5,10 @@
 //!（`.claude/skills/ark-ui/references/components/collections/combobox.md`）を
 //! 参考に、Root / Label / Control / Input / Trigger / ClearTrigger /
 //! Positioner / Content / ItemGroup / ItemGroupLabel / Item / ItemText /
-//! ItemIndicator の 13 anatomy パーツと、[`crate::state::Disclosure`]
-//! （listbox の開閉）+ [`crate::state::SingleSelect`]（選択値）+
-//! [`crate::state::TextInput`]（入力値）を合成した状態機械 [`Combobox`] を
-//! 提供する。
+//! ItemIndicator / LiveRegion の 14 anatomy パーツと、
+//! [`crate::state::Disclosure`]（listbox の開閉）+
+//! [`crate::state::SingleSelect`]（選択値）+ [`crate::state::TextInput`]
+//! （入力値）を合成した状態機械 [`Combobox`] を提供する。
 //!
 //! 候補コレクションの表現は [`crate::select`]（イシュー #541）の決定的な
 //! `(value, label)` タプル列に揃える。[`filter_options`] は候補列と現在の
@@ -19,8 +19,9 @@
 //!
 //! SSR は本モジュールの自由関数（[`root`]/[`label`]/[`control`]/[`input`]/
 //! [`trigger`]/[`clear_trigger`]/[`positioner`]/[`content`]/[`item_group`]/
-//! [`item_group_label`]/[`item`]/[`item_text`]/[`item_indicator`]、いずれも
-//! 純粋関数で完結）を直接呼んで組み立てる。CSR/hydration は [`Combobox`]
+//! [`item_group_label`]/[`item`]/[`item_text`]/[`item_indicator`]/
+//! [`live_region`]、いずれも純粋関数で完結）を直接呼んで組み立てる。
+//! CSR/hydration は [`Combobox`]
 //! （[`fandhe_frontend_interactive::Component`]/
 //! [`fandhe_frontend_interactive::Hydrate`] 実装）を経由し、dispatch
 //! （`"open"`/`"close"`/`"toggle"`/`"select"`/`"deselect"`/`"input"`/
@@ -67,12 +68,46 @@
 //! 支援技術へ伝える属性であるため、フォーカスを持つ `input` が正しい配線先
 //! である（`content` はフォーカスを一切受けない）。
 //!
+//! # LiveRegion パーツと配置制約（イシュー #1069）
+//!
+//! [`live_region`] は候補件数の変化という視覚的にしか伝わらない動的更新を
+//! 支援技術へ通知するための live region（`role="status"` +
+//! `aria-live="polite"` + `aria-atomic="true"` 固定、`crate::toast::root`
+//! と同じ 3 点セット。`role="status"` は暗黙に `aria-live="polite"`/
+//! `aria-atomic="true"` を含むが、明示性（機械検証可能性）を優先して
+//! 冗長に出力する既存方針を踏襲する）。緊急度は常に `polite` 固定とし
+//! 引数を取らない（`assertive` は入力中の読み上げへ割り込むため、入力し
+//! ながら候補が変化する combobox では有害。`crate::carousel::item_group`
+//! の「常に polite 固定」と同じ安全側の判断。将来 assertive が必要になる
+//! 場合は引数追加という後方互換な API 拡張で対応できる）。
+//!
+//! **配置制約（正しさの問題であり見た目の好みではない）**: [`live_region`]
+//! は [`root`] の直接の子で [`control`] の兄弟として置く。[`content`]
+//! （`role="listbox"`）配下へ置くと listbox が許容する子ロール
+//! （`option`/`group`）に反し ARIA として不正になる。
+//!
+//! [`crate::visually_hidden::root`] への委譲はしない（`data-scope=
+//! "visually-hidden"` という別 scope の部分木が混入すると docs-site の
+//! Anatomy 網羅契約に反するため）。視覚的に隠す CSS は呼び出し側または
+//! `fandhe-frontend-pre-styled-ui` の責務とする。通知文言は [`live_region`]
+//! の `children` として呼び出し側が渡す（「3 件の候補」等の文言生成・
+//! 数値整形は `docs/policy/intentional-non-adoption.md` §3.23/§3.25 に
+//! 従い層の外へ置くため、整形ヘルパは提供しない）。[`input`] の
+//! `aria-describedby` で [`live_region`] を関連付けることもしない
+//! （live region は DOM に存在するだけで読み上げられるため、
+//! `aria-describedby` を張ると入力欄フォーカス時にも読まれ二重通知になる）。
+//!
 //! # out-of-scope（本イシュー #749 のスコープ外）
 //!
 //! - **wasm-full 配線**: `PositionedKind::Combobox`（`crates/wasm-full/src/position.rs`）、
 //!   input イベント→`"input"` dispatch→フィルタ結果の DOM 反映、
 //!   キーボードナビゲーション（ArrowDown/Up・Home/End・Enter・Escape）は
 //!   後続イシューのスコープ。本イシューは SSR 出力と状態機械のみを提供する。
+//! - **[`live_region`] のテキスト更新（イシュー #1069 の out-of-scope）**:
+//!   候補件数の再計算・DOM への書き込みは `fandhe-frontend-wasm-full` の
+//!   後続責務であり、本モジュールは SSR 静的マークアップ（`role`/
+//!   `aria-live`/`aria-atomic` の固定出力）と初期文言の描画のみを提供する
+//!   （関連する後続イシューは #1071 系）。
 //! - **選択時の入力値自動書き換え（label 反映）**: ark-ui の
 //!   `selectionBehavior: "replace"` に相当する「選択した候補のラベルを
 //!   input へ反映する」処理は行わない。[`ComboboxAction::Select`] は
@@ -93,8 +128,9 @@
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
-    aria_activedescendant, aria_autocomplete, aria_controls, aria_disabled, aria_expanded,
-    aria_haspopup, aria_labelledby, aria_selected, role, AriaAutocomplete, AriaPopup,
+    aria_activedescendant, aria_atomic, aria_autocomplete, aria_controls, aria_disabled,
+    aria_expanded, aria_haspopup, aria_labelledby, aria_live, aria_selected, role,
+    AriaAutocomplete, AriaLive, AriaPopup,
 };
 use crate::data_attrs::{data_disabled, data_highlighted, data_state};
 use crate::state::{
@@ -385,6 +421,25 @@ pub fn item_indicator<'a>(
     }
     merged.extend(attrs);
     ANATOMY.part("item-indicator", "span", merged, children)
+}
+
+/// LiveRegion パーツ（`div`）。候補件数の変化という視覚的にしか伝わらない
+/// 動的更新を支援技術へ通知するための live region（イシュー #1069）。
+///
+/// `role="status"` + `aria-live="polite"` + `aria-atomic="true"` を固定
+/// 付与する（`crate::toast::root` と同じ 3 点セット。緊急度は `polite`
+/// 固定で引数を取らない）。配置制約・wasm-full との責務境界はモジュール
+/// doc「LiveRegion パーツと配置制約」節を参照。通知文言は `children` として
+/// 呼び出し側が渡し、`render()` の既定エスケープを経由する。
+#[must_use]
+pub fn live_region<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        role("status"),
+        aria_live(AriaLive::Polite),
+        aria_atomic(true),
+    ];
+    merged.extend(attrs);
+    ANATOMY.part("live-region", "div", merged, children)
 }
 
 /// 候補列 `options`（`(value, label)` の決定的な列、[`crate::select`] と同じ
@@ -1021,6 +1076,16 @@ mod tests {
         assert!(unselected.contains(r#"data-state="closed""#));
     }
 
+    #[test]
+    fn live_region_has_role_status_polite_and_atomic() {
+        let html = render(&live_region(vec![], vec![text("1 result available")]));
+        assert!(html.contains(r#"data-part="live-region""#));
+        assert!(html.contains(r#"role="status""#));
+        assert!(html.contains(r#"aria-live="polite""#));
+        assert!(html.contains(r#"aria-atomic="true""#));
+        assert!(html.contains("1 result available"));
+    }
+
     // --- Anatomy::part fail-closed 回帰（呼び出し側の data-scope/data-part 偽装除去） ---
 
     #[test]
@@ -1032,6 +1097,17 @@ mod tests {
         ));
         assert!(html.contains(r#"data-scope="combobox""#));
         assert!(html.contains(r#"data-part="root""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn live_region_caller_supplied_scope_and_part_are_dropped() {
+        let html = render(&live_region(
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="combobox""#));
+        assert!(html.contains(r#"data-part="live-region""#));
         assert!(!html.contains("attacker"));
     }
 
@@ -1293,6 +1369,17 @@ mod tests {
             vec![],
             vec![text("<script>alert(1)</script>")],
         ));
+        assert!(!html.contains("<script>alert(1)</script>"));
+        assert!(html.contains("&lt;script&gt;"));
+    }
+
+    #[test]
+    fn live_region_children_and_attrs_payload_is_escaped_on_render() {
+        let html = render(&live_region(
+            vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+            vec![text("<script>alert(1)</script>")],
+        ));
+        assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(!html.contains("<script>alert(1)</script>"));
         assert!(html.contains("&lt;script&gt;"));
     }
