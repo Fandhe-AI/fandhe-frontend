@@ -386,9 +386,21 @@ fn validate_base_path(base_path: &str) -> Result<(), NavError> {
     }
 }
 
-fn validate_page_path(path: &str) -> Result<(), NavError> {
+/// `path` が `nav.toml` の `page.path` として安全か（`/` 始まり・`/` 終わり・
+/// セグメントが英数字/`-`/`_` のホワイトリストのみ）を判定する述語。
+///
+/// [`validate_page_path`] から抽出した純判定ロジック（イシュー #1016）。
+/// `crate::redirect` が旧 URL 互換のリダイレクト宣言（`from`/`to`）の
+/// パス形状検証にも同じホワイトリストを要求するため `pub(crate)` として
+/// 切り出し、ページパス・リダイレクトパスの許可規則を単一実装点に保つ
+/// （2 箇所で微妙に異なる正規表現を持たせて片方だけ緩む事故を防ぐ）。
+/// `"/"`（サイトトップ）・`"//"` のような縮退ケースをセグメントなしとして
+/// 許可する対称性は本モジュール（ページパス）由来の既存仕様であり、
+/// `crate::redirect` 側はこの述語を通した上でさらに厳しい制約
+/// （空セグメント拒否等）を追加で課す。
+pub(crate) fn is_safe_page_path(path: &str) -> bool {
     if !path.starts_with('/') || !path.ends_with('/') {
-        return Err(NavError::UnsafePagePath(path.to_string()));
+        return false;
     }
     if path.len() == 1 {
         // "/"（サイトトップ）はセグメントなしで許可する。
@@ -397,16 +409,20 @@ fn validate_page_path(path: &str) -> Result<(), NavError> {
         // `path[1..path.len() - 1]` スライス（1..0）は範囲が逆転してパニック
         // する（イシュー #473 実装時に検出）。長さ 1 の場合はスライス計算に
         // 入る前に早期リターンする。
-        return Ok(());
+        return true;
     }
     let inner = &path[1..path.len() - 1];
     if inner.is_empty() {
         // "//" のような縮退ケース。セグメントなしとして許可する
         // （現状 nav.toml では使用しないが、ホワイトリスト方式の
         // 対称性のため拒否しない）。
-        return Ok(());
+        return true;
     }
-    if inner.split('/').all(is_safe_path_segment) {
+    inner.split('/').all(is_safe_path_segment)
+}
+
+fn validate_page_path(path: &str) -> Result<(), NavError> {
+    if is_safe_page_path(path) {
         Ok(())
     } else {
         Err(NavError::UnsafePagePath(path.to_string()))

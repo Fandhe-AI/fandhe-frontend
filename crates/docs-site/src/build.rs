@@ -96,6 +96,7 @@ use crate::layout;
 use crate::linkcheck::{self, BrokenLink};
 use crate::markdown::render_markdown;
 use crate::nav::{self, NavError};
+use crate::redirect::{self, RedirectError};
 use crate::script;
 use crate::search_index::{self, SearchIndexError};
 use crate::showcase;
@@ -125,6 +126,13 @@ pub struct BuildReport {
     pub written: Vec<PathBuf>,
     /// コピーしたアセットファイルの絶対パス一覧。
     pub assets: Vec<PathBuf>,
+    /// 書き出したリダイレクトページの絶対パス一覧（イシュー #1016）。
+    /// `written`（本体ページ）・`assets` のいずれにも含めない独立フィールド。
+    /// `written.len()`/`nav.all_pages().count()` の恒等契約
+    /// （`tests/site_build.rs`）・部品ページ件数固定を変えないための
+    /// 意図的な分離であり、`crate::redirect` モジュール doc の
+    /// 「除外述語ゼロ」構造そのもの。
+    pub redirects: Vec<PathBuf>,
 }
 
 /// [`build_site`] の失敗理由。
@@ -170,6 +178,10 @@ pub enum BuildError {
     /// [`search_index::MAX_INDEX_BYTES`] を超過した（イシュー #957。
     /// `ssg::generate_pages` より前に検知し `out_dir` を汚さない fail-closed）。
     SearchIndex(SearchIndexError),
+    /// `site/redirects.toml` の読込・パース・`nav.toml` との突合検証
+    /// （`to` 実在確認・`from` 衝突検証）のいずれかが失敗した（イシュー #1016。
+    /// `ssg::generate_pages` より前に検知し `out_dir` を汚さない fail-closed）。
+    Redirect(RedirectError),
 }
 
 impl fmt::Display for BuildError {
@@ -211,6 +223,9 @@ impl fmt::Display for BuildError {
             BuildError::SearchIndex(e) => {
                 write!(f, "failed to assemble the search index: {e}")
             }
+            BuildError::Redirect(e) => {
+                write!(f, "{e}")
+            }
         }
     }
 }
@@ -247,6 +262,12 @@ impl From<SearchIndexError> for BuildError {
     }
 }
 
+impl From<RedirectError> for BuildError {
+    fn from(e: RedirectError) -> Self {
+        BuildError::Redirect(e)
+    }
+}
+
 /// `repo_root/site/nav.toml` を読み込み、全ページを組み立て、内部リンクを
 /// 検証した上で `out_dir` へ書き出す。
 ///
@@ -262,6 +283,41 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     })?;
     let nav = nav::parse_nav(&nav_input)?;
     nav::validate_sources(&nav, repo_root)?;
+
+    // 旧 URL 互換のリダイレクト宣言（イシュー #1016）。`site/redirects.toml`
+    // が存在しない場合は `site/assets/` と同じ「不在＝0 件」を許容する
+    // （`crate::redirect` の実マニフェスト件数は `tests/redirects.rs` /
+    // `tests/site_build.rs` が fail-closed に固定しており、誤削除は必ず
+    // テストが落ちるため「不在時 0 件」は安全に成立する）。他の I/O
+    // エラーは従来どおり `BuildError::Io` として扱う。
+    let redirects_path = repo_root.join(redirect::MANIFEST_REL_PATH);
+    let redirects = match fs::read_to_string(&redirects_path) {
+        Ok(input) => redirect::parse_redirects(&input)?,
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => {
+            redirect::Redirects::default()
+        }
+        Err(source) => {
+            return Err(BuildError::Io {
+                path: PathBuf::from(redirect::MANIFEST_REL_PATH),
+                source,
+            })
+        }
+    };
+    redirect::validate_against_nav(&redirects, &nav)?;
+    // ページ組み立てより前に infallible な `Node` 生成まで済ませる
+    // （`redirect::redirect_page` は allowlist 済みの `to` からの純粋な
+    // 組み立てであり失敗し得ない。fail-closed の処理順を維持するため
+    // 書き出し関連の処理はすべて linkcheck 完了後にまとめて行う）。
+    let redirect_pages: Vec<(String, Node)> = redirects
+        .entries
+        .iter()
+        .map(|r| {
+            (
+                redirect::output_path(&r.from),
+                redirect::redirect_page(&nav.site.title, &nav.site.base_path, &r.to),
+            )
+        })
+        .collect();
 
     let source_to_path = linkcheck::source_to_path_map(&nav);
 
@@ -415,6 +471,14 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     let search_index_json = search_index::render_json(&nav.site.base_path, &search_index_entries);
     search_index::check_size(&search_index_json)?;
 
+    // リダイレクトページ（イシュー #1016）を本体ページより先に書き出す。
+    // `ssg::generate_pages` の重複検出は 1 回の呼び出し内でしか効かないため、
+    // `from`/本体ページの衝突検知は `redirect::validate_against_nav`（上）が
+    // 唯一の防壁である。万一そこに穴があった場合の劣化を「実ページが
+    // 上書きされる」ではなく「リダイレクトが上書きされる（実ページが勝つ）」
+    // 側へ倒すため、先に書き出す（後続の本体ページ書き出しが同名ファイルを
+    // 上書きする）。
+    let redirects_written = ssg::generate_pages(&redirect_pages, out_dir)?;
     let written = ssg::generate_pages(&pages, out_dir)?;
     let mut assets = copy_assets(repo_root, out_dir)?;
 
@@ -497,7 +561,11 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
         assets.push(index_path);
     }
 
-    Ok(BuildReport { written, assets })
+    Ok(BuildReport {
+        written,
+        assets,
+        redirects: redirects_written,
+    })
 }
 
 /// `site/assets/` 配下の通常ファイル一覧から、突合検証用の href

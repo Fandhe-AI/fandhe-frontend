@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 use fandhe_frontend_docs_site::build::build_site;
 use fandhe_frontend_docs_site::layout;
 use fandhe_frontend_docs_site::nav;
+use fandhe_frontend_docs_site::redirect;
 use fandhe_frontend_docs_site::search_index::{self, SearchIndexError};
 
 /// 統合テストのスクラッチ基点。`tests/site_build.rs::scratch_root` と同一
@@ -281,6 +282,56 @@ fn search_index_is_byte_identical_across_two_builds_of_the_fixture_site() {
     build_site(&fixture_root("site-ok"), &out_b.0).expect("site-ok fixture should build");
 
     assert_eq!(read_index(&out_a.0), read_index(&out_b.0));
+}
+
+// ---------------------------------------------------------------------
+// イシュー #1016: リダイレクト由来の href が索引に含まれないこと
+// ---------------------------------------------------------------------
+
+/// リダイレクトページ（`site/redirects.toml`、イシュー #1016）は
+/// `crate::build::build_site` 内で `search_index_entries` を積むループ
+/// （`nav.all_pages()` 走査）を一切通らないため、検索インデックスには
+/// 構造的に現れない。本テストは実サイトビルドの `assets/search-index.json`
+/// に `redirect.from` の href が含まれないことを明示的に固定する
+/// （`real_site_search_index_is_deterministic_covers_all_nav_pages_and_matches_html_ids`
+/// の `actual_hrefs == expected_hrefs`（nav 由来集合との完全一致）が
+/// 間接的にも保証する内容だが、本テストは「なぜ含まれないか」を
+/// `redirect::MANIFEST_REL_PATH` 起点で明示検証する）。
+#[test]
+fn real_site_search_index_does_not_contain_redirect_hrefs() {
+    let root = repo_root();
+    let out = TempDir::new("no-redirect-hrefs");
+    build_site(&root, &out.0).expect("real site/nav.toml should build cleanly");
+
+    let manifest_path = root.join(redirect::MANIFEST_REL_PATH);
+    let manifest_input = std::fs::read_to_string(&manifest_path)
+        .unwrap_or_else(|e| panic!("read {}: {e}", manifest_path.display()));
+    let redirects =
+        redirect::parse_redirects(&manifest_input).expect("site/redirects.toml should parse");
+    assert!(
+        !redirects.entries.is_empty(),
+        "this test requires at least one real redirect declaration to be meaningful"
+    );
+
+    let real_nav_input =
+        std::fs::read_to_string(root.join("site/nav.toml")).expect("read real site/nav.toml");
+    let real_nav = nav::parse_nav(&real_nav_input).expect("parse real site/nav.toml");
+
+    let json = read_index(&out.0);
+    let parsed = parse_json(&json);
+    let pages = parsed.get("pages").as_array();
+    let actual_hrefs: std::collections::BTreeSet<String> = pages
+        .iter()
+        .map(|p| p.get("href").as_str().to_string())
+        .collect();
+
+    for redirect in &redirects.entries {
+        let redirect_href = layout::asset_href(&real_nav.site.base_path, &redirect.from);
+        assert!(
+            !actual_hrefs.contains(&redirect_href),
+            "search index should not contain the redirect `from` href {redirect_href:?}"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------
