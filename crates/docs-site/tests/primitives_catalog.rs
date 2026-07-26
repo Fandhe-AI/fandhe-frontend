@@ -339,8 +339,15 @@ fn category_counts_and_order_follow_the_design_spec() {
 /// 時点で初めて弾かれる事故を前倒しで防ぐ。
 #[test]
 fn page_paths_pass_the_nav_path_allowlist() {
-    let mut toml = String::from(
-        "[site]\ntitle = \"t\"\nbase_path = \"\"\n\n[[section]]\ntitle = \"Primitives\"\n\n",
+    // イシュー #1010 で `[[section]]` に `index_path` が必須化されたため、
+    // 台帳の先頭ページの path をそのままセクション代表ページとして流用する
+    // （`index_path ⊆ 生成ページの path 集合` の不変条件を満たす必要がある）。
+    let first_path = PRIMITIVES
+        .first()
+        .expect("PRIMITIVES should not be empty")
+        .path;
+    let mut toml = format!(
+        "[site]\ntitle = \"t\"\nbase_path = \"\"\n\n[[section]]\ntitle = \"Primitives\"\nindex_path = \"{first_path}\"\n\n",
     );
     for (i, entry) in PRIMITIVES.iter().enumerate() {
         toml.push_str(&format!(
