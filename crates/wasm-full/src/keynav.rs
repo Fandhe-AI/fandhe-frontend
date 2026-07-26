@@ -3018,13 +3018,17 @@ mod wiring {
         }
     }
 
-    /// Combobox root（`[data-part="root"]`）を `input` から解決する薄い
-    /// ヘルパ（イシュー #1071）。click 駆動の再描画後に content/input/items
-    /// を再解決する起点として使う（モジュール doc §Combobox、`input`
-    /// ハンドル自体が再描画で差し替わりうるため、`aria-controls` を持つ
-    /// `input` からではなく root からの再クエリに統一する）。
-    fn resolve_combobox_root(input: &Element) -> Option<Element> {
-        closest(input, "[data-part=\"root\"]")
+    /// Combobox root（`[data-part="root"]`）を任意の子孫要素（`input`・
+    /// 生きた `content` 等）から解決する薄いヘルパ（イシュー #1071）。
+    /// `input` 起点に限定していた旧実装は、click 駆動の再描画で
+    /// `combobox_root`/`input` 自体が detached になるケース（Bugbot 指摘
+    /// "Stale root blocks open highlight"）で `query_selector` が生きた
+    /// DOM を見つけられない不具合があった。呼び出し元は必ず**生きている
+    /// ことが保証された**要素（例: [`resolve_menu_select_content`] が
+    /// `document.get_element_by_id` 経由で解決した content）を渡すこと
+    /// （モジュール doc §Combobox 参照）。
+    fn resolve_combobox_root(descendant: &Element) -> Option<Element> {
+        closest(descendant, "[data-part=\"root\"]")
     }
 
     /// `combobox_root` 配下の trigger（[`COMBOBOX_TRIGGER_SELECTOR`]）を
@@ -3080,22 +3084,32 @@ mod wiring {
                 if let Ok(html_trigger) = trigger.clone().dyn_into::<HtmlElement>() {
                     html_trigger.click();
                 }
-                // click 駆動の再描画で content/input/items が新しい要素に
-                // 差し替わりうるため、combobox root 配下から再解決する
-                // （`input` は id 必須ではなく `aria-controls` 起点の
-                // 再解決ができないため、モジュール doc §Combobox 参照）。
-                // 再解決失敗・依然 closed はいずれも no-op（fail-closed）。
-                let Some(content_after) = combobox_root
-                    .query_selector(COMBOBOX_CONTENT_SELECTOR)
-                    .ok()
-                    .flatten()
+                // click 駆動の再描画で Combobox ツリー全体が置き換わると、
+                // click 前に解決していた `combobox_root` は detached になり
+                // `combobox_root.query_selector` は生きた DOM を見つけられない
+                // （Bugbot 指摘 "Stale root blocks open highlight"、イシュー
+                // #1071）。detached な `combobox_root` からの再クエリではなく、
+                // click 前の `input` が保持する `aria-controls` を
+                // `document.get_element_by_id` で解決する
+                // [`resolve_menu_select_content`]（属性の読み取りは要素が
+                // detached でも成功し、`get_element_by_id` は常に生きた
+                // document を探索するため、`input`/`combobox_root` 自体の
+                // detached 有無に依存しない）で "今の" content を取得し、
+                // その生きた content を起点に "今の" root/input を
+                // 再解決する。再解決失敗・依然 closed はいずれも no-op
+                // （fail-closed）。
+                let Some(content_after) =
+                    resolve_menu_select_content(input, COMBOBOX_CONTENT_SELECTOR)
                 else {
                     return;
                 };
                 if !root.contains(Some(&content_after)) || content_after.has_attribute("hidden") {
                     return;
                 }
-                let Some(input_after) = combobox_root
+                let Some(combobox_root_after) = resolve_combobox_root(&content_after) else {
+                    return;
+                };
+                let Some(input_after) = combobox_root_after
                     .query_selector(COMBOBOX_INPUT_SELECTOR)
                     .ok()
                     .flatten()
@@ -3151,6 +3165,14 @@ mod wiring {
                     return;
                 }
                 event.prevent_default();
+                // Escape（Close）と同様、確定（選択+クローズ）でも
+                // highlight を先にクリアする。クリアしないと collapsed
+                // 後の Combobox が `aria-activedescendant` で hidden な
+                // option を指し続け、ARIA の collapsed-combobox ルール
+                // 違反として次に open するまで支援技術を混乱させる
+                // （Bugbot 指摘 "Confirm leaves activedescendant set"、
+                // イシュー #1071）。
+                clear_highlight_on_host(&items, input);
                 // 開閉と同様、確定も click → `crate::headless`（`combobox`/
                 // `item` → `"select"`、本イシューで追加）→ dispatch 経路へ
                 // 委譲する（モジュール doc §Combobox 参照）。

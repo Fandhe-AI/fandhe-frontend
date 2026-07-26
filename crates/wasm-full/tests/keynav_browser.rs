@@ -3853,6 +3853,60 @@ fn combobox_open_enter_clicks_highlighted_item_and_closes() {
     );
 }
 
+/// Bugbot 指摘 "Confirm leaves activedescendant set"（PR #1094 レビュー、
+/// イシュー #1071）の回帰: Enter による確定（選択 + close）でも、Escape と
+/// 同様に `data-highlighted`/`aria-activedescendant` がクリアされること。
+/// クリアされないと collapsed 後も hidden な option を `aria-activedescendant`
+/// が指し続け、ARIA 1.2 の collapsed-combobox ルール違反として次に open
+/// するまで支援技術を混乱させる。
+#[wasm_bindgen_test]
+fn combobox_open_enter_confirm_clears_highlight_and_activedescendant() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, input, trigger, content) = build_combobox_dom(
+        &document,
+        "kn-cb-confirm-clear",
+        &[("a", "A", false), ("b", "B", false)],
+        true,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    let item_a = document
+        .get_element_by_id("kn-cb-confirm-clear-item-a")
+        .unwrap();
+    let item_b = document
+        .get_element_by_id("kn-cb-confirm-clear-item-b")
+        .unwrap();
+    wire_combobox_toggle_listener(&trigger, &input, &content);
+    wire_combobox_item_select_listeners(
+        &[item_a.clone(), item_b.clone()],
+        &trigger,
+        &input,
+        &content,
+    );
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+    html_element(&input).focus().unwrap();
+
+    input.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert!(item_a.has_attribute("data-highlighted"));
+    assert_eq!(
+        input.get_attribute("aria-activedescendant").as_deref(),
+        Some("kn-cb-confirm-clear-item-a")
+    );
+
+    input.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert!(item_a.has_attribute("data-clicked"), "選択が確定するべき");
+    assert!(
+        !item_a.has_attribute("data-highlighted"),
+        "確定後は data-highlighted がクリアされているべき"
+    );
+    assert!(
+        input.get_attribute("aria-activedescendant").is_none(),
+        "確定後は input の aria-activedescendant がクリアされているべき\
+         （collapsed-combobox ルール、Bugbot 指摘）"
+    );
+}
+
 /// 検証 5・6（実装計画 §5.3-5/6）: open の Escape で highlight クリア +
 /// trigger への click 合成で閉じる。closed の Escape は no-op（fail-open
 /// 回帰: closed で claim すると誤って open してしまう）。
@@ -4046,5 +4100,100 @@ fn combobox_keyboard_navigation_with_attacker_controlled_strings_does_not_inject
     assert_eq!(
         before, after,
         "攻撃者制御文字列を含む combobox のキー操作で <script> が増えてはならない"
+    );
+}
+
+/// Bugbot 指摘 "Stale root blocks open highlight"（PR #1094 レビュー、
+/// イシュー #1071）の回帰: keynav のマウント境界（`wire_keynav` に渡す
+/// root）は Combobox 本体の `[data-part="root"]` より外側の安定した祖先
+/// （実アプリでは再描画のたびに置き換わらないコンテナ）であり、trigger
+/// click 駆動の再描画で Combobox の `[data-part="root"]` 配下（内側の
+/// root/content/input/trigger）全体が新しい要素へ丸ごと差し替わっても、
+/// open 直後の初期 highlight・`aria-activedescendant` が detached になった
+/// 旧ツリーではなく生きた（新しい）DOM 上へ設定されること。
+#[wasm_bindgen_test]
+fn combobox_closed_arrow_down_opens_after_full_subtree_replacement_still_sets_highlight() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root_id = "kn-cb-replace";
+    let items: &[(&str, &str, bool)] = &[("a", "A", false), ("b", "B", false)];
+
+    // keynav のマウント境界は Combobox の `[data-part="root"]` より外側の
+    // 安定コンテナとする（実アプリでの「Combobox サブツリーだけが再描画で
+    // 差し替わり、mount root 自体は永続する」構成を模す）。
+    let mount_root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&mount_root).unwrap();
+    let _cleanup = RemoveOnDrop(mount_root.clone());
+
+    let (combobox_root, input, trigger, _content) =
+        build_combobox_dom(&document, root_id, items, false, false);
+    // `build_combobox_dom` は body 直下へ追加するため、mount_root 配下へ
+    // 付け替える（`append_child` は既存ノードを再親化する）。
+    mount_root.append_child(&combobox_root).unwrap();
+
+    // trigger click のたびに、Combobox の `[data-part="root"]` 配下全体を
+    // detach し、同じ id を持つ新しい要素へ丸ごと差し替える（click 駆動の
+    // 再描画を模す）。mount_root 自体は差し替えない。
+    let closure = Closure::<dyn FnMut(Event)>::new({
+        let trigger = trigger.clone();
+        let document = document.clone();
+        let mount_root = mount_root.clone();
+        let root_id = root_id.to_string();
+        let items: Vec<(String, String, bool)> = items
+            .iter()
+            .map(|(v, l, d)| (v.to_string(), l.to_string(), *d))
+            .collect();
+        move |event: Event| {
+            let is_self_click = event
+                .target()
+                .and_then(|target| target.dyn_into::<Element>().ok())
+                .is_some_and(|target| target.is_same_node(Some(&trigger)));
+            if !is_self_click {
+                return;
+            }
+            let old_root = document.get_element_by_id(&root_id).unwrap();
+            old_root.remove();
+            let owned_items: Vec<(&str, &str, bool)> = items
+                .iter()
+                .map(|(v, l, d)| (v.as_str(), l.as_str(), *d))
+                .collect();
+            let (new_root, _new_input, _new_trigger, _new_content) =
+                build_combobox_dom(&document, &root_id, &owned_items, true, false);
+            mount_root.append_child(&new_root).unwrap();
+        }
+    });
+    trigger
+        .add_event_listener_with_callback("click", closure.as_ref().unchecked_ref())
+        .unwrap();
+    closure.forget();
+
+    wire_keynav(mount_root.clone()).expect("wire_keynav must succeed");
+    html_element(&input).focus().unwrap();
+
+    input.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+
+    // 生きた（新しい）content/input/item を id 経由で解決して検証する
+    // （旧 root/content/input は detached のまま残っている）。
+    let live_content = document
+        .get_element_by_id(&format!("{root_id}-content"))
+        .unwrap();
+    let live_input = document
+        .get_element_by_id(&format!("{root_id}-input"))
+        .unwrap();
+    let live_item_a = document
+        .get_element_by_id(&format!("{root_id}-item-a"))
+        .unwrap();
+    assert!(
+        !live_content.has_attribute("hidden"),
+        "生きた content は open のままであるべき"
+    );
+    assert!(
+        live_item_a.has_attribute("data-highlighted"),
+        "detached になった旧 root からの再クエリではなく、生きた DOM 上へ \
+         初期 highlight が設定されるべき（Bugbot 指摘）"
+    );
+    assert_eq!(
+        live_input.get_attribute("aria-activedescendant").as_deref(),
+        Some(format!("{root_id}-item-a").as_str()),
+        "生きた input の aria-activedescendant が設定されるべき（Bugbot 指摘）"
     );
 }
