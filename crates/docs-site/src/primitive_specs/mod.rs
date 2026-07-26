@@ -22,7 +22,7 @@
 //! | Forms A（11 件） | #1024 | 未充填 |
 //! | Forms B（11 件） | #1025 | 充填済み（[`forms_b`]） |
 //! | Forms C・日付・状態表示（10 件） | #1026 | 未充填 |
-//! | Overlay / Disclosure（10 件） | #1027 | 未充填 |
+//! | Overlay / Disclosure（10 件） | #1027 | 充填済み（[`overlay_disclosure`]） |
 //! | Navigation（11 件） | #1028 | 未充填 |
 //! | Data Display / Utilities（10 件） | #1029 | 未充填 |
 //!
@@ -38,7 +38,10 @@ pub mod forms_b;
 
 use crate::component_page::ComponentPageSpec;
 
+mod overlay_disclosure;
+
 /// `path -> ComponentPageSpec` レジストリを供給するカテゴリ別テーブルの集約。
 /// Phase 5 の各 issue はカテゴリ 1 個につき 1 テーブルを追加し、本配列へ
 /// 1 行追記する（`crate::component_page::SPEC_TABLES` と同型の集約方式）。
-pub const SPEC_TABLES: &[&[(&str, ComponentPageSpec)]] = &[forms_b::SPECS];
+pub const SPEC_TABLES: &[&[(&str, ComponentPageSpec)]] =
+    &[forms_b::SPECS, overlay_disclosure::SPECS];
