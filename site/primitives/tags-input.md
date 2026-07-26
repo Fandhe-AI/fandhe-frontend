@@ -1,6 +1,8 @@
 # Tags Input
 
-`fandhe-frontend-headless-ui` の `tags_input` mod が提供する構造・アクセシビリティ（WAI-ARIA・キーボード操作）・表示状態（`data-*`）のみを持つ unstyled 部品です。
+`fandhe-frontend-headless-ui` の `tags_input` mod が提供するタグ配列入力の unstyled 部品です。Root / Label / Control / Input / Item / ItemPreview / ItemText / ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput の 11 anatomy パーツを持ち、タグ文字列の可変長リスト + 重複拒否 + 上限 + 編集中インデックスを表現する値状態機械を備えます。重複・カンマ含有・空文字列のタグはすべての入口で拒否されます。
+
+`/themes/` 側の `TagsInput`（Chakra ライクな variant/size を持つスタイル層）と異なり、CSS を一切持ちません。
 
 スタイル済みの表示例は [Tags Input](../themes/tags-input.md) を参照してください。
 

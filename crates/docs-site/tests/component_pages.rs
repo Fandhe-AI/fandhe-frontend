@@ -584,6 +584,13 @@ fn component_specs_source_does_not_use_raw_html() {
     }
 }
 
+/// `crates/docs-site/src/primitive_specs/` 配下の REQ-1 ガード
+/// （`raw_html()` 迂回検出）は `tests/primitive_specs_forms_a.rs::T4` /
+/// `tests/primitive_specs_1026.rs::primitive_specs_source_does_not_use_raw_html`
+/// が `primitive_specs/` 配下の全 `.rs`（Forms B の `forms_b.rs` を含む）を
+/// 再帰的に検査済みであり、本ファイルへ重複するテストを追加しない
+/// （Cursor Bugbot 指摘、イシュー #1025 PR #1050 レビュー、二重の正本化を防ぐ）。
+///
 /// `path` のコード行（`//`/`//!`/`///` コメント行を除く）に `raw_html` が
 /// 出現しないことを検証する（REQ-1 の機械的ガード。ドキュメンテーション
 /// コメントが「`raw_html()` を使わない」と説明するために当該語を含む
