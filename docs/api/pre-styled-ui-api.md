@@ -157,8 +157,10 @@ pre-styled UI コンポーネント層）の公開 API 表面をまとめる。
 `dialog`/`menu`/`select` の 5 モジュールは `size` variant クラス付与のため
 styled `root`（tabs のみ `tabs`）を各モジュールで新設しており、headless
 自由関数 `root`（tabs は `tabs`/`tabs_with_root_attrs`）との名前衝突を
-避けるため選択的 re-export とする（§4d 参照）。`popover`/`tooltip` は
-glob 再エクスポートのまま。
+避けるため選択的 re-export とする（§4d 参照）。`popover`/`tooltip` を含め、
+styled パーツ関数を再定義しないモジュール 13 件は glob 再エクスポートを
+維持する（現況は `popover`/`tooltip` の 2 件に留まらない。一覧・維持条件は
+§3c 参照）。
 
 | pre-styled-ui モジュール | 再エクスポートする headless 型 | 由来 |
 |---|---|---|
@@ -253,6 +255,34 @@ glob 再エクスポートのまま。
 は DOM 属性を改ざんされうる入力として扱い panic せず `HydrateError` を返す
 契約（interactive 不変条件 3）も、再エクスポートで弱まらないことを固定
 テストで検証している。
+
+## 3c. 再エクスポートの形式規約（glob / 選択的 / shadowing、イシュー #1062）
+
+各 styled モジュールが headless の対応モジュールを再エクスポートする
+**形式**（glob 併用か選択的個別かの選択、および暗黙 shadowing の禁止）の
+規約は `crates/pre-styled-ui/src/lib.rs`「headless 再エクスポートの形式
+規約（イシュー #1062）」節を正とし、本書では二重管理しない。要約:
+
+- 既定は選択的個別再エクスポート（規約 A）。styled パーツ関数を再定義する
+  モジュールは、headless の同名自由関数・未スタイル inherent メソッドを
+  持つ状態機械型を再エクスポートしない（fail-closed。`avatar`/`breadcrumb`
+  等の既存モジュールがこの運用実体）。
+- glob 再エクスポート（規約 B）は「トップレベル `pub` 項目が
+  `stylesheet()`/`css()` のみ・variant 軸を提供しない・CSS 到達が
+  `[data-scope]`/`[data-part]` 属性セレクタのみ」の 4 条件（マーカー
+  コメント `REEXPORT-GLOB-REVIEWED:` を含む）を満たす場合のみ許可する。
+  イシュー #1062 のレビューにより、現時点で `action_bar` / `popover` /
+  `hover_card` / `tooltip` / `toolbar` / `tree_view` / `scroll_area` /
+  `toggle_tip` / `menubar` / `json_tree_view` / `floating_panel` / `timer` /
+  `navigation_menu` の 13 モジュールが条件を満たすと判定済み（レビュー来歴は
+  `docs/internal/pre-styled-ui-implementation-notes.md` §3c 参照）。
+- glob 由来の名前をローカル定義・明示 `pub use` で上書きする暗黙
+  shadowing は禁止する（規約 C）。同名を styled 側で提供したい場合は
+  規約 A（選択的）へ移行する。
+
+機械検知は `crates/pre-styled-ui/tests/reexport_policy.rs`
+（glob 一覧の双方向一致・マーカーコメント有無・許可 pub 項目・`root` 再定義
+との併存禁止の 4 検査、いずれも fail-closed）が担う。
 
 ## 4. 設計方針
 

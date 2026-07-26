@@ -52,6 +52,10 @@
 use crate::css::decl;
 use crate::recipe::{SlotRecipe, StateCondition};
 
+// REEXPORT-GLOB-REVIEWED: 本モジュールが定義する pub 項目は stylesheet() の
+// みで styled パーツ関数を再定義しない（規約 B-1）。variant 軸も提供せず
+// （規約 B-2）、CSS 到達は [data-scope]/[data-part] 属性セレクタのみに依存
+// する（規約 B-3、イシュー #1062 規約参照）。
 pub use fandhe_frontend_headless_ui::floating_panel::*;
 // `root`/`trigger` 等の `state`/`stage` 引数・`FloatingPanel::new`・
 // `FloatingPanel` の `Component::Action`（dispatch 対象）はいずれも `state`

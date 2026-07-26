@@ -450,3 +450,80 @@ chakra-ui の `Prose`（記事全体へ一括カスケード適用するコン�
 - 積み上げ（`stackId`）・曲線補間（`curveType`）は #847 以降。
 - `examples/headless-pre-styled-ui` への追随は crates.io 公開後に別途行う
   （`qr_code` の先例と同じ判断）。
+
+## 17. §3c 再エクスポート形式規約の来歴とレビュー結果（イシュー #1062）
+
+### 背景
+
+`crates/pre-styled-ui/` の各 styled ラッパーモジュールが headless の対応
+モジュールを再エクスポートする形式は、glob（`pub use
+fandhe_frontend_headless_ui::<mod>::*;`）・選択的個別・（styled 側の
+ローカル定義による）実質的な shadowing の 3 パターンに分かれており、
+使い分け基準が各モジュールの rustdoc に散在していた。親トラッキング #1057
+（headless / pre-styled の責務分離整備）配下で、新規 styled 部品追加時の
+判断コストと fail-open リスク（#684 の `Avatar` 状態機械 inherent `root()`
+未スタイル適用漏れと同型の事故）を抑えるため、判定規約を
+`crates/pre-styled-ui/src/lib.rs` へ明文化した（規約 A〜D、§3c 参照）。
+
+### glob 13 箇所のレビュー結果（結論: 全件「維持」）
+
+判定基準は規約 B の 4 条件。是正内容は「規約への追認 + マーカーコメント
+（`REEXPORT-GLOB-REVIEWED:`）追記 + 記録」であり、選択的 re-export への
+変更（＝公開 API からの項目削除）は 1 件も行っていない。
+
+| # | モジュール | B-1（`stylesheet()` のみ） | B-2（variant なし） | B-3（属性セレクタのみ） | 判定 |
+|---|---|---|---|---|---|
+| 1 | `action_bar` | 充足 | 充足 | 充足 | 維持 |
+| 2 | `popover` | 充足 | 充足（#708 方針 3 で確定） | 充足 | 維持 |
+| 3 | `hover_card` | 充足 | 充足 | 充足 | 維持 |
+| 4 | `floating_panel` | 充足 | 充足 | 充足 | 維持 |
+| 5 | `navigation_menu` | 充足 | 充足 | 充足 | 維持 |
+| 6 | `scroll_area` | 充足 | 充足（#825 で variant 非採用を明記） | 充足 | 維持 |
+| 7 | `tree_view` | 充足 | 充足 | 充足 | 維持 |
+| 8 | `toggle_tip` | 充足 | 充足 | 充足 | 維持 |
+| 9 | `tooltip` | 充足 | 充足（#708 方針 3 で確定） | 充足 | 維持 |
+| 10 | `timer` | 充足 | 充足（モジュール rustdoc でスコープ外明記） | 充足 | 維持 |
+| 11 | `json_tree_view` | 充足 | 充足 | 充足 | 維持 |
+| 12 | `toolbar` | 充足 | 充足 | 充足 | 維持 |
+| 13 | `menubar` | 充足 | 充足 | 充足 | 維持 |
+
+### 「意図的 shadowing」の実態確認
+
+イシュー本文の「意図的 shadowing」は 2 通りに読めるため、両方を実地確認
+した。
+
+- **(a) glob 由来の名前を同名の明示 `pub use` が上書きする Rust の
+  shadowing**: 13 モジュールはいずれも `pub use
+  fandhe_frontend_headless_ui::state::{OpenState, …}` 等を glob と併記する
+  が、対応する headless モジュール側は `use crate::state::{…}`（非公開
+  import）であり glob 経路に載らない。headless 側で `pub use` を持つのは
+  `toolbar.rs`（`ToggleGroup`/`MultiToggleGroup`）と `json_tree_view.rs`
+  （`TreeView`）の 2 件のみで、pre-styled 側の明示再エクスポート名
+  （`Orientation`/`TreeViewAction`/`state` 系）とは一切衝突しない。→
+  現時点で (a) の実例は 0 件（規約 C は将来の混入防止として置く）。
+- **(b) styled 側のローカル定義が headless の同名項目を置き換えるパターン**:
+  `avatar`/`breadcrumb`/`nav_list`/`clipboard`/`toggle`/`segment_group`/
+  `checkbox_group`/`file_upload`/`date_input`/`angle_slider` 他多数で
+  「styled `root` を再定義し、headless の同名自由関数・状態機械型はあえて
+  再エクスポートしない」形が確立済み。→ これが実質的な「意図的
+  shadowing」の運用実体であり、選択的 re-export（規約 A）によって Rust
+  レベルの暗黙 shadowing を回避している構図。
+
+### 兄弟イシューとの責務境界
+
+- **#1064**（`crates/docs-site/tests/` に headless 63 部品 / pre-styled
+  107 部品のラップ状態を機械可視化する契約テストを追加）と役割を分離する。
+  本イシュー（#1062）は `crates/pre-styled-ui/tests/` 内で再エクスポート
+  **形式**の規約適合のみを検査し、部品の対応関係（ラップ済み /
+  pre-styled-only / 未ラップ）には立ち入らない。
+- `crates/headless-ui/` 側の再エクスポート方針（`positioning.rs` の層帰属
+  含む）は #1065 のスコープであり本件では変更しない。
+
+### semver 判定
+
+本 PR の変更は `src/lib.rs` の rustdoc 追加・各 glob モジュールへの
+`REEXPORT-GLOB-REVIEWED:` コメント追加・`tests/reexport_policy.rs` 新設の
+みで、公開 API（型・関数・再エクスポート項目）は一切変化しない。PR 本文へ
+`version-bump-exempt: fandhe-frontend-pre-styled-ui`（理由: rustdoc・
+コメント・テスト追加のみで公開 API は不変）を宣言し、`version-bump-guard`
+の対象から除外した。
