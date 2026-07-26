@@ -1031,15 +1031,14 @@ fn contract_violation_is_detected_for_unknown_docs_class() {
 /// pre-styled-ui の recipe が出す `fd-*` class は本テストの対象外
 /// （所管は `crates/pre-styled-ui/tests/`。既定 variant が宣言を持たない
 /// ケース（例: `fd-chart--lines-solid`）が正当に存在するため）。
-/// 部品ページの Demo ラッパ class 契約表（イシュー #1021、設計 §5/§9 A05）。
+/// 部品ページの Demo ラッパ class 契約表（イシュー #1021/#1022、設計 §5/§9 A05）。
 /// `component_page::THEMES_SHOWCASE_CLASS` / `PRIMITIVES_SHOWCASE_CLASS` を
 /// ハードコード文字列でなく名前付き定数から参照することで、本ファイルと
-/// `component_page.rs` の二重管理を避ける。`primitives-showcase` は本イシュー
-/// 時点では実 HTML に出現しない（Primitives が Demo を持たないため）が、
-/// 契約表へ先回りで登録することで #1022 が Demo を供給した瞬間に対応 CSS
-/// セレクタの欠落を fail-closed に検知できるようにする（`showcase.rs` /
-/// `site_theme.rs` へ `.primitives-showcase` を先回りで足すことはしない。
-/// #715 の分離 CSS 契約に反するため。CSS 実体の供給は #1022 の責務）。
+/// `component_page.rs` の二重管理を避ける。`primitives-showcase` はイシュー
+/// #1022 で `crate::primitive_showcase` が Demo を供給するようになったため
+/// 実 HTML に出現し、対応 CSS セレクタは `primitive_showcase::stylesheet()`
+/// （`assets/primitives-showcase.css`、Themes 側の `pre-styled-ui.css` とは
+/// 独立）が持つ。
 fn component_page_wrapper_classes() -> [&'static str; 2] {
     use fandhe_frontend_docs_site::component_page::{
         PRIMITIVES_SHOWCASE_CLASS, THEMES_SHOWCASE_CLASS,
@@ -1049,7 +1048,7 @@ fn component_page_wrapper_classes() -> [&'static str; 2] {
 
 #[test]
 fn component_page_render_introduces_no_class_outside_the_contract() {
-    use fandhe_frontend_docs_site::{component_page, showcase};
+    use fandhe_frontend_docs_site::{component_page, primitive_showcase, showcase};
 
     let wrapper_classes = component_page_wrapper_classes();
 
@@ -1058,6 +1057,16 @@ fn component_page_render_introduces_no_class_outside_the_contract() {
         .as_css()
         .to_string();
     let showcase_selectors = extract_css_class_selectors(&showcase_css);
+
+    // イシュー #1022: Primitives 専用 CSS（`primitives-showcase.css`）は
+    // Themes 専用の `showcase_selectors` とは別の対応シートを持つ
+    // （層混同を防ぐため、`primitives-showcase` ラッパ class は
+    // 必ずこちらでのみ照合する）。
+    let primitive_showcase_css = primitive_showcase::stylesheet()
+        .expect("primitive showcase stylesheet should assemble")
+        .as_css()
+        .to_string();
+    let primitive_showcase_selectors = extract_css_class_selectors(&primitive_showcase_css);
 
     // `component_page_paths()` が返すのは Rust 側デモを持つ 90 件
     // （`showcase::COMPONENT_PAGES` の登録分。イシュー #980 で toggle/
@@ -1089,6 +1098,60 @@ fn component_page_render_introduces_no_class_outside_the_contract() {
     assert!(
         seen_wrapper,
         "部品ページから showcase ラッパ class が 1 件も抽出できなかった（テスト自体の不備）"
+    );
+
+    // イシュー #1022: Primitives（`/primitives/<kebab>/`）側も同型に検査する。
+    // `primitives-showcase`/`primitives-demo-*` class は
+    // `assets/primitives-showcase.css` にのみ実在すればよく、
+    // `assets/pre-styled-ui.css`（Themes 専用）との対応は要求しない。
+    let mut seen_primitives_wrapper = false;
+    for path in primitive_showcase::page_paths() {
+        let content = component_page::generated_content(path)
+            .unwrap_or_else(|| panic!("registered primitive page {path} must render"));
+        let html = render(&content);
+
+        let violations = classes_outside_contract(&html);
+        assert!(
+            violations.is_empty(),
+            "{path}: 契約表に無い docs- class が Primitives ページに出現した: {violations:?}"
+        );
+
+        for token in extract_class_tokens(&html) {
+            if wrapper_classes.contains(&token.as_str()) || token.starts_with("primitives-demo-") {
+                seen_primitives_wrapper = true;
+                assert!(
+                    primitive_showcase_selectors.contains(&token),
+                    "{path}: docs-site 由来の class {token} が生成 assets/primitives-showcase.css に無い"
+                );
+            }
+        }
+    }
+    assert!(
+        seen_primitives_wrapper,
+        "Primitives ページから primitives-showcase 系ラッパ class が 1 件も抽出できなかった（テスト自体の不備）"
+    );
+}
+
+/// イシュー #1022 D4: Primitives 専用 CSS は headless-ui のマークアップへ
+/// スタイルを到達させてはならない（`[data-scope=`/`[data-part=` を 1 個も
+/// 含まない）。デモ枠（`.primitives-demo-frame` 等）の中和のみを許す構造上の
+/// 不変条件を機械検査で固定する（`crate::primitive_showcase` モジュール doc
+/// §スタイル分離が必須である理由 参照）。
+#[test]
+fn primitive_showcase_css_never_targets_data_scope_or_data_part_selectors() {
+    use fandhe_frontend_docs_site::primitive_showcase;
+
+    let css = primitive_showcase::stylesheet()
+        .expect("primitive showcase stylesheet should assemble")
+        .as_css()
+        .to_string();
+    assert!(
+        !css.contains("[data-scope="),
+        "primitives-showcase.css に [data-scope= セレクタが混入している（headless-ui へスタイルが到達する）"
+    );
+    assert!(
+        !css.contains("[data-part="),
+        "primitives-showcase.css に [data-part= セレクタが混入している（headless-ui へスタイルが到達する）"
     );
 }
 

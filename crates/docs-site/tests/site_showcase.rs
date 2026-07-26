@@ -216,6 +216,14 @@ fn non_showcase_pages_do_not_reference_showcase_css() {
     assert!(!component_index_html.contains(r#"href="/fandhe-frontend/assets/pre-styled-ui.css""#));
     assert!(!component_index_html.contains(r#"data-scope="button""#));
     assert!(!component_index_html.contains(r#"class="pre-styled-showcase""#));
+
+    // イシュー #1022: `/primitives/<kebab>/` は headless-ui の Demo を持つが、
+    // Themes 側の専用 CSS（`pre-styled-ui.css`、`[data-scope=` recipe）を
+    // 一切参照しない（層混同の中核回帰。モジュール doc §1.2 相当）。
+    let accordion_html = read_component_page(&out.0, "primitives/accordion");
+    assert!(!accordion_html.contains("pre-styled-ui.css"));
+    assert!(accordion_html.contains("primitives-showcase.css"));
+    assert!(!accordion_html.contains(r#"class="pre-styled-showcase""#));
 }
 
 /// イシュー #980 の回帰テスト: `site/themes/toggle.md`/`toggle-group.md`

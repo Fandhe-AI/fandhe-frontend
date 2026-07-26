@@ -251,9 +251,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     );
 
     // アセットは site.css / admonition.css / skip-nav.css / site.js /
-    // pre-styled-ui.css / search-index.json の 6 件（部品ページが showcase
-    // CSS を要求するため実サイトでは fixture（5 件）より 1 件多い）。
-    assert_eq!(report.assets.len(), 6, "{:?}", report.assets);
+    // pre-styled-ui.css / primitives-showcase.css / search-index.json の
+    // 7 件（部品ページが showcase CSS を要求するため実サイトでは
+    // fixture（5 件）より多い。イシュー #1022 で primitives-showcase.css が
+    // 加わり 6 → 7 になった）。
+    assert_eq!(report.assets.len(), 7, "{:?}", report.assets);
 
     // イシュー #1016: リダイレクトページは `written`（本体ページ）にも
     // `assets` にも含めない独立フィールド（`BuildReport::redirects`）。
