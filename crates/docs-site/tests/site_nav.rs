@@ -104,7 +104,10 @@ fn site_nav_registers_five_sections_with_expected_titles() {
 /// （`site/components/tab-nav.md`）が加わり、部品ページは 105 → 106、
 /// 登録ページ総数は 127 → 128 になった。イシュー #997 で Checkbox Group
 /// （`site/components/checkbox-group.md`）が加わり、部品ページは
-/// 106 → 107、登録ページ総数は 128 → 129 になった。
+/// 106 → 107、登録ページ総数は 128 → 129 になった。イシュー #1009 で
+/// Guides / API Reference のセクショントップページ（`site/guides.md` /
+/// `site/api.md`）2 ページが加わり、登録ページ総数は 129 → 131 になった
+/// （部品ページ 107 は不変）。
 #[test]
 fn site_nav_registers_all_pages_with_expected_paths() {
     let nav = load_nav();
@@ -116,8 +119,10 @@ fn site_nav_registers_all_pages_with_expected_paths() {
 
     // イシュー #995 で Quote / Strong の 2 ページが加わり 124 → 126 になった。
     // イシュー #996 で Tab Nav が加わり 127 → 128、イシュー #997 で
-    // Checkbox Group が加わり 128 → 129 になった。
-    assert_eq!(pages.len(), 129, "expected 129 pages, got {pages:?}");
+    // Checkbox Group が加わり 128 → 129 になった。イシュー #1009 で
+    // Guides / API Reference のセクショントップページ 2 ページが加わり
+    // 129 → 131 になった。
+    assert_eq!(pages.len(), 131, "expected 131 pages, got {pages:?}");
 
     let component_pages: Vec<&(&str, &str)> = pages
         .iter()
@@ -156,6 +161,7 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     let expected = vec![
         ("site/index.md", "/"),
         ("docs/guides/quickstart.md", "/getting-started/quickstart/"),
+        ("site/guides.md", "/guides/"),
         (
             "docs/guides/component-authoring.md",
             "/guides/component-authoring/",
@@ -185,6 +191,7 @@ fn site_nav_registers_all_pages_with_expected_paths() {
             "site/components-pre-styled-ui.md",
             "/components/pre-styled-ui/",
         ),
+        ("site/api.md", "/api/"),
         ("docs/api/component-api.md", "/api/component-api/"),
         ("docs/api/app-api.md", "/api/app-api/"),
         ("docs/api/interactive-api.md", "/api/interactive-api/"),
