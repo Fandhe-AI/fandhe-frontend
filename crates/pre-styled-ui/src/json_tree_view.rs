@@ -55,6 +55,11 @@ pub use fandhe_frontend_headless_ui::tree_view::TreeViewAction;
 const SLOTS: &[&str] = &["key", "value"];
 
 /// この styled JsonTreeView の既定 CSS を組み立てる（内部ヘルパ、[`stylesheet`] のみが呼ぶ）。
+///
+/// `data-kind` の出力元は headless-ui（`crates/headless-ui/src/
+/// json_tree_view.rs` の `value` パーツ）。本モジュールは CSS セレクタ
+/// として参照するのみで、属性を出力しない（イシュー #1063、
+/// `docs/design/pre-styled-ui-data-attr-vocabulary.md` 規約 A）。
 fn recipe() -> SlotRecipe {
     SlotRecipe::new("json-tree-view", SLOTS)
         .base("key", vec![decl("color", "var(--fandhe-color-fg)")])

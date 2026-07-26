@@ -82,6 +82,7 @@ use crate::recipe::{SlotRecipe, StateCondition};
 use crate::tabs::{
     shared_tab_item_active_declarations, shared_tab_item_declarations, shared_tab_list_declarations,
 };
+use fandhe_frontend_headless_ui::data_attrs::data_current;
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
 use fandhe_frontend_headless_ui::{anatomy, Anatomy};
 
@@ -176,8 +177,11 @@ pub fn root<'a>(label: &'a str, attrs: Vec<(&'a str, &'a str)>, children: Vec<No
 
 /// `link`（`<a>`）パーツを組み立てる。`current` が `true` のとき
 /// `aria-current="page"` + `data-current` を付与する（[`crate::link::root`]
-/// /`crates/headless-ui/src/link.rs::root` と同じ語彙）。`role` は一切
-/// 出力しない（モジュール冒頭 rustdoc「`tabs` との差」節参照）。呼び出し側
+/// /`crates/headless-ui/src/link.rs::root` と同じ語彙）。`data-current` は
+/// `fandhe_frontend_headless_ui::data_attrs::data_current` ヘルパを経由して
+/// 付与する（イシュー #1063、生タプルでの再定義をしない。
+/// `docs/design/pre-styled-ui-data-attr-vocabulary.md` 規約 B-1）。`role` は
+/// 一切出力しない（モジュール冒頭 rustdoc「`tabs` との差」節参照）。呼び出し側
 /// `attrs` の `class` は [`drop_class_attr`] で除去し、[`LINK_RESERVED`]
 /// の偽装は [`drop_reserved`] で除去してから合成する。`href` の危険 URL
 /// スキームは core の既定経路が拒否する（モジュール冒頭 rustdoc「セキュリ
@@ -204,7 +208,10 @@ pub fn link<'a>(
     let mut merged: Vec<(&str, &str)> = vec![("href", href)];
     if current {
         merged.push(("aria-current", "page"));
-        merged.push(("data-current", ""));
+        // イシュー #1063: 生タプルでの再定義をやめ、headless-ui の共有ヘルパを
+        // 経由する（`docs/design/pre-styled-ui-data-attr-vocabulary.md` 規約
+        // B-1）。出力は従来の `("data-current", "")` と完全に同一。
+        merged.extend(data_current(true));
     }
     merged.extend(drop_reserved(drop_class_attr(attrs), LINK_RESERVED));
     ANATOMY.part("link", "a", merged, children)

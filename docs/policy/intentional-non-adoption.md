@@ -1253,6 +1253,14 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   （Direction Provider / Accessible Icon / Slot / Inset / Radio / Reset）は
   本節とは別軸の保留であり、各項目の再評価トリガーに従う（§7 参照）。
 
+- **層責務分離の系（イシュー #1063）**: `data-*` 属性の**定義元**（＝出力する層）
+  についても本節の 2 層責務分離と同じ考え方が適用される。headless-ui に対応
+  部品が存在する場合、`data-*` の出力は headless 層の責務であり pre-styled
+  層は CSS セレクタとして参照するのみとする規約（規約 A）、pre-styled-only
+  部品は独自語彙を持ってよいが同名ヘルパの再定義・意味論の分岐を禁じる規約
+  （規約 B）の詳細は `docs/design/pre-styled-ui-data-attr-vocabulary.md` を
+  参照。
+
 ## 4. 運用（再導入提案時の手続き）
 
 上記各項目のいずれかを再導入したいと判断した場合、以下を Issue・PR に

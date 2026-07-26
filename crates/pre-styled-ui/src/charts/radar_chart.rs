@@ -52,6 +52,14 @@
 //!   `docs/policy/intentional-non-adoption.md`）。
 //! - `examples/headless-pre-styled-ui` への追随は crates.io 公開後に別途
 //!   行う（`qr_code`/`bar_chart` の先例と同じ判断）。
+//!
+//! # `data-series` 語彙（イシュー #1063）
+//!
+//! `data-series`（系列ポリゴン要素へ付与、値は系列名）は
+//! `fandhe-frontend-headless-ui` に対応部品を持たない pre-styled-only 語彙
+//! である（`docs/design/pre-styled-ui-data-attr-vocabulary.md` 規約 B、
+//! [`super::scatter_chart`] と共通）。現在の recipe に CSS 消費者はなく、
+//! 利用者側 CSS/JS が任意でフックするための識別子に留まる。
 
 use std::f64::consts::PI;
 
