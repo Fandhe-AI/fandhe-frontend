@@ -66,6 +66,7 @@ base_path = "/fixture-base"
 
 [[section]]
 title = "Guide"
+index_path = "/"
 
 [[section.page]]
 title = "Intro"
