@@ -3939,8 +3939,20 @@ fn listbox_enter_and_space_synthesize_click_on_highlighted_item() {
         "Space（バッファ非活性時）も highlight 中の項目へ click を合成すべき"
     );
 
-    // B（disabled）を highlight してから Enter しても click は発火しない。
-    content.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    // B（disabled）が highlight 中の状態を検証する。ArrowDown は disabled
+    // 項目をスキップする既存仕様（`listbox_arrow_navigation_skips_disabled_items`
+    // 参照）のため、通常のキーボード操作では B へ到達できない。本テストは
+    // 「highlight 中の項目が disabled だった場合」の fail-closed no-op を
+    // 検証する防御的なケースのため、`menu_open_arrow_right_on_disabled_trigger_item_is_noop`
+    // と同じパターンで highlight を直接 DOM へ設定する。
+    item_a.remove_attribute("data-highlighted").unwrap();
+    item_b.set_attribute("data-highlighted", "").unwrap();
+    content
+        .set_attribute(
+            "aria-activedescendant",
+            &item_b.get_attribute("id").unwrap(),
+        )
+        .unwrap();
     assert!(item_b.has_attribute("data-highlighted"));
     content.dispatch_event(&keydown_event("Enter")).unwrap();
     assert_eq!(
