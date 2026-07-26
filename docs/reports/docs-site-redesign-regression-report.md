@@ -302,3 +302,118 @@ Phase / PR」列は `git log origin/main --oneline` で実在確認できたコ�
   適用範囲と将来トリガー」）
 - 関連イシュー: #924（トラッキング、Radix 参照・docs サイト IA 刷新）/
   #933（親 Phase 9）/ #960（Phase 9-1、実測）/ #961（本追補）
+
+## 12. 追補: Primitives / Themes 2 層構成のビジュアル回帰確認（イシュー #1033）
+
+### 12.0 位置づけと受け入れ条件マッピング
+
+本追補は #1035（ルート、Radix 同型の Primitives / Themes 2 層構成への作り替え）
+Phase 1〜5（#1012〜#1029、`fandhe-frontend-headless-ui` = Primitives・
+`fandhe-frontend-pre-styled-ui` = Themes の 2 層分離、URL 移行
+`/components/<kebab>/` → `/themes/<kebab>/`（#1017）、`/primitives/<kebab>/`
+新設（#1021）、Primitives 63 部品の原稿充填（#1024〜#1029）を含む）完了後の
+状態に対する回帰記録である。親 #1034「Phase 6: 検証とドキュメント追随」の
+子イシュー。§1〜§11 は既存記録として保存し書き換えていない（#961 の先例と
+同型）。
+
+| #1033 受け入れ条件 | 対応節 |
+|---|---|
+| 観点 1〜10 すべての合否と根拠が記録されている | §14 |
+| `cargo test -p fandhe-frontend-docs-site` と `cargo run … -- --out dist/` が exit 0 | §15.1 |
+| 不合格観点の是正または out-of-scope 記録 | §16 |
+| 撮影出力を 1 バイトもコミットしていない | §13（配布方針） |
+
+## 13. 実施環境と配信方法
+
+- Chromium: `/snap/bin/chromium`（snap 版、150.0.7871.114）。`--headless
+  --disable-gpu --no-sandbox --screenshot=<path>` で撮影。
+- 配信方法: **HTTP のみ**（`python3 -m http.server` / CSP `script-src 'none'`
+  を付与する自作サーバ、いずれも `127.0.0.1` バインド）。生成 HTML の
+  stylesheet href が `/fandhe-frontend/assets/site.css` という絶対パスであり
+  `file://` では解決しないため（計画時点の実測どおり）、`file://` は採らない。
+- 出力先: 計画のイシュー本文既定（`_/shots/`）ではなく
+  `$HOME/fandhe-docs-site-visual/1033-<タイムスタンプ>/` を使った。理由は
+  `_/shots/` を worktree（`.claude/worktrees/<name>/` 配下）で解決すると path
+  に `.claude` が含まれ、snap の AppArmor により chromium が無音で書き込み
+  失敗するため（`tools/docs-site/visual-regression.sh` 自身が同じ理由で
+  ドット始まりパス要素を fail-closed で拒否する既存ガード）。実際に `/tmp`
+  直下への書き込みでも同様の問題を実測で確認した（下記参照）: snap 版
+  chromium は `/tmp` 自体を snap 専用の private mount にリマップするため、
+  ホスト側 `/tmp` へ期待通り書き込まれない（`$HOME` 配下は home interface
+  経由で正しく解決する）。
+- 成果物（PNG 39 枚・manifest.tsv・chromium ログ）は `$HOME` 配下に生成され
+  リポジトリ外であり、`git status` で確認したとおり 1 バイトもコミットして
+  いない。
+
+## 14. 観点 1〜10 の合否表
+
+判定語彙は既存レポート §8.2 の 3 値（解消 / 部分解消 / 未検証）に「合格」
+「合格（注記付き）」を加えた 5 値とし、「未検証」を「合格」へ格上げしない
+（#961 §8.2 の判定原則を継承）。
+
+| # | 観点 | 判定 | 根拠 |
+|---|---|---|---|
+| 1 | ヘッダー遷移 | **合格** | `grep -o '<a href="[^"]*" class="docs-header-trigger"' dist/primitives/accordion/index.html` で 6 件・`<button>` ゼロ（`<a href>` 化を維持）。機械テスト `nav::tests::header_nav_trigger_links_to_section_index_path` / `site_nav::site_nav_declares_index_path_for_every_section` が ok。ショット `p4-primitives-accordion-1440-light.png` で Primitives タブがアクティブハイライトされていることを目視確認 |
+| 2 | ドロップダウン維持 | **合格** | `grep -c 'docs-header-dropdown' dist/assets/site.css` = 11（`:hover`/`:focus-within` 規則を含む）。DOM 存在は各ページで確認済み。**実操作（ホバー/フォーカス）のショットは撮影不能**（headless `--screenshot` にホバー手段が無いため、既存 §8.2 が「未検証」として追跡済みの制約を継承。CSS 生成 + DOM 存在という期待値は満たすため観点自体は合格） |
+| 3 | サイドバースコープ | **合格** | 機械テスト `site_build::real_site_sidebar_is_scoped_to_the_current_section`（Guides/Themes/Primitives の 3 代表で他セクション混入ゼロ + Primitives 64 リンク固定）が ok。`p4-primitives-accordion-*.png` / `n2-primitives-accordion-nojs-375.png` で Primitives 配下のみ（Forms A/B/C・Overlay/Disclosure・Navigation・Data Display/Utilities）がサイドバーに表示され、Themes/Guides 等が混入していないことを目視確認 |
+| 4 | Primitives ページ | **合格（注記付き）** | 63 件生成・Demo/Features/Anatomy/API Reference（Arguments）/Examples/Accessibility = 63/63（`grep -rl 'id="demo"' dist/primitives \| wc -l` 等で確認）。CSS 変数表は仕様どおり 0/63（`grep -rl 'id="css-variables"' dist/primitives` = 0）。**`data-*` 表は 50/63**（`grep -rl 'id="data-attributes"' dist/primitives` = 50）——`component_page.rs::collect_data_attrs_from_tree` がデモツリーから機械走査する仕様上、デモに `data-scope`/`data-part` が現れない部品では表自体が生成されない導出規則によるものであり退行ではない（Themes 側も 57/107 で同様の部分性）。表が無い代表として `primitives/visually-hidden/` を撮影し（`p6-primitives-visually-hidden-1440-light.png`）、他の 5 節はすべて存在し ToC にも「Data Attributes」項目が現れずページとして破綻していないことを目視確認した |
+| 5 | Themes ページ | **合格** | `find dist/themes -mindepth 1 -maxdepth 1 -type d \| wc -l` = 107（索引除く）。CSS 変数表 56/107（`grep -rl 'id="css-variables"' dist/themes` = 56）。#1017 の URL 移行が pure rename（内容 0 変更）であることは `git show 6214804 --stat -M` 系の履歴確認と既存テストで担保済み。`p2-themes-accordion-*.png` で CSS 変数表を持つ代表ページの表示を確認 |
+| 6 | 旧 URL | **合格** | `/components/` 配下 108 サブディレクトリ + 索引 1 = 109（`site/redirects.toml` の宣言件数と一致）。`components/button/index.html` で `meta refresh` + `rel=canonical` + `<meta name="robots" content="noindex">` + 静的 `<a href="…/themes/button/">` の 4 要素すべてを直接確認済み（`<script>` タグはゼロ）。機械テスト `redirects.rs` / `no_js_contract::redirect_pages_contain_no_script_and_a_static_fallback_link` が ok。**end-to-end のスクリーンショット証跡は取得していない**——実装時の実測で、CSP `script-src 'none'` 配信下で `meta refresh` ページを headless chromium `--screenshot` で開くと無期限にハングすることを確認した（40 秒 `timeout` でも exit 124、CSP 無し配信・CSP 配信での非リダイレクトページはいずれも数秒で成功する対照実験で原因を CSP + meta-refresh の組み合わせに特定）。HTML 直接検証と既存テストで観点自体は十分に担保されるため判定は合格とし、この撮影不能事実は §16 に記録する |
+| 7 | 検索 | **合格（一部未検証）** | `dist/assets/search-index.json` の層別集計（`base_path` を除いた href で判定）: primitives 64（索引 1 + 部品 63）/ themes 108（索引 1 + 部品 107）/ components 0 —— 計画時点の実測どおり。機械テスト `search_index::real_site_search_index_is_deterministic_covers_all_nav_pages_and_matches_html_ids` / `real_site_search_index_does_not_contain_redirect_hrefs` が ok。**検索 UI の結果パネル描画は未検証**（headless `--screenshot` は入力操作ができず `script.rs` に `?q=` 等の URL エントリポイントも存在しない。#1035 の「JS への新規配線を追加しない」方針に従い今回も追加しなかった） |
+| 8 | ダークモード | **合格** | `p1`〜`p5`・`p9` の light/dark 対（計 16 組）を目視。Primitives の unstyled デモ（`p4-primitives-accordion-1440-dark.png` 等）はダーク背景でもボタン・テキストのコントラストが保たれ判読可能。`assets/primitives-showcase.css` が `:root[data-theme="light"]` / `@media (prefers-color-scheme: dark)` / `:root[data-theme="dark"]` の 3 ブロックを保有し `site.css` の後段でトークンを再宣言する構成に退行なし |
+| 9 | レスポンシブ | **合格** | 375/768/1440 の 3 幅で `p1`（top）・`p2`（themes/accordion）・`p4`（primitives/accordion）・`p7`（primitives 索引）・`p8`（themes 索引）を撮影し、ヘッダー・サイドバー・デモのいずれも崩れなし。375 幅ではヘッダーが「Menu」トグルへ折りたたまれる（`p3-themes-dialog-375-light.png` で確認）。`<1200px` で右目次カラムが消える件は既存レポート §3.2 で許容済みであり判定を変更しない |
+| 10 | 既存回帰 | **合格** | `cargo test -p fandhe-frontend-docs-site` 550 件全 green（`#[ignore]` 追加ゼロ、失敗ゼロ）。`site_theme` / `layout_render`（View Transitions・SkipNav）/ `no_js_contract` を含む全テストバイナリが green |
+
+## 15. 実測メモ
+
+#### 15.1 機械検証
+
+```
+$ cargo test -p fandhe-frontend-docs-site
+（unittests 2 本 + tests/ 配下 24 本 + doc-test 1 本 = 27 実行単位、合計 550 件、全 green。失敗 0・ignored 0）
+
+$ cargo fmt --all --check
+（差分なし）
+
+$ cargo clippy -p fandhe-frontend-docs-site --all-targets -- -D warnings
+Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.87s   # 警告ゼロ
+
+$ cargo run --locked -p fandhe-frontend-docs-site -- --out dist/
+fandhe-frontend-docs-site: wrote 195 page(s), 109 redirect(s) and 7 asset(s) to dist/
+```
+
+計画時点の事前実測（195 ページ / 109 リダイレクト / 7 アセット、primitives
+64・themes 108・components 0 件の search-index 分布、primitives の
+`data-*` 表 50/63・css-variables 0/63、themes の `css-variables` 表 56/107）
+はすべて実装時点でも再現した。
+
+#### 15.2 実ブラウザ撮影
+
+39 枚（P1〜P11・N1・N2）を撮影し、manifest.tsv にファイル名・URL・幅・高さ・
+テーマ・JS 有無・バイト数・SHA256 を記録した（`$HOME` 配下、非コミット）。
+当初計画の P6（`data-*` 表を持たない代表・light+dark）は枚数バジェット
+（40 枚 / 4.5MB）を優先し light のみへ縮約した。N3（旧 URL の end-to-end
+証跡）は §14 観点 6 に記載の理由（CSP + meta-refresh でのハング）により
+撮影マトリクスから除外した。
+
+## 16. 残課題・未検証と追跡先
+
+既存レポート §10.2 の項目と重複させず、本追補で新たに判明した増分のみ記載
+する。
+
+| 事項 | 位置づけ | 追跡 |
+|---|---|---|
+| CSP `script-src 'none'` 配信下で `<meta http-equiv="refresh">` ページを開くと headless chromium (`--headless --screenshot`) が無期限にハングする | 観点 6 の end-to-end スクリーンショットは取得不能という**ツール制約の発見**であり、docs サイト自体の退行ではない。`tools/docs-site/visual-regression.sh` から該当撮影（旧 N3）を削除し、理由をスクリプト冒頭コメント・本節へ記録した。観点 6 自体は HTML 直接検証 + 既存テストで合格判定済み（§14） | 本レポート §16（新規 Issue 起票はユーザー承認後、`out-of-scope-tracking.md` に従う） |
+| `site/themes.md`（Themes 索引）に残る「Demo 以外の節（Features/Anatomy/…）の充填は Phase 4（#945〜#948）で進めます」という記述 | 既存レポート §10.2 で `site/components-pre-styled-ui.md` として記録済みの項目が、#1018 のリネーム後も `site/themes.md` として引き続き現存することを本追補の撮影（`p8-themes-index-1440-light.png`）で再確認した。原稿の書き換えは Phase 5/6 の対象外であり本 PR に含めない | 既存レポート §10.2 と同一の追跡対象（新規ではないため新規行を追加せず、ここでは継続確認の事実のみ記録） |
+| ヘッダードロップダウンの `:focus-within`/`:hover` 実機確認・見出しアンカーの sticky ヘッダー回避・View Transitions の実遷移・`prefers-color-scheme` 経路の実機確認 | §8.2 で「未検証」判定済みの既存項目であり、Primitives/Themes 2 層化によって新たに生じた制約ではない（同じ撮影手段の限界が継続しているだけ） | 既存レポート §10.2 と同一（増分なし） |
+
+## 17. 追補: 参照（#1033）
+
+- 関連イシュー: #1035（ルート）/ #1034（親 Phase 6）/ #1033（本追補）/
+  #1012・#1038・#1042・#1017・#1016/#1018・#1039/#1045/#1046・#1020〜#1022・
+  #1024〜#1029（Phase 1〜5、対象の刷新一式）
+- 関連テスト: `crates/docs-site/tests/site_nav.rs` / `redirects.rs` /
+  `no_js_contract.rs` / `primitive_showcase.rs` / `primitive_showcase_xss.rs` /
+  `search_index.rs` / `site_build.rs`
+- 再現手順: `DOCS_SITE_SHOTS_DIR="$HOME/<任意のパス>" tools/docs-site/visual-regression.sh`
+  （出力先は絶対パス・非ドット始まりパス要素であることが必須。§13 参照）
