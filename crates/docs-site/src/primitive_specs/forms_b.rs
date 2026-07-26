@@ -488,10 +488,11 @@ const SWITCH: ComponentPageSpec = ComponentPageSpec {
 /// `hidden_input` 264-281）。
 const TAGS_INPUT: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "Root / Label / Control / Input / Item / ItemPreview / ItemText / ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput の 11 anatomy パーツと、タグ文字列の可変長リスト + 重複拒否 + 上限 + 編集中インデックスを持つ値状態機械を提供する。",
+        "Root / Label / Control / Input / Item / ItemPreview / ItemText / ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput / LiveRegion の 12 anatomy パーツと、タグ文字列の可変長リスト + 重複拒否 + 上限 + 編集中インデックスを持つ値状態機械を提供する。",
         "不変条件「重複タグなし・`len() <= max`・カンマを含まない・空文字列を含まない」を破る入力は dispatch・hydration・コンストラクタのすべての入口で一貫して拒否する（カンマ・空文字列はフォーム送信値のカンマ結合時に曖昧さを生むため、Cursor Bugbot 指摘を踏まえ全入口で禁止）。",
         "`control` は `role=\"listbox\"` + `aria-orientation=\"horizontal\"` を持ち、`item_preview` は `role=\"option\"` + `aria-selected=\"true\"` 固定（常に選択済みタグを表示するため）。",
         "`editing`（編集中インデックス）は ephemeral な DOM 状態のため hydration では運ばない。",
+        "`live_region` はタグ数の変化を通知する live region（`role=\"status\"` + `aria-live=\"polite\"` 固定、`root` の直接の子で `control` の兄弟として配置する。テキスト更新の実配線は `fandhe-frontend-wasm-full` の後続責務、イシュー #1069）。",
     ],
     arguments: &[
         ArgRow { name: "root/item(disabled)", kind: "bool", default: "", description: "`data-disabled` を反映する。" },
@@ -504,6 +505,7 @@ const TAGS_INPUT: ComponentPageSpec = ComponentPageSpec {
         ArgRow { name: "input(value)", kind: "&str", default: "", description: "新規タグ入力用のネイティブ入力欄の値。" },
         ArgRow { name: "input(at_max)", kind: "bool", default: "", description: "上限到達時に `data-invalid` + `aria-invalid=\"true\"` を出力する。" },
         ArgRow { name: "hidden_input(name, value)", kind: "&str, &str", default: "", description: "フォーム送信名と、全タグのカンマ結合値。" },
+        ArgRow { name: "live_region(children)", kind: "Vec<Node>", default: "", description: "role=\"status\"/aria-live=\"polite\"/aria-atomic=\"true\" を固定付与する live region。通知文言は children として呼び出し側が渡す（イシュー #1069）。" },
     ],
     examples: &[ExampleEntry {
         title: "At max (invalid input)",
@@ -516,6 +518,7 @@ const TAGS_INPUT: ComponentPageSpec = ComponentPageSpec {
         AriaRow { attribute: "role=\"option\" / aria-selected (item_preview)", description: "固定付与。常に選択済みタグを表示するため `aria-selected=\"true\"` 固定。" },
         AriaRow { attribute: "aria-invalid (input)", description: "上限到達（`at_max`）時のみ `\"true\"` を出力する。" },
         AriaRow { attribute: "aria-label (item_delete_trigger)", description: "`\"Delete {tag}\"` を動的生成する（`render()` の既定エスケープ経由）。" },
+        AriaRow { attribute: "role=\"status\" / aria-live=\"polite\" / aria-atomic=\"true\" (live_region)", description: "タグ数の変化を通知する live region に固定付与する（イシュー #1069）。" },
     ],
     demo: None,
 };

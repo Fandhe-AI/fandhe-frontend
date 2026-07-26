@@ -457,6 +457,9 @@ pub(super) fn tags_input_section() -> Node {
             ),
             tags_input::clear_trigger(false, vec![], vec![text("Clear")]),
             tags_input::hidden_input("tags", "rust", false, vec![]),
+            // live_region は control の兄弟として root 直下に置く（配置制約、
+            // モジュール doc参照）。
+            tags_input::live_region(vec![], vec![text("1 tag")]),
         ],
     )];
     demo_page("Tags Input", body)

@@ -3,8 +3,8 @@
 //! ark-ui の TagsInput
 //!（`.claude/skills/ark-ui/references/components/form/tags-input.md`）を
 //! 参考に、Root / Label / Control / Input / Item / ItemPreview / ItemText /
-//! ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput の 11 anatomy
-//! パーツと、[`fandhe_frontend_interactive::Component`]/
+//! ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput / LiveRegion
+//! の 12 anatomy パーツと、[`fandhe_frontend_interactive::Component`]/
 //! [`fandhe_frontend_interactive::Hydrate`] を直接実装する値状態機械
 //! [`TagsInput`] を提供する。
 //!
@@ -27,9 +27,9 @@
 //! [`TagsInput::input`]/[`TagsInput::item`]/[`TagsInput::item_preview`]/
 //! [`TagsInput::item_text`]/[`TagsInput::item_input`]/
 //! [`TagsInput::item_delete_trigger`]/[`TagsInput::clear_trigger`]/
-//! [`TagsInput::hidden_input`]）を呼んで組み立てる。CSR/hydration は
-//! [`TagsInput`] を経由し、dispatch（`"add"`/`"remove"`/`"clear"`/
-//! `"edit-start"`/`"edit-submit"`/`"edit-cancel"`）で状態遷移する。
+//! [`TagsInput::hidden_input`]/[`TagsInput::live_region`]）を呼んで組み立てる。
+//! CSR/hydration は [`TagsInput`] を経由し、dispatch（`"add"`/`"remove"`/
+//! `"clear"`/`"edit-start"`/`"edit-submit"`/`"edit-cancel"`）で状態遷移する。
 //! `fandhe-frontend-pre-styled-ui`（#744〜）が本モジュールを呼んでスタイル済み
 //! TagsInput を組み立てる想定である。
 //!
@@ -39,6 +39,23 @@
 //!   キーボード操作、delimiter によるペースト分割、blur 時の挙動、フォーカス
 //!   管理）は別 issue。本モジュールは dispatch を受けた際の状態遷移のみを担う。
 //! - `validate` コールバック相当の拡張検証・`maxLength`（タグ文字数上限）。
+//!
+//! # LiveRegion パーツと配置制約（イシュー #1069）
+//!
+//! [`live_region`] はタグ追加・削除というタグ数の変化を支援技術へ通知する
+//! ための live region（`role="status"` + `aria-live="polite"` +
+//! `aria-atomic="true"` 固定、[`crate::toast::root`] と同じ 3 点セット）。
+//! 緊急度は常に `polite` 固定で引数を取らない（安全側の判断、
+//! [`crate::combobox::live_region`] と同じ設計）。配置制約は [`root`] の
+//! 直接の子で [`control`] の兄弟として置く（[`control`] の
+//! `role="listbox"` 配下へ置くと listbox が許容する子ロールに反するため）。
+//! [`crate::visually_hidden::root`] への委譲はせず、視覚的に隠す CSS は
+//! 呼び出し側または `fandhe-frontend-pre-styled-ui` の責務とする。通知
+//! 文言は `children` として呼び出し側が渡し、タグ数整形ヘルパは提供しない
+//! （`docs/policy/intentional-non-adoption.md` §3.23/§3.25）。テキスト更新の
+//! 実配線（DOM 書き換え）は `fandhe-frontend-wasm-full` の後続責務
+//! （#1071 系）であり、本モジュールは SSR 静的マークアップと初期文言の
+//! 描画のみを提供する。
 //!
 //! # セキュリティ不変条件
 //!
@@ -89,7 +106,9 @@
 //!   の `focused` と同じ判断）。
 
 use crate::anatomy::{anatomy, Anatomy};
-use crate::aria::{aria_label, aria_orientation, aria_selected};
+use crate::aria::{
+    aria_atomic, aria_label, aria_live, aria_orientation, aria_selected, role, AriaLive,
+};
 use crate::data_attrs::{data_disabled, data_invalid, Orientation};
 use fandhe_frontend_core::Node;
 use fandhe_frontend_interactive::{codec, Component, Hydrate, HydrateError, HYDRATE_ATTR_PREFIX};
@@ -278,6 +297,25 @@ pub fn hidden_input<'a>(
     merged.extend(data_disabled(disabled));
     merged.extend(attrs);
     ANATOMY.part("hidden-input", "input", merged, Vec::new())
+}
+
+/// LiveRegion パーツ（`div`）。タグ数の変化という視覚的にしか伝わらない
+/// 動的更新を支援技術へ通知するための live region（イシュー #1069）。
+///
+/// `role="status"` + `aria-live="polite"` + `aria-atomic="true"` を固定
+/// 付与する（[`crate::toast::root`] と同じ 3 点セット。緊急度は `polite`
+/// 固定で引数を取らない）。配置制約・wasm-full との責務境界はモジュール
+/// doc「LiveRegion パーツと配置制約」節を参照。通知文言は `children` として
+/// 呼び出し側が渡し、`render()` の既定エスケープを経由する。
+#[must_use]
+pub fn live_region<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+    let mut merged: Vec<(&'a str, &'a str)> = vec![
+        role("status"),
+        aria_live(AriaLive::Polite),
+        aria_atomic(true),
+    ];
+    merged.extend(attrs);
+    ANATOMY.part("live-region", "div", merged, children)
 }
 
 /// [`TagsInput`] に対する型付きアクション（WASM 境界の文字列 dispatch と
@@ -513,6 +551,13 @@ impl TagsInput {
     ) -> Node {
         let value = self.value();
         hidden_input(name, &value, disabled, attrs)
+    }
+
+    /// [`live_region`] へ委譲する利便メソッド（状態を持たないため素通し、
+    /// [`TagsInput::label`] と同じ規約）。
+    #[must_use]
+    pub fn live_region<'a>(&self, attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Node {
+        live_region(attrs, children)
     }
 }
 
@@ -872,6 +917,16 @@ mod tests {
         assert!(html.contains(r#"data-disabled="""#));
     }
 
+    #[test]
+    fn live_region_has_role_status_polite_and_atomic() {
+        let html = render(&live_region(vec![], vec![text("1 tag")]));
+        assert!(html.contains(r#"data-part="live-region""#));
+        assert!(html.contains(r#"role="status""#));
+        assert!(html.contains(r#"aria-live="polite""#));
+        assert!(html.contains(r#"aria-atomic="true""#));
+        assert!(html.contains("1 tag"));
+    }
+
     // --- Anatomy::part fail-closed 回帰 ---
 
     #[test]
@@ -883,6 +938,17 @@ mod tests {
         ));
         assert!(html.contains(r#"data-scope="tags-input""#));
         assert!(html.contains(r#"data-part="root""#));
+        assert!(!html.contains("attacker"));
+    }
+
+    #[test]
+    fn live_region_caller_supplied_scope_and_part_are_dropped() {
+        let html = render(&live_region(
+            vec![("data-scope", "attacker"), ("data-part", "attacker")],
+            vec![],
+        ));
+        assert!(html.contains(r#"data-scope="tags-input""#));
+        assert!(html.contains(r#"data-part="live-region""#));
         assert!(!html.contains("attacker"));
     }
 
@@ -1228,6 +1294,17 @@ mod tests {
         ));
         assert!(!html.contains("onmouseover=\"alert(1)"));
         assert!(html.contains("&quot;"));
+    }
+
+    #[test]
+    fn live_region_children_and_attrs_payload_is_escaped_on_render() {
+        let html = render(&live_region(
+            vec![("data-testid", ATTR_BREAK_PAYLOAD)],
+            vec![text(SCRIPT_PAYLOAD)],
+        ));
+        assert!(!html.contains("onmouseover=\"alert(1)"));
+        assert!(!html.contains("<script>alert(1)</script>"));
+        assert!(html.contains("&lt;script&gt;"));
     }
 
     #[test]

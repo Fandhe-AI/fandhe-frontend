@@ -584,10 +584,11 @@ fn ex_combobox() -> Node {
 
 const COMBOBOX: ComponentPageSpec = ComponentPageSpec {
     features: &[
-        "root/label/control/input/trigger/clear_trigger/positioner/content/item_group/item/item_text/item_indicator の anatomy を持ち、フォーカスを保持する input（role=\"combobox\"）側に aria-activedescendant を配線する（crate::select と異なる配線先、combobox.rs:59-65）。",
+        "root/label/control/input/trigger/clear_trigger/positioner/content/item_group/item/item_text/item_indicator/live_region の anatomy を持ち、フォーカスを保持する input（role=\"combobox\"）側に aria-activedescendant を配線する（crate::select と異なる配線先、combobox.rs:59-65）。",
         "input は role=\"combobox\" + aria-autocomplete=\"list\" を固定付与し、controls/activedescendant が Some のときのみ aria-controls/aria-activedescendant を付与する（combobox.rs:152-205）。",
         "trigger は type=\"button\" + aria-haspopup=\"listbox\" を固定付与する（combobox.rs:205-238）。",
         "候補データの絞り込みは filter_options（純粋関数）が提供するが、候補データ自体の取得・供給は利用者側の責務である（combobox.rs:398、`docs/policy/intentional-non-adoption.md` §3.25）。",
+        "live_region は候補件数の変化を通知する live region（role=\"status\" + aria-live=\"polite\" 固定、root の直接の子で control の兄弟として配置する。テキスト更新の実配線は fandhe-frontend-wasm-full の後続責務、イシュー #1069）。",
     ],
     arguments: &[
         ArgRow {
@@ -607,6 +608,12 @@ const COMBOBOX: ComponentPageSpec = ComponentPageSpec {
             kind: "OpenState, bool, bool, &str, Option<&str>",
             default: "",
             description: "role=\"option\" を持つ選択肢 1 個の状態。value は data-value として既定エスケープ経由で出力される（combobox.rs:333-361）。",
+        },
+        ArgRow {
+            name: "live_region(children)",
+            kind: "Vec<Node>",
+            default: "",
+            description: "role=\"status\"/aria-live=\"polite\"/aria-atomic=\"true\" を固定付与する live region。通知文言は children として呼び出し側が渡す（combobox.rs、イシュー #1069）。",
         },
         ArgRow {
             name: "attrs / children",
@@ -637,6 +644,10 @@ const COMBOBOX: ComponentPageSpec = ComponentPageSpec {
         AriaRow {
             attribute: "role=\"listbox\" / role=\"option\"",
             description: "content パーツは role=\"listbox\"、item パーツは role=\"option\" を固定付与する（combobox.rs:277, 343）。",
+        },
+        AriaRow {
+            attribute: "role=\"status\" / aria-live=\"polite\" / aria-atomic=\"true\" (live_region)",
+            description: "候補件数の変化を通知する live region に固定付与する（combobox.rs、イシュー #1069）。",
         },
     ],
     demo: None,

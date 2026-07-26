@@ -237,6 +237,9 @@ pub(super) fn combobox_section() -> Node {
                     )],
                 )],
             ),
+            // live_region は control の兄弟として root 直下に置く（listbox
+            // の許容子ロールに反しないための配置制約、モジュール doc参照）。
+            combobox::live_region(vec![], vec![text("1 result available")]),
         ],
     )];
     demo_page("Combobox", body)
