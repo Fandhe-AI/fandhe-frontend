@@ -172,6 +172,38 @@ const MAPPING_TABLE: &[MappingRow] = &[
         action: "clear",
         requires_value: false,
     },
+    // Combobox（イシュー #1071）: trigger は listbox 開閉トグル
+    // （`ComboboxAction::Toggle`）。マウスクリックと `crate::keynav`
+    // が合成する `HtmlElement::click()`（Arrow キーによる open/close）の
+    // 双方がこの行を経由する。#662 の `menu`/`trigger-item` 欠落是正と
+    // 同型の整備であり、この行を欠くと keynav の click 合成が no-op に
+    // なる。
+    MappingRow {
+        scope: "combobox",
+        part: "trigger",
+        action: "toggle",
+        requires_value: false,
+    },
+    // item クリック（マウス・keynav の Enter/highlight click 合成の両方）は
+    // "select"（value 必須、`ComboboxAction::Select`。ark-ui の
+    // `closeOnSelect` 既定に準拠し選択と同時に listbox を閉じる、
+    // `crates/headless-ui/src/combobox.rs::Combobox::update` 参照）。
+    MappingRow {
+        scope: "combobox",
+        part: "item",
+        action: "select",
+        requires_value: true,
+    },
+    // clear-trigger は選択解除（`ComboboxAction::Clear`。`Select` と異なり
+    // `combobox::clear_trigger` は SSR 出力済みだが keynav・マウスクリック
+    // いずれの経路もこの行が無いと no-op のままだった、Select の
+    // `clear-trigger`→`"deselect"` 整備と同種）。
+    MappingRow {
+        scope: "combobox",
+        part: "clear-trigger",
+        action: "clear",
+        requires_value: false,
+    },
 ];
 
 /// クリックされた要素（またはその祖先方向の 1 要素）の anatomy 属性を表す

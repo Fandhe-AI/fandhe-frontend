@@ -1,5 +1,6 @@
-//! `fandhe_frontend_wasm_full::keynav`（Tabs/Accordion/Menu/Select/RadioGroup/
-//! Listbox のキーボード操作・イシュー #582・#583・#641（typeahead）・#1070
+//! `fandhe_frontend_wasm_full::keynav`（Tabs/Accordion/Menu/Select/
+//! RadioGroup/Menubar/Combobox/Listbox のキーボード操作・イシュー #582・
+//! #583・#641（typeahead）・#1073（Menubar）・#1071（Combobox）・#1070
 //! （Listbox）、親 #581）の native テスト。
 //!
 //! `keynav` モジュールの純粋層（[`tabs_next_index`]/[`accordion_next_index`]/
@@ -15,10 +16,10 @@
 //! `wasm-full/tests/keynav_browser.rs`（実ブラウザ）が担う。
 
 use fandhe_frontend_wasm_full::keynav::{
-    accordion_next_index, highlight_next_index, is_typeahead_key, listbox_next_index,
-    loop_focus_from_attr, menu_loop_focus_from_attr, radio_next_index, submenu_nav,
-    tabs_next_index, typeahead_next_index, typeahead_push, Modifiers, Orientation, SubmenuNav,
-    TYPEAHEAD_TIMEOUT_MS,
+    accordion_next_index, combobox_key_action, highlight_next_index, is_typeahead_key,
+    listbox_next_index, loop_focus_from_attr, menu_loop_focus_from_attr, radio_next_index,
+    submenu_nav, tabs_next_index, typeahead_next_index, typeahead_push, ComboboxKeyAction,
+    Modifiers, Orientation, SubmenuNav, TYPEAHEAD_TIMEOUT_MS,
 };
 
 /// 検証 1: Tabs horizontal の ArrowRight/ArrowLeft がフォーカスを移動する。
@@ -587,6 +588,77 @@ fn menubar_submenu_highlight_navigation_reuses_highlight_next_index() {
     );
     assert_eq!(
         highlight_next_index(Some(2), "ArrowDown", false, Modifiers::default(), &disabled),
+        None
+    );
+}
+
+/// 検証 12（イシュー #1071）: Combobox のキーボード判定の公開 API
+/// （[`combobox_key_action`]）が単体テストと同じ挙動で公開 API 経由でも
+/// 壊れていないことを確認する統合確認。Menu/Select と異なり closed の
+/// Home/End/Enter/Escape・ArrowLeft/ArrowRight・printable 文字はすべて
+/// no-op（テキスト `<input>` の既定動作を奪わない、モジュール doc
+/// §Combobox 参照）。実際の DOM 解決・click 合成の検証は配線層の責務であり
+/// 実ブラウザテスト（`keynav_browser.rs`）が担う。
+#[test]
+fn combobox_key_action_public_api_matches_open_move_confirm_close_contract() {
+    assert_eq!(
+        combobox_key_action("ArrowDown", Modifiers::default(), false),
+        Some(ComboboxKeyAction::Open { from_end: false })
+    );
+    assert_eq!(
+        combobox_key_action("ArrowUp", Modifiers::default(), false),
+        Some(ComboboxKeyAction::Open { from_end: true })
+    );
+    // テキストフィールドの既定動作（キャレット移動・フォーム submit）を
+    // 奪わない closed 時の no-op 群。
+    assert_eq!(
+        combobox_key_action("Home", Modifiers::default(), false),
+        None
+    );
+    assert_eq!(
+        combobox_key_action("End", Modifiers::default(), false),
+        None
+    );
+    assert_eq!(
+        combobox_key_action("Enter", Modifiers::default(), false),
+        None
+    );
+    // fail-closed 回帰: closed で Escape を claim すると誤って open して
+    // しまう。
+    assert_eq!(
+        combobox_key_action("Escape", Modifiers::default(), false),
+        None
+    );
+    assert_eq!(combobox_key_action("a", Modifiers::default(), false), None);
+
+    assert_eq!(
+        combobox_key_action("ArrowDown", Modifiers::default(), true),
+        Some(ComboboxKeyAction::MoveHighlight)
+    );
+    assert_eq!(
+        combobox_key_action("Home", Modifiers::default(), true),
+        Some(ComboboxKeyAction::MoveHighlight)
+    );
+    assert_eq!(
+        combobox_key_action("Enter", Modifiers::default(), true),
+        Some(ComboboxKeyAction::Confirm)
+    );
+    assert_eq!(
+        combobox_key_action("Escape", Modifiers::default(), true),
+        Some(ComboboxKeyAction::Close)
+    );
+    // typeahead 非適用（printable 文字は input の既定動作へ委ねる）。
+    assert_eq!(combobox_key_action("a", Modifiers::default(), true), None);
+    // 修飾キー付きは open/closed いずれも no-op。
+    assert_eq!(
+        combobox_key_action(
+            "ArrowDown",
+            Modifiers {
+                ctrl: true,
+                ..Modifiers::default()
+            },
+            true
+        ),
         None
     );
 }

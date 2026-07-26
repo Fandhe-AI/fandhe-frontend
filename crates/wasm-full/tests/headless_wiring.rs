@@ -18,6 +18,7 @@
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_headless_ui::collapsible::Collapsible;
+use fandhe_frontend_headless_ui::combobox::{self, Combobox};
 use fandhe_frontend_headless_ui::popover::Popover;
 use fandhe_frontend_headless_ui::select::Select;
 use fandhe_frontend_headless_ui::state::{OpenState, SingleSelect};
@@ -275,6 +276,74 @@ fn select_trigger_opens_item_click_selects_and_closes_clear_trigger_deselects() 
         &deselect_action.payload
     ));
     assert_eq!(s.selected(), None);
+}
+
+// --- イシュー #1071: Combobox（trigger の toggle・item の select・
+// clear-trigger の clear）のドリフト検知 + dispatch 遷移検証 ---
+
+/// keynav は `aria-expanded`/`hidden`/`data-state` を一切書かず、click →
+/// `crate::headless`（本テストが検証する static マッピング表）→ dispatch →
+/// 再描画の経路へ委譲する（実装計画 §1.1・`crates/wasm-full/src/keynav.rs`
+/// モジュール doc §Combobox 参照）。本テストはその「dispatch 後に
+/// `aria-expanded` が input/trigger 双方へ再出力される」契約を native から
+/// 証明し、`clear-trigger` が入力値・選択の両方をクリアする
+/// （`select` の `deselect` と異なる）ことも確認する。
+#[test]
+fn combobox_trigger_opens_item_selects_and_clear_trigger_clears_input_and_selection() {
+    let trigger_html = render(&Combobox::default().trigger(false, None, vec![], vec![]));
+    assert_scope_part_present(&trigger_html, "combobox", "trigger");
+    let item_html = render(&combobox::item(
+        OpenState::Closed,
+        false,
+        false,
+        "opt-1",
+        None,
+        vec![],
+        vec![],
+    ));
+    assert_scope_part_present(&item_html, "combobox", "item");
+    let clear_html = render(&combobox::clear_trigger(vec![], vec![]));
+    assert_scope_part_present(&clear_html, "combobox", "clear-trigger");
+
+    let open_action = action_for_part(&part("combobox", "trigger", None, false)).unwrap();
+    let select_action = action_for_part(&part("combobox", "item", Some("opt-1"), false)).unwrap();
+    let clear_action = action_for_part(&part("combobox", "clear-trigger", None, false)).unwrap();
+
+    let mut cb = Combobox::default();
+    assert!(dispatch(&mut cb, &open_action.action, &open_action.payload));
+    assert!(cb.is_open());
+
+    // `aria-expanded` は keynav が直接書くのではなく、dispatch 後の再描画で
+    // input・trigger の双方に再出力される（Menu/Select の trigger 開閉と
+    // 同型、実装計画 §1.1）。
+    let input_html_open = render(&cb.input(false, None, None, None, vec![]));
+    assert!(input_html_open.contains(r#"aria-expanded="true""#));
+    let trigger_html_open = render(&cb.trigger(false, None, vec![], vec![]));
+    assert!(trigger_html_open.contains(r#"aria-expanded="true""#));
+
+    assert!(dispatch(
+        &mut cb,
+        &select_action.action,
+        &select_action.payload
+    ));
+    assert_eq!(cb.selected(), Some("opt-1"));
+    // ark-ui の closeOnSelect 既定に準拠し、選択と同時に listbox が閉じる
+    // （`combobox.rs` の `ComboboxAction::Select` 実装参照）。
+    assert!(!cb.is_open());
+    let input_html_closed = render(&cb.input(false, None, None, None, vec![]));
+    assert!(input_html_closed.contains(r#"aria-expanded="false""#));
+
+    assert!(dispatch(
+        &mut cb,
+        &clear_action.action,
+        &clear_action.payload
+    ));
+    // `ComboboxAction::Clear` は入力値と選択の両方をクリアする
+    // （`select` の `clear-trigger`→`"deselect"` は選択のみをクリアするのに
+    // 対し、Combobox はテキスト入力欄を併せ持つため意味が異なる、モジュール
+    // doc §Combobox 参照）。
+    assert_eq!(cb.selected(), None);
+    assert_eq!(cb.input_value(), "");
 }
 
 #[test]
