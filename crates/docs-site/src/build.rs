@@ -91,11 +91,12 @@ use fandhe_frontend_server::ssg::{self, SsgError};
 use fandhe_frontend_pre_styled_ui::StylesheetError;
 
 use crate::admonition;
-use crate::component_page;
+use crate::component_page::{self, Layer};
 use crate::layout;
 use crate::linkcheck::{self, BrokenLink};
 use crate::markdown::render_markdown;
 use crate::nav::{self, NavError};
+use crate::primitive_showcase;
 use crate::redirect::{self, RedirectError};
 use crate::script;
 use crate::search_index::{self, SearchIndexError};
@@ -107,13 +108,14 @@ use crate::skip_nav;
 /// 拒否するファイル名（ビルド時生成アセットと同名のファイル名）。
 /// [`site_theme::STYLESHEET_REL_PATH`]/[`skip_nav::STYLESHEET_REL_PATH`]/
 /// [`showcase::STYLESHEET_REL_PATH`]/[`admonition::STYLESHEET_REL_PATH`]/
-/// [`script::SCRIPT_REL_PATH`]/[`search_index::REL_PATH`] はいずれも
-/// `assets/<basename>` の形をしており、`site/assets/` 直下との名前衝突は
-/// basename の一致だけで判定できる。
+/// [`primitive_showcase::STYLESHEET_REL_PATH`]/[`script::SCRIPT_REL_PATH`]/
+/// [`search_index::REL_PATH`] はいずれも `assets/<basename>` の形をしており、
+/// `site/assets/` 直下との名前衝突は basename の一致だけで判定できる。
 const RESERVED_ASSET_NAMES: &[&str] = &[
     "site.css",
     "skip-nav.css",
     "pre-styled-ui.css",
+    "primitives-showcase.css",
     "admonition.css",
     "site.js",
     "search-index.json",
@@ -323,11 +325,17 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
 
     let mut pages: Vec<(String, Node)> = Vec::new();
     let mut broken: Vec<BrokenLink> = Vec::new();
-    // Rust 生成コンテンツページ（showcase）を 1 件以上組み込んだか。
+    // Rust 生成コンテンツページ（Themes 側、showcase）を 1 件以上組み込んだか。
     // 専用 CSS（showcase::STYLESHEET_REL_PATH）の書き出し・linkcheck 用
     // href 登録は該当ページが nav に存在するときだけ行う（フィクスチャ
     // サイト等、showcase を持たないサイトのビルド結果を変えないため）。
-    let mut has_generated_page = false;
+    let mut has_showcase_page = false;
+    // Rust 生成コンテンツページ（Primitives 側、primitive_showcase）を
+    // 1 件以上組み込んだか。上と同型の判定・同型の理由（イシュー #1022）。
+    // Themes 側の CSS（pre-styled-ui.css）と混同しないよう独立フラグに分ける
+    // （`[data-scope=` セレクタの recipe が Primitives ページへ誤配線される
+    // 事故を構造で防ぐ、§1.2 参照）。
+    let mut has_primitives_page = false;
     // admonition 構文（`> [!NOTE]` 等）を 1 ページでも含んだか。showcase と
     // 同型の判定で、専用 CSS（admonition::STYLESHEET_REL_PATH）の書き出し・
     // linkcheck 用 href 登録を「実際に使われているときだけ」行う（モジュール
@@ -376,8 +384,21 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
         let generated = component_page::generated_content(&page.path);
         let mut extra_stylesheets: Vec<&str> = Vec::new();
         if generated.is_some() {
-            has_generated_page = true;
-            extra_stylesheets.push(showcase::STYLESHEET_REL_PATH);
+            // 層で配線する専用 CSS を切り替える（イシュー #1022）。Primitives
+            // ページへ Themes 側の pre-styled-ui.css（`[data-scope=` recipe）を
+            // 配線すると headless-ui のマークアップへスタイルが到達してしまい、
+            // 「スタイルを持たない層」という Primitives の存在意義が崩れる
+            // （モジュール doc §1.2 相当、`tests/site_showcase.rs` が回帰を固定）。
+            match Layer::from_page_path(&page.path) {
+                Layer::Themes => {
+                    has_showcase_page = true;
+                    extra_stylesheets.push(showcase::STYLESHEET_REL_PATH);
+                }
+                Layer::Primitives => {
+                    has_primitives_page = true;
+                    extra_stylesheets.push(primitive_showcase::STYLESHEET_REL_PATH);
+                }
+            }
         }
         if page_has_admonition {
             extra_stylesheets.push(admonition::STYLESHEET_REL_PATH);
@@ -422,12 +443,23 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     // 「未知のターゲット」と誤検知しないよう、生成することが確定した時点で
     // 既知 href へ登録する。CSS 本体の組み立ても linkcheck より前に済ませ、
     // 失敗時は書き出し前に打ち切る（fail-closed の処理順、モジュール doc 参照）。
-    let showcase_sheet = if has_generated_page {
+    let showcase_sheet = if has_showcase_page {
         asset_hrefs.push(layout::asset_href(
             &nav.site.base_path,
             showcase::STYLESHEET_REL_PATH,
         ));
         Some(showcase::stylesheet()?)
+    } else {
+        None
+    };
+    // Primitives 専用 CSS（イシュー #1022）。showcase_sheet と同型の
+    // 「該当ページが実在するときだけ書き出し・href 登録する」判定。
+    let primitive_showcase_sheet = if has_primitives_page {
+        asset_hrefs.push(layout::asset_href(
+            &nav.site.base_path,
+            primitive_showcase::STYLESHEET_REL_PATH,
+        ));
+        Some(primitive_showcase::stylesheet()?)
     } else {
         None
     };
@@ -488,6 +520,16 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
             .write_css_file(&css_path)
             .map_err(|source| BuildError::Io {
                 path: PathBuf::from(showcase::STYLESHEET_REL_PATH),
+                source,
+            })?;
+        assets.push(css_path);
+    }
+    if let Some(sheet) = primitive_showcase_sheet {
+        let css_path = out_dir.join(primitive_showcase::STYLESHEET_REL_PATH);
+        sheet
+            .write_css_file(&css_path)
+            .map_err(|source| BuildError::Io {
+                path: PathBuf::from(primitive_showcase::STYLESHEET_REL_PATH),
                 source,
             })?;
         assets.push(css_path);

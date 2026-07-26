@@ -118,11 +118,16 @@ jobs:
         #
         # イシュー #1021: Primitives（fandhe-frontend-headless-ui）セクションが
         # 新設され、索引ページ（primitives/index.html）と代表部品ページ
-        # （primitives/accordion/index.html）が加わった。Primitives は本イシュー
-        # 時点では CSS を持たない（headless-ui に CSS の概念が無いため
-        # assets/pre-styled-ui.css を読み込まない、モジュール doc 参照）ので、
-        # 専用 CSS の test -f は追加しない。ページ総数の期待値は
-        # crates/docs-site/tests/site_build.rs / primitives_nav.rs が保持し、
+        # （primitives/accordion/index.html）が加わった。
+        #
+        # イシュー #1022: `crate::primitive_showcase` が Primitives 63 部品の
+        # Demo を供給するようになり、専用 CSS
+        # （`assets/primitives-showcase.css`、Themes 側の `pre-styled-ui.css`
+        # とは独立）が実際に書き出されるようになった。#1021 が「本イシュー
+        # 完了時点では CSS を持たない」として先送りしていた test -f をここで
+        # 追加する。ページ総数の期待値は crates/docs-site/tests/site_build.rs /
+        # primitives_nav.rs が、CSS の内容（`[data-scope=`/`[data-part=` 不在
+        # 等）は crates/docs-site/tests/site_css_contract.rs が保持し、
         # ここでは二重管理しない。
         run: |
           test -f "${RUNNER_TEMP}/docs-site-dist/index.html"
@@ -137,6 +142,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/components/pre-styled-ui/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/primitives/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/primitives/accordion/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/assets/primitives-showcase.css"
 
       - name: Upload Pages artifact
         # 要: runner に tar がインストール済み（upload-pages-artifact が内部で使用。

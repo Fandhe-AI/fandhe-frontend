@@ -12,6 +12,10 @@ Primitives は見た目のスタイルを持ちません。スタイル済みの
 Primitives ページには CSS 変数表がありません（headless-ui に CSS の概念が
 無いため）。
 
+各部品ページの Demo 節にある枠線・余白は docs サイト側が付与したデモ枠で
+あり、`fandhe-frontend-headless-ui` 自体は見た目のスタイルを一切持ちません
+（Themes セクションのスタイル済み recipe とは無関係のデモ表示用の枠です）。
+
 ## Forms A
 
 - [Angle Slider](./primitives/angle-slider.md)

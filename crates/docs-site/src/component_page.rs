@@ -59,14 +59,15 @@
 //! |---|---|---|
 //! | CSS 変数表（`API Reference` 節） | 抽出する | **恒常的に省略**（headless-ui に CSS の概念が無い） |
 //! | Demo ラッパ class | [`THEMES_SHOWCASE_CLASS`] | [`PRIMITIVES_SHOWCASE_CLASS`] |
+//! | Demo 供給元 | [`showcase::generated_content`]（`/themes/` 専用の `COMPONENT_PAGES`） | [`crate::primitive_showcase::generated_content`]（headless-ui 専用、イシュー #1022） |
 //! | 原稿レジストリ | [`component_specs`] 系 [`SPEC_TABLES`] | [`crate::primitive_specs::SPEC_TABLES`] |
 //!
-//! 本イシュー完了時点では [`crate::primitive_specs::SPEC_TABLES`] は空であり、
-//! `/primitives/<kebab>/` に対する [`showcase::generated_content`] も常に
-//! `None`（`showcase::COMPONENT_PAGES` は `/themes/` 専用のレジストリ）を返す。
-//! したがって [`generated_content`] は現時点で `/primitives/` 向けに `Some` を
-//! 返すことがなく、`/primitives/` の 63 ページは Markdown 原稿のみで生成される
-//! （Demo・原稿充填は #1022・Phase 5〔#1024〜#1029〕が引き継ぐ）。
+//! イシュー #1022 により [`crate::primitive_showcase`] が Primitives 63 部品の
+//! Demo を供給するようになったため、`/primitives/<kebab>/` は Rust 生成
+//! コンテンツを持つ（Anatomy・`data-*` 属性表もこの Demo 木から機械導出
+//! される）。[`crate::primitive_specs::SPEC_TABLES`] は当面空のままであり、
+//! Features / API 引数表 / Examples / Accessibility の原稿充填は
+//! Phase 5（#1024〜#1029）が引き継ぐ。
 
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
@@ -385,7 +386,19 @@ const MAX_WALK_DEPTH: usize = 64;
 pub fn generated_content(page_path: &str) -> Option<Node> {
     let layer = Layer::from_page_path(page_path);
     let spec = spec_for(page_path, layer);
-    let demo = match showcase::generated_content(page_path) {
+    // 層で Demo の照会先レジストリを切り替える（イシュー #1022）。
+    // Themes は `showcase::generated_content`（`/themes/` 専用の
+    // `COMPONENT_PAGES`）、Primitives は `crate::primitive_showcase`
+    // （headless-ui 専用のデモレジストリ、モジュール doc 参照）を照会する。
+    // どちらも見つからない場合のみ `ComponentPageSpec::demo`（原稿供給、
+    // Phase 5〔#1024〜#1029〕）へフォールバックする。層を跨いだ Demo の
+    // 混入（`/themes/accordion/` のデモが `/primitives/accordion/` へ
+    // 漏れる等）が起きないことは `spec_for` と同じく構造で保証される。
+    let supplied = match layer {
+        Layer::Themes => showcase::generated_content(page_path),
+        Layer::Primitives => crate::primitive_showcase::generated_content(page_path),
+    };
+    let demo = match supplied {
         Some(node) => node,
         None => (spec.demo?)(),
     };

@@ -97,6 +97,7 @@ pub mod layout;
 pub mod linkcheck;
 pub mod markdown;
 pub mod nav;
+pub mod primitive_showcase;
 pub mod primitive_specs;
 pub mod primitives_catalog;
 pub mod redirect;

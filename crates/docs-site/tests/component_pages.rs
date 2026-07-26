@@ -901,3 +901,34 @@ fn tab_nav_page_renders_all_six_canonical_sections() {
         "page {PATH} must render all six canonical sections in order, got {headings:?}"
     );
 }
+
+/// イシュー #1022: `component_page::generated_content` は `/primitives/`
+/// パスに対して `crate::primitive_showcase`（headless-ui 専用の Demo
+/// レジストリ）を照会する。`/themes/accordion/` の Demo（`showcase.rs` 経由）
+/// が `/primitives/accordion/` へ漏れないこと（層を跨いだ混入がないこと）を
+/// 同一 kebab の 2 パスで対照的に固定する。
+#[test]
+fn primitives_pages_render_via_primitive_showcase_not_showcase() {
+    let themes_html = render(
+        &fandhe_frontend_docs_site::component_page::generated_content("/themes/accordion/")
+            .expect("/themes/accordion/ must have generated content"),
+    );
+    let primitives_html = render(
+        &fandhe_frontend_docs_site::component_page::generated_content("/primitives/accordion/")
+            .expect("/primitives/accordion/ must have generated content"),
+    );
+
+    // Themes 側は pre-styled-ui 由来のラッパ class を、Primitives 側は
+    // primitives-showcase 由来のラッパ class を持つ（層混同がないことの
+    // 直接証拠）。
+    assert!(themes_html.contains(r#"class="pre-styled-showcase""#));
+    assert!(!themes_html.contains(r#"class="primitives-showcase""#));
+    assert!(primitives_html.contains(r#"class="primitives-showcase""#));
+    assert!(!primitives_html.contains(r#"class="pre-styled-showcase""#));
+
+    // 両ページとも headless-ui/pre-styled-ui のいずれかの実体マークアップ
+    // （`data-scope="accordion"`）を持つ、すなわちどちらも空の Demo では
+    // ないことを確認する（非空虚性）。
+    assert!(themes_html.contains(r#"data-scope="accordion""#));
+    assert!(primitives_html.contains(r#"data-scope="accordion""#));
+}
