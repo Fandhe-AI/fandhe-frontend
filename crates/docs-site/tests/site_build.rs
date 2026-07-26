@@ -206,24 +206,33 @@ fn build_site_succeeds_for_the_real_repository_site() {
         "nav 登録ページ数と生成ページ数が一致しない"
     );
 
-    // /components/ 配下は部品ページ 107 件（イシュー #991 で Toolbar が
-    // 加わり 99 → 100、イシュー #992 で Menubar が加わり 100 → 101、
-    // イシュー #993 で Navigation Menu が加わり 101 → 102、イシュー #994 で
-    // Callout が加わり 102 → 103、イシュー #995 で Quote / Strong が加わり
-    // 103 → 105、イシュー #996 で Tab Nav が加わり 105 → 106、イシュー #997
-    // で Checkbox Group が加わり 106 → 107）
-    // + 索引ページ /components/pre-styled-ui/ 1 件の計 108 件（イシュー #943）。
-    // Phase 4 以降で部品が増減したら本値の更新が必要になる
+    // イシュー #1017 で既存 107 部品ページを `/components/<kebab>/` から
+    // `/themes/<kebab>/` へ移行した。`/components/` 配下の本体ページ
+    // （`report.written`。リダイレクトページは `report.redirects` に別計上
+    // されるため対象外）は索引ページ（`/components/pre-styled-ui/`）1 件のみ。
+    // 移行先 `/themes/` 配下に 107 件が生成される。
+    // Phase 4 以降で部品が増減したら両方の値の更新が必要になる
     // （fail-closed。黙って減っても気付けるようにする意図）。
     let components_dir = out.0.join("components");
-    let component_pages = report
+    let component_index_pages = report
         .written
         .iter()
         .filter(|p| p.starts_with(&components_dir))
         .count();
     assert_eq!(
-        component_pages, 108,
-        "/components/ 配下の生成ページ数（部品 107 + 索引 1）"
+        component_index_pages, 1,
+        "/components/ 配下の生成ページ数（索引のみ、部品ページは /themes/ へ移行済み）"
+    );
+
+    let themes_dir = out.0.join("themes");
+    let theme_pages = report
+        .written
+        .iter()
+        .filter(|p| p.starts_with(&themes_dir))
+        .count();
+    assert_eq!(
+        theme_pages, 107,
+        "/themes/ 配下の生成ページ数（部品 107 件）"
     );
 
     // アセットは site.css / admonition.css / skip-nav.css / site.js /
@@ -321,7 +330,8 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
         // Rust 生成コンテンツ（pre-styled-ui.css 配線）を持たない。ショーケース
         // CSS 配線の代表は部品ページ（dialog）側で確認する。
         ("components/pre-styled-ui/index.html", false),
-        ("components/dialog/index.html", true),
+        // イシュー #1017 で /components/dialog/ から /themes/dialog/ へ移行。
+        ("themes/dialog/index.html", true),
         ("api/component-api/index.html", false),
     ];
 
@@ -399,33 +409,33 @@ fn real_site_sidebar_is_scoped_to_the_current_section() {
     }
 
     // Guides セクション内のページ（Components 配下は 1 件も出ない）。
+    // イシュー #1017 で部品ページの URL が `/themes/` へ移行したため、
+    // ここでの否定確認対象も `/themes/` へ追随する。
     let guides_html = std::fs::read_to_string(out.0.join("guides/view-transitions/index.html"))
         .expect("read generated guides/view-transitions/index.html");
     let guides_window = sidebar_window(&guides_html);
     assert!(guides_window.contains(r#"href="/fandhe-frontend/guides/""#));
-    assert!(!guides_window.contains("/components/"));
+    assert!(!guides_window.contains("/themes/"));
     assert!(!guides_window.contains("docs-nav-group"));
     assert_eq!(guides_window.matches("<h2").count(), 1);
     assert_eq!(guides_window.matches(r#"aria-current="page""#).count(), 1);
 
     // Components セクション内のページ（Guides 配下は 1 件も出ない、現在
-    // グループのみ open）。
-    let components_html = std::fs::read_to_string(out.0.join("components/button/index.html"))
-        .expect("read generated components/button/index.html");
-    let components_window = sidebar_window(&components_html);
-    assert!(components_window.contains("docs-nav-group"));
+    // グループのみ open）。イシュー #1017 で `/components/button/` から
+    // `/themes/button/` へ移行。
+    let themes_html = std::fs::read_to_string(out.0.join("themes/button/index.html"))
+        .expect("read generated themes/button/index.html");
+    let themes_window = sidebar_window(&themes_html);
+    assert!(themes_window.contains("docs-nav-group"));
     assert_eq!(
-        components_window
+        themes_window
             .matches(r#"<details class="docs-nav-group" open="">"#)
             .count(),
         1
     );
-    assert!(!components_window.contains("/guides/"));
-    assert_eq!(components_window.matches("<h2").count(), 1);
-    assert_eq!(
-        components_window.matches(r#"aria-current="page""#).count(),
-        1
-    );
+    assert!(!themes_window.contains("/guides/"));
+    assert_eq!(themes_window.matches("<h2").count(), 1);
+    assert_eq!(themes_window.matches(r#"aria-current="page""#).count(), 1);
 }
 
 // ---- バイナリ経由（終了コード・stderr の契約） ----

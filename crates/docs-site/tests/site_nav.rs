@@ -136,7 +136,11 @@ fn site_nav_declares_index_path_for_every_section() {
 /// 106 → 107、登録ページ総数は 128 → 129 になった。イシュー #1009 で
 /// Guides / API Reference のセクショントップページ（`site/guides.md` /
 /// `site/api.md`）2 ページが加わり、登録ページ総数は 129 → 131 になった
-/// （部品ページ 107 は不変）。
+/// （部品ページ 107 は不変）。イシュー #1017 で既存 107 部品ページの
+/// `source`/`path` を `site/components/<kebab>.md` / `/components/<kebab>/`
+/// から `site/themes/<kebab>.md` / `/themes/<kebab>/` へ移行した
+/// （登録ページ総数 131 は不変。`/components/` 配下は索引ページ 1 件のみ
+/// 残る）。
 #[test]
 fn site_nav_registers_all_pages_with_expected_paths() {
     let nav = load_nav();
@@ -153,33 +157,46 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // 129 → 131 になった。
     assert_eq!(pages.len(), 131, "expected 131 pages, got {pages:?}");
 
-    let component_pages: Vec<&(&str, &str)> = pages
+    // イシュー #1017 で部品ページが `/themes/` へ移行したため、
+    // `/components/` 配下に残るのは索引ページ（`/components/pre-styled-ui/`）
+    // 1 件のみ。
+    let component_index_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/components/"))
         .collect();
     assert_eq!(
-        component_pages.len(),
-        108,
-        "expected 108 /components/ pages (1 index + 107 部品), got {component_pages:?}"
+        component_index_pages.len(),
+        1,
+        "expected 1 /components/ page (index only), got {component_index_pages:?}"
+    );
+
+    let themes_pages: Vec<&(&str, &str)> = pages
+        .iter()
+        .filter(|(_, path)| path.starts_with("/themes/"))
+        .collect();
+    assert_eq!(
+        themes_pages.len(),
+        107,
+        "expected 107 /themes/ pages (移行済み部品ページ), got {themes_pages:?}"
     );
 
     let source_based_component_pages = pages
         .iter()
-        .filter(|(source, _)| source.starts_with("site/components/"))
+        .filter(|(source, _)| source.starts_with("site/themes/"))
         .count();
     assert_eq!(
         source_based_component_pages, 107,
-        "expected 107 pages sourced from site/components/"
+        "expected 107 pages sourced from site/themes/"
     );
 
     // 代表 3 件で (source, path) の一致を spot-check する（台帳・レジストリ
     // との三方突合は #944 の責務）。
     for expected_pair in [
-        ("site/components/button.md", "/components/button/"),
+        ("site/themes/button.md", "/themes/button/"),
         // Demo なしスタブ（showcase レジストリ未登録の 11 件の 1 つ）。
-        ("site/components/toggle.md", "/components/toggle/"),
+        ("site/themes/toggle.md", "/themes/toggle/"),
         // charts mod に内包される Charts カテゴリの代表。
-        ("site/components/bar-chart.md", "/components/bar-chart/"),
+        ("site/themes/bar-chart.md", "/themes/bar-chart/"),
     ] {
         assert!(
             pages.contains(&expected_pair),

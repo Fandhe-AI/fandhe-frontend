@@ -3,7 +3,8 @@
 //!
 //! イシュー #941〜#943 で「1 ページ = pre-styled-ui の公開部品 1 件」へ
 //! 分解されたため、本テストは `/components/pre-styled-ui/`（索引ページ、
-//! `showcase::PAGE_PATH`）ではなく個別部品ページ（`/components/<kebab>/`）
+//! `showcase::PAGE_PATH`）ではなく個別部品ページ（`/themes/<kebab>/`。
+//! イシュー #1017 で `/components/<kebab>/` から移行）
 //! を対象に、生成 HTML への styled 部品マークアップの埋め込み・専用 CSS
 //! （`assets/pre-styled-ui.css`）の書き出し・`<link>` 参照を end-to-end で
 //! 固定する。`tests/site_build.rs` の実サイトビルド検証と同じくリポジトリ
@@ -73,7 +74,7 @@ fn real_site_build_emits_component_pages_and_dedicated_css() {
 
     // 基本部品（Button）: Demo 節の styled 部品マークアップ・CSS 配線を
     // 固定する。
-    let button_html = read_component_page(&out.0, "components/button");
+    let button_html = read_component_page(&out.0, "themes/button");
     assert!(button_html.contains(r#"data-scope="button""#));
     assert!(button_html.contains(">Demo<"));
     // サイト骨格 CSS と部品ページ専用 CSS の両方を <link> 参照する
@@ -114,7 +115,7 @@ fn real_site_build_emits_component_pages_and_dedicated_css() {
             .to_string()
     };
 
-    let accordion_html = read_component_page(&out.0, "components/accordion");
+    let accordion_html = read_component_page(&out.0, "themes/accordion");
     let accordion_toc = toc_of(&accordion_html);
     assert!(accordion_toc.contains(">Demo<"));
     assert!(
@@ -122,21 +123,21 @@ fn real_site_build_emits_component_pages_and_dedicated_css() {
         "accordion trigger heading must not leak into TOC: {accordion_toc}"
     );
 
-    let card_html = read_component_page(&out.0, "components/card");
+    let card_html = read_component_page(&out.0, "themes/card");
     let card_toc = toc_of(&card_html);
     assert!(
         !card_toc.contains(">Elevated<"),
         "card title heading must not leak into TOC: {card_toc}"
     );
 
-    let dialog_html = read_component_page(&out.0, "components/dialog");
+    let dialog_html = read_component_page(&out.0, "themes/dialog");
     let dialog_toc = toc_of(&dialog_html);
     assert!(
         !dialog_toc.contains("Confirm action"),
         "dialog title heading must not leak into TOC: {dialog_toc}"
     );
 
-    let popover_html = read_component_page(&out.0, "components/popover");
+    let popover_html = read_component_page(&out.0, "themes/popover");
     let popover_toc = toc_of(&popover_html);
     assert!(
         !popover_toc.contains("About this feature"),
@@ -166,12 +167,12 @@ fn forms_demo_fallback_pages_ship_scoped_css() {
     let css = std::fs::read_to_string(&css_path).unwrap();
 
     for (page_rel, expected_scope) in [
-        ("components/angle-slider", "angle-slider"),
-        ("components/image-cropper", "image-cropper"),
-        ("components/pin-input", "pin-input"),
-        ("components/signature-pad", "signature-pad"),
-        ("components/toggle", "toggle"),
-        ("components/toggle-group", "toggle-group"),
+        ("themes/angle-slider", "angle-slider"),
+        ("themes/image-cropper", "image-cropper"),
+        ("themes/pin-input", "pin-input"),
+        ("themes/signature-pad", "signature-pad"),
+        ("themes/toggle", "toggle"),
+        ("themes/toggle-group", "toggle-group"),
     ] {
         let html = read_component_page(&out.0, page_rel);
         let marker = format!(r#"data-scope="{expected_scope}""#);
@@ -217,7 +218,8 @@ fn non_showcase_pages_do_not_reference_showcase_css() {
     assert!(!component_index_html.contains(r#"class="pre-styled-showcase""#));
 }
 
-/// イシュー #980 の回帰テスト: `site/components/toggle.md`/`toggle-group.md`
+/// イシュー #980 の回帰テスト: `site/themes/toggle.md`/`toggle-group.md`
+/// （イシュー #1017 で `site/components/` から移行）
 /// が手書き H2 節（Features/Anatomy/API Reference/Accessibility）を残した
 /// まま `showcase.rs` 側で同じ節が機械生成されるようになり、両ページの右
 /// カラム目次（`nav.docs-toc`）に同名項目が 2 回ずつ並ぶ状態で出荷されて
@@ -235,7 +237,7 @@ fn toggle_pages_toc_has_no_duplicate_headings() {
             .to_string()
     };
 
-    for page_rel in ["components/toggle", "components/toggle-group"] {
+    for page_rel in ["themes/toggle", "themes/toggle-group"] {
         let html = read_component_page(&out.0, page_rel);
         let toc = toc_of(&html);
         for heading in [

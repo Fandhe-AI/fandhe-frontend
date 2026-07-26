@@ -108,553 +108,553 @@ title = "Typography"
 
 [[section.group.page]]
 title = "Blockquote"
-source = "site/components/blockquote.md"
-path = "/components/blockquote/"
+source = "site/themes/blockquote.md"
+path = "/themes/blockquote/"
 
 [[section.group.page]]
 title = "Code"
-source = "site/components/code.md"
-path = "/components/code/"
+source = "site/themes/code.md"
+path = "/themes/code/"
 
 [[section.group.page]]
 title = "Em"
-source = "site/components/em.md"
-path = "/components/em/"
+source = "site/themes/em.md"
+path = "/themes/em/"
 
 [[section.group.page]]
 title = "Heading"
-source = "site/components/heading.md"
-path = "/components/heading/"
+source = "site/themes/heading.md"
+path = "/themes/heading/"
 
 [[section.group.page]]
 title = "Highlight"
-source = "site/components/highlight.md"
-path = "/components/highlight/"
+source = "site/themes/highlight.md"
+path = "/themes/highlight/"
 
 [[section.group.page]]
 title = "Kbd"
-source = "site/components/kbd.md"
-path = "/components/kbd/"
+source = "site/themes/kbd.md"
+path = "/themes/kbd/"
 
 [[section.group.page]]
 title = "Link"
-source = "site/components/link.md"
-path = "/components/link/"
+source = "site/themes/link.md"
+path = "/themes/link/"
 
 [[section.group.page]]
 title = "List"
-source = "site/components/list.md"
-path = "/components/list/"
+source = "site/themes/list.md"
+path = "/themes/list/"
 
 [[section.group.page]]
 title = "Mark"
-source = "site/components/mark.md"
-path = "/components/mark/"
+source = "site/themes/mark.md"
+path = "/themes/mark/"
 
 [[section.group.page]]
 title = "Quote"
-source = "site/components/quote.md"
-path = "/components/quote/"
+source = "site/themes/quote.md"
+path = "/themes/quote/"
 
 [[section.group.page]]
 title = "Strong"
-source = "site/components/strong.md"
-path = "/components/strong/"
+source = "site/themes/strong.md"
+path = "/themes/strong/"
 
 [[section.group.page]]
 title = "Text"
-source = "site/components/text.md"
-path = "/components/text/"
+source = "site/themes/text.md"
+path = "/themes/text/"
 
 [[section.group]]
 title = "Forms"
 
 [[section.group.page]]
 title = "Angle Slider"
-source = "site/components/angle-slider.md"
-path = "/components/angle-slider/"
+source = "site/themes/angle-slider.md"
+path = "/themes/angle-slider/"
 
 [[section.group.page]]
 title = "Button"
-source = "site/components/button.md"
-path = "/components/button/"
+source = "site/themes/button.md"
+path = "/themes/button/"
 
 [[section.group.page]]
 title = "Calendar"
-source = "site/components/calendar.md"
-path = "/components/calendar/"
+source = "site/themes/calendar.md"
+path = "/themes/calendar/"
 
 [[section.group.page]]
 title = "Checkbox"
-source = "site/components/checkbox.md"
-path = "/components/checkbox/"
+source = "site/themes/checkbox.md"
+path = "/themes/checkbox/"
 
 [[section.group.page]]
 title = "Checkbox Card"
-source = "site/components/checkbox-card.md"
-path = "/components/checkbox-card/"
+source = "site/themes/checkbox-card.md"
+path = "/themes/checkbox-card/"
 
 [[section.group.page]]
 title = "Checkbox Group"
-source = "site/components/checkbox-group.md"
-path = "/components/checkbox-group/"
+source = "site/themes/checkbox-group.md"
+path = "/themes/checkbox-group/"
 
 [[section.group.page]]
 title = "Color Picker"
-source = "site/components/color-picker.md"
-path = "/components/color-picker/"
+source = "site/themes/color-picker.md"
+path = "/themes/color-picker/"
 
 [[section.group.page]]
 title = "Combobox"
-source = "site/components/combobox.md"
-path = "/components/combobox/"
+source = "site/themes/combobox.md"
+path = "/themes/combobox/"
 
 [[section.group.page]]
 title = "Date Input"
-source = "site/components/date-input.md"
-path = "/components/date-input/"
+source = "site/themes/date-input.md"
+path = "/themes/date-input/"
 
 [[section.group.page]]
 title = "Date Picker"
-source = "site/components/date-picker.md"
-path = "/components/date-picker/"
+source = "site/themes/date-picker.md"
+path = "/themes/date-picker/"
 
 [[section.group.page]]
 title = "Download Trigger"
-source = "site/components/download-trigger.md"
-path = "/components/download-trigger/"
+source = "site/themes/download-trigger.md"
+path = "/themes/download-trigger/"
 
 [[section.group.page]]
 title = "Editable"
-source = "site/components/editable.md"
-path = "/components/editable/"
+source = "site/themes/editable.md"
+path = "/themes/editable/"
 
 [[section.group.page]]
 title = "File Upload"
-source = "site/components/file-upload.md"
-path = "/components/file-upload/"
+source = "site/themes/file-upload.md"
+path = "/themes/file-upload/"
 
 [[section.group.page]]
 title = "Image Cropper"
-source = "site/components/image-cropper.md"
-path = "/components/image-cropper/"
+source = "site/themes/image-cropper.md"
+path = "/themes/image-cropper/"
 
 [[section.group.page]]
 title = "Input"
-source = "site/components/input.md"
-path = "/components/input/"
+source = "site/themes/input.md"
+path = "/themes/input/"
 
 [[section.group.page]]
 title = "Listbox"
-source = "site/components/listbox.md"
-path = "/components/listbox/"
+source = "site/themes/listbox.md"
+path = "/themes/listbox/"
 
 [[section.group.page]]
 title = "Native Select"
-source = "site/components/native-select.md"
-path = "/components/native-select/"
+source = "site/themes/native-select.md"
+path = "/themes/native-select/"
 
 [[section.group.page]]
 title = "Number Input"
-source = "site/components/number-input.md"
-path = "/components/number-input/"
+source = "site/themes/number-input.md"
+path = "/themes/number-input/"
 
 [[section.group.page]]
 title = "Password Input"
-source = "site/components/password-input.md"
-path = "/components/password-input/"
+source = "site/themes/password-input.md"
+path = "/themes/password-input/"
 
 [[section.group.page]]
 title = "Pin Input"
-source = "site/components/pin-input.md"
-path = "/components/pin-input/"
+source = "site/themes/pin-input.md"
+path = "/themes/pin-input/"
 
 [[section.group.page]]
 title = "Radio Card"
-source = "site/components/radio-card.md"
-path = "/components/radio-card/"
+source = "site/themes/radio-card.md"
+path = "/themes/radio-card/"
 
 [[section.group.page]]
 title = "Radio Group"
-source = "site/components/radio-group.md"
-path = "/components/radio-group/"
+source = "site/themes/radio-group.md"
+path = "/themes/radio-group/"
 
 [[section.group.page]]
 title = "Rating Group"
-source = "site/components/rating-group.md"
-path = "/components/rating-group/"
+source = "site/themes/rating-group.md"
+path = "/themes/rating-group/"
 
 [[section.group.page]]
 title = "Segment Group"
-source = "site/components/segment-group.md"
-path = "/components/segment-group/"
+source = "site/themes/segment-group.md"
+path = "/themes/segment-group/"
 
 [[section.group.page]]
 title = "Select"
-source = "site/components/select.md"
-path = "/components/select/"
+source = "site/themes/select.md"
+path = "/themes/select/"
 
 [[section.group.page]]
 title = "Signature Pad"
-source = "site/components/signature-pad.md"
-path = "/components/signature-pad/"
+source = "site/themes/signature-pad.md"
+path = "/themes/signature-pad/"
 
 [[section.group.page]]
 title = "Slider"
-source = "site/components/slider.md"
-path = "/components/slider/"
+source = "site/themes/slider.md"
+path = "/themes/slider/"
 
 [[section.group.page]]
 title = "Switch"
-source = "site/components/switch.md"
-path = "/components/switch/"
+source = "site/themes/switch.md"
+path = "/themes/switch/"
 
 [[section.group.page]]
 title = "Tags Input"
-source = "site/components/tags-input.md"
-path = "/components/tags-input/"
+source = "site/themes/tags-input.md"
+path = "/themes/tags-input/"
 
 [[section.group.page]]
 title = "Textarea"
-source = "site/components/textarea.md"
-path = "/components/textarea/"
+source = "site/themes/textarea.md"
+path = "/themes/textarea/"
 
 [[section.group.page]]
 title = "Toggle"
-source = "site/components/toggle.md"
-path = "/components/toggle/"
+source = "site/themes/toggle.md"
+path = "/themes/toggle/"
 
 [[section.group.page]]
 title = "Toggle Group"
-source = "site/components/toggle-group.md"
-path = "/components/toggle-group/"
+source = "site/themes/toggle-group.md"
+path = "/themes/toggle-group/"
 
 [[section.group]]
 title = "Interactive"
 
 [[section.group.page]]
 title = "Accordion"
-source = "site/components/accordion.md"
-path = "/components/accordion/"
+source = "site/themes/accordion.md"
+path = "/themes/accordion/"
 
 [[section.group.page]]
 title = "Action Bar"
-source = "site/components/action-bar.md"
-path = "/components/action-bar/"
+source = "site/themes/action-bar.md"
+path = "/themes/action-bar/"
 
 [[section.group.page]]
 title = "Breadcrumb"
-source = "site/components/breadcrumb.md"
-path = "/components/breadcrumb/"
+source = "site/themes/breadcrumb.md"
+path = "/themes/breadcrumb/"
 
 [[section.group.page]]
 title = "Carousel"
-source = "site/components/carousel.md"
-path = "/components/carousel/"
+source = "site/themes/carousel.md"
+path = "/themes/carousel/"
 
 [[section.group.page]]
 title = "Clipboard"
-source = "site/components/clipboard.md"
-path = "/components/clipboard/"
+source = "site/themes/clipboard.md"
+path = "/themes/clipboard/"
 
 [[section.group.page]]
 title = "Dialog"
-source = "site/components/dialog.md"
-path = "/components/dialog/"
+source = "site/themes/dialog.md"
+path = "/themes/dialog/"
 
 [[section.group.page]]
 title = "Drawer"
-source = "site/components/drawer.md"
-path = "/components/drawer/"
+source = "site/themes/drawer.md"
+path = "/themes/drawer/"
 
 [[section.group.page]]
 title = "Floating Panel"
-source = "site/components/floating-panel.md"
-path = "/components/floating-panel/"
+source = "site/themes/floating-panel.md"
+path = "/themes/floating-panel/"
 
 [[section.group.page]]
 title = "Hover Card"
-source = "site/components/hover-card.md"
-path = "/components/hover-card/"
+source = "site/themes/hover-card.md"
+path = "/themes/hover-card/"
 
 [[section.group.page]]
 title = "Menu"
-source = "site/components/menu.md"
-path = "/components/menu/"
+source = "site/themes/menu.md"
+path = "/themes/menu/"
 
 [[section.group.page]]
 title = "Menubar"
-source = "site/components/menubar.md"
-path = "/components/menubar/"
+source = "site/themes/menubar.md"
+path = "/themes/menubar/"
 
 [[section.group.page]]
 title = "Nav List"
-source = "site/components/nav-list.md"
-path = "/components/nav-list/"
+source = "site/themes/nav-list.md"
+path = "/themes/nav-list/"
 
 [[section.group.page]]
 title = "Navigation Menu"
-source = "site/components/navigation-menu.md"
-path = "/components/navigation-menu/"
+source = "site/themes/navigation-menu.md"
+path = "/themes/navigation-menu/"
 
 [[section.group.page]]
 title = "Pagination"
-source = "site/components/pagination.md"
-path = "/components/pagination/"
+source = "site/themes/pagination.md"
+path = "/themes/pagination/"
 
 [[section.group.page]]
 title = "Popover"
-source = "site/components/popover.md"
-path = "/components/popover/"
+source = "site/themes/popover.md"
+path = "/themes/popover/"
 
 [[section.group.page]]
 title = "Splitter"
-source = "site/components/splitter.md"
-path = "/components/splitter/"
+source = "site/themes/splitter.md"
+path = "/themes/splitter/"
 
 [[section.group.page]]
 title = "Steps"
-source = "site/components/steps.md"
-path = "/components/steps/"
+source = "site/themes/steps.md"
+path = "/themes/steps/"
 
 [[section.group.page]]
 title = "Tab Nav"
-source = "site/components/tab-nav.md"
-path = "/components/tab-nav/"
+source = "site/themes/tab-nav.md"
+path = "/themes/tab-nav/"
 
 [[section.group.page]]
 title = "Tabs"
-source = "site/components/tabs.md"
-path = "/components/tabs/"
+source = "site/themes/tabs.md"
+path = "/themes/tabs/"
 
 [[section.group.page]]
 title = "Toast"
-source = "site/components/toast.md"
-path = "/components/toast/"
+source = "site/themes/toast.md"
+path = "/themes/toast/"
 
 [[section.group.page]]
 title = "Toggle Tip"
-source = "site/components/toggle-tip.md"
-path = "/components/toggle-tip/"
+source = "site/themes/toggle-tip.md"
+path = "/themes/toggle-tip/"
 
 [[section.group.page]]
 title = "Toolbar"
-source = "site/components/toolbar.md"
-path = "/components/toolbar/"
+source = "site/themes/toolbar.md"
+path = "/themes/toolbar/"
 
 [[section.group.page]]
 title = "Tooltip"
-source = "site/components/tooltip.md"
-path = "/components/tooltip/"
+source = "site/themes/tooltip.md"
+path = "/themes/tooltip/"
 
 [[section.group.page]]
 title = "Tour"
-source = "site/components/tour.md"
-path = "/components/tour/"
+source = "site/themes/tour.md"
+path = "/themes/tour/"
 
 [[section.group]]
 title = "Data Display"
 
 [[section.group.page]]
 title = "Alert"
-source = "site/components/alert.md"
-path = "/components/alert/"
+source = "site/themes/alert.md"
+path = "/themes/alert/"
 
 [[section.group.page]]
 title = "Avatar"
-source = "site/components/avatar.md"
-path = "/components/avatar/"
+source = "site/themes/avatar.md"
+path = "/themes/avatar/"
 
 [[section.group.page]]
 title = "Badge"
-source = "site/components/badge.md"
-path = "/components/badge/"
+source = "site/themes/badge.md"
+path = "/themes/badge/"
 
 [[section.group.page]]
 title = "Callout"
-source = "site/components/callout.md"
-path = "/components/callout/"
+source = "site/themes/callout.md"
+path = "/themes/callout/"
 
 [[section.group.page]]
 title = "Card"
-source = "site/components/card.md"
-path = "/components/card/"
+source = "site/themes/card.md"
+path = "/themes/card/"
 
 [[section.group.page]]
 title = "Color Swatch"
-source = "site/components/color-swatch.md"
-path = "/components/color-swatch/"
+source = "site/themes/color-swatch.md"
+path = "/themes/color-swatch/"
 
 [[section.group.page]]
 title = "Data List"
-source = "site/components/data-list.md"
-path = "/components/data-list/"
+source = "site/themes/data-list.md"
+path = "/themes/data-list/"
 
 [[section.group.page]]
 title = "Empty State"
-source = "site/components/empty-state.md"
-path = "/components/empty-state/"
+source = "site/themes/empty-state.md"
+path = "/themes/empty-state/"
 
 [[section.group.page]]
 title = "Icon"
-source = "site/components/icon.md"
-path = "/components/icon/"
+source = "site/themes/icon.md"
+path = "/themes/icon/"
 
 [[section.group.page]]
 title = "Image"
-source = "site/components/image.md"
-path = "/components/image/"
+source = "site/themes/image.md"
+path = "/themes/image/"
 
 [[section.group.page]]
 title = "JSON Tree View"
-source = "site/components/json-tree-view.md"
-path = "/components/json-tree-view/"
+source = "site/themes/json-tree-view.md"
+path = "/themes/json-tree-view/"
 
 [[section.group.page]]
 title = "Progress"
-source = "site/components/progress.md"
-path = "/components/progress/"
+source = "site/themes/progress.md"
+path = "/themes/progress/"
 
 [[section.group.page]]
 title = "QR Code"
-source = "site/components/qr-code.md"
-path = "/components/qr-code/"
+source = "site/themes/qr-code.md"
+path = "/themes/qr-code/"
 
 [[section.group.page]]
 title = "Skeleton"
-source = "site/components/skeleton.md"
-path = "/components/skeleton/"
+source = "site/themes/skeleton.md"
+path = "/themes/skeleton/"
 
 [[section.group.page]]
 title = "Spinner"
-source = "site/components/spinner.md"
-path = "/components/spinner/"
+source = "site/themes/spinner.md"
+path = "/themes/spinner/"
 
 [[section.group.page]]
 title = "Stat"
-source = "site/components/stat.md"
-path = "/components/stat/"
+source = "site/themes/stat.md"
+path = "/themes/stat/"
 
 [[section.group.page]]
 title = "Status"
-source = "site/components/status.md"
-path = "/components/status/"
+source = "site/themes/status.md"
+path = "/themes/status/"
 
 [[section.group.page]]
 title = "Table"
-source = "site/components/table.md"
-path = "/components/table/"
+source = "site/themes/table.md"
+path = "/themes/table/"
 
 [[section.group.page]]
 title = "Tag"
-source = "site/components/tag.md"
-path = "/components/tag/"
+source = "site/themes/tag.md"
+path = "/themes/tag/"
 
 [[section.group.page]]
 title = "Timeline"
-source = "site/components/timeline.md"
-path = "/components/timeline/"
+source = "site/themes/timeline.md"
+path = "/themes/timeline/"
 
 [[section.group.page]]
 title = "Timer"
-source = "site/components/timer.md"
-path = "/components/timer/"
+source = "site/themes/timer.md"
+path = "/themes/timer/"
 
 [[section.group.page]]
 title = "Tree View"
-source = "site/components/tree-view.md"
-path = "/components/tree-view/"
+source = "site/themes/tree-view.md"
+path = "/themes/tree-view/"
 
 [[section.group]]
 title = "Utilities"
 
 [[section.group.page]]
 title = "Link Overlay"
-source = "site/components/link-overlay.md"
-path = "/components/link-overlay/"
+source = "site/themes/link-overlay.md"
+path = "/themes/link-overlay/"
 
 [[section.group.page]]
 title = "Marquee"
-source = "site/components/marquee.md"
-path = "/components/marquee/"
+source = "site/themes/marquee.md"
+path = "/themes/marquee/"
 
 [[section.group.page]]
 title = "Scroll Area"
-source = "site/components/scroll-area.md"
-path = "/components/scroll-area/"
+source = "site/themes/scroll-area.md"
+path = "/themes/scroll-area/"
 
 [[section.group.page]]
 title = "Separator"
-source = "site/components/separator.md"
-path = "/components/separator/"
+source = "site/themes/separator.md"
+path = "/themes/separator/"
 
 [[section.group.page]]
 title = "Skip Nav"
-source = "site/components/skip-nav.md"
-path = "/components/skip-nav/"
+source = "site/themes/skip-nav.md"
+path = "/themes/skip-nav/"
 
 [[section.group.page]]
 title = "Visually Hidden"
-source = "site/components/visually-hidden.md"
-path = "/components/visually-hidden/"
+source = "site/themes/visually-hidden.md"
+path = "/themes/visually-hidden/"
 
 [[section.group]]
 title = "Charts"
 
 [[section.group.page]]
 title = "Area Chart"
-source = "site/components/area-chart.md"
-path = "/components/area-chart/"
+source = "site/themes/area-chart.md"
+path = "/themes/area-chart/"
 
 [[section.group.page]]
 title = "Bar Chart"
-source = "site/components/bar-chart.md"
-path = "/components/bar-chart/"
+source = "site/themes/bar-chart.md"
+path = "/themes/bar-chart/"
 
 [[section.group.page]]
 title = "Bar List"
-source = "site/components/bar-list.md"
-path = "/components/bar-list/"
+source = "site/themes/bar-list.md"
+path = "/themes/bar-list/"
 
 [[section.group.page]]
 title = "Bar Segment"
-source = "site/components/bar-segment.md"
-path = "/components/bar-segment/"
+source = "site/themes/bar-segment.md"
+path = "/themes/bar-segment/"
 
 [[section.group.page]]
 title = "Charts（共通 API）"
-source = "site/components/charts.md"
-path = "/components/charts/"
+source = "site/themes/charts.md"
+path = "/themes/charts/"
 
 [[section.group.page]]
 title = "Donut Chart"
-source = "site/components/donut-chart.md"
-path = "/components/donut-chart/"
+source = "site/themes/donut-chart.md"
+path = "/themes/donut-chart/"
 
 [[section.group.page]]
 title = "Line Chart"
-source = "site/components/line-chart.md"
-path = "/components/line-chart/"
+source = "site/themes/line-chart.md"
+path = "/themes/line-chart/"
 
 [[section.group.page]]
 title = "Pie Chart"
-source = "site/components/pie-chart.md"
-path = "/components/pie-chart/"
+source = "site/themes/pie-chart.md"
+path = "/themes/pie-chart/"
 
 [[section.group.page]]
 title = "Radar Chart"
-source = "site/components/radar-chart.md"
-path = "/components/radar-chart/"
+source = "site/themes/radar-chart.md"
+path = "/themes/radar-chart/"
 
 [[section.group.page]]
 title = "Scatter Chart"
-source = "site/components/scatter-chart.md"
-path = "/components/scatter-chart/"
+source = "site/themes/scatter-chart.md"
+path = "/themes/scatter-chart/"
 
 [[section.group.page]]
 title = "Sparkline"
-source = "site/components/sparkline.md"
-path = "/components/sparkline/"
+source = "site/themes/sparkline.md"
+path = "/themes/sparkline/"
 
 # API Reference セクション（イシュー #955 / 設計 docs/design/docs-site-api-reference-split.md）。
 # - docs/internal/*-implementation-notes.md は本マニフェストへ登録しない。
@@ -662,7 +662,8 @@ path = "/components/sparkline/"
 #   除外リスト・後付けフィルタは設けない。回帰は
 #   crates/docs-site/tests/site_nav.rs の fail-closed テストが検知する。
 # - 部品ごとの詳細（Demo / Anatomy / data-* / Examples）は本セクションではなく
-#   Components セクションの部品ページ（/components/<kebab>/）が正。
+#   Components セクションの部品ページ（/themes/<kebab>/、イシュー #1017 で
+#   /components/<kebab>/ から移行）が正。
 #   API ページ <-> 部品ページの相互リンクは相対 .md リンクで維持する（同文書 §3-2）。
 [[section]]
 title = "API Reference"

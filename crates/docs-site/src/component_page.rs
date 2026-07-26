@@ -15,7 +15,8 @@
 //!   イシュー #943 で索引（凡例 + カテゴリ別リンク集）へ改組済みであり、
 //!   Rust 生成コンテンツを持たない（[`showcase::generated_content`] が
 //!   `None` を返すため、本モジュールも同ページに対しては `None` を返す）。
-//! - [`showcase::COMPONENT_PAGES`] レジストリの部品ページ（`/components/<kebab>/`）
+//! - [`showcase::COMPONENT_PAGES`] レジストリの部品ページ（`/themes/<kebab>/`。
+//!   イシュー #1017 で `/components/<kebab>/` から移行）
 //!   のみ、本モジュールの 6 節合成を適用する。
 //!
 //! # Anatomy の機械導出（受け入れ条件 2）
@@ -148,93 +149,75 @@ impl ComponentPageSpec {
 /// テーブル化する）。
 const NAV_DATA_SPECS: &[(&str, ComponentPageSpec)] = &[
     // ---- イシュー #947（Navigation / Data Display 系、27 件）ここから ----
-    ("/components/alert/", crate::component_specs_nav_data::ALERT),
+    ("/themes/alert/", crate::component_specs_nav_data::ALERT),
+    ("/themes/avatar/", crate::component_specs_nav_data::AVATAR),
+    ("/themes/badge/", crate::component_specs_nav_data::BADGE),
+    ("/themes/callout/", crate::component_specs_nav_data::CALLOUT),
+    ("/themes/card/", crate::component_specs_nav_data::CARD),
     (
-        "/components/avatar/",
-        crate::component_specs_nav_data::AVATAR,
-    ),
-    ("/components/badge/", crate::component_specs_nav_data::BADGE),
-    (
-        "/components/callout/",
-        crate::component_specs_nav_data::CALLOUT,
-    ),
-    ("/components/card/", crate::component_specs_nav_data::CARD),
-    (
-        "/components/data-list/",
+        "/themes/data-list/",
         crate::component_specs_nav_data::DATA_LIST,
     ),
     (
-        "/components/empty-state/",
+        "/themes/empty-state/",
         crate::component_specs_nav_data::EMPTY_STATE,
     ),
     (
-        "/components/json-tree-view/",
+        "/themes/json-tree-view/",
         crate::component_specs_nav_data::JSON_TREE_VIEW,
     ),
     (
-        "/components/progress/",
+        "/themes/progress/",
         crate::component_specs_nav_data::PROGRESS,
     ),
     (
-        "/components/skeleton/",
+        "/themes/skeleton/",
         crate::component_specs_nav_data::SKELETON,
     ),
+    ("/themes/spinner/", crate::component_specs_nav_data::SPINNER),
+    ("/themes/stat/", crate::component_specs_nav_data::STAT),
+    ("/themes/status/", crate::component_specs_nav_data::STATUS),
+    ("/themes/table/", crate::component_specs_nav_data::TABLE),
+    ("/themes/tag/", crate::component_specs_nav_data::TAG),
     (
-        "/components/spinner/",
-        crate::component_specs_nav_data::SPINNER,
-    ),
-    ("/components/stat/", crate::component_specs_nav_data::STAT),
-    (
-        "/components/status/",
-        crate::component_specs_nav_data::STATUS,
-    ),
-    ("/components/table/", crate::component_specs_nav_data::TABLE),
-    ("/components/tag/", crate::component_specs_nav_data::TAG),
-    (
-        "/components/tree-view/",
+        "/themes/tree-view/",
         crate::component_specs_nav_data::TREE_VIEW,
     ),
     (
-        "/components/color-swatch/",
+        "/themes/color-swatch/",
         crate::component_specs_nav_data::COLOR_SWATCH,
     ),
-    ("/components/icon/", crate::component_specs_nav_data::ICON),
-    ("/components/image/", crate::component_specs_nav_data::IMAGE),
+    ("/themes/icon/", crate::component_specs_nav_data::ICON),
+    ("/themes/image/", crate::component_specs_nav_data::IMAGE),
     (
-        "/components/timeline/",
+        "/themes/timeline/",
         crate::component_specs_nav_data::TIMELINE,
     ),
     (
-        "/components/breadcrumb/",
+        "/themes/breadcrumb/",
         crate::component_specs_nav_data::BREADCRUMB,
     ),
+    ("/themes/tab-nav/", crate::component_specs_nav_data::TAB_NAV),
     (
-        "/components/tab-nav/",
-        crate::component_specs_nav_data::TAB_NAV,
-    ),
-    (
-        "/components/carousel/",
+        "/themes/carousel/",
         crate::component_specs_nav_data::CAROUSEL,
     ),
     (
-        "/components/pagination/",
+        "/themes/pagination/",
         crate::component_specs_nav_data::PAGINATION,
     ),
     (
-        "/components/splitter/",
+        "/themes/splitter/",
         crate::component_specs_nav_data::SPLITTER,
     ),
-    ("/components/steps/", crate::component_specs_nav_data::STEPS),
+    ("/themes/steps/", crate::component_specs_nav_data::STEPS),
+    ("/themes/marquee/", crate::component_specs_nav_data::MARQUEE),
     (
-        "/components/marquee/",
-        crate::component_specs_nav_data::MARQUEE,
-    ),
-    (
-        "/components/scroll-area/",
+        "/themes/scroll-area/",
         crate::component_specs_nav_data::SCROLL_AREA,
     ),
     (
-        "/components/separator/",
+        "/themes/separator/",
         crate::component_specs_nav_data::SEPARATOR,
     ),
     // ---- イシュー #947 ここまで ----
@@ -245,57 +228,39 @@ const NAV_DATA_SPECS: &[(&str, ComponentPageSpec)] = &[
 /// [`crate::component_specs_overlay`] の個別定数を参照する。
 const OVERLAY_SPECS: &[(&str, ComponentPageSpec)] = &[
     (
-        "/components/accordion/",
+        "/themes/accordion/",
         crate::component_specs_overlay::ACCORDION,
     ),
     (
-        "/components/action-bar/",
+        "/themes/action-bar/",
         crate::component_specs_overlay::ACTION_BAR,
     ),
+    ("/themes/dialog/", crate::component_specs_overlay::DIALOG),
+    ("/themes/drawer/", crate::component_specs_overlay::DRAWER),
     (
-        "/components/dialog/",
-        crate::component_specs_overlay::DIALOG,
-    ),
-    (
-        "/components/drawer/",
-        crate::component_specs_overlay::DRAWER,
-    ),
-    (
-        "/components/floating-panel/",
+        "/themes/floating-panel/",
         crate::component_specs_overlay::FLOATING_PANEL,
     ),
     (
-        "/components/hover-card/",
+        "/themes/hover-card/",
         crate::component_specs_overlay::HOVER_CARD,
     ),
-    ("/components/menu/", crate::component_specs_overlay::MENU),
+    ("/themes/menu/", crate::component_specs_overlay::MENU),
+    ("/themes/menubar/", crate::component_specs_overlay::MENUBAR),
     (
-        "/components/menubar/",
-        crate::component_specs_overlay::MENUBAR,
-    ),
-    (
-        "/components/navigation-menu/",
+        "/themes/navigation-menu/",
         crate::component_specs_overlay::NAVIGATION_MENU,
     ),
+    ("/themes/popover/", crate::component_specs_overlay::POPOVER),
+    ("/themes/tabs/", crate::component_specs_overlay::TABS),
+    ("/themes/toast/", crate::component_specs_overlay::TOAST),
     (
-        "/components/popover/",
-        crate::component_specs_overlay::POPOVER,
-    ),
-    ("/components/tabs/", crate::component_specs_overlay::TABS),
-    ("/components/toast/", crate::component_specs_overlay::TOAST),
-    (
-        "/components/toggle-tip/",
+        "/themes/toggle-tip/",
         crate::component_specs_overlay::TOGGLE_TIP,
     ),
-    (
-        "/components/toolbar/",
-        crate::component_specs_overlay::TOOLBAR,
-    ),
-    (
-        "/components/tooltip/",
-        crate::component_specs_overlay::TOOLTIP,
-    ),
-    ("/components/tour/", crate::component_specs_overlay::TOUR),
+    ("/themes/toolbar/", crate::component_specs_overlay::TOOLBAR),
+    ("/themes/tooltip/", crate::component_specs_overlay::TOOLTIP),
+    ("/themes/tour/", crate::component_specs_overlay::TOUR),
 ];
 
 /// `path -> ComponentPageSpec` レジストリを供給するカテゴリ別テーブルの集約。
@@ -1114,7 +1079,7 @@ mod tests {
             )],
         );
         assert_eq!(
-            resolve_anatomy_scope("/components/radio-group/", &demo),
+            resolve_anatomy_scope("/themes/radio-group/", &demo),
             Some("radio-group".to_string())
         );
     }
@@ -1135,7 +1100,7 @@ mod tests {
             )],
         );
         assert_eq!(
-            resolve_anatomy_scope("/components/does-not-exist/", &demo),
+            resolve_anatomy_scope("/themes/does-not-exist/", &demo),
             Some("card".to_string())
         );
     }
@@ -1143,7 +1108,7 @@ mod tests {
     #[test]
     fn resolve_anatomy_scope_none_without_any_data_scope() {
         let demo = el("div", vec![], vec![p(vec![], vec![text("plain")])]);
-        assert_eq!(resolve_anatomy_scope("/components/plain/", &demo), None);
+        assert_eq!(resolve_anatomy_scope("/themes/plain/", &demo), None);
     }
 
     #[test]

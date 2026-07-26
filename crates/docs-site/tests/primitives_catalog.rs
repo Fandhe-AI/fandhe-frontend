@@ -360,11 +360,11 @@ fn page_paths_pass_the_nav_path_allowlist() {
         .unwrap_or_else(|e| panic!("台帳の path が nav.toml パス allowlist を通りません: {e}"));
 }
 
-/// nav 登録済み Themes 部品ページ（`source == "site/components/<kebab>.md"`）
+/// nav 登録済み Themes 部品ページ（`source == "site/themes/<kebab>.md"`）
 /// の title と、同名 module の Primitives title が一致すること。
 /// URL 移転に耐えるため `path` ではなく `source` をキーにする
-/// （`api_component_cross_links.rs` の先例に合わせる。#1018 で
-/// `/components/` → `/themes/` へ動く可能性があるため）。
+/// （`api_component_cross_links.rs` の先例に合わせる。#1017 で
+/// `/components/` → `/themes/` へ移行済み）。
 #[test]
 fn primitives_titles_match_themes_page_titles_where_both_exist() {
     let nav_path = repo_root().join("site/nav.toml");
@@ -375,7 +375,7 @@ fn primitives_titles_match_themes_page_titles_where_both_exist() {
         .all_pages()
         .filter_map(|p| {
             p.source
-                .strip_prefix("site/components/")
+                .strip_prefix("site/themes/")
                 .and_then(|rest| rest.strip_suffix(".md"))
                 .map(|kebab| (kebab.replace('-', "_"), p.title.clone()))
         })
@@ -394,7 +394,7 @@ fn primitives_titles_match_themes_page_titles_where_both_exist() {
                 entry.module
             ),
             None => panic!(
-                "module `{}` に対応する Themes ページ（site/components/{}.md）が \
+                "module `{}` に対応する Themes ページ（site/themes/{}.md）が \
                  見つかりません。PRIMITIVES_WITHOUT_THEMES_PAGE への追加漏れ、\
                  または site/nav.toml 側の変化の可能性があります",
                 entry.module,

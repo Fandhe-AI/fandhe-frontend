@@ -19,7 +19,7 @@
 //! はショーケース CSS 未登録により Demo を持たないため（`crates/docs-site/src/showcase.rs`
 //! を変更しないという #946 時点の受け入れ条件 4 の制約。#991/#992 の
 //! Phase 8 には同制約は適用されない）、本モジュールには含めず
-//! `site/components/` の Markdown 側で完結させる（計画 §4.5 参照）。
+//! `site/themes/` の Markdown 側で完結させる（計画 §4.5 参照）。
 //!
 //! menubar のみ [`KeyRow`] を空にしていない（イシュー #992 実装計画で
 //! 確定済みの判断）。他 14 部品はいずれも「フォーカストラップ・Escape
@@ -74,7 +74,7 @@
 
 use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, KeyRow};
 
-/// `/components/accordion/`（Interactive カテゴリ）。
+/// `/themes/accordion/`（Interactive カテゴリ）。
 ///
 /// 一次情報: `crates/pre-styled-ui/src/accordion.rs`（モジュール doc・
 /// `root` シグネチャ）、`crates/headless-ui/src/accordion.rs`（`aria_expanded`/
@@ -111,7 +111,7 @@ pub const ACCORDION: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// `/components/action-bar/`（Interactive カテゴリ）。
+/// `/themes/action-bar/`（Interactive カテゴリ）。
 ///
 /// 一次情報: `crates/headless-ui/src/action_bar.rs`（モジュール doc・
 /// `root` シグネチャ・`role="toolbar"`/`role="separator"` の実出力テスト）。
@@ -142,7 +142,7 @@ pub const ACTION_BAR: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// `/components/toolbar/`（Interactive カテゴリ）。
+/// `/themes/toolbar/`（Interactive カテゴリ）。
 ///
 /// 一次情報: `crates/headless-ui/src/toolbar.rs`（モジュール doc・
 /// `root`/`button`/`separator`/`toggle_group`/`toggle_item` シグネチャ・
@@ -204,7 +204,7 @@ pub const TOOLBAR: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// `/components/menubar/`（Interactive カテゴリ）。
+/// `/themes/menubar/`（Interactive カテゴリ）。
 ///
 /// 一次情報: `crates/headless-ui/src/menubar.rs`（モジュール doc・
 /// `root`/`menu`/`trigger`/`positioner`/`content`/`item`/`item_group`/
@@ -294,7 +294,7 @@ pub const MENUBAR: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// `/components/navigation-menu/`（Interactive カテゴリ）。
+/// `/themes/navigation-menu/`（Interactive カテゴリ）。
 ///
 /// 一次情報: `crates/headless-ui/src/navigation_menu.rs`（モジュール doc・
 /// `root`/`list`/`item`/`trigger`/`content`/`link` シグネチャ・
@@ -359,7 +359,7 @@ pub const NAVIGATION_MENU: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// `/components/dialog/`（Interactive カテゴリ）。
+/// `/themes/dialog/`（Interactive カテゴリ）。
 ///
 /// 一次情報: `crates/pre-styled-ui/src/dialog.rs`（モジュール doc・`root`
 /// シグネチャ）、`crates/headless-ui/src/dialog.rs`（`aria-haspopup`/
@@ -416,7 +416,7 @@ pub const DIALOG: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// `/components/drawer/`（Interactive カテゴリ）。
+/// `/themes/drawer/`（Interactive カテゴリ）。
 ///
 /// 一次情報: `crates/pre-styled-ui/src/drawer.rs`（モジュール doc・`root`
 /// シグネチャ）、`crates/headless-ui/src/drawer.rs`（Dialog パターンの
@@ -475,7 +475,7 @@ pub const DRAWER: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// `/components/floating-panel/`（Interactive カテゴリ）。
+/// `/themes/floating-panel/`（Interactive カテゴリ）。
 ///
 /// 一次情報: `crates/headless-ui/src/floating_panel.rs`（モジュール doc・
 /// `root` シグネチャ・`role="dialog"`（`aria-modal` 非出力）の実出力
@@ -524,7 +524,7 @@ pub const FLOATING_PANEL: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// `/components/hover-card/`（Interactive カテゴリ）。
+/// `/themes/hover-card/`（Interactive カテゴリ）。
 ///
 /// 一次情報: `crates/headless-ui/src/hover_card.rs`（モジュール doc・
 /// `root`/`trigger` シグネチャ・hover card 専用パターンが WAI-ARIA に
@@ -559,7 +559,7 @@ pub const HOVER_CARD: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// `/components/menu/`（Interactive カテゴリ）。
+/// `/themes/menu/`（Interactive カテゴリ）。
 ///
 /// 一次情報: `crates/pre-styled-ui/src/menu.rs`（モジュール doc・`root`
 /// シグネチャ）、`crates/headless-ui/src/menu.rs`（`aria-haspopup="menu"`/
@@ -612,7 +612,7 @@ pub const MENU: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// `/components/popover/`（Interactive カテゴリ）。
+/// `/themes/popover/`（Interactive カテゴリ）。
 ///
 /// 一次情報: `crates/headless-ui/src/popover.rs`（モジュール doc・
 /// `root`/`trigger`/`content` シグネチャ・`aria-haspopup="dialog"`/
@@ -652,7 +652,7 @@ pub const POPOVER: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// `/components/tabs/`（Interactive カテゴリ）。
+/// `/themes/tabs/`（Interactive カテゴリ）。
 ///
 /// 一次情報: `crates/pre-styled-ui/src/tabs.rs`（モジュール doc・`tabs`
 /// シグネチャ）、`crates/headless-ui/src/tabs.rs`（`role="tablist"`/
@@ -704,7 +704,7 @@ pub const TABS: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// `/components/toast/`（Interactive カテゴリ）。
+/// `/themes/toast/`（Interactive カテゴリ）。
 ///
 /// 一次情報: `crates/pre-styled-ui/src/toast.rs`（モジュール doc・
 /// `group`/`root` シグネチャ）、`crates/headless-ui/src/toast.rs`
@@ -752,7 +752,7 @@ pub const TOAST: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// `/components/toggle-tip/`（Interactive カテゴリ）。
+/// `/themes/toggle-tip/`（Interactive カテゴリ）。
 ///
 /// 一次情報: `crates/headless-ui/src/toggle_tip.rs`（モジュール doc・
 /// `root`/`trigger` シグネチャ・`aria-expanded`/`aria-controls` の実出力
@@ -785,7 +785,7 @@ pub const TOGGLE_TIP: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// `/components/tooltip/`（Interactive カテゴリ）。
+/// `/themes/tooltip/`（Interactive カテゴリ）。
 ///
 /// 一次情報: `crates/headless-ui/src/tooltip.rs`（モジュール doc・
 /// `root`/`trigger`/`content` シグネチャ・`aria-describedby`/
@@ -818,7 +818,7 @@ pub const TOOLTIP: ComponentPageSpec = ComponentPageSpec {
     demo: None,
 };
 
-/// `/components/tour/`（Interactive カテゴリ）。
+/// `/themes/tour/`（Interactive カテゴリ）。
 ///
 /// 一次情報: `crates/pre-styled-ui/src/tour.rs`（モジュール doc・`root`
 /// シグネチャ）、`crates/headless-ui/src/tour.rs`（`role="dialog"`/

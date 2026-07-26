@@ -97,7 +97,7 @@ fn full_spec() -> ComponentPageSpec {
 /// [`showcase::generated_content`] 相当の最小デモ木（`div.pre-styled-showcase`
 /// 直下に `section`（`h2`/`p`/`data-scope` 要素）を持つ形）。
 /// `data-scope="widget"` 要素を含めることで Anatomy 節（機械導出）が
-/// 省略されずに埋まる（`/components/widget/` のパス kebab と一致させ、
+/// 省略されずに埋まる（`/themes/widget/` のパス kebab と一致させ、
 /// §3.4 のバケット 1 解決に乗せる）。
 fn synthetic_demo() -> fandhe_frontend_core::Node {
     use fandhe_frontend_core::{div, el, p, text};
@@ -126,7 +126,7 @@ fn synthetic_demo() -> fandhe_frontend_core::Node {
 #[test]
 fn full_spec_fixture_fixes_the_canonical_six_section_order() {
     let demo = synthetic_demo();
-    let page = render_component_page("/components/widget/", demo, &full_spec());
+    let page = render_component_page("/themes/widget/", demo, &full_spec());
     let html = render(&page);
     assert_eq!(h2_texts(&html), CANONICAL_SECTIONS.to_vec());
     // API Reference/Accessibility 節内の小見出しは H3 に留まる契約
@@ -166,7 +166,7 @@ fn synthetic_demo_without_scope() -> fandhe_frontend_core::Node {
 #[test]
 fn empty_spec_still_emits_demo_section_only() {
     let demo = synthetic_demo_without_scope();
-    let page = render_component_page("/components/widget/", demo, &ComponentPageSpec::EMPTY);
+    let page = render_component_page("/themes/widget/", demo, &ComponentPageSpec::EMPTY);
     let html = render(&page);
     // Anatomy 節は demo に data-scope が無いため省略される。Demo のみが残る。
     assert_eq!(h2_texts(&html), vec!["Demo".to_string()]);
@@ -358,11 +358,11 @@ fn anatomy_parts_are_a_subset_of_headless_ui_declared_parts_for_every_page() {
 fn anatomy_parts_exactly_match_declared_parts_for_fully_demonstrated_components() {
     let cases: &[(&str, &[&str])] = &[
         (
-            "/components/card/",
+            "/themes/card/",
             &["root", "header", "body", "footer", "title", "description"],
         ),
         (
-            "/components/drawer/",
+            "/themes/drawer/",
             &[
                 "root",
                 "trigger",
@@ -374,8 +374,8 @@ fn anatomy_parts_exactly_match_declared_parts_for_fully_demonstrated_components(
                 "close-trigger",
             ],
         ),
-        ("/components/toggle/", &["root", "indicator"]),
-        ("/components/toggle-group/", &["root", "item"]),
+        ("/themes/toggle/", &["root", "indicator"]),
+        ("/themes/toggle-group/", &["root", "item"]),
     ];
     for (path, expected_parts) in cases {
         let content = fandhe_frontend_docs_site::component_page::generated_content(path).unwrap();
@@ -458,7 +458,7 @@ fn features_and_table_cells_escape_xss_payloads() {
         demo: None,
     };
     let demo = synthetic_demo();
-    let page = render_component_page("/components/widget/", demo, &spec);
+    let page = render_component_page("/themes/widget/", demo, &spec);
     let html = render(&page);
     assert!(!html.contains(payload), "raw payload leaked: {html}");
     assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
@@ -534,21 +534,21 @@ fn overlay_disclosure_pages_include_all_required_sections() {
         "Accessibility",
     ];
     const PATHS: &[&str] = &[
-        "/components/accordion/",
-        "/components/action-bar/",
-        "/components/dialog/",
-        "/components/drawer/",
-        "/components/floating-panel/",
-        "/components/hover-card/",
-        "/components/menu/",
-        "/components/menubar/",
-        "/components/popover/",
-        "/components/tabs/",
-        "/components/toast/",
-        "/components/toggle-tip/",
-        "/components/toolbar/",
-        "/components/tooltip/",
-        "/components/tour/",
+        "/themes/accordion/",
+        "/themes/action-bar/",
+        "/themes/dialog/",
+        "/themes/drawer/",
+        "/themes/floating-panel/",
+        "/themes/hover-card/",
+        "/themes/menu/",
+        "/themes/menubar/",
+        "/themes/popover/",
+        "/themes/tabs/",
+        "/themes/toast/",
+        "/themes/toggle-tip/",
+        "/themes/toolbar/",
+        "/themes/tooltip/",
+        "/themes/tour/",
     ];
     for path in PATHS {
         let content = fandhe_frontend_docs_site::component_page::generated_content(path)
@@ -585,24 +585,24 @@ fn overlay_pages_retain_overlay_placement_admonition_as_important() {
         "tour",
     ];
     for name in PAGES_WITH_OVERLAY_NOTE {
-        let path = repo_root().join(format!("site/components/{name}.md"));
+        let path = repo_root().join(format!("site/themes/{name}.md"));
         let src = fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("{} should be readable: {e}", path.display()));
         assert!(
             src.contains("オーバーレイ部品"),
-            "site/components/{name}.md must retain the overlay-placement admonition text"
+            "site/themes/{name}.md must retain the overlay-placement admonition text"
         );
         assert!(
             src.contains("recipe CSS"),
-            "site/components/{name}.md must retain the overlay-placement admonition text"
+            "site/themes/{name}.md must retain the overlay-placement admonition text"
         );
         assert!(
             src.contains("[!IMPORTANT]"),
-            "site/components/{name}.md must use [!IMPORTANT] for the overlay-placement admonition"
+            "site/themes/{name}.md must use [!IMPORTANT] for the overlay-placement admonition"
         );
         assert!(
             !src.contains("[!NOTE]"),
-            "site/components/{name}.md must not retain the Phase 4 stub [!NOTE] marker"
+            "site/themes/{name}.md must not retain the Phase 4 stub [!NOTE] marker"
         );
     }
 }
@@ -629,12 +629,12 @@ fn filled_pages_no_longer_reference_phase_4_stub_note() {
         "toggle-group",
     ];
     for name in FILLED_PAGES {
-        let path = repo_root().join(format!("site/components/{name}.md"));
+        let path = repo_root().join(format!("site/themes/{name}.md"));
         let src = fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("{} should be readable: {e}", path.display()));
         assert!(
             !src.contains("Phase 4"),
-            "site/components/{name}.md must no longer reference the Phase 4 stub note"
+            "site/themes/{name}.md must no longer reference the Phase 4 stub note"
         );
     }
 }
@@ -664,14 +664,14 @@ fn forms_pages_have_the_canonical_sections_filled() {
     }
 }
 
-/// `site/components/<kebab>.md` の Forms 31 件が Phase 4 未充填を示す
+/// `site/themes/<kebab>.md` の Forms 31 件が Phase 4 未充填を示す
 /// `[!NOTE]` admonition（「Phase 4」文言を含む）を残していないことを検証
 /// する（充填したページから admonition を削除する前提、イシュー #945）。
 #[test]
 fn forms_markdown_sources_do_not_retain_the_phase4_unfilled_marker() {
     for path in FORMS_PATHS {
         let kebab = path.trim_matches('/').rsplit('/').next().unwrap();
-        let md_path = repo_root().join(format!("site/components/{kebab}.md"));
+        let md_path = repo_root().join(format!("site/themes/{kebab}.md"));
         let src = fs::read_to_string(&md_path)
             .unwrap_or_else(|e| panic!("{} should be readable: {e}", md_path.display()));
         assert!(
@@ -699,43 +699,43 @@ fn is_str_subsequence(needle: &[&str], haystack: &[&str]) -> bool {
 }
 
 const FORMS_PATHS: &[&str] = &[
-    "/components/angle-slider/",
-    "/components/button/",
-    "/components/calendar/",
-    "/components/checkbox/",
-    "/components/checkbox-card/",
-    "/components/checkbox-group/",
-    "/components/color-picker/",
-    "/components/combobox/",
-    "/components/date-input/",
-    "/components/date-picker/",
-    "/components/download-trigger/",
-    "/components/editable/",
-    "/components/file-upload/",
-    "/components/image-cropper/",
-    "/components/input/",
-    "/components/listbox/",
-    "/components/native-select/",
-    "/components/number-input/",
-    "/components/password-input/",
-    "/components/pin-input/",
-    "/components/radio-card/",
-    "/components/radio-group/",
-    "/components/rating-group/",
-    "/components/segment-group/",
-    "/components/select/",
-    "/components/signature-pad/",
-    "/components/slider/",
-    "/components/switch/",
-    "/components/tags-input/",
-    "/components/textarea/",
-    "/components/toggle/",
-    "/components/toggle-group/",
+    "/themes/angle-slider/",
+    "/themes/button/",
+    "/themes/calendar/",
+    "/themes/checkbox/",
+    "/themes/checkbox-card/",
+    "/themes/checkbox-group/",
+    "/themes/color-picker/",
+    "/themes/combobox/",
+    "/themes/date-input/",
+    "/themes/date-picker/",
+    "/themes/download-trigger/",
+    "/themes/editable/",
+    "/themes/file-upload/",
+    "/themes/image-cropper/",
+    "/themes/input/",
+    "/themes/listbox/",
+    "/themes/native-select/",
+    "/themes/number-input/",
+    "/themes/password-input/",
+    "/themes/pin-input/",
+    "/themes/radio-card/",
+    "/themes/radio-group/",
+    "/themes/rating-group/",
+    "/themes/segment-group/",
+    "/themes/select/",
+    "/themes/signature-pad/",
+    "/themes/slider/",
+    "/themes/switch/",
+    "/themes/tags-input/",
+    "/themes/textarea/",
+    "/themes/toggle/",
+    "/themes/toggle-group/",
 ];
 
 #[test]
 fn data_attrs_and_css_var_tables_are_deterministic_across_repeated_renders() {
-    for path in ["/components/accordion/", "/components/dialog/"] {
+    for path in ["/themes/accordion/", "/themes/dialog/"] {
         let first = render(
             &fandhe_frontend_docs_site::component_page::generated_content(path)
                 .expect("registered path must have generated content"),
@@ -756,14 +756,14 @@ fn data_attrs_and_css_var_tables_are_deterministic_across_repeated_renders() {
 /// Features/Anatomy/API Reference/Accessibility 等の H2（`## `）節は増やさ
 /// ない（それらは `ComponentPageSpec`（Rust）から機械生成される、
 /// `crate::build::build_site` が「Markdown 本文 → Rust 生成コンテンツ」の
-/// 順で連結する設計）。イシュー #980 は `site/components/toggle.md`/
+/// 順で連結する設計）。イシュー #980 は `site/themes/toggle.md`/
 /// `toggle-group.md` が #979 の CSS 配線後もこの契約に違反したまま出荷され
 /// ていた（Demo/Features/Anatomy/API Reference/Accessibility の重複・
 /// 虚偽の「Demo を持たない」注記が残存）ことの是正であり、同種の乖離を
 /// 二度と見逃さないための機械ガード。
 #[test]
 fn component_markdown_sources_have_no_h2_headings() {
-    let dir = repo_root().join("site/components");
+    let dir = repo_root().join("site/themes");
     let entries =
         fs::read_dir(&dir).unwrap_or_else(|e| panic!("{} should be readable: {e}", dir.display()));
     let mut violations: Vec<String> = Vec::new();
@@ -788,7 +788,7 @@ fn component_markdown_sources_have_no_h2_headings() {
     );
 }
 
-/// イシュー #996 受け入れ条件: `/components/tab-nav/` が Demo → Features →
+/// イシュー #996 受け入れ条件: `/themes/tab-nav/` が Demo → Features →
 /// Anatomy → API Reference → Examples → Accessibility の 6 節すべてを
 /// この順で描画すること。[`overlay_disclosure_pages_include_all_required_sections`]
 /// はオーバーレイ部品の明示リストのみを対象とするため、`tab-nav` の
@@ -797,7 +797,7 @@ fn component_markdown_sources_have_no_h2_headings() {
 /// あった。本テストはその穴を塞ぎ、6 節の完全性と順序を直接固定する。
 #[test]
 fn tab_nav_page_renders_all_six_canonical_sections() {
-    const PATH: &str = "/components/tab-nav/";
+    const PATH: &str = "/themes/tab-nav/";
     let content = fandhe_frontend_docs_site::component_page::generated_content(PATH)
         .unwrap_or_else(|| panic!("registered path {PATH} must have generated content"));
     let html = render(&content);

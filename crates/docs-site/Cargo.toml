@@ -17,7 +17,7 @@ publish = false
 # （イシュー #465 実装計画）。
 #
 # pre-styled-ui は部品ページ群（src/showcase.rs・src/component_page.rs、
-# site/nav.toml の /components/<kebab>/ 各ページ、イシュー #943）が styled
+# site/nav.toml の /themes/<kebab>/ 各ページ、イシュー #943・#1017）が styled
 # 部品の実レンダリングと StyleSheet による CSS 生成に使う。ラッパー呼び出しに
 # 必要な headless 型
 # （`OpenState` / `Orientation`）は pre-styled-ui のルート再エクスポート

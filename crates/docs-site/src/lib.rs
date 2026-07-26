@@ -20,7 +20,8 @@
 //!   UI ショーケースページの Rust 生成コンテンツと専用 CSS
 //!   （`StyleSheet` 経由）。Markdown パイプラインの後段で [`build`] が
 //!   `page.path` 照会により合成する
-//! - [`component_page`][]: 部品ページ（`/components/<kebab>/`）の雛形
+//! - [`component_page`][]: 部品ページ（`/themes/<kebab>/`。イシュー #1017 で
+//!   `/components/<kebab>/` から移行）の雛形
 //!   レンダラ（イシュー #942）。[`showcase`] の部品単位デモを「Demo」節
 //!   として受け取り、Features/Anatomy/API Reference/Examples/Accessibility
 //!   と合わせた 6 節（H2 固定）へ組み立て直す。Anatomy・`data-*` 属性表・

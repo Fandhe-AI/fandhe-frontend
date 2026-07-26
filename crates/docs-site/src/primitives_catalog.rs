@@ -150,7 +150,7 @@ pub const PRIMITIVES: &[PrimitiveEntry] = &[
         category: PrimitiveCategory::FormsA,
     },
     PrimitiveEntry {
-        // Themes 側（site/components/）に対応ページを持たない 3 件の 1 つ
+        // Themes 側（site/themes/）に対応ページを持たない 3 件の 1 つ
         // （PRIMITIVES_WITHOUT_THEMES_PAGE 参照）。表示名は機械転記元が
         // ないため "Field" を直接定める。
         module: "field",
@@ -533,7 +533,7 @@ pub const FOUNDATION_MODULES: &[&str] = &[
 /// との突合時は明示的に除外する。
 pub const CRATE_ROOT_MODULE: &str = "lib";
 
-/// Themes 側（`site/components/<kebab>.md`）に対応ページを持たない
+/// Themes 側（`site/themes/<kebab>.md`）に対応ページを持たない
 /// Primitives の 3 件（設計 §0 実測で確認済み）。
 /// `primitives_titles_match_themes_page_titles_where_both_exist` 相当の
 /// 突合ロジックが例外として除外する用途に限定する（partition 検証からは
