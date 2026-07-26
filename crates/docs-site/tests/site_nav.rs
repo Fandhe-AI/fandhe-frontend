@@ -76,6 +76,35 @@ fn site_nav_registers_five_sections_with_expected_titles() {
     );
 }
 
+/// イシュー #1010: `[[section]].index_path` が全 5 セクションに宣言され、
+/// 各値が期待どおりであることを固定する（`nav.rs` のパース時点で
+/// `index_path` は当該セクション配下ページの `path` と完全一致すること
+/// 自体は既に保証されているため、本テストは「値のドリフト」検知に限定する）。
+///
+/// Components の `/components/pre-styled-ui/` は Phase 3
+/// （イシュー #1019 / #1015）で `/themes/` へ移行する予定である。
+/// この期待値は「暫定値だから直すべきもの」ではなく、Phase 3 が
+/// **意図的に更新する** 対象である。移行 PR ではここの期待値を更新すること。
+#[test]
+fn site_nav_declares_index_path_for_every_section() {
+    let nav = load_nav();
+    let actual: Vec<(&str, &str)> = nav
+        .sections
+        .iter()
+        .map(|s| (s.title.as_str(), s.index_path.as_str()))
+        .collect();
+    assert_eq!(
+        actual,
+        vec![
+            ("Getting Started", "/"),
+            ("Guides", "/guides/"),
+            ("Examples", "/examples/"),
+            ("Components", "/components/pre-styled-ui/"),
+            ("API Reference", "/api/"),
+        ]
+    );
+}
+
 /// 受け入れ条件 1: 既存の利用者向けドキュメント（トップ + quickstart +
 /// guides 4 本 + api 6 本 = 12 ページ）と、イシュー #504 で追加された
 /// Examples セクション（概説ページ 1 + サンプル README 4 = 5 ページ）、

@@ -715,6 +715,7 @@ base_path = ""
 
 [[section]]
 title = "Guide"
+index_path = "/"
 
 [[section.page]]
 title = "Intro"

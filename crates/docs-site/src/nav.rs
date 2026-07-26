@@ -17,7 +17,10 @@
 //!
 //! - `#` から始まる行コメント、および文字列値の終端後に続く `# ...`
 //! - `[site]` テーブル（`title` / `base_path` の 2 キー）
-//! - `[[section]]` array-of-tables（`title` キー）
+//! - `[[section]]` array-of-tables（`title` / `index_path` の 2 キー。
+//!   `index_path` はセクショントップページの出力 URL パスを指す必須項目
+//!   （イシュー #1010）。ヘッダー href（#1012）・サイドバースコープ判定
+//!   （#1013）が参照する唯一の情報源になる）
 //! - `[[section.page]]` array-of-tables（直前の `[[section]]` に属する。
 //!   `title` / `source` / `path` の 3 キー）
 //! - `[[section.group]]` array-of-tables（直前の `[[section]]` に属する
@@ -105,6 +108,20 @@ impl Nav {
     pub fn all_pages(&self) -> impl Iterator<Item = &Page> {
         self.sections.iter().flat_map(|s| s.all_pages())
     }
+
+    /// `path` を含むセクションを返す（イシュー #1013 のサイドバースコープ
+    /// 判定 — 現在ページが属するセクションのみへ絞り込む — が利用する
+    /// 解決 API）。
+    ///
+    /// 走査は必ず [`Section::all_pages`]（本モジュールが定める唯一の
+    /// 正規走査経路）を経由する。`pages` / `groups` を個別に手繰る
+    /// 二重ループをここで新設しない（グループ配下ページの取りこぼしを
+    /// 防ぐための規約、同メソッド rustdoc 参照）。
+    pub fn section_for_path(&self, path: &str) -> Option<&Section> {
+        self.sections
+            .iter()
+            .find(|s| s.all_pages().any(|p| p.path == path))
+    }
 }
 
 /// `[site]` テーブル。
@@ -128,6 +145,15 @@ pub struct Site {
 pub struct Section {
     /// サイドバーの見出しとして表示するセクションタイトル。
     pub title: String,
+    /// セクショントップページの出力 URL パス（必須、イシュー #1010）。
+    /// このセクション配下（直下ページ or グループ内ページ）のいずれかの
+    /// `page.path` と完全一致することが [`parse_nav`] のパース時点で
+    /// 保証される（`validate_page_path` を通過済みの `page.path` 集合との
+    /// 完全一致でのみ受理し、独立した形式検証は持たない。これにより
+    /// `index_path ⊆ 生成ページの path 集合` が構造的な不変条件になる）。
+    /// #1012（ヘッダー href）・#1013（サイドバースコープ判定、
+    /// [`Nav::section_for_path`] 経由）が参照する唯一の情報源。
+    pub index_path: String,
     /// 宣言順を保持した直下ページ列（グループに属さないページ）。
     pub pages: Vec<Page>,
     /// 宣言順を保持したグループ列（各グループのページは 1 件以上、
@@ -214,6 +240,25 @@ pub enum NavError {
     EmptySection(String),
     /// グループにページが 1 件も宣言されていない（イシュー #939）。
     EmptyGroup(String),
+    /// `[[section]]` に必須キー `index_path` が宣言されていない
+    /// （イシュー #1010）。
+    MissingSectionIndex {
+        /// `[[section]]` ヘッダ行（1 始まり）。
+        line: usize,
+        /// セクションタイトル。
+        section: String,
+    },
+    /// `index_path` が当該セクション配下のどの `page.path` とも一致しない
+    /// （他セクションのページを指す場合・存在しない path を指す場合の
+    /// 双方を含む、イシュー #1010）。
+    SectionIndexNotFound {
+        /// `index_path = "..."` の行（1 始まり）。
+        line: usize,
+        /// セクションタイトル。
+        section: String,
+        /// 一致しなかった `index_path` の値。
+        index_path: String,
+    },
 }
 
 impl fmt::Display for NavError {
@@ -239,6 +284,18 @@ impl fmt::Display for NavError {
             }
             NavError::EmptySection(title) => write!(f, "section `{title}` has no pages"),
             NavError::EmptyGroup(title) => write!(f, "group `{title}` has no pages"),
+            NavError::MissingSectionIndex { line, section } => write!(
+                f,
+                "nav.toml:{line}: section `{section}` is missing required key `index_path`"
+            ),
+            NavError::SectionIndexNotFound {
+                line,
+                section,
+                index_path,
+            } => write!(
+                f,
+                "nav.toml:{line}: section `{section}` index_path `{index_path}` does not match any page.path in this section"
+            ),
         }
     }
 }
@@ -249,6 +306,13 @@ impl std::error::Error for NavError {}
 /// まとめて検証する（欠落順序に依存しない一貫したエラーにするため）。
 struct SectionBuilder {
     title: Option<String>,
+    /// `[[section]]` ヘッダ行（1 始まり）。`NavError::MissingSectionIndex`
+    /// の行番号として使う（イシュー #1010）。
+    header_line: usize,
+    index_path: Option<String>,
+    /// `index_path = "..."` の行（1 始まり）。`NavError::SectionIndexNotFound`
+    /// の行番号として使う（イシュー #1010）。
+    index_path_line: Option<usize>,
     pages: Vec<PageBuilder>,
     groups: Vec<GroupBuilder>,
 }
@@ -481,6 +545,9 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
                 "section" => {
                     sections.push(SectionBuilder {
                         title: None,
+                        header_line: line,
+                        index_path: None,
+                        index_path_line: None,
                         pages: Vec::new(),
                         groups: Vec::new(),
                     });
@@ -570,6 +637,15 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
             },
             Ctx::Section(sidx) => match key {
                 "title" => set_once(&mut sections[sidx].title, value, line, "section.title")?,
+                "index_path" => {
+                    set_once(
+                        &mut sections[sidx].index_path,
+                        value,
+                        line,
+                        "section.index_path",
+                    )?;
+                    sections[sidx].index_path_line = Some(line);
+                }
                 other => {
                     return Err(parse_err(
                         line,
@@ -676,8 +752,37 @@ pub fn parse_nav(input: &str) -> Result<Nav, NavError> {
                 pages: out_group_pages,
             });
         }
+
+        // イシュー #1010: `index_path` 必須化の検証は「pages/groups 確定
+        // 後・EmptySection より後」で行う。ページが 1 件も無いセクション
+        // には index の指しようがなく、EmptySection の方が情報量の多い
+        // 診断であるため（既存回帰テスト `rejects_empty_section` が
+        // fixture 無変更のまま通ることの保証でもある）。
+        let index_path = section
+            .index_path
+            .ok_or_else(|| NavError::MissingSectionIndex {
+                line: section.header_line,
+                section: title.clone(),
+            })?;
+        // 検証は「finalize_page で validate_page_path を通過した
+        // page.path 集合との完全一致」の 1 ルールのみとする。独立した
+        // 形式検証を追加しない（`index_path ⊆ 生成ページの path 集合`
+        // という構造的不変条件をドリフトさせないため。§3.6 参照）。
+        let index_path_matches_a_page = out_pages
+            .iter()
+            .chain(out_groups.iter().flat_map(|g| g.pages.iter()))
+            .any(|p| p.path == index_path);
+        if !index_path_matches_a_page {
+            return Err(NavError::SectionIndexNotFound {
+                line: section.index_path_line.unwrap_or(section.header_line),
+                section: title,
+                index_path,
+            });
+        }
+
         out_sections.push(Section {
             title,
+            index_path,
             pages: out_pages,
             groups: out_groups,
         });
@@ -1079,6 +1184,7 @@ base_path = "/fandhe-frontend"
 
 [[section]]
 title = "Guide"
+index_path = "/guide/intro/"
 
 [[section.page]]
 title = "Introduction"
@@ -1092,6 +1198,7 @@ path = "/guide/getting-started/"
 
 [[section]]
 title = "Reference"
+index_path = "/reference/api/"
 
 [[section.page]]
 title = "API"
@@ -1128,6 +1235,7 @@ base_path = ""
 
 [[section]] # comment after header
 title = "Guide"
+index_path = "/intro/"
 
 [[section.page]]
 title = "Intro"
@@ -1148,6 +1256,7 @@ base_path = ""
 
 [[section]]
 title = "S"
+index_path = "/p/"
 
 [[section.page]]
 title = "P"
@@ -1169,6 +1278,7 @@ base_path = ""
 
 [[section]]
 title = "A"
+index_path = "/dup/"
 
 [[section.page]]
 title = "P1"
@@ -1177,6 +1287,7 @@ path = "/dup/"
 
 [[section]]
 title = "B"
+index_path = "/dup/"
 
 [[section.page]]
 title = "P2"
@@ -1199,6 +1310,7 @@ base_path = ""
 
 [[section]]
 title = "A"
+index_path = "/p1/"
 
 [[section.page]]
 title = "P1"
@@ -1223,6 +1335,7 @@ base_path = ""
 
 [[section]]
 title = "A"
+index_path = "/p1/"
 
 [[section.page]]
 title = "P1"
@@ -1242,6 +1355,7 @@ base_path = ""
 
 [[section]]
 title = "A"
+index_path = "/p1/"
 
 [[section.page]]
 title = "P1"
@@ -1263,6 +1377,7 @@ base_path = ""
 
 [[section]]
 title = "A"
+index_path = "/p1/"
 
 [[section.page]]
 title = "P1"
@@ -1285,6 +1400,7 @@ base_path = ""
 
 [[section]]
 title = "A"
+index_path = "/"
 
 [[section.page]]
 title = "Top"
@@ -1304,6 +1420,7 @@ base_path = ""
 
 [[section]]
 title = "A"
+index_path = "p1/"
 
 [[section.page]]
 title = "P1"
@@ -1322,6 +1439,7 @@ base_path = ""
 
 [[section]]
 title = "A"
+index_path = "/p1"
 
 [[section.page]]
 title = "P1"
@@ -1340,6 +1458,7 @@ base_path = ""
 
 [[section]]
 title = "A"
+index_path = "/../p1/"
 
 [[section.page]]
 title = "P1"
@@ -1357,6 +1476,7 @@ title = "Docs"
 
 [[section]]
 title = "A"
+index_path = "/p1/"
 
 [[section.page]]
 title = "P1"
@@ -1395,6 +1515,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/components/button/"
 
 [[section.group]]
 title = "Forms"
@@ -1450,6 +1571,7 @@ base_path = ""
 
 [[section]]
 title = "A"
+index_path = "/p1/"
 
 [[section.page]]
 title = "P1"
@@ -1483,6 +1605,7 @@ base_path = "no-leading-slash"
 
 [[section]]
 title = "A"
+index_path = "/p1/"
 
 [[section.page]]
 title = "P1"
@@ -1531,6 +1654,7 @@ base_path = ""
 
 [[section]]
 title = "<script>alert(1)</script>"
+index_path = "/p1/"
 
 [[section.page]]
 title = "Quote\"Title"
@@ -1644,6 +1768,7 @@ base_path = ""
 
 [[section]]
 title = "<script>alert(1)</script>"
+index_path = "/p1/"
 
 [[section.page]]
 title = "Quote\"Title"
@@ -1655,5 +1780,324 @@ path = "/p1/"
         assert!(!html.contains("<script>"));
         assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
         assert!(html.contains("Quote&quot;Title"));
+    }
+
+    // ---- `[[section]].index_path` 必須項目（イシュー #1010） ----
+
+    #[test]
+    fn rejects_section_without_index_path() {
+        let input = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "A"
+
+[[section.page]]
+title = "P1"
+source = "p1.md"
+path = "/p1/"
+"#;
+        match parse_nav(input) {
+            Err(NavError::MissingSectionIndex { line, section }) => {
+                // `[[section]]` ヘッダ行（入力の 6 行目、先頭改行 1 行分を
+                // 含めた行番号であることに注意）と一致することを固定する。
+                assert_eq!(line, 6);
+                assert_eq!(section, "A");
+            }
+            other => panic!("expected MissingSectionIndex, got {other:?}"),
+        }
+    }
+
+    /// `[[section]]` が受け付けるキーは `title` / `index_path` の 2 つに
+    /// 限定される（イシュー #1010 で 1 → 2 キーへ拡張）。未知キーを黙って
+    /// 無視しない fail-closed 原則の回帰（拡張後もキーのホワイトリストが
+    /// 崩れていないことを固定する）。
+    #[test]
+    fn rejects_unknown_key_in_section_still() {
+        let input = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "A"
+index_path = "/p1/"
+weight = "1"
+
+[[section.page]]
+title = "P1"
+source = "p1.md"
+path = "/p1/"
+"#;
+        match parse_nav(input) {
+            Err(NavError::Parse { message, .. }) => {
+                assert_eq!(message, "unknown key `weight` in [[section]]");
+            }
+            other => panic!("expected Parse, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn rejects_index_path_pointing_to_other_section_page() {
+        let input = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "A"
+index_path = "/b/p1/"
+
+[[section.page]]
+title = "P1"
+source = "a-p1.md"
+path = "/a/p1/"
+
+[[section]]
+title = "B"
+index_path = "/b/p1/"
+
+[[section.page]]
+title = "P1"
+source = "b-p1.md"
+path = "/b/p1/"
+"#;
+        match parse_nav(input) {
+            Err(NavError::SectionIndexNotFound {
+                line,
+                section,
+                index_path,
+            }) => {
+                // `index_path = "/b/p1/"`（セクション A 側、入力の 8 行目）
+                // と一致することを固定する（`index_path_line` の配線を
+                // 実際に検証する。`line` を `..` で無視すると
+                // `SectionIndexNotFound { line: section.header_line, .. }`
+                // のような誤配線でもテストが通ってしまう）。
+                assert_eq!(line, 8);
+                assert_eq!(section, "A");
+                assert_eq!(index_path, "/b/p1/");
+            }
+            other => panic!("expected SectionIndexNotFound, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn rejects_index_path_not_matching_any_page() {
+        let input = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "A"
+index_path = "/nowhere/"
+
+[[section.page]]
+title = "P1"
+source = "p1.md"
+path = "/p1/"
+"#;
+        match parse_nav(input) {
+            Err(NavError::SectionIndexNotFound {
+                section,
+                index_path,
+                ..
+            }) => {
+                assert_eq!(section, "A");
+                assert_eq!(index_path, "/nowhere/");
+            }
+            other => panic!("expected SectionIndexNotFound, got {other:?}"),
+        }
+    }
+
+    /// トラバーサル形状の `index_path`（`page.path` として未登録）が
+    /// `SectionIndexNotFound` として拒否されることを固定する（A01 対策の
+    /// 中核テスト。`index_path` は `validate_page_path` を通過済みの
+    /// `page.path` 集合との完全一致でのみ受理され、独立した形式検証を
+    /// 持たないため、トラバーサル形状の値は単に「一致しない」ものとして
+    /// 一様に拒否される。§3.6 参照）。
+    #[test]
+    fn rejects_traversal_shaped_index_path() {
+        let input = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "A"
+index_path = "/../etc/"
+
+[[section.page]]
+title = "P1"
+source = "p1.md"
+path = "/p1/"
+"#;
+        match parse_nav(input) {
+            Err(NavError::SectionIndexNotFound { index_path, .. }) => {
+                assert_eq!(index_path, "/../etc/");
+            }
+            other => panic!("expected SectionIndexNotFound, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn rejects_duplicate_index_path_key() {
+        let input = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "A"
+index_path = "/p1/"
+index_path = "/p1/"
+
+[[section.page]]
+title = "P1"
+source = "p1.md"
+path = "/p1/"
+"#;
+        match parse_nav(input) {
+            Err(NavError::Parse { message, .. }) => {
+                assert!(message.contains("duplicate key `section.index_path`"));
+            }
+            other => panic!("expected Parse (duplicate key), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_section_index_path() {
+        let nav = parse_nav(SAMPLE).expect("valid nav.toml should parse");
+        assert_eq!(nav.sections[0].index_path, "/guide/intro/");
+        assert_eq!(nav.sections[1].index_path, "/reference/api/");
+    }
+
+    #[test]
+    fn accepts_index_path_pointing_to_group_page() {
+        let input = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "Components"
+index_path = "/components/button/"
+
+[[section.group]]
+title = "Forms"
+
+[[section.group.page]]
+title = "Button"
+source = "button.md"
+path = "/components/button/"
+"#;
+        let nav = parse_nav(input).expect("index_path pointing to a group page should be accepted");
+        assert_eq!(nav.sections[0].index_path, "/components/button/");
+    }
+
+    #[test]
+    fn accepts_site_root_as_index_path() {
+        let input = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "A"
+index_path = "/"
+
+[[section.page]]
+title = "Top"
+source = "index.md"
+path = "/"
+"#;
+        let nav = parse_nav(input).expect("index_path = \"/\" should be accepted");
+        assert_eq!(nav.sections[0].index_path, "/");
+    }
+
+    /// `EmptySection`（直下ページ・グループがともに 0 件）は `index_path`
+    /// 欠落より優先して検出されることを固定する（§3.5 の検証順序、
+    /// ドリフト防止テスト）。既存 fixture（`rejects_empty_section`）は
+    /// `index_path` を意図的に持たないまま維持する。
+    #[test]
+    fn empty_section_takes_precedence_over_missing_index_path() {
+        let input = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "Empty"
+"#;
+        match parse_nav(input) {
+            Err(NavError::EmptySection(title)) => assert_eq!(title, "Empty"),
+            other => panic!("expected EmptySection (not MissingSectionIndex), got {other:?}"),
+        }
+    }
+
+    /// `UnsafePagePath`（`page.path` の形式違反）は index 系の検証より
+    /// 先に落ちることを固定する（§3.5 の検証順序、ドリフト防止テスト）。
+    #[test]
+    fn unsafe_page_path_takes_precedence_over_index_checks() {
+        let input = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "A"
+index_path = "/../p1/"
+
+[[section.page]]
+title = "P1"
+source = "p1.md"
+path = "/../p1/"
+"#;
+        assert!(matches!(parse_nav(input), Err(NavError::UnsafePagePath(_))));
+    }
+
+    // ---- `Nav::section_for_path`（イシュー #1010・#1013 用の解決 API） ----
+
+    #[test]
+    fn section_for_path_finds_section_by_direct_page() {
+        let nav = parse_nav(SAMPLE).unwrap();
+        let section = nav
+            .section_for_path("/guide/getting-started/")
+            .expect("direct page should resolve to its section");
+        assert_eq!(section.title, "Guide");
+    }
+
+    #[test]
+    fn section_for_path_finds_section_by_group_page() {
+        let input = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "Components"
+index_path = "/components/button/"
+
+[[section.group]]
+title = "Forms"
+
+[[section.group.page]]
+title = "Button"
+source = "button.md"
+path = "/components/button/"
+"#;
+        let nav = parse_nav(input).unwrap();
+        let section = nav
+            .section_for_path("/components/button/")
+            .expect("group page should resolve to its section");
+        assert_eq!(section.title, "Components");
+    }
+
+    #[test]
+    fn section_for_path_returns_none_for_unknown_path() {
+        let nav = parse_nav(SAMPLE).unwrap();
+        assert!(nav.section_for_path("/not-in-nav/").is_none());
     }
 }

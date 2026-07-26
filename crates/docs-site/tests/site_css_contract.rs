@@ -105,6 +105,7 @@ base_path = ""
 
 [[section]]
 title = "Getting Started"
+index_path = "/"
 
 [[section.page]]
 title = "Intro"
@@ -118,6 +119,7 @@ path = "/quickstart/"
 
 [[section]]
 title = "Guides"
+index_path = "/advanced/"
 
 [[section.page]]
 title = "Advanced"
@@ -585,6 +587,7 @@ base_path = ""
 
 [[section]]
 title = "Getting Started"
+index_path = "/"
 
 [[section.page]]
 title = "Intro"
@@ -593,6 +596,7 @@ path = "/"
 
 [[section]]
 title = "Components"
+index_path = "/components/"
 
 [[section.page]]
 title = "Overview"

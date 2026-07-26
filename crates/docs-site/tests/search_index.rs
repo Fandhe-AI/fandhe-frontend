@@ -508,6 +508,7 @@ base_path = ""
 
 [[section]]
 title = "Guide"
+index_path = "/"
 
 [[section.page]]
 title = "Home"
@@ -573,6 +574,7 @@ base_path = ""
 
 [[section]]
 title = "Guide"
+index_path = "/"
 
 [[section.page]]
 title = "Home"
@@ -653,6 +655,7 @@ base_path = ""
 
 [[section]]
 title = "Guide"
+index_path = "/"
 
 [[section.page]]
 title = "Home"
