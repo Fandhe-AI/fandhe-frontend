@@ -7,6 +7,7 @@ base_path = "/fandhe-frontend"
 
 [[section]]
 title = "Getting Started"
+index_path = "/"
 
 [[section.page]]
 title = "はじめに"
@@ -20,6 +21,7 @@ path = "/getting-started/quickstart/"
 
 [[section]]
 title = "Guides"
+index_path = "/guides/"
 
 [[section.page]]
 title = "ガイド一覧"
@@ -48,6 +50,7 @@ path = "/guides/npm-asset-build/"
 
 [[section]]
 title = "Examples"
+index_path = "/examples/"
 
 [[section.page]]
 title = "サンプル集"
@@ -81,6 +84,11 @@ path = "/examples/headless-pre-styled-ui/"
 
 [[section]]
 title = "Components"
+# 暫定値ではない: 既存索引ページ /components/pre-styled-ui/ を指す
+# のが本イシュー（#1010）時点の正しい値。Phase 3（#1019）で
+# /themes/ へ移行する予定であり、そのときにこの値を意図的に
+# 更新する（docs/design/docs-site-component-pages.md §6 参照）。
+index_path = "/components/pre-styled-ui/"
 
 # 索引ページ（凡例 + カテゴリ別リンク集）。URL は既存被リンク
 # （docs/api/pre-styled-ui-api.md 等）・外部ブックマーク維持のため
@@ -658,6 +666,7 @@ path = "/components/sparkline/"
 #   API ページ <-> 部品ページの相互リンクは相対 .md リンクで維持する（同文書 §3-2）。
 [[section]]
 title = "API Reference"
+index_path = "/api/"
 
 [[section.page]]
 title = "API リファレンス"

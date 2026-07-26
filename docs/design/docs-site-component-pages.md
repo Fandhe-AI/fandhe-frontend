@@ -303,6 +303,7 @@ TOML 文法:
 ```toml
 [[section]]
 title = "Components"
+index_path = "/components/pre-styled-ui/"
 
 [[section.group]]
 title = "Forms"
@@ -329,6 +330,15 @@ path = "/components/button/"
    `EmptyGroup(String)` の 1 つのみ追加する（既存 `EmptySection(String)`
    と対称。実装は `crates/docs-site/src/nav.rs` の既存 `NavError` enum・
    `Display` 実装を拡張する）。
+6. **`index_path`（イシュー #1010）は #939 以降 `[[section]]` の全宣言に
+   必須のキーとして追加された**。セクショントップページの出力 URL パスを
+   指し、当該セクション配下（直下ページ or グループ内ページ）のいずれかの
+   `page.path` と完全一致することがパース時点で保証される（独立した形式
+   検証は持たない）。Components セクションの値 `/components/pre-styled-ui/`
+   は既存索引ページを指す暫定値であり、Phase 3（#1019）で `/themes/` へ
+   移行する予定である。#1012（ヘッダー href のリンク化）・#1013
+   （サイドバーのセクションスコープ限定、`Nav::section_for_path` 経由）が
+   参照する唯一の情報源になる。
 
 **エラー写像表（#939 の受け入れ条件「異常系 5 件以上がそれぞれ固有の
 NavError」に直接対応）**:
