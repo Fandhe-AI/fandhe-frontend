@@ -31,11 +31,38 @@
 //! それらを削除・弱体化するものではない。本ファイルは「JS 無効契約」
 //! という観点で横断的に集約するのが役割であり、カスケード契約自体の
 //! 正は `site_css_contract.rs` 側にある（重複した場合はそちらを正とする）。
+//!
+//! # リダイレクトページ（イシュー #1016）の扱い
+//!
+//! `site/redirects.toml`（`crate::redirect`）が生成する旧 URL 互換の案内
+//! ページは、意図的にサイトクロームを持たない（`class` 属性・`<script>`・
+//! `<link rel="stylesheet">` を一切持たない、`crate::redirect` モジュール
+//! doc 参照）。上記 1〜6 の全てをそのまま適用すると必ず落ちるため、
+//! 「スキップ」ではなく「dist 配下の `*.html` をリダイレクト由来と本体
+//! ページ由来に分割し、両方に契約を課す」形にする:
+//!
+//! - 本体ページ側は本ファイル冒頭の 1〜6 を従来どおり適用する。
+//! - リダイレクトページ側は [`redirect_pages_contain_no_script_and_a_static_fallback_link`]
+//!   がより強い契約（`<script>` を 1 個も含まない・`meta refresh`/
+//!   `rel=canonical`/`robots=noindex`/静的フォールバック `<a href>` を
+//!   含む）を課す。
+//!
+//! 分割対象の判定は [`redirect::output_path`] を経由して `site/redirects.toml`
+//! から**機械導出**し、手書きの除外リストは持たない（[`expected_redirect_files`]）。
+//! この分割が「任意のページを検査から外す抜け道」にならない根拠は、
+//! `from` が `nav.toml` の実ページ path と衝突する宣言は
+//! `redirect::validate_against_nav` がビルド失敗にすること（構造的に
+//! 実ページを redirects.toml 経由で sweep から外せない）である。加えて
+//! [`build_real_site`] で「導出したリダイレクトファイルがすべて実在する
+//! こと」「集合が空でないこと」を assert し、分割が空振りして契約が
+//! 形骸化する事故（誤って全ページをリダイレクト側へ分類する等）を検知する。
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use fandhe_frontend_docs_site::build::build_site;
 use fandhe_frontend_docs_site::script::INLINE_THEME_BOOTSTRAP;
+use fandhe_frontend_docs_site::{nav, redirect};
 
 /// 統合テストのスクラッチ基点。`CARGO_TARGET_TMPDIR` は cargo が統合テスト
 /// バイナリの**コンパイル時のみ**設定する（Cargo Book）ため `env!` で確定し、
@@ -90,10 +117,60 @@ fn collect_html_files(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// 実サイトビルドを 1 回だけ実行し、全生成ページを共有する。
+/// `nav.toml` の `page.path`（`/` 始まり・`/` 終わり）から
+/// `ssg::generate_pages`（`fandhe_frontend_server::ssg`、非公開）が書き出す
+/// 相対ファイルパスを導出する。`redirect::output_path` が返す `from` は
+/// `redirect::is_safe_redirect_from` により必ず `/` 始まり・`/` 終わり・
+/// 非ルートであることが保証済みのため、`ssg` 側の正規化ロジック
+/// （末尾 `/` を落として `/index.html` を付ける）をここでも安全に再現できる。
+fn page_path_to_relative_file(path: &str) -> PathBuf {
+    let rest = path
+        .strip_prefix('/')
+        .unwrap_or_else(|| panic!("redirect from {path:?} should start with `/`"));
+    let trimmed = rest.trim_end_matches('/');
+    PathBuf::from(format!("{trimmed}/index.html"))
+}
+
+/// `site/redirects.toml`（[`redirect::MANIFEST_REL_PATH`]）を独立に読み、
+/// dist 上のどのファイルがリダイレクト由来かを機械導出する。手書きの除外
+/// リストは持たない（モジュール doc「リダイレクトページの扱い」参照）。
+fn expected_redirect_files(repo_root: &Path, out_dir: &Path) -> BTreeSet<PathBuf> {
+    let manifest_path = repo_root.join(redirect::MANIFEST_REL_PATH);
+    let input = std::fs::read_to_string(&manifest_path)
+        .unwrap_or_else(|e| panic!("read {}: {e}", manifest_path.display()));
+    let redirects =
+        redirect::parse_redirects(&input).expect("site/redirects.toml should parse cleanly");
+
+    // `from` が `nav.toml` の実ページ path と衝突する宣言はビルド自体が
+    // 失敗する（`redirect::validate_against_nav`）。したがって実ページを
+    // redirects.toml 経由で本 sweep の対象から外すことは構造的に不可能
+    // （モジュール doc 参照）。ここでは念のため二重確認として、実サイトの
+    // `nav.toml` ページ path と重複がないことも固定する。
+    let nav_input = std::fs::read_to_string(repo_root.join("site/nav.toml"))
+        .expect("site/nav.toml should be readable");
+    let nav = nav::parse_nav(&nav_input).expect("site/nav.toml should parse");
+    let page_paths: BTreeSet<&str> = nav.all_pages().map(|p| p.path.as_str()).collect();
+
+    redirects
+        .entries
+        .iter()
+        .map(|r| {
+            assert!(
+                !page_paths.contains(r.from.as_str()),
+                "redirect from {:?} must not collide with an existing nav.toml page \
+                 (should have been rejected by validate_against_nav)",
+                r.from
+            );
+            out_dir.join(page_path_to_relative_file(&redirect::output_path(&r.from)))
+        })
+        .collect()
+}
+
+/// 実サイトビルドを 1 回だけ実行し、生成ページを「本体ページ」と
+/// 「リダイレクトページ」（イシュー #1016）に分割して共有する。
 /// `cargo test` 内で複数アサーションが同じビルド結果を参照するための
 /// ヘルパー（毎テストで再ビルドすると `linkcheck` 込みで冗長）。
-fn build_real_site() -> (TempDir, Vec<PathBuf>) {
+fn build_real_site() -> (TempDir, Vec<PathBuf>, Vec<PathBuf>) {
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .canonicalize()
@@ -107,12 +184,41 @@ fn build_real_site() -> (TempDir, Vec<PathBuf>) {
         !files.is_empty(),
         "real site build should emit at least one HTML page"
     );
-    (out, files)
+
+    let redirect_set = expected_redirect_files(&repo_root, &out.0);
+    assert!(
+        !redirect_set.is_empty(),
+        "site/redirects.toml should declare at least one redirect \
+         (this test's split would otherwise silently degrade to a no-op, \
+         see module doc)"
+    );
+    for path in &redirect_set {
+        assert!(
+            path.exists(),
+            "{path:?}: expected redirect output file to exist (derived from site/redirects.toml)"
+        );
+    }
+
+    let mut body_files = Vec::new();
+    let mut redirect_files = Vec::new();
+    for file in files {
+        if redirect_set.contains(&file) {
+            redirect_files.push(file);
+        } else {
+            body_files.push(file);
+        }
+    }
+    assert!(
+        !body_files.is_empty(),
+        "real site build should emit at least one non-redirect HTML page"
+    );
+
+    (out, body_files, redirect_files)
 }
 
 #[test]
 fn no_generated_page_uses_javascript_scheme_links() {
-    let (_out, files) = build_real_site();
+    let (_out, files, _redirects) = build_real_site();
     for file in &files {
         let html = std::fs::read_to_string(file).unwrap_or_else(|e| panic!("read {file:?}: {e}"));
         let lower = html.to_ascii_lowercase();
@@ -128,7 +234,7 @@ fn no_generated_page_uses_javascript_scheme_links() {
 
 #[test]
 fn no_generated_page_uses_inline_event_handler_attributes() {
-    let (_out, files) = build_real_site();
+    let (_out, files, _redirects) = build_real_site();
     // `on` で始まる HTML イベントハンドラ属性（onclick / onload 等）が
     // 属性名として出現しないことを確認する。属性値側の偶然一致
     // （例: 本文中の英単語）を避けるため `<tag ... on...="` の形を見る。
@@ -158,7 +264,7 @@ fn no_generated_page_uses_inline_event_handler_attributes() {
 
 #[test]
 fn site_js_is_loaded_as_single_deferred_external_script() {
-    let (_out, files) = build_real_site();
+    let (_out, files, _redirects) = build_real_site();
     // 唯一許容するインラインスクリプトは `<head>` 先頭の FOUC 抑止
     // ブートストラップ（`crate::script::INLINE_THEME_BOOTSTRAP`）のみ。
     // `try/catch` で `localStorage` 例外を握りつぶす自己完結スニペットで
@@ -194,7 +300,7 @@ fn site_js_is_loaded_as_single_deferred_external_script() {
 
 #[test]
 fn search_block_and_theme_toggle_default_to_hidden() {
-    let (_out, files) = build_real_site();
+    let (_out, files, _redirects) = build_real_site();
     for file in &files {
         let html = std::fs::read_to_string(file).unwrap_or_else(|e| panic!("read {file:?}: {e}"));
         assert!(
@@ -210,7 +316,7 @@ fn search_block_and_theme_toggle_default_to_hidden() {
 
 #[test]
 fn sidebar_and_header_and_prev_next_navigation_uses_static_anchor_hrefs() {
-    let (_out, files) = build_real_site();
+    let (_out, files, _redirects) = build_real_site();
     for file in &files {
         let html = std::fs::read_to_string(file).unwrap_or_else(|e| panic!("read {file:?}: {e}"));
 
@@ -251,7 +357,7 @@ fn structural_css_declares_js_independent_toggle_and_dropdown_paths() {
     // のため、重複ではなく補完として扱う。`site_theme::STRUCTURAL_CSS` は
     // 非公開のため、実サイトビルドが書き出す `assets/site.css`（生成物）
     // を直接読んで検証する。
-    let (out, _files) = build_real_site();
+    let (out, _files, _redirects) = build_real_site();
     let css = std::fs::read_to_string(out.0.join("assets/site.css"))
         .expect("dist/assets/site.css should be generated");
     let css = css.as_str();
@@ -271,4 +377,46 @@ fn structural_css_declares_js_independent_toggle_and_dropdown_paths() {
             || css.contains(".docs-header nav.docs-header-nav .docs-header-group:focus-within > .docs-header-dropdown"),
         "structural CSS should keep the JS-free :focus-within dropdown path (キーボード操作でも JS なしで開閉できる、イシュー #908)"
     );
+}
+
+/// イシュー #1016: リダイレクトページは本体ページと異なるクロームなし契約を
+/// 満たす。本体ページの契約（`<script>` 正確に 1 個・`docs-search`/
+/// `docs-theme-toggle` の `hidden` 既定）を「弱める」のではなく、リダイレクト
+/// ページには**より強い**契約（`<script>` を 1 個も含まない）を課す形で
+/// 分割する（モジュール doc 参照）。
+#[test]
+fn redirect_pages_contain_no_script_and_a_static_fallback_link() {
+    let (_out, _body_files, redirect_files) = build_real_site();
+    for file in &redirect_files {
+        let html = std::fs::read_to_string(file).unwrap_or_else(|e| panic!("read {file:?}: {e}"));
+
+        assert!(
+            !html.contains("<script"),
+            "{file:?}: redirect pages must not contain any <script> (no chrome, no JS bootstrap either)"
+        );
+        assert!(
+            !html.contains(r#"<link rel="stylesheet""#),
+            "{file:?}: redirect pages must not link any stylesheet (no chrome)"
+        );
+        assert!(
+            !html.contains("class="),
+            "{file:?}: redirect pages must not carry any `class` attribute (no chrome)"
+        );
+        assert!(
+            html.contains(r#"<meta http-equiv="refresh" content="0; url="#),
+            "{file:?}: redirect pages must contain a meta refresh"
+        );
+        assert!(
+            html.contains(r#"<link rel="canonical" href=""#),
+            "{file:?}: redirect pages must declare a canonical link"
+        );
+        assert!(
+            html.contains(r#"<meta name="robots" content="noindex">"#),
+            "{file:?}: redirect pages must be marked noindex (avoid polluting the search index / duplicate content)"
+        );
+        assert!(
+            html.contains("<a ") && html.contains("href=\""),
+            "{file:?}: redirect pages must contain a static fallback <a href> for no-JS/no-refresh environments"
+        );
+    }
 }

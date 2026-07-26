@@ -93,8 +93,9 @@ fn main() -> ExitCode {
     match build_site(&parsed.root, &parsed.out) {
         Ok(report) => {
             println!(
-                "fandhe-frontend-docs-site: wrote {} page(s) and {} asset(s) to {}",
+                "fandhe-frontend-docs-site: wrote {} page(s), {} redirect(s) and {} asset(s) to {}",
                 report.written.len(),
+                report.redirects.len(),
                 report.assets.len(),
                 parsed.out.display()
             );

@@ -230,6 +230,27 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // pre-styled-ui.css / search-index.json の 6 件（部品ページが showcase
     // CSS を要求するため実サイトでは fixture（5 件）より 1 件多い）。
     assert_eq!(report.assets.len(), 6, "{:?}", report.assets);
+
+    // イシュー #1016: リダイレクトページは `written`（本体ページ）にも
+    // `assets` にも含めない独立フィールド（`BuildReport::redirects`）。
+    // `site/redirects.toml` の宣言件数（1 件、`tests/redirects.rs` が
+    // fail-closed に固定）と生成ページ数が一致することを固定する
+    // （nav 登録数 = 本体ページ数の恒等契約と同型）。
+    let redirects_toml = std::fs::read_to_string(
+        repo_root.join(fandhe_frontend_docs_site::redirect::MANIFEST_REL_PATH),
+    )
+    .expect("site/redirects.toml should be readable");
+    let redirects = fandhe_frontend_docs_site::redirect::parse_redirects(&redirects_toml)
+        .expect("site/redirects.toml should parse");
+    assert_eq!(
+        report.redirects.len(),
+        redirects.entries.len(),
+        "リダイレクト宣言数と生成リダイレクトページ数が一致しない"
+    );
+    assert!(
+        out.0.join("components/index.html").exists(),
+        "redirect declared from /components/ should produce components/index.html"
+    );
     for rel in [
         "assets/site.css",
         "assets/admonition.css",
