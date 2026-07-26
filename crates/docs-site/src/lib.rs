@@ -56,6 +56,11 @@
 //!   `rel=canonical` のクロームなし案内ページを [`nav::Nav`] とは独立に
 //!   生成し、`search_index` / `linkcheck` / `nav.toml` ページ数契約への
 //!   除外述語を持ち込まない（[`redirect`] モジュール doc 参照）
+//! - [`primitives_catalog`][]: Primitives（`fandhe-frontend-headless-ui`）
+//!   部品ページ（`/primitives/<kebab>/`）63 件の台帳（mod 名・path・title・
+//!   カテゴリ）と基盤モジュール 9 件の一覧。headless-ui ソースとの
+//!   ドリフトは `tests/primitives_catalog.rs` が fail-closed に検知する
+//!   （イシュー #1020）
 //!
 //! `fandhe-frontend-core` / `fandhe-frontend-app` / `fandhe-frontend-server` /
 //! `fandhe-frontend-pre-styled-ui` のみに依存し、外部クレートは追加しない
@@ -87,6 +92,7 @@ pub mod layout;
 pub mod linkcheck;
 pub mod markdown;
 pub mod nav;
+pub mod primitives_catalog;
 pub mod redirect;
 pub mod script;
 pub mod search_index;
