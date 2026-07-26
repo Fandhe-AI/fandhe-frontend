@@ -319,7 +319,7 @@ const SHOWCASE_LAYOUT_CSS: &str = "\
 /// 同一テーブルから導出され「集約側にだけ節がある／レジストリにだけ
 /// 登録がある」というドリフトが構造的に起こらない。
 struct ComponentPage {
-    /// `/components/<kebab-name>/`。`site/nav.toml` の `page.path`（#943 で
+    /// `/themes/<kebab-name>/`。`site/nav.toml` の `page.path`（#943 で
     /// 登録）と一致させる契約で、`nav::validate_page_path` のセグメント
     /// allowlist（英数・`-`・`_`、`/` 始まり `/` 終わり）を満たす。
     path: &'static str,
@@ -336,395 +336,395 @@ struct ComponentPage {
 /// （#943 の nav 上の並びはカテゴリ別で、本テーブルの順序に依存しない）。
 const COMPONENT_PAGES: &[ComponentPage] = &[
     ComponentPage {
-        path: "/components/button/",
+        path: "/themes/button/",
         render: button_section,
     },
     ComponentPage {
-        path: "/components/download-trigger/",
+        path: "/themes/download-trigger/",
         render: download_trigger_section,
     },
     ComponentPage {
-        path: "/components/badge/",
+        path: "/themes/badge/",
         render: badge_section,
     },
     ComponentPage {
-        path: "/components/spinner/",
+        path: "/themes/spinner/",
         render: spinner_section,
     },
     ComponentPage {
-        path: "/components/skeleton/",
+        path: "/themes/skeleton/",
         render: skeleton_section,
     },
     ComponentPage {
-        path: "/components/heading/",
+        path: "/themes/heading/",
         render: heading_section,
     },
     ComponentPage {
-        path: "/components/text/",
+        path: "/themes/text/",
         render: text_section,
     },
     ComponentPage {
-        path: "/components/em/",
+        path: "/themes/em/",
         render: em_section,
     },
     ComponentPage {
-        path: "/components/mark/",
+        path: "/themes/mark/",
         render: mark_section,
     },
     ComponentPage {
-        path: "/components/quote/",
+        path: "/themes/quote/",
         render: quote_section,
     },
     ComponentPage {
-        path: "/components/strong/",
+        path: "/themes/strong/",
         render: strong_section,
     },
     ComponentPage {
-        path: "/components/blockquote/",
+        path: "/themes/blockquote/",
         render: blockquote_section,
     },
     ComponentPage {
-        path: "/components/list/",
+        path: "/themes/list/",
         render: list_section,
     },
     ComponentPage {
-        path: "/components/separator/",
+        path: "/themes/separator/",
         render: separator_section,
     },
     ComponentPage {
-        path: "/components/highlight/",
+        path: "/themes/highlight/",
         render: highlight_section,
     },
     ComponentPage {
-        path: "/components/alert/",
+        path: "/themes/alert/",
         render: alert_section,
     },
     ComponentPage {
-        path: "/components/callout/",
+        path: "/themes/callout/",
         render: callout_section,
     },
     ComponentPage {
-        path: "/components/card/",
+        path: "/themes/card/",
         render: card_section,
     },
     ComponentPage {
-        path: "/components/tabs/",
+        path: "/themes/tabs/",
         render: tabs_section,
     },
     ComponentPage {
-        path: "/components/accordion/",
+        path: "/themes/accordion/",
         render: accordion_section,
     },
     ComponentPage {
-        path: "/components/dialog/",
+        path: "/themes/dialog/",
         render: dialog_section,
     },
     ComponentPage {
-        path: "/components/drawer/",
+        path: "/themes/drawer/",
         render: drawer_section,
     },
     ComponentPage {
-        path: "/components/menu/",
+        path: "/themes/menu/",
         render: menu_section,
     },
     ComponentPage {
-        path: "/components/select/",
+        path: "/themes/select/",
         render: select_section,
     },
     ComponentPage {
-        path: "/components/listbox/",
+        path: "/themes/listbox/",
         render: listbox_section,
     },
     ComponentPage {
-        path: "/components/combobox/",
+        path: "/themes/combobox/",
         render: combobox_section,
     },
     ComponentPage {
-        path: "/components/popover/",
+        path: "/themes/popover/",
         render: popover_section,
     },
     ComponentPage {
-        path: "/components/floating-panel/",
+        path: "/themes/floating-panel/",
         render: floating_panel_section,
     },
     ComponentPage {
-        path: "/components/tooltip/",
+        path: "/themes/tooltip/",
         render: tooltip_section,
     },
     ComponentPage {
-        path: "/components/hover-card/",
+        path: "/themes/hover-card/",
         render: hover_card_section,
     },
     ComponentPage {
-        path: "/components/toggle-tip/",
+        path: "/themes/toggle-tip/",
         render: toggle_tip_section,
     },
     ComponentPage {
-        path: "/components/switch/",
+        path: "/themes/switch/",
         render: switch_section,
     },
     ComponentPage {
-        path: "/components/radio-group/",
+        path: "/themes/radio-group/",
         render: radio_group_section,
     },
     ComponentPage {
-        path: "/components/avatar/",
+        path: "/themes/avatar/",
         render: avatar_section,
     },
     ComponentPage {
-        path: "/components/checkbox/",
+        path: "/themes/checkbox/",
         render: checkbox_section,
     },
     ComponentPage {
-        path: "/components/input/",
+        path: "/themes/input/",
         render: input_section,
     },
     ComponentPage {
-        path: "/components/textarea/",
+        path: "/themes/textarea/",
         render: textarea_section,
     },
     ComponentPage {
-        path: "/components/native-select/",
+        path: "/themes/native-select/",
         render: native_select_section,
     },
     ComponentPage {
-        path: "/components/number-input/",
+        path: "/themes/number-input/",
         render: number_input_section,
     },
     ComponentPage {
-        path: "/components/password-input/",
+        path: "/themes/password-input/",
         render: password_input_section,
     },
     ComponentPage {
-        path: "/components/tags-input/",
+        path: "/themes/tags-input/",
         render: tags_input_section,
     },
     ComponentPage {
-        path: "/components/file-upload/",
+        path: "/themes/file-upload/",
         render: file_upload_section,
     },
     ComponentPage {
-        path: "/components/rating-group/",
+        path: "/themes/rating-group/",
         render: rating_group_section,
     },
     ComponentPage {
-        path: "/components/slider/",
+        path: "/themes/slider/",
         render: slider_section,
     },
     ComponentPage {
-        path: "/components/editable/",
+        path: "/themes/editable/",
         render: editable_section,
     },
     ComponentPage {
-        path: "/components/segment-group/",
+        path: "/themes/segment-group/",
         render: segment_group_section,
     },
     ComponentPage {
-        path: "/components/toggle/",
+        path: "/themes/toggle/",
         render: toggle_section,
     },
     ComponentPage {
-        path: "/components/toggle-group/",
+        path: "/themes/toggle-group/",
         render: toggle_group_section,
     },
     ComponentPage {
-        path: "/components/carousel/",
+        path: "/themes/carousel/",
         render: carousel_section,
     },
     ComponentPage {
-        path: "/components/tree-view/",
+        path: "/themes/tree-view/",
         render: tree_view_section,
     },
     ComponentPage {
-        path: "/components/json-tree-view/",
+        path: "/themes/json-tree-view/",
         render: json_tree_view_section,
     },
     ComponentPage {
-        path: "/components/pagination/",
+        path: "/themes/pagination/",
         render: pagination_section,
     },
     ComponentPage {
-        path: "/components/steps/",
+        path: "/themes/steps/",
         render: steps_section,
     },
     ComponentPage {
-        path: "/components/tour/",
+        path: "/themes/tour/",
         render: tour_section,
     },
     ComponentPage {
-        path: "/components/splitter/",
+        path: "/themes/splitter/",
         render: splitter_section,
     },
     ComponentPage {
-        path: "/components/checkbox-card/",
+        path: "/themes/checkbox-card/",
         render: checkbox_card_section,
     },
     ComponentPage {
-        path: "/components/checkbox-group/",
+        path: "/themes/checkbox-group/",
         render: checkbox_group_section,
     },
     ComponentPage {
-        path: "/components/radio-card/",
+        path: "/themes/radio-card/",
         render: radio_card_section,
     },
     ComponentPage {
-        path: "/components/breadcrumb/",
+        path: "/themes/breadcrumb/",
         render: breadcrumb_section,
     },
     ComponentPage {
-        path: "/components/action-bar/",
+        path: "/themes/action-bar/",
         render: action_bar_section,
     },
     ComponentPage {
-        path: "/components/toast/",
+        path: "/themes/toast/",
         render: toast_section,
     },
     ComponentPage {
-        path: "/components/progress/",
+        path: "/themes/progress/",
         render: progress_section,
     },
     ComponentPage {
-        path: "/components/image/",
+        path: "/themes/image/",
         render: image_section,
     },
     ComponentPage {
-        path: "/components/icon/",
+        path: "/themes/icon/",
         render: icon_section,
     },
     ComponentPage {
-        path: "/components/tag/",
+        path: "/themes/tag/",
         render: tag_section,
     },
     ComponentPage {
-        path: "/components/kbd/",
+        path: "/themes/kbd/",
         render: kbd_section,
     },
     ComponentPage {
-        path: "/components/code/",
+        path: "/themes/code/",
         render: code_section,
     },
     ComponentPage {
-        path: "/components/color-swatch/",
+        path: "/themes/color-swatch/",
         render: color_swatch_section,
     },
     ComponentPage {
-        path: "/components/color-picker/",
+        path: "/themes/color-picker/",
         render: color_picker_section,
     },
     ComponentPage {
-        path: "/components/status/",
+        path: "/themes/status/",
         render: status_section,
     },
     ComponentPage {
-        path: "/components/empty-state/",
+        path: "/themes/empty-state/",
         render: empty_state_section,
     },
     ComponentPage {
-        path: "/components/visually-hidden/",
+        path: "/themes/visually-hidden/",
         render: visually_hidden_section,
     },
     ComponentPage {
-        path: "/components/qr-code/",
+        path: "/themes/qr-code/",
         render: qr_code_section,
     },
     ComponentPage {
-        path: "/components/table/",
+        path: "/themes/table/",
         render: table_section,
     },
     ComponentPage {
-        path: "/components/data-list/",
+        path: "/themes/data-list/",
         render: data_list_section,
     },
     ComponentPage {
-        path: "/components/stat/",
+        path: "/themes/stat/",
         render: stat_section,
     },
     ComponentPage {
-        path: "/components/timeline/",
+        path: "/themes/timeline/",
         render: timeline_section,
     },
     ComponentPage {
-        path: "/components/marquee/",
+        path: "/themes/marquee/",
         render: marquee_section,
     },
     ComponentPage {
-        path: "/components/scroll-area/",
+        path: "/themes/scroll-area/",
         render: scroll_area_section,
     },
     ComponentPage {
-        path: "/components/calendar/",
+        path: "/themes/calendar/",
         render: calendar_section,
     },
     ComponentPage {
-        path: "/components/date-picker/",
+        path: "/themes/date-picker/",
         render: date_picker_section,
     },
     ComponentPage {
-        path: "/components/date-input/",
+        path: "/themes/date-input/",
         render: date_input_section,
     },
     ComponentPage {
-        path: "/components/timer/",
+        path: "/themes/timer/",
         render: timer_section,
     },
     ComponentPage {
-        path: "/components/charts/",
+        path: "/themes/charts/",
         render: charts_section,
     },
     ComponentPage {
-        path: "/components/bar-chart/",
+        path: "/themes/bar-chart/",
         render: bar_chart_section,
     },
     ComponentPage {
-        path: "/components/bar-list/",
+        path: "/themes/bar-list/",
         render: bar_list_section,
     },
     ComponentPage {
-        path: "/components/bar-segment/",
+        path: "/themes/bar-segment/",
         render: bar_segment_section,
     },
     ComponentPage {
-        path: "/components/line-chart/",
+        path: "/themes/line-chart/",
         render: line_chart_section,
     },
     ComponentPage {
-        path: "/components/area-chart/",
+        path: "/themes/area-chart/",
         render: area_chart_section,
     },
     ComponentPage {
-        path: "/components/sparkline/",
+        path: "/themes/sparkline/",
         render: sparkline_section,
     },
     ComponentPage {
-        path: "/components/pie-chart/",
+        path: "/themes/pie-chart/",
         render: pie_chart_section,
     },
     ComponentPage {
-        path: "/components/donut-chart/",
+        path: "/themes/donut-chart/",
         render: donut_chart_section,
     },
     ComponentPage {
-        path: "/components/scatter-chart/",
+        path: "/themes/scatter-chart/",
         render: scatter_chart_section,
     },
     ComponentPage {
-        path: "/components/radar-chart/",
+        path: "/themes/radar-chart/",
         render: radar_chart_section,
     },
     ComponentPage {
-        path: "/components/toolbar/",
+        path: "/themes/toolbar/",
         render: toolbar_section,
     },
     ComponentPage {
-        path: "/components/menubar/",
+        path: "/themes/menubar/",
         render: menubar_section,
     },
     ComponentPage {
-        path: "/components/navigation-menu/",
+        path: "/themes/navigation-menu/",
         render: navigation_menu_section,
     },
     ComponentPage {
-        path: "/components/tab-nav/",
+        path: "/themes/tab-nav/",
         render: tab_nav_section,
     },
 ];
@@ -6257,7 +6257,7 @@ mod tests {
     fn generated_content_returns_none_for_unregistered_paths() {
         assert!(generated_content("/").is_none());
         assert!(generated_content("/guides/embedding-guide/").is_none());
-        assert!(generated_content("/components/nonexistent/").is_none());
+        assert!(generated_content("/themes/nonexistent/").is_none());
     }
 
     #[test]
@@ -6287,7 +6287,7 @@ mod tests {
             // `nav::validate_page_path`（`is_safe_path_segment`）の
             // allowlist（英数・`-`・`_`、`/` 始まり `/` 終わり）をミラーする。
             assert!(
-                path.starts_with("/components/") && path.ends_with('/'),
+                path.starts_with("/themes/") && path.ends_with('/'),
                 "unexpected path shape: {path}"
             );
             let inner = &path[1..path.len() - 1];

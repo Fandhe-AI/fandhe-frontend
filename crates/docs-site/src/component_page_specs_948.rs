@@ -22,7 +22,7 @@
 //! [`crate::showcase::COMPONENT_PAGES`] に未登録で
 //! [`crate::showcase::generated_content`] が `None` を返すため、本モジュール
 //! へ spec を登録してはならない（登録してもデッドコードになる。原稿は
-//! `site/components/*.md` へ Markdown 単独で執筆する）。
+//! `site/themes/*.md` へ Markdown 単独で執筆する）。
 //!
 //! # セキュリティ不変条件（REQ-1）
 //!
@@ -1656,32 +1656,32 @@ const DATE_INPUT_SPEC: ComponentPageSpec = ComponentPageSpec {
 /// コンフリクトを避けるためフラットな別ファイルとして分離、モジュール doc
 /// 参照）。
 pub const SPECS: &[(&str, ComponentPageSpec)] = &[
-    ("/components/blockquote/", BLOCKQUOTE_SPEC),
-    ("/components/code/", CODE_SPEC),
-    ("/components/em/", EM_SPEC),
-    ("/components/heading/", HEADING_SPEC),
-    ("/components/highlight/", HIGHLIGHT_SPEC),
-    ("/components/kbd/", KBD_SPEC),
-    ("/components/list/", LIST_SPEC),
-    ("/components/mark/", MARK_SPEC),
-    ("/components/text/", TEXT_SPEC),
-    ("/components/visually-hidden/", VISUALLY_HIDDEN_SPEC),
-    ("/components/charts/", CHARTS_SPEC),
-    ("/components/area-chart/", AREA_CHART_SPEC),
-    ("/components/bar-chart/", BAR_CHART_SPEC),
-    ("/components/bar-list/", BAR_LIST_SPEC),
-    ("/components/bar-segment/", BAR_SEGMENT_SPEC),
-    ("/components/donut-chart/", DONUT_CHART_SPEC),
-    ("/components/line-chart/", LINE_CHART_SPEC),
-    ("/components/pie-chart/", PIE_CHART_SPEC),
-    ("/components/radar-chart/", RADAR_CHART_SPEC),
-    ("/components/scatter-chart/", SCATTER_CHART_SPEC),
-    ("/components/sparkline/", SPARKLINE_SPEC),
-    ("/components/download-trigger/", DOWNLOAD_TRIGGER_SPEC),
-    ("/components/qr-code/", QR_CODE_SPEC),
-    ("/components/timer/", TIMER_SPEC),
-    ("/components/color-picker/", COLOR_PICKER_SPEC),
-    ("/components/calendar/", CALENDAR_SPEC),
-    ("/components/date-picker/", DATE_PICKER_SPEC),
-    ("/components/date-input/", DATE_INPUT_SPEC),
+    ("/themes/blockquote/", BLOCKQUOTE_SPEC),
+    ("/themes/code/", CODE_SPEC),
+    ("/themes/em/", EM_SPEC),
+    ("/themes/heading/", HEADING_SPEC),
+    ("/themes/highlight/", HIGHLIGHT_SPEC),
+    ("/themes/kbd/", KBD_SPEC),
+    ("/themes/list/", LIST_SPEC),
+    ("/themes/mark/", MARK_SPEC),
+    ("/themes/text/", TEXT_SPEC),
+    ("/themes/visually-hidden/", VISUALLY_HIDDEN_SPEC),
+    ("/themes/charts/", CHARTS_SPEC),
+    ("/themes/area-chart/", AREA_CHART_SPEC),
+    ("/themes/bar-chart/", BAR_CHART_SPEC),
+    ("/themes/bar-list/", BAR_LIST_SPEC),
+    ("/themes/bar-segment/", BAR_SEGMENT_SPEC),
+    ("/themes/donut-chart/", DONUT_CHART_SPEC),
+    ("/themes/line-chart/", LINE_CHART_SPEC),
+    ("/themes/pie-chart/", PIE_CHART_SPEC),
+    ("/themes/radar-chart/", RADAR_CHART_SPEC),
+    ("/themes/scatter-chart/", SCATTER_CHART_SPEC),
+    ("/themes/sparkline/", SPARKLINE_SPEC),
+    ("/themes/download-trigger/", DOWNLOAD_TRIGGER_SPEC),
+    ("/themes/qr-code/", QR_CODE_SPEC),
+    ("/themes/timer/", TIMER_SPEC),
+    ("/themes/color-picker/", COLOR_PICKER_SPEC),
+    ("/themes/calendar/", CALENDAR_SPEC),
+    ("/themes/date-picker/", DATE_PICKER_SPEC),
+    ("/themes/date-input/", DATE_INPUT_SPEC),
 ];

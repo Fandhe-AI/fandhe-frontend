@@ -1025,7 +1025,8 @@ pub(crate) const BREADCRUMB: ComponentPageSpec = ComponentPageSpec {
 /// 引数として要求）・`:198-209`（`link` が `current` に応じて
 /// `aria-current="page"` + `data-current` を付与）。href は
 /// `crate::linkcheck::check_links` の突合対象のため、実在ページへ解決
-/// する相対パス（`/components/` 配下の兄弟ページ）を使う。
+/// する相対パス（`/themes/` 配下の兄弟ページ。イシュー #1017 で
+/// `/components/` から移行）を使う。
 fn ex_tab_nav() -> Node {
     tab_nav::root(
         "Section navigation",

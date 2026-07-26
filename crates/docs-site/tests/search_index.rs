@@ -415,21 +415,23 @@ fn real_site_search_index_is_deterministic_covers_all_nav_pages_and_matches_html
             );
         }
 
-        // 8. data-scope 除外 + 非空確認: 部品ページ（`/components/<kebab>/`、
-        // 索引ページ `/components/pre-styled-ui/` を除く）の text が空でない
-        // こと。data-list 部品ページに限っては、実際に生成 HTML の
+        // 8. data-scope 除外 + 非空確認: 部品ページ（`/themes/<kebab>/`。
+        // イシュー #1017 で `/components/<kebab>/` から移行し、索引ページ
+        // `/components/pre-styled-ui/` は `/themes/` 配下に存在しないため
+        // 除外条件は不要になった）の text が空でないこと。data-list
+        // 部品ページに限っては、実際に生成 HTML の
         // `data-scope="data-list"` 部分木内にのみ現れるデモ値 "Alice"
         // （`component_specs_nav_data.rs` の data-list デモ、上の
         // `assert!(html.contains(...))` で存在を確認済み）が index に
         // 混入していないことを固定する（"Tab 1" 等の未検証プレースホルダ語
         // を使うと実際には出現せず assert が空振りするため、実出力で存在を
         // 確認済みの語のみを使う）。
-        if relative.starts_with("components/") && relative != "components/pre-styled-ui/" {
+        if relative.starts_with("themes/") {
             let text = page.get("text").as_str();
             if !text.is_empty() {
                 component_page_has_non_empty_text = true;
             }
-            if relative == "components/data-list/" {
+            if relative == "themes/data-list/" {
                 assert!(
                     html.contains("Alice"),
                     "sanity: fixture HTML should contain the demo value"

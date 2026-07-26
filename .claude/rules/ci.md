@@ -24,8 +24,9 @@
   `crates/interactive/**` は showcase 限定の例外ではなく**全ページに影響する
   paths 必須項目**である。レンダラ側（core / app / server）は従来どおり
   paths 対象外（反映が必要なときは `workflow_dispatch`）。
-- **`docs-site.yml` の verify ステップ契約（イシュー #944/#951/#957/#1016）**: `site/**` の
-  glob は `site/components/*.md` を包含するため、部品ページ追加時に paths への
+- **`docs-site.yml` の verify ステップ契約（イシュー #944/#951/#957/#1016/#1017）**: `site/**` の
+  glob は `site/themes/*.md`（イシュー #1017 で `site/components/*.md` から
+  移行）を包含するため、部品ページ追加時に paths への
   個別エントリ追加は不要（イシュー #944 で検証済み）。`site/redirects.toml`
   （イシュー #1016、旧 URL 互換のリダイレクトページ生成機構）も同じ `site/**`
   glob に包含されるため、同様に paths への個別エントリ追加は不要（同一 glob
@@ -33,11 +34,13 @@
   も包含する。`docs/internal/` は `site/nav.toml` 未登録のためサイトへは出力され
   ないが、変更時に再ビルドは走る（無害な過剰トリガーであり、paths からの除外は
   しない）。dist sanity check（`verify: dist sanity check` ステップ）の `test -f`
-  対象は #944/#951/#957/#1016 で拡張され、現在は `index.html` / `assets/site.css` /
+  対象は #944/#951/#957/#1016/#1017 で拡張され、現在は `index.html` / `assets/site.css` /
   `assets/site.js`（#951、`src/script.rs` 生成）/ `assets/search-index.json`
-  （#957、`src/search_index.rs` 生成）/ 代表部品ページ（`components/button/index.html`）
+  （#957、`src/search_index.rs` 生成）/ 代表部品ページ（`themes/button/index.html`。
+  イシュー #1017 で `components/button/index.html` から移行）
   / `assets/pre-styled-ui.css`（`showcase::STYLESHEET_REL_PATH`）/ 代表リダイレクト
-  ページ（`components/index.html`、#1016、`src/redirect.rs` 生成）である。いずれも
+  ページ 2 件（`components/index.html`、#1016、`src/redirect.rs` 生成。
+  `components/button/index.html`、#1017 が追記した 107 件の代表）である。いずれも
   fail-closed（欠落時にジョブを落とし、空サイト・アセット欠落の公開を防ぐ）であり、
   この `test -f` 群は削除・弱体化しない。生成物の**内容**検証（CSS トークン網羅性・
   検索インデックスの決定性/エスケープ/サイズ上限・ページ総数・リダイレクトページの

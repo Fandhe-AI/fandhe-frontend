@@ -104,7 +104,5 @@ const STRONG: ComponentPageSpec = ComponentPageSpec {
 
 /// Quote / Strong 2 ページ（イシュー #995）の `path -> ComponentPageSpec`
 /// テーブル。[`crate::component_page::SPEC_TABLES`] が集約する。
-pub const SPECS: &[(&str, ComponentPageSpec)] = &[
-    ("/components/quote/", QUOTE),
-    ("/components/strong/", STRONG),
-];
+pub const SPECS: &[(&str, ComponentPageSpec)] =
+    &[("/themes/quote/", QUOTE), ("/themes/strong/", STRONG)];

@@ -14,15 +14,455 @@
 # `from` は `site/nav.toml` の既存ページ path と衝突してはならない
 # （衝突する場合はビルド失敗、`RedirectError::CollidesWithPage`）。
 #
-# 109 件規模の実宣言（#1017: `/components/<kebab>/` → `/themes/<kebab>/`、
-# #1018: `/themes/` 索引新設）は本イシュー（#1016、機構のみ）のスコープ外。
-# ここでは「未提供 URL への予防的移転案内」1 件のみを置く。
+# 実宣言は現在 108 件（予防的移転案内 1 + #1017 の部品ページ移行 107）。
+# 残り 1 件（`/components/pre-styled-ui/` 索引ページの `/themes/` 移設）は
+# #1018 のスコープであり、いま宣言すると移設前の索引ページ実在 path と
+# 衝突し `RedirectError::CollidesWithPage` でビルドが落ちるため、#1018 が
+# 索引移設と同時に追加する。
 
 [[redirect]]
 # `/components/` は現時点で `site/nav.toml` に該当 `path` が無く 404 になる
 # URL であり、`/components/pre-styled-ui/`（部品ページ索引）への移転案内と
-# して有用。#1017 で `/components/pre-styled-ui/` が `/themes/pre-styled-ui/`
+# して有用。#1018 で `/components/pre-styled-ui/` が `/themes/pre-styled-ui/`
 # 等へ移設される際は、`to` 実在検証（`RedirectError::UnknownTarget`）が
 # fail-closed で落ちるため、この宣言の張り替え忘れは構造的に起こらない。
 from = "/components/"
 to = "/components/pre-styled-ui/"
+
+# 以下 107 件はイシュー #1017（既存 107 部品ページを /components/ から
+# /themes/ へ移行）の実宣言。生成コマンド（決定的・レビュー可能）:
+#
+#   git show HEAD:site/nav.toml | grep -o 'source = "site/themes/[^"]*"' \
+#     | sed 's|.*site/themes/||; s|\.md"||' | sort \
+#     | awk '{printf "\n[[redirect]]\nfrom = \"/components/%s/\"\nto = \"/themes/%s/\"\n", $1, $1}'
+#
+# 対応関係の取り違え（ずれ）は `crates/docs-site/tests/redirects.rs` の
+# 双方向テストが fail-closed に検知する（`source` をキーに突合）。
+
+[[redirect]]
+from = "/components/accordion/"
+to = "/themes/accordion/"
+
+[[redirect]]
+from = "/components/action-bar/"
+to = "/themes/action-bar/"
+
+[[redirect]]
+from = "/components/alert/"
+to = "/themes/alert/"
+
+[[redirect]]
+from = "/components/angle-slider/"
+to = "/themes/angle-slider/"
+
+[[redirect]]
+from = "/components/area-chart/"
+to = "/themes/area-chart/"
+
+[[redirect]]
+from = "/components/avatar/"
+to = "/themes/avatar/"
+
+[[redirect]]
+from = "/components/badge/"
+to = "/themes/badge/"
+
+[[redirect]]
+from = "/components/bar-chart/"
+to = "/themes/bar-chart/"
+
+[[redirect]]
+from = "/components/bar-list/"
+to = "/themes/bar-list/"
+
+[[redirect]]
+from = "/components/bar-segment/"
+to = "/themes/bar-segment/"
+
+[[redirect]]
+from = "/components/blockquote/"
+to = "/themes/blockquote/"
+
+[[redirect]]
+from = "/components/breadcrumb/"
+to = "/themes/breadcrumb/"
+
+[[redirect]]
+from = "/components/button/"
+to = "/themes/button/"
+
+[[redirect]]
+from = "/components/calendar/"
+to = "/themes/calendar/"
+
+[[redirect]]
+from = "/components/callout/"
+to = "/themes/callout/"
+
+[[redirect]]
+from = "/components/card/"
+to = "/themes/card/"
+
+[[redirect]]
+from = "/components/carousel/"
+to = "/themes/carousel/"
+
+[[redirect]]
+from = "/components/charts/"
+to = "/themes/charts/"
+
+[[redirect]]
+from = "/components/checkbox/"
+to = "/themes/checkbox/"
+
+[[redirect]]
+from = "/components/checkbox-card/"
+to = "/themes/checkbox-card/"
+
+[[redirect]]
+from = "/components/checkbox-group/"
+to = "/themes/checkbox-group/"
+
+[[redirect]]
+from = "/components/clipboard/"
+to = "/themes/clipboard/"
+
+[[redirect]]
+from = "/components/code/"
+to = "/themes/code/"
+
+[[redirect]]
+from = "/components/color-picker/"
+to = "/themes/color-picker/"
+
+[[redirect]]
+from = "/components/color-swatch/"
+to = "/themes/color-swatch/"
+
+[[redirect]]
+from = "/components/combobox/"
+to = "/themes/combobox/"
+
+[[redirect]]
+from = "/components/data-list/"
+to = "/themes/data-list/"
+
+[[redirect]]
+from = "/components/date-input/"
+to = "/themes/date-input/"
+
+[[redirect]]
+from = "/components/date-picker/"
+to = "/themes/date-picker/"
+
+[[redirect]]
+from = "/components/dialog/"
+to = "/themes/dialog/"
+
+[[redirect]]
+from = "/components/donut-chart/"
+to = "/themes/donut-chart/"
+
+[[redirect]]
+from = "/components/download-trigger/"
+to = "/themes/download-trigger/"
+
+[[redirect]]
+from = "/components/drawer/"
+to = "/themes/drawer/"
+
+[[redirect]]
+from = "/components/editable/"
+to = "/themes/editable/"
+
+[[redirect]]
+from = "/components/em/"
+to = "/themes/em/"
+
+[[redirect]]
+from = "/components/empty-state/"
+to = "/themes/empty-state/"
+
+[[redirect]]
+from = "/components/file-upload/"
+to = "/themes/file-upload/"
+
+[[redirect]]
+from = "/components/floating-panel/"
+to = "/themes/floating-panel/"
+
+[[redirect]]
+from = "/components/heading/"
+to = "/themes/heading/"
+
+[[redirect]]
+from = "/components/highlight/"
+to = "/themes/highlight/"
+
+[[redirect]]
+from = "/components/hover-card/"
+to = "/themes/hover-card/"
+
+[[redirect]]
+from = "/components/icon/"
+to = "/themes/icon/"
+
+[[redirect]]
+from = "/components/image/"
+to = "/themes/image/"
+
+[[redirect]]
+from = "/components/image-cropper/"
+to = "/themes/image-cropper/"
+
+[[redirect]]
+from = "/components/input/"
+to = "/themes/input/"
+
+[[redirect]]
+from = "/components/json-tree-view/"
+to = "/themes/json-tree-view/"
+
+[[redirect]]
+from = "/components/kbd/"
+to = "/themes/kbd/"
+
+[[redirect]]
+from = "/components/line-chart/"
+to = "/themes/line-chart/"
+
+[[redirect]]
+from = "/components/link/"
+to = "/themes/link/"
+
+[[redirect]]
+from = "/components/link-overlay/"
+to = "/themes/link-overlay/"
+
+[[redirect]]
+from = "/components/list/"
+to = "/themes/list/"
+
+[[redirect]]
+from = "/components/listbox/"
+to = "/themes/listbox/"
+
+[[redirect]]
+from = "/components/mark/"
+to = "/themes/mark/"
+
+[[redirect]]
+from = "/components/marquee/"
+to = "/themes/marquee/"
+
+[[redirect]]
+from = "/components/menu/"
+to = "/themes/menu/"
+
+[[redirect]]
+from = "/components/menubar/"
+to = "/themes/menubar/"
+
+[[redirect]]
+from = "/components/native-select/"
+to = "/themes/native-select/"
+
+[[redirect]]
+from = "/components/nav-list/"
+to = "/themes/nav-list/"
+
+[[redirect]]
+from = "/components/navigation-menu/"
+to = "/themes/navigation-menu/"
+
+[[redirect]]
+from = "/components/number-input/"
+to = "/themes/number-input/"
+
+[[redirect]]
+from = "/components/pagination/"
+to = "/themes/pagination/"
+
+[[redirect]]
+from = "/components/password-input/"
+to = "/themes/password-input/"
+
+[[redirect]]
+from = "/components/pie-chart/"
+to = "/themes/pie-chart/"
+
+[[redirect]]
+from = "/components/pin-input/"
+to = "/themes/pin-input/"
+
+[[redirect]]
+from = "/components/popover/"
+to = "/themes/popover/"
+
+[[redirect]]
+from = "/components/progress/"
+to = "/themes/progress/"
+
+[[redirect]]
+from = "/components/qr-code/"
+to = "/themes/qr-code/"
+
+[[redirect]]
+from = "/components/quote/"
+to = "/themes/quote/"
+
+[[redirect]]
+from = "/components/radar-chart/"
+to = "/themes/radar-chart/"
+
+[[redirect]]
+from = "/components/radio-card/"
+to = "/themes/radio-card/"
+
+[[redirect]]
+from = "/components/radio-group/"
+to = "/themes/radio-group/"
+
+[[redirect]]
+from = "/components/rating-group/"
+to = "/themes/rating-group/"
+
+[[redirect]]
+from = "/components/scatter-chart/"
+to = "/themes/scatter-chart/"
+
+[[redirect]]
+from = "/components/scroll-area/"
+to = "/themes/scroll-area/"
+
+[[redirect]]
+from = "/components/segment-group/"
+to = "/themes/segment-group/"
+
+[[redirect]]
+from = "/components/select/"
+to = "/themes/select/"
+
+[[redirect]]
+from = "/components/separator/"
+to = "/themes/separator/"
+
+[[redirect]]
+from = "/components/signature-pad/"
+to = "/themes/signature-pad/"
+
+[[redirect]]
+from = "/components/skeleton/"
+to = "/themes/skeleton/"
+
+[[redirect]]
+from = "/components/skip-nav/"
+to = "/themes/skip-nav/"
+
+[[redirect]]
+from = "/components/slider/"
+to = "/themes/slider/"
+
+[[redirect]]
+from = "/components/sparkline/"
+to = "/themes/sparkline/"
+
+[[redirect]]
+from = "/components/spinner/"
+to = "/themes/spinner/"
+
+[[redirect]]
+from = "/components/splitter/"
+to = "/themes/splitter/"
+
+[[redirect]]
+from = "/components/stat/"
+to = "/themes/stat/"
+
+[[redirect]]
+from = "/components/status/"
+to = "/themes/status/"
+
+[[redirect]]
+from = "/components/steps/"
+to = "/themes/steps/"
+
+[[redirect]]
+from = "/components/strong/"
+to = "/themes/strong/"
+
+[[redirect]]
+from = "/components/switch/"
+to = "/themes/switch/"
+
+[[redirect]]
+from = "/components/tab-nav/"
+to = "/themes/tab-nav/"
+
+[[redirect]]
+from = "/components/table/"
+to = "/themes/table/"
+
+[[redirect]]
+from = "/components/tabs/"
+to = "/themes/tabs/"
+
+[[redirect]]
+from = "/components/tag/"
+to = "/themes/tag/"
+
+[[redirect]]
+from = "/components/tags-input/"
+to = "/themes/tags-input/"
+
+[[redirect]]
+from = "/components/text/"
+to = "/themes/text/"
+
+[[redirect]]
+from = "/components/textarea/"
+to = "/themes/textarea/"
+
+[[redirect]]
+from = "/components/timeline/"
+to = "/themes/timeline/"
+
+[[redirect]]
+from = "/components/timer/"
+to = "/themes/timer/"
+
+[[redirect]]
+from = "/components/toast/"
+to = "/themes/toast/"
+
+[[redirect]]
+from = "/components/toggle/"
+to = "/themes/toggle/"
+
+[[redirect]]
+from = "/components/toggle-group/"
+to = "/themes/toggle-group/"
+
+[[redirect]]
+from = "/components/toggle-tip/"
+to = "/themes/toggle-tip/"
+
+[[redirect]]
+from = "/components/toolbar/"
+to = "/themes/toolbar/"
+
+[[redirect]]
+from = "/components/tooltip/"
+to = "/themes/tooltip/"
+
+[[redirect]]
+from = "/components/tour/"
+to = "/themes/tour/"
+
+[[redirect]]
+from = "/components/tree-view/"
+to = "/themes/tree-view/"
+
+[[redirect]]
+from = "/components/visually-hidden/"
+to = "/themes/visually-hidden/"

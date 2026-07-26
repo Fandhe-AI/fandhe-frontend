@@ -1,9 +1,10 @@
 //! イシュー #955（設計 `docs/design/docs-site-api-reference-split.md` §3-2）:
 //! API Reference セクションの API ページと Components セクションの部品ページ
-//! ( `/components/<kebab>/` ) は相互リンクで結ばれている契約を機械固定する。
+//! ( `/themes/<kebab>/`。イシュー #1017 で `/components/<kebab>/` から移行 )
+//! は相互リンクで結ばれている契約を機械固定する。
 //!
 //! - API ページ → 部品ページ: `docs/api/headless-ui-api.md` /
-//!   `docs/api/pre-styled-ui-api.md` が `../../site/components/<kebab>.md`
+//!   `docs/api/pre-styled-ui-api.md` が `../../site/themes/<kebab>.md`
 //!   形式のリンクで指す先はすべて nav 登録済みの部品ページであること。
 //! - 部品ページ → API ページ: 全 107 部品ページが
 //!   `../../docs/api/pre-styled-ui-api.md` へのリンクを持ち、その集合は
@@ -40,14 +41,14 @@ fn load_nav() -> Nav {
     parse_nav(&input).expect("site/nav.toml should conform to the fail-closed TOML subset")
 }
 
-/// nav 登録済みの部品ページ kebab 名の集合（`site/components/<kebab>.md`
+/// nav 登録済みの部品ページ kebab 名の集合（`site/themes/<kebab>.md`
 /// 由来の 104 件）を返す。
 fn nav_component_kebabs() -> BTreeSet<String> {
     let nav = load_nav();
     nav.all_pages()
         .filter_map(|p| {
             p.source
-                .strip_prefix("site/components/")
+                .strip_prefix("site/themes/")
                 .and_then(|rest| rest.strip_suffix(".md"))
                 .map(|kebab| kebab.to_string())
         })
@@ -103,10 +104,10 @@ fn read_repo_file(relative: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("failed to read {relative}: {e}"))
 }
 
-/// `docs/api/*.md` 本文中の `../../site/components/<kebab>.md` 相対リンクを
+/// `docs/api/*.md` 本文中の `../../site/themes/<kebab>.md` 相対リンクを
 /// すべて抽出する。
 fn extract_component_link_kebabs(markdown: &str) -> BTreeSet<String> {
-    const PREFIX: &str = "../../site/components/";
+    const PREFIX: &str = "../../site/themes/";
     const SUFFIX: &str = ".md";
     let mut found = BTreeSet::new();
     let mut rest = markdown;
@@ -157,7 +158,7 @@ fn api_links_to_component_pages_are_all_nav_registered() {
         for kebab in &linked {
             assert!(
                 nav_kebabs.contains(kebab),
-                "{api_source} links to site/components/{kebab}.md, which is not registered in \
+                "{api_source} links to site/themes/{kebab}.md, which is not registered in \
                  site/nav.toml"
             );
         }
@@ -176,7 +177,7 @@ fn every_component_page_links_back_to_pre_styled_ui_api() {
 
     let mut pages_missing_link = Vec::new();
     for kebab in &nav_kebabs {
-        let page_source = format!("site/components/{kebab}.md");
+        let page_source = format!("site/themes/{kebab}.md");
         let markdown = read_repo_file(&page_source);
         if !markdown.contains(LINK_FRAGMENT) {
             pages_missing_link.push(page_source);
@@ -218,7 +219,7 @@ fn headless_backed_component_pages_link_bidirectionally_with_headless_ui_api() {
     let mut pages_missing_link = Vec::new();
     let mut api_missing_link = Vec::new();
     for kebab in &headless_backed {
-        let page_source = format!("site/components/{kebab}.md");
+        let page_source = format!("site/themes/{kebab}.md");
         let markdown = read_repo_file(&page_source);
         if !markdown.contains(LINK_FRAGMENT) {
             pages_missing_link.push(page_source);

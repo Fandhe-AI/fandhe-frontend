@@ -30,7 +30,7 @@ on:
     branches: [main]
     paths:
       - "docs/**"
-      - "site/**" # #905 で site/assets/ は廃止済み。現在は Markdown 原稿・nav.toml のみ（骨格 CSS は静的コピーではなくビルド生成、下記 verify ステップ参照）。#943 で追加した site/components/*.md も本 glob が包含するため個別エントリは不要（イシュー #944 で検証）
+      - "site/**" # #905 で site/assets/ は廃止済み。現在は Markdown 原稿・nav.toml のみ（骨格 CSS は静的コピーではなくビルド生成、下記 verify ステップ参照）。#943 で追加した site/themes/*.md（#1017 で site/components/*.md から移行）も本 glob が包含するため個別エントリは不要（イシュー #944 で検証）
       - "crates/docs-site/**"
       - "crates/pre-styled-ui/**" # 骨格 CSS（assets/site.css）の生成元（Theme::to_css、イシュー #905） + showcase ページの styled 部品掲載
       - "crates/headless-ui/**" # showcase の Tabs/Accordion マークアップ（pre-styled-ui が再エクスポート）
@@ -95,20 +95,29 @@ jobs:
         # 存在も fail-closed で確認する。ページ総数の期待値は
         # crates/docs-site/tests/site_build.rs が保持し、ここでは二重管理しない。
         #
-        # イシュー #1016: 旧 URL 互換のリダイレクトページ（`site/redirects.toml`、
-        # crates/docs-site/src/redirect.rs によるビルド生成物）の代表 1 件
-        # （components/index.html、`/components/` → `/components/pre-styled-ui/`）
-        # も同型の最終確認を行う。生成内容（4 要素の網羅・base_path 反映等）の
-        # 検証は crates/docs-site/tests/redirects.rs / no_js_contract.rs が担い、
-        # ここでは二重管理しない。
+        # イシュー #1017: 部品ページは `/components/<kebab>/` から
+        # `/themes/<kebab>/` へ移行済み。代表 1 ページの確認先を
+        # themes/button/index.html へ切り替える（切り替えないと、旧パスに
+        # 残るリダイレクトページで PASS してしまい #944 が意図した「部品
+        # ページが 1 枚も出ていない退行」の検知能力が静かに失われるため）。
+        #
+        # イシュー #1016/#1017: 旧 URL 互換のリダイレクトページ
+        # （`site/redirects.toml`、crates/docs-site/src/redirect.rs による
+        # ビルド生成物）の代表 2 件（components/index.html、`/components/` →
+        # `/components/pre-styled-ui/`。components/button/index.html、
+        # `/components/button/` → `/themes/button/`、#1017 が追記した 107 件
+        # の代表）も同型の最終確認を行う。生成内容（4 要素の網羅・base_path
+        # 反映等）の検証は crates/docs-site/tests/redirects.rs /
+        # no_js_contract.rs が担い、ここでは二重管理しない。
         run: |
           test -f "${RUNNER_TEMP}/docs-site-dist/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.css"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.js"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/search-index.json"
-          test -f "${RUNNER_TEMP}/docs-site-dist/components/button/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/themes/button/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/pre-styled-ui.css"
           test -f "${RUNNER_TEMP}/docs-site-dist/components/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/components/button/index.html"
 
       - name: Upload Pages artifact
         # 要: runner に tar がインストール済み（upload-pages-artifact が内部で使用。
