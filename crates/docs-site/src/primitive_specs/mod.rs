@@ -11,10 +11,15 @@
 //!
 //! # Phase 5（#1024〜#1029）の追加規約
 //!
-//! 本イシュー時点では [`SPEC_TABLES`] は空であり、`/primitives/<kebab>/` は
-//! Markdown 原稿のみで生成される（[`crate::component_page::generated_content`]
-//! が `None` を返す）。以後、カテゴリ別に以下の issue が担当する
-//! （`crate::primitives_catalog::PrimitiveCategory::spec_issue` と同一の対応）。
+//! Forms A（#1024）が [`forms_a::SPECS`] を充填済みであり、対象 11 部品
+//! （angle-slider / checkbox / checkbox-group / color-picker / combobox /
+//! editable / field / fieldset / file-upload / image-cropper / listbox）の
+//! `/primitives/<kebab>/` は Features / API Reference 引数表 / Examples /
+//! Accessibility の 4 節を持つ。残り 5 カテゴリは以下の issue が引き続き
+//! 担当する（`crate::primitives_catalog::PrimitiveCategory::spec_issue` と
+//! 同一の対応。未充填カテゴリの `/primitives/<kebab>/` は
+//! Markdown 原稿のみで生成される、[`crate::component_page::generated_content`]
+//! が `ComponentPageSpec::EMPTY` を返すため）。
 //!
 //! | カテゴリ | 対応 issue |
 //! |---|---|
@@ -34,7 +39,9 @@
 
 use crate::component_page::ComponentPageSpec;
 
+pub mod forms_a;
+
 /// `path -> ComponentPageSpec` レジストリを供給するカテゴリ別テーブルの集約。
 /// Phase 5 の各 issue はカテゴリ 1 個につき 1 テーブルを追加し、本配列へ
 /// 1 行追記する（`crate::component_page::SPEC_TABLES` と同型の集約方式）。
-pub const SPEC_TABLES: &[&[(&str, ComponentPageSpec)]] = &[];
+pub const SPEC_TABLES: &[&[(&str, ComponentPageSpec)]] = &[forms_a::SPECS];
