@@ -210,7 +210,7 @@
 //!   （[`editable`] モジュール doc 参照）。
 //! - [`mod@combobox`]: Root / Label / Control / Input / Trigger /
 //!   ClearTrigger / Positioner / Content / ItemGroup / ItemGroupLabel /
-//!   Item / ItemText / ItemIndicator の 13 anatomy パーツと、
+//!   Item / ItemText / ItemIndicator / LiveRegion の 14 anatomy パーツと、
 //!   [`state::Disclosure`]（listbox 開閉）と [`state::SingleSelect`]（選択値）
 //!   と [`state::TextInput`]（入力値、本イシューで新設）を合成した
 //!   [`combobox::Combobox`] 状態機械（#749、親トラッキング #520）。候補列は
@@ -220,15 +220,18 @@
 //!   は `content`（[`mod@select`]）ではなく `input` 側に配線する
 //!   （[`combobox`] モジュール doc 参照）。フィルタの実 DOM 配線・
 //!   キーボードナビゲーションは wasm 層の後続イシューのスコープ。
+//!   `live_region` は候補件数の変化を通知する live region（`role="status"`
+//!   + `aria-live="polite"` + `aria-atomic="true"` 固定、イシュー #1069）。
 //! - [`mod@tags_input`]: Root / Label / Control / Input / Item / ItemPreview /
-//!   ItemText / ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput の
-//!   11 anatomy パーツと、可変長タグ文字列リスト + 編集中インデックスを持つ
-//!   [`tags_input::TagsInput`] 状態機械（#744、親 #736/#726）。[`mod@pin_input`]/
-//!   [`mod@number_input`] と同じく [`state`] の既存語彙に収まらないため、
-//!   [`fandhe_frontend_interactive::Component`]/
+//!   ItemText / ItemInput / ItemDeleteTrigger / ClearTrigger / HiddenInput /
+//!   LiveRegion の 12 anatomy パーツと、可変長タグ文字列リスト + 編集中
+//!   インデックスを持つ [`tags_input::TagsInput`] 状態機械（#744、親
+//!   #736/#726）。[`mod@pin_input`]/[`mod@number_input`] と同じく [`state`]
+//!   の既存語彙に収まらないため、[`fandhe_frontend_interactive::Component`]/
 //!   [`fandhe_frontend_interactive::Hydrate`] を直接実装する。`control` は
 //!   `role="listbox"`、`item_preview` は `role="option"`（イシュー本文が
-//!   指定する listbox 相当の ARIA）。
+//!   指定する listbox 相当の ARIA）。`live_region` はタグ数の変化を通知する
+//!   live region（[`mod@combobox`] の `live_region` と同型、イシュー #1069）。
 //! - [`mod@file_upload`]: Root / Label / Dropzone / Trigger / ItemGroup /
 //!   Item / ItemName / ItemSizeText / ItemDeleteTrigger / ClearTrigger /
 //!   HiddenInput の 11 anatomy パーツと、ファイルメタデータ（[`file_upload::FileUploadItem`]:
