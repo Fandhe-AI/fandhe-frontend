@@ -24,23 +24,27 @@
   `crates/interactive/**` は showcase 限定の例外ではなく**全ページに影響する
   paths 必須項目**である。レンダラ側（core / app / server）は従来どおり
   paths 対象外（反映が必要なときは `workflow_dispatch`）。
-- **`docs-site.yml` の verify ステップ契約（イシュー #944/#951/#957/#1016/#1017/#1022）**: `site/**` の
+- **`docs-site.yml` の verify ステップ契約（イシュー #944/#951/#957/#1016/#1017/#1018/#1021/#1022）**: `site/**` の
   glob は `site/themes/*.md`（イシュー #1017 で `site/components/*.md` から
-  移行）を包含するため、部品ページ追加時に paths への
-  個別エントリ追加は不要（イシュー #944 で検証済み）。`site/redirects.toml`
+  移行）と `site/primitives/*.md`（イシュー #1021）を包含するため、部品ページ
+  追加時に paths への個別エントリ追加は不要（イシュー #944 で検証済み）。`site/redirects.toml`
   （イシュー #1016、旧 URL 互換のリダイレクトページ生成機構）も同じ `site/**`
   glob に包含されるため、同様に paths への個別エントリ追加は不要（同一 glob
   包含の再確認）。`docs/**` は `docs/internal/`
   も包含する。`docs/internal/` は `site/nav.toml` 未登録のためサイトへは出力され
   ないが、変更時に再ビルドは走る（無害な過剰トリガーであり、paths からの除外は
   しない）。dist sanity check（`verify: dist sanity check` ステップ）の `test -f`
-  対象は #944/#951/#957/#1016/#1017 で拡張され、現在は `index.html` / `assets/site.css` /
+  対象は #944/#951/#957/#1016/#1017/#1018/#1021/#1022 で拡張され、現在は `index.html` / `assets/site.css` /
   `assets/site.js`（#951、`src/script.rs` 生成）/ `assets/search-index.json`
   （#957、`src/search_index.rs` 生成）/ 代表部品ページ（`themes/button/index.html`。
-  イシュー #1017 で `components/button/index.html` から移行）
+  イシュー #1017 で `components/button/index.html` から移行）/ `themes/index.html`
+  （#1018、`/components/pre-styled-ui/` から移設した新索引ページ本体）
   / `assets/pre-styled-ui.css`（`showcase::STYLESHEET_REL_PATH`）/ 代表リダイレクト
-  ページ 2 件（`components/index.html`、#1016、`src/redirect.rs` 生成。
-  `components/button/index.html`、#1017 が追記した 107 件の代表）/
+  ページ 3 件（`components/index.html`、#1016、`src/redirect.rs` 生成。
+  `components/button/index.html`、#1017 が追記した 107 件の代表。
+  `components/pre-styled-ui/index.html`、#1018、旧索引 URL のリダイレクト生成物）/
+  `primitives/index.html`（#1021、Primitives セクション索引）/
+  `primitives/accordion/index.html`（#1021、代表 Primitives 部品ページ）/
   `assets/primitives-showcase.css`（イシュー #1022、`src/primitive_showcase/`
   が生成。#1021 が「本イシュー完了時点では CSS を持たない」として先送り
   していた test -f を、Primitives 63 部品の Demo 供給に伴い追加した）である。
@@ -52,7 +56,8 @@
   scope 一致・`[data-scope=`/`[data-part=` 不在）は
   `crates/docs-site/tests/`（`site_css_contract.rs` / `site_typography_contract.rs` /
   `search_index.rs` / `site_nav.rs` / `site_build.rs` / `redirects.rs` /
-  `no_js_contract.rs` / `primitive_showcase.rs` / `primitive_showcase_xss.rs`）が担い、yml・ci.md では
+  `no_js_contract.rs` / `primitive_showcase.rs` / `primitive_showcase_xss.rs` /
+  `primitives_nav.rs` / `primitives_catalog.rs`）が担い、yml・ci.md では
   二重管理しない（ページ件数・部品数を ci.md へ書かないのはこの二重管理回避のため）。
 - **`fw gate`（`crates/cli/src/gate.rs`）系のツール（clippy component / cargo-deny）**: `tools/ci/ensure-gate-tools.sh` を標準ブートストラップとする（イシュー #292）。CI（`.github/workflows/ci.yml` の test ジョブ・`gate-self-apply` ジョブ）・ローカル開発・AI 自己保守フックのいずれも `fw gate` 実行前にこのスクリプトを前置する運用を推奨する。バージョン固定・SHA256 チェックサム検証はスクリプト側に一元化し、CI ワークフロー側との二重管理でドリフトさせない。前置されなかった場合でも `fw gate` 側のプリフライト検出（`docs/design/gate-design.md` §2.3a）が「環境エラーであること」を決定的なメッセージ（是正コマンド付き）で示し、コード起因の FAIL との区別を保つ
 - **`fw gate --project .` の自己適用常時実行（イシュー #400）**: `.github/workflows/ci.yml` の `gate-self-apply` ジョブが PR ごと・main push ごとに `fw gate --project .` 自己適用（#372/PR #382 で PASS 化）を実行し、`gate_result: "PASS"` の継続を保証する。BLOCKED 時は JSON レポートの `environment error: ` プレフィックス有無で環境エラーとコード起因 FAIL を CI アノテーションとして区別する（詳細は `docs/design/gate-design.md` §6）
