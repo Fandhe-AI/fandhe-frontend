@@ -368,6 +368,66 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
     assert_eq!(dist_site_js, fandhe_frontend_docs_site::script::site_js());
 }
 
+/// イシュー #1013: 実サイト生成物でサイドバーが現在セクションへスコープ
+/// されていることを回帰固定する。`header_nav`（全セクションのトリガー +
+/// 直下ページのドロップダウン）はスコープ対象外で全セクション分を出し
+/// 続けるため、断定は必ず `docs-sidebar` ブロック（`</aside>` までの窓）へ
+/// 限定する。ファイル全体への否定的 grep は `header_nav` の出力に必ず
+/// 当たって落ちるため、意図的にテストを緩める方向の「修正」を誘発しない
+/// ようにするための窓限定である（`nav.rs::sidebar` rustdoc「セクション
+/// スコープ」節参照）。
+#[test]
+fn real_site_sidebar_is_scoped_to_the_current_section() {
+    let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        .canonicalize()
+        .expect("resolve repository root");
+    let out = TempDir::new("sidebar-scope");
+
+    build_site(&repo_root, &out.0).expect("real site/nav.toml should build cleanly");
+
+    // `docs-sidebar` ブロックのみを取り出すヘルパ。
+    fn sidebar_window(html: &str) -> &str {
+        let start = html
+            .find(r#"class="docs-sidebar""#)
+            .expect("docs-sidebar block should be present");
+        let end = html[start..]
+            .find("</aside>")
+            .map(|rel| start + rel)
+            .expect("docs-sidebar block should close with </aside>");
+        &html[start..end]
+    }
+
+    // Guides セクション内のページ（Components 配下は 1 件も出ない）。
+    let guides_html = std::fs::read_to_string(out.0.join("guides/view-transitions/index.html"))
+        .expect("read generated guides/view-transitions/index.html");
+    let guides_window = sidebar_window(&guides_html);
+    assert!(guides_window.contains(r#"href="/fandhe-frontend/guides/""#));
+    assert!(!guides_window.contains("/components/"));
+    assert!(!guides_window.contains("docs-nav-group"));
+    assert_eq!(guides_window.matches("<h2").count(), 1);
+    assert_eq!(guides_window.matches(r#"aria-current="page""#).count(), 1);
+
+    // Components セクション内のページ（Guides 配下は 1 件も出ない、現在
+    // グループのみ open）。
+    let components_html = std::fs::read_to_string(out.0.join("components/button/index.html"))
+        .expect("read generated components/button/index.html");
+    let components_window = sidebar_window(&components_html);
+    assert!(components_window.contains("docs-nav-group"));
+    assert_eq!(
+        components_window
+            .matches(r#"<details class="docs-nav-group" open="">"#)
+            .count(),
+        1
+    );
+    assert!(!components_window.contains("/guides/"));
+    assert_eq!(components_window.matches("<h2").count(), 1);
+    assert_eq!(
+        components_window.matches(r#"aria-current="page""#).count(),
+        1
+    );
+}
+
 // ---- バイナリ経由（終了コード・stderr の契約） ----
 
 fn docs_site_bin() -> PathBuf {

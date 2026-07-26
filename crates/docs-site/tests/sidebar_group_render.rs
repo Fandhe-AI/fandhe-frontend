@@ -107,7 +107,11 @@ path = "/components/button/"
 #[test]
 fn renders_details_summary_for_each_group_in_declaration_order() {
     let nav = fixture_nav_with_groups();
-    let html = render(&sidebar(&nav, "/"));
+    // イシュー #1013 でサイドバーが現在セクションへスコープされたため、
+    // nav 未登録の "/" ではなく実在する直下ページ（当該フィクスチャの
+    // 唯一のセクション内）を current_path に使う。単一セクションの
+    // ため描画結果自体は従来と変わらない。
+    let html = render(&sidebar(&nav, "/components/"));
 
     assert!(html.contains(r#"<details class="docs-nav-group">"#));
     assert!(html.contains(r#"<summary class="docs-nav-group-summary">Forms</summary>"#));
@@ -140,7 +144,9 @@ fn renders_details_summary_for_each_group_in_declaration_order() {
 #[test]
 fn direct_pages_ul_precedes_all_group_details() {
     let nav = fixture_nav_with_groups();
-    let html = render(&sidebar(&nav, "/"));
+    // イシュー #1013: 上記と同様、nav 未登録の "/" ではなく実在する
+    // 直下ページを current_path に使う。
+    let html = render(&sidebar(&nav, "/components/"));
 
     let overview_ul_pos = html
         .find(r#"href="/components/""#)
@@ -209,6 +215,75 @@ fn no_group_is_open_when_current_path_matches_no_group_page() {
     // nav に存在しないパス（サイトトップ等）のケース。
     let html_outside = render(&sidebar(&nav, "/does-not-exist/"));
     assert!(!html_outside.contains("open=\"\""));
+}
+
+/// グループを持つセクションと持たないセクションが共存する複数セクション
+/// フィクスチャ（イシュー #1013 のスコープ限定検証専用）。
+fn fixture_nav_multi_section() -> Nav {
+    let toml = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "Getting Started"
+index_path = "/"
+
+[[section.page]]
+title = "Intro"
+source = "intro.md"
+path = "/"
+
+[[section.page]]
+title = "Quickstart"
+source = "quickstart.md"
+path = "/quickstart/"
+
+[[section]]
+title = "Components"
+index_path = "/components/"
+
+[[section.page]]
+title = "Overview"
+source = "overview.md"
+path = "/components/"
+
+[[section.group]]
+title = "Forms"
+
+[[section.group.page]]
+title = "Button"
+source = "button.md"
+path = "/components/button/"
+
+[[section.group]]
+title = "Layout"
+
+[[section.group.page]]
+title = "Grid"
+source = "grid.md"
+path = "/components/grid/"
+"#;
+    parse_nav(toml).expect("multi-section fixture nav.toml should parse")
+}
+
+/// イシュー #1013 の回帰固定: Components 外のページを閲覧しているときは
+/// グループ `<details>`（`docs-nav-group`）・部品ページ href が 1 件も
+/// サイドバーへ現れない。
+#[test]
+fn sidebar_omits_group_details_when_current_page_is_outside_the_group_section() {
+    let nav = fixture_nav_multi_section();
+    let html = render(&sidebar(&nav, "/quickstart/"));
+
+    assert!(!html.contains("docs-nav-group"));
+    assert!(!html.contains("<details"));
+    assert!(!html.contains(r#"href="/components/button/""#));
+    assert!(!html.contains(r#"href="/components/grid/""#));
+    assert!(!html.contains(">Components<"));
+
+    // スコープ内（Getting Started）は引き続き描画される。
+    assert!(html.contains(r#"href="/quickstart/""#));
+    assert!(html.contains(">Getting Started<"));
 }
 
 // ---- 後方互換 ----
