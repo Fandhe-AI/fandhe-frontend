@@ -584,6 +584,24 @@ fn component_specs_source_does_not_use_raw_html() {
     }
 }
 
+/// [`component_page_source_does_not_use_raw_html`] の REQ-1 ガードを
+/// `crates/docs-site/src/primitive_specs/` 配下へ拡張する（イシュー #1025、
+/// Primitives 側 Phase 5 原稿データの充填開始に伴う未カバー領域の解消）。
+/// `component_specs_source_does_not_use_raw_html`（Themes 側）と同型。
+#[test]
+fn primitive_specs_source_does_not_use_raw_html() {
+    let dir = repo_root().join("crates/docs-site/src/primitive_specs");
+    let mut files = Vec::new();
+    collect_rs_files(&dir, &mut files);
+    assert!(
+        !files.is_empty(),
+        "primitive_specs/ should contain at least one .rs file to guard"
+    );
+    for path in &files {
+        assert_file_has_no_raw_html_in_code(path);
+    }
+}
+
 /// `path` のコード行（`//`/`//!`/`///` コメント行を除く）に `raw_html` が
 /// 出現しないことを検証する（REQ-1 の機械的ガード。ドキュメンテーション
 /// コメントが「`raw_html()` を使わない」と説明するために当該語を含む
