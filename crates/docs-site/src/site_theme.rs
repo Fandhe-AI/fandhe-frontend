@@ -296,17 +296,28 @@ body {\n\
   position: relative;\n\
 }\n\
 \n\
+/*\n\
+ * トリガーは a 要素（href 属性つき、セクショントップページへの遷移\n\
+ * リンク、イシュー #1012）。`crate::nav::header_nav` が\n\
+ * `data-scope=\"nav-list\"` を持たない要素として直接組み立てるため、\n\
+ * `nav_list::stylesheet()` の `[data-scope=\"nav-list\"][data-part=\"link\"]`\n\
+ * （詳細度 0,2,0）は適用されない。よってこの class セレクタ（詳細度 0,1,0）\n\
+ * だけで確定させてよく、ドロップダウン内リンク（`.docs-header-dropdown a`）\n\
+ * が必要とする `.docs-header nav.docs-header-nav` プレフィックスは不要\n\
+ * （#908 Bugbot 指摘の再発防止コメント）。旧 button 要素用の\n\
+ * `background: none; border: none; cursor: pointer;` リセットは a 要素では\n\
+ * 不要（`cursor: pointer` は `a[href]` の既定）なので削除し、a 要素の既定\n\
+ * 下線を抑止する `text-decoration: none` を追加する。\n\
+ */\n\
 .docs-header-trigger {\n\
   display: block;\n\
-  background: none;\n\
-  border: none;\n\
-  cursor: pointer;\n\
   padding: 0.4rem 0.6rem;\n\
   border-radius: 0.4rem;\n\
   font: inherit;\n\
   font-size: 0.85rem;\n\
   font-weight: 500;\n\
   color: var(--fandhe-color-fg);\n\
+  text-decoration: none;\n\
 }\n\
 \n\
 .docs-header-trigger:hover {\n\
@@ -316,6 +327,17 @@ body {\n\
 .docs-header-trigger:focus-visible {\n\
   outline: 2px solid var(--fandhe-color-accent);\n\
   outline-offset: 2px;\n\
+}\n\
+\n\
+/*\n\
+ * 現在セクションの表現（イシュー #1012）。ドロップダウン内リンクの\n\
+ * `a[aria-current=\"page\"]`（ページ完全一致）とは軸が異なる\n\
+ * `[aria-current=\"true\"]` を使うため、同一トークン\n\
+ * `--fandhe-color-docs-accent-bg` を再利用しても意味は衝突しない。\n\
+ */\n\
+.docs-header-trigger[aria-current=\"true\"] {\n\
+  color: var(--fandhe-color-accent);\n\
+  background: var(--fandhe-color-docs-accent-bg);\n\
 }\n\
 \n\
 /*\n\

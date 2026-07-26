@@ -674,6 +674,14 @@ weight = "1"
 /// グループタイトルも `sidebar()` / `header_nav()` の既定エスケープ（REQ-1）
 /// を必ず経由する。`crate::nav::tests::sidebar_escapes_title_and_attribute_content`
 /// と同型の回帰テスト。
+///
+/// `header_nav()` はイシュー #1012（Rule A）以降、ドロップダウンへ
+/// グループ配下ページを列挙しない（直下ページのみ）ため、グループ配下
+/// ページのタイトル（`Quote\"Title`）は `header_nav` の出力に現れない
+/// （サイドバー側のみが列挙する）。この入力ではセクションに直下ページが
+/// 無く `index_path` がグループ配下ページを指すため、`header_nav` 側は
+/// 「すべて見る」固定文言のみを出す。セクションタイトルの既定エスケープ
+/// （XSS 回帰の本体）は両関数とも変わらず固定する。
 #[test]
 fn sidebar_and_header_nav_escape_group_page_titles() {
     let input = r#"
@@ -703,5 +711,6 @@ path = "/button/"
     let header_html = render(&header_nav(&nav, "/button/"));
     assert!(!header_html.contains("<script>"));
     assert!(header_html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
-    assert!(header_html.contains("Quote&quot;Title"));
+    // グループ配下ページのみのセクションなので「すべて見る」導線になる。
+    assert!(header_html.contains("すべて見る"));
 }
