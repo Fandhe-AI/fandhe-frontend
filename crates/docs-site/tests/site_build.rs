@@ -207,10 +207,11 @@ fn build_site_succeeds_for_the_real_repository_site() {
     );
 
     // イシュー #1017 で既存 107 部品ページを `/components/<kebab>/` から
-    // `/themes/<kebab>/` へ移行した。`/components/` 配下の本体ページ
-    // （`report.written`。リダイレクトページは `report.redirects` に別計上
-    // されるため対象外）は索引ページ（`/components/pre-styled-ui/`）1 件のみ。
-    // 移行先 `/themes/` 配下に 107 件が生成される。
+    // `/themes/<kebab>/` へ移行し、イシュー #1018 で索引ページ自体も
+    // `/components/pre-styled-ui/` から `/themes/` へ移設した。
+    // `/components/` 配下の本体ページ（`report.written`。リダイレクトページは
+    // `report.redirects` に別計上されるため対象外）は 0 件になり、移行先
+    // `/themes/` 配下に部品 107 件 + 索引 1 件 = 108 件が生成される。
     // Phase 4 以降で部品が増減したら両方の値の更新が必要になる
     // （fail-closed。黙って減っても気付けるようにする意図）。
     let components_dir = out.0.join("components");
@@ -220,8 +221,8 @@ fn build_site_succeeds_for_the_real_repository_site() {
         .filter(|p| p.starts_with(&components_dir))
         .count();
     assert_eq!(
-        component_index_pages, 1,
-        "/components/ 配下の生成ページ数（索引のみ、部品ページは /themes/ へ移行済み）"
+        component_index_pages, 0,
+        "/components/ 配下の生成ページ数（本体ページは全件 /themes/ へ移行済み）"
     );
 
     let themes_dir = out.0.join("themes");
@@ -231,8 +232,8 @@ fn build_site_succeeds_for_the_real_repository_site() {
         .filter(|p| p.starts_with(&themes_dir))
         .count();
     assert_eq!(
-        theme_pages, 107,
-        "/themes/ 配下の生成ページ数（部品 107 件）"
+        theme_pages, 108,
+        "/themes/ 配下の生成ページ数（部品 107 件 + 索引 1 件）"
     );
 
     // アセットは site.css / admonition.css / skip-nav.css / site.js /
@@ -259,6 +260,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     assert!(
         out.0.join("components/index.html").exists(),
         "redirect declared from /components/ should produce components/index.html"
+    );
+    // イシュー #1018: 索引ページ移設に伴う旧 URL 互換リダイレクト
+    // （`/components/pre-styled-ui/` → `/themes/`）の生成物を固定する。
+    assert!(
+        out.0.join("components/pre-styled-ui/index.html").exists(),
+        "redirect declared from /components/pre-styled-ui/ should produce components/pre-styled-ui/index.html"
     );
     for rel in [
         "assets/site.css",
@@ -326,10 +333,13 @@ fn real_site_build_covers_all_page_kinds_with_shared_layout_contract() {
     let pages: &[(&str, bool)] = &[
         ("index.html", false),
         ("guides/view-transitions/index.html", false),
-        // イシュー #943: /components/pre-styled-ui/ は索引ページへ改組済みで
-        // Rust 生成コンテンツ（pre-styled-ui.css 配線）を持たない。ショーケース
-        // CSS 配線の代表は部品ページ（dialog）側で確認する。
-        ("components/pre-styled-ui/index.html", false),
+        // イシュー #943: /themes/ は索引ページへ改組済みで Rust 生成コンテンツ
+        // （pre-styled-ui.css 配線）を持たない。ショーケース CSS 配線の代表は
+        // 部品ページ（dialog）側で確認する。イシュー #1018 で索引ページ URL が
+        // `/components/pre-styled-ui/` から `/themes/` へ移設したため対象パスを
+        // 追随させる（`components/pre-styled-ui/index.html` は現在クロームを
+        // 持たないリダイレクトページであり、本テストの対象には使えない）。
+        ("themes/index.html", false),
         // イシュー #1017 で /components/dialog/ から /themes/dialog/ へ移行。
         ("themes/dialog/index.html", true),
         ("api/component-api/index.html", false),

@@ -11,7 +11,7 @@
 //! 読み物構造（Demo → Features → Anatomy → API Reference → Examples →
 //! Accessibility の 6 節、H2 固定）へ組み立て直す。
 //!
-//! - [`showcase::PAGE_PATH`]（`/components/pre-styled-ui/` 索引ページ）は
+//! - [`showcase::PAGE_PATH`]（`/themes/` 索引ページ）は
 //!   イシュー #943 で索引（凡例 + カテゴリ別リンク集）へ改組済みであり、
 //!   Rust 生成コンテンツを持たない（[`showcase::generated_content`] が
 //!   `None` を返すため、本モジュールも同ページに対しては `None` を返す）。
@@ -304,7 +304,7 @@ const MAX_WALK_DEPTH: usize = 64;
 ///   合成して返す。
 /// - [`showcase::PAGE_PATH`]（索引ページ）を含め、レジストリに未登録の
 ///   パスは `None`（Markdown のみの通常ページ。索引ページの本文は
-///   `site/components-pre-styled-ui.md` 側で完結する、イシュー #943）。
+///   `site/themes.md` 側で完結する、イシュー #943）。
 /// - [`showcase::COMPONENT_PAGES`] に無いパスでも、[`ComponentPageSpec::demo`]
 ///   が `Some` を返せば Demo 節を供給できる（イシュー #945、`showcase.rs` を
 ///   Phase 4 で編集しないための機構。デモを持たない部品向け）。

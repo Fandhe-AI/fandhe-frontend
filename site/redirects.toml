@@ -14,20 +14,24 @@
 # `from` は `site/nav.toml` の既存ページ path と衝突してはならない
 # （衝突する場合はビルド失敗、`RedirectError::CollidesWithPage`）。
 #
-# 実宣言は現在 108 件（予防的移転案内 1 + #1017 の部品ページ移行 107）。
-# 残り 1 件（`/components/pre-styled-ui/` 索引ページの `/themes/` 移設）は
-# #1018 のスコープであり、いま宣言すると移設前の索引ページ実在 path と
-# 衝突し `RedirectError::CollidesWithPage` でビルドが落ちるため、#1018 が
-# 索引移設と同時に追加する。
+# 実宣言は現在 109 件（予防的移転案内 1 + 索引ページ移設 1 +
+# #1017 の部品ページ移行 107）。#1018 で索引ページを
+# `/components/pre-styled-ui/` から `/themes/` へ移設し、旧索引 URL 自体の
+# リダイレクトを追加した（残り 1 件のスコープを完了）。
 
 [[redirect]]
 # `/components/` は現時点で `site/nav.toml` に該当 `path` が無く 404 になる
-# URL であり、`/components/pre-styled-ui/`（部品ページ索引）への移転案内と
-# して有用。#1018 で `/components/pre-styled-ui/` が `/themes/pre-styled-ui/`
-# 等へ移設される際は、`to` 実在検証（`RedirectError::UnknownTarget`）が
-# fail-closed で落ちるため、この宣言の張り替え忘れは構造的に起こらない。
+# URL であり、`/themes/`（Themes セクション索引）への移転案内として有用。
+# #1018 で索引ページの実体パスが `/components/pre-styled-ui/` から
+# `/themes/` へ変わったため `to` を追随させた。
 from = "/components/"
-to = "/components/pre-styled-ui/"
+to = "/themes/"
+
+[[redirect]]
+# #1018 で索引ページ本体を /components/pre-styled-ui/ から /themes/ へ
+# 移設したことに伴う旧 URL 互換リダイレクト（索引ページ自体の移転案内）。
+from = "/components/pre-styled-ui/"
+to = "/themes/"
 
 # 以下 107 件はイシュー #1017（既存 107 部品ページを /components/ から
 # /themes/ へ移行）の実宣言。生成コマンド（決定的・レビュー可能）:

@@ -104,20 +104,28 @@ jobs:
         # イシュー #1016/#1017: 旧 URL 互換のリダイレクトページ
         # （`site/redirects.toml`、crates/docs-site/src/redirect.rs による
         # ビルド生成物）の代表 2 件（components/index.html、`/components/` →
-        # `/components/pre-styled-ui/`。components/button/index.html、
+        # `/themes/`。components/button/index.html、
         # `/components/button/` → `/themes/button/`、#1017 が追記した 107 件
         # の代表）も同型の最終確認を行う。生成内容（4 要素の網羅・base_path
         # 反映等）の検証は crates/docs-site/tests/redirects.rs /
         # no_js_contract.rs が担い、ここでは二重管理しない。
+        #
+        # イシュー #1018: 索引ページ本体を `/components/pre-styled-ui/` から
+        # `/themes/` へ移設し、旧 URL には `/themes/` への互換リダイレクトを
+        # 追加した。代表確認先を themes/index.html（新索引の本体）へ切り替え、
+        # components/pre-styled-ui/index.html（旧索引 URL のリダイレクト
+        # 生成物）の存在も追加で固定する。
         run: |
           test -f "${RUNNER_TEMP}/docs-site-dist/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.css"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.js"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/search-index.json"
           test -f "${RUNNER_TEMP}/docs-site-dist/themes/button/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/themes/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/pre-styled-ui.css"
           test -f "${RUNNER_TEMP}/docs-site-dist/components/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/components/button/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/components/pre-styled-ui/index.html"
 
       - name: Upload Pages artifact
         # 要: runner に tar がインストール済み（upload-pages-artifact が内部で使用。

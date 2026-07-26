@@ -35,7 +35,7 @@ fandhe-frontend/
 │   ├── index.md
 │   ├── guides.md               # Guides セクショントップページ原稿（配下 4 ガイドへの索引、イシュー #1009）
 │   ├── api.md                  # API Reference セクショントップページ原稿（クレート別 9 ページ索引、イシュー #1009）
-│   ├── components-pre-styled-ui.md  # pre-styled-ui コンポーネント索引ページ原稿（凡例 + カテゴリ別リンク集、イシュー #943）
+│   ├── themes.md                # Themes（`fandhe-frontend-pre-styled-ui`）セクショントップページ原稿（凡例 + カテゴリ別リンク集、イシュー #943。旧 `site/components-pre-styled-ui.md` をイシュー #1018 で `/themes/` へ移設・改称）
 │   ├── themes/                 # 部品ページ原稿（`/themes/<kebab>/` 1 ページ = 部品 1 件、イシュー #943。イシュー #1017 で `site/components/` から `site/themes/` へ移行、旧 URL は `site/redirects.toml` で互換維持。台帳は `docs/design/docs-site-component-pages.md` §3、登録の正は `site/nav.toml`、ページ数の期待値は `crates/docs-site/tests/site_nav.rs`）
 │   ├── nav.toml               # ナビゲーション構成マニフェスト
 │   └── redirects.toml         # 旧 URL 互換のリダイレクト宣言（`[[redirect]]` の `from`/`to`、イシュー #1016）。`crates/docs-site/src/redirect.rs` がパース・`nav.toml` との突合検証を行い `meta refresh` 案内ページを生成する。`nav.toml` とは意図的に別ファイル（判断根拠は `docs/design/docs-site-primitives-themes-split.md` §4 と該当 PR 本文）

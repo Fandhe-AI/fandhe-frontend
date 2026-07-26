@@ -51,7 +51,7 @@
 //! [`generated_content`] は「1 ページ = pre-styled-ui の公開部品 1 件」
 //! （`docs/design/docs-site-component-pages.md` §3）を実現するため、
 //! `path -> 部品セクション` のレジストリ（`ComponentPage` / `COMPONENT_PAGES`）
-//! を持つ。`/components/pre-styled-ui/`（[`PAGE_PATH`]）は #943 で索引
+//! を持つ。`/themes/`（[`PAGE_PATH`]）は #943 で索引
 //! （凡例 + カテゴリ別リンク集）へ改組済みであり、Rust 生成コンテンツを
 //! 持たない（URL 自体は既存被リンク〔`docs/api/pre-styled-ui-api.md` 等〕
 //! 維持のため変更していない）。集約レンダリング（旧 `showcase_body`）は
@@ -185,8 +185,9 @@ use fandhe_frontend_pre_styled_ui::{
 /// `tests/site_nav.rs` / `tests/site_showcase.rs` が参照する）。イシュー
 /// #943 で索引ページへ改組済みのため、本モジュールはこのページ向けに
 /// Rust 生成コンテンツを持たない（[`generated_content`] は常に `None` を
-/// 返す。索引の本文はすべて `site/components-pre-styled-ui.md` 側で持つ）。
-pub const PAGE_PATH: &str = "/components/pre-styled-ui/";
+/// 返す。索引の本文はすべて `site/themes.md` 側で持つ。URL 自体はイシュー
+/// #1018 で `/components/pre-styled-ui/` から `/themes/` へ移設した）。
+pub const PAGE_PATH: &str = "/themes/";
 
 /// ショーケース専用 CSS の出力先（`out_dir` 起点の相対パス）。
 /// `crate::build::build_site` が [`stylesheet`] の内容をこのパスへ書き出し、
@@ -754,7 +755,7 @@ fn showcase_wrapper(sections: Vec<Node>) -> Node {
 /// [`COMPONENT_PAGES`] レジストリ（部品単位のページ、`/components/<kebab>/`）
 /// のみを照会する。[`PAGE_PATH`]（索引ページ）はレジストリに含まれないため
 /// 常に `None` を返す（イシュー #943 で索引ページへ改組済み。索引の本文は
-/// `site/components-pre-styled-ui.md` 側の Markdown のみで完結する）。
+/// `site/themes.md` 側の Markdown のみで完結する）。
 /// `crate::component_page::generated_content`（#942）が本関数の戻り値を
 /// Demo 節として利用する。
 #[must_use]
@@ -6237,7 +6238,7 @@ mod tests {
     #[test]
     fn generated_content_returns_none_for_index_page() {
         // イシュー #943: 索引ページ（PAGE_PATH）は Rust 生成コンテンツを
-        // 持たない（本文はすべて site/components-pre-styled-ui.md 側）。
+        // 持たない（本文はすべて site/themes.md 側）。
         assert!(generated_content(PAGE_PATH).is_none());
     }
 
