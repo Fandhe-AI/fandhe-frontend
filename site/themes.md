@@ -11,7 +11,8 @@
 Themes は `fandhe-frontend-headless-ui`（Primitives）が提供する構造・
 アクセシビリティ（WAI-ARIA・キーボード操作）・表示状態（`data-*`）のみを持つ
 未装飾層の上に、見た目のスタイルを重ねた層です。Primitives 自体（anatomy・
-`data-*` 属性・WAI-ARIA 契約）を確認したい場合は Primitives セクションを参照してください。
+`data-*` 属性・WAI-ARIA 契約）を確認したい場合は [Primitives](./primitives.md)
+セクションを参照してください。
 
 ## 掲示の読み方
 

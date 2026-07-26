@@ -60,8 +60,11 @@ fn site_nav_parses_successfully() {
     assert_eq!(nav.site.base_path, "/fandhe-frontend");
 }
 
+/// イシュー #1021: Primitives（`fandhe-frontend-headless-ui`）セクションが
+/// Examples の後・Themes の前へ加わり、セクション数は 5 → 6 になった
+/// （ヘッダー上の並びは設計 §2「Primitives → Themes」）。
 #[test]
-fn site_nav_registers_five_sections_with_expected_titles() {
+fn site_nav_registers_six_sections_with_expected_titles() {
     let nav = load_nav();
     let titles: Vec<&str> = nav.sections.iter().map(|s| s.title.as_str()).collect();
     assert_eq!(
@@ -70,13 +73,14 @@ fn site_nav_registers_five_sections_with_expected_titles() {
             "Getting Started",
             "Guides",
             "Examples",
+            "Primitives",
             "Themes",
             "API Reference"
         ]
     );
 }
 
-/// イシュー #1010: `[[section]].index_path` が全 5 セクションに宣言され、
+/// イシュー #1010: `[[section]].index_path` が全セクションに宣言され、
 /// 各値が期待どおりであることを固定する（`nav.rs` のパース時点で
 /// `index_path` は当該セクション配下ページの `path` と完全一致すること
 /// 自体は既に保証されているため、本テストは「値のドリフト」検知に限定する）。
@@ -85,7 +89,8 @@ fn site_nav_registers_five_sections_with_expected_titles() {
 /// `index_path` を `/components/pre-styled-ui/` から `/themes/` へ移行した
 /// （Primitives = `fandhe-frontend-headless-ui` との対称構成、
 /// docs/design/docs-site-primitives-themes-split.md §3 参照）。旧 URL は
-/// `site/redirects.toml` で互換維持する。
+/// `site/redirects.toml` で互換維持する。イシュー #1021 で Primitives
+/// セクション自体（`/primitives/`）が新設され、6 セクションになった。
 #[test]
 fn site_nav_declares_index_path_for_every_section() {
     let nav = load_nav();
@@ -100,6 +105,7 @@ fn site_nav_declares_index_path_for_every_section() {
             ("Getting Started", "/"),
             ("Guides", "/guides/"),
             ("Examples", "/examples/"),
+            ("Primitives", "/primitives/"),
             ("Themes", "/themes/"),
             ("API Reference", "/api/"),
         ]
@@ -159,8 +165,44 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // イシュー #996 で Tab Nav が加わり 127 → 128、イシュー #997 で
     // Checkbox Group が加わり 128 → 129 になった。イシュー #1009 で
     // Guides / API Reference のセクショントップページ 2 ページが加わり
-    // 129 → 131 になった。
-    assert_eq!(pages.len(), 131, "expected 131 pages, got {pages:?}");
+    // 129 → 131 になった。イシュー #1021 で Primitives セクション（索引 1 +
+    // 部品 63 = 64 ページ）が新設され、131 → 195 になった。
+    assert_eq!(pages.len(), 195, "expected 195 pages, got {pages:?}");
+
+    // イシュー #1021: `/primitives/` 配下は部品ページ 63 件 + 索引ページ
+    // （`/primitives/` 自身）1 件の 64 件。
+    let primitives_pages: Vec<&(&str, &str)> = pages
+        .iter()
+        .filter(|(_, path)| path.starts_with("/primitives/"))
+        .collect();
+    assert_eq!(
+        primitives_pages.len(),
+        64,
+        "expected 64 /primitives/ pages (63 部品 + 1 索引), got {primitives_pages:?}"
+    );
+    let source_based_primitive_pages = pages
+        .iter()
+        .filter(|(source, _)| source.starts_with("site/primitives/"))
+        .count();
+    assert_eq!(
+        source_based_primitive_pages, 63,
+        "expected 63 pages sourced from site/primitives/"
+    );
+    assert!(
+        pages.contains(&("site/primitives.md", "/primitives/")),
+        "nav.toml is missing the Primitives index page"
+    );
+    // 代表 2 件（Themes 対応ページを持たない部品を含む）で (source, path) の
+    // 一致を spot-check する。
+    for expected_pair in [
+        ("site/primitives/accordion.md", "/primitives/accordion/"),
+        ("site/primitives/field.md", "/primitives/field/"),
+    ] {
+        assert!(
+            pages.contains(&expected_pair),
+            "nav.toml is missing expected primitive page {expected_pair:?}"
+        );
+    }
 
     // イシュー #1018 で索引ページ自体も `/themes/` へ移設したため、
     // `/components/` 配下に残る本体ページは 0 件（旧 URL はすべて

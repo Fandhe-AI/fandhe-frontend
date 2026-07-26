@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 
 use fandhe_frontend_core::render;
 use fandhe_frontend_docs_site::component_page::{
-    render_component_page, ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow,
+    render_component_page, ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow, Layer,
 };
 use fandhe_frontend_docs_site::showcase;
 
@@ -126,7 +126,7 @@ fn synthetic_demo() -> fandhe_frontend_core::Node {
 #[test]
 fn full_spec_fixture_fixes_the_canonical_six_section_order() {
     let demo = synthetic_demo();
-    let page = render_component_page("/themes/widget/", demo, &full_spec());
+    let page = render_component_page("/themes/widget/", demo, &full_spec(), Layer::Themes);
     let html = render(&page);
     assert_eq!(h2_texts(&html), CANONICAL_SECTIONS.to_vec());
     // API Reference/Accessibility 節内の小見出しは H3 に留まる契約
@@ -144,6 +144,87 @@ fn full_spec_fixture_fixes_the_canonical_six_section_order() {
             "WAI-ARIA".to_string(),
         ]
     );
+}
+
+/// `data-scope="accordion"` を持つ最小デモ木。`accordion` は実 CSS
+/// （`showcase::stylesheet()`）に `--fandhe-accordion-*` 変数が実在する
+/// スコープであることを実測確認済み（`cargo run -p fandhe-frontend-docs-site`
+/// で生成した `dist/themes/accordion/index.html` に `CSS Variables` 節が
+/// 出現することを事前検証した、計画 §6-3 の非空虚性要件）。層差テスト
+/// （[`layer_governs_css_variables_section_and_wrapper_class`]）の対照群・
+/// 実験群を同一フィクスチャで作るための専用ヘルパ。
+fn synthetic_demo_with_accordion_scope() -> fandhe_frontend_core::Node {
+    use fandhe_frontend_core::{div, el, p, text};
+    div(
+        vec![("class", "pre-styled-showcase")],
+        vec![el(
+            "section",
+            vec![],
+            vec![
+                el("h2", vec![], vec![text("Accordion")]),
+                p(vec![], vec![text("説明文")]),
+                el(
+                    "div",
+                    vec![
+                        ("data-scope", "accordion"),
+                        ("data-part", "root"),
+                        ("data-state", "open"),
+                    ],
+                    vec![],
+                ),
+            ],
+        )],
+    )
+}
+
+/// イシュー #1021: `Layer` が (1) CSS 変数表の有無、(2) Demo ラッパ class を
+/// 制御し、(3) Anatomy・`data-*` 属性表の走査は層非依存で共通に効くことを
+/// 同一フィクスチャの対照群（Themes）・実験群（Primitives）で固定する
+/// （非空虚性を担保するため必ずペアで書く、計画 §6-3）。
+#[test]
+fn layer_governs_css_variables_section_and_wrapper_class() {
+    let themes_page = render_component_page(
+        "/themes/accordion/",
+        synthetic_demo_with_accordion_scope(),
+        &full_spec(),
+        Layer::Themes,
+    );
+    let themes_html = render(&themes_page);
+    assert!(
+        themes_html.contains("<h3>CSS Variables</h3>"),
+        "Themes 層は CSS 変数表を出す契約: {themes_html}"
+    );
+    assert!(themes_html.contains(r#"class="pre-styled-showcase""#));
+
+    let primitives_page = render_component_page(
+        "/primitives/accordion/",
+        synthetic_demo_with_accordion_scope(),
+        &full_spec(),
+        Layer::Primitives,
+    );
+    let primitives_html = render(&primitives_page);
+    assert!(
+        !primitives_html.contains("CSS Variables"),
+        "Primitives 層は CSS 変数表を恒常的に省略する契約: {primitives_html}"
+    );
+    assert!(primitives_html.contains(r#"class="primitives-showcase""#));
+
+    // Anatomy・data-* 属性表の走査は層非依存で共通に効くことの肯定形確認。
+    assert!(primitives_html.contains("<h2>Anatomy</h2>"));
+    assert!(primitives_html.contains("<h3>Data Attributes</h3>"));
+}
+
+/// [`Layer::from_page_path`] の全域性を固定する。
+#[test]
+fn layer_from_page_path_is_total_and_defaults_to_themes() {
+    assert_eq!(
+        Layer::from_page_path("/primitives/accordion/"),
+        Layer::Primitives
+    );
+    assert_eq!(Layer::from_page_path("/themes/accordion/"), Layer::Themes);
+    assert_eq!(Layer::from_page_path("/guides/"), Layer::Themes);
+    assert_eq!(Layer::from_page_path("/"), Layer::Themes);
+    assert_eq!(Layer::from_page_path(""), Layer::Themes);
 }
 
 /// `data-scope` を一切持たない最小デモ木（Anatomy 節も含め全省略節が
@@ -166,7 +247,12 @@ fn synthetic_demo_without_scope() -> fandhe_frontend_core::Node {
 #[test]
 fn empty_spec_still_emits_demo_section_only() {
     let demo = synthetic_demo_without_scope();
-    let page = render_component_page("/themes/widget/", demo, &ComponentPageSpec::EMPTY);
+    let page = render_component_page(
+        "/themes/widget/",
+        demo,
+        &ComponentPageSpec::EMPTY,
+        Layer::Themes,
+    );
     let html = render(&page);
     // Anatomy 節は demo に data-scope が無いため省略される。Demo のみが残る。
     assert_eq!(h2_texts(&html), vec!["Demo".to_string()]);
@@ -458,7 +544,7 @@ fn features_and_table_cells_escape_xss_payloads() {
         demo: None,
     };
     let demo = synthetic_demo();
-    let page = render_component_page("/themes/widget/", demo, &spec);
+    let page = render_component_page("/themes/widget/", demo, &spec, Layer::Themes);
     let html = render(&page);
     assert!(!html.contains(payload), "raw payload leaked: {html}");
     assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
