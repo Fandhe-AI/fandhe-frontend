@@ -47,6 +47,26 @@
 //! 空なら見出しごと省略する（想定外の空 HTML を出さない）。Demo が無い
 //! パス（[`showcase::component_page_paths`] 未登録）は本モジュールの対象外
 //! として `None` を返す。
+//!
+//! # 層（Themes / Primitives）による差分（イシュー #1021）
+//!
+//! `docs/design/docs-site-primitives-themes-split.md` §5 のとおり、本モジュールは
+//! `/themes/`（`fandhe-frontend-pre-styled-ui`）と `/primitives/`
+//! （`fandhe-frontend-headless-ui`）の 2 層を [`Layer`] で区別し、以下 3 点のみで
+//! 分岐する（Anatomy・`data-*` 属性表の走査は層非依存で共通のまま流用する）。
+//!
+//! | 箇所 | Themes | Primitives |
+//! |---|---|---|
+//! | CSS 変数表（`API Reference` 節） | 抽出する | **恒常的に省略**（headless-ui に CSS の概念が無い） |
+//! | Demo ラッパ class | [`THEMES_SHOWCASE_CLASS`] | [`PRIMITIVES_SHOWCASE_CLASS`] |
+//! | 原稿レジストリ | [`component_specs`] 系 [`SPEC_TABLES`] | [`crate::primitive_specs::SPEC_TABLES`] |
+//!
+//! 本イシュー完了時点では [`crate::primitive_specs::SPEC_TABLES`] は空であり、
+//! `/primitives/<kebab>/` に対する [`showcase::generated_content`] も常に
+//! `None`（`showcase::COMPONENT_PAGES` は `/themes/` 専用のレジストリ）を返す。
+//! したがって [`generated_content`] は現時点で `/primitives/` 向けに `Some` を
+//! 返すことがなく、`/primitives/` の 63 ページは Markdown 原稿のみで生成される
+//! （Demo・原稿充填は #1022・Phase 5〔#1024〜#1029〕が引き継ぐ）。
 
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
@@ -57,6 +77,52 @@ use fandhe_frontend_core::{
 
 use crate::component_specs;
 use crate::showcase;
+
+/// Demo ラッパ class（Themes 層）。`showcase::stylesheet()` に対応セレクタが
+/// 実在することを `tests/site_css_contract.rs` が固定する。
+pub const THEMES_SHOWCASE_CLASS: &str = "pre-styled-showcase";
+
+/// Demo ラッパ class（Primitives 層）。本イシュー時点では Primitives が
+/// Demo を持たないため実 HTML には出現しないが、`tests/site_css_contract.rs`
+/// の契約リストへ先回りで登録し、#1022 が Demo を供給した瞬間に対応 CSS
+/// セレクタの欠落を fail-closed に検知できるようにする（設計 §5 / §9 A05）。
+pub const PRIMITIVES_SHOWCASE_CLASS: &str = "primitives-showcase";
+
+/// 部品ページが属する層。`fandhe-frontend-pre-styled-ui`（スタイル済み・
+/// `/themes/`）と `fandhe-frontend-headless-ui`（unstyled・`/primitives/`）の
+/// 2 層を区別し、[`render_component_page`] の分岐（CSS 変数表・ラッパ class・
+/// 原稿レジストリ）を切り替える（設計 §5）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Layer {
+    /// `fandhe-frontend-pre-styled-ui` 由来のスタイル済み部品ページ（`/themes/`）。
+    Themes,
+    /// `fandhe-frontend-headless-ui` 由来の unstyled 部品ページ（`/primitives/`）。
+    Primitives,
+}
+
+impl Layer {
+    /// `page_path` から層を判定する全域関数。`/primitives/` 始まりのみ
+    /// [`Layer::Primitives`]、それ以外はすべて [`Layer::Themes`] とする
+    /// （Themes は歴史的既定であり、他の登録レジストリが存在しないため。
+    /// 部品ページでない path は [`generated_content`] が層判定より前に
+    /// `None` を返すため、層の誤判定が出力へ波及することはない）。
+    #[must_use]
+    pub fn from_page_path(page_path: &str) -> Layer {
+        if page_path.starts_with("/primitives/") {
+            Layer::Primitives
+        } else {
+            Layer::Themes
+        }
+    }
+
+    /// Demo ラッパ class。
+    fn showcase_class(self) -> &'static str {
+        match self {
+            Layer::Themes => THEMES_SHOWCASE_CLASS,
+            Layer::Primitives => PRIMITIVES_SHOWCASE_CLASS,
+        }
+    }
+}
 
 /// 引数表（`API Reference` 節）1 行。Phase 4（#945〜#948）が原稿データを
 /// 供給するまでは [`SPEC_SOURCES`] に該当エントリが無いため空。
@@ -279,10 +345,17 @@ const SPEC_TABLES: &[&[(&str, ComponentPageSpec)]] = &[
     crate::component_page_specs_948::SPECS,
 ];
 
-/// `page_path` に対応する [`ComponentPageSpec`] を返す。未登録パスは
+/// `page_path` に対応する [`ComponentPageSpec`] を返す。`layer` に応じて
+/// Themes（[`SPEC_TABLES`]）/ Primitives（[`crate::primitive_specs::SPEC_TABLES`]）
+/// いずれかのテーブル集合のみを探索する（`/themes/accordion/` の spec が
+/// `/primitives/accordion/` へ漏れないことを構造で保証する）。未登録パスは
 /// [`ComponentPageSpec::EMPTY`]（fail-closed で「節を省略」側へ倒す）。
-fn spec_for(page_path: &str) -> ComponentPageSpec {
-    SPEC_TABLES
+fn spec_for(page_path: &str, layer: Layer) -> ComponentPageSpec {
+    let tables: &[&[(&str, ComponentPageSpec)]] = match layer {
+        Layer::Themes => SPEC_TABLES,
+        Layer::Primitives => crate::primitive_specs::SPEC_TABLES,
+    };
+    tables
         .iter()
         .flat_map(|table| table.iter())
         .find(|(path, _)| *path == page_path)
@@ -310,19 +383,26 @@ const MAX_WALK_DEPTH: usize = 64;
 ///   Phase 4 で編集しないための機構。デモを持たない部品向け）。
 #[must_use]
 pub fn generated_content(page_path: &str) -> Option<Node> {
-    let spec = spec_for(page_path);
+    let layer = Layer::from_page_path(page_path);
+    let spec = spec_for(page_path, layer);
     let demo = match showcase::generated_content(page_path) {
         Some(node) => node,
         None => (spec.demo?)(),
     };
-    Some(render_component_page(page_path, demo, &spec))
+    Some(render_component_page(page_path, demo, &spec, layer))
 }
 
 /// [`generated_content`] の本体。`demo` は [`showcase::generated_content`]
-/// の生出力（部品名 `h2` を含む）、`spec` は原稿データ。テストが合成
-/// フィクスチャで全 6 節の順序を固定できるよう `pub` で公開する。
+/// の生出力（部品名 `h2` を含む）、`spec` は原稿データ、`layer` は
+/// Themes/Primitives の別（イシュー #1021、モジュール doc の層差表参照）。
+/// テストが合成フィクスチャで全 6 節の順序を固定できるよう `pub` で公開する。
 #[must_use]
-pub fn render_component_page(page_path: &str, demo: Node, spec: &ComponentPageSpec) -> Node {
+pub fn render_component_page(
+    page_path: &str,
+    demo: Node,
+    spec: &ComponentPageSpec,
+    layer: Layer,
+) -> Node {
     let scope = resolve_anatomy_scope(page_path, &demo);
     let anatomy_parts = scope
         .as_deref()
@@ -342,7 +422,7 @@ pub fn render_component_page(page_path: &str, demo: Node, spec: &ComponentPageSp
     if let Some(s) = anatomy_section(&anatomy_parts) {
         sections.push(s);
     }
-    if let Some(s) = api_reference_section(scope.as_deref(), spec, &data_attrs) {
+    if let Some(s) = api_reference_section(scope.as_deref(), spec, &data_attrs, layer) {
         sections.push(s);
     }
     if let Some(s) = examples_section(spec) {
@@ -352,7 +432,7 @@ pub fn render_component_page(page_path: &str, demo: Node, spec: &ComponentPageSp
         sections.push(s);
     }
 
-    div(vec![("class", "pre-styled-showcase")], sections)
+    div(vec![("class", layer.showcase_class())], sections)
 }
 
 /// `Demo` 節: [`showcase`] の生出力から先頭の部品名 `h2`（重複見出し。
@@ -474,15 +554,21 @@ fn anatomy_section(parts: &[AnatomyPart]) -> Option<Node> {
 }
 
 /// `API Reference` 節。引数表（原稿供給）・`data-*` 属性表（機械導出）・
-/// CSS 変数表（機械導出）の 3 表すべてが空なら節ごと省略する。
+/// CSS 変数表（機械導出、Themes 層のみ）の 3 表すべてが空なら節ごと省略する。
+/// Primitives 層は headless-ui に CSS の概念が無いため CSS 変数表を
+/// 恒常的に省略する（モジュール doc の層差表参照、イシュー #1021）。
 fn api_reference_section(
     scope: Option<&str>,
     spec: &ComponentPageSpec,
     data_attrs: &[DataAttrRow],
+    layer: Layer,
 ) -> Option<Node> {
     let arguments_table = arguments_table(spec.arguments);
     let data_attrs_table = data_attrs_table(data_attrs);
-    let css_vars = scope.map(collect_css_vars_for_scope).unwrap_or_default();
+    let css_vars = match layer {
+        Layer::Themes => scope.map(collect_css_vars_for_scope).unwrap_or_default(),
+        Layer::Primitives => Vec::new(),
+    };
     let css_vars_table = css_vars_table(&css_vars);
 
     if arguments_table.is_none() && data_attrs_table.is_none() && css_vars_table.is_none() {

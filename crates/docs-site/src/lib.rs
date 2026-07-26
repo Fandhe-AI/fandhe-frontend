@@ -62,6 +62,10 @@
 //!   カテゴリ）と基盤モジュール 9 件の一覧。headless-ui ソースとの
 //!   ドリフトは `tests/primitives_catalog.rs` が fail-closed に検知する
 //!   （イシュー #1020）
+//! - [`primitive_specs`][]: Primitives 部品ページの原稿レジストリ
+//!   （`SPEC_TABLES`、イシュー #1021、Phase 5〔#1024〜#1029〕が充填）。
+//!   [`component_page`] が `Layer::Primitives` のとき本モジュールのみを
+//!   探索する（`/themes/` 側 `component_specs` 系とは独立）
 //!
 //! `fandhe-frontend-core` / `fandhe-frontend-app` / `fandhe-frontend-server` /
 //! `fandhe-frontend-pre-styled-ui` のみに依存し、外部クレートは追加しない
@@ -93,6 +97,7 @@ pub mod layout;
 pub mod linkcheck;
 pub mod markdown;
 pub mod nav;
+pub mod primitive_specs;
 pub mod primitives_catalog;
 pub mod redirect;
 pub mod script;

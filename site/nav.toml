@@ -83,6 +83,355 @@ source = "examples/headless-pre-styled-ui/README.md"
 path = "/examples/headless-pre-styled-ui/"
 
 [[section]]
+title = "Primitives"
+# fandhe-frontend-headless-ui（unstyled headless UI）の索引・部品ページ
+# セクション。Themes（fandhe-frontend-pre-styled-ui）との対称構成
+# （イシュー #1021、docs/design/docs-site-primitives-themes-split.md
+# §2/§3 参照）。ヘッダー上の並びは Primitives → Themes。
+index_path = "/primitives/"
+
+[[section.page]]
+title = "Primitives 索引"
+source = "site/primitives.md"
+path = "/primitives/"
+
+# 以下 6 カテゴリ × 63 部品ページ（イシュー #1021）。台帳は
+# crates/docs-site/src/primitives_catalog.rs（イシュー #1020）を正とする。
+
+[[section.group]]
+title = "Forms A"
+
+[[section.group.page]]
+title = "Angle Slider"
+source = "site/primitives/angle-slider.md"
+path = "/primitives/angle-slider/"
+
+[[section.group.page]]
+title = "Checkbox"
+source = "site/primitives/checkbox.md"
+path = "/primitives/checkbox/"
+
+[[section.group.page]]
+title = "Checkbox Group"
+source = "site/primitives/checkbox-group.md"
+path = "/primitives/checkbox-group/"
+
+[[section.group.page]]
+title = "Color Picker"
+source = "site/primitives/color-picker.md"
+path = "/primitives/color-picker/"
+
+[[section.group.page]]
+title = "Combobox"
+source = "site/primitives/combobox.md"
+path = "/primitives/combobox/"
+
+[[section.group.page]]
+title = "Editable"
+source = "site/primitives/editable.md"
+path = "/primitives/editable/"
+
+[[section.group.page]]
+title = "Field"
+source = "site/primitives/field.md"
+path = "/primitives/field/"
+
+[[section.group.page]]
+title = "Fieldset"
+source = "site/primitives/fieldset.md"
+path = "/primitives/fieldset/"
+
+[[section.group.page]]
+title = "File Upload"
+source = "site/primitives/file-upload.md"
+path = "/primitives/file-upload/"
+
+[[section.group.page]]
+title = "Image Cropper"
+source = "site/primitives/image-cropper.md"
+path = "/primitives/image-cropper/"
+
+[[section.group.page]]
+title = "Listbox"
+source = "site/primitives/listbox.md"
+path = "/primitives/listbox/"
+
+[[section.group]]
+title = "Forms B"
+
+[[section.group.page]]
+title = "Number Input"
+source = "site/primitives/number-input.md"
+path = "/primitives/number-input/"
+
+[[section.group.page]]
+title = "Password Input"
+source = "site/primitives/password-input.md"
+path = "/primitives/password-input/"
+
+[[section.group.page]]
+title = "Pin Input"
+source = "site/primitives/pin-input.md"
+path = "/primitives/pin-input/"
+
+[[section.group.page]]
+title = "Radio Group"
+source = "site/primitives/radio-group.md"
+path = "/primitives/radio-group/"
+
+[[section.group.page]]
+title = "Rating Group"
+source = "site/primitives/rating-group.md"
+path = "/primitives/rating-group/"
+
+[[section.group.page]]
+title = "Segment Group"
+source = "site/primitives/segment-group.md"
+path = "/primitives/segment-group/"
+
+[[section.group.page]]
+title = "Select"
+source = "site/primitives/select.md"
+path = "/primitives/select/"
+
+[[section.group.page]]
+title = "Signature Pad"
+source = "site/primitives/signature-pad.md"
+path = "/primitives/signature-pad/"
+
+[[section.group.page]]
+title = "Slider"
+source = "site/primitives/slider.md"
+path = "/primitives/slider/"
+
+[[section.group.page]]
+title = "Switch"
+source = "site/primitives/switch.md"
+path = "/primitives/switch/"
+
+[[section.group.page]]
+title = "Tags Input"
+source = "site/primitives/tags-input.md"
+path = "/primitives/tags-input/"
+
+[[section.group]]
+title = "Forms C・日付・状態表示"
+
+[[section.group.page]]
+title = "Calendar"
+source = "site/primitives/calendar.md"
+path = "/primitives/calendar/"
+
+[[section.group.page]]
+title = "Date Input"
+source = "site/primitives/date-input.md"
+path = "/primitives/date-input/"
+
+[[section.group.page]]
+title = "Date Picker"
+source = "site/primitives/date-picker.md"
+path = "/primitives/date-picker/"
+
+[[section.group.page]]
+title = "Download Trigger"
+source = "site/primitives/download-trigger.md"
+path = "/primitives/download-trigger/"
+
+[[section.group.page]]
+title = "Toggle"
+source = "site/primitives/toggle.md"
+path = "/primitives/toggle/"
+
+[[section.group.page]]
+title = "Toggle Group"
+source = "site/primitives/toggle-group.md"
+path = "/primitives/toggle-group/"
+
+[[section.group.page]]
+title = "Clipboard"
+source = "site/primitives/clipboard.md"
+path = "/primitives/clipboard/"
+
+[[section.group.page]]
+title = "Timer"
+source = "site/primitives/timer.md"
+path = "/primitives/timer/"
+
+[[section.group.page]]
+title = "Progress"
+source = "site/primitives/progress.md"
+path = "/primitives/progress/"
+
+[[section.group.page]]
+title = "QR Code"
+source = "site/primitives/qr-code.md"
+path = "/primitives/qr-code/"
+
+[[section.group]]
+title = "Overlay / Disclosure"
+
+[[section.group.page]]
+title = "Accordion"
+source = "site/primitives/accordion.md"
+path = "/primitives/accordion/"
+
+[[section.group.page]]
+title = "Collapsible"
+source = "site/primitives/collapsible.md"
+path = "/primitives/collapsible/"
+
+[[section.group.page]]
+title = "Dialog"
+source = "site/primitives/dialog.md"
+path = "/primitives/dialog/"
+
+[[section.group.page]]
+title = "Drawer"
+source = "site/primitives/drawer.md"
+path = "/primitives/drawer/"
+
+[[section.group.page]]
+title = "Floating Panel"
+source = "site/primitives/floating-panel.md"
+path = "/primitives/floating-panel/"
+
+[[section.group.page]]
+title = "Hover Card"
+source = "site/primitives/hover-card.md"
+path = "/primitives/hover-card/"
+
+[[section.group.page]]
+title = "Popover"
+source = "site/primitives/popover.md"
+path = "/primitives/popover/"
+
+[[section.group.page]]
+title = "Toast"
+source = "site/primitives/toast.md"
+path = "/primitives/toast/"
+
+[[section.group.page]]
+title = "Toggle Tip"
+source = "site/primitives/toggle-tip.md"
+path = "/primitives/toggle-tip/"
+
+[[section.group.page]]
+title = "Tooltip"
+source = "site/primitives/tooltip.md"
+path = "/primitives/tooltip/"
+
+[[section.group]]
+title = "Navigation"
+
+[[section.group.page]]
+title = "Action Bar"
+source = "site/primitives/action-bar.md"
+path = "/primitives/action-bar/"
+
+[[section.group.page]]
+title = "Breadcrumb"
+source = "site/primitives/breadcrumb.md"
+path = "/primitives/breadcrumb/"
+
+[[section.group.page]]
+title = "Link"
+source = "site/primitives/link.md"
+path = "/primitives/link/"
+
+[[section.group.page]]
+title = "Link Overlay"
+source = "site/primitives/link-overlay.md"
+path = "/primitives/link-overlay/"
+
+[[section.group.page]]
+title = "Menu"
+source = "site/primitives/menu.md"
+path = "/primitives/menu/"
+
+[[section.group.page]]
+title = "Menubar"
+source = "site/primitives/menubar.md"
+path = "/primitives/menubar/"
+
+[[section.group.page]]
+title = "Nav List"
+source = "site/primitives/nav-list.md"
+path = "/primitives/nav-list/"
+
+[[section.group.page]]
+title = "Navigation Menu"
+source = "site/primitives/navigation-menu.md"
+path = "/primitives/navigation-menu/"
+
+[[section.group.page]]
+title = "Pagination"
+source = "site/primitives/pagination.md"
+path = "/primitives/pagination/"
+
+[[section.group.page]]
+title = "Tabs"
+source = "site/primitives/tabs.md"
+path = "/primitives/tabs/"
+
+[[section.group.page]]
+title = "Toolbar"
+source = "site/primitives/toolbar.md"
+path = "/primitives/toolbar/"
+
+[[section.group]]
+title = "Data Display / Utilities"
+
+[[section.group.page]]
+title = "Avatar"
+source = "site/primitives/avatar.md"
+path = "/primitives/avatar/"
+
+[[section.group.page]]
+title = "Carousel"
+source = "site/primitives/carousel.md"
+path = "/primitives/carousel/"
+
+[[section.group.page]]
+title = "JSON Tree View"
+source = "site/primitives/json-tree-view.md"
+path = "/primitives/json-tree-view/"
+
+[[section.group.page]]
+title = "Scroll Area"
+source = "site/primitives/scroll-area.md"
+path = "/primitives/scroll-area/"
+
+[[section.group.page]]
+title = "Skip Nav"
+source = "site/primitives/skip-nav.md"
+path = "/primitives/skip-nav/"
+
+[[section.group.page]]
+title = "Splitter"
+source = "site/primitives/splitter.md"
+path = "/primitives/splitter/"
+
+[[section.group.page]]
+title = "Steps"
+source = "site/primitives/steps.md"
+path = "/primitives/steps/"
+
+[[section.group.page]]
+title = "Tour"
+source = "site/primitives/tour.md"
+path = "/primitives/tour/"
+
+[[section.group.page]]
+title = "Tree View"
+source = "site/primitives/tree-view.md"
+path = "/primitives/tree-view/"
+
+[[section.group.page]]
+title = "Visually Hidden"
+source = "site/primitives/visually-hidden.md"
+path = "/primitives/visually-hidden/"
+
+[[section]]
 title = "Themes"
 # セクション名・URL を Primitives（fandhe-frontend-headless-ui）との
 # 対称構成へ揃えた値（イシュー #1018、docs/design/docs-site-primitives-themes-split.md

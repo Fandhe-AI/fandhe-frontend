@@ -1031,9 +1031,27 @@ fn contract_violation_is_detected_for_unknown_docs_class() {
 /// pre-styled-ui の recipe が出す `fd-*` class は本テストの対象外
 /// （所管は `crates/pre-styled-ui/tests/`。既定 variant が宣言を持たない
 /// ケース（例: `fd-chart--lines-solid`）が正当に存在するため）。
+/// 部品ページの Demo ラッパ class 契約表（イシュー #1021、設計 §5/§9 A05）。
+/// `component_page::THEMES_SHOWCASE_CLASS` / `PRIMITIVES_SHOWCASE_CLASS` を
+/// ハードコード文字列でなく名前付き定数から参照することで、本ファイルと
+/// `component_page.rs` の二重管理を避ける。`primitives-showcase` は本イシュー
+/// 時点では実 HTML に出現しない（Primitives が Demo を持たないため）が、
+/// 契約表へ先回りで登録することで #1022 が Demo を供給した瞬間に対応 CSS
+/// セレクタの欠落を fail-closed に検知できるようにする（`showcase.rs` /
+/// `site_theme.rs` へ `.primitives-showcase` を先回りで足すことはしない。
+/// #715 の分離 CSS 契約に反するため。CSS 実体の供給は #1022 の責務）。
+fn component_page_wrapper_classes() -> [&'static str; 2] {
+    use fandhe_frontend_docs_site::component_page::{
+        PRIMITIVES_SHOWCASE_CLASS, THEMES_SHOWCASE_CLASS,
+    };
+    [THEMES_SHOWCASE_CLASS, PRIMITIVES_SHOWCASE_CLASS]
+}
+
 #[test]
 fn component_page_render_introduces_no_class_outside_the_contract() {
     use fandhe_frontend_docs_site::{component_page, showcase};
+
+    let wrapper_classes = component_page_wrapper_classes();
 
     let showcase_css = showcase::stylesheet()
         .expect("showcase stylesheet should assemble")
@@ -1059,7 +1077,7 @@ fn component_page_render_introduces_no_class_outside_the_contract() {
         );
 
         for token in extract_class_tokens(&html) {
-            if token == "pre-styled-showcase" || token.starts_with("showcase-") {
+            if wrapper_classes.contains(&token.as_str()) || token.starts_with("showcase-") {
                 seen_wrapper = true;
                 assert!(
                     showcase_selectors.contains(&token),

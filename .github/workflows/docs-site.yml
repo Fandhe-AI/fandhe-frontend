@@ -115,6 +115,15 @@ jobs:
         # 追加した。代表確認先を themes/index.html（新索引の本体）へ切り替え、
         # components/pre-styled-ui/index.html（旧索引 URL のリダイレクト
         # 生成物）の存在も追加で固定する。
+        #
+        # イシュー #1021: Primitives（fandhe-frontend-headless-ui）セクションが
+        # 新設され、索引ページ（primitives/index.html）と代表部品ページ
+        # （primitives/accordion/index.html）が加わった。Primitives は本イシュー
+        # 時点では CSS を持たない（headless-ui に CSS の概念が無いため
+        # assets/pre-styled-ui.css を読み込まない、モジュール doc 参照）ので、
+        # 専用 CSS の test -f は追加しない。ページ総数の期待値は
+        # crates/docs-site/tests/site_build.rs / primitives_nav.rs が保持し、
+        # ここでは二重管理しない。
         run: |
           test -f "${RUNNER_TEMP}/docs-site-dist/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.css"
@@ -126,6 +135,8 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/components/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/components/button/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/components/pre-styled-ui/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/primitives/index.html"
+          test -f "${RUNNER_TEMP}/docs-site-dist/primitives/accordion/index.html"
 
       - name: Upload Pages artifact
         # 要: runner に tar がインストール済み（upload-pages-artifact が内部で使用。

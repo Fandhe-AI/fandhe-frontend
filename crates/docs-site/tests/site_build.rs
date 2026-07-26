@@ -185,10 +185,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // イシュー #997 で Checkbox Group（`site/components/checkbox-group.md`）
     // が加わり、128 → 129 になった。イシュー #1009 で Guides / API Reference
     // のセクショントップページ（`site/guides.md` / `site/api.md`）2 ページが
-    // 加わり、129 → 131 になった（部品ページ 107 件は不変）。
+    // 加わり、129 → 131 になった（部品ページ 107 件は不変）。イシュー #1021 で
+    // Primitives セクション（索引 1 + 部品 63 = 64 ページ）が新設され、
+    // 131 → 195 になった。
     assert_eq!(
         report.written.len(),
-        131,
+        195,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
@@ -234,6 +236,18 @@ fn build_site_succeeds_for_the_real_repository_site() {
     assert_eq!(
         theme_pages, 108,
         "/themes/ 配下の生成ページ数（部品 107 件 + 索引 1 件）"
+    );
+
+    // イシュー #1021: `/primitives/` 配下は部品 63 件 + 索引 1 件 = 64 件。
+    let primitives_dir = out.0.join("primitives");
+    let primitive_pages = report
+        .written
+        .iter()
+        .filter(|p| p.starts_with(&primitives_dir))
+        .count();
+    assert_eq!(
+        primitive_pages, 64,
+        "/primitives/ 配下の生成ページ数（部品 63 件 + 索引 1 件）"
     );
 
     // アセットは site.css / admonition.css / skip-nav.css / site.js /
@@ -432,7 +446,9 @@ fn real_site_sidebar_is_scoped_to_the_current_section() {
 
     // Components セクション内のページ（Guides 配下は 1 件も出ない、現在
     // グループのみ open）。イシュー #1017 で `/components/button/` から
-    // `/themes/button/` へ移行。
+    // `/themes/button/` へ移行。イシュー #1021: Primitives セクション新設に
+    // 伴い、`/primitives/` が 1 件も混入しないことも合わせて固定する
+    // （逆方向の混入も同時に fail-closed にする、計画 §6-1b）。
     let themes_html = std::fs::read_to_string(out.0.join("themes/button/index.html"))
         .expect("read generated themes/button/index.html");
     let themes_window = sidebar_window(&themes_html);
@@ -444,8 +460,41 @@ fn real_site_sidebar_is_scoped_to_the_current_section() {
         1
     );
     assert!(!themes_window.contains("/guides/"));
+    assert!(!themes_window.contains("/primitives/"));
     assert_eq!(themes_window.matches("<h2").count(), 1);
     assert_eq!(themes_window.matches(r#"aria-current="page""#).count(), 1);
+
+    // イシュー #1021 受け入れ条件 5: Primitives セクション内のページのサイド
+    // バーが Themes/Guides を一切含まず、Primitives 自身のグループ・
+    // リンク集合に限定されていることを固定する（目視確認に委ねない、
+    // 計画 §6-1b）。否定形だけでは空窓でも通ってしまうため、肯定形
+    // （現在グループが開いている・部品 63 + 索引 1 = 64 件のリンクが
+    // すべて `/primitives/` 配下）も合わせて確認する。
+    let primitives_html = std::fs::read_to_string(out.0.join("primitives/accordion/index.html"))
+        .expect("read generated primitives/accordion/index.html");
+    let primitives_window = sidebar_window(&primitives_html);
+    assert!(!primitives_window.contains("/themes/"));
+    assert!(!primitives_window.contains("/guides/"));
+    assert!(primitives_window.contains(r#"href="/fandhe-frontend/primitives/""#));
+    assert!(primitives_window.contains("docs-nav-group"));
+    assert_eq!(
+        primitives_window
+            .matches(r#"<details class="docs-nav-group" open="">"#)
+            .count(),
+        1
+    );
+    assert_eq!(primitives_window.matches("<h2").count(), 1);
+    assert_eq!(
+        primitives_window.matches(r#"aria-current="page""#).count(),
+        1
+    );
+    let primitives_link_count = primitives_window
+        .matches("/fandhe-frontend/primitives/")
+        .count();
+    assert_eq!(
+        primitives_link_count, 64,
+        "Primitives サイドバーのリンク数が索引 1 + 部品 63 = 64 件と一致しない: {primitives_window}"
+    );
 }
 
 // ---- バイナリ経由（終了コード・stderr の契約） ----
