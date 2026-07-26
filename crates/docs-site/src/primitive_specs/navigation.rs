@@ -19,11 +19,13 @@
 //! # 一次情報と根拠表記（推測混入の禁止）
 //!
 //! 全行の根拠は `crates/headless-ui/src/<module>.rs` の実ソースのみとする。
-//! 行番号は refactor で陳腐化しやすいため、各定数の doc コメントでは
-//! **関数名・引数名を主、行番号は従**として示す（実行時点のスナップショット
-//! として付す補助情報であり、リファクタで乖離しても関数名からソースへ再到達
-//! できることを優先する）。根拠を示せない項目（架空の引数・ARIA 属性・
-//! キー割り当て）は一切書かない（`.claude/rules/out-of-scope-tracking.md`・
+//! 各定数の doc コメントには兄弟カテゴリ（Forms A/B/C・Overlay/Disclosure・
+//! Data Display/Utilities の各 `primitive_specs` サブモジュール）と同じ
+//! 形式で `file:line`（範囲）を付す。関数名・引数名を主、行番号は実行時点の
+//! スナップショットとして付す従の補助情報とし（リファクタで行番号が陳腐化
+//! しても関数名からソースへ再到達できることを優先する。行番号のみを根拠に
+//! しない）。根拠を示せない項目（架空の引数・ARIA 属性・キー割り当て）は
+//! 一切書かない（`.claude/rules/out-of-scope-tracking.md`・
 //! `docs/design/docs-site-component-pages.md` の一次情報規約）。
 //!
 //! # `arguments`（引数表）の形式
@@ -135,9 +137,10 @@ fn ex_action_bar() -> Node {
 
 /// `/primitives/action-bar/`。
 ///
-/// 一次情報: `crates/headless-ui/src/action_bar.rs`（`root`/`content`/
-/// `separator` シグネチャ、`role="toolbar"`/`role="separator"` の実出力、
-/// `ActionBar` 状態機械の doc）。
+/// 一次情報: `crates/headless-ui/src/action_bar.rs:1-51`（モジュール doc）、
+/// `:65-150`（`root`/`content`/`separator` シグネチャ）、`:90`/`:128`
+/// （`role="toolbar"`/`role="separator"` の実出力）、`:157-249`
+/// （`ActionBar` 状態機械の doc）。
 pub(super) const ACTION_BAR: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "複数選択操作バー（chakra-ui ActionBar 相当）。Root / Positioner / Content / SelectionTrigger / Separator / CloseTrigger の 6 anatomy パーツを持つ（action_bar.rs モジュール doc）。",
@@ -219,9 +222,10 @@ fn ex_breadcrumb() -> Node {
 
 /// `/primitives/breadcrumb/`。
 ///
-/// 一次情報: `crates/headless-ui/src/breadcrumb.rs`（`root`/`link`/
-/// `current_link`/`separator`/`ellipsis` シグネチャ、`aria-current="page"`/
-/// `role="presentation"`+`aria-hidden="true"` の実出力）。
+/// 一次情報: `crates/headless-ui/src/breadcrumb.rs:1-52`（モジュール doc）、
+/// `:71-135`（`root`/`link`/`current_link`/`separator`/`ellipsis`
+/// シグネチャ）、`:105`（`aria-current="page"` の実出力）、`:114`/`:126`
+/// （`role="presentation"`+`aria-hidden="true"` の実出力）。
 pub(super) const BREADCRUMB: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "パンくずナビゲーション。root（nav）/ list（ol）/ item（li）/ link（a）/ current-link（span）/ separator（li）/ ellipsis（li）の 7 anatomy パーツを持つ（breadcrumb.rs モジュール doc）。",
@@ -289,9 +293,10 @@ fn ex_link() -> Node {
 
 /// `/primitives/link/`。
 ///
-/// 一次情報: `crates/headless-ui/src/link.rs`（`root` シグネチャ、
-/// `target="_blank"`+`rel="noopener noreferrer"` の不可分付与、
-/// `aria-current="page"` の実出力）。
+/// 一次情報: `crates/headless-ui/src/link.rs:1-54`（モジュール doc）、
+/// `:72-100`（`root` シグネチャ）、`:66-67`（`target="_blank"`+
+/// `rel="noopener noreferrer"` の不可分付与）、`:69`（`aria-current="page"`
+/// の実出力）。
 pub(super) const LINK: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "汎用インラインリンク。root（a）1 パーツのみの最小構成（chakra-ui Link 相当、link.rs モジュール doc）。",
@@ -356,8 +361,9 @@ fn ex_link_overlay() -> Node {
 
 /// `/primitives/link-overlay/`。
 ///
-/// 一次情報: `crates/headless-ui/src/link_overlay.rs`（`root`/`overlay`
-/// シグネチャ、モジュール doc「全面拡張の実装方針」「呼び出し文脈」節）。
+/// 一次情報: `crates/headless-ui/src/link_overlay.rs:1-49`（モジュール doc
+/// 「全面拡張の実装方針」`:12-30`・「呼び出し文脈」`:31-48` 節）、`:60-75`
+/// （`root`/`overlay` シグネチャ）。
 pub(super) const LINK_OVERLAY: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "カード全面クリック化。root（div、位置決めコンテキスト）/ overlay（a、カード全面へ拡張されるリンク）の 2 パーツ構成（chakra-ui LinkBox/LinkOverlay パターン相当、link_overlay.rs モジュール doc）。",
@@ -423,9 +429,10 @@ fn ex_menu() -> Node {
 
 /// `/primitives/menu/`。
 ///
-/// 一次情報: `crates/headless-ui/src/menu.rs`（`root`/`trigger`/`content`/
-/// `item`/`item_group`/`separator`/`trigger_item`/`checkbox_item`/
-/// `radio_item` シグネチャ、`aria-haspopup="menu"`/`role="menu"`/
+/// 一次情報: `crates/headless-ui/src/menu.rs:1-84`（モジュール doc）、
+/// `:104-471`（`root`/`trigger`/`content`/`item`/`item_group`/`separator`/
+/// `trigger_item`/`checkbox_item`/`radio_item` シグネチャ）、`:114`/`:185`/
+/// `:226`/`:255`/`:369`（`aria-haspopup="menu"`/`role="menu"`/
 /// `role="menuitem"`/`role="group"`/`aria-checked` の実出力）。
 pub(super) const MENU: ComponentPageSpec = ComponentPageSpec {
     features: &[
@@ -546,10 +553,12 @@ fn ex_menubar() -> Node {
 
 /// `/primitives/menubar/`。
 ///
-/// 一次情報: `crates/headless-ui/src/menubar.rs`（`root`/`menu`/`trigger`/
-/// `content`/`sub_trigger`/`sub_content` シグネチャ、`role="menubar"`/
-/// `role="none"`/`role="menuitem"`/`role="menu"` の実出力、`Menubar`/
-/// `MenubarAction`/`decode_action` の doc）。
+/// 一次情報: `crates/headless-ui/src/menubar.rs:1-124`（モジュール doc）、
+/// `:168-411`（`root`/`menu`/`trigger`/`content`/`sub_trigger`/
+/// `sub_content` シグネチャ）、`:163`/`:187`/`:280`/`:254`
+/// （`role="menubar"`/`role="none"`/`role="menuitem"`/`role="menu"` の
+/// 実出力）、`:412-462`/`:463-762`（`MenubarAction`/`Menubar`、`:717` の
+/// `decode_action` の doc）。
 pub(super) const MENUBAR: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "複数 Menu を水平（または垂直）に並べるコンテナ。Root / Menu / Trigger / Positioner / Content / Item / ItemGroup / ItemGroupLabel / Separator / SubTrigger / SubContent の 11 anatomy パーツを持つ（menubar.rs モジュール doc）。",
@@ -659,9 +668,10 @@ fn ex_nav_list() -> Node {
 
 /// `/primitives/nav-list/`。
 ///
-/// 一次情報: `crates/headless-ui/src/nav_list.rs`（`root`/`heading`/`list`/
-/// `item`/`link` シグネチャ、モジュール doc「role を一切付与しない」
-/// 「navigation_menu との使い分け」節、role 非出力の実出力テスト）。
+/// 一次情報: `crates/headless-ui/src/nav_list.rs:1-67`（モジュール doc
+/// 「role を一切付与しない」`:16-30` 節）、`:81-121`（`root`/`heading`/
+/// `list`/`item`/`link` シグネチャ）、`:64-67`（`navigation_menu` との
+/// 使い分け節）、`:136`/`:143`/`:148`（role 非出力の実出力テスト）。
 pub(super) const NAV_LIST: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "文書ナビ向け Link リスト。root（nav）/ heading（h2）/ list（ul）/ item（li）/ link（a）の 5 anatomy パーツを持つ（nav_list.rs モジュール doc）。",
@@ -734,10 +744,12 @@ fn ex_navigation_menu() -> Node {
 
 /// `/primitives/navigation-menu/`。
 ///
-/// 一次情報: `crates/headless-ui/src/navigation_menu.rs`（`root`/`item`/
-/// `trigger`/`content`/`link` シグネチャ、モジュール doc「role を明示付与
-/// しない」「`nav_list` との使い分け」節、`aria-expanded`/`aria-controls`/
-/// `aria-labelledby`/`aria-current` の実出力）。
+/// 一次情報: `crates/headless-ui/src/navigation_menu.rs:1-93`（モジュール
+/// doc「`data-motion`・viewport 測定を実装しない」`:35-91` 節）、
+/// `:111-232`（`root`/`item`/`trigger`/`content`/`link` シグネチャ）、
+/// `:16`/`:28`（role を明示付与しない・`nav_list` との使い分け節）、
+/// `:391-483`（`aria-expanded`/`aria-controls`/`aria-labelledby`/
+/// `aria-current` の実出力テスト）。
 pub(super) const NAVIGATION_MENU: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "トリガー起点で開閉するナビゲーションパネル。Root / List / Item / Trigger / Content / Link の 6 anatomy パーツを持つ（navigation_menu.rs モジュール doc）。",
@@ -840,10 +852,12 @@ fn ex_pagination() -> Node {
 
 /// `/primitives/pagination/`。
 ///
-/// 一次情報: `crates/headless-ui/src/pagination.rs`（`page_range`/`root`/
-/// `item`/`ellipsis`/`prev_trigger`/`next_trigger` シグネチャ、
-/// `aria-current="page"`/`data-selected`/`aria-hidden`/`aria-disabled` の
-/// 実出力、`Pagination`/`PaginationAction` の doc）。
+/// 一次情報: `crates/headless-ui/src/pagination.rs:1-69`（モジュール doc）、
+/// `:124-193`（`page_range`）、`:209-326`（`root`/`item`/`ellipsis`/
+/// `prev_trigger`/`next_trigger` シグネチャ）、`:216`/`:261`/`:272`
+/// （`aria-current="page"`/`data-selected`/`aria-hidden`/`aria-disabled`
+/// の実出力）、`:327-340`/`:341-546`（`PaginationAction`/`Pagination` の
+/// doc）。
 pub(super) const PAGINATION: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "ページ送り。Root / Item / Ellipsis / PrevTrigger / NextTrigger の 5 anatomy パーツを持つ（pagination.rs モジュール doc）。",
@@ -934,9 +948,10 @@ fn ex_tabs() -> Node {
 
 /// `/primitives/tabs/`。
 ///
-/// 一次情報: `crates/headless-ui/src/tabs.rs`（`TabsProps`/`tabs`/
-/// `tabs_with_root_attrs` シグネチャ、`role="tablist"`/`"tab"`/`"tabpanel"`・
-/// `aria-selected`・roving tabindex の実出力、`ActivationMode` の doc）。
+/// 一次情報: `crates/headless-ui/src/tabs.rs:1-60`（モジュール doc）、
+/// `:137-297`（`TabsProps`/`tabs`/`tabs_with_root_attrs` シグネチャ）、
+/// `:178-180`（`role="tablist"`/`"tab"`/`"tabpanel"` の実出力）、`:154-165`
+/// （roving tabindex）、`:95-121`（`ActivationMode` の doc）。
 pub(super) const TABS: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "WAI-ARIA APG の Tabs パターン（role=\"tablist\"/\"tab\"/\"tabpanel\"、aria-selected、相互参照する aria-controls/aria-labelledby、roving tabindex）に準拠したマークアップを組み立てる（tabs.rs モジュール doc）。",
@@ -1023,10 +1038,12 @@ fn ex_toolbar() -> Node {
 
 /// `/primitives/toolbar/`。
 ///
-/// 一次情報: `crates/headless-ui/src/toolbar.rs`（`root`/`button`/`link`/
-/// `separator`/`toggle_group`/`toggle_item` シグネチャ、`role="toolbar"`/
-/// `role="separator"`/`role="group"`/`aria-pressed` の実出力、`Toolbar`/
-/// `ToolbarAction` の doc）。
+/// 一次情報: `crates/headless-ui/src/toolbar.rs:1-91`（モジュール doc
+/// 「呼び出し文脈」`:12` 節）、`:135-284`（`root`/`button`/`link`/
+/// `separator`/`toggle_group`/`toggle_item` シグネチャ）、`:130`/`:220`/
+/// `:239`/`:258`（`role="toolbar"`/`role="separator"`/`role="group"`/
+/// `aria-pressed` の実出力）、`:285-319`/`:320-524`（`ToolbarAction`/
+/// `Toolbar` の doc）。
 pub(super) const TOOLBAR: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "ボタン・リンク・セパレータ・ToggleGroup を横方向（または縦方向）にグループ化する操作バー。Root / Button / Link / Separator / ToggleGroup / ToggleItem の 6 anatomy パーツを持つ（toolbar.rs モジュール doc）。",
