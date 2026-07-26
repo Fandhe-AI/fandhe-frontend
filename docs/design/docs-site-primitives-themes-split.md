@@ -208,6 +208,100 @@ ls crates/headless-ui/src/*.rs | wc -l                                          
 ls site/components/*.md | wc -l                                                   # => 107
 ```
 
+## 6a. ラップ状態の判別規約(層をまたぐ対応関係、イシュー #1064)
+
+§6 は headless-ui ソース ↔ Primitives 台帳の**レイヤー内**ドリフト検知
+(`tests/primitives_catalog.rs`)の規約である。本節は Primitives(63 部品)
+と Themes(107 部品)の**層をまたぐラップ状態**(どの Themes ページが
+どの headless 部品をラップしているか)の判別規約であり、対応する契約
+テストは `crates/docs-site/tests/wrap_state.rs`(イシュー #1064)。
+
+### 名寄せキー
+
+`site/nav.toml` の `source = "site/themes/<kebab>.md"` から取り出した
+`<kebab>` を `_` へ戻したもの(snake_case)を Themes 側キー、
+`primitives_catalog::PRIMITIVES` の `module` を Primitives 側キーとする
+(`path` ではなく `source` をキーにする理由は `tests/primitives_catalog.rs`
+と同じ。URL 移転(#1017 の `/components/` → `/themes/`)に耐えるため)。
+
+### 判別シグナル(コードレベル、rustdoc を根拠にしない)
+
+`crates/pre-styled-ui/src/**/*.rs` の各モジュールについて、**非コメント行**
+に現れる `fandhe_frontend_headless_ui::<module>` のうち `<module>` が
+Primitives 台帳の 63 部品名に一致するものを「コード委譲あり」とする。
+
+rustdoc(`//!` / `///`)の言及は**ラップの根拠にしない**。rustdoc に 1 文
+足すだけでカテゴリが変わる壊れやすい契約を避けるため、コード実体(`pub use`
+や関数呼び出し)を伴う参照のみを「ラップ済み」と呼ぶ。
+
+### Themes 107 部品の 4 バケット分割
+
+| バケット | 件数 | 定義 |
+|---|---|---|
+| WRAPPED_SAME_NAME | 60 | 同名の Primitives 部品が存在し、かつ同名 headless モジュールへコード委譲している |
+| WRAPPED_CROSS_NAME | 5 | 同名 Primitives 部品は無いが、別名の headless 部品へコード委譲している |
+| DOC_REFERENCE_ONLY | 3 | headless 部品への参照が rustdoc のみ(コード委譲なし) |
+| PRE_STYLED_ONLY | 39 | headless 部品への参照がコード・rustdoc いずれにも無い |
+
+一覧の正は `crates/docs-site/tests/wrap_state.rs` の定数
+(`WRAPPED_SAME_NAME` / `WRAPPED_CROSS_NAME` / `DOC_REFERENCE_ONLY` /
+`PRE_STYLED_ONLY`)であり、本設計文書へは複製しない(`.claude/rules/ci.md`
+の「yml・ci.md では二重管理しない」と同じ二重管理回避の方針)。
+
+**`DOC_REFERENCE_ONLY` は設計上ドリフトしやすいバケットである**。C ↔ D の
+移動は多くの場合「欠陥」ではなく「台帳更新イベント」であり、テストが落ちた
+らまず実態(rustdoc の言及有無)を確認し、定数を更新して PR 本文に理由を
+書く運用とする。
+
+**受け入れ条件の中核**: 「同名 Themes ページがあるのに同名 headless へ委譲
+していない」部品は現時点で 0 件であり、この 0 件を
+`no_same_name_themes_page_reimplements_its_primitive` テストが恒久固定する
+(`docs/policy/intentional-non-adoption.md` §3.25 が最も警戒する独自実装の
+兆候)。
+
+### Primitives 側の未ラップ判定
+
+`crates/pre-styled-ui/src/**/*.rs` 全体のコード行から、どこからも参照され
+ていない headless 部品モジュールを求めると `collapsible` / `fieldset` の
+2 件(`HEADLESS_UNWRAPPED`)。`field` は Themes ページを持たないが
+(`PRIMITIVES_WITHOUT_THEMES_PAGE` に載る)、`input` / `textarea` /
+`native_select` の 3 モジュールが別名でコード委譲している(未ラップでは
+ない)。2 つの台帳(ページレベルの `PRIMITIVES_WITHOUT_THEMES_PAGE` と、
+コードレベルの `HEADLESS_UNWRAPPED`)が独立にドリフトして片方が黙って
+嘘をつく事故を防ぐため、
+`unwrapped_ledger_is_consistent_with_primitives_without_themes_page` が
+`HEADLESS_UNWRAPPED ⊆ PRIMITIVES_WITHOUT_THEMES_PAGE` と
+`PRIMITIVES_WITHOUT_THEMES_PAGE ∖ HEADLESS_UNWRAPPED == {"field"}` を機械
+検査する。
+
+### モジュール解決(`crates/pre-styled-ui/src/`)
+
+Themes ページ 107 件すべてが `crates/pre-styled-ui/src/` 配下のちょうど
+1 つのソースへ解決する。解決順は (1) `charts` ページの特例
+(`src/charts/mod.rs`)、(2) トップレベル `src/<mod>.rs`、(3) `src/charts/<mod>.rs`。
+トップレベルと `charts/` のステムが衝突する既知の 1 件(`tooltip`。トップ
+レベルが汎用 headless Tooltip のラッパー、`charts/tooltip.rs` はチャート
+内部専用の非ページモジュール)はトップレベルを優先する
+(`TOP_LEVEL_WINS_COLLISIONS`)。
+
+`crates/pre-styled-ui/src/` の走査規約は §6 のフラット規約(ディレクトリの
+出現そのものを panic させる)とは意図的に異なる。`charts/` が正当に存在
+するため、`NESTED_MODULE_DIRS = ["charts"]` のみ許容し、深さは 1 段まで、
+それ以外のサブディレクトリ・非 `.rs` エントリ・symlink は fail-closed に
+panic する。§6 の弱体化ではなく別レイヤー向けの規約である。
+
+### 再実測手順
+
+```bash
+# Themes 部品ページ 107 件
+grep -oE 'source = "site/themes/[a-z0-9-]+\.md"' site/nav.toml | wc -l          # => 107
+# Primitives 部品 63 件
+grep -c 'path: "/primitives/' crates/docs-site/src/primitives_catalog.rs        # => 63
+# pre-styled ソース総数 121(トップレベル 107 + charts/ 14)
+ls crates/pre-styled-ui/src/*.rs | wc -l                                        # => 107
+ls crates/pre-styled-ui/src/charts/*.rs | wc -l                                 # => 14
+```
+
 ## 7. Primitives のカテゴリ分類
 
 **本節は #1024〜#1029 の「対象部品」節からの転記であり、再導出・変更をして
