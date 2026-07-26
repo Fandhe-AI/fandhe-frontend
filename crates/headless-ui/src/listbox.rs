@@ -60,10 +60,14 @@
 //!   本モジュールは single（[`Listbox`]）/ multiple（[`MultiListbox`]）の
 //!   2 モードのみ提供する。
 //! - **キーボードナビゲーション・typeahead・loopFocus の実 DOM 配線**:
-//!   [`item`] の `highlighted` 引数・[`content`] の `activedescendant` 引数は
-//!   `data-highlighted`/`aria-activedescendant` の SSR 静的表現のみを提供し、
-//!   実際の移動・typeahead は wasm 層（`fandhe-frontend-wasm-full`）の将来
-//!   イシューのスコープ（[`crate::select`] §out-of-scope と同じ判断）。
+//!   イシュー #1070 で `fandhe-frontend-wasm-full` の `keynav` モジュールへ
+//!   実装済み（Arrow/Home/End・typeahead・Enter/Space の決定は content 直下
+//!   highlight 項目への click 合成）。`loopFocus` は content への
+//!   `data-loop-focus="true"` オプトインで有効になる（欠落時は非循環既定、
+//!   `keynav` モジュール doc §Listbox 参照）。本モジュールは引き続き
+//!   [`item`] の `highlighted` 引数・[`content`] の `activedescendant` 引数を
+//!   通じて `data-highlighted`/`aria-activedescendant` の SSR 静的表現のみを
+//!   提供し、実 DOM 配線自体は持たない（責務境界は不変）。
 //! - **chakra 固有の `Input`（フィルタ入力）/`Empty` パーツ**: 未提供。
 //! - **フォーム送信用 hidden input（[`crate::select::hidden_select`] 相当）**:
 //!   常時展開の Listbox はネイティブ `<select>` によるフォーム統合を前提と
