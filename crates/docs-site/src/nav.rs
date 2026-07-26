@@ -862,6 +862,36 @@ fn href(nav: &Nav, path: &str) -> String {
 /// （サイトトップ等、nav セクション外のページが正当に存在しうるため
 /// エラーにはしない契約）。
 ///
+/// # セクションスコープ（イシュー #1013）
+///
+/// 描画対象は「現在ページが属するセクション 1 件のみ」に絞り込む
+/// （[`Nav::section_for_path`] が唯一の解決経路。`pages`/`groups` を
+/// 個別に手繰る新しい判定をここに作らない）。Components セクションが
+/// グループ配下に 100 件超のページを持つため、無関係なセクションを
+/// 開いているときまでその見出し・部品一覧がサイドバーへ付いてくる
+/// 状態を解消する。
+///
+/// - `current_path` が nav 中のどの `page.path` にも一致しない場合
+///   （サイトトップ・将来の 404 等）は**全セクションを描画するフォール
+///   バック**を維持する。これはナビゲーションの見た目のみに関わる
+///   意図的な fail-open であり、`docs-site` は公開静的サイトのため
+///   サイドバーの可視性はアクセス境界ではない（空サイドバーという
+///   実害のある UX 退行を避けるための安全側の既定）。加えて、
+///   `current_path` は `crate::build::build_site` のページ生成ループが
+///   [`Nav::all_pages`] から渡す値のみであり、`parse_nav` の形式検証
+///   （§ [`href`]）を通過済みの nav 由来データに限られる。攻撃者制御の
+///   入力でこの分岐へ到達する経路は存在しない。
+/// - 他セクションへの到達性は本関数のスコープ外で担保される:
+///   [`header_nav`]（全セクションのトリガー + 直下ページのドロップ
+///   ダウン）・各セクションの `index_path` トップページ・`prev_next`
+///   （セクション境界を跨ぐ挙動は本イシューで変更しない）・全文検索
+///   インデックス（`assets/search-index.json`）。[`header_nav`] は本
+///   イシューの対象外で全セクション列挙のまま（同関数 rustdoc 参照）。
+/// - `aria-current`/`open` の付与ロジック・描画本体（見出し → 直下
+///   ページ `ul` → グループ `<details>`）は不変。スコープ限定は走査
+///   対象のスライスを絞るのみで、単一セクションを描画する処理自体は
+///   1 経路のまま複製しない。
+///
 /// headless `nav_list`（`fandhe-frontend-headless-ui`、イシュー #756）の
 /// anatomy パーツ（`root`/`heading`/`list`/`item`/`link`）で組み立てる。
 /// `nav_list` は `role` を一切付与しない素の `nav`/`h2`/`ul`/`li`/`a` 構造の
@@ -928,8 +958,15 @@ fn href(nav: &Nav, path: &str) -> String {
 /// [`fandhe_frontend_core::el`] のプレーン HTML 組み立てで、HTML 文字列の
 /// 直接組み立て・`raw_html()` は使用しない。
 pub fn sidebar(nav: &Nav, current_path: &str) -> Node {
+    // 現在ページが属するセクションのみへ絞り込む（イシュー #1013）。
+    // 未解決（nav 未登録 path）時は全セクション描画へフォールバックする
+    // 契約 — 理由は本関数 rustdoc「セクションスコープ」節参照。
+    let scoped: &[Section] = match nav.section_for_path(current_path) {
+        Some(section) => std::slice::from_ref(section),
+        None => &nav.sections,
+    };
     let mut section_nodes: Vec<Node> = Vec::new();
-    for section in &nav.sections {
+    for section in scoped {
         section_nodes.push(heading(vec![], vec![text(section.title.clone())]));
 
         // 直下ページ（`section.pages`）が非空のときのみ `ul` を出力する。
@@ -1672,15 +1709,16 @@ path = "/p1/"
     // ---- サイドバー（受け入れ条件 2） ----
 
     #[test]
-    fn sidebar_lists_all_pages_in_document_order_with_current_highlighted() {
+    fn sidebar_lists_only_current_section_pages_in_document_order_with_current_highlighted() {
+        // イシュー #1013: サイドバーは現在ページが属するセクション
+        // （ここでは Guide）のみを描画し、他セクション（Reference）は
+        // 出さない。
         let nav = parse_nav(SAMPLE).unwrap();
         let html = render(&sidebar(&nav, "/guide/getting-started/"));
-        // 文書順: Introduction, Getting Started, API
+        // 文書順: Introduction, Getting Started
         let intro_idx = html.find("Introduction").unwrap();
         let getting_started_idx = html.find("Getting Started").unwrap();
-        let api_idx = html.find("API").unwrap();
         assert!(intro_idx < getting_started_idx);
-        assert!(getting_started_idx < api_idx);
 
         assert!(html.contains(r#"href="/fandhe-frontend/guide/getting-started/""#));
         // 現在ページのみ aria-current="page"（+ data-current）を持つ
@@ -1689,14 +1727,39 @@ path = "/p1/"
         assert_eq!(html.matches(r#"aria-current="page""#).count(), 1);
         assert!(html.contains("data-current"));
         assert!(!html.contains(r#"class="current""#));
+        // セクション見出しはスコープ対象の 1 件のみ描画される。
+        assert_eq!(html.matches("<h2").count(), 1);
     }
 
     #[test]
-    fn sidebar_has_no_highlight_when_current_path_absent() {
+    fn sidebar_falls_back_to_all_sections_when_current_path_absent() {
+        // イシュー #1013: current_path が nav 未登録のときは全セクション
+        // 描画へフォールバックする（空サイドバー事故の防止。
+        // `sidebar` rustdoc「セクションスコープ」節参照）。
         let nav = parse_nav(SAMPLE).unwrap();
         let html = render(&sidebar(&nav, "/not-in-nav/"));
         assert!(!html.contains("aria-current"));
         assert!(!html.contains(r#"class="current""#));
+        assert_eq!(html.matches("<h2").count(), 2);
+        assert!(html.contains(r#"href="/fandhe-frontend/guide/intro/""#));
+        assert!(html.contains(r#"href="/fandhe-frontend/guide/getting-started/""#));
+        assert!(html.contains(r#"href="/fandhe-frontend/reference/api/""#));
+    }
+
+    #[test]
+    fn sidebar_omits_pages_from_other_sections() {
+        // イシュー #1013 の回帰固定: スコープ対象外セクションの見出し・
+        // href が 1 件も漏れないことを否定的断定で fail-closed に守る。
+        let nav = parse_nav(SAMPLE).unwrap();
+
+        let html_guide = render(&sidebar(&nav, "/guide/getting-started/"));
+        assert!(!html_guide.contains(r#"href="/fandhe-frontend/reference/api/""#));
+        assert!(!html_guide.contains(">Reference<"));
+
+        let html_reference = render(&sidebar(&nav, "/reference/api/"));
+        assert!(!html_reference.contains(r#"href="/fandhe-frontend/guide/intro/""#));
+        assert!(!html_reference.contains(r#"href="/fandhe-frontend/guide/getting-started/""#));
+        assert!(!html_reference.contains(">Guide<"));
     }
 
     #[test]
