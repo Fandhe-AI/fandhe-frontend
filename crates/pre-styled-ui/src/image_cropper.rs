@@ -13,7 +13,7 @@
 //!
 //! [`crate::slider`] と同型の判断: 動的な位置・寸法を伝える唯一の経路
 //! （[`ImageCropper::x_percent`](fandhe_frontend_headless_ui::image_cropper::ImageCropper::x_percent)
-//! 等 4 アクセサから導出する `--fandhe-cropper-x`/`-y`/`-w`/`-h` の 4 個の
+//! 等 4 アクセサから導出する `--fandhe-image-cropper-x`/`-y`/`-w`/`-h` の 4 個の
 //! CSS custom property、下記「動的な値は 4 個の custom property のみ」参照）
 //! は本モジュールの styled [`selection`] が一元的に組み立てる。headless
 //! 自由関数 `selection` を呼び出し側が直接使うとこの唯一の経路を経由せず
@@ -32,8 +32,8 @@
 //! [`selection`] の位置・寸法は、headless 中立な `x_percent`/`y_percent`/
 //! `width_percent`/`height_percent`（いずれも `0.0..=100.0` の正規化済み
 //! 有限 `f64`）から [`percent_style`] が組み立てる
-//! `style="--fandhe-cropper-x: <x>%; --fandhe-cropper-y: <y>%; \
-//! --fandhe-cropper-w: <w>%; --fandhe-cropper-h: <h>%"` の 1 属性のみで
+//! `style="--fandhe-image-cropper-x: <x>%; --fandhe-image-cropper-y: <y>%; \
+//! --fandhe-image-cropper-w: <w>%; --fandhe-image-cropper-h: <h>%"` の 1 属性のみで
 //! 伝搬する。[`crate::slider`] と同じく [`drop_style_attr`]（本モジュール内
 //! 個別実装、`crates/headless-ui/src/progress.rs` の同名ヘルパと同型の
 //! 判断）で呼び出し側 `attrs` に含まれる `style`（大文字小文字を無視）を
@@ -43,7 +43,7 @@
 //! # `size` variant のみ（`palette` は持たない）
 //!
 //! `size`（[`Size`]）は `root` へのみクラスを付与し、[`recipe`] が登録する
-//! `--fandhe-cropper-handle-size` の root スコープ custom property
+//! `--fandhe-image-cropper-handle-size` の root スコープ custom property
 //! （CSS の通常のプロパティ継承により `handle` へ伝わる）経由で寸法を切り
 //! 替える（[`crate::slider`] と同型）。`ColorPalette` は持たない
 //! （selection 枠・handle の配色は装飾用途で固定色のままとし、切り抜き UI
@@ -93,13 +93,13 @@ fn drop_style_attr<'a>(attrs: Vec<(&'a str, &'a str)>) -> Vec<(&'a str, &'a str)
 }
 
 /// `x`/`y`/`width`/`height` の百分率（[`ImageCropper::x_percent`] 等が返す
-/// 正規化済み有限 `f64`）から 4 個の `--fandhe-cropper-*` custom property を
+/// 正規化済み有限 `f64`）から 4 個の `--fandhe-image-cropper-*` custom property を
 /// 設定する `style` 属性値を組み立てる（動的値はこの 1 箇所のみ、モジュール
 /// doc「動的な値は 4 個の custom property のみ」参照）。
 fn percent_style(x: f64, y: f64, width: f64, height: f64) -> String {
     format!(
-        "--fandhe-cropper-x: {x}%; --fandhe-cropper-y: {y}%; \
-         --fandhe-cropper-w: {width}%; --fandhe-cropper-h: {height}%"
+        "--fandhe-image-cropper-x: {x}%; --fandhe-image-cropper-y: {y}%; \
+         --fandhe-image-cropper-w: {width}%; --fandhe-image-cropper-h: {height}%"
     )
 }
 
@@ -132,10 +132,10 @@ fn recipe() -> SlotRecipe {
             "selection",
             vec![
                 decl("position", "absolute"),
-                decl("left", "var(--fandhe-cropper-x, 0%)"),
-                decl("top", "var(--fandhe-cropper-y, 0%)"),
-                decl("width", "var(--fandhe-cropper-w, 100%)"),
-                decl("height", "var(--fandhe-cropper-h, 100%)"),
+                decl("left", "var(--fandhe-image-cropper-x, 0%)"),
+                decl("top", "var(--fandhe-image-cropper-y, 0%)"),
+                decl("width", "var(--fandhe-image-cropper-w, 100%)"),
+                decl("height", "var(--fandhe-image-cropper-h, 100%)"),
                 decl("box-sizing", "border-box"),
                 decl("border", "2px solid var(--fandhe-color-bg)"),
                 decl("box-shadow", "0 0 0 9999px rgba(0, 0, 0, 0.5)"),
@@ -146,8 +146,8 @@ fn recipe() -> SlotRecipe {
             "handle",
             vec![
                 decl("position", "absolute"),
-                decl("width", "var(--fandhe-cropper-handle-size, 0.75rem)"),
-                decl("height", "var(--fandhe-cropper-handle-size, 0.75rem)"),
+                decl("width", "var(--fandhe-image-cropper-handle-size, 0.75rem)"),
+                decl("height", "var(--fandhe-image-cropper-handle-size, 0.75rem)"),
                 decl("background", "var(--fandhe-color-bg)"),
                 decl("border", "1px solid var(--fandhe-color-border)"),
                 decl("box-sizing", "border-box"),
@@ -254,17 +254,17 @@ fn recipe() -> SlotRecipe {
         .variant(
             Size::Sm,
             "root",
-            vec![decl("--fandhe-cropper-handle-size", "0.55rem")],
+            vec![decl("--fandhe-image-cropper-handle-size", "0.55rem")],
         )
         .variant(
             Size::Md,
             "root",
-            vec![decl("--fandhe-cropper-handle-size", "0.75rem")],
+            vec![decl("--fandhe-image-cropper-handle-size", "0.75rem")],
         )
         .variant(
             Size::Lg,
             "root",
-            vec![decl("--fandhe-cropper-handle-size", "0.95rem")],
+            vec![decl("--fandhe-image-cropper-handle-size", "0.95rem")],
         )
         .default_variant(Size::Md)
 }
@@ -308,7 +308,7 @@ pub fn root<'a>(
     state.root(merged, children)
 }
 
-/// styled selection パーツを組み立てる。4 個の `--fandhe-cropper-*` custom
+/// styled selection パーツを組み立てる。4 個の `--fandhe-image-cropper-*` custom
 /// property を含む `style` を付与する唯一のパーツ（[`drop_style_attr`] に
 /// より呼び出し側の `style` は除去してから合成する。動的値はこの 1 箇所
 /// のみ、モジュール doc「動的な値は 4 個の custom property のみ」参照）。
@@ -356,11 +356,11 @@ mod tests {
     fn stylesheet_references_cropper_custom_properties() {
         let css = stylesheet();
         for prop in [
-            "--fandhe-cropper-x",
-            "--fandhe-cropper-y",
-            "--fandhe-cropper-w",
-            "--fandhe-cropper-h",
-            "--fandhe-cropper-handle-size",
+            "--fandhe-image-cropper-x",
+            "--fandhe-image-cropper-y",
+            "--fandhe-image-cropper-w",
+            "--fandhe-image-cropper-h",
+            "--fandhe-image-cropper-handle-size",
         ] {
             assert!(css.contains(prop), "missing {prop} in css");
         }
@@ -386,7 +386,7 @@ mod tests {
     fn stylesheet_contains_size_variant_selectors() {
         let css = stylesheet();
         assert!(css.contains("--size-"));
-        assert!(css.contains("--fandhe-cropper-handle-size"));
+        assert!(css.contains("--fandhe-image-cropper-handle-size"));
     }
 
     // --- root ---
@@ -446,16 +446,16 @@ mod tests {
         assert!(!html.contains("attacker"));
     }
 
-    // --- selection: --fandhe-cropper-* の唯一の動的値経路 ---
+    // --- selection: --fandhe-image-cropper-* の唯一の動的値経路 ---
 
     #[test]
     fn selection_outputs_percent_style() {
         let c = ImageCropper::new(200, 100, 50, 25, 100, 50, None, 1);
         let html = render(&selection(&c, vec![], vec![]));
-        assert!(html.contains("--fandhe-cropper-x: 25%"));
-        assert!(html.contains("--fandhe-cropper-y: 25%"));
-        assert!(html.contains("--fandhe-cropper-w: 50%"));
-        assert!(html.contains("--fandhe-cropper-h: 50%"));
+        assert!(html.contains("--fandhe-image-cropper-x: 25%"));
+        assert!(html.contains("--fandhe-image-cropper-y: 25%"));
+        assert!(html.contains("--fandhe-image-cropper-w: 50%"));
+        assert!(html.contains("--fandhe-image-cropper-h: 50%"));
     }
 
     #[test]

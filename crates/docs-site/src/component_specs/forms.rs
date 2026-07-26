@@ -483,7 +483,7 @@ const FILE_UPLOAD: ComponentPageSpec = ComponentPageSpec {
 const IMAGE_CROPPER: ComponentPageSpec = ComponentPageSpec {
     features: &[
         "`size` variant クラスを `root` へ付与し、headless-ui の `ImageCropper` 状態機械（切り抜き範囲・原寸を保持）へ委譲する。",
-        "`selection` パーツが `--fandhe-cropper-*`（4 個）custom property を含む `style` を動的値の唯一の出力点として持つ。",
+        "`selection` パーツが `--fandhe-image-cropper-*`（4 個）custom property を含む `style` を動的値の唯一の出力点として持つ。",
     ],
     arguments: &[
         ArgRow {

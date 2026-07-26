@@ -28,10 +28,10 @@ const IMAGE_CROPPER_GOLDEN_CSS: &str = r#"[data-scope="image-cropper"][data-part
 
 [data-scope="image-cropper"][data-part="selection"] {
   position: absolute;
-  left: var(--fandhe-cropper-x, 0%);
-  top: var(--fandhe-cropper-y, 0%);
-  width: var(--fandhe-cropper-w, 100%);
-  height: var(--fandhe-cropper-h, 100%);
+  left: var(--fandhe-image-cropper-x, 0%);
+  top: var(--fandhe-image-cropper-y, 0%);
+  width: var(--fandhe-image-cropper-w, 100%);
+  height: var(--fandhe-image-cropper-h, 100%);
   box-sizing: border-box;
   border: 2px solid var(--fandhe-color-bg);
   box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
@@ -40,8 +40,8 @@ const IMAGE_CROPPER_GOLDEN_CSS: &str = r#"[data-scope="image-cropper"][data-part
 
 [data-scope="image-cropper"][data-part="handle"] {
   position: absolute;
-  width: var(--fandhe-cropper-handle-size, 0.75rem);
-  height: var(--fandhe-cropper-handle-size, 0.75rem);
+  width: var(--fandhe-image-cropper-handle-size, 0.75rem);
+  height: var(--fandhe-image-cropper-handle-size, 0.75rem);
   background: var(--fandhe-color-bg);
   border: 1px solid var(--fandhe-color-border);
   box-sizing: border-box;
@@ -57,15 +57,15 @@ const IMAGE_CROPPER_GOLDEN_CSS: &str = r#"[data-scope="image-cropper"][data-part
 }
 
 [data-scope="image-cropper"][data-part="root"].fd-image-cropper--size-sm {
-  --fandhe-cropper-handle-size: 0.55rem;
+  --fandhe-image-cropper-handle-size: 0.55rem;
 }
 
 [data-scope="image-cropper"][data-part="root"].fd-image-cropper--size-md {
-  --fandhe-cropper-handle-size: 0.75rem;
+  --fandhe-image-cropper-handle-size: 0.75rem;
 }
 
 [data-scope="image-cropper"][data-part="root"].fd-image-cropper--size-lg {
-  --fandhe-cropper-handle-size: 0.95rem;
+  --fandhe-image-cropper-handle-size: 0.95rem;
 }
 
 [data-scope="image-cropper"][data-part="handle"][data-handle-position="n"] {
