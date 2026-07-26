@@ -34,7 +34,9 @@
 
 use crate::component_page::ComponentPageSpec;
 
+mod overlay_disclosure;
+
 /// `path -> ComponentPageSpec` レジストリを供給するカテゴリ別テーブルの集約。
 /// Phase 5 の各 issue はカテゴリ 1 個につき 1 テーブルを追加し、本配列へ
 /// 1 行追記する（`crate::component_page::SPEC_TABLES` と同型の集約方式）。
-pub const SPEC_TABLES: &[&[(&str, ComponentPageSpec)]] = &[];
+pub const SPEC_TABLES: &[&[(&str, ComponentPageSpec)]] = &[overlay_disclosure::SPECS];
