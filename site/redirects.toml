@@ -1,0 +1,28 @@
+# 旧 URL 互換のリダイレクト宣言（イシュー #1016）。
+#
+# `crates/docs-site/src/redirect.rs` がパース・`site/nav.toml` との突合
+# 検証（`to` の実在確認・`from` の衝突検証）を行い、`meta refresh` +
+# `rel=canonical` の案内ページを `from` の URL へ生成する。
+#
+# スキーマ（`[[redirect]]` の array-of-tables、1 件につき 2 キー）:
+#   from = "/旧パス/"  # `/` 始まり・`/` 終わり、空セグメント禁止、
+#                      # セグメントは英数字・`-`・`_` のみ
+#   to   = "/移転先パス/"  # 同上の形式。`site/nav.toml` に実在する
+#                          # `page.path` を指すこと（実在しない場合は
+#                          # ビルド失敗、`RedirectError::UnknownTarget`）
+#
+# `from` は `site/nav.toml` の既存ページ path と衝突してはならない
+# （衝突する場合はビルド失敗、`RedirectError::CollidesWithPage`）。
+#
+# 109 件規模の実宣言（#1017: `/components/<kebab>/` → `/themes/<kebab>/`、
+# #1018: `/themes/` 索引新設）は本イシュー（#1016、機構のみ）のスコープ外。
+# ここでは「未提供 URL への予防的移転案内」1 件のみを置く。
+
+[[redirect]]
+# `/components/` は現時点で `site/nav.toml` に該当 `path` が無く 404 になる
+# URL であり、`/components/pre-styled-ui/`（部品ページ索引）への移転案内と
+# して有用。#1017 で `/components/pre-styled-ui/` が `/themes/pre-styled-ui/`
+# 等へ移設される際は、`to` 実在検証（`RedirectError::UnknownTarget`）が
+# fail-closed で落ちるため、この宣言の張り替え忘れは構造的に起こらない。
+from = "/components/"
+to = "/components/pre-styled-ui/"
