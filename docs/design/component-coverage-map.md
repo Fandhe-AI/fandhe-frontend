@@ -873,12 +873,12 @@ diff が非空になって §4 が壊れる）。「実装対象」区分の根�
 | —（対応 md なし） | — | — | Server-Side Rendering (`server-side-rendering`) | — | — | — | 対象外 | 対象外（非コンポーネント文書、guides） |
 | —（対応 md なし） | — | — | Styling (`styling`) | — | — | — | 対象外 | 対象外（非コンポーネント文書、guides） |
 | —（対応 md なし） | — | — | — | Callout (`callout`) | fandhe pre-styled-ui = `callout` | — | 実装済み | 既存 `alert` の anatomy を参考に root/icon/text の 3 パーツで新設（イシュー #994）。`alert` と異なり `role="alert"` を付与しない静的部品。仮 ID 8-4 |
-| [checkbox-group](../../site/components/checkbox-group.md) | — | — | — | Checkbox Group (`checkbox-group`) | — | — | 実装済み | イシュー #997 で実装済み。headless-ui（`checkbox_group` mod、Root/Label/Item/ItemControl/ItemIndicator/ItemText の 6 パーツ + `state::MultiSelect` を埋め込んだ複数選択状態機械）と pre-styled-ui（`checkbox_group` mod、`size`/`color-palette` variant）の両層で新設。単一選択版 `radio_group` と対称の構造。ネイティブ `<input type="checkbox">` は自前パーツを持たず既存 `checkbox::hidden_input` の入れ子再利用で賄う（`checkbox`/`checkbox_card` の重複実装を回避）。#959 で確定、仮 ID 8-7 |
+| [checkbox-group](../../site/themes/checkbox-group.md) | — | — | — | Checkbox Group (`checkbox-group`) | — | — | 実装済み | イシュー #997 で実装済み。headless-ui（`checkbox_group` mod、Root/Label/Item/ItemControl/ItemIndicator/ItemText の 6 パーツ + `state::MultiSelect` を埋め込んだ複数選択状態機械）と pre-styled-ui（`checkbox_group` mod、`size`/`color-palette` variant）の両層で新設。単一選択版 `radio_group` と対称の構造。ネイティブ `<input type="checkbox">` は自前パーツを持たず既存 `checkbox::hidden_input` の入れ子再利用で賄う（`checkbox`/`checkbox_card` の重複実装を回避）。#959 で確定、仮 ID 8-7 |
 | —（対応 md なし） | — | — | — | Inset (`inset`) | — | — | 保留 | layout 系ユーティリティに近いが、#716/#724 の layout プリミティブ 5 件（Box/Flex/Grid/Container/Section）には含まれない（`docs/design/radix-themes-survey.md` §3.1 注記・§6 が明記）。参照対象外リストに含めない一次記録に従い「保留」とする。再評価トリガー: layout 系ユーティリティ全般の参照方針が別途確定した場合。#959 で判定継続。`intentional-non-adoption.md` §7 へ転記済み（#959） |
-| [quote](../../site/components/quote.md) | — | — | — | Quote (`quote`) | — | — | 実装済み | イシュー #995 で実装済み。既存 `blockquote` と役割が近い静的テキスト部品として新設（#959 で確定、仮 ID 8-5） |
+| [quote](../../site/themes/quote.md) | — | — | — | Quote (`quote`) | — | — | 実装済み | イシュー #995 で実装済み。既存 `blockquote` と役割が近い静的テキスト部品として新設（#959 で確定、仮 ID 8-5） |
 | —（対応 md なし） | — | — | — | Radio (`radio`) | — | — | 保留 | 既存 `radio_group` はグループ前提の anatomy。グループ化しない単独 Radio ボタンの anatomy 差分は未検証。再評価トリガー: 単独 Radio の要否・anatomy 差分の検証完了時。#959 で判定継続。`intentional-non-adoption.md` §7 へ転記済み（#959） |
 | —（対応 md なし） | — | — | — | Reset (`reset`) | — | — | 保留 | ブラウザ既定スタイルのリセット専用コンポーネント。`crates/pre-styled-ui` の `stylesheet`/`theme` mod が担うリセット責務との重複可能性を要検証。再評価トリガー: 既存 `stylesheet`/`theme` mod のリセット範囲の検証完了時。#959 で判定継続。`intentional-non-adoption.md` §7 へ転記済み（#959） |
-| [strong](../../site/components/strong.md) | — | — | — | Strong (`strong`) | — | — | 実装済み | イシュー #995 で実装済み。既存 `em`（強調）と役割が対称な静的テキスト部品として新設（#959 で確定、仮 ID 8-5） |
+| [strong](../../site/themes/strong.md) | — | — | — | Strong (`strong`) | — | — | 実装済み | イシュー #995 で実装済み。既存 `em`（強調）と役割が対称な静的テキスト部品として新設（#959 で確定、仮 ID 8-5） |
 | —（対応 md なし） | — | — | — | Tab Nav (`tab-nav`) | — | `tab_nav` | 実装済み | `tabs` の見た目を持つナビゲーションリンク集合として新規 anatomy（Root/Link）を pre-styled-ui 単独で定義（headless-ui は変更なし、`checkbox_card`/`radio_card` と同型の判断）。`role="tablist"`/`role="tab"` を一切出力せず `aria-current="page"` で現在地を示す。#959 で確定、仮 ID 8-6、実装は #996 |
 | —（対応 md なし） | — | — | — | Section (`section`) | — | — | 参照対象外 | layout プリミティブ（根拠: #716/#724/#735、`docs/policy/intentional-non-adoption.md` §3.24、`docs/design/radix-themes-survey.md` §6）。Box/Flex/Grid/Container と同方針。既存の非採用決定を Radix 軸の文脈で再掲するものであり新規判定ではない |
 
@@ -1008,8 +1008,10 @@ pre-styled-ui のみで完結させる（両層セット実装にはしない）
 8-4〜8-7（計 5 mod: Callout/Checkbox Group/Quote/Strong/Tab Nav）は
 `docs/design/docs-site-component-pages.md` §3 の部品ページ台帳（99 行）
 の対象であり独立ではない。各 issue は成果物へ「台帳 1 行追加 + §3 総ページ数の
-更新（99 → 104）+ `site/components/<kebab>.md` + `site/nav.toml` 登録 +
-`site/components-pre-styled-ui.md` 索引への 1 行追加」を含める。`nav::validate_sources`
+更新（99 → 104）+ `site/themes/<kebab>.md`（イシュー #1017 で
+`site/components/<kebab>.md` から移行） + `site/nav.toml` 登録 +
+`site/themes.md`（イシュー #1018 で `site/components-pre-styled-ui.md` から
+改称・移設）索引への 1 行追加」を含める。`nav::validate_sources`
 が `page.source` の実在を検査するため、`nav.toml` 登録と原稿投入は同一 PR で
 行う。#944 がページ数の機械アサーションを導入済みの場合は同アサーションも
 更新する。`crates/docs-site/tests/site_css_contract.rs` は対象外（同ファイルの
@@ -1049,13 +1051,57 @@ issue 本文へそのまま転記する）:
       `cargo run -p xtask -- check-dep-versions --fix`
 - [ ] docs: `docs/design/component-coverage-map.md` 該当行を「実装済み」へ更新
 - [ ] docs（pre-styled-ui のみ）: `docs/design/docs-site-component-pages.md` §3 台帳へ 1 行 +
-      総ページ数更新 / `site/components/<kebab>.md` / `site/nav.toml` /
-      `site/components-pre-styled-ui.md` 索引 / `docs/api/pre-styled-ui-api.md` §2
-- [ ] docs（headless-ui のみ）: `docs/api/headless-ui-api.md` へ項目追加
-      （docs ページ台帳は pre-styled-ui mod をキーとするため `/components/<kebab>/` は作らない）
+      総ページ数更新 / `site/themes/<kebab>.md`（イシュー #1017 で
+      `site/components/<kebab>.md` から移行） / `site/nav.toml` /
+      `site/themes.md`（イシュー #1018 で `site/components-pre-styled-ui.md`
+      から改称・移設）索引 / `docs/api/pre-styled-ui-api.md` §2
+- [ ] docs（headless-ui のみ）: `docs/api/headless-ui-api.md` へ項目追加 +
+      **改訂（2026-07-26、イシュー #1021、適用 #1031）**: headless-ui 部品も
+      イシュー #1021 以降は `/primitives/<kebab>/` + `site/primitives/<kebab>.md`
+      + `site/nav.toml`（Primitives セクション）登録・原稿レジストリ
+      （`crates/docs-site/src/primitive_specs/`）登録が必要（旧「docs ページ
+      台帳は pre-styled-ui mod をキーとするため `/components/<kebab>/` は
+      作らない」は #1021 で実態が変わったため撤回する。Primitives 台帳の正は
+      `crates/docs-site/src/primitives_catalog.rs`、登録の正は `site/nav.toml`）
 - [ ] 非目標（wasm-full の DOM 配線 / examples の crates.io pin 変更）に手を出していない
 - [ ] `#943`/`#944`/`#953`/`#954` と衝突した場合は加法マージ（両方のエントリを残す）
 ```
 
 Step B（issue 起票、#959 の実装計画の Step A/Step B 分割参照）の PR 本文には
 本節（§9.1）を全文転記し、「マージ = 起票承認」の旨を明記する。
+
+## 10. docs サイト掲載先の対応（イシュー #1031）
+
+**導出規約**:
+
+| 実装列 | docs サイト掲載先 | 件数 |
+|---|---|---|
+| headless-ui mod（本書 §5 の「headless-ui」列） | `/primitives/<kebab>/`（原稿 `site/primitives/<kebab>.md`） | 63 |
+| pre-styled-ui mod（本書 §5 の「pre-styled-ui」列） | `/themes/<kebab>/`（原稿 `site/themes/<kebab>.md`） | 107 |
+
+`<kebab>` は mod 名の `_` → `-` 置換で機械導出する。
+
+**本書は対応表の正であり、掲載先 URL の台帳は持たない**。掲載先の一次情報は
+`site/nav.toml`（登録の正）と `docs/design/docs-site-primitives-themes-split.md`
+§2/§3/§6（2 層分割・URL 体系・Primitives 台帳判別規約の正）であり、本節は
+両者への導線のみを提供する。
+
+**再実測コマンド**（§3/`docs-site-primitives-themes-split.md` §6 の慣例に
+倣い、コマンドをそのまま埋める）:
+
+```bash
+ls site/primitives/*.md | wc -l   # => 63
+ls site/themes/*.md    | wc -l    # => 107
+# Primitives 台帳の判別規則（docs-site-primitives-themes-split.md §6）
+grep -l 'anatomy(' crates/headless-ui/src/*.rs | grep -v '/anatomy.rs' | wc -l   # => 63
+```
+
+掲載先の網羅性の機械検証は `crates/docs-site/tests/primitives_catalog.rs`
+（台帳と基盤リストの排他網羅）と `crates/docs-site/tests/site_nav.rs`
+（ページ数期待値）が担い、**本書は件数を二重管理しない**。
+
+**注意**: headless-ui のみ実装済みで pre-styled-ui ラッパー未実装の部品
+（`collapsible` / `field` / `fieldset` / `progress`(linear) 等）は
+`/primitives/` にのみ掲載され `/themes/` には現れない。逆に pre-styled-ui
+独自部品（`marquee` 等）は `/themes/` にのみ現れる。掲載先は層ごとに
+独立であり、本書の「実装済み」区分と 1:1 ではない。

@@ -205,6 +205,26 @@ HTML の [`<details>`/`<summary>`](https://developer.mozilla.org/docs/Web/HTML/E
 - 変更が生じるのは `aside.docs-sidebar` に適用する CSS（新トークン
   ベースの配色・余白）と、§3.2 のブレークポイント折りたたみ CSS のみ。
 
+#### セクションスコープ限定（イシュー #1013、PR #1042）
+
+- 描画対象は「現在ページが属するセクション 1 件のみ」に絞り込む。解決経路は
+  `Nav::section_for_path`（`crates/docs-site/src/nav.rs`）の 1 本のみとし、
+  `pages`/`groups` を個別に手繰る判定を新設しない。
+- **判断根拠**: Themes セクションがグループ配下に 107 件のページを持つため、
+  無関係なセクションを開いているときまでその見出し・部品一覧がサイドバーへ
+  付いてくる状態を解消する必要があった。
+- **フォールバックを設けた理由**: `current_path` が nav 中のどの `page.path`
+  にも一致しない場合（サイトトップ・将来の 404 等）は全セクション描画へ
+  フォールバックする。空サイドバーという実害のある UX 退行を避けるための
+  安全側の既定であり、**意図的な fail-open** である。docs-site は公開静的
+  サイトであり、サイドバーの可視性はアクセス境界ではない。加えて
+  `current_path` は `build::build_site` が `Nav::all_pages` から渡す値のみで、
+  `parse_nav` の形式検証を通過済みの nav 由来データに限られる（攻撃者制御の
+  入力がこの分岐へ到達する経路は存在しない）。
+- **他セクションへの到達性の担保先**: `header_nav`（全セクションのトリガー +
+  直下ページのドロップダウン）・各セクションの `index_path` トップページ・
+  `prev_next`・全文検索インデックス（`assets/search-index.json`）。
+
 ### 3.5 ヘッダードロップダウン（→ #908）
 
 **対応関係の確定**（`site/nav.toml` → ヘッダー markup）:
@@ -214,6 +234,7 @@ HTML の [`<details>`/`<summary>`](https://developer.mozilla.org/docs/Web/HTML/E
 | `[site].title` | `a.docs-brand`（ブランドリンク、既存の `header.docs-header` 直下 `a` を rename） |
 | `[[section]]` の `title` | ドロップダウングループのトリガー表示テキスト |
 | `[[section.page]]` の `title`/`path` | ドロップダウン内の各項目（`a[href]`） |
+| `[[section]]` の `index_path` | トリガー `a.docs-header-trigger` の `href`（= `base_path` + `index_path`。イシュー #1010 で `[[section]]` の必須キー化、#1012 でトリガーの href として採用） |
 
 **意味論整合の評価（3 案比較）**: 親イシュー #899 は「pre-styled-ui
 `menu` 使用」と記載しているが、adoption 文書 §3.1 が記録した意味論
@@ -240,11 +261,38 @@ HTML の [`<details>`/`<summary>`](https://developer.mozilla.org/docs/Web/HTML/E
 記載との差分理由は本節の意味論整合・無 JS 制約の評価結果であり、#908
 実装時にはこの差分理由を PR 本文に明記すること。
 
+#### 確定（イシュー #1012 / PR #1041、保留解消）
+
 `nav.docs-header-nav` 配下の各ドロップダウングループは、トリガー用の
-`<a>` または `<button type="button">`（リンク先を持たないグループ見出し
-であれば `button`、`section` 直下に単一ページしかない場合はグループ化
-せず直接 `<a>` にする、等の判断は #908 実装時に確定）+ 項目リストの
-`<ul>`/`<li>`/`<a>` で構成する。
+`<a>` + 項目リストの `<ul>`/`<li>`/`<a>` で構成する。#908 時点で保留していた
+論点は次のとおり確定した。
+
+- トリガーは**常に `<a class="docs-header-trigger" href="{base_path}{index_path}">`**
+  とする（イシュー #1012 / PR #1041 で確定。#908 時点の
+  `<button type="button">` を置換した）。`<a>` はフォーム送信を行わない
+  ため `type="button"` は不要。
+- **セクションが単一ページのみでも一律ドロップダウン構造にする**
+  （決定性・実装単純化を優先。「単一ページならグループ化せず直接 `<a>`」
+  という #908 時点の裁量案は採らない）。
+- `role` / `aria-expanded` / `aria-haspopup` はいずれも付与しない。CSS の
+  `:hover`/`:focus-within` のみで開閉し JS の状態更新経路を持たないため、
+  静的な固定値の ARIA 状態属性は支援技術へ虚偽の状態を伝えることになる。
+- `aria-current` は 2 つの意味軸を衝突させない。トリガー = `"true"`
+  （現在セクション所属）、ドロップダウン内リンク = `"page"`
+  （現在ページ完全一致）。
+- ドロップダウン項目は `section.pages`（直下ページ）のみを列挙する。
+  グループ配下ページは列挙しない（Themes セクションで実測 108 項目 /
+  16KB となりビューポート外へはみ出すため）。グループが存在し、かつ
+  索引ページが直下ページに未掲載の場合のみ「すべて見る」項目
+  （href はトリガーと同一）を末尾に追加する。
+- 案 (c)（ナビ向けドロップダウン headless 部品の新設）は**採らなかった**
+  （#1012 実装時に (b) のまま確定）。
+
+**ドロップダウンの維持自体はユーザー判断（2026-07-26）である。** トリガーを
+`<a href>` 化してクリック遷移可能にしつつ、hover/focus のドロップダウンも
+維持する（トラッキング #1035 本文「ユーザー判断（2026-07-26 確認済み）」表の
+1 行目）。上記 3 案比較（案 (b) 採用）の表・推奨判定は削除せず、案 (b) 採用の
+根拠記録として維持する。
 
 ### 3.6 本文タイポグラフィ（→ #911）
 
@@ -549,6 +597,24 @@ Issue・PR に明記する）に準拠すること。
    `crates/docs-site/tests/site_typography_contract.rs` の contract 表
    （`STRUCTURE_CLASS_CONTRACT` 等）を弱体化・削除する提案が出たとき
    （fail-closed 契約の維持が §7 セキュリティ不変条件の一部であるため）。
+5. **全セクション必須の `index_path`**: `NavError::MissingSectionIndex` /
+   `NavError::SectionIndexNotFound` の必須検証を緩和・削除する提案が出たとき
+   （`[[section]]` に `index_path` を持たないセクションを許す変更は、
+   §3.5 のトリガー href の供給元が欠落することを意味する。検出は
+   `crates/docs-site/tests/` の nav スキーマ異常系テストと `parse_nav` の
+   fail-closed パースが担う）。
+6. **サイドバースコープ限定**: `Nav::section_for_path` のフォールバック
+   意味論を変更する提案、または `header_nav` が全セクションを列挙する現行
+   契約を変更する提案が出たとき（`header_nav` の全セクション列挙は §3.4 の
+   スコープ限定に対する**他セクション到達性の担保**そのものであり、
+   両者は対で成立している。片方だけの変更は到達性を壊す）。
+7. **2 層セクション構成**: 第 3 の層セクションを追加する提案、セクション名
+   （Primitives / Themes）を改称する提案、または `/primitives/` ↔ `/themes/`
+   の掲載先境界（headless-ui mod = `/primitives/`、pre-styled-ui mod =
+   `/themes/`）を変更する提案が出たとき（境界の正は
+   `docs/design/docs-site-primitives-themes-split.md` §2/§3/§6。検出は
+   `crates/docs-site/tests/primitives_catalog.rs` の fail-closed 台帳テストと
+   `crates/docs-site/tests/site_nav.rs` のページ数期待値）。
 
 ## 11. 関連文書
 
@@ -578,4 +644,7 @@ Issue・PR に明記する）に準拠すること。
 - `crates/docs-site/tests/site_typography_contract.rs`: `--fandhe-*` 一本化・
   `--docs-*` 全廃を検証する fail-closed 契約テスト。
 - `.github/workflows/docs-site.yml`: Pages 自動デプロイワークフロー
+- `docs/design/docs-site-primitives-themes-split.md`: 2 層分割・URL 体系・
+  Primitives 台帳判別規約の正（§3.4/§3.5 の実装イシュー #1013/#1012 を含む
+  Phase 1〜5 の設計正）。
   （§9.2 の paths 網羅性検証対象、§9.3 の実デプロイ検証対象）。

@@ -53,7 +53,8 @@ page "/api/headless-ui-api/": broken link `../internal/headless-ui-implementatio
 
 - `docs-site-component-pages.md`（#938）: 部品ページ IA の正。本文書は
   「API ページに残す粒度」を定義し、詳細の委譲先として部品ページ
-  （`/components/<kebab>/`）を指す。ページ雛形の節順（Demo / Features /
+  （`/themes/<kebab>/`。イシュー #1017 で `/components/<kebab>/` から移行）
+  を指す。ページ雛形の節順（Demo / Features /
   Anatomy / API Reference / Examples / Accessibility）を変更しない。
 - `docs-site-three-column-redesign.md`（#899/#913）: 骨格統治文書。DOM・
   class 契約・CSS 供給方式を一切変更しない。再評価トリガーに非該当。
@@ -85,6 +86,14 @@ page "/api/headless-ui-api/": broken link `../internal/headless-ui-implementatio
 
 ### 3-2 残す対象（`docs/api/*.md` に留める）
 
+> **改訂（2026-07-26、イシュー #1017/#1021/#1031）**: 部品ページの委譲先は
+> `/themes/<kebab>/`（原稿 `site/themes/<kebab>.md`。イシュー #1017 で
+> `/components/<kebab>/` から移行）へ更新済み。加えて headless-ui の部品
+> 詳細は `/primitives/<kebab>/`（原稿 `site/primitives/<kebab>.md`。イシュー
+> #1021）へ委譲する。層対応は次のとおり: `docs/api/headless-ui-api.md` の
+> 委譲先は `/primitives/`、`docs/api/pre-styled-ui-api.md` /
+> `pre-styled-recipe-api.md` の委譲先は `/themes/`。
+
 - 凍結された公開 API の表（モジュール/型 → 役割、関数シグネチャ、引数表、
   variant 表、`data-*` 属性契約、CSS 変数契約、決定性・丸め規則等の契約）
 - 呼び出し規約（SSR / CSR 共通の前提）
@@ -92,9 +101,11 @@ page "/api/headless-ui-api/": broken link `../internal/headless-ui-implementatio
   エスケープ契約は利用者向け契約であり、内部記録ではない）
 - 関連ドキュメント節（§3-3 のポインタ 1 行を含む）
 - 部品ごとの詳細（anatomy・Demo・Examples・キーボード操作）は **API
-  ページに複製せず** `/components/<kebab>/` 部品ページへ委譲し、相対
-  `.md` リンク（`../../site/components/<kebab>.md`）で参照する。この向き
-  のリンクは nav 登録済み source を指すため linkcheck を通る。
+  ページに複製せず**、pre-styled-ui 側は `/themes/<kebab>/` 部品ページへ、
+  headless-ui 側は `/primitives/<kebab>/` 部品ページへ委譲し、相対
+  `.md` リンク（`../../site/themes/<kebab>.md` / `../../site/primitives/<kebab>.md`）
+  で参照する。この向きのリンクは nav 登録済み source を指すため linkcheck
+  を通る。
 
 ### 3-3 `docs/internal/` の定義と linkcheck との関係
 
@@ -111,7 +122,7 @@ page "/api/headless-ui-api/": broken link `../internal/headless-ui-implementatio
 
   | 方向 | 可否 | 理由 |
   |---|---|---|
-  | `docs/internal/*.md` → `docs/api/*.md` / `site/components/*.md` | **相対 `.md` リンク可** | internal は nav source ではないため `rewrite_md_links` / `check_links` の対象にならない。GitHub 上で解決する |
+  | `docs/internal/*.md` → `docs/api/*.md` / `site/themes/*.md` / `site/primitives/*.md` | **相対 `.md` リンク可** | internal は nav source ではないため `rewrite_md_links` / `check_links` の対象にならない。GitHub 上で解決する（`site/themes/*.md` はイシュー #1017 で `site/components/*.md` から移行、`site/primitives/*.md` はイシュー #1021 で新設） |
   | `docs/api/*.md` → `docs/internal/*.md` | **Markdown リンク禁止。インラインコード表記のみ** | nav 登録ページ本文の `.md` リンクは `source_to_path` 未登録で `BrokenLink` → ビルド失敗 |
 
   失敗時の実エラー文言（`no nav.toml page declares source
@@ -188,7 +199,7 @@ page "/api/headless-ui-api/": broken link `../internal/headless-ui-implementatio
 | §3b | 分割: 到達可能性の棚卸し表・セキュリティ注意（REQ-1）は残す / 「背景」「採用方針（案 A）」「固定テスト」の判断記録は移設。**節番号 §3b は API 側に維持**（rustdoc 2 件が参照） |
 | §4 設計方針 | 大部分を移設（設計判断） |
 | §4a `stylesheet::StyleSheet` | 残す（公開 API） |
-| §4b〜§4k 各部品節 | variant 表・API 一覧・座標写像等の契約は残す（**§4d の variant 表は rustdoc 2 件が参照するため番号ごと維持**）/ 「chakra-ui からの縮約（対象外事項）」「スコープ外」「prose との役割分担」の判断記録は移設。部品ごとの詳細説明は `/components/<kebab>/` へ委譲 |
+| §4b〜§4k 各部品節 | variant 表・API 一覧・座標写像等の契約は残す（**§4d の variant 表は rustdoc 2 件が参照するため番号ごと維持**）/ 「chakra-ui からの縮約（対象外事項）」「スコープ外」「prose との役割分担」の判断記録は移設。部品ごとの詳細説明は `/themes/<kebab>/`（イシュー #1017 で `/components/<kebab>/` から移行）へ委譲 |
 | §5 関連ドキュメント | 残す + internal ポインタ 1 行 |
 
 #### `docs/api/pre-styled-recipe-api.md`（215 行、#954）
@@ -210,6 +221,22 @@ page "/api/headless-ui-api/": broken link `../internal/headless-ui-implementatio
   超える」または「M3/M4 に該当する独立節が新設される」場合、本文書の
   基準を適用して internal ノートへ分離する。新規 API ページ作成時は
   最初から本基準に従う。
+
+### 3-8 /api/ セクショントップページ（イシュー #1009 / #1010）
+
+- `site/api.md`（path `/api/`）を新設し、`[[section]] API Reference` の
+  `index_path = "/api/"` かつ直下ページの先頭として登録した
+  （#1009 / PR #1036）。
+- 役割: API Reference セクションの入口。クレート別に `docs/api/` 配下の
+  各ページへ導線を張り、**進行管理・実装経緯の記述は `docs/internal/` へ
+  分離してありサイト非掲載である**旨（本リポジトリは public なので
+  「非公開」ではなく「サイト非掲載」）を利用者へ明示する。これは §3-1／§3-3
+  で確定した分離基準を利用者向けに要約する位置づけであり、新しい基準を
+  作るものではない。
+- `index_path` は #1010 で全 `[[section]]` の必須キーとなったため、
+  API Reference セクションもトップページの実体を持つことが構造的に要求される
+  （`index_path` は当該セクション内の実在 `page.path` と完全一致することが
+  `parse_nav` で保証される）。
 
 ## 4. セキュリティ不変条件（OWASP）
 
@@ -259,9 +286,13 @@ page "/api/headless-ui-api/": broken link `../internal/headless-ui-implementatio
    まとめて是正できる機会が来た場合。
 4. 全文検索（Phase 7 #956〜#958）のインデックス対象に `docs/internal/`
    を含めるべきという要求が出た場合（既定は**含めない**）。
+5. 部品ページの掲載先セクション（`/primitives/` / `/themes/`）の境界が
+   変更された場合（→ §3-2 の委譲先を再検討）。境界の正は
+   `docs-site-primitives-themes-split.md` §2/§3。
 
 ## 7. 関連文書
 
 `docs-site-component-pages.md` / `docs-site-three-column-redesign.md` /
 `component-coverage-map.md` / `docs/policy/intentional-non-adoption.md` /
+`docs/design/docs-site-primitives-themes-split.md` /
 `.claude/rules/ci.md`（`docs-site.yml` paths 契約）。

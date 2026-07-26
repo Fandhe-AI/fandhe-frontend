@@ -6,10 +6,12 @@ Phase 4（#945〜#948）の設計正である。
 
 ## 1. 背景・目的
 
-`site/nav.toml` の Components セクションは `/components/pre-styled-ui/`
-（`site/components-pre-styled-ui.md` + `crates/docs-site/src/showcase.rs`
+`site/nav.toml` の Components セクションは `/themes/`
+（`site/themes.md` + `crates/docs-site/src/showcase.rs`
 の生成コンテンツ）1 エントリのみで、全部品の実レンダリングが単一ページに
-詰め込まれている。
+詰め込まれている（イシュー #938 着手時点の URL 接頭辞は
+`/components/pre-styled-ui/` だったが、#1018 移行後の値で表記する。
+セクション名も Components → Themes へ改称済み、§3 冒頭の改訂注記参照）。
 
 - 実測課題 A: 右カラム目次が数十項目のフラットリストで溢れる。
 - 実測課題 B: サイドバーの Components セクションが全部品に対し 1 エントリ。
@@ -67,6 +69,16 @@ comm -23 /tmp/mods93.txt /tmp/showcase_sections.txt   # -> mod はあるが show
 
 ## 3. ページ単位の定義
 
+> **改訂（2026-07-26、イシュー #1017/#1018、適用 #1031）**: URL 接頭辞は
+> `/components/` から `/themes/` へ、原稿ディレクトリは `site/components/`
+> から `site/themes/` へ移行済み（本節の表は移行後の値）。旧 URL は
+> `site/redirects.toml` の移転案内として維持される。移行の設計正は
+> `docs/design/docs-site-primitives-themes-split.md` §3。本節は Themes 層
+> （pre-styled-ui）の台帳であり、Primitives 行（headless-ui、`/primitives/`）
+> は含まない。台帳の行数ドリフト（本節 ~99〜104 行 vs `site/themes/*.md`
+> 実数）の是正は本イシューのスコープ外（既存ドリフトの記録は §5 参照）。
+> ページ総数の期待値の正は `crates/docs-site/tests/site_nav.rs` である。
+
 **規則（確定）**: 1 ページ = **pre-styled-ui の公開部品 1 件**。機械的
 定義は次のとおり。
 
@@ -98,115 +110,115 @@ grep -E '^pub mod ' crates/pre-styled-ui/src/lib.rs \
 の Phase 8 roster により、pre-styled-ui へ新規 mod 5 件（Callout /
 Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり、
 実装完了時に総ページ数は **99 → 104** へ増える予定（各実装 issue が
-台帳行・`site/components/<kebab>.md`・`site/nav.toml` 登録・
-`site/components-pre-styled-ui.md` 索引を追加する）。本節時点では
+台帳行・`site/themes/<kebab>.md`・`site/nav.toml` 登録・
+`site/themes.md` 索引を追加する）。本節時点では
 上記 5 件は未実装のため台帳 99 行には含まれない。
 
 **台帳（インベントリ）表**: 全 99 行の表を置く。列は次の 6 列で固定する。
 
 | 部品名（表示名） | mod | カテゴリ | URL パス | 原稿ソース | 既存 showcase 節 |
 |---|---|---|---|---|---|
-| Accordion | `accordion` | Interactive | `/components/accordion/` | `site/components/accordion.md` | `accordion_section()` |
-| Action Bar | `action_bar` | Interactive | `/components/action-bar/` | `site/components/action-bar.md` | `action_bar_section()` |
-| Alert | `alert` | Data Display | `/components/alert/` | `site/components/alert.md` | `alert_section()` |
-| Angle Slider | `angle_slider` | Forms | `/components/angle-slider/` | `site/components/angle-slider.md` | （なし・Phase 4 で新規） |
-| Area Chart | `area_chart` | Charts | `/components/area-chart/` | `site/components/area-chart.md` | `area_chart_section()` |
-| Avatar | `avatar` | Data Display | `/components/avatar/` | `site/components/avatar.md` | `avatar_section()` |
-| Badge | `badge` | Data Display | `/components/badge/` | `site/components/badge.md` | `badge_section()` |
-| Bar Chart | `charts`（内包） | Charts | `/components/bar-chart/` | `site/components/bar-chart.md` | `bar_chart_section()` |
-| Bar List | `charts`（内包） | Charts | `/components/bar-list/` | `site/components/bar-list.md` | `bar_list_section()` |
-| Bar Segment | `charts`（内包） | Charts | `/components/bar-segment/` | `site/components/bar-segment.md` | `bar_segment_section()` |
-| Blockquote | `blockquote` | Typography | `/components/blockquote/` | `site/components/blockquote.md` | （typography_section 内包） |
-| Breadcrumb | `breadcrumb` | Interactive | `/components/breadcrumb/` | `site/components/breadcrumb.md` | `breadcrumb_section()` |
-| Button | `button` | Forms | `/components/button/` | `site/components/button.md` | `button_section()` |
-| Calendar | `calendar` | Forms | `/components/calendar/` | `site/components/calendar.md` | `calendar_section()` |
-| Card | `card` | Data Display | `/components/card/` | `site/components/card.md` | `card_section()` |
-| Carousel | `carousel` | Interactive | `/components/carousel/` | `site/components/carousel.md` | `carousel_section()` |
-| Charts（共通 API） | `charts` | Charts | `/components/charts/` | `site/components/charts.md` | `charts_section()` |
-| Checkbox | `checkbox` | Forms | `/components/checkbox/` | `site/components/checkbox.md` | `checkbox_section()` |
-| Checkbox Card | `checkbox_card` | Forms | `/components/checkbox-card/` | `site/components/checkbox-card.md` | `checkbox_card_section()` |
-| Clipboard | `clipboard` | Interactive | `/components/clipboard/` | `site/components/clipboard.md` | （なし・Phase 4 で新規） |
-| Code | `code` | Typography | `/components/code/` | `site/components/code.md` | `code_section()` |
-| Color Picker | `color_picker` | Forms | `/components/color-picker/` | `site/components/color-picker.md` | `color_picker_section()` |
-| Color Swatch | `color_swatch` | Data Display | `/components/color-swatch/` | `site/components/color-swatch.md` | `color_swatch_section()` |
-| Combobox | `combobox` | Forms | `/components/combobox/` | `site/components/combobox.md` | `combobox_section()` |
-| Data List | `data_list` | Data Display | `/components/data-list/` | `site/components/data-list.md` | `data_list_section()` |
-| Date Input | `date_input` | Forms | `/components/date-input/` | `site/components/date-input.md` | `date_input_section()` |
-| Date Picker | `date_picker` | Forms | `/components/date-picker/` | `site/components/date-picker.md` | `date_picker_section()` |
-| Dialog | `dialog` | Interactive | `/components/dialog/` | `site/components/dialog.md` | `dialog_section()` |
-| Donut Chart | `donut_chart` | Charts | `/components/donut-chart/` | `site/components/donut-chart.md` | `donut_chart_section()` |
-| Download Trigger | `download_trigger` | Forms | `/components/download-trigger/` | `site/components/download-trigger.md` | `download_trigger_section()` |
-| Drawer | `drawer` | Interactive | `/components/drawer/` | `site/components/drawer.md` | `drawer_section()` |
-| Editable | `editable` | Forms | `/components/editable/` | `site/components/editable.md` | `editable_section()` |
-| Em | `em` | Typography | `/components/em/` | `site/components/em.md` | （typography_section 内包） |
-| Empty State | `empty_state` | Data Display | `/components/empty-state/` | `site/components/empty-state.md` | `empty_state_section()` |
-| File Upload | `file_upload` | Forms | `/components/file-upload/` | `site/components/file-upload.md` | `file_upload_section()` |
-| Floating Panel | `floating_panel` | Interactive | `/components/floating-panel/` | `site/components/floating-panel.md` | `floating_panel_section()` |
-| Heading | `heading` | Typography | `/components/heading/` | `site/components/heading.md` | （typography_section 内包） |
-| Highlight | `highlight` | Typography | `/components/highlight/` | `site/components/highlight.md` | `highlight_section()` |
-| Hover Card | `hover_card` | Interactive | `/components/hover-card/` | `site/components/hover-card.md` | `hover_card_section()` |
-| Icon | `icon` | Data Display | `/components/icon/` | `site/components/icon.md` | `icon_section()` |
-| Image | `image` | Data Display | `/components/image/` | `site/components/image.md` | `image_section()` |
-| Image Cropper | `image_cropper` | Forms | `/components/image-cropper/` | `site/components/image-cropper.md` | （なし・Phase 4 で新規） |
-| Input | `input` | Forms | `/components/input/` | `site/components/input.md` | （form_controls_section 内包） |
-| JSON Tree View | `json_tree_view` | Data Display | `/components/json-tree-view/` | `site/components/json-tree-view.md` | `json_tree_view_section()` |
-| Kbd | `kbd` | Typography | `/components/kbd/` | `site/components/kbd.md` | `kbd_section()` |
-| Line Chart | `line_chart` | Charts | `/components/line-chart/` | `site/components/line-chart.md` | `line_chart_section()` |
-| Link | `link` | Typography | `/components/link/` | `site/components/link.md` | （なし・Phase 4 で新規） |
-| Link Overlay | `link_overlay` | Utilities | `/components/link-overlay/` | `site/components/link-overlay.md` | （なし・Phase 4 で新規） |
-| List | `list` | Typography | `/components/list/` | `site/components/list.md` | （typography_section 内包） |
-| Listbox | `listbox` | Forms | `/components/listbox/` | `site/components/listbox.md` | `listbox_section()` |
-| Mark | `mark` | Typography | `/components/mark/` | `site/components/mark.md` | （typography_section 内包） |
-| Quote | `quote` | Typography | `/components/quote/` | `site/components/quote.md` | `quote_section()`（イシュー #995） |
-| Strong | `strong` | Typography | `/components/strong/` | `site/components/strong.md` | `strong_section()`（イシュー #995） |
-| Marquee | `marquee` | Utilities | `/components/marquee/` | `site/components/marquee.md` | `marquee_section()` |
-| Menu | `menu` | Interactive | `/components/menu/` | `site/components/menu.md` | `menu_section()` |
-| Native Select | `native_select` | Forms | `/components/native-select/` | `site/components/native-select.md` | （form_controls_section 内包） |
-| Nav List | `nav_list` | Interactive | `/components/nav-list/` | `site/components/nav-list.md` | （なし・Phase 4 で新規） |
-| Number Input | `number_input` | Forms | `/components/number-input/` | `site/components/number-input.md` | `number_input_section()` |
-| Pagination | `pagination` | Interactive | `/components/pagination/` | `site/components/pagination.md` | `pagination_section()` |
-| Password Input | `password_input` | Forms | `/components/password-input/` | `site/components/password-input.md` | `password_input_section()` |
-| Pie Chart | `pie_chart` | Charts | `/components/pie-chart/` | `site/components/pie-chart.md` | `pie_chart_section()` |
-| Pin Input | `pin_input` | Forms | `/components/pin-input/` | `site/components/pin-input.md` | （なし・Phase 4 で新規） |
-| Popover | `popover` | Interactive | `/components/popover/` | `site/components/popover.md` | `popover_section()` |
-| Progress | `progress` | Data Display | `/components/progress/` | `site/components/progress.md` | `progress_section()` |
-| QR Code | `qr_code` | Data Display | `/components/qr-code/` | `site/components/qr-code.md` | `qr_code_section()` |
-| Radar Chart | `charts`（内包） | Charts | `/components/radar-chart/` | `site/components/radar-chart.md` | `radar_chart_section()` |
-| Radio Card | `radio_card` | Forms | `/components/radio-card/` | `site/components/radio-card.md` | `radio_card_section()` |
-| Radio Group | `radio_group` | Forms | `/components/radio-group/` | `site/components/radio-group.md` | `radio_group_section()` |
-| Rating Group | `rating_group` | Forms | `/components/rating-group/` | `site/components/rating-group.md` | `rating_group_section()` |
-| Scatter Chart | `charts`（内包） | Charts | `/components/scatter-chart/` | `site/components/scatter-chart.md` | `scatter_chart_section()` |
-| Scroll Area | `scroll_area` | Utilities | `/components/scroll-area/` | `site/components/scroll-area.md` | `scroll_area_section()` |
-| Segment Group | `segment_group` | Forms | `/components/segment-group/` | `site/components/segment-group.md` | `segment_group_section()` |
-| Select | `select` | Forms | `/components/select/` | `site/components/select.md` | `select_section()` |
-| Separator | `separator` | Utilities | `/components/separator/` | `site/components/separator.md` | `separator_section()` |
-| Signature Pad | `signature_pad` | Forms | `/components/signature-pad/` | `site/components/signature-pad.md` | （なし・Phase 4 で新規） |
-| Skeleton | `skeleton` | Data Display | `/components/skeleton/` | `site/components/skeleton.md` | `skeleton_section()` |
-| Skip Nav | `skip_nav` | Utilities | `/components/skip-nav/` | `site/components/skip-nav.md` | （なし・Phase 4 で新規） |
-| Slider | `slider` | Forms | `/components/slider/` | `site/components/slider.md` | `slider_section()` |
-| Sparkline | `sparkline` | Charts | `/components/sparkline/` | `site/components/sparkline.md` | `sparkline_section()` |
-| Spinner | `spinner` | Data Display | `/components/spinner/` | `site/components/spinner.md` | `spinner_section()` |
-| Splitter | `splitter` | Interactive | `/components/splitter/` | `site/components/splitter.md` | `splitter_section()` |
-| Stat | `stat` | Data Display | `/components/stat/` | `site/components/stat.md` | `stat_section()` |
-| Status | `status` | Data Display | `/components/status/` | `site/components/status.md` | `status_section()` |
-| Steps | `steps` | Interactive | `/components/steps/` | `site/components/steps.md` | `steps_section()` |
-| Switch | `switch` | Forms | `/components/switch/` | `site/components/switch.md` | `switch_section()` |
-| Table | `table` | Data Display | `/components/table/` | `site/components/table.md` | `table_section()` |
-| Tabs | `tabs` | Interactive | `/components/tabs/` | `site/components/tabs.md` | `tabs_section()` |
-| Tag | `tag` | Data Display | `/components/tag/` | `site/components/tag.md` | `tag_section()` |
-| Tags Input | `tags_input` | Forms | `/components/tags-input/` | `site/components/tags-input.md` | `tags_input_section()` |
-| Text | `text` | Typography | `/components/text/` | `site/components/text.md` | （typography_section 内包） |
-| Textarea | `textarea` | Forms | `/components/textarea/` | `site/components/textarea.md` | （form_controls_section 内包） |
-| Timeline | `timeline` | Data Display | `/components/timeline/` | `site/components/timeline.md` | `timeline_section()` |
-| Timer | `timer` | Data Display | `/components/timer/` | `site/components/timer.md` | `timer_section()` |
-| Toast | `toast` | Interactive | `/components/toast/` | `site/components/toast.md` | `toast_section()` |
-| Toggle | `toggle` | Forms | `/components/toggle/` | `site/components/toggle.md` | `toggle_section()`（イシュー #980） |
-| Toggle Group | `toggle_group` | Forms | `/components/toggle-group/` | `site/components/toggle-group.md` | `toggle_group_section()`（イシュー #980） |
-| Toggle Tip | `toggle_tip` | Interactive | `/components/toggle-tip/` | `site/components/toggle-tip.md` | `toggle_tip_section()` |
-| Tooltip | `tooltip` | Interactive | `/components/tooltip/` | `site/components/tooltip.md` | `tooltip_section()` |
-| Tour | `tour` | Interactive | `/components/tour/` | `site/components/tour.md` | `tour_section()` |
-| Tree View | `tree_view` | Data Display | `/components/tree-view/` | `site/components/tree-view.md` | `tree_view_section()` |
-| Visually Hidden | `visually_hidden` | Utilities | `/components/visually-hidden/` | `site/components/visually-hidden.md` | `visually_hidden_section()` |
+| Accordion | `accordion` | Interactive | `/themes/accordion/` | `site/themes/accordion.md` | `accordion_section()` |
+| Action Bar | `action_bar` | Interactive | `/themes/action-bar/` | `site/themes/action-bar.md` | `action_bar_section()` |
+| Alert | `alert` | Data Display | `/themes/alert/` | `site/themes/alert.md` | `alert_section()` |
+| Angle Slider | `angle_slider` | Forms | `/themes/angle-slider/` | `site/themes/angle-slider.md` | （なし・Phase 4 で新規） |
+| Area Chart | `area_chart` | Charts | `/themes/area-chart/` | `site/themes/area-chart.md` | `area_chart_section()` |
+| Avatar | `avatar` | Data Display | `/themes/avatar/` | `site/themes/avatar.md` | `avatar_section()` |
+| Badge | `badge` | Data Display | `/themes/badge/` | `site/themes/badge.md` | `badge_section()` |
+| Bar Chart | `charts`（内包） | Charts | `/themes/bar-chart/` | `site/themes/bar-chart.md` | `bar_chart_section()` |
+| Bar List | `charts`（内包） | Charts | `/themes/bar-list/` | `site/themes/bar-list.md` | `bar_list_section()` |
+| Bar Segment | `charts`（内包） | Charts | `/themes/bar-segment/` | `site/themes/bar-segment.md` | `bar_segment_section()` |
+| Blockquote | `blockquote` | Typography | `/themes/blockquote/` | `site/themes/blockquote.md` | （typography_section 内包） |
+| Breadcrumb | `breadcrumb` | Interactive | `/themes/breadcrumb/` | `site/themes/breadcrumb.md` | `breadcrumb_section()` |
+| Button | `button` | Forms | `/themes/button/` | `site/themes/button.md` | `button_section()` |
+| Calendar | `calendar` | Forms | `/themes/calendar/` | `site/themes/calendar.md` | `calendar_section()` |
+| Card | `card` | Data Display | `/themes/card/` | `site/themes/card.md` | `card_section()` |
+| Carousel | `carousel` | Interactive | `/themes/carousel/` | `site/themes/carousel.md` | `carousel_section()` |
+| Charts（共通 API） | `charts` | Charts | `/themes/charts/` | `site/themes/charts.md` | `charts_section()` |
+| Checkbox | `checkbox` | Forms | `/themes/checkbox/` | `site/themes/checkbox.md` | `checkbox_section()` |
+| Checkbox Card | `checkbox_card` | Forms | `/themes/checkbox-card/` | `site/themes/checkbox-card.md` | `checkbox_card_section()` |
+| Clipboard | `clipboard` | Interactive | `/themes/clipboard/` | `site/themes/clipboard.md` | （なし・Phase 4 で新規） |
+| Code | `code` | Typography | `/themes/code/` | `site/themes/code.md` | `code_section()` |
+| Color Picker | `color_picker` | Forms | `/themes/color-picker/` | `site/themes/color-picker.md` | `color_picker_section()` |
+| Color Swatch | `color_swatch` | Data Display | `/themes/color-swatch/` | `site/themes/color-swatch.md` | `color_swatch_section()` |
+| Combobox | `combobox` | Forms | `/themes/combobox/` | `site/themes/combobox.md` | `combobox_section()` |
+| Data List | `data_list` | Data Display | `/themes/data-list/` | `site/themes/data-list.md` | `data_list_section()` |
+| Date Input | `date_input` | Forms | `/themes/date-input/` | `site/themes/date-input.md` | `date_input_section()` |
+| Date Picker | `date_picker` | Forms | `/themes/date-picker/` | `site/themes/date-picker.md` | `date_picker_section()` |
+| Dialog | `dialog` | Interactive | `/themes/dialog/` | `site/themes/dialog.md` | `dialog_section()` |
+| Donut Chart | `donut_chart` | Charts | `/themes/donut-chart/` | `site/themes/donut-chart.md` | `donut_chart_section()` |
+| Download Trigger | `download_trigger` | Forms | `/themes/download-trigger/` | `site/themes/download-trigger.md` | `download_trigger_section()` |
+| Drawer | `drawer` | Interactive | `/themes/drawer/` | `site/themes/drawer.md` | `drawer_section()` |
+| Editable | `editable` | Forms | `/themes/editable/` | `site/themes/editable.md` | `editable_section()` |
+| Em | `em` | Typography | `/themes/em/` | `site/themes/em.md` | （typography_section 内包） |
+| Empty State | `empty_state` | Data Display | `/themes/empty-state/` | `site/themes/empty-state.md` | `empty_state_section()` |
+| File Upload | `file_upload` | Forms | `/themes/file-upload/` | `site/themes/file-upload.md` | `file_upload_section()` |
+| Floating Panel | `floating_panel` | Interactive | `/themes/floating-panel/` | `site/themes/floating-panel.md` | `floating_panel_section()` |
+| Heading | `heading` | Typography | `/themes/heading/` | `site/themes/heading.md` | （typography_section 内包） |
+| Highlight | `highlight` | Typography | `/themes/highlight/` | `site/themes/highlight.md` | `highlight_section()` |
+| Hover Card | `hover_card` | Interactive | `/themes/hover-card/` | `site/themes/hover-card.md` | `hover_card_section()` |
+| Icon | `icon` | Data Display | `/themes/icon/` | `site/themes/icon.md` | `icon_section()` |
+| Image | `image` | Data Display | `/themes/image/` | `site/themes/image.md` | `image_section()` |
+| Image Cropper | `image_cropper` | Forms | `/themes/image-cropper/` | `site/themes/image-cropper.md` | （なし・Phase 4 で新規） |
+| Input | `input` | Forms | `/themes/input/` | `site/themes/input.md` | （form_controls_section 内包） |
+| JSON Tree View | `json_tree_view` | Data Display | `/themes/json-tree-view/` | `site/themes/json-tree-view.md` | `json_tree_view_section()` |
+| Kbd | `kbd` | Typography | `/themes/kbd/` | `site/themes/kbd.md` | `kbd_section()` |
+| Line Chart | `line_chart` | Charts | `/themes/line-chart/` | `site/themes/line-chart.md` | `line_chart_section()` |
+| Link | `link` | Typography | `/themes/link/` | `site/themes/link.md` | （なし・Phase 4 で新規） |
+| Link Overlay | `link_overlay` | Utilities | `/themes/link-overlay/` | `site/themes/link-overlay.md` | （なし・Phase 4 で新規） |
+| List | `list` | Typography | `/themes/list/` | `site/themes/list.md` | （typography_section 内包） |
+| Listbox | `listbox` | Forms | `/themes/listbox/` | `site/themes/listbox.md` | `listbox_section()` |
+| Mark | `mark` | Typography | `/themes/mark/` | `site/themes/mark.md` | （typography_section 内包） |
+| Quote | `quote` | Typography | `/themes/quote/` | `site/themes/quote.md` | `quote_section()`（イシュー #995） |
+| Strong | `strong` | Typography | `/themes/strong/` | `site/themes/strong.md` | `strong_section()`（イシュー #995） |
+| Marquee | `marquee` | Utilities | `/themes/marquee/` | `site/themes/marquee.md` | `marquee_section()` |
+| Menu | `menu` | Interactive | `/themes/menu/` | `site/themes/menu.md` | `menu_section()` |
+| Native Select | `native_select` | Forms | `/themes/native-select/` | `site/themes/native-select.md` | （form_controls_section 内包） |
+| Nav List | `nav_list` | Interactive | `/themes/nav-list/` | `site/themes/nav-list.md` | （なし・Phase 4 で新規） |
+| Number Input | `number_input` | Forms | `/themes/number-input/` | `site/themes/number-input.md` | `number_input_section()` |
+| Pagination | `pagination` | Interactive | `/themes/pagination/` | `site/themes/pagination.md` | `pagination_section()` |
+| Password Input | `password_input` | Forms | `/themes/password-input/` | `site/themes/password-input.md` | `password_input_section()` |
+| Pie Chart | `pie_chart` | Charts | `/themes/pie-chart/` | `site/themes/pie-chart.md` | `pie_chart_section()` |
+| Pin Input | `pin_input` | Forms | `/themes/pin-input/` | `site/themes/pin-input.md` | （なし・Phase 4 で新規） |
+| Popover | `popover` | Interactive | `/themes/popover/` | `site/themes/popover.md` | `popover_section()` |
+| Progress | `progress` | Data Display | `/themes/progress/` | `site/themes/progress.md` | `progress_section()` |
+| QR Code | `qr_code` | Data Display | `/themes/qr-code/` | `site/themes/qr-code.md` | `qr_code_section()` |
+| Radar Chart | `charts`（内包） | Charts | `/themes/radar-chart/` | `site/themes/radar-chart.md` | `radar_chart_section()` |
+| Radio Card | `radio_card` | Forms | `/themes/radio-card/` | `site/themes/radio-card.md` | `radio_card_section()` |
+| Radio Group | `radio_group` | Forms | `/themes/radio-group/` | `site/themes/radio-group.md` | `radio_group_section()` |
+| Rating Group | `rating_group` | Forms | `/themes/rating-group/` | `site/themes/rating-group.md` | `rating_group_section()` |
+| Scatter Chart | `charts`（内包） | Charts | `/themes/scatter-chart/` | `site/themes/scatter-chart.md` | `scatter_chart_section()` |
+| Scroll Area | `scroll_area` | Utilities | `/themes/scroll-area/` | `site/themes/scroll-area.md` | `scroll_area_section()` |
+| Segment Group | `segment_group` | Forms | `/themes/segment-group/` | `site/themes/segment-group.md` | `segment_group_section()` |
+| Select | `select` | Forms | `/themes/select/` | `site/themes/select.md` | `select_section()` |
+| Separator | `separator` | Utilities | `/themes/separator/` | `site/themes/separator.md` | `separator_section()` |
+| Signature Pad | `signature_pad` | Forms | `/themes/signature-pad/` | `site/themes/signature-pad.md` | （なし・Phase 4 で新規） |
+| Skeleton | `skeleton` | Data Display | `/themes/skeleton/` | `site/themes/skeleton.md` | `skeleton_section()` |
+| Skip Nav | `skip_nav` | Utilities | `/themes/skip-nav/` | `site/themes/skip-nav.md` | （なし・Phase 4 で新規） |
+| Slider | `slider` | Forms | `/themes/slider/` | `site/themes/slider.md` | `slider_section()` |
+| Sparkline | `sparkline` | Charts | `/themes/sparkline/` | `site/themes/sparkline.md` | `sparkline_section()` |
+| Spinner | `spinner` | Data Display | `/themes/spinner/` | `site/themes/spinner.md` | `spinner_section()` |
+| Splitter | `splitter` | Interactive | `/themes/splitter/` | `site/themes/splitter.md` | `splitter_section()` |
+| Stat | `stat` | Data Display | `/themes/stat/` | `site/themes/stat.md` | `stat_section()` |
+| Status | `status` | Data Display | `/themes/status/` | `site/themes/status.md` | `status_section()` |
+| Steps | `steps` | Interactive | `/themes/steps/` | `site/themes/steps.md` | `steps_section()` |
+| Switch | `switch` | Forms | `/themes/switch/` | `site/themes/switch.md` | `switch_section()` |
+| Table | `table` | Data Display | `/themes/table/` | `site/themes/table.md` | `table_section()` |
+| Tabs | `tabs` | Interactive | `/themes/tabs/` | `site/themes/tabs.md` | `tabs_section()` |
+| Tag | `tag` | Data Display | `/themes/tag/` | `site/themes/tag.md` | `tag_section()` |
+| Tags Input | `tags_input` | Forms | `/themes/tags-input/` | `site/themes/tags-input.md` | `tags_input_section()` |
+| Text | `text` | Typography | `/themes/text/` | `site/themes/text.md` | （typography_section 内包） |
+| Textarea | `textarea` | Forms | `/themes/textarea/` | `site/themes/textarea.md` | （form_controls_section 内包） |
+| Timeline | `timeline` | Data Display | `/themes/timeline/` | `site/themes/timeline.md` | `timeline_section()` |
+| Timer | `timer` | Data Display | `/themes/timer/` | `site/themes/timer.md` | `timer_section()` |
+| Toast | `toast` | Interactive | `/themes/toast/` | `site/themes/toast.md` | `toast_section()` |
+| Toggle | `toggle` | Forms | `/themes/toggle/` | `site/themes/toggle.md` | `toggle_section()`（イシュー #980） |
+| Toggle Group | `toggle_group` | Forms | `/themes/toggle-group/` | `site/themes/toggle-group.md` | `toggle_group_section()`（イシュー #980） |
+| Toggle Tip | `toggle_tip` | Interactive | `/themes/toggle-tip/` | `site/themes/toggle-tip.md` | `toggle_tip_section()` |
+| Tooltip | `tooltip` | Interactive | `/themes/tooltip/` | `site/themes/tooltip.md` | `tooltip_section()` |
+| Tour | `tour` | Interactive | `/themes/tour/` | `site/themes/tour.md` | `tour_section()` |
+| Tree View | `tree_view` | Data Display | `/themes/tree-view/` | `site/themes/tree-view.md` | `tree_view_section()` |
+| Visually Hidden | `visually_hidden` | Utilities | `/themes/visually-hidden/` | `site/themes/visually-hidden.md` | `visually_hidden_section()` |
 
 「既存 showcase 節」列が空の 11 + α 行が Phase 4 の新規作成対象、埋まって
 いる行が Phase 3 の移設対象であることを示す（複合節に内包されている
@@ -215,10 +227,15 @@ Checkbox Group / Quote / Strong / Tab Nav）が追加される見込みであり
 
 ## 4. URL 体系
 
-- `/components/<kebab-name>/`。`<kebab-name>` は mod 名の `_` を `-` に
-  置換した文字列（`radio_group` → `/components/radio-group/`）とし、
+> **改訂（2026-07-26、イシュー #1017/#1018、適用 #1031）**: URL 接頭辞は
+> `/components/` から `/themes/` へ移行済み（本節は移行後の値）。旧 URL は
+> `site/redirects.toml` の移転案内として維持される。移行の設計正は
+> `docs/design/docs-site-primitives-themes-split.md` §3。
+
+- `/themes/<kebab-name>/`。`<kebab-name>` は mod 名の `_` を `-` に
+  置換した文字列（`radio_group` → `/themes/radio-group/`）とし、
   機械導出可能である。
-- 原稿ソースは `site/components/<kebab-name>.md` に対応させる（1:1、
+- 原稿ソースは `site/themes/<kebab-name>.md` に対応させる（1:1、
   探索不要）。
 - 既存 `page.path` 検証（`nav::validate_page_path`）の制約（`/` 始まり・
   `/` 終わり・セグメントは英数と `-` `_` のみ）を満たす。kebab-case は
@@ -298,20 +315,23 @@ Phase 4 実装者が存在しない nav グループを作ることを防ぐた�
 
 ## 6. nav 3 階層スキーマ（#939 の実装仕様）
 
-TOML 文法:
+TOML 文法（**改訂（2026-07-26、イシュー #1017/#1018、適用 #1031）**:
+`title`/`index_path`/`source`/`path` は #1017/#1018 の URL 移行後の値。
+`index_path` はイシュー #1010 で全 `[[section]]` の必須キーになったため、
+本節時点（#939）の任意キー例としてではなく必須キーの例として読むこと）:
 
 ```toml
 [[section]]
-title = "Components"
-index_path = "/components/pre-styled-ui/"
+title = "Themes"
+index_path = "/themes/"
 
 [[section.group]]
 title = "Forms"
 
 [[section.group.page]]
 title = "Button"
-source = "site/components/button.md"
-path = "/components/button/"
+source = "site/themes/button.md"
+path = "/themes/button/"
 ```
 
 確定させる仕様:
@@ -334,12 +354,13 @@ path = "/components/button/"
    必須のキーとして追加された**。セクショントップページの出力 URL パスを
    指し、当該セクション配下（直下ページ or グループ内ページ）のいずれかの
    `page.path` と完全一致することがパース時点で保証される（独立した形式
-   検証は持たない）。Components セクションの値 `/components/pre-styled-ui/`
-   は暫定値ではなく、既存索引ページを指すのが本イシュー（#1010）時点の
-   正しい値である。Phase 3（#1019）で `/themes/` への移行時にこの値を
-   意図的に更新する予定である。#1012（ヘッダー href のリンク化）・#1013
+   検証は持たない）。本イシュー（#1010）時点では Components セクションの
+   値は `/components/pre-styled-ui/`（既存索引ページを指す、暫定値では
+   ない正しい値）だった。**改訂（2026-07-26、イシュー #1018、適用
+   #1031）**: Phase 3 の `/themes/` 移行（#1018 / PR #1044）でこの値は
+   `/themes/` へ更新済みである。#1012（ヘッダー href のリンク化）・#1013
    （サイドバーのセクションスコープ限定、`Nav::section_for_path` 経由）が
-   参照する唯一の情報源になる。
+   参照する唯一の情報源になる点は不変。
 
 **エラー写像表（#939 の受け入れ条件「異常系 5 件以上がそれぞれ固有の
 NavError」に直接対応）**:
@@ -446,13 +467,44 @@ fail-closed 原則（未知キー・未知テーブルを黙って無視しな�
   `[[section.group]]` を並べる（§6 の「直下ページ → グループ」順序
   契約の実適用例）。
 
+### 8.1 改訂（2026-07-26、イシュー #1015 / #1017 / #1018、本節の適用は #1031）
+
+**上記 §8 の「URL は変更しない」という確定は上書きされた。**
+
+- **上書きの正**: `docs/design/docs-site-primitives-themes-split.md` §3
+  「§8 の上書き宣言」。同節が §8 原文を引用したうえで「本設計はこの確定を
+  上書きする」と宣言し、本文改訂を Phase 6（本イシュー #1031）へ委ねている。
+  上書き根拠の議論は本節へ再掲しない（正の二重化を避ける。同じ失敗形は
+  `docs-site-api-reference-split.md` §3-4 が「重複台帳の防止」として規定済み）。
+- **現在の実態**:
+  - 索引ページは `/themes/`（原稿 `site/themes.md`。旧
+    `site/components-pre-styled-ui.md` からの改称・移設。#1018 / PR #1044）。
+  - 部品ページは `/themes/<kebab>/`（原稿 `site/themes/<kebab>.md`。
+    #1017 / PR #1043 で `/components/<kebab>/` から移転）。
+  - セクション名は Components → **Themes**（対応クレートは
+    `fandhe-frontend-pre-styled-ui`）。あわせて Primitives セクション
+    （`/primitives/`、対応クレート `fandhe-frontend-headless-ui`）が新設された。
+- **§8 の本来の意図は保たれている**: §8 の理由は「既存の被リンクを壊さない」
+  ことであって「URL 文字列そのものを不変に保つ」ことではない。旧 URL 109 件
+  （`/components/<kebab>/` 107 + `/components/pre-styled-ui/` + `/components/`）は
+  `site/redirects.toml` の移転案内ページとして維持され、404 にならない
+  （#1016 / PR #1040）。リポジトリ内の被リンクは #1017 で canonical へ
+  張り替え済みであり、移転案内を経由しない。
+- **旧 URL を linkcheck の allowlist へ足して解決することは禁止**
+  （`docs-site-primitives-themes-split.md` §4 の肯定形規約。移転案内は外部
+  トラフィック・ブックマーク専用）。
+- 併記: §8 が挙げていた `showcase::PAGE_PATH` の 1 対 1 前提解消（#941）・
+  「索引ページに巨大な全部品レンダリングを残さない」方針・nav 上の位置
+  （セクション直下ページとして先頭）は**現行も有効**（`/themes/` へ移った
+  だけで方針は不変）。
+
 ## 9. nav.toml への登録タイミング
 
 `nav::validate_sources` は `page.source` の実在を検査し、`build_site`
 は `MissingSource` でビルドを失敗させる。したがって **登録と原稿の
 同時投入が必須**。
 
-**確定**: 全 99 ページ分の `site/components/<kebab>.md` スタブ
+**確定**: 全 99 ページ分の `site/themes/<kebab>.md` スタブ
 （H1 + 1 行導入文のみ）を Phase 3（#943）で **一括作成**し、`nav.toml`
 へ一括登録する。理由:
 
@@ -472,17 +524,21 @@ GFM alerts 構文）へ代替した。docs サイトの Markdown サブセット
 HTML コメントに対応せず、コメントをそのまま書くと `&lt;!--…--&gt;`
 が段落テキストとして可視描画されてしまう（`render_markdown` に該当
 分岐がないため）ためである。admonition は (a) 現行パーサで実装可能、
-(b) `grep '\[!NOTE\]' site/components/` で未充填ページの充足率を機械
+(b) `grep '\[!NOTE\]' site/themes/` で未充填ページの充足率を機械
 計測できる、(c) 読者にも「未充填」であることが伝わる、の 3 点で
 HTML コメントに優位するため、#944 以降の充足率計測・Phase 4 実装は
 本代替を前提とすること（HTML コメント前提のテストを新設しない）。
+
+**改訂（2026-07-26、イシュー #1017、適用 #1031）**: これらの原稿は現在
+`site/themes/<kebab>.md` に存在する（#1017 で `site/components/` から
+移設）。上記の Phase 3（#943）一括作成の経緯自体は変更しない。
 
 ## 10. セキュリティ上の不変条件（OWASP 観点）
 
 本文書は後続 Phase の設計正になるため、後続実装が既存のセキュリティ
 不変条件を弱めないよう明文化する。
 
-- **A01 アクセス制御 / パストラバーサル**: `/components/<kebab-name>/`
+- **A01 アクセス制御 / パストラバーサル**: `/themes/<kebab-name>/`
   の kebab-case は `nav::validate_page_path` のセグメント allowlist
   （英数・`-`・`_`、`/` 始まり `/` 終わり）から **導出された** 規約で
   あり、緩和ではない。グループ配下ページの `page.source` も既存
@@ -526,6 +582,7 @@ HTML コメントに優位するため、#944 以降の充足率計測・Phase 4
 | §5 作業分割ラベルとの関係 | #945〜#948 |
 | §2 既存文書との関係 | #962 |
 | §3 総ページ数の将来増分（99 → 104） | #959（Phase 8 roster、pre-styled-ui 新規 mod 5 件） |
+| §8 の上書き適用（改訂 8.1） | #1015（設計）/ #1017・#1018（実装）/ #1031（本文改訂） |
 
 「Phase 2-2（#939）・Phase 3（#941〜#944）の実装者が本文書だけで仕様を
 決定できる」ことの検証: #939 の受け入れ条件「異常系 5 件以上がそれぞれ
@@ -555,6 +612,7 @@ OPEN）が本節と異なる IA を示した場合、本節を是正する。
 
 - `docs/design/docs-site-three-column-redesign.md`
 - `docs/design/component-coverage-map.md`
+- `docs/design/docs-site-primitives-themes-split.md`
 - `docs/policy/intentional-non-adoption.md`
 - `crates/docs-site/src/nav.rs`
 - `crates/docs-site/src/showcase.rs`
