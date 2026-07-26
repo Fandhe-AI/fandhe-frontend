@@ -372,7 +372,7 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
         // 本文の直後・前後ナビの手前へ追記する（モジュール doc の処理順
         // 注記参照）。索引ページ（`showcase::PAGE_PATH`）は #943 で
         // Rust 生成コンテンツを持たなくなったため `None` を返し、
-        // `site/components-pre-styled-ui.md` の Markdown 本文のみで完結する。
+        // `site/themes.md` の Markdown 本文のみで完結する。
         let generated = component_page::generated_content(&page.path);
         let mut extra_stylesheets: Vec<&str> = Vec::new();
         if generated.is_some() {

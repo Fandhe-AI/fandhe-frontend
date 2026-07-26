@@ -70,7 +70,7 @@ fn site_nav_registers_five_sections_with_expected_titles() {
             "Getting Started",
             "Guides",
             "Examples",
-            "Components",
+            "Themes",
             "API Reference"
         ]
     );
@@ -81,10 +81,11 @@ fn site_nav_registers_five_sections_with_expected_titles() {
 /// `index_path` は当該セクション配下ページの `path` と完全一致すること
 /// 自体は既に保証されているため、本テストは「値のドリフト」検知に限定する）。
 ///
-/// Components の `/components/pre-styled-ui/` は Phase 3
-/// （イシュー #1019 / #1015）で `/themes/` へ移行する予定である。
-/// この期待値は「暫定値だから直すべきもの」ではなく、Phase 3 が
-/// **意図的に更新する** 対象である。移行 PR ではここの期待値を更新すること。
+/// イシュー #1018 でセクション名を「Components」から「Themes」へ改称し、
+/// `index_path` を `/components/pre-styled-ui/` から `/themes/` へ移行した
+/// （Primitives = `fandhe-frontend-headless-ui` との対称構成、
+/// docs/design/docs-site-primitives-themes-split.md §3 参照）。旧 URL は
+/// `site/redirects.toml` で互換維持する。
 #[test]
 fn site_nav_declares_index_path_for_every_section() {
     let nav = load_nav();
@@ -99,7 +100,7 @@ fn site_nav_declares_index_path_for_every_section() {
             ("Getting Started", "/"),
             ("Guides", "/guides/"),
             ("Examples", "/examples/"),
-            ("Components", "/components/pre-styled-ui/"),
+            ("Themes", "/themes/"),
             ("API Reference", "/api/"),
         ]
     );
@@ -140,7 +141,11 @@ fn site_nav_declares_index_path_for_every_section() {
 /// `source`/`path` を `site/components/<kebab>.md` / `/components/<kebab>/`
 /// から `site/themes/<kebab>.md` / `/themes/<kebab>/` へ移行した
 /// （登録ページ総数 131 は不変。`/components/` 配下は索引ページ 1 件のみ
-/// 残る）。
+/// 残る）。イシュー #1018 で索引ページ自体を
+/// `site/components-pre-styled-ui.md` / `/components/pre-styled-ui/` から
+/// `site/themes.md` / `/themes/` へ移設した（登録ページ総数 131 は不変。
+/// `/components/` 配下の本体ページは 0 件になり、`/themes/` 配下は
+/// 部品 107 + 索引 1 = 108 件になる）。
 #[test]
 fn site_nav_registers_all_pages_with_expected_paths() {
     let nav = load_nav();
@@ -157,27 +162,29 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // 129 → 131 になった。
     assert_eq!(pages.len(), 131, "expected 131 pages, got {pages:?}");
 
-    // イシュー #1017 で部品ページが `/themes/` へ移行したため、
-    // `/components/` 配下に残るのは索引ページ（`/components/pre-styled-ui/`）
-    // 1 件のみ。
+    // イシュー #1018 で索引ページ自体も `/themes/` へ移設したため、
+    // `/components/` 配下に残る本体ページは 0 件（旧 URL はすべて
+    // site/redirects.toml でリダイレクト）。
     let component_index_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/components/"))
         .collect();
     assert_eq!(
         component_index_pages.len(),
-        1,
-        "expected 1 /components/ page (index only), got {component_index_pages:?}"
+        0,
+        "expected 0 /components/ pages (all migrated to /themes/), got {component_index_pages:?}"
     );
 
+    // `/themes/` 配下は部品ページ 107 件 + 索引ページ（`/themes/` 自身）1 件
+    // の 108 件（イシュー #1018）。
     let themes_pages: Vec<&(&str, &str)> = pages
         .iter()
         .filter(|(_, path)| path.starts_with("/themes/"))
         .collect();
     assert_eq!(
         themes_pages.len(),
-        107,
-        "expected 107 /themes/ pages (移行済み部品ページ), got {themes_pages:?}"
+        108,
+        "expected 108 /themes/ pages (107 部品 + 1 索引), got {themes_pages:?}"
     );
 
     let source_based_component_pages = pages
@@ -233,10 +240,7 @@ fn site_nav_registers_all_pages_with_expected_paths() {
             "examples/headless-pre-styled-ui/README.md",
             "/examples/headless-pre-styled-ui/",
         ),
-        (
-            "site/components-pre-styled-ui.md",
-            "/components/pre-styled-ui/",
-        ),
+        ("site/themes.md", "/themes/"),
         ("site/api.md", "/api/"),
         ("docs/api/component-api.md", "/api/component-api/"),
         ("docs/api/app-api.md", "/api/app-api/"),

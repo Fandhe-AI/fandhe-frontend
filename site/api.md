@@ -37,6 +37,6 @@ API Reference セクションは、公開 API の仕様をクレート別にま�
 ## 部品ごとの詳細
 
 部品ごとの Demo・Anatomy・`data-*` 属性表・利用例は、本セクションでは
-なく Components セクションの[コンポーネント索引](./components-pre-styled-ui.md)
+なく Themes セクションの[Themes 索引](./themes.md)
 配下にある部品ページ（`/themes/<kebab>/`。イシュー #1017 で
 `/components/<kebab>/` から移行）が正です。

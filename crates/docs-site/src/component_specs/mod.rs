@@ -3,7 +3,7 @@
 //!
 //! # 責務境界
 //!
-//! [`crate::showcase`] が Demo（`/components/pre-styled-ui/` ショーケース
+//! [`crate::showcase`] が Demo（`/themes/` ショーケース
 //! ページの実体でもある）の**正**であるのに対し、本モジュールは
 //! Features・API Reference の引数表・Examples・Accessibility という
 //! Radix / Ark UI 流の読み物構造の原稿データのみを持つ。

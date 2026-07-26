@@ -416,9 +416,11 @@ fn real_site_search_index_is_deterministic_covers_all_nav_pages_and_matches_html
         }
 
         // 8. data-scope 除外 + 非空確認: 部品ページ（`/themes/<kebab>/`。
-        // イシュー #1017 で `/components/<kebab>/` から移行し、索引ページ
-        // `/components/pre-styled-ui/` は `/themes/` 配下に存在しないため
-        // 除外条件は不要になった）の text が空でないこと。data-list
+        // イシュー #1017 で `/components/<kebab>/` から移行した）の text が
+        // 空でないこと。イシュー #1018 で索引ページも `/themes/` 配下
+        // （`/themes/` 自身）へ移設されたため `relative.starts_with("themes/")`
+        // には索引ページも含まれるが、索引ページも本文が非空であり
+        // このアサーションは変わらず成立する（除外条件の追加は不要）。data-list
         // 部品ページに限っては、実際に生成 HTML の
         // `data-scope="data-list"` 部分木内にのみ現れるデモ値 "Alice"
         // （`component_specs_nav_data.rs` の data-list デモ、上の

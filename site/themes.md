@@ -1,11 +1,17 @@
-# pre-styled-ui コンポーネント索引
+# Themes コンポーネント索引
 
-`fandhe-frontend-pre-styled-ui` が提供するスタイル済み UI コンポーネントの
-索引ページです。各部品は個別ページ（`/themes/<kebab-name>/`）へ分解されており、
-それぞれのページで docs サイトのビルド時に Rust 関数（`crates/docs-site/src/showcase.rs`・
+対応クレートは `fandhe-frontend-pre-styled-ui` です。同クレートが提供する
+スタイル済み UI コンポーネント（Themes）の索引ページであり、各部品は個別ページ
+（`/themes/<kebab-name>/`）へ分解されています。それぞれのページで docs サイトの
+ビルド時に Rust 関数（`crates/docs-site/src/showcase.rs`・
 `crates/docs-site/src/component_page.rs`）が実際に組み立てた SSR 静的レンダリング（Demo）を
 掲載しています。スタイルはテーマトークンと slot recipe から生成した専用 CSS
 （`assets/pre-styled-ui.css`）で適用されています。
+
+Themes は `fandhe-frontend-headless-ui`（Primitives）が提供する構造・
+アクセシビリティ（WAI-ARIA・キーボード操作）・表示状態（`data-*`）のみを持つ
+未装飾層の上に、見た目のスタイルを重ねた層です。Primitives 自体（anatomy・
+`data-*` 属性・WAI-ARIA 契約）を確認したい場合は Primitives セクションを参照してください。
 
 ## 掲示の読み方
 

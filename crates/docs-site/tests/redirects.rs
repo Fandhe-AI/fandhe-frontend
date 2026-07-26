@@ -233,12 +233,12 @@ fn build_succeeds_with_zero_redirects_when_manifest_is_absent() {
 
 /// イシュー #1016 時点で `site/redirects.toml` は 1 件のみを宣言していた
 /// （§2.4「未提供 URL への予防的移転案内」）。イシュー #1017 で既存 107
-/// 部品ページの `/components/<kebab>/` → `/themes/<kebab>/` 移行分を追記し、
-/// 現在は 108 件（予防的移転案内 1 + 部品ページ移行 107）。残り 1 件
-/// （`/components/pre-styled-ui/` 索引ページの `/themes/` 移設）は #1018 が
-/// 追加する。本値の更新が要る変更は fail-closed に検知する（黙って増減
-/// しても気付けるようにする意図。`tests/site_build.rs` のページ数固定と
-/// 同型）。
+/// 部品ページの `/components/<kebab>/` → `/themes/<kebab>/` 移行分を追記し
+/// 108 件（予防的移転案内 1 + 部品ページ移行 107）。イシュー #1018 で
+/// `/components/pre-styled-ui/`（索引ページの旧 URL）→ `/themes/` の
+/// リダイレクトを追加し、現在は 109 件。本値の更新が要る変更は
+/// fail-closed に検知する（黙って増減しても気付けるようにする意図。
+/// `tests/site_build.rs` のページ数固定と同型）。
 #[test]
 fn real_redirects_manifest_parses_and_validates_against_the_real_nav() {
     let repo_root = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -253,7 +253,7 @@ fn real_redirects_manifest_parses_and_validates_against_the_real_nav() {
         redirect::parse_redirects(&input).expect("site/redirects.toml should parse cleanly");
     assert_eq!(
         redirects.entries.len(),
-        108,
+        109,
         "site/redirects.toml の宣言件数が期待値と異なる: {:?}",
         redirects.entries
     );
@@ -334,13 +334,19 @@ fn every_themes_page_has_exactly_one_matching_components_redirect() {
     }
 
     // 逆方向: `/components/<kebab>/` 形式の宣言のうち、上記 themes 集合に
-    // 属さないものが存在しない（既存の予防的移転案内 `/components/` 1 件
-    // のみが例外として許容される）。
+    // 属さないものが存在しない（部品ページではなく索引扱いの 2 件のみが
+    // 例外として許容される。形状ベースで緩めず、名前付きの明示的
+    // allowlist として固定する。イシュー #1018 で `/components/pre-styled-ui/`
+    // を追加）。
+    const NON_PART_COMPONENT_FROMS: [&str; 2] = ["/components/", "/components/pre-styled-ui/"];
     let expected_froms: std::collections::BTreeSet<String> = themes_pages
         .iter()
         .map(|(kebab, _)| format!("/components/{kebab}/"))
         .collect();
     for entry in &redirects.entries {
+        if NON_PART_COMPONENT_FROMS.contains(&entry.from.as_str()) {
+            continue;
+        }
         let is_component_kebab_shape = entry.from.starts_with("/components/")
             && entry.from != "/components/"
             && entry.from.ends_with('/');
@@ -352,6 +358,29 @@ fn every_themes_page_has_exactly_one_matching_components_redirect() {
             "redirect from={:?} does not correspond to any site/themes/ page \
              (取り違え、または nav 側の kebab とのずれの可能性)",
             entry.from
+        );
+    }
+
+    // 肯定形: NON_PART_COMPONENT_FROMS の各 from がちょうど 1 件存在し、
+    // いずれも `/themes/`（Themes 索引）へ向いていることを固定する
+    // （形状ベースの一律スキップに緩めないための対となる検証、
+    // イシュー #1018）。
+    for from in NON_PART_COMPONENT_FROMS {
+        let matches: Vec<_> = redirects
+            .entries
+            .iter()
+            .filter(|e| e.from == from)
+            .collect();
+        assert_eq!(
+            matches.len(),
+            1,
+            "expected exactly one redirect declaration with from={from:?}, got {}: {matches:?}",
+            matches.len()
+        );
+        assert_eq!(
+            matches[0].to, "/themes/",
+            "redirect from={from:?} should point to /themes/, got {:?}",
+            matches[0].to
         );
     }
 }
