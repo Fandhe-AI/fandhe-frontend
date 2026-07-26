@@ -220,7 +220,7 @@ pub(super) fn rating_group_section() -> Node {
             rating_group::control(
                 None,
                 vec![],
-                vec![mk(1, true, true), mk(2, false, true), mk(3, false, false)],
+                vec![mk(1, false, true), mk(2, true, true), mk(3, false, false)],
             ),
             rating_group::hidden_input(Some("rating"), "2", false, vec![]),
         ],
