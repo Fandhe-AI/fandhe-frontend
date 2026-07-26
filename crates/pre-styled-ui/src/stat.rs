@@ -14,7 +14,8 @@
 //! `.claude/rules/coding-rust.md`「プレーンな HTML を尊重」に沿ってネイティブ
 //! 要素のセマンティクスへ寄せる判断）。`value-unit`/`help-text`/
 //! `up-indicator`/`down-indicator` は `<span>`。increase/decrease
-//! indicator 2 種は装飾用途のため `aria-hidden="true"` を固定で付与する
+//! indicator 2 種は装飾用途のため `aria-hidden="true"`
+//! （[`fandhe_frontend_headless_ui::aria_hidden`]）を固定で付与する
 //! （[`crate::button`] の loading spinner・[`crate::spinner`] と同型の
 //! 判断、`.claude/rules/code-comment-style.md` 参照）。
 //!
@@ -71,7 +72,7 @@ use crate::class_attr::drop_class_attr;
 use crate::css::decl;
 use crate::recipe::{Size, SlotRecipe, VariantValue};
 use fandhe_frontend_headless_ui::fandhe_frontend_core::Node;
-use fandhe_frontend_headless_ui::{anatomy, Anatomy};
+use fandhe_frontend_headless_ui::{anatomy, aria_hidden, Anatomy};
 
 /// `data-scope="stat"` を固定した本コンポーネントの anatomy。
 const ANATOMY: Anatomy = anatomy("stat");
@@ -249,7 +250,7 @@ pub fn help_text<'a>(attrs: Vec<(&'a str, &'a str)>, children: Vec<Node>) -> Nod
 /// （モジュール doc「プレーンな HTML を尊重するタグ選択」参照）。
 #[must_use]
 pub fn up_indicator<'a>(attrs: Vec<(&'a str, &'a str)>) -> Node {
-    let mut merged: Vec<(&str, &str)> = vec![("aria-hidden", "true")];
+    let mut merged: Vec<(&str, &str)> = vec![aria_hidden(true)];
     merged.extend(attrs);
     ANATOMY.part("up-indicator", "span", merged, vec![])
 }
@@ -257,7 +258,7 @@ pub fn up_indicator<'a>(attrs: Vec<(&'a str, &'a str)>) -> Node {
 /// down-indicator パーツ（`<span aria-hidden="true">`）を組み立てる。
 #[must_use]
 pub fn down_indicator<'a>(attrs: Vec<(&'a str, &'a str)>) -> Node {
-    let mut merged: Vec<(&str, &str)> = vec![("aria-hidden", "true")];
+    let mut merged: Vec<(&str, &str)> = vec![aria_hidden(true)];
     merged.extend(attrs);
     ANATOMY.part("down-indicator", "span", merged, vec![])
 }
@@ -311,6 +312,30 @@ mod tests {
         let down = render(&down_indicator(vec![]));
         assert!(down.starts_with(r#"<span data-scope="stat" data-part="down-indicator""#));
         assert!(down.contains(r#"aria-hidden="true""#));
+    }
+
+    /// イシュー #1060: 生タプル `("aria-hidden", "true")` を
+    /// `fandhe_frontend_headless_ui::aria_hidden(true)` ヘルパへ置換しても
+    /// 出力 HTML が完全不変であることを固定する回帰テスト。置換前後の
+    /// 双方で本テストが PASS することを実装時に確認済み（両者は同一の
+    /// `(&'static str, &'static str)` を返すため）。
+    #[test]
+    fn up_indicator_output_is_unchanged_by_aria_hidden_helper_migration() {
+        let html = render(&up_indicator(vec![]));
+        assert_eq!(
+            html,
+            r#"<span data-scope="stat" data-part="up-indicator" aria-hidden="true"></span>"#
+        );
+    }
+
+    /// イシュー #1060: down-indicator 側の同型固定。
+    #[test]
+    fn down_indicator_output_is_unchanged_by_aria_hidden_helper_migration() {
+        let html = render(&down_indicator(vec![]));
+        assert_eq!(
+            html,
+            r#"<span data-scope="stat" data-part="down-indicator" aria-hidden="true"></span>"#
+        );
     }
 
     #[test]
