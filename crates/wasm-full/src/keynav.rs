@@ -228,6 +228,58 @@
 //!   群を同期する（マウスクリックによる選択変更も同じ経路で追随する）。
 //!   Enter は APG Radio パターンの対象外のため no-op。
 //!
+//! # Combobox のキーボード仕様（ARIA 1.2 Combobox パターン準拠、イシュー #1071）
+//!
+//! `crates/headless-ui/src/combobox.rs`（イシュー #749）は Combobox の SSR
+//! 出力と状態機械（`Combobox` = `Disclosure` + `SingleSelect` + `TextInput`）
+//! のみを提供し、キーボードナビゲーションの実挙動を本モジュールへ申し送って
+//! いた。Combobox は Menu/Select と異なり `input`（`role="combobox"`）が実
+//! DOM フォーカスを保持し続けるテキストフィールドであるため、
+//! [`handle_menu_or_select_trigger_keydown`](wiring::handle_menu_or_select_trigger_keydown)
+//! を流用せず専用ハンドラ
+//! （[`handle_combobox_input_keydown`](wiring::handle_combobox_input_keydown)）
+//! を新設する。
+//!
+//! - **typeahead を実装しない**: input 自身がテキスト入力欄であり、
+//!   printable 文字キーはフィルタ入力としてブラウザの既定動作（キャレット
+//!   位置への文字挿入）へそのまま委ねる。Menu/Select 用の
+//!   [`is_typeahead_key`]/[`TypeaheadState`](wiring::TypeaheadState) は
+//!   Combobox の keydown ハンドラから一切呼ばない。
+//! - **ArrowLeft/ArrowRight/Tab を claim しない**: テキストフィールドでは
+//!   キャレット移動・フォーカス移動の既定動作であり、[`submenu_nav`] も
+//!   呼ばない（サブメニュー概念は Combobox に存在しない）。
+//! - **Home/End は open のときのみ** highlight 移動として claim する。
+//!   closed のときはキャレット移動（行頭/行末への移動）の既定動作を奪わない
+//!   （fail-closed、[`combobox_key_action`] 判定表参照）。
+//! - **Escape は open のときのみ** claim する。closed で claim すると
+//!   trigger への `click()` 合成（toggle）により誤って open してしまう
+//!   fail-open 回帰になるため、closed の Escape は必ず no-op とする
+//!   （[`combobox_key_action`] doc 参照）。
+//! - **Enter は open のときのみ** claim する。closed の Enter を奪うと
+//!   フォーム内 Combobox の既定 submit 挙動を壊すため no-op のままにする。
+//! - **`aria-activedescendant` は input 側へ書く**（`crates/headless-ui/src/combobox.rs`
+//!   の「input 側に配線する」契約、Menu/Select の content 側配線とは逆）。
+//!   [`wiring::set_highlight_on_host`]/[`wiring::clear_highlight_on_host`]
+//!   （[`wiring::set_highlight`]/[`wiring::clear_highlight`] の薄いラッパー化
+//!   後の実体）が `activedescendant_host` 引数でホスト要素を選べるようにし、
+//!   Combobox は input を、Menu/Select は引き続き content を渡す。
+//! - **`aria-expanded`/`hidden`/`data-state` は一切書かない**（本モジュールの
+//!   既存不変条件、モジュール doc §設計参照）。開閉は `trigger`
+//!   （`tabindex="-1"` 固定でフォーカスを受けない専用トリガー、
+//!   `combobox::trigger` doc 参照）への `HtmlElement::click()` 合成 →
+//!   `crate::headless` の静的マッピング表（`combobox`/`trigger` →
+//!   `"toggle"`、本イシューで追加）→ `dispatch("toggle")` → 再描画で
+//!   `combobox::input`/`combobox::trigger` が `state` から `aria-expanded`
+//!   を再出力する経路へ委譲する（Menu/Select の trigger 開閉と同型、#662
+//!   `menu`/`trigger-item` 整備と同種の対応）。確定（Enter）は highlight 中の
+//!   `combobox`/`item` への `click()` 合成 → `crate::headless` の
+//!   `combobox`/`item` → `"select"`（`data-value` 必須）→
+//!   `ComboboxAction::Select` へ委譲する（ark-ui の `closeOnSelect` 既定に
+//!   準拠し選択と同時に close、`crates/headless-ui/src/combobox.rs` の
+//!   `update` 実装参照）。
+//! - **選択後の入力値（label）反映は行わない**（#749 が明示した out-of-scope
+//!   のまま、`ComboboxAction::Select` は value のみを知り label を知らない）。
+//!
 //! # Listbox のキーボード仕様（WAI-ARIA APG Listbox パターン準拠、イシュー
 //! #1070）
 //!
@@ -804,6 +856,74 @@ pub fn submenu_nav(key: &str, modifiers: Modifiers) -> Option<SubmenuNav> {
         "ArrowRight" => Some(SubmenuNav::Open),
         "ArrowLeft" => Some(SubmenuNav::Close),
         _ => None,
+    }
+}
+
+/// Combobox の keydown が要求する操作種別（純粋層、web-sys 非依存、native
+/// `cargo test` 可。イシュー #1071、モジュール doc §Combobox 参照）。
+///
+/// Menu/Select 用の [`highlight_next_index`] 判定と異なり、Combobox は
+/// フォーカスを保持するのがテキスト `<input>` であるため、typeahead・
+/// キャレット移動（Home/End/ArrowLeft/ArrowRight）・フォーム submit
+/// （Enter）といったネイティブ input の既定動作と衝突しない範囲でのみ
+/// キーを claim する（[`combobox_key_action`] の判定表参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ComboboxKeyAction {
+    /// closed → open。`from_end` が `true` のとき初期 highlight は末尾の
+    /// 非 disabled 項目（ArrowUp で開いた場合）、`false` のとき先頭
+    /// （ArrowDown で開いた場合）。
+    Open {
+        /// 初期 highlight を末尾から始めるか（ArrowUp での open）。
+        from_end: bool,
+    },
+    /// open 中の highlight 移動（[`highlight_next_index`] へ委譲）。
+    MoveHighlight,
+    /// open 中の確定（highlight 中項目への `click()` 合成）。
+    Confirm,
+    /// open 中の Escape（highlight クリア + close 委譲）。
+    Close,
+}
+
+/// Combobox の keydown（`key`/`modifiers`/`is_open`）から
+/// [`ComboboxKeyAction`] を決定する純粋関数（web-sys 非依存、native
+/// `cargo test` 可。イシュー #1071）。
+///
+/// `None` は no-op（`prevent_default` しない）。判定表（モジュール doc
+/// §Combobox 参照）:
+///
+/// | key | closed | open |
+/// |---|---|---|
+/// | `ArrowDown` | `Open { from_end: false }` | `MoveHighlight` |
+/// | `ArrowUp` | `Open { from_end: true }` | `MoveHighlight` |
+/// | `Home`/`End` | `None`（キャレット移動を奪わない） | `MoveHighlight` |
+/// | `Enter` | `None`（フォーム submit 等の既定を奪わない） | `Confirm` |
+/// | `Escape` | `None`（**fail-closed**。closed で claim すると誤って open してしまう） | `Close` |
+/// | それ以外（`ArrowLeft`/`ArrowRight`/`Tab`/printable 文字・未知キー） | `None` | `None` |
+///
+/// 修飾キー（Ctrl/Alt/Meta）付きは open/closed いずれも `None`
+/// （[`Modifiers::any`]、既存モジュール方針を踏襲）。
+#[must_use]
+pub fn combobox_key_action(
+    key: &str,
+    modifiers: Modifiers,
+    is_open: bool,
+) -> Option<ComboboxKeyAction> {
+    if modifiers.any() {
+        return None;
+    }
+    if is_open {
+        match key {
+            "ArrowDown" | "ArrowUp" | "Home" | "End" => Some(ComboboxKeyAction::MoveHighlight),
+            "Enter" => Some(ComboboxKeyAction::Confirm),
+            "Escape" => Some(ComboboxKeyAction::Close),
+            _ => None,
+        }
+    } else {
+        match key {
+            "ArrowDown" => Some(ComboboxKeyAction::Open { from_end: false }),
+            "ArrowUp" => Some(ComboboxKeyAction::Open { from_end: true }),
+            _ => None,
+        }
     }
 }
 
@@ -2053,6 +2173,107 @@ mod tests {
         assert_eq!(submenu_nav("Enter", mods()), None);
         assert_eq!(submenu_nav("Escape", mods()), None);
     }
+
+    // --- combobox_key_action（イシュー #1071） ---
+
+    #[test]
+    fn combobox_key_action_closed_arrow_down_opens_from_start() {
+        assert_eq!(
+            combobox_key_action("ArrowDown", mods(), false),
+            Some(ComboboxKeyAction::Open { from_end: false })
+        );
+    }
+
+    #[test]
+    fn combobox_key_action_closed_arrow_up_opens_from_end() {
+        assert_eq!(
+            combobox_key_action("ArrowUp", mods(), false),
+            Some(ComboboxKeyAction::Open { from_end: true })
+        );
+    }
+
+    #[test]
+    fn combobox_key_action_closed_home_end_enter_are_noop() {
+        // キャレット移動・フォーム submit の既定動作を奪わない
+        // （受け入れ条件、モジュール doc §Combobox 参照）。
+        assert_eq!(combobox_key_action("Home", mods(), false), None);
+        assert_eq!(combobox_key_action("End", mods(), false), None);
+        assert_eq!(combobox_key_action("Enter", mods(), false), None);
+    }
+
+    #[test]
+    fn combobox_key_action_closed_escape_is_noop_fail_closed() {
+        // closed で Escape を claim すると toggle で誤って open してしまう
+        // fail-open 回帰（モジュール doc §Combobox 参照）。
+        assert_eq!(combobox_key_action("Escape", mods(), false), None);
+    }
+
+    #[test]
+    fn combobox_key_action_closed_typeahead_and_caret_keys_are_noop() {
+        assert_eq!(combobox_key_action("a", mods(), false), None);
+        assert_eq!(combobox_key_action("ArrowLeft", mods(), false), None);
+        assert_eq!(combobox_key_action("ArrowRight", mods(), false), None);
+        assert_eq!(combobox_key_action("Tab", mods(), false), None);
+    }
+
+    #[test]
+    fn combobox_key_action_open_arrow_and_home_end_move_highlight() {
+        assert_eq!(
+            combobox_key_action("ArrowDown", mods(), true),
+            Some(ComboboxKeyAction::MoveHighlight)
+        );
+        assert_eq!(
+            combobox_key_action("ArrowUp", mods(), true),
+            Some(ComboboxKeyAction::MoveHighlight)
+        );
+        assert_eq!(
+            combobox_key_action("Home", mods(), true),
+            Some(ComboboxKeyAction::MoveHighlight)
+        );
+        assert_eq!(
+            combobox_key_action("End", mods(), true),
+            Some(ComboboxKeyAction::MoveHighlight)
+        );
+    }
+
+    #[test]
+    fn combobox_key_action_open_enter_confirms() {
+        assert_eq!(
+            combobox_key_action("Enter", mods(), true),
+            Some(ComboboxKeyAction::Confirm)
+        );
+    }
+
+    #[test]
+    fn combobox_key_action_open_escape_closes() {
+        assert_eq!(
+            combobox_key_action("Escape", mods(), true),
+            Some(ComboboxKeyAction::Close)
+        );
+    }
+
+    #[test]
+    fn combobox_key_action_open_typeahead_and_caret_keys_are_noop() {
+        // typeahead はユーザー打鍵文字列を DOM へ露出させないため keynav では
+        // 実装しない（モジュール doc §Combobox・スコープ外事項参照）。
+        assert_eq!(combobox_key_action("a", mods(), true), None);
+        assert_eq!(combobox_key_action("ArrowLeft", mods(), true), None);
+        assert_eq!(combobox_key_action("ArrowRight", mods(), true), None);
+        assert_eq!(combobox_key_action("Tab", mods(), true), None);
+    }
+
+    #[test]
+    fn combobox_key_action_rejects_modifier_keys_open_and_closed() {
+        let ctrl = Modifiers {
+            ctrl: true,
+            ..Modifiers::default()
+        };
+        for is_open in [false, true] {
+            assert_eq!(combobox_key_action("ArrowDown", ctrl, is_open), None);
+            assert_eq!(combobox_key_action("Enter", ctrl, is_open), None);
+            assert_eq!(combobox_key_action("Escape", ctrl, is_open), None);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -2063,10 +2284,11 @@ mod tests {
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::{
-        accordion_next_index, first_non_disabled, highlight_next_index, is_typeahead_key,
-        last_non_disabled, listbox_next_index, loop_focus_from_attr, menu_loop_focus_from_attr,
-        radio_next_index, submenu_nav, tabs_next_index, typeahead_next_index, typeahead_push,
-        Modifiers, Orientation, SubmenuNav, MAX_SUBMENU_DEPTH, TYPEAHEAD_TIMEOUT_MS,
+        accordion_next_index, combobox_key_action, first_non_disabled, highlight_next_index,
+        is_typeahead_key, last_non_disabled, listbox_next_index, loop_focus_from_attr,
+        menu_loop_focus_from_attr, radio_next_index, submenu_nav, tabs_next_index,
+        typeahead_next_index, typeahead_push, ComboboxKeyAction, Modifiers, Orientation,
+        SubmenuNav, MAX_SUBMENU_DEPTH, TYPEAHEAD_TIMEOUT_MS,
     };
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
@@ -2110,6 +2332,22 @@ mod wiring {
     /// `[data-scope="radio-group"][data-part="item-text"]` セレクタ。
     const RADIO_GROUP_ITEM_TEXT_SELECTOR: &str =
         "[data-scope=\"radio-group\"][data-part=\"item-text\"]";
+    /// `[data-scope="combobox"][data-part="input"]` セレクタ（イシュー #1071。
+    /// `crates/headless-ui/src/combobox.rs::input`、`role="combobox"` を持つ
+    /// テキストフィールド。keydown の監視対象かつ `aria-activedescendant` の
+    /// 書き込み先）。
+    const COMBOBOX_INPUT_SELECTOR: &str = "[data-scope=\"combobox\"][data-part=\"input\"]";
+    /// `[data-scope="combobox"][data-part="trigger"]` セレクタ（イシュー
+    /// #1071。`tabindex="-1"` 固定でフォーカスを受けないため
+    /// [`matching_keydown_target`] には登録しない。開閉の `click()` 合成先
+    /// としてのみ使う）。
+    const COMBOBOX_TRIGGER_SELECTOR: &str = "[data-scope=\"combobox\"][data-part=\"trigger\"]";
+    /// `[data-scope="combobox"][data-part="content"]` セレクタ（イシュー
+    /// #1071）。
+    const COMBOBOX_CONTENT_SELECTOR: &str = "[data-scope=\"combobox\"][data-part=\"content\"]";
+    /// `[data-scope="combobox"][data-part="item"]` セレクタ（イシュー
+    /// #1071）。
+    const COMBOBOX_ITEM_SELECTOR: &str = "[data-scope=\"combobox\"][data-part=\"item\"]";
     /// `[data-scope="listbox"][data-part="content"]` セレクタ（イシュー
     /// #1070。`role="listbox"` + `tabindex="0"` を持ち、Menu/Select の
     /// trigger と異なり実 DOM フォーカスを直接保持する要素であり、keydown を
@@ -2498,10 +2736,21 @@ mod wiring {
     }
 
     /// `items[next_index]` のみへ `data-highlighted` を付与し、他項目からは
-    /// 除去する。`content` の `aria-activedescendant` を highlight 対象の
-    /// `id` へ更新し、`id` が欠落している場合は属性ごと除去する
-    /// （fail-safe、モジュール doc §Menu/Select 参照）。
-    fn set_highlight(items: &[Element], next_index: usize, content: &Element) {
+    /// 除去する。`activedescendant_host` の `aria-activedescendant` を
+    /// highlight 対象の `id` へ更新し、`id` が欠落している場合は属性ごと
+    /// 除去する（fail-safe、モジュール doc §Menu/Select 参照）。
+    ///
+    /// `activedescendant_host` は「`aria-activedescendant` を実際に読む側」
+    /// （フォーカスを保持する要素）であり、Menu/Select では content 自身、
+    /// Combobox では input（`crates/headless-ui/src/combobox.rs` の
+    /// 「`aria-activedescendant` は input 側に配線する」契約、モジュール
+    /// doc §Combobox 参照）と対象が異なるため引数として分離する
+    /// （イシュー #1071 で [`set_highlight`] から抽出）。
+    fn set_highlight_on_host(
+        items: &[Element],
+        next_index: usize,
+        activedescendant_host: &Element,
+    ) {
         for (i, item) in items.iter().enumerate() {
             if i == next_index {
                 set_dom_attribute(item, "data-highlighted", "");
@@ -2513,11 +2762,19 @@ mod wiring {
             .get(next_index)
             .and_then(|item| item.get_attribute("id"))
         {
-            Some(id) => set_dom_attribute(content, "aria-activedescendant", &id),
+            Some(id) => set_dom_attribute(activedescendant_host, "aria-activedescendant", &id),
             None => {
-                let _ = content.remove_attribute("aria-activedescendant");
+                let _ = activedescendant_host.remove_attribute("aria-activedescendant");
             }
         }
+    }
+
+    /// [`set_highlight_on_host`] の薄いラッパー。Menu/Select は
+    /// `aria-activedescendant` を content 自身へ書く既存契約のため、
+    /// `activedescendant_host` に `content` をそのまま渡す（呼び出し側の
+    /// シグネチャを変更しない、イシュー #1071 §並行実装との衝突対策）。
+    fn set_highlight(items: &[Element], next_index: usize, content: &Element) {
+        set_highlight_on_host(items, next_index, content)
     }
 
     /// `top_content` から [`resolve_active_content`] と同型の降下を行いながら、
@@ -2575,10 +2832,17 @@ mod wiring {
     /// open のままでも副作用として問題はない（highlight 表示が一時的に消える
     /// だけで、fail-closed な no-op と同じ安全側の状態になる）。
     fn clear_highlight(items: &[Element], content: &Element) {
+        clear_highlight_on_host(items, content)
+    }
+
+    /// [`clear_highlight`] の実体。`activedescendant_host` は
+    /// [`set_highlight_on_host`] と同じ理由（Combobox は input、Menu/Select
+    /// は content）で分離する（イシュー #1071）。
+    fn clear_highlight_on_host(items: &[Element], activedescendant_host: &Element) {
         for item in items {
             let _ = item.remove_attribute("data-highlighted");
         }
-        let _ = content.remove_attribute("aria-activedescendant");
+        let _ = activedescendant_host.remove_attribute("aria-activedescendant");
     }
 
     /// item の表示ラベルを読み取り専用で解決する（typeahead のラベル比較
@@ -3199,6 +3463,198 @@ mod wiring {
         }
     }
 
+    /// Combobox root（`[data-part="root"]`）を任意の子孫要素（`input`・
+    /// 生きた `content` 等）から解決する薄いヘルパ（イシュー #1071）。
+    /// `input` 起点に限定していた旧実装は、click 駆動の再描画で
+    /// `combobox_root`/`input` 自体が detached になるケース（Bugbot 指摘
+    /// "Stale root blocks open highlight"）で `query_selector` が生きた
+    /// DOM を見つけられない不具合があった。呼び出し元は必ず**生きている
+    /// ことが保証された**要素（例: [`resolve_menu_select_content`] が
+    /// `document.get_element_by_id` 経由で解決した content）を渡すこと
+    /// （モジュール doc §Combobox 参照）。
+    fn resolve_combobox_root(descendant: &Element) -> Option<Element> {
+        closest(descendant, "[data-part=\"root\"]")
+    }
+
+    /// `combobox_root` 配下の trigger（[`COMBOBOX_TRIGGER_SELECTOR`]）を
+    /// 解決し、`root`（keynav がマウントされた封じ込め境界）内であることを
+    /// 検査する（A01 対策、イシュー #1071）。`trigger` は `tabindex="-1"`
+    /// 固定でフォーカスを受けないため [`matching_keydown_target`] には
+    /// 登録されないが、開閉の `click()` 合成先として使う。
+    fn resolve_combobox_trigger(root: &Element, combobox_root: &Element) -> Option<Element> {
+        let trigger = combobox_root
+            .query_selector(COMBOBOX_TRIGGER_SELECTOR)
+            .ok()
+            .flatten()?;
+        if root.contains(Some(&trigger)) {
+            Some(trigger)
+        } else {
+            None
+        }
+    }
+
+    /// Combobox の `input`（`role="combobox"`）上の keydown を処理する
+    /// （イシュー #1071、モジュール doc §Combobox 参照）。
+    ///
+    /// [`handle_menu_or_select_trigger_keydown`] を流用しない理由・typeahead
+    /// を実装しない理由はモジュール doc §Combobox に記載。純粋層
+    /// [`combobox_key_action`] へキー判定を委譲し、本関数は DOM 解決・
+    /// 封じ込め検査・click 合成・highlight 反映のみを担う。
+    fn handle_combobox_input_keydown(root: &Element, input: &Element, event: &KeyboardEvent) {
+        if !root.contains(Some(input)) {
+            return;
+        }
+        let Some(content) = resolve_menu_select_content(input, COMBOBOX_CONTENT_SELECTOR) else {
+            return;
+        };
+        if !root.contains(Some(&content)) {
+            return;
+        }
+        let modifiers = modifiers_of(event);
+        let key = event.key();
+        let is_open = !content.has_attribute("hidden");
+        let Some(action) = combobox_key_action(&key, modifiers, is_open) else {
+            return;
+        };
+
+        match action {
+            ComboboxKeyAction::Open { from_end } => {
+                let Some(combobox_root) = resolve_combobox_root(input) else {
+                    return;
+                };
+                let Some(trigger) = resolve_combobox_trigger(root, &combobox_root) else {
+                    return;
+                };
+                event.prevent_default();
+                if let Ok(html_trigger) = trigger.clone().dyn_into::<HtmlElement>() {
+                    html_trigger.click();
+                }
+                // click 駆動の再描画で Combobox ツリー全体が置き換わると、
+                // click 前に解決していた `combobox_root` は detached になり
+                // `combobox_root.query_selector` は生きた DOM を見つけられない
+                // （Bugbot 指摘 "Stale root blocks open highlight"、イシュー
+                // #1071）。detached な `combobox_root` からの再クエリではなく、
+                // click 前の `input` が保持する `aria-controls` を
+                // `document.get_element_by_id` で解決する
+                // [`resolve_menu_select_content`]（属性の読み取りは要素が
+                // detached でも成功し、`get_element_by_id` は常に生きた
+                // document を探索するため、`input`/`combobox_root` 自体の
+                // detached 有無に依存しない）で "今の" content を取得し、
+                // その生きた content を起点に "今の" root/input を
+                // 再解決する。再解決失敗・依然 closed はいずれも no-op
+                // （fail-closed）。
+                let Some(content_after) =
+                    resolve_menu_select_content(input, COMBOBOX_CONTENT_SELECTOR)
+                else {
+                    return;
+                };
+                if !root.contains(Some(&content_after)) || content_after.has_attribute("hidden") {
+                    return;
+                }
+                let Some(combobox_root_after) = resolve_combobox_root(&content_after) else {
+                    return;
+                };
+                let Some(input_after) = combobox_root_after
+                    .query_selector(COMBOBOX_INPUT_SELECTOR)
+                    .ok()
+                    .flatten()
+                else {
+                    return;
+                };
+                if !root.contains(Some(&input_after)) {
+                    return;
+                }
+                let items = filter_own_scope_items(
+                    collect_parts(&content_after, COMBOBOX_ITEM_SELECTOR),
+                    &content_after,
+                    COMBOBOX_CONTENT_SELECTOR,
+                );
+                let disabled = disabled_flags(&items);
+                let initial = if from_end {
+                    last_non_disabled(&disabled)
+                } else {
+                    first_non_disabled(&disabled)
+                };
+                if let Some(idx) = initial {
+                    set_highlight_on_host(&items, idx, &input_after);
+                }
+            }
+            ComboboxKeyAction::MoveHighlight => {
+                event.prevent_default();
+                let items = filter_own_scope_items(
+                    collect_parts(&content, COMBOBOX_ITEM_SELECTOR),
+                    &content,
+                    COMBOBOX_CONTENT_SELECTOR,
+                );
+                let disabled = disabled_flags(&items);
+                let current = find_highlighted_index(&items);
+                let loop_focus =
+                    menu_loop_focus_from_attr(content.get_attribute("data-loop-focus").as_deref());
+                if let Some(next_index) =
+                    highlight_next_index(current, &key, loop_focus, modifiers, &disabled)
+                {
+                    set_highlight_on_host(&items, next_index, input);
+                }
+            }
+            ComboboxKeyAction::Confirm => {
+                // listbox が開いている間の Enter は、Menu/Select と同様に
+                // 常に既定動作（フォーム submit 等）をキャンセルする
+                // （Bugbot 指摘 "Open Enter skips preventDefault"、イシュー
+                // #1071）。ハイライト無し／disabled で確定処理自体を
+                // no-op にする場合でも、フォーカスはテキスト `input` に
+                // 残ったままなので `prevent_default` を先に呼び、早期
+                // return より前に確実に実行する。
+                event.prevent_default();
+                let items = filter_own_scope_items(
+                    collect_parts(&content, COMBOBOX_ITEM_SELECTOR),
+                    &content,
+                    COMBOBOX_CONTENT_SELECTOR,
+                );
+                let Some(highlighted_index) = find_highlighted_index(&items) else {
+                    return;
+                };
+                let disabled = disabled_flags(&items);
+                if disabled[highlighted_index] {
+                    return;
+                }
+                // Escape（Close）と同様、確定（選択+クローズ）でも
+                // highlight を先にクリアする。クリアしないと collapsed
+                // 後の Combobox が `aria-activedescendant` で hidden な
+                // option を指し続け、ARIA の collapsed-combobox ルール
+                // 違反として次に open するまで支援技術を混乱させる
+                // （Bugbot 指摘 "Confirm leaves activedescendant set"、
+                // イシュー #1071）。
+                clear_highlight_on_host(&items, input);
+                // 開閉と同様、確定も click → `crate::headless`（`combobox`/
+                // `item` → `"select"`、本イシューで追加）→ dispatch 経路へ
+                // 委譲する（モジュール doc §Combobox 参照）。
+                if let Ok(html_item) = items[highlighted_index].clone().dyn_into::<HtmlElement>() {
+                    html_item.click();
+                }
+            }
+            ComboboxKeyAction::Close => {
+                event.prevent_default();
+                let items = filter_own_scope_items(
+                    collect_parts(&content, COMBOBOX_ITEM_SELECTOR),
+                    &content,
+                    COMBOBOX_CONTENT_SELECTOR,
+                );
+                clear_highlight_on_host(&items, input);
+                // trigger 解決失敗時は highlight クリアのみ行い close は
+                // no-op（fail-closed、モジュール doc §Combobox 参照）。
+                let Some(combobox_root) = resolve_combobox_root(input) else {
+                    return;
+                };
+                let Some(trigger) = resolve_combobox_trigger(root, &combobox_root) else {
+                    return;
+                };
+                if let Ok(html_trigger) = trigger.clone().dyn_into::<HtmlElement>() {
+                    html_trigger.click();
+                }
+            }
+        }
+    }
+
     /// 項目 1 個分の RadioGroup `data-state`（`"checked"`/`"unchecked"`）を
     /// `item-hidden-input` 自身・祖先 `item`・その子孫 `item-control`/
     /// `item-text` へ同期する（`crates/headless-ui/src/radio_group.rs` の
@@ -3463,6 +3919,12 @@ mod wiring {
         if target.matches(RADIO_GROUP_INPUT_SELECTOR).unwrap_or(false) {
             return Some(("radio", target.clone()));
         }
+        // Combobox は input（`role="combobox"`）が実 DOM フォーカスを保持する
+        // （trigger は `tabindex="-1"` 固定でフォーカスを受けないため登録
+        // しない、モジュール doc §Combobox 参照、イシュー #1071）。
+        if target.matches(COMBOBOX_INPUT_SELECTOR).unwrap_or(false) {
+            return Some(("combobox", target.clone()));
+        }
         if target.matches(LISTBOX_CONTENT_SELECTOR).unwrap_or(false) {
             return Some(("listbox", target.clone()));
         }
@@ -3475,10 +3937,11 @@ mod wiring {
     ///
     /// - `keydown`: イベントターゲットが Tabs trigger / Accordion
     ///   item-trigger / Menu trigger / Select trigger / RadioGroup ネイティブ
-    ///   `<input type="radio">` / Listbox content のいずれかに一致する場合
-    ///   のみ処理する（[`handle_tabs_keydown`]/[`handle_accordion_keydown`]/
+    ///   `<input type="radio">` / Combobox `input`（イシュー #1071）/
+    ///   Listbox content（イシュー #1070）のいずれかに一致する場合のみ
+    ///   処理する（[`handle_tabs_keydown`]/[`handle_accordion_keydown`]/
     ///   [`handle_menu_or_select_trigger_keydown`]/[`handle_radio_keydown`]/
-    ///   [`handle_listbox_keydown`]、イシュー #1070）。
+    ///   [`handle_combobox_input_keydown`]/[`handle_listbox_keydown`]）。
     /// - `click`: Tabs trigger への委譲クリックで [`handle_trigger_click`]
     ///   を呼び、マウスクリック・manual activationMode 下の Enter/Space の
     ///   双方をカバーする（Menu/Select の決定はキーボード側で highlight 中
@@ -3538,6 +4001,11 @@ mod wiring {
                     &mut typeahead_state,
                 ),
                 "radio" => handle_radio_keydown(&keydown_root, &matched, &keyboard_event),
+                // typeahead 非適用（モジュール doc §Combobox 参照、イシュー
+                // #1071）のため `TypeaheadState` を渡さない。
+                "combobox" => {
+                    handle_combobox_input_keydown(&keydown_root, &matched, &keyboard_event)
+                }
                 "listbox" => handle_listbox_keydown(
                     &keydown_root,
                     &matched,
