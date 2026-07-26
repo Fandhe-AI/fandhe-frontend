@@ -94,6 +94,13 @@ jobs:
         # 代表 1 ページと部品ページ専用 CSS（showcase::STYLESHEET_REL_PATH）の
         # 存在も fail-closed で確認する。ページ総数の期待値は
         # crates/docs-site/tests/site_build.rs が保持し、ここでは二重管理しない。
+        #
+        # イシュー #1016: 旧 URL 互換のリダイレクトページ（`site/redirects.toml`、
+        # crates/docs-site/src/redirect.rs によるビルド生成物）の代表 1 件
+        # （components/index.html、`/components/` → `/components/pre-styled-ui/`）
+        # も同型の最終確認を行う。生成内容（4 要素の網羅・base_path 反映等）の
+        # 検証は crates/docs-site/tests/redirects.rs / no_js_contract.rs が担い、
+        # ここでは二重管理しない。
         run: |
           test -f "${RUNNER_TEMP}/docs-site-dist/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/site.css"
@@ -101,6 +108,7 @@ jobs:
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/search-index.json"
           test -f "${RUNNER_TEMP}/docs-site-dist/components/button/index.html"
           test -f "${RUNNER_TEMP}/docs-site-dist/assets/pre-styled-ui.css"
+          test -f "${RUNNER_TEMP}/docs-site-dist/components/index.html"
 
       - name: Upload Pages artifact
         # 要: runner に tar がインストール済み（upload-pages-artifact が内部で使用。
