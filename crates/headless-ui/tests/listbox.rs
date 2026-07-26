@@ -244,3 +244,148 @@ fn dispatch_payload_is_escaped_when_rendered_via_hydration_attrs() {
     assert!(!rendered.contains("<script>alert(1)</script>"));
     assert!(!rendered.contains(r#""><script"#));
 }
+
+// ---------------------------------------------------------------------
+// アクセシブルネーム経路の契約（イシュー #1067、受け入れ条件 2）
+//
+// `listbox::content` の `labelledby` 引数は opt-in（`Option`）である。
+// アクセシブルネームは `aria-labelledby`（`labelledby` 経由）に加えて
+// `aria-label`（呼び出し側 `attrs` 経由）でも成立するため、`labelledby`
+// を型で必須化すると正当な代替経路を塞いでしまう（`combobox` の
+// `controls`/`activedescendant` と異なり型必須化を採らない理由、
+// イシュー #1067 計画 §5）。代わりに「命名経路（`aria-labelledby` の
+// 実在参照 または `aria-label` 存在）のどちらかが必ず成立する」ことを
+// 契約テストで固定する。
+// ---------------------------------------------------------------------
+
+/// `role="listbox"` を持つ要素が、実在する `id` を指す `aria-labelledby`
+/// または非空の `aria-label` のいずれかを持つことを検証する
+/// （[`crates/headless-ui/tests/combobox.rs`] の `verify_combobox_aria_association`
+/// と同じ手書き部分文字列走査。属性値中に生の `"` が現れないという
+/// 既定エスケープの不変条件に依拠する点も同一）。
+fn verify_listbox_has_accessible_name(html: &str) -> Result<(), String> {
+    let tags = extract_open_tags(html);
+
+    let mut ids: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for tag in &tags {
+        if let Some(id) = attr(tag, "id") {
+            ids.insert(id);
+        }
+    }
+
+    for tag in &tags {
+        if attr(tag, "role") != Some("listbox") {
+            continue;
+        }
+        let labelledby = attr(tag, "aria-labelledby");
+        let label = attr(tag, "aria-label");
+
+        match (labelledby, label) {
+            (Some(target), _) if ids.contains(target) => {}
+            (_, Some(_)) => {}
+            (Some(target), None) => {
+                return Err(format!(
+                    "naming violation: aria-labelledby=\"{target}\" target id does not exist (dangling IDREF) and no aria-label fallback: <{tag}>"
+                ));
+            }
+            (None, None) => {
+                return Err(format!(
+                    "naming violation: role=\"listbox\" element has neither aria-labelledby nor aria-label: <{tag}>"
+                ));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// [`extract_open_tags`]/[`attr`] は `combobox.rs` 側の実装と意図的な重複
+/// （クレート境界を跨ぐ test helper 共有は Rust の統合テストでは不可能）。
+/// **規則を変更するときは両方のファイルを更新すること。**
+fn extract_open_tags(html: &str) -> Vec<&str> {
+    let mut tags = Vec::new();
+    let mut rest = html;
+    while let Some(lt) = rest.find('<') {
+        let after_lt = &rest[lt + 1..];
+        if after_lt.starts_with('/') {
+            match after_lt.find('>') {
+                Some(gt) => {
+                    rest = &after_lt[gt + 1..];
+                    continue;
+                }
+                None => break,
+            }
+        }
+        match after_lt.find('>') {
+            Some(gt) => {
+                tags.push(&after_lt[..gt]);
+                rest = &after_lt[gt + 1..];
+            }
+            None => break,
+        }
+    }
+    tags
+}
+
+fn attr<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
+    let needle = format!(" {name}=\"");
+    let start = tag.find(&needle)? + needle.len();
+    let rest = &tag[start..];
+    let end = rest.find('"')?;
+    Some(&rest[..end])
+}
+
+/// `labelledby` 経由の命名（実在参照）が `Ok(())` になることを固定する。
+#[test]
+fn verify_listbox_has_accessible_name_ok_via_labelledby() {
+    let label = listbox::label(Some("lb-label"), vec![], vec![text("Fruit")]);
+    let content = listbox::content(false, None, Some("lb-label"), None, vec![], vec![]);
+    let html = render(&fandhe_frontend_core::el(
+        "div",
+        vec![],
+        vec![label, content],
+    ));
+
+    assert_eq!(verify_listbox_has_accessible_name(&html), Ok(()));
+}
+
+/// `aria-label`（呼び出し側 `attrs` 経由）のみで命名が成立する代替経路も
+/// `Ok(())` になることを固定する（型必須化を採らない根拠の裏付け）。
+#[test]
+fn verify_listbox_has_accessible_name_ok_via_aria_label_attrs() {
+    let content = listbox::content(
+        false,
+        None,
+        None,
+        None,
+        vec![("aria-label", "Fruit")],
+        vec![],
+    );
+    let html = render(&content);
+
+    assert_eq!(verify_listbox_has_accessible_name(&html), Ok(()));
+}
+
+/// `labelledby`/`aria-label` のいずれも無いときに検知されることを固定
+/// する（opt-in 欠落の検知力の証明）。
+#[test]
+fn verify_listbox_has_accessible_name_detects_missing_naming() {
+    let content = listbox::content(false, None, None, None, vec![], vec![]);
+    let html = render(&content);
+
+    let result = verify_listbox_has_accessible_name(&html);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().starts_with("naming violation"));
+}
+
+/// `labelledby` が実在しない `id` を指し、かつ `aria-label` 代替も無い
+/// ときに検知されることを固定する（dangling IDREF）。
+#[test]
+fn verify_listbox_has_accessible_name_detects_dangling_labelledby_without_fallback() {
+    let content = listbox::content(false, None, Some("no-such-id"), None, vec![], vec![]);
+    let html = render(&content);
+
+    let result = verify_listbox_has_accessible_name(&html);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().starts_with("naming violation"));
+}
