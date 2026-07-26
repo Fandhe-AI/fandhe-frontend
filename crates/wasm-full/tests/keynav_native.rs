@@ -1,23 +1,24 @@
-//! `fandhe_frontend_wasm_full::keynav`（Tabs/Accordion/Menu/Select/RadioGroup
-//! のキーボード操作・イシュー #582・#583・#641（typeahead）、親 #581）の
-//! native テスト。
+//! `fandhe_frontend_wasm_full::keynav`（Tabs/Accordion/Menu/Select/RadioGroup/
+//! Listbox のキーボード操作・イシュー #582・#583・#641（typeahead）・#1070
+//! （Listbox）、親 #581）の native テスト。
 //!
 //! `keynav` モジュールの純粋層（[`tabs_next_index`]/[`accordion_next_index`]/
-//! [`highlight_next_index`]/[`radio_next_index`]/[`is_typeahead_key`]/
-//! [`typeahead_push`]/[`typeahead_next_index`]）は web-sys に依存しないため、
-//! `wasm32` ターゲット・実 DOM を介さず native の `cargo test --workspace` から
-//! 公開 API 経由で直接検証できる（`wasm-full/tests/nav_native.rs` と同じ
-//! 2 層構成方針）。詳細な網羅ケース（orientation 別 Arrow・disabled スキップ・
-//! loopFocus 有無・typeahead のバッファ/循環等）はモジュール内単体テスト
-//! （`crates/wasm-full/src/keynav.rs`）に既に持つため、本ファイルは「公開 API
-//! 経由で壊れていないか」の統合確認に絞る。配線層（`wire_keynav`、
-//! `#[cfg(target_arch = "wasm32")]`）の検証は `wasm-full/tests/keynav_browser.rs`
-//! （実ブラウザ）が担う。
+//! [`highlight_next_index`]/[`radio_next_index`]/[`listbox_next_index`]/
+//! [`is_typeahead_key`]/[`typeahead_push`]/[`typeahead_next_index`]）は
+//! web-sys に依存しないため、`wasm32` ターゲット・実 DOM を介さず native の
+//! `cargo test --workspace` から公開 API 経由で直接検証できる
+//! （`wasm-full/tests/nav_native.rs` と同じ 2 層構成方針）。詳細な網羅ケース
+//! （orientation 別 Arrow・disabled スキップ・loopFocus 有無・typeahead の
+//! バッファ/循環等）はモジュール内単体テスト（`crates/wasm-full/src/keynav.rs`）
+//! に既に持つため、本ファイルは「公開 API 経由で壊れていないか」の統合確認に
+//! 絞る。配線層（`wire_keynav`、`#[cfg(target_arch = "wasm32")]`）の検証は
+//! `wasm-full/tests/keynav_browser.rs`（実ブラウザ）が担う。
 
 use fandhe_frontend_wasm_full::keynav::{
-    accordion_next_index, highlight_next_index, is_typeahead_key, loop_focus_from_attr,
-    menu_loop_focus_from_attr, radio_next_index, submenu_nav, tabs_next_index,
-    typeahead_next_index, typeahead_push, Modifiers, Orientation, SubmenuNav, TYPEAHEAD_TIMEOUT_MS,
+    accordion_next_index, highlight_next_index, is_typeahead_key, listbox_next_index,
+    loop_focus_from_attr, menu_loop_focus_from_attr, radio_next_index, submenu_nav,
+    tabs_next_index, typeahead_next_index, typeahead_push, Modifiers, Orientation, SubmenuNav,
+    TYPEAHEAD_TIMEOUT_MS,
 };
 
 /// 検証 1: Tabs horizontal の ArrowRight/ArrowLeft がフォーカスを移動する。
@@ -586,6 +587,131 @@ fn menubar_submenu_highlight_navigation_reuses_highlight_next_index() {
     );
     assert_eq!(
         highlight_next_index(Some(2), "ArrowDown", false, Modifiers::default(), &disabled),
+        None
+    );
+}
+
+// ---------------------------------------------------------------------
+// Listbox（イシュー #1070）: `crates/wasm-full/src/keynav.rs` の
+// [`listbox_next_index`] を、Listbox の常時展開・trigger 非保持セマンティクス
+// の観点から検証する。配線層自身の DOM 挙動は実ブラウザテスト
+// （`keynav_browser.rs`）が担う。
+// ---------------------------------------------------------------------
+
+/// 検証 12（イシュー #1070）: Listbox 専用の [`listbox_next_index`] は
+/// 既定 Vertical で ArrowDown/ArrowUp のみが動き、Horizontal 方向のキーは
+/// no-op（`data-orientation` オプトインで軸を切り替える設計、モジュール doc
+/// §Listbox 参照）。
+#[test]
+fn listbox_vertical_arrow_keys_move_highlight() {
+    let disabled = [false, false, false];
+    assert_eq!(
+        listbox_next_index(
+            Some(0),
+            "ArrowDown",
+            Orientation::Vertical,
+            false,
+            Modifiers::default(),
+            &disabled
+        ),
+        Some(1)
+    );
+    assert_eq!(
+        listbox_next_index(
+            Some(1),
+            "ArrowUp",
+            Orientation::Vertical,
+            false,
+            Modifiers::default(),
+            &disabled
+        ),
+        Some(0)
+    );
+    assert_eq!(
+        listbox_next_index(
+            Some(0),
+            "ArrowRight",
+            Orientation::Vertical,
+            false,
+            Modifiers::default(),
+            &disabled
+        ),
+        None
+    );
+}
+
+/// 検証 13（イシュー #1070）: Home/End は disabled をスキップし、既定
+/// （`data-loop-focus` 欠落）では端で循環しない（[`menu_loop_focus_from_attr`]
+/// と loopFocus 既定を共有する契約の固定）。
+#[test]
+fn listbox_home_end_skip_disabled_and_default_does_not_loop() {
+    let disabled = [true, false, false, true];
+    assert_eq!(
+        listbox_next_index(
+            Some(2),
+            "Home",
+            Orientation::Vertical,
+            false,
+            Modifiers::default(),
+            &disabled
+        ),
+        Some(1)
+    );
+    assert_eq!(
+        listbox_next_index(
+            Some(1),
+            "End",
+            Orientation::Vertical,
+            false,
+            Modifiers::default(),
+            &disabled
+        ),
+        Some(2)
+    );
+
+    let all_enabled = [false, false, false];
+    assert_eq!(
+        listbox_next_index(
+            Some(2),
+            "ArrowDown",
+            Orientation::Vertical,
+            false,
+            Modifiers::default(),
+            &all_enabled
+        ),
+        None
+    );
+}
+
+/// 検証 14（イシュー #1070）: `data-loop-focus="true"` 明示時のみ端で循環し、
+/// 修飾キー付きは既知キーでも no-op（`"extended"` selection mode との衝突
+/// 回避、モジュール doc §Listbox 参照）。
+#[test]
+fn listbox_loop_focus_true_wraps_and_modifiers_are_noop() {
+    let disabled = [false, false, false];
+    assert_eq!(
+        listbox_next_index(
+            Some(2),
+            "ArrowDown",
+            Orientation::Vertical,
+            true,
+            Modifiers::default(),
+            &disabled
+        ),
+        Some(0)
+    );
+    assert_eq!(
+        listbox_next_index(
+            Some(0),
+            "ArrowDown",
+            Orientation::Vertical,
+            true,
+            Modifiers {
+                ctrl: true,
+                ..Modifiers::default()
+            },
+            &disabled
+        ),
         None
     );
 }

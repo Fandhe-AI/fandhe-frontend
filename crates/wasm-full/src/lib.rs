@@ -342,8 +342,8 @@ where
     ///
     /// `component.view()` → [`dom::render_component_html`]（既定エスケープ済み
     /// 出力）を `root_id` 要素へ [`dom::mount_initial`] で反映し、続けて
-    /// [`events::wire_events`]・[`keynav::wire_keynav`]（イシュー #582・#583、
-    /// Tabs/Accordion/Menu/Select/RadioGroup のキーボード操作）・
+    /// [`events::wire_events`]・[`keynav::wire_keynav`]（イシュー #582・#583・
+    /// #1070、Tabs/Accordion/Menu/Select/RadioGroup/Listbox のキーボード操作）・
     /// [`focus_visible::wire_focus_visible`]（イシュー #709、hidden-input
     /// パターンのフォーカスリング）・
     /// [`headless_avatar::wire_avatar_events`]（イシュー #591・#711・#731、
