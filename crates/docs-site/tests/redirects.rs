@@ -204,7 +204,14 @@ fn build_reflects_base_path_in_redirect_href_not_the_bare_target() {
     let html = std::fs::read_to_string(out_dir.join("old/index.html")).unwrap();
     assert!(html.contains("/fixture-base/"));
     // 素の `to`（`base_path` 抜き）がどこにも現れないことの回帰防止。
-    assert!(!html.contains(r#"url="/"#) || html.contains(r#"url="/fixture-base/""#));
+    // `redirect_page` は `content` 属性値を非クォートの
+    // `format!("0; url={to_href}")` で埋め込む（`redirect.rs` 参照）ため、
+    // クォート付き `url="/` 形は実装上決して現れず、それを探す旧 assert は
+    // 常に true で回帰を検知できなかった（Cursor Bugbot 指摘）。
+    // `base_path` 抜きの裸の `to`（`url=/"`）がちょうど閉じクォートへ
+    // 直結する形が現れないことを直接固定する
+    // （`redirect.rs::redirect_page_reflects_base_path_in_href` と同一パターン）。
+    assert!(!html.contains(r#"url=/""#));
     assert!(!html.contains(r#"href="/">"#));
 }
 
