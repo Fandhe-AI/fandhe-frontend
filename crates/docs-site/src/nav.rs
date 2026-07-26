@@ -1820,7 +1820,19 @@ path = "/p1/"
         let reference_trigger_idx = html
             .find(r#"href="/fandhe-frontend/reference/api/""#)
             .unwrap();
-        let reference_trigger_slice = &html[reference_trigger_idx..reference_trigger_idx + 120];
+        // 固定バイト幅の範囲演算子（`idx..idx+120`）はマルチバイト文字が
+        // 境界にかかると char 境界不一致でパニックし得るため、
+        // `char_indices` で 120 バイト以内に収まる直近の char 境界を
+        // 探して切り出す安全な実装にする（レビュー指摘）。
+        let rest = &html[reference_trigger_idx..];
+        let safe_end = rest
+            .char_indices()
+            .map(|(byte_idx, _)| byte_idx)
+            .chain(std::iter::once(rest.len()))
+            .take_while(|&byte_idx| byte_idx <= 120)
+            .last()
+            .unwrap_or(0);
+        let reference_trigger_slice = &rest[..safe_end];
         assert!(!reference_trigger_slice.contains(r#"aria-current="true""#));
     }
 
