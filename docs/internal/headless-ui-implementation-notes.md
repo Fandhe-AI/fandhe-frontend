@@ -237,6 +237,99 @@ ark-ui / chakra-ui のレイアウト・ナビゲーション系コンポーネ�
 | ImageCropper | `image_cropper` | #844（`docs/policy/intentional-non-adoption.md` §3.22 の再導入、先例は AngleSlider #842） |
 | Fieldset | `fieldset` | #602 |
 
+## S. combobox / listbox の ARIA 関連付け opt-in 監査（イシュー #1067）
+
+**背景**: `combobox::input`（`crates/headless-ui/src/combobox.rs:167-205`）の
+`controls: Option<&str>`（`aria-controls`）/`activedescendant: Option<&str>`
+（`aria-activedescendant`）、`combobox::trigger`（同 `:212-238`）の `controls`
+は opt-in（`Option`）であり、呼び出し側が `None` を渡すと ARIA 1.2 combobox
+パターン必須の関連付けが欠落した非準拠マークアップがそのまま出荷され得る。
+`fandhe-frontend-pre-styled-ui`（`crates/pre-styled-ui/src/combobox.rs:79-82`）
+は `input`/`trigger`/`content` を素通しで再エクスポートするのみで、追加の
+強制はない。
+
+**リポジトリ内呼び出しの全数調査（実測）**: `crates/`+`examples/`+`templates/`
+全走査の結果、`combobox::input`/`trigger`/`content` の実呼び出しは 3 箇所。
+
+| 呼び出し | 状態 | 関連付け | 判定 |
+|---|---|---|---|
+| `crates/docs-site/src/primitive_showcase/forms_a.rs:197`（Primitives Demo） | open | `controls=Some("cb-content")`・`activedescendant=Some("cb-item-0")`、ハイライト item（`id=Some("cb-item-0")`）と対応 | 準拠 |
+| `crates/docs-site/src/showcase.rs:2178`（Themes showcase） | open | `controls=Some(...)`・`activedescendant=None`、ハイライト item 0 件 | 準拠（R3 は「ハイライト item が存在するとき」のみ必須） |
+| `crates/docs-site/src/primitive_specs/forms_a.rs:565`（Examples 原稿） | closed | `content` 要素自体を描画せず 3 引数とも `None` | 準拠（ARIA 上、popup が DOM に存在しないとき `aria-controls` を持たないのが正しい） |
+
+**listbox `aria-labelledby` opt-in の監査（受け入れ条件 2）**: `listbox::content`
+（`crates/headless-ui/src/listbox.rs:127-151`）の `labelledby: Option<&str>` も
+同様に opt-in。呼び出しは 4 箇所（`crates/docs-site/src/primitive_showcase/forms_a.rs:425`
+/ `crates/docs-site/src/primitive_specs/forms_a.rs:1126` /
+`crates/docs-site/src/showcase.rs:2041` / `:2088`）で、いずれも
+`labelledby: Some(...)` を渡し、同一断片内の `listbox::label` の `id` と対応
+している（準拠）。
+
+**方針決定: 型必須化ではなく契約テストを採用**。理由:
+
+1. `aria-controls` は popup 要素が DOM に存在するときにのみ意味を持つ。
+   `primitive_specs/forms_a.rs:565` のように closed で `content` 自体を
+   描画しない構成で `controls: &str` を必須化すると、参照先の存在しない
+   dangling IDREF を必ず出力することになり、支援技術にとって欠落より
+   悪化する。
+2. `aria-activedescendant` が必須になるのは「ハイライト中の option が
+   存在するとき」だが、`input()` は item 群を知らない。型で表現するには
+   anatomy 全体を 1 関数に閉じる設計変更が必要で、本クレートの
+   「パーツ関数を利用者が組み立てる」設計原則（`../api/component-api.md`）
+   に反する。
+3. `listbox` のアクセシブルネームは `aria-labelledby` に加えて
+   `aria-label`（呼び出し側 `attrs` 経由）でも成立するため、`labelledby`
+   を必須化すると正当な代替経路を塞ぐ。
+
+**見送った代替案（`ComboboxPopup` 型必須化）**:
+
+```rust
+pub enum ComboboxPopup<'a> {
+    Present { content_id: &'a str, active_item_id: Option<&'a str> },
+    Absent,
+}
+```
+
+`input(state, value, disabled, popup: ComboboxPopup<'a>, name, attrs)` と
+すれば「popup を描画するなら content_id は必須」を型で表現できるが、
+コストは破壊的変更（0.25.0 → 0.26.0）＋ pre-styled-ui/wasm-full/xtask の
+`version = "..."` 追随＋ docs-site の引数表・Examples 原稿の書き換えであり、
+上記 1〜2 の欠陥（`Absent` + `state=Open` は依然表現可能、
+`activedescendant` は依然 `Option`）を完全には解消しない。
+**再評価トリガー**: 外部 crates.io 利用者への強制が運用上必要と判明した
+場合（例: 実際に非準拠なマークアップが外部プロジェクトから報告された等）。
+
+**実装した契約テスト**（規則本文は 3 箇所で意図的に重複実装。規則を変更する
+ときは全て更新すること）:
+
+- `crates/headless-ui/tests/combobox.rs`: `verify_combobox_aria_association`
+  （R1〜R4）。R1: `role="combobox"` かつ `aria-expanded="true"` は
+  `aria-controls` 必須。R2: `aria-controls` の参照先は実在し
+  `role="listbox"` を持つ（dangling IDREF・誤配線の禁止）。R3: ハイライト
+  item（`role="option"` かつ `data-highlighted`）が存在するとき
+  `aria-activedescendant` が必須でハイライト item の `id` と一致する。
+  R4: `aria-activedescendant` の参照先は実在する。複数 combobox
+  インスタンスが同一断片に共存する場合を考慮し、`combobox::root` が出力
+  する `data-scope="combobox" data-part="root"` マーカーでインスタンス
+  単位にスコープを区切ってから R3 を判定する（`scoped_open_tags`。実測:
+  `/primitives/combobox/` は開いた本体 combobox とハイライト item 0 件の
+  閉じた Examples 用 combobox の 2 インスタンスが共存し、スコープを区切ら
+  ないと無関係な誤検知が生じることを確認済み）。
+- `crates/headless-ui/tests/listbox.rs`: `verify_listbox_has_accessible_name`
+  （`aria-labelledby` の実在参照 または `aria-label` のいずれかが必ず成立
+  することを検証）。
+- `crates/docs-site/tests/combobox_aria_association.rs`: 上記 2 規則を
+  Primitives 全 63 ページ + Themes 全 107 ページの実出荷 HTML
+  （`component_page::generated_content`）へ適用する回帰テスト。将来ページが
+  増えても自動的に対象へ含まれる。mutation テスト（`Some(...)`→`None` への
+  一時書き換えで R1/R3 いずれも赤くなることを確認、コミットには含めない）で
+  検知力を実地検証済み。
+
+**残存リスク（受容）**: 本契約はリポジトリ内の呼び出し側のみを拘束する。
+crates.io 経由の外部利用者が `None` を渡す経路は塞がらない。型必須化が
+唯一の完全な強制手段だが、ARIA 上の不整合と破壊的変更コストにより上記の
+とおり見送る。
+
 ## R. 関連文書
 
 - `../api/headless-ui-api.md`

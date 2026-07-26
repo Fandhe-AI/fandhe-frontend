@@ -104,6 +104,32 @@
 | [ImageCropper](../../site/themes/image-cropper.md) | `image_cropper` | Root/Viewport/Image/Selection/Handle/Grid | 独自実装（crop 矩形 `x`/`y`/`width`/`height`（`u32`）の整数純粋状態機械。canvas・ポインタ座標・浮動小数点を一切扱わず、アスペクト比固定時は `width` 主導・`height` 従属の整数丸めで導出し、範囲外なら `width` を再クランプしてから再導出する fail-closed 契約。dispatch は `"move"`/`"resize"`（[`HandlePosition`] の 8 方位）/`"set"`/`"reset"`、payload はクライアント由来の信頼できない入力として厳密パース + fail-closed で扱う。実画像切り出し（ピクセルデータ生成）はスコープ外） |
 | Fieldset | `fieldset` | Root/Legend/HelperText/ErrorText | なし（`field` と同じ判断で `disabled`/`invalid` は呼び出し側が決める SSR 静的な props。ネイティブ `<fieldset>`/`<legend>` の `disabled` 伝播・アクセシブルネーム自動関連付けを前提とし、`error_text` は非該当時 `hidden` 存在属性を付与する fail-closed 描画（`field::error_text` と同型）） |
 
+## 4z. combobox / listbox の ARIA 関連付けは呼び出し側責務
+
+`combobox::input`/`combobox::trigger` の `controls`/`activedescendant`
+（`aria-controls`/`aria-activedescendant`）、`listbox::content` の
+`labelledby`（`aria-labelledby`）はいずれも `Option` の opt-in 引数であり、
+本クレートは値を強制しない（構造・アクセシビリティの anatomy は提供するが、
+呼び出し側が渡す値の正しさまでは型で保証しない）。
+
+- **combobox**: popup（`content`）を描画するインスタンスは
+  `controls` に `content` の `id` を渡すこと。ハイライト中の候補
+  （`item` の `highlighted` 引数）が存在する構成では
+  `activedescendant` にその候補の `id` を渡すこと（ARIA 1.2 combobox
+  パターン、フォーカスを保持する `input` 側に配線する。`content` 側では
+  ない）。
+- **listbox**: `content` のアクセシブルネームは `labelledby`（対応する
+  `label` の `id`）または呼び出し側 `attrs` 経由の `aria-label` の
+  いずれかで必ず与えること。
+
+リポジトリ内呼び出し（docs-site の Primitives/Themes 全ページ）はこの
+規約に準拠しており、`crates/headless-ui/tests/combobox.rs`・
+`crates/headless-ui/tests/listbox.rs`・
+`crates/docs-site/tests/combobox_aria_association.rs` が契約テストとして
+固定・回帰防止している。監査結果・型必須化を採らなかった判断根拠・
+再評価トリガーは
+`../internal/headless-ui-implementation-notes.md` §S を参照。
+
 ## 4a0. 色変換コア（`color`）
 
 `color` モジュールは anatomy を持たない純粋関数モジュールであり、上表の
