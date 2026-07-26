@@ -183,15 +183,17 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // 加わり、125 → 127 になった。イシュー #996 で Tab Nav
     // （`site/components/tab-nav.md`）が加わり、127 → 128 になった。
     // イシュー #997 で Checkbox Group（`site/components/checkbox-group.md`）
-    // が加わり、128 → 129 になった。
+    // が加わり、128 → 129 になった。イシュー #1009 で Guides / API Reference
+    // のセクショントップページ（`site/guides.md` / `site/api.md`）2 ページが
+    // 加わり、129 → 131 になった（部品ページ 107 件は不変）。
     assert_eq!(
         report.written.len(),
-        129,
+        131,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
 
-    // 上の 129 は「その時点の実測値」であり、Phase 6/7/8 でページが増減したら
+    // 上の 131 は「その時点の実測値」であり、Phase 6/7/8 でページが増減したら
     // 更新が要る。恒等契約（nav 登録数 = 生成ページ数）そのものは値に依存しない
     // 形でも固定し、片方だけ更新して片方が形骸化する事故を防ぐ。
     let nav_toml = std::fs::read_to_string(repo_root.join("site/nav.toml"))

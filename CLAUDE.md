@@ -33,6 +33,8 @@ fandhe-frontend/
 │       └── 06-roadmap.md       # MS-1〜MS-5・着手判定
 ├── site/                     # docs サイト原稿（crates/docs-site が SSG でビルド。site/assets/ は #905 で廃止済み、骨格 CSS はビルド生成）
 │   ├── index.md
+│   ├── guides.md               # Guides セクショントップページ原稿（配下 4 ガイドへの索引、イシュー #1009）
+│   ├── api.md                  # API Reference セクショントップページ原稿（クレート別 9 ページ索引、イシュー #1009）
 │   ├── components-pre-styled-ui.md  # pre-styled-ui コンポーネント索引ページ原稿（凡例 + カテゴリ別リンク集、イシュー #943）
 │   ├── components/            # 部品ページ原稿（`/components/<kebab>/` 1 ページ = 部品 1 件、イシュー #943。台帳は `docs/design/docs-site-component-pages.md` §3、登録の正は `site/nav.toml`、ページ数の期待値は `crates/docs-site/tests/site_nav.rs`）
 │   └── nav.toml               # ナビゲーション構成マニフェスト
