@@ -8,6 +8,33 @@
 #   self-hosted runner に前提できないため、`docs/ci/ci-runner-requirements.md`
 #   の未解決要件に依存する CI 化は見送っている）。
 #
+# 撮影マトリクスの追随（イシュー #1033）:
+# - イシュー #1017/#1018 で部品ページ URL が `/components/<kebab>/` から
+#   `/themes/<kebab>/` へ移行し、`/components/<kebab>/` は
+#   `meta refresh` による移転案内へ置き換わった。#960 時点のマトリクスが
+#   `/components/button/` `/components/dialog/` `/components/pre-styled-ui/`
+#   を撮っていたままだと、実際には「移転先ページ」の証跡になり
+#   ラベルと内容が食い違う（meta refresh は `script-src 'none'` の下でも
+#   発火するため no-JS 撮影でも移転先が写る）。#1033 でマトリクスを
+#   Primitives（`/primitives/`）/ Themes（`/themes/`）の 2 層構成へ
+#   追随させた。旧 `/components/...` を撮る P2/P3/P7 相当は
+#   `/themes/...` へ差し替え、Primitives 代表（accordion・dialog・
+#   `data-*` 表を持たない部品の代表 visually-hidden）・両索引ページを追加した。
+# - 計画時点では「`/components/button/` no-JS」を撮れば meta refresh 追従後の
+#   `/themes/button/` が end-to-end 証跡として写る想定だったが、実装時の
+#   実測で **headless chromium の `--screenshot` は CSP
+#   `script-src 'none'` 配信下で `<meta http-equiv="refresh">` ページを開く
+#   と無期限にハングする**ことを確認した（同一ページを CSP 無しの通常配信
+#   で開く、または同じ CSP 配信で通常ページ（非リダイレクト）を開く場合は
+#   数秒で成功する。CSP + meta-refresh の組み合わせのみが再現条件）。
+#   40 秒 `timeout` を掛けても exit 124 で確実にハングし、リトライで解消
+#   しないため、この撮影は本スクリプトのマトリクスに含めない（1 枚のために
+#   全体を無期限にブロックする fail-closed 経路を持ち込まない判断）。
+#   観点 6（旧 URL 互換）の end-to-end 確認は、meta refresh・canonical・
+#   robots noindex・静的 `<a>` の 4 要素を HTML 直接検証する手段（既存
+#   `crates/docs-site/tests/redirects.rs` / `no_js_contract.rs`）で担保する。
+#   詳細は `docs/reports/docs-site-redesign-regression-report.md` §13/§16。
+#
 # 何をするか:
 # 1. `cargo run -p fandhe-frontend-docs-site -- --out <dir>` で実サイトを
 #    ビルドする（内蔵 linkcheck が fail-closed のため、成功が全ページ生成の
@@ -293,54 +320,80 @@ shoot() {
   echo "shot ok: $name ($bytes bytes)"
 }
 
-# P1: トップ（D・G・E の一次証跡）
+# P1: トップ（D・G・E の一次証跡、既存継続）
 for w_h in "1440x900" "768x1024" "375x812"; do
   w="${w_h%x*}"; h="${w_h#*x}"
   shoot "p1-top-${w}-light" "/fandhe-frontend/" "$w" "$h" light js "$PORT_LIGHT"
   shoot "p1-top-${w}-dark" "/fandhe-frontend/" "$w" "$h" dark js "$PORT_DARK"
 done
 
-# P2: 部品ページ（Forms 代表、button）
+# P2: Themes 部品ページ（accordion。CSS 変数表を持つ代表、観点 5・8・9）
 for w_h in "1440x900" "768x1024" "375x812"; do
   w="${w_h%x*}"; h="${w_h#*x}"
-  shoot "p2-button-${w}-light" "/fandhe-frontend/components/button/" "$w" "$h" light js "$PORT_LIGHT"
-  shoot "p2-button-${w}-dark" "/fandhe-frontend/components/button/" "$w" "$h" dark js "$PORT_DARK"
+  shoot "p2-themes-accordion-${w}-light" "/fandhe-frontend/themes/accordion/" "$w" "$h" light js "$PORT_LIGHT"
+  shoot "p2-themes-accordion-${w}-dark" "/fandhe-frontend/themes/accordion/" "$w" "$h" dark js "$PORT_DARK"
 done
 
-# P3: 部品ページ（Overlay 代表、dialog。F のテーブル横スクロール証跡）
+# P3: Themes の Overlay 代表（dialog。F のテーブル横スクロール証跡の継続）
 for w_h in "1440x900" "375x812"; do
   w="${w_h%x*}"; h="${w_h#*x}"
-  shoot "p3-dialog-${w}-light" "/fandhe-frontend/components/dialog/" "$w" "$h" light js "$PORT_LIGHT"
-  shoot "p3-dialog-${w}-dark" "/fandhe-frontend/components/dialog/" "$w" "$h" dark js "$PORT_DARK"
+  shoot "p3-themes-dialog-${w}-light" "/fandhe-frontend/themes/dialog/" "$w" "$h" light js "$PORT_LIGHT"
+  shoot "p3-themes-dialog-${w}-dark" "/fandhe-frontend/themes/dialog/" "$w" "$h" dark js "$PORT_DARK"
 done
 
-# P4: API Reference（C・F）
+# P4: Primitives 部品ページ（accordion。unstyled デモの判読性、観点 4・8・9）
+for w_h in "1440x900" "768x1024" "375x812"; do
+  w="${w_h%x*}"; h="${w_h#*x}"
+  shoot "p4-primitives-accordion-${w}-light" "/fandhe-frontend/primitives/accordion/" "$w" "$h" light js "$PORT_LIGHT"
+  shoot "p4-primitives-accordion-${w}-dark" "/fandhe-frontend/primitives/accordion/" "$w" "$h" dark js "$PORT_DARK"
+done
+
+# P5: Primitives の Overlay 代表（dialog、観点 4・8）
 for w_h in "1440x900" "375x812"; do
   w="${w_h%x*}"; h="${w_h#*x}"
-  shoot "p4-api-headless-ui-${w}-light" "/fandhe-frontend/api/headless-ui-api/" "$w" "$h" light js "$PORT_LIGHT"
-  shoot "p4-api-headless-ui-${w}-dark" "/fandhe-frontend/api/headless-ui-api/" "$w" "$h" dark js "$PORT_DARK"
+  shoot "p5-primitives-dialog-${w}-light" "/fandhe-frontend/primitives/dialog/" "$w" "$h" light js "$PORT_LIGHT"
+  shoot "p5-primitives-dialog-${w}-dark" "/fandhe-frontend/primitives/dialog/" "$w" "$h" dark js "$PORT_DARK"
 done
 
-# P5: Guides（レスポンシブ確認、1440/375 のみ）
-shoot "p5-quickstart-1440-light" "/fandhe-frontend/getting-started/quickstart/" 1440 900 light js "$PORT_LIGHT"
-shoot "p5-quickstart-375-light" "/fandhe-frontend/getting-started/quickstart/" 375 812 light js "$PORT_LIGHT"
+# P6: `data-*` 表を持たない 13 部品の代表（visually-hidden、light のみ）。
+# 表が生成されない部品でもページとして破綻しないことの視覚的裏付け
+# （観点 4 の「合格（導出規則の説明付き）」の裏付け証跡。ダーク変種は
+# ここでは撮らず枚数バジェットを優先する。ダークモードの網羅は P2/P4/P5
+# が担う）。
+shoot "p6-primitives-visually-hidden-1440-light" "/fandhe-frontend/primitives/visually-hidden/" 1440 900 light js "$PORT_LIGHT"
 
-# P6: Examples（レスポンシブ確認、1440/375 のみ）
-shoot "p6-ssr-routing-1440-light" "/fandhe-frontend/examples/ssr-routing/" 1440 900 light js "$PORT_LIGHT"
-shoot "p6-ssr-routing-375-light" "/fandhe-frontend/examples/ssr-routing/" 375 812 light js "$PORT_LIGHT"
+# P7: Primitives 索引（観点 1・9）
+shoot "p7-primitives-index-1440-light" "/fandhe-frontend/primitives/" 1440 900 light js "$PORT_LIGHT"
+shoot "p7-primitives-index-375-light" "/fandhe-frontend/primitives/" 375 812 light js "$PORT_LIGHT"
 
-# P7: コンポーネント索引（A の一次証跡）
-shoot "p7-components-index-1440-light" "/fandhe-frontend/components/pre-styled-ui/" 1440 900 light js "$PORT_LIGHT"
-shoot "p7-components-index-375-light" "/fandhe-frontend/components/pre-styled-ui/" 375 812 light js "$PORT_LIGHT"
+# P8: Themes 索引（観点 1・9）
+shoot "p8-themes-index-1440-light" "/fandhe-frontend/themes/" 1440 900 light js "$PORT_LIGHT"
+shoot "p8-themes-index-375-light" "/fandhe-frontend/themes/" 375 812 light js "$PORT_LIGHT"
 
-# N1: no-JS トップ（3 幅）
+# P9: API Reference（既存継続、C・F）
+shoot "p9-api-headless-ui-1440-light" "/fandhe-frontend/api/headless-ui-api/" 1440 900 light js "$PORT_LIGHT"
+shoot "p9-api-headless-ui-1440-dark" "/fandhe-frontend/api/headless-ui-api/" 1440 900 dark js "$PORT_DARK"
+
+# 既存継続分（Guides / Examples のレスポンシブ確認）は 1440 light のみへ縮約し、
+# #1033 で増えた Primitives/Themes 分と合わせても枚数バジェット（40 枚 /
+# 4.5MB）を超えないようにする。
+shoot "p10-quickstart-1440-light" "/fandhe-frontend/getting-started/quickstart/" 1440 900 light js "$PORT_LIGHT"
+shoot "p11-ssr-routing-1440-light" "/fandhe-frontend/examples/ssr-routing/" 1440 900 light js "$PORT_LIGHT"
+
+# N1: no-JS トップ（3 幅、既存継続）
 for w_h in "1440x900" "768x1024" "375x812"; do
   w="${w_h%x*}"; h="${w_h#*x}"
   shoot "n1-top-nojs-${w}" "/fandhe-frontend/" "$w" "$h" light nojs "$PORT_NOJS"
 done
 
-# N2: no-JS 部品ページ（折りたたみサイドバーが :checked のみで辿れるか）
-shoot "n2-button-nojs-375" "/fandhe-frontend/components/button/" 375 812 light nojs "$PORT_NOJS"
+# N2: no-JS Primitives 部品ページ（狭幅でのサイドバー到達性、観点 3・9）
+shoot "n2-primitives-accordion-nojs-375" "/fandhe-frontend/primitives/accordion/" 375 812 light nojs "$PORT_NOJS"
+
+# N3（旧 URL の移転案内、`/components/button/`）は採らない。CSP
+# `script-src 'none'` 配信下で `<meta http-equiv="refresh">` ページを開くと
+# headless chromium の `--screenshot` が無期限にハングすることを実測で
+# 確認した（本ファイル冒頭コメント参照）。観点 6 は HTML 直接検証と既存
+# テスト（`redirects.rs` / `no_js_contract.rs`）で担保する。
 
 echo "---"
 echo "manifest: $MANIFEST"
