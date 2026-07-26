@@ -1090,7 +1090,18 @@ pub fn header_nav(nav: &Nav, current_path: &str) -> Node {
         // 重複を避ける（Rule A の重複回避条件）。
         let index_already_listed = section.pages.iter().any(|p| p.path == section.index_path);
         if !section.groups.is_empty() && !index_already_listed {
-            let all_link = nav_link(&trigger_href, false, vec![], vec![text("すべて見る")]);
+            // 「すべて見る」リンクの href はトリガーと同一（`section.index_path`）
+            // のため、現在ページがこの index_path と完全一致する場合は
+            // ページ完全一致用の `aria-current="page"` を付与する（Rule A・
+            // デュアル軸ルール、イシュー #1012。current_path がグループ配下
+            // にのみ存在するケースを想定していなかった Bugbot 指摘の修正）。
+            let is_index_current = current_path == section.index_path;
+            let all_link = nav_link(
+                &trigger_href,
+                is_index_current,
+                vec![],
+                vec![text("すべて見る")],
+            );
             dropdown_items.push(item(vec![], vec![all_link]));
         }
 
@@ -1918,6 +1929,49 @@ path = "/no-index-in-pages/index/"
 
         // いずれの `ul.docs-header-dropdown` も空にならない。
         assert!(!html.contains(r#"class="docs-header-dropdown"></ul>"#));
+    }
+
+    /// `index_path` が直下ページには存在せずグループ配下ページとしてのみ
+    /// 存在するセクションで、現在ページがその `index_path` と完全一致する
+    /// 場合、「すべて見る」リンク（href はトリガーと同一）にページ完全一致用
+    /// の `aria-current="page"` が付与されることを確認する（Bugbot 指摘の
+    /// 修正、イシュー #1012）。修正前は `nav_link` へ常に `false` を渡して
+    /// おり、このケースで `aria-current` が一切付与されなかった。
+    #[test]
+    fn header_nav_see_all_link_marks_current_when_index_path_is_current_page() {
+        let grouped = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "NoIndexInPages"
+index_path = "/no-index-in-pages/index/"
+
+[[section.page]]
+title = "Direct"
+source = "no-index/direct.md"
+path = "/no-index-in-pages/direct/"
+
+[[section.group]]
+title = "Group"
+
+[[section.group.page]]
+title = "GroupPage"
+source = "no-index/group-page.md"
+path = "/no-index-in-pages/index/"
+"#;
+        let nav = parse_nav(grouped).unwrap();
+        let html = render(&header_nav(&nav, "/no-index-in-pages/index/"));
+
+        // 「すべて見る」リンク自体に aria-current="page" + data-current が付く。
+        let all_link_href_marker = r#"href="/no-index-in-pages/index/" aria-current="page""#;
+        assert!(html.contains(all_link_href_marker));
+        assert!(html.contains("data-current"));
+        // トリガーのセクション所属用 aria-current="true" とページ完全一致用
+        // aria-current="page" は 1 件ずつ、意味の軸を衝突させずに共存する。
+        assert_eq!(html.matches(r#"aria-current="true""#).count(), 1);
+        assert_eq!(html.matches(r#"aria-current="page""#).count(), 1);
     }
 
     #[test]
