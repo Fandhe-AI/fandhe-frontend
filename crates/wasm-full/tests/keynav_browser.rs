@@ -3867,6 +3867,73 @@ fn menubar_open_arrow_right_moves_to_next_trigger_and_reopens_new_menu() {
         item_undo.has_attribute("data-highlighted"),
         "新 Menu の先頭項目へ highlight が設定されるべき"
     );
+
+    // 旧 Menu（file）は hidden 化されるだけで `data-highlighted`/
+    // `aria-activedescendant` は自動では消えないため、`move_menubar_focus`
+    // の `was_open` 分岐が明示的に `clear_active_chain_highlights` で
+    // クリアすることを検証する（Bugbot 指摘 "Stale highlight after menu
+    // switch"、イシュー #1073）。
+    let item_new = document
+        .get_element_by_id("kn-mb-open2-content-file-item-new")
+        .unwrap();
+    assert!(
+        !item_new.has_attribute("data-highlighted"),
+        "旧 Menu（file）の highlight は再オープンに備えて消えているべき"
+    );
+    assert_eq!(
+        contents[0].get_attribute("aria-activedescendant"),
+        None,
+        "旧 Menu（file）の aria-activedescendant も除去されているべき"
+    );
+}
+
+/// 検証 4a（Menubar §垂直方向の ArrowRight open、Bugbot 指摘 "Vertical
+/// menubar arrow open broken"）: `data-orientation="vertical"` の closed
+/// trigger 上では ArrowUp/ArrowDown がトリガー間移動として消費されるため、
+/// WAI-ARIA APG Menubar パターンに従い ArrowRight がサブメニュー展開
+/// （`click()` 合成 + 先頭項目への初期 highlight）を担う。
+#[wasm_bindgen_test]
+fn menubar_vertical_closed_arrow_right_opens_via_synthesized_click_and_sets_initial_highlight() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, triggers, contents) = build_menubar_dom(
+        &document,
+        "kn-mb-vopen1",
+        &[(
+            "file",
+            "File",
+            false,
+            &[("new", "New", false), ("open", "Open", false)][..],
+        )],
+        Some("vertical"),
+        false,
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_menubar_toggle_listeners(&triggers, &contents);
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    html_element(&triggers[0]).focus().unwrap();
+    triggers[0]
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    assert!(
+        !contents[0].has_attribute("hidden"),
+        "垂直 Menubar の ArrowRight は Menu を開くべき"
+    );
+    let item_new = document
+        .get_element_by_id("kn-mb-vopen1-content-file-item-new")
+        .unwrap();
+    assert!(
+        item_new.has_attribute("data-highlighted"),
+        "ArrowDown と同格に先頭項目から開始するべき"
+    );
+    assert_eq!(
+        contents[0]
+            .get_attribute("aria-activedescendant")
+            .as_deref(),
+        Some("kn-mb-vopen1-content-file-item-new")
+    );
 }
 
 /// 検証 5（Menubar §`content_owner` スコープ限定、§ギャップ 1 回帰）:

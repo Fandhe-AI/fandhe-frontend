@@ -315,7 +315,16 @@
 //! 決め、**トリガー間移動を先に評価し、`None`（対象外のキー）のときのみ
 //! open 系キー（ArrowDown/ArrowUp/Enter/Space/printable 文字）へ
 //! フォールスルーする**、という 1 本の順序規則で closed 時の分岐を吸収する
-//! （orientation 別のキー表を作らない）。open 時は
+//! （orientation 別のキー表を作らない）。ただし WAI-ARIA APG Menubar
+//! パターンは垂直方向のみ Right Arrow をサブメニュー展開キーに含めるため、
+//! [`wiring::handle_menubar_trigger_keydown`] は orientation が vertical の
+//! ときに限り `extra_open_key = Some("ArrowRight")` を
+//! [`wiring::handle_menu_or_select_trigger_keydown`] へ渡し、open 系キー
+//! 集合へ 1 キーだけ追加する（Bugbot 指摘 "Vertical menubar arrow open
+//! broken"、イシュー #1073。垂直では ArrowRight はトリガー間移動
+//! （[`tabs_next_index`]）の対象外のため、closed 時は常に open 系キー側へ
+//! フォールスルーする）。Menu/Select 呼び出し側は `None` を渡し既存挙動を
+//! 変えない。open 時は
 //! [`wiring::handle_menu_or_select_trigger_keydown`] へ委譲し、その戻り値
 //! （[`wiring::KeyOutcome`]）が `UnhandledHorizontal`（highlight が
 //! `sub-trigger` でない・disabled・サブメニュー未解決 等でサブメニュー
@@ -3082,7 +3091,13 @@ mod wiring {
     ///   イシュー #583）。開いた直後、可能であれば content/items を再解決して
     ///   初期 highlight（ArrowDown・Enter・Space なら先頭、ArrowUp なら末尾の
     ///   非 disabled 項目）を設定する（再描画後の DOM 差し替えで解決に
-    ///   失敗しても no-op、fail-closed）。
+    ///   失敗しても no-op、fail-closed）。`extra_open_key` が `Some` の場合、
+    ///   その 1 キーも同じ open 系キー集合へ加える（先頭から開始、
+    ///   [`handle_menubar_trigger_keydown`] が垂直 Menubar の
+    ///   ArrowRight を渡す用途専用。イシュー #1073、Bugbot 指摘
+    ///   "Vertical menubar arrow open broken"。WAI-ARIA APG Menubar
+    ///   パターンは垂直方向で Right Arrow をサブメニュー展開キーとする一方、
+    ///   Menu/Select 呼び出し側は `None` を渡し既存挙動を変えない）。
     /// - content が open のとき: ArrowDown/ArrowUp/Home/End で
     ///   [`highlight_next_index`] へ委譲し `data-highlighted`/
     ///   `aria-activedescendant` を更新する。Enter/Space（バッファ無効時）は
@@ -3103,6 +3118,7 @@ mod wiring {
         event: &KeyboardEvent,
         scope: &ScopeSelectors,
         typeahead: &mut TypeaheadState,
+        extra_open_key: Option<&str>,
     ) -> KeyOutcome {
         let Some(content) = resolve_menu_select_content(trigger, scope) else {
             return KeyOutcome::Handled;
@@ -3156,11 +3172,16 @@ mod wiring {
             }
 
             // ArrowUp のみ末尾の非 disabled 項目を初期 highlight にする。
-            // ArrowDown・Enter・Space はいずれも先頭から開始する
-            // （WAI-ARIA APG Menu Button/Listbox パターン準拠）。
+            // ArrowDown・Enter・Space・`extra_open_key`（垂直 Menubar の
+            // ArrowRight）はいずれも先頭から開始する（WAI-ARIA APG Menu
+            // Button/Listbox パターン準拠。垂直 Menubar の ArrowRight は
+            // ArrowDown と同格の開始キーであり末尾始まりにはしない）。
             let initial_from_end = key == "ArrowUp";
-            let should_open =
-                key == "ArrowDown" || key == "ArrowUp" || key == "Enter" || key == " ";
+            let should_open = key == "ArrowDown"
+                || key == "ArrowUp"
+                || key == "Enter"
+                || key == " "
+                || extra_open_key == Some(key.as_str());
             if should_open {
                 typeahead.reset();
                 event.prevent_default();
@@ -3446,6 +3467,27 @@ mod wiring {
         };
 
         if was_open {
+            // 離脱元 Menu の highlight（`data-highlighted`/
+            // `aria-activedescendant`、サブメニューが開いていればその
+            // チェーン全体）を click() で新 Menu を開く前に消しておく
+            // （Bugbot 指摘 "Stale highlight after menu switch"）。
+            // `Menubar::update` の `Toggle(i)` は単一 open のため click()
+            // 自体が旧 content を hidden 化するが、hidden 化は
+            // `data-highlighted`/`aria-activedescendant` を消さないため、
+            // 怠ると非表示のまま active descendant を保持し続け #583 の
+            // 「クリーンな状態からの再オープン」契約（モジュール doc
+            // 参照）を破る。[`clear_active_chain_highlights`] は Escape
+            // 処理と同型の一括クリアで、旧 content 自身が既に closed
+            // だった場合は no-op（fail-closed）。
+            if let Some(current_content) =
+                resolve_menu_select_content(&triggers[current], &MENUBAR_SCOPE)
+            {
+                if menubar_root.contains(Some(&current_content))
+                    && !current_content.has_attribute("hidden")
+                {
+                    clear_active_chain_highlights(menubar_root, &current_content, &MENUBAR_SCOPE);
+                }
+            }
             if let Ok(html_next_trigger) = next_trigger.clone().dyn_into::<HtmlElement>() {
                 // 開閉は既存の click → dispatch 経路へ委譲する（Menu/Select
                 // の ArrowRight/ArrowLeft と同方針、モジュール doc §設計）。
@@ -3545,6 +3587,17 @@ mod wiring {
         let is_open = resolve_menu_select_content(trigger, &MENUBAR_SCOPE).is_some_and(|content| {
             root.contains(Some(&content)) && !content.has_attribute("hidden")
         });
+        // 垂直 Menubar は ArrowRight（トリガー軸に垂直な方向）を
+        // サブメニュー展開キーとする（WAI-ARIA APG Menubar パターン。
+        // 水平 Menubar は ArrowDown が既存の should_open 集合に含まれる
+        // ため `None` のままでよい）。closed 時の
+        // [`handle_menu_or_select_trigger_keydown`] へ渡し、垂直 closed
+        // 時に ArrowRight が `has_horizontal_move`（このスコープでは
+        // 水平移動非対応のため常に `None`）にも拾われず取りこぼされていた
+        // 不具合を防ぐ（Bugbot 指摘 "Vertical menubar arrow open broken"、
+        // イシュー #1073）。
+        let menubar_extra_open_key =
+            (nav.orientation == Orientation::Vertical).then_some("ArrowRight");
 
         if !is_open {
             let has_horizontal_move = tabs_next_index(
@@ -3569,12 +3622,19 @@ mod wiring {
                 event,
                 &MENUBAR_SCOPE,
                 typeahead,
+                menubar_extra_open_key,
             );
             return;
         }
 
-        let outcome =
-            handle_menu_or_select_trigger_keydown(root, trigger, event, &MENUBAR_SCOPE, typeahead);
+        let outcome = handle_menu_or_select_trigger_keydown(
+            root,
+            trigger,
+            event,
+            &MENUBAR_SCOPE,
+            typeahead,
+            menubar_extra_open_key,
+        );
         if let KeyOutcome::UnhandledHorizontal(direction) = outcome {
             let key_for_move = match direction {
                 HorizontalDirection::Prev => "ArrowLeft",
@@ -3919,6 +3979,7 @@ mod wiring {
                         &keyboard_event,
                         &MENU_SCOPE,
                         &mut typeahead_state,
+                        None,
                     );
                 }
                 "select" => {
@@ -3928,6 +3989,7 @@ mod wiring {
                         &keyboard_event,
                         &SELECT_SCOPE,
                         &mut typeahead_state,
+                        None,
                     );
                 }
                 "radio" => handle_radio_keydown(&keydown_root, &matched, &keyboard_event),
