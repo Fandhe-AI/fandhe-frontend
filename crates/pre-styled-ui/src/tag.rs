@@ -17,6 +17,17 @@
 //! （`docs/api/interactive-api.md` 決定 2/6 参照）。未知の `data-action`
 //! 値は `Component::decode_action` が `None` を返し状態変更なしの no-op と
 //! して吸収されるため（決定 6）、本パーツが新たな攻撃面を作ることはない。
+//!
+//! # `data-action` 語彙（イシュー #1063）
+//!
+//! `data-action` は `fandhe-frontend-headless-ui` の
+//! `timer::action_trigger`（`crates/headless-ui/src/timer.rs`）も出力する、
+//! 両層で共有される語彙である。意味論（「この要素をクリックしたときに
+//! 発火する action の識別子」）は同一であり改名しない一方、値域は部品ごとに
+//! 個別定義する（`docs/design/pre-styled-ui-data-attr-vocabulary.md` 規約
+//! B-2）。本モジュールでは値域を固定せず呼び出し側が渡す任意文字列を
+//! そのまま出力する（`timer` 側は `TimerControl::as_str` の 4 値固定と
+//! 対照的）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;

@@ -173,6 +173,10 @@ fn recipe() -> SlotRecipe {
             vec![decl("visibility", "hidden")],
         )
         // minimized: body（本文）を折り畳み、ヘッダのみ表示する。
+        // `data-stage` の出力元は headless-ui（`crates/headless-ui/src/
+        // floating_panel.rs` の stage 定数群）。本モジュールは CSS セレクタ
+        // として参照するのみで、属性を出力しない（イシュー #1063、
+        // `docs/design/pre-styled-ui-data-attr-vocabulary.md` 規約 A）。
         .state(
             "body",
             StateCondition::AttrEq("data-stage", "minimized"),
