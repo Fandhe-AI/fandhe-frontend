@@ -1,7 +1,7 @@
 //! `fandhe_frontend_wasm_full::keynav::wire_keynav`（Tabs/Accordion/Menu/
-//! Select/RadioGroup/Combobox のキーボード操作・イシュー #582・#583・
-//! #1071（Combobox）、親 #581）の実ブラウザ統合テスト
-//! （`wasm-pack test --headless --chrome`）。
+//! Select/RadioGroup/Menubar/Combobox のキーボード操作・イシュー #582・
+//! #583・#1073（Menubar）・#1071（Combobox）、親 #581）の実ブラウザ統合
+//! テスト（`wasm-pack test --headless --chrome`）。
 //!
 //! `wasm-full/tests/keynav_native.rs`（native）は純粋層（`tabs_next_index`/
 //! `accordion_next_index`/`highlight_next_index`/`radio_next_index`）までを
@@ -11,15 +11,12 @@
 //! 正しく反映することを検証する。
 //!
 //! DOM 構造は `crates/headless-ui/src/tabs.rs`/`accordion.rs`/`menu.rs`/
-//! `select.rs`/`radio_group.rs`/`combobox.rs` の SSR 出力契約
+//! `select.rs`/`radio_group.rs`/`menubar.rs`/`combobox.rs` の SSR 出力契約
 //! （`data-scope`/`data-part`/`aria-*`/`data-state`/`tabindex` 等）を
-//! 手組みで再現する（`fandhe-frontend-wasm-full` は `[dependencies]` に
-//! `fandhe-frontend-headless-ui` を持つが、`wasm32` ターゲットの
-//! `wasm-bindgen-test` 実行環境では実 DOM 構築に `web_sys::Element` API を
-//! 直接使う必要があり、`headless-ui` の各パーツ関数〔`fandhe_frontend_core::Node`
-//! を返す〕をそのまま呼んで DOM 化する経路を持たないため、引き続き手組みで
-//! 再現する。属性契約の記述はそれぞれのモジュール doc・スナップショット
-//! テスト（native の `headless_wiring.rs` 等）と一致させている）。
+//! 手組みで再現する（本クレートは `fandhe-frontend-headless-ui` に依存
+//! しないため、実際の `tabs()`/`accordion`/`menu`/`select`/`radio_group`/
+//! `menubar`/`combobox` 関数は呼べない。属性契約の記述はそれぞれのモジュール
+//! doc・スナップショットテストと一致させている）。
 //!
 //! # 検証内容（実装計画 §6 の検証項目 1〜9 に対応）
 //!
@@ -57,6 +54,21 @@
 //!     highlight 中の非 disabled 項目へ click 合成、Escape は Menu/Select と
 //!     非対称に highlight を維持したまま typeahead バッファのみリセット
 //!     （`prevent_default` しない）、攻撃者制御ラベルでの XSS 回帰
+//! 12. Menubar（イシュー #1073）: closed 時のトリガー間水平/垂直移動 +
+//!     roving tabindex 更新・disabled スキップ、closed 時の ArrowDown/Enter/
+//!     垂直方向の ArrowRight で open + 初期 highlight、open 時の highlight
+//!     移動、open-follows-focus（open 中の未消費 ArrowRight/ArrowLeft で
+//!     トリガー間移動 + 新 Menu が開き旧 Menu が閉じる、離脱元 Menu の
+//!     highlight 消去を含む）、`aria-controls` 欠落時の `content_owner`
+//!     スコープ限定（他 Menu への誤爆防止、§ギャップ 1 回帰）、攻撃者制御
+//!     ラベルでの XSS 回帰
+//! 13. Combobox（イシュー #1071）: `input`（`role="combobox"`）が実 DOM
+//!     フォーカスを保持し `trigger` は `tabindex="-1"` 固定、closed 時の
+//!     ArrowDown/ArrowUp で open + 初期 highlight、open 時の highlight 移動・
+//!     `aria-activedescendant` 追随、Enter/Escape での確定・閉鎖、typeahead
+//!     非適用（printable 文字・キャレット移動キーは `prevent_default` しない）、
+//!     `aria-controls` 改ざん・trigger 欠落時の fail-closed no-op、攻撃者
+//!     制御ラベルでの XSS 回帰
 
 #![cfg(target_arch = "wasm32")]
 
@@ -3516,6 +3528,497 @@ fn menu_open_arrow_right_resolves_only_own_sibling_submenu_when_two_adjacent() {
         .get_element_by_id("kn-sub-sibling2-sub-item-sub2-y")
         .unwrap();
     assert!(item_y.has_attribute("data-highlighted"));
+}
+
+// ---------------------------------------------------------------------
+// Menubar（イシュー #1073）: `crates/headless-ui/src/menubar.rs` の SSR
+// 出力契約（`data-scope="menubar"`、`trigger`/`menu`/`positioner`/
+// `content`/`item` パーツ）を手組みで再現し、`wire_keynav` の
+// `handle_menubar_trigger_keydown`/`move_menubar_focus` を検証する。
+// ---------------------------------------------------------------------
+
+/// [`build_menubar_dom`] の `menus` 引数（トリガー 1 個分の
+/// `(value, label, disabled, items)`、`items` は `(value, label,
+/// disabled)`）。`clippy::type_complexity` 回避のための型エイリアス。
+type MenubarMenuSpec<'a> = (&'a str, &'a str, bool, &'a [(&'a str, &'a str, bool)]);
+
+/// `root_id` の menubar DOM を組み立てる。`menus`: 各トリガーの
+/// [`MenubarMenuSpec`]（`build_menu_dom` の項目仕様と同型）。各トリガーは
+/// 自身の `Menu` インスタンス境界（`[data-scope="menubar"][data-part="menu"]`、
+/// `content_owner`）を持つ。`aria_controls` が `false` のときは
+/// `trigger`/`content` へ `aria-controls`/`id` の対応関係を意図的に
+/// 付けず、`resolve_menu_select_content` の `content_owner` フォール
+/// バック経路を検証できるようにする（§ギャップ 1 回帰、`id` 自体は
+/// 一意性のため付与する）。戻り値は `(root, triggers, contents)`。
+#[allow(clippy::too_many_arguments)]
+fn build_menubar_dom(
+    document: &Document,
+    root_id: &str,
+    menus: &[MenubarMenuSpec],
+    orientation: Option<&str>,
+    loop_focus: bool,
+    aria_controls: bool,
+) -> (Element, Vec<Element>, Vec<Element>) {
+    let root = document.create_element("div").unwrap();
+    root.set_id(root_id);
+    root.set_attribute("data-scope", "menubar").unwrap();
+    root.set_attribute("data-part", "root").unwrap();
+    if let Some(orientation) = orientation {
+        root.set_attribute("data-orientation", orientation).unwrap();
+    }
+    if loop_focus {
+        root.set_attribute("data-loop-focus", "true").unwrap();
+    }
+
+    let mut triggers = Vec::new();
+    let mut contents = Vec::new();
+
+    for (i, (value, label, disabled, items)) in menus.iter().enumerate() {
+        let menu_wrapper = document.create_element("div").unwrap();
+        menu_wrapper.set_attribute("data-scope", "menubar").unwrap();
+        menu_wrapper.set_attribute("data-part", "menu").unwrap();
+        menu_wrapper.set_attribute("data-state", "closed").unwrap();
+
+        let trigger = document.create_element("button").unwrap();
+        trigger.set_attribute("data-scope", "menubar").unwrap();
+        trigger.set_attribute("data-part", "trigger").unwrap();
+        trigger.set_attribute("type", "button").unwrap();
+        trigger.set_attribute("role", "menuitem").unwrap();
+        trigger.set_attribute("aria-haspopup", "menu").unwrap();
+        trigger.set_attribute("aria-expanded", "false").unwrap();
+        trigger
+            .set_attribute("tabindex", if i == 0 { "0" } else { "-1" })
+            .unwrap();
+        let trigger_id = format!("{root_id}-trigger-{value}");
+        let content_id = format!("{root_id}-content-{value}");
+        trigger.set_attribute("id", &trigger_id).unwrap();
+        if aria_controls {
+            trigger.set_attribute("aria-controls", &content_id).unwrap();
+        }
+        if *disabled {
+            trigger.set_attribute("aria-disabled", "true").unwrap();
+            trigger.set_attribute("data-disabled", "").unwrap();
+        }
+        trigger.set_text_content(Some(label));
+        menu_wrapper.append_child(&trigger).unwrap();
+
+        let positioner = document.create_element("div").unwrap();
+        positioner.set_attribute("data-scope", "menubar").unwrap();
+        positioner.set_attribute("data-part", "positioner").unwrap();
+        positioner.set_attribute("data-state", "closed").unwrap();
+        positioner.set_attribute("hidden", "").unwrap();
+
+        let content = document.create_element("div").unwrap();
+        content.set_attribute("data-scope", "menubar").unwrap();
+        content.set_attribute("data-part", "content").unwrap();
+        content.set_attribute("id", &content_id).unwrap();
+        content.set_attribute("role", "menu").unwrap();
+        content.set_attribute("data-state", "closed").unwrap();
+        content.set_attribute("hidden", "").unwrap();
+        for (v, l, item_disabled) in items.iter() {
+            let item = document.create_element("div").unwrap();
+            item.set_attribute("data-scope", "menubar").unwrap();
+            item.set_attribute("data-part", "item").unwrap();
+            item.set_attribute("role", "menuitem").unwrap();
+            item.set_attribute("data-value", v).unwrap();
+            item.set_attribute("id", &format!("{content_id}-item-{v}"))
+                .unwrap();
+            if *item_disabled {
+                item.set_attribute("aria-disabled", "true").unwrap();
+                item.set_attribute("data-disabled", "").unwrap();
+            }
+            item.set_text_content(Some(l));
+            content.append_child(&item).unwrap();
+        }
+        positioner.append_child(&content).unwrap();
+        menu_wrapper.append_child(&positioner).unwrap();
+        root.append_child(&menu_wrapper).unwrap();
+
+        triggers.push(trigger);
+        contents.push(content);
+    }
+
+    document
+        .body()
+        .unwrap()
+        .append_child(&root)
+        .expect("append_child must not fail for a detached div");
+    (root, triggers, contents)
+}
+
+/// `triggers[i]`/`contents[i]` の各ペアへ「単一 open」トグルリスナーを
+/// 配線する（`Menubar::update` の `Toggle(i)` が 1 クリックで旧 Menu の
+/// 閉鎖・新 Menu の開放を同時に行う契約を模す、モジュール doc「# Menubar
+/// のキーボード仕様」参照）。`wire_toggle_listener` と異なり、この trigger
+/// を開くときは他の全 content を閉じる。
+fn wire_menubar_toggle_listeners(triggers: &[Element], contents: &[Element]) {
+    for i in 0..triggers.len() {
+        let closure = Closure::<dyn FnMut(Event)>::new({
+            let trigger_i = triggers[i].clone();
+            let triggers = triggers.to_vec();
+            let contents = contents.to_vec();
+            move |event: Event| {
+                let is_self_click = event
+                    .target()
+                    .and_then(|target| target.dyn_into::<Element>().ok())
+                    .is_some_and(|target| target.is_same_node(Some(&trigger_i)));
+                if !is_self_click {
+                    return;
+                }
+                let was_hidden = contents[i].has_attribute("hidden");
+                for (j, content) in contents.iter().enumerate() {
+                    let opening_this = j == i && was_hidden;
+                    if opening_this {
+                        let _ = content.remove_attribute("hidden");
+                        let _ = content.set_attribute("data-state", "open");
+                        let _ = triggers[j].set_attribute("aria-expanded", "true");
+                    } else {
+                        let _ = content.set_attribute("hidden", "");
+                        let _ = content.set_attribute("data-state", "closed");
+                        let _ = triggers[j].set_attribute("aria-expanded", "false");
+                    }
+                }
+            }
+        });
+        triggers[i]
+            .add_event_listener_with_callback("click", closure.as_ref().unchecked_ref())
+            .unwrap();
+        closure.forget();
+    }
+}
+
+/// 検証 1（Menubar §closed トリガー間移動）: horizontal menubar で
+/// ArrowRight/ArrowLeft がフォーカス移動 + roving tabindex を更新する。
+#[wasm_bindgen_test]
+fn menubar_closed_horizontal_arrow_keys_move_focus_and_update_roving_tabindex() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, triggers, contents) = build_menubar_dom(
+        &document,
+        "kn-mb-h1",
+        &[
+            ("file", "File", false, &[("new", "New", false)][..]),
+            ("edit", "Edit", false, &[("undo", "Undo", false)][..]),
+            ("view", "View", false, &[("zoom", "Zoom", false)][..]),
+        ],
+        None,
+        false,
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_menubar_toggle_listeners(&triggers, &contents);
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    html_element(&triggers[0]).focus().unwrap();
+    triggers[0]
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    assert_eq!(triggers[0].get_attribute("tabindex").as_deref(), Some("-1"));
+    assert_eq!(triggers[1].get_attribute("tabindex").as_deref(), Some("0"));
+    assert_eq!(
+        document
+            .active_element()
+            .map(|el| el.id())
+            .unwrap_or_default(),
+        triggers[1].id()
+    );
+}
+
+/// 検証 2（Menubar §Home/End・disabled スキップ・loop 既定 false）:
+/// disabled トリガーをスキップし、既定（`data-loop-focus` 欠落）では端で
+/// no-op になる。
+#[wasm_bindgen_test]
+fn menubar_closed_home_end_skip_disabled_and_default_no_loop_at_edges() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, triggers, contents) = build_menubar_dom(
+        &document,
+        "kn-mb-h2",
+        &[
+            ("file", "File", false, &[][..]),
+            ("edit", "Edit", true, &[][..]),
+            ("view", "View", false, &[][..]),
+        ],
+        None,
+        false,
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_menubar_toggle_listeners(&triggers, &contents);
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    html_element(&triggers[0]).focus().unwrap();
+    triggers[0].dispatch_event(&keydown_event("End")).unwrap();
+    assert_eq!(
+        document
+            .active_element()
+            .map(|el| el.id())
+            .unwrap_or_default(),
+        triggers[2].id(),
+        "disabled な edit をスキップして view へ移動するべき"
+    );
+
+    // 既定（loop_focus 欠落）では末尾からの ArrowRight は no-op。
+    let not_default_prevented = triggers[2]
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(
+        not_default_prevented,
+        "端で no-op のときは prevent_default されないべき"
+    );
+    assert_eq!(
+        document
+            .active_element()
+            .map(|el| el.id())
+            .unwrap_or_default(),
+        triggers[2].id()
+    );
+}
+
+/// 検証 3（Menubar §closed ArrowDown で open + 初期 highlight）: closed
+/// trigger 上の ArrowDown は既存 Menu 経路（`handle_menu_or_select_trigger_keydown`）
+/// へフォールスルーし、`click()` 合成で開いて先頭項目へ highlight する。
+#[wasm_bindgen_test]
+fn menubar_closed_arrow_down_opens_via_synthesized_click_and_sets_initial_highlight() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, triggers, contents) = build_menubar_dom(
+        &document,
+        "kn-mb-open1",
+        &[(
+            "file",
+            "File",
+            false,
+            &[("new", "New", false), ("open", "Open", false)][..],
+        )],
+        None,
+        false,
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_menubar_toggle_listeners(&triggers, &contents);
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    html_element(&triggers[0]).focus().unwrap();
+    triggers[0]
+        .dispatch_event(&keydown_event("ArrowDown"))
+        .unwrap();
+
+    assert!(!contents[0].has_attribute("hidden"));
+    let item_new = document
+        .get_element_by_id("kn-mb-open1-content-file-item-new")
+        .unwrap();
+    assert!(item_new.has_attribute("data-highlighted"));
+    assert_eq!(
+        contents[0]
+            .get_attribute("aria-activedescendant")
+            .as_deref(),
+        Some("kn-mb-open1-content-file-item-new")
+    );
+}
+
+/// 検証 4（Menubar §open-follows-focus）: open 中に highlight が通常項目
+/// （sub-trigger ではない）にあるときの ArrowRight は
+/// `KeyOutcome::UnhandledHorizontal` を返し、`move_menubar_focus` が次の
+/// トリガーへ移動して開き直す（旧 Menu は閉じ、新 Menu の先頭項目へ
+/// highlight が設定される）。
+#[wasm_bindgen_test]
+fn menubar_open_arrow_right_moves_to_next_trigger_and_reopens_new_menu() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, triggers, contents) = build_menubar_dom(
+        &document,
+        "kn-mb-open2",
+        &[
+            ("file", "File", false, &[("new", "New", false)][..]),
+            (
+                "edit",
+                "Edit",
+                false,
+                &[("undo", "Undo", false), ("redo", "Redo", false)][..],
+            ),
+        ],
+        None,
+        false,
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_menubar_toggle_listeners(&triggers, &contents);
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    html_element(&triggers[0]).focus().unwrap();
+    triggers[0]
+        .dispatch_event(&keydown_event("ArrowDown"))
+        .unwrap();
+    assert!(!contents[0].has_attribute("hidden"));
+
+    triggers[0]
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    assert!(
+        contents[0].has_attribute("hidden"),
+        "旧 Menu（file）は閉じるべき"
+    );
+    assert!(
+        !contents[1].has_attribute("hidden"),
+        "新 Menu（edit）が開くべき"
+    );
+    assert_eq!(triggers[0].get_attribute("tabindex").as_deref(), Some("-1"));
+    assert_eq!(triggers[1].get_attribute("tabindex").as_deref(), Some("0"));
+    assert_eq!(
+        document
+            .active_element()
+            .map(|el| el.id())
+            .unwrap_or_default(),
+        triggers[1].id()
+    );
+    let item_undo = document
+        .get_element_by_id("kn-mb-open2-content-edit-item-undo")
+        .unwrap();
+    assert!(
+        item_undo.has_attribute("data-highlighted"),
+        "新 Menu の先頭項目へ highlight が設定されるべき"
+    );
+
+    // 旧 Menu（file）は hidden 化されるだけで `data-highlighted`/
+    // `aria-activedescendant` は自動では消えないため、`move_menubar_focus`
+    // の `was_open` 分岐が明示的に `clear_active_chain_highlights` で
+    // クリアすることを検証する（Bugbot 指摘 "Stale highlight after menu
+    // switch"、イシュー #1073）。
+    let item_new = document
+        .get_element_by_id("kn-mb-open2-content-file-item-new")
+        .unwrap();
+    assert!(
+        !item_new.has_attribute("data-highlighted"),
+        "旧 Menu（file）の highlight は再オープンに備えて消えているべき"
+    );
+    assert_eq!(
+        contents[0].get_attribute("aria-activedescendant"),
+        None,
+        "旧 Menu（file）の aria-activedescendant も除去されているべき"
+    );
+}
+
+/// 検証 4a（Menubar §垂直方向の ArrowRight open、Bugbot 指摘 "Vertical
+/// menubar arrow open broken"）: `data-orientation="vertical"` の closed
+/// trigger 上では ArrowUp/ArrowDown がトリガー間移動として消費されるため、
+/// WAI-ARIA APG Menubar パターンに従い ArrowRight がサブメニュー展開
+/// （`click()` 合成 + 先頭項目への初期 highlight）を担う。
+#[wasm_bindgen_test]
+fn menubar_vertical_closed_arrow_right_opens_via_synthesized_click_and_sets_initial_highlight() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, triggers, contents) = build_menubar_dom(
+        &document,
+        "kn-mb-vopen1",
+        &[(
+            "file",
+            "File",
+            false,
+            &[("new", "New", false), ("open", "Open", false)][..],
+        )],
+        Some("vertical"),
+        false,
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_menubar_toggle_listeners(&triggers, &contents);
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    html_element(&triggers[0]).focus().unwrap();
+    triggers[0]
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    assert!(
+        !contents[0].has_attribute("hidden"),
+        "垂直 Menubar の ArrowRight は Menu を開くべき"
+    );
+    let item_new = document
+        .get_element_by_id("kn-mb-vopen1-content-file-item-new")
+        .unwrap();
+    assert!(
+        item_new.has_attribute("data-highlighted"),
+        "ArrowDown と同格に先頭項目から開始するべき"
+    );
+    assert_eq!(
+        contents[0]
+            .get_attribute("aria-activedescendant")
+            .as_deref(),
+        Some("kn-mb-vopen1-content-file-item-new")
+    );
+}
+
+/// 検証 5（Menubar §`content_owner` スコープ限定、§ギャップ 1 回帰）:
+/// `aria-controls` を持たない 2 番目のトリガーで ArrowDown を押しても、
+/// document 順で先頭の Menu（1 番目）の content を誤って開けない
+/// （`resolve_menu_select_content` が `content_owner`
+/// ＝ `[data-scope="menubar"][data-part="menu"]` へスコープ限定する
+/// ことの回帰テスト）。
+#[wasm_bindgen_test]
+fn menubar_arrow_down_without_aria_controls_only_opens_own_menu_content() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (root, triggers, contents) = build_menubar_dom(
+        &document,
+        "kn-mb-owner1",
+        &[
+            ("file", "File", false, &[("new", "New", false)][..]),
+            ("edit", "Edit", false, &[("undo", "Undo", false)][..]),
+        ],
+        None,
+        false,
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_menubar_toggle_listeners(&triggers, &contents);
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    html_element(&triggers[1]).focus().unwrap();
+    triggers[1]
+        .dispatch_event(&keydown_event("ArrowDown"))
+        .unwrap();
+
+    assert!(
+        contents[0].has_attribute("hidden"),
+        "1 番目（file）の content を誤って開いてはいけない"
+    );
+    assert!(
+        !contents[1].has_attribute("hidden"),
+        "2 番目（edit）自身の content が開くべき"
+    );
+}
+
+/// XSS 回帰（REQ-1）: 攻撃者制御文字列を持つ menubar トリガー/項目ラベルに
+/// 対しキー操作（トリガー間移動・open・highlight 移動）を行っても
+/// `script` 要素が DOM に生成されない。
+#[wasm_bindgen_test]
+fn menubar_keyboard_navigation_with_attacker_controlled_label_does_not_inject_script() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let payload = "<script>window.__menubar_xss__= true;</script>";
+    let (root, triggers, contents) = build_menubar_dom(
+        &document,
+        "kn-mb-xss1",
+        &[
+            ("file", payload, false, &[("new", payload, false)][..]),
+            ("edit", "Edit", false, &[("undo", "Undo", false)][..]),
+        ],
+        None,
+        false,
+        true,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_menubar_toggle_listeners(&triggers, &contents);
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    html_element(&triggers[0]).focus().unwrap();
+    triggers[0]
+        .dispatch_event(&keydown_event("ArrowDown"))
+        .unwrap();
+    triggers[0]
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    assert!(
+        root.query_selector("script").unwrap().is_none(),
+        "攻撃者制御ラベルからキー操作経由で script 要素が生成されてはいけない"
+    );
 }
 
 // ---------------------------------------------------------------------
