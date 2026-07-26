@@ -451,7 +451,10 @@ const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
     ("docs-header-nav", "ヘッダードロップダウン群のコンテナ nav"),
     ("docs-header-menu", "同 ul"),
     ("docs-header-group", "セクションごとの li"),
-    ("docs-header-trigger", "button[type=button]"),
+    (
+        "docs-header-trigger",
+        "a[href]（セクショントップページへの遷移リンク、イシュー #1012）",
+    ),
     ("docs-header-dropdown", "ドロップダウン ul"),
     (
         "docs-header-actions",

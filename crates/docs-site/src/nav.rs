@@ -992,15 +992,17 @@ fn group_node(nav: &Nav, group: &Group, current_path: &str) -> Node {
 }
 
 /// ヘッダーのセクション別ドロップダウンメニュー [`Node`] を生成する
-/// （イシュー #908）。`nav.toml` の `[[section]]` ごとにトリガー
-/// `<button type="button">` + ドロップダウン `<ul>`（配下 `<a>` 列）を
-/// グループ化した `<nav class="docs-header-nav">` を返す。
+/// （イシュー #908。トリガーの遷移リンク化・ドロップダウン抑制は
+/// イシュー #1012）。`nav.toml` の `[[section]]` ごとにトリガー
+/// `<a href>`（セクショントップページ `section.index_path` への遷移
+/// リンク）+ ドロップダウン `<ul>`（直下ページ列）をグループ化した
+/// `<nav class="docs-header-nav">` を返す。
 ///
 /// # イシュータイトルとの差分（`pre-styled-ui menu` を使わない理由）
 ///
 /// イシュータイトルは「pre-styled-ui menu によるドロップダウン」だが、
 /// `docs/design/docs-site-three-column-redesign.md` §3.5 の 3 案比較の結果、
-/// 本関数は素の `nav`/`ul`/`li`/`button`/`a` + CSS のみの開閉（`:hover` /
+/// 本関数は素の `nav`/`ul`/`li`/`a` + CSS のみの開閉（`:hover` /
 /// `:focus-within`）を採用する（案 (b)）。理由は 2 点:
 ///
 /// 1. **意味論不整合**: WAI-ARIA `menu` ロールは操作コマンドリスト向けで
@@ -1013,14 +1015,16 @@ fn group_node(nav: &Nav, group: &Group, current_path: &str) -> Node {
 ///    wasm-full 配線（hydration）前提であり、JS を持たない docs-site
 ///    では動作しない。
 ///
-/// # `aria-expanded`/`aria-haspopup` を付与しない理由
+/// # `role`/`aria-expanded`/`aria-haspopup` を付与しない理由
 ///
-/// トリガー `<button>` はドロップダウンの開閉状態を JS で更新する経路を
-/// 持たない（CSS の `:hover`/`:focus-within` のみで開閉する）。ARIA の
-/// 動的状態属性を静的な固定値のまま出力すると支援技術に虚偽の状態を
-/// 伝えることになるため、`role`/`aria-expanded`/`aria-haspopup` のいずれも
-/// 付与しない（[`fandhe_frontend_headless_ui::nav_list`] が「素の要素の
-/// 暗黙 ARIA ロールのみを使う」とした判断をそのまま踏襲する）。
+/// トリガーはドロップダウンの開閉状態を JS で更新する経路を持たない
+/// （CSS の `:hover`/`:focus-within` のみで開閉する）。ARIA の動的状態
+/// 属性を静的な固定値のまま出力すると支援技術に虚偽の状態を伝えること
+/// になるため、`role`/`aria-expanded`/`aria-haspopup` のいずれも付与
+/// しない（[`fandhe_frontend_headless_ui::nav_list`] が「素の要素の暗黙
+/// ARIA ロールのみを使う」とした判断をそのまま踏襲する）。トリガーが
+/// `<button>` から `<a href>` に変わった後も、`<a>` はリンクとしての
+/// 暗黙ロールを持つのみでありこの判断は変わらない。
 ///
 /// # DOM 構造
 ///
@@ -1028,26 +1032,48 @@ fn group_node(nav: &Nav, group: &Group, current_path: &str) -> Node {
 /// nav.docs-header-nav[aria-label="Site sections"]  … headless nav_list root
 ///   ul.docs-header-menu                            … nav_list list
 ///     li.docs-header-group（セクションごと）        … nav_list item
-///       button.docs-header-trigger[type="button"]  … トリガー（el 直接）
+///       a.docs-header-trigger[href=base_path+index_path]（el 直接。
+///         現在セクションのみ aria-current="true" + data-current）
 ///       ul.docs-header-dropdown                    … nav_list list（再利用）
-///         li > a[href]（現在ページのみ aria-current="page" + data-current）
+///         li > a[href]（直下ページのみ。現在ページのみ
+///           aria-current="page" + data-current）
 /// ```
 ///
 /// セクションが単一ページのみでも一律ドロップダウン構造にする
 /// （決定性・実装単純化を優先。§3.5 が実装時裁量とした点の確定）。
 ///
+/// `aria-current` は 2 つの意味軸を衝突させない: `"page"` はドロップ
+/// ダウン内の現在ページ 1 件との完全一致、`"true"` はトリガー側の現在
+/// セクション所属を表す（同一マークアップ内で `page`/`true` が同時に
+/// 出ても意味が異なるため矛盾しない）。
+///
 /// タイトル・href はすべて headless 層 → [`fandhe_frontend_core::render`]
 /// の既定エスケープ（REQ-1）を必ず経由する。HTML 文字列の直接組み立て・
-/// `raw_html()` は使用しない。
+/// `raw_html()` は使用しない。トリガー href は `section.index_path`
+/// （[`parse_nav`] のパース時点で当該セクション内の実在 `page.path` との
+/// 完全一致が保証される。[`Section::index_path`] の doc コメント参照）を
+/// 経由するため、`validate_page_path` を通過済みの検証済み文字列のみが
+/// href に現れる（新たなパストラバーサル面を作らない）。
 pub fn header_nav(nav: &Nav, current_path: &str) -> Node {
     let mut groups: Vec<Node> = Vec::new();
     for section in &nav.sections {
+        let trigger_href = href(nav, &section.index_path);
+        // 現在セクション判定はローカルにループ内で行う（`Nav::section_for_path`
+        // はポインタ同一性比較が必要になり脆いため、#1013 のサイドバー
+        // スコープ判定側の用途に譲り、ここでは使わない）。
+        let is_current_section = section.all_pages().any(|p| p.path == current_path);
+
         let mut dropdown_items: Vec<Node> = Vec::new();
-        // section.all_pages() でフラットに列挙する（イシュー #939）。
-        // sidebar() はイシュー #940 でカテゴリ階層描画へ切り替えたが、
-        // header_nav は本イシューのスコープ外として意図的にフラットのまま
-        // 据え置く（[`sidebar`] rustdoc「カテゴリ階層描画」節参照）。
-        for page in section.all_pages() {
+        // ドロップダウン項目はセクション直下ページのみを列挙する（Rule A、
+        // イシュー #1012）。`section.all_pages()`（グループ配下まで平坦化
+        // する走査、イシュー #939）を使うと、Components セクションのように
+        // グループ配下ページが 100 件超あるセクションでドロップダウンが
+        // ビューポート外へはみ出し実質操作不能になる（実測: 108 項目 /
+        // 16KB。`.docs-header-dropdown` に `max-height`/`overflow` を持た
+        // ない）。トリガー自体が本イシューでセクショントップページへの
+        // 遷移リンクになったため、グループ配下ページの一覧はサイドバー
+        // （#1013 でセクションスコープに限定される）に委ねる。
+        for page in &section.pages {
             let link_href = href(nav, &page.path);
             let is_current = page.path == current_path;
             let a = nav_link(
@@ -1058,13 +1084,41 @@ pub fn header_nav(nav: &Nav, current_path: &str) -> Node {
             );
             dropdown_items.push(item(vec![], vec![a]));
         }
-        // `type="button"` 固定はフォーム内配置時の意図しない submit を防ぐ
-        // （headless `menu::trigger` と同じ A05 対策）。
-        let trigger = el(
-            "button",
-            vec![("type", "button"), ("class", "docs-header-trigger")],
-            vec![text(section.title.clone())],
-        );
+        // 直下ページの中にセクション索引ページ（`index_path` と同一 path）
+        // が無く、かつグループが存在する場合のみ「すべて見る」項目を追加
+        // する。索引ページが直下ページに既に含まれる場合は同一リンクの
+        // 重複を避ける（Rule A の重複回避条件）。
+        let index_already_listed = section.pages.iter().any(|p| p.path == section.index_path);
+        if !section.groups.is_empty() && !index_already_listed {
+            // 「すべて見る」リンクの href はトリガーと同一（`section.index_path`）
+            // のため、現在ページがこの index_path と完全一致する場合は
+            // ページ完全一致用の `aria-current="page"` を付与する（Rule A・
+            // デュアル軸ルール、イシュー #1012。current_path がグループ配下
+            // にのみ存在するケースを想定していなかった Bugbot 指摘の修正）。
+            let is_index_current = current_path == section.index_path;
+            let all_link = nav_link(
+                &trigger_href,
+                is_index_current,
+                vec![],
+                vec![text("すべて見る")],
+            );
+            dropdown_items.push(item(vec![], vec![all_link]));
+        }
+
+        // トリガーを `<a href>` 化し、セクショントップページ
+        // （`section.index_path`）への遷移リンクにする（イシュー #1012）。
+        // `<a>` はフォーム送信を行わないため `type="button"` は不要
+        // （旧 `<button type="button">` 時代の A05 対策の削除）。
+        let mut trigger_attrs: Vec<(&str, &str)> =
+            vec![("href", &trigger_href), ("class", "docs-header-trigger")];
+        if is_current_section {
+            // ページ完全一致用の `aria-current="page"`（ドロップダウン内
+            // リンクが使う）とは軸が異なるため `"true"` を使い衝突させない
+            // （関数 rustdoc「`aria-current` は 2 つの意味軸」参照）。
+            trigger_attrs.push(("aria-current", "true"));
+            trigger_attrs.push(("data-current", ""));
+        }
+        let trigger = el("a", trigger_attrs, vec![text(section.title.clone())]);
         let dropdown = list(vec![("class", "docs-header-dropdown")], dropdown_items);
         groups.push(item(
             vec![("class", "docs-header-group")],
@@ -1735,28 +1789,189 @@ path = "/p1/"
 
         assert!(html.contains(r#"href="/fandhe-frontend/guide/getting-started/""#));
         assert!(html.contains(r#"href="/fandhe-frontend/reference/api/""#));
+
+        // トリガー自体のリンク先（`section.index_path`、イシュー #1012）。
+        assert!(html.contains(r#"href="/fandhe-frontend/guide/intro/""#));
     }
 
     #[test]
     fn header_nav_highlights_only_current_page() {
         let nav = parse_nav(SAMPLE).unwrap();
         let html = render(&header_nav(&nav, "/guide/getting-started/"));
+        // ページ完全一致用 `aria-current="page"`（ドロップダウン内リンク）と
+        // セクション所属用 `aria-current="true"`（トリガー）は意味の軸が
+        // 異なるため衝突しない。個別に件数を固定する（イシュー #1012）。
         assert_eq!(html.matches(r#"aria-current="page""#).count(), 1);
+        assert_eq!(html.matches(r#"aria-current="true""#).count(), 1);
         assert!(html.contains("data-current"));
     }
 
-    /// トリガーは `<button type="button">` のみで、`role`/`aria-expanded`/
-    /// `aria-haspopup` のいずれも含まない（無 JS では状態更新できない
-    /// ARIA 属性を静的に約束しない、rustdoc 「`aria-expanded`/`aria-haspopup`
-    /// を付与しない理由」参照）ことを固定する。
+    /// トリガーは `<a href>`（セクショントップページへの遷移リンク、
+    /// イシュー #1012）のみで、`role`/`aria-expanded`/`aria-haspopup` の
+    /// いずれも含まない（無 JS では状態更新できない ARIA 属性を静的に
+    /// 約束しない、rustdoc 「`role`/`aria-expanded`/`aria-haspopup` を
+    /// 付与しない理由」参照）ことを固定する。
     #[test]
     fn header_nav_trigger_has_no_menu_role_or_dynamic_aria_state() {
         let nav = parse_nav(SAMPLE).unwrap();
         let html = render(&header_nav(&nav, "/guide/getting-started/"));
-        assert!(html.contains(r#"<button type="button" class="docs-header-trigger""#));
+        assert!(!html.contains("<button"));
+        assert!(html.contains(r#"class="docs-header-trigger""#));
+        assert!(html.contains(r#"href="/fandhe-frontend/guide/intro/""#));
         assert!(!html.contains("role="));
         assert!(!html.contains("aria-expanded"));
         assert!(!html.contains("aria-haspopup"));
+    }
+
+    /// トリガー href が常に `base_path + section.index_path` を指すことを
+    /// 各セクションについて固定する（イシュー #1012）。
+    #[test]
+    fn header_nav_trigger_links_to_section_index_path() {
+        let nav = parse_nav(SAMPLE).unwrap();
+        let html = render(&header_nav(&nav, "/guide/getting-started/"));
+        assert!(html.contains(r#"href="/fandhe-frontend/guide/intro/""#));
+        assert!(html.contains(r#"href="/fandhe-frontend/reference/api/""#));
+    }
+
+    /// 現在セクションのトリガーにのみ `aria-current="true"` + `data-current`
+    /// が付き、非現在セクションのトリガーには付かないことを固定する
+    /// （イシュー #1012）。
+    #[test]
+    fn header_nav_marks_current_section_trigger_without_page_scope() {
+        let nav = parse_nav(SAMPLE).unwrap();
+        // Guide セクション配下の "/guide/getting-started/" が現在ページ。
+        let html = render(&header_nav(&nav, "/guide/getting-started/"));
+        let guide_trigger = r#"href="/fandhe-frontend/guide/intro/" class="docs-header-trigger" aria-current="true""#;
+        assert!(html.contains(guide_trigger));
+        // Reference セクションのトリガーには aria-current="true" が付かない。
+        let reference_trigger_idx = html
+            .find(r#"href="/fandhe-frontend/reference/api/""#)
+            .unwrap();
+        // 固定バイト幅の範囲演算子（`idx..idx+120`）はマルチバイト文字が
+        // 境界にかかると char 境界不一致でパニックし得るため、
+        // `char_indices` で 120 バイト以内に収まる直近の char 境界を
+        // 探して切り出す安全な実装にする（レビュー指摘）。
+        let rest = &html[reference_trigger_idx..];
+        let safe_end = rest
+            .char_indices()
+            .map(|(byte_idx, _)| byte_idx)
+            .chain(std::iter::once(rest.len()))
+            .take_while(|&byte_idx| byte_idx <= 120)
+            .last()
+            .unwrap_or(0);
+        let reference_trigger_slice = &rest[..safe_end];
+        assert!(!reference_trigger_slice.contains(r#"aria-current="true""#));
+    }
+
+    /// ドロップダウン項目はグループ配下ページを一切含まず、直下ページの
+    /// みを列挙する（Rule A、イシュー #1012）。直下ページに `index_path`
+    /// と同一 path が無い場合のみ「すべて見る」項目が追加され、その href
+    /// はトリガーと同一（`index_path`）になる。直下ページに `index_path`
+    /// と同一 path がある場合は重複を避けるため追加されない。
+    #[test]
+    fn header_nav_dropdown_lists_only_direct_pages_and_adds_index_link_for_grouped_section() {
+        let grouped = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "Components"
+index_path = "/components/pre-styled-ui/"
+
+[[section.page]]
+title = "コンポーネント索引"
+source = "components-pre-styled-ui.md"
+path = "/components/pre-styled-ui/"
+
+[[section.group]]
+title = "Forms"
+
+[[section.group.page]]
+title = "Button"
+source = "components/button.md"
+path = "/components/button/"
+
+[[section]]
+title = "NoIndexInPages"
+index_path = "/no-index-in-pages/index/"
+
+[[section.page]]
+title = "Direct"
+source = "no-index/direct.md"
+path = "/no-index-in-pages/direct/"
+
+[[section.group]]
+title = "Group"
+
+[[section.group.page]]
+title = "GroupPage"
+source = "no-index/group-page.md"
+path = "/no-index-in-pages/index/"
+"#;
+        let nav = parse_nav(grouped).unwrap();
+        let html = render(&header_nav(&nav, "/components/pre-styled-ui/"));
+
+        // グループ配下ページ（Button）はドロップダウンに出ない（否定的断定）。
+        assert!(!html.contains("Button"));
+        assert!(!html.contains(r#"href="/components/button/""#));
+
+        // Components: 直下ページに index_path と同一 path があるため
+        // 「すべて見る」は追加されず、ドロップダウンは 1 件のみ。
+        // NoIndexInPages: 直下ページに index_path と同一 path が無いため
+        // 「すべて見る」が追加され、href はトリガーと同一（index_path）。
+        // 全体で「すべて見る」がちょうど 1 件（NoIndexInPages 分のみ）である
+        // ことで両セクションの挙動差を機械固定する。
+        assert!(html.contains("コンポーネント索引"));
+        assert!(html.contains("Direct"));
+        assert_eq!(html.matches("すべて見る").count(), 1);
+        assert!(html.contains(r#"href="/no-index-in-pages/index/""#));
+
+        // いずれの `ul.docs-header-dropdown` も空にならない。
+        assert!(!html.contains(r#"class="docs-header-dropdown"></ul>"#));
+    }
+
+    /// `index_path` が直下ページには存在せずグループ配下ページとしてのみ
+    /// 存在するセクションで、現在ページがその `index_path` と完全一致する
+    /// 場合、「すべて見る」リンク（href はトリガーと同一）にページ完全一致用
+    /// の `aria-current="page"` が付与されることを確認する（Bugbot 指摘の
+    /// 修正、イシュー #1012）。修正前は `nav_link` へ常に `false` を渡して
+    /// おり、このケースで `aria-current` が一切付与されなかった。
+    #[test]
+    fn header_nav_see_all_link_marks_current_when_index_path_is_current_page() {
+        let grouped = r#"
+[site]
+title = "Docs"
+base_path = ""
+
+[[section]]
+title = "NoIndexInPages"
+index_path = "/no-index-in-pages/index/"
+
+[[section.page]]
+title = "Direct"
+source = "no-index/direct.md"
+path = "/no-index-in-pages/direct/"
+
+[[section.group]]
+title = "Group"
+
+[[section.group.page]]
+title = "GroupPage"
+source = "no-index/group-page.md"
+path = "/no-index-in-pages/index/"
+"#;
+        let nav = parse_nav(grouped).unwrap();
+        let html = render(&header_nav(&nav, "/no-index-in-pages/index/"));
+
+        // 「すべて見る」リンク自体に aria-current="page" + data-current が付く。
+        let all_link_href_marker = r#"href="/no-index-in-pages/index/" aria-current="page""#;
+        assert!(html.contains(all_link_href_marker));
+        assert!(html.contains("data-current"));
+        // トリガーのセクション所属用 aria-current="true" とページ完全一致用
+        // aria-current="page" は 1 件ずつ、意味の軸を衝突させずに共存する。
+        assert_eq!(html.matches(r#"aria-current="true""#).count(), 1);
+        assert_eq!(html.matches(r#"aria-current="page""#).count(), 1);
     }
 
     #[test]

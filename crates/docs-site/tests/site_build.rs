@@ -273,6 +273,26 @@ fn build_site_succeeds_for_the_real_repository_site() {
     let site_css = std::fs::read_to_string(out.0.join("assets/site.css"))
         .expect("read generated assets/site.css");
     assert!(site_css.contains(".docs-header-dropdown"));
+
+    // イシュー #1012: ヘッダートリガーがセクショントップページへの遷移
+    // リンク（`a[href]`）へ切り替わり、`<button>` が使われなくなったこと・
+    // ドロップダウン（`ul.docs-header-dropdown`）が引き続き出力されること
+    // を実サイトの生成物で固定する。ヘッダーナビブロックだけを切り出して
+    // 判定する（`.docs-theme-toggle` 等は引き続き `<button>` のため、
+    // ページ全体での `<button` 不在は主張できない）。
+    let header_nav_start = index_html
+        .find(r#"class="docs-header-nav""#)
+        .expect("header nav should be present");
+    let header_nav_end = index_html[header_nav_start..]
+        .find("</nav>")
+        .map(|rel| header_nav_start + rel)
+        .expect("header nav should close with </nav>");
+    let header_nav_block = &index_html[header_nav_start..header_nav_end];
+    assert!(!header_nav_block.contains("<button"));
+    assert!(header_nav_block.contains(r#"class="docs-header-trigger""#));
+    assert!(header_nav_block.contains(r#"class="docs-header-dropdown""#));
+    // Getting Started セクションのトリガー href（index_path = "/"）。
+    assert!(header_nav_block.contains(r#"href="/fandhe-frontend/""#));
 }
 
 /// イシュー #912（受け入れ条件 1 の機械検証可能な半分）: 実サイトの
