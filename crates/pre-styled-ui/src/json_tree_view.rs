@@ -39,6 +39,12 @@
 use crate::css::decl;
 use crate::recipe::{SlotRecipe, StateCondition};
 
+// REEXPORT-GLOB-REVIEWED: 本モジュールが定義する pub 項目は stylesheet() の
+// みで styled パーツ関数・variant 型を再定義しない（規約 B-1）。variant 軸
+// も提供せず（規約 B-2）、CSS 到達は [data-scope]/[data-part] 属性セレクタ
+// のみに依存する（規約 B-3）。headless 側 `json_tree_view` モジュールが
+// 持つ `pub use`（`TreeView`）は下記の明示再エクスポート名（`TreeViewAction`
+// 等）と衝突しないことを確認済み（イシュー #1062 規約参照）。
 pub use fandhe_frontend_headless_ui::json_tree_view::*;
 // `TreeView` の `Component::Action`（dispatch 対象）・`OpenState` はいずれも
 // [`fandhe_frontend_headless_ui::tree_view`]/`state` 由来で上記 glob

@@ -64,6 +64,11 @@
 use crate::css::decl;
 use crate::recipe::{SlotRecipe, StateCondition};
 
+// REEXPORT-GLOB-REVIEWED: 本モジュールが定義する pub 項目は stylesheet() の
+// みで styled パーツ関数を再定義しない（規約 B-1）。上記「variant は非提供
+// （イシュー #825 判断）」節のとおり variant 軸を持たず（規約 B-2）、CSS
+// 到達は [data-scope]/[data-part] 属性セレクタのみに依存する（規約 B-3、
+// イシュー #1062 規約参照）。
 pub use fandhe_frontend_headless_ui::scroll_area::*;
 
 /// headless `scroll_area` anatomy の `data-part` 一覧（`crates/headless-ui/src/scroll_area.rs`
