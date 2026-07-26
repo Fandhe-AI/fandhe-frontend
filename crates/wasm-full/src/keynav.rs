@@ -1,5 +1,5 @@
-//! Tabs / Accordion / Menu / Select / RadioGroup のキーボード操作
-//! （イシュー #582・#583、親 #581）。
+//! Tabs / Accordion / Menu / Select / RadioGroup / Listbox のキーボード操作
+//! （イシュー #582・#583・#1070、親 #581）。
 //!
 //! PR #560（Tabs）/#561（Accordion）は `fandhe-frontend-headless-ui` 側の SSR
 //! 静的マークアップ（roving tabindex・`data-state`/`aria-selected`/`hidden`）
@@ -227,6 +227,46 @@
 //!   委ね、`wire_keynav` が追加する `change` 委譲リスナーが `data-state`
 //!   群を同期する（マウスクリックによる選択変更も同じ経路で追随する）。
 //!   Enter は APG Radio パターンの対象外のため no-op。
+//!
+//! # Listbox のキーボード仕様（WAI-ARIA APG Listbox パターン準拠、イシュー
+//! #1070）
+//!
+//! Listbox（`crates/headless-ui/src/listbox.rs`）は Menu/Select と異なり
+//! **trigger を持たず開閉状態も無い常時展開**のリスト選択パターンであり、
+//! `content` 自身（`role="listbox"` + `tabindex="0"`）が実 DOM フォーカスを
+//! 直接保持する（Menu/Select は trigger が保持し続け、items は
+//! `tabindex` を持たない）。このため本モジュールは roving tabindex を
+//! 使わず、Menu/Select と同じ「`data-highlighted`（item）+
+//! `aria-activedescendant`（content）」方式のみで highlight を表現する
+//! （[`handle_listbox_keydown`]、`listbox::content()`/`listbox::item()`
+//! の静的出力と 1:1 で一致）。
+//!
+//! - `data-orientation`/`data-loop-focus` は `listbox::content()`/
+//!   `listbox::root()` のいずれも出力しない**呼び出し側オプトイン**属性
+//!   （headless-ui の SSR 出力契約）。欠落時は `Orientation::Vertical`
+//!   （既定・APG Listbox 準拠、ArrowDown/ArrowUp）/ 非循環
+//!   （[`menu_loop_focus_from_attr`] と loopFocus 既定を共有し、
+//!   `"true"` 明示時のみ循環）へ決定的にフォールバックする
+//!   （[`listbox_next_index`]）。`data-orientation="horizontal"` のときのみ
+//!   ArrowRight/ArrowLeft を受理する。
+//! - Home/End で先頭/末尾の非 disabled 項目へ移動する（orientation に
+//!   関わらず）。
+//! - typeahead（[`is_typeahead_key`]/[`apply_typeahead_match`]）は Menu/Select
+//!   と同じ実装（[`TypeaheadState`]）を再利用する。
+//! - Enter/Space（typeahead バッファ非活性時）は highlight 中の非 disabled
+//!   項目へ `click()` を合成し、既存の click → dispatch 経路へ委譲する
+//!   （Menu/Select と同じ設計）。ただし `crate::headless::MAPPING_TABLE`
+//!   は本イシュー時点で `listbox`/`item` 行を持たず、この合成 click は
+//!   選択状態を書き換える経路には未接続（`aria-multiselectable` の有無で
+//!   静的表を分岐できないため設計判断が必要、別イシュー）。
+//! - **Escape は Menu/Select と意図的に非対称**: typeahead バッファの
+//!   リセットのみを行い、`prevent_default` せず highlight もクリアしない。
+//!   Menu/Select の Escape-highlight-clear は「オーバーレイ再オープン時に
+//!   古い highlight から続かない」reopen 契約のためだが、常時展開の
+//!   Listbox にはこの契約が存在せず、`prevent_default` しないことで
+//!   ダイアログ内 Listbox が親ダイアログの Escape 閉鎖を奪わない。
+//! - 修飾キー付きは一律 no-op（`"extended"` selection mode は
+//!   `crates/headless-ui/src/listbox.rs` が out-of-scope 宣言済み）。
 //!
 //! # セキュリティ不変条件
 //!
@@ -525,6 +565,73 @@ pub fn radio_next_index(
         "ArrowUp" if orientation != Some(Orientation::Horizontal) => {
             step_non_disabled(current, -1, disabled, true)
         }
+        _ => None,
+    }
+}
+
+/// Listbox（常時展開のリスト選択、`crates/headless-ui/src/listbox.rs`）の
+/// keydown に対する「次に highlight すべきインデックス」を計算する純粋関数
+/// （web-sys 非依存、native `cargo test` 可、イシュー #1070）。
+///
+/// [`highlight_next_index`]（Menu/Select、ArrowDown/ArrowUp 固定）と同じく
+/// `data-highlighted` の現在位置（`current`、`None` は未 highlight）を
+/// 起点にするが、[`radio_next_index`] と同じく **軸（orientation）を持つ**
+/// 点が異なる。Listbox は ark-ui / WAI-ARIA APG Listbox パターンに従い
+/// 既定を **Vertical**（ArrowDown/ArrowUp）とし、`Horizontal` のときのみ
+/// ArrowRight/ArrowLeft を受理する（他軸のキーは no-op）。`headless-ui` の
+/// `listbox::content()`/`listbox::root()`（`crates/headless-ui/src/listbox.rs`）
+/// は `data-orientation` を出力しないため、呼び出し側（配線層）が
+/// `data-orientation` 属性の欠落時に `Orientation::Vertical` を渡す
+/// （Menu/Select 相当の「呼び出し側オプトイン」契約、`Orientation::from_attr_optional`
+/// の生の `None` をそのまま渡さない）。Home/End は orientation に関わらず
+/// 先頭/末尾の非 disabled 項目へ移動する。`current` が範囲外のときは
+/// 「highlight なし」へフォールバックする（fail-closed、panic しない）。
+///
+/// `highlight_next_index` を再利用せず専用関数として新設する理由:
+/// `highlight_next_index` は ArrowDown/ArrowUp 固定であり orientation を
+/// 持たない。`radio_next_index`/`menu_loop_focus_from_attr` が既存関数と
+/// 重複しながら別関数として存在するのと同じ判断で、キー受理集合が部品ごとに
+/// 異なる契約であり条件分岐を 1 関数へ詰め込むと部品間の契約差が読めなく
+/// なるため専用化する。
+///
+/// `loop_focus` の解釈は既存の [`menu_loop_focus_from_attr`] をそのまま
+/// 再利用する想定（Listbox は Menu/Select と loopFocus 既定を共有し、
+/// `"true"` のときのみ循環する）。修飾キー（Ctrl/Alt/Meta）付きは
+/// `"extended"` selection mode（Shift+Arrow・Ctrl+A 等の範囲・追加選択、
+/// `crates/headless-ui/src/listbox.rs` が out-of-scope 宣言済み）と衝突
+/// しないよう一律 `None`（no-op）とする。
+#[must_use]
+pub fn listbox_next_index(
+    current: Option<usize>,
+    key: &str,
+    orientation: Orientation,
+    loop_focus: bool,
+    modifiers: Modifiers,
+    disabled: &[bool],
+) -> Option<usize> {
+    if modifiers.any() {
+        return None;
+    }
+    let current_in_range = current.filter(|&i| i < disabled.len());
+    match key {
+        "Home" => first_non_disabled(disabled),
+        "End" => last_non_disabled(disabled),
+        "ArrowDown" if orientation == Orientation::Vertical => match current_in_range {
+            Some(i) => step_non_disabled(i, 1, disabled, loop_focus),
+            None => first_non_disabled(disabled),
+        },
+        "ArrowUp" if orientation == Orientation::Vertical => match current_in_range {
+            Some(i) => step_non_disabled(i, -1, disabled, loop_focus),
+            None => last_non_disabled(disabled),
+        },
+        "ArrowRight" if orientation == Orientation::Horizontal => match current_in_range {
+            Some(i) => step_non_disabled(i, 1, disabled, loop_focus),
+            None => first_non_disabled(disabled),
+        },
+        "ArrowLeft" if orientation == Orientation::Horizontal => match current_in_range {
+            Some(i) => step_non_disabled(i, -1, disabled, loop_focus),
+            None => last_non_disabled(disabled),
+        },
         _ => None,
     }
 }
@@ -1404,6 +1511,337 @@ mod tests {
         );
     }
 
+    // --- listbox_next_index（Listbox、イシュー #1070） ---
+
+    #[test]
+    fn listbox_next_index_vertical_default_arrow_down_up_step_and_ignore_horizontal_keys() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            listbox_next_index(
+                Some(0),
+                "ArrowDown",
+                Orientation::Vertical,
+                false,
+                mods(),
+                &disabled
+            ),
+            Some(1)
+        );
+        assert_eq!(
+            listbox_next_index(
+                Some(1),
+                "ArrowUp",
+                Orientation::Vertical,
+                false,
+                mods(),
+                &disabled
+            ),
+            Some(0)
+        );
+        assert_eq!(
+            listbox_next_index(
+                Some(0),
+                "ArrowRight",
+                Orientation::Vertical,
+                false,
+                mods(),
+                &disabled
+            ),
+            None
+        );
+        assert_eq!(
+            listbox_next_index(
+                Some(0),
+                "ArrowLeft",
+                Orientation::Vertical,
+                false,
+                mods(),
+                &disabled
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn listbox_next_index_horizontal_orientation_restricts_to_left_right() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            listbox_next_index(
+                Some(0),
+                "ArrowRight",
+                Orientation::Horizontal,
+                false,
+                mods(),
+                &disabled
+            ),
+            Some(1)
+        );
+        assert_eq!(
+            listbox_next_index(
+                Some(1),
+                "ArrowLeft",
+                Orientation::Horizontal,
+                false,
+                mods(),
+                &disabled
+            ),
+            Some(0)
+        );
+        assert_eq!(
+            listbox_next_index(
+                Some(0),
+                "ArrowDown",
+                Orientation::Horizontal,
+                false,
+                mods(),
+                &disabled
+            ),
+            None
+        );
+        assert_eq!(
+            listbox_next_index(
+                Some(0),
+                "ArrowUp",
+                Orientation::Horizontal,
+                false,
+                mods(),
+                &disabled
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn listbox_next_index_no_current_arrow_down_picks_first_and_arrow_up_picks_last() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            listbox_next_index(
+                None,
+                "ArrowDown",
+                Orientation::Vertical,
+                false,
+                mods(),
+                &disabled
+            ),
+            Some(0)
+        );
+        assert_eq!(
+            listbox_next_index(
+                None,
+                "ArrowUp",
+                Orientation::Vertical,
+                false,
+                mods(),
+                &disabled
+            ),
+            Some(2)
+        );
+        assert_eq!(
+            listbox_next_index(
+                None,
+                "ArrowRight",
+                Orientation::Horizontal,
+                false,
+                mods(),
+                &disabled
+            ),
+            Some(0)
+        );
+        assert_eq!(
+            listbox_next_index(
+                None,
+                "ArrowLeft",
+                Orientation::Horizontal,
+                false,
+                mods(),
+                &disabled
+            ),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn listbox_next_index_home_end_ignore_orientation_and_skip_disabled() {
+        let disabled = [true, false, false, true];
+        assert_eq!(
+            listbox_next_index(
+                Some(2),
+                "Home",
+                Orientation::Horizontal,
+                false,
+                mods(),
+                &disabled
+            ),
+            Some(1)
+        );
+        assert_eq!(
+            listbox_next_index(
+                Some(1),
+                "End",
+                Orientation::Vertical,
+                false,
+                mods(),
+                &disabled
+            ),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn listbox_next_index_default_no_loop_is_noop_at_ends() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            listbox_next_index(
+                Some(2),
+                "ArrowDown",
+                Orientation::Vertical,
+                false,
+                mods(),
+                &disabled
+            ),
+            None
+        );
+        assert_eq!(
+            listbox_next_index(
+                Some(0),
+                "ArrowUp",
+                Orientation::Vertical,
+                false,
+                mods(),
+                &disabled
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn listbox_next_index_loop_focus_true_wraps_at_ends() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            listbox_next_index(
+                Some(2),
+                "ArrowDown",
+                Orientation::Vertical,
+                true,
+                mods(),
+                &disabled
+            ),
+            Some(0)
+        );
+        assert_eq!(
+            listbox_next_index(
+                Some(0),
+                "ArrowUp",
+                Orientation::Vertical,
+                true,
+                mods(),
+                &disabled
+            ),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn listbox_next_index_skips_disabled_items() {
+        let disabled = [false, true, true, false];
+        assert_eq!(
+            listbox_next_index(
+                Some(0),
+                "ArrowDown",
+                Orientation::Vertical,
+                false,
+                mods(),
+                &disabled
+            ),
+            Some(3)
+        );
+    }
+
+    #[test]
+    fn listbox_next_index_out_of_range_current_falls_back_to_no_current_behavior() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            listbox_next_index(
+                Some(99),
+                "ArrowDown",
+                Orientation::Vertical,
+                false,
+                mods(),
+                &disabled
+            ),
+            Some(0)
+        );
+        assert_eq!(
+            listbox_next_index(
+                Some(99),
+                "ArrowUp",
+                Orientation::Vertical,
+                false,
+                mods(),
+                &disabled
+            ),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn listbox_next_index_all_disabled_or_empty_yields_none() {
+        let all_disabled = [true, true];
+        assert_eq!(
+            listbox_next_index(
+                Some(0),
+                "ArrowDown",
+                Orientation::Vertical,
+                false,
+                mods(),
+                &all_disabled
+            ),
+            None
+        );
+        let empty: [bool; 0] = [];
+        assert_eq!(
+            listbox_next_index(
+                None,
+                "ArrowDown",
+                Orientation::Vertical,
+                false,
+                mods(),
+                &empty
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn listbox_next_index_unknown_key_and_modifiers_are_noop() {
+        let disabled = [false, false, false];
+        assert_eq!(
+            listbox_next_index(
+                Some(0),
+                "PageDown",
+                Orientation::Vertical,
+                false,
+                mods(),
+                &disabled
+            ),
+            None
+        );
+        assert_eq!(
+            listbox_next_index(
+                Some(0),
+                "ArrowDown",
+                Orientation::Vertical,
+                false,
+                Modifiers {
+                    ctrl: true,
+                    ..Modifiers::default()
+                },
+                &disabled
+            ),
+            None
+        );
+    }
+
     // --- typeahead（Menu/Select 共用、イシュー #641） ---
 
     #[test]
@@ -1626,9 +2064,9 @@ mod tests {
 mod wiring {
     use super::{
         accordion_next_index, first_non_disabled, highlight_next_index, is_typeahead_key,
-        last_non_disabled, loop_focus_from_attr, menu_loop_focus_from_attr, radio_next_index,
-        submenu_nav, tabs_next_index, typeahead_next_index, typeahead_push, Modifiers, Orientation,
-        SubmenuNav, MAX_SUBMENU_DEPTH, TYPEAHEAD_TIMEOUT_MS,
+        last_non_disabled, listbox_next_index, loop_focus_from_attr, menu_loop_focus_from_attr,
+        radio_next_index, submenu_nav, tabs_next_index, typeahead_next_index, typeahead_push,
+        Modifiers, Orientation, SubmenuNav, MAX_SUBMENU_DEPTH, TYPEAHEAD_TIMEOUT_MS,
     };
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
@@ -1672,6 +2110,13 @@ mod wiring {
     /// `[data-scope="radio-group"][data-part="item-text"]` セレクタ。
     const RADIO_GROUP_ITEM_TEXT_SELECTOR: &str =
         "[data-scope=\"radio-group\"][data-part=\"item-text\"]";
+    /// `[data-scope="listbox"][data-part="content"]` セレクタ（イシュー
+    /// #1070。`role="listbox"` + `tabindex="0"` を持ち、Menu/Select の
+    /// trigger と異なり実 DOM フォーカスを直接保持する要素であり、keydown を
+    /// 直接受ける）。
+    const LISTBOX_CONTENT_SELECTOR: &str = "[data-scope=\"listbox\"][data-part=\"content\"]";
+    /// `[data-scope="listbox"][data-part="item"]` セレクタ（イシュー #1070）。
+    const LISTBOX_ITEM_SELECTOR: &str = "[data-scope=\"listbox\"][data-part=\"item\"]";
 
     /// `element.closest(selector)` の失敗（`Err`）・不一致（`None`）をまとめて
     /// `None` として扱う薄いヘルパ。DOM API のクエリ不正は本モジュールの
@@ -2859,6 +3304,112 @@ mod wiring {
         }
     }
 
+    /// Listbox（`crates/headless-ui/src/listbox.rs`）の content 上の keydown を
+    /// 処理する（イシュー #1070）。Menu/Select（[`handle_menu_or_select_trigger_keydown`]）
+    /// と異なり Listbox は常時展開で開閉状態を持たず、`content` 自身が
+    /// keydown ターゲット兼実 DOM フォーカス保持者であるため trigger の解決・
+    /// closed/open 分岐が不要な分薄い。
+    ///
+    /// - `data-orientation`/`data-loop-focus` は `listbox::content()`/
+    ///   `listbox::root()` のいずれも出力しない**呼び出し側オプトイン**
+    ///   属性（headless-ui の SSR 出力契約）であり、欠落時は
+    ///   `Orientation::Vertical`（既定・APG Listbox 準拠）/ 非循環
+    ///   （[`menu_loop_focus_from_attr`] と loopFocus 既定を共有）へ
+    ///   決定的にフォールバックする。
+    /// - Arrow/Home/End: [`listbox_next_index`] で次の highlight 対象を求め、
+    ///   `Some` のときのみ `prevent_default` + typeahead バッファリセット +
+    ///   [`set_highlight`]。`None`（端で非循環・未知キー・修飾キー付き）は
+    ///   `prevent_default` しない（ページの既定キー動作を奪わない）。
+    /// - typeahead（[`is_typeahead_key`]）: 既存の Menu/Select 実装
+    ///   （[`TypeaheadState`]/[`apply_typeahead_match`]）をそのまま再利用する。
+    /// - Enter/Space（typeahead バッファ非活性時）: highlight 中の非 disabled
+    ///   項目へ `click()` を合成する（Menu/Select と同じ「決定は click 合成で
+    ///   既存の click → dispatch 経路へ委譲する」設計。ただし
+    ///   `crate::headless::MAPPING_TABLE` は現時点で `listbox`/`item` 行を
+    ///   持たないため、この合成 click は選択状態を書き換える経路には未接続
+    ///   — 詳細はモジュール doc §Listbox・計画書 §3.4 参照。本イシューの
+    ///   スコープはキーボード配線のみであり `MAPPING_TABLE` 拡張は別イシュー
+    ///   とする）。highlight 不在・disabled は no-op（fail-closed）。
+    /// - **Escape は Menu/Select と意図的に非対称**: typeahead バッファの
+    ///   リセットのみを行い、`prevent_default` せず highlight も
+    ///   クリアしない。Menu/Select が Escape で highlight をクリアするのは
+    ///   「オーバーレイが閉じて再オープンした際、最初の Arrow キー操作が
+    ///   古い highlight から続くのを防ぐ」reopen 契約のためだが、Listbox は
+    ///   常時展開で開閉状態を持たずこの契約が存在しない。highlight
+    ///   （`aria-activedescendant`）を消しても支援技術上「アクティブ項目が
+    ///   消える」だけで利点が無く、`prevent_default` しないことでダイアログ
+    ///   内 Listbox が親ダイアログの Escape 閉鎖を奪わない（モジュール doc
+    ///   §Listbox 参照）。
+    /// - 修飾キー（Ctrl/Alt/Meta）付きは一律 no-op（`"extended"` selection
+    ///   mode——Shift+Arrow・Ctrl+A 等の範囲・追加選択——は
+    ///   `crates/headless-ui/src/listbox.rs` が out-of-scope 宣言済みであり
+    ///   本モジュールでも受理しない）。
+    fn handle_listbox_keydown(
+        root: &Element,
+        content: &Element,
+        event: &KeyboardEvent,
+        typeahead: &mut TypeaheadState,
+    ) {
+        if !root.contains(Some(content)) {
+            return;
+        }
+        let modifiers = modifiers_of(event);
+        if modifiers.any() {
+            return;
+        }
+        let key = event.key();
+        let items = filter_own_scope_items(
+            collect_parts(content, LISTBOX_ITEM_SELECTOR),
+            content,
+            LISTBOX_CONTENT_SELECTOR,
+        );
+        let disabled = disabled_flags(&items);
+        let current = find_highlighted_index(&items);
+        let now = event.time_stamp();
+        let buffer_active = typeahead.is_active_for(content, now);
+
+        if key == "Escape" {
+            // reopen 契約が存在しない Listbox では highlight を維持したまま
+            // typeahead バッファのみをリセットする（本関数 doc §Escape 参照）。
+            typeahead.reset();
+            return;
+        }
+
+        if is_typeahead_key(&key, buffer_active, modifiers) {
+            event.prevent_default();
+            let query = typeahead.push(&key, now, content);
+            apply_typeahead_match(&items, content, current, &query);
+            return;
+        }
+
+        let is_activation_key = key == "Enter" || (key == " " && !buffer_active);
+        if is_activation_key {
+            event.prevent_default();
+            typeahead.reset();
+            if let Some(idx) = current {
+                if !disabled.get(idx).copied().unwrap_or(true) {
+                    if let Ok(html_item) = items[idx].clone().dyn_into::<HtmlElement>() {
+                        html_item.click();
+                    }
+                }
+            }
+            return;
+        }
+
+        let orientation =
+            Orientation::from_attr_optional(content.get_attribute("data-orientation").as_deref())
+                .unwrap_or(Orientation::Vertical);
+        let loop_focus =
+            menu_loop_focus_from_attr(content.get_attribute("data-loop-focus").as_deref());
+        if let Some(next_index) =
+            listbox_next_index(current, &key, orientation, loop_focus, modifiers, &disabled)
+        {
+            event.prevent_default();
+            typeahead.reset();
+            set_highlight(&items, next_index, content);
+        }
+    }
+
     /// Tabs trigger クリック（マウスクリック・ネイティブ button の
     /// Enter/Space が発火する click イベントの双方）による活性化を処理する。
     /// disabled trigger のクリックは no-op（fail-closed。ネイティブ
@@ -2886,13 +3437,16 @@ mod wiring {
 
     /// キーボードイベントのターゲットを、Tabs trigger / Accordion
     /// item-trigger / Menu trigger / Select trigger / RadioGroup ネイティブ
-    /// `<input type="radio">` のいずれかに一致する要素として解決する
-    /// （返り値の `&'static str` はスコープ識別子）。`matches` の失敗
-    /// （不正セレクタ等）は不一致として扱う。Menu/Select/RadioGroup は
-    /// いずれも keydown 時に実 DOM フォーカスがそのままターゲット
-    /// （trigger button / radio input）上にあるため、Tabs/Accordion と同じく
+    /// `<input type="radio">` / Listbox content のいずれかに一致する要素
+    /// として解決する（返り値の `&'static str` はスコープ識別子）。
+    /// `matches` の失敗（不正セレクタ等）は不一致として扱う。
+    /// Menu/Select/RadioGroup/Listbox はいずれも keydown 時に実 DOM
+    /// フォーカスがそのままターゲット上にあるため、Tabs/Accordion と同じく
     /// `closest` を介さず `target` 自身の一致判定のみで足りる
-    /// （モジュール doc §Menu/Select/RadioGroup 参照）。
+    /// （モジュール doc §Menu/Select/RadioGroup/Listbox 参照）。Listbox は
+    /// trigger を持たず content 自身（`role="listbox"` + `tabindex="0"`）が
+    /// フォーカス保持者であるため、他 4 部品と異なり `content` セレクタで
+    /// 判定する（イシュー #1070）。
     fn matching_keydown_target(target: &Element) -> Option<(&'static str, Element)> {
         if target.matches(TABS_TRIGGER_SELECTOR).unwrap_or(false) {
             return Some(("tabs", target.clone()));
@@ -2909,6 +3463,9 @@ mod wiring {
         if target.matches(RADIO_GROUP_INPUT_SELECTOR).unwrap_or(false) {
             return Some(("radio", target.clone()));
         }
+        if target.matches(LISTBOX_CONTENT_SELECTOR).unwrap_or(false) {
+            return Some(("listbox", target.clone()));
+        }
         None
     }
 
@@ -2918,9 +3475,10 @@ mod wiring {
     ///
     /// - `keydown`: イベントターゲットが Tabs trigger / Accordion
     ///   item-trigger / Menu trigger / Select trigger / RadioGroup ネイティブ
-    ///   `<input type="radio">` のいずれかに一致する場合のみ処理する
-    ///   （[`handle_tabs_keydown`]/[`handle_accordion_keydown`]/
-    ///   [`handle_menu_or_select_trigger_keydown`]/[`handle_radio_keydown`]）。
+    ///   `<input type="radio">` / Listbox content のいずれかに一致する場合
+    ///   のみ処理する（[`handle_tabs_keydown`]/[`handle_accordion_keydown`]/
+    ///   [`handle_menu_or_select_trigger_keydown`]/[`handle_radio_keydown`]/
+    ///   [`handle_listbox_keydown`]、イシュー #1070）。
     /// - `click`: Tabs trigger への委譲クリックで [`handle_trigger_click`]
     ///   を呼び、マウスクリック・manual activationMode 下の Enter/Space の
     ///   双方をカバーする（Menu/Select の決定はキーボード側で highlight 中
@@ -2938,10 +3496,11 @@ mod wiring {
     /// `add_event_listener_with_callback` が失敗した場合に `Err` を返す。
     pub fn wire_keynav(root: Element) -> Result<(), JsValue> {
         let keydown_root = root.clone();
-        // typeahead バッファ（イシュー #641）は DOM から導出できない一時入力
-        // 状態のため、本 keydown [`Closure`]（`FnMut`）が所有する。root 配下の
-        // 全 Menu/Select に対し 1 個を共有し、対象 content が変わったときの
-        // 混線防止は [`TypeaheadState`] 自身が担う（`TypeaheadState` doc 参照）。
+        // typeahead バッファ（イシュー #641・#1070）は DOM から導出できない
+        // 一時入力状態のため、本 keydown [`Closure`]（`FnMut`）が所有する。
+        // root 配下の全 Menu/Select/Listbox に対し 1 個を共有し、対象
+        // content が変わったときの混線防止は [`TypeaheadState`] 自身が担う
+        // （`TypeaheadState` doc 参照）。
         let mut typeahead_state = TypeaheadState::new();
         let keydown_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
             let Ok(keyboard_event) = event.clone().dyn_into::<KeyboardEvent>() else {
@@ -2979,6 +3538,12 @@ mod wiring {
                     &mut typeahead_state,
                 ),
                 "radio" => handle_radio_keydown(&keydown_root, &matched, &keyboard_event),
+                "listbox" => handle_listbox_keydown(
+                    &keydown_root,
+                    &matched,
+                    &keyboard_event,
+                    &mut typeahead_state,
+                ),
                 _ => {}
             }
         });
