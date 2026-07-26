@@ -11,17 +11,20 @@
 //!
 //! # Phase 5（#1024〜#1029）の追加規約・進捗
 //!
-//! [`SPEC_TABLES`] はカテゴリ別 issue が完了するたびに 1 行ずつ充填される。
-//! 以後、カテゴリ別に以下の issue が担当する
-//! （`crate::primitives_catalog::PrimitiveCategory::spec_issue` と同一の対応）。
-//! 未充填カテゴリの `/primitives/<kebab>/` は Markdown 原稿のみで生成される
+//! 本イシュー時点では Forms A/Navigation/Data Display-Utilities の 3 カテゴリは
+//! 未充填であり、該当 `/primitives/<kebab>/` は Markdown 原稿のみで生成される
 //! （[`crate::component_page::generated_content`] が `None` を返す）。
+//! Forms B（11 件、#1025）は [`forms_b::SPECS`] が、Forms C・日付・状態表示
+//! （10 件、#1026）は [`forms_c_date_status::SPECS`] が、Overlay / Disclosure
+//! （10 件、#1027）は [`overlay_disclosure::SPECS`] が充填済み。以後、
+//! カテゴリ別に以下の issue が担当する
+//! （`crate::primitives_catalog::PrimitiveCategory::spec_issue` と同一の対応）。
 //!
 //! | カテゴリ | 対応 issue | 状態 |
 //! |---|---|---|
 //! | Forms A（11 件） | #1024 | 未充填 |
 //! | Forms B（11 件） | #1025 | 充填済み（[`forms_b`]） |
-//! | Forms C・日付・状態表示（10 件） | #1026 | 未充填 |
+//! | Forms C・日付・状態表示（10 件） | #1026 | 充填済み（[`forms_c_date_status`]） |
 //! | Overlay / Disclosure（10 件） | #1027 | 充填済み（[`overlay_disclosure`]） |
 //! | Navigation（11 件） | #1028 | 未充填 |
 //! | Data Display / Utilities（10 件） | #1029 | 未充填 |
@@ -36,6 +39,8 @@
 
 pub mod forms_b;
 
+pub mod forms_c_date_status;
+
 use crate::component_page::ComponentPageSpec;
 
 mod overlay_disclosure;
@@ -43,5 +48,8 @@ mod overlay_disclosure;
 /// `path -> ComponentPageSpec` レジストリを供給するカテゴリ別テーブルの集約。
 /// Phase 5 の各 issue はカテゴリ 1 個につき 1 テーブルを追加し、本配列へ
 /// 1 行追記する（`crate::component_page::SPEC_TABLES` と同型の集約方式）。
-pub const SPEC_TABLES: &[&[(&str, ComponentPageSpec)]] =
-    &[forms_b::SPECS, overlay_disclosure::SPECS];
+pub const SPEC_TABLES: &[&[(&str, ComponentPageSpec)]] = &[
+    forms_b::SPECS,
+    forms_c_date_status::SPECS,
+    overlay_disclosure::SPECS,
+];
