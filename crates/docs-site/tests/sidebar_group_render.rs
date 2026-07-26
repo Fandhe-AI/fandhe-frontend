@@ -24,6 +24,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/components/"
 
 [[section.page]]
 title = "Overview"
@@ -63,6 +64,7 @@ base_path = ""
 
 [[section]]
 title = "Getting Started"
+index_path = "/"
 
 [[section.page]]
 title = "Intro"
@@ -87,6 +89,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/components/button/"
 
 [[section.group]]
 title = "Forms"
@@ -253,6 +256,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/components/button/"
 
 [[section.group]]
 title = "<script>alert(1)</script>&\"Forms\""

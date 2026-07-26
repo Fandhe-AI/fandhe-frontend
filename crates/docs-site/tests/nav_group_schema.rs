@@ -66,6 +66,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/components/button/"
 
 [[section.group]]
 title = "Forms"
@@ -121,6 +122,7 @@ base_path = ""
 
 [[section]]
 title = "Guide"
+index_path = "/intro/"
 
 [[section.page]]
 title = "Intro"
@@ -141,6 +143,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/components/"
 
 [[section.page]]
 title = "Overview"
@@ -175,6 +178,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/components/button/"
 
 [[section.group]]
 title = "Forms"
@@ -210,6 +214,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/components/button/"
 
 [[section.group]]
 title = "Forms"
@@ -233,6 +238,7 @@ base_path = ""
 
 [[section]]
 title = "Guide"
+index_path = "/intro/"
 
 [[section.page]]
 title = "Intro"
@@ -241,6 +247,7 @@ path = "/intro/"
 
 [[section]]
 title = "Components"
+index_path = "/components/button/"
 
 [[section.group]]
 title = "Forms"
@@ -274,6 +281,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/components/button/"
 
 [[section.group]]
 title = "Forms"
@@ -297,6 +305,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/components/button/"
 
 [[section.group]]
 title = "Forms"
@@ -324,6 +333,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/components/forms/"
 
 [[section.group]]
 title = "Forms"
@@ -346,6 +356,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/components/button/"
 
 [[section.group]]
 title = "Forms"
@@ -373,6 +384,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/components/button/"
 
 [[section.group]]
 
@@ -399,6 +411,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/components/button/"
 
 [[section.group]]
 title = "Forms"
@@ -425,6 +438,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/components/forms/"
 
 [[section.group]]
 title = "Forms"
@@ -444,6 +458,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/components/nested/"
 
 [[section.group]]
 title = "Forms"
@@ -468,6 +483,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/dup/"
 
 [[section.page]]
 title = "Overview"
@@ -497,6 +513,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/dup/"
 
 [[section.group]]
 title = "Forms"
@@ -529,6 +546,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/components/button/"
 
 [[section.group]]
 title = "Forms"
@@ -553,6 +571,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/../button/"
 
 [[section.group]]
 title = "Forms"
@@ -592,6 +611,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/orphan/"
 
 [[section.group.page]]
 title = "Orphan"
@@ -636,6 +656,7 @@ base_path = ""
 
 [[section]]
 title = "Components"
+index_path = "/components/forms/"
 
 [[section.group]]
 title = "Forms"
@@ -662,6 +683,7 @@ base_path = ""
 
 [[section]]
 title = "<script>alert(1)</script>"
+index_path = "/button/"
 
 [[section.group]]
 title = "Forms"
