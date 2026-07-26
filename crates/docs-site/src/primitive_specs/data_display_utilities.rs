@@ -1,0 +1,971 @@
+//! Primitives（`fandhe-frontend-headless-ui`）Data Display / Utilities 系
+//! 10 部品ページの原稿データ（イシュー #1029、親トラッキング #1035
+//! Phase 5）。
+//!
+//! # 役割・呼び出し文脈
+//!
+//! [`crate::primitive_specs::SPEC_TABLES`] から参照される
+//! [`crate::component_page::ComponentPageSpec`] 定数群を保持する専用
+//! モジュール。本モジュール自体は生成物へ直接寄与しない
+//! （`component_page::render_component_page` が `spec_for` 経由で読み取り、
+//! Demo〔[`crate::primitive_showcase::data_display_utilities`]〕・Anatomy・
+//! `data-*` 属性表（いずれも機械導出、Primitives 層は CSS 変数表を持たない）
+//! と合成して 6 節ページを組み立てる）。
+//!
+//! 対象は avatar・carousel・json-tree-view・scroll-area・skip-nav・
+//! splitter・steps・tour・tree-view・visually-hidden の 10 部品
+//! （`crates/docs-site/src/primitives_catalog.rs` の
+//! `PrimitiveCategory::DataDisplayUtilities` 並び順と一致させる）。
+//!
+//! # Arguments 抽出規約（`/themes/` 側 #946 規約・`primitive_specs::overlay_disclosure`
+//! （#1027）からの層固有の変更点を踏襲）
+//!
+//! `fandhe-frontend-headless-ui` の当該モジュールが公開する関数・
+//! （`Carousel`/`Splitter`/`Steps`/`Tour` のような状態機械については）
+//! メソッドの**型付き引数**を抽出元とする。`attrs: Vec<(&str, &str)>`/
+//! `children: Vec<Node>` は全部品共通の定型引数のため原則除外するが、
+//! [`visually_hidden::root`] のように公開関数がこの 2 引数のみを持つ場合は
+//! 例外的にそのまま記載する（それ以外に本モジュールの API 面が存在しない
+//! ため、除外すると `arguments` が空になり受け入れ条件 1 に反する）。
+//! [`ArgRow`] には part 列が無いため、`<関数/メソッド名>: <引数名>` 形式で
+//! `name` 列へ埋め込む（10 部品で表記を統一する、#1027 と同型）。
+//!
+//! # `keyboard` を 7/10 件で空にする理由（3 件のみ非空）
+//!
+//! 本カテゴリ 10 モジュールのうち `tabindex` を出力するのは
+//! `scroll_area`（`viewport`、`crates/headless-ui/src/scroll_area.rs:68-71`）・
+//! `skip_nav`（`content`、`crates/headless-ui/src/skip_nav.rs:100-107`）・
+//! `splitter`（`resize_trigger`、`crates/headless-ui/src/splitter.rs:270-275`）
+//! の 3 件のみ（非テストソースの grep 結果）。残り 7 件
+//! （avatar/carousel/json_tree_view/steps/tour/tree_view/visually_hidden）は
+//! `tabindex` を一切出力せず、クリック・矢印キー等の実 DOM 配線は各モジュール
+//! doc の out-of-scope 節が `fandhe-frontend-wasm-full` 後続イシューの責務と
+//! 明示している（`carousel.rs:71`/`splitter.rs:71-73`/`steps.rs:75`/
+//! `tour.rs:89-91`/`tree_view.rs:74-77` 参照。avatar/visually_hidden は
+//! そもそもキー操作の対象になる要素を持たない）。実装が焦点制御に関与しない
+//! 部品へ「ArrowRight で次へ進む」のような未実装の対話を書くと利用者へ誤った
+//! 安心を与えるため、該当 7 件は `keyboard: &[]` を採用し、非空である
+//! `aria` 表のみで Accessibility 節を成立させる（`component_page.rs` の
+//! Accessibility 節省略規則参照。3 件（scroll_area/skip_nav/splitter）は
+//! `tabindex` の**属性事実のみ**を `KeyRow` に記載し、対話そのものは記載
+//! しない）。
+//!
+//! # `avatar`/`visually_hidden` の Accessibility 節が空にならない理由
+//!
+//! `avatar`（`crates/headless-ui/src/avatar.rs`）・
+//! `visually_hidden`（`crates/headless-ui/src/visually_hidden.rs`）は
+//! いずれも `role`/`aria-*` を一切出力しない（`avatar.rs`/
+//! `visually_hidden.rs` 全文で `role`/`aria-` grep 0 件、非テスト行のみで
+//! 確認）。`aria` を空のままにすると Accessibility 節ごと省略されてしまう
+//! ため、非付与の事実そのものを `AriaRow { attribute: "(該当なし)", .. }`
+//! として明示する（`crate::component_specs_nav_data::AVATAR`/`BADGE` と同型の
+//! 先例）。
+//!
+//! # セキュリティ不変条件（REQ-1）
+//!
+//! 本モジュールはリテラル `&'static str` のみで [`ArgRow`]/[`AriaRow`]/
+//! [`KeyRow`] を構築し、`raw_html()` や HTML 文字列の直接組み立て
+//! （`format!("<td>{}</td>", …)`）を一切行わない。実際のエスケープは
+//! `component_page.rs` 側の `table`/`td`/`text` ノード木経由で `render()`
+//! が行う。`examples` のレンダラは `fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui`
+//! （イシュー #693 方針、`hui` エイリアス）経由の headless-ui パート関数
+//! のみで組み立て、`fandhe_frontend_pre_styled_ui::` の部品関数（styled
+//! 層）は一切呼ばない（受け入れ条件 3）。ダミー文字列は無害なもの
+//! （`example.com` 等の予約ドメイン、架空の名前）に限る。
+
+use fandhe_frontend_core::{div, text, Node};
+use fandhe_frontend_pre_styled_ui::fandhe_frontend_headless_ui as hui;
+use hui::avatar::{self, ImageStatus};
+use hui::carousel;
+use hui::data_attrs::Orientation;
+use hui::fandhe_frontend_interactive::Component;
+use hui::json_tree_view::{self, JsonValue};
+use hui::positioning::{Align, Placement, Side};
+use hui::scroll_area;
+use hui::skip_nav;
+use hui::splitter;
+use hui::steps::Steps;
+use hui::tour::{Tour, TourAction, TourStep};
+use hui::tree_view;
+use hui::visually_hidden;
+use hui::OpenState;
+
+use crate::component_page::{ArgRow, AriaRow, ComponentPageSpec, ExampleEntry, KeyRow};
+
+// ---------------------------------------------------------------------
+// Avatar（/primitives/avatar/）
+// ---------------------------------------------------------------------
+
+/// 一次情報: `crates/headless-ui/src/avatar.rs:1-79`（モジュール doc、
+/// `data-state` 語彙・ARIA について・スコープ外）、`:152-207`（`root`/
+/// `image`/`fallback` シグネチャ）、`:228-243`（`Avatar::new`）。
+/// 非テスト行で `role`/`aria-` の出力は 0 件。
+fn ex_avatar_error_fallback() -> Node {
+    let status = ImageStatus::Error;
+    avatar::root(
+        vec![],
+        vec![
+            avatar::image(
+                status,
+                "https://example.com/broken-avatar.png",
+                "Ada Lovelace",
+                vec![],
+            ),
+            avatar::fallback(status, vec![], vec![text("AL")]),
+        ],
+    )
+}
+
+pub const AVATAR: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "画像読み込みステータス 3 値（ImageStatus::Loading/Loaded/Error）を管理する状態機械 Avatar を提供する（avatar.rs:94-141）。",
+        "Root / Image / Fallback の 3 anatomy パーツで構成し、Loaded のときのみ image を表示、それ以外は fallback を表示する安全側の既定（avatar.rs:132-141,152-207）。",
+        "image パーツは alt テキストを必須引数として要求することが実質的なアクセシビリティ担保であり、専用の role/aria-* は付与しない（avatar.rs:37-43）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "image: src",
+            kind: "&str",
+            default: "",
+            description: "画像 URL（avatar.rs:170-188、必須）。",
+        },
+        ArgRow {
+            name: "image: alt",
+            kind: "&str",
+            default: "",
+            description: "代替テキスト（avatar.rs:170-188、必須。実質的なアクセシビリティ担保）。",
+        },
+        ArgRow {
+            name: "image/fallback: status",
+            kind: "ImageStatus",
+            default: "ImageStatus::Loading",
+            description: "画像読み込みステータス。Loaded のときのみ image が可視（avatar.rs:99-107,132-141）。",
+        },
+        ArgRow {
+            name: "Avatar::new: initial",
+            kind: "ImageStatus",
+            default: "ImageStatus::Loading",
+            description: "状態機械の初期ステータス（avatar.rs:238-243）。",
+        },
+    ],
+    examples: &[ExampleEntry {
+        title: "Error fallback",
+        description: "画像読み込み失敗（ImageStatus::Error）時のイニシャル表示例です。",
+        render: ex_avatar_error_fallback,
+    }],
+    keyboard: &[],
+    aria: &[AriaRow {
+        attribute: "(該当なし)",
+        description: "root/image/fallback は固有の role/aria-* を出力しない（avatar.rs 全文の非テスト行で role/aria- grep 0 件）。image パーツの alt テキストのみが代替情報を提供する。",
+    }],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Carousel（/primitives/carousel/）
+// ---------------------------------------------------------------------
+
+/// 一次情報: `crates/headless-ui/src/carousel.rs:1-74`（モジュール doc、
+/// 決定的な遷移規則・スコープ外）、`:85-208`（`root`/`prev_trigger`/
+/// `next_trigger`/`item_group`/`item`/`indicator` シグネチャと
+/// role/aria-* 出力）、`:266`（`Carousel::new`）。
+fn ex_carousel_vertical_loop() -> Node {
+    let orientation = Orientation::Vertical;
+    carousel::root(
+        orientation,
+        "Featured photos (vertical, looping)",
+        vec![],
+        vec![
+            carousel::item_group(
+                vec![],
+                vec![
+                    carousel::item(0, 3, false, vec![], vec![text("Slide 1")]),
+                    carousel::item(1, 3, false, vec![], vec![text("Slide 2")]),
+                    carousel::item(2, 3, true, vec![], vec![text("Slide 3")]),
+                ],
+            ),
+            carousel::control(
+                vec![],
+                vec![
+                    carousel::prev_trigger(false, "Previous slide", vec![], vec![text("‹")]),
+                    carousel::indicator_group(
+                        vec![],
+                        vec![
+                            carousel::indicator(0, false, vec![]),
+                            carousel::indicator(1, false, vec![]),
+                            carousel::indicator(2, true, vec![]),
+                        ],
+                    ),
+                    carousel::next_trigger(false, "Next slide", vec![], vec![text("›")]),
+                ],
+            ),
+        ],
+    )
+}
+
+pub const CAROUSEL: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "Root / Control / PrevTrigger / NextTrigger / ItemGroup / Item / IndicatorGroup / Indicator の 8 anatomy パーツを提供する（carousel.rs:1-10）。",
+        "root は role=\"region\" + aria-roledescription=\"carousel\" + 呼び出し側指定の aria-label を固定出力する（carousel.rs:85-106）。",
+        "item は role=\"group\" + aria-roledescription=\"slide\" + \"{n} of {m}\" 形式の aria-label を自動生成する（carousel.rs:167-186）。",
+        "autoplay 非対応の初期実装のため item_group の aria-live は常に \"polite\" 固定（carousel.rs:66-70,154-165）。",
+        "index==slide_count-1 かつ loop=true のとき Next は先頭へ循環し、prev/next とも disabled にならない決定的な遷移規則を持つ（carousel.rs:31-42）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "root: orientation",
+            kind: "Orientation",
+            default: "",
+            description: "carousel のレイアウト方向（carousel.rs:92-106）。",
+        },
+        ArgRow {
+            name: "root: label",
+            kind: "&str",
+            default: "",
+            description: "aria-label に出力する説明文（carousel.rs:92-106、必須）。",
+        },
+        ArgRow {
+            name: "prev_trigger/next_trigger: disabled",
+            kind: "bool",
+            default: "false",
+            description: "端かつ loop=false のとき true（native disabled + data-disabled、carousel.rs:115-152）。",
+        },
+        ArgRow {
+            name: "item: index, count, current",
+            kind: "usize, usize, bool",
+            default: "",
+            description: "スライド位置・総数・現在表示中かどうか（aria-label/data-current 生成元、carousel.rs:173-186）。",
+        },
+        ArgRow {
+            name: "Carousel::new: index, slide_count, loop_, orientation",
+            kind: "usize, usize, bool, Orientation",
+            default: "",
+            description: "状態機械の初期値（carousel.rs:266）。",
+        },
+    ],
+    examples: &[ExampleEntry {
+        title: "Vertical looping carousel",
+        description: "縦方向レイアウト・loop 有効で最終スライドを表示した例です（Demo は水平・非 loop）。",
+        render: ex_carousel_vertical_loop,
+    }],
+    keyboard: &[],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"region\" / aria-roledescription=\"carousel\" / aria-label",
+            description: "root に固定出力する（carousel.rs:85-106）。",
+        },
+        AriaRow {
+            attribute: "role=\"group\" / aria-roledescription=\"slide\" / aria-label",
+            description: "item に固定出力し、aria-label は \"{n} of {m}\" 形式（carousel.rs:167-186）。",
+        },
+        AriaRow {
+            attribute: "aria-live=\"polite\"",
+            description: "item_group に固定出力する（carousel.rs:154-165）。",
+        },
+        AriaRow {
+            attribute: "aria-label",
+            description: "prev_trigger/next_trigger/indicator に呼び出し側指定または自動生成の説明文を出力する（carousel.rs:115-208）。",
+        },
+        AriaRow {
+            attribute: "aria-current=\"true\"",
+            description: "indicator が current のときのみ出力する（carousel.rs:194-208）。",
+        },
+    ],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// JSON Tree View（/primitives/json-tree-view/）
+// ---------------------------------------------------------------------
+
+/// 一次情報: `crates/headless-ui/src/json_tree_view.rs:1-93`（モジュール
+/// doc、`tree_view`（#753）の派生であることの位置づけ・データモデル・
+/// out-of-scope）、`:194-223`（`key`/`value`/`render_json` シグネチャ）、
+/// `:347`（`expanded_to_depth`）。role/aria-* は `tree_view` 側
+/// （`branch`/`item`/`tree`/`branch_content`）が出力し、本モジュール固有の
+/// `key`/`value` パーツは role/aria-* を持たない。
+fn ex_json_tree_view_collapsed_array() -> Node {
+    let value = JsonValue::Array(vec![
+        JsonValue::Number(1.0),
+        JsonValue::Number(2.0),
+        JsonValue::String("three".to_string()),
+    ]);
+    let tree = json_tree_view::expanded_to_depth(&value, 0);
+    json_tree_view::render_json(&tree, &value)
+}
+
+pub const JSON_TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "実装済み crate::tree_view（イシュー #753）の 12 anatomy パーツ・状態機械 TreeView を再利用し、JSON 固有の key/value 2 パーツのみを追加する（json_tree_view.rs:1-29）。",
+        "Object は HashMap ではなく挿入順を保持する Vec<(String, JsonValue)> で表現し、render_json の出力が決定的（バイト単位で一致）である（json_tree_view.rs:31-37,118-136）。",
+        "ノード識別子に RFC 6901 JSON Pointer を用い、key に `/`/`~` を含むデータでも一意性が壊れない（json_tree_view.rs:39-46,180-192）。",
+        "role/aria-*（role=\"tree\"/\"treeitem\"/\"group\"、aria-expanded/aria-selected/aria-level/aria-posinset/aria-setsize）はすべて crate::tree_view のパーツ関数から継承する（json_tree_view.rs:16-24）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "render_json: tree",
+            kind: "&TreeView",
+            default: "",
+            description: "展開・選択状態（json_tree_view.rs:221-223）。",
+        },
+        ArgRow {
+            name: "render_json: root",
+            kind: "&JsonValue",
+            default: "",
+            description: "描画対象の JSON 風データ木（json_tree_view.rs:221-223）。",
+        },
+        ArgRow {
+            name: "expanded_to_depth: depth",
+            kind: "usize",
+            default: "",
+            description: "この深さまでのブランチを展開済みにした TreeView を生成する（json_tree_view.rs:347）。",
+        },
+        ArgRow {
+            name: "value: kind",
+            kind: "&'static str",
+            default: "",
+            description: "JsonValue::kind() が返す固定語彙（\"null\"/\"bool\"/\"number\"/\"string\"/\"array\"/\"object\"）のみを受け取る data-kind 属性値（json_tree_view.rs:138-153,201-209）。",
+        },
+    ],
+    examples: &[ExampleEntry {
+        title: "Collapsed array",
+        description: "depth=0（全ブランチ折りたたみ）で描画した配列の例です（Demo は depth=2 まで展開済みのオブジェクト）。",
+        render: ex_json_tree_view_collapsed_array,
+    }],
+    keyboard: &[],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"tree\" / role=\"treeitem\" / role=\"group\"",
+            description: "crate::tree_view の tree/branch・item/branch_content から継承する（tree_view.rs:125-259）。",
+        },
+        AriaRow {
+            attribute: "aria-expanded / aria-selected / aria-level / aria-posinset / aria-setsize",
+            description: "crate::tree_view の branch/item から継承する（tree_view.rs:159-303）。",
+        },
+    ],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Scroll Area（/primitives/scroll-area/）
+// ---------------------------------------------------------------------
+
+/// 一次情報: `crates/headless-ui/src/scroll_area.rs:1-46`（モジュール doc、
+/// スコープ外）、`:55-107`（`root`/`viewport`/`content`/`scrollbar`/
+/// `thumb`/`corner` シグネチャと `tabindex`/`aria-hidden` 出力）。
+fn ex_scroll_area_horizontal() -> Node {
+    scroll_area::root(
+        vec![],
+        vec![
+            scroll_area::viewport(
+                vec![],
+                vec![scroll_area::content(
+                    vec![],
+                    vec![text("Wide scrollable content…")],
+                )],
+            ),
+            scroll_area::scrollbar(
+                Orientation::Horizontal,
+                vec![],
+                vec![scroll_area::thumb(Orientation::Horizontal, vec![], vec![])],
+            ),
+            scroll_area::corner(vec![], vec![]),
+        ],
+    )
+}
+
+pub const SCROLL_AREA: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "Root / Viewport / Content / Scrollbar / Thumb / Corner の 6 anatomy パーツを提供し、CSS overflow を主体とするスクロール領域を表現する（scroll_area.rs:1-10）。",
+        "viewport は WAI 慣行（矢印キー/Page キーでフォーカス済み要素をスクロールできる）に従い tabindex=\"0\" を固定出力する（scroll_area.rs:61-71）。",
+        "scrollbar/corner はネイティブスクロールバーと意味が重複する装飾要素のため aria-hidden=\"true\" を固定出力する（scroll_area.rs:80-107）。",
+        "JS によるスクロール位置追従・thumb の drag 操作は本モジュールのスコープ外（静的マークアップの受け皿のみを提供、scroll_area.rs:21-32）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "scrollbar/thumb: orientation",
+            kind: "Orientation",
+            default: "",
+            description: "data-orientation 属性値（scroll_area.rs:85-97）。",
+        },
+        ArgRow {
+            name: "viewport: attrs, children",
+            kind: "Vec<(&str, &str)>, Vec<Node>",
+            default: "vec![], vec![]",
+            description: "tabindex=\"0\" は固定出力のため呼び出し側から指定する引数ではない（scroll_area.rs:67-72）。",
+        },
+    ],
+    examples: &[ExampleEntry {
+        title: "Horizontal scroll area",
+        description: "水平方向のスクロールバー配置例です（Demo は垂直方向）。",
+        render: ex_scroll_area_horizontal,
+    }],
+    keyboard: &[KeyRow {
+        key: "Tab",
+        description: "viewport は tabindex=\"0\" を固定出力するため通常の Tab 順序に含まれる（scroll_area.rs:61-71）。矢印キー/Page キーによる実際のスクロール操作はブラウザネイティブの挙動に依拠し、本モジュールは属性出力のみを担う。",
+    }],
+    aria: &[AriaRow {
+        attribute: "aria-hidden=\"true\"",
+        description: "scrollbar/corner に固定出力する（scroll_area.rs:80-107）。thumb/viewport/content/root は role/aria-* を出力しない。",
+    }],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Skip Nav（/primitives/skip-nav/）
+// ---------------------------------------------------------------------
+
+/// 一次情報: `crates/headless-ui/src/skip_nav.rs:1-63`（モジュール doc、
+/// href の構成・契約属性の除去）、`:75-108`（`DEFAULT_ID`/`link`/`content`
+/// シグネチャ）。role/aria-* の出力は非テスト行で 0 件。
+fn ex_skip_nav_custom_id() -> Node {
+    div(
+        vec![],
+        vec![
+            skip_nav::link(
+                "primitives-main",
+                vec![],
+                vec![text("Skip to primitives content")],
+            ),
+            skip_nav::content(
+                "primitives-main",
+                vec![],
+                vec![text("Primitives content starts here.")],
+            ),
+        ],
+    )
+}
+
+pub const SKIP_NAV: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "link / content の 2 anatomy パーツで WCAG 2.1 SC 2.4.1 Bypass Blocks を実現する（skip_nav.rs:1-14）。",
+        "link は任意の URL を呼び出し側から受け取らず、常に `#<id>`（フラグメントのみ）を内部で組み立てるためスキーム注入経路を持たない（skip_nav.rs:16-22,77-91）。",
+        "content は id/tabindex を、link は href を、それぞれ呼び出し側 attrs に同名キー（大文字小文字を無視）があっても fail-closed に除去してから合成する（skip_nav.rs:24-32,82-108）。",
+        "DEFAULT_ID 定数（\"fandhe-skip-nav\"）を提供し、ページ全体に 1 個だけ配置する典型利用を想定する（skip_nav.rs:71-75）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "link: id",
+            kind: "&str",
+            default: "skip_nav::DEFAULT_ID",
+            description: "スキップ先 id。href=\"#<id>\" として出力する（skip_nav.rs:81-91）。",
+        },
+        ArgRow {
+            name: "content: id",
+            kind: "&str",
+            default: "skip_nav::DEFAULT_ID",
+            description: "id 属性値。link の href と対にする（skip_nav.rs:100-108）。",
+        },
+    ],
+    examples: &[ExampleEntry {
+        title: "Custom id",
+        description: "DEFAULT_ID ではなく呼び出し側指定の id（\"primitives-main\"）を使う例です。",
+        render: ex_skip_nav_custom_id,
+    }],
+    keyboard: &[KeyRow {
+        key: "Tab (content, after link activation)",
+        description: "content は tabindex=\"-1\" を固定出力するため通常の Tab 順序には含まれず、link クリック後のプログラム的フォーカス移動のみを許可する（skip_nav.rs:93-108）。",
+    }],
+    aria: &[AriaRow {
+        attribute: "(該当なし)",
+        description: "link/content は固有の role/aria-* を出力しない（skip_nav.rs 全文の非テスト行で role/aria- grep 0 件）。",
+    }],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Splitter（/primitives/splitter/）
+// ---------------------------------------------------------------------
+
+/// 一次情報: `crates/headless-ui/src/splitter.rs:1-76`（モジュール doc、
+/// `aria-orientation` の向き・決定的な正規化・スコープ外）、`:210-287`
+/// （`root`/`panel`/`resize_trigger`/`resize_trigger_indicator`
+/// シグネチャと role/aria-*/tabindex 出力）、`:352`（`Splitter::new`）。
+fn ex_splitter_vertical_three_panels() -> Node {
+    let orientation = Orientation::Vertical;
+    splitter::root(
+        orientation,
+        false,
+        vec![],
+        vec![
+            splitter::panel("sp-top", orientation, vec![], vec![text("Top")]),
+            splitter::resize_trigger(
+                orientation,
+                "0",
+                "100",
+                "33",
+                "sp-top",
+                false,
+                vec![],
+                vec![splitter::resize_trigger_indicator(vec![], vec![])],
+            ),
+            splitter::panel("sp-middle", orientation, vec![], vec![text("Middle")]),
+            splitter::resize_trigger(
+                orientation,
+                "0",
+                "100",
+                "66",
+                "sp-middle",
+                false,
+                vec![],
+                vec![splitter::resize_trigger_indicator(vec![], vec![])],
+            ),
+            splitter::panel("sp-bottom", orientation, vec![], vec![text("Bottom")]),
+        ],
+    )
+}
+
+pub const SPLITTER: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "Root / Panel / ResizeTrigger / ResizeTriggerIndicator の 4 anatomy パーツと、パネルサイズ状態機械 Splitter を提供する（splitter.rs:1-11）。",
+        "resize_trigger は role=\"separator\" + aria-valuemin/aria-valuemax/aria-valuenow + aria-orientation（パネルレイアウトと逆向き）+ aria-controls を常に出力する（splitter.rs:13-22,238-280）。",
+        "disabled=true のとき tabindex=\"-1\" + aria-disabled、false のとき tabindex=\"0\" を出力する（splitter.rs:242-275）。",
+        "Splitter::new はパネル数 2 未満・非有限値・制約矛盾等の実現不能構成を既定（2 パネル 50/50）へ fail-closed にフォールバックする（splitter.rs:33-45,194-208）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "root: orientation, disabled",
+            kind: "Orientation, bool",
+            default: "",
+            description: "パネルレイアウトの向きと無効状態（splitter.rs:212-222）。",
+        },
+        ArgRow {
+            name: "panel: id",
+            kind: "&str",
+            default: "",
+            description: "resize_trigger の aria-controls 先となる id（必須、splitter.rs:224-236）。",
+        },
+        ArgRow {
+            name: "resize_trigger: min, max, now, controls, disabled",
+            kind: "&str, &str, &str, &str, bool",
+            default: "",
+            description: "aria-valuemin/aria-valuemax/aria-valuenow/aria-controls と tabindex 切替の元（splitter.rs:246-280）。",
+        },
+        ArgRow {
+            name: "Splitter::new: panels, orientation",
+            kind: "&[PanelSpec], Orientation",
+            default: "",
+            description: "パネル構成（size/min/max）と向き。fail-closed に正規化する（splitter.rs:352）。",
+        },
+    ],
+    examples: &[ExampleEntry {
+        title: "Vertical 3-panel splitter",
+        description: "縦方向レイアウトで 3 パネル・2 セパレータを組んだ例です（Demo は水平 2 パネル）。",
+        render: ex_splitter_vertical_three_panels,
+    }],
+    keyboard: &[KeyRow {
+        key: "Tab",
+        description: "resize_trigger は disabled=false のとき tabindex=\"0\" で通常の Tab 順序に入り、disabled=true のとき tabindex=\"-1\" で除外される（splitter.rs:242-275）。Arrow キー等による実際のリサイズ操作の DOM 配線は wasm-full 層のスコープ（本モジュールは属性出力のみ）。",
+    }],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"separator\"",
+            description: "resize_trigger に固定出力する（splitter.rs:262-263）。",
+        },
+        AriaRow {
+            attribute: "aria-valuemin / aria-valuemax / aria-valuenow",
+            description: "先行パネルのサイズ%（有限性検証・クランプ済み）を出力する（splitter.rs:56-59,264-266）。",
+        },
+        AriaRow {
+            attribute: "aria-orientation",
+            description: "セパレータ自体の向き（パネルレイアウトと逆向き、splitter.rs:13-22,267）。",
+        },
+        AriaRow {
+            attribute: "aria-controls",
+            description: "先行パネルの id（splitter.rs:268）。",
+        },
+        AriaRow {
+            attribute: "aria-disabled=\"true\"",
+            description: "disabled=true のときのみ出力する（splitter.rs:270-273）。",
+        },
+    ],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Steps（/primitives/steps/）
+// ---------------------------------------------------------------------
+
+/// 一次情報: `crates/headless-ui/src/steps.rs:1-76`（モジュール doc、
+/// 状態モデル・out-of-scope）、`:153-388`（`Steps::new`/`root`/`list`/
+/// `item`/`trigger`/`indicator`/`separator`/`content`/`completed_content`/
+/// `prev_trigger`/`next_trigger` シグネチャと role/aria-* 出力）。
+fn ex_steps_completed() -> Node {
+    let steps = Steps::new(2, 2, Orientation::Horizontal);
+    steps.root(
+        vec![],
+        vec![
+            steps.list(
+                vec![],
+                vec![
+                    steps.item(
+                        0,
+                        vec![],
+                        vec![steps.trigger(
+                            0,
+                            vec![],
+                            vec![steps.indicator(0, vec![], vec![text("1")])],
+                        )],
+                    ),
+                    steps.separator(0, vec![], vec![]),
+                    steps.item(
+                        1,
+                        vec![],
+                        vec![steps.trigger(
+                            1,
+                            vec![],
+                            vec![steps.indicator(1, vec![], vec![text("2")])],
+                        )],
+                    ),
+                ],
+            ),
+            steps.completed_content(vec![], vec![text("All steps completed.")]),
+        ],
+    )
+}
+
+pub const STEPS: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "Root / List / Item / Trigger / Indicator / Separator / Content / CompletedContent / PrevTrigger / NextTrigger の 10 anatomy パーツを提供する（steps.rs:1-10）。",
+        "count/step から complete/current/incomplete の 3 状態を導出し、data-state・data-complete/-current/-incomplete へ一元反映する（steps.rs:24-34,89-121）。",
+        "current な item の trigger のみ aria-current=\"step\" を付与する（steps.rs:58-61,249-269）。",
+        "separator は role=\"separator\" + aria-hidden=\"true\" で装飾要素として a11y ツリーから除外する（steps.rs:288-310）。",
+        "prev_trigger/next_trigger は境界（step==0/step==count）で自動的に disabled 属性を付与する（steps.rs:357-388）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "Steps::new: count, step, orientation",
+            kind: "usize, usize, Orientation",
+            default: "",
+            description: "全 step 数・現在位置・向き。fail-closed に正規化する（steps.rs:123-133,164-171）。",
+        },
+        ArgRow {
+            name: "item/trigger/indicator/separator/content: index",
+            kind: "usize",
+            default: "",
+            description: "0..count の step インデックス（3 状態・aria-current 判定の元、steps.rs:224-334）。",
+        },
+    ],
+    examples: &[ExampleEntry {
+        title: "All steps completed",
+        description: "count==step（全 step 完了）で completed_content が表示される例です（Demo は 2 番目の step が current）。",
+        render: ex_steps_completed,
+    }],
+    keyboard: &[],
+    aria: &[
+        AriaRow {
+            attribute: "aria-current=\"step\"",
+            description: "current な item の trigger のみに出力する（steps.rs:249-269）。",
+        },
+        AriaRow {
+            attribute: "role=\"separator\" / aria-hidden=\"true\"",
+            description: "separator に固定出力する（装飾要素、steps.rs:288-310）。",
+        },
+    ],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Tour（/primitives/tour/）
+// ---------------------------------------------------------------------
+
+/// 一次情報: `crates/headless-ui/src/tour.rs:1-94`（モジュール doc、
+/// スコープ・状態モデル・out-of-scope）、`:220-458`（`Tour::new`/`content`/
+/// `title`/`description`/`progress_text` シグネチャと role/aria-* 出力）。
+fn ex_tour_second_step() -> Node {
+    let mut tour = Tour::new(vec![
+        TourStep {
+            id: "step-1".to_string(),
+            target: Some("#docs-toc-heading".to_string()),
+            title: "Page navigation".to_string(),
+            description: "Use this menu to jump between sections.".to_string(),
+            placement: Placement::new(Side::Bottom, Align::Center),
+        },
+        TourStep {
+            id: "step-2".to_string(),
+            target: Some("#docs-search".to_string()),
+            title: "Full-text search".to_string(),
+            description: "Use this box to search the whole site.".to_string(),
+            placement: Placement::new(Side::Top, Align::Start),
+        },
+    ]);
+    tour.update(TourAction::Start);
+    tour.update(TourAction::Next);
+    tour.root(
+        vec![],
+        vec![
+            tour.backdrop(vec![], vec![]),
+            tour.spotlight(vec![], vec![]),
+            tour.positioner(
+                vec![],
+                vec![
+                    tour.arrow(vec![], vec![tour.arrow_tip(vec![], vec![])]),
+                    tour.content(
+                        hui::tour::ContentIds {
+                            id: Some("tour-content-2"),
+                            labelledby: Some("tour-title-2"),
+                            describedby: Some("tour-desc-2"),
+                        },
+                        vec![],
+                        vec![
+                            tour.title(
+                                Some("tour-title-2"),
+                                vec![],
+                                vec![text("Full-text search")],
+                            ),
+                            tour.description(
+                                Some("tour-desc-2"),
+                                vec![],
+                                vec![text("Use this box to search the whole site.")],
+                            ),
+                            tour.progress_text(vec![], vec![text("Step 2 of 2")]),
+                            tour.action_trigger(vec![], vec![text("Finish")]),
+                            tour.close_trigger(vec![], vec![text("×")]),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+    )
+}
+
+pub const TOUR: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "Root / Backdrop / Spotlight / Positioner / Arrow / ArrowTip / Content / Title / Description / ProgressText / CloseTrigger / ActionTrigger の 12 anatomy パーツを提供する（tour.rs:1-11）。",
+        "Idle/Active{step}/Skipped/Completed の決定的な状態機械を持ち、終端状態からのいずれのアクションも no-op（一度終了したツアーは暗黙に再開しない、tour.rs:34-52）。",
+        "content は role=\"dialog\" を固定出力し、ContentIds が Some のときのみ aria-labelledby/aria-describedby を出力する（tour.rs:371-395）。",
+        "progress_text は aria-live=\"polite\" を固定出力し、ステップ遷移を支援技術へ読み上げさせる（tour.rs:431-439）。",
+        "対象要素の実座標追従・スポットライト実測値注入・target セレクタの実解決は fandhe-frontend-wasm-full の後続イシューのスコープ（本モジュールは data-target 出力と静的な data-side/data-align のみ、tour.rs:13-21,87-94）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "Tour::new: steps",
+            kind: "Vec<TourStep>",
+            default: "",
+            description: "ツアーの全ステップ（初期状態は常に Idle、tour.rs:238-243）。",
+        },
+        ArgRow {
+            name: "content: ids",
+            kind: "ContentIds",
+            default: "ContentIds::default()",
+            description: "id/aria-labelledby/aria-describedby の関連付け先（tour.rs:195-205,375-395）。",
+        },
+        ArgRow {
+            name: "title/description: id",
+            kind: "Option<&str>",
+            default: "None",
+            description: "Some のとき content の labelledby/describedby と対にする（tour.rs:397-429）。",
+        },
+    ],
+    examples: &[ExampleEntry {
+        title: "Second step (2-step tour)",
+        description: "2 ステップ構成で 2 番目の step まで進めた例です（Demo は 1 ステップのみ）。",
+        render: ex_tour_second_step,
+    }],
+    keyboard: &[],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"dialog\"",
+            description: "content に固定出力する（tour.rs:371-395）。",
+        },
+        AriaRow {
+            attribute: "aria-labelledby / aria-describedby",
+            description: "ContentIds が Some のときのみ content に出力する（tour.rs:383-391）。",
+        },
+        AriaRow {
+            attribute: "aria-live=\"polite\"",
+            description: "progress_text に固定出力する（tour.rs:431-439）。",
+        },
+    ],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Tree View（/primitives/tree-view/）
+// ---------------------------------------------------------------------
+
+/// 一次情報: `crates/headless-ui/src/tree_view.rs:1-89`（モジュール doc、
+/// out-of-scope）、`:112-324`（`root`/`label`/`tree`/`branch`/
+/// `branch_control`/`branch_indicator`/`branch_text`/`branch_content`/
+/// `branch_indent_guide`/`item`/`item_text`/`item_indicator` シグネチャと
+/// role/aria-* 出力）、`:486`（`TreeView::render_nodes`）。
+fn ex_tree_view_closed_branch() -> Node {
+    let closed = OpenState::Closed;
+    tree_view::root(
+        vec![],
+        vec![
+            tree_view::label(vec![], vec![text("Project files")]),
+            tree_view::tree(
+                Some("Project files"),
+                None,
+                vec![],
+                vec![tree_view::branch(
+                    closed,
+                    "src",
+                    false,
+                    false,
+                    "1",
+                    "1",
+                    "1",
+                    "0",
+                    vec![],
+                    vec![
+                        tree_view::branch_control(
+                            closed,
+                            false,
+                            false,
+                            vec![],
+                            vec![
+                                tree_view::branch_indicator(closed, vec![], vec![text("▸")]),
+                                tree_view::branch_text(vec![], vec![text("src")]),
+                            ],
+                        ),
+                        tree_view::branch_content(
+                            closed,
+                            vec![],
+                            vec![
+                                tree_view::branch_indent_guide(vec![], vec![]),
+                                tree_view::item(
+                                    "lib.rs",
+                                    false,
+                                    false,
+                                    "2",
+                                    "1",
+                                    "1",
+                                    "1",
+                                    vec![],
+                                    vec![
+                                        tree_view::item_indicator(false, vec![], vec![]),
+                                        tree_view::item_text(vec![], vec![text("lib.rs")]),
+                                    ],
+                                ),
+                            ],
+                        ),
+                    ],
+                )],
+            ),
+        ],
+    )
+}
+
+pub const TREE_VIEW: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "Root / Label / Tree / Branch / BranchControl / BranchIndicator / BranchText / BranchContent / BranchIndentGuide / Item / ItemText / ItemIndicator の 12 anatomy パーツを提供する（tree_view.rs:1-10）。",
+        "展開集合（MultiSelect）+ 選択値（SingleSelect）を合成した状態機械 TreeView を提供し、TreeView::render_nodes が深さ・aria-posinset/aria-setsize を再帰的に計算する（tree_view.rs:425-488）。",
+        "tree は role=\"tree\"、branch/item は role=\"treeitem\"、branch_content は role=\"group\" を固定出力する WAI-ARIA APG Tree パターン準拠（tree_view.rs:125-259,269-303）。",
+        "branch/item は disabled=true のとき aria-disabled=\"true\" を対で付与する（ネイティブ disabled を持たない role=\"treeitem\" のための代替、tree_view.rs:186-193,295-300）。",
+        "キーボードナビゲーション・typeahead は SSR 静的マークアップに寄与しない CSR 挙動層のスコープ外（tree_view.rs:72-77）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "tree: aria_label_text, aria_labelledby_id",
+            kind: "Option<&str>, Option<&str>",
+            default: "None, None",
+            description: "tree のアクセシブルな名前（いずれか片方が Some を推奨、tree_view.rs:125-146）。",
+        },
+        ArgRow {
+            name: "branch/item: level, posinset, setsize, depth",
+            kind: "&str, &str, &str, &str",
+            default: "",
+            description: "呼び出し側が usize から文字列化した aria-level/aria-posinset/aria-setsize/data-depth（tree_view.rs:150-156）。",
+        },
+        ArgRow {
+            name: "TreeView::render_nodes: nodes",
+            kind: "&[TreeNode]",
+            default: "",
+            description: "決定的な静的木を現在の展開・選択状態で再帰描画する（tree_view.rs:486-488）。",
+        },
+    ],
+    examples: &[ExampleEntry {
+        title: "Closed branch",
+        description: "branch が折りたたまれ、branch_content が hidden の例です（Demo は展開済み）。",
+        render: ex_tree_view_closed_branch,
+    }],
+    keyboard: &[],
+    aria: &[
+        AriaRow {
+            attribute: "role=\"tree\" / role=\"treeitem\" / role=\"group\"",
+            description: "tree/branch・item/branch_content に固定出力する（tree_view.rs:125-259,269-303）。",
+        },
+        AriaRow {
+            attribute: "aria-expanded",
+            description: "branch のみ（open/closed を反映、tree_view.rs:173-176）。",
+        },
+        AriaRow {
+            attribute: "aria-selected / aria-level / aria-posinset / aria-setsize",
+            description: "branch/item 双方に出力する（tree_view.rs:177-180,286-290）。",
+        },
+        AriaRow {
+            attribute: "aria-disabled=\"true\"",
+            description: "disabled=true のときのみ branch/item に出力する（tree_view.rs:186-193,295-300）。",
+        },
+    ],
+    demo: None,
+};
+
+// ---------------------------------------------------------------------
+// Visually Hidden（/primitives/visually-hidden/）
+// ---------------------------------------------------------------------
+
+/// 一次情報: `crates/headless-ui/src/visually_hidden.rs:1-46`（モジュール
+/// doc、`aria-hidden` を付けない不変条件）、`:50-61`（`root` シグネチャ）。
+/// 非テスト行で `role`/`aria-` の出力は 0 件。
+fn ex_visually_hidden_status_label() -> Node {
+    div(
+        vec![],
+        vec![
+            visually_hidden::root(vec![], vec![text("Build status: ")]),
+            text("✓ Passing"),
+        ],
+    )
+}
+
+pub const VISUALLY_HIDDEN: ComponentPageSpec = ComponentPageSpec {
+    features: &[
+        "Root（span）の 1 anatomy パーツのみで構成する最小の状態非依存パーツ（visually_hidden.rs:50-61）。",
+        "視覚的には隠すが支援技術（スクリーンリーダー）には読ませ続けるテキストコンテナであり、装飾要素とは逆に aria-hidden を意図的に付与しない（visually_hidden.rs:11-21）。",
+        "styled 層（fandhe-frontend-pre-styled-ui::visually_hidden）は本モジュールが出力する data-scope=\"visually-hidden\"/data-part=\"root\" セレクタを前提に clip 手法の CSS を当てる（visually_hidden.rs:23-29）。",
+    ],
+    arguments: &[
+        ArgRow {
+            name: "root: attrs",
+            kind: "Vec<(&str, &str)>",
+            default: "vec![]",
+            description: "呼び出し側が追加する属性。data-scope/data-part は本パーツが固定出力するため上書きされない（visually_hidden.rs:58-61）。root が唯一の公開関数であり attrs/children 以外の型付き引数を持たない。",
+        },
+        ArgRow {
+            name: "root: children",
+            kind: "Vec<Node>",
+            default: "vec![]",
+            description: "視覚的には隠すがスクリーンリーダーには読み上げさせるテキスト・ノード（visually_hidden.rs:58-61）。",
+        },
+    ],
+    examples: &[ExampleEntry {
+        title: "Status label prefix",
+        description: "視覚的には記号のみを見せつつ、スクリーンリーダーには前置ラベルを読ませる例です。",
+        render: ex_visually_hidden_status_label,
+    }],
+    keyboard: &[],
+    aria: &[AriaRow {
+        attribute: "(該当なし)",
+        description: "root は固有の role/aria-* を出力しない（visually_hidden.rs 全文の非テスト行で role/aria- grep 0 件）。装飾要素の aria-hidden=\"true\" 固定付与パターンとは逆に、本コンポーネントは aria-hidden を意図的に付与しない（visually_hidden.rs:11-21）。",
+    }],
+    demo: None,
+};
+
+/// 本カテゴリ 10 部品の `path -> ComponentPageSpec` テーブル
+/// （`crate::primitive_specs::SPEC_TABLES` へ集約される、#1027 と同型）。
+/// 並び順は `crate::primitives_catalog::PrimitiveCategory::DataDisplayUtilities`
+/// のカタログ順と一致させる。
+pub const SPECS: &[(&str, ComponentPageSpec)] = &[
+    ("/primitives/avatar/", AVATAR),
+    ("/primitives/carousel/", CAROUSEL),
+    ("/primitives/json-tree-view/", JSON_TREE_VIEW),
+    ("/primitives/scroll-area/", SCROLL_AREA),
+    ("/primitives/skip-nav/", SKIP_NAV),
+    ("/primitives/splitter/", SPLITTER),
+    ("/primitives/steps/", STEPS),
+    ("/primitives/tour/", TOUR),
+    ("/primitives/tree-view/", TREE_VIEW),
+    ("/primitives/visually-hidden/", VISUALLY_HIDDEN),
+];
