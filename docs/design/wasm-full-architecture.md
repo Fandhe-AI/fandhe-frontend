@@ -500,3 +500,26 @@ AngleSlider は `docs/policy/intentional-non-adoption.md` §3.22（イシュー 
 ### 17.5 セキュリティ不変条件
 
 DOM から読み取るのは `getBoundingClientRect`/`get_attribute`/`has_attribute`/`has_pointer_capture` のみで、DOM への書き込みは行わない（Thumb の回転・`aria-valuenow` 更新は `Self::wire` の再描画に委ねる）。ポインタ座標・計算済み角度値はいずれも `console`・例外メッセージへ出力しない。新規 `unsafe` コードは追加しない（`web-sys`/`js-sys` の safe API のみ使用）。
+
+## 18. `keynav` への Menubar キーボード配線追加（イシュー #1073、親 #1058/#1056）
+
+`crates/headless-ui/src/menubar.rs`（イシュー #1000）は Menubar の anatomy・ARIA・状態機械（`Menubar`/`MenubarAction`）までを提供し、矢印キー・Home/End・typeahead の実 DOM 配線とフォーカス移動を本クレート（`fandhe-frontend-wasm-full`）の責務として明示的にスコープ外へ送っていた（同モジュール doc「スコープ外」節）。イシュー #1073 はこの欠落を `crates/wasm-full/src/keynav.rs`（`mod wiring`、`#[cfg(target_arch = "wasm32")]`）へ実装した。
+
+### 18.1 既存 Menu 配線との再利用判断（受け入れ条件 1）
+
+Menubar の SSR 出力は `menu` と同型の ARIA（`role="menuitem"`/`aria-haspopup="menu"`/`aria-expanded`/`role="menu"`/`hidden`）を持ち、フォーカスは常に `trigger`（`button`）に留まる。このため highlight 移動・typeahead・サブメニューのチェーン解決（`resolve_active_content`/`clear_active_chain_highlights`/`open_submenu_and_focus_first_item` 等）を**共通化**し、既存の `handle_menu_or_select_trigger_keydown` を `(content_selector, item_selector)` の 2 引数ではなく 5 フィールドのセレクタ束 `ScopeSelectors`（`content`/`content_any`/`item`/`trigger_item`/`content_owner`）でパラメータ化して menu/select/menubar の 3 スコープを切り替える。menu/select にとってこの導入は恒等変換であり、`tests/keynav_native.rs`/`tests/keynav_browser.rs` の既存テストは無編集のまま全通過する。一方、トリガー間の水平/垂直移動（roving tabindex + open-follows-focus）は menu に存在しない層のため `handle_menubar_trigger_keydown`/`move_menubar_focus` として個別実装するが、インデックス計算自体は Tabs の `tabs_next_index`（orientation 分岐・loop・Home/End・disabled スキップの仕様が完全一致）を再利用する。
+
+### 18.2 `content_owner`（`aria-controls` 欠落時の探索境界、A01 対策）
+
+menu/select の `root` は 1 インスタンスの境界だが、menubar の `root` は複数の `Menu` インスタンスを内包する。`aria-controls` 欠落時のフォールバック探索を menu/select と同じ `[data-part="root"]` のまま適用すると、`aria-controls` を持たないトリガーが document 順で先頭の `Menu` の content を誤って掴んでしまう。`ScopeSelectors::content_owner` を導入し、menubar では探索範囲を「そのトリガーが属する 1 `Menu` インスタンス」（`[data-scope="menubar"][data-part="menu"]`）へ限定した（回帰テストは `keynav_browser.rs::menubar_arrow_down_without_aria_controls_only_opens_own_menu_content`）。
+
+### 18.3 キー順序規則と `KeyOutcome`
+
+`data-orientation`（既定 horizontal）で軸を決め、トリガー間移動を先に評価し `None`（対象外のキー）のときのみ open 系キー（ArrowDown/ArrowUp/Enter/Space/printable 文字）へフォールスルーする。open 時は `handle_menu_or_select_trigger_keydown` へ委譲し、その戻り値 `KeyOutcome`（`Handled`/`UnhandledHorizontal(Prev|Next)`）が `UnhandledHorizontal` のときのみトリガー間移動（open-follows-focus）を行う。Menu/Select の既存呼び出し側は戻り値を無視するため挙動は不変。loop 既定値は `menu_loop_focus_from_attr`（既定 false）をそのまま再利用し、`Menubar::default()` の `loop_focus: false` と DOM 側の既定を一致させる。
+
+### 18.4 既知のギャップ（本イシューでは対応しない、スコープ外）
+
+- **`headless.rs::MAPPING_TABLE` に menubar 行が無い**: 単なる行の欠落ではなく payload のアリティ不一致（`requires_value: false`/`true` のいずれも `menubar::trigger` の `data-value` 非出力と噛み合わない）。headless-ui 側の出力追加か `headless.rs` への新 payload source 導入が必要であり、本イシューの粒度を超える。解決するまで、実アプリでの menubar 開閉は呼び出し側の独自 click 配線に依存する。
+- **`overlay.rs::OverlayKind` が `menubar` を含まない**: Escape/外側クリックによる menubar content の実閉鎖は行われない。keynav の Escape 処理は既存 Menu/Select と同じく highlight の後始末のみを担い、閉鎖自体は `overlay` の責務のまま変えていない。
+
+いずれも `.claude/rules/out-of-scope-tracking.md` に従い Issue 化を提案する対象として PR 本文に記録する。

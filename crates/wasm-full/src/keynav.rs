@@ -1,5 +1,5 @@
-//! Tabs / Accordion / Menu / Select / RadioGroup のキーボード操作
-//! （イシュー #582・#583、親 #581）。
+//! Tabs / Accordion / Menu / Select / RadioGroup / Menubar のキーボード操作
+//! （イシュー #582・#583、親 #581。Menubar はイシュー #1073）。
 //!
 //! PR #560（Tabs）/#561（Accordion）は `fandhe-frontend-headless-ui` 側の SSR
 //! 静的マークアップ（roving tabindex・`data-state`/`aria-selected`/`hidden`）
@@ -227,6 +227,82 @@
 //!   委ね、`wire_keynav` が追加する `change` 委譲リスナーが `data-state`
 //!   群を同期する（マウスクリックによる選択変更も同じ経路で追随する）。
 //!   Enter は APG Radio パターンの対象外のため no-op。
+//!
+//! # Menubar のキーボード仕様（WAI-ARIA APG Menubar パターン準拠、イシュー #1073）
+//!
+//! `crates/headless-ui/src/menubar.rs`（イシュー #1000）は anatomy・ARIA・
+//! 状態機械（`Menubar`/`MenubarAction`）までを提供し、矢印キー・Home/End・
+//! typeahead の実 DOM 配線とフォーカス移動を本クレートの責務として明示的に
+//! スコープ外へ送っていた（同モジュール doc「スコープ外」節）。本節はその
+//! 実装（[`wiring::handle_menubar_trigger_keydown`]）の設計を記す。
+//!
+//! ## 既存 Menu 配線との再利用判断
+//!
+//! Menubar の SSR 出力は menu と同型の ARIA（`role="menuitem"`/
+//! `aria-haspopup="menu"`/`aria-expanded`/`role="menu"`/`hidden`）を持ち、
+//! フォーカスは常に `trigger`（`button`）に留まる（`item`/`sub-trigger` は
+//! `div` で `tabindex` を持たない）ため、keydown ターゲット解決・highlight
+//! 移動・typeahead・サブメニューのチェーン解決は menu と同型でよい。本実装は
+//! これらを**共通化**し、[`wiring::handle_menu_or_select_trigger_keydown`]
+//! を `(content_selector, item_selector)` の 2 引数ではなく 5 フィールドの
+//! セレクタ束（[`wiring::ScopeSelectors`]）でパラメータ化して menu/select/
+//! menubar の 3 スコープを切り替える。menu/select にとってこの導入は
+//! `content == content_any` かつ `content_owner == "[data-part=\"root\"]"`
+//! の恒等変換であり、既存挙動を変えない（`tests/keynav_native.rs`/
+//! `tests/keynav_browser.rs` の既存テストは無編集のまま全通過する）。
+//! 一方、トリガー間の水平/垂直移動（roving tabindex + 「開いている Menu が
+//! 追随する」open-follows-focus）は menu に存在しない層のため
+//! [`wiring::handle_menubar_trigger_keydown`]/[`wiring::move_menubar_focus`]
+//! として個別実装するが、インデックス計算自体は Tabs の
+//! [`tabs_next_index`]（orientation 分岐・loop・Home/End・disabled スキップ
+//! の仕様が完全一致）を再利用する。
+//!
+//! ## `content_owner`（`aria-controls` 欠落時の探索境界）
+//!
+//! menu/select の `root` は 1 インスタンスの境界だが、**menubar の `root` は
+//! 複数の `Menu` インスタンスを内包する**。そのため `aria-controls` 欠落時の
+//! フォールバック探索を menu/select と同じ `[data-part="root"]` のまま
+//! menubar へ適用すると、`aria-controls` を持たないトリガーが document 順で
+//! 先頭の `Menu` の content を誤って掴んでしまう。[`wiring::ScopeSelectors::content_owner`]
+//! を導入し、menubar では探索範囲を「そのトリガーが属する 1 `Menu`
+//! インスタンス」（`[data-scope="menubar"][data-part="menu"]`）へ限定する
+//! ことでこれを防ぐ（A01 対策）。
+//!
+//! ## キー順序規則
+//!
+//! `data-orientation`（[`Orientation::from_attr`]、既定 horizontal）で軸を
+//! 決め、**トリガー間移動を先に評価し、`None`（対象外のキー）のときのみ
+//! open 系キー（ArrowDown/ArrowUp/Enter/Space/printable 文字）へ
+//! フォールスルーする**、という 1 本の順序規則で closed 時の分岐を吸収する
+//! （orientation 別のキー表を作らない）。open 時は
+//! [`wiring::handle_menu_or_select_trigger_keydown`] へ委譲し、その戻り値
+//! （[`wiring::KeyOutcome`]）が `UnhandledHorizontal`（highlight が
+//! `sub-trigger` でない・disabled・サブメニュー未解決 等でサブメニュー
+//! 展開/復帰の条件に当てはまらなかった ArrowRight/ArrowLeft）のときのみ
+//! トリガー間移動（[`wiring::move_menubar_focus`]、open-follows-focus）を
+//! 行う。Menu/Select の既存呼び出し側は戻り値を無視するため挙動は不変。
+//!
+//! ## loop 既定値
+//!
+//! `data-loop-focus` は [`menu_loop_focus_from_attr`]（`"true"` のときのみ
+//! 循環、既定 false）で読む。Tabs 用の [`loop_focus_from_attr`]（既定
+//! true）とは逆既定のため専用関数を再利用し、`Menubar::default()` の
+//! `loop_focus: false`（`crates/headless-ui/src/menubar.rs`）と DOM 既定を
+//! 一致させる。
+//!
+//! ## 既知のギャップ（本イシューでは対応しない、スコープ外）
+//!
+//! - **`crates/wasm-full/src/headless.rs::MAPPING_TABLE` に menubar 行が
+//!   無い**: 単なる行の欠落ではなく payload のアリティ不一致
+//!   （`requires_value: false`/`true` のいずれも `menubar::trigger` の
+//!   `data-value` 非出力と噛み合わない）。headless-ui 側の出力追加か
+//!   `headless.rs` への新 payload source 導入が必要であり、本イシューの
+//!   粒度を超える。解決するまで、実アプリでの menubar 開閉は呼び出し側の
+//!   独自 click 配線に依存する。
+//! - **`crates/wasm-full/src/overlay.rs::OverlayKind` が `menubar` を含まない**:
+//!   Escape/外側クリックによる menubar content の実閉鎖は行われない。本
+//!   モジュールの Escape 処理は既存 Menu/Select と同じく highlight の後
+//!   始末のみを担い、閉鎖自体は `overlay` の責務のまま変えていない。
 //!
 //! # セキュリティ不変条件
 //!
@@ -1672,6 +1748,115 @@ mod wiring {
     /// `[data-scope="radio-group"][data-part="item-text"]` セレクタ。
     const RADIO_GROUP_ITEM_TEXT_SELECTOR: &str =
         "[data-scope=\"radio-group\"][data-part=\"item-text\"]";
+    /// `[data-scope="menubar"][data-part="trigger"]` セレクタ
+    /// （`crates/headless-ui/src/menubar.rs::trigger`、イシュー #1073）。
+    const MENUBAR_TRIGGER_SELECTOR: &str = "[data-scope=\"menubar\"][data-part=\"trigger\"]";
+    /// `[data-scope="menubar"][data-part="root"]` セレクタ（トリガー間の
+    /// 水平/垂直移動の境界）。
+    const MENUBAR_ROOT_SELECTOR: &str = "[data-scope=\"menubar\"][data-part=\"root\"]";
+    /// `[data-scope="menubar"][data-part="content"]` セレクタ（トップレベル
+    /// content のみ）。
+    const MENUBAR_CONTENT_SELECTOR: &str = "[data-scope=\"menubar\"][data-part=\"content\"]";
+    /// `content`/`sub-content` の両方に一致するセレクタ（[`ScopeSelectors::content_any`]
+    /// 用。`resolve_submenu_content`/`strip_nested_submenu_content` が
+    /// サブメニュー content も対象にする必要があるため menu と異なり 2 種を
+    /// 束ねる。menubar の `content`/`sub-content` は別パーツ名のため
+    /// [`MENUBAR_CONTENT_SELECTOR`] 単独では sub-content を拾えない）。
+    const MENUBAR_CONTENT_ANY_SELECTOR: &str = "[data-scope=\"menubar\"][data-part=\"content\"], [data-scope=\"menubar\"][data-part=\"sub-content\"]";
+    /// `[data-scope="menubar"][data-part="item"]`/
+    /// `[data-scope="menubar"][data-part="sub-trigger"]` セレクタ
+    /// （いずれも highlight 対象）。
+    const MENUBAR_ITEM_SELECTOR: &str = "[data-scope=\"menubar\"][data-part=\"item\"], [data-scope=\"menubar\"][data-part=\"sub-trigger\"]";
+    /// `[data-scope="menubar"][data-part="sub-trigger"]` セレクタ
+    /// （サブメニューを開く項目、`menu` の `trigger-item` に相当）。
+    const MENUBAR_SUB_TRIGGER_SELECTOR: &str =
+        "[data-scope=\"menubar\"][data-part=\"sub-trigger\"]";
+    /// `[data-scope="menubar"][data-part="menu"]` セレクタ（1 個の `Menu`
+    /// インスタンスの境界。`aria-controls` 欠落時の content 探索範囲を
+    /// menubar root 全体ではなくこの 1 インスタンスへ限定するために使う
+    /// （[`ScopeSelectors::content_owner`]）。menubar root は複数 `Menu` を
+    /// 内包するため、menu/select が使う `[data-part="root"]` フォールバックを
+    /// menubar へそのまま適用すると `aria-controls` 欠落時に document 順で
+    /// 先頭の `Menu` の content を誤って掴んでしまう。詳細はモジュール doc
+    /// 「# Menubar のキーボード仕様」参照）。
+    const MENUBAR_MENU_SELECTOR: &str = "[data-scope=\"menubar\"][data-part=\"menu\"]";
+
+    /// Menu/Select/Menubar が共有する keydown 配線ロジック
+    /// （[`handle_menu_or_select_trigger_keydown`] 等）をスコープ別に
+    /// パラメータ化するためのセレクタ束（イシュー #1073）。menu/select は
+    /// `content == content_any` かつ `content_owner == "[data-part=\"root\"]"`
+    /// の恒等変換であり、本構造体の導入は menu/select の既存挙動を変えない
+    /// （`crates/wasm-full/tests/keynav_browser.rs`/`keynav_native.rs` の
+    /// 既存テストを無編集のまま全通過させることをこのリファクタの受け入れ
+    /// 条件とする）。
+    struct ScopeSelectors {
+        /// trigger の `aria-controls` 欠落時に解決するトップレベル content。
+        content: &'static str,
+        /// content または sub-content（`closest` の基準・サブメニュー解決の
+        /// 子孫/兄弟フォールバック対象・`strip_nested_submenu_content` が
+        /// 除去する対象）。
+        content_any: &'static str,
+        /// highlight 対象の項目（item + サブメニュートリガー）。
+        item: &'static str,
+        /// サブメニューを開く項目（menu: trigger-item / menubar: sub-trigger）。
+        trigger_item: &'static str,
+        /// content を所有する 1 インスタンスの境界（`aria-controls` 欠落時の
+        /// 探索範囲。menu/select: `[data-part="root"]` / menubar:
+        /// [`MENUBAR_MENU_SELECTOR`]）。
+        content_owner: &'static str,
+    }
+
+    /// Menu スコープのセレクタ束（既存挙動そのまま）。
+    const MENU_SCOPE: ScopeSelectors = ScopeSelectors {
+        content: MENU_CONTENT_SELECTOR,
+        content_any: MENU_CONTENT_SELECTOR,
+        item: MENU_ITEM_SELECTOR,
+        trigger_item: TRIGGER_ITEM_SELECTOR,
+        content_owner: "[data-part=\"root\"]",
+    };
+
+    /// Select スコープのセレクタ束（既存挙動そのまま。Select には
+    /// trigger-item が存在しないため `trigger_item` は menu のセレクタを
+    /// 流用しても自然に不一致となり no-op になる、既存実装のコメント
+    /// 参照）。
+    const SELECT_SCOPE: ScopeSelectors = ScopeSelectors {
+        content: SELECT_CONTENT_SELECTOR,
+        content_any: SELECT_CONTENT_SELECTOR,
+        item: SELECT_ITEM_SELECTOR,
+        trigger_item: TRIGGER_ITEM_SELECTOR,
+        content_owner: "[data-part=\"root\"]",
+    };
+
+    /// Menubar スコープのセレクタ束（イシュー #1073）。
+    const MENUBAR_SCOPE: ScopeSelectors = ScopeSelectors {
+        content: MENUBAR_CONTENT_SELECTOR,
+        content_any: MENUBAR_CONTENT_ANY_SELECTOR,
+        item: MENUBAR_ITEM_SELECTOR,
+        trigger_item: MENUBAR_SUB_TRIGGER_SELECTOR,
+        content_owner: MENUBAR_MENU_SELECTOR,
+    };
+
+    /// [`handle_menu_or_select_trigger_keydown`] の戻り値（イシュー #1073）。
+    /// Menu/Select の既存呼び出し側は戻り値を無視するため挙動は不変。
+    /// Menubar 層（[`handle_menubar_trigger_keydown`]）のみ
+    /// `UnhandledHorizontal` を見てトリガー間移動へフォールバックする。
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum KeyOutcome {
+        /// このハンドラでキーを消費した、または対象外で何もしなかった。
+        Handled,
+        /// open 状態で ArrowRight/ArrowLeft を受けたが、サブメニューの展開・
+        /// 復帰いずれの条件にも当てはまらず未消費だった。
+        UnhandledHorizontal(HorizontalDirection),
+    }
+
+    /// [`KeyOutcome::UnhandledHorizontal`] が示す移動方向。
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum HorizontalDirection {
+        /// ArrowLeft（前のトリガーへ）。
+        Prev,
+        /// ArrowRight（次のトリガーへ）。
+        Next,
+    }
 
     /// `element.closest(selector)` の失敗（`Err`）・不一致（`None`）をまとめて
     /// `None` として扱う薄いヘルパ。DOM API のクエリ不正は本モジュールの
@@ -1878,7 +2063,7 @@ mod wiring {
     /// 優先し、欠落・解決失敗時は `closest("[data-part=\"root\"]")` 配下の
     /// `content_selector` へフォールバックする（モジュール doc §Menu/Select
     /// 参照）。
-    fn resolve_menu_select_content(trigger: &Element, content_selector: &str) -> Option<Element> {
+    fn resolve_menu_select_content(trigger: &Element, scope: &ScopeSelectors) -> Option<Element> {
         if let Some(controls_id) = trigger.get_attribute("aria-controls") {
             if let Some(document) = trigger.owner_document() {
                 if let Some(content) = document.get_element_by_id(&controls_id) {
@@ -1886,8 +2071,11 @@ mod wiring {
                 }
             }
         }
-        let root_part = closest(trigger, "[data-part=\"root\"]")?;
-        root_part.query_selector(content_selector).ok().flatten()
+        // menubar は `content_owner` を「その trigger が属する 1 Menu
+        // インスタンス」（[`MENUBAR_MENU_SELECTOR`]）に限定する。menu/select
+        // は `[data-part="root"]` のまま（恒等変換）。
+        let owner = closest(trigger, scope.content_owner)?;
+        owner.query_selector(scope.content).ok().flatten()
     }
 
     /// サブメニュー（`trigger_item`）が制御する子 Menu content を解決する
@@ -1909,7 +2097,11 @@ mod wiring {
     /// 解決結果は経路によらず必ず `root.contains` で封じ込め検査し、`root`
     /// 外を指す改ざん `aria-controls` は不採用として `None` を返す
     /// （fail-closed、A01 対策）。
-    fn resolve_submenu_content(root: &Element, trigger_item: &Element) -> Option<Element> {
+    fn resolve_submenu_content(
+        root: &Element,
+        trigger_item: &Element,
+        scope: &ScopeSelectors,
+    ) -> Option<Element> {
         let content = trigger_item
             .get_attribute("aria-controls")
             .and_then(|controls_id| {
@@ -1919,11 +2111,11 @@ mod wiring {
             })
             .or_else(|| {
                 trigger_item
-                    .query_selector(MENU_CONTENT_SELECTOR)
+                    .query_selector(scope.content_any)
                     .ok()
                     .flatten()
             })
-            .or_else(|| resolve_submenu_content_via_sibling(trigger_item))?;
+            .or_else(|| resolve_submenu_content_via_sibling(trigger_item, scope))?;
         if root.contains(Some(&content)) {
             Some(content)
         } else {
@@ -1950,16 +2142,19 @@ mod wiring {
     ///
     /// 呼び出し元 [`resolve_submenu_content`] が結果を `root.contains` で
     /// 封じ込め検査するため、本関数自身は封じ込め判定を行わない。
-    fn resolve_submenu_content_via_sibling(trigger_item: &Element) -> Option<Element> {
+    fn resolve_submenu_content_via_sibling(
+        trigger_item: &Element,
+        scope: &ScopeSelectors,
+    ) -> Option<Element> {
         let mut sibling = trigger_item.next_element_sibling();
         while let Some(current) = sibling {
-            if current.matches(TRIGGER_ITEM_SELECTOR).unwrap_or(false) {
+            if current.matches(scope.trigger_item).unwrap_or(false) {
                 break;
             }
-            if current.matches(MENU_CONTENT_SELECTOR).unwrap_or(false) {
+            if current.matches(scope.content_any).unwrap_or(false) {
                 return Some(current);
             }
-            if let Some(descendant) = current.query_selector(MENU_CONTENT_SELECTOR).ok().flatten() {
+            if let Some(descendant) = current.query_selector(scope.content_any).ok().flatten() {
                 return Some(descendant);
             }
             sibling = current.next_element_sibling();
@@ -1990,12 +2185,12 @@ mod wiring {
     fn filter_own_scope_items(
         items: Vec<Element>,
         content: &Element,
-        content_selector: &str,
+        scope: &ScopeSelectors,
     ) -> Vec<Element> {
         items
             .into_iter()
             .filter(|item| {
-                closest(item, content_selector)
+                closest(item, scope.content_any)
                     .is_some_and(|nearest| nearest.is_same_node(Some(content)))
             })
             .collect()
@@ -2022,25 +2217,20 @@ mod wiring {
     fn resolve_active_content(
         root: &Element,
         top_content: &Element,
-        item_selector: &str,
-        content_selector: &str,
+        scope: &ScopeSelectors,
     ) -> (Element, Option<Element>) {
         let mut active = top_content.clone();
         let mut parent_trigger_item: Option<Element> = None;
         for _ in 0..MAX_SUBMENU_DEPTH {
-            let items = filter_own_scope_items(
-                collect_parts(&active, item_selector),
-                &active,
-                content_selector,
-            );
+            let items = filter_own_scope_items(collect_parts(&active, scope.item), &active, scope);
             let Some(highlighted_index) = find_highlighted_index(&items) else {
                 break;
             };
             let highlighted = &items[highlighted_index];
-            if !highlighted.matches(TRIGGER_ITEM_SELECTOR).unwrap_or(false) {
+            if !highlighted.matches(scope.trigger_item).unwrap_or(false) {
                 break;
             }
-            let Some(sub_content) = resolve_submenu_content(root, highlighted) else {
+            let Some(sub_content) = resolve_submenu_content(root, highlighted, scope) else {
                 break;
             };
             if sub_content.has_attribute("hidden") {
@@ -2089,26 +2279,22 @@ mod wiring {
     fn clear_active_chain_highlights(
         root: &Element,
         top_content: &Element,
-        item_selector: &str,
-        content_selector: &str,
+        scope: &ScopeSelectors,
     ) {
         let mut current = top_content.clone();
         for _ in 0..MAX_SUBMENU_DEPTH {
-            let items = filter_own_scope_items(
-                collect_parts(&current, item_selector),
-                &current,
-                content_selector,
-            );
+            let items =
+                filter_own_scope_items(collect_parts(&current, scope.item), &current, scope);
             let highlighted_index = find_highlighted_index(&items);
             clear_highlight(&items, &current);
             let Some(highlighted_index) = highlighted_index else {
                 break;
             };
             let highlighted = &items[highlighted_index];
-            if !highlighted.matches(TRIGGER_ITEM_SELECTOR).unwrap_or(false) {
+            if !highlighted.matches(scope.trigger_item).unwrap_or(false) {
                 break;
             }
-            let Some(sub_content) = resolve_submenu_content(root, highlighted) else {
+            let Some(sub_content) = resolve_submenu_content(root, highlighted, scope) else {
                 break;
             };
             if sub_content.has_attribute("hidden") {
@@ -2155,13 +2341,13 @@ mod wiring {
     /// を読むことでこれを防ぐ（サブメニュー content が `trigger-item` の
     /// **兄弟**として配置される正当な構成では、そもそも子孫に含まれない
     /// ため本関数は no-op と同等に働く）。
-    fn item_label(item: &Element) -> String {
+    fn item_label(item: &Element, scope: &ScopeSelectors) -> String {
         let text = item
             .query_selector("[data-part=\"item-text\"]")
             .ok()
             .flatten()
             .and_then(|el| el.text_content())
-            .or_else(|| strip_nested_submenu_content(item).and_then(|el| el.text_content()))
+            .or_else(|| strip_nested_submenu_content(item, scope).and_then(|el| el.text_content()))
             .unwrap_or_default();
         text.trim().to_string()
     }
@@ -2173,9 +2359,9 @@ mod wiring {
     /// 場合は安全側として `None` を返し、呼び出し元は素の `text_content()`
     /// を使わず空文字列にフォールバックする（サブメニュー内容混入より
     /// ラベル取得失敗の方が安全、fail-closed）。
-    fn strip_nested_submenu_content(item: &Element) -> Option<Element> {
+    fn strip_nested_submenu_content(item: &Element, scope: &ScopeSelectors) -> Option<Element> {
         let clone: Element = item.clone_node_with_deep(true).ok()?.dyn_into().ok()?;
-        if let Ok(nested) = clone.query_selector_all(MENU_CONTENT_SELECTOR) {
+        if let Ok(nested) = clone.query_selector_all(scope.content_any) {
             for i in 0..nested.length() {
                 if let Some(node) = nested.item(i) {
                     if let Ok(el) = node.dyn_into::<Element>() {
@@ -2273,16 +2459,11 @@ mod wiring {
     /// "Enter opens submenu without entering"、イシュー #662）。それ以外は
     /// 従来通り highlight 中の項目へ `click()` のみを合成する。highlight
     /// 不在・disabled は no-op（fail-closed）。
-    fn activate_or_open_submenu(
-        root: &Element,
-        active_content: &Element,
-        item_selector: &str,
-        content_selector: &str,
-    ) {
+    fn activate_or_open_submenu(root: &Element, active_content: &Element, scope: &ScopeSelectors) {
         let items = filter_own_scope_items(
-            collect_parts(active_content, item_selector),
+            collect_parts(active_content, scope.item),
             active_content,
-            content_selector,
+            scope,
         );
         let Some(idx) = find_highlighted_index(&items) else {
             return;
@@ -2292,10 +2473,10 @@ mod wiring {
             return;
         }
         let item = &items[idx];
-        if item.matches(TRIGGER_ITEM_SELECTOR).unwrap_or(false)
-            && resolve_submenu_content(root, item).is_some()
+        if item.matches(scope.trigger_item).unwrap_or(false)
+            && resolve_submenu_content(root, item, scope).is_some()
         {
-            open_submenu_and_focus_first_item(root, item, item_selector, content_selector);
+            open_submenu_and_focus_first_item(root, item, scope);
         } else if let Ok(html_item) = item.clone().dyn_into::<HtmlElement>() {
             html_item.click();
         }
@@ -2326,8 +2507,7 @@ mod wiring {
     fn open_submenu_and_focus_first_item(
         root: &Element,
         trigger_item: &Element,
-        item_selector: &str,
-        content_selector: &str,
+        scope: &ScopeSelectors,
     ) {
         let trigger_id = trigger_item.get_attribute("id");
         if let Ok(html_trigger_item) = trigger_item.clone().dyn_into::<HtmlElement>() {
@@ -2362,12 +2542,12 @@ mod wiring {
             None => trigger_item.clone(),
         };
         // (1) 親チェーンの highlight を再付与する。
-        if let Some(parent_content) = closest(&resolved_trigger_item, content_selector) {
+        if let Some(parent_content) = closest(&resolved_trigger_item, scope.content_any) {
             if root.contains(Some(&parent_content)) {
                 let parent_items = filter_own_scope_items(
-                    collect_parts(&parent_content, item_selector),
+                    collect_parts(&parent_content, scope.item),
                     &parent_content,
-                    content_selector,
+                    scope,
                 );
                 if let Some(parent_index) =
                     parent_items
@@ -2382,13 +2562,15 @@ mod wiring {
             }
         }
         // (2) 展開後のサブメニュー先頭項目へ highlight を設定する。
-        if let Some(sub_content_after) = resolve_submenu_content(root, &resolved_trigger_item) {
+        if let Some(sub_content_after) =
+            resolve_submenu_content(root, &resolved_trigger_item, scope)
+        {
             if root.contains(Some(&sub_content_after)) && !sub_content_after.has_attribute("hidden")
             {
                 let sub_items = filter_own_scope_items(
-                    collect_parts(&sub_content_after, item_selector),
+                    collect_parts(&sub_content_after, scope.item),
                     &sub_content_after,
-                    content_selector,
+                    scope,
                 );
                 let sub_disabled = disabled_flags(&sub_items);
                 if let Some(idx) = first_non_disabled(&sub_disabled) {
@@ -2409,8 +2591,9 @@ mod wiring {
         content: &Element,
         current: Option<usize>,
         query: &str,
+        scope: &ScopeSelectors,
     ) {
-        let labels: Vec<String> = items.iter().map(item_label).collect();
+        let labels: Vec<String> = items.iter().map(|item| item_label(item, scope)).collect();
         let label_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
         let disabled = disabled_flags(items);
         if let Some(next_index) = typeahead_next_index(current, query, &label_refs, &disabled) {
@@ -2418,9 +2601,11 @@ mod wiring {
         }
     }
 
-    /// Menu/Select trigger 上の keydown を処理する（モジュール doc
-    /// §Menu/Select 参照）。`content_selector`/`item_selector` で Menu/Select
-    /// のいずれのスコープかを切り替える薄い共通実装。
+    /// Menu/Select/Menubar trigger 上の keydown を処理する（モジュール doc
+    /// §Menu/Select・§Menubar 参照）。`scope`（[`ScopeSelectors`]）で
+    /// Menu/Select/Menubar のいずれのスコープかを切り替える薄い共通実装。
+    /// 戻り値は [`KeyOutcome`]（イシュー #1073）。Menu/Select 呼び出し側は
+    /// 無視するため挙動は不変。
     ///
     /// - content が closed のとき: ArrowDown/ArrowUp/Enter/Space で trigger へ
     ///   `click()` を合成して開く（`prevent_default`）。Enter/Space も
@@ -2451,19 +2636,18 @@ mod wiring {
         root: &Element,
         trigger: &Element,
         event: &KeyboardEvent,
-        content_selector: &str,
-        item_selector: &str,
+        scope: &ScopeSelectors,
         typeahead: &mut TypeaheadState,
-    ) {
-        let Some(content) = resolve_menu_select_content(trigger, content_selector) else {
-            return;
+    ) -> KeyOutcome {
+        let Some(content) = resolve_menu_select_content(trigger, scope) else {
+            return KeyOutcome::Handled;
         };
         if !root.contains(Some(&content)) {
-            return;
+            return KeyOutcome::Handled;
         }
         let modifiers = modifiers_of(event);
         if modifiers.any() {
-            return;
+            return KeyOutcome::Handled;
         }
         let key = event.key();
         let is_open = !content.has_attribute("hidden");
@@ -2480,8 +2664,7 @@ mod wiring {
                 // 開いた直後の初期 highlight。click() 経由の dispatch/再描画で
                 // content/items が新しい要素に差し替わっている可能性があるため
                 // 再解決する（解決失敗・依然 closed は no-op、fail-closed）。
-                if let Some(content_after) = resolve_menu_select_content(trigger, content_selector)
-                {
+                if let Some(content_after) = resolve_menu_select_content(trigger, scope) {
                     if root.contains(Some(&content_after)) && !content_after.has_attribute("hidden")
                     {
                         // `push` は再描画前の `content` を保持したため、次の
@@ -2489,11 +2672,11 @@ mod wiring {
                         // content と正しく照合できるよう同期する。
                         typeahead.rebind_content(&content_after);
                         let items = filter_own_scope_items(
-                            collect_parts(&content_after, item_selector),
+                            collect_parts(&content_after, scope.item),
                             &content_after,
-                            content_selector,
+                            scope,
                         );
-                        apply_typeahead_match(&items, &content_after, None, &query);
+                        apply_typeahead_match(&items, &content_after, None, &query, scope);
                         // マッチが無い場合は APG 既定（先頭の非 disabled 項目）へ
                         // フォールバックする。
                         if find_highlighted_index(&items).is_none() {
@@ -2504,7 +2687,7 @@ mod wiring {
                         }
                     }
                 }
-                return;
+                return KeyOutcome::Handled;
             }
 
             // ArrowUp のみ末尾の非 disabled 項目を初期 highlight にする。
@@ -2522,14 +2705,13 @@ mod wiring {
                 // 開いた直後の初期 highlight。click() 経由の dispatch/再描画で
                 // content/items が新しい要素に差し替わっている可能性があるため
                 // 再解決する（解決失敗・依然 closed は no-op、fail-closed）。
-                if let Some(content_after) = resolve_menu_select_content(trigger, content_selector)
-                {
+                if let Some(content_after) = resolve_menu_select_content(trigger, scope) {
                     if root.contains(Some(&content_after)) && !content_after.has_attribute("hidden")
                     {
                         let items = filter_own_scope_items(
-                            collect_parts(&content_after, item_selector),
+                            collect_parts(&content_after, scope.item),
                             &content_after,
-                            content_selector,
+                            scope,
                         );
                         let disabled = disabled_flags(&items);
                         let initial = if initial_from_end {
@@ -2543,7 +2725,7 @@ mod wiring {
                     }
                 }
             }
-            return;
+            return KeyOutcome::Handled;
         }
 
         // ここから open。サブメニュー（`trigger-item`）が展開されている間は、
@@ -2555,8 +2737,7 @@ mod wiring {
         // （モジュール doc §サブメニュー不変条件）。`buffer_active` も
         // トップレベルの `content` ではなく `active_content` を基準に
         // 再判定する（typeahead はアクティブな階層の項目を対象にすべきため）。
-        let (active_content, parent_trigger_item) =
-            resolve_active_content(root, &content, item_selector, content_selector);
+        let (active_content, parent_trigger_item) = resolve_active_content(root, &content, scope);
         let buffer_active = typeahead.is_active_for(&active_content, now);
 
         match key.as_str() {
@@ -2567,9 +2748,9 @@ mod wiring {
                 // スクロールが素通りしてしまう（Bugbot 指摘、イシュー #583）。
                 event.prevent_default();
                 let items = filter_own_scope_items(
-                    collect_parts(&active_content, item_selector),
+                    collect_parts(&active_content, scope.item),
                     &active_content,
-                    content_selector,
+                    scope,
                 );
                 let disabled = disabled_flags(&items);
                 let current = find_highlighted_index(&items);
@@ -2591,41 +2772,44 @@ mod wiring {
             }
             "Enter" => {
                 event.prevent_default();
-                activate_or_open_submenu(root, &active_content, item_selector, content_selector);
+                activate_or_open_submenu(root, &active_content, scope);
                 // 選択確定後は typeahead バッファを継続する意味が無いため
                 // リセットする（Bugbot 指摘、イシュー #641）。
                 typeahead.reset();
             }
             " " if !buffer_active => {
                 event.prevent_default();
-                activate_or_open_submenu(root, &active_content, item_selector, content_selector);
+                activate_or_open_submenu(root, &active_content, scope);
                 // Enter と同様、選択確定後はバッファをリセットする
                 // （Bugbot 指摘、イシュー #641）。
                 typeahead.reset();
             }
             "ArrowRight" if submenu_nav("ArrowRight", modifiers) == Some(SubmenuNav::Open) => {
                 // アクティブ content の highlight 中項目が trigger-item であり、
-                // 非 disabled・サブメニューが解決できるときのみ展開する
-                // （それ以外は `prevent_default` せず no-op。Select は
-                // trigger-item が存在せずセレクタ不一致で自然に no-op）。
+                // 非 disabled・サブメニューが解決できるときのみ展開する。
+                // それ以外は `prevent_default` せず
+                // `UnhandledHorizontal(Next)` を返す（イシュー #1073、
+                // Menubar 層がトリガー間移動へフォールバックする合図。
+                // Select は trigger-item が存在せずセレクタ不一致で自然に
+                // 常にこの分岐へ落ちる）。
                 let items = filter_own_scope_items(
-                    collect_parts(&active_content, item_selector),
+                    collect_parts(&active_content, scope.item),
                     &active_content,
-                    content_selector,
+                    scope,
                 );
                 let Some(highlighted_index) = find_highlighted_index(&items) else {
-                    return;
+                    return KeyOutcome::UnhandledHorizontal(HorizontalDirection::Next);
                 };
                 let trigger_item = &items[highlighted_index];
-                if !trigger_item.matches(TRIGGER_ITEM_SELECTOR).unwrap_or(false) {
-                    return;
+                if !trigger_item.matches(scope.trigger_item).unwrap_or(false) {
+                    return KeyOutcome::UnhandledHorizontal(HorizontalDirection::Next);
                 }
                 let disabled = disabled_flags(&items);
                 if disabled[highlighted_index] {
-                    return;
+                    return KeyOutcome::UnhandledHorizontal(HorizontalDirection::Next);
                 }
-                if resolve_submenu_content(root, trigger_item).is_none() {
-                    return;
+                if resolve_submenu_content(root, trigger_item, scope).is_none() {
+                    return KeyOutcome::UnhandledHorizontal(HorizontalDirection::Next);
                 }
                 event.prevent_default();
                 // 開閉は既存の click → `crate::headless`（`data-scope`/
@@ -2639,26 +2823,23 @@ mod wiring {
                 // [`open_submenu_and_focus_first_item`] に委譲する（Bugbot
                 // 指摘 "ArrowRight drops parent chain highlight"、イシュー
                 // #662）。
-                open_submenu_and_focus_first_item(
-                    root,
-                    trigger_item,
-                    item_selector,
-                    content_selector,
-                );
+                open_submenu_and_focus_first_item(root, trigger_item, scope);
                 typeahead.reset();
             }
             "ArrowLeft" if submenu_nav("ArrowLeft", modifiers) == Some(SubmenuNav::Close) => {
-                // チェーン深さ 0（サブメニュー内ではない）は no-op。
+                // チェーン深さ 0（サブメニュー内ではない）は
+                // `UnhandledHorizontal(Prev)` を返す（イシュー #1073、
+                // Menubar 層がトリガー間移動へフォールバックする合図）。
                 // `prevent_default` もしない（受け入れ条件 2、トップレベルの
                 // ページ内既定動作を奪わない）。
                 let Some(parent_trigger) = parent_trigger_item else {
-                    return;
+                    return KeyOutcome::UnhandledHorizontal(HorizontalDirection::Prev);
                 };
                 event.prevent_default();
                 let items = filter_own_scope_items(
-                    collect_parts(&active_content, item_selector),
+                    collect_parts(&active_content, scope.item),
                     &active_content,
-                    content_selector,
+                    scope,
                 );
                 clear_highlight(&items, &active_content);
                 if let Ok(html_parent_trigger) = parent_trigger.clone().dyn_into::<HtmlElement>() {
@@ -2697,12 +2878,13 @@ mod wiring {
                     None => Some(parent_trigger.clone()),
                 };
                 if let Some(fresh_parent_trigger) = resolved_parent_trigger {
-                    if let Some(parent_content) = closest(&fresh_parent_trigger, content_selector) {
+                    if let Some(parent_content) = closest(&fresh_parent_trigger, scope.content_any)
+                    {
                         if root.contains(Some(&parent_content)) {
                             let parent_items = filter_own_scope_items(
-                                collect_parts(&parent_content, item_selector),
+                                collect_parts(&parent_content, scope.item),
                                 &parent_content,
-                                content_selector,
+                                scope,
                             );
                             if let Some(parent_index) = parent_items.iter().position(|item| {
                                 match parent_trigger_id.as_deref() {
@@ -2733,24 +2915,207 @@ mod wiring {
                 // [`clear_active_chain_highlights`] で一括クリアする。
                 // `prevent_default`/`stop_propagation` は呼ばない
                 // （overlay.rs の document keydown リスナーが同じ Escape を
-                // 引き続き観測して実際の close 判定を行える必要がある）。
-                // typeahead バッファも合わせてリセットする（イシュー #641、
-                // Escape 後の再入力は新規バッファから始まるべきため）。
-                clear_active_chain_highlights(root, &content, item_selector, content_selector);
+                // 引き続き観測して実際の close 判定を行える必要がある。
+                // Menubar も同様に閉鎖自体は `overlay` の責務であり、本
+                // モジュールは highlight の後始末のみを担う。§ギャップ 3
+                // 参照）。typeahead バッファも合わせてリセットする
+                // （イシュー #641、Escape 後の再入力は新規バッファから
+                // 始まるべきため）。
+                clear_active_chain_highlights(root, &content, scope);
                 typeahead.reset();
             }
             _ if is_typeahead_key(&key, buffer_active, modifiers) => {
                 event.prevent_default();
                 let query = typeahead.push(&key, now, &active_content);
                 let items = filter_own_scope_items(
-                    collect_parts(&active_content, item_selector),
+                    collect_parts(&active_content, scope.item),
                     &active_content,
-                    content_selector,
+                    scope,
                 );
                 let current = find_highlighted_index(&items);
-                apply_typeahead_match(&items, &active_content, current, &query);
+                apply_typeahead_match(&items, &active_content, current, &query, scope);
             }
             _ => {}
+        }
+        KeyOutcome::Handled
+    }
+
+    /// Menubar トリガー間の水平/垂直移動を [`tabs_next_index`] で計算し、
+    /// roving tabindex とフォーカスを更新する（イシュー #1073、モジュール
+    /// doc「# Menubar のキーボード仕様」参照）。「開いている Menu が追随
+    /// する」（APG open-follows-focus）ため、移動前に Menu が open だった
+    /// 場合は移動先トリガーへ `click()` を合成して開き直す
+    /// （`Menubar::update` の `Toggle(i)` は単一 open のため 1 クリックで
+    /// 旧 Menu の閉鎖・新 Menu の開放が同時に起きる、
+    /// `crates/headless-ui/src/menubar.rs` の状態機械契約）。
+    ///
+    /// click() 由来の再描画で `triggers` 自身が差し替わる可能性があるため、
+    /// 移動後に menubar root から改めてトリガー列を収集し直してから roving
+    /// tabindex・フォーカスを適用する（`open_submenu_and_focus_first_item`
+    /// の id 再解決と同型の stale element 対策）。新 content の再解決・先頭
+    /// 項目への highlight 設定はいずれも失敗時 no-op（fail-closed）。
+    ///
+    /// `nav`（[`MenubarNavConfig`]）に orientation・loop・modifiers を束ね、
+    /// 引数個数を `clippy::too_many_arguments`（既定閾値 7）以内に収める。
+    fn move_menubar_focus(
+        menubar_root: &Element,
+        triggers: &[Element],
+        current: usize,
+        key: &str,
+        nav: &MenubarNavConfig,
+        was_open: bool,
+    ) {
+        let disabled = disabled_flags(triggers);
+        let Some(next_index) = tabs_next_index(
+            current,
+            key,
+            nav.orientation,
+            nav.loop_focus,
+            nav.modifiers,
+            &disabled,
+        ) else {
+            return;
+        };
+        let Some(next_trigger) = triggers.get(next_index).cloned() else {
+            return;
+        };
+
+        if was_open {
+            if let Ok(html_next_trigger) = next_trigger.clone().dyn_into::<HtmlElement>() {
+                // 開閉は既存の click → dispatch 経路へ委譲する（Menu/Select
+                // の ArrowRight/ArrowLeft と同方針、モジュール doc §設計）。
+                html_next_trigger.click();
+            }
+        }
+
+        // click() 由来の再描画に備え、menubar root から改めてトリガー列を
+        // 収集し直す（stale element 対策）。
+        let fresh_triggers = collect_parts(menubar_root, MENUBAR_TRIGGER_SELECTOR);
+        let Some(fresh_index) = fresh_triggers
+            .iter()
+            .position(|t| t.is_same_node(Some(&next_trigger)))
+            .or_else(|| {
+                // click() を伴わない（closed のまま移動する）経路では
+                // トリガー自身は差し替わらないはずだが、念のため index
+                // ベースでもフォールバックする（fail-closed の対称、
+                // 要素数が変わっていなければ next_index と一致する）。
+                (next_index < fresh_triggers.len()).then_some(next_index)
+            })
+        else {
+            return;
+        };
+        set_roving_tabindex(&fresh_triggers, fresh_index);
+        if let Some(fresh_trigger) = fresh_triggers.get(fresh_index) {
+            if let Ok(html_element) = fresh_trigger.clone().dyn_into::<HtmlElement>() {
+                let _ = html_element.focus();
+            }
+            if was_open {
+                if let Some(content_after) =
+                    resolve_menu_select_content(fresh_trigger, &MENUBAR_SCOPE)
+                {
+                    if menubar_root.contains(Some(&content_after))
+                        && !content_after.has_attribute("hidden")
+                    {
+                        let items = filter_own_scope_items(
+                            collect_parts(&content_after, MENUBAR_SCOPE.item),
+                            &content_after,
+                            &MENUBAR_SCOPE,
+                        );
+                        let sub_disabled = disabled_flags(&items);
+                        if let Some(idx) = first_non_disabled(&sub_disabled) {
+                            set_highlight(&items, idx, &content_after);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// [`move_menubar_focus`]/[`handle_menubar_trigger_keydown`] が共有する
+    /// トリガー間移動のパラメータ束（イシュー #1073）。
+    /// `clippy::too_many_arguments`（既定閾値 7）を避けるための集約であり、
+    /// 意味的には root の `data-orientation`/`data-loop-focus` とイベントの
+    /// 修飾キー状態をまとめただけで新しい概念は導入しない。
+    struct MenubarNavConfig {
+        orientation: Orientation,
+        loop_focus: bool,
+        modifiers: Modifiers,
+    }
+
+    /// Menubar trigger 上の keydown を処理する（イシュー #1073、モジュール
+    /// doc「# Menubar のキーボード仕様」参照）。closed 時はまずトリガー間の
+    /// 水平/垂直移動（[`tabs_next_index`] 再利用）を優先評価し、`None`
+    /// （open 系キー・typeahead 等）のときのみ既存の Menu/Select 共通実装
+    /// （[`handle_menu_or_select_trigger_keydown`]、[`MENUBAR_SCOPE`]）へ
+    /// フォールスルーする。open 時は共通実装へ委譲し、戻り値が
+    /// [`KeyOutcome::UnhandledHorizontal`] のときのみトリガー間移動
+    /// （[`move_menubar_focus`]、open-follows-focus）を行う。
+    fn handle_menubar_trigger_keydown(
+        root: &Element,
+        trigger: &Element,
+        event: &KeyboardEvent,
+        typeahead: &mut TypeaheadState,
+    ) {
+        let Some(menubar_root) = closest(trigger, MENUBAR_ROOT_SELECTOR) else {
+            return;
+        };
+        if !root.contains(Some(&menubar_root)) {
+            return;
+        }
+        let triggers = collect_parts(&menubar_root, MENUBAR_TRIGGER_SELECTOR);
+        let Some(current) = index_of(&triggers, trigger) else {
+            return;
+        };
+        let nav = MenubarNavConfig {
+            orientation: Orientation::from_attr(
+                menubar_root.get_attribute("data-orientation").as_deref(),
+            ),
+            loop_focus: menu_loop_focus_from_attr(
+                menubar_root.get_attribute("data-loop-focus").as_deref(),
+            ),
+            modifiers: modifiers_of(event),
+        };
+        let key = event.key();
+
+        let is_open = resolve_menu_select_content(trigger, &MENUBAR_SCOPE).is_some_and(|content| {
+            root.contains(Some(&content)) && !content.has_attribute("hidden")
+        });
+
+        if !is_open {
+            let has_horizontal_move = tabs_next_index(
+                current,
+                &key,
+                nav.orientation,
+                nav.loop_focus,
+                nav.modifiers,
+                &disabled_flags(&triggers),
+            )
+            .is_some();
+            if has_horizontal_move {
+                event.prevent_default();
+                move_menubar_focus(&menubar_root, &triggers, current, &key, &nav, false);
+                return;
+            }
+            // トリガー間移動の対象外（open 系キー・typeahead 等）は既存の
+            // Menu/Select 共通実装へフォールスルーする。
+            let _ = handle_menu_or_select_trigger_keydown(
+                root,
+                trigger,
+                event,
+                &MENUBAR_SCOPE,
+                typeahead,
+            );
+            return;
+        }
+
+        let outcome =
+            handle_menu_or_select_trigger_keydown(root, trigger, event, &MENUBAR_SCOPE, typeahead);
+        if let KeyOutcome::UnhandledHorizontal(direction) = outcome {
+            let key_for_move = match direction {
+                HorizontalDirection::Prev => "ArrowLeft",
+                HorizontalDirection::Next => "ArrowRight",
+            };
+            move_menubar_focus(&menubar_root, &triggers, current, key_for_move, &nav, true);
         }
     }
 
@@ -2886,13 +3251,14 @@ mod wiring {
 
     /// キーボードイベントのターゲットを、Tabs trigger / Accordion
     /// item-trigger / Menu trigger / Select trigger / RadioGroup ネイティブ
-    /// `<input type="radio">` のいずれかに一致する要素として解決する
-    /// （返り値の `&'static str` はスコープ識別子）。`matches` の失敗
-    /// （不正セレクタ等）は不一致として扱う。Menu/Select/RadioGroup は
-    /// いずれも keydown 時に実 DOM フォーカスがそのままターゲット
-    /// （trigger button / radio input）上にあるため、Tabs/Accordion と同じく
-    /// `closest` を介さず `target` 自身の一致判定のみで足りる
-    /// （モジュール doc §Menu/Select/RadioGroup 参照）。
+    /// `<input type="radio">` / Menubar trigger のいずれかに一致する要素
+    /// として解決する（返り値の `&'static str` はスコープ識別子）。
+    /// `matches` の失敗（不正セレクタ等）は不一致として扱う。
+    /// Menu/Select/RadioGroup/Menubar はいずれも keydown 時に実 DOM
+    /// フォーカスがそのままターゲット（trigger button / radio input）上に
+    /// あるため、Tabs/Accordion と同じく `closest` を介さず `target` 自身の
+    /// 一致判定のみで足りる（モジュール doc §Menu/Select/RadioGroup/Menubar
+    /// 参照）。
     fn matching_keydown_target(target: &Element) -> Option<(&'static str, Element)> {
         if target.matches(TABS_TRIGGER_SELECTOR).unwrap_or(false) {
             return Some(("tabs", target.clone()));
@@ -2909,6 +3275,9 @@ mod wiring {
         if target.matches(RADIO_GROUP_INPUT_SELECTOR).unwrap_or(false) {
             return Some(("radio", target.clone()));
         }
+        if target.matches(MENUBAR_TRIGGER_SELECTOR).unwrap_or(false) {
+            return Some(("menubar", target.clone()));
+        }
         None
     }
 
@@ -2918,9 +3287,12 @@ mod wiring {
     ///
     /// - `keydown`: イベントターゲットが Tabs trigger / Accordion
     ///   item-trigger / Menu trigger / Select trigger / RadioGroup ネイティブ
-    ///   `<input type="radio">` のいずれかに一致する場合のみ処理する
-    ///   （[`handle_tabs_keydown`]/[`handle_accordion_keydown`]/
-    ///   [`handle_menu_or_select_trigger_keydown`]/[`handle_radio_keydown`]）。
+    ///   `<input type="radio">` / Menubar trigger のいずれかに一致する場合
+    ///   のみ処理する（[`handle_tabs_keydown`]/[`handle_accordion_keydown`]/
+    ///   [`handle_menu_or_select_trigger_keydown`]/[`handle_radio_keydown`]/
+    ///   [`handle_menubar_trigger_keydown`]）。Menubar 用の追加リスナーは
+    ///   登録せず、既存の keydown 委譲へ相乗りする（`Closure::forget` は
+    ///   引き続き 3 回のみ）。
     /// - `click`: Tabs trigger への委譲クリックで [`handle_trigger_click`]
     ///   を呼び、マウスクリック・manual activationMode 下の Enter/Space の
     ///   双方をカバーする（Menu/Select の決定はキーボード側で highlight 中
@@ -2962,23 +3334,31 @@ mod wiring {
             match scope {
                 "tabs" => handle_tabs_keydown(&keydown_root, &matched, &keyboard_event),
                 "accordion" => handle_accordion_keydown(&keydown_root, &matched, &keyboard_event),
-                "menu" => handle_menu_or_select_trigger_keydown(
-                    &keydown_root,
-                    &matched,
-                    &keyboard_event,
-                    MENU_CONTENT_SELECTOR,
-                    MENU_ITEM_SELECTOR,
-                    &mut typeahead_state,
-                ),
-                "select" => handle_menu_or_select_trigger_keydown(
-                    &keydown_root,
-                    &matched,
-                    &keyboard_event,
-                    SELECT_CONTENT_SELECTOR,
-                    SELECT_ITEM_SELECTOR,
-                    &mut typeahead_state,
-                ),
+                "menu" => {
+                    let _ = handle_menu_or_select_trigger_keydown(
+                        &keydown_root,
+                        &matched,
+                        &keyboard_event,
+                        &MENU_SCOPE,
+                        &mut typeahead_state,
+                    );
+                }
+                "select" => {
+                    let _ = handle_menu_or_select_trigger_keydown(
+                        &keydown_root,
+                        &matched,
+                        &keyboard_event,
+                        &SELECT_SCOPE,
+                        &mut typeahead_state,
+                    );
+                }
                 "radio" => handle_radio_keydown(&keydown_root, &matched, &keyboard_event),
+                "menubar" => handle_menubar_trigger_keydown(
+                    &keydown_root,
+                    &matched,
+                    &keyboard_event,
+                    &mut typeahead_state,
+                ),
                 _ => {}
             }
         });
