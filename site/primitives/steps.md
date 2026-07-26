@@ -1,6 +1,6 @@
 # Steps
 
-`fandhe-frontend-headless-ui` の `steps` mod が提供する構造・アクセシビリティ（WAI-ARIA・キーボード操作）・表示状態（`data-*`）のみを持つ unstyled 部品です。
+段階ナビゲーション（ウィザード）です。`fandhe-frontend-headless-ui` の `steps` mod は Root / List / Item / Trigger / Indicator / Separator / Content / CompletedContent / PrevTrigger / NextTrigger の 10 anatomy パーツと、complete/current/incomplete の 3 状態を導出する決定的な状態機械を提供します。Themes 版と異なりインジケーターの見た目を持たず、構造・`aria-current="step"` 等の属性・境界（先頭/末尾）判定のみを担います。
 
 スタイル済みの表示例は [Steps](../themes/steps.md) を参照してください。
 

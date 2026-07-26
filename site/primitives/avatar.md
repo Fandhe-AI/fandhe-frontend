@@ -1,6 +1,6 @@
 # Avatar
 
-`fandhe-frontend-headless-ui` の `avatar` mod が提供する構造・アクセシビリティ（WAI-ARIA・キーボード操作）・表示状態（`data-*`）のみを持つ unstyled 部品です。
+プロフィール画像とフォールバック表示を切り替える部品です。`fandhe-frontend-headless-ui` の `avatar` mod は画像読み込みステータス（loading/loaded/error）を管理する状態機械を提供し、Root / Image / Fallback の 3 anatomy パーツで構成されます。Themes 版と異なりスタイル（外形・サイズ）は一切持たず、`data-state` による表示切り替えのみを担います。
 
 スタイル済みの表示例は [Avatar](../themes/avatar.md) を参照してください。
 

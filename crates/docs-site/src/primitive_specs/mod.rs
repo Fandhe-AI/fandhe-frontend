@@ -13,12 +13,14 @@
 //!
 //! Forms A（#1024）が [`forms_a::SPECS`] を、Forms C・日付・状態表示（#1026）が
 //! [`forms_c_date_status::SPECS`] を、Overlay / Disclosure（#1027）が
-//! [`overlay_disclosure::SPECS`] を充填済みである。Forms A 対象 11 部品
+//! [`overlay_disclosure::SPECS`] を、Data Display / Utilities（#1029）が
+//! [`data_display_utilities::SPECS`] を充填済みである。Forms A 対象 11 部品
 //! （angle-slider / checkbox / checkbox-group / color-picker / combobox /
 //! editable / field / fieldset / file-upload / image-cropper / listbox）と
-//! Forms C・日付・状態表示対象 10 部品、Overlay / Disclosure 対象 10 部品の
+//! Forms C・日付・状態表示対象 10 部品、Overlay / Disclosure 対象 10 部品、
+//! Data Display / Utilities 対象 10 部品の
 //! `/primitives/<kebab>/` は Features / API Reference 引数表 / Examples /
-//! Accessibility の 4 節を持つ。残り 3 カテゴリは以下の issue が引き続き
+//! Accessibility の 4 節を持つ。残り 2 カテゴリは以下の issue が引き続き
 //! 担当する（`crate::primitives_catalog::PrimitiveCategory::spec_issue` と
 //! 同一の対応。未充填カテゴリの `/primitives/<kebab>/` は
 //! Markdown 原稿のみで生成される、[`crate::component_page::generated_content`]
@@ -31,17 +33,20 @@
 //! | Forms C・日付・状態表示（10 件） | #1026 | 充填済み |
 //! | Overlay / Disclosure（10 件） | #1027 | 充填済み |
 //! | Navigation（11 件） | #1028 | 未充填 |
-//! | Data Display / Utilities（10 件） | #1029 | 未充填 |
+//! | Data Display / Utilities（10 件） | #1029 | 充填済み |
 //!
 //! 追加時は本モジュール配下にカテゴリ別サブモジュールを新設し、
 //! `(path, ComponentPageSpec)` のテーブルを 1 モジュール 1 定数で持たせたうえで
 //! 本ファイルの [`SPEC_TABLES`] へ 1 行追記する（`/themes/` 側
 //! `component_page::SPEC_TABLES` と同じ集約方式。テーブル**間**の path 重複は
 //! `component_page.rs` 内の `spec_tables_have_no_cross_table_duplicate_paths`
-//! が担う検査対象へ本レジストリも含める想定）。
+//! が担う検査対象へ本レジストリも含める想定）。並列実装される兄弟 issue の
+//! PR 間で本ファイルへの追記行が衝突した場合は「両方の行を残す」ことで解決
+//! する（1 モジュール 1 issue のため意味的な衝突は生じない）。
 
 use crate::component_page::ComponentPageSpec;
 
+mod data_display_utilities;
 pub mod forms_a;
 pub mod forms_c_date_status;
 mod overlay_disclosure;
@@ -53,4 +58,5 @@ pub const SPEC_TABLES: &[&[(&str, ComponentPageSpec)]] = &[
     forms_a::SPECS,
     forms_c_date_status::SPECS,
     overlay_disclosure::SPECS,
+    data_display_utilities::SPECS,
 ];
