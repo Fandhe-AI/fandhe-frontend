@@ -57,7 +57,7 @@
 | [PasswordInput](../../site/themes/password-input.md) | `password_input` | Root/Label/Control/Input/VisibilityTrigger/Indicator | 独自実装（`"visible"`/`"hidden"` 語彙が `Checkable` と異なるため `Component`/`Hydrate` を直接実装、`PasswordInput`）。パスワード値そのものは一切扱わない（§6 参照） |
 | [Slider](../../site/themes/slider.md) | `slider` | Root/Label/Control/Track/Range/Thumb/HiddenInput/ValueText | 独自実装（連続量の値のため `data-state` を持たず `Component`/`Hydrate` を直接実装。`value` は常に `min` 起点で `step` 単位へスナップしてから `[min, max]` へ clamp する。`thumb` が `role="slider"` + `aria-valuemin/max/now`/`aria-orientation` を担う） |
 | [PinInput](../../site/themes/pin-input.md) | `pin_input` | Root/Label/Control/Input/HiddenInput | 独自実装（固定桁数の文字配列 + フォーカス位置、`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装） |
-| [TagsInput](../../site/themes/tags-input.md) | `tags_input` | Root/Label/Control/Input/Item/ItemPreview/ItemText/ItemInput/ItemDeleteTrigger/ClearTrigger/HiddenInput | 独自実装（可変長タグ文字列リスト + 編集中インデックス、`SingleSelect`/`MultiSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`control` は `role="listbox"`、`item-preview` は `role="option"`） |
+| [TagsInput](../../site/themes/tags-input.md) | `tags_input` | Root/Label/Control/Input/Item/ItemPreview/ItemText/ItemInput/ItemDeleteTrigger/ClearTrigger/HiddenInput/LiveRegion | 独自実装（可変長タグ文字列リスト + 編集中インデックス、`SingleSelect`/`MultiSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`control` は `role="listbox"`、`item-preview` は `role="option"`。`live_region` はタグ数変化の通知用 live region、`aria-live="polite"` 固定・テキスト更新は wasm-full の後続責務、イシュー #1069） |
 | [RatingGroup](../../site/themes/rating-group.md) | `rating_group` | Root/Label/Control/Item/HiddenInput | 独自実装（`1..=count` の数値評価値 + hover プレビューを持つ。`hover` は SSR 非活性・hydration 非直列化。`Component`/`Hydrate` を直接実装） |
 | [Editable](../../site/themes/editable.md) | `editable` | Root/Label/Area/Input/Preview/Control/EditTrigger/SubmitTrigger/CancelTrigger | 独自実装（`"preview"`/`"edit"` の 2 モードが `Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装。`mode == Preview` のとき常に `draft == value` を保つ不変条件を持つ） |
 | [Toggle](../../site/themes/toggle.md) | `toggle` | Root/Indicator | `state::Checkable`（`data-state` 語彙は `"on"`/`"off"`。`checked_data_state` ではなく `state::pressed_data_state` で変換し、Switch の `"checked"`/`"unchecked"` と分離する） |
@@ -65,7 +65,7 @@
 | [MultiToggleGroup（multiple モード）](../../site/themes/toggle-group.md) | `toggle_group` | Root/Item | `state::MultiSelect`（dispatch は `"toggle"` のみ受理） |
 | [SegmentGroup](../../site/themes/segment-group.md) | `segment_group` | Root/Indicator/Item/ItemText/ItemControl/ItemHiddenInput | `radio_group::RadioGroup`（`state::SingleSelect`）へ全委譲（独自の状態機械を新設せず、既存 RadioGroup の dispatch/hydration をそのまま再利用する） |
 | [Listbox / MultiListbox](../../site/themes/listbox.md) | `listbox` | Root/Label/Content/ItemGroup/ItemGroupLabel/Item/ItemText/ItemIndicator/ValueText | `state::SingleSelect`（`Listbox`）/ `state::MultiSelect`（`MultiListbox`）へ全委譲。常時展開（trigger/positioner なし）で `Select` とは責務境界が異なる（詳細は `listbox` モジュール doc 参照） |
-| [Combobox](../../site/themes/combobox.md) | `combobox` | Root/Label/Control/Input/Trigger/ClearTrigger/Positioner/Content/ItemGroup/ItemGroupLabel/Item/ItemText/ItemIndicator | `state::Disclosure` + `state::SingleSelect` + `state::TextInput`（開閉 + 選択値 + 入力値の合成）。ARIA 1.2 combobox パターンに準拠し `aria-activedescendant` は `content` ではなく `input` 側に配線する（Select との差異） |
+| [Combobox](../../site/themes/combobox.md) | `combobox` | Root/Label/Control/Input/Trigger/ClearTrigger/Positioner/Content/ItemGroup/ItemGroupLabel/Item/ItemText/ItemIndicator/LiveRegion | `state::Disclosure` + `state::SingleSelect` + `state::TextInput`（開閉 + 選択値 + 入力値の合成）。ARIA 1.2 combobox パターンに準拠し `aria-activedescendant` は `content` ではなく `input` 側に配線する（Select との差異）。`live_region` は候補件数変化の通知用 live region、`aria-live="polite"` 固定・テキスト更新は wasm-full の後続責務、イシュー #1069 |
 | [Steps](../../site/themes/steps.md) | `steps` | Root/List/Item/Trigger/Indicator/Separator/Content/CompletedContent/PrevTrigger/NextTrigger | 独自実装（`count`（全 step 数）+ `step`（現在位置、`0..=count`）を持つ。item は complete/current/incomplete の 3 状態、current な item の trigger のみ `aria-current="step"`。`Disclosure`/`SingleSelect` の語彙に収まらないため `Component`/`Hydrate` を直接実装） |
 | [TreeView](../../site/themes/tree-view.md) | `tree_view` | Root/Label/Tree/Branch/BranchControl/BranchIndicator/BranchText/BranchContent/BranchIndentGuide/Item/ItemText/ItemIndicator | `state::MultiSelect`（展開中のブランチ値の集合）+ `state::SingleSelect`（選択中のノード値）の合成。両者とも `hydration_attrs` のフィールド名が `"selected"` で衝突するため、展開集合側のみ `"expanded"` へ書き換えて運ぶ（`tree_view` モジュール doc §hydration フィールド名参照）。`TreeView::render_nodes` が `TreeNode` 列から深さ・`aria-posinset`/`aria-setsize` を再帰的に計算する |
 | [Pagination](../../site/themes/pagination.md) | `pagination` | Root/Item/Ellipsis/PrevTrigger/NextTrigger | 独自実装（総件数・ページサイズ・現在ページ・sibling/boundary 件数から省略記号を含むページ列を導出する `page_range`（決定的・`O(boundary_count + sibling_count)`）+ `Component`/`Hydrate` を直接実装する値状態機械。現在ページは `aria-current="page"`/`data-selected` で、端到達は `disabled`/`data-disabled` で表現する） |
@@ -103,6 +103,32 @@
 | [SignaturePad](../../site/themes/signature-pad.md) | `signature_pad` | Root/Label/Control/Segment（`svg`）/SegmentPath（ストロークごと、`path`）/Guide/ClearTrigger/HiddenInput | 独自実装（`strokes: Vec<Stroke>` + `disabled`/`read_only` を持つ値状態機械、`Component`/`Hydrate` を直接実装。canvas は一切使用せず、`stroke_path_d` が同一座標列から常に同一の SVG `d` 属性値を生成する決定的純粋関数（出力文字集合は `M`/`L`/数字/`.`/`,`/`-`/空白に閉じる）。dispatch は `"add-stroke"`/`"clear"`/`"undo"`、点数上限（`MAX_POINTS_PER_STROKE`）・ストローク数上限（`MAX_STROKES`）超過は fail-closed で拒否する。ポインタイベントからの座標収集は `fandhe-frontend-wasm-full::headless_signature_pad` の責務） |
 | [ImageCropper](../../site/themes/image-cropper.md) | `image_cropper` | Root/Viewport/Image/Selection/Handle/Grid | 独自実装（crop 矩形 `x`/`y`/`width`/`height`（`u32`）の整数純粋状態機械。canvas・ポインタ座標・浮動小数点を一切扱わず、アスペクト比固定時は `width` 主導・`height` 従属の整数丸めで導出し、範囲外なら `width` を再クランプしてから再導出する fail-closed 契約。dispatch は `"move"`/`"resize"`（[`HandlePosition`] の 8 方位）/`"set"`/`"reset"`、payload はクライアント由来の信頼できない入力として厳密パース + fail-closed で扱う。実画像切り出し（ピクセルデータ生成）はスコープ外） |
 | Fieldset | `fieldset` | Root/Legend/HelperText/ErrorText | なし（`field` と同じ判断で `disabled`/`invalid` は呼び出し側が決める SSR 静的な props。ネイティブ `<fieldset>`/`<legend>` の `disabled` 伝播・アクセシブルネーム自動関連付けを前提とし、`error_text` は非該当時 `hidden` 存在属性を付与する fail-closed 描画（`field::error_text` と同型）） |
+
+## 4z. combobox / listbox の ARIA 関連付けは呼び出し側責務
+
+`combobox::input`/`combobox::trigger` の `controls`/`activedescendant`
+（`aria-controls`/`aria-activedescendant`）、`listbox::content` の
+`labelledby`（`aria-labelledby`）はいずれも `Option` の opt-in 引数であり、
+本クレートは値を強制しない（構造・アクセシビリティの anatomy は提供するが、
+呼び出し側が渡す値の正しさまでは型で保証しない）。
+
+- **combobox**: popup（`content`）を描画するインスタンスは
+  `controls` に `content` の `id` を渡すこと。ハイライト中の候補
+  （`item` の `highlighted` 引数）が存在する構成では
+  `activedescendant` にその候補の `id` を渡すこと（ARIA 1.2 combobox
+  パターン、フォーカスを保持する `input` 側に配線する。`content` 側では
+  ない）。
+- **listbox**: `content` のアクセシブルネームは `labelledby`（対応する
+  `label` の `id`）または呼び出し側 `attrs` 経由の `aria-label` の
+  いずれかで必ず与えること。
+
+リポジトリ内呼び出し（docs-site の Primitives/Themes 全ページ）はこの
+規約に準拠しており、`crates/headless-ui/tests/combobox.rs`・
+`crates/headless-ui/tests/listbox.rs`・
+`crates/docs-site/tests/combobox_aria_association.rs` が契約テストとして
+固定・回帰防止している。監査結果・型必須化を採らなかった判断根拠・
+再評価トリガーは
+`../internal/headless-ui-implementation-notes.md` §S を参照。
 
 ## 4a0. 色変換コア（`color`）
 

@@ -21,6 +21,42 @@
 //!   `pre-styled-ui` 側の静的 CSS フォールバックで初期表示を描画する
 //!   （ADR §4.1）。
 //!
+//! # §3.25 規則 2 との関係（層帰属の根拠）
+//!
+//! `docs/policy/intentional-non-adoption.md` §3.25 規則 2 は「装飾・
+//! アニメーション・レイアウト計測の関心（viewport の寸法測定とそれに基づく
+//! DOM 出力の変化等）を headless 層へ持ち込まない」と定める。本モジュールは
+//! [`compute_position`] の引数に `Size`（viewport 寸法）を受け取り、
+//! [`placement_attrs`]/[`css_vars_style`] という DOM 出力（`data-*`・CSS
+//! 変数）をその値に応じて変化させるため、文面だけを読むと規則 2 の対象に
+//! 見えるが、**規則 2 の対象外**である。判別根拠は以下のとおり。
+//!
+//! - 規則 2 が禁じているのは headless 層が**計測主体になること**であり、
+//!   具体的には (a) 実 DOM への接触（`getBoundingClientRect`/
+//!   `window.innerWidth` 相当の呼び出し）と (b) 再計算トリガーの所有
+//!   （scroll/resize のオブザーバ機構、Floating UI の `autoUpdate` 相当の
+//!   連続監視）の 2 点である。**寸法値が関数シグネチャに現れること自体は
+//!   対象ではない**。
+//! - 本モジュールは (a) を持たない: `web-sys` 非依存の純粋関数であり、
+//!   計測値は呼び出し元が引数として注入する（ADR §4.1）。
+//! - 本モジュールは (b) を持たない: `autoUpdate` 相当の連続監視は意図的
+//!   非対応である（上記「設計判断の凍結事項」節、ADR §4.3）。
+//! - **上層の書き分け**: 実 DOM 計測（(a)）は `fandhe-frontend-wasm-full`
+//!   （`position` モジュール）が担い、SSR/SSG 時の静的 CSS フォールバック・
+//!   装飾は `fandhe-frontend-pre-styled-ui` が担う（ADR §4.1）。いずれも
+//!   headless 層の外側であり、規則 2 の趣旨（headless 層に装飾・計測の
+//!   関心を置かない）を満たす。
+//! - **機械的担保**: `headless-ui` の外部依存は `fandhe-frontend-core`/
+//!   `fandhe-frontend-interactive`（いずれも path）のみに固定され、
+//!   `crates/headless-ui/Cargo.toml` の `[dependencies]` と
+//!   `structure.toml` の `depends_on = ["core", "interactive"]` の
+//!   完全一致を `fw gate` が検証する。したがって `web-sys` を追加して
+//!   計測主体化する経路は構造的に塞がれている。
+//! - 先例として [`mod@crate::navigation_menu`] が同じ §3.25 規則 2 の
+//!   適用記録を持つ（viewport 測定・`data-motion` を規則 2 の対象と判定し
+//!   headless 層から除外した事例）。本節はその対照事例（規則 2 の対象外と
+//!   判定する事例）にあたる。
+//!
 //! # 設計判断の凍結事項（ADR が正、本 doc は要約）
 //!
 //! - 12 placement 語彙（[`Placement`]、ADR §4.2）。

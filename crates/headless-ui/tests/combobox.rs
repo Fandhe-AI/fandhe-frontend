@@ -397,3 +397,408 @@ fn filter_options_end_to_end_with_dynamic_query_and_labels() {
     dispatch(&mut c, "input", "");
     assert_eq!(c.filtered_options(&options), options.to_vec());
 }
+
+// ---------------------------------------------------------------------
+// ARIA 関連付け契約（イシュー #1067）
+//
+// `combobox::input` の `controls`/`activedescendant` 引数は opt-in
+// （`Option`）であり、呼び出し側が `None` を渡しても型では検知できない
+// （`crates/headless-ui/src/combobox.rs` 参照）。本節は「どういう構成なら
+// 関連付けが必須か」という条件付き規則（R1〜R4）を、実際に render() した
+// HTML 文字列に対して検証する契約テストで固定する。
+//
+// `crates/docs-site/tests/combobox_aria_association.rs` が同一規則を
+// 実出荷マークアップ（Primitives/Themes 全ページ）へ適用する。クレート
+// 境界を跨ぐ test helper 共有は Rust の統合テストでは不可能なため、
+// 検証ロジックは意図的に重複実装している。**規則を変更するときは両方の
+// ファイルを更新すること。**
+// ---------------------------------------------------------------------
+
+/// 開始タグ内容 `tag`（例: `r#"input role="combobox" aria-expanded="true""#`）
+/// から属性 `name` の値を取り出す。
+///
+/// 属性値中に生の `"` が現れないという既定エスケープの不変条件（本節冒頭
+/// コメント参照）により、`name="` の前方に半角スペースを要求するだけで
+/// 他属性名との部分一致誤検出（例: `data-value` の中に `value` が部分
+/// 文字列として現れる）を避けられる。
+fn attr<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
+    let needle = format!(" {name}=\"");
+    let start = tag.find(&needle)? + needle.len();
+    let rest = &tag[start..];
+    let end = rest.find('"')?;
+    Some(&rest[..end])
+}
+
+/// HTML 断片から開始タグの内容（`<` と `>` の間、終了タグは除く）を
+/// 「どの combobox インスタンスの部分木に属するか」（`scope`）付きで
+/// 登場順に切り出す。
+///
+/// [`fandhe_frontend_core::render`] の既定エスケープにより、テキスト
+/// ノードの内容は `<`/`>` を含まない（常に `&lt;`/`&gt;` へエスケープ
+/// される）ため、`<...>` の単純な区間探索で「本物のタグ境界」のみを
+/// 拾えることに依拠する（この前提が崩れる変更は、本モジュール既存の
+/// `*_payloads_are_escaped_end_to_end` 系 XSS 回帰テストが先に検知する）。
+/// 本クレートは `render()` が void 要素も常に終了タグ付きで出力する
+/// 仕様（`crates/core/src/tags.rs` 参照。実測: `<input ...></input>`）の
+/// ため、開始/終了タグのスタック突合が全要素で一様に成立する。
+///
+/// `data-scope="combobox" data-part="root"`（[`combobox::root`] が出力する
+/// マーカー）を持つ要素を新しいスコープの起点とし、その部分木配下（自身を
+/// 含む）の全タグへ同一の `scope` 番号を割り当てる。祖先にそのような
+/// root が無いタグは `scope = None`（ページ chrome 等）。1 ページに複数の
+/// combobox インスタンスが共存する場合（docs-site の Demo + Examples 原稿
+/// 断片が同一ページへ合成される構成、イシュー #1067 実測: `/primitives/combobox/`）
+/// に、一方のインスタンスのハイライト item がもう一方のインスタンス（無関係
+/// に closed な別 combobox）の R3 判定へ誤って波及しないよう、この境界で
+/// 区切る。R2/R4（`id` 参照の実在確認）はページ全体で `id` が一意である
+/// 前提のもとスコープを跨いで解決してよいため、この関数の呼び出し側は
+/// `id -> role` の対応表のみページ全体で構築し、R3（ハイライト item の
+/// 集合）だけをスコープ単位で構築する。
+fn scoped_open_tags(html: &str) -> Vec<(&str, Option<usize>)> {
+    let mut tags = Vec::new();
+    let mut stack: Vec<Option<usize>> = Vec::new();
+    let mut next_scope = 0usize;
+    let mut rest = html;
+    while let Some(lt) = rest.find('<') {
+        let after_lt = &rest[lt + 1..];
+        if after_lt.starts_with('/') {
+            // 終了タグは属性を持たない。対応する開始タグのスコープを
+            // スタックから取り除く。
+            match after_lt.find('>') {
+                Some(gt) => {
+                    stack.pop();
+                    rest = &after_lt[gt + 1..];
+                    continue;
+                }
+                None => break,
+            }
+        }
+        match after_lt.find('>') {
+            Some(gt) => {
+                let tag = &after_lt[..gt];
+                let parent_scope = stack.last().copied().flatten();
+                let own_scope = if attr(tag, "data-scope") == Some("combobox")
+                    && attr(tag, "data-part") == Some("root")
+                {
+                    next_scope += 1;
+                    Some(next_scope)
+                } else {
+                    parent_scope
+                };
+                tags.push((tag, own_scope));
+                stack.push(own_scope);
+                rest = &after_lt[gt + 1..];
+            }
+            None => break,
+        }
+    }
+    tags
+}
+
+/// R1〜R4（本節冒頭コメント参照）を検証し、違反があれば規則名付きの
+/// `Err` を返す。
+///
+/// - **R1**: `role="combobox"` かつ `aria-expanded="true"` の要素は
+///   `aria-controls` を持つ。
+/// - **R2**: `aria-controls="X"` の `X` は同一断片内に `id="X"` かつ
+///   `role="listbox"` を持つ要素として実在する（dangling IDREF・誤配線の
+///   禁止）。
+/// - **R3**: 同一 combobox インスタンス（[`scoped_open_tags`] 参照）内に
+///   `role="option"` かつ `data-highlighted` 属性を持つ要素が 1 件以上
+///   あるとき、そのインスタンスの combobox 要素は `aria-activedescendant`
+///   を持ち、その値がハイライト要素の `id` と一致する（ハイライト要素が
+///   `id` を持たない場合は関連付け不能としてエラー）。
+/// - **R4**: `aria-activedescendant="Y"` があるとき `id="Y"` が同一断片内に
+///   実在する（dangling IDREF の禁止）。
+///
+/// closed かつ [`combobox::content`] 自体を描画しない構成（3 引数とも
+/// `None`）は `aria-expanded="true"` にならず、ハイライト要素も存在しない
+/// ため `Ok(())` を返す（ARIA 上正しい構成を誤検知で落とさない）。
+fn verify_combobox_aria_association(html: &str) -> Result<(), String> {
+    let scoped_tags = scoped_open_tags(html);
+
+    // R2/R4 の id 参照実在確認はページ全体（id は一意である前提）。
+    let mut id_role: std::collections::HashMap<&str, Option<&str>> =
+        std::collections::HashMap::new();
+    for (tag, _) in &scoped_tags {
+        if let Some(id) = attr(tag, "id") {
+            id_role.insert(id, attr(tag, "role"));
+        }
+    }
+
+    // R3 のハイライト item 集合はインスタンス（scope）単位で構築する。
+    let mut highlighted_ids_by_scope: std::collections::HashMap<Option<usize>, Vec<&str>> =
+        std::collections::HashMap::new();
+    let mut highlighted_without_id_scopes: std::collections::HashSet<Option<usize>> =
+        std::collections::HashSet::new();
+    for (tag, scope) in &scoped_tags {
+        if attr(tag, "role") == Some("option") && attr(tag, "data-highlighted").is_some() {
+            match attr(tag, "id") {
+                Some(id) => highlighted_ids_by_scope.entry(*scope).or_default().push(id),
+                None => {
+                    highlighted_without_id_scopes.insert(*scope);
+                }
+            }
+        }
+    }
+
+    for (tag, scope) in &scoped_tags {
+        if attr(tag, "role") != Some("combobox") {
+            continue;
+        }
+        let expanded = attr(tag, "aria-expanded") == Some("true");
+        let controls = attr(tag, "aria-controls");
+        let activedescendant = attr(tag, "aria-activedescendant");
+
+        if expanded && controls.is_none() {
+            return Err(format!(
+                "R1 violation: role=\"combobox\" element with aria-expanded=\"true\" lacks aria-controls: <{tag}>"
+            ));
+        }
+
+        if let Some(target) = controls {
+            match id_role.get(target) {
+                Some(Some("listbox")) => {}
+                Some(_) => {
+                    return Err(format!(
+                        "R2 violation: aria-controls=\"{target}\" target lacks role=\"listbox\""
+                    ));
+                }
+                None => {
+                    return Err(format!(
+                        "R2 violation: aria-controls=\"{target}\" target id does not exist (dangling IDREF)"
+                    ));
+                }
+            }
+        }
+
+        if highlighted_without_id_scopes.contains(scope) {
+            return Err(
+                "R3 violation: highlighted role=\"option\" element lacks id (cannot be referenced by aria-activedescendant)"
+                    .to_string(),
+            );
+        }
+        if let Some(highlighted_ids) = highlighted_ids_by_scope.get(scope) {
+            if !highlighted_ids.is_empty() {
+                match activedescendant {
+                    None => {
+                        return Err(
+                            "R3 violation: highlighted option exists but combobox lacks aria-activedescendant"
+                                .to_string(),
+                        );
+                    }
+                    Some(target) => {
+                        if !highlighted_ids.contains(&target) {
+                            return Err(format!(
+                                "R3 violation: aria-activedescendant=\"{target}\" does not match any highlighted option id {highlighted_ids:?}"
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some(target) = activedescendant {
+            if !id_role.contains_key(target) {
+                return Err(format!(
+                    "R4 violation: aria-activedescendant=\"{target}\" target id does not exist (dangling IDREF)"
+                ));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// 既存 `full_assembly_wires_aria_controls_labelledby_and_all_parts_appear`
+/// と同型の準拠済み組み立てが `Ok(())` になることを固定する（回帰の
+/// ベースライン）。
+#[test]
+fn verify_combobox_aria_association_ok_for_compliant_full_assembly() {
+    let input = combobox::input(
+        OpenState::Open,
+        "vu",
+        false,
+        Some("combobox-content-1"),
+        Some("item-vue"),
+        None,
+        vec![],
+    );
+    let item = combobox::item(
+        OpenState::Open,
+        false,
+        true,
+        "vue",
+        Some("item-vue"),
+        vec![],
+        vec![],
+    );
+    let content = combobox::content(
+        OpenState::Open,
+        Some("combobox-content-1"),
+        None,
+        vec![],
+        vec![item],
+    );
+    let root = combobox::root(OpenState::Open, vec![], vec![input, content]);
+    let html = render(&root);
+
+    assert_eq!(verify_combobox_aria_association(&html), Ok(()));
+}
+
+/// closed かつ [`combobox::content`] を描画しない・3 引数とも `None` の
+/// 構成は誤検知されず `Ok(())` になることを固定する（`primitive_specs`
+/// の Examples 原稿と同型の構成、イシュー #1067 計画 §2 実測）。
+#[test]
+fn verify_combobox_aria_association_ok_for_closed_without_content() {
+    let input = combobox::input(OpenState::Closed, "", false, None, None, None, vec![]);
+    let root = combobox::root(OpenState::Closed, vec![], vec![input]);
+    let html = render(&root);
+
+    assert_eq!(verify_combobox_aria_association(&html), Ok(()));
+}
+
+/// open かつ `controls=None` は R1 違反として検知されることを固定する
+/// （opt-in 欠落の検知力の証明）。
+#[test]
+fn verify_combobox_aria_association_detects_missing_controls_when_expanded() {
+    let input = combobox::input(OpenState::Open, "vu", false, None, None, None, vec![]);
+    let content = combobox::content(OpenState::Open, Some("cb-content"), None, vec![], vec![]);
+    let root = combobox::root(OpenState::Open, vec![], vec![input, content]);
+    let html = render(&root);
+
+    let result = verify_combobox_aria_association(&html);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().starts_with("R1 violation"));
+}
+
+/// ハイライト item（`id=Some`）が存在するのに `activedescendant=None` は
+/// R3 違反として検知されることを固定する。
+#[test]
+fn verify_combobox_aria_association_detects_missing_activedescendant_when_highlighted() {
+    let input = combobox::input(
+        OpenState::Open,
+        "vu",
+        false,
+        Some("cb-content"),
+        None,
+        None,
+        vec![],
+    );
+    let item = combobox::item(
+        OpenState::Open,
+        false,
+        true,
+        "vue",
+        Some("item-vue"),
+        vec![],
+        vec![],
+    );
+    let content = combobox::content(
+        OpenState::Open,
+        Some("cb-content"),
+        None,
+        vec![],
+        vec![item],
+    );
+    let root = combobox::root(OpenState::Open, vec![], vec![input, content]);
+    let html = render(&root);
+
+    let result = verify_combobox_aria_association(&html);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().starts_with("R3 violation"));
+}
+
+/// ハイライト item が `id=None`（関連付け不能）のときも R3 違反として
+/// 検知されることを固定する。
+#[test]
+fn verify_combobox_aria_association_detects_highlighted_item_without_id() {
+    let input = combobox::input(
+        OpenState::Open,
+        "vu",
+        false,
+        Some("cb-content"),
+        None,
+        None,
+        vec![],
+    );
+    let item = combobox::item(OpenState::Open, false, true, "vue", None, vec![], vec![]);
+    let content = combobox::content(
+        OpenState::Open,
+        Some("cb-content"),
+        None,
+        vec![],
+        vec![item],
+    );
+    let root = combobox::root(OpenState::Open, vec![], vec![input, content]);
+    let html = render(&root);
+
+    let result = verify_combobox_aria_association(&html);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().starts_with("R3 violation"));
+}
+
+/// `activedescendant` が実在しない `id` を指すとき R4 違反として検知
+/// されることを固定する（dangling IDREF）。
+#[test]
+fn verify_combobox_aria_association_detects_dangling_activedescendant() {
+    let input = combobox::input(
+        OpenState::Open,
+        "vu",
+        false,
+        Some("cb-content"),
+        Some("no-such-id"),
+        None,
+        vec![],
+    );
+    let content = combobox::content(OpenState::Open, Some("cb-content"), None, vec![], vec![]);
+    let root = combobox::root(OpenState::Open, vec![], vec![input, content]);
+    let html = render(&root);
+
+    let result = verify_combobox_aria_association(&html);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().starts_with("R4 violation"));
+}
+
+/// `aria-controls` が `role="listbox"` を持たない要素の `id` を指すとき
+/// R2 違反として検知されることを固定する（誤配線の禁止）。
+#[test]
+fn verify_combobox_aria_association_detects_controls_target_without_listbox_role() {
+    let input = combobox::input(
+        OpenState::Open,
+        "vu",
+        false,
+        Some("not-a-listbox"),
+        None,
+        None,
+        vec![],
+    );
+    // `role="listbox"` を持たない、無関係な div へ id を付与する。
+    let decoy = combobox::label(Some("not-a-listbox"), None, vec![], vec![]);
+    let root = combobox::root(OpenState::Open, vec![], vec![input, decoy]);
+    let html = render(&root);
+
+    let result = verify_combobox_aria_association(&html);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().starts_with("R2 violation"));
+}
+
+/// `Combobox` 状態機械経由（`impl Combobox` の利便メソッド）で組み立てた
+/// ときも、open 時に `controls=None` を渡せば同じ落とし穴があることを
+/// 固定する（自由関数だけでなく利便メソッド経由の opt-in 欠落も検知
+/// できることの確認）。
+#[test]
+fn verify_combobox_aria_association_detects_missing_controls_via_state_machine_convenience_method()
+{
+    let mut c = Combobox::default();
+    assert!(dispatch(&mut c, "open", ""));
+
+    let input = c.input(false, None, None, None, vec![]);
+    let content = c.content(Some("cb-content"), None, vec![], vec![]);
+    let root = c.root(vec![], vec![input, content]);
+    let html = render(&root);
+
+    let result = verify_combobox_aria_association(&html);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().starts_with("R1 violation"));
+}

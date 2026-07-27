@@ -36,6 +36,12 @@
 use crate::css::decl;
 use crate::recipe::{SlotRecipe, StateCondition};
 
+// REEXPORT-GLOB-REVIEWED: 本モジュールが定義する pub 項目は stylesheet() の
+// みで styled パーツ関数・variant 型を再定義しない（規約 B-1）。variant 軸
+// も提供せず（規約 B-2）、CSS 到達は [data-scope]/[data-part] 属性セレクタ
+// のみに依存する（規約 B-3）。headless 側 `toolbar` モジュールが持つ
+// `pub use`（`ToggleGroup`/`MultiToggleGroup`）は下記の明示再エクスポート名
+// と衝突しないことを確認済み（イシュー #1062 規約参照）。
 pub use fandhe_frontend_headless_ui::toolbar::*;
 // `Orientation` は `root`/`separator` の引数型・`Toolbar::new` の引数型として
 // 呼び出し側が組み立てる必要があるが、`toolbar` モジュールの glob 再エクス

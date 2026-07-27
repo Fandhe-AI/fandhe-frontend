@@ -140,6 +140,11 @@ fn recipe() -> SlotRecipe {
             ],
         )
         // 選択日・今日・表示月外・disabled の見た目切り替え。
+        // `data-selected`/`data-today`/`data-outside-month` の出力元は
+        // headless-ui（`crates/headless-ui/src/calendar.rs` の day-trigger
+        // パーツ）。本モジュールは CSS セレクタとして参照するのみで、属性を
+        // 出力しない（イシュー #1063、
+        // `docs/design/pre-styled-ui-data-attr-vocabulary.md` 規約 A）。
         .state(
             "day-trigger",
             StateCondition::Attr("data-selected"),

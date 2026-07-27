@@ -476,7 +476,9 @@
 //!    [`crate::avatar::AvatarShape`] 前例と同じ理由（未スタイル root の静かな
 //!    適用漏れを防ぐ fail-closed）で再エクスポートしない。必要な呼び出し側
 //!    は [`fandhe_frontend_headless_ui`]（クレートルート再エクスポート、
-//!    #685 のエスケープハッチ）経由で到達できる。
+//!    #685 のエスケープハッチ）経由で到達できる。この再エクスポート形式の
+//!    選択自体は「headless 再エクスポートの形式規約（イシュー #1062）」
+//!    節の規約 A の一般化である。
 //! 5. **実装範囲**: [`mod@switch`]・[`mod@radio_group`]（#708）に続き、
 //!    [`mod@tabs`]・[`mod@accordion`]・[`mod@dialog`]・[`mod@menu`]・
 //!    [`mod@select`] の 5 部品へ `size`（sm/md/lg）を展開した（イシュー
@@ -517,7 +519,10 @@
 //! [`Orientation`]）由来の型が露出する。これらは呼び出し側が
 //! `fandhe-frontend-pre-styled-ui` のみに依存してラッパーを呼び出せることを
 //! 保証するため、各モジュール内で明示 `pub use` により再エクスポートする
-//! （棚卸し表は `docs/api/pre-styled-ui-api.md` 参照）。
+//! （棚卸し表は `docs/api/pre-styled-ui-api.md` 参照）。glob 再エクスポート
+//! （`pub use fandhe_frontend_headless_ui::<mod>::*;`）を併用するか選択的
+//! 個別再エクスポートのみにするかの形式選択規約は、下記「headless
+//! 再エクスポートの形式規約（イシュー #1062）」節を参照。
 //!
 //! 加えて、`Node` を組み立てる `fandhe_frontend_core`（[`fandhe_frontend_core`]）
 //! と headless 層自体（[`fandhe_frontend_headless_ui`]）をクレートルートから
@@ -546,6 +551,74 @@
 //! 採用したが、interactive 系項目には現時点で in-repo の実利用者がおらず、
 //! 必要になれば非破壊的に追加できる。詳細な判断根拠・棄却案は
 //! `docs/api/pre-styled-ui-api.md` §3b を参照。
+//!
+//! # headless 再エクスポートの形式規約（イシュー #1062）
+//!
+//! 各 styled モジュールが `fandhe_frontend_headless_ui::<mod>` を再エクスポートする
+//! 形式（glob / 選択的個別 / shadowing）は、モジュールが styled パーツ関数を
+//! 再定義するか否かで一意に決まる。本節はその判定規約の正であり、
+//! `docs/api/pre-styled-ui-api.md` §3a/§3c は要約と本節への参照に留める
+//! （二重管理回避）。
+//!
+//! **原則 0**: 本節は再エクスポートの**形式**の規約であり、上記 #685（headless
+//! 型の到達性契約）・#712（interactive 層のクレート再エクスポート）とは
+//! 直交する。形式をどう選んでも #685 の明示 `pub use` 群は削らない。
+//!
+//! **規約 A（既定 = 選択的個別再エクスポート）**: styled パーツ関数（`root` 等）
+//! を 1 つでも再定義するモジュールは選択的個別再エクスポートとする。次の
+//! 項目は**再エクスポートしない**（fail-closed）:
+//! - headless の同名自由関数（`root` 等）。styled 側の同名定義との名前衝突を
+//!   Rust の暗黙 shadowing に委ねない。
+//! - 未スタイルの inherent メソッド（例: `Avatar::root()`）を持つ headless
+//!   状態機械型。Rust では外部型の inherent メソッドのみを選択的に隠せない
+//!   ため、型自体を再エクスポートしないことが唯一の fail-closed 手段
+//!   （[`mod@avatar`] で確立した判断、上記「複合部品の variant 統一方針」
+//!   方針 4 も同型）。
+//! - 除外した項目はモジュール rustdoc に除外理由と代替経路
+//!   （`fandhe_frontend_headless_ui::<mod>::<item>` 直接 import、#685 の
+//!   エスケープハッチ）を明記する。
+//!
+//! **規約 B（glob 再エクスポートを許す唯一の条件）**: 次の 4 条件をすべて
+//! 満たすモジュールに限り `pub use fandhe_frontend_headless_ui::<mod>::*;` を
+//! 許可する。
+//! 1. 当該モジュールがトップレベルで定義する `pub` 項目が `stylesheet()`
+//!    （必要なら `css()`）のみである（styled パーツ関数・variant 型を一切
+//!    再定義しない）。
+//! 2. variant 軸（`size`/`color-palette` 等）を提供しない（提供する場合は
+//!    規約 A へ移行する。上記方針 3/4 と同じ既定路線）。
+//! 3. CSS の到達手段が `[data-scope]`/`[data-part]` 属性セレクタのみであり、
+//!    クラス付与に依存しない（＝ headless 直接呼び出しでも既定スタイルが
+//!    効き、適用漏れが起きない）。
+//! 4. glob 行の直前に `REEXPORT-GLOB-REVIEWED: <条件 1〜3 を満たす理由>` を
+//!    含むコメントを置く。
+//!
+//! 上記 4 条件を現時点で満たし glob 形式を維持するモジュールは
+//! [`mod@action_bar`]・[`mod@popover`]・[`mod@hover_card`]・[`mod@tooltip`]・
+//! [`mod@toolbar`]・[`mod@tree_view`]・[`mod@scroll_area`]・
+//! [`mod@toggle_tip`]・[`mod@menubar`]・[`mod@json_tree_view`]・
+//! [`mod@floating_panel`]・[`mod@timer`]・[`mod@navigation_menu`] の 13
+//! モジュールである（レビュー来歴・条件ごとの充足根拠は
+//! `docs/internal/pre-styled-ui-implementation-notes.md` §3c 参照）。
+//! `crates/pre-styled-ui/tests/reexport_policy.rs` がこの一覧との双方向一致を
+//! fail-closed に検証する。
+//!
+//! **規約 C（shadowing の禁止と例外）**: glob 由来の名前をローカル定義または
+//! 同名の明示 `pub use` で上書きする**暗黙 shadowing を禁止**する。Rust は
+//! glob より明示定義／明示 import を診断なしに優先させるため、読み手に
+//! 差分が見えない。同名を styled 側で提供したい場合は、glob をやめて
+//! 規約 A（選択的）へ移行する（[`mod@avatar`]・[`mod@breadcrumb`] 等、
+//! headless の同名自由関数・状態機械型をあえて再エクスポートしない多数の
+//! 既存モジュールが、この規約の運用実体である）。例外を設けたい場合は、
+//! glob 行の `REEXPORT-GLOB-REVIEWED:` にどの名前をどの理由で上書きするかを
+//! 明記し、`reexport_policy.rs` の許可リストへ登録する（現時点で例外は
+//! 0 件）。
+//!
+//! **規約 D（クレートルートの再エクスポート）**: ルート（本ファイル末尾）
+//! への再エクスポート追加は、`fandhe_frontend_headless_ui`/
+//! `fandhe_frontend_core`/`fandhe_frontend_interactive` の**クレート単位
+//! 再エクスポート**を既定とし、個別型をルート直下へ置くのは実利用パスが
+//! in-repo に存在する場合に限る（`OpenState`/`Orientation` が唯一の先例、
+//! 上記 #685/#712 の確定判断の再掲）。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]

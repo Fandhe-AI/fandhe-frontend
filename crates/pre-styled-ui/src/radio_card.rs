@@ -119,6 +119,17 @@
 //! - [`crate::radio_group`] 側の同型の予約キー保護欠落（本モジュールの
 //!   是正で非対称になった。out-of-scope-tracking に従い別イシューとして
 //!   起票・追跡する）。
+//!
+//! # `data-value` 語彙（イシュー #1063）
+//!
+//! `data-value`（[`item`] が出力、値は選択肢の値）は
+//! `fandhe_frontend_headless_ui::radio_group`/`checkbox_group`/
+//! `toggle_group`/`tree_view`/`rating_group` の各パーツが出力する
+//! `data-value` と同一意味論（「項目の値」）の共有語彙である
+//! （`docs/design/pre-styled-ui-data-attr-vocabulary.md` 規約 B-2）。
+//! いずれの層にも `data_attrs::data_value` ヘルパは未整備だが、本イシューの
+//! 範囲では新設しない（headless-ui 側の公開 API 拡張が伴うため。設計文書
+//! 「スコープ外」節参照）。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;

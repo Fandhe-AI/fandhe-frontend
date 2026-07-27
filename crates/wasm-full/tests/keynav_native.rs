@@ -1,23 +1,25 @@
-//! `fandhe_frontend_wasm_full::keynav`（Tabs/Accordion/Menu/Select/RadioGroup
-//! のキーボード操作・イシュー #582・#583・#641（typeahead）、親 #581）の
-//! native テスト。
+//! `fandhe_frontend_wasm_full::keynav`（Tabs/Accordion/Menu/Select/
+//! RadioGroup/Menubar/Combobox/Listbox のキーボード操作・イシュー #582・
+//! #583・#641（typeahead）・#1073（Menubar）・#1071（Combobox）・#1070
+//! （Listbox）、親 #581）の native テスト。
 //!
 //! `keynav` モジュールの純粋層（[`tabs_next_index`]/[`accordion_next_index`]/
-//! [`highlight_next_index`]/[`radio_next_index`]/[`is_typeahead_key`]/
-//! [`typeahead_push`]/[`typeahead_next_index`]）は web-sys に依存しないため、
-//! `wasm32` ターゲット・実 DOM を介さず native の `cargo test --workspace` から
-//! 公開 API 経由で直接検証できる（`wasm-full/tests/nav_native.rs` と同じ
-//! 2 層構成方針）。詳細な網羅ケース（orientation 別 Arrow・disabled スキップ・
-//! loopFocus 有無・typeahead のバッファ/循環等）はモジュール内単体テスト
-//! （`crates/wasm-full/src/keynav.rs`）に既に持つため、本ファイルは「公開 API
-//! 経由で壊れていないか」の統合確認に絞る。配線層（`wire_keynav`、
-//! `#[cfg(target_arch = "wasm32")]`）の検証は `wasm-full/tests/keynav_browser.rs`
-//! （実ブラウザ）が担う。
+//! [`highlight_next_index`]/[`radio_next_index`]/[`listbox_next_index`]/
+//! [`is_typeahead_key`]/[`typeahead_push`]/[`typeahead_next_index`]）は
+//! web-sys に依存しないため、`wasm32` ターゲット・実 DOM を介さず native の
+//! `cargo test --workspace` から公開 API 経由で直接検証できる
+//! （`wasm-full/tests/nav_native.rs` と同じ 2 層構成方針）。詳細な網羅ケース
+//! （orientation 別 Arrow・disabled スキップ・loopFocus 有無・typeahead の
+//! バッファ/循環等）はモジュール内単体テスト（`crates/wasm-full/src/keynav.rs`）
+//! に既に持つため、本ファイルは「公開 API 経由で壊れていないか」の統合確認に
+//! 絞る。配線層（`wire_keynav`、`#[cfg(target_arch = "wasm32")]`）の検証は
+//! `wasm-full/tests/keynav_browser.rs`（実ブラウザ）が担う。
 
 use fandhe_frontend_wasm_full::keynav::{
-    accordion_next_index, highlight_next_index, is_typeahead_key, loop_focus_from_attr,
-    menu_loop_focus_from_attr, radio_next_index, submenu_nav, tabs_next_index,
-    typeahead_next_index, typeahead_push, Modifiers, Orientation, SubmenuNav, TYPEAHEAD_TIMEOUT_MS,
+    accordion_next_index, combobox_key_action, highlight_next_index, is_typeahead_key,
+    listbox_next_index, loop_focus_from_attr, menu_loop_focus_from_attr, radio_next_index,
+    submenu_nav, tabs_next_index, typeahead_next_index, typeahead_push, ComboboxKeyAction,
+    Modifiers, Orientation, SubmenuNav, TYPEAHEAD_TIMEOUT_MS,
 };
 
 /// 検証 1: Tabs horizontal の ArrowRight/ArrowLeft がフォーカスを移動する。
@@ -367,4 +369,421 @@ fn submenu_nav_public_api_matches_arrow_right_left_and_rejects_others() {
     // ArrowRight/ArrowLeft 以外は対象外。
     assert_eq!(submenu_nav("ArrowDown", Modifiers::default()), None);
     assert_eq!(submenu_nav("Enter", Modifiers::default()), None);
+}
+
+// ---------------------------------------------------------------------
+// Menubar（イシュー #1073）: `crates/wasm-full/src/keynav.rs::wiring`
+// （`handle_menubar_trigger_keydown`/`move_menubar_focus`、wasm32 専用）が
+// menubar のトリガー間移動・loop 既定値・サブメニュー開閉に再利用する既存
+// 純粋関数を、その menubar セマンティクスの観点から検証する（受け入れ条件
+// 1「既存 menu 配線の再利用判断の記録」の証跡）。配線層自身の DOM 挙動
+// （実 click 合成・stale element 再解決等）は実ブラウザテスト
+// （`keynav_browser.rs`）が担う。
+// ---------------------------------------------------------------------
+
+/// 検証 12（Menubar §closed トリガー間移動 1）: horizontal menubar の
+/// ArrowRight/ArrowLeft によるトリガー間移動は [`tabs_next_index`] を
+/// そのまま再利用する（`handle_menubar_trigger_keydown` の closed 分岐）。
+#[test]
+fn menubar_horizontal_trigger_navigation_reuses_tabs_next_index() {
+    let disabled = [false, false, false];
+    assert_eq!(
+        tabs_next_index(
+            0,
+            "ArrowRight",
+            Orientation::Horizontal,
+            false,
+            Modifiers::default(),
+            &disabled
+        ),
+        Some(1)
+    );
+    assert_eq!(
+        tabs_next_index(
+            1,
+            "ArrowLeft",
+            Orientation::Horizontal,
+            false,
+            Modifiers::default(),
+            &disabled
+        ),
+        Some(0)
+    );
+}
+
+/// 検証 13（Menubar §closed トリガー間移動 2）: horizontal menubar で
+/// ArrowDown/ArrowUp は `None`（トリガー間移動の対象外）を返し、
+/// `handle_menubar_trigger_keydown` が open 系キーへフォールスルーする
+/// 条件になる（モジュール doc「キー順序規則」参照）。
+#[test]
+fn menubar_horizontal_vertical_keys_are_none_and_fall_through_to_open_keys() {
+    let disabled = [false, false];
+    assert_eq!(
+        tabs_next_index(
+            0,
+            "ArrowDown",
+            Orientation::Horizontal,
+            false,
+            Modifiers::default(),
+            &disabled
+        ),
+        None
+    );
+    assert_eq!(
+        tabs_next_index(
+            0,
+            "ArrowUp",
+            Orientation::Horizontal,
+            false,
+            Modifiers::default(),
+            &disabled
+        ),
+        None
+    );
+}
+
+/// 検証 14（Menubar §vertical menubar）: vertical menubar では
+/// ArrowDown/ArrowUp がトリガー間移動、ArrowLeft/ArrowRight は `None`
+/// （サブメニュー展開/復帰・未消費水平キーの扱いへ回る）ことを確認する。
+#[test]
+fn menubar_vertical_orientation_moves_on_vertical_keys_only() {
+    let disabled = [false, false];
+    assert_eq!(
+        tabs_next_index(
+            0,
+            "ArrowDown",
+            Orientation::Vertical,
+            false,
+            Modifiers::default(),
+            &disabled
+        ),
+        Some(1)
+    );
+    assert_eq!(
+        tabs_next_index(
+            0,
+            "ArrowLeft",
+            Orientation::Vertical,
+            false,
+            Modifiers::default(),
+            &disabled
+        ),
+        None
+    );
+    assert_eq!(
+        tabs_next_index(
+            0,
+            "ArrowRight",
+            Orientation::Vertical,
+            false,
+            Modifiers::default(),
+            &disabled
+        ),
+        None
+    );
+}
+
+/// 検証 15（Menubar §`data-loop-focus` 契約）: `loop_focus=false`（既定）
+/// では端で no-op、`true` では循環する（`Menubar` root の
+/// `data-loop-focus` 属性がそのまま `tabs_next_index` の `loop_focus`
+/// 引数として使われる）。
+#[test]
+fn menubar_loop_focus_flag_controls_wraparound_at_trigger_boundaries() {
+    let disabled = [false, false, false];
+    assert_eq!(
+        tabs_next_index(
+            2,
+            "ArrowRight",
+            Orientation::Horizontal,
+            false,
+            Modifiers::default(),
+            &disabled
+        ),
+        None
+    );
+    assert_eq!(
+        tabs_next_index(
+            2,
+            "ArrowRight",
+            Orientation::Horizontal,
+            true,
+            Modifiers::default(),
+            &disabled
+        ),
+        Some(0)
+    );
+}
+
+/// 検証 16（Menubar §disabled トリガーのスキップ）: disabled トリガーは
+/// [`tabs_next_index`] の探索でスキップされる（`Menubar::trigger` の
+/// `data-disabled`/`disabled` が `disabled_flags` へそのまま反映される
+/// 契約、`handle_menubar_trigger_keydown` の DOM 側実装は
+/// `keynav_browser.rs` が検証する）。
+#[test]
+fn menubar_disabled_triggers_are_skipped_during_navigation() {
+    let disabled = [false, true, false];
+    assert_eq!(
+        tabs_next_index(
+            0,
+            "ArrowRight",
+            Orientation::Horizontal,
+            false,
+            Modifiers::default(),
+            &disabled
+        ),
+        Some(2)
+    );
+}
+
+/// 検証 17（Menubar §loop 既定値、`Menubar::default()` との整合）:
+/// `crates/headless-ui/src/menubar.rs` の `Menubar::default()` は
+/// `loop_focus: false` を既定とする。DOM 側の既定値パーサ
+/// （[`menu_loop_focus_from_attr`]）が同じ既定（`"true"` のときのみ
+/// 循環、欠落/未知値は非循環）であることを固定し、状態機械と DOM の
+/// 既定が乖離しないことを保証する（`handle_menubar_trigger_keydown` は
+/// menu と同じくこの関数をそのまま再利用する、Tabs 用の
+/// `loop_focus_from_attr`〔既定 true〕とは意図的に異なる関数を使う）。
+#[test]
+fn menubar_loop_focus_from_attr_default_matches_menubar_state_machine_default() {
+    assert!(!menu_loop_focus_from_attr(None));
+    assert!(!menu_loop_focus_from_attr(Some("false")));
+    assert!(!menu_loop_focus_from_attr(Some("unknown")));
+    assert!(menu_loop_focus_from_attr(Some("true")));
+}
+
+/// 検証 18（Menubar §サブメニュー開閉、`submenu_nav` の再利用確認）:
+/// menubar の `sub-trigger`/`sub-content` に対する ArrowRight（展開）/
+/// ArrowLeft（復帰）判定は menu の `trigger-item` と同じ
+/// [`submenu_nav`] をそのまま再利用する（DOM 側の trigger-item/
+/// sub-trigger 判定・disabled・チェーン深さ 0 の扱いは配線層
+/// `ScopeSelectors::trigger_item` のスコープ切り替えが担い、
+/// `keynav_browser.rs` が検証する）。
+#[test]
+fn menubar_submenu_open_close_reuses_submenu_nav() {
+    assert_eq!(
+        submenu_nav("ArrowRight", Modifiers::default()),
+        Some(SubmenuNav::Open)
+    );
+    assert_eq!(
+        submenu_nav("ArrowLeft", Modifiers::default()),
+        Some(SubmenuNav::Close)
+    );
+}
+
+/// 検証 19（Menubar §highlight 移動・初期 highlight）: サブメニュー
+/// content 内の項目 highlight 移動・初期 highlight（先頭/末尾の非
+/// disabled 項目）は menu と同じ [`highlight_next_index`] を再利用する
+/// （`ScopeSelectors::item`/`trigger_item` によるスコープ切り替えのみが
+/// menubar 固有、探索アルゴリズム自体は共通）。
+#[test]
+fn menubar_submenu_highlight_navigation_reuses_highlight_next_index() {
+    let disabled = [false, false, false];
+    assert_eq!(
+        highlight_next_index(None, "ArrowDown", false, Modifiers::default(), &disabled),
+        Some(0)
+    );
+    assert_eq!(
+        highlight_next_index(Some(0), "ArrowDown", false, Modifiers::default(), &disabled),
+        Some(1)
+    );
+    assert_eq!(
+        highlight_next_index(Some(2), "ArrowDown", false, Modifiers::default(), &disabled),
+        None
+    );
+}
+
+/// 検証 12（イシュー #1071）: Combobox のキーボード判定の公開 API
+/// （[`combobox_key_action`]）が単体テストと同じ挙動で公開 API 経由でも
+/// 壊れていないことを確認する統合確認。Menu/Select と異なり closed の
+/// Home/End/Enter/Escape・ArrowLeft/ArrowRight・printable 文字はすべて
+/// no-op（テキスト `<input>` の既定動作を奪わない、モジュール doc
+/// §Combobox 参照）。実際の DOM 解決・click 合成の検証は配線層の責務であり
+/// 実ブラウザテスト（`keynav_browser.rs`）が担う。
+#[test]
+fn combobox_key_action_public_api_matches_open_move_confirm_close_contract() {
+    assert_eq!(
+        combobox_key_action("ArrowDown", Modifiers::default(), false),
+        Some(ComboboxKeyAction::Open { from_end: false })
+    );
+    assert_eq!(
+        combobox_key_action("ArrowUp", Modifiers::default(), false),
+        Some(ComboboxKeyAction::Open { from_end: true })
+    );
+    // テキストフィールドの既定動作（キャレット移動・フォーム submit）を
+    // 奪わない closed 時の no-op 群。
+    assert_eq!(
+        combobox_key_action("Home", Modifiers::default(), false),
+        None
+    );
+    assert_eq!(
+        combobox_key_action("End", Modifiers::default(), false),
+        None
+    );
+    assert_eq!(
+        combobox_key_action("Enter", Modifiers::default(), false),
+        None
+    );
+    // fail-closed 回帰: closed で Escape を claim すると誤って open して
+    // しまう。
+    assert_eq!(
+        combobox_key_action("Escape", Modifiers::default(), false),
+        None
+    );
+    assert_eq!(combobox_key_action("a", Modifiers::default(), false), None);
+
+    assert_eq!(
+        combobox_key_action("ArrowDown", Modifiers::default(), true),
+        Some(ComboboxKeyAction::MoveHighlight)
+    );
+    assert_eq!(
+        combobox_key_action("Home", Modifiers::default(), true),
+        Some(ComboboxKeyAction::MoveHighlight)
+    );
+    assert_eq!(
+        combobox_key_action("Enter", Modifiers::default(), true),
+        Some(ComboboxKeyAction::Confirm)
+    );
+    assert_eq!(
+        combobox_key_action("Escape", Modifiers::default(), true),
+        Some(ComboboxKeyAction::Close)
+    );
+    // typeahead 非適用（printable 文字は input の既定動作へ委ねる）。
+    assert_eq!(combobox_key_action("a", Modifiers::default(), true), None);
+    // 修飾キー付きは open/closed いずれも no-op。
+    assert_eq!(
+        combobox_key_action(
+            "ArrowDown",
+            Modifiers {
+                ctrl: true,
+                ..Modifiers::default()
+            },
+            true
+        ),
+        None
+    );
+}
+
+// ---------------------------------------------------------------------
+// Listbox（イシュー #1070）: `crates/wasm-full/src/keynav.rs` の
+// [`listbox_next_index`] を、Listbox の常時展開・trigger 非保持セマンティクス
+// の観点から検証する。配線層自身の DOM 挙動は実ブラウザテスト
+// （`keynav_browser.rs`）が担う。
+// ---------------------------------------------------------------------
+
+/// 検証 12（イシュー #1070）: Listbox 専用の [`listbox_next_index`] は
+/// 既定 Vertical で ArrowDown/ArrowUp のみが動き、Horizontal 方向のキーは
+/// no-op（`data-orientation` オプトインで軸を切り替える設計、モジュール doc
+/// §Listbox 参照）。
+#[test]
+fn listbox_vertical_arrow_keys_move_highlight() {
+    let disabled = [false, false, false];
+    assert_eq!(
+        listbox_next_index(
+            Some(0),
+            "ArrowDown",
+            Orientation::Vertical,
+            false,
+            Modifiers::default(),
+            &disabled
+        ),
+        Some(1)
+    );
+    assert_eq!(
+        listbox_next_index(
+            Some(1),
+            "ArrowUp",
+            Orientation::Vertical,
+            false,
+            Modifiers::default(),
+            &disabled
+        ),
+        Some(0)
+    );
+    assert_eq!(
+        listbox_next_index(
+            Some(0),
+            "ArrowRight",
+            Orientation::Vertical,
+            false,
+            Modifiers::default(),
+            &disabled
+        ),
+        None
+    );
+}
+
+/// 検証 13（イシュー #1070）: Home/End は disabled をスキップし、既定
+/// （`data-loop-focus` 欠落）では端で循環しない（[`menu_loop_focus_from_attr`]
+/// と loopFocus 既定を共有する契約の固定）。
+#[test]
+fn listbox_home_end_skip_disabled_and_default_does_not_loop() {
+    let disabled = [true, false, false, true];
+    assert_eq!(
+        listbox_next_index(
+            Some(2),
+            "Home",
+            Orientation::Vertical,
+            false,
+            Modifiers::default(),
+            &disabled
+        ),
+        Some(1)
+    );
+    assert_eq!(
+        listbox_next_index(
+            Some(1),
+            "End",
+            Orientation::Vertical,
+            false,
+            Modifiers::default(),
+            &disabled
+        ),
+        Some(2)
+    );
+
+    let all_enabled = [false, false, false];
+    assert_eq!(
+        listbox_next_index(
+            Some(2),
+            "ArrowDown",
+            Orientation::Vertical,
+            false,
+            Modifiers::default(),
+            &all_enabled
+        ),
+        None
+    );
+}
+
+/// 検証 14（イシュー #1070）: `data-loop-focus="true"` 明示時のみ端で循環し、
+/// 修飾キー付きは既知キーでも no-op（`"extended"` selection mode との衝突
+/// 回避、モジュール doc §Listbox 参照）。
+#[test]
+fn listbox_loop_focus_true_wraps_and_modifiers_are_noop() {
+    let disabled = [false, false, false];
+    assert_eq!(
+        listbox_next_index(
+            Some(2),
+            "ArrowDown",
+            Orientation::Vertical,
+            true,
+            Modifiers::default(),
+            &disabled
+        ),
+        Some(0)
+    );
+    assert_eq!(
+        listbox_next_index(
+            Some(0),
+            "ArrowDown",
+            Orientation::Vertical,
+            true,
+            Modifiers {
+                ctrl: true,
+                ..Modifiers::default()
+            },
+            &disabled
+        ),
+        None
+    );
 }

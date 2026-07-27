@@ -61,6 +61,11 @@
 use crate::css::decl;
 use crate::recipe::{SlotRecipe, StateCondition};
 
+// REEXPORT-GLOB-REVIEWED: 本モジュールが定義する pub 項目は stylesheet() の
+// みで styled パーツ関数を再定義しない（規約 B-1）。オーバーレイ配置系の
+// [`crate::tooltip`] と同じ判断で variant 軸を提供せず（規約 B-2）、CSS
+// 到達は [data-scope]/[data-part] 属性セレクタのみに依存する（規約 B-3、
+// イシュー #1062 規約参照）。
 pub use fandhe_frontend_headless_ui::toggle_tip::*;
 // `root`/`trigger` 等の `state` 引数・`ToggleTip::new`・`ToggleTip` の
 // `Component::Action`（dispatch 対象）はいずれも `state` モジュール由来で

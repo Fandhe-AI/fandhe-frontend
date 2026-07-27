@@ -28,6 +28,17 @@
 //! 組み立てロジックを共有する Button variant 拡張であり、`data-scope` は
 //! 引き続き `"button"` のまま、専用の `data-scope="close-button"` 等は
 //! 持たない（chakra 対応表 §7 の保留解除に対する Rust 最適化形の実装判断）。
+//!
+//! # `data-*` 語彙（イシュー #1063）
+//!
+//! `data-loading`: 存在属性（値は常に空文字列）。`loading: true` のときのみ
+//! 付与する。`fandhe-frontend-headless-ui` に `button` に対応する部品は
+//! 存在しないため、本モジュール（pre-styled-only 部品）固有の語彙として
+//! 定義する（`docs/design/pre-styled-ui-data-attr-vocabulary.md` 規約 B）。
+//! 現在の recipe（[`recipe`]）はこの属性を `StateCondition` として参照
+//! しない（CSS 消費者なし）。AT 向けの読み上げ意味論は併記する
+//! `aria-busy="true"` が担い、`data-loading` は利用者側 CSS/JS が任意で
+//! フックするための存在表示に留まる。
 
 use crate::class_attr::drop_class_attr;
 use crate::css::decl;
