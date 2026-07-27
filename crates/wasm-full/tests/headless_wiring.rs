@@ -466,3 +466,53 @@ fn select_item_data_value_xss_payload_is_escaped_on_render() {
     assert!(!html.contains("<script>alert(1)</script>"));
     assert!(html.contains("&lt;script&gt;"));
 }
+
+// --- Calendar（イシュー #1074）: PageUp/PageDown が合成する click が
+// prev-month/next-month dispatch へ到達すること ---
+
+#[test]
+fn calendar_prev_and_next_trigger_map_to_month_navigation() {
+    use fandhe_frontend_headless_ui::calendar::{self, Calendar};
+    use fandhe_frontend_headless_ui::date::{PlainDate, Weekday};
+
+    let today = PlainDate::new(2026, 7, 15).unwrap();
+    let cal = Calendar::new(2026, 7, today, None, None, None, Weekday::Monday).unwrap();
+
+    let prev_html = render(&cal.prev_trigger(vec![], vec![]));
+    assert_scope_part_present(&prev_html, "calendar", "prev-trigger");
+    let next_html = render(&cal.next_trigger(vec![], vec![]));
+    assert_scope_part_present(&next_html, "calendar", "next-trigger");
+
+    let prev_action = action_for_part(&part("calendar", "prev-trigger", None, false)).unwrap();
+    assert_eq!(prev_action.action, "prev-month");
+    let next_action = action_for_part(&part("calendar", "next-trigger", None, false)).unwrap();
+    assert_eq!(next_action.action, "next-month");
+
+    let mut c = cal;
+    assert!(dispatch(&mut c, &next_action.action, &next_action.payload));
+    assert_eq!(c.view_month(), 8);
+    assert!(dispatch(&mut c, &prev_action.action, &prev_action.payload));
+    assert_eq!(c.view_month(), 7);
+
+    // 参考: table/table-body/table-row/day-trigger 実出力の scope/part も
+    // ドリフト検知しておく（`crate::keynav::wiring` の CALENDAR_*_SELECTOR
+    // 定数の前提）。
+    let table_html = render(&calendar::table(None, vec![], vec![]));
+    assert_scope_part_present(&table_html, "calendar", "table");
+    let body_html = render(&c.table_body_from_grid(vec![]));
+    assert_scope_part_present(&body_html, "calendar", "table-body");
+    assert!(body_html.contains(r#"data-part="table-row""#));
+    assert!(body_html.contains(r#"data-part="day-trigger""#));
+}
+
+#[test]
+fn calendar_day_trigger_has_no_mapping_row_fail_closed() {
+    // `day_trigger` は `data-value`（ISO 日付）を出力しないため、
+    // `MAPPING_TABLE` に行を追加しても fail-closed で不活性になる
+    // （`crates/wasm-full/src/keynav.rs` モジュール doc §Calendar 参照）。
+    // 本テストは意図的にこの行を追加していないことを固定する。
+    assert_eq!(
+        action_for_part(&part("calendar", "day-trigger", Some("2026-07-15"), false)),
+        None
+    );
+}
