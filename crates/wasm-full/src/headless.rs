@@ -227,6 +227,27 @@ const MAPPING_TABLE: &[MappingRow] = &[
         action: "toggle",
         requires_value: true,
     },
+    // Calendar（イシュー #1074）: prev-trigger/next-trigger は月移動
+    // （`CalendarAction::PrevMonth`/`NextMonth`）。`crate::keynav` の
+    // PageUp/PageDown が合成する `HtmlElement::click()`（モジュール doc
+    // §Calendar 参照）はこの 2 行を経由して初めて dispatch へ到達する。
+    // `day-trigger`→`"select"` の行は意図的に追加しない: `day_trigger` は
+    // `data-value`（ISO 日付）を出力しないため、追加しても
+    // `requires_value: true` により常に fail-closed で `None` になる
+    // （`.claude/rules/out-of-scope-tracking.md` 対応の申し送り事項、
+    // `crates/wasm-full/src/keynav.rs` モジュール doc §Calendar 参照）。
+    MappingRow {
+        scope: "calendar",
+        part: "prev-trigger",
+        action: "prev-month",
+        requires_value: false,
+    },
+    MappingRow {
+        scope: "calendar",
+        part: "next-trigger",
+        action: "next-month",
+        requires_value: false,
+    },
 ];
 
 /// クリックされた要素（またはその祖先方向の 1 要素）の anatomy 属性を表す

@@ -5397,6 +5397,125 @@ fn build_toggle_group_dom(
     root
 }
 
+// =======================================================================
+// Calendar（イシュー #1074）: `crates/headless-ui/src/calendar.rs` の SSR
+// 出力契約を手組みで再現し、`wire_keynav` の gridcell フォーカス移動を
+// 実 DOM で検証する。
+// =======================================================================
+
+/// `crates/headless-ui/src/calendar.rs` の SSR 出力契約を手組みで再現した
+/// Calendar DOM を生成する。`weeks` は行優先の disabled フラグ列（各週
+/// `columns` 要素、`data-disabled`/ネイティブ `disabled` を表す）。`outside`
+/// はフラットインデックスで `data-outside-month` を付与する集合（disabled
+/// とは独立に付与できる、モジュール doc §Calendar 参照）。曜日見出し行
+/// （`thead`/`table-header`、`table-row` 内に `day-trigger` を含まない）を
+/// 含めることで、`columns` 導出が `table-body` 配下限定であることの回帰も
+/// 兼ねる。
+#[allow(clippy::too_many_arguments)]
+fn build_calendar_dom(
+    document: &Document,
+    root_id: &str,
+    columns: usize,
+    weeks: &[Vec<bool>],
+    outside: &[usize],
+    prev_disabled: bool,
+    next_disabled: bool,
+) -> Element {
+    let root = document.create_element("div").unwrap();
+    root.set_id(root_id);
+    root.set_attribute("data-scope", "calendar").unwrap();
+    root.set_attribute("data-part", "root").unwrap();
+
+    let prev = document.create_element("button").unwrap();
+    prev.set_attribute("data-scope", "calendar").unwrap();
+    prev.set_attribute("data-part", "prev-trigger").unwrap();
+    prev.set_attribute("type", "button").unwrap();
+    prev.set_id(&format!("{root_id}-prev"));
+    if prev_disabled {
+        prev.set_attribute("disabled", "").unwrap();
+        prev.set_attribute("data-disabled", "").unwrap();
+    }
+    root.append_child(&prev).unwrap();
+
+    let next = document.create_element("button").unwrap();
+    next.set_attribute("data-scope", "calendar").unwrap();
+    next.set_attribute("data-part", "next-trigger").unwrap();
+    next.set_attribute("type", "button").unwrap();
+    next.set_id(&format!("{root_id}-next"));
+    if next_disabled {
+        next.set_attribute("disabled", "").unwrap();
+        next.set_attribute("data-disabled", "").unwrap();
+    }
+    root.append_child(&next).unwrap();
+
+    let table = document.create_element("table").unwrap();
+    table.set_attribute("data-scope", "calendar").unwrap();
+    table.set_attribute("data-part", "table").unwrap();
+    table.set_attribute("role", "grid").unwrap();
+
+    let thead = document.create_element("thead").unwrap();
+    thead.set_attribute("data-scope", "calendar").unwrap();
+    thead.set_attribute("data-part", "table-header").unwrap();
+    let header_row = document.create_element("tr").unwrap();
+    header_row.set_attribute("data-scope", "calendar").unwrap();
+    header_row.set_attribute("data-part", "table-row").unwrap();
+    header_row.set_attribute("role", "row").unwrap();
+    for _ in 0..columns {
+        let th = document.create_element("th").unwrap();
+        th.set_attribute("data-scope", "calendar").unwrap();
+        th.set_attribute("data-part", "table-head-cell").unwrap();
+        th.set_attribute("role", "columnheader").unwrap();
+        header_row.append_child(&th).unwrap();
+    }
+    thead.append_child(&header_row).unwrap();
+    table.append_child(&thead).unwrap();
+
+    let tbody = document.create_element("tbody").unwrap();
+    tbody.set_attribute("data-scope", "calendar").unwrap();
+    tbody.set_attribute("data-part", "table-body").unwrap();
+
+    let mut flat_index = 0usize;
+    for week in weeks {
+        let row = document.create_element("tr").unwrap();
+        row.set_attribute("data-scope", "calendar").unwrap();
+        row.set_attribute("data-part", "table-row").unwrap();
+        row.set_attribute("role", "row").unwrap();
+        for &disabled in week {
+            let cell = document.create_element("td").unwrap();
+            cell.set_attribute("data-scope", "calendar").unwrap();
+            cell.set_attribute("data-part", "table-cell").unwrap();
+            cell.set_attribute("role", "gridcell").unwrap();
+
+            let day = document.create_element("button").unwrap();
+            day.set_attribute("data-scope", "calendar").unwrap();
+            day.set_attribute("data-part", "day-trigger").unwrap();
+            day.set_attribute("type", "button").unwrap();
+            day.set_id(&format!("{root_id}-day-{flat_index}"));
+            day.set_text_content(Some(&flat_index.to_string()));
+            if outside.contains(&flat_index) {
+                day.set_attribute("data-outside-month", "").unwrap();
+            }
+            if disabled {
+                day.set_attribute("data-disabled", "").unwrap();
+                day.set_attribute("disabled", "").unwrap();
+            }
+            cell.append_child(&day).unwrap();
+            row.append_child(&cell).unwrap();
+            flat_index += 1;
+        }
+        tbody.append_child(&row).unwrap();
+    }
+    table.append_child(&tbody).unwrap();
+    root.append_child(&table).unwrap();
+
+    document
+        .body()
+        .unwrap()
+        .append_child(&root)
+        .expect("append_child must not fail for a detached div");
+    root
+}
+
 /// 検証 14-1: horizontal で trigger 間 ArrowRight/ArrowLeft がフォーカス
 /// 移動する。SSR が `tabindex` を出力しない契約のため、移動後も
 /// `tabindex` 属性は付与されないままであることを併せて確認する。
@@ -5966,4 +6085,530 @@ fn toggle_group_keyboard_navigation_with_attacker_controlled_label_does_not_inje
         original_title,
         "攻撃者制御ラベルの操作で document.title が変化してはいけない"
     );
+}
+
+fn calendar_day(document: &Document, root_id: &str, index: usize) -> Element {
+    document
+        .get_element_by_id(&format!("{root_id}-day-{index}"))
+        .unwrap()
+}
+
+/// 検証: ArrowRight/ArrowLeft/ArrowDown/ArrowUp がフラットインデックスを
+/// `±1`/`±columns` 移動し、配列の端で非循環に停止する。
+#[wasm_bindgen_test]
+fn calendar_arrow_keys_move_focus_across_flat_grid_and_stop_at_bounds() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let weeks = vec![vec![false; 7], vec![false; 7]];
+    let root = build_calendar_dom(&document, "cal-arrow1", 7, &weeks, &[], false, false);
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let day3 = calendar_day(&document, "cal-arrow1", 3);
+    html_element(&day3).focus().unwrap();
+    day3.dispatch_event(&keydown_event("ArrowRight")).unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("cal-arrow1-day-4".to_string())
+    );
+
+    let day4 = calendar_day(&document, "cal-arrow1", 4);
+    day4.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("cal-arrow1-day-11".to_string())
+    );
+
+    let day11 = calendar_day(&document, "cal-arrow1", 11);
+    day11.dispatch_event(&keydown_event("ArrowUp")).unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("cal-arrow1-day-4".to_string())
+    );
+
+    // 配列の端（先頭セル）で ArrowLeft は非循環 no-op。
+    let day0 = calendar_day(&document, "cal-arrow1", 0);
+    html_element(&day0).focus().unwrap();
+    day0.dispatch_event(&keydown_event("ArrowLeft")).unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("cal-arrow1-day-0".to_string())
+    );
+
+    // 配列の端（末尾セル）で ArrowDown は非循環 no-op。
+    let day13 = calendar_day(&document, "cal-arrow1", 13);
+    html_element(&day13).focus().unwrap();
+    day13.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("cal-arrow1-day-13".to_string())
+    );
+}
+
+/// 検証: `data-disabled` セルはスキップされる。
+#[wasm_bindgen_test]
+fn calendar_arrow_right_skips_disabled_cells() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let weeks = vec![vec![false, true, true, false, false, false, false]];
+    let root = build_calendar_dom(&document, "cal-skip1", 7, &weeks, &[], false, false);
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let day0 = calendar_day(&document, "cal-skip1", 0);
+    html_element(&day0).focus().unwrap();
+    day0.dispatch_event(&keydown_event("ArrowRight")).unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("cal-skip1-day-3".to_string())
+    );
+}
+
+/// 検証: `data-outside-month` はスキップされない（ネイティブ `disabled` を
+/// 持たず実際にフォーカスできるため）。
+#[wasm_bindgen_test]
+fn calendar_outside_month_cells_are_focusable_not_skipped() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let weeks = vec![vec![false; 7]];
+    let root = build_calendar_dom(&document, "cal-outside1", 7, &weeks, &[0, 1], false, false);
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let day2 = calendar_day(&document, "cal-outside1", 2);
+    html_element(&day2).focus().unwrap();
+    day2.dispatch_event(&keydown_event("ArrowLeft")).unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("cal-outside1-day-1".to_string()),
+        "data-outside-month はスキップ対象ではない"
+    );
+}
+
+/// 検証: Home/End は現在行の先頭/末尾側から探した最初の非 disabled セルへ
+/// 移動する。
+#[wasm_bindgen_test]
+fn calendar_home_end_move_within_row_skipping_disabled() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let weeks = vec![vec![true, false, false, false, false, false, true]];
+    let root = build_calendar_dom(&document, "cal-he1", 7, &weeks, &[], false, false);
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let day3 = calendar_day(&document, "cal-he1", 3);
+    html_element(&day3).focus().unwrap();
+    day3.dispatch_event(&keydown_event("Home")).unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("cal-he1-day-1".to_string())
+    );
+
+    let day1 = calendar_day(&document, "cal-he1", 1);
+    day1.dispatch_event(&keydown_event("End")).unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("cal-he1-day-5".to_string())
+    );
+}
+
+/// 検証: 修飾キー付きは no-op（`prevent_default` されない）。
+#[wasm_bindgen_test]
+fn calendar_modifier_keys_are_noop() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let weeks = vec![vec![false; 7]];
+    let root = build_calendar_dom(&document, "cal-mod1", 7, &weeks, &[], false, false);
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let day3 = calendar_day(&document, "cal-mod1", 3);
+    html_element(&day3).focus().unwrap();
+    let init = KeyboardEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_key("ArrowRight");
+    init.set_ctrl_key(true);
+    let event = KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+        .unwrap()
+        .dyn_into::<Event>()
+        .unwrap();
+    day3.dispatch_event(&event).unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("cal-mod1-day-3".to_string())
+    );
+}
+
+/// 検証: ネストした 2 つ目の Calendar の day-trigger へ誤爆しない（A01）。
+#[wasm_bindgen_test]
+fn calendar_nested_instance_does_not_leak() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let outer_weeks = vec![vec![false; 7]];
+    let outer = build_calendar_dom(
+        &document,
+        "cal-nest-outer",
+        7,
+        &outer_weeks,
+        &[],
+        false,
+        false,
+    );
+    let _outer_cleanup = RemoveOnDrop(outer.clone());
+
+    // 内側の Calendar は outer の td（table-cell）配下へネストして配置する
+    // （HTML 上 `<table>` は `<td>` 内に置ける、モジュール doc §Calendar
+    // 参照）。
+    let outer_cell = outer
+        .query_selector("[data-scope=\"calendar\"][data-part=\"table-cell\"]")
+        .unwrap()
+        .unwrap();
+    let inner_weeks = vec![vec![false; 7]];
+    let inner = build_calendar_dom(
+        &document,
+        "cal-nest-inner",
+        7,
+        &inner_weeks,
+        &[],
+        false,
+        false,
+    );
+    inner.remove();
+    outer_cell.append_child(&inner).unwrap();
+
+    wire_keynav(outer.clone()).expect("wire_keynav must succeed");
+
+    let inner_day0 = calendar_day(&document, "cal-nest-inner", 0);
+    html_element(&inner_day0).focus().unwrap();
+    inner_day0
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("cal-nest-inner-day-1".to_string()),
+        "内側 Calendar のフォーカス移動は内側自身の day-trigger 集合に限定される"
+    );
+}
+
+/// 検証: PageUp/PageDown が prev-trigger/next-trigger への click を合成し、
+/// disabled のときは click しない。
+#[wasm_bindgen_test]
+fn calendar_page_up_down_synthesize_click_on_prev_next_trigger() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let weeks = vec![vec![false; 7]];
+    let root = build_calendar_dom(&document, "cal-page1", 7, &weeks, &[], false, true);
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let prev = document.get_element_by_id("cal-page1-prev").unwrap();
+    let next = document.get_element_by_id("cal-page1-next").unwrap();
+
+    let prev_clicks = std::rc::Rc::new(std::cell::Cell::new(0));
+    let prev_counter = prev_clicks.clone();
+    let prev_closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+        prev_counter.set(prev_counter.get() + 1);
+    });
+    prev.add_event_listener_with_callback("click", prev_closure.as_ref().unchecked_ref())
+        .unwrap();
+    prev_closure.forget();
+
+    let next_clicks = std::rc::Rc::new(std::cell::Cell::new(0));
+    let next_counter = next_clicks.clone();
+    let next_closure = Closure::<dyn FnMut(Event)>::new(move |_event: Event| {
+        next_counter.set(next_counter.get() + 1);
+    });
+    next.add_event_listener_with_callback("click", next_closure.as_ref().unchecked_ref())
+        .unwrap();
+    next_closure.forget();
+
+    let day0 = calendar_day(&document, "cal-page1", 0);
+    html_element(&day0).focus().unwrap();
+    day0.dispatch_event(&keydown_event("PageUp")).unwrap();
+    assert_eq!(prev_clicks.get(), 1);
+
+    // next は disabled のため click は合成されない。
+    day0.dispatch_event(&keydown_event("PageDown")).unwrap();
+    assert_eq!(next_clicks.get(), 0);
+}
+
+/// 検証（XSS 回帰、REQ-1）: 攻撃者制御文字列を持つラベルに対しキー操作を
+/// 行っても `script` 要素が DOM に生成されない。
+#[wasm_bindgen_test]
+fn calendar_keyboard_navigation_with_attacker_controlled_label_does_not_inject_script() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let weeks = vec![vec![false; 7]];
+    let root = build_calendar_dom(&document, "cal-xss1", 7, &weeks, &[], false, false);
+    let day0 = calendar_day(&document, "cal-xss1", 0);
+    day0.set_attribute("aria-label", "<script>alert(1)</script>")
+        .unwrap();
+    let _cleanup = RemoveOnDrop(root.clone());
+    let original_title = document.title();
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    html_element(&day0).focus().unwrap();
+    day0.dispatch_event(&keydown_event("ArrowRight")).unwrap();
+    day0.dispatch_event(&keydown_event("Home")).unwrap();
+    day0.dispatch_event(&keydown_event("End")).unwrap();
+
+    assert!(root.query_selector("script").unwrap().is_none());
+    assert_eq!(document.title(), original_title);
+}
+
+// =======================================================================
+// Splitter（イシュー #1074）: `crate::splitter::wire_splitter_events` の
+// 矢印キーリサイズ dispatch チャネルを実 DOM で検証する。
+// `crates/headless-ui/src/splitter.rs` の SSR 出力契約を手組みで再現する。
+// =======================================================================
+
+/// `crates/headless-ui/src/splitter.rs` の SSR 出力契約を手組みで再現した
+/// Splitter DOM を生成する。`trigger_count` 個の resize-trigger を
+/// document 順に配置する（`crate::splitter` の「アプリは resize-trigger を
+/// `0..n-1` の順に描画する」前提）。
+fn build_splitter_dom(
+    document: &Document,
+    root_id: &str,
+    orientation: &str,
+    trigger_count: usize,
+    root_disabled: bool,
+    trigger_disabled_indices: &[usize],
+) -> Element {
+    let root = document.create_element("div").unwrap();
+    root.set_id(root_id);
+    root.set_attribute("data-scope", "splitter").unwrap();
+    root.set_attribute("data-part", "root").unwrap();
+    root.set_attribute("data-orientation", orientation).unwrap();
+    if root_disabled {
+        root.set_attribute("data-disabled", "").unwrap();
+    }
+
+    for i in 0..trigger_count {
+        let panel = document.create_element("div").unwrap();
+        panel.set_attribute("data-scope", "splitter").unwrap();
+        panel.set_attribute("data-part", "panel").unwrap();
+        panel.set_id(&format!("{root_id}-panel-{i}"));
+        root.append_child(&panel).unwrap();
+
+        let trigger = document.create_element("div").unwrap();
+        trigger.set_attribute("data-scope", "splitter").unwrap();
+        trigger
+            .set_attribute("data-part", "resize-trigger")
+            .unwrap();
+        trigger.set_attribute("role", "separator").unwrap();
+        trigger.set_attribute("tabindex", "0").unwrap();
+        trigger.set_id(&format!("{root_id}-trigger-{i}"));
+        if trigger_disabled_indices.contains(&i) {
+            trigger.set_attribute("data-disabled", "").unwrap();
+        }
+        root.append_child(&trigger).unwrap();
+    }
+
+    let last_panel = document.create_element("div").unwrap();
+    last_panel.set_attribute("data-scope", "splitter").unwrap();
+    last_panel.set_attribute("data-part", "panel").unwrap();
+    last_panel.set_id(&format!("{root_id}-panel-{trigger_count}"));
+    root.append_child(&last_panel).unwrap();
+
+    document
+        .body()
+        .unwrap()
+        .append_child(&root)
+        .expect("append_child must not fail for a detached div");
+    root
+}
+
+/// `wire_splitter_events` の `on_action` が受け取った `(action, payload)` を
+/// 蓄積する RAII 構造体。
+struct RecordedActions(std::rc::Rc<std::cell::RefCell<Vec<(String, String)>>>);
+
+fn wire_splitter_recording(root: &Element) -> RecordedActions {
+    let record = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    let sink = record.clone();
+    fandhe_frontend_wasm_full::splitter::wire_splitter_events(root.clone(), move |action_ref| {
+        sink.borrow_mut()
+            .push((action_ref.action, action_ref.payload));
+    })
+    .expect("wire_splitter_events must succeed");
+    RecordedActions(record)
+}
+
+/// 検証: horizontal root で ArrowRight/ArrowLeft が
+/// `("increment"/"decrement", payload=trigger index)` を記録する。
+#[wasm_bindgen_test]
+fn splitter_horizontal_arrow_right_left_dispatch_increment_decrement() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_splitter_dom(&document, "sp-h1", "horizontal", 2, false, &[]);
+    let _cleanup = RemoveOnDrop(root.clone());
+    let recorded = wire_splitter_recording(&root);
+
+    let trigger0 = document.get_element_by_id("sp-h1-trigger-0").unwrap();
+    trigger0
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    let trigger1 = document.get_element_by_id("sp-h1-trigger-1").unwrap();
+    trigger1
+        .dispatch_event(&keydown_event("ArrowLeft"))
+        .unwrap();
+
+    assert_eq!(
+        *recorded.0.borrow(),
+        vec![
+            ("increment".to_string(), "0".to_string()),
+            ("decrement".to_string(), "1".to_string()),
+        ]
+    );
+}
+
+/// 検証: vertical root で ArrowDown/ArrowUp が同様に反応し、軸違いの矢印
+/// （ArrowRight/ArrowLeft）は no-op。
+#[wasm_bindgen_test]
+fn splitter_vertical_axis_dispatch_and_wrong_axis_is_noop() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_splitter_dom(&document, "sp-v1", "vertical", 1, false, &[]);
+    let _cleanup = RemoveOnDrop(root.clone());
+    let recorded = wire_splitter_recording(&root);
+
+    let trigger0 = document.get_element_by_id("sp-v1-trigger-0").unwrap();
+    trigger0
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(recorded.0.borrow().is_empty());
+
+    trigger0
+        .dispatch_event(&keydown_event("ArrowDown"))
+        .unwrap();
+    assert_eq!(
+        *recorded.0.borrow(),
+        vec![("increment".to_string(), "0".to_string())]
+    );
+}
+
+/// 検証: Home/End は軸非依存で `("home"/"end", payload=index)` を記録する。
+#[wasm_bindgen_test]
+fn splitter_home_and_end_are_axis_independent() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_splitter_dom(&document, "sp-he1", "vertical", 1, false, &[]);
+    let _cleanup = RemoveOnDrop(root.clone());
+    let recorded = wire_splitter_recording(&root);
+
+    let trigger0 = document.get_element_by_id("sp-he1-trigger-0").unwrap();
+    trigger0.dispatch_event(&keydown_event("Home")).unwrap();
+    trigger0.dispatch_event(&keydown_event("End")).unwrap();
+
+    assert_eq!(
+        *recorded.0.borrow(),
+        vec![
+            ("home".to_string(), "0".to_string()),
+            ("end".to_string(), "0".to_string()),
+        ]
+    );
+}
+
+/// 検証: 2 つ目の resize-trigger の序数が `1` として記録される。
+#[wasm_bindgen_test]
+fn splitter_second_trigger_reports_index_one() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_splitter_dom(&document, "sp-idx1", "horizontal", 3, false, &[]);
+    let _cleanup = RemoveOnDrop(root.clone());
+    let recorded = wire_splitter_recording(&root);
+
+    let trigger1 = document.get_element_by_id("sp-idx1-trigger-1").unwrap();
+    trigger1
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    assert_eq!(
+        *recorded.0.borrow(),
+        vec![("increment".to_string(), "1".to_string())]
+    );
+}
+
+/// 検証: root または resize-trigger に `data-disabled` があるとき no-op。
+#[wasm_bindgen_test]
+fn splitter_disabled_root_or_trigger_is_noop() {
+    let document = web_sys::window().unwrap().document().unwrap();
+
+    let disabled_root = build_splitter_dom(&document, "sp-drd1", "horizontal", 1, true, &[]);
+    let _cleanup1 = RemoveOnDrop(disabled_root.clone());
+    let recorded1 = wire_splitter_recording(&disabled_root);
+    document
+        .get_element_by_id("sp-drd1-trigger-0")
+        .unwrap()
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(recorded1.0.borrow().is_empty());
+
+    let disabled_trigger = build_splitter_dom(&document, "sp-drd2", "horizontal", 2, false, &[0]);
+    let _cleanup2 = RemoveOnDrop(disabled_trigger.clone());
+    let recorded2 = wire_splitter_recording(&disabled_trigger);
+    document
+        .get_element_by_id("sp-drd2-trigger-0")
+        .unwrap()
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert!(recorded2.0.borrow().is_empty());
+    // disabled でない 2 つ目の trigger は引き続き反応する。
+    document
+        .get_element_by_id("sp-drd2-trigger-1")
+        .unwrap()
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert_eq!(
+        *recorded2.0.borrow(),
+        vec![("increment".to_string(), "1".to_string())]
+    );
+}
+
+/// 検証: root 外要素・修飾キー付きは no-op。
+#[wasm_bindgen_test]
+fn splitter_outside_root_and_modifier_keys_are_noop() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_splitter_dom(&document, "sp-out1", "horizontal", 1, false, &[]);
+    let _cleanup = RemoveOnDrop(root.clone());
+    let recorded = wire_splitter_recording(&root);
+
+    let trigger0 = document.get_element_by_id("sp-out1-trigger-0").unwrap();
+    let init = KeyboardEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_key("ArrowRight");
+    init.set_ctrl_key(true);
+    let event = KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+        .unwrap()
+        .dyn_into::<Event>()
+        .unwrap();
+    trigger0.dispatch_event(&event).unwrap();
+    assert!(recorded.0.borrow().is_empty());
+
+    // root 外の孤立要素（resize-trigger を装うが root.contains に該当しない）。
+    let outsider = document.create_element("div").unwrap();
+    outsider.set_attribute("data-scope", "splitter").unwrap();
+    outsider
+        .set_attribute("data-part", "resize-trigger")
+        .unwrap();
+    document.body().unwrap().append_child(&outsider).unwrap();
+    outsider
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    outsider.remove();
+    assert!(recorded.0.borrow().is_empty());
+}
+
+/// 検証（XSS 回帰、REQ-1）: 攻撃者制御属性値を持つ resize-trigger に対し
+/// キー操作を行っても `script` 要素が DOM に生成されない。
+#[wasm_bindgen_test]
+fn splitter_keyboard_navigation_with_attacker_controlled_attrs_does_not_inject_script() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_splitter_dom(&document, "sp-xss1", "horizontal", 1, false, &[]);
+    let trigger0 = document.get_element_by_id("sp-xss1-trigger-0").unwrap();
+    trigger0
+        .set_attribute("aria-controls", "\"><script>alert(1)</script>")
+        .unwrap();
+    let _cleanup = RemoveOnDrop(root.clone());
+    let original_title = document.title();
+    let recorded = wire_splitter_recording(&root);
+
+    trigger0
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    trigger0.dispatch_event(&keydown_event("Home")).unwrap();
+    trigger0.dispatch_event(&keydown_event("End")).unwrap();
+
+    assert!(root.query_selector("script").unwrap().is_none());
+    assert_eq!(document.title(), original_title);
+    assert_eq!(recorded.0.borrow().len(), 3);
 }
