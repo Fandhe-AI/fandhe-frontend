@@ -1,7 +1,8 @@
 //! Tabs / Accordion / Menu / Select / RadioGroup / Listbox / Menubar /
-//! Calendar のキーボード操作（イシュー #582・#583・#1070、親 #581。Menubar
-//! はイシュー #1073。Calendar はイシュー #1074、Splitter の矢印キー
-//! リサイズは同イシューだが方向を符号化する dispatch チャネルを要するため
+//! TreeView / Calendar のキーボード操作（イシュー #582・#583・#1070、親
+//! #581。Menubar はイシュー #1073、Combobox はイシュー #1071、TreeView は
+//! イシュー #1072、Calendar はイシュー #1074。Splitter の矢印キーリサイズは
+//! #1074 と同イシューだが方向を符号化する dispatch チャネルを要するため
 //! 独立モジュール [`crate::splitter`] が担う。§Calendar 参照）。
 //!
 //! PR #560（Tabs）/#561（Accordion）は `fandhe-frontend-headless-ui` 側の SSR
@@ -516,6 +517,66 @@
 //!   DOM 変更を一切行わない契約であり、アプリ側が付けた `tabindex` と
 //!   競合しうるため）。
 //!
+//! # TreeView のキーボード仕様（WAI-ARIA APG Tree View パターン準拠、イシュー #1072）
+//!
+//! `crates/headless-ui/src/tree_view.rs`（イシュー #753）はモジュール doc
+//! §out-of-scope で「キーボードナビゲーション・typeahead の実 DOM 配線は
+//! `fandhe-frontend-wasm-full` の責務」と明記しており、本節がその実装である。
+//! Menu/Select/Listbox（trigger/content が仮想フォーカス・実フォーカスを
+//! 保持する設計）と異なり、TreeView は treeitem（`branch`/`item`）自身が
+//! 実 DOM フォーカスを持ち、[`wiring::focus_tree_item`] が roving tabindex
+//! （`tabindex="0"`/`"-1"` 相当。SSR が `tabindex` を一切出力しないため、
+//! 非フォーカス項目は属性自体が無いままタブ順序から外れる）を付け替える
+//! （実 DOM フォーカス + roving tabindex 案。仮想フォーカス
+//! （`aria-activedescendant`/`data-highlighted`）案を採らない理由は
+//! `docs/design/wasm-full-architecture.md` §19 参照）。
+//!
+//! | キー | 挙動 |
+//! |------|------|
+//! | `ArrowDown`/`ArrowUp` | 次/前の **可視かつ非 disabled** treeitem へ移動（折りたたまれた subtree は丸ごとスキップ）。**循環しない**（[`accordion_next_index`] と同じ決定的非循環） |
+//! | `ArrowRight` | closed branch → 展開（`click()` 合成）／open branch → 最初の可視非 disabled 子へ移動／葉 → no-op |
+//! | `ArrowLeft` | open branch → 折りたたみ（`click()` 合成）／closed branch・葉 → 親 branch へ移動／depth 0 → no-op |
+//! | `Home`/`End` | 可視非 disabled の先頭/末尾へ移動 |
+//! | `Enter`/`Space`（typeahead バッファ非活性時） | 対象 treeitem へ `click()` を合成（葉は `"select"`、ブランチは祖先解決により `"toggle"`、下記§帰結参照） |
+//! | 印字可能文字（typeahead） | [`is_typeahead_key`]/[`typeahead_push`]/[`typeahead_next_index`] を再利用。候補は可視かつ非 disabled に限定 |
+//! | `Escape` | Listbox と同じ非対称扱い: typeahead バッファのリセットのみ、`prevent_default` しない（reopen 契約が存在しないため） |
+//! | 修飾キー付き・未知キー | 一律 no-op |
+//!
+//! 展開・折りたたみ・確定は [`wiring::synthesize_tree_click`] が
+//! `branch-control`（無ければ treeitem 自身）へ `click()` を合成し、既存の
+//! click → `crate::headless::MAPPING_TABLE`（`tree-view`/`branch` →
+//! `"toggle"`、`tree-view`/`item` → `"select"`。本イシューで新設）→
+//! dispatch → 再描画の経路へ委譲する。本モジュール自身は
+//! `aria-expanded`/`hidden`/`data-state`/`aria-selected` を一切書かない。
+//!
+//! ## §帰結: ブランチノードは「選択」できない
+//!
+//! `crate::headless::action_from_parts` は内側優先で祖先を辿るため、
+//! `branch-control`（自身に `data-value` を持たない）上のクリックは祖先
+//! `branch` 行（`"toggle"`）で解決される。したがって **ブランチノードは
+//! 選択できず、Enter/Space は展開トグルとして働く**。これは意図的な仕様
+//! であり、`branch-control` への別アクション割り当て・headless-ui が
+//! `branch-control` へ `data-value` を出力する改善はスコープ外
+//! （out-of-scope-tracking.md に従いユーザー承認後に Issue 化を検討）。
+//!
+//! ## クリック合成後の再描画耐性
+//!
+//! click 合成 → アプリの `on_update`（`TreeView::render_nodes` 再描画）に
+//! より対象 treeitem を含む subtree が丸ごと差し替わりうる。click 直後に
+//! 古い `Element` 参照を触らないよう、展開/折りたたみ/確定の後は
+//! [`wiring::restore_tree_focus_by_value`] が `root` から treeitem 列を
+//! 再収集し、`data-value` の **Rust 側文字列比較**（セレクタ文字列組み立て
+//! ではない、A03 対策）でフォーカスを復元する。
+//!
+//! ## 既知のギャップ（本イシューでは対応しない、スコープ外）
+//!
+//! - **`*`（兄弟一括展開）**: WAI-ARIA APG のオプション挙動。N 回の click
+//!   合成と再描画の相互作用が本イシューの粒度を超える。
+//! - **`crates/wasm-full/src/overlay.rs::OverlayKind` に `tree-view` を
+//!   含めない**: TreeView はオーバーレイではなく Escape 閉鎖の対象外
+//!   （Listbox と同じ扱い）。
+//! - **ブランチノードの「選択」**: 上記§帰結参照。
+//!
 //! # Calendar のキーボード仕様（WAI-ARIA APG Date Picker Dialog の grid
 //! パターン準拠、イシュー #1074）
 //!
@@ -581,6 +642,10 @@
 //!   loop true / 両軸許容）へ決定的にフォールバックし、panic しない。
 //! - highlight・radio 決定はいずれも disabled 項目に対して no-op
 //!   （fail-closed）。
+//! - TreeView の再描画後フォーカス復元（[`wiring::restore_tree_focus_by_value`]）
+//!   は `data-value` から組み立てたセレクタ文字列を使わず、Rust 側の文字列
+//!   比較（`==`）でのみ照合する（イシュー #1072、セレクタインジェクション
+//!   面を新設しない）。
 //! - サブメニューチェーン探索（[`wiring::resolve_active_content`]）は深さ上限
 //!   （[`MAX_SUBMENU_DEPTH`]）+ root 封じ込め検査（[`wiring::resolve_submenu_content`]
 //!   の `root.contains`）で、改ざん DOM の `aria-controls` 循環参照・
@@ -1279,6 +1344,190 @@ pub fn navigation_menu_link_next_index(
         "End" => last_non_disabled(disabled),
         "ArrowDown" => step_non_disabled(current, 1, disabled, false),
         "ArrowUp" => step_non_disabled(current, -1, disabled, false),
+        _ => None,
+    }
+}
+
+/// TreeView（`crates/headless-ui/src/tree_view.rs`）の 1 treeitem
+/// （`branch`/`item`）を表す純粋層メタデータ（web-sys 非依存、native
+/// `cargo test` 可。イシュー #1072、モジュール doc §TreeView 参照）。
+///
+/// 配線層（[`wiring::read_tree_item_meta`]）が DOM 属性
+/// （`data-part`/`aria-expanded`/`disabled`・`data-disabled`/`data-depth`）
+/// から都度変換して構築し、[`tree_visible_flags`]/[`tree_key_action`] へ
+/// 渡す。`TreeView` 自身（`fandhe_frontend_interactive::Component`）は複製
+/// 状態を持たず、[`crate::keynav`] モジュール doc §設計の「DOM 属性を単一
+/// 情報源とするステートレス配線」を踏襲する。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TreeItemMeta {
+    /// `data-depth`（0 起点）。パース失敗時のフォールバックは
+    /// [`wiring::read_tree_item_meta`] 参照。
+    pub depth: usize,
+    /// `data-part == "branch"` なら `true`（`"item"` なら `false`）。
+    pub is_branch: bool,
+    /// `aria-expanded == "true"` なら `true`。葉ノード（`is_branch == false`）
+    /// は常に `false`（`crates/headless-ui/src/tree_view.rs::item` が
+    /// `aria-expanded` を出力しないことに対応）。
+    pub is_open: bool,
+    /// ネイティブ `disabled` またはユーザーの `data-disabled` のいずれか。
+    pub disabled: bool,
+}
+
+/// document 順の treeitem 列（[`TreeItemMeta`]）から可視性を導出する
+/// （web-sys 非依存、native `cargo test` 可。イシュー #1072）。
+///
+/// 「祖先ブランチがすべて open」のときのみ可視とする。単一の
+/// `hidden_until_depth` しきい値（直近の可視な閉ブランチの depth）だけで
+/// 判定できる: 一度そのしきい値より深い項目に入ったら、その内部で何が
+/// 起きようと（孫ブランチが open であっても）親が閉じている限り不可視の
+/// ままであり、しきい値以下の depth に戻るまでしきい値を更新しない。
+/// `depth` が非単調・逆行する改ざん入力でも配列を 1 パスするだけで panic
+/// しない（`usize` のため負値は構造的に発生しない）。
+#[must_use]
+pub fn tree_visible_flags(items: &[TreeItemMeta]) -> Vec<bool> {
+    let mut visible = Vec::with_capacity(items.len());
+    let mut hidden_until_depth: Option<usize> = None;
+    for item in items {
+        let is_visible = match hidden_until_depth {
+            Some(threshold) => item.depth <= threshold,
+            None => true,
+        };
+        if is_visible {
+            hidden_until_depth = None;
+            if item.is_branch && !item.is_open {
+                hidden_until_depth = Some(item.depth);
+            }
+        }
+        visible.push(is_visible);
+    }
+    visible
+}
+
+/// [`tree_key_action`] が要求する移動・展開・確定操作（web-sys 非依存の
+/// 純粋層、イシュー #1072）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TreeKeyAction {
+    /// 指定インデックスの treeitem へフォーカス（roving tabindex）を移す。
+    MoveFocus(usize),
+    /// 指定インデックスのブランチを展開する（`click()` 合成、モジュール doc
+    /// §TreeView 参照。実際の `aria-expanded`/`hidden` 更新は既存の
+    /// click → dispatch → 再描画経路が担う）。
+    ExpandBranch(usize),
+    /// 指定インデックスのブランチを折りたたむ（[`Self::ExpandBranch`] と
+    /// 同じ経路）。
+    CollapseBranch(usize),
+    /// 指定インデックスの treeitem を確定する（`click()` 合成。葉なら
+    /// `"select"`、ブランチなら祖先解決により `"toggle"` になる、モジュール
+    /// doc §TreeView §帰結 参照）。
+    Activate(usize),
+}
+
+/// `items` 中で `parent`（ブランチ、depth = d）の直後から depth > d の間を
+/// 走査し、depth == d + 1（直接の子）かつ `ineligible[..]` が `false`
+/// （可視かつ非 disabled）な最初のインデックスを返す（ArrowRight 用）。
+/// 直接の子が見つからない、または全て disabled/不可視なら `None`。
+fn tree_first_child_index(
+    items: &[TreeItemMeta],
+    ineligible: &[bool],
+    parent: usize,
+) -> Option<usize> {
+    let parent_depth = items[parent].depth;
+    let mut cursor = parent + 1;
+    while cursor < items.len() && items[cursor].depth > parent_depth {
+        if items[cursor].depth == parent_depth + 1 && !ineligible[cursor] {
+            return Some(cursor);
+        }
+        cursor += 1;
+    }
+    None
+}
+
+/// `child` から遡り、depth = `items[child].depth - 1` の最も近いインデックス
+/// （直接の親）を返す（ArrowLeft 用）。`depth == 0`（ルート直下）は
+/// 呼び出し元が事前に除外する。
+fn tree_parent_index(items: &[TreeItemMeta], child: usize) -> Option<usize> {
+    let child_depth = items[child].depth;
+    if child_depth == 0 {
+        return None;
+    }
+    let parent_depth = child_depth - 1;
+    (0..child).rev().find(|&i| items[i].depth == parent_depth)
+}
+
+/// TreeView の keydown（`current`/`key`/`modifiers`/[`TreeItemMeta`] 列）から
+/// [`TreeKeyAction`] を決定する純粋関数（web-sys 非依存、native
+/// `cargo test` 可。イシュー #1072、WAI-ARIA APG Tree View パターン準拠。
+/// モジュール doc §TreeView のキー仕様表参照）。
+///
+/// `current`（現在フォーカス中のインデックス）が範囲外の場合は
+/// 「フォーカスなし」と同じ扱いにフォールバックする
+/// （[`highlight_next_index`] と同じ fail-closed 方針）。可視性
+/// （[`tree_visible_flags`]）・disabled の両方を満たさない項目は
+/// 移動先・操作対象のいずれにもならない。修飾キー（Ctrl/Alt/Meta）付き・
+/// 空配列・未知キーはすべて `None`（no-op）。**循環しない**
+/// （[`accordion_next_index`] と同じ決定的非循環を採る）。
+#[must_use]
+pub fn tree_key_action(
+    current: Option<usize>,
+    key: &str,
+    modifiers: Modifiers,
+    items: &[TreeItemMeta],
+) -> Option<TreeKeyAction> {
+    if modifiers.any() || items.is_empty() {
+        return None;
+    }
+    let visible = tree_visible_flags(items);
+    let ineligible: Vec<bool> = items
+        .iter()
+        .zip(visible.iter())
+        .map(|(item, &v)| !v || item.disabled)
+        .collect();
+    let current_in_range = current.filter(|&i| i < items.len());
+
+    match key {
+        "Home" => first_non_disabled(&ineligible).map(TreeKeyAction::MoveFocus),
+        "End" => last_non_disabled(&ineligible).map(TreeKeyAction::MoveFocus),
+        "ArrowDown" => match current_in_range {
+            Some(i) => step_non_disabled(i, 1, &ineligible, false).map(TreeKeyAction::MoveFocus),
+            None => first_non_disabled(&ineligible).map(TreeKeyAction::MoveFocus),
+        },
+        "ArrowUp" => match current_in_range {
+            Some(i) => step_non_disabled(i, -1, &ineligible, false).map(TreeKeyAction::MoveFocus),
+            None => last_non_disabled(&ineligible).map(TreeKeyAction::MoveFocus),
+        },
+        "ArrowRight" => {
+            let i = current_in_range?;
+            if ineligible[i] || !items[i].is_branch {
+                return None;
+            }
+            if !items[i].is_open {
+                Some(TreeKeyAction::ExpandBranch(i))
+            } else {
+                tree_first_child_index(items, &ineligible, i).map(TreeKeyAction::MoveFocus)
+            }
+        }
+        "ArrowLeft" => {
+            let i = current_in_range?;
+            if ineligible[i] {
+                return None;
+            }
+            if items[i].is_branch && items[i].is_open {
+                Some(TreeKeyAction::CollapseBranch(i))
+            } else if items[i].depth == 0 {
+                None
+            } else {
+                tree_parent_index(items, i)
+                    .filter(|&p| !ineligible[p])
+                    .map(TreeKeyAction::MoveFocus)
+            }
+        }
+        "Enter" | " " => {
+            let i = current_in_range?;
+            if ineligible[i] {
+                return None;
+            }
+            Some(TreeKeyAction::Activate(i))
+        }
         _ => None,
     }
 }
@@ -3018,6 +3267,280 @@ mod tests {
         );
     }
 
+    // --- TreeView（イシュー #1072）: tree_visible_flags ---
+
+    fn leaf(depth: usize) -> TreeItemMeta {
+        TreeItemMeta {
+            depth,
+            is_branch: false,
+            is_open: false,
+            disabled: false,
+        }
+    }
+
+    fn branch(depth: usize, open: bool) -> TreeItemMeta {
+        TreeItemMeta {
+            depth,
+            is_branch: true,
+            is_open: open,
+            disabled: false,
+        }
+    }
+
+    #[test]
+    fn tree_visible_flags_all_open_are_all_visible() {
+        // src(open)/a.rs/nested(open)/b.rs/readme.md
+        let items = [branch(0, true), leaf(1), branch(1, true), leaf(2), leaf(0)];
+        assert_eq!(
+            tree_visible_flags(&items),
+            vec![true, true, true, true, true]
+        );
+    }
+
+    #[test]
+    fn tree_visible_flags_closed_branch_hides_direct_children() {
+        let items = [branch(0, false), leaf(1), leaf(0)];
+        assert_eq!(tree_visible_flags(&items), vec![true, false, true]);
+    }
+
+    #[test]
+    fn tree_visible_flags_closed_ancestor_hides_nested_open_branch() {
+        // src(closed) > nested(open) > b.rs はすべて不可視（親が閉じている限り
+        // 内部の open 状態に関わらず不可視のまま、モジュール doc 参照）。
+        let items = [branch(0, false), branch(1, true), leaf(2), leaf(0)];
+        assert_eq!(tree_visible_flags(&items), vec![true, false, false, true]);
+    }
+
+    #[test]
+    fn tree_visible_flags_leaf_only_all_visible() {
+        let items = [leaf(0), leaf(0), leaf(0)];
+        assert_eq!(tree_visible_flags(&items), vec![true, true, true]);
+    }
+
+    #[test]
+    fn tree_visible_flags_empty_yields_empty() {
+        assert_eq!(tree_visible_flags(&[]), Vec::<bool>::new());
+    }
+
+    #[test]
+    fn tree_visible_flags_regressing_depth_does_not_panic() {
+        // 改ざんされた depth 列（0 → 2 のように 1 段飛ばし）でも panic せず
+        // 決定的に処理する（fail-closed）。
+        let items = [branch(0, false), leaf(2), leaf(0)];
+        let flags = tree_visible_flags(&items);
+        assert_eq!(flags.len(), 3);
+        assert!(flags[0]);
+        assert!(!flags[1]);
+        assert!(flags[2]);
+    }
+
+    // --- TreeView（イシュー #1072）: tree_key_action ---
+
+    fn mods_default() -> Modifiers {
+        Modifiers::default()
+    }
+
+    #[test]
+    fn tree_key_action_arrow_down_up_skip_collapsed_subtree() {
+        // src(open) > a.rs, nested(closed) > b.rs(不可視) / readme.md
+        let items = [branch(0, true), leaf(1), branch(1, false), leaf(2), leaf(0)];
+        assert_eq!(
+            tree_key_action(Some(0), "ArrowDown", mods_default(), &items),
+            Some(TreeKeyAction::MoveFocus(1))
+        );
+        // nested(closed) の次は b.rs(不可視) をスキップして readme.md へ。
+        assert_eq!(
+            tree_key_action(Some(2), "ArrowDown", mods_default(), &items),
+            Some(TreeKeyAction::MoveFocus(4))
+        );
+        assert_eq!(
+            tree_key_action(Some(4), "ArrowUp", mods_default(), &items),
+            Some(TreeKeyAction::MoveFocus(2))
+        );
+    }
+
+    #[test]
+    fn tree_key_action_does_not_loop_at_ends() {
+        let items = [leaf(0), leaf(0)];
+        assert_eq!(
+            tree_key_action(Some(1), "ArrowDown", mods_default(), &items),
+            None
+        );
+        assert_eq!(
+            tree_key_action(Some(0), "ArrowUp", mods_default(), &items),
+            None
+        );
+    }
+
+    #[test]
+    fn tree_key_action_home_end_move_to_visible_first_last() {
+        let items = [branch(0, false), leaf(1), leaf(0)];
+        assert_eq!(
+            tree_key_action(None, "Home", mods_default(), &items),
+            Some(TreeKeyAction::MoveFocus(0))
+        );
+        assert_eq!(
+            tree_key_action(None, "End", mods_default(), &items),
+            Some(TreeKeyAction::MoveFocus(2))
+        );
+    }
+
+    #[test]
+    fn tree_key_action_arrow_right_closed_branch_expands() {
+        let items = [branch(0, false), leaf(1)];
+        assert_eq!(
+            tree_key_action(Some(0), "ArrowRight", mods_default(), &items),
+            Some(TreeKeyAction::ExpandBranch(0))
+        );
+    }
+
+    #[test]
+    fn tree_key_action_arrow_right_open_branch_moves_to_first_child() {
+        let items = [branch(0, true), leaf(1), leaf(1)];
+        assert_eq!(
+            tree_key_action(Some(0), "ArrowRight", mods_default(), &items),
+            Some(TreeKeyAction::MoveFocus(1))
+        );
+    }
+
+    #[test]
+    fn tree_key_action_arrow_right_all_children_disabled_is_none() {
+        let mut child = leaf(1);
+        child.disabled = true;
+        let items = [branch(0, true), child];
+        assert_eq!(
+            tree_key_action(Some(0), "ArrowRight", mods_default(), &items),
+            None
+        );
+    }
+
+    #[test]
+    fn tree_key_action_arrow_right_leaf_is_none() {
+        let items = [leaf(0)];
+        assert_eq!(
+            tree_key_action(Some(0), "ArrowRight", mods_default(), &items),
+            None
+        );
+    }
+
+    #[test]
+    fn tree_key_action_arrow_left_open_branch_collapses() {
+        let items = [branch(0, true), leaf(1)];
+        assert_eq!(
+            tree_key_action(Some(0), "ArrowLeft", mods_default(), &items),
+            Some(TreeKeyAction::CollapseBranch(0))
+        );
+    }
+
+    #[test]
+    fn tree_key_action_arrow_left_closed_branch_or_leaf_moves_to_parent() {
+        // root(open) > [nested(closed), leaf]（いずれも depth 1 の兄弟）。
+        let items = [branch(0, true), branch(1, false), leaf(1)];
+        assert_eq!(
+            tree_key_action(Some(1), "ArrowLeft", mods_default(), &items),
+            Some(TreeKeyAction::MoveFocus(0))
+        );
+        assert_eq!(
+            tree_key_action(Some(2), "ArrowLeft", mods_default(), &items),
+            Some(TreeKeyAction::MoveFocus(0))
+        );
+    }
+
+    #[test]
+    fn tree_key_action_arrow_left_at_depth_zero_is_none() {
+        let items = [leaf(0)];
+        assert_eq!(
+            tree_key_action(Some(0), "ArrowLeft", mods_default(), &items),
+            None
+        );
+    }
+
+    #[test]
+    fn tree_key_action_arrow_left_disabled_parent_is_none() {
+        let mut parent = branch(0, true);
+        parent.disabled = true;
+        let items = [parent, leaf(1)];
+        assert_eq!(
+            tree_key_action(Some(1), "ArrowLeft", mods_default(), &items),
+            None
+        );
+    }
+
+    #[test]
+    fn tree_key_action_enter_and_space_activate_current() {
+        let items = [leaf(0)];
+        assert_eq!(
+            tree_key_action(Some(0), "Enter", mods_default(), &items),
+            Some(TreeKeyAction::Activate(0))
+        );
+        assert_eq!(
+            tree_key_action(Some(0), " ", mods_default(), &items),
+            Some(TreeKeyAction::Activate(0))
+        );
+    }
+
+    #[test]
+    fn tree_key_action_rejects_modifier_keys() {
+        let items = [leaf(0), leaf(0)];
+        let ctrl = Modifiers {
+            ctrl: true,
+            ..Modifiers::default()
+        };
+        assert_eq!(tree_key_action(Some(0), "ArrowDown", ctrl, &items), None);
+    }
+
+    #[test]
+    fn tree_key_action_unknown_key_is_noop() {
+        let items = [leaf(0)];
+        assert_eq!(
+            tree_key_action(Some(0), "PageDown", mods_default(), &items),
+            None
+        );
+    }
+
+    #[test]
+    fn tree_key_action_out_of_range_current_falls_back_to_no_current_behavior() {
+        let items = [leaf(0), leaf(0)];
+        assert_eq!(
+            tree_key_action(Some(99), "ArrowDown", mods_default(), &items),
+            Some(TreeKeyAction::MoveFocus(0))
+        );
+        assert_eq!(
+            tree_key_action(Some(99), "ArrowUp", mods_default(), &items),
+            Some(TreeKeyAction::MoveFocus(1))
+        );
+    }
+
+    #[test]
+    fn tree_key_action_empty_items_yields_none() {
+        assert_eq!(
+            tree_key_action(None, "ArrowDown", mods_default(), &[]),
+            None
+        );
+    }
+
+    #[test]
+    fn tree_key_action_all_disabled_yields_none_for_home_end() {
+        let mut a = leaf(0);
+        a.disabled = true;
+        let mut b = leaf(0);
+        b.disabled = true;
+        let items = [a, b];
+        assert_eq!(tree_key_action(None, "Home", mods_default(), &items), None);
+        assert_eq!(tree_key_action(None, "End", mods_default(), &items), None);
+    }
+
+    #[test]
+    fn tree_key_action_current_on_disabled_item_is_noop_for_activation_keys() {
+        let mut a = leaf(0);
+        a.disabled = true;
+        let items = [a];
+        assert_eq!(
+            tree_key_action(Some(0), "Enter", mods_default(), &items),
+            None
+        );
+    }
+
     // --- calendar_next_index（イシュー #1074） ---
 
     #[test]
@@ -3210,9 +3733,9 @@ mod wiring {
         highlight_next_index, is_typeahead_key, last_non_disabled, listbox_next_index,
         loop_focus_from_attr, menu_loop_focus_from_attr, navigation_menu_link_next_index,
         navigation_menu_trigger_key_action, radio_next_index, submenu_nav, tabs_next_index,
-        toggle_group_next_index, typeahead_next_index, typeahead_push, ComboboxKeyAction,
-        Modifiers, NavigationMenuKeyAction, Orientation, SubmenuNav, MAX_SUBMENU_DEPTH,
-        TYPEAHEAD_TIMEOUT_MS,
+        toggle_group_next_index, tree_key_action, tree_visible_flags, typeahead_next_index,
+        typeahead_push, ComboboxKeyAction, Modifiers, NavigationMenuKeyAction, Orientation,
+        SubmenuNav, TreeItemMeta, TreeKeyAction, MAX_SUBMENU_DEPTH, TYPEAHEAD_TIMEOUT_MS,
     };
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
@@ -3449,6 +3972,413 @@ mod wiring {
         content_owner: LISTBOX_CONTENT_SELECTOR,
     };
 
+    /// `[data-scope="tree-view"][data-part="tree"]` セレクタ（イシュー
+    /// #1072。`role="tree"` を持つトップレベルコンテナ。木構造の境界
+    /// （`crates/headless-ui/src/tree_view.rs::branch`/`branch_content` の
+    /// 再帰は `data-part="root"` を各階層で繰り返すため木の境界にならない、
+    /// モジュール doc §TreeView 参照）として使う）。
+    const TREE_VIEW_TREE_SELECTOR: &str = "[data-scope=\"tree-view\"][data-part=\"tree\"]";
+    /// `[data-scope="tree-view"][data-part="branch"]` /
+    /// `[data-scope="tree-view"][data-part="item"]` セレクタ（イシュー
+    /// #1072。いずれも `role="treeitem"` を持ち、[`matching_keydown_target`]
+    /// のキーボードフォーカスホスト兼 [`collect_tree_items`] の収集対象）。
+    const TREE_VIEW_TREEITEM_SELECTOR: &str =
+        "[data-scope=\"tree-view\"][data-part=\"branch\"], [data-scope=\"tree-view\"][data-part=\"item\"]";
+    /// `[data-scope="tree-view"][data-part="branch-control"]` セレクタ
+    /// （イシュー #1072。ブランチのクリック対象要約行。`click()` 合成先の
+    /// 優先候補、`crate::headless::MAPPING_TABLE` は `branch-control` 行を
+    /// 持たないため合成 click はここから祖先の `branch` 行へ解決される、
+    /// モジュール doc §TreeView §帰結 参照）。
+    const TREE_VIEW_BRANCH_CONTROL_SELECTOR: &str =
+        "[data-scope=\"tree-view\"][data-part=\"branch-control\"]";
+    /// `[data-scope="tree-view"][data-part="branch-text"]` セレクタ
+    /// （イシュー #1072。typeahead ラベル取得の優先候補、[`tree_item_label`]
+    /// 参照）。
+    const TREE_VIEW_BRANCH_TEXT_SELECTOR: &str =
+        "[data-scope=\"tree-view\"][data-part=\"branch-text\"]";
+    /// `[data-scope="tree-view"][data-part="item-text"]` セレクタ
+    /// （イシュー #1072。葉ノードの typeahead ラベル取得候補）。
+    const TREE_VIEW_ITEM_TEXT_SELECTOR: &str =
+        "[data-scope=\"tree-view\"][data-part=\"item-text\"]";
+    /// `[data-scope="tree-view"][data-part="branch-content"]` セレクタ
+    /// （イシュー #1072。[`strip_nested_tree_content`] がラベル読み取り前に
+    /// クローン上から除去する対象）。
+    const TREE_VIEW_BRANCH_CONTENT_SELECTOR: &str =
+        "[data-scope=\"tree-view\"][data-part=\"branch-content\"]";
+
+    /// `tree` 配下の treeitem（`branch`/`item`）を document 順に収集し、
+    /// 「最近接 `tree` 祖先が `tree` 自身と一致する」ものだけへ絞り込む
+    /// （イシュー #1072、[`filter_own_scope_items`] と同型の越境防止。
+    /// 入れ子 TreeView インスタンス・別 TreeView への越境操作を防ぐ、
+    /// モジュール doc §セキュリティ不変条件参照）。
+    fn collect_tree_items(tree: &Element) -> Vec<Element> {
+        collect_parts(tree, TREE_VIEW_TREEITEM_SELECTOR)
+            .into_iter()
+            .filter(|item| {
+                closest(item, TREE_VIEW_TREE_SELECTOR).is_some_and(|nearest| nearest == *tree)
+            })
+            .collect()
+    }
+
+    /// `root` 配下の `tree` 要素すべてを収集する（[`initialize_tree_roving_tabindex`]
+    /// 専用）。`root` 自身が `tree` に一致する場合も含める（`collect_parts` は
+    /// `query_selector_all` で `root` の子孫のみを対象にするため、`root` 自身は
+    /// 別途 `matches` で判定して先頭へ挿入する。モジュール doc §TreeView
+    /// 「マウント時のロービング tabindex 初期化」参照）。
+    fn collect_scope_trees(root: &Element) -> Vec<Element> {
+        let mut trees = collect_parts(root, TREE_VIEW_TREE_SELECTOR);
+        if root.matches(TREE_VIEW_TREE_SELECTOR).unwrap_or(false) {
+            trees.insert(0, root.clone());
+        }
+        trees
+    }
+
+    /// treeitem 列（[`collect_tree_items`] の戻り値）から [`TreeItemMeta`] 列を
+    /// 決定的に読み取る（イシュー #1072）。`data-depth` のパースに失敗した
+    /// 場合は `aria-level`（1 起点）から 1 を引いた値へ、それも失敗する場合は
+    /// `0` へフォールバックする（`unwrap` しない、fail-closed。改ざんされた
+    /// 属性値でも panic しない）。
+    fn read_tree_item_meta(items: &[Element]) -> Vec<TreeItemMeta> {
+        items
+            .iter()
+            .map(|el| {
+                let is_branch = el.get_attribute("data-part").as_deref() == Some("branch");
+                let is_open = el.get_attribute("aria-expanded").as_deref() == Some("true");
+                let disabled = el.has_attribute("disabled") || el.has_attribute("data-disabled");
+                let depth = el
+                    .get_attribute("data-depth")
+                    .and_then(|v| v.parse::<usize>().ok())
+                    .or_else(|| {
+                        el.get_attribute("aria-level")
+                            .and_then(|v| v.parse::<usize>().ok())
+                            .and_then(|level| level.checked_sub(1))
+                    })
+                    .unwrap_or(0);
+                TreeItemMeta {
+                    depth,
+                    is_branch,
+                    is_open,
+                    disabled,
+                }
+            })
+            .collect()
+    }
+
+    /// TreeView の roving tabindex を `items[next_index]` のみへ付け替える
+    /// （イシュー #1072）。既存の `tabindex="0"` 保持者（線形探索、`items` は
+    /// 常に有界な `Vec`）から除去したうえで、新しい対象へ `tabindex="0"` を
+    /// 設定して実 DOM フォーカスを移す（§設計判断 3.1「実 DOM フォーカス +
+    /// roving tabindex」参照。他要素へ明示的に `tabindex="-1"` は書き込まない
+    /// —— headless-ui の SSR 出力が `tabindex` を持たないため、フォーカス
+    /// 対象以外は tabindex 属性自体が無い状態のままで tab 順序から外れる）。
+    fn focus_tree_item(items: &[Element], next_index: usize) {
+        for item in items {
+            if item.get_attribute("tabindex").as_deref() == Some("0") {
+                let _ = item.remove_attribute("tabindex");
+            }
+        }
+        let Some(target) = items.get(next_index) else {
+            return;
+        };
+        set_dom_attribute(target, "tabindex", "0");
+        if let Ok(html) = target.clone().dyn_into::<HtmlElement>() {
+            let _ = html.focus();
+        }
+    }
+
+    /// `treeitem`（`branch`/`item`）を確定操作するための `click()` を合成する
+    /// （イシュー #1072）。`branch-control`（クリック対象の要約行）が
+    /// 見つかればそちらへ、無ければ（葉ノード）`treeitem` 自身へ合成する
+    /// （モジュール doc §TreeView §帰結: `branch-control` へのクリックは
+    /// `crate::headless::action_from_parts` の内側優先探索により祖先の
+    /// `branch` 行〔`"toggle"`〕で解決される）。
+    fn synthesize_tree_click(treeitem: &Element) {
+        let target = treeitem
+            .query_selector(TREE_VIEW_BRANCH_CONTROL_SELECTOR)
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| treeitem.clone());
+        if let Ok(html) = target.dyn_into::<HtmlElement>() {
+            html.click();
+        }
+    }
+
+    /// `treeitem` の（DOM へ書き戻さない）ディープクローンを作り、その中に
+    /// 含まれる子孫ブランチの `branch-content`（さらにその子孫の
+    /// `branch-text`/`item-text`）をすべて除去して返す（[`tree_item_label`]
+    /// 専用のフォールバック、イシュー #1072）。[`crate::keynav::wiring::strip_nested_submenu_content`]
+    /// と同型。クローン失敗時は `None`（fail-closed。ラベル取得失敗の方が
+    /// 子孫ラベル混入より安全）。
+    fn strip_nested_tree_content(treeitem: &Element) -> Option<Element> {
+        let clone: Element = treeitem.clone_node_with_deep(true).ok()?.dyn_into().ok()?;
+        if let Ok(nested) = clone.query_selector_all(TREE_VIEW_BRANCH_CONTENT_SELECTOR) {
+            for i in 0..nested.length() {
+                if let Some(node) = nested.item(i) {
+                    if let Ok(el) = node.dyn_into::<Element>() {
+                        el.remove();
+                    }
+                }
+            }
+        }
+        Some(clone)
+    }
+
+    /// treeitem の表示ラベルを読み取り専用で解決する（typeahead のラベル
+    /// 比較専用、イシュー #1072、[`item_label`] と同型）。`branch-text`
+    /// （ブランチ）/`item-text`（葉）の自身の直下descendant を
+    /// `query_selector` の document 順の性質により最初の一致として優先し
+    /// （`branch` は `branch-control > branch-text` が `branch-content`
+    /// より DOM 順で先に現れるため、素朴な `query_selector` でも子孫の
+    /// `branch-text` を誤って拾わない）、いずれも見つからない改ざん DOM への
+    /// 防御として [`strip_nested_tree_content`] 経由のフォールバックを持つ。
+    fn tree_item_label(item: &Element) -> String {
+        let text = item
+            .query_selector(TREE_VIEW_BRANCH_TEXT_SELECTOR)
+            .ok()
+            .flatten()
+            .or_else(|| {
+                item.query_selector(TREE_VIEW_ITEM_TEXT_SELECTOR)
+                    .ok()
+                    .flatten()
+            })
+            .and_then(|el| el.text_content())
+            .or_else(|| strip_nested_tree_content(item).and_then(|el| el.text_content()))
+            .unwrap_or_default();
+        text.trim().to_string()
+    }
+
+    /// typeahead 1 手（1 文字追記 + マッチ項目への roving tabindex 移動）を
+    /// 処理する（イシュー #1072、[`apply_typeahead_match`] の TreeView 版。
+    /// Menu/Select と異なり `data-highlighted` ではなく実フォーカス移動
+    /// （[`focus_tree_item`]）を使う、§設計判断 3.1 参照）。
+    fn apply_tree_typeahead_match(
+        items: &[Element],
+        metas: &[TreeItemMeta],
+        current: Option<usize>,
+        query: &str,
+    ) {
+        let visible = tree_visible_flags(metas);
+        let ineligible: Vec<bool> = metas
+            .iter()
+            .zip(visible.iter())
+            .map(|(m, &v)| !v || m.disabled)
+            .collect();
+        let labels: Vec<String> = items.iter().map(tree_item_label).collect();
+        let label_refs: Vec<&str> = labels.iter().map(String::as_str).collect();
+        if let Some(next_index) = typeahead_next_index(current, query, &label_refs, &ineligible) {
+            focus_tree_item(items, next_index);
+        }
+    }
+
+    /// `root` 配下のマウント時に、`tabindex` を 1 つも持たない TreeView
+    /// インスタンスへ roving tabindex の初期値を 1 個だけ設定する
+    /// （[`wire_keynav`] の冒頭から 1 回だけ呼ばれる、イシュー #1072、
+    /// §設計判断 3.3 参照）。
+    ///
+    /// - いずれかの treeitem が既に `tabindex` を持つ場合は当該 `tree`
+    ///   インスタンスに対して何もしない（冪等・呼び出し側の明示指定を尊重）。
+    /// - 持たない場合のみ、先頭の可視かつ非 disabled な treeitem へ
+    ///   `tabindex="0"` を 1 個だけ付与する（Tab キーで木全体が 1 タブ
+    ///   ストップになる roving 契約）。
+    /// - 可視かつ非 disabled な treeitem が 1 つも無い（空の木・全 disabled）
+    ///   場合は no-op（fail-closed）。
+    fn initialize_tree_roving_tabindex(root: &Element) {
+        for tree in &collect_scope_trees(root) {
+            let items = collect_tree_items(tree);
+            if items.iter().any(|item| item.has_attribute("tabindex")) {
+                continue;
+            }
+            let metas = read_tree_item_meta(&items);
+            let visible = tree_visible_flags(&metas);
+            let Some(idx) = metas
+                .iter()
+                .zip(visible.iter())
+                .position(|(m, &v)| v && !m.disabled)
+            else {
+                continue;
+            };
+            set_dom_attribute(&items[idx], "tabindex", "0");
+        }
+    }
+
+    /// `tree`（キーボード操作対象の TreeView インスタンス自身、`closest`
+    /// で解決済みの `[data-scope="tree-view"][data-part="tree"]`）配下から
+    /// `value` と `data-value` が一致する最初の treeitem（document 順）を
+    /// 再解決し、roving tabindex とフォーカスを復元する（イシュー #1072、
+    /// §設計判断 3.6「再描画耐性」参照）。
+    ///
+    /// click 合成 → アプリの `on_update`（`TreeView::render_nodes` 再描画）に
+    /// より対象 treeitem を含む subtree が丸ごと差し替わりうるため、click
+    /// 直前に保持していた `Element` 参照をそのまま使わず、`tree`
+    /// （click を跨いでも安定なマウント境界）から改めて再収集する。
+    ///
+    /// **スコープ限定が必須の理由**（Bugbot 指摘、PR #1100）: `root`
+    /// （[`wire_keynav`] がマウントされた最上位要素）を探索起点にすると、
+    /// 同一ページに同じ `value` を共有する複数の TreeView インスタンスが
+    /// 存在する場合に別インスタンスの treeitem を誤って再解決してしまう
+    /// （[`collect_tree_items`] と同じ「最近接 `tree` 祖先が一致」絞り込みが
+    /// 無いため）。呼び出し元（[`handle_tree_view_keydown`]）が既に
+    /// `closest` で解決済みの `tree` を渡すことで、[`collect_tree_items`]
+    /// と同じスコープへ限定する。
+    ///
+    /// **roving tabindex の付け替えは [`focus_tree_item`] に委譲する**
+    /// （同一関数を経由することで、他の `tabindex="0"` 保持者のクリア漏れが
+    /// 構造的に発生しない。旧実装は対象への `tabindex="0"` 設定のみで、
+    /// アクティブな tree がタブストップを 2 つ持ちうる不具合があった）。
+    ///
+    /// **セキュリティ上の必須事項**（`.claude/rules/security.md` A03）:
+    /// `value` から組み立てたセレクタ文字列（例: `[data-value="..."]`）は
+    /// 使わない（セレクタインジェクション面の新設になる）。`get_attribute`
+    /// で読み取った値を Rust 側の文字列比較（`==`）でのみ照合する。重複値は
+    /// document 順の先頭を採る（`Iterator::find` の性質）。
+    fn restore_tree_focus_by_value(tree: &Element, value: &str) {
+        let items = collect_tree_items(tree);
+        let Some(next_index) = items
+            .iter()
+            .position(|el| el.get_attribute("data-value").as_deref() == Some(value))
+        else {
+            return;
+        };
+        focus_tree_item(&items, next_index);
+    }
+
+    /// マウスクリックされた treeitem（`branch`/`item`）から、click の
+    /// capture フェーズ時点（＝ [`crate::headless::wire_headless_component`]
+    /// の dispatch/`on_update` 再描画がまだ発生していない時点）で
+    /// `(tree, data-value)` を確定させる（イシュー #1072、Bugbot 指摘
+    /// PR #1100「Tabindex lost after mouse re-render」の是正）。
+    ///
+    /// **なぜ capture フェーズで捕捉するか**: [`wire_keynav`] は 1 つの
+    /// `root` に対し複数モジュールが個別に `click` リスナーを登録する
+    /// 構成であり（headless dispatch 用リスナーはコンポーネントごとに
+    /// 別モジュールが先に登録する運用、`tests/keynav_browser.rs::mount_tree_view`
+    /// 参照）、bubble フェーズのリスナー同士は登録順に実行される。
+    /// マウス click → headless dispatch → `on_update`
+    /// （`TreeView::render_nodes` 再描画）が本モジュールの bubble
+    /// リスナーより先に走ると、その時点で旧 treeitem サブツリーは
+    /// 丸ごと差し替え済みで `Node::parent_element()` が途切れ、
+    /// `closest` によるツリー祖先の再解決ができない。capture フェーズは
+    /// 常にどの bubble リスナーよりも先に発火する（DOM イベント伝播の
+    /// 仕様上の性質）ため、再描画が起きる前に対象を確定できる唯一の
+    /// タイミングとして使う。
+    ///
+    /// disabled（`disabled` 属性または `data-disabled`）な treeitem は
+    /// `None` を返し呼び出し元に何も記録させない（disabled treeitem への
+    /// クリックはそもそも dispatch されず再描画も発生しないため、意図せず
+    /// フォーカスを奪う必要が無い。`read_tree_item_meta` と同じ disabled
+    /// 判定を用いる）。
+    ///
+    /// `scope_root`（[`wire_keynav`] の `root`）の外側へ抜けた treeitem・
+    /// `tree` は採用しない（`crate::events::wire_events` と同じ封じ込め）。
+    fn tree_click_restore_target(
+        scope_root: &Element,
+        target_element: &Element,
+    ) -> Option<(Element, String)> {
+        let treeitem = closest(target_element, TREE_VIEW_TREEITEM_SELECTOR)?;
+        if !scope_root.contains(Some(&treeitem)) {
+            return None;
+        }
+        if treeitem.has_attribute("disabled") || treeitem.has_attribute("data-disabled") {
+            return None;
+        }
+        let tree = closest(&treeitem, TREE_VIEW_TREE_SELECTOR)?;
+        if !scope_root.contains(Some(&tree)) {
+            return None;
+        }
+        let value = treeitem.get_attribute("data-value")?;
+        Some((tree, value))
+    }
+
+    /// TreeView（`crates/headless-ui/src/tree_view.rs`）の treeitem
+    /// （`branch`/`item`）上の keydown を処理する（イシュー #1072、モジュール
+    /// doc §TreeView 参照）。
+    ///
+    /// 処理順は「root 封じ込め検査 → 修飾キー → `tree` 祖先解決（無ければ
+    /// no-op）→ Escape → typeahead → [`tree_key_action`]」。展開・折りたたみ・
+    /// 確定（Enter/Space の `Activate`）はいずれも純粋層の判定結果に対応する
+    /// treeitem へ [`synthesize_tree_click`] を合成し、既存の click →
+    /// `crate::headless` → dispatch → 再描画経路へ委譲する（本ハンドラ自身は
+    /// `aria-expanded`/`hidden`/`data-state`/`aria-selected` を一切書かない、
+    /// モジュール doc §セキュリティ不変条件参照）。click 合成後は
+    /// [`restore_tree_focus_by_value`] で `data-value` 文字列一致により
+    /// treeitem を再解決し、フォーカス・roving tabindex を復元する
+    /// （§設計判断 3.6）。
+    fn handle_tree_view_keydown(
+        root: &Element,
+        treeitem: &Element,
+        event: &KeyboardEvent,
+        typeahead: &mut TypeaheadState,
+    ) {
+        let Some(tree) = closest(treeitem, TREE_VIEW_TREE_SELECTOR) else {
+            return;
+        };
+        if !root.contains(Some(&tree)) {
+            return;
+        }
+        let modifiers = modifiers_of(event);
+        if modifiers.any() {
+            return;
+        }
+        let key = event.key();
+        let items = collect_tree_items(&tree);
+        let Some(current) = index_of(&items, treeitem) else {
+            return;
+        };
+        let now = event.time_stamp();
+        let buffer_active = typeahead.is_active_for(&tree, now);
+
+        if key == "Escape" {
+            // TreeView は常時展開のツリーであり Listbox と同じく reopen
+            // 契約が存在しない（モジュール doc §TreeView 参照）。typeahead
+            // バッファのみをリセットし `prevent_default` しない（ダイアログ内
+            // TreeView が親の Escape 閉鎖を奪わない）。
+            typeahead.reset();
+            return;
+        }
+
+        let metas = read_tree_item_meta(&items);
+
+        if is_typeahead_key(&key, buffer_active, modifiers) {
+            event.prevent_default();
+            let query = typeahead.push(&key, now, &tree);
+            apply_tree_typeahead_match(&items, &metas, Some(current), &query);
+            return;
+        }
+
+        match tree_key_action(Some(current), &key, modifiers, &metas) {
+            Some(TreeKeyAction::MoveFocus(next_index)) => {
+                event.prevent_default();
+                typeahead.reset();
+                focus_tree_item(&items, next_index);
+            }
+            Some(TreeKeyAction::ExpandBranch(index))
+            | Some(TreeKeyAction::CollapseBranch(index)) => {
+                event.prevent_default();
+                typeahead.reset();
+                let Some(target) = items.get(index) else {
+                    return;
+                };
+                let value = target.get_attribute("data-value");
+                synthesize_tree_click(target);
+                if let Some(value) = value {
+                    restore_tree_focus_by_value(&tree, &value);
+                }
+            }
+            Some(TreeKeyAction::Activate(index)) => {
+                event.prevent_default();
+                typeahead.reset();
+                let Some(target) = items.get(index) else {
+                    return;
+                };
+                let value = target.get_attribute("data-value");
+                synthesize_tree_click(target);
+                if let Some(value) = value {
+                    restore_tree_focus_by_value(&tree, &value);
+                }
+            }
+            None => {}
+        }
+    }
     /// `[data-scope="calendar"][data-part="root"]` セレクタ（イシュー
     /// #1074。ネストした Calendar インスタンスの誤爆防止に使う探索境界）。
     const CALENDAR_ROOT_SELECTOR: &str = "[data-scope=\"calendar\"][data-part=\"root\"]";
@@ -5733,6 +6663,12 @@ mod wiring {
         if target.matches(TOGGLE_GROUP_ITEM_SELECTOR).unwrap_or(false) {
             return Some(("toggle-group", target.clone()));
         }
+        // TreeView（イシュー #1072）は treeitem（`branch`/`item`）自身が実
+        // DOM フォーカスを保持する（§設計判断 3.1「実 DOM フォーカス +
+        // roving tabindex」、モジュール doc §TreeView 参照）。
+        if target.matches(TREE_VIEW_TREEITEM_SELECTOR).unwrap_or(false) {
+            return Some(("tree-view", target.clone()));
+        }
         // Calendar day-trigger はネイティブ `<button>` で実フォーカスを直接
         // 保持するため、Tabs/Accordion と同じく target 自身の一致判定のみで
         // 足りる（イシュー #1074、モジュール doc §Calendar 参照）。
@@ -5752,18 +6688,33 @@ mod wiring {
     /// - `keydown`: イベントターゲットが Tabs trigger / Accordion
     ///   item-trigger / Menu trigger / Select trigger / RadioGroup ネイティブ
     ///   `<input type="radio">` / Menubar trigger / Combobox `input`
-    ///   （イシュー #1071）/ Listbox content（イシュー #1070）のいずれかに
-    ///   一致する場合のみ処理する（[`handle_tabs_keydown`]/
+    ///   （イシュー #1071）/ Listbox content（イシュー #1070）/ TreeView
+    ///   treeitem（`branch`/`item`、イシュー #1072）のいずれかに一致する
+    ///   場合のみ処理する（[`handle_tabs_keydown`]/
     ///   [`handle_accordion_keydown`]/[`handle_menu_or_select_trigger_keydown`]/
     ///   [`handle_radio_keydown`]/[`handle_menubar_trigger_keydown`]/
-    ///   [`handle_combobox_input_keydown`]/[`handle_listbox_keydown`]）。
-    ///   Menubar/Listbox 用の追加リスナーは登録せず、既存の keydown 委譲へ
-    ///   相乗りする（`Closure::forget` は引き続き 3 回のみ）。
-    /// - `click`: Tabs trigger への委譲クリックで [`handle_trigger_click`]
-    ///   を呼び、マウスクリック・manual activationMode 下の Enter/Space の
-    ///   双方をカバーする（Menu/Select の決定はキーボード側で highlight 中
-    ///   項目へ `click()` を合成する設計のため、本リスナーでの追加処理は
-    ///   不要）。
+    ///   [`handle_combobox_input_keydown`]/[`handle_listbox_keydown`]/
+    ///   [`handle_tree_view_keydown`]）。Menubar/Listbox 用の追加リスナーは
+    ///   登録せず、既存の keydown 委譲へ相乗りする。
+    /// - `click`（bubble フェーズ）: Tabs trigger への委譲クリックで
+    ///   [`handle_trigger_click`] を呼び、マウスクリック・manual
+    ///   activationMode 下の Enter/Space の双方をカバーする（Menu/Select の
+    ///   決定はキーボード側で highlight 中項目へ `click()` を合成する設計の
+    ///   ため、本リスナーでの追加処理は不要）。加えて TreeView（イシュー
+    ///   #1072、Bugbot 指摘 PR #1100 是正）の roving tabindex 復元を行う:
+    ///   下記の `click`（capture フェーズ）リスナーが再描画前に記録した
+    ///   `(tree, data-value)` を消費し [`restore_tree_focus_by_value`] を
+    ///   呼ぶ（[`tree_click_restore_target`] doc 参照）。
+    /// - `click`（capture フェーズ）: マウスクリックされた treeitem
+    ///   （`branch`/`item`）を [`tree_click_restore_target`] で判定し、
+    ///   `(tree, data-value)` を一時状態へ記録するだけの薄いリスナー
+    ///   （`data-state`/`tabindex` は書かない）。headless dispatch 用の
+    ///   click リスナーは本モジュール外（コンポーネントごとの
+    ///   `wire_headless_component` 呼び出し側）が bubble フェーズへ別途
+    ///   登録するため、bubble フェーズの本モジュール自身の登録順に関わらず
+    ///   再描画前の DOM を確実に観測できる唯一のタイミングとして使う
+    ///   （`Closure::forget` は本関数全体で 4 回、`keydown`／`click`
+    ///   capture／`click` bubble／`change` の 1 リスナーずつ）。
     /// - `change`: RadioGroup のネイティブ `<input type="radio">` の
     ///   `change`（マウスクリック・ネイティブ Space 決定）を
     ///   [`handle_radio_change`] で `data-state` 群へ同期する。
@@ -5775,6 +6726,13 @@ mod wiring {
     ///
     /// `add_event_listener_with_callback` が失敗した場合に `Err` を返す。
     pub fn wire_keynav(root: Element) -> Result<(), JsValue> {
+        // マウント時に 1 回だけ TreeView（イシュー #1072）の roving tabindex
+        // 初期値を設定する（既存 8 部品はいずれも SSR がフォーカスホストを
+        // 供給する契約だが、TreeView の treeitem は `tabindex` を一切
+        // 出力しないため、本関数が唯一の初期値供給源になる。§設計判断 3.3
+        // 参照）。
+        initialize_tree_roving_tabindex(&root);
+
         let keydown_root = root.clone();
         // typeahead バッファ（イシュー #641・#1070）は DOM から導出できない
         // 一時入力状態のため、本 keydown [`Closure`]（`FnMut`）が所有する。
@@ -5851,6 +6809,12 @@ mod wiring {
                 "toggle-group" => {
                     handle_toggle_group_item_keydown(&keydown_root, &matched, &keyboard_event)
                 }
+                "tree-view" => handle_tree_view_keydown(
+                    &keydown_root,
+                    &matched,
+                    &keyboard_event,
+                    &mut typeahead_state,
+                ),
                 "calendar" => handle_calendar_keydown(&keydown_root, &matched, &keyboard_event),
                 _ => {}
             }
@@ -5858,8 +6822,69 @@ mod wiring {
         root.add_event_listener_with_callback("keydown", keydown_closure.as_ref().unchecked_ref())?;
         keydown_closure.forget();
 
+        // TreeView（イシュー #1072、Bugbot 指摘 PR #1100「Tabindex lost after
+        // mouse re-render」の是正）: マウスクリック起因の headless dispatch
+        // 再描画は本モジュールの bubble リスナー（下記 `click_closure`）が
+        // 発火する前に完了している場合があり、その時点では treeitem の DOM
+        // 祖先チェーンが既に途切れているため `tree`／`data-value` を再解決
+        // できない。capture フェーズ（常に bubble フェーズより先に発火する）
+        // で再描画前に対象を確定して `tree_click_pending` へ記録し、bubble
+        // フェーズ側で消費して roving tabindex とフォーカスを復元する
+        // （[`tree_click_restore_target`] doc 参照）。
+        let tree_click_pending: std::rc::Rc<std::cell::RefCell<Option<(Element, String)>>> =
+            std::rc::Rc::new(std::cell::RefCell::new(None));
+
+        let capture_root = root.clone();
+        let capture_pending = tree_click_pending.clone();
+        let click_capture_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            let Some(target) = event.target() else {
+                *capture_pending.borrow_mut() = None;
+                return;
+            };
+            let target_element: Element = match target.dyn_ref::<Element>() {
+                Some(element) => element.clone(),
+                None => {
+                    let Some(node) = target.dyn_ref::<web_sys::Node>() else {
+                        *capture_pending.borrow_mut() = None;
+                        return;
+                    };
+                    let Some(parent) = node.parent_element() else {
+                        *capture_pending.borrow_mut() = None;
+                        return;
+                    };
+                    parent
+                }
+            };
+            if !capture_root.contains(Some(&target_element)) {
+                *capture_pending.borrow_mut() = None;
+                return;
+            }
+            *capture_pending.borrow_mut() =
+                tree_click_restore_target(&capture_root, &target_element);
+        });
+        root.add_event_listener_with_callback_and_bool(
+            "click",
+            click_capture_closure.as_ref().unchecked_ref(),
+            true,
+        )?;
+        click_capture_closure.forget();
+
         let click_root = root.clone();
         let click_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            // TreeView roving tabindex 復元（上記 capture リスナー参照）を
+            // 最初に行う。マウスクリック起因の headless dispatch 再描画で
+            // `event.target()`（下記 `target_element`）が既に detached に
+            // なっている場合があり、後続の `click_root.contains(target_element)`
+            // 早期 return より後に置くと本ブロックへ到達できない（`tree` は
+            // treeitem の DOM 差し替え後も安定な `tree` コンテナ自身の参照
+            // なので、`target_element` の生死に関わらず独立して判定できる）。
+            // Tabs trigger 判定の成否にも関わらず必ず実行する。
+            if let Some((tree, value)) = tree_click_pending.borrow_mut().take() {
+                if click_root.contains(Some(&tree)) {
+                    restore_tree_focus_by_value(&tree, &value);
+                }
+            }
+
             let Some(target) = event.target() else {
                 return;
             };

@@ -1,8 +1,9 @@
 //! `fandhe_frontend_wasm_full::keynav::wire_keynav`（Tabs/Accordion/Menu/
-//! Select/RadioGroup/Menubar/Combobox/Listbox/NavigationMenu/ToggleGroup の
-//! キーボード操作・イシュー #582・#583・#1073（Menubar）・#1071
-//! （Combobox）・#1070（Listbox）・#1075（NavigationMenu/ToggleGroup）、親
-//! #581）の実ブラウザ統合テスト（`wasm-pack test --headless --chrome`）。
+//! Select/RadioGroup/Menubar/Combobox/Listbox/NavigationMenu/ToggleGroup/
+//! TreeView のキーボード操作・イシュー #582・#583・#1073（Menubar）・
+//! #1071（Combobox）・#1070（Listbox）・#1075（NavigationMenu/
+//! ToggleGroup）・#1072（TreeView）、親 #581）の実ブラウザ統合テスト
+//! （`wasm-pack test --headless --chrome`）。
 //!
 //! `wasm-full/tests/keynav_native.rs`（native）は純粋層（`tabs_next_index`/
 //! `accordion_next_index`/`highlight_next_index`/`radio_next_index`）までを
@@ -80,10 +81,27 @@
 //! 15. ToggleGroup（イシュー #1075）: Arrow による roving tabindex 更新 +
 //!     フォーカス移動・常時循環・disabled スキップ、`data-orientation` に
 //!     よる軸制限（欠落時両軸）、Home/End、攻撃者制御ラベルでの XSS 回帰
+//! 16. TreeView（イシュー #1072）: treeitem（`branch`/`item`）自身が実 DOM
+//!     フォーカスを保持し、マウント時に先頭可視項目へ roving tabindex を
+//!     1 個だけ設定、ArrowDown/ArrowUp で可視かつ非 disabled のみを辿り
+//!     折りたたみ subtree をスキップ・非循環、Home/End、ArrowRight/ArrowLeft
+//!     でブランチの展開・折りたたみ（`click()` 合成 →
+//!     `crate::headless::MAPPING_TABLE` → dispatch → 再描画で
+//!     `aria-expanded`/`data-state`/`hidden` が実際に更新される、受け入れ
+//!     条件 2 の実証）+ 再描画後のフォーカス復元（`data-value` 文字列一致）、
+//!     Enter/Space で葉は select・ブランチは toggle（ブランチは選択できない
+//!     仕様、モジュール doc §TreeView §帰結）、typeahead は子孫ラベルへ
+//!     漏れない、Escape は非対称（バッファのみリセット・`prevent_default`
+//!     しない）、修飾キー・未知キー・改ざん `data-depth` での no-op/非
+//!     panic、攻撃者制御ラベルでの XSS 回帰
 
 #![cfg(target_arch = "wasm32")]
 
+use fandhe_frontend_headless_ui::tree_view::{TreeNode, TreeView};
+use fandhe_frontend_wasm_full::headless::wire_headless_component;
 use fandhe_frontend_wasm_full::keynav::{wire_keynav, TYPEAHEAD_TIMEOUT_MS};
+use std::cell::RefCell;
+use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
@@ -5395,6 +5413,582 @@ fn build_toggle_group_dom(
         .append_child(&root)
         .expect("append_child must not fail for a detached div");
     root
+}
+
+// ---------------------------------------------------------------------
+// TreeView（`crates/headless-ui/src/tree_view.rs`）の Arrow/Home/End/
+// ArrowRight/ArrowLeft/Enter・Space/typeahead/Escape キーボード配線
+// （イシュー #1072）。
+// ---------------------------------------------------------------------
+
+/// `tree` 要素（`role="tree"`、`data-part="tree"`）をマウントし、
+/// `TreeView::render_nodes` の実出力を `set_inner_html` で子要素へ反映する。
+/// `wire_keynav`（キーボード）と `wire_headless_component`（クリック →
+/// `crate::headless::MAPPING_TABLE` → dispatch → 本関数を経由した再描画）の
+/// 双方を同一要素（`root` 自身が `tree` に一致するケース、
+/// `keynav::wiring::collect_scope_trees` 参照）へ配線する。戻り値は
+/// `(tree 要素, TreeView 状態の共有ハンドル)`。
+fn mount_tree_view(
+    document: &Document,
+    root_id: &str,
+    nodes: Vec<TreeNode>,
+) -> (Element, Rc<RefCell<TreeView>>) {
+    let tree_el = document.create_element("div").unwrap();
+    tree_el.set_id(root_id);
+    tree_el.set_attribute("data-scope", "tree-view").unwrap();
+    tree_el.set_attribute("data-part", "tree").unwrap();
+    tree_el.set_attribute("role", "tree").unwrap();
+    document
+        .body()
+        .unwrap()
+        .append_child(&tree_el)
+        .expect("append_child must not fail for a detached div");
+
+    fn render_children(tree_el: &Element, state: &TreeView, nodes: &[TreeNode]) {
+        let rendered = state.render_nodes(nodes);
+        let html: String = rendered
+            .iter()
+            .map(fandhe_frontend_core::render)
+            .collect::<Vec<_>>()
+            .join("");
+        tree_el.set_inner_html(&html);
+    }
+
+    let component = Rc::new(RefCell::new(TreeView::default()));
+    render_children(&tree_el, &component.borrow(), &nodes);
+
+    let wire_tree = tree_el.clone();
+    wire_headless_component(tree_el.clone(), component.clone(), move |state, _root| {
+        render_children(&wire_tree, state, &nodes);
+    })
+    .expect("wire_headless_component must not fail");
+    wire_keynav(tree_el.clone()).expect("wire_keynav must succeed");
+
+    (tree_el, component)
+}
+
+/// テスト共通のサンプル木: `src`(branch) > [`a.rs`, `nested`(branch) >
+/// [`b.rs`]], `readme.md`（`crates/headless-ui/src/tree_view.rs` テストの
+/// `sample_tree` と同型）。
+fn sample_tree_nodes() -> Vec<TreeNode> {
+    vec![
+        TreeNode::new("src", "src").with_children(vec![
+            TreeNode::new("a.rs", "a.rs"),
+            TreeNode::new("nested", "nested").with_children(vec![TreeNode::new("b.rs", "b.rs")]),
+        ]),
+        TreeNode::new("readme.md", "readme.md"),
+    ]
+}
+
+fn tree_item_by_value(tree_el: &Element, value: &str) -> Element {
+    tree_el
+        .query_selector(&format!("[data-value=\"{value}\"]"))
+        .expect("query_selector must not fail")
+        .unwrap_or_else(|| panic!("treeitem with data-value={value} must exist"))
+}
+
+/// 検証 1: マウント時に先頭可視 treeitem（`src`）へ `tabindex="0"` が 1 個
+/// だけ設定される（他の treeitem は `tabindex` を一切持たない）。
+#[wasm_bindgen_test]
+fn tree_view_mount_initializes_single_roving_tabindex_on_first_visible_item() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (tree_el, _component) = mount_tree_view(&document, "kn-tv-mount1", sample_tree_nodes());
+    let _cleanup = RemoveOnDrop(tree_el.clone());
+
+    let src = tree_item_by_value(&tree_el, "src");
+    assert_eq!(src.get_attribute("tabindex").as_deref(), Some("0"));
+
+    let readme = tree_item_by_value(&tree_el, "readme.md");
+    assert!(!readme.has_attribute("tabindex"));
+}
+
+/// 検証 2（受け入れ条件 1）: ArrowDown/ArrowUp が可視かつ非 disabled の
+/// treeitem のみを辿り、折りたたまれた subtree（`nested`/`b.rs`）は
+/// document 順に存在していても丸ごとスキップされる。**循環しない**。
+#[wasm_bindgen_test]
+fn tree_view_arrow_down_up_move_focus_and_skip_collapsed_subtree() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (tree_el, _component) = mount_tree_view(&document, "kn-tv-arrow1", sample_tree_nodes());
+    let _cleanup = RemoveOnDrop(tree_el.clone());
+
+    let src = tree_item_by_value(&tree_el, "src");
+    src.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    // `nested`/`b.rs` は `src` が閉じているため不可視。次に可視なのは
+    // `readme.md`。
+    let readme = tree_item_by_value(&tree_el, "readme.md");
+    assert_eq!(readme.get_attribute("tabindex").as_deref(), Some("0"));
+    assert!(!src.has_attribute("tabindex"));
+
+    readme.dispatch_event(&keydown_event("ArrowUp")).unwrap();
+    assert_eq!(src.get_attribute("tabindex").as_deref(), Some("0"));
+
+    // 先頭で ArrowUp は循環しない（no-op）。
+    let not_default_prevented = src.dispatch_event(&keydown_event("ArrowUp")).unwrap();
+    assert!(not_default_prevented);
+    assert_eq!(src.get_attribute("tabindex").as_deref(), Some("0"));
+}
+
+/// 検証 3: Home/End が可視先頭/末尾へ移動する。
+#[wasm_bindgen_test]
+fn tree_view_home_end_move_focus_to_visible_first_last() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (tree_el, _component) = mount_tree_view(&document, "kn-tv-homeend1", sample_tree_nodes());
+    let _cleanup = RemoveOnDrop(tree_el.clone());
+
+    let src = tree_item_by_value(&tree_el, "src");
+    src.dispatch_event(&keydown_event("End")).unwrap();
+    let readme = tree_item_by_value(&tree_el, "readme.md");
+    assert_eq!(readme.get_attribute("tabindex").as_deref(), Some("0"));
+
+    readme.dispatch_event(&keydown_event("Home")).unwrap();
+    assert_eq!(src.get_attribute("tabindex").as_deref(), Some("0"));
+}
+
+/// 検証 4（受け入れ条件 2）: closed branch 上の ArrowRight が
+/// `branch-control` へ `click()` を合成し、`crate::headless::MAPPING_TABLE`
+/// （`tree-view`/`branch` → `"toggle"`）→ dispatch → 再描画を経由して
+/// `aria-expanded`/`data-state`/`branch-content` の `hidden` が実際に更新
+/// される。再描画で DOM が丸ごと差し替わった後も、`data-value` 一致で
+/// `src` treeitem が再解決され roving tabindex とフォーカスが復元される
+/// （§設計判断 3.6）。
+#[wasm_bindgen_test]
+fn tree_view_arrow_right_expands_closed_branch_and_restores_focus_after_rerender() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (tree_el, component) = mount_tree_view(&document, "kn-tv-expand1", sample_tree_nodes());
+    let _cleanup = RemoveOnDrop(tree_el.clone());
+
+    let src = tree_item_by_value(&tree_el, "src");
+    assert_eq!(src.get_attribute("aria-expanded").as_deref(), Some("false"));
+
+    src.dispatch_event(&keydown_event("ArrowRight")).unwrap();
+
+    assert!(component.borrow().is_expanded("src"));
+    // 再描画後の "今の" src 要素を再クエリする（click 前の `src` 参照は
+    // 差し替えにより detached になりうるため）。
+    let src_after = tree_item_by_value(&tree_el, "src");
+    assert_eq!(
+        src_after.get_attribute("aria-expanded").as_deref(),
+        Some("true")
+    );
+    assert_eq!(
+        src_after.get_attribute("data-state").as_deref(),
+        Some("open")
+    );
+    assert_eq!(src_after.get_attribute("tabindex").as_deref(), Some("0"));
+
+    let branch_content = src_after
+        .query_selector(r#"[data-part="branch-content"]"#)
+        .unwrap()
+        .expect("branch-content must exist");
+    assert!(!branch_content.has_attribute("hidden"));
+}
+
+/// 検証 4b（Bugbot 指摘、PR #1100「Tabindex lost after mouse re-render」の
+/// 回帰）: [`tree_view_arrow_right_expands_closed_branch_and_restores_focus_after_rerender`]
+/// はキーボード配線（`synthesize_tree_click`）経由の click 合成を検証する
+/// のに対し、本テストは `branch-control` へ直接 `click` イベントを
+/// dispatch する**素のマウス click**を模する。マウス click は
+/// `wire_headless_component`（`headless.rs`）の click リスナー経由で
+/// dispatch → `on_update` 再描画が起こり、旧 treeitem サブツリーが丸ごと
+/// 差し替わる。この再描画後も roving tabindex が失われず（木全体で
+/// タブストップが 1 個も無くなる不具合が無く）、`src` 自身へ復元される
+/// ことを固定する（[`tree_click_restore_target`] の capture フェーズ
+/// 捕捉 → bubble フェーズ復元の回帰）。
+#[wasm_bindgen_test]
+fn tree_view_mouse_click_on_branch_control_preserves_roving_tabindex_after_rerender() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (tree_el, component) = mount_tree_view(&document, "kn-tv-mouseclick1", sample_tree_nodes());
+    let _cleanup = RemoveOnDrop(tree_el.clone());
+
+    let src = tree_item_by_value(&tree_el, "src");
+    assert_eq!(src.get_attribute("aria-expanded").as_deref(), Some("false"));
+    let branch_control = src
+        .query_selector(r#"[data-part="branch-control"]"#)
+        .unwrap()
+        .expect("branch-control must exist");
+
+    // `ArrowRight` キー配線（`synthesize_tree_click`）を経由しない、素の
+    // マウス click を模する。
+    branch_control.dispatch_event(&click_event()).unwrap();
+
+    assert!(component.borrow().is_expanded("src"));
+    // 再描画後の "今の" src 要素を再クエリする（click 前の `src` 参照は
+    // 差し替えにより detached になりうるため）。
+    let src_after = tree_item_by_value(&tree_el, "src");
+    assert_eq!(
+        src_after.get_attribute("aria-expanded").as_deref(),
+        Some("true")
+    );
+    // roving tabindex が失われず `src` 自身へ復元されている（Bugbot 指摘:
+    // 再描画後にタブストップが 0 個になる不具合の回帰）。
+    assert_eq!(src_after.get_attribute("tabindex").as_deref(), Some("0"));
+
+    // 木全体でタブストップはちょうど 1 個のみ（roving tabindex 契約）。
+    let tabbable = tree_el.query_selector_all(r#"[tabindex="0"]"#).unwrap();
+    assert_eq!(tabbable.length(), 1);
+}
+
+/// 検証 4c（Bugbot 指摘、PR #1100 回帰の周辺ケース）: disabled な
+/// treeitem への素のマウス click は dispatch されない（`headless.rs` の
+/// fail-closed disabled 判定）ため再描画自体が起こらないが、その場合でも
+/// [`tree_click_restore_target`] が disabled treeitem を対象から除外して
+/// おり、フォーカス・roving tabindex を disabled 項目へ奪わないことを
+/// 固定する。
+#[wasm_bindgen_test]
+fn tree_view_mouse_click_on_disabled_item_does_not_steal_focus() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let nodes = vec![
+        TreeNode::new("a.rs", "a.rs").disabled(true),
+        TreeNode::new("readme.md", "readme.md"),
+    ];
+    let (tree_el, _component) = mount_tree_view(&document, "kn-tv-mouseclick2", nodes);
+    let _cleanup = RemoveOnDrop(tree_el.clone());
+
+    let a_rs = tree_item_by_value(&tree_el, "a.rs");
+    assert!(!a_rs.has_attribute("tabindex"));
+
+    a_rs.dispatch_event(&click_event()).unwrap();
+
+    // disabled treeitem はフォーカス・roving tabindex を得ない。マウント時の
+    // 先頭可視項目（`a.rs` 自身は disabled のため対象外だが、マウント時の
+    // 初期化は disabled をスキップして次の可視項目へ設定する契約、
+    // `initialize_tree_roving_tabindex` doc 参照）のまま変化しない。
+    assert!(!a_rs.has_attribute("tabindex"));
+    let readme = tree_item_by_value(&tree_el, "readme.md");
+    assert_eq!(readme.get_attribute("tabindex").as_deref(), Some("0"));
+}
+
+/// 検証 5: open branch 上の ArrowRight が最初の可視非 disabled 子へ
+/// フォーカスを移す（disabled な最初の子はスキップする）。
+#[wasm_bindgen_test]
+fn tree_view_arrow_right_on_open_branch_moves_to_first_enabled_child() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let nodes = vec![TreeNode::new("src", "src").with_children(vec![
+        TreeNode::new("a.rs", "a.rs").disabled(true),
+        TreeNode::new("b.rs", "b.rs"),
+    ])];
+    let (tree_el, _component) = mount_tree_view(&document, "kn-tv-expand2", nodes);
+    let _cleanup = RemoveOnDrop(tree_el.clone());
+
+    let src = tree_item_by_value(&tree_el, "src");
+    src.dispatch_event(&keydown_event("ArrowRight")).unwrap();
+    let src_after = tree_item_by_value(&tree_el, "src");
+    src_after
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    let b = tree_item_by_value(&tree_el, "b.rs");
+    assert_eq!(b.get_attribute("tabindex").as_deref(), Some("0"));
+    let a = tree_item_by_value(&tree_el, "a.rs");
+    assert!(!a.has_attribute("tabindex"));
+}
+
+/// 検証 6: open branch 上の ArrowLeft が折りたたみ（`click()` 合成 →
+/// dispatch → 再描画）、depth 0（ルート直下）の ArrowLeft は no-op。
+#[wasm_bindgen_test]
+fn tree_view_arrow_left_collapses_open_branch_and_moves_to_parent() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (tree_el, component) = mount_tree_view(&document, "kn-tv-collapse1", sample_tree_nodes());
+    let _cleanup = RemoveOnDrop(tree_el.clone());
+
+    let src = tree_item_by_value(&tree_el, "src");
+    src.dispatch_event(&keydown_event("ArrowRight")).unwrap();
+    assert!(component.borrow().is_expanded("src"));
+
+    let src_open = tree_item_by_value(&tree_el, "src");
+    src_open
+        .dispatch_event(&keydown_event("ArrowLeft"))
+        .unwrap();
+    assert!(!component.borrow().is_expanded("src"));
+    let src_closed = tree_item_by_value(&tree_el, "src");
+    assert_eq!(src_closed.get_attribute("tabindex").as_deref(), Some("0"));
+
+    // ルート直下（depth 0）の ArrowLeft は no-op（`prevent_default` されない）。
+    let not_default_prevented = src_closed
+        .dispatch_event(&keydown_event("ArrowLeft"))
+        .unwrap();
+    assert!(not_default_prevented);
+}
+
+/// 検証 6b: 葉ノードの ArrowLeft は親ブランチへフォーカス移動する
+/// （click 合成は行わない、純粋なフォーカス移動）。
+#[wasm_bindgen_test]
+fn tree_view_arrow_left_on_leaf_moves_to_parent_branch() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (tree_el, _component) = mount_tree_view(&document, "kn-tv-collapse2", sample_tree_nodes());
+    let _cleanup = RemoveOnDrop(tree_el.clone());
+
+    let src = tree_item_by_value(&tree_el, "src");
+    // 1 回目の ArrowRight は closed branch の展開のみ（フォーカスは "src" の
+    // まま復元される）。2 回目で初めて最初の子 "a.rs" へ移動する
+    // （`tree_view_arrow_right_on_open_branch_moves_to_first_enabled_child`
+    // と同じ 2 段階遷移）。
+    src.dispatch_event(&keydown_event("ArrowRight")).unwrap();
+    let src_open = tree_item_by_value(&tree_el, "src");
+    src_open
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    let a_rs = tree_item_by_value(&tree_el, "a.rs");
+    assert_eq!(a_rs.get_attribute("tabindex").as_deref(), Some("0"));
+
+    a_rs.dispatch_event(&keydown_event("ArrowLeft")).unwrap();
+    let src_after = tree_item_by_value(&tree_el, "src");
+    assert_eq!(src_after.get_attribute("tabindex").as_deref(), Some("0"));
+}
+
+/// 検証 7（受け入れ条件 2・§帰結）: 葉ノードの Enter/Space は "select" を
+/// dispatch し `aria-selected`/`data-selected` が更新される。ブランチの
+/// Enter/Space は "toggle"（展開）になり、選択はされない（`branch-control`
+/// が祖先 `branch` 行へフォールスルーする仕様、モジュール doc §TreeView
+/// §帰結参照）。
+#[wasm_bindgen_test]
+fn tree_view_enter_selects_leaf_but_toggles_branch_instead_of_selecting() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (tree_el, component) = mount_tree_view(&document, "kn-tv-enter1", sample_tree_nodes());
+    let _cleanup = RemoveOnDrop(tree_el.clone());
+
+    let src = tree_item_by_value(&tree_el, "src");
+    src.dispatch_event(&keydown_event("Enter")).unwrap();
+    assert!(
+        component.borrow().is_expanded("src"),
+        "ブランチの Enter は展開トグルとして働くべき"
+    );
+    assert_eq!(
+        component.borrow().selected(),
+        None,
+        "ブランチは選択されないべき（§帰結）"
+    );
+
+    let a_rs = tree_item_by_value(&tree_el, "a.rs");
+    a_rs.dispatch_event(&keydown_event(" ")).unwrap();
+    assert_eq!(component.borrow().selected(), Some("a.rs"));
+    let a_rs_after = tree_item_by_value(&tree_el, "a.rs");
+    assert_eq!(
+        a_rs_after.get_attribute("aria-selected").as_deref(),
+        Some("true")
+    );
+    assert!(a_rs_after.has_attribute("data-selected"));
+}
+
+/// 検証 8（イシュー #641 typeahead）: 印字可能文字が前方一致するラベルへ
+/// フォーカスを移す。
+#[wasm_bindgen_test]
+fn tree_view_typeahead_matches_label_by_prefix() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (tree_el, _component) = mount_tree_view(&document, "kn-tv-typeahead1", sample_tree_nodes());
+    let _cleanup = RemoveOnDrop(tree_el.clone());
+
+    let src = tree_item_by_value(&tree_el, "src");
+    // "r" は "readme.md" にのみマッチすべき。
+    src.dispatch_event(&keydown_event("r")).unwrap();
+    let readme = tree_item_by_value(&tree_el, "readme.md");
+    assert_eq!(readme.get_attribute("tabindex").as_deref(), Some("0"));
+}
+
+/// 検証 9: Escape は Listbox と同じ非対称扱い（typeahead バッファのみ
+/// リセット、`prevent_default` しない）。
+#[wasm_bindgen_test]
+fn tree_view_escape_resets_typeahead_buffer_without_prevent_default() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (tree_el, _component) = mount_tree_view(&document, "kn-tv-escape1", sample_tree_nodes());
+    let _cleanup = RemoveOnDrop(tree_el.clone());
+
+    let src = tree_item_by_value(&tree_el, "src");
+    let not_default_prevented = src.dispatch_event(&keydown_event("Escape")).unwrap();
+    assert!(not_default_prevented);
+    assert_eq!(src.get_attribute("tabindex").as_deref(), Some("0"));
+}
+
+/// 検証 10: 修飾キー（Ctrl/Alt/Meta）付き・未知キーは一律 no-op
+/// （`prevent_default` されない、フォーカス移動もしない）。
+#[wasm_bindgen_test]
+fn tree_view_modifier_keys_and_unknown_key_are_noop() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (tree_el, _component) = mount_tree_view(&document, "kn-tv-noop1", sample_tree_nodes());
+    let _cleanup = RemoveOnDrop(tree_el.clone());
+
+    let src = tree_item_by_value(&tree_el, "src");
+    let init = KeyboardEventInit::new();
+    init.set_bubbles(true);
+    init.set_cancelable(true);
+    init.set_key("ArrowDown");
+    init.set_ctrl_key(true);
+    let ctrl_arrow_down = KeyboardEvent::new_with_keyboard_event_init_dict("keydown", &init)
+        .unwrap()
+        .dyn_into::<Event>()
+        .unwrap();
+    let not_default_prevented = src.dispatch_event(&ctrl_arrow_down).unwrap();
+    assert!(not_default_prevented);
+    assert_eq!(src.get_attribute("tabindex").as_deref(), Some("0"));
+
+    let not_default_prevented2 = src.dispatch_event(&keydown_event("PageDown")).unwrap();
+    assert!(not_default_prevented2);
+    assert_eq!(src.get_attribute("tabindex").as_deref(), Some("0"));
+}
+
+/// 検証 11（改ざん耐性）: `data-depth` を非数値へ改ざんしても panic せず
+/// `aria-level` から決定的にフォールバックする（`0` は `aria-level="1"` 相当）。
+#[wasm_bindgen_test]
+fn tree_view_malformed_data_depth_falls_back_to_aria_level_without_panicking() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (tree_el, _component) = mount_tree_view(&document, "kn-tv-malformed1", sample_tree_nodes());
+    let _cleanup = RemoveOnDrop(tree_el.clone());
+
+    let src = tree_item_by_value(&tree_el, "src");
+    src.set_attribute("data-depth", "not-a-number").unwrap();
+    // aria-level="1" → depth フォールバック 0。ArrowDown は変わらず
+    // "readme.md" へ移動するはず（panic しないことが本検証の主眼）。
+    src.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    let readme = tree_item_by_value(&tree_el, "readme.md");
+    assert_eq!(readme.get_attribute("tabindex").as_deref(), Some("0"));
+}
+
+/// 検証 12（XSS 回帰、REQ-1）: 攻撃者制御ラベルに対し矢印移動・typeahead・
+/// Enter を行っても `script` 要素が DOM に生成されない。
+#[wasm_bindgen_test]
+fn tree_view_keyboard_navigation_with_attacker_controlled_label_does_not_inject_script() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let nodes = vec![
+        TreeNode::new("a", "<script>document.title='pwned'</script>"),
+        TreeNode::new("b", "B"),
+    ];
+    let (tree_el, _component) = mount_tree_view(&document, "kn-tv-xss1", nodes);
+    let _cleanup = RemoveOnDrop(tree_el.clone());
+    let original_title = document.title();
+
+    let a = tree_item_by_value(&tree_el, "a");
+    a.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    let b = tree_item_by_value(&tree_el, "b");
+    b.dispatch_event(&keydown_event("<")).unwrap();
+    b.dispatch_event(&keydown_event("Enter")).unwrap();
+
+    assert!(tree_el.query_selector("script").unwrap().is_none());
+    assert_eq!(
+        document.title(),
+        original_title,
+        "攻撃者制御ラベルの操作で document.title が変化してはいけない"
+    );
+}
+
+/// 検証 13（Bugbot 指摘、PR #1100、Medium severity「Focus restore ignores
+/// tree scope」）: 同一ページに同じ `data-value` を共有する複数の TreeView
+/// インスタンスが存在するとき、展開/折りたたみ/確定操作後の
+/// `restore_tree_focus_by_value` が操作対象の tree（tree A）のスコープ内へ
+/// フォーカス復元を限定し、別インスタンス（tree B）の roving tabindex/
+/// フォーカスを一切変更しないことを固定する。旧実装は `wire_keynav` の
+/// `root`（本テストでは両 tree の共通祖先）全体から `data-value` の最初の
+/// 一致を [`collect_tree_items`] 相当のスコープ限定なしに採っていたため、
+/// tree B の同名要素へ誤ってフォーカス・roving tabindex を移してしまって
+/// いた（`crate::keynav::wiring::restore_tree_focus_by_value` 参照）。
+#[wasm_bindgen_test]
+fn tree_view_restore_focus_by_value_stays_scoped_to_active_tree_when_value_is_shared() {
+    let document = web_sys::window().unwrap().document().unwrap();
+
+    let shared_root = document.create_element("div").unwrap();
+    shared_root.set_id("kn-tv-scope-root");
+    document
+        .body()
+        .unwrap()
+        .append_child(&shared_root)
+        .expect("append_child must not fail for a detached div");
+    let _cleanup = RemoveOnDrop(shared_root.clone());
+
+    // 両 tree とも branch "shared" を持つ、同名 data-value を共有する構成。
+    fn shared_value_nodes() -> Vec<TreeNode> {
+        vec![TreeNode::new("shared", "shared").with_children(vec![TreeNode::new("leaf", "leaf")])]
+    }
+
+    fn mount_child_tree(
+        document: &Document,
+        parent: &Element,
+        el_id: &str,
+        nodes: Vec<TreeNode>,
+    ) -> Element {
+        let tree_el = document.create_element("div").unwrap();
+        tree_el.set_id(el_id);
+        tree_el.set_attribute("data-scope", "tree-view").unwrap();
+        tree_el.set_attribute("data-part", "tree").unwrap();
+        tree_el.set_attribute("role", "tree").unwrap();
+        parent
+            .append_child(&tree_el)
+            .expect("append_child must not fail");
+
+        fn render_children(tree_el: &Element, state: &TreeView, nodes: &[TreeNode]) {
+            let rendered = state.render_nodes(nodes);
+            let html: String = rendered
+                .iter()
+                .map(fandhe_frontend_core::render)
+                .collect::<Vec<_>>()
+                .join("");
+            tree_el.set_inner_html(&html);
+        }
+
+        let component = Rc::new(RefCell::new(TreeView::default()));
+        render_children(&tree_el, &component.borrow(), &nodes);
+
+        let wire_tree = tree_el.clone();
+        wire_headless_component(tree_el.clone(), component, move |state, _root| {
+            render_children(&wire_tree, state, &nodes);
+        })
+        .expect("wire_headless_component must not fail");
+
+        tree_el
+    }
+
+    let tree_a = mount_child_tree(
+        &document,
+        &shared_root,
+        "kn-tv-scope-a",
+        shared_value_nodes(),
+    );
+    let tree_b = mount_child_tree(
+        &document,
+        &shared_root,
+        "kn-tv-scope-b",
+        shared_value_nodes(),
+    );
+
+    // wire_keynav は共通祖先（shared_root）へ一度だけマウントする —— 実
+    // アプリで複数 TreeView が同一ページに存在する典型構成を再現する
+    // （個別の tree_el ごとに `wire_keynav` する `mount_tree_view` ヘルパでは
+    // この回帰は再現しない）。
+    wire_keynav(shared_root.clone()).expect("wire_keynav must succeed");
+
+    // マウント時初期化により両 tree の "shared" branch へ独立して
+    // tabindex="0" が設定される（tree ごとの初期化、§設計判断 3.3）。
+    let branch_a = tree_item_by_value(&tree_a, "shared");
+    let branch_b = tree_item_by_value(&tree_b, "shared");
+    assert_eq!(branch_a.get_attribute("tabindex").as_deref(), Some("0"));
+    assert_eq!(branch_b.get_attribute("tabindex").as_deref(), Some("0"));
+
+    // tree A 側で ArrowRight（展開）→ click 合成 → dispatch → 再描画 →
+    // restore_tree_focus_by_value という経路を発火させる。
+    branch_a
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    // 再描画後の tree A "shared" 要素を再解決してフォーカス・roving
+    // tabindex が tree A 内に留まっていることを確認する。
+    let branch_a_after = tree_item_by_value(&tree_a, "shared");
+    assert_eq!(
+        branch_a_after.get_attribute("tabindex").as_deref(),
+        Some("0"),
+        "操作対象の tree A の branch は tabindex=\"0\" を維持しなければならない"
+    );
+
+    // tree B 側は一切変更されていないこと（tabindex を奪われていない）。
+    let branch_b_after = tree_item_by_value(&tree_b, "shared");
+    assert_eq!(
+        branch_b_after.get_attribute("tabindex").as_deref(),
+        Some("0"),
+        "tree A の操作で tree B の roving tabindex を奪ってはいけない"
+    );
+
+    // tree A 内には tabindex="0" 保持者がちょうど 1 個だけ存在する
+    // （focus_tree_item への委譲で他保持者がクリアされることの直接検証、
+    // 「他の tabindex=\"0\" 保持者をクリアしない」Bugbot 指摘の裏付け）。
+    let tabbable_in_a = tree_a.query_selector_all("[tabindex=\"0\"]").unwrap();
+    assert_eq!(tabbable_in_a.length(), 1);
 }
 
 // =======================================================================

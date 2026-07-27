@@ -20,9 +20,10 @@ use fandhe_frontend_wasm_full::keynav::{
     accordion_next_index, calendar_next_index, combobox_key_action, highlight_next_index,
     is_typeahead_key, listbox_next_index, loop_focus_from_attr, menu_loop_focus_from_attr,
     navigation_menu_link_next_index, navigation_menu_trigger_key_action, radio_next_index,
-    splitter_key_action, submenu_nav, tabs_next_index, toggle_group_next_index,
-    typeahead_next_index, typeahead_push, ComboboxKeyAction, Modifiers, NavigationMenuKeyAction,
-    Orientation, SplitterKeyAction, SubmenuNav, TYPEAHEAD_TIMEOUT_MS,
+    splitter_key_action, submenu_nav, tabs_next_index, toggle_group_next_index, tree_key_action,
+    tree_visible_flags, typeahead_next_index, typeahead_push, ComboboxKeyAction, Modifiers,
+    NavigationMenuKeyAction, Orientation, SplitterKeyAction, SubmenuNav, TreeItemMeta,
+    TreeKeyAction, TYPEAHEAD_TIMEOUT_MS,
 };
 
 /// 検証 1: Tabs horizontal の ArrowRight/ArrowLeft がフォーカスを移動する。
@@ -847,6 +848,37 @@ fn toggle_group_next_index_matches_radio_next_index() {
     assert_eq!(
         toggle_group_next_index(0, "ArrowRight", None, Modifiers::default(), &disabled),
         radio_next_index(0, "ArrowRight", None, Modifiers::default(), &disabled)
+    );
+}
+
+/// 検証（イシュー #1072）: TreeView の ArrowDown が可視項目のみを辿り、
+/// ArrowRight が closed branch を展開要求へ変換する（公開 API 経由の
+/// 統合確認。網羅ケースは `crates/wasm-full/src/keynav.rs` のモジュール内
+/// 単体テスト参照）。
+#[test]
+fn tree_view_key_action_moves_focus_and_requests_branch_expand() {
+    let items = [
+        TreeItemMeta {
+            depth: 0,
+            is_branch: true,
+            is_open: false,
+            disabled: false,
+        },
+        TreeItemMeta {
+            depth: 1,
+            is_branch: false,
+            is_open: false,
+            disabled: false,
+        },
+    ];
+    assert_eq!(tree_visible_flags(&items), vec![true, false]);
+    assert_eq!(
+        tree_key_action(Some(0), "ArrowRight", Modifiers::default(), &items),
+        Some(TreeKeyAction::ExpandBranch(0))
+    );
+    assert_eq!(
+        tree_key_action(None, "ArrowDown", Modifiers::default(), &items),
+        Some(TreeKeyAction::MoveFocus(0))
     );
 }
 
