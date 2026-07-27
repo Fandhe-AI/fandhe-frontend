@@ -59,7 +59,9 @@
   `no_js_contract.rs` / `primitive_showcase.rs` / `primitive_showcase_xss.rs` /
   `primitives_nav.rs` / `primitives_catalog.rs` / `wrap_state.rs`〔Primitives
   63 部品 と Themes 107 部品の層をまたぐラップ状態の 4 バケット分割検知、
-  イシュー #1064〕）が担い、yml・ci.md では
+  イシュー #1064〕/ `highlight.rs`〔フェンスコードブロックの軽量シンタックス
+  ハイライト（`src/highlight.rs`）の XSS エスケープ・CSS トークン網羅性・
+  全域性契約、イシュー #1078〕）が担い、yml・ci.md では
   二重管理しない（ページ件数・部品数を ci.md へ書かないのはこの二重管理回避のため）。
 - **`fw gate`（`crates/cli/src/gate.rs`）系のツール（clippy component / cargo-deny）**: `tools/ci/ensure-gate-tools.sh` を標準ブートストラップとする（イシュー #292）。CI（`.github/workflows/ci.yml` の test ジョブ・`gate-self-apply` ジョブ）・ローカル開発・AI 自己保守フックのいずれも `fw gate` 実行前にこのスクリプトを前置する運用を推奨する。バージョン固定・SHA256 チェックサム検証はスクリプト側に一元化し、CI ワークフロー側との二重管理でドリフトさせない。前置されなかった場合でも `fw gate` 側のプリフライト検出（`docs/design/gate-design.md` §2.3a）が「環境エラーであること」を決定的なメッセージ（是正コマンド付き）で示し、コード起因の FAIL との区別を保つ
 - **`fw gate --project .` の自己適用常時実行（イシュー #400）**: `.github/workflows/ci.yml` の `gate-self-apply` ジョブが PR ごと・main push ごとに `fw gate --project .` 自己適用（#372/PR #382 で PASS 化）を実行し、`gate_result: "PASS"` の継続を保証する。BLOCKED 時は JSON レポートの `environment error: ` プレフィックス有無で環境エラーとコード起因 FAIL を CI アノテーションとして区別する（詳細は `docs/design/gate-design.md` §6）

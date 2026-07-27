@@ -168,7 +168,13 @@ pub fn tokenize(src: &str, lang: Language) -> Option<Vec<Token<'_>>> {
     }
     let mut offset = 0usize;
     for t in &tokens {
-        let piece = &src[offset..offset + t.text.len()];
+        // `src.get(..)` を使う（直接スライスの `&src[..]` は文字境界を
+        // またぐと panic する）。本検証は「トークナイザ実装バグを実行時に
+        // 検知してプレーン表示へフォールバックする」フェイルセーフであり、
+        // フェイルセーフ自身が将来のオフセット計算バグで panic してはならない
+        // （モジュール doc の「fail-safe が 1 機構で完結」という設計意図、
+        // レビュー指摘）。
+        let piece = src.get(offset..offset + t.text.len())?;
         if piece != t.text {
             return None;
         }
@@ -546,14 +552,13 @@ fn tokenize_toml(src: &str) -> Vec<Token<'_>> {
 
         // 行頭の空白（インデント）は at_line_start を維持したまま消費する。
         if at_line_start && (bytes[start] == b' ' || bytes[start] == b'\t') {
-            let ws_len = whitespace_len(rest);
-            // 改行はここでは含めない（whitespace_len は改行も空白扱いする
-            // ため、改行に当たる直前までに制限する）。
+            // `whitespace_len` は改行も空白扱いするため使わない
+            // （改行に当たる直前までに制限する必要がある）。改行を除外する
+            // このループで直接末尾を求める。
             let mut j = start;
             while j < len && bytes[j] != b'\n' && (bytes[j] as char).is_whitespace() {
                 j += 1;
             }
-            let _ = ws_len;
             tokens.push(Token {
                 kind: TokenKind::Plain,
                 text: &src[start..j],

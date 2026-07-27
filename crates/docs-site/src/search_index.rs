@@ -157,15 +157,36 @@ fn collect_text(node: &Node) -> String {
 /// [`collect_text`] の内部再帰実装。要素の切れ目に単一の半角スペースを挿入する
 /// （正規化前の粗いブロック境界。連続空白の畳み込みは [`normalize_whitespace`]
 /// が担う）。
+///
+/// # ハイライトトークン `span` の透過扱い（イシュー #1078 レビュー指摘）
+///
+/// `crate::highlight::highlight_children` はフェンスコードブロック内の
+/// トークンを `span(vec![("class", "token-*")], vec![text(t.text)])` で包む。
+/// 本関数が要素境界に一律スペースを挿入すると、たとえば Rust フェンス中の
+/// `crate::highlight`（`crate` はキーワードで span に包まれる）が索引上で
+/// `"crate ::highlight"` のように分断され、利用者が `crate::highlight` で
+/// 全文検索してもヒットしなくなる（span 化前は単一の `Text` ノードだった
+/// ため発生しなかった退行）。`class` 属性値が `token-` 接頭辞を持つ `span`
+/// は「表示上の色分けのみを目的とした透過的な装飾」であり本文の語境界では
+/// ないため、スペースを挿入せず子ノードへそのまま連結する
+/// （[`is_token_span`] 参照）。
 fn collect_text_into(node: &Node, out: &mut String) {
     match node {
         Node::Text(s) => out.push_str(s),
         Node::Element {
-            attrs, children, ..
+            tag,
+            attrs,
+            children,
         } => {
             // headless-ui anatomy ルート（`data-scope` 属性）の部分木は
             // `layout::inject_heading_anchors` と同一基準で丸ごと除外する。
             if attrs.iter().any(|(name, _)| name == "data-scope") {
+                return;
+            }
+            if is_token_span(tag, attrs) {
+                for child in children {
+                    collect_text_into(child, out);
+                }
                 return;
             }
             out.push(' ');
@@ -179,6 +200,22 @@ fn collect_text_into(node: &Node, out: &mut String) {
         // 不変条件参照）。
         Node::RawHtml(_) => {}
     }
+}
+
+/// `crate::highlight::highlight_children` が生成する色分け `span` かどうかを
+/// 判定する（[`collect_text_into`] が語結合破壊を避けるために参照する）。
+///
+/// `class` 属性値が `token-` で始まる `span` 要素のみを対象とする。
+/// `crate::highlight::TokenKind::class` が返すクラス名は常に `token-` 接頭辞
+/// （`token-keyword` 等）であり、他の意図（`pre-styled-ui` のバッジ等）で
+/// `span` に `token-` 接頭辞のクラスが使われることは想定していない
+/// （万一の衝突があっても「語を分断しない」方向への誤判定でしかなく、索引の
+/// 検索可能性を損なう副作用は生じない）。
+fn is_token_span(tag: &str, attrs: &[(String, String)]) -> bool {
+    tag == "span"
+        && attrs
+            .iter()
+            .any(|(name, value)| name == "class" && value.starts_with("token-"))
 }
 
 /// 空白（`char::is_whitespace`、`U+00A0`/`U+3000` を含む）の連続を単一
@@ -495,6 +532,42 @@ mod tests {
         assert!(extracted.contains("before"));
         assert!(!extracted.contains("raw"));
         assert!(!extracted.contains('<'));
+    }
+
+    /// キーワード/リテラルに隣接する非空白文字を含む語句
+    /// （`crate::highlight` の `crate`、`foo(1)` の `1` 等）が、ハイライト
+    /// トークン `span` を経由しても索引テキスト上で分断されないことを検証
+    /// する（レビュー指摘の回帰テスト、イシュー #1078）。`fn`/`use`/
+    /// `user_badge` のような「単独で分断されない単語」だけを見る従来の
+    /// `tests/search_index.rs` の統合テストでは検出できない退行クラス
+    /// （語の前後に非空白の記号・識別子が直接続くケース）を、本モジュール
+    /// 内で `crate::highlight::highlight_children` の実出力に対して直接
+    /// 検証する。
+    #[test]
+    fn collect_text_does_not_split_words_adjacent_to_highlight_token_spans() {
+        // `crate::highlight` 相当: キーワード `crate` の直後に `::highlight`
+        // が続く（`crate` だけが token-keyword span で包まれ、`::highlight`
+        // は同じ children 列内の別トークンとして並ぶ）。
+        let rust_src = "crate::highlight";
+        let children = crate::highlight::highlight_children(rust_src, "rust")
+            .expect("rust highlighting should succeed for this fixture");
+        let body = el("pre", vec![], vec![el("code", vec![], children)]);
+        let extracted = collect_text(&body);
+        assert!(
+            extracted.contains("crate::highlight"),
+            "expected \"crate::highlight\" to remain contiguous in the index text, got: {extracted:?}"
+        );
+
+        // `foo(1)` 相当: 数値リテラル `1` の前後に `foo(` `)` が隣接する。
+        let call_src = "foo(1)";
+        let children = crate::highlight::highlight_children(call_src, "rust")
+            .expect("rust highlighting should succeed for this fixture");
+        let body = el("pre", vec![], vec![el("code", vec![], children)]);
+        let extracted = collect_text(&body);
+        assert!(
+            extracted.contains("foo(1)"),
+            "expected \"foo(1)\" to remain contiguous in the index text, got: {extracted:?}"
+        );
     }
 
     #[test]
