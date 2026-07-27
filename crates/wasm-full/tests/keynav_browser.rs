@@ -5470,6 +5470,67 @@ fn navigation_menu_home_end_move_to_first_last_trigger() {
     );
 }
 
+/// 検証 14-2b: `content` パネル内にネストした NavigationMenu trigger
+/// （mega menu 等）が、外側 trigger 間の Arrow/Home/End 移動対象へ漏れ
+/// 込まないことを固定する（PR #1098 レビュー指摘、Bugbot: 所有関係の
+/// フィルタなしに `nav_root` 配下の trigger を全収集すると、`item` "a" の
+/// `content` 内へ手組みで挿入したネスト trigger が矢印キー移動対象に
+/// 含まれてしまう）。`item` "a" の `content` へ独自の `trigger` を 1 個
+/// 追加挿入したうえで、`trigger` a → ArrowRight で本来の次項目 "b" へだけ
+/// 移動し、ネスト trigger が候補集合に混入しないことを検証する。
+#[wasm_bindgen_test]
+fn navigation_menu_nested_trigger_in_content_does_not_leak_into_trigger_navigation() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_navigation_menu_dom(
+        &document,
+        "kn-nm-nest1",
+        &[("a", "A", false), ("b", "B", false)],
+        "horizontal",
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    // item "a" の content 内に、独自の navigation-menu trigger を挿入する
+    // （mega menu が content 内へ別 NavigationMenu を埋め込むケースを模す）。
+    let content_a = document.get_element_by_id("kn-nm-nest1-content-a").unwrap();
+    let nested_trigger = document.create_element("button").unwrap();
+    nested_trigger
+        .set_attribute("data-scope", "navigation-menu")
+        .unwrap();
+    nested_trigger
+        .set_attribute("data-part", "trigger")
+        .unwrap();
+    nested_trigger.set_attribute("type", "button").unwrap();
+    nested_trigger
+        .set_attribute("id", "kn-nm-nest1-nested-trigger")
+        .unwrap();
+    nested_trigger.set_text_content(Some("Nested"));
+    content_a.append_child(&nested_trigger).unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger_a = document.get_element_by_id("kn-nm-nest1-trigger-a").unwrap();
+    html_element(&trigger_a).focus().unwrap();
+    trigger_a
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    // ネスト trigger ではなく、外側の次項目 "b" へ移動する。
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-nm-nest1-trigger-b".to_string())
+    );
+
+    // Home/End もネスト trigger を候補集合に含めない（先頭/末尾は依然として
+    // "a"/"b" のまま）。
+    let trigger_b = document.get_element_by_id("kn-nm-nest1-trigger-b").unwrap();
+    trigger_b.dispatch_event(&keydown_event("End")).unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-nm-nest1-trigger-b".to_string())
+    );
+}
+
 /// 検証 14-3: closed 時、horizontal の ArrowDown で `click()` 合成 → content
 /// 再解決 → 先頭リンクへフォーカスする（`aria-expanded` が `true` へ
 /// 変化することも確認）。
@@ -5523,6 +5584,39 @@ fn navigation_menu_closed_horizontal_arrow_up_opens_focusing_last_link() {
     assert_eq!(
         document.active_element().map(|el| el.id()),
         Some("kn-nm-o2-link-a-2".to_string())
+    );
+}
+
+/// 検証 14-4b: closed 時、vertical の前方向キー ArrowLeft でも horizontal
+/// の ArrowUp と同じく `click()` 合成 → content 再解決 → 末尾リンクへ
+/// フォーカスする（PR #1098 レビュー指摘、Bugbot: 縦方向メニューで
+/// ArrowLeft を欠落すると最後のリンクからコンテンツへ入れない）。
+#[wasm_bindgen_test]
+fn navigation_menu_closed_vertical_arrow_left_opens_focusing_last_link() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_navigation_menu_dom(
+        &document,
+        "kn-nm-o2v",
+        &[("a", "A", false)],
+        "vertical",
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger_a = document.get_element_by_id("kn-nm-o2v-trigger-a").unwrap();
+    html_element(&trigger_a).focus().unwrap();
+    trigger_a
+        .dispatch_event(&keydown_event("ArrowLeft"))
+        .unwrap();
+
+    assert_eq!(
+        trigger_a.get_attribute("aria-expanded").as_deref(),
+        Some("true")
+    );
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-nm-o2v-link-a-2".to_string())
     );
 }
 

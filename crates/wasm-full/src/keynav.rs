@@ -423,7 +423,8 @@
 //!   open/close/リンク移動系（[`NavigationMenuKeyAction`]）へフォールスルー
 //!   する（Menubar の「トリガー間移動を先に評価」順序規則と同型）。
 //! - closed 時、開く方向のキー（horizontal: `ArrowDown`、vertical:
-//!   `ArrowRight`。前方向 `ArrowUp`/`ArrowLeft` は末尾リンクから開く）で
+//!   `ArrowRight`。前方向 `ArrowUp`（horizontal）/`ArrowLeft`（vertical）は
+//!   末尾リンクから開く）で
 //!   `trigger.click()` を合成し、既存の click → dispatch 経路へ open を
 //!   委譲した後、content を**再解決**して先頭/末尾リンクへフォーカスする
 //!   （click 由来の再描画で要素が差し替わりうるため、Menu の
@@ -1165,6 +1166,7 @@ pub enum NavigationMenuKeyAction {
 /// | `ArrowDown` | horizontal | `OpenToLink { from_end: false }` | `FocusLink { from_end: false }` |
 /// | `ArrowUp` | horizontal | `OpenToLink { from_end: true }` | `FocusLink { from_end: true }` |
 /// | `ArrowRight` | vertical | `OpenToLink { from_end: false }` | `FocusLink { from_end: false }` |
+/// | `ArrowLeft` | vertical | `OpenToLink { from_end: true }` | `FocusLink { from_end: true }` |
 /// | `Escape` | 両方 | `None`（**fail-closed**。closed で claim すると誤って open してしまう） | `Close` |
 /// | それ以外・修飾キー付き | — | `None` | `None` |
 #[must_use]
@@ -1182,7 +1184,7 @@ pub fn navigation_menu_trigger_key_action(
             (Orientation::Horizontal, "ArrowDown") | (Orientation::Vertical, "ArrowRight") => {
                 Some(NavigationMenuKeyAction::FocusLink { from_end: false })
             }
-            (Orientation::Horizontal, "ArrowUp") => {
+            (Orientation::Horizontal, "ArrowUp") | (Orientation::Vertical, "ArrowLeft") => {
                 Some(NavigationMenuKeyAction::FocusLink { from_end: true })
             }
             (_, "Escape") => Some(NavigationMenuKeyAction::Close),
@@ -1193,7 +1195,7 @@ pub fn navigation_menu_trigger_key_action(
             (Orientation::Horizontal, "ArrowDown") | (Orientation::Vertical, "ArrowRight") => {
                 Some(NavigationMenuKeyAction::OpenToLink { from_end: false })
             }
-            (Orientation::Horizontal, "ArrowUp") => {
+            (Orientation::Horizontal, "ArrowUp") | (Orientation::Vertical, "ArrowLeft") => {
                 Some(NavigationMenuKeyAction::OpenToLink { from_end: true })
             }
             // closed 時の Escape は claim しない（fail-closed、`combobox_key_action`
@@ -2641,6 +2643,28 @@ mod tests {
         );
         assert_eq!(
             navigation_menu_trigger_key_action("ArrowUp", mods(), Orientation::Vertical, false),
+            None
+        );
+    }
+
+    #[test]
+    fn navigation_menu_trigger_key_action_vertical_uses_arrow_left_to_open_from_end() {
+        // PR #1098 レビュー指摘（Bugbot）: vertical の前方向キー ArrowLeft が
+        // horizontal の ArrowUp と同じ「末尾リンクから開く/フォーカスする」
+        // 挙動を持つことを固定する（モジュール doc §NavigationMenu・本関数
+        // rustdoc 判定表参照）。
+        assert_eq!(
+            navigation_menu_trigger_key_action("ArrowLeft", mods(), Orientation::Vertical, false),
+            Some(NavigationMenuKeyAction::OpenToLink { from_end: true })
+        );
+        assert_eq!(
+            navigation_menu_trigger_key_action("ArrowLeft", mods(), Orientation::Vertical, true),
+            Some(NavigationMenuKeyAction::FocusLink { from_end: true })
+        );
+        // horizontal では ArrowLeft はトリガー間移動キーであり本関数の対象外
+        // （`tabs_next_index` が先に評価する）。
+        assert_eq!(
+            navigation_menu_trigger_key_action("ArrowLeft", mods(), Orientation::Horizontal, false),
             None
         );
     }
@@ -4872,6 +4896,28 @@ mod wiring {
         nav_root.contains(Some(content)) && !content.has_attribute("hidden")
     }
 
+    /// `nav_root` に**直接所属する** `trigger`（トップレベルのメニュー
+    /// バー項目）だけを集める（PR #1098 レビュー指摘、イシュー #1075）。
+    /// [`navigation_menu_links`] と同趣旨・同型の所有関係フィルタ: (1)
+    /// いずれかの `content` 配下に入れ子で置かれた `trigger`（mega menu 等
+    /// が content 内に別の NavigationMenu を埋め込むケース）を
+    /// `closest(trigger, CONTENT_SELECTOR).is_none()` で除外し、(2) 入れ子
+    /// NavigationMenu 自身の `trigger`（別 root スコープ）を
+    /// `closest(trigger, ROOT_SELECTOR)` が `nav_root` と一致することの
+    /// 検査で除外する。フィルタなしで `nav_root` 配下の trigger を全収集
+    /// すると、content パネル内に隠れた入れ子 trigger も矢印キー/Home/End
+    /// によるトリガー間移動の対象に含まれてしまう（A01 対策）。
+    fn navigation_menu_own_triggers(nav_root: &Element) -> Vec<Element> {
+        collect_parts(nav_root, NAVIGATION_MENU_TRIGGER_SELECTOR)
+            .into_iter()
+            .filter(|trigger| {
+                closest(trigger, NAVIGATION_MENU_CONTENT_SELECTOR).is_none()
+                    && closest(trigger, NAVIGATION_MENU_ROOT_SELECTOR)
+                        .is_some_and(|owner| owner.is_same_node(Some(nav_root)))
+            })
+            .collect()
+    }
+
     /// NavigationMenu trigger 上の keydown を処理する（イシュー #1075）。
     /// [`tabs_next_index`] によるトリガー間移動を先に評価し（Menubar と
     /// 同じ優先順位規則、モジュール doc §NavigationMenu 参照）、`None`
@@ -4891,7 +4937,7 @@ mod wiring {
         if !root.contains(Some(&nav_root)) {
             return;
         }
-        let triggers = collect_parts(&nav_root, NAVIGATION_MENU_TRIGGER_SELECTOR);
+        let triggers = navigation_menu_own_triggers(&nav_root);
         let Some(current) = index_of(&triggers, trigger) else {
             return;
         };
