@@ -2818,18 +2818,6 @@ mod tests {
         assert_eq!(
             tree_visible_flags(&items),
             vec![true, true, true, true, true]
-    // --- calendar_next_index（イシュー #1074） ---
-
-    #[test]
-    fn calendar_next_index_horizontal_moves_by_one() {
-        let disabled = vec![false; 14];
-        assert_eq!(
-            calendar_next_index(3, "ArrowRight", 7, mods(), &disabled),
-            Some(4)
-        );
-        assert_eq!(
-            calendar_next_index(3, "ArrowLeft", 7, mods(), &disabled),
-            Some(2)
         );
     }
 
@@ -2892,15 +2880,6 @@ mod tests {
         assert_eq!(
             tree_key_action(Some(4), "ArrowUp", mods_default(), &items),
             Some(TreeKeyAction::MoveFocus(2))
-    fn calendar_next_index_vertical_moves_by_columns() {
-        let disabled = vec![false; 21];
-        assert_eq!(
-            calendar_next_index(3, "ArrowDown", 7, mods(), &disabled),
-            Some(10)
-        );
-        assert_eq!(
-            calendar_next_index(10, "ArrowUp", 7, mods(), &disabled),
-            Some(3)
         );
     }
 
@@ -2913,22 +2892,6 @@ mod tests {
         );
         assert_eq!(
             tree_key_action(Some(0), "ArrowUp", mods_default(), &items),
-    fn calendar_next_index_is_non_circular_at_array_bounds() {
-        let disabled = vec![false; 7];
-        assert_eq!(
-            calendar_next_index(0, "ArrowLeft", 7, mods(), &disabled),
-            None
-        );
-        assert_eq!(
-            calendar_next_index(6, "ArrowRight", 7, mods(), &disabled),
-            None
-        );
-        assert_eq!(
-            calendar_next_index(0, "ArrowUp", 7, mods(), &disabled),
-            None
-        );
-        assert_eq!(
-            calendar_next_index(6, "ArrowDown", 7, mods(), &disabled),
             None
         );
     }
@@ -2943,12 +2906,6 @@ mod tests {
         assert_eq!(
             tree_key_action(None, "End", mods_default(), &items),
             Some(TreeKeyAction::MoveFocus(2))
-    fn calendar_next_index_skips_disabled_cells() {
-        // 行: [false, true, true, false, false, false, false]
-        let disabled = vec![false, true, true, false, false, false, false];
-        assert_eq!(
-            calendar_next_index(0, "ArrowRight", 7, mods(), &disabled),
-            Some(3)
         );
     }
 
@@ -3049,6 +3006,125 @@ mod tests {
     #[test]
     fn tree_key_action_rejects_modifier_keys() {
         let items = [leaf(0), leaf(0)];
+        let ctrl = Modifiers {
+            ctrl: true,
+            ..Modifiers::default()
+        };
+        assert_eq!(tree_key_action(Some(0), "ArrowDown", ctrl, &items), None);
+    }
+
+    #[test]
+    fn tree_key_action_unknown_key_is_noop() {
+        let items = [leaf(0)];
+        assert_eq!(
+            tree_key_action(Some(0), "PageDown", mods_default(), &items),
+            None
+        );
+    }
+
+    #[test]
+    fn tree_key_action_out_of_range_current_falls_back_to_no_current_behavior() {
+        let items = [leaf(0), leaf(0)];
+        assert_eq!(
+            tree_key_action(Some(99), "ArrowDown", mods_default(), &items),
+            Some(TreeKeyAction::MoveFocus(0))
+        );
+        assert_eq!(
+            tree_key_action(Some(99), "ArrowUp", mods_default(), &items),
+            Some(TreeKeyAction::MoveFocus(1))
+        );
+    }
+
+    #[test]
+    fn tree_key_action_empty_items_yields_none() {
+        assert_eq!(
+            tree_key_action(None, "ArrowDown", mods_default(), &[]),
+            None
+        );
+    }
+
+    #[test]
+    fn tree_key_action_all_disabled_yields_none_for_home_end() {
+        let mut a = leaf(0);
+        a.disabled = true;
+        let mut b = leaf(0);
+        b.disabled = true;
+        let items = [a, b];
+        assert_eq!(tree_key_action(None, "Home", mods_default(), &items), None);
+        assert_eq!(tree_key_action(None, "End", mods_default(), &items), None);
+    }
+
+    #[test]
+    fn tree_key_action_current_on_disabled_item_is_noop_for_activation_keys() {
+        let mut a = leaf(0);
+        a.disabled = true;
+        let items = [a];
+        assert_eq!(
+            tree_key_action(Some(0), "Enter", mods_default(), &items),
+            None
+        );
+    }
+
+    // --- calendar_next_index（イシュー #1074） ---
+
+    #[test]
+    fn calendar_next_index_horizontal_moves_by_one() {
+        let disabled = vec![false; 14];
+        assert_eq!(
+            calendar_next_index(3, "ArrowRight", 7, mods(), &disabled),
+            Some(4)
+        );
+        assert_eq!(
+            calendar_next_index(3, "ArrowLeft", 7, mods(), &disabled),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn calendar_next_index_vertical_moves_by_columns() {
+        let disabled = vec![false; 21];
+        assert_eq!(
+            calendar_next_index(3, "ArrowDown", 7, mods(), &disabled),
+            Some(10)
+        );
+        assert_eq!(
+            calendar_next_index(10, "ArrowUp", 7, mods(), &disabled),
+            Some(3)
+        );
+    }
+
+    #[test]
+    fn calendar_next_index_is_non_circular_at_array_bounds() {
+        let disabled = vec![false; 7];
+        assert_eq!(
+            calendar_next_index(0, "ArrowLeft", 7, mods(), &disabled),
+            None
+        );
+        assert_eq!(
+            calendar_next_index(6, "ArrowRight", 7, mods(), &disabled),
+            None
+        );
+        assert_eq!(
+            calendar_next_index(0, "ArrowUp", 7, mods(), &disabled),
+            None
+        );
+        assert_eq!(
+            calendar_next_index(6, "ArrowDown", 7, mods(), &disabled),
+            None
+        );
+    }
+
+    #[test]
+    fn calendar_next_index_skips_disabled_cells() {
+        // 行: [false, true, true, false, false, false, false]
+        let disabled = vec![false, true, true, false, false, false, false];
+        assert_eq!(
+            calendar_next_index(0, "ArrowRight", 7, mods(), &disabled),
+            Some(3)
+        );
+    }
+
+    #[test]
     fn calendar_next_index_home_and_end_within_row() {
         // 2 行 7 列。1 行目は先頭・末尾が disabled。
         let mut disabled = vec![false; 14];
@@ -3077,14 +3153,6 @@ mod tests {
             ctrl: true,
             ..Modifiers::default()
         };
-        assert_eq!(tree_key_action(Some(0), "ArrowDown", ctrl, &items), None);
-    }
-
-    #[test]
-    fn tree_key_action_unknown_key_is_noop() {
-        let items = [leaf(0)];
-        assert_eq!(
-            tree_key_action(Some(0), "PageDown", mods_default(), &items),
         assert_eq!(
             calendar_next_index(0, "ArrowRight", 7, ctrl, &disabled),
             None
@@ -3123,22 +3191,6 @@ mod tests {
     }
 
     #[test]
-    fn tree_key_action_out_of_range_current_falls_back_to_no_current_behavior() {
-        let items = [leaf(0), leaf(0)];
-        assert_eq!(
-            tree_key_action(Some(99), "ArrowDown", mods_default(), &items),
-            Some(TreeKeyAction::MoveFocus(0))
-        );
-        assert_eq!(
-            tree_key_action(Some(99), "ArrowUp", mods_default(), &items),
-            Some(TreeKeyAction::MoveFocus(1))
-        );
-    }
-
-    #[test]
-    fn tree_key_action_empty_items_yields_none() {
-        assert_eq!(
-            tree_key_action(None, "ArrowDown", mods_default(), &[]),
     fn splitter_key_action_vertical_down_and_up() {
         assert_eq!(
             splitter_key_action("ArrowDown", Orientation::Vertical, mods()),
@@ -3159,23 +3211,6 @@ mod tests {
     }
 
     #[test]
-    fn tree_key_action_all_disabled_yields_none_for_home_end() {
-        let mut a = leaf(0);
-        a.disabled = true;
-        let mut b = leaf(0);
-        b.disabled = true;
-        let items = [a, b];
-        assert_eq!(tree_key_action(None, "Home", mods_default(), &items), None);
-        assert_eq!(tree_key_action(None, "End", mods_default(), &items), None);
-    }
-
-    #[test]
-    fn tree_key_action_current_on_disabled_item_is_noop_for_activation_keys() {
-        let mut a = leaf(0);
-        a.disabled = true;
-        let items = [a];
-        assert_eq!(
-            tree_key_action(Some(0), "Enter", mods_default(), &items),
     fn splitter_key_action_home_and_end_are_axis_independent() {
         for orientation in [Orientation::Horizontal, Orientation::Vertical] {
             assert_eq!(
@@ -3218,17 +3253,12 @@ mod tests {
 #[cfg(target_arch = "wasm32")]
 mod wiring {
     use super::{
-        accordion_next_index, combobox_key_action, first_non_disabled, highlight_next_index,
-        is_typeahead_key, last_non_disabled, listbox_next_index, loop_focus_from_attr,
-        menu_loop_focus_from_attr, radio_next_index, submenu_nav, tabs_next_index, tree_key_action,
-        tree_visible_flags, typeahead_next_index, typeahead_push, ComboboxKeyAction, Modifiers,
-        Orientation, SubmenuNav, TreeItemMeta, TreeKeyAction, MAX_SUBMENU_DEPTH,
-        TYPEAHEAD_TIMEOUT_MS,
         accordion_next_index, calendar_next_index, combobox_key_action, first_non_disabled,
         highlight_next_index, is_typeahead_key, last_non_disabled, listbox_next_index,
         loop_focus_from_attr, menu_loop_focus_from_attr, radio_next_index, submenu_nav,
-        tabs_next_index, typeahead_next_index, typeahead_push, ComboboxKeyAction, Modifiers,
-        Orientation, SubmenuNav, MAX_SUBMENU_DEPTH, TYPEAHEAD_TIMEOUT_MS,
+        tabs_next_index, tree_key_action, tree_visible_flags, typeahead_next_index, typeahead_push,
+        ComboboxKeyAction, Modifiers, Orientation, SubmenuNav, TreeItemMeta, TreeKeyAction,
+        MAX_SUBMENU_DEPTH, TYPEAHEAD_TIMEOUT_MS,
     };
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
@@ -5717,6 +5747,7 @@ mod wiring {
         // roving tabindex」、モジュール doc §TreeView 参照）。
         if target.matches(TREE_VIEW_TREEITEM_SELECTOR).unwrap_or(false) {
             return Some(("tree-view", target.clone()));
+        }
         // Calendar day-trigger はネイティブ `<button>` で実フォーカスを直接
         // 保持するため、Tabs/Accordion と同じく target 自身の一致判定のみで
         // 足りる（イシュー #1074、モジュール doc §Calendar 参照）。
