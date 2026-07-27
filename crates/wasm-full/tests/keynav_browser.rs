@@ -6508,7 +6508,11 @@ fn navigation_menu_close_with_duplicate_id_does_not_leak_focus_outside_root() {
 
     let trigger_a = document.get_element_by_id("kn-nm-dupid-trigger-a").unwrap();
     let content = document.get_element_by_id("kn-nm-dupid-content-a").unwrap();
-    wire_toggle_listener(&trigger_a, &content);
+    // `wire_toggle_listener` は `build_navigation_menu_dom` が各 trigger へ
+    // 既に配線済み（同関数 doc 参照）。ここで重ねて登録すると Escape が
+    // 合成する `click()` によりトグルが 2 回発火し、content が開いたまま
+    // 残って `hidden` アサーションが偽陰性を起こす（Bugbot 指摘、PR #1098
+    // レビュー）。reresolve 修正の回帰カバレッジを保つため二重登録しない。
 
     // root 外に正規 trigger と同一 id の decoy を、body の先頭（root より
     // 前）へ挿入する。document.get_element_by_id は重複 id のとき DOM 順で
