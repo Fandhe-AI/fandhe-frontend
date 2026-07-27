@@ -22,6 +22,7 @@ use fandhe_frontend_headless_ui::combobox::{self, Combobox};
 use fandhe_frontend_headless_ui::popover::Popover;
 use fandhe_frontend_headless_ui::select::Select;
 use fandhe_frontend_headless_ui::state::{OpenState, SingleSelect};
+use fandhe_frontend_headless_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_headless_ui::{
     collapsible, dialog, popover, radio_group, select, tabs, Dialog, Menu, RadioGroup, TabItem,
     Tooltip,
@@ -465,4 +466,126 @@ fn select_item_data_value_xss_payload_is_escaped_on_render() {
     let html = render(&fandhe_frontend_interactive::render_for_hydration(&s));
     assert!(!html.contains("<script>alert(1)</script>"));
     assert!(html.contains("&lt;script&gt;"));
+}
+
+// --- イシュー #1072: TreeView（branch の toggle・item の select）のドリフト
+// 検知 + dispatch 遷移検証 ---
+
+/// `crate::keynav::wiring::synthesize_tree_click` はブランチの `click()` を
+/// `branch-control`（自身に `data-value` を持たない）へ合成する。
+/// `action_from_parts` の内側優先探索により祖先の `branch` 行
+/// （`"toggle"`、`data-value` あり）で解決されることを固定する
+/// （`crate::keynav` モジュール doc §TreeView §帰結参照）。
+#[test]
+fn tree_view_branch_control_click_resolves_to_ancestor_branch_toggle() {
+    let branch_html = render(&tree_view::branch(
+        OpenState::Closed,
+        "src",
+        false,
+        false,
+        "1",
+        "1",
+        "1",
+        "0",
+        vec![],
+        vec![],
+    ));
+    assert_scope_part_present(&branch_html, "tree-view", "branch");
+    let control_html = render(&tree_view::branch_control(
+        OpenState::Closed,
+        false,
+        false,
+        vec![],
+        vec![],
+    ));
+    assert_scope_part_present(&control_html, "tree-view", "branch-control");
+
+    // branch-control 自身はマッピング表に無く、値も持たない。
+    assert_eq!(
+        action_for_part(&part("tree-view", "branch-control", None, false)),
+        None
+    );
+
+    let toggle_action = action_for_part(&part("tree-view", "branch", Some("src"), false)).unwrap();
+    assert_eq!(toggle_action.action, "toggle");
+    assert_eq!(toggle_action.payload, "src");
+
+    let mut t = TreeView::default();
+    assert!(!t.is_expanded("src"));
+    assert!(dispatch(
+        &mut t,
+        &toggle_action.action,
+        &toggle_action.payload
+    ));
+    assert!(t.is_expanded("src"));
+}
+
+/// 葉ノード（`item`）は `branch-control` を持たず、
+/// `synthesize_tree_click` は item 自身へ `click()` を合成する。
+/// `tree-view`/`item` 行が `"select"`（`data-value` 必須）で解決されることを
+/// 固定する。
+#[test]
+fn tree_view_item_click_resolves_to_select() {
+    let item_html = render(&tree_view::item(
+        "a.rs",
+        false,
+        false,
+        "1",
+        "1",
+        "1",
+        "0",
+        vec![],
+        vec![],
+    ));
+    assert_scope_part_present(&item_html, "tree-view", "item");
+
+    let select_action = action_for_part(&part("tree-view", "item", Some("a.rs"), false)).unwrap();
+    assert_eq!(select_action.action, "select");
+    assert_eq!(select_action.payload, "a.rs");
+
+    let mut t = TreeView::default();
+    assert!(dispatch(
+        &mut t,
+        &select_action.action,
+        &select_action.payload
+    ));
+    assert_eq!(t.selected(), Some("a.rs"));
+}
+
+/// fail-closed 系（受け入れ条件 3 と同型）: `data-value` 欠落・`data-disabled`
+/// はいずれも `None`。
+#[test]
+fn tree_view_branch_and_item_fail_closed_on_missing_value_or_disabled() {
+    assert_eq!(
+        action_for_part(&part("tree-view", "branch", None, false)),
+        None
+    );
+    assert_eq!(
+        action_for_part(&part("tree-view", "item", None, false)),
+        None
+    );
+    assert_eq!(
+        action_for_part(&part("tree-view", "branch", Some("src"), true)),
+        None
+    );
+    assert_eq!(
+        action_for_part(&part("tree-view", "item", Some("a.rs"), true)),
+        None
+    );
+}
+
+/// `TreeView::render_nodes` の実出力（統合された `branch`/`item`）でも
+/// マッピング表とのドリフトが無いことを確認する。
+#[test]
+fn tree_view_render_nodes_output_matches_mapping_table_scope_and_part() {
+    let nodes = vec![
+        TreeNode::new("src", "src").with_children(vec![TreeNode::new("a.rs", "a.rs")]),
+        TreeNode::new("readme.md", "readme.md"),
+    ];
+    let t = TreeView::default();
+    let rendered = t.render_nodes(&nodes);
+    let html = render(&tree_view::root(vec![], rendered));
+    assert_scope_part_present(&html, "tree-view", "branch");
+    assert_scope_part_present(&html, "tree-view", "item");
+    assert_scope_part_present(&html, "tree-view", "branch-control");
 }

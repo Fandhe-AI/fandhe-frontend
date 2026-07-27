@@ -322,10 +322,14 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 | `combobox` | `trigger` | `"toggle"` | `""` |
 | `combobox` | `item` | `"select"` | `data-value` |
 | `combobox` | `clear-trigger` | `"clear"` | `""` |
+| `tree-view` | `branch` | `"toggle"` | `data-value` |
+| `tree-view` | `item` | `"select"` | `data-value` |
 
 マッピング表は `&'static str` リテラル固定の静的配列であり、動的登録経路は持たない。`crates/wasm-full/tests/headless_wiring.rs` が headless-ui 実出力（`data-scope`/`data-part` 文字列）とのドリフトを機械検知する。
 
 `menu`/`trigger-item` 行は当初欠落しており、`keynav.rs` のサブメニュー ArrowRight/ArrowLeft 開閉（§後述、イシュー #662）が合成する `click()` およびマウスでの実クリックの双方が no-op になっていた（イシュー #662 PR #674 Bugbot 指摘）。サブメニューは「子 `Menu` インスタンス由来の `trigger-item`/`positioner`/`content` を親 `content` 内に入れ子配置する」契約（`crates/headless-ui/src/menu.rs`）であり、`trigger-item` も `data-scope="menu"` を持つため、`trigger` と同じ `"toggle"` を割り当てて解決する。
+
+`tree-view` の 2 行はイシュー #1072（keynav へ TreeView のキーボード配線を追加する、詳細は §19）で追加した。`branch-control`（クリック対象の要約行）は自身に `data-value` を持たずマッピング表にも無いため、`action_from_parts` の内側優先探索により祖先の `branch` 行（`"toggle"`）へフォールスルーする。この結果、ブランチノードは「選択」できず、Enter/Space は展開トグルとして働く（§19 §帰結参照。意図的な仕様であり、`branch-control` への別アクション割り当てはスコープ外）。
 
 `combobox` の 3 行はイシュー #1071（keynav へ Combobox のキーボード配線を追加する）で追加した。`crates/headless-ui/src/combobox.rs`（イシュー #749）は Combobox の SSR 出力と状態機械のみを提供し、実 DOM 上のクリック・キーボード配線を wasm 層へ申し送っていた。`menu`/`trigger-item` 欠落是正（#662）と同型の整備であり、`combobox`/`trigger` の欠落は `crates/wasm-full/src/keynav.rs` が合成する `HtmlElement::click()`（Arrow キーによる open/close・Escape によるクローズ）を no-op にし、`combobox`/`item` の欠落は Enter・highlight クリックによる確定を no-op にする。`combobox`/`clear-trigger` は `"clear"`（`ComboboxAction::Clear`）であり、`select`/`clear-trigger` の `"deselect"` とは意味が異なる。`combobox::clear_trigger` はテキスト入力欄を併せ持つ Combobox の「入力値と選択の両方をクリアする」ボタンであるため（`crates/headless-ui/src/combobox.rs::ComboboxAction::Clear` の実装参照）、`select` の「選択のみを解除する」`"deselect"` をそのまま流用しない。
 
@@ -526,5 +530,54 @@ menu/select の `root` は 1 インスタンスの境界だが、menubar の `ro
 
 - **`headless.rs::MAPPING_TABLE` に menubar 行が無い**: 単なる行の欠落ではなく payload のアリティ不一致（`requires_value: false`/`true` のいずれも `menubar::trigger` の `data-value` 非出力と噛み合わない）。headless-ui 側の出力追加か `headless.rs` への新 payload source 導入が必要であり、本イシューの粒度を超える。解決するまで、実アプリでの menubar 開閉は呼び出し側の独自 click 配線に依存する。
 - **`overlay.rs::OverlayKind` が `menubar` を含まない**: Escape/外側クリックによる menubar content の実閉鎖は行われない。keynav の Escape 処理は既存 Menu/Select と同じく highlight の後始末のみを担い、閉鎖自体は `overlay` の責務のまま変えていない。
+
+いずれも `.claude/rules/out-of-scope-tracking.md` に従い Issue 化を提案する対象として PR 本文に記録する。
+
+## 19. `keynav` への TreeView キーボード配線追加（イシュー #1072、親 #1058/#1056）
+
+`crates/headless-ui/src/tree_view.rs`（イシュー #753）は TreeView の anatomy 12 パーツ・ARIA（`role="tree"`/`role="treeitem"`/`role="group"`/`aria-level`/`aria-posinset`/`aria-setsize`/`aria-expanded`/`aria-selected`）・状態機械（`TreeView` = `MultiSelect`（展開集合）+ `SingleSelect`（選択値））までを提供し、キーボードナビゲーション・typeahead の実 DOM 配線を本クレートの責務として明示的にスコープ外へ送っていた（同モジュール doc §out-of-scope）。イシュー #1072 はこの欠落を `crates/wasm-full/src/keynav.rs`（純粋層 + `mod wiring`、`#[cfg(target_arch = "wasm32")]`）へ実装した。Listbox（#1070）・Combobox（#1071）・Menubar（#1073）に続く 4 件目であり、同じ 2 層構成（純粋ロジック層 + 配線層）を踏襲する。
+
+### 19.1 設計判断: 実 DOM フォーカス + roving tabindex（既存 8 部品との違い）
+
+既存 8 スコープ（Tabs/Accordion/Menu/Select/RadioGroup/Menubar/Combobox/Listbox）はいずれも SSR がフォーカスホストを供給する契約（Listbox `content` の `tabindex="0"` 固定、Menu/Select/Menubar `trigger` の `<button>`、RadioGroup の `<input>`、Combobox の `input`）だが、TreeView の SSR（`branch`/`item`）は `tabindex` を一切出力しない。加えて、Menu/Select が採る「trigger にフォーカスを留めたまま `data-highlighted`/`aria-activedescendant` で仮想フォーカスを表現する」パターンは、TreeView では次の理由により不採用とした:
+
+1. `tree` に `tabindex="0"` が無く keydown をそもそも受けられない。
+2. treeitem に `id` が無いため `set_highlight_on_host` の fail-safe が `aria-activedescendant` を除去してしまう。
+3. `fandhe-frontend-pre-styled-ui` の TreeView レシピは `data-state`/`data-selected`/`data-disabled` にしか反応せず、`data-highlighted` は視覚的に無反応。
+
+採用案は「treeitem（`branch`/`item`）自身が実 DOM フォーカスを持ち、keynav が `tabindex="0"`/属性なし（roving）を付け替える」方式（RadioGroup の実フォーカス移動と Tabs の roving tabindex を組み合わせた形）。SSR が既に出力している `aria-level`/`aria-posinset`/`aria-setsize`/`aria-expanded`/`aria-selected` が実フォーカスと同時に支援技術へ届くため、新しい DOM 書き込み語彙を増やさずに受け入れ条件を満たせる。
+
+マウント時の初期 tabindex 供給は `initialize_tree_roving_tabindex`（`wire_keynav` 冒頭で 1 回だけ呼ぶ）が担う。各 `tree` インスタンスについて、いずれかの treeitem が既に `tabindex` を持つ場合は何もしない（呼び出し側の明示指定を尊重、冪等）。持たない場合のみ、先頭の可視かつ非 disabled な treeitem へ `tabindex="0"` を 1 個だけ付与する（他要素へは書き込まない。Tab キーで木全体が 1 タブストップになる roving 契約）。
+
+### 19.2 展開・折りたたみ・確定の実現経路と §帰結
+
+keynav は `aria-expanded`/`hidden`/`data-state`/`aria-selected` を一切書かない。ArrowRight/ArrowLeft/Enter/Space による展開・折りたたみ・確定はいずれも対象 treeitem（優先的に `branch-control`、無ければ treeitem 自身）へ `HtmlElement::click()` を合成し、既存の click → `crate::headless::action_from_parts`（内側優先の祖先探索）→ `MAPPING_TABLE`（`tree-view`/`branch` → `"toggle"`、`tree-view`/`item` → `"select"`。本イシューで新設）→ dispatch → アプリの再描画という経路へ委譲する。
+
+`branch-control`（自身に `data-value` を持たない）上のクリックは `action_from_parts` の内側優先探索により祖先の `branch` 行で解決されるため、**ブランチノードは「選択」できず、Enter/Space は展開トグルとして働く**。これは暗黙の副作用ではなく明示的な仕様であり、`branch-control` への別アクション割り当て、または headless-ui が `branch-control` へ `data-value` を出力する改善は `.claude/rules/out-of-scope-tracking.md` に従いスコープ外候補として PR 本文に記録した（ユーザー承認を得るまで Issue は起票しない）。
+
+### 19.3 再描画耐性（クリック合成後のフォーカス復元）
+
+click 合成 → アプリの `on_update`（`TreeView::render_nodes` 再描画）により対象 treeitem を含む subtree が丸ごと差し替わりうる。keynav は click 直後に古い `Element` 参照を触らず、`restore_tree_focus_by_value` が `wire_keynav` へ渡された `root`（マウント境界として安定）から treeitem 列を再収集し、`data-value` の **Rust 側文字列比較**（`==`）でフォーカス対象を再解決してから `tabindex="0"` と `focus()` を復元する。**セレクタ文字列（`[data-value="..."]` 等）を `data-value` から組み立てることはしない**（セレクタインジェクション面の新設を避ける、A03 対策）。重複値は `Iterator::find` の性質上 document 順の先頭を採る。
+
+### 19.4 木構造ロジックの純粋層化（native テスト可能性）
+
+DOM 祖先を辿って `[data-part="branch-content"][hidden]` を探す方式は採らず、配線層は各 treeitem から `data-depth`（パース失敗時は `aria-level - 1` へ、それも失敗すれば `0` へ決定的にフォールバック）/`data-part`/`aria-expanded`/disabled を読み取って `TreeItemMeta` のフラットな列へ変換し、可視性判定（`tree_visible_flags`）・移動先計算（`tree_key_action`）はすべて web-sys 非依存の純粋層で行う。`tree_visible_flags` は「直近の可視な閉ブランチの depth」を単一のしきい値として持つだけで、`depth` が非単調・逆行する改ざん入力でも 1 パスで panic せず処理する。
+
+### 19.5 キー仕様（WAI-ARIA APG Tree View パターン準拠、確定仕様）
+
+`crates/wasm-full/src/keynav.rs` モジュール doc §TreeView のキー仕様表を正とする。要点は ArrowDown/ArrowUp が可視かつ非 disabled のみを辿り**循環しない**（`accordion_next_index` と同じ決定的非循環）、ArrowRight/ArrowLeft がブランチの展開/折りたたみと親子間移動を兼ねる、Escape が Listbox と同じ非対称扱い（typeahead バッファのみリセット、`prevent_default` しない）である。`*`（兄弟一括展開）は APG のオプション挙動でありスコープ外（N 回の click 合成と再描画の相互作用が本イシューの粒度を超える）。
+
+### 19.6 セキュリティ・受け入れ条件の検証
+
+- native テスト（`crates/wasm-full/tests/keynav_native.rs`・`crates/wasm-full/src/keynav.rs` 内 `mod tests`）が純粋層を、`crates/wasm-full/tests/headless_wiring.rs` が `MAPPING_TABLE` のドリフト検知・fail-closed 系（`data-value` 欠落・`data-disabled`）を検証する。
+- 実ブラウザテスト（`crates/wasm-full/tests/keynav_browser.rs`、`wasm-pack test --headless --chrome`）は `wire_keynav` + `wire_headless_component` + `TreeView::render_nodes` を組み合わせた実マウント・再描画を構築し、受け入れ条件 2（キーボード操作による `aria-expanded`/`data-state`/`hidden` の実際の更新と、再描画後のフォーカス復元）を実証する。攻撃者制御ラベル（`<script>` を含む）での typeahead・Enter 操作が `script` 要素を生成しないことも固定する。
+- 新規外部パッケージ追加ゼロ・web-sys feature 追加ゼロ（`KeyboardEvent`/`HtmlElement`/`NodeList`/`Element` はいずれも既存機能で完結）。
+
+### 19.7 既知のギャップ（本イシューでは対応しない、スコープ外）
+
+- **ブランチノードの「選択」**: §19.2 参照。
+- **`*`（兄弟一括展開）**: §19.5 参照。
+- **`overlay.rs::OverlayKind` に `tree-view` を含めない**: TreeView はオーバーレイではなく Escape 閉鎖の対象外（Listbox と同じ扱い）。
+- **headless-ui 側の SSR roving tabindex 出力**: `branch`/`item` が状態駆動で `tabindex` を出力する代替案は、headless-ui のマイナーバンプ + `pre-styled-ui`/`wasm-full`/`xtask` の `version` 要求追随 + docs-site ドリフト検知テストへの波及を伴うため本イシューでは採らない。
 
 いずれも `.claude/rules/out-of-scope-tracking.md` に従い Issue 化を提案する対象として PR 本文に記録する。

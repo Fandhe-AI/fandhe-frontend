@@ -204,6 +204,31 @@ const MAPPING_TABLE: &[MappingRow] = &[
         action: "clear",
         requires_value: false,
     },
+    // TreeView（イシュー #1072、`crates/headless-ui/src/tree_view.rs`）:
+    // ブランチのクリック対象は要約行（`branch-control`、自身に `data-value`
+    // を持たない）だが、マッピング表には無いためクリック解決は
+    // `action_from_parts` の内側優先探索により祖先の `branch` へ falls
+    // through する（`crate::keynav::wiring::synthesize_tree_click` が
+    // `branch-control` を優先クリック先にする設計とセット）。この結果
+    // ブランチノードは「選択」できず、Enter/Space は展開トグルとして働く
+    // （`crate::keynav` モジュール doc §TreeView §帰結、意図的な仕様）。
+    MappingRow {
+        scope: "tree-view",
+        part: "branch",
+        action: "toggle",
+        requires_value: true,
+    },
+    // 葉ノード（`item`）は展開状態を持たないため "select"（`SingleSelect`
+    // 相当）。ブランチの `branch-control` クリックが上記 `branch` 行へ
+    // フォールスルーするのと異なり、葉ノードは `branch-control` を持たない
+    // ため `crate::keynav::wiring::synthesize_tree_click` は葉ノード自身へ
+    // 直接 `click()` を合成する。
+    MappingRow {
+        scope: "tree-view",
+        part: "item",
+        action: "select",
+        requires_value: true,
+    },
 ];
 
 /// クリックされた要素（またはその祖先方向の 1 要素）の anatomy 属性を表す
