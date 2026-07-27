@@ -35,6 +35,16 @@
 #   `crates/docs-site/tests/redirects.rs` / `no_js_contract.rs`）で担保する。
 #   詳細は `docs/reports/docs-site-redesign-regression-report.md` §13/§16。
 #
+# tall-window 撮影の統合（イシュー #1083）:
+# - `f-table-dialog-375-tall.png`（課題 F: テーブル横スクロールにアフォーダンスが
+#   ないことの証跡）は #960 時点でアドホックな chromium 呼び出しで取得されており、
+#   本スクリプトの通常撮影マトリクスには未統合だった（通常撮影は viewport 高が
+#   足りず表に到達しないため）。#1083 で T1 撮影（下記マトリクス参照）として
+#   既定ステップへ組み込み、`bash tools/docs-site/visual-regression.sh` の
+#   単独実行で再取得できるようにした。新規の関数・環境変数・配信サーバは
+#   追加していない（既存 `shoot` へ高さ 3000 を渡すのみ）。manifest の
+#   8 列スキーマも不変で、`height` 列が tall であることを自己記述する。
+#
 # 何をするか:
 # 1. `cargo run -p fandhe-frontend-docs-site -- --out <dir>` で実サイトを
 #    ビルドする（内蔵 linkcheck が fail-closed のため、成功が全ページ生成の
@@ -341,6 +351,24 @@ for w_h in "1440x900" "375x812"; do
   shoot "p3-themes-dialog-${w}-dark" "/fandhe-frontend/themes/dialog/" "$w" "$h" dark js "$PORT_DARK"
 done
 
+# T1: テーブル全体をフレームに収める tall-window 撮影（イシュー #1083）。
+# 通常撮影（viewport 高 812/900/1024）は Arguments / Data Attributes /
+# CSS Variables の各表より手前で切れるため、課題 F（テーブル横スクロールの
+# アフォーダンス）の証跡が取得できない。#960 ではこの 1 枚だけを
+# 大きい --window-size 高の手動 chromium 呼び出しで取得しており
+# （f-table-dialog-375-tall.png）、通常の再撮影手順（本スクリプトの実行）に
+# 含まれていなかった（`docs/reports/docs-site-redesign-regression-report.md`
+# §10.2 の未起票の追跡候補）。
+# 幅は P3 と同じ 375 のまま（列が viewport からはみ出すことが F の観点そのもので、
+# 幅を広げると事象が消える）、高さのみ 3000 へ引き上げて表全体を収める。
+# 配信は $PORT_LIGHT（通常配信）を使う。$PORT_NOJS（CSP script-src 'none'）は
+# meta refresh との組み合わせで --screenshot が無期限ハングする既知経路
+# （本ファイル冒頭コメント参照）があり、理由なく撮影を増やさない。
+# 新規関数・環境変数・サーバは追加しない（既存 shoot 関数へ高さを渡すだけで
+# 成立するため）。manifest スキーマも不変（height 列が tall であることを
+# 自己記述する）。
+shoot "t1-themes-dialog-375-tall" "/fandhe-frontend/themes/dialog/" 375 3000 light js "$PORT_LIGHT"
+
 # P4: Primitives 部品ページ（accordion。unstyled デモの判読性、観点 4・8・9）
 for w_h in "1440x900" "768x1024" "375x812"; do
   w="${w_h%x*}"; h="${w_h#*x}"
@@ -400,6 +428,10 @@ echo "manifest: $MANIFEST"
 total_bytes="$(du -cb "$SHOTS_DIR" 2>/dev/null | tail -1 | cut -f1)"
 file_count="$(find "$SHOTS_DIR" -name '*.png' | wc -l)"
 echo "total: ${file_count} files, ${total_bytes} bytes"
+# T1（イシュー #1083）でファイル数バジェット（40 枚）の最後の 1 枠を消費した
+# （#1033 時点で 39 枚 + T1 の 1 枚 = 40 枚）。次に撮影を追加する場合は、
+# 先にここへ追加するのではなく #960 計画 §4.3 の削減順序を適用してから
+# 追加すること。
 if [ "$file_count" -gt 40 ] || [ "$total_bytes" -gt 4718592 ]; then
   echo "warning: shot budget exceeded (>40 files or >4.5MB). Trim per plan §4.3 reduction order before committing." >&2
 fi
