@@ -191,6 +191,31 @@ HTML の [`<details>`/`<summary>`](https://developer.mozilla.org/docs/Web/HTML/E
   本文中に残るため情報は失われない。ページ内目次というナビゲーション
   手段のみ非表示になる）。
 
+#### 3.3a 追補: 狭幅帯域の代替到達手段（→ #1080）
+
+#912 の許容判定（`docs/reports/docs-site-redesign-regression-report.md`
+§3.2/§10.1/§18）は撤回しないまま、`< 1200px` 向けの JS 非依存な代替到達
+手段を追加した。
+
+- `layout.rs` の `toc_nav()`/`toc_items()`（`< 1200px` 用に切り出した
+  共有ヘルパー）から `toc_inline()` を新設し、`main.docs-main` の第 1 子
+  （SkipNav のスキップ先ターゲットより前）へ素の `<details>`/`<summary>`
+  ディスクロージャ（`nav.docs-toc-inline`）として配置する。既定は閉。
+- `≥ 1200px`（右目次カラムが表示に切り替わる帯域）では
+  `STRUCTURAL_CSS` 側で `.docs-toc-inline { display: none; }` に切り替え、
+  右目次カラムとの重複表示を避ける。
+- `class="docs-toc"`（`crate::script::SITE_JS` のスクロールスパイが
+  `document.querySelector` で掴む唯一のセレクタ）は共有しない。専用
+  class（`docs-toc-inline`/`docs-toc-inline-summary`）のみを新設し、
+  `SITE_JS` は無変更。
+- `toc_nav()`（右目次）と `toc_inline()`（折りたたみ目次）は共通の
+  `toc_items()` から `<li>` 列を導出するため、一方だけが出て他方が
+  出ないという不整合は構造的に起こらない。
+
+対応する実装計画・受け入れ条件・ビジュアル回帰の実施結果（実行環境の
+chromium 制約により本 PR では未取得）は
+`docs/reports/docs-site-redesign-regression-report.md` §18 を参照。
+
 ### 3.4 左ナビ（→ #910）
 
 - `nav_list`（`crates/headless-ui/src/nav_list.rs`、#756 導入済み）が

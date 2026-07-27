@@ -349,6 +349,41 @@ fn sidebar_and_header_and_prev_next_navigation_uses_static_anchor_hrefs() {
     }
 }
 
+/// イシュー #1080: `min-width: 1200px` 未満で右目次カラム
+/// （`aside.docs-toc-aside`）が `display: none` になる代替として、本文冒頭の
+/// 折りたたみ目次（`nav.docs-toc-inline`）が JS 無効でも踏める形で存在する
+/// ことを実サイトビルド全体で固定する。右目次カラムを持つページ（＝見出しが
+/// 存在するページ）すべてが対象。
+#[test]
+fn inline_toc_provides_a_js_free_heading_navigation_path() {
+    let (_out, files, _redirects) = build_real_site();
+    let mut checked_at_least_one = false;
+    for file in &files {
+        let html = std::fs::read_to_string(file).unwrap_or_else(|e| panic!("read {file:?}: {e}"));
+        if !html.contains(r#"class="docs-toc-aside""#) {
+            // 見出しの無いページ（右目次カラム自体が出力されない）は対象外。
+            continue;
+        }
+        checked_at_least_one = true;
+        let start = html.find(r#"class="docs-toc-inline""#).unwrap_or_else(|| {
+            panic!("{file:?}: docs-toc-inline should exist alongside docs-toc-aside")
+        });
+        let mut window_end = (start + 4000).min(html.len());
+        while !html.is_char_boundary(window_end) {
+            window_end -= 1;
+        }
+        let window = &html[start..window_end];
+        assert!(
+            window.contains("<a ") && window.contains("href=\"#"),
+            "{file:?}: inline toc should contain at least one static <a href=\"#...\"> for no-JS heading navigation"
+        );
+    }
+    assert!(
+        checked_at_least_one,
+        "real site should contain at least one page with a right toc column to exercise this contract"
+    );
+}
+
 #[test]
 fn structural_css_declares_js_independent_toggle_and_dropdown_paths() {
     // CSS 側の JS 非依存開閉経路（`:checked`・`:hover`/`:focus-within`）が

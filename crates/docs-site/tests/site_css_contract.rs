@@ -498,6 +498,11 @@ const TOC_ONLY_CLASSES: &[&str] = &[
     "docs-toc-title",
     "docs-toc-level-2",
     "docs-toc-level-3",
+    // イシュー #1080: `< 1200px` で右目次カラムが消える代替の折りたたみ目次。
+    // 右目次と同じ `toc_items` から導出されるため出現条件（見出しの有無）は
+    // 右目次と完全に一致する（`crate::layout::toc_inline` rustdoc 参照）。
+    "docs-toc-inline",
+    "docs-toc-inline-summary",
 ];
 
 /// 見出しが 1 つも無いページのみ出現する修飾 class
