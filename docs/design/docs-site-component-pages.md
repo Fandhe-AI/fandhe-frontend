@@ -445,6 +445,86 @@ fail-closed 原則（未知キー・未知テーブルを黙って無視しな�
    する。該当しない部品は Keyboard/Accessibility 節を省略する（本節
    「静的部品では『該当なし』を明記して省略可」の具体化）。
 
+## 7b. 節が出力されない理由と編集方針（イシュー #1082）
+
+§7 の「節の省略規則」は「空節を出力しない」という**現象**を定めるのみで、
+「なぜ空になるか」「編集者が何をすべきか」の対応表を持たなかった。この
+不在により、Anatomy・`data-*` 属性表・CSS 変数表が一部の部品ページで欠落
+する事象（原因は下表の分類 A/B）が、原稿未充填（分類 C/D、編集で解決
+できる事象）と区別できず「バグではないか」と誤読される余地があった。
+本節は原因を 4 分類し、分類ごとの編集者の対応を固定する。以後、この種の
+節欠落に関する規則は**本節を正**とし、他文書（`docs-site-primitives-themes-split.md`
+§5 等）は本節へのポインタのみを持つ（正の二重化を避ける、§2 の方針）。
+
+### 7b.1 4 分類
+
+| # | 分類 | 発生源（関数名） | 編集者の対応 |
+|---|---|---|---|
+| A | 仕様どおりの恒常省略 | `component_page::collect_css_vars_for_scope` が抽出元とする `showcase::stylesheet()` は Themes 層専用であり、Primitives 層（`Layer::Primitives`）では常に空ベクタを返す（headless-ui に CSS の概念が無いため） | 何もしない。手書きでの表の補完は禁止（7b.3） |
+| B | 機械導出の帰結（Demo 由来） | Anatomy（`collect_anatomy_parts`）・`data-*` 属性表（`collect_data_attrs_from_tree`）。いずれも Demo ノード木が実際に描画した `data-scope`/`data-part`/`data-*` を走査した結果の**部分集合**であり、デモが描画しなかったパーツ・属性は表に出ない | 表を出したいなら**唯一の正規経路は Demo の拡張**（Themes: `showcase.rs`、Primitives: `primitive_showcase/` 配下の該当カテゴリモジュール）。原稿 `.md` や `component_specs*`/`primitive_specs` に手書きの表を足さない（7b.3） |
+| C | 原稿未充填 | Features / API Reference 引数表 / Examples / Accessibility。`ComponentPageSpec` の該当フィールドが空 | 原稿レジストリ（Themes: `component_specs*`、Primitives: `primitive_specs`）へ内容を書く |
+| D | 原稿レジストリ未登録 | `spec_for` が当該 `path` に対応する行を持たず `ComponentPageSpec::EMPTY` を返すため、C の 4 節が**一度に全部**消える | 原稿を書く前に `SPEC_TABLES`（Themes）/ `primitive_specs::SPEC_TABLES`（Primitives）へ当該 path の行があるかを先に確認する |
+
+**C と D の違いが実務上の要点である**。「原稿を書いたのに反映されない」
+（= D、レジストリ未登録が原因）と「原稿がまだ無い」（= C）は修正手順が
+異なるが、`spec_for` が未登録時に fail-closed で `EMPTY` へ倒す設計上、
+編集者からはどちらも同じ「節が無い」に見える。まず D（登録漏れ）を疑って
+から C（本文の充填）に進むこと。
+
+**構造的帰結**: `api_reference_section` は引数表・`data-*` 表・CSS 変数表
+の **3 表がすべて空のときにのみ** `API Reference` の H2 ごと省略する。
+Primitives 層は分類 A により CSS 変数表が構造的に常に空なので、残り 2 表
+（Anatomy/`data-*`、分類 B）が空だと **`API Reference` 節全体が消えやすい**。
+これが後述 7b.4 の実測で Primitives と Themes の欠落率が異なる理由である。
+
+Anatomy（`collect_anatomy_parts`）は本節では上表 B に含めている。件名は
+`data-*` 表・CSS 変数表の 2 節を挙げるが、`render_component_page` は
+同一の `scope` を条件に `collect_anatomy_parts` と
+`collect_data_attrs_from_tree` を**同じ Demo ノード木に対して並べて呼ぶ**
+構造であり、同一の導出規則を持つ節を分けて説明する理由がないため対象に
+含めた。
+
+### 7b.2 Demo 拡張（分類 B）の判断基準
+
+`site/themes.md`「掲示の読み方」が既に確立している前提（状態機械を持つ
+部品は**状態を固定した静的マークアップ**として掲示し、実際の状態遷移は
+wasm 層の責務）を拡張する形で、次の 2 条件を**両方**満たすときのみ Demo
+を拡張する。
+
+1. その状態・パーツが実アプリケーションで実際に観測されうること。
+2. 静的 SSR マークアップとして正しく表現できること（JS ハイドレーション後
+   にしか成立しない状態を、表を埋めるためだけに捏造しない）。
+
+表の完全列挙を目的に headless-ui へパーツ列挙 API を追加する案は、公開
+クレートのバンプとイシュー #693 方針（docs-site は headless-ui へ直接
+依存しない）に抵触するため見送る（`component_page.rs` モジュール doc・
+`docs-site-primitives-themes-split.md` §5 の既存判断を参照）。
+
+### 7b.3 禁止事項
+
+原稿（`.md` / `component_specs*` / `primitive_specs`）へ Anatomy・
+`data-*` 属性表・CSS 変数表を**手書きで補完しない**。これらは機械導出が
+正であり、手書きの表は実装（走査ロジック・抽出元）との乖離を検知不能に
+する。表を増やす唯一の正規経路は 7b.2 の基準に従った Demo の拡張である。
+
+### 7b.4 実測値（時点付き・再実測手順）
+
+以下は**規範値ではない**（テストが固定すべき期待値ではなく、状況把握の
+ための時点付き実測）。実装・原稿追加が進むと数値は変わる。再実測は次の
+コマンドで行う。
+
+```bash
+cargo run --locked -p fandhe-frontend-docs-site -- --out dist/
+grep -rl 'id="data-attributes"' dist/primitives | wc -l   # 2026-07-26 時点: 50（母数 63）
+grep -rl 'id="css-variables"'   dist/primitives | wc -l   # 同: 0（母数 63。分類 A の恒常省略）
+grep -rl 'id="data-attributes"' dist/themes     | wc -l   # 同: 57（母数 107）
+grep -rl 'id="css-variables"'   dist/themes     | wc -l   # 同: 56（母数 107）
+```
+
+出典: `docs/reports/docs-site-redesign-regression-report.md` §14 観点 4（イシュー
+#1033 実測）。`id="data-attributes"` / `id="css-variables"` は各節の H3
+見出しから生成される見出しアンカー id を利用した検査である。
+
 ## 8. 既存 `/components/pre-styled-ui/` の帰趨
 
 **確定**: `/components/pre-styled-ui/` は **`/components/` カテゴリ
@@ -583,6 +663,7 @@ HTML コメントに優位するため、#944 以降の充足率計測・Phase 4
 | §2 既存文書との関係 | #962 |
 | §3 総ページ数の将来増分（99 → 104） | #959（Phase 8 roster、pre-styled-ui 新規 mod 5 件） |
 | §8 の上書き適用（改訂 8.1） | #1015（設計）/ #1017・#1018（実装）/ #1031（本文改訂） |
+| §7b 節欠落の編集方針 | #1082 |
 
 「Phase 2-2（#939）・Phase 3（#941〜#944）の実装者が本文書だけで仕様を
 決定できる」ことの検証: #939 の受け入れ条件「異常系 5 件以上がそれぞれ
