@@ -29,9 +29,12 @@ Themes は `fandhe-frontend-headless-ui`（Primitives）が提供する構造・
   recipe CSS がそのまま担います。
 - Avatar は画像読み込み状態（`ImageStatus`）を固定し、フォールバック表示・
   画像表示の両方を掲示しています。
-- Demo 以外の節（Features / Anatomy / API Reference / Examples / Accessibility）の
-  充填は Phase 4（#945〜#948）で進めます。未充填の節は各部品ページの冒頭にある
-  注記（`[!NOTE]`）で明示しています。
+- 各部品ページの節（Demo / Features / Anatomy / `data-*` 属性 / CSS 変数 /
+  API Reference / Examples / Accessibility）の充填は完了しています。節の有無は
+  固定ではなく、ビルド時の機械導出（Anatomy・`data-*` 属性表・CSS 変数表は
+  Demo のノード木から走査）と原稿レジストリの供給状況で決まります。Demo・原稿の
+  いずれもまだ供給されていない一部の部品ページは Markdown 原稿のみの掲示となり、
+  その旨をページ冒頭の注記（`[!NOTE]`）で明示しています。
 
 ## Typography
 
