@@ -481,3 +481,82 @@ markup・CSS の帯域別出し分け自体は §18.1/§18.2 の機械テスト�
   `no_js_contract.rs` / `crates/docs-site/src/site_theme.rs`（unit test）
 - 参照ドキュメント: `docs/design/docs-site-three-column-redesign.md` §3.3a
   （本追補と対になる設計文書側の追記）
+
+## 19. 追補: tall-window 撮影のスクリプト統合（イシュー #1083）
+
+§10.2 が記録していた「`tools/docs-site/visual-regression.sh` に tall-window
+撮影（F 証跡取得手順）が未統合」（同表 2 行目）は**本イシューで解消**した
+（§10.2 の表自体は既存記録として書き換えず保存する）。
+
+### 19.1 統合内容
+
+- `tools/docs-site/visual-regression.sh` の撮影マトリクスへ、既定ステップ
+  T1（`shoot "t1-themes-dialog-375-tall" "/fandhe-frontend/themes/dialog/" 375
+  3000 light js "$PORT_LIGHT"`）を P3 ブロックの直後・P4 ブロックの直前に
+  1 枚追加した。撮影対象は `/themes/dialog/`（375 幅・light・JS 有効、既存
+  P3 と同一ページ・同一幅）で、高さのみ 812 から 3000 へ引き上げ、Arguments /
+  Data Attributes / CSS Variables の各表を viewport 内に収める。
+- 新規の関数・環境変数・配信サーバは追加していない。既存 `shoot` 関数（幅・
+  高さを引数で受ける）へ高さの大きい値を渡すだけで成立する。配信は既存の
+  `$PORT_LIGHT`（通常配信）を再利用し、`$PORT_NOJS`（CSP `script-src 'none'`）
+  は使わない（meta refresh との組み合わせで `--screenshot` が無期限ハングする
+  既知経路があるため、§16/本ファイル冒頭コメント参照）。
+- manifest のスキーマ（8 列: `file`/`url`/`width`/`height`/`theme`/`js`/
+  `bytes`/`sha256`）は不変。T1 行は `height=3000` によって tall であることを
+  自己記述する。
+- 撮影マトリクスの末尾に「T1 がファイル数バジェット（40 枚）の最後の 1 枠を
+  占めること、次に撮影を追加する場合は #960 計画 §4.3 の削減順序を先に適用
+  すること」を明記するコメントを追加した。
+
+### 19.2 実行結果と実施環境の制約
+
+`bash -n tools/docs-site/visual-regression.sh`（構文チェック）・`shellcheck`
+（静的解析、既存/新規とも指摘 0 件）はいずれも合格した。
+
+スクリプトの実行（`DOCS_SITE_SHOTS_DIR="$HOME/fandhe-docs-site-visual/..."
+bash tools/docs-site/visual-regression.sh`）は §18.3（イシュー #1080）と
+同種の実行環境固有の制約に阻まれた。headless chromium が起動段階で GPU
+プロセス初期化に失敗し（`GPU process isn't usable. Goodbye.`、AppArmor に
+よる D-Bus 拒否ログも同時発生）、撮影 1 枚目（`p1-top-1440-light`、T1 より
+前の既存撮影）で `Aborted (core dumped)` となり、T1 を含む全撮影が実行前に
+停止した。追加の chromium フラグ（`--disable-software-rasterizer` /
+`--disable-dev-shm-usage`）を単独 chromium 呼び出しで試行しても同一の
+`ptrace: Input/output error` / `exit code 133` で再現し、本セッションの
+実行コンテナの ptrace/seccomp 制約に起因することを確認した（`shoot` 関数の
+chromium 起動オプション自体は変更していない。既存 P1〜P9 の撮影も同一環境で
+同様に失敗するため、T1 追加が原因の退行ではない）。
+
+このため、実測による枚数・バイト数バジェット（`tools/docs-site/visual-regression.sh`
+末尾の判定: 40 枚超または 4.5MB 超で警告。超過時は上限を実測値ベースで
+コメント付きで引き上げる、が本イシューの判断ルール）の検証、
+および `t1-themes-dialog-375-tall.png` の目視確認（表がフレーム内に収まり
+列が右端でクリップされていること）は本セッションでは実施できなかった。
+`docs/ci/ci-runner-requirements.md` が既に指摘している chromium 常設・
+sandbox 前提の未解決要件（本スクリプトが CI 化されず手動実行専用に留まって
+いる理由そのもの）に該当する既知の制約であり、chromium が正常起動できる
+環境（snap AppArmor / seccomp ptrace 制約のない開発マシン等）での再実行と
+目視確認を今後の作業として残す。
+
+T1 追加によるロジック面の妥当性（幅・高さの選定根拠、既存関数の再利用、
+manifest スキーマ不変）は §19.1 の実装内容とコードレビューで担保しており、
+「実装の正しさが未検証」ではなく「視覚的な最終確認手段が本セッションの
+実行環境では利用できなかった」ことを意味する（§18.3 と同型の限界）。
+
+### 19.3 再現手順の更新
+
+```bash
+DOCS_SITE_SHOTS_DIR="$HOME/<任意のパス>" bash tools/docs-site/visual-regression.sh
+```
+
+tall-window 撮影（T1）は上記コマンドの**既定ステップ**として撮影される。
+追加の手動 chromium 呼び出しは不要（§11 が記録していた「F 証跡の
+tall-window 撮影は §10.2 の通り未統合」という前提は本イシューで解消した。
+§11 自体の記述は既存記録として書き換えない）。
+
+### 19.4 参照
+
+- 関連イシュー: #1083（本追補）/ #1059（親: docs サイトわかりやすさ・見やすさ
+  改善）/ #1080（同種の実行環境制約の先例、§18.3）
+- 対応ファイル: `tools/docs-site/visual-regression.sh` / `docs/guides/browser-testing.md` §9
+- 一次記録（凍結・本追補では書き換えない）: `docs/reports/docs-site-visual-regression-960.md`
+  §「課題 F」（`f-table-dialog-375-tall.png` のアドホック取得経緯）

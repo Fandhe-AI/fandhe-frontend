@@ -103,3 +103,46 @@ Chrome/Chromium と対応する chromedriver がローカルに必要（バー�
 - 将来 `crates/wasm-client/tests/browser_smoke.rs` を追加する際は、`set_text_content` 等のテキスト API
   のみを使用し、`raw_html()` / `set_inner_html` の直接使用・HTML 文字列組み立てを行わないこと
   （`docs/api/hydration-api.md` 第 6 節の不変条件に整合）
+
+## 9. docs サイトのビジュアル回帰撮影（`tools/docs-site/visual-regression.sh`）
+
+- **位置づけ**: 本ガイド §3 の `wasm-pack test --headless`（ハイドレーション実証）とは別系統で、
+  docs サイト（`crates/docs-site`）の見た目を実ブラウザで撮影する手動スクリプト（イシュー #960）。
+  chromium の常設が self-hosted runner に保証されないため（`docs/ci/ci-runner-requirements.md`
+  の未解決要件に依存する）、CI ジョブ化はしていない。ローカル開発者・test-runner が手動実行する。
+- **前提ツール**: chromium（または chromium-browser）/ python3 / cargo / ss。いずれか不在の場合は
+  `environment error:` を出して fail-closed に停止する（自動インストールは行わない）。
+- **実行例**:
+
+  ```bash
+  DOCS_SITE_SHOTS_DIR="$HOME/fandhe-docs-site-visual/$(date +%Y%m%d-%H%M%S)" \
+    bash tools/docs-site/visual-regression.sh
+  ```
+
+- **出力先の制約**: `DOCS_SITE_SHOTS_DIR` は絶対パスであること、かつパス要素にドット始まり
+  ディレクトリ（`.claude/...` 等）を含まないことが必須（worktree の `.claude/...` 配下では snap の
+  AppArmor により chromium が無音で書き込み失敗するため）。未指定時の既定値は
+  `$HOME/fandhe-docs-site-visual/<timestamp>/`。
+- **出力構成**: `shots/*.png`（撮影画像）/ `manifest.tsv`（8 列: `file`/`url`/`width`/`height`/
+  `theme`/`js`/`bytes`/`sha256`）/ `logs/`（ビルドログ・chromium ログ）。撮影物はリポジトリへ
+  コミットしない。
+- **tall-window 撮影（イシュー #1083）**: `t1-themes-dialog-375-tall` は通常の撮影マトリクスの
+  **既定ステップ**として常に撮影される（オプションではない）。目的は狭幅（375px）でテーブルが
+  横方向にクリップされていることの証跡取得で、通常撮影（viewport 高 812/900/1024）は表に到達する
+  前に切れてしまうため、`/themes/dialog/` を高さ 3000 で撮影して表全体をフレーム内へ収めることを
+  狙っている（初回の目視確認は本イシューの実装セッションでは実行環境の制約により未実施。
+  `docs/reports/docs-site-redesign-regression-report.md` §19.2 参照。高さが不足していると判明した
+  場合はスクリプト内のリテラル値を引き上げて再実行すること）。追加の手動 chromium 呼び出しは
+  不要（`bash tools/docs-site/visual-regression.sh` の実行だけで再取得できる）。
+- **トラブルシュート**:
+
+  | 症状 | 対処 |
+  |------|------|
+  | `environment error: chromium ... not found` | chromium（または chromium-browser）を導入する。自動インストールはしない |
+  | 出力ディレクトリ関連の `environment error` | `DOCS_SITE_SHOTS_DIR` を絶対パス・ドット始まりディレクトリなしの値へ変更する（既定値を使えば発生しない） |
+  | 撮影がハングして戻らない | CSP（`script-src 'none'`）配信下で `<meta http-equiv="refresh">` を含むページ（旧 `/components/*` 移転案内等）を新たに撮影対象へ追加していないか確認する。既知のハング経路のためスクリプトのマトリクスには含めていない |
+
+- **セキュリティ注記（OWASP Top 10 観点）**:
+  - **A01 アクセス制御の不備**: 配信サーバは `127.0.0.1` バインドのみ（外部公開しない）。
+  - **A09 ログ・監視の不備**: `manifest.tsv` にはユーザー名を含む絶対パス（`$HOME` 等）を残さず、
+    出力ディレクトリ相対パスのみを記録する。撮影物・ログは非コミットとし、リポジトリへ残置しない。
