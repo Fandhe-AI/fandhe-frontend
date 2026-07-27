@@ -1,7 +1,9 @@
 //! `fandhe_frontend_wasm_full::keynav::wire_keynav`（Tabs/Accordion/Menu/
-//! Select/RadioGroup/Menubar/Combobox/TreeView のキーボード操作・イシュー
-//! #582・#583・#1073（Menubar）・#1071（Combobox）・#1072（TreeView）、
-//! 親 #581）の実ブラウザ統合テスト（`wasm-pack test --headless --chrome`）。
+//! Select/RadioGroup/Menubar/Combobox/Listbox/NavigationMenu/ToggleGroup/
+//! TreeView のキーボード操作・イシュー #582・#583・#1073（Menubar）・
+//! #1071（Combobox）・#1070（Listbox）・#1075（NavigationMenu/
+//! ToggleGroup）・#1072（TreeView）、親 #581）の実ブラウザ統合テスト
+//! （`wasm-pack test --headless --chrome`）。
 //!
 //! `wasm-full/tests/keynav_native.rs`（native）は純粋層（`tabs_next_index`/
 //! `accordion_next_index`/`highlight_next_index`/`radio_next_index`）までを
@@ -69,7 +71,17 @@
 //!     非適用（printable 文字・キャレット移動キーは `prevent_default` しない）、
 //!     `aria-controls` 改ざん・trigger 欠落時の fail-closed no-op、攻撃者
 //!     制御ラベルでの XSS 回帰
-//! 14. TreeView（イシュー #1072）: treeitem（`branch`/`item`）自身が実 DOM
+//! 14. NavigationMenu（イシュー #1075）: trigger 間の Arrow/Home/End 移動
+//!     （`tabindex` を書き込まない）、closed 時の open 方向キーで
+//!     `click()` 合成 → content 再解決 → 先頭/末尾リンクへフォーカス、open
+//!     時は `click()` 合成なしでリンクへフォーカス、content 内リンクの
+//!     Arrow/Home/End（非循環）、Escape（open のみ close 委譲・closed は
+//!     no-op fail-closed）、`aria-controls` 欠落時の `item` スコープ限定、
+//!     攻撃者制御ラベルでの XSS 回帰
+//! 15. ToggleGroup（イシュー #1075）: Arrow による roving tabindex 更新 +
+//!     フォーカス移動・常時循環・disabled スキップ、`data-orientation` に
+//!     よる軸制限（欠落時両軸）、Home/End、攻撃者制御ラベルでの XSS 回帰
+//! 16. TreeView（イシュー #1072）: treeitem（`branch`/`item`）自身が実 DOM
 //!     フォーカスを保持し、マウント時に先頭可視項目へ roving tabindex を
 //!     1 個だけ設定、ArrowDown/ArrowUp で可視かつ非 disabled のみを辿り
 //!     折りたたみ subtree をスキップ・非循環、Home/End、ArrowRight/ArrowLeft
@@ -5256,6 +5268,154 @@ fn listbox_keyboard_navigation_with_attacker_controlled_label_does_not_inject_sc
 }
 
 // ---------------------------------------------------------------------
+// NavigationMenu / ToggleGroup（イシュー #1075）
+// ---------------------------------------------------------------------
+
+/// `crates/headless-ui/src/navigation_menu.rs` の SSR 出力契約を手組みで
+/// 再現した NavigationMenu DOM を生成する。`triggers`: `(value, label,
+/// disabled)` のリスト。各 trigger は content（2 本のリンク、id は
+/// `{root_id}-link-{value}-1`/`-2`）を持ち、初期状態は全 closed。
+/// [`wire_toggle_listener`] を trigger/content ペアへ配線し、`click()` 合成
+/// による開閉委譲を模す（実アプリでは `crate::headless::MAPPING_TABLE` の
+/// `navigation-menu` 行が担うが、本イシューでは意図的に未追加のためテスト
+/// ローカルで代替する。モジュール doc §NavigationMenu「既知のギャップ」
+/// 参照）。
+fn build_navigation_menu_dom(
+    document: &Document,
+    root_id: &str,
+    triggers: &[(&str, &str, bool)],
+    orientation: &str,
+    loop_focus: bool,
+) -> Element {
+    let root = document.create_element("nav").unwrap();
+    root.set_id(root_id);
+    root.set_attribute("data-scope", "navigation-menu").unwrap();
+    root.set_attribute("data-part", "root").unwrap();
+    root.set_attribute("aria-label", "Test Navigation").unwrap();
+    root.set_attribute("data-orientation", orientation).unwrap();
+    if loop_focus {
+        root.set_attribute("data-loop-focus", "true").unwrap();
+    }
+
+    let list = document.create_element("ul").unwrap();
+    list.set_attribute("data-scope", "navigation-menu").unwrap();
+    list.set_attribute("data-part", "list").unwrap();
+
+    for (value, label, disabled) in triggers {
+        let item = document.create_element("li").unwrap();
+        item.set_attribute("data-scope", "navigation-menu").unwrap();
+        item.set_attribute("data-part", "item").unwrap();
+        item.set_attribute("data-state", "closed").unwrap();
+        if *disabled {
+            item.set_attribute("data-disabled", "").unwrap();
+        }
+
+        let trigger = document.create_element("button").unwrap();
+        trigger
+            .set_attribute("data-scope", "navigation-menu")
+            .unwrap();
+        trigger.set_attribute("data-part", "trigger").unwrap();
+        trigger.set_attribute("type", "button").unwrap();
+        let trigger_id = format!("{root_id}-trigger-{value}");
+        let content_id = format!("{root_id}-content-{value}");
+        trigger.set_attribute("id", &trigger_id).unwrap();
+        trigger.set_attribute("aria-expanded", "false").unwrap();
+        trigger.set_attribute("data-state", "closed").unwrap();
+        trigger.set_attribute("aria-controls", &content_id).unwrap();
+        if *disabled {
+            trigger.set_attribute("disabled", "").unwrap();
+            trigger.set_attribute("data-disabled", "").unwrap();
+        }
+        trigger.set_text_content(Some(label));
+        item.append_child(&trigger).unwrap();
+
+        let content = document.create_element("div").unwrap();
+        content
+            .set_attribute("data-scope", "navigation-menu")
+            .unwrap();
+        content.set_attribute("data-part", "content").unwrap();
+        content.set_attribute("id", &content_id).unwrap();
+        content.set_attribute("data-state", "closed").unwrap();
+        content.set_attribute("hidden", "").unwrap();
+
+        for i in 1..=2 {
+            let link = document.create_element("a").unwrap();
+            link.set_attribute("data-scope", "navigation-menu").unwrap();
+            link.set_attribute("data-part", "link").unwrap();
+            link.set_attribute("href", "#").unwrap();
+            link.set_attribute("id", &format!("{root_id}-link-{value}-{i}"))
+                .unwrap();
+            link.set_text_content(Some(&format!("{label} link {i}")));
+            content.append_child(&link).unwrap();
+        }
+        item.append_child(&content).unwrap();
+        wire_toggle_listener(&trigger, &content);
+
+        list.append_child(&item).unwrap();
+    }
+    root.append_child(&list).unwrap();
+
+    document
+        .body()
+        .unwrap()
+        .append_child(&root)
+        .expect("append_child must not fail for a detached nav");
+    root
+}
+
+/// `crates/headless-ui/src/toggle_group.rs` の SSR 出力契約を手組みで再現
+/// した ToggleGroup DOM を生成する。`items`: `(value, label, pressed,
+/// disabled)` のリスト。`orientation` が `Some` のときのみ
+/// `data-orientation` を付与する（欠落時両軸受理、モジュール doc
+/// §ToggleGroup 参照）。SSR は `tabindex` を出力しない契約のため、本ヘルパも
+/// 意図的に `tabindex` を書かない。
+fn build_toggle_group_dom(
+    document: &Document,
+    root_id: &str,
+    items: &[(&str, &str, bool, bool)],
+    orientation: Option<&str>,
+) -> Element {
+    let root = document.create_element("div").unwrap();
+    root.set_id(root_id);
+    root.set_attribute("data-scope", "toggle-group").unwrap();
+    root.set_attribute("data-part", "root").unwrap();
+    root.set_attribute("role", "group").unwrap();
+    if let Some(o) = orientation {
+        root.set_attribute("data-orientation", o).unwrap();
+    }
+
+    for (value, label, pressed, disabled) in items {
+        let item = document.create_element("button").unwrap();
+        item.set_attribute("data-scope", "toggle-group").unwrap();
+        item.set_attribute("data-part", "item").unwrap();
+        item.set_attribute("type", "button").unwrap();
+        item.set_attribute("aria-pressed", if *pressed { "true" } else { "false" })
+            .unwrap();
+        item.set_attribute("data-state", if *pressed { "on" } else { "off" })
+            .unwrap();
+        item.set_attribute("data-value", value).unwrap();
+        if *pressed {
+            item.set_attribute("data-pressed", "").unwrap();
+        }
+        if *disabled {
+            item.set_attribute("data-disabled", "").unwrap();
+            item.set_attribute("disabled", "").unwrap();
+        }
+        item.set_attribute("id", &format!("{root_id}-item-{value}"))
+            .unwrap();
+        item.set_text_content(Some(label));
+        root.append_child(&item).unwrap();
+    }
+
+    document
+        .body()
+        .unwrap()
+        .append_child(&root)
+        .expect("append_child must not fail for a detached div");
+    root
+}
+
+// ---------------------------------------------------------------------
 // TreeView（`crates/headless-ui/src/tree_view.rs`）の Arrow/Home/End/
 // ArrowRight/ArrowLeft/Enter・Space/typeahead/Escape キーボード配線
 // （イシュー #1072）。
@@ -5830,6 +5990,7 @@ fn tree_view_restore_focus_by_value_stays_scoped_to_active_tree_when_value_is_sh
     let tabbable_in_a = tree_a.query_selector_all("[tabindex=\"0\"]").unwrap();
     assert_eq!(tabbable_in_a.length(), 1);
 }
+
 // =======================================================================
 // Calendar（イシュー #1074）: `crates/headless-ui/src/calendar.rs` の SSR
 // 出力契約を手組みで再現し、`wire_keynav` の gridcell フォーカス移動を
@@ -5947,6 +6108,790 @@ fn build_calendar_dom(
         .append_child(&root)
         .expect("append_child must not fail for a detached div");
     root
+}
+
+/// 検証 14-1: horizontal で trigger 間 ArrowRight/ArrowLeft がフォーカス
+/// 移動する。SSR が `tabindex` を出力しない契約のため、移動後も
+/// `tabindex` 属性は付与されないままであることを併せて確認する。
+#[wasm_bindgen_test]
+fn navigation_menu_horizontal_trigger_arrow_moves_focus_without_tabindex() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_navigation_menu_dom(
+        &document,
+        "kn-nm-h1",
+        &[("a", "A", false), ("b", "B", false), ("c", "C", false)],
+        "horizontal",
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger_a = document.get_element_by_id("kn-nm-h1-trigger-a").unwrap();
+    let trigger_b = document.get_element_by_id("kn-nm-h1-trigger-b").unwrap();
+    html_element(&trigger_a).focus().unwrap();
+
+    trigger_a
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-nm-h1-trigger-b".to_string())
+    );
+    assert!(!trigger_a.has_attribute("tabindex"));
+    assert!(!trigger_b.has_attribute("tabindex"));
+
+    // 既定（`data-loop-focus` 欠落）は非循環: 末尾で ArrowRight は no-op。
+    let trigger_c = document.get_element_by_id("kn-nm-h1-trigger-c").unwrap();
+    html_element(&trigger_c).focus().unwrap();
+    trigger_c
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-nm-h1-trigger-c".to_string())
+    );
+}
+
+/// 検証 14-2: Home/End で先頭/末尾 trigger へ移動する。
+#[wasm_bindgen_test]
+fn navigation_menu_home_end_move_to_first_last_trigger() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_navigation_menu_dom(
+        &document,
+        "kn-nm-he1",
+        &[("a", "A", false), ("b", "B", false), ("c", "C", false)],
+        "horizontal",
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger_b = document.get_element_by_id("kn-nm-he1-trigger-b").unwrap();
+    html_element(&trigger_b).focus().unwrap();
+    trigger_b.dispatch_event(&keydown_event("End")).unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-nm-he1-trigger-c".to_string())
+    );
+
+    let trigger_c = document.get_element_by_id("kn-nm-he1-trigger-c").unwrap();
+    trigger_c.dispatch_event(&keydown_event("Home")).unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-nm-he1-trigger-a".to_string())
+    );
+}
+
+/// 検証 14-2b: `content` パネル内にネストした NavigationMenu trigger
+/// （mega menu 等）が、外側 trigger 間の Arrow/Home/End 移動対象へ漏れ
+/// 込まないことを固定する（PR #1098 レビュー指摘、Bugbot: 所有関係の
+/// フィルタなしに `nav_root` 配下の trigger を全収集すると、`item` "a" の
+/// `content` 内へ手組みで挿入したネスト trigger が矢印キー移動対象に
+/// 含まれてしまう）。`item` "a" の `content` へ独自の `trigger` を 1 個
+/// 追加挿入したうえで、`trigger` a → ArrowRight で本来の次項目 "b" へだけ
+/// 移動し、ネスト trigger が候補集合に混入しないことを検証する。
+#[wasm_bindgen_test]
+fn navigation_menu_nested_trigger_in_content_does_not_leak_into_trigger_navigation() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_navigation_menu_dom(
+        &document,
+        "kn-nm-nest1",
+        &[("a", "A", false), ("b", "B", false)],
+        "horizontal",
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    // item "a" の content 内に、独自の navigation-menu trigger を挿入する
+    // （mega menu が content 内へ別 NavigationMenu を埋め込むケースを模す）。
+    let content_a = document.get_element_by_id("kn-nm-nest1-content-a").unwrap();
+    let nested_trigger = document.create_element("button").unwrap();
+    nested_trigger
+        .set_attribute("data-scope", "navigation-menu")
+        .unwrap();
+    nested_trigger
+        .set_attribute("data-part", "trigger")
+        .unwrap();
+    nested_trigger.set_attribute("type", "button").unwrap();
+    nested_trigger
+        .set_attribute("id", "kn-nm-nest1-nested-trigger")
+        .unwrap();
+    nested_trigger.set_text_content(Some("Nested"));
+    content_a.append_child(&nested_trigger).unwrap();
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger_a = document.get_element_by_id("kn-nm-nest1-trigger-a").unwrap();
+    html_element(&trigger_a).focus().unwrap();
+    trigger_a
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    // ネスト trigger ではなく、外側の次項目 "b" へ移動する。
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-nm-nest1-trigger-b".to_string())
+    );
+
+    // Home/End もネスト trigger を候補集合に含めない（先頭/末尾は依然として
+    // "a"/"b" のまま）。
+    let trigger_b = document.get_element_by_id("kn-nm-nest1-trigger-b").unwrap();
+    trigger_b.dispatch_event(&keydown_event("End")).unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-nm-nest1-trigger-b".to_string())
+    );
+}
+
+/// 検証 14-3: closed 時、horizontal の ArrowDown で `click()` 合成 → content
+/// 再解決 → 先頭リンクへフォーカスする（`aria-expanded` が `true` へ
+/// 変化することも確認）。
+#[wasm_bindgen_test]
+fn navigation_menu_closed_horizontal_arrow_down_opens_via_click_and_focuses_first_link() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_navigation_menu_dom(
+        &document,
+        "kn-nm-o1",
+        &[("a", "A", false)],
+        "horizontal",
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger_a = document.get_element_by_id("kn-nm-o1-trigger-a").unwrap();
+    html_element(&trigger_a).focus().unwrap();
+    trigger_a
+        .dispatch_event(&keydown_event("ArrowDown"))
+        .unwrap();
+
+    assert_eq!(
+        trigger_a.get_attribute("aria-expanded").as_deref(),
+        Some("true")
+    );
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-nm-o1-link-a-1".to_string())
+    );
+}
+
+/// 検証 14-4: closed 時、horizontal の ArrowUp は末尾リンクから開く。
+#[wasm_bindgen_test]
+fn navigation_menu_closed_horizontal_arrow_up_opens_focusing_last_link() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_navigation_menu_dom(
+        &document,
+        "kn-nm-o2",
+        &[("a", "A", false)],
+        "horizontal",
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger_a = document.get_element_by_id("kn-nm-o2-trigger-a").unwrap();
+    html_element(&trigger_a).focus().unwrap();
+    trigger_a.dispatch_event(&keydown_event("ArrowUp")).unwrap();
+
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-nm-o2-link-a-2".to_string())
+    );
+}
+
+/// 検証 14-4b: closed 時、vertical の前方向キー ArrowLeft でも horizontal
+/// の ArrowUp と同じく `click()` 合成 → content 再解決 → 末尾リンクへ
+/// フォーカスする（PR #1098 レビュー指摘、Bugbot: 縦方向メニューで
+/// ArrowLeft を欠落すると最後のリンクからコンテンツへ入れない）。
+#[wasm_bindgen_test]
+fn navigation_menu_closed_vertical_arrow_left_opens_focusing_last_link() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_navigation_menu_dom(
+        &document,
+        "kn-nm-o2v",
+        &[("a", "A", false)],
+        "vertical",
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger_a = document.get_element_by_id("kn-nm-o2v-trigger-a").unwrap();
+    html_element(&trigger_a).focus().unwrap();
+    trigger_a
+        .dispatch_event(&keydown_event("ArrowLeft"))
+        .unwrap();
+
+    assert_eq!(
+        trigger_a.get_attribute("aria-expanded").as_deref(),
+        Some("true")
+    );
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-nm-o2v-link-a-2".to_string())
+    );
+}
+
+/// 検証 14-5: open 中は `click()` 合成なしでリンクへフォーカスする
+/// （`aria-expanded` が変化しないことを確認）。
+#[wasm_bindgen_test]
+fn navigation_menu_open_arrow_down_focuses_link_without_reclicking() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_navigation_menu_dom(
+        &document,
+        "kn-nm-o3",
+        &[("a", "A", false)],
+        "horizontal",
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger_a = document.get_element_by_id("kn-nm-o3-trigger-a").unwrap();
+    html_element(&trigger_a).focus().unwrap();
+    // 1 回目の ArrowDown で open。
+    trigger_a
+        .dispatch_event(&keydown_event("ArrowDown"))
+        .unwrap();
+    assert_eq!(
+        trigger_a.get_attribute("aria-expanded").as_deref(),
+        Some("true")
+    );
+
+    // open のまま trigger へ焦点を戻し、再度 ArrowDown（open 中の判定経路）。
+    html_element(&trigger_a).focus().unwrap();
+    trigger_a
+        .dispatch_event(&keydown_event("ArrowDown"))
+        .unwrap();
+    // click() 合成が起きていれば toggle されて closed になるはずだが、
+    // open 中は再合成しないため aria-expanded は true のまま。
+    assert_eq!(
+        trigger_a.get_attribute("aria-expanded").as_deref(),
+        Some("true")
+    );
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-nm-o3-link-a-1".to_string())
+    );
+}
+
+/// 検証 14-6: content 内リンクの ArrowDown/ArrowUp が非循環で移動し、
+/// Home/End も機能する。
+#[wasm_bindgen_test]
+fn navigation_menu_link_arrow_moves_non_looping_with_home_end() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_navigation_menu_dom(
+        &document,
+        "kn-nm-l1",
+        &[("a", "A", false)],
+        "horizontal",
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let link_1 = document.get_element_by_id("kn-nm-l1-link-a-1").unwrap();
+    let link_2 = document.get_element_by_id("kn-nm-l1-link-a-2").unwrap();
+    // content を明示的に open しておく（open 済み content 上のリンク移動の
+    // みを検証する。open 自体は検証 14-3/14-4 が担う）。
+    let content = document.get_element_by_id("kn-nm-l1-content-a").unwrap();
+    content.remove_attribute("hidden").unwrap();
+    html_element(&link_1).focus().unwrap();
+
+    link_1.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-nm-l1-link-a-2".to_string())
+    );
+    // 非循環: 末尾で ArrowDown は no-op。
+    link_2.dispatch_event(&keydown_event("ArrowDown")).unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-nm-l1-link-a-2".to_string())
+    );
+    link_2.dispatch_event(&keydown_event("Home")).unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-nm-l1-link-a-1".to_string())
+    );
+}
+
+/// 検証 14-7: content 内リンクの Escape は `click()` 合成で close を委譲
+/// し、フォーカスを trigger へ戻す。
+#[wasm_bindgen_test]
+fn navigation_menu_link_escape_closes_and_returns_focus_to_trigger() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_navigation_menu_dom(
+        &document,
+        "kn-nm-esc1",
+        &[("a", "A", false)],
+        "horizontal",
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger_a = document.get_element_by_id("kn-nm-esc1-trigger-a").unwrap();
+    let content = document.get_element_by_id("kn-nm-esc1-content-a").unwrap();
+    let link_1 = document.get_element_by_id("kn-nm-esc1-link-a-1").unwrap();
+    content.remove_attribute("hidden").unwrap();
+    trigger_a.set_attribute("aria-expanded", "true").unwrap();
+    trigger_a.set_attribute("data-state", "open").unwrap();
+    html_element(&link_1).focus().unwrap();
+
+    link_1.dispatch_event(&keydown_event("Escape")).unwrap();
+
+    assert!(content.has_attribute("hidden"));
+    assert_eq!(
+        trigger_a.get_attribute("aria-expanded").as_deref(),
+        Some("false")
+    );
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-nm-esc1-trigger-a".to_string())
+    );
+}
+
+/// 検証 14-8: closed 時の trigger 上の Escape は no-op（fail-closed）で
+/// `prevent_default` されない（`combobox_key_action` の closed Escape と
+/// 同じ判断、モジュール doc §NavigationMenu 参照）。
+#[wasm_bindgen_test]
+fn navigation_menu_trigger_escape_when_closed_is_noop_fail_closed() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_navigation_menu_dom(
+        &document,
+        "kn-nm-esc2",
+        &[("a", "A", false)],
+        "horizontal",
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger_a = document.get_element_by_id("kn-nm-esc2-trigger-a").unwrap();
+    html_element(&trigger_a).focus().unwrap();
+    let not_default_prevented = trigger_a.dispatch_event(&keydown_event("Escape")).unwrap();
+    assert!(
+        not_default_prevented,
+        "closed trigger 上の Escape は claim されるべきではない（fail-closed）"
+    );
+    assert_eq!(
+        trigger_a.get_attribute("aria-expanded").as_deref(),
+        Some("false")
+    );
+}
+
+/// Bugbot 指摘 "Reresolve focus skips root check"（PR #1098 レビュー、
+/// イシュー #1075）の回帰テスト。`navigation_menu_reresolve_after_click` が
+/// `document.get_element_by_id` の解決結果を `root.contains`/セレクタ一致
+/// なしに採用すると、id 重複（改ざん・不正な DOM）下で root 外の要素へ
+/// フォーカスが漏れる。root 外に正規 trigger と**同一 id**を持つ decoy
+/// ボタンを、DOM 順序上正規 trigger より**先**（`document.getElementById`
+/// が重複 id で最初にマッチする要素を返す実装依存挙動を利用）に配置し、
+/// open 状態の trigger 上で Escape（`Close` アクション）を発火する。
+/// 修正前は `fresh_trigger` が decoy を指してしまい `focus()` が root 外へ
+/// 漏れる。修正後は `root.contains` かつ `NAVIGATION_MENU_TRIGGER_SELECTOR`
+/// 一致の検証に失敗するため click 前の正規 trigger（`stale_trigger`）へ
+/// fail-closed にフォールバックし、フォーカスは root 内に留まる。
+#[wasm_bindgen_test]
+fn navigation_menu_close_with_duplicate_id_does_not_leak_focus_outside_root() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_navigation_menu_dom(
+        &document,
+        "kn-nm-dupid",
+        &[("a", "A", false)],
+        "horizontal",
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let trigger_a = document.get_element_by_id("kn-nm-dupid-trigger-a").unwrap();
+    let content = document.get_element_by_id("kn-nm-dupid-content-a").unwrap();
+    // `wire_toggle_listener` は `build_navigation_menu_dom` が各 trigger へ
+    // 既に配線済み（同関数 doc 参照）。ここで重ねて登録すると Escape が
+    // 合成する `click()` によりトグルが 2 回発火し、content が開いたまま
+    // 残って `hidden` アサーションが偽陰性を起こす（Bugbot 指摘、PR #1098
+    // レビュー）。reresolve 修正の回帰カバレッジを保つため二重登録しない。
+
+    // root 外に正規 trigger と同一 id の decoy を、body の先頭（root より
+    // 前）へ挿入する。document.get_element_by_id は重複 id のとき DOM 順で
+    // 最初に一致する要素を返す実装依存挙動を持つため、ここで decoy が
+    // 「id による再解決」の結果として選ばれる状況を作る。
+    let decoy = document.create_element("button").unwrap();
+    decoy.set_id("kn-nm-dupid-trigger-a");
+    decoy
+        .set_attribute("data-scope", "navigation-menu")
+        .unwrap();
+    decoy.set_attribute("data-part", "trigger").unwrap();
+    let body = document.body().unwrap();
+    body.insert_before(&decoy, body.first_child().as_ref())
+        .unwrap();
+    let _cleanup_decoy = RemoveOnDrop(decoy.clone());
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    // trigger を open 状態にしてから Escape（Close アクション）を発火する。
+    content.remove_attribute("hidden").unwrap();
+    trigger_a.set_attribute("aria-expanded", "true").unwrap();
+    trigger_a.set_attribute("data-state", "open").unwrap();
+    html_element(&trigger_a).focus().unwrap();
+
+    trigger_a.dispatch_event(&keydown_event("Escape")).unwrap();
+
+    assert!(content.has_attribute("hidden"), "Close で content は閉じる");
+    // フォーカスは root 内の正規 trigger に留まり、root 外の decoy へは
+    // 決して移らない（A01 対策の回帰確認）。
+    let focused = document.active_element();
+    assert_eq!(
+        focused.as_ref().map(|el| el.id()),
+        Some("kn-nm-dupid-trigger-a".to_string())
+    );
+    assert!(
+        focused.is_some_and(|el| root.contains(Some(&el))),
+        "フォーカスは root 内に留まるべきで、decoy（root 外）へ漏れてはならない"
+    );
+}
+
+/// 検証 14-9（XSS 回帰、REQ-1）: 攻撃者制御ラベル・`href="javascript:..."`
+/// を含む DOM でキー操作しても `script` 要素が生成されない。
+#[wasm_bindgen_test]
+fn navigation_menu_keyboard_navigation_with_attacker_controlled_label_does_not_inject_script() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_navigation_menu_dom(
+        &document,
+        "kn-nm-xss1",
+        &[("a", "<script>document.title='pwned'</script>", false)],
+        "horizontal",
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    // `href="javascript:..."` 相当の攻撃者制御属性が存在しても keynav 自身は
+    // 属性値を書き換えないことを確認する（`set_dom_attribute` を経由しない
+    // 純粋な `focus()`/`click()` のみで完結する契約）。
+    let link_1 = document.get_element_by_id("kn-nm-xss1-link-a-1").unwrap();
+    link_1.set_attribute("href", "javascript:alert(1)").unwrap();
+    let original_title = document.title();
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let trigger_a = document.get_element_by_id("kn-nm-xss1-trigger-a").unwrap();
+    html_element(&trigger_a).focus().unwrap();
+    trigger_a
+        .dispatch_event(&keydown_event("ArrowDown"))
+        .unwrap();
+    let content = document.get_element_by_id("kn-nm-xss1-content-a").unwrap();
+    content
+        .dispatch_event(&keydown_event("Escape"))
+        .unwrap_or(true);
+
+    assert!(root.query_selector("script").unwrap().is_none());
+    assert_eq!(
+        document.title(),
+        original_title,
+        "攻撃者制御ラベルの操作で document.title が変化してはいけない"
+    );
+    assert_eq!(
+        link_1.get_attribute("href").as_deref(),
+        Some("javascript:alert(1)"),
+        "keynav は href 属性を書き換えない（focus()/click() のみで完結）"
+    );
+}
+
+/// Bugbot 指摘 "Stale root blocks open focus"（PR #1098 レビュー、イシュー
+/// #1075）の回帰: `OpenToLink` の `trigger.click()` 合成で NavigationMenu の
+/// `[data-part="root"]`（`nav_root`）配下（trigger/content/link）全体が
+/// 新しい要素へ丸ごと差し替わっても、開いた直後のリンクフォーカスが
+/// detached になった旧ツリーではなく生きた（新しい）DOM 上へ設定される
+/// こと（`combobox_closed_arrow_down_opens_after_full_subtree_replacement_
+/// still_sets_highlight` と同型のシナリオ）。
+#[wasm_bindgen_test]
+fn navigation_menu_open_to_link_after_full_subtree_replacement_still_focuses_link() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root_id = "kn-nm-replace";
+    let triggers: &[(&str, &str, bool)] = &[("a", "A", false)];
+
+    // keynav のマウント境界は NavigationMenu の `[data-part="root"]` より
+    // 外側の安定コンテナとする（Combobox の回帰テストと同型の構成、
+    // mount_root 自体は再描画で差し替わらない）。
+    let mount_root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&mount_root).unwrap();
+    let _cleanup = RemoveOnDrop(mount_root.clone());
+
+    let nav_root = build_navigation_menu_dom(&document, root_id, triggers, "horizontal", false);
+    mount_root.append_child(&nav_root).unwrap();
+
+    let trigger_a = document
+        .get_element_by_id(&format!("{root_id}-trigger-a"))
+        .unwrap();
+
+    // trigger click のたびに、NavigationMenu の `[data-part="root"]` 配下
+    // 全体を detach し、同じ id を持つ既に open 状態の新しい要素へ丸ごと
+    // 差し替える（click 駆動の再描画を模す）。`build_navigation_menu_dom` が
+    // 内部で登録する `wire_toggle_listener`（trigger click で元 content の
+    // hidden/aria-expanded を toggle する）より後に登録されるため、
+    // 「toggle → 差し替え」の順で発火する。mount_root 自体は差し替えない。
+    let closure = Closure::<dyn FnMut(Event)>::new({
+        let document = document.clone();
+        let mount_root = mount_root.clone();
+        let root_id = root_id.to_string();
+        let triggers: Vec<(String, String, bool)> = triggers
+            .iter()
+            .map(|(v, l, d)| (v.to_string(), l.to_string(), *d))
+            .collect();
+        move |_event: Event| {
+            let old_root = document.get_element_by_id(&root_id).unwrap();
+            old_root.remove();
+            let owned: Vec<(&str, &str, bool)> = triggers
+                .iter()
+                .map(|(v, l, d)| (v.as_str(), l.as_str(), *d))
+                .collect();
+            build_navigation_menu_dom(&document, &root_id, &owned, "horizontal", false);
+            // 新しいツリーは open 状態（実アプリの再描画結果）で差し替える。
+            let new_trigger = document
+                .get_element_by_id(&format!("{root_id}-trigger-a"))
+                .unwrap();
+            new_trigger.set_attribute("aria-expanded", "true").unwrap();
+            let new_content = document
+                .get_element_by_id(&format!("{root_id}-content-a"))
+                .unwrap();
+            new_content.remove_attribute("hidden").unwrap();
+            // `build_navigation_menu_dom` は body 直下へ追加するため、
+            // mount_root 配下へ付け替える（`append_child` は既存ノードを
+            // 再親化する）。
+            let new_root = document.get_element_by_id(&root_id).unwrap();
+            mount_root.append_child(&new_root).unwrap();
+        }
+    });
+    trigger_a
+        .add_event_listener_with_callback("click", closure.as_ref().unchecked_ref())
+        .unwrap();
+    closure.forget();
+
+    wire_keynav(mount_root.clone()).expect("wire_keynav must succeed");
+    html_element(&trigger_a).focus().unwrap();
+    trigger_a
+        .dispatch_event(&keydown_event("ArrowDown"))
+        .unwrap();
+
+    // 生きた（新しい）link を id 経由で解決して検証する（旧 trigger/content
+    // は detached のまま残っている）。
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some(format!("{root_id}-link-a-1")),
+        "detached になった旧 nav_root ではなく、生きた DOM 上のリンクへ \
+         フォーカスが移るべき（Bugbot 指摘 \"Stale root blocks open focus\"）"
+    );
+}
+
+/// 検証 15-1: Arrow によるフォーカス移動 + roving tabindex 更新・常時循環。
+#[wasm_bindgen_test]
+fn toggle_group_arrow_moves_focus_and_updates_roving_tabindex_and_loops() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_toggle_group_dom(
+        &document,
+        "kn-tg-h1",
+        &[
+            ("bold", "B", false, false),
+            ("italic", "I", false, false),
+            ("underline", "U", false, false),
+        ],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let item_bold = document.get_element_by_id("kn-tg-h1-item-bold").unwrap();
+    let item_italic = document.get_element_by_id("kn-tg-h1-item-italic").unwrap();
+    let item_underline = document
+        .get_element_by_id("kn-tg-h1-item-underline")
+        .unwrap();
+    html_element(&item_bold).focus().unwrap();
+
+    item_bold
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert_eq!(item_bold.get_attribute("tabindex").as_deref(), Some("-1"));
+    assert_eq!(item_italic.get_attribute("tabindex").as_deref(), Some("0"));
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-tg-h1-item-italic".to_string())
+    );
+
+    // 常時循環: 末尾から ArrowRight で先頭へ。
+    html_element(&item_underline).focus().unwrap();
+    item_underline
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-tg-h1-item-bold".to_string())
+    );
+    assert_eq!(item_bold.get_attribute("tabindex").as_deref(), Some("0"));
+}
+
+/// 検証 15-2: `data-orientation` による軸制限（欠落時は両軸受理）。
+#[wasm_bindgen_test]
+fn toggle_group_orientation_restricts_axis() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_toggle_group_dom(
+        &document,
+        "kn-tg-o1",
+        &[("bold", "B", false, false), ("italic", "I", false, false)],
+        Some("horizontal"),
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let item_bold = document.get_element_by_id("kn-tg-o1-item-bold").unwrap();
+    html_element(&item_bold).focus().unwrap();
+
+    let not_default_prevented = item_bold
+        .dispatch_event(&keydown_event("ArrowDown"))
+        .unwrap();
+    assert!(
+        not_default_prevented,
+        "horizontal 指定時、ArrowDown は claim されるべきではない"
+    );
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-tg-o1-item-bold".to_string()),
+        "軸外のキーではフォーカスが移動しないべき"
+    );
+}
+
+/// 検証 15-3: Home/End・disabled スキップ。
+#[wasm_bindgen_test]
+fn toggle_group_home_end_and_disabled_are_skipped() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_toggle_group_dom(
+        &document,
+        "kn-tg-he1",
+        &[
+            ("bold", "B", false, false),
+            ("italic", "I", false, true),
+            ("underline", "U", false, false),
+        ],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let item_bold = document.get_element_by_id("kn-tg-he1-item-bold").unwrap();
+    html_element(&item_bold).focus().unwrap();
+    item_bold.dispatch_event(&keydown_event("End")).unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-tg-he1-item-underline".to_string())
+    );
+
+    // ArrowLeft で戻ると disabled の italic をスキップして bold へ。
+    let item_underline = document
+        .get_element_by_id("kn-tg-he1-item-underline")
+        .unwrap();
+    item_underline
+        .dispatch_event(&keydown_event("ArrowLeft"))
+        .unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-tg-he1-item-bold".to_string())
+    );
+}
+
+/// 検証 15-4（XSS 回帰、REQ-1）: 攻撃者制御 `data-value`/ラベルでキー操作
+/// しても `script` 要素が生成されない。
+#[wasm_bindgen_test]
+fn toggle_group_keyboard_navigation_with_attacker_controlled_label_does_not_inject_script() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_toggle_group_dom(
+        &document,
+        "kn-tg-xss1",
+        &[
+            (
+                "<script>document.title='pwned'</script>",
+                "<script>document.title='pwned'</script>",
+                false,
+                false,
+            ),
+            ("safe", "Safe", false, false),
+        ],
+        None,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+    let original_title = document.title();
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    let items = root
+        .query_selector_all("[data-scope=\"toggle-group\"][data-part=\"item\"]")
+        .unwrap();
+    let first_item = items.get(0).unwrap().dyn_into::<Element>().unwrap();
+    html_element(&first_item).focus().unwrap();
+    first_item
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    first_item.dispatch_event(&keydown_event("Home")).unwrap();
+
+    assert!(root.query_selector("script").unwrap().is_none());
+    assert_eq!(
+        document.title(),
+        original_title,
+        "攻撃者制御ラベルの操作で document.title が変化してはいけない"
+    );
+}
+
+/// 検証（Bugbot 指摘、イシュー #1075）: 外側 ToggleGroup の item 配下に
+/// ネストした内側 ToggleGroup を配置しても、外側 root 上での矢印キー移動
+/// が内側の item を対象に含めない。NavigationMenu trigger・Calendar
+/// day-trigger と同型の closest-root 所有権フィルタの回帰。
+#[wasm_bindgen_test]
+fn toggle_group_nested_instance_does_not_leak_into_outer_navigation() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let outer = build_toggle_group_dom(
+        &document,
+        "kn-tg-nest-outer",
+        &[("a", "A", false, false), ("b", "B", false, false)],
+        None,
+    );
+    let _outer_cleanup = RemoveOnDrop(outer.clone());
+
+    // 内側の ToggleGroup は外側の item（button）配下へネストして配置する
+    // （calendar_nested_instance_does_not_leak と同じ手組み DOM 構築、
+    // モジュール doc §ToggleGroup 参照）。
+    let outer_item_a = outer
+        .query_selector("[data-scope=\"toggle-group\"][data-part=\"item\"]")
+        .unwrap()
+        .unwrap();
+    let inner = build_toggle_group_dom(
+        &document,
+        "kn-tg-nest-inner",
+        &[("x", "X", false, false), ("y", "Y", false, false)],
+        None,
+    );
+    inner.remove();
+    outer_item_a.append_child(&inner).unwrap();
+
+    wire_keynav(outer.clone()).expect("wire_keynav must succeed");
+
+    let outer_item_a = document
+        .get_element_by_id("kn-tg-nest-outer-item-a")
+        .unwrap();
+    html_element(&outer_item_a).focus().unwrap();
+    outer_item_a
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-tg-nest-outer-item-b".to_string()),
+        "外側 ToggleGroup のフォーカス移動は外側自身の item 集合に限定される"
+    );
+
+    let inner_item_x = document
+        .get_element_by_id("kn-tg-nest-inner-item-x")
+        .unwrap();
+    assert_eq!(
+        inner_item_x.get_attribute("tabindex").as_deref(),
+        None,
+        "内側 ToggleGroup の item の tabindex は外側の移動で書き換わらない"
+    );
 }
 
 fn calendar_day(document: &Document, root_id: &str, index: usize) -> Element {

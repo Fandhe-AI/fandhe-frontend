@@ -89,8 +89,9 @@
 //! - **Indicator / Viewport / Sub\* パーツ、`orientation` 引数**: イシューが
 //!   列挙する 6 パーツに限定する。
 //! - **キーボード操作の実 DOM 配線**（矢印キー・Escape・フォーカス移動）:
-//!   `fandhe-frontend-wasm-full` の後続責務（[`mod@crate::menubar`]/
-//!   [`mod@crate::toolbar`] と同じ扱い）。
+//!   `fandhe-frontend-wasm-full` の責務（[`mod@crate::menubar`]/
+//!   [`mod@crate::toolbar`] と同じ扱い）。`crates/wasm-full/src/keynav.rs`
+//!   （イシュー #1075）で実装済み。
 
 use crate::anatomy::{anatomy, Anatomy};
 use crate::aria::{
