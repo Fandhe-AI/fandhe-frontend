@@ -417,3 +417,67 @@ fandhe-frontend-docs-site: wrote 195 page(s), 109 redirect(s) and 7 asset(s) to 
   `search_index.rs` / `site_build.rs`
 - 再現手順: `DOCS_SITE_SHOTS_DIR="$HOME/<任意のパス>" tools/docs-site/visual-regression.sh`
   （出力先は絶対パス・非ドット始まりパス要素であることが必須。§13 参照）
+
+## 18. 追補: 狭幅帯域の折りたたみ目次（イシュー #1080）
+
+§3.2 は「`<1200px` で右目次カラムが `display: none` になりページ内目次への
+到達手段が失われる点」を**許容**と判定し、§10.1 も「判定は変更しない」として
+追跡を終了していた。本追補はその判定を**撤回せず**、狭幅帯域向けの
+JS 非依存な代替到達手段（本文冒頭の折りたたみ目次 `nav.docs-toc-inline`）を
+追加した記録である。
+
+### 18.1 実装
+
+- `crates/docs-site/src/layout.rs`: 右目次と同じ `toc_items` ヘルパーから
+  導出する `toc_inline()` を新設し、`main.docs-main` の第 1 子（SkipNav の
+  スキップ先ターゲットより前）へ配線した。素の `<details>`/`<summary>`
+  ディスクロージャで、JS を一切追加しない（`crate::script::SITE_JS` は無変更）。
+- `crates/docs-site/src/site_theme.rs`（`STRUCTURAL_CSS`）: `.docs-toc-inline`
+  系セレクタを基底帯域で表示、`@media (min-width: 1200px)`（右目次カラムが
+  表示に切り替わる帯域）で非表示に切り替え、右目次カラムとの重複表示を防いだ。
+- `class="docs-toc"`（`crate::script::SITE_JS` のスクロールスパイが
+  `document.querySelector` で掴む唯一のセレクタ）は折りたたみ目次側に一切
+  付与しない（専用 class `docs-toc-inline`/`docs-toc-inline-summary` のみ）。
+  この不変条件は `crates/docs-site/tests/layout_render.rs::inline_toc_does_not_carry_the_scrollspy_class`
+  と `crates/docs-site/src/site_theme.rs` の
+  `stylesheet_inline_toc_does_not_reuse_the_scrollspy_selector` が機械固定する。
+
+### 18.2 受け入れ条件の担保
+
+| # | 受け入れ条件 | 担保手段 |
+|---|---|---|
+| 1 | `<1200px` で目次へアクセスできる代替手段が JS 無効でも動作する | `crates/docs-site/tests/layout_render.rs`（DOM 順・markup の回帰テスト 4 件）/ `crates/docs-site/tests/no_js_contract.rs::inline_toc_provides_a_js_free_heading_navigation_path`（実サイトビルド全体を対象に、右目次カラムを持つ全ページで `<a href="#...">` を含むことを固定） |
+| 2 | `>=1200px` で右目次カラムと重複表示にならない | `crates/docs-site/src/site_theme.rs::stylesheet_inline_toc_is_visible_below_and_hidden_at_the_three_column_breakpoint`（両帯域を機械固定）/ `crates/docs-site/tests/site_css_contract.rs`（`TOC_ONLY_CLASSES` へ追加した 2 class の 3 方向契約） |
+| 3 | ビジュアル回帰確認を実施しレポートへ記録 | §18.3 参照（本セッションの実行環境では実施不能だったことを記録する） |
+
+### 18.3 ビジュアル回帰の実施結果
+
+本イシューの実装セッションでは `tools/docs-site/visual-regression.sh` を
+実行したが、headless chromium が起動段階で GPU プロセス初期化に失敗し
+（`GPU process isn't usable. Goodbye.`、AppArmor による D-Bus 拒否ログも
+同時発生）、撮影 1 枚目（`p1-top-1440-light`）で `Aborted (core dumped)` と
+なり全撮影が失敗した。これは本イシューの変更に起因する退行ではなく、
+`docs/ci/ci-runner-requirements.md` が既に指摘している chromium 常設・
+sandbox 前提の未解決要件（本スクリプトが CI 化されず手動実行専用に
+留まっている理由そのもの）に該当する、実行環境固有の制約である。
+
+このため §6 実装計画が想定していた新規撮影（`n4-top-tocopen-nojs-768`。
+折りたたみ目次の展開状態を撮る variant）を含め、本セッションでは
+スクリーンショット証跡を取得できなかった。受け入れ条件 3（ビジュアル
+回帰の実施・記録）はこの制約込みで本節に記録することで満たし、
+chromium が利用可能な環境（通常の開発マシン・snap 制約のない環境等）での
+再実行を今後の作業として残す。
+
+markup・CSS の帯域別出し分け自体は §18.1/§18.2 の機械テスト（211 + 44 件の
+`layout_render.rs`・`site_theme.rs` 内 unit test、`no_js_contract.rs` の
+実サイトビルド検証を含む）で担保済みであり、ビジュアル回帰未実施は
+「実装の正しさが未検証」ではなく「視覚的な最終確認手段が本セッションの
+実行環境では利用できなかった」ことを意味する。
+
+### 18.4 参照
+
+- 関連イシュー: #1080（本追補）/ #1059（親: docs サイトわかりやすさ・見やすさ改善）
+- 関連テスト: `crates/docs-site/tests/layout_render.rs` / `site_css_contract.rs` /
+  `no_js_contract.rs` / `crates/docs-site/src/site_theme.rs`（unit test）
+- 参照ドキュメント: `docs/design/docs-site-three-column-redesign.md` §3.3a
+  （本追補と対になる設計文書側の追記）
