@@ -39,6 +39,10 @@ TASK-6.2b（#48 最小ハイドレーション実装）・TASK-6.2c（#49 ハイ
 `wasm-pack test` であるため v1 では不採用。TASK-11.5（性能計測）で再検討可能。
 横断 a11y 自動検証（axe-core 相当）の導入評価（イシュー #1076、`docs/ci/a11y-automation-evaluation.md`）
 も本判断を a11y ツールへ継承し、Playwright ベースの axe-core 実行を同じ理由で見送っている。
+docs サイト（`fandhe-frontend-docs-site`）のヘッダードロップダウン・検索結果パネル等の
+対話操作検証手段の導入評価（イシュー #1084、`docs/ci/docs-site-interaction-testing-evaluation.md`）
+も同様に本判断を継承しており、Playwright は本環境（`ubuntu26.04-x64`）で構造的に
+起動不能なことを再実測で確認している。
 
 ## 4. CI 構成（`.github/workflows/ci.yml` の `browser-test` ジョブ）
 
