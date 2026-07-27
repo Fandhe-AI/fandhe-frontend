@@ -61,7 +61,10 @@
 //! `SITE_JS` が配線完了後にのみ可視化する（`.docs-theme-toggle` と同型の
 //! progressive enhancement 契約、`crate::script` モジュール doc 手順 5 参照）。
 //! `<form>` で包まない（JS 無効時に Enter キーでのフォーム送信を誘発しない
-//! ため）。
+//! ため）。`input.docs-search-input` の直前に視覚上のみ clip で隠す
+//! `label.docs-search-label`（`for="docs-search-input"`）を置く
+//! （fandhe-backend の docs サイトとデザインを統一するための追加、
+//! `crate::site_theme::STRUCTURAL_CSS` の `.docs-search-label` 参照）。
 
 use std::collections::HashSet;
 
@@ -96,6 +99,51 @@ pub const TOC_HEADING_ID: &str = "docs-toc-heading";
 
 /// [`TOC_HEADING_ID`] の表示テキスト。
 const TOC_HEADING_TEXT: &str = "On this page";
+
+/// 検索入力（`input.docs-search-input`）に付与する `id`。直前の
+/// `label.docs-search-label` の `for` 属性が参照する単一実装点
+/// （イシュー #958、fandhe-backend とのデザイン統一で `label`/`for` を
+/// 追加した際に新設。セキュリティ監査の Low 指摘で判明した「固定 id が
+/// [`RESERVED_LAYOUT_IDS`] へ未集約だった」問題の是正対象の 1 つ）。
+pub const SEARCH_INPUT_ID: &str = "docs-search-input";
+
+/// 検索結果一覧（`ul.docs-search-results`）に付与する `id`。
+/// [`SEARCH_INPUT_ID`] を持つ `input` の `aria-controls` 属性が参照する
+/// 単一実装点（WAI-ARIA combobox パターン、イシュー #958）。
+pub const SEARCH_RESULTS_ID: &str = "docs-search-results";
+
+/// サイドバー折りたたみチェックボックスハック（`input[type=checkbox]`）に
+/// 付与する `id`。直後の `label.docs-sidebar-toggle-label` の `for` 属性が
+/// 参照する単一実装点。
+pub const SIDEBAR_TOGGLE_ID: &str = "docs-sidebar-toggle";
+
+/// レイアウトが固定 `id` として出力する要素の `id` 一覧。
+///
+/// [`with_heading_anchors`] が本文見出しの自動生成 slug を採番する前に
+/// この全件を予約するための single source of truth（セキュリティ監査の
+/// Low 指摘、イシュー #950 の再発防止）。[`TOC_HEADING_ID`] のみを予約する
+/// 実装だったため、`site/**.md` の見出しテキストが偶然
+/// [`SEARCH_INPUT_ID`]・[`SEARCH_RESULTS_ID`]・[`SIDEBAR_TOGGLE_ID`] へ
+/// slug 化されると同一 HTML 文書内で `id` が重複し、`label[for]`・
+/// `aria-controls` の関連付けが壊れる（スクリーンリーダー利用者への
+/// 参照先が不定になるアクセシビリティ回帰）。新しい固定 `id` を
+/// `docs_page_with_assets` へ追加する場合は必ず本配列へ追記すること
+/// （`crates/docs-site/tests/layout_reserved_ids.rs` がドリフトを検知する）。
+///
+/// SkipNav の `id`（[`ps_skip_nav::DEFAULT_ID`]）は他クレート
+/// （`fandhe-frontend-headless-ui`）が所有する値だが、**本ページが実際に
+/// 出力する固定 `id`** である以上、衝突回避の観点では所有者が誰かは
+/// 無関係であるため本配列へ含める（本文見出しが `"fandhe-skip-nav"` へ
+/// slug 化された場合も、SkipNav リンクの `href="#..."` が本文冒頭ではなく
+/// 見出しへ飛んでしまう回帰を防ぐ）。値そのものの定義は他クレートに
+/// 委ねたままで、ここでは予約対象として参照するだけに留める。
+pub const RESERVED_LAYOUT_IDS: &[&str] = &[
+    TOC_HEADING_ID,
+    SEARCH_INPUT_ID,
+    SEARCH_RESULTS_ID,
+    SIDEBAR_TOGGLE_ID,
+    ps_skip_nav::DEFAULT_ID,
+];
 
 /// ページ内目次（TOC）の 1 エントリ。
 ///
@@ -137,7 +185,19 @@ pub fn with_heading_anchors(body: Node) -> (Node, Vec<TocEntry>) {
     // slug が偶然 `docs-toc-heading` と衝突しても、既存の「衝突時は
     // `unique_slug` で採番し直す」分岐がそのまま働き `docs-toc-heading-2`
     // へ回避されるため、id 重複が構造的に起こり得なくなる。
-    used_ids.insert(TOC_HEADING_ID.to_string());
+    //
+    // 予約対象は右目次見出しだけでなく [`RESERVED_LAYOUT_IDS`]（レイアウトが
+    // 出力する固定 id 全件）へ拡張済み（セキュリティ監査の Low 指摘）。
+    // `docs-search-input`/`docs-search-results`/`docs-sidebar-toggle` は
+    // それぞれ `label[for]`・`aria-controls` の関連付け先であり、
+    // 本文見出しの slug と衝突して重複 id が発生すると、その関連付けが
+    // 壊れてスクリーンリーダー利用者へ参照先が不定に伝わる（HTML 仕様上も
+    // id の一意性違反）。TOC 見出し 1 件のみの予約では #950 時点で
+    // 想定していなかった他の固定 id が保護対象外のままだったため、
+    // [`RESERVED_LAYOUT_IDS`] を単一の情報源として全件を予約する。
+    for reserved_id in RESERVED_LAYOUT_IDS {
+        used_ids.insert(reserved_id.to_string());
+    }
     let annotated = inject_heading_anchors(body, &mut entries, &mut used_ids);
     (annotated, entries)
 }
@@ -626,16 +686,38 @@ pub fn docs_page_with_assets(
             div(
                 vec![("class", "docs-search"), ("hidden", "")],
                 vec![
+                    // 視覚上は clip 手法で隠すラベル（`crate::site_theme::
+                    // STRUCTURAL_CSS` の `.docs-search-label` 参照）。fandhe-backend
+                    // の docs サイトとデザインを統一するため、`for`/`id` 対応を
+                    // 持つ label 要素を追加した（backend `layout.rs` の
+                    // `label.docs-search-label` と同型）。`id` は本ラベルの
+                    // `for` 属性からのみ参照され、`crate::script::SITE_JS` は
+                    // 引き続き `class="docs-search-input"` で要素を取得する
+                    // （id 追加は既存の class セレクタ経路に影響しない）。
+                    //
+                    // ラベル文言は backend と同一の `"Search"` とする。下の
+                    // `input` が `aria-label` を持つため、アクセシブル名の計算
+                    // 順序上このラベルのテキストが読み上げられることはなく
+                    // （`aria-label` が `<label>` より優先される）、実効的には
+                    // `for`/`id` による関連付けの器として機能する。placeholder
+                    // と同一文言を重複させても利用者には届かないため、backend
+                    // との一致を優先した。
+                    el(
+                        "label",
+                        vec![("class", "docs-search-label"), ("for", SEARCH_INPUT_ID)],
+                        vec![text("Search")],
+                    ),
                     el(
                         "input",
                         vec![
                             ("type", "search"),
+                            ("id", SEARCH_INPUT_ID),
                             ("class", "docs-search-input"),
-                            ("placeholder", "Search"),
-                            ("aria-label", "Search docs"),
+                            ("placeholder", "ドキュメントを検索"),
+                            ("aria-label", "ドキュメント内検索"),
                             ("role", "combobox"),
                             ("aria-expanded", "false"),
-                            ("aria-controls", "docs-search-results"),
+                            ("aria-controls", SEARCH_RESULTS_ID),
                             ("aria-autocomplete", "list"),
                             ("autocomplete", "off"),
                             ("data-search-index", &search_index_href),
@@ -644,7 +726,7 @@ pub fn docs_page_with_assets(
                     ),
                     ul(
                         vec![
-                            ("id", "docs-search-results"),
+                            ("id", SEARCH_RESULTS_ID),
                             ("class", "docs-search-results"),
                             ("role", "listbox"),
                             ("aria-label", "Search results"),
@@ -717,7 +799,7 @@ pub fn docs_page_with_assets(
     // （sr-only パターン、`display: none`/`visibility: hidden` にしない
     // 理由）。`nav_list`（`sidebar` 引数）自体の markup は変更しない
     // （設計文書 §3.4 の不変条件）。
-    let sidebar_toggle_id = "docs-sidebar-toggle";
+    let sidebar_toggle_id = SIDEBAR_TOGGLE_ID;
     let sidebar_toggle = el(
         "input",
         vec![
