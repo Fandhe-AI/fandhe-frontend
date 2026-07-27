@@ -286,7 +286,7 @@ Phase / PR」列は `git log origin/main --oneline` で実在確認できたコ�
 
 | 事項 | 根拠 | 現時点の追跡 |
 |---|---|---|
-| `site/components-pre-styled-ui.md:26-29` の「Demo 以外の節の充填は Phase 4（#945〜#948）で進めます」という記述が Phase 4 完了後も残存 | 本追補作成時点で `origin/main` の該当行に現存を確認済み。#960 §8 も同事象を是正提案として記録している | 本レポート §10.2 に記録。原稿の書き換えは当時の PR に含めなかった（→ イシュー #1077 で `site/themes.md` の記述を現況へ是正済み） |
+| `site/components-pre-styled-ui.md:26-29` の「Demo 以外の節の充填は Phase 4（#945〜#948）で進めます」という記述が Phase 4 完了後も残存 | 本追補作成時点で `origin/main` の該当行に現存を確認済み。#960 §8 も同事象を是正提案として記録している | 本レポート §10.2 に記録。原稿の書き換えは当時の PR に含めなかった（→ イシュー #1077 で `site/themes.md` の記述を現況へ是正済み、その置き換え文の事実誤認は本レポート §18〔イシュー #1082〕で更に是正済み） |
 | `tools/docs-site/visual-regression.sh` に tall-window 撮影（F 証跡取得手順）が未統合 | #960 §3 / §8。`f-table-*-tall.png` は大きい `--window-size` 高を手動指定するアドホックな chromium 呼び出しで取得しており、通常の再撮影手順（同スクリプト実行）には含まれていない | 同上 |
 | §8.2 の「未検証」判定項目（ヘッダードロップダウンの実操作、見出しアンカーの sticky ヘッダー回避、View Transitions の実遷移、`prefers-color-scheme` 経路の実機確認） | 実機の対話操作・メディアクエリのエミュレーションは、本環境で利用可能な撮影手段（chromium CLI の `--screenshot`）では取得できない | 同上 |
 
@@ -404,7 +404,7 @@ fandhe-frontend-docs-site: wrote 195 page(s), 109 redirect(s) and 7 asset(s) to 
 | 事項 | 位置づけ | 追跡 |
 |---|---|---|
 | CSP `script-src 'none'` 配信下で `<meta http-equiv="refresh">` ページを開くと headless chromium (`--headless --screenshot`) が無期限にハングする | 観点 6 の end-to-end スクリーンショットは取得不能という**ツール制約の発見**であり、docs サイト自体の退行ではない。`tools/docs-site/visual-regression.sh` から該当撮影（旧 N3）を削除し、理由をスクリプト冒頭コメント・本節へ記録した。観点 6 自体は HTML 直接検証 + 既存テストで合格判定済み（§14） | 本レポート §16（新規 Issue 起票はユーザー承認後、`out-of-scope-tracking.md` に従う） |
-| `site/themes.md`（Themes 索引）に残る「Demo 以外の節（Features/Anatomy/…）の充填は Phase 4（#945〜#948）で進めます」という記述 | 既存レポート §10.2 で `site/components-pre-styled-ui.md` として記録済みの項目が、#1018 のリネーム後も `site/themes.md` として引き続き現存することを本追補の撮影（`p8-themes-index-1440-light.png`）で再確認した。原稿の書き換えは Phase 5/6 の対象外であり本 PR に含めない | 既存レポート §10.2 と同一の追跡対象（新規ではないため新規行を追加せず、ここでは継続確認の事実のみ記録） |
+| `site/themes.md`（Themes 索引）に残る「Demo 以外の節（Features/Anatomy/…）の充填は Phase 4（#945〜#948）で進めます」という記述 | 既存レポート §10.2 で `site/components-pre-styled-ui.md` として記録済みの項目が、#1018 のリネーム後も `site/themes.md` として引き続き現存することを本追補の撮影（`p8-themes-index-1440-light.png`）で再確認した。原稿の書き換えは Phase 5/6 の対象外であり本 PR に含めない | 既存レポート §10.2 と同一の追跡対象（新規ではないため新規行を追加せず、ここでは継続確認の事実のみ記録。イシュー #1077 での是正とその置き換え文の事実誤認の是正は本レポート §18〔イシュー #1082〕参照） |
 | ヘッダードロップダウンの `:focus-within`/`:hover` 実機確認・見出しアンカーの sticky ヘッダー回避・View Transitions の実遷移・`prefers-color-scheme` 経路の実機確認 | §8.2 で「未検証」判定済みの既存項目であり、Primitives/Themes 2 層化によって新たに生じた制約ではない（同じ撮影手段の限界が継続しているだけ） | 既存レポート §10.2 と同一（増分なし） |
 
 ## 17. 追補: 参照（#1033）
@@ -428,7 +428,7 @@ fandhe-frontend-docs-site: wrote 195 page(s), 109 redirect(s) and 7 asset(s) to 
 存在するが、いずれも共有 Anatomy スコープ（`field`）の説明用であり、
 「未充填」を示す注記ではない（例: `site/themes/textarea.md`）。一方
 `site/themes/visually-hidden.md` のように `[!NOTE]` を持たずページ本体は
-4 行の部品でも、docs-site ビルド時に Demo・Anatomy 等が合成されて完全な
+5 行の部品でも、docs-site ビルド時に Demo・Anatomy 等が合成されて完全な
 ページが生成される（「Markdown 原稿のみの掲示」にはならない）。本追補
 実装（イシュー #1082）で、この記述を「Anatomy・`data-*` 属性表・CSS 変数
 表は Demo から機械導出するため部品によっては節が省略される」という正確な
