@@ -406,6 +406,113 @@
 //!   モジュールの Escape 処理は既存 Menu/Select と同じく highlight の後
 //!   始末のみを担い、閉鎖自体は `overlay` の責務のまま変えていない。
 //!
+//! # NavigationMenu のキーボード仕様（WAI-ARIA APG Disclosure Navigation Menu 準拠、イシュー #1075）
+//!
+//! `crates/headless-ui/src/navigation_menu.rs` は `role="menu"` を持たない
+//! 文書ナビゲーション（`nav > ul > li > button[aria-expanded] + div>a` 複数）
+//! であるという既存判断（モジュール doc「スコープ外」節）を尊重し、
+//! Menu/Select/Menubar の highlight（`data-highlighted`/
+//! `aria-activedescendant`）方式は採らず、**実 DOM フォーカスを移動する**
+//! （Tabs と同じ設計）。
+//!
+//! - `trigger` 間移動は [`tabs_next_index`] をそのまま再利用する
+//!   （`data-orientation` 欠落時 horizontal、`data-loop-focus` 欠落時
+//!   非循環＝[`menu_loop_focus_from_attr`] と同じ既定。Radix の
+//!   RovingFocus `loop: false` 既定に整合）。trigger 間移動が
+//!   `Some` を返した場合はそれを優先し、`None`（対象外のキー）のときのみ
+//!   open/close/リンク移動系（[`NavigationMenuKeyAction`]）へフォールスルー
+//!   する（Menubar の「トリガー間移動を先に評価」順序規則と同型）。
+//! - closed 時、開く方向のキー（horizontal: `ArrowDown`、vertical:
+//!   `ArrowRight`。前方向 `ArrowUp`/`ArrowLeft` は末尾リンクから開く）で
+//!   `trigger.click()` を合成し、既存の click → dispatch 経路へ open を
+//!   委譲した後、content を**再解決**して先頭/末尾リンクへフォーカスする
+//!   （click 由来の再描画で要素が差し替わりうるため、Menu の
+//!   [`wiring::open_submenu_and_focus_first_item`] と同じ理由で再解決する）。
+//! - open 時は同じキーで content 内リンクへ直接フォーカスする（`click()`
+//!   合成なし）。content 内リンク上では矢印/Home/End で同一 content 内の
+//!   非 disabled リンク間を**非循環**（APG のリンク集としての決定的挙動、
+//!   ページ末尾までスクロールし続けない）で移動する。
+//! - `Escape`: open 中の trigger/content 上でのみ `trigger.click()` を
+//!   合成して close を委譲し、フォーカスは trigger へ留める（or content 内
+//!   リンクから trigger へ戻す）。closed の trigger 上の `Escape` は
+//!   [`combobox_key_action`] の closed `Escape` と同じ理由（claim すると
+//!   誤って open してしまう）で **no-op（fail-closed）**。
+//! - `Enter`/`Space` は claim しない（ネイティブ `<button>` の click 発火に
+//!   委ねる。Menu と異なり初期 highlight を設定する必要が無いため合成不要）。
+//! - **roving tabindex は使わない**: `navigation_menu::trigger`/`link` は
+//!   `tabindex` を出力せず（headless-ui SSR 契約）、APG Disclosure
+//!   Navigation Menu も全ボタン・リンクをタブ順に残す。keynav が SSR
+//!   契約に無い `tabindex` を持ち込まない。
+//!
+//! ## 意図的に採らない挙動
+//!
+//! - **open-follows-focus**（Menubar が採用する、隣 trigger へ移動したら
+//!   自動で開く挙動）: NavigationMenu は `role="menu"` を持たない文書ナビ
+//!   であり、フォーカス移動だけで大きなパネルが次々開くのは意味論・UX
+//!   ともに過剰なため非採用（headless-ui 側の既存判断と同じ判断軸）。
+//! - **hover/focus による自動 open**（Radix NavigationMenu の既定挙動）:
+//!   JS タイマー・意図判定（safe triangle）を要し、
+//!   `docs/policy/intentional-non-adoption.md` §3.25 規則 2（装飾・
+//!   アニメーション・レイアウト計測の関心を headless 層へ持ち込まない）と
+//!   同じ判断軸で非採用。
+//! - **typeahead**: APG が要求しないため実装しない
+//!   （[`TypeaheadState`] を触らず Menu/Select/Listbox/Menubar の既存挙動へ
+//!   影響を与えない）。
+//!
+//! ## 既知のギャップ（本イシューでは対応しない、スコープ外）
+//!
+//! - **`MAPPING_TABLE` への `navigation-menu` 行未追加**:
+//!   `navigation_menu::trigger` が `data-value` を出力しないため、
+//!   `NavigationMenu::decode_action`（`SingleSelect` へ全委譲）が要求する
+//!   payload を満たせない。恒久解は headless-ui 側の SSR 出力追加（別
+//!   イシュー）。
+//! - **`overlay.rs::OverlayKind` に `navigation-menu` が無い**: Escape/
+//!   外側クリックによる content の実閉鎖の一元化は行わない（Menubar と
+//!   同じ既知ギャップ）。
+//! - **`list` 直下（content 外）のリンクは移動対象に含めない**:
+//!   trigger 間移動のみを対象とする。対象外リンクもネイティブにタブ順へ
+//!   残るためアクセシビリティ後退はない。
+//!
+//! # ToggleGroup のキーボード仕様（RadioGroup との共通化判断、イシュー #1075）
+//!
+//! `crates/headless-ui/src/toggle_group.rs` の `item`（`button`）間移動は
+//! WAI-ARIA APG Toolbar/RadioGroup パターンに従い roving tabindex +
+//! フォーカス移動を行う。
+//!
+//! - キー受理集合・循環・orientation 解釈は [`radio_next_index`] と
+//!   **完全一致**（`data-orientation` が `Option`＝欠落時両軸受理／
+//!   **常時循環**／Home/End は orientation 非依存／disabled スキップ、
+//!   ark-ui `loopFocus` 既定 `true` に整合）。したがって
+//!   [`toggle_group_next_index`] は専用の公開関数として新設しつつ、本体は
+//!   [`radio_next_index`] へ委譲する（[`listbox_next_index`] の rustdoc が
+//!   明文化した「キー受理集合が部品ごとに異なる契約であり、条件分岐を 1
+//!   関数へ詰め込むと部品間の契約差が読めなくなるため専用化する」ハウス
+//!   スタイルに従い、公開 API 名は分けたままインデックス計算のみ共有する）。
+//!   将来 ToggleGroup 側だけ仕様が動いた場合は [`toggle_group_next_index`]
+//!   の内部実装をここで分岐させる。
+//! - **配線層（[`wiring::handle_toggle_group_item_keydown`]）は
+//!   共通化しない**: RadioGroup はネイティブ `<input type="radio">` に
+//!   対する `focus()` + `set_checked` + `data-state` 同期 + `change`
+//!   委譲を伴うのに対し、ToggleGroup は `<button>` へのフォーカス移動 +
+//!   roving tabindex のみで押下状態は click → dispatch → 再描画が担う
+//!   （[`wiring::handle_radio_keydown`] への合流は分岐が支配的になり
+//!   fail-closed 条件も異なるため別ハンドラとする）。
+//! - 押下（Enter/Space/クリック）は claim せずネイティブ `<button>` の
+//!   click 発火に委ね、`MAPPING_TABLE` の `toggle-group`/`item` →
+//!   `"toggle"` 行（本イシューで追加）が dispatch へ接続する。
+//!
+//! ## 既知のギャップ（本イシューでは対応しない、スコープ外）
+//!
+//! - **SSR 側の roving tabindex 初期状態**: `toggle_group::item` は
+//!   `tabindex` を出力しないため、最初の矢印キー押下までは全 item がタブ順
+//!   に入る（押下後に単一タブストップへ収束する）。恒久解は
+//!   `toggle_group::item` への `focused: bool` opt-in（`toolbar.rs` の
+//!   `roving_tabindex`/`drop_tabindex_attr` が先例）だが、公開 API の
+//!   破壊的変更のため本イシューでは扱わない。`wire_keynav` へマウント時の
+//!   DOM 正規化パスを新設する案は不採用（`wire_keynav` はリスナー登録以外の
+//!   DOM 変更を一切行わない契約であり、アプリ側が付けた `tabindex` と
+//!   競合しうるため）。
+//!
 //! # セキュリティ不変条件
 //!
 //! - DOM 書き込みは `set_attribute`/`remove_attribute`/`focus()`/`click()`/
@@ -426,6 +533,11 @@
 //!   root 外要素への越境をいずれも fail-closed に遮断する（イシュー #662、
 //!   A01/A04 対策）。DOM 書き込み面（属性名リテラル固定・値語彙固定）は
 //!   本イシューでも不変。
+//! - NavigationMenu/ToggleGroup（イシュー #1075）が新規に書き込む属性は
+//!   `tabindex`（値語彙 `"0"`/`"-1"`）のみ、他は `focus()`/`click()` 合成に
+//!   限られる。`aria-controls` の解決は `document.get_element_by_id` を使い、
+//!   DOM 由来の値（`id`・`data-value`・ラベル）から動的にセレクタ文字列を
+//!   組み立てない（CSS セレクタインジェクション面を作らない）。
 
 /// パーツの向き（`crates/headless-ui/src/data_attrs.rs::Orientation` の値語彙
 /// と対応する、web-sys 非依存の純粋層専用の複製）。
@@ -1011,6 +1123,129 @@ pub fn combobox_key_action(
             _ => None,
         }
     }
+}
+
+/// NavigationMenu の trigger 上キー入力の意味（純粋層、web-sys 非依存、
+/// native `cargo test` 可。イシュー #1075、モジュール doc
+/// §NavigationMenu 参照）。
+///
+/// trigger 間移動（[`tabs_next_index`] へ委譲）は含まない。配線層
+/// （[`wiring::handle_navigation_menu_trigger_keydown`]）が
+/// [`tabs_next_index`] を先に評価し、`None`（対象外のキー）のときのみ
+/// 本関数へフォールスルーする 2 段構成（Menubar の「トリガー間移動を先に
+/// 評価」順序規則と同型、モジュール doc 参照）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NavigationMenuKeyAction {
+    /// closed → `trigger.click()` 合成で open を委譲し、content 内リンクへ
+    /// フォーカスする。`from_end` が `true` のとき末尾、`false` のとき
+    /// 先頭の非 disabled リンクへ移動する。
+    OpenToLink {
+        /// 末尾リンクから開始するか（horizontal `ArrowUp` での open）。
+        from_end: bool,
+    },
+    /// open のまま（`click()` 合成なしで）content 内リンクへフォーカスする。
+    /// `from_end` の意味は [`Self::OpenToLink`] と同じ。
+    FocusLink {
+        /// 末尾リンクへ移動するか。
+        from_end: bool,
+    },
+    /// open 中の `Escape`。`trigger.click()` 合成で close を委譲し、
+    /// フォーカスは trigger へ留める。
+    Close,
+}
+
+/// NavigationMenu trigger 上の keydown（`key`/`modifiers`/`orientation`/
+/// `is_open`）から [`NavigationMenuKeyAction`] を決定する純粋関数
+/// （web-sys 非依存、native `cargo test` 可。イシュー #1075）。
+///
+/// 判定表（モジュール doc §NavigationMenu 参照）:
+///
+/// | key | orientation | closed | open |
+/// |---|---|---|---|
+/// | `ArrowDown` | horizontal | `OpenToLink { from_end: false }` | `FocusLink { from_end: false }` |
+/// | `ArrowUp` | horizontal | `OpenToLink { from_end: true }` | `FocusLink { from_end: true }` |
+/// | `ArrowRight` | vertical | `OpenToLink { from_end: false }` | `FocusLink { from_end: false }` |
+/// | `Escape` | 両方 | `None`（**fail-closed**。closed で claim すると誤って open してしまう） | `Close` |
+/// | それ以外・修飾キー付き | — | `None` | `None` |
+#[must_use]
+pub fn navigation_menu_trigger_key_action(
+    key: &str,
+    modifiers: Modifiers,
+    orientation: Orientation,
+    is_open: bool,
+) -> Option<NavigationMenuKeyAction> {
+    if modifiers.any() {
+        return None;
+    }
+    if is_open {
+        match (orientation, key) {
+            (Orientation::Horizontal, "ArrowDown") | (Orientation::Vertical, "ArrowRight") => {
+                Some(NavigationMenuKeyAction::FocusLink { from_end: false })
+            }
+            (Orientation::Horizontal, "ArrowUp") => {
+                Some(NavigationMenuKeyAction::FocusLink { from_end: true })
+            }
+            (_, "Escape") => Some(NavigationMenuKeyAction::Close),
+            _ => None,
+        }
+    } else {
+        match (orientation, key) {
+            (Orientation::Horizontal, "ArrowDown") | (Orientation::Vertical, "ArrowRight") => {
+                Some(NavigationMenuKeyAction::OpenToLink { from_end: false })
+            }
+            (Orientation::Horizontal, "ArrowUp") => {
+                Some(NavigationMenuKeyAction::OpenToLink { from_end: true })
+            }
+            // closed 時の Escape は claim しない（fail-closed、`combobox_key_action`
+            // の closed Escape と同じ判断）。
+            _ => None,
+        }
+    }
+}
+
+/// NavigationMenu の content 内リンク間の「次にフォーカスすべきインデックス」
+/// を計算する純粋関数（web-sys 非依存、native `cargo test` 可。イシュー
+/// #1075）。**縦固定**（`ArrowDown`/`ArrowUp`、content 内はリンクの縦並び
+/// 前提）・**非循環**（APG のリンク集としての決定的挙動、端まで来たら
+/// ページの既定スクロールへ委ねる）・Home/End あり・disabled スキップ。
+/// `current` が範囲外の場合も `None`（fail-closed、panic しない）。
+#[must_use]
+pub fn navigation_menu_link_next_index(
+    current: usize,
+    key: &str,
+    modifiers: Modifiers,
+    disabled: &[bool],
+) -> Option<usize> {
+    if modifiers.any() || current >= disabled.len() {
+        return None;
+    }
+    match key {
+        "Home" => first_non_disabled(disabled),
+        "End" => last_non_disabled(disabled),
+        "ArrowDown" => step_non_disabled(current, 1, disabled, false),
+        "ArrowUp" => step_non_disabled(current, -1, disabled, false),
+        _ => None,
+    }
+}
+
+/// ToggleGroup の keydown に対する「次にフォーカス・roving tabindex 移動
+/// すべきインデックス」を計算する純粋関数（イシュー #1075）。
+///
+/// RadioGroup と同一セマンティクス（`orientation` は `Option`＝欠落時両軸
+/// 受理／常時循環／Home/End は orientation 非依存／disabled スキップ）の
+/// ため、実装は [`radio_next_index`] を共有する（共通化判断はモジュール doc
+/// §ToggleGroup 参照。公開 API 名を分ける理由は [`listbox_next_index`] の
+/// rustdoc が明文化したハウススタイルに従う）。将来 ToggleGroup 側だけ
+/// 仕様が動いた場合はここで分岐させる。
+#[must_use]
+pub fn toggle_group_next_index(
+    current: usize,
+    key: &str,
+    orientation: Option<Orientation>,
+    modifiers: Modifiers,
+    disabled: &[bool],
+) -> Option<usize> {
+    radio_next_index(current, key, orientation, modifiers, disabled)
 }
 
 #[cfg(test)]
@@ -2360,6 +2595,222 @@ mod tests {
             assert_eq!(combobox_key_action("Escape", ctrl, is_open), None);
         }
     }
+
+    // --- NavigationMenu（イシュー #1075） ---
+
+    #[test]
+    fn navigation_menu_trigger_key_action_horizontal_closed_opens_from_start_or_end() {
+        assert_eq!(
+            navigation_menu_trigger_key_action("ArrowDown", mods(), Orientation::Horizontal, false),
+            Some(NavigationMenuKeyAction::OpenToLink { from_end: false })
+        );
+        assert_eq!(
+            navigation_menu_trigger_key_action("ArrowUp", mods(), Orientation::Horizontal, false),
+            Some(NavigationMenuKeyAction::OpenToLink { from_end: true })
+        );
+    }
+
+    #[test]
+    fn navigation_menu_trigger_key_action_horizontal_open_focuses_link_without_click() {
+        assert_eq!(
+            navigation_menu_trigger_key_action("ArrowDown", mods(), Orientation::Horizontal, true),
+            Some(NavigationMenuKeyAction::FocusLink { from_end: false })
+        );
+        assert_eq!(
+            navigation_menu_trigger_key_action("ArrowUp", mods(), Orientation::Horizontal, true),
+            Some(NavigationMenuKeyAction::FocusLink { from_end: true })
+        );
+    }
+
+    #[test]
+    fn navigation_menu_trigger_key_action_vertical_uses_arrow_right_to_open() {
+        assert_eq!(
+            navigation_menu_trigger_key_action("ArrowRight", mods(), Orientation::Vertical, false),
+            Some(NavigationMenuKeyAction::OpenToLink { from_end: false })
+        );
+        assert_eq!(
+            navigation_menu_trigger_key_action("ArrowRight", mods(), Orientation::Vertical, true),
+            Some(NavigationMenuKeyAction::FocusLink { from_end: false })
+        );
+        // vertical 方向のトリガー間移動キー（ArrowDown/ArrowUp）は配線層で
+        // tabs_next_index が先に評価するため、本関数の判定表には含まれず
+        // None（対象外）を返す。
+        assert_eq!(
+            navigation_menu_trigger_key_action("ArrowDown", mods(), Orientation::Vertical, false),
+            None
+        );
+        assert_eq!(
+            navigation_menu_trigger_key_action("ArrowUp", mods(), Orientation::Vertical, false),
+            None
+        );
+    }
+
+    #[test]
+    fn navigation_menu_trigger_key_action_escape_open_closes_closed_is_noop_fail_closed() {
+        assert_eq!(
+            navigation_menu_trigger_key_action("Escape", mods(), Orientation::Horizontal, true),
+            Some(NavigationMenuKeyAction::Close)
+        );
+        assert_eq!(
+            navigation_menu_trigger_key_action("Escape", mods(), Orientation::Horizontal, false),
+            None
+        );
+    }
+
+    #[test]
+    fn navigation_menu_trigger_key_action_rejects_modifier_keys() {
+        let ctrl = Modifiers {
+            ctrl: true,
+            ..Modifiers::default()
+        };
+        for is_open in [false, true] {
+            assert_eq!(
+                navigation_menu_trigger_key_action(
+                    "ArrowDown",
+                    ctrl,
+                    Orientation::Horizontal,
+                    is_open
+                ),
+                None
+            );
+            assert_eq!(
+                navigation_menu_trigger_key_action(
+                    "Escape",
+                    ctrl,
+                    Orientation::Horizontal,
+                    is_open
+                ),
+                None
+            );
+        }
+    }
+
+    #[test]
+    fn navigation_menu_trigger_key_action_unknown_key_is_noop() {
+        assert_eq!(
+            navigation_menu_trigger_key_action("Enter", mods(), Orientation::Horizontal, false),
+            None
+        );
+        assert_eq!(
+            navigation_menu_trigger_key_action(" ", mods(), Orientation::Horizontal, true),
+            None
+        );
+    }
+
+    #[test]
+    fn navigation_menu_link_next_index_moves_and_is_non_looping() {
+        let disabled = vec![false, false, false];
+        assert_eq!(
+            navigation_menu_link_next_index(0, "ArrowDown", mods(), &disabled),
+            Some(1)
+        );
+        assert_eq!(
+            navigation_menu_link_next_index(2, "ArrowDown", mods(), &disabled),
+            None
+        );
+        assert_eq!(
+            navigation_menu_link_next_index(0, "ArrowUp", mods(), &disabled),
+            None
+        );
+    }
+
+    #[test]
+    fn navigation_menu_link_next_index_home_end_skip_disabled() {
+        let disabled = vec![true, false, false, true];
+        assert_eq!(
+            navigation_menu_link_next_index(1, "Home", mods(), &disabled),
+            Some(1)
+        );
+        assert_eq!(
+            navigation_menu_link_next_index(1, "End", mods(), &disabled),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn navigation_menu_link_next_index_out_of_range_or_modifiers_or_empty_is_noop() {
+        let disabled = vec![false, false];
+        assert_eq!(
+            navigation_menu_link_next_index(5, "ArrowDown", mods(), &disabled),
+            None
+        );
+        let ctrl = Modifiers {
+            ctrl: true,
+            ..Modifiers::default()
+        };
+        assert_eq!(
+            navigation_menu_link_next_index(0, "ArrowDown", ctrl, &disabled),
+            None
+        );
+        assert_eq!(
+            navigation_menu_link_next_index(0, "ArrowDown", mods(), &[]),
+            None
+        );
+    }
+
+    // --- ToggleGroup（イシュー #1075） ---
+
+    #[test]
+    fn toggle_group_next_index_matches_radio_next_index_semantics() {
+        let disabled = vec![false, true, false, false];
+        let cases: &[(usize, &str, Option<Orientation>)] = &[
+            (0, "ArrowRight", None),
+            (0, "ArrowLeft", None),
+            (0, "ArrowDown", None),
+            (0, "ArrowUp", None),
+            (0, "Home", None),
+            (3, "End", None),
+            (0, "ArrowRight", Some(Orientation::Horizontal)),
+            (0, "ArrowDown", Some(Orientation::Horizontal)),
+            (0, "ArrowDown", Some(Orientation::Vertical)),
+            (0, "ArrowRight", Some(Orientation::Vertical)),
+        ];
+        for &(current, key, orientation) in cases {
+            assert_eq!(
+                toggle_group_next_index(current, key, orientation, mods(), &disabled),
+                radio_next_index(current, key, orientation, mods(), &disabled),
+                "toggle_group_next_index diverged from radio_next_index for key={key} orientation={orientation:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn toggle_group_next_index_loops_at_ends_when_orientation_absent() {
+        let disabled = vec![false, false, false];
+        assert_eq!(
+            toggle_group_next_index(2, "ArrowRight", None, mods(), &disabled),
+            Some(0)
+        );
+        assert_eq!(
+            toggle_group_next_index(0, "ArrowLeft", None, mods(), &disabled),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn toggle_group_next_index_orientation_restricts_axis() {
+        let disabled = vec![false, false];
+        assert_eq!(
+            toggle_group_next_index(
+                0,
+                "ArrowDown",
+                Some(Orientation::Horizontal),
+                mods(),
+                &disabled
+            ),
+            None
+        );
+        assert_eq!(
+            toggle_group_next_index(
+                0,
+                "ArrowRight",
+                Some(Orientation::Vertical),
+                mods(),
+                &disabled
+            ),
+            None
+        );
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -2372,9 +2823,11 @@ mod wiring {
     use super::{
         accordion_next_index, combobox_key_action, first_non_disabled, highlight_next_index,
         is_typeahead_key, last_non_disabled, listbox_next_index, loop_focus_from_attr,
-        menu_loop_focus_from_attr, radio_next_index, submenu_nav, tabs_next_index,
-        typeahead_next_index, typeahead_push, ComboboxKeyAction, Modifiers, Orientation,
-        SubmenuNav, MAX_SUBMENU_DEPTH, TYPEAHEAD_TIMEOUT_MS,
+        menu_loop_focus_from_attr, navigation_menu_link_next_index,
+        navigation_menu_trigger_key_action, radio_next_index, submenu_nav, tabs_next_index,
+        toggle_group_next_index, typeahead_next_index, typeahead_push, ComboboxKeyAction,
+        Modifiers, NavigationMenuKeyAction, Orientation, SubmenuNav, MAX_SUBMENU_DEPTH,
+        TYPEAHEAD_TIMEOUT_MS,
     };
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
@@ -2450,6 +2903,30 @@ mod wiring {
     /// 先頭の `Menu` の content を誤って掴んでしまう。詳細はモジュール doc
     /// 「# Menubar のキーボード仕様」参照）。
     const MENUBAR_MENU_SELECTOR: &str = "[data-scope=\"menubar\"][data-part=\"menu\"]";
+
+    /// `[data-scope="navigation-menu"][data-part="root"]` セレクタ
+    /// （`crates/headless-ui/src/navigation_menu.rs::root`、イシュー #1075）。
+    const NAVIGATION_MENU_ROOT_SELECTOR: &str =
+        "[data-scope=\"navigation-menu\"][data-part=\"root\"]";
+    /// `[data-scope="navigation-menu"][data-part="item"]` セレクタ（trigger と
+    /// content を包む `li`。`aria-controls` 欠落時の content 探索範囲を
+    /// この 1 項目へ限定するために使う）。
+    const NAVIGATION_MENU_ITEM_SELECTOR: &str =
+        "[data-scope=\"navigation-menu\"][data-part=\"item\"]";
+    /// `[data-scope="navigation-menu"][data-part="trigger"]` セレクタ。
+    const NAVIGATION_MENU_TRIGGER_SELECTOR: &str =
+        "[data-scope=\"navigation-menu\"][data-part=\"trigger\"]";
+    /// `[data-scope="navigation-menu"][data-part="content"]` セレクタ。
+    const NAVIGATION_MENU_CONTENT_SELECTOR: &str =
+        "[data-scope=\"navigation-menu\"][data-part=\"content\"]";
+    /// `[data-scope="navigation-menu"][data-part="link"]` セレクタ。
+    const NAVIGATION_MENU_LINK_SELECTOR: &str =
+        "[data-scope=\"navigation-menu\"][data-part=\"link\"]";
+    /// `[data-scope="toggle-group"][data-part="root"]` セレクタ
+    /// （`crates/headless-ui/src/toggle_group.rs::root`、イシュー #1075）。
+    const TOGGLE_GROUP_ROOT_SELECTOR: &str = "[data-scope=\"toggle-group\"][data-part=\"root\"]";
+    /// `[data-scope="toggle-group"][data-part="item"]` セレクタ。
+    const TOGGLE_GROUP_ITEM_SELECTOR: &str = "[data-scope=\"toggle-group\"][data-part=\"item\"]";
 
     /// Menu/Select/Menubar が共有する keydown 配線ロジック
     /// （[`handle_menu_or_select_trigger_keydown`] 等）をスコープ別に
@@ -4327,6 +4804,259 @@ mod wiring {
         }
     }
 
+    /// NavigationMenu の `trigger` に対応する `content` を解決する
+    /// （イシュー #1075）。`aria-controls` を優先し（動的な `id` からセレクタ
+    /// 文字列を組み立てず `document.get_element_by_id` で解決する、A03
+    /// 対策）、欠落・解決失敗時は `closest("item")`（trigger と content を
+    /// 包む `li`）配下へフォールバックする。`list`/`root` まで探索範囲を
+    /// 広げないのは、他項目の content を誤って掴まないため（A01 対策、
+    /// [`ScopeSelectors::content_owner`] と同じ判断軸）。得られた content が
+    /// `nav_root` 配下であることを必ず検査する。
+    fn navigation_menu_content_for_trigger(
+        nav_root: &Element,
+        trigger: &Element,
+    ) -> Option<Element> {
+        let content = if let Some(controls_id) = trigger.get_attribute("aria-controls") {
+            trigger
+                .owner_document()
+                .and_then(|document| document.get_element_by_id(&controls_id))
+        } else {
+            None
+        };
+        let content = content.or_else(|| {
+            let item = closest(trigger, NAVIGATION_MENU_ITEM_SELECTOR)?;
+            item.query_selector(NAVIGATION_MENU_CONTENT_SELECTOR)
+                .ok()
+                .flatten()
+        })?;
+        if nav_root.contains(Some(&content)) {
+            Some(content)
+        } else {
+            None
+        }
+    }
+
+    /// NavigationMenu の content 内リンクから、それを内包する `item`
+    /// （`li`）配下の `trigger` を解決する（`Escape` での close 委譲・
+    /// フォーカス復帰に使う）。`nav_root` 配下であることを検査する。
+    fn navigation_menu_trigger_for_link(nav_root: &Element, link: &Element) -> Option<Element> {
+        let item = closest(link, NAVIGATION_MENU_ITEM_SELECTOR)?;
+        let trigger = item
+            .query_selector(NAVIGATION_MENU_TRIGGER_SELECTOR)
+            .ok()
+            .flatten()?;
+        if nav_root.contains(Some(&trigger)) {
+            Some(trigger)
+        } else {
+            None
+        }
+    }
+
+    /// `content` 配下のリンクのうち、**同一 content に直接所属するもの**
+    /// だけを集める（`closest(link, CONTENT_SELECTOR)` が `content` 自身と
+    /// 一致するもののみ残し、入れ子 NavigationMenu の content への越境を
+    /// 防ぐ。[`filter_own_scope_items`] と同趣旨、A01 対策）。
+    fn navigation_menu_links(content: &Element) -> Vec<Element> {
+        collect_parts(content, NAVIGATION_MENU_LINK_SELECTOR)
+            .into_iter()
+            .filter(|link| {
+                closest(link, NAVIGATION_MENU_CONTENT_SELECTOR)
+                    .is_some_and(|owner| owner.is_same_node(Some(content)))
+            })
+            .collect()
+    }
+
+    /// `content` が `nav_root` 配下に実在し、かつ `hidden` 属性を持たない
+    /// （＝現在 open）かどうかを判定する。
+    fn navigation_menu_is_open(nav_root: &Element, content: &Element) -> bool {
+        nav_root.contains(Some(content)) && !content.has_attribute("hidden")
+    }
+
+    /// NavigationMenu trigger 上の keydown を処理する（イシュー #1075）。
+    /// [`tabs_next_index`] によるトリガー間移動を先に評価し（Menubar と
+    /// 同じ優先順位規則、モジュール doc §NavigationMenu 参照）、`None`
+    /// （対象外のキー）のときのみ open/close/リンクフォーカス系
+    /// （[`navigation_menu_trigger_key_action`]）へフォールスルーする。
+    /// 開閉自体は `trigger.click()` 合成で既存の click → dispatch 経路へ
+    /// 委譲し、本関数は `tabindex` を書き込まない（SSR が `tabindex` を
+    /// 出力しない契約、モジュール doc 参照）。
+    fn handle_navigation_menu_trigger_keydown(
+        root: &Element,
+        trigger: &Element,
+        event: &KeyboardEvent,
+    ) {
+        let Some(nav_root) = closest(trigger, NAVIGATION_MENU_ROOT_SELECTOR) else {
+            return;
+        };
+        if !root.contains(Some(&nav_root)) {
+            return;
+        }
+        let triggers = collect_parts(&nav_root, NAVIGATION_MENU_TRIGGER_SELECTOR);
+        let Some(current) = index_of(&triggers, trigger) else {
+            return;
+        };
+        let disabled = disabled_flags(&triggers);
+        let orientation =
+            Orientation::from_attr(nav_root.get_attribute("data-orientation").as_deref());
+        let loop_focus =
+            menu_loop_focus_from_attr(nav_root.get_attribute("data-loop-focus").as_deref());
+        let modifiers = modifiers_of(event);
+        let key = event.key();
+
+        if let Some(next_index) =
+            tabs_next_index(current, &key, orientation, loop_focus, modifiers, &disabled)
+        {
+            event.prevent_default();
+            if let Some(next_trigger) = triggers.get(next_index) {
+                if let Ok(html_trigger) = next_trigger.clone().dyn_into::<HtmlElement>() {
+                    let _ = html_trigger.focus();
+                }
+            }
+            return;
+        }
+
+        let is_open = navigation_menu_content_for_trigger(&nav_root, trigger)
+            .is_some_and(|content| navigation_menu_is_open(&nav_root, &content));
+
+        match navigation_menu_trigger_key_action(&key, modifiers, orientation, is_open) {
+            Some(NavigationMenuKeyAction::OpenToLink { from_end }) => {
+                event.prevent_default();
+                if let Ok(html_trigger) = trigger.clone().dyn_into::<HtmlElement>() {
+                    html_trigger.click();
+                }
+                // click() による再描画で content が差し替えられうるため
+                // 再解決する（`open_submenu_and_focus_first_item` と同じ理由）。
+                if let Some(content) = navigation_menu_content_for_trigger(&nav_root, trigger) {
+                    if navigation_menu_is_open(&nav_root, &content) {
+                        let links = navigation_menu_links(&content);
+                        let disabled_links = disabled_flags(&links);
+                        let target_index = if from_end {
+                            last_non_disabled(&disabled_links)
+                        } else {
+                            first_non_disabled(&disabled_links)
+                        };
+                        if let Some(link) = target_index.and_then(|i| links.get(i)) {
+                            if let Ok(html_link) = link.clone().dyn_into::<HtmlElement>() {
+                                let _ = html_link.focus();
+                            }
+                        }
+                    }
+                }
+            }
+            Some(NavigationMenuKeyAction::FocusLink { from_end }) => {
+                event.prevent_default();
+                if let Some(content) = navigation_menu_content_for_trigger(&nav_root, trigger) {
+                    let links = navigation_menu_links(&content);
+                    let disabled_links = disabled_flags(&links);
+                    let target_index = if from_end {
+                        last_non_disabled(&disabled_links)
+                    } else {
+                        first_non_disabled(&disabled_links)
+                    };
+                    if let Some(link) = target_index.and_then(|i| links.get(i)) {
+                        if let Ok(html_link) = link.clone().dyn_into::<HtmlElement>() {
+                            let _ = html_link.focus();
+                        }
+                    }
+                }
+            }
+            Some(NavigationMenuKeyAction::Close) => {
+                event.prevent_default();
+                if let Ok(html_trigger) = trigger.clone().dyn_into::<HtmlElement>() {
+                    html_trigger.click();
+                    let _ = html_trigger.focus();
+                }
+            }
+            None => {}
+        }
+    }
+
+    /// NavigationMenu content 内リンク上の keydown を処理する（イシュー
+    /// #1075）。`list` 直下（content 外）のリンクは対象外（no-op、モジュール
+    /// doc §NavigationMenu 参照）。
+    fn handle_navigation_menu_link_keydown(root: &Element, link: &Element, event: &KeyboardEvent) {
+        let Some(content) = closest(link, NAVIGATION_MENU_CONTENT_SELECTOR) else {
+            return;
+        };
+        let Some(nav_root) = closest(link, NAVIGATION_MENU_ROOT_SELECTOR) else {
+            return;
+        };
+        if !root.contains(Some(&nav_root)) || !nav_root.contains(Some(&content)) {
+            return;
+        }
+        let modifiers = modifiers_of(event);
+        if modifiers.any() {
+            return;
+        }
+        let key = event.key();
+        if key == "Escape" {
+            event.prevent_default();
+            if let Some(trigger) = navigation_menu_trigger_for_link(&nav_root, link) {
+                if let Ok(html_trigger) = trigger.clone().dyn_into::<HtmlElement>() {
+                    html_trigger.click();
+                    let _ = html_trigger.focus();
+                }
+            }
+            return;
+        }
+
+        let links = navigation_menu_links(&content);
+        let Some(current) = index_of(&links, link) else {
+            return;
+        };
+        let disabled = disabled_flags(&links);
+        let Some(next_index) = navigation_menu_link_next_index(current, &key, modifiers, &disabled)
+        else {
+            return;
+        };
+        event.prevent_default();
+        if let Some(next_link) = links.get(next_index) {
+            if let Ok(html_link) = next_link.clone().dyn_into::<HtmlElement>() {
+                let _ = html_link.focus();
+            }
+        }
+    }
+
+    /// ToggleGroup item 上の keydown を処理する（イシュー #1075）。
+    /// [`toggle_group_next_index`]（実装は [`radio_next_index`] と共有、
+    /// モジュール doc §ToggleGroup 参照）で次のフォーカス対象を求め、
+    /// roving tabindex（[`set_roving_tabindex`]）を更新してフォーカス移動
+    /// する。押下（Enter/Space/クリック）は claim せずネイティブ `<button>`
+    /// の click 発火に委ねる（`crate::headless::MAPPING_TABLE` の
+    /// `toggle-group`/`item` 行が dispatch へ接続する）。
+    fn handle_toggle_group_item_keydown(root: &Element, item: &Element, event: &KeyboardEvent) {
+        let Some(group_root) = closest(item, TOGGLE_GROUP_ROOT_SELECTOR) else {
+            return;
+        };
+        if !root.contains(Some(&group_root)) {
+            return;
+        }
+        let items = collect_parts(&group_root, TOGGLE_GROUP_ITEM_SELECTOR);
+        let Some(current) = index_of(&items, item) else {
+            return;
+        };
+        let disabled = disabled_flags(&items);
+        let orientation = Orientation::from_attr_optional(
+            group_root.get_attribute("data-orientation").as_deref(),
+        );
+        let modifiers = modifiers_of(event);
+        let key = event.key();
+
+        let Some(next_index) =
+            toggle_group_next_index(current, &key, orientation, modifiers, &disabled)
+        else {
+            return;
+        };
+
+        event.prevent_default();
+        set_roving_tabindex(&items, next_index);
+        if let Some(next_item) = items.get(next_index) {
+            if let Ok(html_item) = next_item.clone().dyn_into::<HtmlElement>() {
+                let _ = html_item.focus();
+            }
+        }
+    }
+
     /// Tabs trigger クリック（マウスクリック・ネイティブ button の
     /// Enter/Space が発火する click イベントの双方）による活性化を処理する。
     /// disabled trigger のクリックは no-op（fail-closed。ネイティブ
@@ -4391,6 +5121,24 @@ mod wiring {
         }
         if target.matches(LISTBOX_CONTENT_SELECTOR).unwrap_or(false) {
             return Some(("listbox", target.clone()));
+        }
+        // NavigationMenu/ToggleGroup（イシュー #1075）: いずれも trigger/
+        // item/link がネイティブに実 DOM フォーカスを保持するため、他の
+        // trigger 系と同じく `target` 自身の一致判定のみで足りる。
+        if target
+            .matches(NAVIGATION_MENU_TRIGGER_SELECTOR)
+            .unwrap_or(false)
+        {
+            return Some(("navigation-menu-trigger", target.clone()));
+        }
+        if target
+            .matches(NAVIGATION_MENU_LINK_SELECTOR)
+            .unwrap_or(false)
+        {
+            return Some(("navigation-menu-link", target.clone()));
+        }
+        if target.matches(TOGGLE_GROUP_ITEM_SELECTOR).unwrap_or(false) {
+            return Some(("toggle-group", target.clone()));
         }
         None
     }
@@ -4489,6 +5237,18 @@ mod wiring {
                     &keyboard_event,
                     &mut typeahead_state,
                 ),
+                // NavigationMenu/ToggleGroup（イシュー #1075）。typeahead は
+                // 適用しない（モジュール doc §NavigationMenu/§ToggleGroup
+                // 参照）。
+                "navigation-menu-trigger" => {
+                    handle_navigation_menu_trigger_keydown(&keydown_root, &matched, &keyboard_event)
+                }
+                "navigation-menu-link" => {
+                    handle_navigation_menu_link_keydown(&keydown_root, &matched, &keyboard_event)
+                }
+                "toggle-group" => {
+                    handle_toggle_group_item_keydown(&keydown_root, &matched, &keyboard_event)
+                }
                 _ => {}
             }
         });

@@ -322,12 +322,15 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 | `combobox` | `trigger` | `"toggle"` | `""` |
 | `combobox` | `item` | `"select"` | `data-value` |
 | `combobox` | `clear-trigger` | `"clear"` | `""` |
+| `toggle-group` | `item` | `"toggle"` | `data-value` |
 
 マッピング表は `&'static str` リテラル固定の静的配列であり、動的登録経路は持たない。`crates/wasm-full/tests/headless_wiring.rs` が headless-ui 実出力（`data-scope`/`data-part` 文字列）とのドリフトを機械検知する。
 
 `menu`/`trigger-item` 行は当初欠落しており、`keynav.rs` のサブメニュー ArrowRight/ArrowLeft 開閉（§後述、イシュー #662）が合成する `click()` およびマウスでの実クリックの双方が no-op になっていた（イシュー #662 PR #674 Bugbot 指摘）。サブメニューは「子 `Menu` インスタンス由来の `trigger-item`/`positioner`/`content` を親 `content` 内に入れ子配置する」契約（`crates/headless-ui/src/menu.rs`）であり、`trigger-item` も `data-scope="menu"` を持つため、`trigger` と同じ `"toggle"` を割り当てて解決する。
 
 `combobox` の 3 行はイシュー #1071（keynav へ Combobox のキーボード配線を追加する）で追加した。`crates/headless-ui/src/combobox.rs`（イシュー #749）は Combobox の SSR 出力と状態機械のみを提供し、実 DOM 上のクリック・キーボード配線を wasm 層へ申し送っていた。`menu`/`trigger-item` 欠落是正（#662）と同型の整備であり、`combobox`/`trigger` の欠落は `crates/wasm-full/src/keynav.rs` が合成する `HtmlElement::click()`（Arrow キーによる open/close・Escape によるクローズ）を no-op にし、`combobox`/`item` の欠落は Enter・highlight クリックによる確定を no-op にする。`combobox`/`clear-trigger` は `"clear"`（`ComboboxAction::Clear`）であり、`select`/`clear-trigger` の `"deselect"` とは意味が異なる。`combobox::clear_trigger` はテキスト入力欄を併せ持つ Combobox の「入力値と選択の両方をクリアする」ボタンであるため（`crates/headless-ui/src/combobox.rs::ComboboxAction::Clear` の実装参照）、`select` の「選択のみを解除する」`"deselect"` をそのまま流用しない。
+
+`toggle-group`/`item` 行はイシュー #1075（keynav へ NavigationMenu/ToggleGroup のキーボード配線を追加する）で追加した。`ToggleGroup`/`MultiToggleGroup` の `decode_action` はいずれも `"toggle"` のみを受理し `toggle_group::item` は `data-value` を常時出力するため、`menu`/`trigger-item`・`combobox` の欠落是正と同型の整備である。**`navigation-menu`/`trigger` 行は本イシューで追加していない**: `crates/headless-ui/src/navigation_menu.rs::trigger` は `data-value` を出力せず、`NavigationMenu::decode_action`（`SingleSelect` へ全委譲）は payload に項目値を要求するため、`requires_value: true` 行を足しても常に fail-closed（`None`）になり、`requires_value: false` 行を足すと `SingleSelectAction::Toggle("")` という誤った値をトグルしてしまう。恒久解は headless-ui 側の SSR 出力追加（別イシュー、§19.5 参照）。
 
 ### 12.4 fail-closed 契約（受け入れ条件 3）
 
@@ -526,5 +529,46 @@ menu/select の `root` は 1 インスタンスの境界だが、menubar の `ro
 
 - **`headless.rs::MAPPING_TABLE` に menubar 行が無い**: 単なる行の欠落ではなく payload のアリティ不一致（`requires_value: false`/`true` のいずれも `menubar::trigger` の `data-value` 非出力と噛み合わない）。headless-ui 側の出力追加か `headless.rs` への新 payload source 導入が必要であり、本イシューの粒度を超える。解決するまで、実アプリでの menubar 開閉は呼び出し側の独自 click 配線に依存する。
 - **`overlay.rs::OverlayKind` が `menubar` を含まない**: Escape/外側クリックによる menubar content の実閉鎖は行われない。keynav の Escape 処理は既存 Menu/Select と同じく highlight の後始末のみを担い、閉鎖自体は `overlay` の責務のまま変えていない。
+
+いずれも `.claude/rules/out-of-scope-tracking.md` に従い Issue 化を提案する対象として PR 本文に記録する。
+
+## 19. `keynav` への NavigationMenu / ToggleGroup キーボード配線追加（イシュー #1075、親 #1058/#1056）
+
+`crates/headless-ui/src/navigation_menu.rs`（文書ナビゲーション、`role="menu"` を持たない Disclosure Navigation Menu パターン）と `crates/headless-ui/src/toggle_group.rs`（roving tabindex を伴う押下可能な選択肢グループ）は、いずれも anatomy・ARIA・状態機械までを提供し、実 DOM 上のキーボード操作を本クレートの後続責務として明示的にスコープ外へ送っていた（各モジュール doc「スコープ外」/「out-of-scope」節）。イシュー #1075 はこの欠落を `crates/wasm-full/src/keynav.rs`（`mod wiring`）へ実装した。
+
+### 19.1 NavigationMenu の設計方針（受け入れ条件 1）
+
+Menu/Select/Menubar が採用する highlight（`data-highlighted`/`aria-activedescendant`）方式は、`role="menu"` を持たない文書ナビには意味論的に不適合であるという headless-ui 側の既存判断を尊重し、**実 DOM フォーカスを移動する Tabs 型の設計**を採る。
+
+- trigger 間移動は `tabs_next_index` をそのまま再利用し（`data-orientation` 欠落時 horizontal、`data-loop-focus` 欠落時 非循環）、`None`（対象外のキー）のときのみ open/close/リンク移動系（`navigation_menu_trigger_key_action`）へフォールスルーする（Menubar の「トリガー間移動を先に評価」順序規則と同型の 2 段構成）。
+- 開閉は既存原則どおり `trigger.click()` 合成で `crate::headless::MAPPING_TABLE` 経由の dispatch へ委譲する（keynav は `aria-expanded`/`data-state`/`hidden` を直接書かない）。open 後は content を再解決してから先頭/末尾リンクへフォーカスする（click 由来の再描画で要素が差し替わりうるため、Menu の `open_submenu_and_focus_first_item` と同じ理由）。
+- content 内リンクの移動は非循環（APG のリンク集としての決定的挙動）。
+- **roving tabindex は使わない**: `navigation_menu::trigger`/`link` はいずれも `tabindex` を出力せず、APG Disclosure Navigation Menu も全ボタン・リンクをタブ順に残す契約のため、keynav が SSR 契約に無い `tabindex` を持ち込まない（ToggleGroup との対比、§19.2）。
+
+### 19.2 ToggleGroup の設計方針と RadioGroup との共通化判断（受け入れ条件 2）
+
+ToggleGroup の item 間移動は WAI-ARIA APG Toolbar/RadioGroup パターンに従い roving tabindex + フォーカス移動を行う。
+
+- **インデックス計算は共有・配線層は共有しない**: キー受理集合・循環・orientation 解釈が `radio_next_index` と完全一致（`data-orientation` が `Option`＝欠落時両軸受理・常時循環・Home/End は orientation 非依存・disabled スキップ）するため、新設した `toggle_group_next_index` は本体を `radio_next_index` へ委譲する（`listbox_next_index` の rustdoc が明文化した「キー受理集合が部品ごとに異なる契約であり、条件分岐を 1 関数へ詰め込むと部品間の契約差が読めなくなるため専用化する」ハウススタイルに従い、公開 API 名は分けたままインデックス計算のみ共有する）。一方、配線層（`handle_toggle_group_item_keydown`）は RadioGroup（ネイティブ `<input type="radio">` への `focus()` + `set_checked` + `data-state` 同期 + `change` 委譲を伴う）と押下状態の反映経路が根本的に異なる（ToggleGroup は `<button>` へのフォーカス移動 + roving tabindex のみで、押下状態は click → dispatch → 再描画が担う）ため共通化せず、別ハンドラとして実装した。
+- 押下（Enter/Space/クリック）は claim せずネイティブ `<button>` の click 発火に委ね、`MAPPING_TABLE` の `toggle-group`/`item` → `"toggle"` 行（本イシューで追加、§12.3）が dispatch へ接続する。
+
+### 19.3 意図的に採らない挙動（NavigationMenu）
+
+- **open-follows-focus**（Menubar が採用する、隣 trigger へ移動したら自動で開く挙動）: NavigationMenu は `role="menu"` を持たない文書ナビであり、フォーカス移動だけで大きなパネルが次々開くのは意味論・UX ともに過剰なため非採用。
+- **hover/focus による自動 open**（Radix NavigationMenu の既定挙動）: JS タイマー・意図判定（safe triangle）を要し、`docs/policy/intentional-non-adoption.md` §3.25 規則 2（装飾・アニメーション・レイアウト計測の関心を headless 層へ持ち込まない）と同じ判断軸で非採用。
+- **typeahead**: NavigationMenu/ToggleGroup とも APG が要求しないため実装しない（`TypeaheadState` を触らず Menu/Select/Listbox/Menubar の既存挙動へ影響を与えない）。
+
+### 19.4 テスト構成
+
+純粋層（`navigation_menu_trigger_key_action`/`navigation_menu_link_next_index`/`toggle_group_next_index`）は `crates/wasm-full/src/keynav.rs` の `mod tests` に網羅ケースを、`crates/wasm-full/tests/keynav_native.rs` に公開 API 経由の統合確認（`toggle_group_next_index` と `radio_next_index` の同値性を含む）を追加した。配線層は `crates/wasm-full/tests/keynav_browser.rs`（`build_navigation_menu_dom`/`build_toggle_group_dom` ヘルパを新設）に実ブラウザテスト 15 件（trigger 間移動・open/close の click 合成・content 再解決・リンク移動・Escape の非対称性・fail-closed・roving tabindex・orientation 制限・XSS 回帰）を追加し、`wasm-pack test --headless --chrome crates/wasm-full --test keynav_browser` で全 97 件 PASS を確認済み。`crates/wasm-full/tests/headless_wiring.rs` へ `toggle-group`/`item` の `action_for_part` 契約テスト（`data-value` 欠落・disabled の fail-closed を含む）を追加した。
+
+### 19.5 既知のギャップ（本イシューでは対応しない、スコープ外）
+
+- **`MAPPING_TABLE` への `navigation-menu` 行未追加**（§12.3 参照）: `navigation_menu::trigger` が `data-value` を出力しないため、恒久解は headless-ui 側の SSR 出力追加（別イシュー）。
+- **ToggleGroup の SSR 側 roving tabindex 初期状態**: `toggle_group::item` は `tabindex` を出力しないため、最初の矢印キー押下までは全 item がタブ順に入る（押下後に単一タブストップへ収束する）。恒久解は `toggle_group::item` への `focused: bool` opt-in（`toolbar.rs` の `roving_tabindex`/`drop_tabindex_attr` が先例）だが、公開 API の破壊的変更のため本イシューでは扱わない。`wire_keynav` へマウント時の DOM 正規化パスを新設する案は不採用（`wire_keynav` はリスナー登録以外の DOM 変更を一切行わない契約であり、アプリ側が付けた `tabindex` と競合しうるため）。
+- **`overlay.rs::OverlayKind` に `navigation-menu` が無い**: Escape/外側クリックによる content の実閉鎖の一元化は行わない（Menubar と同じ既知ギャップ）。
+- **`list` 直下（content 外）のリンクは移動対象に含めない**: trigger 間移動のみを対象とする。対象外リンクもネイティブにタブ順へ残るためアクセシビリティ後退はない。
+- **docs-site `/primitives/navigation-menu/` `/primitives/toggle-group/` の keyboard 節（`KeyRow`）未追記**: `crates/docs-site/src/primitive_specs/navigation.rs` ほかは現状 `keyboard: &[]`。#1070 も同様に後続送りにしている。
+- **`crates/wasm-full/src/keynav.rs` の肥大化**（本イシュー後さらに増加）: サブモジュール分割（`keynav/menu.rs` 等）のリファクタ提案。
 
 いずれも `.claude/rules/out-of-scope-tracking.md` に従い Issue 化を提案する対象として PR 本文に記録する。

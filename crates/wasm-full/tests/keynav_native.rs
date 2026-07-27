@@ -1,7 +1,8 @@
 //! `fandhe_frontend_wasm_full::keynav`（Tabs/Accordion/Menu/Select/
-//! RadioGroup/Menubar/Combobox/Listbox のキーボード操作・イシュー #582・
-//! #583・#641（typeahead）・#1073（Menubar）・#1071（Combobox）・#1070
-//! （Listbox）、親 #581）の native テスト。
+//! RadioGroup/Menubar/Combobox/Listbox/NavigationMenu/ToggleGroup の
+//! キーボード操作・イシュー #582・#583・#641（typeahead）・#1073
+//! （Menubar）・#1071（Combobox）・#1070（Listbox）・#1075
+//! （NavigationMenu/ToggleGroup）、親 #581）の native テスト。
 //!
 //! `keynav` モジュールの純粋層（[`tabs_next_index`]/[`accordion_next_index`]/
 //! [`highlight_next_index`]/[`radio_next_index`]/[`listbox_next_index`]/
@@ -17,9 +18,11 @@
 
 use fandhe_frontend_wasm_full::keynav::{
     accordion_next_index, combobox_key_action, highlight_next_index, is_typeahead_key,
-    listbox_next_index, loop_focus_from_attr, menu_loop_focus_from_attr, radio_next_index,
-    submenu_nav, tabs_next_index, typeahead_next_index, typeahead_push, ComboboxKeyAction,
-    Modifiers, Orientation, SubmenuNav, TYPEAHEAD_TIMEOUT_MS,
+    listbox_next_index, loop_focus_from_attr, menu_loop_focus_from_attr,
+    navigation_menu_link_next_index, navigation_menu_trigger_key_action, radio_next_index,
+    submenu_nav, tabs_next_index, toggle_group_next_index, typeahead_next_index, typeahead_push,
+    ComboboxKeyAction, Modifiers, NavigationMenuKeyAction, Orientation, SubmenuNav,
+    TYPEAHEAD_TIMEOUT_MS,
 };
 
 /// 検証 1: Tabs horizontal の ArrowRight/ArrowLeft がフォーカスを移動する。
@@ -785,5 +788,64 @@ fn listbox_loop_focus_true_wraps_and_modifiers_are_noop() {
             &disabled
         ),
         None
+    );
+}
+
+/// 検証: NavigationMenu trigger の代表ケース（イシュー #1075）。
+#[test]
+fn navigation_menu_trigger_key_action_representative_cases() {
+    assert_eq!(
+        navigation_menu_trigger_key_action(
+            "ArrowDown",
+            Modifiers::default(),
+            Orientation::Horizontal,
+            false
+        ),
+        Some(NavigationMenuKeyAction::OpenToLink { from_end: false })
+    );
+    assert_eq!(
+        navigation_menu_trigger_key_action(
+            "ArrowDown",
+            Modifiers::default(),
+            Orientation::Horizontal,
+            true
+        ),
+        Some(NavigationMenuKeyAction::FocusLink { from_end: false })
+    );
+    assert_eq!(
+        navigation_menu_trigger_key_action(
+            "Escape",
+            Modifiers::default(),
+            Orientation::Horizontal,
+            false
+        ),
+        None
+    );
+}
+
+/// 検証: NavigationMenu content 内リンクの代表ケース（イシュー #1075）。
+#[test]
+fn navigation_menu_link_next_index_representative_cases() {
+    let disabled = [false, false, false];
+    assert_eq!(
+        navigation_menu_link_next_index(0, "ArrowDown", Modifiers::default(), &disabled),
+        Some(1)
+    );
+    // 非循環: 末尾で ArrowDown は None。
+    assert_eq!(
+        navigation_menu_link_next_index(2, "ArrowDown", Modifiers::default(), &disabled),
+        None
+    );
+}
+
+/// 検証: ToggleGroup と RadioGroup がインデックス計算を共有していること
+/// （共通化判断の機械的な固定、イシュー #1075、モジュール doc
+/// §ToggleGroup 参照）。
+#[test]
+fn toggle_group_next_index_matches_radio_next_index() {
+    let disabled = [false, false, true, false];
+    assert_eq!(
+        toggle_group_next_index(0, "ArrowRight", None, Modifiers::default(), &disabled),
+        radio_next_index(0, "ArrowRight", None, Modifiers::default(), &disabled)
     );
 }
