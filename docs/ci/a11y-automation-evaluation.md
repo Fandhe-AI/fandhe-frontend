@@ -49,7 +49,8 @@
 ## 3. 現状の集計
 
 - **計測日**: 2026-07-27
-- **base commit**: `a40ee04`（`git rev-parse --short HEAD`、`origin/main` 最新）
+- **base commit**: `a40ee04`（本ブランチの調査時点 HEAD。`main` 未マージの
+  stacked commit を含み、`origin/main` の実コミットではない）
 
 ### 3.1 計測方法
 
