@@ -1237,6 +1237,12 @@ AI エージェントが変更の影響範囲を判断するために読み込�
     で完了した。`viewport` 測定・`data-motion` は同モジュールに一切現れない
     ことをテストで機械的に固定し（`no_part_outputs_data_motion`）、本規則の
     適用を実装レベルでも保証している。
+  - **対照事例（規則 2 の対象外）**: `crates/headless-ui/src/positioning.rs`
+    （anchor positioning の純粋関数）は viewport 寸法を引数で受け取るが、
+    実 DOM 計測（`web-sys` 接触）も再計算トリガーの所有も行わないため
+    規則 2 の対象外である。判別根拠は同モジュールのモジュールレベル
+    rustdoc、および `docs/design/anchor-positioning-design.md` §4.1 を
+    参照。
 
 - **再評価トリガー**
   - 規則 1: 「バリデーション結果を UI 部品の外側で組み立てる」書き方が

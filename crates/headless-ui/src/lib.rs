@@ -21,6 +21,28 @@
 //!    （いずれも path）のみ**: `headless-ui/Cargo.toml` の `[dependencies]` に
 //!    サードパーティクレートを追加しない。
 //!
+//! # 責務境界（2 層構成、`docs/policy/intentional-non-adoption.md` §3.25）
+//!
+//! 本クレートと `fandhe-frontend-pre-styled-ui` の 2 層構成における責務
+//! 境界は `docs/policy/intentional-non-adoption.md` §3.25 が正であり、
+//! 以下は要約のみ（規則本文はそちらを参照）。
+//!
+//! - **規則 1（非採用）**: 本クレートが担うのは anatomy（構造）・
+//!   アクセシビリティ（WAI-ARIA・キーボード操作）・表示状態（`data-*`）
+//!   までとする。バリデーション・送信処理・データ整形・永続化といった
+//!   アプリケーションロジックを内包する部品は、参照軸（ark-ui /
+//!   chakra-ui / Radix）に存在しても実装しない（Radix `Form` が確定
+//!   対象。構造部分は [`mod@field`]/[`mod@fieldset`] が担う）。
+//! - **規則 2（層の割り当て）**: 装飾・アニメーション・レイアウト計測の
+//!   関心（Radix の `data-motion`、viewport 測定等）は本クレートへ
+//!   持ち込まず、上層の `fandhe-frontend-pre-styled-ui`（実 DOM 計測は
+//!   `fandhe-frontend-wasm-full`）の責務とする。適用例は
+//!   [`mod@navigation_menu`]。
+//! - **境界事例**: [`mod@positioning`] は viewport 寸法を引数で受け取るが
+//!   計測主体（実 DOM 接触・再計算トリガーの所有）ではないため規則 2 の
+//!   対象外である。判別根拠は同モジュールのモジュールレベル rustdoc を
+//!   参照。
+//!
 //! # 再エクスポート契約（イシュー #550・#712）
 //!
 //! [`fandhe_frontend_core`]・[`fandhe_frontend_interactive`] はクレートその
