@@ -474,6 +474,10 @@ const STRUCTURE_CLASS_CONTRACT: &[(&str, &str)] = &[
         "検索ブロック div（既定 hidden、docs-header-actions 第 1 子、イシュー #958）",
     ),
     (
+        "docs-search-label",
+        "検索入力のラベル label（視覚上のみ clip で隠す。fandhe-backend とのデザイン統一のため追加）",
+    ),
+    (
         "docs-search-input",
         "検索入力 input[type=search]（data-search-index を持つ、イシュー #958）",
     ),

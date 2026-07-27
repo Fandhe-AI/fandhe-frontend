@@ -106,6 +106,7 @@ CSS 供給方式・契約テスト作り替え方針・ドロップダウンの�
       a.docs-brand（サイトタイトルリンク。旧 header 直下の a を rename）
       nav.docs-header-nav            … ドロップダウン群（section ごと）
       div.docs-header-actions        … GitHub リンク・テーマトグル（#951）
+                                        検索パネル（イシュー #958）
   div.docs-container                 … 3 カラム grid コンテナ
     aside.docs-sidebar               … 左カラム（不変、§3.4）
       nav.sidebar
@@ -144,9 +145,26 @@ CSS 供給方式・契約テスト作り替え方針・ドロップダウンの�
 
 | レンジ | レイアウト | 挙動 |
 |---|---|---|
-| `≥ 1200px` | 3 カラム | `div.docs-container` を `grid-template-columns: <sidebar 幅> 1fr <toc 幅>` の 3 列 grid にする。左右カラムは `position: sticky` で本文スクロールに追従（右カラムは §3.3 で確定） |
-| `768px 〜 1199px` | 2 カラム | 右カラム（`aside.docs-toc-aside`）を `display: none` にし、中央本文の `max-width` を広げる（グリッド列数は 2 列: `<sidebar 幅> 1fr`）。現行 2 カラムレイアウトと視覚的に同等の構成に収束する |
+| `≥ 1200px` | 3 カラム | `div.docs-container` を `grid-template-columns: 16rem 1fr 14rem` の 3 列 grid にする。左右カラムは `position: sticky` で本文スクロールに追従（右カラムは §3.3 で確定）。中央カラムのトラック幅（88 − 16 − 14 = 58rem）から `.docs-main` の左右 padding（2rem × 2）を引いた実効幅は 54rem。その中で `.docs-content` が `max-width: 46rem` で `margin: 0 auto` により中央寄せされる |
+| `768px 〜 1199px` | 2 カラム | 右カラム（`aside.docs-toc-aside`）を `display: none` にし、中央本文の `max-width` を広げる（グリッド列数は 2 列: `16rem 1fr`）。現行 2 カラムレイアウトと視覚的に同等の構成に収束する |
 | `< 768px` | 1 カラム | `div.docs-container` を単列（`grid-template-columns: 1fr`、または `display: block`）にし、`aside.docs-sidebar` は本文の前に縦積みで折りたたむ。右カラムは非表示のまま |
+
+#### 構造寸法トークン（トークン構成はイシュー #949 / #905、値は fandhe-backend との統一で改訂）
+
+新レイアウトが使用する CSS 構造寸法トークンは以下の 6 つである:
+
+| トークン（Rust 側の型） | 値 | 役割 |
+|---|---|---|
+| `docs-container-width` | `88rem` | 3 カラム grid コンテナ（`.docs-container`）と、ヘッダー内側計測枠（`.docs-header-inner`）の最大幅。両要素が同じ値を `max-width` に用いることで、ヘッダーの左端がサイドバー・本文の左端と同一 x 座標に揃う |
+| `docs-sidebar-width` | `16rem` | 左ナビカラムの幅 |
+| `docs-toc-width` | `14rem` | 右目次カラムの幅（`≥ 1200px` でのみ参照） |
+| `docs-max-content-width` | `46rem` | `.docs-content` ラッパーの最大幅（中央カラムのトラック幅から padding を引いた実効幅より狭く、`margin: 0 auto` で中央寄せ） |
+| `docs-header-height` | `3.25rem` | ヘッダーバーの高さ（`.docs-header` の `height`、`position: sticky` 時の viewport 占有分、アンカーへのジャンプオフセット） |
+| `docs-gutter` | `1rem` | カラム内側の左右余白（`.docs-header-inner`・`.docs-sidebar`・`.docs-toc-aside` の padding-inline が共有する単一のドリフト源） |
+
+**設計原則の変更**: これらトークンの値は、イシュー #949 の「幅予算計算式」（旧値 `84 − 17 − 15 − 2×2 = 48`）から導出された内部整合値ではなく、fandhe-backend の docs サイトとのデザイン統一のため **fandhe-backend `site/assets/site.css` の値をそのまま採用したもの** である（変更根拠の詳細は `crates/docs-site/src/site_theme.rs::docs_theme()` のコメント参照）。
+
+新値（88 / 16 / 14 / 46）は旧値（84 / 17 / 15 / 48）と異なり、計算式 `88 − 16 − 14 − 2×2 = 54 ≠ 46` が成り立たないが、これは不整合ではない。**`docs-max-content-width` は grid トラック幅から自動導出される値ではなく、`.docs-content` の `max-width` を独立に定める値** だからである。中央カラムのトラック幅 `58rem` から `.docs-main` の左右 padding `2rem × 2` を引いた実効幅は `54rem` だが、その上で `.docs-content` は `46rem` に制限され `margin: 0 auto` で中央に配置される。backend も同一の計算構造（中央トラック `58rem` − padding `4rem` = 実効 `54rem` に対し `.docs-content` を `46rem` で中央寄せ）であり、視覚的レイアウト挙動は両リポジトリで等価である。
 
 **折りたたみの実現方式（無 JS 制約下、CSS のみ）**: docs-site は JS
 ハイドレーションを行わない方針（`layout.rs` モジュール doc 参照）ため、

@@ -41,7 +41,10 @@
 //!     div.docs-header-actions     … 右側のアクション群（イシュー #951、
 //!       header_nav の有無に関わらず常に出力）
 //!       div.docs-search            … 検索ブロック（既定 `hidden`、イシュー #958）
-//!         input.docs-search-input  … `data-search-index` でインデックス JSON を参照
+//!         label.docs-search-label（`for="docs-search-input"`、視覚上のみ
+//!           clip で隠す。fandhe-backend とのデザイン統一のため追加）
+//!         input.docs-search-input（`id="docs-search-input"`） … `data-search-index`
+//!           でインデックス JSON を参照
 //!         ul.docs-search-results（`#docs-search-results`、既定 `hidden`）
 //!           li.docs-search-result（JS 実行時生成。`role="option"`）
 //!             a（クリック可能なヒットターゲット本体。行のクロム
@@ -149,7 +152,7 @@ impl From<StylesheetError> for SiteThemeError {
 }
 
 /// [`Theme::default`] を基礎に、サイト骨格が使う docs 固有トークン
-/// （現在ページリンクのアクセント背景・構造寸法 4 種）を追加する。
+/// （現在ページリンクのアクセント背景・構造寸法 6 種）を追加する。
 ///
 /// 色は [`Theme::push_color`]、寸法は [`Theme::push_space`] の allowlist
 /// 検証付き API 経由で追加する（手書き `--fandhe-*` 宣言を [`StyleSheet::push_css`]
@@ -185,27 +188,53 @@ fn docs_theme() -> Result<Theme, ThemeError> {
     // `.docs-header-inner` と `.docs-container` の双方が同じ値を `max-width` に
     // 用いることで、ヘッダーのブランド文字左端とサイドバー・本文の左端が
     // 同一 x 座標に揃う（`STRUCTURAL_CSS` の `.docs-header-inner` 規則参照）。
-    theme.push_space("docs-container-width", "84rem")?;
+    //
+    // 値は fandhe-backend の docs サイトとデザインを統一するため、
+    // fandhe-backend `site/assets/site.css`（`.docs-container { max-width:
+    // 88rem; }`）の値へ合わせた（旧 84rem、frontend 独自のイシュー #949
+    // 幅予算計算の起点だったが、下記 4 トークンの解説参照）。
+    theme.push_space("docs-container-width", "88rem")?;
     // カラム内側の左右余白（イシュー #949）。`.docs-header-inner` の
     // padding-inline と `.docs-sidebar` / `.docs-toc-aside` の左右 padding が
     // 共有する単一のドリフト源（従来は各所へ `1rem` を個別記述していた）。
+    //
+    // fandhe-backend の `.docs-header { padding: 0 1.5rem; }` は
+    // `max-width`/`margin: 0 auto` を持たない全幅要素の viewport 基準
+    // padding であり、`max-width: 88rem; margin: 0 auto` で中央寄せされた
+    // frontend の `.docs-header-inner`（backend の `.docs-container` と
+    // 同じ計測枠を共有する、下記コメント参照）へこの値をそのまま持ち込むと
+    // 意味が変わってしまう（backend では広い viewport でヘッダーとサイド
+    // バーの左端がそもそも揃っていない — #949 が是正した不整合そのもの）。
+    // このため `.docs-header-inner` の padding は変更せず、`docs-gutter`
+    // （1rem）を維持する。
     theme.push_space("docs-gutter", "1rem")?;
 
     // 構造寸法（3 カラム grid の左ナビ幅・本文最大幅・ヘッダー高さ・
     // 右目次カラム幅）。
     //
-    // 幅予算（`min-width: 1200px` 以上の 3 カラム帯域）:
-    //   84rem (container) − 17rem (sidebar) − 15rem (toc) = 52rem … 中央 grid トラック
-    //   52rem − 2rem×2 (.docs-main の左右 padding、不変)          = 48rem … 本文実効幅
-    // `docs-max-content-width` は中央カラムの内寸そのものと一致させる
-    // （イシュー #949。旧 46rem は 3 カラム帯域では一度も効いていなかった）。
-    theme.push_space("docs-sidebar-width", "17rem")?;
-    theme.push_space("docs-max-content-width", "48rem")?;
+    // 値は fandhe-backend の docs サイトとデザインを統一するため、
+    // fandhe-backend `site/assets/site.css` の `--docs-sidebar-width` /
+    // `--docs-toc-width` / `--docs-max-content-width` へ合わせた（旧
+    // 17rem/15rem/48rem）。旧値はイシュー #949 の幅予算計算式
+    // （84 − 17 − 15 − 2×2 = 48）から導出した内部整合値だったが、
+    // backend の値（88/16/14/46）はこの式に従わない独立した値であり、
+    // frontend 側もこの式を廃して backend の値をそのまま採用する
+    // （88 − 16 − 14 − 2×2 = 54 ≠ 46 だが、`docs-max-content-width` は
+    // grid トラック幅の自動導出ではなく `.docs-content` の `max-width` を
+    // 独立に定める値であるため不整合ではない。中央カラムのトラック幅
+    // （88 − 16 − 14 = 58rem、`.docs-main` の左右 padding 2rem×2 を引くと
+    // 実効 54rem）から `.docs-content` の `max-width: 46rem` が
+    // `margin: 0 auto` で中央寄せされる — backend も同一の計算構造
+    // （中央トラック 58rem − padding 4rem = 実効 54rem に対し
+    // `.docs-content` を 46rem で中央寄せ）であり、レイアウト上は等価な
+    // 挙動になる。
+    theme.push_space("docs-sidebar-width", "16rem")?;
+    theme.push_space("docs-max-content-width", "46rem")?;
     theme.push_space("docs-header-height", "3.25rem")?;
     // 右目次カラム（`aside.docs-toc-aside`）の列幅。3 カラム表示になる
     // `min-width: 1200px` 以上でのみ参照される（イシュー #907）。sticky 追従・
     // 視覚スタイルの仕上げは #909 スコープのため、ここでは列幅のみ定義する。
-    theme.push_space("docs-toc-width", "15rem")?;
+    theme.push_space("docs-toc-width", "14rem")?;
 
     // コードブロックのシンタックスハイライトトークン（イシュー #1078）。
     // `crate::highlight::TokenKind::class` が返す `token-*` クラスへ
@@ -466,6 +495,27 @@ body {\n\
 \n\
 .docs-search[hidden] {\n\
   display: none;\n\
+}\n\
+\n\
+/*\n\
+ * 検索入力のラベル（イシュー #958 の検索 UI に付随する視覚実装。\n\
+ * fandhe-backend の docs サイトとデザインを統一するため追加した。正は\n\
+ * fandhe-backend `site/assets/site.css` の `.docs-search-label` clip\n\
+ * 規則）。`for`/`id`\n\
+ * 対応（`crate::layout` の `input#docs-search-input`）は保つが視覚上のみ\n\
+ * clip 手法で隠す（`.skip-nav` と同型、a11y のためタブ順序・スクリーン\n\
+ * リーダー読み上げ対象からは除外しない）。\n\
+ */\n\
+.docs-search-label {\n\
+  position: absolute;\n\
+  width: 1px;\n\
+  height: 1px;\n\
+  padding: 0;\n\
+  margin: -1px;\n\
+  overflow: hidden;\n\
+  clip: rect(0, 0, 0, 0);\n\
+  white-space: nowrap;\n\
+  border: 0;\n\
 }\n\
 \n\
 .docs-search-input {\n\
@@ -894,7 +944,7 @@ body {\n\
   color: var(--fandhe-color-fg-muted);\n\
   text-decoration: none;\n\
   /* 長い `h3` タイトル（例: API ページの `placement API` 節見出し）が\n\
-   * 15rem の右カラム内で単語境界を越えて折り返せるようにする。テキスト\n\
+   * 14rem の右カラム内で単語境界を越えて折り返せるようにする。テキスト\n\
    * の切り詰め（ellipsis/line-clamp）は行わない（情報欠落を招くため）。\n\
    */\n\
   overflow-wrap: anywhere;\n\
@@ -1720,6 +1770,7 @@ mod tests {
             ".docs-header-dropdown",
             ".docs-header-actions",
             ".docs-search",
+            ".docs-search-label",
             ".docs-search-input",
             ".docs-search-results",
             ".docs-search-result",
@@ -2385,17 +2436,23 @@ mod tests {
 
     #[test]
     fn stylesheet_layout_width_budget_is_consistent() {
-        // 幅予算（イシュー #949）: 84 − 17 − 15 − 2×2 = 48。
-        // container/sidebar/toc/max-content の 4 値と `.docs-main` の
-        // 768px ブロック padding（幅予算の構成要素）を同時に固定する。
-        // 片方だけ動かすと必ず落ちる（畳み込みによる予算破壊の検知）。
+        // レイアウト幅トークン（container/sidebar/toc/max-content）は
+        // fandhe-backend の docs サイトとデザインを統一するため、
+        // fandhe-backend `site/assets/site.css` の値（88rem/16rem/14rem/
+        // 46rem）へ合わせている（正は同ファイル）。旧イシュー #949 の幅予算
+        // 計算式（84 − 17 − 15 − 2×2 = 48）による内部整合の導出は廃止した
+        // （`docs_theme` コメント参照。88 − 16 − 14 − 2×2 = 54 ≠ 46 だが、
+        // これは意図した不一致であり計算エラーではない）。
+        // `.docs-main` の 768px ブロック padding は backend の
+        // `.docs-main { padding: 2.25rem 2rem 5rem; }` と元々一致しているため
+        // 変更しておらず、引き続き同時に固定する。
         let sheet = stylesheet().expect("site theme stylesheet should assemble");
         let css = sheet.as_css();
 
-        assert!(css.contains("--fandhe-space-docs-container-width: 84rem;"));
-        assert!(css.contains("--fandhe-space-docs-sidebar-width: 17rem;"));
-        assert!(css.contains("--fandhe-space-docs-toc-width: 15rem;"));
-        assert!(css.contains("--fandhe-space-docs-max-content-width: 48rem;"));
+        assert!(css.contains("--fandhe-space-docs-container-width: 88rem;"));
+        assert!(css.contains("--fandhe-space-docs-sidebar-width: 16rem;"));
+        assert!(css.contains("--fandhe-space-docs-toc-width: 14rem;"));
+        assert!(css.contains("--fandhe-space-docs-max-content-width: 46rem;"));
 
         let block_768 = STRUCTURAL_CSS
             .split("@media (min-width: 768px)")
