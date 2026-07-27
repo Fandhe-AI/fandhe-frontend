@@ -322,6 +322,7 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 | `combobox` | `trigger` | `"toggle"` | `""` |
 | `combobox` | `item` | `"select"` | `data-value` |
 | `combobox` | `clear-trigger` | `"clear"` | `""` |
+| `toggle-group` | `item` | `"toggle"` | `data-value` |
 | `tree-view` | `branch` | `"toggle"` | `data-value` |
 | `tree-view` | `item` | `"select"` | `data-value` |
 | `calendar` | `prev-trigger` | `"prev-month"` | `""` |
@@ -336,6 +337,8 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 `tree-view` の 2 行はイシュー #1072（keynav へ TreeView のキーボード配線を追加する、詳細は §19）で追加した。`branch-control`（クリック対象の要約行）は自身に `data-value` を持たずマッピング表にも無いため、`action_from_parts` の内側優先探索により祖先の `branch` 行（`"toggle"`）へフォールスルーする。この結果、ブランチノードは「選択」できず、Enter/Space は展開トグルとして働く（§19 §帰結参照。意図的な仕様であり、`branch-control` への別アクション割り当てはスコープ外）。
 
 `combobox` の 3 行はイシュー #1071（keynav へ Combobox のキーボード配線を追加する）で追加した。`crates/headless-ui/src/combobox.rs`（イシュー #749）は Combobox の SSR 出力と状態機械のみを提供し、実 DOM 上のクリック・キーボード配線を wasm 層へ申し送っていた。`menu`/`trigger-item` 欠落是正（#662）と同型の整備であり、`combobox`/`trigger` の欠落は `crates/wasm-full/src/keynav.rs` が合成する `HtmlElement::click()`（Arrow キーによる open/close・Escape によるクローズ）を no-op にし、`combobox`/`item` の欠落は Enter・highlight クリックによる確定を no-op にする。`combobox`/`clear-trigger` は `"clear"`（`ComboboxAction::Clear`）であり、`select`/`clear-trigger` の `"deselect"` とは意味が異なる。`combobox::clear_trigger` はテキスト入力欄を併せ持つ Combobox の「入力値と選択の両方をクリアする」ボタンであるため（`crates/headless-ui/src/combobox.rs::ComboboxAction::Clear` の実装参照）、`select` の「選択のみを解除する」`"deselect"` をそのまま流用しない。
+
+`toggle-group`/`item` 行はイシュー #1075（keynav へ NavigationMenu/ToggleGroup のキーボード配線を追加する）で追加した。`ToggleGroup`/`MultiToggleGroup` の `decode_action` はいずれも `"toggle"` のみを受理し `toggle_group::item` は `data-value` を常時出力するため、`menu`/`trigger-item`・`combobox` の欠落是正と同型の整備である。**`navigation-menu`/`trigger` 行は本イシューで追加していない**: `crates/headless-ui/src/navigation_menu.rs::trigger` は `data-value` を出力せず、`NavigationMenu::decode_action`（`SingleSelect` へ全委譲）は payload に項目値を要求するため、`requires_value: true` 行を足しても常に fail-closed（`None`）になり、`requires_value: false` 行を足すと `SingleSelectAction::Toggle("")` という誤った値をトグルしてしまう。恒久解は headless-ui 側の SSR 出力追加（別イシュー、§19.5 参照）。
 
 ### 12.4 fail-closed 契約（受け入れ条件 3）
 
@@ -537,11 +540,50 @@ menu/select の `root` は 1 インスタンスの境界だが、menubar の `ro
 
 いずれも `.claude/rules/out-of-scope-tracking.md` に従い Issue 化を提案する対象として PR 本文に記録する。
 
-## 19. `keynav` への TreeView キーボード配線追加（イシュー #1072、親 #1058/#1056）
+## 19. `keynav` への NavigationMenu / ToggleGroup キーボード配線追加（イシュー #1075、親 #1058/#1056）
+
+`crates/headless-ui/src/navigation_menu.rs`（文書ナビゲーション、`role="menu"` を持たない Disclosure Navigation Menu パターン）と `crates/headless-ui/src/toggle_group.rs`（roving tabindex を伴う押下可能な選択肢グループ）は、いずれも anatomy・ARIA・状態機械までを提供し、実 DOM 上のキーボード操作を本クレートの後続責務として明示的にスコープ外へ送っていた（各モジュール doc「スコープ外」/「out-of-scope」節）。イシュー #1075 はこの欠落を `crates/wasm-full/src/keynav.rs`（`mod wiring`）へ実装した。
+
+### 19.1 NavigationMenu の設計方針（受け入れ条件 1）
+
+Menu/Select/Menubar が採用する highlight（`data-highlighted`/`aria-activedescendant`）方式は、`role="menu"` を持たない文書ナビには意味論的に不適合であるという headless-ui 側の既存判断を尊重し、**実 DOM フォーカスを移動する Tabs 型の設計**を採る。
+
+- trigger 間移動は `tabs_next_index` をそのまま再利用し（`data-orientation` 欠落時 horizontal、`data-loop-focus` 欠落時 非循環）、`None`（対象外のキー）のときのみ open/close/リンク移動系（`navigation_menu_trigger_key_action`）へフォールスルーする（Menubar の「トリガー間移動を先に評価」順序規則と同型の 2 段構成）。
+- 開閉は既存原則どおり `trigger.click()` 合成で `crate::headless::MAPPING_TABLE` 経由の dispatch へ委譲する（keynav は `aria-expanded`/`data-state`/`hidden` を直接書かない）。open 後は content を再解決してから先頭/末尾リンクへフォーカスする（click 由来の再描画で要素が差し替わりうるため、Menu の `open_submenu_and_focus_first_item` と同じ理由）。
+- content 内リンクの移動は非循環（APG のリンク集としての決定的挙動）。
+- **roving tabindex は使わない**: `navigation_menu::trigger`/`link` はいずれも `tabindex` を出力せず、APG Disclosure Navigation Menu も全ボタン・リンクをタブ順に残す契約のため、keynav が SSR 契約に無い `tabindex` を持ち込まない（ToggleGroup との対比、§19.2）。
+
+### 19.2 ToggleGroup の設計方針と RadioGroup との共通化判断（受け入れ条件 2）
+
+ToggleGroup の item 間移動は WAI-ARIA APG Toolbar/RadioGroup パターンに従い roving tabindex + フォーカス移動を行う。
+
+- **インデックス計算は共有・配線層は共有しない**: キー受理集合・循環・orientation 解釈が `radio_next_index` と完全一致（`data-orientation` が `Option`＝欠落時両軸受理・常時循環・Home/End は orientation 非依存・disabled スキップ）するため、新設した `toggle_group_next_index` は本体を `radio_next_index` へ委譲する（`listbox_next_index` の rustdoc が明文化した「キー受理集合が部品ごとに異なる契約であり、条件分岐を 1 関数へ詰め込むと部品間の契約差が読めなくなるため専用化する」ハウススタイルに従い、公開 API 名は分けたままインデックス計算のみ共有する）。一方、配線層（`handle_toggle_group_item_keydown`）は RadioGroup（ネイティブ `<input type="radio">` への `focus()` + `set_checked` + `data-state` 同期 + `change` 委譲を伴う）と押下状態の反映経路が根本的に異なる（ToggleGroup は `<button>` へのフォーカス移動 + roving tabindex のみで、押下状態は click → dispatch → 再描画が担う）ため共通化せず、別ハンドラとして実装した。
+- 押下（Enter/Space/クリック）は claim せずネイティブ `<button>` の click 発火に委ね、`MAPPING_TABLE` の `toggle-group`/`item` → `"toggle"` 行（本イシューで追加、§12.3）が dispatch へ接続する。
+
+### 19.3 意図的に採らない挙動（NavigationMenu）
+
+- **open-follows-focus**（Menubar が採用する、隣 trigger へ移動したら自動で開く挙動）: NavigationMenu は `role="menu"` を持たない文書ナビであり、フォーカス移動だけで大きなパネルが次々開くのは意味論・UX ともに過剰なため非採用。
+- **hover/focus による自動 open**（Radix NavigationMenu の既定挙動）: JS タイマー・意図判定（safe triangle）を要し、`docs/policy/intentional-non-adoption.md` §3.25 規則 2（装飾・アニメーション・レイアウト計測の関心を headless 層へ持ち込まない）と同じ判断軸で非採用。
+- **typeahead**: NavigationMenu/ToggleGroup とも APG が要求しないため実装しない（`TypeaheadState` を触らず Menu/Select/Listbox/Menubar の既存挙動へ影響を与えない）。
+
+### 19.4 テスト構成
+
+純粋層（`navigation_menu_trigger_key_action`/`navigation_menu_link_next_index`/`toggle_group_next_index`）は `crates/wasm-full/src/keynav.rs` の `mod tests` に網羅ケースを、`crates/wasm-full/tests/keynav_native.rs` に公開 API 経由の統合確認（`toggle_group_next_index` と `radio_next_index` の同値性を含む）を追加した。配線層は `crates/wasm-full/tests/keynav_browser.rs`（`build_navigation_menu_dom`/`build_toggle_group_dom` ヘルパを新設）に実ブラウザテスト 15 件（trigger 間移動・open/close の click 合成・content 再解決・リンク移動・Escape の非対称性・fail-closed・roving tabindex・orientation 制限・XSS 回帰）を追加し、`wasm-pack test --headless --chrome crates/wasm-full --test keynav_browser` で全 97 件 PASS を確認済み。`crates/wasm-full/tests/headless_wiring.rs` へ `toggle-group`/`item` の `action_for_part` 契約テスト（`data-value` 欠落・disabled の fail-closed を含む）を追加した。
+
+### 19.5 既知のギャップ（本イシューでは対応しない、スコープ外）
+
+- **`MAPPING_TABLE` への `navigation-menu` 行未追加**（§12.3 参照）: `navigation_menu::trigger` が `data-value` を出力しないため、恒久解は headless-ui 側の SSR 出力追加（別イシュー）。
+- **ToggleGroup の SSR 側 roving tabindex 初期状態**: `toggle_group::item` は `tabindex` を出力しないため、最初の矢印キー押下までは全 item がタブ順に入る（押下後に単一タブストップへ収束する）。恒久解は `toggle_group::item` への `focused: bool` opt-in（`toolbar.rs` の `roving_tabindex`/`drop_tabindex_attr` が先例）だが、公開 API の破壊的変更のため本イシューでは扱わない。`wire_keynav` へマウント時の DOM 正規化パスを新設する案は不採用（`wire_keynav` はリスナー登録以外の DOM 変更を一切行わない契約であり、アプリ側が付けた `tabindex` と競合しうるため）。
+- **`overlay.rs::OverlayKind` に `navigation-menu` が無い**: Escape/外側クリックによる content の実閉鎖の一元化は行わない（Menubar と同じ既知ギャップ）。
+- **`list` 直下（content 外）のリンクは移動対象に含めない**: trigger 間移動のみを対象とする。対象外リンクもネイティブにタブ順へ残るためアクセシビリティ後退はない。
+- **docs-site `/primitives/navigation-menu/` `/primitives/toggle-group/` の keyboard 節（`KeyRow`）未追記**: `crates/docs-site/src/primitive_specs/navigation.rs` ほかは現状 `keyboard: &[]`。#1070 も同様に後続送りにしている。
+- **`crates/wasm-full/src/keynav.rs` の肥大化**（本イシュー後さらに増加）: サブモジュール分割（`keynav/menu.rs` 等）のリファクタ提案。
+
+## 20. `keynav` への TreeView キーボード配線追加（イシュー #1072、親 #1058/#1056）
 
 `crates/headless-ui/src/tree_view.rs`（イシュー #753）は TreeView の anatomy 12 パーツ・ARIA（`role="tree"`/`role="treeitem"`/`role="group"`/`aria-level`/`aria-posinset`/`aria-setsize`/`aria-expanded`/`aria-selected`）・状態機械（`TreeView` = `MultiSelect`（展開集合）+ `SingleSelect`（選択値））までを提供し、キーボードナビゲーション・typeahead の実 DOM 配線を本クレートの責務として明示的にスコープ外へ送っていた（同モジュール doc §out-of-scope）。イシュー #1072 はこの欠落を `crates/wasm-full/src/keynav.rs`（純粋層 + `mod wiring`、`#[cfg(target_arch = "wasm32")]`）へ実装した。Listbox（#1070）・Combobox（#1071）・Menubar（#1073）に続く 4 件目であり、同じ 2 層構成（純粋ロジック層 + 配線層）を踏襲する。
 
-### 19.1 設計判断: 実 DOM フォーカス + roving tabindex（既存 8 部品との違い）
+### 20.1 設計判断: 実 DOM フォーカス + roving tabindex（既存 8 部品との違い）
 
 既存 8 スコープ（Tabs/Accordion/Menu/Select/RadioGroup/Menubar/Combobox/Listbox）はいずれも SSR がフォーカスホストを供給する契約（Listbox `content` の `tabindex="0"` 固定、Menu/Select/Menubar `trigger` の `<button>`、RadioGroup の `<input>`、Combobox の `input`）だが、TreeView の SSR（`branch`/`item`）は `tabindex` を一切出力しない。加えて、Menu/Select が採る「trigger にフォーカスを留めたまま `data-highlighted`/`aria-activedescendant` で仮想フォーカスを表現する」パターンは、TreeView では次の理由により不採用とした:
 
@@ -553,34 +595,34 @@ menu/select の `root` は 1 インスタンスの境界だが、menubar の `ro
 
 マウント時の初期 tabindex 供給は `initialize_tree_roving_tabindex`（`wire_keynav` 冒頭で 1 回だけ呼ぶ）が担う。各 `tree` インスタンスについて、いずれかの treeitem が既に `tabindex` を持つ場合は何もしない（呼び出し側の明示指定を尊重、冪等）。持たない場合のみ、先頭の可視かつ非 disabled な treeitem へ `tabindex="0"` を 1 個だけ付与する（他要素へは書き込まない。Tab キーで木全体が 1 タブストップになる roving 契約）。
 
-### 19.2 展開・折りたたみ・確定の実現経路と §帰結
+### 20.2 展開・折りたたみ・確定の実現経路と §帰結
 
 keynav は `aria-expanded`/`hidden`/`data-state`/`aria-selected` を一切書かない。ArrowRight/ArrowLeft/Enter/Space による展開・折りたたみ・確定はいずれも対象 treeitem（優先的に `branch-control`、無ければ treeitem 自身）へ `HtmlElement::click()` を合成し、既存の click → `crate::headless::action_from_parts`（内側優先の祖先探索）→ `MAPPING_TABLE`（`tree-view`/`branch` → `"toggle"`、`tree-view`/`item` → `"select"`。本イシューで新設）→ dispatch → アプリの再描画という経路へ委譲する。
 
 `branch-control`（自身に `data-value` を持たない）上のクリックは `action_from_parts` の内側優先探索により祖先の `branch` 行で解決されるため、**ブランチノードは「選択」できず、Enter/Space は展開トグルとして働く**。これは暗黙の副作用ではなく明示的な仕様であり、`branch-control` への別アクション割り当て、または headless-ui が `branch-control` へ `data-value` を出力する改善は `.claude/rules/out-of-scope-tracking.md` に従いスコープ外候補として PR 本文に記録した（ユーザー承認を得るまで Issue は起票しない）。
 
-### 19.3 再描画耐性（クリック合成後のフォーカス復元）
+### 20.3 再描画耐性（クリック合成後のフォーカス復元）
 
 click 合成 → アプリの `on_update`（`TreeView::render_nodes` 再描画）により対象 treeitem を含む subtree が丸ごと差し替わりうる。keynav は click 直後に古い `Element` 参照を触らず、`restore_tree_focus_by_value` が `wire_keynav` へ渡された `root`（マウント境界として安定）から treeitem 列を再収集し、`data-value` の **Rust 側文字列比較**（`==`）でフォーカス対象を再解決してから `tabindex="0"` と `focus()` を復元する。**セレクタ文字列（`[data-value="..."]` 等）を `data-value` から組み立てることはしない**（セレクタインジェクション面の新設を避ける、A03 対策）。重複値は `Iterator::find` の性質上 document 順の先頭を採る。
 
-### 19.4 木構造ロジックの純粋層化（native テスト可能性）
+### 20.4 木構造ロジックの純粋層化（native テスト可能性）
 
 DOM 祖先を辿って `[data-part="branch-content"][hidden]` を探す方式は採らず、配線層は各 treeitem から `data-depth`（パース失敗時は `aria-level - 1` へ、それも失敗すれば `0` へ決定的にフォールバック）/`data-part`/`aria-expanded`/disabled を読み取って `TreeItemMeta` のフラットな列へ変換し、可視性判定（`tree_visible_flags`）・移動先計算（`tree_key_action`）はすべて web-sys 非依存の純粋層で行う。`tree_visible_flags` は「直近の可視な閉ブランチの depth」を単一のしきい値として持つだけで、`depth` が非単調・逆行する改ざん入力でも 1 パスで panic せず処理する。
 
-### 19.5 キー仕様（WAI-ARIA APG Tree View パターン準拠、確定仕様）
+### 20.5 キー仕様（WAI-ARIA APG Tree View パターン準拠、確定仕様）
 
 `crates/wasm-full/src/keynav.rs` モジュール doc §TreeView のキー仕様表を正とする。要点は ArrowDown/ArrowUp が可視かつ非 disabled のみを辿り**循環しない**（`accordion_next_index` と同じ決定的非循環）、ArrowRight/ArrowLeft がブランチの展開/折りたたみと親子間移動を兼ねる、Escape が Listbox と同じ非対称扱い（typeahead バッファのみリセット、`prevent_default` しない）である。`*`（兄弟一括展開）は APG のオプション挙動でありスコープ外（N 回の click 合成と再描画の相互作用が本イシューの粒度を超える）。
 
-### 19.6 セキュリティ・受け入れ条件の検証
+### 20.6 セキュリティ・受け入れ条件の検証
 
 - native テスト（`crates/wasm-full/tests/keynav_native.rs`・`crates/wasm-full/src/keynav.rs` 内 `mod tests`）が純粋層を、`crates/wasm-full/tests/headless_wiring.rs` が `MAPPING_TABLE` のドリフト検知・fail-closed 系（`data-value` 欠落・`data-disabled`）を検証する。
 - 実ブラウザテスト（`crates/wasm-full/tests/keynav_browser.rs`、`wasm-pack test --headless --chrome`）は `wire_keynav` + `wire_headless_component` + `TreeView::render_nodes` を組み合わせた実マウント・再描画を構築し、受け入れ条件 2（キーボード操作による `aria-expanded`/`data-state`/`hidden` の実際の更新と、再描画後のフォーカス復元）を実証する。攻撃者制御ラベル（`<script>` を含む）での typeahead・Enter 操作が `script` 要素を生成しないことも固定する。
 - 新規外部パッケージ追加ゼロ・web-sys feature 追加ゼロ（`KeyboardEvent`/`HtmlElement`/`NodeList`/`Element` はいずれも既存機能で完結）。
 
-### 19.7 既知のギャップ（本イシューでは対応しない、スコープ外）
+### 20.7 既知のギャップ（本イシューでは対応しない、スコープ外）
 
-- **ブランチノードの「選択」**: §19.2 参照。
-- **`*`（兄弟一括展開）**: §19.5 参照。
+- **ブランチノードの「選択」**: §20.2 参照。
+- **`*`（兄弟一括展開）**: §20.5 参照。
 - **`overlay.rs::OverlayKind` に `tree-view` を含めない**: TreeView はオーバーレイではなく Escape 閉鎖の対象外（Listbox と同じ扱い）。
 - **headless-ui 側の SSR roving tabindex 出力**: `branch`/`item` が状態駆動で `tabindex` を出力する代替案は、headless-ui のマイナーバンプ + `pre-styled-ui`/`wasm-full`/`xtask` の `version` 要求追随 + docs-site ドリフト検知テストへの波及を伴うため本イシューでは採らない。
 

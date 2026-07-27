@@ -58,7 +58,9 @@
 //! - **roving focus / loopFocus（矢印キーによるフォーカス移動）**: SSR
 //!   静的マークアップに寄与しない CSR 挙動層（`fandhe-frontend-wasm-full`
 //!   の `keynav` モジュール）の責務のため未提供（Tabs（#528/#582）・
-//!   RadioGroup（#536）と同じ判断）。
+//!   RadioGroup（#536）と同じ判断）。`crates/wasm-full/src/keynav.rs`
+//!   （イシュー #1075）で実装済み（`toggle_group_next_index` は
+//!   `radio_next_index` を共有する）。
 //! - **single モードの deselectable=false（ark-ui オプション）**: 常時
 //!   deselectable（クリックで選択解除可能）のみを提供する。「常に 1 個は
 //!   選択されている」制約が必要な用途は本イシューのスコープ外

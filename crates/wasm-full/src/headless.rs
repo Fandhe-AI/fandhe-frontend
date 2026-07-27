@@ -204,6 +204,29 @@ const MAPPING_TABLE: &[MappingRow] = &[
         action: "clear",
         requires_value: false,
     },
+    // ToggleGroup（イシュー #1075）: item クリック（マウス・ネイティブ
+    // Enter/Space の双方。`crate::keynav` はフォーカス移動のみを行い決定は
+    // claim しない）は "toggle"（value 必須、`ToggleGroup`/
+    // `MultiToggleGroup` の `decode_action` はいずれも "toggle" のみを
+    // 受理する。`toggle_group::item` は `data-value` を常時出力する）。
+    // この行を欠くとマウス・キーボードいずれの押下も no-op のままになる
+    // （#662 の `menu`/`trigger-item` 欠落是正と同型）。
+    //
+    // NavigationMenu の `trigger` 行は本イシューでは追加しない:
+    // `navigation_menu::trigger` は `data-value` を出力せず、
+    // `NavigationMenu::decode_action`（`SingleSelect` へ全委譲）は payload に
+    // 項目値を要求するため、`requires_value: true` 行は常に fail-closed
+    // （`None`）になり、`requires_value: false` 行は
+    // `SingleSelectAction::Toggle("")` という誤った値をトグルしてしまう
+    // （`crates/wasm-full/src/keynav.rs` モジュール doc §NavigationMenu
+    // 「既知のギャップ」参照。headless-ui 側の SSR 出力追加が前提となる別
+    // イシュー）。
+    MappingRow {
+        scope: "toggle-group",
+        part: "item",
+        action: "toggle",
+        requires_value: true,
+    },
     // TreeView（イシュー #1072、`crates/headless-ui/src/tree_view.rs`）:
     // ブランチのクリック対象は要約行（`branch-control`、自身に `data-value`
     // を持たない）だが、マッピング表には無いためクリック解決は

@@ -22,6 +22,7 @@ use fandhe_frontend_headless_ui::combobox::{self, Combobox};
 use fandhe_frontend_headless_ui::popover::Popover;
 use fandhe_frontend_headless_ui::select::Select;
 use fandhe_frontend_headless_ui::state::{OpenState, SingleSelect};
+use fandhe_frontend_headless_ui::toggle_group::{self, ToggleGroup};
 use fandhe_frontend_headless_ui::tree_view::{self, TreeNode, TreeView};
 use fandhe_frontend_headless_ui::{
     collapsible, dialog, popover, radio_group, select, tabs, Dialog, Menu, RadioGroup, TabItem,
@@ -466,6 +467,49 @@ fn select_item_data_value_xss_payload_is_escaped_on_render() {
     let html = render(&fandhe_frontend_interactive::render_for_hydration(&s));
     assert!(!html.contains("<script>alert(1)</script>"));
     assert!(html.contains("&lt;script&gt;"));
+}
+
+// --- ToggleGroup（イシュー #1075）: item クリック（マウス・keynav 双方が
+// 経由するネイティブ Enter/Space）は "toggle" を dispatch する ---
+
+#[test]
+fn toggle_group_item_click_toggles_pressed_value() {
+    let html = render(&toggle_group::item(
+        false,
+        false,
+        "bold",
+        Vec::new(),
+        Vec::new(),
+    ));
+    assert_scope_part_present(&html, "toggle-group", "item");
+
+    let action_ref = action_for_part(&part("toggle-group", "item", Some("bold"), false)).unwrap();
+    assert_eq!(action_ref.action, "toggle");
+    assert_eq!(action_ref.payload, "bold");
+
+    let mut g = ToggleGroup::default();
+    assert!(dispatch(&mut g, &action_ref.action, &action_ref.payload));
+    assert!(g.is_pressed("bold"));
+    // 同じ item を再度トグルすると解除される（deselectable 既定 true、
+    // `crates/headless-ui/src/toggle_group.rs` モジュール doc 参照）。
+    assert!(dispatch(&mut g, &action_ref.action, &action_ref.payload));
+    assert!(!g.is_pressed("bold"));
+}
+
+#[test]
+fn toggle_group_item_without_data_value_is_noop() {
+    // `toggle_group::item` は `data-value` を常時出力するが、`MAPPING_TABLE`
+    // の fail-closed 契約（`requires_value: true`）自体を独立して固定する。
+    assert_eq!(
+        action_for_part(&part("toggle-group", "item", None, false)),
+        None
+    );
+}
+
+#[test]
+fn toggle_group_item_disabled_is_noop() {
+    let action_ref = action_for_part(&part("toggle-group", "item", Some("bold"), true));
+    assert_eq!(action_ref, None);
 }
 
 // --- イシュー #1072: TreeView（branch の toggle・item の select）のドリフト
