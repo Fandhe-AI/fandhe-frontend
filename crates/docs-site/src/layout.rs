@@ -29,6 +29,17 @@
 //! 収縮させる（`crate::site_theme::STRUCTURAL_CSS` 参照、Bugbot 指摘 #916
 //! 是正）。
 //!
+//! 右目次カラムは `min-width: 1200px` 未満で構造 CSS が `display: none` に
+//! 切り替えるため、タブレット・モバイル幅では到達手段が失われる（この事象
+//! 自体は `docs/reports/docs-site-redesign-regression-report.md` §3.2/§10.1 で
+//! 許容判定済み）。本モジュールはその判定を維持したまま、`main.docs-main`
+//! の第 1 子（かつ SkipNav のスキップ先ターゲットより前）に見出しがある
+//! ページのみ折りたたみ目次 `nav.docs-toc-inline > details`（[`toc_inline`]）
+//! を出力し、`< 1200px` での JS 非依存な代替到達手段とする（イシュー
+//! #1080）。`>= 1200px` では構造 CSS 側で非表示に切り替わり右目次カラムと
+//! 重複しない。`class="docs-toc"` を共有しない不変条件は [`toc_inline`]
+//! rustdoc 参照。
+//!
 //! `fandhe_frontend_app::page_shell` との差分: `page_shell` は
 //! `/static/style.css` と `hydrate.js` をハードコードした `String` を返す
 //! CSR/SSR 向けの実装であり docs には流用できないため、本モジュールは
@@ -308,6 +319,24 @@ fn unique_slug(base: &str, used_ids: &mut HashSet<String>) -> String {
 /// 出力には一切含めない（JS 無効・読み込み失敗時は通常のリンク表示の
 /// ままにする progressive enhancement、`crate::script` モジュール doc 参照）。
 pub fn toc_nav(entries: &[TocEntry]) -> Option<Node> {
+    let items = toc_items(entries)?;
+    let heading = h2(
+        vec![("class", "docs-toc-title"), ("id", TOC_HEADING_ID)],
+        vec![text(TOC_HEADING_TEXT.to_string())],
+    );
+    Some(nav(
+        vec![("class", "docs-toc"), ("aria-labelledby", TOC_HEADING_ID)],
+        vec![heading, ul(vec![], items)],
+    ))
+}
+
+/// [`toc_nav`] と [`toc_inline`] が共有する `<li>` 列の生成ロジック
+/// （イシュー #1080）。[`TOC_MAX_LEVEL`] を超える見出しを除外し、除外後に
+/// 1 件も残らない場合は `None` を返す。両関数がこのヘルパ 1 本を経由する
+/// ことで、「右目次は出るが折りたたみ目次は出ない（またはその逆）」
+/// といった不整合が構造的に起こり得ない（`docs_page_with_assets` 側の
+/// `has_toc` 判定はこの結果に対して行われる）。
+fn toc_items(entries: &[TocEntry]) -> Option<Vec<Node>> {
     let items: Vec<Node> = entries
         .iter()
         .filter(|entry| entry.level <= TOC_MAX_LEVEL)
@@ -321,15 +350,50 @@ pub fn toc_nav(entries: &[TocEntry]) -> Option<Node> {
         })
         .collect();
     if items.is_empty() {
-        return None;
+        None
+    } else {
+        Some(items)
     }
-    let heading = h2(
-        vec![("class", "docs-toc-title"), ("id", TOC_HEADING_ID)],
+}
+
+/// 狭幅帯域（`< 1200px`）で右目次カラム（`aside.docs-toc-aside`）が
+/// `display: none` になる代替として、本文冒頭に置く折りたたみ目次
+/// （イシュー #1080）。`>= 1200px` は [`crate::site_theme::STRUCTURAL_CSS`]
+/// 側で `display: none` に切り替わり、右目次カラムとの重複表示を避ける
+/// （CSS 側の責務。本関数は markup のみを担う）。
+///
+/// # 設計上の決定（rustdoc に明記し将来の「簡素化」で崩さないための記録）
+///
+/// - **`class="docs-toc"` を持たせない**: [`crate::script::SITE_JS`] の
+///   スクロールスパイは `document.querySelector('.docs-toc')`（DOM 先頭の
+///   1 件のみ）で右目次を掴む契約。折りたたみ目次にも同じ class を付けると、
+///   `>= 1200px` では DOM 上先に現れる（かつ `display: none` の）折りたたみ
+///   側に observer が付いてしまい、右カラムの現在地ハイライト（#950）が
+///   無音で死ぬ。専用 class（`docs-toc-inline`/`docs-toc-inline-summary`）
+///   のみを新設し、`crate::script` は変更しない。
+/// - **[`TOC_HEADING_ID`] を再利用しない**: 右目次の `h2#docs-toc-heading`
+///   と同じ `id` を本文冒頭にも付けると同一ページ内で `id` が重複する
+///   （HTML 仕様違反・フラグメントリンクの解決先が不定になる）。折りたたみ
+///   目次側は `aria-label` でランドマーク名を与える（値は [`TOC_HEADING_TEXT`]
+///   を [`toc_nav`] と共有し文言のドリフトを防ぐ）。
+/// - **既定で閉（`open` 属性なし）**: 本文の初期表示位置を押し下げない。
+///   開閉はネイティブ `<details>` の挙動であり JS を要さない
+///   （`crate::nav::group_node` の `details.docs-nav-group` と同型の
+///   ディスクロージャパターン、イシュー #940 の先例に揃える）。
+pub fn toc_inline(entries: &[TocEntry]) -> Option<Node> {
+    let items = toc_items(entries)?;
+    let summary = el(
+        "summary",
+        vec![("class", "docs-toc-inline-summary")],
         vec![text(TOC_HEADING_TEXT.to_string())],
     );
+    let details = el("details", vec![], vec![summary, ul(vec![], items)]);
     Some(nav(
-        vec![("class", "docs-toc"), ("aria-labelledby", TOC_HEADING_ID)],
-        vec![heading, ul(vec![], items)],
+        vec![
+            ("class", "docs-toc-inline"),
+            ("aria-label", TOC_HEADING_TEXT),
+        ],
+        vec![details],
     ))
 }
 
@@ -418,6 +482,10 @@ pub fn docs_page_with_assets(
 ) -> Node {
     let (annotated_body, toc_entries) = with_heading_anchors(body);
     let toc = toc_nav(&toc_entries);
+    // 狭幅帯域（`< 1200px`）向けの折りたたみ目次（イシュー #1080）。`toc` と
+    // 同じ `toc_items` から導出されるため、「右目次は出るが折りたたみ目次は
+    // 出ない」といった不整合は構造的に起こらない（`toc_inline` rustdoc 参照）。
+    let toc_inline_nav = toc_inline(&toc_entries);
 
     let mut head_children = vec![
         el("meta", vec![("charset", "utf-8")], vec![]),
@@ -497,15 +565,30 @@ pub fn docs_page_with_assets(
     // 「on this page」目次は 3 カラム骨格化（イシュー #907、設計文書
     // §3.1/§3.3）に伴い `main.docs-main` の外へ移設し、右目次カラム
     // （`aside.docs-toc-aside`）として `div.docs-container` の第 3 子に置く。
-    // `main_children` は SkipNav ターゲットと本文のみを保持する。
+    // `main_children` は折りたたみ目次（任意）・SkipNav ターゲット・本文を
+    // 保持する。
+    // 折りたたみ目次（イシュー #1080）は `main.docs-main` の第 1 子、かつ
+    // SkipNav のスキップ先ターゲットより**前**に置く。これにより「SkipNav の
+    // スキップ先は読者が実際に読み始める本文（article）の直前」という直後の
+    // コメントの契約を字義どおり維持しつつ、「Skip to content」でページ内
+    // 目次を飛ばして本文へ直接到達できる意味論も保たれる。
     // SkipNav のスキップ先ターゲット（イシュー #776）。読者が実際に読み始める
     // 本文（article）の直前に置き、`link` クリック時のプログラム的フォーカス
     // 移動先とする（`fandhe-frontend-headless-ui::skip_nav` の
     // `tabindex="-1"` 契約参照）。
-    let main_children = vec![
-        ps_skip_nav::content(ps_skip_nav::DEFAULT_ID, vec![], vec![]),
-        article(vec![("class", "docs-content")], vec![annotated_body]),
-    ];
+    let mut main_children: Vec<Node> = Vec::new();
+    if let Some(inline_toc) = toc_inline_nav {
+        main_children.push(inline_toc);
+    }
+    main_children.push(ps_skip_nav::content(
+        ps_skip_nav::DEFAULT_ID,
+        vec![],
+        vec![],
+    ));
+    main_children.push(article(
+        vec![("class", "docs-content")],
+        vec![annotated_body],
+    ));
 
     let root_href = asset_href(base_path, "");
     // ブランドリンクは `class="docs-brand"` を持つ（イシュー #908。従来

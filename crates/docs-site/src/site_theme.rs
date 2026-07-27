@@ -69,6 +69,14 @@
 //!             summary.docs-nav-group-summary … カテゴリ見出し（プレーンテキスト）
 //!             ul.docs-nav-group-list         … グループ配下ページ（nav_list list 再利用）
 //!       main.docs-main            … 中央コンテンツカラムのラッパー
+//!         nav.docs-toc-inline（任意・見出しが存在するページのみ、イシュー #1080）
+//!           … `< 1200px`（右目次カラムが非表示になる帯域）の代替目次。
+//!             第 1 子、SkipNav ターゲットより前
+//!           details（既定は閉）
+//!             summary.docs-toc-inline-summary … "On this page"（`nav.docs-toc` と文言共有）
+//!             ul
+//!               li.docs-toc-level-2 > a  … href は右目次と同一の `#<id>`
+//!               li.docs-toc-level-3 > a
 //!         article.docs-content    … Markdown レンダラの出力 + `nav.prev-next`
 //!           - `pre > code.language-*` … フェンス付きコードブロック
 //!       aside.docs-toc-aside（任意・見出しが存在するページのみ）
@@ -895,6 +903,63 @@ body {\n\
   padding-left: 0.5rem;\n\
 }\n\
 \n\
+/* ---- 本文冒頭の折りたたみ目次（`nav.docs-toc-inline`。イシュー #1080） ---- */\n\
+\n\
+/*\n\
+ * `aside.docs-toc-aside`（右目次カラム）が `min-width: 1200px` 未満で\n\
+ * `display: none` になる代替の JS 非依存な到達手段。基底帯域では表示し、\n\
+ * `min-width: 1200px` 側（下記）で非表示へ切り替えて右目次カラムとの\n\
+ * 重複表示を避ける（`crate::layout::toc_inline` rustdoc 参照）。幅・左端は\n\
+ * `.docs-content` と揃える。\n\
+ */\n\
+.docs-toc-inline {\n\
+  display: block;\n\
+  max-width: var(--fandhe-space-docs-max-content-width);\n\
+  margin: 0 auto 1.5rem;\n\
+}\n\
+\n\
+.docs-toc-inline-summary {\n\
+  cursor: pointer;\n\
+  font-size: 0.8rem;\n\
+  font-weight: var(--fandhe-font-font-weight-semibold);\n\
+  padding: 0.5rem 0.7rem;\n\
+  border: 1px solid var(--fandhe-color-border);\n\
+  border-radius: 0.4rem;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+}\n\
+\n\
+.docs-toc-inline-summary:hover {\n\
+  color: var(--fandhe-color-fg);\n\
+  background: var(--fandhe-color-bg-subtle);\n\
+}\n\
+\n\
+.docs-toc-inline-summary:focus-visible {\n\
+  outline: 2px solid var(--fandhe-color-accent);\n\
+  outline-offset: 2px;\n\
+}\n\
+\n\
+.docs-toc-inline ul {\n\
+  list-style: none;\n\
+  margin: 0.5rem 0 0;\n\
+  padding: 0.3rem 0.7rem 0.3rem 1rem;\n\
+  border-left: 1px solid var(--fandhe-color-border);\n\
+  display: flex;\n\
+  flex-direction: column;\n\
+  gap: 0.25rem;\n\
+}\n\
+\n\
+.docs-toc-inline a {\n\
+  display: block;\n\
+  color: var(--fandhe-color-fg-muted);\n\
+  text-decoration: none;\n\
+  overflow-wrap: anywhere;\n\
+  padding: 0.1rem 0;\n\
+}\n\
+\n\
+.docs-toc-inline a:hover {\n\
+  color: var(--fandhe-color-accent);\n\
+}\n\
+\n\
 /* ---- 右目次カラム（`aside.docs-toc-aside`。イシュー #907） ---- */\n\
 \n\
 /*\n\
@@ -1083,6 +1148,12 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
     align-self: start;\n\
     max-height: calc(100vh - var(--fandhe-space-docs-header-height));\n\
     overflow-y: auto;\n\
+  }\n\
+\n\
+  /* 右目次カラムが表示に切り替わるのと同じ帯域で、本文冒頭の折りたたみ\n\
+   * 目次（狭幅代替、イシュー #1080）を非表示にし重複表示を避ける。 */\n\
+  .docs-toc-inline {\n\
+    display: none;\n\
   }\n\
 }\n\
 \n\
@@ -1537,6 +1608,8 @@ mod tests {
             ".docs-toc",
             ".docs-toc-title",
             ".docs-toc-aside",
+            ".docs-toc-inline",
+            ".docs-toc-inline-summary",
             "nav.prev-next",
             ".docs-nav-group",
             ".docs-nav-group-summary",
@@ -1806,6 +1879,44 @@ mod tests {
         assert!(block_1200
             .contains("max-height: calc(100vh - var(--fandhe-space-docs-header-height));"));
         assert!(block_1200.contains("overflow-y: auto;"));
+    }
+
+    #[test]
+    fn stylesheet_inline_toc_is_visible_below_and_hidden_at_the_three_column_breakpoint() {
+        // イシュー #1080 受け入れ条件 2: `nav.docs-toc-inline`（本文冒頭の
+        // 折りたたみ目次、狭幅帯域の右目次代替）は `.docs-toc-aside`
+        // （直上のテスト）と鏡像の帯域制御を持つ: 基底帯域（`< 1200px`）では
+        // 表示し、`min-width: 1200px`（右目次カラムが表示に切り替わる帯域）
+        // では非表示にして重複表示を避ける。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+
+        let before_1200 = css
+            .split("@media (min-width: 1200px)")
+            .next()
+            .expect("content before min-width: 1200px block should exist");
+        assert!(before_1200.contains(".docs-toc-inline {\ndisplay: block;"));
+
+        let block_1200 = css
+            .split("@media (min-width: 1200px)")
+            .nth(1)
+            .expect("min-width: 1200px block should exist");
+        assert!(block_1200.contains(".docs-toc-inline {\ndisplay: none;\n}"));
+    }
+
+    #[test]
+    fn stylesheet_inline_toc_does_not_reuse_the_scrollspy_selector() {
+        // `crate::script::SITE_JS` のスクロールスパイは
+        // `document.querySelector('.docs-toc')`（DOM 先頭の 1 件のみ）で右目次を
+        // 掴む契約（`crate::layout::toc_inline` rustdoc 参照）。折りたたみ目次の
+        // 規則が `.docs-toc` 単体セレクタへ相乗りしていない（`.docs-toc-inline`
+        // という別クラスのみで組まれている）ことを固定し、将来の「セレクタ
+        // 統合による簡素化」でこの分離が崩れる回帰を検知する。
+        let sheet = stylesheet().expect("site theme stylesheet should assemble");
+        let css = sheet.as_css();
+        assert!(!css.contains(".docs-toc, .docs-toc-inline"));
+        assert!(!css.contains(".docs-toc-inline, .docs-toc {"));
+        assert!(css.contains(".docs-toc-inline {"));
     }
 
     #[test]

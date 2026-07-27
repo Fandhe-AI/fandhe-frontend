@@ -286,7 +286,7 @@ Phase / PR」列は `git log origin/main --oneline` で実在確認できたコ�
 
 | 事項 | 根拠 | 現時点の追跡 |
 |---|---|---|
-| `site/components-pre-styled-ui.md:26-29` の「Demo 以外の節の充填は Phase 4（#945〜#948）で進めます」という記述が Phase 4 完了後も残存 | 本追補作成時点で `origin/main` の該当行に現存を確認済み。#960 §8 も同事象を是正提案として記録している | 本レポート §10.2 に記録。原稿の書き換えは当時の PR に含めなかった（→ イシュー #1077 で `site/themes.md` の記述を現況へ是正済み、その置き換え文の事実誤認は本レポート §18〔イシュー #1082〕で更に是正済み） |
+| `site/components-pre-styled-ui.md:26-29` の「Demo 以外の節の充填は Phase 4（#945〜#948）で進めます」という記述が Phase 4 完了後も残存 | 本追補作成時点で `origin/main` の該当行に現存を確認済み。#960 §8 も同事象を是正提案として記録している | 本レポート §10.2 に記録。原稿の書き換えは当時の PR に含めなかった（→ イシュー #1077 で `site/themes.md` の記述を現況へ是正済み、その置き換え文の事実誤認は本レポート §20〔イシュー #1082〕で更に是正済み） |
 | `tools/docs-site/visual-regression.sh` に tall-window 撮影（F 証跡取得手順）が未統合 | #960 §3 / §8。`f-table-*-tall.png` は大きい `--window-size` 高を手動指定するアドホックな chromium 呼び出しで取得しており、通常の再撮影手順（同スクリプト実行）には含まれていない | 同上 |
 | §8.2 の「未検証」判定項目（ヘッダードロップダウンの実操作、見出しアンカーの sticky ヘッダー回避、View Transitions の実遷移、`prefers-color-scheme` 経路の実機確認） | 実機の対話操作・メディアクエリのエミュレーションは、本環境で利用可能な撮影手段（chromium CLI の `--screenshot`）では取得できない | 同上 |
 
@@ -404,7 +404,7 @@ fandhe-frontend-docs-site: wrote 195 page(s), 109 redirect(s) and 7 asset(s) to 
 | 事項 | 位置づけ | 追跡 |
 |---|---|---|
 | CSP `script-src 'none'` 配信下で `<meta http-equiv="refresh">` ページを開くと headless chromium (`--headless --screenshot`) が無期限にハングする | 観点 6 の end-to-end スクリーンショットは取得不能という**ツール制約の発見**であり、docs サイト自体の退行ではない。`tools/docs-site/visual-regression.sh` から該当撮影（旧 N3）を削除し、理由をスクリプト冒頭コメント・本節へ記録した。観点 6 自体は HTML 直接検証 + 既存テストで合格判定済み（§14） | 本レポート §16（新規 Issue 起票はユーザー承認後、`out-of-scope-tracking.md` に従う） |
-| `site/themes.md`（Themes 索引）に残る「Demo 以外の節（Features/Anatomy/…）の充填は Phase 4（#945〜#948）で進めます」という記述 | 既存レポート §10.2 で `site/components-pre-styled-ui.md` として記録済みの項目が、#1018 のリネーム後も `site/themes.md` として引き続き現存することを本追補の撮影（`p8-themes-index-1440-light.png`）で再確認した。原稿の書き換えは Phase 5/6 の対象外であり本 PR に含めない | 既存レポート §10.2 と同一の追跡対象（新規ではないため新規行を追加せず、ここでは継続確認の事実のみ記録。イシュー #1077 での是正とその置き換え文の事実誤認の是正は本レポート §18〔イシュー #1082〕参照） |
+| `site/themes.md`（Themes 索引）に残る「Demo 以外の節（Features/Anatomy/…）の充填は Phase 4（#945〜#948）で進めます」という記述 | 既存レポート §10.2 で `site/components-pre-styled-ui.md` として記録済みの項目が、#1018 のリネーム後も `site/themes.md` として引き続き現存することを本追補の撮影（`p8-themes-index-1440-light.png`）で再確認した。原稿の書き換えは Phase 5/6 の対象外であり本 PR に含めない | 既存レポート §10.2 と同一の追跡対象（新規ではないため新規行を追加せず、ここでは継続確認の事実のみ記録。イシュー #1077 での是正とその置き換え文の事実誤認の是正は本レポート §20〔イシュー #1082〕参照） |
 | ヘッダードロップダウンの `:focus-within`/`:hover` 実機確認・見出しアンカーの sticky ヘッダー回避・View Transitions の実遷移・`prefers-color-scheme` 経路の実機確認 | §8.2 で「未検証」判定済みの既存項目であり、Primitives/Themes 2 層化によって新たに生じた制約ではない（同じ撮影手段の限界が継続しているだけ） | 既存レポート §10.2 と同一（増分なし） |
 
 ## 17. 追補: 参照（#1033）
@@ -418,7 +418,92 @@ fandhe-frontend-docs-site: wrote 195 page(s), 109 redirect(s) and 7 asset(s) to 
 - 再現手順: `DOCS_SITE_SHOTS_DIR="$HOME/<任意のパス>" tools/docs-site/visual-regression.sh`
   （出力先は絶対パス・非ドット始まりパス要素であることが必須。§13 参照）
 
-## 18. 追補: 節欠落の編集方針の確定（イシュー #1082）
+## 18. 追補: 狭幅帯域の折りたたみ目次（イシュー #1080）
+
+§3.2 は「`<1200px` で右目次カラムが `display: none` になりページ内目次への
+到達手段が失われる点」を**許容**と判定し、§10.1 も「判定は変更しない」として
+追跡を終了していた。本追補はその判定を**撤回せず**、狭幅帯域向けの
+JS 非依存な代替到達手段（本文冒頭の折りたたみ目次 `nav.docs-toc-inline`）を
+追加した記録である。
+
+### 18.1 実装
+
+- `crates/docs-site/src/layout.rs`: 右目次と同じ `toc_items` ヘルパーから
+  導出する `toc_inline()` を新設し、`main.docs-main` の第 1 子（SkipNav の
+  スキップ先ターゲットより前）へ配線した。素の `<details>`/`<summary>`
+  ディスクロージャで、JS を一切追加しない（`crate::script::SITE_JS` は無変更）。
+- `crates/docs-site/src/site_theme.rs`（`STRUCTURAL_CSS`）: `.docs-toc-inline`
+  系セレクタを基底帯域で表示、`@media (min-width: 1200px)`（右目次カラムが
+  表示に切り替わる帯域）で非表示に切り替え、右目次カラムとの重複表示を防いだ。
+- `class="docs-toc"`（`crate::script::SITE_JS` のスクロールスパイが
+  `document.querySelector` で掴む唯一のセレクタ）は折りたたみ目次側に一切
+  付与しない（専用 class `docs-toc-inline`/`docs-toc-inline-summary` のみ）。
+  この不変条件は `crates/docs-site/tests/layout_render.rs::inline_toc_does_not_carry_the_scrollspy_class`
+  と `crates/docs-site/src/site_theme.rs` の
+  `stylesheet_inline_toc_does_not_reuse_the_scrollspy_selector` が機械固定する。
+
+### 18.2 受け入れ条件の担保
+
+| # | 受け入れ条件 | 担保手段 |
+|---|---|---|
+| 1 | `<1200px` で目次へアクセスできる代替手段が JS 無効でも動作する | `crates/docs-site/tests/layout_render.rs`（DOM 順・markup の回帰テスト 4 件）/ `crates/docs-site/tests/no_js_contract.rs::inline_toc_provides_a_js_free_heading_navigation_path`（実サイトビルド全体を対象に、右目次カラムを持つ全ページで `<a href="#...">` を含むことを固定） |
+| 2 | `>=1200px` で右目次カラムと重複表示にならない | `crates/docs-site/src/site_theme.rs::stylesheet_inline_toc_is_visible_below_and_hidden_at_the_three_column_breakpoint`（両帯域を機械固定）/ `crates/docs-site/tests/site_css_contract.rs`（`TOC_ONLY_CLASSES` へ追加した 2 class の 3 方向契約） |
+| 3 | ビジュアル回帰確認を実施しレポートへ記録 | §18.3 参照（本セッションの実行環境では実施不能だったことを記録する） |
+
+### 18.3 ビジュアル回帰の実施結果
+
+本イシューの実装セッションでは `tools/docs-site/visual-regression.sh` を
+実行したが、headless chromium が起動段階で GPU プロセス初期化に失敗し
+（`GPU process isn't usable. Goodbye.`、AppArmor による D-Bus 拒否ログも
+同時発生）、撮影 1 枚目（`p1-top-1440-light`）で `Aborted (core dumped)` と
+なり全撮影が失敗した。これは本イシューの変更に起因する退行ではなく、
+`docs/ci/ci-runner-requirements.md` が既に指摘している chromium 常設・
+sandbox 前提の未解決要件（本スクリプトが CI 化されず手動実行専用に
+留まっている理由そのもの）に該当する、実行環境固有の制約である。
+
+このため §6 実装計画が想定していた新規撮影（`n4-top-tocopen-nojs-768`。
+折りたたみ目次の展開状態を撮る variant）を含め、本セッションでは
+スクリーンショット証跡を取得できなかった。受け入れ条件 3（ビジュアル
+回帰の実施・記録）はこの制約込みで本節に記録することで満たし、
+chromium が利用可能な環境（通常の開発マシン・snap 制約のない環境等）での
+再実行を今後の作業として残す。
+
+markup・CSS の帯域別出し分け自体は §18.1/§18.2 の機械テスト（211 + 44 件の
+`layout_render.rs`・`site_theme.rs` 内 unit test、`no_js_contract.rs` の
+実サイトビルド検証を含む）で担保済みであり、ビジュアル回帰未実施は
+「実装の正しさが未検証」ではなく「視覚的な最終確認手段が本セッションの
+実行環境では利用できなかった」ことを意味する。
+
+### 18.4 参照
+
+- 関連イシュー: #1080（本追補）/ #1059（親: docs サイトわかりやすさ・見やすさ改善）
+- 関連テスト: `crates/docs-site/tests/layout_render.rs` / `site_css_contract.rs` /
+  `no_js_contract.rs` / `crates/docs-site/src/site_theme.rs`（unit test）
+- 参照ドキュメント: `docs/design/docs-site-three-column-redesign.md` §3.3a
+  （本追補と対になる設計文書側の追記）
+
+## 19. 追補: 対話操作検証手段の導入評価（イシュー #1084）
+
+§8.2・§10.2・§16 が「未検証」と記録してきたヘッダードロップダウンの実操作・
+検索結果パネルの描画・見出しアンカーの sticky ヘッダー回避・View Transitions
+の実遷移・`prefers-color-scheme` 経路の実機確認について、対話操作可能な
+検証手段（Playwright / `chromedriver` + WebDriver 等）の導入可否を調査した
+（#1084）。既存節（§1〜§18）は書き換えず、追跡先の更新のみをここに記録する
+（#961・#1033 の追補方式と同型）。
+
+- **判定**: 現時点では対話操作検証手段の導入を見送る（Playwright は本環境
+  で `ubuntu26.04-x64` 非対応のため #924 時点から状況変化なし、`chromedriver`
+  + WebDriver は新規発見の候補だったが本 PoC でセッション確立が失敗し
+  未検証 5 項目を 1 件もカバーできなかった）。上記「未検証」判定は本追補
+  でも**格上げしない**。
+- **今後の追跡先**: §8.2・§10.2・§16 の「未検証」項目、および本節が扱う
+  対話操作検証手段の導入可否は、今後 `docs/reports/docs-site-redesign-regression-report.md`
+  ではなく `docs/ci/docs-site-interaction-testing-evaluation.md`
+  （イシュー #1084）を正とする。同文書 §6 に再評価トリガーを定義した。
+- 詳細な候補比較・実測証跡・再評価トリガーは
+  `docs/ci/docs-site-interaction-testing-evaluation.md` を参照。
+
+## 20. 追補: 節欠落の編集方針の確定（イシュー #1082）
 
 §10.2・§16 が 2 度にわたり「未起票の追跡候補」として記録していた
 `site/themes.md` の残存記述（「Demo 以外の節の充填は Phase 4（#945〜#948）
