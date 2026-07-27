@@ -481,3 +481,24 @@ markup・CSS の帯域別出し分け自体は §18.1/§18.2 の機械テスト�
   `no_js_contract.rs` / `crates/docs-site/src/site_theme.rs`（unit test）
 - 参照ドキュメント: `docs/design/docs-site-three-column-redesign.md` §3.3a
   （本追補と対になる設計文書側の追記）
+
+## 19. 追補: 対話操作検証手段の導入評価（イシュー #1084）
+
+§8.2・§10.2・§16 が「未検証」と記録してきたヘッダードロップダウンの実操作・
+検索結果パネルの描画・見出しアンカーの sticky ヘッダー回避・View Transitions
+の実遷移・`prefers-color-scheme` 経路の実機確認について、対話操作可能な
+検証手段（Playwright / `chromedriver` + WebDriver 等）の導入可否を調査した
+（#1084）。既存節（§1〜§18）は書き換えず、追跡先の更新のみをここに記録する
+（#961・#1033 の追補方式と同型）。
+
+- **判定**: 現時点では対話操作検証手段の導入を見送る（Playwright は本環境
+  で `ubuntu26.04-x64` 非対応のため #924 時点から状況変化なし、`chromedriver`
+  + WebDriver は新規発見の候補だったが本 PoC でセッション確立が失敗し
+  未検証 5 項目を 1 件もカバーできなかった）。上記「未検証」判定は本追補
+  でも**格上げしない**。
+- **今後の追跡先**: §8.2・§10.2・§16 の「未検証」項目、および本節が扱う
+  対話操作検証手段の導入可否は、今後 `docs/reports/docs-site-redesign-regression-report.md`
+  ではなく `docs/ci/docs-site-interaction-testing-evaluation.md`
+  （イシュー #1084）を正とする。同文書 §6 に再評価トリガーを定義した。
+- 詳細な候補比較・実測証跡・再評価トリガーは
+  `docs/ci/docs-site-interaction-testing-evaluation.md` を参照。
