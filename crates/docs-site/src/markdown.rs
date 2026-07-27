@@ -59,6 +59,14 @@
 //!   しない。`href`/`src`/`xlink:href`/外部フォント等、外部リソースを
 //!   参照する属性は一切使わない（自前の基本図形のみで描画し、外部アイコン
 //!   セットのパスデータを複製しない）
+//! - フェンスコードブロック（[`parse_fence`]）の本文は [`crate::highlight`]
+//!   経由で Rust/TOML/HTML の場合のみ `<span class="token-*">` へ分解される
+//!   （イシュー #1078）。分解後もすべてのトークンは [`fandhe_frontend_core::text`]
+//!   を通るため既定エスケープ契約は不変。未対応言語・トークナイズ失敗時は
+//!   [`crate::highlight::highlight_children`] が `None` を返し、従来どおり
+//!   単一の `text()` ノードへフォールバックする（`class` 属性値自体は
+//!   [`crate::highlight`] 側の固定定数のみで、入力由来文字列がタグ名・属性
+//!   へ流れる経路はない）
 //!
 //! パニックしない全域関数として実装する（ライブラリコードでの `unwrap()` /
 //! `panic!` 回避規約、`.claude/rules/coding-rust.md`）。未知の行・不正な構文は
@@ -698,7 +706,14 @@ fn parse_fence(lines: &[&str], start: usize, open: &(char, usize)) -> (Node, usi
         None => vec![],
     };
     let content = body_lines.join("\n");
-    let node = pre(vec![], vec![code(code_attrs, vec![text(content)])]);
+    // フェンス本文は `crate::highlight` 経由で `<span class="token-*">` へ
+    // 分解され得るが、全トークンが最終的に `text()` を通るため既定エスケープ
+    // 契約（本モジュール冒頭のセキュリティ不変条件）は不変。未対応言語・
+    // トークナイズ失敗時は `None` が返り、従来どおり単一の `text(content)`
+    // へフォールバックする（イシュー #1078）。
+    let children = crate::highlight::highlight_children(&content, lang_token)
+        .unwrap_or_else(|| vec![text(content.clone())]);
+    let node = pre(vec![], vec![code(code_attrs, children)]);
     (node, i)
 }
 

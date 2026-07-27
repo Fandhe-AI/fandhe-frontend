@@ -66,6 +66,11 @@
 //!   （`SPEC_TABLES`、イシュー #1021、Phase 5〔#1024〜#1029〕が充填）。
 //!   [`component_page`] が `Layer::Primitives` のとき本モジュールのみを
 //!   探索する（`/themes/` 側 `component_specs` 系とは独立）
+//! - [`highlight`][]: フェンスコードブロック本文のビルド時トークナイズ
+//!   （Rust/TOML/HTML、外部依存ゼロ、イシュー #1078）。[`markdown`] の
+//!   `parse_fence` が `<pre><code>` の子ノードを組み立てる際に呼び出し、
+//!   未対応言語・トークナイズ失敗時は従来どおりの無色プレーン表示へ
+//!   フォールバックする
 //!
 //! `fandhe-frontend-core` / `fandhe-frontend-app` / `fandhe-frontend-server` /
 //! `fandhe-frontend-pre-styled-ui` のみに依存し、外部クレートは追加しない
@@ -93,6 +98,7 @@ pub mod component_page_specs_948;
 pub mod component_specs;
 pub(crate) mod component_specs_nav_data;
 pub mod component_specs_overlay;
+pub mod highlight;
 pub mod layout;
 pub mod linkcheck;
 pub mod markdown;

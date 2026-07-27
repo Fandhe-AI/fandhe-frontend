@@ -457,6 +457,48 @@ fn real_site_search_index_is_deterministic_covers_all_nav_pages_and_matches_html
     );
 }
 
+// ---------------------------------------------------------------------
+// イシュー #1078: コードブロックのシンタックスハイライト導入後も検索索引の
+// 到達性が失われないことの回帰（実装計画 §2.7）。
+// ---------------------------------------------------------------------
+
+#[test]
+fn real_site_search_index_still_contains_code_block_keywords_after_highlighting() {
+    // `crate::highlight` は Rust フェンス本文へ `<span class="token-*">` を
+    // 挿入するが、`search_index::collect_text_into` は要素境界へ半角スペースを
+    // 挿入するのみで語の欠落・結合は起きない
+    // （`normalize_whitespace` が連続空白を畳むため）。この回帰テストは
+    // 「色分け導入により検索から消える」退行を機械固定する。
+    let root = repo_root();
+    let out = TempDir::new("code-block-keywords");
+    build_site(&root, &out.0).expect("real site/nav.toml should build cleanly");
+
+    let json = read_index(&out.0);
+    let parsed = parse_json(&json);
+    let pages = parsed.get("pages").as_array();
+
+    // docs/guides/component-authoring.md（`site/nav.toml` の
+    // `/guides/component-authoring/`）は ```rust フェンスを複数含み、識別子
+    // `user_badge`・キーワード `fn`/`use` を含む（本文実測）。
+    let page = pages
+        .iter()
+        .find(|p| {
+            p.get("href")
+                .as_str()
+                .ends_with("/guides/component-authoring/")
+        })
+        .expect("component-authoring page should be indexed");
+    let text = page.get("text").as_str();
+
+    for needle in ["fn", "use", "user_badge"] {
+        assert!(
+            text.contains(needle),
+            "indexed text for component-authoring should still contain {needle:?} \
+             after fence highlighting: {text}"
+        );
+    }
+}
+
 trait JsonNumberExt {
     fn as_str_number(&self) -> &str;
 }
