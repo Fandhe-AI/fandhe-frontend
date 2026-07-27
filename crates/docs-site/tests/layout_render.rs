@@ -9,8 +9,8 @@
 
 use fandhe_frontend_core::{h2, h3, li, p, render, text, ul};
 use fandhe_frontend_docs_site::layout::{
-    asset_href, docs_page, docs_page_with_assets, toc_nav, with_heading_anchors, TocEntry,
-    TOC_HEADING_ID,
+    asset_href, docs_page, docs_page_with_assets, toc_inline, toc_nav, with_heading_anchors,
+    TocEntry, TOC_HEADING_ID,
 };
 use fandhe_frontend_docs_site::nav::{header_nav, parse_nav};
 use fandhe_frontend_docs_site::script;
@@ -229,7 +229,93 @@ fn no_headings_means_no_toc_nav_and_no_toc_section_in_document() {
     // を付与し、`min-width: 1200px` の 3 カラム grid で右目次列のグリッド
     // トラックを収縮させる（`crate::site_theme::STRUCTURAL_CSS` 参照）。
     assert!(html.contains(r#"class="docs-container docs-container--no-toc""#));
+    // イシュー #1080: 見出しの無いページでは折りたたみ目次
+    // （`nav.docs-toc-inline`）も出力しない（右目次と出現条件が一致する）。
+    assert!(toc_inline(&entries).is_none());
+    assert!(!html.contains(r#"class="docs-toc-inline""#));
     let _ = annotated;
+}
+
+/// イシュー #1080: `< 1200px` で右目次カラムが消える代替として、
+/// `main.docs-main` の第 1 子に折りたたみ目次を置き、SkipNav のスキップ先
+/// ターゲット（`data-part="content"`）・本文（`article.docs-content`）より
+/// 前に出現することを固定する（DOM 順の受け入れ条件 1）。
+#[test]
+fn inline_toc_precedes_skip_nav_target_and_article() {
+    let body = fandhe_frontend_core::div(vec![], vec![h2(vec![], vec![text("導入")])]);
+    let node = docs_page("タイトル", "", sample_sidebar(), body);
+    let html = render(&node);
+
+    let inline_toc_pos = html
+        .find(r#"class="docs-toc-inline""#)
+        .expect("docs-toc-inline should exist when headings are present");
+    let skip_content_pos = html
+        .find(r#"data-part="content""#)
+        .expect("skip-nav content target should exist");
+    let article_pos = html
+        .find(r#"class="docs-content""#)
+        .expect("article should exist");
+
+    assert!(
+        inline_toc_pos < skip_content_pos,
+        "inline toc should precede the SkipNav content target"
+    );
+    assert!(
+        skip_content_pos < article_pos,
+        "SkipNav content target should still precede the docs-content article"
+    );
+}
+
+/// イシュー #1080: 折りたたみ目次は素の `<details>`/`<summary>`
+/// ディスクロージャで、本文中の見出しへ注入された `id` と同じ `href="#<id>"`
+/// のアンカーを持ち、既定では閉（`open` 属性を持たない）ことを固定する
+/// （JS ハイドレーションなしで動作する受け入れ条件 1 の markup 側）。
+#[test]
+fn inline_toc_is_a_details_disclosure_with_anchor_links() {
+    let body = fandhe_frontend_core::div(vec![], vec![h2(vec![], vec![text("導入")])]);
+    let node = docs_page("タイトル", "", sample_sidebar(), body);
+    let html = render(&node);
+
+    let nav_start = html
+        .find(r#"<nav class="docs-toc-inline""#)
+        .expect("nav.docs-toc-inline should exist");
+    let toc_aside_start = html
+        .find(r#"class="docs-toc-aside""#)
+        .expect("docs-toc-aside should exist");
+    let inline_block = &html[nav_start..toc_aside_start];
+
+    assert!(inline_block.contains("<details>"));
+    assert!(!inline_block.contains("<details open"));
+    assert!(inline_block.contains(r#"class="docs-toc-inline-summary""#));
+
+    let id_marker = r#"<h2 id=""#;
+    let start = html.find(id_marker).expect("h2 with injected id");
+    let after = &html[start + id_marker.len()..];
+    let end = after.find('"').expect("closing quote of id attr");
+    let id = &after[..end];
+    assert!(inline_block.contains(&format!("href=\"#{id}\"")));
+}
+
+/// イシュー #1080（アンチマージガード）: 折りたたみ目次は
+/// `crate::script::SITE_JS` のスクロールスパイが `document.querySelector`
+/// で掴む `class="docs-toc"`（右目次のみが持つセレクタ）を共有しない。
+/// フルページ HTML 中の `class="docs-toc"` 完全一致の出現数がちょうど 1
+/// （右目次のみ）であることを固定し、将来の「クラス統合による簡素化」で
+/// 折りたたみ目次側へこのクラスが漏れ、`>= 1200px` で非表示のはずの
+/// 折りたたみ目次側へ observer が吸着する回帰（右カラムの現在地
+/// ハイライト #950 が無音で死ぬ）を検知する。
+#[test]
+fn inline_toc_does_not_carry_the_scrollspy_class() {
+    let body = fandhe_frontend_core::div(vec![], vec![h2(vec![], vec![text("導入")])]);
+    let node = docs_page("タイトル", "", sample_sidebar(), body);
+    let html = render(&node);
+
+    let scrollspy_class_count = html.matches(r#"class="docs-toc""#).count();
+    assert_eq!(
+        scrollspy_class_count, 1,
+        "exactly one element (the right toc column's nav) should carry class=\"docs-toc\""
+    );
+    assert!(html.contains(r#"class="docs-toc-inline""#));
 }
 
 /// [`no_headings_means_no_toc_nav_and_no_toc_section_in_document`] の対:
