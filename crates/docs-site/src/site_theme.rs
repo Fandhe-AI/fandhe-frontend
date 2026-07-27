@@ -159,6 +159,20 @@ fn docs_theme() -> Result<Theme, ThemeError> {
     // docs 固有トークンとして追加する）。
     theme.push_color("docs-accent-bg", "#ebf4ff", "#1c2740")?;
 
+    // テーブル横スクロールの端フェード影（イシュー #1079）。`.docs-content
+    // table` の背景に「cover 用グラデーション（`--fandhe-color-bg` で影を
+    // 覆う）」と「影本体グラデーション（本トークン）」を重ねる 4 レイヤ構成
+    // を組む。`th` の不透明背景（下記 `.docs-content th,td` 規則）がテーブル
+    // 自身の背景レイヤより手前に描画されるため、ヘッダー行帯には構造的に
+    // フェードが乗らない（ラッパー要素なしでは回避不能。詳細は下記テーブル
+    // 規則直前のコメント §1〜3）。影自体の色はライト/ダークで別値とし、
+    // 両テーマで可視性を確保する。
+    theme.push_color(
+        "docs-scroll-shadow",
+        "rgba(15,23,42,0.20)",
+        "rgba(0,0,0,0.55)",
+    )?;
+
     // ヘッダー内側の計測枠・3 カラム grid が共有する外枠幅（イシュー #949）。
     // `.docs-header-inner` と `.docs-container` の双方が同じ値を `max-width` に
     // 用いることで、ヘッダーのブランド文字左端とサイドバー・本文の左端が
@@ -1366,12 +1380,37 @@ fn typography_css() -> Result<String, SiteThemeError> {
     // 横スクロール可能な `overflow-x: auto` 要素そのものに横スクロール
     // アフォーダンスを与える（イシュー #949）。`crate::markdown` の出力に
     // ラッパー要素を挿入できない制約（本関数冒頭の rustdoc §3.6 不変条件）
-    // のため、`table` 自身へ「常時可視スクロールバー」+「枠線フレーム」の
-    // 2 種を組み合わせる。端のフェード（`background-image` の
-    // `linear-gradient` グラデーション）技法は通常ラッパー要素へ当てる
-    // ものであり、`th` の不透明な背景色（下記）に覆われてヘッダー行では
-    // 読めなくなる既知の弱点があるため採らず、常に安定して見える
-    // 枠線フレーム + 角丸へ差し替えている（設計判断、PR #949 本文参照）。
+    // のため、`table` 自身へ「常時可視スクロールバー」+「枠線フレーム」+
+    // 「端のフェード影」の 3 種を重畳する（イシュー #1079。#949 が入れた
+    // 前 2 種は削らず、フェードは 3 系統目として重ねる）。
+    //
+    // #949 は「端のフェードは `th` の不透明背景に覆われて読めなくなる」
+    // として一度不採用にしたが、以下 3 点で整理する:
+    //   1. 置換ではなく重畳: #949 の 2 種は残したまま、フェードを追加する
+    //      だけなので #949 の判断（フェード単独では不十分）とは矛盾しない。
+    //   2. ヘッダー行帯が覆われないのは構造的に回避不能: 子要素
+    //      （`th`/`td`）の背景は親（`table`）の背景より必ず手前に描画される
+    //      ため、`th` の不透明 `background`（下記 `.docs-content th,td`
+    //      規則）はテーブル自身の背景レイヤを覆う。`thead`/`tbody` は
+    //      コンテンツ幅に広がる table-row-group ボックスであり、
+    //      `background-attachment: local` を付けても viewport 端ではなく
+    //      コンテンツ端に貼り付くため機能しない。`table::before`/`::after`
+    //      も通常フロー内の要素で内容と一緒にスクロールし、全高オーバー
+    //      レイの代替にならない。よって `th` の背景色（`bg-subtle`）は
+    //      弱めない（`color-mix` 等での半透明化は #949 が確定した
+    //      ヘッダー識別性を壊すため不採用）。フェードは主に tbody 領域
+    //      （テーブル高さの大半）を覆う。
+    //   3. ラッパー `div` 案（完全被覆が可能）は不採用: `crate::markdown`
+    //      の出力契約変更（§3.6 不変条件の改訂）が必須であり、本イシュー
+    //      は CSS のみでの解決を求めているため対象外（PR 本文のスコープ外
+    //      節に記録）。
+    //
+    // 技法（Roman Komarov 方式の水平版、JS 不使用）: 背景に 4 レイヤを
+    // 積む。1〜2 層目は cover（`--fandhe-color-bg` と同色、スクロール
+    // 位置と一緒に動く `local`）、3〜4 層目は影本体（本トークン、
+    // viewport 端に固定される `scroll`）。オーバーフローしていない
+    // テーブルでは cover と影が常に重なるため見た目は現状から不変（#949
+    // 由来の枠線フレーム・スクロールバーのみが見える）。
     push_typography_rule(
         &mut out,
         ".docs-content table",
@@ -1389,6 +1428,20 @@ fn typography_css() -> Result<String, SiteThemeError> {
                 "scrollbar-color",
                 "var(--fandhe-color-border) var(--fandhe-color-bg-subtle)",
             ),
+            // 端フェード影（イシュー #1079）。longhand で明示し、
+            // `background` ショートハンドは使わない（`background-color`
+            // をリセットして既存規則と競合するのを避けるため）。
+            decl(
+                "background-image",
+                "linear-gradient(to right, var(--fandhe-color-bg), transparent), linear-gradient(to left, var(--fandhe-color-bg), transparent), linear-gradient(to right, var(--fandhe-color-docs-scroll-shadow), transparent), linear-gradient(to left, var(--fandhe-color-docs-scroll-shadow), transparent)",
+            ),
+            decl(
+                "background-position",
+                "left center, right center, left center, right center",
+            ),
+            decl("background-size", "2rem 100%, 2rem 100%, 0.9rem 100%, 0.9rem 100%"),
+            decl("background-repeat", "no-repeat"),
+            decl("background-attachment", "local, local, scroll, scroll"),
         ],
     )?;
     // Chromium/Safari（`scrollbar-width`/`scrollbar-color` 非対応）向け:
@@ -2183,5 +2236,53 @@ mod tests {
         assert!(typography.contains(
             "  border: 1px solid var(--fandhe-color-border);\n  border-radius: 0.5rem;\n  scrollbar-width: thin;"
         ));
+
+        // 端フェード影（イシュー #1079）。longhand 5 宣言が揃っていること、
+        // かつレイヤ数（`linear-gradient(` の出現数）と `background-attachment`
+        // の値要素数が一致することを検査し、無言のレイヤ欠落を機械検知する。
+        assert!(typography.contains("background-attachment: local, local, scroll, scroll;"));
+        assert!(typography.contains(
+            "background-image: linear-gradient(to right, var(--fandhe-color-bg), transparent), linear-gradient(to left, var(--fandhe-color-bg), transparent), linear-gradient(to right, var(--fandhe-color-docs-scroll-shadow), transparent), linear-gradient(to left, var(--fandhe-color-docs-scroll-shadow), transparent);"
+        ));
+        assert!(typography.contains(
+            "background-position: left center, right center, left center, right center;"
+        ));
+        assert!(
+            typography.contains("background-size: 2rem 100%, 2rem 100%, 0.9rem 100%, 0.9rem 100%;")
+        );
+        assert!(typography.contains("background-repeat: no-repeat;"));
+
+        let table_rule_start = typography
+            .find(".docs-content table {\n")
+            .expect("table rule should exist");
+        let table_rule_end = typography[table_rule_start..]
+            .find("}\n")
+            .map(|offset| table_rule_start + offset)
+            .expect("table rule should be closed");
+        let table_rule_block = &typography[table_rule_start..table_rule_end];
+        let gradient_layer_count = table_rule_block.matches("linear-gradient(").count();
+        let attachment_value_count = "local, local, scroll, scroll".split(", ").count();
+        assert_eq!(
+            gradient_layer_count, attachment_value_count,
+            "background-image のレイヤ数と background-attachment の値要素数は一致すること"
+        );
+    }
+
+    #[test]
+    fn stylesheet_table_edge_fade_token_covers_light_and_dark() {
+        // 端フェード影トークン（イシュー #1079）がライト/ダーク双方の
+        // メディアクエリ・data-theme 経路へ展開されていることを検査する
+        // （受入条件「ライト / ダーク両テーマで機能する」の機械化）。
+        let sheet = stylesheet().expect("stylesheet should assemble");
+        let css = sheet.as_css();
+
+        assert!(css.contains("--fandhe-color-docs-scroll-shadow: rgba(15,23,42,0.20);"));
+        let dark_occurrences = css
+            .matches("--fandhe-color-docs-scroll-shadow: rgba(0,0,0,0.55);")
+            .count();
+        assert!(
+            dark_occurrences >= 2,
+            "ダーク値は prefers-color-scheme: dark と data-theme=\"dark\" の双方に出ること（実際: {dark_occurrences} 件）"
+        );
     }
 }
