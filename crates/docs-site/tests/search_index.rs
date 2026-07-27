@@ -457,6 +457,99 @@ fn real_site_search_index_is_deterministic_covers_all_nav_pages_and_matches_html
     );
 }
 
+// ---------------------------------------------------------------------
+// イシュー #1078: コードブロックのシンタックスハイライト導入後も検索索引の
+// 到達性が失われないことの回帰（実装計画 §2.7）。
+// ---------------------------------------------------------------------
+
+#[test]
+fn real_site_search_index_still_contains_code_block_keywords_after_highlighting() {
+    // `crate::highlight::highlight_children` は Rust フェンス本文へ
+    // `<span class="token-*">` を挿入する。`search_index::collect_text_into`
+    // は `is_token_span` によりこの span を要素境界の空白挿入から除外する
+    // （span 化前と同じ「単一の Text ノード」相当の連結結果になる）ため、
+    // 単語自体が欠落・分断されることはない。この回帰テストは「色分け導入
+    // により検索から消える」退行を機械固定する（`fn`/`use`/`user_badge`
+    // という単独の語のみを見るため、キーワード/リテラルに隣接する非空白
+    // 文字を含む語句の分断は
+    // [`real_site_search_index_keeps_words_adjacent_to_highlight_token_spans_contiguous`]
+    // が別途検証する）。
+    let root = repo_root();
+    let out = TempDir::new("code-block-keywords");
+    build_site(&root, &out.0).expect("real site/nav.toml should build cleanly");
+
+    let json = read_index(&out.0);
+    let parsed = parse_json(&json);
+    let pages = parsed.get("pages").as_array();
+
+    // docs/guides/component-authoring.md（`site/nav.toml` の
+    // `/guides/component-authoring/`）は ```rust フェンスを複数含み、識別子
+    // `user_badge`・キーワード `fn`/`use` を含む（本文実測）。
+    let page = pages
+        .iter()
+        .find(|p| {
+            p.get("href")
+                .as_str()
+                .ends_with("/guides/component-authoring/")
+        })
+        .expect("component-authoring page should be indexed");
+    let text = page.get("text").as_str();
+
+    for needle in ["fn", "use", "user_badge"] {
+        assert!(
+            text.contains(needle),
+            "indexed text for component-authoring should still contain {needle:?} \
+             after fence highlighting: {text}"
+        );
+    }
+}
+
+/// [`real_site_search_index_still_contains_code_block_keywords_after_highlighting`]
+/// が検証する `fn`/`use`/`user_badge` は、キーワード・数値トークンが
+/// span 化されても前後に空白しか隣接しないため「単独で分断されない語」
+/// であり、意図した退行クラス（キーワード/リテラルに**隣接する非空白
+/// 文字を含む**語句、例: `crate::highlight` の `crate`、`foo(1)` の `1`）
+/// を検出できない（レビュー指摘、イシュー #1078）。
+///
+/// 本テストは `docs/**` の実文書（将来の編集で内容が変わり得る）ではなく、
+/// 専用フィクスチャ（`tests/fixtures/site-highlighted-code/`）の Rust
+/// フェンスに対して、`crate::highlight::highlight_children` →
+/// `crate::markdown::parse_fence` → [`search_index::page_entry`] のパイプ
+/// ライン全体を通した索引テキストで隣接語句が連続していることを固定する。
+#[test]
+fn real_site_search_index_keeps_words_adjacent_to_highlight_token_spans_contiguous() {
+    let out = TempDir::new("code-block-adjacent-words");
+    build_site(&fixture_root("site-highlighted-code"), &out.0)
+        .expect("site-highlighted-code fixture should build cleanly");
+
+    let json = read_index(&out.0);
+    let parsed = parse_json(&json);
+    let pages = parsed.get("pages").as_array();
+    let page = pages
+        .iter()
+        .find(|p| p.get("href").as_str().ends_with("/fixture-base/"))
+        .expect("fixture home page should be indexed");
+    let text = page.get("text").as_str();
+
+    // `crate` は token-keyword span で包まれるが、直後の `::highlight` は
+    // span を持たない兄弟トークンとして続く。要素境界の空白挿入が
+    // span だけを透過しない実装だと `"crate ::highlight"` に分断される。
+    assert!(
+        text.contains("crate::highlight"),
+        "\"crate::highlight\" should remain contiguous in the index text \
+         even though `crate` is wrapped in a token-keyword span: {text}"
+    );
+
+    // `1` は token-number span で包まれるが、前後の `foo(`/`)` は span を
+    // 持たない。span 前後どちらの境界も透過しない実装だと
+    // `"foo( 1 )"` のように両側へ空白が入る。
+    assert!(
+        text.contains("foo(1)"),
+        "\"foo(1)\" should remain contiguous in the index text even though \
+         the literal `1` is wrapped in a token-number span: {text}"
+    );
+}
+
 trait JsonNumberExt {
     fn as_str_number(&self) -> &str;
 }

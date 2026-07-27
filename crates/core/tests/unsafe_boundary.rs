@@ -198,12 +198,235 @@ fn strip_comments(src: &str) -> String {
     out
 }
 
-/// ソース中に `unsafe` トークンが（コメント除去後に）出現するか判定する。
+/// ソース中に `unsafe` トークンが（コメント・文字列/char リテラル除去後に）
+/// 出現するか判定する。
+///
+/// コメントに加え文字列リテラル・raw 文字列リテラル・byte 文字列リテラル・
+/// char リテラルも除去対象とする（`strip_comments_and_literals`）。
+/// コンパイルされない箇所（コメント・リテラル）にのみ `unsafe` という語句が
+/// 現れるケース（例: `crates/docs-site/src/highlight.rs` の Rust キーワード
+/// テーブルが文字列リテラル `"unsafe"` を持つ、イシュー #1078）を
+/// REQ-2 違反として誤検知しないための精度改善であり、実際にコンパイルされる
+/// `unsafe` コード（`unsafe { ... }` / `unsafe fn` / `unsafe impl` 等）の
+/// 検知能力は変えない。
 fn contains_unsafe_token(src: &str) -> bool {
-    let stripped = strip_comments(src);
+    let stripped = strip_comments_and_literals(src);
     stripped
         .split(|c: char| !c.is_alphanumeric() && c != '_')
         .any(|tok| tok == "unsafe")
+}
+
+/// Rust の字句規則に基づき、コメント・文字列リテラル・byte 文字列リテラル・
+/// raw 文字列リテラル・char リテラルをまとめて除去する。
+///
+/// `strip_comments` はコメントのみを対象とし文字列リテラルはそのまま
+/// 残すため、文字列中に `unsafe` という語が現れると `contains_unsafe_token`
+/// の判定に混入してしまう（イシュー #1078）。本関数はコンパイルされない
+/// 箇所（コメント・リテラル）を丸ごと取り除くことで、判定対象を
+/// 「実際にコンパイルされ得るコード」のみへ絞り込む。
+///
+/// 除去した範囲内の改行は出力へ引き継ぐ（除去箇所は消え、改行のみ残る）
+/// ため、行単位の判定と組み合わせても行数がズレない。
+///
+/// ライフタイム（`'a` 等）は char リテラルの開始と誤認しない
+/// （`char_literal_end` 参照）。
+fn strip_comments_and_literals(src: &str) -> String {
+    let chars: Vec<char> = src.chars().collect();
+    let n = chars.len();
+    let mut out = String::with_capacity(src.len());
+    let mut i = 0;
+
+    while i < n {
+        let c = chars[i];
+
+        // 行コメント `//...`。
+        if c == '/' && chars.get(i + 1) == Some(&'/') {
+            let mut j = i + 2;
+            while j < n && chars[j] != '\n' {
+                j += 1;
+            }
+            i = j;
+            continue;
+        }
+
+        // ブロックコメント `/* ... */`（非ネスト前提。`strip_comments` と同じ）。
+        if c == '/' && chars.get(i + 1) == Some(&'*') {
+            let mut j = i + 2;
+            while j < n {
+                if chars[j] == '*' && chars.get(j + 1) == Some(&'/') {
+                    j += 2;
+                    break;
+                }
+                j += 1;
+            }
+            push_preserved_newlines(&chars[i..j.min(n)], &mut out);
+            i = j;
+            continue;
+        }
+
+        if let Some(end) = raw_string_literal_end(&chars, i) {
+            push_preserved_newlines(&chars[i..end], &mut out);
+            i = end;
+            continue;
+        }
+
+        if let Some(end) = quoted_string_literal_end(&chars, i) {
+            push_preserved_newlines(&chars[i..end], &mut out);
+            i = end;
+            continue;
+        }
+
+        if c == '\'' {
+            if let Some(end) = char_literal_end(&chars, i) {
+                push_preserved_newlines(&chars[i..end], &mut out);
+                i = end;
+                continue;
+            }
+        }
+
+        out.push(c);
+        i += 1;
+    }
+
+    out
+}
+
+/// 除去対象の範囲（`span`）内の改行のみを出力へ引き継ぎ、行数のズレを防ぐ。
+fn push_preserved_newlines(span: &[char], out: &mut String) {
+    for &ch in span {
+        if ch == '\n' {
+            out.push('\n');
+        }
+    }
+}
+
+/// `r"..."` / `r#"..."#` / `r##"..."##`（任意の `#` 深さ）の raw 文字列リテラル、
+/// および `br"..."` / `br#"..."#` の raw byte 文字列リテラルを検出し、
+/// 終端（閉じクオート＋対応する `#` 列の直後）のインデックスを返す。
+/// 該当しなければ `None`。
+fn raw_string_literal_end(chars: &[char], start: usize) -> Option<usize> {
+    let n = chars.len();
+    let mut i = start;
+
+    if chars.get(i) == Some(&'b') {
+        if chars.get(i + 1) != Some(&'r') {
+            return None;
+        }
+        i += 1;
+    }
+    if chars.get(i) != Some(&'r') {
+        return None;
+    }
+    i += 1;
+
+    let hash_start = i;
+    while chars.get(i) == Some(&'#') {
+        i += 1;
+    }
+    let hashes = i - hash_start;
+    if chars.get(i) != Some(&'"') {
+        return None;
+    }
+    i += 1;
+
+    while i < n {
+        if chars[i] == '"' {
+            let mut j = i + 1;
+            let mut matched = 0usize;
+            while matched < hashes && chars.get(j) == Some(&'#') {
+                j += 1;
+                matched += 1;
+            }
+            if matched == hashes {
+                return Some(j);
+            }
+        }
+        i += 1;
+    }
+    // 未終端（構文エラーのソース）の場合は末尾まで除去する。
+    Some(n)
+}
+
+/// 通常の文字列リテラル `"..."` / byte 文字列リテラル `b"..."` を検出し、
+/// エスケープ（`\"` 等、バックスラッシュ直後の 1 文字を無条件でスキップする
+/// ことで `\\"` のような連続エスケープも正しく扱う）を考慮した終端
+/// インデックスを返す。該当しなければ `None`。
+fn quoted_string_literal_end(chars: &[char], start: usize) -> Option<usize> {
+    let n = chars.len();
+    let mut i = start;
+
+    if chars.get(i) == Some(&'b') {
+        if chars.get(i + 1) != Some(&'"') {
+            return None;
+        }
+        i += 1;
+    }
+    if chars.get(i) != Some(&'"') {
+        return None;
+    }
+    i += 1;
+
+    while i < n {
+        match chars[i] {
+            '\\' if i + 1 < n => i += 2,
+            '"' => return Some(i + 1),
+            _ => i += 1,
+        }
+    }
+    // 未終端（構文エラーのソース）の場合は末尾まで除去する。
+    Some(n)
+}
+
+/// char リテラル（`'x'` / `'\''` / `'\u{7fff}'` / `'\x41'` 等）を検出し
+/// 終端インデックスを返す。
+///
+/// ライフタイム（`'a` / `'static` 等）は「バックスラッシュ + 既知の
+/// エスケープシーケンス + 閉じクオート」にも「非バックスラッシュ 1 文字 +
+/// 閉じクオート」にも一致しないため `None` を返し、呼び出し側で `'` を
+/// 通常の 1 文字として扱わせる（誤って後続コードを飲み込まない）。
+fn char_literal_end(chars: &[char], start: usize) -> Option<usize> {
+    let n = chars.len();
+    let mut i = start + 1;
+    if i >= n {
+        return None;
+    }
+
+    if chars[i] == '\\' {
+        i += 1;
+        if i >= n {
+            return None;
+        }
+        match chars[i] {
+            'u' if chars.get(i + 1) == Some(&'{') => {
+                i += 2;
+                while i < n && chars[i] != '}' {
+                    i += 1;
+                }
+                if i < n {
+                    i += 1;
+                }
+            }
+            'x' => {
+                i += 1;
+                for _ in 0..2 {
+                    if chars.get(i).is_some_and(|c| c.is_ascii_hexdigit()) {
+                        i += 1;
+                    }
+                }
+            }
+            _ => i += 1,
+        }
+        return if chars.get(i) == Some(&'\'') {
+            Some(i + 1)
+        } else {
+            None
+        };
+    }
+
+    if chars.get(i + 1) == Some(&'\'') {
+        return Some(i + 2);
+    }
+    None
 }
 
 /// メンバー名からクレートディレクトリを解決する。
@@ -510,5 +733,173 @@ fn contains_unsafe_code_allow_override_detects_comma_separated_lint_list() {
     assert!(
         !contains_unsafe_code_allow_override("#[allow(dead_code)]"),
         "unsafe_code を含まない属性を誤検出している"
+    );
+}
+
+/// `contains_unsafe_token` が文字列リテラル中の `"unsafe"` を REQ-2 違反として
+/// 誤検知しないことを確認する回帰テスト（イシュー #1078）。
+///
+/// `crates/docs-site/src/highlight.rs` の `RUST_KEYWORDS` が文字列リテラルとして
+/// `"unsafe"` を持つケースを模した再現テストを含む。データとしての文字列
+/// リテラルはコンパイルされる `unsafe` コードではないため、これは既定エスケープ
+/// と同様「弱体化ではなく精度改善」である（本ファイル冒頭・PR の方針参照）。
+#[test]
+fn contains_unsafe_token_ignores_string_literal_occurrences() {
+    assert!(
+        !contains_unsafe_token(r#"let s = "unsafe";"#),
+        "通常の文字列リテラル中の `unsafe` を誤検知している"
+    );
+    assert!(
+        !contains_unsafe_token(r#"let s = "say \"unsafe\" now";"#),
+        "エスケープされた引用符を含む文字列リテラル中の `unsafe` を誤検知している"
+    );
+    assert!(
+        !contains_unsafe_token(
+            r#"const RUST_KEYWORDS: &[&str] = &[
+    "fn", "let", "mut", "pub", "struct", "enum", "impl", "trait", "use", "mod",
+    "as", "where", "type", "dyn", "move", "ref", "unsafe", "async", "await",
+];"#
+        ),
+        "highlight.rs のキーワードテーブル相当の再現ケースで `unsafe` を誤検知している（#1078）"
+    );
+}
+
+/// `contains_unsafe_token` が raw 文字列リテラル・byte 文字列リテラル・
+/// raw byte 文字列リテラル（各 `#` 深さ）中の `unsafe` を誤検知しないことを
+/// 確認する。
+#[test]
+fn contains_unsafe_token_ignores_raw_and_byte_string_literal_occurrences() {
+    assert!(
+        !contains_unsafe_token(r####"let s = r"unsafe";"####),
+        "raw 文字列リテラル（`#` 深さ 0）中の `unsafe` を誤検知している"
+    );
+    assert!(
+        !contains_unsafe_token(r####"let s = r#"unsafe"#;"####),
+        "raw 文字列リテラル（`#` 深さ 1）中の `unsafe` を誤検知している"
+    );
+    assert!(
+        !contains_unsafe_token(r####"let s = r##"contains "# unsafe here"##;"####),
+        "raw 文字列リテラル（`#` 深さ 2、内部に `\"#` を含む）中の `unsafe` を誤検知している"
+    );
+    assert!(
+        !contains_unsafe_token(r####"let s = b"unsafe";"####),
+        "byte 文字列リテラル中の `unsafe` を誤検知している"
+    );
+    assert!(
+        !contains_unsafe_token(r####"let s = br#"unsafe"#;"####),
+        "raw byte 文字列リテラル中の `unsafe` を誤検知している"
+    );
+}
+
+/// `contains_unsafe_token` がライフタイム（`'a` 等）を char リテラルの開始と
+/// 誤認せず、ライフタイム直後の実コード中の `unsafe` を引き続き検知できる
+/// ことを確認する。
+#[test]
+fn contains_unsafe_token_distinguishes_lifetime_from_char_literal() {
+    assert!(
+        !contains_unsafe_token("fn foo<'a>(x: &'a str) -> &'a str { x }"),
+        "ライフタイムのみのコードで `unsafe` を誤検知している"
+    );
+    assert!(
+        contains_unsafe_token("fn foo<'a>(x: &'a str) -> &'a str { unsafe { core::mem::transmute(x) } }"),
+        "ライフタイム直後の実コードに含まれる `unsafe` ブロックを検知できていない \
+         （ライフタイムを char リテラルとして誤って飲み込み、後続コードを読み飛ばした可能性がある）"
+    );
+    assert!(
+        !contains_unsafe_token("let c: char = 'u'; let s = 'static;"),
+        "char リテラル・`'static` ライフタイムのみのコードで `unsafe` を誤検知している"
+    );
+}
+
+/// `contains_unsafe_token` が char リテラル（通常・エスケープ・`\u{...}` 形式）
+/// を正しく読み飛ばし、後続コードの判定に影響しないことを確認する。
+#[test]
+fn contains_unsafe_token_handles_char_literal_forms() {
+    assert!(
+        !contains_unsafe_token("let c = 'x'; let s = \"safe\";"),
+        "単純な char リテラルの後続コードで誤検知している"
+    );
+    assert!(
+        !contains_unsafe_token(r"let c = '\''; let ok = true;"),
+        "エスケープされたクオート char リテラルの後続コードで誤検知している"
+    );
+    assert!(
+        contains_unsafe_token(r"let c = '\u{1F600}'; unsafe { core::ptr::null::<u8>(); }"),
+        "`\\u{{...}}` 形式の char リテラル後続の実 `unsafe` ブロックを検知できていない"
+    );
+}
+
+/// ガードが本質的な保証（実際にコンパイルされる `unsafe` コードの検知）を
+/// 依然として失っていないことを固定する load-bearing テスト（#1078 対応で
+/// `contains_unsafe_token` の判定対象を文字列リテラル除去後のソースへ
+/// 変更したため、`unsafe { ... }` / `unsafe fn` / `unsafe impl` の各形が
+/// 引き続き検知されることを明示的に確認する）。
+#[test]
+fn contains_unsafe_token_still_detects_real_unsafe_code() {
+    assert!(
+        contains_unsafe_token("fn f() { unsafe { std::ptr::null::<u8>(); } }"),
+        "`unsafe {{ ... }}` ブロックを検知できていない"
+    );
+    assert!(
+        contains_unsafe_token("unsafe fn f() {}"),
+        "`unsafe fn` を検知できていない"
+    );
+    assert!(
+        contains_unsafe_token("unsafe impl Send for X {}"),
+        "`unsafe impl` を検知できていない"
+    );
+    assert!(
+        contains_unsafe_token("let s = \"safe string with no unsafe token risk\"; unsafe {}"),
+        "文字列リテラルと実コードが混在する場合に実 `unsafe` を見逃している"
+    );
+    assert!(
+        !contains_unsafe_token("fn f() { let s = \"totally safe\"; }"),
+        "unsafe を含まないコードを誤検知している（偽陽性）"
+    );
+}
+
+/// `strip_comments_and_literals` 自体の単体テスト。各リテラル形式・
+/// エスケープ・raw string の各深さ・ライフタイムとの区別を個別に固定する。
+#[test]
+fn strip_comments_and_literals_removes_each_literal_form() {
+    assert_eq!(
+        strip_comments_and_literals(r#"let s = "unsafe";"#),
+        r#"let s = ;"#,
+        "通常の文字列リテラル（クオート含む）が除去されていない"
+    );
+    assert_eq!(
+        strip_comments_and_literals(r#"let s = "a\"b";"#),
+        r#"let s = ;"#,
+        "エスケープされた引用符を含む文字列リテラルの終端検出が誤っている"
+    );
+    assert_eq!(
+        strip_comments_and_literals(r####"let s = r##"a"#b"##;"####),
+        r####"let s = ;"####,
+        "raw 文字列リテラル（`#` 深さ 2、内部に `\"#` を含む）の終端検出が誤っている"
+    );
+    assert_eq!(
+        strip_comments_and_literals(r#"let c = 'x';"#),
+        r#"let c = ;"#,
+        "char リテラルが除去されていない"
+    );
+    assert_eq!(
+        strip_comments_and_literals(r"let c = '\'';"),
+        r"let c = ;",
+        "エスケープされたクオート char リテラルの終端検出が誤っている"
+    );
+    assert_eq!(
+        strip_comments_and_literals("fn foo<'a>(x: &'a str) {}"),
+        "fn foo<'a>(x: &'a str) {}",
+        "ライフタイムを char リテラルと誤認して除去してしまっている"
+    );
+    assert_eq!(
+        strip_comments_and_literals("// unsafe\nfn f() {}"),
+        "\nfn f() {}",
+        "行コメントが除去されていない"
+    );
+    assert_eq!(
+        strip_comments_and_literals("/* unsafe */fn f() {}"),
+        "fn f() {}",
+        "ブロックコメントが除去されていない"
     );
 }

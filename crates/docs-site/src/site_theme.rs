@@ -207,6 +207,19 @@ fn docs_theme() -> Result<Theme, ThemeError> {
     // 視覚スタイルの仕上げは #909 スコープのため、ここでは列幅のみ定義する。
     theme.push_space("docs-toc-width", "15rem")?;
 
+    // コードブロックのシンタックスハイライトトークン（イシュー #1078）。
+    // `crate::highlight::TokenKind::class` が返す `token-*` クラスへ
+    // `crate::highlight_css` の CSS セレクタが対応させる。コードブロック背景
+    // `var(--fandhe-color-bg-muted)`（STRUCTURAL_CSS の `.docs-content pre`
+    // 参照）に対して WCAG AA（4.5:1 目安）を満たすようライト/ダーク双方で
+    // 選定する。コメントのみ彩度を落として視覚的に後景化する。
+    theme.push_color("docs-code-keyword", "#8250df", "#d2a8ff")?;
+    theme.push_color("docs-code-string", "#0a7d3f", "#7ee787")?;
+    theme.push_color("docs-code-comment", "#6e7781", "#8b949e")?;
+    theme.push_color("docs-code-number", "#0550ae", "#79c0ff")?;
+    theme.push_color("docs-code-tag", "#b35900", "#ffa657")?;
+    theme.push_color("docs-code-attr", "#953800", "#ffab70")?;
+
     Ok(theme)
 }
 
@@ -1584,6 +1597,68 @@ fn typography_css() -> Result<String, SiteThemeError> {
     Ok(out)
 }
 
+/// フェンスコードブロックのシンタックスハイライト CSS を組み立てる
+/// （イシュー #1078）。[`crate::highlight::TokenKind::ALL`] が定義する
+/// `token-*` クラス全種をここでカバーする（`tests/highlight.rs` が
+/// enum 駆動でセレクタ網羅性を機械検証する）。
+///
+/// セレクタは `.docs-content pre code .token-*` とし、`.docs-content pre code`
+/// のリセット規則（[`typography_css`]）より後方かつ高詳細度で確実に
+/// 上書きする。`token-*` クラスは意図的に `docs-` 接頭辞を付けない
+/// （[`STRUCTURE_CLASS_CONTRACT`] は `docs-*` class がフルページフィクスチャに
+/// 出現することを要求するが、当該フィクスチャはコードブロックを含まないため
+/// `docs-token-*` にすると必ず失敗する。`classes_outside_contract` の (c)
+/// 方向判定も `docs-` 接頭辞のみを対象にするため、`token-*` は `language-*`
+/// と同じ「別契約管轄」として自然に収まる。詳細はイシュー #1078 の実装計画
+/// §2.6 参照）。
+///
+/// # Errors
+///
+/// [`push_typography_rule`] が fail-closed でエラーを返した場合に伝播する
+/// （本関数内の宣言はすべて allowlist を満たす定数のため通常は到達しない）。
+fn highlight_css() -> Result<String, SiteThemeError> {
+    let mut out = String::new();
+
+    push_typography_rule(
+        &mut out,
+        ".docs-content pre code .token-keyword",
+        &[
+            decl("color", "var(--fandhe-color-docs-code-keyword)"),
+            decl("font-weight", "600"),
+        ],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content pre code .token-string",
+        &[decl("color", "var(--fandhe-color-docs-code-string)")],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content pre code .token-comment",
+        &[
+            decl("color", "var(--fandhe-color-docs-code-comment)"),
+            decl("font-style", "italic"),
+        ],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content pre code .token-number",
+        &[decl("color", "var(--fandhe-color-docs-code-number)")],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content pre code .token-tag",
+        &[decl("color", "var(--fandhe-color-docs-code-tag)")],
+    )?;
+    push_typography_rule(
+        &mut out,
+        ".docs-content pre code .token-attr",
+        &[decl("color", "var(--fandhe-color-docs-code-attr)")],
+    )?;
+
+    Ok(out)
+}
+
 /// サイト骨格が参照する CSS 全量を組み立てる。
 ///
 /// 内訳: テーマトークン（[`docs_theme`]、`Theme::default` + docs 固有拡張）
@@ -1612,6 +1687,7 @@ pub fn stylesheet() -> Result<StyleSheet, SiteThemeError> {
     sheet.push_css(&fandhe_frontend_pre_styled_ui::nav_list::stylesheet())?;
     sheet.push_css(STRUCTURAL_CSS)?;
     sheet.push_css(&typography_css()?)?;
+    sheet.push_css(&highlight_css()?)?;
     Ok(sheet)
 }
 

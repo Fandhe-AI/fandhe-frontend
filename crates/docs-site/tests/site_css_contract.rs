@@ -73,6 +73,15 @@
 //! が両者の乖離を検知する。層 1 (c) 方向の判定（[`classes_outside_contract`]）
 //! は `docs-` 接頭辞トークンのみを対象にすることで、`language-*`/`fd-alert--*`
 //! のような別契約管轄のクラスを誤って層 1 の違反として扱わない。
+//!
+//! 同様に `crate::highlight`（イシュー #1078）がフェンスコードブロック本文
+//! （Rust/TOML/HTML）へ挿入する `token-*` class（`docs-` 接頭辞なし）も
+//! `language-*`/`fd-alert--*` と同じ理由で層 1 の契約対象外である。
+//! `token-*` は生成 CSS 側（`crate::site_theme::highlight_css`）に恒常的な
+//! 固定セレクタ集合を持つため（`crate::highlight::TokenKind::ALL` を回した
+//! 網羅性は `crates/docs-site/tests/highlight.rs` が独立に検証する）、
+//! フルページフィクスチャ HTML への出現を要求する層 1 (a) 方向とは相性が
+//! 悪い（フィクスチャがコードブロックを含まないため）。
 
 use std::collections::HashSet;
 

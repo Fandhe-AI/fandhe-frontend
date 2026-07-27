@@ -161,17 +161,24 @@ fn list_nesting_beyond_max_depth_falls_back_to_continuation_text() {
 
 #[test]
 fn fence_with_lang_info_string() {
+    // イシュー #1078: Rust フェンスは `crate::highlight` によりトークン化され、
+    // `fn` が `token-keyword` span で包まれる（意図的な期待値更新。
+    // 言語指定なしフェンスの期待値は無変更 — フォールバック無傷の証明）。
     assert_eq!(
         render_all("```rust\nfn main() {}\n```"),
-        "<pre><code class=\"language-rust\">fn main() {}</code></pre>"
+        "<pre><code class=\"language-rust\">\
+         <span class=\"token-keyword\">fn</span> main() {}</code></pre>"
     );
 }
 
 #[test]
 fn fence_with_comma_info_string_uses_first_token() {
+    // イシュー #1078: `let` は token-keyword、`1` は token-number として色分けされる。
     assert_eq!(
         render_all("```rust,ignore\nlet x = 1;\n```"),
-        "<pre><code class=\"language-rust\">let x = 1;</code></pre>"
+        "<pre><code class=\"language-rust\">\
+         <span class=\"token-keyword\">let</span> x = \
+         <span class=\"token-number\">1</span>;</code></pre>"
     );
 }
 
@@ -179,9 +186,11 @@ fn fence_with_comma_info_string_uses_first_token() {
 fn fence_with_leading_space_before_lang_token_is_recognized() {
     // フェンス直後に空白を挟んだ info string（```` ``` rust ````）でも言語
     // トークンを正しく認識する（先に trim してから分割する回帰テスト）。
+    // イシュー #1078: ハイライトも通常の ```rust フェンスと同様に適用される。
     assert_eq!(
         render_all("``` rust\nfn main() {}\n```"),
-        "<pre><code class=\"language-rust\">fn main() {}</code></pre>"
+        "<pre><code class=\"language-rust\">\
+         <span class=\"token-keyword\">fn</span> main() {}</code></pre>"
     );
 }
 
@@ -226,9 +235,12 @@ fn fence_with_invalid_info_string_has_no_class() {
 
 #[test]
 fn unclosed_fence_consumes_rest_of_input() {
+    // イシュー #1078: 閉じフェンスがなく EOF に達しても全域性は保たれ、
+    // `fn` の色分けを含めて取りこぼしなく描画される。
     assert_eq!(
         render_all("```rust\nfn main() {\n    unclosed"),
-        "<pre><code class=\"language-rust\">fn main() {\n    unclosed</code></pre>"
+        "<pre><code class=\"language-rust\">\
+         <span class=\"token-keyword\">fn</span> main() {\n    unclosed</code></pre>"
     );
 }
 
@@ -618,6 +630,42 @@ fn xss_payload_in_fence_info_string_does_not_inject_attribute() {
     assert!(!out.contains("<script"));
     assert!(!out.contains("class="));
     assert_eq!(out, "<pre><code>body</code></pre>");
+}
+
+#[test]
+fn xss_payload_in_rust_fence_bare_is_escaped() {
+    // イシュー #1078: ハイライト対象言語（rust）でも、コードブロック脱出を
+    // 狙ったペイロードが生のまま出力へ現れないこと（全トークンが text() を
+    // 経由する不変条件の回帰）。
+    let input = "```rust\n</code></pre><script>alert(1)</script>\n```";
+    let out = render_all(input);
+    assert!(!out.contains("<script"));
+    assert!(!out.contains("</code></pre><script"));
+    // `1` はハイライト対象言語では token-number span で包まれるため、
+    // "alert(1)" 全体の一致ではなく、脱出を狙ったタグ断片が個別にエスケープ
+    // 済みであることを確認する。
+    assert!(out.contains("&lt;script&gt;alert("));
+    assert!(out.contains("&lt;/script&gt;"));
+}
+
+#[test]
+fn xss_payload_in_rust_fence_string_literal_is_escaped() {
+    // ペイロードを文字列リテラル内に置いても（String トークンとして span
+    // 化されても）、span の子は text() 経由のためエスケープは保たれる。
+    let input = "```rust\nlet s = \"</code></pre><script>alert(1)</script>\";\n```";
+    let out = render_all(input);
+    assert!(!out.contains("<script"));
+    assert!(out.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+}
+
+#[test]
+fn xss_payload_in_rust_fence_comment_is_escaped() {
+    // ペイロードをコメント内に置いても（Comment トークンとして span 化
+    // されても）、既定エスケープは保たれる。
+    let input = "```rust\n// </code></pre><script>alert(1)</script>\n```";
+    let out = render_all(input);
+    assert!(!out.contains("<script"));
+    assert!(out.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
 }
 
 #[test]
