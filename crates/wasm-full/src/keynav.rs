@@ -6337,9 +6337,16 @@ mod wiring {
     /// （`open_submenu_and_focus_first_item` と同じ理由、モジュール doc
     /// 参照）。`trigger` が `id` を持つ場合は `document.get_element_by_id`
     /// で"今の" trigger を再解決してから `nav_root` を `closest` で
-    /// 再導出する（`root` 配下であることを検査、A01 対策）。`id` が無い・
-    /// 再解決に失敗した場合は再解決の手段が無いため click 前の参照を
-    /// そのまま返す（`open_submenu_and_focus_first_item` と同型の
+    /// 再導出する。`get_element_by_id` は `id` 重複・改ざんされた DOM でも
+    /// 任意の要素を返しうるため、`root.contains` かつ
+    /// `NAVIGATION_MENU_TRIGGER_SELECTOR` への一致を両方検証してから
+    /// 採用する（Bugbot 指摘 "Reresolve focus skips root check"、PR #1098
+    /// レビュー。`fresh_nav_root` 側の
+    /// `.filter(|candidate| root.contains(Some(candidate)))` と同型の
+    /// A01 対策）。検証に失敗した場合は `id` の解決結果を採用せず click 前の
+    /// `stale_trigger` を使う（focus() が mount root 外へ逃げるのを防ぐ、
+    /// fail-closed）。`id` が無い・再解決に失敗した場合も同様に click 前の
+    /// 参照をそのまま返す（`open_submenu_and_focus_first_item` と同型の
     /// fail-closed フォールバック）。
     fn navigation_menu_reresolve_after_click(
         root: &Element,
@@ -6351,6 +6358,12 @@ mod wiring {
             Some(id) => stale_trigger
                 .owner_document()
                 .and_then(|document| document.get_element_by_id(id))
+                .filter(|candidate| {
+                    root.contains(Some(candidate))
+                        && candidate
+                            .matches(NAVIGATION_MENU_TRIGGER_SELECTOR)
+                            .unwrap_or(false)
+                })
                 .unwrap_or_else(|| stale_trigger.clone()),
             None => stale_trigger.clone(),
         };

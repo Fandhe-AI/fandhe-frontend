@@ -6482,6 +6482,73 @@ fn navigation_menu_trigger_escape_when_closed_is_noop_fail_closed() {
     );
 }
 
+/// Bugbot 指摘 "Reresolve focus skips root check"（PR #1098 レビュー、
+/// イシュー #1075）の回帰テスト。`navigation_menu_reresolve_after_click` が
+/// `document.get_element_by_id` の解決結果を `root.contains`/セレクタ一致
+/// なしに採用すると、id 重複（改ざん・不正な DOM）下で root 外の要素へ
+/// フォーカスが漏れる。root 外に正規 trigger と**同一 id**を持つ decoy
+/// ボタンを、DOM 順序上正規 trigger より**先**（`document.getElementById`
+/// が重複 id で最初にマッチする要素を返す実装依存挙動を利用）に配置し、
+/// open 状態の trigger 上で Escape（`Close` アクション）を発火する。
+/// 修正前は `fresh_trigger` が decoy を指してしまい `focus()` が root 外へ
+/// 漏れる。修正後は `root.contains` かつ `NAVIGATION_MENU_TRIGGER_SELECTOR`
+/// 一致の検証に失敗するため click 前の正規 trigger（`stale_trigger`）へ
+/// fail-closed にフォールバックし、フォーカスは root 内に留まる。
+#[wasm_bindgen_test]
+fn navigation_menu_close_with_duplicate_id_does_not_leak_focus_outside_root() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root = build_navigation_menu_dom(
+        &document,
+        "kn-nm-dupid",
+        &[("a", "A", false)],
+        "horizontal",
+        false,
+    );
+    let _cleanup = RemoveOnDrop(root.clone());
+
+    let trigger_a = document.get_element_by_id("kn-nm-dupid-trigger-a").unwrap();
+    let content = document.get_element_by_id("kn-nm-dupid-content-a").unwrap();
+    wire_toggle_listener(&trigger_a, &content);
+
+    // root 外に正規 trigger と同一 id の decoy を、body の先頭（root より
+    // 前）へ挿入する。document.get_element_by_id は重複 id のとき DOM 順で
+    // 最初に一致する要素を返す実装依存挙動を持つため、ここで decoy が
+    // 「id による再解決」の結果として選ばれる状況を作る。
+    let decoy = document.create_element("button").unwrap();
+    decoy.set_id("kn-nm-dupid-trigger-a");
+    decoy
+        .set_attribute("data-scope", "navigation-menu")
+        .unwrap();
+    decoy.set_attribute("data-part", "trigger").unwrap();
+    let body = document.body().unwrap();
+    body.insert_before(&decoy, body.first_child().as_ref())
+        .unwrap();
+    let _cleanup_decoy = RemoveOnDrop(decoy.clone());
+
+    wire_keynav(root.clone()).expect("wire_keynav must succeed");
+
+    // trigger を open 状態にしてから Escape（Close アクション）を発火する。
+    content.remove_attribute("hidden").unwrap();
+    trigger_a.set_attribute("aria-expanded", "true").unwrap();
+    trigger_a.set_attribute("data-state", "open").unwrap();
+    html_element(&trigger_a).focus().unwrap();
+
+    trigger_a.dispatch_event(&keydown_event("Escape")).unwrap();
+
+    assert!(content.has_attribute("hidden"), "Close で content は閉じる");
+    // フォーカスは root 内の正規 trigger に留まり、root 外の decoy へは
+    // 決して移らない（A01 対策の回帰確認）。
+    let focused = document.active_element();
+    assert_eq!(
+        focused.as_ref().map(|el| el.id()),
+        Some("kn-nm-dupid-trigger-a".to_string())
+    );
+    assert!(
+        focused.is_some_and(|el| root.contains(Some(&el))),
+        "フォーカスは root 内に留まるべきで、decoy（root 外）へ漏れてはならない"
+    );
+}
+
 /// 検証 14-9（XSS 回帰、REQ-1）: 攻撃者制御ラベル・`href="javascript:..."`
 /// を含む DOM でキー操作しても `script` 要素が生成されない。
 #[wasm_bindgen_test]
