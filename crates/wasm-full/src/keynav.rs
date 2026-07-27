@@ -5398,6 +5398,38 @@ mod wiring {
             .collect()
     }
 
+    /// `trigger.click()` 合成の**後**に `nav_root`/`trigger` を再解決する
+    /// （Bugbot 指摘 "Stale root blocks open focus"、イシュー #1075）。
+    /// click() による再レンダーで `trigger` 自身やその祖先 `nav_root` が
+    /// 新しい DOM ノードへ差し替えられると、click 前に保持した参照は
+    /// `contains` 判定に失敗し、`OpenToLink` のリンクフォーカスや
+    /// `Close`/`Escape` の `focus()` 復帰が効かなくなる
+    /// （`open_submenu_and_focus_first_item` と同じ理由、モジュール doc
+    /// 参照）。`trigger` が `id` を持つ場合は `document.get_element_by_id`
+    /// で"今の" trigger を再解決してから `nav_root` を `closest` で
+    /// 再導出する（`root` 配下であることを検査、A01 対策）。`id` が無い・
+    /// 再解決に失敗した場合は再解決の手段が無いため click 前の参照を
+    /// そのまま返す（`open_submenu_and_focus_first_item` と同型の
+    /// fail-closed フォールバック）。
+    fn navigation_menu_reresolve_after_click(
+        root: &Element,
+        stale_nav_root: &Element,
+        stale_trigger: &Element,
+    ) -> (Element, Element) {
+        let trigger_id = stale_trigger.get_attribute("id");
+        let fresh_trigger = match trigger_id.as_deref() {
+            Some(id) => stale_trigger
+                .owner_document()
+                .and_then(|document| document.get_element_by_id(id))
+                .unwrap_or_else(|| stale_trigger.clone()),
+            None => stale_trigger.clone(),
+        };
+        let fresh_nav_root = closest(&fresh_trigger, NAVIGATION_MENU_ROOT_SELECTOR)
+            .filter(|candidate| root.contains(Some(candidate)))
+            .unwrap_or_else(|| stale_nav_root.clone());
+        (fresh_nav_root, fresh_trigger)
+    }
+
     /// NavigationMenu trigger 上の keydown を処理する（イシュー #1075）。
     /// [`tabs_next_index`] によるトリガー間移動を先に評価し（Menubar と
     /// 同じ優先順位規則、モジュール doc §NavigationMenu 参照）、`None`
@@ -5450,9 +5482,14 @@ mod wiring {
                 if let Ok(html_trigger) = trigger.clone().dyn_into::<HtmlElement>() {
                     html_trigger.click();
                 }
-                // click() による再描画で content が差し替えられうるため
-                // 再解決する（`open_submenu_and_focus_first_item` と同じ理由）。
-                if let Some(content) = navigation_menu_content_for_trigger(&nav_root, trigger) {
+                // click() による再描画で nav_root/trigger/content が差し
+                // 替えられうるため、click 前の（stale な）参照ではなく
+                // 再解決した nav_root/trigger を使って content を解決する
+                // （Bugbot 指摘 "Stale root blocks open focus"、イシュー
+                // #1075。`navigation_menu_reresolve_after_click` 参照）。
+                let (nav_root, trigger) =
+                    navigation_menu_reresolve_after_click(root, &nav_root, trigger);
+                if let Some(content) = navigation_menu_content_for_trigger(&nav_root, &trigger) {
                     if navigation_menu_is_open(&nav_root, &content) {
                         let links = navigation_menu_links(&content);
                         let disabled_links = disabled_flags(&links);
@@ -5490,6 +5527,13 @@ mod wiring {
                 event.prevent_default();
                 if let Ok(html_trigger) = trigger.clone().dyn_into::<HtmlElement>() {
                     html_trigger.click();
+                }
+                // click() 後の trigger が同じ再レンダーで detach されうる
+                // ため、focus() は再解決した"今の" trigger に対して行う
+                // （Bugbot 指摘 "Stale root blocks open focus"、イシュー
+                // #1075）。
+                let (_, trigger) = navigation_menu_reresolve_after_click(root, &nav_root, trigger);
+                if let Ok(html_trigger) = trigger.dyn_into::<HtmlElement>() {
                     let _ = html_trigger.focus();
                 }
             }
@@ -5520,6 +5564,14 @@ mod wiring {
             if let Some(trigger) = navigation_menu_trigger_for_link(&nav_root, link) {
                 if let Ok(html_trigger) = trigger.clone().dyn_into::<HtmlElement>() {
                     html_trigger.click();
+                }
+                // click() 後の trigger が同じ再レンダーで detach されうる
+                // ため、focus() は再解決した"今の" trigger に対して行う
+                // （Bugbot 指摘 "Stale root blocks open focus"、イシュー
+                // #1075。`handle_navigation_menu_trigger_keydown` の
+                // `Close` 分岐と同型）。
+                let (_, trigger) = navigation_menu_reresolve_after_click(root, &nav_root, &trigger);
+                if let Ok(html_trigger) = trigger.dyn_into::<HtmlElement>() {
                     let _ = html_trigger.focus();
                 }
             }

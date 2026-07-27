@@ -5932,6 +5932,92 @@ fn navigation_menu_keyboard_navigation_with_attacker_controlled_label_does_not_i
     );
 }
 
+/// Bugbot 指摘 "Stale root blocks open focus"（PR #1098 レビュー、イシュー
+/// #1075）の回帰: `OpenToLink` の `trigger.click()` 合成で NavigationMenu の
+/// `[data-part="root"]`（`nav_root`）配下（trigger/content/link）全体が
+/// 新しい要素へ丸ごと差し替わっても、開いた直後のリンクフォーカスが
+/// detached になった旧ツリーではなく生きた（新しい）DOM 上へ設定される
+/// こと（`combobox_closed_arrow_down_opens_after_full_subtree_replacement_
+/// still_sets_highlight` と同型のシナリオ）。
+#[wasm_bindgen_test]
+fn navigation_menu_open_to_link_after_full_subtree_replacement_still_focuses_link() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let root_id = "kn-nm-replace";
+    let triggers: &[(&str, &str, bool)] = &[("a", "A", false)];
+
+    // keynav のマウント境界は NavigationMenu の `[data-part="root"]` より
+    // 外側の安定コンテナとする（Combobox の回帰テストと同型の構成、
+    // mount_root 自体は再描画で差し替わらない）。
+    let mount_root = document.create_element("div").unwrap();
+    document.body().unwrap().append_child(&mount_root).unwrap();
+    let _cleanup = RemoveOnDrop(mount_root.clone());
+
+    let nav_root = build_navigation_menu_dom(&document, root_id, triggers, "horizontal", false);
+    mount_root.append_child(&nav_root).unwrap();
+
+    let trigger_a = document
+        .get_element_by_id(&format!("{root_id}-trigger-a"))
+        .unwrap();
+
+    // trigger click のたびに、NavigationMenu の `[data-part="root"]` 配下
+    // 全体を detach し、同じ id を持つ既に open 状態の新しい要素へ丸ごと
+    // 差し替える（click 駆動の再描画を模す）。`build_navigation_menu_dom` が
+    // 内部で登録する `wire_toggle_listener`（trigger click で元 content の
+    // hidden/aria-expanded を toggle する）より後に登録されるため、
+    // 「toggle → 差し替え」の順で発火する。mount_root 自体は差し替えない。
+    let closure = Closure::<dyn FnMut(Event)>::new({
+        let document = document.clone();
+        let mount_root = mount_root.clone();
+        let root_id = root_id.to_string();
+        let triggers: Vec<(String, String, bool)> = triggers
+            .iter()
+            .map(|(v, l, d)| (v.to_string(), l.to_string(), *d))
+            .collect();
+        move |_event: Event| {
+            let old_root = document.get_element_by_id(&root_id).unwrap();
+            old_root.remove();
+            let owned: Vec<(&str, &str, bool)> = triggers
+                .iter()
+                .map(|(v, l, d)| (v.as_str(), l.as_str(), *d))
+                .collect();
+            build_navigation_menu_dom(&document, &root_id, &owned, "horizontal", false);
+            // 新しいツリーは open 状態（実アプリの再描画結果）で差し替える。
+            let new_trigger = document
+                .get_element_by_id(&format!("{root_id}-trigger-a"))
+                .unwrap();
+            new_trigger.set_attribute("aria-expanded", "true").unwrap();
+            let new_content = document
+                .get_element_by_id(&format!("{root_id}-content-a"))
+                .unwrap();
+            new_content.remove_attribute("hidden").unwrap();
+            // `build_navigation_menu_dom` は body 直下へ追加するため、
+            // mount_root 配下へ付け替える（`append_child` は既存ノードを
+            // 再親化する）。
+            let new_root = document.get_element_by_id(&root_id).unwrap();
+            mount_root.append_child(&new_root).unwrap();
+        }
+    });
+    trigger_a
+        .add_event_listener_with_callback("click", closure.as_ref().unchecked_ref())
+        .unwrap();
+    closure.forget();
+
+    wire_keynav(mount_root.clone()).expect("wire_keynav must succeed");
+    html_element(&trigger_a).focus().unwrap();
+    trigger_a
+        .dispatch_event(&keydown_event("ArrowDown"))
+        .unwrap();
+
+    // 生きた（新しい）link を id 経由で解決して検証する（旧 trigger/content
+    // は detached のまま残っている）。
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some(format!("{root_id}-link-a-1")),
+        "detached になった旧 nav_root ではなく、生きた DOM 上のリンクへ \
+         フォーカスが移るべき（Bugbot 指摘 \"Stale root blocks open focus\"）"
+    );
+}
+
 /// 検証 15-1: Arrow によるフォーカス移動 + roving tabindex 更新・常時循環。
 #[wasm_bindgen_test]
 fn toggle_group_arrow_moves_focus_and_updates_roving_tabindex_and_loops() {
