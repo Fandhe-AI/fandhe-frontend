@@ -5557,7 +5557,22 @@ mod wiring {
         if !root.contains(Some(&group_root)) {
             return;
         }
-        let items = collect_parts(&group_root, TOGGLE_GROUP_ITEM_SELECTOR);
+        // ネストした ToggleGroup の item を誤って拾わないよう、その要素の
+        // closest root が本 handler が解決した group_root 自身と一致する
+        // ものだけを候補に残す（NavigationMenu trigger・Calendar
+        // day-trigger と同型の closest-root 所有権フィルタ、Bugbot 指摘、
+        // イシュー #1075）。`collect_parts` は `query_selector_all` で
+        // group_root 配下の subtree 全体を対象にするため、フィルタなしでは
+        // 内側グループの item が外側グループの矢印キー/Home/End の対象に
+        // 混入し、`set_roving_tabindex` が内側グループの `tabindex` を
+        // 誤って書き換えてしまう（A01 対策）。
+        let items: Vec<Element> = collect_parts(&group_root, TOGGLE_GROUP_ITEM_SELECTOR)
+            .into_iter()
+            .filter(|el| {
+                closest(el, TOGGLE_GROUP_ROOT_SELECTOR)
+                    .is_some_and(|owner| owner.is_same_node(Some(&group_root)))
+            })
+            .collect();
         let Some(current) = index_of(&items, item) else {
             return;
         };

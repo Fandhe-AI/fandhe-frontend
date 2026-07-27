@@ -6087,6 +6087,62 @@ fn toggle_group_keyboard_navigation_with_attacker_controlled_label_does_not_inje
     );
 }
 
+/// 検証（Bugbot 指摘、イシュー #1075）: 外側 ToggleGroup の item 配下に
+/// ネストした内側 ToggleGroup を配置しても、外側 root 上での矢印キー移動
+/// が内側の item を対象に含めない。NavigationMenu trigger・Calendar
+/// day-trigger と同型の closest-root 所有権フィルタの回帰。
+#[wasm_bindgen_test]
+fn toggle_group_nested_instance_does_not_leak_into_outer_navigation() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let outer = build_toggle_group_dom(
+        &document,
+        "kn-tg-nest-outer",
+        &[("a", "A", false, false), ("b", "B", false, false)],
+        None,
+    );
+    let _outer_cleanup = RemoveOnDrop(outer.clone());
+
+    // 内側の ToggleGroup は外側の item（button）配下へネストして配置する
+    // （calendar_nested_instance_does_not_leak と同じ手組み DOM 構築、
+    // モジュール doc §ToggleGroup 参照）。
+    let outer_item_a = outer
+        .query_selector("[data-scope=\"toggle-group\"][data-part=\"item\"]")
+        .unwrap()
+        .unwrap();
+    let inner = build_toggle_group_dom(
+        &document,
+        "kn-tg-nest-inner",
+        &[("x", "X", false, false), ("y", "Y", false, false)],
+        None,
+    );
+    inner.remove();
+    outer_item_a.append_child(&inner).unwrap();
+
+    wire_keynav(outer.clone()).expect("wire_keynav must succeed");
+
+    let outer_item_a = document
+        .get_element_by_id("kn-tg-nest-outer-item-a")
+        .unwrap();
+    html_element(&outer_item_a).focus().unwrap();
+    outer_item_a
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+    assert_eq!(
+        document.active_element().map(|el| el.id()),
+        Some("kn-tg-nest-outer-item-b".to_string()),
+        "外側 ToggleGroup のフォーカス移動は外側自身の item 集合に限定される"
+    );
+
+    let inner_item_x = document
+        .get_element_by_id("kn-tg-nest-inner-item-x")
+        .unwrap();
+    assert_eq!(
+        inner_item_x.get_attribute("tabindex").as_deref(),
+        None,
+        "内側 ToggleGroup の item の tabindex は外側の移動で書き換わらない"
+    );
+}
+
 fn calendar_day(document: &Document, root_id: &str, index: usize) -> Element {
     document
         .get_element_by_id(&format!("{root_id}-day-{index}"))
