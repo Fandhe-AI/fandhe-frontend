@@ -3741,6 +3741,53 @@ mod wiring {
         focus_tree_item(&items, next_index);
     }
 
+    /// マウスクリックされた treeitem（`branch`/`item`）から、click の
+    /// capture フェーズ時点（＝ [`crate::headless::wire_headless_component`]
+    /// の dispatch/`on_update` 再描画がまだ発生していない時点）で
+    /// `(tree, data-value)` を確定させる（イシュー #1072、Bugbot 指摘
+    /// PR #1100「Tabindex lost after mouse re-render」の是正）。
+    ///
+    /// **なぜ capture フェーズで捕捉するか**: [`wire_keynav`] は 1 つの
+    /// `root` に対し複数モジュールが個別に `click` リスナーを登録する
+    /// 構成であり（headless dispatch 用リスナーはコンポーネントごとに
+    /// 別モジュールが先に登録する運用、`tests/keynav_browser.rs::mount_tree_view`
+    /// 参照）、bubble フェーズのリスナー同士は登録順に実行される。
+    /// マウス click → headless dispatch → `on_update`
+    /// （`TreeView::render_nodes` 再描画）が本モジュールの bubble
+    /// リスナーより先に走ると、その時点で旧 treeitem サブツリーは
+    /// 丸ごと差し替え済みで `Node::parent_element()` が途切れ、
+    /// `closest` によるツリー祖先の再解決ができない。capture フェーズは
+    /// 常にどの bubble リスナーよりも先に発火する（DOM イベント伝播の
+    /// 仕様上の性質）ため、再描画が起きる前に対象を確定できる唯一の
+    /// タイミングとして使う。
+    ///
+    /// disabled（`disabled` 属性または `data-disabled`）な treeitem は
+    /// `None` を返し呼び出し元に何も記録させない（disabled treeitem への
+    /// クリックはそもそも dispatch されず再描画も発生しないため、意図せず
+    /// フォーカスを奪う必要が無い。`read_tree_item_meta` と同じ disabled
+    /// 判定を用いる）。
+    ///
+    /// `scope_root`（[`wire_keynav`] の `root`）の外側へ抜けた treeitem・
+    /// `tree` は採用しない（`crate::events::wire_events` と同じ封じ込め）。
+    fn tree_click_restore_target(
+        scope_root: &Element,
+        target_element: &Element,
+    ) -> Option<(Element, String)> {
+        let treeitem = closest(target_element, TREE_VIEW_TREEITEM_SELECTOR)?;
+        if !scope_root.contains(Some(&treeitem)) {
+            return None;
+        }
+        if treeitem.has_attribute("disabled") || treeitem.has_attribute("data-disabled") {
+            return None;
+        }
+        let tree = closest(&treeitem, TREE_VIEW_TREE_SELECTOR)?;
+        if !scope_root.contains(Some(&tree)) {
+            return None;
+        }
+        let value = treeitem.get_attribute("data-value")?;
+        Some((tree, value))
+    }
+
     /// TreeView（`crates/headless-ui/src/tree_view.rs`）の treeitem
     /// （`branch`/`item`）上の keydown を処理する（イシュー #1072、モジュール
     /// doc §TreeView 参照）。
@@ -5786,14 +5833,27 @@ mod wiring {
     ///   [`handle_accordion_keydown`]/[`handle_menu_or_select_trigger_keydown`]/
     ///   [`handle_radio_keydown`]/[`handle_menubar_trigger_keydown`]/
     ///   [`handle_combobox_input_keydown`]/[`handle_listbox_keydown`]/
-    ///   [`handle_tree_view_keydown`]）。Menubar/Listbox/TreeView 用の追加
-    ///   リスナーは登録せず、既存の keydown 委譲へ相乗りする
-    ///   （`Closure::forget` は引き続き 3 回のみ）。
-    /// - `click`: Tabs trigger への委譲クリックで [`handle_trigger_click`]
-    ///   を呼び、マウスクリック・manual activationMode 下の Enter/Space の
-    ///   双方をカバーする（Menu/Select の決定はキーボード側で highlight 中
-    ///   項目へ `click()` を合成する設計のため、本リスナーでの追加処理は
-    ///   不要）。
+    ///   [`handle_tree_view_keydown`]）。Menubar/Listbox 用の追加リスナーは
+    ///   登録せず、既存の keydown 委譲へ相乗りする。
+    /// - `click`（bubble フェーズ）: Tabs trigger への委譲クリックで
+    ///   [`handle_trigger_click`] を呼び、マウスクリック・manual
+    ///   activationMode 下の Enter/Space の双方をカバーする（Menu/Select の
+    ///   決定はキーボード側で highlight 中項目へ `click()` を合成する設計の
+    ///   ため、本リスナーでの追加処理は不要）。加えて TreeView（イシュー
+    ///   #1072、Bugbot 指摘 PR #1100 是正）の roving tabindex 復元を行う:
+    ///   下記の `click`（capture フェーズ）リスナーが再描画前に記録した
+    ///   `(tree, data-value)` を消費し [`restore_tree_focus_by_value`] を
+    ///   呼ぶ（[`tree_click_restore_target`] doc 参照）。
+    /// - `click`（capture フェーズ）: マウスクリックされた treeitem
+    ///   （`branch`/`item`）を [`tree_click_restore_target`] で判定し、
+    ///   `(tree, data-value)` を一時状態へ記録するだけの薄いリスナー
+    ///   （`data-state`/`tabindex` は書かない）。headless dispatch 用の
+    ///   click リスナーは本モジュール外（コンポーネントごとの
+    ///   `wire_headless_component` 呼び出し側）が bubble フェーズへ別途
+    ///   登録するため、bubble フェーズの本モジュール自身の登録順に関わらず
+    ///   再描画前の DOM を確実に観測できる唯一のタイミングとして使う
+    ///   （`Closure::forget` は本関数全体で 4 回、`keydown`／`click`
+    ///   capture／`click` bubble／`change` の 1 リスナーずつ）。
     /// - `change`: RadioGroup のネイティブ `<input type="radio">` の
     ///   `change`（マウスクリック・ネイティブ Space 決定）を
     ///   [`handle_radio_change`] で `data-state` 群へ同期する。
@@ -5889,8 +5949,69 @@ mod wiring {
         root.add_event_listener_with_callback("keydown", keydown_closure.as_ref().unchecked_ref())?;
         keydown_closure.forget();
 
+        // TreeView（イシュー #1072、Bugbot 指摘 PR #1100「Tabindex lost after
+        // mouse re-render」の是正）: マウスクリック起因の headless dispatch
+        // 再描画は本モジュールの bubble リスナー（下記 `click_closure`）が
+        // 発火する前に完了している場合があり、その時点では treeitem の DOM
+        // 祖先チェーンが既に途切れているため `tree`／`data-value` を再解決
+        // できない。capture フェーズ（常に bubble フェーズより先に発火する）
+        // で再描画前に対象を確定して `tree_click_pending` へ記録し、bubble
+        // フェーズ側で消費して roving tabindex とフォーカスを復元する
+        // （[`tree_click_restore_target`] doc 参照）。
+        let tree_click_pending: std::rc::Rc<std::cell::RefCell<Option<(Element, String)>>> =
+            std::rc::Rc::new(std::cell::RefCell::new(None));
+
+        let capture_root = root.clone();
+        let capture_pending = tree_click_pending.clone();
+        let click_capture_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            let Some(target) = event.target() else {
+                *capture_pending.borrow_mut() = None;
+                return;
+            };
+            let target_element: Element = match target.dyn_ref::<Element>() {
+                Some(element) => element.clone(),
+                None => {
+                    let Some(node) = target.dyn_ref::<web_sys::Node>() else {
+                        *capture_pending.borrow_mut() = None;
+                        return;
+                    };
+                    let Some(parent) = node.parent_element() else {
+                        *capture_pending.borrow_mut() = None;
+                        return;
+                    };
+                    parent
+                }
+            };
+            if !capture_root.contains(Some(&target_element)) {
+                *capture_pending.borrow_mut() = None;
+                return;
+            }
+            *capture_pending.borrow_mut() =
+                tree_click_restore_target(&capture_root, &target_element);
+        });
+        root.add_event_listener_with_callback_and_bool(
+            "click",
+            click_capture_closure.as_ref().unchecked_ref(),
+            true,
+        )?;
+        click_capture_closure.forget();
+
         let click_root = root.clone();
         let click_closure = Closure::<dyn FnMut(Event)>::new(move |event: Event| {
+            // TreeView roving tabindex 復元（上記 capture リスナー参照）を
+            // 最初に行う。マウスクリック起因の headless dispatch 再描画で
+            // `event.target()`（下記 `target_element`）が既に detached に
+            // なっている場合があり、後続の `click_root.contains(target_element)`
+            // 早期 return より後に置くと本ブロックへ到達できない（`tree` は
+            // treeitem の DOM 差し替え後も安定な `tree` コンテナ自身の参照
+            // なので、`target_element` の生死に関わらず独立して判定できる）。
+            // Tabs trigger 判定の成否にも関わらず必ず実行する。
+            if let Some((tree, value)) = tree_click_pending.borrow_mut().take() {
+                if click_root.contains(Some(&tree)) {
+                    restore_tree_focus_by_value(&tree, &value);
+                }
+            }
+
             let Some(target) = event.target() else {
                 return;
             };

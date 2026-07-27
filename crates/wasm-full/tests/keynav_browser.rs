@@ -5423,6 +5423,81 @@ fn tree_view_arrow_right_expands_closed_branch_and_restores_focus_after_rerender
     assert!(!branch_content.has_attribute("hidden"));
 }
 
+/// 検証 4b（Bugbot 指摘、PR #1100「Tabindex lost after mouse re-render」の
+/// 回帰）: [`tree_view_arrow_right_expands_closed_branch_and_restores_focus_after_rerender`]
+/// はキーボード配線（`synthesize_tree_click`）経由の click 合成を検証する
+/// のに対し、本テストは `branch-control` へ直接 `click` イベントを
+/// dispatch する**素のマウス click**を模する。マウス click は
+/// `wire_headless_component`（`headless.rs`）の click リスナー経由で
+/// dispatch → `on_update` 再描画が起こり、旧 treeitem サブツリーが丸ごと
+/// 差し替わる。この再描画後も roving tabindex が失われず（木全体で
+/// タブストップが 1 個も無くなる不具合が無く）、`src` 自身へ復元される
+/// ことを固定する（[`tree_click_restore_target`] の capture フェーズ
+/// 捕捉 → bubble フェーズ復元の回帰）。
+#[wasm_bindgen_test]
+fn tree_view_mouse_click_on_branch_control_preserves_roving_tabindex_after_rerender() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let (tree_el, component) = mount_tree_view(&document, "kn-tv-mouseclick1", sample_tree_nodes());
+    let _cleanup = RemoveOnDrop(tree_el.clone());
+
+    let src = tree_item_by_value(&tree_el, "src");
+    assert_eq!(src.get_attribute("aria-expanded").as_deref(), Some("false"));
+    let branch_control = src
+        .query_selector(r#"[data-part="branch-control"]"#)
+        .unwrap()
+        .expect("branch-control must exist");
+
+    // `ArrowRight` キー配線（`synthesize_tree_click`）を経由しない、素の
+    // マウス click を模する。
+    branch_control.dispatch_event(&click_event()).unwrap();
+
+    assert!(component.borrow().is_expanded("src"));
+    // 再描画後の "今の" src 要素を再クエリする（click 前の `src` 参照は
+    // 差し替えにより detached になりうるため）。
+    let src_after = tree_item_by_value(&tree_el, "src");
+    assert_eq!(
+        src_after.get_attribute("aria-expanded").as_deref(),
+        Some("true")
+    );
+    // roving tabindex が失われず `src` 自身へ復元されている（Bugbot 指摘:
+    // 再描画後にタブストップが 0 個になる不具合の回帰）。
+    assert_eq!(src_after.get_attribute("tabindex").as_deref(), Some("0"));
+
+    // 木全体でタブストップはちょうど 1 個のみ（roving tabindex 契約）。
+    let tabbable = tree_el.query_selector_all(r#"[tabindex="0"]"#).unwrap();
+    assert_eq!(tabbable.length(), 1);
+}
+
+/// 検証 4c（Bugbot 指摘、PR #1100 回帰の周辺ケース）: disabled な
+/// treeitem への素のマウス click は dispatch されない（`headless.rs` の
+/// fail-closed disabled 判定）ため再描画自体が起こらないが、その場合でも
+/// [`tree_click_restore_target`] が disabled treeitem を対象から除外して
+/// おり、フォーカス・roving tabindex を disabled 項目へ奪わないことを
+/// 固定する。
+#[wasm_bindgen_test]
+fn tree_view_mouse_click_on_disabled_item_does_not_steal_focus() {
+    let document = web_sys::window().unwrap().document().unwrap();
+    let nodes = vec![
+        TreeNode::new("a.rs", "a.rs").disabled(true),
+        TreeNode::new("readme.md", "readme.md"),
+    ];
+    let (tree_el, _component) = mount_tree_view(&document, "kn-tv-mouseclick2", nodes);
+    let _cleanup = RemoveOnDrop(tree_el.clone());
+
+    let a_rs = tree_item_by_value(&tree_el, "a.rs");
+    assert!(!a_rs.has_attribute("tabindex"));
+
+    a_rs.dispatch_event(&click_event()).unwrap();
+
+    // disabled treeitem はフォーカス・roving tabindex を得ない。マウント時の
+    // 先頭可視項目（`a.rs` 自身は disabled のため対象外だが、マウント時の
+    // 初期化は disabled をスキップして次の可視項目へ設定する契約、
+    // `initialize_tree_roving_tabindex` doc 参照）のまま変化しない。
+    assert!(!a_rs.has_attribute("tabindex"));
+    let readme = tree_item_by_value(&tree_el, "readme.md");
+    assert_eq!(readme.get_attribute("tabindex").as_deref(), Some("0"));
+}
+
 /// 検証 5: open branch 上の ArrowRight が最初の可視非 disabled 子へ
 /// フォーカスを移す（disabled な最初の子はスキップする）。
 #[wasm_bindgen_test]
