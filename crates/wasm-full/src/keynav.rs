@@ -3700,32 +3700,45 @@ mod wiring {
         }
     }
 
-    /// `root` 配下から `value` と `data-value` が一致する最初の treeitem
-    /// （document 順）を再解決し、roving tabindex とフォーカスを復元する
-    /// （イシュー #1072、§設計判断 3.6「再描画耐性」参照）。
+    /// `tree`（キーボード操作対象の TreeView インスタンス自身、`closest`
+    /// で解決済みの `[data-scope="tree-view"][data-part="tree"]`）配下から
+    /// `value` と `data-value` が一致する最初の treeitem（document 順）を
+    /// 再解決し、roving tabindex とフォーカスを復元する（イシュー #1072、
+    /// §設計判断 3.6「再描画耐性」参照）。
     ///
     /// click 合成 → アプリの `on_update`（`TreeView::render_nodes` 再描画）に
     /// より対象 treeitem を含む subtree が丸ごと差し替わりうるため、click
-    /// 直前に保持していた `Element` 参照をそのまま使わず、`root`
-    /// （click を跨いでも安定なマウント境界）から改めて `collect_parts` する。
+    /// 直前に保持していた `Element` 参照をそのまま使わず、`tree`
+    /// （click を跨いでも安定なマウント境界）から改めて再収集する。
+    ///
+    /// **スコープ限定が必須の理由**（Bugbot 指摘、PR #1100）: `root`
+    /// （[`wire_keynav`] がマウントされた最上位要素）を探索起点にすると、
+    /// 同一ページに同じ `value` を共有する複数の TreeView インスタンスが
+    /// 存在する場合に別インスタンスの treeitem を誤って再解決してしまう
+    /// （[`collect_tree_items`] と同じ「最近接 `tree` 祖先が一致」絞り込みが
+    /// 無いため）。呼び出し元（[`handle_tree_view_keydown`]）が既に
+    /// `closest` で解決済みの `tree` を渡すことで、[`collect_tree_items`]
+    /// と同じスコープへ限定する。
+    ///
+    /// **roving tabindex の付け替えは [`focus_tree_item`] に委譲する**
+    /// （同一関数を経由することで、他の `tabindex="0"` 保持者のクリア漏れが
+    /// 構造的に発生しない。旧実装は対象への `tabindex="0"` 設定のみで、
+    /// アクティブな tree がタブストップを 2 つ持ちうる不具合があった）。
     ///
     /// **セキュリティ上の必須事項**（`.claude/rules/security.md` A03）:
     /// `value` から組み立てたセレクタ文字列（例: `[data-value="..."]`）は
     /// 使わない（セレクタインジェクション面の新設になる）。`get_attribute`
     /// で読み取った値を Rust 側の文字列比較（`==`）でのみ照合する。重複値は
     /// document 順の先頭を採る（`Iterator::find` の性質）。
-    fn restore_tree_focus_by_value(root: &Element, value: &str) {
-        let items = collect_parts(root, TREE_VIEW_TREEITEM_SELECTOR);
-        let Some(target) = items
+    fn restore_tree_focus_by_value(tree: &Element, value: &str) {
+        let items = collect_tree_items(tree);
+        let Some(next_index) = items
             .iter()
-            .find(|el| el.get_attribute("data-value").as_deref() == Some(value))
+            .position(|el| el.get_attribute("data-value").as_deref() == Some(value))
         else {
             return;
         };
-        set_dom_attribute(target, "tabindex", "0");
-        if let Ok(html) = target.clone().dyn_into::<HtmlElement>() {
-            let _ = html.focus();
-        }
+        focus_tree_item(&items, next_index);
     }
 
     /// TreeView（`crates/headless-ui/src/tree_view.rs`）の treeitem
@@ -3800,7 +3813,7 @@ mod wiring {
                 let value = target.get_attribute("data-value");
                 synthesize_tree_click(target);
                 if let Some(value) = value {
-                    restore_tree_focus_by_value(root, &value);
+                    restore_tree_focus_by_value(&tree, &value);
                 }
             }
             Some(TreeKeyAction::Activate(index)) => {
@@ -3812,7 +3825,7 @@ mod wiring {
                 let value = target.get_attribute("data-value");
                 synthesize_tree_click(target);
                 if let Some(value) = value {
-                    restore_tree_focus_by_value(root, &value);
+                    restore_tree_focus_by_value(&tree, &value);
                 }
             }
             None => {}

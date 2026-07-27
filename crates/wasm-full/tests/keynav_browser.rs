@@ -5634,6 +5634,127 @@ fn tree_view_keyboard_navigation_with_attacker_controlled_label_does_not_inject_
         "攻撃者制御ラベルの操作で document.title が変化してはいけない"
     );
 }
+
+/// 検証 13（Bugbot 指摘、PR #1100、Medium severity「Focus restore ignores
+/// tree scope」）: 同一ページに同じ `data-value` を共有する複数の TreeView
+/// インスタンスが存在するとき、展開/折りたたみ/確定操作後の
+/// `restore_tree_focus_by_value` が操作対象の tree（tree A）のスコープ内へ
+/// フォーカス復元を限定し、別インスタンス（tree B）の roving tabindex/
+/// フォーカスを一切変更しないことを固定する。旧実装は `wire_keynav` の
+/// `root`（本テストでは両 tree の共通祖先）全体から `data-value` の最初の
+/// 一致を [`collect_tree_items`] 相当のスコープ限定なしに採っていたため、
+/// tree B の同名要素へ誤ってフォーカス・roving tabindex を移してしまって
+/// いた（`crate::keynav::wiring::restore_tree_focus_by_value` 参照）。
+#[wasm_bindgen_test]
+fn tree_view_restore_focus_by_value_stays_scoped_to_active_tree_when_value_is_shared() {
+    let document = web_sys::window().unwrap().document().unwrap();
+
+    let shared_root = document.create_element("div").unwrap();
+    shared_root.set_id("kn-tv-scope-root");
+    document
+        .body()
+        .unwrap()
+        .append_child(&shared_root)
+        .expect("append_child must not fail for a detached div");
+    let _cleanup = RemoveOnDrop(shared_root.clone());
+
+    // 両 tree とも branch "shared" を持つ、同名 data-value を共有する構成。
+    fn shared_value_nodes() -> Vec<TreeNode> {
+        vec![TreeNode::new("shared", "shared").with_children(vec![TreeNode::new("leaf", "leaf")])]
+    }
+
+    fn mount_child_tree(
+        document: &Document,
+        parent: &Element,
+        el_id: &str,
+        nodes: Vec<TreeNode>,
+    ) -> Element {
+        let tree_el = document.create_element("div").unwrap();
+        tree_el.set_id(el_id);
+        tree_el.set_attribute("data-scope", "tree-view").unwrap();
+        tree_el.set_attribute("data-part", "tree").unwrap();
+        tree_el.set_attribute("role", "tree").unwrap();
+        parent
+            .append_child(&tree_el)
+            .expect("append_child must not fail");
+
+        fn render_children(tree_el: &Element, state: &TreeView, nodes: &[TreeNode]) {
+            let rendered = state.render_nodes(nodes);
+            let html: String = rendered
+                .iter()
+                .map(fandhe_frontend_core::render)
+                .collect::<Vec<_>>()
+                .join("");
+            tree_el.set_inner_html(&html);
+        }
+
+        let component = Rc::new(RefCell::new(TreeView::default()));
+        render_children(&tree_el, &component.borrow(), &nodes);
+
+        let wire_tree = tree_el.clone();
+        wire_headless_component(tree_el.clone(), component, move |state, _root| {
+            render_children(&wire_tree, state, &nodes);
+        })
+        .expect("wire_headless_component must not fail");
+
+        tree_el
+    }
+
+    let tree_a = mount_child_tree(
+        &document,
+        &shared_root,
+        "kn-tv-scope-a",
+        shared_value_nodes(),
+    );
+    let tree_b = mount_child_tree(
+        &document,
+        &shared_root,
+        "kn-tv-scope-b",
+        shared_value_nodes(),
+    );
+
+    // wire_keynav は共通祖先（shared_root）へ一度だけマウントする —— 実
+    // アプリで複数 TreeView が同一ページに存在する典型構成を再現する
+    // （個別の tree_el ごとに `wire_keynav` する `mount_tree_view` ヘルパでは
+    // この回帰は再現しない）。
+    wire_keynav(shared_root.clone()).expect("wire_keynav must succeed");
+
+    // マウント時初期化により両 tree の "shared" branch へ独立して
+    // tabindex="0" が設定される（tree ごとの初期化、§設計判断 3.3）。
+    let branch_a = tree_item_by_value(&tree_a, "shared");
+    let branch_b = tree_item_by_value(&tree_b, "shared");
+    assert_eq!(branch_a.get_attribute("tabindex").as_deref(), Some("0"));
+    assert_eq!(branch_b.get_attribute("tabindex").as_deref(), Some("0"));
+
+    // tree A 側で ArrowRight（展開）→ click 合成 → dispatch → 再描画 →
+    // restore_tree_focus_by_value という経路を発火させる。
+    branch_a
+        .dispatch_event(&keydown_event("ArrowRight"))
+        .unwrap();
+
+    // 再描画後の tree A "shared" 要素を再解決してフォーカス・roving
+    // tabindex が tree A 内に留まっていることを確認する。
+    let branch_a_after = tree_item_by_value(&tree_a, "shared");
+    assert_eq!(
+        branch_a_after.get_attribute("tabindex").as_deref(),
+        Some("0"),
+        "操作対象の tree A の branch は tabindex=\"0\" を維持しなければならない"
+    );
+
+    // tree B 側は一切変更されていないこと（tabindex を奪われていない）。
+    let branch_b_after = tree_item_by_value(&tree_b, "shared");
+    assert_eq!(
+        branch_b_after.get_attribute("tabindex").as_deref(),
+        Some("0"),
+        "tree A の操作で tree B の roving tabindex を奪ってはいけない"
+    );
+
+    // tree A 内には tabindex="0" 保持者がちょうど 1 個だけ存在する
+    // （focus_tree_item への委譲で他保持者がクリアされることの直接検証、
+    // 「他の tabindex=\"0\" 保持者をクリアしない」Bugbot 指摘の裏付け）。
+    let tabbable_in_a = tree_a.query_selector_all("[tabindex=\"0\"]").unwrap();
+    assert_eq!(tabbable_in_a.length(), 1);
+}
 // =======================================================================
 // Calendar（イシュー #1074）: `crates/headless-ui/src/calendar.rs` の SSR
 // 出力契約を手組みで再現し、`wire_keynav` の gridcell フォーカス移動を
