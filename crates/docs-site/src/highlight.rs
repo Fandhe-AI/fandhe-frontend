@@ -380,9 +380,30 @@ fn tokenize_rust(src: &str) -> Option<Vec<Token<'_>>> {
             if k < len && bytes[k] == b'"' {
                 return None;
             }
-            // `r#` だが raw string ではない（例: 識別子 `r#fn` 相当の
-            // raw identifier）場合は通常の識別子として処理を継続する
-            // （下の識別子分岐へフォールスルーさせるため、ここでは何もしない）。
+            // `r#` だが raw string ではない場合（raw identifier `r#ident`、
+            // 例: `r#fn`）は `r#` + 識別子をここで 1 個の Plain トークンと
+            // して確定させる。下の識別子分岐へフォールスルーさせると `r#`
+            // の `r` だけが識別子として切り出され、続く `#` が個別の記号
+            // トークンとして消費されたのち `fn` 等のキーワード同名部分が
+            // 独立した識別子として再走査され `Keyword` に誤分類される
+            // （レビュー指摘: `let r#fn = 1;` が `r`/`#`/`fn(Keyword)` に
+            // 分割される色分け崩れ）。raw identifier は Rust の構文上
+            // キーワードと同名でも通常の識別子として扱われるため、常に
+            // `Plain` として一体で消費することでこれを避ける。
+            let after_hash_len = ident_len(&bytes[i + 2..]);
+            if after_hash_len > 0 {
+                let end = i + 2 + after_hash_len;
+                tokens.push(Token {
+                    kind: TokenKind::Plain,
+                    text: &src[start..end],
+                });
+                i = end;
+                debug_assert!(i > start);
+                continue;
+            }
+            // `r#` の直後に識別子が続かない異常入力（存在しない構文だが
+            // 安全側）: 下の識別子分岐へフォールスルーし、`r` のみを
+            // 通常の識別子として処理する。
         }
 
         // 文字列リテラル: `"…"`（`\` エスケープ考慮）。
@@ -900,6 +921,27 @@ mod tests {
     fn rust_raw_string_falls_back_to_none() {
         assert!(tokenize("let s = r#\"raw\"#;", Language::Rust).is_none());
         assert!(tokenize("let s = r\"raw\";", Language::Rust).is_none());
+    }
+
+    #[test]
+    fn rust_raw_identifier_is_single_plain_token() {
+        // raw identifier（`r#fn` のようなキーワード同名の識別子）は `r#` +
+        // 識別子全体を 1 個の Plain トークンとして扱い、`fn` 部分だけが
+        // 独立した Keyword トークンとして誤分類されないことを確認する
+        // （レビュー指摘の回帰テスト、イシュー #1078）。
+        let tokens = assert_totality("let r#fn = 1;", Language::Rust);
+        assert!(tokens
+            .iter()
+            .any(|t| t.text == "r#fn" && t.kind == TokenKind::Plain));
+        assert!(!tokens
+            .iter()
+            .any(|t| t.text == "fn" && t.kind == TokenKind::Keyword));
+
+        // `r#` の直後に識別子が続かない異常入力（存在しない構文だが安全側）
+        // は `r` のみを通常の識別子として処理するフォールスルー分岐を通る。
+        // 全域性（`assert_totality`）が崩れないことを確認する。
+        assert_totality("let r#", Language::Rust);
+        assert_totality("let r#1 = 1;", Language::Rust);
     }
 
     #[test]
