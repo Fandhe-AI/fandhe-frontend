@@ -155,11 +155,32 @@ fn extract_headless_refs(line: &str) -> Vec<String> {
 /// 1 ファイルを走査する。ブロックコメント（`/*`）の混入は fail-closed に
 /// panic する（§3.2: 現状ブロックコメントは存在せず、規則を賢くするより
 /// 判別規約の改訂を先に検討させる）。
+///
+/// `#[cfg(test)]` に続くモジュールブロック内の行は `code_refs` の走査対象
+/// から除外する（イシュー #1064 の Bugbot 指摘、PR #1096）。素朴な
+/// 「非コメント行はすべて証跡」判定だと、テストコードにしか
+/// `fandhe_frontend_headless_ui::<ident>` を持たない部品（`radio_card.rs` が
+/// 該当）を「本番コードが委譲している」と誤分類してしまう
+/// （`wrap_state_partition_matches_the_declared_ledger` が参照する 4 バケット
+/// 台帳の正当性を損なう）。除外範囲は波括弧の深さを追跡して境界を決定し、
+/// 「`mod tests` という文字列以降を全部無視」のような文字列一致に頼る脆い
+/// 実装は避ける（同名の別モジュール混入・複数 `mod` 併存に耐えるため）。
 fn scan_file(path: &Path, rel_path: &Path) -> FileScan {
     let body = std::fs::read_to_string(path)
         .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
 
     let mut scan = FileScan::default();
+    // ファイル先頭からの累積波括弧深さ。コメント行の `{`/`}` は数えない
+    // （rustdoc の Examples に波括弧が含まれても深さがずれないようにする）。
+    let mut depth: i64 = 0;
+    // `#[cfg(test)]` 検出後、直後に開くブロックの「開始前の深さ」を保持する。
+    // `Some(d)` の間は該当ブロック内（skip 対象）であり、`depth` が `d` まで
+    // 戻った時点で通常走査へ復帰する。
+    let mut skip_from_depth: Option<i64> = None;
+    // `#[cfg(test)]` を検出したがまだ対応する `mod ... {` の開き括弧行に
+    // 到達していない状態を示す。
+    let mut cfg_test_pending = false;
+
     for (idx, line) in body.lines().enumerate() {
         let stripped = strip_string_literals(line);
         if stripped.contains("/*") {
@@ -174,6 +195,38 @@ fn scan_file(path: &Path, rel_path: &Path) -> FileScan {
         }
 
         let is_comment_line = line.trim_start().starts_with("//");
+
+        if !is_comment_line {
+            let trimmed = stripped.trim();
+            if skip_from_depth.is_none() && trimmed == "#[cfg(test)]" {
+                cfg_test_pending = true;
+            }
+
+            let opens = stripped.matches('{').count() as i64;
+            let closes = stripped.matches('}').count() as i64;
+
+            // `#[cfg(test)]` 検出後、最初に `mod` を伴って `{` が現れる行を
+            // ブロック開始とみなす（`mod tests;`（ブロックなし外部ファイル
+            // 参照）のような形は対象外とし、無関係な後続ブロックを誤って
+            // skip 対象にしない）。
+            if cfg_test_pending && opens > 0 && trimmed.contains("mod ") {
+                skip_from_depth = Some(depth);
+                cfg_test_pending = false;
+            }
+
+            depth += opens - closes;
+
+            if let Some(resume_depth) = skip_from_depth {
+                if depth <= resume_depth {
+                    skip_from_depth = None;
+                }
+            }
+        }
+
+        if skip_from_depth.is_some() {
+            continue;
+        }
+
         for r in extract_headless_refs(line) {
             if is_comment_line {
                 scan.comment_refs.insert(r);
@@ -431,21 +484,28 @@ const WRAPPED_SAME_NAME: &[&str] = &[
 ];
 
 /// バケット B: 同名 Primitives 部品は無いが、別名の headless 部品へ
-/// コード委譲している Themes ページ（`(page_kebab, headless_module)`、5 件）。
+/// コード委譲している Themes ページ（`(page_kebab, headless_module)`、4 件）。
+///
+/// `radio-card` は当初ここに分類されていたが、`fandhe_frontend_headless_ui::
+/// radio_group` への参照がコード上は `#[cfg(test)] mod tests` 内にしか
+/// 存在せず（本番コードは委譲していない）、`scan_file` が
+/// `#[cfg(test)]` ブロックを走査対象から除外するよう是正されたことに伴い
+/// [`DOC_REFERENCE_ONLY`] へ移動した（イシュー #1064 の Bugbot 指摘、
+/// PR #1096）。
 const WRAPPED_CROSS_NAME: &[(&str, &str)] = &[
     ("checkbox-card", "checkbox"),
     ("input", "field"),
     ("native-select", "field"),
-    ("radio-card", "radio_group"),
     ("textarea", "field"),
 ];
 
 /// バケット C: headless 部品への参照が rustdoc のみ（コード委譲なし）の
-/// Themes ページ（`(page_kebab, headless_module)`、3 件）。**このバケットは
+/// Themes ページ（`(page_kebab, headless_module)`、4 件）。**このバケットは
 /// ドリフトしやすい**（モジュール冒頭コメントを参照）。
 const DOC_REFERENCE_ONLY: &[(&str, &str)] = &[
     ("button", "number_input"),
     ("image", "avatar"),
+    ("radio-card", "radio_group"),
     ("tab-nav", "tabs"),
 ];
 
@@ -997,4 +1057,88 @@ fn scanner_accepts_flat_and_declared_nested_fixture() {
     assert!(scan.top_level["badge"].comment_refs.is_empty());
     assert!(scan.top_level["input"].code_refs.contains("field"));
     assert!(scan.top_level["input"].comment_refs.contains("field"));
+}
+
+/// イシュー #1064 の Bugbot 指摘（PR #1096）に対する回帰テスト:
+/// `#[cfg(test)] mod tests { ... }` 内にしか `fandhe_frontend_headless_ui::
+/// <ident>` の参照を持たないファイルは、`code_refs` に当該 ident を含んで
+/// はならない（本番コードが委譲しているとの誤判定を防ぐ）。`radio_card.rs`
+/// が該当した実例のうち、テスト側の import 行のみを模したフィクスチャ。
+/// 素朴な「非コメント行はすべて証跡」判定では本テストは失敗する
+/// （このコメント自体が rustdoc 言及として `comment_refs` に載ることも
+/// あわせて確認し、DOC_REFERENCE_ONLY 相当への分類が保たれることを示す）。
+#[test]
+fn scanner_excludes_cfg_test_module_body_from_code_refs() {
+    let dir = TempDir::new("cfg-test-only-reference");
+    std::fs::write(
+        dir.0.join("radio_card.rs"),
+        "//! [`fandhe_frontend_headless_ui::radio_group::RadioGroup`] を \
+         rustdoc でのみ言及する（本番コードは独自実装）。\n\
+         pub fn root() {}\n\
+         \n\
+         #[cfg(test)]\n\
+         mod tests {\n\
+         \x20   use fandhe_frontend_headless_ui::radio_group::RadioGroup;\n\
+         \n\
+         \x20   #[test]\n\
+         \x20   fn uses_it(r: RadioGroup) {\n\
+         \x20       let _ = r;\n\
+         \x20   }\n\
+         }\n",
+    )
+    .expect("failed to write radio_card.rs");
+
+    let scan = scan_pre_styled_src(&dir.0);
+
+    assert!(
+        !scan.top_level["radio_card"]
+            .code_refs
+            .contains("radio_group"),
+        "#[cfg(test)] モジュール内の参照が code_refs へ漏れています \
+         （WRAPPED_CROSS_NAME への誤分類を招く欠陥が再発しています）"
+    );
+    assert!(
+        scan.top_level["radio_card"]
+            .comment_refs
+            .contains("radio_group"),
+        "rustdoc 言及（comment_refs）は引き続き検出されるべきです \
+         （DOC_REFERENCE_ONLY 分類の根拠）"
+    );
+}
+
+/// `#[cfg(test)]` ブロック除外が兄弟の通常コードへ波及しない（除外範囲が
+/// 波括弧の深さで正しく閉じる）ことを確認する。`mod tests` の後ろに
+/// 通常のコード委譲を続けて配置し、後続の委譲が code_refs へ検出される
+/// ことを検証する（深さ追跡の境界がずれて過剰に除外していないか）。
+#[test]
+fn scanner_resumes_code_ref_detection_after_cfg_test_block_closes() {
+    let dir = TempDir::new("cfg-test-then-real-delegation");
+    std::fs::write(
+        dir.0.join("widget.rs"),
+        "pub fn root() {}\n\
+         \n\
+         #[cfg(test)]\n\
+         mod tests {\n\
+         \x20   use fandhe_frontend_headless_ui::radio_group::RadioGroup;\n\
+         \n\
+         \x20   fn nested() {\n\
+         \x20       let _x = 1;\n\
+         \x20   }\n\
+         }\n\
+         \n\
+         pub use fandhe_frontend_headless_ui::field::input;\n",
+    )
+    .expect("failed to write widget.rs");
+
+    let scan = scan_pre_styled_src(&dir.0);
+
+    assert!(
+        !scan.top_level["widget"].code_refs.contains("radio_group"),
+        "cfg(test) ブロック内の参照が漏れています"
+    );
+    assert!(
+        scan.top_level["widget"].code_refs.contains("field"),
+        "cfg(test) ブロック終了後の通常コードの委譲が検出されていません \
+         （除外範囲の境界判定が過剰に広がっています）"
+    );
 }
