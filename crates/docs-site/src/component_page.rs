@@ -988,11 +988,20 @@ fn showcase_css_cache() -> &'static Option<String> {
 /// 抽出は正規表現を使わず素の文字列走査で行う（外部クレート追加禁止、
 /// REQ-3）。同名変数が複数回出現する場合は最初に見つかった既定値を採用し
 /// `BTreeMap` で名前順に整列する（決定性）。
+///
+/// `scope` に対する所有権判定は単純な前方一致ではなく
+/// [`owning_data_scope`] による最長一致で行う。`image` と
+/// `image-cropper`、`checkbox` と `checkbox-card`/`checkbox-group`、
+/// `toggle` と `toggle-group`/`toggle-tip`、`link` と `link-overlay` の
+/// ように scope 名が接頭辞包含関係にあるペアが実在し、単純な前方一致
+/// （`name.starts_with("--fandhe-{scope}-")`）では短い方の scope ページ
+/// （例: `/themes/image/`）が長い方の scope（`image-cropper`）の変数を
+/// 誤って列挙してしまう（イシュー #1061、Bugbot 指摘のクロスページ漏れ）。
 fn collect_css_vars_for_scope(scope: &str) -> Vec<CssVarRow> {
     let Some(css) = showcase_css_cache().as_deref() else {
         return Vec::new();
     };
-    let prefix = format!("--fandhe-{scope}-");
+    let scopes = known_data_scopes(css);
     let mut found: BTreeMap<String, String> = BTreeMap::new();
     let mut search_from = 0usize;
     while let Some(rel) = css[search_from..].find("var(") {
@@ -1001,7 +1010,7 @@ fn collect_css_vars_for_scope(scope: &str) -> Vec<CssVarRow> {
         let name_end = rest.find([',', ')']).unwrap_or(rest.len());
         let name = rest[..name_end].trim();
         if let Some(after_name) = rest.as_bytes().get(name_end) {
-            if name.starts_with(&prefix) {
+            if owning_data_scope(name, &scopes) == Some(scope) {
                 let default = if *after_name == b',' {
                     extract_balanced_default(&rest[name_end + 1..])
                 } else {
@@ -1018,6 +1027,46 @@ fn collect_css_vars_for_scope(scope: &str) -> Vec<CssVarRow> {
         .into_iter()
         .map(|(name, default)| CssVarRow { name, default })
         .collect()
+}
+
+/// 集約 CSS 中に実在する `data-scope="..."` の値をすべて収集する。
+/// `[data-scope="X"][data-part="Y"]` セレクタ（`recipe.rs` が生成）を素の
+/// 文字列走査で拾い、[`owning_data_scope`] の候補集合として使う。
+fn known_data_scopes(css: &str) -> std::collections::BTreeSet<String> {
+    let mut scopes = std::collections::BTreeSet::new();
+    let marker = "data-scope=\"";
+    let mut search_from = 0usize;
+    while let Some(rel) = css[search_from..].find(marker) {
+        let start = search_from + rel + marker.len();
+        let Some(end_rel) = css[start..].find('"') else {
+            break;
+        };
+        scopes.insert(css[start..start + end_rel].to_string());
+        search_from = start + end_rel + 1;
+    }
+    scopes
+}
+
+/// `name`（`--fandhe-*` 変数名）の所有 scope を、`scopes` 中で最も長く
+/// 前方一致する（または完全一致する）scope 名として決定する（最長一致）。
+///
+/// 前方一致・完全一致の双方が候補になり得る場合（`--fandhe-image-cropper-x`
+/// は scope `image` にも `image-cropper` にも前方一致する）、最長の scope
+/// 名を優先することで、より具体的な scope（`image-cropper`）を所有者とし、
+/// 上位互換の短い scope（`image`）への誤帰属を防ぐ。
+fn owning_data_scope<'a>(
+    name: &str,
+    scopes: &'a std::collections::BTreeSet<String>,
+) -> Option<&'a str> {
+    scopes
+        .iter()
+        .filter(|scope| {
+            let exact = format!("--fandhe-{scope}");
+            let prefixed = format!("--fandhe-{scope}-");
+            name == exact || name.starts_with(&prefixed)
+        })
+        .max_by_key(|scope| scope.len())
+        .map(String::as_str)
 }
 
 /// `var(<name>, ` の直後（既定値の先頭）から、対応する `)` までを括弧の
