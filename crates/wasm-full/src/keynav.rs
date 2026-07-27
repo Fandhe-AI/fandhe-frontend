@@ -1,7 +1,9 @@
 //! Tabs / Accordion / Menu / Select / RadioGroup / Listbox / Menubar /
-//! TreeView のキーボード操作（イシュー #582・#583・#1070、親 #581。
-//! Menubar はイシュー #1073、Combobox はイシュー #1071、TreeView は
-//! イシュー #1072）。
+//! TreeView / Calendar のキーボード操作（イシュー #582・#583・#1070、親
+//! #581。Menubar はイシュー #1073、Combobox はイシュー #1071、TreeView は
+//! イシュー #1072、Calendar はイシュー #1074。Splitter の矢印キーリサイズは
+//! #1074 と同イシューだが方向を符号化する dispatch チャネルを要するため
+//! 独立モジュール [`crate::splitter`] が担う。§Calendar 参照）。
 //!
 //! PR #560（Tabs）/#561（Accordion）は `fandhe-frontend-headless-ui` 側の SSR
 //! 静的マークアップ（roving tabindex・`data-state`/`aria-selected`/`hidden`）
@@ -466,6 +468,56 @@
 //!   含めない**: TreeView はオーバーレイではなく Escape 閉鎖の対象外
 //!   （Listbox と同じ扱い）。
 //! - **ブランチノードの「選択」**: 上記§帰結参照。
+//! # Calendar のキーボード仕様（WAI-ARIA APG Date Picker Dialog の grid
+//! パターン準拠、イシュー #1074）
+//!
+//! `crates/headless-ui/src/calendar.rs` は `table`（`role="grid"`）・
+//! `table_cell`（`role="gridcell"`）・`day_trigger`（ネイティブ `<button>`）
+//! までを提供する一方、矢印キーによる gridcell 間のフォーカス移動を本
+//! クレートの責務として明示的にスコープ外へ送っていた（同モジュール doc
+//! 「スコープ外」節）。本節は [`calendar_next_index`]/
+//! [`wiring::handle_calendar_keydown`] の設計を記す。
+//!
+//! - ArrowRight/ArrowLeft/ArrowDown/ArrowUp はそれぞれ `+1`/`-1`/
+//!   `+columns`/`-columns` の**フラット**な日付インデックス移動（月表示の
+//!   日付は行優先の 1 次元配列として扱う。カレンダーの「次の日」は行末で
+//!   自然に次行へ進むのが通例の UX であり、Tabs/Accordion のような行内
+//!   循環境界は設けない）。`data-disabled`（min/max 範囲外）を持つセルは
+//!   スキップし、配列の端に到達したら `None`（**非循環**、`loop_focus`
+//!   引数を持たない）。
+//! - `data-outside-month` の日付（表示月に属さないが `month_grid` が週を
+//!   埋めるために描画する実在の日付）はスキップ**しない**（ネイティブ
+//!   `disabled` も付かず実際にフォーカスできるため）。`data-disabled`
+//!   （min/max 範囲外）のみをスキップ対象とする。
+//! - Home/End は現在行（`current - current % columns` から
+//!   `columns` 個）の先頭/末尾側から探した最初の非 disabled セルへ移動する。
+//! - `columns` は配線層が `table-body` 直下の**先頭行**（曜日見出し行
+//!   `thead`/`table-header` ではなく `tbody`/`table-body` 配下の 1 週目）の
+//!   `day-trigger` 件数から導出する。総数が `columns` の倍数でない場合
+//!   （`month_grid` の契約が満たされない改ざん/非対応 DOM）は fail-closed
+//!   no-op とする。
+//! - PageUp/PageDown は月移動トリガー（`prev-trigger`/`next-trigger`）への
+//!   `HtmlElement::click()` 合成で委譲する（keynav の既存原則「開閉・状態
+//!   遷移は click 合成で dispatch 経路へ委譲し、keynav 自身は状態属性を
+//!   書かない」を踏襲。月移動は `CalendarAction::PrevMonth`/`NextMonth` の
+//!   責務）。trigger が disabled（ネイティブ `disabled` または
+//!   `data-disabled`）の場合は click を合成せず `prevent_default` もしない
+//!   （fail-closed）。
+//! - Enter/Space による日付選択（`day-trigger` クリック）は本イシューの
+//!   対象外（`crate::headless::MAPPING_TABLE` に `day-trigger` の行を
+//!   追加していない。`day_trigger` が `data-value`〔ISO 日付〕を出力しない
+//!   ため追加しても fail-closed で常に不活性、`.claude/rules/out-of-scope-tracking.md`
+//!   対応の申し送り事項）。ネイティブ `<button>` の Enter/Space はブラウザ
+//!   既定の `click` イベントとして発火するため、日付選択自体は既存の
+//!   `events::wire_events`（`data-action` 経路）ではなく headless-ui 側の
+//!   `data-value` 追加を待って `headless.rs::MAPPING_TABLE` を拡張する
+//!   別イシューの対象。
+//! - 月移動後のフォーカス復帰（`day-trigger` の DOM ノード差し替えに伴う
+//!   フォーカス喪失）は本イシューの対象外（申し送り事項）。
+//! - **`crate::headless::MAPPING_TABLE` への追加**: `("calendar",
+//!   "prev-trigger") → "prev-month"` / `("calendar", "next-trigger") →
+//!   "next-month"`（いずれも `requires_value: false`）。この 2 行が無いと
+//!   PageUp/PageDown が合成する click が dispatch へ到達せず不活性になる。
 //!
 //! # セキュリティ不変条件
 //!
@@ -1258,6 +1310,135 @@ pub fn tree_key_action(
             }
             Some(TreeKeyAction::Activate(i))
         }
+        _ => None,
+    }
+}
+
+/// `disabled` インデックス列（フラット、行優先）の中で、`start` から
+/// `delta` 方向へ（`±1` = 同一行内の水平移動、`±columns` = 垂直移動）
+/// ステップしながら最初に見つかった非 disabled インデックスを返す。
+///
+/// [`step_non_disabled`] と異なり循環しない（`loop_focus` 引数を持たない、
+/// モジュール doc §Calendar 参照。カレンダーは配列の端で移動を打ち切る）。
+/// `delta` は非ゼロを呼び出し側（[`calendar_next_index`]）が保証する
+/// （`columns >= 1` の事前チェック済み）。
+fn calendar_step(start: usize, delta: isize, disabled: &[bool]) -> Option<usize> {
+    let len = disabled.len() as isize;
+    let mut idx = start as isize;
+    loop {
+        idx += delta;
+        if idx < 0 || idx >= len {
+            return None;
+        }
+        if !disabled[idx as usize] {
+            return Some(idx as usize);
+        }
+    }
+}
+
+/// Calendar の keydown に対する「次にフォーカスすべき gridcell インデック
+/// ス」を計算する純粋関数（web-sys 非依存、native `cargo test` 可。イシュー
+/// #1074、モジュール doc §Calendar 参照）。
+///
+/// `current` は現在フォーカス中の day-trigger のフラットインデックス
+/// （行優先、`disabled` と同じ順序）。`columns` は 1 行あたりのセル数
+/// （通常 7）。`disabled`\[i\] は i 番目のセルが min/max 範囲外
+/// （`data-disabled`）かどうかを表す（`data-outside-month` は含めない、
+/// モジュール doc 参照）。
+///
+/// `columns == 0`・`disabled` が空・`current` が範囲外・修飾キー付き・
+/// 未知キー（`PageUp`/`PageDown` を含む。月移動は配線層が別途扱う）は
+/// いずれも `None`（fail-closed、panic しない）。
+#[must_use]
+pub fn calendar_next_index(
+    current: usize,
+    key: &str,
+    columns: usize,
+    modifiers: Modifiers,
+    disabled: &[bool],
+) -> Option<usize> {
+    if modifiers.any() {
+        return None;
+    }
+    if columns == 0 || disabled.is_empty() || current >= disabled.len() {
+        return None;
+    }
+    match key {
+        "ArrowRight" => calendar_step(current, 1, disabled),
+        "ArrowLeft" => calendar_step(current, -1, disabled),
+        "ArrowDown" => calendar_step(current, columns as isize, disabled),
+        "ArrowUp" => calendar_step(current, -(columns as isize), disabled),
+        "Home" => {
+            let row_start = current - current % columns;
+            let row_end = (row_start + columns - 1).min(disabled.len() - 1);
+            (row_start..=row_end).find(|&i| !disabled[i])
+        }
+        "End" => {
+            let row_start = current - current % columns;
+            let row_end = (row_start + columns - 1).min(disabled.len() - 1);
+            (row_start..=row_end).rev().find(|&i| !disabled[i])
+        }
+        _ => None,
+    }
+}
+
+/// Splitter の keydown が要求する操作種別（純粋層、web-sys 非依存、native
+/// `cargo test` 可。イシュー #1074）。
+///
+/// `crate::splitter::wiring` が本 enum を dispatch アクション名
+/// （`"increment"`/`"decrement"`/`"home"`/`"end"`、`SplitterAction`/
+/// `Splitter::decode_action` と対応）へ変換する。本モジュール
+/// （`crate::keynav`）へは統合せず `crate::splitter` が独立配線する理由は
+/// モジュール冒頭 doc 参照（`crate::headless::MAPPING_TABLE` が方向を
+/// 符号化できないため）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SplitterKeyAction {
+    /// パネルサイズを固定ステップ分増加する（Right/Down）。
+    Increment,
+    /// パネルサイズを固定ステップ分減少する（Left/Up）。
+    Decrement,
+    /// パネルサイズをその `min` に設定する（Home）。
+    SetToMin,
+    /// パネルサイズをその `max` に設定する（End）。
+    SetToMax,
+}
+
+/// Splitter の keydown（`key`/`orientation`/`modifiers`）から
+/// [`SplitterKeyAction`] を決定する純粋関数（web-sys 非依存、native
+/// `cargo test` 可。イシュー #1074）。
+///
+/// `orientation` は resize-trigger が属する Splitter root の
+/// `data-orientation`（**パネルレイアウトの向き**。`aria-orientation`
+/// 〔セパレータ自体の向き〕とは意図的に逆、
+/// `crates/headless-ui/src/splitter.rs` モジュール doc 参照）を渡す。
+///
+/// - `Orientation::Horizontal`（パネル横並び）: ArrowRight →
+///   [`SplitterKeyAction::Increment`]、ArrowLeft →
+///   [`SplitterKeyAction::Decrement`]。ArrowUp/ArrowDown は `None`。
+/// - `Orientation::Vertical`（パネル縦並び）: ArrowDown → `Increment`、
+///   ArrowUp → `Decrement`。ArrowLeft/ArrowRight は `None`。
+/// - 軸に依らず Home → [`SplitterKeyAction::SetToMin`]、End →
+///   [`SplitterKeyAction::SetToMax`]。
+/// - 修飾キー・未知キー・軸に一致しない Arrow キーは `None`（fail-closed）。
+///   `Enter`（collapse トグル）は headless-ui 側が collapse を未実装のため
+///   対象外（`crates/headless-ui/src/splitter.rs` モジュール doc「スコープ
+///   外」節参照）。
+#[must_use]
+pub fn splitter_key_action(
+    key: &str,
+    orientation: Orientation,
+    modifiers: Modifiers,
+) -> Option<SplitterKeyAction> {
+    if modifiers.any() {
+        return None;
+    }
+    match (key, orientation) {
+        ("Home", _) => Some(SplitterKeyAction::SetToMin),
+        ("End", _) => Some(SplitterKeyAction::SetToMax),
+        ("ArrowRight", Orientation::Horizontal) => Some(SplitterKeyAction::Increment),
+        ("ArrowLeft", Orientation::Horizontal) => Some(SplitterKeyAction::Decrement),
+        ("ArrowDown", Orientation::Vertical) => Some(SplitterKeyAction::Increment),
+        ("ArrowUp", Orientation::Vertical) => Some(SplitterKeyAction::Decrement),
         _ => None,
     }
 }
@@ -2637,6 +2818,18 @@ mod tests {
         assert_eq!(
             tree_visible_flags(&items),
             vec![true, true, true, true, true]
+    // --- calendar_next_index（イシュー #1074） ---
+
+    #[test]
+    fn calendar_next_index_horizontal_moves_by_one() {
+        let disabled = vec![false; 14];
+        assert_eq!(
+            calendar_next_index(3, "ArrowRight", 7, mods(), &disabled),
+            Some(4)
+        );
+        assert_eq!(
+            calendar_next_index(3, "ArrowLeft", 7, mods(), &disabled),
+            Some(2)
         );
     }
 
@@ -2699,6 +2892,15 @@ mod tests {
         assert_eq!(
             tree_key_action(Some(4), "ArrowUp", mods_default(), &items),
             Some(TreeKeyAction::MoveFocus(2))
+    fn calendar_next_index_vertical_moves_by_columns() {
+        let disabled = vec![false; 21];
+        assert_eq!(
+            calendar_next_index(3, "ArrowDown", 7, mods(), &disabled),
+            Some(10)
+        );
+        assert_eq!(
+            calendar_next_index(10, "ArrowUp", 7, mods(), &disabled),
+            Some(3)
         );
     }
 
@@ -2711,6 +2913,22 @@ mod tests {
         );
         assert_eq!(
             tree_key_action(Some(0), "ArrowUp", mods_default(), &items),
+    fn calendar_next_index_is_non_circular_at_array_bounds() {
+        let disabled = vec![false; 7];
+        assert_eq!(
+            calendar_next_index(0, "ArrowLeft", 7, mods(), &disabled),
+            None
+        );
+        assert_eq!(
+            calendar_next_index(6, "ArrowRight", 7, mods(), &disabled),
+            None
+        );
+        assert_eq!(
+            calendar_next_index(0, "ArrowUp", 7, mods(), &disabled),
+            None
+        );
+        assert_eq!(
+            calendar_next_index(6, "ArrowDown", 7, mods(), &disabled),
             None
         );
     }
@@ -2725,6 +2943,12 @@ mod tests {
         assert_eq!(
             tree_key_action(None, "End", mods_default(), &items),
             Some(TreeKeyAction::MoveFocus(2))
+    fn calendar_next_index_skips_disabled_cells() {
+        // 行: [false, true, true, false, false, false, false]
+        let disabled = vec![false, true, true, false, false, false, false];
+        assert_eq!(
+            calendar_next_index(0, "ArrowRight", 7, mods(), &disabled),
+            Some(3)
         );
     }
 
@@ -2825,6 +3049,30 @@ mod tests {
     #[test]
     fn tree_key_action_rejects_modifier_keys() {
         let items = [leaf(0), leaf(0)];
+    fn calendar_next_index_home_and_end_within_row() {
+        // 2 行 7 列。1 行目は先頭・末尾が disabled。
+        let mut disabled = vec![false; 14];
+        disabled[0] = true;
+        disabled[6] = true;
+        assert_eq!(
+            calendar_next_index(3, "Home", 7, mods(), &disabled),
+            Some(1)
+        );
+        assert_eq!(calendar_next_index(3, "End", 7, mods(), &disabled), Some(5));
+    }
+
+    #[test]
+    fn calendar_next_index_fails_closed_on_degenerate_input() {
+        let disabled = vec![false; 7];
+        assert_eq!(
+            calendar_next_index(0, "ArrowRight", 0, mods(), &disabled),
+            None
+        );
+        assert_eq!(calendar_next_index(0, "ArrowRight", 7, mods(), &[]), None);
+        assert_eq!(
+            calendar_next_index(99, "ArrowRight", 7, mods(), &disabled),
+            None
+        );
         let ctrl = Modifiers {
             ctrl: true,
             ..Modifiers::default()
@@ -2837,6 +3085,39 @@ mod tests {
         let items = [leaf(0)];
         assert_eq!(
             tree_key_action(Some(0), "PageDown", mods_default(), &items),
+        assert_eq!(
+            calendar_next_index(0, "ArrowRight", 7, ctrl, &disabled),
+            None
+        );
+        assert_eq!(calendar_next_index(0, "PageUp", 7, mods(), &disabled), None);
+        assert_eq!(calendar_next_index(0, "a", 7, mods(), &disabled), None);
+    }
+
+    #[test]
+    fn calendar_next_index_home_end_return_none_when_row_fully_disabled() {
+        let disabled = vec![true; 7];
+        assert_eq!(calendar_next_index(3, "Home", 7, mods(), &disabled), None);
+        assert_eq!(calendar_next_index(3, "End", 7, mods(), &disabled), None);
+    }
+
+    // --- splitter_key_action（イシュー #1074） ---
+
+    #[test]
+    fn splitter_key_action_horizontal_right_and_left() {
+        assert_eq!(
+            splitter_key_action("ArrowRight", Orientation::Horizontal, mods()),
+            Some(SplitterKeyAction::Increment)
+        );
+        assert_eq!(
+            splitter_key_action("ArrowLeft", Orientation::Horizontal, mods()),
+            Some(SplitterKeyAction::Decrement)
+        );
+        assert_eq!(
+            splitter_key_action("ArrowUp", Orientation::Horizontal, mods()),
+            None
+        );
+        assert_eq!(
+            splitter_key_action("ArrowDown", Orientation::Horizontal, mods()),
             None
         );
     }
@@ -2858,6 +3139,21 @@ mod tests {
     fn tree_key_action_empty_items_yields_none() {
         assert_eq!(
             tree_key_action(None, "ArrowDown", mods_default(), &[]),
+    fn splitter_key_action_vertical_down_and_up() {
+        assert_eq!(
+            splitter_key_action("ArrowDown", Orientation::Vertical, mods()),
+            Some(SplitterKeyAction::Increment)
+        );
+        assert_eq!(
+            splitter_key_action("ArrowUp", Orientation::Vertical, mods()),
+            Some(SplitterKeyAction::Decrement)
+        );
+        assert_eq!(
+            splitter_key_action("ArrowLeft", Orientation::Vertical, mods()),
+            None
+        );
+        assert_eq!(
+            splitter_key_action("ArrowRight", Orientation::Vertical, mods()),
             None
         );
     }
@@ -2880,6 +3176,35 @@ mod tests {
         let items = [a];
         assert_eq!(
             tree_key_action(Some(0), "Enter", mods_default(), &items),
+    fn splitter_key_action_home_and_end_are_axis_independent() {
+        for orientation in [Orientation::Horizontal, Orientation::Vertical] {
+            assert_eq!(
+                splitter_key_action("Home", orientation, mods()),
+                Some(SplitterKeyAction::SetToMin)
+            );
+            assert_eq!(
+                splitter_key_action("End", orientation, mods()),
+                Some(SplitterKeyAction::SetToMax)
+            );
+        }
+    }
+
+    #[test]
+    fn splitter_key_action_rejects_modifiers_and_unknown_keys() {
+        let ctrl = Modifiers {
+            ctrl: true,
+            ..Modifiers::default()
+        };
+        assert_eq!(
+            splitter_key_action("ArrowRight", Orientation::Horizontal, ctrl),
+            None
+        );
+        assert_eq!(
+            splitter_key_action("Enter", Orientation::Horizontal, mods()),
+            None
+        );
+        assert_eq!(
+            splitter_key_action("a", Orientation::Vertical, mods()),
             None
         );
     }
@@ -2899,6 +3224,11 @@ mod wiring {
         tree_visible_flags, typeahead_next_index, typeahead_push, ComboboxKeyAction, Modifiers,
         Orientation, SubmenuNav, TreeItemMeta, TreeKeyAction, MAX_SUBMENU_DEPTH,
         TYPEAHEAD_TIMEOUT_MS,
+        accordion_next_index, calendar_next_index, combobox_key_action, first_non_disabled,
+        highlight_next_index, is_typeahead_key, last_non_disabled, listbox_next_index,
+        loop_focus_from_attr, menu_loop_focus_from_attr, radio_next_index, submenu_nav,
+        tabs_next_index, typeahead_next_index, typeahead_push, ComboboxKeyAction, Modifiers,
+        Orientation, SubmenuNav, MAX_SUBMENU_DEPTH, TYPEAHEAD_TIMEOUT_MS,
     };
     use wasm_bindgen::closure::Closure;
     use wasm_bindgen::{JsCast, JsValue};
@@ -3458,6 +3788,28 @@ mod wiring {
             None => {}
         }
     }
+    /// `[data-scope="calendar"][data-part="root"]` セレクタ（イシュー
+    /// #1074。ネストした Calendar インスタンスの誤爆防止に使う探索境界）。
+    const CALENDAR_ROOT_SELECTOR: &str = "[data-scope=\"calendar\"][data-part=\"root\"]";
+    /// `[data-scope="calendar"][data-part="table-body"]` セレクタ
+    /// （`tbody`。曜日見出し行〔`table-header`/`thead`〕を含まない日付行の
+    /// みを内包する、`columns` 導出の探索起点）。
+    const CALENDAR_TABLE_BODY_SELECTOR: &str =
+        "[data-scope=\"calendar\"][data-part=\"table-body\"]";
+    /// `[data-scope="calendar"][data-part="table-row"]` セレクタ（`tr`）。
+    const CALENDAR_TABLE_ROW_SELECTOR: &str = "[data-scope=\"calendar\"][data-part=\"table-row\"]";
+    /// `[data-scope="calendar"][data-part="day-trigger"]` セレクタ
+    /// （ネイティブ `<button>`、実フォーカスを直接保持する）。
+    const CALENDAR_DAY_TRIGGER_SELECTOR: &str =
+        "[data-scope=\"calendar\"][data-part=\"day-trigger\"]";
+    /// `[data-scope="calendar"][data-part="prev-trigger"]` セレクタ
+    /// （PageUp が click 合成する対象）。
+    const CALENDAR_PREV_TRIGGER_SELECTOR: &str =
+        "[data-scope=\"calendar\"][data-part=\"prev-trigger\"]";
+    /// `[data-scope="calendar"][data-part="next-trigger"]` セレクタ
+    /// （PageDown が click 合成する対象）。
+    const CALENDAR_NEXT_TRIGGER_SELECTOR: &str =
+        "[data-scope=\"calendar\"][data-part=\"next-trigger\"]";
 
     /// `element.closest(selector)` の失敗（`Err`）・不一致（`None`）をまとめて
     /// `None` として扱う薄いヘルパ。DOM API のクエリ不正は本モジュールの
@@ -3654,6 +4006,102 @@ mod wiring {
 
         event.prevent_default();
         if let Some(next_element) = triggers.get(next_index) {
+            if let Ok(html_element) = next_element.clone().dyn_into::<HtmlElement>() {
+                let _ = html_element.focus();
+            }
+        }
+    }
+
+    /// Calendar day-trigger 上の keydown を処理する（イシュー #1074。
+    /// モジュール doc §Calendar 参照）。root 封じ込め検査・純粋層
+    /// （[`calendar_next_index`]）への委譲・実フォーカス移動
+    /// （`HtmlElement::focus()`）のみを行い、DOM 属性は一切書き換えない
+    /// （SSR の day-trigger はネイティブ `tabindex` を出力せず全 `<button>`
+    /// が tabbable なため、client-side roving tabindex を導入しない）。
+    ///
+    /// PageUp/PageDown は月移動トリガー（prev-trigger/next-trigger）への
+    /// `HtmlElement::click()` 合成へ委譲する（既存原則、モジュール doc
+    /// §設計参照）。
+    fn handle_calendar_keydown(root: &Element, target: &Element, event: &KeyboardEvent) {
+        let Some(calendar_root) = closest(target, CALENDAR_ROOT_SELECTOR) else {
+            return;
+        };
+        if !root.contains(Some(&calendar_root)) {
+            return;
+        }
+        let modifiers = modifiers_of(event);
+        let key = event.key();
+
+        if key == "PageUp" || key == "PageDown" {
+            if modifiers.any() {
+                return;
+            }
+            let selector = if key == "PageUp" {
+                CALENDAR_PREV_TRIGGER_SELECTOR
+            } else {
+                CALENDAR_NEXT_TRIGGER_SELECTOR
+            };
+            let Some(trigger) = collect_parts(&calendar_root, selector).into_iter().next() else {
+                return;
+            };
+            if !root.contains(Some(&trigger)) {
+                return;
+            }
+            if trigger.has_attribute("disabled") || trigger.has_attribute("data-disabled") {
+                return;
+            }
+            let Ok(html_trigger) = trigger.dyn_into::<HtmlElement>() else {
+                return;
+            };
+            event.prevent_default();
+            html_trigger.click();
+            return;
+        }
+
+        let Some(table_body) = closest(target, CALENDAR_TABLE_BODY_SELECTOR) else {
+            return;
+        };
+        if !root.contains(Some(&table_body)) {
+            return;
+        }
+        // ネストした Calendar の day-trigger を誤って拾わないよう、その
+        // 要素の closest root が本 handler が解決した calendar_root 自身と
+        // 一致するものだけを候補に残す（A01 対策、モジュール doc §Calendar
+        // 参照）。
+        let own_triggers: Vec<Element> = collect_parts(&table_body, CALENDAR_DAY_TRIGGER_SELECTOR)
+            .into_iter()
+            .filter(|el| {
+                closest(el, CALENDAR_ROOT_SELECTOR)
+                    .is_some_and(|r| r.is_same_node(Some(&calendar_root)))
+            })
+            .collect();
+        let Some(current) = index_of(&own_triggers, target) else {
+            return;
+        };
+
+        // `columns` は table-body 直下の先頭行（曜日見出し行ではなく日付行）
+        // の day-trigger 件数から導出する。総数が columns の倍数でない
+        // 場合（`month_grid` の契約が満たされない改ざん/非対応 DOM）は
+        // fail-closed no-op とする。
+        let Some(first_row) = collect_parts(&table_body, CALENDAR_TABLE_ROW_SELECTOR)
+            .into_iter()
+            .next()
+        else {
+            return;
+        };
+        let columns = collect_parts(&first_row, CALENDAR_DAY_TRIGGER_SELECTOR).len();
+        if columns == 0 || !own_triggers.len().is_multiple_of(columns) {
+            return;
+        }
+        let disabled = disabled_flags(&own_triggers);
+
+        let Some(next_index) = calendar_next_index(current, &key, columns, modifiers, &disabled)
+        else {
+            return;
+        };
+
+        event.prevent_default();
+        if let Some(next_element) = own_triggers.get(next_index) {
             if let Ok(html_element) = next_element.clone().dyn_into::<HtmlElement>() {
                 let _ = html_element.focus();
             }
@@ -5269,6 +5717,14 @@ mod wiring {
         // roving tabindex」、モジュール doc §TreeView 参照）。
         if target.matches(TREE_VIEW_TREEITEM_SELECTOR).unwrap_or(false) {
             return Some(("tree-view", target.clone()));
+        // Calendar day-trigger はネイティブ `<button>` で実フォーカスを直接
+        // 保持するため、Tabs/Accordion と同じく target 自身の一致判定のみで
+        // 足りる（イシュー #1074、モジュール doc §Calendar 参照）。
+        if target
+            .matches(CALENDAR_DAY_TRIGGER_SELECTOR)
+            .unwrap_or(false)
+        {
+            return Some(("calendar", target.clone()));
         }
         None
     }
@@ -5382,6 +5838,7 @@ mod wiring {
                     &keyboard_event,
                     &mut typeahead_state,
                 ),
+                "calendar" => handle_calendar_keydown(&keydown_root, &matched, &keyboard_event),
                 _ => {}
             }
         });

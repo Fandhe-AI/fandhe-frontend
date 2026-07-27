@@ -16,11 +16,11 @@
 //! `wasm-full/tests/keynav_browser.rs`（実ブラウザ）が担う。
 
 use fandhe_frontend_wasm_full::keynav::{
-    accordion_next_index, combobox_key_action, highlight_next_index, is_typeahead_key,
-    listbox_next_index, loop_focus_from_attr, menu_loop_focus_from_attr, radio_next_index,
-    submenu_nav, tabs_next_index, tree_key_action, tree_visible_flags, typeahead_next_index,
-    typeahead_push, ComboboxKeyAction, Modifiers, Orientation, SubmenuNav, TreeItemMeta,
-    TreeKeyAction, TYPEAHEAD_TIMEOUT_MS,
+    accordion_next_index, calendar_next_index, combobox_key_action, highlight_next_index,
+    is_typeahead_key, listbox_next_index, loop_focus_from_attr, menu_loop_focus_from_attr,
+    radio_next_index, splitter_key_action, submenu_nav, tabs_next_index, tree_key_action,
+    tree_visible_flags, typeahead_next_index, typeahead_push, ComboboxKeyAction, Modifiers,
+    Orientation, SplitterKeyAction, SubmenuNav, TreeItemMeta, TreeKeyAction, TYPEAHEAD_TIMEOUT_MS,
 };
 
 /// 検証 1: Tabs horizontal の ArrowRight/ArrowLeft がフォーカスを移動する。
@@ -818,4 +818,98 @@ fn tree_view_key_action_moves_focus_and_requests_branch_expand() {
         tree_key_action(None, "ArrowDown", Modifiers::default(), &items),
         Some(TreeKeyAction::MoveFocus(0))
     );
+}
+// --- 検証 15（イシュー #1074）: Calendar/Splitter の公開 API 経由の統合確認
+// （詳細な網羅ケースは `crates/wasm-full/src/keynav.rs` の単体テストに既に
+// 持つため、本ファイルは「公開 API 経由で壊れていないか」に絞る）。---
+
+#[test]
+fn calendar_next_index_is_reachable_via_public_api() {
+    let disabled = vec![false; 14];
+    assert_eq!(
+        calendar_next_index(3, "ArrowRight", 7, Modifiers::default(), &disabled),
+        Some(4)
+    );
+    assert_eq!(
+        calendar_next_index(3, "ArrowDown", 7, Modifiers::default(), &disabled),
+        Some(10)
+    );
+}
+
+#[test]
+fn splitter_key_action_is_reachable_via_public_api() {
+    assert_eq!(
+        splitter_key_action("ArrowRight", Orientation::Horizontal, Modifiers::default()),
+        Some(SplitterKeyAction::Increment)
+    );
+    assert_eq!(
+        splitter_key_action("End", Orientation::Vertical, Modifiers::default()),
+        Some(SplitterKeyAction::SetToMax)
+    );
+}
+
+/// 検証 16（イシュー #1074、AC「`aria-valuenow` 連動更新」の本体）:
+/// `fandhe_frontend_headless_ui::splitter::Splitter` へ `SplitterKeyAction`
+/// 相当の dispatch 名（`"increment"`/`"home"`/`"end"`）を適用すると、
+/// `Splitter::resize_trigger` が再生成する SSR 出力の `aria-valuenow` が
+/// 追随することを固定する。keynav モジュール doc §1.1a（「`aria-valuenow`
+/// のみを直接書き換えない」設計判断）の裏付けであり、DOM 反映が dispatch →
+/// 再描画（`crate::lib::Runtime::wire` 経路）でのみ成立することを headless-ui
+/// を直接操作して native から実証する。
+#[test]
+fn splitter_dispatch_increment_updates_aria_valuenow_on_rerender() {
+    use fandhe_frontend_headless_ui::splitter::Splitter;
+
+    let mut s = Splitter::default();
+    let before =
+        fandhe_frontend_core::render(&s.resize_trigger(0, "panel-0", false, vec![], vec![]));
+    assert!(before.contains(r#"aria-valuenow="50""#));
+
+    assert!(fandhe_frontend_interactive::dispatch(
+        &mut s,
+        "increment",
+        "0"
+    ));
+    let after =
+        fandhe_frontend_core::render(&s.resize_trigger(0, "panel-0", false, vec![], vec![]));
+    assert!(after.contains(r#"aria-valuenow="51""#));
+}
+
+#[test]
+fn splitter_dispatch_home_and_end_update_aria_valuenow_to_min_and_max() {
+    use fandhe_frontend_headless_ui::splitter::{PanelSpec, Splitter};
+
+    let mut s = Splitter::new(
+        &[
+            PanelSpec::new(50.0, 20.0, 80.0),
+            PanelSpec::new(50.0, 20.0, 80.0),
+        ],
+        fandhe_frontend_headless_ui::data_attrs::Orientation::Horizontal,
+    );
+
+    assert!(fandhe_frontend_interactive::dispatch(&mut s, "home", "0"));
+    let home_html =
+        fandhe_frontend_core::render(&s.resize_trigger(0, "panel-0", false, vec![], vec![]));
+    assert!(home_html.contains(r#"aria-valuenow="20""#));
+
+    assert!(fandhe_frontend_interactive::dispatch(&mut s, "end", "0"));
+    let end_html =
+        fandhe_frontend_core::render(&s.resize_trigger(0, "panel-0", false, vec![], vec![]));
+    assert!(end_html.contains(r#"aria-valuenow="80""#));
+}
+
+/// 検証: 範囲外 trigger（存在しない index）の `"set"`/`"increment"` は
+/// no-op（fail-closed、panic しない）。
+#[test]
+fn splitter_dispatch_out_of_range_trigger_is_noop_without_panic() {
+    use fandhe_frontend_headless_ui::splitter::Splitter;
+
+    let mut s = Splitter::default();
+    assert!(fandhe_frontend_interactive::dispatch(
+        &mut s,
+        "increment",
+        "9"
+    ));
+    assert_eq!(s.size(0), Some(50.0));
+    assert_eq!(s.size(1), Some(50.0));
 }

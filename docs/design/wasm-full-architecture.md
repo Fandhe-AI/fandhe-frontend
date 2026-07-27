@@ -324,8 +324,12 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 | `combobox` | `clear-trigger` | `"clear"` | `""` |
 | `tree-view` | `branch` | `"toggle"` | `data-value` |
 | `tree-view` | `item` | `"select"` | `data-value` |
+| `calendar` | `prev-trigger` | `"prev-month"` | `""` |
+| `calendar` | `next-trigger` | `"next-month"` | `""` |
 
 マッピング表は `&'static str` リテラル固定の静的配列であり、動的登録経路は持たない。`crates/wasm-full/tests/headless_wiring.rs` が headless-ui 実出力（`data-scope`/`data-part` 文字列）とのドリフトを機械検知する。
+
+`calendar` の 2 行はイシュー #1074（keynav へ Splitter/Calendar のキーボード操作配線を追加する）で追加した。`crates/wasm-full/src/keynav.rs`（§後述、モジュール doc §Calendar）が PageUp/PageDown で合成する `prev-trigger`/`next-trigger` への `HtmlElement::click()` は、この 2 行を経由して初めて `CalendarAction::PrevMonth`/`NextMonth` の dispatch へ到達する。`("calendar", "day-trigger") → "select"` の行は意図的に追加していない: `day_trigger`（`crates/headless-ui/src/calendar.rs`）は `data-value`（ISO 日付）を出力しないため、行を追加しても `requires_value: true` により常に fail-closed で `None` になる（`.claude/rules/out-of-scope-tracking.md` 対応の申し送り事項。解消には headless-ui 側で `data-value` を追加する必要があり、headless-ui の semver バンプを伴うため別イシューの対象）。
 
 `menu`/`trigger-item` 行は当初欠落しており、`keynav.rs` のサブメニュー ArrowRight/ArrowLeft 開閉（§後述、イシュー #662）が合成する `click()` およびマウスでの実クリックの双方が no-op になっていた（イシュー #662 PR #674 Bugbot 指摘）。サブメニューは「子 `Menu` インスタンス由来の `trigger-item`/`positioner`/`content` を親 `content` 内に入れ子配置する」契約（`crates/headless-ui/src/menu.rs`）であり、`trigger-item` も `data-scope="menu"` を持つため、`trigger` と同じ `"toggle"` を割り当てて解決する。
 

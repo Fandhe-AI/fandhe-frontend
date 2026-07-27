@@ -102,6 +102,21 @@
 //! `data-focus-visible` 存在属性を境界パーツへ付け外しするのみで、
 //! `dispatch`・状態機械へは一切波及しない。
 //!
+//! [`splitter`] モジュール（イシュー #1074、親トラッキング #1058 配下）は
+//! `fandhe-frontend-headless-ui` の Splitter（`splitter` モジュール）が
+//! Root/Panel/ResizeTrigger の anatomy と dispatch 契約
+//! （`SplitterAction::{Increment, Decrement, SetToMin, SetToMax}`）までを
+//! 提供する一方、矢印キーによるリサイズの実 DOM 配線を本クレートの後続
+//! 責務としていたスコープ外を解消する。方向（ArrowLeft/ArrowRight の増減
+//! 方向）を符号化できない `crate::headless::MAPPING_TABLE` へは乗せられない
+//! ため、`crate::angle_slider` と同型の独立配線モジュールとして切り出す
+//! （`splitter` モジュール doc 参照）。
+//!
+//! [`keynav`] モジュール（イシュー #582・#583・#1070・#1073・#1074）は
+//! Tabs/Accordion/Menu/Select/RadioGroup/Listbox/Menubar に加え Calendar
+//! （`fandhe-frontend-headless-ui` `calendar` モジュール）の gridcell 間
+//! フォーカス移動を提供する（`keynav` モジュール doc §Calendar 参照）。
+//!
 //! 本クレートの自作コードは safe Rust のみとし、`unsafe` は `wasm-bindgen` /
 //! `web-sys` の FFI 境界（依存クレート内部・自動生成コード）に限定する
 //! （`docs/policy/unsafe-boundary.md` 第 2 節）。自作コードでの新規 `unsafe` 追加を
@@ -132,6 +147,7 @@ pub mod keynav;
 pub mod nav;
 pub mod overlay;
 pub mod position;
+pub mod splitter;
 pub mod tooltip;
 
 #[cfg(target_arch = "wasm32")]
@@ -376,6 +392,7 @@ where
         Self::wire_clipboard(component.clone(), root.clone())?;
         Self::wire_timer(component.clone(), root.clone())?;
         Self::wire_angle_slider(component.clone(), root.clone())?;
+        Self::wire_splitter(component.clone(), root.clone())?;
         Self::wire_signature_pad(component.clone(), root.clone(), binding_table.clone())?;
 
         Ok(Self { component, root })
@@ -427,6 +444,7 @@ where
         Self::wire_clipboard(component.clone(), root.clone())?;
         Self::wire_timer(component.clone(), root.clone())?;
         Self::wire_angle_slider(component.clone(), root.clone())?;
+        Self::wire_splitter(component.clone(), root.clone())?;
         Self::wire_signature_pad(component.clone(), root.clone(), binding_table.clone())?;
 
         Ok(Self { component, root })
@@ -602,6 +620,43 @@ where
             // DOM 反映（Thumb の回転・aria-valuenow 更新）は `Self::wire` の
             // 束縛点更新経路（再描画）へ委ねる。本配線は dispatch 依頼のみを
             // 担う（`Self::wire_timer` と同じ責務分離）。
+            let _ = fandhe_frontend_interactive::dispatch(
+                &mut *state,
+                &action_ref.action,
+                &action_ref.payload,
+            );
+        })
+    }
+
+    /// Splitter（`fandhe-frontend-headless-ui` `splitter` モジュール）の
+    /// 矢印キーリサイズ keydown 配線を [`splitter::wire_splitter_events`]
+    /// 経由で `root` へ配線する（イシュー #1074）。`Self::mount`/
+    /// `Self::hydrate` の双方から `Self::wire_angle_slider` の直後に 1 回
+    /// だけ呼ばれる。
+    ///
+    /// # fail-closed（Splitter 非搭載アプリへの副作用なし）
+    ///
+    /// `root` 配下に Splitter の resize-trigger パーツが存在しない場合、
+    /// keydown は `splitter::wiring::is_resize_trigger` 相当の scope/part
+    /// 一致判定で早期 return するため、Splitter を使わないアプリへの影響は
+    /// ない。
+    ///
+    /// # Errors
+    ///
+    /// [`splitter::wire_splitter_events`]（`add_event_listener_with_callback`）
+    /// の失敗を伝播する。
+    fn wire_splitter(
+        component: std::rc::Rc<std::cell::RefCell<C>>,
+        root: web_sys::Element,
+    ) -> Result<(), wasm_bindgen::JsValue> {
+        splitter::wire_splitter_events(root, move |action_ref: events::ActionRef| {
+            let Ok(mut state) = component.try_borrow_mut() else {
+                return;
+            };
+            // DOM 反映（aria-valuenow・パネルサイズ更新）は `Self::wire` の
+            // 束縛点更新経路（再描画）へ委ねる（`splitter` モジュール doc
+            // §`aria-valuenow` を直接書き換えない設計判断 参照。
+            // `Self::wire_angle_slider` と同じ責務分離）。
             let _ = fandhe_frontend_interactive::dispatch(
                 &mut *state,
                 &action_ref.action,
