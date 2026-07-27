@@ -417,3 +417,26 @@ fandhe-frontend-docs-site: wrote 195 page(s), 109 redirect(s) and 7 asset(s) to 
   `search_index.rs` / `site_build.rs`
 - 再現手順: `DOCS_SITE_SHOTS_DIR="$HOME/<任意のパス>" tools/docs-site/visual-regression.sh`
   （出力先は絶対パス・非ドット始まりパス要素であることが必須。§13 参照）
+
+## 18. 追補: 節欠落の編集方針の確定（イシュー #1082）
+
+§10.2・§16 が 2 度にわたり「未起票の追跡候補」として記録していた
+`site/themes.md` の残存記述（「Demo 以外の節の充填は Phase 4（#945〜#948）
+で進めます」）は、イシュー #1077 で本文自体は是正済みだったが、その置き換え
+文（「未充填の部品ページはページ冒頭の注記（`[!NOTE]`）で明示しています」）
+も事実に反していた。`site/themes/` 配下で `[!NOTE]` を持つページは 6 件
+存在するが、いずれも共有 Anatomy スコープ（`field`）の説明用であり、
+「未充填」を示す注記ではない（例: `site/themes/textarea.md`）。一方
+`site/themes/visually-hidden.md` のように `[!NOTE]` を持たずページ本体は
+4 行の部品でも、docs-site ビルド時に Demo・Anatomy 等が合成されて完全な
+ページが生成される（「Markdown 原稿のみの掲示」にはならない）。本追補
+実装（イシュー #1082）で、この記述を「Anatomy・`data-*` 属性表・CSS 変数
+表は Demo から機械導出するため部品によっては節が省略される」という正確な
+説明へ差し替えた。§10.2・§16 の当該行は本節を追跡先として参照する。
+
+節が出力されない理由（4 分類）と分類ごとの編集者の対応の正は
+`docs/design/docs-site-component-pages.md` §7b（新設）に一本化した。
+`docs/design/docs-site-primitives-themes-split.md` §5 は §7b へのポインタ
+1 行のみを追加し、規則本文の重複を避けている。実測値（§14 観点 4 の
+Primitives `data-*` 表 50/63・CSS 変数表 0/63、Themes `data-*` 表 57/107・
+CSS 変数表 56/107）は本追補では再測定していない（§14 の記録を正とする）。

@@ -10,7 +10,10 @@ Primitives は見た目のスタイルを持ちません。スタイル済みの
 `fandhe-frontend-pre-styled-ui` が提供する [Themes](./themes.md) セクションを
 参照してください（Themes は Primitives の上に見た目のスタイルを重ねた層です）。
 Primitives ページには CSS 変数表がありません（headless-ui に CSS の概念が
-無いため）。
+無いため）。また Anatomy・`data-*` 属性表は Demo の実レンダリングから機械
+導出しているため、その部品のデモに現れないパーツ・属性は表に出ず、部品に
+よっては節ごと省略されます（未実装・不具合ではありません。詳細は
+`docs/design/docs-site-component-pages.md` §7b を参照してください）。
 
 各部品ページの Demo 節にある枠線・余白は docs サイト側が付与したデモ枠で
 あり、`fandhe-frontend-headless-ui` 自体は見た目のスタイルを一切持ちません
