@@ -266,6 +266,44 @@ fn inline_toc_precedes_skip_nav_target_and_article() {
     );
 }
 
+/// イシュー #1080（WCAG 2.1 SC 2.4.1 回帰、`docs_page_skip_nav_link_is_first_focusable_element_in_body`
+/// の対）: 折りたたみ目次の `<summary>`（ネイティブにフォーカス可能な要素）を
+/// 持つページであっても、SkipNav の `link`（`<body>` 内で最初にフォーカス
+/// 可能な要素という既存契約）より前に他のフォーカス可能要素が出現しない
+/// ことを固定する。既存の `docs_page_skip_nav_link_is_first_focusable_element_in_body`
+/// は見出しの無いフィクスチャ（`toc_inline` が `None` を返す）のみを使うため
+/// この経路を検証しておらず、本テストが見出しありページで明示的に補う。
+#[test]
+fn inline_toc_summary_does_not_precede_the_skip_nav_link() {
+    let body = fandhe_frontend_core::div(vec![], vec![h2(vec![], vec![text("導入")])]);
+    let node = docs_page("タイトル", "", sample_sidebar(), body);
+    let html = render(&node);
+
+    // 折りたたみ目次の <summary> が実在すること（この経路を検証している
+    // ことの前提確認。存在しなければ以下のフォーカス順検証は空振りする）。
+    assert!(html.contains(r#"class="docs-toc-inline-summary""#));
+
+    let body_start = html.find("<body>").expect("body tag should exist") + "<body>".len();
+    let skip_link_pos = html
+        .find(r#"<a data-scope="skip-nav" data-part="link""#)
+        .expect("skip-nav link tag should exist");
+    let between = &html[body_start..skip_link_pos];
+    for needle in [
+        "<a ",
+        "<button",
+        "<input",
+        "<select",
+        "<textarea",
+        "<summary",
+        "tabindex=",
+    ] {
+        assert!(
+            !between.contains(needle),
+            "no focusable element ({needle:?}), including the inline toc's <summary>, should precede the skip-nav link in body"
+        );
+    }
+}
+
 /// イシュー #1080: 折りたたみ目次は素の `<details>`/`<summary>`
 /// ディスクロージャで、本文中の見出しへ注入された `id` と同じ `href="#<id>"`
 /// のアンカーを持ち、既定では閉（`open` 属性を持たない）ことを固定する
