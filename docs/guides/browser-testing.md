@@ -37,6 +37,8 @@ TASK-6.2b（#48 最小ハイドレーション実装）・TASK-6.2c（#49 ハイ
 
 代替案（Playwright ベース E2E）は Node.js 依存・依存面拡大が大きく、仕様の第一指名が
 `wasm-pack test` であるため v1 では不採用。TASK-11.5（性能計測）で再検討可能。
+横断 a11y 自動検証（axe-core 相当）の導入評価（イシュー #1076、`docs/ci/a11y-automation-evaluation.md`）
+も本判断を a11y ツールへ継承し、Playwright ベースの axe-core 実行を同じ理由で見送っている。
 
 ## 4. CI 構成（`.github/workflows/ci.yml` の `browser-test` ジョブ）
 
