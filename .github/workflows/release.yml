@@ -39,6 +39,17 @@ name: release
 # 反映確認（`https://index.crates.io/<index-path>` に "vers":"0.1.0" が
 # 現れること）を経てから pre-styled-ui を実行する（本ワークフロー自身は
 # クレート横断の順序保証を持たないため、実行者が手順として担保する）。
+#
+# GitHub Environments `crates-io-release` による承認ゲート（fandhe-backend の
+# release.yml と同型）: publish ジョブのみ job レベルで
+# `environment: crates-io-release` を参照する。verify ジョブ（ガード群 +
+# dry-run、トークン不要）は承認なしで実行され、実公開（mode: publish）だけが
+# environment の保護ルールを通る。注意: 本リポジトリは private のため、現在の
+# billing plan では required reviewers 保護ルールを environment に設定できない
+# （backend は public のため設定済み）。plan 変更または public 化の際に
+# backend と同じ required reviewers（prevent_self_review: false）を追加する。
+# mode の既定 dry-run-only・トークンのステップ限定注入という既存の安全設計は
+# environment 導入後も不変とする。
 
 on:
   workflow_dispatch:
@@ -84,8 +95,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: "release: crates.io publish (${{ inputs.crate }})"
+  verify:
+    name: "verify: guards + cargo publish --dry-run (${{ inputs.crate }})"
     runs-on: self-hosted
     timeout-minutes: 30
     env:
@@ -215,9 +226,40 @@ jobs:
           set -euo pipefail
           cargo publish --dry-run -p "${RELEASE_CRATE}" --locked
 
+  publish:
+    name: "publish: cargo publish (${{ inputs.crate }})（要 環境承認）"
+    needs: verify
+    # publish モードのみ実行。dry-run-only（既定・安全側）では本ジョブ自体が
+    # スキップされ、environment の保護ルールにも到達しない。
+    if: ${{ inputs.mode == 'publish' }}
+    runs-on: self-hosted
+    timeout-minutes: 30
+    # GitHub Environments による承認ゲート（fandhe-backend release.yml と同型の
+    # job レベル name 指定）。environment の保護ルールが通るまで publish は
+    # 実行されない。
+    environment: crates-io-release
+    env:
+      RELEASE_CRATE: ${{ inputs.crate }}
+      RELEASE_VERSION: ${{ inputs.version }}
+      RELEASE_MODE: ${{ inputs.mode }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          # verify ジョブが検証したのと同一コミットへピン留めする（TOCTOU 防止）。
+          # environment 承認待ちの間に対象ブランチが進んでも、verify が確認した
+          # tree と異なる内容が publish されることはない。
+          ref: ${{ github.sha }}
+          submodules: false
+          persist-credentials: false
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4
+        with:
+          toolchain: stable
+
       - name: "guard: CARGO_REGISTRY_TOKEN の存在確認"
-        # publish モードのみ実行。トークン値は一切出力しない（存在有無のみ判定）。
-        if: ${{ inputs.mode == 'publish' }}
+        # トークン値は一切出力しない（存在有無のみ判定）。
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
@@ -228,9 +270,8 @@ jobs:
           fi
 
       - name: "publish: cargo publish"
-        # publish モードのみ実行。トークンはこのステップの env にのみ限定して
-        # 注入し、ジョブ全体（他ステップ）へは広げない。
-        if: ${{ inputs.mode == 'publish' }}
+        # トークンはこのステップの env にのみ限定して注入し、
+        # ジョブ全体（他ステップ）へは広げない。
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
