@@ -918,8 +918,32 @@ fn header_nav_is_left_aligned_and_actions_keep_margin_auto() {
     }
     css.push_str(rest);
     // nav は左寄せ（backend `.docs-header-nav { margin-left: 1.25rem; }` 同値）。
+    // 宣言の存在だけでなく `.docs-header-nav` ルールブロックへの帰属まで検査する
+    // （CSS 全体からの substring 検索では、別セレクタへ 1.25rem が移った上で
+    // nav に margin-left: auto が復活しても素通りしてしまう。Bugbot 指摘の是正）。
+    // 単独セレクタ `.docs-header-nav {` のブロックは基底（display: none）と
+    // >= 768px メディアクエリ内（左寄せ margin）の 2 箇所であり、
+    // `nav.docs-header-nav .docs-header-dropdown` 等の子孫セレクタは
+    // 後続に空白が続くためこの検索文字列には一致しない。
+    let mut nav_search_from = 0usize;
+    let mut nav_left_aligned = false;
+    while let Some(rel) = css[nav_search_from..].find(".docs-header-nav {") {
+        let block_start = nav_search_from + rel + ".docs-header-nav {".len();
+        let block_close_rel = css[block_start..]
+            .find('}')
+            .expect(".docs-header-nav ルールブロックの閉じ } が見つからない");
+        let block = &css[block_start..block_start + block_close_rel];
+        assert!(
+            !block.contains("margin-left: auto"),
+            "旧設計（イシュー #951）の nav 右寄せ（margin-left: auto）が復活している: {block}"
+        );
+        if block.contains("margin-left: 1.25rem;") {
+            nav_left_aligned = true;
+        }
+        nav_search_from = block_start;
+    }
     assert!(
-        css.contains("margin-left: 1.25rem;"),
+        nav_left_aligned,
         ".docs-header-nav は margin-left: 1.25rem で brand 直後に左寄せする必要がある \
          （fandhe-backend ヘッダー統一、イシュー #1110 の続き）"
     );
