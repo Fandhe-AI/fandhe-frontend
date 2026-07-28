@@ -155,14 +155,16 @@ CSS 供給方式・契約テスト作り替え方針・ドロップダウンの�
 
 | トークン（Rust 側の型） | 値 | 役割 |
 |---|---|---|
-| `docs-container-width` | `88rem` | 3 カラム grid コンテナ（`.docs-container`）と、ヘッダー内側計測枠（`.docs-header-inner`）の最大幅。両要素が同じ値を `max-width` に用いることで、ヘッダーの左端がサイドバー・本文の左端と同一 x 座標に揃う |
+| `docs-container-width` | `88rem` | 3 カラム grid コンテナ（`.docs-container`）の最大幅（ヘッダー詳細統一以降、`.docs-header-inner` は参照しない。下記「ヘッダー詳細統一」参照） |
 | `docs-sidebar-width` | `16rem` | 左ナビカラムの幅 |
 | `docs-toc-width` | `14rem` | 右目次カラムの幅（`≥ 1200px` でのみ参照） |
 | `docs-max-content-width` | `46rem` | `.docs-content` ラッパーの最大幅（中央カラムのトラック幅から padding を引いた実効幅より狭く、`margin: 0 auto` で中央寄せ） |
 | `docs-header-height` | `3.25rem` | ヘッダーバーの高さ（`.docs-header` の `height`、`position: sticky` 時の viewport 占有分、アンカーへのジャンプオフセット） |
-| `docs-gutter` | `1rem` | カラム内側の左右余白（`.docs-header-inner`・`.docs-sidebar`・`.docs-toc-aside` の padding-inline が共有する単一のドリフト源） |
+| `docs-gutter` | `1rem` | カラム内側の左右余白（`.docs-sidebar`・`.docs-toc-aside` の padding-inline が共有する単一のドリフト源。ヘッダー詳細統一以降、`.docs-header-inner` は参照しない） |
 
 **設計原則の変更**: これらトークンの値は、イシュー #949 の「幅予算計算式」（旧値 `84 − 17 − 15 − 2×2 = 48`）から導出された内部整合値ではなく、fandhe-backend の docs サイトとのデザイン統一のため **fandhe-backend `site/assets/site.css` の値をそのまま採用したもの** である（変更根拠の詳細は `crates/docs-site/src/site_theme.rs::docs_theme()` のコメント参照）。
+
+**ヘッダー詳細統一（イシュー #1110 の続き）**: 寸法トークン統一に続き、ヘッダーの見た目も fandhe-backend の `site.css` へ統一した。`.docs-header-inner` は backend の `.docs-header { padding: 0 1.5rem; }` と同じ全幅バー（max-width なし）となり、#949 の「ヘッダー左端とサイドバー左端を同一計測枠で揃える」設計は廃止。ヘッダーナビは brand 直後の左寄せ（`margin-left: 1.25rem`）、右端要素は `.docs-header-actions { margin-left: auto; gap: 0.9rem; }` のみで右寄せとし、旧 #951 の auto 打ち消し override は削除。GitHub リンクは枠なしプレーンテキスト、テーマトグルは枠付きボタン風、検索入力は `width: 12rem` の subtle 背景へ変更した（値の正は `crates/docs-site/src/site_theme.rs`、契約は `tests/site_css_contract.rs::header_nav_is_left_aligned_and_actions_keep_margin_auto`。配色は既決事項どおり統一しない、コミット de83bc2）。
 
 新値（88 / 16 / 14 / 46）は旧値（84 / 17 / 15 / 48）と異なり、計算式 `88 − 16 − 14 − 2×2 = 54 ≠ 46` が成り立たないが、これは不整合ではない。**`docs-max-content-width` は grid トラック幅から自動導出される値ではなく、`.docs-content` の `max-width` を独立に定める値** だからである。中央カラムのトラック幅 `58rem` から `.docs-main` の左右 padding `2rem × 2` を引いた実効幅は `54rem` だが、その上で `.docs-content` は `46rem` に制限され `margin: 0 auto` で中央に配置される。backend も同一の計算構造（中央トラック `58rem` − padding `4rem` = 実効 `54rem` に対し `.docs-content` を `46rem` で中央寄せ）であり、視覚的レイアウト挙動は両リポジトリで等価である。
 
