@@ -1267,6 +1267,60 @@ AI エージェントが変更の影響範囲を判断するために読み込�
   （規約 B）の詳細は `docs/design/pre-styled-ui-data-attr-vocabulary.md` を
   参照。
 
+### 3.26 docs サイト間の配色・タイポグラフィ統一（ユーザー判断 2026-07-27、PR #1110）
+
+- **概要**: fandhe-frontend の GitHub Pages docs サイトと姉妹リポジトリ
+  [Fandhe-AI/fandhe-backend](https://github.com/Fandhe-AI/fandhe-backend) の
+  docs サイト間での配色・タイポグラフィ（見出しサイズ・`font-weight`・mono
+  フォントスタック・インラインコードの角丸・ドロップダウンの影）の統一を
+  行わない判断。PR #1110 で両サイトのヘッダー構成・レイアウト寸法・検索 UI
+  文言は既に統一済み（構造レベル）。
+- **決定内容**:
+
+  両サイトの**構造レベル（ヘッダー構成・レイアウト寸法・文言）の統一は実施**。
+  ただし、**配色とタイポグラフィの統一は行わない**。
+
+- **統一しない理由**:
+
+  1. **ドッグフーディングの証左としての価値**: fandhe-frontend の docs サイトの
+     CSS は `crates/docs-site/src/site_theme.rs` が `fandhe-frontend-pre-styled-ui`
+     の `Theme` からビルド時生成している（イシュー #899 / #905）。配色が
+     backend と異なるのは欠落ではなく、「このサイトはこのフレームワーク自身の
+     出荷既定テーマで描かれている」ことの表れである。統一するとこの性質が
+     失われ、ドッグフーディング価値が損なわれる。
+
+  2. **影響範囲の不相応さ**: 統一するには公開クレート `fandhe-frontend-pre-styled-ui`
+     （crates.io 公開済み）の既定テーマ自体の変更が必要であり、Primitives
+     63 部品 / Themes 107 部品の**全ショーケースページの見た目が変わる**。
+     フレームワーク利用者が `Theme::default()` で得る出荷既定色を、docs
+     サイトの見た目の都合で動かすことになり、フレームワーク本体の設計変更が
+     伴う。
+
+  3. **構造統一で目的は達成済み**: 利用者から見た「同じ製品群のサイト」という
+     印象は、ヘッダー構成・レイアウト寸法（コンテナ 88rem / サイドバー 16rem /
+     目次 14rem / 本文 46rem）・検索 UI 文言の統一で既に成立している。
+
+- **技術的に複数の不変条件が阻む（参考情報）**:
+
+  - `crates/pre-styled-ui/src/theme.rs` の `push_color` / `push_space` は同名
+    トークンの再定義を `DuplicateTokenName` で拒否する（`docs_theme()` からの
+    上書き経路が存在しない）。
+  - `crates/docs-site/tests/site_typography_contract.rs` の
+    `heading_size_variants_mirror_pre_styled_ui_heading_recipe` /
+    `code_declarations_mirror_pre_styled_ui_code_recipe` が
+    `pre_styled_ui::heading::css()` / `code::css()` との一致を
+    双方向に強制している。
+  - イシュー #912 で導入した `structural_and_typography_css_contain_no_hardcoded_colors`
+    が `STRUCTURAL_CSS` 内の生の色値（raw `rgba` 等）を禁止している。
+
+- **再評価トリガー**: 以下のいずれかが起きた場合は本判断を再評価する。
+
+  1. `fandhe-frontend-pre-styled-ui` の既定テーマ自体を別の理由（例: 利用者
+     からの要望によるデザインリニューアル）で変更することが決まった場合。
+  2. fandhe-backend 側を frontend の配色へ寄せる（逆方向の統一）判断が出た
+     場合。
+  3. 両サイトの配色差が利用者から実際に混乱として報告された場合。
+
 ## 4. 運用（再導入提案時の手続き）
 
 上記各項目のいずれかを再導入したいと判断した場合、以下を Issue・PR に
