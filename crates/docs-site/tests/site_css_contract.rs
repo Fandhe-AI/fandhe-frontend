@@ -887,66 +887,77 @@ fn toc_current_location_highlight_selector_exists_in_generated_site_css() {
     );
 }
 
-/// Bugbot 指摘（PR #967, イシュー #951）の回帰ガード。`min-width: 768px`
-/// 帯域で `.docs-header-actions` の `margin-left: auto` を打ち消す override
-/// が、`.docs-header-nav` 直後に限定した隣接セレクタ
-/// （`.docs-header-nav + .docs-header-actions`）であることを固定する。
+/// ヘッダー詳細統一（イシュー #1110 の続き、fandhe-backend との見た目統一）
+/// の配置契約テスト。旧設計（イシュー #951）は `.docs-header-nav` を
+/// `margin-left: auto` で右寄せし `.docs-header-nav + .docs-header-actions`
+/// の隣接セレクタ override で auto を打ち消していたが、新契約では
+/// backend と同じく:
 ///
-/// `crate::layout::docs_page` は `header_nav` が `None`（`docs_page` 単体
-/// 呼び出し等）でも `.docs-header-actions` を無条件出力するが
-/// `.docs-header-nav` 自体は出力しない。override が無条件セレクタ
-/// （`.docs-header-actions { margin-left: 0.75rem; }`）のままだと、
-/// `header_nav: None` の構成で `min-width: 768px` 以上において基底帯域の
-/// `margin-left: auto` が打ち消され、GitHub リンク・テーマトグルがヘッダー
-/// 右端（トレイリングエッジ）ではなくブランド直後に居座ってしまう
-/// （`docs/design/docs-site-three-column-redesign.md` の想定レイアウトから
-/// の逸脱）。隣接セレクタなら `.docs-header-nav` が存在しない構成では
-/// override 自体が不成立のままとなり、基底帯域の `margin-left: auto` が
-/// 有効であり続けるため右端配置が保たれる。
+/// - `.docs-header-nav` は `margin-left: 1.25rem` で brand 直後に左寄せ
+/// - `.docs-header-actions` は常に `margin-left: auto` のみで右寄せ
+///   （override は存在しない）
+///
+/// とする。これにより `header_nav: None` 構成（`docs_page` 単体呼び出し等、
+/// `crate::layout` は actions を無条件出力するが nav は出力しない）でも
+/// 分岐なしに右端（トレイリングエッジ）配置が保たれる。旧 override の
+/// 復活（`margin-left: 0.75rem` や nav 側の `margin-left: auto`）は
+/// backend との配置乖離を再発させるため fail-closed に検知する。
 #[test]
-fn header_actions_margin_override_is_scoped_to_header_nav_sibling() {
-    let css = site_css();
+fn header_nav_is_left_aligned_and_actions_keep_margin_auto() {
+    // CSS コメント（`/* ... */`）は旧設計への言及（廃止経緯の記録）を正当に
+    // 含むため、規則本体のみを検査対象とするよう除去してから走査する。
+    let css_raw = site_css();
+    let mut css = String::with_capacity(css_raw.len());
+    let mut rest = css_raw.as_str();
+    while let Some(start) = rest.find("/*") {
+        css.push_str(&rest[..start]);
+        rest = match rest[start + 2..].find("*/") {
+            Some(end) => &rest[start + 2 + end + 2..],
+            None => "",
+        };
+    }
+    css.push_str(rest);
+    // nav は左寄せ（backend `.docs-header-nav { margin-left: 1.25rem; }` 同値）。
     assert!(
-        css.contains(".docs-header-nav + .docs-header-actions"),
-        "min-width: 768px 帯域の .docs-header-actions margin override は \
-         .docs-header-nav + .docs-header-actions（隣接セレクタ）に限定する必要がある: \
-         header_nav が None の構成でトレイリングエッジ配置が崩れる（イシュー #951 Bugbot 指摘）"
+        css.contains("margin-left: 1.25rem;"),
+        ".docs-header-nav は margin-left: 1.25rem で brand 直後に左寄せする必要がある \
+         （fandhe-backend ヘッダー統一、イシュー #1110 の続き）"
     );
-    // 上の contains チェックだけでは「隣接セレクタが *どこかに* 存在する」
-    // ことしか確認できず、無条件セレクタ `.docs-header-actions { ... }` が
-    // 別途 margin-left: 0.75rem を宣言していても検知できない（インデント差
-    // による厳密な部分文字列一致は整形変更で偽陰性になるため使わない）。
-    // 生成 CSS 中の全 `.docs-header-actions {` 開始位置を洗い出し、その
-    // ルールブロックが `margin-left: 0.75rem` を宣言する場合は必ず直前に
-    // `.docs-header-nav + ` が付いている（無条件セレクタ単体では
-    // override が成立しない）ことを構造的に確認する。
+    // 旧右寄せ設計の痕跡（override・nav の auto）が復活していないこと。
+    assert!(
+        !css.contains(".docs-header-nav + .docs-header-actions"),
+        "旧設計（イシュー #951）の隣接セレクタ override が復活している: \
+         新契約では actions の margin-left: auto のみが右寄せを担う"
+    );
+    assert!(
+        !css.contains("margin-left: 0.75rem"),
+        "旧設計（イシュー #951）の auto 打ち消し override（margin-left: 0.75rem）が \
+         復活している"
+    );
+    // すべての `.docs-header-actions` ルールブロックが margin-left: auto 以外の
+    // margin-left を宣言しないこと、および少なくとも 1 ブロックが
+    // margin-left: auto を宣言することを構造的に確認する。
     let mut search_from = 0usize;
-    let mut found_override_block = false;
-    while let Some(rel_selector_end) = css[search_from..].find(".docs-header-actions {") {
-        let selector_end = search_from + rel_selector_end + ".docs-header-actions {".len();
-        let block_close_rel = css[selector_end..]
+    let mut found_auto = false;
+    while let Some(rel) = css[search_from..].find(".docs-header-actions {") {
+        let block_start = search_from + rel + ".docs-header-actions {".len();
+        let block_close_rel = css[block_start..]
             .find('}')
             .expect(".docs-header-actions ルールブロックの閉じ } が見つからない");
-        let block = &css[selector_end..selector_end + block_close_rel];
-        if block.contains("margin-left: 0.75rem") {
-            found_override_block = true;
-            let selector_start = search_from + rel_selector_end;
-            let preceding = &css[..selector_start];
+        let block = &css[block_start..block_start + block_close_rel];
+        if block.contains("margin-left:") {
             assert!(
-                preceding.ends_with(".docs-header-nav + "),
-                "margin-left: 0.75rem を宣言する .docs-header-actions ルールは \
-                 直前が `.docs-header-nav + `（隣接セレクタ）でなければならない \
-                 （無条件セレクタでの override 復活はイシュー #951 の配置崩れを再発させる）: \
-                 selector 開始位置直前の文字列 = {:?}",
-                &preceding[preceding.len().saturating_sub(40)..]
+                block.contains("margin-left: auto;"),
+                ".docs-header-actions の margin-left は auto のみ許される（右寄せの唯一の手段）: {block}"
             );
+            found_auto = true;
         }
-        search_from = selector_end;
+        search_from = block_start;
     }
     assert!(
-        found_override_block,
-        "margin-left: 0.75rem を宣言する .docs-header-actions ルールが \
-         生成 CSS に見つからない（override 自体が削除されていないか確認）"
+        found_auto,
+        "margin-left: auto を宣言する .docs-header-actions ルールが生成 CSS に \
+         見つからない（右寄せ手段自体が失われていないか確認）"
     );
 }
 

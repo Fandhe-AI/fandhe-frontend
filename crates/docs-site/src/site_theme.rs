@@ -184,29 +184,20 @@ fn docs_theme() -> Result<Theme, ThemeError> {
         "rgba(0,0,0,0.55)",
     )?;
 
-    // ヘッダー内側の計測枠・3 カラム grid が共有する外枠幅（イシュー #949）。
-    // `.docs-header-inner` と `.docs-container` の双方が同じ値を `max-width` に
-    // 用いることで、ヘッダーのブランド文字左端とサイドバー・本文の左端が
-    // 同一 x 座標に揃う（`STRUCTURAL_CSS` の `.docs-header-inner` 規則参照）。
-    //
-    // 値は fandhe-backend の docs サイトとデザインを統一するため、
-    // fandhe-backend `site/assets/site.css`（`.docs-container { max-width:
-    // 88rem; }`）の値へ合わせた（旧 84rem、frontend 独自のイシュー #949
-    // 幅予算計算の起点だったが、下記 4 トークンの解説参照）。
+    // 3 カラム grid の外枠幅（イシュー #949）。値は fandhe-backend の docs
+    // サイトとデザインを統一するため、fandhe-backend `site/assets/site.css`
+    // （`.docs-container { max-width: 88rem; }`）の値へ合わせた（旧 84rem）。
+    // ヘッダー詳細統一（イシュー #1110 の続き）で `.docs-header-inner` は
+    // backend と同じ全幅バー（max-width なし・`padding: 0 1.5rem`）へ移行
+    // したため、本トークンを参照するのは `.docs-container` のみとなった
+    // （#949 の「ヘッダー左端とサイドバー左端を同一計測枠で揃える」設計は
+    // backend 統一を優先して廃止）。
     theme.push_space("docs-container-width", "88rem")?;
-    // カラム内側の左右余白（イシュー #949）。`.docs-header-inner` の
-    // padding-inline と `.docs-sidebar` / `.docs-toc-aside` の左右 padding が
-    // 共有する単一のドリフト源（従来は各所へ `1rem` を個別記述していた）。
-    //
-    // fandhe-backend の `.docs-header { padding: 0 1.5rem; }` は
-    // `max-width`/`margin: 0 auto` を持たない全幅要素の viewport 基準
-    // padding であり、`max-width: 88rem; margin: 0 auto` で中央寄せされた
-    // frontend の `.docs-header-inner`（backend の `.docs-container` と
-    // 同じ計測枠を共有する、下記コメント参照）へこの値をそのまま持ち込むと
-    // 意味が変わってしまう（backend では広い viewport でヘッダーとサイド
-    // バーの左端がそもそも揃っていない — #949 が是正した不整合そのもの）。
-    // このため `.docs-header-inner` の padding は変更せず、`docs-gutter`
-    // （1rem）を維持する。
+    // カラム内側の左右余白（イシュー #949）。`.docs-sidebar` /
+    // `.docs-toc-aside` の左右 padding が共有する単一のドリフト源。
+    // `.docs-header-inner` はヘッダー詳細統一（イシュー #1110 の続き）で
+    // fandhe-backend の `.docs-header { padding: 0 1.5rem; }`（全幅バーの
+    // viewport 基準 padding）と同値へ移行したため本トークンを参照しない。
     theme.push_space("docs-gutter", "1rem")?;
 
     // 構造寸法（3 カラム grid の左ナビ幅・本文最大幅・ヘッダー高さ・
@@ -299,13 +290,12 @@ body {\n\
 }\n\
 \n\
 /*\n\
- * ヘッダー内側の計測枠（イシュー #949）。`.docs-header` 自体は罫線\n\
- * （border-bottom）を全幅に伸ばすため padding を持たず、ブランド・ヘッダー\n\
- * ナビ・アクション群（`crate::layout::docs_page_with_assets` が組み立てる\n\
- * `div.docs-header-inner` の子）はすべてこの内側コンテナへ収める。\n\
- * `.docs-container`（下記）と同じ `--fandhe-space-docs-container-width` を\n\
- * `max-width` に、`margin: 0 auto` を共有することで、ヘッダー左端と\n\
- * 3 カラム grid の左端が同一の計測枠に載る。\n\
+ * ヘッダー内側の枠。fandhe-backend の docs サイトとヘッダーの見た目を\n\
+ * 統一するため（イシュー #1110 の続き）、backend `site/assets/site.css` の\n\
+ * `.docs-header { padding: 0 1.5rem; }` と同じ全幅バー（max-width なし・\n\
+ * viewport 基準 padding）にする。イシュー #949 の「ヘッダー左端と\n\
+ * サイドバー左端を同一計測枠（`--fandhe-space-docs-container-width` +\n\
+ * gutter）で揃える」設計は backend 統一を優先して廃止した。\n\
  */\n\
 .docs-header-inner {\n\
   display: flex;\n\
@@ -313,21 +303,16 @@ body {\n\
   width: 100%;\n\
   height: 100%;\n\
   min-width: 0;\n\
-  max-width: var(--fandhe-space-docs-container-width);\n\
-  margin: 0 auto;\n\
-  padding: 0 var(--fandhe-space-docs-gutter);\n\
+  padding: 0 1.5rem;\n\
 }\n\
 \n\
 /*\n\
- * ブランド文字の左端をサイドバーのリンク文字左端に揃える（イシュー #949）。\n\
- * サイドバーのリンク文字左端は `.docs-sidebar` の padding（gutter）+\n\
- * `.docs-sidebar nav.sidebar a` の透明 `border-left`（2px）+ リンク自身の\n\
- * padding（0.5rem）の総和で決まる。`.docs-header-inner` の padding は\n\
- * gutter で揃っているため、ここでは残りの内訳（2px + 0.5rem）だけを\n\
- * `.docs-brand` の padding-left へ足し込む。\n\
+ * ブランド。fandhe-backend `.docs-header a.docs-brand` と同値（イシュー\n\
+ * #1110 の続き。backend は brand に padding を持たない）。旧 #949 の\n\
+ * サイドバー左端揃え用 padding（0.32rem 0.5rem 0.32rem calc(0.5rem + 2px)）\n\
+ * は全幅バー化に伴い廃止した。\n\
  */\n\
 .docs-brand {\n\
-  padding: 0.32rem 0.5rem 0.32rem calc(0.5rem + 2px);\n\
   font-weight: 600;\n\
   font-size: 0.95rem;\n\
   letter-spacing: -0.01em;\n\
@@ -375,7 +360,9 @@ body {\n\
  */\n\
 .docs-header-trigger {\n\
   display: block;\n\
-  padding: 0.4rem 0.6rem;\n\
+  /* padding は fandhe-backend `.docs-header-trigger` と同値（イシュー\n\
+   * #1110 の続き、旧 0.4rem 0.6rem）。 */\n\
+  padding: 0.3rem 0.65rem;\n\
   border-radius: 0.4rem;\n\
   font: inherit;\n\
   font-size: 0.85rem;\n\
@@ -408,35 +395,36 @@ body {\n\
  * ---- ヘッダーアクション（GitHub リンク・テーマトグル、イシュー #951） ----\n\
  *\n\
  * `docs-header-nav` の有無に関わらず常に出力される（`crate::layout` 参照）。\n\
- * 基底帯域では `margin-left: auto` で右寄せする。`min-width: 768px` では\n\
- * `docs-header-nav` が存在する構成に限り同要素側も `margin-left: auto` を\n\
- * 持つため、下記 @media ブロックで `.docs-header-nav + .docs-header-actions`\n\
- * （隣接セレクタ）に絞って `docs-header-actions` の margin を打ち消す\n\
- * （`auto` が 2 つ並んで自由空間を分割するのを避ける）。`docs-header-nav`\n\
- * が存在しない構成（`header_nav: None`、例: `docs_page` 単体呼び出し）では\n\
- * この隣接セレクタが不成立のまま基底帯域の `margin-left: auto` が有効で\n\
- * あり続け、`min-width: 768px` 以上でもトレイリングエッジへ配置される\n\
- * （Bugbot 指摘 #951 是正、`crate::layout` の DOM 順序＝ brand →\n\
- * [nav if Some] → actions を前提とする）。\n\
+ * fandhe-backend `.docs-header-actions` と同値（イシュー #1110 の続き、\n\
+ * 旧 gap 0.5rem）: ヘッダーナビは brand 直後に左寄せ（`min-width: 768px`\n\
+ * ブロックの `.docs-header-nav { margin-left: 1.25rem; }` 参照）とし、\n\
+ * 右寄せは常に本要素の `margin-left: auto` のみが担う（旧設計の\n\
+ * `.docs-header-nav + .docs-header-actions` による auto 打ち消し override\n\
+ * は不要になり削除した。`header_nav: None` 構成でも同一規則で右端配置\n\
+ * される）。\n\
  */\n\
 .docs-header-actions {\n\
   display: flex;\n\
   align-items: center;\n\
-  gap: 0.5rem;\n\
+  gap: 0.9rem;\n\
   margin-left: auto;\n\
 }\n\
 \n\
+/*\n\
+ * GitHub リンクは枠なしのプレーンテキストリンク（fandhe-backend\n\
+ * `.docs-github-link` と同値、イシュー #1110 の続き。旧 padding/\n\
+ * border-radius/hover 背景は廃止）。色は既存 fandhe トークンのまま\n\
+ * （配色非統一は既決事項、コミット de83bc2）。\n\
+ */\n\
 .docs-github-link {\n\
   font-size: 0.85rem;\n\
+  font-weight: 500;\n\
   color: var(--fandhe-color-fg-muted);\n\
   text-decoration: none;\n\
-  padding: 0.4rem 0.6rem;\n\
-  border-radius: 0.4rem;\n\
 }\n\
 \n\
 .docs-github-link:hover {\n\
   color: var(--fandhe-color-fg);\n\
-  background: var(--fandhe-color-bg-subtle);\n\
 }\n\
 \n\
 .docs-github-link:focus-visible {\n\
@@ -444,21 +432,27 @@ body {\n\
   outline-offset: 2px;\n\
 }\n\
 \n\
+/*\n\
+ * テーマトグルはボタン風の枠付き（fandhe-backend `.docs-theme-toggle` と\n\
+ * 同値、イシュー #1110 の続き。旧: 枠なし・hover 背景のみ）。色は既存\n\
+ * fandhe トークンのまま（配色非統一は既決事項、コミット de83bc2）。\n\
+ */\n\
 .docs-theme-toggle {\n\
   display: block;\n\
-  background: none;\n\
-  border: none;\n\
-  cursor: pointer;\n\
-  padding: 0.4rem 0.6rem;\n\
-  border-radius: 0.4rem;\n\
   font: inherit;\n\
   font-size: 0.85rem;\n\
   font-weight: 500;\n\
-  color: var(--fandhe-color-fg);\n\
+  color: var(--fandhe-color-fg-muted);\n\
+  background: var(--fandhe-color-bg-subtle);\n\
+  border: 1px solid var(--fandhe-color-border);\n\
+  border-radius: 0.4rem;\n\
+  padding: 0.3rem 0.65rem;\n\
+  cursor: pointer;\n\
 }\n\
 \n\
 .docs-theme-toggle:hover {\n\
-  background: var(--fandhe-color-bg-subtle);\n\
+  color: var(--fandhe-color-fg);\n\
+  border-color: var(--fandhe-color-accent);\n\
 }\n\
 \n\
 .docs-theme-toggle:focus-visible {\n\
@@ -518,16 +512,23 @@ body {\n\
   border: 0;\n\
 }\n\
 \n\
+/*\n\
+ * 検索入力は fandhe-backend `.docs-search-input` の寸法（width 12rem・\n\
+ * padding 0.3rem 0.65rem・radius 0.4rem・subtle 背景）へ統一（イシュー\n\
+ * #1110 の続き。旧: width 100% + max-width 9rem・padding 0.35rem 0.6rem・\n\
+ * radius var(--fandhe-radius-sm)・bg 背景）。`min-width: 0` は狭幅帯域で\n\
+ * flex 縮小を許すために残す。font-size は既存トークン（0.85rem 相当）の\n\
+ * まま。\n\
+ */\n\
 .docs-search-input {\n\
-  width: 100%;\n\
-  max-width: 9rem;\n\
+  width: 12rem;\n\
   min-width: 0;\n\
   font: inherit;\n\
   font-size: var(--fandhe-font-font-size-sm);\n\
-  padding: 0.35rem 0.6rem;\n\
+  padding: 0.3rem 0.65rem;\n\
   border: 1px solid var(--fandhe-color-border);\n\
-  border-radius: var(--fandhe-radius-sm);\n\
-  background: var(--fandhe-color-bg);\n\
+  border-radius: 0.4rem;\n\
+  background: var(--fandhe-color-bg-subtle);\n\
   color: var(--fandhe-color-fg);\n\
 }\n\
 \n\
@@ -629,9 +630,11 @@ body {\n\
   left: 0;\n\
   display: none;\n\
   z-index: 20;\n\
-  min-width: 12rem;\n\
+  /* 寸法は fandhe-backend `.docs-header-dropdown` と同値（イシュー #1110\n\
+   * の続き、旧 min-width 12rem / padding 0.35rem）。 */\n\
+  min-width: 14rem;\n\
   margin: 0;\n\
-  padding: 0.35rem;\n\
+  padding: 0.4rem;\n\
   list-style: none;\n\
   border: 1px solid var(--fandhe-color-border);\n\
   border-radius: 0.5rem;\n\
@@ -648,12 +651,11 @@ body {\n\
 }\n\
 \n\
 /*\n\
- * `.docs-header-nav` は `margin-left: auto` で右寄せされる（上記 768px\n\
- * ブレークポイントの @media ブロック参照）ため、`.docs-header-menu` 内の\n\
- * 最後（最右）のグループは `left: 0` アンカーのままだとドロップダウンが\n\
- * ビューポート右端をはみ出してクリップされうる（Bugbot 指摘、イシュー #908\n\
- * PR #919 レビュー）。最後のグループのみ右端アンカー（`right: 0`）に\n\
- * 切り替えて右はみ出しを防ぐ。\n\
+ * 最後（最右）のグループのみ右端アンカー（`right: 0`）に切り替える\n\
+ * （Bugbot 指摘、イシュー #908 PR #919 レビュー由来）。ヘッダー統一\n\
+ * （イシュー #1110 の続き）でナビは brand 直後の左寄せになり右端に接する\n\
+ * 可能性は下がったが、狭幅（768px 直上）でセクション数が多い場合は依然\n\
+ * 右はみ出しが起こりうるため、防御規則として維持する。\n\
  */\n\
 .docs-header nav.docs-header-nav .docs-header-group:last-child > .docs-header-dropdown {\n\
   left: auto;\n\
@@ -1157,28 +1159,16 @@ nav.prev-next .next [data-part=\"overlay\"] {\n\
 \n\
   /* `.docs-header-nav`（セクション別ドロップダウン、イシュー #908）は\n\
    * この帯域から表示に切り替える。モバイルはサイドバー折りたたみトグルが\n\
-   * ナビ手段を提供するため基底では非表示のまま。 */\n\
+   * ナビ手段を提供するため基底では非表示のまま。配置は fandhe-backend\n\
+   * `.docs-header-nav { margin-left: 1.25rem; min-width: 0; }` と同値\n\
+   * （イシュー #1110 の続き）: brand 直後の左寄せとし、旧設計の\n\
+   * `margin-left: auto` 右寄せ + `.docs-header-nav + .docs-header-actions`\n\
+   * の auto 打ち消し override（イシュー #951）は廃止した（右寄せは\n\
+   * `.docs-header-actions` の `margin-left: auto` のみが担う）。 */\n\
   .docs-header-nav {\n\
     display: flex;\n\
-    margin-left: auto;\n\
-  }\n\
-\n\
-  /* `.docs-header-nav` が `margin-left: auto` で右寄せを担うこの帯域では\n\
-   * `.docs-header-actions` 側の `auto` を打ち消す（イシュー #951。\n\
-   * `auto` が 2 つ並んで自由空間を分割し、アクション群がヘッダー中央寄りに\n\
-   * ずれるのを防ぐ）。`header_nav` が `None`（`docs_page` 単体呼び出し等）の\n\
-   * ときは `.docs-header-nav` 自体が DOM 上に存在せず（`crate::layout`\n\
-   * 参照）この隣接セレクタが不成立となるため、`.docs-header-actions` は\n\
-   * 基底帯域の `margin-left: auto` のまま右端（トレイリングエッジ）へ\n\
-   * 配置される（Bugbot 指摘 #951 是正。無条件セレクタだと `header_nav`\n\
-   * なしの構成でブランド直後に居座ってしまっていた）。 */\n\
-  .docs-header-nav + .docs-header-actions {\n\
-    margin-left: 0.75rem;\n\
-  }\n\
-\n\
-  /* 帯域が広がった分だけ検索欄の縮小上限を緩める（イシュー #958）。 */\n\
-  .docs-search-input {\n\
-    max-width: 14rem;\n\
+    margin-left: 1.25rem;\n\
+    min-width: 0;\n\
   }\n\
 \n\
   nav.prev-next {\n\
@@ -2412,23 +2402,51 @@ mod tests {
     }
 
     #[test]
-    fn stylesheet_header_inner_and_container_share_the_same_layout_frame() {
-        // ヘッダー左端揃え（イシュー #949）の宣言固定テスト。トークン共有
-        // だけでなく、左端一致の総和に寄与する全宣言（container 枠 + gutter
-        // + ブランドの `calc(0.5rem + 2px)` + サイドバーの gutter padding）を
-        // 同時に固定する（トークンだけ見て寄与を見落とすと壊れる）。
+    fn stylesheet_header_is_a_full_width_bar_matching_backend() {
+        // ヘッダー詳細統一（イシュー #1110 の続き）の宣言固定テスト:
+        // `.docs-header-inner` は fandhe-backend の
+        // `.docs-header { padding: 0 1.5rem; }` と同じ全幅バーであり、
+        // イシュー #949 の中央寄せ計測枠（container-width の max-width +
+        // `margin: 0 auto` + gutter padding）を持たないこと、一方で
+        // `.docs-container`・`.docs-sidebar` は引き続きトークンを参照する
+        // ことを固定する。
         let sheet = stylesheet().expect("site theme stylesheet should assemble");
         let css = sheet.as_css();
 
-        assert!(css.contains(".docs-header-inner {"));
-        assert!(css.contains("max-width: var(--fandhe-space-docs-container-width);"));
-        assert!(css.contains("margin: 0 auto;"));
-        assert!(css.contains("padding: 0 var(--fandhe-space-docs-gutter);"));
+        let inner_start = css
+            .find(".docs-header-inner {")
+            .expect(".docs-header-inner rule should exist");
+        let inner_end = css[inner_start..]
+            .find('}')
+            .expect(".docs-header-inner rule should close");
+        let inner_block = &css[inner_start..inner_start + inner_end];
+        assert!(
+            inner_block.contains("padding: 0 1.5rem;"),
+            ".docs-header-inner は backend 同値の全幅 padding を持つ必要がある: {inner_block}"
+        );
+        for forbidden in ["max-width", "margin: 0 auto", "docs-gutter"] {
+            assert!(
+                !inner_block.contains(forbidden),
+                ".docs-header-inner は #949 の中央寄せ計測枠（{forbidden}）を復活させてはならない \
+                 （イシュー #1110 の続きで全幅バーへ統一済み）: {inner_block}"
+            );
+        }
 
         assert!(css.contains(".docs-container {\ndisplay: block;\nmax-width: var(--fandhe-space-docs-container-width);\nmargin: 0 auto;\n}"));
 
-        assert!(css.contains(".docs-brand {"));
-        assert!(css.contains("padding: 0.32rem 0.5rem 0.32rem calc(0.5rem + 2px);"));
+        // ブランドは backend 同様 padding を持たない（旧 #949 の左端揃え
+        // padding の復活を検知する）。
+        let brand_start = css
+            .find(".docs-brand {")
+            .expect(".docs-brand rule should exist");
+        let brand_end = css[brand_start..]
+            .find('}')
+            .expect(".docs-brand rule should close");
+        let brand_block = &css[brand_start..brand_start + brand_end];
+        assert!(
+            !brand_block.contains("padding"),
+            ".docs-brand は padding を持たない（backend 同値、イシュー #1110 の続き）: {brand_block}"
+        );
 
         assert!(css
             .contains(".docs-sidebar {\nwidth: 100%;\npadding: var(--fandhe-space-docs-gutter);"));
