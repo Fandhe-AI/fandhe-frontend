@@ -421,8 +421,14 @@ fn is_safe_asset_file_name(name: &str) -> bool {
 /// 否定できず、`out_dir` が git worktree（gh-pages デプロイ等）である
 /// 場合に `.git/config`・`.git/hooks/...` への書き出しは任意コード実行に
 /// つながり得るため、fail-closed 方針に沿って安全側に倒す（OWASP A01）。
+/// `.git` 判定は末尾の `.`（`is_safe_asset_file_name` の許可文字集合に
+/// 含まれる）を trim してから比較する。Windows の Win32 パス正規化は
+/// パスコンポーネント末尾の `.`（・空白）を除去するため、trim 無しでは
+/// `.git.` のような名前がホワイトリストを通過したうえで実際の `.git`
+/// ディレクトリへ正規化され得る（defense-in-depth の迂回、Cursor Bugbot
+/// 指摘・イシュー #1137 PR #1144 レビュー）。
 fn is_safe_asset_dir_segment(name: &str) -> bool {
-    is_safe_asset_file_name(name) && !name.eq_ignore_ascii_case(".git")
+    is_safe_asset_file_name(name) && !name.trim_end_matches('.').eq_ignore_ascii_case(".git")
 }
 
 /// [`generate_assets`] 用のアセットパス正規化・検証。
@@ -717,6 +723,26 @@ mod tests {
         assert!(!is_safe_asset_dir_segment(".Git"));
         assert!(!is_safe_asset_dir_segment("a/b"));
         assert!(!is_safe_asset_dir_segment("a\\b"));
+    }
+
+    /// `.git` の末尾に `.` を 1〜複数付加した名前（`.git.`・`.git..` 等）も
+    /// `.git` 判定として拒否することを固定する。Windows の Win32 パス
+    /// 正規化はパスコンポーネント末尾の `.` を除去するため、trim 無しの
+    /// 単純な `eq_ignore_ascii_case(".git")` 比較では `.git.` がホワイト
+    /// リストを通過し、実際には `.git` ディレクトリへ書き込まれてしまう
+    /// （Cursor Bugbot 指摘、イシュー #1137 PR #1144 レビュー）。
+    #[test]
+    fn is_safe_asset_dir_segment_rejects_git_with_trailing_dots() {
+        assert!(!is_safe_asset_dir_segment(".git."));
+        assert!(!is_safe_asset_dir_segment(".git.."));
+        assert!(!is_safe_asset_dir_segment(".git..."));
+        assert!(!is_safe_asset_dir_segment(".GIT."));
+        assert!(!is_safe_asset_dir_segment(".Git.."));
+
+        // 末尾ドット除去後も `.git` と一致しない名前は引き続き許可する
+        // （過剰拒否を防ぐ回帰）。
+        assert!(is_safe_asset_dir_segment(".gitignore"));
+        assert!(is_safe_asset_dir_segment(".gitx"));
     }
 
     /// `normalize_asset_path` の正常系（拡張子付き・拡張子なし・ネスト
