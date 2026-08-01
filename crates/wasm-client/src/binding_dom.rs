@@ -118,6 +118,22 @@ impl BindingTable {
     {
         self.apply_dirty(component.dirty_fields(), component);
     }
+
+    /// `field` を対象とする束縛点が対応表に 1 件でも存在するか
+    /// （イシュー #1120）。
+    ///
+    /// `fandhe-frontend-wasm-full` の `Runtime`（構造フォールバック、
+    /// `lib.rs::apply_update_for_dirty`）が、ある dirty field が
+    /// 「束縛点でもキーワード list でも処理されなかった」ことを判定する
+    /// ための前提 API。画面遷移のような束縛点・keyed list のいずれにも
+    /// 対応しない DOM 構造変化を検知し、全再描画フォールバックを発動する
+    /// トリガー判定に使う（本クレート自体は判定結果を使わず、事実の
+    /// 有無だけを返す）。
+    pub fn has_field(&self, field: &str) -> bool {
+        self.entries
+            .iter()
+            .any(|(spec, _)| spec.field.as_str() == field)
+    }
 }
 
 /// 束縛点 1 件へ値を適用する（種別ごとの DOM API 分岐、設計書 §4.1）。

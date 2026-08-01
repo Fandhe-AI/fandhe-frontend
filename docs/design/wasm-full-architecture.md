@@ -109,6 +109,7 @@ Phase 1（#336・`docs/design/dom-binding-update-design.md`）で束縛点最小
 | `nav::resolve_route_view_with` | `pub fn resolve_route_view_with<L, D>(list_loader: &L, detail_loader: &D, route: &ClientRoute) -> (&'static str, fandhe_frontend_core::Node) where L: fandhe_frontend_app::Loader<Input = (), Output = Vec<fandhe_frontend_app::Item>>, D: fandhe_frontend_app::Loader<Input = String, Output = Option<fandhe_frontend_app::Item>>`（本体はイシュー #374、タイトルはイシュー #407 で `fandhe_frontend_app::routes::title` へ委譲） | ルートを「タイトル + 描画済み Node」へ変換する。`crates/server/src/ssr.rs::respond_with` と同じ分岐構造・同一タイトル（`fandhe_frontend_app::routes::title` の単一定義）を使い、`csr::resolve_list_node`/`resolve_detail_node` を呼ぶ（fail-closed をそのまま継承） |
 | `nav::start_router` | `pub fn start_router(root_id: &str) -> Result<(), JsValue>`（wasm32 限定、本体はイシュー #374） | クライアント側ルーティングの起動配線。`document` レベルで `click`（`data-nav` 委譲）・`window` レベルで `popstate` を各 1 回だけ登録する。**起動時点では描画を行わない**（初期表示で loader を再実行しない凍結事項の遵守） |
 | `entry::start_router` | `#[wasm_bindgen] pub fn start_router(root_id: &str) -> Result<(), JsValue>`（本体はイシュー #374） | `nav::start_router` を呼ぶ薄い `#[wasm_bindgen]` エクスポート（`mount`/`hydrate` と同型の参照実装）。`RUNTIME`（`AppState` 状態管理）とは独立した別系統 |
+| `Runtime::rerender` | `pub fn rerender(&self)`（本体はイシュー #1120） | `root` サブツリーを現在の `component.view()` から丸ごと構築し直す構造フォールバック（§21 参照）を能動的に呼び出す公開 API。`Self::wire`/`Self::wire_signature_pad` が dirty field 検知経由で内部的に呼ぶのと同じ実装（`Self::rerender_subtree`）を、アプリ側から画面遷移等のタイミングで明示発動したい場合に使う。`component`/`root` の借用に失敗する場合（イベントハンドラ内からの再入等）は no-op（panic しない） |
 
 ### 3.3 設計方針の要点（2 層構成）
 
@@ -618,6 +619,114 @@ DOM 祖先を辿って `[data-part="branch-content"][hidden]` を探す方式は
 - native テスト（`crates/wasm-full/tests/keynav_native.rs`・`crates/wasm-full/src/keynav.rs` 内 `mod tests`）が純粋層を、`crates/wasm-full/tests/headless_wiring.rs` が `MAPPING_TABLE` のドリフト検知・fail-closed 系（`data-value` 欠落・`data-disabled`）を検証する。
 - 実ブラウザテスト（`crates/wasm-full/tests/keynav_browser.rs`、`wasm-pack test --headless --chrome`）は `wire_keynav` + `wire_headless_component` + `TreeView::render_nodes` を組み合わせた実マウント・再描画を構築し、受け入れ条件 2（キーボード操作による `aria-expanded`/`data-state`/`hidden` の実際の更新と、再描画後のフォーカス復元）を実証する。攻撃者制御ラベル（`<script>` を含む）での typeahead・Enter 操作が `script` 要素を生成しないことも固定する。
 - 新規外部パッケージ追加ゼロ・web-sys feature 追加ゼロ（`KeyboardEvent`/`HtmlElement`/`NodeList`/`Element` はいずれも既存機能で完結）。
+
+## 21. フォーム中心マルチ画面 SPA 対応（イシュー #1120）
+
+イシュー #1120 は、属性フォーム → 一覧 → 詳細/ウィザードの 3 画面 SPA を
+`Runtime<C>` に載せる評価から得た利用者フィードバックであり、次の 3 点を
+本イシューで解消する。
+
+### 21.1 構造フォールバック（全再描画）
+
+**背景**: `Self::wire`（イベント後更新）は #345 以降、束縛点更新
+（`BindingTable::apply_dirty`）と keyed list 更新
+（`find_list_element`/`apply_keyed_list`）のみを行う。dirty field が
+どちらにも該当しない場合（画面遷移のような大規模な DOM 構造変化）、従来は
+**黙って no-op** になっていた。
+
+**設計**: `Self::apply_update_for_dirty`（`Self::wire`・
+`Self::wire_signature_pad` の共通ロジック、本節で新設）が dirty field ごとに
+「[`fandhe_frontend_wasm_client::BindingTable::has_field`] が `false`、かつ
+keyed list としても解決できない」ことを検知し、1 件でもあれば
+`Self::rerender_subtree` を呼ぶ。
+
+`rerender_subtree` は `state.view()` → `fandhe_frontend_wasm_client::build_dom_node`
+で新しいサブツリーを構築し、`root` の全子ノードを `remove_child` で除去して
+`append_child` で 1 個の新規ノードへ差し替える（`nav::apply_render_with_post`
+が「複数の子を移し替える」のに対し、`Runtime::mount`/`Runtime::hydrate` が
+`dom::mount_initial`（`root.set_inner_html(render(component.view()))`）で
+`root` の内容として反映するのと同じ形状 = `state.view()` は 1 個の
+[`fandhe_frontend_core::Node`] であるため、その 1 個を `root` の唯一の子として
+追加するのみで足りる）。**`set_inner_html` は使わない**（#345 の不変条件
+「イベント後更新経路からは `set_inner_html` を呼ばない」を継続。`grep -rn
+set_inner_html crates/wasm-full/src crates/wasm-client/src` は引き続き
+`dom::mount_initial`/`wasm-client::mount_csr` の 2 箇所のみが該当する）。
+`build_dom_node` が `None`（`RawHtml` 混入等、fail-closed）を返す場合は
+既存 DOM を維持したまま固定英語文言で `console::warn` する。
+
+差し替え後、対応表（`BindingTable`）を再スキャンする。イベント委譲
+（`events::wire_events` 等）は `root` へ 1 回だけ登録され `closest`/`contains`
+ベースで都度探索するため、`root` 配下が丸ごと入れ替わっても再配線は不要である。
+
+**能動的呼び出し**: `Runtime::rerender(&self)`（§3.2 凍結表）は同じ実装を
+アプリ側から明示的に呼び出せる公開 API。`dirty_fields()` の自動検知に頼らず、
+画面遷移のタイミングを自分で判断したいアプリ向け。`component`/`root` の
+`try_borrow` に失敗する場合（`Self::wire` のクロージャが `try_borrow_mut` を
+保持しているイベントハンドラ内から呼んだ場合等）は no-op となる（呼び出しは
+自アプリのエントリポイントから行うこと。イベントハンドラ内で呼びたい場合は
+`Self::wire` の dispatch 完了後に自動検知される構造フォールバックへ任せる）。
+
+**意図的非採用ポリシーとの整合**: 本フォールバックは仮想 DOM の再導入では
+ない。diff 計算を一切行わず、`build_dom_node`（`createElement`/
+`createTextNode`/`set_attribute` のみ）でサブツリーを丸ごと再構築して
+差し替えるだけであり、`nav::apply_render_with_post` が既に採用済みの方式を
+`Runtime` へ一般化したものである（`docs/policy/intentional-non-adoption.md`
+の評価軸に照らし、明示性・決定性・機械検証可能性はむしろ向上する。従来の
+サイレント no-op が決定的な全再描画になる）。
+
+### 21.2 フォーム入力の属性契約 `data-action-input`/`data-action-change`
+
+**背景**: `events::action_from_input` は `id == "draft-input"` に
+ハードコードされ、PoC-5 由来のデモ専用経路だった。`<select>` の change は
+`wire_events` の対象外（input リスナーは `HtmlInputElement` へのキャストを
+前提とするため）で、select/date/radio/checkbox を dispatch へ配線する公式
+経路がなかった。
+
+**設計**: `events::ACTION_INPUT_ATTR`（`"data-action-input"`）/
+`events::ACTION_CHANGE_ATTR`（`"data-action-change"`）を新設し、
+`events::action_from_form_control(target, attr, value)`（純粋関数）が属性値を
+アクション名、フォーム値を payload として `ActionRef` を組み立てる。
+
+配線層（`events::wiring::wire_events`）は次のとおり拡張する。
+
+- `input`: `closest("[data-action-input]")` を優先し、一致しなければ従来の
+  `action_from_input`（`id="draft-input"`）へフォールバックする（既存デモ・
+  ブラウザテストの非退行）。
+- `change`（新規リスナー）: `closest("[data-action-change]")` に一致した
+  場合のみ dispatch する。
+- フォーム値抽出（`extract_form_value`）は `HtmlInputElement`
+  （`type="checkbox"`/`"radio"` は `checked` を `"true"`/`"false"` へ文字列化、
+  それ以外は `value`）→ `HtmlSelectElement`（`value`）→
+  `HtmlTextAreaElement`（`value`）の順にキャストを試みる。
+- `Closure::forget` は click/input/change の **3 回**に改訂する（#75 時点の
+  2 回から、無制限リークを避ける定数個の構造は不変）。
+
+payload（フォーム値）は文字列のまま `dispatch` → `decode_action` へ渡り、
+DOM 反映は必ず既定エスケープ（束縛点更新または `build_dom_node`）を経由する
+（REQ-1 不変条件、`events.rs` 内 native テストの XSS roundtrip 参照）。
+
+### 21.3 `wasm-bindgen-exports` feature
+
+**背景**: `entry` モジュール（アプリ側 `#[wasm_bindgen] mount`/`hydrate`/
+`start_router` の参照実装）が wasm32 で無条件エクスポートされるため、
+rlib として本クレートへ依存するだけで自アプリの `#[wasm_bindgen]`
+エクスポートとの名前衝突・バンドル肥大の懸念があった。
+
+**設計**: `fandhe-frontend-wasm-client`（`wasm-client/Cargo.toml` 参照）と同型の
+`wasm-bindgen-exports` feature（既定 on）を追加し、`pub mod entry;` のゲートを
+`#[cfg(all(target_arch = "wasm32", feature = "wasm-bindgen-exports"))]` へ
+変更した。既定 on のため既存利用者（`templates/app` の `wasm/Cargo.toml` 等）
+の挙動は変わらない。rlib 専用利用者（自前の `Runtime<C>` 組み立て・独自
+エントリポイントを持つアプリ）は `default-features = false` を選べば
+`entry` のエクスポートを除外できる。
+
+### 21.4 前提 API: `BindingTable::has_field`
+
+`fandhe-frontend-wasm-client`（0.1.2 → 0.1.3）に
+`BindingTable::has_field(&self, field: &str) -> bool` を追加した。§21.1 の
+構造フォールバック発動判定（「この dirty field は束縛点対応表に存在するか」）
+が消費する前提 API であり、`wasm-client/tests/binding_browser.rs` の
+実ブラウザテストで検証する。
 
 ### 20.7 既知のギャップ（本イシューでは対応しない、スコープ外）
 

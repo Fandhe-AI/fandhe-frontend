@@ -150,7 +150,15 @@ pub mod position;
 pub mod splitter;
 pub mod tooltip;
 
-#[cfg(target_arch = "wasm32")]
+// イシュー #1120: `wasm-bindgen-exports` feature（既定 on）でエクスポート面を
+// 切り離せるようにする。`entry` はアプリ側の薄い `#[wasm_bindgen]`
+// エクスポート参照実装であり、rlib 経由で本クレートに依存するだけの
+// 利用者（自前の Runtime<C> 組み立て・独自エントリポイントを持つアプリ）が
+// `default-features = false` を選べば、自アプリの `#[wasm_bindgen]`
+// エクスポートとの名前衝突・バンドル肥大を避けられる
+// （`Cargo.toml` の `[features]` doc・`wasm-client/Cargo.toml` の同型 feature
+// 参照）。
+#[cfg(all(target_arch = "wasm32", feature = "wasm-bindgen-exports"))]
 pub mod entry;
 
 mod dom;
@@ -210,6 +218,15 @@ pub struct Runtime<C: Component> {
     component: std::rc::Rc<std::cell::RefCell<C>>,
     /// マウント先ルート要素。イベント後更新（`Self::wire`）の対象。
     root: web_sys::Element,
+    /// 束縛点対応表のキャッシュ（イシュー #1120）。[`Self::wire`]/
+    /// [`Self::wire_signature_pad`] のクロージャと共有し、[`Self::rerender`]
+    /// が能動的に全再描画した後も同じキャッシュを更新できるようにする
+    /// （`Self::mount`/`Self::hydrate` が生成し、クロージャへは `clone()` で
+    /// 共有する。フィールドとして保持しないとクロージャ外から
+    /// `rerender()` が対応表を更新できず、次回イベント後更新が古い対応表を
+    /// 参照してしまう）。
+    binding_table:
+        std::rc::Rc<std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>>,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -286,6 +303,9 @@ where
     /// うるため、対応表の再スキャンをこのクロージャ専用の内部状態に
     /// 閉じ込めず外部から共有することで、どちらの経路で構造変化が
     /// 起きても両方の呼び出し元が同じ最新の対応表を参照できるようにする。
+    ///
+    /// dirty field ごとの更新適用そのものは [`Self::apply_update_for_dirty`]
+    /// （イシュー #1120 で `Self::wire_signature_pad` と共通化）へ委譲する。
     fn wire(
         component: std::rc::Rc<std::cell::RefCell<C>>,
         root: web_sys::Element,
@@ -315,43 +335,166 @@ where
                 return;
             }
 
-            if let Some(table) = binding_table.borrow().as_ref() {
-                table.apply_dirty(&dirty, &*state);
-            }
+            Self::apply_update_for_dirty(&state, &root, &binding_table, &dirty);
+        }
+    }
 
-            let mut structural_change = false;
-            if let Ok(document) = Self::document() {
-                for field in &dirty {
-                    let Ok(Some(list_element)) =
-                        fandhe_frontend_wasm_client::find_list_element(&root, field)
-                    else {
-                        continue;
-                    };
-                    let view = state.view();
-                    if let Some(list_node) =
-                        fandhe_frontend_wasm_client::find_keyed_list_node(&view, field)
-                    {
-                        fandhe_frontend_wasm_client::apply_keyed_list(
-                            &document,
-                            &list_element,
-                            list_node,
-                        );
-                        structural_change = true;
+    /// dispatch 後の dirty field 群を DOM へ反映する共通ロジック
+    /// （イシュー #1120 で `Self::wire`／`Self::wire_signature_pad` から
+    /// 共通化）。
+    ///
+    /// 1. [`fandhe_frontend_wasm_client::BindingTable::apply_dirty`] で
+    ///    束縛点（テキスト・属性・class）を更新する。
+    /// 2. dirty field ごとに keyed list（`[data-bind-list="<field>"]`）を
+    ///    探索し、見つかれば [`fandhe_frontend_wasm_client::apply_keyed_list`]
+    ///    で構造変化（挿入・削除・並べ替え）を適用する。
+    /// 3. 構造フォールバック（イシュー #1120、新規）: dirty field のうち
+    ///    「束縛点対応表に対応エントリが無く（[`fandhe_frontend_wasm_client::BindingTable::has_field`]
+    ///    が `false`）、かつ keyed list としても解決できなかった」ものが
+    ///    1 件でもあれば、`root` の全子ノードを [`state.view()`] →
+    ///    [`fandhe_frontend_wasm_client::build_dom_node`] で構築した新しい
+    ///    サブツリーへ丸ごと差し替える（[`nav`] モジュールの
+    ///    `apply_render_with_post` と同型、`set_inner_html` は使わない）。
+    ///    画面遷移のような「束縛点にも keyed list にも対応しない DOM 構造
+    ///    変化」を表現する経路が従来なく黙って no-op になっていた
+    ///    （イシュー #1120 フィードバック 1）ことの是正。
+    ///
+    /// イベント委譲（`events::wire_events` 等）は `root` へ 1 回だけ登録
+    /// されており、`closest`/`contains` ベースで都度探索するため、構造
+    /// フォールバックで `root` 配下の要素が丸ごと入れ替わっても再配線は
+    /// 不要である（`Runtime::rerender` doc 参照）。
+    ///
+    /// `build_dom_node` が `None`（`RawHtml` 混入等、fail-closed）を返す
+    /// 場合は既存 DOM を維持したまま固定英語文言で `console::warn` する
+    /// （内部状態を含めない、`lib.rs` クレート doc 不変条件 6 と同方針）。
+    fn apply_update_for_dirty(
+        state: &C,
+        root: &web_sys::Element,
+        binding_table: &std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+        dirty: &[&'static str],
+    ) {
+        if let Some(table) = binding_table.borrow().as_ref() {
+            table.apply_dirty(dirty, state);
+        }
+
+        let has_binding = |field: &str| -> bool {
+            binding_table
+                .borrow()
+                .as_ref()
+                .map(|table| table.has_field(field))
+                .unwrap_or(false)
+        };
+
+        let mut structural_change = false;
+        let mut unresolved_field = false;
+        match Self::document() {
+            Ok(document) => {
+                for field in dirty {
+                    match fandhe_frontend_wasm_client::find_list_element(root, field) {
+                        Ok(Some(list_element)) => {
+                            let view = state.view();
+                            if let Some(list_node) =
+                                fandhe_frontend_wasm_client::find_keyed_list_node(&view, field)
+                            {
+                                fandhe_frontend_wasm_client::apply_keyed_list(
+                                    &document,
+                                    &list_element,
+                                    list_node,
+                                );
+                                structural_change = true;
+                            } else if !has_binding(field) {
+                                unresolved_field = true;
+                            }
+                        }
+                        _ => {
+                            if !has_binding(field) {
+                                unresolved_field = true;
+                            }
+                        }
                     }
                 }
             }
-
-            // keyed list の挿入で新規ノードが増えた場合、その内部の
-            // `data-bind-text`/`data-bind-attr`/`data-bind-class` 束縛点は
-            // 直前の対応表に含まれていない。構造変化があった呼び出しに限り
-            // 対応表を再スキャンする（設計書 §5.2 のフォールバックと同じ
-            // 機構。毎呼び出しで再スキャンしないことで通常の
-            // テキスト/属性更新のコストを最小限に保つ）。
-            if structural_change {
-                *binding_table.borrow_mut() =
-                    fandhe_frontend_wasm_client::BindingTable::scan(&root).ok();
+            Err(_) => {
+                if dirty.iter().any(|field| !has_binding(field)) {
+                    unresolved_field = true;
+                }
             }
         }
+
+        // keyed list の挿入で新規ノードが増えた場合、その内部の
+        // `data-bind-text`/`data-bind-attr`/`data-bind-class` 束縛点は
+        // 直前の対応表に含まれていない。構造変化があった呼び出しに限り
+        // 対応表を再スキャンする（設計書 §5.2 のフォールバックと同じ
+        // 機構。毎呼び出しで再スキャンしないことで通常の
+        // テキスト/属性更新のコストを最小限に保つ）。
+        if structural_change {
+            *binding_table.borrow_mut() =
+                fandhe_frontend_wasm_client::BindingTable::scan(root).ok();
+        }
+
+        // イシュー #1120: 束縛点にも keyed list にも対応しない dirty field が
+        // 1 件でもあれば、`root` サブツリーを丸ごと差し替える全再描画へ
+        // フォールバックする（従来の黙った no-op を解消）。
+        if unresolved_field {
+            Self::rerender_subtree(state, root, binding_table);
+        }
+    }
+
+    /// `root` の全子ノードを `state.view()` から新規構築したサブツリーへ
+    /// 丸ごと差し替える構造フォールバック本体（イシュー #1120）。
+    ///
+    /// [`Self::apply_update_for_dirty`] の unresolved field 検知経路と、
+    /// 公開 API [`Self::rerender`]（能動的な明示呼び出し）の双方から呼ばれる
+    /// 唯一の実装。
+    ///
+    /// `state.view()` は `Self::mount`/`Self::hydrate` が
+    /// [`dom::mount_initial`]（`root.set_inner_html(render(component.view()))`）
+    /// で `root` の内容として反映するのと同じ 1 個の
+    /// [`fandhe_frontend_core::Node`] であるため、
+    /// [`fandhe_frontend_wasm_client::build_dom_node`] が返す 1 個のノードを
+    /// `root` の唯一の子として `append_child` する（[`nav`] モジュールの
+    /// `apply_render_with_post` が行う「複数の子を移し替える」変換とは対象の
+    /// ノード形状が異なるため、ここでは 1 個のノードをそのまま子として
+    /// 追加するのみで足りる）。`document()` 取得失敗・`build_dom_node` が
+    /// `None`（`RawHtml` 混入・不正タグ名等、fail-closed）を返す場合はいずれも
+    /// 既存 DOM を維持したまま no-op とし、固定英語文言で警告ログのみ残す
+    /// （内部状態を含めない、`lib.rs` クレート doc 不変条件 6）。
+    fn rerender_subtree(
+        state: &C,
+        root: &web_sys::Element,
+        binding_table: &std::rc::Rc<
+            std::cell::RefCell<Option<fandhe_frontend_wasm_client::BindingTable>>,
+        >,
+    ) {
+        let Ok(document) = Self::document() else {
+            web_sys::console::warn_1(
+                &"fandhe-frontend-wasm-full: Runtime structural fallback could not access document, \
+                  keeping existing DOM"
+                    .into(),
+            );
+            return;
+        };
+        let view = state.view();
+        let Some(new_node) = fandhe_frontend_wasm_client::build_dom_node(&document, &view) else {
+            web_sys::console::warn_1(
+                &"fandhe-frontend-wasm-full: Runtime structural fallback could not build \
+                  replacement DOM (unsupported node), keeping existing DOM"
+                    .into(),
+            );
+            return;
+        };
+        while let Some(child) = root.first_child() {
+            let _ = root.remove_child(&child);
+        }
+        let _ = root.append_child(&new_node);
+
+        // 差し替え後の DOM は新規ノードのため、旧対応表のエントリはすべて
+        // 無効。イベント委譲（`root` への delegation）は再配線不要だが、
+        // `apply_dirty`/`has_field` が次回以降の更新で新しい束縛点を参照
+        // できるよう対応表を再スキャンする。
+        *binding_table.borrow_mut() = fandhe_frontend_wasm_client::BindingTable::scan(root).ok();
     }
 
     /// CSR 経路（`docs/design/wasm-full-architecture.md` 第 3.2 節）。
@@ -396,7 +539,11 @@ where
         Self::wire_splitter(component.clone(), root.clone())?;
         Self::wire_signature_pad(component.clone(), root.clone(), binding_table.clone())?;
 
-        Ok(Self { component, root })
+        Ok(Self {
+            component,
+            root,
+            binding_table,
+        })
     }
 
     /// ハイドレーション経路（`docs/design/wasm-full-architecture.md` 第 3.2 節）。
@@ -448,7 +595,11 @@ where
         Self::wire_splitter(component.clone(), root.clone())?;
         Self::wire_signature_pad(component.clone(), root.clone(), binding_table.clone())?;
 
-        Ok(Self { component, root })
+        Ok(Self {
+            component,
+            root,
+            binding_table,
+        })
     }
 
     /// Avatar（`fandhe-frontend-headless-ui` `avatar` モジュール）の `img` 要素
@@ -714,47 +865,16 @@ where
             component,
             move |state: &C, updated_root: &web_sys::Element| {
                 // `Self::wire` の束縛点更新経路と同じロジック（差分反映の
-                // 二重実装を避けるため、両者は同じ `dirty_fields()` →
-                // `BindingTable::apply_dirty`/keyed list 差し替えの手順を
-                // 踏み、対応表キャッシュも共有する）。
+                // 二重実装を避けるため `Self::apply_update_for_dirty` へ
+                // 委譲する。両者は同じ `dirty_fields()` →
+                // `BindingTable::apply_dirty`/keyed list 差し替え/構造
+                // フォールバックの手順を踏み、対応表キャッシュも共有する。
+                // イシュー #1120 で共通化）。
                 let dirty: Vec<&'static str> = state.dirty_fields().to_vec();
                 if dirty.is_empty() {
                     return;
                 }
-
-                if let Some(table) = binding_table.borrow().as_ref() {
-                    table.apply_dirty(&dirty, state);
-                }
-
-                let mut structural_change = false;
-                if let Ok(document) = Self::document() {
-                    for field in &dirty {
-                        let Ok(Some(list_element)) =
-                            fandhe_frontend_wasm_client::find_list_element(updated_root, field)
-                        else {
-                            continue;
-                        };
-                        let view = state.view();
-                        if let Some(list_node) =
-                            fandhe_frontend_wasm_client::find_keyed_list_node(&view, field)
-                        {
-                            fandhe_frontend_wasm_client::apply_keyed_list(
-                                &document,
-                                &list_element,
-                                list_node,
-                            );
-                            structural_change = true;
-                        }
-                    }
-                }
-
-                // keyed list 挿入で新規ノードが増えた場合、`Self::wire` 経路の
-                // 対応表キャッシュを共有経由で再スキャンする（`Self::wire`
-                // 内の同種処理と同じフォールバック機構）。
-                if structural_change {
-                    *binding_table.borrow_mut() =
-                        fandhe_frontend_wasm_client::BindingTable::scan(updated_root).ok();
-                }
+                Self::apply_update_for_dirty(state, updated_root, &binding_table, &dirty);
             },
         )
     }
@@ -769,5 +889,36 @@ where
     /// マウント先ルート要素（テスト用途）。
     pub fn root(&self) -> &web_sys::Element {
         &self.root
+    }
+
+    /// `root` サブツリーを現在の `component.view()` から丸ごと構築し直し、
+    /// 明示的に全再描画する（イシュー #1120）。
+    ///
+    /// [`Self::apply_update_for_dirty`] の構造フォールバック（束縛点にも
+    /// keyed list にも対応しない dirty field を検知した場合の自動発動）と
+    /// 同じ実装（[`Self::rerender_subtree`]）を、アプリ側から能動的に呼び
+    /// 出せる公開 API として提供する。フォーム中心のマルチ画面 SPA が
+    /// 画面遷移（属性フォーム → 一覧 → 詳細）のような大規模な構造変化を
+    /// `dirty_fields()` の自動検知に頼らず明示的にトリガーしたい場合に使う
+    /// （イシュー #1120 フィードバック 1 の解消手段）。
+    ///
+    /// `events::wire_events`（`click`/`input`/`change` の委譲リスナー）は
+    /// `root` へ 1 回だけ登録され `closest`/`contains` ベースで都度探索する
+    /// ため、本メソッドで `root` 配下が丸ごと入れ替わっても再配線は不要
+    /// である。
+    ///
+    /// `component`/`root` の借用に失敗した場合（イベントハンドラ内からの
+    /// 再入等）は no-op とする（`.claude/rules/coding-rust.md`、panic しない
+    /// 安全側フォールバック）。具体的には、`Self::wire`（`events::wire_events`
+    /// の `on_action` コールバック）は dispatch 処理中 `component.try_borrow_mut()`
+    /// の排他借用を保持しているため、そのコールバック内（同期的な dispatch
+    /// 処理中）から本メソッドを呼ぶと確実に no-op となる。画面遷移等の
+    /// 能動的な全再描画は、アプリ自身のイベントハンドラ・エントリポイント
+    /// （`Self::wire` の外側、dispatch 完了後）から呼び出すこと。
+    pub fn rerender(&self) {
+        let Ok(state) = self.component.try_borrow() else {
+            return;
+        };
+        Self::rerender_subtree(&state, &self.root, &self.binding_table);
     }
 }
