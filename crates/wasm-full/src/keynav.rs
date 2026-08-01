@@ -70,11 +70,20 @@
 //! - ArrowDown/ArrowUp で次/前の非 disabled item-trigger へフォーカス移動、
 //!   Home/End で先頭/末尾へ。**循環はしない**（APG では循環はオプションであり、
 //!   決定的挙動として本実装は非循環を選ぶ）。
-//! - 開閉（Enter/Space）はネイティブ `<button>` の click 挙動と
-//!   `fandhe_frontend_interactive::dispatch`/`Accordion` 状態機械の責務であり、
-//!   本モジュールでは配線しない（フォーカス移動のみ）。roving tabindex も
-//!   accordion には適用しない（全 trigger が tabbable という APG 仕様のまま、
-//!   `crates/headless-ui/src/accordion.rs` の SSR 出力を変更しない）。
+//! - 開閉（Enter/Space）はネイティブ `<button>` の click 挙動を経由し、
+//!   `crate::headless::MAPPING_TABLE` の `("accordion", "item-trigger")` 行
+//!   （イシュー #1127 で追加）が `("toggle", data-value)` へ写像したうえで
+//!   `fandhe_frontend_interactive::dispatch`/`Accordion`/`MultiAccordion`
+//!   状態機械へ到達する。本モジュール（keynav）自身はこの委譲先の click
+//!   イベント発火のみに関与し、フォーカス移動のみを配線する。roving
+//!   tabindex も accordion には適用しない（全 trigger が tabbable という
+//!   APG 仕様のまま、`crates/headless-ui/src/accordion.rs` の SSR 出力を
+//!   変更しない）。
+//!   **経緯（#1127 以前の欠落）**: #1127 で `MAPPING_TABLE` へ行を追加する
+//!   まで `("accordion", "item-trigger")` は表に存在せず、ネイティブ
+//!   `<button>` の click イベント自体は発火していたが `crate::headless`
+//!   側の dispatch 配線が no-op のままだった（マウスクリック・キーボード
+//!   Enter/Space のいずれも開閉に反映されない状態）。
 //!
 //! # Menu / Select のキーボード仕様（WAI-ARIA APG Menu Button / Listbox 準拠）
 //!

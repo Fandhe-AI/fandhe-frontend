@@ -328,6 +328,7 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 | `tree-view` | `item` | `"select"` | `data-value` |
 | `calendar` | `prev-trigger` | `"prev-month"` | `""` |
 | `calendar` | `next-trigger` | `"next-month"` | `""` |
+| `accordion` | `item-trigger` | `"toggle"` | `data-value` |
 
 マッピング表は `&'static str` リテラル固定の静的配列であり、動的登録経路は持たない。`crates/wasm-full/tests/headless_wiring.rs` が headless-ui 実出力（`data-scope`/`data-part` 文字列）とのドリフトを機械検知する。
 
@@ -340,6 +341,8 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 `combobox` の 3 行はイシュー #1071（keynav へ Combobox のキーボード配線を追加する）で追加した。`crates/headless-ui/src/combobox.rs`（イシュー #749）は Combobox の SSR 出力と状態機械のみを提供し、実 DOM 上のクリック・キーボード配線を wasm 層へ申し送っていた。`menu`/`trigger-item` 欠落是正（#662）と同型の整備であり、`combobox`/`trigger` の欠落は `crates/wasm-full/src/keynav.rs` が合成する `HtmlElement::click()`（Arrow キーによる open/close・Escape によるクローズ）を no-op にし、`combobox`/`item` の欠落は Enter・highlight クリックによる確定を no-op にする。`combobox`/`clear-trigger` は `"clear"`（`ComboboxAction::Clear`）であり、`select`/`clear-trigger` の `"deselect"` とは意味が異なる。`combobox::clear_trigger` はテキスト入力欄を併せ持つ Combobox の「入力値と選択の両方をクリアする」ボタンであるため（`crates/headless-ui/src/combobox.rs::ComboboxAction::Clear` の実装参照）、`select` の「選択のみを解除する」`"deselect"` をそのまま流用しない。
 
 `toggle-group`/`item` 行はイシュー #1075（keynav へ NavigationMenu/ToggleGroup のキーボード配線を追加する）で追加した。`ToggleGroup`/`MultiToggleGroup` の `decode_action` はいずれも `"toggle"` のみを受理し `toggle_group::item` は `data-value` を常時出力するため、`menu`/`trigger-item`・`combobox` の欠落是正と同型の整備である。**`navigation-menu`/`trigger` 行は本イシューで追加していない**: `crates/headless-ui/src/navigation_menu.rs::trigger` は `data-value` を出力せず、`NavigationMenu::decode_action`（`SingleSelect` へ全委譲）は payload に項目値を要求するため、`requires_value: true` 行を足しても常に fail-closed（`None`）になり、`requires_value: false` 行を足すと `SingleSelectAction::Toggle("")` という誤った値をトグルしてしまう。恒久解は headless-ui 側の SSR 出力追加（別イシュー、§19.5 参照）。
+
+`accordion`/`item-trigger` 行はイシュー #1127 で追加した。`Accordion`（single、他項目は自動で閉じる）/`MultiAccordion`（multiple、対象項目のみトグル）はいずれも `decode_action` を `SingleSelect`/`MultiSelect` へ全委譲しており、`"toggle"` は項目値 payload 必須（`SingleSelectAction::Toggle`/`MultiSelectAction::Toggle`）。`navigation-menu`/`trigger`・`calendar`/`day-trigger` と同じ構造的欠落（クリック対象パーツが `data-value` を出力しない）だったが、本イシューでは恒久解（headless-ui 側の SSR 出力追加）を同時に実施した: headless-ui 0.27.0 で `accordion::item_trigger` が `data-value` を出力するよう破壊的変更（`value: &'a str` 引数の追加）を加えたうえで本行を追加した。`data-value` 追加前は `crates/wasm-full/src/keynav.rs` モジュール doc §Accordion が案内する「開閉（Enter/Space）はネイティブ `<button>` の click 挙動に委ねる」設計であっても、マウスクリック・キーボードのいずれも本表に行が無いため no-op のままだった（イシュー #1127 の背景）。
 
 ### 12.4 fail-closed 契約（受け入れ条件 3）
 
@@ -364,7 +367,7 @@ headless-ui（`fandhe-frontend-headless-ui`）の状態機械（`state::Disclosu
 ### 12.7 スコープ外（Issue 化をユーザーへ提案）
 
 - Menu item クリックでの close、Select の選択時 close 以外の close 制御（`select` は既存の `SelectAction::Select` 実装が closeOnSelect 相当を担うため対象外）。
-- Switch/Checkbox/Accordion/Avatar の配線（Switch は label 転送による click 二重発火と toggle 非冪等性の対策設計が必要）。
+- Switch/Checkbox/Avatar の配線（Switch は label 転送による click 二重発火と toggle 非冪等性の対策設計が必要。Accordion はイシュー #1127 で `item-trigger`/`"toggle"` 行を追加済みのため本項からは除外した）。
 - キーボード操作（Enter/Space/矢印キー・roving tabindex）・ESC/外側クリックでの close・Tooltip の hover 開閉。
 - headless コンポーネントの自動再描画（束縛点更新/`Runtime` 統合。`Runtime<C>` は `DirtyTracked + BindingSource` 境界を要求するため headless コンポーネントはそのままでは載らない）。
 - CLAUDE.md 委譲マッピング表への `crates/headless-ui/` 行の追加。

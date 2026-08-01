@@ -1760,6 +1760,7 @@ fn accordion_section() -> Node {
                     vec![accordion::item_trigger(
                         state,
                         false,
+                        value,
                         Some(trigger_id.as_str()),
                         Some(content_id.as_str()),
                         vec![],

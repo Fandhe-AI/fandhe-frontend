@@ -118,6 +118,7 @@ fn ex_accordion_disabled_item() -> Node {
                 accordion::item_trigger(
                     closed,
                     true,
+                    "unavailable",
                     Some("acc-ex-trigger"),
                     Some("acc-ex-content"),
                     vec![],
@@ -170,6 +171,12 @@ pub const ACCORDION: ComponentPageSpec = ComponentPageSpec {
             kind: "bool",
             default: "",
             description: "disabled 状態（ネイティブ disabled 属性 + data-disabled の両方へ反映）。",
+        },
+        ArgRow {
+            name: "item_trigger: value",
+            kind: "&str",
+            default: "",
+            description: "項目値。data-value へ出力し、wasm-full MAPPING_TABLE の \"toggle\" payload 契約として使う（イシュー #1127）。",
         },
         ArgRow {
             name: "item_trigger: id",

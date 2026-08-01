@@ -682,3 +682,140 @@ fn calendar_day_trigger_has_no_mapping_row_fail_closed() {
         None
     );
 }
+
+// --- イシュー #1127: Accordion（item-trigger クリック開閉）のドリフト
+// 検知 + dispatch 遷移検証 ---
+
+#[test]
+fn accordion_item_trigger_click_toggles_single_select() {
+    use fandhe_frontend_headless_ui::accordion::{self, Accordion};
+
+    let html = render(&accordion::item_trigger(
+        OpenState::Closed,
+        false,
+        "panel-1",
+        None,
+        None,
+        Vec::new(),
+        Vec::new(),
+    ));
+    assert_scope_part_present(&html, "accordion", "item-trigger");
+
+    let action_ref =
+        action_for_part(&part("accordion", "item-trigger", Some("panel-1"), false)).unwrap();
+    assert_eq!(action_ref.action, "toggle");
+    assert_eq!(action_ref.payload, "panel-1");
+
+    let mut a = Accordion::default();
+    assert!(dispatch(&mut a, &action_ref.action, &action_ref.payload));
+    assert!(a.is_open("panel-1"));
+
+    // single モード: 別項目のトグルで前項目が自動的に閉じる。
+    let other =
+        action_for_part(&part("accordion", "item-trigger", Some("panel-2"), false)).unwrap();
+    assert!(dispatch(&mut a, &other.action, &other.payload));
+    assert!(a.is_open("panel-2"));
+    assert!(!a.is_open("panel-1"));
+
+    // 再トグル（collapsible 挙動）で閉じる。
+    assert!(dispatch(&mut a, &other.action, &other.payload));
+    assert!(!a.is_open("panel-2"));
+}
+
+#[test]
+fn accordion_item_trigger_click_toggles_multi_select_independently() {
+    use fandhe_frontend_headless_ui::accordion::MultiAccordion;
+
+    let panel_1 =
+        action_for_part(&part("accordion", "item-trigger", Some("panel-1"), false)).unwrap();
+    let panel_2 =
+        action_for_part(&part("accordion", "item-trigger", Some("panel-2"), false)).unwrap();
+
+    let mut a = MultiAccordion::default();
+    assert!(dispatch(&mut a, &panel_1.action, &panel_1.payload));
+    assert!(dispatch(&mut a, &panel_2.action, &panel_2.payload));
+    // multiple モード: 複数項目が同時に開いたままになる。
+    assert!(a.is_open("panel-1"));
+    assert!(a.is_open("panel-2"));
+
+    // 個別トグルで対象項目のみ閉じる。
+    assert!(dispatch(&mut a, &panel_1.action, &panel_1.payload));
+    assert!(!a.is_open("panel-1"));
+    assert!(a.is_open("panel-2"));
+}
+
+#[test]
+fn accordion_item_trigger_without_data_value_is_noop() {
+    // `accordion::item_trigger` は headless-ui 0.27.0（イシュー #1127）以降
+    // `data-value` を常時出力するが、`MAPPING_TABLE` の fail-closed 契約
+    // （`requires_value: true`）自体を独立して固定する。
+    assert_eq!(
+        action_for_part(&part("accordion", "item-trigger", None, false)),
+        None
+    );
+}
+
+#[test]
+fn accordion_item_trigger_disabled_is_noop() {
+    assert_eq!(
+        action_for_part(&part("accordion", "item-trigger", Some("panel-1"), true)),
+        None
+    );
+}
+
+#[test]
+fn action_from_parts_is_none_when_ancestor_item_is_disabled_accordion() {
+    // accordion の item（祖先）が disabled、内側の item-trigger 自体は
+    // enabled。祖先列のいずれか 1 要素でも disabled なら全体を None とする
+    // fail-closed 契約（イシュー #580 PR #611 と同型の回帰）。
+    use fandhe_frontend_wasm_full::headless::action_from_parts;
+
+    let parts = vec![
+        part("accordion", "item-trigger", Some("panel-1"), false),
+        part("accordion", "item", None, true),
+    ];
+    assert_eq!(action_from_parts(&parts), None);
+}
+
+#[test]
+fn accordion_item_indicator_and_inner_text_click_resolve_via_ancestor_item_trigger() {
+    // item-indicator・内側テキスト相当（表にない part）のクリックは
+    // `action_from_parts` の内側優先探索により祖先の item-trigger（表内）へ
+    // フォールスルーする。
+    use fandhe_frontend_wasm_full::headless::action_from_parts;
+
+    let parts = vec![
+        part("accordion", "item-indicator", None, false),
+        part("accordion", "item-trigger", Some("panel-1"), false),
+    ];
+    let action_ref = action_from_parts(&parts).unwrap();
+    assert_eq!(action_ref.action, "toggle");
+    assert_eq!(action_ref.payload, "panel-1");
+}
+
+#[test]
+fn accordion_item_trigger_data_value_xss_payload_is_escaped_on_render() {
+    use fandhe_frontend_headless_ui::accordion::{self, Accordion};
+
+    let payload = "\"><script>alert(1)</script>";
+    let html = render(&accordion::item_trigger(
+        OpenState::Closed,
+        false,
+        payload,
+        None,
+        None,
+        Vec::new(),
+        Vec::new(),
+    ));
+    assert!(!html.contains("<script>alert(1)</script>"));
+    assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+
+    let action_ref =
+        action_for_part(&part("accordion", "item-trigger", Some(payload), false)).unwrap();
+    let mut a = Accordion::default();
+    assert!(dispatch(&mut a, &action_ref.action, &action_ref.payload));
+
+    let rendered_html = render(&fandhe_frontend_interactive::render_for_hydration(&a));
+    assert!(!rendered_html.contains("<script>alert(1)</script>"));
+    assert!(rendered_html.contains("&lt;script&gt;"));
+}

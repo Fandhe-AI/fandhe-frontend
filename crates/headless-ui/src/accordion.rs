@@ -26,6 +26,11 @@
 //! `fandhe-frontend-pre-styled-ui`（#546〜）が本モジュールを呼んで
 //! スタイル済み Accordion を組み立てる想定である。
 //!
+//! [`item_trigger`] は `data-value` を出力する（イシュー #1127）。これは
+//! `fandhe-frontend-wasm-full` の `headless.rs::MAPPING_TABLE` が
+//! `("accordion", "item-trigger")` クリックを `"toggle"` アクションへ写像
+//! する際の payload 契約であり、単なる装飾属性ではない。
+//!
 //! # セキュリティ不変条件
 //!
 //! - 属性名（`data-*`/`aria-*`/`type`/`role`/`hidden`/`disabled`/`id`）は
@@ -100,10 +105,22 @@ pub fn item<'a>(
 /// と同じ判断を踏襲する）。`controls` が `Some` のとき
 /// `aria-controls` で [`item_content`] と関連付ける。`disabled` はネイティブ
 /// `disabled` 存在属性と `data-disabled` の両方へ反映する。
+///
+/// イシュー #1127: `fandhe-frontend-wasm-full` の headless 配線基盤
+/// （`wasm-full/src/headless.rs::MAPPING_TABLE`）が
+/// `(data-scope, data-part) = ("accordion", "item-trigger")` クリックを
+/// `"toggle"` アクション（[`SingleSelectAction::Toggle`]/
+/// [`MultiSelectAction::Toggle`]、いずれも項目値 payload 必須）へ写像する
+/// 際の payload 源として `value` を `data-value` へ出力する（Tabs の
+/// `trigger`（#580）と同型の契約）。この出力を欠くと
+/// `requires_value: true` 行は常に fail-closed（`None`）となりクリック
+/// でもキーボード（Enter/Space、ネイティブ `<button>` click 発火経由）
+/// でも開閉が no-op のままになる。
 #[must_use]
 pub fn item_trigger<'a>(
     state: OpenState,
     disabled: bool,
+    value: &'a str,
     id: Option<&'a str>,
     controls: Option<&'a str>,
     attrs: Vec<(&'a str, &'a str)>,
@@ -113,6 +130,7 @@ pub fn item_trigger<'a>(
         ("type", "button"),
         aria_expanded(state.is_open()),
         data_state(state.as_data_state()),
+        ("data-value", value),
     ];
     if let Some(id) = id {
         merged.push(("id", id));
@@ -242,6 +260,7 @@ impl Accordion {
         item_trigger(
             self.item_state(value),
             disabled,
+            value,
             id,
             controls,
             attrs,
@@ -371,6 +390,7 @@ impl MultiAccordion {
         item_trigger(
             self.item_state(value),
             disabled,
+            value,
             id,
             controls,
             attrs,
@@ -471,6 +491,7 @@ mod tests {
         let html = render(&item_trigger(
             OpenState::Closed,
             false,
+            "a",
             None,
             None,
             vec![],
@@ -486,6 +507,7 @@ mod tests {
         let html_open = render(&item_trigger(
             OpenState::Open,
             false,
+            "a",
             None,
             None,
             vec![],
@@ -499,6 +521,7 @@ mod tests {
         let html = render(&item_trigger(
             OpenState::Closed,
             false,
+            "t-trigger-a",
             Some("t-trigger-a"),
             Some("t-content-a"),
             vec![],
@@ -513,6 +536,7 @@ mod tests {
         let html = render(&item_trigger(
             OpenState::Closed,
             true,
+            "a",
             None,
             None,
             vec![],
@@ -527,6 +551,7 @@ mod tests {
         let html = render(&item_trigger(
             OpenState::Closed,
             false,
+            "a",
             None,
             None,
             vec![],
@@ -534,6 +559,57 @@ mod tests {
         ));
         assert!(!html.contains("data-disabled"));
         assert!(!html.contains(" disabled"));
+    }
+
+    // イシュー #1127: `data-value` は wasm-full `MAPPING_TABLE` の
+    // `"toggle"` payload 契約であり、単なる装飾属性ではない。Tabs の
+    // `trigger_outputs_data_value_matching_item_value`（#580）と同型の
+    // 回帰テスト。
+    #[test]
+    fn item_trigger_outputs_data_value_matching_item_value() {
+        let html_a = render(&item_trigger(
+            OpenState::Closed,
+            false,
+            "a",
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(html_a.contains(r#"data-value="a""#));
+
+        let html_b = render(&item_trigger(
+            OpenState::Open,
+            false,
+            "b",
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(html_b.contains(r#"data-value="b""#));
+    }
+
+    // `data-value` は wasm-full 側で改ざんされうるクライアント入力（クリック時
+    // に payload として再度読まれる）だが、SSR 出力自体は `ANATOMY.part` 経由
+    // で既定エスケープを必ず経由することを固定する（REQ-1、Tabs の
+    // `trigger_data_value_payload_is_escaped_on_render` と同型）。
+    #[test]
+    fn item_trigger_data_value_payload_is_escaped_on_render() {
+        let payload = "\"><script>alert(1)</script>";
+        let html = render(&item_trigger(
+            OpenState::Closed,
+            false,
+            payload,
+            None,
+            None,
+            vec![],
+            vec![],
+        ));
+        assert!(!html.contains("<script>alert(1)</script>"));
+        assert!(!html.contains(r#""><script"#));
+        assert!(html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"));
+        assert!(html.contains("&quot;"));
     }
 
     #[test]
@@ -615,6 +691,7 @@ mod tests {
                     item_trigger(
                         OpenState::Open,
                         false,
+                        "a",
                         Some("t-trigger-a"),
                         Some("t-content-a"),
                         vec![],
@@ -635,7 +712,7 @@ mod tests {
             concat!(
                 r#"<div data-scope="accordion" data-part="root">"#,
                 r#"<div data-scope="accordion" data-part="item" data-state="open">"#,
-                r#"<button data-scope="accordion" data-part="item-trigger" type="button" aria-expanded="true" data-state="open" id="t-trigger-a" aria-controls="t-content-a">"#,
+                r#"<button data-scope="accordion" data-part="item-trigger" type="button" aria-expanded="true" data-state="open" data-value="a" id="t-trigger-a" aria-controls="t-content-a">"#,
                 r#"<span data-scope="accordion" data-part="item-indicator" data-state="open">+</span>"#,
                 r#"</button>"#,
                 r#"<div data-scope="accordion" data-part="item-content" data-state="open" id="t-content-a" role="region" aria-labelledby="t-trigger-a">panel A</div>"#,
@@ -776,6 +853,7 @@ mod tests {
         let html = render(&item_trigger(
             OpenState::Closed,
             false,
+            ATTR_BREAK_PAYLOAD,
             Some(ATTR_BREAK_PAYLOAD),
             Some(ATTR_BREAK_PAYLOAD),
             vec![],

@@ -37,6 +37,7 @@ fn two_item_accordion(open_value: &str) -> String {
                     item_trigger(
                         state,
                         false,
+                        value,
                         Some(&trigger_id),
                         Some(&content_id),
                         vec![],
@@ -149,6 +150,7 @@ fn xss_payload_in_ids_and_children_is_escaped_on_render() {
                 item_trigger(
                     OpenState::Open,
                     false,
+                    payload,
                     Some(payload),
                     Some(payload),
                     vec![],

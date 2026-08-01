@@ -31,6 +31,7 @@ pub(super) fn accordion_section() -> Node {
                     accordion::item_trigger(
                         open,
                         false,
+                        "faq-0",
                         Some("acc-trigger-0"),
                         Some("acc-content-0"),
                         vec![],
@@ -56,6 +57,7 @@ pub(super) fn accordion_section() -> Node {
                     accordion::item_trigger(
                         closed,
                         false,
+                        "faq-1",
                         Some("acc-trigger-1"),
                         Some("acc-content-1"),
                         vec![],
