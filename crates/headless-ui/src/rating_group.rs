@@ -726,7 +726,7 @@ mod tests {
                 r#"<span data-scope="rating-group" data-part="item" data-value="2" role="radio" aria-checked="false" aria-label="2 stars" data-highlighted=""></span>"#,
                 r#"<span data-scope="rating-group" data-part="item" data-value="3" role="radio" aria-checked="true" aria-label="3 stars" data-checked="" data-highlighted=""></span>"#,
                 r#"</div>"#,
-                r#"<input data-scope="rating-group" data-part="hidden-input" type="hidden" value="3" name="rating"></input>"#,
+                r#"<input data-scope="rating-group" data-part="hidden-input" type="hidden" value="3" name="rating">"#,
                 r#"</div>"#,
             )
         );

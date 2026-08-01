@@ -56,7 +56,7 @@ fandhe-frontend-spec リポジトリで行う）。
 | 1 | マクロ DSL（`view!`/`rsx!`/`html!` 相当）を提供しない | PoC-1 が特定した差別化空白 D。PoC-2 の依存グラフ実測（マクロ DSL 構成 202 件/深さ14 → 純 Rust 構成 52 件/深さ5、`docs/policy/dependency-graph-policy.md` 第 2 節）。REQ-5 概要・詳細 |
 | 2 | タグ名は `tag: &'static str` に固定し、かつ出力前に `is_valid_tag_name` ホワイトリスト検証を行う多層防御を維持する | `&'static str` は値の有効期間のみを保証し文字内容は保証しないため（`Box::leak` によるタグ名注入が型検査をすり抜け得る、PR #166 Bugbot 指摘）。`crates/core/src/lib.rs` 不変条件 5 |
 | 3 | 属性名はホワイトリスト検証（英数字・`-`・`_`・`:` のみ許可）し、不正な属性名は panic させず出力からスキップする | 属性名スロット経由の注入（追加属性の割り込み）を遮断するため。`crates/core/src/lib.rs` 不変条件 4、ライブラリコードでの panic 回避規約（`.claude/rules/coding-rust.md`） |
-| 4 | void 要素（`br`/`img`/`input` 等）は v1 では常に終了タグを出力する現行仕様を凍結する | 現行実装の既知の制約として記録する。自己終了タグ出力（`<br />` 等）の最適化は本書のスコープ外とし、将来課題として TASK-5.1b 以降に挙動変更を混入させない（第 8 節参照） |
+| 4 | void 要素（HTML Standard 13.1.2 の 13 要素: `area`/`base`/`br`/`col`/`embed`/`hr`/`img`/`input`/`link`/`meta`/`source`/`track`/`wbr`）は start tag のみで自己終端し、終了タグを出力しない（`<br>` であって `<br></br>` ではない）。渡した `children` は一切出力されない | イシュー #1139（v1 の「常に終了タグを出力する」凍結仕様からの破壊的変更）。`</br>` が HTML パーサーに 2 個目の `<br>` として解釈される SSR/ハイドレーション DOM 乖離を解消する。詳細は `docs/design/void-element-serialization.md` |
 | 5 | 大文字を含むタグ名（例: `DIV`）はそのまま出力する現行挙動を凍結する | `is_valid_tag_name` が `is_ascii_alphabetic`/`is_ascii_alphanumeric` で判定するため許可される。HTML の小文字化はフレームワークの責務外という現状の実装どおりの挙動を明文化する |
 | 6 | JSON-LD 埋め込み（`json_ld`）は、シリアライズ済み JSON 文字列を受け取り `<` `>` `&`・U+2028/U+2029 のみを `\uXXXX` へ中立化してから内部で `raw_html` を呼ぶ wrapper 方式とする（イシュー #1117） | `<script>` は raw text 要素で実体参照が復号されないため既定エスケープをそのまま適用すると JSON が壊れる。妥当な JSON では上記の文字はリテラル内にしか出現し得ないため全置換は意味保存（`JSON.parse` 結果を変えない）。JSON バリデーションは行わない fail-safe 設計とし、不正入力でも出力に生の `<` `>` `&` が残らないことをテストで固定する。`json_ld` を `raw_html` の唯一のフレームワーク内呼び出し元として審査済みとし、利用者コード側に個別の `#[expect(clippy::disallowed_methods)]` を書かせない（`docs/policy/raw-html-review-gate.md` の正規書式に従う） |
 
@@ -106,7 +106,7 @@ div, p, ul, li, a, h1, main_tag（"main" タグへの薄い委譲）
 | 状態管理（`fandhe-frontend-interactive` クレート） | 別クレート（TASK-5.1 系の対象外） |
 | イベントハンドラ API | WASM 層（`fandhe-frontend-wasm-client`/`fandhe-frontend-wasm-full`）のタスク |
 | 網羅的タグヘルパー群・インデント規約 | Issue #164 |
-| void 要素の自己終了出力最適化 | 本書第 3 節・第 8 節に既知の制約として記録（未起票、第 8 節参照） |
+| void 要素の自己終了出力 | イシュー #1139 で実装済み（第 3 節・判断 4、第 8 節参照） |
 
 ## 6. セキュリティ不変条件の引き継ぎ
 
@@ -250,7 +250,6 @@ let node = div(vec![("class", "card")], vec![p(vec![], vec![text("hello")])]);
 assert_eq!(render(&node), r#"<div class="card"><p>hello</p></div>"#);
 ```
 
-**既知の制約（第 3 節・判断 4 の再掲）**: void 要素（`br`/`img`/`input` 等）に対して
-上記と同じ形式でショートカットを追加した場合も、v1 では常に終了タグが出力される
-（例: `<br></br>`）。これは自己終端出力の最適化を行わない現行仕様の意図した挙動であり、
-バグではない。
+**void 要素の挙動（第 3 節・判断 4 の再掲、イシュー #1139）**: void 要素（`br`/`img`/`input` 等）に対して
+上記と同じ形式でショートカットを追加した場合、start tag のみで自己終端し（例: `<br>`）、
+渡した `children` は一切出力されない。

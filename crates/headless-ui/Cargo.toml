@@ -16,5 +16,5 @@ categories = ["web-programming", "gui"]
 # クレートではなく本 workspace 内部の path 依存。structure.toml の
 # depends_on = ["core", "interactive"] と完全一致させること、fw gate が検証する）。
 [dependencies]
-fandhe-frontend-core = { path = "../core", version = "0.1.2" }
-fandhe-frontend-interactive = { path = "../interactive", version = "0.1.0" }
+fandhe-frontend-core = { path = "../core", version = "0.2.0" }
+fandhe-frontend-interactive = { path = "../interactive", version = "0.2.0" }

@@ -64,7 +64,7 @@ fn full_anatomy_renders_expected_html() {
         r#"<span data-scope="rating-group" data-part="item" data-value="1" role="radio" aria-checked="false" aria-label="1 star" data-highlighted=""></span>"#,
         r#"<span data-scope="rating-group" data-part="item" data-value="2" role="radio" aria-checked="true" aria-label="2 stars" data-checked="" data-highlighted=""></span>"#,
         r#"</div>"#,
-        r#"<input data-scope="rating-group" data-part="hidden-input" type="hidden" value="2" name="rating"></input>"#,
+        r#"<input data-scope="rating-group" data-part="hidden-input" type="hidden" value="2" name="rating">"#,
         r#"</div>"#,
     );
 

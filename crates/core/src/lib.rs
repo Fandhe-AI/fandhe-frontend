@@ -109,11 +109,20 @@
 //! テスト（XSS 回帰含む）が固定する。詳細な安全性根拠は [`json_ld`]
 //! モジュールの doc を参照。
 //!
-//! ## スコープ外
+//! ## void 要素の自己終端出力（イシュー #1139）
 //!
-//! void 要素の自己終了処理は本クレートでは扱わない。`docs/api/component-api.md`
-//! 第 3 節に記載のとおり、v1 では常に終了タグを出力する現行仕様を意図した
-//! 挙動として凍結する。
+//! [`render`] は HTML Standard 13.1.2 が定める 13 個の void 要素
+//! （`area`/`base`/`br`/`col`/`embed`/`hr`/`img`/`input`/`link`/`meta`/
+//! `source`/`track`/`wbr`）を start tag のみで自己終端させ、終了タグを
+//! 出力しない（`<input ...>` であって `<input ...></input>` ではない）。
+//! v1 で「常に終了タグを出力する」としていた現行仕様（`docs/api/component-api.md`
+//! 旧第 3 節）を破壊的に変更したものであり、`</br>` が HTML パーサーに
+//! 2 個目の `<br>` として解釈される SSR/ハイドレーション DOM 乖離を解消する。
+//! void 要素へ渡した children（`Node::Text`/`Node::RawHtml` を含む）は
+//! 一切出力されない（不正な用法だが panic させず「出力しない」で安全側に
+//! 倒す fail-closed 方針。不変条件 2 が定めるエスケープ迂回経路の新設には
+//! 当たらない）。設計判断の詳細は `docs/design/void-element-serialization.md`
+//! を参照。
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -502,13 +511,43 @@ fn render_into(node: &Node, out: &mut String) {
                 out.push('"');
             }
             out.push('>');
-            // void 要素の自己終了処理は本クレートのスコープ外（常に終了タグを出す）。
+            if is_void_element(tag) {
+                // void 要素（HTML Standard 13.1.2 の 13 要素）は終了タグを
+                // 持たない。start tag のみで自己終端させ、children は出力しない
+                // （イシュー #1139）。`<br />` のような trailing slash は
+                // HTML パーサーが無視するノイズであり付与しない
+                // （`docs/design/void-element-serialization.md` 判断 1）。
+                // children を渡す呼び出しは不正な用法だが panic させず
+                // 「出力しない」で安全側に倒す（不正タグ名・不正属性名と
+                // 同型の fail-closed 方針、`docs/design/void-element-serialization.md`
+                // 判断 3。`Node::RawHtml` の child であっても同様にドロップし、
+                // 既定エスケープ迂回経路を新設しない）。
+                return;
+            }
             for child in children {
                 render_into(child, out);
             }
             let _ = write!(out, "</{}>", tag);
         }
     }
+}
+
+/// HTML Standard 13.1.2 が定める void 要素（終了タグを持たない要素）の一覧。
+///
+/// [`render_into`] が終了タグ省略・自己終端出力の判定に使う唯一の情報源。
+/// 小文字の完全一致で判定する（`is_valid_tag_name` が大文字タグ名を
+/// 拒否済みのため、フレームワーク経由で到達するタグ名は常に小文字）。
+const VOID_ELEMENTS: &[&str] = &[
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track",
+    "wbr",
+];
+
+/// `tag` が void 要素かどうかを判定する。
+///
+/// [`VOID_ELEMENTS`] に対する完全一致のみで判定し、ヒューリスティックは
+/// 持たない（SVG/MathML の非 void 要素との誤判定を避けるため）。
+fn is_void_element(tag: &str) -> bool {
+    VOID_ELEMENTS.contains(&tag)
 }
 
 #[cfg(test)]
@@ -821,5 +860,60 @@ mod tests {
         assert!(!html.contains("hidden"));
         assert!(html.contains("class=\"card\""));
         assert!(html.contains("data-count=\"3\""));
+    }
+
+    /// void 要素（HTML Standard 13.1.2 の 13 要素）が start tag のみで
+    /// 自己終端し、終了タグを一切出力しないことを固定する（イシュー #1139）。
+    #[test]
+    fn all_void_elements_self_terminate_without_closing_tag() {
+        for tag in [
+            "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source",
+            "track", "wbr",
+        ] {
+            let html = render(&el(tag, vec![("id", "x")], vec![]));
+            assert_eq!(
+                html,
+                format!("<{tag} id=\"x\">"),
+                "void 要素 {tag} は終了タグなしで自己終端するべき"
+            );
+            assert!(
+                !html.contains(&format!("</{tag}>")),
+                "void 要素 {tag} の出力に終了タグが混入した: {html}"
+            );
+        }
+    }
+
+    /// void 要素へ渡した children（`Text`/`RawHtml` を含む）は一切出力
+    /// されない（不正な用法だが panic させず「出力しない」で安全側に倒す
+    /// fail-closed 方針。イシュー #1139）。XSS ペイロードを child に与えても
+    /// 一切出力されないことを併せて固定する。
+    #[test]
+    fn void_element_children_including_raw_html_are_dropped() {
+        #[expect(
+            clippy::disallowed_methods,
+            reason = "ESCAPE-REVIEWED: void 要素の children ドロップを検証するテスト固定文字列。外部入力を含まない"
+        )]
+        let node = el(
+            "br",
+            vec![],
+            vec![
+                text("<script>alert(1)</script>"),
+                raw_html("<script>alert(2)</script>"),
+            ],
+        );
+        let html = render(&node);
+        assert_eq!(html, "<br>");
+        assert!(!html.contains("script"));
+    }
+
+    /// 非 void 要素は従来どおり終了タグを出力する回帰確認（void 判定が
+    /// 誤って非 void 要素へ波及していないことを固定する）。
+    #[test]
+    fn non_void_elements_still_render_closing_tag() {
+        assert_eq!(render(&el("div", vec![], vec![])), "<div></div>");
+        assert_eq!(
+            render(&el("span", vec![], vec![text("x")])),
+            "<span>x</span>"
+        );
     }
 }
