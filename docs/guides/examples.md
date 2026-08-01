@@ -17,7 +17,7 @@ cargo-deny（`tools/ci/ensure-gate-tools.sh` で導入）」の 3 点です。�
 | サンプル | 目的（何が作れるか） | 主要クレート | 追加で必要なもの | 所要目安 |
 |---|---|---|---|---|
 | [ssr-routing](../../examples/ssr-routing/README.md) | `Loader`・`respond_with`・`Router` による SSR ページの構築 | `fandhe-frontend-core` / `-app` / `-server` | なし | 短 |
-| [ssg-blog](../../examples/ssg-blog/README.md) | `generate_pages` による静的サイト（ブログ）の書き出し | `fandhe-frontend-core` / `-server` | なし | 短 |
+| [ssg-blog](../../examples/ssg-blog/README.md) | `generate_pages` / `generate_assets` による静的サイト（ブログ + sitemap.xml / robots.txt）の書き出し | `fandhe-frontend-core` / `-server` | なし | 短 |
 | [dist-server-docker](../../examples/dist-server-docker/README.md) | 単一バイナリ配布・Docker イメージでのデプロイ | `fandhe-frontend-dist-server` | Docker（イメージのビルド・起動を試す場合） | 中 |
 | [interactive-view-transitions](../../examples/interactive-view-transitions/README.md) | クライアント側状態管理・View Transitions の実演 | `fandhe-frontend-core` / `-app` / `-interactive`（+ `-wasm-full`） | `rustup target add wasm32-unknown-unknown` と、`wasm/Cargo.lock` の解決版に一致する wasm-bindgen-cli（ブラウザでの実動作確認時のみ） | 長 |
 | [headless-pre-styled-ui](../../examples/headless-pre-styled-ui/README.md) | Primitives / Themes 2 層 UI コンポーネントのショーケース | `fandhe-frontend-core` / `-pre-styled-ui`（headless 層 API は再エクスポート経由） | なし | 短 |
@@ -54,7 +54,42 @@ cargo-deny（`tools/ci/ensure-gate-tools.sh` で導入）」の 3 点です。�
 ### 3.2 ssg-blog
 
 `generate_pages` による静的サイト書き出し・パス検証の fail-closed 契約・
-View Transitions の有効化を学べます。
+View Transitions の有効化を学べます。加えて `generate_assets`
+（`fandhe-frontend-server` 0.2.0 以降）による `sitemap.xml` / `robots.txt`
+の書き出しも実演します（イシュー #1135）。
+
+`generate_assets` は `generate_pages` と異なり任意のファイル名を持つ
+非 HTML 生成物を書き出す汎用 API です。利用手順:
+
+```rust
+use fandhe_frontend_server::ssg::generate_assets;
+use std::path::Path;
+
+// (リクエストパス, コンテンツ文字列) の列を組み立てる。
+let assets = vec![
+    ("/sitemap.xml".to_string(), sitemap_xml),
+    ("/robots.txt".to_string(), robots_txt),
+];
+
+// generate_pages と同じ fail-closed のパス検証を経由して dist/ へ書き出す。
+generate_assets(&assets, Path::new("dist"))?;
+```
+
+`generate_assets` を使う際は以下の 3 点に注意してください。
+
+- **fail-closed**: `assets` 全件のパスを書き出し前に検証し、正規化後の
+  重複も検出します。1 件でも不正・重複があれば **1 つも書き出さずに**
+  エラーを返します（`generate_pages` と同型）。
+- **既定エスケープ（REQ-1）は適用されない**: コンテンツは無加工で書き出され
+  ます（`Node` 木・`fandhe_frontend_core::render` を経由しません）。**HTML
+  ページの生成には使わず `generate_pages` を使ってください**。`sitemap.xml`
+  の URL 等、コンテンツ内部のエスケープ（XML エスケープ等）は呼び出し側の
+  責務です。
+- **`fandhe-frontend-server` 0.2.0 以降が必要**: `generate_assets` は
+  イシュー #1119 で追加された API です（0.1.x には含まれません）。
+
+実装例は [ssg-blog](../../examples/ssg-blog/README.md) の
+`src/main.rs`（`build_assets` / `main`）を参照してください。
 
 ### 3.3 dist-server-docker
 
