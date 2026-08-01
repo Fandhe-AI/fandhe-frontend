@@ -227,3 +227,50 @@ PoC-3（`docs/spec/03-poc/rendering-web-standards/core/src/lib.rs:131,152`）の
 - `fandhe-frontend-wasm-full`（`default-features = false` で本クレートへ依存）は `wire_hydrate_targets` を `nav.rs::render_route`（クライアント側ルーティングの遷移描画、イシュー #374）から呼び、遷移で新規構築されたサブツリー内の `data-hydrate="like"` 要素へイベントを再配線する。設計判断の詳細（per-element 方式を採用し `document` レベル委譲リスナー方式を不採用とした理由・二重配線回避）は `docs/design/wasm-full-architecture.md` §10「#403 再配線設計」を参照。
 - `registry`（`crates/wasm-client/src/registry.rs`、第 4 節・判断 4 のクロージャ寿命管理）は `wasm-bindgen-exports` feature ゲートを外し `#[cfg(target_arch = "wasm32")]` のみとした。`wasm-full` から `wire_hydrate_targets` 経由で利用するため。
 - 新規外部クレート・web-sys feature 追加はゼロ（workspace 内 path 依存の公開面変更のみ）。`cargo metadata` 実測（パッケージ総数・依存グラフ深さ）に変化がないことを確認済み。
+
+## 12. 追記: view 外パラメータ付き部分描画とワンショットタイマー（イシュー #1121）
+
+イシュー #1121 は「個人情報（PII）は DOM のみに置き `fandhe_frontend_interactive::Component` の状態機械へ持ち込まない」構成を実装した利用者から、以下 2 点の公式パターン不在の指摘を受けたものである。本節はその解決として追加した 2 つの safe ヘルパー（`crates/wasm-client/src/subtree.rs` / `crates/wasm-client/src/timer.rs`）の設計判断を記録する。第 3 節の凍結 API 表（`hydrate`/`mount_csr`）・第 6 節の不変条件はいずれも変更していない（`lib.rs` クレート冒頭の不変条件 7・8 として追記した）。
+
+### 12.1 view 外パラメータ付き部分描画（サブツリー再マウント）
+
+`Component::view` は状態からの純関数という契約（`docs/api/interactive-api.md` 第 2 節）を維持したまま、PII のように状態機械へ持ち込みたくない値（DOM の現在値・ブラウザ API の戻り値等、`view()` の外側にしか存在しない値）を使ってサブツリーだけを再構築したい場面がある。
+
+採用パターンは「通常の Rust 関数で `fandhe_frontend_core::Node` を組み立てる → `fandhe_frontend_wasm_client::replace_subtree(slot, &node)` で差し替える」の 2 段構成のみであり、新しい抽象（`Component` の派生トレイト等）は導入しない。
+
+```rust
+use fandhe_frontend_core::{div, el, text};
+use fandhe_frontend_wasm_client::replace_subtree;
+
+// view() の外側にしかない値（例: DOM から読んだ現在時刻文字列）を使って
+// 通常の Rust 関数でサブツリーを組み立てる。
+fn render_clock_subtree(now_text: &str) -> fandhe_frontend_core::Node {
+    div(vec![("class", "clock")], vec![text(now_text)])
+}
+
+// slot: 既存の <div class="clock-slot">...</div> 要素（web_sys::Element）
+replace_subtree(&slot, &render_clock_subtree(&now_text))?;
+```
+
+- `replace_subtree` は [`crate::build_dom_node`]（第 6 節不変条件 1 と同一の非エスケープ迂回なしノード木経由）のみを使ってサブツリーを構築し、`set_inner_html`/`insert_adjacent_html` は呼ばない。
+- `Node::RawHtml` が混入した部分木を渡すと `build_dom_node` が `None` を返すため、`replace_subtree` は DOM を一切変更せず `Err` を返す（fail-closed。第 6 節不変条件 1 の継承）。
+- **再配線責務**: 置換によって旧サブツリーに付いていたイベントリスナーは失われる（`Element::replace_child` の標準挙動）。新しいサブツリーへの再配線が必要な場合は、呼び出し元が `wire_hydrate_targets`（第 3.1 節）や `registry`（第 4 節・判断 4）と同型の `Closure` 寿命管理を用いて明示的に行う。`replace_subtree` 自体はハイドレーション配線を行わない、置換のみに責務を限定したヘルパーである。
+
+### 12.2 ワンショット副作用の Closure 管理（`set_timeout_once`/`clear_timeout_once`）
+
+第 4 節・判断 4 が確立した「`closure.forget()`（意図的リーク）を使わず `thread_local!` レジストリで寿命管理する」方針を、`registry.rs` が対象としない **ワンショット**（一度きりの `setTimeout`）用途へ拡張したものが `crates/wasm-client/src/timer.rs` の `set_timeout_once`/`clear_timeout_once` である。
+
+```rust
+use fandhe_frontend_wasm_client::{set_timeout_once, clear_timeout_once};
+
+set_timeout_once("save-indicator-hide", 2000, || {
+    // 2 秒後に一度だけ実行する副作用
+})?;
+
+// 必要なら発火前に明示キャンセルする
+clear_timeout_once("save-indicator-hide");
+```
+
+- **不変条件（`registry::replace_handles` と同型）**: 同一 `key` への再登録・明示的な `clear_timeout_once` は必ず `clearTimeout` を呼んでから旧 `Closure` を drop する。これにより「JS 側タイマーだけ残って Rust 側 `Closure` が消える」孤立（drop 済み `Closure` 発火時の実行時エラー、イシュー #1121 の報告内容そのもの）を構造的に防ぐ。
+- **発火後の回収方式**: 実行中の `Closure` が自身を registry から取り除いて drop する「自己回収」方式は、正当性の直感的な確認が難しいため採用しなかった。代わりに、発火後のエントリは `key` あたり高々 1 個の残留として `TIMERS` レジストリに留め、次回の同一 `key` への `set_timeout_once` 呼び出し、または明示的な `clear_timeout_once` 呼び出し時に「`clearTimeout` → drop」の順序で回収する**遅延回収方式**を採用した（有界: `key` あたり常に高々 1 個）。
+- `Closure::forget()` は使わない（第 4 節・判断 4 と同一方針）。

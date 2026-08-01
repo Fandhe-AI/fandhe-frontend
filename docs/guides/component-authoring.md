@@ -11,7 +11,8 @@ rustdoc（`cargo doc -p fandhe-frontend-core --open`）を一次情報源とし�
 
 > [!NOTE]
 > **対象バージョン**: 本ドキュメントは `crates/core/src/lib.rs` の公開 API（`Node` / `el` /
-> `text` / `raw_html` / `render` / `escape_html` / `escape_html_into`）と、
+> `el_owned` / `attr_if` / `attr_if_value` / `text` / `raw_html` / `render` /
+> `escape_html` / `escape_html_into`）と、
 > `crates/core/src/tags.rs`（`tags` モジュール）のタグショートカット群（`div()`/`p()`
 > 等の TASK-5.1b 最小セット + Issue #164 で拡張した `span()`/`table()`/`form()`
 > 等）を対象とします。
@@ -156,6 +157,58 @@ children.extend(optional_note(None));
 assert_eq!(render(&el("div", vec![], children)), "<div><h1>title</h1></div>");
 ```
 
+### 3.6 動的値・条件付き属性（`el_owned`/`attr_if`/`attr_if_value`、イシュー #1121）
+
+`el()` の `attrs: Vec<(&str, &str)>` は、呼び出し元のスタックフレームより
+長生きする借用元（`String` の一時変数等）を要求するため、`format!` した
+動的な属性値（`data-count="3"` のような値そのものが実行時に決まる属性）や、
+条件によって属性の有無自体が変わるケース（`hidden`/`checked`/`selected` 等）
+とは相性がよくありません。呼び出し元が自前で `&str` の一時変数を束縛し
+続ける必要が生じます。
+
+`el_owned(tag, attrs: Vec<(String, String)>, children)` は `el()` の所有属性値版
+です。エスケープ（レンダリング時）・属性名ホワイトリスト検証・タグ名
+`&'static str` 固定はすべて `el()` と完全に共有し、新たな迂回経路を作りません。
+
+```rust
+use fandhe_frontend_core::{el_owned, text, render};
+
+let count = 3;
+let node = el_owned(
+    "span",
+    vec![("data-count".to_string(), count.to_string())],
+    vec![text("items")],
+);
+assert_eq!(render(&node), r#"<span data-count="3">items</span>"#);
+```
+
+条件付き属性は `attr_if(cond, name)`（ブール属性、値は空文字列）/
+`attr_if_value(cond, name, value)`（任意の値）が `Option<(String, String)>` を
+返すので、`.into_iter().flatten().collect()`（または `.chain(...)`）で
+`el_owned` の `attrs` へ合成できます。条件が `false` の場合、その属性は
+出力から**完全に欠落**します（`hidden`/`disabled` のような真偽属性は
+「存在しない = 偽」で足りるため）。
+
+```rust
+use fandhe_frontend_core::{el_owned, attr_if, attr_if_value, text, render};
+
+let disabled = false;
+let selected_id = "3";
+let node = el_owned(
+    "button",
+    vec![("class".to_string(), "btn".to_string())]
+        .into_iter()
+        .chain(attr_if(disabled, "disabled"))
+        .chain(attr_if_value(selected_id == "3", "data-selected", selected_id))
+        .collect(),
+    vec![text("送信")],
+);
+assert_eq!(
+    render(&node),
+    r#"<button class="btn" data-selected="3">送信</button>"#
+);
+```
+
 ## 4. API リファレンス
 
 詳細な契約・不変条件は各シンボルの rustdoc（`crates/core/src/lib.rs` / `crates/core/src/escape.rs`）
@@ -181,6 +234,19 @@ HTML ノード木の値。3 種のバリアントを持ちます。
 `:` のみのホワイトリスト検証を通過したものだけが出力され、不正な属性名
 （例: `"onmouseover=alert(1) x"` のような追加属性の割り込みを狙った文字列）は
 panic せず出力からスキップされます。
+
+### `fn el_owned(tag: &'static str, attrs: Vec<(String, String)>, children: Vec<Node>) -> Node`（イシュー #1121）
+
+`el()` の所有属性値版。動的な属性値・条件付き属性の合成に向く
+（3.6 節参照）。エスケープ・属性名ホワイトリスト検証・タグ名固定は
+`el()` と完全に共有します。
+
+### `fn attr_if(cond: bool, name: &str) -> Option<(String, String)>` / `fn attr_if_value(cond: bool, name: &str, value: impl Into<String>) -> Option<(String, String)>`（イシュー #1121）
+
+条件付き属性を組み立てます。`cond` が `false` のときは `None` を返すため、
+`el_owned` の `attrs` へ `.into_iter().flatten().collect()`（または
+`.chain(...)`）で合成すると、条件不成立時はその属性が出力から完全に
+欠落します（3.6 節参照）。
 
 ### `fn text(s: impl Into<String>) -> Node`
 

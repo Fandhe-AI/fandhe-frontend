@@ -225,3 +225,65 @@ SSR 出力済み DOM と状態が一致しているため）。SSR 出力バイ�
 `dirty_fields()` を呼び、束縛点対応表（#342）と突き合わせて該当ノードのみを
 更新する入力として使う想定。設計判断・受け入れ条件・後続タスク（#342〜#345）
 との依存関係は `docs/design/dom-binding-update-design.md` 第 4.2 節を参照する。
+
+## 11. 追記: ロジック別クレート構成と newtype 委譲（イシュー #1121）
+
+イシュー #1121 は「アプリのロジック（状態・遷移）を `fandhe-frontend-interactive` 非依存の
+別クレートへ切り出し、wasm 配線クレート側でのみ `Component` を実装する」構成を
+試みた利用者から、公式パターン不在の指摘を受けたものである。第 3 節の
+`Component` トレイト定義（`type Action; fn update(&mut self, action: Self::Action);
+fn view(&self) -> fandhe_frontend_core::Node; fn decode_action(...)`）は本追記に
+よって一切変更していない。
+
+Rust の orphan rule（externally-implemented trait は、trait・型のいずれかが
+自クレート由来でないと実装できない）により、`Component`（`fandhe-frontend-interactive`
+由来）を外部ロジッククレートの型（`my_logic::Counter` 等）へ**直接**実装する
+ことはできない。本クレートが推奨する解決は **newtype 委譲**であり、新しい
+抽象（ブランケット実装・マクロ等）は導入しない。
+
+```rust
+// my_logic クレート（fandhe-frontend 非依存、通常の Rust ロジックのみ）
+pub struct Counter { pub count: i32 }
+pub enum CounterAction { Increment, Decrement }
+
+// wasm 配線クレート側（fandhe-frontend-interactive に依存する側）
+pub struct CounterUi(pub my_logic::Counter);
+
+impl fandhe_frontend_interactive::Component for CounterUi {
+    type Action = my_logic::CounterAction;
+
+    fn update(&mut self, action: Self::Action) {
+        // ロジック本体は my_logic 側の通常の Rust コードへ委譲する。
+        match action {
+            my_logic::CounterAction::Increment => self.0.count += 1,
+            my_logic::CounterAction::Decrement => self.0.count -= 1,
+        }
+    }
+
+    fn view(&self) -> fandhe_frontend_core::Node {
+        fandhe_frontend_core::text(self.0.count.to_string())
+    }
+
+    fn decode_action(name: &str, _payload: &str) -> Option<Self::Action> {
+        match name {
+            "increment" => Some(my_logic::CounterAction::Increment),
+            "decrement" => Some(my_logic::CounterAction::Decrement),
+            _ => None,
+        }
+    }
+}
+```
+
+- **クレート構成**: ロジッククレート（`my_logic` 相当）は `fandhe-frontend-*` に一切依存
+  しない、通常の Rust クレートとして書く（単体テストも `fandhe-frontend-interactive` 非依存で
+  完結する）。wasm 配線クレート（`crates/wasm-client`/`wasm-full` に依存する側）が
+  newtype（`CounterUi(pub my_logic::Counter)`）を定義し、`Component`（必要なら
+  `Hydrate`/`DirtyTracked`）を newtype 側にのみ実装する。
+- **フィールドの可視性**: newtype のフィールドを `pub` にするか非公開にするかは
+  利用者の判断に委ねる（内部状態を wasm 配線クレート側からも直接触りたい場合は
+  `pub`、ロジッククレートの公開 API 経由のみに限定したい場合は非公開＋アクセサ）。
+  本書はどちらか一方を凍結しない。
+- **`view()` の純関数契約は不変**: newtype 越しでも `Component::view` は状態からの
+  純関数という契約（第 2 節・3.1 節）を維持する。PII 等、状態機械へ持ち込みたく
+  ない値を使った部分描画が必要な場合は `docs/api/hydration-api.md` 第 12 節
+  （`fandhe_frontend_wasm_client::replace_subtree`）を参照する。
