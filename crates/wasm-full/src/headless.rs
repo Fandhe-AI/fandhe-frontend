@@ -273,6 +273,27 @@ const MAPPING_TABLE: &[MappingRow] = &[
         action: "next-month",
         requires_value: false,
     },
+    // Accordion（イシュー #1127、`crates/headless-ui/src/accordion.rs`）:
+    // クリック対象は `item-trigger`（ネイティブ `<button>`。`crate::keynav`
+    // §Accordion が案内する Enter/Space はこのネイティブ click 発火経由で
+    // 到達する）で "toggle"（`SingleSelectAction::Toggle`/
+    // `MultiSelectAction::Toggle`、いずれも項目値 payload 必須）。
+    // collapsible な挙動（開いている項目の再クリックで閉じる）を
+    // `Accordion`（single、他項目は自動で閉じる）/`MultiAccordion`
+    // （multiple、対象項目のみトグル）の双方で共通の 1 行で表現できるため
+    // "select" ではなく "toggle" を採用する。
+    //
+    // navigation-menu/trigger・calendar/day-trigger（本表中の既存コメント
+    // 参照）と異なりこの行が機能するのは、headless-ui 0.27.0
+    // （イシュー #1127）で `accordion::item_trigger` が `data-value` を
+    // 出力するようになったため。この出力が無ければ `requires_value: true`
+    // により常に fail-closed（`None`）となる。
+    MappingRow {
+        scope: "accordion",
+        part: "item-trigger",
+        action: "toggle",
+        requires_value: true,
+    },
 ];
 
 /// クリックされた要素（またはその祖先方向の 1 要素）の anatomy 属性を表す
@@ -621,6 +642,47 @@ mod tests {
         let action_ref = action_for_part(&part("select", "clear-trigger", None, false)).unwrap();
         assert_eq!(action_ref.action, "deselect");
         assert_eq!(action_ref.payload, "");
+    }
+
+    // --- Accordion（イシュー #1127）: item-trigger → "toggle"（value 必須） ---
+
+    #[test]
+    fn accordion_item_trigger_with_value_maps_to_toggle_with_payload() {
+        let action_ref =
+            action_for_part(&part("accordion", "item-trigger", Some("panel-1"), false)).unwrap();
+        assert_eq!(action_ref.action, "toggle");
+        assert_eq!(action_ref.payload, "panel-1");
+    }
+
+    #[test]
+    fn accordion_item_trigger_without_value_is_none() {
+        // headless-ui 0.27.0 以降は `data-value` を常時出力するが、マッピング
+        // 表自体は `requires_value: true` の fail-closed 契約を独立して
+        // 保証する（出力側のドリフトに関わらず表側の不変条件を固定する）。
+        assert_eq!(
+            action_for_part(&part("accordion", "item-trigger", None, false)),
+            None
+        );
+    }
+
+    #[test]
+    fn accordion_item_trigger_disabled_is_none() {
+        assert_eq!(
+            action_for_part(&part("accordion", "item-trigger", Some("panel-1"), true)),
+            None
+        );
+    }
+
+    #[test]
+    fn action_from_parts_is_none_when_ancestor_item_is_disabled_accordion() {
+        // accordion の item（祖先）が disabled、内側の item-trigger 自体は
+        // enabled。祖先列のいずれか 1 要素でも disabled なら全体を None と
+        // する fail-closed 契約（イシュー #580 PR #611 と同型の回帰）。
+        let parts = vec![
+            part("accordion", "item-trigger", Some("panel-1"), false),
+            part("accordion", "item", None, true),
+        ];
+        assert_eq!(action_from_parts(&parts), None);
     }
 
     // --- fail-closed: 表外・value 欠落・disabled は None ---

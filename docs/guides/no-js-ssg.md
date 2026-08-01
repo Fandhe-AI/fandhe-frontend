@@ -30,15 +30,18 @@ JS ゼロ SSG で常時閉のまま」）を契機に作成しました。`fandh
 
 - `collapsible` / `dialog` / `popover` / `tooltip` / `menu` / `tabs` /
   `radio-group` / `select` / `signature-pad` / `combobox` / `toggle-group` /
-  `tree-view` / `calendar`
+  `tree-view` / `calendar` / `accordion`
 
 **`accordion`**（`fandhe-frontend-pre-styled-ui::accordion` /
 `fandhe-frontend-headless-ui::accordion`、`data-scope="accordion"`）は
-本書執筆時点で `MAPPING_TABLE` に未登録であり、`fandhe-frontend-wasm-full`
-を読み込んだ状態でもクリックによる開閉トリガーは配線されていません。
-JS の有無にかかわらず、開閉状態はビルド時に Rust コード側が渡した値の
-まま固定されます。この状態は本ガイドの対象外である別課題としてイシュー
-#1127 で追跡しています。`fandhe-frontend-wasm-full` 側の対応状況は
+本書執筆時点でイシュー #1127 により `MAPPING_TABLE` へ登録済みです
+（`item-trigger` パーツのクリックが `"toggle"` 操作へ写像される。
+`fandhe-frontend-headless-ui` 0.27.0 以降が前提）。`fandhe-frontend-wasm-full`
+のハイドレーションを読み込んだ構成であればクリックによる開閉が機能し
+ます。ただし本節 §1 の原則どおり、**JS ゼロ SSG 構成（本ドキュメントが
+主題とする構成）ではこの配線自体が読み込まれないため**、`accordion` も
+他の登録済み部品と同様に初期表示の `data-state` が固定されたままである
+点は変わりません。`fandhe-frontend-wasm-full` 側の対応状況は
 `crates/wasm-full/src/headless.rs` の `MAPPING_TABLE` を都度確認してくだ
 さい（本書の記述は執筆時点のスナップショットであり、対応表が更新され
 次第、本書の記述より対応表を正としてください）。
@@ -93,7 +96,6 @@ fn disclosure_panel(summary_text: &str, body_text: &str) -> Node {
 | 観点 | JS ハイドレーションあり | JS ゼロ SSG |
 |---|---|---|
 | `data-scope` が `MAPPING_TABLE` に登録済みの部品（dialog/menu/select/tabs 等） | クリックで `data-state` が更新される | 初期状態のまま固定（代替として `<details>`/`<summary>` を検討） |
-| `accordion`（本書執筆時点で `MAPPING_TABLE` 未登録） | クリックでは更新されない（配線なし） | 初期状態のまま固定（代替として `<details>`/`<summary>` を検討） |
 | 開閉不要の静的表示部品（`heading`/`text`/`separator` 等） | 影響なし | 影響なし |
 
 ## 関連ドキュメント

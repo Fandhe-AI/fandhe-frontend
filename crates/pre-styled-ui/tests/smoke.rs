@@ -54,6 +54,7 @@ mod wrapper_escape_and_stylesheet_safety {
         let html = render(&accordion::item_trigger(
             OpenState::Closed,
             false,
+            "panel-1",
             None,
             None,
             vec![],
