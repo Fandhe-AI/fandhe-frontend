@@ -202,8 +202,16 @@ pub(crate) fn run_gate(args: &[String]) -> i32 {
         return 1;
     }
 
-    let mut report = run_all_checks(&manifest, &project_dir, &RealCommandRunner);
+    let mut report = run_all_checks(&manifest, &project_dir, &RealCommandRunner, verbose);
     if !verbose {
+        // `run_cargo_test`（`run_all_checks` 経由）は `verbose` を受け取り、
+        // truncate 前の生出力に対して既に要約を適用済み（Bugbot 指摘
+        // 2026-08: 旧実装は本関数が `finish_command_check` による truncate
+        // 後の出力へ要約をかけていたため、大規模テスト実行で早期の
+        // `running`/`test result:` ヘッダーが truncate で失われ不完全な
+        // 要約になっていた）。ここでの再適用は [`summarize_test_output`] が
+        // 冪等（要約済み出力を渡しても同じ行集合を返す）であるための
+        // 二重の安全網であり、要約の主経路ではない。
         summarize_passing_test_output(&mut report);
     }
     println!("{}", render_report(&report));
@@ -263,6 +271,7 @@ fn run_all_checks(
     manifest: &StructureManifest,
     project_dir: &Path,
     runner: &dyn CommandRunner,
+    verbose: bool,
 ) -> GateReport {
     let crates = declared_crate_names(manifest);
 
@@ -281,7 +290,7 @@ fn run_all_checks(
             default_escape_check(manifest, project_dir),
             url_validation_check(manifest, project_dir),
             run_cargo_clippy(runner, project_dir, &crates),
-            run_cargo_test(runner, project_dir, &crates),
+            run_cargo_test(runner, project_dir, &crates, verbose),
             policy_check(runner, project_dir),
         ]
     };
@@ -633,8 +642,39 @@ fn run_cargo_clippy(runner: &dyn CommandRunner, project_dir: &Path, crates: &[&s
     finish_command_check("lint", "cargo", &args, passed, output)
 }
 
-fn run_cargo_test(runner: &dyn CommandRunner, project_dir: &Path, crates: &[&str]) -> GateCheck {
-    run_locked_cargo_subcommand(runner, project_dir, "test", &["test", "--locked"], crates)
+/// `test` チェック専用の実行経路。`run_locked_cargo_subcommand`（他の 2 チェック
+/// が使う共通ヘルパー）へ委譲せず個別実装とする理由: `--verbose` 未指定時の
+/// output 要約（[`summarize_test_output`]）は [`finish_command_check`] による
+/// `OUTPUT_TRUNCATE_CHARS` 丸めより**前**に適用しなければならない（丸め後だと
+/// 大規模テスト実行で早期の `running`/`test result:` ヘッダーが丸めで失われ、
+/// 不完全な要約になる。Bugbot 指摘、2026-08）。共通ヘルパーは丸めまで一体化した
+/// [`finish_command_check`] を直接呼ぶため、丸め前に割り込む余地がない。
+fn run_cargo_test(
+    runner: &dyn CommandRunner,
+    project_dir: &Path,
+    crates: &[&str],
+    verbose: bool,
+) -> GateCheck {
+    if crates.is_empty() {
+        return GateCheck::new("test", false, no_declared_crates_message());
+    }
+    let mut args: Vec<&str> = vec!["test", "--locked"];
+    for c in crates {
+        args.push("-p");
+        args.push(c);
+    }
+    let (passed, output) = runner.run("cargo", &args, project_dir);
+    // PASS かつ `--verbose` 未指定の場合のみ、丸め前の生出力へ要約を適用する
+    // （項目 4: 成功時のレポート肥大防止。失敗時・`--verbose` 指定時は全文を
+    // 維持し違反の詳細を削らない、[`summarize_passing_test_output`] と同じ方針）。
+    // 要約不能（`test result:` 行が 1 件も抽出できない想定外の出力形式）な
+    // 場合は全文へフォールバックする（情報を隠さない fail-safe）。
+    let output = if !verbose && passed {
+        summarize_test_output(&output).unwrap_or(output)
+    } else {
+        output
+    };
+    finish_command_check("test", "cargo", &args, passed, output)
 }
 
 /// `test` チェックが PASS した際の output 要約フィルタ（項目 4: 成功時の
@@ -1966,7 +2006,7 @@ mod tests {
                 (false, "cargo: command not found".to_string()),
             ]),
         };
-        let report = run_all_checks(&manifest, &dir, &runner);
+        let report = run_all_checks(&manifest, &dir, &runner, false);
         assert_eq!(report.gate_result, "BLOCKED");
         let type_check = report
             .checks
@@ -3669,12 +3709,46 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
     fn run_cargo_test_invokes_cargo_with_locked_and_declared_crates() {
         let dir = crate::test_scratch::scratch_root();
         let runner = ArgsRecordingRunner::new(vec![(true, "ok".to_string())]);
-        let check = run_cargo_test(&runner, &dir, &["fandhe-frontend-core"]);
+        let check = run_cargo_test(&runner, &dir, &["fandhe-frontend-core"], false);
         assert!(check.passed);
 
         let (program, args) = runner.last_call();
         assert_eq!(program, "cargo");
         assert_eq!(args, vec!["test", "--locked", "-p", "fandhe-frontend-core"]);
+    }
+
+    /// PR #1126 レビュー指摘（2026-08）の回帰テスト: `test` PASS 時の要約
+    /// （[`summarize_test_output`]）は `OUTPUT_TRUNCATE_CHARS`（4000 文字）丸めの
+    /// **前**に生出力へ適用されなければならない。丸め後に要約すると、出力先頭の
+    /// `running N tests` 等の早期ヘッダーが丸めで失われた大規模実行では
+    /// 不完全な要約（`test result:` 行を 1 件も含まない = 要約不能）になる。
+    /// この回帰を検知するため、先頭ヘッダーと丸め上限を超える大量の個別
+    /// テスト詳細行の後ろに `test result:` を置いた出力を与え、`--verbose`
+    /// 未指定時に先頭ヘッダーが要約結果へ残ることを確認する。
+    #[test]
+    fn run_cargo_test_summarizes_before_truncation_when_not_verbose() {
+        let dir = crate::test_scratch::scratch_root();
+        let header = "running 1 test\n";
+        // 丸め上限（4000 文字）を優に超える個別テスト詳細行で本体を埋め、
+        // 丸め前に要約しなければ先頭の `header` が失われる状況を再現する。
+        let filler = "test some::very::long::module::path::case ... ok\n".repeat(200);
+        let raw = format!("{header}{filler}test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n");
+        assert!(
+            raw.len() > OUTPUT_TRUNCATE_CHARS,
+            "fixture must exceed the truncation threshold to exercise the regression"
+        );
+        let runner = ArgsRecordingRunner::new(vec![(true, raw)]);
+        let check = run_cargo_test(&runner, &dir, &["fandhe-frontend-core"], false);
+        assert!(check.passed);
+        assert!(
+            check.output.contains("running 1 test"),
+            "early header must survive: summarization must run before truncation, got: {}",
+            check.output
+        );
+        assert!(check.output.contains("test result: ok. 1 passed"));
+        assert!(!check
+            .output
+            .contains("test some::very::long::module::path::case"));
     }
 
     #[test]
@@ -3742,7 +3816,7 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
     #[test]
     fn run_cargo_test_fails_closed_when_no_crates_declared() {
         let dir = crate::test_scratch::scratch_root();
-        let check = run_cargo_test(&PanicIfCalledRunner, &dir, &[]);
+        let check = run_cargo_test(&PanicIfCalledRunner, &dir, &[], false);
         assert!(!check.passed);
         assert!(check.output.contains("no crate declared"));
     }
@@ -3841,7 +3915,7 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
                 (true, String::new()),
             ]),
         };
-        let report = run_all_checks(&manifest, &dir, &runner);
+        let report = run_all_checks(&manifest, &dir, &runner, false);
         let names: Vec<&str> = report.checks.iter().map(|c| c.name).collect();
         assert_eq!(
             names,
@@ -3874,7 +3948,7 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
                 (true, String::new()),
             ]),
         };
-        let report = run_all_checks(&manifest, &dir, &runner);
+        let report = run_all_checks(&manifest, &dir, &runner, false);
         assert_eq!(report.gate_result, "PASS");
         assert!(report.checks.iter().all(|c| c.passed), "{:?}", {
             report
@@ -3952,7 +4026,7 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
 
         // 静的専用モードでは cargo 系チェックが cargo を一切起動してはならない
         // （`PanicIfCalledRunner` が起動されたら即座にテスト失敗として顕在化する）。
-        let report = run_all_checks(&manifest, &dir, &PanicIfCalledRunner);
+        let report = run_all_checks(&manifest, &dir, &PanicIfCalledRunner, false);
 
         assert_eq!(report.gate_result, "PASS");
         let names: Vec<&str> = report.checks.iter().map(|c| c.name).collect();
@@ -4006,7 +4080,7 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
         )
         .unwrap();
 
-        let report = run_all_checks(&manifest, &dir, &PanicIfCalledRunner);
+        let report = run_all_checks(&manifest, &dir, &PanicIfCalledRunner, false);
 
         assert_eq!(
             report.gate_result, "BLOCKED",
