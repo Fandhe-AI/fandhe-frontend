@@ -28,6 +28,14 @@ pub fn render_trusted_fragment() -> String {
 - 属性は Rust の statement 属性として呼び出し文（式文・`let` 文）へ直接付与
   できる（`rustc 1.96.0` で動作確認済み。関数全体に付与してもよいが、
   影響範囲を呼び出し 1 件に絞るため呼び出し文への付与を推奨する）。
+- `rustfmt` による折り返しは受理される（イシュー #1116）。`reason = "..."` が
+  長く rustfmt が属性を複数行へ折り返しても（例: `#[expect(\n
+  clippy::disallowed_methods,\n    reason = "ESCAPE-REVIEWED: ..."\n)]`）、
+  `default_escape_check`（保険層）は `[`/`]` の括弧バランスで属性グループを
+  判定するため `#[rustfmt::skip]` の追加は不要。`#[rustfmt::skip]` 等の
+  重ね掛けも、スタック中のいずれかの属性グループが両マーカーを含めば
+  受理される。属性と呼び出しの間に空行・コメント・無関係なコード行を挟んだ
+  場合は受理されない。
 - `#[allow(clippy::disallowed_methods)]` は使わない。`#[expect]` は「lint が
   実際に発火することを期待する」属性であり、対応する `raw_html()` 呼び出しが
   将来削除・変更されて lint が発火しなくなった場合に
@@ -56,7 +64,7 @@ pub fn render_trusted_fragment() -> String {
 | 層 | 実行タイミング | 実体 |
 |----|---------------|------|
 | 主防御 | `fw gate` の `lint` チェック／CI `clippy` ジョブ | `fw gate` の `lint` はイシュー #315 で `cargo clippy --locked --all-targets -p <crate>... -- -D warnings` へ拡張済み。CI `clippy` ジョブはイシュー #299 で `cargo clippy --workspace --all-targets --locked -- -D warnings` へ拡張済み。両者とも `--all-targets` によりテストターゲット（`#[cfg(test)]` / `tests/` 配下）内の呼び出しを検出対象に含み、検出範囲は一致する（旧記述「CI が superset」は解消済み）。いずれも workspace ルート `clippy.toml`（`disallowed-methods`）に基づき、コンパイラのパス解決を通じてコメント偽装・リネーム import 経由の呼び出しも検出する |
-| 保険層 | `fw gate` の `default_escape_check` | テキスト走査。同一行・直前行の `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: ...")]` を受理条件とする（単独のコメントは受理しない） |
+| 保険層 | `fw gate` の `default_escape_check` | テキスト走査。呼び出し開始行自体、または呼び出し直前に隙間なく連なる属性グループ列のいずれか 1 つに `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: ...")]` が含まれることを受理条件とする（rustfmt の複数行折り返し・`#[rustfmt::skip]` 等の重ね掛けも受理、イシュー #1116。単独のコメントは受理しない） |
 | 監査層 | `fw gate` の `default_escape_check` | ブランケット抑止属性の一律検出（2. 参照） |
 
 `lint` チェックは `clippy.toml` の存在・`fandhe_frontend_core::raw_html` エントリの包含を

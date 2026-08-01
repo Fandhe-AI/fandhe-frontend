@@ -2111,18 +2111,26 @@ jobs:
         run: |
           set -euo pipefail
           # gate は JSON レポートを stdout へ出力し、gate_result に応じた
-          # 終了コード（PASS=0 / BLOCKED=1）を返す（fail-closed、緩和経路なし）。
-          # BLOCKED 時は各 checks[].output 先頭の固定プレフィックス
-          # "environment error: "（ENVIRONMENT_ERROR_PREFIX、gate-design.md
-          # §2.3a）の有無で「runner 環境未整備」と「コード起因の FAIL」を
-          # GitHub Actions アノテーションとして区別する（受け入れ条件 2）。
-          # gate の JSON は compact 出力（キー間に空白なし）のため
-          # `"environment error: ` を緩く grep する。
+          # 終了コード（PASS=0 / BLOCKED=1 / usage=2 / ERROR=3。イシュー #1116
+          # で ERROR 種別・終了コード 3 を追加）を返す（fail-closed、緩和経路
+          # なし）。`gate_result: "ERROR"` は「実行環境にツールが無いだけ」
+          # （clippy component / cargo-deny 未導入等）を構造的に表し、コード
+          # 起因の BLOCKED とは区別して GitHub Actions アノテーションを
+          # 出し分ける。区別は JSON 本文の `"gate_result":"ERROR"` を grep
+          # するだけで判定できる（version-bump-guard と同じ「終了コードは
+          # 0/非 0 のみを見て、種別判定は出力本文の grep に任せる」設計。
+          # 終了コードから種別を読み分ける PIPESTATUS 方式は複雑化を避けて
+          # 採らない）。
+          #
+          # `if PIPELINE; then` の条件式内であれば、GitHub Actions 既定の
+          # `bash -e`（errexit）が有効なままでも pipefail によるパイプライン
+          # 失敗で即座にスクリプトが中断されることはない
+          # （version-bump-guard ジョブと同型のパターン、ci.md 規約）。
           if cargo run -p fandhe-frontend-cli --locked -- gate --project . | tee gate-report.json; then
             exit 0
           fi
-          if grep -q '"environment error: ' gate-report.json; then
-            echo "::error::fw gate BLOCKED: environment error (runner setup issue, not code). See 'environment error:' entries in the JSON report above; ensure tools/ci/ensure-gate-tools.sh ran successfully (see .claude/rules/ci.md)."
+          if grep -q '"gate_result":"ERROR"' gate-report.json; then
+            echo "::error::fw gate ERROR: environment error (runner setup issue, not code). See 'environment error:' entries in the JSON report above; ensure tools/ci/ensure-gate-tools.sh ran successfully (see .claude/rules/ci.md)."
           else
             echo "::error::fw gate BLOCKED: code-caused check failure. See failing checks in the JSON report above."
           fi
