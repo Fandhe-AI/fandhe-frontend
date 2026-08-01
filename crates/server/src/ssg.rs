@@ -26,6 +26,14 @@
 //!   `fandhe-frontend-docs-site`（イシュー #457 系）が任意階層のドキュメント
 //!   ページを `dist/` へ書き出す土台として呼ぶ想定（親イシュー #457
 //!   Phase 1-1）。
+//! - [`generate_assets`]（イシュー #1119）は [`generate_pages`] と同じ
+//!   fail-closed のパス検証系を使いつつ、出力を `<path>/index.html` 固定
+//!   ではなく任意のファイル名（`sitemap.xml` / `robots.txt` 等、拡張子
+//!   付き・拡張子なしいずれも可）へ拡張した汎用アセット書き出し API。
+//!   利用者が `std::fs::write` で直書きし `generate_pages` のパス検証の
+//!   恩恵を受けられなかった非 HTML 生成物向け（イシュー本文の動機）。
+//!   `Node` 木を経由せず文字列コンテンツをそのまま書き出すため、HTML の
+//!   組み立てには使わないこと（詳細は [`generate_assets`] rustdoc）。
 //!
 //! # セキュリティ不変条件（OWASP A01 パストラバーサル対策・fail-closed）
 //!
@@ -103,14 +111,15 @@ pub enum SsgError {
         /// 解決に失敗したルートパス（一覧列挙自体の失敗時は `"/"`）。
         path: String,
     },
-    /// [`generate_pages`] に渡されたページパスが検証を通らなかった
-    /// （先頭 `/` が無い・`..`/`.` を含む・空セグメントを含む・非許可文字を
-    /// 含む、のいずれか）。`Display` は呼び出し元が渡したパス文字列のみを
-    /// 含み、内部パス等の機微情報は含めない。
+    /// [`generate_pages`]/[`generate_assets`] に渡されたページ/アセット
+    /// パスが検証を通らなかった（先頭 `/` が無い・`..`/`.` を含む・空
+    /// セグメントを含む・非許可文字を含む、のいずれか）。`Display` は
+    /// 呼び出し元が渡したパス文字列のみを含み、内部パス等の機微情報は
+    /// 含めない。
     UnsafePagePath(String),
-    /// [`generate_pages`] で複数のページパスが正規化後に同じ出力先
-    /// （例: `/a` と `/a/` はいずれも `a/index.html`）を指した。サイレント
-    /// 上書きを避けるため fail-closed でエラー化する。
+    /// [`generate_pages`]/[`generate_assets`] で複数のページ/アセットパスが
+    /// 正規化後に同じ出力先（例: `/a` と `/a/` はいずれも `a/index.html`）を
+    /// 指した。サイレント上書きを避けるため fail-closed でエラー化する。
     DuplicatePagePath(String),
 }
 
@@ -139,10 +148,13 @@ impl fmt::Display for SsgError {
                 write!(f, "loader failed to resolve data for route {path:?}")
             }
             SsgError::UnsafePagePath(path) => {
-                write!(f, "page path failed validation: {path:?}")
+                write!(f, "page/asset path failed validation: {path:?}")
             }
             SsgError::DuplicatePagePath(path) => {
-                write!(f, "page path resolves to a duplicate output: {path:?}")
+                write!(
+                    f,
+                    "page/asset path resolves to a duplicate output: {path:?}"
+                )
             }
         }
     }
@@ -369,6 +381,120 @@ pub fn generate_pages(pages: &[(String, Node)], out_dir: &Path) -> Result<Vec<Pa
     Ok(written)
 }
 
+/// アセットのファイル名（[`normalize_asset_path`] の最終セグメント）が
+/// 出力パス片として安全かを検証する。
+///
+/// [`is_safe_path_segment`] の許可文字集合（英数字・`-`・`_`）に加え、
+/// ファイル拡張子（`sitemap.xml`・`robots.txt` 等）を表現するための `.`
+/// を許可する。ただし `.`・`..`・`...` のようなドットのみの名前は
+/// パストラバーサル対策として構造的に拒否するため、非 `.` 文字を最低 1
+/// つ含むことを必須条件とする（`/`・`\` はそもそも許可文字集合に無く
+/// 拒否される）。
+fn is_safe_asset_file_name(name: &str) -> bool {
+    !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+        && name.chars().any(|c| c != '.')
+}
+
+/// [`generate_assets`] 用のアセットパス正規化・検証。
+///
+/// - `/sitemap.xml` → `"sitemap.xml"`、`/assets/site.css` →
+///   `"assets/site.css"`、`/healthz` → `"healthz"`（拡張子の有無を問わない）。
+/// - 先頭 `/` が無い・末尾が `/`（[`normalize_page_path`] と異なりアセットは
+///   常にファイルを指すため `/healthz/` のような表記は非対応）・空セグメント
+///   （`//`）を含む場合は [`SsgError::UnsafePagePath`] を返す。
+/// - 中間セグメント（ディレクトリ名相当）は [`is_safe_path_segment`] を、
+///   最終セグメント（ファイル名）は [`is_safe_asset_file_name`] を適用する
+///   （ホワイトリストの二重管理を避けつつファイル名にのみ `.` を許可する）。
+///   中間セグメントへの `.` 許可（`/.well-known/security.txt` 等）は非対応
+///   （意図的な制限。要望が出た時点で緩和を別途検討する）。
+fn normalize_asset_path(path: &str) -> Result<String, SsgError> {
+    let Some(rest) = path.strip_prefix('/') else {
+        return Err(SsgError::UnsafePagePath(path.to_string()));
+    };
+
+    if rest.is_empty() || rest.ends_with('/') {
+        return Err(SsgError::UnsafePagePath(path.to_string()));
+    }
+
+    let segments: Vec<&str> = rest.split('/').collect();
+    let (file_name, dir_segments) = segments
+        .split_last()
+        .expect("split('/') always yields at least one segment");
+
+    for segment in dir_segments {
+        if !is_safe_path_segment(segment) {
+            return Err(SsgError::UnsafePagePath(path.to_string()));
+        }
+    }
+    if !is_safe_asset_file_name(file_name) {
+        return Err(SsgError::UnsafePagePath(path.to_string()));
+    }
+
+    Ok(rest.to_string())
+}
+
+/// 任意の (リクエストパス, コンテンツ文字列) 列を `out_dir` 配下へ
+/// パス検証付きで静的書き出しする汎用アセット API（イシュー #1119）。
+///
+/// [`generate_pages`] が `<path>/index.html` 固定の HTML ページ専用なのに
+/// 対し、本関数は `sitemap.xml` / `robots.txt` / `404.html` / `healthz` の
+/// ような**任意のファイル名**を持つ非 HTML 生成物（あるいは呼び出し側が
+/// 既に文字列化済みの HTML）を、`generate_pages` と同じ fail-closed の
+/// パス検証系（[`normalize_asset_path`]）を通してから書き出す。
+///
+/// # 契約
+///
+/// - コンテンツは無加工で書き出す（`fs::write` 相当 + パス検証のみ）。
+///   `Node` 木・`fandhe_frontend_core::render` を経由しないため既定
+///   エスケープ（REQ-1）は適用されない。**HTML ページの生成には本 API を
+///   使わず [`generate_pages`] を使うこと**。`404.html` のような HTML
+///   アセットを書く場合は、呼び出し側が
+///   `format!("<!DOCTYPE html>\n{}", fandhe_frontend_core::render(&node))`
+///   のようにノード木 API 経由で文字列化してから渡すことを推奨する
+///   （`coding-rust.md`「HTML 文字列の直接組み立て禁止」に抵触しないよう、
+///   本 API 自身は HTML を組み立てない）。`sitemap.xml` 内の URL 等、
+///   コンテンツ内部のエスケープ（XML エスケープ等）は呼び出し側の責務。
+/// - `assets` 全件のパスを先に [`normalize_asset_path`] で検証し、正規化後
+///   の出力先の重複も検出する。1 件でも不正・重複があれば**ファイルを 1
+///   つも書き出さずに**エラーを返す（fail-closed。[`generate_pages`] と
+///   同型の全件事前検証）。
+/// - `assets` が空なら `Ok(vec![])` を返し、何も書き出さない。
+/// - `generate_pages`/`generate`/`generate_with` と本関数を同一 `out_dir`
+///   へ併用した場合の呼び出し間の出力衝突（例: アセット `/index.html` と
+///   ページ `/`）は検出対象外（重複検出は 1 回の呼び出し内でしか効かない。
+///   `crates/docs-site/src/build.rs` の既存注記と同型の caveat）。
+///
+/// # Errors
+///
+/// - [`SsgError::UnsafePagePath`][]: いずれかのアセットパスが検証に失敗した。
+/// - [`SsgError::DuplicatePagePath`][]: 正規化後の出力先が重複した。
+/// - [`SsgError::CreateDir`][]/[`SsgError::WriteFile`][]: I/O エラー。
+pub fn generate_assets(
+    assets: &[(String, String)],
+    out_dir: &Path,
+) -> Result<Vec<PathBuf>, SsgError> {
+    // fail-closed: generate_pages と同じく、書き出し前に全アセットの
+    // パスを検証・重複判定する（部分成功で dist/ を汚さない）。
+    let mut relative_paths = Vec::with_capacity(assets.len());
+    for (path, _) in assets {
+        let relative = normalize_asset_path(path)?;
+        if relative_paths.contains(&relative) {
+            return Err(SsgError::DuplicatePagePath(path.clone()));
+        }
+        relative_paths.push(relative);
+    }
+
+    let mut written = Vec::with_capacity(assets.len());
+    for (relative, (_, content)) in relative_paths.iter().zip(assets.iter()) {
+        written.push(write_file(out_dir, relative, content)?);
+    }
+
+    Ok(written)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -522,5 +648,64 @@ mod tests {
         assert!(!message.contains("dummy-secret"));
         assert!(!message.contains("/internal/path"));
         assert!(message.contains('/'));
+    }
+
+    /// `is_safe_asset_file_name` の境界値: `.`/`..`/`...` のようなドットのみ
+    /// の名前を拒否し、拡張子付き通常名は許可することを固定する
+    /// （パストラバーサル対策、イシュー #1119）。
+    #[test]
+    fn is_safe_asset_file_name_rejects_dot_only_names() {
+        assert!(!is_safe_asset_file_name("."));
+        assert!(!is_safe_asset_file_name(".."));
+        assert!(!is_safe_asset_file_name("..."));
+        assert!(!is_safe_asset_file_name(""));
+        assert!(!is_safe_asset_file_name("a/b"));
+        assert!(!is_safe_asset_file_name("a\\b"));
+        assert!(is_safe_asset_file_name("sitemap.xml"));
+        assert!(is_safe_asset_file_name("robots.txt"));
+        assert!(is_safe_asset_file_name("healthz"));
+        assert!(is_safe_asset_file_name("404.html"));
+        assert!(is_safe_asset_file_name(".htaccess"));
+    }
+
+    /// `normalize_asset_path` の正常系（拡張子付き・拡張子なし・ネスト
+    /// パス）を固定する。
+    #[test]
+    fn normalize_asset_path_accepts_valid_paths() {
+        assert_eq!(normalize_asset_path("/sitemap.xml").unwrap(), "sitemap.xml");
+        assert_eq!(normalize_asset_path("/robots.txt").unwrap(), "robots.txt");
+        assert_eq!(normalize_asset_path("/healthz").unwrap(), "healthz");
+        assert_eq!(
+            normalize_asset_path("/assets/site.css").unwrap(),
+            "assets/site.css"
+        );
+    }
+
+    /// `normalize_asset_path` の拒否系（先頭 `/` 無し・`..`・末尾 `/`・
+    /// 空セグメント・非許可文字・ドットのみのファイル名・中間ディレクトリ
+    /// のドット）を固定する。
+    #[test]
+    fn normalize_asset_path_rejects_unsafe_paths() {
+        for input in [
+            "sitemap.xml",         // 先頭 / なし
+            "/../etc/passwd",      // .. トラバーサル
+            "/a/../b.txt",         // .. トラバーサル
+            "/healthz/",           // 末尾スラッシュ（ファイル前提のため非対応）
+            "//",                  // 空セグメント
+            "/a//b.txt",           // 中間の空セグメント
+            "/.",                  // ファイル名がドットのみ
+            "/..",                 // ファイル名がドットのみ（トラバーサル）
+            "/...",                // ファイル名がドットのみ
+            "/guide/foo\\bar.txt", // バックスラッシュ
+            "/.well-known/x.txt",  // 中間ディレクトリのドット（意図的に非対応）
+        ] {
+            assert!(
+                matches!(
+                    normalize_asset_path(input),
+                    Err(SsgError::UnsafePagePath(_))
+                ),
+                "expected UnsafePagePath for {input:?}"
+            );
+        }
     }
 }

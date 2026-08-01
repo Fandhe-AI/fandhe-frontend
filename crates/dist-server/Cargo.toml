@@ -34,7 +34,7 @@ categories = ["web-programming"]
 [dependencies]
 fandhe-frontend-core = { path = "../core", version = "0.1.1" }
 fandhe-frontend-app = { path = "../app", version = "0.1.0" }
-fandhe-frontend-server = { path = "../server", version = "0.1.0" }
+fandhe-frontend-server = { path = "../server", version = "0.1.1" }
 hyper = { version = "1", default-features = false, features = ["http1", "server"] }
 hyper-util = { version = "0.1", default-features = false, features = ["http1", "server", "tokio"] }
 http-body-util = { version = "0.1", default-features = false }
