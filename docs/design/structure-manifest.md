@@ -181,9 +181,11 @@ bin + lib 構成に拡張しても、`structure.toml`（本ファイルが定義
 この挙動は `fw gate` 側の実装最適化ではなく、本スキーマが「クレート単位の
 宣言」として設計されていること（§2.2 冒頭・`[directories.<name>].crate` が
 パッケージ名を表す）から構造的に導かれる。テンプレート同梱の
-`templates/app/structure.toml` にも同旨のコメントを明記している
-（`fw new --template app` 生成直後のプロジェクトで利用者が直接参照できる
-ようにするため）。
+`templates/{default,app}/structure.toml` にも同旨のコメントを明記している
+（`fw new`／`fw new --template app` 生成直後のプロジェクトで利用者が直接
+参照できるようにするため）。`templates/app/structure.toml` は #1115 で先行
+追記し、`templates/default/structure.toml` は既定テンプレート側の案内格差を
+解消するため #1134 で追記した。
 
 ### 2.3 整合性検証ルール（`StructureManifest::validate()`）
 
