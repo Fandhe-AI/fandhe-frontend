@@ -22,6 +22,14 @@
 # `disallowed-methods` 経由で REQ-1 を検出）も クレートの配置ディレクトリに
 # 依存せず全ソースを検査するため、REQ-1 の検出保証は二重に保たれる。
 # 詳細は `docs/design/structure-manifest.md` §2.2 を参照。
+#
+# 本マニフェストの宣言単位は cargo パッケージ（クレート）であり、ターゲット
+# （bin/lib）ではない（イシュー #1115/#1134、詳細は
+# docs/design/structure-manifest.md §2.2.3）。したがって `src/lib.rs` を
+# 追加して bin + lib 構成へ拡張しても、本ファイルの更新は不要である。
+# `fw gate` は宣言クレートへ `-p <crate>` 指定で cargo check/clippy/test を
+# 実行するため（`crates/cli/src/gate.rs`）、lib ターゲットも自動的に検証
+# 対象へ含まれて PASS する。
 
 [manifest]
 version = 1
