@@ -56,7 +56,7 @@
 //!    混入時は fail-closed で `Err` を返し DOM を変更しない、上記
 //!    不変条件 1 を継承）。
 //! 8. [`set_timeout_once`]/[`clear_timeout_once`]（イシュー #1121）の
-//!    `Closure` は `registry`（本ファイル [`mod registry`]）と同じく
+//!    `Closure` は `registry`（本ファイル `mod registry`）と同じく
 //!    `forget()` を使わず、`thread_local!` レジストリで key 単位に有界
 //!    保持する。
 

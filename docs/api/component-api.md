@@ -40,6 +40,8 @@ fandhe-frontend-spec リポジトリで行う）。
 | `render` | `fn render(node: &Node) -> String` | ノード木を HTML 文字列へレンダリングする（SSR/SSG/CSR 共通） |
 | `escape_html` / `escape_html_into` | `escape` モジュール re-export | HTML エンティティエスケープの実装 |
 | `json_ld` | `fn json_ld(json: impl Into<String>) -> Node`（イシュー #1117 で追加） | JSON-LD（構造化データ）を安全に `<script type="application/ld+json">` として埋め込む正規 API。既存シグネチャは変更せず追加のみ（`bind`/`keyed` 系と同型の凍結表拡張、#164/#342/#344 の先例） |
+| `el_owned` | `fn el_owned(tag: &'static str, attrs: Vec<(String, String)>, children: Vec<Node>) -> Node`（イシュー #1121 で追加） | `el` の所有属性値版。動的な属性値・`attr_if`/`attr_if_value` との合成に向く。エスケープ・属性名ホワイトリスト・タグ名固定は `el` と完全に共有し、既存シグネチャは変更しない（追加のみ） |
+| `attr_if` / `attr_if_value` | `fn attr_if(cond: bool, name: &str) -> Option<(String, String)>` / `fn attr_if_value(cond: bool, name: &str, value: impl Into<String>) -> Option<(String, String)>`（イシュー #1121 で追加） | 条件付き属性を組み立てる。`cond` が `false` のとき `None` を返し、`el_owned` の `attrs` へ `flatten()` で合成すると当該属性が出力から欠落する |
 
 **コンポーネント記述の標準規約**: コンポーネントは「`Node` を返す通常の Rust 関数」
 として記述する（`fn list_page() -> Node { ... }` 形式、PoC-3 の `fandhe-frontend-app` 実績）。
@@ -198,6 +200,45 @@ use fandhe_frontend_core::json_ld;
 let value = serde_json::json!({ "@context": "https://schema.org", "@type": "Article" });
 let node = json_ld(serde_json::to_string(&value).expect("serialize"));
 ```
+
+## 9. 追記: 動的値・条件付き属性（`el_owned`/`attr_if`/`attr_if_value`、イシュー #1121）
+
+イシュー #1121 は `el()` の `attrs: Vec<(&str, &str)>` が、動的な属性値
+（`format!` した値）・条件付き属性（`hidden`/`checked` 等、条件によって
+属性の有無自体が変わるケース）と相性が悪い（呼び出し元が `&str` の一時
+変数を束縛し続ける必要がある）という指摘を受け、第 2 節の凍結表へ 3 つの
+関数を追加した（既存 `el`/`text`/`raw_html`/`render` のシグネチャは一切
+変更しない、追加のみ）。
+
+```rust
+use fandhe_frontend_core::{el_owned, attr_if, attr_if_value, text, render};
+
+let disabled = false;
+let node = el_owned(
+    "button",
+    vec![("class".to_string(), "btn".to_string())]
+        .into_iter()
+        .chain(attr_if(disabled, "disabled"))
+        .chain(attr_if_value(true, "data-count", "3"))
+        .collect(),
+    vec![text("送信")],
+);
+assert_eq!(
+    render(&node),
+    r#"<button class="btn" data-count="3">送信</button>"#
+);
+```
+
+- `el_owned` は `Node::Element` へ属性を素通しするだけの薄いコンストラクタ
+  であり、`render()` 時のエスケープ・属性名ホワイトリスト検証（第 6 節）・
+  タグ名 `&'static str` 固定（不変条件 5）は `el` と完全に共有する。新たな
+  エスケープ迂回経路は作らない。
+- `attr_if`/`attr_if_value` は `cond` が `false` のとき `None` を返す。
+  `el_owned` の `attrs` へ `.into_iter().flatten().collect()`（または
+  `.chain(...)`）で合成すると、条件不成立時はその属性が出力から完全に
+  欠落する。
+- 利用パターンの詳細は `docs/guides/component-authoring.md` 第 3.6 節を
+  参照する。
 
 TASK-5.1b で追加予定のタグショートカット（第 4 節）を用いた場合の想定コード例
 （`div`/`p` は `el` への薄い委譲のため、出力は `el` を直接使った場合と完全に一致する）:
