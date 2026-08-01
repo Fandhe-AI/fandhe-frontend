@@ -1304,7 +1304,12 @@ AI エージェントが変更の影響範囲を判断するために読み込�
 
   - `crates/pre-styled-ui/src/theme.rs` の `push_color` / `push_space` は同名
     トークンの再定義を `DuplicateTokenName` で拒否する（`docs_theme()` からの
-    上書き経路が存在しない）。
+    上書き経路が存在しない）。イシュー #1138 で `upsert_color` / `upsert_space`
+    等の上書き専用 API が追加されたため、この技術的制約自体は解消した。
+    ただし本判断（配色・タイポグラフィ統一を行わない）は理由 1〜3（ドッグ
+    フーディング価値・影響範囲の不相応さ・構造統一で目的達成済み）に依拠して
+    おり、この参考情報は制約が理由の一部ではなく判断結果を補強する事実に
+    過ぎなかったため、`upsert_*` の追加によって本判断自体は変わらない。
   - `crates/docs-site/tests/site_typography_contract.rs` の
     `heading_size_variants_mirror_pre_styled_ui_heading_recipe` /
     `code_declarations_mirror_pre_styled_ui_code_recipe` が
