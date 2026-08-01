@@ -9,9 +9,11 @@
 //!
 //! - `sitemap.xml`/`robots.txt`/`404.html`/`healthz`（イシューの実例）の
 //!   書き出し（正常系）
+//! - `/.well-known/` 配下（RFC 8615 well-known URI、イシュー #1137）への
+//!   書き出し（正常系）
 //! - コンテンツが無加工（エスケープなし）でそのまま書き出される契約
 //! - `..`・先頭 `/` 欠如・末尾 `/`・空セグメント・非許可文字・ドットのみの
-//!   ファイル名・中間ディレクトリのドットの拒否と fail-closed
+//!   セグメント・`.git` セグメントの拒否と fail-closed
 //! - 重複拒否・空入力・決定性
 //! - `generate_pages`/`generate` との非干渉（両順序）
 
@@ -56,6 +58,32 @@ fn generate_assets_writes_expected_files_for_issue_examples() {
     }
 }
 
+/// 受け入れ条件 1 の直接証明: `/.well-known/` 配下（RFC 8615 well-known
+/// URI）へのアセット出力が可能になること（イシュー #1137）。
+#[test]
+fn generate_assets_writes_well_known_assets() {
+    let dir = TempDir::new("well-known");
+    let assets = [
+        (
+            "/.well-known/security.txt".to_string(),
+            "Contact: mailto:security@example.com\n".to_string(),
+        ),
+        (
+            "/.well-known/acme-challenge/token".to_string(),
+            "challenge-token-value".to_string(),
+        ),
+    ];
+
+    let written = generate_assets(&assets, &dir.0).expect("well-known assets should be written");
+    assert_eq!(written.len(), assets.len());
+
+    for (path, content) in &assets {
+        let relative = path.trim_start_matches('/');
+        let body = fs::read_to_string(dir.0.join(relative)).unwrap();
+        assert_eq!(&body, content);
+    }
+}
+
 /// 無加工契約: `<`/`&` 等を含むコンテンツがエスケープされずそのまま
 /// 書き出されること（`generate_pages` の XSS エスケープ回帰テストと対に
 /// なる「本 API は HTML を組み立てない」契約の固定）。
@@ -74,16 +102,18 @@ fn generate_assets_writes_content_verbatim_without_escaping() {
 #[test]
 fn generate_assets_rejects_unsafe_paths_and_writes_nothing() {
     let cases = [
-        "sitemap.xml",        // 先頭 / なし
-        "/../etc/passwd",     // .. トラバーサル
-        "/a/../b.txt",        // .. トラバーサル
-        "/.",                 // ファイル名がドットのみ
-        "/..",                // ファイル名がドットのみ（トラバーサル）
-        "/...",               // ファイル名がドットのみ
-        "/healthz/",          // 末尾スラッシュ
-        "//",                 // 空セグメント
-        "/a/foo\\bar.txt",    // バックスラッシュ
-        "/.well-known/x.txt", // 中間ディレクトリのドット
+        "sitemap.xml",           // 先頭 / なし
+        "/../etc/passwd",        // .. トラバーサル
+        "/a/../b.txt",           // .. トラバーサル
+        "/.",                    // ファイル名がドットのみ
+        "/..",                   // ファイル名がドットのみ（トラバーサル）
+        "/...",                  // ファイル名がドットのみ
+        "/healthz/",             // 末尾スラッシュ
+        "//",                    // 空セグメント
+        "/a/foo\\bar.txt",       // バックスラッシュ
+        "/.git/config",          // .git ディレクトリ（defense-in-depth、イシュー #1137）
+        "/./x.txt",              // 中間セグメントがドットのみ
+        "/.well-known/../x.txt", // ドット始まりディレクトリ経由のトラバーサル
     ];
 
     for input in cases {

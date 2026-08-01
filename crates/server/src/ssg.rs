@@ -34,6 +34,10 @@
 //!   恩恵を受けられなかった非 HTML 生成物向け（イシュー本文の動機）。
 //!   `Node` 木を経由せず文字列コンテンツをそのまま書き出すため、HTML の
 //!   組み立てには使わないこと（詳細は [`generate_assets`] rustdoc）。
+//!   イシュー #1137 で中間ディレクトリセグメントにもファイル名と同じ
+//!   ドット許可述語（[`is_safe_asset_file_name`]）を適用し、
+//!   `/.well-known/security.txt` のような RFC 8615 well-known URI 配下への
+//!   出力を許可した（詳細は [`normalize_asset_path`] rustdoc）。
 //!
 //! # セキュリティ不変条件（OWASP A01 パストラバーサル対策・fail-closed）
 //!
@@ -59,6 +63,13 @@
 //! - `unwrap`/`panic!` は使わず、書き込み・検証の失敗はすべて
 //!   [`SsgError`]（`Result`）として呼び出し元へ伝える
 //!   （`coding-rust.md` のエラー処理規約）。
+//! - [`generate_assets`] の中間ディレクトリセグメントは
+//!   [`is_safe_asset_dir_segment`]（イシュー #1137）で検証する。ドット始まり
+//!   の名前（`.well-known` 等）を許可しつつ、`.`/`..`/`...` のようなドット
+//!   のみの名前は位置を問わず構造的に拒否し（トラバーサル不可の不変条件を
+//!   維持）、加えて `.git`（ASCII 大文字小文字非区別）を defense-in-depth
+//!   として明示拒否する（`out_dir` が git worktree の場合の `config`/
+//!   `hooks` 汚染防止、OWASP A01）。
 
 use crate::ssr::respond_with;
 use fandhe_frontend_app::{DemoItemDetailLoader, DemoItemsLoader, Item, Loader};
@@ -398,18 +409,38 @@ fn is_safe_asset_file_name(name: &str) -> bool {
         && name.chars().any(|c| c != '.')
 }
 
+/// アセットパスの中間セグメント（ディレクトリ名）が出力パス片として
+/// 安全かを検証する（イシュー #1137）。
+///
+/// [`is_safe_asset_file_name`] と同じ許可文字集合・「ドットのみの名前を
+/// 拒否」の不変条件をそのまま再利用し、`.well-known` のようなドット始まり
+/// ディレクトリを許可する（RFC 8615 well-known URI 配下へのアセット出力を
+/// 可能にする、イシュー本文の動機）。加えて `.git`（ASCII 大文字小文字
+/// 非区別）を defense-in-depth として明示拒否する。アセットパスは通常
+/// 開発者記述の定数だが、loader 由来データからパスを合成する利用も
+/// 否定できず、`out_dir` が git worktree（gh-pages デプロイ等）である
+/// 場合に `.git/config`・`.git/hooks/...` への書き出しは任意コード実行に
+/// つながり得るため、fail-closed 方針に沿って安全側に倒す（OWASP A01）。
+fn is_safe_asset_dir_segment(name: &str) -> bool {
+    is_safe_asset_file_name(name) && !name.eq_ignore_ascii_case(".git")
+}
+
 /// [`generate_assets`] 用のアセットパス正規化・検証。
 ///
 /// - `/sitemap.xml` → `"sitemap.xml"`、`/assets/site.css` →
-///   `"assets/site.css"`、`/healthz` → `"healthz"`（拡張子の有無を問わない）。
+///   `"assets/site.css"`、`/healthz` → `"healthz"`（拡張子の有無を問わない）、
+///   `/.well-known/security.txt` → `".well-known/security.txt"`
+///   （イシュー #1137、ドット始まり中間ディレクトリの許可）。
 /// - 先頭 `/` が無い・末尾が `/`（[`normalize_page_path`] と異なりアセットは
 ///   常にファイルを指すため `/healthz/` のような表記は非対応）・空セグメント
 ///   （`//`）を含む場合は [`SsgError::UnsafePagePath`] を返す。
-/// - 中間セグメント（ディレクトリ名相当）は [`is_safe_path_segment`] を、
-///   最終セグメント（ファイル名）は [`is_safe_asset_file_name`] を適用する
-///   （ホワイトリストの二重管理を避けつつファイル名にのみ `.` を許可する）。
-///   中間セグメントへの `.` 許可（`/.well-known/security.txt` 等）は非対応
-///   （意図的な制限。要望が出た時点で緩和を別途検討する）。
+/// - 中間セグメント（ディレクトリ名相当）・最終セグメント（ファイル名）の
+///   いずれにも [`is_safe_asset_dir_segment`]/[`is_safe_asset_file_name`]
+///   （英数字・`-`・`_`・`.`、ドットのみの名前は拒否）を適用する。中間
+///   セグメントはさらに `.git`（大文字小文字非区別）を拒否する
+///   （[`is_safe_asset_dir_segment`] 参照）。`.`・`..`・`...` はいずれの
+///   セグメント位置でも構造的に拒否されるため、`out_dir.join(..)` した
+///   結果が `out_dir` 外を指す経路は本変更後も存在しない。
 fn normalize_asset_path(path: &str) -> Result<String, SsgError> {
     let Some(rest) = path.strip_prefix('/') else {
         return Err(SsgError::UnsafePagePath(path.to_string()));
@@ -425,7 +456,7 @@ fn normalize_asset_path(path: &str) -> Result<String, SsgError> {
         .expect("split('/') always yields at least one segment");
 
     for segment in dir_segments {
-        if !is_safe_path_segment(segment) {
+        if !is_safe_asset_dir_segment(segment) {
             return Err(SsgError::UnsafePagePath(path.to_string()));
         }
     }
@@ -668,8 +699,28 @@ mod tests {
         assert!(is_safe_asset_file_name(".htaccess"));
     }
 
+    /// `is_safe_asset_dir_segment` の境界値: ドット始まりディレクトリ名
+    /// （`.well-known` 等）を許可しつつ、ドットのみの名前・`.git`（大文字
+    /// 小文字問わず）を拒否することを固定する（イシュー #1137）。
+    #[test]
+    fn is_safe_asset_dir_segment_allows_dot_leading_dirs_but_rejects_git_and_dot_only() {
+        assert!(is_safe_asset_dir_segment(".well-known"));
+        assert!(is_safe_asset_dir_segment("assets"));
+        assert!(is_safe_asset_dir_segment(".hidden"));
+
+        assert!(!is_safe_asset_dir_segment("."));
+        assert!(!is_safe_asset_dir_segment(".."));
+        assert!(!is_safe_asset_dir_segment("..."));
+        assert!(!is_safe_asset_dir_segment(""));
+        assert!(!is_safe_asset_dir_segment(".git"));
+        assert!(!is_safe_asset_dir_segment(".GIT"));
+        assert!(!is_safe_asset_dir_segment(".Git"));
+        assert!(!is_safe_asset_dir_segment("a/b"));
+        assert!(!is_safe_asset_dir_segment("a\\b"));
+    }
+
     /// `normalize_asset_path` の正常系（拡張子付き・拡張子なし・ネスト
-    /// パス）を固定する。
+    /// パス・ドット始まり中間ディレクトリ）を固定する。
     #[test]
     fn normalize_asset_path_accepts_valid_paths() {
         assert_eq!(normalize_asset_path("/sitemap.xml").unwrap(), "sitemap.xml");
@@ -679,25 +730,39 @@ mod tests {
             normalize_asset_path("/assets/site.css").unwrap(),
             "assets/site.css"
         );
+        // イシュー #1137: RFC 8615 well-known URI 配下への出力を許可する。
+        assert_eq!(
+            normalize_asset_path("/.well-known/security.txt").unwrap(),
+            ".well-known/security.txt"
+        );
+        assert_eq!(
+            normalize_asset_path("/.well-known/acme-challenge/token").unwrap(),
+            ".well-known/acme-challenge/token"
+        );
     }
 
     /// `normalize_asset_path` の拒否系（先頭 `/` 無し・`..`・末尾 `/`・
-    /// 空セグメント・非許可文字・ドットのみのファイル名・中間ディレクトリ
-    /// のドット）を固定する。
+    /// 空セグメント・非許可文字・ドットのみのセグメント・`.git`・ドット
+    /// 始まりディレクトリ経由のトラバーサル）を固定する。
     #[test]
     fn normalize_asset_path_rejects_unsafe_paths() {
         for input in [
-            "sitemap.xml",         // 先頭 / なし
-            "/../etc/passwd",      // .. トラバーサル
-            "/a/../b.txt",         // .. トラバーサル
-            "/healthz/",           // 末尾スラッシュ（ファイル前提のため非対応）
-            "//",                  // 空セグメント
-            "/a//b.txt",           // 中間の空セグメント
-            "/.",                  // ファイル名がドットのみ
-            "/..",                 // ファイル名がドットのみ（トラバーサル）
-            "/...",                // ファイル名がドットのみ
-            "/guide/foo\\bar.txt", // バックスラッシュ
-            "/.well-known/x.txt",  // 中間ディレクトリのドット（意図的に非対応）
+            "sitemap.xml",           // 先頭 / なし
+            "/../etc/passwd",        // .. トラバーサル
+            "/a/../b.txt",           // .. トラバーサル
+            "/healthz/",             // 末尾スラッシュ（ファイル前提のため非対応）
+            "//",                    // 空セグメント
+            "/a//b.txt",             // 中間の空セグメント
+            "/.",                    // ファイル名がドットのみ
+            "/..",                   // ファイル名がドットのみ（トラバーサル）
+            "/...",                  // ファイル名がドットのみ
+            "/guide/foo\\bar.txt",   // バックスラッシュ
+            "/./x.txt",              // 中間セグメントがドットのみ
+            "/.../x.txt",            // 中間セグメントがドットのみ
+            "/.git/config",          // .git ディレクトリ（defense-in-depth）
+            "/.GIT/config",          // .git 大文字小文字非区別
+            "/a/.git/hooks",         // ネストした .git ディレクトリ
+            "/.well-known/../x.txt", // ドット始まりディレクトリ経由のトラバーサル回帰
         ] {
             assert!(
                 matches!(
