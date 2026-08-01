@@ -93,6 +93,22 @@
 //! `wasm-full`（イシュー #343/#345）はこの属性形式を走査してキー照合・
 //! 最小 DOM 操作を行う契約になっている。
 //!
+//! ## JSON-LD 埋め込み（イシュー #1117）
+//!
+//! [`json_ld`] 関数（実装モジュールは `json_ld`）は
+//! `<script type="application/ld+json">` を安全に埋め込む正規 API。
+//! `<script>` は raw text 要素で実体参照が復号されないため、既定エスケープ
+//! （不変条件 1）をそのまま適用すると JSON が壊れる。この関数は
+//! HTML 活性文字（`<` `>` `&` と U+2028/U+2029）のみを `\uXXXX` へ中立化
+//! してから内部で [`raw_html`] を呼ぶ **審査済みの wrapper** であり、
+//! 不変条件 2（エスケープ迂回経路は `raw_html` のみ）を破らない
+//! （`json_ld` は `raw_html` の新たな迂回経路の追加ではなく、
+//! `raw_html` 経由の唯一のフレームワーク内呼び出し元として審査済み）。
+//! 新しい `Node` バリアント・新しいレンダリング経路は追加しない。
+//! 中立化後の出力には生の `<` `>` `&` が一切残らないことをモジュール内
+//! テスト（XSS 回帰含む）が固定する。詳細な安全性根拠は [`json_ld`]
+//! モジュールの doc を参照。
+//!
 //! ## スコープ外
 //!
 //! void 要素の自己終了処理は本クレートでは扱わない。`docs/api/component-api.md`
@@ -106,12 +122,14 @@ use std::fmt::Write as _;
 
 mod bind;
 mod escape;
+mod json_ld;
 pub mod keyed;
 mod tags;
 mod url;
 
 pub use bind::*;
 pub use escape::{escape_html, escape_html_into};
+pub use json_ld::json_ld;
 pub use tags::*;
 pub use url::{is_event_handler_attr, is_safe_srcset, is_safe_url, is_url_attr, URL_ATTRS};
 

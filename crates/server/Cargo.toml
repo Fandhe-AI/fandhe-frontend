@@ -17,7 +17,7 @@ default-run = "fandhe-frontend-server"
 # 通常の path 依存へ昇格した（外部クレートの追加は行っていない）。本クレートは
 # 引き続き外部クレートを一切追加しない自前実装のみで構成する。
 [dependencies]
-fandhe-frontend-core = { path = "../core", version = "0.1.0" }
+fandhe-frontend-core = { path = "../core", version = "0.1.1" }
 fandhe-frontend-app = { path = "../app", version = "0.1.0" }
 
 [dev-dependencies]

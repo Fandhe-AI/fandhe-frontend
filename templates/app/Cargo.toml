@@ -13,7 +13,7 @@ publish = false
 # （バージョン要件自体は Cargo 既定のキャレット要件）。外部クレートは追加しない（生成プロジェクトの依存グラフは
 # fandhe-frontend-core/fandhe-frontend-app の 2 crate のみ。REQ-3 の 60 件/深さ 6 に対し余裕）。
 [dependencies]
-fandhe-frontend-core = "0.1.0"
+fandhe-frontend-core = "0.1.1"
 fandhe-frontend-app = "0.1.0"
 
 [dev-dependencies]
