@@ -8,13 +8,13 @@ publish = false
 
 # examples/ は「crates.io 公開済みクレートを実際に使う正本サンプル」であり、
 # templates/（`fw new` が展開する雛形）とは異なりバージョン依存で完結する。
-# 依存クレートはいずれも v0.1.0 で crates.io へ公開済み（examples/ssr-routing
-# 実装時に sparse index への再照会で非 yanked を確認済み。詳細は PR #506
-# 本文参照。本サンプルは追加のバージョン確認を行っていないが同一 v0.1.0
-# 系列を参照するため前提は変わらない）。
+# fandhe-frontend-server 0.2.0（イシュー #1119 で追加された generate_assets を
+# 含む）への追随に伴い、推移的に依存する fandhe-frontend-core も 0.2.0 へ
+# 揃える（イシュー #1135。sparse index への再照会で両者とも非 yanked を確認
+# 済み）。
 [dependencies]
-fandhe-frontend-core = "0.1.0"
-fandhe-frontend-server = "0.1.0"
+fandhe-frontend-core = "0.2.0"
+fandhe-frontend-server = "0.2.0"
 
 [dev-dependencies]
 

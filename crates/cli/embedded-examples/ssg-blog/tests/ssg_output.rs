@@ -13,7 +13,7 @@
 //!    起動し、`dist/` の生成結果を確認する。
 
 use fandhe_frontend_core::{el, text};
-use fandhe_frontend_server::ssg::{generate_pages, SsgError};
+use fandhe_frontend_server::ssg::{generate_assets, generate_pages, SsgError};
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -111,6 +111,48 @@ fn generate_pages_rejects_duplicate_normalized_paths() {
     );
 }
 
+/// `generate_assets` の fail-closed 回帰（イシュー #1135）: 不正なパス
+/// （`..` を含む）が 1 件でも混ざると `SsgError::UnsafePagePath` を返し、
+/// 他の正当なアセットも含めて 1 つも書き出さないことを固定する。
+#[test]
+fn generate_assets_rejects_unsafe_path_without_partial_writes() {
+    let tmp = TempDir::new("assets-unsafe-path");
+    let assets = vec![
+        ("/sitemap.xml".to_string(), "<urlset></urlset>".to_string()),
+        ("/../etc/passwd".to_string(), "evil".to_string()),
+    ];
+
+    let result = generate_assets(&assets, &tmp.0);
+    assert!(
+        matches!(result, Err(SsgError::UnsafePagePath(_))),
+        "expected UnsafePagePath, got {result:?}"
+    );
+    assert!(
+        !tmp.0.exists(),
+        "no files should be written when any asset path fails validation (fail-closed)"
+    );
+}
+
+/// `generate_assets` の無加工書き出し contract 回帰（イシュー #1135）:
+/// 渡した文字列がバイト無加工で書かれ、`generate_pages` と異なり既定
+/// エスケープ（REQ-1）が適用されない API であることを明示的に固定する。
+#[test]
+fn generate_assets_writes_content_verbatim_without_escaping() {
+    let tmp = TempDir::new("assets-verbatim");
+    let raw = "<urlset>&unescaped<not-a-real-tag></urlset>";
+    let assets = vec![("/sitemap.xml".to_string(), raw.to_string())];
+
+    let written =
+        generate_assets(&assets, &tmp.0).expect("valid single asset should write successfully");
+    assert_eq!(written.len(), 1);
+
+    let body = std::fs::read_to_string(&written[0]).expect("written asset should be readable");
+    assert_eq!(
+        body, raw,
+        "generate_assets must write content byte-for-byte without default escaping"
+    );
+}
+
 // --- 2. CLI ブラックボックス検証 ---
 
 /// `src/main.rs` のバイナリを一意な一時ディレクトリを `current_dir` として
@@ -134,7 +176,8 @@ fn run_cli_in_scratch_dir(tag: &str) -> TempDir {
 }
 
 /// 受け入れ条件 1: `cargo run` で `dist/` に静的サイトが生成されることを、
-/// 生成ファイル集合の固定（過不足なし）で断定する。
+/// 生成ファイル集合の固定（過不足なし）で断定する。イシュー #1135 で
+/// `sitemap.xml` / `robots.txt`（`generate_assets` 経由）を追加。
 #[test]
 fn cli_generates_expected_dist_files() {
     let scratch = run_cli_in_scratch_dir("dist-files");
@@ -147,8 +190,11 @@ fn cli_generates_expected_dist_files() {
             "dist/posts/{slug}/index.html should exist"
         );
     }
+    assert!(dist.join("sitemap.xml").is_file());
+    assert!(dist.join("robots.txt").is_file());
 
-    // 過不足なし: index.html 1 件 + posts/<slug>/index.html 3 件 = 4 ファイル。
+    // 過不足なし: index.html 1 件 + posts/<slug>/index.html 3 件
+    // + sitemap.xml 1 件 + robots.txt 1 件 = 6 ファイル。
     let mut file_count = 0usize;
     fn count_files(dir: &std::path::Path, count: &mut usize) {
         for entry in std::fs::read_dir(dir).expect("dist dir should be readable") {
@@ -162,7 +208,32 @@ fn cli_generates_expected_dist_files() {
         }
     }
     count_files(&dist, &mut file_count);
-    assert_eq!(file_count, 4, "dist/ should contain exactly 4 files");
+    assert_eq!(file_count, 6, "dist/ should contain exactly 6 files");
+}
+
+/// 受け入れ条件 1: `sitemap.xml` に `/` と全記事の `<loc>` が含まれ、
+/// `robots.txt` に `Sitemap:` 行が含まれることを固定する（イシュー #1135）。
+#[test]
+fn cli_generates_sitemap_and_robots_with_expected_content() {
+    let scratch = run_cli_in_scratch_dir("sitemap-robots");
+    let dist = scratch.0.join("dist");
+
+    let sitemap =
+        std::fs::read_to_string(dist.join("sitemap.xml")).expect("sitemap.xml should be readable");
+    assert!(sitemap.starts_with("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
+    assert!(sitemap.contains("<loc>https://example.com/</loc>"));
+    for slug in ["hello-ssg", "default-escaping", "view-transitions"] {
+        assert!(
+            sitemap.contains(&format!("<loc>https://example.com/posts/{slug}/</loc>")),
+            "sitemap.xml should contain <loc> for /posts/{slug}/"
+        );
+    }
+
+    let robots =
+        std::fs::read_to_string(dist.join("robots.txt")).expect("robots.txt should be readable");
+    assert!(robots.contains("User-agent: *"));
+    assert!(robots.contains("Allow: /"));
+    assert!(robots.contains("Sitemap: https://example.com/sitemap.xml"));
 }
 
 /// 全ページに `@view-transition { navigation: auto; }` が含まれることを

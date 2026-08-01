@@ -1163,6 +1163,16 @@ fn fw_new_example_ssg_blog_output_passes_fw_gate() {
             "dist/posts/{slug}/index.html が生成されていない"
         );
     }
+    // イシュー #1135: generate_assets による sitemap.xml / robots.txt の
+    // 生成も、生成直後のプロジェクトで正本と同じ実演が動くことを確認する。
+    assert!(
+        dist.join("sitemap.xml").is_file(),
+        "dist/sitemap.xml が生成されていない"
+    );
+    assert!(
+        dist.join("robots.txt").is_file(),
+        "dist/robots.txt が生成されていない"
+    );
 }
 
 /// `fw new --example dist-server-docker` で生成した直後のプロジェクトが

@@ -14,7 +14,7 @@ https://fandhe-ai.github.io/fandhe-frontend/examples/ ）でも閲覧できま�
 | サンプル | 学べること | 主要クレート |
 |---|---|---|
 | [ssr-routing](./ssr-routing/README.md) | `Loader` trait の自作実装・`respond_with` による SSR 応答組み立て・`Router` によるパスパラメータ処理・既定エスケープ（REQ-1） | `fandhe-frontend-core` / `-app` / `-server` |
-| [ssg-blog](./ssg-blog/README.md) | `generate_pages` による静的サイト書き出し・パス検証の fail-closed 契約・View Transitions の有効化 | `fandhe-frontend-core` / `-server` |
+| [ssg-blog](./ssg-blog/README.md) | `generate_pages` による静的サイト書き出し・`generate_assets` による `sitemap.xml`/`robots.txt` 書き出し・パス検証の fail-closed 契約・View Transitions の有効化 | `fandhe-frontend-core` / `-server` |
 | [dist-server-docker](./dist-server-docker/README.md) | 単一バイナリ配布・`FROM scratch` の Docker イメージ最小化・外部依存利用時の静的アセット配信の制約と対処 | `fandhe-frontend-dist-server` |
 | [interactive-view-transitions](./interactive-view-transitions/README.md) | `Component` trait による状態機械・`dispatch`/`hydrate`・`start_router` による SPA 内 View Transitions の自動有効化 | `fandhe-frontend-core` / `-app` / `-interactive`（+ `-wasm-full`） |
 | [headless-pre-styled-ui](./headless-pre-styled-ui/README.md) | `fandhe-frontend-headless-ui`（ark-ui 相当）の anatomy・`data-*`・WAI-ARIA 属性（Tabs/Accordion/Dialog/Switch/RadioGroup/Avatar） | `fandhe-frontend-core` / `-pre-styled-ui`（headless 層は再エクスポート経由） |

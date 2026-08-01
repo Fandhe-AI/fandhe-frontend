@@ -5,9 +5,11 @@
 `fandhe-frontend` フレームワークの SSG（静的サイト生成）正本サンプルです
 （イシュー #501）。`examples/ssr-routing`（イシュー #499、SSR + ルーティング）
 に続く examples 規約の 2 件目のサンプルであり、crates.io へ公開済みの
-`fandhe-frontend-core` / `fandhe-frontend-server`（いずれも v0.1.0）を
+`fandhe-frontend-core` / `fandhe-frontend-server`（いずれも v0.2.0）を
 バージョン依存として実際に使う「正本」です。記事一覧 + 各記事詳細ページを
-静的 HTML として `dist/` へ書き出す最小ブログサイトを実演します。
+静的 HTML として `dist/` へ書き出す最小ブログサイトを実演します。加えて
+`generate_assets`（イシュー #1119）による `sitemap.xml` / `robots.txt` の
+書き出しも実演します（イシュー #1135）。
 
 ## 学べること
 
@@ -20,6 +22,11 @@
   ノード木へ載せ、`raw_html()` や HTML 文字列の直接組み立ては使いません
 - `@view-transition { navigation: auto; }` による Cross-Document View
   Transitions の有効化（`fandhe_frontend_app::page_shell` と同一の固定リテラル）
+- `fandhe_frontend_server::ssg::generate_assets`（イシュー #1119）による
+  非 HTML アセット（`sitemap.xml` / `robots.txt`）の書き出し。
+  `generate_pages` と同じ fail-closed のパス検証を経由しますが、コンテンツは
+  無加工書き出しのため既定エスケープは適用されません（HTML ページの生成には
+  使わず `generate_pages` を使うこと）
 
 ## 前提
 
@@ -47,8 +54,8 @@ cargo run -p fandhe-frontend-cli -- gate --project examples/ssg-blog
 ```
 
 `cargo run` の実行後、`dist/index.html` と `dist/posts/<slug>/index.html`
-（`hello-ssg` / `default-escaping` / `view-transitions` の 3 記事分）が
-生成されます。
+（`hello-ssg` / `default-escaping` / `view-transitions` の 3 記事分）に加え、
+`dist/sitemap.xml`・`dist/robots.txt`（`generate_assets` 経由）が生成されます。
 
 ## 主要ファイル
 
@@ -58,9 +65,9 @@ cargo run -p fandhe-frontend-cli -- gate --project examples/ssg-blog
 | `structure.toml` | `fw gate` が唯一の情報源として読む構造マニフェスト |
 | `clippy.toml` | `raw_html()` 迂回検出ポリシー（`templates/default/` と内容同一） |
 | `deny.toml` | 依存ポリシー（`templates/default/` と内容同一） |
-| `src/main.rs` | SSG エントリ（`layout` / `index_page` / `post_page` / `build_pages` + `generate_pages` 呼び出し） |
+| `src/main.rs` | SSG エントリ（`layout` / `index_page` / `post_page` / `build_pages_for` + `generate_pages` 呼び出し、`build_assets` + `generate_assets` 呼び出し） |
 | `src/posts.rs` | 固定記事データ（XSS ペイロード入り記事 1 件を含む） |
-| `tests/ssg_output.rs` | `generate_pages` の既定エスケープ・fail-closed・重複拒否回帰と CLI ブラックボックステスト |
+| `tests/ssg_output.rs` | `generate_pages`/`generate_assets` の既定エスケープ・fail-closed・重複拒否回帰と CLI ブラックボックステスト |
 
 ## 関連ガイド
 
