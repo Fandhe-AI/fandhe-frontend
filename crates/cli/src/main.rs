@@ -37,7 +37,9 @@ fn main() {
 ///
 /// 戻り値はプロセスの終了コード。未知のサブコマンド・引数不足・検証違反は
 /// 非 0（使用法エラー 2、検証違反 1）、正常終了は 0（xtask の `check-deps` 等と
-/// 終了コード規約を統一）。
+/// 終了コード規約を統一）。`gate` サブコマンドのみ、環境エラー
+/// （`gate_result: "ERROR"`、ツール未導入等でコード起因ではない不合格）を
+/// 終了コード 3 として区別する（イシュー #1116、[`gate::run_gate`] 参照）。
 fn run(args: &[String]) -> i32 {
     match args.first().map(String::as_str) {
         Some("structure") => run_structure(&args[1..]),
@@ -61,7 +63,7 @@ fn print_usage() {
     eprintln!("Usage: fw <subcommand> [--project <dir>]");
     eprintln!("Subcommands:");
     eprintln!("  structure    generate/validate the machine-readable project structure manifest");
-    eprintln!("  gate         run the AI self-maintenance verification gate (type/escape/lint/test/policy)");
+    eprintln!("  gate         run the AI self-maintenance verification gate (type/escape/lint/test/policy) [--verbose]");
     eprintln!("  impact       analyze the change impact of a symbol (breaking risk, affected crates/routes)");
     eprintln!("  new          deterministically scaffold a new project from templates/default");
 }

@@ -81,7 +81,7 @@ AI エージェントがプロダクトへの変更を提案したとき、`fw g
 （`gate_result`）と `fw impact <symbol>` の実行結果（`breaking_risk` /
 `affected_routes` / `ambiguous`）を判断材料として、次の 4 ルールに従う。
 
-### ルール 1: ゲート未通過（`gate_result: BLOCKED`）は無条件に自動適用しない
+### ルール 1: ゲート未通過（`gate_result: BLOCKED` または `ERROR`）は無条件に自動適用しない
 
 `fw gate` が実行する 6 種の検証チェック（`type_check` / `default_escape_check` /
 `url_validation_check` / `lint` / `test` / `policy`）のうち 1 件でも不合格であれば、
@@ -124,6 +124,18 @@ runner インスタンスによってはこれらが未導入で、ツール不�
 プレフィックスで「コード起因ではなく環境要因の失敗」であることを明示する
 ため、AI エージェントはこのプレフィックスの有無で「コードを修正すべきか」
 「ツール導入を先に行うべきか」を判別できる。
+
+**`gate_result: "ERROR"`（イシュー #1116）**: 不合格の全件が
+`environment_error: true`（clippy component / cargo-deny 未導入等、
+実行環境起因）である場合、`gate_result` は `"BLOCKED"` ではなく `"ERROR"`
+（終了コード 3）になる。この場合も **無条件の自動適用は行わない**（`PASS`
+以外は等しく差し戻し対象）。`BLOCKED` との違いは是正対象のみで、
+`ERROR` は「コードではなくランナー環境を修正してから再実行する」ことを
+AI エージェントへ促す（`tools/ci/ensure-gate-tools.sh` の実行、または
+是正コマンド `output` に含まれる案内に従う）。不合格にコード起因の
+チェックが 1 件でも混在する場合は、環境エラーと同時発生していても
+`gate_result` は `"BLOCKED"` のまま（コード起因優先、`docs/design/gate-design.md`
+§4）。
 
 ### ルール 2: ゲート通過かつ `breaking_risk: low` かつ `affected_routes` が空の変更は自動適用候補とする
 
@@ -189,7 +201,7 @@ requires_human_approval =
 
 | コマンド | フィールド | 本書での参照箇所 |
 |---------|-----------|-----------------|
-| `fw gate` | `gate_result`（`"PASS"` \| `"BLOCKED"`） | ルール 1 |
+| `fw gate` | `gate_result`（`"PASS"` \| `"BLOCKED"` \| `"ERROR"`。イシュー #1116 で `"ERROR"` を追加） | ルール 1 |
 | `fw impact <symbol>` | `breaking_risk`（`"high"` \| `"medium"` \| `"low"`） | ルール 2・3 |
 | `fw impact <symbol>` | `affected_routes`（配列） | ルール 2・3 |
 | `fw impact <symbol>` | `ambiguous`（真偽値） | ルール 2・3 |
