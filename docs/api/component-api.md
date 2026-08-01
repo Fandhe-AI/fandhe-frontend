@@ -39,6 +39,7 @@ fandhe-frontend-spec リポジトリで行う）。
 | `raw_html` | `fn raw_html(s: impl Into<String>) -> Node` | 生 HTML ノードを組み立てる（唯一の明示的オプトイン） |
 | `render` | `fn render(node: &Node) -> String` | ノード木を HTML 文字列へレンダリングする（SSR/SSG/CSR 共通） |
 | `escape_html` / `escape_html_into` | `escape` モジュール re-export | HTML エンティティエスケープの実装 |
+| `json_ld` | `fn json_ld(json: impl Into<String>) -> Node`（イシュー #1117 で追加） | JSON-LD（構造化データ）を安全に `<script type="application/ld+json">` として埋め込む正規 API。既存シグネチャは変更せず追加のみ（`bind`/`keyed` 系と同型の凍結表拡張、#164/#342/#344 の先例） |
 
 **コンポーネント記述の標準規約**: コンポーネントは「`Node` を返す通常の Rust 関数」
 として記述する（`fn list_page() -> Node { ... }` 形式、PoC-3 の `fandhe-frontend-app` 実績）。
@@ -55,6 +56,7 @@ fandhe-frontend-spec リポジトリで行う）。
 | 3 | 属性名はホワイトリスト検証（英数字・`-`・`_`・`:` のみ許可）し、不正な属性名は panic させず出力からスキップする | 属性名スロット経由の注入（追加属性の割り込み）を遮断するため。`crates/core/src/lib.rs` 不変条件 4、ライブラリコードでの panic 回避規約（`.claude/rules/coding-rust.md`） |
 | 4 | void 要素（`br`/`img`/`input` 等）は v1 では常に終了タグを出力する現行仕様を凍結する | 現行実装の既知の制約として記録する。自己終了タグ出力（`<br />` 等）の最適化は本書のスコープ外とし、将来課題として TASK-5.1b 以降に挙動変更を混入させない（第 8 節参照） |
 | 5 | 大文字を含むタグ名（例: `DIV`）はそのまま出力する現行挙動を凍結する | `is_valid_tag_name` が `is_ascii_alphabetic`/`is_ascii_alphanumeric` で判定するため許可される。HTML の小文字化はフレームワークの責務外という現状の実装どおりの挙動を明文化する |
+| 6 | JSON-LD 埋め込み（`json_ld`）は、シリアライズ済み JSON 文字列を受け取り `<` `>` `&`・U+2028/U+2029 のみを `\uXXXX` へ中立化してから内部で `raw_html` を呼ぶ wrapper 方式とする（イシュー #1117） | `<script>` は raw text 要素で実体参照が復号されないため既定エスケープをそのまま適用すると JSON が壊れる。妥当な JSON では上記の文字はリテラル内にしか出現し得ないため全置換は意味保存（`JSON.parse` 結果を変えない）。JSON バリデーションは行わない fail-safe 設計とし、不正入力でも出力に生の `<` `>` `&` が残らないことをテストで固定する。`json_ld` を `raw_html` の唯一のフレームワーク内呼び出し元として審査済みとし、利用者コード側に個別の `#[expect(clippy::disallowed_methods)]` を書かせない（`docs/policy/raw-html-review-gate.md` の正規書式に従う） |
 
 ## 4. タグショートカットの方針（TASK-5.1b が実装する範囲）
 
@@ -130,6 +132,12 @@ div, p, ul, li, a, h1, main_tag（"main" タグへの薄い委譲）
    不合格の値（`javascript:` 等）は属性ごと出力からスキップする（fail-closed）。
    `on*` で始まるイベントハンドラ属性は値によらず一律出力しない。詳細な脅威
    整理・許可リストの正は `docs/policy/attribute-output-policy.md` を参照する。
+9. **（イシュー #1117）** `json_ld` は `<` `>` `&`・U+2028/U+2029 を `\uXXXX` へ
+   中立化した JSON のみを `raw_html` へ渡す審査済み wrapper であり、
+   `raw_html` の新たな迂回経路の追加ではない（不変条件 2 を破らない）。
+   中立化後の出力には生の `<` `>` `&` が一切残らず、`</script>` による script
+   要素の早期終了・`<!--` コメント注入が構造的に不可能であることをテストで
+   固定する。
 
 これらは「設計制約」であり、TASK-5.1b の実装レビューではこの一覧との整合を確認する。
 
@@ -168,6 +176,27 @@ use fandhe_frontend_core::{el, raw_html, render};
 // raw_html は唯一の明示的オプトイン。信頼できる固定文字列のみを渡す。
 let node = el("div", vec![], vec![raw_html("<b>bold</b>")]);
 assert_eq!(render(&node), "<div><b>bold</b></div>");
+```
+
+JSON-LD 埋め込み（イシュー #1117、第 2・3 節）の例。`json_ld` はシリアライズ済み
+JSON 文字列を受け取る（`serde_json::to_string` 等、利用者側の任意依存として
+接続できる。本クレートは外部依存ゼロ契約のため `serde_json` を依存に追加しない）:
+
+```rust
+use fandhe_frontend_core::{json_ld, render};
+
+let node = json_ld(r#"{"@context":"https://schema.org","@type":"Article","name":"A"}"#);
+assert_eq!(
+    render(&node),
+    r#"<script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","name":"A"}</script>"#
+);
+```
+
+```rust,ignore
+use fandhe_frontend_core::json_ld;
+
+let value = serde_json::json!({ "@context": "https://schema.org", "@type": "Article" });
+let node = json_ld(serde_json::to_string(&value).expect("serialize"));
 ```
 
 TASK-5.1b で追加予定のタグショートカット（第 4 節）を用いた場合の想定コード例

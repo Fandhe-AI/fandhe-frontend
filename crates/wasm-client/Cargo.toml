@@ -29,7 +29,7 @@ categories = ["wasm", "web-programming"]
 # クレートのため、新規外部パッケージの増加はゼロ（REQ-3 整理、PR 本文に
 # `cargo metadata` 実測を記録）。
 [dependencies]
-fandhe-frontend-core = { path = "../core", version = "0.1.0" }
+fandhe-frontend-core = { path = "../core", version = "0.1.1" }
 fandhe-frontend-app = { path = "../app", version = "0.1.0" }
 fandhe-frontend-interactive = { path = "../interactive", version = "0.1.0" }
 wasm-bindgen = "0.2"
