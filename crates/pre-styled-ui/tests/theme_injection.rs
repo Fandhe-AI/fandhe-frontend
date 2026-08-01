@@ -154,3 +154,80 @@ fn validated_theme_with_radii_and_shadows_output_never_contains_angle_bracket() 
     assert!(!css.contains('>'));
     assert!(!css.contains("</style>"));
 }
+
+#[test]
+fn upsert_color_rejects_injection_payloads_and_never_returns_duplicate_error() {
+    // イシュー #1138: upsert_* も push_* と同じ allowlist 検証を唯一の入口とし、
+    // 迂回経路にならないことを固定する。既存名でも Err にならない（上書き
+    // できる）ことは push_* との意図的な差分。
+    let mut theme = Theme::empty();
+    theme.push_color("bg", "#ffffff", "#111111").unwrap();
+
+    assert!(theme
+        .upsert_color("bg", "</style><script>alert(1)</script>", "#222222")
+        .is_err());
+    assert!(theme
+        .upsert_color("bg", "expression(alert(1))", "#222222")
+        .is_err());
+    assert!(theme.upsert_color("bg;evil", "#eeeeee", "#222222").is_err());
+
+    // 上書き自体は Err にならない（DuplicateTokenName を返さない契約）。
+    assert!(theme.upsert_color("bg", "#eeeeee", "#222222").is_ok());
+}
+
+#[test]
+fn upsert_space_typography_radius_shadow_reject_injection_payloads() {
+    let mut theme = Theme::empty();
+
+    assert!(theme.upsert_space("4", "1rem; } .evil {").is_err());
+    assert!(theme.upsert_typography("font-body", "</style>").is_err());
+    assert!(theme.upsert_radius("md", "expression(alert(1))").is_err());
+    assert!(theme
+        .upsert_shadow("sm", "0 1px 3px rgba(0,0,0,.12)", "</style><script>")
+        .is_err());
+
+    // 検証失敗後も theme は空のまま（部分書き込みなし）。
+    let css = theme.to_css();
+    assert!(!css.contains("--fandhe-space-4"));
+    assert!(!css.contains("--fandhe-font-font-body"));
+    assert!(!css.contains("--fandhe-radius-md"));
+    assert!(!css.contains("--fandhe-shadow-sm"));
+}
+
+#[test]
+fn validated_theme_constructed_via_upsert_only_never_contains_angle_bracket() {
+    // upsert 経路のみでテーマを構成しても、`<` を拒否文字に含める allowlist
+    // 検証の帰結として `</style>` 脱出が原理的に混入し得ないことを固定する
+    // （`validated_theme_output_never_contains_angle_bracket` の upsert 版）。
+    let mut theme = Theme::empty();
+    theme
+        .upsert_color("bg", "#ffffff", "#111111")
+        .expect("valid literal must pass validation");
+    theme
+        .upsert_space("4", "1rem")
+        .expect("valid literal must pass validation");
+    theme
+        .upsert_typography("font-body", "Noto Sans JP, sans-serif")
+        .expect("valid literal must pass validation");
+    theme
+        .upsert_radius("md", "0.375rem")
+        .expect("valid literal must pass validation");
+    theme
+        .upsert_shadow(
+            "sm",
+            "0 1px 3px rgba(0, 0, 0, 0.12)",
+            "0 1px 3px rgba(0, 0, 0, 0.32)",
+        )
+        .expect("valid literal must pass validation");
+
+    // 同名を再度 upsert（上書き）してもエスケープ不変条件は保たれる。
+    theme
+        .upsert_color("bg", "#eeeeee", "#222222")
+        .expect("valid literal must pass validation");
+
+    let css = theme.to_css();
+
+    assert!(!css.contains('<'));
+    assert!(!css.contains('>'));
+    assert!(!css.contains("</style>"));
+}

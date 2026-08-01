@@ -24,7 +24,9 @@
 //! allowlist 検証のみを通過させる（fail-closed）。`:` `;` `{` `}` を拒否するため
 //! 宣言追加・セレクタ脱出・`url(javascript:...)` が構成不可能であり、`<` `>` `/` を
 //! 拒否するため `</style>` 脱出も構成不可能になる。core の `escape_html`（HTML
-//! 文脈のエスケープ）とは独立した、CSS 文脈専用の入力検証層である。
+//! 文脈のエスケープ）とは独立した、CSS 文脈専用の入力検証層である。既存
+//! トークンを上書きする `upsert_*`（イシュー #1138）も同じ allowlist 検証を
+//! 唯一の入口とし、迂回経路を持たない。
 
 use std::error::Error;
 use std::fmt;
@@ -43,7 +45,8 @@ pub enum ThemeError {
         value: String,
     },
     /// 同一グループ内で既に登録済みのトークン名が再度渡された（上書きによる意図しない
-    /// 挙動を防ぐため fail-closed で拒否する）。
+    /// 挙動を防ぐため fail-closed で拒否する）。`push_*` 系のみが返す。既定値の
+    /// 上書き等、意図的に上書きしたい場合は `upsert_*`（イシュー #1138）を使う。
     DuplicateTokenName {
         /// 重複していたトークン名。
         name: String,
@@ -225,7 +228,9 @@ pub struct Theme {
 
 impl Default for Theme {
     /// chakra-ui の semantic token を参考にした既定パレット（色・余白・
-    /// タイポグラフィの最小構成、イシュー #547 スコープ）。
+    /// タイポグラフィの最小構成、イシュー #547 スコープ）。既定値を上書き
+    /// したい場合（例: `font-body` を差し替える）は `push_*` ではなく
+    /// `upsert_*`（イシュー #1138）を使う。
     ///
     /// 既定値はすべて [`CssValue`]/[`TokenName`] の allowlist を満たす定数の
     /// ため、`push_*` の `Result` は `expect` せず構築時に確定させる
@@ -472,6 +477,74 @@ impl Theme {
         Ok(())
     }
 
+    /// ライト/ダーク値を持つ色トークンを追加、または既存トークンを上書きする
+    /// （イシュー #1138）。
+    ///
+    /// [`Theme::push_color`] は同名トークンを [`ThemeError::DuplicateTokenName`]
+    /// で拒否するため、[`Theme::default`] の既定パレットを差し替える正規経路が
+    /// 存在しなかった（イシュー #1118 で判明した欠落）。本メソッドは `name` が
+    /// colors グループに既に存在する場合は当該位置の値を in-place 置換し
+    /// （挿入順＝出力順を変えない）、存在しない場合は末尾へ追加する
+    /// （[`Theme::push_color`] と同じ挙動）。
+    ///
+    /// 検証は [`Theme::push_color`] と同一の allowlist（[`TokenName::new`] /
+    /// [`CssValue::new`]）を必ず通過させ、迂回経路を作らない
+    /// （本ファイル冒頭「セキュリティ上の不変条件」参照）。全引数の検証を
+    /// 完了してから書き込むため、検証失敗時は `self` を一切変更しない。
+    ///
+    /// `ThemeError::DuplicateTokenName` を返すことはない。
+    ///
+    /// # Errors
+    ///
+    /// `name` / `light` / `dark` のいずれかが allowlist 検証を通過しない場合。
+    pub fn upsert_color(&mut self, name: &str, light: &str, dark: &str) -> Result<(), ThemeError> {
+        upsert_dual(&mut self.colors, name, light, dark)
+    }
+
+    /// モード非依存の余白トークンを追加、または既存トークンを上書きする
+    /// （イシュー #1138）。セマンティクスは [`Theme::upsert_color`] 参照。
+    ///
+    /// # Errors
+    ///
+    /// `name` / `value` のいずれかが allowlist 検証を通過しない場合。
+    pub fn upsert_space(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
+        upsert_scale(&mut self.spaces, name, value)
+    }
+
+    /// モード非依存のタイポグラフィトークンを追加、または既存トークンを上書き
+    /// する（イシュー #1138）。イシュー #1118 の実シナリオ（`font-body` を
+    /// 日本語フォントスタックへ差し替える）はこのメソッドを使う。
+    /// セマンティクスは [`Theme::upsert_color`] 参照。
+    ///
+    /// # Errors
+    ///
+    /// `name` / `value` のいずれかが allowlist 検証を通過しない場合。
+    pub fn upsert_typography(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
+        upsert_scale(&mut self.typography, name, value)
+    }
+
+    /// モード非依存の角丸（`border-radius`）トークンを追加、または既存
+    /// トークンを上書きする（イシュー #1138）。セマンティクスは
+    /// [`Theme::upsert_color`] 参照。
+    ///
+    /// # Errors
+    ///
+    /// `name` / `value` のいずれかが allowlist 検証を通過しない場合。
+    pub fn upsert_radius(&mut self, name: &str, value: &str) -> Result<(), ThemeError> {
+        upsert_scale(&mut self.radii, name, value)
+    }
+
+    /// ライト/ダーク値を持つ影（`box-shadow`）トークンを追加、または既存
+    /// トークンを上書きする（イシュー #1138）。セマンティクスは
+    /// [`Theme::upsert_color`] 参照。
+    ///
+    /// # Errors
+    ///
+    /// `name` / `light` / `dark` のいずれかが allowlist 検証を通過しない場合。
+    pub fn upsert_shadow(&mut self, name: &str, light: &str, dark: &str) -> Result<(), ThemeError> {
+        upsert_dual(&mut self.shadows, name, light, dark)
+    }
+
     /// テーマを決定的なプレーン CSS 文字列へ変換する。
     ///
     /// 出力構造（固定順、`docs` は伴わず本 rustdoc が正）:
@@ -589,6 +662,45 @@ fn push_scale(target: &mut Vec<ScaleToken>, name: &str, value: &str) -> Result<(
     }
 
     target.push(ScaleToken { name, value });
+    Ok(())
+}
+
+/// [`Theme::upsert_space`] / [`Theme::upsert_typography`] / [`Theme::upsert_radius`]
+/// 共通の検証・upsert ロジック（イシュー #1138）。[`push_scale`] と同一の
+/// allowlist 検証を経てから、既存位置があれば in-place 置換・なければ末尾
+/// 追加する（挿入順＝出力順の決定性を保つ）。
+fn upsert_scale(target: &mut Vec<ScaleToken>, name: &str, value: &str) -> Result<(), ThemeError> {
+    let name = TokenName::new(name)?;
+    let value = CssValue::new(value)?;
+
+    if let Some(existing) = target.iter_mut().find(|t| t.name == name) {
+        existing.value = value;
+    } else {
+        target.push(ScaleToken { name, value });
+    }
+    Ok(())
+}
+
+/// [`Theme::upsert_color`] / [`Theme::upsert_shadow`] 共通の検証・upsert
+/// ロジック（イシュー #1138）。[`Theme::push_color`] と同一の allowlist 検証を
+/// 経てから、既存位置があれば in-place 置換・なければ末尾追加する
+/// （挿入順＝出力順の決定性を保つ）。
+fn upsert_dual(
+    target: &mut Vec<DualModeToken>,
+    name: &str,
+    light: &str,
+    dark: &str,
+) -> Result<(), ThemeError> {
+    let name = TokenName::new(name)?;
+    let light = CssValue::new(light)?;
+    let dark = CssValue::new(dark)?;
+
+    if let Some(existing) = target.iter_mut().find(|t| t.name == name) {
+        existing.light = light;
+        existing.dark = dark;
+    } else {
+        target.push(DualModeToken { name, light, dark });
+    }
     Ok(())
 }
 
@@ -812,5 +924,107 @@ mod tests {
         let css = theme.to_css();
         assert!(!css.contains("--fandhe-radius-"));
         assert!(!css.contains("--fandhe-shadow-"));
+    }
+
+    // イシュー #1138: upsert API のユニットテスト。
+
+    #[test]
+    fn upsert_color_inserts_when_absent() {
+        let mut theme = Theme::empty();
+        theme.upsert_color("bg", "#ffffff", "#111111").unwrap();
+        let css = theme.to_css();
+        assert!(css.contains("--fandhe-color-bg: #ffffff;"));
+    }
+
+    #[test]
+    fn upsert_color_overwrites_in_place_preserving_order() {
+        let mut theme = Theme::empty();
+        theme.push_color("bg", "#ffffff", "#111111").unwrap();
+        theme.push_color("fg", "#111111", "#f7f7f7").unwrap();
+
+        // 1 件目（bg）を upsert で上書きしても、to_css の出力順（挿入順）は
+        // 変わらない（bg が fg より先に現れ続ける）ことを確認する。
+        theme.upsert_color("bg", "#eeeeee", "#222222").unwrap();
+
+        let css = theme.to_css();
+        let bg_pos = css.find("--fandhe-color-bg: #eeeeee;").unwrap();
+        let fg_pos = css.find("--fandhe-color-fg: #111111;").unwrap();
+        assert!(bg_pos < fg_pos, "upsert しても挿入順が保たれること");
+        assert!(!css.contains("#ffffff"), "旧値は残らないこと");
+    }
+
+    #[test]
+    fn upsert_rejects_invalid_value_and_name_without_mutation() {
+        let mut theme = Theme::empty();
+        theme.push_color("bg", "#ffffff", "#111111").unwrap();
+        let before = theme.to_css();
+
+        assert!(theme.upsert_color("bg", "red;}", "#222222").is_err());
+        assert!(theme
+            .upsert_color("Bg Invalid", "#eeeeee", "#222222")
+            .is_err());
+
+        // 検証失敗時は state を一切変更しない（部分書き込みの排除）。
+        assert_eq!(theme.to_css(), before);
+    }
+
+    #[test]
+    fn upsert_typography_overrides_default_font_body() {
+        // イシュー #1118 の実シナリオ: Theme::default() の既定 font-body を
+        // 日本語フォントスタックへ差し替える。
+        let mut theme = Theme::default();
+        theme
+            .upsert_typography("font-body", "Noto Sans JP, system-ui, sans-serif")
+            .unwrap();
+
+        let css = theme.to_css();
+        assert!(css.contains("--fandhe-font-font-body: Noto Sans JP, system-ui, sans-serif;"));
+        assert!(!css.contains("system-ui, -apple-system, sans-serif"));
+    }
+
+    #[test]
+    fn upsert_space_and_radius_overwrite_existing_value() {
+        let mut theme = Theme::empty();
+        theme.push_space("4", "1rem").unwrap();
+        theme.upsert_space("4", "1.5rem").unwrap();
+        assert!(theme.to_css().contains("--fandhe-space-4: 1.5rem;"));
+
+        theme.push_radius("md", "0.375rem").unwrap();
+        theme.upsert_radius("md", "0.5rem").unwrap();
+        assert!(theme.to_css().contains("--fandhe-radius-md: 0.5rem;"));
+    }
+
+    #[test]
+    fn upsert_shadow_overwrites_existing_light_and_dark_value() {
+        let mut theme = Theme::empty();
+        theme
+            .push_shadow(
+                "sm",
+                "0 1px 3px rgba(0, 0, 0, 0.12)",
+                "0 1px 3px rgba(0, 0, 0, 0.32)",
+            )
+            .unwrap();
+        theme
+            .upsert_shadow(
+                "sm",
+                "0 1px 3px rgba(0, 0, 0, 0.2)",
+                "0 1px 3px rgba(0, 0, 0, 0.5)",
+            )
+            .unwrap();
+
+        let css = theme.to_css();
+        assert!(css.contains("--fandhe-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.2);"));
+        let dark_count = css
+            .matches("--fandhe-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);")
+            .count();
+        assert_eq!(dark_count, 2);
+    }
+
+    #[test]
+    fn upsert_never_returns_duplicate_token_name_error() {
+        let mut theme = Theme::empty();
+        theme.push_color("bg", "#ffffff", "#111111").unwrap();
+        // upsert は既存名でも Err にならない（DuplicateTokenName を返さない契約）。
+        assert!(theme.upsert_color("bg", "#eeeeee", "#222222").is_ok());
     }
 }
