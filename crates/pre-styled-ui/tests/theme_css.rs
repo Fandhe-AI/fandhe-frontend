@@ -184,3 +184,58 @@ fn custom_radii_and_shadows_extend_full_snapshot_without_breaking_pre_606_output
 
     assert_eq!(theme.to_css(), expected);
 }
+
+#[test]
+fn upserted_color_value_appears_in_all_three_blocks() {
+    // イシュー #1138: Theme::default() の既定色トークンを upsert_color で
+    // 上書きした場合も、custom_color_token_appears_in_all_three_blocks
+    // （本ファイル）と同じ「light 値 1 箇所（:root）+ dark 値 2 箇所
+    // （@media ブロック + data-theme ブロック）」の出力規約を満たし、
+    // 旧値（既定の #ffffff/#111111）は一切残らないことを固定する。
+    let mut theme = Theme::default();
+    theme.upsert_color("bg", "#abcdef", "#123456").unwrap();
+
+    let css = theme.to_css();
+    let light_count = css.matches("--fandhe-color-bg: #abcdef;").count();
+    let dark_count = css.matches("--fandhe-color-bg: #123456;").count();
+
+    assert_eq!(
+        light_count, 1,
+        "light value must appear exactly once (:root block)"
+    );
+    assert_eq!(
+        dark_count, 2,
+        "dark value must appear exactly twice (media block + data-theme block)"
+    );
+    assert!(
+        !css.contains("--fandhe-color-bg: #ffffff;"),
+        "bg トークンの旧 light 値は残らないこと"
+    );
+    assert!(
+        !css.contains("--fandhe-color-bg: #111111;"),
+        "bg トークンの旧 dark 値は残らないこと"
+    );
+}
+
+#[test]
+fn upsert_on_default_theme_keeps_token_order_and_determinism() {
+    // イシュー #1138: upsert 後も 2 回の to_css() 呼び出しがバイト一致し
+    // （決定性の保持）、既定トークンの相対順序（bg が bg-subtle より先に
+    // 現れる関係、DEFAULT_COLORS の宣言順）が変わらないことを固定する。
+    let mut theme = Theme::default();
+    theme
+        .upsert_typography("font-body", "Noto Sans JP, system-ui, sans-serif")
+        .unwrap();
+    theme.upsert_color("bg", "#f0f0f0", "#0a0a0a").unwrap();
+
+    let css_a = theme.to_css();
+    let css_b = theme.to_css();
+    assert_eq!(css_a, css_b, "upsert 後も to_css の出力は決定的であること");
+
+    let bg_pos = css_a.find("--fandhe-color-bg:").unwrap();
+    let bg_subtle_pos = css_a.find("--fandhe-color-bg-subtle:").unwrap();
+    assert!(
+        bg_pos < bg_subtle_pos,
+        "upsert しても既定トークンの相対順序（挿入順）が保たれること"
+    );
+}
