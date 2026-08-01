@@ -518,8 +518,8 @@ pub fn docs_page(title: &str, base_path: &str, sidebar: Node, body: Node) -> Nod
 ///
 /// Rust 生成コンテンツページ（`crate::showcase` が pre-styled-ui コンポーネント
 /// を実レンダリングするショーケース、イシュー #520 系）だけが、
-/// `StyleSheet::write_css_file` で書き出す専用 CSS
-/// （`assets/pre-styled-ui.css`）を参照するために `crate::build::build_site`
+/// `fandhe_frontend_server::ssg::generate_assets`（イシュー #1136）で書き出す
+/// 専用 CSS（`assets/pre-styled-ui.css`）を参照するために `crate::build::build_site`
 /// から呼ばれる。サイト骨格スタイル（`crate::site_theme` がビルド時生成する
 /// `assets/site.css`、イシュー #905）とコンポーネント CSS を分離ファイルに
 /// 保ち、既存ページのカスケードへ影響させないための注入点であり、Markdown

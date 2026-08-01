@@ -66,7 +66,8 @@
 //! テーマトグル（ダーク/ライト切替）が使う `assets/site.js` は
 //! [`skip_nav`]/[`site_theme`] と同じ「全ビルド無条件」区分で、ステップ 4
 //! （`generate_pages` によるページ書き出し）の後に [`script::site_js`] の
-//! 内容をそのまま [`script::SCRIPT_REL_PATH`] へ書き出す。`linkcheck::check_links`
+//! 内容を [`ssg::generate_assets`]（イシュー #1136）経由で
+//! [`script::SCRIPT_REL_PATH`] へ書き出す。`linkcheck::check_links`
 //! は `href` 属性のみを走査し `<script src>` を見ないため（[`crate::linkcheck`]
 //! 参照）、CSS 群と異なり `asset_hrefs` への登録は不要（登録しても no-op）。
 //!
@@ -79,7 +80,23 @@
 //! [`search_index::render_json`] + [`search_index::check_size`] は**ステップ 4
 //! （`ssg::generate_pages`）より前**に完了させる（1 MiB 超過時に `out_dir` を
 //! 一切汚さないため）。書き出し自体はステップ 4 の後、`assets/site.js` と同じ
-//! 「全ビルド無条件」区分で行う。
+//! 「全ビルド無条件」区分で [`ssg::generate_assets`] 経由で行う。
+//!
+//! # ビルド時生成アセットの書き出し経路（[`fandhe_frontend_server::ssg::generate_assets`]、イシュー #1136）
+//!
+//! 上記の CSS 5 種（showcase / primitive_showcase / admonition / skip_nav /
+//! site_theme）・JS 1 種（`site.js`）・検索インデックス JSON 1 種は、いずれも
+//! [`ssg::generate_assets`] へまとめて渡し単一呼び出しで書き出す（かつては
+//! `StyleSheet::write_css_file` / 素の `fs::write` による直書きだった）。
+//! `generate_pages` と同型のパス検証（先頭 `/` 必須・`normalize_asset_path` の
+//! allowlist・重複拒否）を経由するため、ビルド時定数のパスとはいえ「検証を
+//! 経ずに `out_dir` 配下へ書き込む経路」を作らない。渡すのは無加工の
+//! CSS/JS/JSON 文字列のみで HTML ページは含めない（HTML は従来どおり
+//! `ssg::generate_pages` ＝ `render()` の既定エスケープ経由であり、この経路は
+//! REQ-1 の迂回経路ではない）。コピー静的アセット（[`copy_assets`]）との名前
+//! 衝突防止は引き続き [`RESERVED_ASSET_NAMES`]（[`list_regular_files`]）が
+//! 唯一の防壁である（`generate_assets` の重複検出は 1 回の呼び出し内でしか
+//! 効かない）。
 
 use std::fmt;
 use std::fs;
@@ -153,7 +170,8 @@ pub enum BuildError {
         /// 発生した I/O エラー。
         source: std::io::Error,
     },
-    /// `fandhe_frontend_server::ssg::generate_pages` が失敗した。
+    /// `fandhe_frontend_server::ssg::generate_pages` / `generate_assets`
+    /// （イシュー #1136、ビルド時生成 CSS/JS/JSON の書き出し）が失敗した。
     Ssg(SsgError),
     /// 内部リンクの突合検証（`.md` リンク解決を含む）で 1 件以上のリンク
     /// 切れが見つかった。書き出しは一切行われていない。
@@ -514,94 +532,53 @@ pub fn build_site(repo_root: &Path, out_dir: &Path) -> Result<BuildReport, Build
     let written = ssg::generate_pages(&pages, out_dir)?;
     let mut assets = copy_assets(repo_root, out_dir)?;
 
+    // ビルド時生成アセット（CSS 5 種・JS 1 種・検索インデックス JSON 1 種）を
+    // `ssg::generate_assets`（イシュー #1136）へまとめて渡す。かつては
+    // `StyleSheet::write_css_file` / 素の `fs::write` による直書きだったが、
+    // `generate_pages` と同型のパス検証（先頭 `/` 必須・`normalize_asset_path`
+    // の allowlist・重複拒否）を経由させることで、ビルド時定数のパスとはいえ
+    // 「検証を経ずに `out_dir` 配下へ書き込む経路」を作らない（A01 パス
+    // トラバーサル対策の dogfooding）。渡すのは CSS/JS/JSON の文字列のみで
+    // HTML ページは含めない（HTML は従来どおり `ssg::generate_pages` ＝
+    // `render()` の既定エスケープ経由であり、本ブロックは REQ-1 の迂回経路
+    // ではない）。コピー静的アセット（`copy_assets`）との名前衝突防止は
+    // 引き続き `RESERVED_ASSET_NAMES`（`list_regular_files`）が唯一の防壁
+    // である（`generate_assets` の重複検出はこの呼び出し内でしか効かない）。
+    let mut generated_assets: Vec<(String, String)> = Vec::new();
     if let Some(sheet) = showcase_sheet {
-        let css_path = out_dir.join(showcase::STYLESHEET_REL_PATH);
-        sheet
-            .write_css_file(&css_path)
-            .map_err(|source| BuildError::Io {
-                path: PathBuf::from(showcase::STYLESHEET_REL_PATH),
-                source,
-            })?;
-        assets.push(css_path);
+        generated_assets.push((
+            format!("/{}", showcase::STYLESHEET_REL_PATH),
+            sheet.as_css().to_string(),
+        ));
     }
     if let Some(sheet) = primitive_showcase_sheet {
-        let css_path = out_dir.join(primitive_showcase::STYLESHEET_REL_PATH);
-        sheet
-            .write_css_file(&css_path)
-            .map_err(|source| BuildError::Io {
-                path: PathBuf::from(primitive_showcase::STYLESHEET_REL_PATH),
-                source,
-            })?;
-        assets.push(css_path);
+        generated_assets.push((
+            format!("/{}", primitive_showcase::STYLESHEET_REL_PATH),
+            sheet.as_css().to_string(),
+        ));
     }
     if let Some(sheet) = admonition_sheet {
-        let css_path = out_dir.join(admonition::STYLESHEET_REL_PATH);
-        sheet
-            .write_css_file(&css_path)
-            .map_err(|source| BuildError::Io {
-                path: PathBuf::from(admonition::STYLESHEET_REL_PATH),
-                source,
-            })?;
-        assets.push(css_path);
+        generated_assets.push((
+            format!("/{}", admonition::STYLESHEET_REL_PATH),
+            sheet.as_css().to_string(),
+        ));
     }
-    {
-        let css_path = out_dir.join(skip_nav::STYLESHEET_REL_PATH);
-        skip_nav_sheet
-            .write_css_file(&css_path)
-            .map_err(|source| BuildError::Io {
-                path: PathBuf::from(skip_nav::STYLESHEET_REL_PATH),
-                source,
-            })?;
-        assets.push(css_path);
-    }
-    {
-        let css_path = out_dir.join(site_theme::STYLESHEET_REL_PATH);
-        site_theme_sheet
-            .write_css_file(&css_path)
-            .map_err(|source| BuildError::Io {
-                path: PathBuf::from(site_theme::STYLESHEET_REL_PATH),
-                source,
-            })?;
-        assets.push(css_path);
-    }
-    {
-        // `assets/site.js`（イシュー #951）。CSS の `write_css_file` と異なり
-        // `fs::write` は親ディレクトリを作らないため、`site/assets/` が
-        // 存在しないサイト（[`list_regular_files`] のドキュメント参照）でも
-        // `out_dir/assets/` が未作成のケースに備えて明示的に作成する。
-        let js_path = out_dir.join(script::SCRIPT_REL_PATH);
-        if let Some(parent) = js_path.parent() {
-            fs::create_dir_all(parent).map_err(|source| BuildError::Io {
-                path: parent.to_path_buf(),
-                source,
-            })?;
-        }
-        fs::write(&js_path, script::site_js()).map_err(|source| BuildError::Io {
-            path: PathBuf::from(script::SCRIPT_REL_PATH),
-            source,
-        })?;
-        assets.push(js_path);
-    }
-    {
-        // `assets/search-index.json`（イシュー #957）。`assets/site.js` と同型
-        // に `fs::write` の親ディレクトリ未作成に備えて明示的に作成する
-        // （将来の書き出し順の並べ替えで壊れないよう、site.js ブロックの
-        // `create_dir_all` 済みに依存しない）。JSON 本体は上で
-        // `render_json` + `check_size` を完了済みのため、ここでは書き出す
-        // だけでよい。
-        let index_path = out_dir.join(search_index::REL_PATH);
-        if let Some(parent) = index_path.parent() {
-            fs::create_dir_all(parent).map_err(|source| BuildError::Io {
-                path: parent.to_path_buf(),
-                source,
-            })?;
-        }
-        fs::write(&index_path, &search_index_json).map_err(|source| BuildError::Io {
-            path: PathBuf::from(search_index::REL_PATH),
-            source,
-        })?;
-        assets.push(index_path);
-    }
+    generated_assets.push((
+        format!("/{}", skip_nav::STYLESHEET_REL_PATH),
+        skip_nav_sheet.as_css().to_string(),
+    ));
+    generated_assets.push((
+        format!("/{}", site_theme::STYLESHEET_REL_PATH),
+        site_theme_sheet.as_css().to_string(),
+    ));
+    generated_assets.push((
+        format!("/{}", script::SCRIPT_REL_PATH),
+        script::site_js().to_string(),
+    ));
+    generated_assets.push((format!("/{}", search_index::REL_PATH), search_index_json));
+
+    let mut generated_written = ssg::generate_assets(&generated_assets, out_dir)?;
+    assets.append(&mut generated_written);
 
     Ok(BuildReport {
         written,
