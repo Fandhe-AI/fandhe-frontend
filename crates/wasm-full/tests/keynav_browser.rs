@@ -3310,8 +3310,8 @@ fn menu_open_typeahead_does_not_match_hidden_nested_submenu_item_text() {
 // ---------------------------------------------------------------------
 
 /// `parent_content` 直下へ、サブメニューを `trigger_item` の**兄弟**として
-/// 配置する構成（イシュー #662 Bugbot 指摘・PR #674 追補）で `trigger-item`
-/// + 子 Menu（`positioner`/`root`/`content`）を追加する。
+/// 配置する構成（イシュー #662 Bugbot 指摘・PR #674 追補）で `trigger-item` +
+/// 子 Menu（`positioner`/`root`/`content`）を追加する。
 /// [`append_trigger_item_with_submenu`]（子孫配置・`aria-controls` 経路の
 /// 既存フィクスチャ）とは独立に保ち、既存の子孫配置テストへ影響を与えない。
 /// `trigger_item` には `aria-controls` を意図的に設定せず、
@@ -4624,7 +4624,7 @@ fn combobox_keyboard_navigation_with_attacker_controlled_strings_does_not_inject
     item.set_attribute("data-value", "\"><script>window.__cb_xss2 = true</script>")
         .unwrap();
     wire_combobox_toggle_listener(&trigger, &input, &content);
-    wire_combobox_item_select_listeners(&[item.clone()], &trigger, &input, &content);
+    wire_combobox_item_select_listeners(std::slice::from_ref(&item), &trigger, &input, &content);
     wire_keynav(root.clone()).expect("wire_keynav must succeed");
     html_element(&input).focus().unwrap();
 
