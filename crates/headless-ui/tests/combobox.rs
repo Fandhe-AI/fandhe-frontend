@@ -438,9 +438,11 @@ fn attr<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
 /// される）ため、`<...>` の単純な区間探索で「本物のタグ境界」のみを
 /// 拾えることに依拠する（この前提が崩れる変更は、本モジュール既存の
 /// `*_payloads_are_escaped_end_to_end` 系 XSS 回帰テストが先に検知する）。
-/// 本クレートは `render()` が void 要素も常に終了タグ付きで出力する
-/// 仕様（`crates/core/src/tags.rs` 参照。実測: `<input ...></input>`）の
-/// ため、開始/終了タグのスタック突合が全要素で一様に成立する。
+/// `render()` は void 要素（`input` 等、HTML Standard 13.1.2）を終了タグ
+/// なしで自己終端出力する（イシュー #1139）ため、本関数はスタックへ
+/// push した直後にすぐ pop して「開始/終了タグの対応」を模擬する
+/// （void 要素は対応する `</...>` を持たないため、無条件 push だと
+/// スタックが恒久的に不整合になる）。
 ///
 /// `data-scope="combobox" data-part="root"`（[`combobox::root`] が出力する
 /// マーカー）を持つ要素を新しいスコープの起点とし、その部分木配下（自身を
@@ -454,6 +456,21 @@ fn attr<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
 /// 前提のもとスコープを跨いで解決してよいため、この関数の呼び出し側は
 /// `id -> role` の対応表のみページ全体で構築し、R3（ハイライト item の
 /// 集合）だけをスコープ単位で構築する。
+/// HTML Standard 13.1.2 の void 要素一覧（[`fandhe_frontend_core`] の
+/// `VOID_ELEMENTS`（非公開）と同一集合。本テストヘルパーはコアの
+/// 出力形式に依存する検証用途のため、独立して固定する）。
+const VOID_TAGS: &[&str] = &[
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track",
+    "wbr",
+];
+
+/// `tag`（`<` `>` 間の内容）先頭のタグ名を取り出し、void 要素かどうかを
+/// 判定する。
+fn is_void_tag(tag: &str) -> bool {
+    let name = tag.split(|c: char| c.is_whitespace()).next().unwrap_or("");
+    VOID_TAGS.contains(&name)
+}
+
 fn scoped_open_tags(html: &str) -> Vec<(&str, Option<usize>)> {
     let mut tags = Vec::new();
     let mut stack: Vec<Option<usize>> = Vec::new();
@@ -486,7 +503,13 @@ fn scoped_open_tags(html: &str) -> Vec<(&str, Option<usize>)> {
                     parent_scope
                 };
                 tags.push((tag, own_scope));
-                stack.push(own_scope);
+                if !is_void_tag(tag) {
+                    // void 要素は render() が終了タグなしで自己終端出力する
+                    // （イシュー #1139）ため、対応する `</...>` を待たず
+                    // スタックへ push しない（push すると恒久的に
+                    // 不整合になる）。
+                    stack.push(own_scope);
+                }
                 rest = &after_lt[gt + 1..];
             }
             None => break,

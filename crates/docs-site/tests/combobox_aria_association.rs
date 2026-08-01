@@ -48,6 +48,20 @@ fn attr<'a>(tag: &'a str, name: &str) -> Option<&'a str> {
 /// インスタンスが共存する）で、一方のハイライト item がもう一方の R3
 /// 判定へ誤って波及しないよう、[`combobox::root`] が出力する
 /// `data-scope="combobox" data-part="root"` マーカーで部分木ごとに区切る。
+/// HTML Standard 13.1.2 の void 要素一覧（`crates/headless-ui/tests/combobox.rs`
+/// の `VOID_TAGS`/`is_void_tag` と同一実装。イシュー #1139 で `render()` が
+/// void 要素を終了タグなしで自己終端出力するようになったため、この一覧に
+/// 該当するタグはスタックへ push しない）。
+const VOID_TAGS: &[&str] = &[
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track",
+    "wbr",
+];
+
+fn is_void_tag(tag: &str) -> bool {
+    let name = tag.split(|c: char| c.is_whitespace()).next().unwrap_or("");
+    VOID_TAGS.contains(&name)
+}
+
 fn scoped_open_tags(html: &str) -> Vec<(&str, Option<usize>)> {
     let mut tags = Vec::new();
     let mut stack: Vec<Option<usize>> = Vec::new();
@@ -78,7 +92,11 @@ fn scoped_open_tags(html: &str) -> Vec<(&str, Option<usize>)> {
                     parent_scope
                 };
                 tags.push((tag, own_scope));
-                stack.push(own_scope);
+                if !is_void_tag(tag) {
+                    // void 要素は render() が終了タグなしで自己終端出力する
+                    // （イシュー #1139）ため、スタックへ push しない。
+                    stack.push(own_scope);
+                }
                 rest = &after_lt[gt + 1..];
             }
             None => break,

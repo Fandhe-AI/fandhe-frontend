@@ -315,11 +315,11 @@ let node = div(vec![("class", "card")], vec![p(vec![], vec![text("hello")])]);
 assert_eq!(render(&node), r#"<div class="card"><p>hello</p></div>"#);
 ```
 
-**既知の制約（void 要素）**: `img`/`br`/`hr`/`input` は HTML では void 要素
-（終了タグを持たない）ですが、`render()` は v1 では常に終了タグを出力する
-現行仕様を凍結しています（`docs/api/component-api.md` 第 3 節・判断 4）。
-`img(vec![("src", "/logo.png")], vec![])` は `<img src="/logo.png"></img>`
-になります。自己終端出力への最適化は将来課題です。
+**void 要素の自己終端出力（イシュー #1139）**: `img`/`br`/`hr`/`input` は HTML の
+void 要素（終了タグを持たない）であり、`render()` は start tag のみで自己終端
+させます（`docs/api/component-api.md` 第 3 節・判断 4）。
+`img(vec![("src", "/logo.png")], vec![])` は `<img src="/logo.png">`
+になります。`children` を渡しても出力されません。
 
 **意図的に提供しないヘルパー**: `script`/`style`/`iframe` は攻撃面が大きい
 タグであり、標準ヘルパーとして書きやすくすることを避けるため提供しません。
@@ -494,8 +494,8 @@ fn list_page_after(items: &[Item]) -> Node {
   実装済みです（第 4 節参照）。タグショートカットは TASK-5.1b の最小セットに
   加え、Issue #164 で `span`/`table`/`form` 等の拡張セットを実装しました
   （`crates/core/src/tags.rs`）。
-- **void 要素の自己終端出力最適化**（`<br />` 等）は本ドキュメントのスコープ外
-  のまま未起票です（`docs/api/component-api.md` 第 3 節・判断 4、第 5 節参照）。
+- **void 要素の自己終端出力**はイシュー #1139 で実装済みです
+  （`docs/api/component-api.md` 第 3 節・判断 4、本書第 4 節参照）。
 - **`select`/`option` ヘルパー・attrs ビルダ API**は Issue #164 で検討のうえ
   不採用としました（第 6 節参照）。
 - **SSR/SSG/CSR の三モード描画**（`render()`/`mount_csr()`/`hydrate()`、REQ-6）

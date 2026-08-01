@@ -33,13 +33,14 @@
 //!   タプル `(&str, &str)` は既に素の Rust であり、追加の抽象化は API 表面を
 //!   広げるだけで可読性への寄与が薄いと判断した（同じく不採用として記録）。
 //!
-//! ## void 要素の既知の制約
+//! ## void 要素の自己終端出力（イシュー #1139）
 //!
-//! `img`/`br`/`hr`/`input` は HTML では void 要素（終了タグを持たない）だが、
-//! `render`/`render_into`（`core/src/lib.rs`）は v1 では常に終了タグを出力する
-//! 現行仕様を凍結している（`docs/api/component-api.md` 第 3 節・判断 4）。本モジュール
-//! のヘルパーもこの挙動をそのまま継承し、`<br></br>` のような出力になる。
-//! 自己終端出力への最適化は本モジュールのスコープ外とする。
+//! `img`/`br`/`hr`/`input` は HTML では void 要素（終了タグを持たない）であり、
+//! `render`/`render_into`（`core/src/lib.rs`）はこれらを start tag のみで
+//! 自己終端させる（`<br>` であって `<br></br>` ではない）。本モジュールの
+//! ヘルパーは [`el`] への薄い委譲のみでこの挙動を独自に変更せず継承する。
+//! void 要素へ渡した `children` は一切出力されない（`docs/design/void-element-serialization.md`
+//! 判断 3）。
 
 use crate::{el, Node};
 
@@ -288,9 +289,9 @@ pub fn label(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 
 /// `<input>` 要素を組み立てる標準タグショートカット。[`el`] への薄い委譲。
 ///
-/// `input` は HTML では void 要素だが、本クレートの `render` は v1 では常に
-/// 終了タグを出力する現行仕様を凍結している（本モジュール冒頭の rustdoc・
-/// `docs/api/component-api.md` 第 3 節・判断 4 を参照）。
+/// `input` は HTML の void 要素であり、本クレートの `render` は start tag
+/// のみで自己終端させる（`children` を渡しても出力されない。本モジュール
+/// 冒頭の rustdoc を参照）。
 pub fn input(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
     el("input", attrs, children)
 }
@@ -351,9 +352,9 @@ pub fn caption(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 
 /// `<img>` 要素を組み立てる標準タグショートカット。[`el`] への薄い委譲。
 ///
-/// `img` は HTML では void 要素だが、本クレートの `render` は v1 では常に
-/// 終了タグを出力する現行仕様を凍結している（本モジュール冒頭の rustdoc・
-/// `docs/api/component-api.md` 第 3 節・判断 4 を参照）。
+/// `img` は HTML の void 要素であり、本クレートの `render` は start tag
+/// のみで自己終端させる（`children` を渡しても出力されない。本モジュール
+/// 冒頭の rustdoc を参照）。
 ///
 /// # Examples
 ///
@@ -361,7 +362,7 @@ pub fn caption(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 /// use fandhe_frontend_core::{img, render};
 ///
 /// let node = img(vec![("src", "/logo.png"), ("alt", "logo")], vec![]);
-/// assert_eq!(render(&node), r#"<img src="/logo.png" alt="logo"></img>"#);
+/// assert_eq!(render(&node), r#"<img src="/logo.png" alt="logo">"#);
 /// ```
 pub fn img(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
     el("img", attrs, children)
@@ -369,18 +370,18 @@ pub fn img(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
 
 /// `<br>` 要素を組み立てる標準タグショートカット。[`el`] への薄い委譲。
 ///
-/// `br` は HTML では void 要素だが、本クレートの `render` は v1 では常に
-/// 終了タグを出力する現行仕様を凍結している（本モジュール冒頭の rustdoc・
-/// `docs/api/component-api.md` 第 3 節・判断 4 を参照）。
+/// `br` は HTML の void 要素であり、本クレートの `render` は start tag
+/// のみで自己終端させる（`children` を渡しても出力されない。本モジュール
+/// 冒頭の rustdoc を参照）。
 pub fn br(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
     el("br", attrs, children)
 }
 
 /// `<hr>` 要素を組み立てる標準タグショートカット。[`el`] への薄い委譲。
 ///
-/// `hr` は HTML では void 要素だが、本クレートの `render` は v1 では常に
-/// 終了タグを出力する現行仕様を凍結している（本モジュール冒頭の rustdoc・
-/// `docs/api/component-api.md` 第 3 節・判断 4 を参照）。
+/// `hr` は HTML の void 要素であり、本クレートの `render` は start tag
+/// のみで自己終端させる（`children` を渡しても出力されない。本モジュール
+/// 冒頭の rustdoc を参照）。
 pub fn hr(attrs: Vec<(&str, &str)>, children: Vec<Node>) -> Node {
     el("hr", attrs, children)
 }
@@ -430,7 +431,6 @@ mod tests {
             ("code", code(vec![], vec![text("x")])),
             ("form", form(vec![], vec![text("x")])),
             ("label", label(vec![], vec![text("x")])),
-            ("input", input(vec![], vec![text("x")])),
             ("button", button(vec![], vec![text("x")])),
             ("textarea", textarea(vec![], vec![text("x")])),
             ("table", table(vec![], vec![text("x")])),
@@ -440,9 +440,10 @@ mod tests {
             ("th", th(vec![], vec![text("x")])),
             ("td", td(vec![], vec![text("x")])),
             ("caption", caption(vec![], vec![text("x")])),
-            ("img", img(vec![], vec![text("x")])),
-            ("br", br(vec![], vec![text("x")])),
-            ("hr", hr(vec![], vec![text("x")])),
+            // void 要素（img/br/hr/input）は `<{tag}>x</{tag}>` パターンに
+            // 従わない（自己終端・children ドロップ、イシュー #1139）ため
+            // この一括テストから除外し、専用テスト
+            // `void_element_shortcuts_self_terminate` で固定する。
         ];
         for (tag, node) in cases {
             let expected = format!("<{tag}>x</{tag}>");
@@ -531,14 +532,20 @@ mod tests {
         assert_eq!(html, "<div>&lt;script&gt;<b>ok</b>&lt;script&gt;</div>");
     }
 
-    /// void 要素ショートカット（`img`/`br`/`hr`/`input`）が、現行仕様どおり
-    /// 常に終了タグを出力することを固定する（`docs/api/component-api.md` 第 3 節・
-    /// 判断 4 の凍結仕様。将来の自己終端出力最適化はこのテストの更新を伴う）。
+    /// void 要素ショートカット（`img`/`br`/`hr`/`input`）が start tag のみで
+    /// 自己終端し、`children` を渡しても出力されないことを固定する
+    /// （イシュー #1139）。
     #[test]
-    fn void_element_shortcuts_render_closing_tag() {
-        assert_eq!(render(&img(vec![], vec![])), "<img></img>");
-        assert_eq!(render(&br(vec![], vec![])), "<br></br>");
-        assert_eq!(render(&hr(vec![], vec![])), "<hr></hr>");
-        assert_eq!(render(&input(vec![], vec![])), "<input></input>");
+    fn void_element_shortcuts_self_terminate() {
+        assert_eq!(render(&img(vec![], vec![])), "<img>");
+        assert_eq!(render(&br(vec![], vec![])), "<br>");
+        assert_eq!(render(&hr(vec![], vec![])), "<hr>");
+        assert_eq!(render(&input(vec![], vec![])), "<input>");
+
+        // children を渡しても一切出力されないことを確認する（fail-closed）。
+        assert_eq!(render(&img(vec![], vec![text("x")])), "<img>");
+        assert_eq!(render(&br(vec![], vec![text("x")])), "<br>");
+        assert_eq!(render(&hr(vec![], vec![text("x")])), "<hr>");
+        assert_eq!(render(&input(vec![], vec![text("x")])), "<input>");
     }
 }
