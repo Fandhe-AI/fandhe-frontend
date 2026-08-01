@@ -33,9 +33,12 @@ pub fn render_trusted_fragment() -> String {
   clippy::disallowed_methods,\n    reason = "ESCAPE-REVIEWED: ..."\n)]`）、
   `default_escape_check`（保険層）は `[`/`]` の括弧バランスで属性グループを
   判定するため `#[rustfmt::skip]` の追加は不要。`#[rustfmt::skip]` 等の
-  重ね掛けも、スタック中のいずれかの属性グループが両マーカーを含めば
-  受理される。属性と呼び出しの間に空行・コメント・無関係なコード行を挟んだ
-  場合は受理されない。
+  重ね掛けも、スタック中のいずれかの属性グループの**先頭**（空白・文字列
+  リテラル片を除去した属性パス）が `#[expect(clippy::disallowed_methods` で
+  始まり、かつ `ESCAPE-REVIEWED:` を含めば受理される（`reason`/`doc` の文字列
+  リテラル内へ両マーカー文字列を埋め込んだだけの偽装は、属性パスの先頭が
+  一致しないため受理されない）。属性と呼び出しの間に空行・コメント・無関係な
+  コード行を挟んだ場合は受理されない。
 - `#[allow(clippy::disallowed_methods)]` は使わない。`#[expect]` は「lint が
   実際に発火することを期待する」属性であり、対応する `raw_html()` 呼び出しが
   将来削除・変更されて lint が発火しなくなった場合に
@@ -64,7 +67,7 @@ pub fn render_trusted_fragment() -> String {
 | 層 | 実行タイミング | 実体 |
 |----|---------------|------|
 | 主防御 | `fw gate` の `lint` チェック／CI `clippy` ジョブ | `fw gate` の `lint` はイシュー #315 で `cargo clippy --locked --all-targets -p <crate>... -- -D warnings` へ拡張済み。CI `clippy` ジョブはイシュー #299 で `cargo clippy --workspace --all-targets --locked -- -D warnings` へ拡張済み。両者とも `--all-targets` によりテストターゲット（`#[cfg(test)]` / `tests/` 配下）内の呼び出しを検出対象に含み、検出範囲は一致する（旧記述「CI が superset」は解消済み）。いずれも workspace ルート `clippy.toml`（`disallowed-methods`）に基づき、コンパイラのパス解決を通じてコメント偽装・リネーム import 経由の呼び出しも検出する |
-| 保険層 | `fw gate` の `default_escape_check` | テキスト走査。呼び出し開始行自体、または呼び出し直前に隙間なく連なる属性グループ列のいずれか 1 つに `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: ...")]` が含まれることを受理条件とする（rustfmt の複数行折り返し・`#[rustfmt::skip]` 等の重ね掛けも受理、イシュー #1116。単独のコメントは受理しない） |
+| 保険層 | `fw gate` の `default_escape_check` | テキスト走査。呼び出し開始行自体、または呼び出し直前に隙間なく連なる属性グループ列のいずれか 1 つの**先頭**（空白・文字列リテラル片を除去した属性パス）が `#[expect(clippy::disallowed_methods` で始まり、かつ `ESCAPE-REVIEWED:` を含むことを受理条件とする（rustfmt の複数行折り返し・`#[rustfmt::skip]` 等の重ね掛けも受理、イシュー #1116。単独のコメントは受理しない）。先頭一致（`starts_with`）を要求するのは、`reason`/`doc` の文字列リテラル内へ両マーカー文字列を偶然・意図的に埋め込んだだけの偽装（例: `#[expect(clippy::some_other_lint, reason = "...expect(clippy::disallowed_methods...ESCAPE-REVIEWED:...")]`）を、実際の属性対象が `disallowed_methods` ではないと判定して拒否するため（Bugbot 指摘 "Attribute markers match inside strings"） |
 | 監査層 | `fw gate` の `default_escape_check` | ブランケット抑止属性の一律検出（2. 参照） |
 
 `lint` チェックは `clippy.toml` の存在・`fandhe_frontend_core::raw_html` エントリの包含を

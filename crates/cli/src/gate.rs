@@ -1107,12 +1107,19 @@ fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 /// この文字列が含まれることを要求する（[`line_has_reviewed_expect_attribute`]）。
 const ESCAPE_REVIEWED_MARKER: &str = "ESCAPE-REVIEWED:";
 
-/// レビュー済みオプトインの属性が呼び出し文へ付与されていることを示す部分文字列。
-/// `#[expect(clippy::disallowed_methods, reason = "ESCAPE-REVIEWED: ...")]` の
-/// 形を想定し、`clippy::disallowed_methods` 側の実体験証は
-/// `raw_html_lint_e2e.rs`（実 clippy 起動）が担う。ここでは「該当属性が
-/// ソース上に存在するか」という保険層のテキスト判定に留める。
-const EXPECT_DISALLOWED_METHODS_MARKER: &str = "expect(clippy::disallowed_methods";
+/// 空白・文字列リテラル片を除去した属性グループ（[`AttributeGroup::code_text`]）
+/// または行（[`line_has_reviewed_expect_attribute`]）の**先頭**がこの文字列で
+/// 始まることを要求する（`starts_with`、`contains` ではない）。属性グループは
+/// 常に `#[` から始まる（[`collect_attribute_groups`] の走査条件）ため、
+/// 先頭一致にすることで「グループ内のどこかに `expect(clippy::disallowed_methods`
+/// という文字列断片が現れるか」ではなく「このグループの属性パスそのものが
+/// `expect(clippy::disallowed_methods` であるか」を判定できる。`reason`/`doc`
+/// の文字列リテラル内に両マーカー文字列を埋め込んだだけの偽装（例:
+/// `#[expect(clippy::some_other_lint, reason = "...expect(clippy::disallowed_methods
+/// ...ESCAPE-REVIEWED:...")]`）は、文字列リテラル片除去後も属性パスの先頭が
+/// `clippy::some_other_lint` のままなのでこの先頭一致に落ちる
+/// （イシュー #1116 Bugbot 指摘 "Attribute markers match inside strings"）。
+const EXPECT_DISALLOWED_METHODS_ATTR_HEAD: &str = "#[expect(clippy::disallowed_methods";
 
 /// ブランケット抑止（ファイル・モジュール一括での `disallowed_methods` 無効化）を
 /// 検出するための内部属性プレフィックス。`#![allow(clippy::disallowed_methods)]`
@@ -1181,8 +1188,32 @@ pub(crate) fn position_is_inside_string_literal(line: &str, pos: usize) -> bool 
 /// `ESCAPE-REVIEWED:` の両方が含まれることを要求し、旧方式（`ESCAPE-REVIEWED:`
 /// コメント単体）は受理しない（イシュー #157: コメントは clippy に検証されず
 /// 偽装可能なため、コンパイラが解釈する属性であることを必須化する）。
+///
+/// 空白・文字列リテラル片を除去した行の**先頭**が
+/// [`EXPECT_DISALLOWED_METHODS_ATTR_HEAD`] と一致することを必須とする
+/// （`starts_with`。定数の doc コメント参照）。`#[doc = "...expect(clippy::
+/// disallowed_methods...ESCAPE-REVIEWED:..."]` のように両マーカーが
+/// `reason`/`doc` の文字列リテラル内へ埋め込まれただけの行を誤って
+/// 「レビュー済み属性」と受理しない（イシュー #1116 Bugbot 指摘
+/// "Attribute markers match inside strings"）。`ESCAPE_REVIEWED_MARKER` は
+/// `reason = "ESCAPE-REVIEWED: ..."` の文字列リテラル内に現れるのが正規形の
+/// ため、こちらは文字列リテラルの内外を問わず判定する。
 fn line_has_reviewed_expect_attribute(line: &str) -> bool {
-    line.contains(EXPECT_DISALLOWED_METHODS_MARKER) && line.contains(ESCAPE_REVIEWED_MARKER)
+    code_chars_outside_string_literal(line).starts_with(EXPECT_DISALLOWED_METHODS_ATTR_HEAD)
+        && line.contains(ESCAPE_REVIEWED_MARKER)
+}
+
+/// `line` から空白と文字列リテラル内の文字を除いた「コード部分のみ」の文字列を
+/// 返す（[`position_is_inside_string_literal`] が真と判定する区間および
+/// 空白を除去する）。マーカー文字列が空白・クォート `"` を含まないため、
+/// これらを取り除いても実際の属性構文（`expect(...)` 等）のトークン列は
+/// 分断されない。[`AttributeGroup::code_text`] と同じ組み立て規則
+/// （[`collect_attribute_groups`] 参照）を単一行版として提供する。
+fn code_chars_outside_string_literal(line: &str) -> String {
+    line.char_indices()
+        .filter(|(pos, c)| !c.is_whitespace() && !position_is_inside_string_literal(line, *pos))
+        .map(|(_, c)| c)
+        .collect()
 }
 
 /// `raw_html()` 呼び出し（開始行 `lines[line_idx]`）が「レビュー済み
@@ -1190,14 +1221,25 @@ fn line_has_reviewed_expect_attribute(line: &str) -> bool {
 /// 属性で覆われているかを判定する（イシュー #1116 項目 5）。
 ///
 /// 受理条件は 2 通り:
-/// 1. 呼び出し開始行自体が両マーカーを含む（[`line_has_reviewed_expect_attribute`]、
+/// 1. 呼び出し開始行自体が「先頭が `#[expect(clippy::disallowed_methods` で
+///    始まり、かつ `ESCAPE-REVIEWED:` を含む」（[`line_has_reviewed_expect_attribute`]、
 ///    旧来からの同一行形。互換維持）
 /// 2. 呼び出し直前に**隙間なく**連なる属性グループ列（`#[` から対応する `]` まで
 ///    を 1 グループとし、[`position_is_inside_string_literal`] で文字列リテラル
-///    内の `[`/`]` を除外した括弧バランスで判定）のうち、単一のグループ内に
-///    両マーカーを含むものがあれば受理する。rustfmt が `reason = "..."` を
-///    複数行へ折り返した属性や、`#[rustfmt::skip]` 等の重ね掛けを想定する
-///    （`docs/policy/raw-html-review-gate.md` §1）。
+///    内の `[`/`]` を除外した括弧バランスで判定）のうち、単一のグループの
+///    **先頭**が `#[expect(clippy::disallowed_methods` で始まり、かつ
+///    `ESCAPE-REVIEWED:` を含むものがあれば受理する。rustfmt が
+///    `reason = "..."` を複数行へ折り返した属性や、`#[rustfmt::skip]` 等の
+///    重ね掛けを想定する（`docs/policy/raw-html-review-gate.md` §1）。
+///
+/// いずれも「グループ内のどこかに両マーカーが**含まれる**か」ではなく
+/// 「グループの属性パス自体が `expect(clippy::disallowed_methods` である
+/// か」を先頭一致（`starts_with`）で判定する（[`EXPECT_DISALLOWED_METHODS_ATTR_HEAD`]）。
+/// `#[expect(clippy::some_other_lint, reason = "...expect(clippy::
+/// disallowed_methods...ESCAPE-REVIEWED:...")]` のように、両マーカー文字列を
+/// `reason`/`doc` の文字列リテラル内へ埋め込んだだけで実際の属性対象が
+/// `disallowed_methods` ではない偽装を受理しない（イシュー #1116 Bugbot 指摘
+/// "Attribute markers match inside strings"）。
 ///
 /// 上方向の走査は空行・コメント行（`//`/`///`/`//!`）で必ず打ち切る。属性と
 /// 呼び出しの間に無関係な行を挟んだ受理は認めない（保険層の偽陰性ゼロ方針を
@@ -1231,7 +1273,9 @@ fn reviewed_attribute_covers_call(lines: &[&str], line_idx: usize) -> bool {
         let Some(group) = groups.iter().find(|g| g.end == want_end) else {
             return false;
         };
-        if group.text.contains(EXPECT_DISALLOWED_METHODS_MARKER)
+        if group
+            .code_text
+            .starts_with(EXPECT_DISALLOWED_METHODS_ATTR_HEAD)
             && group.text.contains(ESCAPE_REVIEWED_MARKER)
         {
             return true;
@@ -1248,7 +1292,20 @@ fn reviewed_attribute_covers_call(lines: &[&str], line_idx: usize) -> bool {
 struct AttributeGroup {
     start: usize,
     end: usize,
+    /// 空白除去のみを行った全文（文字列リテラル片も含む）。
+    /// `ESCAPE_REVIEWED_MARKER`（`reason = "ESCAPE-REVIEWED: ..."` の文字列
+    /// リテラル内に現れるのが正規形）の判定に使う。
     text: String,
+    /// `text` からさらに文字列リテラル内の文字を除去したコード部分のみ。
+    /// グループは常に `#[` から始まる（走査条件）ため、この文字列の**先頭**が
+    /// [`EXPECT_DISALLOWED_METHODS_ATTR_HEAD`] と一致するかどうか
+    /// （`starts_with`）で「このグループの属性パスが実際に
+    /// `expect(clippy::disallowed_methods` か」を判定する。`#[doc = "...expect(
+    /// clippy::disallowed_methods..."]` のように文字列リテラル内にマーカー
+    /// 文字列が偶然埋め込まれただけの行は、文字列除去後も属性パスの先頭が
+    /// `doc=` のままなのでこの先頭一致に落ちる（イシュー #1116 Bugbot 指摘
+    /// "Attribute markers match inside strings"）。
+    code_text: String,
 }
 
 /// `lines` を先頭から走査し、`#[` で始まる行を起点とする属性グループを
@@ -1267,16 +1324,28 @@ fn collect_attribute_groups(lines: &[&str]) -> Vec<AttributeGroup> {
         let start = i;
         let mut depth: i32 = 0;
         let mut text = String::new();
+        let mut code_text = String::new();
         loop {
             let line = lines[i];
             // 空白（半角スペース・タブ・改行）を除去してから蓄積する。rustfmt が
             // `#[expect(\n    clippy::disallowed_methods,\n    ...\n)]` のように
             // トークンの間に改行・インデントを挿入するため、生の行を単純連結
-            // すると [`EXPECT_DISALLOWED_METHODS_MARKER`] のような空白を含まない
+            // すると [`EXPECT_DISALLOWED_METHODS_ATTR_HEAD`] のような空白を含まない
             // マーカー文字列が分断されて検出できなくなる。マーカー自体が空白を
             // 含まないため、空白除去後の比較で偽陰性を生まない
             // （ブラケット深度の判定は空白除去前の元行に対して行うため無影響）。
             text.extend(line.chars().filter(|c| !c.is_whitespace()));
+            // `code_text` は文字列リテラル内の文字も併せて除去する。
+            // [`EXPECT_DISALLOWED_METHODS_ATTR_HEAD`] は文字列リテラルの外側
+            // （実際の属性構文の先頭）に出現することを要求するための判定材料
+            // （[`reviewed_attribute_covers_call`] 参照）。
+            code_text.extend(
+                line.char_indices()
+                    .filter(|(pos, c)| {
+                        !c.is_whitespace() && !position_is_inside_string_literal(line, *pos)
+                    })
+                    .map(|(_, c)| c),
+            );
             for (pos, ch) in line.char_indices() {
                 if position_is_inside_string_literal(line, pos) {
                     continue;
@@ -1296,6 +1365,7 @@ fn collect_attribute_groups(lines: &[&str]) -> Vec<AttributeGroup> {
             start,
             end: i,
             text,
+            code_text,
         });
         i += 1;
     }
@@ -2588,6 +2658,99 @@ mod tests {
             violations.len(),
             1,
             "markers split across separate attribute groups must not be accepted: {violations:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn scan_file_rejects_markers_embedded_only_inside_multiline_attribute_string() {
+        // イシュー #1116 Bugbot 指摘 "Attribute markers match inside strings"
+        // の回帰: 複数行 `#[expect(...)]` の `reason` 文字列リテラル内へ
+        // `expect(clippy::disallowed_methods` と `ESCAPE-REVIEWED:` の両文字列を
+        // 埋め込んだだけの偽装は受理してはならない（実際の属性対象は
+        // `clippy::some_other_lint` であり `disallowed_methods` ではない）。
+        let dir = crate::test_scratch::scratch_root().join(format!(
+            "fw-gate-test-escape-marker-inside-string-multiline-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("lib.rs");
+        std::fs::write(
+            &file,
+            "fn f() {\n    #[expect(\n        clippy::some_other_lint,\n        reason = \"see expect(clippy::disallowed_methods ESCAPE-REVIEWED: fake\"\n    )]\n    raw_html(x);\n}\n",
+        )
+        .unwrap();
+
+        let mut violations = Vec::new();
+        scan_file_for_violations(&file, &mut violations);
+        assert_eq!(
+            violations.len(),
+            1,
+            "markers embedded only inside a reason string literal must not be accepted \
+as a reviewed attribute: violations={violations:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn scan_file_rejects_markers_embedded_only_inside_same_line_attribute_string() {
+        // 同一行版の回帰（[`line_has_reviewed_expect_attribute`]）。属性対象は
+        // `clippy::some_other_lint` であり、`disallowed_methods` はコメント文字列
+        // （`doc`）内にのみ現れる。
+        let dir = crate::test_scratch::scratch_root().join(format!(
+            "fw-gate-test-escape-marker-inside-string-same-line-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("lib.rs");
+        std::fs::write(
+            &file,
+            "fn f() {\n    #[doc = \"expect(clippy::disallowed_methods ESCAPE-REVIEWED: fake\"] raw_html(x);\n}\n",
+        )
+        .unwrap();
+
+        let mut violations = Vec::new();
+        scan_file_for_violations(&file, &mut violations);
+        assert_eq!(
+            violations.len(),
+            1,
+            "markers embedded only inside a doc string literal must not be accepted \
+as a reviewed attribute: violations={violations:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn scan_file_rejects_markers_inside_string_spanning_multiple_lines() {
+        // 追加の縁: 属性の文字列リテラル自体が複数行にまたがる偽装
+        // （`position_is_inside_string_literal` は行単位のクォート偶奇判定の
+        // ため、文字列が前の行から継続している行では「文字列の内側」と
+        // 認識できない）。`#[doc = "..."]` の文字列を複数行へまたがせて両
+        // マーカーを埋め込んでも、属性パスの先頭一致（`starts_with`、
+        // [`EXPECT_DISALLOWED_METHODS_ATTR_HEAD`]）により `#[doc` を
+        // `#[expect(clippy::disallowed_methods` と誤認しないため受理しない。
+        let dir = crate::test_scratch::scratch_root().join(format!(
+            "fw-gate-test-escape-marker-inside-multiline-string-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::create_dir_all(&dir);
+        let file = dir.join("lib.rs");
+        std::fs::write(
+            &file,
+            "fn f() {\n    #[doc = \"a\nexpect(clippy::disallowed_methods\nESCAPE-REVIEWED: fake\"]\n    raw_html(x);\n}\n",
+        )
+        .unwrap();
+
+        let mut violations = Vec::new();
+        scan_file_for_violations(&file, &mut violations);
+        assert_eq!(
+            violations.len(),
+            1,
+            "markers embedded inside a string literal that spans multiple lines must not be \
+accepted as a reviewed attribute: violations={violations:?}"
         );
 
         let _ = std::fs::remove_dir_all(&dir);
