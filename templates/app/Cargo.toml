@@ -10,8 +10,16 @@ publish = false
 # （v0.1.0）のため、通常の crates.io バージョン依存を使う（イシュー #412 の
 # 切替手順、docs/design/template-vendor-to-version-switch.md）。
 # ビルドの決定性（同一入力 → 同一出力）は同梱の Cargo.lock が担保する
-# （バージョン要件自体は Cargo 既定のキャレット要件）。外部クレートは追加しない（生成プロジェクトの依存グラフは
-# fandhe-frontend-core/fandhe-frontend-app の 2 crate のみ。REQ-3 の 60 件/深さ 6 に対し余裕）。
+# （バージョン要件自体は Cargo 既定のキャレット要件）。
+#
+# 「外部クレートは追加しない」は本テンプレートの初期状態（雛形出荷時）の
+# 設計根拠であり、生成プロジェクトへの恒久的な依存追加禁止ではない
+# （イシュー #1115）。雛形は依存グラフを fandhe-frontend-core/fandhe-frontend-app
+# の 2 crate のみに保つことで REQ-3（60 件/深さ 6）に余裕を持たせているが、
+# 生成後のプロジェクトでは同梱 deny.toml のポリシー（CI: .github/workflows/deny.yml
+# が強制）の範囲内で必要な外部クレート（例: serde）を追加してよい。追加時は
+# `cargo metadata` で依存件数・深さへの影響を確認し、REQ-3 の目安
+# （60 件/深さ 6）を参考にすること。
 [dependencies]
 fandhe-frontend-core = "0.1.0"
 fandhe-frontend-app = "0.1.0"
