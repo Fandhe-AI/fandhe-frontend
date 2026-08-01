@@ -14,12 +14,22 @@ Themes は `fandhe-frontend-headless-ui`（Primitives）が提供する構造・
 `data-*` 属性・WAI-ARIA 契約）を確認したい場合は [Primitives](./primitives.md)
 セクションを参照してください。
 
+> [!NOTE]
+> 本ページは repo main（開発中の最新コード）を対象としています。crates.io
+> 公開版のモジュール収録状況が本ページと異なることがあります。実際に
+> インストールしたバージョンの収録内容は
+> `https://docs.rs/fandhe-frontend-pre-styled-ui/<version>` で確認してくだ
+> さい（詳細は `docs/api/pre-styled-ui-api.md` §2a）。
+
 ## 掲示の読み方
 
 - Tabs / Accordion / Dialog / Menu / Select / Popover / Tooltip / Switch /
   RadioGroup などの状態機械を持つ部品は、選択中・開いた状態やチェック状態を
   固定した静的マークアップとして掲示しています。クリック等の実際の状態遷移は
-  wasm 層の責務であり、各部品ページのスコープ外です。
+  wasm 層の責務であり、各部品ページのスコープ外です。クライアント側
+  JavaScript（`fandhe-frontend-wasm-full` ハイドレーション）を読み込まない
+  JS ゼロ SSG 構成での挙動・代替パターンは
+  [JS ゼロ SSG での利用ガイド](../docs/guides/no-js-ssg.md)を参照してください。
 - Dialog / Drawer / Menu / Select / Combobox / Popover / Tooltip / Hover Card /
   Toggle Tip / Action Bar / Floating Panel / Toast / Tour はトリガー起点の
   オーバーレイ部品です。開いた状態のまま掲示すると本来の配置（画面全体を覆う・

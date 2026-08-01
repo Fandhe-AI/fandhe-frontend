@@ -166,8 +166,10 @@ fn site_nav_registers_all_pages_with_expected_paths() {
     // Checkbox Group が加わり 128 → 129 になった。イシュー #1009 で
     // Guides / API Reference のセクショントップページ 2 ページが加わり
     // 129 → 131 になった。イシュー #1021 で Primitives セクション（索引 1 +
-    // 部品 63 = 64 ページ）が新設され、131 → 195 になった。
-    assert_eq!(pages.len(), 195, "expected 195 pages, got {pages:?}");
+    // 部品 63 = 64 ページ）が新設され、131 → 195 になった。イシュー #1118 で
+    // Guides セクションへ「JS ゼロ SSG での利用ガイド」が加わり 195 → 196 に
+    // なった。
+    assert_eq!(pages.len(), 196, "expected 196 pages, got {pages:?}");
 
     // イシュー #1021: `/primitives/` 配下は部品ページ 63 件 + 索引ページ
     // （`/primitives/` 自身）1 件の 64 件。

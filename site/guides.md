@@ -34,3 +34,12 @@ Guides セクションは、目的別の実践ガイドをまとめています�
 
 `--ignore-scripts` を既定としたサプライチェーン対策付きの、静的アセット
 取り込みパイプラインの利用方法を解説します。
+
+## JS ゼロ SSG での利用ガイド
+
+[JS ゼロ SSG での利用ガイドを見る](../docs/guides/no-js-ssg.md)
+
+クライアント側 JavaScript（`fandhe-frontend-wasm-full` ハイドレーション）を
+読み込まない静的サイト構成で、`fandhe-frontend-headless-ui` /
+`fandhe-frontend-pre-styled-ui` の部品がどう振る舞うか、開閉 UI の代替
+パターンを解説します。

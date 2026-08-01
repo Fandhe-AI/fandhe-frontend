@@ -187,10 +187,12 @@ fn build_site_succeeds_for_the_real_repository_site() {
     // のセクショントップページ（`site/guides.md` / `site/api.md`）2 ページが
     // 加わり、129 → 131 になった（部品ページ 107 件は不変）。イシュー #1021 で
     // Primitives セクション（索引 1 + 部品 63 = 64 ページ）が新設され、
-    // 131 → 195 になった。
+    // 131 → 195 になった。イシュー #1118 で Guides セクションへ「JS ゼロ
+    // SSG での利用ガイド」（`docs/guides/no-js-ssg.md`）が加わり、
+    // 195 → 196 になった。
     assert_eq!(
         report.written.len(),
-        195,
+        196,
         "実サイトの生成ページ数が期待値と異なる: {:?}",
         report.written
     );
