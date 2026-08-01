@@ -216,7 +216,7 @@ mod tests {
         let html = render(&node);
         assert_eq!(
             html,
-            r#"<img data-scope="image" data-part="root" class="fd-image--fit-cover fd-image--aspect-ratio-auto" src="/a.png" alt="alt text"></img>"#
+            r#"<img data-scope="image" data-part="root" class="fd-image--fit-cover fd-image--aspect-ratio-auto" src="/a.png" alt="alt text">"#
         );
     }
 

@@ -624,7 +624,7 @@ mod tests {
         );
         assert_eq!(
             render(&node),
-            r#"<input data-scope="checkbox" data-part="hidden-input" data-state="checked" type="checkbox" name="terms" value="on" checked=""></input>"#
+            r#"<input data-scope="checkbox" data-part="hidden-input" data-state="checked" type="checkbox" name="terms" value="on" checked="">"#
         );
     }
 
@@ -693,7 +693,7 @@ mod tests {
         let node = hidden_input(&unchecked(), "terms", "on", vec![]);
         assert_eq!(
             render(&node),
-            r#"<input data-scope="checkbox" data-part="hidden-input" data-state="unchecked" type="checkbox" name="terms" value="on"></input>"#
+            r#"<input data-scope="checkbox" data-part="hidden-input" data-state="unchecked" type="checkbox" name="terms" value="on">"#
         );
     }
 
@@ -702,7 +702,7 @@ mod tests {
         let node = hidden_input(&checked(), "terms", "on", vec![]);
         assert_eq!(
             render(&node),
-            r#"<input data-scope="checkbox" data-part="hidden-input" data-state="checked" type="checkbox" name="terms" value="on" checked=""></input>"#
+            r#"<input data-scope="checkbox" data-part="hidden-input" data-state="checked" type="checkbox" name="terms" value="on" checked="">"#
         );
     }
 
@@ -711,7 +711,7 @@ mod tests {
         let node = hidden_input(&indeterminate(), "terms", "on", vec![]);
         assert_eq!(
             render(&node),
-            r#"<input data-scope="checkbox" data-part="hidden-input" data-state="indeterminate" type="checkbox" name="terms" value="on" aria-checked="mixed"></input>"#
+            r#"<input data-scope="checkbox" data-part="hidden-input" data-state="indeterminate" type="checkbox" name="terms" value="on" aria-checked="mixed">"#
         );
     }
 
@@ -724,7 +724,7 @@ mod tests {
         let node = hidden_input(&props, "terms", "on", vec![]);
         assert_eq!(
             render(&node),
-            r#"<input data-scope="checkbox" data-part="hidden-input" data-state="unchecked" data-disabled="" data-invalid="" data-required="" type="checkbox" name="terms" value="on" aria-invalid="true" disabled="" required=""></input>"#
+            r#"<input data-scope="checkbox" data-part="hidden-input" data-state="unchecked" data-disabled="" data-invalid="" data-required="" type="checkbox" name="terms" value="on" aria-invalid="true" disabled="" required="">"#
         );
     }
 
@@ -749,7 +749,7 @@ mod tests {
         // id のような非予約属性は通過する。
         assert_eq!(
             render(&node),
-            r#"<input data-scope="checkbox" data-part="hidden-input" data-state="checked" type="checkbox" name="terms" value="on" checked="" id="terms-input"></input>"#
+            r#"<input data-scope="checkbox" data-part="hidden-input" data-state="checked" type="checkbox" name="terms" value="on" checked="" id="terms-input">"#
         );
     }
 

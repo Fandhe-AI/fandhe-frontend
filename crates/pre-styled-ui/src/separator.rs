@@ -235,7 +235,7 @@ mod tests {
         let html = render(&separator(&SeparatorProps::default(), vec![]));
         assert_eq!(
             html,
-            r#"<hr data-scope="separator" data-part="root" class="fd-separator--orientation-horizontal fd-separator--variant-solid" role="separator" aria-orientation="horizontal" data-orientation="horizontal"></hr>"#
+            r#"<hr data-scope="separator" data-part="root" class="fd-separator--orientation-horizontal fd-separator--variant-solid" role="separator" aria-orientation="horizontal" data-orientation="horizontal">"#
         );
     }
 
