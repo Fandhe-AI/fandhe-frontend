@@ -23,6 +23,24 @@
 //! （遅延回収方式。発火直後に自己回収する設計〔実行中の `Closure` が自身を
 //! drop する自己参照パターン〕は正当性の直感的な確認が難しいため、本
 //! モジュールでは採用しない）。
+//!
+//! # 再入時（コールバック内からの同一 key 再登録）の安全性
+//!
+//! コールバック（`FnOnce`）自身が [`set_timeout_once`] を同一 `key` で
+//! 呼び直す「発火後の自己リスケジュール」は妥当な利用形態だが、素朴な
+//! 実装では実行中の `Closure`（＝呼び出し元の自分自身）を
+//! `clear_timeout_once` 経由で即座に drop してしまい、`Closure` の
+//! `call_mut` 実行途中でその裏付けメモリを解放する use-after-free になる
+//! （Cursor Bugbot 指摘、イシュー #1121 PR #1131 レビュー）。本モジュールは
+//! `FIRING_KEY`（現在発火中コールバックの `key`）と `TRASH`（即時 drop が
+//! 危険な `TimerHandle` の退避先）の 2 つの `thread_local!` でこれを回避
+//! する: 発火中の `key` に対する [`clear_timeout_once`] は該当エントリを
+//! `TRASH` へ退避するのみで `Closure` を drop しない。`TRASH` は
+//! [`set_timeout_once`]/[`clear_timeout_once`] の**次回呼び出し時**
+//! （＝発火中コールバックの呼び出しフレームを必ず抜けた後）にまとめて
+//! drop する。JS のシングルスレッド実行モデル上、あるタイマー
+//! コールバックの実行中に**別の**コールバックが割り込むことはないため、
+//! `FIRING_KEY` はスタックではなく単一のスカラーで足りる。
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -42,6 +60,30 @@ thread_local! {
     /// key -> 現在登録済みのワンショットタイマー。[`set_timeout_once`]/
     /// [`clear_timeout_once`] からのみ書き込まれる。
     static TIMERS: RefCell<HashMap<String, TimerHandle>> = RefCell::new(HashMap::new());
+
+    /// 現在 `call_mut` 実行中（発火中）のコールバックの `key`。発火中の
+    /// コールバックが自分自身と同じ `key` で [`set_timeout_once`]/
+    /// [`clear_timeout_once`] を呼び直す「自己リスケジュール」時、その
+    /// `key` に対応する `TimerHandle`（＝発火中の自分自身）を即座に drop
+    /// しないための再入検出フラグ（モジュール冒頭コメント参照）。
+    static FIRING_KEY: RefCell<Option<String>> = const { RefCell::new(None) };
+
+    /// 発火中で即時 drop が危険なため退避された `TimerHandle` の集積先。
+    /// [`set_timeout_once`]/[`clear_timeout_once`] の呼び出しの都度、
+    /// 冒頭で [`drain_trash`] によりまとめて drop する（発火中コールバック
+    /// の呼び出しフレームを必ず抜けた後にのみ到達するため安全）。
+    static TRASH: RefCell<Vec<TimerHandle>> = const { RefCell::new(Vec::new()) };
+}
+
+/// `TRASH` に退避済みの `TimerHandle` をすべて drop する。
+///
+/// [`set_timeout_once`]/[`clear_timeout_once`] の冒頭で呼ぶことで、発火中
+/// コールバックの呼び出しフレームを抜けた後の最初の機会に回収する（遅延
+/// 回収方式、モジュール冒頭コメント参照）。`TRASH` へ積まれた時点で JS
+/// 側の `clearTimeout` は既に呼び出し済みのため、ここでは `Closure` の
+/// drop のみを行う。
+fn drain_trash() {
+    TRASH.with(|cell| cell.borrow_mut().clear());
 }
 
 /// `delay_ms` 経過後に `callback`（`FnOnce`）を一度だけ実行するタイマーを
@@ -68,15 +110,30 @@ pub fn set_timeout_once(
 ) -> Result<(), JsValue> {
     let window = web_sys::window().ok_or_else(|| JsValue::from_str("window is unavailable"))?;
 
-    // 不変条件: 再登録時も「clearTimeout → drop」の順序を守る
-    // （モジュール冒頭コメント参照）。
+    // 発火中コールバックの呼び出しフレームを抜けた後の最初の機会に限り
+    // 到達する回収処理（モジュール冒頭コメント参照）。
+    drain_trash();
+
+    // 不変条件: 再登録時も「clearTimeout → drop（または再入時は
+    // TRASH への退避）」の順序を守る（モジュール冒頭コメント参照）。
     clear_timeout_once(key);
 
+    let key_for_closure = key.to_string();
     let callback_cell = RefCell::new(Some(callback));
     let closure = Closure::wrap(Box::new(move || {
+        // このコールバック自身が同じ key で set_timeout_once/
+        // clear_timeout_once を呼び直す「自己リスケジュール」に備え、
+        // 発火中である旨を記録する（cb() 実行中のみ有効）。
+        FIRING_KEY.with(|cell| *cell.borrow_mut() = Some(key_for_closure.clone()));
         if let Some(cb) = callback_cell.borrow_mut().take() {
             cb();
         }
+        // cb() を抜けた時点でこの Closure（自分自身）はまだ呼び出し
+        // フレーム上にあるため、ここで TRASH の回収は行わない
+        // （実行中の自分自身を drop してしまう use-after-free を避ける、
+        // モジュール冒頭コメント参照）。回収は次回の set_timeout_once/
+        // clear_timeout_once 呼び出し時（drain_trash 経由）に行う。
+        FIRING_KEY.with(|cell| *cell.borrow_mut() = None);
         // 発火後もこのエントリ自体は TIMERS に残留する（次回の同一 key
         // 登録・clear 時に回収する遅延回収方式、モジュール冒頭コメント
         // 参照）。ここで自身を能動的に取り除く自己回収は行わない。
@@ -108,7 +165,14 @@ pub fn set_timeout_once(
 /// 未登録の `key`（既に発火済みで [`set_timeout_once`] の再登録・本関数の
 /// 呼び出しによって回収済み、または一度も登録されていない）に対しては
 /// 何もしない（no-op、panic しない）。
+///
+/// `key` が現在発火中のコールバック自身のものである場合（コールバック
+/// 内から同一 key を再登録・明示 clear する自己リスケジュールの経路）は、
+/// `Closure` の drop を今すぐ行わず `TRASH` へ退避する（モジュール冒頭
+/// コメント参照。実行中の自分自身を drop する use-after-free を避ける）。
 pub fn clear_timeout_once(key: &str) {
+    drain_trash();
+
     let removed = TIMERS.with(|cell| cell.borrow_mut().remove(key));
     if let Some(handle) = removed {
         // JS 側タイマーの解除を Closure の drop より先に行う（不変条件）。
@@ -118,6 +182,16 @@ pub fn clear_timeout_once(key: &str) {
         if let Some(window) = web_sys::window() {
             window.clear_timeout_with_handle(handle.timeout_id);
         }
-        drop(handle.closure);
+
+        let is_firing_self = FIRING_KEY.with(|cell| cell.borrow().as_deref() == Some(key));
+        if is_firing_self {
+            // 発火中の自分自身の Closure を今 drop すると call_mut 実行中の
+            // メモリを解放する use-after-free になるため、呼び出しフレーム
+            // を抜けた後の次回 set_timeout_once/clear_timeout_once 呼び出し
+            // （drain_trash 経由）まで所有権だけを退避する。
+            TRASH.with(|cell| cell.borrow_mut().push(handle));
+        } else {
+            drop(handle.closure);
+        }
     }
 }
